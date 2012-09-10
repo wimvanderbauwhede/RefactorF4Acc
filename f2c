@@ -1,0 +1,24 @@
+#!/usr/bin/perl -w
+my $GPU_ROOT=$ENV{'GPU_ROOT'};
+my $GPU_HOME=$ENV{'GPU_HOME'};
+if (!@ARGV) {
+system("$GPU_ROOT/F2C-ACC");
+exit;
+} 
+if ($ARGV[0] =~ /-h/) {
+die "$0 [-H] <FORTRAN source filename> 
+    -H for include files\n";
+}
+my $file=$ARGV[0];
+my $H=0;
+if (@ARGV==2 && $ARGV[1] eq '-H') {
+    $H=1;
+}
+if ($H==0) {
+    $file=~s/\.\w*$//;
+    system("$GPU_ROOT/F2C-ACC --FileType=MODULE --Free --Generate=C $file.f ");
+    system("m4  $GPU_HOME/include/logical.m4 $GPU_HOME/include/ARCH.m4 $file.m4 > $file.c");
+} else {
+    unlink "$file.h";
+    system("$GPU_ROOT/F2C-ACC --comment --FileType=INCLUDE --Generate=C --OutputFile=$file.h $file");
+}
