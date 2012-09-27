@@ -51,6 +51,7 @@ sub find_subroutines_functions_and_includes {
         find( $tf_finder, $path );
     }
 #    find( $tf_finder, '.' );
+	$stref->{'SourceFiles'}=\%src_files;
     for my $src ( sort keys %src_files ) {#sort WV23JUL2012
     	if  ($src=~/\.c$/) {
 #    		warn "C SOURCE: $src\n";

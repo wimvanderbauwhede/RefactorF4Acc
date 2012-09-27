@@ -57,6 +57,11 @@ sub emit_all {
             close $NEW;
         }
     }
+
+# WV 27 sept 2012
+# New code to support modules
+	emit_all_new($stref); 
+
     for my $f ( keys %{ $stref->{'Subroutines'} } ) {
         emit_refactored_subroutine( $f, $targetdir, $stref, 0 );
     }
@@ -151,6 +156,7 @@ sub emit_refactored_function {
 } # END of emit_refactored_function()
 
 # -----------------------------------------------------------------------------
+# This must change: we first need to create a list src -> subs
 sub emit_refactored_subroutine {
     ( my $f, my $dir, my $stref, my $overwrite ) = @_;
     my $Sf     = $stref->{'Subroutines'}{$f};
@@ -199,10 +205,38 @@ sub emit_refactored_subroutine {
     }
 } # END of emit_refactored_subroutine()
 
+
+sub emit_all_new {
+(my $stref)=@_;
+for my $src (keys %{ $stref->{'SourceContains'} } ) {
+		print "SRC: $src\n";
+		print "\tCONTAINS: ";
+					print join(', ',keys %{  $stref->{'SourceContains'}{$src}   } ),"\n";
+
+		for my $sub_or_func (keys %{  $stref->{'SourceContains'}{$src}   } ) {
+# Find all function/subroutine calls in this function/subroutine
+# I'm afraid at the moment I only have CalledSubs, so function calls might not be there, need to check!
+# Also, need to check if SourceContains distinguishes between subroutines and functions
+		my $sub_func_type= $stref->{'SourceContains'}{$src}{$sub_or_func};
+		my $Sf = $stref->{$sub_func_type}{$sub_or_func};
+		my $called_sub_or_func = 'Called'. (($sub_func_type eq 'Subroutines') ? 'Subs' : 'Functions');
+		for my $called_sub ( keys %{ $Sf->{$called_sub_or_func} } ) {
+#			print "\tCALLED SUB/FUNC: $called_sub\n";
+			my $cs_src=$stref->{$sub_func_type}{$called_sub}{'Source'};
+			$stref->{'UsedModules'}{$src}{$cs_src}=1;
+		}
+	}		
+	print 	"\tUSES: ",join(', ', keys %{ $stref->{'UsedModules'}{$src} })."\n";
+
+}
+die;
+return $stref;
+
+} # END of emit_all_new()
+
 sub gen_noop {
 
-
-    open $NOOP,'>','/tmp/noop.c';
+    open my $NOOP,'>','/tmp/noop.c';
     print $NOOP '// Instead of continue, use a subroutine to do nothing. 
 //Purely for translation, to get around a bug in F2C_ACC: in the C code we drop them!
 void noop_ () {
@@ -214,7 +248,7 @@ void noop_ () {
 }
 
 sub gen_break {
-    open $BREAK,'>','/tmp/break.c';
+    open my $BREAK,'>','/tmp/break.c';
     print $BREAK,'
 void break(int l) {
         break;

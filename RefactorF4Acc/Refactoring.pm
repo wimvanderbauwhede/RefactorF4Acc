@@ -57,7 +57,12 @@ sub refactor_all {
     		$stref = refactor_kernel_signatures( $stref, $f); # FIXME: rename this!
         $stref=create_refactored_source(  $stref, $f );
     	} else {
-    		print "WARNING: SKIPPING $f: Callers: ",scalar keys %{$stref->{'Subroutines'}{$f}{'Callers'} },'; Program: ',$stref->{'Subroutines'}{$f}{'Program'},"\n" if $V;
+    		print "WARNING: SKIPPING $f: " if $V;
+			if (defined $f and $f ne '') {
+				print 'Callers: ',scalar keys %{$stref->{'Subroutines'}{$f}{'Callers'} },'; Program: ',$stref->{'Subroutines'}{$f}{'Program'},"\n" if $V;
+			} else {
+				print "Undefined\n" if $V;
+			}
     	}
     }
     return $stref;	
