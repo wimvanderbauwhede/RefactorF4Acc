@@ -205,14 +205,68 @@ sub emit_refactored_subroutine {
     }
 } # END of emit_refactored_subroutine()
 
+# -----------------------------------------------------------------------------
 
+sub emit_refactored_function_new {
+    ( my $f, my $stref ) = @_;
+    my $Ff = $stref->{'Functions'}{$f};
+    print "EMITTING source for FUNCTION $f\n" if $V;
+    my @lines=();
+
+    my $srcref = $Ff->{'RefactoredCode'};
+    my $s      = $Ff->{'Source'};
+    if ( defined $srcref ) {
+            push @lines, "\n! *** FUNCTION $f ***\n";
+        
+        my $prevline='C ';
+        for my $annline ( @{$srcref} ) {
+            my $line = $annline->[0]; 
+            if (not ($prevline =~/^\s*$/ and $line =~/^\s*$/)) {
+            push @lines, "$line\n";
+            print "$line\n" if $V;
+            }
+            $prevline=$line;
+        }
+        close $SRC;
+
+    }
+    return @lines;
+    #    else {
+    #       warn "NO REFACTORED CODE FOR $f\n";
+    #       warn Dumper($Ff->{'Lines'});
+    #    }
+} # END of emit_refactored_function_new()
+
+# -----------------------------------------------------------------------------
+# This must change: we first need to create a list src -> subs
+sub emit_refactored_subroutine_new {
+    ( my $f, my $stref ) = @_;
+    my $Sf     = $stref->{'Subroutines'}{$f};
+    my $srcref = $Sf->{'RefactoredCode'};
+    my @lines=();
+    if ( defined $srcref ) {
+        print "INFO: emitting refactored code for $f in $s\n" if $V;
+            push @lines,"\n! *** SUBROUTINE $f ***\n";
+        my $prevline='! ';
+        for my $annline ( @{$srcref} ) {
+            my $line = $annline->[0]; 
+            if (not ($prevline =~/^\s*$/ and $line =~/^\s*$/)) {
+            push @lines,"$line\n";
+            print "$line\n" if $V;
+            }
+            $prevline=$line;
+        }        
+    }
+    return @lines;
+} # END of emit_refactored_subroutine_new()
+# -----------------------------------------------------------------------------
 sub emit_all_new {
 (my $stref)=@_;
 for my $src (keys %{ $stref->{'SourceContains'} } ) {
 		print "SRC: $src\n";
 		print "\tCONTAINS: ";
 					print join(', ',keys %{  $stref->{'SourceContains'}{$src}   } ),"\n";
-
+        my @module_contains=();
 		for my $sub_or_func (keys %{  $stref->{'SourceContains'}{$src}   } ) {
 # Find all function/subroutine calls in this function/subroutine
 # I'm afraid at the moment I only have CalledSubs, so function calls might not be there, need to check!
@@ -225,15 +279,34 @@ for my $src (keys %{ $stref->{'SourceContains'} } ) {
 			my $cs_src=$stref->{$sub_func_type}{$called_sub}{'Source'};
 			$stref->{'UsedModules'}{$src}{$cs_src}=1;
 		}
+		if ($sub_func_type eq 'Subroutines') {
+		  @module_contains=(@module_contains, emit_refactored_subroutine_new($sub_or_func,$stref)); 
+		} elsif ($sub_func_type eq 'Functions') {
+		  @module_contains=(@module_contains, emit_refactored_function_new($sub_or_func,$stref ));
+		}
 	}		
 	print 	"\tUSES: ",join(', ', keys %{ $stref->{'UsedModules'}{$src} })."\n";
-
+	my $mod_name=$src;
+	$mod_name=~s/\..*$//;
+	my $mod_header="module $mod_name";
+	my $mod_footer="end module $mod_name";
+	my @mod_uses=();
+	for my $mod_src (keys %{ $stref->{'UsedModules'}{$src} }) {
+		my $used_mod_name = $mod_src;
+		$used_mod_name =~s/\..*$//;
+		push @mod_uses, "use $used_mod_name";
+	}
+	
+	my @module_lines=($mod_header, @mod_uses,"contains", @module_contains,$mod_footer);
+	for my $mod_line (@module_lines) {
+		print $mod_line,"\n"; 
+	}
 }
 die;
 return $stref;
 
 } # END of emit_all_new()
-
+# -----------------------------------------------------------------------------
 sub gen_noop {
 
     open my $NOOP,'>','/tmp/noop.c';
