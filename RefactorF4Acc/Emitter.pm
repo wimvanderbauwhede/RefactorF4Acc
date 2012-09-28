@@ -60,7 +60,7 @@ sub emit_all {
 
 # WV 27 sept 2012
 # New code to support modules
-	emit_all_new($stref); 
+#emit_all_new($stref); 
 
     for my $f ( keys %{ $stref->{'Subroutines'} } ) {
         emit_refactored_subroutine( $f, $targetdir, $stref, 0 );
