@@ -49,7 +49,7 @@ sub create_refactored_subroutine_call {
     }
     my $globals = determine_exglob_subroutine_call_args( $stref, $f, $name );
     my $orig_args = [];
-    for my $arg ( @{ $tags{'SubroutineCall'}{'Args'} } ) {
+    for my $arg ( @{ $tags{'SubroutineCall'}{'Args'}{'List'} } ) {
         if ( exists $conflicting_locals->{$arg} ) {
             push @{$orig_args}, $conflicting_locals->{$arg};
         } else {
@@ -155,7 +155,7 @@ sub refactor_subroutine_call_args {
     }
 
     my $orig_args = [];
-    for my $arg ( @{ $tags->{'SubroutineCall'}{'Args'} } ) {
+    for my $arg ( @{ $tags->{'SubroutineCall'}{'Args'}{'List'} } ) {
         if ( exists $conflicting_locals{$arg} ) {
             push @{$orig_args}, $conflicting_locals{$arg};
         } else {

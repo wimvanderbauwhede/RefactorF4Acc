@@ -56,22 +56,22 @@ sub parse_fortran_src {
 	}
 
 # 2. Parse the type declarations in the source, create a per-target table Vars and a per-line VarDecl list and other context-free stuff
-	$stref = analyse_lines( $f, $stref );
+	$stref = _analyse_lines( $f, $stref );
 
 	# 3. Parse includes
-	$stref = parse_includes( $f, $stref );
+	$stref = _parse_includes( $f, $stref );
 	if ( not $is_incl ) {
 		if ( $stref->{$sub_or_func}{$f}{'HasBlocks'} == 1 ) {					
-			$stref = separate_blocks( $f, $stref );
+			$stref = _separate_blocks( $f, $stref );
 		}
         # Recursive descent via subroutine calls
-		$stref = parse_subroutine_and_function_calls( $f, $stref );
+		$stref = _parse_subroutine_and_function_calls( $f, $stref );
 		$stref->{$sub_or_func}{$f}{'Status'} = $PARSED;
 		print "DONE PARSING $sub_or_func $f\n" if $V;		
 	} else {    # includes
 
 # 4. For includes, parse common blocks and parameters, create $stref->{'Commons'}
-		$stref = get_commons_params_from_includes( $f, $stref );
+		$stref = _get_commons_params_from_includes( $f, $stref );
 		$stref->{'IncludeFiles'}{$f}{'Status'} = $PARSED;
 	}
 
@@ -94,7 +94,7 @@ sub parse_fortran_src {
 # Create a table of all variables declared in the target, and a list of all the var names occuring on each line.
 # We record the type of the var and whether it's a scalar or array, because we need that information for translation to C.
 # Also check if the variable happens to be a function. If that is the case, mark that function as 'Called'; if we have not yet parsed its source, do it now.
-sub analyse_lines {
+sub _analyse_lines {
 	( my $f, my $stref ) = @_;
 	my $sub_func_incl = sub_func_or_incl( $f, $stref );
 	my $Sf            = $stref->{$sub_func_incl}{$f};
@@ -174,7 +174,6 @@ sub analyse_lines {
 			} elsif ( $line =~ /^\s*(.*)\s*::\s*(.*?)\s*$/ )
 			{    #F95 declaration, no need for refactoring
 
-				#			     $Sf->{'FStyle'}='F95';
 				$type   = $1;
 				$varlst = $2;
 				$indent = $line;
@@ -185,7 +184,6 @@ sub analyse_lines {
                 if ( $line =~ /,\s*parameter\s*.*?::\s*(\w+\s*=\s*.+?)\s*$/ )
 				{    # F95-style parameters
 
-					#				    $Sf->{'FStyle'}='F95';
 					my $parliststr = $1;										
 					my @partups    = split( /\s*,\s*/, $parliststr );
 					my %pvars      =
@@ -361,7 +359,7 @@ sub analyse_lines {
 # For every 'include' statement in a subroutine
 # the filename is entered in 'Includes' and in Info->[$index]{'Include'}
 # If the include was not yet read, do it now.
-sub parse_includes {
+sub _parse_includes {
 	( my $f, my $stref ) = @_;
 #	local $V=1;
 	
@@ -427,7 +425,7 @@ sub parse_includes {
 
 # -----------------------------------------------------------------------------
 
-sub detect_blocks {
+sub OBSOLETE_detect_blocks {
 	( my $stref, my $s ) = @_;
 	print "CHECKING BLOCKS in $s\n" if $V;
 	my $sub_func_incl = sub_func_or_incl( $s, $stref );
@@ -469,7 +467,7 @@ sub detect_blocks {
 
 =cut
 
-sub separate_blocks {
+sub _separate_blocks {
 	( my $f, my $stref ) = @_;
 
 #    die "separate_blocks(): FIXME: we need to add in the locals from the parent subroutine as locals in the new subroutine!";
@@ -657,32 +655,31 @@ sub separate_blocks {
 			  $vars{$var
 			  }; # FIXME: this is "inheritance, but in principle a re-parse is better?"
 		}
-		$Sblock->{'Args'} = $args{$block};
+		$Sblock->{'Args'}{'List'} = $args{$block};
 
 		# Create Signature and corresponding Decls
 		my $sixspaces = ' ' x 6;
 		my $sig       = $sixspaces . 'subroutine ' . $block . '(';
-		my $decls     = [];
+#		my $decls     = [];
 		for my $argv ( @{ $args{$block} } ) {
 			$sig .= "$argv,";
 
 			#			my $decl = $vars{$argv}{'Decl'};
-#			print '<',$f,$Sf->{'FStyle'},">\n";
 			my $decl =
 			  ( $Sf->{'FStyle'} eq 'F77' )
-			  ? format_f77_var_decl( $Sf->{'Vars'}, $argv )
-			  : format_f95_var_decl( $Sf->{'Vars'}, $argv );
+			  ? format_f77_var_decl( $Sf, $argv )
+			  : format_f95_var_decl( $Sf, $argv );
 
 #			if ($f eq 'timemanager' && $block eq 'particles_main_loop' && $decl=~/drydeposit/) {
 #				print "DECL: $decl\n";
 #				print "VARS: ".Dumper( $Sf->{'Vars'}{$argv});
 #			}
-			push @{$decls}, $sixspaces . $decl;    # Why do we need this anyway?
+#			push @{$decls}, $sixspaces . $decl;    # Why do we need this anyway?
 			$Sf->{'Vars'}{$argv}{'Decl'} = $sixspaces . $decl;
 		}
 		$sig =~ s/\,$/)/s;
 		$Sblock->{'Sig'}   = $sig;
-		$Sblock->{'Decls'} = $decls;
+#		$Sblock->{'Decls'} = $decls;
 
 		# Add variable declarations and info to line
 		my $sigline = shift @{ $Sblock->{'AnnLines'} };
@@ -730,7 +727,7 @@ sub separate_blocks {
 		#print "YES! GENERATED DECLS ARE WRONG!!!\n";
 		if ($V) {
 			print $sig, "\n";
-			print join( "\n", @{$decls} ), "\n";
+#			print join( "\n", @{$decls} ), "\n";
 		}
 		$Sblock->{'Status'} = $READ;
 
@@ -748,7 +745,7 @@ sub separate_blocks {
 
 # -----------------------------------------------------------------------------
 
-sub parse_subroutine_and_function_calls {
+sub _parse_subroutine_and_function_calls {
 	( my $f, my $stref ) = @_;
 	print "PARSING SUBROUTINE/FUNCTION CALLS in $f\n" if $V;
 	my $pnid        = $stref->{'NId'};
@@ -823,7 +820,7 @@ sub parse_subroutine_and_function_calls {
 				}
 
 				#                $called_subs{$name} = $name;
-				$info->{'SubroutineCall'}{'Args'} = $argstr;
+#				$info->{'SubroutineCall'}{'Args'} = $argstr;
 				my $tvarlst = $argstr;
 
 				# replace , by ; in array indices and nested function calls
@@ -848,7 +845,8 @@ sub parse_subroutine_and_function_calls {
 					push @argvars, $var;
 				}
 
-				$info->{'SubroutineCall'}{'Args'} = \@argvars;
+				$info->{'SubroutineCall'}{'Args'}{'List'} = \@argvars;
+				$info->{'SubroutineCall'}{'Args'}{'Set'} = { map {$_ => 1} @argvars };
 				$info->{'SubroutineCall'}{'Name'} = $name;
 
 				if ( defined $Sname
@@ -930,7 +928,7 @@ sub parse_subroutine_and_function_calls {
 # -----------------------------------------------------------------------------
 # -----------------------------------------------------------------------------
 
-sub get_commons_params_from_includes {
+sub _get_commons_params_from_includes {
 	( my $f, my $stref ) = @_;
 	my $Sf     = $stref->{'IncludeFiles'}{$f};
 	my $srcref = $Sf->{'AnnLines'};
@@ -1480,4 +1478,4 @@ sub parse_vardecl {
 	}
 
 	return $vars;
-}
+} # END of parse_vardecl()

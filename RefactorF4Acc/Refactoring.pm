@@ -30,6 +30,14 @@ use Exporter;
 );
 
 # -----------------------------------------------------------------------------
+
+# The problem is that we collect the IODir information _after_ we do the refactoring
+# As a result the refactored lines are already created. 
+# A cheap solution would be to put an INTENT placeholder in each argument line
+# then use substitution. Will work but ugly. Also, it means I need to know if a var is an arg
+# A cleaner way would be to create a datastructure for the declaration line and only to generate the actual line at the very end
+# In fact, that is of course the cleanest way for *everything*!
+
 sub refactor_all {
 	( my $stref, my $subname ) = @_;
         
@@ -55,7 +63,7 @@ sub refactor_all {
     for my $f ( keys %{ $stref->{'Subroutines'} } ) {
     	if (scalar keys %{$stref->{'Subroutines'}{$f}{'Callers'} } or $stref->{'Subroutines'}{$f}{'Program'} ) {    		
     		$stref = refactor_kernel_signatures( $stref, $f); # FIXME: rename this!
-        $stref=create_refactored_source(  $stref, $f );
+            $stref=create_refactored_source(  $stref, $f );
     	} else {
     		print "WARNING: SKIPPING $f: " if $V;
 			if (defined $f and $f ne '') {
@@ -64,6 +72,15 @@ sub refactor_all {
 				print "Undefined\n" if $V;
 			}
     	}
+#  if ( $f eq 'timemanager' ) {
+#       print "REFACTORED LINES ($f):\n";
+#        my $Sf = $stref->{'Subroutines'}{$f};
+#       for my $tmpline ( @{ $Sf->{'RefactoredCode'} } ) {
+#           print $tmpline->[0], "\n";#"\t", join( ';', keys %{ $tmpline->[1] } ),"\n";
+#       }
+#       print "=================\n";
+#       die;
+#   }
     }
     return $stref;	
-} # END of  
+} # END of refactor_all()  

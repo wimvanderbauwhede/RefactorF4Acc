@@ -34,10 +34,10 @@ use Exporter;
 =pod
 Subroutines
     refactor_all_subroutines
-    refactor_subroutine_main
-    refactor_globals
+    _refactor_subroutine_main
+    _refactor_globals
         rename_conflicting_locals #WV: not sure about this        
-    refactor_calls_globals 
+    _refactor_calls_globals 
 =cut
 
 # -----------------------------------------------------------------------------
@@ -57,7 +57,7 @@ sub refactor_all_subroutines {
         next if $Sf->{'Status'} == $UNREAD;
         next if $Sf->{'Status'} == $READ;
         next if $Sf->{'Status'} == $FROM_BLOCK;
-      $stref = refactor_subroutine_main( $f, $stref );
+      $stref = _refactor_subroutine_main( $f, $stref );
     }
     return $stref;
 }    # END of refactor_all_subroutines()
@@ -66,9 +66,9 @@ sub refactor_all_subroutines {
 
 =begin markdown
 
-## Info refactoring `refactor_subroutine_main()`
+## Info refactoring `_refactor_subroutine_main()`
 
-Essentially, call `refactor_globals()` and then call `create_refactored_source()`
+Essentially, call `_refactor_globals()` and then call `create_refactored_source()`
 
 for every line:
 
@@ -89,7 +89,7 @@ This is a node called 'RefactoredSubroutineCall'
 =end markdown
 =cut
 
-sub refactor_subroutine_main {
+sub _refactor_subroutine_main {
     ( my $f, my $stref ) = @_;
 #    local $V=1 if $f=~/interpol_all_/;
     if ($V) {
@@ -107,9 +107,9 @@ sub refactor_subroutine_main {
     my $rlines = $annlines;
     if ( $Sf->{'HasCommons'} ) {
         if ( $Sf->{'RefactorGlobals'} == 1 ) {
-          $rlines = refactor_globals( $stref, $f, $annlines );
+          $rlines = _refactor_globals( $stref, $f, $annlines );
         } elsif ( $Sf->{'RefactorGlobals'} == 2 ) {
-            $rlines = refactor_calls_globals( $stref, $f, $annlines );
+            $rlines = _refactor_calls_globals( $stref, $f, $annlines );
         }
     }
     $Sf->{'RefactoredCode'}=$rlines;
@@ -119,14 +119,23 @@ sub refactor_subroutine_main {
         }
     die;
     }
+#   if ( $f eq 'timemanager' ) {
+#       print "REFACTORED LINES ($f):\n";
+#
+#       for my $tmpline ( @{ $Sf->{'RefactoredCode'} } ) {
+#           print $tmpline->[0], "\n";#"\t", join( ';', keys %{ $tmpline->[1] } ),"\n";
+#       }
+#       print "=================\n";
+#       die;
+#   }
     return $stref;
-}    # END of refactor_subroutine_main()
+}    # END of _refactor_subroutine_main()
 
 # -----------------------------------------------------------------------------
 
 # -----------------------------------------------------------------------------
 
-sub refactor_globals {
+sub _refactor_globals {
     ( my $stref, my $f, my $annlines ) = @_;
     
 #   croak "FIXME: the caller of a sub with RefactorGlobals should refactor its globals!";
@@ -231,10 +240,10 @@ sub refactor_globals {
 #    return $stref;
 # die  if $f eq 'interpol_all'; 
     return $rlines;
-}    # END of refactor_globals()
+}    # END of _refactor_globals()
 
 # -----------------------------------------------------------------------------
-sub refactor_calls_globals {
+sub _refactor_calls_globals {
     ( my $stref, my $f, my $annlines ) = @_;
 #    my $annlines = get_annotated_sourcelines($stref,$f);
     print "REFACTORING CALLS WITH GLOBALS in $f\n" if $V;
@@ -294,7 +303,7 @@ sub refactor_calls_globals {
         $idx++;
     }
     return $rlines;    
-}    # END of refactor_calls_globals()
+}    # END of _refactor_calls_globals()
 
 # --------------------------------------------------------------------------------
 # This routine renames instances of locals that conflict with globals (using names from create_refactored_vardecls() )
@@ -307,7 +316,7 @@ sub rename_conflicting_locals {
     if ( exists $Sf->{'ConflictingGlobals'} ) {    
         for my $lvar ( keys %{ $Sf->{'ConflictingGlobals'} } ) {
             if ( $rline =~ /\b$lvar\b/ ) {
-                print
+                warn
     "WARNING: CONFLICT in $f, renaming $lvar with $Sf->{'ConflictingGlobals'}{$lvar}\n"
                   if $W;
                 $rline =~ s/\b$lvar\b/$Sf->{'ConflictingGlobals'}{$lvar}/g;

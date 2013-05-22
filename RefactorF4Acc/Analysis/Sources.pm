@@ -1,4 +1,4 @@
-package RefactorF4Acc::Analysis::Common;
+package RefactorF4Acc::Analysis::Sources;
 
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
@@ -19,9 +19,9 @@ use Data::Dumper;
 
 use Exporter;
 
-@RefactorF4Acc::Analysis::Common::ISA = qw(Exporter);
+@RefactorF4Acc::Analysis::Sources::ISA = qw(Exporter);
 
-@RefactorF4Acc::Analysis::Common::EXPORT = qw(
+@RefactorF4Acc::Analysis::Sources::EXPORT = qw(
     &analyse_sources
 );
 
@@ -38,7 +38,7 @@ sub analyse_sources {
                 && $Sf->{'Program'} == 1 )
           )
         {
-            $stref = identify_loops_breaks( $f, $stref );
+            $stref = _identify_loops_breaks( $f, $stref );
         } else {
             print "INFO: Subroutine $f is never called, skipping analysis\n"
               if $I;
@@ -50,7 +50,7 @@ sub analyse_sources {
     for my $f ( keys %{ $stref->{'Functions'} } ) {
         my $Ff = $stref->{'Functions'}{$f};
         if ( exists $Ff->{'Called'} && $Ff->{'Called'} == 1 ) {     
-            $stref = identify_loops_breaks( $f, $stref );
+            $stref = _identify_loops_breaks( $f, $stref );
         } else {
             print "INFO: Function $f is never called, skipping analysis\n" if $I;             
         }
@@ -59,7 +59,7 @@ sub analyse_sources {
 }    # END of analyse_sources
 # -----------------------------------------------------------------------------
 # FIXME: "error: break statement not within loop or switch"
-sub identify_loops_breaks {
+sub _identify_loops_breaks {
     ( my $f, my $stref ) = @_;
     my $sub_or_func = sub_func_or_incl( $f, $stref );
     my $Sf          = $stref->{$sub_or_func}{$f};

@@ -24,10 +24,62 @@ use Exporter;
     &emit_all
 );
 
-# -----------------------------------------------------------------------------
-sub emit_all {
+sub OLD_emit_all {
     ( my $stref ) = @_;
+    _init_emit_all();
+    
+#    if ( not -e $targetdir ) {
+#        mkdir $targetdir;
+#        my @incs = glob('include*');
+#        map { copy( $_, "$targetdir/$_" ) }
+#          @incs;    # Perl::Critic wants a for-loop, drat it
+#
+#    } elsif ( not -d $targetdir ) {
+#        die "ERROR: $targetdir exists but is not a directory!\n";
+#    } else {
+#        my @oldsrcs = glob("$targetdir/*.f95");
+#        
+#        map { unlink $_ } @oldsrcs;
+#
+#        # Check if includes have changed
+#        my @incs = glob('include*');
+#        for my $inc (@incs) {
+#            open( my $OLD, $inc );
+#            binmode($OLD);
+#            open( my $NEW, $inc );
+#            binmode($NEW);
+#            if ( Digest::MD5->new->addfile($OLD)->hexdigest ne
+#                Digest::MD5->new->addfile($NEW)->hexdigest )
+#            {
+#                copy( $inc, "$targetdir/$inc" );
+#            }
+#            close $OLD;
+#            close $NEW;
+#        }
+#    }
 
+    for my $f ( keys %{ $stref->{'Subroutines'} } ) {
+        _emit_refactored_subroutine( $f, $targetdir, $stref, 0 );
+    }
+    for my $f ( keys %{ $stref->{'IncludeFiles'} } ) {
+        _emit_refactored_include( $f, $targetdir, $stref );
+    }
+    for my $f ( keys %{ $stref->{'Functions'} } ) {
+        _emit_refactored_function( $f, $targetdir, $stref );
+    }
+
+    # NOOP source
+    # Note that we always use the C source
+    if ($noop) {
+        _gen_noop($targetdir);        
+    }
+
+}    # END of OLD_emit_all()
+
+# -----------------------------------------------------------------------------
+sub _init_emit_all {
+        # if target dir for refactored code does not exist, create it
+        # and copy include files into it
     if ( not -e $targetdir ) {
         mkdir $targetdir;
         my @incs = glob('include*');
@@ -37,8 +89,8 @@ sub emit_all {
     } elsif ( not -d $targetdir ) {
         die "ERROR: $targetdir exists but is not a directory!\n";
     } else {
-        my @oldsrcs = glob("$targetdir/*.f95");
-        
+    	# Remove existing Fortran-95 sources
+        my @oldsrcs = glob("$targetdir/*.f95");        
         map { unlink $_ } @oldsrcs;
 
         # Check if includes have changed
@@ -56,33 +108,10 @@ sub emit_all {
             close $OLD;
             close $NEW;
         }
-    }
-
-# WV 27 sept 2012
-# New code to support modules
-#emit_all_new($stref); 
-
-    for my $f ( keys %{ $stref->{'Subroutines'} } ) {
-        emit_refactored_subroutine( $f, $targetdir, $stref, 0 );
-    }
-    for my $f ( keys %{ $stref->{'IncludeFiles'} } ) {
-        emit_refactored_include( $f, $targetdir, $stref );
-    }
-    for my $f ( keys %{ $stref->{'Functions'} } ) {
-        emit_refactored_function( $f, $targetdir, $stref );
-    }
-
-    # NOOP source
-    # Note that we always use the C source
-    if ($noop) {
-        gen_noop();
-        copy( '/tmp/noop.c', "$targetdir/noop.c" );
-    }
-
-}    # END of emit_all()
-
+    }    
+}
 # -----------------------------------------------------------------------------
-sub emit_refactored_include {
+sub _emit_refactored_include {
     ( my $f, my $dir, my $stref ) = @_;
     my $srcref = $stref->{'IncludeFiles'}{$f}{'RefactoredCode'};
     my $incsrc=$stref->{'IncludeFiles'}{$f}{'Source'};
@@ -105,7 +134,7 @@ sub emit_refactored_include {
 
 # -----------------------------------------------------------------------------
 
-sub emit_refactored_function {
+sub _emit_refactored_function {
     ( my $f, my $dir, my $stref ) = @_;
     my $Ff = $stref->{'Functions'}{$f};
     print "EMITTING source for FUNCTION $f\n" if $V;
@@ -157,7 +186,7 @@ sub emit_refactored_function {
 
 # -----------------------------------------------------------------------------
 # This must change: we first need to create a list src -> subs
-sub emit_refactored_subroutine {
+sub _emit_refactored_subroutine {
     ( my $f, my $dir, my $stref, my $overwrite ) = @_;
     my $Sf     = $stref->{'Subroutines'}{$f};
     my $srcref = $Sf->{'RefactoredCode'};
@@ -207,9 +236,10 @@ sub emit_refactored_subroutine {
 
 # -----------------------------------------------------------------------------
 
-sub emit_refactored_function_new {
+sub _emit_refactored_function_new {
     ( my $f, my $stref ) = @_;
     my $Ff = $stref->{'Functions'}{$f};
+#	local $V=1;
     print "EMITTING source for FUNCTION $f\n" if $V;
     my @lines=();
 
@@ -227,8 +257,6 @@ sub emit_refactored_function_new {
             }
             $prevline=$line;
         }
-        close $SRC;
-
     }
     return @lines;
     #    else {
@@ -239,13 +267,14 @@ sub emit_refactored_function_new {
 
 # -----------------------------------------------------------------------------
 # This must change: we first need to create a list src -> subs
-sub emit_refactored_subroutine_new {
+sub _emit_refactored_subroutine_new {
     ( my $f, my $stref ) = @_;
     my $Sf     = $stref->{'Subroutines'}{$f};
     my $srcref = $Sf->{'RefactoredCode'};
+#	local $V=1;
     my @lines=();
     if ( defined $srcref ) {
-        print "INFO: emitting refactored code for $f in $s\n" if $V;
+        print "INFO: emitting refactored code for $f\n" if $V;
             push @lines,"\n! *** SUBROUTINE $f ***\n";
         my $prevline='! ';
         for my $annline ( @{$srcref} ) {
@@ -256,60 +285,100 @@ sub emit_refactored_subroutine_new {
             }
             $prevline=$line;
         }        
-    }
+    } else {
+	print "! SUBROUTINE $f: NO RefactoredCode (most likely sub not used)\n";
+	}
     return @lines;
 } # END of emit_refactored_subroutine_new()
 # -----------------------------------------------------------------------------
-sub emit_all_new {
-(my $stref)=@_;
-for my $src (keys %{ $stref->{'SourceContains'} } ) {
-		print "SRC: $src\n";
-		print "\tCONTAINS: ";
-					print join(', ',keys %{  $stref->{'SourceContains'}{$src}   } ),"\n";
-        my @module_contains=();
-		for my $sub_or_func (keys %{  $stref->{'SourceContains'}{$src}   } ) {
+sub emit_all {
+    (my $stref)=@_;
+    _init_emit_all();
+    for my $src (keys %{ $stref->{'SourceContains'} } ) {
+        
+        print "INFO: emitting refactored code for $src\n" if $V;
+        if ( $src =~ /\w\/\w/ ) {    
+            # Source resides in subdirectory, create it if required
+            my @dirs = split( /\//, $src );
+            pop @dirs;
+            map {
+                my $targetdir = $_;
+                if ( not -e $targetdir ) {
+                    mkdir $targetdir;
+                }
+            } @dirs;
+        }
+    	
+	   if ($I) {
+            print '! ','-' x 80,"\n";
+            print "! SRC: $src\n";
+            print "!\tCONTAINS: ";
+            print join(', ',keys %{  $stref->{'SourceContains'}{$src}   } ),"\n";
+	   }
+	   
+        if (    not exists $stref->{'BuildSources'}{'C'}{$src}
+                and not exists $stref->{'BuildSources'}{'F'}{$src} ) {
+            $stref->{'BuildSources'}{'F'}{$src} = 1;
+        }        
+	   
+       my @module_contains=();
+	   for my $sub_or_func (keys %{  $stref->{'SourceContains'}{$src}   } ) {
+	   	
 # Find all function/subroutine calls in this function/subroutine
-# I'm afraid at the moment I only have CalledSubs, so function calls might not be there, need to check!
-# Also, need to check if SourceContains distinguishes between subroutines and functions
-		my $sub_func_type= $stref->{'SourceContains'}{$src}{$sub_or_func};
-		my $Sf = $stref->{$sub_func_type}{$sub_or_func};
-		my $called_sub_or_func = 'Called'. (($sub_func_type eq 'Subroutines') ? 'Subs' : 'Functions');
-		for my $called_sub ( keys %{ $Sf->{$called_sub_or_func} } ) {
-#			print "\tCALLED SUB/FUNC: $called_sub\n";
-			my $cs_src=$stref->{$sub_func_type}{$called_sub}{'Source'};
-			$stref->{'UsedModules'}{$src}{$cs_src}=1;
+			my $sub_func_type= $stref->{'SourceContains'}{$src}{$sub_or_func};
+			my $Sf = $stref->{$sub_func_type}{$sub_or_func};
+#			warn "$sub_func_type: $sub_or_func\n";
+			my $called_sub_or_func = 'Called'. (($sub_func_type eq 'Subroutines') ? 'Subs' : 'Functions');
+			for my $called_sub ( keys %{ $Sf->{$called_sub_or_func} } ) {
+	#			print "\tCALLED SUB/FUNC: $called_sub\n";
+				my $cs_src=$stref->{$sub_func_type}{$called_sub}{'Source'};
+				$stref->{'UsedModules'}{$src}{$cs_src}=1;
+			}
+			if ($sub_func_type eq 'Subroutines') {
+	#			print "! REFACTORING SUBROUTINE $sub_or_func\n";
+			  @module_contains=(@module_contains, _emit_refactored_subroutine_new($sub_or_func,$stref)); 
+			} elsif ($sub_func_type eq 'Functions') {
+	#			print "! REFACTORING FUNCTION $sub_or_func\n";
+			  @module_contains=(@module_contains, _emit_refactored_function_new($sub_or_func,$stref ));
+			} else {
+				die $sub_or_func;
+				@module_contains=(@module_contains, "INCORRECT TYPE FOR $sub_or_func\n");
+			}
+		}		
+#	print 	"!\tUSES: ",join(', ', keys %{ $stref->{'UsedModules'}{$src} })."\n";
+#        warn join("\n",@module_contains);
+		if (@module_contains) {
+			my $mod_name=$src;
+			$mod_name=~s/\.\///;
+			$mod_name=~s/\..*$//;
+			my $mod_header="module $mod_name\n";
+			my $mod_footer="\nend module $mod_name\n";
+			my @mod_uses=();
+			for my $mod_src (keys %{ $stref->{'UsedModules'}{$src} }) {
+				my $used_mod_name = $mod_src;
+				$used_mod_name =~s/\.\///;
+				$used_mod_name =~s/\..*$//;
+				push @mod_uses, "use $used_mod_name\n";
+			}
+			
+			my $nsrc=$src;$nsrc=~s/\.f$/.f95/;
+			open my $TGT, '>', "$targetdir/$nsrc" or die $!;
+			my @module_lines=($mod_header, @mod_uses,"contains\n", @module_contains,$mod_footer);
+			for my $mod_line (@module_lines) {
+#				warn $mod_line if $src=~/timemanager/;
+				print $TGT $mod_line; 
+			}
+			close $TGT;
 		}
-		if ($sub_func_type eq 'Subroutines') {
-		  @module_contains=(@module_contains, emit_refactored_subroutine_new($sub_or_func,$stref)); 
-		} elsif ($sub_func_type eq 'Functions') {
-		  @module_contains=(@module_contains, emit_refactored_function_new($sub_or_func,$stref ));
-		}
-	}		
-	print 	"\tUSES: ",join(', ', keys %{ $stref->{'UsedModules'}{$src} })."\n";
-	my $mod_name=$src;
-	$mod_name=~s/\..*$//;
-	my $mod_header="module $mod_name";
-	my $mod_footer="end module $mod_name";
-	my @mod_uses=();
-	for my $mod_src (keys %{ $stref->{'UsedModules'}{$src} }) {
-		my $used_mod_name = $mod_src;
-		$used_mod_name =~s/\..*$//;
-		push @mod_uses, "use $used_mod_name";
-	}
-	
-	my @module_lines=($mod_header, @mod_uses,"contains", @module_contains,$mod_footer);
-	for my $mod_line (@module_lines) {
-		print $mod_line,"\n"; 
-	}
-}
-die;
-return $stref;
+	} # loop over all source files
+#	die;
+	return $stref;
 
-} # END of emit_all_new()
+} # END of emit_all()
 # -----------------------------------------------------------------------------
-sub gen_noop {
-
-    open my $NOOP,'>','/tmp/noop.c';
+sub _gen_noop {
+    (my $tgtdir)=@_;
+    open my $NOOP,'>',"$tgtdir/noop.c";
     print $NOOP '// Instead of continue, use a subroutine to do nothing. 
 //Purely for translation, to get around a bug in F2C_ACC: in the C code we drop them!
 void noop_ () {
@@ -320,7 +389,7 @@ void noop_ () {
 
 }
 
-sub gen_break {
+sub UNUSED_gen_break {
     open my $BREAK,'>','/tmp/break.c';
     print $BREAK,'
 void break(int l) {

@@ -58,6 +58,11 @@ sub create_refactored_subroutine_signature {
     return $rlines;
 }    # END of create_refactored_subroutine_signature()
 # -----------------------------------------------------------------------------
+# At this point, the IODirs have been resolved, but unfortunately the argument declaration lines
+# have already been created as strings. Not good.
+# FIXME: IODir needs to be used as INTENT for arguments, rather than just being documentation
+# So when we emit the actual subroutine body code, we need to add the information from
+#  $Sf->{'RefactoredArgs'}{'Set'}{$arg}{'IODir'} for every $arg
 sub refactor_kernel_signatures {
     ( my $stref, my $f ) = @_;
     my $Sf        = $stref->{'Subroutines'}{$f};
@@ -83,7 +88,8 @@ sub refactor_kernel_signatures {
         }
     }
 
-    # Now add $rlines to the refactored signature!
+    # Now add $rlines to the refactored signature
+	# WV: this just adds the IO info as comments
     my @extra_lines = @rlines;
     
     if ( $Sf->{'Status'} != $PARSED ) {
@@ -122,7 +128,7 @@ sub refactor_subroutine_signature {
     my $Sf = $stref->{'Subroutines'}{$f};
     if ($V) {
         if ( exists $Sf->{'Args'} ) {
-            print "SUB $f ORIG ARGS:" . join( ',', @{ $Sf->{'Args'} } ), "\n";
+            print "SUB $f ORIG ARGS:" . join( ',', @{ $Sf->{'Args'}{'List'} } ), "\n";
         } else {
             print "SUB $f ORIG ARGS: ()\n";
         }
@@ -167,7 +173,7 @@ sub refactor_subroutine_signature {
     }
     # Now combine the original subroutine arguments with the ex-globals
     # and store in $Sf->{'RefactoredArgs'}{'List'}     
-    my $args_ref = (exists $Sf->{'Args'}) ? ordered_union( $Sf->{'Args'}, \@nexglobs ) : \@nexglobs;
+    my $args_ref = (exists $Sf->{'Args'}) ? ordered_union( $Sf->{'Args'}{'List'}, \@nexglobs ) : \@nexglobs;
     $Sf->{'RefactoredArgs'}{'List'} = $args_ref;
     %{ $Sf->{'RefactoredArgs'}{'Set'}} = map {$_ => {'IODir' => 'Unknown'} } @{ $args_ref };
     $Sf->{'HasRefactoredArgs'} = 1;

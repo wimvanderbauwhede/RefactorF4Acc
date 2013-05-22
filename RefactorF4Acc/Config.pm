@@ -47,7 +47,22 @@ our $translate         = $NO;
 #   C_SOURCE means that this source code will be translated to C
 ( our $UNREAD, our $READ, our $PARSED, our $FROM_BLOCK, our $C_SOURCE ) =
   ( 0 .. 4 );
+
 our $targetdir = '../RefactoredSources';
+# Config supports the following keys:
+
+#PREFIX = .
+#SRCDIRS = .
+
+# Config should support at least the following keys:
+
+#TOP =  flexpart_wrf
+#NEWSRCPATH = RefactoredSources
+#LIBPATH =
+#INCPATH =
+#WRF_CPP_FLAGS = NONE
+
+#
 
 our %Config=();
 
@@ -61,15 +76,19 @@ for my $line (<$CFG>) {
 	chomp $line;
 	$line=~s/\s+$//;
 	(my $k, my $v) = split(/\s*\=\s*/,$line);
+	# 
 	if ($v=~/,/) {
 		my @vs=split(/\s*,\s*/,$v);
 		$Config{$k}=[@vs];
-	} else {
+	} elsif ($k !~/TOP|NEWSRCPATH|PREFIX/) {
 		$Config{$k}=[$v];
+	} else {
+		$Config{$k}=$v;
 	}
 }
 close $CFG;
 }
+
 
 
 1;

@@ -44,7 +44,8 @@ sub create_refactored_vardecls {
     my $Sf        = $stref->{'Subroutines'}{$f};
     my $line      = $annline->[0] || '';
     my $tags_lref = $annline->[1];
-    my %args      = map { $_ => 1 } @{ $Sf->{'Args'} };
+#    my %args      = map { $_ => 1 } @{ $Sf->{'Args'} };
+    my %args      = %{ $Sf->{'Args'}{'Set'} };
     my $globals = ( get_maybe_args_globs( $stref, $f ) )[1];
     my $skip=0;
     
@@ -120,7 +121,8 @@ sub create_exglob_var_declarations {
     ( my $stref, my $f, my $annline, my $rlines ) = @_;
     my $Sf                 = $stref->{'Subroutines'}{$f};
     my $tags_lref          = $annline->[1];
-    my %args               = map { $_ => 1 } @{ $Sf->{'Args'} };
+#    my %args               = map { $_ => 1 } @{ $Sf->{'Args'} };
+    my %args               = %{ $Sf->{'Args'}{'Set'} };    
 #local $V=1;
     for my $inc ( keys %{ $Sf->{'Globals'} } ) {
         print "INFO: GLOBALS from INC $inc in $f\n" if $V;
@@ -134,7 +136,6 @@ sub create_exglob_var_declarations {
                     if ( $f ne $stref->{'IncludeFiles'}{$inc}{'Root'} ) {
                         print "\tGLOBAL $var from $inc in $f\n" if $V;
 #                        croak "$f: INC $inc: VAR $var\n" if not exists $stref->{IncludeFiles}{$inc}{'Vars'}{$var};                        
-#                        my $rline = format_f95_var_decl( $stref->{'IncludeFiles'}{$inc}{'Commons'},$var);
                         my $rline = format_f95_var_decl( $stref->{'IncludeFiles'}{$inc},$var);
 #                        croak "$f: INC $inc: VAR $var\n" if $rline ne $tline;
                         if ( exists $Sf->{'ConflictingParams'}{$var} ) {

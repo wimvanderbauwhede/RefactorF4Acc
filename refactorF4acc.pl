@@ -1,5 +1,5 @@
 #!/usr/bin/perl
-use v5.10;
+use 5.010;
 use warnings::unused;
 use warnings;
 use warnings FATAL => qw(uninitialized);
@@ -27,6 +27,7 @@ our $usage = "
     -w: show warnings 
     -v: verbose (implies -w)
     -i: show info messages
+    -c <cfg file name>: use this cfg file (default is ~/.rf4a)
     -C: Only generate call tree, don't refactor or emit
     -T: Translate <subroutine name> and dependencies to C 
     -N: Don't replace CONTINUE by CALL NOOP
@@ -55,7 +56,7 @@ The subroutine creates an entry in the state for every target:
         $stref->{$target_type}{$target_name}{'Source'}  = $target_source;
         $stref->{$target_type}{$target_name}{'Status'}  = $UNREAD;
         
-- `parse_fortran_src()` :
+- Parsing: `parse_fortran_src()` :
 
     - Read the source and do some minimal processsing 
     
@@ -74,25 +75,12 @@ The subroutine creates an entry in the state for every target:
     
             $stref = get_commons_params_from_includes( $f, $stref );
         
-- `find_root_for_includes()` : Find the root for each include via a recursive descent. We look for the root of the smallest subtree.
+- Analysis: `analyse_all()` : 
+This routine analyses the code for goto-based loops and breaks, so that we can rewrite those horrible `DO`-blocks as proper loops. 
 
-- `resolve_globals()` : Find the globals via recursive descent
+        $stateref = analyse_all($stateref);
 
-        $stateref = resolve_globals( $subname, $stateref );
-
-- `determine_argument_io_direction_rec()` : We need to know the IO direction for every subroutine argument in order to group subroutine arguments. Also, a further rewrite might decouple the Ins from the Outs, no more pesky InOuts.
-
-        $stateref = determine_argument_io_direction_rec( $subname, $stateref );
-
-- `analyse_sources()` : This routine analyses the code for goto-based loops and breaks, so that we can rewrite those horrible `DO`-blocks as proper loops. 
-
-        $stateref = analyse_sources($stateref);
-
-- Refactor the sources:
-
-        $stateref = refactor_all_subroutines($stateref);
-        $stateref = refactor_includes($stateref);
-        $stateref = refactor_called_functions($stateref);
+- Refactoring: `refactor_all()`:
 
 - Emit the refactored source:
 
@@ -196,7 +184,10 @@ sub parse_args {
 	if ($opts{'c'}) {
 		 $cfgrc= $opts{'c'} ;
 	} 
-    read_config($cfgrc);   
+    read_config($cfgrc);
+    if ( exists $Config{'NEWSRCPATH'}) {
+        $targetdir =  $Config{'NEWSRCPATH'};
+    }   
     
 	$V = ( $opts{'v'} ) ? 1 : 0;
 	$I = ( $opts{'i'} or $V ) ? 1 : 0;

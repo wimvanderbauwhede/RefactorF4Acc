@@ -76,6 +76,7 @@ sub determine_argument_io_direction_core {
 
     my $maybe_args = ( get_maybe_args_globs( $stref, $f ) )[0];
     for my $arg ( keys %{ $args} ) {
+#    	warn "ARG: $arg\n" if $f=~/interpol_vdep_nests/; 
         my $kind  = 'Unknown';
         my $type  = 'Unknown';
         my $shape = [];
@@ -119,30 +120,30 @@ sub determine_argument_io_direction_core {
 
 #Access mode of the pointer-type subroutine arguments 
 #
-#¥ Describe every argument with a tuple (IODir,AccessState) where
+#* Describe every argument with a tuple (IODir,AccessState) where
 #
 #IODir = Unknown | In | Out | InOut | Unused
 #
 #AccessState = Unaccessed | Read | Written 
 #
-#¥ The initial argument state is set to (Unknown,Unaccessed).
+#* The initial argument state is set to (Unknown,Unaccessed).
 #
-#¥ If an argument is read from and never written to, its IO direction is In: 
+#* If an argument is read from and never written to, its IO direction is In: 
 #
 #Unknown & Read =>  In
 #
 
-#¥ If an argument is written to before it is read from, its IO direction is Out. 
+#* If an argument is written to before it is read from, its IO direction is Out. 
 #
 #Unknown & Write =>  Out
 #
 
-#¥ If an argument is read from and later written to, its IO direction is InOut. 
+#* If an argument is read from and later written to, its IO direction is InOut. 
 #
 #In & Write =>  InOut
 #
 
-#¥ If an argument was not used in the subroutine body, set the status to Unused: 
+#* If an argument was not used in the subroutine body, set the status to Unused: 
 #
 #Unknown =>  Unused
 
@@ -220,14 +221,6 @@ sub get_iodirs_from_subcall {
 	  $tags->{'SubroutineCall'}{'RefactoredArgs'};
     # Get the RefactoredArgs List for the signature
 	my $ref_sig_args = $Sname->{'RefactoredArgs'}{'List'};
-##FIXME: experimental!
-##    croak "FIXME: need to make sure all calls & sigs are refactored before doing IO analysis!!!";
-#    if ( not defined $ref_sig_args or scalar( @{$ref_sig_args} ) == 0) {
-#    	warn "NO RefactoredArgs for $name, using Args instead\n";    	
-#        $ref_sig_args = $Sname->{'Args'};
-#	    $Sname->{'RefactoredArgs'}={};
-#	    $Sname->{'RefactoredArgs'}{'List'}=$Sname->{'Args'};
-#    }
 	my $ca = scalar( @{$ref_call_args} );
 	my $sa = scalar( @{$ref_sig_args} );
 	if ( $ca != $sa ) {
@@ -433,7 +426,7 @@ sub analyse_src_for_iodirs {
             	 	# word
                     # 0 or 1 occurences of parentheses without '=' inside them
                     # the '=' sign                    
-                    #Êso in other words, if it's an array assignment
+                    #*so in other words, if it's an array assignment
                     # FIXME: If the LHS is an array assignment we are not checking the index for its IO dir
                     if ($tline!~/(open|write|read|print)\s*\(/) {
                     	
@@ -485,6 +478,7 @@ sub analyse_src_for_iodirs {
             		$var=~s/\s*\((.+)\)$//;
             		$args=find_vars( $1, $args, \&set_iodir_read );
             	   }
+#            	   warn "IODIR: $var\n" if $f=~/interpol_vdep_nests/;
             	}            	
 
 # First check the RHS for In

@@ -93,7 +93,6 @@ sub context_free_refactorings {
 		if ( exists $tags{'BeginDo'} ) {
 			$line =~ s/do\s+\d+\s+/do /;
 		}
-
 		# EndDo: replace label CONTINUE by END DO;
 		# if no continue, remove label & add end do on next line
 		if ( exists $tags{'EndDo'} ) {
@@ -159,7 +158,7 @@ sub context_free_refactorings {
 				my $filtered_line = '';				
 				if (@vars_not_pars) {
 					$filtered_line =
-					  format_f95_multiple_var_decls( $Sf,@vars_not_pars );
+					  _format_f95_multiple_var_decls( $Sf,@vars_not_pars );
 					my %tr = %{$info};
 					$tr{'Extra'} = 1;
 					push @extra_lines, [ $filtered_line, \%tr ];
@@ -181,7 +180,7 @@ sub context_free_refactorings {
 					  grep { not exists $Sf->{'Parameters'}{$_} } @vars;
 					if (@vars_not_pars) {
 						$line =
-						  format_f95_multiple_var_decls( $Sf,@vars_not_pars );
+						  _format_f95_multiple_var_decls( $Sf,@vars_not_pars );
 					} else {
 						$line = '!! Original line !! ' . $line;
 						$info->{'Deleted'} = 1;
@@ -200,15 +199,19 @@ sub context_free_refactorings {
 					$line =~ s/\.\s*(eq|ne|gt|lt|le|ge)\s*\./ $f95ops{$1} /;
 				}
 				# FIXME: it is possible that there is a conflict in the conditional expression!
-				$line = rename_conflicting_vars($line,$stref,$f);
-    		} elsif (exists $tags{'Assignment'}) { 
+				$line = _rename_conflicting_vars($line,$stref,$f);
+    		} elsif (exists $tags{'Assignment'} or exists $tags{'Do'}) { 
     			my $kv=$line;
     			my $spaces=$line; $spaces=~s/\S.*$//;
     			$kv=~s/^\s+//;    			
     			$kv=~s/\s+$//;
+    			if (exists $tags{'Do'}) {
+    				$kv=~s/do\s+//;
+#    				warn "DO:<$kv>\n";
+    			}
     			(my $k, my $rhs_expr) = split(/\s*=\s*/,$kv);
     			
-    			$rhs_expr = rename_conflicting_vars($rhs_expr,$stref,$f);
+    			$rhs_expr = _rename_conflicting_vars($rhs_expr,$stref,$f);
 =obsolete    			
     			my @rhs_vals= grep {/[a-z]\w*/} split( /\W+/, $rhs_expr );    			
     			my @n_rhs_vals=@rhs_vals;
@@ -255,15 +258,24 @@ sub context_free_refactorings {
     			}	   		    
 		      }
 =cut            		      
-		      my $nk= rename_conflicting_vars($k,$stref,$f);
-		      $line = $spaces.$nk. ' = '.$rhs_expr;
+		      
+		      if (exists $tags{'Do'}) {
+		      	my $nk= _rename_conflicting_lhs_var($k,$stref,$f);
+		      	$line = $spaces.'do '.$nk. ' = '.$rhs_expr;
+#		      	if ($nk ne $k) {
+#		      	warn "DO: $line\n";
+#		      	}
+		      } else {
+		      	my $nk= _rename_conflicting_vars($k,$stref,$f);
+	            $line = $spaces.$nk. ' = '.$rhs_expr;
+		      }
 		} # assignment
 		elsif ( exists $tags{'Parameter'} ) {
 			$line = '!! Original line !! ' . $line;
 			$info->{'Deleted'} = 1;
 		} 
 		elsif ( exists $tags{'SubroutineCall'} ) {			
-			$line = rename_conflicting_vars($line,$stref,$f);
+			$line = _rename_conflicting_vars($line,$stref,$f);
 		}
 		elsif ( exists $tags{'Include'} ) {			
 			
@@ -322,7 +334,7 @@ sub context_free_refactorings {
         
     }
     }	
-#	if ( $f eq 'particles_main_loop' ) {
+#	if ( $f eq 'timemanager' ) {
 #		print "REFACTORED LINES ($f):\n";
 #
 #		for my $tmpline ( @{ $Sf->{'RefactoredCode'} } ) {
@@ -336,6 +348,7 @@ sub context_free_refactorings {
 }    # END of context_free_refactorings()
 
 # -----------------------------------------------------------------------------
+# This routine essentially discards unused lines and splits long lines
 sub create_refactored_source {
 	( my $stref, my $f, ) = @_;
 	print "CREATING FINAL $f CODE\n" if $V;
@@ -546,12 +559,12 @@ sub get_annotated_sourcelines {
 
 # -----------------------------------------------------------------------------
 
-sub format_f95_decl {
+sub UNUSED_format_f95_decl {
 	( my $Sfv, my $var_is_par ) = @_;
 	( my $var, my $is_par, my $val ) = @{$var_is_par};
 	my $Sv = $Sfv->{$var};
 	if ( not exists $Sv->{'Decl'} ) {
-		print "WARNING: VAR $var does not exist in format_f95_decl()!\n" if $W;
+		print "WARNING: VAR $var does not exist in UNUSED_format_f95_decl()!\n" if $W;
 		croak $var;
 	}
 	my $spaces = $Sv->{'Decl'};
@@ -583,14 +596,14 @@ sub format_f95_decl {
 
 	#    die $decl_line  if $dim;
 	return $decl_line;
-}    # format_f95_decl()
+}    # UNUSED_format_f95_decl()
 
 # -----------------------------------------------------------------------------
 sub format_f95_var_decl {
 	( my $Sf, my $var ) = @_;
 	my $Sv = $Sf->{'Vars'}{$var};
 	if ( not exists $Sv->{'Decl'} ) {
-		print "WARNING: VAR $var does not exist in format_f95_decl()!\n" if $W;
+		print "WARNING: VAR $var does not exist in format_f95_var_decl()!\n" if $W;
 		croak $var;
 	} 
 	my $nvar=$var;
@@ -599,7 +612,12 @@ sub format_f95_var_decl {
 	}
 	my $spaces = $Sv->{'Decl'};
 	$spaces =~ s/\S.*$//;
-    
+    my $intent='';
+    if (exists $Sf->{'RefactoredArgs'}{'Set'}{$var}) {
+        $intent = $Sf->{'RefactoredArgs'}{'Set'}{$var}{'IODir'};
+#        warn "F95 $var: intent $intent\n";
+#        print "F95 format_f95_var_decl() $var: intent $intent\n";
+    } 
 	# FIXME: for multiple vars, we need to split this in multiple statements.
 	# So I guess as soon as the Shape is not empty, need to split.
 	my $shape = $Sv->{'Shape'};
@@ -625,7 +643,8 @@ sub format_f95_var_decl {
 
 # -----------------------------------------------------------------------------
 sub format_f77_var_decl {
-    ( my $Sfv, my $var ) = @_;
+    ( my $Sf, my $var ) = @_;
+    my $Sfv=$Sf->{'Vars'};
     my $Sv = $Sfv->{$var};
     if ( not exists $Sv->{'Decl'} ) {
         print "WARNING: VAR $var does not exist in format_f77_var_decl()!\n" if $W;
@@ -633,6 +652,11 @@ sub format_f77_var_decl {
     }
     my $spaces = $Sv->{'Indent'};    
 
+    my $intent='';
+    if (exists $Sf->{'RefactoredArgs'}{'Set'}{$var}) {
+        $intent = $Sf->{'RefactoredArgs'}{'Set'}{$var}{'IODir'};
+#        warn "F77 $var: $intent\n";
+    }
     # FIXME: for multiple vars, we need to split this in multiple statements.
     # So I guess as soon as the Shape is not empty, need to split.
     my $shape = $Sv->{'Shape'};
@@ -669,7 +693,7 @@ sub format_f77_var_decl {
 #	my %test = map { ( $_->[1], 1 ) } @{$var_is_par_tups};
 #	my $Sv = $Sfv->{ $vars[0] };
 #	if ( not exists $Sv->{'Decl'} ) {
-#		print "WARNING: VAR $vars[0] does not exist in format_f95_decl()!\n"
+#		print "WARNING: VAR $vars[0] does not exist in UNUSED_format_f95_decl()!\n"
 #		  if $W;
 #		croak $vars[0];
 #	}
@@ -753,12 +777,12 @@ sub format_f77_var_decl {
 #}    # format_f95_multiple_decl()
 
 # -----------------------------------------------------------------------------
-sub format_f95_multiple_var_decls {
+sub _format_f95_multiple_var_decls {
 	( my $Sf, my @vars ) = @_;
 
 	my $Sv = $Sf->{'Vars'}{ $vars[0] };
 	if ( not exists $Sv->{'Decl'} ) {
-		print "WARNING: VAR $vars[0] does not exist in format_f95_decl()!\n"
+		print "WARNING: VAR $vars[0] does not exist in UNUSED_format_f95_decl()!\n"
 		  if $W;		  
 		croak $vars[0];
 	}
@@ -837,12 +861,12 @@ sub format_f95_multiple_var_decls {
 		  . ' !! Context-free, multi !! ';
 		return $decl_line;
 	}
-}    # format_f95_multiple_var_decls()
+}    # _format_f95_multiple_var_decls()
 
 # ----------------------------------------------------------------------------------------------------
 
 # This could work but it means the code has to be regenerated every time a parameter changes ...
-sub resolve_params {
+sub UNUSED_resolve_params {
 	( my $Sf, my $val ) = @_;
 
 	$val =~ s/\s*$//;
@@ -873,14 +897,14 @@ sub resolve_params {
 			}
 
 			#                    die;
-			resolve_params( $Sf, $val );
+			UNUSED_resolve_params( $Sf, $val );
 		} else {
 			return $val;
 		}
 	} else {
 		return $val;
 	}
-}
+} # END of UNUSED_resolve_params()
 
 # -----------------------------------------------------------------------------
 
@@ -902,7 +926,7 @@ sub format_f95_par_decl {
 	}
 	
 	# Here we should rename for globals!
-	($var, $val) = rename_conflicting_global_pars($stref, $f, $var, $val);
+	($var, $val) = _rename_conflicting_global_pars($stref, $f, $var, $val);
 	my $spaces = $Sv->{'Indent'} ;
 	
 
@@ -935,9 +959,9 @@ sub format_f95_par_decl {
 		print "WARNING: LOCAL PAR: $decl_line\n" if $W;  
 	}
 	return $decl_line;
-}    # format_f95_decl()
+}    # UNUSED_format_f95_decl()
 
-sub rename_conflicting_global_pars {
+sub _rename_conflicting_global_pars {
 	(my $stref, my $f, my $k, my $rhs_expr)=@_;
     my $sub_or_func_or_inc = sub_func_or_incl( $f, $stref );
     my $Sf = $stref->{$sub_or_func_or_inc}{$f};
@@ -983,7 +1007,7 @@ sub rename_conflicting_global_pars {
               return ($nk, $rhs_expr);
 	
 }
-sub rename_conflicting_vars {
+sub _rename_conflicting_vars {
 	(my $expr, my $stref, my $f)=@_;
     my $sub_or_func_or_inc = sub_func_or_incl( $f, $stref );
     my $Sf = $stref->{$sub_or_func_or_inc}{$f};
@@ -1008,7 +1032,7 @@ sub rename_conflicting_vars {
                             $n_vals[$i]=$Sf->{'ConflictingGlobals'}{$val};
                             $conflict=1;
                         } elsif (exists $Sf->{'ConflictingLiftedVars'}{$val}) {
-                        	warn "CONFLICT (LIFT): $f: $expr\n" if $V;   
+                        	warn "CONFLICT (LIFT) for $val: $f: $expr\n" if $V;   
                         	$n_vals[$i]=$Sf->{'ConflictingLiftedVars'}{$val};
                         	$conflict=1;
                         } else {
@@ -1031,6 +1055,31 @@ sub rename_conflicting_vars {
                         $expr=~s/\b$v\b/$nv/;
                     }
                 }   
+                warn "EXPR: $expr\n" if $conflict && $V;
                 print "EXPR: $expr\n" if $conflict && $V;
     return 	$expr;  		
-}
+} # END of _rename_conflicting_vars()
+
+sub _rename_conflicting_lhs_var {
+    (my $expr, my $stref, my $f)=@_;
+    my $sub_or_func_or_inc = sub_func_or_incl( $f, $stref );
+    my $Sf = $stref->{$sub_or_func_or_inc}{$f};
+    my $val=$expr;
+                        
+    if (exists $Sf->{'ConflictingGlobals'}{$val}) {
+        warn "CONFLICT LHS : $val in $expr ($f)\n" if $V;                            
+        return $Sf->{'ConflictingGlobals'}{$val};
+    } elsif (exists $Sf->{'ConflictingLiftedVars'}{$val}) {
+        warn "CONFLICT LHS (LIFT) for $val: $f: $expr ".$Sf->{'ConflictingLiftedVars'}{$val}."\n" if $V;   
+        return $Sf->{'ConflictingLiftedVars'}{$val};                            
+    } else {
+        for my $inc (keys %{ $Sf->{'Includes'} }) {                                        
+            if (exists $stref->{'IncludeFiles'}{$inc}{'ConflictingGlobals'}{$val}) {
+                warn "CONFLICT  LHS (INC): $val in <$expr> ($f), from $inc\n" if $V;                                    
+                return  $stref->{'IncludeFiles'}{$inc}{'ConflictingGlobals'}{$val};
+                last; 
+            }                    
+        }       
+    }                          
+    return $expr;     
+} # END of _rename_conflicting_lhs_var()

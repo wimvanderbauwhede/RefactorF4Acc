@@ -224,11 +224,11 @@ sub determine_subroutine_arguments {
                 $argstr =~ s/^\s+//;
                 $argstr =~ s/\s+$//;
                 my @args = split( /\s*,\s*/, $argstr );
-                $info->{'Signature'}{'Args'} = [@args];
+                $info->{'Signature'}{'Args'}{'List'} = [@args];
+                $info->{'Signature'}{'Args'}{'Set'} = { map {$_=>1} @args};
                 $info->{'Signature'}{'Name'} = $name;
-#                $srcref->[$index][1]{'Signature'}{'Args'} = [@args];
-#                $srcref->[$index][1]{'Signature'}{'Name'} = $name;
-                $Sf->{'Args'}                                = [@args];
+                $Sf->{'Args'}{'List'} = [@args];
+                $Sf->{'Args'}{'Set'} = {map {$_=>1} @args};
                 last;
             } elsif ( $line =~ /^\s+subroutine\s+(\w+)[^\(]*$/ 
             or $line =~ /^\s+recursive\s+subroutine\s+(\w+)[^\(]*$/ 
@@ -236,7 +236,8 @@ sub determine_subroutine_arguments {
 
                 # Subroutine without arguments
                 my $name = $1;
-                $info->{'Signature'}{'Args'} = [];
+                $info->{'Signature'}{'Args'}{'List'} = [];
+                $info->{'Signature'}{'Args'}{'Set'} = {};
                 my $has_var_decls = scalar %{ $Sf->{'Vars'} };
                 if ( not $has_var_decls ) {
                     print "INFO: $f has no arguments and no local var decls\n"
@@ -250,16 +251,14 @@ sub determine_subroutine_arguments {
                     }
                 }
                 $info->{'Signature'}{'Name'} = $name;
-#                $srcref->[$index][1]{'Signature'}{'Name'} = $name;
-                $Sf->{'Args'} = [];
+                $Sf->{'Args'}{'List'} = [];
+                $Sf->{'Args'}{'Set'} = {};
                 last;
             } elsif ( $line =~ /^\s+program\s+(\w+)\s*$/ ) {
                 # If it's a program, there are no arguments
                 my $name = $1;
-                $info->{'Signature'}{'Args'} = [];
+                $info->{'Signature'}{'Args'}{'List'} = [];
                 $info->{'Signature'}{'Name'} = $name;
-#                $srcref->[$index][1]{'Signature'}{'Args'} = [];
-#                $srcref->[$index][1]{'Signature'}{'Name'} = $name;
                 last;
             }
             $srcref->[$index]=[ $line, $info];
@@ -325,7 +324,7 @@ sub lift_includes {
         for my $lifted_inc ( @{ $Sf->{'LiftedIncludes'} } ) {
             if (exists $stref->{'IncludeFiles'}{$lifted_inc}{'Vars'}{$var}) {
             	$Sf->{'ConflictingLiftedVars'}{$var}=$var.'_LOCAL_'.$f;
-            	print "lift_includes( $f ): $var CONFLICT with $lifted_inc\n" if $V;
+            	warn "lift_includes( $f ): $var CONFLICT with $lifted_inc\n" if $V;
             	last;
             }
         }

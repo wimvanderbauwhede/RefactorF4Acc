@@ -32,7 +32,7 @@ use RefactorF4Acc::Config;
 # Are there blocks to be refactored: HasBlocks
 sub find_subroutines_functions_and_includes {	
     my $stref = shift;
-    my $prefix   = $Config{PREFIX}->[0];
+    my $prefix   = $Config{PREFIX};
     my @srcdirs=@{ $Config{SRCDIRS} };
     # find sources (borrowed from PerlMonks)
     my %src_files = ();
@@ -51,7 +51,7 @@ sub find_subroutines_functions_and_includes {
         find( $tf_finder, $path );
     }
 #    find( $tf_finder, '.' );
-	$stref->{'SourceFiles'}=\%src_files;
+#	$stref->{'SourceFiles'}=\%src_files;
     for my $src ( sort keys %src_files ) {#sort WV23JUL2012
     	if  ($src=~/\.c$/) {
 #    		warn "C SOURCE: $src\n";
