@@ -280,10 +280,12 @@ sub context_free_refactorings {
 		elsif ( exists $tags{'Include'} ) {			
 			
 			my $inc=$tags{'Include'}{'Name'};
-			
-                $line = "      use $inc";
+			     my $tinc=$inc;
+			     $tinc=~s/\./_/g;
+                $line = "      use $tinc";
                 # use must come right after subroutine/function/program
                 # or after another use
+                # or after the module declaration
                 push @include_use_stack, [ $line, $info ];# if $line ne '';
                 next;
                 
@@ -299,42 +301,53 @@ sub context_free_refactorings {
     
     # now splice the include stack just below the signature
     if (@include_use_stack) {
-    # 1. Look for the signature
-    my $offset=0;
-    for my $tmpannline ( @{ $Sf->{'RefactoredCode'} } ) {
-    	if (exists $tmpannline->[1]{'Signature'} or 
-    	exists $tmpannline->[1]{'SubroutineSig'} or 
-    	exists $tmpannline->[1]{'FunctionSig'}) {
-#    		print "Found sig for $f at $offset\n";
-    		last;
-    	}   
-    	$offset++;
-    	if (exists $tmpannline->[1]{'Include'}) {
-    		die "Hit include without seeing sub or func in $f";
-    	}
+    	my $offset=0;
+    	if (exists $stref->{'IncludeFiles'}{$f}) {
+#        warn "$f is include, put at top";
+#warn Dumper(@include_use_stack);
+#            my @new  = ( @include_use_stack,
+#                                @{ $Sf->{'RefactoredCode'} }
+#            );
+            $Sf->{'RefactoredCode'}=[@include_use_stack, @{ $Sf->{'RefactoredCode'}} ];        
+	    } else {
+		    # 1. Look for the signature
+		    for my $tmpannline ( @{ $Sf->{'RefactoredCode'} } ) {    	
+		    	if (exists $tmpannline->[1]{'Signature'} or 
+		    	exists $tmpannline->[1]{'SubroutineSig'} or 
+		    	exists $tmpannline->[1]{'FunctionSig'}) {
+		#    		print "Found sig for $f at $offset\n";
+		    		last;
+		    	}   
+		    	$offset++;
+		    	if (exists $tmpannline->[1]{'Include'}) {
+		    		die "Hit include without seeing sub or func in $f";
+		    	}
+		    }
+		    
+		#    if ($offset !=0) {
+		#    print "OFFSET $f:$offset\n";
+		#    }
+		    if ($offset==0) {
+		    	my $firstline=shift @{ $Sf->{'RefactoredCode'} };
+		    	my @new  = ($firstline,
+		                                @include_use_stack,
+		                                @{ $Sf->{'RefactoredCode'} }
+		                                );
+		        $Sf->{'RefactoredCode'}=[@new];
+		    } else {
+		    	my @part1=();
+		    	for (0..$offset) {
+		    		push @part1, shift @{ $Sf->{'RefactoredCode'} };
+		    	}
+		    	my @part2=@{ $Sf->{'RefactoredCode'} };
+		        my @new  = (@part1,@include_use_stack,@part2);
+		        $Sf->{'RefactoredCode'}=[@new];
+		        
+		    }
+	    }	
     }
-#    if ($offset !=0) {
-#    print "OFFSET $f:$offset\n";
-#    }
-    if ($offset==0) {
-    	my $firstline=shift @{ $Sf->{'RefactoredCode'} };
-    	my @new  = ($firstline,
-                                @include_use_stack,
-                                @{ $Sf->{'RefactoredCode'} }
-                                );
-                                $Sf->{'RefactoredCode'}=[@new];
-    } else {
-    	my @part1=();
-    	for (0..$offset) {
-    		push @part1, shift @{ $Sf->{'RefactoredCode'} };
-    	}
-    	my @part2=@{ $Sf->{'RefactoredCode'} };
-        my @new  = (@part1,@include_use_stack,@part2);
-        $Sf->{'RefactoredCode'}=[@new];
-        
-    }
-    }	
-#	if ( $f eq 'timemanager' ) {
+    
+#	if ( $f eq 'common.sn' ) {
 #		print "REFACTORED LINES ($f):\n";
 #
 #		for my $tmpline ( @{ $Sf->{'RefactoredCode'} } ) {
@@ -550,7 +563,7 @@ sub get_annotated_sourcelines {
 	} else {
 		warn "get_annotated_sourcelines( $f ) \n";
 		warn "STATUS: $Sf->{'Status'} \n";
-		warn Dumper($Sf);
+#		warn Dumper($Sf);
 		croak "$f NOT PARSED";
 		die "\n",caller,"\n";
 	}

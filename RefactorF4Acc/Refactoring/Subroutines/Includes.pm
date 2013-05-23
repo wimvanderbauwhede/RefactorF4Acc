@@ -73,7 +73,10 @@ sub create_additional_include_statements {
     for my $inc (@{ $Sf->{'LiftedIncludes'} }) {
             print "INFO: instantiating merged INC $inc in $f\n" if $V;
 #            my $rline = "      include '$inc'";
-            	my $rline = "      use $inc";
+            my $tinc = $inc;
+            die $tinc if $tinc =~/params_com/;
+            $tinc=~s/\./_/g;
+            	my $rline = "      use $tinc";
             $tags_lref->{'Include'}{'Name'} = $inc;
             push @{$rlines}, [ $rline, $tags_lref ];                    
     }

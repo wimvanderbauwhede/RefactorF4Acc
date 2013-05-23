@@ -1017,7 +1017,7 @@ Suppose we don't:
 			};
 		}
 		if ( substr( $line, 0, 2 ) ne '! ' ) {
-			if ( $line =~ /^\s+include\s+\'(\w+)\'/i ) {
+			if ( $line =~ /^\s+include\s+\'([\w\.]+)\'/i ) {
 				$info->{'Includes'} = $1;
 				$line =~ s/\bINCLUDE\b/include/;
 			} elsif ( $line !~ /\'/

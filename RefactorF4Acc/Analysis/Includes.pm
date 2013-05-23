@@ -44,7 +44,6 @@ sub find_root_for_includes {
 #                print Dumper($stref->{'IncludeFiles'}{$inc});         
         }
         if ( $stref->{'IncludeFiles'}{$inc}{'InclType'} eq 'Common' ) {
-
 #            print "FINDING ROOT FOR $inc ($f)\n" ;
             $stref = find_root_for_include( $stref, $inc, $f );
             print "ROOT for $inc is "

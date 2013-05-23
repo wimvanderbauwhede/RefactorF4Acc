@@ -21,6 +21,7 @@ use warnings FATAL => qw(uninitialized);
 use strict;
 use Carp;
 use Data::Dumper;
+use Storable qw( dclone );
 
 use Exporter;
 
@@ -28,7 +29,7 @@ use Exporter;
 
 @RefactorF4Acc::Parser::EXPORT_OK = qw(
   &parse_fortran_src
-  &parse_vardecl
+  &_parse_vardecl
 );
 
 # -----------------------------------------------------------------------------
@@ -126,7 +127,10 @@ sub _analyse_lines {
 			if ( $line =~ /implicit\s+none/ ) {
 				$info->{'ImplicitNone'} = 1;
 				$Sf->{'ImplicitNone'}   = $index;
-				
+			} elsif ( $line =~ /implicit\s+/ ) {
+                $info->{'Implicit'} = 1;
+                $stref = _parse_implicit($line,$f,$stref);
+#                warn	Dumper($stref ->{'Implicits'}{$f});			
 			} elsif ( $line =~ /^\d*\s+(else\s+if)/ ) {
 				$info->{'ElseIf'} = 1;
 				
@@ -155,6 +159,7 @@ sub _analyse_lines {
             /\b((?:logical|integer|real|double\s*precision|character)\s*\*(?:\d+|\(\*\)))\s+(.+)\s*$/
 			  )
 			{
+				 
 				$type   = $1;
 				$varlst = $2;
 				# Now an ad hoc fix for spaces between the type and the asterisk. FIXME! I should just write a better FSM!
@@ -162,15 +167,17 @@ sub _analyse_lines {
 				    my $len=$1;
 					$type.=$len;
 					$varlst=~s/^\S+\s+//;
+					
 				}  
 				
-				$type =~ /\*/ && do {
+				$type =~ /\*/ && do { 
 					( $type, $attr ) = split( /\*/, $type );
 					if ( $attr eq '(' ) { $attr = '*' }
 				};
 				$indent = $line;
 				$indent =~ s/\S.*$//;
 				$is_vardecl = 1;
+				
 			} elsif ( $line =~ /^\s*(.*)\s*::\s*(.*?)\s*$/ )
 			{    #F95 declaration, no need for refactoring
 
@@ -229,7 +236,7 @@ sub _analyse_lines {
 				for my $var (@pvarl) {
 
 					if ( not defined $vars{$var} ) {
-						print "WARNING: PARAMETER $var not declared in $f, trying to infer type\n" if $W;
+						
 						if (exists $pvars{$var}) {
 							
                           my $val=$pvars{$var};
@@ -245,11 +252,12 @@ sub _analyse_lines {
                             'Var'  => $var,
                             'Val'  => $val                            
                             };
-                           print "WARNING: PARAMETER $var infered type: $type $var = $val\n" if $W; 
+                           print "INFO: PARAMETER $var infered type: $type $var = $val\n" if $I; 
                             push @{$pars}, $var;
                           
                           } else {
-                          	print "WARNING: PARAMETER $var has NON_NUMERIC val $pvars{$var} in $f\n"
+                          	print "WARNING: PARAMETER $var not declared in $f; can't infer type:\n" if $W;
+                          	print "WARNING: PARAMETER $var has NON_NUMERIC val $pvars{$var} in $f  (Parser::_analyse_lines)\n"
                           if $W;
                           }
 						}  
@@ -276,7 +284,8 @@ sub _analyse_lines {
 				#				my $tvarlst = $varlst;
 				my $T =
 				  0;  #($f eq 'particles_main_loop' && $varlst=~/drydep/) ? 1:0;
-				my $pvars = parse_vardecl( $varlst, $T );
+				my $pvars = _parse_vardecl( $varlst, $T );
+#				die Dumper($pvars) if $f=~/common/;
 
 				#                if ($f eq 'read_ncwrfout_1realfield') {
 				#	               print Dumper($pvars);
@@ -344,16 +353,15 @@ sub _analyse_lines {
 				if ($first) {
 					$first = 0;
 					$info->{'ExGlobVarDecls'} = {};
-				}
+				}				
 			}
 			$srcref->[$index] = [ $line, $info ];
 		}    # Loop over lines
 		$stref->{$sub_func_incl}{$f}{'Vars'} = \%vars;
 	}
-
 	#           die "FIXME: shapes not correct!";
 	return $stref;
-}    # END of analyse_lines()
+}    # END of _analyse_lines()
 
 # -----------------------------------------------------------------------------
 # For every 'include' statement in a subroutine
@@ -375,7 +383,7 @@ sub _parse_includes {
 			next;
 		}
 
-		if ( $line =~ /^\s*include\s+\'(\w+)\'/ ) {
+		if ( $line =~ /^\s*include\s+\'([\w\.]+)\'/ ) {
 			my $name = $1;
 			print "FOUND include $name in $f\n" if $V;
 			$Sf->{'Includes'}{$name} = $index;
@@ -927,7 +935,8 @@ sub _parse_subroutine_and_function_calls {
 
 # -----------------------------------------------------------------------------
 # -----------------------------------------------------------------------------
-
+# Identify the include file as containing params or commons.
+# If it contains both, split and call the routine again.
 sub _get_commons_params_from_includes {
 	( my $f, my $stref ) = @_;
 	my $Sf     = $stref->{'IncludeFiles'}{$f};
@@ -935,8 +944,8 @@ sub _get_commons_params_from_includes {
 
 	if ( defined $srcref ) {
 
-		$Sf->{'Parameters'} = {};
-		$Sf->{'Parameters'}{'OrderedList'} = [];
+		$Sf->{'Parameters'} = {} unless exists $Sf->{'Parameters'};
+		$Sf->{'Parameters'}{'OrderedList'} = [] unless exists $Sf->{'Parameters'}{'OrderedList'};
 
 		my %vars = %{ $stref->{'IncludeFiles'}{$f}{'Vars'} };
 
@@ -950,58 +959,86 @@ sub _get_commons_params_from_includes {
 			if ( $line =~ /^\!\s/ ) {
 				next;
 			}
-
-			if ( $line =~ /^\s*common\s+\/\s*[\w\d]+\s*\/\s+(.+)$/ ) {
-				my $commonlst = $1;
+            # common /name/ x...
+            # However, common/name/x is also valid, damn F77!
+			if ( $line =~ /^\s*common\s*\/\s*([\w\d]+)\s*\/\s*(.+)$/ ) {
+				my $common_block_name = $1;
+				my $commonlst = $2;
 				$has_commons = 1;
 				my @tcommons = split( /\s*\,\s*/, $commonlst );
-				for my $var (@tcommons) {
+				my $parsedvars = _parse_vardecl($commonlst,0);
+#				die Dumper(keys %{$parsedvars}) if $line=~/nou5/;
+				for my $var (keys %{$parsedvars}) {					
 					if ( not defined $vars{$var} ) {
-						print "WARNING: common <", $var, "> is not in {'IncludeFiles'}{$f}{'Vars'}\n" if $W;
+						
+						if (exists $stref->{'Implicits'}{$f}{lc(substr($var,0,1))} ) {
+							print "INFO: common <", $var, "> typed via Implicits for $f\n" if $I;
+#							die Dumper($parsedvars->{$var});
+							my $type = $stref->{'Implicits'}{$f}{lc(substr($var,0,1))};
+							$stref->{'IncludeFiles'}{$f}{'Commons'}{$var} = {
+							  'Decl' => "        $type $var",
+							  'Shape' => $parsedvars->{$var}{'Shape'},
+							  'Type' => $type,
+							  'Attr' => '',
+							  'Indent' => '      ',
+							  'Kind' => $parsedvars->{$var}{'Kind'}
+							};							
+						} else {
+							print "WARNING: common <", $var, "> is not in {'IncludeFiles'}{$f}{'Vars'}\n" if $W;
+						}
 					} else {
 						print $var, "\t", $vars{$var}{'Type'}, "\n"
 						  if $V;
-
+#                        die Dumper($vars{$var});
 						$stref->{'IncludeFiles'}{$f}{'Commons'}{$var} =
 						  $vars{$var};
 					}
 				}
-				$srcref->[$index][1]{'Common'} = {};
+#				die Dumper($vars{'nou5'}) if $line=~/nou5/;
+				$srcref->[$index][1]{'Common'} = {'Name' => $common_block_name };
 			}
-
+              #  parameter(ip=150,jp=150,kp=90)
 			if ( $line =~ /parameter\s*\(\s*(.*)\s*\)/ ) {
 
 				my $parliststr = $1;
 
-				#                warn "PARAM:$parliststr\n";
+#                warn "PARAM:$parliststr\n";
 				$has_pars = 1;
 				my @partups = split( /\s*,\s*/, $parliststr );
 				my %pvars =
 				  map { split( /\s*=\s*/, $_ ) }
 				  @partups;    # Perl::Critic, EYHO # s/\s*=.+//; $_
 
-				#                warn Dumper(%pvars);
+#				warn Dumper(%pvars);
 				my @pvarl = map { s/\s*=.+//; $_ } @partups;
+#				warn Dumper(@pvarl);
 				my @pars = ();
 				for my $var (@pvarl) {
-					if ( not defined $vars{$var} ) {
-						print "WARNING: PARAMETER $var not declared in $f\n"
+					my $type='Unknown';
+					if ( not defined $vars{$var} and not exists $Sf->{'Parameters'}{$var}) {
+						print "WARNING: PARAMETER $var not declared in $f (Parser::_get_commons_params_from_includes)\n"
 						  if $W;
-					} else {
+#						  warn "WARNING: PARAMETER $var not declared in $f\n";
+					}
+						  if ($pvars{$var}=~/^\d*/) {
+						  	$type='integer';
+						  } elsif ($pvars{$var}=~/^[\d\.]+/) { # FIXME: weak
+						  	$type='real';
+						  }						  					 
 						$Sf->{'Parameters'}{$var} = {
-							'Type' => 'Unknown',
+							'Type' => $type,
 							'Var'  => $vars{$var},
 							'Val'  => $pvars{$var}
 						};
 						push @pars, $var;
 
-						#                         print "PAR: $var\n" ;
-					}
+#						warn "PAR: $var\n" ;					
 				}
+#				warn Dumper(@pars);
 				@{ $Sf->{'Parameters'}{'OrderedList'} } =
 				  ( @{ $Sf->{'Parameters'}{'OrderedList'} }, @pars );
 
-#                print "PARLIST: ",join(',',@{ $Sf->{'Parameters'}{'OrderedList'} }),"\n";
+#                warn "PARLIST: ",join(',',@{ $Sf->{'Parameters'}{'OrderedList'} }),"\n";
 				$srcref->[$index][1]{'Parameter'} = [@pars];
 			} elsif ( $line =~ /,\s*parameter\s*.*?::\s*(\w+)\s*=\s*(.+?)\s*$/ )
 			{    # F95-style parameters
@@ -1050,8 +1087,13 @@ sub _get_commons_params_from_includes {
 		# An include file should basically only contain parameters and commons.
 		# If it contains commons, we should remove them!
 		if ( $has_commons && $has_pars ) {
-			die
-"The include file $f contains both parameters and commons, this is not yet supported.\n";
+			print "INFO: The include file $f contains both parameters and commons, attempting to split out params_$f.\n" if $I;
+            $Sf->{'InclType'} = 'Both';
+            $stref=__split_out_parameters($f,$stref);
+            $has_pars=0;
+            # What we should do is split this split out parameters into params_$name
+            # and include params_$name in $name            
+
 		} elsif ($has_commons) {
 			$Sf->{'InclType'} = 'Common';
 		} elsif ($has_pars) {
@@ -1059,6 +1101,7 @@ sub _get_commons_params_from_includes {
 		} else {
 			$Sf->{'InclType'} = 'None';
 		}
+		# Checking if any variable encountered in the include file is either a Parameter or Common var
 		for my $var ( keys %vars ) {
 			if (
 				( $has_pars and not exists( $Sf->{'Parameters'}{$var} ) )
@@ -1070,16 +1113,17 @@ sub _get_commons_params_from_includes {
 					next
 					  if $annline->[0] eq ''
 					  or exists $annline->[1]{'Comments'};
-					if ( $annline->[0] =~ /$var/ ) {
-						warn "PROBLEM WITH $var on next line\n";
+					if ( $annline->[0] =~ /\W$var\W/ ) {
+						warn "Parser: PROBLEM WITH $var on the following line in $f:\n";
+						warn $annline->[0], "\n";
+#						die Dumper($Sf->{'Commons'}{$var});
 					}
-					warn $annline->[0], "\n";
+					
 
 				}
 
 				#                warn Dumper( $Sf->{'AnnLines'} );
-				croak
-"The include $f contains a variable <$var> that is neither a parameter nor a common variable, this is not supported\n";
+				print "WARNING: The include $f contains a variable <$var> that is neither a parameter nor a common variable, this is not supported\n" if $W;
 			}
 		}
 	}
@@ -1091,222 +1135,11 @@ sub _get_commons_params_from_includes {
 
 # -----------------------------------------------------------------------------
 # -----------------------------------------------------------------------------
-#sub pushAnnLine {
-#	(my $stref, my $f, my $srctype,my $line, my $free_form)=@_;
-#	my $pline = procLine( $line, $free_form );
-#	
-#    if ( exists $pline->[1]{'SubroutineSig'} ) {
-#    	$stref->{$srctype}{$f}{'Status'} = $READ;
-#        $srctype='Subroutines';
-##        print "FOUND SUB $f\n";        
-#        $f=$pline->[1]{'SubroutineSig'};      
-#        $stref->{$srctype}{$f}{'AnnLines'}=[];                          
-#    } elsif (exists $pline->[1]{'FunctionSig'} ) {
-#    	$stref->{$srctype}{$f}{'Status'} = $READ;
-#        $srctype='Functions';        
-#        $f=$pline->[1]{'FunctionSig'};
-##        print "FOUND FUNC $f\n";
-#        $stref->{$srctype}{$f}{'AnnLines'}=[];
-#    }
-#    push @{ $stref->{$srctype}{$f}{'AnnLines'} }, $pline;
-#    print "PUSH: {$srctype}{$f}{'AnnLines'} $pline->[0]\n" if $V;
-##    print "NOW IN $f\n";
-#	return ($stref,$f,$srctype);	
-#} # pushAnnLine()
-# -----------------------------------------------------------------------------
 
-# -----------------------------------------------------------------------------
-#sub isCont {
-#	( my $line, my $free_form ) = @_;
-#	my $is_cont = 0;
-#	if ( $free_form == 0 ) {
-#		if ( $line =~ /^\ {5}[^0\s]/ )
-#		{    # continuation line. Continuation character can be anything!
-#			$is_cont = 1;
-#		} elsif ( $line =~ /^\&/ ) {
-#			$is_cont = 1;
-#		} elsif ( $line =~ /^\t[1-9]/ ) {
-#			$is_cont = 1;
-#		}
-#	} else {
-#		if ( $line =~ /^\s*\&/ ) {
-#			$is_cont = 1;
-#		}
-#	}
-#	return $is_cont;
-#}
-## -----------------------------------------------------------------------------
-#sub removeCont {
-#	( my $line, my $free_form ) = @_;
-#    chomp $line;
-#    if (isCommentOrBlank($line) ) {
-#    	return '';
-#    } 
-#	if ( $free_form == 0 ) {
-#		if ( $line =~ /^\ {5}[^0\s]/ )
-#		{    # continuation line. Continuation character can be anything!
-#			$line =~ s/^\s{5}.\s*/ /;
-#		} elsif ( $line =~ /^\&/ ) {
-#			$line =~ s/^\&\t*/ /;
-#		} elsif ( $line =~ /^\t[1-9]/ ) {
-#			$line =~ s/^\t[0-9]/ /;
-#		}
-#	} else {
-#		if ( $line =~ /^\s*\&/ ) {
-#			$line =~ s/^\s*\&\s*/ /;
-#		}
-#	}
-#	if ( $line =~ /.\!.*$/ ) {    # FIXME: trailing comments are discarded!
-#		my $tline = $line;
-#		my $nline = '';
-#		my $i     = 0;
-#		my %phs   = ();
-#		while ( $tline =~ /(\'.+?\')/ ) {
-#			$phs{"__PH${i}__"} = $1;
-#			$tline =~ s/(\'.+?\')/__PH${i}__/;
-#			$i++;
-#		}
-#		if ( $tline =~ /\!.*$/ ) {
-#			$nline = ( split( /\!/, $tline ) )[0];
-#			for my $phk ( keys %phs ) {
-#				$nline =~ s/$phk/$phs{$phk}/;
-#			}
-#			$line = $nline;
-#		} else {
-#			for my $phk ( keys %phs ) {
-#                $tline =~ s/$phk/$phs{$phk}/;
-#            }
-#			$line=$tline;
-#		}		
-#	}
-#	return $line;
-#}
-
-
-# -----------------------------------------------------------------------------
-=pod
- What we do is:
- - reformat lines with labels
- - replace strings
- - detect and standardise comments
- - add metadata
-=cut
-#
-#sub procLine {
-#	( my $line, my $free_form ) = @_;
-#
-#	chomp $line;
-#	my $info = {};
-#
-#	# Detect and standardise comments
-#	if ( $line =~ /^[CD\*\!]/i or $line =~ /^\ {6}\s*\!/i ) {
-#		$line =~ s/^\s*[CcDd\*\!]/! /;
-#		$info->{'Comments'} = 1;
-#	} elsif ( $line =~ /.\!.*$/ ) {    # FIXME: trailing comments are discarded!
-#		my $tline = $line;
-#		my $nline = '';
-#		my $i     = 0;
-#		my %phs   = ();
-#		while ( $tline =~ /(\'.+?\')/ ) {
-#			$phs{"__PH${i}__"} = $1;
-#			$tline =~ s/(\'.+?\')/__PH${i}__/;
-#			$i++;
-#		}
-#        my $cline = $line;
-#        $cline =~ s/^.+?\!//;    # FIXME: not quite correct
-#
-#		if ( $tline =~ /\!.*$/ ) {
-#			$nline = ( split( /\!/, $tline ) )[0];
-#			for my $phk ( keys %phs ) {
-#				$nline =~ s/$phk/$phs{$phk}/;
-#			}
-#			$line=$nline;
-#		} else {
-#			for my $phk ( keys %phs ) {
-#                $tline =~ s/$phk/$phs{$phk}/;
-#            }
-#            $line=$tline;
-#		}		
-#		$info->{'TrailingComment'} = $cline;
-#	} else {
-#		my $sixspaces = ' ' x 6;
-#		$line =~ s/^\t/$sixspaces/;
-#		$line =~ /^(\d+)\t/ && do {
-#			my $label  = $1;
-#			my $ndig   = length($label);
-#			my $indent = ' ' x ( 6 - $ndig );
-#			my $str    = $label . $indent;
-#			$line =~ s/^(\d+)\t/$str/;
-#			$info->{'Label'} = $label;
-#		};
-#		$line =~ /^(\d+)\s+/ && do {
-#			my $label = $1;
-#			$info->{'Label'} = $label;
-#			my $ndig   = length($label);
-#			my $indent = ' ' x ( 6 - $ndig );
-#			my $str    = $label . $indent;
-#			$line =~ s/^(\d+)\s+/$str/;
-#		};
-#	}
-#	;
-#	if ( substr( $line, 0, 2 ) ne '! ' ) {
-#		if ( $line =~ /^\s+include\s+\'(\w+)\'/i ) {
-#			$info->{'Includes'} = $1;
-#			$line =~ s/\bINCLUDE\b/include/;
-#			
-#			
-#		} elsif (  $line!~/\'/ && $line =~
-#                    /\b(program|recursive\s+subroutine|subroutine|function)\s+(\w+)/i )
-#                {
-#                    my $keyword = lc($1);
-#                    my $name = lc($2);
-#                    die "procLine(): No name for $keyword " if $name eq '';
-#                    if ( $keyword eq 'function' ) {                        
-#                        $info-> { 'FunctionSig'} = $name;
-#                    } else {                        
-#                        $info ->{ 'SubroutineSig'} = $name ;                        
-#                    }            
-#                    $line=lc($line);
-#		} else {
-#
-#			# replace string constants by placeholders
-#			my $phs_ref = {};
-#			my $ct=0;
-#			while ( $line =~ /(\'.*?\')/ ) {
-#				my $strconst = $1;
-#				my $ph       = '__PH' . $ct . '__';
-#				$phs_ref->{$ph} = $strconst;
-#				$line =~ s/\'.*?\'/$ph/;
-#				$ct++;
-#			}
-#			my $lcline =
-#			  ( substr( $line, 0, 2 ) eq '! ' )
-#			  ? $line
-#			  : lc($line);
-#			$lcline =~ s/__ph(\d+)__/__PH$1__/g;
-#			$line = $lcline;
-#			$info->{'PlaceHolders'} = $phs_ref unless (keys %{$phs_ref} == 0);
-#		}
-#	}
-#	return [ $line, $info ];
-#} # procLine()
-
-# -----------------------------------------------------------------------------
-#sub isCommentOrBlank {
-#	( my $line ) = @_;
-#
-#	# Detect comments & blank lines
-#	if ( $line =~ /^[CD\*\!]/i or $line =~ /^\ {6}\s*\!/i ) {
-#		return 1;
-#	} elsif ( $line =~ /^\s*$/ ) {
-#		return 1;
-#	}
-#	return 0;
-#}
 
 # -----------------------------------------------------------------------------
 # Proper FSM parser for F77 variable declarations (apart from the type)
-sub parse_vardecl {
+sub _parse_vardecl {
 	( my $varlst, my $T ) = @_;
 
 	print "VARLST: <$varlst>\n" if $T;
@@ -1478,4 +1311,89 @@ sub parse_vardecl {
 	}
 
 	return $vars;
-} # END of parse_vardecl()
+} # END of _parse_vardecl()
+
+sub __split_out_parameters {
+	   ( my $f, my $stref ) = @_;
+    my $Sf     = $stref->{'IncludeFiles'}{$f};
+    my $srcref = $Sf->{'AnnLines'};
+    my $param_lines=[];    
+    my $nsrcref=[];
+    my $nindex=0;my $nidx_offset=0;
+    push @{ $nsrcref }, ["      include 'params_$f'", {'Include' => {'Name' => "params_$f", 'InclType' => 'Parameter'} }];
+    for my $index ( 0 .. scalar( @{$srcref} ) - 1 ) {
+    	$nindex=$index+$nidx_offset;
+        my $line = $srcref->[$index][0];
+        my $info = $srcref->[$index][1];
+#        if ( $line =~ /^\!\s/ ) {
+#            next;
+#        }
+        if (exists $info->{'Parameter'}) {        	
+ 	          push @{$param_lines}, [$line,{'Parameter'=>[@{$info->{'Parameter'}}]}];
+ 	          delete $srcref->[$index][1]{'Parameter'};
+              $srcref->[$index][1]{'Comment'}=1;
+ 	          $srcref->[$index][0]='! '.$srcref->[$index][0]
+        }
+        
+#        if (exists $info->{'ExtraIncludesHook'}) {
+#            push @{ $nsrcref }, ["      include 'params_$f'", {'Include' => {'Name' => "params_$f", 'InclType' => 'Parameter'} }];                
+#        }
+        push @{ $nsrcref }, $srcref->[$index];        
+    }
+#    die Dumper($nsrcref);
+#    warn '=' x 80,"\n";
+#    die Dumper($param_lines);
+    $stref->{'IncludeFiles'}{$f}{'AnnLines'}=$nsrcref;
+    $stref->{'IncludeFiles'}{"params_$f"}={};
+    $stref->{'IncludeFiles'}{"params_$f"}{'AnnLines'}=$param_lines;
+    $stref->{'IncludeFiles'}{"params_$f"}{'InclType'}='Parameter';
+    $stref->{'IncludeFiles'}{$f}{'InclType'}='Common';    
+    $stref->{'IncludeFiles'}{"params_$f"}{'Parameters'} =  dclone($stref->{'IncludeFiles'}{$f}{'Parameters'} );
+    delete $stref->{'IncludeFiles'}{$f}{'Parameters'};
+    
+#    die Dumper( $stref->{'IncludeFiles'}{"$f"}{'RefactorGlobals'} );
+    $stref->{'IncludeFiles'}{"params_$f"}{'Root'}=$f;
+    $stref->{'IncludeFiles'}{"params_$f"}{'Source'}='Virtual';#"params_$f";
+    $stref->{'IncludeFiles'}{"params_$f"}{'Status'}=$PARSED;
+    $stref->{'IncludeFiles'}{"params_$f"}{'RefactorGlobals'}=$NO;
+    $stref->{'IncludeFiles'}{"params_$f"}{'HasBlocks'}=$NO;
+    $stref->{'IncludeFiles'}{"params_$f"}{'FStyle'}=$stref->{'IncludeFiles'}{$f}{'FStyle'};
+    $stref->{'IncludeFiles'}{"params_$f"}{'FreeForm'}=$stref->{'IncludeFiles'}{$f}{'FreeForm'};
+
+#    die Dumper($stref->{'IncludeFiles'}{"params_$f"});
+    return $stref;	
+} # END of __split_out_parameters
+
+sub _parse_implicit {
+	(my $line, my $f, my $stref) =@_;
+	# 1. test for compound, bail out
+	my $tline=$line;
+	while ($tline=~/\(/) {
+		$tline=~s/\(.+?\)//;
+	}
+	if ($tline=~/,/) {
+		die "Sorry, no support for combined implicit declarations, please split them over multiple lines -- or better, use proper typing!\n";
+	}
+	# 2. Get the spec and turn into a regexp
+	my $type = 'Unknown';
+	my $patt='.+';
+	$line=~/implicit\s+(\w.+)\((.+?)\)/ && do {
+		$type = $1;
+		$patt=$2;
+		$patt=~s/,/|/g;
+		$patt=~s/(\w\-\w)/[$1]/g;
+	};
+	# 3. Generate the lookup table
+	my %implicit_type_lookup=();
+	if (exists $stref->{'Implicits'} and exists $stref->{'Implicits'}{$f}) {
+		%implicit_type_lookup=%{ $stref->{'Implicits'}{$f} };
+	}
+	for my $c ('a' .. 'z') {
+		if ($c=~/($patt)/) {
+			$implicit_type_lookup{$c}=$type;
+		}
+	}
+	$stref->{'Implicits'}={} unless exists $stref->{'Implicits'};
+	$stref->{'Implicits'}{$f}={%implicit_type_lookup };
+	return $stref;
+}

@@ -33,20 +33,19 @@ Includes
 =cut
 
 # -----------------------------------------------------------------------------
-# In fact, "preconditioning" might be the better term
-# I guess I should defer splitting the lines until the end
+# Refactor the includes into modules
 sub refactor_includes {
 	( my $stref ) = @_;
 #    $stref=resolve_module_deps($stref); FIXME!!!
 	for my $f ( keys %{ $stref->{'IncludeFiles'} } ) {
 
-		if (   $stref->{'IncludeFiles'}{$f}{'InclType'} eq 'Common'
-			or $stref->{'IncludeFiles'}{$f}{'InclType'} eq 'Parameter' )
-		{
+#		if (   $stref->{'IncludeFiles'}{$f}{'InclType'} eq 'Common'
+#			or $stref->{'IncludeFiles'}{$f}{'InclType'} eq 'Parameter' )
+#		{
 			print "\nREFACTORING INCLUDE $f\n" if $V;
-			$stref = refactor_include( $f, $stref );
+			$stref = _refactor_include( $f, $stref );
 			$stref = create_refactored_source($stref, $f);
-		}
+#		}
 	}
 	
 	return $stref;
@@ -54,17 +53,15 @@ sub refactor_includes {
 
 # -----------------------------------------------------------------------------
 # -----------------------------------------------------------------------------
-sub refactor_include {
-	( my $f, my $stref ) = @_;
+sub _refactor_include {
+	( my $f, my $stref ) = @_; 
 
 	print "\n\n", '#' x 80, "\nRefactoring INC $f\n", '#' x 80, "\n" if $V;
 	my $If = $stref->{'IncludeFiles'}{$f};
-#	my $common=0;
-#	if ( $stref->{'IncludeFiles'}{$f}{'InclType'} eq 'Common' ) {
-#		$common=1;
-		$stref->{'IncludeFiles'}{$f}{'Source'}=$f.'.f95'; # FIXME: ad hoc
-		$stref->{'BuildSources'}{'F'}{$f.'.f95'}=1;
-#	}
+	my $ff=$f;
+	$ff=~s/\./_/g;
+	$stref->{'IncludeFiles'}{$f}{'Source'}=$ff.'.f95'; # FIXME: ad hoc
+	$stref->{'BuildSources'}{'F'}{$f.'.f95'}=1;
     if (   not exists $If->{'RefactoredCode'}
         or $If->{'RefactoredCode'} == []
         or exists $stref->{'BuildSources'}{'C'}{ $If->{'Source'} } ) # FIXME: needed?
@@ -75,17 +72,17 @@ sub refactor_include {
 	my $annlines = get_annotated_sourcelines( $stref, $f );
 	
 #	croak Dumper($annlines);
-my %deps=();
+    my %deps=();
     my $refactored_lines=[];
-#    if ($common) {
-    	push @{ $refactored_lines },
-    	[ "module $f", {'BeginModule'=>$f} ];
+    push @{ $refactored_lines },
+    	[ "module $ff", {'BeginModule'=>$ff} ];
     	
-#    }
 	for my $annline ( @{$annlines} ) {
+		next if not defined $annline; 
 		my $line      = $annline->[0];
+		      croak "WRONG REF: ".Dumper($annlines) if (not defined $annline->[1] or $annline->[1] eq '');
 		my $info = $annline->[1];
-		croak "WRONG REF" if ($info eq '');
+
 		
 		my %tags      = ( defined $info ) ? %{$info} : ();
 		print '*** ' . join( ',', keys(%tags) ) . "\n" if $V;
@@ -95,7 +92,7 @@ my %deps=();
 			$skip = 1;
 		}
 		if ( exists $tags{'VarDecl'} ) {
-			$stref=resolve_module_deps($stref,$f,$line);			
+			$stref=__resolve_module_deps($stref,$f,$line);			
 			my @nvars = ();
 			for my $var ( @{ $info->{'VarDecl'} } ) {
 				# Maybe put check for parameters here
@@ -133,48 +130,29 @@ my %deps=();
 			
 		}
 		if ( $skip == 0 ) {
-
 				push @{ $refactored_lines },
 				  [ $line, $info ];
-
 		}
 	}
 
         push @{ $refactored_lines },
-        [ "end module $f", {'EndModule'=>$f} ];
+        [ "end module $ff", {'EndModule'=>$ff} ];
         
-   my $firstline=shift @{ $refactored_lines }; # This is weak. What we need is the line with "module" 
+   my $firstline=shift @{ $refactored_lines }; # FIXME This is weak. What we need is the line with "module" 
 	for my $dep (keys %{ $stref->{'IncludeFiles'}{$f}{'Deps'} } ) {
             unshift @{ $refactored_lines },
             [ "use $dep", {'ModuleDep'=>$dep} ];
         }
         unshift @{ $refactored_lines },$firstline;
- $stref->{'IncludeFiles'}{$f}{'RefactoredCode'}  = $refactored_lines;
-                  
+ $stref->{'IncludeFiles'}{$f}{'RefactoredCode'}  = $refactored_lines;                  
 	return $stref;
 
 } # END of refactor_include()
 
 # -----------------------------------------------------------------------------
 
-sub resolve_module_deps {
-
+sub __resolve_module_deps {
     ( my $stref, my $f, my $line) = @_;
-
-#    for my $f ( keys %{ $stref->{'IncludeFiles'} } ) {
-#
-#        if (   $stref->{'IncludeFiles'}{$f}{'InclType'} eq 'Common' )
-#        {            
-#    print "MODULE $f:\n";
-#    my $annlines = get_annotated_sourcelines( $stref, $f );
-#    
-#    for my $annline ( @{$annlines} ) {
-#        my $line      = $annline->[0];
-#        my $info = $annline->[1];
-#        
-#        my %tags      = ( defined $info ) ? %{$info} : ();
-#        next if exists $tags{'Deleted'};
-#        if ( exists $tags{'VarDecl'} && $line =~/dimension\((.+?)\)/) {
         if ( $line =~/dimension\((.+?)\)/) {
             my $varlst= $1;
             my @vars = split(/[:,\+\-]/,$varlst);

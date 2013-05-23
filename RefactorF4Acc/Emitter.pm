@@ -82,9 +82,11 @@ sub _init_emit_all {
         # and copy include files into it
     if ( not -e $targetdir ) {
         mkdir $targetdir;
-        my @incs = glob('include*');
-        map { copy( $_, "$targetdir/$_" ) }
-          @incs;    # Perl::Critic wants a for-loop, drat it
+        # FIXME: the includes should be taken from $stref->{'Includes'}
+        # But actually, all includes should have been converted to F95 modules!        
+#        my @incs = glob('include*');
+#        map { copy( $_, "$targetdir/$_" ) }
+#          @incs;    # Perl::Critic wants a for-loop, drat it
 
     } elsif ( not -d $targetdir ) {
         die "ERROR: $targetdir exists but is not a directory!\n";
@@ -112,7 +114,7 @@ sub _init_emit_all {
 }
 # -----------------------------------------------------------------------------
 sub _emit_refactored_include {
-    ( my $f, my $dir, my $stref ) = @_;
+    ( my $f, my $dir, my $stref ) = @_;    
     my $srcref = $stref->{'IncludeFiles'}{$f}{'RefactoredCode'};
     my $incsrc=$stref->{'IncludeFiles'}{$f}{'Source'};
     if ( defined $srcref ) {
@@ -351,6 +353,7 @@ sub emit_all {
 			my $mod_name=$src;
 			$mod_name=~s/\.\///;
 			$mod_name=~s/\..*$//;
+			$mod_name=~s/\./_/g;
 			my $mod_header="module $mod_name\n";
 			my $mod_footer="\nend module $mod_name\n";
 			my @mod_uses=();
@@ -358,6 +361,7 @@ sub emit_all {
 				my $used_mod_name = $mod_src;
 				$used_mod_name =~s/\.\///;
 				$used_mod_name =~s/\..*$//;
+				$used_mod_name=~s/\./_/g;
 				push @mod_uses, "use $used_mod_name\n";
 			}
 			
@@ -372,6 +376,16 @@ sub emit_all {
 		}
 	} # loop over all source files
 #	die;
+
+    for my $f ( keys %{ $stref->{'IncludeFiles'} } ) {
+        _emit_refactored_include( $f, $targetdir, $stref );
+    }
+    # NOOP source
+    # Note that we always use the C source
+    if ($noop) {
+        _gen_noop($targetdir);        
+    }
+
 	return $stref;
 
 } # END of emit_all()

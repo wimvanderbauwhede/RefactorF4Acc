@@ -352,7 +352,9 @@ sub analyse_src_for_iodirs {
                  $line =~ /^\s+print.+?,(.+)$/ or 
                  $line =~ /^\d+\s+print.+?,(.+)$/
             ) {            	
-                $args=find_vars( $1, $args, \&set_iodir_read );    
+            	my $str=$1;
+            	die $line unless defined  $str;
+                $args=find_vars( $str, $args, \&set_iodir_read );    
                 next;            
             }
             
@@ -404,6 +406,7 @@ sub analyse_src_for_iodirs {
                     my $cond = $1;
                     $cond =~ s/[\(\)]+//g;
                     $cond =~ s/\.(eq|ne|gt|ge|lt|le|and|or|not|eqv|neqv)\./ /;
+                    die $line unless defined  $cond;
                     $args=find_vars( $cond, $args, \&set_iodir_read );
                 }
                 next;
@@ -428,7 +431,7 @@ sub analyse_src_for_iodirs {
                     # the '=' sign                    
                     #*so in other words, if it's an array assignment
                     # FIXME: If the LHS is an array assignment we are not checking the index for its IO dir
-                    if ($tline!~/(open|write|read|print)\s*\(/) {
+                    if ($tline!~/(open|write|read|print|close)\s*\(/) {
                     	
                     	(my $cond, $var,my $sep,$rhs)=conditional_assignment_fsm($tline);                    	
 #                    (my $cond,$var,my $sep,$rhs) =                    
@@ -456,6 +459,7 @@ sub analyse_src_for_iodirs {
                       $args=find_vars( $cond, $args, \&set_iodir_read );
                       if ($sep ne '') {
 #                      	print "SEP:<$sep>\n";
+                        die $line unless defined  $sep;
                         $args=find_vars( $sep, $args, \&set_iodir_read );
                       }     
                     } elsif ($tline=~/read\s*\(/) {
@@ -469,19 +473,30 @@ sub analyse_src_for_iodirs {
                        split( /(open|write)/, $tline ) ;
 #                      print $tline,"\n";                      
 #                      print "$cond ? $call $expr\n";
+                        die $line unless defined  $cond;
                       $args=find_vars( $cond, $args, \&set_iodir_read );
                     }                 
-            	 } else {            	 	
+            	 } else {       
+            	 	if ($tline=~/(open|write|read|print|close)\s*\(/) {
+            	 		my $call=$1;
+            	 		print "WARNING: IGNORING conditional <$tline> (analyse_src_for_iodirs)\n" if $W;
+#            	 		warn "IGNORING $call call <$tline>\n";
+            	 		next;
+            	 	} else {     	 	
             	   ($var, $rhs)=split(/\s*=\s*/,$tline);
             		if ($var=~/\(/) {
             		# Must be an array assignment
             		$var=~s/\s*\((.+)\)$//;
-            		$args=find_vars( $1, $args, \&set_iodir_read );
+            		my $str=$1;
+            		die $tline unless defined  $str;
+            		$args=find_vars( $str, $args, \&set_iodir_read );
             	   }
+            	 	} 
 #            	   warn "IODIR: $var\n" if $f=~/interpol_vdep_nests/;
             	}            	
 
 # First check the RHS for In
+                die $line unless defined  $rhs;
                 $args=find_vars( $rhs, $args, \&set_iodir_read );
 #                  if ( exists $args->{'fluxu'} &&
 #                         exists $args->{'fluxu'}{'IODir'} && $f eq 'calcfluxes' ) {

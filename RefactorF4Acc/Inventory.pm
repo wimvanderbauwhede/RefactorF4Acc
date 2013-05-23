@@ -194,8 +194,9 @@ sub process_src {
             };
             
             # Find include statements
-            $line =~ /^\s*include\s+\'(\w+)\'/ && do {
+            $line =~ /^\s*include\s+\'([\w\.]+)\'/ && do {
                 my $inc = $1;
+#                print "FOUND INC $inc\n" if $V;
                 if ( not exists $stref->{'IncludeFiles'}{$inc} ) {
                     $stref->{'IncludeFiles'}{$inc}{'Status'} = $UNREAD;                                        
                     $srctype='IncludeFiles';
