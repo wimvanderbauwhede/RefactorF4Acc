@@ -239,23 +239,28 @@ sub __determine_subroutine_arguments {
                 if ( not $has_var_decls ) {
                     print "INFO: $f has no arguments and no local var decls\n"
                       if $V;
+                      
                     if ( exists $Sf->{'ImplicitNone'} ) {
                         print "INFO: $f has 'implicit none'\n" if $V;
                         my $idx = $Sf->{'ImplicitNone'} + 1;
                         $srcref->[$idx][1]{'ExGlobVarDecls'} = {};                                        
                     } else {
-                        $info->{'ExGlobVarDecls'} = {};
+                        $info->{'ExGlobVarDecls'} = {}; 
                     }
                 }
                 $info->{'Signature'}{'Name'} = $name;
                 $Sf->{'Args'}{'List'} = [];
                 $Sf->{'Args'}{'Set'} = {};
                 last;
-            } elsif ( $line =~ /^\s+program\s+(\w+)\s*$/ ) {
+            } elsif ( $line =~ /^\s+program\s+(\w+)\s*$/ ) {;
                 # If it's a program, there are no arguments
                 my $name = $1;
+                
                 $info->{'Signature'}{'Args'}{'List'} = [];
                 $info->{'Signature'}{'Name'} = $name;
+                $info->{'ExGlobVarDecls'} = {}; # FIXME: This is not good: if an include exists, it should be after the include!!! What we need is to track where it should go: after Sig, after last Incl or before first VarDecl
+                $Sf->{'Args'}{'List'} = [];
+                $Sf->{'Args'}{'Set'} = {};
                 last;
             }
             $srcref->[$index]=[ $line, $info];

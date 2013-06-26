@@ -170,7 +170,7 @@ sub context_free_refactorings {
 					$tr{'Ref'}=1;
 					push @extra_lines, [ $filtered_line, \%tr ];
 				}
-				warn "$f PAR1\n";
+				warn "$f PAR:1\n";
 				$line = '!! Original line !! ' . $line;
 				$info->{'Deleted'} = 1;
 				$info->{'Ref'}++;
@@ -178,7 +178,7 @@ sub context_free_refactorings {
 				if ( scalar @vars == 1 ) {
 					if ( exists( $Sf->{'Parameters'}{ $vars[0] } ) ) {
 						# Remove this line
-						warn "$f PAR2\n";
+						warn "$f PAR:2\n";
 						$line = '!! Original line !! ' . $line;
 						$info->{'Deleted'} = 1;						
 					} else {
@@ -192,7 +192,7 @@ sub context_free_refactorings {
 						$line =
 						  _format_f95_multiple_var_decls( $Sf,@vars_not_pars );
 					} else {
-						warn "$f PAR3\n";
+						warn "$f PAR:3\n";
 						$line = '!! Original line !! ' . $line;
 						$info->{'Deleted'} = 1;
 					}
@@ -235,9 +235,18 @@ sub context_free_refactorings {
 		      $info->{'Ref'}++;
 		} # assignment
 		elsif ( exists $tags{'Parameter'} ) {
-			warn "$f PAR4 $line\n";
+			warn "$f PAR:4 $line\n";
+			if ($sub_or_func_or_inc eq 'IncludeFiles' and 
+			$stref->{'IncludeFiles'}{$f}{'InclType'} eq 'Parameter') {
+				my @par_lines=();
+				for my $var (@{ $tags{'Parameter'} } ) {
+				push @par_lines, format_f95_par_decl($stref,$f, $var);
+				}
+				$line=join('; ',@par_lines);
+			} else {
 			$line = '!! Original line !! ' . $line;
 			$info->{'Deleted'} = 1;
+			}
 			$info->{'Ref'}++;
 		} 
 		elsif ( exists $tags{'SubroutineCall'} ) {			
@@ -909,11 +918,11 @@ sub UNUSED_resolve_params {
 		print "VAL:<$val>\n";
 		if (@maybe_pars) {
 			for my $par (@maybe_pars) {
-				print "TEST PAR:{$par}\n";
+#				print "TEST PAR:{$par}\n";
 				my $tval = $Sf->{'Parameters'}{$par}{'Val'};
-				print 'PAR:', $par, ' VAL:', $tval, "\n";
+#				print 'PAR:', $par, ' VAL:', $tval, "\n";
 				$val =~ s/\b$par\b/$tval/;
-				print "AFTER SUB:<$val>\n"; 
+#				print "AFTER SUB:<$val>\n"; 
 			}
 
 			#                    die;

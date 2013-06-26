@@ -5,7 +5,7 @@ use RefactorF4Acc::Utils;
 use RefactorF4Acc::Refactoring::Common qw( get_annotated_sourcelines create_refactored_source context_free_refactorings );
 use RefactorF4Acc::Refactoring::Subroutines::Signatures qw( create_refactored_subroutine_signature refactor_subroutine_signature refactor_kernel_signatures ); 
 use RefactorF4Acc::Refactoring::Subroutines::Includes qw( skip_common_include_statement create_new_include_statements create_additional_include_statements );
-use RefactorF4Acc::Refactoring::Subroutines::Declarations;
+use RefactorF4Acc::Refactoring::Subroutines::Declarations qw( create_exglob_var_declarations );
 use RefactorF4Acc::Refactoring::Subroutines::Calls qw( create_refactored_subroutine_call );
 
 # 
@@ -190,7 +190,9 @@ sub _refactor_globals {
 #            $skip = skip_common_include_statement( $stref, $f, $annline );
 #        }
 
-        if ( exists $tags{'ExGlobVarDecls'} and not exists $tags{'Deleted'} and not exists $tags{'Comments'}) {            
+        if ( exists $tags{'ExGlobVarDecls'} and not exists $tags{'Deleted'} and not exists $tags{'Comments'}
+
+        ) {            
 
             # First, abuse ExGlobVarDecls as a hook for the addional includes, if any
             $rlines =
@@ -200,23 +202,24 @@ sub _refactor_globals {
             $rlines =
               create_exglob_var_declarations( $stref, $f, $annline, $rlines );
 #            warn Dumper($rlines) ;
-# While we're here, might as well generate the declarations for remapping and reshaping.
-# If the subroutine contains a call to a function that requires this, of course.
-# Executive decision: do this only for the routines to be translated to C/OpenCL
-            for my $called_sub ( keys %{ $Sf->{'CalledSubs'} } ) {
-                if ( exists $stref->{'SubsToTranslate'}{$called_sub} ) {
-
-                 # OK, we need to do the remapping, so create the machinery here
-                 # 1. Get the arguments of the called sub
-
-# 2. Work out if they need reshaping. If so, create the declarations for the new 1-D arrays
-
-# 3. Work out which remapped arrays will be used; create the declarations for these arrays
-
-                }
-            }
+## While we're here, might as well generate the declarations for remapping and reshaping.
+## If the subroutine contains a call to a function that requires this, of course.
+## Executive decision: do this only for the routines to be translated to C/OpenCL
+#            for my $called_sub ( keys %{ $Sf->{'CalledSubs'} } ) {
+#                if ( exists $stref->{'SubsToTranslate'}{$called_sub} ) {
+#
+#                 # OK, we need to do the remapping, so create the machinery here
+#                 # 1. Get the arguments of the called sub
+#
+## 2. Work out if they need reshaping. If so, create the declarations for the new 1-D arrays
+#
+## 3. Work out which remapped arrays will be used; create the declarations for these arrays
+#
+#                }
+#            }
 
         }
+        
         if ( exists $tags{'VarDecl'} and not exists $tags{'Deleted'}) {
 #        	warn join(';',keys %tags)."\n";
             $rlines = create_refactored_vardecls( $stref, $f, $annline, $rlines,

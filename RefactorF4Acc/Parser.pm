@@ -1048,8 +1048,6 @@ sub _get_commons_params_from_includes {
 							'Val'  => $pvars{$var}
 						};
 						push @pars, $var;
-
-#						warn "PAR: $var\n" ;					
 				}
 #				warn Dumper(@pars);
 				@{ $Sf->{'Parameters'}{'OrderedList'} } =

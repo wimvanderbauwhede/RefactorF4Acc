@@ -122,8 +122,12 @@ sub _refactor_include {
                 	my $gvar=$stref->{'IncludeFiles'}{$f}{'ConflictingGlobals'}{$var};
                 	$line=~s/\b$var\b/$gvar/;
                 	$info->{'Ref'}++;
-                    $info->{'Parameter'}=[$gvar];                    
+                    $info->{'Parameter'}=[$gvar];    
+                    print "PAR: renamed $gvar ($line)\n"; die "WEAK";                
                 }
+#                if ($stref->{'IncludeFiles'}{$f}{'InclType'} eq 'Parameter') {
+#                	die $line;
+#                }
 			}
 			
 		}
@@ -151,7 +155,7 @@ sub _refactor_include {
 
 sub __resolve_module_deps {
     ( my $stref, my $f, my $line) = @_;
-        if ( $line =~/dimension\((.+?)\)/) {
+        if ( $line =~/dimension\((.+?)\)/) { # WV: FIXME! BOO!
             my $varlst= $1;
             my @vars = split(/[:,\+\-]/,$varlst);
             for my $var ( @vars ) {
@@ -160,6 +164,7 @@ sub __resolve_module_deps {
                         if (   $stref->{'IncludeFiles'}{$inc}{'InclType'} eq 'Parameter' ) {
                         	if ( exists $stref->{'IncludeFiles'}{$inc}{'Vars'}{$var} ) {
 #                        		print "VAR $var in $inc\n";
+
                         		$stref->{'IncludeFiles'}{$f}{'Deps'}{$inc}=1;
                         		last;
                         	}            

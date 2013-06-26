@@ -44,7 +44,6 @@ sub create_refactored_vardecls {
     my $Sf        = $stref->{'Subroutines'}{$f};
     my $line      = $annline->[0] || '';
     my $info = $annline->[1];
-#    my %args      = map { $_ => 1 } @{ $Sf->{'Args'} };
     my %args      = %{ $Sf->{'Args'}{'Set'} };
     my $globals = ( get_maybe_args_globs( $stref, $f ) )[1];
     my $skip=0;
@@ -122,20 +121,23 @@ sub create_exglob_var_declarations {
     ( my $stref, my $f, my $annline, my $rlines ) = @_;
     my $Sf                 = $stref->{'Subroutines'}{$f};
     my $info          = $annline->[1];
-#    my %args               = map { $_ => 1 } @{ $Sf->{'Args'} };
+
     my %args               = %{ $Sf->{'Args'}{'Set'} };    
-#local $V=1;
+ local $V=1 if $f eq 'main';
  
     for my $inc ( keys %{ $Sf->{'Globals'} } ) {
         print "INFO: GLOBALS from INC $inc in $f\n" if $V;
 #        print Dumper(@{ $Sf->{'Globals'}{$inc} }) if $V;
         for my $var ( @{ $Sf->{'Globals'}{$inc} } ) {
+        	
             if ( exists $args{$var} ) {
                 my $rline = "*** ARG MASKS GLOB $var in $f!";
                 push @{$rlines}, [ $rline, $info ];
             } else {
+#            	print $var,"\n";
                 if ( exists $Sf->{'Commons'}{$inc} ) {
-                    if ( $f ne $stref->{'IncludeFiles'}{$inc}{'Root'} ) {
+#                	print $var,"\n";
+                    if ( 1 ) { #$f ne $stref->{'IncludeFiles'}{$inc}{'Root'} ) {
                         print "\tGLOBAL $var from $inc in $f\n" if $V;
                         croak "$f: INC $inc: VAR $var\n" if not exists $stref->{IncludeFiles}{$inc}{'Vars'}{$var};                        
                         my $rline = format_f95_var_decl( $stref->{'IncludeFiles'}{$inc},$var);
@@ -160,8 +162,15 @@ sub create_exglob_var_declarations {
                         }
                         $info->{'Ref'}=1;
                         push @{$rlines}, [ $rline, $info ];
-                    } elsif ($V) {
-                        print last;
+                    } else {
+#                    	# So, $f is Root for $inc. As we have removed all common block variables from $inc, 
+#                    	# I think we must declare them here.
+#                    	# This is of course a but strange as it means that the code is the same if $f is Root or not.
+##                    	print "\tGLOBAL $var from $inc in $f\n" if $V;
+#                    	my $rline = format_f95_var_decl( $stref->{'IncludeFiles'}{$inc},$var);
+#                    	print $rline,"\n";
+##                    	die "$f eq stref->{'IncludeFiles'}{$inc}{'Root'}" if $f eq 'main';
+##                        print last;
                     }
                 } elsif ($V) {
                     print "*** NO COMMONS for $inc in $f ";
@@ -176,7 +185,7 @@ sub create_exglob_var_declarations {
         }    # for
     }
 #    croak Dumper($rlines);
-
+#die if $f eq 'main';
 #    die 'create_exglob_var_declarations()' if $f eq 'interpol_all';
 #   die if $f=~/particles_main/;
     return $rlines;

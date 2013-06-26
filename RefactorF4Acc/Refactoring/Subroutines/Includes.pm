@@ -60,7 +60,7 @@ sub create_additional_include_statements {
     my $tags_lref = $annline->[1];
     for my $inc (@{ $Sf->{'LiftedIncludes'} }) {
             print "INFO: instantiating merged INC $inc in $f\n" if $V;
-#            my $rline = "      include '$inc'";
+
             my $tinc = $inc;
             die $tinc if $tinc =~/params_com/;
             $tinc=~s/\./_/g;
@@ -86,8 +86,10 @@ sub create_new_include_statements {
             and $f eq $stref->{'IncludeFiles'}{$inc}{'Root'} )
         {    
             print "INFO: instantiating merged INC $inc in $f\n" if $V;
-            my $rline = "      include '$inc'";
-#            my $rline = "      use $inc";
+#            my $rline = "      include '$inc'";
+            my $tinc = $inc;        
+            $tinc=~s/\./_/g;
+            my $rline = "      use $tinc";
             $tags_lref->{'Include'}{'Name'} = $inc;
             $tags_lref->{'Ref'}=1;
             push @{$rlines}, [ $rline, $tags_lref ];
