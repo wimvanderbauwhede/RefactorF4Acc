@@ -25,9 +25,6 @@ use Exporter;
     &lift_includes
 );
 
-
-
-
 # -----------------------------------------------------------------------------
 
 =pod
@@ -36,9 +33,9 @@ use Exporter;
 
 `resolve_globals`:
 
-- Walk the tree from the top. In the leaf nodes, find the globals with `identify_globals_used_in_subroutine()`
+- Walk the tree from the top. In the leaf nodes, find the globals with `_identify_globals_used_in_subroutine()`
 - On the return,
-    - find globals in the current sub with `identify_globals_used_in_subroutine()`
+    - find globals in the current sub with `_identify_globals_used_in_subroutine()`
     - merge the globals for the just-processed sub with the current ones
 - Then, check for conflicts with parameter names, and rename the globals
 
@@ -54,7 +51,7 @@ sub resolve_globals {
         and scalar keys %{ $Sf->{'CalledSubs'} } )
     {
         # Globals for $csub have been determined
-        $stref = identify_globals_used_in_subroutine( $f, $stref );
+        $stref = _identify_globals_used_in_subroutine( $f, $stref );
         my @csubs = keys %{ $Sf->{'CalledSubs'} };
         for my $csub (@csubs) {
 #        	warn "CALLED $csub from $f\n";
@@ -73,19 +70,19 @@ sub resolve_globals {
     } else {
         # Leaf node, find globals
         print "SUB $f is LEAF\n" if $V;
-        $stref = identify_globals_used_in_subroutine( $f, $stref );
+        $stref = _identify_globals_used_in_subroutine( $f, $stref );
     }
 #    warn '=' x 80, "\nEXIT resolve_globals( $f )\n" ;
 #croak Dumper($stref->{'Subroutines'}{'getfields'}{'Globals'}) if $f eq 'getfields';
     # We only come here when the recursion and merge is done.
-    $stref = resolve_conflicts_with_params( $f, $stref );
-    
+    $stref = _resolve_conflicts_with_params( $f, $stref );
+#    if ($f=~/les/) {die Dumper($stref->{'Subroutines'}{$f}{'Globals'});}
     return $stref;
 }    # END of resolve_globals()
 
 # ----------------------------------------------------------------------------------------------------
 
-sub resolve_conflicts_with_params {
+sub _resolve_conflicts_with_params {
     ( my $f, my $stref ) = @_;
     my $Sf = $stref->{'Subroutines'}{$f};
 
@@ -125,20 +122,20 @@ sub resolve_conflicts_with_params {
     }
 
     return $stref;
-}    # END of resolve_conflicts_with_params
+}    # END of _resolve_conflicts_with_params
 
 # ----------------------------------------------------------------------------------------------------
 # Here we identify which globals from the includes are actually used in the subroutine.
 # This is not correct because globals used in called subroutines are not recognised
 # So what I should do is find the globals for every called sub recursively.
-sub identify_globals_used_in_subroutine {
+sub _identify_globals_used_in_subroutine {
     ( my $f, my $stref ) = @_;
 
 #       local $V=1 if $f eq 'interpol_all';
     my $Sf = $stref->{'Subroutines'}{$f};
 
     # First determine subroutine arguments.
-    $stref = determine_subroutine_arguments( $f, $stref );
+    $stref = __determine_subroutine_arguments( $f, $stref );
 
     my %commons = ();
     print "COMMONS ANALYSIS in $f\n" if $V; 
@@ -179,7 +176,7 @@ sub identify_globals_used_in_subroutine {
 
                 # For all other lines, look for variables
                 @globs =
-                  ( @globs, look_for_variables( $stref, $f, $line, $tvars ) );
+                  ( @globs, __look_for_variables( $stref, $f, $line, $tvars ) );
 #                  $srcref->[$index]= [ $line, $info];
             }    # for each line
             
@@ -195,10 +192,10 @@ sub identify_globals_used_in_subroutine {
         }
     }
     return $stref;
-}    # END of identify_globals_used_in_subroutine()
+}    # END of _identify_globals_used_in_subroutine()
 # -----------------------------------------------------------------------------
 
-sub determine_subroutine_arguments {
+sub __determine_subroutine_arguments {
     ( my $f, my $stref ) = @_;
 
     #   local $V=1 if $f=~/interpol/;
@@ -266,9 +263,9 @@ sub determine_subroutine_arguments {
     }
     $Sf->{'AnnLines'}=$srcref; # WV: required?
     return $stref;
-}    # END of determine_subroutine_arguments()
+}    # END of __determine_subroutine_arguments()
 # -----------------------------------------------------------------------------
-sub look_for_variables {
+sub __look_for_variables {
     ( my $stref, my $f, my $line, my $tvars ) = @_;
     my $Sf     = $stref->{'Subroutines'}{$f};
     my @globs  = ();
@@ -297,7 +294,7 @@ sub look_for_variables {
         }
     }
     return @globs;
-}    # END of look_for_variables()
+}    # END of __look_for_variables()
 
 # -----------------------------------------------------------------------------
 # Only to be called for subs with RefactorGlobals == 2

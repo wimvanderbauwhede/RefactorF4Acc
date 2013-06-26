@@ -68,7 +68,7 @@ sub refactor_all_subroutines {
 
 ## Info refactoring `_refactor_subroutine_main()`
 
-Essentially, call `_refactor_globals()` and then call `create_refactored_source()`
+Essentially, call `_refactor_globals()` on every sub
 
 for every line:
 
@@ -99,9 +99,12 @@ sub _refactor_subroutine_main {
         print "REFACTORING SUBROUTINE $f\n";
         print "#" x 80, "\n";
     }
+    
     $stref = context_free_refactorings( $stref, $f );    
 
     my $Sf = $stref->{'Subroutines'}{$f};
+    
+    
     my $annlines = get_annotated_sourcelines($stref,$f);
     
     my $rlines = $annlines;
@@ -157,15 +160,15 @@ sub _refactor_globals {
             }
         }       
     }
-    print "REFACTORING GLOBALS in $f\n" if $V;
+    print "REFACTORING GLOBALS in $f\n" if $V; 
     my $rlines      = [];
     my $s           = $Sf->{'Source'};
     my $is_C_target = exists $stref->{'BuildSources'}{'C'}{$s} ? 1 : 0;
     my $idx         = 0;
     for my $annline ( @{$annlines} ) {
         my $line      = $annline->[0] || '';
-        my $tags_lref = $annline->[1];
-        my %tags      = ( defined $tags_lref ) ? %{$tags_lref} : ();
+        my $info = $annline->[1];
+        my %tags      = ( defined $info ) ? %{$info} : ();
         print '*** ' . join( ',', keys(%tags) ) . "\n" if $V;
         print '*** ' . $line . "\n" if $V;
         my $skip = 0;
@@ -182,10 +185,10 @@ sub _refactor_globals {
 #               croak Dumper($rlines) if $f eq 'interpol_all';
             $skip = 1;
         }
-
-        if ( exists $tags{'Include'} ) {
-            $skip = skip_common_include_statement( $stref, $f, $annline );
-        }
+# There should be no need to do this: all /common/ blocks should have been removed anyway!
+#        if ( exists $tags{'Include'} ) {
+#            $skip = skip_common_include_statement( $stref, $f, $annline );
+#        }
 
         if ( exists $tags{'ExGlobVarDecls'} and not exists $tags{'Deleted'} and not exists $tags{'Comments'}) {            
 
@@ -253,8 +256,8 @@ sub _refactor_calls_globals {
     my $firstinc=1;
     for my $annline ( @{$annlines} ) {
         my $line      = $annline->[0] || '';
-        my $tags_lref = $annline->[1];
-        my %tags      = ( defined $tags_lref ) ? %{$tags_lref} : ();
+        my $info = $annline->[1];
+        my %tags      = ( defined $info ) ? %{$info} : ();
         print '*** ' . join( ',', keys(%tags) ) . "\n" if $V;
         print '*** ' . $line . "\n" if $V;
         my $skip = 0;
@@ -310,9 +313,10 @@ sub _refactor_calls_globals {
 sub rename_conflicting_locals {
     ( my $stref, my $f, my $annline, my $rlines ) = @_;
     my $line               = $annline->[0] || '';
-    my $tags_lref          = $annline->[1];
+    my $info          = $annline->[1];
     my $Sf                 = $stref->{'Subroutines'}{$f};
     my $rline = $line;
+    my $changed=0;
     if ( exists $Sf->{'ConflictingGlobals'} ) {    
         for my $lvar ( keys %{ $Sf->{'ConflictingGlobals'} } ) {
             if ( $rline =~ /\b$lvar\b/ ) {
@@ -320,9 +324,13 @@ sub rename_conflicting_locals {
     "WARNING: CONFLICT in $f, renaming $lvar with $Sf->{'ConflictingGlobals'}{$lvar}\n"
                   if $W;
                 $rline =~ s/\b$lvar\b/$Sf->{'ConflictingGlobals'}{$lvar}/g;
+                $changed=1;
             }
         }
     }
-    push @{$rlines}, [ $rline, $tags_lref ];
+    if ($changed==1) {
+    	$info->{'Ref'}++;
+    }
+    push @{$rlines}, [ $rline, $info ];
     return $rlines;
 }    # END of rename_conflicting_locals()

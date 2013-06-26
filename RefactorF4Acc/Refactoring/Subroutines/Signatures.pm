@@ -52,6 +52,7 @@ sub create_refactored_subroutine_signature {
         $rline = '      subroutine ' . $f . '(' . $args_str . ')';
     }
     $tags_lref->{'Refactored'} = 1;
+    $tags_lref->{'Ref'} = 1;
     $Sf->{'HasRefactoredArgs'} = 1;
     push @{$rlines}, [ $rline, $tags_lref ];
 
@@ -69,20 +70,21 @@ sub refactor_kernel_signatures {
     my $args_ref = $Sf->{'RefactoredArgs'}{'List'};
     $Sf->{'HasRefactoredArgs'} = 1;
     # IO direction information
-    my @rlines=( [ "!    SUBROUTINE $f IO INFO\n", { 'Comment' => 1 } ] );
+    my @rlines=();# ( [ "!    SUBROUTINE $f IO INFO\n", { 'Comment' => 1, 'Ref'=>1 } ] );
     for my $arg ( @{$args_ref} ) {    	
         if ( exists $Sf->{'RefactoredArgs'}{'Set'}{$arg}{'IODir'} ) {
             my $iodir = $Sf->{'RefactoredArgs'}{'Set'}{$arg}{'IODir'};
             my $kind  = $Sf->{'RefactoredArgs'}{'Set'}{$arg}{'Kind'};
             my $type  = $Sf->{'RefactoredArgs'}{'Set'}{$arg}{'Type'};
+#            die Dumper($type) if $arg eq 'gold';
             my $ntabs = ' ' x 8;
             if ( $iodir eq 'In' and $kind eq 'Scalar' ) {
                 $ntabs = '';
             } elsif ( $iodir eq 'Out' ) {
                 $ntabs = ' ' x 4;
             }
-            my $comment = "!      $ntabs$arg:\t$iodir, $kind, $type";
-            push @rlines, [ $comment, { 'Comment' => 1 } ];
+#            my $comment = "!      $ntabs$arg:\t$iodir, $kind, $type";
+#            push @rlines, [ $comment, { 'Comment' => 1, 'Ref'=>1 } ];
         } else {
             print "WARNING: No IO info for $arg in $f\n" if $W;
         }
@@ -100,7 +102,7 @@ sub refactor_kernel_signatures {
     for my $annline ( @{$annlines} ) {    	
         if ( not defined $annline or not defined $annline->[0] ) {
             croak
-              "Undefined source code line for $f in create_refactored_source()";
+              "Undefined source code line for $f in refactor_kernel_signatures()";
         }
         my $line = $annline->[0];
         my $info = $annline->[1];
@@ -115,12 +117,10 @@ sub refactor_kernel_signatures {
         }
 
         push @{ $Sf->{'RefactoredCode'} }, [ $line, $info ];# if $line ne '';
-    }
-    
-
+    }    
 
     return $stref;
-}    # END of x()
+}    # END of refactor_kernel_signatures()
 # -----------------------------------------------------------------------------
 
 sub refactor_subroutine_signature {

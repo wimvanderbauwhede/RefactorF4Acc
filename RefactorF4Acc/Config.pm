@@ -14,6 +14,7 @@ $V $W $I
 $NO $YES $GO
 $UNREAD $READ $PARSED $FROM_BLOCK $C_SOURCE
 $noop
+$refactor_toplevel_globals
 $call_tree_only
 $main_tree
 $gen_sub
@@ -32,6 +33,7 @@ our $I = 0;    # Info
 # Instead of FORTRAN's 'continue', we insert a call to a subroutine noop() that does nothing
 # This is because F2C_ACC handles continue incorrectly
 our $noop           = 1;
+our $refactor_toplevel_globals = 0;
 our $call_tree_only = 0;
 our $main_tree      = 0;
 

@@ -32,6 +32,7 @@ use Exporter;
         create_additional_include_statements() -> Includes
 =cut
 # --------------------------------------------------------------------------------
+# There should be no need to do this: all /common/ blocks should have been removed anyway! 
 sub skip_common_include_statement {
     ( my $stref, my $f, my $annline ) = @_;
     my $tags_lref = $annline->[1];
@@ -55,19 +56,6 @@ sub create_additional_include_statements {
     ( my $stref, my $f, my $annline, my $rlines ) = @_;
 #   local $V=1;
     my $Sf        = $stref->{'Subroutines'}{$f};    
-        # Which child has RefactorGlobals==1?
-#    my @additional_includes=();
-#    $Sf->{'LiftedIncludes'} =[];
-#    for my $cs (keys %{ $Sf->{'CalledSubs'} }) {             
-#        if ($stref->{'Subroutines'}{$cs}{'RefactorGlobals'}==1) {
-#            for my $inc (keys %{ $stref->{'Subroutines'}{$cs}{'CommonIncludes'} }) {
-#                if (not exists $Sf->{'Includes'}{$inc} and $stref->{'IncludeFiles'}{$inc}{'InclType'} eq 'Common') {
-#                    push @additional_includes, $inc;
-#	            push @{ $Sf->{'LiftedIncludes'} }, $inc;
-#                } 
-#            }
-#        }
-#    }        
     
     my $tags_lref = $annline->[1];
     for my $inc (@{ $Sf->{'LiftedIncludes'} }) {
@@ -78,6 +66,7 @@ sub create_additional_include_statements {
             $tinc=~s/\./_/g;
             	my $rline = "      use $tinc";
             $tags_lref->{'Include'}{'Name'} = $inc;
+            $tags_lref->{'Ref'}=1;
             push @{$rlines}, [ $rline, $tags_lref ];                    
     }
 #croak "FIXME: INCLUDE _AFTER_ OTHER INCLUDES!!!";
@@ -100,6 +89,7 @@ sub create_new_include_statements {
             my $rline = "      include '$inc'";
 #            my $rline = "      use $inc";
             $tags_lref->{'Include'}{'Name'} = $inc;
+            $tags_lref->{'Ref'}=1;
             push @{$rlines}, [ $rline, $tags_lref ];
         }
     }

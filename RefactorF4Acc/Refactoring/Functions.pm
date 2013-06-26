@@ -29,12 +29,12 @@ use Exporter;
 =pod
 Functions
     refactor_called_functions()
-    refactor_function()
+    _refactor_function()
 =cut
 
 
 # -----------------------------------------------------------------------------
-# The test for called functions is weak, a better test is the status:
+# The test for called functions is the status:
 # if the function was not parsed, it's not used, because we parse via recursive descent
 sub refactor_called_functions {
     ( my $stref ) = @_;
@@ -45,8 +45,8 @@ sub refactor_called_functions {
         if ($Ff->{'Status'} == $READ) { 
         	warn "refactor_called_functions(): Function $f was never parsed";
         } else {        
-            $stref = refactor_function( $f, $stref );
-            $stref = create_refactored_source($stref, $f);
+            $stref = _refactor_function( $f, $stref );
+#            $stref = create_refactored_source($stref, $f);
         }
         } 
     }
@@ -54,7 +54,7 @@ sub refactor_called_functions {
 }    # END of refactor_called_functions()
 
 # -----------------------------------------------------------------------------
-sub refactor_function {
+sub _refactor_function {
     ( my $f, my $stref ) = @_;
     if ($V) {
         print "\n\n";
@@ -74,5 +74,5 @@ sub refactor_function {
 
     return $stref;
 
-}    # END of refactor_function()
+}    # END of _refactor_function()
 # -----------------------------------------------------------------------------

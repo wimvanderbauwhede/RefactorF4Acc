@@ -6,7 +6,7 @@ package RefactorF4Acc::Refactoring;
 
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
-use RefactorF4Acc::Refactoring::Common qw( create_refactored_source );
+use RefactorF4Acc::Refactoring::Common qw( create_refactored_source get_annotated_sourcelines );
 use RefactorF4Acc::Refactoring::Subroutines qw( refactor_all_subroutines refactor_kernel_signatures );
 use RefactorF4Acc::Refactoring::Functions qw( refactor_called_functions );
 use RefactorF4Acc::Refactoring::Includes qw( refactor_includes );
@@ -63,7 +63,9 @@ sub refactor_all {
     for my $f ( keys %{ $stref->{'Subroutines'} } ) {
     	if (scalar keys %{$stref->{'Subroutines'}{$f}{'Callers'} } or $stref->{'Subroutines'}{$f}{'Program'} ) {    		
     		$stref = refactor_kernel_signatures( $stref, $f); # FIXME: rename this!
-            $stref=create_refactored_source(  $stref, $f );
+    		#FIXME: for Functions and Includes, this has already been done
+    		# This should be done as the final step!
+#            $stref=create_refactored_source(  $stref, $f );
     	} else {
     		print "WARNING: SKIPPING $f: " if $V;
 			if (defined $f and $f ne '') {
@@ -72,6 +74,8 @@ sub refactor_all {
 				print "Undefined\n" if $V;
 			}
     	}
+    	
+   $stref=add_module_decls($stref); 	
 #  if ( $f eq 'timemanager' ) {
 #       print "REFACTORED LINES ($f):\n";
 #        my $Sf = $stref->{'Subroutines'}{$f};
@@ -84,3 +88,52 @@ sub refactor_all {
     }
     return $stref;	
 } # END of refactor_all()  
+
+## FIXME: this should go in Refactoring::Modules
+
+sub add_module_decls {
+    (my $stref)=@_;
+    
+    for my $src (keys %{ $stref->{'SourceContains'} } ) {
+        
+        print "INFO: adding module decls to $src\n" if $V;
+        
+       if ($I) {
+            print '! ','-' x 80,"\n";
+            print "! SRC: $src\n";
+            print "!\tCONTAINS: ";
+            print join(', ',keys %{  $stref->{'SourceContains'}{$src}   } ),"\n";
+       }
+             
+            my $mod_name=$src;
+            $mod_name=~s/\.\///;
+            $mod_name=~s/\..*$//;
+            $mod_name=~s/\./_/g;
+            $mod_name="module_$mod_name";
+            my $mod_header=["module $mod_name\n",{'Ref'=>1}];
+            my $mod_footer=["\nend module $mod_name\n",{'Ref'=>1}];
+            my @mod_uses=();
+            for my $mod_src (keys %{ $stref->{'UsedModules'}{$src} }) {
+                my $used_mod_name = $mod_src;
+                $used_mod_name =~s/\.\///;
+                $used_mod_name =~s/\..*$//;
+                $used_mod_name=~s/\./_/g;
+                $used_mod_name="module_$used_mod_name";
+                push @mod_uses, ["use $used_mod_name\n",{'Ref'=>1}];
+            }
+            my $mod_contains = ["contains\n",{'Ref'=>1}];
+            my @refactored_source_lines=();
+            for my $f (keys %{  $stref->{'SourceContains'}{$src} }) {
+            	die if $f=~/^\s*$/;
+            	
+                my $annlines = get_annotated_sourcelines( $stref, $f );
+                my $refacored_lines = create_refactored_source( $stref,$annlines );
+#                my @ref_lines = map { $_->[0] } @{$annlines};
+                @refactored_source_lines=(@refactored_source_lines,@{$refacored_lines})
+            }
+            $stref->{'RefactoredSources'}{$src}=[$mod_header, @mod_uses,$mod_contains, @refactored_source_lines,$mod_footer];
+    } # loop over all source files
+
+    return $stref;
+
+} # END of add_module_decls()

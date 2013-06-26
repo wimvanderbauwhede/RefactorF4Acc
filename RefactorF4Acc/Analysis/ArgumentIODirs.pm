@@ -85,18 +85,21 @@ sub determine_argument_io_direction_core {
             $type  = $maybe_args->{$arg}{'Type'};
             $shape = $maybe_args->{$arg}{'Shape'};
         } else {
-            print "WARNING: No kind/type info for $arg in $f\n" if $W;
+        	# FIXME: Implicit rules can include a kind!
+        	($type,$kind,$shape)=_type_via_implicits($stref,$f,$arg);        	
+        	if ($type eq 'Unknown') {
+                print "WARNING: No type/kind/shape info for $arg in $f\n" if $W;
+        	}
         }
-
-        $args->{$arg}{'Kind'}  = $kind;
-        $args->{$arg}{'Type'}  = $type;
-        $args->{$arg}{'Shape'} = $shape;
+        $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$arg}{'Kind'}  = $kind;
+        $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$arg}{'Type'}  = $type;
+        $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$arg}{'Shape'} = $shape;
     }
     
      # FIXME: I don't think this should be done here
 #TODO   $stref = remap_args( $stref, $f );   
 #TODO   $stref = reshape_args( $stref, $f );    
-    $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}=$args;
+#    $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}=$args;
     return $stref;
 }    # determine_argument_io_direction_core()
 
@@ -641,3 +644,28 @@ my $rhs='';
     return ( $cond, $lhs,$sep,$rhs);
 } # END of conditional_assignment_fsm 
 
+sub _type_via_implicits {
+(my $stref, my $f, my $var)=@_;
+    my $sub_func_incl = sub_func_or_incl( $f, $stref );
+    my $type ='Unknown';      
+    my $kind ='Unknown';
+    my $shape ='Unknown';
+    if (exists $stref->{'Implicits'}{$f}{lc(substr($var,0,1))} ) {
+        print "INFO: VAR <", $var, "> typed via Implicits for $f\n" if $I;                            
+        my $type_kind_shape = $stref->{'Implicits'}{$f}{lc(substr($var,0,1))};
+        ($type, $kind, $shape)=@{$type_kind_shape};
+#        my $var_rec = {
+#            'Decl' => "        $type $var",
+#            'Shape' => 'UNKNOWN',
+#            'Type' => $type,
+#            'Attr' => '',
+#            'Indent' => '      ',
+#            'Kind' => 'UNKNOWN',
+#        };          
+#        $stref->{$sub_func_incl}{$f}{'Vars'}{$var} = $var_rec;                                  
+                                    
+    } else {
+        print "WARNING: common <", $var, "> has no rule in {'Implicits'}{$f}\n" if $W;
+    }
+    return ($type, $kind, $shape);
+}

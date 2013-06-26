@@ -322,58 +322,72 @@ sub emit_all {
                 and not exists $stref->{'BuildSources'}{'F'}{$src} ) {
             $stref->{'BuildSources'}{'F'}{$src} = 1;
         }        
-	   
-       my @module_contains=();
-	   for my $sub_or_func (keys %{  $stref->{'SourceContains'}{$src}   } ) {
-	   	
-# Find all function/subroutine calls in this function/subroutine
-			my $sub_func_type= $stref->{'SourceContains'}{$src}{$sub_or_func};
-			my $Sf = $stref->{$sub_func_type}{$sub_or_func};
-#			warn "$sub_func_type: $sub_or_func\n";
-			my $called_sub_or_func = 'Called'. (($sub_func_type eq 'Subroutines') ? 'Subs' : 'Functions');
-			for my $called_sub ( keys %{ $Sf->{$called_sub_or_func} } ) {
-	#			print "\tCALLED SUB/FUNC: $called_sub\n";
-				my $cs_src=$stref->{$sub_func_type}{$called_sub}{'Source'};
-				$stref->{'UsedModules'}{$src}{$cs_src}=1;
-			}
-			if ($sub_func_type eq 'Subroutines') {
-	#			print "! REFACTORING SUBROUTINE $sub_or_func\n";
-			  @module_contains=(@module_contains, _emit_refactored_subroutine_new($sub_or_func,$stref)); 
-			} elsif ($sub_func_type eq 'Functions') {
-	#			print "! REFACTORING FUNCTION $sub_or_func\n";
-			  @module_contains=(@module_contains, _emit_refactored_function_new($sub_or_func,$stref ));
-			} else {
-				die $sub_or_func;
-				@module_contains=(@module_contains, "INCORRECT TYPE FOR $sub_or_func\n");
-			}
-		}		
+
+#       my @module_contains=@{ $stref->{'RefactoredSources'}{$src} };
+       
+#	   for my $sub_or_func (keys %{  $stref->{'SourceContains'}{$src}   } ) {
+#	
+#	   	
+## Find all function/subroutine calls in this function/subroutine
+#			my $sub_func_type= $stref->{'SourceContains'}{$src}{$sub_or_func};
+#			my $Sf = $stref->{$sub_func_type}{$sub_or_func};
+##			warn "$sub_func_type: $sub_or_func\n";
+#			my $called_sub_or_func = 'Called'. (($sub_func_type eq 'Subroutines') ? 'Subs' : 'Functions');
+#			for my $called_sub ( keys %{ $Sf->{$called_sub_or_func} } ) {
+#	#			print "\tCALLED SUB/FUNC: $called_sub\n";
+#				my $cs_src=$stref->{$sub_func_type}{$called_sub}{'Source'};
+#				$stref->{'UsedModules'}{$src}{$cs_src}=1;
+#			}
+#			if ($sub_func_type eq 'Subroutines') {
+#	#			print "! REFACTORING SUBROUTINE $sub_or_func\n";
+#			  @module_contains=(@module_contains, _emit_refactored_subroutine_new($sub_or_func,$stref)); 
+#			} elsif ($sub_func_type eq 'Functions') {
+#	#			print "! REFACTORING FUNCTION $sub_or_func\n";
+#			  @module_contains=(@module_contains, _emit_refactored_function_new($sub_or_func,$stref ));
+#			} else {
+#				die $sub_or_func;
+#				@module_contains=(@module_contains, "INCORRECT TYPE FOR $sub_or_func\n");
+#			}
+#		}		
+
 #	print 	"!\tUSES: ",join(', ', keys %{ $stref->{'UsedModules'}{$src} })."\n";
 #        warn join("\n",@module_contains);
-		if (@module_contains) {
-			my $mod_name=$src;
-			$mod_name=~s/\.\///;
-			$mod_name=~s/\..*$//;
-			$mod_name=~s/\./_/g;
-			my $mod_header="module $mod_name\n";
-			my $mod_footer="\nend module $mod_name\n";
-			my @mod_uses=();
-			for my $mod_src (keys %{ $stref->{'UsedModules'}{$src} }) {
-				my $used_mod_name = $mod_src;
-				$used_mod_name =~s/\.\///;
-				$used_mod_name =~s/\..*$//;
-				$used_mod_name=~s/\./_/g;
-				push @mod_uses, "use $used_mod_name\n";
-			}
-			
+#		if (@module_contains) {
+#			#FIXME: this is way too late, should be done in Refactoring::
+#			my $mod_name=$src;
+#			$mod_name=~s/\.\///;
+#			$mod_name=~s/\..*$//;
+#			$mod_name=~s/\./_/g;
+#			my $mod_header="module $mod_name\n";
+#			my $mod_footer="\nend module $mod_name\n";
+#			my @mod_uses=();
+#			for my $mod_src (keys %{ $stref->{'UsedModules'}{$src} }) {
+#				my $used_mod_name = $mod_src;
+#				$used_mod_name =~s/\.\///;
+#				$used_mod_name =~s/\..*$//;
+#				$used_mod_name=~s/\./_/g;
+#				push @mod_uses, "use $used_mod_name\n";
+#			}
+#            print "\nSOURCE: $src\n\n";
+            for my $mod_line (@{ $stref->{'RefactoredSources'}{$src} }) {
+#               warn $mod_line if $src=~/timemanager/;
+#if (not defined $mod_line->[1]{'Ref'}) {
+#	$mod_line->[1]{'Ref'}=-1;
+#} elsif ($mod_line->[1]{'Ref'}>1) {
+#	print "REF: $mod_line->[1]{'Ref'}\t$mod_line->[0]\n";
+#}
+#                print "REF: ",$mod_line->[1]{'Ref'},"\t",$mod_line->[0],"\n"; 
+            }
+
 			my $nsrc=$src;$nsrc=~s/\.f$/.f95/;
 			open my $TGT, '>', "$targetdir/$nsrc" or die $!;
-			my @module_lines=($mod_header, @mod_uses,"contains\n", @module_contains,$mod_footer);
-			for my $mod_line (@module_lines) {
+#			my @module_lines=($mod_header, @mod_uses,"contains\n", @module_contains,$mod_footer);
+			for my $mod_line (@{ $stref->{'RefactoredSources'}{$src} }) {
 #				warn $mod_line if $src=~/timemanager/;
-				print $TGT $mod_line; 
+				print $TGT $mod_line->[0],"\n"; 
 			}
 			close $TGT;
-		}
+#		}
 	} # loop over all source files
 #	die;
 

@@ -54,6 +54,9 @@ sub parse_fortran_src {
 # Set 'RefactorGlobals' to 0, we only refactor the globals for subs that are kernel targets and their dependencies
 	if ( not exists $Sf->{'RefactorGlobals'} ) {
 		$Sf->{'RefactorGlobals'} = 0;
+	} 
+	if ($refactor_toplevel_globals==1) { # and $f ne $stref->{'Top'}) {
+		$Sf->{'RefactorGlobals'} = 1;
 	}
 
 # 2. Parse the type declarations in the source, create a per-target table Vars and a per-line VarDecl list and other context-free stuff
@@ -116,7 +119,7 @@ sub _analyse_lines {
 			if ( $line =~ /^\!\s+/ ) {
 				next;
 			}
-
+print $line,"\n";
 	   # FIXME Trailing comments are ignored!
 	   #            if ( $line =~ /^\!\s/ ) {
 	   #                $stref->{$sub_func_incl}{$f}{'Info'}
@@ -414,6 +417,20 @@ sub _parse_includes {
 			} else {
 				print $line, " already processed\n" if $V;
 			}
+			if (exists $stref->{'Implicits'} and exists $stref->{'Implicits'}{$name}) {
+				print "INFO: inheriting IMPLICITS from $name in $f\n";
+				if (not exists $stref->{'Implicits'}{$f}) {
+					$stref->{'Implicits'}{$f}=$stref->{'Implicits'}{$name};
+				} else {
+					for my $k (keys %{ $stref->{'Implicits'}{$name} }) {
+						if (not exists $stref->{'Implicits'}{$f}{$k}) {
+						  $stref->{'Implicits'}{$f}{$k}=$stref->{'Implicits'}{$name}{$k};
+						} else {
+							die "ERROR: $f and $name have different type for $k";
+						}
+					}					
+				}
+			}
 		}
 		$srcref->[$index] = [ $line, $info ];
 	}
@@ -671,8 +688,6 @@ sub _separate_blocks {
 #		my $decls     = [];
 		for my $argv ( @{ $args{$block} } ) {
 			$sig .= "$argv,";
-
-			#			my $decl = $vars{$argv}{'Decl'};
 			my $decl =
 			  ( $Sf->{'FStyle'} eq 'F77' )
 			  ? format_f77_var_decl( $Sf, $argv )
@@ -770,8 +785,7 @@ sub _parse_subroutine_and_function_calls {
 			$stref = add_to_C_build_sources( $f, $stref );
 		}
 	}
-	if (exists $Sf->{'Translate'} ) {
-		
+	if (exists $Sf->{'Translate'} ) {		
 		if( $Sf->{'Translate'} eq 'C') {
 			     $stref = add_to_C_build_sources( $f, $stref );
 		} else {
@@ -831,7 +845,7 @@ sub _parse_subroutine_and_function_calls {
 #				$info->{'SubroutineCall'}{'Args'} = $argstr;
 				my $tvarlst = $argstr;
 
-				# replace , by ; in array indices and nested function calls
+				# replace , by ; in array indices and nested function calls FIXME: UGLY! USE PROPER FSM!
 				if ( $tvarlst =~ /\(((?:[^\(\),]*?,)+[^\(]*?)\)/ ) {
 					while ( $tvarlst =~ /\(((?:[^\(\),]*?,)+[^\(]*?)\)/ ) {
 						my $chunk  = $1;
@@ -844,7 +858,6 @@ sub _parse_subroutine_and_function_calls {
 
 				my @tvars = split( /\s*\,\s*/, $tvarlst );
 
-				#               my $p       = '';
 				my @argvars = ();
 				for my $var (@tvars) {
 					$var =~ s/^\s+//;
@@ -947,7 +960,7 @@ sub _get_commons_params_from_includes {
 		$Sf->{'Parameters'} = {} unless exists $Sf->{'Parameters'};
 		$Sf->{'Parameters'}{'OrderedList'} = [] unless exists $Sf->{'Parameters'}{'OrderedList'};
 
-		my %vars = %{ $stref->{'IncludeFiles'}{$f}{'Vars'} };
+		my %vars = %{ $stref->{'IncludeFiles'}{$f}{'Vars'} }; 
 
 		if ( exists $vars{''} ) { croak "EMPTY VAR! in $f" }
 		my $has_pars    = 0;
@@ -967,22 +980,25 @@ sub _get_commons_params_from_includes {
 				$has_commons = 1;
 				my @tcommons = split( /\s*\,\s*/, $commonlst );
 				my $parsedvars = _parse_vardecl($commonlst,0);
-#				die Dumper(keys %{$parsedvars}) if $line=~/nou5/;
+#				die Dumper(keys %{$parsedvars}) if $line=~/km/;
 				for my $var (keys %{$parsedvars}) {					
-					if ( not defined $vars{$var} ) {
-						
+					if ( not defined $vars{$var} ) {						
 						if (exists $stref->{'Implicits'}{$f}{lc(substr($var,0,1))} ) {
 							print "INFO: common <", $var, "> typed via Implicits for $f\n" if $I;
-#							die Dumper($parsedvars->{$var});
-							my $type = $stref->{'Implicits'}{$f}{lc(substr($var,0,1))};
-							$stref->{'IncludeFiles'}{$f}{'Commons'}{$var} = {
+							
+							my $type_kind_shape = $stref->{'Implicits'}{$f}{lc(substr($var,0,1))};
+							(my $type,my $kind,my $shape ) = @{$type_kind_shape };
+							my $var_rec = {
 							  'Decl' => "        $type $var",
 							  'Shape' => $parsedvars->{$var}{'Shape'},
 							  'Type' => $type,
 							  'Attr' => '',
 							  'Indent' => '      ',
 							  'Kind' => $parsedvars->{$var}{'Kind'}
-							};							
+							};			
+							$Sf->{'Commons'}{$var} = $var_rec;		
+							$vars{$var}=$var_rec;
+									
 						} else {
 							print "WARNING: common <", $var, "> is not in {'IncludeFiles'}{$f}{'Vars'}\n" if $W;
 						}
@@ -997,6 +1013,7 @@ sub _get_commons_params_from_includes {
 #				die Dumper($vars{'nou5'}) if $line=~/nou5/;
 				$srcref->[$index][1]{'Common'} = {'Name' => $common_block_name };
 			}
+			
               #  parameter(ip=150,jp=150,kp=90)
 			if ( $line =~ /parameter\s*\(\s*(.*)\s*\)/ ) {
 
@@ -1082,7 +1099,8 @@ sub _get_commons_params_from_includes {
 				print $v, "\n";
 			}
 		}
-
+        $Sf->{'Vars'} = { %vars  }; 
+#        die "BOOM!",Dumper( $Sf->{'Vars'} );
 		# FIXME!
 		# An include file should basically only contain parameters and commons.
 		# If it contains commons, we should remove them!
@@ -1103,10 +1121,10 @@ sub _get_commons_params_from_includes {
 		}
 		# Checking if any variable encountered in the include file is either a Parameter or Common var
 		for my $var ( keys %vars ) {
+			my $is_not_par = $has_pars && !exists( $Sf->{'Parameters'}{$var} );
+			my $is_not_common =  $has_commons && !exists( $Sf->{'Commons'}{$var} ) ; 
 			if (
-				( $has_pars and not exists( $Sf->{'Parameters'}{$var} ) )
-				or ( $has_commons
-					and not exists( $Sf->{'Commons'}{$var} ) )
+				 $is_not_par or $is_not_common 
 			  )
 			{
 				for my $annline ( @{ $Sf->{'AnnLines'} } ) {
@@ -1114,7 +1132,8 @@ sub _get_commons_params_from_includes {
 					  if $annline->[0] eq ''
 					  or exists $annline->[1]{'Comments'};
 					if ( $annline->[0] =~ /\W$var\W/ ) {
-						warn "Parser: PROBLEM WITH $var on the following line in $f:\n";
+						my $info = $is_not_par ? "$f has params but $var is not a param" : "$f has commons but $var is not common"; 
+						warn "WARNING: Parser: $info on the following line in $f:\n";
 						warn $annline->[0], "\n";
 #						die Dumper($Sf->{'Commons'}{$var});
 					}
@@ -1128,7 +1147,7 @@ sub _get_commons_params_from_includes {
 		}
 	}
 
-#    die if $f eq 'includepar';
+#    die "BOOM!",Dumper($stref->{'IncludeFiles'}{$f}{'Vars'}{'km'});
 #    croak Dumper($stref->{'IncludeFiles'}{$f}{'Commons'}{'memind'}) if $f eq 'includecom'; #OK here
 	return $stref;
 }    # END of get_commons_params_from_includes()
@@ -1274,7 +1293,7 @@ sub _parse_vardecl {
 					push @shape, ( '1', $range );
 				}
 			}
-			$vars->{$pvar}{'Shape'} = [@shape];
+			$vars->{$pvar}{'Shape'} = [@shape];			
 			$vars->{$pvar}{'Kind'}  = 'Array';
 			$shape                  = '';
 		}
@@ -1317,6 +1336,7 @@ sub __split_out_parameters {
 	   ( my $f, my $stref ) = @_;
     my $Sf     = $stref->{'IncludeFiles'}{$f};
     my $srcref = $Sf->{'AnnLines'};
+#    print "__split_out_parameters\n",Dumper(keys %{$Sf});
     my $param_lines=[];    
     my $nsrcref=[];
     my $nindex=0;my $nidx_offset=0;
@@ -1376,13 +1396,25 @@ sub _parse_implicit {
 	}
 	# 2. Get the spec and turn into a regexp
 	my $type = 'Unknown';
+	my $kind = 'Scalar'; # by default. If it is Array, need the size, so need a shapre
+	my $shape = [];
 	my $patt='.+';
-	$line=~/implicit\s+(\w.+)\((.+?)\)/ && do {
+	# IMPLICIT REAL(KIND=8)(d),COMPLEX(8)(z) => this is WEAK!
+	if ($line=~/implicit\s+(\w.+)\(.+?\)\((.+?)\)/ ) {
+        $type = $1;
+        $kind = $2;
+        $kind=~s/\s*kind\s*=\s*//i; # strip "kind="
+        $shape=['1',$kind]; # FIXME only works for 1-D array 
+        $kind= 'Array';
+        $patt=$3;
+        $patt=~s/,/|/g;
+        $patt=~s/(\w\-\w)/[$1]/g;
+    } elsif ( $line=~/implicit\s+(\w.+)\((.+?)\)/ ) {
 		$type = $1;
 		$patt=$2;
 		$patt=~s/,/|/g;
 		$patt=~s/(\w\-\w)/[$1]/g;
-	};
+	}
 	# 3. Generate the lookup table
 	my %implicit_type_lookup=();
 	if (exists $stref->{'Implicits'} and exists $stref->{'Implicits'}{$f}) {
@@ -1390,10 +1422,11 @@ sub _parse_implicit {
 	}
 	for my $c ('a' .. 'z') {
 		if ($c=~/($patt)/) {
-			$implicit_type_lookup{$c}=$type;
+			$implicit_type_lookup{$c}=[$type, $kind, $shape];
 		}
 	}
 	$stref->{'Implicits'}={} unless exists $stref->{'Implicits'};
 	$stref->{'Implicits'}{$f}={%implicit_type_lookup };
 	return $stref;
 }
+

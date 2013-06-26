@@ -2,7 +2,6 @@ package RefactorF4Acc::Parser::SrcReader;
 
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
-use RefactorF4Acc::CallGraph qw ( add_to_call_tree );
 use RefactorF4Acc::Refactoring::Common
   qw( format_f95_var_decl format_f77_var_decl );
 
@@ -963,7 +962,7 @@ Suppose we don't:
 		( my $line, my $free_form ) = @_;
         
 		chomp $line;
-		my $info = {};
+		my $info = {'Ref' => 0}; # means 0 refactorings
 
 		# Detect and standardise comments
 		if ( $line =~ /^[CD\*\!]/i or $line =~ /^\ {6}\s*\!/i ) {

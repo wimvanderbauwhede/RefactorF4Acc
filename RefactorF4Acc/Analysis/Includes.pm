@@ -30,7 +30,7 @@ use Exporter;
 sub find_root_for_includes {
     ( my $stref, my $f ) = @_;
     
-    $stref = create_include_chains( $stref, 0 );  # assumes we start at node 0 in the tree
+    $stref = _create_include_chains( $stref, 0 );  # assumes we start at node 0 in the tree
     for my $inc ( keys %{ $stref->{'IncludeFiles'} } ) {
 #       print "INC: $inc\n";
 #       print Dumper($stref->{'IncludeFiles'}{$inc});
@@ -45,7 +45,7 @@ sub find_root_for_includes {
         }
         if ( $stref->{'IncludeFiles'}{$inc}{'InclType'} eq 'Common' ) {
 #            print "FINDING ROOT FOR $inc ($f)\n" ;
-            $stref = find_root_for_include( $stref, $inc, $f );
+            $stref = _find_root_for_include( $stref, $inc, $f );
             print "ROOT for $inc is "
               . $stref->{'IncludeFiles'}{$inc}{'Root'} . "\n"
               if $V 
@@ -57,7 +57,7 @@ sub find_root_for_includes {
 # -----------------------------------------------------------------------------
 =pod
 
-`find_root_for_include()` is called for every include file in IncludeFiles, after `create_include_chains()` has created all the chains; 
+`_find_root_for_include()` is called for every include file in IncludeFiles, after `_create_include_chains()` has created all the chains; 
 by 'chain' we mean a path in the call tree where every node contains the include for its child nodes.
 The purpose of this routine is to prune the paths, i.e. remove includes from nodes that don't need them.
 The algorithm is as follows: 
@@ -68,7 +68,7 @@ The algorithm is as follows:
         - it contains a call to a refactored subroutine which contains the include  
     - any other case, just remove the include
 =cut
-sub find_root_for_include {
+sub _find_root_for_include {
     ( my $stref, my $inc, my $sub ) = @_;
     
     my $Ssub = $stref->{'Subroutines'}{$sub};
@@ -93,12 +93,12 @@ sub find_root_for_include {
 
         if ( $nchildren == 0 ) {
             die
-"find_root_for_include(): Can't find $inc in parent or any children, something's wrong!\n";
+"_find_root_for_include(): Can't find $inc in parent or any children, something's wrong!\n";
         } elsif ( $nchildren == 1 and $Ssub->{'RefactorGlobals'}==0) {
 
             #           print "DESCEND into $singlechild\n";
             delete $Ssub->{'CommonIncludes'}{$inc};
-            find_root_for_include( $stref, $inc, $singlechild );
+            _find_root_for_include( $stref, $inc, $singlechild );
 #       } elsif ($Ssub->{'RefactorGlobals'}==2) {
 #           # The current node must be Root for this $inc. Exit the search.
 #               die '$Ssub->{RefactorGlobals}==2 for '.$inc;
@@ -111,13 +111,13 @@ sub find_root_for_include {
         }
     }
     return $stref;
-}    # END of find_root_for_include()
+}    # END of _find_root_for_include()
 
 # -----------------------------------------------------------------------------
 # What we do is simply a recursive descent until we hit the include and we log that path
 # Then we prune the paths until they differ, that's the root
 # We also need to add the include to all nodes in the divergent paths
-sub create_include_chains {
+sub _create_include_chains {
     ( my $stref, my $nid ) = @_;
 
     if ( exists $stref->{'Nodes'}{$nid}{'Children'}
@@ -128,13 +128,13 @@ sub create_include_chains {
 
 # Now for each of these children, find their children until the leaf nodes are reached
         for my $child (@children) {
-            $stref = create_include_chains( $stref, $child );
+            $stref = _create_include_chains( $stref, $child );
         }
     } else {
 # We reached a leaf node
 #       print "Reached leaf $nid\n";
 # Now we work our way back up via the parent using a separate recursive function
-        $stref = merge_includes( $stref, $nid, $nid, '' );
+        $stref = __merge_includes( $stref, $nid, $nid, '' );
 
 # The chain is identified by the name of the leaf child
 # Check if the chain contains the $inc on the way up
@@ -146,16 +146,16 @@ sub create_include_chains {
     }
 
     return $stref;
-}    # END of create_include_chains()
+}    # END of _create_include_chains()
 
 # -----------------------------------------------------------------------------
 # From each leaf node we follow the path back to the root of the tree
 # We combine all includes of all child nodes of a node, and the node's own includes, into CommonIncludes
 
-sub merge_includes {
+sub __merge_includes {
     ( my $stref, my $nid, my $cnid, my $chain ) = @_;
 
-    #   print "merge_includes $nid $cnid ";
+    #   print "__merge_includes $nid $cnid ";
     # In $c
     # If there are includes with common blocks, merge them into CommonIncludes
     # We should only do this for subs that need refactoring
@@ -163,7 +163,7 @@ sub merge_includes {
     my $sub  = $stref->{'Nodes'}{$nid}{'Subroutine'};
     
     my $Ssub = $stref->{'Subroutines'}{$sub};
-#    print "merge_includes: $sub\n";
+#    print "__merge_includes: $sub\n";
     my $f=$stref->{'Nodes'}{$pnid}{'Subroutine'};
     if ($V) {
         if ($sub ne $f ) {
@@ -209,11 +209,11 @@ sub merge_includes {
     die 'No subroutine name ' if $sub eq '' or not defined $sub;
     $stref->{'Subroutines'}{$sub}=$Ssub ;
     if ( $nid != 0 ) {
-        $stref = merge_includes( $stref, $pnid, $nid,$chain );
+        $stref = __merge_includes( $stref, $pnid, $nid,$chain );
     }
 
     return $stref;
-}    # END of merge_includes
+}    # END of __merge_includes
 
 # -----------------------------------------------------------------------------
 # I'm making this too complicated: it is enough to simply put all parameter declarations in the order we found them between includes and other declarations. 

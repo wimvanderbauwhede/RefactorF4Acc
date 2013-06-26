@@ -31,8 +31,9 @@ our $usage = "
     -C: Only generate call tree, don't refactor or emit
     -T: Translate <subroutine name> and dependencies to C 
     -N: Don't replace CONTINUE by CALL NOOP
+    -g: refactor globals inside toplevel subroutine 
     -b: Generate SCons build script, currently ignored 
-    -B: Build FLEXPART (implies -b)
+    -B: Build FLEXPART (implies -b), currently ignored
     -G: Generate Markdown documentation (currently broken)
     \n";
 
@@ -118,7 +119,7 @@ This routine analyses the code for goto-based loops and breaks, so that we can r
 =cut
 
 sub main {
-
+warn "FIXME: modules representing includes should be used in all source files!";
 	(my $subname, my $subs_to_translate, my $build) = parse_args();
 	#  Initialise the global state.
 	my $stateref = init_state($subname);
@@ -174,13 +175,16 @@ sub parse_args {
 		die "Please specifiy FORTRAN subroutine or program to refactor\n";
 	}
 	my %opts = ();
-	getopts( 'vwihCTNbBGc:', \%opts );
+	getopts( 'vwihCTNgbBGc:', \%opts );
 	my $subname = $ARGV[0];
 	if ($subname) {
 		$subname =~ s/\.f(?:90)?$//;
 	}
 	
 	my $cfgrc= $ENV{HOME}.'/.rf4a';
+	if (-e './rf4a.cfg') {
+		$cfgrc='./rf4a.cfg';
+	}
 	if ($opts{'c'}) {
 		 $cfgrc= $opts{'c'} ;
 	} 
@@ -192,6 +196,7 @@ sub parse_args {
 	$V = ( $opts{'v'} ) ? 1 : 0;
 	$I = ( $opts{'i'} or $V ) ? 1 : 0;
 	$W = ( $opts{'w'} or $V ) ? 1 : 0;
+	$refactor_toplevel_globals=( $opts{'g'} ) ? 1 : 0;
 	my $help = ( $opts{'h'} ) ? 1 : 0;
 	if ($help) {
 		die $usage;

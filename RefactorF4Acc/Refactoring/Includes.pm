@@ -39,13 +39,9 @@ sub refactor_includes {
 #    $stref=resolve_module_deps($stref); FIXME!!!
 	for my $f ( keys %{ $stref->{'IncludeFiles'} } ) {
 
-#		if (   $stref->{'IncludeFiles'}{$f}{'InclType'} eq 'Common'
-#			or $stref->{'IncludeFiles'}{$f}{'InclType'} eq 'Parameter' )
-#		{
 			print "\nREFACTORING INCLUDE $f\n" if $V;
 			$stref = _refactor_include( $f, $stref );
-			$stref = create_refactored_source($stref, $f);
-#		}
+#			$stref = create_refactored_source($stref, $f);
 	}
 	
 	return $stref;
@@ -75,7 +71,7 @@ sub _refactor_include {
     my %deps=();
     my $refactored_lines=[];
     push @{ $refactored_lines },
-    	[ "module $ff", {'BeginModule'=>$ff} ];
+    	[ "module $ff", {'BeginModule'=>$ff, 'Ref'=>1} ];
     	
 	for my $annline ( @{$annlines} ) {
 		next if not defined $annline; 
@@ -109,6 +105,7 @@ sub _refactor_include {
 					  if $W;
 					push @nvars, $gvar;
 					$line =~ s/\b$var\b/$gvar/;
+					$info->{'Ref'}++;
 				} else {
 					push @nvars, $var;
 				}
@@ -118,12 +115,13 @@ sub _refactor_include {
 		if ( exists $tags{'Parameter'} ) {
 #			print Dumper(%tags);
 			for my $var (@{ $tags{'Parameter'} } ) {
-#				print "PAR: $var\n";
+				print "PAR: $var ($line)\n";
                 if ( exists $stref->{'IncludeFiles'}{$f}{'ConflictingGlobals'}
                     {$var} )
                 {
                 	my $gvar=$stref->{'IncludeFiles'}{$f}{'ConflictingGlobals'}{$var};
                 	$line=~s/\b$var\b/$gvar/;
+                	$info->{'Ref'}++;
                     $info->{'Parameter'}=[$gvar];                    
                 }
 			}
@@ -136,12 +134,12 @@ sub _refactor_include {
 	}
 
         push @{ $refactored_lines },
-        [ "end module $ff", {'EndModule'=>$ff} ];
+        [ "end module $ff", {'EndModule'=>$ff, 'Ref'=>1} ];
         
    my $firstline=shift @{ $refactored_lines }; # FIXME This is weak. What we need is the line with "module" 
 	for my $dep (keys %{ $stref->{'IncludeFiles'}{$f}{'Deps'} } ) {
             unshift @{ $refactored_lines },
-            [ "use $dep", {'ModuleDep'=>$dep} ];
+            [ "use $dep", {'ModuleDep'=>$dep, 'Ref'=>1} ];
         }
         unshift @{ $refactored_lines },$firstline;
  $stref->{'IncludeFiles'}{$f}{'RefactoredCode'}  = $refactored_lines;                  

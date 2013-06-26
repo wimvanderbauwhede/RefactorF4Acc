@@ -43,13 +43,13 @@ sub create_refactored_vardecls {
 #    die "Bug to be fixed: applying context-free refactoring breaks the next stage!";
     my $Sf        = $stref->{'Subroutines'}{$f};
     my $line      = $annline->[0] || '';
-    my $tags_lref = $annline->[1];
+    my $info = $annline->[1];
 #    my %args      = map { $_ => 1 } @{ $Sf->{'Args'} };
     my %args      = %{ $Sf->{'Args'}{'Set'} };
     my $globals = ( get_maybe_args_globs( $stref, $f ) )[1];
     my $skip=0;
     
-    my @vars      = @{ $tags_lref->{'VarDecl'} };
+    my @vars      = @{ $info->{'VarDecl'} };
     my @nvars = (); 
     my $rline = $line;
     # Loop over all declared variables and check for conflicts with globals
@@ -107,12 +107,13 @@ sub create_refactored_vardecls {
                 	$rline = format_f95_var_decl($Sf,$tnvar);# WV: seems this never happens!                	
                 }
 #            $rline = format_f95_decl($Sf->{'Vars'}, [$tnvar,$is_par,$val]);
-            $tags_lref->{'VarDecl'} = [$tnvar];
-            push @{$rlines}, [ $rline, $tags_lref ];
+            $info->{'VarDecl'} = [$tnvar];
+            push @{$rlines}, [ $rline, $info ];
         }
         $skip=1;
     }
-    push @{$rlines}, [ $rline, $tags_lref ] unless $skip==1;
+    $info->{'Ref'}++;
+    push @{$rlines}, [ $rline, $info ] unless $skip==1;
     return $rlines;
 }    # END of create_refactored_vardecls()
 
@@ -120,22 +121,23 @@ sub create_refactored_vardecls {
 sub create_exglob_var_declarations {
     ( my $stref, my $f, my $annline, my $rlines ) = @_;
     my $Sf                 = $stref->{'Subroutines'}{$f};
-    my $tags_lref          = $annline->[1];
+    my $info          = $annline->[1];
 #    my %args               = map { $_ => 1 } @{ $Sf->{'Args'} };
     my %args               = %{ $Sf->{'Args'}{'Set'} };    
 #local $V=1;
+ 
     for my $inc ( keys %{ $Sf->{'Globals'} } ) {
         print "INFO: GLOBALS from INC $inc in $f\n" if $V;
 #        print Dumper(@{ $Sf->{'Globals'}{$inc} }) if $V;
         for my $var ( @{ $Sf->{'Globals'}{$inc} } ) {
             if ( exists $args{$var} ) {
                 my $rline = "*** ARG MASKS GLOB $var in $f!";
-                push @{$rlines}, [ $rline, $tags_lref ];
+                push @{$rlines}, [ $rline, $info ];
             } else {
                 if ( exists $Sf->{'Commons'}{$inc} ) {
                     if ( $f ne $stref->{'IncludeFiles'}{$inc}{'Root'} ) {
                         print "\tGLOBAL $var from $inc in $f\n" if $V;
-#                        croak "$f: INC $inc: VAR $var\n" if not exists $stref->{IncludeFiles}{$inc}{'Vars'}{$var};                        
+                        croak "$f: INC $inc: VAR $var\n" if not exists $stref->{IncludeFiles}{$inc}{'Vars'}{$var};                        
                         my $rline = format_f95_var_decl( $stref->{'IncludeFiles'}{$inc},$var);
 #                        croak "$f: INC $inc: VAR $var\n" if $rline ne $tline;
                         if ( exists $Sf->{'ConflictingParams'}{$var} ) {
@@ -156,7 +158,8 @@ sub create_exglob_var_declarations {
                             $rline .= " ! from $inc";   
 #                            die $rline,"\n" if $f eq 'interpol_all';         
                         }
-                        push @{$rlines}, [ $rline, $tags_lref ];
+                        $info->{'Ref'}=1;
+                        push @{$rlines}, [ $rline, $info ];
                     } elsif ($V) {
                         print last;
                     }

@@ -170,4 +170,4 @@ sub _identify_loops_breaks {
         print "NO SOURCE for $f\n";
     }
     return $stref;
-}    # END of identify_loops_breaks()
+}    # END of _identify_loops_breaks()

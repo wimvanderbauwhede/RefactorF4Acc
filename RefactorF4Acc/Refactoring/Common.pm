@@ -87,11 +87,13 @@ sub context_free_refactorings {
 #	       push @extra_lines, ['        implicit none',{'ImplicitNone'=>1}];
         }
         if ( exists $tags{'Goto'} ) {
-        $line=~s/\bgo\sto\b/goto/;
+            $line=~s/\bgo\sto\b/goto/;
+            $info->{'Ref'}++;
         }
 		# BeginDo: just remove the label
 		if ( exists $tags{'BeginDo'} ) {
 			$line =~ s/do\s+\d+\s+/do /;
+			$info->{'Ref'}++;
 		}
 		# EndDo: replace label CONTINUE by END DO;
 		# if no continue, remove label & add end do on next line
@@ -106,14 +108,16 @@ sub context_free_refactorings {
 			my $count = $tags{'EndDo'}{'Count'};
 			if ( exists $tags{'Continue'} ) {
 				if ( $is_goto_target == 0 ) {
-					$line = '      end do';
+					$line = '      end do';					
 					$count--;
 				} elsif ($noop) {
 					$line =~ s/continue/call noop/;
 				}
+				$info->{'Ref'}++;
 			} elsif ( $line =~ /^\d+\s+\w/ ) {
 				if ( $is_goto_target == 0 ) {
 					$line =~ s/^\d+//;
+					$info->{'Ref'}++;
 				}
 			}
 			while ( $count > 0 ) {
@@ -126,10 +130,11 @@ sub context_free_refactorings {
 		  )
 		{
 			$line =~ s/continue/call noop/;
+			$info->{'Ref'}++;
 		}
 		if ( exists $tags{'Break'} ) {
 			$line .= '  !Break';
-
+            $info->{'Ref'}++;
 			# $line=~s/goto\s+(\d+)/call break($1)/;
 		}
 		if ( exists $tags{'PlaceHolders'} ) {
@@ -138,6 +143,7 @@ sub context_free_refactorings {
 				my $str = $tags{'PlaceHolders'}->{$ph};
 				$line =~ s/$ph/$str/;
 			}
+			$info->{'Ref'}++;
 		}
 		if ( exists $tags{'VarDecl'} and not exists $tags{'FunctionSig'} ) {
 			my @vars = @{ $tags{'VarDecl'} };
@@ -151,7 +157,7 @@ sub context_free_refactorings {
 					# What we need is a new formatter
 					my $new_line = format_f95_par_decl( $stref, $f, $par );					
 					push @extra_lines,
-					  [ $new_line, { 'Extra' => 1, 'Parameter' => [$par] } ];
+					  [ $new_line, { 'Extra' => 1, 'Parameter' => [$par], 'Ref'=>1 } ];
 				}
 				my @vars_not_pars =
 				  grep { not exists $Sf->{'Parameters'}{$_} } @vars;
@@ -161,19 +167,23 @@ sub context_free_refactorings {
 					  _format_f95_multiple_var_decls( $Sf,@vars_not_pars );
 					my %tr = %{$info};
 					$tr{'Extra'} = 1;
+					$tr{'Ref'}=1;
 					push @extra_lines, [ $filtered_line, \%tr ];
 				}
+				warn "$f PAR1\n";
 				$line = '!! Original line !! ' . $line;
 				$info->{'Deleted'} = 1;
+				$info->{'Ref'}++;
 			} else {
 				if ( scalar @vars == 1 ) {
 					if ( exists( $Sf->{'Parameters'}{ $vars[0] } ) ) {
 						# Remove this line
+						warn "$f PAR2\n";
 						$line = '!! Original line !! ' . $line;
-						$info->{'Deleted'} = 1;
+						$info->{'Deleted'} = 1;						
 					} else {
-						$line = format_f95_var_decl( $Sf, $vars[0] );						
-					}
+						$line = format_f95_var_decl( $Sf, $vars[0] );												
+					}					
 				} else {
 					# filter out parameters
 					my @vars_not_pars =
@@ -182,10 +192,12 @@ sub context_free_refactorings {
 						$line =
 						  _format_f95_multiple_var_decls( $Sf,@vars_not_pars );
 					} else {
+						warn "$f PAR3\n";
 						$line = '!! Original line !! ' . $line;
 						$info->{'Deleted'} = 1;
 					}
 				}
+				$info->{'Ref'}++;
 			}
 		}		
 			if (exists $tags{'If'} or exists $tags{'ElseIf'} ) {
@@ -200,6 +212,7 @@ sub context_free_refactorings {
 				}
 				# FIXME: it is possible that there is a conflict in the conditional expression!
 				$line = _rename_conflicting_vars($line,$stref,$f);
+				$info->{'Ref'}++;
     		} elsif (exists $tags{'Assignment'} or exists $tags{'Do'}) { 
     			my $kv=$line;
     			my $spaces=$line; $spaces=~s/\S.*$//;
@@ -207,75 +220,29 @@ sub context_free_refactorings {
     			$kv=~s/\s+$//;
     			if (exists $tags{'Do'}) {
     				$kv=~s/do\s+//;
-#    				warn "DO:<$kv>\n";
     			}
     			(my $k, my $rhs_expr) = split(/\s*=\s*/,$kv);
     			
     			$rhs_expr = _rename_conflicting_vars($rhs_expr,$stref,$f);
-=obsolete    			
-    			my @rhs_vals= grep {/[a-z]\w*/} split( /\W+/, $rhs_expr );    			
-    			my @n_rhs_vals=@rhs_vals;
-    			my $conflict=0;
-    			if (@rhs_vals) {
-    				my $i=0;
-    				for my $rhs_val (@rhs_vals) {
-    					$n_rhs_vals[$i]=$rhs_val;
-                        if (exists $Sf->{'ConflictingGlobals'}{$rhs_val}) {
-                        	print "CONFLICT: $rhs_val in $line ($f)\n";
-                            $n_rhs_vals[$i]=$Sf->{'ConflictingGlobals'}{$rhs_val};
-                        } else {
-                            for my $inc (keys %{ $Sf->{'Includes'} }) {                                        
-                                if (exists $stref->{'IncludeFiles'}{$inc}{'ConflictingGlobals'}{$rhs_val}) {
-                                	print "CONFLICT: $rhs_val in <$line> ($f), from $inc\n";
-                                	$conflict=1;
-                                    $n_rhs_vals[$i] = $stref->{'IncludeFiles'}{$inc}{'ConflictingGlobals'}{$rhs_val};
-                                    last; 
-                                }                    
-                            }    	
-                        }				
-                        $i++;
-    				}
-    			}
-    			for my $v (@rhs_vals) {
-    				my $nv=shift @n_rhs_vals;
-    				if ($nv ne $v) {
-    				    $rhs_expr=~s/\b$v\b/$nv/;
-    				}
-    			}	
-    			print "RHS: $rhs_expr\n" if $conflict;
-	
-
-    			my $nk=$k;
-    			if (exists $Sf->{'ConflictingGlobals'}{$k}) {
-    				$nk = $Sf->{'ConflictingGlobals'}{$k};
-    			} else {
-    			for my $inc (keys %{ $Sf->{'Includes'} }) {
-#    				print "INC: $inc\n";    				
-                    if (exists $stref->{'IncludeFiles'}{$inc}{'ConflictingGlobals'}{$k}) {
-                         $nk=$stref->{'IncludeFiles'}{$inc}{'ConflictingGlobals'}{$k};
-                        last;
-                    }    				
-    			}	   		    
-		      }
-=cut            		      
 		      
 		      if (exists $tags{'Do'}) {
 		      	my $nk= _rename_conflicting_lhs_var($k,$stref,$f);
 		      	$line = $spaces.'do '.$nk. ' = '.$rhs_expr;
-#		      	if ($nk ne $k) {
-#		      	warn "DO: $line\n";
-#		      	}
 		      } else {
 		      	my $nk= _rename_conflicting_vars($k,$stref,$f);
 	            $line = $spaces.$nk. ' = '.$rhs_expr;
 		      }
+		      $info->{'Ref'}++;
 		} # assignment
 		elsif ( exists $tags{'Parameter'} ) {
+			warn "$f PAR4 $line\n";
 			$line = '!! Original line !! ' . $line;
 			$info->{'Deleted'} = 1;
+			$info->{'Ref'}++;
 		} 
 		elsif ( exists $tags{'SubroutineCall'} ) {			
 			$line = _rename_conflicting_vars($line,$stref,$f);
+			$info->{'Ref'}++;
 		}
 		elsif ( exists $tags{'Include'} ) {			
 			
@@ -283,6 +250,7 @@ sub context_free_refactorings {
 			     my $tinc=$inc;
 			     $tinc=~s/\./_/g;
                 $line = "      use $tinc";
+                $info->{'Ref'}++;
                 # use must come right after subroutine/function/program
                 # or after another use
                 # or after the module declaration
@@ -303,11 +271,6 @@ sub context_free_refactorings {
     if (@include_use_stack) {
     	my $offset=0;
     	if (exists $stref->{'IncludeFiles'}{$f}) {
-#        warn "$f is include, put at top";
-#warn Dumper(@include_use_stack);
-#            my @new  = ( @include_use_stack,
-#                                @{ $Sf->{'RefactoredCode'} }
-#            );
             $Sf->{'RefactoredCode'}=[@include_use_stack, @{ $Sf->{'RefactoredCode'}} ];        
 	    } else {
 		    # 1. Look for the signature
@@ -362,19 +325,15 @@ sub context_free_refactorings {
 
 # -----------------------------------------------------------------------------
 # This routine essentially discards unused lines and splits long lines
+# I think this could actually be part of the emitter
 sub create_refactored_source {
-	( my $stref, my $f, ) = @_;
-	print "CREATING FINAL $f CODE\n" if $V;
-	die join( ' ; ', caller ) if $stref !~ /0x/;
-	my $sub_or_func_or_inc = sub_func_or_incl( $f, $stref );
-	my $Sf                 = $stref->{$sub_or_func_or_inc}{$f};
-	my $annlines           = get_annotated_sourcelines( $stref, $f );
-	$Sf->{'RefactoredCode'} = [];
+	( my $stref, my $annlines, ) = @_;
+	my $refactored_lines = [];
 	for my $annline ( @{$annlines} ) {
 
 		if ( not defined $annline or not defined $annline->[0] ) {
 			croak
-			  "Undefined source code line for $f in create_refactored_source()";
+			  "Undefined source code line in create_refactored_source()";
 		}
 		my $line = $annline->[0];
 		my $info = $annline->[1];
@@ -389,7 +348,7 @@ sub create_refactored_source {
 				$line   =~ s/^\s+//;
 				my @split_lines = split( /\s*;\s*/, $line );
 				for my $sline (@split_lines) {
-					push @{ $Sf->{'RefactoredCode'} },
+					push @{ $refactored_lines },
 					  [ $spaces . $sline, $info ];
 				}
 			} else {
@@ -398,18 +357,64 @@ sub create_refactored_source {
 				   
 				my @split_lines = split_long_line($line);
 				for my $sline (@split_lines) {
-					push @{ $Sf->{'RefactoredCode'} }, [ $sline, $info ];
+					push @{ $refactored_lines }, [ $sline, $info ];
 				}
 			}
 		} else {
-			push @{ $Sf->{'RefactoredCode'} }, [ $line, $info ];
+			push @{ $refactored_lines }, [ $line, $info ];
 		}
 	}
-	return $stref;
+	return $refactored_lines;
 }    # END of create_refactored_source()
 
 # -----------------------------------------------------------------------------
+sub create_refactored_source_OLD {
+    ( my $stref, my $f, ) = @_;
+    print "CREATING FINAL $f CODE\n" if $V;
+    die join( ' ; ', caller ) if $stref !~ /0x/;
+    my $sub_or_func_or_inc = sub_func_or_incl( $f, $stref );
+    my $Sf                 = $stref->{$sub_or_func_or_inc}{$f};
+    my $annlines           = get_annotated_sourcelines( $stref, $f );
+    $Sf->{'RefactoredCode'} = [];
+    for my $annline ( @{$annlines} ) {
 
+        if ( not defined $annline or not defined $annline->[0] ) {
+            croak
+              "Undefined source code line for $f in create_refactored_source()";
+        }
+        my $line = $annline->[0];
+        my $info = $annline->[1];
+        
+        if (    not exists $info->{'Comments'}
+            and (exists $info->{'InBlock'} or not exists $info->{'Deleted'} ))
+        {
+            print $line, "\n" if $V;
+            if ( $line =~ /;/ && $line !~ /[\'\"]/ ) {
+                my $spaces = $line;
+                $spaces =~ s/\S.*$//;
+                $line   =~ s/^\s+//;
+                my @split_lines = split( /\s*;\s*/, $line );
+                for my $sline (@split_lines) {
+                    push @{ $Sf->{'RefactoredCode'} },
+                      [ $spaces . $sline, $info ];
+                }
+            } else {
+                $line =~ s/\s+\!\!.*$//
+                  ; # FIXME: ad-hoc to remove comments from context-free refactoring
+                   
+                my @split_lines = split_long_line($line);
+                for my $sline (@split_lines) {
+                    push @{ $Sf->{'RefactoredCode'} }, [ $sline, $info ];
+                }
+            }
+        } else {
+            push @{ $Sf->{'RefactoredCode'} }, [ $line, $info ];
+        }
+    }
+    return $stref;
+}    # END of create_refactored_source_OLD()
+
+# -----------------------------------------------------------------------------
 # A convenience function to split long lines.
 # - count the number of characters, i.e. length()
 # - find the last comma before we exceed 64 characters (I guess it's really 72-5?):
@@ -553,6 +558,7 @@ sub get_annotated_sourcelines {
 	my $Sf                 = $stref->{$sub_or_func_or_inc}{$f};
 
 	my $annlines = [];
+#	print "get_annotated_sourcelines($f)\n";
 	if ( $Sf->{'Status'} == $PARSED ) {
 		if ( not exists $Sf->{'RefactoredCode'} ) {
 			$Sf->{'RefactoredCode'} = [];
@@ -561,7 +567,7 @@ sub get_annotated_sourcelines {
 			$annlines = $Sf->{'RefactoredCode'};       # Here a ref is OK
 		}
 	} else {
-		warn "get_annotated_sourcelines( $f ) \n";
+		warn "get_annotated_sourcelines($f) \n";
 		warn "STATUS: $Sf->{'Status'} \n";
 #		warn Dumper($Sf);
 		croak "$f NOT PARSED";
@@ -618,6 +624,7 @@ sub format_f95_var_decl {
 	if ( not exists $Sv->{'Decl'} ) {
 		print "WARNING: VAR $var does not exist in format_f95_var_decl()!\n" if $W;
 		croak $var;
+#		$Sv->{'Decl'}='      $var = NULL';
 	} 
 	my $nvar=$var;
 	if (exists $Sf->{'ConflictingLiftedVars'}{$var} ){
