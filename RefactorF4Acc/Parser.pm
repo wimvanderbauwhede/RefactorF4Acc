@@ -38,12 +38,12 @@ use Exporter;
 # All that should happen in a separate pass. But we do it here anyway
 sub parse_fortran_src {
 	( my $f, my $stref ) = @_;
-#    local $V=1;	
+    local $V=1;	
 	print "parse_fortran_src(): PARSING $f\n " if $V;
 	
 	# 1. Read the source and do some minimal processsing
 	$stref = read_fortran_src( $f, $stref );#
-	print "DONE read_fortran_src_better( $f )\n" if $V;
+	print "DONE read_fortran_src( $f )\n" if $V;
 	
 	my $sub_or_func = sub_func_or_incl( $f, $stref );
 	print "SRC TYPE: $sub_or_func\n" if $V;
@@ -58,9 +58,12 @@ sub parse_fortran_src {
 	if ($refactor_toplevel_globals==1) { # and $f ne $stref->{'Top'}) {
 		$Sf->{'RefactorGlobals'} = 1;
 	}
-
+    
 # 2. Parse the type declarations in the source, create a per-target table Vars and a per-line VarDecl list and other context-free stuff
+print "ANALYSE LINES of $f\n" if $V;
 	$stref = _analyse_lines( $f, $stref );
+	print "DONE _analyse_lines( $f )\n" if $V;
+	
 
 	# 3. Parse includes
 	$stref = _parse_includes( $f, $stref );
@@ -98,10 +101,13 @@ sub parse_fortran_src {
 # Create a table of all variables declared in the target, and a list of all the var names occuring on each line.
 # We record the type of the var and whether it's a scalar or array, because we need that information for translation to C.
 # Also check if the variable happens to be a function. If that is the case, mark that function as 'Called'; if we have not yet parsed its source, do it now.
+
+# In order to get proper hooks for the ex-globals, I think we need to check signatures, includes and variable declarations here.
 sub _analyse_lines {
 	( my $f, my $stref ) = @_;
 	my $sub_func_incl = sub_func_or_incl( $f, $stref );
 	my $Sf            = $stref->{$sub_func_incl}{$f};
+	$Sf->{ExGlobVarDeclHook}=0;
 	my $srcref        = $Sf->{'AnnLines'};
 	if ( defined $srcref ) {
 		print "\nVAR DECLS in $f:\n" if $V;
@@ -119,7 +125,14 @@ sub _analyse_lines {
 			if ( $line =~ /^\!\s+/ ) {
 				next;
 			}
-print $line,"\n";
+            if (exists $info->{'Includes'} or
+               exists $info->{'FunctionSig'} or
+               exists $info->{'SubroutineSig'}
+               ) {               	
+               	$info->{'ExGlobVarDecls'} = ++$Sf->{'ExGlobVarDeclHook'};
+               	print "_analyse_lines($f)\t",$line,"\tEX:",$info->{'ExGlobVarDecls'},"\n";               	 
+		    }
+            
 	   # FIXME Trailing comments are ignored!
 	   #            if ( $line =~ /^\!\s/ ) {
 	   #                $stref->{$sub_func_incl}{$f}{'Info'}
@@ -355,7 +368,9 @@ print $line,"\n";
 				$info->{'VarDecl'} = \@varnames;
 				if ($first) {
 					$first = 0;
-					$info->{'ExGlobVarDecls'} = {};
+					# FIXME: no use in include files!
+					$info->{'ExGlobVarDecls'} = ++$Sf->{ExGlobVarDeclHook};# {};
+					print "_analyse_lines($f): VAR DECL\t",$line,"\tEX:",$info->{'ExGlobVarDecls'},"\n";
 				}				
 			}
 			$srcref->[$index] = [ $line, $info ];
@@ -390,6 +405,7 @@ sub _parse_includes {
 			my $name = $1;
 			print "FOUND include $name in $f\n" if $V;
 			$Sf->{'Includes'}{$name} = $index;
+			 
 			if (
 			 exists $Sf->{'Translate'} 
             and exists $stref->{'IncludeFiles'}{$name}
@@ -407,6 +423,8 @@ sub _parse_includes {
 			#            $Sf->{'Info'}->[$index]{'Include'}{'Name'} = $name;
 			$info->{'Include'} = {};
 			$info->{'Include'}{'Name'} = $name;
+#			$info->{'ExGlobVarDecls'} = ++$Sf->{ExGlobVarDeclHook};
+#			print "parse_includes($f)\t",$line,"\tEX:",$info->{'ExGlobVarDecls'},"\n";
 			if ( $stref->{'IncludeFiles'}{$name}{'Status'} == $UNREAD ) {
 				print $line, "\n" if $V;
 

@@ -35,9 +35,9 @@ use Exporter;
 # There should be no need to do this: all /common/ blocks should have been removed anyway! 
 sub skip_common_include_statement {
     ( my $stref, my $f, my $annline ) = @_;
-    my $tags_lref = $annline->[1];
+    my $info = $annline->[1];
     my $skip      = 0;
-    my $inc       = $tags_lref->{'Include'}{'Name'};
+    my $inc       = $info->{'Include'}{'Name'};
     print "INFO: INC $inc in $f\n" if $V;
     if ( $stref->{'IncludeFiles'}{$inc}{'InclType'} eq 'Common' ) {
         if ($V) {
@@ -57,7 +57,7 @@ sub create_additional_include_statements {
 #   local $V=1;
     my $Sf        = $stref->{'Subroutines'}{$f};    
     
-    my $tags_lref = $annline->[1];
+    my $info = $annline->[1];
     for my $inc (@{ $Sf->{'LiftedIncludes'} }) {
             print "INFO: instantiating merged INC $inc in $f\n" if $V;
 
@@ -65,9 +65,12 @@ sub create_additional_include_statements {
             die $tinc if $tinc =~/params_com/;
             $tinc=~s/\./_/g;
             	my $rline = "      use $tinc";
-            $tags_lref->{'Include'}{'Name'} = $inc;
-            $tags_lref->{'Ref'}=1;
-            push @{$rlines}, [ $rline, $tags_lref ];                    
+            $info->{'Include'}{'Name'} = $inc;
+            $info->{'Ref'}=1;
+            if ($info->{'ExGlobVarDecls'} >= $Sf->{'ExGlobVarDeclHook'}) {
+                $info->{'ExGlobVarDecls'} = ++$Sf->{'ExGlobVarDeclHook'};
+            }            
+            push @{$rlines}, [ $rline, $info ];                    
     }
 #croak "FIXME: INCLUDE _AFTER_ OTHER INCLUDES!!!";
     return $rlines;
@@ -78,7 +81,7 @@ sub create_additional_include_statements {
 sub create_new_include_statements {
     ( my $stref, my $f, my $annline, my $rlines ) = @_;
     my $Sf        = $stref->{'Subroutines'}{$f};        
-    my $tags_lref = $annline->[1];
+    my $info = $annline->[1];
     for my $inc ( keys %{ $Sf->{'Globals'} } ) {
         print "INC: $inc, root: $stref->{'IncludeFiles'}{$inc}{'Root'} \n"
           if $V;
@@ -90,9 +93,12 @@ sub create_new_include_statements {
             my $tinc = $inc;        
             $tinc=~s/\./_/g;
             my $rline = "      use $tinc";
-            $tags_lref->{'Include'}{'Name'} = $inc;
-            $tags_lref->{'Ref'}=1;
-            push @{$rlines}, [ $rline, $tags_lref ];
+            $info->{'Include'}{'Name'} = $inc;
+            $info->{'Ref'}=1;
+            if ($info->{'ExGlobVarDecls'} >= $Sf->{'ExGlobVarDeclHook'}) {
+            	$info->{'ExGlobVarDecls'} = ++$Sf->{'ExGlobVarDeclHook'};
+            }
+            push @{$rlines}, [ $rline, $info ];
         }
     }
     return $rlines;

@@ -191,13 +191,13 @@ sub _refactor_globals {
 #        }
 
         if ( exists $tags{'ExGlobVarDecls'} and not exists $tags{'Deleted'} and not exists $tags{'Comments'}
-
+#            and  ($tags{'ExGlobVarDecls'} == $Sf->{'ExGlobVarDeclHook'})
         ) {            
-
+#if ($tags{'ExGlobVarDecls'} == $Sf->{'ExGlobVarDeclHook'}) {print 'EX:', $f,' ',$tags{'ExGlobVarDecls'},'<>',$Sf->{'ExGlobVarDeclHook'},':', $annline->[0],"\n";} 
             # First, abuse ExGlobVarDecls as a hook for the addional includes, if any
             $rlines =
               create_new_include_statements( $stref, $f, $annline, $rlines );
-
+#print 'EX:', $f,' ',$tags{'ExGlobVarDecls'},'<>',$Sf->{'ExGlobVarDeclHook'},':', $annline->[0],"\n";
             # Then generate declarations for ex-globals
             $rlines =
               create_exglob_var_declarations( $stref, $f, $annline, $rlines );

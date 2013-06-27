@@ -491,8 +491,11 @@ sub analyse_src_for_iodirs {
             		# Must be an array assignment
             		$var=~s/\s*\((.+)\)$//;
             		my $str=$1;
-            		die $tline unless defined  $str;
+            		if (not defined  $str) {
+            			print "WARNING: IGNORING <$tline>, CAN'T HANDLE IT (analyse_src_for_iodirs)\n" if $W;
+            		} else {
             		$args=find_vars( $str, $args, \&set_iodir_read );
+            		}
             	   }
             	 	} 
 #            	   warn "IODIR: $var\n" if $f=~/interpol_vdep_nests/;
