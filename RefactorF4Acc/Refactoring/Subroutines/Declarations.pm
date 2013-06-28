@@ -126,7 +126,7 @@ sub create_exglob_var_declarations {
  local $V=1 if $f eq 'main';
  
     for my $inc ( keys %{ $Sf->{'Globals'} } ) {
-        print "INFO: GLOBALS from INC $inc in $f\n" if $V;
+        print "INFO: GLOBALS from INC $inc in $f\n" if $I;
 #        print Dumper(@{ $Sf->{'Globals'}{$inc} }) if $V;
         for my $var ( @{ $Sf->{'Globals'}{$inc} } ) {
         	
@@ -138,7 +138,7 @@ sub create_exglob_var_declarations {
                 if ( exists $Sf->{'Commons'}{$inc} ) {
 #                	print $var,"\n";
                     if ( 1 ) { #$f ne $stref->{'IncludeFiles'}{$inc}{'Root'} ) {
-                        print "\tGLOBAL $var from $inc in $f\n" if $V;
+#                        print "\tGLOBAL $var from $inc in $f\n" if $V;
                         croak "$f: INC $inc: VAR $var\n" if not exists $stref->{IncludeFiles}{$inc}{'Vars'}{$var};                        
                         my $rline = format_f95_var_decl( $stref->{'IncludeFiles'}{$inc},$var);
 #                        croak "$f: INC $inc: VAR $var\n" if $rline ne $tline;
@@ -161,6 +161,7 @@ sub create_exglob_var_declarations {
 #                            die $rline,"\n" if $f eq 'interpol_all';         
                         }
                         $info->{'Ref'}=1;
+                        $info->{'VarDecl'}=$var;
                         push @{$rlines}, [ $rline, $info ];
                     } else {
 #                    	# So, $f is Root for $inc. As we have removed all common block variables from $inc, 

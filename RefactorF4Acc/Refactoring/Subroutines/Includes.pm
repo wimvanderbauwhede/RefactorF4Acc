@@ -62,7 +62,7 @@ sub create_additional_include_statements {
             print "INFO: instantiating merged INC $inc in $f\n" if $V;
 
             my $tinc = $inc;
-            die $tinc if $tinc =~/params_com/;
+            die $tinc if $tinc =~/params_com/ or $f eq 'main';
             $tinc=~s/\./_/g;
             	my $rline = "      use $tinc";
             $info->{'Include'}{'Name'} = $inc;
@@ -78,6 +78,13 @@ sub create_additional_include_statements {
 
 # --------------------------------------------------------------------------------
 # --------------------------------------------------------------------------------
+# What this does is:
+# IF an include file occurs in $Sf->{'Globals'}
+# AND it occurs in $Sf->{'CommonIncludes'}
+# AND  $f is the ROOT for this include
+# THEN  create a new include statement
+
+# This should only be called if the old one was removed, which I think does not happen anymore.
 sub create_new_include_statements {
     ( my $stref, my $f, my $annline, my $rlines ) = @_;
     my $Sf        = $stref->{'Subroutines'}{$f};        
@@ -90,7 +97,7 @@ sub create_new_include_statements {
         {    
             print "INFO: instantiating merged INC $inc in $f\n" if $V;
 #            my $rline = "      include '$inc'";
-            my $tinc = $inc;        
+            my $tinc = $inc;                    
             $tinc=~s/\./_/g;
             my $rline = "      use $tinc";
             $info->{'Include'}{'Name'} = $inc;

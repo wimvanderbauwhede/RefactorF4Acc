@@ -38,7 +38,7 @@ use Exporter;
 # All that should happen in a separate pass. But we do it here anyway
 sub parse_fortran_src {
 	( my $f, my $stref ) = @_;
-    local $V=1;	
+#    local $V=1;	
 	print "parse_fortran_src(): PARSING $f\n " if $V;
 	
 	# 1. Read the source and do some minimal processsing
@@ -130,7 +130,7 @@ sub _analyse_lines {
                exists $info->{'SubroutineSig'}
                ) {               	
                	$info->{'ExGlobVarDecls'} = ++$Sf->{'ExGlobVarDeclHook'};
-               	print "_analyse_lines($f)\t",$line,"\tEX:",$info->{'ExGlobVarDecls'},"\n";               	 
+#               	print "_analyse_lines($f)\t",$line,"\tEX:",$info->{'ExGlobVarDecls'},"\n";               	 
 		    }
             
 	   # FIXME Trailing comments are ignored!
@@ -370,7 +370,7 @@ sub _analyse_lines {
 					$first = 0;
 					# FIXME: no use in include files!
 					$info->{'ExGlobVarDecls'} = ++$Sf->{ExGlobVarDeclHook};# {};
-					print "_analyse_lines($f): VAR DECL\t",$line,"\tEX:",$info->{'ExGlobVarDecls'},"\n";
+#					print "_analyse_lines($f): VAR DECL\t",$line,"\tEX:",$info->{'ExGlobVarDecls'},"\n";
 				}				
 			}
 			$srcref->[$index] = [ $line, $info ];
@@ -436,7 +436,7 @@ sub _parse_includes {
 				print $line, " already processed\n" if $V;
 			}
 			if (exists $stref->{'Implicits'} and exists $stref->{'Implicits'}{$name}) {
-				print "INFO: inheriting IMPLICITS from $name in $f\n";
+				print "INFO: inheriting IMPLICITS from $name in $f\n" if $I;
 				if (not exists $stref->{'Implicits'}{$f}) {
 					$stref->{'Implicits'}{$f}=$stref->{'Implicits'}{$name};
 				} else {

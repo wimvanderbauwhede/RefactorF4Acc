@@ -16,7 +16,7 @@ use strict;
 use Carp;
 use Data::Dumper;
 
-use RefactorF4Acc::Refactoring::Common qw( get_annotated_sourcelines );
+use RefactorF4Acc::Refactoring::Common qw( get_annotated_sourcelines format_f95_var_decl );
 
 use Exporter;
 
@@ -76,7 +76,7 @@ sub refactor_kernel_signatures {
             my $iodir = $Sf->{'RefactoredArgs'}{'Set'}{$arg}{'IODir'};
             my $kind  = $Sf->{'RefactoredArgs'}{'Set'}{$arg}{'Kind'};
             my $type  = $Sf->{'RefactoredArgs'}{'Set'}{$arg}{'Type'};
-#            die Dumper($type) if $arg eq 'gold';
+#            die $line,"\n",Dumper($Sf->{'RefactoredArgs'}{'Set'}{$arg}) if $arg eq 'gold';
             my $ntabs = ' ' x 8;
             if ( $iodir eq 'In' and $kind eq 'Scalar' ) {
                 $ntabs = '';
@@ -108,6 +108,8 @@ sub refactor_kernel_signatures {
         my $info = $annline->[1];
         
         my %tags      = %{$info};
+#        warn $line,"\n",Dumper($info) if $f =~/adam/;
+#         die $line,"\n",Dumper($Sf->{'RefactoredArgs'}{'Set'}{$arg}) if $arg eq 'gold';
 #        print "$line\t".join(',',keys %tags)."\n";
         if ( exists $tags{'Signature'} ) {
             for my $extra_line (@extra_lines) {
@@ -115,9 +117,19 @@ sub refactor_kernel_signatures {
                 push @{ $Sf->{'RefactoredCode'} }, $extra_line;
             }
         }
-
+    if ( exists $tags{'VarDecl'} ) {
+    	my $arg = $info->{VarDecl};
+    	 if( exists  $Sf->{'Vars'}{$arg}{Decl} ) {
+    	
+    	$line = format_f95_var_decl($Sf, $arg);
+    	 } else {
+    	 	print "WARNING: $arg is not in Vars for $f\n" if $W;
+    	 }
+    }
         push @{ $Sf->{'RefactoredCode'} }, [ $line, $info ];# if $line ne '';
     }    
+#    die 'BOOM' if $f eq 'adam';
+#    die Dumper( map {$_->[0] } @{$Sf->{'RefactoredCode'}} ) if $f eq 'adam';
 
     return $stref;
 }    # END of refactor_kernel_signatures()
@@ -179,3 +191,47 @@ sub refactor_subroutine_signature {
     $Sf->{'HasRefactoredArgs'} = 1;
     return $stref;
 }    # END of refactor_subroutine_signature()
+
+# -----------------------------------------------------------------------------
+#sub format_f95_arg_decl {
+#    ( my $Sf, my $var ) = @_;
+#    my $Sv = $Sf->{'RefactoredArgs'}{'Set'}{$var};
+#    if ( not exists $Sv->{'Decl'} ) {
+#        print "WARNING: VAR $var does not exist in format_f95_var_decl()!\n" if $W;
+#        croak $var;
+##       $Sv->{'Decl'}='      $var = NULL';
+#    } 
+#    my $nvar=$var;
+#    if (exists $Sf->{'ConflictingLiftedVars'}{$var} ){
+#       $nvar=$Sf->{'ConflictingLiftedVars'}{$var};
+#    }
+#    my $spaces = $Sv->{'Decl'};
+#    $spaces =~ s/\S.*$//;
+#    my $intent='';
+#    if (exists $Sf->{'RefactoredArgs'}{'Set'}{$var}) {
+#        $intent = $Sf->{'RefactoredArgs'}{'Set'}{$var}{'IODir'};
+##        warn "F95 $var: intent $intent\n";
+##        print "F95 format_f95_var_decl() $var: intent $intent\n";
+#    } 
+#    # FIXME: for multiple vars, we need to split this in multiple statements.
+#    # So I guess as soon as the Shape is not empty, need to split.
+#    my $shape = $Sv->{'Shape'};
+#    die Dumper($shape) if join( '', @{$shape} ) =~ /;/;
+#    my $dim = '';
+#    if ( @{$shape} ) {
+#        my @dims = ();
+#        for my $i ( 0 .. ( @{$shape} / 2 - 1 ) ) {
+#            my $range =
+#              ( $shape->[ 2 * $i ] eq '1' )
+#              ? $shape->[ 2 * $i + 1 ]
+#              : $shape->[ 2 * $i ] . ':' . $shape->[ 2 * $i + 1 ];
+#            push @dims, $range;
+#        }
+#        $dim = ', dimension(' . join( ',', @dims ) . ') ';
+#    }
+#    my $decl_line =
+#      $spaces . $Sv->{'Type'} .$Sv->{'Attr'}. $dim . ' :: ' . $nvar;
+#
+#    #    die $decl_line  if $dim;
+#    return $decl_line;
+#}    # format_f95_var_decl()

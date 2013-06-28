@@ -170,7 +170,7 @@ sub context_free_refactorings {
 					$tr{'Ref'}=1;
 					push @extra_lines, [ $filtered_line, \%tr ];
 				}
-				warn "$f PAR:1\n";
+#				warn "$f PAR:1\n";
 				$line = '!! Original line !! ' . $line;
 				$info->{'Deleted'} = 1;
 				$info->{'Ref'}++;
@@ -178,7 +178,7 @@ sub context_free_refactorings {
 				if ( scalar @vars == 1 ) {
 					if ( exists( $Sf->{'Parameters'}{ $vars[0] } ) ) {
 						# Remove this line
-						warn "$f PAR:2\n";
+#						warn "$f PAR:2\n";
 						$line = '!! Original line !! ' . $line;
 						$info->{'Deleted'} = 1;						
 					} else {
@@ -192,7 +192,7 @@ sub context_free_refactorings {
 						$line =
 						  _format_f95_multiple_var_decls( $Sf,@vars_not_pars );
 					} else {
-						warn "$f PAR:3\n";
+#						warn "$f PAR:3\n";
 						$line = '!! Original line !! ' . $line;
 						$info->{'Deleted'} = 1;
 					}
@@ -235,7 +235,7 @@ sub context_free_refactorings {
 		      $info->{'Ref'}++;
 		} # assignment
 		elsif ( exists $tags{'Parameter'} ) {
-			warn "$f PAR:4 $line\n";
+#			warn "$f PAR:4 $line\n";
 			if ($sub_or_func_or_inc eq 'IncludeFiles' and 
 			$stref->{'IncludeFiles'}{$f}{'InclType'} eq 'Parameter') {
 				my @par_lines=();
@@ -664,7 +664,7 @@ sub format_f95_var_decl {
 		$dim = ', dimension(' . join( ',', @dims ) . ') ';
 	}
 	my $decl_line =
-	  $spaces . $Sv->{'Type'} .$Sv->{'Attr'}. $dim . ' :: ' . $nvar;
+	  $spaces . $Sv->{'Type'} .$Sv->{'Attr'}. $dim . ", intent($intent)" .' :: ' . $nvar;
 
 	#    die $decl_line  if $dim;
 	return $decl_line;

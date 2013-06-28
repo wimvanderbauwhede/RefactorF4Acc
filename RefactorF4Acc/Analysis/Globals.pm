@@ -244,10 +244,10 @@ sub __determine_subroutine_arguments {
                         print "INFO: $f has 'implicit none'\n" if $V;
                         my $idx = $Sf->{'ImplicitNone'} + 1;
 #                        $srcref->[$idx][1]{'ExGlobVarDecls'} =  ++$Sf->{ExGlobVarDeclHook}; #{}; 
-                        print "__determine_subroutine_arguments($f)\t",$srcref->[$idx][0],"\tEX:",$srcref->[$idx][1]{'ExGlobVarDecls'},'<>',$Sf->{ExGlobVarDeclHook},"\n";                                       
+#                        print "__determine_subroutine_arguments($f)\t",$srcref->[$idx][0],"\tEX:",$srcref->[$idx][1]{'ExGlobVarDecls'},'<>',$Sf->{ExGlobVarDeclHook},"\n";                                       
                     } else {
 #                        $info->{'ExGlobVarDecls'} =  ++$Sf->{ExGlobVarDeclHook};#{}; 
-                        print "__determine_subroutine_arguments($f)\t",$line,"\tEX:",$info->{'ExGlobVarDecls'},'<>',$Sf->{ExGlobVarDeclHook},"\n";
+#                        print "__determine_subroutine_arguments($f)\t",$line,"\tEX:",$info->{'ExGlobVarDecls'},'<>',$Sf->{ExGlobVarDeclHook},"\n";
                     }
                 }
                 $info->{'Signature'}{'Name'} = $name;
@@ -261,7 +261,7 @@ sub __determine_subroutine_arguments {
                 $info->{'Signature'}{'Args'}{'List'} = [];
                 $info->{'Signature'}{'Name'} = $name;
 #                $info->{'ExGlobVarDecls'} =  ++$Sf->{ExGlobVarDeclHook};#{}; # FIXME: This is not good: if an include exists, it should be after the include!!! What we need is to track where it should go: after Sig, after last Incl or before first VarDecl
-                print "__determine_subroutine_arguments($f)\t",$line,"\tEX:",$info->{'ExGlobVarDecls'},'<>',$Sf->{ExGlobVarDeclHook},"\n";
+#                print "__determine_subroutine_arguments($f)\t",$line,"\tEX:",$info->{'ExGlobVarDecls'},'<>',$Sf->{ExGlobVarDeclHook},"\n";
                 $Sf->{'Args'}{'List'} = [];
                 $Sf->{'Args'}{'Set'} = {};
                 last;
