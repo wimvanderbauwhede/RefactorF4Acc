@@ -175,7 +175,7 @@ sub context_free_refactorings {
 				$info->{'Deleted'} = 1;
 				$info->{'Ref'}++;
 			} else {
-				if ( scalar @vars == 1 ) {
+			if ( scalar @vars == 1 ) {
 					if ( exists( $Sf->{'Parameters'}{ $vars[0] } ) ) {
 						# Remove this line
 						warn "$f PAR:2\n";
@@ -191,6 +191,7 @@ sub context_free_refactorings {
 					if (@vars_not_pars) {
 						$line =
 						  _format_f95_multiple_var_decls( $Sf,@vars_not_pars );
+#			die "COMMON:\n<$line>" if $line=~/character/;
 					} else {
 						warn "$f PAR:3\n";
 						$line = '!! Original line !! ' . $line;
@@ -886,7 +887,7 @@ sub _format_f95_multiple_var_decls {
 		}
 		my $decl_line =
 		    $spaces . $type . $attr. $dim . ' :: '
-		  . join( ', ', @nvars )
+		  . join( ', ', sort @nvars )
 		  . ' !! Context-free, multi !! ';
 		return $decl_line;
 	}
