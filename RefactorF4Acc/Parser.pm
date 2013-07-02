@@ -120,7 +120,6 @@ sub _analyse_lines {
 		for my $index ( 0 .. scalar( @{$srcref} ) - 1 ) {
 			my $attr = '';
 			my $line = $srcref->[$index][0];
-			
 			my $info = $srcref->[$index][1];
 			if ( $line =~ /^\!\s+/ ) {
 				next;
@@ -168,14 +167,11 @@ sub _analyse_lines {
 		 # So we have
 
 			elsif ( $line =~
-#			/(logical|integer|real|double\s*precision|character)\s+(.+)\s*$/
             /\b(logical|integer|real|double\s*precision|character)\s+([^\*]?.*)\s*$/
 				or $line =~
-#            /((?:logical|integer|real|double\s*precision|character)\*(?:\d+|\(\*\)))\s+(.+)\s*$/				
             /\b((?:logical|integer|real|double\s*precision|character)\s*\*(?:\d+|\(\*\)))\s+(.+)\s*$/
 			  )
 			{
-				 
 				$type   = $1;
 				$varlst = $2;
 				# Now an ad hoc fix for spaces between the type and the asterisk. FIXME! I should just write a better FSM!
@@ -193,6 +189,8 @@ sub _analyse_lines {
 				$indent = $line;
 				$indent =~ s/\S.*$//;
 				$is_vardecl = 1;
+#			if ($line=~/character/) {die "<$line>\nTYPE:$type\nATTR:$attr\nVARLST:$varlst";}	 
+				
 				
 			} elsif ( $line =~ /^\s*(.*)\s*::\s*(.*?)\s*$/ )
 			{    #F95 declaration, no need for refactoring
@@ -301,7 +299,7 @@ sub _analyse_lines {
 				my $T =
 				  0;  #($f eq 'particles_main_loop' && $varlst=~/drydep/) ? 1:0;
 				my $pvars = _parse_vardecl( $varlst, $T );
-#				die Dumper($pvars) if $f=~/common/;
+#				die Dumper(sort keys %{$pvars}) if $line=~/character/;
 
 				#                if ($f eq 'read_ncwrfout_1realfield') {
 				#	               print Dumper($pvars);
@@ -364,7 +362,7 @@ sub _analyse_lines {
 					push @varnames, $tvar;
 				}    # loop over all vars declared on a single line
 
-				print "\tVARS <$line>: ", join( ',', @varnames ), "\n" if $V;
+				print "\tVARS <$line>:\n ", join( ',', sort @varnames ), "\n" if $V;				
 				$info->{'VarDecl'} = \@varnames;
 				if ($first) {
 					$first = 0;
