@@ -9,7 +9,7 @@ use RefactorF4Acc::Utils;
 use RefactorF4Acc::Refactoring::Common qw( create_refactored_source get_annotated_sourcelines );
 use RefactorF4Acc::Refactoring::Subroutines qw( refactor_all_subroutines refactor_kernel_signatures );
 use RefactorF4Acc::Refactoring::Functions qw( refactor_called_functions );
-use RefactorF4Acc::Refactoring::Includes qw( refactor_includes );
+use RefactorF4Acc::Refactoring::IncludeFiles qw( refactor_includes );
 use RefactorF4Acc::Analysis::ArgumentIODirs qw( determine_argument_io_direction_rec );
 
 use vars qw( $VERSION );
@@ -59,6 +59,7 @@ sub refactor_all {
     # But it doesn't hurt to annotate every subroutine of course 
 #    $stref = refactor_kernel_signatures( $stref, $subname); # It would be better if I could do this in determine_argument_io_direction_rec() 
 #    $stref = create_all_refactored_subroutine_sources($stref);
+
     # When all this is done, we can finally create the refactored sources for the subroutines
     for my $f ( keys %{ $stref->{'Subroutines'} } ) {
     	if (scalar keys %{$stref->{'Subroutines'}{$f}{'Callers'} } or $stref->{'Subroutines'}{$f}{'Program'} ) {    		

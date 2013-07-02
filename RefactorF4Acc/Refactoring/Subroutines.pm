@@ -186,12 +186,12 @@ sub _refactor_globals {
             $skip = 1;
         }
 # There should be no need to do this: all /common/ blocks should have been removed anyway!
-#        if ( exists $tags{'Include'} ) {
-#            $skip = skip_common_include_statement( $stref, $f, $annline );
-#        }
+        if ( exists $tags{'Include'} ) {
+            $skip = skip_common_include_statement( $stref, $f, $annline );
+        }
 
         if ( exists $tags{'ExGlobVarDecls'} and not exists $tags{'Deleted'} and not exists $tags{'Comments'}
-#            and  ($tags{'ExGlobVarDecls'} == $Sf->{'ExGlobVarDeclHook'})
+            and  ($tags{'ExGlobVarDecls'} == $Sf->{'ExGlobVarDeclHook'})
         ) {            
 #if ($tags{'ExGlobVarDecls'} == $Sf->{'ExGlobVarDeclHook'}) {print 'EX:', $f,' ',$tags{'ExGlobVarDecls'},'<>',$Sf->{'ExGlobVarDeclHook'},':', $annline->[0],"\n";} 
             # First, abuse ExGlobVarDecls as a hook for the addional includes, if any

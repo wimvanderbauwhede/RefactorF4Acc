@@ -1,4 +1,4 @@
-package RefactorF4Acc::Refactoring::Includes;
+package RefactorF4Acc::Refactoring::IncludeFiles;
 
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
@@ -20,9 +20,9 @@ use Data::Dumper;
 
 use Exporter;
 
-@RefactorF4Acc::Refactoring::Includes::ISA = qw(Exporter);
+@RefactorF4Acc::Refactoring::IncludeFiles::ISA = qw(Exporter);
 
-@RefactorF4Acc::Refactoring::Includes::EXPORT_OK = qw(
+@RefactorF4Acc::Refactoring::IncludeFiles::EXPORT_OK = qw(
   &refactor_includes
 );
 
@@ -39,7 +39,7 @@ sub refactor_includes {
 #    $stref=resolve_module_deps($stref); FIXME!!!
 	for my $f ( keys %{ $stref->{'IncludeFiles'} } ) {
 
-			print "\nREFACTORING INCLUDE $f\n" if $V;
+			print "\nREFACTORING INCLUDE FILE $f\n" if $V;
 			$stref = _refactor_include( $f, $stref );
 #			$stref = create_refactored_source($stref, $f);
 	}
@@ -115,7 +115,7 @@ sub _refactor_include {
 		if ( exists $tags{'Parameter'} ) {
 #			print Dumper(%tags);
 			for my $var (@{ $tags{'Parameter'} } ) {
-				print "PAR: $var ($line)\n";
+#				print "PAR: $var ($line)\n";
                 if ( exists $stref->{'IncludeFiles'}{$f}{'ConflictingGlobals'}
                     {$var} )
                 {
