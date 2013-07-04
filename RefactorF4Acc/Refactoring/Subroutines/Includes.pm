@@ -64,7 +64,7 @@ sub create_additional_include_statements {
             my $tinc = $inc;
             die $tinc if $tinc =~/params_com/ or $f eq 'main';
             $tinc=~s/\./_/g;
-            	my $rline = "      use $tinc";
+            	my $rline = "      use $tinc ! create_additional_include_statements() line 67";
             $info->{'Include'}{'Name'} = $inc;
             $info->{'Ref'}=1;
             if ($info->{'ExGlobVarDecls'} >= $Sf->{'ExGlobVarDeclHook'}) {
@@ -93,13 +93,14 @@ sub create_new_include_statements {
         print "INC: $inc, root: $stref->{'IncludeFiles'}{$inc}{'Root'} \n"
           if $V;
         if ( exists $Sf->{'CommonIncludes'}{$inc}
-            and $f eq $stref->{'IncludeFiles'}{$inc}{'Root'} )
+#            and $f eq $stref->{'IncludeFiles'}{$inc}{'Root'} 
+            )
         {    
             print "INFO: instantiating merged INC $inc in $f\n" if $V;
 #            my $rline = "      include '$inc'";
             my $tinc = $inc;                    
             $tinc=~s/\./_/g;
-            my $rline = "      use $tinc";
+            my $rline = "      use $tinc ! create_new_include_statements() line 102";
             $info->{'Include'}{'Name'} = $inc;
             $info->{'Ref'}=1;
             if ($info->{'ExGlobVarDecls'} >= $Sf->{'ExGlobVarDeclHook'}) {

@@ -143,7 +143,7 @@ sub _refactor_include {
    my $firstline=shift @{ $refactored_lines }; # FIXME This is weak. What we need is the line with "module" 
 	for my $dep (keys %{ $stref->{'IncludeFiles'}{$f}{'Deps'} } ) {
             unshift @{ $refactored_lines },
-            [ "use $dep", {'ModuleDep'=>$dep, 'Ref'=>1} ];
+            [ "use $dep ! refactor_include() line 146", {'ModuleDep'=>$dep, 'Ref'=>1} ];
         }
         unshift @{ $refactored_lines },$firstline;
  $stref->{'IncludeFiles'}{$f}{'RefactoredCode'}  = $refactored_lines;                  

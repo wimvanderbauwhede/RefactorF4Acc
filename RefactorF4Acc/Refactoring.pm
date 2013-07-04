@@ -91,8 +91,8 @@ sub refactor_all {
 #print '1=' x 80, "\n";
 #   die ;
 #    	}
-
-   $stref=add_module_decls($stref);
+    
+   
 #   print '=' x 80, "\n"; 	
 #map {print $_->[0]."\n"} @{ $stref->{'Subroutines'}{'les'}{RefactoredCode} };
 #   die;
@@ -113,6 +113,7 @@ sub refactor_all {
 #die;
 #}
     }
+    $stref=add_module_decls($stref);
 #    # WRONG HERE!
 #       print '=' x 80, "\n";
 #map {print $_->[0]."\n"} @{ $stref->{RefactoredSources}{'./les.f'} };
@@ -126,10 +127,31 @@ sub refactor_all {
 ## FIXME: this should go in Refactoring::Modules
 
 sub add_module_decls {
+#	print "\n\nadd_module_decls()\n\n";
     (my $stref)=@_;
+    my $no_module=0;
+    
+	for my $src (keys %{ $stref->{'SourceContains'} } ) {
+	    for my $sub_or_func (keys %{  $stref->{'SourceContains'}{$src}   } ) {
+	# Find all function/subroutine calls in this function/subroutine
+	# I'm afraid at the moment I only have CalledSubs, so function calls might not be there, need to check!
+	# Also, need to check if SourceContains distinguishes between subroutines and functions
+	        my $sub_func_type= $stref->{'SourceContains'}{$src}{$sub_or_func};
+	        my $Sf = $stref->{$sub_func_type}{$sub_or_func};
+	        my $called_sub_or_func = 'Called'. (($sub_func_type eq 'Subroutines') ? 'Subs' : 'Functions');
+	        for my $called_sub ( keys %{ $Sf->{$called_sub_or_func} } ) {
+	     
+	            my $cs_src=$stref->{'Subroutines'}{$called_sub}{'Source'};
+	                    print "$src => $called_sub => $cs_src\n";
+	            $stref->{'UsedModules'}{$src}{$cs_src}=1;
+	        }
+	    }
+	}
     
     for my $src (keys %{ $stref->{'SourceContains'} } ) {
-        
+    	print "SRC: $src\n";
+        $no_module= $stref->{'Program'} eq $src;
+#        print "$src: $no_module\n";
         print "INFO: adding module decls to $src\n" if $V;
         
        if ($I) {
@@ -148,13 +170,15 @@ sub add_module_decls {
             my $mod_footer=["\nend module $mod_name\n",{'Ref'=>1}];
             my @mod_uses=();
             for my $mod_src (keys %{ $stref->{'UsedModules'}{$src} }) {
+            	print "USES: $src => $mod_src\n";
                 my $used_mod_name = $mod_src;
                 $used_mod_name =~s/\.\///;
                 $used_mod_name =~s/\..*$//;
                 $used_mod_name=~s/\./_/g;
                 $used_mod_name="module_$used_mod_name";
-                push @mod_uses, ["use $used_mod_name\n",{'Ref'=>1}];
+                push @mod_uses, ["      use $used_mod_name ! add_module_decls() line 156",{'Ref'=>1}];
             }
+            
             my $mod_contains = ["contains\n",{'Ref'=>1}];
             my @refactored_source_lines=();
             for my $f (keys %{  $stref->{'SourceContains'}{$src} }) {
@@ -165,9 +189,35 @@ sub add_module_decls {
 #                my @ref_lines = map { $_->[0] } @{$annlines};
                 @refactored_source_lines=(@refactored_source_lines,@{$refacored_lines})
             }
-            $stref->{'RefactoredSources'}{$src}=[$mod_header, @mod_uses,$mod_contains, @refactored_source_lines,$mod_footer];
+            if (!$no_module) {
+                $stref->{'RefactoredSources'}{$src}=[$mod_header, @mod_uses,$mod_contains, @refactored_source_lines,$mod_footer];
+            } else {
+            	# Not good. What we must do is find the line with Program and splice the @mod_uses after it.
+            	
+            	my $before=1;
+            	my @prog_p1=();
+            	my @prog_p2=();
+            	for my $annline (@refactored_source_lines) {
+            		my $info = $annline->[1];
+            		if ($before) {
+            			push @prog_p1, $annline;
+            		} else {
+            			push @prog_p2, $annline;
+            		}
+            		if (exists $info->{'SubroutineSig'}) {
+            			my $progname = $info->{'SubroutineSig'};
+            			
+            		if ( exists $stref->{'Subroutines'}{$progname}{'Program'}) {	
+            			$before=0;
+            		}
+            		
+            		}
+            	}
+            	$stref->{'RefactoredSources'}{$src}=[@prog_p1,@mod_uses,@prog_p2];
+            }
+        
     } # loop over all source files
-
+#die Dumper($stref->{'RefactoredSources'}{'./main.f'});
     return $stref;
 
 } # END of add_module_decls()

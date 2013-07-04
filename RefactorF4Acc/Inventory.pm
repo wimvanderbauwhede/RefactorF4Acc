@@ -176,6 +176,9 @@ sub process_src {
 	                    $Ssub->{'Program'} = $is_prog;
 	                    $Ssub->{'Recursive'} = $is_rec;
 	                    $Ssub->{'Callers'}  = {};
+	                    if ($is_prog==1) {
+	                    	$stref->{'Program'}=$src;
+	                    }
 	                    if ($translate_to ne '') {
 	                        $Ssub->{'Translate'}  = $translate_to;
 	                        $translate_to = '';

@@ -351,24 +351,6 @@ sub emit_all {
 #			}
 #		}		
 
-#	print 	"!\tUSES: ",join(', ', keys %{ $stref->{'UsedModules'}{$src} })."\n";
-#        warn join("\n",@module_contains);
-#		if (@module_contains) {
-#			#FIXME: this is way too late, should be done in Refactoring::
-#			my $mod_name=$src;
-#			$mod_name=~s/\.\///;
-#			$mod_name=~s/\..*$//;
-#			$mod_name=~s/\./_/g;
-#			my $mod_header="module $mod_name\n";
-#			my $mod_footer="\nend module $mod_name\n";
-#			my @mod_uses=();
-#			for my $mod_src (keys %{ $stref->{'UsedModules'}{$src} }) {
-#				my $used_mod_name = $mod_src;
-#				$used_mod_name =~s/\.\///;
-#				$used_mod_name =~s/\..*$//;
-#				$used_mod_name=~s/\./_/g;
-#				push @mod_uses, "use $used_mod_name\n";
-#			}
 #            print "\nSOURCE: $src\n\n";
             for my $mod_line (@{ $stref->{'RefactoredSources'}{$src} }) {
 #               warn $mod_line if $src=~/timemanager/;

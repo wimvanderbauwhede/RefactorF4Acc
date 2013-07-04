@@ -145,7 +145,6 @@ sub _analyse_lines {
 			} elsif ( $line =~ /implicit\s+/ ) {
                 $info->{'Implicit'} = 1;
                 $stref = _parse_implicit($line,$f,$stref);
-#                warn	Dumper($stref ->{'Implicits'}{$f});			
 			} elsif ( $line =~ /^\d*\s+(else\s+if)/ ) {
 				$info->{'ElseIf'} = 1;
 				
@@ -997,7 +996,8 @@ sub _get_commons_params_from_includes {
 				my @tcommons = split( /\s*\,\s*/, $commonlst );
 				my $parsedvars = _parse_vardecl($commonlst,0);
 #				die Dumper(keys %{$parsedvars}) if $line=~/km/;
-				for my $var (keys %{$parsedvars}) {					
+				for my $var (keys %{$parsedvars}) {
+										
 					if ( not defined $vars{$var} ) {						
 						if (exists $stref->{'Implicits'}{$f}{lc(substr($var,0,1))} ) {
 							print "INFO: common <", $var, "> typed via Implicits for $f\n" if $I;
@@ -1014,14 +1014,18 @@ sub _get_commons_params_from_includes {
 							};			
 							$Sf->{'Commons'}{$var} = $var_rec;		
 							$vars{$var}=$var_rec;
-									
+									die Dumper($var_rec) if $var eq 'nou1';
 						} else {
 							print "WARNING: common <", $var, "> is not in {'IncludeFiles'}{$f}{'Vars'}\n" if $W;
 						}
 					} else {
 						print $var, "\t", $vars{$var}{'Type'}, "\n"
 						  if $V;
-#                        die Dumper($vars{$var});
+#                        die Dumper($parsedvars->{$var}) if $var eq 'nou1';
+                        if (exists $parsedvars->{$var}{Shape}) {
+                        	$vars{$var}{Shape}=$parsedvars->{$var}{Shape};
+                        	$vars{$var}{Kind}='Array';
+                        }
 						$stref->{'IncludeFiles'}{$f}{'Commons'}{$var} =
 						  $vars{$var};
 					}

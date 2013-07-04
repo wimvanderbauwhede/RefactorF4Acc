@@ -50,6 +50,7 @@ sub read_fortran_src {
 		  $no_need_to_read=0;
         } else {
 		for my $item (keys %{ $stref->{'SourceContains'}{$f} } ) {
+#			next if $item eq 'Program';
 			my $srctype=$stref->{'SourceContains'}{$f}{$item};
 			my $status =$stref->{$srctype}{$item}{'Status'};
 			# if one of them is still UNREAD, need to read.

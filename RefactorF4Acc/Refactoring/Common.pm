@@ -267,19 +267,18 @@ sub context_free_refactorings {
 			$line = _rename_conflicting_vars($line,$stref,$f);
 			$info->{'Ref'}++;
 		}
-		elsif ( exists $tags{'Include'} ) {			
-			
+		elsif ( exists $tags{'Include'} ) {
+#			print "$f: $line\n";					
 			my $inc=$tags{'Include'}{'Name'};
 			     my $tinc=$inc;
 			     $tinc=~s/\./_/g;
-                $line = "      use $tinc";
+                $line = "      use $tinc ! context_free_refactorings() line 275";
                 $info->{'Ref'}++;
                 # use must come right after subroutine/function/program
                 # or after another use
                 # or after the module declaration
                 push @include_use_stack, [ $line, $info ];# if $line ne '';
-                next;
-                
+                next;                
 		}
 		push @{ $Sf->{'RefactoredCode'} }, [ $line, $info ];# if $line ne '';
 		if (@extra_lines) {
