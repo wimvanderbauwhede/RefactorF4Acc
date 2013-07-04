@@ -299,6 +299,7 @@ sub emit_all {
     for my $src (keys %{ $stref->{'SourceContains'} } ) {
         
         print "INFO: emitting refactored code for $src\n" if $V;
+        
         if ( $src =~ /\w\/\w/ ) {    
             # Source resides in subdirectory, create it if required
             my @dirs = split( /\//, $src );

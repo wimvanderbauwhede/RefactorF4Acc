@@ -117,18 +117,22 @@ sub create_refactored_vardecls {
 }    # END of create_refactored_vardecls()
 
 # --------------------------------------------------------------------------------
+# We need to check if these variables are not still present in any includes of $f!
 sub create_exglob_var_declarations {
-    ( my $stref, my $f, my $annline, my $rlines ) = @_;
+    ( my $stref, my $f, my $annline, my $rlines ) = @_;	
     my $Sf                 = $stref->{'Subroutines'}{$f};
     my $info          = $annline->[1];
 
     my %args               = %{ $Sf->{'Args'}{'Set'} };    
- local $V=1 if $f eq 'main';
+ local $V=1 if $f eq 'les';
  
     for my $inc ( keys %{ $Sf->{'Globals'} } ) {
         print "INFO: GLOBALS from INC $inc in $f\n" if $I;
-#        print Dumper(@{ $Sf->{'Globals'}{$inc} }) if $V;
-        for my $var ( @{ $Sf->{'Globals'}{$inc} } ) {
+
+#if ($f eq 'les') {
+#       print "INC: $inc\n",Dumper(@{ $Sf->{'Globals'}{$inc} }) if $f eq 'les';die;
+#       }
+        for my $var ( sort @{ $Sf->{'Globals'}{$inc} } ) {
         	
             if ( exists $args{$var} ) {
                 my $rline = "*** ARG MASKS GLOB $var in $f!";
@@ -136,6 +140,9 @@ sub create_exglob_var_declarations {
             } else {
 #            	print $var,"\n";
                 if ( exists $Sf->{'Commons'}{$inc} ) {
+# FIXME: we need to remove these declarations from the include file!
+#die Dumper($stref->{IncludeFiles}{$inc});
+
 #                	print $var,"\n";
                     if ( 1 ) { #$f ne $stref->{'IncludeFiles'}{$inc}{'Root'} ) {
 #                        print "\tGLOBAL $var from $inc in $f\n" if $V;
@@ -162,6 +169,7 @@ sub create_exglob_var_declarations {
                         }
                         $info->{'Ref'}=1;
                         $info->{'VarDecl'}=$var;
+#print "$rline\n" if $V; # OK here
                         push @{$rlines}, [ $rline, $info ];
                     } else {
 #                    	# So, $f is Root for $inc. As we have removed all common block variables from $inc, 
@@ -185,10 +193,14 @@ sub create_exglob_var_declarations {
             }
         }    # for
     }
-#    croak Dumper($rlines);
+#        die 'BOOM!' if $f eq 'les';
+# if($f eq 'les') {
+#   print Dumper($rlines);
 #die if $f eq 'main';
 #    die 'create_exglob_var_declarations()' if $f eq 'interpol_all';
-#   die if $f=~/particles_main/;
+#  die ;
+#       }
+# OK here!
     return $rlines;
 }    # END of create_exglob_var_declarations()
 # --------------------------------------------------------------------------------

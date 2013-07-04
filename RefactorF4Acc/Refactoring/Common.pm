@@ -159,16 +159,18 @@ sub context_free_refactorings {
 					push @extra_lines,
 					  [ $new_line, { 'Extra' => 1, 'Parameter' => [$par], 'Ref'=>1 } ];
 				}
+				if ($sub_or_func_or_inc ne 'IncludeFiles') {
 				my @vars_not_pars =
 				  grep { not exists $Sf->{'Parameters'}{$_} } @vars;
 				my $filtered_line = '';				
-				if (@vars_not_pars) {
+				if (@vars_not_pars) { 
 					$filtered_line =
 					  _format_f95_multiple_var_decls( $Sf,@vars_not_pars );
 					my %tr = %{$info};
 					$tr{'Extra'} = 1;
 					$tr{'Ref'}=1;
 					push @extra_lines, [ $filtered_line, \%tr ];
+				}
 				}
 #				warn "$f PAR:1\n";
 				$line = '!! Original line !! ' . $line;
@@ -185,6 +187,8 @@ sub context_free_refactorings {
 						$line = format_f95_var_decl( $Sf, $vars[0] );												
 					}					
 				} else {
+					if ($sub_or_func_or_inc ne 'IncludeFiles') {
+						# For include files, remove everything
 					# filter out parameters
 					my @vars_not_pars =
 					  grep { not exists $Sf->{'Parameters'}{$_} } @vars;
@@ -196,6 +200,15 @@ sub context_free_refactorings {
 #						warn "$f PAR:3\n";
 						$line = '!! Original line !! ' . $line;
 						$info->{'Deleted'} = 1;
+					}
+					} else {
+						# This is overly restrictive, we should only remove vars that are in a common block						
+						if (exists $stref->{IncludeFiles}{$f}{Commons}{$vars[0]})  {
+                            $line = '!! Original line !! ' . $line;
+                            $info->{'Deleted'} = 1;						
+						} else {
+						  print  "INFO: found var decls not COMMON in $f:\n$line\n" if $I;
+						}
 					}
 				}
 				$info->{'Ref'}++;
@@ -643,8 +656,12 @@ sub format_f95_var_decl {
 	my $spaces = $Sv->{'Decl'};
 	$spaces =~ s/\S.*$//;
     my $intent='';
+#	if ($var eq 'amask1') {
+#		print Dumper($Sv);
+#		die Dumper( $Sf->{'RefactoredArgs'}{'Set'}) ;
+#	}
     if (exists $Sf->{'RefactoredArgs'}{'Set'}{$var}) {
-        $intent = $Sf->{'RefactoredArgs'}{'Set'}{$var}{'IODir'};
+        $intent = ', intent('.$Sf->{'RefactoredArgs'}{'Set'}{$var}{'IODir'}.')';
 #        warn "F95 $var: intent $intent\n";
 #        print "F95 format_f95_var_decl() $var: intent $intent\n";
     } 
@@ -664,10 +681,10 @@ sub format_f95_var_decl {
 		}
 		$dim = ', dimension(' . join( ',', @dims ) . ') ';
 	}
-	my $decl_line =
-	  $spaces . $Sv->{'Type'} .$Sv->{'Attr'}. $dim . ", intent($intent)" .' :: ' . $nvar;
 
-	#    die $decl_line  if $dim;
+	my $decl_line =
+	  $spaces . $Sv->{'Type'} .$Sv->{'Attr'}. $dim . $intent .' :: ' . $nvar;
+
 	return $decl_line;
 }    # format_f95_var_decl()
 

@@ -140,7 +140,9 @@ warn "FIXME: modules representing includes should be used in all source files!";
 	
     # Refactor the source
 	$stateref = refactor_all($stateref,$subname);
-
+#   print '=' x 80, "\n";
+#   map {print $_->[0]."\n"} @{ $stateref->{RefactoredSources}{'./les.f'} };
+#   die;
 	if ( not $call_tree_only ) {
 		# Emit the refactored source
 		emit_all($stateref);

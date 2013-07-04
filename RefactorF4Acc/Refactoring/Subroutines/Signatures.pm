@@ -71,33 +71,37 @@ sub refactor_kernel_signatures {
     $Sf->{'HasRefactoredArgs'} = 1;
     # IO direction information
     my @rlines=();# ( [ "!    SUBROUTINE $f IO INFO\n", { 'Comment' => 1, 'Ref'=>1 } ] );
-    for my $arg ( @{$args_ref} ) {    	
-        if ( exists $Sf->{'RefactoredArgs'}{'Set'}{$arg}{'IODir'} ) {
-            my $iodir = $Sf->{'RefactoredArgs'}{'Set'}{$arg}{'IODir'};
-            my $kind  = $Sf->{'RefactoredArgs'}{'Set'}{$arg}{'Kind'};
-            my $type  = $Sf->{'RefactoredArgs'}{'Set'}{$arg}{'Type'};
-#            die $line,"\n",Dumper($Sf->{'RefactoredArgs'}{'Set'}{$arg}) if $arg eq 'gold';
-            my $ntabs = ' ' x 8;
-            if ( $iodir eq 'In' and $kind eq 'Scalar' ) {
-                $ntabs = '';
-            } elsif ( $iodir eq 'Out' ) {
-                $ntabs = ' ' x 4;
-            }
-#            my $comment = "!      $ntabs$arg:\t$iodir, $kind, $type";
-#            push @rlines, [ $comment, { 'Comment' => 1, 'Ref'=>1 } ];
-        } else {
-            print "WARNING: No IO info for $arg in $f\n" if $W;
-        }
-    }
+#    for my $arg ( @{$args_ref} ) {    
+#    	print "ARG: $arg\n";	
+#        if ( exists $Sf->{'RefactoredArgs'}{'Set'}{$arg}{'IODir'} ) {
+#            my $iodir = $Sf->{'RefactoredArgs'}{'Set'}{$arg}{'IODir'};
+#            my $kind  = $Sf->{'RefactoredArgs'}{'Set'}{$arg}{'Kind'};
+#            my $type  = $Sf->{'RefactoredArgs'}{'Set'}{$arg}{'Type'};
+#            my $ntabs = ' ' x 8;
+#            if ( $iodir eq 'In' and $kind eq 'Scalar' ) {
+#                $ntabs = '';
+#            } elsif ( $iodir eq 'Out' ) {
+#                $ntabs = ' ' x 4;
+#            }
+#        } else {
+#            print "WARNING: No IO info for $arg in $f\n" if $W;
+#        }
+#    }
 
     # Now add $rlines to the refactored signature
 	# WV: this just adds the IO info as comments
-    my @extra_lines = @rlines;
+    my @extra_lines = ();#@rlines;
     
     if ( $Sf->{'Status'} != $PARSED ) {
         croak "NOT PARSED: $f\n".caller()."\n";
     }
     my $annlines = get_annotated_sourcelines( $stref, $f );
+    # OK here for les.f
+#    if ($f eq 'les') {
+#        print "refactor_kernel_signatures(les)\n";
+#        map {print $_->[0]."\t".join(';',keys( %{$_->[1]}))."\n" } @{$annlines};
+#        die; 
+#    }
     $Sf->{'RefactoredCode'}=[];
     for my $annline ( @{$annlines} ) {    	
         if ( not defined $annline or not defined $annline->[0] ) {
@@ -105,19 +109,14 @@ sub refactor_kernel_signatures {
               "Undefined source code line for $f in refactor_kernel_signatures()";
         }
         my $line = $annline->[0];
-        my $info = $annline->[1];
-        
+        my $info = $annline->[1];        
         my %tags      = %{$info};
-#        warn $line,"\n",Dumper($info) if $f =~/adam/;
-#         die $line,"\n",Dumper($Sf->{'RefactoredArgs'}{'Set'}{$arg}) if $arg eq 'gold';
-#        print "$line\t".join(',',keys %tags)."\n";
-        if ( exists $tags{'Signature'} ) {
-            for my $extra_line (@extra_lines) {
-#            	print $extra_line->[0],"\n";
-                push @{ $Sf->{'RefactoredCode'} }, $extra_line;
-            }
-        }
-    if ( exists $tags{'VarDecl'} ) {
+#        if ( exists $tags{'Signature'} ) {
+#            for my $extra_line (@extra_lines) {
+#                push @{ $Sf->{'RefactoredCode'} }, $extra_line;
+#            }
+#        }
+    if ( exists $tags{'VarDecl'} and (not exists $tags{Ref}) ) {
     	my $arg = $info->{VarDecl};
     	 if( exists  $Sf->{'Vars'}{$arg}{Decl} ) {
     	
@@ -130,7 +129,12 @@ sub refactor_kernel_signatures {
     }    
 #    die 'BOOM' if $f eq 'adam';
 #    die Dumper( map {$_->[0] } @{$Sf->{'RefactoredCode'}} ) if $f eq 'adam';
-
+# WRONG HERE for les.f!
+#if ($f eq 'les') {
+#	print "refactor_kernel_signatures(les)\n";
+#	 map {print $_->[0]."\n" } @{$Sf->{'RefactoredCode'}};
+#	 die; 
+#}
     return $stref;
 }    # END of refactor_kernel_signatures()
 # -----------------------------------------------------------------------------
@@ -193,45 +197,3 @@ sub refactor_subroutine_signature {
 }    # END of refactor_subroutine_signature()
 
 # -----------------------------------------------------------------------------
-#sub format_f95_arg_decl {
-#    ( my $Sf, my $var ) = @_;
-#    my $Sv = $Sf->{'RefactoredArgs'}{'Set'}{$var};
-#    if ( not exists $Sv->{'Decl'} ) {
-#        print "WARNING: VAR $var does not exist in format_f95_var_decl()!\n" if $W;
-#        croak $var;
-##       $Sv->{'Decl'}='      $var = NULL';
-#    } 
-#    my $nvar=$var;
-#    if (exists $Sf->{'ConflictingLiftedVars'}{$var} ){
-#       $nvar=$Sf->{'ConflictingLiftedVars'}{$var};
-#    }
-#    my $spaces = $Sv->{'Decl'};
-#    $spaces =~ s/\S.*$//;
-#    my $intent='';
-#    if (exists $Sf->{'RefactoredArgs'}{'Set'}{$var}) {
-#        $intent = $Sf->{'RefactoredArgs'}{'Set'}{$var}{'IODir'};
-##        warn "F95 $var: intent $intent\n";
-##        print "F95 format_f95_var_decl() $var: intent $intent\n";
-#    } 
-#    # FIXME: for multiple vars, we need to split this in multiple statements.
-#    # So I guess as soon as the Shape is not empty, need to split.
-#    my $shape = $Sv->{'Shape'};
-#    die Dumper($shape) if join( '', @{$shape} ) =~ /;/;
-#    my $dim = '';
-#    if ( @{$shape} ) {
-#        my @dims = ();
-#        for my $i ( 0 .. ( @{$shape} / 2 - 1 ) ) {
-#            my $range =
-#              ( $shape->[ 2 * $i ] eq '1' )
-#              ? $shape->[ 2 * $i + 1 ]
-#              : $shape->[ 2 * $i ] . ':' . $shape->[ 2 * $i + 1 ];
-#            push @dims, $range;
-#        }
-#        $dim = ', dimension(' . join( ',', @dims ) . ') ';
-#    }
-#    my $decl_line =
-#      $spaces . $Sv->{'Type'} .$Sv->{'Attr'}. $dim . ' :: ' . $nvar;
-#
-#    #    die $decl_line  if $dim;
-#    return $decl_line;
-#}    # format_f95_var_decl()

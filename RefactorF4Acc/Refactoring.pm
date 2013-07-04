@@ -45,12 +45,21 @@ sub refactor_all {
     $stref = refactor_called_functions($stref);
     # Refactor the source, but don't split long lines and keep annotations
     $stref = refactor_all_subroutines($stref);
-#    die Dumper(keys %{ $stref->{'Subroutines'}{'interpol_all_nests'}});
+# OK here for les.f
+
+#map {print $_->[0]."\n"} @{ $stref->{'Subroutines'}{'les'}{RefactoredCode} };
+#   die;
     # This can't go into refactor_all_subroutines() because it is recursive
     $stref = determine_argument_io_direction_rec( $subname, $stref );
 # Now somehow we should use the IO direction, at first simply as annotation
 #FIXME: This does not work! refactor_all_subroutines produces the refactored source!!!
-    print "DONE determine_argument_io_direction_rec()\n" if $V;    
+#    print "DONE determine_argument_io_direction_rec()\n" if $V;    
+#    map {print $_->[0]."\n"} @{ $stref->{'Subroutines'}{'les'}{RefactoredCode} };
+#    print '=' x 80, "\n";
+#    die;
+# OK here for les.f
+
+
 #    croak();
     # What I need to do here is use the IODir information
     # Initially this is just adding some comments to the refactored source;
@@ -68,15 +77,26 @@ sub refactor_all {
     		# This should be done as the final step!
 #            $stref=create_refactored_source(  $stref, $f );
     	} else {
-    		print "WARNING: SKIPPING $f: " if $V;
+    		print "WARNING: SKIPPING <$f>: " if $V;
 			if (defined $f and $f ne '') {
 				print 'Callers: ',scalar keys %{$stref->{'Subroutines'}{$f}{'Callers'} },'; Program: ',$stref->{'Subroutines'}{$f}{'Program'},"\n" if $V;
 			} else {
 				print "Undefined\n" if $V;
 			}
     	}
-    	
-   $stref=add_module_decls($stref); 	
+    	# WRONG HERE!!!! for les.f
+#    	if ($f eq 'les') {
+#map {print $_->[0]."\n"} @{ $stref->{'Subroutines'}{$f}{RefactoredCode} };
+#
+#print '1=' x 80, "\n";
+#   die ;
+#    	}
+
+   $stref=add_module_decls($stref);
+#   print '=' x 80, "\n"; 	
+#map {print $_->[0]."\n"} @{ $stref->{'Subroutines'}{'les'}{RefactoredCode} };
+#   die;
+# OK here for les.f RefactoredSources as well as RefactoredCode
 #  if ( $f eq 'timemanager' ) {
 #       print "REFACTORED LINES ($f):\n";
 #        my $Sf = $stref->{'Subroutines'}{$f};
@@ -86,7 +106,20 @@ sub refactor_all {
 #       print "=================\n";
 #       die;
 #   }
+
+#if ($f eq 'les') {
+#       print '=' x 80, "\n";
+#map {print $_->[0]."\n"} @{ $stref->{RefactoredSources}{'./les.f'} };
+#die;
+#}
     }
+#    # WRONG HERE!
+#       print '=' x 80, "\n";
+#map {print $_->[0]."\n"} @{ $stref->{RefactoredSources}{'./les.f'} };
+#print '=' x 80, "\n";
+#print " END OF REFACTOR_ALL\n";
+#print '=' x 80, "\n";
+    
     return $stref;	
 } # END of refactor_all()  
 

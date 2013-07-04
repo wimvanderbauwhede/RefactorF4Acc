@@ -80,13 +80,15 @@ sub determine_argument_io_direction_core {
         my $kind  = 'Unknown';
         my $type  = 'Unknown';
         my $shape = [];
+		my $attr='';
         if ( exists $maybe_args->{$arg}{'Type'} ) {
             $kind  = $maybe_args->{$arg}{'Kind'};
             $type  = $maybe_args->{$arg}{'Type'};
             $shape = $maybe_args->{$arg}{'Shape'};
+            $attr = $maybe_args->{$arg}{'Attr'};
         } else {
         	# FIXME: Implicit rules can include a kind!
-        	($type,$kind,$shape)=_type_via_implicits($stref,$f,$arg);        	
+        	($type,$kind,$shape, $attr)=_type_via_implicits($stref,$f,$arg);        	
         	if ($type eq 'Unknown') {
                 print "WARNING: No type/kind/shape info for $arg in $f\n" if $W;
         	}
@@ -94,6 +96,7 @@ sub determine_argument_io_direction_core {
         $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$arg}{'Kind'}  = $kind;
         $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$arg}{'Type'}  = $type;
         $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$arg}{'Shape'} = $shape;
+        $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$arg}{'Attr'} = $attr;
     }
     
      # FIXME: I don't think this should be done here
@@ -653,10 +656,11 @@ sub _type_via_implicits {
     my $type ='Unknown';      
     my $kind ='Unknown';
     my $shape ='Unknown';
+	my $attr='Unknown';
     if (exists $stref->{'Implicits'}{$f}{lc(substr($var,0,1))} ) {
         print "INFO: VAR <", $var, "> typed via Implicits for $f\n" if $I;                            
-        my $type_kind_shape = $stref->{'Implicits'}{$f}{lc(substr($var,0,1))};
-        ($type, $kind, $shape)=@{$type_kind_shape};
+        my $type_kind_shape_attr = $stref->{'Implicits'}{$f}{lc(substr($var,0,1))};
+        ($type, $kind, $shape, $attr)=@{$type_kind_shape_attr};
 #        my $var_rec = {
 #            'Decl' => "        $type $var",
 #            'Shape' => 'UNKNOWN',
@@ -670,5 +674,5 @@ sub _type_via_implicits {
     } else {
         print "WARNING: common <", $var, "> has no rule in {'Implicits'}{$f}\n" if $W;
     }
-    return ($type, $kind, $shape);
+    return ($type, $kind, $shape, $attr);
 }

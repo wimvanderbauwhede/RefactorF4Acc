@@ -152,7 +152,9 @@ sub _refactor_include {
 } # END of refactor_include()
 
 # -----------------------------------------------------------------------------
-
+# This routine is misnamed.  What it does is checking for dependencies of variables used in array shapes
+# If a var is not found in the include file $f, we go through all include files.
+# If we find a match, this include file is added to Deps of $f
 sub __resolve_module_deps {
     ( my $stref, my $f, my $line) = @_;
         if ( $line =~/dimension\((.+?)\)/) { # WV: FIXME! BOO!
@@ -163,8 +165,6 @@ sub __resolve_module_deps {
                     for my $inc ( keys %{ $stref->{'IncludeFiles'} } ) {
                         if (   $stref->{'IncludeFiles'}{$inc}{'InclType'} eq 'Parameter' ) {
                         	if ( exists $stref->{'IncludeFiles'}{$inc}{'Vars'}{$var} ) {
-#                        		print "VAR $var in $inc\n";
-
                         		$stref->{'IncludeFiles'}{$f}{'Deps'}{$inc}=1;
                         		last;
                         	}            
@@ -175,3 +175,4 @@ sub __resolve_module_deps {
         } 
     return $stref;
 }
+# --------------------------------------------------------------------------------  

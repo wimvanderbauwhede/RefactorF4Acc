@@ -1002,13 +1002,13 @@ sub _get_commons_params_from_includes {
 						if (exists $stref->{'Implicits'}{$f}{lc(substr($var,0,1))} ) {
 							print "INFO: common <", $var, "> typed via Implicits for $f\n" if $I;
 							
-							my $type_kind_shape = $stref->{'Implicits'}{$f}{lc(substr($var,0,1))};
-							(my $type,my $kind,my $shape ) = @{$type_kind_shape };
+							my $type_kind_shape_attr = $stref->{'Implicits'}{$f}{lc(substr($var,0,1))};
+							(my $type,my $kind,my $shape, my $attr ) = @{$type_kind_shape_attr };
 							my $var_rec = {
 							  'Decl' => "        $type $var",
 							  'Shape' => $parsedvars->{$var}{'Shape'},
 							  'Type' => $type,
-							  'Attr' => '',
+							  'Attr' => $attr,
 							  'Indent' => '      ',
 							  'Kind' => $parsedvars->{$var}{'Kind'}
 							};			
@@ -1113,6 +1113,7 @@ sub _get_commons_params_from_includes {
 				print $v, "\n";
 			}
 		}
+
         $Sf->{'Vars'} = { %vars  }; 
 #        die "BOOM!",Dumper( $Sf->{'Vars'} );
 		# FIXME!
@@ -1412,6 +1413,7 @@ sub _parse_implicit {
 	my $type = 'Unknown';
 	my $kind = 'Scalar'; # by default. If it is Array, need the size, so need a shapre
 	my $shape = [];
+	my $attr='';
 	my $patt='.+';
 	# IMPLICIT REAL(KIND=8)(d),COMPLEX(8)(z) => this is WEAK!
 	if ($line=~/implicit\s+(\w.+)\(.+?\)\((.+?)\)/ ) {
@@ -1426,6 +1428,12 @@ sub _parse_implicit {
     } elsif ( $line=~/implicit\s+(\w.+)\((.+?)\)/ ) {
 		$type = $1;
 		$patt=$2;
+		if ($type=~/\*/) {
+			($type, $attr) = split(/\*/,$type); # WEAK!
+			if ( $attr eq '(' ) { $attr = '(*)' } else {
+			$attr="(kind=$attr)";
+			}
+		}
 		$patt=~s/,/|/g;
 		$patt=~s/(\w\-\w)/[$1]/g;
 	}
@@ -1436,7 +1444,7 @@ sub _parse_implicit {
 	}
 	for my $c ('a' .. 'z') {
 		if ($c=~/($patt)/) {
-			$implicit_type_lookup{$c}=[$type, $kind, $shape];
+			$implicit_type_lookup{$c}=[$type, $kind, $shape, $attr];
 		}
 	}
 	$stref->{'Implicits'}={} unless exists $stref->{'Implicits'};

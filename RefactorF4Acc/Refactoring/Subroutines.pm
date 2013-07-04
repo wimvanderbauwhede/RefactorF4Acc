@@ -131,6 +131,7 @@ sub _refactor_subroutine_main {
 #       print "=================\n";
 #       die;
 #   }
+# OK here for les.f
     return $stref;
 }    # END of _refactor_subroutine_main()
 
@@ -202,6 +203,7 @@ sub _refactor_globals {
             $rlines =
               create_exglob_var_declarations( $stref, $f, $annline, $rlines );
 #            warn Dumper($rlines) ;
+#die Dumper($rlines) if $f eq 'les'; # still ok here ...
 ## While we're here, might as well generate the declarations for remapping and reshaping.
 ## If the subroutine contains a call to a function that requires this, of course.
 ## Executive decision: do this only for the routines to be translated to C/OpenCL
@@ -244,7 +246,10 @@ sub _refactor_globals {
     }
 #    $Sf->{'RefactoredCode'}=$rlines;
 #    return $stref;
-# die  if $f eq 'interpol_all'; 
+#if ($f eq 'les') {
+#       map {print $_->[0]."\n"} @{$rlines}; die;
+#   }
+# OK here for les.f
     return $rlines;
 }    # END of _refactor_globals()
 
