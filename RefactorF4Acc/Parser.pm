@@ -200,7 +200,6 @@ sub _analyse_lines {
 				$indent =~ s/\S.*$//;
 
 			 # But this could be a parameter declaration, with an assignment ...
-#               if ( $line =~ /,\s*parameter\s*.*?::\s*(\w+)\s*=\s*(.+?)\s*$/ )
                 if ( $line =~ /,\s*parameter\s*.*?::\s*(\w+\s*=\s*.+?)\s*$/ )
 				{    # F95-style parameters
 
@@ -228,7 +227,7 @@ sub _analyse_lines {
 							push @{$pars}, $var;
 						}
 					}
-					$info->{'Parameter'} = $pars;
+					$info->{'ParamDecl'} = $pars; # F95-style
 					if ( not exists $Sf->{'Parameters'}{'OrderedList'} ) {
 						$Sf->{'Parameters'}{'OrderedList'} = [];
 					}
@@ -283,7 +282,7 @@ sub _analyse_lines {
 						push @{$pars}, $var;
 					}
 				}
-				$info->{'Parameter'} = $pars;
+				$info->{'ParamDecl'} = $pars; # F77-style 
 				if ( not exists $Sf->{'Parameters'}{'OrderedList'} ) {
 					$Sf->{'Parameters'}{'OrderedList'} = [];
 				}
@@ -1034,8 +1033,10 @@ sub _get_commons_params_from_includes {
 				$srcref->[$index][1]{'Common'} = {'Name' => $common_block_name };
 			}
 			
+			# TODO: works only for F77-style
+			# TODO: also, why is this not the same code as above? Refactor!
               #  parameter(ip=150,jp=150,kp=90)
-			if ( $line =~ /parameter\s*\(\s*(.*)\s*\)/ ) {
+			if ( $line =~ /parameter\s*\(\s*(.*)\s*\)/ ) { 
 
 				my $parliststr = $1;
 
@@ -1074,7 +1075,7 @@ sub _get_commons_params_from_includes {
 				  ( @{ $Sf->{'Parameters'}{'OrderedList'} }, @pars );
 
 #                warn "PARLIST: ",join(',',@{ $Sf->{'Parameters'}{'OrderedList'} }),"\n";
-				$srcref->[$index][1]{'Parameter'} = [@pars];
+				$srcref->[$index][1]{'ParamDecl'} = [@pars]; # F77-style parameters in include file
 			} elsif ( $line =~ /,\s*parameter\s*.*?::\s*(\w+)\s*=\s*(.+?)\s*$/ )
 			{    # F95-style parameters
 				my $type = $line;
@@ -1104,7 +1105,7 @@ sub _get_commons_params_from_includes {
 				}
 				@{ $Sf->{'Parameters'}{'OrderedList'} } =
 				  ( @{ $Sf->{'Parameters'}{'OrderedList'} }, @pars );
-				$srcref->[$index][1]{'Parameter'} = {};
+				$srcref->[$index][1]{'ParamDecl'} = [@pars]; # F95-style parameters in include file
 
 			}
 
@@ -1351,11 +1352,11 @@ sub _parse_vardecl {
 	return $vars;
 } # END of _parse_vardecl()
 
+# TODO: check if this works for F95-style parameters too
 sub __split_out_parameters {
 	   ( my $f, my $stref ) = @_;
     my $Sf     = $stref->{'IncludeFiles'}{$f};
     my $srcref = $Sf->{'AnnLines'};
-#    print "__split_out_parameters\n",Dumper(keys %{$Sf});
     my $param_lines=[];    
     my $nsrcref=[];
     my $nindex=0;my $nidx_offset=0;
@@ -1364,24 +1365,14 @@ sub __split_out_parameters {
     	$nindex=$index+$nidx_offset;
         my $line = $srcref->[$index][0];
         my $info = $srcref->[$index][1];
-#        if ( $line =~ /^\!\s/ ) {
-#            next;
-#        }
-        if (exists $info->{'Parameter'}) {        	
- 	          push @{$param_lines}, [$line,{'Parameter'=>[@{$info->{'Parameter'}}]}];
- 	          delete $srcref->[$index][1]{'Parameter'};
+        if (exists $info->{'ParamDecl'}) {        	
+ 	          push @{$param_lines}, [$line,{'ParamDecl'=>[@{$info->{'ParamDecl'}}]}]; # split out parameters from 'Common' include file
+ 	          delete $srcref->[$index][1]{'ParamDecl'}; # split out parameters from 'Common' include file
               $srcref->[$index][1]{'Comment'}=1;
  	          $srcref->[$index][0]='! '.$srcref->[$index][0]
         }
-        
-#        if (exists $info->{'ExtraIncludesHook'}) {
-#            push @{ $nsrcref }, ["      include 'params_$f'", {'Include' => {'Name' => "params_$f", 'InclType' => 'Parameter'} }];                
-#        }
         push @{ $nsrcref }, $srcref->[$index];        
     }
-#    die Dumper($nsrcref);
-#    warn '=' x 80,"\n";
-#    die Dumper($param_lines);
     $stref->{'IncludeFiles'}{$f}{'AnnLines'}=$nsrcref;
     $stref->{'IncludeFiles'}{"params_$f"}={};
     $stref->{'IncludeFiles'}{"params_$f"}{'AnnLines'}=$param_lines;

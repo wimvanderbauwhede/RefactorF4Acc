@@ -82,7 +82,7 @@ sub create_refactored_vardecls {
     if ( $line !~ /\(.*?\)/ ) {   
     # If the line does not contain array decls,
     # remove the spaces from the original line and use them for the new line
-#    warn "<$line>\n";
+
         if ($line=~/\s+\:\:\s+/) { # FIXME: weak test to see if already refactored!
 	       $rline=$line;
         } else { # FIXME: use formatting function!!!
@@ -96,16 +96,11 @@ sub create_refactored_vardecls {
         # For arrays, we split the declaration over multiple lines
         # And we use the declaration from the include
         for my $tnvar (@nvars) {
-#                my $is_par=0;
-#                my $val=0;
                 if (exists ($Sf->{'Parameters'}{$vars[0]} ) ){
-#                    $is_par=1;
-#                    $val=$Sf->{'Parameters'}{$vars[0]}{'Val'};                    
                     $rline = format_f95_par_decl( $stref,$f,$tnvar );
                 } else {
                 	$rline = format_f95_var_decl($Sf,$tnvar);# WV: seems this never happens!                	
                 }
-#            $rline = format_f95_decl($Sf->{'Vars'}, [$tnvar,$is_par,$val]);
             $info->{'VarDecl'} = [$tnvar];
             push @{$rlines}, [ $rline, $info ];
         }

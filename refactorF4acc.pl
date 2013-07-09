@@ -119,7 +119,6 @@ This routine analyses the code for goto-based loops and breaks, so that we can r
 =cut
 
 sub main {
-warn "FIXME: modules representing includes should be used in all source files!";
 	(my $subname, my $subs_to_translate, my $build) = parse_args();
 	#  Initialise the global state.
 	my $stateref = init_state($subname);
@@ -178,19 +177,24 @@ sub parse_args {
 	}
 	my %opts = ();
 	getopts( 'vwihCTNgbBGc:', \%opts );
+	my $cfgrc= $ENV{HOME}.'/.rf4a';
+    if (-e './rf4a.cfg') {
+        $cfgrc='./rf4a.cfg';
+    }
+    if ($opts{'c'}) {
+         $cfgrc= $opts{'c'} ;
+    } 
+	read_config($cfgrc);
+	
 	my $subname = $ARGV[0];
 	if ($subname) {
 		$subname =~ s/\.f(?:90)?$//;
+	} elsif (exists $Config{'TOP'}) {
+		$subname = $Config{'TOP'};
+	} else {
+		die "No default for toplevel subroutine (TOP) in rf4a.cfg, please specify the toplevel subroutine on command line\n"; 
 	}
-	
-	my $cfgrc= $ENV{HOME}.'/.rf4a';
-	if (-e './rf4a.cfg') {
-		$cfgrc='./rf4a.cfg';
-	}
-	if ($opts{'c'}) {
-		 $cfgrc= $opts{'c'} ;
-	} 
-    read_config($cfgrc);
+    
     if ( exists $Config{'NEWSRCPATH'}) {
         $targetdir =  $Config{'NEWSRCPATH'};
     }   

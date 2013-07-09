@@ -153,56 +153,54 @@ sub context_free_refactorings {
 				$info->{'ExGlobVarDecls'} = {};
 				$firstdecl = 0;
 				for my $par ( @{ $Sf->{'Parameters'}{'OrderedList'} } ) {
-
-					# What we need is a new formatter
 					my $new_line = format_f95_par_decl( $stref, $f, $par );					
 					push @extra_lines,
-					  [ $new_line, { 'Extra' => 1, 'Parameter' => [$par], 'Ref'=>1 } ];
+					  [ $new_line, { 'Extra' => 1, 'ParamDecl' => [$par], 'Ref'=>1 } ]; # Create parameter declarations before variable declarations
 				}
 				if ($sub_or_func_or_inc ne 'IncludeFiles') {
-				my @vars_not_pars =
-				  grep { not exists $Sf->{'Parameters'}{$_} } @vars;
-				my $filtered_line = '';				
-				if (@vars_not_pars) { 
-					$filtered_line =
-					  _format_f95_multiple_var_decls( $Sf,@vars_not_pars );
-					my %tr = %{$info};
-					$tr{'Extra'} = 1;
-					$tr{'Ref'}=1;
-					push @extra_lines, [ $filtered_line, \%tr ];
-				}
-				}
-#				warn "$f PAR:1\n";
+				    my @vars_not_pars =
+				    grep { not exists $Sf->{'Parameters'}{$_} } @vars;
+				    my $filtered_line = '';				
+				    if (@vars_not_pars) { 
+					   $filtered_line =
+					   _format_f95_multiple_var_decls( $Sf,@vars_not_pars );
+					   my %tr = %{$info};
+					   $tr{'Extra'} = 1;
+					   $tr{'Ref'}=1;
+					   push @extra_lines, [ $filtered_line, \%tr ];
+				    }
+				}				
 				$line = '!! Original line !! ' . $line;
 				$info->{'Deleted'} = 1;
 				$info->{'Ref'}++;
 			} else {
-			if ( scalar @vars == 1 ) {
+			     if ( scalar @vars == 1 ) { # for var decls with a single var
 					if ( exists( $Sf->{'Parameters'}{ $vars[0] } ) ) {
-						# Remove this line
-#						warn "$f PAR:2\n";
-						$line = '!! Original line !! ' . $line;
+						# Remove this line, because this param should have been declared above
+						warn "$f PAR:2\n";
+						$line = '!! Original line PAR:2 !! ' . $line;
 						$info->{'Deleted'} = 1;						
 					} else {
 						$line = format_f95_var_decl( $Sf, $vars[0] );												
 					}					
-				} else {
+				} else { # more than one variable declared on this line
 					if ($sub_or_func_or_inc ne 'IncludeFiles') {
 						# For include files, remove everything
-					# filter out parameters
-					my @vars_not_pars =
-					  grep { not exists $Sf->{'Parameters'}{$_} } @vars;
-					if (@vars_not_pars) {
-						$line =
-						  _format_f95_multiple_var_decls( $Sf,@vars_not_pars );
-#			die "COMMON:\n<$line>" if $line=~/character/;
+					   # filter out parameters
+						my @vars_not_pars =
+						  grep { not exists $Sf->{'Parameters'}{$_} } @vars;
+						if (@vars_not_pars) {
+							$line =
+							  _format_f95_multiple_var_decls( $Sf,@vars_not_pars );
+	#			die "COMMON:\n<$line>" if $line=~/character/;
+						} else {
+							warn "$f PAR:3\n";
+							$line = '!! Original line PAR:3 !! ' . $line;
+							$info->{'Deleted'} = 1;
+						}
 					} else {
-#						warn "$f PAR:3\n";
-						$line = '!! Original line !! ' . $line;
-						$info->{'Deleted'} = 1;
-					}
-					} else {
-						# This is overly restrictive, we should only remove vars that are in a common block						
+						# This is overly restrictive, we should only remove vars that are in a common block
+						# However, any variable should be in $Sf->{'Parameters'}, isn't it?						
 						if (exists $stref->{IncludeFiles}{$f}{Commons}{$vars[0]})  {
                             $line = '!! Original line !! ' . $line;
                             $info->{'Deleted'} = 1;						
@@ -247,20 +245,21 @@ sub context_free_refactorings {
 	            $line = $spaces.$nk. ' = '.$rhs_expr;
 		      }
 		      $info->{'Ref'}++;
-		} # assignment
-		elsif ( exists $tags{'Parameter'} ) {
-#			warn "$f PAR:4 $line\n";
-			if ($sub_or_func_or_inc eq 'IncludeFiles' and 
-			$stref->{'IncludeFiles'}{$f}{'InclType'} eq 'Parameter') {
+		} # assignment 
+		elsif ( exists $tags{'ParamDecl'} ) { # so this is a parameter declaration "pur sang"
+		# WV 20130709: why should I remove this? 
+#			if ($sub_or_func_or_inc eq 'IncludeFiles' and 
+#			$stref->{'IncludeFiles'}{$f}{'InclType'} eq 'Parameter') {
 				my @par_lines=();
-				for my $var (@{ $tags{'Parameter'} } ) {
-				push @par_lines, format_f95_par_decl($stref,$f, $var);
+				for my $var (@{ $tags{'ParamDecl'} } ) {
+				    push @par_lines, format_f95_par_decl($stref,$f, $var);
 				}
 				$line=join('; ',@par_lines);
-			} else {
-			$line = '!! Original line !! ' . $line;
-			$info->{'Deleted'} = 1;
-			}
+	#			} else {
+	#			   $line = '!! Original line PAR:5 !! ' . $line;
+	#			   
+	#			   $info->{'Deleted'} = 1;
+	#			}
 			$info->{'Ref'}++;
 		} 
 		elsif ( exists $tags{'SubroutineCall'} ) {			

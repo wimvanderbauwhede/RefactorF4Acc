@@ -9,7 +9,7 @@ use RefactorF4Acc::Utils;
 use RefactorF4Acc::Refactoring::Common qw( create_refactored_source get_annotated_sourcelines );
 use RefactorF4Acc::Refactoring::Subroutines qw( refactor_all_subroutines refactor_kernel_signatures );
 use RefactorF4Acc::Refactoring::Functions qw( refactor_called_functions );
-use RefactorF4Acc::Refactoring::IncludeFiles qw( refactor_includes );
+use RefactorF4Acc::Refactoring::IncludeFiles qw( refactor_include_files );
 use RefactorF4Acc::Analysis::ArgumentIODirs qw( determine_argument_io_direction_rec );
 
 use vars qw( $VERSION );
@@ -41,7 +41,7 @@ use Exporter;
 sub refactor_all {
 	( my $stref, my $subname ) = @_;
         
-    $stref = refactor_includes($stref);
+    $stref = refactor_include_files($stref);
     $stref = refactor_called_functions($stref);
     # Refactor the source, but don't split long lines and keep annotations
     $stref = refactor_all_subroutines($stref);
@@ -142,14 +142,14 @@ sub add_module_decls {
 	        for my $called_sub ( keys %{ $Sf->{$called_sub_or_func} } ) {
 	     
 	            my $cs_src=$stref->{'Subroutines'}{$called_sub}{'Source'};
-	                    print "$src => $called_sub => $cs_src\n";
+#	                    print "$src => $called_sub => $cs_src\n";
 	            $stref->{'UsedModules'}{$src}{$cs_src}=1;
 	        }
 	    }
 	}
     
     for my $src (keys %{ $stref->{'SourceContains'} } ) {
-    	print "SRC: $src\n";
+#    	print "SRC: $src\n";
         $no_module= $stref->{'Program'} eq $src;
 #        print "$src: $no_module\n";
         print "INFO: adding module decls to $src\n" if $V;
@@ -170,7 +170,7 @@ sub add_module_decls {
             my $mod_footer=["\nend module $mod_name\n",{'Ref'=>1}];
             my @mod_uses=();
             for my $mod_src (keys %{ $stref->{'UsedModules'}{$src} }) {
-            	print "USES: $src => $mod_src\n";
+#            	print "USES: $src => $mod_src\n";
                 my $used_mod_name = $mod_src;
                 $used_mod_name =~s/\.\///;
                 $used_mod_name =~s/\..*$//;

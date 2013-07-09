@@ -23,33 +23,28 @@ use Exporter;
 @RefactorF4Acc::Refactoring::IncludeFiles::ISA = qw(Exporter);
 
 @RefactorF4Acc::Refactoring::IncludeFiles::EXPORT_OK = qw(
-  &refactor_includes
+  &refactor_include_files
 );
 
-=pod
-Includes
-    refactor_includes()
-    refactor_include()      
-=cut
 
 # -----------------------------------------------------------------------------
 # Refactor the includes into modules
-sub refactor_includes {
+sub refactor_include_files {
 	( my $stref ) = @_;
 #    $stref=resolve_module_deps($stref); FIXME!!!
 	for my $f ( keys %{ $stref->{'IncludeFiles'} } ) {
 
 			print "\nREFACTORING INCLUDE FILE $f\n" if $V;
-			$stref = _refactor_include( $f, $stref );
+			$stref = _refactor_include_file( $f, $stref );
 #			$stref = create_refactored_source($stref, $f);
 	}
 	
 	return $stref;
-}
+} # END of refactor_include_files()
 
 # -----------------------------------------------------------------------------
 # -----------------------------------------------------------------------------
-sub _refactor_include {
+sub _refactor_include_file {
 	( my $f, my $stref ) = @_; 
 
 	print "\n\n", '#' x 80, "\nRefactoring INC $f\n", '#' x 80, "\n" if $V;
@@ -112,9 +107,9 @@ sub _refactor_include {
 			}
 			$annline->[1]{'VarDecl'} = [@nvars];
 		} 
-		if ( exists $tags{'Parameter'} ) {
+		if ( exists $tags{'ParamDecl'} ) {
 #			print Dumper(%tags);
-			for my $var (@{ $tags{'Parameter'} } ) {
+			for my $var (@{ $tags{'ParamDecl'} } ) {
 #				print "PAR: $var ($line)\n";
                 if ( exists $stref->{'IncludeFiles'}{$f}{'ConflictingGlobals'}
                     {$var} )
@@ -122,12 +117,9 @@ sub _refactor_include {
                 	my $gvar=$stref->{'IncludeFiles'}{$f}{'ConflictingGlobals'}{$var};
                 	$line=~s/\b$var\b/$gvar/;
                 	$info->{'Ref'}++;
-                    $info->{'Parameter'}=[$gvar];    
+                    $info->{'ParamDecl'}=[$gvar];    
                     print "PAR: renamed $gvar ($line)\n"; die "WEAK";                
                 }
-#                if ($stref->{'IncludeFiles'}{$f}{'InclType'} eq 'Parameter') {
-#                	die $line;
-#                }
 			}
 			
 		}
@@ -149,7 +141,7 @@ sub _refactor_include {
  $stref->{'IncludeFiles'}{$f}{'RefactoredCode'}  = $refactored_lines;                  
 	return $stref;
 
-} # END of refactor_include()
+} # END of refactor_include_file()
 
 # -----------------------------------------------------------------------------
 # This routine is misnamed.  What it does is checking for dependencies of variables used in array shapes
