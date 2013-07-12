@@ -116,15 +116,29 @@ sub refactor_kernel_signatures {
 #                push @{ $Sf->{'RefactoredCode'} }, $extra_line;
 #            }
 #        }
-    if ( exists $tags{'VarDecl'} and (not exists $tags{Ref}) ) {
-    	my $arg = $info->{VarDecl};
-    	 if( exists  $Sf->{'Vars'}{$arg}{Decl} ) {
-    	
-    	$line = format_f95_var_decl($Sf, $arg);
-    	 } else {
-    	 	print "WARNING: $arg is not in Vars for $f\n" if $W;
-    	 }
-    }
+#print "$f: LINE $line:\t".join(';', keys %{$info})."\t";
+	    if ( exists $info->{'VarDecl'} ) {
+#	    	print  'VARS: '.Dumper($info->{'VarDecl'}); 
+	    	my $arg = $info->{VarDecl};
+	    	if (not exists $info->{Ref})  {		    	
+		    	 if( exists  $Sf->{'Vars'}{$arg}{Decl} ) {    	
+		    	   my $line = format_f95_var_decl($Sf, $arg);
+#		    	   print "$f: REF1 $line FOR $arg\n\n";
+		    	 } else {
+		    	 	print "WARNING: $arg is not in Vars for $f\n" if $W;
+		    	 }
+	    	} else {	    		
+#	    		print "$f: REF $line FOR $arg\n";
+#	    		print Dumper($annline);
+                if (exists $Sf->{'Vars'}{$arg}) {
+    	    		my $ref2line = format_f95_var_decl($Sf, $arg);	    		
+#	       		    print "$f: REF2 $ref2line FOR $arg\n\n";
+	       		    $line=$ref2line;
+                }
+	    	}
+	    } else {
+#	    	print "\n";
+	    }
         push @{ $Sf->{'RefactoredCode'} }, [ $line, $info ];# if $line ne '';
     }    
 #    die 'BOOM' if $f eq 'adam';
@@ -191,7 +205,7 @@ sub refactor_subroutine_signature {
     # and store in $Sf->{'RefactoredArgs'}{'List'}     
     my $args_ref = (exists $Sf->{'Args'}) ? ordered_union( $Sf->{'Args'}{'List'}, \@nexglobs ) : \@nexglobs;
     $Sf->{'RefactoredArgs'}{'List'} = $args_ref;
-    %{ $Sf->{'RefactoredArgs'}{'Set'}} = map {$_ => {'IODir' => 'Unknown'} } @{ $args_ref };
+    %{ $Sf->{'RefactoredArgs'}{'Set'}} = map {$_ => {'IODir' => 'Unknown'} } @{ $args_ref };    
     $Sf->{'HasRefactoredArgs'} = 1;
     return $stref;
 }    # END of refactor_subroutine_signature()

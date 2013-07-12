@@ -244,7 +244,7 @@ sub _refactor_globals {
         }
         push @{$rlines}, $annline unless $skip;
         $idx++;
-    }
+    } # loop over all lines
 #    $Sf->{'RefactoredCode'}=$rlines;
 #    return $stref;
 #if ($f eq 'les') {

@@ -54,7 +54,6 @@ sub determine_argument_io_direction_rec {
 # For a non-leaf, we should merge the declarations from the calls
 # This is more tricky than it seems because a sub can be called multiple times with different arguments.
 # So first we need to determine the argument of the call, then map them to the arguments of the sub
-#        $stref = refactor_subroutine_signature( $stref, $f );
         $stref = determine_argument_io_direction_core( $stref, $f );
     }
     return $stref;
@@ -75,7 +74,7 @@ sub determine_argument_io_direction_core {
     my $args = $Sf->{'RefactoredArgs'}{'Set'};
 
     my $maybe_args = ( get_maybe_args_globs( $stref, $f ) )[0];
-    for my $arg ( keys %{ $args} ) {
+    for my $arg ( keys %{ $args} ) {    	
 #    	warn "ARG: $arg\n" if $f=~/interpol_vdep_nests/; 
         my $kind  = 'Unknown';
         my $type  = 'Unknown';
@@ -184,6 +183,19 @@ sub set_iodir_write {
     }
     return $args_ref;
 }
+
+
+sub set_iodir_read_write {
+    ( my $mvar, my $args_ref ) = @_;
+    if (exists $args_ref->{$mvar} and
+    exists $args_ref->{$mvar}{'IODir'}
+    ) {
+    	 print "FOUND InOut ARG $mvar\n" if $V;
+        $args_ref->{$mvar}{'IODir'}= 'InOut';
+    }
+    return $args_ref;
+}
+
 # -----------------------------------------------------------------------------
 sub find_vars {
     ( my $line, my $args_ref, my $subref ) = @_;
@@ -322,7 +334,7 @@ sub get_iodirs_from_subcall {
 # What we want in this routine is determine IO dirs for leaves and look them up for non-leaves
 sub analyse_src_for_iodirs {
     (my $stref,my $f)=@_;
-#    local $V=1;
+#    local $W=1;local $V=1;
 #    print "analyse_src_for_iodirs() $f\n";
     
     my $Sf=$stref->{'Subroutines'}{$f};
@@ -367,7 +379,10 @@ sub analyse_src_for_iodirs {
             if ( $line =~ /^\s+(?:read)\s*\(\s*(.+)$/ or
                  $line =~ /^\d+\s+(?:read)\s*\(\s*(.+)$/
             ) {             
-                print "WARNING: IGNORING read call <$line>\n" if $W;    
+            	my $str=$1;
+                print "WARNING: IGNORING read call <$line> in $f, analyse_src_for_iodirs() 369\n" if $W;    
+                $args=find_vars( $str, $args, \&set_iodir_read_write );
+#                die Dumper($args) if $f eq 'feedbfm';    
                 next;            
             }
             
@@ -378,7 +393,8 @@ sub analyse_src_for_iodirs {
                   get_iodirs_from_subcall( $stref, $f, $index, $annlines );
                 for my $var ( keys %{$iodirs} ) {
                 	# Damn Perl! exists $args->{$var}{'IODir'} creates the entry for $var if it did not exist!
-                    if ( exists $args->{$var} && exists $args->{$var}{'IODir'}) {
+                    if ( exists $args->{$var}) {
+                    	if (exists $args->{$var}{'IODir'}) {
                         if ( $iodirs->{$var} eq 'In' ) {
                             if ( $args->{$var}{'IODir'} eq 'Unknown' ) {
                                 $args->{$var}{'IODir'} = 'In';
@@ -403,10 +419,17 @@ sub analyse_src_for_iodirs {
 "WARNING: IO direction for $var in call to $name in $f is Unknown\n"
                               if $V;
                         }
-                    } 
+                    } else {
+                    	print "WARNING: $f: NO IODir info for $var\n" if $W;
+                    }
+                } else {
+                	print "INFO: $f: $var is not an argument ".$iodirs->{$var}."\n" if $I;
+                }
 #                    else {
 #                               print "$var is LOCAL".$iodirs->{$var}."\n";
 #                    }
+
+# So at this point, $args has correct IODir information
                 }
                 if ( $line =~ /^\s*if\s*\((.+)\)\s+call\s+/ ) {
                     my $cond = $1;
@@ -485,7 +508,7 @@ sub analyse_src_for_iodirs {
             	 } else {       
             	 	if ($tline=~/(open|write|read|print|close)\s*\(/) {
             	 		my $call=$1;
-            	 		print "WARNING: IGNORING conditional <$tline> (analyse_src_for_iodirs)\n" if $W;
+            	 		print "WARNING: IGNORING conditional $call <$tline> (analyse_src_for_iodirs)\n" if $W;
 #            	 		warn "IGNORING $call call <$tline>\n";
             	 		next;
             	 	} else {     	 	
@@ -505,7 +528,7 @@ sub analyse_src_for_iodirs {
             	}            	
 
 # First check the RHS for In
-                die $line unless defined  $rhs;
+                die "analyse_src_for_iodirs(): RHS not defined inf $f: $line\n" unless defined  $rhs;
                 $args=find_vars( $rhs, $args, \&set_iodir_read );
 #                  if ( exists $args->{'fluxu'} &&
 #                         exists $args->{'fluxu'}{'IODir'} && $f eq 'calcfluxes' ) {
@@ -545,12 +568,14 @@ sub analyse_src_for_iodirs {
         }
         
         for my $arg (keys %{ $args } ) {
+        	
         	if (exists $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$arg}) {
                 $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$arg} = $args->{$arg};                
-        	} 
-        }
+        	}        	 
+        }        
         $Sf->{'IODirInfo'}=1;
-    }
+    } # if IODirInfo had not been set to 1
+    # So, at this point, $stref->{'Subroutines'}{$f}{'RefactoredArgs'} has full IODir info
         return $stref;
 } # END of analyse_src_for_iodirs()
 # -----------------------------------------------------------------------------

@@ -56,6 +56,7 @@ sub parse_fortran_src {
 		$Sf->{'RefactorGlobals'} = 0;
 	} 
 	if ($refactor_toplevel_globals==1) { # and $f ne $stref->{'Top'}) {
+		print "INFO: set RefactorGlobals=1 for $f\n" if $I;
 		$Sf->{'RefactorGlobals'} = 1;
 	}
     
@@ -372,6 +373,10 @@ sub _analyse_lines {
 			$srcref->[$index] = [ $line, $info ];
 		}    # Loop over lines
 		$stref->{$sub_func_incl}{$f}{'Vars'} = \%vars;
+	} else {
+		print  "WARNING: NO LOCAL SOURCE for $f\n";
+		# FIXME: if we can't find the source, we should search the include path, but
+		# not attempt to create a module for that source!
 	}
 	#           die "FIXME: shapes not correct!";
 	return $stref;
@@ -390,6 +395,7 @@ sub _parse_includes {
     print "PARSING INCLUDES for $f ($sub_or_func_or_inc)\n" if $V;
 	my $srcref       = $Sf->{'AnnLines'};
 	my $last_inc_idx = 0;
+	if (defined $srcref) {
 	for my $index ( 0 .. scalar( @{$srcref} ) - 1 ) {
 		my $line = $srcref->[$index][0];
 		my $info = $srcref->[$index][1];
@@ -448,17 +454,15 @@ sub _parse_includes {
 		}
 		$srcref->[$index] = [ $line, $info ];
 	}
-
+} else {
+        print  "WARNING: NO LOCAL SOURCE for $f\n";
+        # FIXME: if we can't find the source, we should search the include path, but
+        # not attempt to create a module for that source!
+    }
 	# tag the next line after the last include
 	
 	$last_inc_idx++;
-#	while ($srcref->[$last_inc_idx][0] =~/^\s*$/) {
-#		$last_inc_idx++;
-#	}
 	$srcref->[$last_inc_idx][1]{'ExtraIncludesHook'} = 1;
-#	print '<'.$srcref->[$last_inc_idx][0].">\n";
-#	print '<'.Dumper($srcref->[$last_inc_idx][1]).">\n";
-#	die if $f eq 'timemanager';
 	return $stref;
 }    # END of parse_includes()
 
@@ -643,7 +647,8 @@ sub _separate_blocks {
 		if ( $Sf->{'RefactorGlobals'} == 0 ) {
 			$Sf->{'RefactorGlobals'} = 2;
 		} else {
-			die 'BOOM!';
+#			die "$f => $block ".'BOOM!'.Dumper($Sf->{'RefactorGlobals'});
+			print "INFO: RefactorGlobals==1 for $f while processing BLOCK $block\n" if $I;
 		}
 	}
 

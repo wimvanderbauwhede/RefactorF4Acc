@@ -172,7 +172,7 @@ sub __merge_includes {
             }
         } else {
             $chain=~s/....$//;
-            print "$chain\n" if $chain=~/->/;
+            print "__merge_includes(): $chain\n" if $chain=~/->/;
         }
     } # $V
 #    if ($Ssub->{'RefactorGlobals'}>0) {
@@ -181,6 +181,11 @@ sub __merge_includes {
         )
     {
         for my $inc ( keys %{ $Ssub->{'Includes'} } ) {
+        	if (not exists $stref->{'IncludeFiles'}{$inc}
+        	or not exists $stref->{'IncludeFiles'}{$inc}{'InclType'}
+        	) {
+        		die "__merge_includes(): INC $inc is not in IncludeFiles\n";
+        	}        	
             if ( $stref->{'IncludeFiles'}{$inc}{'InclType'} eq 'Common'
                 and not exists $Ssub->{'CommonIncludes'}{$inc} )
             {

@@ -116,10 +116,9 @@ sub create_refactored_vardecls {
 sub create_exglob_var_declarations {
     ( my $stref, my $f, my $annline, my $rlines ) = @_;	
     my $Sf                 = $stref->{'Subroutines'}{$f};
-    my $info          = $annline->[1];
+#    my $info          = {%{$annline->[1]}};
 
     my %args               = %{ $Sf->{'Args'}{'Set'} };    
- local $V=1 if $f eq 'les';
  
     for my $inc ( keys %{ $Sf->{'Globals'} } ) {
         print "INFO: GLOBALS from INC $inc in $f\n" if $I;
@@ -128,10 +127,10 @@ sub create_exglob_var_declarations {
 #       print "INC: $inc\n",Dumper(@{ $Sf->{'Globals'}{$inc} }) if $f eq 'les';die;
 #       }
         for my $var ( sort @{ $Sf->{'Globals'}{$inc} } ) {
-        	
+#        	print "VAR: $var\n";
             if ( exists $args{$var} ) {
                 my $rline = "*** ARG MASKS GLOB $var in $f!";
-                push @{$rlines}, [ $rline, $info ];
+                push @{$rlines}, [ $rline, {'Error' =>1} ];
             } else {
 #            	print $var,"\n";
                 if ( exists $Sf->{'Commons'}{$inc} ) {
@@ -139,7 +138,7 @@ sub create_exglob_var_declarations {
 #die Dumper($stref->{IncludeFiles}{$inc});
 
 #                	print $var,"\n";
-                    if ( 1 ) { #$f ne $stref->{'IncludeFiles'}{$inc}{'Root'} ) {
+#                    if ( 1 ) { #$f ne $stref->{'IncludeFiles'}{$inc}{'Root'} ) {
 #                        print "\tGLOBAL $var from $inc in $f\n" if $V;
                         croak "$f: INC $inc: VAR $var\n" if not exists $stref->{IncludeFiles}{$inc}{'Vars'}{$var};                        
                         my $rline = format_f95_var_decl( $stref->{'IncludeFiles'}{$inc},$var);
@@ -162,6 +161,7 @@ sub create_exglob_var_declarations {
                             $rline .= " ! from $inc";   
 #                            die $rline,"\n" if $f eq 'interpol_all';         
                         }
+                        my $info={};
                         $info->{'Ref'}=1;
                         $info->{'VarDecl'}=$var;
 #print "$rline\n" if $V; # OK here
@@ -176,23 +176,23 @@ sub create_exglob_var_declarations {
 ##                    	die "$f eq stref->{'IncludeFiles'}{$inc}{'Root'}" if $f eq 'main';
 ##                        print last;
                     }
-                } elsif ($V) {
-                    print "*** NO COMMONS for $inc in $f ";
-                    if ( $f eq $stref->{'IncludeFiles'}{$inc}{'Root'} ) {
-                        print '(Root)' . "\n";
-                    } else {
-                        print 'BUT NOT ROOT!' . "\n";
-                    }
-                    last;
-                }
+#                } elsif ($V) {
+#                    print "*** NO COMMONS for $inc in $f ";
+#                    if ( $f eq $stref->{'IncludeFiles'}{$inc}{'Root'} ) {
+#                        print '(Root)' . "\n";
+#                    } else {
+#                        print 'BUT NOT ROOT!' . "\n";
+#                    }
+#                    last;
+#                }
             }
         }    # for
     }
 #        die 'BOOM!' if $f eq 'les';
-# if($f eq 'les') {
+# if($f eq 'aveflow') {
+#	
 #   print Dumper($rlines);
-#die if $f eq 'main';
-#    die 'create_exglob_var_declarations()' if $f eq 'interpol_all';
+#   print "HERE THE INFO IS ALL WRONG! VarDecl of the last var gets added to info for all lines\n";
 #  die ;
 #       }
 # OK here!

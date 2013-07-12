@@ -103,12 +103,16 @@ sub create_new_include_statements {
             my $rline = "      use $tinc ! create_new_include_statements() line 102";
             $info->{'Include'}{'Name'} = $inc;
             $info->{'Ref'}=1;
+            if (exists $info->{VarDecl}) {
+                die Dumper($info->{VarDecl}); # this never happens, so the junk is not introduced here
+            }
             if ($info->{'ExGlobVarDecls'} >= $Sf->{'ExGlobVarDeclHook'}) {
             	$info->{'ExGlobVarDecls'} = ++$Sf->{'ExGlobVarDeclHook'};
             }
             push @{$rlines}, [ $rline, $info ];
         }
     }
+#    die Dumper($rlines) if $f eq 'aveflow';
     return $rlines;
 }    # END of create_new_include_statements()
 

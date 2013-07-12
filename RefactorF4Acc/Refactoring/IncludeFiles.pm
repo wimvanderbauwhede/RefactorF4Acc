@@ -33,7 +33,7 @@ sub refactor_include_files {
 	( my $stref ) = @_;
 #    $stref=resolve_module_deps($stref); FIXME!!!
 	for my $f ( keys %{ $stref->{'IncludeFiles'} } ) {
-
+            next if $stref->{'IncludeFiles'}{$f}{'InclType'} eq 'External';
 			print "\nREFACTORING INCLUDE FILE $f\n" if $V;
 			$stref = _refactor_include_file( $f, $stref );
 #			$stref = create_refactored_source($stref, $f);

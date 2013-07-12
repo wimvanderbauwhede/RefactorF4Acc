@@ -22,7 +22,7 @@ use Exporter;
 
 @RefactorF4Acc::Builder::EXPORT_OK = qw(
     &create_build_script
-    &build_flexpart
+    &build_executable
 );
 # -----------------------------------------------------------------------------
 sub create_build_script {
@@ -52,6 +52,7 @@ sub create_build_script {
         $csources = join( ',', map { s/\.f$/.c/; "'" . $_ . "'" } @csourcelst );
     }
     my $date  = localtime;
+    # FIXME: this is Flexpart-specific, we should use a template instead!
     my $scons = <<ENDSCONS;
 # Generated build script for refactored FLEXPART source code
 # $date
@@ -71,7 +72,7 @@ if csources:
 else:
     envF.Program('flexpart_wrf',fsources,LIBS=['netcdff','m'],LIBPATH=['.','/opt/local/lib','/usr/local/lib'])
 ENDSCONS
-    open my $SC, '>', "$targetdir/SConstruct.flx_wrf";
+    open my $SC, '>', "$targetdir/SConstruct.rf4a";
     print $SC $scons;
     print $scons if $V;
     close $SC;
@@ -79,6 +80,6 @@ ENDSCONS
 }    # END of create_build_script()
 
 # -----------------------------------------------------------------------------
-sub build_flexpart {
-    system('scons -f SConstruct.flx_wrf');
+sub build_executable {
+    system('scons -f SConstruct.rf4a');
 }

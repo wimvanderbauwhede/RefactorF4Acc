@@ -16,7 +16,7 @@ use RefactorF4Acc::Analysis qw( analyse_all );
 use RefactorF4Acc::Refactoring qw( refactor_all );
 use RefactorF4Acc::Emitter qw( emit_all );
 use RefactorF4Acc::CTranslation qw( translate_all_to_C );
-use RefactorF4Acc::Builder qw( create_build_script build_flexpart );
+use RefactorF4Acc::Builder qw( create_build_script build_executable );
 
 use Getopt::Std;
 
@@ -106,7 +106,7 @@ This routine analyses the code for goto-based loops and breaks, so that we can r
     
 	    create_build_script($stateref);
 	    if ($build) {
-	        build_flexpart();
+	        build_executable();
 	    }
     
 - Done.
@@ -164,7 +164,7 @@ sub main {
 
 	create_build_script($stateref);
 	if ($build) {
-		build_flexpart();
+		build_executable();
 	}
 	exit(0);
 
@@ -177,6 +177,12 @@ sub parse_args {
 	}
 	my %opts = ();
 	getopts( 'vwihCTNgbBGc:', \%opts );
+	
+	my $help = ( $opts{'h'} ) ? 1 : 0;
+    if ($help) {
+        die $usage;
+    }
+	
 	my $cfgrc= $ENV{HOME}.'/.rf4a';
     if (-e './rf4a.cfg') {
         $cfgrc='./rf4a.cfg';
@@ -203,10 +209,6 @@ sub parse_args {
 	$I = ( $opts{'i'} or $V ) ? 1 : 0;
 	$W = ( $opts{'w'} or $V ) ? 1 : 0;
 	$refactor_toplevel_globals=( $opts{'g'} ) ? 1 : 0;
-	my $help = ( $opts{'h'} ) ? 1 : 0;
-	if ($help) {
-		die $usage;
-	}
 	if ( $opts{'G'} ) {
 		print "Generating docs...\n";
 		generate_docs();

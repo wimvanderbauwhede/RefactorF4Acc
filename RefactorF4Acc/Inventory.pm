@@ -205,6 +205,9 @@ sub process_src {
                     $srctype='IncludeFiles';
                     $stref->{$srctype}{$inc}{'Source'}=$inc;
                     $f=$inc;
+                    if (not -e $inc) {
+                    	$stref->{$srctype}{$inc}{'InclType'} = 'External';
+                    }
                 }
             };
 
