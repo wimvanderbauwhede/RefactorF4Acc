@@ -271,7 +271,11 @@ sub context_free_refactorings {
 			my $inc=$tags{'Include'}{'Name'};
 			     my $tinc=$inc;
 			     $tinc=~s/\./_/g;
+			     if ($stref->{IncludeFiles}{$inc}{InclType} ne 'External') {
                 $line = "      use $tinc ! context_free_refactorings() line 275";
+			     } else {
+			     	$line = "      include '$inc' ! context_free_refactorings() line 275";
+			     }
                 $info->{'Ref'}++;
                 # use must come right after subroutine/function/program
                 # or after another use
@@ -590,9 +594,11 @@ sub get_annotated_sourcelines {
 	} else {
 		warn "get_annotated_sourcelines($f) \n";
 		warn "STATUS: $Sf->{'Status'} \n";
+		if ($Sf->{'Status'}>0) {
 #		warn Dumper($Sf);
-		croak "$f NOT PARSED";
-		die "\n",caller,"\n";
+		carp "$f NOT PARSED";
+#		die "\n",caller,"\n";
+		}
 	}
 	return $annlines;
 }    # END of get_annotated_sourcelines()
@@ -957,7 +963,9 @@ sub format_f95_par_decl {
 	( my $stref,my $f, my $var ) = @_;
     my $sub_or_func_or_inc = sub_func_or_incl( $f, $stref );
     my $Sf = $stref->{$sub_or_func_or_inc}{$f};	
+#    print "VAR:<$var> ";
 	my $val = $Sf->{'Parameters'}{$var}{'Val'};
+#	print "<$val>\n";
 	my $Sv  = $Sf->{'Vars'}{$var};
 	my $local_par=0;
 	if ( not exists $Sv->{'Decl'} ) {
@@ -1010,7 +1018,8 @@ sub _rename_conflicting_global_pars {
 	(my $stref, my $f, my $k, my $rhs_expr)=@_;
     my $sub_or_func_or_inc = sub_func_or_incl( $f, $stref );
     my $Sf = $stref->{$sub_or_func_or_inc}{$f};
-
+#print "$f $k ";
+#print "<$rhs_expr>\n";
                 my @rhs_vals= grep {/[a-z]\w*/} split( /\W+/, $rhs_expr );              
                 my @n_rhs_vals=@rhs_vals;
                 if (@rhs_vals) {

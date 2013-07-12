@@ -118,7 +118,7 @@ sub _refactor_include_file {
                 	$line=~s/\b$var\b/$gvar/;
                 	$info->{'Ref'}++;
                     $info->{'ParamDecl'}=[$gvar];    
-                    print "PAR: renamed $gvar ($line)\n"; die "WEAK";                
+                    print "WARNING: WEAK! renamed $var to $gvar ($line) refactor_include_file() 121\n" if $W;                 
                 }
 			}
 			

@@ -213,7 +213,8 @@ sub process_src {
 
             # Find function signatures
             $line =~ /\bfunction\s+(\w+)/i && do {
-                my $func = lc($1);               
+#            	print "FUNC: $line process_src() 216 \n";
+                my $func = lc($1);                               
                 $stref->{'Functions'}{$func}{'Source'} = $src;
                 $stref->{'Functions'}{$func}{'Status'} = $UNREAD;
                 if ($translate_to ne '') {
@@ -235,4 +236,4 @@ sub process_src {
         close $SRC;
         return $stref;	
 	
-}
+} # END of process_src()

@@ -136,13 +136,18 @@ sub add_module_decls {
 	# Find all function/subroutine calls in this function/subroutine
 	# I'm afraid at the moment I only have CalledSubs, so function calls might not be there, need to check!
 	# Also, need to check if SourceContains distinguishes between subroutines and functions
+	# FIXME!!!
 	        my $sub_func_type= $stref->{'SourceContains'}{$src}{$sub_or_func};
 	        my $Sf = $stref->{$sub_func_type}{$sub_or_func};
 	        my $called_sub_or_func = 'Called'. (($sub_func_type eq 'Subroutines') ? 'Subs' : 'Functions');
 	        for my $called_sub ( keys %{ $Sf->{$called_sub_or_func} } ) {
-	     
-	            my $cs_src=$stref->{'Subroutines'}{$called_sub}{'Source'};
-#	                    print "$src => $called_sub => $cs_src\n";
+	            my $cs_src;
+	            if (exists $stref->{'Subroutines'}{$called_sub} and exists $stref->{'Subroutines'}{$called_sub}{'Source'}) {
+	               $cs_src=$stref->{'Subroutines'}{$called_sub}{'Source'};
+	            } else {
+	            	$cs_src=$stref->{'Functions'}{$called_sub}{'Source'};  
+	            }
+	                    
 	            $stref->{'UsedModules'}{$src}{$cs_src}=1;
 	        }
 	    }
@@ -182,6 +187,7 @@ sub add_module_decls {
             my $mod_contains = ["contains\n",{'Ref'=>1}];
             my @refactored_source_lines=();
             for my $f (keys %{  $stref->{'SourceContains'}{$src} }) {
+            	
             	die if $f=~/^\s*$/;
             	
                 my $annlines = get_annotated_sourcelines( $stref, $f );
