@@ -147,10 +147,10 @@ sub context_free_refactorings {
 		}
 		if ( exists $tags{'VarDecl'} and not exists $tags{'FunctionSig'} ) {
 			my @vars = @{ $tags{'VarDecl'} };
-
+            
 			# first create all parameter declarations
 			if ( $firstdecl == 1 ) {
-				$info->{'ExGlobVarDecls'} = {};
+				$info->{'ExGlobVarDecls'} = 0;#{};
 				$firstdecl = 0;
 				for my $par ( @{ $Sf->{'Parameters'}{'OrderedList'} } ) {
 					my $new_line = format_f95_par_decl( $stref, $f, $par );					
@@ -158,16 +158,22 @@ sub context_free_refactorings {
 					  [ $new_line, { 'Extra' => 1, 'ParamDecl' => [$par], 'Ref'=>1 } ]; # Create parameter declarations before variable declarations
 				}
 				if ($sub_or_func_or_inc ne 'IncludeFiles') {
+					
 				    my @vars_not_pars =
 				    grep { not exists $Sf->{'Parameters'}{$_} } @vars;
+				    
 				    my $filtered_line = '';				
-				    if (@vars_not_pars) { 
+				    if (scalar @vars_not_pars > 0) { 
 					   $filtered_line =
 					   _format_f95_multiple_var_decls( $Sf,@vars_not_pars );
 					   my %tr = %{$info};
 					   $tr{'Extra'} = 1;
 					   $tr{'Ref'}=1;
 					   push @extra_lines, [ $filtered_line, \%tr ];
+#					   if ($f eq 'convect'){
+#					   print "FILT: $filtered_line\n";
+#					   die;
+#					   } 
 				    }
 				}				
 				$line = '!! Original line !! ' . $line;
@@ -289,9 +295,21 @@ sub context_free_refactorings {
 				push @{ $Sf->{'RefactoredCode'} }, $extra_line;
 			}
 			@extra_lines = ();
+			
 		}
 	}
-    
+	# convect is OK here, but somehow looses these lines later on ...
+#    die Dumper($Sf->{'RefactoredCode'}) if $f eq 'convect';
+
+#    if ( $f eq 'convect' ) {
+#        print "REFACTORED LINES BEFORE SPLICE OF INCLUDE STACK ($f):\n";
+#
+#        for my $tmpline ( @{ $Sf->{'RefactoredCode'} } ) {
+#            print $tmpline->[0], "\n";#"\t", join( ';', keys %{ $tmpline->[1] } ),"\n";
+#        }
+#        print "=================\n";
+##        die;
+#    } 
     # now splice the include stack just below the signature
     if (@include_use_stack) {
     	my $offset=0;
@@ -335,7 +353,9 @@ sub context_free_refactorings {
 	    }	
     }
     
-#	if ( $f eq 'common.sn' ) {
+    # At this point, convect is still OK ...
+    
+#	if ( $f eq 'convect' ) {
 #		print "REFACTORED LINES ($f):\n";
 #
 #		for my $tmpline ( @{ $Sf->{'RefactoredCode'} } ) {

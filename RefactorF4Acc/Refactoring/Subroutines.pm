@@ -106,23 +106,30 @@ sub _refactor_subroutine_main {
     
     
     my $annlines = get_annotated_sourcelines($stref,$f);
-    
+
+# OK here for convect
+
     my $rlines = $annlines;
     if ( $Sf->{'HasCommons'} ) {
         if ( $Sf->{'RefactorGlobals'} == 1 ) {
           $rlines = _refactor_globals( $stref, $f, $annlines );
-        } elsif ( $Sf->{'RefactorGlobals'} == 2 ) {
+        } elsif ( $Sf->{'RefactorGlobals'} == 2 ) { 
+#        	die 'BOOM!!!' if $f eq 'convect';
             $rlines = _refactor_calls_globals( $stref, $f, $annlines );
         }
     }
     $Sf->{'RefactoredCode'}=$rlines;
+    
     if ($f eq 'NONE') {
         for my $rl (@{ $rlines }) {
             print $rl->[0],"\n";
         }
-    die;
+        die;
     }
-#   if ( $f eq 'timemanager' ) {
+    
+    # Here we have lost the variable declarations!
+    
+#   if ( $f eq 'convect' ) {
 #       print "REFACTORED LINES ($f):\n";
 #
 #       for my $tmpline ( @{ $Sf->{'RefactoredCode'} } ) {
@@ -141,11 +148,14 @@ sub _refactor_subroutine_main {
 
 sub _refactor_globals {
     ( my $stref, my $f, my $annlines ) = @_;
-    
+#    local $V=1 if $f eq 'convect';
+#    $Data::Dumper::Indent =0;
+#    $Data::Dumper::Terse=1;
 #   croak "FIXME: the caller of a sub with RefactorGlobals should refactor its globals!";
     my $Sf = $stref->{'Subroutines'}{$f};
 #    my $annlines = get_annotated_sourcelines($stref,$f);
     if ($Sf->{'RefactorGlobals'}==2) {
+    	die "This should NEVER happen!";
         warn "FIXME: the caller of a sub with RefactorGlobals ($f) should refactor its globals!";
         # Which child has RefactorGlobals==1?
         my @additional_includes=();
@@ -166,11 +176,13 @@ sub _refactor_globals {
     my $s           = $Sf->{'Source'};
     my $is_C_target = exists $stref->{'BuildSources'}{'C'}{$s} ? 1 : 0;
     my $idx         = 0;
+    
+# here convect is OK
     for my $annline ( @{$annlines} ) {
         my $line      = $annline->[0] || '';
         my $info = $annline->[1];
         my %tags      = ( defined $info ) ? %{$info} : ();
-        print '*** ' . join( ',', keys(%tags) ) . "\n" if $V;
+        print '*** ' . join( ', ', map {"$_ => ".Dumper($tags{$_})} keys(%tags) ) . "\n" if $V;
         print '*** ' . $line . "\n" if $V;
         my $skip = 0;
 
@@ -179,61 +191,36 @@ sub _refactor_globals {
                  # Do this before the analysis for RefactoredArgs!
                  $stref = refactor_subroutine_signature( $stref, $f );
             }
-#           croak $line if $f eq 'particles_main_loop';
             $rlines =
               create_refactored_subroutine_signature( $stref, $f, $annline,
                 $rlines );
-#               croak Dumper($rlines) if $f eq 'interpol_all';
             $skip = 1;
-        }
-# There should be no need to do this: all /common/ blocks should have been removed anyway!
+        } 
+        # There should be no need to do this: all /common/ blocks should have been removed anyway!
         if ( exists $tags{'Include'} ) {
-#        	print "SKIP Include in $f: ",$annline->[0],"\n"; 
             $skip = skip_common_include_statement( $stref, $f, $annline );
         }
 
         if ( exists $tags{'ExGlobVarDecls'} and not exists $tags{'Deleted'} and not exists $tags{'Comments'}
-            and  ($tags{'ExGlobVarDecls'} == $Sf->{'ExGlobVarDeclHook'})
+            and  ($tags{'ExGlobVarDecls'} == $Sf->{'ExGlobVarDeclHook'} )
+#            and $tags{'ExGlobVarDecls'}>0 # just trying really ...
         ) {                    	
-#if ($tags{'ExGlobVarDecls'} == $Sf->{'ExGlobVarDeclHook'}) {print 'EX:', $f,' ',$tags{'ExGlobVarDecls'},'<>',$Sf->{'ExGlobVarDeclHook'},':', $annline->[0],"\n";} 
             # First, abuse ExGlobVarDecls as a hook for the addional includes, if any
             $rlines =
               create_new_include_statements( $stref, $f, $annline, $rlines );
-#print 'EX:', $f,' ',$tags{'ExGlobVarDecls'},'<>',$Sf->{'ExGlobVarDeclHook'},':', $annline->[0],"\n";
-            # Then generate declarations for ex-globals
-            $rlines =
-              create_exglob_var_declarations( $stref, $f, $annline, $rlines );
-#            warn Dumper($rlines) ;
-#die Dumper($rlines) if $f eq 'les'; # still ok here ...
-## While we're here, might as well generate the declarations for remapping and reshaping.
-## If the subroutine contains a call to a function that requires this, of course.
-## Executive decision: do this only for the routines to be translated to C/OpenCL
-#            for my $called_sub ( keys %{ $Sf->{'CalledSubs'} } ) {
-#                if ( exists $stref->{'SubsToTranslate'}{$called_sub} ) {
-#
-#                 # OK, we need to do the remapping, so create the machinery here
-#                 # 1. Get the arguments of the called sub
-#
-## 2. Work out if they need reshaping. If so, create the declarations for the new 1-D arrays
-#
-## 3. Work out which remapped arrays will be used; create the declarations for these arrays
-#
-#                }
-#            }
-
+           # Then generate declarations for ex-globals
+            $rlines = create_exglob_var_declarations( $stref, $f, $annline, $rlines );
         }
-        
-        if ( exists $tags{'VarDecl'} and not exists $tags{'Deleted'}) {
-#        	warn join(';',keys %tags)."\n";
+   # This is what breaks flexpart, but it's OK for les ...
+        if ( exists $tags{'VarDecl'} and not exists $tags{'Deleted'} and (not exists $tags{Ref} or $tags{Ref}==0)) {
             $rlines = create_refactored_vardecls( $stref, $f, $annline, $rlines,
                 $is_C_target );
             $skip = 1;
         }
+
         if ( exists $tags{'SubroutineCall'} ) {
             # simply tag the common vars onto the arguments
-            $rlines = create_refactored_subroutine_call( $stref, $f, $annline,
-                $rlines );
-                
+            $rlines = create_refactored_subroutine_call( $stref, $f, $annline, $rlines );        
             $skip = 1;
         }
 
@@ -245,12 +232,13 @@ sub _refactor_globals {
         push @{$rlines}, $annline unless $skip;
         $idx++;
     } # loop over all lines
+    
 #    $Sf->{'RefactoredCode'}=$rlines;
 #    return $stref;
-#if ($f eq 'les') {
+#if ($f eq 'convect') {
 #       map {print $_->[0]."\n"} @{$rlines}; die;
 #   }
-# OK here for les.f
+# OK here for les.f; but NOT OK for convect from flex_wrf!
     return $rlines;
 }    # END of _refactor_globals()
 
@@ -267,7 +255,7 @@ sub _refactor_calls_globals {
         my $line      = $annline->[0] || '';
         my $info = $annline->[1];
         my %tags      = ( defined $info ) ? %{$info} : ();
-        print '*** ' . join( ',', keys(%tags) ) . "\n" if $V;
+        print '*** ' . join( ',', map {"$_ => ".$tags{$_}} keys(%tags) ) . "\n" if $V;
         print '*** ' . $line . "\n" if $V;
         my $skip = 0;
 
