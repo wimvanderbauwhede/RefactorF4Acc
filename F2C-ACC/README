@@ -1,0 +1,4 @@
+This is my fork of Mark Govett's F2C-ACC
+
+The main reason for the fork is to make it work on Mac OS X
+I also want better integration with rf4a, in the longer run, and a few more features/behaviours.

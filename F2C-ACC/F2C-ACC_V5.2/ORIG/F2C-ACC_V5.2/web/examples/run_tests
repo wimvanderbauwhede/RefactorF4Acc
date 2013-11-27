@@ -1,0 +1,14 @@
+#!/bin/csh 
+
+module load cuda/5.0
+echo 'module list'
+module list
+#
+#
+# remove previous runs
+rm -f *results.lis
+./driver_ftn fortran
+./driver_cpu	cpu
+./driver_gpu	gpu
+echo 'done'
+

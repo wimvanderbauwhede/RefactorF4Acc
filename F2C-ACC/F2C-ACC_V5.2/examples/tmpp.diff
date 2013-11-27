@@ -1,0 +1,74 @@
+--- Makefile.template	2013-11-26 15:34:01.000000000 +0000
++++ ../ORIG/F2C-ACC_V5.2/examples/Makefile.template	2013-06-14 20:28:18.000000000 +0100
+@@ -16,16 +16,11 @@
+ #
+ #   define the location of the F2C-ACC software
+ F2C_HOME = /Users/name/
+-CUDA = /usr/local/cuda
+-CUDALIBS = -L$(CUDA)/lib -lcudart -L$(F2C_HOME)/lib -lF2C
+-#CUDALIBS = -L$(CUDA)/lib64 -lcudart -L$(F2C_HOME)/lib -lF2C
++CUDALIBS = -L$(CUDA)/lib64 -lcudart -L$(F2C_HOME)/lib -lF2C
+ #
+ #   define Fortran,CUDA compilers, m4 (if not already in your path)
+ OPT=-O2
+-#F90=ifort $(OPT)
+-F90M32=gfortran -cpp -m32 $(OPT)
+-F90M64=gfortran -cpp -m64 $(OPT)
+-F90=gfortran -cpp $(OPT)
++F90=ifort $(OPT)
+ NVCC=$(CUDA)/bin/nvcc
+ M4=m4
+ #
+@@ -44,11 +39,10 @@
+ # mac-fermi
+   GPTL = $(F2C_HOME)/examples/gptl_lite/
+ #intel-jet
+-  GPTL32 = $(F2C_HOME)/examples/gptl_lite_m32/
++  GPTL = $(F2C_HOME)/examples/gptl_lite/
+ 
+   GPTLINCLUDE = -I$(GPTL)/include
+   GPTLLIB     = -L$(GPTL)/lib -lgptl
+-  GPTLLIB32     = -L$(GPTL32)/lib -lgptl
+ endif
+ 
+ CPP       = cpp
+@@ -56,7 +50,7 @@
+ CPPFLAGS = -traditional -P 
+ 
+ .SUFFIXES:
+-.SUFFIXES: .f90cpp .o .f90 .c .m4 .cu .a
++.SUFFIXES: .F90 .o .f90 .c .m4 .cu .a
+ 
+ all:	driver_ftn driver_gpu driver_cpu
+ 
+@@ -64,10 +58,10 @@
+ 	$(F90) -o driver_ftn -I$(F2C_HOME)/examples/ module_vars.f90 use_module.f90 driver.f90 accdata.f90 scalar.f90 copyIn.f90 intrinsics.f90 sharedChunk.f90 GlobalSharedTests.f90 PromoteDemoteTests.f90 GlobalSharedCopy.f90 blockShared.f90 $(GPTLLIB) 
+ 
+ driver_gpu:	module_vars.f90 use_module.f90 driver.f90 accdata.cu copyIn.cu intrinsics.cu scalar.cu GlobalSharedTests.cu sharedChunk.cu PromoteDemoteTests.cu GlobalSharedCopy.cu blockShared.cu
+-	$(F90M32) -o driver_gpu -I$(F2C_HOME)/examples/ module_vars.f90 use_module.f90 driver.f90 accdata.o scalar.o copyIn.o intrinsics.o GlobalSharedTests.o sharedChunk.o PromoteDemoteTests.o GlobalSharedCopy.o blockShared.o $(CUDALIBS) $(GPTLLIB32) -lstdc++
++	$(F90) -o driver_gpu -I$(F2C_HOME)/examples/ module_vars.f90 use_module.f90 driver.f90 accdata.o scalar.o copyIn.o intrinsics.o GlobalSharedTests.o sharedChunk.o PromoteDemoteTests.o GlobalSharedCopy.o blockShared.o $(CUDALIBS) $(GPTLLIB)
+ 
+ driver_cpu:	module_vars.f90 use_module.f90 driver.f90 accdata.c copyIn.c intrinsics.c scalar.c GlobalSharedTests.c sharedChunk.c PromoteDemoteTests.c GlobalSharedCopy.c blockShared.c
+-	$(F90M) -o driver_cpu module_vars.f90 use_module.f90 driver.f90 accdata.o scalar.o copyIn.o intrinsics.o GlobalSharedTests.o sharedChunk.o PromoteDemoteTests.o GlobalSharedCopy.o blockShared.o $(GPTLLIB)
++	$(F90) -o driver_cpu module_vars.f90 use_module.f90 driver.f90 accdata.o scalar.o copyIn.o intrinsics.o GlobalSharedTests.o sharedChunk.o PromoteDemoteTests.o GlobalSharedCopy.o blockShared.o $(GPTLLIB)
+ #	rm *.o
+ 
+ .f90.o:
+@@ -82,7 +76,7 @@
+ 	$(GPU_M4) $*.m4 > $*.cu
+ 	$(NVCC) -c $(NVCC_OPT) -I$(CUDA_SDK)/common/inc -I$(F2C_HOME)/include $*.cu
+ 
+-.f90cpp.f90:
++.F90.f90:
+ 	$(CPP) $(CPPFLAGS) $< >$*.f90
+ .f90.a:
+ 	$(F2C) --Generate=CUDA --Analysis=1 $<
+@@ -93,7 +87,7 @@
+ 	$(NVCC) -c $(NVCC_OPT) -I$(CUDA_SDK)/common/inc -I$(F2C_HOME)/include $*.cu
+ 
+ scalar.cu:
+-	$(CPP) $(CPPFLAGS) -DGPU scalar.f90cpp >$*.f90
++	$(CPP) $(CPPFLAGS) -DGPU scalar.F90 >$*.f90
+ 	$(F2C) --Generate=CUDA --Constant NZ=50,NX=5000 $*.f90
+ 	$(GPU_M4) $*.m4 > $*.cu
+ 	$(NVCC) -c $(NVCC_OPT) -I$(CUDA_SDK)/common/inc -I$(F2C_HOME)/include $*.cu

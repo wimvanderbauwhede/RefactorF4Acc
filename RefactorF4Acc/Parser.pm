@@ -648,7 +648,7 @@ sub _separate_blocks {
 			$Sf->{'RefactorGlobals'} = 2;
 		} else {
 #			die "$f => $block ".'BOOM!'.Dumper($Sf->{'RefactorGlobals'});
-			print "INFO: RefactorGlobals==1 for $f while processing BLOCK $block\n" if $I;
+			print "INFO: RefactorGlobals==1 for $f while processing BLOCK $block\n";
 		}
 	}
 
