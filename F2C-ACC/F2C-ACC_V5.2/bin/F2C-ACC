@@ -1,6 +1,10 @@
 #!/usr/bin/perl
-#
+use warnings;
 use strict;
+
+use Cwd;
+my $wd = cwd();
+
 select(STDERR); $| = 1;
 select(STDOUT); $| = 1;
 
@@ -12,21 +16,22 @@ select(STDOUT); $| = 1;
 #  Description:  This perl program converts Fortran code into CUDA-C or C code.
 #	
 use Getopt::Long;
-my($Analysis,$Comment,$Exact,$FixedFormat,$FreeFormat,$Generate,$Keep,$OutputFile,@Constants,$Timer,$help,$debug);
+my($Analysis,$Comment,$Exact,$FixedFormat,$FreeFormat,$Generate,$Keep,$OutputFile,$Timer,$help,$debug) = map {''} (1..11);
+my @Constants=();
 
 GetOptions(
         "Analysis=s" => \$Analysis,
-	   "Comment!" => \$Comment,
-	   "Constant=s" => \@Constants,
-	   "debug!" => \$debug,
-           "Exact=s" => \$Exact,
-	   "FixedFormat" => \$FixedFormat,
-	   "FreeFormat" => \$FreeFormat,
-	   "Generate=s" => \$Generate,
-	   "Keep" => \$Keep,
-	   "Help" => \$help,
-           "Timer" => \$Timer,
-	   "OutputFile=s" => \$OutputFile
+        "Comment!" => \$Comment,
+        "Constant=s" => \@Constants,
+        "debug!" => \$debug,
+        "Exact=s" => \$Exact,
+        "FixedFormat" => \$FixedFormat,
+        "FreeFormat" => \$FreeFormat,
+        "Generate=s" => \$Generate,
+        "Keep" => \$Keep,
+        "Help" => \$help,
+        "Timer" => \$Timer,
+        "OutputFile=s" => \$OutputFile
        );
 
 sub help_sub{
@@ -61,7 +66,7 @@ if (($Generate ne "C") && ($Generate ne "CUDA")){
   exit (1);
 }
 
-if ($Exact ne "") {
+if (defined $Exact && $Exact ne "") {
   if (($Exact ne "CPU") && ($Exact ne "GPU")){
     print "\nF2C-ACC ERROR: \"$Exact\" option not supported\n\n";
     help_sub;
@@ -69,7 +74,11 @@ if ($Exact ne "") {
   }
 }
 
-my $F2C_ROOT = "/Users/wim/SoC_Research/F2C-ACC_V5.2";
+if (not exists $ENV{'F2C_HOME'}) {
+    die "Please set the environment variable F2C_HOME, e.g.
+        export F2C_HOME=$wd\n";
+}
+my $F2C_ROOT = $ENV{'F2C_HOME'};
 my $F2C = "$F2C_ROOT/bin/F2C-ACC.exe";
 if (! -e $F2C) {
   print "ERROR: $F2C does not exist\n";
@@ -82,39 +91,41 @@ if (! -e $F2C) {
 my @files = @ARGV;
 if(!@files) {
   &help_sub;
-  "F2C-ACC ERROR: no file specified\n";
+  print "F2C-ACC ERROR: no file specified\n";
   exit(1);
 }
 #
-my($file,$fpath,$fbase);
-
-foreach $file (@files){
+# MAIN LOOP # 
+foreach my $file (@files){
     print "\n";
     if (! -e $file) {
       print "F2C-ACC ERROR: file: $file does not exist.\n  Exiting ...\n";
       exit 1;
     }
 
-    my $suffix;
+    my $fpath='';
+    my $fbase='';
+    my $suffix='';
     if($file =~ /^(.*\/)([^\/\.]+)\.?(.*)$/){
-	$fpath = $1;
-	$fbase = $2;
-	$file = $2.".".$3;
-	$suffix = $3;
+        $fpath = $1;
+        $fbase = $2;
+        $file = $2.".".$3;
+        $suffix = $3;
     }else{
-	$file =~ /([^\/\.]+)\.?(.*)$/;
+        $file =~ /([^\/\.]+)\.?(.*)$/;
         $fpath = '';
         $fbase = $1;
-	$suffix = $2;
+        $suffix = $2;
     }
 #
 # use default rules for fixed or free format files
     if ((!$FreeFormat) && (!$FixedFormat)) {
-      if (($suffix eq "f90") or ($suffix eq "F90")) {
-	$FreeFormat = 1;
+      if (($suffix eq "f90") or ($suffix eq "F90") or
+          ($suffix eq "f95") or ($suffix eq "F95")) {
+          $FreeFormat = 1;
       }
       if (($suffix eq "f") or ($suffix eq "F")) {
-	$FixedFormat = 1;
+          $FixedFormat = 1;
       }
     }	
 #
@@ -123,60 +134,70 @@ foreach $file (@files){
 #
 # Find a unique file name for the intermediate files
 #
-    my($username) = getpwuid($<);
+    my $username = getpwuid($<);
     system("mkdir /tmp/$username") unless(-e "/tmp/$username");
-    my ($OUTFILE) = "$fpath$fbase".".m4";
+    my $m4file = "$fpath$fbase".".m4";
 
     if ($OutputFile) {
       if (-e $OutputFile) {
-	print "F2C-ACC ERROR: output file: $OutputFile  already exists.\n  Exiting ...\n\n";
-	exit 1;
+          print "F2C-ACC ERROR: output file: $OutputFile  already exists.\n  Exiting ...\n\n";
+          exit 1;
       } else {
-	$OUTFILE = $OutputFile;
+          $m4file = $OutputFile;
       }
     } else {
-      if(-e "$fpath/$OUTFILE"){
-	system("mv $OUTFILE $OUTFILE~");
+        if(-e "$fpath/$m4file"){
+          system("mv $m4file $m4file~");
       }
     }
-
 # PASS #1: First pass processes ACC$REMOVE directives, and generates data
 # section arguments for the ACC$REGION directives.
 #
-    my @smsout;
-    my ($INFILE)  = "$fpath$file";
-#    my ($IN) = "$fpath$file.ACC";
-    if (($Analysis == "1") || ($Analysis == "2")) {
+    my $INFILE  = "$fpath$file";
+    my $accfile = "$INFILE.ACC";
+    if (($Analysis eq "1") || ($Analysis eq "2")) {
       print "\nRunning F2C-ACC Code Analysis ...\n";
     } else {
-      print "F2C-ACC translation of $INFILE into $OUTFILE\n";
+      print "F2C-ACC translation of $INFILE into $m4file\n";
       if ($debug) { print "Running first pass\n"; }
     }
-    &pre_process($INFILE,"$fpath$INFILE.ACC");
-    @smsout = &run_translator($F2C,"$fpath$INFILE.ACC",$username,$debug,1);
-    &merge_files("$fpath$INFILE.ACC","$fpath$INFILE.ACC.1",\@smsout,1);
+#die $INFILE, $m4file;
+    &pre_process($INFILE,$accfile);
+    my @smsout = &run_translator($F2C,$accfile,$username,$debug,1);
+    &merge_files($accfile,"$accfile.1",\@smsout,1);
 #
 # run pass #2
 #
-    @smsout = &run_translator($F2C,"$fpath$INFILE.ACC.1",$username,$debug,2);
-    &merge_files("$fpath$INFILE.ACC.1","$fpath$OUTFILE",\@smsout,2);
-    if ((!$debug) && (!$Keep)) { system("rm -f $INFILE.ACC*"); }
+    @smsout = &run_translator($F2C,"$accfile.1",$username,$debug,2);
+    &merge_files("$accfile.1","$m4file",\@smsout,2);
+    if ((!$debug) && (!$Keep)) { system("rm -f $accfile*"); }
+    
+# WV: Here call m4
+    my $M4 = `which m4`;
+    if (not $M4) {die "Couldn't find m4\n"; }
+    chomp $M4;
+    my $F2C_M4 = "$M4 -I $F2C_ROOT/include/logical.m4 $F2C_ROOT/include/ARCH.m4";
+    my $outfile = "$fpath$fbase.".(($Generate eq 'C') ? 'c' : 'cu');
+    print "M4 translation of $m4file into $Generate file $outfile\n"; 
+    system("$F2C_M4 $m4file > $outfile");
+#	cc -c $(FLAGS) $(OPT) -I $(F2C_HOME)/include $*.c
+#	$(NVCC) -c $(NVCC_OPT) -I$(CUDA_SDK)/common/inc -I$(F2C_HOME)/include $*.cu    
 
-}
+} # END of main loop 
 exit(0);
 # ***************************************************************************
-sub pre_process($INFILE,$IN) {
+sub pre_process { # ($INFILE,$IN) {
   my($INFILE,$IN) = @_;
 
 # support ACC$REMOVE BEGIN/END
     open(INFILE,"$INFILE") || die "cannot create $INFILE";
     my $line='';
-    my $remove_line;
+    my $remove_line = 0;
     my $remove = 0;
     my @infile = <INFILE>;
     close(INFILE);
 
-    open(IN,">$IN") || die "cannot create $INFILE.ACC";
+    open(IN,">$IN") || die "cannot create $IN <> $INFILE.ACC";
     foreach $line (@infile) {
       $remove_line++ if( ($line =~/^CACC\$REMOVE\s+begin/i) ||
                          ($line =~/^\s*!ACC\$REMOVE\s+begin/i) );
@@ -220,8 +241,9 @@ sub merge_files {
     my(@smsout) = @$smsout_ptr;
     my($action,$line_num,$newstuff);
     my $prev_linenum;
-    my $linenum;my $message;my $stuff;my $coords;my $junk;
-    my(%codelines);
+    my $linenum = 0;
+    my $message;my $stuff;my $coords;my $junk;
+    my %codelines=();
 
 # 	embed GPU executable language warning messages in the output 
     my $cnt = $#smsout+1;
@@ -246,7 +268,7 @@ sub merge_files {
 	($action,$line_num,$newstuff) = 
 		&next_action(\@smsout);
 	if($action eq "append"){
-          my $numlines = scalar(split("\n",$codelines{$linenum}));
+          my $numlines = (exists $codelines{$linenum}) ? scalar(split("\n",$codelines{$linenum})) : 0;
 	  if ($numlines > 0) {
 	    $append{$line_num}.= "$newstuff\n";
 	  } else {
@@ -269,11 +291,10 @@ sub merge_files {
 #
     my($whitespace) = "      " ;
     my($i,$thisline);
-    my(%codelines);
     $thisline=0;	# current line being processed
     my $prevcomment=-1;
     my $prevcode=0;
-    my($contlines);
+    my $contlines = 0;
     my $f90_continue=0;
 #
 #	loop through the input file - incrementing as needed to handle
@@ -366,7 +387,7 @@ sub merge_files {
 #
 #  merge replaced and appended lines into the source
 
-    my $linenum;
+#    my $linenum;
     my $line;
 
     foreach $linenum (keys %remove){
@@ -378,7 +399,7 @@ sub merge_files {
 	unless(defined($codelines{$linenum})){
 	    print "Possible error in replace $linenum $replace{$linenum}\n" if($debug);
 	}
-	if ( ($Comment==1) && ($replace{$linenum} =~/FTNREF/) ) {
+	if ( ($Comment eq '1') && ($replace{$linenum} =~/FTNREF/) ) {
 	  $codelines{$linenum} = "// ".join("\n// ",split("\n",$codelines{$linenum}))."\n";
 	  $codelines{$linenum} .= "$replace{$linenum}";
 	} else {
@@ -412,7 +433,7 @@ sub merge_files {
 
 	my $accregion = 3;
 	my $line_type=0;
-    open(OUTFILE,">$MERGE_OUT");
+    open my $OUTF,'>',$MERGE_OUT;
 
     for (my $output=0; $output<=3; $output++) {
 
@@ -455,7 +476,7 @@ sub merge_files {
 	    if ($line =~/^GPU-REMOVE-TAG/) {
 	      next;
 	    } else {
-	      print OUTFILE "$line\n";
+	      print $OUTF "$line\n";
 	    }
 	  }
           if ($Generate eq "CUDA") {
@@ -467,7 +488,7 @@ sub merge_files {
         }
     }
     }
-    close(OUTFILE);
+    close $OUTF;
     return;
 }
 
@@ -484,16 +505,19 @@ sub next_action{
     my($smsout_ref) = @_;
     my($action,$line_num,$string);
     my($line) = '';
+    if (@{$smsout_ref} ){
     $line = shift(@$smsout_ref);
     $line = shift(@$smsout_ref) until(($line =~ /begin_append\s*\d+/) 
 	      || ($line =~ /replace\s\d+\s+.*/)
 	      || ($line =~ /remove\s\d+\s+.*/)
 	      || ! $line);
+    }
     $string='';
 
     if($line =~ /begin_append\s*(\d+)/){
 	$action = "append";
 	$line_num = $1;
+    if (@{$smsout_ref} ){
 	while(!(($line = shift(@$smsout_ref)) =~ /end_append/)){
 	  if($line =~ /^\s*(\d+)(\s+.*)/){
 	    $line = $2;
@@ -503,7 +527,7 @@ sub next_action{
 	    $string .= "$line\n";
 	  }
 	}
-	
+    }
 	return( $action,$line_num,$string);
     }
 
@@ -516,7 +540,7 @@ sub next_action{
 	return("replace",$line_num,$string);
     }
  
-    my $action;
+#    my $action;
     if($line =~ /remove\s*(\d+)(\s+.*)/) {
       $line_num = $1;
       $line = $2;
@@ -543,9 +567,9 @@ sub run_translator{my($F2C_EXEC,$ACCIN,$name,$debug,$pass,$verbose) = @_;
     }
     my (@flags);
     push @flags,"-fixed" if(($FixedFormat) || (!$FreeFormat));
-    if (($Analysis == "1") || ($Analysis == "2")) { 
-      if ($Analysis == "1") { push @flags,"-anal11 -generate2"; }
-      if ($Analysis == "2") { push @flags,"-anal20 -generate2"; }
+    if (($Analysis eq "1") || ($Analysis eq "2")) { 
+      if ($Analysis eq "1") { push @flags,"-anal11 -generate2"; }
+      if ($Analysis eq "2") { push @flags,"-anal20 -generate2"; }
     } else {
       if ($pass == 1) {
         push @flags,"-anal10 -generate2";
@@ -579,7 +603,7 @@ sub run_translator{my($F2C_EXEC,$ACCIN,$name,$debug,$pass,$verbose) = @_;
     print "Running $_ with @flags\n" if($debug);
     my $sys = "$F2C @flags $ACCIN 1>$GPUOUT"; 
     $status = system($sys);
-    if (($Analysis == "1") || ($Analysis == "2")) { exit(0); }
+    if (($Analysis eq "1") || ($Analysis eq "2")) { exit(0); }
 
     # Eli messages are saved in $GPUOUT so they can be
     # embedded in the generated code.  These messages, as well as

@@ -15,18 +15,18 @@
 # I. Configuration instructions
 #
 #   define the location of the F2C-ACC software
-F2C_HOME = /Users/name/
-CUDA = /usr/local/cuda
-CUDALIBS = -L$(CUDA)/lib -lcudart -L$(F2C_HOME)/lib -lF2C
+# F2C_HOME -> defined as env var
+# CUDA = /usr/local/cuda
+CUDALIBS = -L$(CUDA_ROOT)/lib -lcudart -L$(F2C_HOME)/lib -lF2C
 #CUDALIBS = -L$(CUDA)/lib64 -lcudart -L$(F2C_HOME)/lib -lF2C
 #
 #   define Fortran,CUDA compilers, m4 (if not already in your path)
 OPT=-O2
 #F90=ifort $(OPT)
-F90M32=gfortran -cpp -m32 $(OPT)
-F90M64=gfortran -cpp -m64 $(OPT)
-F90=gfortran -cpp $(OPT)
-NVCC=$(CUDA)/bin/nvcc
+F90M32=$(FC) -cpp -m32 $(OPT)
+F90M64=$(FC) -cpp -m64 $(OPT)
+F90=$(FC) -cpp $(OPT)
+NVCC=$(CUDA_ROOT)/bin/nvcc
 M4=m4
 #
 #
@@ -41,14 +41,9 @@ NVCC_OPT=-arch sm_20 -pg $(EMULATOR)
 # GPTL timing library: To shut off entirely, set USE_GPTL = no
 USE_GPTL = yes
 ifeq ($(USE_GPTL),yes)
-# mac-fermi
   GPTL = $(F2C_HOME)/examples/gptl_lite/
-#intel-jet
-  GPTL32 = $(F2C_HOME)/examples/gptl_lite_m32/
-
   GPTLINCLUDE = -I$(GPTL)/include
   GPTLLIB     = -L$(GPTL)/lib -lgptl
-  GPTLLIB32     = -L$(GPTL32)/lib -lgptl
 endif
 
 CPP       = cpp
@@ -64,7 +59,7 @@ driver_ftn:	module_vars.f90 use_module.f90 driver.f90 accdata.f90 scalar.f90 cop
 	$(F90) -o driver_ftn -I$(F2C_HOME)/examples/ module_vars.f90 use_module.f90 driver.f90 accdata.f90 scalar.f90 copyIn.f90 intrinsics.f90 sharedChunk.f90 GlobalSharedTests.f90 PromoteDemoteTests.f90 GlobalSharedCopy.f90 blockShared.f90 $(GPTLLIB) 
 
 driver_gpu:	module_vars.f90 use_module.f90 driver.f90 accdata.cu copyIn.cu intrinsics.cu scalar.cu GlobalSharedTests.cu sharedChunk.cu PromoteDemoteTests.cu GlobalSharedCopy.cu blockShared.cu
-	$(F90M32) -o driver_gpu -I$(F2C_HOME)/examples/ module_vars.f90 use_module.f90 driver.f90 accdata.o scalar.o copyIn.o intrinsics.o GlobalSharedTests.o sharedChunk.o PromoteDemoteTests.o GlobalSharedCopy.o blockShared.o $(CUDALIBS) $(GPTLLIB32) -lstdc++
+	$(F90) -o driver_gpu -I$(F2C_HOME)/examples/ module_vars.f90 use_module.f90 driver.f90 accdata.o scalar.o copyIn.o intrinsics.o GlobalSharedTests.o sharedChunk.o PromoteDemoteTests.o GlobalSharedCopy.o blockShared.o $(CUDALIBS) $(GPTLLIB) -lstdc++
 
 driver_cpu:	module_vars.f90 use_module.f90 driver.f90 accdata.c copyIn.c intrinsics.c scalar.c GlobalSharedTests.c sharedChunk.c PromoteDemoteTests.c GlobalSharedCopy.c blockShared.c
 	$(F90) -o driver_cpu module_vars.f90 use_module.f90 driver.f90 accdata.o scalar.o copyIn.o intrinsics.o GlobalSharedTests.o sharedChunk.o PromoteDemoteTests.o GlobalSharedCopy.o blockShared.o $(GPTLLIB)
@@ -74,12 +69,12 @@ driver_cpu:	module_vars.f90 use_module.f90 driver.f90 accdata.c copyIn.c intrins
 	$(F90) -c $<
 .f90.c:	
 	$(F2C) --Generate=C  $<
-	$(GPU_M4) $*.m4 > $*.c
+#	$(GPU_M4) $*.m4 > $*.c
 	cc -c $(FLAGS) $(OPT) -I $(F2C_HOME)/include $*.c
 
 .f90.cu:
 	$(F2C) --Generate=CUDA $<
-	$(GPU_M4) $*.m4 > $*.cu
+#	$(GPU_M4) $*.m4 > $*.cu
 	$(NVCC) -c $(NVCC_OPT) -I$(CUDA_SDK)/common/inc -I$(F2C_HOME)/include $*.cu
 
 .f90cpp.f90:
@@ -89,23 +84,23 @@ driver_cpu:	module_vars.f90 use_module.f90 driver.f90 accdata.c copyIn.c intrins
 
 PromoteDemoteTests.cu:
 	$(F2C) --Generate=CUDA --Constant NZ=50,NX=5000 $*.f90
-	$(GPU_M4) $*.m4 > $*.cu
+#	$(GPU_M4) $*.m4 > $*.cu
 	$(NVCC) -c $(NVCC_OPT) -I$(CUDA_SDK)/common/inc -I$(F2C_HOME)/include $*.cu
 
 scalar.cu:
 	$(CPP) $(CPPFLAGS) -DGPU scalar.f90cpp >$*.f90
 	$(F2C) --Generate=CUDA --Constant NZ=50,NX=5000 $*.f90
-	$(GPU_M4) $*.m4 > $*.cu
+#	$(GPU_M4) $*.m4 > $*.cu
 	$(NVCC) -c $(NVCC_OPT) -I$(CUDA_SDK)/common/inc -I$(F2C_HOME)/include $*.cu
 	
 GlobalSharedCopy.cu:
 	$(F2C) --Generate=CUDA --Constant NZ=50,NX=50,ITER=2 $*.f90
-	$(GPU_M4) $*.m4 > $*.cu
+#	$(GPU_M4) $*.m4 > $*.cu
 	$(NVCC) -c $(NVCC_OPT) -I$(CUDA_SDK)/common/inc -I$(F2C_HOME)/include $*.cu
 
 blockShared.cu:
 	$(F2C) --Generate=CUDA --Constant IMS=1,IME=50,KMS=1,KME=20 $*.f90
-	$(GPU_M4) $*.m4 > $*.cu
+#	$(GPU_M4) $*.m4 > $*.cu
 	$(NVCC) -c $(NVCC_OPT) -I$(CUDA_SDK)/common/inc -I$(F2C_HOME)/include $*.cu
 
 use_module.o:	module_vars.o

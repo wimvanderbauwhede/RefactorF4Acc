@@ -1,6 +1,6 @@
 #FC = ifort
 #CC = icc
-FC = gfortran 
+FC = $(FORTRAN_COMPILER) #gfortran 
 CC = gcc 
 FFLAGS = -g -cpp
 # CFLAGS is needed only for the timing test done in ftest/

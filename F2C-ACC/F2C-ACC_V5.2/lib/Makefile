@@ -4,9 +4,9 @@
 #
 #   define Fortran
 OPT=-O2
-F90=ifort $(OPT)
+F90=$(FC) $(OPT)
 M4=m4
-CUDA = /usr/local/cuda
+CUDA=$(CUDA_ROOT)/
 NVCC=$(CUDA)/bin/nvcc
 #
 #
@@ -30,7 +30,7 @@ lib:	$(OBJS)
 	$(F90) -c $<
 
 .cu.o:
-	$(NVCC) -c $<
+	$(NVCC) -c -m64 $<
 clean:
 	rm -f *.o libF2C.a
 

@@ -1,6 +1,6 @@
 SHELL   = /bin/sh
 
-CC	= gcc
+#CC	= gcc
 
 OBJS	= driver.o attrmain.o visitprocs.o clp.o VoidPtrList.o \
 	obstack.o err.o CoordMap.o source.o deftbl.o obsave.o \

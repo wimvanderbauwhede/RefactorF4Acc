@@ -1,6 +1,10 @@
 #!/usr/bin/perl
-#
+use warnings;
 use strict;
+
+use Cwd;
+my $wd = cwd();
+
 select(STDERR); $| = 1;
 select(STDOUT); $| = 1;
 
@@ -69,7 +73,11 @@ if ($Exact ne "") {
   }
 }
 
-my $F2C_ROOT = "/Users/name";
+if (not exists $ENV{'F2C_HOME'}) {
+    die "Please set the environment variable F2C_HOME, e.g.
+        export F2C_HOME=$wd\n";
+}
+my $F2C_ROOT = $ENV{'F2C_HOME'};
 my $F2C = "$F2C_ROOT/bin/F2C-ACC.exe";
 if (! -e $F2C) {
   print "ERROR: $F2C does not exist\n";
@@ -127,44 +135,54 @@ foreach my $file (@files){
 #
     my $username = getpwuid($<);
     system("mkdir /tmp/$username") unless(-e "/tmp/$username");
-    my $OUTFILE = "$fpath$fbase".".m4";
+    my $m4file = "$fpath$fbase".".m4";
 
     if ($OutputFile) {
       if (-e $OutputFile) {
           print "F2C-ACC ERROR: output file: $OutputFile  already exists.\n  Exiting ...\n\n";
           exit 1;
       } else {
-          $OUTFILE = $OutputFile;
+          $m4file = $OutputFile;
       }
     } else {
-        if(-e "$fpath/$OUTFILE"){
-          system("mv $OUTFILE $OUTFILE~");
+        if(-e "$fpath/$m4file"){
+          system("mv $m4file $m4file~");
       }
     }
-
 # PASS #1: First pass processes ACC$REMOVE directives, and generates data
 # section arguments for the ACC$REGION directives.
 #
     my $INFILE  = "$fpath$file";
-#    my ($IN) = "$fpath$file.ACC";
+    my $accfile = "$INFILE.ACC";
     if (($Analysis == "1") || ($Analysis == "2")) {
       print "\nRunning F2C-ACC Code Analysis ...\n";
     } else {
-      print "F2C-ACC translation of $INFILE into $OUTFILE\n";
+      print "F2C-ACC translation of $INFILE into $m4file\n";
       if ($debug) { print "Running first pass\n"; }
     }
-    &pre_process($INFILE,"$fpath$INFILE.ACC");
-    my @smsout = &run_translator($F2C,"$fpath$INFILE.ACC",$username,$debug,1);
-    &merge_files("$fpath$INFILE.ACC","$fpath$INFILE.ACC.1",\@smsout,1);
+#die $INFILE, $m4file;
+    &pre_process($INFILE,$accfile);
+    my @smsout = &run_translator($F2C,$accfile,$username,$debug,1);
+    &merge_files($accfile,"$accfile.1",\@smsout,1);
 #
 # run pass #2
 #
-    @smsout = &run_translator($F2C,"$fpath$INFILE.ACC.1",$username,$debug,2);
-    &merge_files("$fpath$INFILE.ACC.1","$fpath$OUTFILE",\@smsout,2);
-    if ((!$debug) && (!$Keep)) { system("rm -f $INFILE.ACC*"); }
-# WV: Here call m4
+    @smsout = &run_translator($F2C,"$accfile.1",$username,$debug,2);
+    &merge_files("$accfile.1","$m4file",\@smsout,2);
+    if ((!$debug) && (!$Keep)) { system("rm -f $accfile*"); }
     
-}
+# WV: Here call m4
+    my $M4 = `which m4`;
+    if (not $M4) {die "Couldn't find m4\n"; }
+    chomp $M4;
+    my $F2C_M4 = "$M4 -I $F2C_ROOT/include/logical.m4 $F2C_ROOT/include/ARCH.m4";
+    my $outfile = "$fpath$fbase.".(($Generate eq 'C') ? 'c' : 'cu');
+    print "M4 translation of $m4file into $Generate file $outfile\n"; 
+    system("$F2C_M4 $m4file > $outfile");
+#	cc -c $(FLAGS) $(OPT) -I $(F2C_HOME)/include $*.c
+#	$(NVCC) -c $(NVCC_OPT) -I$(CUDA_SDK)/common/inc -I$(F2C_HOME)/include $*.cu    
+
+} # END of main loop 
 exit(0);
 # ***************************************************************************
 sub pre_process($INFILE,$IN) {
@@ -178,7 +196,7 @@ sub pre_process($INFILE,$IN) {
     my @infile = <INFILE>;
     close(INFILE);
 
-    open(IN,">$IN") || die "cannot create $INFILE.ACC";
+    open(IN,">$IN") || die "cannot create $IN <> $INFILE.ACC";
     foreach $line (@infile) {
       $remove_line++ if( ($line =~/^CACC\$REMOVE\s+begin/i) ||
                          ($line =~/^\s*!ACC\$REMOVE\s+begin/i) );
@@ -414,7 +432,7 @@ sub merge_files {
 
 	my $accregion = 3;
 	my $line_type=0;
-    open(OUTFILE,">$MERGE_OUT");
+    open my $OUTF,'>',$MERGE_OUT;
 
     for (my $output=0; $output<=3; $output++) {
 
@@ -457,7 +475,7 @@ sub merge_files {
 	    if ($line =~/^GPU-REMOVE-TAG/) {
 	      next;
 	    } else {
-	      print OUTFILE "$line\n";
+	      print $OUTF "$line\n";
 	    }
 	  }
           if ($Generate eq "CUDA") {
@@ -469,7 +487,7 @@ sub merge_files {
         }
     }
     }
-    close(OUTFILE);
+    close $OUTF;
     return;
 }
 

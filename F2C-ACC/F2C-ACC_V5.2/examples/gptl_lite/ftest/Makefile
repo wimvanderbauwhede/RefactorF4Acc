@@ -2,7 +2,7 @@ CFLAGS = -g
 FFLAGS = -cpp -g 
 LDFLAGS = -L.. -lgptl
 OBJS = fmain.o mysleep.o
-FC = gfortran 
+FC = $(FORTRAN_COMPILER)
 all: testit
 	./a.out
 
