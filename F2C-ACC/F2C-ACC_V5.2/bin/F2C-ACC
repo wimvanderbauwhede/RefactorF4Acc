@@ -502,51 +502,70 @@ sub merge_files {
 #	remove				- single line remove 
 #
 sub next_action{
-    my($smsout_ref) = @_;
+    (my $smsout_ref) = @_;
     my($action,$line_num,$string);
-    my($line) = '';
-    if (@{$smsout_ref} ){
-    $line = shift(@$smsout_ref);
-    $line = shift(@$smsout_ref) until(($line =~ /begin_append\s*\d+/) 
+    my $line = '';
+#    if (@{$smsout_ref} ){
+#    $line = shift @{$smsout_ref};
+#    if (@{$smsout_ref} ){
+#    $line = shift @{$smsout_ref} until(($line =~ /begin_append\s*\d+/) 
+#	      || ($line =~ /replace\s\d+\s+.*/)
+#	      || ($line =~ /remove\s\d+\s+.*/)
+#	      || ! $line);
+#    }}
+
+    while( @{$smsout_ref} ) {
+        $line = shift @{$smsout_ref} ;
+        if (
+              ($line =~ /begin_append\s*\d+/) 
 	      || ($line =~ /replace\s\d+\s+.*/)
 	      || ($line =~ /remove\s\d+\s+.*/)
-	      || ! $line);
+	      || ! $line
+          ) { last; }
     }
-    $string='';
 
     if($line =~ /begin_append\s*(\d+)/){
-	$action = "append";
-	$line_num = $1;
-    if (@{$smsout_ref} ){
-	while(!(($line = shift(@$smsout_ref)) =~ /end_append/)){
-	  if($line =~ /^\s*(\d+)(\s+.*)/){
-	    $line = $2;
-	    my $label = $1;
-	    $string .= "$line\n";
-	  } else {
-	    $string .= "$line\n";
-	  }
-	}
-    }
-	return( $action,$line_num,$string);
+#       $action = "append";
+        my $line_num = $1;
+        my $string='';
+        for my $line (@{$smsout_ref}) {
+            if ($line=~/end_append/) {
+                last;
+            } else {
+                $string.="$line\n";
+            }
+        }
+
+#        if (@{$smsout_ref} ){
+#            while(!(($line = shift(@$smsout_ref)) =~ /end_append/)){
+#                $string .= "$line\n";
+#                if($line =~ /^\s*(\d+)(\s+.*)/){
+#                    $line = $2;
+#                    my $label = $1;
+#                    $string .= "$line\n";
+#                } else {
+#                    $string .= "$line\n";
+#                }
+#            }
+#        }
+        return ('append',$line_num,$string);
     }
 
     if($line =~ /replace\s*(\d+)(\s+.*)/){
         $line_num = $1;
-	$line = $2;
-	my $label='';
-	$string = "$line\n";
-
-	return("replace",$line_num,$string);
+        my $rline = $2;
+#        my $label='';
+        my $string = "$rline\n";
+        return ("replace",$line_num,$string);
     }
  
 #    my $action;
     if($line =~ /remove\s*(\d+)(\s+.*)/) {
-      $line_num = $1;
-      $line = $2;
-      $string = "";
-      my $label='';
-      return("remove",$line_num,$string);
+        $line_num = $1;
+#        $line = $2;
+#        $string = "";
+#        my $label='';
+        return ("remove",$line_num,'');
     }
 
     return(-1);

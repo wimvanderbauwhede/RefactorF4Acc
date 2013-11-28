@@ -6,8 +6,6 @@ use 5.010;
 =info
 This version of F2C_ACC works on OS X 10.6.8 
 Need to make it work on Linux, at least 64-bit
-What I did was change ifort to gfortran, icc to gcc, and hardcoded the path to nvcc
-I also created a separate gptl_lite_m32 because libcuda on (my) Mac is 32-bit
 
 =cut
 # build script to make and install the F2C compiler
@@ -49,7 +47,7 @@ use File::Copy;
 my %opts=();
 getopts('hvCcti:', \%opts);
 my $CA= $opts{'C'} // 0;
-my $C= $opts{'c'} // 0;
+my $C= $opts{'c'} || $opts{'C'};
 my $V= $opts{'v'} // 0;
 my $T= $opts{'t'} // 0;
 my $I= $opts{'i'} ? 1 : 0;
