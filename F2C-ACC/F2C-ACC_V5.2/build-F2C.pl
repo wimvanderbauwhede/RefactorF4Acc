@@ -54,8 +54,8 @@ my $I= $opts{'i'} ? 1 : 0;
 my $installdir = $opts{'i'};
 
 if ($opts{'h'}) { 
-  say "Usage: $0 [-c -v -i] install-path";
-  say "  install-path: location where F2C-ACC will be installed";
+  say "Usage: $0 [-c -v -i install-path]";
+  say "  install-path: location where F2C-ACC will be installed. Must be defined in environment as \$F2C_HOME";
   say "  -i: Install";
   say "  -C: Clean both F2C-ACC source and examples before building";
   say "  -c: Clean examples before building";
@@ -81,8 +81,9 @@ my $mydir = $cwd;
 # build F2C-ACC compiler;
 chdir 'source';
 system('make clean') if $CA;
-my $res1=`make`;
-if (not $res1) {
+system('make 2>&1  | tee build_source.log');
+my $res1=`grep Error build_source.log`;
+if ($res1) {
     say 'First make failed--exiting'; 
     exit 1;
 } else {
@@ -216,6 +217,7 @@ if ($I) {
     copy 'bin/F2C-ACC', "$installdir/bin/F2C-ACC";
     chmod 0755, "$installdir/bin/F2C-ACC";
     copy 'bin/F2C-ACC.exe', "$installdir/bin";
+    chmod 0755, "$installdir/bin/F2C-ACC.exe";
 # Copy examples for tests to $installdir
     say "Copying examples/ to $installdir ..." if $V;
     if (! -e "$installdir/examples") {

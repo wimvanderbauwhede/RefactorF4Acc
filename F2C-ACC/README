@@ -1,4 +1,56 @@
-This is my fork of Mark Govett's F2C-ACC
+			F2C-ACC Compiler - General Information
 
-The main reason for the fork is to make it work on Mac OS X
-I also want better integration with rf4a, in the longer run, and a few more features/behaviours.
+Author:	Mark Govett
+	National Oceanic and Atmospheric Administration
+	Earth System Research laboratory
+	Boulder Colorado 80305
+
+Version: 5.2
+Release Date: June 10, 2013
+Description: 
+  This distribution contains the F2C-ACC translator used to convert Fortran
+  code into either C or CUDA.  The translator handles parsing of
+  all Fortran 95 language features, but only a limited set of language
+  constructs are handled.. 
+
+  Common language constructs supported include most declarations, do-enddo, 
+  do-continue, if-else-endif, data, parameter, assignment statements, 
+  modules, etc are supported.  At this time, language constructs including 
+  character, complex and derived types, I/O statements, and some intrinsic 
+  functions are not supported.
+
+  In the event a language construct (eg. "interface" statement) is not 
+  supported, F2C-ACC will generate the following message that preceeds 
+  the line in question:
+
+	F2C-ACC ERROR:  line,column "Language construct not supported."
+
+  Additional translation capabilities are being added as needed.  Support 
+  questions can be sent to:
+
+		help.accel.gsd@noaa.gov
+
+Building the Translator:
+  Use the build script: build-F2C.scr  path-name
+	, where path-name is the path where the software will be installed.
+
+Building C or CUDA Code:
+  Translated code relies on the m4 library to handle the different operating 
+  system calling conventions between Fortran and C routines (eg. subroutine
+  names). Code is generated into files with a .m4 suffix.  To convert code into
+  C or CUDA-C m4 must be run.  A makefile is provided in this directory as a
+  template to handle code generation.
+
+  Further hand modifications may be necessary to run the CUDA code on a GPU
+  device.  This could include hand conversion of unsupported types, handling of
+  GPU memory declarations (eg. shared, constant), nesting function or 
+  subroutine kernels, and adding performance optimizations. The examples 
+  directory illustrates a hand modification for a simple code.
+
+  As the translator is further developed, it is expected that some of these
+  code modifications will be handled automatically.
+  
+More information:
+  View the users guide, F2C-ACC-Documentation_V4.pdf in this distribution.
+  Visit the web site:  http://www.esrl.noaa.gov/gsd/ab/ac/Accelerators.html
+  Send Email:  help.accel.gsd@noaa.gov

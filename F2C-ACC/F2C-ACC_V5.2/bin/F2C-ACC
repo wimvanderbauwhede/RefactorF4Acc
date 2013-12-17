@@ -1,6 +1,7 @@
 #!/usr/bin/perl
 use warnings;
 use strict;
+use 5.010;
 
 use Cwd;
 my $wd = cwd();
@@ -15,6 +16,8 @@ select(STDOUT); $| = 1;
 #
 #  Description:  This perl program converts Fortran code into CUDA-C or C code.
 #	
+# Adapted by WV Nov-Dec 2013 to include the M4 step and support CPP directives
+# Also, automatically generate a best guess for Fortran_Module_Lookup.txt
 use Getopt::Long;
 my($Analysis,$Comment,$Exact,$FixedFormat,$FreeFormat,$Generate,$Keep,$OutputFile,$Timer,$help,$debug) = map {''} (1..11);
 my @Constants=();
@@ -187,42 +190,44 @@ foreach my $file (@files){
 exit(0);
 # ***************************************************************************
 sub pre_process { # ($INFILE,$IN) {
-  my($INFILE,$IN) = @_;
-
+    my($infile,$accfile) = @_;
+# FIXME: add support for macros!
+#    say "cpp -P $infile > $infile.cpp" if $debug;
+#    system("cpp -P $infile > $infile.cpp");
 # support ACC$REMOVE BEGIN/END
-    open(INFILE,"$INFILE") || die "cannot create $INFILE";
+    open my $INF,'<',$infile || die "cannot read $infile";
     my $line='';
     my $remove_line = 0;
     my $remove = 0;
-    my @infile = <INFILE>;
-    close(INFILE);
+    my @infile = <$INF>;
+    close($INF);
 
-    open(IN,">$IN") || die "cannot create $IN <> $INFILE.ACC";
-    foreach $line (@infile) {
-      $remove_line++ if( ($line =~/^CACC\$REMOVE\s+begin/i) ||
-                         ($line =~/^\s*!ACC\$REMOVE\s+begin/i) );
-      $remove_line-- if( ($line =~ /^CACC\$REMOVE\s+end/i) ||
-                         ($line =~ /^\s*!ACC\$REMOVE\s+end/i) );
+    open my $IN,'>',$accfile || die "cannot create $accfile <> $infile.ACC";
+    foreach my $line (@infile) {
+        $remove_line++ if( ($line =~/^CACC\$REMOVE\s+begin/i) ||
+                ($line =~/^\s*!ACC\$REMOVE\s+begin/i) );
+        $remove_line-- if( ($line =~ /^CACC\$REMOVE\s+end/i) ||
+                ($line =~ /^\s*!ACC\$REMOVE\s+end/i) );
 
-      if (($remove_line>0) || 
-          ($remove_line==0) && (($line =~ /^CACC\$REMOVE\s+end/i) ||
-                                  ($line =~ /^\s*!ACC\$REMOVE\s+end/i)) ) {
-	$remove = 1;
-        print IN "!$line";
-      } else {
-	print IN "$line";
-      }
+        if (($remove_line>0) || 
+                ($remove_line==0) && (($line =~ /^CACC\$REMOVE\s+end/i) ||
+                    ($line =~ /^\s*!ACC\$REMOVE\s+end/i)) ) {
+            $remove = 1;
+            print $IN "!$line";
+        } else {
+            print $IN $line;
+        }
 
-      if($remove_line>1) {
-        print "ERROR: nested ACC\$REMOVE BEGIN directives not permitted.\n";
-	if (!$debug) { exit(1); } else { exit;}
-      }
-      if ($remove_line<0){
-        print "ERROR: ACC\$REMOVE END found without a matching BEGIN\n";
-	if (!$debug) { exit(1); } else { exit;}
-      }
+        if($remove_line>1) {
+            print "ERROR: nested ACC\$REMOVE BEGIN directives not permitted.\n";
+            if (!$debug) { exit(1); } else { exit;}
+        }
+        if ($remove_line<0){
+            print "ERROR: ACC\$REMOVE END found without a matching BEGIN\n";
+            if (!$debug) { exit(1); } else { exit;}
+        }
     }
-    close(IN);
+    close $IN;
     return;
 }
 
@@ -577,7 +582,7 @@ sub next_action{
 #  input file:  $ACCIN
 #  output file:	$GPUOUT
 #
-sub run_translator{my($F2C_EXEC,$ACCIN,$name,$debug,$pass,$verbose) = @_;
+sub run_translator { my($F2C_EXEC,$ACCIN,$name,$debug,$pass,$verbose) = @_;
  
     my $STDOUT= "/tmp/$name/ACC.stdout.$pass.$$";
     my $GPUOUT= "/tmp/$name/ACC.out.$pass.$$";
@@ -619,7 +624,9 @@ sub run_translator{my($F2C_EXEC,$ACCIN,$name,$debug,$pass,$verbose) = @_;
       }
     }
     my $status = 0;
-    print "Running $_ with @flags\n" if($debug);
+    print "Creating Fortran_Module_Lookup.txt\n" if $debug;
+    create_Fortran_Module_Lookup();
+    print "Running $F2C $ACCIN with @flags\n" if $debug;
     my $sys = "$F2C @flags $ACCIN 1>$GPUOUT"; 
     $status = system($sys);
     if (($Analysis eq "1") || ($Analysis eq "2")) { exit(0); }
@@ -644,4 +651,34 @@ sub run_translator{my($F2C_EXEC,$ACCIN,$name,$debug,$pass,$verbose) = @_;
     }
 #
     return @smsout;
+} # END of run_translator()
+
+sub create_Fortran_Module_Lookup {
+    
+    my @module_entries = ();
+    if (glob('*.f95')) {
+        my @entries = `grep -i 'module ' *.f95 | grep -i -v 'end '`;
+        @module_entries = (@module_entries , @entries);
+    }
+    if (glob('*.f90')) {
+        my @entries = `grep -i 'module ' *.f90 | grep -i -v 'end '`;
+        @module_entries = (@module_entries , @entries);
+    }
+    if (glob('*.F90')) {
+        my @entries = `grep -i 'module ' *.F90 | grep -i -v 'end '`;
+        @module_entries = (@module_entries , @entries);
+    }
+    if (glob('*.F95')) {
+        my @entries = `grep -i 'module ' *.F95 | grep -i -v 'end '`;
+        @module_entries = (@module_entries , @entries);
+    }
+    open my $TBL, '>', "Fortran_Module_Lookup.txt";
+    for my $entry (@module_entries) {
+        chomp $entry;
+        (my $f, my $m)=split(/:module\s+/,$entry);
+#        say("cpp -P $f > $f.cpp") if $debug;
+#        system("cpp -P $f > $f.cpp");
+        say $TBL "$m $f";
+    }
+    close $TBL;
 }
