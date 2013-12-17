@@ -49,24 +49,24 @@ sub read_fortran_src {
         if (not exists $stref->{'SourceContains'}{$f} ) {
 		  $no_need_to_read=0;
         } else {
-		for my $item (keys %{ $stref->{'SourceContains'}{$f} } ) {
+            for my $item (keys %{ $stref->{'SourceContains'}{$f} } ) {
 #			next if $item eq 'Program';
-			my $srctype=$stref->{'SourceContains'}{$f}{$item};
-			my $status =$stref->{$srctype}{$item}{'Status'};
-			# if one of them is still UNREAD, need to read.
-			$no_need_to_read *= ($status != $UNREAD);
-		}
-	}
-	my $need_to_read = 1 - $no_need_to_read;
+                my $srctype=$stref->{'SourceContains'}{$f}{$item};
+                my $status =$stref->{$srctype}{$item}{'Status'};
+# if one of them is still UNREAD, need to read.
+                $no_need_to_read *= ($status != $UNREAD);
+            }
+        }
+        my $need_to_read = 1 - $no_need_to_read;
 	 
-		if ($need_to_read) {		 
+		if ($need_to_read) {
 		    my $ok = 1;
 		    open my $SRC, '<', $f or do {
-			print DBG "WARNING: Can't find '$f' ($s)\n";
-			$ok = 0;
-		};
+                print DBG "WARNING: Can't find '$f' ($s)\n";
+                $ok = 0;
+            };
 
-		if ($ok) {
+            if ($ok) {
 			#	print DBG "READING SOURCE for $f ($s, $sub_func_incl)\n" if $V;
 			my $line       = '';
 			my $nextline   = '';
