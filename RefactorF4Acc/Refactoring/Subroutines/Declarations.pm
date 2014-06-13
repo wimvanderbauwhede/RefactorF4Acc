@@ -40,14 +40,10 @@ sub create_refactored_vardecls {
     ( my $stref, my $f, my $annline, my $rlines, my $is_C_target ) = @_; 
 #local $V=1;
     print "create_refactored_vardecls( $f )\n" if $V;
-   
 #    die "Bug to be fixed: applying context-free refactoring breaks the next stage!";
     my $Sf        = $stref->{'Subroutines'}{$f};
     my $line      = $annline->[0] || '';
-#     print "LINE: $line\n";
     my $info = $annline->[1];
-#    print "INFO: ".Dumper($info);
-    if (not exists $info->{Ref} or $info->{Ref}==0) {
     my %args      = %{ $Sf->{'Args'}{'Set'} };
     my $globals = ( get_maybe_args_globs( $stref, $f ) )[1];
     my $skip=0;
@@ -112,7 +108,6 @@ sub create_refactored_vardecls {
     }
     $info->{'Ref'}++;
     push @{$rlines}, [ $rline, $info ] unless $skip==1;
-    }
     return $rlines;
 }    # END of create_refactored_vardecls()
 
