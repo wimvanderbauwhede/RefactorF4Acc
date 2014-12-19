@@ -669,7 +669,8 @@ sub format_f95_var_decl {
 	( my $Sf, my $var ) = @_;
 	my $Sv = $Sf->{'Vars'}{$var};
 	if ( not exists $Sv->{'Decl'} ) {
-		print "WARNING: VAR $var does not exist in Vars in format_f95_var_decl()!\n" if $W;		
+		print "WARNING: VAR $var does not exist in Vars in format_f95_var_decl()!\n" if $W;
+#		die Dumper($Sf->{Source});		
 		croak $var;
 #		$Sv->{'Decl'}='      $var = NULL';
 	} 

@@ -6,7 +6,7 @@ package RefactorF4Acc::Refactoring;
 
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
-use RefactorF4Acc::Refactoring::Common qw( create_refactored_source get_annotated_sourcelines );
+use RefactorF4Acc::Refactoring::Common qw( create_refactored_source get_annotated_sourcelines format_f95_var_decl);
 use RefactorF4Acc::Refactoring::Subroutines qw( refactor_all_subroutines refactor_kernel_signatures );
 use RefactorF4Acc::Refactoring::Functions qw( refactor_called_functions );
 use RefactorF4Acc::Refactoring::IncludeFiles qw( refactor_include_files );
@@ -42,20 +42,43 @@ sub refactor_all {
 	( my $stref, my $subname ) = @_;
         
     $stref = refactor_include_files($stref);
+#    die;
     $stref = refactor_called_functions($stref);
+    
     # Refactor the source, but don't split long lines and keep annotations
     $stref = refactor_all_subroutines($stref);
 # OK here for les.f
-
+#print "\n\n",'=' x 80,"\n";
+#print "*** determine_argument_io_direction_rec( $subname, $stref )\n";
+#print "*** LES\n",'=' x 80, "\n";
+#print Dumper($stref->{'Subroutines'}{'les'}),"\n"; 
+#print "\n\n",'=' x 80,"\n*** LES\n",'=' x 80, "\n";
+## This prints out the code lines, not yet refactored?
 #map {print $_->[0]."\n"} @{ $stref->{'Subroutines'}{'les'}{RefactoredCode} };
 #   die;
     # This can't go into refactor_all_subroutines() because it is recursive
     $stref = determine_argument_io_direction_rec( $subname, $stref );
 # Now somehow we should use the IO direction, at first simply as annotation
 #FIXME: This does not work! refactor_all_subroutines produces the refactored source!!!
-#    print "DONE determine_argument_io_direction_rec()\n" if $V;    
-#    map {print $_->[0]."\n"} @{ $stref->{'Subroutines'}{'les'}{RefactoredCode} };
+    print "DONE determine_argument_io_direction_rec()\n" if $V;
+#print "\n\n",'=' x 80,"\n";        
+#    map {
+#     if (exists($_->[1]{VarDecl})) {
+#      my $varname = $_->[1]{VarDecl};
+##        my $iodir = $stref->{'Subroutines'}{'les'}{RefactoredArgs}{Set}{$varname}{IODir};
+##        print " ! intent($iodir)\n";
+#        my $vardecl = format_f95_var_decl($stref->{'Subroutines'}{'les'}, $varname);
+#        print "    $vardecl \n";
+#     } else {
+#     print $_->[0];     
+#     print "\n";
+#     }
+#    } @{ $stref->{'Subroutines'}{'les'}{RefactoredCode} };
 #    print '=' x 80, "\n";
+#
+#print Dumper($stref->{'Subroutines'}{'vel2'}),"\n"; 
+#print "\n\n",'=' x 80,"\n\n";
+#    
 #    die;
 # OK here for les.f
 
@@ -71,11 +94,17 @@ sub refactor_all {
 
     # When all this is done, we can finally create the refactored sources for the subroutines
     for my $f ( keys %{ $stref->{'Subroutines'} } ) {
-    	if (scalar keys %{$stref->{'Subroutines'}{$f}{'Callers'} } or $stref->{'Subroutines'}{$f}{'Program'} ) {    		
-    		$stref = refactor_kernel_signatures( $stref, $f); # FIXME: rename this!
-    		#FIXME: for Functions and Includes, this has already been done
-    		# This should be done as the final step!
-#            $stref=create_refactored_source(  $stref, $f );
+     print "NAME: $f\n";
+    	if (scalar keys %{$stref->{'Subroutines'}{$f}{'Callers'} } ) { # or $stref->{'Subroutines'}{$f}{'Program'} ) {    		
+#    		$stref = add_intent_to_subroutine_signature( $stref, $f); # FIXME: rename this!
+            # so what I need to do is create the line with intent and replace it in RefactoredCode
+            for my $entry (@{ $stref->{'Subroutines'}{$f}{RefactoredCode} } ) {
+              if (exists($entry->[1]{VarDecl})) {
+                my $varname = $entry->[1]{VarDecl};
+                my $vardecl = format_f95_var_decl($stref->{'Subroutines'}{$f}, $varname);
+                $entry->[0] = $vardecl;
+              }
+            }                        
     	} else {
     		print "WARNING: SKIPPING <$f>: " if $V;
 			if (defined $f and $f ne '') {
@@ -84,8 +113,8 @@ sub refactor_all {
 				print "Undefined\n" if $V;
 			}
     	}
-    	# WRONG HERE!!!! for les.f
-#    	if ($f eq 'les') {
+#    	# WRONG HERE!!!! for les.f
+#    	if ($f eq 'vel2') {
 #map {print $_->[0]."\n"} @{ $stref->{'Subroutines'}{$f}{RefactoredCode} };
 #
 #print '1=' x 80, "\n";
@@ -109,10 +138,12 @@ sub refactor_all {
 
 #if ($f eq 'les') {
 #       print '=' x 80, "\n";
-#map {print $_->[0]."\n"} @{ $stref->{RefactoredSources}{'./les.f'} };
+##map {print $_->[0]."\n"} @{ $stref->{RefactoredSources}{'./les.f'} };
+#print Dumper($stref->{RefactoredSources});
 #die;
 #}
     }
+#    die "HERE";
     $stref=add_module_decls($stref);
 #    # WRONG HERE!
 #       print '=' x 80, "\n";
@@ -152,7 +183,7 @@ sub add_module_decls {
 	        }
 	    }
 	}
-    
+#    die Dumper($stref->{'Program'});
     for my $src (keys %{ $stref->{'SourceContains'} } ) {
 #    	print "SRC: $src\n";
         $no_module= $stref->{'Program'} eq $src;
@@ -181,7 +212,8 @@ sub add_module_decls {
                 $used_mod_name =~s/\..*$//;
                 $used_mod_name=~s/\./_/g;
                 $used_mod_name="module_$used_mod_name";
-                push @mod_uses, ["      use $used_mod_name ! add_module_decls() line 156",{'Ref'=>1}];
+                my $use_mod_line ="      use $used_mod_name"; $use_mod_line.= " ! add_module_decls() line 214" if $V;
+                push @mod_uses, [$use_mod_line,{'Ref'=>1}];
             }
             
             my $mod_contains = ["contains\n",{'Ref'=>1}];
@@ -191,9 +223,9 @@ sub add_module_decls {
             	die if $f=~/^\s*$/;
             	
                 my $annlines = get_annotated_sourcelines( $stref, $f );
-                my $refacored_lines = create_refactored_source( $stref,$annlines );
+                my $refactored_lines = create_refactored_source( $stref,$annlines );
 #                my @ref_lines = map { $_->[0] } @{$annlines};
-                @refactored_source_lines=(@refactored_source_lines,@{$refacored_lines})
+                @refactored_source_lines=(@refactored_source_lines,@{$refactored_lines})
             }
             if (!$no_module) {
                 $stref->{'RefactoredSources'}{$src}=[$mod_header, @mod_uses,$mod_contains, @refactored_source_lines,$mod_footer];
@@ -203,8 +235,13 @@ sub add_module_decls {
             	my $before=1;
             	my @prog_p1=();
             	my @prog_p2=();
+#            	my $prog_name='';
             	for my $annline (@refactored_source_lines) {
             		my $info = $annline->[1];
+#            		if (exists $info->{Signature}
+#            		and exists $info->{Signature}{Name} ) {
+#            		 $prog_name = $info->{Signature}{Name};
+#            		}
             		if ($before) {
             			push @prog_p1, $annline;
             		} else {
@@ -219,7 +256,21 @@ sub add_module_decls {
             		
             		}
             	}
+            	
+#            	my $done_fix_end=0;
+#            	while (!$done_fix_end) {
+#            	  my $line =pop @prog_p2;
+#            	  next if ( $line->[0]=~/^\s*$/);
+##            	  print $line->[0],"\n";
+##            	  print Dumper($line->[1]),"\n";
+#            	  if ($line->[0]=~/^\s*end\s*$/) {
+#            	   $line->[0]=~s/\s+$//;
+#            	   push @prog_p2,[ $line->[0]." program $prog_name",{'Ref' => 0}];
+#            	  $done_fix_end=1;
+#            	  }
+#            	}
             	$stref->{'RefactoredSources'}{$src}=[@prog_p1,@mod_uses,@prog_p2];
+            	
             }
         
     } # loop over all source files

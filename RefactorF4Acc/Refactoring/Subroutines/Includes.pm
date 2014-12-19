@@ -100,7 +100,7 @@ sub create_new_include_statements {
 #            my $rline = "      include '$inc'";
             my $tinc = $inc;                    
             $tinc=~s/\./_/g;
-            my $rline = "      use $tinc ! create_new_include_statements() line 102";
+            my $rline = "      use $tinc"; $rline .=" ! create_new_include_statements() line 102" if $V;
             $info->{'Include'}{'Name'} = $inc;
             $info->{'Ref'}=1;
             if (exists $info->{VarDecl}) {

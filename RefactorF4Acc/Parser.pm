@@ -29,9 +29,9 @@ use Exporter;
 
 @RefactorF4Acc::Parser::EXPORT_OK = qw(
   &parse_fortran_src
-  &_parse_vardecl
 );
 
+#&_parse_F77_vardecl
 # -----------------------------------------------------------------------------
 # parse_fortran_src() only parses the source to build the call tree, nothing else
 # We don't need to parse the includes nor the functions at this stage.
@@ -297,7 +297,7 @@ sub _analyse_lines {
 				#				my $tvarlst = $varlst;
 				my $T =
 				  0;  #($f eq 'particles_main_loop' && $varlst=~/drydep/) ? 1:0;
-				my $pvars = _parse_vardecl( $varlst, $T );
+				my $pvars = _parse_F77_vardecl( $varlst, $T );
 #				die Dumper(sort keys %{$pvars}) if $line=~/character/;
 
 				#                if ($f eq 'read_ncwrfout_1realfield') {
@@ -998,7 +998,7 @@ sub _get_commons_params_from_includes {
 				my $commonlst = $2;
 				$has_commons = 1;
 				my @tcommons = split( /\s*\,\s*/, $commonlst );
-				my $parsedvars = _parse_vardecl($commonlst,0);
+				my $parsedvars = _parse_F77_vardecl($commonlst,0);
 #				die Dumper(keys %{$parsedvars}) if $line=~/km/;
 				for my $var (keys %{$parsedvars}) {
 										
@@ -1183,7 +1183,11 @@ sub _get_commons_params_from_includes {
 
 # -----------------------------------------------------------------------------
 # Proper FSM parser for F77 variable declarations (apart from the type)
-sub _parse_vardecl {
+# So this parses the expressions used for the dimensions, but also length 
+# For example 
+# integer*(4) a(3+(2*i),j,-k:k+10)
+
+sub _parse_F77_vardecl {
 	( my $varlst, my $T ) = @_;
 
 	print "VARLST: <$varlst>\n" if $T;
@@ -1355,7 +1359,7 @@ sub _parse_vardecl {
 	}
 
 	return $vars;
-} # END of _parse_vardecl()
+} # END of _parse_F77_vardecl()
 
 # TODO: check if this works for F95-style parameters too
 sub __split_out_parameters {

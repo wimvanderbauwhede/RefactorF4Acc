@@ -91,7 +91,7 @@ This is a node called 'RefactoredSubroutineCall'
 
 sub _refactor_subroutine_main {
     ( my $f, my $stref ) = @_;
-#    local $V=1 if $f=~/interpol_all_/;
+#    local $V=1;# if $f=~/interpol_all_/;
     if ($V) {
         print "\n\n";
         print "#" x 80, "\n";
@@ -104,7 +104,7 @@ sub _refactor_subroutine_main {
 
     my $Sf = $stref->{'Subroutines'}{$f};
     
-    
+#    if ($f eq 'main') {die Dumper($Sf); }
     my $annlines = get_annotated_sourcelines($stref,$f);
 
 # OK here for convect
@@ -118,6 +118,22 @@ sub _refactor_subroutine_main {
             $rlines = _refactor_calls_globals( $stref, $f, $annlines );
         }
     }
+    my $sub_or_prog = ($Sf->{'Program'} == 1) ? 'program' : 'subroutine';
+                	my $done_fix_end=0;
+            	while (!$done_fix_end) {
+            	  my $line =pop @{$rlines};
+            	  next if ( $line->[0]=~/^\s*$/);
+#            	  print $line->[0],"\n";
+            	  my $info=$line->[1];
+#            	  print Dumper($line->[1]),"\n";
+            	  if ($line->[0]=~/^\s*end\s*$/) {
+            	   $line->[0]=~s/\s+$//;
+            	   push @{$rlines},[ $line->[0]." $sub_or_prog $f",$info];
+            	  $done_fix_end=1;
+            	  }
+            	}
+    
+    
     $Sf->{'RefactoredCode'}=$rlines;
     
     if ($f eq 'NONE') {

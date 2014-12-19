@@ -34,13 +34,27 @@ sub find_subroutines_functions_and_includes {
     my $stref = shift;
     my $prefix   = $Config{PREFIX};
     my @srcdirs=@{ $Config{SRCDIRS} };
+    my %excluded_sources = map { $_ => 1 } @{ $Config{EXCL_SRCS} };
+    my %excluded_dirs = map { $_ => 1 } @{ $Config{EXCL_DIRS} };
     # find sources (borrowed from PerlMonks)
+    
     my %src_files = ();
     my $tf_finder = sub {
         return if !-f;
         return if (!/\.f(?:90)?$/ &&!/\.c$/); # rather ad-hoc for Flexpart + WRF
         # FIXME: we must have a list of folders to search or not to search!
-        $src_files{$File::Find::name} = 1;
+        my $srcname = $File::Find::name; 
+        $srcname =~s/^\.\///;
+        my $srcdir = $File::Find::name;
+        $srcdir=~s/\/.+$//;
+        if (not (
+         exists $excluded_sources{$srcname} or 
+         exists $excluded_sources{"./$srcname"} 
+        ) and
+        not exists $excluded_dirs{$srcdir}
+         ) {
+         $src_files{$File::Find::name} = 1;
+        } 
     };
     for my $dir (@srcdirs) {
     	my $path="$prefix/$dir";
@@ -68,14 +82,14 @@ sub find_subroutines_functions_and_includes {
     	} else {
 #    	   print "F90 SOURCE: $src\n"; 
     	}
-        $stref=process_src($src,$stref);
+        $stref=_process_src($src,$stref);
     }
 #    die;
 #die $stref->{'Subroutines'}{'timemanager'}{'HasBlocks'}  ;
     return $stref;
 }    # END of find_subroutines_functions_and_includes()
 
-sub process_src {
+sub _process_src {
 	(my $src, my $stref)=@_;
 	
     my $srctype=''; # sub, func or incl
@@ -236,4 +250,4 @@ sub process_src {
         close $SRC;
         return $stref;	
 	
-} # END of process_src()
+} # END of _process_src()

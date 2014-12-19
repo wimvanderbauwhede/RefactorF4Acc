@@ -23,6 +23,7 @@ use Getopt::Std;
 our $usage = "
     $0 [-hvwCTNbB] <toplevel subroutine name> 
        [<subroutine name(s) for C translation>]
+    Typical use: rf4a -c ./rf4a.cfg -g -v -i main   
     -h: help
     -w: show warnings 
     -v: verbose (implies -w)
@@ -136,12 +137,13 @@ sub main {
 
     # Analyse the source
 	$stateref = analyse_all($stateref,$subname);
+#   die 'AFTER analyse_all()';
 	
     # Refactor the source
 	$stateref = refactor_all($stateref,$subname);
 #   print '=' x 80, "\n";
 #   map {print $_->[0]."\n"} @{ $stateref->{RefactoredSources}{'./les.f'} };
-#   die;
+#   die 'AFTER refactor_all()';
 	if ( not $call_tree_only ) {
 		# Emit the refactored source
 		emit_all($stateref);

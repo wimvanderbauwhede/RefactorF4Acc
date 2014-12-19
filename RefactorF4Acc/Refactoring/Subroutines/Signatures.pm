@@ -64,6 +64,7 @@ sub create_refactored_subroutine_signature {
 # FIXME: IODir needs to be used as INTENT for arguments, rather than just being documentation
 # So when we emit the actual subroutine body code, we need to add the information from
 #  $Sf->{'RefactoredArgs'}{'Set'}{$arg}{'IODir'} for every $arg
+# WV 2014-12-19 this should become add_intent_to_subroutine_signature()
 sub refactor_kernel_signatures {
     ( my $stref, my $f ) = @_;
     my $Sf        = $stref->{'Subroutines'}{$f};
