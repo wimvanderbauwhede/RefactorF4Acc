@@ -110,7 +110,7 @@ sub add_to_call_tree {
 # -----------------------------------------------------------------------------
 sub format_call_tree_line {
 	(my $f, my $stref ) = @_;
-    my $sub_or_func = sub_func_or_incl( $f, $stref );
+    my $sub_or_func = sub_func_incl_mod( $f, $stref );
     my $src         = $stref->{$sub_or_func}{$f}{'Source'};
     if (not defined $src) {
     	$src='<unknown source>';

@@ -1,10 +1,12 @@
 #!/usr/bin/perl
-use 5.010;
+use 5.012;
 use warnings::unused;
 use warnings;
 use warnings FATAL => qw(uninitialized);
 use strict;
 use Data::Dumper;
+$Data::Dumper::Indent = 0;
+$Data::Dumper::Terse = 1;
 
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
@@ -15,7 +17,7 @@ use RefactorF4Acc::CallGraph qw( create_call_graph );
 use RefactorF4Acc::Analysis qw( analyse_all );
 use RefactorF4Acc::Refactoring qw( refactor_all );
 use RefactorF4Acc::Emitter qw( emit_all );
-use RefactorF4Acc::CTranslation qw( translate_all_to_C );
+use RefactorF4Acc::CTranslation qw( refactor_C_targets emit_C_targets translate_to_C);
 use RefactorF4Acc::Builder qw( create_build_script build_executable );
 
 use Getopt::Std;
@@ -134,16 +136,18 @@ sub main {
 		create_call_graph($stateref,$subname);
 		exit(0);
 	}
-
+    
     # Analyse the source
 	$stateref = analyse_all($stateref,$subname);
 #   die 'AFTER analyse_all()';
-	
+#	die Dumper(sort keys %{$stateref});
     # Refactor the source
 	$stateref = refactor_all($stateref,$subname);
-#   print '=' x 80, "\n";
-#   map {print $_->[0]."\n"} @{ $stateref->{RefactoredSources}{'./les.f'} };
-#   die 'AFTER refactor_all()';
+#	die Dumper(sort keys %{$stateref});#->{'Subroutines'});#->{'RefactoredSources'});
+   print '=' x 80, "\n";
+   map {say Dumper($_->[1]) } @{ $stateref->{'Subroutines'}{'press'}{'AnnLines'} };
+#   print Dumper($stateref->{'Subroutines'}{'press'}{'AnnLines'});
+   die 'AFTER refactor_all()';
 	if ( not $call_tree_only ) {
 		# Emit the refactored source
 		emit_all($stateref);

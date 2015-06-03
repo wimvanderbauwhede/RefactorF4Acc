@@ -31,6 +31,7 @@ sub analyse_sources {
     ( my $stref ) = @_;
 
     for my $f ( keys %{ $stref->{'Subroutines'} } ) {
+#        print "SUB: $f\n";
         my $Sf = $stref->{'Subroutines'}{$f};
         if (
             ( exists $Sf->{'Called'} && $Sf->{'Called'} == 1 )
@@ -61,7 +62,7 @@ sub analyse_sources {
 # FIXME: "error: break statement not within loop or switch"
 sub _identify_loops_breaks {
     ( my $f, my $stref ) = @_;
-    my $sub_or_func = sub_func_or_incl( $f, $stref );
+    my $sub_or_func = sub_func_incl_mod( $f, $stref );
     my $Sf          = $stref->{$sub_or_func}{$f};
     my $srcref      = $Sf->{'AnnLines'};
     if ( defined $srcref ) {
@@ -167,7 +168,7 @@ sub _identify_loops_breaks {
             $srcref->[$index]=[$line,$info];
         }
     } else {
-        print "NO SOURCE for $f\n";
+        print "WARNING: NO SOURCE (AnnLines) for $f\n" if $W;        
     }
     return $stref;
 }    # END of _identify_loops_breaks()

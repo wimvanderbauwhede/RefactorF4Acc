@@ -59,12 +59,13 @@ sub context_free_refactorings {
 	( my $stref, my $f ) = @_;
 	print "CREATING FINAL $f CODE\n" if $V;
 	my @extra_lines = ();
-	my $sub_or_func_or_inc = sub_func_or_incl( $f, $stref );
+	my $sub_or_func_or_inc = sub_func_incl_mod( $f, $stref );
 	my $Sf = $stref->{$sub_or_func_or_inc}{$f};
 	if ( $Sf->{'Status'} != $PARSED ) {
 		croak "NOT PARSED: $f\n".caller()."\n";
 	}
 	my $annlines = get_annotated_sourcelines( $stref, $f );
+	my $nextLineID=scalar @{$annlines}+1;
 	my $firstdecl = 1;
 	$Sf->{'RefactoredCode'} = [];
 	my @include_use_stack=();
@@ -97,7 +98,7 @@ sub context_free_refactorings {
 		}
 		# EndDo: replace label CONTINUE by END DO;
 		# if no continue, remove label & add end do on next line
-		if ( exists $tags{'EndDo'} ) {
+		if ( exists $tags{'EndDo'} and exists $tags{'EndDo'}{'Label'}) {
 
 			#warn "$f: END DO $line\n";
 			my $is_goto_target = 0;
@@ -121,7 +122,7 @@ sub context_free_refactorings {
 				}
 			}
 			while ( $count > 0 ) {
-				push @extra_lines, [ '      end do', { 'EndDo' => 1 } ];
+				push @extra_lines, [ '      end do', { 'EndDo' => 1, 'LineID'=>$nextLineID++ } ];
 				$count--;
 			}
 		}
@@ -155,7 +156,7 @@ sub context_free_refactorings {
 				for my $par ( @{ $Sf->{'Parameters'}{'OrderedList'} } ) {
 					my $new_line = format_f95_par_decl( $stref, $f, $par );					
 					push @extra_lines,
-					  [ $new_line, { 'Extra' => 1, 'ParamDecl' => [$par], 'Ref'=>1 } ]; # Create parameter declarations before variable declarations
+					  [ $new_line, { 'Extra' => 1, 'ParamDecl' => [$par], 'Ref'=>1, 'LineID'=>$nextLineID++ } ]; # Create parameter declarations before variable declarations
 				}
 				if ($sub_or_func_or_inc ne 'IncludeFiles') {
 					
@@ -169,12 +170,14 @@ sub context_free_refactorings {
 					   my %tr = %{$info};
 					   $tr{'Extra'} = 1;
 					   $tr{'Ref'}=1;
-					   push @extra_lines, [ $filtered_line, \%tr ];
+					   push @extra_lines, [ $filtered_line, {%tr, 'LineID'=>$nextLineID++} ];
 #					   if ($f eq 'convect'){
 #					   print "FILT: $filtered_line\n";
 #					   die;
 #					   } 
 				    }
+				} else {
+				    $line.= ' !! firstdecl = 1, IncludeFiles '.$f;
 				}				
 				$line = '!! Original line !! ' . $line;
 				$info->{'Deleted'} = 1;
@@ -185,7 +188,7 @@ sub context_free_refactorings {
 						# Remove this line, because this param should have been declared above
 						warn "$f PAR:2\n";
 						$line = '!! Original line PAR:2 !! ' . $line;
-						$info->{'Deleted'} = 1;						
+						$info->{'Deleted'} = 1;												
 					} else {
 						$line = format_f95_var_decl( $Sf, $vars[0] );												
 					}					
@@ -211,7 +214,11 @@ sub context_free_refactorings {
                             $line = '!! Original line !! ' . $line;
                             $info->{'Deleted'} = 1;						
 						} else {
-						  print  "INFO: found var decls not COMMON in $f:\n$line\n" if $I;
+						  print  "INFO: found var decls not COMMON in $f:\n$line\n".Dumper(@vars) if $I;
+						  my @vars_not_pars =
+						  grep { not exists $Sf->{'Parameters'}{$_} } @vars;
+						  $line =
+							  _format_f95_multiple_var_decls( $Sf,@vars_not_pars );
 						}
 					}
 				}
@@ -278,14 +285,15 @@ sub context_free_refactorings {
 			     my $tinc=$inc;
 			     $tinc=~s/\./_/g;
 			     if ($stref->{IncludeFiles}{$inc}{InclType} ne 'External') {
-                $line = "      use $tinc ! context_free_refactorings() line 275";
+                $line = "      use $tinc ! context_free_refactorings() line 281";
 			     } else {
-			     	$line = "      include '$inc' ! context_free_refactorings() line 275";
+			     	$line = "      include '$inc' ! context_free_refactorings() line 283";
 			     }
                 $info->{'Ref'}++;
                 # use must come right after subroutine/function/program
                 # or after another use
                 # or after the module declaration
+                $info->{ 'LineID'}=$nextLineID++;
                 push @include_use_stack, [ $line, $info ];# if $line ne '';
                 next;                
 		}
@@ -298,18 +306,7 @@ sub context_free_refactorings {
 			
 		}
 	}
-	# convect is OK here, but somehow looses these lines later on ...
-#    die Dumper($Sf->{'RefactoredCode'}) if $f eq 'convect';
-
-#    if ( $f eq 'convect' ) {
-#        print "REFACTORED LINES BEFORE SPLICE OF INCLUDE STACK ($f):\n";
-#
-#        for my $tmpline ( @{ $Sf->{'RefactoredCode'} } ) {
-#            print $tmpline->[0], "\n";#"\t", join( ';', keys %{ $tmpline->[1] } ),"\n";
-#        }
-#        print "=================\n";
-##        die;
-#    } 
+ 
     # now splice the include stack just below the signature
     if (@include_use_stack) {
     	my $offset=0;
@@ -330,9 +327,6 @@ sub context_free_refactorings {
 		    	}
 		    }
 		    
-		#    if ($offset !=0) {
-		#    print "OFFSET $f:$offset\n";
-		#    }
 		    if ($offset==0) {
 		    	my $firstline=shift @{ $Sf->{'RefactoredCode'} };
 		    	my @new  = ($firstline,
@@ -353,18 +347,6 @@ sub context_free_refactorings {
 	    }	
     }
     
-    # At this point, convect is still OK ...
-    
-#	if ( $f eq 'convect' ) {
-#		print "REFACTORED LINES ($f):\n";
-#
-#		for my $tmpline ( @{ $Sf->{'RefactoredCode'} } ) {
-#			print $tmpline->[0], "\n";#"\t", join( ';', keys %{ $tmpline->[1] } ),"\n";
-#		}
-#		print "=================\n";
-#		die;
-#	}
-
 	return $stref;
 }    # END of context_free_refactorings()
 
@@ -417,7 +399,7 @@ sub create_refactored_source_OLD {
     ( my $stref, my $f, ) = @_;
     print "CREATING FINAL $f CODE\n" if $V;
     die join( ' ; ', caller ) if $stref !~ /0x/;
-    my $sub_or_func_or_inc = sub_func_or_incl( $f, $stref );
+    my $sub_or_func_or_inc = sub_func_incl_mod( $f, $stref );
     my $Sf                 = $stref->{$sub_or_func_or_inc}{$f};
     my $annlines           = get_annotated_sourcelines( $stref, $f );
     $Sf->{'RefactoredCode'} = [];
@@ -599,7 +581,7 @@ sub split_long_line {
 # -----------------------------------------------------------------------------
 sub get_annotated_sourcelines {
 	( my $stref, my $f ) = @_;
-	my $sub_or_func_or_inc = sub_func_or_incl( $f, $stref );
+	my $sub_or_func_or_inc = sub_func_incl_mod( $f, $stref );
 	my $Sf                 = $stref->{$sub_or_func_or_inc}{$f};
 
 	my $annlines = [];
@@ -611,10 +593,9 @@ sub get_annotated_sourcelines {
 		} else {
 			$annlines = $Sf->{'RefactoredCode'};       # Here a ref is OK
 		}
-	} else {
-		warn "get_annotated_sourcelines($f) \n";
-		warn "STATUS: $Sf->{'Status'} \n";
-		if ($Sf->{'Status'}>0) {
+	} else { 
+		print "WARNING: get_annotated_sourcelines($f) STATUS: ".($Sf->{'Status'}==0 ? 'UNREAD' : 'UNKNOWN')." \n" if $W;
+		if ($Sf->{'Status'}>$INVENTORIED) { # Means it was READ, and INVENTORIED but not PARSED
 #		warn Dumper($Sf);
 		carp "$f NOT PARSED";
 #		die "\n",caller,"\n";
@@ -625,44 +606,6 @@ sub get_annotated_sourcelines {
 
 # -----------------------------------------------------------------------------
 
-sub UNUSED_format_f95_decl {
-	( my $Sfv, my $var_is_par ) = @_;
-	( my $var, my $is_par, my $val ) = @{$var_is_par};
-	my $Sv = $Sfv->{$var};
-	if ( not exists $Sv->{'Decl'} ) {
-		print "WARNING: VAR $var does not exist in UNUSED_format_f95_decl()!\n" if $W;
-		croak $var;
-	}
-	my $spaces = $Sv->{'Decl'};
-	$spaces =~ s/\S.*$//;
-
-	# FIXME: for multiple vars, we need to split this in multiple statements.
-	# So I guess as soon as the Shape is not empty, need to split.
-	my $shape = $Sv->{'Shape'};
-	die Dumper($shape) if join( '', @{$shape} ) =~ /;/;
-	my $dim = '';
-	if ( @{$shape} ) {
-		my @dims = ();
-		for my $i ( 0 .. ( @{$shape} / 2 - 1 ) ) {
-			my $range =
-			  ( $shape->[ 2 * $i ] eq '1' )
-			  ? $shape->[ 2 * $i + 1 ]
-			  : $shape->[ 2 * $i ] . ':' . $shape->[ 2 * $i + 1 ];
-			push @dims, $range;
-		}
-		$dim = ', dimension(' . join( ',', @dims ) . ') ';
-	}
-	my $decl_line = $spaces
-      . $Sv->{'Type'}
-      . $Sv->{'Attr'}
-	  . $dim
-	  . ( $is_par ? ', parameter ' : '' ) . ' :: '
-	  . $var
-	  . ( $is_par ? ' = ' . $val : '' );
-
-	#    die $decl_line  if $dim;
-	return $decl_line;
-}    # UNUSED_format_f95_decl()
 
 # -----------------------------------------------------------------------------
 sub format_f95_var_decl {
@@ -670,25 +613,17 @@ sub format_f95_var_decl {
 	my $Sv = $Sf->{'Vars'}{$var};
 	if ( not exists $Sv->{'Decl'} ) {
 		print "WARNING: VAR $var does not exist in Vars in format_f95_var_decl()!\n" if $W;
-#		die Dumper($Sf->{Source});		
 		croak $var;
-#		$Sv->{'Decl'}='      $var = NULL';
 	} 
 	my $nvar=$var;
 	if (exists $Sf->{'ConflictingLiftedVars'}{$var} ){
 	   $nvar=$Sf->{'ConflictingLiftedVars'}{$var};
 	}
-	my $spaces = $Sv->{'Decl'};
+	my $spaces = $Sv->{'Decl'}; #WV20150424 make Decl a record of 3 entries: [spaces, [type], [varname]]
 	$spaces =~ s/\S.*$//;
     my $intent='';
-#	if ($var eq 'amask1') {
-#		print Dumper($Sv);
-#		die Dumper( $Sf->{'RefactoredArgs'}{'Set'}) ;
-#	}
     if (exists $Sf->{'RefactoredArgs'}{'Set'}{$var}) {
-        $intent = ', intent('.$Sf->{'RefactoredArgs'}{'Set'}{$var}{'IODir'}.')';
-#        warn "F95 $var: intent $intent\n";
-#        print "F95 format_f95_var_decl() $var: intent $intent\n";
+        $intent = ', intent('.$Sf->{'RefactoredArgs'}{'Set'}{$var}{'IODir'}.')'; #WV20150424 make this ['intent',$Sf->{'RefactoredArgs'}{'Set'}{$var}{'IODir'}]
     } 
 	# FIXME: for multiple vars, we need to split this in multiple statements.
 	# So I guess as soon as the Shape is not empty, need to split.
@@ -704,12 +639,12 @@ sub format_f95_var_decl {
 			  : $shape->[ 2 * $i ] . ':' . $shape->[ 2 * $i + 1 ];
 			push @dims, $range;
 		}
-		$dim = ', dimension(' . join( ',', @dims ) . ') ';
+		$dim = ', dimension(' . join( ',', @dims ) . ') '; #WV20150424 this had better be ['dimension',[@dims]] 
 	}
 
 	my $decl_line =
 	  $spaces . $Sv->{'Type'} .$Sv->{'Attr'}. $dim . $intent .' :: ' . $nvar;
-
+#WV20150424 this should become return [$spaces,[$Sv->{'Type'}, $Sv->{'Attr'}, $dim , $intent ],[$nvar]];
 	return $decl_line;
 }    # format_f95_var_decl()
 
@@ -753,100 +688,12 @@ sub format_f77_var_decl {
       $spaces . $Sv->{'Type'} .$attr. ' ' . $var . $dim ;
 
     #    die $decl_line  if $dim;
+#WV20150424 this should become return [$spaces,[$Sv->{'Type'}, $Sv->{'Attr'}, $dim , [] ],[$var]]; # so intent is empty, i.e. default      
     return $decl_line;
 }    # format_f77_var_decl()
 
 # -----------------------------------------------------------------------------
-#sub format_f95_multiple_decl {
-#	( my $Sfv, my $var_is_par_tups ) = @_;
-#	my @vars = map { $_->[0] } @{$var_is_par_tups};
-#
-#	my @var_vals = map { "$_->[0] = $_->[2]" } @{$var_is_par_tups};
-#	my %test = map { ( $_->[1], 1 ) } @{$var_is_par_tups};
-#	my $Sv = $Sfv->{ $vars[0] };
-#	if ( not exists $Sv->{'Decl'} ) {
-#		print "WARNING: VAR $vars[0] does not exist in UNUSED_format_f95_decl()!\n"
-#		  if $W;
-#		croak $vars[0];
-#	}
-#	my $spaces = $Sv->{'Indent'};
-#	
-#	my $type = $Sv->{'Type'};
-# 	
-#    my $attr = $Sv->{'Attr'};
-#	# FIXME: for multiple vars, we need to split this in multiple statements.
-#	# So I guess as soon as the Shape is not empty, need to split.
-#	my $split = ( exists $test{0} and exists $test{1} );
-#	if ( !$split ) {
-#		for my $var (@vars) {
-#			my $shape = $Sfv->{$var}{'Shape'};
-#			if ( @{$shape} > 0 && @vars > 1 ) {
-#				$split = 1;
-#				last;
-#			}
-#		}
-#	}
-#
-#	if ($split) {
-#
-#		my $decl_line = $spaces;    #.$Sv->{'Type'}.' :: '.join(', ',@vars);
-#		  # What we need to do is split these into separate statements with semicolons
-#		for my $tup ( @{$var_is_par_tups} ) {
-#			( my $var, my $is_par, my $val ) = @{$tup};
-#			my $dim   = '';
-#			my $shape = $Sfv->{$var}{'Shape'};
-#			if ( @{$shape} > 1 ) {
-#
-#				my @dims = ();
-#				for my $i ( 0 .. ( @{$shape} / 2 - 1 ) ) {
-#					my $range =
-#					  ( "$shape->[2*$i]" eq '1' )
-#					  ? $shape->[ 2 * $i + 1 ]
-#					  : $shape->[ 2 * $i ] . ':' . $shape->[ 2 * $i + 1 ];
-#					push @dims, $range;
-#				}
-#				$dim = ', dimension(' . join( ',', @dims ) . ') ';
-#			}
-#
-#			my $decl = '';
-#			if ($is_par) {
-#				$decl =
-#				  "$type$attr $dim ,parameter :: $var = $val; "
-#				  ; # FIXME: it is possible that $val is a function of another parameter
-#			} else {
-#				$decl = "$type$attr $dim :: $var; ";
-#			}
-#			$decl_line .= $decl;
-#		}
-#		return $decl_line;
-#	} else {
-#
-#		# for Shape, it means they are all empty OR there is just one!
-#		my $dim = '';
-#		if ( @vars == 1 ) {
-#			my $shape = $Sfv->{ $vars[0] }{'Shape'};
-#			if ( @{$shape} ) {
-#				my @dims = ();
-#				for my $i ( 0 .. ( @{$shape} / 2 - 1 ) ) {
-#					my $range =
-#					  ( $shape->[ 2 * $i ] eq '1' )
-#					  ? $shape->[ 2 * $i + 1 ]
-#					  : $shape->[ 2 * $i ] . ':' . $shape->[ 2 * $i + 1 ];
-#					push @dims, $range;
-#				}
-#				$dim = ', dimension(' . join( ',', @dims ) . ') ';
-#			}
-#		}
-#		my $decl_line = $spaces . $type . $attr . $dim;
-#		if ( exists $test{1} ) {
-#			$decl_line .= ' ,parameter :: ' . join( ', ', @var_vals );
-#
-#		} else {
-#			$decl_line .= ' :: ' . join( ', ', @vars );
-#		}
-#		return $decl_line;
-#	}
-#}    # format_f95_multiple_decl()
+
 
 # -----------------------------------------------------------------------------
 sub _format_f95_multiple_var_decls {
@@ -854,7 +701,7 @@ sub _format_f95_multiple_var_decls {
 
 	my $Sv = $Sf->{'Vars'}{ $vars[0] };
 	if ( not exists $Sv->{'Decl'} ) {
-		print "WARNING: VAR $vars[0] does not exist in UNUSED_format_f95_decl()!\n"
+		print "WARNING: VAR $vars[0] does not exist in _format_f95_multiple_var_decls()!\n"
 		  if $W;		  
 		croak $vars[0];
 	}
@@ -982,7 +829,7 @@ sub UNUSED_resolve_params {
 
 sub format_f95_par_decl {
 	( my $stref,my $f, my $var ) = @_;
-    my $sub_or_func_or_inc = sub_func_or_incl( $f, $stref );
+    my $sub_or_func_or_inc = sub_func_incl_mod( $f, $stref );
     my $Sf = $stref->{$sub_or_func_or_inc}{$f};	
 #    print "VAR:<$var> ";
 	my $val = $Sf->{'Parameters'}{$var}{'Val'};
@@ -1037,7 +884,7 @@ sub format_f95_par_decl {
 
 sub _rename_conflicting_global_pars {
 	(my $stref, my $f, my $k, my $rhs_expr)=@_;
-    my $sub_or_func_or_inc = sub_func_or_incl( $f, $stref );
+    my $sub_or_func_or_inc = sub_func_incl_mod( $f, $stref );
     my $Sf = $stref->{$sub_or_func_or_inc}{$f};
 #print "$f $k ";
 #print "<$rhs_expr>\n";
@@ -1084,7 +931,7 @@ sub _rename_conflicting_global_pars {
 }
 sub _rename_conflicting_vars {
 	(my $expr, my $stref, my $f)=@_;
-    my $sub_or_func_or_inc = sub_func_or_incl( $f, $stref );
+    my $sub_or_func_or_inc = sub_func_incl_mod( $f, $stref );
     my $Sf = $stref->{$sub_or_func_or_inc}{$f};
 	
     my @vals= grep {/[a-z]\w*/} split( /\W+/, $expr );     
@@ -1137,7 +984,7 @@ sub _rename_conflicting_vars {
 
 sub _rename_conflicting_lhs_var {
     (my $expr, my $stref, my $f)=@_;
-    my $sub_or_func_or_inc = sub_func_or_incl( $f, $stref );
+    my $sub_or_func_or_inc = sub_func_incl_mod( $f, $stref );
     my $Sf = $stref->{$sub_or_func_or_inc}{$f};
     my $val=$expr;
                         

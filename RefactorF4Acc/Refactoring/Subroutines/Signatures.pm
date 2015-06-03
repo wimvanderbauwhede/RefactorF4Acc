@@ -164,10 +164,12 @@ sub refactor_subroutine_signature {
             print "SUB $f ORIG ARGS: ()\n";
         }
     }
+#    if ($stref->{'Subroutines'}{$f}
     my @exglobs            = ();
     my @nexglobs           = ();    
     # Loop over all globals and create the list @exglobs by concatenation
     # Also add all vars to $Sf->{'Vars'} unless they were already there    
+    
     for my $inc ( keys %{ $Sf->{'Globals'} } ) {
         print "INFO: INC $inc in $f\n" if $V;
         if ( not exists $stref->{'IncludeFiles'}{$inc}{'Root'} ) {
@@ -208,6 +210,7 @@ sub refactor_subroutine_signature {
     $Sf->{'RefactoredArgs'}{'List'} = $args_ref;
     %{ $Sf->{'RefactoredArgs'}{'Set'}} = map {$_ => {'IODir' => 'Unknown'} } @{ $args_ref };    
     $Sf->{'HasRefactoredArgs'} = 1;
+    
     return $stref;
 }    # END of refactor_subroutine_signature()
 

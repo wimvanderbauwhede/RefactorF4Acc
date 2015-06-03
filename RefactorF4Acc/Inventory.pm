@@ -23,6 +23,7 @@ use Exporter;
 use File::Find;
 
 use RefactorF4Acc::Config;
+use RefactorF4Acc::Utils qw(module_has_only);
 
 # Find all source files in the current directory
 # The files are parsed to determine the following information:
@@ -30,6 +31,8 @@ use RefactorF4Acc::Config;
 # Fortran style: FStyle
 # Free or fixed form: FreeForm
 # Are there blocks to be refactored: HasBlocks
+# For F90/95, we also find the modules and tag the modules with
+# Uses, Subroutines, Functions, Includes, Parameters, TypeDecls, ImplicitRules, Interfaces (not yet).
 sub find_subroutines_functions_and_includes {	
     my $stref = shift;
     my $prefix   = $Config{PREFIX};
@@ -41,21 +44,25 @@ sub find_subroutines_functions_and_includes {
     my %src_files = ();
     my $tf_finder = sub {
         return if !-f;
-        return if (!/\.f(?:90)?$/ &&!/\.c$/); # rather ad-hoc for Flexpart + WRF
+        return if (!/\.f(?:9[05])?$/ &&!/\.c$/); # rather ad-hoc for Flexpart + WRF
         # FIXME: we must have a list of folders to search or not to search!
         my $srcname = $File::Find::name; 
         $srcname =~s/^\.\///;
-        my $srcdir = $File::Find::name;
-        $srcdir=~s/\/.+$//;
+        my $srcdir = $File::Find::name; 
+        $srcdir=~s/\/.+$//;        
+#        print "<$srcdir>\n";
         if (not (
          exists $excluded_sources{$srcname} or 
          exists $excluded_sources{"./$srcname"} 
         ) and
-        not exists $excluded_dirs{$srcdir}
+        not exists $excluded_dirs{$srcdir} # this does not work as the $srcdir is simply '.' 
          ) {
          $src_files{$File::Find::name} = 1;
-        } 
+        } else {
+            print "EXCLUDED SOURCE: $srcname\n" if $V;
+        }
     };
+    
     for my $dir (@srcdirs) {
     	my $path="$prefix/$dir";
     	if ($dir eq '.') {
@@ -64,10 +71,24 @@ sub find_subroutines_functions_and_includes {
 #    	print "$path\n";
         find( $tf_finder, $path );
     }
+#    print Dumper(%src_files);die;
 #    find( $tf_finder, '.' );
 #	$stref->{'SourceFiles'}=\%src_files;
     for my $src ( sort keys %src_files ) {#sort WV23JUL2012
-    	if  ($src=~/\.c$/) {
+#    my $test_src=$src;
+        my $exclude=0;
+        
+#        die Dumper(%excluded_dirs);
+        for my $excl_dir (keys %excluded_dirs) {            
+            if ($src=~/$excl_dir\//) { 
+                $exclude=1;
+#                print "EXCLUDED DIR: $excl_dir\n" if $V;                
+                last;
+            }
+        }    
+        next if $exclude;
+#        die $src if ($src=~/timdata/); 
+    	if  ($src=~/\.c$/) { 
 #    		warn "C SOURCE: $src\n";
     		# FIXME: ugly ad-hoc hack!
     		# WRF uses cpp to make subroutine names match with Fortran
@@ -79,26 +100,36 @@ sub find_subroutines_functions_and_includes {
     		
 #    		die;
             
-    	} else {
+    	} 
+#    	else {
 #    	   print "F90 SOURCE: $src\n"; 
-    	}
+#    	}
+    	
         $stref=_process_src($src,$stref);
     }
 #    die;
-#die $stref->{'Subroutines'}{'timemanager'}{'HasBlocks'}  ;
+
+    _test_can_be_inlined_all_modules($stref);    
+    
     return $stref;
 }    # END of find_subroutines_functions_and_includes()
+
+
+
 
 sub _process_src {
 	(my $src, my $stref)=@_;
 	
-    my $srctype=''; # sub, func or incl
+    my $srctype=''; # sub, func or incl; for F90/95 also module, and then we must tag the module by what it contains
     my $f=''; # name of the entity
     my $has_blocks=0;
     my $free_form=0;
     my $fstyle='F77';   
     my $translate_to='';
     my $in_interface_block=0;
+    my $is_module=0;
+    my $mod_name='NONE'; 
+    
     open my $SRC, '<', $src;
     while ( my $line = <$SRC> ) {
 
@@ -138,15 +169,26 @@ sub _process_src {
             }
         }   
         # Tests for F77 or F95
-        if ($fstyle eq 'F77') {
-            if ( $line =~ /\bmodule\b/i ) { 
+        
+            if ( $line =~ /^\s*module\s+(\w+)/i ) { # die "LINE: $line";
+                $is_module=1; 
+                $srctype='Modules';
+                $mod_name = $1;#die $line.':'.$mod_name;
+                $f=$mod_name;
+# What I want is a connection between a module and its file name, and also with its content.
+# So that we can say, given a module name, get the source, from there get the contents
+# Maybe we don't really need the source, as we can use the module name as identifier
+                $stref->{'Modules'}{$mod_name}{'Source'}=$src;
+
                     $fstyle='F95';
-            } elsif ( $line =~ /^\s*(.*)\s*::\s*(.*?)\s*$/ ) {
+            } 
+        if ($fstyle eq 'F77') {            
+            if ( $line =~ /^\s*(.*)\s*::\s*(.*?)\s*$/ ) {
                  $fstyle='F95';
             }
-        }
+        } 
         
-        if ( $line =~ /^\s+interface/i ) { 
+        if ( $line =~ /^\s+interface/i ) { #TODO: should be added to inventory of module
             $in_interface_block=1;
              $stref->{$srctype}{$f}{'Interface'}={};
         }
@@ -155,16 +197,20 @@ sub _process_src {
         }
         
             # Find subroutine/program signatures
-            $line =~ /^\s*(recursive\s+subroutine|subroutine|program)\s+(\w+)/i && do {                
+            $line =~ /^\s*(recursive\s+subroutine|subroutine|program)\s+(\w+)/i && do {
+                                
                 my $is_prog = (lc($1) eq 'program') ? 1 : 0;
                 my $tmp=$1;
                 my $sub  = lc($2);
                 my $is_rec = ($tmp =~/recursive/i) ? 1 : 0;
                 if ( $is_prog == 1 ) {
-                    print "Found program $2 in $src\n" if $V;
-                }                
+                    print "Found program $2 in $src\n" if $V;                    
+                }
+                if ($is_module) {
+                    $stref->{'Modules'}{$mod_name}{'Subroutines'}{$sub}={};
+                }
                 die 'No subroutine name from '.$line if $sub eq '' or not defined $sub;
-                if ($in_interface_block==0) {
+                if (not $in_interface_block) {
 	                $f=$sub;                
 	                $srctype='Subroutines';
 	                $stref->{'Subroutines'}{$sub}={};
@@ -172,13 +218,13 @@ sub _process_src {
 	                my $Ssub = $stref->{'Subroutines'}{$sub};
 	                if (
 	                    not exists $Ssub->{'Source'}
-	                    or (    $src =~ /$sub\.f(?:90)?/
-	                        and $Ssub->{'Source'} !~ /$sub\.f(?:90)?/ )
+	                    or (    $src =~ /$sub\.f(?:9[05])?/
+	                        and $Ssub->{'Source'} !~ /$sub\.f(?:9[05])?/ )
 	                  )
 	                {
 	                    if (    exists $Ssub->{'Source'}
-	                        and $src =~ /$sub\.f(?:90)?/
-	                        and $Ssub->{'Source'} !~ /$sub\.f(?:90)?/ )
+	                        and $src =~ /$sub\.f(?:9[05])?/
+	                        and $Ssub->{'Source'} !~ /$sub\.f(?:9[05])?/ )
 	                    {
 	                        print "WARNING: Ignoring source "
 	                          . $Ssub->{'Source'}
@@ -191,7 +237,7 @@ sub _process_src {
 	                    $Ssub->{'Recursive'} = $is_rec;
 	                    $Ssub->{'Callers'}  = {};
 	                    if ($is_prog==1) {
-	                    	$stref->{'Program'}=$src;
+	                    	$stref->{'Program'}=$src;	                    	
 	                    }
 	                    if ($translate_to ne '') {
 	                        $Ssub->{'Translate'}  = $translate_to;
@@ -213,6 +259,10 @@ sub _process_src {
             # Find include statements
             $line =~ /^\s*include\s+\'([\w\.]+)\'/ && do {
                 my $inc = $1;
+                 if ($is_module) {
+                    $stref->{'Modules'}{$mod_name}{'IncludeFiles'}{$inc}={};
+                }
+
 #                print "FOUND INC $inc\n" if $V;
                 if ( not exists $stref->{'IncludeFiles'}{$inc} ) {
                     $stref->{'IncludeFiles'}{$inc}{'Status'} = $UNREAD;                                        
@@ -224,11 +274,27 @@ sub _process_src {
                     }
                 }
             };
-
+            
+            # Find use statements, for F90/F95. 
+#die $line if $f=~/common/ and $line=~/params_common_sn/;
+            $line =~/^\s*use\s+([_\w]+)(?:\s*,\s*only\s*:\s*(.+)\s*)?/ && do { #FIXME: no support for R1108 rename ; R1109 is incomplete; no support for R1110, R1111
+                my $mod = $1; 
+                my $only_list = $2;
+                if ($is_module) {
+                    $stref->{'Modules'}{$mod_name}{'Uses'}{$mod}={};
+                }
+                if ( not exists $stref->{'Modules'}{$mod} ) {
+                    $stref->{'Modules'}{$mod}{'Status'} = $UNREAD;                                        
+                }
+            };
+            
             # Find function signatures
             $line =~ /\bfunction\s+(\w+)/i && do {
 #            	print "FUNC: $line process_src() 216 \n";
                 my $func = lc($1);                               
+                if ($is_module) {
+                    $stref->{'Modules'}{$mod_name}{'Functions'}{$func}={};
+                }
                 $stref->{'Functions'}{$func}{'Source'} = $src;
                 $stref->{'Functions'}{$func}{'Status'} = $UNREAD;
                 if ($translate_to ne '') {
@@ -239,15 +305,64 @@ sub _process_src {
                   $srctype='Functions';
                   $stref->{'SourceContains'}{$src}{$f}=$srctype;
             };
+
+            $line =~/::/ && do {
+                if ($is_module) {
+                    if ($line =~ /parameter/ ) {
+                        $stref->{'Modules'}{$mod_name}{'Parameters'}={};
+                    } else {
+                        $stref->{'Modules'}{$mod_name}{'TypeDecls'}={};
+                    }
+                }
+            };
+         
+            $line =~/implicit\s+(?!none)/ &&  do {
+                if ($is_module) {
+                    $stref->{'Modules'}{$mod_name}{'ImplicitRules'}={};                    
+                }
+            };
          
             $stref->{$srctype}{$f}{'FStyle'}=$fstyle;
             $stref->{$srctype}{$f}{'FreeForm'}=$free_form;  
             $stref->{$srctype}{$f}{'HasBlocks'}=$has_blocks;
 #            print "{$srctype}{$f}{'HasBlocks'}=$has_blocks\n";
+            if ($is_module) {
+                $stref->{'Modules'}{$mod_name}{'Status'} = $INVENTORIED; 
+            }
         
         } # loop over lines;
             
         close $SRC;
+#        if ($mod_name =~/common/) { die Dumper($stref->{'Modules'}{$mod_name}) };
         return $stref;	
 	
 } # END of _process_src()
+
+sub _test_can_be_inlined_all_modules { (my $stref) = @_;
+    for my $mod_name (keys %{ $stref->{'Modules'} }) {
+#        print $mod_name ,"\n";
+        my $inline_ok=1;
+        if (_can_be_inlined($stref, $mod_name,  $inline_ok) )  {
+            print "INLINEABLE: $mod_name\n" if $V;
+            $stref->{'Modules'}{$mod_name}{'Inlineable'}=1;
+        }
+    }
+    
+}
+
+sub _can_be_inlined { (my $stref, my $mod_name, my $inline_ok) = @_;
+#    if ($mod_name =~/common/) { die Dumper($stref->{'Modules'}{$mod_name}) };
+    if ( module_has_only($stref, $mod_name,['Parameters','TypeDecls','ImplicitRules','Uses'] ) ) {
+#        print "Module $mod_name candidate for INLINE\n" if $V;
+        for my $used_mods (keys %{  $stref->{'Modules'}{$mod_name}{'Uses'} } ) {
+            $inline_ok*=_can_be_inlined($stref,$used_mods, $inline_ok);
+        }
+#        if ($inline_ok) {
+#            print "Module $mod_name is INLINEABLE\n" if $V;
+#        }
+    } else {
+        return 0;
+    }
+    return $inline_ok;
+}
+

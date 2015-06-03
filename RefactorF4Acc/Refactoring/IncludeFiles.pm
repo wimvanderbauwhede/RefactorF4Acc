@@ -48,6 +48,7 @@ sub _refactor_include_file {
 	( my $f, my $stref ) = @_; 
 
 	print "\n\n", '#' x 80, "\nRefactoring INC $f\n", '#' x 80, "\n" if $V;
+	
 	my $If = $stref->{'IncludeFiles'}{$f};
 	my $ff=$f;
 	$ff=~s/\./_/g;
@@ -61,8 +62,9 @@ sub _refactor_include_file {
     }
 
 	my $annlines = get_annotated_sourcelines( $stref, $f );
-	
 #	croak Dumper($annlines);
+    # So at this point the type declarations have not been refactored.
+    # I can either do it here ad-hoc or see why they did not get refactored.
     my %deps=();
     my $refactored_lines=[];
     push @{ $refactored_lines },
@@ -123,6 +125,12 @@ sub _refactor_include_file {
 			}
 			
 		}
+		if ( exists $tags{'Implicit'} ) {
+		    print "WARNING: IMPLICIT: removing the implicit type declaration <$line> in $f, please make sure your code does not use them!\n" if $W;		    
+		    $line = '!! '.$line;
+		    $info->{'Comments'}=1;
+		    
+		}
 		if ( $skip == 0 ) {
 				push @{ $refactored_lines },
 				  [ $line, $info ];
@@ -138,10 +146,15 @@ sub _refactor_include_file {
             [ "use $dep ! refactor_include() line 146", {'ModuleDep'=>$dep, 'Ref'=>1} ];
         }
         unshift @{ $refactored_lines },$firstline;
- $stref->{'IncludeFiles'}{$f}{'RefactoredCode'}  = $refactored_lines;                  
+     $stref->{'IncludeFiles'}{$f}{'RefactoredCode'}  = $refactored_lines;
+# 	if ($f=~/^common/)  {
+#	    print Dumper($refactored_lines);
+#	    die;
+#	}
+                   
 	return $stref;
 
-} # END of refactor_include_file()
+} # END of _refactor_include_file()
 
 # -----------------------------------------------------------------------------
 # This routine is misnamed.  What it does is checking for dependencies of variables used in array shapes

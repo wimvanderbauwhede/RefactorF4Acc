@@ -48,6 +48,7 @@ Subroutines
 sub refactor_all_subroutines {
     ( my $stref ) = @_;
     for my $f ( keys %{ $stref->{'Subroutines'} } ) {
+        next if ($f eq '' or not defined $f);
 #    	die "refactor_all_subroutines(): empty subroutine name" if $f eq '';    	
         my $Sf = $stref->{'Subroutines'}{$f};        
         if ( not defined $Sf->{'Status'} ) {
@@ -120,7 +121,7 @@ sub _refactor_subroutine_main {
     }
     my $sub_or_prog = ($Sf->{'Program'} == 1) ? 'program' : 'subroutine';
                 	my $done_fix_end=0;
-            	while (!$done_fix_end) {
+            	while (!$done_fix_end and @{$rlines}) {
             	  my $line =pop @{$rlines};
             	  next if ( $line->[0]=~/^\s*$/);
 #            	  print $line->[0],"\n";

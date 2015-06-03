@@ -77,6 +77,7 @@ sub OLD_emit_all {
 }    # END of OLD_emit_all()
 
 # -----------------------------------------------------------------------------
+# This routine does not generate or manipulate files, it only does copying etc. 
 sub _init_emit_all {
         # if target dir for refactored code does not exist, create it
         # and copy include files into it

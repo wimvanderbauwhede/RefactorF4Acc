@@ -19,15 +19,17 @@ use Exporter;
 @RefactorF4Acc::Utils::ISA = qw(Exporter);
 
 @RefactorF4Acc::Utils::EXPORT = qw(
-    &sub_func_or_incl
+    &sub_func_incl_mod
     &show_annlines
     &get_maybe_args_globs
     &union
     &ordered_union
+    &module_has
+    &module_has_only
     &generate_docs
 );
 
-sub sub_func_or_incl {
+sub sub_func_incl_mod {
     ( my $f, my $stref ) = @_;
     die join(' ; ', caller ) if $stref!~/0x/;        
     if ( exists $stref->{'Subroutines'}{$f} ) {
@@ -36,6 +38,8 @@ sub sub_func_or_incl {
         return 'Functions';
     } elsif ( exists $stref->{'IncludeFiles'}{$f} ) {
         return 'IncludeFiles';
+    } elsif ( exists $stref->{'Modules'}{$f} ) { # So we only say it's a module if it is nothing else.
+        return 'Modules';        
     } else {
 #        #print Dumper($stref);
 #        #croak "No entry for $f in the state\n";
@@ -113,6 +117,43 @@ sub ordered_union {
 	    return \@us;
     }
 }    # END of ordered_union()
+# -----------------------------------------------------------------------------
+# Returns true if the module contains all items in the  $mod_has_lst
+sub module_has { (my $stref, my $mod_name, my $mod_has_lst) = @_;
+
+    my @mod_keys = keys %{ $stref->{'Modules'}{$mod_name} };
+    my %mod_has = map { {$_ => 1 } } @mod_keys;
+    for my $k (@{$mod_has_lst} ) {
+        if (not exists $mod_has{$k}) {
+            return 0;
+        }
+    }
+    return 1;
+}
+# -----------------------------------------------------------------------------
+# Returns true if the module contains only items in the $mod_only list, at least one of them
+sub module_has_only { (my $stref, my $mod_name, my $mod_only) = @_;
+#print "MODULE $mod_name INLINEABLE?\n";
+    
+#    print 'MOD_KEYS:'."\n".Dumper(@mod_keys);
+my %mod_has=();
+for my $k ( keys %{ $stref->{'Modules'}{$mod_name} } ) {    
+    $mod_has{$k}=1;
+}
+#print 'INL MOD_HAS:'.Dumper(%mod_has)."\n";
+#'TypeDecls' => {},'Uses' => {'params_common_sn' => {}},'Source' => './common_sn.f95'
+    for my $k (@{$mod_only},'Status','Source','FStyle','FreeForm','HasBlocks' ) {
+#        print "INL: ONLY: $k\n";
+        if (exists $mod_has{$k}) {
+            delete $mod_has{$k};
+        }
+    }
+#    print Dumper(keys %mod_has);
+#    die $mod_name if $mod_name=~/common/;
+    if (scalar(keys( %mod_has )) > 0 ) { return 0; } else {
+#        print 'MAYBE INLINEABLE MOD: '.$mod_name."\n";
+        return 1; }
+}
 
 # -----------------------------------------------------------------------------
 # -----------------------------------------------------------------------------

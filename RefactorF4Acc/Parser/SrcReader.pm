@@ -1,9 +1,9 @@
 package RefactorF4Acc::Parser::SrcReader;
 
 use RefactorF4Acc::Config;
-use RefactorF4Acc::Utils;
-use RefactorF4Acc::Refactoring::Common
-  qw( format_f95_var_decl format_f77_var_decl );
+use RefactorF4Acc::Utils qw( sub_func_incl_mod );
+use RefactorF4Acc::Refactoring::Common qw( format_f95_var_decl format_f77_var_decl );
+use F95Normaliser qw( normalise_F95_src );
 
 #
 #   (c) 2010-2012 Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
@@ -27,20 +27,23 @@ use Exporter;
 @RefactorF4Acc::Parser::SrcReader::EXPORT_OK = qw(
   &read_fortran_src
 );
+
 sub read_fortran_src {
 	( my $s, my $stref ) = @_;
 #	print "\n",'-' x 80,"\nread_fortran_src( $s )\n"; 
 #    local $V=1;
 #	*DBG = *STDOUT;
     open DBG, '>/dev/null';
+# Determine the type of file (Include or not)
 	my $is_incl = exists $stref->{'IncludeFiles'}{$s} ? 1 : 0;
 
-	my $sub_func_incl = sub_func_or_incl( $s, $stref );
+	my $sub_func_incl = sub_func_incl_mod( $s, $stref );
 	if ($sub_func_incl eq 'ExternalSubroutines') {
 		$stref->{$sub_func_incl}{$s}{'Status'}=$UNREAD;		
 	}
+# Are there any Blocks?
 	if (not exists $stref->{$sub_func_incl}{$s}{'HasBlocks'} ){
-	$stref->{$sub_func_incl}{$s}{'HasBlocks'} = 0;
+	   $stref->{$sub_func_incl}{$s}{'HasBlocks'} = 0;
 	}
 	my $f = $is_incl ? $s : $stref->{$sub_func_incl}{$s}{'Source'};
 
@@ -61,6 +64,7 @@ sub read_fortran_src {
 	 
 		if ($need_to_read) {
 		    my $ok = 1;
+		    
 		    open my $SRC, '<', $f or do {
                 print DBG "WARNING: Can't find '$f' ($s)\n";
                 $ok = 0;
@@ -83,6 +87,7 @@ sub read_fortran_src {
 
 			
 			if ($free_form) {
+			    
 =info_free_form_parsing
 The main difference is in the continuation lines:
 For free form, they are
@@ -100,16 +105,31 @@ so, as soon as we detect an & at the end of a line, we are in multi-line parsing
 So, in this case, is there any reason to look ahead?
 Suppose we don't:
 =cut
-                my $s=($srctype eq 'IncludeFiles') ? $s : '';
+                my $old_s=$s;
+#                my $s=($srctype eq 'IncludeFiles') ? $s : '';
                 my $in_cont              = 0;
                 my @comments_stack       = ();
 
+                my $norm_lines = normalise_F95_src([@lines]);
+                
+				for my $line (@{$norm_lines}) {
+					        # emit line
+					        if ( $line ne '' ) {
+#					        	print "PUSH $line\n";
+					            ( $stref, $s, $srctype ) =
+					            pushAnnLine( $stref, $s, $srctype,$line, $free_form );
+					        }					    
+				}
+#				die "S:$s ".Dumper($stref->{$srctype}{$s} );		
+=off				
 				for my $line (@lines) {		
-#					print "LINE: $line\n";		
+#					    die $line if $s=~/anime/ ;#and $line=~/\&/);			    
 					if ($in_cont==0) {
-					    if ( isCont( $line, $free_form ) ) {
-						   $in_cont=1;
-					       $joinedline .= removeCont( $line, $free_form );	
+					                            
+					    if (hasCont($line)) {
+					        	
+					        $in_cont=1;
+					        $joinedline .= removeCont( $line, $free_form );					       
 					    } else {
 					        # emit line
 					        if ( $line ne '' ) {
@@ -117,35 +137,41 @@ Suppose we don't:
 
 					            ( $stref, $s, $srctype ) =
 					            pushAnnLine( $stref, $s, $srctype,$line, $free_form );
-					        }	
+					        }						        
 					    }
-					} else {
-						if ( isCont( $line, $free_form ) ) {
-						   $joinedline .= removeCont( $line, $free_form );
-						} elsif ( isCommentOrBlank($line) ) {
+					} else { # in continued line
+					    if ( isCommentOrBlank($line) ) {
 					        push @comments_stack, $line;
-						} else {
-							# In cont but line is not cont => end of cont line => 
-							# emit comments;
-					        for my $commentline (@comments_stack) {
-					        	
-					            ( $stref, $s, $srctype ) =
-					                                      pushAnnLine( $stref, $s, $srctype,
-					                                        $commentline, $free_form );
-					        }                                        
-					        @comments_stack       = ();
-							
-							# emit joined line
-					        if ( $joinedline ne '' ) {
-					        	
-					            ( $stref, $s, $srctype ) =
-					            pushAnnLine( $stref, $s, $srctype,$joinedline, $free_form );
-					        }   
-							$joinedline='';
-							$in_cont=0;
-						}	
-					}
-				}
+					    } else {
+					        if (not hasCont($line)) {
+#					            $line=~s/^\s+/ /;
+					            $joinedline .= removeCont( $line, $free_form );
+#					            die $joinedline if ($s=~/anime/ and $joinedline=~/\)\s*$/);	
+    							# emit comments;
+    					        for my $commentline (@comments_stack) {
+    					        	
+    					            ( $stref, $s, $srctype ) =
+    					                                      pushAnnLine( $stref, $s, $srctype,
+    					                                        $commentline, $free_form );
+    					        }                                        
+    					        @comments_stack       = ();
+    							
+    							# emit joined line
+    					        if ( $joinedline ne '' ) {
+    					        	
+    					            ( $stref, $s, $srctype ) =
+    					            pushAnnLine( $stref, $s, $srctype,$joinedline, $free_form );
+    					        }   
+    							$joinedline='';
+    							$in_cont=0;					            
+					        } else {
+					            $joinedline .= removeCont( $line, $free_form );
+					        }
+					    }
+					}    				
+				} # loop over lines
+=cut				
+#				die "SRC: $f ".Dumper($stref->{'Subroutines'}{$old_s} ) if $old_s eq 'main';
 # --------------------- # END of free-form parsing # --------------------- 			
 				
 			} else {
@@ -803,24 +829,6 @@ Suppose we don't:
                         }
                     }
 ####### POSTAMBLE
-#
-#				if ( $joinedline ne '' ) {
-#					( $stref, $s, $srctype ) =
-#					  pushAnnLine( $stref, $s, $srctype, $joinedline,
-#						$free_form );
-#				}
-#				if (!$in_cont) {
-#					if ($line ne $joinedline) { # FIXME: WEAK! 					
-#					( $stref, $s, $srctype ) =
-#					  pushAnnLine( $stref, $s, $srctype, $line, $free_form );
-#					}
-#					if ( not $line_set_to_nextline ) {
-#						( $stref, $s, $srctype ) =
-#						  pushAnnLine( $stref, $s, $srctype, $nextline,
-#							$free_form );
-#					}
-#				}
-#				 # end of postamble
             if (not exists $stref->{$srctype}{$s}{'Status'} ) {print "UNDEF: $s\n"; }
 				if ($stref->{$srctype}{$s}{'Status'} == $UNREAD ) {
 					$stref->{$srctype}{$s}{'Status'} = $READ;
@@ -846,29 +854,21 @@ Suppose we don't:
 	sub pushAnnLine {
 		( my $stref, my $f, my $srctype, my $line, my $free_form ) = @_;		
 		my $pline = procLine( $line, $free_form );  
-#		print "PLINE: ",Dumper($pline),"\n";  
+		
 		if ( exists $pline->[1]{'SubroutineSig'} ) {
-#			print "$srctype $f: FOUND Subroutine ". $pline->[1]{'SubroutineSig'}."\n";
 			if ($f ne '') {
 			if ($stref->{$srctype}{$f}{'Status'}   == $UNREAD ) { # FIXME: bit late, can I catch this earlier?
 			$stref->{$srctype}{$f}{'Status'}   = $READ;
-#			print "SETTING $srctype $f has Status to READ\n";
-			} else {
-#				print "WARNING: $srctype $f has Status ".$stref->{$srctype}{$f}{'Status'}."\n";
 			}
 			}
 			$srctype                           = 'Subroutines';
 			$f                                 = $pline->[1]{'SubroutineSig'};
 			$stref->{$srctype}{$f}{'AnnLines'} = [];
 		} elsif ( exists $pline->[1]{'FunctionSig'} ) {
-#			print "$srctype $f: FOUND Function ". $pline->[1]{'FunctionSig'}."\n";
 			if ($f ne '') {
 			if ($stref->{$srctype}{$f}{'Status'}   == $UNREAD ) {
 			$stref->{$srctype}{$f}{'Status'}   = $READ;
-#			print "SETTING $srctype $f has Status to READ\n";
-			} else {
-#			print "WARNING: $srctype $f has Status ".$stref->{$srctype}{$f}{'Status'}."\n";
-			}
+			} 
 			}
 			$srctype                           = 'Functions';
 			$f                                 = $pline->[1]{'FunctionSig'};
@@ -876,12 +876,19 @@ Suppose we don't:
 		}
 		
 		push @{ $stref->{$srctype}{$f}{'AnnLines'} }, $pline;
-#		print "PUSHED: $pline->[0]\n" if $V;
 		return ( $stref, $f, $srctype );
 	}    # pushAnnLine()
 
  # -----------------------------------------------------------------------------
  # -----------------------------------------------------------------------------
+ 
+ sub hasCont { (my $line)=@_;
+     if ($line=~/\&\s*$/) { return 1;
+     } else {
+         return 0;
+     }
+ }
+  # -----------------------------------------------------------------------------
 	sub isCont {
 		( my $line, my $free_form ) = @_;
 		my $is_cont = 0;
@@ -922,6 +929,11 @@ Suppose we don't:
 			if ( $line =~ /^\s*\&/ ) {
 				$line =~ s/^\s*\&\s*/ /;
 			}
+			if ( $line =~ /\&\s*$/ ) {
+				$line =~ s/\&\s*//;
+#				$line=~s/^\s+//;
+			}
+			
 		}
 		if ( $line =~ /.\!.*$/ ) {    # FIXME: trailing comments are discarded!
 			my $tline = $line;
@@ -1074,110 +1086,4 @@ die "procLine(): No $keyword name " if $name eq '';
 	}
 
  # -----------------------------------------------------------------------------
-
-=pod
-
-	if ( isCont( $nextline, $free_form ) ) {
-# +? line
-# +  nextline
-
-# If he previous line was a comment:
-# ! line
-# + nextline
-# => If joinedline is not empty, push; else it is an error!
-
-# If the previous line is a plain line:	
-#   line
-# + nextline		
-# => Start of a new joined line, push both		
-
-# If the previous line is a cont line:	
-# + line
-# + nextline
-# => push both
-
-#		If it is not a comment nor a continuation line, it is a new continuation line
-# In that case we must first push to joined line
-#		If it is a comment, that means we have to keep pushing		
-		if ($joinedline ne '' and not isCont($line, $free_form ) and not isCommentOrBlank($line) ) {
-			($stref,$s,$srctype) = pushAnnLine($stref,$s,$srctype,$joinedline, $free_form);
-			$joinedline='';
-		}
-		$joinedline .= removeCont( $line, $free_form );
-		$joinedline .= removeCont( $nextline, $free_form );
-	} elsif ( isCont( $line, $free_form )
-			&& !isCont( $nextline, $free_form ) )
-	{
-
-# + line
-#   nextline -> could be a split line, unless it's a blank or a comment
-# If nextline is not a comment (i.e. if it is a plain line)
-# => push line onto joinedline; emit joinedline & clear		
-		
-# If nextline is a comment
-# => push line onto joinedline but don't clear or emit; 		
-
-		$joinedline .= removeCont( $line, $free_form );
-		($stref,$s,$srctype) = pushAnnLine($stref,$s,$srctype,$joinedline, $free_form);
-		$joinedline = '';
-		$line  = $nextline;
-		$next2 = 0;
-	} else {
-# line
-# nextline -> could be a split line, unless it's a blank or a comment
-# What we need to know is if the previous lines was a cont. 
-# If so, 
-
-if ($in_cont) {
-	if (not isCommentOrBlank($line) ) {
-#		emit joined line & clear
-		if (not isCommentOrBlank($nextline) {
-#		emit line
-			$line=$nextline;
-		} else {
-#		We can't emit line because nextline is a comment so
-#		it might be the start of a continuation line
-# So what we should do is tentatively push it onto $joinedline and set 
-		$joinedline=removeCont( $line, $free_form );
-		$maybe_in_cont=1;
-# Furthermore, we should push the comments onto @comments_stack
-			push @comments_stack,$nextline;		
-# Then in the next state, we need to look at line and nextline:
-
-
-
-
-		}
-	} else { # line is a comment
-		if (not isCommentOrBlank($nextline) ) {
-#			emit joinedline & clear
-#			emit line	
-		} else {
-#			Both lines are comments so we should skip them			
-		}
-	}		
-} else {
-# => emit line;
-if ( isCommentOrBlank($nextline) {
-# emit nextline
-	} else { # Might be start of a cont line
-	$line=$nextline; 
-	}
-	
-}
-
-		if ($joinedline ne '' and not isCommentOrBlank($nextline) ) { # FIXME: still weak: if there are a lot of comments in a broken-up line, 
-# it could be that we still get a continuation. 
-			($stref,$s,$srctype) = pushAnnLine($stref,$s,$srctype,$joinedline, $free_form);
-			$joinedline='';
-		}
-		($stref,$s,$srctype) = pushAnnLine($stref,$s,$srctype,$line, $free_form);
-		if ( not isCommentOrBlank( $nextline, $free_form ) ) {							
-			$line  = $nextline;
-			$line_set_to_nextline=1;
-			$next2 = 0;
-		} else {
-			($stref,$s,$srctype) = pushAnnLine($stref,$s,$srctype,$nextline, $free_form);
-		}
-	}
-=cut
+1;

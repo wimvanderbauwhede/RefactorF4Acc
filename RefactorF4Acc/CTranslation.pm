@@ -23,6 +23,9 @@ use Exporter;
 @RefactorF4Acc::CTranslation::EXPORT_OK = qw(
     &add_to_C_build_sources
     &translate_all_to_C        
+    &refactor_C_targets
+    &emit_C_targets
+    &translate_to_C
 );
 sub translate_to_C {
 	( my $stref ) = @_;
@@ -534,7 +537,7 @@ sub toCType {
 # -----------------------------------------------------------------------------
 sub add_to_C_build_sources {
     ( my $f, my $stref ) = @_;
-    my $sub_or_func = sub_func_or_incl( $f, $stref );
+    my $sub_or_func = sub_func_incl_mod( $f, $stref );
     my $is_inc = $sub_or_func eq 'IncludeFiles';
     if (not $is_inc ) {
     my $src =  $stref->{$sub_or_func}{$f}{'Source'};        

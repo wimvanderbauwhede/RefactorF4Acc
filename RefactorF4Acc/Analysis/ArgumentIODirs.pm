@@ -26,6 +26,7 @@ use Exporter;
 
 @RefactorF4Acc::Analysis::ArgumentIODirs::EXPORT_OK = qw(
     &determine_argument_io_direction_rec
+    &parse_assignment
 );
 
 # -----------------------------------------------------------------------------
@@ -213,6 +214,16 @@ sub find_vars {
     return $args_ref;
 }    # END of find_vars()
 # -----------------------------------------------------------------------------
+sub _find_vars {
+    ( my $line) = @_;
+    my $args_ref={};
+    my @chunks = split( /\W+/, $line );
+    for my $mvar (@chunks) {  
+        next if $mvar=~/^\d+$/;  
+            $args_ref->{$mvar}=$mvar;
+    }
+    return $args_ref;
+}    # END of find_vars()
 # -----------------------------------------------------------------------------
 # The code needs to be reworked:
 # The main issue is that the names of the args a sub is called with is not the same as the name in the signature.
@@ -442,7 +453,9 @@ sub analyse_src_for_iodirs {
             } # SubroutineCall
 
             # Encounter Assignment
-            if ($line=~/[\w\s\)]=[\w\s\(\+\-\.]/ and $line !~ /^\s*do\s+.+\s*=/ ) { # FIXME: if (...) open|write is not covered
+            # WV20150304 TODO: factor this out and export it so we can use it as a parser for assignments
+            if ($line=~/[\w\s\)]=[\w\s\(\+\-\.]/ and $line !~ /^\s*do\s+.+\s*=/ ) { 
+                # FIXME: if (...) open|write is not covered
             	my $tline=$line;
             	$tline=~s/^\s*\d+//; # Labels
             	$tline=~s/^\s+//;
@@ -460,8 +473,7 @@ sub analyse_src_for_iodirs {
                     # the '=' sign                    
                     #*so in other words, if it's an array assignment
                     # FIXME: If the LHS is an array assignment we are not checking the index for its IO dir
-                    if ($tline!~/(open|write|read|print|close)\s*\(/) {
-                    	
+                    if ($tline!~/(open|write|read|print|close)\s*\(/) {                    	
                     	(my $cond, $var,my $sep,$rhs)=conditional_assignment_fsm($tline);                    	
 #                    (my $cond,$var,my $sep,$rhs) =                    
 #                       split( /(?:\)|\s+)(\w+)((?:\([^=]*\))?\s*=\s*)/, $tline ) ;
@@ -517,7 +529,7 @@ sub analyse_src_for_iodirs {
             		# Must be an array assignment
             		$var=~s/\s*\((.+)\)$//;
             		my $str=$1;
-            		if (not defined  $str) {
+            		if (not defined $str) {
             			print "WARNING: IGNORING <$tline>, CAN'T HANDLE IT (analyse_src_for_iodirs)\n" if $W;
             		} else {
             		$args=find_vars( $str, $args, \&set_iodir_read );
@@ -677,7 +689,7 @@ my $rhs='';
 
 sub _type_via_implicits {
 (my $stref, my $f, my $var)=@_;
-    my $sub_func_incl = sub_func_or_incl( $f, $stref );
+    my $sub_func_incl = sub_func_incl_mod( $f, $stref );
     my $type ='Unknown';      
     my $kind ='Unknown';
     my $shape ='Unknown';
@@ -687,7 +699,7 @@ sub _type_via_implicits {
         my $type_kind_shape_attr = $stref->{'Implicits'}{$f}{lc(substr($var,0,1))};
         ($type, $kind, $shape, $attr)=@{$type_kind_shape_attr};
 #        my $var_rec = {
-#            'Decl' => "        $type $var",
+#            'Decl' => ['       ', [$type], [$var]],
 #            'Shape' => 'UNKNOWN',
 #            'Type' => $type,
 #            'Attr' => '',
@@ -700,4 +712,73 @@ sub _type_via_implicits {
         print "WARNING: common <", $var, "> has no rule in {'Implicits'}{$f}\n" if $W;
     }
     return ($type, $kind, $shape, $attr);
+}
+
+sub parse_assignment {
+    (my $line)=@_;
+# FIXME: if (...) open|write is not covered
+    my $tline=$line;
+    $tline=~s/^\s*\d+//; # remove labels
+    $tline=~s/^\s+//;
+    $tline=~s/\s+$//;
+    $tline=~s/[<=>][<=>]/<>/g;
+# FIXME: This is still weak! 
+    my $var='';my $rhs='';
+# First check if this is a single-line if statement
+    my $args={};
+    my $kind='Scalar';
+    my $idx_expr='';
+    if ( $tline =~ /^if\b/ ) {
+# split on: 
+# space or closing paren
+# word
+# 0 or 1 occurences of parentheses without '=' inside them
+# the '=' sign                    
+# FIXME: If the LHS is an array assignment we are not checking the index for its IO dir
+        if ($tline!~/(open|write|read|print|close)\s*\(/) {                    	
+            (my $cond, $var,my $sep,$rhs)=conditional_assignment_fsm($tline);                    	
+            $args=_find_vars( $cond );
+            if ($sep ne '') {
+                die $line unless defined  $sep;
+                my $args_sep=_find_vars( $sep );
+                $args={%{$args},%{$args_sep}};
+            }     
+        } elsif ($tline=~/read\s*\(/) {
+            print "WARNING: IGNORING conditional read call <$tline>\n" if $W;    
+            next;
+        } elsif ($tline=~/print.+?,/) {
+            print "WARNING: IGNORING conditional print call <$tline>\n" if $W;    
+            next;
+        } else {
+            (my $cond,my $call,$rhs) =                    
+                split( /(open|write)/, $tline ) ;
+            die $line unless defined  $cond;
+            my $cond_args=_find_vars( $cond);
+            $args={%{$args},%{$cond_args}};
+        }                 
+    } else {       
+        if ($tline=~/(open|write|read|print|close)\s*\(/) {
+            my $call=$1;
+            print "WARNING: IGNORING conditional $call <$tline> (analyse_src_for_iodirs)\n" if $W;
+            next;
+        } elsif ($tline!~/::/) { # proper assignments     	 	
+            ($var, $rhs)=split(/\s*=\s*/,$tline);
+            if ($var=~/\(/) {
+                # Must be an array assignment
+                $var=~s/\s*\((.+)\)$//;
+                my $str=$1;
+                die $line if not defined $str;
+                $idx_expr=[ split(/\s*\,\s*/,$str) ]; # FIXME: WEAK: assumes no nested arrays used as index 
+                $kind='Array';
+                if (not defined $str) {
+                    print "WARNING: IGNORING <$tline>, CAN'T HANDLE IT (analyse_src_for_iodirs)\n" if $W;
+                } else {
+#                    $args=_find_vars( $str);
+                }
+            }
+            my $rhs_args=_find_vars( $rhs);
+            $args={%{$args},%{$rhs_args}   };            
+        } 
+    }            	
+    return [{'VarName'=>$var,'Kind'=>$kind,'IndexExpr'=>$idx_expr}, [keys %{$args}]];
 }

@@ -7,7 +7,10 @@ use RefactorF4Acc::Refactoring::Common
   qw( format_f95_var_decl format_f77_var_decl );
 use RefactorF4Acc::Parser::SrcReader qw( read_fortran_src );
 use RefactorF4Acc::CTranslation qw( add_to_C_build_sources );
+use RefactorF4Acc::Analysis::ArgumentIODirs qw( parse_assignment );
+use RefactorF4Acc::Analysis::LoopDetect qw( loop_detect );
 
+use F95VarDeclParser qw( parse_F95_var_decl );
 #
 #   (c) 2010-2012 Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
 #
@@ -15,6 +18,7 @@ use RefactorF4Acc::CTranslation qw( add_to_C_build_sources );
 use vars qw( $VERSION );
 $VERSION = "1.0.0";
 
+use 5.012;
 use warnings::unused;
 use warnings;
 use warnings FATAL => qw(uninitialized);
@@ -31,22 +35,23 @@ use Exporter;
   &parse_fortran_src
 );
 
-#&_parse_F77_vardecl
+
 # -----------------------------------------------------------------------------
 # parse_fortran_src() only parses the source to build the call tree, nothing else
 # We don't need to parse the includes nor the functions at this stage.
 # All that should happen in a separate pass. But we do it here anyway
 sub parse_fortran_src {
-	( my $f, my $stref ) = @_;
+	( my $f, my $stref ) = @_; # NOTE $f is not the name of the source but of the sub/func/incl/module  
 #    local $V=1;	
 	print "parse_fortran_src(): PARSING $f\n " if $V;
 	
-	# 1. Read the source and do some minimal processsing
+## 1. Read the source and do some minimal processsing
 	$stref = read_fortran_src( $f, $stref );#
+
 	print "DONE read_fortran_src( $f )\n" if $V;
 	
-	my $sub_or_func = sub_func_or_incl( $f, $stref );
-	print "SRC TYPE: $sub_or_func\n" if $V;
+	my $sub_or_func = sub_func_incl_mod( $f, $stref ); # This is not a misnomer as it can also be a module.
+	print "SRC TYPE for $f: $sub_or_func\n" if $V;	
 	if ($sub_or_func ne 'ExternalSubroutines') {
 	my $Sf          = $stref->{$sub_or_func}{$f};
 	my $is_incl     = exists $stref->{'IncludeFiles'}{$f} ? 1 : 0;
@@ -55,18 +60,21 @@ sub parse_fortran_src {
 	if ( not exists $Sf->{'RefactorGlobals'} ) {
 		$Sf->{'RefactorGlobals'} = 0;
 	} 
-	if ($refactor_toplevel_globals==1) { # and $f ne $stref->{'Top'}) {
+	if ($refactor_toplevel_globals==1) { 
 		print "INFO: set RefactorGlobals=1 for $f\n" if $I;
 		$Sf->{'RefactorGlobals'} = 1;
 	}
     
-# 2. Parse the type declarations in the source, create a per-target table Vars and a per-line VarDecl list and other context-free stuff
+## 2. Parse the type declarations in the source, create a per-target table Vars and a per-line VarDecl list and other context-free stuff
 print "ANALYSE LINES of $f\n" if $V;
+#die if $f eq 'main';
 	$stref = _analyse_lines( $f, $stref );
 	print "DONE _analyse_lines( $f )\n" if $V;
 	
-
-	# 3. Parse includes
+## 3. Parse use
+    $stref = _parse_use( $f, $stref );
+    print "DONE _parse_use( $f )\n" if $V;
+## 3. Parse includes
 	$stref = _parse_includes( $f, $stref );
 	if ( not $is_incl ) {
 		if ( $stref->{$sub_or_func}{$f}{'HasBlocks'} == 1 ) {					
@@ -77,20 +85,12 @@ print "ANALYSE LINES of $f\n" if $V;
 		$stref->{$sub_or_func}{$f}{'Status'} = $PARSED;
 		print "DONE PARSING $sub_or_func $f\n" if $V;		
 	} else {    # includes
-
-# 4. For includes, parse common blocks and parameters, create $stref->{'Commons'}
+## 4. For includes, parse common blocks and parameters, create $stref->{'Commons'}
 		$stref = _get_commons_params_from_includes( $f, $stref );
 		$stref->{'IncludeFiles'}{$f}{'Status'} = $PARSED;
 	}
-
-#	if ( $f eq 'includecom' ) {
-
-		#    $Data::Dumper::Indent=1;
-		#    warn "END of parse_fortran_src( $f )\n-------\n";
-		#    warn Dumper($stref->{'Subroutines'}{$f}{'AnnLines'} );
-		#    warn "-------\n";
-#		die;
-#	}
+} else {
+    print "$f is EXTERNAL\n";
 }
 	#    $stref=create_annotated_lines($stref,$f);
 	print "LEAVING parse_fortran_src( $f ) with Status $stref->{$sub_or_func}{$f}{'Status'}\n" if $V; 
@@ -104,12 +104,15 @@ print "ANALYSE LINES of $f\n" if $V;
 # Also check if the variable happens to be a function. If that is the case, mark that function as 'Called'; if we have not yet parsed its source, do it now.
 
 # In order to get proper hooks for the ex-globals, I think we need to check signatures, includes and variable declarations here.
-sub _analyse_lines {
-	( my $f, my $stref ) = @_;
-	my $sub_func_incl = sub_func_or_incl( $f, $stref );
+
+#WV20150305 I've added labels to the lines, as identifiers for e.g. start/end of pragmas. I can do this here because here the lines have been normalised but no refactoring has been done yet.
+sub _analyse_lines { 
+    ( my $f, my $stref ) = @_;
+	my $sub_func_incl = sub_func_incl_mod( $f, $stref );
 	my $Sf            = $stref->{$sub_func_incl}{$f};
 	$Sf->{ExGlobVarDeclHook}=0;
 	my $srcref        = $Sf->{'AnnLines'};
+	
 	if ( defined $srcref ) {
 		print "\nVAR DECLS in $f:\n" if $V;
 		my %vars       = ();
@@ -118,16 +121,40 @@ sub _analyse_lines {
 		my $type       = 'NONE';
 		my $varlst     = '';
 		my $indent     = '';
+
 		for my $index ( 0 .. scalar( @{$srcref} ) - 1 ) {
 			my $attr = '';
 			my $line = $srcref->[$index][0];
 			my $info = $srcref->[$index][1];
-			if ( $line =~ /^\!\s+/ ) {
+            $info->{'LineID'}=$index;
+
+			if ( $line =~ /^\!\s+/ && $line!~/^\!\s*\$acc\s/i) {
 				next;
 			}
+			if ( $line =~ /^\!\s*\$acc\s.+$/i ) { 
+                my $accline=$line;
+                $accline=~s/^\!\s*\$acc\s+//i;
+                my @chunks = split(/\s+/,$accline);
+                my $pragma_name_prefix = 'Begin';
+                if ($chunks[0] =~/Begin/i) {
+                    shift @chunks;
+                }
+                if ($chunks[0] =~/End/i) {
+                    shift @chunks;
+                    $pragma_name_prefix = 'End';
+                }
+                (my $pragma_name, my @pragma_args )=@chunks;
+                $info->{'AccPragma'}{$pragma_name_prefix.ucfirst($pragma_name)} = [@pragma_args];
+                if ($pragma_name=~/KernelWrapper/i and $pragma_name_prefix eq 'Begin') {
+                    $stref->{'KernelWrappers'}{$pragma_args[0]}{$pragma_name_prefix.ucfirst($pragma_name)}=[$f,$index];
+                    $stref=loop_detect($pragma_args[0],$stref)
+                }
+            }            
+			
             if (exists $info->{'Includes'} or
                exists $info->{'FunctionSig'} or
-               exists $info->{'SubroutineSig'}
+               exists $info->{'SubroutineSig'} or
+               exists $info->{'Use'}
                ) {               	
                	$info->{'ExGlobVarDecls'} = ++$Sf->{'ExGlobVarDeclHook'};
 #               	print "_analyse_lines($f)\t",$line,"\tEX:",$info->{'ExGlobVarDecls'},"\n";               	 
@@ -143,23 +170,48 @@ sub _analyse_lines {
 			if ( $line =~ /implicit\s+none/ ) {
 				$info->{'ImplicitNone'} = 1;
 				$Sf->{'ImplicitNone'}   = $index;
+			} elsif ( $line =~ /^\s*use\s+(\w+)/) {
+			    $info->{'Use'}=$1;	
 			} elsif ( $line =~ /implicit\s+/ ) {
                 $info->{'Implicit'} = 1;
                 $stref = _parse_implicit($line,$f,$stref);
 			} elsif ( $line =~ /^\d*\s+(else\s+if)/ ) {
 				$info->{'ElseIf'} = 1;
 				
-			} elsif ( $line =~
-/^\d*\s+(if|else|select|case|read|write|print|open|close|return|stop)\s*\(/
+			} elsif ( 
+			 $line =~ /^\d*\s+(if|else|select|case|read|write|print|open|close)\s*\(/ 
+                or $line =~/^\d*\s+(return|stop)\s*/
 			  )
 			{				
 				$info->{ ucfirst($1) } = 1;
+			} elsif ( $line =~/^\d*\s+end\s+(if|case|do)\s*/){		
+			    my $kw=$1;		
+				$info->{ 'End'.ucfirst($kw) } = {};		
+			} elsif ( $line =~/^\d*\s*end\s+(subroutine|module|function)\s*(\w+)/){		
+			    my $kw=$1;		
+			    my $name = $2;
+				$info->{ 'End'.ucfirst($kw) } = {'Name' => $name};							
 			} elsif ( $line =~ /^\d*\s+do\b/ ) {
-				
-				$info->{'Do'} = 1;
-			} elsif ( $line !~ /\bparameter\b/ && $line =~ /[\w\)]\s*=\s*[^=]/ )
+				#WV20150304: We parse the do and store the iterator and the range { 'Iterator' => $i,'Range' =>[$start,$stop]}			    
+				my $do_stmt=$line;
+				$do_stmt=~s/^\d*\s+do\s+(\d*)\s+//;
+                my $label=$1;
+                
+				(my $iter,my $range)=split(/\s*=\s*/,$do_stmt);
+				(my $range_start,my $range_stop)=split(/s*,\s*/,$range);
+				$info->{'Do'} = { 'Iterator' => $iter, 'Label'=>$label,'Range' =>[$range_start,$range_stop]};
+ 
+			} elsif ( $line!~/::/ && $line !~ /\bparameter\b/ && $line =~ /[\w\)]\s*=\s*[^=]/ )
 			{				
 				$info->{'Assignment'} = 1;
+				#WV20150303: We parse this assignment and return {Lhs => {Varname, Kind, IndexExpr}, Rhs => {Expr, VarList}}
+				my $vref=parse_assignment($line);
+				$info->{'Assignment'} = {
+				    'Lhs'=>$vref->[0],
+				    'Rhs'=>{
+				        'VarList'=>$vref->[1]
+				    }
+				};
 			}
 
 		 # Actual variable declaration line
@@ -192,50 +244,81 @@ sub _analyse_lines {
 #			if ($line=~/character/) {die "<$line>\nTYPE:$type\nATTR:$attr\nVARLST:$varlst";}	 
 				
 				
-			} elsif ( $line =~ /^\s*(.*)\s*::\s*(.*?)\s*$/ )
-			{    #F95 declaration, no need for refactoring
-
+			} elsif ( $line =~ /^\s*(.*)\s*::\s*(.*?)\s*$/ ) {    
+			    #F95 declaration, no need for refactoring                
 				$type   = $1;
 				$varlst = $2;
 				$indent = $line;
 				$indent =~ s/\S.*$//;
-
+#				say $line .': '.Dumper( parse_F95_var_decl($line) ); 
+#                die if $line=~/wsum/;
+                my $pt = parse_F95_var_decl($line);
+                
 			 # But this could be a parameter declaration, with an assignment ...
                 if ( $line =~ /,\s*parameter\s*.*?::\s*(\w+\s*=\s*.+?)\s*$/ )
 				{    # F95-style parameters
-
-					my $parliststr = $1;										
-					my @partups    = split( /\s*,\s*/, $parliststr );
-					my %pvars      =
-					  map { split( /\s*=\s*/, $_ ) }
-					  @partups;    # Perl::Critic, EYHO
-					if ( not exists $Sf->{'Parameters'} ) {
-						$Sf->{'Parameters'} = {};
-					}
-					my $pars = [];
-					my @pvarl = map { s/\s*=.+//; $_ } @partups;
-					for my $var (@pvarl) {
-						if ( not defined $vars{$var} ) {
-							print
-"WARNING: PARAMETER $var not declared in $f (F95-style)\n"
-							  if $W;
-						} else {
+                    $info->{'ParsedParDecl'}=$pt;
+					my $parliststr = $1;
+					
+#					die Dumper( $pt );
+					my $var = $pt->{Pars}{Var} ;
+					my $val = $pt->{Pars}{Val} ;
+					my $type = $pt->{TypeTup} ;
 							$Sf->{'Parameters'}{$var} = {
 								'Type' => $type,
-								'Var'  => $vars{$var},
-								'Val'  => $pvars{$var}
+								'Var'  => $var,
+								'Val'  => $val
 							};
-							push @{$pars}, $var;
-						}
-					}
-					$info->{'ParamDecl'} = $pars; # F95-style
+#							push @{$pars}, $var;
+					
+															
+#					my @partups    = split( /\s*,\s*/, $parliststr );
+#					my %pvars      =
+#					  map { split( /\s*=\s*/, $_ ) }
+#					  @partups;    # Perl::Critic, EYHO
+#					if ( not exists $Sf->{'Parameters'} ) {
+#						$Sf->{'Parameters'} = {};
+#					}
+#					my $pars = [];
+#					my @pvarl = map { s/\s*=.+//; $_ } @partups;
+#					for my $var (@pvarl) {
+#						if ( not defined $vars{$var} ) {
+#							print
+#"INFO: PARAMETER $var not declared in $f (F95-style)\n"
+#							  if $I;
+#						} else {
+#							$Sf->{'Parameters'}{$var} = {
+#								'Type' => $type,
+#								'Var'  => $vars{$var},
+#								'Val'  => $pvars{$var}
+#							};
+#							push @{$pars}, $var;
+#						}
+#					}
+#					$info->{'ParamDecl'} = $pars; # F95-style
+                    $info->{'ParamDecl'} = [ $var ]; # F95-style
 					if ( not exists $Sf->{'Parameters'}{'OrderedList'} ) {
 						$Sf->{'Parameters'}{'OrderedList'} = [];
 					}
 					@{ $Sf->{'Parameters'}{'OrderedList'} } =
-					  ( @{ $Sf->{'Parameters'}{'OrderedList'} }, @{$pars} );
+					( @{ $Sf->{'Parameters'}{'OrderedList'} }, $var );
+#					  ( @{ $Sf->{'Parameters'}{'OrderedList'} }, @{$pars} );
+				} else {
+#				    say $line .': '.Dumper($pt);
+                    $info->{'ParsedVarDecl'}=$pt;
+				    my $tvar = $pt->{'Vars'};
+	$vars{$tvar}{'Type'}  = $pt->{'TypeTup'}{'Type'};
+	$vars{$tvar}{'Shape'} = $pt->{'Attributes'}{'Dim'}[0] eq '0' ? 'Scalar' : 'Array';
+	$vars{$tvar}{'Kind'}  = $pt->{'TypeTup'}{'Kind'};
+	if ( $type =~ /character/ ) {
+		$vars{$tvar}{'Attr'} = '(len=' . $pt->{TypeTup}{'Kind'} . ')';
+	} else {
+		$vars{$tvar}{'Attr'} = '(kind=' . $pt->{TypeTup}{'Kind'} . ')';
+	}
+	$vars{$tvar}{'IODir'} = $pt->{'Attributes'}{'Intent'};		
+				    
 				}
-				$is_vardecl = 1;
+				$is_vardecl = 0;
 			} elsif ( $line =~ /parameter\s*\(\s*(.*)\s*\)/ )
 			{    # F77-style parameters
 				my $parliststr = $1;
@@ -291,18 +374,11 @@ sub _analyse_lines {
 				  ( @{ $Sf->{'Parameters'}{'OrderedList'} }, @{$pars} );
 			}    # match var decls, parameter statements F77/F95
 
-			if ($is_vardecl) {
+			if ($is_vardecl ) {
 				$is_vardecl = 0;
 
-				#				my $tvarlst = $varlst;
-				my $T =
-				  0;  #($f eq 'particles_main_loop' && $varlst=~/drydep/) ? 1:0;
+				my $T = 0;
 				my $pvars = _parse_F77_vardecl( $varlst, $T );
-#				die Dumper(sort keys %{$pvars}) if $line=~/character/;
-
-				#                if ($f eq 'read_ncwrfout_1realfield') {
-				#	               print Dumper($pvars);
-				#                }
 				my @varnames = ();
 				for my $var ( keys %{$pvars} ) {
 					if ( $var eq '' ) { croak "<$line> in $f" }
@@ -350,7 +426,11 @@ sub _analyse_lines {
 					if ( exists $stref->{'Functions'}{$tvar} and $tvar ne $f) { # FIXME: NO RECURSION!
 
 						$stref->{'Functions'}{$tvar}{'Called'} = 1;
-						$stref->{'Functions'}{$tvar}{'Callers'}{$f}++;
+#$stref->{'Functions'}{$tvar}{'Callers'}{$f}++;
+                        if (not exists $stref->{'Functions'}{$tvar}{'Callers'}{$f})  {
+                            $stref->{'Functions'}{$tvar}{'Callers'}{$f}=[];
+                        }
+						push @{$stref->{'Functions'}{$tvar}{'Callers'}{$f}}, $index;
 						if (
 							not
 							exists $stref->{'Functions'}{$tvar}{'AnnLines'} )
@@ -367,14 +447,14 @@ sub _analyse_lines {
 					$first = 0;
 					# FIXME: no use in include files!
 					$info->{'ExGlobVarDecls'} = ++$Sf->{ExGlobVarDeclHook};# {};
-#					print "_analyse_lines($f): VAR DECL\t",$line,"\tEX:",$info->{'ExGlobVarDecls'},"\n";
 				}				
 			}
-			$srcref->[$index] = [ $line, $info ];
+			$srcref->[$index] = [ $line, $info];
 		}    # Loop over lines
 		$stref->{$sub_func_incl}{$f}{'Vars'} = \%vars;
 	} else {
 		print  "WARNING: NO LOCAL SOURCE for $f\n";
+		
 		# FIXME: if we can't find the source, we should search the include path, but
 		# not attempt to create a module for that source!
 	}
@@ -390,9 +470,9 @@ sub _parse_includes {
 	( my $f, my $stref ) = @_;
 #	local $V=1;
 	
-	my $sub_or_func_or_inc = sub_func_or_incl( $f, $stref );
-	my $Sf                 = $stref->{$sub_or_func_or_inc}{$f};
-    print "PARSING INCLUDES for $f ($sub_or_func_or_inc)\n" if $V;
+	my $sub_or_func_or_inc_or_mod = sub_func_incl_mod( $f, $stref );
+	my $Sf                 = $stref->{$sub_or_func_or_inc_or_mod}{$f};
+    print "PARSING INCLUDES for $f ($sub_or_func_or_inc_or_mod)\n" if $V;
 	my $srcref       = $Sf->{'AnnLines'};
 	my $last_inc_idx = 0;
 	if (defined $srcref) {
@@ -467,11 +547,95 @@ sub _parse_includes {
 }    # END of parse_includes()
 
 # -----------------------------------------------------------------------------
+# Parse 'use' declarations in case the module is inlineable 
+#FIXME otherwise we don't? although maybe we should because the module can contain module-scoped variables etc. 
+# So maybe we need to parse all the stuff in a module except the subroutines, as that is done elsewhere
+sub _parse_use {
+	( my $f, my $stref ) = @_;
+#	local $V=1;
+	
+	my $sub_or_func_or_inc_or_mod = sub_func_incl_mod( $f, $stref );
+	my $Sf                 = $stref->{$sub_or_func_or_inc_or_mod}{$f};
+    print "PARSING USE for $f ($sub_or_func_or_inc_or_mod)\n" if $V;
+	my $srcref       = $Sf->{'AnnLines'};
+	my $last_inc_idx = 0;
+	if (defined $srcref) {
+	for my $index ( 0 .. scalar( @{$srcref} ) - 1 ) {
+		my $line = $srcref->[$index][0];
+		my $info = $srcref->[$index][1];
+		if ( $line =~ /^\!\s/ ) {
+			next;
+		}
+
+		if ( $line =~ /^\s*use\s+(\w+)/ ) {
+			my $name = $1;
+			print "FOUND module $name in $f\n" if $V;
+			$Sf->{'Uses'}{$name} = $index;
+			 
+			if (
+			 exists $Sf->{'Translate'} 
+            and exists $stref->{'Modules'}{$name}
+			and not exists $stref->{'Modules'}{$name}{'Translate'}
+			) {
+			     $stref->{'Modules'}{$name}{'Translate'} = $Sf->{'Translate'};
+			     if( $Sf->{'Translate'} eq 'C') {
+                    $stref = add_to_C_build_sources( $name, $stref );
+                } else {
+                    croak '!$acc translate ('.$f.') '.$Sf->{'Translate'}.": Only C translation through F2C_ACC is currently supported.\n";
+                }
+			}
+			$last_inc_idx = $index;
+
+			$info->{'Use'} = {};
+			$info->{'Use'}{'Name'} = $name;
+			if ( $stref->{'Modules'}{$name}{'Status'} == $UNREAD ) {
+				print $line, "\n" if $V;
+
+#				# Initial guess for Root. OK? FIXME?
+#				$stref->{'IncludeFiles'}{$name}{'Root'}      = $f;
+#				$stref->{'IncludeFiles'}{$name}{'HasBlocks'} = 0;
+				$stref = parse_fortran_src( $name, $stref );
+			} else {
+				print $line, " already processed\n" if $V;
+			}
+			if (exists $stref->{'Modules'}{$name}{'Inlineable'}) {
+			    $info->{'Use'}{'Inlineable'}={};
+			}
+			if (exists $stref->{'Implicits'} and exists $stref->{'Implicits'}{$name}) {
+				print "INFO: inheriting IMPLICITS from $name in $f\n" if $I;
+				if (not exists $stref->{'Implicits'}{$f}) {
+					$stref->{'Implicits'}{$f}=$stref->{'Implicits'}{$name};
+				} else {
+					for my $k (keys %{ $stref->{'Implicits'}{$name} }) {
+						if (not exists $stref->{'Implicits'}{$f}{$k}) {
+						  $stref->{'Implicits'}{$f}{$k}=$stref->{'Implicits'}{$name}{$k};
+						} else {
+							die "ERROR: $f and $name have different type for $k";
+						}
+					}					
+				}
+			}
+		}
+		$srcref->[$index] = [ $line, $info ];
+	}
+} else {
+        print  "WARNING: NO LOCAL SOURCE for $f\n";
+        # FIXME: if we can't find the source, we should search the include path, but
+        # not attempt to create a module for that source!
+    }
+	# tag the next line after the last include
+	
+	$last_inc_idx++;
+	$srcref->[$last_inc_idx][1]{'ExtraModulesHook'} = 1;	
+	return $stref;
+}    # END of parse_includes()
+
+# -----------------------------------------------------------------------------
 
 sub OBSOLETE_detect_blocks {
 	( my $stref, my $s ) = @_;
 	print "CHECKING BLOCKS in $s\n" if $V;
-	my $sub_func_incl = sub_func_or_incl( $s, $stref );
+	my $sub_func_incl = sub_func_incl_mod( $s, $stref );
 	die "$sub_func_incl $s ".$stref->{$sub_func_incl}{$s}{'HasBlocks'}  if $s eq 'timemanager';
 	$stref->{$sub_func_incl}{$s}{'HasBlocks'} = 0;
 	my $srcref = $stref->{$sub_func_incl}{$s}{'AnnLines'};
@@ -504,7 +668,7 @@ sub OBSOLETE_detect_blocks {
 
 ### Factoring out code blocks into subroutines
 
-
+This is some major refactoring, so why is it not in Refactoring/ ? 
 
 =end markdown
 
@@ -514,7 +678,7 @@ sub _separate_blocks {
 	( my $f, my $stref ) = @_;
 
 #    die "separate_blocks(): FIXME: we need to add in the locals from the parent subroutine as locals in the new subroutine!";
-	my $sub_or_func = sub_func_or_incl( $f, $stref );
+	my $sub_or_func = sub_func_incl_mod( $f, $stref );
 	my $Sf          = $stref->{$sub_or_func}{$f};
 	my $srcref      = $Sf->{'AnnLines'};
 
@@ -702,6 +866,7 @@ sub _separate_blocks {
 		$Sblock->{'Args'}{'List'} = $args{$block};
 
 		# Create Signature and corresponding Decls
+		# WV20150304 TODO we should create a datastructure instead!
 		my $sixspaces = ' ' x 6;
 		my $sig       = $sixspaces . 'subroutine ' . $block . '(';
 #		my $decls     = [];
@@ -717,7 +882,7 @@ sub _separate_blocks {
 #				print "VARS: ".Dumper( $Sf->{'Vars'}{$argv});
 #			}
 #			push @{$decls}, $sixspaces . $decl;    # Why do we need this anyway?
-			$Sf->{'Vars'}{$argv}{'Decl'} = $sixspaces . $decl;
+			$Sf->{'Vars'}{$argv}{'Decl'} = $sixspaces . $decl; #WV20150424 This is a bit silly, we should format into strings we emit, not sooner
 		}
 		$sig =~ s/\,$/)/s;
 		$Sblock->{'Sig'}   = $sig;
@@ -786,12 +951,12 @@ sub _separate_blocks {
 # -----------------------------------------------------------------------------
 
 # -----------------------------------------------------------------------------
-
+# We need access to the info about the ACC pragma's here.
 sub _parse_subroutine_and_function_calls {
 	( my $f, my $stref ) = @_;
 	print "PARSING SUBROUTINE/FUNCTION CALLS in $f\n" if $V;
 	my $pnid        = $stref->{'NId'};
-	my $sub_or_func = sub_func_or_incl( $f, $stref );
+	my $sub_or_func = sub_func_incl_mod( $f, $stref );
 	my $Sf          = $stref->{$sub_or_func}{$f};
 
 	# For C translation and call tree generation
@@ -799,7 +964,6 @@ sub _parse_subroutine_and_function_calls {
 	if ( $translate == $GO
 		|| ( $call_tree_only && ( $gen_sub || $main_tree ) ) )
 	{
-
 		if ( $translate == $GO ) {
 			$stref = add_to_C_build_sources( $f, $stref );
 		}
@@ -813,23 +977,47 @@ sub _parse_subroutine_and_function_calls {
 	}
 	my $srcref = $Sf->{'AnnLines'};
 
-	#   croak Dumper( $srcref) if $f=~/timemanager/;
 	if ( defined $srcref ) {
-
-		#        my %called_subs         = ();
+        my $in_kernel_wrapper_region=0;
+        my $in_kernel_sub_region=0;
+        my $kernel_wrapper_name='';
 		for my $index ( 0 .. scalar( @{$srcref} ) - 1 ) {
 			my $line = $srcref->[$index][0];
 			my $info = $srcref->[$index][1];
-			next if $line =~ /^\!\s/;
+			next if ($line =~ /^\!\s/ and $line !~ /^\!\s*\$acc\s/i);
 
+            if (exists $info->{'AccPragma'}) {
+                if (exists $info->{'AccPragma'}{'BeginKernelWrapper'} ) {
+                    $in_kernel_wrapper_region=1;
+                    $kernel_wrapper_name = $info->{'AccPragma'}{'BeginKernelWrapper'}[0];
+                } elsif (exists $info->{'AccPragma'}{'EndKernelWrapper'} ) {
+                    $in_kernel_wrapper_region=0;#2; # FIXME: A bit weak, what if there are more than one?
+                } elsif (exists $info->{'AccPragma'}{'BeginKernelSub'} ) {
+                    $in_kernel_sub_region=1;
+                } elsif (exists $info->{'AccPragma'}{'EndKernelSub'} ) {
+                    $in_kernel_sub_region=0;
+                }
+            }
 	  # Subroutine calls. Surprisingly, these even occur in functions! *shudder*
             if ( $line =~ /call\s+(\w+)\s*\((.*)\)/ || $line =~ /call\s+(\w+)\s*$/ ) # WV23JUL2012
 #			if ( $line =~ /call\s(\w+)\((.*)\)/ || $line =~ /call\s(\w+)\s*$/ )            
 			{
-#				die if $line=~/advance/;
-				my $name = $1;
-				$stref = add_to_call_tree( $name, $stref, $f );
-				my $Sname = $stref->{'Subroutines'}{$name};
+#				
+				my $name = $1; # The name of the called subroutine. The caller is $f
+                if ($in_kernel_wrapper_region==1) { 
+                   if( $in_kernel_sub_region) {
+                       $stref->{'KernelWrappers'}{$kernel_wrapper_name}{'KernelSubs'}{$name}={'LineID'=>$info->{'LineID'}}; # slot for the arguments
+                   } else {
+                       $stref->{'KernelWrappers'}{$kernel_wrapper_name}{'OtherCalls'}{$name}={'LineID'=>$info->{'LineID'}}; # slot for the arguments
+                   }
+                }
+				$stref = add_to_call_tree( $name, $stref, $f );		
+				if (not exists $stref->{'Subroutines'}{$name}) {
+				    $stref->{'ExternalSubroutines'}{$name}{'Called'} = 1;
+				    return $stref;
+				} 
+				my $Sname =$stref->{'Subroutines'}{$name} ;
+ 				
                 if ( exists $Sf->{'Translate'}
                 and not exists $Sname->{'Translate'}
                  ) {
@@ -850,7 +1038,15 @@ sub _parse_subroutine_and_function_calls {
 				}
 
 				$Sname->{'Called'} = 1;
-				$Sname->{'Callers'}{$f}++;
+# What I want to know is: where in $f does the call to $name occur?
+# Problem is of course that this is before refactoring, so after refactoring this line might be wrong!
+# But then we probably want to do the analysis before we refactor anyway. 
+# The proper way of course is to change the index of the line after refactoring, but then it has to change in any datastructure that uses it as well!                
+                 if (not exists $Sname->{'Callers'}{$f})  {
+                     $Sname->{'Callers'}{$f}=[];
+                 }
+				push @{$Sname->{'Callers'}{$f}}, $index;
+#				$Sname->{'Callers'}{$f}++;
 
 #               if ($Sf->{'RefactorGlobals'} == 2) {
 #               warn "NAME: $f => $name,".(exists $Sname->{'RefactorGlobals'}? $Sname->{'RefactorGlobals'} : 'UNDEF')."\n" if $f eq 'timemanager';
@@ -859,7 +1055,7 @@ sub _parse_subroutine_and_function_calls {
 					print "SUB $name NEEDS GLOBALS REFACTORING\n" if $V;
 					$Sname->{'RefactorGlobals'} = 1;
 				}
-
+				
 				#                $called_subs{$name} = $name;
 #				$info->{'SubroutineCall'}{'Args'} = $argstr;
 				my $tvarlst = $argstr;
@@ -888,7 +1084,7 @@ sub _parse_subroutine_and_function_calls {
 				$info->{'SubroutineCall'}{'Args'}{'List'} = \@argvars;
 				$info->{'SubroutineCall'}{'Args'}{'Set'} = { map {$_ => 1} @argvars };
 				$info->{'SubroutineCall'}{'Name'} = $name;
-
+				
 				if ( defined $Sname
 					and not exists $Sf->{'CalledSubs'}{$name} )
 				{
@@ -1009,7 +1205,7 @@ sub _get_commons_params_from_includes {
 							my $type_kind_shape_attr = $stref->{'Implicits'}{$f}{lc(substr($var,0,1))};
 							(my $type,my $kind,my $shape, my $attr ) = @{$type_kind_shape_attr };
 							my $var_rec = {
-							  'Decl' => "        $type $var",
+							  'Decl' => "        $type $var", #WV20150424 This should be ['       ', [$type],[ $var]]
 							  'Shape' => $parsedvars->{$var}{'Shape'},
 							  'Type' => $type,
 							  'Attr' => $attr,

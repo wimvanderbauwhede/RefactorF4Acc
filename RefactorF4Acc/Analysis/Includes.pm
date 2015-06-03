@@ -36,7 +36,7 @@ sub find_root_for_includes {
 #       print Dumper($stref->{'IncludeFiles'}{$inc});
         if ($stref->{'IncludeFiles'}{$inc}{'Status'}==$UNREAD) {
         	#WV23JUL2012: This is weak, clearly the only good way is to find the includes in rec descent 
-            croak "TROUBLE: $inc (in $f) not yet parsed, how come?";
+            croak "TROUBLE: $inc (in $f) not yet parsed, how come?".Dumper($stref);
 #            print "WARNING: $inc not yet parsed, parsing ...\n";
 #                $stref->{'IncludeFiles'}{$inc}{'Root'}      = $f;
                 $stref->{'IncludeFiles'}{$inc}{'HasBlocks'} = 0;
@@ -167,7 +167,8 @@ sub __merge_includes {
     my $f=$stref->{'Nodes'}{$pnid}{'Subroutine'};
     if ($V) {
         if ($sub ne $f ) {
-            if ($Ssub->{'RefactorGlobals'}>0) {
+#            if (not  ) {die "SUB:$sub\n".Dumper($Ssub)." ";}
+            if (defined $Ssub->{'RefactorGlobals'} and $Ssub->{'RefactorGlobals'}>0) {
            $chain .="$sub -> ";
             }
         } else {

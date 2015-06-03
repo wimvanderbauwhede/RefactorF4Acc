@@ -12,7 +12,7 @@ use Exporter;
 $VER
 $V $W $I
 $NO $YES $GO
-$UNREAD $READ $PARSED $FROM_BLOCK $C_SOURCE
+$UNREAD $INVENTORIED $READ $PARSED $FROM_BLOCK $C_SOURCE
 $noop
 $refactor_toplevel_globals
 $call_tree_only
@@ -47,8 +47,7 @@ our $translate         = $NO;
 # The state of each subroutine, function or include
 #   FROM_BLOCK indicates a marked block of code factored out into a subroutine
 #   C_SOURCE means that this source code will be translated to C
-( our $UNREAD, our $READ, our $PARSED, our $FROM_BLOCK, our $C_SOURCE ) =
-  ( 0 .. 4 );
+( our $UNREAD, our $INVENTORIED, our $READ, our $PARSED, our $FROM_BLOCK, our $C_SOURCE ) = ( 0 .. 5 ); #  $stref->{$srctype}{$name}{'Status'}
 
 our $targetdir = '../RefactoredSources';
 # Config supports the following keys:
