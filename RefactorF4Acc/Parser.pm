@@ -588,7 +588,7 @@ sub _parse_use {
 
 			$info->{'Use'} = {};
 			$info->{'Use'}{'Name'} = $name;
-			if ( $stref->{'Modules'}{$name}{'Status'} == $UNREAD ) {
+			if ( $stref->{'Modules'}{$name}{'Status'} < $READ ) {
 				print $line, "\n" if $V;
 
 #				# Initial guess for Root. OK? FIXME?
