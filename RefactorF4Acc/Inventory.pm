@@ -1,5 +1,5 @@
 package RefactorF4Acc::Inventory;
-
+use v5.12;
 use RefactorF4Acc::Config qw ($V $W $UNREAD);
 # 
 #   (c) 2010-2012 Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
@@ -107,9 +107,12 @@ sub find_subroutines_functions_and_includes {
     	
         $stref=_process_src($src,$stref);
     }
+#    for my $mn (sort keys %{ $stref->{'Modules'} } ) {
+#say "$mn:\t".Dumper($stref->{'Modules'}{$mn});
+#    }
 #    die;
-
     _test_can_be_inlined_all_modules($stref);    
+    
     
     return $stref;
 }    # END of find_subroutines_functions_and_includes()
@@ -171,16 +174,16 @@ sub _process_src {
         # Tests for F77 or F95
         
             if ( $line =~ /^\s*module\s+(\w+)/i ) { # die "LINE: $line";
+            
                 $is_module=1; 
                 $srctype='Modules';
-                $mod_name = $1;#die $line.':'.$mod_name;
+                $mod_name = lc($1); #die $line.':'.$mod_name;
                 $f=$mod_name;
 # What I want is a connection between a module and its file name, and also with its content.
-# So that we can say, given a module name, get the source, from there get the contents
+# So that we can say, given a module name, get the source, from there get the contents                
 # Maybe we don't really need the source, as we can use the module name as identifier
                 $stref->{'Modules'}{$mod_name}{'Source'}=$src;
-
-                    $fstyle='F95';
+                $fstyle='F95';
             } 
         if ($fstyle eq 'F77') {            
             if ( $line =~ /^\s*(.*)\s*::\s*(.*?)\s*$/ ) {
@@ -198,7 +201,6 @@ sub _process_src {
         
             # Find subroutine/program signatures
             $line =~ /^\s*(recursive\s+subroutine|subroutine|program)\s+(\w+)/i && do {
-                                
                 my $is_prog = (lc($1) eq 'program') ? 1 : 0;
                 my $tmp=$1;
                 my $sub  = lc($2);
@@ -278,7 +280,7 @@ sub _process_src {
             # Find use statements, for F90/F95. 
 #die $line if $f=~/common/ and $line=~/params_common_sn/;
             $line =~/^\s*use\s+([_\w]+)(?:\s*,\s*only\s*:\s*(.+)\s*)?/ && do { #FIXME: no support for R1108 rename ; R1109 is incomplete; no support for R1110, R1111
-                my $mod = $1; 
+                my $mod = lc($1); 
                 my $only_list = $2;
                 if ($is_module) {
                     $stref->{'Modules'}{$mod_name}{'Uses'}{$mod}={};
@@ -333,28 +335,41 @@ sub _process_src {
         } # loop over lines;
             
         close $SRC;
-#        if ($mod_name =~/common/) { die Dumper($stref->{'Modules'}{$mod_name}) };
+#        if ($mod_name =~/module_bondFG/) { die $mod_name.':'.Dumper($stref->{'Modules'}{$mod_name}) };
+
         return $stref;	
 	
 } # END of _process_src()
 
 sub _test_can_be_inlined_all_modules { (my $stref) = @_;
     for my $mod_name (keys %{ $stref->{'Modules'} }) {
-#        print $mod_name ,"\n";
+#        print "MODULE TEST FOR INLINE: ",$mod_name ,"\n";
         my $inline_ok=1;
+        my $inline_sub_ok=1;
         if (_can_be_inlined($stref, $mod_name,  $inline_ok) )  {
-            print "INLINEABLE: $mod_name\n" if $V;
+#            print "INLINEABLE: $mod_name\n" if $V;
             $stref->{'Modules'}{$mod_name}{'Inlineable'}=1;
+        } else {
+            $stref->{'Modules'}{$mod_name}{'Inlineable'}=0;
         }
+        if (_subs_can_be_inlined($stref, $mod_name,  $inline_sub_ok) )  {
+#            print "INLINEABLE SUBS: $mod_name\n" if $V;
+            $stref->{'Modules'}{$mod_name}{'InlineableSubs'}=1;
+        } else {
+               $stref->{'Modules'}{$mod_name}{'InlineableSubs'}=0;
+        }
+        
     }
     
 }
 
+
 sub _can_be_inlined { (my $stref, my $mod_name, my $inline_ok) = @_;
-#    if ($mod_name =~/common/) { die Dumper($stref->{'Modules'}{$mod_name}) };
+#    if ($mod_name =~/velfg/) { die Dumper($stref->{'Modules'}{$mod_name}) };
     if ( module_has_only($stref, $mod_name,['Parameters','TypeDecls','ImplicitRules','Uses'] ) ) {
-#        print "Module $mod_name candidate for INLINE\n" if $V;
+#        print "Module $mod_name candidate for INLINE\n";# if $V;
         for my $used_mods (keys %{  $stref->{'Modules'}{$mod_name}{'Uses'} } ) {
+#            print "USED MODULE $used_mods\n";
             $inline_ok*=_can_be_inlined($stref,$used_mods, $inline_ok);
         }
 #        if ($inline_ok) {
@@ -366,3 +381,22 @@ sub _can_be_inlined { (my $stref, my $mod_name, my $inline_ok) = @_;
     return $inline_ok;
 }
 
+sub _subs_can_be_inlined { (my $stref, my $mod_name, my $inline_ok) = @_;
+#    if ($mod_name =~/velfg/) { die Dumper($stref->{'Modules'}{$mod_name}) };
+    if ( module_has_only($stref, $mod_name,['Parameters','TypeDecls','ImplicitRules','Uses','Subroutines'] )
+    and (exists  $stref->{'Modules'}{$mod_name}{'Subroutines'})
+    ) {
+#        print "MODULE $mod_name:". ((exists  $stref->{'Modules'}{$mod_name}{'Subroutines'})? "HAS SUBS\n" : "DOES NOT HAVE SUBS\n");
+#        print "Module $mod_name candidate for INLINE SUBS\n";# if $V;
+        for my $used_mods (keys %{  $stref->{'Modules'}{$mod_name}{'Uses'} } ) {
+#            print "USED MODULE $used_mods\n";
+            $inline_ok*=(_subs_can_be_inlined($stref,$used_mods, $inline_ok) + _can_be_inlined($stref,$used_mods, $inline_ok));
+        }
+#        if ($inline_ok) {
+#            print "Module $mod_name is INLINEABLE\n" if $V;
+#        }
+    } else {
+        return 0;
+    }
+    return $inline_ok;
+}

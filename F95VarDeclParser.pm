@@ -25,12 +25,12 @@ sub parse_F95_var_decl {
 	print $str,"\n" if $VV;
 	my $p =f95_var_decl_parser();
 	(my $st, my $rest, my $matches) =$p->($str);
-    print Dumper($rest),"\n"  if $VV;
+    print 'REST:'. Dumper($rest),"\n"  if $VV;
 
-	print Dumper($matches),"\n"  if $VV;
+	print 'MATCHES:'.Dumper($matches),"\n"  if $VV;
 #    die unless @{$matches};
 	my $pt = getParseTree($matches);
-	print Dumper($pt),"\n" if $VV;
+	print 'PARSE TREE:'.Dumper($pt),"\n" if $VV;
 	
 	my $typetup = $pt->{TypeTup};
 	if (ref($typetup) eq 'ARRAY') {
@@ -73,8 +73,12 @@ sub f95_var_decl_parser {
     sequence [
     	whiteSpace,
         {TypeTup => &type_parser},
-        maybe(comma),
-        {Attributes => sepBy(',',&attribute_parser)},
+        maybe(
+        sequence [
+        comma,
+        {Attributes => sepBy(',',&attribute_parser)}
+        ]
+        ),
     	&varlist_parser,
 		maybe( &openacc_pragma_parser) 
 	] 

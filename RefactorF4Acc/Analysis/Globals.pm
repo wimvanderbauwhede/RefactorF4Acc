@@ -46,6 +46,8 @@ use Exporter;
 sub resolve_globals {
     ( my $f, my $stref ) = @_;
 #    warn '=' x 80, "\nENTER resolve_globals( $f )\n" ;
+    if (exists $stref->{'Subroutines'}{$f} ) {
+        die Dumper( $stref->{'Subroutines'}{$f}  ) if $f=~/module_press/;
     my $Sf = $stref->{'Subroutines'}{$f};
     if ( exists $Sf->{'CalledSubs'}
         and scalar keys %{ $Sf->{'CalledSubs'} } )
@@ -77,6 +79,7 @@ sub resolve_globals {
     # We only come here when the recursion and merge is done.
     $stref = _resolve_conflicts_with_params( $f, $stref );
 #    if ($f=~/les/) {die Dumper($stref->{'Subroutines'}{$f}{'Globals'});}
+    }
     return $stref;
 }    # END of resolve_globals()
 

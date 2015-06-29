@@ -28,13 +28,17 @@ use Exporter;
 );
 
 sub analyse_all {
-	print "ANALYSE ALL SOURCES\n" if $V;
+	
 	(my $stref, my $subname)=@_;
 	   # Find the root for each include in a proper way
+#	   print join(', ',keys %{$stref->{'Subroutines'}});
+	   print "\t** FIND ROOT FOR INCLUDES **\n" if $V;
     $stref = find_root_for_includes( $stref, $subname );    
     # Now we can do proper globals handling
     # We need to walk the tree again, find the globals in rec descent.
+    print "\t** RESOLVE GLOBALS **\n" if $V;
     $stref = resolve_globals( $subname, $stref );
+    print "\t** ANALYSE SOURCES **\n" if $V;
     $stref = analyse_sources($stref);
     
 	return $stref;	

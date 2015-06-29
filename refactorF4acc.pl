@@ -228,12 +228,10 @@ sub parse_args {
 	my %subs_to_translate = ();
 	if ( $opts{'T'} ) {
 		if ( !@ARGV ) {
-			die "Please specify a target subroutine to translate.\n";
 		}
 		$translate = 1;
 		%subs_to_translate = map { $_ => 1 } @ARGV[ 1, -1 ];
 	}
-	$noop = ( $opts{'N'} ) ? 0 : 1;
 
 	my $build = ( $opts{'B'} ) ? 1 : 0;
 
@@ -426,10 +424,6 @@ With these assumptions, we can write a crude parser and function arg identifier 
 Not necessarily in this order:
 8. When encountering a CALL, recurse and resolve globals (but only that)
 9. When encountering a  function call, idem; although I'd prefer it if functions would be pure!
-10. F2C-ACC is a bit buggy, so help it a bit: identify which CONTINUE statements are actually END DO
-and replace them accordingly; for the other CONTINUE statements, it might be better to 
-ensure that instead of CONTINUE, they do nothing in a different way. 
-The only reliable way I found is to replace the continue with call noop, where noop is a subroutine that does nothing
 
 How do we replace the args in a subroutine call?
 

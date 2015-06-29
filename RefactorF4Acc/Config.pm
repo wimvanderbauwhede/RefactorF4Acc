@@ -30,9 +30,8 @@ our $V = 0;    # Verbose
 our $W = 0;    # Warnings
 our $I = 0;    # Info
 
-# Instead of FORTRAN's 'continue', we insert a call to a subroutine noop() that does nothing
-# This is because F2C_ACC handles continue incorrectly
-our $noop           = 1;
+# Instead of FORTRAN's 'continue', we can insert a call to a subroutine noop() that does nothing
+our $noop           = 0;
 our $refactor_toplevel_globals = 0;
 our $call_tree_only = 0;
 our $main_tree      = 0;

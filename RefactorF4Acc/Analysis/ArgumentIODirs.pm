@@ -63,6 +63,7 @@ sub determine_argument_io_direction_rec {
 # -----------------------------------------------------------------------------
 sub determine_argument_io_direction_core {
     ( my $stref, my $f ) = @_;
+    if (exists  $stref->{'Subroutines'}{$f} ) { 
     my $Sf      = $stref->{'Subroutines'}{$f};
 
     #   local $V=1 if $f=~/advance/;
@@ -103,6 +104,7 @@ sub determine_argument_io_direction_core {
 #TODO   $stref = remap_args( $stref, $f );   
 #TODO   $stref = reshape_args( $stref, $f );    
 #    $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}=$args;
+    }
     return $stref;
 }    # determine_argument_io_direction_core()
 

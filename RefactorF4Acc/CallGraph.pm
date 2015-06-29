@@ -47,20 +47,21 @@ sub create_call_graph { ( my $stref, my $subname ) = @_;
     push @{ $stref->{'CallStack'} }, $subname;
 #    print '[',join(',',@{ $stref->{'CallStack'} }),']',"\n";
     my %subs = map {$_=>1} @{ $stref->{'CallStack'} }; 
-	    for my $entry ( @{ $stref->{'CallGraph'}{ $subname } } ) {
-if (exists $subs{$entry}) {
-	print "Found LOOP for $entry\n";
-	last;
-}
+    for my $entry ( @{ $stref->{'CallGraph'}{ $subname } } ) {
+        if (exists $subs{$entry}) {
+        	print "Found LOOP for $entry\n";
+    	   last;
+        }
 
-	    	my $str = format_call_tree_line($entry,$stref);
+	    	my $str = _format_call_tree_line($entry,$stref);
 	    	print $str;
 	    	
 	    	   $stref->{'Indents'} += 4;    	
 	    	   create_call_graph ($stref,$entry);
 	    	   $stref->{'Indents'} -= 4;
-	    }
-     pop  @{ $stref->{'CallStack'} };	     
+    }
+    pop  @{ $stref->{'CallStack'} };	     
+    return {%subs};
 }
 # -----------------------------------------------------------------------------
 sub create_dot_call_graph {
@@ -108,7 +109,7 @@ sub add_to_call_tree {
     return $stref;
 }    # END of add_to_call_tree()
 # -----------------------------------------------------------------------------
-sub format_call_tree_line {
+sub _format_call_tree_line {
 	(my $f, my $stref ) = @_;
     my $sub_or_func = sub_func_incl_mod( $f, $stref );
     my $src         = $stref->{$sub_or_func}{$f}{'Source'};

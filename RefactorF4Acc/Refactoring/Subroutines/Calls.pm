@@ -111,11 +111,14 @@ sub determine_exglob_subroutine_call_args {
 # ----------------------------------------------------------------------------------------------------
 sub refactor_subroutine_call_args {
     ( my $stref, my $f, my $idx ) = @_;
+    if (exists $stref->{'Subroutines'}{$f} ) {
     my $Sf   = $stref->{'Subroutines'}{$f};
+    
     my $tags = ${get_annotated_sourcelines($stref,$f)}[$idx][1];
     
     # simply tag the common vars onto the arguments
     my $name               = $tags->{'SubroutineCall'}{'Name'};
+    
     my $Sname              = $stref->{'Subroutines'}{$name};
     if (not exists $Sname->{'HasRefactoredArgs'} or $Sname->{'HasRefactoredArgs'}==0) {
     	$stref = refactor_subroutine_signature( $stref, $name );
@@ -165,6 +168,7 @@ sub refactor_subroutine_call_args {
     my $args_ref = ordered_union( $orig_args, \@globals );
     $tags->{'SubroutineCall'}{'RefactoredArgs'} = $args_ref;
     $Sf->{'AnnLines'}[$idx][1] = $tags;
+    } #else {die $f;}
     return $stref;
 }    # END of refactor_subroutine_call_args
 # -----------------------------------------------------------------------------

@@ -142,7 +142,7 @@ for my $k ( keys %{ $stref->{'Modules'}{$mod_name} } ) {
 }
 #print 'INL MOD_HAS:'.Dumper(%mod_has)."\n";
 #'TypeDecls' => {},'Uses' => {'params_common_sn' => {}},'Source' => './common_sn.f95'
-    for my $k (@{$mod_only},'Status','Source','FStyle','FreeForm','HasBlocks' ) {
+    for my $k (@{$mod_only},'Status','Source','FStyle','FreeForm','HasBlocks','Inlineable','InlineableSubs' ) {
 #        print "INL: ONLY: $k\n";
         if (exists $mod_has{$k}) {
             delete $mod_has{$k};

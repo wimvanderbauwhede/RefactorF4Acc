@@ -157,6 +157,7 @@ sub refactor_kernel_signatures {
 sub refactor_subroutine_signature {
     ( my $stref, my $f ) = @_;
     my $Sf = $stref->{'Subroutines'}{$f};
+    
     if ($V) {
         if ( exists $Sf->{'Args'} ) {
             print "SUB $f ORIG ARGS:" . join( ',', @{ $Sf->{'Args'}{'List'} } ), "\n";

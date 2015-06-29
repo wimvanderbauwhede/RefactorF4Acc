@@ -50,10 +50,10 @@ sub parse_fortran_src {
 
 	print "DONE read_fortran_src( $f )\n" if $V;
 	
-	my $sub_or_func = sub_func_incl_mod( $f, $stref ); # This is not a misnomer as it can also be a module.
-	print "SRC TYPE for $f: $sub_or_func\n" if $V;	
-	if ($sub_or_func ne 'ExternalSubroutines') {
-	my $Sf          = $stref->{$sub_or_func}{$f};
+	my $sub_or_func_or_mod = sub_func_incl_mod( $f, $stref ); # This is not a misnomer as it can also be a module.
+	print "SRC TYPE for $f: $sub_or_func_or_mod\n" if $V;	
+	if ($sub_or_func_or_mod ne 'ExternalSubroutines') {
+	my $Sf          = $stref->{$sub_or_func_or_mod}{$f};
 	my $is_incl     = exists $stref->{'IncludeFiles'}{$f} ? 1 : 0;
 
 # Set 'RefactorGlobals' to 0, we only refactor the globals for subs that are kernel targets and their dependencies
@@ -74,18 +74,20 @@ print "ANALYSE LINES of $f\n" if $V;
 ## 3. Parse use
     $stref = _parse_use( $f, $stref );
     print "DONE _parse_use( $f )\n" if $V;
-## 3. Parse includes
+## 4. Parse includes
 	$stref = _parse_includes( $f, $stref );
+	
+## 5. Parse subroutine and function calls	
 	if ( not $is_incl ) {
-		if ( $stref->{$sub_or_func}{$f}{'HasBlocks'} == 1 ) {					
+		if ( $stref->{$sub_or_func_or_mod}{$f}{'HasBlocks'} == 1 ) {					
 			$stref = _separate_blocks( $f, $stref );
 		}
         # Recursive descent via subroutine calls
 		$stref = _parse_subroutine_and_function_calls( $f, $stref );
-		$stref->{$sub_or_func}{$f}{'Status'} = $PARSED;
-		print "DONE PARSING $sub_or_func $f\n" if $V;		
+		$stref->{$sub_or_func_or_mod}{$f}{'Status'} = $PARSED;
+		print "DONE PARSING $sub_or_func_or_mod $f\n" if $V;		
 	} else {    # includes
-## 4. For includes, parse common blocks and parameters, create $stref->{'Commons'}
+## 6. For includes, parse common blocks and parameters, create $stref->{'Commons'}
 		$stref = _get_commons_params_from_includes( $f, $stref );
 		$stref->{'IncludeFiles'}{$f}{'Status'} = $PARSED;
 	}
@@ -93,7 +95,7 @@ print "ANALYSE LINES of $f\n" if $V;
     print "$f is EXTERNAL\n";
 }
 	#    $stref=create_annotated_lines($stref,$f);
-	print "LEAVING parse_fortran_src( $f ) with Status $stref->{$sub_or_func}{$f}{'Status'}\n" if $V; 
+	print "LEAVING parse_fortran_src( $f ) with Status $stref->{$sub_or_func_or_mod}{$f}{'Status'}\n" if $V; 
 	return $stref;
 }    # END of parse_fortran_src()
 
@@ -108,8 +110,8 @@ print "ANALYSE LINES of $f\n" if $V;
 #WV20150305 I've added labels to the lines, as identifiers for e.g. start/end of pragmas. I can do this here because here the lines have been normalised but no refactoring has been done yet.
 sub _analyse_lines { 
     ( my $f, my $stref ) = @_;
-	my $sub_func_incl = sub_func_incl_mod( $f, $stref );
-	my $Sf            = $stref->{$sub_func_incl}{$f};
+	my $sub_func_incl_or_mod = sub_func_incl_mod( $f, $stref );
+	my $Sf            = $stref->{$sub_func_incl_or_mod}{$f};
 	$Sf->{ExGlobVarDeclHook}=0;
 	my $srcref        = $Sf->{'AnnLines'};
 	
@@ -162,7 +164,7 @@ sub _analyse_lines {
             
 	   # FIXME Trailing comments are ignored!
 	   #            if ( $line =~ /^\!\s/ ) {
-	   #                $stref->{$sub_func_incl}{$f}{'Info'}
+	   #                $stref->{$sub_func_incl_or_mod}{$f}{'Info'}
 	   #                  ->[$index]{'TrailingComments'} = {};
 	   #                next;
 	   #            }
@@ -308,7 +310,14 @@ sub _analyse_lines {
                     $info->{'ParsedVarDecl'}=$pt;
 				    my $tvar = $pt->{'Vars'};
 	$vars{$tvar}{'Type'}  = $pt->{'TypeTup'}{'Type'};
-	$vars{$tvar}{'Shape'} = $pt->{'Attributes'}{'Dim'}[0] eq '0' ? 'Scalar' : 'Array';
+	$vars{$tvar}{'Shape'} =  'Scalar'; 
+	if (exists $pt->{'Attributes'} ) {
+	    if (exists $pt->{'Attributes'}{'Dim'}) {
+	        if ($pt->{'Attributes'}{'Dim'}[0] ne '0') {	            
+	           $vars{$tvar}{'Shape'} =  'Array';
+	       }
+	    }
+	}
 	$vars{$tvar}{'Kind'}  = $pt->{'TypeTup'}{'Kind'};
 	if ( $type =~ /character/ ) {
 		$vars{$tvar}{'Attr'} = '(len=' . $pt->{TypeTup}{'Kind'} . ')';
@@ -451,10 +460,10 @@ sub _analyse_lines {
 			}
 			$srcref->[$index] = [ $line, $info];
 		}    # Loop over lines
-		$stref->{$sub_func_incl}{$f}{'Vars'} = \%vars;
+		$stref->{$sub_func_incl_or_mod}{$f}{'Vars'} = \%vars;
 	} else {
-		print  "WARNING: NO LOCAL SOURCE for $f\n";
-		
+		print  "WARNING: NO AnnLines for $f\n";
+		die "SOURCE for $f: ".Dumper($Sf);
 		# FIXME: if we can't find the source, we should search the include path, but
 		# not attempt to create a module for that source!
 	}
@@ -470,9 +479,9 @@ sub _parse_includes {
 	( my $f, my $stref ) = @_;
 #	local $V=1;
 	
-	my $sub_or_func_or_inc_or_mod = sub_func_incl_mod( $f, $stref );
-	my $Sf                 = $stref->{$sub_or_func_or_inc_or_mod}{$f};
-    print "PARSING INCLUDES for $f ($sub_or_func_or_inc_or_mod)\n" if $V;
+	my $sub_or_func_or_mod_or_inc_or_mod = sub_func_incl_mod( $f, $stref );
+	my $Sf                 = $stref->{$sub_or_func_or_mod_or_inc_or_mod}{$f};
+    print "PARSING INCLUDES for $f ($sub_or_func_or_mod_or_inc_or_mod)\n" if $V;
 	my $srcref       = $Sf->{'AnnLines'};
 	my $last_inc_idx = 0;
 	if (defined $srcref) {
@@ -554,9 +563,9 @@ sub _parse_use {
 	( my $f, my $stref ) = @_;
 #	local $V=1;
 	
-	my $sub_or_func_or_inc_or_mod = sub_func_incl_mod( $f, $stref );
-	my $Sf                 = $stref->{$sub_or_func_or_inc_or_mod}{$f};
-    print "PARSING USE for $f ($sub_or_func_or_inc_or_mod)\n" if $V;
+	my $sub_or_func_or_mod_or_inc_or_mod = sub_func_incl_mod( $f, $stref );
+	my $Sf                 = $stref->{$sub_or_func_or_mod_or_inc_or_mod}{$f};
+    print "PARSING USE for $f ($sub_or_func_or_mod_or_inc_or_mod)\n" if $V;
 	my $srcref       = $Sf->{'AnnLines'};
 	my $last_inc_idx = 0;
 	if (defined $srcref) {
@@ -588,7 +597,7 @@ sub _parse_use {
 
 			$info->{'Use'} = {};
 			$info->{'Use'}{'Name'} = $name;
-			if ( $stref->{'Modules'}{$name}{'Status'} < $READ ) {
+			if ( not exists $stref->{'Modules'}{$name}{'Status'} or $stref->{'Modules'}{$name}{'Status'} < $READ ) {
 				print $line, "\n" if $V;
 
 #				# Initial guess for Root. OK? FIXME?
@@ -635,10 +644,10 @@ sub _parse_use {
 sub OBSOLETE_detect_blocks {
 	( my $stref, my $s ) = @_;
 	print "CHECKING BLOCKS in $s\n" if $V;
-	my $sub_func_incl = sub_func_incl_mod( $s, $stref );
-	die "$sub_func_incl $s ".$stref->{$sub_func_incl}{$s}{'HasBlocks'}  if $s eq 'timemanager';
-	$stref->{$sub_func_incl}{$s}{'HasBlocks'} = 0;
-	my $srcref = $stref->{$sub_func_incl}{$s}{'AnnLines'};
+	my $sub_func_incl_or_mod = sub_func_incl_mod( $s, $stref );
+	die "$sub_func_incl_or_mod $s ".$stref->{$sub_func_incl_or_mod}{$s}{'HasBlocks'}  if $s eq 'timemanager';
+	$stref->{$sub_func_incl_or_mod}{$s}{'HasBlocks'} = 0;
+	my $srcref = $stref->{$sub_func_incl_or_mod}{$s}{'AnnLines'};
 	for my $annline ( @{$srcref} ) {
 		my $line = $annline->[0];
 		if ( $line =~ /^\!\s/ ) {
@@ -649,8 +658,8 @@ sub OBSOLETE_detect_blocks {
 			if (   $line =~ /^\!\s+BEGIN\sSUBROUTINE\s(\w+)/
 				or $line =~ /^\!\s*\$acc\ssubroutine\s(\w+)/i )
 			{
-				$stref->{$sub_func_incl}{$s}{'HasBlocks'} = 1;
-				my $tgt = uc( substr( $sub_func_incl, 0, 3 ) );
+				$stref->{$sub_func_incl_or_mod}{$s}{'HasBlocks'} = 1;
+				my $tgt = uc( substr( $sub_func_incl_or_mod, 0, 3 ) );
 				print "$tgt $s HAS BLOCK: $1\n" if $V;
 				last;
 			}
@@ -678,8 +687,8 @@ sub _separate_blocks {
 	( my $f, my $stref ) = @_;
 
 #    die "separate_blocks(): FIXME: we need to add in the locals from the parent subroutine as locals in the new subroutine!";
-	my $sub_or_func = sub_func_incl_mod( $f, $stref );
-	my $Sf          = $stref->{$sub_or_func}{$f};
+	my $sub_or_func_or_mod = sub_func_incl_mod( $f, $stref );
+	my $Sf          = $stref->{$sub_or_func_or_mod}{$f};
 	my $srcref      = $Sf->{'AnnLines'};
 
 	# All local variables in the parent subroutine
@@ -956,8 +965,8 @@ sub _parse_subroutine_and_function_calls {
 	( my $f, my $stref ) = @_;
 	print "PARSING SUBROUTINE/FUNCTION CALLS in $f\n" if $V;
 	my $pnid        = $stref->{'NId'};
-	my $sub_or_func = sub_func_incl_mod( $f, $stref );
-	my $Sf          = $stref->{$sub_or_func}{$f};
+	my $sub_or_func_or_mod = sub_func_incl_mod( $f, $stref );
+	my $Sf          = $stref->{$sub_or_func_or_mod}{$f};
 
 	# For C translation and call tree generation
 	# TODO: $translate is obsolete! 
@@ -976,16 +985,17 @@ sub _parse_subroutine_and_function_calls {
 		}
 	}
 	my $srcref = $Sf->{'AnnLines'};
-
+    
 	if ( defined $srcref ) {
         my $in_kernel_wrapper_region=0;
         my $in_kernel_sub_region=0;
         my $kernel_wrapper_name='';
+        my $current_sub_name='';
 		for my $index ( 0 .. scalar( @{$srcref} ) - 1 ) {
 			my $line = $srcref->[$index][0];
 			my $info = $srcref->[$index][1];
 			next if ($line =~ /^\!\s/ and $line !~ /^\!\s*\$acc\s/i);
-
+#            next if ($line =~ /^\!\s/ and $line !~ /^\!\s*\$acc\s/i);
             if (exists $info->{'AccPragma'}) {
                 if (exists $info->{'AccPragma'}{'BeginKernelWrapper'} ) {
                     $in_kernel_wrapper_region=1;
@@ -998,6 +1008,10 @@ sub _parse_subroutine_and_function_calls {
                     $in_kernel_sub_region=0;
                 }
             }
+#            print "LINE: $line ". join(',',keys %{$info})."\n";
+            if (exists $info->{'SubroutineSig'} ) {
+                $current_sub_name = $info->{'SubroutineSig'}  
+            };
 	  # Subroutine calls. Surprisingly, these even occur in functions! *shudder*
             if ( $line =~ /call\s+(\w+)\s*\((.*)\)/ || $line =~ /call\s+(\w+)\s*$/ ) # WV23JUL2012
 #			if ( $line =~ /call\s(\w+)\((.*)\)/ || $line =~ /call\s(\w+)\s*$/ )            
@@ -1088,7 +1102,11 @@ sub _parse_subroutine_and_function_calls {
 				if ( defined $Sname
 					and not exists $Sf->{'CalledSubs'}{$name} )
 				{
+				    if ( $sub_or_func_or_mod eq 'Subroutines') {
 					$Sf->{'CalledSubs'}{$name} = 1;
+				    } else {				        
+				        $Sf->{'Subroutines'}{$current_sub_name}{'CalledSubs'}{$name} = 1;
+				    }
 					if (   not exists $Sname->{'Status'}
 						or $Sname->{'Status'} < $PARSED
 						or $gen_sub )

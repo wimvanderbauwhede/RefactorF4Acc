@@ -31,6 +31,7 @@ sub find_root_for_includes {
     ( my $stref, my $f ) = @_;
     
     $stref = _create_include_chains( $stref, 0 );  # assumes we start at node 0 in the tree
+    
     for my $inc ( keys %{ $stref->{'IncludeFiles'} } ) {
 #       print "INC: $inc\n";
 #       print Dumper($stref->{'IncludeFiles'}{$inc});
@@ -44,13 +45,14 @@ sub find_root_for_includes {
 #                print Dumper($stref->{'IncludeFiles'}{$inc});         
         }
         if ( $stref->{'IncludeFiles'}{$inc}{'InclType'} eq 'Common' ) {
-#            print "FINDING ROOT FOR $inc ($f)\n" ;
+#            print "FINDING ROOT FOR $inc ($f)\n" ;die;
             $stref = _find_root_for_include( $stref, $inc, $f );
             print "ROOT for $inc is "
               . $stref->{'IncludeFiles'}{$inc}{'Root'} . "\n"
               if $V 
         }
     }
+    
     return $stref;
 }    # END of find_root_for_includes()
 
@@ -72,6 +74,7 @@ sub _find_root_for_include {
     ( my $stref, my $inc, my $sub ) = @_;
     
     my $Ssub = $stref->{'Subroutines'}{$sub};
+    
     
     if ( exists $Ssub->{'Includes'}{$inc} ) {
         # Not inherited
@@ -161,8 +164,9 @@ sub __merge_includes {
     # We should only do this for subs that need refactoring
     my $pnid = $stref->{'Nodes'}{$nid}{'Parent'};   
     my $sub  = $stref->{'Nodes'}{$nid}{'Subroutine'};
-    
+    if (exists $stref->{'Subroutines'}{$sub}) {
     my $Ssub = $stref->{'Subroutines'}{$sub};
+    
 #    print "__merge_includes: $sub\n";
     my $f=$stref->{'Nodes'}{$pnid}{'Subroutine'};
     if ($V) {
@@ -217,7 +221,7 @@ sub __merge_includes {
     if ( $nid != 0 ) {
         $stref = __merge_includes( $stref, $pnid, $nid,$chain );
     }
-
+    }
     return $stref;
 }    # END of __merge_includes
 

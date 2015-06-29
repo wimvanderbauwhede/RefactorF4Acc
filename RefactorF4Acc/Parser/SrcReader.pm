@@ -41,10 +41,12 @@ sub read_fortran_src {
 	if ($sub_func_incl eq 'ExternalSubroutines') {
 		$stref->{$sub_func_incl}{$s}{'Status'}=$UNREAD;		
 	}
+#	die Dumper($stref->{'Modules'}{'module_bondfg'}) if $s=~/module_bond/;
 # Are there any Blocks?
 	if (not exists $stref->{$sub_func_incl}{$s}{'HasBlocks'} ){
 	   $stref->{$sub_func_incl}{$s}{'HasBlocks'} = 0;
 	}
+	
 	my $f = $is_incl ? $s : $stref->{$sub_func_incl}{$s}{'Source'};
 
     if (defined $f) {
@@ -79,14 +81,13 @@ sub read_fortran_src {
 
 			my @rawlines = <$SRC>;
 			close $SRC;
-
 			my @lines     = @rawlines;
 			push @lines,("      \n");
 			my $free_form = $stref->{$sub_func_incl}{$s}{'FreeForm'};
 			my $srctype   = $sub_func_incl;
 
 			
-			if ($free_form) {
+			if ($free_form) { # I take this to mean F95, FIXME!
 			    
 =info_free_form_parsing
 The main difference is in the continuation lines:
@@ -105,7 +106,7 @@ so, as soon as we detect an & at the end of a line, we are in multi-line parsing
 So, in this case, is there any reason to look ahead?
 Suppose we don't:
 =cut
-                my $old_s=$s;
+#                my $old_s=$s;
 #                my $s=($srctype eq 'IncludeFiles') ? $s : '';
                 my $in_cont              = 0;
                 my @comments_stack       = ();
@@ -118,9 +119,12 @@ Suppose we don't:
 #					        	print "PUSH $line\n";
 					            ( $stref, $s, $srctype ) =
 					            pushAnnLine( $stref, $s, $srctype,$line, $free_form );
+					         
 					        }					    
+					        
 				}
-#				die "S:$s ".Dumper($stref->{$srctype}{$s} );		
+				# At this point we have lost module and use declarations (and 'contains')
+#				die "S:$s ".Dumper($stref->{$srctype}{$s}{AnnLines} );		
 =off				
 				for my $line (@lines) {		
 #					    die $line if $s=~/anime/ ;#and $line=~/\&/);			    
@@ -839,29 +843,34 @@ Suppose we don't:
 		}    # if $need_to_read
 #		die Dumper($stref->{'Subroutines'}{'wrf'}{'AnnLines'});
     } # if $f is defined
+#    die Dumper($stref->{'Modules'}{'module_bondfg'}) if $s=~/module_bond/;
 		return $stref;
 	}    # END of read_fortran_src()
 
  # -----------------------------------------------------------------------------
 
  # -----------------------------------------------------------------------------
- # How to skip the funcs/subs that have been read/parsed already?
- # One way is maybe to record for every item which other items occur in the source.
- # If it turns out the source was fully read, skip it
- # So we'd need a field 'AlsoInSource' or 'SourceContains'
- 
+ # To skip the funcs/subs that have been read/parsed already?
  
 	sub pushAnnLine {
-		( my $stref, my $f, my $srctype, my $line, my $free_form ) = @_;		
+		( my $stref, my $f, my $srctype, my $line, my $free_form ) = @_;	
+#		print "HERE: $line\n";	
 		my $pline = procLine( $line, $free_form );  
-		
+		if (exists $pline->[1]{'Module'} and $srctype eq 'Modules') {
+		    if ($f ne '') {
+			 if ($stref->{$srctype}{$f}{'Status'}   < $READ ) { # FIXME: bit late, can I catch this earlier?
+			     $stref->{$srctype}{$f}{'Status'}   = $READ;
+			 }
+			}		    
+		} 
+		if ($srctype ne 'Modules') {
 		if ( exists $pline->[1]{'SubroutineSig'} ) {
 			if ($f ne '') {
-			if ($stref->{$srctype}{$f}{'Status'}   == $UNREAD ) { # FIXME: bit late, can I catch this earlier?
-			$stref->{$srctype}{$f}{'Status'}   = $READ;
+			 if ($stref->{$srctype}{$f}{'Status'}   == $UNREAD ) { # FIXME: bit late, can I catch this earlier?
+			     $stref->{$srctype}{$f}{'Status'}   = $READ;
+			 }
 			}
-			}
-			$srctype                           = 'Subroutines';
+#			$srctype                           = 'Subroutines';
 			$f                                 = $pline->[1]{'SubroutineSig'};
 			$stref->{$srctype}{$f}{'AnnLines'} = [];
 		} elsif ( exists $pline->[1]{'FunctionSig'} ) {
@@ -870,11 +879,11 @@ Suppose we don't:
 			$stref->{$srctype}{$f}{'Status'}   = $READ;
 			} 
 			}
-			$srctype                           = 'Functions';
+#			$srctype                           = 'Functions';
 			$f                                 = $pline->[1]{'FunctionSig'};
 			$stref->{$srctype}{$f}{'AnnLines'} = [];
 		}
-		
+		}
 		push @{ $stref->{$srctype}{$f}{'AnnLines'} }, $pline;
 		return ( $stref, $f, $srctype );
 	}    # pushAnnLine()
@@ -1034,16 +1043,18 @@ Suppose we don't:
 				$line =~ s/\bINCLUDE\b/include/;
 			} elsif ( $line !~ /\'/
 			    && $line !~/^\s*end/i 
-				&& $line =~ /\b(program|recursive\s+subroutine|subroutine|function)\s+(\w+)/i )
+				&& $line =~ /\b(module|program|recursive\s+subroutine|subroutine|function)\s+(\w+)/i )
 			{
 				my $keyword = lc($1);
 				my $name    = lc($2);
 die "procLine(): No $keyword name " if $name eq '';
 				if ( $keyword eq 'function' ) {
 					$info->{'FunctionSig'} = $name;
+				} elsif ($keyword eq 'module' ) {
+				    $info->{'Module'} = $name;
 				} else {
 					$info->{'SubroutineSig'} = $name;
-				}
+				} 
 				$line = lc($line);
 			} elsif ($line=~/^\s*$/) {
 				$line='';
@@ -1069,6 +1080,7 @@ die "procLine(): No $keyword name " if $name eq '';
 				  unless ( keys %{$phs_ref} == 0 );
 			}
 		}
+		
 		return [ $line, $info ];
 	}    # procLine()
 
