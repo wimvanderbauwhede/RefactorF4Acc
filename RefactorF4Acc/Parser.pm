@@ -460,7 +460,9 @@ sub _analyse_lines {
 			}
 			$srcref->[$index] = [ $line, $info];
 		}    # Loop over lines
+		
 		$stref->{$sub_func_incl_or_mod}{$f}{'Vars'} = \%vars;
+		
 	} else {
 		print  "WARNING: NO AnnLines for $f\n";
 		die "SOURCE for $f: ".Dumper($Sf);

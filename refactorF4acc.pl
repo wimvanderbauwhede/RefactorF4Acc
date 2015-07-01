@@ -1,5 +1,5 @@
 #!/usr/bin/perl
-use 5.012;
+use 5.016;
 use warnings::unused;
 use warnings;
 use warnings FATAL => qw(uninitialized);
@@ -57,27 +57,27 @@ The `main()` subroutine performs following actions:
 - `find_subroutines_functions_and_includes()`: Find all subroutines, functions and includes (from now on, 'targets') in the source code tree. 
 The subroutine creates an entry in the state for every target:
 
-        $stref->{$target_type}{$target_name}{'Source'}  = $target_source;
-        $stref->{$target_type}{$target_name}{'Status'}  = $UNREAD;
+        $stateref->{$target_type}{$target_name}{'Source'}  = $target_source;
+        $stateref->{$target_type}{$target_name}{'Status'}  = $UNREAD;
         
 - Parsing: `parse_fortran_src()` :
 
     - Read the source and do some minimal processsing 
     
-            $stref = read_fortran_src( $f, $stref );
+            $stateref = read_fortran_src( $f, $stateref );
         
     - Parse the type declarations in the source, create a table `%vars`
     - Get variable declarations unless the target is a function 
     - Parse Subroutines & Functions
     
-            $stref = detect_blocks( $f, $stref );     
-            $stref = parse_includes( $f, $stref );        
-            $stref = parse_subroutine_and_function_calls( $f, $stref );
+            $stateref = detect_blocks( $f, $stateref );     
+            $stateref = parse_includes( $f, $stateref );        
+            $stateref = parse_subroutine_and_function_calls( $f, $stateref );
             
         Set Status to PARSED    
-    - Parse Includes: parse common blocks and parameters, create `$stref->{'Commons'}`
+    - Parse Includes: parse common blocks and parameters, create `$stateref->{'Commons'}`
     
-            $stref = get_commons_params_from_includes( $f, $stref );
+            $stateref = get_commons_params_from_includes( $f, $stateref );
         
 - Analysis: `analyse_all()` : 
 This routine analyses the code for goto-based loops and breaks, so that we can rewrite those horrible `DO`-blocks as proper loops. 
@@ -145,9 +145,10 @@ sub main {
 	$stateref = refactor_all($stateref,$subname);
 #	die Dumper(sort keys %{$stateref});#->{'Subroutines'});#->{'RefactoredSources'});
    print '=' x 80, "\n";
-   map {say Dumper($_->[1]) } @{ $stateref->{'Subroutines'}{'press'}{'AnnLines'} };
+#   map {say Dumper($_->[1]) } @{ $stateref->{'Subroutines'}{'press'}{'AnnLines'} };
 #   print Dumper($stateref->{'Subroutines'}{'press'}{'AnnLines'});
-   die 'AFTER refactor_all()';
+   say 'AFTER refactor_all()';
+   say map {"$_\n"} (sort keys $stateref->{'RefactoredSources'});die;
 	if ( not $call_tree_only ) {
 		# Emit the refactored source
 		emit_all($stateref);
@@ -434,7 +435,7 @@ then just add the globals to the call
 - otherwise, add the index in the list of source lines to a hash of subs 
 - in fact, this can be a hash of "anythings", i.e.
  
-        $stref->{'Nodes'}{$filename}{'SubroutineCall'}{$name}={'Pos'=>[$index,...],'Globals'=>[],...};
+        $stateref->{'Nodes'}{$filename}{'SubroutineCall'}{$name}={'Pos'=>[$index,...],'Globals'=>[],...};
     
     As this is a "global", I need to pass it around between calls.
 - recurse and figure out globals used. also, store the signature in the node hash

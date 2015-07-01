@@ -1,5 +1,5 @@
 package RefactorF4Acc::Analysis::LoopDetect;
-
+use v5.12;
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
 
@@ -27,21 +27,27 @@ use Exporter;
 
 
 =pod
-my $start_of_outer_loop_search_idx=0;
-my $start_of_mod_var_search_idx=0;
-# We should just detect this on the fly and store it!
+This algorithm detects the outer enclosing loop around a potential OpenCL kernel.
+The purpose is to identify the variables that belong to the loops.
+This routine is called from Parser::_analyse_lines()
 
-The general problem is: if we identify a line by its position in the list, this can change later. So what we should do instead is give the line a unique number. For extra lines we just continue numbering from the bottom. 
+The way it works is:
+- give the $kernelwrapper (which _analyse_lines() determined from the !$ACC line)
+- get the subroutine name and startindex:
 $stref->{'KernelWrappers'}{$kernelwrapper}={
-    'OuterLoopPos'=>[$f1,$idx1],
+    'OuterLoopStartPos'=>[$f1,$idx1],
     'BeginKernelWrapper'=>[$f2,$idx2],
     'EndKernelWrapper'=>[$f3,$idx3],
     'LoopVars' =>[$i,$j],
 };
+- call _loop_detect_rec()
+- This routine goes up in the $annlines list until it finds a subroutine signature, in which case it goes through all callers. 
+- It keeps track of all DO blocks encountered along the way (OuterLoopStartPos) and their loop variables (LoopVars).
+- It does that until it finds the toplevel program signature.
 =cut
 # For some reason this is called twice??!
 sub loop_detect {    
-    warn "LOOP DETECT!\n";
+    say "calling loop_detect()\n";# if $V;
     ( my $kernelwrapper, my $stref ) = @_;
     my $f = $stref->{'KernelWrappers'}{$kernelwrapper}{ 'BeginKernelWrapper'}[0];
     my $index =$stref->{'KernelWrappers'}{$kernelwrapper}{ 'BeginKernelWrapper'}[1];
@@ -49,6 +55,12 @@ sub loop_detect {
     my $Sf          = $stref->{$sub_or_func}{$f};
     my $srcref      = $Sf->{'AnnLines'};
     _loop_detect_rec($f,$stref,$index,$kernelwrapper);
+    say 'OUTER LOOP: '.$stref->{'KernelWrappers'}{$kernelwrapper}{ 'OuterLoopStartPos'}[0]
+    .' index:'
+    .$stref->{'KernelWrappers'}{$kernelwrapper}{ 'OuterLoopStartPos'}[1]
+    .' LineID:'
+    .$stref->{'KernelWrappers'}{$kernelwrapper}{ 'OuterLoopStartPos'}[2];
+    return $stref;
 }
 
 sub _loop_detect_rec { (my $f,my $stref, my $index,my $kernelwrapper) =@_;
@@ -63,9 +75,9 @@ sub _loop_detect_rec { (my $f,my $stref, my $index,my $kernelwrapper) =@_;
         my $info = $srcref->[$index][1];
         next if $line =~ /^\!\s+/;
         if (exists $info->{'Do'}) {
-            warn "DO: $line in $f\n";
+            say "DO: $line in $f, $index, ".$info->{'LineID'}."\n";
 #            die Dumper($info);
-            $stref->{'KernelWrappers'}{$kernelwrapper}{ 'OuterLoopStartPos'} =[$f,$index];
+            $stref->{'KernelWrappers'}{$kernelwrapper}{ 'OuterLoopStartPos'} =[$f,$index, $info->{'LineID'}];
             push @{ $stref->{'KernelWrappers'}{$kernelwrapper}{ 'LoopVars'} }, $info->{'Do'}{'Iterator'};
 #TODO: also detect assignments inside loops
         }
