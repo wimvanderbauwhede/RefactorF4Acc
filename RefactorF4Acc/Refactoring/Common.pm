@@ -98,7 +98,7 @@ sub context_free_refactorings {
 		}
 		# EndDo: replace label CONTINUE by END DO;
 		# if no continue, remove label & add end do on next line
-		if ( exists $tags{'EndDo'} and exists $tags{'EndDo'}{'Label'}) {
+		if ( exists $tags{'EndDo'} and exists $tags{'EndDo'}{'Label'} ) {
 
 			#warn "$f: END DO $line\n";
 			my $is_goto_target = 0;

@@ -110,7 +110,7 @@ sub _identify_loops_breaks {
                 }                
                 if ( exists $do_loops{$label} ) {
                     if ( $nest == $do_loops{$label}[1] + 1 ) {
-                       $info->{'EndDo'}{'Label'} = $label;
+                       $info->{'EndDo'}{'Label'} = $label;                       
                         $info->{'EndDo'}{'Count'} =
                           scalar @{ $do_loops{$label}[0] };
                         delete $do_loops{$label};

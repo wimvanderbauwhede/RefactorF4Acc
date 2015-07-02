@@ -141,6 +141,7 @@ sub main {
 	$stateref = analyse_all($stateref,$subname);
 #   die 'AFTER analyse_all()';
 #	die Dumper(sort keys %{$stateref});
+
     # Refactor the source
 	$stateref = refactor_all($stateref,$subname);
 #	die Dumper(sort keys %{$stateref});#->{'Subroutines'});#->{'RefactoredSources'});
@@ -148,7 +149,13 @@ sub main {
 #   map {say Dumper($_->[1]) } @{ $stateref->{'Subroutines'}{'press'}{'AnnLines'} };
 #   print Dumper($stateref->{'Subroutines'}{'press'}{'AnnLines'});
    say 'AFTER refactor_all()';
-   say map {"$_\n"} (sort keys $stateref->{'RefactoredSources'});die;
+   
+   
+#   say map {"$_\n"} (sort keys $stateref->{'RefactoredSources'});
+   say map { $_->[0]."\t".join(';',keys $_->[1])."\n"} @{$stateref->{'RefactoredSources'}{'./main.f'}};
+   die;
+   
+   
 	if ( not $call_tree_only ) {
 		# Emit the refactored source
 		emit_all($stateref);

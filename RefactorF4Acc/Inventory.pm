@@ -146,9 +146,11 @@ sub _process_src {
         # Detect blocks
             if ( $has_blocks == 0 ) {
                 if ( $line =~ /^[Cc\*\!]\s+BEGIN\sSUBROUTINE\s(\w+)/ 
-        or $line =~ /^\!\s*\$acc\ssubroutine\s(\w+)/i ){
-                         my $sub=$1;
-                         croak 'Detect blocks: No subroutine name from '.$line if $sub eq '';
+        or $line =~ /^\!\s*\$ACC\s+(Subroutine|KernelWrapper)\s+(\w+)/i ){
+                        my $block_type=$1;
+                         my $sub=$2;
+                         say 'Detected block: '."$block_type $sub" if $V;
+                         croak 'Detect blocks: No '.$block_type.' name from '.$line if $sub eq '';
                         $has_blocks = 1;
                         if ($translate_to ne '') {
                             $stref->{'Subroutines'}{$sub}{'Translate'}= $translate_to;

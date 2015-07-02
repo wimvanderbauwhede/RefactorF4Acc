@@ -112,6 +112,7 @@ sub _refactor_subroutine_main {
 
     my $rlines = $annlines;
     if ( $Sf->{'HasCommons'} ) {
+        
         if ( $Sf->{'RefactorGlobals'} == 1 ) {
           $rlines = _refactor_globals( $stref, $f, $annlines );
         } elsif ( $Sf->{'RefactorGlobals'} == 2 ) { 
@@ -119,7 +120,7 @@ sub _refactor_subroutine_main {
             $rlines = _refactor_calls_globals( $stref, $f, $annlines );
         }
     }
-    my $sub_or_prog = ($Sf->{'Program'} == 1) ? 'program' : 'subroutine';
+    my $sub_or_prog = ( exists $Sf->{'Program'} and $Sf->{'Program'} == 1) ? 'program' : 'subroutine';
                 	my $done_fix_end=0;
             	while (!$done_fix_end and @{$rlines}) {
             	  my $line =pop @{$rlines};

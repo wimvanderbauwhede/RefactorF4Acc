@@ -5,8 +5,10 @@ use RefactorF4Acc::Utils;
 use RefactorF4Acc::Analysis::Includes qw( find_root_for_includes );
 use RefactorF4Acc::Analysis::Globals qw( resolve_globals );
 use RefactorF4Acc::Analysis::Sources qw( analyse_sources );
+use RefactorF4Acc::Analysis::LoopDetect qw( outer_loop_end_detect );
+
 # 
-#   (c) 2010-2012 Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
+#   (c) 2010-2015 Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
 #   
 
 use vars qw( $VERSION );
@@ -40,7 +42,9 @@ sub analyse_all {
     $stref = resolve_globals( $subname, $stref );
     print "\t** ANALYSE SOURCES **\n" if $V;
     $stref = analyse_sources($stref);
-    
+    for my $kernel_wrapper (keys %{$stref->{'KernelWrappers'}}) {
+        $stref = outer_loop_end_detect($kernel_wrapper,$stref);
+    }
 	return $stref;	
 } # END of analyse_all()
 

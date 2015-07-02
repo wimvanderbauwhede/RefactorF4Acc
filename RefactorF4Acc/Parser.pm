@@ -8,7 +8,7 @@ use RefactorF4Acc::Refactoring::Common
 use RefactorF4Acc::Parser::SrcReader qw( read_fortran_src );
 use RefactorF4Acc::CTranslation qw( add_to_C_build_sources );
 use RefactorF4Acc::Analysis::ArgumentIODirs qw( parse_assignment );
-use RefactorF4Acc::Analysis::LoopDetect qw( loop_detect );
+use RefactorF4Acc::Analysis::LoopDetect qw( outer_loop_start_detect );
 
 use F95VarDeclParser qw( parse_F95_var_decl );
 #
@@ -123,6 +123,8 @@ sub _analyse_lines {
 		my $type       = 'NONE';
 		my $varlst     = '';
 		my $indent     = '';
+		my @do_stack = ();
+		my $do_counter = 0;
 
 		for my $index ( 0 .. scalar( @{$srcref} ) - 1 ) {
 			my $attr = '';
@@ -149,7 +151,7 @@ sub _analyse_lines {
                 $info->{'AccPragma'}{$pragma_name_prefix.ucfirst($pragma_name)} = [@pragma_args];
                 if ($pragma_name=~/KernelWrapper/i and $pragma_name_prefix eq 'Begin') {
                     $stref->{'KernelWrappers'}{$pragma_args[0]}{$pragma_name_prefix.ucfirst($pragma_name)}=[$f,$index];
-                    $stref=loop_detect($pragma_args[0],$stref)
+                    $stref=outer_loop_start_detect($pragma_args[0],$stref)
                 }
             }            
 			
@@ -187,12 +189,19 @@ sub _analyse_lines {
 			{				
 				$info->{ ucfirst($1) } = 1;
 			} elsif ( $line =~/^\d*\s+end\s+(if|case|do)\s*/){		
-			    my $kw=$1;		
-				$info->{ 'End'.ucfirst($kw) } = {};		
+			    my $kw=ucfirst($1);
+			    $info->{ 'End'.$kw } = {};				
+			    if ($kw eq 'Do') {
+			        $do_counter--;
+			        my $corresponding_do_info = pop @do_stack;
+			        $info->{ 'EndDo'} = $corresponding_do_info->{'Do'};
+			        delete $info->{ 'EndDo'}{'Label'};
+			    }
+				
 			} elsif ( $line =~/^\d*\s*end\s+(subroutine|module|function)\s*(\w+)/){		
 			    my $kw=$1;		
 			    my $name = $2;
-				$info->{ 'End'.ucfirst($kw) } = {'Name' => $name};							
+				$info->{ 'End'.ucfirst($kw) } = {'Name' => $name};											
 			} elsif ( $line =~ /^\d*\s+do\b/ ) {
 				#WV20150304: We parse the do and store the iterator and the range { 'Iterator' => $i,'Range' =>[$start,$stop]}			    
 				my $do_stmt=$line;
@@ -201,7 +210,9 @@ sub _analyse_lines {
                 
 				(my $iter,my $range)=split(/\s*=\s*/,$do_stmt);
 				(my $range_start,my $range_stop)=split(/s*,\s*/,$range);
-				$info->{'Do'} = { 'Iterator' => $iter, 'Label'=>$label,'Range' =>[$range_start,$range_stop]};
+				$info->{'Do'} = { 'Iterator' => $iter, 'Label'=>$label,'Range' =>[$range_start,$range_stop], 'LineID' => $info->{'LineID'}};
+				$do_counter++;
+				push @do_stack, $info;
  
 			} elsif ( $line!~/::/ && $line !~ /\bparameter\b/ && $line =~ /[\w\)]\s*=\s*[^=]/ )
 			{				
@@ -684,21 +695,19 @@ This is some major refactoring, so why is it not in Refactoring/ ?
 =end markdown
 
 =cut
-
-sub _separate_blocks {
+#WV20150701 This routine is very early here but it seems to work all right.
+sub _separate_blocks { 
 	( my $f, my $stref ) = @_;
-
+    local $V=1;
 #    die "separate_blocks(): FIXME: we need to add in the locals from the parent subroutine as locals in the new subroutine!";
 	my $sub_or_func_or_mod = sub_func_incl_mod( $f, $stref );
 	my $Sf          = $stref->{$sub_or_func_or_mod}{$f};
 	my $srcref      = $Sf->{'AnnLines'};
-
+#die Dumper($Sf);
 	# All local variables in the parent subroutine
 	my %vars = %{ $Sf->{'Vars'} };
 	$Data::Dumper::Indent = 2;
 
-	#warn "USING VARS FROM PARENT $f HERE!\n";
-	#warn Dumper($Sf->{'Vars'}{'drydeposit'});
 	# Occurence
 	my %occs = ();
 
@@ -709,8 +718,6 @@ sub _separate_blocks {
 	# Initial settings
 	my $block = 'OUTER';
 	$blocks{'OUTER'} = { 'AnnLines' => [] };
-
-	#   my $block_idx = 0;
 
 # 1. Process every line in $f, scan for blocks marked with pragmas.
 # What this does is to separate the code into blocks (%blocks) and keep track of the line numbers
@@ -724,17 +731,13 @@ sub _separate_blocks {
 		my $info = $srcref->[$index][1];
 		
 		if (   $line =~ /^\!\s+BEGIN\sSUBROUTINE\s(\w+)/
-			or $line =~ /^\!\s*\$acc\s+subroutine\s(\w+)/i )
+#			or $line =~ /^\!\s*\$acc\s+subroutine\s(\w+)/i
+			or $line =~ /^\!\s*\$ACC\s+(?:Subroutine|KernelWrapper)\s+(\w+)/i 
+			)
 		{
 			$in_block = 1;
 			$block    = $1;
 			print "FOUND BLOCK $block\n" if $V;
-
-#            # Enter the name of the block in the metadata for the line
-#            $Sf->{'Info'}[$index]{'RefactoredSubroutineCall'}{'Name'} = $block;
-#            $Sf->{'Info'}[$index]{'SubroutineCall'}{'Name'} = $block;
-#            delete $Sf->{'Info'}[$index]{'Comments'};
-#            $Sf->{'Info'}[$index]{'BeginBlock'}{'Name'} = $block;
 
 			# Enter the name of the block in the metadata for the line
 			$info->{'RefactoredSubroutineCall'}{'Name'} = $block;
@@ -754,14 +757,11 @@ sub _separate_blocks {
 				{ 'RefactoredSubroutineCall' => { 'Name' => $block } }
 			  ];
 
-		  #            # Add the name and index to %blocks
-		  #            push @{ $blocks{$block}{'Info'} },
-		  #              { 'RefactoredSubroutineCall' => { 'Name' => $block } };
 			$blocks{$block}{'BeginBlockIdx'} = $index;
 			next;
 		}
 		if (   $line =~ /^\!\s+END\sSUBROUTINE\s(\w+)/
-			or $line =~ /^\!\s*\$acc\s+end\ssubroutine\s(\w+)/i )
+			or $line =~ /^\!\s*\$acc\s+end\s(?:subroutine|kernelwrapper)\s(\w+)/i )
 		{
 			$in_block = 0;
 			$block    = $1;
@@ -814,9 +814,6 @@ sub _separate_blocks {
 		}
 		my $Sblock = $stref->{'Subroutines'}{$block};
 		$Sblock->{'AnnLines'} = $blocks{$block}{'AnnLines'};
-#if (exists $Sblock->{'Translate'} ) {die $block;}
-		#        $Sblock->{'Info'}  = $blocks{$block}{'Info'};
-#		$Sblock->{'Source'}          = $Sf->{'Source'};
 		$stref->{'SourceContains'}{$Sf->{'Source'}}{$block} = 'Subroutines';
 		$Sblock->{'RefactorGlobals'} = 1;
 		if ( $Sf->{'RefactorGlobals'} == 0 ) {
@@ -839,13 +836,14 @@ sub _separate_blocks {
 	for my $block ( keys %blocks ) {
 
 		my @annlines = @{ $blocks{$block}{'AnnLines'} };
-		my %tvars = %vars;    # Hurray for pass-by-value!
+		my %tvars = %vars;    # Hurray for pass-by-value! 
+		
 		print "\nVARS in $block:\n\n" if $V;
 		for my $annline (@annlines) {
 			my $tline = $annline->[0];
-			$tline =~ s/\'.+?\'//;
+			$tline =~ s/\'.+?\'//; # FIXME: looks like a HACK!
 			for my $var ( sort keys %tvars ) {
-				if ( $tline =~ /\b$var\b/ ) {    # or $tline =~ /\W$var\s*$/ ) {
+				if ( $tline =~ /\b$var\b/ ) {    
 					print "FOUND $var\n" if $V;
 					$occs{$block}{$var} = $var;
 					delete $tvars{$var};
@@ -880,7 +878,7 @@ sub _separate_blocks {
 		# WV20150304 TODO we should create a datastructure instead!
 		my $sixspaces = ' ' x 6;
 		my $sig       = $sixspaces . 'subroutine ' . $block . '(';
-#		my $decls     = [];
+		
 		for my $argv ( @{ $args{$block} } ) {
 			$sig .= "$argv,";
 			my $decl =
@@ -888,14 +886,13 @@ sub _separate_blocks {
 			  ? format_f77_var_decl( $Sf, $argv )
 			  : format_f95_var_decl( $Sf, $argv );
 
-#			if ($f eq 'timemanager' && $block eq 'particles_main_loop' && $decl=~/drydeposit/) {
-#				print "DECL: $decl\n";
-#				print "VARS: ".Dumper( $Sf->{'Vars'}{$argv});
-#			}
-#			push @{$decls}, $sixspaces . $decl;    # Why do we need this anyway?
 			$Sf->{'Vars'}{$argv}{'Decl'} = $sixspaces . $decl; #WV20150424 This is a bit silly, we should format into strings we emit, not sooner
 		}
+		if (@{ $args{$block} } ) {
 		$sig =~ s/\,$/)/s;
+		} else {
+		    $sig .=')';
+		}
 		$Sblock->{'Sig'}   = $sig;
 #		$Sblock->{'Decls'} = $decls;
 
@@ -944,7 +941,7 @@ sub _separate_blocks {
 
 		#print "YES! GENERATED DECLS ARE WRONG!!!\n";
 		if ($V) {
-			print $sig, "\n";
+			print 'SIG:'.$sig, "\n";
 #			print join( "\n", @{$decls} ), "\n";
 		}
 		$Sblock->{'Status'} = $READ;

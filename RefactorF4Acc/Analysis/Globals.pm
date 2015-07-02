@@ -47,7 +47,7 @@ sub resolve_globals {
     ( my $f, my $stref ) = @_;
 #    warn '=' x 80, "\nENTER resolve_globals( $f )\n" ;
     if (exists $stref->{'Subroutines'}{$f} ) {
-        die Dumper( $stref->{'Subroutines'}{$f}  ) if $f=~/module_press/;
+#        die Dumper( $stref->{'Subroutines'}{$f}  ) if $f=~/module_press/;
     my $Sf = $stref->{'Subroutines'}{$f};
     if ( exists $Sf->{'CalledSubs'}
         and scalar keys %{ $Sf->{'CalledSubs'} } )
