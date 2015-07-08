@@ -3,10 +3,10 @@
 #   
 
 package RefactorF4Acc::Refactoring;
-
+use v5.016;
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
-use RefactorF4Acc::Refactoring::Common qw( create_refactored_source get_annotated_sourcelines format_f95_var_decl);
+use RefactorF4Acc::Refactoring::Common qw( create_refactored_source get_annotated_sourcelines format_f95_var_decl emit_f95_var_decl);
 use RefactorF4Acc::Refactoring::Subroutines qw( refactor_all_subroutines refactor_kernel_signatures );
 use RefactorF4Acc::Refactoring::Functions qw( refactor_called_functions );
 use RefactorF4Acc::Refactoring::IncludeFiles qw( refactor_include_files );
@@ -50,17 +50,32 @@ sub refactor_all {
     # This can't go into refactor_all_subroutines() because it is recursive
     $stref = determine_argument_io_direction_rec( $subname, $stref );
     print "DONE determine_argument_io_direction_rec()\n" if $V;
+# So at this point we know everything there is to know about the argument declarations, we can now update them
+=info
+BUT WE MUST ADD THEM IF THEY ARE NOT PRESENT YET!
+So we must get the  
+=cut
     for my $f ( keys %{ $stref->{'Subroutines'} } ) {
-#     print "NAME: $f\n";
+        next unless (defined $f and $f ne '');
+#     print "NAME: <$f>\n";
+        my %refactored_args =  %{ $stref->{'Subroutines'}{$f}{RefactoredArgs}{Set} };
     	if (scalar keys %{$stref->{'Subroutines'}{$f}{'Callers'} } ) { # or $stref->{'Subroutines'}{$f}{'Program'} ) {    		
             # so what I need to do is create the line with intent and replace it in RefactoredCode
             for my $entry (@{ $stref->{'Subroutines'}{$f}{RefactoredCode} } ) {
-              if (exists($entry->[1]{VarDecl})) {
-                my $varname = $entry->[1]{VarDecl};
+              if (exists($entry->[1]{'VarDecl'})) {
+                my $varname = $entry->[1]{'VarDecl'}[2][0];
                 my $vardecl = format_f95_var_decl($stref->{'Subroutines'}{$f}, $varname);
-                $entry->[0] = $vardecl;
+                $entry->[0] = emit_f95_var_decl($vardecl);
+                delete $refactored_args{$varname};
+#                say "DELETED $varname from RefactoredArgs in $f";
+              } elsif ($entry->[0] =~/::/) {
+                  say "VAR DECL NOT MARKED PROPERLY: ".$entry->[0];
               }
             }                        
+            if (keys %refactored_args) {
+            say "REMAINING in RefactoredArgs in $f:";map {say} (keys %refactored_args);
+            }
+            
     	} else {
     		print "WARNING: SKIPPING <$f>: " if $V;
 			if (defined $f and $f ne '') {
@@ -70,6 +85,7 @@ sub refactor_all {
 			}
     	}
     }
+    die 'refactor_all()';
     $stref=add_module_decls($stref);    
     return $stref;	
 } # END of refactor_all()  
@@ -158,7 +174,7 @@ sub add_module_decls {
             			push @prog_p2, $annline;
             		}
             		if (exists $info->{'SubroutineSig'}) {
-            			my $progname = $info->{'SubroutineSig'};
+            			my $progname = $info->{'SubroutineSig'}[1];
             			
             		if ( exists $stref->{'Subroutines'}{$progname}{'Program'}) {	
             			$before=0;

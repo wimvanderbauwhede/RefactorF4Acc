@@ -19,6 +19,7 @@ use RefactorF4Acc::Refactoring qw( refactor_all );
 use RefactorF4Acc::Emitter qw( emit_all );
 use RefactorF4Acc::CTranslation qw( refactor_C_targets emit_C_targets translate_to_C);
 use RefactorF4Acc::Builder qw( create_build_script build_executable );
+use RefactorF4Acc::Analysis::LoopDetect qw( outer_loop_variable_analysis );
 
 use Getopt::Std;
 
@@ -57,39 +58,39 @@ The `main()` subroutine performs following actions:
 - `find_subroutines_functions_and_includes()`: Find all subroutines, functions and includes (from now on, 'targets') in the source code tree. 
 The subroutine creates an entry in the state for every target:
 
-        $stateref->{$target_type}{$target_name}{'Source'}  = $target_source;
-        $stateref->{$target_type}{$target_name}{'Status'}  = $UNREAD;
+        $stref->{$target_type}{$target_name}{'Source'}  = $target_source;
+        $stref->{$target_type}{$target_name}{'Status'}  = $UNREAD;
         
 - Parsing: `parse_fortran_src()` :
 
     - Read the source and do some minimal processsing 
     
-            $stateref = read_fortran_src( $f, $stateref );
+            $stref = read_fortran_src( $f, $stref );
         
     - Parse the type declarations in the source, create a table `%vars`
     - Get variable declarations unless the target is a function 
     - Parse Subroutines & Functions
     
-            $stateref = detect_blocks( $f, $stateref );     
-            $stateref = parse_includes( $f, $stateref );        
-            $stateref = parse_subroutine_and_function_calls( $f, $stateref );
+            $stref = detect_blocks( $f, $stref );     
+            $stref = parse_includes( $f, $stref );        
+            $stref = parse_subroutine_and_function_calls( $f, $stref );
             
         Set Status to PARSED    
-    - Parse Includes: parse common blocks and parameters, create `$stateref->{'Commons'}`
+    - Parse Includes: parse common blocks and parameters, create `$stref->{'Commons'}`
     
-            $stateref = get_commons_params_from_includes( $f, $stateref );
+            $stref = get_commons_params_from_includes( $f, $stref );
         
 - Analysis: `analyse_all()` : 
 This routine analyses the code for goto-based loops and breaks, so that we can rewrite those horrible `DO`-blocks as proper loops. 
 
-        $stateref = analyse_all($stateref);
+        $stref = analyse_all($stref);
 
 - Refactoring: `refactor_all()`:
 
 - Emit the refactored source:
 
         if ( not $call_tree_only ) {
-            emit_all($stateref);
+            emit_all($stref);
         }
 
 - Translate to C:
@@ -98,16 +99,16 @@ This routine analyses the code for goto-based loops and breaks, so that we can r
 	        $translate = $GO;
 	        for my $subname   (keys %subs_to_translate ) {
 	            $gen_sub  = 1;
-	            $stateref = parse_fortran_src( $subname, $stateref );
-	            $stateref = refactor_C_targets($stateref);
-	            emit_C_targets($stateref);
-	            &translate_to_C($stateref);
+	            $stref = parse_fortran_src( $subname, $stref );
+	            $stref = refactor_C_targets($stref);
+	            emit_C_targets($stref);
+	            &translate_to_C($stref);
 	        }
 	    }
     
 - Create build script:
     
-	    create_build_script($stateref);
+	    create_build_script($stref);
 	    if ($build) {
 	        build_executable();
 	    }
@@ -124,59 +125,65 @@ This routine analyses the code for goto-based loops and breaks, so that we can r
 sub main {
 	(my $subname, my $subs_to_translate, my $build) = parse_args();
 	#  Initialise the global state.
-	my $stateref = init_state($subname);
-    $stateref->{'SubsToTranslate'}=$subs_to_translate;
+	my $stref = init_state($subname);
+    $stref->{'SubsToTranslate'}=$subs_to_translate;
 	# Find all subroutines in the source code tree
-	$stateref = find_subroutines_functions_and_includes($stateref);
+	$stref = find_subroutines_functions_and_includes($stref);
 
     # Parse the source
-	$stateref = parse_fortran_src( $subname, $stateref );
+	$stref = parse_fortran_src( $subname, $stref );
      
 	if ( $call_tree_only and not $ARGV[1] ) {
-		create_call_graph($stateref,$subname);
+		create_call_graph($stref,$subname);
 		exit(0);
 	}
     
     # Analyse the source
-	$stateref = analyse_all($stateref,$subname);
+	$stref = analyse_all($stref,$subname);
 #   die 'AFTER analyse_all()';
-#	die Dumper(sort keys %{$stateref});
+#	die Dumper(sort keys %{$stref});
 
     # Refactor the source
-	$stateref = refactor_all($stateref,$subname);
-#	die Dumper(sort keys %{$stateref});#->{'Subroutines'});#->{'RefactoredSources'});
+	$stref = refactor_all($stref,$subname);
+#	die Dumper(sort keys %{$stref});#->{'Subroutines'});#->{'RefactoredSources'});
    print '=' x 80, "\n";
-#   map {say Dumper($_->[1]) } @{ $stateref->{'Subroutines'}{'press'}{'AnnLines'} };
-#   print Dumper($stateref->{'Subroutines'}{'press'}{'AnnLines'});
+#   map {say Dumper($_->[1]) } @{ $stref->{'Subroutines'}{'press'}{'AnnLines'} };
+#   print Dumper($stref->{'Subroutines'}{'press'}{'AnnLines'});
    say 'AFTER refactor_all()';
-   
-   
-#   say map {"$_\n"} (sort keys $stateref->{'RefactoredSources'});
-   say map { $_->[0]."\t".join(';',keys $_->[1])."\n"} @{$stateref->{'RefactoredSources'}{'./main.f'}};
+       for my $kernel_wrapper (keys %{$stref->{'KernelWrappers'}}) {
+        $stref = outer_loop_variable_analysis($kernel_wrapper,$stref);
+    }
+#    map {say} keys $stref->{Subroutines}{LES_kernel_wrapper};
+#    say Dumper $stref->{Subroutines}{LES_kernel_wrapper}{RefactoredArgs};
+#   map {say $_->[0] } @{$stref->{Subroutines}{LES_kernel_wrapper}{RefactoredCode}};
+   die;
+#   say map {"$_\n"} (sort keys $stref->{'RefactoredSources'});
+#    map { say $_->[0] } @{$stref->{'RefactoredSources'}{'./main.f'}};
+   say map { $_->[0]."\t".join(';',keys $_->[1])."\n"} @{$stref->{'RefactoredSources'}{'./main.f'}};
    die;
    
    
 	if ( not $call_tree_only ) {
 		# Emit the refactored source
-		emit_all($stateref);
+		emit_all($stref);
 	}
 
 	if ( $translate == $YES ) {
 		$translate = $GO;
-		for my $subname ( keys %{ $stateref->{'SubsToTranslate'} }) {
+		for my $subname ( keys %{ $stref->{'SubsToTranslate'} }) {
 			print "\nTranslating $subname to C\n";
 			$gen_sub  = 1;
-			$stateref = parse_fortran_src( $subname, $stateref );
-			$stateref = refactor_C_targets($stateref);
-			emit_C_targets($stateref);
-			translate_to_C($stateref);
+			$stref = parse_fortran_src( $subname, $stref );
+			$stref = refactor_C_targets($stref);
+			emit_C_targets($stref);
+			translate_to_C($stref);
 		}
 	}
 	
-#	translate_all_to_C($stateref);
+#	translate_all_to_C($stref);
 
 
-	create_build_script($stateref);
+	create_build_script($stref);
 	if ($build) {
 		build_executable();
 	}
@@ -442,7 +449,7 @@ then just add the globals to the call
 - otherwise, add the index in the list of source lines to a hash of subs 
 - in fact, this can be a hash of "anythings", i.e.
  
-        $stateref->{'Nodes'}{$filename}{'SubroutineCall'}{$name}={'Pos'=>[$index,...],'Globals'=>[],...};
+        $stref->{'Nodes'}{$filename}{'SubroutineCall'}{$name}={'Pos'=>[$index,...],'Globals'=>[],...};
     
     As this is a "global", I need to pass it around between calls.
 - recurse and figure out globals used. also, store the signature in the node hash

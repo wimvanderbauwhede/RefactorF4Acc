@@ -113,4 +113,8 @@ So we must do these checks recursively for all variables in a subroutine.
 sub find_unused_variables {
     
 }
+
+=info 
+Another nice thing to do is constant detection and then replacing if() by #if 
+=cut
 1;

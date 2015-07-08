@@ -237,11 +237,11 @@ sub get_iodirs_from_subcall {
 	my $Sf    = $stref->{'Subroutines'}{$f};
 
 #	my $line = $annlines->[$index][0];
-	my $tags = $annlines->[$index][1];
+	my $info = $annlines->[$index][1];
 
-	my $name  = $tags->{'SubroutineCall'}{'Name'};			 	
+	my $name  = $info->{'SubroutineCall'}{'Name'};			 	
 	my $Sname = $stref->{'Subroutines'}{$name};
-    if (not exists $tags->{'SubroutineCall'} or not exists $tags->{'SubroutineCall'}{'RefactoredArgs'}) {
+    if (not exists $info->{'SubroutineCall'} or not exists $info->{'SubroutineCall'}{'RefactoredArgs'}) {
        $stref = refactor_subroutine_call_args( $stref, $f, $index );
     } 
 	my $args = $Sf->{'RefactoredArgs'}{'Set'};
@@ -249,7 +249,7 @@ sub get_iodirs_from_subcall {
 
 	# Now get the RefactoredArgs
 	my $ref_call_args =
-	  $tags->{'SubroutineCall'}{'RefactoredArgs'};
+	  $info->{'SubroutineCall'}{'RefactoredArgs'};
     # Get the RefactoredArgs List for the signature
 	my $ref_sig_args = $Sname->{'RefactoredArgs'}{'List'};
 	my $ca = scalar( @{$ref_call_args} );
@@ -362,7 +362,7 @@ sub analyse_src_for_iodirs {
     my $annlines=get_annotated_sourcelines($stref,$f);
         for my $index ( 0 .. scalar( @{$annlines} ) - 1 ) {
             my $line = $annlines->[$index][0];
-            my $tags = $annlines->[$index][1];
+            my $info = $annlines->[$index][1];
             if ( $line =~ /^\s*\!/ ) {
                 next;
             }
@@ -372,10 +372,10 @@ sub analyse_src_for_iodirs {
                 next;
             }
             # Skip the signature            
-            if ( exists $tags->{'Signature'} ) {
+            if ( exists $info->{'Signature'} ) {
             	 next; }
             # Skip the declarations
-            if ( exists $tags->{'VarDecl'} ) { next; }
+            if ( exists $info->{'VarDecl'} ) { next; }
 
             # Write & File open statements
             if ( $line =~ /^\s+(?:write|print|open)\s*\(\s*(.+)$/ or
@@ -400,8 +400,8 @@ sub analyse_src_for_iodirs {
             }
             
             
-            if ( exists $tags->{'SubroutineCall'} && exists $tags->{'SubroutineCall'}{'Name'}) {
-                my $name  = $tags->{'SubroutineCall'}{'Name'};
+            if ( exists $info->{'SubroutineCall'} && exists $info->{'SubroutineCall'}{'Name'}) {
+                my $name  = $info->{'SubroutineCall'}{'Name'};
                 ( my $iodirs, $stref ) =
                   get_iodirs_from_subcall( $stref, $f, $index, $annlines );
                 for my $var ( keys %{$iodirs} ) {
@@ -700,16 +700,17 @@ sub _type_via_implicits {
         print "INFO: VAR <", $var, "> typed via Implicits for $f\n" if $I;                            
         my $type_kind_shape_attr = $stref->{'Implicits'}{$f}{lc(substr($var,0,1))};
         ($type, $kind, $shape, $attr)=@{$type_kind_shape_attr};
-#        my $var_rec = {
-#            'Decl' => ['       ', [$type], [$var]],
-#            'Shape' => 'UNKNOWN',
-#            'Type' => $type,
-#            'Attr' => '',
-#            'Indent' => '      ',
-#            'Kind' => 'UNKNOWN',
-#        };          
-#        $stref->{$sub_func_incl}{$f}{'Vars'}{$var} = $var_rec;                                  
-                                    
+=info        
+        my $var_rec = {
+            'Decl' => ['       ', [$type], [$var],$formatted],
+            'Shape' => 'UNKNOWN',
+            'Type' => $type,
+            'Attr' => '',
+            'Indent' => '      ',
+            'Kind' => 'UNKNOWN',
+        };          
+        $stref->{$sub_func_incl}{$f}{'Vars'}{$var} = $var_rec;                                  
+=cut                                    
     } else {
         print "WARNING: common <", $var, "> has no rule in {'Implicits'}{$f}\n" if $W;
     }
@@ -782,5 +783,5 @@ sub parse_assignment {
             $args={%{$args},%{$rhs_args}   };            
         } 
     }            	
-    return [{'VarName'=>$var,'Kind'=>$kind,'IndexExpr'=>$idx_expr}, [keys %{$args}]];
+    return [{'VarName'=>$var,'Kind'=>$kind,'IndexExpr'=>$idx_expr}, [keys %{$args}],$rhs];
 }

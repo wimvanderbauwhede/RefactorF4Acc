@@ -30,6 +30,7 @@ use Exporter;
   &format_f95_par_decl
   &format_f95_var_decl 
   &format_f77_var_decl
+  &emit_f95_var_decl
 );
 
 our %f95ops = (
@@ -77,37 +78,36 @@ sub context_free_refactorings {
 		my $line = $annline->[0];
 #		print "LINE: $line\n" if $f eq 'timemanager' && $line=~/gridunc/;
 		my $info = $annline->[1];
-		my %tags      = %{$info};
 		if( exists $info->{'Deleted'} and $line eq '') {			
             next;
 		}
-		if ( exists $tags{'ImplicitNone'} ) {
+		if ( exists $info->{'ImplicitNone'} ) {
 			 next;
 		}
-        if ( exists $tags{'Signature'} ) {
+        if ( exists $info->{'Signature'} ) {
 #	       push @extra_lines, ['        implicit none',{'ImplicitNone'=>1}];
         }
-        if ( exists $tags{'Goto'} ) {
+        if ( exists $info->{'Goto'} ) {
             $line=~s/\bgo\sto\b/goto/;
             $info->{'Ref'}++;
         }
 		# BeginDo: just remove the label
-		if ( exists $tags{'BeginDo'} ) {
+		if ( exists $info->{'BeginDo'} ) {
 			$line =~ s/do\s+\d+\s+/do /;
 			$info->{'Ref'}++;
 		}
 		# EndDo: replace label CONTINUE by END DO;
 		# if no continue, remove label & add end do on next line
-		if ( exists $tags{'EndDo'} and exists $tags{'EndDo'}{'Label'} ) {
+		if ( exists $info->{'EndDo'} and exists $info->{'EndDo'}{'Label'} ) {
 
 			#warn "$f: END DO $line\n";
 			my $is_goto_target = 0;
-			if ( $Sf->{'Gotos'}{ $tags{'EndDo'}{'Label'} } ) {                
+			if ( $Sf->{'Gotos'}{ $info->{'EndDo'}{'Label'} } ) {                
 				# this is an end do which serves as a goto target
 				$is_goto_target = 1;
 			}
-			my $count = $tags{'EndDo'}{'Count'};
-			if ( exists $tags{'Continue'} ) {
+			my $count = $info->{'EndDo'}{'Count'};
+			if ( exists $info->{'Continue'} ) {
 				if ( $is_goto_target == 0 ) {
 					$line = '      end do';					
 					$count--;
@@ -127,54 +127,55 @@ sub context_free_refactorings {
 			}
 		}
 		if ( $noop
-			&& ( exists $tags{'NoopBreakTarget'} || exists $tags{'NoopTarget'} )
+			&& ( exists $info->{'NoopBreakTarget'} || exists $info->{'NoopTarget'} )
 		  )
 		{
 			$line =~ s/continue/call noop/;
 			$info->{'Ref'}++;
 		}
-		if ( exists $tags{'Break'} ) {
+		if ( exists $info->{'Break'} ) {
 			$line .= '  !Break';
             $info->{'Ref'}++;
 			# $line=~s/goto\s+(\d+)/call break($1)/;
 		}
-		if ( exists $tags{'PlaceHolders'} ) {
+		if ( exists $info->{'PlaceHolders'} ) {
 			
-			for my $ph (keys %{ $tags{'PlaceHolders'} }) {
-				my $str = $tags{'PlaceHolders'}->{$ph};
+			for my $ph (keys %{ $info->{'PlaceHolders'} }) {
+				my $str = $info->{'PlaceHolders'}->{$ph};
 				$line =~ s/$ph/$str/;
 			}
 			$info->{'Ref'}++;
 		}
-		if ( exists $tags{'VarDecl'} and not exists $tags{'FunctionSig'} ) {
-			my @vars = @{ $tags{'VarDecl'} };
+		if ( exists $info->{'VarDecl'} and not exists $info->{'FunctionSig'} ) {
+			my @vars = @{ $info->{'VarDecl'}[2] };
             
 			# first create all parameter declarations
 			if ( $firstdecl == 1 ) {
 				$info->{'ExGlobVarDecls'} = 0;#{};
 				$firstdecl = 0;
 				for my $par ( @{ $Sf->{'Parameters'}{'OrderedList'} } ) {
-					my $new_line = format_f95_par_decl( $stref, $f, $par );					
+				    my $par_decl = format_f95_par_decl( $stref, $f, $par );
+					my $new_line = 	emit_f95_var_decl(	$par_decl );			
 					push @extra_lines,
-					  [ $new_line, { 'Extra' => 1, 'ParamDecl' => [$par], 'Ref'=>1, 'LineID'=>$nextLineID++ } ]; # Create parameter declarations before variable declarations
+					  [ $new_line, { 'Extra' => 1, 'ParamDecl' => $par_decl, 'Ref'=>1, 'LineID'=>$nextLineID++ } ]; # Create parameter declarations before variable declarations
 				}
 				if ($sub_or_func_or_inc ne 'IncludeFiles') {
 					
 				    my @vars_not_pars =
 				    grep { not exists $Sf->{'Parameters'}{$_} } @vars;
 				    
-				    my $filtered_line = '';				
+#				    my $filtered_line = '';				
 				    if (scalar @vars_not_pars > 0) { 
-					   $filtered_line =
+					   my $filtered_var_decls =
 					   _format_f95_multiple_var_decls( $Sf,@vars_not_pars );
 					   my %tr = %{$info};
 					   $tr{'Extra'} = 1;
 					   $tr{'Ref'}=1;
+					   for my $filtered_var_decl (@{$filtered_var_decls}) {
+					       my $filtered_line = emit_f95_var_decl($filtered_var_decl);
+					       $tr{'VarDecl'}=$filtered_var_decl;
 					   push @extra_lines, [ $filtered_line, {%tr, 'LineID'=>$nextLineID++} ];
-#					   if ($f eq 'convect'){
-#					   print "FILT: $filtered_line\n";
-#					   die;
-#					   } 
+                        }
 				    }
 				} else {
 				    $line.= ' !! firstdecl = 1, IncludeFiles '.$f;
@@ -190,7 +191,9 @@ sub context_free_refactorings {
 						$line = '!! Original line PAR:2 !! ' . $line;
 						$info->{'Deleted'} = 1;												
 					} else {
-						$line = format_f95_var_decl( $Sf, $vars[0] );												
+						my $var_decl = format_f95_var_decl( $Sf, $vars[0] );
+						$info->{'VarDecl'} = $var_decl;
+						$line = emit_f95_var_decl($var_decl);												
 					}					
 				} else { # more than one variable declared on this line
 					if ($sub_or_func_or_inc ne 'IncludeFiles') {
@@ -198,10 +201,21 @@ sub context_free_refactorings {
 					   # filter out parameters
 						my @vars_not_pars =
 						  grep { not exists $Sf->{'Parameters'}{$_} } @vars;
-						if (@vars_not_pars) {
-							$line =
-							  _format_f95_multiple_var_decls( $Sf,@vars_not_pars );
-	#			die "COMMON:\n<$line>" if $line=~/character/;
+						if (@vars_not_pars) { 
+#							$line =
+#							  _format_f95_multiple_var_decls( $Sf,@vars_not_pars );
+                        $line = '!! Original line !! ' . $line;
+                        $info->{'Deleted'} = 1;													  
+					   my $filtered_var_decls =
+					   _format_f95_multiple_var_decls( $Sf,@vars_not_pars );
+					   my %tr = %{$info};
+					   $tr{'Extra'} = 1;
+					   $tr{'Ref'}=1;
+					   for my $filtered_var_decl (@{$filtered_var_decls}) {
+					       my $filtered_line = emit_f95_var_decl($filtered_var_decl);
+					       $tr{'VarDecl'}=$filtered_var_decl;
+					   push @extra_lines, [ $filtered_line, {%tr, 'LineID'=>$nextLineID++} ];
+                        }							  
 						} else {
 							warn "$f PAR:3\n";
 							$line = '!! Original line PAR:3 !! ' . $line;
@@ -213,19 +227,32 @@ sub context_free_refactorings {
 						if (exists $stref->{IncludeFiles}{$f}{Commons}{$vars[0]})  {
                             $line = '!! Original line !! ' . $line;
                             $info->{'Deleted'} = 1;						
-						} else {
+						} else { 
+						    
 						  print  "INFO: found var decls not COMMON in $f:\n$line\n".Dumper(@vars) if $I;
 						  my @vars_not_pars =
 						  grep { not exists $Sf->{'Parameters'}{$_} } @vars;
-						  $line =
-							  _format_f95_multiple_var_decls( $Sf,@vars_not_pars );
+#						  $line =
+#							  _format_f95_multiple_var_decls( $Sf,@vars_not_pars );
+                        $line = '!! Original line !! ' . $line;
+                        $info->{'Deleted'} = 1;													  
+					   my $filtered_var_decls =
+					   _format_f95_multiple_var_decls( $Sf,@vars_not_pars );
+					   my %tr = %{$info};
+					   $tr{'Extra'} = 1;
+					   $tr{'Ref'}=1;
+					   for my $filtered_var_decl (@{$filtered_var_decls}) {
+					       my $filtered_line = emit_f95_var_decl($filtered_var_decl);
+					       $tr{'VarDecl'}=$filtered_var_decl;
+					   push @extra_lines, [ $filtered_line, {%tr, 'LineID'=>$nextLineID++} ];
+                        }
 						}
 					}
 				}
 				$info->{'Ref'}++;
 			}
 		}		
-			if (exists $tags{'If'} or exists $tags{'ElseIf'} ) {
+			if (exists $info->{'If'} or exists $info->{'ElseIf'} ) {
 				while ( $line =~ /\.\s+(?:and|not|or|neqv|eqv)\./ ) {
 					$line =~ s/\.\s+(and|not|or|neqv|eqv)\./ .$1. /;
 				}
@@ -238,19 +265,19 @@ sub context_free_refactorings {
 				# FIXME: it is possible that there is a conflict in the conditional expression!
 				$line = _rename_conflicting_vars($line,$stref,$f);
 				$info->{'Ref'}++;
-    		} elsif (exists $tags{'Assignment'} or exists $tags{'Do'}) { 
+    		} elsif (exists $info->{'Assignment'} or exists $info->{'Do'}) { 
     			my $kv=$line;
     			my $spaces=$line; $spaces=~s/\S.*$//;
     			$kv=~s/^\s+//;    			
     			$kv=~s/\s+$//;
-    			if (exists $tags{'Do'}) {
+    			if (exists $info->{'Do'}) {
     				$kv=~s/do\s+//;
     			}
     			(my $k, my $rhs_expr) = split(/\s*=\s*/,$kv);
     			
     			$rhs_expr = _rename_conflicting_vars($rhs_expr,$stref,$f);
 		      
-		      if (exists $tags{'Do'}) {
+		      if (exists $info->{'Do'}) {
 		      	my $nk= _rename_conflicting_lhs_var($k,$stref,$f);
 		      	$line = $spaces.'do '.$nk. ' = '.$rhs_expr;
 		      } else {
@@ -259,12 +286,12 @@ sub context_free_refactorings {
 		      }
 		      $info->{'Ref'}++;
 		} # assignment 
-		elsif ( exists $tags{'ParamDecl'} ) { # so this is a parameter declaration "pur sang"
+		elsif ( exists $info->{'ParamDecl'} ) { # so this is a parameter declaration "pur sang"
 		# WV 20130709: why should I remove this? 
 #			if ($sub_or_func_or_inc eq 'IncludeFiles' and 
 #			$stref->{'IncludeFiles'}{$f}{'InclType'} eq 'Parameter') {
 				my @par_lines=();
-				for my $var (@{ $tags{'ParamDecl'} } ) {
+				for my $var (@{ $info->{'ParamDecl'} } ) {
 				    push @par_lines, format_f95_par_decl($stref,$f, $var);
 				}
 				$line=join('; ',@par_lines);
@@ -275,13 +302,13 @@ sub context_free_refactorings {
 	#			}
 			$info->{'Ref'}++;
 		} 
-		elsif ( exists $tags{'SubroutineCall'} ) {			
+		elsif ( exists $info->{'SubroutineCall'} ) {			
 			$line = _rename_conflicting_vars($line,$stref,$f);
 			$info->{'Ref'}++;
 		}
-		elsif ( exists $tags{'Include'} ) {
+		elsif ( exists $info->{'Include'} ) {
 #			print "$f: $line\n";					
-			my $inc=$tags{'Include'}{'Name'};
+			my $inc=$info->{'Include'}{'Name'};
 			     my $tinc=$inc;
 			     $tinc=~s/\./_/g;
 			     if ($stref->{IncludeFiles}{$inc}{InclType} ne 'External') {
@@ -610,6 +637,12 @@ sub get_annotated_sourcelines {
 # -----------------------------------------------------------------------------
 sub format_f95_var_decl {
 	( my $Sf, my $var ) = @_;
+	if (ref($var) eq 'ARRAY' && $var->[-1] == 1) {
+	    return $var;
+	}
+	if (ref($var) eq 'ARRAY' && $var->[-1] == 0) {
+	    $var = $var->[2][0];
+	}
 	my $Sv = $Sf->{'Vars'}{$var};
 	if ( not exists $Sv->{'Decl'} ) {
 		print "WARNING: VAR $var does not exist in Vars in format_f95_var_decl()!\n" if $W;
@@ -619,11 +652,11 @@ sub format_f95_var_decl {
 	if (exists $Sf->{'ConflictingLiftedVars'}{$var} ){
 	   $nvar=$Sf->{'ConflictingLiftedVars'}{$var};
 	}
-	my $spaces = $Sv->{'Decl'}; #WV20150424 make Decl a record of 3 entries: [spaces, [type], [varname]]
+	my $spaces = $Sv->{'Decl'}->[0]; #WV20150707 Decl is a record of 4 entries: [spaces, [type], [varname],formatted(0|1)]
 	$spaces =~ s/\S.*$//;
     my $intent='';
     if (exists $Sf->{'RefactoredArgs'}{'Set'}{$var}) {
-        $intent = ', intent('.$Sf->{'RefactoredArgs'}{'Set'}{$var}{'IODir'}.')'; #WV20150424 make this ['intent',$Sf->{'RefactoredArgs'}{'Set'}{$var}{'IODir'}]
+        $intent = ['intent',$Sf->{'RefactoredArgs'}{'Set'}{$var}{'IODir'}]; 
     } 
 	# FIXME: for multiple vars, we need to split this in multiple statements.
 	# So I guess as soon as the Shape is not empty, need to split.
@@ -639,16 +672,18 @@ sub format_f95_var_decl {
 			  : $shape->[ 2 * $i ] . ':' . $shape->[ 2 * $i + 1 ];
 			push @dims, $range;
 		}
-		$dim = ', dimension(' . join( ',', @dims ) . ') '; #WV20150424 this had better be ['dimension',[@dims]] 
+		$dim = ['dimension',[@dims ]];  
 	}
 
 	my $decl_line =
 	  $spaces . $Sv->{'Type'} .$Sv->{'Attr'}. $dim . $intent .' :: ' . $nvar;
-#WV20150424 this should become return [$spaces,[$Sv->{'Type'}, $Sv->{'Attr'}, $dim , $intent ],[$nvar]];
-	return $decl_line;
+#WV20150424 this should become 
+    return [$spaces,[$Sv->{'Type'}, $Sv->{'Attr'}, $dim , $intent ],[$nvar],1];
+#	return $decl_line;
 }    # format_f95_var_decl()
 
 # -----------------------------------------------------------------------------
+# OBSOLETE!
 sub format_f77_var_decl {
     ( my $Sf, my $var ) = @_;
     my $Sfv=$Sf->{'Vars'};
@@ -669,8 +704,9 @@ sub format_f77_var_decl {
     my $shape = $Sv->{'Shape'};
     
     my $dim = '';
+    my @dims = ();
     if ( @{$shape} ) {
-        my @dims = ();
+        
         for my $i ( 0 .. ( @{$shape} / 2 - 1 ) ) {
             my $range =
               ( $shape->[ 2 * $i ] eq '1' )
@@ -688,8 +724,9 @@ sub format_f77_var_decl {
       $spaces . $Sv->{'Type'} .$attr. ' ' . $var . $dim ;
 
     #    die $decl_line  if $dim;
-#WV20150424 this should become return [$spaces,[$Sv->{'Type'}, $Sv->{'Attr'}, $dim , [] ],[$var]]; # so intent is empty, i.e. default      
-    return $decl_line;
+#WV20150424 this should become 
+    return [$spaces,[$Sv->{'Type'}, $Sv->{'Attr'}, ['dimension',[@dims]] , [] ],[$var],1]; # so intent is empty, i.e. default      
+#    return $decl_line;
 }    # format_f77_var_decl()
 
 # -----------------------------------------------------------------------------
@@ -735,13 +772,16 @@ sub _format_f95_multiple_var_decls {
 
 		my $decl_line = $spaces;    #.$Sv->{'Type'}.' :: '.join(', ',@vars);
 		  # What we need to do is split these into separate statements with semicolons
+		  my $var_decl_rec=[]; 
+		  my $var_decl_recs=[]; 
+
 		for my $var (@vars) {
             my $nvar=shift @nvars;
 			my $dim   = '';
 			my $shape = $Sf->{'Vars'}{$var}{'Shape'};
+			my $dimrec=[];
 			if ( @{$shape} > 1 ) {
-
-				my @dims = ();
+                my @dims = ();				
 				for my $i ( 0 .. ( @{$shape} / 2 - 1 ) ) {
 					my $range =
 					  ( "$shape->[2*$i]" eq '1' )
@@ -750,16 +790,21 @@ sub _format_f95_multiple_var_decls {
 					push @dims, $range;
 				}
 				$dim = ', dimension(' . join( ',', @dims ) . ') ';
+				$dimrec=['dimension',[@dims]];
 			}
             
 			my $decl = "$type$attr $dim :: $nvar; ";
+			$var_decl_rec=[$spaces,[$type,$attr,$dimrec,[]],[$nvar],0];
+			push @{$var_decl_recs}, $var_decl_rec;
 			$decl_line .= $decl;
 		}
-		return $decl_line;
+#		return $decl_line;
+		return $var_decl_recs;
 	} else {
 
 		# for Shape, it means they are all empty OR there is just one!
 		my $dim = '';
+		my $dimrec=[];
 		if ( @vars == 1 ) {
 			my $shape = $Sf->{'Vars'}{ $vars[0] }{'Shape'};
 			if ( @{$shape} ) {
@@ -772,13 +817,17 @@ sub _format_f95_multiple_var_decls {
 					push @dims, $range;
 				}
 				$dim = ', dimension(' . join( ',', @dims ) . ') ';
+				$dimrec=['dimension',[@dims]];
 			}
 		}
 		my $decl_line =
-		    $spaces . $type . $attr. $dim . ' :: '
+		     $spaces . $type . $attr. $dim . ' :: '
 		  . join( ', ', sort @nvars )
-		  . ' !! Context-free, multi !! ';
-		return $decl_line;
+		  . ' !! Context-free, multi !! ';		  
+#		return $decl_line;
+		return [$spaces ,[ $type , $attr, $dimrec,[] ],[ sort @nvars ],1];
+
+		
 	}
 }    # _format_f95_multiple_var_decls()
 
@@ -880,7 +929,16 @@ sub format_f95_par_decl {
 		print "WARNING: LOCAL PAR: $decl_line\n" if $W;  
 	}
 	return $decl_line;
-}    # UNUSED_format_f95_decl()
+	return [
+	 $spaces, [
+	   $Sv->{'Type'}
+	  , $Sv->{'Attr'}
+	  , $dim
+	  ,'parameter'], [[
+	   $var ,
+	   $val]],1
+	  ];
+}    # format_f95_par_decl()
 
 sub _rename_conflicting_global_pars {
 	(my $stref, my $f, my $k, my $rhs_expr)=@_;
@@ -1005,3 +1063,26 @@ sub _rename_conflicting_lhs_var {
     }                          
     return $expr;     
 } # END of _rename_conflicting_lhs_var()
+
+sub emit_f95_var_decl { (my $var_decl_rec)=@_;
+    my $spaces =$var_decl_rec->[0];
+    (my $type , my $attr, my $dim, my $intent_or_par) = @{$var_decl_rec->[1]};
+    
+    my $dimstr = '';
+    if (ref($dim) eq 'ARRAY' and @{$dim} == 2) {
+        $dimstr = $dim->[0].'('.join(',',@{$dim->[1]}).'),' ;
+    }
+    if (ref($intent_or_par) eq 'ARRAY') {
+        my $intent = $intent_or_par;
+    my $intentstr = @{$intent} ? $intent->[0].'('.$intent->[1].'),' : '';
+    my @vars =     @{ $var_decl_rec->[2] };    
+  	my $decl_line =	  $spaces . $type .$attr.', '. $dimstr . $intentstr .' :: ' . join(', ',@vars);
+  	return $decl_line ;
+    } else {
+    my @vars =    map { $_->[0].'='.$_->[1] } @{ $var_decl_rec->[2] };    
+  	my $decl_line =	  $spaces . $type .$attr.', '. $dimstr . 'parameter :: ' . join(', ',@vars);
+  	return $decl_line ;        
+    }    
+}
+
+1;

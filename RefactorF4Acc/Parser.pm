@@ -3,8 +3,7 @@ package RefactorF4Acc::Parser;
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
 use RefactorF4Acc::CallGraph qw( add_to_call_tree );
-use RefactorF4Acc::Refactoring::Common
-  qw( format_f95_var_decl format_f77_var_decl );
+use RefactorF4Acc::Refactoring::Common qw( format_f95_var_decl emit_f95_var_decl );
 use RefactorF4Acc::Parser::SrcReader qw( read_fortran_src );
 use RefactorF4Acc::CTranslation qw( add_to_C_build_sources );
 use RefactorF4Acc::Analysis::ArgumentIODirs qw( parse_assignment );
@@ -125,10 +124,12 @@ sub _analyse_lines {
 		my $indent     = '';
 		my @do_stack = ();
 		my $do_counter = 0;
+		my $spaces = '';
 
 		for my $index ( 0 .. scalar( @{$srcref} ) - 1 ) {
 			my $attr = '';
 			my $line = $srcref->[$index][0];
+			$line=~/^(\s+).*/ && do {$spaces = $1;};
 			my $info = $srcref->[$index][1];
             $info->{'LineID'}=$index;
 
@@ -160,8 +161,7 @@ sub _analyse_lines {
                exists $info->{'SubroutineSig'} or
                exists $info->{'Use'}
                ) {               	
-               	$info->{'ExGlobVarDecls'} = ++$Sf->{'ExGlobVarDeclHook'};
-#               	print "_analyse_lines($f)\t",$line,"\tEX:",$info->{'ExGlobVarDecls'},"\n";               	 
+               	$info->{'ExGlobVarDecls'} = ++$Sf->{'ExGlobVarDeclHook'};	 
 		    }
             
 	   # FIXME Trailing comments are ignored!
@@ -219,16 +219,18 @@ sub _analyse_lines {
 				$info->{'Assignment'} = 1;
 				#WV20150303: We parse this assignment and return {Lhs => {Varname, Kind, IndexExpr}, Rhs => {Expr, VarList}}
 				my $vref=parse_assignment($line);
+				
 				$info->{'Assignment'} = {
 				    'Lhs'=>$vref->[0],
 				    'Rhs'=>{
-				        'VarList'=>$vref->[1]
+				        'VarList'=>$vref->[1],
+				        'Expr' =>$vref->[2],
 				    }
 				};
 			}
 
-		 # Actual variable declaration line
-		 # FIXME: in principle every type can be followed by '*<number>' or *(*)
+		 # Actual variable declaration line (F77)
+		 # In principle every type can be followed by '*<number>' or *(*)
 		 # So we have
 
 			elsif ( $line =~
@@ -396,7 +398,6 @@ sub _analyse_lines {
 
 			if ($is_vardecl ) {
 				$is_vardecl = 0;
-
 				my $T = 0;
 				my $pvars = _parse_F77_vardecl( $varlst, $T );
 				my @varnames = ();
@@ -436,8 +437,8 @@ sub _analyse_lines {
 						$vars{$tvar}{'IODir'} = $iodir;
 					}
 
-					#                    $var =~ s/;/,/g;
-					$vars{$tvar}{'Decl'} = "        $type $var";
+                    my $ws = ' ' x 8;
+					$vars{$tvar}{'Decl'} = [$ws,[$type],[ $var],0];
 
 					# TODO: this should maybe not be a textual representation
 					# make it [$type,$var] ?
@@ -462,7 +463,7 @@ sub _analyse_lines {
 				}    # loop over all vars declared on a single line
 
 				print "\tVARS <$line>:\n ", join( ',', sort @varnames ), "\n" if $V;				
-				$info->{'VarDecl'} = \@varnames;
+				$info->{'VarDecl'} = [$spaces,[],[@varnames],0]; #WV20150708 We now store 'Decl' here so it us a record [$spaces,[$type, $attr, $dim , $intent ],[@vars],$formatted];
 				if ($first) {
 					$first = 0;
 					# FIXME: no use in include files!
@@ -695,7 +696,7 @@ This is some major refactoring, so why is it not in Refactoring/ ?
 =end markdown
 
 =cut
-#WV20150701 This routine is very early here but it seems to work all right.
+#WV20150701 This routine is very early here and it is BROKEN: common block variables don't get declarations!
 sub _separate_blocks { 
 	( my $f, my $stref ) = @_;
     local $V=1;
@@ -704,125 +705,26 @@ sub _separate_blocks {
 	my $Sf          = $stref->{$sub_or_func_or_mod}{$f};
 	my $srcref      = $Sf->{'AnnLines'};
 #die Dumper($Sf);
-	# All local variables in the parent subroutine
-	my %vars = %{ $Sf->{'Vars'} };
 	$Data::Dumper::Indent = 2;
+	# All local variables in the parent subroutine
+	my $varsref = $Sf->{'Vars'} ;
 
 	# Occurence
-	my %occs = ();
+	my $occsref = {};
 
 	# A map of every block in the parent
-	my %blocks   = ();
-	my $in_block = 0;
-
-	# Initial settings
-	my $block = 'OUTER';
-	$blocks{'OUTER'} = { 'AnnLines' => [] };
+	my $blocksref   = { 'OUTER' => { 'AnnLines' => [] } };	
 
 # 1. Process every line in $f, scan for blocks marked with pragmas.
 # What this does is to separate the code into blocks (%blocks) and keep track of the line numbers
 # The lines with the pragmas occur both in OUTER and the block
 
-	#TODO: replace by sub
-	#    (my $stref, my $blocksref) = separate_into_blocks($stref,$f);
-
-	for my $index ( 0 .. scalar( @{$srcref} ) - 1 ) {
-		my $line = $srcref->[$index][0];
-		my $info = $srcref->[$index][1];
-		
-		if (   $line =~ /^\!\s+BEGIN\sSUBROUTINE\s(\w+)/
-#			or $line =~ /^\!\s*\$acc\s+subroutine\s(\w+)/i
-			or $line =~ /^\!\s*\$ACC\s+(?:Subroutine|KernelWrapper)\s+(\w+)/i 
-			)
-		{
-			$in_block = 1;
-			$block    = $1;
-			print "FOUND BLOCK $block\n" if $V;
-
-			# Enter the name of the block in the metadata for the line
-			$info->{'RefactoredSubroutineCall'}{'Name'} = $block;
-			$info->{'SubroutineCall'}{'Name'}           = $block;
-			delete $info->{'Comments'};
-			$info->{'BeginBlock'}{'Name'} = $block;
-
-			# Push the line with the pragma onto the list of 'OUTER' lines
-			push @{ $blocks{'OUTER'}{'AnnLines'} },
-			  [ "! *** Refactored code into $block ***", {} ];
-
-		   # Push the line with the pragma onto the list of lines for the block,
-		   # to be replaced by function signature
-			push @{ $blocks{$block}{'AnnLines'} },
-			  [
-				"! *** Original code from $f starts here ***",
-				{ 'RefactoredSubroutineCall' => { 'Name' => $block } }
-			  ];
-
-			$blocks{$block}{'BeginBlockIdx'} = $index;
-			next;
-		}
-		if (   $line =~ /^\!\s+END\sSUBROUTINE\s(\w+)/
-			or $line =~ /^\!\s*\$acc\s+end\s(?:subroutine|kernelwrapper)\s(\w+)/i )
-		{
-			$in_block = 0;
-			$block    = $1;
-
-			# Push end-of-block pragma onto 'OUTER'
-			push @{ $blocks{'OUTER'}{'AnnLines'} }, [ $line, {} ];
-
-			# Push 'end' onto the list of lines for the block,
-			push @{ $blocks{$block}{'AnnLines'} }, [ '      end', $info ];
-
-		  # Add info to %blocks.
-		  #            push @{ $blocks{$block}{'Info'} }, $Sf->{'Info'}[$index];
-		  #            $Sf->{'Info'}[$index]{'EndBlock'}{'Name'} = $block;
-			$info->{'EndBlock'}{'Name'} = $block;
-			$blocks{$block}{'EndBlockIdx'} = $index;
-			next;
-		}
-		if ($in_block) {
-
-			# Push the line onto the list of lines for the block
-			push @{ $blocks{$block}{'AnnLines'} }, [ $line, $info ];
-
-			# and the index onto Info in %blocks and $Sf
-			#            push @{ $blocks{$block}{'Info'} }, $info;
-			$info->{'InBlock'}{'Name'} = $block;
-		} else {
-
-			# Other lines go onto 'OUTER'
-			push @{ $blocks{'OUTER'}{'AnnLines'} }, [ $line, $info ];
-		}
-		$srcref->[$index] = [ $line, $info ];
-	}    # loop over annlines
+    ($stref, $blocksref) = __separate_into_blocks($stref,$blocksref,$f);
 
 # 2. For all non-OUTER blocks, create an entry for the new subroutine in 'Subroutines'
 # Based on the content of %blocks
-# TODO: $stref=create_new_subroutine_entries($blocksref,$stref)
-	for my $block ( keys %blocks ) {
-		die "EMPTY block name $block" if $block eq '';
-		next if $block eq 'OUTER';
-		if (not exists $stref->{'Subroutines'}{$block} ) {
-		  $stref->{'Subroutines'}{$block} = {};
-		  $stref->{'Subroutines'}{$block}{'Source'} = $Sf->{'Source'};
-		} elsif (exists $stref->{'Subroutines'}{$block}{'Translate'} ) {
-			if( $stref->{'Subroutines'}{$block}{'Translate'} eq 'C') {
-				$stref->{'Subroutines'}{$block}{'Source'} = "./$block.f95";
-                 $stref = add_to_C_build_sources( $block, $stref );
-            } else {
-                croak '!$acc translate ('.$block.') '.$stref->{'Subroutines'}{$block}{'Translate'}.": Only C translation through F2C_ACC is currently supported.\n";
-            }
-		}
-		my $Sblock = $stref->{'Subroutines'}{$block};
-		$Sblock->{'AnnLines'} = $blocks{$block}{'AnnLines'};
-		$stref->{'SourceContains'}{$Sf->{'Source'}}{$block} = 'Subroutines';
-		$Sblock->{'RefactorGlobals'} = 1;
-		if ( $Sf->{'RefactorGlobals'} == 0 ) {
-			$Sf->{'RefactorGlobals'} = 2;
-		} else {
-#			die "$f => $block ".'BOOM!'.Dumper($Sf->{'RefactorGlobals'});
-			print "INFO: RefactorGlobals==1 for $f while processing BLOCK $block\n";
-		}
-	}
+
+    $stref= __create_new_subroutine_entries($stref,$blocksref,$f);
 
 # 3. Identify which vars are used
 #   - in both => these become function arguments
@@ -831,122 +733,12 @@ sub _separate_blocks {
 #
 # Find all vars used in each block, starting with the outer block
 # It is best to loop over all vars per line per block, because we can remove the encountered vars
-# TODO: my $occsref = determine_new_subroutine_arguments($blocksref,$varsref,$linesref);
 
-	for my $block ( keys %blocks ) {
-
-		my @annlines = @{ $blocks{$block}{'AnnLines'} };
-		my %tvars = %vars;    # Hurray for pass-by-value! 
-		
-		print "\nVARS in $block:\n\n" if $V;
-		for my $annline (@annlines) {
-			my $tline = $annline->[0];
-			$tline =~ s/\'.+?\'//; # FIXME: looks like a HACK!
-			for my $var ( sort keys %tvars ) {
-				if ( $tline =~ /\b$var\b/ ) {    
-					print "FOUND $var\n" if $V;
-					$occs{$block}{$var} = $var;
-					delete $tvars{$var};
-				}
-			}
-		}
-	}
-
+    $occsref = __find_vars_in_block($blocksref,$varsref,$occsref);
+	
 	# 4. Construct the subroutine signatures
-	# TODO: $stref = construct_new_subroutine_signatures();
-	# TODO: see if this can be separated into shorter subs
-	#	local $V=1;
-	my %args = ();
-	for my $block ( keys %blocks ) {
-		next if $block eq 'OUTER';
-		my $Sblock = $stref->{'Subroutines'}{$block};
-		print "\nARGS for BLOCK $block:\n" if $V;
 
-		# Collect args for new subroutine
-		for my $var ( sort keys %{ $occs{$block} } ) {
-			if ( exists $occs{'OUTER'}{$var} ) {
-				print "$var\n" if $V;
-				push @{ $args{$block} }, $var;
-			}
-			$Sblock->{'Vars'}{$var} =
-			  $vars{$var
-			  }; # FIXME: this is "inheritance, but in principle a re-parse is better?"
-		}
-		$Sblock->{'Args'}{'List'} = $args{$block};
-
-		# Create Signature and corresponding Decls
-		# WV20150304 TODO we should create a datastructure instead!
-		my $sixspaces = ' ' x 6;
-		my $sig       = $sixspaces . 'subroutine ' . $block . '(';
-		
-		for my $argv ( @{ $args{$block} } ) {
-			$sig .= "$argv,";
-			my $decl =
-			  ( $Sf->{'FStyle'} eq 'F77' )
-			  ? format_f77_var_decl( $Sf, $argv )
-			  : format_f95_var_decl( $Sf, $argv );
-
-			$Sf->{'Vars'}{$argv}{'Decl'} = $sixspaces . $decl; #WV20150424 This is a bit silly, we should format into strings we emit, not sooner
-		}
-		if (@{ $args{$block} } ) {
-		$sig =~ s/\,$/)/s;
-		} else {
-		    $sig .=')';
-		}
-		$Sblock->{'Sig'}   = $sig;
-#		$Sblock->{'Decls'} = $decls;
-
-		# Add variable declarations and info to line
-		my $sigline = shift @{ $Sblock->{'AnnLines'} };
-		for my $argv ( @{ $args{$block} } ) {
-			my $decl = $Sf->{'Vars'}{$argv}{'Decl'};
-			unshift @{ $Sblock->{'AnnLines'} },
-			  [ $decl, { 'VarDecl' => [$argv] } ];
-		}
-		unshift @{ $Sblock->{'AnnLines'} }, $sigline;
-
-	 # Now also add include statements and the actual sig to the line
-	 #        croak Dumper($Sblock->{'AnnLines'});
-	 #        my $fl = shift @{ $Sblock->{'Info'} }; # remove comment, keep line
-		my $fal = $Sblock->{'AnnLines'}[0][1];    # remove comment, keep line
-		$Sblock->{'AnnLines'}[0][1] = {};
-		for my $inc ( keys %{ $Sf->{'Includes'} } ) {
-			$Sblock->{'Includes'}{$inc} = 1;
-			unshift @{ $Sblock->{'AnnLines'} },
-			  [ "      include '$inc'", { 'Include' => { 'Name' => $inc } } ]
-			  ;                                   # add new lines at the front
-
-#            unshift @{ $Sblock->{'Info'} }, { 'Include' => { 'Name' => $inc } };
-			$Sblock->{'Includes'}{$inc} = 1;
-		}
-		unshift @{ $Sblock->{'AnnLines'} },
-		  [ $sig, {} ];                           # add a line but not a comment
-		  # And finally, in the original source, replace the blocks by calls to the new subs
-
-		#        print "\n-----\n".Dumper($srcref)."\n-----";
-		for my $tindex ( 0 .. scalar( @{$srcref} ) - 1 ) {
-			if ( $tindex == $blocks{$block}{'BeginBlockIdx'} ) {
-				$sig =~ s/subroutine/call/;
-				$srcref->[$tindex][0] = $sig;
-			} elsif ( $tindex > $blocks{$block}{'BeginBlockIdx'}
-				and $tindex <= $blocks{$block}{'EndBlockIdx'} )
-			{
-				$srcref->[$tindex][0] = '';
-				$srcref->[$tindex][1]{'Deleted'} = 1;
-			}
-		}
-
-#        unshift @{ $Sblock->{'Info'} }, $fl; # put the comment back at the front, no change to the lines
-		$Sblock->{'AnnLines'}[0][1] = $fal;
-
-		#print "YES! GENERATED DECLS ARE WRONG!!!\n";
-		if ($V) {
-			print 'SIG:'.$sig, "\n";
-#			print join( "\n", @{$decls} ), "\n";
-		}
-		$Sblock->{'Status'} = $READ;
-
-	}
+	$stref = __construct_new_subroutine_signatures($stref,$blocksref,$occsref,$varsref,$f);
 
 #	warn "Vars are CORRECT AT END OF separate_blocks( $f ):\n-----\n";
 #	warn Dumper($stref->{'Subroutines'}{'particles_main_loop'}{'Vars'}{'drydeposit'});
@@ -1009,7 +801,7 @@ sub _parse_subroutine_and_function_calls {
             }
 #            print "LINE: $line ". join(',',keys %{$info})."\n";
             if (exists $info->{'SubroutineSig'} ) {
-                $current_sub_name = $info->{'SubroutineSig'}  
+                $current_sub_name = $info->{'SubroutineSig'}[1];  
             };
 	  # Subroutine calls. Surprisingly, these even occur in functions! *shudder*
             if ( $line =~ /call\s+(\w+)\s*\((.*)\)/ || $line =~ /call\s+(\w+)\s*$/ ) # WV23JUL2012
@@ -1210,9 +1002,8 @@ sub _get_commons_params_from_includes {
 				my $common_block_name = $1;
 				my $commonlst = $2;
 				$has_commons = 1;
-				my @tcommons = split( /\s*\,\s*/, $commonlst );
+#				my @tcommons = split( /\s*\,\s*/, $commonlst );
 				my $parsedvars = _parse_F77_vardecl($commonlst,0);
-#				die Dumper(keys %{$parsedvars}) if $line=~/km/;
 				for my $var (keys %{$parsedvars}) {
 										
 					if ( not defined $vars{$var} ) {						
@@ -1221,8 +1012,9 @@ sub _get_commons_params_from_includes {
 							
 							my $type_kind_shape_attr = $stref->{'Implicits'}{$f}{lc(substr($var,0,1))};
 							(my $type,my $kind,my $shape, my $attr ) = @{$type_kind_shape_attr };
+							my $ws = ' ' x 8;
 							my $var_rec = {
-							  'Decl' => "        $type $var", #WV20150424 This should be ['       ', [$type],[ $var]]
+							  'Decl' => [$ws,[$type],[ $var],0],
 							  'Shape' => $parsedvars->{$var}{'Shape'},
 							  'Type' => $type,
 							  'Attr' => $attr,
@@ -1231,14 +1023,12 @@ sub _get_commons_params_from_includes {
 							};			
 							$Sf->{'Commons'}{$var} = $var_rec;		
 							$vars{$var}=$var_rec;
-									die Dumper($var_rec) if $var eq 'nou1';
 						} else {
 							print "WARNING: common <", $var, "> is not in {'IncludeFiles'}{$f}{'Vars'}\n" if $W;
 						}
 					} else {
 						print $var, "\t", $vars{$var}{'Type'}, "\n"
 						  if $V;
-#                        die Dumper($parsedvars->{$var}) if $var eq 'nou1';
                         if (exists $parsedvars->{$var}{Shape}) {
                         	$vars{$var}{Shape}=$parsedvars->{$var}{Shape};
                         	$vars{$var}{Kind}='Array';
@@ -1247,34 +1037,25 @@ sub _get_commons_params_from_includes {
 						  $vars{$var};
 					}
 				}
-#				die Dumper($vars{'nou5'}) if $line=~/nou5/;
 				$srcref->[$index][1]{'Common'} = {'Name' => $common_block_name };
 			}
 			
-			# TODO: works only for F77-style
 			# TODO: also, why is this not the same code as above? Refactor!
               #  parameter(ip=150,jp=150,kp=90)
 			if ( $line =~ /parameter\s*\(\s*(.*)\s*\)/ ) { 
-
 				my $parliststr = $1;
-
-#                warn "PARAM:$parliststr\n";
 				$has_pars = 1;
 				my @partups = split( /\s*,\s*/, $parliststr );
 				my %pvars =
 				  map { split( /\s*=\s*/, $_ ) }
 				  @partups;    # Perl::Critic, EYHO # s/\s*=.+//; $_
-
-#				warn Dumper(%pvars);
 				my @pvarl = map { s/\s*=.+//; $_ } @partups;
-#				warn Dumper(@pvarl);
 				my @pars = ();
 				for my $var (@pvarl) {
 					my $type='Unknown';
 					if ( not defined $vars{$var} and not exists $Sf->{'Parameters'}{$var}) {
 						print "WARNING: PARAMETER $var not declared in $f (Parser::_get_commons_params_from_includes)\n"
 						  if $W;
-#						  warn "WARNING: PARAMETER $var not declared in $f\n";
 					}
 						  if ($pvars{$var}=~/^\d*/) {
 						  	$type='integer';
@@ -1288,11 +1069,8 @@ sub _get_commons_params_from_includes {
 						};
 						push @pars, $var;
 				}
-#				warn Dumper(@pars);
 				@{ $Sf->{'Parameters'}{'OrderedList'} } =
 				  ( @{ $Sf->{'Parameters'}{'OrderedList'} }, @pars );
-
-#                warn "PARLIST: ",join(',',@{ $Sf->{'Parameters'}{'OrderedList'} }),"\n";
 				$srcref->[$index][1]{'ParamDecl'} = [@pars]; # F77-style parameters in include file
 			} elsif ( $line =~ /,\s*parameter\s*.*?::\s*(\w+)\s*=\s*(.+?)\s*$/ )
 			{    # F95-style parameters
@@ -1338,7 +1116,6 @@ sub _get_commons_params_from_includes {
 		}
 
         $Sf->{'Vars'} = { %vars  }; 
-#        die "BOOM!",Dumper( $Sf->{'Vars'} );
 		# FIXME!
 		# An include file should basically only contain parameters and commons.
 		# If it contains commons, we should remove them!
@@ -1373,20 +1150,12 @@ sub _get_commons_params_from_includes {
 						my $info = $is_not_par ? "$f has params but $var is not a param" : "$f has commons but $var is not common"; 
 						warn "WARNING: Parser: $info on the following line in $f:\n";
 						warn $annline->[0], "\n";
-#						die Dumper($Sf->{'Commons'}{$var});
 					}
-					
-
 				}
-
-				#                warn Dumper( $Sf->{'AnnLines'} );
 				print "WARNING: The include $f contains a variable <$var> that is neither a parameter nor a common variable, this is not supported\n" if $W;
 			}
 		}
 	}
-
-#    die "BOOM!",Dumper($stref->{'IncludeFiles'}{$f}{'Vars'}{'km'});
-#    croak Dumper($stref->{'IncludeFiles'}{$f}{'Commons'}{'memind'}) if $f eq 'includecom'; #OK here
 	return $stref;
 }    # END of get_commons_params_from_includes()
 
@@ -1667,5 +1436,249 @@ sub _parse_implicit {
 	$stref->{'Implicits'}={} unless exists $stref->{'Implicits'};
 	$stref->{'Implicits'}{$f}={%implicit_type_lookup };
 	return $stref;
-}
+} # END of _parse_implicit()
 
+
+sub __separate_into_blocks { (my $stref, my $blocksref, my $f) =@_;
+	my $sub_or_func_or_mod = sub_func_incl_mod( $f, $stref ); # This is not a misnomer as it can also be a module.
+	my $Sf          = $stref->{$sub_or_func_or_mod}{$f};
+	my $srcref      = $Sf->{'AnnLines'};
+    my $in_block=0;
+    	# Initial settings
+	my $block = 'OUTER';
+
+	for my $index ( 0 .. scalar( @{$srcref} ) - 1 ) {
+		my $line = $srcref->[$index][0];
+		my $info = $srcref->[$index][1];
+		
+		if (   $line =~ /^\!\s+BEGIN\sSUBROUTINE\s(\w+)/
+#			or $line =~ /^\!\s*\$acc\s+subroutine\s(\w+)/i
+			or $line =~ /^\!\s*\$ACC\s+(?:Subroutine|KernelWrapper)\s+(\w+)/i 
+			)
+		{
+			$in_block = 1;
+			$block    = $1;
+			print "FOUND BLOCK $block\n" if $V;
+
+			# Enter the name of the block in the metadata for the line
+			$info->{'RefactoredSubroutineCall'}{'Name'} = $block;
+			$info->{'SubroutineCall'}{'Name'}           = $block;
+			delete $info->{'Comments'};
+			$info->{'BeginBlock'}{'Name'} = $block;
+
+			# Push the line with the pragma onto the list of 'OUTER' lines
+			push @{ $blocksref->{'OUTER'}{'AnnLines'} },
+			  [ "! *** Refactored code into $block ***", {} ];
+
+		   # Push the line with the pragma onto the list of lines for the block,
+		   # to be replaced by function signature
+			push @{ $blocksref->{$block}{'AnnLines'} },
+			  [
+				"! *** Original code from $f starts here ***",
+				{ 'RefactoredSubroutineCall' => { 'Name' => $block } }
+			  ];
+
+			$blocksref->{$block}{'BeginBlockIdx'} = $index;
+			next;
+		}
+		if (   $line =~ /^\!\s+END\sSUBROUTINE\s(\w+)/
+			or $line =~ /^\!\s*\$acc\s+end\s(?:subroutine|kernelwrapper)\s(\w+)/i )
+		{
+			$in_block = 0;
+			$block    = $1;
+
+			# Push end-of-block pragma onto 'OUTER'
+			push @{ $blocksref->{'OUTER'}{'AnnLines'} }, [ $line, {} ];
+
+			# Push 'end' onto the list of lines for the block,
+			push @{ $blocksref->{$block}{'AnnLines'} }, [ '      end', $info ];
+
+		  # Add info to %blocks.
+		  #            push @{ $blocksref->{$block}{'Info'} }, $Sf->{'Info'}[$index];
+		  #            $Sf->{'Info'}[$index]{'EndBlock'}{'Name'} = $block;
+			$info->{'EndBlock'}{'Name'} = $block;
+			$blocksref->{$block}{'EndBlockIdx'} = $index;
+			next;
+		}
+		if ($in_block) {
+
+			# Push the line onto the list of lines for the block
+			push @{ $blocksref->{$block}{'AnnLines'} }, [ $line, $info ];
+			# and the index onto Info in %blocks and $Sf
+			#            push @{ $blocksref->{$block}{'Info'} }, $info;
+			$info->{'InBlock'}{'Name'} = $block;
+		} else {
+			# Other lines go onto 'OUTER'
+			push @{ $blocksref->{'OUTER'}{'AnnLines'} }, [ $line, $info ];
+		}
+		$srcref->[$index] = [ $line, $info ];
+	}    # loop over annlines
+	return ($stref, $blocksref );
+	} # END of __separate_into_blocks()
+
+sub __create_new_subroutine_entries {
+    (my $stref, my $blocksref,  my $f)=@_;
+    
+	my $sub_or_func_or_mod = sub_func_incl_mod( $f, $stref ); # This is not a misnomer as it can also be a module.
+	my $Sf          = $stref->{$sub_or_func_or_mod}{$f};
+
+    for my $block ( keys %{$blocksref} ) {
+        say $block;
+		die "EMPTY block name $block" if $block eq '';
+		next if $block eq 'OUTER';
+		if (not exists $stref->{'Subroutines'}{$block} ) {
+		  $stref->{'Subroutines'}{$block} = {};
+		  $stref->{'Subroutines'}{$block}{'Source'} = $Sf->{'Source'};
+		} elsif (exists $stref->{'Subroutines'}{$block}{'Translate'} ) {
+			if( $stref->{'Subroutines'}{$block}{'Translate'} eq 'C') {
+				$stref->{'Subroutines'}{$block}{'Source'} = "./$block.f95";
+                 $stref = add_to_C_build_sources( $block, $stref );
+            } else {
+                croak '!$acc translate ('.$block.') '.$stref->{'Subroutines'}{$block}{'Translate'}.": Only C translation through F2C_ACC is currently supported.\n";
+            }
+		}
+		my $Sblock = $stref->{'Subroutines'}{$block};
+		$Sblock->{'AnnLines'} = $blocksref->{$block}{'AnnLines'};
+		$stref->{'SourceContains'}{ $Sf->{'Source'} }{$block} = 'Subroutines';
+		$Sblock->{'RefactorGlobals'} = 1;
+		$stref->{'Subroutines'}{$block} = $Sblock;
+		if ( $Sf->{'RefactorGlobals'} == 0 ) {
+			$Sf->{'RefactorGlobals'} = 2;
+		} else {
+#			die "$f => $block ".'BOOM!'.Dumper($Sf->{'RefactorGlobals'});
+			print "INFO: RefactorGlobals==1 for $f while processing BLOCK $block\n";
+		}
+	}
+    return $stref;
+} # END of __create_new_subroutine_entries()
+
+sub __find_vars_in_block { (my $blocksref, my $varsref, my $occsref) =@_;
+	for my $block ( keys %{$blocksref} ) {
+
+		my @annlines = @{ $blocksref->{$block}{'AnnLines'} };
+		my %tvars = %{$varsref};    # Hurray for pass-by-value! 
+		
+		print "\nVARS in $block:\n\n" if $V;
+		for my $annline (@annlines) {
+			my $tline = $annline->[0];
+			$tline =~ s/\'.+?\'//; # FIXME: looks like a HACK!
+			for my $var ( sort keys %tvars ) {
+				if ( $tline =~ /\b$var\b/ ) {    
+					print "FOUND $var\n" if $V;
+					$occsref->{$block}{$var} = $var;
+					delete $tvars{$var};
+				}
+			}
+		}
+	}
+	return $occsref;
+	} # END of __find_vars_in_block()
+	
+# TODO: see if this can be separated into shorter subs	
+sub	__construct_new_subroutine_signatures { (my $stref,my $blocksref,my $occsref, my $varsref, my $f)=@_;
+    local $V=1;        
+	my $sub_or_func_or_mod = sub_func_incl_mod( $f, $stref ); # This is not a misnomer as it can also be a module.
+	my $Sf          = $stref->{$sub_or_func_or_mod}{$f};
+	my $srcref      = $Sf->{'AnnLines'};
+
+	my %args = ();
+	
+	for my $block ( keys %{$blocksref} ) {
+		next if $block eq 'OUTER';
+		my $Sblock = $stref->{'Subroutines'}{$block};
+		print "\nARGS for BLOCK $block:\n" if $V;
+
+		# Collect args for new subroutine
+		for my $var ( sort keys %{ $occsref->{$block} } ) {
+			if ( exists $occsref->{'OUTER'}{$var} ) {
+				print "$var\n" if $V;
+				push @{ $args{$block} }, $var;
+			}
+			$Sblock->{'Vars'}{$var} =
+			  $varsref->{$var}; # FIXME: this is "inheritance, but in principle a re-parse is better?"
+		}
+		$Sblock->{'Args'}{'List'} = $args{$block};
+
+		# Create Signature and corresponding Decls
+		# WV20150304 TODO we should create a datastructure instead!
+		my $sixspaces = ' ' x 6;
+		my $sig       = $sixspaces . 'subroutine ' . $block . '('; 
+		my $sigrec = [$sixspaces, $block,$args{$block}] ;
+		
+		for my $argv ( @{ $args{$block} } ) {
+			$sig .= "$argv,";
+			my $decl = format_f95_var_decl( $Sf, $argv ); # No reason to support F77: we always emit F95
+#			  ( $Sf->{'FStyle'} eq 'F77' )
+#			  ? format_f77_var_decl( $Sf, $argv )
+#			  : format_f95_var_decl( $Sf, $argv );
+
+#			$Sf->{'Vars'}{$argv}{'Decl'} = $sixspaces . $decl; #WV20150424 This is a bit silly, we should format into strings we emit, not sooner
+#WV20150424 format_F*_var_decl should return [$spaces,[$Sv->{'Type'}, $Sv->{'Attr'}, $dim , $intent ],[$nvar]];
+# So we have
+        $decl->[0].=$sixspaces;
+        $Sf->{'Vars'}{$argv}{'Decl'} = $decl;
+			
+#			say "DECL: $decl";die;
+		}
+		if (@{ $args{$block} } ) {
+		$sig =~ s/\,$/)/s;
+		} else {
+		    $sig .=')';
+		}
+#		$Sblock->{'Sig'}   = $sig;
+#		$Sblock->{'Decls'} = $decls;
+
+		# Add variable declarations and info to line
+		# Here we know the vardecls have been formatted. 
+		my $sigline = shift @{ $Sblock->{'AnnLines'} };
+		for my $argv ( @{ $args{$block} } ) {
+			my $decl = $Sf->{'Vars'}{$argv}{'Decl'};
+			unshift @{ $Sblock->{'AnnLines'} },
+			  [ emit_f95_var_decl($decl), { 'VarDecl' => $decl } ];
+		}
+		unshift @{ $Sblock->{'AnnLines'} }, $sigline;
+
+	 # Now also add include statements and the actual sig to the line
+		my $fal = $Sblock->{'AnnLines'}[0][1];    # remove comment, keep line
+		$Sblock->{'AnnLines'}[0][1] = {};
+		for my $inc ( keys %{ $Sf->{'Includes'} } ) {
+			$Sblock->{'Includes'}{$inc} = 1;
+			unshift @{ $Sblock->{'AnnLines'} },
+			  [ "      include '$inc'", { 'Include' => { 'Name' => $inc } } ]
+			  ;                                   # add new lines at the front
+
+			$Sblock->{'Includes'}{$inc} = 1;
+		}
+		unshift @{ $Sblock->{'AnnLines'} },
+		  [ $sig, {'SubroutineSig' => $sigrec } ];                           # add a line but not a comment
+		  # And finally, in the original source, replace the blocks by calls to the new subs
+
+		#        print "\n-----\n".Dumper($srcref)."\n-----";
+		for my $tindex ( 0 .. scalar( @{$srcref} ) - 1 ) {
+			if ( $tindex == $blocksref->{$block}{'BeginBlockIdx'} ) {
+				$sig =~ s/subroutine/call/;
+				$srcref->[$tindex][0] = $sig;
+			} elsif ( $tindex > $blocksref->{$block}{'BeginBlockIdx'}
+				and $tindex <= $blocksref->{$block}{'EndBlockIdx'} )
+			{
+				$srcref->[$tindex][0] = '';
+				$srcref->[$tindex][1]{'Deleted'} = 1;
+			}
+		}
+
+#        unshift @{ $Sblock->{'Info'} }, $fl; # put the comment back at the front, no change to the lines
+		$Sblock->{'AnnLines'}[0][1] = $fal;
+
+#		print "YES! GENERATED DECLS ARE WRONG!!!\n";die;
+		if ($V) {
+			print 'SIG:'.$sig, "\n";
+#			print join( "\n", @{$decls} ), "\n";
+		}
+		$Sblock->{'Status'} = $READ;
+
+	}
+	
+    return $stref; 
+} # END of __construct_new_subroutine_signatures()
+
+1;	

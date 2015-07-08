@@ -871,7 +871,7 @@ Suppose we don't:
 			 }
 			}
 #			$srctype                           = 'Subroutines';
-			$f                                 = $pline->[1]{'SubroutineSig'};
+			$f                                 = $pline->[1]{'SubroutineSig'}[1];#[$spaces, $subname,[@subargs]]
 			$stref->{$srctype}{$f}{'AnnLines'} = [];
 		} elsif ( exists $pline->[1]{'FunctionSig'} ) {
 			if ($f ne '') {
@@ -880,7 +880,7 @@ Suppose we don't:
 			} 
 			}
 #			$srctype                           = 'Functions';
-			$f                                 = $pline->[1]{'FunctionSig'};
+			$f                                 = $pline->[1]{'FunctionSig'}[1];#[$spaces, $fname,[@fargs]]
 			$stref->{$srctype}{$f}{'AnnLines'} = [];
 		}
 		}
@@ -1048,12 +1048,13 @@ Suppose we don't:
 				my $keyword = lc($1);
 				my $name    = lc($2);
 die "procLine(): No $keyword name " if $name eq '';
+                my $spaces = ' ' x 6;
 				if ( $keyword eq 'function' ) {
-					$info->{'FunctionSig'} = $name;
+					$info->{'FunctionSig'} = [$spaces,$name,[]];
 				} elsif ($keyword eq 'module' ) {
 				    $info->{'Module'} = $name;
 				} else {
-					$info->{'SubroutineSig'} = $name;
+					$info->{'SubroutineSig'} = [$spaces,$name,[]];
 				} 
 				$line = lc($line);
 			} elsif ($line=~/^\s*$/) {

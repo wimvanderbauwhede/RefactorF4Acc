@@ -120,10 +120,10 @@ sub refactor_kernel_signatures {
 #print "$f: LINE $line:\t".join(';', keys %{$info})."\t";
 	    if ( exists $info->{'VarDecl'} ) {
 #	    	print  'VARS: '.Dumper($info->{'VarDecl'}); 
-	    	my $arg = $info->{VarDecl};
-	    	if (not exists $info->{Ref})  {		    	
-		    	 if( exists  $Sf->{'Vars'}{$arg}{Decl} ) {    	
-		    	   my $line = format_f95_var_decl($Sf, $arg);
+	    	my $arg = $info->{'VarDecl'}[2][0];
+	    	if (not exists $info->{'Ref'})  {		    	
+		    	 if( exists  $Sf->{'Vars'}{$arg}{'Decl'} ) {    	
+		    	   my $line = format_f95_var_decl($Sf, $arg); # FIXME!
 #		    	   print "$f: REF1 $line FOR $arg\n\n";
 		    	 } else {
 		    	 	print "WARNING: $arg is not in Vars for $f\n" if $W;

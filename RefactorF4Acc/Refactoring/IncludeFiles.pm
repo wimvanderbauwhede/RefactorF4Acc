@@ -87,7 +87,7 @@ sub _refactor_include_file {
 		if ( exists $tags{'VarDecl'} ) {
 			$stref=__resolve_module_deps($stref,$f,$line);			
 			my @nvars = ();
-			for my $var ( @{ $info->{'VarDecl'} } ) {
+			for my $var ( @{ $info->{'VarDecl'}[2] } ) {
 				# Maybe put check for parameters here
 				
 				if ( $stref->{'IncludeFiles'}{$f}{'InclType'} ne 'Parameter'
@@ -107,7 +107,7 @@ sub _refactor_include_file {
 					push @nvars, $var;
 				}
 			}
-			$annline->[1]{'VarDecl'} = [@nvars];
+			$annline->[1]{'VarDecl'}[2] = [@nvars];
 		} 
 		if ( exists $tags{'ParamDecl'} ) {
 #			print Dumper(%tags);

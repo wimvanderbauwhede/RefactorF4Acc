@@ -103,8 +103,8 @@ sub create_new_include_statements {
             my $rline = "      use $tinc"; $rline .=" ! create_new_include_statements() line 102" if $V;
             $info->{'Include'}{'Name'} = $inc;
             $info->{'Ref'}=1;
-            if (exists $info->{VarDecl}) {
-                die Dumper($info->{VarDecl}); # this never happens, so the junk is not introduced here
+            if (exists $info->{'VarDecl'}) {
+                die Dumper($info->{'VarDecl'}); # this never happens, so the junk is not introduced here
             }
             if ($info->{'ExGlobVarDecls'} >= $Sf->{'ExGlobVarDeclHook'}) {
             	$info->{'ExGlobVarDecls'} = ++$Sf->{'ExGlobVarDeclHook'};

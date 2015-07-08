@@ -26,6 +26,7 @@ use Exporter;
     &ordered_union
     &module_has
     &module_has_only
+    &make_lookup_table
     &generate_docs
 );
 
@@ -154,8 +155,20 @@ for my $k ( keys %{ $stref->{'Modules'}{$mod_name} } ) {
 #        print 'MAYBE INLINEABLE MOD: '.$mod_name."\n";
         return 1; }
 }
-
 # -----------------------------------------------------------------------------
+# A lookup table from one list to another
+sub make_lookup_table {
+    (my $from, my $to)=@_;
+    my $lut={};    
+    for my $idx (0 .. scalar @{$from}-1) {
+        my $f = $from->[$idx];
+        my $t = $to->[$idx];
+        $lut->{$f}=$t;
+    } 
+    return $lut;
+}
+
+
 # -----------------------------------------------------------------------------
 # FIXME: this routine is now broken as it relied on all docs being in the main script
 sub generate_docs {

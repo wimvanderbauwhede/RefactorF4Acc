@@ -1,5 +1,5 @@
 package RefactorF4Acc::Refactoring::Subroutines;
-
+use v5.016;
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
 use RefactorF4Acc::Refactoring::Common qw( get_annotated_sourcelines create_refactored_source context_free_refactorings );
@@ -92,7 +92,7 @@ This is a node called 'RefactoredSubroutineCall'
 
 sub _refactor_subroutine_main {
     ( my $f, my $stref ) = @_;
-#    local $V=1;# if $f=~/interpol_all_/;
+#    local $V=1 if $f=~/LES_kernel_wrapper/;
     if ($V) {
         print "\n\n";
         print "#" x 80, "\n";
@@ -105,7 +105,7 @@ sub _refactor_subroutine_main {
 
     my $Sf = $stref->{'Subroutines'}{$f};
     
-#    if ($f eq 'main') {die Dumper($Sf); }
+#    if ($f eq 'LES_kernel_wrapper') { map {say} keys $Sf; die; }
     my $annlines = get_annotated_sourcelines($stref,$f);
 
 # OK here for convect
@@ -157,6 +157,8 @@ sub _refactor_subroutine_main {
 #       die;
 #   }
 # OK here for les.f
+#if ($f eq 'LES_kernel_wrapper') { map {say} keys $Sf; die Dumper $Sf->{RefactoredArgs}; }
+# So at this point the arguments have been refactored, but no declarations have been added
     return $stref;
 }    # END of _refactor_subroutine_main()
 
