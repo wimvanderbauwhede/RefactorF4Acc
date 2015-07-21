@@ -139,14 +139,14 @@ sub _process_src {
             # Skip blanks
         $line =~ /^\s*$/ && next;
             # Translate pragma
-        if ( $line =~ /^\!\s*\$acc\stranslate\s(\w+)/i ) { 
+        if ( $line =~ /^\!\s*\$(?:ACC|RF4A)\stranslate\s(\w+)/i ) { 
             $translate_to=$1;
         }             
 
-        # Detect blocks
+        # Detect blocks. FIXME: we need to distinguish between the Subroutine and KernelWrapper pragmas!
             if ( $has_blocks == 0 ) {
                 if ( $line =~ /^[Cc\*\!]\s+BEGIN\sSUBROUTINE\s(\w+)/ 
-        or $line =~ /^\!\s*\$ACC\s+(Subroutine|KernelWrapper)\s+(\w+)/i ){
+        or $line =~ /^\!\s*\$(?:ACC|RF4A)\s+(Subroutine|KernelWrapper)\s+(\w+)/i ){
                         my $block_type=$1;
                          my $sub=$2;
                          say 'Detected block: '."$block_type $sub" if $V;

@@ -1,5 +1,5 @@
 package RefactorF4Acc::CTranslation;
-
+# THIS SUBROUTINE IS CURRENTLY OBSOLETE, WE USE OpenCLTranslation INSTEAD
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
 # 
@@ -177,7 +177,7 @@ sub postprocess_C {
         }; 
         if ($line=~/^\#define\s+(\w+)/ ) {
         	my $par=$1;
-        	if ( exists $stref->{'Subroutines'}{$sub}{'Parameters'}{$par} ) { # FIXME!i
+        	if ( exists $stref->{'Subroutines'}{$sub}{'Parameters'}{'Set'}{$par} ) { # FIXME!i
                 $skipline=0;
         	}
         }; 
@@ -203,7 +203,7 @@ sub postprocess_C {
             for my $i ( keys %{ $Ssub->{'Includes'} } ) {
                 if ( $stref->{'IncludeFiles'}{$i}{'InclType'} eq 'Parameter' ) {
                     %params = (
-                        %params, %{ $stref->{'IncludeFiles'}{$i}{'Parameters'} }
+                        %params, %{ $stref->{'IncludeFiles'}{$i}{'Parameters'}{'Set'} }
                     );
                 }
             }

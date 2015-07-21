@@ -45,6 +45,9 @@ use Exporter;
 
 sub resolve_globals {
     ( my $f, my $stref ) = @_;
+#    if ($f=~/LES/) {
+#    local $V=1;
+#    }
 #    warn '=' x 80, "\nENTER resolve_globals( $f )\n" ;
     if (exists $stref->{'Subroutines'}{$f} ) {
 #        die Dumper( $stref->{'Subroutines'}{$f}  ) if $f=~/module_press/;
@@ -53,6 +56,7 @@ sub resolve_globals {
         and scalar keys %{ $Sf->{'CalledSubs'} } )
     {
         # Globals for $csub have been determined
+        print "GLOBALS for CALLED SUBS in $f have been determined\n" if $V;
         $stref = _identify_globals_used_in_subroutine( $f, $stref );
         my @csubs = keys %{ $Sf->{'CalledSubs'} };
         for my $csub (@csubs) {
@@ -78,7 +82,7 @@ sub resolve_globals {
 #croak Dumper($stref->{'Subroutines'}{'getfields'}{'Globals'}) if $f eq 'getfields';
     # We only come here when the recursion and merge is done.
     $stref = _resolve_conflicts_with_params( $f, $stref );
-#    if ($f=~/les/) {die Dumper($stref->{'Subroutines'}{$f}{'Globals'});}
+#    if ($f=~/LES/) {die Dumper($stref->{'Subroutines'}{$f}{'Globals'});}
     }
     return $stref;
 }    # END of resolve_globals()
@@ -309,6 +313,9 @@ sub __look_for_variables {
 
 # -----------------------------------------------------------------------------
 # Only to be called for subs with RefactorGlobals == 2
+# What this does is lift the includes from child node to parent node, i.e. if a called sub contains an 
+# include and the caller doesn't, and if RefactorGlobals == 2 and it is an include with common blocks, then it is lifted.
+# I've actually forgotten why this is needed.
 sub lift_includes {
     ( my $stref, my $f) = @_;
     my $Sf = $stref->{'Subroutines'}{$f};    

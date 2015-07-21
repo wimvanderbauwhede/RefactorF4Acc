@@ -1,8 +1,8 @@
-package RefactorF4Acc::Analysis::Sources;
+package RefactorF4Acc::Analysis::Sources; # TODO: a better name
 
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
-use RefactorF4Acc::Analysis::Globals qw( lift_includes );
+use RefactorF4Acc::Analysis::Globals qw( lift_includes ); # TODO: put lift_includes in this module
 # 
 #   (c) 2010-2012 Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
 #   
@@ -26,7 +26,8 @@ use Exporter;
 );
 
 # -----------------------------------------------------------------------------
-# Maybe I need an additional Status here
+# This routine mainly analyses loops for the equivalent of break statements
+# For some reason it also lifts includes, this is very silly, FIXME! 
 sub analyse_sources {
     ( my $stref ) = @_;
 
@@ -159,7 +160,7 @@ sub _identify_loops_breaks {
             };
 
    # When an open() fails, you can pass a label to some place for error handling
-   # Some evil code combines this end-of-do-block labels
+   # Some evil code combines such end-of-do-block labels
             $line =~ /^\s+open.*?\,\s*err\s*=\s*(\d+)\s*\)/ && do {
                 my $label = $1;
                 $Sf->{'Gotos'}{$label} = 1;

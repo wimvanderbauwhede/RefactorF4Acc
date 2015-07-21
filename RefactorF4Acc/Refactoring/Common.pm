@@ -1,5 +1,5 @@
 package RefactorF4Acc::Refactoring::Common;
-
+use v5.16;
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
 
@@ -31,6 +31,7 @@ use Exporter;
   &format_f95_var_decl 
   &format_f77_var_decl
   &emit_f95_var_decl
+  &splice_additional_lines
 );
 
 our %f95ops = (
@@ -59,6 +60,7 @@ our %f95ops = (
 sub context_free_refactorings {
 	( my $stref, my $f ) = @_;
 	print "CREATING FINAL $f CODE\n" if $V;
+	my $die_if_one=0;
 	my @extra_lines = ();
 	my $sub_or_func_or_inc = sub_func_incl_mod( $f, $stref );
 	my $Sf = $stref->{$sub_or_func_or_inc}{$f};
@@ -162,7 +164,7 @@ sub context_free_refactorings {
 				if ($sub_or_func_or_inc ne 'IncludeFiles') {
 					
 				    my @vars_not_pars =
-				    grep { not exists $Sf->{'Parameters'}{$_} } @vars;
+				    grep { not exists $Sf->{'Parameters'}{'Set'}{$_} } @vars;
 				    
 #				    my $filtered_line = '';				
 				    if (scalar @vars_not_pars > 0) { 
@@ -185,7 +187,7 @@ sub context_free_refactorings {
 				$info->{'Ref'}++;
 			} else {
 			     if ( scalar @vars == 1 ) { # for var decls with a single var
-					if ( exists( $Sf->{'Parameters'}{ $vars[0] } ) ) {
+					if ( exists( $Sf->{'Parameters'}{'Set'}{ $vars[0] } ) ) {
 						# Remove this line, because this param should have been declared above
 						warn "$f PAR:2\n";
 						$line = '!! Original line PAR:2 !! ' . $line;
@@ -200,7 +202,7 @@ sub context_free_refactorings {
 						# For include files, remove everything
 					   # filter out parameters
 						my @vars_not_pars =
-						  grep { not exists $Sf->{'Parameters'}{$_} } @vars;
+						  grep { not exists $Sf->{'Parameters'}{'Set'}{$_} } @vars;
 						if (@vars_not_pars) { 
 #							$line =
 #							  _format_f95_multiple_var_decls( $Sf,@vars_not_pars );
@@ -223,7 +225,7 @@ sub context_free_refactorings {
 						}
 					} else {
 						# This is overly restrictive, we should only remove vars that are in a common block
-						# However, any variable should be in $Sf->{'Parameters'}, isn't it?						
+						# However, any variable should be in $Sf->{'Parameters'}{'Set'}, isn't it?						
 						if (exists $stref->{IncludeFiles}{$f}{Commons}{$vars[0]})  {
                             $line = '!! Original line !! ' . $line;
                             $info->{'Deleted'} = 1;						
@@ -231,7 +233,7 @@ sub context_free_refactorings {
 						    
 						  print  "INFO: found var decls not COMMON in $f:\n$line\n".Dumper(@vars) if $I;
 						  my @vars_not_pars =
-						  grep { not exists $Sf->{'Parameters'}{$_} } @vars;
+						  grep { not exists $Sf->{'Parameters'}{'Set'}{$_} } @vars;
 #						  $line =
 #							  _format_f95_multiple_var_decls( $Sf,@vars_not_pars );
                         $line = '!! Original line !! ' . $line;
@@ -288,19 +290,30 @@ sub context_free_refactorings {
 		} # assignment 
 		elsif ( exists $info->{'ParamDecl'} ) { # so this is a parameter declaration "pur sang"
 		# WV 20130709: why should I remove this? 
+		#  $stref->{'Subroutines'}{$f}{RefactoredArgs}{Set}
 #			if ($sub_or_func_or_inc eq 'IncludeFiles' and 
 #			$stref->{'IncludeFiles'}{$f}{'InclType'} eq 'Parameter') {
 				my @par_lines=();
-				for my $var (@{ $info->{'ParamDecl'} } ) {
-				    push @par_lines, format_f95_par_decl($stref,$f, $var);
+				my $info_ref=$info->{'Ref'}//0;
+				for my $var_val (@{ $info->{'ParamDecl'}[2] } ) {				    
+				    (my $var, my $val) = @{$var_val};
+				    my $par_decl= format_f95_par_decl($stref,$f, $var);
+#				    push @par_lines,$par_decl;
+					my $new_line = 	emit_f95_var_decl(	$par_decl );
+					# Here the declaration is complete			
+					push @extra_lines,
+					  [ $new_line, { 'Extra' => 1, 'ParamDecl' => $par_decl, 'Ref'=> $info_ref+1, 'LineID'=>$nextLineID++ } ]; # Create parameter declarations before variable declarations				    
 				}
-				$line=join('; ',@par_lines);
+				$line = '!! Original line !! ' . $line;
+				$info->{'Deleted'} = 1;
+				
+#				$die_if_one=1;
+#				$line=join('; ',@par_lines);
 	#			} else {
 	#			   $line = '!! Original line PAR:5 !! ' . $line;
-	#			   
 	#			   $info->{'Deleted'} = 1;
 	#			}
-			$info->{'Ref'}++;
+			
 		} 
 		elsif ( exists $info->{'SubroutineCall'} ) {			
 			$line = _rename_conflicting_vars($line,$stref,$f);
@@ -332,7 +345,7 @@ sub context_free_refactorings {
 			@extra_lines = ();
 			
 		}
-	}
+	} # LOOP over AnnLines
  
     # now splice the include stack just below the signature
     if (@include_use_stack) {
@@ -373,7 +386,7 @@ sub context_free_refactorings {
 		    }
 	    }	
     }
-    
+    if ($die_if_one) { die Dumper($Sf->{'RefactoredCode'}); }
 	return $stref;
 }    # END of context_free_refactorings()
 
@@ -612,11 +625,15 @@ sub get_annotated_sourcelines {
 	my $Sf                 = $stref->{$sub_or_func_or_inc}{$f};
 
 	my $annlines = [];
-#	print "get_annotated_sourcelines($f)\n";
+
 	if ( $Sf->{'Status'} == $PARSED ) {
 		if ( not exists $Sf->{'RefactoredCode'} ) {
 			$Sf->{'RefactoredCode'} = [];
+			if (defined $Sf->{'AnnLines'}) {
 			$annlines = [ @{ $Sf->{'AnnLines'} } ];    # We want a copy!
+			} else {
+			    die 'get_annotated_sourcelines: no AnnLines for ' . $f;
+			}
 		} else {
 			$annlines = $Sf->{'RefactoredCode'};       # Here a ref is OK
 		}
@@ -636,32 +653,56 @@ sub get_annotated_sourcelines {
 
 # -----------------------------------------------------------------------------
 sub format_f95_var_decl {
-	( my $Sf, my $var ) = @_;
+    my $stref;
+    my $f;
+     my $Sf;
+     my $var; 
+    if (scalar( @_ ) == 3) {        
+        ( $stref, $f, $var ) = @_;
+        my $code_unit = sub_func_incl_mod($f,$stref);
+        $Sf = $stref->{$code_unit}{$f};        
+    } else {
+	   ( $Sf, $var ) = @_;
+    }
+    
 	if (ref($var) eq 'ARRAY' && $var->[-1] == 1) {
 	    return $var;
 	}
 	if (ref($var) eq 'ARRAY' && $var->[-1] == 0) {
 	    $var = $var->[2][0];
 	}
+	my $spaces = '      ';
+	my $intent = [];
+	my $shape = [];
+	my $attr = '';
+	my $type = 'Unknown';
+	my $nvar=$var;
+	if (exists $Sf->{'Vars'}{$var}) {
 	my $Sv = $Sf->{'Vars'}{$var};
 	if ( not exists $Sv->{'Decl'} ) {
 		print "WARNING: VAR $var does not exist in Vars in format_f95_var_decl()!\n" if $W;
-		croak $var;
+#		croak $var;
 	} 
-	my $nvar=$var;
+	
 	if (exists $Sf->{'ConflictingLiftedVars'}{$var} ){
 	   $nvar=$Sf->{'ConflictingLiftedVars'}{$var};
 	}
 	my $spaces = $Sv->{'Decl'}->[0]; #WV20150707 Decl is a record of 4 entries: [spaces, [type], [varname],formatted(0|1)]
 	$spaces =~ s/\S.*$//;
-    my $intent='';
+	$shape = $Sv->{'Shape'} ;
+	$type =  $Sv->{'Type'};
+	$attr = $Sv->{'Attr'};    
     if (exists $Sf->{'RefactoredArgs'}{'Set'}{$var}) {
-        $intent = ['intent',$Sf->{'RefactoredArgs'}{'Set'}{$var}{'IODir'}]; 
+        $intent = ['intent',$Sf->{'RefactoredArgs'}{'Set'}{$var}{'IODir'}];
+    }
+	} else {
+        ($type, my $kind, $shape, $attr)= type_via_implicits($stref,$f,$var);
     } 
+     
 	# FIXME: for multiple vars, we need to split this in multiple statements.
 	# So I guess as soon as the Shape is not empty, need to split.
-	my $shape = $Sv->{'Shape'};
-	die Dumper($shape) if join( '', @{$shape} ) =~ /;/;
+	
+#	die Dumper($shape) if join( '', @{$shape} ) =~ /;/;
 	my $dim = '';
 	if ( @{$shape} ) {
 		my @dims = ();
@@ -676,9 +717,9 @@ sub format_f95_var_decl {
 	}
 
 	my $decl_line =
-	  $spaces . $Sv->{'Type'} .$Sv->{'Attr'}. $dim . $intent .' :: ' . $nvar;
+	  $spaces . $type .$attr. $dim . $intent .' :: ' . $nvar;
 #WV20150424 this should become 
-    return [$spaces,[$Sv->{'Type'}, $Sv->{'Attr'}, $dim , $intent ],[$nvar],1];
+    return [$spaces,[$type, $attr, $dim , $intent ],[$nvar],1];
 #	return $decl_line;
 }    # format_f95_var_decl()
 
@@ -847,7 +888,7 @@ sub UNUSED_resolve_params {
 		for my $chunk (@chunks) {
 			print "[$chunk]\n";
 			if ( $chunk =~ /^[a-z_]\w*/ ) {
-				if ( exists $Sf->{'Parameters'}{$chunk} ) {
+				if ( exists $Sf->{'Parameters'}{'Set'}{$chunk} ) {
 					push @maybe_pars, $chunk;
 				} else {
 					croak "Can't find PARAM $chunk";
@@ -858,7 +899,7 @@ sub UNUSED_resolve_params {
 		if (@maybe_pars) {
 			for my $par (@maybe_pars) {
 #				print "TEST PAR:{$par}\n";
-				my $tval = $Sf->{'Parameters'}{$par}{'Val'};
+				my $tval = $Sf->{'Parameters'}{'Set'}{$par}{'Val'};
 #				print 'PAR:', $par, ' VAL:', $tval, "\n";
 				$val =~ s/\b$par\b/$tval/;
 #				print "AFTER SUB:<$val>\n"; 
@@ -877,19 +918,32 @@ sub UNUSED_resolve_params {
 # -----------------------------------------------------------------------------
 
 sub format_f95_par_decl {
-	( my $stref,my $f, my $var ) = @_;
+	( my $stref,my $f, my $var_rec ) = @_;	
+	if (ref($var_rec) eq 'ARRAY' && $var_rec->[-1] == 1) {
+	    return $var_rec;
+	}
+	my $var = do {
+	if (ref($var_rec) eq 'ARRAY' && $var_rec->[-1] == 0) {
+	    $var_rec->[2][0][0];
+	} else {
+#	    croak $var_rec;
+	    $var_rec; 
+	}
+	};
+	
     my $sub_or_func_or_inc = sub_func_incl_mod( $f, $stref );
     my $Sf = $stref->{$sub_or_func_or_inc}{$f};	
-#    print "VAR:<$var> ";
-	my $val = $Sf->{'Parameters'}{$var}{'Val'};
-#	print "<$val>\n";
+#    print "VAR:<".Dumper($var)."> ";
+	my $val = $Sf->{'Parameters'}{'Set'}{$var}{'Val'};
+#	my $val_from_rec = 	$var_rec->[2][0][1];
+#	print "<$val><$val_from_rec>\n";die;
 	my $Sv  = $Sf->{'Vars'}{$var};
 	my $local_par=0;
 	if ( not exists $Sv->{'Decl'} ) {
 		print "WARNING: PAR $var is probably local to $f in format_f95_par_decl()!\n" if $W;
 		$local_par=1;
 #		croak $var;
-        $Sv->{'Type'} = $Sf->{'Parameters'}{$var}{'Type'};
+        $Sv->{'Type'} = $Sf->{'Parameters'}{'Set'}{$var}{'Type'};
         $Sv->{'Indent'} = ' ' x 6;
         $Sv->{'Shape'} = [];
         $Sv->{'Attr'}='';
@@ -903,8 +957,9 @@ sub format_f95_par_decl {
 	# FIXME: for multiple vars, we need to split this in multiple statements.
 	# So I guess as soon as the Shape is not empty, need to split.
 	my $shape = $Sv->{'Shape'} ;
-	die Dumper($shape) if join( '', @{$shape} ) =~ /;/;
+#	die Dumper($shape) if join( '', @{$shape} ) =~ /;/;
 	my $dim = '';
+	my $dimrec = [];
 	if ( @{$shape} ) {
 		my @dims = ();
 		for my $i ( 0 .. ( @{$shape} / 2 - 1 ) ) {
@@ -915,7 +970,9 @@ sub format_f95_par_decl {
 			push @dims, $range;
 		}
 		$dim = ', dimension(' . join( ',', @dims ) . ') ';
+		$dimrec = ['dimension',[@dims]];
 	}
+	if ($local_par) {	
 	my $decl_line = $spaces
 	  . $Sv->{'Type'}
 	  . $Sv->{'Attr'}
@@ -923,17 +980,14 @@ sub format_f95_par_decl {
 	  . ', parameter ' . ' :: '
 	  . $var . ' = '
 	  . $val;
-
-	#    die $decl_line  if $dim;
-	if ($local_par) {
 		print "WARNING: LOCAL PAR: $decl_line\n" if $W;  
 	}
-	return $decl_line;
+#	return $decl_line;
 	return [
 	 $spaces, [
 	   $Sv->{'Type'}
 	  , $Sv->{'Attr'}
-	  , $dim
+	  , $dimrec
 	  ,'parameter'], [[
 	   $var ,
 	   $val]],1
@@ -1065,24 +1119,81 @@ sub _rename_conflicting_lhs_var {
 } # END of _rename_conflicting_lhs_var()
 
 sub emit_f95_var_decl { (my $var_decl_rec)=@_;
+#    say Dumper($var_decl_rec);
     my $spaces =$var_decl_rec->[0];
     (my $type , my $attr, my $dim, my $intent_or_par) = @{$var_decl_rec->[1]};
     
     my $dimstr = '';
     if (ref($dim) eq 'ARRAY' and @{$dim} == 2) {
-        $dimstr = $dim->[0].'('.join(',',@{$dim->[1]}).'),' ;
+        $dimstr = $dim->[0].'('.join(',',@{$dim->[1]}).')' ;
     }
+    my @attrs=();
+        if ($attr) {
+            push @attrs, $attr;
+        }
+        if ($dimstr) {
+            push @attrs, $dimstr;
+        }
+    
     if (ref($intent_or_par) eq 'ARRAY') {
         my $intent = $intent_or_par;
-    my $intentstr = @{$intent} ? $intent->[0].'('.$intent->[1].'),' : '';
-    my @vars =     @{ $var_decl_rec->[2] };    
-  	my $decl_line =	  $spaces . $type .$attr.', '. $dimstr . $intentstr .' :: ' . join(', ',@vars);
-  	return $decl_line ;
+        my $intentstr = @{$intent} ? $intent->[0].'('.$intent->[1].')' : '';
+        
+        if ($intentstr) {
+            push @attrs, $intentstr;
+        }
+        my @vars =     @{ $var_decl_rec->[2] };    
+  	     my $decl_line =	  $spaces  .join(', ',($type,@attrs)) .' :: ' . join(', ',@vars);
+  	     return $decl_line ;
     } else {
-    my @vars =    map { $_->[0].'='.$_->[1] } @{ $var_decl_rec->[2] };    
-  	my $decl_line =	  $spaces . $type .$attr.', '. $dimstr . 'parameter :: ' . join(', ',@vars);
-  	return $decl_line ;        
+        push @attrs, 'parameter';
+        my @vars =    map { $_->[0].'='.$_->[1] } @{ $var_decl_rec->[2] };    
+  	    my $decl_line =	  $spaces . $type .$attr.', '. $dimstr . 'parameter'.' :: ' . join(', ',@vars);
+#  	say 'emit_f95_var_decl PARAM: '.$decl_line ;
+  	    return $decl_line ;        
     }    
 }
+# -----------------------------------------------------------------------------
+# This routine take $stref, $f, $insert_pos_lineID, $new_annlines, $insert_before, $skip_insert_pos_line
+#- Go through the AnnLines
+#- Find the hook
+#- splice the new lines after the hook.
 
-1;
+sub splice_additional_lines { 
+    (my $stref, my $f, my $insert_pos_lineID, my $new_annlines, my $insert_before, my $skip_insert_pos_line) = @_;
+    say "SPLICE @ $insert_pos_lineID for $f" if $V;
+    my $sub_or_func_or_mod = sub_func_incl_mod( $f, $stref );
+    my $Sf = $stref->{$sub_or_func_or_mod}{$f};
+    my $annlines = get_annotated_sourcelines($stref,$f);
+    my $nextLineID=scalar @{$annlines}+1;
+    my $merged_annlines = [];
+    my $once=1; # This is needed because some comment/deleted lines have duplicate LineIDs
+    for my $annline (@{$annlines}) {
+        (my $line, my $info)=@{$annline};
+        if ($info->{'LineID'} ==  $insert_pos_lineID and $once) {
+            $once=0;
+#            say "SPLICE POINT $line";
+            if (not $skip_insert_pos_line and not $insert_before) {
+                say $annline->[0] if $V;
+                push @{$merged_annlines}, $annline;
+            }                       
+            for my $extra_annline (@{$new_annlines}) {
+                (my $nline, my $ninfo)=@{$extra_annline};
+                $ninfo->{'LineID'}  = $nextLineID++;
+                say $nline if $V; 
+                push @{$merged_annlines}, [$nline, $ninfo];
+            }
+            if (not $skip_insert_pos_line and $insert_before) {
+                say $annline->[0] if $V;
+                push @{$merged_annlines}, $annline;
+            }                       
+                    
+        } else {
+            say $annline->[0] if $V;
+            push @{$merged_annlines}, $annline;
+        }   
+    }
+    $Sf->{'RefactoredCode'} = $merged_annlines; 
+    return $stref;
+    
+} # END of splice_additional_lines()

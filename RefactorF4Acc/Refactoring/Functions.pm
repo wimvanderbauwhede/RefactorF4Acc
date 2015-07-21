@@ -46,7 +46,6 @@ sub refactor_called_functions {
         	warn "refactor_called_functions(): Function $f was never parsed";
         } else {        
             $stref = _refactor_function( $f, $stref );
-#            $stref = create_refactored_source($stref, $f);
         }
         } 
     }

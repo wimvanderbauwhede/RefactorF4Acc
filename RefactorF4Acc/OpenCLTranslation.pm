@@ -2,7 +2,7 @@ package RefactorF4Acc::OpenCLTranslation;
 
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
-
+use RefactorF4Acc::Refactoring::Common qw( get_annotated_sourcelines );
 #
 #   (c) 2010-2012 Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
 #
@@ -73,7 +73,8 @@ sub _preprocess {
     my $emit_contains = 1;
     get_subs_to_be_inlined ($stref, $mod_name,$sub_table );
 #    die Dumper($sub_table);
-    for my $annline ( @{ $stref->{'Modules'}{$mod_name}{'AnnLines'} } ) {
+my $annlines = get_annotated_sourcelines($stref,$mod_name);
+    for my $annline ( @{ $annlines } ) {
         ( my $line, my $info ) = @{$annline};
 #        next if _skip_IO($info);
 #        next if _skip_return($info);
@@ -163,14 +164,8 @@ sub _preprocess {
 sub _inline_module {
     ( my $stref, my $mod_name ) = @_;
     my $mod_lines = [];
-
-    #    die Dumper($stref->{'Modules'}{$mod_name});
-    if ( not exists $stref->{'Modules'}{$mod_name}{'AnnLines'} ) {
-
-        # parse the module source here; but that should not happen!
-        die '_inline_module: no AnnLines for ' . $mod_name;
-    }
-    for my $annline ( @{ $stref->{'Modules'}{$mod_name}{'AnnLines'} } ) {
+    my $annlines = get_annotated_sourcelines($stref,$mod_name);
+    for my $annline ( @{ $annlines } ) {
         ( my $line, my $info ) = @{$annline};
         if (    exists $info->{'Use'}
             and exists $info->{'Use'}{'Inlineable'} )
@@ -203,7 +198,8 @@ sub _inline_subs {
     for my $sub (keys %{$subs_in_module}) {
         if (exists $sub_table->{$sub}) {
 #            print "SUB TO BE INLINED: $sub\n";
-            for my $annline (@{$stref->{'Subroutines'}{$sub}{'AnnLines'} }) {
+            my $annlines = get_annotated_sourcelines($stref,$sub);
+            for my $annline (@{ $annlines }) {
                 ( my $line, my $info ) = @{$annline};
 #                next if _skip_IO($info);
 #                next if _skip_return($info);

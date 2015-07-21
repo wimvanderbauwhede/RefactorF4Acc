@@ -2,7 +2,7 @@ package RefactorF4Acc::Analysis::ArgumentIODirs;
 
 
 use RefactorF4Acc::Config;
-use RefactorF4Acc::Utils;
+use RefactorF4Acc::Utils qw( get_maybe_args_globs type_via_implicits );
 use RefactorF4Acc::Refactoring::Common qw( get_annotated_sourcelines );
 use RefactorF4Acc::Refactoring::Subroutines::Signatures qw( refactor_subroutine_signature );
 use RefactorF4Acc::Refactoring::Subroutines::Calls qw( refactor_subroutine_call_args);
@@ -27,6 +27,7 @@ use Exporter;
 @RefactorF4Acc::Analysis::ArgumentIODirs::EXPORT_OK = qw(
     &determine_argument_io_direction_rec
     &parse_assignment
+    &type_via_implicits
 );
 
 # -----------------------------------------------------------------------------
@@ -48,20 +49,20 @@ sub determine_argument_io_direction_rec {
         }
 #   die "Resolved IO for called subs, now use it!\n" if $f =~ /advance/;
         print "\t" x $c, "--------\n" if $V;
-        $stref = determine_argument_io_direction_core( $stref, $f );
+        $stref = _determine_argument_io_direction_core( $stref, $f );
     } else {
 #    	print "\t" x $c; print "LEAF\n";
 # For a leaf, this should resolve all
 # For a non-leaf, we should merge the declarations from the calls
 # This is more tricky than it seems because a sub can be called multiple times with different arguments.
 # So first we need to determine the argument of the call, then map them to the arguments of the sub
-        $stref = determine_argument_io_direction_core( $stref, $f );
+        $stref = _determine_argument_io_direction_core( $stref, $f );
     }
     return $stref;
 }    # determine_argument_io_direction_rec()
 
 # -----------------------------------------------------------------------------
-sub determine_argument_io_direction_core {
+sub _determine_argument_io_direction_core {
     ( my $stref, my $f ) = @_;
     if (exists  $stref->{'Subroutines'}{$f} ) { 
     my $Sf      = $stref->{'Subroutines'}{$f};
@@ -71,10 +72,11 @@ sub determine_argument_io_direction_core {
 
     # Then for each of these, we go through the args.
     # If an arg has a non-'U' value, we overwrite it.
-    $stref = analyse_src_for_iodirs($stref,$f);
+# Up to here RefactoredArgs does not contain any parameter decls
+    $stref = _analyse_src_for_iodirs($stref,$f);
     $Sf=$stref->{'Subroutines'}{$f};
     my $args = $Sf->{'RefactoredArgs'}{'Set'};
-
+# So at this point $args contains parameter declarations without their value part (chopped off at the '=') 
     my $maybe_args = ( get_maybe_args_globs( $stref, $f ) )[0];
     for my $arg ( keys %{ $args} ) {    	
 #    	warn "ARG: $arg\n" if $f=~/interpol_vdep_nests/; 
@@ -89,7 +91,7 @@ sub determine_argument_io_direction_core {
             $attr = $maybe_args->{$arg}{'Attr'};
         } else {
         	# FIXME: Implicit rules can include a kind!
-        	($type,$kind,$shape, $attr)=_type_via_implicits($stref,$f,$arg);        	
+        	($type,$kind,$shape, $attr)=type_via_implicits($stref,$f,$arg);        	
         	if ($type eq 'Unknown') {
                 print "WARNING: No type/kind/shape info for $arg in $f\n" if $W;
         	}
@@ -106,7 +108,7 @@ sub determine_argument_io_direction_core {
 #    $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}=$args;
     }
     return $stref;
-}    # determine_argument_io_direction_core()
+}    # _determine_argument_io_direction_core()
 
 # -----------------------------------------------------------------------------
 # To determine if a subroutine argument is I, O or IO:
@@ -155,7 +157,7 @@ sub determine_argument_io_direction_core {
 #
 #Unknown =>  Unused
 
-sub set_iodir_read {
+sub _set_iodir_read {
     ( my $mvar, my $args_ref ) = @_;
     
 #    if ( $args_ref->{$mvar}{'IODir'} eq 'Out' ) {    	
@@ -169,7 +171,7 @@ sub set_iodir_read {
     return $args_ref;
 }
 
-sub set_iodir_write {
+sub _set_iodir_write {
     ( my $mvar, my $args_ref ) = @_;
     if (exists $args_ref->{$mvar} and
     exists $args_ref->{$mvar}{'IODir'}
@@ -188,7 +190,7 @@ sub set_iodir_write {
 }
 
 
-sub set_iodir_read_write {
+sub _set_iodir_read_write {
     ( my $mvar, my $args_ref ) = @_;
     if (exists $args_ref->{$mvar} and
     exists $args_ref->{$mvar}{'IODir'}
@@ -200,21 +202,16 @@ sub set_iodir_read_write {
 }
 
 # -----------------------------------------------------------------------------
-sub find_vars {
+sub _find_vars_w_iodir {
     ( my $line, my $args_ref, my $subref ) = @_;
-#    warn "find_vars()\n".Dumper($args_ref);  
-#    my %args = %{$args_ref};
     my @chunks = split( /\W+/, $line );
     for my $mvar (@chunks) {    
-#    	warn "MVAR:$mvar\n";	
         if ( exists $args_ref->{$mvar} && exists $args_ref->{$mvar}{'IODir'} ) {
-#        	warn "MVAR OK!:$mvar\n";      	
             $args_ref = $subref->( $mvar, $args_ref );
         }
     }
-#    print "find_vars() RETURN:\n".Dumper($args_ref);
     return $args_ref;
-}    # END of find_vars()
+}    # END of _find_vars_w_iodir()
 # -----------------------------------------------------------------------------
 sub _find_vars {
     ( my $line) = @_;
@@ -222,16 +219,16 @@ sub _find_vars {
     my @chunks = split( /\W+/, $line );
     for my $mvar (@chunks) {  
         next if $mvar=~/^\d+$/;  
-            $args_ref->{$mvar}=$mvar;
+        $args_ref->{$mvar}=$mvar;
     }
     return $args_ref;
-}    # END of find_vars()
+}    # END of _find_vars()
 # -----------------------------------------------------------------------------
 # The code needs to be reworked:
 # The main issue is that the names of the args a sub is called with is not the same as the name in the signature.
-# So we need to establish the mapping. This is what get_iodirs_from_subcall() should do -- and nothing else.
+# So we need to establish the mapping. This is what _get_iodirs_from_subcall() should do -- and nothing else.
 
-sub get_iodirs_from_subcall {
+sub _get_iodirs_from_subcall {
 	( my $stref, my $f, my $index, my $annlines ) = @_;
 	
 	my $Sf    = $stref->{'Subroutines'}{$f};
@@ -340,32 +337,30 @@ sub get_iodirs_from_subcall {
 		}
 	}
 	return ( $called_arg_iodirs, $stref );
-}    # END of get_iodirs_from_subcall()
+}    # END of _get_iodirs_from_subcall()
 
 # -----------------------------------------------------------------------------
 # Purely for clarity, maybe this routine should take the arguments as arguments?
 # What we want in this routine is determine IO dirs for leaves and look them up for non-leaves
-sub analyse_src_for_iodirs {
+sub _analyse_src_for_iodirs {
     (my $stref,my $f)=@_;
 #    local $W=1;local $V=1;
-#    print "analyse_src_for_iodirs() $f\n";
+#    print "_analyse_src_for_iodirs() $f\n";
     
-    my $Sf=$stref->{'Subroutines'}{$f};
-    
-    if (not exists $Sf->{'IODirInfo'} or $Sf->{'IODirInfo'}==0) { 
-    
+    my $Sf=$stref->{'Subroutines'}{$f};    
+    if (not exists $Sf->{'IODirInfo'} or $Sf->{'IODirInfo'}==0) {     
         if (not exists $Sf->{'HasRefactoredArgs'} or $Sf->{'HasRefactoredArgs'}==0) {
-        $stref = refactor_subroutine_signature( $stref, $f );
-    }
-    my $args            = $Sf->{'RefactoredArgs'}{'Set'} ;    
-    
-    my $annlines=get_annotated_sourcelines($stref,$f);
+            $stref = refactor_subroutine_signature( $stref, $f );
+        }
+        my $args = $Sf->{'RefactoredArgs'}{'Set'} ;        
+        my $annlines=get_annotated_sourcelines($stref,$f);
         for my $index ( 0 .. scalar( @{$annlines} ) - 1 ) {
             my $line = $annlines->[$index][0];
             my $info = $annlines->[$index][1];
             if ( $line =~ /^\s*\!/ ) {
                 next;
             }
+            # Skip format statements
             if ( $line =~ /^\s+format/
             or $line =~ /^\d+\s+format/
             ) {
@@ -385,7 +380,7 @@ sub analyse_src_for_iodirs {
             ) {            	
             	my $str=$1;
             	die $line unless defined  $str;
-                $args=find_vars( $str, $args, \&set_iodir_read );    
+                $args=_find_vars_w_iodir( $str, $args, \&_set_iodir_read );    
                 next;            
             }
             
@@ -393,17 +388,16 @@ sub analyse_src_for_iodirs {
                  $line =~ /^\d+\s+(?:read)\s*\(\s*(.+)$/
             ) {             
             	my $str=$1;
-                print "WARNING: IGNORING read call <$line> in $f, analyse_src_for_iodirs() 369\n" if $W;    
-                $args=find_vars( $str, $args, \&set_iodir_read_write );
+                print "WARNING: IGNORING read call <$line> in $f, _analyse_src_for_iodirs() 369\n" if $W;    
+                $args=_find_vars_w_iodir( $str, $args, \&_set_iodir_read_write );
 #                die Dumper($args) if $f eq 'feedbfm';    
                 next;            
             }
             
-            
             if ( exists $info->{'SubroutineCall'} && exists $info->{'SubroutineCall'}{'Name'}) {
                 my $name  = $info->{'SubroutineCall'}{'Name'};
                 ( my $iodirs, $stref ) =
-                  get_iodirs_from_subcall( $stref, $f, $index, $annlines );
+                  _get_iodirs_from_subcall( $stref, $f, $index, $annlines );
                 for my $var ( keys %{$iodirs} ) {
                 	# Damn Perl! exists $args->{$var}{'IODir'} creates the entry for $var if it did not exist!
                     if ( exists $args->{$var}) {
@@ -449,16 +443,16 @@ sub analyse_src_for_iodirs {
                     $cond =~ s/[\(\)]+//g;
                     $cond =~ s/\.(eq|ne|gt|ge|lt|le|and|or|not|eqv|neqv)\./ /;
                     die $line unless defined  $cond;
-                    $args=find_vars( $cond, $args, \&set_iodir_read );
+                    $args=_find_vars_w_iodir( $cond, $args, \&_set_iodir_read );
                 }
                 next;
             } # SubroutineCall
 
             # Encounter Assignment
             # WV20150304 TODO: factor this out and export it so we can use it as a parser for assignments
-            if ($line=~/[\w\s\)]=[\w\s\(\+\-\.]/ and $line !~ /^\s*do\s+.+\s*=/ ) { 
+            if ($line=~/[\w\s\)]=[\w\s\(\+\-\.]/ and $line !~ /^\s*do\s+.+\s*=/ and $line!~/\Wparameter\W/) { 
                 # FIXME: if (...) open|write is not covered
-            	my $tline=$line;
+            	my $tline=$line;            	
             	$tline=~s/^\s*\d+//; # Labels
             	$tline=~s/^\s+//;
             	$tline=~s/\s+$//;
@@ -466,8 +460,7 @@ sub analyse_src_for_iodirs {
             	# FIXME: This is still weak! 
             	my $var='';my $rhs='';
             	# First check if this is a single-line if statement
-            	 if ( $tline =~ /^if\b/ ) {
-            	 	
+            	 if ( $tline =~ /^if\b/ ) {            	 	
             	 	# split on 
             	 	# space or closing paren
             	 	# word
@@ -476,7 +469,7 @@ sub analyse_src_for_iodirs {
                     #*so in other words, if it's an array assignment
                     # FIXME: If the LHS is an array assignment we are not checking the index for its IO dir
                     if ($tline!~/(open|write|read|print|close)\s*\(/) {                    	
-                    	(my $cond, $var,my $sep,$rhs)=conditional_assignment_fsm($tline);                    	
+                    	(my $cond, $var,my $sep,$rhs)=_conditional_assignment_fsm($tline);                    	
 #                    (my $cond,$var,my $sep,$rhs) =                    
 #                       split( /(?:\)|\s+)(\w+)((?:\([^=]*\))?\s*=\s*)/, $tline ) ;
 #                       $cond=~s/if\s*//;
@@ -499,11 +492,11 @@ sub analyse_src_for_iodirs {
 ##                      print "LINE:",$tline,"\n";
 ##                      print "$cond ??? $var [[[$sep]]] $rhs\n";
 ##                    }                      
-                      $args=find_vars( $cond, $args, \&set_iodir_read );
+                      $args=_find_vars_w_iodir( $cond, $args, \&_set_iodir_read );
                       if ($sep ne '') {
 #                      	print "SEP:<$sep>\n";
                         die $line unless defined  $sep;
-                        $args=find_vars( $sep, $args, \&set_iodir_read );
+                        $args=_find_vars_w_iodir( $sep, $args, \&_set_iodir_read );
                       }     
                     } elsif ($tline=~/read\s*\(/) {
                         print "WARNING: IGNORING conditional read call <$tline>\n" if $W;    
@@ -517,12 +510,12 @@ sub analyse_src_for_iodirs {
 #                      print $tline,"\n";                      
 #                      print "$cond ? $call $expr\n";
                         die $line unless defined  $cond;
-                      $args=find_vars( $cond, $args, \&set_iodir_read );
+                      $args=_find_vars_w_iodir( $cond, $args, \&_set_iodir_read );
                     }                 
             	 } else {       
             	 	if ($tline=~/(open|write|read|print|close)\s*\(/) {
             	 		my $call=$1;
-            	 		print "WARNING: IGNORING conditional $call <$tline> (analyse_src_for_iodirs)\n" if $W;
+            	 		print "WARNING: IGNORING conditional $call <$tline> (_analyse_src_for_iodirs)\n" if $W;
 #            	 		warn "IGNORING $call call <$tline>\n";
             	 		next;
             	 	} else {     	 	
@@ -532,9 +525,9 @@ sub analyse_src_for_iodirs {
             		$var=~s/\s*\((.+)\)$//;
             		my $str=$1;
             		if (not defined $str) {
-            			print "WARNING: IGNORING <$tline>, CAN'T HANDLE IT (analyse_src_for_iodirs)\n" if $W;
+            			print "WARNING: IGNORING <$tline>, CAN'T HANDLE IT (_analyse_src_for_iodirs)\n" if $W;
             		} else {
-            		$args=find_vars( $str, $args, \&set_iodir_read );
+            		$args=_find_vars_w_iodir( $str, $args, \&_set_iodir_read );
             		}
             	   }
             	 	} 
@@ -542,8 +535,8 @@ sub analyse_src_for_iodirs {
             	}            	
 
 # First check the RHS for In
-                die "analyse_src_for_iodirs(): RHS not defined inf $f: $line\n" unless defined  $rhs;
-                $args=find_vars( $rhs, $args, \&set_iodir_read );
+                die "_analyse_src_for_iodirs(): RHS not defined inf $f: $line\n" unless defined  $rhs;
+                $args=_find_vars_w_iodir( $rhs, $args, \&_set_iodir_read );
 #                  if ( exists $args->{'fluxu'} &&
 #                         exists $args->{'fluxu'}{'IODir'} && $f eq 'calcfluxes' ) {
 #                         	if ($line=~/fluxu/) {
@@ -566,7 +559,7 @@ sub analyse_src_for_iodirs {
 #	                        $args->{$var}{'IODir'} = 'InOut';
 #	                    }
 #	                }      
-	                $args=set_iodir_write($var,$args);
+	                $args=_set_iodir_write($var,$args);
 #	                 if ( exists $args->{'fluxu'} &&
 #                         exists $args->{'fluxu'}{'IODir'} 
 #                         && $f eq 'calcfluxes') {
@@ -577,7 +570,7 @@ sub analyse_src_for_iodirs {
 #                         }           
             } else {    # not an assignment, do as before
                 print "NON-ASSIGNMENT LINE: $line\n" if $V;
-                find_vars( $line, $args, \&set_iodir_read );                
+                _find_vars_w_iodir( $line, $args, \&_set_iodir_read );                
             }
         }
         
@@ -591,7 +584,7 @@ sub analyse_src_for_iodirs {
     } # if IODirInfo had not been set to 1
     # So, at this point, $stref->{'Subroutines'}{$f}{'RefactoredArgs'} has full IODir info
         return $stref;
-} # END of analyse_src_for_iodirs()
+} # END of _analyse_src_for_iodirs()
 # -----------------------------------------------------------------------------
 
     
@@ -608,7 +601,7 @@ sub analyse_src_for_iodirs {
 #
 #\s*LHS
 
-sub conditional_assignment_fsm {
+sub _conditional_assignment_fsm {
     (my $line)=@_;
     my (
         $do_nothing,     # 0
@@ -687,36 +680,8 @@ my $rhs='';
 }
 #    print "if(| $cond  |) [| $lhs |] = [| $rhs |]\n";
     return ( $cond, $lhs,$sep,$rhs);
-} # END of conditional_assignment_fsm 
-
-sub _type_via_implicits {
-(my $stref, my $f, my $var)=@_;
-    my $sub_func_incl = sub_func_incl_mod( $f, $stref );
-    my $type ='Unknown';      
-    my $kind ='Unknown';
-    my $shape ='Unknown';
-	my $attr='Unknown';
-    if (exists $stref->{'Implicits'}{$f}{lc(substr($var,0,1))} ) {
-        print "INFO: VAR <", $var, "> typed via Implicits for $f\n" if $I;                            
-        my $type_kind_shape_attr = $stref->{'Implicits'}{$f}{lc(substr($var,0,1))};
-        ($type, $kind, $shape, $attr)=@{$type_kind_shape_attr};
-=info        
-        my $var_rec = {
-            'Decl' => ['       ', [$type], [$var],$formatted],
-            'Shape' => 'UNKNOWN',
-            'Type' => $type,
-            'Attr' => '',
-            'Indent' => '      ',
-            'Kind' => 'UNKNOWN',
-        };          
-        $stref->{$sub_func_incl}{$f}{'Vars'}{$var} = $var_rec;                                  
-=cut                                    
-    } else {
-        print "WARNING: common <", $var, "> has no rule in {'Implicits'}{$f}\n" if $W;
-    }
-    return ($type, $kind, $shape, $attr);
-}
-
+} # END of _conditional_assignment_fsm 
+# ----------------------------------------------------------------------------------------------------
 sub parse_assignment {
     (my $line)=@_;
 # FIXME: if (...) open|write is not covered
@@ -739,7 +704,7 @@ sub parse_assignment {
 # the '=' sign                    
 # FIXME: If the LHS is an array assignment we are not checking the index for its IO dir
         if ($tline!~/(open|write|read|print|close)\s*\(/) {                    	
-            (my $cond, $var,my $sep,$rhs)=conditional_assignment_fsm($tline);                    	
+            (my $cond, $var,my $sep,$rhs)=_conditional_assignment_fsm($tline);                    	
             $args=_find_vars( $cond );
             if ($sep ne '') {
                 die $line unless defined  $sep;
@@ -762,7 +727,7 @@ sub parse_assignment {
     } else {       
         if ($tline=~/(open|write|read|print|close)\s*\(/) {
             my $call=$1;
-            print "WARNING: IGNORING conditional $call <$tline> (analyse_src_for_iodirs)\n" if $W;
+            print "WARNING: IGNORING conditional $call <$tline> (_analyse_src_for_iodirs)\n" if $W;
             next;
         } elsif ($tline!~/::/) { # proper assignments     	 	
             ($var, $rhs)=split(/\s*=\s*/,$tline);
@@ -774,7 +739,7 @@ sub parse_assignment {
                 $idx_expr=[ split(/\s*\,\s*/,$str) ]; # FIXME: WEAK: assumes no nested arrays used as index 
                 $kind='Array';
                 if (not defined $str) {
-                    print "WARNING: IGNORING <$tline>, CAN'T HANDLE IT (analyse_src_for_iodirs)\n" if $W;
+                    print "WARNING: IGNORING <$tline>, CAN'T HANDLE IT (_analyse_src_for_iodirs)\n" if $W;
                 } else {
 #                    $args=_find_vars( $str);
                 }
@@ -785,3 +750,4 @@ sub parse_assignment {
     }            	
     return [{'VarName'=>$var,'Kind'=>$kind,'IndexExpr'=>$idx_expr}, [keys %{$args}],$rhs];
 }
+# ----------------------------------------------------------------------------------------------------

@@ -51,7 +51,7 @@ $stref->{'KernelWrappers'}{$kernelwrapper}={
 sub outer_loop_start_detect {
 
     ( my $kernelwrapper, my $stref ) = @_;
-    say "calling loop_detect($kernelwrapper)\n";    # if $V;
+    say "calling loop_detect($kernelwrapper)\n" if $V;
     my $f = $stref->{'KernelWrappers'}{$kernelwrapper}{'BeginKernelWrapper'}[0];
     my $index =
       $stref->{'KernelWrappers'}{$kernelwrapper}{'BeginKernelWrapper'}[1];
@@ -69,7 +69,7 @@ sub outer_loop_start_detect {
 
 sub _loop_detect_rec {
     ( my $f, my $stref, my $index, my $kernelwrapper ) = @_;
-    say "_loop_detect_rec $f $index $kernelwrapper\n";    # if $V;
+    say "INFO: _loop_detect_rec $f $index $kernelwrapper\n" if $I;
     my $sub_or_func = sub_func_incl_mod( $f, $stref );
     my $Sf          = $stref->{$sub_or_func}{$f};
     my $srcref      = $Sf->{'AnnLines'};
@@ -140,8 +140,8 @@ sub outer_loop_end_detect {
       @{ $stref->{'KernelWrappers'}{$kernelwrapper}{'OuterLoopStartPos'} };
 
     #            say 'INFO: '.Dumper($outer_loop_info);
-    say "OUTER LOOP IN: $f";
-    say 'OUTER LOOP START: ' . ' LineID: ' . $outer_loop_info->{'LineID'};
+    
+    say 'INFO: OUTER LOOP IN $f START: ' . ' LineID: ' . $outer_loop_info->{'LineID'} if $I;
     my $new_annlines = [];
 
     my $sub_or_func = sub_func_incl_mod( $f, $stref );
@@ -152,7 +152,7 @@ sub outer_loop_end_detect {
         if ( exists $info->{'Do'} ) {
             if ( $info->{'LineID'} == $outer_loop_info->{'LineID'} ) {
                 $info->{'OuterLoopStart'} = $kernelwrapper;
-                say $line;
+#                say $line;
             }
         }
         if ( exists $info->{'EndDo'} ) {
@@ -162,8 +162,10 @@ sub outer_loop_end_detect {
                 $stref->{'KernelWrappers'}{$kernelwrapper}{'OuterLoopEndPos'} =
                   [ $f, $info ];
                 $info->{'OuterLoopEnd'} = {};
-                say 'OUTER LOOP END (END DO): LineID: ' . $info->{'LineID'};
+                if ($I) {
+                say 'INFO: OUTER LOOP END (END DO): LineID: ' . $info->{'LineID'};
                 say $line;
+                }
 
             } elsif ( exists $info->{'EndDo'}{'Label'}
                 and $info->{'EndDo'}{'Label'} ==
@@ -172,8 +174,10 @@ sub outer_loop_end_detect {
                 $stref->{'KernelWrappers'}{$kernelwrapper}{'OuterLoopEndPos'} =
                   [ $f, $info ];
                 $info->{'OuterLoopEnd'} = $kernelwrapper;
+                if ($I) {
                 say 'OUTER LOOP END (CONTINUE): LineID: ' . $info->{'LineID'};
                 say $line;
+                }
             }
 
         }
@@ -271,16 +275,16 @@ sub outer_loop_variable_analysis {
 
                 if ( $code_region == $LOOP and exists $info->{'Assignment'} ) {
 
-                    say "ASSIGNMENT in loop: $line:\t"
-                      . join( ';', keys $info );
+                    say "INFO: ASSIGNMENT in loop: $line:\t"
+                      . join( ';', keys $info ) if $I;
                     my $varname = $info->{'Assignment'}{'Lhs'}{'VarName'};
                     $loop_updated_vars->{$varname} = $varname;
                 }
                 if ( $code_region == $LOOP
                     and exists $info->{'SubroutineCall'} )
                 {
-                    say "SUBROUTINE CALL in loop: $line:\t"
-                      . join( ';', keys $info );    #die Dumper($info);
+                    say "INFO: SUBROUTINE CALL in loop: $line:\t"
+                      . join( ';', keys $info ) if $I;    #die Dumper($info);
                       # So here I need to find all arguments of the sub with Intent Out or InOut
                     my $sub_name = $info->{'SubroutineCall'}{'Name'};
                     my $sub_args =
@@ -304,7 +308,7 @@ sub outer_loop_variable_analysis {
                     my $lut = make_lookup_table( $sub_sig_arg_list,
                         $sub_call_arg_list );
 
-                    say "SUB $sub_name: ";    #.Dumper($lut);
+#                    say "SUB $sub_name: ";    #.Dumper($lut);
                     if ( %{$updated_args} ) {
                         for my $updated_arg ( keys %{$updated_args} ) {
                             if (exists $lut->{$updated_arg}) {
@@ -320,28 +324,24 @@ sub outer_loop_variable_analysis {
 # Otherwise any of these vars would need to be added to the list of wrapper_run_vars
             if ( $code_region == $WRAPPER and exists $info->{'Assignment'} ) {
                 if ( not exists $info->{Deleted} ) {
-                    say "ASSIGNMENT in wrapper: $line:\t"
-                      . join( ';', keys $info );
+#                    say "ASSIGNMENT in wrapper: $line:\t". join( ';', keys $info );
                     my $varname = $info->{'Assignment'}{'Lhs'}{'VarName'};
                     $loop_updated_vars->{$varname} = $varname;
-                    say
-                      "VARIABLE $varname IS ASSIGNED IN WRAPPER $kernelwrapper";
+#                    say "VARIABLE $varname IS ASSIGNED IN WRAPPER $kernelwrapper";
                     $wrapper_run_vars->{$kernelwrapper}{$varname} = $varname;
                 }
             }
             if ( $code_region == $WRAPPER and exists $info->{'SubroutineCall'} )
             {
                 if ( not exists $info->{Deleted} ) {
-                    say "SUBROUTINE CALL in wrapper: $line:\t"
-                      . join( ';', keys $info );
+#                    say "SUBROUTINE CALL in wrapper: $line:\t". join( ';', keys $info );
                     my $sub_name = $info->{'SubroutineCall'}{'Name'};
                     my $wrapper_sub_args =
                       $stref->{'Subroutines'}{$sub_name}{RefactoredArgs}{Set};
 
                     for my $loop_updated_var ( keys %{$loop_updated_vars} ) {
                         if ( exists $wrapper_sub_args->{$loop_updated_var} ) {
-                            say
-"VARIABLE $loop_updated_var IS UPDATED IN LOOP AND ARG FOR $sub_name";
+#                            say "VARIABLE $loop_updated_var IS UPDATED IN LOOP AND ARG FOR $sub_name";
                             $wrapper_run_vars->{$kernelwrapper}
                               {$loop_updated_var} = $loop_updated_var;
                         }

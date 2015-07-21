@@ -32,19 +32,20 @@ use Exporter;
 sub analyse_all {
 	
 	(my $stref, my $subname)=@_;
-	   # Find the root for each include in a proper way
-#	   print join(', ',keys %{$stref->{'Subroutines'}});
+    # Find the 'root', i.e. the outermost calling subroutine, for each include file
 	   print "\t** FIND ROOT FOR INCLUDES **\n" if $V;
     $stref = find_root_for_includes( $stref, $subname );    
     # Now we can do proper globals handling
     # We need to walk the tree again, find the globals in rec descent.
     print "\t** RESOLVE GLOBALS **\n" if $V;
     $stref = resolve_globals( $subname, $stref );
-    print "\t** ANALYSE SOURCES **\n" if $V;
-    $stref = analyse_sources($stref);
+    print "\t** ANALYSE SOURCES **\n" if $V; # TODO: BETTER NAME
+    $stref = analyse_sources($stref); # TODO: LIFTING OF INCLUDES SHOULD HAPPEN *AFTER* THIS
     for my $kernel_wrapper (keys %{$stref->{'KernelWrappers'}}) {
         $stref = outer_loop_end_detect($kernel_wrapper,$stref);
     }
+    
+# NOTE: It turns out that at this point any non-global not explicity declared variables don't have a declaration yet.     
 	return $stref;	
 } # END of analyse_all()
 

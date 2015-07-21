@@ -97,7 +97,7 @@ sub create_refactored_vardecls {
         # And we use the declaration from the include
         for my $tnvar (@nvars) {
             my $rdecl=[];
-                if (exists ($Sf->{'Parameters'}{$vars[0]} ) ){
+                if (exists ($Sf->{'Parameters'}{'Set'}{$vars[0]} ) ){
                     $rdecl = format_f95_par_decl( $stref,$f,$tnvar );
                 } else {
                 	$rdecl = format_f95_var_decl($Sf,$tnvar);# WV: seems this never happens!                	
@@ -116,9 +116,12 @@ sub create_refactored_vardecls {
 # We need to check if these variables are not still present in any includes of $f!
 sub create_exglob_var_declarations {
     ( my $stref, my $f, my $annline, my $rlines ) = @_;	
+#    if ($f=~/LES_/) {die 'BOOM!';
+#        local $I=1;local $V=1; local $W=1;
+#    }
     my $Sf                 = $stref->{'Subroutines'}{$f};
-    my %args               = %{ $Sf->{'Args'}{'Set'} };    
- 
+    my %args               = %{ $Sf->{'Args'}{'Set'} };
+    my $nextLineID=scalar @{$rlines}+1;        
     for my $inc ( keys %{ $Sf->{'Globals'} } ) {
         print "INFO: GLOBALS from INC $inc in $f\n" if $I;
 
@@ -131,23 +134,27 @@ sub create_exglob_var_declarations {
 # FIXME: we need to remove these declarations from the include file!
 
                         croak "$f: INC $inc: VAR $var\n" if not exists $stref->{IncludeFiles}{$inc}{'Vars'}{$var};                        
-                        my $rline = format_f95_var_decl( $stref->{'IncludeFiles'}{$inc},$var);
+                        my $rdecl = format_f95_var_decl( $stref->{'IncludeFiles'}{$inc},$var);
                         if ( exists $Sf->{'ConflictingParams'}{$var} ) {
                             my $gvar = $Sf->{'ConflictingParams'}{$var};
                             print
 "WARNING: CONFLICT in arg decls for $f: renaming $var to ${var}_GLOB\n"
                               if $W;
-                            $rline =~ s/\b$var\b/$gvar/;
+                            $rdecl->[2][0] =~ s/\b$var\b/$gvar/; #FIXME: only works for a single var!
                         }
-                        my $rdecl = ['',[],[$var],0];
-                        if ( not defined $rline ) {
-                            print "*** NO DECL for $var in $f, taking from INC $inc!\n" if $V;
-                            # FIXME: is it OK to just generate the decls here?
-                            $rdecl = format_f95_var_decl($stref->{IncludeFiles}{$inc},$var);
-                            $rline = emit_f95_var_decl($rdecl);
-                            $rline .= " ! from $inc";   
-                        }
+                        my $rline = emit_f95_var_decl($rdecl);
+                        $rline .= " ! from $inc";   
+                        
+#                        my $rdecl = ['',[],[$var],0];
+#                        if ( not defined $rline ) {
+#                            print "*** NO DECL for $var in $f, taking from INC $inc!\n" if $V;
+#                            # FIXME: is it OK to just generate the decls here?
+#                            $rdecl = format_f95_var_decl($stref->{IncludeFiles}{$inc},$var);
+#                            $rline = emit_f95_var_decl($rdecl);
+#                            $rline .= " ! from $inc";   
+#                        }
                         my $info={};
+                        $info->{'LineID'}= $nextLineID++;
                         $info->{'Ref'}=1;
                         $info->{'VarDecl'}=$rdecl;
                         push @{$rlines}, [ $rline, $info ];

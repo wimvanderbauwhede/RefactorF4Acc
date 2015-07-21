@@ -1,5 +1,8 @@
 package RefactorF4Acc::Analysis::Includes;
-
+=info
+In Fortran-77, if a file with common blocks is included in a subroutine, the common variables are visible in called subroutines, even if these don't include that file.
+To determine which common variables are actually used by a subroutine, we perform the following analysis.
+=cut
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
 # 
@@ -26,11 +29,11 @@ use Exporter;
     &find_root_for_includes    
 );
 
-
+# This routine is called after the subroutines have been parsed, and the call graph has been created as part of the process.
 sub find_root_for_includes {
     ( my $stref, my $f ) = @_;
     
-    $stref = _create_include_chains( $stref, 0 );  # assumes we start at node 0 in the tree
+    $stref = _create_include_chains( $stref, 0 );  # assumes we start at node 0 in the tree. Typically that is the main program.
     
     for my $inc ( keys %{ $stref->{'IncludeFiles'} } ) {
 #       print "INC: $inc\n";
@@ -117,8 +120,8 @@ sub _find_root_for_include {
 }    # END of _find_root_for_include()
 
 # -----------------------------------------------------------------------------
-# What we do is simply a recursive descent until we hit the include and we log that path
-# Then we prune the paths until they differ, that's the root
+# We perform a recursive descent until we hit the include and we log the path in the call graph.
+# We do this for the complete graph; then we prune the paths until they differ. The result is the root.
 # We also need to add the include to all nodes in the divergent paths
 sub _create_include_chains {
     ( my $stref, my $nid ) = @_;
@@ -158,8 +161,6 @@ sub _create_include_chains {
 sub __merge_includes {
     ( my $stref, my $nid, my $cnid, my $chain ) = @_;
 
-    #   print "__merge_includes $nid $cnid ";
-    # In $c
     # If there are includes with common blocks, merge them into CommonIncludes
     # We should only do this for subs that need refactoring
     my $pnid = $stref->{'Nodes'}{$nid}{'Parent'};   
@@ -167,11 +168,9 @@ sub __merge_includes {
     if (exists $stref->{'Subroutines'}{$sub}) {
     my $Ssub = $stref->{'Subroutines'}{$sub};
     
-#    print "__merge_includes: $sub\n";
     my $f=$stref->{'Nodes'}{$pnid}{'Subroutine'};
     if ($V) {
         if ($sub ne $f ) {
-#            if (not  ) {die "SUB:$sub\n".Dumper($Ssub)." ";}
             if (defined $Ssub->{'RefactorGlobals'} and $Ssub->{'RefactorGlobals'}>0) {
            $chain .="$sub -> ";
             }
@@ -194,23 +193,17 @@ sub __merge_includes {
             if ( $stref->{'IncludeFiles'}{$inc}{'InclType'} eq 'Common'
                 and not exists $Ssub->{'CommonIncludes'}{$inc} )
             {
-#            	print "CommonIncludes[1] ($sub) $inc\n";
                 $Ssub->{'CommonIncludes'}{$inc} = 1;
             }
         }
     }
-#    $stref->{'Subroutines'}{$sub}=$Ssub ;
-#   print "NEED TO REFACTOR $sub, CREATE CHAIN\n";
-#    } else {
-#       print "NO NEED TO REFACTOR $sub, STOP CHAIN\n";
-#    }
+
     if ( $nid != $cnid ) {
         my $csub  = $stref->{'Nodes'}{$cnid}{'Subroutine'};
         my $Scsub = $stref->{'Subroutines'}{$csub};
         if ( exists $Scsub->{'CommonIncludes'} ) {
             for my $inc ( keys %{ $Scsub->{'CommonIncludes'} } ) {
                 if ( not exists $Ssub->{'CommonIncludes'}{$inc} ) {
-#                    print "CommonIncludes[2] ($sub) $inc\n";	
                     $Ssub->{'CommonIncludes'}{$inc} = 1;
                 }
             }
@@ -226,7 +219,4 @@ sub __merge_includes {
 }    # END of __merge_includes
 
 # -----------------------------------------------------------------------------
-# I'm making this too complicated: it is enough to simply put all parameter declarations in the order we found them 
-# between includes and other declarations. 
-# So what we need is indeed the OrderedList of parameters, and we create them one by one in the same order; 
-# then we filter any parameters in the other declarations and skip if they are empty
+1;

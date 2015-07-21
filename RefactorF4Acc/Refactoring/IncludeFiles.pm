@@ -1,5 +1,5 @@
 package RefactorF4Acc::Refactoring::IncludeFiles;
-
+use v5.16;
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
 use RefactorF4Acc::Refactoring::Common qw( get_annotated_sourcelines create_refactored_source context_free_refactorings );
@@ -36,7 +36,6 @@ sub refactor_include_files {
             next if $stref->{'IncludeFiles'}{$f}{'InclType'} eq 'External';
 			print "\nREFACTORING INCLUDE FILE $f\n" if $V;
 			$stref = _refactor_include_file( $f, $stref );
-#			$stref = create_refactored_source($stref, $f);
 	}
 	
 	return $stref;
@@ -62,7 +61,7 @@ sub _refactor_include_file {
     }
 
 	my $annlines = get_annotated_sourcelines( $stref, $f );
-#	croak Dumper($annlines);
+
     # So at this point the type declarations have not been refactored.
     # I can either do it here ad-hoc or see why they did not get refactored.
     my %deps=();

@@ -1,5 +1,6 @@
 package RefactorF4Acc::Utils;
-
+use v5.16;
+use RefactorF4Acc::Config;
 # 
 #   (c) 2010-2012 Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
 #   
@@ -22,12 +23,13 @@ use Exporter;
     &sub_func_incl_mod
     &show_annlines
     &get_maybe_args_globs
+    &type_via_implicits
     &union
     &ordered_union
     &module_has
     &module_has_only
-    &make_lookup_table
-    &generate_docs
+    &make_lookup_table    
+    &generate_docs    
 );
 
 sub sub_func_incl_mod {
@@ -52,9 +54,13 @@ sub sub_func_incl_mod {
 
 # -----------------------------------------------------------------------------
 sub show_annlines {
-    (my $annlines)=@_;
+    (my $annlines, my $with_info)=@_;
     for my $annline (@{ $annlines }) {
-        print $annline->[0],"\t<",join(';',keys %{ $annline->[1] }),">\n";
+        if(ref($annline->[0]) eq 'ARRAY') {
+            die "NOT A STRING: ".Dumper($annline->[0]);
+        } else {
+        say $annline->[0],($with_info ? "\t<".join(';',keys %{ $annline->[1] }).'>' : '');
+        }
     }
 }
  # -----------------------------------------------------------------------------
@@ -78,6 +84,36 @@ sub get_maybe_args_globs {
     my %globals = map { $_ => 1 } @globs;
     return ( \%maybe_args, \%globals );
 }
+# -----------------------------------------------------------------------------
+sub type_via_implicits {
+    
+(my $stref, my $f, my $var)=@_;
+#say 'type_via_implicits'.scalar(@_).$var;
+    my $sub_func_incl = sub_func_incl_mod( $f, $stref );
+    my $type ='Unknown';      
+    my $kind ='Unknown';
+    my $shape ='Unknown';
+	my $attr='Unknown';
+    if (exists $stref->{'Implicits'}{$f}{lc(substr($var,0,1))} ) {
+        print "INFO: VAR <", $var, "> typed via Implicits for $f\n" if $I;                            
+        my $type_kind_shape_attr = $stref->{'Implicits'}{$f}{lc(substr($var,0,1))};
+        ($type, $kind, $shape, $attr)=@{$type_kind_shape_attr};
+=info        
+        my $var_rec = {
+            'Decl' => ['       ', [$type], [$var],$formatted],
+            'Shape' => 'UNKNOWN', # if Array, get the shape
+            'Type' => $type,
+            'Attr' => '', # This is currently a string, WEAK!
+            'Indent' => '      ', #OBSOLETE
+            'Kind' => 'UNKNOWN', # Scalar|Array
+        };          
+        $stref->{$sub_func_incl}{$f}{'Vars'}{$var} = $var_rec;                                  
+=cut                                    
+    } else {
+        print "WARNING: common <", $var, "> has no rule in {'Implicits'}{$f}\n" if $W;
+    }
+    return ($type, $kind, $shape, $attr);
+} # END of type_via_implicits()
 
 # -----------------------------------------------------------------------------
 sub union {
@@ -170,6 +206,7 @@ sub make_lookup_table {
 
 
 # -----------------------------------------------------------------------------
+
 # FIXME: this routine is now broken as it relied on all docs being in the main script
 sub generate_docs {
     my $scriptsrc = $0;
@@ -263,3 +300,4 @@ ENDH
 
 }
 
+1;

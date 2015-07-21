@@ -1,5 +1,5 @@
 package RefactorF4Acc::Emitter;
-
+use v5.16;
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
 # 
@@ -24,58 +24,6 @@ use Exporter;
     &emit_all
 );
 
-sub OLD_emit_all {
-    ( my $stref ) = @_;
-    _init_emit_all();
-    
-#    if ( not -e $targetdir ) {
-#        mkdir $targetdir;
-#        my @incs = glob('include*');
-#        map { copy( $_, "$targetdir/$_" ) }
-#          @incs;    # Perl::Critic wants a for-loop, drat it
-#
-#    } elsif ( not -d $targetdir ) {
-#        die "ERROR: $targetdir exists but is not a directory!\n";
-#    } else {
-#        my @oldsrcs = glob("$targetdir/*.f95");
-#        
-#        map { unlink $_ } @oldsrcs;
-#
-#        # Check if includes have changed
-#        my @incs = glob('include*');
-#        for my $inc (@incs) {
-#            open( my $OLD, $inc );
-#            binmode($OLD);
-#            open( my $NEW, $inc );
-#            binmode($NEW);
-#            if ( Digest::MD5->new->addfile($OLD)->hexdigest ne
-#                Digest::MD5->new->addfile($NEW)->hexdigest )
-#            {
-#                copy( $inc, "$targetdir/$inc" );
-#            }
-#            close $OLD;
-#            close $NEW;
-#        }
-#    }
-
-    for my $f ( keys %{ $stref->{'Subroutines'} } ) {
-        _emit_refactored_subroutine( $f, $targetdir, $stref, 0 );
-    }
-    for my $f ( keys %{ $stref->{'IncludeFiles'} } ) {
-        _emit_refactored_include( $f, $targetdir, $stref );
-    }
-    for my $f ( keys %{ $stref->{'Functions'} } ) {
-        _emit_refactored_function( $f, $targetdir, $stref );
-    }
-
-    # NOOP source
-    # Note that we always use the C source
-    if ($noop) {
-        _gen_noop($targetdir);        
-    }
-
-}    # END of OLD_emit_all()
-
 # -----------------------------------------------------------------------------
 # This routine does not generate or manipulate files, it only does copying etc. 
 sub _init_emit_all {
@@ -85,10 +33,6 @@ sub _init_emit_all {
         mkdir $targetdir;
         # FIXME: the includes should be taken from $stref->{'Includes'}
         # But actually, all includes should have been converted to F95 modules!        
-#        my @incs = glob('include*');
-#        map { copy( $_, "$targetdir/$_" ) }
-#          @incs;    # Perl::Critic wants a for-loop, drat it
-
     } elsif ( not -d $targetdir ) {
         die "ERROR: $targetdir exists but is not a directory!\n";
     } else {
@@ -118,11 +62,19 @@ sub _emit_refactored_include {
     ( my $f, my $dir, my $stref ) = @_;    
     my $srcref = $stref->{'IncludeFiles'}{$f}{'RefactoredCode'};
     my $incsrc=$stref->{'IncludeFiles'}{$f}{'Source'};
+    
     if ( defined $srcref ) {
+        if ($DUMMY) {
+            say '! '.('=' x 80);
+            say "! FILE: $dir/$incsrc";
+            say '! '.('=' x 80);
+        show_annlines($srcref,0);
+        } else {
         print "INFO: emitting refactored code for include $f\n" if $V;
-        my $mode = '>';
-        open my $SRC, $mode, "$dir/$incsrc" or die $!;
+        
+        open my $SRC, '>', "$dir/$incsrc" or die "$!: $dir/$incsrc";
         my $prevline='C ';
+        
         for my $annline ( @{$srcref} ) {
         	my $line = $annline->[0];  
             if (not ($prevline =~/^\s*$/ and $line =~/^\s*$/)) {
@@ -132,12 +84,13 @@ sub _emit_refactored_include {
             $prevline=$line;
         }
         close $SRC;
+        }
     }
 } # END of emit_refactored_include
 
 # -----------------------------------------------------------------------------
 
-sub _emit_refactored_function {
+sub UNUSED_emit_refactored_function {
     ( my $f, my $dir, my $stref ) = @_;
     my $Ff = $stref->{'Functions'}{$f};
     print "EMITTING source for FUNCTION $f\n" if $V;
@@ -189,7 +142,7 @@ sub _emit_refactored_function {
 
 # -----------------------------------------------------------------------------
 # This must change: we first need to create a list src -> subs
-sub _emit_refactored_subroutine {
+sub UNUSED_emit_refactored_subroutine {
     ( my $f, my $dir, my $stref, my $overwrite ) = @_;
     my $Sf     = $stref->{'Subroutines'}{$f};
     my $srcref = $Sf->{'RefactoredCode'};
@@ -239,7 +192,7 @@ sub _emit_refactored_subroutine {
 
 # -----------------------------------------------------------------------------
 
-sub _emit_refactored_function_new {
+sub UNUSED_emit_refactored_function_new {
     ( my $f, my $stref ) = @_;
     my $Ff = $stref->{'Functions'}{$f};
 #	local $V=1;
@@ -270,7 +223,7 @@ sub _emit_refactored_function_new {
 
 # -----------------------------------------------------------------------------
 # This must change: we first need to create a list src -> subs
-sub _emit_refactored_subroutine_new {
+sub UNUSED_emit_refactored_subroutine_new {
     ( my $f, my $stref ) = @_;
     my $Sf     = $stref->{'Subroutines'}{$f};
     my $srcref = $Sf->{'RefactoredCode'};
@@ -296,11 +249,19 @@ sub _emit_refactored_subroutine_new {
 # -----------------------------------------------------------------------------
 sub emit_all {
     (my $stref)=@_;
-    _init_emit_all();
+    if ($I) {
+        print "=" x 80,"\n";
+        print "ENTERING EMIT_ALL\n";
+        print "=" x 80,"\n";
+    }
+    
+          
+
+    _init_emit_all() unless $DUMMY;
     for my $src (keys %{ $stref->{'SourceContains'} } ) {
         
         print "INFO: emitting refactored code for $src\n" if $V;
-        
+        if (not $DUMMY) {
         if ( $src =~ /\w\/\w/ ) {    
             # Source resides in subdirectory, create it if required
             my @dirs = split( /\//, $src );
@@ -312,7 +273,7 @@ sub emit_all {
                 }
             } @dirs;
         }
-    	
+        }
 	   if ($I) {
             print '! ','-' x 80,"\n";
             print "! SRC: $src\n";
@@ -325,57 +286,27 @@ sub emit_all {
             $stref->{'BuildSources'}{'F'}{$src} = 1;
         }        
 
-#       my @module_contains=@{ $stref->{'RefactoredSources'}{$src} };
-       
-#	   for my $sub_or_func (keys %{  $stref->{'SourceContains'}{$src}   } ) {
-#	
-#	   	
-## Find all function/subroutine calls in this function/subroutine
-#			my $sub_func_type= $stref->{'SourceContains'}{$src}{$sub_or_func};
-#			my $Sf = $stref->{$sub_func_type}{$sub_or_func};
-##			warn "$sub_func_type: $sub_or_func\n";
-#			my $called_sub_or_func = 'Called'. (($sub_func_type eq 'Subroutines') ? 'Subs' : 'Functions');
-#			for my $called_sub ( keys %{ $Sf->{$called_sub_or_func} } ) {
-#	#			print "\tCALLED SUB/FUNC: $called_sub\n";
-#				my $cs_src=$stref->{$sub_func_type}{$called_sub}{'Source'};
-#				$stref->{'UsedModules'}{$src}{$cs_src}=1;
-#			}
-#			if ($sub_func_type eq 'Subroutines') {
-#	#			print "! REFACTORING SUBROUTINE $sub_or_func\n";
-#			  @module_contains=(@module_contains, _emit_refactored_subroutine_new($sub_or_func,$stref)); 
-#			} elsif ($sub_func_type eq 'Functions') {
-#	#			print "! REFACTORING FUNCTION $sub_or_func\n";
-#			  @module_contains=(@module_contains, _emit_refactored_function_new($sub_or_func,$stref ));
-#			} else {
-#				die $sub_or_func;
-#				@module_contains=(@module_contains, "INCORRECT TYPE FOR $sub_or_func\n");
-#			}
-#		}		
-
-#            print "\nSOURCE: $src\n\n";
-            for my $mod_line (@{ $stref->{'RefactoredSources'}{$src} }) {
-#               warn $mod_line if $src=~/timemanager/;
-#if (not defined $mod_line->[1]{'Ref'}) {
-#	$mod_line->[1]{'Ref'}=-1;
-#} elsif ($mod_line->[1]{'Ref'}>1) {
-#	print "REF: $mod_line->[1]{'Ref'}\t$mod_line->[0]\n";
-#}
-#                print "REF: ",$mod_line->[1]{'Ref'},"\t",$mod_line->[0],"\n"; 
-            }
-
 			my $nsrc=$src;$nsrc=~s/\.f$/.f95/;
+			  if ($DUMMY) {
+			      say '! '.('=' x 80);
+            say "! FILE: $targetdir/$nsrc";
+            say '! '.('=' x 80);
+        show_annlines($stref->{'RefactoredCode'}{$src},0);
+        } else {
 			open my $TGT, '>', "$targetdir/$nsrc" or die $!;
-#			my @module_lines=($mod_header, @mod_uses,"contains\n", @module_contains,$mod_footer);
-			for my $mod_line (@{ $stref->{'RefactoredSources'}{$src} }) {
-#				warn $mod_line if $src=~/timemanager/;
+			for my $mod_line (@{ $stref->{'RefactoredCode'}{$src} }) {
 				print $TGT $mod_line->[0],"\n"; 
 			}
 			close $TGT;
-#		}
+        }
 	} # loop over all source files
-#	die;
 
     for my $f ( keys %{ $stref->{'IncludeFiles'} } ) {
+        if ($I) {
+        print "=" x 80,"\n";
+        print "INCLUDE FILE: $f\n";
+        print "=" x 80,"\n";
+        }
         _emit_refactored_include( $f, $targetdir, $stref );
     }
     # NOOP source

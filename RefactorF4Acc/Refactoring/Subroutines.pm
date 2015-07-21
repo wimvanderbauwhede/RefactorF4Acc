@@ -50,14 +50,17 @@ sub refactor_all_subroutines {
     for my $f ( keys %{ $stref->{'Subroutines'} } ) {
         next if ($f eq '' or not defined $f);
 #    	die "refactor_all_subroutines(): empty subroutine name" if $f eq '';    	
-        my $Sf = $stref->{'Subroutines'}{$f};        
+        my $Sf = $stref->{'Subroutines'}{$f};     
+           
         if ( not defined $Sf->{'Status'} ) {
             $Sf->{'Status'} = $UNREAD;
             print "WARNING: no Status for $f\n" if $W;            
         }
+        
         next if $Sf->{'Status'} == $UNREAD;
         next if $Sf->{'Status'} == $READ;
         next if $Sf->{'Status'} == $FROM_BLOCK;
+        
       $stref = _refactor_subroutine_main( $f, $stref );
     }
     return $stref;
@@ -120,20 +123,25 @@ sub _refactor_subroutine_main {
             $rlines = _refactor_calls_globals( $stref, $f, $annlines );
         }
     }
+#    die Dumper($Sf->{RefactoredCode}) if $f=~/LES_kernel_wrapper/;
     my $sub_or_prog = ( exists $Sf->{'Program'} and $Sf->{'Program'} == 1) ? 'program' : 'subroutine';
-                	my $done_fix_end=0;
-            	while (!$done_fix_end and @{$rlines}) {
-            	  my $line =pop @{$rlines};
-            	  next if ( $line->[0]=~/^\s*$/);
-#            	  print $line->[0],"\n";
-            	  my $info=$line->[1];
-#            	  print Dumper($line->[1]),"\n";
-            	  if ($line->[0]=~/^\s*end\s*$/) {
-            	   $line->[0]=~s/\s+$//;
-            	   push @{$rlines},[ $line->[0]." $sub_or_prog $f",$info];
-            	  $done_fix_end=1;
-            	  }
-            	}
+    my $done_fix_end=0;
+    while (!$done_fix_end and @{$rlines}) {
+        my $line =pop @{$rlines};
+        my $info = $line->[1];
+        next if ( $line->[0]=~/^\s*$/); # Skip comments
+        if ( $line->[0]=~/^\s*end\s+$sub_or_prog/) {
+            push @{$rlines}, $line;
+            $done_fix_end=1;
+            last ;
+        }
+        
+        if ($line->[0]=~/^\s*end\s*$/ ) {
+            $line->[0]=~s/\s+$//;
+            push @{$rlines},[ $line->[0]." $sub_or_prog $f",$info];
+            $done_fix_end=1;
+        }
+    }
     
     
     $Sf->{'RefactoredCode'}=$rlines;
@@ -144,8 +152,8 @@ sub _refactor_subroutine_main {
         }
         die;
     }
-    
-    # Here we have lost the variable declarations!
+#    die Dumper($Sf->{RefactoredCode}) if $f=~/LES_kernel_wrapper/;
+    # Here we have lost RefactoredCode for LES_kernel_wrapper
     
 #   if ( $f eq 'convect' ) {
 #       print "REFACTORED LINES ($f):\n";
@@ -159,6 +167,7 @@ sub _refactor_subroutine_main {
 # OK here for les.f
 #if ($f eq 'LES_kernel_wrapper') { map {say} keys $Sf; die Dumper $Sf->{RefactoredArgs}; }
 # So at this point the arguments have been refactored, but no declarations have been added
+#die if $f=~/LES_kernel_wrapper/;
     return $stref;
 }    # END of _refactor_subroutine_main()
 
@@ -168,7 +177,7 @@ sub _refactor_subroutine_main {
 
 sub _refactor_globals {
     ( my $stref, my $f, my $annlines ) = @_;
-#    local $V=1 if $f eq 'convect';
+#    local $V=1 if $f =~/LES/;
 #    $Data::Dumper::Indent =0;
 #    $Data::Dumper::Terse=1;
 #   croak "FIXME: the caller of a sub with RefactorGlobals should refactor its globals!";
@@ -229,6 +238,7 @@ sub _refactor_globals {
             $rlines =
               create_new_include_statements( $stref, $f, $annline, $rlines );
            # Then generate declarations for ex-globals
+           say "EX-GLOBS for $f" if $V;
             $rlines = create_exglob_var_declarations( $stref, $f, $annline, $rlines );
         }
    # This is what breaks flexpart, but it's OK for les ...

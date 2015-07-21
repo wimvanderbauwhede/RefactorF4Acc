@@ -24,7 +24,7 @@ use RefactorF4Acc::Analysis::LoopDetect qw( outer_loop_variable_analysis );
 use Getopt::Std;
 
 our $usage = "
-    $0 [-hvwCTNbB] <toplevel subroutine name> 
+    $0 [-hvwicCNg] <toplevel subroutine name> 
        [<subroutine name(s) for C translation>]
     Typical use: rf4a -c ./rf4a.cfg -g -v -i main   
     -h: help
@@ -33,13 +33,13 @@ our $usage = "
     -i: show info messages
     -c <cfg file name>: use this cfg file (default is ~/.rf4a)
     -C: Only generate call tree, don't refactor or emit
-    -T: Translate <subroutine name> and dependencies to C 
     -N: Don't replace CONTINUE by CALL NOOP
     -g: refactor globals inside toplevel subroutine 
-    -b: Generate SCons build script, currently ignored 
-    -B: Build FLEXPART (implies -b), currently ignored
-    -G: Generate Markdown documentation (currently broken)
     \n";
+#    -T: Translate <subroutine name> and dependencies to C 
+#    -b: Generate SCons build script, currently ignored 
+#    -B: Build FLEXPART (implies -b), currently ignored
+#    -G: Generate Markdown documentation (currently broken)
 
 &main();
 
@@ -132,7 +132,6 @@ sub main {
 
     # Parse the source
 	$stref = parse_fortran_src( $subname, $stref );
-     
 	if ( $call_tree_only and not $ARGV[1] ) {
 		create_call_graph($stref,$subname);
 		exit(0);
@@ -140,34 +139,44 @@ sub main {
     
     # Analyse the source
 	$stref = analyse_all($stref,$subname);
-#   die 'AFTER analyse_all()';
-#	die Dumper(sort keys %{$stref});
 
+   say 'AFTER analyse_all()';
+# Do here, the extracted sub is still fine ...
+#	die Dumper(sort keys %{$stref});
+#WV20150710 I worked my way through the code to here and indeed, implicitly declared non-global vars still need to be captured
     # Refactor the source
 	$stref = refactor_all($stref,$subname);
 #	die Dumper(sort keys %{$stref});#->{'Subroutines'});#->{'RefactoredSources'});
-   print '=' x 80, "\n";
+#   print '=' x 80, "\n";
 #   map {say Dumper($_->[1]) } @{ $stref->{'Subroutines'}{'press'}{'AnnLines'} };
 #   print Dumper($stref->{'Subroutines'}{'press'}{'AnnLines'});
+#     say '=' x 80;
+#     say Dumper($stref->{Subroutines}{LES_kernel_wrapper});
+#     say '=' x 80;
+#     say Dumper($stref->{Subroutines}{velnw});
+#     say '=' x 80;
+#
    say 'AFTER refactor_all()';
-       for my $kernel_wrapper (keys %{$stref->{'KernelWrappers'}}) {
+   # This is part of the refactoring of kernel subroutines in a simulation loop into a called-once init() and a run() called in the loop
+   for my $kernel_wrapper (keys %{$stref->{'KernelWrappers'}}) {
         $stref = outer_loop_variable_analysis($kernel_wrapper,$stref);
     }
+    say 'AFTER outer_loop_variable_analysis()';
 #    map {say} keys $stref->{Subroutines}{LES_kernel_wrapper};
 #    say Dumper $stref->{Subroutines}{LES_kernel_wrapper}{RefactoredArgs};
 #   map {say $_->[0] } @{$stref->{Subroutines}{LES_kernel_wrapper}{RefactoredCode}};
-   die;
+#   die;
 #   say map {"$_\n"} (sort keys $stref->{'RefactoredSources'});
 #    map { say $_->[0] } @{$stref->{'RefactoredSources'}{'./main.f'}};
-   say map { $_->[0]."\t".join(';',keys $_->[1])."\n"} @{$stref->{'RefactoredSources'}{'./main.f'}};
-   die;
+#   say map { $_->[0]."\t".join(';',keys $_->[1])."\n"} @{$stref->{'RefactoredSources'}{'./main.f'}};
+#   die;
    
-   
+   $DUMMY=1;
 	if ( not $call_tree_only ) {
 		# Emit the refactored source
 		emit_all($stref);
 	}
-
+die;
 	if ( $translate == $YES ) {
 		$translate = $GO;
 		for my $subname ( keys %{ $stref->{'SubsToTranslate'} }) {
@@ -230,16 +239,19 @@ sub parse_args {
 	$I = ( $opts{'i'} or $V ) ? 1 : 0;
 	$W = ( $opts{'w'} or $V ) ? 1 : 0;
 	$refactor_toplevel_globals=( $opts{'g'} ) ? 1 : 0;
+# Currently broken	
 	if ( $opts{'G'} ) {
 		print "Generating docs...\n";
 		generate_docs();
 		exit(0);
 	}
+	
 	if ( $opts{'C'} ) {
 		$call_tree_only = 1;
 		$main_tree = $ARGV[1] ? 0 : 1;
 
 	}
+# OBSOLETE, use $!RF4A pragma instead	
 	my %subs_to_translate = ();
 	if ( $opts{'T'} ) {
 		if ( !@ARGV ) {
@@ -247,7 +259,7 @@ sub parse_args {
 		$translate = 1;
 		%subs_to_translate = map { $_ => 1 } @ARGV[ 1, -1 ];
 	}
-
+# Currently broken
 	my $build = ( $opts{'B'} ) ? 1 : 0;
 
 	return ($subname,\%subs_to_translate,$build);
@@ -255,9 +267,41 @@ sub parse_args {
 
 =head1 SYNOPSIS
 
-Run the script with -G and read the generated PDF documentation (i.e. all portions of POD inside 'markdown' tags).
+This is a source-to-source compiler for Fortran 77 and Fortran 90/95, for the purpose of automatically refactoring legacy code to work with OpenCL.
+ 
+=head1 USAGE
+
+   rf4a [-hvwicCNg] <toplevel subroutine name> 
+
+A typical usage would be 
+
+   rf4a -c ../rf4a.cfg -N -g main
+   
+This will perform the refactoring on all routines starting from a subroutine called 'main' (usually the main program).      
 
 =head1 OVERVIEW
+
+
+=head1 NAMING CONVENTIONS
+
+The data structure storing all information about the code base is `$stref`. 
+Subroutine/function names are `$f`.
+Code units can be 
+
+  $code_unit = Subroutine|Function|Include|Module
+
+To access information for a particular code unit we use `$Sf`:
+  
+  $Sf = $stref->{$code_unit}{$f}
+
+The lines of source code are stored as pairs `[$line,$info]` in
+ 
+  $annlines = $Sf->{AnnLines}
+
+The annotations are in a hash `$info`. 
+
+Most subroutines return $stref.
+
 
 =head1 TODOs
 
@@ -273,15 +317,7 @@ As I am interested in factored-out routines, I will focus on single-call routine
 
 * Remap scalar arguments into arrays to have fewer arguments to pass -> mostly done, but not complete
 What is needed is not just a merge for scalars, but also for arrays    
-
-* Deal with OFRTRAN's arcane KIND approach 
   
-*  Declarations from F2C-ACC are broken, emit our own => OK
-
-*  But F2C-ACC's function calls are wrong too! They use the non-pointer vars where they should use the pointers! => OK
-
-*  Put F2C-ACC into our tree, if the license allows it. => OK
-
 =begin markdown
 
 # FORTRAN Refactoring Tool |$VER|
