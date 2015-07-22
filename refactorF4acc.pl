@@ -34,10 +34,10 @@ our $usage = "
     -c <cfg file name>: use this cfg file (default is ~/.rf4a)
     -C: Only generate call tree, don't refactor or emit
     -N: Don't replace CONTINUE by CALL NOOP
-    -g: refactor globals inside toplevel subroutine 
+    -g: refactor globals inside toplevel subroutine
+    -b: Generate SCons build script 
     \n";
 #    -T: Translate <subroutine name> and dependencies to C 
-#    -b: Generate SCons build script, currently ignored 
 #    -B: Build FLEXPART (implies -b), currently ignored
 #    -G: Generate Markdown documentation (currently broken)
 
@@ -123,7 +123,7 @@ This routine analyses the code for goto-based loops and breaks, so that we can r
 =cut
 
 sub main {
-	(my $subname, my $subs_to_translate, my $build) = parse_args();
+	(my $subname, my $subs_to_translate, my $gen_scons, my $build) = parse_args();
 	#  Initialise the global state.
 	my $stref = init_state($subname);
     $stref->{'SubsToTranslate'}=$subs_to_translate;
@@ -171,13 +171,15 @@ sub main {
 #   say map { $_->[0]."\t".join(';',keys $_->[1])."\n"} @{$stref->{'RefactoredSources'}{'./main.f'}};
 #   die;
    
-   $DUMMY=1;
+   $DUMMY=0;
 	if ( not $call_tree_only ) {
 		# Emit the refactored source
 		emit_all($stref);
 	}
-die;
+
 	if ( $translate == $YES ) {
+	    # Here we could actually call the genOclKernelFromF95Src script
+	    # The code below is OBSOLETE
 		$translate = $GO;
 		for my $subname ( keys %{ $stref->{'SubsToTranslate'} }) {
 			print "\nTranslating $subname to C\n";
@@ -188,11 +190,9 @@ die;
 			translate_to_C($stref);
 		}
 	}
-	
-#	translate_all_to_C($stref);
-
-
-	create_build_script($stref);
+	if ($gen_scons) {
+	   create_build_script($stref);
+	}
 	if ($build) {
 		build_executable();
 	}
@@ -261,9 +261,12 @@ sub parse_args {
 	}
 # Currently broken
 	my $build = ( $opts{'B'} ) ? 1 : 0;
-
-	return ($subname,\%subs_to_translate,$build);
-}
+    my $gen_scons = ( $opts{'b'} ) ? 1 : 0;
+    if ($build) { 
+        $gen_scons = 1;
+    }
+	return ($subname,\%subs_to_translate,$gen_scons,$build);
+} # END of parse_args()
 
 =head1 SYNOPSIS
 

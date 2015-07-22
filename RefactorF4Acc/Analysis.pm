@@ -1,5 +1,5 @@
 package RefactorF4Acc::Analysis;
-
+use v5.16;
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
 use RefactorF4Acc::Analysis::Includes qw( find_root_for_includes );

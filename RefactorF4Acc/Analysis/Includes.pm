@@ -1,4 +1,5 @@
 package RefactorF4Acc::Analysis::Includes;
+use v5.16;
 =info
 In Fortran-77, if a file with common blocks is included in a subroutine, the common variables are visible in called subroutines, even if these don't include that file.
 To determine which common variables are actually used by a subroutine, we perform the following analysis.
@@ -38,9 +39,10 @@ sub find_root_for_includes {
     for my $inc ( keys %{ $stref->{'IncludeFiles'} } ) {
 #       print "INC: $inc\n";
 #       print Dumper($stref->{'IncludeFiles'}{$inc});
+        next if $stref->{'IncludeFiles'}{$inc}{'InclType'} eq 'External';
         if ($stref->{'IncludeFiles'}{$inc}{'Status'}==$UNREAD) {
         	#WV23JUL2012: This is weak, clearly the only good way is to find the includes in rec descent 
-            croak "TROUBLE: $inc (in $f) not yet parsed, how come?".Dumper($stref);
+            croak "TROUBLE: $inc (in $f) not yet parsed, how come?";#.Dumper($stref);
 #            print "WARNING: $inc not yet parsed, parsing ...\n";
 #                $stref->{'IncludeFiles'}{$inc}{'Root'}      = $f;
                 $stref->{'IncludeFiles'}{$inc}{'HasBlocks'} = 0;

@@ -1,7 +1,7 @@
 package F95VarDeclParser;
 use warnings;
 use strict;
-use 5.010;
+use 5.016;
 our $VERSION = '0.01';
 
 use Parser::Combinators;
@@ -108,7 +108,7 @@ sub f95_var_decl_parser_ORIG {
 
 # where
 sub attribute_parser {     
-    choice(&dim_parser, &intent_parser, &parameter_parser)
+    choice(&dim_parser, &intent_parser, &parameter_parser, &allocatable_parser)
 }
 
 sub type_parser {	
@@ -142,6 +142,10 @@ sub intent_parser {
 
 sub parameter_parser {
     symbol('parameter')
+}
+
+sub allocatable_parser {
+    {Allocatable => symbol('allocatable')}
 }
 
 sub varlist_parser {

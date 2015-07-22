@@ -28,20 +28,10 @@ use Exporter;
 sub create_build_script {
     ( my $stref ) = @_;
 
-    # FIXME: we should probe the system here!
-    my @gfs = (
-        '/opt/local/bin/gfortran-mp-4.6',
-        '/usr/local/bin/gfortran-4.6', '/usr/bin/gfortran'
-    );
-    my $gfortran = 'gfortran';
-    for my $mgf (@gfs) {
-        if ( -e $mgf ) {
-            $gfortran = $mgf;
-            last;
-        }
-    }
+    my $gfortran = $ENV{'FC'};
+    my $gcc = $ENV{'CC'};
     my @fsourcelst = sort keys %{ $stref->{'BuildSources'}{'F'} };
-    my $fsources = join( ',', map { "'" . $_ . "'" } @fsourcelst );
+    my $fsources = join( ',', map { s/\.f$/.f95/;"'" . $_ . "'" } @fsourcelst );
 
     my $csources = '';
     if ($noop) {
@@ -61,7 +51,7 @@ csources =[$csources]
 
 fsources = [$fsources]
 
-envC=Environment(CC='gcc',CPPPATH=['/Users/wim/SoC_Research/F2C-ACC/include/']); # FIXME: use ENV
+envC=Environment(CC='$gcc',CPPPATH=[]); 
 if csources:
     envC.Library('wrfc',csources)
 

@@ -1,4 +1,5 @@
 package RefactorF4Acc::Config;
+use v5.16;
 # 
 #   (c) 2010-2012 Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
 #   

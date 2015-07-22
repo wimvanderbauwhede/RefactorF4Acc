@@ -1,8 +1,14 @@
 package RefactorF4Acc::Refactoring::Subroutines::Declarations;
-
+use v5.16;
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
-use RefactorF4Acc::Refactoring::Common qw( format_f95_var_decl format_f95_par_decl emit_f95_var_decl);
+use RefactorF4Acc::Refactoring::Common qw( 
+    format_f95_var_decl 
+    format_f95_par_decl 
+    emit_f95_var_decl 
+    get_annotated_sourcelines
+    splice_additional_lines
+);
 
 # 
 #   (c) 2010-2012 Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
@@ -25,6 +31,7 @@ use Exporter;
 @RefactorF4Acc::Refactoring::Subroutines::Declarations::EXPORT = qw(
     &create_exglob_var_declarations
     &create_refactored_vardecls
+    &find_and_add_missing_var_decls
 );
 
 =pod
@@ -55,7 +62,7 @@ sub create_refactored_vardecls {
     # Also check if none of them is actually a built-in function, these must be skipped for C translation
     for my $var (@vars) {
         my $skip_var = 0;
-        if ( exists $stref->{'Functions'}{$var} ) {
+        if ( exists $stref->{'Subroutines'}{$var}{'Function'} ) {
             if ($is_C_target) {
                 print "WARNING: $var in $f is a function!\n" if $W;
                 $skip_var = 1;
@@ -167,3 +174,103 @@ sub create_exglob_var_declarations {
     return $rlines;
 }    # END of create_exglob_var_declarations()
 # --------------------------------------------------------------------------------
+# We can assume that these variables are not subroutine arguments, so the Intent should be blank
+# This should probably go in RefactorF4Acc::Refactoring::Subroutines::Declarations
+sub _add_missing_var_decls { (my $stref,my $f,my $undeclared_vars)=@_;
+    my $extra_annlines=[];
+    for my $var (@{$undeclared_vars}) {
+        next if $var eq ''; # FIXME: WHY?!           
+        say "\tADDING MISSING VAR DECL for <$var> " if $V;# T:$type, K:$kind, S:@{$shape}, A:$attr";
+#        my $code_unit = sub_func_incl_mod($f,$stref);
+#        my $Sf = $stref->{$code_unit}{$f};
+        
+        my $vd = format_f95_var_decl($stref,$f,$var);
+        my $info = {'VarDecl'=>$vd}; # TODO: need some extra $info here
+        my $line = emit_f95_var_decl($vd).' ! missing';
+        my $annline = [ $line, $info];
+        push @{$extra_annlines}, $annline;
+    }
+    # So here we spice these into the original code.
+    # First find where to splice. As far as I can see we can splice anywhere inside the existing var decls.
+    my $annlines = get_annotated_sourcelines( $stref, $f );  
+    my $insert_pos_lineID = 0;
+    for my $annline (@{$annlines}) {
+        (my $line, my $info) = @{$annline};
+#        say $line."\t".Dumper($info);
+       if (exists $info->{'VarDecl'}) {
+           $insert_pos_lineID = $info->{'LineID'};
+#           say "VAR DECL LINE ID: $insert_pos_lineID";
+           last;
+       } 
+    }
+    $stref = splice_additional_lines($stref,$f,$insert_pos_lineID, $extra_annlines, 1, 0);
+    return $stref;
+} # END of _add_missing_var_decls()
+
+sub find_and_add_missing_var_decls {
+     (my $stref)=@_;
+    for my $f ( keys %{ $stref->{'Subroutines'} } ) {
+        next unless (defined $f and $f ne '');
+        my $undeclared_vars=[];
+#     print "NAME: <$f>\n";
+#     say '<'.Dumper(keys $stref->{'Subroutines'}{$f}).'>';
+     if (exists $stref->{'Subroutines'}{$f}{RefactoredArgs}) {
+        my %refactored_args =  %{ $stref->{'Subroutines'}{$f}{RefactoredArgs}{Set} };
+    	if (scalar keys %{$stref->{'Subroutines'}{$f}{'Callers'} } ) { # or $stref->{'Subroutines'}{$f}{'Program'} )     		
+            # so what I need to do is create the line with intent and replace it in RefactoredCode
+#            die Dumper($stref->{'Subroutines'}{$f}{RefactoredCode}) if $f eq 'hanna';
+            for my $entry (@{ $stref->{'Subroutines'}{$f}{RefactoredCode} } ) {
+                if (not exists $entry->[1]{'Deleted'} and not exists $entry->[1]{'Comments'}) { 
+              if (exists($entry->[1]{'VarDecl'})) {
+                my $varname = $entry->[1]{'VarDecl'}[2][0];
+                my $vardecl = format_f95_var_decl($stref,$f, $varname);
+                $entry->[0] = emit_f95_var_decl($vardecl).' ! V6';
+                delete $refactored_args{$varname};
+#                say "DELETED $varname from RefactoredArgs in $f";
+              } elsif (exists($entry->[1]{'ParamDecl'})) {                
+                my $parname = $entry->[1]{'ParamDecl'}[2][0][0];
+                my $pardecl = format_f95_par_decl($stref,$f, $parname);
+                $entry->[0] = emit_f95_var_decl($pardecl).' ! V7'; # FIXME: Somehow this is emitted TWICE, I guess because it re-emits the commmented line?
+                delete $refactored_args{$parname};
+#                say "DELETED PARAMETER $parname from RefactoredArgs in $f";
+              } elsif ($entry->[0] =~/::/) {
+#                  say "VAR DECL NOT MARKED PROPERLY: ".$entry->[0]. ' => '.Dumper($entry->[1]);
+              }
+            } else {
+#                say 'SKIPPED: '.$entry->[0];
+            }
+            }
+            for my $maybe_var (keys %refactored_args ) {
+               if ($maybe_var  =~/::/) {
+                  say "PARAM DECL! ".$maybe_var
+              } else {
+                  push @{$undeclared_vars}, $maybe_var; 
+              }
+            }
+              
+            if ($V) {                        
+            if (keys %refactored_args) {
+                say "REMAINING in RefactoredArgs in $f:";
+                map {say} (keys %refactored_args);
+                say '';
+            }
+            }
+    	} else {
+    		print "WARNING: SKIPPING <$f>: " if $V;
+			if (defined $f and $f ne '') {
+				print 'Callers: ',scalar keys %{$stref->{'Subroutines'}{$f}{'Callers'} },'; Program: ',$stref->{'Subroutines'}{$f}{'Program'},"\n" if $V;
+			} else {
+				print "Undefined\n" if $V;
+			}
+    	}
+        # At this point we have identified the missing variable declarations, now we should add them in.
+        # So we need to find the last var decl and add them after that, I guess.
+        # For all these remaining variables we need to type them via implicits
+        $stref=_add_missing_var_decls($stref,$f,$undeclared_vars);
+#        die  if $f=~/press/;
+#        die Dumper($stref->{'Subroutines'}{$f}{'RefactoredCode'}) if $f=~/press/;
+    }
+    }    
+    return $stref;
+} # END of find_and_add_missing_var_decls()
+1;

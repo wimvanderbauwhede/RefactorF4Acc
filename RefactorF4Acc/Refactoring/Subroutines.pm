@@ -42,12 +42,10 @@ Subroutines
 
 # -----------------------------------------------------------------------------
 
-#TODO: We need to split this into argument/globals refactoring and the other refactoring operations
-#TODO: The former should only be done in marked subs and their dependencies
-#TODO: The latter must be done everywhere
 sub refactor_all_subroutines {
     ( my $stref ) = @_;
     for my $f ( keys %{ $stref->{'Subroutines'} } ) {
+#        say $f;
         next if ($f eq '' or not defined $f);
 #    	die "refactor_all_subroutines(): empty subroutine name" if $f eq '';    	
         my $Sf = $stref->{'Subroutines'}{$f};     
@@ -56,12 +54,12 @@ sub refactor_all_subroutines {
             $Sf->{'Status'} = $UNREAD;
             print "WARNING: no Status for $f\n" if $W;            
         }
-        
         next if $Sf->{'Status'} == $UNREAD;
         next if $Sf->{'Status'} == $READ;
         next if $Sf->{'Status'} == $FROM_BLOCK;
         
       $stref = _refactor_subroutine_main( $f, $stref );
+      
     }
     return $stref;
 }    # END of refactor_all_subroutines()
@@ -95,7 +93,7 @@ This is a node called 'RefactoredSubroutineCall'
 
 sub _refactor_subroutine_main {
     ( my $f, my $stref ) = @_;
-#    local $V=1 if $f=~/LES_kernel_wrapper/;
+#    local $V=1;# if $f=~/LES_kernel_wrapper/;
     if ($V) {
         print "\n\n";
         print "#" x 80, "\n";
@@ -103,12 +101,14 @@ sub _refactor_subroutine_main {
         print "REFACTORING SUBROUTINE $f\n";
         print "#" x 80, "\n";
     }
-    
+    say "context_free_refactorings($f)" if $V;
     $stref = context_free_refactorings( $stref, $f );    
 
     my $Sf = $stref->{'Subroutines'}{$f};
     
 #    if ($f eq 'LES_kernel_wrapper') { map {say} keys $Sf; die; }
+say "get_annotated_sourcelines($f)" if $V;
+
     my $annlines = get_annotated_sourcelines($stref,$f);
 
 # OK here for convect
@@ -117,14 +117,17 @@ sub _refactor_subroutine_main {
     if ( $Sf->{'HasCommons'} ) {
         
         if ( $Sf->{'RefactorGlobals'} == 1 ) {
+            say "_refactor_globals($f)" if $V;
           $rlines = _refactor_globals( $stref, $f, $annlines );
         } elsif ( $Sf->{'RefactorGlobals'} == 2 ) { 
 #        	die 'BOOM!!!' if $f eq 'convect';
+say "_refactor_calls_globals($f)" if $V;
             $rlines = _refactor_calls_globals( $stref, $f, $annlines );
         }
     }
-#    die Dumper($Sf->{RefactoredCode}) if $f=~/LES_kernel_wrapper/;
+#    die Dumper($Sf->{RefactoredCode}) if $f=~/shift_field/i;
     my $sub_or_prog = ( exists $Sf->{'Program'} and $Sf->{'Program'} == 1) ? 'program' : 'subroutine';
+    say 'fix end '.$f if $V;
     my $done_fix_end=0;
     while (!$done_fix_end and @{$rlines}) {
         my $line =pop @{$rlines};
@@ -143,7 +146,10 @@ sub _refactor_subroutine_main {
         }
     }
     
-    
+#say "FF: $f :" . (exists $Sf->{RefactoredArgs});
+#if (exists $Sf->{RefactoredArgs}) {
+#    say Dumper(    $Sf->{RefactoredArgs} );
+#    }
     $Sf->{'RefactoredCode'}=$rlines;
     
     if ($f eq 'NONE') {
@@ -235,11 +241,15 @@ sub _refactor_globals {
 #            and $tags{'ExGlobVarDecls'}>0 # just trying really ...
         ) {                    	
             # First, abuse ExGlobVarDecls as a hook for the addional includes, if any
+#die Dumper($rlines) if $f eq 'hanna';
             $rlines =
               create_new_include_statements( $stref, $f, $annline, $rlines );
+              
+#              push @{$rlines}, $annline;
            # Then generate declarations for ex-globals
            say "EX-GLOBS for $f" if $V;
             $rlines = create_exglob_var_declarations( $stref, $f, $annline, $rlines );
+#            $skip = 1;
         }
    # This is what breaks flexpart, but it's OK for les ...
         if ( exists $tags{'VarDecl'} and not exists $tags{'Deleted'} and (not exists $tags{Ref} or $tags{Ref}==0)) {

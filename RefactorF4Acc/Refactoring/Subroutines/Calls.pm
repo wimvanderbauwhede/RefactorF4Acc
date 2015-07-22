@@ -1,5 +1,5 @@
 package RefactorF4Acc::Refactoring::Subroutines::Calls;
-
+use v5.16;
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
 use RefactorF4Acc::Refactoring::Common qw( get_annotated_sourcelines );

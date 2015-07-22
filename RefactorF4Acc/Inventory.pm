@@ -1,5 +1,5 @@
 package RefactorF4Acc::Inventory;
-use v5.12;
+use v5.16;
 use RefactorF4Acc::Config qw ($V $W $UNREAD);
 # 
 #   (c) 2010-2012 Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
@@ -275,6 +275,8 @@ sub _process_src {
                     $f=$inc;
                     if (not -e $inc) {
                     	$stref->{$srctype}{$inc}{'InclType'} = 'External';
+                    } else {
+                        $stref->{$srctype}{$inc}{'InclType'} = 'Local';
                     }
                 }
             };
@@ -297,16 +299,17 @@ sub _process_src {
 #            	print "FUNC: $line process_src() 216 \n";
                 my $func = lc($1);                               
                 if ($is_module) {
-                    $stref->{'Modules'}{$mod_name}{'Functions'}{$func}={};
+                    $stref->{'Modules'}{$mod_name}{'Subroutines'}{$func}={};
                 }
-                $stref->{'Functions'}{$func}{'Source'} = $src;
-                $stref->{'Functions'}{$func}{'Status'} = $UNREAD;
+                $stref->{'Subroutines'}{$func}{'Function'} = 1;
+                $stref->{'Subroutines'}{$func}{'Source'} = $src;
+                $stref->{'Subroutines'}{$func}{'Status'} = $UNREAD;
                 if ($translate_to ne '') {
-                        $stref->{'Functions'}{$func}{'Translate'}  = $translate_to;
+                        $stref->{'Subroutines'}{$func}{'Translate'}  = $translate_to;
                         $translate_to = '';
                     }
                   $f=$func;
-                  $srctype='Functions';
+                  $srctype='Subroutines';
                   $stref->{'SourceContains'}{$src}{$f}=$srctype;
             };
 

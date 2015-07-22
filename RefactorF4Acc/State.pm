@@ -1,4 +1,5 @@
 package RefactorF4Acc::State;
+use v5.16;
 # 
 #   (c) 2010-2012 Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
 #   
@@ -20,13 +21,12 @@ use Exporter;
 sub init_state {
     ( my $subname ) = @_;
 
-    # Nodes|Subroutines|Includes|Functions|NId|BuildSources|Indents
+    # Nodes|Subroutines|Includes|NId|BuildSources|Indents
     my $stateref = {
         'Top'          => $subname,
         'IncludeFiles' => {},
 
-        #        'Sources' => {'Subroutines' => {},'Functions'=>{}},
-        'Subroutines'  => {},
+        'Subroutines'  => {}, # {$f}{Function} = 1
         'BuildSources' => {}
         ,    # sources to be built, can be C, H (header) or F (Fortran)
         'Indents' => 0,    # bit silly, purely for pretty-printing

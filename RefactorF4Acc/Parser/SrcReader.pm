@@ -1,5 +1,5 @@
 package RefactorF4Acc::Parser::SrcReader;
-
+use v5.16;
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils qw( sub_func_incl_mod );
 use RefactorF4Acc::Refactoring::Common
@@ -813,7 +813,7 @@ Suppose we don't:
 
 # -----------------------------------------------------------------------------
 # To skip the funcs/subs that have been read/parsed already?
-
+# I'm assuming that $srctype can only be Subroutines or Modules
 sub _pushAnnLine {
     ( my $stref, my $f, my $srctype, my $line, my $free_form ) = @_;
 
@@ -836,20 +836,26 @@ sub _pushAnnLine {
                 }
             }
 
-            #			$srctype                           = 'Subroutines';
             $f =
               $pline->[1]{'SubroutineSig'}[1];   #[$spaces, $subname,[@subargs]]
             $stref->{$srctype}{$f}{'AnnLines'} = [];
         } elsif ( exists $pline->[1]{'FunctionSig'} ) {
             if ( $f ne '' ) {
-                if ( $stref->{$srctype}{$f}{'Status'} == $UNREAD ) {
-                    $stref->{$srctype}{$f}{'Status'} = $READ;
+                if (not exists $stref->{'Subroutines'}{$f}{'Function'}) {
+                    $stref->{'Subroutines'}{$f}{'Function'}=1;
+                }
+                
+                if (not exists $stref->{'Subroutines'}{$f}{'Status'} ) { 
+                    die "No Status for $srctype $f".$pline->[0];
+                } else {
+                if ( $stref->{'Subroutines'}{$f}{'Status'} == $UNREAD ) {
+                    $stref->{'Subroutines'}{$f}{'Status'} = $READ;
+                }
                 }
             }
 
-            #			$srctype                           = 'Functions';
             $f = $pline->[1]{'FunctionSig'}[1];    #[$spaces, $fname,[@fargs]]
-            $stref->{$srctype}{$f}{'AnnLines'} = [];
+            $stref->{'Subroutines'}{$f}{'AnnLines'} = [];
         }
     }
     push @{ $stref->{$srctype}{$f}{'AnnLines'} }, $pline;

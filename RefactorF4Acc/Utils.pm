@@ -30,15 +30,17 @@ use Exporter;
     &module_has_only
     &make_lookup_table    
     &generate_docs    
+    &show_status
 );
 
 sub sub_func_incl_mod {
     ( my $f, my $stref ) = @_;
+    if (not defined $stref) {croak "arg not defined sub_func_incl_mod" }
     die join(' ; ', caller ) if $stref!~/0x/;        
     if ( exists $stref->{'Subroutines'}{$f} ) {
         return 'Subroutines';
-    } elsif ( exists $stref->{'Functions'}{$f} ) {
-        return 'Functions';
+#    } elsif ( exists $stref->{'Functions'}{$f} ) {
+#        return 'Functions';
     } elsif ( exists $stref->{'IncludeFiles'}{$f} ) {
         return 'IncludeFiles';
     } elsif ( exists $stref->{'Modules'}{$f} ) { # So we only say it's a module if it is nothing else.
@@ -88,6 +90,7 @@ sub get_maybe_args_globs {
 sub type_via_implicits {
     
 (my $stref, my $f, my $var)=@_;
+if (not defined $var or $var eq '') {croak "VAR not defined!"}
 #say 'type_via_implicits'.scalar(@_).$var;
     my $sub_func_incl = sub_func_incl_mod( $f, $stref );
     my $type ='Unknown';      
@@ -110,7 +113,12 @@ sub type_via_implicits {
         $stref->{$sub_func_incl}{$f}{'Vars'}{$var} = $var_rec;                                  
 =cut                                    
     } else {
-        print "WARNING: common <", $var, "> has no rule in {'Implicits'}{$f}\n" if $W;
+        print "WARNING: common <", $var, "> has no rule in {'Implicits'}{$f}, typing via Fortran defaults\n" if $W;
+        if ($var=~/^[i-nI-N]/) {
+    return ('integer', 'Scalar', [], '');        
+        } else {
+    return ('real', 'Scalar', [], '');
+        } 
     }
     return ($type, $kind, $shape, $attr);
 } # END of type_via_implicits()
@@ -298,6 +306,11 @@ ENDH
     #   );
     #   map { unlink $src . $_ } @exts;
 
+}
+sub show_status {
+    (my $st)=@_;
+    my @status_str = ( 'UNREAD', 'INVENTORIED', 'READ', 'PARSED', 'FROM_BLOCK', 'C_SOURCE' );
+    return $status_str[$st];    
 }
 
 1;

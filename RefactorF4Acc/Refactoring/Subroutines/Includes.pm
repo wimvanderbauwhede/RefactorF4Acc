@@ -1,5 +1,5 @@
 package RefactorF4Acc::Refactoring::Subroutines::Includes;
-
+use v5.16;
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
 # 
@@ -87,30 +87,49 @@ sub create_additional_include_statements {
 # This should only be called if the old one was removed, which I think does not happen anymore.
 sub create_new_include_statements {
     ( my $stref, my $f, my $annline, my $rlines ) = @_;
-    my $Sf        = $stref->{'Subroutines'}{$f};        
-    my $info = $annline->[1];
+#    local $V=1;
+    my $Sf        = $stref->{'Subroutines'}{$f};
+    my $nextLineID=scalar @{$rlines};        
+    my $info = {%{$annline->[1]}};
     for my $inc ( keys %{ $Sf->{'Globals'} } ) {
         print "INC: $inc, root: $stref->{'IncludeFiles'}{$inc}{'Root'} \n"
           if $V;
-        if ( exists $Sf->{'CommonIncludes'}{$inc}
-#            and $f eq $stref->{'IncludeFiles'}{$inc}{'Root'} 
-            )
-        {    
+          my $params_only = $stref->{'IncludeFiles'}{$inc}{'InclType'} eq 'Parameter';
+          my $has_param_include = exists $stref->{'IncludeFiles'}{$inc}{'ParamInclude'};
+        if ( exists $Sf->{'CommonIncludes'}{$inc} ) {
+            
+        
+#            die Dumper($stref->{'IncludeFiles'}{$inc});
+            my $tinc=$inc;
+            my $ok=0;
+            if ($f eq $stref->{'IncludeFiles'}{$inc}{'Root'} or $params_only) { 
+   
             print "INFO: instantiating merged INC $inc in $f\n" if $V;
+            $ok=1;
 #            my $rline = "      include '$inc'";
-            my $tinc = $inc;                    
+                 
+            } elsif ($has_param_include) {
+                $tinc = $stref->{'IncludeFiles'}{$inc}{'ParamInclude'};
+                $ok=1;
+            }         
+            if ($ok==1) {           
             $tinc=~s/\./_/g;
-            my $rline = "      use $tinc"; $rline .=" ! create_new_include_statements() line 102" if $V;
+            my $rline = "      use $tinc"; 
+            $rline .=" ! create_new_include_statements() line 106" if $V;
             $info->{'Include'}{'Name'} = $inc;
             $info->{'Ref'}=1;
+            $info->{'LineID'}=$nextLineID++;
             if (exists $info->{'VarDecl'}) {
-                die Dumper($info->{'VarDecl'}); # this never happens, so the junk is not introduced here
+#                carp $annline->[0]."\n".Dumper($info->{'VarDecl'}) if $f eq 'hanna'; # this never happens, so the junk is not introduced here
+                delete $info->{'VarDecl'};
             }
             if ($info->{'ExGlobVarDecls'} >= $Sf->{'ExGlobVarDeclHook'}) {
             	$info->{'ExGlobVarDecls'} = ++$Sf->{'ExGlobVarDeclHook'};
             }
+#            say Dumper([ $rline, $info ]);
             push @{$rlines}, [ $rline, $info ];
-        }
+            }
+        } 
     }
 #    die Dumper($rlines) if $f eq 'aveflow';
     return $rlines;

@@ -1,5 +1,5 @@
 package RefactorF4Acc::Refactoring::Subroutines::Signatures;
-
+use v5.16;
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
 # 
@@ -208,7 +208,8 @@ sub refactor_subroutine_signature {
     # Now combine the original subroutine arguments with the ex-globals
     # and store in $Sf->{'RefactoredArgs'}{'List'}     
     my $args_ref = (exists $Sf->{'Args'}) ? ordered_union( $Sf->{'Args'}{'List'}, \@nexglobs ) : \@nexglobs;
-
+#    my @blanks = grep {$_ eq '' } @{$args_ref};
+#    say "RefactoredArgs for $f: ".Dumper($args_ref); 
     $Sf->{'RefactoredArgs'}{'List'} = $args_ref;
     %{ $Sf->{'RefactoredArgs'}{'Set'}} = map {$_ => {'IODir' => 'Unknown'} } @{ $args_ref };    
     $Sf->{'HasRefactoredArgs'} = 1;

@@ -1,5 +1,5 @@
 package RefactorF4Acc::Analysis::Sources; # TODO: a better name
-
+use v5.16;
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
 use RefactorF4Acc::Analysis::Globals qw( lift_includes ); # TODO: put lift_includes in this module
@@ -32,6 +32,7 @@ sub analyse_sources {
     ( my $stref ) = @_;
 
     for my $f ( keys %{ $stref->{'Subroutines'} } ) {
+        if (not exists $stref->{'Subroutines'}{$f}{'Function'}) {
 #        print "SUB: $f\n";
         my $Sf = $stref->{'Subroutines'}{$f};
         if (
@@ -48,13 +49,16 @@ sub analyse_sources {
         if (defined $Sf->{'RefactorGlobals'} && $Sf->{'RefactorGlobals'}==2) {
         	$stref=lift_includes($stref,$f);
         }
+        }
     }
-    for my $f ( keys %{ $stref->{'Functions'} } ) {
-        my $Ff = $stref->{'Functions'}{$f};
+    for my $f ( keys %{ $stref->{'Subroutines'} } ) {
+        if (exists $stref->{'Subroutines'}{$f}{'Function'}) {
+        my $Ff = $stref->{'Subroutines'}{$f};
         if ( exists $Ff->{'Called'} && $Ff->{'Called'} == 1 ) {     
             $stref = _identify_loops_breaks( $f, $stref );
         } else {
             print "INFO: Function $f is never called, skipping analysis\n" if $I;             
+        }
         }
     }
     return $stref;

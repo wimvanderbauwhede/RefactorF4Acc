@@ -1,5 +1,5 @@
 package RefactorF4Acc::Analysis::LoopDetect;
-use v5.12;
+use v5.16;
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
 

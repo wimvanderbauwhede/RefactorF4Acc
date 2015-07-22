@@ -1,5 +1,5 @@
 package RefactorF4Acc::Refactoring::Functions;
-
+use v5.16;
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
 use RefactorF4Acc::Refactoring::Common qw( context_free_refactorings create_refactored_source );
@@ -39,13 +39,15 @@ Functions
 sub refactor_called_functions {
     ( my $stref ) = @_;
 
-    for my $f ( keys %{ $stref->{'Functions'} } ) {
-        my $Ff = $stref->{'Functions'}{$f};
+    for my $f ( keys %{ $stref->{'Subroutines'} } ) {
+        if (exists $stref->{'Subroutines'}{$f}{'Function'}) {
+        my $Ff = $stref->{'Subroutines'}{$f};
         if ( defined $Ff->{'Called'} ) { # FIXME: This test is weak because the caller might not be called itself!
         if ($Ff->{'Status'} == $READ) { 
         	warn "refactor_called_functions(): Function $f was never parsed";
         } else {        
             $stref = _refactor_function( $f, $stref );
+        }
         }
         } 
     }
@@ -61,7 +63,7 @@ sub _refactor_function {
         print "Refactoring $f\n";
         print "#" x 80, "\n";
     }
-    my $Ff = $stref->{'Functions'}{$f};
+    my $Ff = $stref->{'Subroutines'}{$f};
     print "REFACTORING FUNCTION $f\n" if $V;    
 
     if (   not exists $Ff->{'RefactoredCode'}

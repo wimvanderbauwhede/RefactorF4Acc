@@ -1,5 +1,5 @@
 package RefactorF4Acc::Analysis::Globals;
-
+use v5.16;
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
 # 

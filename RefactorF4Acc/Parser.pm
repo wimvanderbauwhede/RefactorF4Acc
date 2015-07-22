@@ -1,5 +1,5 @@
 package RefactorF4Acc::Parser;
-
+use v5.16;
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
 use RefactorF4Acc::CallGraph qw( add_to_call_tree );
@@ -19,7 +19,6 @@ use F95VarDeclParser qw( parse_F95_var_decl );
 use vars qw( $VERSION );
 $VERSION = "1.0.0";
 
-use 5.012;
 use warnings::unused;
 use warnings;
 use warnings FATAL => qw(uninitialized);
@@ -49,13 +48,16 @@ sub parse_fortran_src {
     $stref = read_fortran_src( $f, $stref );    #
     print "DONE read_fortran_src( $f )\n" if $V;
 
-    my $sub_or_func_or_mod = sub_func_incl_mod( $f, $stref )
-      ;    # This is not a misnomer as it can also be a module.
-    print "SRC TYPE for $f: $sub_or_func_or_mod\n" if $V;
-    if ( $sub_or_func_or_mod ne 'ExternalSubroutines' ) {
-        my $Sf = $stref->{$sub_or_func_or_mod}{$f};
-        my $is_incl = exists $stref->{'IncludeFiles'}{$f} ? 1 : 0;
-
+    my $sub_or_incl_or_mod = sub_func_incl_mod( $f, $stref );
+     my $is_incl = $sub_or_incl_or_mod eq 'IncludeFiles';
+    my $is_external_include = $is_incl  ?  ($stref->{'IncludeFiles'}{$f}{'InclType'} eq 'External') : 0;
+      
+    print "SRC TYPE for $f: $sub_or_incl_or_mod\n" if $V;
+    if ( $sub_or_incl_or_mod ne 'ExternalSubroutines' and 
+    not $is_external_include
+    ) {
+        my $Sf = $stref->{$sub_or_incl_or_mod}{$f};       
+        
 # Set 'RefactorGlobals' to 0, we only refactor the globals for subs that are kernel targets and their dependencies
         if ( not exists $Sf->{'RefactorGlobals'} ) {
             $Sf->{'RefactorGlobals'} = 0;
@@ -81,24 +83,31 @@ sub parse_fortran_src {
 
 ## 5. Parse subroutine and function calls
         if ( not $is_incl ) {
-            if ( $stref->{$sub_or_func_or_mod}{$f}{'HasBlocks'} == 1 ) {
+            if ( $stref->{$sub_or_incl_or_mod}{$f}{'HasBlocks'} == 1 ) {
                 $stref = _separate_blocks( $f, $stref );
             }
 
             # Recursive descent via subroutine calls
             $stref = _parse_subroutine_and_function_calls( $f, $stref );
-            $stref->{$sub_or_func_or_mod}{$f}{'Status'} = $PARSED;
-            print "DONE PARSING $sub_or_func_or_mod $f\n" if $V;
-        } else {    # includes
+            $stref->{$sub_or_incl_or_mod}{$f}{'Status'} = $PARSED;
+            print "DONE PARSING $sub_or_incl_or_mod $f\n" if $V;
+        } else  {    # includes
 ## 6. For includes, parse common blocks and parameters, create $stref->{'Commons'}
             $stref = _get_commons_params_from_includes( $f, $stref );
             $stref->{'IncludeFiles'}{$f}{'Status'} = $PARSED;
         }
+        
+# 7. Split variable declarations with multiple vars into single-var lines
+                    $stref = _split_multivar_decls( $f, $stref );
+
     } else {
-        print "$f is EXTERNAL\n";
+        print "INFO: $f is EXTERNAL\n" if $I;
     }
+    
+#    
+    
     print
-"LEAVING parse_fortran_src( $f ) with Status $stref->{$sub_or_func_or_mod}{$f}{'Status'}\n"
+"LEAVING parse_fortran_src( $f ) with Status $stref->{$sub_or_incl_or_mod}{$f}{'Status'}\n"
       if $V;
     return $stref;
 }    # END of parse_fortran_src()
@@ -292,6 +301,7 @@ sub _analyse_lines {
                 $indent = $line;
                 $indent =~ s/\S.*$//;
                 my $pt = parse_F95_var_decl($line);
+#                say Dumper($pt);
 
              # But this could be a parameter declaration, with an assignment ...
                 if ( $line =~ /,\s*parameter\s*.*?::\s*(\w+\s*=\s*.+?)\s*$/ )
@@ -360,6 +370,7 @@ sub _analyse_lines {
                             }
                         }
                     }
+                    if (not exists $pt->{'TypeTup'}{'Kind'} ) { die $line }
                     $vars{$tvar}{'Kind'} = $pt->{'TypeTup'}{'Kind'};
                     if ( $type =~ /character/ ) {
                         $vars{$tvar}{'Attr'} = '(len='
@@ -367,7 +378,7 @@ sub _analyse_lines {
                           ; #WV20150709: maybe better ['len',$pt->{TypeTup}{'Kind'}]
                     } else {
                         $vars{$tvar}{'Attr'} =
-                          '(kind=' . $pt->{TypeTup}{'Kind'} . ')';
+                          '(kind=' . $pt->{'TypeTup'}{'Kind'} . ')';
                     }
                     $vars{$tvar}{'IODir'} = $pt->{'Attributes'}{'Intent'};
 
@@ -450,6 +461,7 @@ sub _analyse_lines {
                 $is_vardecl = 0;
                 my $T        = 0;
                 my $pvars    = _parse_F77_vardecl( $varlst, $T );
+                
                 my @varnames = ();
                 for my $var ( keys %{$pvars} ) {
                     if ( $var eq '' ) { croak "<$line> in $f" }
@@ -490,23 +502,22 @@ sub _analyse_lines {
                     $vars{$tvar}{'Decl'} = [ $indent, [$type], [$var], 0 ];
                     $vars{$tvar}{'Indent'} = $indent; #WV20150709 OBSOLETE
 
-                    if ( exists $stref->{'Functions'}{$tvar} and $tvar ne $f )
+                    if ( exists $stref->{'Subroutines'}{$tvar} and exists $stref->{'Subroutines'}{$tvar}{'Function'} and $tvar ne $f )
                     {    # FIXME: NO RECURSION!
 
-                        $stref->{'Functions'}{$tvar}{'Called'} = 1;
-
-                        #$stref->{'Functions'}{$tvar}{'Callers'}{$f}++;
+                        $stref->{'Subroutines'}{$tvar}{'Called'} = 1;
+                        
                         if (
                             not
-                            exists $stref->{'Functions'}{$tvar}{'Callers'}{$f} )
+                            exists $stref->{'Subroutines'}{$tvar}{'Callers'}{$f} )
                         {
-                            $stref->{'Functions'}{$tvar}{'Callers'}{$f} = [];
+                            $stref->{'Subroutines'}{$tvar}{'Callers'}{$f} = [];
                         }
-                        push @{ $stref->{'Functions'}{$tvar}{'Callers'}{$f} },
+                        push @{ $stref->{'Subroutines'}{$tvar}{'Callers'}{$f} },
                           $index;
                         if (
                             not
-                            exists $stref->{'Functions'}{$tvar}{'AnnLines'} )
+                            exists $stref->{'Subroutines'}{$tvar}{'AnnLines'} )
                         {
                             $stref = parse_fortran_src( $tvar, $stref );
                         }
@@ -1022,8 +1033,8 @@ sub _parse_subroutine_and_function_calls {
                 }
                 for my $chunk (@chunks) {
                     if (
-                        exists $stref->{'Functions'}{$chunk}
-
+                        exists $stref->{'Subroutines'}{$chunk}
+                        and exists $stref->{'Subroutines'}{$chunk}{'Function'}
                        # This means it's the first call to function $chunk in $f
                         and not exists $Sf->{'CalledFunctions'}{$chunk}
                       )
@@ -1034,13 +1045,13 @@ sub _parse_subroutine_and_function_calls {
                             show($srcref);
                             die $line;
                         }
-                        $stref->{'Functions'}{$chunk}{'Called'} = 1;
+                        $stref->{'Subroutines'}{$chunk}{'Called'} = 1;
 
 # We need to parse the function to detect called functions inside it, unless that has been done
-                        if (   not exists $stref->{'Functions'}{$chunk}
+                        if (   not exists $stref->{'Subroutines'}{$chunk}
                             or not
-                            exists $stref->{'Functions'}{$chunk}{'Status'}
-                            or $stref->{'Functions'}{$chunk}{'Status'} <
+                            exists $stref->{'Subroutines'}{$chunk}{'Status'}
+                            or $stref->{'Subroutines'}{$chunk}{'Status'} <
                             $PARSED )
                         {
                             $stref = parse_fortran_src( $chunk, $stref );
@@ -1050,9 +1061,9 @@ sub _parse_subroutine_and_function_calls {
 
                         if ( exists $Sf->{'Translate'}
                             and not
-                            exists $stref->{'Functions'}{$chunk}{'Translate'} )
+                            exists $stref->{'Subroutines'}{$chunk}{'Translate'} )
                         {
-                            $stref->{'Functions'}{$chunk}{'Translate'} =
+                            $stref->{'Subroutines'}{$chunk}{'Translate'} =
                               $Sf->{'Translate'};
                         }
 
@@ -1505,6 +1516,7 @@ sub __split_out_parameters {
         push @{$nsrcref}, $srcref->[$index];
     }
     $stref->{'IncludeFiles'}{$f}{'AnnLines'}          = $nsrcref;
+    $stref->{'IncludeFiles'}{$f}{'ParamInclude'}="params_$f"; 
     $stref->{'IncludeFiles'}{"params_$f"}             = {};
     $stref->{'IncludeFiles'}{"params_$f"}{'AnnLines'} = $param_lines;
     $stref->{'IncludeFiles'}{"params_$f"}{'InclType'} = 'Parameter';
@@ -1813,7 +1825,7 @@ sub __construct_new_subroutine_signatures {
         for my $argv ( @{ $args{$block} } ) {
             my $decl = $Sf->{'Vars'}{$argv}{'Decl'};
             unshift @{ $Sblock->{'AnnLines'} },
-              [ emit_f95_var_decl($decl), { 'VarDecl' => $decl } ];
+              [ emit_f95_var_decl($decl).' ! __construct_new_subroutine_signatures', { 'VarDecl' => $decl } ];
         }
         unshift @{ $Sblock->{'AnnLines'} }, $sigline;
 
@@ -1870,5 +1882,89 @@ sub __reparse_extracted_subroutines { (my $stref, my $blocksref) = @_;
     } 
     return $stref;
 }
-
+sub _split_multivar_decls { (my $f, my $stref) = @_;
+        
+    my $sub_func_incl_or_mod = sub_func_incl_mod( $f, $stref );
+    my $Sf = $stref->{$sub_func_incl_or_mod}{$f};    
+    my $annlines = $Sf->{'AnnLines'};
+    my $nextLineID = scalar @{$annlines}+1;
+    my $new_annlines=[];
+    for my $annline (@{$annlines}) {
+        (my $line, my $info)=@{$annline};
+        if (exists $info->{'VarDecl'} and scalar @{$info->{'VarDecl'}[2]}>1) {
+#            say $line;            
+            
+#            say scalar @{$info->{'VarDecl'}[2]};
+            my @nvars = @{$info->{'VarDecl'}[2]};
+            for my $var (@{$info->{'VarDecl'}[2]}) {
+                my %rinfo = %{$info};
+#                say "VAR: $var";
+                $rinfo{'LineID'} =$nextLineID++;
+# VarDecl                
+#                [ $indent,[$type, $attr, [$start,$end] , $intent ],[$var],0]
+# Vars   
+#{
+#  'Decl' => [
+#              $indent,
+#              [
+#                $type
+#              ],
+#              [
+#                $var
+#              ],
+#              0
+#            ],
+#  'Shape' => [
+#               $start,
+#               $end
+#             ],
+#  'Type' => $type,
+#  'Attr' => $attr,
+#  'Indent' => $indent,
+#  'Kind' => 'Array'|'Scalar'
+#}
+             
+                $rinfo{'VarDecl'}=[];
+                $rinfo{'VarDecl'}[0]=$info->{'VarDecl'}[0];
+                $rinfo{'VarDecl'}[1]=[];
+                $rinfo{'VarDecl'}[1][0]=$Sf->{'Vars'}{$var}{'Decl'}[1][0]; # Type
+                $rinfo{'VarDecl'}[1][1]=$Sf->{'Vars'}{$var}{'Attr'}; # Attr
+                $rinfo{'VarDecl'}[1][2]= [@{$Sf->{'Vars'}{$var}{'Shape'}}]; # Copy of Shape to Dim
+                $rinfo{'VarDecl'}[2]=[$var];
+                $rinfo{'VarDecl'}[3]=0;
+                my $rline=$line;
+                
+                for my $nvar (@nvars) {
+                     if ($nvar ne $var) {
+#                    say "NVAR: $nvar";
+                    if ($rline=~/\s*,\s*$nvar\([^\(]+\)\W?/) {
+                        $rline=~s/\s*,\s*$nvar\([^\(]+\)(\W?)/$1/;
+                    } elsif ($rline=~/(\W)$nvar\([^\(]+\)\s*,\s*/) {
+                        $rline=~s/(\W)$nvar\([^\(]+\)\s*,\s*/$1/;
+                    } elsif ($rline=~/\s*,\s*$nvar\*\d+\W?/) {
+                        $rline=~s/\s*,\s*$nvar\*\d+(\W?)/$1/;
+                    } elsif ($rline=~/(\W)$nvar\*\d+\s*,\s*/) {
+                        $rline=~s/(\W)$nvar\*\d+\s*,\s*/$1/;
+                    } elsif ($rline=~/\W$nvar\s*,\s*/) {
+                        $rline=~s/(\W)$nvar\s*,\s*/$1/;
+                    } elsif ($rline=~/\s*,\s*$nvar\W?/) {
+                    $rline=~s/\s*,\s*$nvar(\W?)/$1/;
+                    }                     
+#                    $rline=~s/,,/,/;
+                     }
+                }                
+#                say "\t$rline";
+                push @{$new_annlines}, [$rline, \%rinfo];
+            }
+        } else {
+            push @{$new_annlines}, $annline;
+        }
+    }
+    $Sf->{'AnnLines'}=$new_annlines;
+#     if ($f eq 'interpol_all') {
+#         say Dumper($stref->{$sub_func_incl_or_mod}{$f});
+#         die;
+#     }
+    return $stref;
+}
 1;
