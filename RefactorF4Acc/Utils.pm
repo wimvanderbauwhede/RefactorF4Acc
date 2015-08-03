@@ -61,7 +61,21 @@ sub show_annlines {
         if(ref($annline->[0]) eq 'ARRAY') {
             die "NOT A STRING: ".Dumper($annline->[0]);
         } else {
-        say $annline->[0],($with_info ? "\t<".join(';',keys %{ $annline->[1] }).'>' : '');
+            print $annline->[0];
+            if($with_info) {
+#             ? "\t<";#.join(';',keys %{ $annline->[1] }).'>' : '');
+                print "\t<";
+                for my $k (keys %{ $annline->[1] }) {
+                    if ( not ref( $annline->[1]{$k} ) ) {
+                        print  $k.'=>'.$annline->[1]{$k}.';';
+                    }  else {
+                        print "$k;"
+                    }
+                }
+                print ">\n";
+            } else { print "\n";
+                
+            }
         }
     }
 }

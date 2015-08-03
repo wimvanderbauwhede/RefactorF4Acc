@@ -431,38 +431,39 @@ sub _analyse_src_for_iodirs {
                 #                die Dumper($args) if $f eq 'feedbfm';
                 next;
             }
-
+# Subroutine call
             if (   exists $info->{'SubroutineCall'}
                 && exists $info->{'SubroutineCall'}{'Name'} )
             {
                 my $name = $info->{'SubroutineCall'}{'Name'};
-                ( my $iodirs, $stref ) =
+                ( my $iodirs_from_call, $stref ) =
                   _get_iodirs_from_subcall( $stref, $f, $index, $annlines );
-                for my $var ( keys %{$iodirs} ) {
+                for my $var ( keys %{$iodirs_from_call} ) {
 
 # Damn Perl! exists $args->{$var}{'IODir'} creates the entry for $var if it did not exist!
                     if ( exists $args->{$var} ) {
                         if ( exists $args->{$var}{'IODir'} ) {
-                            if ( $iodirs->{$var} eq 'In' ) {
+                            if ( $iodirs_from_call->{$var} eq 'In' ) {
                                 if ( $args->{$var}{'IODir'} eq 'Unknown' ) {
                                     $args->{$var}{'IODir'} = 'In';
                                 } elsif ( $args->{$var}{'IODir'} eq 'Out' ) {
-
        # if the parent arg is Out and the child arg is In, parent arg stays Out!
                                     $args->{$var}{'IODir'} = 'Out';
-                                }
-                            } elsif ( $iodirs->{$var} eq 'InOut' ) {
+                                } # if it's already In or InOut, it stays like it is.
+                            } elsif ( $iodirs_from_call->{$var} eq 'InOut' ) {
                                 if ( $args->{$var}{'IODir'} eq 'Unknown' ) {
                                     $args->{$var}{'IODir'} = 'InOut';
                                 } elsif ( $args->{$var}{'IODir'} eq 'Out' ) {
                                     $args->{$var}{'IODir'} = 'Out';
-                                }
-                            } elsif ( $iodirs->{$var} eq 'Out' ) {
+                                } elsif ( $args->{$var}{'IODir'} eq 'In' ) {
+                                    $args->{$var}{'IODir'} = 'InOut';
+                                } # if it is In, it stays In
+                            } elsif ( $iodirs_from_call->{$var} eq 'Out' ) {
                                 if ( $args->{$var}{'IODir'} eq 'Unknown' ) {
                                     $args->{$var}{'IODir'} = 'Out';
                                 } elsif ( $args->{$var}{'IODir'} eq 'In' ) {
                                     $args->{$var}{'IODir'} = 'InOut';
-                                }
+                                } # if it's already InOut or Out, stays like it is.
                             } else {
                                 print
 "WARNING: IO direction for $var in call to $name in $f is Unknown\n"
@@ -472,8 +473,8 @@ sub _analyse_src_for_iodirs {
                             print "WARNING: $f: NO IODir info for $var\n" if $W;
                         }
                     } else {
-                        print "INFO: $f: $var is not an argument "
-                          . $iodirs->{$var} . "\n"
+                        print "INFO: $f: $var is not an argument, ignoring IODir "
+                          . $iodirs_from_call->{$var} . "\n"
                           if $I;
                     }
 

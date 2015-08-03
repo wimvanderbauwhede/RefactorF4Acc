@@ -8,6 +8,7 @@ use RefactorF4Acc::Refactoring::Common qw(
     emit_f95_var_decl 
     get_annotated_sourcelines
     splice_additional_lines
+    splice_additional_lines_cond
 );
 
 # 
@@ -142,15 +143,16 @@ sub create_exglob_var_declarations {
 
                         croak "$f: INC $inc: VAR $var\n" if not exists $stref->{IncludeFiles}{$inc}{'Vars'}{$var};                        
                         my $rdecl = format_f95_var_decl( $stref->{'IncludeFiles'}{$inc},$var);
+#                        croak Dumper($stref->{'IncludeFiles'}{$inc}{Vars}{uprof}) if $var eq 'uprof';
                         if ( exists $Sf->{'ConflictingParams'}{$var} ) {
-                            my $gvar = $Sf->{'ConflictingParams'}{$var};
+                            my $gvar = $Sf->{'ConflictingParams'}{$var}[0];
                             print
 "WARNING: CONFLICT in arg decls for $f: renaming $var to ${var}_GLOB\n"
                               if $W;
                             $rdecl->[2][0] =~ s/\b$var\b/$gvar/; #FIXME: only works for a single var!
                         }
                         my $rline = emit_f95_var_decl($rdecl);
-                        $rline .= " ! from $inc";   
+                        $rline .= " ! EX-GLOB from $inc";   
                         
 #                        my $rdecl = ['',[],[$var],0];
 #                        if ( not defined $rline ) {
@@ -173,6 +175,7 @@ sub create_exglob_var_declarations {
     }
     return $rlines;
 }    # END of create_exglob_var_declarations()
+
 # --------------------------------------------------------------------------------
 # We can assume that these variables are not subroutine arguments, so the Intent should be blank
 # This should probably go in RefactorF4Acc::Refactoring::Subroutines::Declarations
@@ -194,16 +197,18 @@ sub _add_missing_var_decls { (my $stref,my $f,my $undeclared_vars)=@_;
     # First find where to splice. As far as I can see we can splice anywhere inside the existing var decls.
     my $annlines = get_annotated_sourcelines( $stref, $f );  
     my $insert_pos_lineID = 0;
+#    say "HOOK for $f";
     for my $annline (@{$annlines}) {
         (my $line, my $info) = @{$annline};
 #        say $line."\t".Dumper($info);
        if (exists $info->{'VarDecl'}) {
            $insert_pos_lineID = $info->{'LineID'};
-#           say "VAR DECL LINE ID: $insert_pos_lineID";
+#           say "$f VAR DECL LINE ID: $insert_pos_lineID";
            last;
        } 
     }
-    $stref = splice_additional_lines($stref,$f,$insert_pos_lineID, $extra_annlines, 1, 0);
+    
+    $stref = splice_additional_lines($stref,$f,$insert_pos_lineID, $extra_annlines, 0, 0);
     return $stref;
 } # END of _add_missing_var_decls()
 
@@ -214,6 +219,9 @@ sub find_and_add_missing_var_decls {
         my $undeclared_vars=[];
 #     print "NAME: <$f>\n";
 #     say '<'.Dumper(keys $stref->{'Subroutines'}{$f}).'>';
+#if ($f eq 'f_esl') {
+#    say show_annlines( $stref->{'Subroutines'}{$f}{RefactoredCode} );die;
+#}
      if (exists $stref->{'Subroutines'}{$f}{RefactoredArgs}) {
         my %refactored_args =  %{ $stref->{'Subroutines'}{$f}{RefactoredArgs}{Set} };
     	if (scalar keys %{$stref->{'Subroutines'}{$f}{'Callers'} } ) { # or $stref->{'Subroutines'}{$f}{'Program'} )     		
@@ -227,7 +235,8 @@ sub find_and_add_missing_var_decls {
                 $entry->[0] = emit_f95_var_decl($vardecl).' ! V6';
                 delete $refactored_args{$varname};
 #                say "DELETED $varname from RefactoredArgs in $f";
-              } elsif (exists($entry->[1]{'ParamDecl'})) {                
+              } elsif (exists($entry->[1]{'ParamDecl'})) {      
+                            
                 my $parname = $entry->[1]{'ParamDecl'}[2][0][0];
                 my $pardecl = format_f95_par_decl($stref,$f, $parname);
                 $entry->[0] = emit_f95_var_decl($pardecl).' ! V7'; # FIXME: Somehow this is emitted TWICE, I guess because it re-emits the commmented line?
@@ -258,7 +267,14 @@ sub find_and_add_missing_var_decls {
     	} else {
     		print "WARNING: SKIPPING <$f>: " if $V;
 			if (defined $f and $f ne '') {
+			    if (defined $stref->{'Subroutines'}{$f}) {
+			    if (not defined $stref->{'Subroutines'}{$f}{'Program'}) {
+			        $stref->{'Subroutines'}{$f}{'Program'}=0;
+			    }
 				print 'Callers: ',scalar keys %{$stref->{'Subroutines'}{$f}{'Callers'} },'; Program: ',$stref->{'Subroutines'}{$f}{'Program'},"\n" if $V;
+			    } else { 
+			        print "No Subroutines recored for $f\n" if $V;
+			    }
 			} else {
 				print "Undefined\n" if $V;
 			}
@@ -269,6 +285,7 @@ sub find_and_add_missing_var_decls {
         $stref=_add_missing_var_decls($stref,$f,$undeclared_vars);
 #        die  if $f=~/press/;
 #        die Dumper($stref->{'Subroutines'}{$f}{'RefactoredCode'}) if $f=~/press/;
+           
     }
     }    
     return $stref;

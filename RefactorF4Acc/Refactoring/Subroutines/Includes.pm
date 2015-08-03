@@ -115,7 +115,7 @@ sub create_new_include_statements {
             if ($ok==1) {           
             $tinc=~s/\./_/g;
             my $rline = "      use $tinc"; 
-            $rline .=" ! create_new_include_statements() line 106" if $V;
+            $rline .=" ! create_new_include_statements() line 106";# if $V;
             $info->{'Include'}{'Name'} = $inc;
             $info->{'Ref'}=1;
             $info->{'LineID'}=$nextLineID++;
@@ -123,9 +123,10 @@ sub create_new_include_statements {
 #                carp $annline->[0]."\n".Dumper($info->{'VarDecl'}) if $f eq 'hanna'; # this never happens, so the junk is not introduced here
                 delete $info->{'VarDecl'};
             }
-            if ($info->{'ExGlobVarDecls'} >= $Sf->{'ExGlobVarDeclHook'}) {
-            	$info->{'ExGlobVarDecls'} = ++$Sf->{'ExGlobVarDeclHook'};
-            }
+# Obsolete            
+#            if ($info->{'ExGlobVarDecls'} >= $Sf->{'ExGlobVarDeclHook'}) {
+#            	$info->{'ExGlobVarDecls'} = ++$Sf->{'ExGlobVarDeclHook'};
+#            }
 #            say Dumper([ $rline, $info ]);
             push @{$rlines}, [ $rline, $info ];
             }

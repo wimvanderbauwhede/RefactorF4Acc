@@ -57,7 +57,7 @@ sub refactor_all_subroutines {
         next if $Sf->{'Status'} == $UNREAD;
         next if $Sf->{'Status'} == $READ;
         next if $Sf->{'Status'} == $FROM_BLOCK;
-        
+        next if (exists $Sf->{'Function'} and $Sf->{'Function'} ==1 ); 
       $stref = _refactor_subroutine_main( $f, $stref );
       
     }
@@ -115,18 +115,23 @@ say "get_annotated_sourcelines($f)" if $V;
 
     my $rlines = $annlines;
     if ( $Sf->{'HasCommons'} ) {
-        
+        print "REFACTORING COMMONS for SUBROUTINE $f\n" if $V;
         if ( $Sf->{'RefactorGlobals'} == 1 ) {
             say "_refactor_globals($f)" if $V;
           $rlines = _refactor_globals( $stref, $f, $annlines );
         } elsif ( $Sf->{'RefactorGlobals'} == 2 ) { 
-#        	die 'BOOM!!!' if $f eq 'convect';
-say "_refactor_calls_globals($f)" if $V;
+            say "_refactor_calls_globals($f)" if $V;
             $rlines = _refactor_calls_globals( $stref, $f, $annlines );
         }
     }
-#    die Dumper($Sf->{RefactoredCode}) if $f=~/shift_field/i;
-    my $sub_or_prog = ( exists $Sf->{'Program'} and $Sf->{'Program'} == 1) ? 'program' : 'subroutine';
+    # At this point, commons should have been removed.
+#    if ($f eq 'redist') {
+#    say show_annlines($rlines,1);
+#    die;
+#    }
+
+    my $sub_or_prog = ( exists $Sf->{'Program'} and $Sf->{'Program'} == 1) ? 'program' : 
+    (exists $Sf->{'Function'} and $Sf->{'Function'} == 1 ) ? 'function' : 'subroutine';
     say 'fix end '.$f if $V;
     my $done_fix_end=0;
     while (!$done_fix_end and @{$rlines}) {
@@ -212,7 +217,7 @@ sub _refactor_globals {
     my $is_C_target = exists $stref->{'BuildSources'}{'C'}{$s} ? 1 : 0;
     my $idx         = 0;
     
-# here convect is OK
+
     for my $annline ( @{$annlines} ) {
         my $line      = $annline->[0] || '';
         my $info = $annline->[1];
@@ -234,22 +239,26 @@ sub _refactor_globals {
         # There should be no need to do this: all /common/ blocks should have been removed anyway!
         if ( exists $tags{'Include'} ) {
             $skip = skip_common_include_statement( $stref, $f, $annline );
+#            say "SKIP: $skip";
         }
-
-        if ( exists $tags{'ExGlobVarDecls'} and not exists $tags{'Deleted'} and not exists $tags{'Comments'}
-            and  ($tags{'ExGlobVarDecls'} == $Sf->{'ExGlobVarDeclHook'} )
-#            and $tags{'ExGlobVarDecls'}>0 # just trying really ...
-        ) {                    	
+if ( exists $tags{'ExGlobVarDeclHook'} ) {
+#        if ( exists $tags{'ExGlobVarDecls'} and not exists $tags{'Deleted'} and not exists $tags{'Comments'} ) {
+#            if (
+#             $tags{'ExGlobVarDecls'} == $Sf->{'ExGlobVarDeclHook'} 
+##            and $tags{'ExGlobVarDecls'}>0 # just trying really ...
+#        ) {                    	
             # First, abuse ExGlobVarDecls as a hook for the addional includes, if any
-#die Dumper($rlines) if $f eq 'hanna';
+
             $rlines =
               create_new_include_statements( $stref, $f, $annline, $rlines );
               
-#              push @{$rlines}, $annline;
            # Then generate declarations for ex-globals
            say "EX-GLOBS for $f" if $V;
             $rlines = create_exglob_var_declarations( $stref, $f, $annline, $rlines );
-#            $skip = 1;
+
+#        } else {
+#            say "EX-GLOB HOOK MISMATCH:".$tags{'ExGlobVarDecls'}.'<>'.$Sf->{'ExGlobVarDeclHook'}; 
+#        }
         }
    # This is what breaks flexpart, but it's OK for les ...
         if ( exists $tags{'VarDecl'} and not exists $tags{'Deleted'} and (not exists $tags{Ref} or $tags{Ref}==0)) {
@@ -269,6 +278,7 @@ sub _refactor_globals {
               rename_conflicting_locals( $stref, $f, $annline, $rlines );
             $skip = 1;
         }
+#        say "SKIP ULT: $skip";
         push @{$rlines}, $annline unless $skip;
         $idx++;
     } # loop over all lines
@@ -346,7 +356,7 @@ sub _refactor_calls_globals {
 }    # END of _refactor_calls_globals()
 
 # --------------------------------------------------------------------------------
-# This routine renames instances of locals that conflict with globals (using names from create_refactored_vardecls() )
+# This routine renames instances of locals that conflict with globals (using names from ConflictingGlobals )
 sub rename_conflicting_locals {
     ( my $stref, my $f, my $annline, my $rlines ) = @_;
     my $line               = $annline->[0] || '';
@@ -358,9 +368,9 @@ sub rename_conflicting_locals {
         for my $lvar ( keys %{ $Sf->{'ConflictingGlobals'} } ) {
             if ( $rline =~ /\b$lvar\b/ ) {
                 warn
-    "WARNING: CONFLICT in $f, renaming $lvar with $Sf->{'ConflictingGlobals'}{$lvar}\n"
+    "WARNING: CONFLICT in $f, renaming $lvar with $Sf->{'ConflictingGlobals'}{$lvar}[0]\n"
                   if $W;
-                $rline =~ s/\b$lvar\b/$Sf->{'ConflictingGlobals'}{$lvar}/g;
+                $rline =~ s/\b$lvar\b/$Sf->{'ConflictingGlobals'}{$lvar}[0]/g;
                 $changed=1;
             }
         }

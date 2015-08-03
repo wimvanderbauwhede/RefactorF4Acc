@@ -54,7 +54,8 @@ sub refactor_all {
     
     print "DONE determine_argument_io_direction_rec()\n" if $V;
     # So at this point we know everything there is to know about the argument declarations, we can now update them
-    find_and_add_missing_var_decls($stref);
+
+    find_and_add_missing_var_decls($stref);    
 
     $stref=add_module_decls($stref);
     return $stref;	

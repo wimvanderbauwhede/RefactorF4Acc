@@ -1026,9 +1026,11 @@ sub _procLine {
         {
             my $keyword = lc($1);
             my $name    = lc($2);
+#            die "$keyword $name" if $line=~/real\s+function/i;
             die "_procLine(): No $keyword name " if $name eq '';
             my $spaces = ' ' x 6;
-            if ( $keyword eq 'function' ) {
+             
+            if ( $keyword eq 'function') {
                 $info->{'FunctionSig'} = [ $spaces, $name, [] ];
             } elsif ( $keyword eq 'module' ) {
                 $info->{'Module'} = $name;

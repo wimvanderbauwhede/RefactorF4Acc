@@ -31,7 +31,7 @@ use Exporter;
 # ----------------------------------------------------------------------------------------------------
 # Calls to subroutines with refactored globals must be refactored to contain the globals as arguments. 
 # Similar to refactor_subroutine_signature()
-# The heavy lifting is done by determine_exglob_subroutine_call_args()
+# The heavy lifting is done by _determine_exglob_subroutine_call_args()
 # Then we merge the original args, renamed for local/global clashes, with the globals
 
 sub create_refactored_subroutine_call {
@@ -47,11 +47,11 @@ sub create_refactored_subroutine_call {
     if ( exists $Sf->{'ConflictingGlobals'} ) {
         $conflicting_locals = $Sf->{'ConflictingGlobals'};
     }
-    my $globals = determine_exglob_subroutine_call_args( $stref, $f, $name );
+    my $globals = _determine_exglob_subroutine_call_args( $stref, $f, $name );
     my $orig_args = [];
     for my $arg ( @{ $tags{'SubroutineCall'}{'Args'}{'List'} } ) {
         if ( exists $conflicting_locals->{$arg} ) {
-            push @{$orig_args}, $conflicting_locals->{$arg};
+            push @{$orig_args}, $conflicting_locals->{$arg}[0];
         } else {
             push @{$orig_args}, $arg;
         }
@@ -68,7 +68,7 @@ sub create_refactored_subroutine_call {
 # ----------------------------------------------------------------------------------------------------
 
 # ----------------------------------------------------------------------------------------------------
-sub determine_exglob_subroutine_call_args {
+sub _determine_exglob_subroutine_call_args {
     ( my $stref, my $f, my $name ) = @_;
     my $Sf                 = $stref->{'Subroutines'}{$f};
     my $Sname              = $stref->{'Subroutines'}{$name};
@@ -95,7 +95,7 @@ sub determine_exglob_subroutine_call_args {
                         print
 "WARNING: CONFLICT in call to $name in $f:renaming $var with ${var}_GLOB!\n"
                           if $W;
-                        push @globals, $conflicting_exglobs_params{$var};
+                        push @globals, $conflicting_exglobs_params{$var}[0];
                     } else {
                         push @globals, $var;
                     }
@@ -106,7 +106,7 @@ sub determine_exglob_subroutine_call_args {
         }
     }
     return \@globals;
-}    # END of determine_exglob_subroutine_call_args
+}    # END of _determine_exglob_subroutine_call_args
 
 # ----------------------------------------------------------------------------------------------------
 sub refactor_subroutine_call_args {
@@ -160,7 +160,7 @@ sub refactor_subroutine_call_args {
     my $orig_args = [];
     for my $arg ( @{ $tags->{'SubroutineCall'}{'Args'}{'List'} } ) {
         if ( exists $conflicting_locals{$arg} ) {
-            push @{$orig_args}, $conflicting_locals{$arg};
+            push @{$orig_args}, $conflicting_locals{$arg}[0];
         } else {
             push @{$orig_args}, $arg;
         }

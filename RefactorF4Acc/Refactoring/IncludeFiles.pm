@@ -95,7 +95,7 @@ sub _refactor_include_file {
 					{$var} )
 				{
 					my $gvar =
-					  $stref->{'IncludeFiles'}{$f}{'ConflictingGlobals'}{$var};
+					  $stref->{'IncludeFiles'}{$f}{'ConflictingGlobals'}{$var}[0];
 					print
 "WARNING: CONFLICT in var decls in $f: renaming $var to $gvar\n"
 					  if $W;
@@ -115,7 +115,7 @@ sub _refactor_include_file {
                 if ( exists $stref->{'IncludeFiles'}{$f}{'ConflictingGlobals'}
                     {$var} )
                 {
-                	my $gvar=$stref->{'IncludeFiles'}{$f}{'ConflictingGlobals'}{$var};
+                	my $gvar=$stref->{'IncludeFiles'}{$f}{'ConflictingGlobals'}{$var}[0];
                 	$line=~s/\b$var\b/$gvar/;
                 	$info->{'Ref'}++;
                     $info->{'ParamDecl'}=[$gvar];    

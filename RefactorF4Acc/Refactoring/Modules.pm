@@ -52,7 +52,7 @@ sub add_module_decls {
 	            } else {
 	                die "PROBLEM: NO $called_sub in $src";
 	            }
-	                    
+                next if $cs_src eq $src; # FIXME: ad-hoc!
 	            $stref->{'UsedModules'}{$src}{$cs_src}=1;
 	        }
 	    }
@@ -81,8 +81,9 @@ sub add_module_decls {
                 $used_mod_name =~s/\.\///;
                 $used_mod_name =~s/\..*$//;
                 $used_mod_name=~s/\./_/g;
+                next if $used_mod_name eq $mod_name; # FIXME: ad-hoc!
                 $used_mod_name="module_$used_mod_name";
-                my $use_mod_line ="      use $used_mod_name"; $use_mod_line.= " ! add_module_decls() line 214" if $V;
+                my $use_mod_line ="      use $used_mod_name"; $use_mod_line.= " ! add_module_decls() line 85" ;#if $V;
                 push @mod_uses, [$use_mod_line,{'Ref'=>1}];
             }
             

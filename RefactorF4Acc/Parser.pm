@@ -41,7 +41,7 @@ sub parse_fortran_src {
     ( my $f, my $stref ) = @_
       ;  # NOTE $f is not the name of the source but of the sub/func/incl/module
 
-    #    local $V=1;
+#    local $V=1;
     print "parse_fortran_src(): PARSING $f\n " if $V;
 
 ## 1. Read the source and do some minimal processsing, unless it's already been done (i.e. for extracted blocks)
@@ -96,14 +96,13 @@ sub parse_fortran_src {
             $stref = _get_commons_params_from_includes( $f, $stref );
             $stref->{'IncludeFiles'}{$f}{'Status'} = $PARSED;
         }
-        
 # 7. Split variable declarations with multiple vars into single-var lines
-                    $stref = _split_multivar_decls( $f, $stref );
-
+            $stref = _split_multivar_decls( $f, $stref );
+            $stref = _split_multipar_decls_and_set_type( $f, $stref );
     } else {
         print "INFO: $f is EXTERNAL\n" if $I;
     }
-    
+#    die 'HERE' if $f eq 'f_esl';
 #    
     
     print
@@ -267,16 +266,16 @@ sub _analyse_lines {
 
             # Actual variable declaration line (F77)
             # In principle every type can be followed by '*<number>' or *(*)
-            # So we have
-            elsif ( $line =~
+            # F77 VarDecl
+            elsif ( ($line =~
 /\b(logical|integer|real|double\s*precision|character)\s+([^\*]?.*)\s*$/
                 or $line =~
-/\b((?:logical|integer|real|double\s*precision|character)\s*\*(?:\d+|\(\*\)))\s+(.+)\s*$/
+/\b((?:logical|integer|real|double\s*precision|character)\s*\*(?:\d+|\(\*\)))\s+(.+)\s*$/) and $line!~/^\s+\w+\s+function\s+/
               )
             {
                 $type   = $1;
                 $varlst = $2;
-
+die $line if $line =~/real\s+function/i;
 # Now an ad hoc fix for spaces between the type and the asterisk. FIXME! I should just write a better FSM!
                 if ( $line =~ /\w+\s+(\*\s*(\d+|\(\s*\*\s*\)))/ )
                 { # FIXME: I assume after the asterisk there MUST be an integer constant
@@ -294,8 +293,8 @@ sub _analyse_lines {
                 $indent =~ s/\S.*$//;
                 $is_vardecl = 1; # Actual parsing happens later on
             } elsif ( $line =~ /^\s*(.*)\s*::\s*(.*?)\s*$/ ) {
-
-                #F95 declaration, no need for refactoring
+                # F95 VarDecl
+                # F95 declaration, no need for refactoring
                 $type   = $1;
                 $varlst = $2;
                 $indent = $line;
@@ -1118,7 +1117,9 @@ sub _get_commons_params_from_includes {
                 my $commonlst         = $2;
                 $has_commons = 1;
                 my $parsedvars = _parse_F77_vardecl( $commonlst, 0 );
+#                die Dumper(%vars) if $f eq 'includeinterpol';
                 for my $var ( keys %{$parsedvars} ) {
+                    
                     if ( not defined $vars{$var} ) {
                         if (
                             exists $stref->{'Implicits'}{$f}
@@ -1149,12 +1150,15 @@ sub _get_commons_params_from_includes {
                               if $W;
                         }
                     } else {
+                        
                         print $var, "\t", $vars{$var}{'Type'}, "\n"
                           if $V;
-                        if ( exists $parsedvars->{$var}{Shape} ) {
+                        if ( exists $parsedvars->{$var}{Shape} and scalar @{$parsedvars->{$var}{Shape}}>0 ) {
+                            
                             $vars{$var}{Shape} = $parsedvars->{$var}{Shape};
                             $vars{$var}{Kind}  = 'Array';
                         }
+#                        die Dumper($vars{$var})."\n".Dumper($parsedvars->{$var}{Shape}) if $f eq 'includeinterpol' and $var eq 'uprof';
                         $stref->{'IncludeFiles'}{$f}{'Commons'}{$var} =
                           $vars{$var};
                     }
@@ -1298,6 +1302,7 @@ sub _get_commons_params_from_includes {
                   if $W;
             }
         }
+#        die Dumper(keys %{$Sf} ) if $f eq 'includecom';
     }
     return $stref;
 }    # END of get_commons_params_from_includes()
@@ -1825,7 +1830,7 @@ sub __construct_new_subroutine_signatures {
         for my $argv ( @{ $args{$block} } ) {
             my $decl = $Sf->{'Vars'}{$argv}{'Decl'};
             unshift @{ $Sblock->{'AnnLines'} },
-              [ emit_f95_var_decl($decl).' ! __construct_new_subroutine_signatures', { 'VarDecl' => $decl } ];
+              [ emit_f95_var_decl($decl), { 'VarDecl' => $decl } ];
         }
         unshift @{ $Sblock->{'AnnLines'} }, $sigline;
 
@@ -1882,9 +1887,15 @@ sub __reparse_extracted_subroutines { (my $stref, my $blocksref) = @_;
     } 
     return $stref;
 }
+
 sub _split_multivar_decls { (my $f, my $stref) = @_;
         
     my $sub_func_incl_or_mod = sub_func_incl_mod( $f, $stref );
+#         if ($f eq 'includeinterpol') {
+#         say Dumper($stref->{$sub_func_incl_or_mod}{$f});
+#         die;
+#     }
+    
     my $Sf = $stref->{$sub_func_incl_or_mod}{$f};    
     my $annlines = $Sf->{'AnnLines'};
     my $nextLineID = scalar @{$annlines}+1;
@@ -1955,16 +1966,109 @@ sub _split_multivar_decls { (my $f, my $stref) = @_;
                 }                
 #                say "\t$rline";
                 push @{$new_annlines}, [$rline, \%rinfo];
-            }
-        } else {
+            }        
+        } else {            
             push @{$new_annlines}, $annline;
         }
     }
     $Sf->{'AnnLines'}=$new_annlines;
-#     if ($f eq 'interpol_all') {
+#     if ($f eq 'includeinterpol') {
 #         say Dumper($stref->{$sub_func_incl_or_mod}{$f});
 #         die;
 #     }
     return $stref;
-}
+} # END of _split_multivar_decls
+
+sub _split_multipar_decls_and_set_type { (my $f, my $stref) = @_;
+        
+    my $sub_func_incl_or_mod = sub_func_incl_mod( $f, $stref );
+    
+    my $Sf = $stref->{$sub_func_incl_or_mod}{$f};    
+    my $annlines = $Sf->{'AnnLines'};
+    my $nextLineID = scalar @{$annlines}+1;
+    my $new_annlines=[];
+    for my $annline (@{$annlines}) {
+        (my $line, my $info)=@{$annline};
+    if (exists $info->{'ParamDecl'}  ) {
+#            die $line. "\n".Dumper($info->{'ParamDecl'})."\n".Dumper($Sf->{'Parameters'}{'Set'}{maxpart});
+#['      ',['integer','',[],'parameter'],[['pi','3.14159265'],['r_earth','6.371e6'],['r_air','287.05'],['ga','9.81']],0]
+#{'Type' => 'integer',
+#    'Val' => '1000000',
+#    'Var' => {
+#        'Decl' => ['      ',['integer'],['maxpart'],0],
+#        'Shape' => [],
+#        'Type' => 'integer',
+#        'Attr' => '',
+#        'Indent' => '      ',
+#        'Kind' => 'Scalar'}
+#        } 
+#            say 'LINE: '.$line;
+        if (scalar @{$info->{'ParamDecl'}[2]}==1) {
+#            say 'LINE1: '.$line;
+            my $var = $info->{'ParamDecl'}[2][0][0];
+            if ($info->{'ParamDecl'}[1][0] eq 'Unknown') {
+                my $type = $Sf->{'Parameters'}{'Set'}{$var}{'Var'}{'Decl'}[1][0];
+                $info->{'ParamDecl'}[1][0] = $type;
+                $Sf->{'Parameters'}{'Set'}{$var}{'Type'} = $type;
+            }
+            push @{$new_annlines}, [$line, $info];
+        } elsif (   scalar @{$info->{'ParamDecl'}[2]}>1 ) {
+            my @nvars = @{$info->{'ParamDecl'}[2]};
+            for my $var_val (@{$info->{'ParamDecl'}[2]}) {
+                my $var = $var_val->[0];
+                my $val = $var_val->[1];
+#                say "\nORIG LINE: $line";
+#                say "$f: PAR: $var: ".Dumper($info->{'ParamDecl'})."\n".Dumper($Sf->{'Parameters'}{'Set'}{$var});
+                my %rinfo = %{$info};
+                $rinfo{'LineID'} =$nextLineID++;
+                $rinfo{'ParamDecl'}=[];
+                $rinfo{'ParamDecl'}[0]=$info->{'ParamDecl'}[0];
+                $rinfo{'ParamDecl'}[1]=[];
+                if (ref($Sf->{'Parameters'}{'Set'}{$var}{'Var'}) ne 'HASH') {
+                    $rinfo{'ParamDecl'}[1][0]=$info->{'ParamDecl'}[1][0];
+                     
+                    $rinfo{'ParamDecl'}[1][1]='';
+                    $rinfo{'ParamDecl'}[1][2]= [];                    
+                } else {
+                $rinfo{'ParamDecl'}[1][0]=$Sf->{'Parameters'}{'Set'}{$var}{'Var'}{'Decl'}[1][0]; # Type
+                $rinfo{'ParamDecl'}[1][1]=$Sf->{'Parameters'}{'Set'}{$var}{'Var'}{'Attr'}; # Attr
+                $rinfo{'ParamDecl'}[1][2]= [@{$Sf->{'Parameters'}{'Set'}{$var}{'Var'}{'Shape'}}]; # Copy of Shape to Dim
+                }
+                $rinfo{'ParamDecl'}[1][3]= 'parameter';
+                $rinfo{'ParamDecl'}[2]=[[$var,$val]];
+                $rinfo{'ParamDecl'}[3]=0;
+                
+                my $rline=$line;
+                
+                for my $nvar_vals (@nvars) {
+                    my $nvar = $nvar_vals->[0];
+                     if ($nvar ne $var) {
+                         my $nval = $Sf->{'Parameters'}{'Set'}{$nvar}{'Val'};
+#                    say "NPAR: $nvar = $nval";
+# TODO: WEAK we only support scalars parnam=parval
+                    if ($rline=~/\s*,\s*$nvar\s*=\s*$nval\W?/) {
+                        $rline=~s/\s*,\s*$nvar\s*=\s*$nval(\W?)/$1/;
+                    } elsif ($rline=~/(\W)$nvar\s*=\s*$nval\s*,\s*/) {
+                        $rline=~s/(\W)$nvar\s*=\s*$nval\s*,\s*/$1/;
+                    }                     
+                     }
+                }                
+#                say "\t$rline";
+#                say Dumper($rinfo{ParamDecl});
+#                die if $f eq 'f_esl';
+                push @{$new_annlines}, [$rline, \%rinfo];        
+            }    
+            }
+        } else {            
+            push @{$new_annlines}, $annline;
+        }
+    }
+    $Sf->{'AnnLines'}=$new_annlines;
+#     if ($f eq 'includepar') {
+#         say show_annlines($stref->{$sub_func_incl_or_mod}{$f}{AnnLines});
+#         die;
+#     }
+    return $stref;
+} # END of _split_multipar_decls_and_set_type
 1;
+

@@ -78,17 +78,17 @@ sub resolve_globals {
         print "SUB $f is LEAF\n" if $V;
         $stref = _identify_globals_used_in_subroutine( $f, $stref );
     }
-#    warn '=' x 80, "\nEXIT resolve_globals( $f )\n" ;
-#croak Dumper($stref->{'Subroutines'}{'getfields'}{'Globals'}) if $f eq 'getfields';
-    # We only come here when the recursion and merge is done.
+
+    # We only come here when the recursion and merge is done.   
     $stref = _resolve_conflicts_with_params( $f, $stref );
-#    if ($f=~/LES/) {die Dumper($stref->{'Subroutines'}{$f}{'Globals'});}
+
     }
     return $stref;
 }    # END of resolve_globals()
 
 # ----------------------------------------------------------------------------------------------------
-
+# I create a table ConflictingGlobals in $f, $inc and $commoninc
+# I think the right approach is to rename the common vars, not the parameters.
 sub _resolve_conflicts_with_params {
     ( my $f, my $stref ) = @_;
     my $Sf = $stref->{'Subroutines'}{$f};
@@ -104,11 +104,12 @@ sub _resolve_conflicts_with_params {
                         print
 "WARNING: $mpar from $inc conflicts with $mpar from $commoninc\n"
                           if $V;
-                        $Sf->{'ConflictingGlobals'}{$mpar} = $mpar . '_GLOB_'.$inc;                         
+                          # So we store the new name, the Common include and the Parameter include in that order
+                        $Sf->{'ConflictingGlobals'}{$mpar} = [$mpar . '_GLOB_'.$commoninc,$commoninc,$inc];# In fact, just $commoninc is enough                         
                         $stref->{'IncludeFiles'}{$commoninc}
-                          {'ConflictingGlobals'}{$mpar} = $mpar . '_GLOB_'.$inc;
+                          {'ConflictingGlobals'}{$mpar} = [$mpar . '_GLOB_'.$inc,$commoninc,$inc];
                         $stref->{'IncludeFiles'}{$inc}{'ConflictingGlobals'}
-                          {$mpar} = $mpar . '_GLOB_'.$inc;
+                          {$mpar} =[ $mpar . '_GLOB_'.$inc,$commoninc,$inc];
 #                          print "CONFLICTING GLOBAL PARAMETER: $mpar in $f and $inc\n";
                     }
                 }
@@ -220,8 +221,11 @@ sub __determine_subroutine_arguments {
             }
 
             # Determine the subroutine arguments
-            if ( $line =~ /^\s+subroutine\s+(\w+)\s*\((.*)\)/
+            if ( $line =~ /^\s+subroutine\s+(\w+)\s*\((.*)\)/            
             or  $line =~ /^\s+recursive\s+subroutine\s+(\w+)\s*\((.*)\)/
+            or  $line =~ /^\s+function\s+(\w+)\s*\((.*)\)/
+            or  $line =~ /^\s+\w+\s+function\s+(\w+)\s*\((.*)\)/
+            
             ) {
                 my $name   = $1;                
                 my $argstr = $2;
