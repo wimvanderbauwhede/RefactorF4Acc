@@ -300,7 +300,7 @@ sub emit_all {
 			close $TGT;
         }
 	} # loop over all source files
-
+    
     for my $f ( keys %{ $stref->{'IncludeFiles'} } ) {
         if ($I) {
         print "=" x 80,"\n";
@@ -309,9 +309,14 @@ sub emit_all {
         }
         _emit_refactored_include( $f, $targetdir, $stref );
     }
+    if ($DUMMY) {
+        say '=' x 80;
+        say 'DUMMY GENERATION DONE';
+        say '=' x 80;
+    }
     # NOOP source
     # Note that we always use the C source
-    if ($noop) {
+    if ($noop and not $DUMMY) {
         _gen_noop($targetdir);        
     }
 

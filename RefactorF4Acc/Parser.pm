@@ -807,7 +807,7 @@ sub _separate_blocks {
 
     # Occurence
     my $occsref = {};
-
+    my $itersref = {};
     # A map of every block in the parent
     my $blocksref = { 'OUTER' => { 'AnnLines' => [] } };
 
@@ -830,12 +830,12 @@ sub _separate_blocks {
 # Find all vars used in each block, starting with the outer block
 # It is best to loop over all vars per line per block, because we can remove the encountered vars
 
-    $occsref = __find_vars_in_block( $blocksref, $varsref, $occsref );
+    ($occsref, $itersref) = @{ __find_vars_in_block( $blocksref, $varsref, $occsref ) };
 
     # 4. Construct the subroutine signatures
 
     $stref =
-      __construct_new_subroutine_signatures( $stref, $blocksref, $occsref,
+      __construct_new_subroutine_signatures( $stref, $blocksref, $occsref, $itersref,
         $varsref, $f );
         
         $stref = __reparse_extracted_subroutines($stref, $blocksref);
@@ -1742,30 +1742,40 @@ sub __create_new_subroutine_entries {
 
 sub __find_vars_in_block {
     ( my $blocksref, my $varsref, my $occsref ) = @_;
+    my $itersref={};
     for my $block ( keys %{$blocksref} ) {
-
+        $itersref->{$block}=[];
         my @annlines = @{ $blocksref->{$block}{'AnnLines'} };
         my %tvars = %{$varsref};    # Hurray for pass-by-value!
-
+        
         print "\nVARS in $block:\n\n" if $V;
         for my $annline (@annlines) {
-            my $tline = $annline->[0];
+            (my $tline, my $info) = @{$annline};
+            if (exists $info->{'Do'}) {
+                my $iter = $info->{'Do'}{'Iterator'};
+                push @{$itersref->{$block}},$iter;
+                delete $tvars{$iter};
+             # Bit of a hack: I simply join the range expressions
+                $tline =join(',',@{$info->{'Do'}{'Range'}});
+            } else {
             $tline =~ s/\'.+?\'//;    # FIXME: looks like a HACK!
+            }
             for my $var ( sort keys %tvars ) {
                 if ( $tline =~ /\b$var\b/ ) {
-                    print "FOUND $var\n" if $V;
+                    print "FOUND $var\n" if $V;                    
                     $occsref->{$block}{$var} = $var;
                     delete $tvars{$var};
                 }
             }
+            
         }
     }
-    return $occsref;
+    return [$occsref, $itersref];
 }    # END of __find_vars_in_block()
 
 # TODO: see if this can be separated into shorter subs
 sub __construct_new_subroutine_signatures {
-    ( my $stref, my $blocksref, my $occsref, my $varsref, my $f ) = @_;
+    ( my $stref, my $blocksref, my $occsref, my $itersref, my $varsref, my $f ) = @_;
 #    local $V = 1;
     my $sub_or_func_or_mod = sub_func_incl_mod( $f, $stref )
       ;    # This is not a misnomer as it can also be a module.
@@ -1783,37 +1793,24 @@ sub __construct_new_subroutine_signatures {
         for my $var ( sort keys %{ $occsref->{$block} } ) {
             if ( exists $occsref->{'OUTER'}{$var} ) {
                 print "$var\n" if $V;
+                
                 push @{ $args{$block} }, $var;
-            }
+            } 
             $Sblock->{'Vars'}{$var} = $varsref->{$var
               }; # FIXME: this is "inheritance, but in principle a re-parse is better?"
         }
         $Sblock->{'Args'}{'List'} = $args{$block} ;
 
         # Create Signature and corresponding Decls
-        # WV20150304 TODO we should create a datastructure instead!
-                            
-#                      'SubroutineSig' => ['      ', 'velnw',[] ]
         my $sixspaces = ' ' x 6;
         my $sig       = $sixspaces . 'subroutine ' . $block . '(';
         my $sigrec    = [ $sixspaces, $block, $args{$block} ];
-# Again, it would be much better to create 
+ 
         for my $argv ( @{ $args{$block} } ) {
             $sig .= "$argv,";
-            my $decl = format_f95_var_decl( $Sf, $argv )
-              ;    # No reason to support F77: we always emit F95
-
-            #			  ( $Sf->{'FStyle'} eq 'F77' )
-            #			  ? format_f77_var_decl( $Sf, $argv )
-            #			  : format_f95_var_decl( $Sf, $argv );
-
-#			$Sf->{'Vars'}{$argv}{'Decl'} = $sixspaces . $decl; #WV20150424 This is a bit silly, we should format into strings we emit, not sooner
-#WV20150424 format_F*_var_decl should return [$indent,[$Sv->{'Type'}, $Sv->{'Attr'}, $dim , $intent ],[$nvar]];
-# So we have
+            my $decl = format_f95_var_decl( $Sf, $argv );    
             $decl->[0] .= $sixspaces;
             $Sf->{'Vars'}{$argv}{'Decl'} = $decl;
-
-            #			say "DECL: $decl";die;
         }
         if ( @{ $args{$block} } ) {
             $sig =~ s/\,$/)/s;
@@ -1821,21 +1818,29 @@ sub __construct_new_subroutine_signatures {
             $sig .= ')';
         }
 
-        #		$Sblock->{'Sig'}   = $sig;
-        #		$Sblock->{'Decls'} = $decls;
-
         # Add variable declarations and info to line
         # Here we know the vardecls have been formatted.
-        my $sigline = shift @{ $Sblock->{'AnnLines'} };
+        my $sigline = shift @{ $Sblock->{'AnnLines'} }; # This is the line that says "! *** Original code from $f starts here ***" 
+        
+#        for my $iters ($itersref->{$block}) {
+#            for my $iter (@{ $iters } ) {
+#                 my $decl = _vars_entry_to_vardecl( $Sf->{'Vars'}{$iter} ); 
+#             unshift @{ $Sblock->{'AnnLines'} },
+#              [ emit_f95_var_decl($decl), { 'VarDecl' => $decl } ];
+#            }
+#        }
+#        die "DECL FORMAT IS WRONG";
+        # How come this is all right then? 
         for my $argv ( @{ $args{$block} } ) {
-            my $decl = $Sf->{'Vars'}{$argv}{'Decl'};
+#            die Dumper( $Sf->{'Vars'}{$argv} );
+            my $decl = _vars_entry_to_vardecl( $Sf->{'Vars'}{$argv} ); # $Sf->{'Vars'}{$argv}{'Decl'}            
             unshift @{ $Sblock->{'AnnLines'} },
               [ emit_f95_var_decl($decl), { 'VarDecl' => $decl } ];
         }
         unshift @{ $Sblock->{'AnnLines'} }, $sigline;
 
         # Now also add include statements and the actual sig to the line
-#        my $fal = $Sblock->{'AnnLines'}[0][1];    # remove comment, keep line
+
         $Sblock->{'AnnLines'}[0][1] = {};
         for my $inc ( keys %{ $Sf->{'Includes'} } ) {
             $Sblock->{'Includes'}{$inc} = 1;
@@ -1845,9 +1850,7 @@ sub __construct_new_subroutine_signatures {
 
             $Sblock->{'Includes'}{$inc} = 1;
         }
-        unshift @{ $Sblock->{'AnnLines'} },
-          [ $sig, { 'SubroutineSig' => $sigrec } ]
-          ;                                       # add a line but not a comment
+        unshift @{ $Sblock->{'AnnLines'} },[ $sig, { 'SubroutineSig' => $sigrec } ]; 
          # And finally, in the original source, replace the blocks by calls to the new subs
 
         #        print "\n-----\n".Dumper($srcref)."\n-----";
@@ -2070,5 +2073,41 @@ sub _split_multipar_decls_and_set_type { (my $f, my $stref) = @_;
 #     }
     return $stref;
 } # END of _split_multipar_decls_and_set_type
+
+
+
+sub _vars_entry_to_vardecl {
+    (my $vars_entry) =@_;
+    if ($vars_entry->{'Decl'}[-1] == 1) { return $vars_entry->{'Decl'} } else { 
+#{
+#  'Decl' => [
+#              $indent,
+#              [
+#                $type
+#              ],
+#              [
+#                $var
+#              ],
+#              0
+#            ],
+#  'Shape' => [
+#               $start,
+#               $end
+#             ],
+#  'Type' => $type,
+#  'Attr' => $attr,
+#  'Indent' => $indent,
+#  'Kind' => 'Array'|'Scalar'
+#}    
+    my $indent = $vars_entry->{'Indent'};
+    my $type = $vars_entry->{'Type'};
+    my $attr = $vars_entry->{'Attr'};
+    my $shape = $vars_entry->{'Shape'};
+#    (my $start, my $end) = @{ $shape };
+    
+    my $var = $vars_entry->{'Decl'}[2][0];
+    return [ $indent,[$type, $attr, $shape , [] ],[$var],0];
+    }
+}
 1;
 

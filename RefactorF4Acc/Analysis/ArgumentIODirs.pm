@@ -421,14 +421,13 @@ sub _analyse_src_for_iodirs {
             if (   $line =~ /^\s+(?:read)\s*\(\s*(.+)$/
                 or $line =~ /^\d+\s+(?:read)\s*\(\s*(.+)$/ )
             {
-                my $str = $1;
-                print
-"WARNING: IGNORING read call <$line> in $f, _analyse_src_for_iodirs() 369\n"
-                  if $W;
-                $args =
-                  _find_vars_w_iodir( $str, $args, \&_set_iodir_read_write );
-
-                #                die Dumper($args) if $f eq 'feedbfm';
+                my $read_str = $1;
+                (my $fh,my @rest) = split(/,/,$read_str); 
+                print "WARNING: IGNORING read call <$line> in $f, _analyse_src_for_iodirs() 369\n" if $W;
+                $args = _find_vars_w_iodir( $fh, $args, \&_set_iodir_read );
+                for my $str (@rest) {
+                $args = _find_vars_w_iodir( $str, $args, \&_set_iodir_read_write );
+                }
                 next;
             }
 # Subroutine call

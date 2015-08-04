@@ -32,7 +32,9 @@ use Exporter;
   &format_f77_var_decl
   &emit_f95_var_decl
   &splice_additional_lines
-  splice_additional_lines_cond
+  &splice_additional_lines_cond
+  &stateless_pass
+  &stateful_pass
 );
 
 our %f95ops = (
@@ -1583,3 +1585,39 @@ sub splice_additional_lines_cond {
     return $stref;
 
 }    # END of splice_additional_lines_cond()
+
+
+sub stateless_pass {
+    (my $stref, my $f, my $pass_actions, my $info) = @_;
+    say "STATELESS PASS ".Dumper($info)." for $f" if $V;
+    my $sub_or_func_or_mod = sub_func_incl_mod( $f, $stref );
+    my $Sf                 = $stref->{$sub_or_func_or_mod}{$f};
+    my $annlines           = get_annotated_sourcelines( $stref, $f );
+    my $nextLineID         = scalar @{$annlines} + 1;
+    my $new_annlines=[];
+    for my $annline ( @{$annlines} ) {
+        my $new_annline = $pass_actions->($annline);
+        push @{$new_annlines}, $new_annline;
+    }
+    $Sf->{'RefactoredCode'} = $new_annlines;
+    return $stref;
+} # END of stateless_pass() 
+
+sub stateful_pass {
+    (my $stref, my $f, my $pass_actions, my $state, my $info ) = @_;
+    say "STATEFUL PASS ".Dumper($info)." for $f" if $V;
+    my $sub_or_func_or_mod = sub_func_incl_mod( $f, $stref );
+    my $Sf                 = $stref->{$sub_or_func_or_mod}{$f};
+    my $annlines           = get_annotated_sourcelines( $stref, $f );
+    my $nextLineID         = scalar @{$annlines} + 1;
+    my $new_annlines=[];
+    for my $annline ( @{$annlines} ) {
+        (my $new_annline, $state) = $pass_actions->($annline, $state);
+        push @{$new_annlines}, $new_annline;
+    }
+    $Sf->{'RefactoredCode'} = $new_annlines;
+    
+    return $stref;
+} # END of stateful_pass()
+
+1;

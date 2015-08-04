@@ -171,7 +171,7 @@ sub main {
 #   say map { $_->[0]."\t".join(';',keys $_->[1])."\n"} @{$stref->{'RefactoredSources'}{'./main.f'}};
 #   die;
    
-   $DUMMY=0;
+   $DUMMY=1;
 	if ( not $call_tree_only ) {
 		# Emit the refactored source
 		emit_all($stref);
