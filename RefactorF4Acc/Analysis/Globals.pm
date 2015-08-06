@@ -45,10 +45,11 @@ use Exporter;
 
 sub resolve_globals {
     ( my $f, my $stref ) = @_;
-#    if ($f=~/LES/) {
-#    local $V=1;
-#    }
-#    warn '=' x 80, "\nENTER resolve_globals( $f )\n" ;
+#    say $f;
+    if ($f eq 'particles_main_loop') {
+    local $V=1;
+    }
+    print '=' x 80, "\nENTER resolve_globals( $f )\n" if $V;
     if (exists $stref->{'Subroutines'}{$f} ) {
 #        die Dumper( $stref->{'Subroutines'}{$f}  ) if $f=~/module_press/;
     my $Sf = $stref->{'Subroutines'}{$f};
@@ -139,7 +140,7 @@ sub _resolve_conflicts_with_params {
 sub _identify_globals_used_in_subroutine {
     ( my $f, my $stref ) = @_;
 
-#       local $V=1 if $f eq 'interpol_all';
+       local $V=1 if $f eq 'particles_main_loop';
     my $Sf = $stref->{'Subroutines'}{$f};
 
     # First determine subroutine arguments.

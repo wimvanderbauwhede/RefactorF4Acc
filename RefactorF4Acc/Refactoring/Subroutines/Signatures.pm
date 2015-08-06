@@ -72,22 +72,6 @@ sub refactor_kernel_signatures {
     $Sf->{'HasRefactoredArgs'} = 1;
     # IO direction information
     my @rlines=();# ( [ "!    SUBROUTINE $f IO INFO\n", { 'Comment' => 1, 'Ref'=>1 } ] );
-#    for my $arg ( @{$args_ref} ) {    
-#    	print "ARG: $arg\n";	
-#        if ( exists $Sf->{'RefactoredArgs'}{'Set'}{$arg}{'IODir'} ) {
-#            my $iodir = $Sf->{'RefactoredArgs'}{'Set'}{$arg}{'IODir'};
-#            my $kind  = $Sf->{'RefactoredArgs'}{'Set'}{$arg}{'Kind'};
-#            my $type  = $Sf->{'RefactoredArgs'}{'Set'}{$arg}{'Type'};
-#            my $ntabs = ' ' x 8;
-#            if ( $iodir eq 'In' and $kind eq 'Scalar' ) {
-#                $ntabs = '';
-#            } elsif ( $iodir eq 'Out' ) {
-#                $ntabs = ' ' x 4;
-#            }
-#        } else {
-#            print "WARNING: No IO info for $arg in $f\n" if $W;
-#        }
-#    }
 
     # Now add $rlines to the refactored signature
 	# WV: this just adds the IO info as comments

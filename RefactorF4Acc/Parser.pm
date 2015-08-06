@@ -95,13 +95,18 @@ sub parse_fortran_src {
 ## 6. For includes, parse common blocks and parameters, create $stref->{'Commons'}
             $stref = _get_commons_params_from_includes( $f, $stref );
             $stref->{'IncludeFiles'}{$f}{'Status'} = $PARSED;
+            
         }
+            say 'parse_fortan_source: '. __LINE__.' : '. Dumper($stref->{'Subroutines'}{$f}{Vars}{indzindicator}) if $f eq 'particles_main_loop'; 
+     
+        
 # 7. Split variable declarations with multiple vars into single-var lines
             $stref = _split_multivar_decls( $f, $stref );
             $stref = _split_multipar_decls_and_set_type( $f, $stref );
     } else {
         print "INFO: $f is EXTERNAL\n" if $I;
     }
+     
 #    die 'HERE' if $f eq 'f_esl';
 #    
     
@@ -134,6 +139,7 @@ sub _analyse_lines {
     if ( defined $srcref ) {
         print "\nVAR DECLS in $f:\n" if $V;
         my %vars       = ();
+        $Sf->{'Vars'} = {} unless exists $Sf->{'Vars'};
         my $first      = 1;
         my $is_vardecl = 0;
         my $type       = 'NONE';
@@ -253,7 +259,7 @@ sub _analyse_lines {
             {
                 $info->{'Assignment'} = 1;
 
-#WV20150303: We parse this assignment and return {Lhs => {Varname, Kind, IndexExpr}, Rhs => {Expr, VarList}}
+#WV20150303: We parse this assignment and return {Lhs => {Varname, ArrayOrScalar, IndexExpr}, Rhs => {Expr, VarList}}
                 my $vref = parse_assignment($line);
                 $info->{'Assignment'} = {
                     'Lhs' => $vref->[0],
@@ -275,7 +281,7 @@ sub _analyse_lines {
             {
                 $type   = $1;
                 $varlst = $2;
-die $line if $line =~/real\s+function/i;
+
 # Now an ad hoc fix for spaces between the type and the asterisk. FIXME! I should just write a better FSM!
                 if ( $line =~ /\w+\s+(\*\s*(\d+|\(\s*\*\s*\)))/ )
                 { # FIXME: I assume after the asterisk there MUST be an integer constant
@@ -293,14 +299,13 @@ die $line if $line =~/real\s+function/i;
                 $indent =~ s/\S.*$//;
                 $is_vardecl = 1; # Actual parsing happens later on
             } elsif ( $line =~ /^\s*(.*)\s*::\s*(.*?)\s*$/ ) {
-                # F95 VarDecl
+                # F95 VarDecl                
                 # F95 declaration, no need for refactoring
                 $type   = $1;
                 $varlst = $2;
                 $indent = $line;
                 $indent =~ s/\S.*$//;
                 my $pt = parse_F95_var_decl($line);
-#                say Dumper($pt);
 
              # But this could be a parameter declaration, with an assignment ...
                 if ( $line =~ /,\s*parameter\s*.*?::\s*(\w+\s*=\s*.+?)\s*$/ )
@@ -325,14 +330,14 @@ die $line if $line =~/real\s+function/i;
                     #					my $pars = [];
                     #					my @pvarl = map { s/\s*=.+//; $_ } @partups;
                     #					for my $var (@pvarl) {
-                    #						if ( not defined $vars{$var} ) {
+                    #						if ( not defined $Sf->{'Vars'}{$var} ) {
                     #							print
                     #"INFO: PARAMETER $var not declared in $f (F95-style)\n"
                     #							  if $I;
                     #						} else {
                     #							$Sf->{'Parameters'}{'Set'}{$var} = {
                     #								'Type' => $type,
-                    #								'Var'  => $vars{$var},
+                    #								'Var'  => $Sf->{'Vars'}{$var},
                     #								'Val'  => $pvars{$var}
                     #							};
                     #							push @{$pars}, $var;
@@ -358,29 +363,38 @@ die $line if $line =~/real\s+function/i;
                       ( @{ $Sf->{'Parameters'}{'OrderedList'} }, $var );
 
                 } else {
+                    # F95 VarDecl, continued
+                    if (not exists $info->{'ParsedVarDecl'} and not exists $info->{'VarDecl'} ) { 
                     $info->{'ParsedVarDecl'} = $pt; #WV20150709 currently used by OpenCLTranslation, TODO: use VarDecl
-                    my $tvar = $pt->{'Vars'};
-                    $vars{$tvar}{'Type'}  = $pt->{'TypeTup'}{'Type'};
-                    $vars{$tvar}{'Shape'} = 'Scalar';
+                    for my $tvar (@{ $pt->{'Vars'} } ) {
+                    $Sf->{'Vars'}{$tvar}{'Indent'}=$indent;
+                    $Sf->{'Vars'}{$tvar}{'Type'}  = $pt->{'TypeTup'}{'Type'};
+                    $Sf->{'Vars'}{$tvar}{'ArrayOrScalar'} = 'Scalar';
+                    $Sf->{'Vars'}{$tvar}{'Shape'} = [];
                     if ( exists $pt->{'Attributes'} ) {
                         if ( exists $pt->{'Attributes'}{'Dim'} ) {
                             if ( $pt->{'Attributes'}{'Dim'}[0] ne '0' ) {
-                                $vars{$tvar}{'Shape'} = 'Array';
+#                                die Dumper($pt->{'Attributes'}{'Dim'});
+                                $Sf->{'Vars'}{$tvar}{'Shape'} = $pt->{'Attributes'}{'Dim'};
+                                $Sf->{'Vars'}{$tvar}{'ArrayOrScalar'}='Array';
                             }
                         }
-                    }
-                    if (not exists $pt->{'TypeTup'}{'Kind'} ) { die $line }
-                    $vars{$tvar}{'Kind'} = $pt->{'TypeTup'}{'Kind'};
+                    }                    
+#                    $Sf->{'Vars'}{$tvar}{'ArrayOrScalar'} = $pt->{'TypeTup'}{'ArrayOrScalar'} ;
                     if ( $type =~ /character/ ) {
-                        $vars{$tvar}{'Attr'} = '(len='
-                          . $pt->{TypeTup}{'Kind'} . ')'
-                          ; #WV20150709: maybe better ['len',$pt->{TypeTup}{'Kind'}]
+                        $Sf->{'Vars'}{$tvar}{'Attr'} = '(len='
+                          . $pt->{TypeTup}{'ArrayOrScalar'} . ')'
+                          ; #WV20150709: maybe better ['len',$pt->{TypeTup}{'ArrayOrScalar'}]
                     } else {
-                        $vars{$tvar}{'Attr'} =
+                        $Sf->{'Vars'}{$tvar}{'Attr'} =
                           '(kind=' . $pt->{'TypeTup'}{'Kind'} . ')';
                     }
-                    $vars{$tvar}{'IODir'} = $pt->{'Attributes'}{'Intent'};
-
+                                        
+                    $Sf->{'Vars'}{$tvar}{'IODir'} = $pt->{'Attributes'}{'Intent'};
+                    
+#                    die 'F95 VarDecl: '.Dumper($Sf->{'Vars'}{$tvar}) if $tvar eq 'drydeposit';
+                    }
+                    }
                 }
                 $is_vardecl = 0;
             } elsif ( $line =~ /parameter\s*\(\s*(.*)\s*\)/ )
@@ -404,8 +418,8 @@ die $line if $line =~/real\s+function/i;
                 }
 
                 for my $var (@pvarl) {
-
-                    if ( not defined $vars{$var} ) {
+die if ref($var) eq 'ARRAY';
+                    if ( not defined $Sf->{'Vars'}{$var} ) {
 
                         if ( exists $pvars{$var} ) {
 
@@ -443,7 +457,7 @@ die $line if $line =~/real\s+function/i;
                         $type = 'Unknown';
                         $Sf->{'Parameters'}{'Set'}{$var} = {
                             'Type' => 'Unknown',
-                            'Var'  => $vars{$var},
+                            'Var'  => $Sf->{'Vars'}{$var},
                             'Val'  => $pvars{$var}
                         };
                         push @{$pars}, $var;
@@ -459,31 +473,35 @@ die $line if $line =~/real\s+function/i;
             if ($is_vardecl) {
                 $is_vardecl = 0;
                 my $T        = 0;
+#                $T = 1 if $f eq 'timemanager' and $line=~/drydeposit/;
                 my $pvars    = _parse_F77_vardecl( $varlst, $T );
-                
+#                die Dumper($pvars) if $f eq 'timemanager' and $line=~/drydeposit/;
+
+                # I verified that here the dimensions are correct
                 my @varnames = ();
                 for my $var ( keys %{$pvars} ) {
                     if ( $var eq '' ) { croak "<$line> in $f" }
                     my $tvar = $var;
-                    $vars{$tvar}{'Type'}  = $type;
-                    $vars{$tvar}{'Shape'} = $pvars->{$var}{'Shape'};
-                    $vars{$tvar}{'Kind'}  = $pvars->{$var}{'Kind'};
+                    if (ref($var) eq 'ARRAY') {die '474:'.Dumper($var);}
+                    $Sf->{'Vars'}{$tvar}{'Type'}  = $type;
+                    $Sf->{'Vars'}{$tvar}{'Shape'} = $pvars->{$var}{'Shape'};
+                    $Sf->{'Vars'}{$tvar}{'ArrayOrScalar'}  = $pvars->{$var}{'ArrayOrScalar'};
                     if ( not exists $pvars->{$var}{'Attr'} ) {
                         if ($attr) {
                             if ( $type =~ /character/ ) {
-                                $vars{$tvar}{'Attr'} = '(len=' . $attr . ')';
+                                $Sf->{'Vars'}{$tvar}{'Attr'} = '(len=' . $attr . ')';
                             } else {
-                                $vars{$tvar}{'Attr'} = '(kind=' . $attr . ')';
+                                $Sf->{'Vars'}{$tvar}{'Attr'} = '(kind=' . $attr . ')';
                             }
                         } else {
-                            $vars{$tvar}{'Attr'} = '';
+                            $Sf->{'Vars'}{$tvar}{'Attr'} = '';
                         }
                     } else {
                         if ( $type =~ /character/ ) {
-                            $vars{$tvar}{'Attr'} =
+                            $Sf->{'Vars'}{$tvar}{'Attr'} =
                               '(len=' . $pvars->{$var}{'Attr'} . ')';
                         } else {
-                            $vars{$tvar}{'Attr'} =
+                            $Sf->{'Vars'}{$tvar}{'Attr'} =
                               '(kind=' . $pvars->{$var}{'Attr'} . ')';
                         }
                     }
@@ -495,11 +513,11 @@ die $line if $line =~/real\s+function/i;
                         if ( $iodir eq 'Inout' ) {
                             $iodir = 'InOut';
                         }
-                        $vars{$tvar}{'IODir'} = $iodir;
+                        $Sf->{'Vars'}{$tvar}{'IODir'} = $iodir;
                     }
 
-                    $vars{$tvar}{'Decl'} = [ $indent, [$type], [$var], 0 ];
-                    $vars{$tvar}{'Indent'} = $indent; #WV20150709 OBSOLETE
+                    $Sf->{'Vars'}{$tvar}{'Decl'} = [ $indent, [$type], [$var], 0 ];
+                    $Sf->{'Vars'}{$tvar}{'Indent'} = $indent; 
 
                     if ( exists $stref->{'Subroutines'}{$tvar} and exists $stref->{'Subroutines'}{$tvar}{'Function'} and $tvar ne $f )
                     {    # FIXME: NO RECURSION!
@@ -526,6 +544,7 @@ die $line if $line =~/real\s+function/i;
 
                 print "\tVARS <$line>:\n ", join( ',', sort @varnames ), "\n"
                   if $V;
+                  # FIXME: this is not OK when we split later on
                 $info->{'VarDecl'} =
                   [ $indent, [], [@varnames], 0 ]
                   ; #WV20150708 We now store 'Decl' here so it us a record [$spaces,[$type, $attr, $dim , $intent ],[@vars],$formatted];
@@ -540,7 +559,7 @@ die $line if $line =~/real\s+function/i;
             $srcref->[$index] = [ $line, $info ];
         }    # Loop over lines
         
-        $Sf->{'Vars'} = \%vars; 
+#        $Sf->{'Vars'} = \  ; 
     } else {
         print "WARNING: NO AnnLines for $f\n";
         die "SOURCE for $f: " . Dumper($Sf);
@@ -548,7 +567,6 @@ die $line if $line =~/real\s+function/i;
     }
 
     #           die "FIXME: shapes not correct!";
-    
     return $stref;
 }    # END of _analyse_lines()
 
@@ -804,6 +822,7 @@ sub _separate_blocks {
 
     # All local variables in the parent subroutine
     my $varsref = $Sf->{'Vars'};
+    
 
     # Occurence
     my $occsref = {};
@@ -839,10 +858,11 @@ sub _separate_blocks {
         $varsref, $f );
         
         $stref = __reparse_extracted_subroutines($stref, $blocksref);
-        
+        my @callinfo = caller(0);
+        my $callinfostr=$callinfo[3];
+        say  $callinfostr .' '. __LINE__ .' : ' .Dumper($stref->{Subroutines}{particles_main_loop}{Vars}{indzindicator});
     
 #	warn "Vars are CORRECT AT END OF separate_blocks( $f ):\n-----\n";
-#	warn Dumper($stref->{'Subroutines'}{'particles_main_loop'}{'Vars'}{'drydeposit'});
 #	warn "-----\n";
 #	croak "BOOM!" if $f eq 'timemanager';
 #die Dumper($stref->{'Subroutines'}{'LES_kernel_wrapper'});
@@ -1098,7 +1118,7 @@ sub _get_commons_params_from_includes {
 
         my %vars = %{ $stref->{'IncludeFiles'}{$f}{'Vars'} };
 
-        if ( exists $vars{''} ) { croak "EMPTY VAR! in $f" }
+        if ( exists $Sf->{'Vars'}{''} ) { croak "EMPTY VAR! in $f" }
         my $has_pars    = 0;
         my $has_commons = 0;
 
@@ -1120,7 +1140,7 @@ sub _get_commons_params_from_includes {
 #                die Dumper(%vars) if $f eq 'includeinterpol';
                 for my $var ( keys %{$parsedvars} ) {
                     
-                    if ( not defined $vars{$var} ) {
+                    if ( not defined $Sf->{'Vars'}{$var} ) {
                         if (
                             exists $stref->{'Implicits'}{$f}
                             { lc( substr( $var, 0, 1 ) ) } )
@@ -1131,7 +1151,7 @@ sub _get_commons_params_from_includes {
                             my $type_kind_shape_attr =
                               $stref->{'Implicits'}{$f}
                               { lc( substr( $var, 0, 1 ) ) };
-                            ( my $type, my $kind, my $shape, my $attr ) =
+                            ( my $type, my $array_or_scalar, my $shape, my $attr ) =
                               @{$type_kind_shape_attr};
                             my $indent      = ' ' x 6;
                             my $var_rec = {
@@ -1140,10 +1160,10 @@ sub _get_commons_params_from_includes {
                                 'Type'   => $type,
                                 'Attr'   => $attr,
                                 'Indent' => '      ', # OBSOLETE
-                                'Kind'   => $parsedvars->{$var}{'Kind'}
+                                'ArrayOrScalar'   => $parsedvars->{$var}{'ArrayOrScalar'}
                             };
                             $Sf->{'Commons'}{$var} = $var_rec;
-                            $vars{$var} = $var_rec;
+                            $Sf->{'Vars'}{$var} = $var_rec;
                         } else {
                             print "WARNING: common <", $var,
                               "> is not in {'IncludeFiles'}{$f}{'Vars'}\n"
@@ -1151,16 +1171,16 @@ sub _get_commons_params_from_includes {
                         }
                     } else {
                         
-                        print $var, "\t", $vars{$var}{'Type'}, "\n"
+                        print $var, "\t", $Sf->{'Vars'}{$var}{'Type'}, "\n"
                           if $V;
                         if ( exists $parsedvars->{$var}{Shape} and scalar @{$parsedvars->{$var}{Shape}}>0 ) {
                             
-                            $vars{$var}{Shape} = $parsedvars->{$var}{Shape};
-                            $vars{$var}{Kind}  = 'Array';
+                            $Sf->{'Vars'}{$var}{Shape} = $parsedvars->{$var}{Shape};
+                            $Sf->{'Vars'}{$var}{ArrayOrScalar}  = 'Array';
                         }
-#                        die Dumper($vars{$var})."\n".Dumper($parsedvars->{$var}{Shape}) if $f eq 'includeinterpol' and $var eq 'uprof';
+#                        die Dumper($Sf->{'Vars'}{$var})."\n".Dumper($parsedvars->{$var}{Shape}) if $f eq 'includeinterpol' and $var eq 'uprof';
                         $stref->{'IncludeFiles'}{$f}{'Commons'}{$var} =
-                          $vars{$var};
+                          $Sf->{'Vars'}{$var};
                     }
                 }
                 $srcref->[$index][1]{'Common'} =
@@ -1185,7 +1205,7 @@ sub _get_commons_params_from_includes {
 
                 for my $var (@pvarl) {
 
-                    if (    not defined $vars{$var}
+                    if (    not defined $Sf->{'Vars'}{$var}
                         and not exists $Sf->{'Parameters'}{'Set'}{$var} )
                     {
                         print
@@ -1199,7 +1219,7 @@ sub _get_commons_params_from_includes {
                     }
                     $Sf->{'Parameters'}{'Set'}{$var} = {
                         'Type' => $type,
-                        'Var'  => $vars{$var},
+                        'Var'  => $Sf->{'Vars'}{$var},
                         'Val'  => $pvars{$var}
                     };
                     push @pars, $var;
@@ -1223,14 +1243,14 @@ sub _get_commons_params_from_includes {
                 my @pars = ();
 
                 for my $var (@pvarl) {
-                    if ( not defined $vars{$var} ) {
+                    if ( not defined $Sf->{'Vars'}{$var} ) {
                         print
 "WARNING: PARAMETER $var not declared in $f (F95-style)\n"
                           if $W;
                     } else {
                         $Sf->{'Parameters'}{'Set'}{$var} = {
                             'Type' => $type,
-                            'Var'  => $vars{$var},
+                            'Var'  => $Sf->{'Vars'}{$var},
                             'Val'  => $pvars{$var}
                         };
                         push @pars, $var;
@@ -1430,7 +1450,7 @@ sub _parse_F77_vardecl {
         } elsif ( $st == $store_var ) {
             print "VAR:[$var]\n" if $T;
             if ( $var eq '' ) { croak $varlst }
-            $vars->{$var}{'Kind'}  = 'Scalar';
+            $vars->{$var}{'ArrayOrScalar'}  = 'Scalar';
             $vars->{$var}{'Shape'} = [];
             $pvar                  = $var;
             $var                   = '';
@@ -1452,7 +1472,7 @@ sub _parse_F77_vardecl {
                 }
             }
             $vars->{$pvar}{'Shape'} = [@shape];
-            $vars->{$pvar}{'Kind'}  = 'Array';
+            $vars->{$pvar}{'ArrayOrScalar'}  = 'Array';
             $shape                  = '';
         }
         $pc = $c;
@@ -1468,7 +1488,7 @@ sub _parse_F77_vardecl {
 #### Pending actions on end of string
 
     if ( $st == $read_var && $var ne '' ) {
-        $vars->{$var} = { 'Shape' => [], 'Kind' => 'Scalar' };
+        $vars->{$var} = { 'Shape' => [], 'ArrayOrScalar' => 'Scalar' };
     } elsif ( $st == $read_len && $pvar ne '' ) {
         $vars->{$pvar}{'Attr'} = $len;
     } elsif ( $st == $read_shape && $pvar ne '' ) {
@@ -1484,12 +1504,12 @@ sub _parse_F77_vardecl {
             }
         }
         $vars->{$pvar}{'Shape'} = [@shape];
-        $vars->{$pvar}{'Kind'}  = 'Array';
+        $vars->{$pvar}{'ArrayOrScalar'}  = 'Array';
     }
 
     return $vars;
 }    # END of _parse_F77_vardecl()
-
+# -----------------------------------------------------------------------------
 # TODO: check if this works for F95-style parameters too
 sub __split_out_parameters {
     ( my $f, my $stref ) = @_;
@@ -1544,7 +1564,7 @@ sub __split_out_parameters {
     #    die Dumper($stref->{'IncludeFiles'}{"params_$f"});
     return $stref;
 }    # END of __split_out_parameters
-
+# -----------------------------------------------------------------------------
 sub _parse_implicit {
     ( my $line, my $f, my $stref ) = @_;
 
@@ -1560,19 +1580,19 @@ sub _parse_implicit {
 
     # 2. Get the spec and turn into a regexp
     my $type = 'Unknown';
-    my $kind =
-      'Scalar';    # by default. If it is Array, need the size, so need a shapre
-    my $shape = [];
+    my $array_or_scalar =
+      'Scalar';    # by default. If it is Array, need the size, so need a shape
+    
     my $attr  = '';
     my $patt  = '.+';
 
     # IMPLICIT REAL(KIND=8)(d),COMPLEX(8)(z) => this is WEAK!
-    if ( $line =~ /implicit\s+(\w.+)\(.+?\)\((.+?)\)/ ) {
+    if ( $line =~ /implicit\s+(\w.+)\((.+?)\)\((.+?)\)/ ) {
         $type = $1;
-        $kind = $2;
-        $kind =~ s/\s*kind\s*=\s*//i;    # strip "kind="
-        $shape = [ '1', $kind ];         # FIXME only works for 1-D array
-        $kind  = 'Array';
+        $attr = $2;
+#        $array_or_scalar =~ s/\s*kind\s*=\s*//i;    # strip "kind="
+#        $shape = [ '1', $array_or_scalar ];         # FIXME only works for 1-D array
+#        $array_or_scalar  = 'Array';
         $patt  = $3;
         $patt =~ s/,/|/g;
         $patt =~ s/(\w\-\w)/[$1]/g;
@@ -1597,14 +1617,14 @@ sub _parse_implicit {
     }
     for my $c ( 'a' .. 'z' ) {
         if ( $c =~ /($patt)/ ) {
-            $implicit_type_lookup{$c} = [ $type, $kind, $shape, $attr ];
+            $implicit_type_lookup{$c} = [ $type, $array_or_scalar, $attr ];
         }
     }
     $stref->{'Implicits'} = {} unless exists $stref->{'Implicits'};
     $stref->{'Implicits'}{$f} = {%implicit_type_lookup};
     return $stref;
 }    # END of _parse_implicit()
-
+# -----------------------------------------------------------------------------
 sub __separate_into_blocks {
     ( my $stref, my $blocksref, my $f ) = @_;
     my $sub_or_func_or_mod = sub_func_incl_mod( $f, $stref )
@@ -1686,7 +1706,7 @@ sub __separate_into_blocks {
     }    # loop over annlines
     return ( $stref, $blocksref );
 }    # END of __separate_into_blocks()
-
+# -----------------------------------------------------------------------------
 sub __create_new_subroutine_entries {
     ( my $stref, my $blocksref, my $f ) = @_;
 
@@ -1739,7 +1759,7 @@ sub __create_new_subroutine_entries {
     }
     return $stref;
 }    # END of __create_new_subroutine_entries()
-
+# -----------------------------------------------------------------------------
 sub __find_vars_in_block {
     ( my $blocksref, my $varsref, my $occsref ) = @_;
     my $itersref={};
@@ -1750,7 +1770,8 @@ sub __find_vars_in_block {
         
         print "\nVARS in $block:\n\n" if $V;
         for my $annline (@annlines) {
-            (my $tline, my $info) = @{$annline};
+            
+            (my $tline, my $info) = @{$annline};            
             if (exists $info->{'Do'}) {
                 my $iter = $info->{'Do'}{'Iterator'};
                 push @{$itersref->{$block}},$iter;
@@ -1772,7 +1793,7 @@ sub __find_vars_in_block {
     }
     return [$occsref, $itersref];
 }    # END of __find_vars_in_block()
-
+# -----------------------------------------------------------------------------
 # TODO: see if this can be separated into shorter subs
 sub __construct_new_subroutine_signatures {
     ( my $stref, my $blocksref, my $occsref, my $itersref, my $varsref, my $f ) = @_;
@@ -1822,18 +1843,18 @@ sub __construct_new_subroutine_signatures {
         # Here we know the vardecls have been formatted.
         my $sigline = shift @{ $Sblock->{'AnnLines'} }; # This is the line that says "! *** Original code from $f starts here ***" 
         
-#        for my $iters ($itersref->{$block}) {
-#            for my $iter (@{ $iters } ) {
-#                 my $decl = _vars_entry_to_vardecl( $Sf->{'Vars'}{$iter} ); 
-#             unshift @{ $Sblock->{'AnnLines'} },
-#              [ emit_f95_var_decl($decl), { 'VarDecl' => $decl } ];
-#            }
-#        }
-#        die "DECL FORMAT IS WRONG";
-        # How come this is all right then? 
+        for my $iters ($itersref->{$block}) {
+            for my $iter (@{ $iters } ) {
+                 my $decl = format_f95_var_decl( $stref,$f,$iter ); 
+             unshift @{ $Sblock->{'AnnLines'} },
+              [ emit_f95_var_decl($decl), { 'VarDecl' => $decl } ];
+            }
+        }
+
         for my $argv ( @{ $args{$block} } ) {
-#            die Dumper( $Sf->{'Vars'}{$argv} );
-            my $decl = _vars_entry_to_vardecl( $Sf->{'Vars'}{$argv} ); # $Sf->{'Vars'}{$argv}{'Decl'}            
+            my $decl = format_f95_var_decl( $stref,$f,$argv );
+            say '__construct_new_subroutine_signatures: '. __LINE__ . ' : '.Dumper( $Sf->{'Vars'}{$argv} ) if $argv eq 'indzindicator';
+#            my $decl = _vars_entry_to_vardecl( $Sf->{'Vars'}{$argv} ); # $Sf->{'Vars'}{$argv}{'Decl'}            
             unshift @{ $Sblock->{'AnnLines'} },
               [ emit_f95_var_decl($decl), { 'VarDecl' => $decl } ];
         }
@@ -1882,7 +1903,7 @@ sub __construct_new_subroutine_signatures {
     
     return $stref;
 }    # END of __construct_new_subroutine_signatures()
-
+# -----------------------------------------------------------------------------
 sub __reparse_extracted_subroutines { (my $stref, my $blocksref) = @_;
     delete $blocksref->{'OUTER'};
     for my $block (keys %{$blocksref}) {
@@ -1890,7 +1911,7 @@ sub __reparse_extracted_subroutines { (my $stref, my $blocksref) = @_;
     } 
     return $stref;
 }
-
+# -----------------------------------------------------------------------------
 sub _split_multivar_decls { (my $f, my $stref) = @_;
         
     my $sub_func_incl_or_mod = sub_func_incl_mod( $f, $stref );
@@ -1906,8 +1927,8 @@ sub _split_multivar_decls { (my $f, my $stref) = @_;
     for my $annline (@{$annlines}) {
         (my $line, my $info)=@{$annline};
         if (exists $info->{'VarDecl'} and scalar @{$info->{'VarDecl'}[2]}>1) {
-#            say $line;            
-            
+                   
+#            if ($line=~/drydeposit/) { die $line.Dumper($info) }
 #            say scalar @{$info->{'VarDecl'}[2]};
             my @nvars = @{$info->{'VarDecl'}[2]};
             for my $var (@{$info->{'VarDecl'}[2]}) {
@@ -1935,19 +1956,20 @@ sub _split_multivar_decls { (my $f, my $stref) = @_;
 #  'Type' => $type,
 #  'Attr' => $attr,
 #  'Indent' => $indent,
-#  'Kind' => 'Array'|'Scalar'
+#  'ArrayOrScalar' => 'Array'|'Scalar'
 #}
              
                 $rinfo{'VarDecl'}=[];
-                $rinfo{'VarDecl'}[0]=$info->{'VarDecl'}[0];
-                $rinfo{'VarDecl'}[1]=[];
+                $rinfo{'VarDecl'}[0]=$info->{'VarDecl'}[0]; # Indent
+                $rinfo{'VarDecl'}[1]=[]; 
                 $rinfo{'VarDecl'}[1][0]=$Sf->{'Vars'}{$var}{'Decl'}[1][0]; # Type
                 $rinfo{'VarDecl'}[1][1]=$Sf->{'Vars'}{$var}{'Attr'}; # Attr
                 $rinfo{'VarDecl'}[1][2]= [@{$Sf->{'Vars'}{$var}{'Shape'}}]; # Copy of Shape to Dim
                 $rinfo{'VarDecl'}[2]=[$var];
                 $rinfo{'VarDecl'}[3]=0;
                 my $rline=$line;
-                
+                $Sf->{'Vars'}{$var}{'Decl'}[2]=[$var];
+#                die Dumper($rinfo{'VarDecl'}) if $var eq 'drydeposit';
                 for my $nvar (@nvars) {
                      if ($nvar ne $var) {
 #                    say "NVAR: $nvar";
@@ -1967,7 +1989,7 @@ sub _split_multivar_decls { (my $f, my $stref) = @_;
 #                    $rline=~s/,,/,/;
                      }
                 }                
-#                say "\t$rline";
+#                say "\t$rline".Dumper(%rinfo) if $rline=~/drydeposit/;
                 push @{$new_annlines}, [$rline, \%rinfo];
             }        
         } else {            
@@ -1975,13 +1997,10 @@ sub _split_multivar_decls { (my $f, my $stref) = @_;
         }
     }
     $Sf->{'AnnLines'}=$new_annlines;
-#     if ($f eq 'includeinterpol') {
-#         say Dumper($stref->{$sub_func_incl_or_mod}{$f});
-#         die;
-#     }
+    
     return $stref;
 } # END of _split_multivar_decls
-
+# -----------------------------------------------------------------------------
 sub _split_multipar_decls_and_set_type { (my $f, my $stref) = @_;
         
     my $sub_func_incl_or_mod = sub_func_incl_mod( $f, $stref );
@@ -2003,7 +2022,7 @@ sub _split_multipar_decls_and_set_type { (my $f, my $stref) = @_;
 #        'Type' => 'integer',
 #        'Attr' => '',
 #        'Indent' => '      ',
-#        'Kind' => 'Scalar'}
+#        'ArrayOrScalar' => 'Scalar'}
 #        } 
 #            say 'LINE: '.$line;
         if (scalar @{$info->{'ParamDecl'}[2]}==1) {
@@ -2074,7 +2093,27 @@ sub _split_multipar_decls_and_set_type { (my $f, my $stref) = @_;
     return $stref;
 } # END of _split_multipar_decls_and_set_type
 
+# -----------------------------------------------------------------------------
+# So, the problem with VarDecl is that it assumes all vars on a line have the same decl, but this is not true for the shape in F77!
+# A quick fix is to extend the $shape to [$shape]
+# The function below is for use after the var decl lines have been split so it should be fine.
 
+
+#[
+#  '      ',
+#  [
+#    'real',
+#    '',
+#    [
+#      '1',
+#      'maxspec'
+#    ]
+#  ],
+#  [
+#    'drydeposit'
+#  ],
+#  0
+#]
 
 sub _vars_entry_to_vardecl {
     (my $vars_entry) =@_;
@@ -2097,7 +2136,7 @@ sub _vars_entry_to_vardecl {
 #  'Type' => $type,
 #  'Attr' => $attr,
 #  'Indent' => $indent,
-#  'Kind' => 'Array'|'Scalar'
+#  'ArrayOrScalar' => 'Array'|'Scalar'
 #}    
     my $indent = $vars_entry->{'Indent'};
     my $type = $vars_entry->{'Type'};
@@ -2109,5 +2148,6 @@ sub _vars_entry_to_vardecl {
     return [ $indent,[$type, $attr, $shape , [] ],[$var],0];
     }
 }
+# -----------------------------------------------------------------------------
 1;
 

@@ -278,12 +278,15 @@ if (0) {
           # Remove this line, because this param should have been declared above
                         $line = '!! Original line PAR:2 !! ' . $line;
                         $info->{'Deleted'} = 1;
-                    } else {
+                    } else {                        
+                        if (not exists $info->{'Ref'} or $info->{'Ref'} == 0 ){  
                         my $var_decl =
                           format_f95_var_decl( $stref, $f, $vars[0] );
                         $info->{'VarDecl'} = $var_decl;
                         $line = emit_f95_var_decl($var_decl) . ' ! V2';
                         delete $info->{'ExGlobVarDecls'};
+                        $info->{'Ref'} = 1; 
+                        } else {die 'BOOM!' }
                     }
 #                } else {    # more than one variable declared on this line
 #                die 'IMPOSSIBLE!';
@@ -392,7 +395,7 @@ if (0) {
                     }
 } # if 0
 =cut
-                $info->{'Ref'}++;
+#                $info->{'Ref'}++;
 #            } # First decl
         }
 
@@ -892,42 +895,57 @@ sub format_f95_var_decl {
     my $f;
     my $Sf;
     my $var;
+    my $vardecl;
+    my $var_or_vardecl;
     if ( scalar(@_) == 3 ) {
-        ( $stref, $f, $var ) = @_;
+        # Sub is called with  $stref, $f, $var_or_vardecl 
+        ( $stref, $f, $var_or_vardecl ) = @_;
         my $code_unit = sub_func_incl_mod( $f, $stref );
         $Sf = $stref->{$code_unit}{$f};
     } else {
-        ( $Sf, $var ) = @_;
+        # Sub is called with  $Sf, $var_or_vardecl 
+        ( $Sf, $var_or_vardecl ) = @_;
     }
 
-    if ( ref($var) eq 'ARRAY' && $var->[-1] == 1 ) {
-        return $var;
+    
+    if ( ref($var_or_vardecl) eq 'ARRAY') { 
+        if ( $var->[-1] == 1 ) {
+            return $var_or_vardecl; # This means it was a formatted vardecl 
+        } elsif ( ref($var_or_vardecl) eq 'ARRAY' && $var->[-1] == 0 ) {
+            # This means it is a vardecl but it is not yet formatted correctly. 
+            $var = $var_or_vardecl->[2][0];
+        }  else {
+            die 'format_f95_var_decl: invalid input '.Dumper($var_or_vardecl);
+        }
+    } else {
+        $var = $var_or_vardecl;
     }
-    if ( ref($var) eq 'ARRAY' && $var->[-1] == 0 ) {
-        $var = $var->[2][0];
-    }
+    
     my $spaces = '      ';
     my $intent = [];
     my $shape  = [];
     my $attr   = '';
     my $type   = 'Unknown';
     my $nvar   = $var;
-    if ( exists $Sf->{'Vars'}{$var} ) {
-        my $Sv = $Sf->{'Vars'}{$var};
+     if ( exists $Sf->{'RefactoredArgs'}{'Set'}{$var} ) {
+         
+         
+        my $Sv = $Sf->{'RefactoredArgs'}{'Set'}{$var};
         if ( not exists $Sv->{'Decl'} ) {
             print
-"WARNING: VAR $var does not exist in Vars in format_f95_var_decl()!\n"
+"WARNING: VAR $var does not have Decl in RefactoredArgs in format_f95_var_decl()!\n"
               if $W;
 
-            #		croak $var;
+		croak Dumper($Sv);
         }
 
         if ( exists $Sf->{'ConflictingLiftedVars'}{$var} ) {
             $nvar = $Sf->{'ConflictingLiftedVars'}{$var};
         }
-        my $spaces =
-          $Sv->{'Decl'}->[0]
-          ; #WV20150707 Decl is a record of 4 entries: [spaces, [type], [varname],formatted(0|1)]
+#        carp "$f: $var: ".Dumper($Sv) if $var eq 'drydeposit';
+        $spaces =$Sv->{'Indent'};
+#          $Sv->{'Decl'}->[0];
+           #WV20150707 Decl is a record of 4 entries: [spaces, [type], [varname],formatted(0|1)]
         $spaces =~ s/\S.*$//;
         $shape = $Sv->{'Shape'};
         $type  = $Sv->{'Type'};
@@ -935,22 +953,47 @@ sub format_f95_var_decl {
         if ( exists $Sf->{'RefactoredArgs'}{'Set'}{$var} ) {
             $intent =
               [ 'intent', $Sf->{'RefactoredArgs'}{'Set'}{$var}{'IODir'} ];
+        }          
+         
+         
+     } elsif ( exists $Sf->{'Vars'}{$var} ) {
+         
+        my $Sv = $Sf->{'Vars'}{$var};
+        
+        if ( not exists $Sv->{'Decl'} ) {
+#            carp  "$var: ".Dumper($Sv) if $var eq 'drydeposit';
+            croak "WARNING: VAR $var does not exist in Vars in format_f95_var_decl()!\n" if $W;
+
+            #		croak $var;
         }
+
+        if ( exists $Sf->{'ConflictingLiftedVars'}{$var} ) {
+            $nvar = $Sf->{'ConflictingLiftedVars'}{$var};
+        }
+        $spaces =
+          $Sv->{'Indent'};
+          #WV20150707 Decl is a record of 4 entries: [spaces, [type], [varname],formatted(0|1)]
+        $spaces =~ s/\S.*$//;
+        $shape = $Sv->{'Shape'};
+        $type  = $Sv->{'Type'};
+        $attr  = $Sv->{'Attr'};
+        if ( exists $Sf->{'RefactoredArgs'}{'Set'}{$var} ) {
+            $intent =
+              [ 'intent', $Sf->{'RefactoredArgs'}{'Set'}{$var}{'IODir'} ];
+        } 
     } elsif ( defined $f and defined $stref and defined $var ) {
         die Dumper( $_[0] ) unless defined $stref;
-        ( $type, my $kind, $shape, $attr ) =
+        ( $type, my $kind, $attr ) =
           type_via_implicits( $stref, $f, $var );
     } else {
         croak
 "Can't type $var, not in Vars and format_f95_var_decl() called the wrong way for implicits";
     }
 
-    # FIXME: for multiple vars, we need to split this in multiple statements.
-    # So I guess as soon as the Shape is not empty, need to split.
-
-    #	die Dumper($shape) if join( '', @{$shape} ) =~ /;/;
-    my $dim = '';
-    if ( @{$shape} ) {
+    my $dim = [];
+    # FIXME: I think the case dimension(:) is not covered!
+    if ( @{$shape} > 1) {
+        
         my @dims = ();
         for my $i ( 0 .. ( @{$shape} / 2 - 1 ) ) {
             my $range =
@@ -960,14 +1003,16 @@ sub format_f95_var_decl {
             push @dims, $range;
         }
         $dim = [ 'dimension', [@dims] ];
+    } elsif (scalar @{$shape}==1) {
+#        say Dumper($shape);
+        $dim = [ 'dimension', ['1:'.$shape->[0]] ];
+    } else {
+        $dim = [];
     }
 
-    my $decl_line = $spaces . $type . $attr . $dim . $intent . ' :: ' . $nvar;
 
-    #WV20150424 this should become
     return [ $spaces, [ $type, $attr, $dim, $intent ], [$nvar], 1 ];
 
-    #	return $decl_line;
 }    # format_f95_var_decl()
 
 # -----------------------------------------------------------------------------

@@ -132,6 +132,7 @@ sub main {
 
     # Parse the source
 	$stref = parse_fortran_src( $subname, $stref );
+	
 	if ( $call_tree_only and not $ARGV[1] ) {
 		create_call_graph($stref,$subname);
 		exit(0);
@@ -155,7 +156,7 @@ sub main {
 #     say '=' x 80;
 #     say Dumper($stref->{Subroutines}{velnw});
 #     say '=' x 80;
-#
+
    say 'AFTER refactor_all()';
    # This is part of the refactoring of kernel subroutines in a simulation loop into a called-once init() and a run() called in the loop
    for my $kernel_wrapper (keys %{$stref->{'KernelWrappers'}}) {
@@ -171,7 +172,7 @@ sub main {
 #   say map { $_->[0]."\t".join(';',keys $_->[1])."\n"} @{$stref->{'RefactoredSources'}{'./main.f'}};
 #   die;
    
-   $DUMMY=1;
+   $DUMMY=0;
 	if ( not $call_tree_only ) {
 		# Emit the refactored source
 		emit_all($stref);

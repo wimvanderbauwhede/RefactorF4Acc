@@ -83,24 +83,32 @@ sub _determine_argument_io_direction_core {
         my $args = $Sf->{'RefactoredArgs'}{'Set'};       
         
         my $maybe_args = ( get_maybe_args_globs( $stref, $f ) )[0];
+        
         if ( scalar keys %{$args} > 0 ) {
             for my $arg ( keys %{$args} ) {
+                
                 next if $arg eq '';    # FIXME: WHY?!
 
-                my $kind  = 'Unknown';
+                my $array_or_scalar  = 'Unknown';
                 my $type  = 'Unknown';
                 my $shape = [];
                 my $attr  = '';
-                if ( exists $maybe_args->{$arg}{'Type'} ) {
-                    $kind  = $maybe_args->{$arg}{'Kind'};
+                my $decl=[];
+                my $indent='      ';
+                if ( exists $maybe_args->{$arg}{'Decl'} ) {
+                    $decl= $maybe_args->{$arg}{'Decl'};
+                    $array_or_scalar  = $maybe_args->{$arg}{'ArrayOrScalar'};
                     $type  = $maybe_args->{$arg}{'Type'};
                     $shape = $maybe_args->{$arg}{'Shape'};
                     $attr  = $maybe_args->{$arg}{'Attr'};
+                    $indent = $maybe_args->{$arg}{'Indent'};
                 } else {
-
+                    say "WARNING: _determine_argument_io_direction_core ". __LINE__ ." : No Decl for $arg in $f, using IMPLICIT ".Dumper($maybe_args->{$arg}) ;
                     # FIXME: Implicit rules can include a kind!
-                    ( $type, $kind, $shape, $attr ) =
+                    # Problem is that we can't tell if this is an array or not. 
+                    ( $type, $array_or_scalar, $attr ) =
                       type_via_implicits( $stref, $f, $arg );
+                      $decl = [$maybe_args->{$arg}{'Indent'},[$type, $attr, [], []],[$arg],1]; 
                     if ( $type eq 'Unknown' ) {
                         print
                           "WARNING: No type/kind/shape info for $arg in $f\n"
@@ -108,13 +116,17 @@ sub _determine_argument_io_direction_core {
                     }
                 }
                 $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$arg}
-                  {'Kind'} = $kind;
+                  {'ArrayOrScalar'} = $array_or_scalar;
                 $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$arg}
                   {'Type'} = $type;
                 $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$arg}
                   {'Shape'} = $shape;
                 $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$arg}
                   {'Attr'} = $attr;
+                $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$arg}
+                  {'Decl'} = $decl;
+                  $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$arg}
+                  {'Indent'} = $indent;                  
             }
         }
 
@@ -726,7 +738,7 @@ sub parse_assignment {
 
     # First check if this is a single-line if statement
     my $args     = {};
-    my $kind     = 'Scalar';
+    my $array_or_scalar     = 'Scalar';
     my $idx_expr = '';
     if ( $tline =~ /^if\b/ ) {
 
@@ -778,7 +790,7 @@ sub parse_assignment {
                 $idx_expr =
                   [ split( /\s*\,\s*/, $str ) ]
                   ;    # FIXME: WEAK: assumes no nested arrays used as index
-                $kind = 'Array';
+                $array_or_scalar = 'Array';
                 if ( not defined $str ) {
                     print
 "WARNING: IGNORING <$tline>, CAN'T HANDLE IT (_analyse_src_for_iodirs)\n"
@@ -793,7 +805,7 @@ sub parse_assignment {
         }
     }
     return [
-        { 'VarName' => $var, 'Kind' => $kind, 'IndexExpr' => $idx_expr },
+        { 'VarName' => $var, 'ArrayOrScalar' => $array_or_scalar, 'IndexExpr' => $idx_expr },
         [ keys %{$args} ], $rhs
     ];
 }

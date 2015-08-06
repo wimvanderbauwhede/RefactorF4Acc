@@ -93,7 +93,7 @@ This is a node called 'RefactoredSubroutineCall'
 
 sub _refactor_subroutine_main {
     ( my $f, my $stref ) = @_;
-#    local $V=1;# if $f=~/LES_kernel_wrapper/;
+#    local $V=1;
     if ($V) {
         print "\n\n";
         print "#" x 80, "\n";
@@ -105,7 +105,7 @@ sub _refactor_subroutine_main {
     $stref = context_free_refactorings( $stref, $f );    
 
     my $Sf = $stref->{'Subroutines'}{$f};
-    
+    # At this point RefactoredArgs exists but is empty
 #    if ($f eq 'LES_kernel_wrapper') { map {say} keys $Sf; die; }
 say "get_annotated_sourcelines($f)" if $V;
 
@@ -125,10 +125,7 @@ say "get_annotated_sourcelines($f)" if $V;
         }
     }
     # At this point, commons should have been removed.
-#    if ($f eq 'redist') {
-#    say show_annlines($rlines,1);
-#    die;
-#    }
+    # At this point, RefactoredArgs has a Set with $var => { 'IODir' => 'Unknown' }
 
     my $sub_or_prog = ( exists $Sf->{'Program'} and $Sf->{'Program'} == 1) ? 'program' : 
     (exists $Sf->{'Function'} and $Sf->{'Function'} == 1 ) ? 'function' : 'subroutine';
@@ -151,10 +148,7 @@ say "get_annotated_sourcelines($f)" if $V;
         }
     }
     
-#say "FF: $f :" . (exists $Sf->{RefactoredArgs});
-#if (exists $Sf->{RefactoredArgs}) {
-#    say Dumper(    $Sf->{RefactoredArgs} );
-#    }
+
     $Sf->{'RefactoredCode'}=$rlines;
     
     if ($f eq 'NONE') {

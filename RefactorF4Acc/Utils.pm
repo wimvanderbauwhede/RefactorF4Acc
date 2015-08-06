@@ -80,7 +80,6 @@ sub show_annlines {
     }
 }
  # -----------------------------------------------------------------------------
- # Quick and dirty way to get the Kinds of all arguments
 
 sub get_maybe_args_globs {
     ( my $stref, my $f ) = @_;
@@ -108,13 +107,13 @@ if (not defined $var or $var eq '') {croak "VAR not defined!"}
 #say 'type_via_implicits'.scalar(@_).$var;
     my $sub_func_incl = sub_func_incl_mod( $f, $stref );
     my $type ='Unknown';      
-    my $kind ='Unknown';
-    my $shape ='Unknown';
+    my $array_or_scalar ='Unknown';
+    
 	my $attr='Unknown';
     if (exists $stref->{'Implicits'}{$f}{lc(substr($var,0,1))} ) {
         print "INFO: VAR <", $var, "> typed via Implicits for $f\n" if $I;                            
-        my $type_kind_shape_attr = $stref->{'Implicits'}{$f}{lc(substr($var,0,1))};
-        ($type, $kind, $shape, $attr)=@{$type_kind_shape_attr};
+        my $type_kind_attr = $stref->{'Implicits'}{$f}{lc(substr($var,0,1))};
+        ($type, $array_or_scalar, $attr)=@{$type_kind_attr};
 =info        
         my $var_rec = {
             'Decl' => ['       ', [$type], [$var],$formatted],
@@ -122,7 +121,7 @@ if (not defined $var or $var eq '') {croak "VAR not defined!"}
             'Type' => $type,
             'Attr' => '', # This is currently a string, WEAK!
             'Indent' => '      ', #OBSOLETE
-            'Kind' => 'UNKNOWN', # Scalar|Array
+            'ArrayOrScalar' => 'UNKNOWN', # Scalar|Array
         };          
         $stref->{$sub_func_incl}{$f}{'Vars'}{$var} = $var_rec;                                  
 =cut                                    
@@ -134,7 +133,7 @@ if (not defined $var or $var eq '') {croak "VAR not defined!"}
     return ('real', 'Scalar', [], '');
         } 
     }
-    return ($type, $kind, $shape, $attr);
+    return ($type, $array_or_scalar, $attr);
 } # END of type_via_implicits()
 
 # -----------------------------------------------------------------------------

@@ -218,7 +218,7 @@ sub postprocess_C {
                     my $ctype = toCType($ftype);
 #                    print Dumper($Ssub->{'RefactoredArgs'}{'Set'});
                     my $iodir = $Ssub->{'RefactoredArgs'}{'Set'}{$var}{'IODir'};
-                    my $kind  = $vars{$var}{'Kind'};
+                    my $kind  = $vars{$var}{'ArrayOrScalar'};
 
                     if ( $iodir eq 'In' and $kind eq 'Scalar' ) {
                         $arg = "$ctype $var";
@@ -259,7 +259,7 @@ sub postprocess_C {
                 my $iodir =
                   $stref->{'Subroutines'}{$sub}{'RefactoredArgs'}{'Set'}{$var}
                   {'IODir'};
-                my $kind = $vars{$var}{'Kind'};
+                my $kind = $vars{$var}{'ArrayOrScalar'};
                 if ( $iodir eq 'In' and $kind eq 'Scalar' ) {
                     $line =~ s|^|\/\/|;
                     $input_scalars{ $var . '__G' } = $var;
@@ -395,7 +395,7 @@ sub postprocess_C {
                     $ii++;
                     my $is_input_scalar =
                       ( $stref->{'Subroutines'}{$calledsub}{'Vars'}
-                          {$called_sub_arg}{'Kind'} eq 'Scalar' )
+                          {$called_sub_arg}{'ArrayOrScalar'} eq 'Scalar' )
                       && ( $stref->{'Subroutines'}{$calledsub}{'RefactoredArgs'}
                         {$called_sub_arg}{'IODir'} eq 'In' )
                       ? 1
@@ -450,7 +450,7 @@ sub postprocess_C {
 # Still not good: the arg for the called sub must be positional! So we must get the signature and count the position ...
 # which means we need to parse the source first.
 
-# print " SUBCALL $calledsub: $called_sub_arg: $is_input_scalar:" . $stref->{'Subroutines'}{$calledsub}{'Vars'}{$called_sub_arg}{'Kind'} .','. $stref->{'Subroutines'}{$calledsub}{'RefactoredArgs'}{'IODir'}{$called_sub_arg}."\n";
+# print " SUBCALL $calledsub: $called_sub_arg: $is_input_scalar:" . $stref->{'Subroutines'}{$calledsub}{'Vars'}{$called_sub_arg}{'ArrayOrScalar'} .','. $stref->{'Subroutines'}{$calledsub}{'RefactoredArgs'}{'IODir'}{$called_sub_arg}."\n";
 
                         if ( not exists $input_scalars{ $arg . '__G' } ) {
 
@@ -472,7 +472,7 @@ sub postprocess_C {
                             }
                         }
                     } elsif ( exists $vars{$arg}
-                        and $vars{$arg}{'Kind'} ne 'Array' )
+                        and $vars{$arg}{'ArrayOrScalar'} ne 'Array' )
                     {
 
                         # means $arg is a Scalar

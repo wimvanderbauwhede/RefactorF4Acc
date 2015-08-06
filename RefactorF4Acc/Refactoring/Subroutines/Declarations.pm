@@ -91,7 +91,7 @@ sub create_refactored_vardecls {
     # If the line does not contain array decls,
     # remove the spaces from the original line and use them for the new line
 
-        if ($line=~/\s+\:\:\s+/) { # FIXME: weak test to see if already refactored!
+        if (exists $info->{'Ref'} and $info->{'Ref'}==1) {# WAS $line=~/\s+\:\:\s+/ # FIXME: weak test to see if already refactored!
 	       $rline=$line;
         } else { # FIXME: use formatting function!!!
             croak "PARAM! $line" if $line=~/parameter/;
@@ -111,11 +111,12 @@ sub create_refactored_vardecls {
                 	$rdecl = format_f95_var_decl($Sf,$tnvar);# WV: seems this never happens!                	
                 }
             $info->{'VarDecl'} = $rdecl;#[$tnvar];
+            $info->{'Ref'} = 1; 
             push @{$rlines}, [ emit_f95_var_decl($rdecl), $info ];
         }
         $skip=1;
     }
-    $info->{'Ref'}++;
+#    $info->{'Ref'}++;
     push @{$rlines}, [ $rline, $info ] unless $skip==1;
     return $rlines;
 }    # END of create_refactored_vardecls()
@@ -141,8 +142,10 @@ sub create_exglob_var_declarations {
                 if ( exists $Sf->{'Commons'}{$inc} ) {
 # FIXME: we need to remove these declarations from the include file!
 
-                        croak "$f: INC $inc: VAR $var\n" if not exists $stref->{IncludeFiles}{$inc}{'Vars'}{$var};                        
-                        my $rdecl = format_f95_var_decl( $stref->{'IncludeFiles'}{$inc},$var);
+#                        croak "$f: INC $inc: VAR $var\n" if not exists $stref->{IncludeFiles}{$inc}{'Vars'}{$var};
+say "WARNING: $f:  VAR $var is not declared in INC $inc but is common, will be declared via implicit rules!" if $W;                        
+#                        my $rdecl = format_f95_var_decl( $stref->{'IncludeFiles'}{$inc},$var);
+                        my $rdecl = format_f95_var_decl( $stref,$inc,$var);
 #                        croak Dumper($stref->{'IncludeFiles'}{$inc}{Vars}{uprof}) if $var eq 'uprof';
                         if ( exists $Sf->{'ConflictingParams'}{$var} ) {
                             my $gvar = $Sf->{'ConflictingParams'}{$var}[0];
@@ -222,31 +225,50 @@ sub find_and_add_missing_var_decls {
 #if ($f eq 'f_esl') {
 #    say show_annlines( $stref->{'Subroutines'}{$f}{RefactoredCode} );die;
 #}
-     if (exists $stref->{'Subroutines'}{$f}{RefactoredArgs}) {
-        my %refactored_args =  %{ $stref->{'Subroutines'}{$f}{RefactoredArgs}{Set} };
+     if (exists $stref->{'Subroutines'}{$f}{'RefactoredArgs'}) {
+        my %refactored_args =  %{ $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'} };
     	if (scalar keys %{$stref->{'Subroutines'}{$f}{'Callers'} } ) { # or $stref->{'Subroutines'}{$f}{'Program'} )     		
             # so what I need to do is create the line with intent and replace it in RefactoredCode
-#            die Dumper($stref->{'Subroutines'}{$f}{RefactoredCode}) if $f eq 'hanna';
-            for my $entry (@{ $stref->{'Subroutines'}{$f}{RefactoredCode} } ) {
-                if (not exists $entry->[1]{'Deleted'} and not exists $entry->[1]{'Comments'}) { 
-              if (exists($entry->[1]{'VarDecl'})) {
-                my $varname = $entry->[1]{'VarDecl'}[2][0];
+            for my $annline (@{ $stref->{'Subroutines'}{$f}{RefactoredCode} } ) {
+                (my $line, my $info) = @{ $annline };
+                if (not exists $info->{'Deleted'} and not exists $info->{'Comments'}) { 
+              if (exists $info->{'VarDecl'}                 
+              ) {
+                my $varname = $info->{'VarDecl'}[2][0];
+                # So here I have lost Decl in dsigw2dz in RefactoredArgs but not in Vars
+                # So let's find out where this has gone wrong
+#                die Dumper($stref->{'Subroutines'}{$f}{Vars}{$varname}) if $varname eq 'dsigw2dz';
+                if (not exists $info->{'Ref'} or $info->{'Ref'}==0) {
                 my $vardecl = format_f95_var_decl($stref,$f, $varname);
-                $entry->[0] = emit_f95_var_decl($vardecl).' ! V6';
+                $line = emit_f95_var_decl($vardecl).' ! V6';
+                $info->{'Ref'}=1;
+                } else {
+                my $vardecl = format_f95_var_decl($stref,$f, $varname);
+                $line = emit_f95_var_decl($vardecl).' ! V7: intent'; 
+                $info->{'Ref'}=2;
+                    
+                }
                 delete $refactored_args{$varname};
+                
 #                say "DELETED $varname from RefactoredArgs in $f";
-              } elsif (exists($entry->[1]{'ParamDecl'})) {      
-                            
-                my $parname = $entry->[1]{'ParamDecl'}[2][0][0];
+              } elsif (exists $info->{'ParamDecl'}
+             
+              ) {      
+                             
+                my $parname = $info->{'ParamDecl'}[2][0][0];
+                if (not exists $info->{'Ref'} or $info->{'Ref'}==0) {
                 my $pardecl = format_f95_par_decl($stref,$f, $parname);
-                $entry->[0] = emit_f95_var_decl($pardecl).' ! V7'; # FIXME: Somehow this is emitted TWICE, I guess because it re-emits the commmented line?
+                $line = emit_f95_var_decl($pardecl).' ! V7'; # FIXME: Somehow this is emitted TWICE, I guess because it re-emits the commmented line?
+                $info->{'Ref'}=1;
+                }
                 delete $refactored_args{$parname};
+                
 #                say "DELETED PARAMETER $parname from RefactoredArgs in $f";
-              } elsif ($entry->[0] =~/::/) {
-#                  say "VAR DECL NOT MARKED PROPERLY: ".$entry->[0]. ' => '.Dumper($entry->[1]);
+              } elsif ($line =~/::/) {
+#                  say "VAR DECL NOT MARKED PROPERLY: ".$line. ' => '.Dumper($info->);
               }
             } else {
-#                say 'SKIPPED: '.$entry->[0];
+#                say 'SKIPPED: '.$line;
             }
             }
             for my $maybe_var (keys %refactored_args ) {
@@ -273,7 +295,7 @@ sub find_and_add_missing_var_decls {
 			    }
 				print 'Callers: ',scalar keys %{$stref->{'Subroutines'}{$f}{'Callers'} },'; Program: ',$stref->{'Subroutines'}{$f}{'Program'},"\n" if $V;
 			    } else { 
-			        print "No Subroutines recored for $f\n" if $V;
+			        print "No Subroutines recorded for $f\n" if $V;
 			    }
 			} else {
 				print "Undefined\n" if $V;
