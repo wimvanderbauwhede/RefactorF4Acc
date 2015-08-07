@@ -1,4 +1,4 @@
-package RefactorF4Acc::CallGraph;
+package RefactorF4Acc::CallTree;
 
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
@@ -18,10 +18,10 @@ use Data::Dumper;
 
 use Exporter;
 
-@RefactorF4Acc::CallGraph::ISA = qw(Exporter);
+@RefactorF4Acc::CallTree::ISA = qw(Exporter);
 
-@RefactorF4Acc::CallGraph::EXPORT_OK = qw(
-    &create_call_graph
+@RefactorF4Acc::CallTree::EXPORT_OK = qw(
+    &create_call_tree
     &add_to_call_tree
 );
 
@@ -31,23 +31,23 @@ use Exporter;
 To break cycles, I see only one way: we must keep track of the call chain and
 as soon as there is a duplication, we stop.
 But we must clear this list when we reach a leaf. Which means that
-@{ $stref->{'CallGraph'}{ $subname } } has no entries
+@{ $stref->{'CallTree'}{ $subname } } has no entries
 
-if (exists $stref->{'CallGraph'}{ 'Chain'} {$entry} ) {
-	$stref->{'CallGraph'}{ 'Chain'}={};
+if (exists $stref->{'CallTree'}{ 'Chain'} {$entry} ) {
+	$stref->{'CallTree'}{ 'Chain'}={};
 	last;
 } else {
-$stref->{'CallGraph'}{ 'Chain'} {$entry}++
+$stref->{'CallTree'}{ 'Chain'} {$entry}++
 }
 
 =cut
 
-sub create_call_graph { ( my $stref, my $subname ) = @_;
+sub create_call_tree { ( my $stref, my $subname ) = @_;
 
     push @{ $stref->{'CallStack'} }, $subname;
 #    print '[',join(',',@{ $stref->{'CallStack'} }),']',"\n";
     my %subs = map {$_=>1} @{ $stref->{'CallStack'} }; 
-    for my $entry ( @{ $stref->{'CallGraph'}{ $subname } } ) {
+    for my $entry ( @{ $stref->{'CallTree'}{ $subname } } ) {
         if (exists $subs{$entry}) {
         	print "Found LOOP for $entry\n";
     	   last;
@@ -57,14 +57,14 @@ sub create_call_graph { ( my $stref, my $subname ) = @_;
 	    	print $str;
 	    	
 	    	   $stref->{'Indents'} += 4;    	
-	    	   create_call_graph ($stref,$entry);
+	    	   create_call_tree ($stref,$entry);
 	    	   $stref->{'Indents'} -= 4;
     }
     pop  @{ $stref->{'CallStack'} };	     
     return {%subs};
 }
 # -----------------------------------------------------------------------------
-sub create_dot_call_graph {
+sub create_dot_call_tree {
     ( my $stref ) = @_;
 
     open my $DOT, '>', 'callgraph.dot';
@@ -105,7 +105,7 @@ ratio="fill";
 
 sub add_to_call_tree {
     ( my $f, my $stref, my $p) = @_;
-    push @{ $stref->{'CallGraph'}{$p} }, $f;
+    push @{ $stref->{'CallTree'}{$p} }, $f;
     return $stref;
 }    # END of add_to_call_tree()
 # -----------------------------------------------------------------------------

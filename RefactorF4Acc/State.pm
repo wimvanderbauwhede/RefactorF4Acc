@@ -32,11 +32,11 @@ sub init_state {
         'Indents' => 0,    # bit silly, purely for pretty-printing
         'NId'     => 0,    # running node id for traversal
         'Nodes'   => {     # nodes in call tree
-            0 => {
-                'Parent'     => 0,
-                'Children'   => [],
-                'Subroutine' => $subname
-            }
+#            0 => {
+#                'Parent'     => 0,
+#                'Children'   => [],
+#                'Subroutine' => $subname
+#            }
         }
     };
     return $stateref;

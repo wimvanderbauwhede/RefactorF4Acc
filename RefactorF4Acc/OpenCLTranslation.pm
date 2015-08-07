@@ -305,7 +305,7 @@ sub get_subs_to_be_inlined { ( my $stref, my $subname, my $sub_table ) = @_;
 
     push @{ $stref->{'CallStack'} }, $subname;
     my %subs = map {$_=>1} @{ $stref->{'CallStack'} }; 
-    for my $entry ( @{ $stref->{'CallGraph'}{ $subname } } ) {
+    for my $entry ( @{ $stref->{'CallTree'}{ $subname } } ) {
         if (exists $subs{$entry}) {
         	print "Found LOOP for $entry\n";
     	   last;

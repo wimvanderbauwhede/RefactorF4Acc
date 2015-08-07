@@ -137,10 +137,11 @@ sub _resolve_conflicts_with_params {
 # Here we identify which globals from the includes are actually used in the subroutine.
 # This is not correct because globals used in called subroutines are not recognised
 # So what I should do is find the globals for every called sub recursively.
+# WV20150806: I should first work out what the includes with commons are in all subroutines and then "lift" them and then call this subroutine. 
 sub _identify_globals_used_in_subroutine {
     ( my $f, my $stref ) = @_;
 
-       local $V=1 if $f eq 'particles_main_loop';
+       #local $V=1;# if $f eq 'particles_main_loop';
     my $Sf = $stref->{'Subroutines'}{$f};
 
     # First determine subroutine arguments.

@@ -2,7 +2,7 @@ package RefactorF4Acc::Parser;
 use v5.16;
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
-use RefactorF4Acc::CallGraph qw( add_to_call_tree );
+use RefactorF4Acc::CallTree qw( add_to_call_tree );
 use RefactorF4Acc::Refactoring::Common
   qw( format_f95_var_decl emit_f95_var_decl );
 use RefactorF4Acc::Parser::SrcReader qw( read_fortran_src );
@@ -33,6 +33,7 @@ use Exporter;
 
 @RefactorF4Acc::Parser::EXPORT_OK = qw(
   &parse_fortran_src
+  &build_call_graph
 );
 
 # -----------------------------------------------------------------------------
@@ -958,14 +959,14 @@ sub _parse_subroutine_and_function_calls {
                 {
                     $Sname->{'Translate'} = $Sf->{'Translate'};
                 }
-                $stref->{'NId'}++;
-                my $nid = $stref->{'NId'};
-                push @{ $stref->{'Nodes'}{$pnid}{'Children'} }, $nid;
-                $stref->{'Nodes'}{$nid} = {
-                    'Parent'     => $pnid,
-                    'Children'   => [],
-                    'Subroutine' => $name
-                };
+#                $stref->{'NId'}++;
+#                my $nid = $stref->{'NId'};
+#                push @{ $stref->{'Nodes'}{$pnid}{'Children'} }, $nid;
+#                $stref->{'Nodes'}{$nid} = {
+#                    'Parent'     => $pnid,
+#                    'Children'   => [],
+#                    'Subroutine' => $name
+#                };
 
                 my $argstr = $2 || '';
                 if ( $argstr =~ /^\s*$/ ) {
@@ -1099,6 +1100,61 @@ sub _parse_subroutine_and_function_calls {
 }    # END of parse_subroutine_and_function_calls()
 
 # -----------------------------------------------------------------------------
+
+# This is required for the include analysis, so maybe I should put it there.
+sub build_call_graph {
+    ( my $f, my $stref ) = @_;
+    my $prevnid = $stref->{'NId'}; # previous NId
+    if ($prevnid == 0) {
+        $stref->{'PNIds'}=[]; 
+    } 
+    my $pnid               = ($prevnid>0) ? $stref->{'PNIds'}[-1] : 0; 
+    
+#    print "BUILDING CALL GRAPH: in $f via parent $pnid to child ";# if $V;
+    my $sub_or_func_or_mod = sub_func_incl_mod( $f, $stref );
+    if ($sub_or_func_or_mod ne 'ExternalSubroutines') {
+        my $Sf                 = $stref->{$sub_or_func_or_mod}{$f};
+        $stref->{'NId'}++;  
+        my $nid = $stref->{'NId'};
+#        say $nid;
+#die Dumper(    $stref->{'Nodes'} );
+        $stref->{'Nodes'}{$nid} = {
+                        'Children'   => [],
+                        'Parent'     => $pnid,
+                        'Subroutine' => $f
+                    };
+        push @{ $stref->{'Nodes'}{$pnid}{'Children'} }, [$nid,$f] ;
+                      
+        my $annlines = $Sf->{'AnnLines'};
+        
+        if ( defined $annlines ) {
+            my $called_sub_name = '';
+            for my $annline (  @{$annlines} ) {
+                (my $line, my $info) = @{$annline};
+    if ( exists $info->{'Deleted'} and $info->{'Deleted'}==1
+        and (not exists $info->{'InBlock'} or $info->{'InBlock'}{'Name'} ne $f) 
+    ) {
+        
+        next;
+    } 
+                if ( exists $info->{'SubroutineCall'} ) {
+                    
+                    $called_sub_name = $info->{'SubroutineCall'}{'Name'};
+                     
+#                    say "\t".$info->{'LineID'}.':'.$called_sub_name ;
+                    push @{$stref->{'PNIds'}}, $nid;
+                    $stref = build_call_graph($called_sub_name, $stref);
+                    pop @{$stref->{'PNIds'}};
+#                    say "back in $f";
+                }
+            }    # loop over all annlines
+        }
+    } else {
+#        say "external $pnid";
+    }
+    return $stref;
+}    # END of build_call_graph()
+
 # -----------------------------------------------------------------------------
 # Identify the include file as containing params or commons.
 # If it contains both, split and call the routine again.
@@ -1906,9 +1962,9 @@ sub __construct_new_subroutine_signatures {
 # -----------------------------------------------------------------------------
 sub __reparse_extracted_subroutines { (my $stref, my $blocksref) = @_;
     delete $blocksref->{'OUTER'};
-    for my $block (keys %{$blocksref}) {
+    for my $block (keys %{$blocksref}) {        
         $stref = parse_fortran_src($block, $stref);
-    } 
+    }     
     return $stref;
 }
 # -----------------------------------------------------------------------------

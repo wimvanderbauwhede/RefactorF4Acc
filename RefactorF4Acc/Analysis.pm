@@ -33,8 +33,10 @@ sub analyse_all {
 	
 	(my $stref, my $subname)=@_;
     # Find the 'root', i.e. the outermost calling subroutine, for each include file
+    
 	   print "\t** FIND ROOT FOR INCLUDES **\n" if $V;
     $stref = find_root_for_includes( $stref, $subname );    
+    
     # Now we can do proper globals handling
     # We need to walk the tree again, find the globals in rec descent.
     print "\t** RESOLVE GLOBALS **\n" if $V;

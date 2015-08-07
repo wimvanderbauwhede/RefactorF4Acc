@@ -33,13 +33,12 @@ use Exporter;
 # This routine is called after the subroutines have been parsed, and the call graph has been created as part of the process.
 sub find_root_for_includes {
     ( my $stref, my $f ) = @_;
-    
-    $stref = _create_include_chains( $stref, 0 );  # assumes we start at node 0 in the tree. Typically that is the main program.
+    $stref = _create_include_chains( $stref, 1 );  # assumes we start at node 1 in the tree. Typically that is the main program.
     
     for my $inc ( keys %{ $stref->{'IncludeFiles'} } ) {
-#       print "INC: $inc\n";
-#       print Dumper($stref->{'IncludeFiles'}{$inc});
+       
         next if $stref->{'IncludeFiles'}{$inc}{'InclType'} eq 'External';
+#        print "INC: $inc\n";
         if ($stref->{'IncludeFiles'}{$inc}{'Status'}==$UNREAD) {
         	#WV23JUL2012: This is weak, clearly the only good way is to find the includes in rec descent 
             croak "TROUBLE: $inc (in $f) not yet parsed, how come?";#.Dumper($stref);
@@ -101,7 +100,7 @@ sub _find_root_for_include {
 
         if ( $nchildren == 0 ) {
             die
-"_find_root_for_include(): Can't find $inc in parent or any children, something's wrong!\n";
+"_find_root_for_include(): Can't find $inc in parent $sub or any children, something's wrong!\n";
         } elsif ( $nchildren == 1 and $Ssub->{'RefactorGlobals'}==0) {
 
             #           print "DESCEND into $singlechild\n";
@@ -127,20 +126,23 @@ sub _find_root_for_include {
 # We also need to add the include to all nodes in the divergent paths
 sub _create_include_chains {
     ( my $stref, my $nid ) = @_;
-
+#say $stref->{'Nodes'}{$nid}{'Subroutine'};
     if ( exists $stref->{'Nodes'}{$nid}{'Children'}
-        and @{ $stref->{'Nodes'}{$nid}{'Children'} } )
+        and scalar @{ $stref->{'Nodes'}{$nid}{'Children'} } > 0 )
     {
+        
         # Find all children of $nid
         my @children = @{ $stref->{'Nodes'}{$nid}{'Children'} };
 
-# Now for each of these children, find their children until the leaf nodes are reached
+        #  Now for each of these children, find their children until the leaf nodes are reached
         for my $child (@children) {
-            $stref = _create_include_chains( $stref, $child );
+#            say $child->[1];
+            my $cnid = $child->[0];            
+            $stref = _create_include_chains( $stref, $cnid );
         }
     } else {
 # We reached a leaf node
-#       print "Reached leaf $nid\n";
+#       print "Reached leaf $nid ".$stref->{'Nodes'}{$nid}{'Subroutine'}."\n";
 # Now we work our way back up via the parent using a separate recursive function
         $stref = __merge_includes( $stref, $nid, $nid, '' );
 
@@ -164,58 +166,62 @@ sub __merge_includes {
     ( my $stref, my $nid, my $cnid, my $chain ) = @_;
 
     # If there are includes with common blocks, merge them into CommonIncludes
-    # We should only do this for subs that need refactoring
+
     my $pnid = $stref->{'Nodes'}{$nid}{'Parent'};   
     my $sub  = $stref->{'Nodes'}{$nid}{'Subroutine'};
-    if (exists $stref->{'Subroutines'}{$sub}) {
-    my $Ssub = $stref->{'Subroutines'}{$sub};
-    
-    my $f=$stref->{'Nodes'}{$pnid}{'Subroutine'};
-    if ($V) {
-        if ($sub ne $f ) {
-            if (defined $Ssub->{'RefactorGlobals'} and $Ssub->{'RefactorGlobals'}>0) {
-           $chain .="$sub -> ";
+      
+    if (defined $sub and exists $stref->{'Subroutines'}{$sub}) {
+        
+#        say "\n$sub $cnid $nid  $pnid";  
+        my $Ssub = $stref->{'Subroutines'}{$sub};    
+        my $f=$stref->{'Nodes'}{$pnid}{'Subroutine'} ;
+        if ($pnid == 0) {$f = '__TOP__' };    
+        if ($V) {
+            if ($sub ne $f ) {
+                if (defined $Ssub->{'RefactorGlobals'} and $Ssub->{'RefactorGlobals'}>0) {
+               $chain .="$sub -> ";
+                }
+            } else {
+    #            $chain=~s/....$//;
+                print "__merge_includes(): $chain\n" if $chain=~/->/;
             }
-        } else {
-            $chain=~s/....$//;
-            print "__merge_includes(): $chain\n" if $chain=~/->/;
-        }
-    } # $V
-#    if ($Ssub->{'RefactorGlobals'}>0) {
-    if ( exists $Ssub->{'Includes'}
-        and not exists $Ssub->{'CommonIncludes'}     
-        )
-    {
-        for my $inc ( keys %{ $Ssub->{'Includes'} } ) {
-        	if (not exists $stref->{'IncludeFiles'}{$inc}
-        	or not exists $stref->{'IncludeFiles'}{$inc}{'InclType'}
-        	) {
-        		die "__merge_includes(): INC $inc is not in IncludeFiles\n";
-        	}        	
-            if ( $stref->{'IncludeFiles'}{$inc}{'InclType'} eq 'Common'
-                and not exists $Ssub->{'CommonIncludes'}{$inc} )
-            {
-                $Ssub->{'CommonIncludes'}{$inc} = 1;
-            }
-        }
-    }
-
-    if ( $nid != $cnid ) {
-        my $csub  = $stref->{'Nodes'}{$cnid}{'Subroutine'};
-        my $Scsub = $stref->{'Subroutines'}{$csub};
-        if ( exists $Scsub->{'CommonIncludes'} ) {
-            for my $inc ( keys %{ $Scsub->{'CommonIncludes'} } ) {
-                if ( not exists $Ssub->{'CommonIncludes'}{$inc} ) {
+        } # $V
+        
+        if ( exists $Ssub->{'Includes'}
+            and not exists $Ssub->{'CommonIncludes'}     
+            )
+        {
+            for my $inc ( keys %{ $Ssub->{'Includes'} } ) {
+            	if (not exists $stref->{'IncludeFiles'}{$inc}
+            	or not exists $stref->{'IncludeFiles'}{$inc}{'InclType'}
+            	) {
+            		die "__merge_includes(): INC $inc is not in IncludeFiles\n";
+            	}        	
+                if ( $stref->{'IncludeFiles'}{$inc}{'InclType'} eq 'Common'
+                    and not exists $Ssub->{'CommonIncludes'}{$inc} )
+                {
+                    say "Adding $inc to CommonIncludes in $sub" if $V;
                     $Ssub->{'CommonIncludes'}{$inc} = 1;
                 }
             }
         }
-    }
-    die 'No subroutine name ' if $sub eq '' or not defined $sub;
-    $stref->{'Subroutines'}{$sub}=$Ssub ;
-    if ( $nid != 0 ) {
-        $stref = __merge_includes( $stref, $pnid, $nid,$chain );
-    }
+
+        if ( $nid != $cnid ) {
+            my $csub  = $stref->{'Nodes'}{$cnid}{'Subroutine'};
+            my $Scsub = $stref->{'Subroutines'}{$csub};
+            if ( exists $Scsub->{'CommonIncludes'} ) {
+                for my $inc ( keys %{ $Scsub->{'CommonIncludes'} } ) {
+                    if ( not exists $Ssub->{'CommonIncludes'}{$inc} ) {
+                        $Ssub->{'CommonIncludes'}{$inc} = 1;
+                    }
+                }
+            }
+        }
+        die 'No subroutine name ' if $sub eq '' or not defined $sub;
+        $stref->{'Subroutines'}{$sub}=$Ssub ;
+        if ( $nid != 0 ) {
+            $stref = __merge_includes( $stref, $pnid, $nid,$chain );
+        }
     }
     return $stref;
 }    # END of __merge_includes
