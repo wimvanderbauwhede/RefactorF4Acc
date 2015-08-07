@@ -133,11 +133,12 @@ sub create_exglob_var_declarations {
     my $nextLineID=scalar @{$rlines}+1;        
     for my $inc ( keys %{ $Sf->{'Globals'} } ) {
         print "INFO: GLOBALS from INC $inc in $f\n" if $I;
-
+#if ($f eq 'flexpart_wrf') { die Dumper($Sf); }
         for my $var ( sort @{ $Sf->{'Globals'}{$inc} } ) {
-            if ( exists $args{$var} ) {
-                my $rline = "*** ARG MASKS GLOB $var in $f!";
-                push @{$rlines}, [ $rline, {'Error' =>1} ];
+#            die $Sf->{'RefactoredArgs'}{'Set'}{$var} if $var eq 'jy';
+            if ( exists $args{$var} or exists $Sf->{'RefactoredArgs'}{'Set'}{$var} or exists $Sf->{'Vars'}{$var}) {
+                my $rline = "! *** ARG MASKS GLOB $var from $inc in $f!";
+                push @{$rlines}, [ $rline, {'Error' =>1, 'LineID' => $nextLineID++ } ];
             } else {
                 if ( exists $Sf->{'Commons'}{$inc} ) {
 # FIXME: we need to remove these declarations from the include file!
@@ -169,7 +170,7 @@ say "WARNING: $f:  VAR $var is not declared in INC $inc but is common, will be d
                         $info->{'LineID'}= $nextLineID++;
                         $info->{'Ref'}=1;
                         $info->{'VarDecl'}=$rdecl;
-                        push @{$rlines}, [ $rline, $info ];
+                        push @{$rlines}, [ $rline,  $info ];
                     } else {
                         #nothing
                     }

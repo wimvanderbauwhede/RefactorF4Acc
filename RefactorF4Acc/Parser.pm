@@ -549,6 +549,7 @@ die if ref($var) eq 'ARRAY';
                 $info->{'VarDecl'} =
                   [ $indent, [], [@varnames], 0 ]
                   ; #WV20150708 We now store 'Decl' here so it us a record [$spaces,[$type, $attr, $dim , $intent ],[@vars],$formatted];
+                  $info->{'Ann'} .= $line. ' -> _analyse_lines '.__LINE__.' -> ';
                 if ($first) {
                     $first = 0;
 
@@ -1903,7 +1904,7 @@ sub __construct_new_subroutine_signatures {
             for my $iter (@{ $iters } ) {
                  my $decl = format_f95_var_decl( $stref,$f,$iter ); 
              unshift @{ $Sblock->{'AnnLines'} },
-              [ emit_f95_var_decl($decl), { 'VarDecl' => $decl } ];
+              [ emit_f95_var_decl($decl), { 'VarDecl' => $decl, 'Ann' => '__construct_new_subroutine_signatures '. __LINE__ .' -> ' } ];              
             }
         }
 
@@ -1912,7 +1913,7 @@ sub __construct_new_subroutine_signatures {
             say '__construct_new_subroutine_signatures: '. __LINE__ . ' : '.Dumper( $Sf->{'Vars'}{$argv} ) if $argv eq 'indzindicator';
 #            my $decl = _vars_entry_to_vardecl( $Sf->{'Vars'}{$argv} ); # $Sf->{'Vars'}{$argv}{'Decl'}            
             unshift @{ $Sblock->{'AnnLines'} },
-              [ emit_f95_var_decl($decl), { 'VarDecl' => $decl } ];
+              [ emit_f95_var_decl($decl), { 'VarDecl' => $decl, 'Ann' => '__construct_new_subroutine_signatures '. __LINE__ .' -> '  } ];
         }
         unshift @{ $Sblock->{'AnnLines'} }, $sigline;
 
@@ -2023,6 +2024,7 @@ sub _split_multivar_decls { (my $f, my $stref) = @_;
                 $rinfo{'VarDecl'}[1][2]= [@{$Sf->{'Vars'}{$var}{'Shape'}}]; # Copy of Shape to Dim
                 $rinfo{'VarDecl'}[2]=[$var];
                 $rinfo{'VarDecl'}[3]=0;
+                $rinfo{'Ann'} .= '_split_multivar_decls '. __LINE__ .' -> '; 
                 my $rline=$line;
                 $Sf->{'Vars'}{$var}{'Decl'}[2]=[$var];
 #                die Dumper($rinfo{'VarDecl'}) if $var eq 'drydeposit';

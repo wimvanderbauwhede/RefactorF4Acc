@@ -283,9 +283,11 @@ if (0) {
                         my $var_decl =
                           format_f95_var_decl( $stref, $f, $vars[0] );
                         $info->{'VarDecl'} = $var_decl;
-                        $line = emit_f95_var_decl($var_decl) . ' ! V2';
+                        $line = emit_f95_var_decl($var_decl) ;
                         delete $info->{'ExGlobVarDecls'};
                         $info->{'Ref'} = 1; 
+                        $info->{'Ann'} .= 'context_free_refactoring '. __LINE__ ."; ";
+                        $line .= "\t!".$info->{'Ann'};
                         } else {die 'BOOM!' }
                     }
 #                } else {    # more than one variable declared on this line
@@ -1548,6 +1550,7 @@ sub splice_additional_lines {
 
     for my $annline ( @{$annlines} ) {
         ( my $line, my $info ) = @{$annline};
+        
         if ( $info->{'LineID'} == $insert_pos_lineID and $once ) {
             $once = 0;
 
