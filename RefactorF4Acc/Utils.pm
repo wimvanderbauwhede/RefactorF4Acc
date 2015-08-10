@@ -88,7 +88,7 @@ sub get_maybe_args_globs {
     my %maybe_args = ();
     for my $inc ( keys %{ $Sf->{'Globals'} } ) {
         if ( defined $Sf->{'Globals'}{$inc} ) {
-            @globs = ( @globs, @{ $Sf->{'Globals'}{$inc} } );
+            @globs = ( @globs, @{ $Sf->{'Globals'}{$inc}{'List'} } );
         }
         if ( defined $stref->{'IncludeFiles'}{$inc}{'Vars'} ) {
             %maybe_args =
@@ -128,9 +128,9 @@ if (not defined $var or $var eq '') {croak "VAR not defined!"}
     } else {
         print "WARNING: common <", $var, "> has no rule in {'Implicits'}{$f}, typing via Fortran defaults\n" if $W;
         if ($var=~/^[i-nI-N]/) {
-    return ('integer', 'Scalar', [], '');        
+    return ('integer', 'Scalar',  '');        
         } else {
-    return ('real', 'Scalar', [], '');
+    return ('real', 'Scalar',  '');
         } 
     }
     return ($type, $array_or_scalar, $attr);

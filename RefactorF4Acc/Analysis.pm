@@ -47,6 +47,12 @@ sub analyse_all {
         $stref = outer_loop_end_detect($kernel_wrapper,$stref);
     }
     
+    for my $inc (keys %{ $stref->{'IncludeFiles'} }) {
+    for my $v (keys %{ $stref->{'IncludeFiles'}{$inc}{'Commons'} }) {
+    say $v.' => '.Dumper($stref->{'IncludeFiles'}{$inc}{'Commons'}{$v});
+    }
+    }
+    # So at this point all globals have been resolved and typed.
 # NOTE: It turns out that at this point any non-global not explicity declared variables don't have a declaration yet.     
 	return $stref;	
 } # END of analyse_all()

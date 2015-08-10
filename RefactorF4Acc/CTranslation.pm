@@ -334,7 +334,7 @@ sub postprocess_C {
             { # FIXME: only works for types consisting of single strings, e.g. double precision will NOT match!
                 my $mf = $1;
                 if (
-                    exists $stref->{'Subroutines'}{$sub}{'CalledFunctions'}
+                    exists $stref->{'Subroutines'}{$sub}{'CalledSubs'}
                     {$mf} )
                 {
                     $line =~ s|^|\/\/|;

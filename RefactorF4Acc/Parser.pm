@@ -93,7 +93,7 @@ sub parse_fortran_src {
             $stref->{$sub_or_incl_or_mod}{$f}{'Status'} = $PARSED;
             print "DONE PARSING $sub_or_incl_or_mod $f\n" if $V;
         } else  {    # includes
-## 6. For includes, parse common blocks and parameters, create $stref->{'Commons'}
+## 6. For includes, parse common blocks and parameters, create $stref->{'IncludeFiles'}{$inc}{'Commons'}
             $stref = _get_commons_params_from_includes( $f, $stref );
             $stref->{'IncludeFiles'}{$f}{'Status'} = $PARSED;
             
@@ -104,6 +104,7 @@ sub parse_fortran_src {
 # 7. Split variable declarations with multiple vars into single-var lines
             $stref = _split_multivar_decls( $f, $stref );
             $stref = _split_multipar_decls_and_set_type( $f, $stref );
+            
     } else {
         print "INFO: $f is EXTERNAL\n" if $I;
     }
@@ -1057,10 +1058,10 @@ sub _parse_subroutine_and_function_calls {
                         exists $stref->{'Subroutines'}{$chunk}
                         and exists $stref->{'Subroutines'}{$chunk}{'Function'}
                        # This means it's the first call to function $chunk in $f
-                        and not exists $Sf->{'CalledFunctions'}{$chunk}
+                        and not exists $Sf->{'CalledSubs'}{$chunk}
                       )
                     {
-                        $Sf->{'CalledFunctions'}{$chunk} = 1;
+                        $Sf->{'CalledSubs'}{$chunk} = 1;
                         print "FOUND FUNCTION CALL $chunk in $f\n" if $V;
                         if ( $chunk eq $f ) {
                             show($srcref);
@@ -1160,22 +1161,22 @@ sub build_call_graph {
 # Identify the include file as containing params or commons.
 # If it contains both, split and call the routine again.
 sub _get_commons_params_from_includes {
-    ( my $f, my $stref ) = @_;
-    my $Sf     = $stref->{'IncludeFiles'}{$f};
-    my $srcref = $Sf->{'AnnLines'};
+    ( my $inc, my $stref ) = @_;
+    my $Sincf     = $stref->{'IncludeFiles'}{$inc};
+    my $srcref = $Sincf->{'AnnLines'};
     my $indent = '';
 
     if ( defined $srcref ) {
 
-        $Sf->{'Parameters'} = {} unless exists $Sf->{'Parameters'};
-        $Sf->{'Parameters'}{'OrderedList'} = []
-          unless exists $Sf->{'Parameters'}{'OrderedList'};
-        $Sf->{'Parameters'}{'Set'} = {}
-          unless exists $Sf->{'Parameters'}{'Set'};
+        $Sincf->{'Parameters'} = {} unless exists $Sincf->{'Parameters'};
+        $Sincf->{'Parameters'}{'OrderedList'} = []
+          unless exists $Sincf->{'Parameters'}{'OrderedList'};
+        $Sincf->{'Parameters'}{'Set'} = {}
+          unless exists $Sincf->{'Parameters'}{'Set'};
 
-        my %vars = %{ $stref->{'IncludeFiles'}{$f}{'Vars'} };
+        my %vars = %{ $stref->{'IncludeFiles'}{$inc}{'Vars'} };
 
-        if ( exists $Sf->{'Vars'}{''} ) { croak "EMPTY VAR! in $f" }
+        if ( exists $Sincf->{'Vars'}{''} ) { croak "EMPTY VAR! in $inc" }
         my $has_pars    = 0;
         my $has_commons = 0;
 
@@ -1194,19 +1195,20 @@ sub _get_commons_params_from_includes {
                 my $commonlst         = $2;
                 $has_commons = 1;
                 my $parsedvars = _parse_F77_vardecl( $commonlst, 0 );
-#                die Dumper(%vars) if $f eq 'includeinterpol';
+#                die Dumper($parsedvars->{'f'} ) if $line=~/varia/;
+#                die Dumper(%vars) if $inc eq 'includeinterpol';
                 for my $var ( keys %{$parsedvars} ) {
                     
-                    if ( not defined $Sf->{'Vars'}{$var} ) {
+                    if ( not defined $Sincf->{'Vars'}{$var} ) {
                         if (
-                            exists $stref->{'Implicits'}{$f}
+                            exists $stref->{'Implicits'}{$inc}
                             { lc( substr( $var, 0, 1 ) ) } )
                         {
                             print "INFO: common <", $var,
-                              "> typed via Implicits for $f\n"
+                              "> typed via Implicits for $inc\n"
                               if $I; 
                             my $type_kind_shape_attr =
-                              $stref->{'Implicits'}{$f}
+                              $stref->{'Implicits'}{$inc}
                               { lc( substr( $var, 0, 1 ) ) };
                             ( my $type, my $array_or_scalar, my $shape, my $attr ) =
                               @{$type_kind_shape_attr};
@@ -1219,25 +1221,25 @@ sub _get_commons_params_from_includes {
                                 'Indent' => '      ', # OBSOLETE
                                 'ArrayOrScalar'   => $parsedvars->{$var}{'ArrayOrScalar'}
                             };
-                            $Sf->{'Commons'}{$var} = $var_rec;
-                            $Sf->{'Vars'}{$var} = $var_rec;
+                            $Sincf->{'Commons'}{$var} = $var_rec;
+                            $Sincf->{'Vars'}{$var} = $var_rec;
                         } else {
                             print "WARNING: common <", $var,
-                              "> is not in {'IncludeFiles'}{$f}{'Vars'}\n"
+                              "> is not in {'IncludeFiles'}{$inc}{'Vars'}\n"
                               if $W;
                         }
                     } else {
                         
-                        print $var, "\t", $Sf->{'Vars'}{$var}{'Type'}, "\n"
+                        print $var, "\t", $Sincf->{'Vars'}{$var}{'Type'}, "\n"
                           if $V;
                         if ( exists $parsedvars->{$var}{Shape} and scalar @{$parsedvars->{$var}{Shape}}>0 ) {
                             
-                            $Sf->{'Vars'}{$var}{Shape} = $parsedvars->{$var}{Shape};
-                            $Sf->{'Vars'}{$var}{ArrayOrScalar}  = 'Array';
+                            $Sincf->{'Vars'}{$var}{Shape} = $parsedvars->{$var}{Shape};
+                            $Sincf->{'Vars'}{$var}{ArrayOrScalar}  = 'Array';
                         }
-#                        die Dumper($Sf->{'Vars'}{$var})."\n".Dumper($parsedvars->{$var}{Shape}) if $f eq 'includeinterpol' and $var eq 'uprof';
-                        $stref->{'IncludeFiles'}{$f}{'Commons'}{$var} =
-                          $Sf->{'Vars'}{$var};
+#                        die Dumper($Sincf->{'Vars'}{$var})."\n".Dumper($parsedvars->{$var}{Shape}) if $inc eq 'includeinterpol' and $var eq 'uprof';
+                        $stref->{'IncludeFiles'}{$inc}{'Commons'}{$var} =
+                          $Sincf->{'Vars'}{$var};
                     }
                 }
                 $srcref->[$index][1]{'Common'} =
@@ -1262,11 +1264,11 @@ sub _get_commons_params_from_includes {
 
                 for my $var (@pvarl) {
 
-                    if (    not defined $Sf->{'Vars'}{$var}
-                        and not exists $Sf->{'Parameters'}{'Set'}{$var} )
+                    if (    not defined $Sincf->{'Vars'}{$var}
+                        and not exists $Sincf->{'Parameters'}{'Set'}{$var} )
                     {
                         print
-"WARNING: PARAMETER $var not declared in $f (Parser::_get_commons_params_from_includes)\n"
+"WARNING: PARAMETER $var not declared in $inc (Parser::_get_commons_params_from_includes)\n"
                           if $W;
                     }
                     if ( $pvars{$var} =~ /^\d*/ ) {
@@ -1274,15 +1276,15 @@ sub _get_commons_params_from_includes {
                     } elsif ( $pvars{$var} =~ /^[\d\.]+/ ) {    # FIXME: weak
                         $type = 'real';
                     }
-                    $Sf->{'Parameters'}{'Set'}{$var} = {
+                    $Sincf->{'Parameters'}{'Set'}{$var} = {
                         'Type' => $type,
-                        'Var'  => $Sf->{'Vars'}{$var},
+                        'Var'  => $Sincf->{'Vars'}{$var},
                         'Val'  => $pvars{$var}
                     };
                     push @pars, $var;
                 }
-                @{ $Sf->{'Parameters'}{'OrderedList'} } =
-                  ( @{ $Sf->{'Parameters'}{'OrderedList'} }, @pars );
+                @{ $Sincf->{'Parameters'}{'OrderedList'} } =
+                  ( @{ $Sincf->{'Parameters'}{'OrderedList'} }, @pars );
                 $srcref->[$index][1]{'ParamDecl'} =
                   [ $indent, [ $type, '', [], 'parameter' ], [@var_vals], 0 ]
                   ;    # F77-style parameters in include file
@@ -1300,21 +1302,21 @@ sub _get_commons_params_from_includes {
                 my @pars = ();
 
                 for my $var (@pvarl) {
-                    if ( not defined $Sf->{'Vars'}{$var} ) {
+                    if ( not defined $Sincf->{'Vars'}{$var} ) {
                         print
-"WARNING: PARAMETER $var not declared in $f (F95-style)\n"
+"WARNING: PARAMETER $var not declared in $inc (F95-style)\n"
                           if $W;
                     } else {
-                        $Sf->{'Parameters'}{'Set'}{$var} = {
+                        $Sincf->{'Parameters'}{'Set'}{$var} = {
                             'Type' => $type,
-                            'Var'  => $Sf->{'Vars'}{$var},
+                            'Var'  => $Sincf->{'Vars'}{$var},
                             'Val'  => $pvars{$var}
                         };
                         push @pars, $var;
                     }
                 }
-                @{ $Sf->{'Parameters'}{'OrderedList'} } =
-                  ( @{ $Sf->{'Parameters'}{'OrderedList'} }, @pars );
+                @{ $Sincf->{'Parameters'}{'OrderedList'} } =
+                  ( @{ $Sincf->{'Parameters'}{'OrderedList'} }, @pars );
                 $srcref->[$index][1]{'ParamDecl'} =
                   [@pars];    # F95-style parameters in include file
 
@@ -1324,62 +1326,62 @@ sub _get_commons_params_from_includes {
         }    # loop over annlines
 
         if ($V) {
-            print "\nCOMMONS for $f:\n\n";
-            for my $v ( sort keys %{ $Sf->{'Commons'} } ) {
+            print "\nCOMMONS for $inc:\n\n";
+            for my $v ( sort keys %{ $Sincf->{'Commons'} } ) {
                 print $v, "\n";
             }
         }
 
-        $Sf->{'Vars'} = {%vars};
+        $Sincf->{'Vars'} = {%vars};
 
         # FIXME!
         # An include file should basically only contain parameters and commons.
         # If it contains commons, we should remove them!
         if ( $has_commons && $has_pars ) {
             print
-"INFO: The include file $f contains both parameters and commons, attempting to split out params_$f.\n"
+"INFO: The include file $inc contains both parameters and commons, attempting to split out params_$inc.\n"
               if $I;
-            $Sf->{'InclType'} = 'Both';
-            $stref = __split_out_parameters( $f, $stref );
+            $Sincf->{'InclType'} = 'Both';
+            $stref = __split_out_parameters( $inc, $stref );
             $has_pars = 0;
 
         # What we should do is split this split out parameters into params_$name
         # and include params_$name in $name
 
         } elsif ($has_commons) {
-            $Sf->{'InclType'} = 'Common';
+            $Sincf->{'InclType'} = 'Common';
         } elsif ($has_pars) {
-            $Sf->{'InclType'} = 'Parameter';
+            $Sincf->{'InclType'} = 'Parameter';
         } else {
-            $Sf->{'InclType'} = 'None';
+            $Sincf->{'InclType'} = 'None';
         }
 
 # Checking if any variable encountered in the include file is either a Parameter or Common var
         for my $var ( keys %vars ) {
-            my $is_not_par = $has_pars && !exists( $Sf->{'Parameters'}{'Set'}{$var} );
+            my $is_not_par = $has_pars && !exists( $Sincf->{'Parameters'}{'Set'}{$var} );
             my $is_not_common =
-              $has_commons && !exists( $Sf->{'Commons'}{$var} );
+              $has_commons && !exists( $Sincf->{'Commons'}{$var} );
             if ( $is_not_par or $is_not_common ) {
-                for my $annline ( @{ $Sf->{'AnnLines'} } ) {
+                for my $annline ( @{ $Sincf->{'AnnLines'} } ) {
                     next
                       if $annline->[0] eq ''
                           or exists $annline->[1]{'Comments'};
                     if ( $annline->[0] =~ /\W$var\W/ ) {
                         my $info =
                           $is_not_par
-                          ? "$f has params but $var is not a param"
-                          : "$f has commons but $var is not common";
+                          ? "$inc has params but $var is not a param"
+                          : "$inc has commons but $var is not common";
                         warn
-"WARNING: Parser: $info on the following line in $f:\n";
+"WARNING: Parser: $info on the following line in $inc:\n";
                         warn $annline->[0], "\n";
                     }
                 }
                 print
-"WARNING: The include $f contains a variable <$var> that is neither a parameter nor a common variable, this is not supported\n"
+"WARNING: The include $inc contains a variable <$var> that is neither a parameter nor a common variable, this is not supported\n"
                   if $W;
             }
         }
-#        die Dumper(keys %{$Sf} ) if $f eq 'includecom';
+#        die Dumper(keys %{$Sincf} ) if $inc eq 'includecom';
     }
     return $stref;
 }    # END of get_commons_params_from_includes()
@@ -1989,6 +1991,7 @@ sub _split_multivar_decls { (my $f, my $stref) = @_;
 #            say scalar @{$info->{'VarDecl'}[2]};
             my @nvars = @{$info->{'VarDecl'}[2]};
             for my $var (@{$info->{'VarDecl'}[2]}) {
+                
                 my %rinfo = %{$info};
 #                say "VAR: $var";
                 $rinfo{'LineID'} =$nextLineID++;

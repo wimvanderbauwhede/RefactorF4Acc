@@ -16,7 +16,7 @@ use RefactorF4Acc::Refactoring::Common qw(
     );
 use RefactorF4Acc::Refactoring::Subroutines qw( refactor_all_subroutines refactor_kernel_signatures );
 use RefactorF4Acc::Refactoring::Subroutines::Declarations qw( find_and_add_missing_var_decls );
-use RefactorF4Acc::Refactoring::Functions qw( refactor_called_functions );
+use RefactorF4Acc::Refactoring::Functions qw( refactor_called_functions remove_vars_masking_functions);
 use RefactorF4Acc::Refactoring::IncludeFiles qw( refactor_include_files );
 use RefactorF4Acc::Analysis::ArgumentIODirs qw( determine_argument_io_direction_rec );
 use RefactorF4Acc::Refactoring::Modules qw( add_module_decls );
@@ -58,8 +58,10 @@ sub refactor_all {
     print "DONE determine_argument_io_direction_rec()\n" if $V;
     # So at this point we know everything there is to know about the argument declarations, we can now update them
 
-    find_and_add_missing_var_decls($stref);    
-
+    $stref = find_and_add_missing_var_decls($stref);
+    say "remove_vars_masking_functions";    
+    $stref = remove_vars_masking_functions($stref);
+    say "add_module_decls";
     $stref=add_module_decls($stref);
     return $stref;	
 } # END of refactor_all()  

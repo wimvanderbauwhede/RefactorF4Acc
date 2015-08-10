@@ -302,6 +302,7 @@ sub _process_src {
                     $stref->{'Modules'}{$mod_name}{'Subroutines'}{$func}={};
                 }
                 $stref->{'Subroutines'}{$func}{'Function'} = 1;
+                
                 $stref->{'Subroutines'}{$func}{'Source'} = $src;
                 $stref->{'Subroutines'}{$func}{'Status'} = $UNREAD;
                 if ($translate_to ne '') {

@@ -46,9 +46,9 @@ use Exporter;
 sub resolve_globals {
     ( my $f, my $stref ) = @_;
 #    say $f;
-    if ($f eq 'particles_main_loop') {
-    local $V=1;
-    }
+#    if ($f eq 'main') {
+#    local $V=1;
+#    }
     print '=' x 80, "\nENTER resolve_globals( $f )\n" if $V;
     if (exists $stref->{'Subroutines'}{$f} ) {
 #        die Dumper( $stref->{'Subroutines'}{$f}  ) if $f=~/module_press/;
@@ -68,9 +68,10 @@ sub resolve_globals {
             if (exists $Scsub->{'Globals'} ) {
                 for my $inc ( keys %{ $Sf->{'CommonIncludes'} } ) {
             	   if ( exists $Scsub->{'Globals'}{$inc}) {
-                    $Sf->{'Globals'}{$inc} = ordered_union( $Sf->{'Globals'}{$inc},
-                        $Scsub->{'Globals'}{$inc} );
+                    $Sf->{'Globals'}{$inc}{'List'} = ordered_union( $Sf->{'Globals'}{$inc}{'List'},
+                        $Scsub->{'Globals'}{$inc}{'List'} );
             	   }                    
+            	   $Sf->{'Globals'}{$inc}{'Set'} = { %{ $Sf->{'Globals'}{$inc}{'Set'} }, %{ $Scsub->{'Globals'}{$inc}{'Set'} } };            	   
                 }    
             }            
         }
@@ -84,6 +85,7 @@ sub resolve_globals {
     $stref = _resolve_conflicts_with_params( $f, $stref );
 
     }
+    
     return $stref;
 }    # END of resolve_globals()
 
@@ -147,28 +149,39 @@ sub _identify_globals_used_in_subroutine {
     # First determine subroutine arguments.
     $stref = __determine_subroutine_arguments( $f, $stref );
 
-    my %commons = ();
-    print "COMMONS ANALYSIS in $f\n" if $V; 
-    if ( not exists $Sf->{'Commons'} ) {
-        for my $inc ( keys %{ $Sf->{'CommonIncludes'} } ) {
-            print "COMMONS from $inc in $f? \n" if $V;
-            $commons{$inc} = { %{ $stref->{'IncludeFiles'}{$inc}{'Commons'} } }; # This was a bug: ref insteaf of copy!         
-        }
+#    my %commons = ();
+#    print "COMMONS ANALYSIS in $f\n" if $V; 
+#    if ( not exists $Sf->{'Globals'} ) {
+#        $Sf->{'Globals'}={};
+#    }
+#    for my $inc ( keys %{ $Sf->{'CommonIncludes'} } ) {
+#        if (not exists $Sf->{'Globals'}{$inc} ) { 
+#            print "\tADD COMMONS from $inc in $f\n" if $V;
+#            
+##            $commons{$inc} = { %{ $stref->{'IncludeFiles'}{$inc}{'Commons'} } }; # This was a bug: ref insteaf of copy!
+#            $Sf->{'Globals'}{$inc}{'Set'} = { %{ $stref->{'IncludeFiles'}{$inc}{'Commons'} } };
+##            map { say $_ .' => '. $commons{$inc}{$_}{'ArrayOrScalar'} } keys %{ $commons{$inc} };
+#            $Sf->{'HasCommons'} = 1;
+#        } else {
+#                print "already done for $inc in $f\n" if $V;
+#        }         
+#    }
 
-        $Sf->{'Commons'}    = \%commons;
-        $Sf->{'HasCommons'} = 1;
-    } else {
-        print "already done\n" if $V;
-        %commons = %{ $Sf->{'Commons'} };
-    }
+#        $Sf->{'Commons'}    = \%commons;
+#        $Sf->{'HasCommons'} = 1;
+#    } else {
+#        print "already done\n" if $V;
+#        %commons = %{ $Sf->{'Commons'} };
+#    }
 
     my $srcref = $Sf->{'AnnLines'};
-    print "GLOBALS ANALYSIS in $f\n" if $V; 
-    if ( defined $srcref and not exists $Sf->{'Globals'} ) {
+    print "\tGLOBALS ANALYSIS in $f\n" if $V; 
+    if ( defined $srcref and not exists $Sf->{'Globals'}) { #  
+    
         for my $cinc ( keys %{ $Sf->{'CommonIncludes'} } ) {
-            print "\nGLOBAL VAR ANALYSIS for $cinc in $f\n" if $V;
+            print "\n\tGLOBAL VAR ANALYSIS for $cinc in $f\n" if $V;
             my @globs = ();
-            my $tvars = $commons{$cinc};
+            my $tvars = { %{ $stref->{'IncludeFiles'}{$cinc}{'Commons'} } };
             for my $index ( 0 .. scalar( @{$srcref} ) - 1 ) {
                 my $line = $srcref->[$index][0];
 #                my $info = $srcref->[$index][1];
@@ -198,9 +211,16 @@ sub _identify_globals_used_in_subroutine {
                 print "\n";
             }
             
-            $Sf->{'Globals'}{$cinc} = \@globs;
+            $Sf->{'Globals'}{$cinc}{'List'} = \@globs;
+            $Sf->{'Globals'}{$cinc}{'Set'}={};
+            for my $var (@globs) {
+                $Sf->{'Globals'}{$cinc}{'Set'}{$var} = { %{ $stref->{'IncludeFiles'}{$cinc}{'Commons'}{$var} } };
+            }
         }
+        
     }
+#    die if $f eq 'main';
+#    die Dumper($Sf->{'Globals'}) if $f eq 'main';
     return $stref;
 }    # END of _identify_globals_used_in_subroutine()
 # -----------------------------------------------------------------------------

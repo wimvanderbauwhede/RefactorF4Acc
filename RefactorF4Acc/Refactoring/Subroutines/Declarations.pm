@@ -124,23 +124,29 @@ sub create_refactored_vardecls {
 # --------------------------------------------------------------------------------
 # We need to check if these variables are not still present in any includes of $f!
 sub create_exglob_var_declarations {
-    ( my $stref, my $f, my $annline, my $rlines ) = @_;	
-#    if ($f=~/LES_/) {die 'BOOM!';
-#        local $I=1;local $V=1; local $W=1;
-#    }
+    ( my $stref, my $f, my $annline, my $rlines ) = @_;
+    say "HERE: $f";	
+
+        local $I=1;
+        local $V=1;
+        local $W=1;
+
     my $Sf                 = $stref->{'Subroutines'}{$f};
     my %args               = %{ $Sf->{'Args'}{'Set'} };
-    my $nextLineID=scalar @{$rlines}+1;        
+    my $nextLineID=scalar @{$rlines}+1;
+    
     for my $inc ( keys %{ $Sf->{'Globals'} } ) {
+        
         print "INFO: GLOBALS from INC $inc in $f\n" if $I;
 #if ($f eq 'flexpart_wrf') { die Dumper($Sf); }
-        for my $var ( sort @{ $Sf->{'Globals'}{$inc} } ) {
+        for my $var ( sort @{ $Sf->{'Globals'}{$inc}{'List'} } ) {
 #            die $Sf->{'RefactoredArgs'}{'Set'}{$var} if $var eq 'jy';
-            if ( exists $args{$var} or exists $Sf->{'RefactoredArgs'}{'Set'}{$var} or exists $Sf->{'Vars'}{$var}) {
+            if ( exists $Sf->{'Args'}{'Set'}{$var} or exists $Sf->{'RefactoredArgs'}{'Set'}{$var} or exists $Sf->{'Vars'}{$var}) {
                 my $rline = "! *** ARG MASKS GLOB $var from $inc in $f!";
                 push @{$rlines}, [ $rline, {'Error' =>1, 'LineID' => $nextLineID++ } ];
-            } else {
-                if ( exists $Sf->{'Commons'}{$inc} ) {
+            } else { 
+                if ( exists $Sf->{'Globals'}{$inc} ) {
+                    
 # FIXME: we need to remove these declarations from the include file!
 
 #                        croak "$f: INC $inc: VAR $var\n" if not exists $stref->{IncludeFiles}{$inc}{'Vars'}{$var};
@@ -190,8 +196,9 @@ sub _add_missing_var_decls { (my $stref,my $f,my $undeclared_vars)=@_;
         say "\tADDING MISSING VAR DECL for <$var> " if $V;# T:$type, K:$kind, S:@{$shape}, A:$attr";
 #        my $code_unit = sub_func_incl_mod($f,$stref);
 #        my $Sf = $stref->{$code_unit}{$f};
-        
+        say Dumper($var) if $f eq 'ew';
         my $vd = format_f95_var_decl($stref,$f,$var);
+        say Dumper($vd) if $f eq 'ew';
         my $info = {'VarDecl'=>$vd}; # TODO: need some extra $info here
         my $line = emit_f95_var_decl($vd).' ! missing';
         my $annline = [ $line, $info];

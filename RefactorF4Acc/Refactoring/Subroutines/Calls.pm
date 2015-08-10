@@ -141,7 +141,7 @@ sub refactor_subroutine_call_args {
         next if $stref->{'IncludeFiles'}{$inc}{'Root'} eq $name;
         if ( defined $Sname->{'Globals'}{$inc} ) {
             if (%conflicting_exglobs_params) {
-                for my $var ( @{ $Sname->{'Globals'}{$inc} } ) {
+                for my $var ( @{ $Sname->{'Globals'}{$inc}{'List'} } ) {
                     if ( exists $conflicting_exglobs_params{$var} ) {
                         print
 "WARNING: CONFLICT in call to $name in $f:renaming $var with ${var}_GLOB!\n"
@@ -152,7 +152,7 @@ sub refactor_subroutine_call_args {
                     }
                 }
             } else {
-                @globals = ( @globals, @{ $Sname->{'Globals'}{$inc} } );
+                @globals = ( @globals, @{ $Sname->{'Globals'}{$inc}{'List'} } );
             }
         }
     }

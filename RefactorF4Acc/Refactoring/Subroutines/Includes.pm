@@ -96,9 +96,8 @@ sub create_new_include_statements {
           if $V;
           my $params_only = $stref->{'IncludeFiles'}{$inc}{'InclType'} eq 'Parameter';
           my $has_param_include = exists $stref->{'IncludeFiles'}{$inc}{'ParamInclude'};
+=info 0          
         if ( exists $Sf->{'CommonIncludes'}{$inc} ) {
-            
-        
 #            die Dumper($stref->{'IncludeFiles'}{$inc});
             my $tinc=$inc;
             my $ok=0;
@@ -115,7 +114,7 @@ sub create_new_include_statements {
             if ($ok==1) {           
             $tinc=~s/\./_/g;
             my $rline = "      use $tinc"; 
-            $rline .=" ! create_new_include_statements() line 106";# if $V;
+            $rline .=" ! create_new_include_statements() line ". __LINE__ ;# if $V;
             $info->{'Include'}{'Name'} = $inc;
             $info->{'Ref'}=1;
             $info->{'LineID'}=$nextLineID++;
@@ -131,6 +130,7 @@ sub create_new_include_statements {
             push @{$rlines}, [ $rline, $info ];
             }
         } 
+=cut        
     }
 #    die Dumper($rlines) if $f eq 'aveflow';
     return $rlines;

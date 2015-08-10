@@ -5,8 +5,8 @@ use warnings;
 use warnings FATAL => qw(uninitialized);
 use strict;
 use Data::Dumper;
-$Data::Dumper::Indent = 0;
-$Data::Dumper::Terse = 1;
+$Data::Dumper::Indent = 1;
+$Data::Dumper::Terse = 0;
 
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
@@ -143,7 +143,8 @@ sub main {
 #	$stref->{'Nodes'}={};
 	$stref = build_call_graph($subname, $stref);
 #	die Dumper($stref->{'Nodes'});
-#    say Dumper( $stref->{'Nodes'} );die;
+
+#    say Dumper( $stref->{Subroutines}{main} );die;
     # Analyse the source
 	$stref = analyse_all($stref,$subname);
 

@@ -61,6 +61,7 @@ sub refactor_all_subroutines {
       $stref = _refactor_subroutine_main( $f, $stref );
       
     }
+
     return $stref;
 }    # END of refactor_all_subroutines()
 # ------------------------------------------------------------------------
@@ -93,7 +94,7 @@ This is a node called 'RefactoredSubroutineCall'
 
 sub _refactor_subroutine_main {
     ( my $f, my $stref ) = @_;
-#    local $V=1;
+    local $V=1;
     if ($V) {
         print "\n\n";
         print "#" x 80, "\n";

@@ -982,7 +982,14 @@ sub format_f95_var_decl {
         if ( exists $Sf->{'RefactoredArgs'}{'Set'}{$var} ) {
             $intent =
               [ 'intent', $Sf->{'RefactoredArgs'}{'Set'}{$var}{'IODir'} ];
-        } 
+        }
+        } elsif (exists $Sf->{'Globals'}) {
+            for my $inc (keys %{$Sf->{'Globals'} } ) {
+                if (exists $Sf->{'Globals'}{$inc}{$var}) {
+                    die "FOUND $var as GLOBAL in $inc for $f";
+                }
+                
+            } 
     } elsif ( defined $f and defined $stref and defined $var ) {
         die Dumper( $_[0] ) unless defined $stref;
         ( $type, my $kind, $attr ) =
@@ -1653,6 +1660,8 @@ sub stateless_pass {
 
 sub stateful_pass {
     (my $stref, my $f, my $pass_actions, my $state, my $info ) = @_;
+    local $Data::Dumper::Indent =0;
+    local $Data::Dumper::Terse=1;
     say "STATEFUL PASS ".Dumper($info)." for $f" if $V;
     my $sub_or_func_or_mod = sub_func_incl_mod( $f, $stref );
     my $Sf                 = $stref->{$sub_or_func_or_mod}{$f};
@@ -1660,7 +1669,7 @@ sub stateful_pass {
     my $nextLineID         = scalar @{$annlines} + 1;
     my $new_annlines=[];
     for my $annline ( @{$annlines} ) {
-        (my $new_annline, $state) = $pass_actions->($annline, $state);
+        (my $new_annline, $stref, $state) = $pass_actions->($annline, $stref, $state);
         push @{$new_annlines}, $new_annline;
     }
     $Sf->{'RefactoredCode'} = $new_annlines;

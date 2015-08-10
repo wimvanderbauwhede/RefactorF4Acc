@@ -39,13 +39,18 @@ sub add_module_decls {
     my $no_module=0;
     
 	for my $src (keys %{ $stref->{'SourceContains'} } ) {
+	    say $src if $src =~/calcpar/;
 	    for my $sub_or_func (keys %{  $stref->{'SourceContains'}{$src}   } ) {
-	        
+	        say $sub_or_func if $src =~/calcpar/;
 	        my $sub_func_type= $stref->{'SourceContains'}{$src}{$sub_or_func};
+	        say $sub_func_type if $src =~/calcpar/;; 
 	        my $Sf = $stref->{$sub_func_type}{$sub_or_func};
 #	        die "$src => $sub_or_func".Dumper($Sf->{AnnLines}) if $src =~ /LES/;
-	        my $called_sub_or_func = (exists $stref->{'Subroutines'}{$sub_or_func}{'Function'}) ? 'CalledFunctions' : 'CalledSubs' ;
+#	        my $called_sub_or_func = (exists $stref->{'Subroutines'}{$sub_or_func}{'Function'}) ? 'CalledFunctions' : 'CalledSubs' ;
+	        my $called_sub_or_func =  'CalledSubs' ;
+	        say $called_sub_or_func if $src =~/calcpar/;
 	        for my $called_sub ( keys %{ $Sf->{$called_sub_or_func} } ) {
+	            say "CALLS:".$called_sub if $src =~/calcpar/;
 	            my $cs_src;
 	            if (exists $stref->{'Subroutines'}{$called_sub} and exists $stref->{'Subroutines'}{$called_sub}{'Source'}) {
 	               $cs_src=$stref->{'Subroutines'}{$called_sub}{'Source'};
@@ -56,6 +61,7 @@ sub add_module_decls {
 	            $stref->{'UsedModules'}{$src}{$cs_src}=1;
 	        }
 	    }
+	    
 	}
     for my $src (keys %{ $stref->{'SourceContains'} } ) {
         $no_module= $stref->{'Program'} eq $src;

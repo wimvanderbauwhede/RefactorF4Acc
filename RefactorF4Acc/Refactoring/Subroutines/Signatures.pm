@@ -165,16 +165,16 @@ sub refactor_subroutine_signature {
             next;
         }
         if ( defined $Sf->{'Globals'}{$inc} ) {
-            for my $var ( @{ $Sf->{'Globals'}{$inc} } ) {
+            for my $var ( @{ $Sf->{'Globals'}{$inc}{'List'} } ) {
                 if ( not exists $Sf->{'Vars'}{$var} ) {
                     $Sf->{'Vars'}{$var} =
                       $stref->{'IncludeFiles'}{$inc}{'Vars'}{$var};
                 }
             }
             print "$inc:"
-              . join( ',', @{ $Sf->{'Globals'}{$inc} } ), "\n"
+              . join( ',', @{ $Sf->{'Globals'}{$inc}{'List'} } ), "\n"
               if $V;
-            @exglobs = ( @exglobs, @{ $Sf->{'Globals'}{$inc} } );
+            @exglobs = ( @exglobs, @{ $Sf->{'Globals'}{$inc}{'List'} } );
         }
     }
     # Loop over @exglobs, rename vars that conflict with parameters

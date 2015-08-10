@@ -2,7 +2,7 @@ package RefactorF4Acc::Refactoring::Functions;
 use v5.16;
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
-use RefactorF4Acc::Refactoring::Common qw( context_free_refactorings create_refactored_source );
+use RefactorF4Acc::Refactoring::Common qw( context_free_refactorings create_refactored_source stateful_pass );
 
 # 
 #   (c) 2010-2012 Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
@@ -24,15 +24,42 @@ use Exporter;
 
 @RefactorF4Acc::Refactoring::Functions::EXPORT_OK = qw(
     &refactor_called_functions
+    &remove_vars_masking_functions
 );
 
 =pod
 Functions
+    remove_vars_masking_functions()
     refactor_called_functions()
     _refactor_function()
 =cut
 
 
+sub remove_vars_masking_functions { ( my $stref ) = @_;
+    my $pass_actions = sub {
+        (my $annline, my $stref, my $f) = @_;
+        (my $line, my $info) = @{$annline};
+        if (exists $info->{'VarDecl'}) {
+            my $var = $info->{'VarDecl'}[2][0];
+            if (exists $stref->{'Subroutines'}{$f}{'CalledSubs'}{$var}) {
+                say "VAR $var is masking a function/sub in $f";
+                delete $stref->{'Subroutines'}{$f}{'Vars'}{$var};
+                delete $stref->{'Subroutines'}{$f}{'Args'}{$var};
+                delete $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{$var};
+                $info->{'Deleted'}=1;   
+                $line = '! '.$line;             
+                return ([$line, $info], $stref, $f);
+            }
+        }
+        return ($annline, $stref, $f)
+        
+    };
+    for my $f ( keys %{ $stref->{'Subroutines'} } ) {
+        next unless (defined $f and $f ne '');
+        $stref = stateful_pass($stref,$f, $pass_actions, $f, '');
+    }
+    return $stref;    
+}
 # -----------------------------------------------------------------------------
 # The test for called functions is the status:
 # if the function was not parsed, it's not used, because we parse via recursive descent
