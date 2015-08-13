@@ -237,11 +237,6 @@ sub _refactor_globals {
 #            say "SKIP: $skip";
         }
 if ( exists $tags{'ExGlobVarDeclHook'} ) {
-#        if ( exists $tags{'ExGlobVarDecls'} and not exists $tags{'Deleted'} and not exists $tags{'Comments'} ) {
-#            if (
-#             $tags{'ExGlobVarDecls'} == $Sf->{'ExGlobVarDeclHook'} 
-##            and $tags{'ExGlobVarDecls'}>0 # just trying really ...
-#        ) {                    	
             # First, abuse ExGlobVarDecls as a hook for the addional includes, if any
 
             $rlines =
@@ -251,10 +246,7 @@ if ( exists $tags{'ExGlobVarDeclHook'} ) {
            say "EX-GLOBS for $f" if $V;
             $rlines = create_exglob_var_declarations( $stref, $f, $annline, $rlines );
 
-#        } else {
-#            say "EX-GLOB HOOK MISMATCH:".$tags{'ExGlobVarDecls'}.'<>'.$Sf->{'ExGlobVarDeclHook'}; 
-#        }
-        }
+        } 
    # This is what breaks flexpart, but it's OK for les ...
         if ( exists $tags{'VarDecl'} and not exists $tags{'Deleted'} and (not exists $tags{Ref} or $tags{Ref}==0)) {
             $rlines = create_refactored_vardecls( $stref, $f, $annline, $rlines,

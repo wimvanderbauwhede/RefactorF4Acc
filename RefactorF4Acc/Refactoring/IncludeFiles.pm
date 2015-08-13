@@ -32,10 +32,10 @@ use Exporter;
 sub refactor_include_files {
 	( my $stref ) = @_;
 #    $stref=resolve_module_deps($stref); FIXME!!!
-	for my $f ( keys %{ $stref->{'IncludeFiles'} } ) {
-            next if $stref->{'IncludeFiles'}{$f}{'InclType'} eq 'External';
-			print "\nREFACTORING INCLUDE FILE $f\n" if $V;
-			$stref = _refactor_include_file( $f, $stref );
+	for my $inc_f ( keys %{ $stref->{'IncludeFiles'} } ) {
+            next if $stref->{'IncludeFiles'}{$inc_f}{'InclType'} eq 'External';
+			print "\nREFACTORING INCLUDE FILE $inc_f\n" if $V;
+			$stref = _refactor_include_file( $inc_f, $stref );
 	}
 	
 	return $stref;
@@ -44,30 +44,30 @@ sub refactor_include_files {
 # -----------------------------------------------------------------------------
 # -----------------------------------------------------------------------------
 sub _refactor_include_file {
-	( my $f, my $stref ) = @_; 
+	( my $inc_f, my $stref ) = @_; 
 
-	print "\n\n", '#' x 80, "\nRefactoring INC $f\n", '#' x 80, "\n" if $V;
+	print "\n\n", '#' x 80, "\nRefactoring INC $inc_f\n", '#' x 80, "\n" if $V;
 	
-	my $If = $stref->{'IncludeFiles'}{$f};
-	my $ff=$f;
-	$ff=~s/\./_/g;
-	$stref->{'IncludeFiles'}{$f}{'Source'}=$ff.'.f95'; # FIXME: ad hoc
-	$stref->{'BuildSources'}{'F'}{$f.'.f95'}=1;
+	my $If = $stref->{'IncludeFiles'}{$inc_f};
+	my $inc_ff=$inc_f;
+	$inc_ff=~s/\./_/g;
+	$stref->{'IncludeFiles'}{$inc_f}{'Source'}=$inc_ff.'.f95'; # FIXME: ad hoc
+	$stref->{'BuildSources'}{'F'}{$inc_f.'.f95'}=1;
     if (   not exists $If->{'RefactoredCode'}
         or $If->{'RefactoredCode'} == []
         or exists $stref->{'BuildSources'}{'C'}{ $If->{'Source'} } ) # FIXME: needed?
     {
-        $stref = context_free_refactorings( $stref, $f );
+        $stref = context_free_refactorings( $stref, $inc_f );
     }
 
-	my $annlines = get_annotated_sourcelines( $stref, $f );
+	my $annlines = get_annotated_sourcelines( $stref, $inc_f );
 
     # So at this point the type declarations have not been refactored.
     # I can either do it here ad-hoc or see why they did not get refactored.
     my %deps=();
     my $refactored_lines=[];
     push @{ $refactored_lines },
-    	[ "module $ff", {'BeginModule'=>$ff, 'Ref'=>1} ];
+    	[ "module $inc_ff", {'BeginModule'=>$inc_ff, 'Ref'=>1} ];
     	
 	for my $annline ( @{$annlines} ) {
 		next if not defined $annline; 
@@ -84,38 +84,37 @@ sub _refactor_include_file {
 			$skip = 1;
 		}
 		if ( exists $tags{'VarDecl'} ) {
-			$stref=__resolve_module_deps($stref,$f,$line);			
-			my @nvars = ();
-			for my $var ( @{ $info->{'VarDecl'}[2] } ) {
+			$stref=__resolve_module_deps($stref,$inc_f,$line);
+			my $var = $info->{'VarDecl'}{'Name'};			
+			my $nvar = $var;
+			
 				# Maybe put check for parameters here
 				
-				if ( $stref->{'IncludeFiles'}{$f}{'InclType'} ne 'Parameter'
+				if ( $stref->{'IncludeFiles'}{$inc_f}{'InclType'} ne 'Parameter'
 					and
-					exists $stref->{'IncludeFiles'}{$f}{'ConflictingGlobals'}
+					exists $stref->{'IncludeFiles'}{$inc_f}{'ConflictingGlobals'}
 					{$var} )
 				{
 					my $gvar =
-					  $stref->{'IncludeFiles'}{$f}{'ConflictingGlobals'}{$var}[0];
+					  $stref->{'IncludeFiles'}{$inc_f}{'ConflictingGlobals'}{$var}[0];
 					print
-"WARNING: CONFLICT in var decls in $f: renaming $var to $gvar\n"
+"WARNING: CONFLICT in var decls in $inc_f: renaming $var to $gvar\n"
 					  if $W;
-					push @nvars, $gvar;
+					$nvar = $gvar;
 					$line =~ s/\b$var\b/$gvar/;
 					$info->{'Ref'}++;
-				} else {
-					push @nvars, $var;
-				}
-			}
-			$annline->[1]{'VarDecl'}[2] = [@nvars];
+				} 
+			
+			$annline->[1]{'VarDecl'}{'Name'} = $nvar;
 		} 
 		if ( exists $tags{'ParamDecl'} ) {
 #			print Dumper(%tags);
 			for my $var (@{ $tags{'ParamDecl'} } ) {
 #				print "PAR: $var ($line)\n";
-                if ( exists $stref->{'IncludeFiles'}{$f}{'ConflictingGlobals'}
+                if ( exists $stref->{'IncludeFiles'}{$inc_f}{'ConflictingGlobals'}
                     {$var} )
                 {
-                	my $gvar=$stref->{'IncludeFiles'}{$f}{'ConflictingGlobals'}{$var}[0];
+                	my $gvar=$stref->{'IncludeFiles'}{$inc_f}{'ConflictingGlobals'}{$var}[0];
                 	$line=~s/\b$var\b/$gvar/;
                 	$info->{'Ref'}++;
                     $info->{'ParamDecl'}=[$gvar];    
@@ -125,7 +124,7 @@ sub _refactor_include_file {
 			
 		}
 		if ( exists $tags{'Implicit'} ) {
-		    print "WARNING: IMPLICIT: removing the implicit type declaration <$line> in $f, please make sure your code does not use them!\n" if $W;		    
+		    print "WARNING: IMPLICIT: removing the implicit type declaration <$line> in $inc_f, please make sure your code does not use them!\n" if $W;		    
 		    $line = '!! '.$line;
 		    $info->{'Comments'}=1;
 		    
@@ -137,16 +136,16 @@ sub _refactor_include_file {
 	}
 
         push @{ $refactored_lines },
-        [ "end module $ff", {'EndModule'=>$ff, 'Ref'=>1} ];
+        [ "end module $inc_ff", {'EndModule'=>$inc_ff, 'Ref'=>1} ];
         
-   my $firstline=shift @{ $refactored_lines }; # FIXME This is weak. What we need is the line with "module" 
-	for my $dep (keys %{ $stref->{'IncludeFiles'}{$f}{'Deps'} } ) {
+   my $inc_firstline=shift @{ $refactored_lines }; # FIXME This is weak. What we need is the line with "module" 
+	for my $dep (keys %{ $stref->{'IncludeFiles'}{$inc_f}{'Deps'} } ) {
             unshift @{ $refactored_lines },
             [ "use $dep ! refactor_include() line 146", {'ModuleDep'=>$dep, 'Ref'=>1} ];
         }
-        unshift @{ $refactored_lines },$firstline;
-     $stref->{'IncludeFiles'}{$f}{'RefactoredCode'}  = $refactored_lines;
-# 	if ($f=~/^common/)  {
+        unshift @{ $refactored_lines },$inc_firstline;
+     $stref->{'IncludeFiles'}{$inc_f}{'RefactoredCode'}  = $refactored_lines;
+# 	if ($inc_f=~/^common/)  {
 #	    print Dumper($refactored_lines);
 #	    die;
 #	}
@@ -157,19 +156,19 @@ sub _refactor_include_file {
 
 # -----------------------------------------------------------------------------
 # This routine is misnamed.  What it does is checking for dependencies of variables used in array shapes
-# If a var is not found in the include file $f, we go through all include files.
-# If we find a match, this include file is added to Deps of $f
+# If a var is not found in the include file $inc_f, we go through all include files.
+# If we find a match, this include file is added to Deps of $inc_f
 sub __resolve_module_deps {
-    ( my $stref, my $f, my $line) = @_;
+    ( my $stref, my $inc_f, my $line) = @_;
         if ( $line =~/dimension\((.+?)\)/) { # WV: FIXME! BOO!
             my $varlst= $1;
             my @vars = split(/[:,\+\-]/,$varlst);
             for my $var ( @vars ) {
-	           if ( not exists $stref->{'IncludeFiles'}{$f}{'Vars'}{$var} ) {
+	           if ( not exists $stref->{'IncludeFiles'}{$inc_f}{'Vars'}{$var} ) {
                     for my $inc ( keys %{ $stref->{'IncludeFiles'} } ) {
                         if (   $stref->{'IncludeFiles'}{$inc}{'InclType'} eq 'Parameter' ) {
                         	if ( exists $stref->{'IncludeFiles'}{$inc}{'Vars'}{$var} ) {
-                        		$stref->{'IncludeFiles'}{$f}{'Deps'}{$inc}=1;
+                        		$stref->{'IncludeFiles'}{$inc_f}{'Deps'}{$inc}=1;
                         		last;
                         	}            
             	       }

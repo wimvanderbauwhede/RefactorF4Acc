@@ -40,7 +40,7 @@ sub remove_vars_masking_functions { ( my $stref ) = @_;
         (my $annline, my $stref, my $f) = @_;
         (my $line, my $info) = @{$annline};
         if (exists $info->{'VarDecl'}) {
-            my $var = $info->{'VarDecl'}[2][0];
+            my $var = $info->{'VarDecl'}{'Name'};
             if (exists $stref->{'Subroutines'}{$f}{'CalledSubs'}{$var}) {
                 say "VAR $var is masking a function/sub in $f";
                 delete $stref->{'Subroutines'}{$f}{'Vars'}{$var};

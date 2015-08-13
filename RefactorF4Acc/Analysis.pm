@@ -41,8 +41,8 @@ sub analyse_all {
     # We need to walk the tree again, find the globals in rec descent.
     print "\t** RESOLVE GLOBALS **\n" if $V;
     $stref = resolve_globals( $subname, $stref );
-    print "\t** ANALYSE SOURCES **\n" if $V; # TODO: BETTER NAME
-    $stref = analyse_sources($stref); # TODO: LIFTING OF INCLUDES SHOULD HAPPEN *AFTER* THIS
+#    print "\t** ANALYSE SOURCES **\n" if $V; # TODO: BETTER NAME
+#    $stref = analyse_sources($stref); # TODO: LIFTING OF INCLUDES SHOULD HAPPEN *AFTER* THIS
     for my $kernel_wrapper (keys %{$stref->{'KernelWrappers'}}) {
         $stref = outer_loop_end_detect($kernel_wrapper,$stref);
     }

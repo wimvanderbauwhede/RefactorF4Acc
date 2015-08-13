@@ -70,8 +70,10 @@ sub resolve_globals {
             	   if ( exists $Scsub->{'Globals'}{$inc}) {
                     $Sf->{'Globals'}{$inc}{'List'} = ordered_union( $Sf->{'Globals'}{$inc}{'List'},
                         $Scsub->{'Globals'}{$inc}{'List'} );
-            	   }                    
-            	   $Sf->{'Globals'}{$inc}{'Set'} = { %{ $Sf->{'Globals'}{$inc}{'Set'} }, %{ $Scsub->{'Globals'}{$inc}{'Set'} } };            	   
+            	       
+            	   say $f, $csub, $inc;                
+            	   $Sf->{'Globals'}{$inc}{'Set'} = { %{ $Sf->{'Globals'}{$inc}{'Set'} }, %{ $Scsub->{'Globals'}{$inc}{'Set'} } };
+            	   }            	   
                 }    
             }            
         }
@@ -101,7 +103,7 @@ sub _resolve_conflicts_with_params {
 
             # See if there are any conflicts between parameters and ex-globals
             for my $commoninc ( keys %{ $Sf->{'Globals'} } ) {
-                for my $mpar ( @{ $Sf->{'Globals'}{$commoninc} } ) {
+                for my $mpar ( @{ $Sf->{'Globals'}{$commoninc}{'List'} } ) {
                     if ( exists $stref->{'IncludeFiles'}{$inc}{'Vars'}{$mpar} )
                     {
                         print
@@ -146,8 +148,8 @@ sub _identify_globals_used_in_subroutine {
        #local $V=1;# if $f eq 'particles_main_loop';
     my $Sf = $stref->{'Subroutines'}{$f};
 
-    # First determine subroutine arguments.
-    $stref = __determine_subroutine_arguments( $f, $stref );
+#    # First determine subroutine arguments. => 20150812: we do this in the Parser
+#    $stref = __determine_subroutine_arguments( $f, $stref );
 
 #    my %commons = ();
 #    print "COMMONS ANALYSIS in $f\n" if $V; 
@@ -216,6 +218,7 @@ sub _identify_globals_used_in_subroutine {
             for my $var (@globs) {
                 $Sf->{'Globals'}{$cinc}{'Set'}{$var} = { %{ $stref->{'IncludeFiles'}{$cinc}{'Commons'}{$var} } };
             }
+            $Sf->{'HasCommons'} = 1;
         }
         
     }
@@ -225,7 +228,7 @@ sub _identify_globals_used_in_subroutine {
 }    # END of _identify_globals_used_in_subroutine()
 # -----------------------------------------------------------------------------
 
-sub __determine_subroutine_arguments {
+sub __determine_subroutine_arguments_OFF {
     ( my $f, my $stref ) = @_;
 
     #   local $V=1 if $f=~/interpol/;
@@ -249,6 +252,7 @@ sub __determine_subroutine_arguments {
             or  $line =~ /^\s+\w+\s+function\s+(\w+)\s*\((.*)\)/
             
             ) {
+#                if (not exists $info->{SubroutineSig}) {say Dumper($info);die;}
                 my $name   = $1;                
                 my $argstr = $2;
                 $argstr =~ s/^\s+//;
@@ -304,7 +308,7 @@ sub __determine_subroutine_arguments {
     }
     $Sf->{'AnnLines'}=$srcref; # WV: required?
     return $stref;
-}    # END of __determine_subroutine_arguments()
+}    # END of __determine_subroutine_arguments_OFF()
 # -----------------------------------------------------------------------------
 sub __look_for_variables {
     ( my $stref, my $f, my $line, my $tvars ) = @_;
@@ -352,7 +356,8 @@ sub lift_includes {
         if ($stref->{'Subroutines'}{$cs}{'RefactorGlobals'}==1) {
             for my $inc (keys %{ $stref->{'Subroutines'}{$cs}{'CommonIncludes'} }) {
                 if (not exists $Sf->{'Includes'}{$inc} and $stref->{'IncludeFiles'}{$inc}{'InclType'} eq 'Common') {
-#                	print "LIFTED $inc\n";                	        
+#                	print "LIFTED $inc\n";                	
+croak 'lift_includes';        
                     push @{ $Sf->{'LiftedIncludes'} }, $inc;
                 } 
             }

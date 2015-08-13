@@ -86,11 +86,11 @@ sub context_free_refactorings {
     for my $annline ( @{$annlines} ) {
         ( my $line, my $info ) = @{$annline};
         if ( exists $info->{'ParamDecl'} ) {
-            for my $partup ( @{ $info->{'ParamDecl'}[2] } ) {
+            my $partup = $info->{'ParamDecl'}{'Name'}  ;
 #                say "$f: ".Dumper($info->{'ParamDecl'});
                 ( my $par, my $parval ) = @{$partup};
                 $params_declared_in_file{$par} = 1;
-            }
+            
         }
     }
     
@@ -184,9 +184,9 @@ sub context_free_refactorings {
 
 
 
-        if ( exists $info->{'VarDecl'} and not exists $info->{'FunctionSig'} ) {
-            my @vars = @{ $info->{'VarDecl'}[2] };
-die "$f: $line" if @vars>1;
+        if ( exists $info->{'VarDecl'} ) {# and not exists $info->{'FunctionSig'} ) { 
+            my $var =  $info->{'VarDecl'}{'Name'};
+
 # first create all parameter declarations, I want to put them before the first var decl
 # but this results in duplication. What I think I need is inventory all parameter lines in the file and exclude these
 # So that only parameters that are used in the file but declared elsewhere are added here
@@ -274,14 +274,14 @@ if (0) {
 
                 # not the first declaration, just refactor
 #                if ( scalar @vars == 1 ) {    # for var decls with a single var
-                    if ( exists( $Sf->{'Parameters'}{'Set'}{ $vars[0] } ) ) {
+                    if ( exists( $Sf->{'Parameters'}{'Set'}{ $var } ) ) {
           # Remove this line, because this param should have been declared above
                         $line = '!! Original line PAR:2 !! ' . $line;
                         $info->{'Deleted'} = 1;
                     } else {                        
                         if (not exists $info->{'Ref'} or $info->{'Ref'} == 0 ){  
                         my $var_decl =
-                          format_f95_var_decl( $stref, $f, $vars[0] );
+                          format_f95_var_decl( $stref, $f, $var );
                         $info->{'VarDecl'} = $var_decl;
                         $line = emit_f95_var_decl($var_decl) ;
                         delete $info->{'ExGlobVarDecls'};
@@ -455,7 +455,7 @@ if (0) {
             my @par_lines = ();
             my $info_ref = $info->{'Ref'} // 0;
 #            if (exists $info->{'ExGlobVarDecls'}) {die;};
-            for my $var_val ( @{ $info->{'ParamDecl'}[2] } ) {
+             my $var_val = $info->{'ParamDecl'}{'Name'};
                 ( my $var, my $val ) = @{$var_val};
                 
                 my $par_decl = format_f95_par_decl( $stref, $f, $var );
@@ -474,7 +474,7 @@ if (0) {
                     }
                   ]
                   ; # Create parameter declarations before variable declarations
-            }
+            
             $line = '!! Original line context-free ParamDecl !! ' . $line;
             $info->{'Deleted'} = 1;
         }
@@ -527,9 +527,9 @@ if (0) {
             # 1. Look for the signature
             for my $tmpannline ( @{ $Sf->{'RefactoredCode'} } ) {
                 if (   exists $tmpannline->[1]{'Signature'}
-                    or exists $tmpannline->[1]{'SubroutineSig'}
-                    or exists $tmpannline->[1]{'FunctionSig'} )
-                {
+#                    or exists $tmpannline->[1]{'SubroutineSig'}
+#                    or exists $tmpannline->[1]{'FunctionSig'} 
+                ) {
 
                     #    		print "Found sig for $f at $offset\n";
                     last;
@@ -1020,7 +1020,17 @@ sub format_f95_var_decl {
     }
 
 
-    return [ $spaces, [ $type, $attr, $dim, $intent ], [$nvar], 1 ];
+#    return [ $spaces, [ $type, $attr, $dim, $intent ], [$nvar], 1 ];
+    return {
+        'Indent' => $spaces,
+        'Type' => $type,
+        'Attr' => $attr,
+        'Dim' => $dim,
+        'Intent' => $intent,
+        'Names' => [$nvar],
+        'Name' => $nvar,
+        'Status' => 1
+    };
 
 }    # format_f95_var_decl()
 
@@ -1237,12 +1247,12 @@ sub UNUSED_resolve_params {
 
 sub format_f95_par_decl {
     ( my $stref, my $f, my $var_rec ) = @_;
-    if ( ref($var_rec) eq 'ARRAY' && $var_rec->[-1] == 1 ) {
+    if ( ref($var_rec) eq 'HASH' && $var_rec->{'Status'} == 1 ) {
         return $var_rec;
     }
     my $var = do {
-        if ( ref($var_rec) eq 'ARRAY' && $var_rec->[-1] == 0 ) {
-            $var_rec->[2][0][0];
+        if ( ref($var_rec) eq 'HAS' && $var_rec->{'Status'} == 0 ) {
+            $var_rec->{'Name'};
         } else {
 
             #	    croak $var_rec;
@@ -1314,6 +1324,16 @@ sub format_f95_par_decl {
         [ $Sv->{'Type'}, $Sv->{'Attr'}, $dimrec, 'parameter' ],
         [ [ $var, $val ] ], 1
     ];
+    
+    return {
+        'Indent' => $spaces,
+        'Type' => $Sv->{'Type'}, 
+        'Attr' => $Sv->{'Attr'}, 
+        'Dim' => $dimrec, 
+        'Parameter' => 'parameter',
+        'Name' => [ $var, $val ] ,
+        'Status' => 1
+    };    
 }    # format_f95_par_decl()
 
 sub _rename_conflicting_global_pars {
@@ -1465,10 +1485,16 @@ sub emit_f95_var_decl {
     if ( ref($var_decl_rec) ne 'ARRAY' ) {
         croak "NOT ARRAY in emit_f95_var_decl($var_decl_rec)";
     }
-    my $spaces = $var_decl_rec->[0];
-    ( my $type, my $attr, my $dim, my $intent_or_par ) =
-      @{ $var_decl_rec->[1] };
-
+    my $spaces = $var_decl_rec->{'Indent'};# [0];
+#    ( my $type, my $attr, my $dim, my $intent_or_par ) =
+#      @{ $var_decl_rec->[1] };
+      my $type = $var_decl_rec->{'Type'}; 
+      my $attr= $var_decl_rec->{'Attr'}; 
+      my $dim= $var_decl_rec->{'Dim'}; 
+      
+      my $is_par = exists $var_decl_rec->{'Parameter'} ? 1 : 0;
+      my $var = $var_decl_rec->{'Name'};
+      
     my $dimstr = '';
     if ( ref($dim) eq 'ARRAY' and @{$dim} == 2 ) {
         $dimstr = $dim->[0] . '(' . join( ',', @{ $dim->[1] } ) . ')';
@@ -1481,51 +1507,50 @@ sub emit_f95_var_decl {
         push @attrs, $dimstr;
     }
 
-    if ( ref($intent_or_par) eq 'ARRAY' ) {
-        my $intent    = $intent_or_par;
+    if ( not $is_par ) {
+        # Variable
+        my $intent    =  $var_decl_rec->{'Intent'};
         my $intentstr = '';
         if ( scalar @{$intent} == 2 ) {
             if ( $intent->[1] ne 'Unknown' ) {
                 $intentstr = $intent->[0].'('.$intent->[1].')'; 
             } else {
-                say "WARNING: Intent is Unknown for "
-                  . join( ',', @{ $var_decl_rec->[2] } )
+                say "WARNING: Intent is Unknown for $var"                  
                   if $W;
             }
         } elsif ( scalar @{$intent} == 1 ) {
-            say "WARNING: Intent has no value for "
-              . join( ',', @{ $var_decl_rec->[2] } )
+            say "WARNING: Intent has no value for $var"              
               if $W;
         }
 
         if ($intentstr) {
             push @attrs, $intentstr;
         }
-        my @vars = @{ $var_decl_rec->[2] };
+        
         if ( @attrs && $attrs[0] =~ /^\s*\(/ ) {
             my $decl_line =
                 $spaces 
               . $type
               . join( ', ', @attrs ) . ' :: '
-              . join( ', ', @vars );
+              . $var;
             return $decl_line;
         } else {
             my $decl_line =
                 $spaces
               . join( ', ', ( $type, @attrs ) ) . ' :: '
-              . join( ', ', @vars );
+              . $var;
             return $decl_line;
         }
     } else {
-        push @attrs, 'parameter';
-        my @vars = map { $_->[0] . '=' . $_->[1] } @{ $var_decl_rec->[2] };
+        # Parameter        
+        my $var_val = $var->[0] . '=' . $var->[1] ;
         my $decl_line =
             $spaces 
           . $type 
           . $attr . ', ' 
           . $dimstr
           . 'parameter' . ' :: '
-          . join( ', ', @vars );
+          . $var_val;
 
         #  	say 'emit_f95_var_decl PARAM: '.$decl_line ;
         return $decl_line;

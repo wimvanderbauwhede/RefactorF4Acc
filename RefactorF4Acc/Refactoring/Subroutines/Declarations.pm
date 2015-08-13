@@ -56,7 +56,8 @@ sub create_refactored_vardecls {
     my $globals = ( get_maybe_args_globs( $stref, $f ) )[1];
     my $skip=0;
     
-    my @vars      = @{ $info->{'VarDecl'}[2] };
+    my $var      =  $info->{'VarDecl'}{'Name'};
+    my @vars= ($var ); # FIXME, LAZY!
     my @nvars = (); 
     my $rline = $line;
     # Loop over all declared variables and check for conflicts with globals
@@ -139,13 +140,19 @@ sub create_exglob_var_declarations {
         
         print "INFO: GLOBALS from INC $inc in $f\n" if $I;
 #if ($f eq 'flexpart_wrf') { die Dumper($Sf); }
+
         for my $var ( sort @{ $Sf->{'Globals'}{$inc}{'List'} } ) {
-#            die $Sf->{'RefactoredArgs'}{'Set'}{$var} if $var eq 'jy';
-            if ( exists $Sf->{'Args'}{'Set'}{$var} or exists $Sf->{'RefactoredArgs'}{'Set'}{$var} or exists $Sf->{'Vars'}{$var}) {
-                my $rline = "! *** ARG MASKS GLOB $var from $inc in $f!";
-                push @{$rlines}, [ $rline, {'Error' =>1, 'LineID' => $nextLineID++ } ];
-            } else { 
-                if ( exists $Sf->{'Globals'}{$inc} ) {
+            
+die "THIS CHECK IS NOT OK: RefactoredArgs can have an entry with a blank IODir here, FIXME!";
+#what we should do is check the content, or maybe better, check if there already exists an actual VarDecl line.
+#If not, we should create one. If it exists and is complete, we should skip it.
+#            if (exists $Sf->{'Args'}{'Set'}{$var} or exists $Sf->{'RefactoredArgs'}{'Set'}{$var} or exists $Sf->{'Vars'}{$var}) {
+#                my $rline = "! *** ARG MASKS GLOB $var from $inc in $f!";
+#                push @{$rlines}, [ $rline, {'Error' =>1, 'LineID' => $nextLineID++ } ];
+#                
+#            } else { 
+                # croak $f.Dumper( $Sf->{'Globals'} );
+                if ( exists $Sf->{'Globals'}{$inc} ) { #die $inc;
                     
 # FIXME: we need to remove these declarations from the include file!
 
@@ -177,10 +184,11 @@ say "WARNING: $f:  VAR $var is not declared in INC $inc but is common, will be d
                         $info->{'Ref'}=1;
                         $info->{'VarDecl'}=$rdecl;
                         push @{$rlines}, [ $rline,  $info ];
+                        
                     } else {
-                        #nothing
+#                        say
                     }
-            }
+#            }
         }    # for
     }
     return $rlines;
@@ -242,7 +250,7 @@ sub find_and_add_missing_var_decls {
                 if (not exists $info->{'Deleted'} and not exists $info->{'Comments'}) { 
               if (exists $info->{'VarDecl'}                 
               ) {
-                my $varname = $info->{'VarDecl'}[2][0];
+                my $varname = $info->{'VarDecl'}{'Name'};
                 # So here I have lost Decl in dsigw2dz in RefactoredArgs but not in Vars
                 # So let's find out where this has gone wrong
 #                die Dumper($stref->{'Subroutines'}{$f}{Vars}{$varname}) if $varname eq 'dsigw2dz';
@@ -263,7 +271,7 @@ sub find_and_add_missing_var_decls {
              
               ) {      
                              
-                my $parname = $info->{'ParamDecl'}[2][0][0];
+                my $parname = $info->{'ParamDecl'}{'Name'}[0];
                 if (not exists $info->{'Ref'} or $info->{'Ref'}==0) {
                 my $pardecl = format_f95_par_decl($stref,$f, $parname);
                 $line = emit_f95_var_decl($pardecl).' ! V7'; # FIXME: Somehow this is emitted TWICE, I guess because it re-emits the commmented line?

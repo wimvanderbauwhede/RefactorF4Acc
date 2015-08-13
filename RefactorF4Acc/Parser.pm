@@ -73,7 +73,10 @@ sub parse_fortran_src {
         print "ANALYSE LINES of $f\n" if $V;
         $stref = _analyse_lines( $f, $stref );
         print "DONE _analyse_lines( $f )\n" if $V;
-
+        
+        say "ANALYSE LOOPS/BREAKS in $f\n" if $V;
+        $stref = _identify_loops_breaks( $f, $stref );
+        say "DONE _identify_loops_breaks($f)\n" if $V;
 ## 3. Parse use
         $stref = _parse_use( $f, $stref );
         print "DONE _parse_use( $f )\n" if $V;
@@ -133,8 +136,8 @@ sub parse_fortran_src {
 #WV20150305 I've added labels to the lines, as identifiers for e.g. start/end of pragmas. I can do this here because here the lines have been normalised but no refactoring has been done yet.
 sub _analyse_lines {
     ( my $f, my $stref ) = @_;
-    my $sub_func_incl_or_mod = sub_func_incl_mod( $f, $stref );
-    my $Sf = $stref->{$sub_func_incl_or_mod}{$f};
+    my $sub_incl_or_mod = sub_func_incl_mod( $f, $stref );
+    my $Sf = $stref->{$sub_incl_or_mod}{$f};
     $Sf->{'ExGlobVarDeclHook'} = 0;
     my $srcref = $Sf->{'AnnLines'};
 
@@ -143,7 +146,7 @@ sub _analyse_lines {
         my %vars       = ();
         $Sf->{'Vars'} = {} unless exists $Sf->{'Vars'};
         my $first      = 1;
-        my $is_vardecl = 0;
+        my $is_f77_vardecl = 0;
         my $type       = 'NONE';
         my $varlst     = '';
         my $indent     = '';
@@ -152,9 +155,9 @@ sub _analyse_lines {
 
         for my $index ( 0 .. scalar( @{$srcref} ) - 1 ) {
             my $attr = '';
-            my $line = $srcref->[$index][0];
+            (my $line, my $info) = @{ $srcref->[$index] };
             $line =~ /^(\s+).*/ && do { $indent = $1; };
-            my $info = $srcref->[$index][1];
+            
             $info->{'LineID'} = $index;
 
             if ( $line =~ /^\!\s+/ && $line !~ /^\!\s*\$(?:ACC|RF4A)\s/i ) {
@@ -163,43 +166,21 @@ sub _analyse_lines {
 
             # Handle !$ACC
             if ( $line =~ /^\!\s*\$(?:ACC|RF4A)\s.+$/i ) {
-                my $accline = $line;
-                $accline =~ s/^\!\s*\$(?:ACC|RF4A)\s+//i;
-                my @chunks = split( /\s+/, $accline );
-                my $pragma_name_prefix = 'Begin';
-                if ( $chunks[0] =~ /Begin/i ) {
-                    shift @chunks;
-                }
-                if ( $chunks[0] =~ /End/i ) {
-                    shift @chunks;
-                    $pragma_name_prefix = 'End';
-                }
-                ( my $pragma_name, my @pragma_args ) = @chunks;
-                $info->{'AccPragma'}
-                  { $pragma_name_prefix . ucfirst($pragma_name) } =
-                  [@pragma_args];
-                if (    $pragma_name =~ /KernelWrapper/i
-                    and $pragma_name_prefix eq 'Begin' )
-                {
-                    $stref->{'KernelWrappers'}{ $pragma_args[0] }
-                      { $pragma_name_prefix . ucfirst($pragma_name) } =
-                      [ $f, $index ];
-                    $stref = outer_loop_start_detect( $pragma_args[0], $stref );
-                }
+                ($stref,$info) =__handle_acc($stref,$f, $index, $line);
             }
 
-            # Set up hook for later insertion of ExGlobVarDecls
-            if (   exists $info->{'Includes'}
-                or exists $info->{'FunctionSig'}
-                or exists $info->{'SubroutineSig'}
-                or exists $info->{'Use'} )
-            {
-                $info->{'ExGlobVarDecls'} = ++$Sf->{'ExGlobVarDeclHook'};
-            }
+#            # Set up hook for later insertion of ExGlobVarDecls => OBSOLETE, we do a separate pass for this
+#            if (   exists $info->{'Includes'}
+#                or exists $info->{'FunctionSig'}
+#                or exists $info->{'SubroutineSig'}
+#                or exists $info->{'Use'} )
+#            {
+#                $info->{'ExGlobVarDecls'} = ++$Sf->{'ExGlobVarDeclHook'};
+#            }
 
             # FIXME Trailing comments are ignored!
             #            if ( $line =~ /^\!\s/ ) {
-            #                $stref->{$sub_func_incl_or_mod}{$f}{'Info'}
+            #                $stref->{$sub_incl_or_mod}{$f}{'Info'}
             #                  ->[$index]{'TrailingComments'} = {};
             #                next;
             #            }
@@ -231,7 +212,8 @@ sub _analyse_lines {
                     $info->{'EndDo'} = $corresponding_do_info->{'Do'};
                     delete $info->{'EndDo'}{'Label'};
                 }
-
+            } elsif ($line =~ /\b(subroutine|function|program)\b/) {
+                ($Sf,$line,$info)=__parse_sub_func_prog_decls($Sf,$line);                
             } elsif (
                 $line =~ /^\d*\s*end\s+(subroutine|module|function)\s*(\w+)/ )
             {
@@ -299,270 +281,279 @@ sub _analyse_lines {
                 };
                 $indent = $line;
                 $indent =~ s/\S.*$//;
-                $is_vardecl = 1; # Actual parsing happens later on
+                $is_f77_vardecl = 1; # Actual parsing happens later on
+                
             } elsif ( $line =~ /^\s*(.*)\s*::\s*(.*?)\s*$/ ) {
                 # F95 VarDecl                
                 # F95 declaration, no need for refactoring
                 $type   = $1;
                 $varlst = $2;
-                $indent = $line;
-                $indent =~ s/\S.*$//;
-                my $pt = parse_F95_var_decl($line);
-
-             # But this could be a parameter declaration, with an assignment ...
-                if ( $line =~ /,\s*parameter\s*.*?::\s*(\w+\s*=\s*.+?)\s*$/ )
-                {    # F95-style parameters
-                    $info->{'ParsedParDecl'} = $pt; #WV20150709 currently used by OpenCLTranslation, TODO: use ParamDecl
-                    my $parliststr = $1;
-                    my $var        = $pt->{Pars}{Var};
-                    my $val        = $pt->{Pars}{Val};
-                    my $type       = $pt->{TypeTup};
-
-                    #							push @{$pars}, $var;
-                    #					my @partups    = split( /\s*,\s*/, $parliststr );
-                    #					my %pvars      =
-                    #					  map { split( /\s*=\s*/, $_ ) }
-                    #					  @partups;    # Perl::Critic, EYHO
-                    #					if ( not exists $Sf->{'Parameters'} ) {
-                    #						$Sf->{'Parameters'} = {};
-                    #					}
-                    #                   if ( not exists $Sf->{'Parameters'}{'Set'} ) {
-                    #                   $Sf->{'Parameters'}{'Set'} = {};
-                    #                   }   
-                    #					my $pars = [];
-                    #					my @pvarl = map { s/\s*=.+//; $_ } @partups;
-                    #					for my $var (@pvarl) {
-                    #						if ( not defined $Sf->{'Vars'}{$var} ) {
-                    #							print
-                    #"INFO: PARAMETER $var not declared in $f (F95-style)\n"
-                    #							  if $I;
-                    #						} else {
-                    #							$Sf->{'Parameters'}{'Set'}{$var} = {
-                    #								'Type' => $type,
-                    #								'Var'  => $Sf->{'Vars'}{$var},
-                    #								'Val'  => $pvars{$var}
-                    #							};
-                    #							push @{$pars}, $var;
-                    #						}
-                    #					}
-                    $info->{'ParamDecl'} = [
-                        $indent, [ $type, '', [], 'parameter' ],
-                        [ [ $var, $val ] ], 0
-                    ];    # F95-style
-                    if ( not exists $Sf->{'Parameters'}{'OrderedList'} ) {
-                        $Sf->{'Parameters'}{'OrderedList'} = [];
-                    }
-                    if ( not exists $Sf->{'Parameters'}{'Set'} ) {
-                        $Sf->{'Parameters'}{'Set'} = {};
-                    }
-                    $Sf->{'Parameters'}{'Set'}{$var} = {  
-                        'Type' => $type,
-                        'Var'  => $var,
-                        'Val'  => $val
-                    };
-                    
-                    @{ $Sf->{'Parameters'}{'OrderedList'} } =
-                      ( @{ $Sf->{'Parameters'}{'OrderedList'} }, $var );
-
-                } else {
-                    # F95 VarDecl, continued
-                    if (not exists $info->{'ParsedVarDecl'} and not exists $info->{'VarDecl'} ) { 
-                    $info->{'ParsedVarDecl'} = $pt; #WV20150709 currently used by OpenCLTranslation, TODO: use VarDecl
-                    for my $tvar (@{ $pt->{'Vars'} } ) {
-                    $Sf->{'Vars'}{$tvar}{'Indent'}=$indent;
-                    $Sf->{'Vars'}{$tvar}{'Type'}  = $pt->{'TypeTup'}{'Type'};
-                    $Sf->{'Vars'}{$tvar}{'ArrayOrScalar'} = 'Scalar';
-                    $Sf->{'Vars'}{$tvar}{'Shape'} = [];
-                    if ( exists $pt->{'Attributes'} ) {
-                        if ( exists $pt->{'Attributes'}{'Dim'} ) {
-                            if ( $pt->{'Attributes'}{'Dim'}[0] ne '0' ) {
-#                                die Dumper($pt->{'Attributes'}{'Dim'});
-                                $Sf->{'Vars'}{$tvar}{'Shape'} = $pt->{'Attributes'}{'Dim'};
-                                $Sf->{'Vars'}{$tvar}{'ArrayOrScalar'}='Array';
-                            }
-                        }
-                    }                    
-#                    $Sf->{'Vars'}{$tvar}{'ArrayOrScalar'} = $pt->{'TypeTup'}{'ArrayOrScalar'} ;
-                    if ( $type =~ /character/ ) {
-                        $Sf->{'Vars'}{$tvar}{'Attr'} = '(len='
-                          . $pt->{TypeTup}{'ArrayOrScalar'} . ')'
-                          ; #WV20150709: maybe better ['len',$pt->{TypeTup}{'ArrayOrScalar'}]
-                    } else {
-                        $Sf->{'Vars'}{$tvar}{'Attr'} =
-                          '(kind=' . $pt->{'TypeTup'}{'Kind'} . ')';
-                    }
-                                        
-                    $Sf->{'Vars'}{$tvar}{'IODir'} = $pt->{'Attributes'}{'Intent'};
-                    
-#                    die 'F95 VarDecl: '.Dumper($Sf->{'Vars'}{$tvar}) if $tvar eq 'drydeposit';
-                    }
-                    }
-                }
-                $is_vardecl = 0;
+                (my $Sf, my $info) = __parse_f95_decl($Sf,$line,$info,$type,$varlst); 
+#                $indent = $line;
+#                $indent =~ s/\S.*$//;
+#                my $pt = parse_F95_var_decl($line);
+#
+#             # But this could be a parameter declaration, with an assignment ...
+#                if ( $line =~ /,\s*parameter\s*.*?::\s*(\w+\s*=\s*.+?)\s*$/ )
+#                {    # F95-style parameters
+#                    $info->{'ParsedParDecl'} = $pt; #WV20150709 currently used by OpenCLTranslation, TODO: use ParamDecl
+#                    my $parliststr = $1;
+#                    my $var        = $pt->{Pars}{Var};
+#                    my $val        = $pt->{Pars}{Val};
+#                    my $type       = $pt->{TypeTup};
+#
+#                    #							push @{$pars}, $var;
+#                    #					my @partups    = split( /\s*,\s*/, $parliststr );
+#                    #					my %pvars      =
+#                    #					  map { split( /\s*=\s*/, $_ ) }
+#                    #					  @partups;    # Perl::Critic, EYHO
+#                    #					if ( not exists $Sf->{'Parameters'} ) {
+#                    #						$Sf->{'Parameters'} = {};
+#                    #					}
+#                    #                   if ( not exists $Sf->{'Parameters'}{'Set'} ) {
+#                    #                   $Sf->{'Parameters'}{'Set'} = {};
+#                    #                   }   
+#                    #					my $pars = [];
+#                    #					my @pvarl = map { s/\s*=.+//; $_ } @partups;
+#                    #					for my $var (@pvarl) {
+#                    #						if ( not defined $Sf->{'Vars'}{$var} ) {
+#                    #							print
+#                    #"INFO: PARAMETER $var not declared in $f (F95-style)\n"
+#                    #							  if $I;
+#                    #						} else {
+#                    #							$Sf->{'Parameters'}{'Set'}{$var} = {
+#                    #								'Type' => $type,
+#                    #								'Var'  => $Sf->{'Vars'}{$var},
+#                    #								'Val'  => $pvars{$var}
+#                    #							};
+#                    #							push @{$pars}, $var;
+#                    #						}
+#                    #					}
+#                    $info->{'ParamDecl'} = [
+#                        $indent, [ $type, '', [], 'parameter' ],
+#                        [ [ $var, $val ] ], 0
+#                    ];    # F95-style
+#                    if ( not exists $Sf->{'Parameters'}{'List'} ) {
+#                        $Sf->{'Parameters'}{'List'} = [];
+#                    }
+#                    if ( not exists $Sf->{'Parameters'}{'Set'} ) {
+#                        $Sf->{'Parameters'}{'Set'} = {};
+#                    }
+#                    $Sf->{'Parameters'}{'Set'}{$var} = {  
+#                        'Type' => $type,
+#                        'Var'  => $var,
+#                        'Val'  => $val
+#                    };
+#                    
+#                    @{ $Sf->{'Parameters'}{'List'} } =
+#                      ( @{ $Sf->{'Parameters'}{'List'} }, $var );
+#
+#                } else {
+#                    # F95 VarDecl, continued
+#                    if (not exists $info->{'ParsedVarDecl'} and not exists $info->{'VarDecl'} ) { 
+#                    $info->{'ParsedVarDecl'} = $pt; #WV20150709 currently used by OpenCLTranslation, TODO: use VarDecl
+#                    for my $tvar (@{ $pt->{'Vars'} } ) {
+#                    $Sf->{'Vars'}{$tvar}{'Indent'}=$indent;
+#                    $Sf->{'Vars'}{$tvar}{'Type'}  = $pt->{'TypeTup'}{'Type'};
+#                    $Sf->{'Vars'}{$tvar}{'ArrayOrScalar'} = 'Scalar';
+#                    $Sf->{'Vars'}{$tvar}{'Shape'} = [];
+#                    if ( exists $pt->{'Attributes'} ) {
+#                        if ( exists $pt->{'Attributes'}{'Dim'} ) {
+#                            if ( $pt->{'Attributes'}{'Dim'}[0] ne '0' ) {
+##                                die Dumper($pt->{'Attributes'}{'Dim'});
+#                                $Sf->{'Vars'}{$tvar}{'Shape'} = $pt->{'Attributes'}{'Dim'};
+#                                $Sf->{'Vars'}{$tvar}{'ArrayOrScalar'}='Array';
+#                            }
+#                        }
+#                    }                    
+##                    $Sf->{'Vars'}{$tvar}{'ArrayOrScalar'} = $pt->{'TypeTup'}{'ArrayOrScalar'} ;
+#                    if ( $type =~ /character/ ) {
+#                        $Sf->{'Vars'}{$tvar}{'Attr'} = '(len='
+#                          . $pt->{TypeTup}{'ArrayOrScalar'} . ')'
+#                          ; #WV20150709: maybe better ['len',$pt->{TypeTup}{'ArrayOrScalar'}]
+#                    } else {
+#                        $Sf->{'Vars'}{$tvar}{'Attr'} =
+#                          '(kind=' . $pt->{'TypeTup'}{'Kind'} . ')';
+#                    }
+#                                        
+#                    $Sf->{'Vars'}{$tvar}{'IODir'} = $pt->{'Attributes'}{'Intent'};
+#                    
+##                    die 'F95 VarDecl: '.Dumper($Sf->{'Vars'}{$tvar}) if $tvar eq 'drydeposit';
+#                    }
+#                    }
+#                }
+                $is_f77_vardecl = 0;
             } elsif ( $line =~ /parameter\s*\(\s*(.*)\s*\)/ )
             {               # F77-style parameters
                 my $parliststr = $1;
-                $indent = $line;
-                $indent =~ s/\S.*$//;
-                my @partups = split( /\s*,\s*/, $parliststr );
-                my %pvars =
-                  map { split( /\s*=\s*/, $_ ) } @partups;  # Perl::Critic, EYHO
-                my @var_vals =
-                  map { ( my $k, my $v ) = split( /\s*=\s*/, $_ ); [ $k, $v ] }
-                  @partups;                                 # Perl::Critic, EYHO
-                my @pvarl = map { s/\s*=.+//; $_ } @partups;
-                my $pars = [];
-                if ( not exists $Sf->{'Parameters'}{'OrderedList'} ) {
-                    $Sf->{'Parameters'}{'OrderedList'} = [];
-                }
-                if ( not exists $Sf->{'Parameters'}{'Set'} ) {
-                    $Sf->{'Parameters'}{'Set'} = {};
-                }
-
-                for my $var (@pvarl) {
-die if ref($var) eq 'ARRAY';
-                    if ( not defined $Sf->{'Vars'}{$var} ) {
-
-                        if ( exists $pvars{$var} ) {
-
-                            my $val = $pvars{$var};
-                            if ( $val =~ /[0-9eE\.\+\-]/ ) {
-                                my $type = 'Unknown';
-                                if (   $val =~ /\./
-                                    or $val =~ /e/i
-                                    or $val =~ /\// )
-                                {
-                                    $type = 'real';    # FIXME: could be double!
-                                } else {
-                                    $type = 'integer';
-                                }
-                                $Sf->{'Parameters'}{'Set'}{$var} = { 
-                                    'Type' => $type,
-                                    'Var'  => $var,
-                                    'Val'  => $val
-                                };
-                                print
-"INFO: PARAMETER $var infered type: $type $var = $val\n"
-                                  if $I;
-                                push @{$pars}, $var;
-
-                            } else {
-                                print
-"WARNING: PARAMETER $var not declared in $f; can't infer type:\n"
-                                  if $W;
-                                print
-"WARNING: PARAMETER $var has NON_NUMERIC val $pvars{$var} in $f  (Parser::_analyse_lines)\n"
-                                  if $W;
-                            }
-                        }
-                    } else {
-                        $type = 'Unknown';
-                        $Sf->{'Parameters'}{'Set'}{$var} = {
-                            'Type' => 'Unknown',
-                            'Var'  => $Sf->{'Vars'}{$var},
-                            'Val'  => $pvars{$var}
-                        };
-                        push @{$pars}, $var;
-                    }
-                }
-                $info->{'ParamDecl'} =
-                  [ $indent, [ $type, '', [], 'parameter' ], [@var_vals], 0 ]
-                  ;    # F77-style
-                @{ $Sf->{'Parameters'}{'OrderedList'} } =
-                  ( @{ $Sf->{'Parameters'}{'OrderedList'} }, @{$pars} );
+                ($Sf, $info) = __parse_f77_par_decl($Sf,$f,$line,$info,$parliststr);                
+#                $indent = $line;
+#                $indent =~ s/\S.*$//;
+#                my @partups = split( /\s*,\s*/, $parliststr );
+#                my %pvars =
+#                  map { split( /\s*=\s*/, $_ ) } @partups;  # Perl::Critic, EYHO
+#                my @var_vals =
+#                  map { ( my $k, my $v ) = split( /\s*=\s*/, $_ ); [ $k, $v ] }
+#                  @partups;                                 # Perl::Critic, EYHO
+#                my @pvarl = map { s/\s*=.+//; $_ } @partups;
+#                my $pars = [];
+#                if ( not exists $Sf->{'Parameters'}{'List'} ) {
+#                    $Sf->{'Parameters'}{'List'} = [];
+#                }
+#                if ( not exists $Sf->{'Parameters'}{'Set'} ) {
+#                    $Sf->{'Parameters'}{'Set'} = {};
+#                }
+#
+#                for my $var (@pvarl) {
+#die if ref($var) eq 'ARRAY';
+#                    if ( not defined $Sf->{'Vars'}{$var} ) {
+#
+#                        if ( exists $pvars{$var} ) {
+#
+#                            my $val = $pvars{$var};
+#                            if ( $val =~ /[0-9eE\.\+\-]/ ) {
+#                                my $type = 'Unknown';
+#                                if (   $val =~ /\./
+#                                    or $val =~ /e/i
+#                                    or $val =~ /\// )
+#                                {
+#                                    $type = 'real';    # FIXME: could be double!
+#                                } else {
+#                                    $type = 'integer';
+#                                }
+#                                $Sf->{'Parameters'}{'Set'}{$var} = { 
+#                                    'Type' => $type,
+#                                    'Var'  => $var,
+#                                    'Val'  => $val
+#                                };
+#                                print
+#"INFO: PARAMETER $var infered type: $type $var = $val\n"
+#                                  if $I;
+#                                push @{$pars}, $var;
+#
+#                            } else {
+#                                print
+#"WARNING: PARAMETER $var not declared in $f; can't infer type:\n"
+#                                  if $W;
+#                                print
+#"WARNING: PARAMETER $var has NON_NUMERIC val $pvars{$var} in $f  (Parser::_analyse_lines)\n"
+#                                  if $W;
+#                            }
+#                        }
+#                    } else {
+#                        $type = 'Unknown';
+#                        $Sf->{'Parameters'}{'Set'}{$var} = {
+#                            'Type' => 'Unknown',
+#                            'Var'  => $Sf->{'Vars'}{$var},
+#                            'Val'  => $pvars{$var}
+#                        };
+#                        push @{$pars}, $var;
+#                    }
+#                }
+#                $info->{'ParamDecl'} =
+#                  [ $indent, [ $type, '', [], 'parameter' ], [@var_vals], 0 ]
+#                  ;    # F77-style
+#                @{ $Sf->{'Parameters'}{'List'} } =
+#                  ( @{ $Sf->{'Parameters'}{'List'} }, @{$pars} );
             }    # match var decls, parameter statements F77/F95
 
-            if ($is_vardecl) {
-                $is_vardecl = 0;
-                my $T        = 0;
-#                $T = 1 if $f eq 'timemanager' and $line=~/drydeposit/;
-                my $pvars    = _parse_F77_vardecl( $varlst, $T );
-#                die Dumper($pvars) if $f eq 'timemanager' and $line=~/drydeposit/;
-
-                # I verified that here the dimensions are correct
-                my @varnames = ();
-                for my $var ( keys %{$pvars} ) {
-                    if ( $var eq '' ) { croak "<$line> in $f" }
-                    my $tvar = $var;
-                    if (ref($var) eq 'ARRAY') {die '474:'.Dumper($var);}
-                    $Sf->{'Vars'}{$tvar}{'Type'}  = $type;
-                    $Sf->{'Vars'}{$tvar}{'Shape'} = $pvars->{$var}{'Shape'};
-                    $Sf->{'Vars'}{$tvar}{'ArrayOrScalar'}  = $pvars->{$var}{'ArrayOrScalar'};
-                    if ( not exists $pvars->{$var}{'Attr'} ) {
-                        if ($attr) {
-                            if ( $type =~ /character/ ) {
-                                $Sf->{'Vars'}{$tvar}{'Attr'} = '(len=' . $attr . ')';
-                            } else {
-                                $Sf->{'Vars'}{$tvar}{'Attr'} = '(kind=' . $attr . ')';
-                            }
-                        } else {
-                            $Sf->{'Vars'}{$tvar}{'Attr'} = '';
-                        }
-                    } else {
-                        if ( $type =~ /character/ ) {
-                            $Sf->{'Vars'}{$tvar}{'Attr'} =
-                              '(len=' . $pvars->{$var}{'Attr'} . ')';
-                        } else {
-                            $Sf->{'Vars'}{$tvar}{'Attr'} =
-                              '(kind=' . $pvars->{$var}{'Attr'} . ')';
-                        }
-                    }
-
-                    # Take IODir from INTENT
-                    if ( $type =~ /\bintent\s*\(\s*(\w+)\s*\)/ ) {
-                        my $iodir = $1;
-                        $iodir = ucfirst($iodir);
-                        if ( $iodir eq 'Inout' ) {
-                            $iodir = 'InOut';
-                        }
-                        $Sf->{'Vars'}{$tvar}{'IODir'} = $iodir;
-                    }
-
-                    $Sf->{'Vars'}{$tvar}{'Decl'} = [ $indent, [$type], [$var], 0 ];
-                    $Sf->{'Vars'}{$tvar}{'Indent'} = $indent; 
-
-                    if ( exists $stref->{'Subroutines'}{$tvar} and exists $stref->{'Subroutines'}{$tvar}{'Function'} and $tvar ne $f )
-                    {    # FIXME: NO RECURSION!
-
-                        $stref->{'Subroutines'}{$tvar}{'Called'} = 1;
-                        
-                        if (
-                            not
-                            exists $stref->{'Subroutines'}{$tvar}{'Callers'}{$f} )
-                        {
-                            $stref->{'Subroutines'}{$tvar}{'Callers'}{$f} = [];
-                        }
-                        push @{ $stref->{'Subroutines'}{$tvar}{'Callers'}{$f} },
-                          $index;
-                        if (
-                            not
-                            exists $stref->{'Subroutines'}{$tvar}{'AnnLines'} )
-                        {
-                            $stref = parse_fortran_src( $tvar, $stref );
-                        }
-                    }
-                    push @varnames, $tvar;
-                }    # loop over all vars declared on a single line
-
-                print "\tVARS <$line>:\n ", join( ',', sort @varnames ), "\n"
-                  if $V;
-                  # FIXME: this is not OK when we split later on
-                $info->{'VarDecl'} =
-                  [ $indent, [], [@varnames], 0 ]
-                  ; #WV20150708 We now store 'Decl' here so it us a record [$spaces,[$type, $attr, $dim , $intent ],[@vars],$formatted];
-                  $info->{'Ann'} .= $line. ' -> _analyse_lines '.__LINE__.' -> ';
-                if ($first) {
-                    $first = 0;
-
-                    # FIXME: no use in include files!
-                    $info->{'ExGlobVarDecls'} =
-                      ++$Sf->{ExGlobVarDeclHook};    # {};
-                }
+            if ($is_f77_vardecl==1) {
+                $is_f77_vardecl = 0;
+                 (my $Sf, my $info) = __parse_f77_var_decl($Sf,$f,$line,$info,$varlst,$type,$attr,$indent);
+                
+                
+#                my $T        = 0;
+##                $T = 1 if $f eq 'timemanager' and $line=~/drydeposit/;
+#                my $pvars    = f77_var_decl_parser( $varlst, $T );
+##                die Dumper($pvars) if $f eq 'timemanager' and $line=~/drydeposit/;
+#
+#                # I verified that here the dimensions are correct
+#                my @varnames = ();
+#                # Add type information to Vars
+#                for my $var ( keys %{$pvars} ) {
+#                    if ( $var eq '' ) { croak "<$line> in $f" }
+#                    my $tvar = $var;
+#                    if (ref($var) eq 'ARRAY') {die __LINE__ .':'.Dumper($var);}
+#                    $Sf->{'Vars'}{$tvar}{'Type'}  = $type;
+#                    $Sf->{'Vars'}{$tvar}{'Shape'} = $pvars->{$var}{'Shape'};
+#                    $Sf->{'Vars'}{$tvar}{'ArrayOrScalar'}  = $pvars->{$var}{'ArrayOrScalar'};
+#                    if ( not exists $pvars->{$var}{'Attr'} ) {
+#                        if ($attr) {
+#                            if ( $type =~ /character/ ) {
+#                                $Sf->{'Vars'}{$tvar}{'Attr'} = '(len=' . $attr . ')';
+#                            } else {
+#                                $Sf->{'Vars'}{$tvar}{'Attr'} = '(kind=' . $attr . ')';
+#                            }
+#                        } else {
+#                            $Sf->{'Vars'}{$tvar}{'Attr'} = '';
+#                        }
+#                    } else {
+#                        if ( $type =~ /character/ ) {
+#                            $Sf->{'Vars'}{$tvar}{'Attr'} =
+#                              '(len=' . $pvars->{$var}{'Attr'} . ')';
+#                        } else {
+#                            $Sf->{'Vars'}{$tvar}{'Attr'} =
+#                              '(kind=' . $pvars->{$var}{'Attr'} . ')';
+#                        }
+#                    }
+#
+#                    # Take IODir from INTENT if it exists
+#                    if ( $type =~ /\bintent\s*\(\s*(\w+)\s*\)/ ) {
+#                        my $iodir = $1;
+#                        $iodir = ucfirst($iodir);
+#                        if ( $iodir eq 'Inout' ) {
+#                            $iodir = 'InOut';
+#                        }
+#                        $Sf->{'Vars'}{$tvar}{'IODir'} = $iodir;
+#                    }
+#
+#                    $Sf->{'Vars'}{$tvar}{'Decl'} = [ $indent, [$type], [$var], 0 ];
+#                    $Sf->{'Vars'}{$tvar}{'Indent'} = $indent; 
+#                    # if $tvar is a function, note that it was Called and add $f to its list of Callers; parse if required
+#                    # I think this is WRONG: a declaration is NOT a function call. Also, we analyse for functions later.
+#=wrong                    
+#                    if ( exists $stref->{'Subroutines'}{$tvar} and exists $stref->{'Subroutines'}{$tvar}{'Function'} and $tvar ne $f )
+#                    {    # FIXME: NO RECURSION!
+#
+#                        $stref->{'Subroutines'}{$tvar}{'Called'} = 1;
+#                        
+#                        if (
+#                            not
+#                            exists $stref->{'Subroutines'}{$tvar}{'Callers'}{$f} )
+#                        {
+#                            $stref->{'Subroutines'}{$tvar}{'Callers'}{$f} = [];
+#                        }
+#                        push @{ $stref->{'Subroutines'}{$tvar}{'Callers'}{$f} },
+#                          $index;
+#                        if (
+#                            not
+#                            exists $stref->{'Subroutines'}{$tvar}{'AnnLines'} )
+#                        {
+#                            $stref = parse_fortran_src( $tvar, $stref );
+#                        }
+#                    }
+#=cut                    
+#                    push @varnames, $tvar;
+#                }    # loop over all vars declared on a single line
+#
+#                print "\tVARS <$line>:\n ", join( ',', sort @varnames ), "\n"
+#                  if $V;
+#                  # FIXME: this is not OK when we split later on
+#                $info->{'VarDecl'} =
+#                  [ $indent, [], [@varnames], 0 ]
+#                  ; #WV20150708 We now store 'Decl' here so it us a record [$spaces,[$type, $attr, $dim , $intent ],[@vars],$formatted];
+#                  $info->{'Ann'} .= $line. ' -> _analyse_lines '.__LINE__.' -> ';
+#                if ($first) {
+#                    $first = 0;
+#
+#                    # FIXME: no use in include files!
+#                    $info->{'ExGlobVarDecls'} =
+#                      ++$Sf->{ExGlobVarDeclHook};    # {};
+#                }
             }
             $srcref->[$index] = [ $line, $info ];
         }    # Loop over lines
-        
-#        $Sf->{'Vars'} = \  ; 
+         
     } else {
         print "WARNING: NO AnnLines for $f\n";
         die "SOURCE for $f: " . Dumper($Sf);
@@ -769,12 +760,12 @@ sub _parse_use {
 sub OBSOLETE_detect_blocks {
     ( my $stref, my $s ) = @_;
     print "CHECKING BLOCKS in $s\n" if $V;
-    my $sub_func_incl_or_mod = sub_func_incl_mod( $s, $stref );
-    die "$sub_func_incl_or_mod $s "
-      . $stref->{$sub_func_incl_or_mod}{$s}{'HasBlocks'}
+    my $sub_incl_or_mod = sub_func_incl_mod( $s, $stref );
+    die "$sub_incl_or_mod $s "
+      . $stref->{$sub_incl_or_mod}{$s}{'HasBlocks'}
       if $s eq 'timemanager';
-    $stref->{$sub_func_incl_or_mod}{$s}{'HasBlocks'} = 0;
-    my $srcref = $stref->{$sub_func_incl_or_mod}{$s}{'AnnLines'};
+    $stref->{$sub_incl_or_mod}{$s}{'HasBlocks'} = 0;
+    my $srcref = $stref->{$sub_incl_or_mod}{$s}{'AnnLines'};
     for my $annline ( @{$srcref} ) {
         my $line = $annline->[0];
         if ( $line =~ /^\!\s/ ) {
@@ -785,8 +776,8 @@ sub OBSOLETE_detect_blocks {
             if (   $line =~ /^\!\s+BEGIN\sSUBROUTINE\s(\w+)/
                 or $line =~ /^\!\s*\$(?:ACC|RF4A)\ssubroutine\s(\w+)/i )
             {
-                $stref->{$sub_func_incl_or_mod}{$s}{'HasBlocks'} = 1;
-                my $tgt = uc( substr( $sub_func_incl_or_mod, 0, 3 ) );
+                $stref->{$sub_incl_or_mod}{$s}{'HasBlocks'} = 1;
+                my $tgt = uc( substr( $sub_incl_or_mod, 0, 3 ) );
                 print "$tgt $s HAS BLOCK: $1\n" if $V;
                 last;
             }
@@ -928,8 +919,8 @@ sub _parse_subroutine_and_function_calls {
                 }
             }
 
-            if ( exists $info->{'SubroutineSig'} ) {
-                $current_sub_name = $info->{'SubroutineSig'}[1];
+            if ( exists $info->{'Signature'} ) {
+                $current_sub_name = $info->{'Signature'}{'Name'};
             }
       # Subroutine calls. Surprisingly, these even occur in functions! *shudder*
             if (   $line =~ /call\s+(\w+)\s*\((.*)\)/
@@ -1160,6 +1151,7 @@ sub build_call_graph {
 # -----------------------------------------------------------------------------
 # Identify the include file as containing params or commons.
 # If it contains both, split and call the routine again.
+# FIXME: This should be parsed exactly as any other file! 
 sub _get_commons_params_from_includes {
     ( my $inc, my $stref ) = @_;
     my $Sincf     = $stref->{'IncludeFiles'}{$inc};
@@ -1169,8 +1161,8 @@ sub _get_commons_params_from_includes {
     if ( defined $srcref ) {
 
         $Sincf->{'Parameters'} = {} unless exists $Sincf->{'Parameters'};
-        $Sincf->{'Parameters'}{'OrderedList'} = []
-          unless exists $Sincf->{'Parameters'}{'OrderedList'};
+        $Sincf->{'Parameters'}{'List'} = []
+          unless exists $Sincf->{'Parameters'}{'List'};
         $Sincf->{'Parameters'}{'Set'} = {}
           unless exists $Sincf->{'Parameters'}{'Set'};
 
@@ -1187,18 +1179,15 @@ sub _get_commons_params_from_includes {
                 next;
             }
             $line =~ /^(\s+).*/ && do { $indent = $1; };
-
+            # COMMON block processing
             # common /name/ x...
             # However, common/name/x is also valid, damn F77!
             if ( $line =~ /^\s*common\s*\/\s*([\w\d]+)\s*\/\s*(.+)$/ ) {
                 my $common_block_name = $1;
                 my $commonlst         = $2;
                 $has_commons = 1;
-                my $parsedvars = _parse_F77_vardecl( $commonlst, 0 );
-#                die Dumper($parsedvars->{'f'} ) if $line=~/varia/;
-#                die Dumper(%vars) if $inc eq 'includeinterpol';
-                for my $var ( keys %{$parsedvars} ) {
-                    
+                my $parsedvars = f77_var_decl_parser( $commonlst, 0 );
+                for my $var ( keys %{$parsedvars} ) {                    
                     if ( not defined $Sincf->{'Vars'}{$var} ) {
                         if (
                             exists $stref->{'Implicits'}{$inc}
@@ -1218,7 +1207,7 @@ sub _get_commons_params_from_includes {
                                 'Shape'  => $parsedvars->{$var}{'Shape'},
                                 'Type'   => $type,
                                 'Attr'   => $attr,
-                                'Indent' => '      ', # OBSOLETE
+                                'Indent' => '      ', 
                                 'ArrayOrScalar'   => $parsedvars->{$var}{'ArrayOrScalar'}
                             };
                             $Sincf->{'Commons'}{$var} = $var_rec;
@@ -1228,16 +1217,13 @@ sub _get_commons_params_from_includes {
                               "> is not in {'IncludeFiles'}{$inc}{'Vars'}\n"
                               if $W;
                         }
-                    } else {
-                        
+                    } else {                        
                         print $var, "\t", $Sincf->{'Vars'}{$var}{'Type'}, "\n"
                           if $V;
-                        if ( exists $parsedvars->{$var}{Shape} and scalar @{$parsedvars->{$var}{Shape}}>0 ) {
-                            
+                        if ( exists $parsedvars->{$var}{Shape} and scalar @{$parsedvars->{$var}{Shape}}>0 ) {                            
                             $Sincf->{'Vars'}{$var}{Shape} = $parsedvars->{$var}{Shape};
                             $Sincf->{'Vars'}{$var}{ArrayOrScalar}  = 'Array';
                         }
-#                        die Dumper($Sincf->{'Vars'}{$var})."\n".Dumper($parsedvars->{$var}{Shape}) if $inc eq 'includeinterpol' and $var eq 'uprof';
                         $stref->{'IncludeFiles'}{$inc}{'Commons'}{$var} =
                           $Sincf->{'Vars'}{$var};
                     }
@@ -1283,13 +1269,14 @@ sub _get_commons_params_from_includes {
                     };
                     push @pars, $var;
                 }
-                @{ $Sincf->{'Parameters'}{'OrderedList'} } =
-                  ( @{ $Sincf->{'Parameters'}{'OrderedList'} }, @pars );
+                @{ $Sincf->{'Parameters'}{'List'} } =
+                  ( @{ $Sincf->{'Parameters'}{'List'} }, @pars );
                 $srcref->[$index][1]{'ParamDecl'} =
                   [ $indent, [ $type, '', [], 'parameter' ], [@var_vals], 0 ]
                   ;    # F77-style parameters in include file
             } elsif ( $line =~ /,\s*parameter\s*.*?::\s*(\w+)\s*=\s*(.+?)\s*$/ )
             {          # F95-style parameters
+            # FIXME: use the combinator-based parser
                 my $type = $line;
                 $type =~ s/^\s+//;
                 $type =~ s/\s*\:\:.*$//;
@@ -1315,10 +1302,9 @@ sub _get_commons_params_from_includes {
                         push @pars, $var;
                     }
                 }
-                @{ $Sincf->{'Parameters'}{'OrderedList'} } =
-                  ( @{ $Sincf->{'Parameters'}{'OrderedList'} }, @pars );
-                $srcref->[$index][1]{'ParamDecl'} =
-                  [@pars];    # F95-style parameters in include file
+                @{ $Sincf->{'Parameters'}{'List'} } =
+                  ( @{ $Sincf->{'Parameters'}{'List'} }, @pars );
+                $srcref->[$index][1]{'ParamDecl'} = [@pars];
 
             }
 
@@ -1395,7 +1381,7 @@ sub _get_commons_params_from_includes {
 # For example
 # integer*(4) a(3+(2*i),j,-k:k+10)
 
-sub _parse_F77_vardecl {
+sub f77_var_decl_parser {
     ( my $varlst, my $T ) = @_;
 
     print "VARLST: <$varlst>\n" if $T;
@@ -1567,7 +1553,7 @@ sub _parse_F77_vardecl {
     }
 
     return $vars;
-}    # END of _parse_F77_vardecl()
+}    # END of f77_var_decl_parser()
 # -----------------------------------------------------------------------------
 # TODO: check if this works for F95-style parameters too
 sub __split_out_parameters {
@@ -1884,7 +1870,13 @@ sub __construct_new_subroutine_signatures {
         # Create Signature and corresponding Decls
         my $sixspaces = ' ' x 6;
         my $sig       = $sixspaces . 'subroutine ' . $block . '(';
-        my $sigrec    = [ $sixspaces, $block, $args{$block} ];
+        my $sigrec    = {};#[ $sixspaces, $block, $args{$block} ];
+        
+        $sigrec->{'Args'}{'List'} = $args{$block};
+        $sigrec->{'Args'}{'Set'} = { map {$_=>1} @{$args{$block}}};
+        $sigrec->{'Name'} = $block;
+        $sigrec->{'Function'}=0;
+        
  
         for my $argv ( @{ $args{$block} } ) {
             $sig .= "$argv,";
@@ -1930,7 +1922,7 @@ sub __construct_new_subroutine_signatures {
 
             $Sblock->{'Includes'}{$inc} = 1;
         }
-        unshift @{ $Sblock->{'AnnLines'} },[ $sig, { 'SubroutineSig' => $sigrec } ]; 
+        unshift @{ $Sblock->{'AnnLines'} },[ $sig, { 'Signature' => $sigrec } ]; 
          # And finally, in the original source, replace the blocks by calls to the new subs
 
         #        print "\n-----\n".Dumper($srcref)."\n-----";
@@ -1973,24 +1965,24 @@ sub __reparse_extracted_subroutines { (my $stref, my $blocksref) = @_;
 # -----------------------------------------------------------------------------
 sub _split_multivar_decls { (my $f, my $stref) = @_;
         
-    my $sub_func_incl_or_mod = sub_func_incl_mod( $f, $stref );
+    my $sub_incl_or_mod = sub_func_incl_mod( $f, $stref );
 #         if ($f eq 'includeinterpol') {
-#         say Dumper($stref->{$sub_func_incl_or_mod}{$f});
+#         say Dumper($stref->{$sub_incl_or_mod}{$f});
 #         die;
 #     }
     
-    my $Sf = $stref->{$sub_func_incl_or_mod}{$f};    
+    my $Sf = $stref->{$sub_incl_or_mod}{$f};    
     my $annlines = $Sf->{'AnnLines'};
     my $nextLineID = scalar @{$annlines}+1;
     my $new_annlines=[];
     for my $annline (@{$annlines}) {
         (my $line, my $info)=@{$annline};
-        if (exists $info->{'VarDecl'} and scalar @{$info->{'VarDecl'}[2]}>1) {
+        if (exists $info->{'VarDecl'} and scalar @{$info->{'VarDecl'}{'Names'}}>1) {
                    
 #            if ($line=~/drydeposit/) { die $line.Dumper($info) }
-#            say scalar @{$info->{'VarDecl'}[2]};
-            my @nvars = @{$info->{'VarDecl'}[2]};
-            for my $var (@{$info->{'VarDecl'}[2]}) {
+#            say scalar @{$info->{'VarDecl'}{'Names'}};
+            my @nvars = @{$info->{'VarDecl'}{'Names'}};
+            for my $var (@{$info->{'VarDecl'}{'Names'}}) {
                 
                 my %rinfo = %{$info};
 #                say "VAR: $var";
@@ -2019,17 +2011,20 @@ sub _split_multivar_decls { (my $f, my $stref) = @_;
 #  'ArrayOrScalar' => 'Array'|'Scalar'
 #}
              
-                $rinfo{'VarDecl'}=[];
-                $rinfo{'VarDecl'}[0]=$info->{'VarDecl'}[0]; # Indent
-                $rinfo{'VarDecl'}[1]=[]; 
-                $rinfo{'VarDecl'}[1][0]=$Sf->{'Vars'}{$var}{'Decl'}[1][0]; # Type
-                $rinfo{'VarDecl'}[1][1]=$Sf->{'Vars'}{$var}{'Attr'}; # Attr
-                $rinfo{'VarDecl'}[1][2]= [@{$Sf->{'Vars'}{$var}{'Shape'}}]; # Copy of Shape to Dim
-                $rinfo{'VarDecl'}[2]=[$var];
-                $rinfo{'VarDecl'}[3]=0;
+                $rinfo{'VarDecl'}={
+                    'Indent' => $info->{'VarDecl'}{'Indent'},
+                    'Type' =>  $info->{'VarDecl'}{'Type'},
+                    'Attr' =>  $info->{'VarDecl'}{'Attr'},
+                    'Dim' => [@{$Sf->{'Vars'}{$var}{'Shape'}}],
+                    'Name' => $var,
+                    'Intent' => [],
+                    'Status' => 0
+                };
+                
+                 
                 $rinfo{'Ann'} .= '_split_multivar_decls '. __LINE__ .' -> '; 
                 my $rline=$line;
-                $Sf->{'Vars'}{$var}{'Decl'}[2]=[$var];
+                $Sf->{'Vars'}{$var}{'Decl'}{'Name'}=$var;
 #                die Dumper($rinfo{'VarDecl'}) if $var eq 'drydeposit';
                 for my $nvar (@nvars) {
                      if ($nvar ne $var) {
@@ -2051,9 +2046,12 @@ sub _split_multivar_decls { (my $f, my $stref) = @_;
                      }
                 }                
 #                say "\t$rline".Dumper(%rinfo) if $rline=~/drydeposit/;
-                push @{$new_annlines}, [$rline, \%rinfo];
+                $info->{'VarDecl'}{'Name'} = $info->{'VarDecl'}{'Names'}[0];
+                delete  $info->{'VarDecl'}{'Names'};
+                push @{$new_annlines}, [$line, $info];
             }        
         } else {            
+            
             push @{$new_annlines}, $annline;
         }
     }
@@ -2064,9 +2062,9 @@ sub _split_multivar_decls { (my $f, my $stref) = @_;
 # -----------------------------------------------------------------------------
 sub _split_multipar_decls_and_set_type { (my $f, my $stref) = @_;
         
-    my $sub_func_incl_or_mod = sub_func_incl_mod( $f, $stref );
+    my $sub_incl_or_mod = sub_func_incl_mod( $f, $stref );
     
-    my $Sf = $stref->{$sub_func_incl_or_mod}{$f};    
+    my $Sf = $stref->{$sub_incl_or_mod}{$f};    
     my $annlines = $Sf->{'AnnLines'};
     my $nextLineID = scalar @{$annlines}+1;
     my $new_annlines=[];
@@ -2086,40 +2084,40 @@ sub _split_multipar_decls_and_set_type { (my $f, my $stref) = @_;
 #        'ArrayOrScalar' => 'Scalar'}
 #        } 
 #            say 'LINE: '.$line;
-        if (scalar @{$info->{'ParamDecl'}[2]}==1) {
+        if (scalar @{$info->{'ParamDecl'}{'Names'}}==1) {
 #            say 'LINE1: '.$line;
-            my $var = $info->{'ParamDecl'}[2][0][0];
-            if ($info->{'ParamDecl'}[1][0] eq 'Unknown') {
-                my $type = $Sf->{'Parameters'}{'Set'}{$var}{'Var'}{'Decl'}[1][0];
-                $info->{'ParamDecl'}[1][0] = $type;
+            my $var = $info->{'ParamDecl'}{'Names'}[0][0];
+            if ($info->{'ParamDecl'}{'Type'} eq 'Unknown') {
+                my $type = $Sf->{'Parameters'}{'Set'}{$var}{'Var'}{'Decl'}{'Type'};
+                $info->{'ParamDecl'}{'Type'} = $type;
                 $Sf->{'Parameters'}{'Set'}{$var}{'Type'} = $type;
             }
             push @{$new_annlines}, [$line, $info];
-        } elsif (   scalar @{$info->{'ParamDecl'}[2]}>1 ) {
-            my @nvars = @{$info->{'ParamDecl'}[2]};
-            for my $var_val (@{$info->{'ParamDecl'}[2]}) {
+        } elsif (   scalar @{$info->{'ParamDecl'}{'Names'}}>1 ) {
+            my @nvars = @{$info->{'ParamDecl'}{'Names'}};
+            for my $var_val (@{$info->{'ParamDecl'}{'Names'}}) {
                 my $var = $var_val->[0];
                 my $val = $var_val->[1];
 #                say "\nORIG LINE: $line";
 #                say "$f: PAR: $var: ".Dumper($info->{'ParamDecl'})."\n".Dumper($Sf->{'Parameters'}{'Set'}{$var});
                 my %rinfo = %{$info};
                 $rinfo{'LineID'} =$nextLineID++;
-                $rinfo{'ParamDecl'}=[];
-                $rinfo{'ParamDecl'}[0]=$info->{'ParamDecl'}[0];
-                $rinfo{'ParamDecl'}[1]=[];
+                $rinfo{'ParamDecl'}={};
+                $rinfo{'ParamDecl'}{'Indent'}=$info->{'ParamDecl'}{'Indent'};
+                
                 if (ref($Sf->{'Parameters'}{'Set'}{$var}{'Var'}) ne 'HASH') {
-                    $rinfo{'ParamDecl'}[1][0]=$info->{'ParamDecl'}[1][0];
+                    $rinfo{'ParamDecl'}{'Type'}=$info->{'ParamDecl'}{'Type'};
                      
-                    $rinfo{'ParamDecl'}[1][1]='';
-                    $rinfo{'ParamDecl'}[1][2]= [];                    
+                    $rinfo{'ParamDecl'}{'Attr'}='';
+                    $rinfo{'ParamDecl'}{'Dim'}= [];                    
                 } else {
-                $rinfo{'ParamDecl'}[1][0]=$Sf->{'Parameters'}{'Set'}{$var}{'Var'}{'Decl'}[1][0]; # Type
-                $rinfo{'ParamDecl'}[1][1]=$Sf->{'Parameters'}{'Set'}{$var}{'Var'}{'Attr'}; # Attr
-                $rinfo{'ParamDecl'}[1][2]= [@{$Sf->{'Parameters'}{'Set'}{$var}{'Var'}{'Shape'}}]; # Copy of Shape to Dim
+                $rinfo{'ParamDecl'}{'Type'}=$Sf->{'Parameters'}{'Set'}{$var}{'Var'}{'Decl'}{'Type'}; # Type                
+                $rinfo{'ParamDecl'}{'Attr'}=$Sf->{'Parameters'}{'Set'}{$var}{'Var'}{'Attr'}; # Attr
+                $rinfo{'ParamDecl'}{'Dim'}= [@{$Sf->{'Parameters'}{'Set'}{$var}{'Var'}{'Shape'}}]; # Copy of Shape to Dim
                 }
-                $rinfo{'ParamDecl'}[1][3]= 'parameter';
-                $rinfo{'ParamDecl'}[2]=[[$var,$val]];
-                $rinfo{'ParamDecl'}[3]=0;
+                $rinfo{'ParamDecl'}{'Parameter'}= 'parameter';
+                $rinfo{'ParamDecl'}{'Name'}=[$var,$val];
+                $rinfo{'ParamDecl'}{'Status'}=0;
                 
                 my $rline=$line;
                 
@@ -2148,7 +2146,7 @@ sub _split_multipar_decls_and_set_type { (my $f, my $stref) = @_;
     }
     $Sf->{'AnnLines'}=$new_annlines;
 #     if ($f eq 'includepar') {
-#         say show_annlines($stref->{$sub_func_incl_or_mod}{$f}{AnnLines});
+#         say show_annlines($stref->{$sub_incl_or_mod}{$f}{AnnLines});
 #         die;
 #     }
     return $stref;
@@ -2176,39 +2174,471 @@ sub _split_multipar_decls_and_set_type { (my $f, my $stref) = @_;
 #  0
 #]
 
-sub _vars_entry_to_vardecl {
-    (my $vars_entry) =@_;
-    if ($vars_entry->{'Decl'}[-1] == 1) { return $vars_entry->{'Decl'} } else { 
-#{
-#  'Decl' => [
-#              $indent,
-#              [
-#                $type
-#              ],
-#              [
-#                $var
-#              ],
-#              0
-#            ],
-#  'Shape' => [
-#               $start,
-#               $end
-#             ],
-#  'Type' => $type,
-#  'Attr' => $attr,
-#  'Indent' => $indent,
-#  'ArrayOrScalar' => 'Array'|'Scalar'
-#}    
-    my $indent = $vars_entry->{'Indent'};
-    my $type = $vars_entry->{'Type'};
-    my $attr = $vars_entry->{'Attr'};
-    my $shape = $vars_entry->{'Shape'};
-#    (my $start, my $end) = @{ $shape };
-    
-    my $var = $vars_entry->{'Decl'}[2][0];
-    return [ $indent,[$type, $attr, $shape , [] ],[$var],0];
+#sub _vars_entry_to_vardecl_UNUSED {
+#    (my $vars_entry) =@_;
+#    if ($vars_entry->{'Decl'}{'Status'} == 1) { return $vars_entry->{'Decl'} } else { 
+#    
+#    my $indent = $vars_entry->{'Indent'};
+#    my $type = $vars_entry->{'Type'};
+#    my $attr = $vars_entry->{'Attr'};
+#    my $shape = $vars_entry->{'Shape'};
+##    (my $start, my $end) = @{ $shape };
+#    
+#    my $var = $vars_entry->{'Decl'}{'Name'};
+#    return [ $indent,[$type, $attr, $shape , [] ],[$var],0];
+#    }
+#}
+# -----------------------------------------------------------------------------
+sub __parse_sub_func_prog_decls {
+    ( my $Sf, my $line, my $info ) = @_;
+
+            # Determine the subroutine arguments
+            if ( $line =~ /^\s+subroutine\s+(\w+)\s*\((.*)\)/            
+            or  $line =~ /^\s+recursive\s+subroutine\s+(\w+)\s*\((.*)\)/
+            or  $line =~ /^\s+function\s+(\w+)\s*\((.*)\)/
+            or  $line =~ /^\s+\w+\s+function\s+(\w+)\s*\((.*)\)/
+            
+            ) {
+                my $name   = $1;                
+                my $argstr = $2;
+                $argstr =~ s/^\s+//;
+                $argstr =~ s/\s+$//;
+                my @args = split( /\s*,\s*/, $argstr );
+                $info->{'Signature'}{'Args'}{'List'} = [@args];
+                $info->{'Signature'}{'Args'}{'Set'} = { map {$_=>1} @args};
+                $info->{'Signature'}{'Name'} = $name;
+                $Sf->{'Args'}{'List'} = [@args];
+                $Sf->{'Args'}{'Set'} = {map {$_=>1} @args};
+                if ($line=~/function/) {
+                    $info->{'Signature'}{'Function'}=1;
+                } else {
+                    $info->{'Signature'}{'Function'}=0;
+                }
+                
+            } elsif ( $line =~ /^\s+subroutine\s+(\w+)[^\(]*$/ 
+            or $line =~ /^\s+recursive\s+subroutine\s+(\w+)[^\(]*$/ 
+            ) {
+
+                # Subroutine without arguments
+                my $name = $1;
+                $info->{'Signature'}{'Args'}{'List'} = [];
+                $info->{'Signature'}{'Args'}{'Set'} = {};
+                $info->{'Signature'}{'Name'} = $name;
+                $info->{'Signature'}{'Function'}=0;
+                $Sf->{'Args'}{'List'} = [];
+                $Sf->{'Args'}{'Set'} = {};
+                
+            } elsif ( $line =~ /^\s+program\s+(\w+)\s*$/ ) {;
+                # If it's a program, there are no arguments
+                my $name = $1;
+                
+                $info->{'Signature'}{'Args'}{'List'} = [];
+                $info->{'Signature'}{'Name'} = $name;
+                $info->{'Signature'}{'Program'} = 1;
+                $Sf->{'Args'}{'List'} = [];
+                $Sf->{'Args'}{'Set'} = {};
+                
+            }
+    return ($Sf,$line,$info);
+}    # END of __parse_sub_func_prog_decls()
+# -----------------------------------------------------------------------------
+sub __handle_acc {
+    (my $stref,my $f, my $index, my $line, my $info ) = @_;
+    my $accline = $line;
+    $accline =~ s/^\!\s*\$(?:ACC|RF4A)\s+//i;
+    my @chunks = split( /\s+/, $accline );
+    my $pragma_name_prefix = 'Begin';
+    if ( $chunks[0] =~ /Begin/i ) {
+        shift @chunks;
     }
-}
+    if ( $chunks[0] =~ /End/i ) {
+        shift @chunks;
+        $pragma_name_prefix = 'End';
+    }
+    ( my $pragma_name, my @pragma_args ) = @chunks;
+    $info->{'AccPragma'}
+      { $pragma_name_prefix . ucfirst($pragma_name) } =
+      [@pragma_args];
+    if (    $pragma_name =~ /KernelWrapper/i
+        and $pragma_name_prefix eq 'Begin' )
+    {
+        $stref->{'KernelWrappers'}{ $pragma_args[0] }
+          { $pragma_name_prefix . ucfirst($pragma_name) } =
+          [ $f, $index ];
+        $stref = outer_loop_start_detect( $pragma_args[0], $stref );
+    }
+    return ($stref, $info);
+} # END of __handle_acc()
+# -----------------------------------------------------------------------------
+sub __parse_f95_decl {
+
+                # F95 VarDecl                
+                # F95 declaration, no need for refactoring
+#                $type   = $1;
+#                $varlst = $2;
+                (my $Sf, my $line, my $info, my $type, my $varlst) = @_;
+                my $indent = $line;
+                $indent =~ s/\S.*$//;
+                my $pt = parse_F95_var_decl($line);
+
+             # But this could be a parameter declaration, with an assignment ...
+                if ( $line =~ /,\s*parameter\s*.*?::\s*(\w+\s*=\s*.+?)\s*$/ )
+                {    # F95-style parameters
+                    $info->{'ParsedParDecl'} = $pt; #WV20150709 currently used by OpenCLTranslation, TODO: use ParamDecl
+                    my $parliststr = $1;
+                    my $var        = $pt->{'Pars'}{'Var'};
+                    my $val        = $pt->{'Pars'}{'Val'};
+                    my $type       = $pt->{'TypeTup'};
+
+                    $info->{'ParamDecl'} = [
+                        $indent, [ $type, '', [], 'parameter' ],
+                        [ [ $var, $val ] ], 0
+                    ];    # F95-style
+                    if ( not exists $Sf->{'Parameters'}{'List'} ) {
+                        $Sf->{'Parameters'}{'List'} = [];
+                    }
+                    if ( not exists $Sf->{'Parameters'}{'Set'} ) {
+                        $Sf->{'Parameters'}{'Set'} = {};
+                    }
+                    $Sf->{'Parameters'}{'Set'}{$var} = {  
+                        'Type' => $type,
+                        'Var'  => $var,
+                        'Val'  => $val
+                    };
+                    # List is only used in Parser, find out what it does
+                    @{ $Sf->{'Parameters'}{'List'} } =
+                      ( @{ $Sf->{'Parameters'}{'List'} }, $var ); # FIXME: use ordered_union()
+
+                } else {
+                    # F95 VarDecl, continued
+                    if (not exists $info->{'ParsedVarDecl'} and not exists $info->{'VarDecl'} ) { 
+                    $info->{'ParsedVarDecl'} = $pt; #WV20150709 currently used by OpenCLTranslation, TODO: use VarDecl
+                     
+                    for my $tvar (@{ $pt->{'Vars'} } ) {
+                        
+                        my $decl={};   
+                        $decl->{'Indent'}=$indent;
+                        $decl->{'Type'}  = $pt->{'TypeTup'}{'Type'};
+                        $decl->{'ArrayOrScalar'} = 'Scalar';
+                        $decl->{'Shape'} = [];
+                        if ( exists $pt->{'Attributes'} ) {
+                            if ( exists $pt->{'Attributes'}{'Dim'} ) {
+                                if ( $pt->{'Attributes'}{'Dim'}[0] ne '0' ) {
+    #                                die Dumper($pt->{'Attributes'}{'Dim'});
+                                    $decl->{'Shape'} = $pt->{'Attributes'}{'Dim'};
+                                    $decl->{'ArrayOrScalar'}='Array';
+                                }
+                            }
+                        }                    
+    #                    $Sf->{'Vars'}{$tvar}{'ArrayOrScalar'} = $pt->{'TypeTup'}{'ArrayOrScalar'} ;
+                        if ( $type =~ /character/ ) {
+                            $decl->{'Attr'} = '(len='
+                              . $pt->{TypeTup}{'ArrayOrScalar'} . ')'
+                              ; #WV20150709: maybe better ['len',$pt->{TypeTup}{'ArrayOrScalar'}]
+                        } else {
+                            $decl->{'Attr'} =
+                              '(kind=' . $pt->{'TypeTup'}{'Kind'} . ')';
+                        }
+                                            
+                        $decl->{'IODir'} = $pt->{'Attributes'}{'Intent'};
+                        
+                        my $local_var_or_arg = ( exists $Sf->{'Args'}{'Set'}{$tvar}) ? 'ArgDecls' : 'LocalVarDecls';
+                        $Sf->{$local_var_or_arg}{'Set'}{$tvar}=$decl;
+                        $Sf->{$local_var_or_arg}{'List'} = ordered_union($Sf->{$local_var_or_arg}{'List'}, $pt->{'Vars'});
+#                    die 'F95 VarDecl: '.Dumper($Sf->{'Vars'}{$tvar}) if $tvar eq 'drydeposit';
+                    }
+                    }
+                }
+#                $is_f77_vardecl = 0;
+    return ($Sf, $info);
+                
+} # END of __parse_f95_decl()
+# -----------------------------------------------------------------------------
+
+sub __parse_f77_par_decl {
+               # F77-style parameters
+#                my $parliststr = $1;
+                (my $Sf, my $f, my $line, my $info, my $parliststr) = @_;
+                my $indent = $line;
+                my $type = 'Unknown';
+                $indent =~ s/\S.*$//;
+                my @partups = split( /\s*,\s*/, $parliststr );
+                my %pvars =
+                  map { split( /\s*=\s*/, $_ ) } @partups;  # Perl::Critic, EYHO
+                my @var_vals =
+                  map { ( my $k, my $v ) = split( /\s*=\s*/, $_ ); [ $k, $v ] }
+                  @partups;                                 # Perl::Critic, EYHO
+                my @pvarl = map { s/\s*=.+//; $_ } @partups;
+                my $pars = [];
+                if ( not exists $Sf->{'Parameters'}{'List'} ) {
+                    $Sf->{'Parameters'}{'List'} = [];
+                }
+                if ( not exists $Sf->{'Parameters'}{'Set'} ) {
+                    $Sf->{'Parameters'}{'Set'} = {};
+                }
+
+                for my $var (@pvarl) {
+die if ref($var) eq 'ARRAY';
+                    if ( not defined $Sf->{'Vars'}{$var} ) {
+
+                        if ( exists $pvars{$var} ) {
+
+                            my $val = $pvars{$var};
+                            if ( $val =~ /[0-9eE\.\+\-]/ ) {
+                                 $type = 'Unknown';
+                                if (   $val =~ /\./
+                                    or $val =~ /e/i
+                                    or $val =~ /\// )
+                                {
+                                    $type = 'real';    # FIXME: could be double!
+                                } else {
+                                    $type = 'integer';
+                                }
+                                $Sf->{'Parameters'}{'Set'}{$var} = { 
+                                    'Type' => $type,
+                                    'Var'  => $var,
+                                    'Val'  => $val
+                                };
+                                print
+"INFO: PARAMETER $var infered type: $type $var = $val\n"
+                                  if $I;
+                                push @{$pars}, $var;
+
+                            } else {
+                                print
+"WARNING: PARAMETER $var not declared in $f; can't infer type:\n"
+                                  if $W;
+                                print
+"WARNING: PARAMETER $var has NON_NUMERIC val $pvars{$var} in $f  (Parser::_analyse_lines)\n"
+                                  if $W;
+                            }
+                        }
+                    } else {
+                        
+                        $Sf->{'Parameters'}{'Set'}{$var} = {
+                            'Type' => 'Unknown',
+                            'Var'  => $Sf->{'Vars'}{$var},
+                            'Val'  => $pvars{$var}
+                        };
+                        push @{$pars}, $var;
+                    }
+                }
+                $info->{'ParamDecl'} =
+                  [ $indent, [ $type, '', [], 'parameter' ], [@var_vals], 0 ]
+                  ;    # F77-style
+                @{ $Sf->{'Parameters'}{'List'} } =
+                  ( @{ $Sf->{'Parameters'}{'List'} }, @{$pars} );
+                  return ($Sf, $info);
+            
+} # END of __parse_f77_par_decl()
+# -----------------------------------------------------------------------------
+
+sub __parse_f77_var_decl {
+                (my $Sf, my $f, my $line, my $info, my $varlst, my $type, my $attr, my $indent) = @_;
+#                $is_f77_vardecl = 0;
+                my $T        = 0;
+#                $T = 1 if $f eq 'timemanager' and $line=~/drydeposit/;
+                my $pvars    = f77_var_decl_parser( $varlst, $T );
+#                die Dumper($pvars) if $f eq 'timemanager' and $line=~/drydeposit/;
+
+                # I verified that here the dimensions are correct
+                my @varnames = ();
+                # Add type information to Vars
+                for my $var ( keys %{$pvars} ) {
+                    if ( $var eq '' ) { croak "<$line> in $f" }
+                    my $tvar = $var;
+                    if (ref($var) eq 'ARRAY') {die __LINE__ .':'.Dumper($var);}
+                    $Sf->{'Vars'}{$tvar}{'Type'}  = $type;
+                    $Sf->{'Vars'}{$tvar}{'Shape'} = $pvars->{$var}{'Shape'};
+                    $Sf->{'Vars'}{$tvar}{'ArrayOrScalar'}  = $pvars->{$var}{'ArrayOrScalar'};
+                    if ( not exists $pvars->{$var}{'Attr'} ) {
+                        if ($attr) {
+                            if ( $type =~ /character/ ) {
+                                $Sf->{'Vars'}{$tvar}{'Attr'} = '(len=' . $attr . ')';
+                            } else {
+                                $Sf->{'Vars'}{$tvar}{'Attr'} = '(kind=' . $attr . ')';
+                            }
+                        } else {
+                            $Sf->{'Vars'}{$tvar}{'Attr'} = '';
+                        }
+                    } else {
+                        if ( $type =~ /character/ ) {
+                            $Sf->{'Vars'}{$tvar}{'Attr'} =
+                              '(len=' . $pvars->{$var}{'Attr'} . ')';
+                        } else {
+                            $Sf->{'Vars'}{$tvar}{'Attr'} =
+                              '(kind=' . $pvars->{$var}{'Attr'} . ')';
+                        }
+                    }
+
+                    # Take IODir from INTENT if it exists
+                    if ( $type =~ /\bintent\s*\(\s*(\w+)\s*\)/ ) {
+                        my $iodir = $1;
+                        $iodir = ucfirst($iodir);
+                        if ( $iodir eq 'Inout' ) {
+                            $iodir = 'InOut';
+                        }
+                        $Sf->{'Vars'}{$tvar}{'IODir'} = $iodir;
+                    }
+
+                    $Sf->{'Vars'}{$tvar}{'Decl'} = [ $indent, [$type], [$var], 0 ];
+                    $Sf->{'Vars'}{$tvar}{'Indent'} = $indent; 
+                    # if $tvar is a function, note that it was Called and add $f to its list of Callers; parse if required
+                    # I think this is WRONG: a declaration is NOT a function call. Also, we analyse for functions later.
+=wrong                    
+                    if ( exists $stref->{'Subroutines'}{$tvar} and exists $stref->{'Subroutines'}{$tvar}{'Function'} and $tvar ne $f )
+                    {    # FIXME: NO RECURSION!
+
+                        $stref->{'Subroutines'}{$tvar}{'Called'} = 1;
+                        
+                        if (
+                            not
+                            exists $stref->{'Subroutines'}{$tvar}{'Callers'}{$f} )
+                        {
+                            $stref->{'Subroutines'}{$tvar}{'Callers'}{$f} = [];
+                        }
+                        push @{ $stref->{'Subroutines'}{$tvar}{'Callers'}{$f} },
+                          $index;
+                        if (
+                            not
+                            exists $stref->{'Subroutines'}{$tvar}{'AnnLines'} )
+                        {
+                            $stref = parse_fortran_src( $tvar, $stref );
+                        }
+                    }
+=cut                    
+                    push @varnames, $tvar;
+                }    # loop over all vars declared on a single line
+
+                print "\tVARS <$line>:\n ", join( ',', sort @varnames ), "\n"
+                  if $V;
+                  # FIXME: this is not OK when we split later on
+                $info->{'VarDecl'} =
+                  [ $indent, [], [@varnames], 0 ]
+                  ; #WV20150708 We now store 'Decl' here so it us a record [$spaces,[$type, $attr, $dim , $intent ],[@vars],$formatted];
+                  $info->{'Ann'} .= $line. ' -> _analyse_lines '.__LINE__.' -> ';
+#                if ($first) {
+#                    $first = 0;
+#
+#                    # FIXME: no use in include files!
+#                    $info->{'ExGlobVarDecls'} =
+#                      ++$Sf->{ExGlobVarDeclHook};    # {};
+#                }
+            return ($Sf, $info);
+} # END of __parse_f77_var_decl()
+# -----------------------------------------------------------------------------
+sub _identify_loops_breaks {
+    ( my $f, my $stref ) = @_;
+    my $sub_or_func = sub_func_incl_mod( $f, $stref );
+    my $Sf          = $stref->{$sub_or_func}{$f};
+    my $srcref      = $Sf->{'AnnLines'};
+    if ( defined $srcref ) {
+        my %do_loops = ();
+        my %gotos    = ();
+
+        #   my %labels=();
+        my $nest = 0;
+        for my $index ( 0 .. scalar( @{$srcref} ) - 1 ) {
+            my $line = $srcref->[$index][0];
+            my $info = $srcref->[$index][1];
+            next if $line =~ /^\!\s+/;
+
+            # BeginDo:
+            $line =~ /^\d*\s+do\s+(\d+)\s+\w/ && do {
+                my $label = $1;
+                $info->{'BeginDo'}{'Label'} = $label;
+                if ( not exists $do_loops{$label} ) {
+                    @{ $do_loops{$label} } = ( [$index], $nest );
+                    $nest++;
+                } else {
+                    push @{ $do_loops{$label}[0] }, $index;
+
+#               print STDERR "WARNING: $f: Found duplicate label $label at: ".join(',',@{ $do_loops{$label}[0] })."\n";
+                }
+                next;
+            };
+
+            # Goto
+            $line =~ /^\d*\s+.*?[\)\ ]\s*go\s?to\s+(\d+)\s*$/ && do {
+                my $label = $1;
+                $info->{'Goto'}{'Label'} =
+                  $label;
+                $Sf->{'Gotos'}{$label} = 1;
+                push @{ $gotos{$label} }, [ $index, $nest ];
+                next;
+            };
+
+            # continue can be end of do loop or break target (amongs others?)
+            $line =~ /^\s*(\d+)\s+(continue|\w)/ && do { 
+                my $label = $1;
+                my $is_cont = $2 eq 'continue' ? 1 : 0;
+                if ($is_cont) {
+                	$info->{'Continue'}{'Label'} = $label;
+                }                
+                if ( exists $do_loops{$label} ) {
+                    if ( $nest == $do_loops{$label}[1] + 1 ) {
+                       $info->{'EndDo'}{'Label'} = $label;                       
+                        $info->{'EndDo'}{'Count'} =
+                          scalar @{ $do_loops{$label}[0] };
+                        delete $do_loops{$label};
+                        $nest--;
+                    } else {
+                        print
+"WARNING: $f: Found continue for label $label but nesting level is wrong: $nest<>$do_loops{$label}[1]\n"
+                          if $W;
+                    }
+                } elsif ( exists $gotos{$label} ) {
+                    my $target = 'GotoTarget';
+                    for my $pair ( @{ $gotos{$label} } ) {
+                        ( my $tindex, my $tnest ) = @{$pair};
+                        $target = 'GotoTarget';
+                        if ( $nest <= $tnest )
+                        {  # What if there are several gotos point to one label?
+                            if ( $tnest > 0 ) {
+                                if ($is_cont) {
+                                    $target = 'NoopBreakTarget';
+                                    $srcref->[$tindex][1]{'Break'}{'Label'} = $label;
+                                } else {
+                                    $target = 'BreakTarget';
+                                    $srcref->[$tindex][1]{'Break'}{'Label'} = $label;
+
+#                       print STDERR "WARNING: $f: Found BREAK target not NOOP for label $label\n";
+                                }
+                            } else {
+                                if ($is_cont) {
+                                    $target = 'NoopTarget';
+                                }
+
+#                           print "WARNING: goto $label ($tindex) is not in loop ($f)\n" if $translate==$GO;
+                            }
+                        } else {
+                            print
+"WARNING: $f: Found GOTO target not BREAK for label $label: wrong nesting $nest<>$gotos{$label}[1]\n"
+                              if $W;
+                        }
+                    }
+                    $info->{$target}{'Label'} = $label;
+                    $Sf->{'Gotos'}{$label} = $target;
+                    delete $gotos{$label};
+
+                }
+                next;
+            };
+
+   # When an open() fails, you can pass a label to some place for error handling
+   # Some evil code combines such end-of-do-block labels
+            $line =~ /^\s+open.*?\,\s*err\s*=\s*(\d+)\s*\)/ && do {
+                my $label = $1;
+                $Sf->{'Gotos'}{$label} = 1;
+                next;
+            };
+            $srcref->[$index]=[$line,$info];
+        }
+    } else {
+        print "WARNING: NO SOURCE (AnnLines) for $f\n" if $W;        
+    }
+    return $stref;
+}    # END of _identify_loops_breaks()
 # -----------------------------------------------------------------------------
 1;
 

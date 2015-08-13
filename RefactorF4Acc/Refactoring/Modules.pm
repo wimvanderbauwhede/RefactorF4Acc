@@ -119,8 +119,8 @@ sub add_module_decls {
             		} else {
             			push @prog_p2, $annline;
             		}
-            		if (exists $info->{'SubroutineSig'}) {
-            			my $progname = $info->{'SubroutineSig'}[1];
+            		if (exists $info->{'Signature'} and exists $info->{'Signature'}{'Program'}) {
+            			my $progname = $info->{'Signature'}{'Name'};
             			
             		if ( exists $stref->{'Subroutines'}{$progname}{'Program'}) {	
             			$before=0;

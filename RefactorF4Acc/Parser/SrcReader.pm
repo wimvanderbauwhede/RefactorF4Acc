@@ -839,6 +839,7 @@ sub _pushAnnLine {
             $f =
               $pline->[1]{'SubroutineSig'}[1];   #[$spaces, $subname,[@subargs]]
             $stref->{$srctype}{$f}{'AnnLines'} = [];
+            
         } elsif ( exists $pline->[1]{'FunctionSig'} ) {
             if ( $f ne '' ) {
                 if (not exists $stref->{'Subroutines'}{$f}{'Function'}) {
@@ -1020,16 +1021,17 @@ sub _procLine {
             $line =~ s/\bINCLUDE\b/include/;
         } elsif ( $line !~ /\'/
             && $line !~ /^\s*end/i
-            && $line =~
+            && $line =~ 
 /\b(module|program|recursive\s+subroutine|subroutine|function)\s+(\w+)/i
           )
         {
+            
             my $keyword = lc($1);
             my $name    = lc($2);
-#            die "$keyword $name" if $line=~/real\s+function/i;
+
             die "_procLine(): No $keyword name " if $name eq '';
             my $spaces = ' ' x 6;
-             
+# This is  only used inside _procLine!             
             if ( $keyword eq 'function') {
                 $info->{'FunctionSig'} = [ $spaces, $name, [] ];
             } elsif ( $keyword eq 'module' ) {
