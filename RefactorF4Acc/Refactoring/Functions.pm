@@ -37,7 +37,8 @@ Functions
 
 sub remove_vars_masking_functions { ( my $stref ) = @_;
     my $pass_actions = sub {
-        (my $annline, my $stref, my $f) = @_;
+        (my $annline,  my $state) = @_;
+        (my $stref, my $f) =@{$state};
         (my $line, my $info) = @{$annline};
         if (exists $info->{'VarDecl'}) {
             my $var = $info->{'VarDecl'}{'Name'};
@@ -48,15 +49,16 @@ sub remove_vars_masking_functions { ( my $stref ) = @_;
                 delete $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{$var};
                 $info->{'Deleted'}=1;   
                 $line = '! '.$line;             
-                return ([$line, $info], $stref, $f);
+                return ([$line, $info], [$stref, $f]);
             }
         }
-        return ($annline, $stref, $f)
-        
+        return ($annline, $state)        
     };
-    for my $f ( keys %{ $stref->{'Subroutines'} } ) {
+    
+    for my $f ( keys %{ $stref->{'Subroutines'} } ) {        
         next unless (defined $f and $f ne '');
-        $stref = stateful_pass($stref,$f, $pass_actions, $f, '');
+        my $state = [$stref,$f];
+        ($stref, $state) = stateful_pass($stref,$f, $pass_actions, $state, '');
     }
     return $stref;    
 }

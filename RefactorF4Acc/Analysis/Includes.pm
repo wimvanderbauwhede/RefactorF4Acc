@@ -106,9 +106,6 @@ sub _find_root_for_include {
             #           print "DESCEND into $singlechild\n";
             delete $Ssub->{'CommonIncludes'}{$inc};
             _find_root_for_include( $stref, $inc, $singlechild );
-#       } elsif ($Ssub->{'RefactorGlobals'}==2) {
-#           # The current node must be Root for this $inc. Exit the search.
-#               die '$Ssub->{RefactorGlobals}==2 for '.$inc;
                     
         } else {
             

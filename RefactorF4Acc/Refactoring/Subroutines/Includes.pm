@@ -67,8 +67,8 @@ sub create_additional_include_statements {
             	my $rline = "      use $tinc ! create_additional_include_statements() line 67";
             $info->{'Include'}{'Name'} = $inc;
             $info->{'Ref'}=1;
-            if ($info->{'ExGlobVarDecls'} >= $Sf->{'ExGlobVarDeclHook'}) {
-                $info->{'ExGlobVarDecls'} = ++$Sf->{'ExGlobVarDeclHook'};
+            if ($info->{'ExGlobArgDecls'} >= $Sf->{'ExGlobVarDeclHook'}) {
+                $info->{'ExGlobArgDecls'} = ++$Sf->{'ExGlobVarDeclHook'};
             }            
             push @{$rlines}, [ $rline, $info ];                    
     }
@@ -123,8 +123,8 @@ sub create_new_include_statements {
                 delete $info->{'VarDecl'};
             }
 # Obsolete            
-#            if ($info->{'ExGlobVarDecls'} >= $Sf->{'ExGlobVarDeclHook'}) {
-#            	$info->{'ExGlobVarDecls'} = ++$Sf->{'ExGlobVarDeclHook'};
+#            if ($info->{'ExGlobArgDecls'} >= $Sf->{'ExGlobVarDeclHook'}) {
+#            	$info->{'ExGlobArgDecls'} = ++$Sf->{'ExGlobVarDeclHook'};
 #            }
 #            say Dumper([ $rline, $info ]);
             push @{$rlines}, [ $rline, $info ];

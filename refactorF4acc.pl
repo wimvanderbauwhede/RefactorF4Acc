@@ -12,7 +12,7 @@ use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
 use RefactorF4Acc::State qw( init_state );
 use RefactorF4Acc::Inventory qw( find_subroutines_functions_and_includes );
-use RefactorF4Acc::Parser qw( parse_fortran_src build_call_graph );
+use RefactorF4Acc::Parser qw( parse_fortran_src build_call_graph refactor_marked_blocks_into_subroutines );
 use RefactorF4Acc::CallTree qw( create_call_tree );
 use RefactorF4Acc::Analysis qw( analyse_all );
 use RefactorF4Acc::Refactoring qw( refactor_all );
@@ -132,9 +132,11 @@ sub main {
 
     # Parse the source
 	$stref = parse_fortran_src( $subname, $stref );
-	
-#	say Dumper( $stref->{'Subroutines'}{'particles_main_loop'} );die;
-#say 'FINAL'; say Dumper( $stref->{'Nodes'} );die;
+	$stref = refactor_marked_blocks_into_subroutines( $stref );
+#	say Dumper( $stref->{'Subroutines'}{'particles_main_loop'} );
+#	show_annlines($stref->{'Subroutines'}{'particles_main_loop'}{'AnnLines'},1);
+#	die;
+#say 'FINAL'; say Dumper( $stref->{'Subroutines'}{'richardson'} );say 'DONE';die;
 	if ( $call_tree_only and not $ARGV[1] ) {
 		create_call_tree($stref,$subname);
 		exit(0);

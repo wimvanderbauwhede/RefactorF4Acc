@@ -47,7 +47,7 @@ sub analyse_sources {
               if $I;
         }
         if (defined $Sf->{'RefactorGlobals'} && $Sf->{'RefactorGlobals'}==2) {
-        	$stref=lift_includes($stref,$f);
+        	$stref=lift_includes($stref,$f); die 'BOOM ' . __LINE__;
         }
         }
     }

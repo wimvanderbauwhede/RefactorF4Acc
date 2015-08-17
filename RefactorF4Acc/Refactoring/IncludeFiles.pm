@@ -31,7 +31,7 @@ use Exporter;
 # Refactor the includes into modules
 sub refactor_include_files {
 	( my $stref ) = @_;
-#    $stref=resolve_module_deps($stref); FIXME!!!
+#    $stref=__resolve_module_deps($stref); FIXME!!!
 	for my $inc_f ( keys %{ $stref->{'IncludeFiles'} } ) {
             next if $stref->{'IncludeFiles'}{$inc_f}{'InclType'} eq 'External';
 			print "\nREFACTORING INCLUDE FILE $inc_f\n" if $V;
@@ -57,7 +57,7 @@ sub _refactor_include_file {
         or $If->{'RefactoredCode'} == []
         or exists $stref->{'BuildSources'}{'C'}{ $If->{'Source'} } ) # FIXME: needed?
     {
-        $stref = context_free_refactorings( $stref, $inc_f );
+        $stref = context_free_refactorings( $stref, $inc_f ); # FIXME: why here? 
     }
 
 	my $annlines = get_annotated_sourcelines( $stref, $inc_f );
@@ -71,19 +71,15 @@ sub _refactor_include_file {
     	
 	for my $annline ( @{$annlines} ) {
 		next if not defined $annline; 
-		my $line      = $annline->[0];
-		      croak "WRONG REF: ".Dumper($annlines) if (not defined $annline->[1] or $annline->[1] eq '');
-		my $info = $annline->[1];
-
-		
-		my %tags      = ( defined $info ) ? %{$info} : ();
-		print '*** ' . join( ',', keys(%tags) ) . "\n" if $V;
+		(my $line, my $info)      =@{ $annline };
+				
+		print '*** ' . join( ',', keys(%{$info}) ) . "\n" if $V;
 		print '*** ' . $line . "\n" if $V;
 		my $skip = 0;
-		if ( exists $tags{'Common'} ) {
+		if ( exists $info->{'Common'} ) {
 			$skip = 1;
 		}
-		if ( exists $tags{'VarDecl'} ) {
+		if ( exists $info->{'VarDecl'} ) {
 			$stref=__resolve_module_deps($stref,$inc_f,$line);
 			my $var = $info->{'VarDecl'}{'Name'};			
 			my $nvar = $var;
@@ -107,9 +103,9 @@ sub _refactor_include_file {
 			
 			$annline->[1]{'VarDecl'}{'Name'} = $nvar;
 		} 
-		if ( exists $tags{'ParamDecl'} ) {
-#			print Dumper(%tags);
-			for my $var (@{ $tags{'ParamDecl'} } ) {
+		if ( exists $info->{'ParamDecl'} ) {
+#			print Dumper(%{$info});
+			for my $var (@{ $info->{'ParamDecl'} } ) {
 #				print "PAR: $var ($line)\n";
                 if ( exists $stref->{'IncludeFiles'}{$inc_f}{'ConflictingGlobals'}
                     {$var} )
@@ -123,7 +119,7 @@ sub _refactor_include_file {
 			}
 			
 		}
-		if ( exists $tags{'Implicit'} ) {
+		if ( exists $info->{'Implicit'} ) {
 		    print "WARNING: IMPLICIT: removing the implicit type declaration <$line> in $inc_f, please make sure your code does not use them!\n" if $W;		    
 		    $line = '!! '.$line;
 		    $info->{'Comments'}=1;

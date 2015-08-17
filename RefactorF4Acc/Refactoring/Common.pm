@@ -82,17 +82,16 @@ sub context_free_refactorings {
     $Sf->{'RefactoredCode'} = [];
     my @include_use_stack = ();
 
-    my %params_declared_in_file = ();
-    for my $annline ( @{$annlines} ) {
-        ( my $line, my $info ) = @{$annline};
-        if ( exists $info->{'ParamDecl'} ) {
-            my $partup = $info->{'ParamDecl'}{'Name'}  ;
-#                say "$f: ".Dumper($info->{'ParamDecl'});
-                ( my $par, my $parval ) = @{$partup};
-                $params_declared_in_file{$par} = 1;
-            
-        }
-    }
+#    my %params_declared_in_file = ();
+#    for my $annline ( @{$annlines} ) {
+#        ( my $line, my $info ) = @{$annline};
+#        if ( exists $info->{'ParamDecl'} ) {
+#            my $partup = $info->{'ParamDecl'}{'Name'}  ;
+#                ( my $par, my $parval ) = @{$partup};
+#                $params_declared_in_file{$par} = 1;
+#            
+#        }
+#    }
     
     # FIXME: This is way too long and quite unclear
     for my $annline ( @{$annlines} ) {
@@ -193,7 +192,7 @@ sub context_free_refactorings {
 
 #            if ( $firstdecl == 1 ) {
 #
-#                #$info->{'ExGlobVarDecls'} = 0;
+#                #$info->{'ExGlobArgDecls'} = 0;
 #                $firstdecl = 0;
 =if0                       
 if (0) {
@@ -243,7 +242,7 @@ if (0) {
                               emit_f95_var_decl($filtered_var_decl) . ' ! V5';
                             $tr{'VarDecl'} = $filtered_var_decl;
 
-                            #					       delete $tr{'ExGlobVarDecls'};
+                            #					       delete $tr{'ExGlobArgDecls'};
                             push @extra_lines,
                               [
                                 $filtered_line,
@@ -284,7 +283,7 @@ if (0) {
                           format_f95_var_decl( $stref, $f, $var );
                         $info->{'VarDecl'} = $var_decl;
                         $line = emit_f95_var_decl($var_decl) ;
-                        delete $info->{'ExGlobVarDecls'};
+                        delete $info->{'ExGlobArgDecls'};
                         $info->{'Ref'} = 1; 
                         $info->{'Ann'} .= 'context_free_refactoring '. __LINE__ ."; ";
                         $line .= "\t!".$info->{'Ann'};
@@ -454,7 +453,7 @@ if (0) {
                 
             my @par_lines = ();
             my $info_ref = $info->{'Ref'} // 0;
-#            if (exists $info->{'ExGlobVarDecls'}) {die;};
+#            if (exists $info->{'ExGlobArgDecls'}) {die;};
              my $var_val = $info->{'ParamDecl'}{'Name'};
                 ( my $var, my $val ) = @{$var_val};
                 
@@ -929,6 +928,7 @@ sub format_f95_var_decl {
     my $attr   = '';
     my $type   = 'Unknown';
     my $nvar   = $var;
+    # FIXME: we are using different data structures now!
      if ( exists $Sf->{'RefactoredArgs'}{'Set'}{$var} ) {
          
          
@@ -956,8 +956,6 @@ sub format_f95_var_decl {
             $intent =
               [ 'intent', $Sf->{'RefactoredArgs'}{'Set'}{$var}{'IODir'} ];
         }          
-         
-         
      } elsif ( exists $Sf->{'Vars'}{$var} ) {
          
         my $Sv = $Sf->{'Vars'}{$var};
@@ -991,7 +989,7 @@ sub format_f95_var_decl {
                 
             } 
     } elsif ( defined $f and defined $stref and defined $var ) {
-        die Dumper( $_[0] ) unless defined $stref;
+        croak Dumper( $_[0] ) unless defined $stref;
         ( $type, my $kind, $attr ) =
           type_via_implicits( $stref, $f, $var );
     } else {
@@ -1001,20 +999,20 @@ sub format_f95_var_decl {
 
     my $dim = [];
     # FIXME: I think the case dimension(:) is not covered!
-    if ( @{$shape} > 1) {
-        
-        my @dims = ();
-        for my $i ( 0 .. ( @{$shape} / 2 - 1 ) ) {
-            my $range =
-              ( $shape->[ 2 * $i ] eq '1' )
-              ? $shape->[ 2 * $i + 1 ]
-              : $shape->[ 2 * $i ] . ':' . $shape->[ 2 * $i + 1 ];
-            push @dims, $range;
-        }
-        $dim = [ 'dimension', [@dims] ];
-    } elsif (scalar @{$shape}==1) {
-#        say Dumper($shape);
-        $dim = [ 'dimension', ['1:'.$shape->[0]] ];
+    if ( @{$shape} >= 1) {
+        $dim=$shape;
+#        my @dims = ();
+#        for my $i ( 0 .. ( @{$shape} / 2 - 1 ) ) {
+#            my $range =
+#              ( $shape->[ 2 * $i ] eq '1' )
+#              ? $shape->[ 2 * $i + 1 ]
+#              : $shape->[ 2 * $i ] . ':' . $shape->[ 2 * $i + 1 ];
+#            push @dims, $range;
+#        }
+#        $dim = [ 'dimension', [@dims] ];
+#    } elsif (scalar @{$shape}==1) {
+#
+#        $dim =  [ ['1',$shape->[0] ] ];
     } else {
         $dim = [];
     }
@@ -1035,167 +1033,168 @@ sub format_f95_var_decl {
 }    # format_f95_var_decl()
 
 # -----------------------------------------------------------------------------
-# OBSOLETE!
-sub format_f77_var_decl {
-    ( my $Sf, my $var ) = @_;
-    my $Sfv = $Sf->{'Vars'};
-    my $Sv  = $Sfv->{$var};
-    if ( not exists $Sv->{'Decl'} ) {
-        print "WARNING: VAR $var does not exist in format_f77_var_decl()!\n"
-          if $W;
-        croak $var;
-    }
-    my $spaces = $Sv->{'Indent'};
-
-    my $intent = '';
-    if ( exists $Sf->{'RefactoredArgs'}{'Set'}{$var} ) {
-        $intent = $Sf->{'RefactoredArgs'}{'Set'}{$var}{'IODir'};
-
-        #        warn "F77 $var: $intent\n";
-    }
-
-    # FIXME: for multiple vars, we need to split this in multiple statements.
-    # So I guess as soon as the Shape is not empty, need to split.
-    my $shape = $Sv->{'Shape'};
-
-    my $dim  = '';
-    my @dims = ();
-    if ( @{$shape} ) {
-
-        for my $i ( 0 .. ( @{$shape} / 2 - 1 ) ) {
-            my $range =
-              ( $shape->[ 2 * $i ] eq '1' )
-              ? $shape->[ 2 * $i + 1 ]
-              : $shape->[ 2 * $i ] . ':' . $shape->[ 2 * $i + 1 ];
-            push @dims, $range;
-        }
-        $dim = '(' . join( ',', @dims ) . ') ';
-    }
-    my $attr = '';
-    if ( exists $Sv->{'Attr'} && $Sv->{'Attr'} ne '' ) {
-        $attr = '*' . $Sv->{'Attr'};
-    }
-    my $decl_line = $spaces . $Sv->{'Type'} . $attr . ' ' . $var . $dim;
-
-    #    die $decl_line  if $dim;
-    #WV20150424 this should become
-    return [
-        $spaces, [ $Sv->{'Type'}, $Sv->{'Attr'}, [ 'dimension', [@dims] ], [] ],
-        [$var], 1
-    ];    # so intent is empty, i.e. default
-
-    #    return $decl_line;
-}    # format_f77_var_decl()
-
-# -----------------------------------------------------------------------------
+## OBSOLETE!
+#sub format_f77_var_decl {
+#    ( my $Sf, my $var ) = @_;
+#    my $Sfv = $Sf->{'Vars'};
+#    my $Sv  = $Sfv->{$var};
+#    if ( not exists $Sv->{'Decl'} ) {
+#        print "WARNING: VAR $var does not exist in format_f77_var_decl()!\n"
+#          if $W;
+#        croak $var;
+#    }
+#    my $spaces = $Sv->{'Indent'};
+#
+#    my $intent = '';
+#    if ( exists $Sf->{'RefactoredArgs'}{'Set'}{$var} ) {
+#        $intent = $Sf->{'RefactoredArgs'}{'Set'}{$var}{'IODir'};
+#
+#        #        warn "F77 $var: $intent\n";
+#    }
+#
+#    # FIXME: for multiple vars, we need to split this in multiple statements.
+#    # So I guess as soon as the Shape is not empty, need to split.
+#    my $shape = $Sv->{'Shape'};
+#
+#    my $dim  = '';
+#    my @dims = ();
+#    if ( @{$shape} ) {
+#
+#        for my $i ( 0 .. ( @{$shape} / 2 - 1 ) ) {
+#            my $range =
+#              ( $shape->[ 2 * $i ] eq '1' )
+#              ? $shape->[ 2 * $i + 1 ]
+#              : $shape->[ 2 * $i ] . ':' . $shape->[ 2 * $i + 1 ];
+#            push @dims, $range;
+#        }
+#        $dim = '(' . join( ',', @dims ) . ') ';
+#    }
+#    my $attr = '';
+#    if ( exists $Sv->{'Attr'} && $Sv->{'Attr'} ne '' ) {
+#        $attr = '*' . $Sv->{'Attr'};
+#    }
+#    my $decl_line = $spaces . $Sv->{'Type'} . $attr . ' ' . $var . $dim;
+#
+#    #    die $decl_line  if $dim;
+#    #WV20150424 this should become
+#    return [
+#        $spaces, [ $Sv->{'Type'}, $Sv->{'Attr'}, [ 'dimension', [@dims] ], [] ],
+#        [$var], 1
+#    ];    # so intent is empty, i.e. default
+#
+#    #    return $decl_line;
+#}    # format_f77_var_decl()
 
 # -----------------------------------------------------------------------------
-sub _format_f95_multiple_var_decls {
-    ( my $Sf, my @vars ) = @_;
 
-    my @Svs = map { $Sf->{'Vars'}{$_} } @vars;
-    for my $Sv (@Svs) {
-        if ( not exists $Sv->{'Decl'} ) {
-            print
-"WARNING: VAR $vars[0] does not exist in _format_f95_multiple_var_decls()!\n"
-              if $W;
-            croak $vars[0];
-        }
-    }
-    my @nvars = ();
-    for my $var (@vars) {
-        if ( exists $Sf->{'ConflictingLiftedVars'}{$var} ) {
-            push @nvars, $Sf->{'ConflictingLiftedVars'}{$var};
-        } else {
-            push @nvars, $var;
-        }
-    }
-    my @spaces = map { $_->{'Indent'} } @Svs;
-    my @types  = map { $_->{'Type'} } @Svs;
-    my @attrs  = map { $_->{'Attr'} } @Svs;
-
-    # FIXME: for multiple vars, we need to split this in multiple statements.
-    # So I guess as soon as the Shape is not empty, need to split.
-    #	my $split = 0;
-    #	if ( !$split ) {
-    #		for my $var (@vars) {
-    #			my $shape = $Sf->{'Vars'}{$var}{'Shape'};
-    #			if ( @{$shape} > 0 && @vars > 1 ) {
-    #				$split = 1;
-    #				last;
-    #			}
-    #		}
-    #	}
-
-    #	if ($split==1) {
-
-    #		my $decl_line = $spaces;    #.$Sv->{'Type'}.' :: '.join(', ',@vars);
-    # What we need to do is split these into separate statements
-    my $var_decl_rec  = [];
-    my $var_decl_recs = [];
-    my $idx           = 0;
-    for my $var (@vars) {
-        my $nvar   = shift @nvars;
-        my $dim    = '';
-        my $shape  = $Sf->{'Vars'}{$var}{'Shape'};
-        my $dimrec = [];
-        if ( @{$shape} > 1 ) {
-            my @dims = ();
-            for my $i ( 0 .. ( @{$shape} / 2 - 1 ) ) {
-                my $range =
-                  ( "$shape->[2*$i]" eq '1' )
-                  ? $shape->[ 2 * $i + 1 ]
-                  : $shape->[ 2 * $i ] . ':' . $shape->[ 2 * $i + 1 ];
-                push @dims, $range;
-            }
-            $dim = ', dimension(' . join( ',', @dims ) . ') ';
-            $dimrec = [ 'dimension', [@dims] ];
-        }
-
-        #			my $decl = "$type$attr $dim :: $nvar; ";
-        $var_decl_rec = [
-            $spaces[$idx], [ $types[$idx], $attrs[$idx], $dimrec, [] ],
-            [$nvar], 0
-        ];
-        push @{$var_decl_recs}, $var_decl_rec;
-
-        #			$decl_line .= $decl;
-        $idx++;
-    }
-
-    #		return $decl_line;
-    return $var_decl_recs;
-
-    #	} else {
-    #
-    #		# for Shape, it means they are all empty OR there is just one!
-    #		my $dim = '';
-    #		my $dimrec=[];
-    #		if ( @vars == 1 ) {
-    #			my $shape = $Sf->{'Vars'}{ $vars[0] }{'Shape'};
-    #			if ( @{$shape} ) {
-    #				my @dims = ();
-    #				for my $i ( 0 .. ( @{$shape} / 2 - 1 ) ) {
-    #					my $range =
-    #					  ( $shape->[ 2 * $i ] eq '1' )
-    #					  ? $shape->[ 2 * $i + 1 ]
-    #					  : $shape->[ 2 * $i ] . ':' . $shape->[ 2 * $i + 1 ];
-    #					push @dims, $range;
-    #				}
-    #				$dim = ', dimension(' . join( ',', @dims ) . ') ';
-    #				$dimrec=['dimension',[@dims]];
-    #			}
-    #		}
-    #		my $decl_line =
-    #		     $spaces . $type . $attr. $dim . ' :: '
-    #		  . join( ', ', sort @nvars )
-    #		  . ' !! Context-free, multi !! ';
-##		return $decl_line;
-    #		return [[$spaces ,[ $type , $attr, $dimrec,[] ],[ sort @nvars ],1]];
-    #
-    #
-    #	}
-}    # _format_f95_multiple_var_decls()
+# -----------------------------------------------------------------------------
+# OBSOLETE
+#sub _format_f95_multiple_var_decls {
+#    ( my $Sf, my @vars ) = @_;
+#
+#    my @Svs = map { $Sf->{'Vars'}{$_} } @vars;
+#    for my $Sv (@Svs) {
+#        if ( not exists $Sv->{'Decl'} ) {
+#            print
+#"WARNING: VAR $vars[0] does not exist in _format_f95_multiple_var_decls()!\n"
+#              if $W;
+#            croak $vars[0];
+#        }
+#    }
+#    my @nvars = ();
+#    for my $var (@vars) {
+#        if ( exists $Sf->{'ConflictingLiftedVars'}{$var} ) {
+#            push @nvars, $Sf->{'ConflictingLiftedVars'}{$var};
+#        } else {
+#            push @nvars, $var;
+#        }
+#    }
+#    my @spaces = map { $_->{'Indent'} } @Svs;
+#    my @types  = map { $_->{'Type'} } @Svs;
+#    my @attrs  = map { $_->{'Attr'} } @Svs;
+#
+#    # FIXME: for multiple vars, we need to split this in multiple statements.
+#    # So I guess as soon as the Shape is not empty, need to split.
+#    #	my $split = 0;
+#    #	if ( !$split ) {
+#    #		for my $var (@vars) {
+#    #			my $shape = $Sf->{'Vars'}{$var}{'Shape'};
+#    #			if ( @{$shape} > 0 && @vars > 1 ) {
+#    #				$split = 1;
+#    #				last;
+#    #			}
+#    #		}
+#    #	}
+#
+#    #	if ($split==1) {
+#
+#    #		my $decl_line = $spaces;    #.$Sv->{'Type'}.' :: '.join(', ',@vars);
+#    # What we need to do is split these into separate statements
+#    my $var_decl_rec  = [];
+#    my $var_decl_recs = [];
+#    my $idx           = 0;
+#    for my $var (@vars) {
+#        my $nvar   = shift @nvars;
+#        my $dim    = '';
+#        my $shape  = $Sf->{'Vars'}{$var}{'Shape'};
+#        my $dimrec = [];
+#        if ( @{$shape} > 1 ) {
+#            my @dims = ();
+#            for my $i ( 0 .. ( @{$shape} / 2 - 1 ) ) {
+#                my $range =
+#                  ( "$shape->[2*$i]" eq '1' )
+#                  ? $shape->[ 2 * $i + 1 ]
+#                  : $shape->[ 2 * $i ] . ':' . $shape->[ 2 * $i + 1 ];
+#                push @dims, $range;
+#            }
+#            $dim = ', dimension(' . join( ',', @dims ) . ') ';
+#            $dimrec = [ 'dimension', [@dims] ];
+#        }
+#
+#        #			my $decl = "$type$attr $dim :: $nvar; ";
+#        $var_decl_rec = [
+#            $spaces[$idx], [ $types[$idx], $attrs[$idx], $dimrec, [] ],
+#            [$nvar], 0
+#        ];
+#        push @{$var_decl_recs}, $var_decl_rec;
+#
+#        #			$decl_line .= $decl;
+#        $idx++;
+#    }
+#
+#    #		return $decl_line;
+#    return $var_decl_recs;
+#
+#    #	} else {
+#    #
+#    #		# for Shape, it means they are all empty OR there is just one!
+#    #		my $dim = '';
+#    #		my $dimrec=[];
+#    #		if ( @vars == 1 ) {
+#    #			my $shape = $Sf->{'Vars'}{ $vars[0] }{'Shape'};
+#    #			if ( @{$shape} ) {
+#    #				my @dims = ();
+#    #				for my $i ( 0 .. ( @{$shape} / 2 - 1 ) ) {
+#    #					my $range =
+#    #					  ( $shape->[ 2 * $i ] eq '1' )
+#    #					  ? $shape->[ 2 * $i + 1 ]
+#    #					  : $shape->[ 2 * $i ] . ':' . $shape->[ 2 * $i + 1 ];
+#    #					push @dims, $range;
+#    #				}
+#    #				$dim = ', dimension(' . join( ',', @dims ) . ') ';
+#    #				$dimrec=['dimension',[@dims]];
+#    #			}
+#    #		}
+#    #		my $decl_line =
+#    #		     $spaces . $type . $attr. $dim . ' :: '
+#    #		  . join( ', ', sort @nvars )
+#    #		  . ' !! Context-free, multi !! ';
+###		return $decl_line;
+#    #		return [[$spaces ,[ $type , $attr, $dimrec,[] ],[ sort @nvars ],1]];
+#    #
+#    #
+#    #	}
+#}    # _format_f95_multiple_var_decls()
 
 # ----------------------------------------------------------------------------------------------------
 
@@ -1295,35 +1294,35 @@ sub format_f95_par_decl {
     my $dim    = '';
     my $dimrec = [];
     if ( @{$shape} ) {
-        my @dims = ();
-        for my $i ( 0 .. ( @{$shape} / 2 - 1 ) ) {
-            my $range =
-              ( $shape->[ 2 * $i ] eq '1' )
-              ? $shape->[ 2 * $i + 1 ]
-              : $shape->[ 2 * $i ] . ':' . $shape->[ 2 * $i + 1 ];
-            push @dims, $range;
-        }
-        $dim = ', dimension(' . join( ',', @dims ) . ') ';
-        $dimrec = [ 'dimension', [@dims] ];
+#        my @dims = ();
+#        for my $i ( 0 .. ( @{$shape} / 2 - 1 ) ) {
+#            my $range =
+#              ( $shape->[ 2 * $i ] eq '1' )
+#              ? $shape->[ 2 * $i + 1 ]
+#              : $shape->[ 2 * $i ] . ':' . $shape->[ 2 * $i + 1 ];
+#            push @dims, $range;
+#        }
+        $dimrec = $shape; #', dimension(' . join( ',', @dims ) . ') ';
+        #$dimrec = [ 'dimension', [@dims] ];
     }
-    if ($local_par) {
-        my $decl_line =
-            $spaces
-          . $Sv->{'Type'}
-          . $Sv->{'Attr'}
-          . $dim
-          . ', parameter ' . ' :: '
-          . $var . ' = '
-          . $val;
-        print "WARNING: LOCAL PAR: $decl_line\n" if $W;
-    }
+#    if ($local_par) {
+#        my $decl_line =
+#            $spaces
+#          . $Sv->{'Type'}
+#          . $Sv->{'Attr'}
+#          . $dim
+#          . ', parameter ' . ' :: '
+#          . $var . ' = '
+#          . $val;
+#        print "WARNING: LOCAL PAR: $decl_line\n" if $W;
+#    }
 
     #	return $decl_line;
-    return [
-        $spaces,
-        [ $Sv->{'Type'}, $Sv->{'Attr'}, $dimrec, 'parameter' ],
-        [ [ $var, $val ] ], 1
-    ];
+#    return [
+#        $spaces,
+#        [ $Sv->{'Type'}, $Sv->{'Attr'}, $dimrec, 'parameter' ],
+#        [ [ $var, $val ] ], 1
+#    ];
     
     return {
         'Indent' => $spaces,
@@ -1482,7 +1481,7 @@ sub emit_f95_var_decl {
     ( my $var_decl_rec ) = @_;
 
     #    say Dumper($var_decl_rec);
-    if ( ref($var_decl_rec) ne 'ARRAY' ) {
+    if ( ref($var_decl_rec) ne 'HASH' ) {
         croak "NOT ARRAY in emit_f95_var_decl($var_decl_rec)";
     }
     my $spaces = $var_decl_rec->{'Indent'};# [0];
@@ -1496,8 +1495,12 @@ sub emit_f95_var_decl {
       my $var = $var_decl_rec->{'Name'};
       
     my $dimstr = '';
-    if ( ref($dim) eq 'ARRAY' and @{$dim} == 2 ) {
-        $dimstr = $dim->[0] . '(' . join( ',', @{ $dim->[1] } ) . ')';
+#    say Dumper($dim);
+    if ( ref($dim) eq 'ARRAY' and scalar @{$dim}>0) {
+        my @dimpairs = map { $_->[0].':'.$_->[1] } @{ $dim };
+        $dimstr = 'dimension(' . join( ',', @dimpairs) . ')';
+    } else {
+#        croak Dumper($dim); 
     }
     my @attrs = ();
     if ($attr) {
@@ -1694,12 +1697,12 @@ sub stateful_pass {
     my $nextLineID         = scalar @{$annlines} + 1;
     my $new_annlines=[];
     for my $annline ( @{$annlines} ) {
-        (my $new_annline, $stref, $state) = $pass_actions->($annline, $stref, $state);
+        (my $new_annline, $state) = $pass_actions->($annline, $state);
         push @{$new_annlines}, $new_annline;
     }
     $Sf->{'RefactoredCode'} = $new_annlines;
     
-    return $stref;
+    return ($stref,$state);
 } # END of stateful_pass()
 
 1;

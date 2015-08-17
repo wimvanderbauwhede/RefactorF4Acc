@@ -33,11 +33,13 @@ use Exporter;
 
 @RefactorF4Acc::Parser::EXPORT_OK = qw(
   &parse_fortran_src
+  &refactor_marked_blocks_into_subroutines
   &build_call_graph
 );
 
 # -----------------------------------------------------------------------------
 # parse_fortran_src() parses the source but does perform only limited context-free analysis
+# This routine is recursive
 sub parse_fortran_src {
     ( my $f, my $stref ) = @_
       ;  # NOTE $f is not the name of the source but of the sub/func/incl/module
@@ -50,7 +52,7 @@ sub parse_fortran_src {
     print "DONE read_fortran_src( $f )\n" if $V;
 
     my $sub_or_incl_or_mod = sub_func_incl_mod( $f, $stref );
-     my $is_incl = $sub_or_incl_or_mod eq 'IncludeFiles';
+    my $is_incl = $sub_or_incl_or_mod eq 'IncludeFiles';
     my $is_external_include = $is_incl  ?  ($stref->{'IncludeFiles'}{$f}{'InclType'} eq 'External') : 0;
       
     print "SRC TYPE for $f: $sub_or_incl_or_mod\n" if $V;
@@ -58,7 +60,12 @@ sub parse_fortran_src {
     not $is_external_include
     ) {
         my $Sf = $stref->{$sub_or_incl_or_mod}{$f};       
-        
+        if (not exists $Sf->{'DeclaredArgs'} ) {
+            $Sf->{'DeclaredArgs'}={ 'Set' => {}, 'List' => [] };
+        } 
+        if (not exists $Sf->{'DeclaredVars'} ) {
+            $Sf->{'DeclaredVars'}={ 'Set' => {}, 'List' => [] };
+        }         
 # Set 'RefactorGlobals' to 0, we only refactor the globals for subs that are kernel targets and their dependencies
         if ( not exists $Sf->{'RefactorGlobals'} ) {
             $Sf->{'RefactorGlobals'} = 0;
@@ -87,9 +94,9 @@ sub parse_fortran_src {
 
 ## 5. Parse subroutine and function calls
         if ( not $is_incl ) {
-            if ( $stref->{$sub_or_incl_or_mod}{$f}{'HasBlocks'} == 1 ) {
-                $stref = _separate_blocks( $f, $stref );
-            }
+#            if ( $stref->{$sub_or_incl_or_mod}{$f}{'HasBlocks'} == 1 ) {
+#                $stref = _separate_blocks( $f, $stref );
+#            }
 
             # Recursive descent via subroutine calls
             $stref = _parse_subroutine_and_function_calls( $f, $stref );
@@ -101,7 +108,7 @@ sub parse_fortran_src {
             $stref->{'IncludeFiles'}{$f}{'Status'} = $PARSED;
             
         }
-            say 'parse_fortan_source: '. __LINE__.' : '. Dumper($stref->{'Subroutines'}{$f}{Vars}{indzindicator}) if $f eq 'particles_main_loop'; 
+#            say 'parse_fortan_source: '. __LINE__.' : '. Dumper($stref->{'Subroutines'}{$f}{Vars}{indzindicator}) if $f eq 'particles_main_loop'; 
      
         
 # 7. Split variable declarations with multiple vars into single-var lines
@@ -122,6 +129,58 @@ sub parse_fortran_src {
 }    # END of parse_fortran_src()
 
 # -----------------------------------------------------------------------------
+
+
+# -----------------------------------------------------------------------------
+# parse_fortran_src() parses the source but does perform only limited context-free analysis
+# This routine is recursive
+sub refactor_marked_blocks_into_subroutines {
+    ( my $stref ) = @_;      
+#    local $V=1;
+    for my $f (keys %{ $stref->{'Subroutines'}  }) {
+        
+        if (exists $stref->{'Subroutines'}{$f}{'HasBlocks'} and $stref->{'Subroutines'}{$f}{'HasBlocks'} == 1 ) {
+
+            print "refactor_marked_blocks_into_subroutines(): PARSING $f\n " if $V;
+        
+            my $sub_or_incl_or_mod = sub_func_incl_mod( $f, $stref );
+            my $is_incl = $sub_or_incl_or_mod eq 'IncludeFiles';
+            my $is_external_include = $is_incl  ?  ($stref->{'IncludeFiles'}{$f}{'InclType'} eq 'External') : 0;
+              
+            print "SRC TYPE for $f: $sub_or_incl_or_mod\n" if $V;
+            if ( $sub_or_incl_or_mod ne 'ExternalSubroutines' and 
+            not $is_external_include
+            ) {
+        
+        
+        ## 5. Parse subroutine and function calls
+                if ( not $is_incl ) {
+                    if ( $stref->{$sub_or_incl_or_mod}{$f}{'HasBlocks'} == 1 ) {
+                        $stref = _separate_blocks( $f, $stref );
+                    }
+                    
+                }
+                    
+            } else {
+                print "INFO: $f is EXTERNAL\n" if $I;
+            }
+             
+        #    die 'HERE' if $f eq 'f_esl';
+        #    
+            
+            print
+        "LEAVING refactor_marked_blocks_into_subroutines( $f ) with Status $stref->{$sub_or_incl_or_mod}{$f}{'Status'}\n"
+              if $V;
+        }
+    }
+    return $stref;
+}    # END of refactor_marked_blocks_into_subroutines()
+
+# -----------------------------------------------------------------------------
+
+
+
+
 
 # _analyse_lines() parses every line and determines its purpose, the info is added to $info. Furthermore, 
 # Create a table of all variables declared in the target, and a list of all the var names occuring on each line.
@@ -169,13 +228,13 @@ sub _analyse_lines {
                 ($stref,$info) =__handle_acc($stref,$f, $index, $line);
             }
 
-#            # Set up hook for later insertion of ExGlobVarDecls => OBSOLETE, we do a separate pass for this
+#            # Set up hook for later insertion of ExGlobArgDecls => OBSOLETE, we do a separate pass for this
 #            if (   exists $info->{'Includes'}
 #                or exists $info->{'FunctionSig'}
 #                or exists $info->{'SubroutineSig'}
 #                or exists $info->{'Use'} )
 #            {
-#                $info->{'ExGlobVarDecls'} = ++$Sf->{'ExGlobVarDeclHook'};
+#                $info->{'ExGlobArgDecls'} = ++$Sf->{'ExGlobVarDeclHook'};
 #            }
 
             # FIXME Trailing comments are ignored!
@@ -264,31 +323,15 @@ sub _analyse_lines {
               )
             {
                 $type   = $1;
-                $varlst = $2;
-
-# Now an ad hoc fix for spaces between the type and the asterisk. FIXME! I should just write a better FSM!
-                if ( $line =~ /\w+\s+(\*\s*(\d+|\(\s*\*\s*\)))/ )
-                { # FIXME: I assume after the asterisk there MUST be an integer constant
-                    my $len = $1;
-                    $type .= $len;
-                    $varlst =~ s/^\S+\s+//;
-
-                }
-
-                $type =~ /\*/ && do {
-                    ( $type, $attr ) = split( /\*/, $type );
-                    if ( $attr eq '(' ) { $attr = '*' }
-                };
-                $indent = $line;
-                $indent =~ s/\S.*$//;
-                $is_f77_vardecl = 1; # Actual parsing happens later on
-                
+                $varlst = $2;              
+                ($Sf, $info) = __parse_f77_var_decl($Sf,$f,$line,$info,$type,$varlst);
+#                 $is_f77_vardecl = 1; # Actual parsing happens later on                
             } elsif ( $line =~ /^\s*(.*)\s*::\s*(.*?)\s*$/ ) {
                 # F95 VarDecl                
                 # F95 declaration, no need for refactoring
                 $type   = $1;
                 $varlst = $2;
-                (my $Sf, my $info) = __parse_f95_decl($Sf,$line,$info,$type,$varlst); 
+                ($Sf,$info) = __parse_f95_decl($Sf,$line,$info,$type,$varlst); 
 #                $indent = $line;
 #                $indent =~ s/\S.*$//;
 #                my $pt = parse_F95_var_decl($line);
@@ -457,9 +500,9 @@ sub _analyse_lines {
 #                  ( @{ $Sf->{'Parameters'}{'List'} }, @{$pars} );
             }    # match var decls, parameter statements F77/F95
 
-            if ($is_f77_vardecl==1) {
-                $is_f77_vardecl = 0;
-                 (my $Sf, my $info) = __parse_f77_var_decl($Sf,$f,$line,$info,$varlst,$type,$attr,$indent);
+#            if ($is_f77_vardecl==1) {
+#                $is_f77_vardecl = 0;
+#                 (my $Sf, my $info) = __parse_f77_var_decl($Sf,$f,$line,$info,$varlst,$type,$attr,$indent);
                 
                 
 #                my $T        = 0;
@@ -547,10 +590,10 @@ sub _analyse_lines {
 #                    $first = 0;
 #
 #                    # FIXME: no use in include files!
-#                    $info->{'ExGlobVarDecls'} =
+#                    $info->{'ExGlobArgDecls'} =
 #                      ++$Sf->{ExGlobVarDeclHook};    # {};
 #                }
-            }
+#            }
             $srcref->[$index] = [ $line, $info ];
         }    # Loop over lines
          
@@ -854,7 +897,7 @@ sub _separate_blocks {
         $stref = __reparse_extracted_subroutines($stref, $blocksref);
         my @callinfo = caller(0);
         my $callinfostr=$callinfo[3];
-        say  $callinfostr .' '. __LINE__ .' : ' .Dumper($stref->{Subroutines}{particles_main_loop}{Vars}{indzindicator});
+#        say  $callinfostr .' '. __LINE__ .' : ' .Dumper($stref->{Subroutines}{particles_main_loop}{Vars}{indzindicator});
     
 #	warn "Vars are CORRECT AT END OF separate_blocks( $f ):\n-----\n";
 #	warn "-----\n";
@@ -1186,8 +1229,8 @@ sub _get_commons_params_from_includes {
                 my $common_block_name = $1;
                 my $commonlst         = $2;
                 $has_commons = 1;
-                my $parsedvars = f77_var_decl_parser( $commonlst, 0 );
-                for my $var ( keys %{$parsedvars} ) {                    
+                (my $parsedvars, my $parsedvars_lst) = f77_var_decl_parser( $commonlst, 0 );
+                for my $var ( @{$parsedvars_lst} ) {                    
                     if ( not defined $Sincf->{'Vars'}{$var} ) {
                         if (
                             exists $stref->{'Implicits'}{$inc}
@@ -1202,12 +1245,20 @@ sub _get_commons_params_from_includes {
                             ( my $type, my $array_or_scalar, my $shape, my $attr ) =
                               @{$type_kind_shape_attr};
                             my $indent      = ' ' x 6;
+                            my $decl = {
+                                'Indent' => $indent,
+                                'Type'   => $type,                                                                
+                                'Attr'   => $attr,
+                                'Dim'  => [@{$parsedvars->{$var}{'Shape'}}],
+                                 'Name' => $var,
+                                 'Status' => 0                                
+                            };
                             my $var_rec = {
                                 'Decl' => [ $indent, [$type], [$var], 0 ],
                                 'Shape'  => $parsedvars->{$var}{'Shape'},
                                 'Type'   => $type,
                                 'Attr'   => $attr,
-                                'Indent' => '      ', 
+                                'Indent' => $indent, 
                                 'ArrayOrScalar'   => $parsedvars->{$var}{'ArrayOrScalar'}
                             };
                             $Sincf->{'Commons'}{$var} = $var_rec;
@@ -1272,8 +1323,8 @@ sub _get_commons_params_from_includes {
                 @{ $Sincf->{'Parameters'}{'List'} } =
                   ( @{ $Sincf->{'Parameters'}{'List'} }, @pars );
                 $srcref->[$index][1]{'ParamDecl'} =
-                  [ $indent, [ $type, '', [], 'parameter' ], [@var_vals], 0 ]
-                  ;    # F77-style parameters in include file
+                  { 'Indent' => $indent, 'Type'=> $type,'Attr'=> '', 'Dim'=>[], 'Parameter'=>'parameter','Names'=> [@var_vals],'Status'=> 0 };
+                      # F77-style parameters in include file
             } elsif ( $line =~ /,\s*parameter\s*.*?::\s*(\w+)\s*=\s*(.+?)\s*$/ )
             {          # F95-style parameters
             # FIXME: use the combinator-based parser
@@ -1304,7 +1355,7 @@ sub _get_commons_params_from_includes {
                 }
                 @{ $Sincf->{'Parameters'}{'List'} } =
                   ( @{ $Sincf->{'Parameters'}{'List'} }, @pars );
-                $srcref->[$index][1]{'ParamDecl'} = [@pars];
+                $srcref->[$index][1]{'ParamDecl'} = [@pars] && die 'BOOM!' . __LINE__ ;
 
             }
 
@@ -1388,7 +1439,7 @@ sub f77_var_decl_parser {
 
     # parse varlst into this hash
     my $vars = {};
-
+    my $vars_lst = []; # ordered list
     #  We need following states:
     my (
         $do_nothing,     # 0
@@ -1495,6 +1546,7 @@ sub f77_var_decl_parser {
         } elsif ( $st == $store_var ) {
             print "VAR:[$var]\n" if $T;
             if ( $var eq '' ) { croak $varlst }
+            push @{$vars_lst}, $var;
             $vars->{$var}{'ArrayOrScalar'}  = 'Scalar';
             $vars->{$var}{'Shape'} = [];
             $pvar                  = $var;
@@ -1508,15 +1560,15 @@ sub f77_var_decl_parser {
             $shape =~ s/^\s+//;
             $shape =~ s/\s+$//;
             my @ranges = split( /\s*,\s*/, $shape );    # or ($shape);
-            my @shape = ();
+            my @tshape = ();
             for my $range (@ranges) {
                 if ( $range =~ /:/ ) {
-                    push @shape, split( /:/, $range );
+                    push @tshape, [ split( /:/, $range ) ];
                 } else {
-                    push @shape, ( '1', $range );
+                    push @tshape, ['1', $range ];
                 }
             }
-            $vars->{$pvar}{'Shape'} = [@shape];
+            $vars->{$pvar}{'Shape'} = \@tshape;
             $vars->{$pvar}{'ArrayOrScalar'}  = 'Array';
             $shape                  = '';
         }
@@ -1533,6 +1585,7 @@ sub f77_var_decl_parser {
 #### Pending actions on end of string
 
     if ( $st == $read_var && $var ne '' ) {
+        push @{$vars_lst},$var;
         $vars->{$var} = { 'Shape' => [], 'ArrayOrScalar' => 'Scalar' };
     } elsif ( $st == $read_len && $pvar ne '' ) {
         $vars->{$pvar}{'Attr'} = $len;
@@ -1540,19 +1593,20 @@ sub f77_var_decl_parser {
         $shape =~ s/^\s+//;
         $shape =~ s/\s+$//;
         my @ranges = split( /\s*,\s*/, $shape );    # or ($shape);
+        # @shape is a list of the ranges, each range is a list 
         my @shape = ();
         for my $range (@ranges) {
             if ( $range =~ /:/ ) {
-                push @shape, split( /:/, $range );
+                push @shape, [ split( /:/, $range ) ];
             } else {
-                push @shape, ( '1', $range );
+                push @shape, [ '1', $range ];
             }
         }
         $vars->{$pvar}{'Shape'} = [@shape];
         $vars->{$pvar}{'ArrayOrScalar'}  = 'Array';
     }
 
-    return $vars;
+    return ($vars,$vars_lst);
 }    # END of f77_var_decl_parser()
 # -----------------------------------------------------------------------------
 # TODO: check if this works for F95-style parameters too
@@ -1576,7 +1630,7 @@ sub __split_out_parameters {
         my $info = $srcref->[$index][1];
         if ( exists $info->{'ParamDecl'} ) {
             push @{$param_lines},
-              [ $line, { 'ParamDecl' => [ @{ $info->{'ParamDecl'} } ] } ]
+              [ $line, { 'ParamDecl' => {%{ $info->{'ParamDecl'} } } }  ]
               ;    # split out parameters from 'Common' include file
             delete $srcref->[$index][1]
               {'ParamDecl'};   # split out parameters from 'Common' include file
@@ -1853,13 +1907,24 @@ sub __construct_new_subroutine_signatures {
     for my $block ( keys %{$blocksref} ) {
         next if $block eq 'OUTER';        
         my $Sblock = $stref->{'Subroutines'}{$block};
+        if (not exists $Sblock->{'Args'} ) {
+            $Sblock->{'Args'} = {'Set'=>{}, 'List' => []};
+        }
+        if (not exists $Sblock->{'DeclaredArgs'} ) {
+            $Sblock->{'DeclaredArgs'} = {'Set'=>{}, 'List' => []};
+        }
+         if (not exists $Sblock->{'LocalVars'} ) {
+            $Sblock->{'LocalVars'} = {'Set'=>{}, 'List' => []};
+        }
+        if (not exists $Sblock->{'DeclaredVars'} ) {
+            $Sblock->{'DeclaredVars'} = {'Set'=>{}, 'List' => []};
+        }       
         print "\nARGS for BLOCK $block:\n" if $V;
         $args{$block} =[];
         # Collect args for new subroutine
         for my $var ( sort keys %{ $occsref->{$block} } ) {
             if ( exists $occsref->{'OUTER'}{$var} ) {
-                print "$var\n" if $V;
-                
+                print "$var\n" if $V;                
                 push @{ $args{$block} }, $var;
             } 
             $Sblock->{'Vars'}{$var} = $varsref->{$var
@@ -1870,10 +1935,10 @@ sub __construct_new_subroutine_signatures {
         # Create Signature and corresponding Decls
         my $sixspaces = ' ' x 6;
         my $sig       = $sixspaces . 'subroutine ' . $block . '(';
-        my $sigrec    = {};#[ $sixspaces, $block, $args{$block} ];
+        my $sigrec    = {};
         
         $sigrec->{'Args'}{'List'} = $args{$block};
-        $sigrec->{'Args'}{'Set'} = { map {$_=>1} @{$args{$block}}};
+        $sigrec->{'Args'}{'Set'} = { map {$_=>{}} @{$args{$block}}};
         $sigrec->{'Name'} = $block;
         $sigrec->{'Function'}=0;
         
@@ -1881,7 +1946,10 @@ sub __construct_new_subroutine_signatures {
         for my $argv ( @{ $args{$block} } ) {
             $sig .= "$argv,";
             my $decl = format_f95_var_decl( $Sf, $argv );    
-            $decl->[0] .= $sixspaces;
+            $decl->{'Indent'} .= $sixspaces;
+            $Sblock->{'Args'}{'Set'}{$argv}{'Decl'} = $decl;
+            $Sblock->{'DeclaredArgs'}{'Set'}{$argv}{'Decl'} = $decl;
+            push @{ $Sblock->{'DeclaredArgs'}{'List'} }, $argv;
             $Sf->{'Vars'}{$argv}{'Decl'} = $decl;
         }
         if ( @{ $args{$block} } ) {
@@ -1896,16 +1964,18 @@ sub __construct_new_subroutine_signatures {
         
         for my $iters ($itersref->{$block}) {
             for my $iter (@{ $iters } ) {
-                 my $decl = format_f95_var_decl( $stref,$f,$iter ); 
+                 my $decl = format_f95_var_decl( $stref,$f,$iter );
+                 $Sblock->{'LocalVars'}{'Set'}{$iter}{'Decl'}=$decl;                 
+                 $Sblock->{'DeclaredVars'}{'Set'}{$iter}{'Decl'}=$decl;
+                 push @{ $Sblock->{'DeclaredVars'}{'List'} }, $iter;
+#                 say Dumper($decl); 
              unshift @{ $Sblock->{'AnnLines'} },
               [ emit_f95_var_decl($decl), { 'VarDecl' => $decl, 'Ann' => '__construct_new_subroutine_signatures '. __LINE__ .' -> ' } ];              
             }
         }
 
         for my $argv ( @{ $args{$block} } ) {
-            my $decl = format_f95_var_decl( $stref,$f,$argv );
-            say '__construct_new_subroutine_signatures: '. __LINE__ . ' : '.Dumper( $Sf->{'Vars'}{$argv} ) if $argv eq 'indzindicator';
-#            my $decl = _vars_entry_to_vardecl( $Sf->{'Vars'}{$argv} ); # $Sf->{'Vars'}{$argv}{'Decl'}            
+            my $decl = $Sblock->{'Args'}{'Set'}{$argv}{'Decl'};# format_f95_var_decl( $stref,$f,$argv );            
             unshift @{ $Sblock->{'AnnLines'} },
               [ emit_f95_var_decl($decl), { 'VarDecl' => $decl, 'Ann' => '__construct_new_subroutine_signatures '. __LINE__ .' -> '  } ];
         }
@@ -1958,6 +2028,7 @@ sub __construct_new_subroutine_signatures {
 sub __reparse_extracted_subroutines { (my $stref, my $blocksref) = @_;
     delete $blocksref->{'OUTER'};
     for my $block (keys %{$blocksref}) {        
+        say "REPARSING $block" if $V;
         $stref = parse_fortran_src($block, $stref);
     }     
     return $stref;
@@ -1977,8 +2048,9 @@ sub _split_multivar_decls { (my $f, my $stref) = @_;
     my $new_annlines=[];
     for my $annline (@{$annlines}) {
         (my $line, my $info)=@{$annline};
-        if (exists $info->{'VarDecl'} and scalar @{$info->{'VarDecl'}{'Names'}}>1) {
-                   
+        
+        if (exists $info->{'VarDecl'} and exists $info->{'VarDecl'}{'Names'}) {
+    #        die Dumper($info) if $line=~/pplev.*ulev/;           
 #            if ($line=~/drydeposit/) { die $line.Dumper($info) }
 #            say scalar @{$info->{'VarDecl'}{'Names'}};
             my @nvars = @{$info->{'VarDecl'}{'Names'}};
@@ -1987,45 +2059,24 @@ sub _split_multivar_decls { (my $f, my $stref) = @_;
                 my %rinfo = %{$info};
 #                say "VAR: $var";
                 $rinfo{'LineID'} =$nextLineID++;
-# VarDecl                
-#                [ $indent,[$type, $attr, [$start,$end] , $intent ],[$var],0]
-# Vars   
-#{
-#  'Decl' => [
-#              $indent,
-#              [
-#                $type
-#              ],
-#              [
-#                $var
-#              ],
-#              0
-#            ],
-#  'Shape' => [
-#               $start,
-#               $end
-#             ],
-#  'Type' => $type,
-#  'Attr' => $attr,
-#  'Indent' => $indent,
-#  'ArrayOrScalar' => 'Array'|'Scalar'
-#}
-             
-                $rinfo{'VarDecl'}={
+
+                my $dim = $Sf->{'Vars'}{$var}{'Shape'} // [];    
+                my $decl = {
                     'Indent' => $info->{'VarDecl'}{'Indent'},
-                    'Type' =>  $info->{'VarDecl'}{'Type'},
+                    'Type' =>  $Sf->{'Vars'}{$var}{'Type'},
                     'Attr' =>  $info->{'VarDecl'}{'Attr'},
-                    'Dim' => [@{$Sf->{'Vars'}{$var}{'Shape'}}],
+                    'Dim' => $dim,
                     'Name' => $var,
                     'Intent' => [],
                     'Status' => 0
                 };
-                
+                $rinfo{'VarDecl'}=$decl;
                  
                 $rinfo{'Ann'} .= '_split_multivar_decls '. __LINE__ .' -> '; 
                 my $rline=$line;
                 $Sf->{'Vars'}{$var}{'Decl'}{'Name'}=$var;
 #                die Dumper($rinfo{'VarDecl'}) if $var eq 'drydeposit';
+                if ( scalar @{$info->{'VarDecl'}{'Names'}}>1 ) {
                 for my $nvar (@nvars) {
                      if ($nvar ne $var) {
 #                    say "NVAR: $nvar";
@@ -2046,9 +2097,10 @@ sub _split_multivar_decls { (my $f, my $stref) = @_;
                      }
                 }                
 #                say "\t$rline".Dumper(%rinfo) if $rline=~/drydeposit/;
-                $info->{'VarDecl'}{'Name'} = $info->{'VarDecl'}{'Names'}[0];
-                delete  $info->{'VarDecl'}{'Names'};
-                push @{$new_annlines}, [$line, $info];
+                }
+#                $info->{'VarDecl'} = $decl; #$info->{'VarDecl'}{'Names'}[0];
+#                delete  $info->{'VarDecl'}{'Names'};
+                push @{$new_annlines}, [$rline, {%rinfo}  ];
             }        
         } else {            
             
@@ -2071,56 +2123,40 @@ sub _split_multipar_decls_and_set_type { (my $f, my $stref) = @_;
     for my $annline (@{$annlines}) {
         (my $line, my $info)=@{$annline};
     if (exists $info->{'ParamDecl'}  ) {
-#            die $line. "\n".Dumper($info->{'ParamDecl'})."\n".Dumper($Sf->{'Parameters'}{'Set'}{maxpart});
-#['      ',['integer','',[],'parameter'],[['pi','3.14159265'],['r_earth','6.371e6'],['r_air','287.05'],['ga','9.81']],0]
-#{'Type' => 'integer',
-#    'Val' => '1000000',
-#    'Var' => {
-#        'Decl' => ['      ',['integer'],['maxpart'],0],
-#        'Shape' => [],
-#        'Type' => 'integer',
-#        'Attr' => '',
-#        'Indent' => '      ',
-#        'ArrayOrScalar' => 'Scalar'}
-#        } 
-#            say 'LINE: '.$line;
-        if (scalar @{$info->{'ParamDecl'}{'Names'}}==1) {
-#            say 'LINE1: '.$line;
-            my $var = $info->{'ParamDecl'}{'Names'}[0][0];
-            if ($info->{'ParamDecl'}{'Type'} eq 'Unknown') {
-                my $type = $Sf->{'Parameters'}{'Set'}{$var}{'Var'}{'Decl'}{'Type'};
-                $info->{'ParamDecl'}{'Type'} = $type;
-                $Sf->{'Parameters'}{'Set'}{$var}{'Type'} = $type;
-            }
-            push @{$new_annlines}, [$line, $info];
-        } elsif (   scalar @{$info->{'ParamDecl'}{'Names'}}>1 ) {
+#        if (scalar @{$info->{'ParamDecl'}{'Names'}}==1) {
+##            say 'LINE1: '.$line;
+#            my $var = $info->{'ParamDecl'}{'Names'}[0][0];
+#            if ($info->{'ParamDecl'}{'Type'} eq 'Unknown') {
+#                my $type = $Sf->{'Parameters'}{'Set'}{$var}{'Var'}{'Decl'}{'Type'};
+#                $info->{'ParamDecl'}{'Type'} = $type;
+#                $Sf->{'Parameters'}{'Set'}{$var}{'Type'} = $type;
+#            }
+#            push @{$new_annlines}, [$line, $info];
+#        } els
+        if (   scalar @{$info->{'ParamDecl'}{'Names'}}=>1 ) {
             my @nvars = @{$info->{'ParamDecl'}{'Names'}};
             for my $var_val (@{$info->{'ParamDecl'}{'Names'}}) {
                 my $var = $var_val->[0];
                 my $val = $var_val->[1];
-#                say "\nORIG LINE: $line";
-#                say "$f: PAR: $var: ".Dumper($info->{'ParamDecl'})."\n".Dumper($Sf->{'Parameters'}{'Set'}{$var});
                 my %rinfo = %{$info};
                 $rinfo{'LineID'} =$nextLineID++;
                 $rinfo{'ParamDecl'}={};
-                $rinfo{'ParamDecl'}{'Indent'}=$info->{'ParamDecl'}{'Indent'};
+                my $param_decl =  {
+                    'Indent'=>$info->{'ParamDecl'}{'Indent'},
+                    'Type'=>$Sf->{'Parameters'}{'Set'}{$var}{'Type'}, #$info->{'ParamDecl'}{'Type'},
+                    'Attr'=>'',
+                    'Dim' => [],
+                    'Parameter'=> 'parameter',
+                    'Name' => [$var,$val],
+                    'Status' => 100,
+                };
+                   
                 
-                if (ref($Sf->{'Parameters'}{'Set'}{$var}{'Var'}) ne 'HASH') {
-                    $rinfo{'ParamDecl'}{'Type'}=$info->{'ParamDecl'}{'Type'};
-                     
-                    $rinfo{'ParamDecl'}{'Attr'}='';
-                    $rinfo{'ParamDecl'}{'Dim'}= [];                    
-                } else {
-                $rinfo{'ParamDecl'}{'Type'}=$Sf->{'Parameters'}{'Set'}{$var}{'Var'}{'Decl'}{'Type'}; # Type                
-                $rinfo{'ParamDecl'}{'Attr'}=$Sf->{'Parameters'}{'Set'}{$var}{'Var'}{'Attr'}; # Attr
-                $rinfo{'ParamDecl'}{'Dim'}= [@{$Sf->{'Parameters'}{'Set'}{$var}{'Var'}{'Shape'}}]; # Copy of Shape to Dim
-                }
-                $rinfo{'ParamDecl'}{'Parameter'}= 'parameter';
-                $rinfo{'ParamDecl'}{'Name'}=[$var,$val];
-                $rinfo{'ParamDecl'}{'Status'}=0;
+                $Sf->{'Parameters'}{'Set'}{$var}{'Decl'}= $param_decl;
+                $rinfo{'ParamDecl'} = $Sf->{'Parameters'}{'Set'}{$var}{'Decl'};
                 
                 my $rline=$line;
-                
+                if (scalar @{$info->{'ParamDecl'}{'Names'}}>1 ) {
                 for my $nvar_vals (@nvars) {
                     my $nvar = $nvar_vals->[0];
                      if ($nvar ne $var) {
@@ -2135,10 +2171,13 @@ sub _split_multipar_decls_and_set_type { (my $f, my $stref) = @_;
                      }
                 }                
 #                say "\t$rline";
+        }
 #                say Dumper($rinfo{ParamDecl});
 #                die if $f eq 'f_esl';
                 push @{$new_annlines}, [$rline, \%rinfo];        
             }    
+            } else {
+                croak "NO Names for parameter in $f: $line";
             }
         } else {            
             push @{$new_annlines}, $annline;
@@ -2290,20 +2329,22 @@ sub __parse_f95_decl {
                     my $val        = $pt->{'Pars'}{'Val'};
                     my $type       = $pt->{'TypeTup'};
 
-                    $info->{'ParamDecl'} = [
-                        $indent, [ $type, '', [], 'parameter' ],
-                        [ [ $var, $val ] ], 0
-                    ];    # F95-style
+                    my $param_decl = {
+                        'Indent' => $indent,  'Type' => $type,'Attr' => '', 'Dim' =>[], 'Parameter' =>'parameter' , 'Names' =>
+                        [ [ $var, $val ] ], 'Status' => 0
+                    };    # F95-style
+                    $info->{'ParamDecl'} = $param_decl ;
                     if ( not exists $Sf->{'Parameters'}{'List'} ) {
                         $Sf->{'Parameters'}{'List'} = [];
                     }
                     if ( not exists $Sf->{'Parameters'}{'Set'} ) {
-                        $Sf->{'Parameters'}{'Set'} = {};
+                        $Sf->{'Parameters'}{'Set'} = { };
                     }
                     $Sf->{'Parameters'}{'Set'}{$var} = {  
                         'Type' => $type,
                         'Var'  => $var,
-                        'Val'  => $val
+                        'Val'  => $val,
+                        'Decl' => $param_decl
                     };
                     # List is only used in Parser, find out what it does
                     @{ $Sf->{'Parameters'}{'List'} } =
@@ -2313,7 +2354,11 @@ sub __parse_f95_decl {
                     # F95 VarDecl, continued
                     if (not exists $info->{'ParsedVarDecl'} and not exists $info->{'VarDecl'} ) { 
                     $info->{'ParsedVarDecl'} = $pt; #WV20150709 currently used by OpenCLTranslation, TODO: use VarDecl
-                     
+                    $info->{'VarDecl'}= {
+                        'Indent' => $indent,                        
+                        'Names' => $pt->{'Vars'},
+                        'Status' => 0
+                    }; 
                     for my $tvar (@{ $pt->{'Vars'} } ) {
                         
                         my $decl={};   
@@ -2323,9 +2368,18 @@ sub __parse_f95_decl {
                         $decl->{'Shape'} = [];
                         if ( exists $pt->{'Attributes'} ) {
                             if ( exists $pt->{'Attributes'}{'Dim'} ) {
+                                # Dim is a list of ranges as strings, if '0' it's a Scalar. Shape is a list of ranges as 2-elt lists                                 
                                 if ( $pt->{'Attributes'}{'Dim'}[0] ne '0' ) {
-    #                                die Dumper($pt->{'Attributes'}{'Dim'});
-                                    $decl->{'Shape'} = $pt->{'Attributes'}{'Dim'};
+                                    my @shape = ();
+                                    for my $range (@{ $pt->{'Attributes'}{'Dim'} }) {
+                                        if ( $range =~ /:/ ) {
+                                            push @shape, [ split( /:/, $range ) ];
+                                        } else {
+                                            push @shape, [ '1', $range ];
+                                        }
+                                    }                                    
+                                    
+                                    $decl->{'Shape'} = \@shape;
                                     $decl->{'ArrayOrScalar'}='Array';
                                 }
                             }
@@ -2341,8 +2395,8 @@ sub __parse_f95_decl {
                         }
                                             
                         $decl->{'IODir'} = $pt->{'Attributes'}{'Intent'};
-                        
-                        my $local_var_or_arg = ( exists $Sf->{'Args'}{'Set'}{$tvar}) ? 'ArgDecls' : 'LocalVarDecls';
+                        $Sf->{'Vars'}{$tvar}{'Decl'}=$decl;
+                        my $local_var_or_arg = ( exists $Sf->{'Args'}{'Set'}{$tvar}) ? 'DeclaredArgs' : 'DeclaredVars';
                         $Sf->{$local_var_or_arg}{'Set'}{$tvar}=$decl;
                         $Sf->{$local_var_or_arg}{'List'} = ordered_union($Sf->{$local_var_or_arg}{'List'}, $pt->{'Vars'});
 #                    die 'F95 VarDecl: '.Dumper($Sf->{'Vars'}{$tvar}) if $tvar eq 'drydeposit';
@@ -2379,6 +2433,7 @@ sub __parse_f77_par_decl {
 
                 for my $var (@pvarl) {
 die if ref($var) eq 'ARRAY';
+                    
                     if ( not defined $Sf->{'Vars'}{$var} ) {
 
                         if ( exists $pvars{$var} ) {
@@ -2414,9 +2469,10 @@ die if ref($var) eq 'ARRAY';
                             }
                         }
                     } else {
-                        
+#                        die Dumper( $Sf->{'Vars'}{$var} );
+                        $type=$Sf->{'Vars'}{$var}{'Type'};
                         $Sf->{'Parameters'}{'Set'}{$var} = {
-                            'Type' => 'Unknown',
+                            'Type' => $type,
                             'Var'  => $Sf->{'Vars'}{$var},
                             'Val'  => $pvars{$var}
                         };
@@ -2424,7 +2480,7 @@ die if ref($var) eq 'ARRAY';
                     }
                 }
                 $info->{'ParamDecl'} =
-                  [ $indent, [ $type, '', [], 'parameter' ], [@var_vals], 0 ]
+                  { 'Indent' => $indent, 'Type' => $type, 'Attr' => '', 'Dim' =>[], 'Parameter' => 'parameter' , 'Names' => [@var_vals], 'Status' => 0 };
                   ;    # F77-style
                 @{ $Sf->{'Parameters'}{'List'} } =
                   ( @{ $Sf->{'Parameters'}{'List'} }, @{$pars} );
@@ -2434,17 +2490,35 @@ die if ref($var) eq 'ARRAY';
 # -----------------------------------------------------------------------------
 
 sub __parse_f77_var_decl {
-                (my $Sf, my $f, my $line, my $info, my $varlst, my $type, my $attr, my $indent) = @_;
+                (my $Sf, my $f, my $line, my $info, my $type, my $varlst) = @_;
+                
+#                die $line .':'.Dumper($varlst) if $line=~/pplev.nuvz..ulev/;
+# Now an ad hoc fix for spaces between the type and the asterisk. FIXME! I should just write a better FSM!
+                if ( $line =~ /\w+\s+(\*\s*(\d+|\(\s*\*\s*\)))/ )
+                { # FIXME: I assume after the asterisk there MUST be an integer constant
+                    my $len = $1;
+                    $type .= $len;
+                    $varlst =~ s/^\S+\s+//;
+
+                }
+                my $attr='';
+                $type =~ /\*/ && do {
+                    ( $type, $attr ) = split( /\*/, $type );
+                    if ( $attr eq '(' ) { $attr = '*' }
+                };
+                my $indent = $line;
+                $indent =~ s/\S.*$//;                 
+                
 #                $is_f77_vardecl = 0;
                 my $T        = 0;
 #                $T = 1 if $f eq 'timemanager' and $line=~/drydeposit/;
-                my $pvars    = f77_var_decl_parser( $varlst, $T );
-#                die Dumper($pvars) if $f eq 'timemanager' and $line=~/drydeposit/;
+                (my $pvars, my $pvars_lst) = f77_var_decl_parser( $varlst, $T );
+                
 
                 # I verified that here the dimensions are correct
                 my @varnames = ();
                 # Add type information to Vars
-                for my $var ( keys %{$pvars} ) {
+                for my $var ( @{$pvars_lst} ) {
                     if ( $var eq '' ) { croak "<$line> in $f" }
                     my $tvar = $var;
                     if (ref($var) eq 'ARRAY') {die __LINE__ .':'.Dumper($var);}
@@ -2480,8 +2554,16 @@ sub __parse_f77_var_decl {
                         }
                         $Sf->{'Vars'}{$tvar}{'IODir'} = $iodir;
                     }
-
-                    $Sf->{'Vars'}{$tvar}{'Decl'} = [ $indent, [$type], [$var], 0 ];
+                    my $decl = {
+                        'Indent' => $indent,
+                        'Type' => $type,
+                        'Attr' => $Sf->{'Vars'}{$tvar}{'Attr'},
+                        'Dim' => [@{$pvars->{$var}{'Shape'}}],
+                        'Name' => $tvar,
+                        'Intent' => $Sf->{'Vars'}{$tvar}{'IODir'},
+                        'Status' => 0
+                    };
+                    $Sf->{'Vars'}{$tvar}{'Decl'} = $decl; #[ $indent, [$type], [$var], 0 ];
                     $Sf->{'Vars'}{$tvar}{'Indent'} = $indent; 
                     # if $tvar is a function, note that it was Called and add $f to its list of Callers; parse if required
                     # I think this is WRONG: a declaration is NOT a function call. Also, we analyse for functions later.
@@ -2508,20 +2590,31 @@ sub __parse_f77_var_decl {
                     }
 =cut                    
                     push @varnames, $tvar;
+                    my $local_var_or_arg = ( exists $Sf->{'Args'}{'Set'}{$tvar}) ? 'DeclaredArgs' : 'DeclaredVars';
+                    $Sf->{$local_var_or_arg}{'Set'}{$tvar}=$decl;
+                    $Sf->{$local_var_or_arg}{'List'} = ordered_union($Sf->{$local_var_or_arg}{'List'}, [$tvar] );    
+                    
                 }    # loop over all vars declared on a single line
+                
 
                 print "\tVARS <$line>:\n ", join( ',', sort @varnames ), "\n"
                   if $V;
-                  # FIXME: this is not OK when we split later on
-                $info->{'VarDecl'} =
-                  [ $indent, [], [@varnames], 0 ]
+                  
+                $info->{'VarDecl'} = {
+                    'Indent' => $indent,
+                    'Names' => \@varnames,
+                    'Status' => 0
+                };
+#                  [ $indent, [], [@varnames], 0 ]
                   ; #WV20150708 We now store 'Decl' here so it us a record [$spaces,[$type, $attr, $dim , $intent ],[@vars],$formatted];
                   $info->{'Ann'} .= $line. ' -> _analyse_lines '.__LINE__.' -> ';
+                  
+                  
 #                if ($first) {
 #                    $first = 0;
 #
 #                    # FIXME: no use in include files!
-#                    $info->{'ExGlobVarDecls'} =
+#                    $info->{'ExGlobArgDecls'} =
 #                      ++$Sf->{ExGlobVarDeclHook};    # {};
 #                }
             return ($Sf, $info);
@@ -2640,5 +2733,6 @@ sub _identify_loops_breaks {
     return $stref;
 }    # END of _identify_loops_breaks()
 # -----------------------------------------------------------------------------
+
 1;
 
