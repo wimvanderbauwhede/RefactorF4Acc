@@ -107,8 +107,8 @@ sub _refactor_subroutine_main {
     $stref = context_free_refactorings( $stref, $f ); # FIXME maybe do this later    
 
     my $Sf = $stref->{'Subroutines'}{$f};
-say "get_annotated_sourcelines($f)" if $V;
-
+    
+    say "get_annotated_sourcelines($f)" if $V;
     my $annlines = get_annotated_sourcelines($stref,$f);
     
     if ( $Sf->{'HasCommons'} ) {
@@ -161,7 +161,7 @@ sub _fix_end_lines {
 #_refactor_globals() 
 #- creates a refactored subroutine sig based on RefactoredArgs
 #- skips Common include statements, so it only keeps Parameter (I hope)
-#- creates new include statements, this should be OBSOLETE! 
+#- create_new_include_statements, this should be OBSOLETE, except that it takes ParamIncludes out of other Includes and instantiates them.
 #- creates ex-glob arg declarations, basically we have to look at ExInclArgDecls, ExImplicitArgDecls and ExGlobArgDecls.  
 #- create_refactored_vardecls is a misnomer, it renames locals conflicting woth globals. I think that has been sorted now. We should generate decls for ExInclVarDecls and ExImplicitVarDecls.
 #- create_refactored_subroutine_call, I hope we can keep this
@@ -340,3 +340,195 @@ sub rename_conflicting_locals {
     push @{$rlines}, [ $rline, $info ];
     return $rlines;
 }    # END of rename_conflicting_locals()
+
+
+
+#_refactor_globals() 
+#- creates a refactored subroutine sig based on RefactoredArgs
+#- skips Common include statements, so it only keeps Parameter (I hope)
+#- create_new_include_statements, this should be OBSOLETE, except that it takes ParamIncludes out of other Includes and instantiates them, so RENAME
+#- creates ex-glob arg declarations, basically we have to look at ExInclArgDecls, ExImplicitArgDecls and ExGlobArgDecls.  
+#- create_refactored_vardecls is a misnomer, it renames locals conflicting woth globals. I think that has been sorted now. We should generate decls for ExInclVarDecls and ExImplicitVarDecls.
+#- create_refactored_subroutine_call, I hope we can keep this
+#- rename_conflicting_locals, I hope we can keep this; or maybe we should not do this!
+sub _refactor_globals_new {
+    ( my $stref, my $f, my $annlines ) = @_;
+    my $Sf = $stref->{'Subroutines'}{$f};
+    
+    if ($Sf->{'RefactorGlobals'}==2) {
+    	die "This should NEVER happen!";
+        warn "FIXME: the caller of a sub with RefactorGlobals ($f) should refactor its globals!";
+        # Which child has RefactorGlobals==1?
+        my @additional_includes=();
+        for my $cs ($Sf->{'CalledSubs'}) {          
+            if ($stref->{'Subroutines'}{$cs}{'RefactorGlobals'}==1) {
+                for my $inc ($stref->{'Subroutines'}{$cs}{'CommonIncludes'}) {
+                    if (not exists $Sf->{'CommonIncludes'}{$inc}) {
+                        push @additional_includes, $inc;
+                        croak "$inc from $cs was missing from $f"; 
+                    } 
+                }
+                
+            }
+        }       
+    }
+    
+    print "REFACTORING GLOBALS in $f\n" if $V; 
+    my $rlines      = [];
+    my $s           = $Sf->{'Source'};
+
+    for my $annline ( @{$annlines} ) {
+        (my $line, my $info) = @{ $annline };
+        
+        print '*** ' . join( ', ', map {"$_ => ".Dumper($info=>{$_})} keys(%{$info}) ) . "\n" if $V;
+        print '*** ' . $line . "\n" if $V;
+        my $skip = 0;
+
+        if ( exists $info->{'Signature'} ) {
+            if (not exists $Sf->{'HasRefactoredArgs'} ) {
+                die 'SHOULD NEVER HAPPEN! ' .'_refactor_globals_new() '. __LINE__ ;
+                 # Do this before the analysis for RefactoredArgs!
+                 $stref = refactor_subroutine_signature( $stref, $f );
+            }
+            $rlines =
+              create_refactored_subroutine_signature( $stref, $f, $annline, $rlines );
+            $skip = 1;
+        } 
+        # There should be no need to do this: all /common/ blocks should have been removed anyway!
+        if ( exists $info->{'Include'} ) {
+            $skip = skip_common_include_statement( $stref, $f, $annline );
+#            say "SKIP: $skip";
+        }
+        
+        if ( exists $info->{'ExGlobVarDeclHook'} ) {
+            # First, abuse ExGlobArgDecls as a hook for the addional includes, if any
+            $rlines =
+              create_new_include_statements( $stref, $f, $annline, $rlines );
+              
+           # Then generate declarations for ex-globals
+           say "EX-GLOBS for $f" if $V;
+            $rlines = _create_extra_arg_and_var_decls( $stref, $f, $annline, $rlines );
+#            $rlines = create_exglob_var_declarations( $stref, $f, $annline, $rlines );
+
+        } 
+        
+        # This is what breaks flexpart, but it's OK for les ...
+#        if ( exists $info->{'VarDecl'} and not exists $info->{'Deleted'} and (not exists $info->{Ref} or $info->{Ref}==0)) {
+#            $rlines = create_refactored_vardecls( $stref, $f, $annline, $rlines,0 );
+#            $skip = 1;
+#        }
+
+        if ( exists $info->{'SubroutineCall'} ) {
+            # simply tag the common vars onto the arguments
+            $rlines = _create_refactored_subroutine_call( $stref, $f, $annline, $rlines );        
+            $skip = 1;
+        }
+
+#        if ( not exists $info->{'Comments'} and not exists $info->{'Deleted'} and $skip == 0 ) {
+#            $rlines =
+#              rename_conflicting_locals( $stref, $f, $annline, $rlines );
+#            $skip = 1;
+#        }
+#        say "SKIP ULT: $skip";
+        push @{$rlines}, $annline unless $skip;
+        
+    } # loop over all lines
+    
+    return $rlines;
+}    # END of _refactor_globals_new()
+
+    
+    
+    
+
+
+
+# ExInclArgDecls, ExImplicitArgDecls and ExGlobArgDecls
+# ExInclVarDecls and ExImplicitVarDecls.
+sub _create_extra_arg_and_var_decls {
+
+    ( my $stref, my $f, my $annline, my $rlines ) = @_;
+
+    my $Sf                 = $stref->{'Subroutines'}{$f};
+    my %args               = %{ $Sf->{'Args'}{'Set'} };
+    my $nextLineID=scalar @{$rlines}+1;
+            
+    print "INFO: ExGlobArgDecls in $f\n" if $I;
+    for my $var ( @{ $Sf->{'ExGlobVarDecls'}{'List'} } ) {
+                    my $rdecl = $Sf->{'ExGlobArgDecls'}{'Set'}{$var}; 
+                    my $rline = emit_f95_var_decl($rdecl);
+                    $rline .= " ! EX-GLOB ";                           
+                    my $info={};
+                    $info->{'LineID'}= $nextLineID++;
+                    $info->{'Ref'}=1;
+                    $info->{'VarDecl'}=$rdecl;
+                    push @{$rlines}, [ $rline,  $info ];                        
+    }    # for
+    
+    print "INFO: ExInclArgDecls in $f\n" if $I;
+    for my $var ( @{ $Sf->{'ExInclArgDecls'}{'List'} } ) {
+                    my $rdecl = $Sf->{'ExInclArgDecls'}{'Set'}{$var}; 
+                    my $rline = emit_f95_var_decl($rdecl);
+                    $rline .= " ! EX-INCL ";                           
+                    my $info={};
+                    $info->{'LineID'}= $nextLineID++;
+                    $info->{'Ref'}=1;
+                    $info->{'VarDecl'}=$rdecl;
+                    push @{$rlines}, [ $rline,  $info ];                        
+    }    # for
+
+    print "INFO: ExImplicitArgDecls in $f\n" if $I;
+    for my $var ( @{ $Sf->{'ExImplicitArgDecls'}{'List'} } ) {
+                    my $rdecl = $Sf->{'ExImplicitArgDecls'}{'Set'}{$var}; 
+                    my $rline = emit_f95_var_decl($rdecl);
+                    $rline .= " ! EX-IMPLICIT ";                           
+                    my $info={};
+                    $info->{'LineID'}= $nextLineID++;
+                    $info->{'Ref'}=1;
+                    $info->{'VarDecl'}=$rdecl;
+                    push @{$rlines}, [ $rline,  $info ];                        
+    }    # for
+
+    print "INFO: ExInclVarDecls in $f\n" if $I;
+    for my $var ( @{ $Sf->{'ExInclVarDecls'}{'List'} } ) {
+                    my $rdecl = $Sf->{'ExInclVarDecls'}{'Set'}{$var}; 
+                    my $rline = emit_f95_var_decl($rdecl);
+                    $rline .= " ! EX-INCL VAR ";                           
+                    my $info={};
+                    $info->{'LineID'}= $nextLineID++;
+                    $info->{'Ref'}=1;
+                    $info->{'VarDecl'}=$rdecl;
+                    push @{$rlines}, [ $rline,  $info ];                        
+    }    # for
+        
+    print "INFO: ExImplicitVarDecls in $f\n" if $I;
+    for my $var ( @{ $Sf->{'ExImplicitVarDecls'}{'List'} } ) {
+                    my $rdecl = $Sf->{'ExImplicitVarDecls'}{'Set'}{$var}; 
+                    my $rline = emit_f95_var_decl($rdecl);
+                    $rline .= " ! EX-IMPLICIT VAR ";                           
+                    my $info={};
+                    $info->{'LineID'}= $nextLineID++;
+                    $info->{'Ref'}=1;
+                    $info->{'VarDecl'}=$rdecl;
+                    push @{$rlines}, [ $rline,  $info ];                        
+    }    # for        
+    return $rlines;
+} # END of _create_extra_arg_and_var_decls();
+
+sub _create_refactored_subroutine_call {
+    ( my $stref, my $f, my $annline, my $rlines ) = @_;;
+    my $Sf        = $stref->{'Subroutines'}{$f};
+    (my $line, my $info) = @{ $annline };
+croak Dumper($info) ;
+    # simply tag the common vars onto the arguments
+    my $name = $info->{'SubroutineCall'}{'Name'};
+    my @globals = @{ $stref->{'Subroutines'}{$name}{'ExGlobArgDecls'}{'List'} };
+    my @orig_args = @{ $info->{'SubroutineCall'}{'Args'}{'List'} };    
+    my $args_ref = [@orig_args, @globals ]; # NOT ordered union, if they repeat that should be OK 
+
+    my $args_str = join( ',', @{$args_ref} );
+    $line =~ s/call\s.*$//; # Basically keep the indent
+    my $rline = "call $name($args_str)\n";
+    push @{$rlines}, [ $line . $rline, $info ];
+    return $rlines;
+}    # END of _create_refactored_subroutine_call()

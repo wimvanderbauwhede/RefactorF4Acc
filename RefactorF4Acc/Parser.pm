@@ -2148,7 +2148,7 @@ sub _split_multipar_decls_and_set_type { (my $f, my $stref) = @_;
                     'Dim' => [],
                     'Parameter'=> 'parameter',
                     'Name' => [$var,$val],
-                    'Status' => 100,
+                    'Status' => 1,
                 };
                    
                 

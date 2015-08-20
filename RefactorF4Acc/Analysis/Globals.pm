@@ -23,6 +23,7 @@ use Exporter;
 @RefactorF4Acc::Analysis::Globals::EXPORT = qw(
     &resolve_globals
     &lift_includes
+    &lift_globals
 );
 
 # -----------------------------------------------------------------------------
@@ -377,3 +378,38 @@ croak 'lift_includes';
     }
     return $stref;
 }    # END of lift_includes()
+
+# Here we start from the top, descend to the leaves, get the Globals in the leaves, and add them to the Globals of the caller.
+# And of course we need to update ExGlobVarDecls
+# This should be done before we create RefactoredArgs!
+sub lift_globals {
+    (my $stref, my $f) = @_;
+    print '=' x 80, "\nENTER resolve_globals( $f )\n" if $V;
+    if (exists $stref->{'Subroutines'}{$f} ) {
+    my $Sf = $stref->{'Subroutines'}{$f};
+    if ( exists $Sf->{'CalledSubs'}
+        and scalar keys %{ $Sf->{'CalledSubs'} } )
+    {
+        my @csubs = keys %{ $Sf->{'CalledSubs'} };
+        for my $csub (@csubs) {
+            $stref = lift_globals($stref, $csub );
+            my $Scsub = $stref->{'Subroutines'}{$csub};
+            # If $csub has globals, merge them with globals for $f
+            if (exists $Scsub->{'ExGlobArgDecls'} ) {
+                $Sf->{'ExGlobArgDecls'}{'List'} = ordered_union( $Sf->{'ExGlobArgDecls'}{'List'},$Scsub->{'ExGlobArgDecls'}{'List'} );            	                   	   
+            	$Sf->{'ExGlobArgDecls'}{'Set'} = { %{ $Sf->{'ExGlobArgDecls'}{'Set'} }, %{ $Scsub->{'ExGlobArgDecls'}{'Set'} } };            	       
+            }            
+        } 
+    } else {
+        # Leaf node, find globals
+        say "SUB $f is LEAF" if $V;
+    }    
+    
+    # We only come here when the recursion and merge is done.   
+    $stref = _resolve_conflicts_with_params( $f, $stref );
+
+    }
+    
+    return $stref;
+    
+} # END of lift_globals()

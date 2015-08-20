@@ -181,223 +181,26 @@ sub context_free_refactorings {
 # This section refactors variable and parameter declarations
 # ------------------------------------------------------------------------------
 
-
-
-        if ( exists $info->{'VarDecl'} ) {# and not exists $info->{'FunctionSig'} ) { 
+        if ( exists $info->{'VarDecl'} ) { 
             my $var =  $info->{'VarDecl'}{'Name'};
-
-# first create all parameter declarations, I want to put them before the first var decl
-# but this results in duplication. What I think I need is inventory all parameter lines in the file and exclude these
-# So that only parameters that are used in the file but declared elsewhere are added here
-
-#            if ( $firstdecl == 1 ) {
-#
-#                #$info->{'ExGlobArgDecls'} = 0;
-#                $firstdecl = 0;
-=if0                       
-if (0) {
-             # FIXME: Somehow I get duplication here and I just remove it ad-hoc
-             # TODO: I should of course fix the OrderedList instead!
-                my %duplicates = ();
-                for my $par ( @{ $Sf->{'Parameters'}{'OrderedList'} } ) {
-                    if (   exists $params_declared_in_file{$par}
-                        or exists $duplicates{$par} )
-                    {
-                        say "INFO: SKIPPING parameter $par in $f" if $I;
-                        next;
-                    } else {
-                        $duplicates{$par} = 1;
-                    }
-                    my $par_decl = format_f95_par_decl( $stref, $f, $par );
-                    my $new_line = emit_f95_var_decl($par_decl)
-                      . ' ! context-free firstdecl==1';
-
-# FIXME: in FLEXPART includepar, this results in duplicate lines (not subsequent)
-                    push @extra_lines,
-                      [
-                        $new_line,
-                        {
-                            'Extra'     => 1,
-                            'ParamDecl' => $par_decl,
-                            'Ref'       => 1,
-                            'LineID'    => $nextLineID++
-                        }
-                      ]
-                      ; # Create parameter declarations before variable declarations
-                }
-
-                if ( $sub_or_func_or_inc ne 'IncludeFiles' ) { # FIXME: EXPERIMENTAL!
-                    # FIXME: This results almost always in duplicated variable declarations!
-
-                    my @vars_not_pars =
-                      grep { not exists $Sf->{'Parameters'}{'Set'}{$_} } @vars;
-                    if ( scalar @vars_not_pars > 0 ) {
-                        my $filtered_var_decls =
-                          _format_f95_multiple_var_decls( $Sf, @vars_not_pars );
-                        my %tr = %{$info};
-                        $tr{'Extra'} = 1;
-                        $tr{'Ref'}   = 1;
-                        for my $filtered_var_decl ( @{$filtered_var_decls} ) {
-                            my $filtered_line =
-                              emit_f95_var_decl($filtered_var_decl) . ' ! V5';
-                            $tr{'VarDecl'} = $filtered_var_decl;
-
-                            #					       delete $tr{'ExGlobArgDecls'};
-                            push @extra_lines,
-                              [
-                                $filtered_line,
-                                { %tr, 'LineID' => $nextLineID++ }
-                              ];
-                        }
-                    }
-                } else {
-                    
-                    $line .= ' !! firstdecl = 1, IncludeFiles '
-                      . $f
-                      ; # so what happens in flexpart's includepar is that this file is
-                }
-} # 0
-=cut
-#                                    
-#                if (exists $Sf->{'Parameters'}{'Set'}{$vars[0]} ) {
-#            # Remove this line, because this param should have been declared above
-#                                        
-#                    $line = '!! Original line V5 !! ' . $line;
-#                    $info->{'Deleted'} = 1;
-#                } else  {
-#                    my $var_decl = format_f95_var_decl( $stref, $f, $vars[0] );
-#                    $line = emit_f95_var_decl($var_decl). ' ! context-free firstdecl==1 VarDecl V5';
-#                }
-#                $info->{'Ref'}++;
-#            } else {
-
-                # not the first declaration, just refactor
-#                if ( scalar @vars == 1 ) {    # for var decls with a single var
-                    if ( exists( $Sf->{'Parameters'}{'Set'}{ $var } ) ) {
-          # Remove this line, because this param should have been declared above
-                        $line = '!! Original line PAR:2 !! ' . $line;
-                        $info->{'Deleted'} = 1;
-                    } else {                        
-                        if (not exists $info->{'Ref'} or $info->{'Ref'} == 0 ){  
-                        my $var_decl =
-                          format_f95_var_decl( $stref, $f, $var );
-                        $info->{'VarDecl'} = $var_decl;
-                        $line = emit_f95_var_decl($var_decl) ;
-                        delete $info->{'ExGlobArgDecls'};
-                        $info->{'Ref'} = 1; 
-                        $info->{'Ann'} .= 'context_free_refactoring '. __LINE__ ."; ";
-                        $line .= "\t!".$info->{'Ann'};
-                        } else {die 'BOOM!' }
-                    }
-#                } else {    # more than one variable declared on this line
-#                die 'IMPOSSIBLE!';
-#                }
-=if0                
-if (0) {
-                    if ( $sub_or_func_or_inc ne 'IncludeFiles' ) {
-
-                        # For include files, remove everything
-                        # filter out parameters
-                        my @vars_not_pars =
-                          grep { not exists $Sf->{'Parameters'}{'Set'}{$_} }
-                          @vars;
-                        if ( scalar @vars_not_pars > 0 ) {
-
-                 #							$line =
-                 #							  _format_f95_multiple_var_decls( $Sf,@vars_not_pars );
-                            $line = '!! Original line V3 !! ' . $line;
-                            $info->{'Deleted'} = 1;
-                            my $filtered_var_decls =
-                              _format_f95_multiple_var_decls( $Sf,
-                                @vars_not_pars );
-                            my %tr = %{$info};
-                            $tr{'Extra'} = 1;
-                            $tr{'Ref'}   = 1;
-                            for my $filtered_var_decl ( @{$filtered_var_decls} )
-                            {
-                                my $filtered_line =
-                                  emit_f95_var_decl($filtered_var_decl)
-                                  . ' ! V3';
-                                $tr{'VarDecl'} = $filtered_var_decl;
-                                push @extra_lines,
-                                  [
-                                    $filtered_line,
-                                    { %tr, 'LineID' => $nextLineID++ }
-                                  ];
-                            }
-                        } else {
-
-                            #							warn "$f PAR:3\n";
-                            $line = '!! Original line PAR:3 !! ' . $line;
-                            $info->{'Deleted'} = 1;
-                        }
-                    } else {
-                        my @vars_not_commons = grep {
-                            not
-                              exists $stref->{'IncludeFiles'}{$f}{'Commons'}{$_}
-                        } @vars;
-                        my @vars_not_pars_nor_commons =
-                          grep { not exists $Sf->{'Parameters'}{'Set'}{$_} }
-                          @vars_not_commons;
-                        $line = '!! Original line V4 !! ' . $line;
-                        $info->{'Deleted'} = 1;
-                        print
-"INFO: found var decls not COMMON nor PARAM in $f:\n$line\n"
-                          . Dumper(@vars_not_pars_nor_commons)
-                          if $I;
-                        if (@vars_not_pars_nor_commons) {
-                            my $filtered_var_decls =
-                              _format_f95_multiple_var_decls( $Sf,
-                                @vars_not_pars_nor_commons );
-                            my %tr = %{$info};
-                            $tr{'Extra'} = 1;
-                            $tr{'Ref'}   = 1;
-                            for my $filtered_var_decl ( @{$filtered_var_decls} )
-                            {
-                                my $filtered_line =
-                                  emit_f95_var_decl($filtered_var_decl)
-                                  . ' ! V4';
-                                $tr{'VarDecl'} = $filtered_var_decl;
-                                push @extra_lines,
-                                  [
-                                    $filtered_line,
-                                    { %tr, 'LineID' => $nextLineID++ }
-                                  ];
-                            }
-                        }
-
-# This is overly restrictive, we should only remove vars that are in a common block
-# However, any variable should be in $Sf->{'Parameters'}{'Set'}, isn't it?
-#						if (exists $stref->{IncludeFiles}{$f}{Commons}{$vars[0]})  {
-#                            $line = '!! Original line !! ' . $line;
-#                            $info->{'Deleted'} = 1;
-#						} else {
-#
-#						  print  "INFO: found var decls not COMMON in $f:\n$line\n".Dumper(@vars) if $I;
-#						  my @vars_not_pars =
-#						  grep { not exists $Sf->{'Parameters'}{'Set'}{$_} } @vars;
-#						  if (@vars_not_pars) {
-##						  $line =
-##							  _format_f95_multiple_var_decls( $Sf,@vars_not_pars );
- #                        $line = '!! Original line !! ' . $line;
- #                        $info->{'Deleted'} = 1;
- #					   my $filtered_var_decls =
- #					   _format_f95_multiple_var_decls( $Sf,@vars_not_pars );
- #					   my %tr = %{$info};
- #					   $tr{'Extra'} = 1;
- #					   $tr{'Ref'}=1;
- #					   for my $filtered_var_decl (@{$filtered_var_decls}) {
- #					       my $filtered_line = emit_f95_var_decl($filtered_var_decl);
- #					       $tr{'VarDecl'}=$filtered_var_decl;
- #					   push @extra_lines, [ $filtered_line, {%tr, 'LineID'=>$nextLineID++} ];
- #                        }
- #						  }
- #						}
-                    }
-} # if 0
-=cut
-#                $info->{'Ref'}++;
-#            } # First decl
+            if ( exists( $Sf->{'Parameters'}{'Set'}{ $var } ) ) {
+                # Remove this line, because this param should have been declared above
+                $line = '!! Original line PAR:2 !! ' . $line;
+                $info->{'Deleted'} = 1;
+            } elsif (not exists $info->{'Ref'} or $info->{'Ref'} == 0 ){
+                say Dumper($info);
+                # Not refactored  
+                my $var_decl =
+                  format_f95_var_decl( $stref, $f, $var );
+                $info->{'VarDecl'} = $var_decl;
+                $line = emit_f95_var_decl($var_decl) ;
+                delete $info->{'ExGlobArgDecls'};
+                $info->{'Ref'} = 1; 
+                $info->{'Ann'} .= 'context_free_refactoring '. __LINE__ ."; ";
+                $line .= "\t!".$info->{'Ann'};
+            } else {
+                die 'BOOM! ' . 'context_free_refactoring '. __LINE__ ."; ";
+            }            
         }
 
 # ------------------------------------------------------------------------------
@@ -416,7 +219,7 @@ if (0) {
             }
 
  # FIXME: it is possible that there is a conflict in the conditional expression!
-            $line = _rename_conflicting_vars( $line, $stref, $f );
+#            $line = _rename_conflicting_vars( $line, $stref, $f );
             $info->{'Ref'}++;
         } elsif ( exists $info->{'Assignment'} or exists $info->{'Do'} ) {
 
@@ -431,13 +234,13 @@ if (0) {
             }
             ( my $k, my $rhs_expr ) = split( /\s*=\s*/, $kv );
 
-            $rhs_expr = _rename_conflicting_vars( $rhs_expr, $stref, $f );
+#            $rhs_expr = _rename_conflicting_vars( $rhs_expr, $stref, $f );
 
             if ( exists $info->{'Do'} ) {
-                my $nk = _rename_conflicting_lhs_var( $k, $stref, $f );
+                my $nk = $k;#_rename_conflicting_lhs_var( $k, $stref, $f );
                 $line = $spaces . 'do ' . $nk . ' = ' . $rhs_expr;
             } else {
-                my $nk = _rename_conflicting_vars( $k, $stref, $f );
+                my $nk = $k;#_rename_conflicting_vars( $k, $stref, $f );
                 $line = $spaces . $nk . ' = ' . $rhs_expr;
             }
             $info->{'Ref'}++;
@@ -450,17 +253,18 @@ if (0) {
         elsif ( exists $info->{'ParamDecl'} )
         {    # so this is a parameter declaration "pur sang"
                 # WV 20130709: why should I remove this?
-                
-            my @par_lines = ();
-            my $info_ref = $info->{'Ref'} // 0;
-#            if (exists $info->{'ExGlobArgDecls'}) {die;};
-             my $var_val = $info->{'ParamDecl'}{'Name'};
-                ( my $var, my $val ) = @{$var_val};
-                
-                my $par_decl = format_f95_par_decl( $stref, $f, $var );
+#                croak Dumper($info) . __LINE__;                
+#            my @par_lines = ();
+                my $par_decl= $info->{'ParamDecl'};
+                 my $info_ref = $info->{'Ref'} // 0;
+                if ($info->{'ParamDecl'}{'Status'} == 0 ) {
+                           
+                             my $var_val = $info->{'ParamDecl'}{'Name'};
+                                ( my $var, my $val ) = @{$var_val};                
+                                $par_decl = format_f95_par_decl( $stref, $f, $var );
+                } 
                 my $new_line =
                   emit_f95_var_decl($par_decl) . ' ! context-free ParamDecl';
-#die Dumper( $info->{'ParamDecl'} ) if $f eq 'includepar' and $var =~/^pi/;
                 # Here the declaration is complete
                 push @extra_lines,
                   [
@@ -472,8 +276,7 @@ if (0) {
                         'LineID'    => $nextLineID++                        
                     }
                   ]
-                  ; # Create parameter declarations before variable declarations
-            
+                  ; # Create parameter declarations before variable declarations            
             $line = '!! Original line context-free ParamDecl !! ' . $line;
             $info->{'Deleted'} = 1;
         }
@@ -483,7 +286,7 @@ if (0) {
 # ------------------------------------------------------------------------------
 # Subroutine call
         elsif ( exists $info->{'SubroutineCall'} ) {
-            $line = _rename_conflicting_vars( $line, $stref, $f );
+#            $line = _rename_conflicting_vars( $line, $stref, $f );
             $info->{'Ref'}++;
         } elsif ( exists $info->{'Include'} ) {
             my $inc  = $info->{'Include'}{'Name'};
@@ -491,10 +294,10 @@ if (0) {
             $tinc =~ s/\./_/g;
             if ( $stref->{IncludeFiles}{$inc}{InclType} ne 'External' ) {
                 $line =
-                  "      use $tinc ! context_free_refactorings() line 488";
+                  "      use $tinc ! context_free_refactorings() line " . __LINE__;
             } else {
                 $line =
-                  "      include '$inc' ! context_free_refactorings() line 491";
+                  "      include '$inc' ! context_free_refactorings() line " . __LINE__;
             }
             $info->{'Ref'}++;
 
@@ -522,15 +325,9 @@ if (0) {
             $Sf->{'RefactoredCode'} =
               [ @include_use_stack, @{ $Sf->{'RefactoredCode'} } ];
         } else {
-
             # 1. Look for the signature
             for my $tmpannline ( @{ $Sf->{'RefactoredCode'} } ) {
-                if (   exists $tmpannline->[1]{'Signature'}
-#                    or exists $tmpannline->[1]{'SubroutineSig'}
-#                    or exists $tmpannline->[1]{'FunctionSig'} 
-                ) {
-
-                    #    		print "Found sig for $f at $offset\n";
+                if ( exists $tmpannline->[1]{'Signature'} ) {
                     last;
                 }
                 $offset++;
@@ -557,8 +354,7 @@ if (0) {
             }
         }
     }
-    
-    
+        
     my $has_vardecl=0;
     my $has_pars = 0;    
     my $has_includes=0;
@@ -582,8 +378,7 @@ if (0) {
             $info->{'ExGlobVarDeclHook'}=1;
             $has_vardecl=1;
             last;
-        }
-        
+        }        
     }    
     
     if ($has_vardecl==0) {
@@ -933,6 +728,7 @@ sub format_f95_var_decl {
          
          
         my $Sv = $Sf->{'RefactoredArgs'}{'Set'}{$var};
+        
         if ( not exists $Sv->{'Decl'} ) {
             print
 "WARNING: VAR $var does not have Decl in RefactoredArgs in format_f95_var_decl()!\n"
@@ -970,8 +766,7 @@ sub format_f95_var_decl {
         if ( exists $Sf->{'ConflictingLiftedVars'}{$var} ) {
             $nvar = $Sf->{'ConflictingLiftedVars'}{$var};
         }
-        $spaces =
-          $Sv->{'Indent'};
+        $spaces = $Sv->{'Indent'} // '      ';
           #WV20150707 Decl is a record of 4 entries: [spaces, [type], [varname],formatted(0|1)]
         $spaces =~ s/\S.*$//;
         $shape = $Sv->{'Shape'};
@@ -996,7 +791,8 @@ sub format_f95_var_decl {
         croak
 "Can't type $var, not in Vars and format_f95_var_decl() called the wrong way for implicits";
     }
-
+#    say "VAR: $nvar";
+    if (not defined $shape) {croak($var) };
     my $dim = [];
     # FIXME: I think the case dimension(:) is not covered!
     if ( @{$shape} >= 1) {
@@ -1388,6 +1184,7 @@ sub _rename_conflicting_global_pars {
 
 sub _rename_conflicting_vars {
     ( my $expr, my $stref, my $f ) = @_;
+    croak ' I HOPE THIS NEVER HAPPENS! ' . __LINE__ ;
     my $sub_or_func_or_inc = sub_func_incl_mod( $f, $stref );
     my $Sf = $stref->{$sub_or_func_or_inc}{$f};
 
@@ -1615,7 +1412,8 @@ sub splice_additional_lines {
 
 }    # END of splice_additional_lines()
 
-# This routine take $stref, $f, $insert_cond_subref, $new_annlines, $insert_before, $skip_insert_pos_line, $once
+# Usage: 
+# $stref = _create_extra_arg_decls( $stref, $f, $insert_cond_subref, $new_annlines, $insert_before, $skip_insert_pos_line, $once )
 #- Go through the AnnLines
 #- Find the hook based on a condition on the $annline
 #- splice the new lines after the hook.

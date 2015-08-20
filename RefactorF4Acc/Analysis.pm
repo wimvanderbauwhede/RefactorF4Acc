@@ -3,7 +3,7 @@ use v5.16;
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
 use RefactorF4Acc::Analysis::Includes qw( find_root_for_includes );
-use RefactorF4Acc::Analysis::Globals qw( resolve_globals );
+use RefactorF4Acc::Analysis::Globals qw( lift_globals );
 use RefactorF4Acc::Analysis::Sources qw( analyse_sources );
 use RefactorF4Acc::Analysis::LoopDetect qw( outer_loop_end_detect );
 use RefactorF4Acc::Refactoring::Common qw( format_f95_var_decl stateful_pass );
@@ -40,22 +40,26 @@ sub analyse_all {
     # First find any additional argument declarations, either in includes or via implicits
     for my $f (keys  %{ $stref->{'Subroutines'} } ){
         next if $f eq '';
-    $stref = _find_argument_declarations($stref, $f);
-    
-    $stref = _analyse_variables($stref, $f);
-    
-    $stref = _resolve_conflicts_with_params($stref, $f);
-    
-    $stref = _create_refactored_args($stref, $f);
+        $stref = _find_argument_declarations($stref, $f);
+        
+        $stref = _analyse_variables($stref, $f);
+        
+        $stref = _resolve_conflicts_with_params($stref, $f);
     }
     
+    $stref = lift_globals($stref,$subname);
     
-    say Dumper($stref->{'Subroutines'}{'getfields'});
-    die 'analyse_all() ' . __LINE__;
+    for my $f (keys  %{ $stref->{'Subroutines'} } ){
+        next if $f eq '';    
+        $stref = _create_refactored_args($stref, $f);
+    }
+        
+#    say Dumper($stref->{'Subroutines'}{'getfields'});
+#    die 'analyse_all() ' . __LINE__;
     # Now we can do proper globals handling
     # We need to walk the tree again, find the globals in rec descent.
-    print "\t** RESOLVE GLOBALS **\n" if $V;
-    $stref = resolve_globals( $subname, $stref );
+#    print "\t** RESOLVE GLOBALS **\n" if $V;
+#    $stref = resolve_globals( $subname, $stref );
 #    print "\t** ANALYSE SOURCES **\n" if $V; # TODO: BETTER NAME
 #    $stref = analyse_sources($stref); # TODO: LIFTING OF INCLUDES SHOULD HAPPEN *AFTER* THIS
     for my $kernel_wrapper (keys %{$stref->{'KernelWrappers'}}) {
@@ -124,7 +128,7 @@ sub _analyse_variables {
     ( my $stref, my $f) =@_;
     my $Sf     = $stref->{'Subroutines'}{$f};
            $Sf->{'Globals'}={};
-        $Sf->{'ExGlobArgDecls'}={ 'List'=>[],'Set'=>{} };
+#        $Sf->{'ExGlobArgDecls'}={ 'List'=>[],'Set'=>{} };
     
     my $__analyse_vars_on_line = sub {
             (my $annline, my $state) =@_;
@@ -254,8 +258,13 @@ sub _resolve_conflicts_with_params {
 sub _create_refactored_args {
        (my $stref, my $f ) = @_;
     my $Sf = $stref->{'Subroutines'}{$f};
-    $Sf->{'RefactoredArgs'}{'List'} = ordered_union( $Sf->{'Args'}{'List'}, $Sf->{'ExGlobArgDecls'}{'List'} ); 
+    if (exists $Sf->{'ExGlobArgDecls'} and exists $Sf->{'ExGlobArgDecls'}{'List'}) {
+        $Sf->{'RefactoredArgs'}{'List'} = ordered_union( $Sf->{'Args'}{'List'}, $Sf->{'ExGlobArgDecls'}{'List'} );
+        $Sf->{'HasRefactoredArgs'} = 1;
+    } 
     return $stref;
 }
+
+
 
 1;    

@@ -48,6 +48,9 @@ sub create_refactored_subroutine_signature {
     } elsif ( $Sf->{'Recursive'} ) {
     	# FIXME: deal with RECURSIVE!
         $rline = '      recursive subroutine ' . $f . '(' . $args_str . ')';    
+    } elsif ( $Sf->{'Function'} ) { croak 'BOOM: FUNCTION!' . __LINE__ ;
+    	# FIXME: deal with RECURSIVE!
+        $rline = '      function ' . $f . '(' . $args_str . ')';    
     } else {    	
         $rline = '      subroutine ' . $f . '(' . $args_str . ')';
     }
@@ -149,7 +152,7 @@ sub refactor_subroutine_signature {
             print "SUB $f ORIG ARGS: ()\n";
         }
     }
-#    if ($stref->{'Subroutines'}{$f}
+
     my @exglobs            = ();
     my @nexglobs           = ();    
     # Loop over all globals and create the list @exglobs by concatenation
