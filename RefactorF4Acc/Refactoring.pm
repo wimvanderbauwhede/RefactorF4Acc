@@ -50,15 +50,15 @@ sub refactor_all {
     # Refactor the source, but don't split long lines and keep annotations
     $stref = refactor_all_subroutines($stref);
     # At this point RefactoredArgs is still essentially empty
-die;                
+
     # This can't go into refactor_all_subroutines() because it is recursive
     # This is where somehow the parameters get added to RefactoredArgs, but in the wrong way.
     $stref = determine_argument_io_direction_rec( $subname, $stref );
     
     print "DONE determine_argument_io_direction_rec()\n" if $V;
     # So at this point we know everything there is to know about the argument declarations, we can now update them
-
-    $stref = find_and_add_missing_var_decls($stref);
+die;
+#    $stref = find_and_add_missing_var_decls($stref);
     say "remove_vars_masking_functions";    
     $stref = remove_vars_masking_functions($stref);
     say "add_module_decls";

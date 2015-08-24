@@ -2,7 +2,7 @@ package RefactorF4Acc::Refactoring::Subroutines;
 use v5.016;
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
-use RefactorF4Acc::Refactoring::Common qw( get_annotated_sourcelines create_refactored_source context_free_refactorings );
+use RefactorF4Acc::Refactoring::Common qw( get_annotated_sourcelines create_refactored_source context_free_refactorings emit_f95_var_decl );
 use RefactorF4Acc::Refactoring::Subroutines::Signatures qw( create_refactored_subroutine_signature refactor_subroutine_signature refactor_kernel_signatures ); 
 use RefactorF4Acc::Refactoring::Subroutines::Includes qw( skip_common_include_statement create_new_include_statements create_additional_include_statements );
 use RefactorF4Acc::Refactoring::Subroutines::Declarations qw( create_exglob_var_declarations create_refactored_vardecls );
@@ -95,7 +95,7 @@ This is a node called 'RefactoredSubroutineCall'
 
 sub _refactor_subroutine_main {
     ( my $stref, my $f ) = @_;
-    local $V=1;
+#    local $V=1;
     if ($V) {
         print "\n\n";
         print "#" x 80, "\n";
@@ -103,19 +103,20 @@ sub _refactor_subroutine_main {
         print "REFACTORING SUBROUTINE $f\n";
         print "#" x 80, "\n";
     }
+    
     say "context_free_refactorings($f)" if $V;
     $stref = context_free_refactorings( $stref, $f ); # FIXME maybe do this later    
 
     my $Sf = $stref->{'Subroutines'}{$f};
-    
+#    croak Dumper( $Sf->{'Globals' }) if $f eq 'ij_to_latlon';
     say "get_annotated_sourcelines($f)" if $V;
     my $annlines = get_annotated_sourcelines($stref,$f);
     
-    if ( $Sf->{'HasCommons'} ) {
+    if ( $Sf->{'HasCommons'} ) { 
         print "REFACTORING COMMONS for SUBROUTINE $f\n" if $V;
         if ( $Sf->{'RefactorGlobals'} == 1 ) {
-            say "_refactor_globals($f)" if $V;
-          $annlines = _refactor_globals( $stref, $f, $annlines );
+            say "_refactor_globals_new($f)" if $V;
+          $annlines = _refactor_globals_new( $stref, $f, $annlines );
         } elsif ( $Sf->{'RefactorGlobals'} == 2 ) { 
             die 'SHOULD BE OBSOLETE!  _refactor_subroutine_main() ' . __LINE__ ;
             say "_refactor_calls_globals($f)" if $V;
@@ -354,7 +355,7 @@ sub rename_conflicting_locals {
 sub _refactor_globals_new {
     ( my $stref, my $f, my $annlines ) = @_;
     my $Sf = $stref->{'Subroutines'}{$f};
-    
+    croak if $f eq 'ij_to_latlon';
     if ($Sf->{'RefactorGlobals'}==2) {
     	die "This should NEVER happen!";
         warn "FIXME: the caller of a sub with RefactorGlobals ($f) should refactor its globals!";
@@ -519,16 +520,24 @@ sub _create_refactored_subroutine_call {
     ( my $stref, my $f, my $annline, my $rlines ) = @_;;
     my $Sf        = $stref->{'Subroutines'}{$f};
     (my $line, my $info) = @{ $annline };
-croak Dumper($info) ;
+
     # simply tag the common vars onto the arguments
     my $name = $info->{'SubroutineCall'}{'Name'};
-    my @globals = @{ $stref->{'Subroutines'}{$name}{'ExGlobArgDecls'}{'List'} };
+croak $line . Dumper($info) unless defined $info->{'SubroutineCall'}{'Args'}{'List'};# . Dumper(    $stref->{'Subroutines'}{$name});
     my @orig_args = @{ $info->{'SubroutineCall'}{'Args'}{'List'} };    
-    my $args_ref = [@orig_args, @globals ]; # NOT ordered union, if they repeat that should be OK 
+    my $args_ref = [@orig_args]; # NOT ordered union, if they repeat that should be OK 
+    
+    if (exists $stref->{'Subroutines'}{$name}{'ExGlobArgDecls'}) {       
+        my @globals = @{ $stref->{'Subroutines'}{$name}{'ExGlobArgDecls'}{'List'} };        
+        $args_ref = [@orig_args, @globals ]; # NOT ordered union, if they repeat that should be OK
+ 
 
     my $args_str = join( ',', @{$args_ref} );
     $line =~ s/call\s.*$//; # Basically keep the indent
     my $rline = "call $name($args_str)\n";
     push @{$rlines}, [ $line . $rline, $info ];
+    } else {
+        push @{$rlines}, [ $line , $info ];
+    }
     return $rlines;
 }    # END of _create_refactored_subroutine_call()

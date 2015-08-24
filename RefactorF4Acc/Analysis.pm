@@ -207,6 +207,9 @@ sub _analyse_variables {
     };
     my $state= [$stref, $f, {}];
     ($stref,$state) = stateful_pass($stref,$f,$__analyse_vars_on_line,  $state, '_analyse_variables() ' . __LINE__  );
+    if (defined  $stref->{'Subroutines'}{$f}{'ExGlobArgDecls'} and scalar @{ $stref->{'Subroutines'}{$f}{'ExGlobArgDecls'}{'List'} } > 0 ) {
+        $Sf->{'HasCommons'} = 1;
+    }
     return $stref;
 }    # END of _analyse_variables()
 

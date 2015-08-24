@@ -79,6 +79,8 @@ sub _determine_argument_io_direction_core {
         # If an arg has a non-'U' value, we overwrite it.
         # Up to here RefactoredArgs does not contain any parameter decls
         $stref = _analyse_src_for_iodirs( $stref, $f );
+        
+if (0) {        
         $Sf = $stref->{'Subroutines'}{$f};
         my $args = $Sf->{'RefactoredArgs'}{'Set'};       
         
@@ -129,7 +131,7 @@ sub _determine_argument_io_direction_core {
                   {'Indent'} = $indent;                  
             }
         }
-
+} # if (0)
         # FIXME: I don't think this should be done here
         #TODO   $stref = remap_args( $stref, $f );
         #TODO   $stref = reshape_args( $stref, $f );
@@ -387,10 +389,13 @@ sub _analyse_src_for_iodirs {
 
     my $Sf = $stref->{'Subroutines'}{$f};
     if ( not exists $Sf->{'IODirInfo'} or $Sf->{'IODirInfo'} == 0 ) {
+        
         if ( not exists $Sf->{'HasRefactoredArgs'}
             or $Sf->{'HasRefactoredArgs'} == 0 )
         {
-            $stref = refactor_subroutine_signature( $stref, $f );
+              say "SUB $f DOES NOT HAVE RefactoredArgs";
+#            croak 'BOOM!' . __LINE__ . $f . Dumper($Sf);
+#            $stref = refactor_subroutine_signature( $stref, $f );
         }
         my $args = $Sf->{'RefactoredArgs'}{'Set'};
 

@@ -396,8 +396,13 @@ sub lift_globals {
             my $Scsub = $stref->{'Subroutines'}{$csub};
             # If $csub has globals, merge them with globals for $f
             if (exists $Scsub->{'ExGlobArgDecls'} ) {
-                $Sf->{'ExGlobArgDecls'}{'List'} = ordered_union( $Sf->{'ExGlobArgDecls'}{'List'},$Scsub->{'ExGlobArgDecls'}{'List'} );            	                   	   
-            	$Sf->{'ExGlobArgDecls'}{'Set'} = { %{ $Sf->{'ExGlobArgDecls'}{'Set'} }, %{ $Scsub->{'ExGlobArgDecls'}{'Set'} } };            	       
+                $Sf->{'ExGlobArgDecls'}{'List'} = ordered_union( $Sf->{'ExGlobArgDecls'}{'List'},$Scsub->{'ExGlobArgDecls'}{'List'} );
+                if ( exists $Sf->{'ExGlobArgDecls'}{'Set'} ) {            	                   	   
+            	   $Sf->{'ExGlobArgDecls'}{'Set'} = { %{ $Sf->{'ExGlobArgDecls'}{'Set'} }, %{ $Scsub->{'ExGlobArgDecls'}{'Set'} } };
+                } else {
+                    $Sf->{'ExGlobArgDecls'}{'Set'} = {  %{ $Scsub->{'ExGlobArgDecls'}{'Set'} } };
+                    $Sf->{'HasCommons'} = 1;
+                }            	       
             }            
         } 
     } else {

@@ -181,18 +181,27 @@ sub context_free_refactorings {
 # This section refactors variable and parameter declarations
 # ------------------------------------------------------------------------------
 
-        if ( exists $info->{'VarDecl'} ) { 
+        if ( exists $info->{'VarDecl'} ) {
+            if (exists  $info->{'ParsedVarDecl'} ) {
+                my $pvd = $info->{'ParsedVarDecl'}; 
+                if (scalar @{ $info->{'ParsedVarDecl'}{'Vars'} } == 1) {
+#                    die Dumper( $pvd).$line;
+                } else {
+                    
+                    $line = _emit_f95_parsed_var_decl($pvd);
+                }
+            } else { 
             my $var =  $info->{'VarDecl'}{'Name'};
             if ( exists( $Sf->{'Parameters'}{'Set'}{ $var } ) ) {
                 # Remove this line, because this param should have been declared above
                 $line = '!! Original line PAR:2 !! ' . $line;
                 $info->{'Deleted'} = 1;
             } elsif (not exists $info->{'Ref'} or $info->{'Ref'} == 0 ){
-                say Dumper($info);
+#                say Dumper($info);
                 # Not refactored  
-                my $var_decl =
-                  format_f95_var_decl( $stref, $f, $var );
-                $info->{'VarDecl'} = $var_decl;
+                my $var_decl =  $info->{'VarDecl'};
+#                  format_f95_var_decl( $stref, $f, $var );                  
+#                $info->{'VarDecl'} = $var_decl;
                 $line = emit_f95_var_decl($var_decl) ;
                 delete $info->{'ExGlobArgDecls'};
                 $info->{'Ref'} = 1; 
@@ -201,6 +210,7 @@ sub context_free_refactorings {
             } else {
                 die 'BOOM! ' . 'context_free_refactoring '. __LINE__ ."; ";
             }            
+            }
         }
 
 # ------------------------------------------------------------------------------
@@ -1503,4 +1513,30 @@ sub stateful_pass {
     return ($stref,$state);
 } # END of stateful_pass()
 
+
+
+sub _emit_f95_parsed_var_decl { (my $pvd) =@_;
+    my $type= $pvd->{'TypeTup'}{'Type'} . (exists $pvd->{'TypeTup'}{'Kind'} ?  '('.$pvd->{'TypeTup'}{'Kind'}.')' : '');
+         my  @attrs=($type); 
+         if (exists $pvd->{'Attributes'}{'Allocatable'}) {
+            push @attrs, 'allocatable';
+        }
+        if (exists $pvd->{'Attributes'}{'Dim'} ) {
+            push @attrs,'dimension('.join(', ',@{ $pvd->{'Attributes'}{'Dim'} }).')';
+        }
+        if (exists $pvd->{'Attributes'}{'Intent'} ) {
+            push @attrs,'intent('. $pvd->{'Attributes'}{'Intent'} .')';
+        }
+                      
+                    
+          
+          
+          my $vars = join(', ',@{  $pvd->{'Vars'} });
+       my $line = join(', ', @attrs).' :: '.$vars;    
+    return $line;
+}
+
 1;
+
+
+

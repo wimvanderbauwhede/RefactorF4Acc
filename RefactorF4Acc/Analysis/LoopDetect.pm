@@ -105,7 +105,7 @@ sub _loop_detect_rec {
         my $callers = $stref->{'Subroutines'}{$subname}{'Callers'};
 
         # For each caller, recurse.
-        for my $caller ( @{$callers} ) {
+        for my $caller (keys  %{$callers} ) {
 
 # In the caller we should find the position of the call(s)
 # FIXME: We can see a problem here: if there are multiple calls, we need to flag this up because it means that there are several loops.
