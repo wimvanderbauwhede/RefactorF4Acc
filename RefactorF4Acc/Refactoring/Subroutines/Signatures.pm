@@ -34,14 +34,15 @@ Subroutines
 =cut
 
 # --------------------------------------------------------------------------------
-# This routine creates the actual refactored source text of the sig
+# This routine creates the actual refactored source text of the sig. 
 sub create_refactored_subroutine_signature {
     ( my $stref, my $f, my $annline, my $rlines ) = @_;
     my $Sf        = $stref->{'Subroutines'}{$f};
-    my $tags_lref = $annline->[1];    
+    my $info = $annline->[1];    
     my $args_ref = $Sf->{'RefactoredArgs'}{'List'};
     my $args_str = join( ',', @{$args_ref} );
     print "NEW ARGS: $args_str\n" if $V;
+#    die $args_str if $f eq 'map_set';
     my $rline = '';
     if ( $Sf->{'Program'} ) {
         $rline = '      program ' . $f;
@@ -54,10 +55,14 @@ sub create_refactored_subroutine_signature {
     } else {    	
         $rline = '      subroutine ' . $f . '(' . $args_str . ')';
     }
-    $tags_lref->{'Refactored'} = 1;
-    $tags_lref->{'Ref'} = 1;
+    $info->{'Refactored'} = 1;
+    $info->{'Ref'} = 1;
+    $info->{'BOOM'} = 1;
+    $info->{'Signature'}{'Args'}=$Sf->{'RefactoredArgs'};
+    $info->{'Signature'}{'RefactoredArgs'}=$Sf->{'RefactoredArgs'}; # not sure if this is needed
     $Sf->{'HasRefactoredArgs'} = 1;
-    push @{$rlines}, [ $rline, $tags_lref ];
+    
+    push @{$rlines}, [ $rline, $info ];
 
     return $rlines;
 }    # END of create_refactored_subroutine_signature()

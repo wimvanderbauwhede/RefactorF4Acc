@@ -50,7 +50,7 @@ sub refactor_all {
     # Refactor the source, but don't split long lines and keep annotations
     $stref = refactor_all_subroutines($stref);
     # At this point RefactoredArgs is still essentially empty
-
+#croak Dumper $stref->{'Subroutines'}{'map_set'}{'AnnLines'}[0];
     # This can't go into refactor_all_subroutines() because it is recursive
     # This is where somehow the parameters get added to RefactoredArgs, but in the wrong way.
     $stref = determine_argument_io_direction_rec( $subname, $stref );

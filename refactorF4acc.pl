@@ -133,9 +133,9 @@ sub main {
     # Parse the source
 	$stref = parse_fortran_src( $subname, $stref );
 	$stref = refactor_marked_blocks_into_subroutines( $stref );
-	say Dumper( $stref->{'Subroutines'}{'timemanager'} );
+#	say Dumper( $stref->{'Subroutines'}{'timemanager'} );
 #	show_annlines($stref->{'Subroutines'}{'particles_main_loop'}{'AnnLines'},1);
-	die;
+#	die;
 #say 'FINAL'; say Dumper( $stref->{'Subroutines'}{'richardson'} );say 'DONE';die;
 	if ( $call_tree_only and not $ARGV[1] ) {
 		create_call_tree($stref,$subname);

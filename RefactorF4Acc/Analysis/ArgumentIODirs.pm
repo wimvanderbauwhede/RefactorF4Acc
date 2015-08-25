@@ -271,6 +271,7 @@ sub _get_iodirs_from_subcall {
     if (   not exists $info->{'SubroutineCall'}
         or not exists $info->{'SubroutineCall'}{'RefactoredArgs'} )
     {
+#        die Dumper($info) if $name eq 'map_set';
         $stref = refactor_subroutine_call_args( $stref, $f, $index );
     }
     my $args              = $Sf->{'RefactoredArgs'}{'Set'};
@@ -285,10 +286,11 @@ sub _get_iodirs_from_subcall {
     my $sa           = scalar( @{$ref_sig_args} );
     if ( $ca != $sa ) {
         print "WARNING ($f): NOT SAME LENGTH! ($ca<>$sa)\n" if $W;
-        print Dumper( $stref->{'Subroutines'}{$name}{'AnnLines'} ), "\n";
+        say Dumper $info;
+#        print Dumper( $stref->{'Subroutines'}{$f}{'AnnLines'} ), "\n";
         print "\n$f" . '->' 
-          . $name
-          . ":\nCALL:"
+          . $name;
+        print  ":\nCALL:"
           . Dumper($ref_call_args)
           . "\nSIG:"
           . Dumper($ref_sig_args) . "\n";

@@ -228,15 +228,6 @@ sub _analyse_lines {
                 ($stref,$info) =__handle_acc($stref,$f, $index, $line);
             }
 
-#            # Set up hook for later insertion of ExGlobArgDecls => OBSOLETE, we do a separate pass for this
-#            if (   exists $info->{'Includes'}
-#                or exists $info->{'FunctionSig'}
-#                or exists $info->{'SubroutineSig'}
-#                or exists $info->{'Use'} )
-#            {
-#                $info->{'ExGlobArgDecls'} = ++$Sf->{'ExGlobVarDeclHook'};
-#            }
-
             # FIXME Trailing comments are ignored!
             #            if ( $line =~ /^\!\s/ ) {
             #                $stref->{$sub_incl_or_mod}{$f}{'Info'}
@@ -640,8 +631,9 @@ sub _separate_blocks {
         $varsref, $f );
         
         $stref = __reparse_extracted_subroutines($stref, $blocksref);
-        my @callinfo = caller(0);
-        my $callinfostr=$callinfo[3];
+        $stref = __update_caller_datastructures($stref, $blocksref);
+#        my @callinfo = caller(0);
+#        my $callinfostr=$callinfo[3];
 #        say  $callinfostr .' '. __LINE__ .' : ' .Dumper($stref->{Subroutines}{particles_main_loop}{Vars}{indzindicator});
     
 #	warn "Vars are CORRECT AT END OF separate_blocks( $f ):\n-----\n";
@@ -1564,17 +1556,18 @@ sub __create_new_subroutine_entries {
         if ( not exists $stref->{'Subroutines'}{$block} ) {
             $stref->{'Subroutines'}{$block} = {};
             $stref->{'Subroutines'}{$block}{'Source'} = "./$block.f95"; #$Sf->{'Source'};
-        } elsif ( exists $stref->{'Subroutines'}{$block}{'Translate'} ) {
-            if ( $stref->{'Subroutines'}{$block}{'Translate'} eq 'C' ) {
-                $stref->{'Subroutines'}{$block}{'Source'} = "./$block.f95";
-                $stref = add_to_C_build_sources( $block, $stref );
-            } else {
-                croak '!$acc translate (' 
-                  . $block . ') '
-                  . $stref->{'Subroutines'}{$block}{'Translate'}
-                  . ": Only C translation through F2C_ACC is currently supported.\n";
-            }
-        }
+        } 
+#        elsif ( exists $stref->{'Subroutines'}{$block}{'Translate'} ) {
+#            if ( $stref->{'Subroutines'}{$block}{'Translate'} eq 'C' ) {
+#                $stref->{'Subroutines'}{$block}{'Source'} = "./$block.f95";
+#                $stref = add_to_C_build_sources( $block, $stref );
+#            } else {
+#                croak '!$acc translate (' 
+#                  . $block . ') '
+#                  . $stref->{'Subroutines'}{$block}{'Translate'}
+#                  . ": Only C translation through F2C_ACC is currently supported.\n";
+#            }
+#        }
         my $Sblock = $stref->{'Subroutines'}{$block};
         $Sblock->{'AnnLines'} = [ @{$blocksref->{$block}{'AnnLines'}} ]; # a copy
         my $line_id=0;
@@ -1600,7 +1593,6 @@ sub __create_new_subroutine_entries {
          $Sblock->{'Recursive'} = 0;
          $Sblock->{'Callers'}{$f}=[ $blocksref->{$block}{'BeginBlockIdx'} ];
                   
-#        $stref = _analyse_lines( $block, $stref );
     }
     return $stref;
 }    # END of __create_new_subroutine_entries()
@@ -1751,7 +1743,11 @@ sub __construct_new_subroutine_signatures {
         for my $tindex ( 0 .. scalar( @{$srcref} ) - 1 ) {
             if ( $tindex == $blocksref->{$block}{'BeginBlockIdx'} ) {
                 $sig =~ s/subroutine/call/;
-                $srcref->[$tindex][0] = $sig;
+                $srcref->[$tindex][0] = $sig; 
+                # Here we also need to update the $info 
+#                croak Dumper( $sigrec)."\n\n".Dumper($srcref->[$tindex]).$tindex;
+                $srcref->[$tindex][1]{'SubroutineCall'}=$sigrec;
+                $srcref->[$tindex][1]{'LineID'}=$Sblock->{'Callers'}{$f}[0];
             } elsif ( $tindex > $blocksref->{$block}{'BeginBlockIdx'}
                 and $tindex <= $blocksref->{$block}{'EndBlockIdx'} )
             {
@@ -1782,10 +1778,25 @@ sub __reparse_extracted_subroutines { (my $stref, my $blocksref) = @_;
     for my $block (keys %{$blocksref}) {        
         say "REPARSING $block" if $V;
         $stref = parse_fortran_src($block, $stref);
-#        croak Dumper( $stref->{'Subroutines'}{$block}{'Callers'});
     }     
     return $stref;
 }
+
+# -----------------------------------------------------------------------------
+sub __update_caller_datastructures { (my $stref, my $blocksref) = @_;
+    delete $blocksref->{'OUTER'};
+    for my $block (keys %{$blocksref}) {        
+        for my $f (keys %{ $stref->{'Subroutines'}{$block}{'Callers'} } ) {
+            my $call_line_id = $stref->{'Subroutines'}{$block}{'Callers'}{$f}[0];
+            for my $called_in_block (keys %{ $stref->{'Subroutines'}{$block}{'CalledSubs'} } ) {
+                delete $stref->{'Subroutines'}{$f}{'CalledSubs'}{$called_in_block};
+            }
+            $stref->{'Subroutines'}{$f}{'CalledSubs'}{$block} = 1;
+        };
+    }     
+    return $stref;
+} # END of __update_caller_datastructures()
+
 # -----------------------------------------------------------------------------
 sub _split_multivar_decls { (my $f, my $stref) = @_;
         
@@ -2049,13 +2060,13 @@ sub __handle_acc {
     }
     ( my $pragma_name, my @pragma_args ) = @chunks;
     $info->{'AccPragma'}
-      { $pragma_name_prefix . ucfirst($pragma_name) } =
+      { $pragma_name_prefix . ucfirst(lc($pragma_name)) } =
       [@pragma_args];
     if (    $pragma_name =~ /KernelWrapper/i
         and $pragma_name_prefix eq 'Begin' )
     {
         $stref->{'KernelWrappers'}{ $pragma_args[0] }
-          { $pragma_name_prefix . ucfirst($pragma_name) } =
+          { $pragma_name_prefix . ucfirst(lc($pragma_name)) } =
           [ $f, $index ];
         $stref = outer_loop_start_detect( $pragma_args[0], $stref );
     }

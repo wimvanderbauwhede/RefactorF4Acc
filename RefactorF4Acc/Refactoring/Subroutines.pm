@@ -120,13 +120,14 @@ sub _refactor_subroutine_main {
         } elsif ( $Sf->{'RefactorGlobals'} == 2 ) { 
             die 'SHOULD BE OBSOLETE!  _refactor_subroutine_main() ' . __LINE__ ;
             say "_refactor_calls_globals($f)" if $V;
-            $annlines = _refactor_calls_globals( $stref, $f, $annlines );
+            $annlines = _refactor_calls_globals( $stref, $f, $annlines );            
         }
     }
     
     $annlines = _fix_end_lines($stref, $f, $annlines); # FIXME maybe do this later
     
     $Sf->{'RefactoredCode'}=$annlines;    
+    $Sf->{'AnnLines'}=$annlines;    
     return $stref;
 }    # END of _refactor_subroutine_main()
 
@@ -355,7 +356,7 @@ sub rename_conflicting_locals {
 sub _refactor_globals_new {
     ( my $stref, my $f, my $annlines ) = @_;
     my $Sf = $stref->{'Subroutines'}{$f};
-    croak if $f eq 'ij_to_latlon';
+#    croak Dumper($Sf) if $f eq 'ij_to_latlon';
     if ($Sf->{'RefactorGlobals'}==2) {
     	die "This should NEVER happen!";
         warn "FIXME: the caller of a sub with RefactorGlobals ($f) should refactor its globals!";
@@ -393,6 +394,7 @@ sub _refactor_globals_new {
             }
             $rlines =
               create_refactored_subroutine_signature( $stref, $f, $annline, $rlines );
+#              croak Dumper $rlines->[0] if $f eq 'map_set';              
             $skip = 1;
         } 
         # There should be no need to do this: all /common/ blocks should have been removed anyway!
@@ -523,7 +525,8 @@ sub _create_refactored_subroutine_call {
 
     # simply tag the common vars onto the arguments
     my $name = $info->{'SubroutineCall'}{'Name'};
-croak $line . Dumper($info) unless defined $info->{'SubroutineCall'}{'Args'}{'List'};# . Dumper(    $stref->{'Subroutines'}{$name});
+#    croak Dumper($info)."\n\n".Dumper($stref->{'Subroutines'}{$name}) if $name eq 'ij_to_latlon' and $f eq 'map_set';
+    croak $line . Dumper($info) unless defined $info->{'SubroutineCall'}{'Args'}{'List'};# . Dumper(    $stref->{'Subroutines'}{$name});
     my @orig_args = @{ $info->{'SubroutineCall'}{'Args'}{'List'} };    
     my $args_ref = [@orig_args]; # NOT ordered union, if they repeat that should be OK 
     
@@ -531,7 +534,7 @@ croak $line . Dumper($info) unless defined $info->{'SubroutineCall'}{'Args'}{'Li
         my @globals = @{ $stref->{'Subroutines'}{$name}{'ExGlobArgDecls'}{'List'} };        
         $args_ref = [@orig_args, @globals ]; # NOT ordered union, if they repeat that should be OK
  
-
+        $info->{'SubroutineCall'}{'Args'}{'List'}= $args_ref;
     my $args_str = join( ',', @{$args_ref} );
     $line =~ s/call\s.*$//; # Basically keep the indent
     my $rline = "call $name($args_str)\n";
