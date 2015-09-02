@@ -517,7 +517,7 @@ sub _analyse_src_for_iodirs {
 # WV20150304 TODO: factor this out and export it so we can use it as a parser for assignments
             if (    $line =~ /[\w\s\)]=[\w\s\(\+\-\.]/
                 and $line !~ /^\s*do\s+.+\s*=/
-                and $line !~ /\Wparameter\W/ )
+                and $line !~ /\bparameter\b/ )
             {
 
                 # FIXME: if (...) open|write is not covered

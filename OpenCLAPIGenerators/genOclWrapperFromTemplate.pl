@@ -1,9 +1,10 @@
-THIS IS OBSOLETE, use genOclWrapperFromTemplate.pl
 #!/usr/bin/perl
+# This is the cleaned-up version of generate_OpenCL_API_calls_from_ACC_pragmas_V2.pl
 use strict;
 use warnings; 
 use 5.010;
-use F95ArgDeclParser;
+use F95VarDeclParser qw( parse_F95_var_decl );
+use F95Normaliser qw( normalise_F95_src );
 
 use Data::Dumper;
 $Data::Dumper::Indent=1;#0;
@@ -12,12 +13,15 @@ $Data::Dumper::Terse =1;
 use Getopt::Std;
 our $VV= 0;
 our $vv=0;
-our $kernel_path='../OpenCL';
+our $kernel_path='../OpenCL/Kernels';
+our $wrapper_dir = '../OpenCL/Wrappers';
+our $kstub_path='../OpenCL/KernelStubs';
+
 main();
 
 =head1 How to use this script?
 
-- Create a template for the Fortran OpenCL wrapper routine.
+- Create a template for the Fortran OpenCL wrapper routine, e.g. using genOclWrapperTemplate.pl
 This is a module that contains a routine with exactly the same signature as the original routine.
 
     module module_${NAME}_ocl_wrapper
@@ -261,8 +265,8 @@ sub parse_F90_src {
     open my $IN, '<', $src or die "$src: $!. Did you create a stub .f95 for the kernel?";
     my @orig_lines=<$IN>;
     close $IN;
-    my $src_lines = normalise_F90_src(\@orig_lines);
-
+    my $src_lines = normalise_F95_src(\@orig_lines);
+#die Dumper($src_lines);
     my $in_sub=0;
     my $in_kernel=0;
     my $var_lines=[];
@@ -275,14 +279,14 @@ sub parse_F90_src {
 		next if $line=~/^\s*$/;
 		next if ($line=~/^\s*[*!]/ || ($line=~/^C/i)) && $line !~/^\s*!\s*\$/; # We only support !$ACC, not c,C or *
 
-        $line=~/^\s+subroutine\s+(\w+)/ && do {
+        $line=~/^\s*subroutine\s+(\w+)/ && do {
             $in_sub=1;
             $current_sub=$1;
             $subs->{$current_sub}={};
             next;
         };    
 
-        $in_sub && $line=~/^\s+end\s+subroutine/ && do {
+        $in_sub && $line=~/^\s*end\s+subroutine/ && do {
             $in_sub=0;
             @{$subs->{$current_sub}{VarLines}}=@{$var_lines};
             @{$subs->{$current_sub}{ParLines}}=@{$par_lines};
@@ -315,6 +319,12 @@ sub parse_F90_src {
             } else {
                 $subs->{$current_sub}{Kernels}{$current_kernel}{LocalRange}='1';
             }
+            if ($line=~/CppMacros\s*\((.+?)\)/) {
+                my $macros_defs=$1;
+                $subs->{$current_sub}{Kernels}{$current_kernel}{CppMacros}=$macros_defs;
+            } else {
+                $subs->{$current_sub}{Kernels}{$current_kernel}{CppMacros}='';
+            }
             next;
         };
         $line=~/^\s*\!\s*\$ACC\s+End\s+Kernel/i && do {
@@ -337,7 +347,7 @@ sub parse_F90_src {
 }  # END of parse_F90_src()
 
 ###############################################################################
-# Code for parsing the argument declarations
+# Code for parsing the argument declarations
 =head2 OpenCL Kernel Arguments
 
 The call to `parse_arg_decls($var_lines,$kernel_args)` returns a table `%ocl_args` 
@@ -371,15 +381,15 @@ sub parse_arg_decls {
 		say "\n>>> <$str>\n" if $vv;
 #		say STDERR "\n>>> <$str>\n";
 
-		my $pt = parse_F95_arg_decl($str);
-		print Dumper($pt),"\n" if $vv;
+		my $pt = parse_F95_var_decl($str);
+		print "ARGDECL:".Dumper($pt),"\n" if $vv;
 		my $type = $pt->{TypeTup}{Type};
 		my $wordsz = $pt->{TypeTup}{Kind};
-		my $ndims = scalar @{ $pt->{Dim} };
-        if ($ndims==1 && $pt->{Dim}[0]!~/:/ && $pt->{Dim}[0] eq '0') {
+		my $ndims = exists $pt->{Attributes} ? scalar @{ $pt->{Attributes}{Dim} } : 0;
+        if ($ndims==1 && $pt->{Attributes}{Dim}[0]!~/:/ && $pt->{Attributes}{Dim}[0] eq '0') {
             $ndims=0;
         }
-        my @var_names=@{ $pt->{Args} };
+        my @var_names=@{ $pt->{Vars} };
 		@arg_names=(@arg_names, @var_names);
 		my $argmode =  $ndims==0 ? 'Const' : $pt->{AccPragma}{AccVal};
         if ($argmode eq 'ReadWrite') {
@@ -393,7 +403,7 @@ sub parse_arg_decls {
         } 
         
 # Now I overload ArgMode to indicate if a value is const. Simply, any scalar is a const. 
-
+die if not defined $type;
 		say "$type,$wordsz,$ndims ",@var_names, " $argmode" if $vv;
        		for my $arg_name (@var_names) {
 #say STDERR "<$arg_name>";                
@@ -420,6 +430,8 @@ sub parse_arg_decls {
 	return (\%ocl_args,$ocl_arg_names,$ocl_const_arg_names);
 } # end parse_arg_decls()
 #--------------------------------------------------------------------------------
+#FIXME: factor out into F95Normaliser!!!
+#FIXME: check difference with rf4a code
 sub normalise_F90_src {(my $orig_lines)=@_;
 
                 my $in_cont              = 0;
@@ -532,7 +544,6 @@ sub normalise_F90_src {(my $orig_lines)=@_;
             $line =~ s/\&\s*$//;
         }
 # I think I should remove the whitespace at the start of the line
-#		$line=~s/^\s+// unless $line;
 		if ( $line =~ /.\!.*$/ ) {    # FIXME: trailing comments are discarded!
 			my $tline = $line;
 			my $nline = '';
@@ -583,7 +594,7 @@ sub get_kernel_args { (my $argstr)=@_;
 #-------------------------------------------------------------------------------- 
 # Parse the kernel stub, and find for every argument its Intent, and update OclArgs
 sub get_intent_from_kernel_sub { (my $ksub_name, my $ocl_args) =@_;
-    my $ksub_path = $ksub_name.'_kernel.f95';
+    my $ksub_path = $kstub_path.'/'.$ksub_name.'.f95';
     (my $src_lines,my $subs) = parse_F90_src($ksub_path);
 #die "SUBS: ".Dumper($subs);
     (my $subname, my $record) = each %{$subs}; # TODO: Assuming there is only 1 sub in the source file! WEAK!
@@ -594,14 +605,14 @@ sub get_intent_from_kernel_sub { (my $ksub_name, my $ocl_args) =@_;
         if (exists $ocl_args->{$arg_name}) {
         $ocl_args->{$arg_name}{ArgMode} = $kernel_args->{$arg_name}{ArgMode};                
         } else {
-            say "WARNING: declared kernel argument $arg_name does not match any in called argument names.\n";
+            say "WARNING: $ksub_name: declared kernel argument $arg_name does not match any in called argument names.\n";
             # Try to match by position
              for my $ocl_arg_name (keys %{$ocl_args}) {
                  if ($ocl_args->{$ocl_arg_name}{ArgPos} == $arg_pos) {
                  if (not exists $kernel_args->{$ocl_arg_name}) {
                     $ocl_args->{$ocl_arg_name}{ArgMode} = $kernel_args->{$arg_name}{ArgMode};                
                  } else {
-                     say "WARNING: declared kernel argument $arg_name in position $arg_pos would overwrite argument $ocl_arg_name!\n";
+                     say "WARNING: $ksub_name: declared kernel argument $arg_name in position $arg_pos would overwrite argument $ocl_arg_name!\n";
                  }
                  }
              }
@@ -615,7 +626,7 @@ sub get_intent_from_kernel_sub { (my $ksub_name, my $ocl_args) =@_;
 =info_FIXME
 The code generated based on the $in_kernel flag starts with declarations, these should go after the other declarations!
 So, a better approach is to first insert the pragma's etc, then to run the generator on the result
-
+4
 Now, in general this should work on multiple kernel calls. In practice it means the buffers for each
 of these need to be declared upfront. 
 
@@ -634,12 +645,12 @@ sub generate_OclWrapper_code { (my $src_lines, my $subs)=@_;
     my $gen_src_ocl_api_decl_lines=[];
     for my $line (@{$src_lines}) {
 # We can push all existing lines except the kernel part
-
          if ( $line=~/^\s*\!\s*\$ACC\s+Kernel\s*\((\w+)\)/i ) {
             $in_kernel=1;
             $current_kernel=$1;
             next;
         } elsif ($in_kernel) {
+            
             $line=~/^\s+call\s+/ && do {
             my $cline = $line;
             $cline=~s/^\s+call/! call/;
@@ -648,33 +659,48 @@ sub generate_OclWrapper_code { (my $src_lines, my $subs)=@_;
             $line=~/^(\s+)/ && do { $ws.=$1; };
             my $global_range = $subs->{$current_sub}{Kernels}{$current_kernel}{GlobalRange};
             my $local_range = $subs->{$current_sub}{Kernels}{$current_kernel}{LocalRange};
+            
 # Rather than generating this code, it makes more sense to call the corresponding code generators!
             my $ocl_kernel_api_decl_lines = [
                     '',
                     '!$ACC BufDecls',
                     '!$ACC SizeDecls',
+                    '',                    
                 ];
-            my $ocl_kernel_api_lines_OLD = [
-                    'srclen = len(srcstr)',
-                    'klen = len(kstr)',
-                    '',
-                    'call oclInit(srcstr,srclen,kstr,klen)'
-                        ];
             my $ocl_kernel_api_lines = [
                     '',
-                    'call oclInit(srcstr,kstr)',
-                    'call oclGetMaxComputeUnits(nunits)',
+                    'if ( init_ocl_local /= 1 ) then ',
+                    '  init_'.$current_sub.'_local = 1',
+                    
+                    'if ( init_'.$current_sub.' /= 1 ) then ',
+                    '  init_'.$current_sub.' = 1',
+                    '!  call oclInitOpts(srcstr,kstr,koptsstr)',
+                    '  call oclInit(srcstr,kstr)',
+                    '',                                        
+                    '  call oclGetMaxComputeUnits('.$current_sub.'_nunits)',
+                    '  call oclGetNThreadsHint('.$current_sub.'_nthreads)',
+                    '',
+                    '!  print *, "Compute units:",'.$current_sub.'_nunits," Threads:",'.$current_sub.'_nthreads',
+                    'end if',
                     '',
                     '!$ACC MakeSizes',
                     '',
                     '!$ACC MakeBuffers',
                     '',
                     '!$ACC SetArgs',
+                    '',  
+                    'end if',
+                    '',
+                    $current_sub."_globalrange = $global_range",
+                    $current_sub."_localrange = $local_range",
+                    'if ('.$current_sub.'_localrange == 0) then',
+                    '  call padRange('.$current_sub.'_globalrange,'.$current_sub.'_nunits*'.$current_sub.'_nthreads)',                      
+                    'end if',
                     '',
                     '!$ACC WriteBuffers',
                     '',
                     $cline,
-                    "call runOcl($global_range,$local_range)",
+                    "call runOcl($current_sub\_globalrange,$current_sub\_localrange,$current_sub\_exectime)",
                     '',
                     '!$ACC ReadBuffers', 
                     ''
@@ -692,7 +718,6 @@ sub generate_OclWrapper_code { (my $src_lines, my $subs)=@_;
 
                      }                
                  }
-
                  for my $ocl_kernel_api_line (@{$gen_ocl_kernel_api_lines}) {
                                          push  @{$gen_src_lines_without_ocl_decls}, $ws.$ocl_kernel_api_line ;
                  }
@@ -704,10 +729,24 @@ sub generate_OclWrapper_code { (my $src_lines, my $subs)=@_;
             };
             next;
         } else {        
+              
+# Immediately after the use declarations:
+#	'integer :: init_ocl_done_$subname'  
+              if ($line=~/^\s*contains\s*$/) {                  
+                  my $ws='    ';
+                  $line=~/^(\s+)/ && do {
+                    $ws.=$1;
+                  };
+                  my @subnames = keys %{$subs};
+                  my @init_var_names = map {'integer :: init_'.$_.' = 0'} @subnames;
+                  for my $init_var (@init_var_names) {                  
+                  push @{$gen_src_lines_without_ocl_decls}, $ws.$init_var;
+                  }
+              }
               push @{$gen_src_lines_without_ocl_decls}, $line;
 # Immediately after the subroutine which wraps the subroutine call marked as Kernel:
 #	'use OclWrapper'  
-              if ($line=~/^\s+subroutine\s+(\w+)/) {
+              if ($line=~/^\s*subroutine\s+(\w+)/) {
                   $current_sub=$1;
                   my $ws='    ';
                   $line=~/^(\s+)/ && do {
@@ -718,24 +757,33 @@ sub generate_OclWrapper_code { (my $src_lines, my $subs)=@_;
 
 # Immediately after the existing declarations:
               if ($line=~/::/) {
-#                    my $pt = parse_F95_arg_decl($line);
+#                    my $pt = parse_F95_var_decl($line);
 #                    my @var_names=@{ $pt->{Args} };
                     if ($line eq $subs->{$current_sub}{VarLines}[-1]) {
                         my $ws='';
                         $line=~/^(\s+)/ && do { $ws.=$1; };
-                        my @kernel_names = keys %{$subs->{$current_sub}{Kernels}}; # FIXME: only one kernel per sub supported!
+                        my @kernel_names = keys %{$subs->{$current_sub}{Kernels}}; #FIXME: only one kernel per sub supported!
                             if (scalar @kernel_names >1) {
                                 die "Sorry, only one kernel pragma per wrapper subroutine is supported.\n";
                             }
-                        my $kernel_name = shift @kernel_names;
+                        if (@kernel_names) {    
+                            my $kernel_name = shift @kernel_names;
+                            my $macro_defs_str = $subs->{$current_sub}{Kernels}{$kernel_name}{CppMacros};
+                            my @macro_defs = split(/\s*\,\s*/,$macro_defs_str);
+                            my $kernel_opts= join(' ',map {'-D'.$_ } @macro_defs);
+                        
 #FIXME: the path to the kernel is ad-hoc!
+#say '#DEBUG:',$current_sub,':',$kernel_name ; # FIXME: something WEAK here!!!
                         my @ocl_decl_lines =(
                                 '',
                                 '! OpenCL-specific declarations',
-                                'integer :: nunits',
-                                'integer :: srclen, klen',
+                                'integer :: '.$current_sub.'_nunits, '.$current_sub.'_nthreads, '.$current_sub.'_globalrange, '.$current_sub.'_localrange',
+                                'integer :: init_'.$current_sub.'_local',
+                                'real(kind=4) :: '.$current_sub.'_exectime',
+                                '! integer :: srclen, klen',
                                 'character(len=*), parameter :: srcstr="'.$kernel_path.'/'.$kernel_name.'.cl"',
                                 'character(len=*), parameter :: kstr="'.$kernel_name.'"',
+                                '! character(len=*), parameter :: koptsstr="'.$kernel_opts.'"',
                                 '!This is a hook to insert the actual buffer declarations!',
                                 '!$ACC BufDecls',
                                 ''
@@ -743,9 +791,11 @@ sub generate_OclWrapper_code { (my $src_lines, my $subs)=@_;
                         for my $ocl_decl_line (@ocl_decl_lines) {
                             push  @{$gen_src_lines_without_ocl_decls}, $ws.$ocl_decl_line ;
                         }
+                        }
                     }
               }
         }
+#say "CURRENT SUB: $current_sub, KERNEL: $current_kernel: $line";
 
     }
     for my $gen_src_line (@{$gen_src_lines_without_ocl_decls}) {
@@ -753,6 +803,13 @@ sub generate_OclWrapper_code { (my $src_lines, my $subs)=@_;
             for my $ocl_decl_line (@{$gen_src_ocl_api_decl_lines}){
                 push @{$gen_src_lines}, $ocl_decl_line;
             }
+
+# local guard around OpenCL init etc, to makes sure it happens only once per call to a subroutine
+               my $init_local_decl = 'integer :: init_ocl_local';
+                my $init_local_assignment = 'init_ocl_local = 0';
+                push @{$gen_src_lines}, '    '.$init_local_decl;
+                push @{$gen_src_lines}, '    '.$init_local_assignment;
+                
         } else {
             push @{$gen_src_lines}, $gen_src_line;
         }
@@ -779,7 +836,7 @@ sub main {
 my %opts=();
 getopts('hvo', \%opts);
 
-if ($opts{'h'}) { 
+if (!@ARGV or $opts{'h'}) { 
         die "
             Please specify a template module file (V2)
             To overwrite any existing modules, use -o
@@ -795,11 +852,14 @@ my $overwrite=0;
 if ($opts{'o'}) {
     $overwrite=1;
 }
-    our $src_templ= $ARGV[0] // 'module_velFG_ocl_TEMPL_V2.f95';    
+
+    our $src_templ= $ARGV[0];    
     our $src_gen = $src_templ;
     $src_gen=~s/_TEMPL_V2//;
-
+    $src_gen=~s/^.+\///; 
+# Parse the source into a list of lines and a map of subroutine records, see above
     (my $src_lines,my $subs) = parse_F90_src($src_templ);
+#die Dumper($src_lines);
 
 # For each of the subroutine records, get the kernel arguments, and identify the corresponding variable declarations
 # We need to generate OclWrapper calls for every kernel in every subroutine, separately.
@@ -812,18 +872,19 @@ if ($opts{'o'}) {
             say "KERNEL:$ckname" if $VV;
             my $kernel_args = get_kernel_args( $subs->{$csub}{Kernels}{$ckname}{SubArgs} );
             (my $ocl_args,my $arg_names, my $const_arg_names) = parse_arg_decls($var_lines, $kernel_args);
+            
 # This is fine, at this stage we have all kernel arguments. 
 # Assuming that the kernel subroutine has the Intent field present, we can use that to get the directions of the arguments
             $ocl_args = get_intent_from_kernel_sub( $subs->{$csub}{Kernels}{$ckname}{SubName}, $ocl_args );        
             $subs->{$csub}{Kernels}{$ckname}{OclArgs}=[$ocl_args,$arg_names,$const_arg_names];
-# Now we have the intent. If the kernel sub were simple, and consisted only of a single, possible nested, loop, we could derive the globalrange as well.        
+# Now we have the intent. If the kernel sub were simple, and consisted only of a single, possible nested, loop, we could derive the oclglobalrange as well.        
 # But for now, let's just use a range of 1        
 
         }
     }
     my $gen_src_lines = generate_OclWrapper_code($src_lines,$subs);
 if ($overwrite) {
-    open my $GENSRC,'>',$src_gen or die $!;
+    open my $GENSRC,'>',"$wrapper_dir/$src_gen" or die $!;
     map {say $GENSRC $_} @{$gen_src_lines};
     close $GENSRC;
 } else {

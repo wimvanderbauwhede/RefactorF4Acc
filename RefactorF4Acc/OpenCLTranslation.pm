@@ -29,11 +29,11 @@ sub translate_to_OpenCL {
     ( my $stref, my $mod_name, my $kernel_name, my $macro_src ) = @_;
     my $retval = _preprocess( $stref, $mod_name );
     ( $stref, my $prep_src_lines, my $can_be_consts ) = @{$retval};
-    map {say $_} @{$prep_src_lines};die;
+#    map {say $_} @{$prep_src_lines};die;
     my $f_src = $mod_name.'_ocl.f95';
     _run_cpp (  $f_src,  $prep_src_lines, $macro_src );
-    #	map { say $_ } @{$refactored_annlines};
-    #    die;
+#    map { say $_ } @{$refactored_annlines};
+#    die;
     _generate_C($mod_name, $f_src, $can_be_consts, $kernel_name);
     return $stref;
 }    # END of translate_to_OpenCL()
@@ -252,7 +252,10 @@ sub _run_cpp {
         while ( my $line = <$MACROS> ) {
             next unless $line =~ /^\s*\#/;
             $line =~ /\#define\s+(.+)\s*$/ && do {
-                push @defined_macros, $1;
+                my $pair = $1;
+                $pair=~s/\s+/ /g;
+                $pair=~s/\s/=/;
+                push @defined_macros, $pair;
             };
             $line =~ /\undef\s+(.+)\s*$/ && do {
                 push @undefined_macros, $1;
@@ -370,7 +373,7 @@ sub _fix_F2C_ACC_translation { (my $csrc, my $can_be_consts, my $kernel_name)=@_
             $line=~s/$orig_expr/$sval/;
         }
         # FIXME: WEAK: should do this until no more matches
-        $line=~s/(\W)abs\(/$1fabs(/;
+        $line=~s/\babs\(/fabs(/;
         $line=~s/MAX\(/max(/;
         $line=~s/MIN\(/min(/;
 # F2C_ACC for some reason creates subroutine names with a trailing underscore, fix that:

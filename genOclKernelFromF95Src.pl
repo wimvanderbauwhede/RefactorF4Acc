@@ -24,8 +24,22 @@ use RefactorF4Acc::OpenCLTranslation qw( translate_to_OpenCL);
 use Getopt::Std;
 
 our $usage = "
-    $0 [-hwvicC] <module name> <subroutine name(s) for translation to OpenCL> <header file with macro definitions>
-    Typical use: $0 -c ./rf4a.cfg -v -i main   
+This script generates an OpenCL kernel from a Fortran-95 subroutine.
+
+USAGE:
+ 
+The script needs following information from the rf4a config file (rf4a.cfg or ~/.rf4a)
+
+TOP: the name of the toplevel program that calls the kernel subroutine
+TOP_SRC: the source file name for TOP
+MODULE: the module that contains the kernel subroutine
+MODULE_SRC: the source file name for MODULE
+KERNEL: the name of the  kernel subroutine
+MACRO_SRC: the source file name containing macro definitions if the source code contains macros. 
+OPTIONS:
+
+    $0 [-hwvicC] 
+    Typical use: $0 -c ./rf4a.cfg -v -i  
     -h: help
     -w: show warnings 
     -v: verbose (implies -w)
@@ -39,44 +53,56 @@ our $usage = "
 # -----------------------------------------------------------------------------
 
 sub main {
-	(my $mod_name, my $kernel_name, my $top_name, my $build) = parse_args();
+	(my $mod_name, my $mod_src,my $kernel_name, my $top_name, my $top_src, my $macro_src, my $build) = parse_args();
 	#  Initialise the global state.
 	
-	my $inits = { 'Modules'=>{ $mod_name=>{} }, 'Top' => $top_name, 'Subroutines' =>  { $kernel_name =>{}} };
+	my $inits = { 
+	    'Modules'=>{ $mod_name=>{'Source' => $mod_src} }, 
+	    'Top' => $top_name, 
+	    'Subroutines' =>  { 
+	        $kernel_name =>{'Source' => $mod_src},
+	        $top_name =>{'Source' => $top_src} 
+	    },  
+	};
 	
-	my $stateref = init_state($top_name);
+	my $stref = init_state($top_name);
+	
+	if (defined $macro_src) {
+	    $stref = read_macros($stref,$macro_src);
+	}
+	
 	say "**** INVENTORY ****" if $V;    
 	# Find all subroutines in the source code tree
-	$stateref = find_subroutines_functions_and_includes($stateref);
-#	croak Dumper($stateref);
-#	     map {say $_ } keys %{ $stateref->{'Modules'}{$mod_name} };
+	$stref = find_subroutines_functions_and_includes($stref);
+#	croak Dumper($stref);
+#	     map {say $_ } keys %{ $stref->{'Modules'}{$mod_name} };
 #
 #die;
     say "**** PARSING ****" if $V;
     # Parse the source
-	$stateref = parse_fortran_src( $mod_name, $stateref );
+	$stref = parse_fortran_src( $mod_name, $stref );
 	
 	
 	if ( $call_tree_only  ) {
-		create_call_graph($stateref,$mod_name);		
+		create_call_graph($stref,$mod_name);		
 		exit(0);
 	}
     
     # Analyse the source
     say "**** ANALYSIS ****" if $V;
-	$stateref = analyse_all($stateref,$mod_name);
+	$stref = analyse_all($stref,$mod_name);
 
     say "**** REFACTORING ****" if $V;
     # Refactor the source
-	$stateref = refactor_all($stateref,$mod_name);
+	$stref = refactor_all($stref,$mod_name);
    print '=' x 80, "\n" if $V;
-#   map {say Dumper($_->[1]) } @{ $stateref->{'Modules'}{'module_press'}{'AnnLines'} };die;
-#	say Dumper( $stateref->{'Modules'}{'module_press'} );die;
-   $stateref = translate_to_OpenCL($stateref,$mod_name, $kernel_name);
+#   map {say Dumper($_->[1]) } @{ $stref->{'Modules'}{'module_press'}{'AnnLines'} };die;
+#	say Dumper( $stref->{'Modules'}{'module_press'} );die;
+   $stref = translate_to_OpenCL($stref,$mod_name, $kernel_name, $macro_src);
     
 
 
-#	create_build_script($stateref);
+#	create_build_script($stref);
 #	if ($build) {
 #		build_executable();
 #	}
@@ -100,38 +126,20 @@ sub parse_args {
 	my $cfgrc= $ENV{HOME}.'/.rf4a';
     if (-e './rf4a.cfg') {
         $cfgrc='./rf4a.cfg';
-    }
+    }    
     if ($opts{'c'}) {
          $cfgrc= $opts{'c'} ;
     } 
 	read_config($cfgrc);
-	if (@ARGV<2 and not exists $Config{'MODULE'} and not exists $Config{'KERNEL'}) {die "Please specify the module and subroutine for the kernel, in that order\n"; }
-	my $mod_name = $ARGV[0];
-	if ($mod_name) {
-		$mod_name =~ s/\.f(?:9[05])?$//; # Strip the extension
-	} elsif (exists $Config{'MODULE'}) {
-		$mod_name = $Config{'MODULE'};
-	} else {
-		die "No default for kernel module (MODULE) in rf4a.cfg, please specify the toplevel module on command line\n"; 
+	if (not exists $Config{'MODULE'} or not exists $Config{'KERNEL'}) {
+	    die "Sorry, $cfgrc does not contain the necessary information:". $usage; 	
 	}
-    my $kernel_name = $ARGV[1];
-    if (not $kernel_name) {
-        if (exists $Config{'KERNEL'}) {
-            $kernel_name = $Config{'KERNEL'};
-        } else {
-            die "No default for kernel subroutine (KERNEL) in rf4a.cfg, please specify the kernel on command line\n";
-        }
-    }
-    
-    my $top_name = $ARGV[2];
-    if (not $top_name) {
-        if (exists $Config{'TOP'}) {
-            $top_name = $Config{'TOP'};
-        } else {
-            die "No default for toplevel program (TOP) in rf4a.cfg, please specify the program on command line\n";
-        }
-    }
-    
+    my $mod_name = $Config{'MODULE'};
+    my $mod_src = exists $Config{'MODULE_SRC'} ? $Config{'MODULE_SRC'} : do { say "WARNING: Using DEFAULT module source file name!"; 'module_'.$mod_name.'.f95';};
+    my $kernel_name = $Config{'KERNEL'};    
+    my $top_name = $Config{'TOP'};
+    my $top_src = exists $Config{'TOP_SRC'} ? $Config{'TOP_SRC'} : do { say "WARNING: Using DEFAULT top source file name!"; $top_name.'.f95';};
+    my $macro_src =  $Config{'MACRO_SRC'}; 
     if ( exists $Config{'NEWSRCPATH'}) {
         $targetdir =  $Config{'NEWSRCPATH'};
     }   
@@ -146,7 +154,18 @@ sub parse_args {
 
 	my $build = ( $opts{'B'} ) ? 1 : 0;
 
-	return ($mod_name,$kernel_name, $top_name, $build);
+	return ($mod_name,$mod_src,$kernel_name, $top_name,$top_src, $macro_src, $build);
+}
+
+sub read_macros { (my $stref,my $macro_src) = @_;
+    $stref->{'Macros'}={};
+    open my $MACROS, '<',$macro_src;
+    while ( my $line = <$MACROS>) {
+        $line=~/\#define\s+(\w+)\s+(\w+)/ && do {
+            $stref->{'Macros'}{$1}=$2;        
+        }
+    }
+    return $stref;
 }
 
 =head1 SYNOPSIS

@@ -18,6 +18,7 @@ use Exporter 'import';
         oneOf
         word
         natural
+        number
         symbol
         greedyUpto
         upto
@@ -317,6 +318,33 @@ sub natural {
             return ($status,$str, $matches);
         } else {
             print "natural: match failed => <$str>\n" if $V;
+            return ($status,$str, undef); # assumes $status is 0|1, $str is string, $matches is [string]
+        }
+    };
+    return $gen;
+}
+
+# matches any number
+sub number {
+    my $gen = sub {	
+        (my $str)=@_;
+        print "* number( '$str' )\n" if $V;
+        my $status=0;
+        if(                
+            $str=~/^([\-\+]?\d*(?:\.\d*)?(?:E[\-\+]?\d*(?:\.\d*)?)?)(\W|[^\.]|$)/i                 
+          ) {
+            my $m=$1;
+            my $check = $2;
+            my $matches=$m;
+            if ($check eq '') { # It means no wrong characters after the number, defined as \w or \. 
+                $status=1;
+                $str=~s/^$m\s*//;
+            } # otherwise it was not a number
+            print "number: remainder => <$str>\n" if $V;
+            print "number: matches => [$matches]\n" if $V;
+            return ($status,$str, $matches);
+        } else {
+            print "number: match failed => <$str>\n" if $V;
             return ($status,$str, undef); # assumes $status is 0|1, $str is string, $matches is [string]
         }
     };

@@ -85,6 +85,7 @@ sub read_fortran_src {
                 my @rawlines = <$SRC>;
                 close $SRC;
                 my @lines = @rawlines;
+                
                 push @lines, ("      \n");
                 my $free_form = $stref->{$sub_func_incl}{$s}{'FreeForm'};
                 my $srctype   = $sub_func_incl;
@@ -110,9 +111,8 @@ Suppose we don't:
 =cut
 
                     my $in_cont        = 0;
-                    my @comments_stack = ();
-
-                    my $norm_lines = normalise_F95_src( [@lines] );
+                    my @comments_stack = ();                    
+                    my $norm_lines = normalise_F95_src( [@lines]); 
 
                     for my $line ( @{$norm_lines} ) {
 
@@ -124,6 +124,7 @@ Suppose we don't:
 
                         }
                     }
+
 
       # --------------------- # END of free-form parsing # ---------------------
 
@@ -819,6 +820,10 @@ sub _pushAnnLine {
 
     #		print "HERE: $line\n";
     my $pline = _procLine( $line, $free_form );
+    
+    if (exists $stref->{'Macros'} ) {
+        $pline->[0] = restore_case_of_macros($stref,$pline->[0]);        
+    }
     if ( exists $pline->[1]{'Module'} and $srctype eq 'Modules' ) {
         if ( $f ne '' ) {
             if ( $stref->{$srctype}{$f}{'Status'} < $READ )
@@ -859,7 +864,7 @@ sub _pushAnnLine {
             $stref->{'Subroutines'}{$f}{'AnnLines'} = [];
         }
     }
-    push @{ $stref->{$srctype}{$f}{'AnnLines'} }, $pline;
+    push @{ $stref->{$srctype}{$f}{'AnnLines'} }, $pline;            
     return ( $stref, $f, $srctype );
 }    # END of  _pushAnnLine()
 
@@ -1058,7 +1063,8 @@ sub _procLine {
             my $lcline =
               ( substr( $line, 0, 2 ) eq '! ' )
               ? $line
-              : lc($line);
+              : lc($line);                            
+              
             $lcline =~ s/__ph(\d+)__/__PH$1__/g;
             $line = $lcline;
             $info->{'PlaceHolders'} = $phs_ref
@@ -1079,6 +1085,15 @@ sub _isCommentOrBlank {
         return 1;
     }
     return 0;
+}
+
+# -----------------------------------------------------------------------------
+sub restore_case_of_macros { (my $stref,my $line) = @_;
+    for my $macro (keys %{ $stref->{'Macros'} }) {
+        my $lc_macro=lc($macro);
+        $line=~s/\b$lc_macro\b/$macro/g;
+    }    
+    return $line;
 }
 
 # -----------------------------------------------------------------------------

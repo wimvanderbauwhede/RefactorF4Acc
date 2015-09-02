@@ -1141,7 +1141,7 @@ sub _get_commons_params_from_includes {
                     next
                       if $annline->[0] eq ''
                           or exists $annline->[1]{'Comments'};
-                    if ( $annline->[0] =~ /\W$var\W/ ) {
+                    if ( $annline->[0] =~ /\b$var\b/ ) {
                         my $info =
                           $is_not_par
                           ? "$inc has params but $var is not a param"
@@ -1845,6 +1845,7 @@ sub _split_multivar_decls { (my $f, my $stref) = @_;
                 for my $nvar (@nvars) {
                      if ($nvar ne $var) {
 #                    say "NVAR: $nvar";
+# FIXME: This should use \b not \W !!!
                     if ($rline=~/\s*,\s*$nvar\([^\(]+\)\W?/) {
                         $rline=~s/\s*,\s*$nvar\([^\(]+\)(\W?)/$1/;
                     } elsif ($rline=~/(\W)$nvar\([^\(]+\)\s*,\s*/) {
@@ -1928,6 +1929,7 @@ sub _split_multipar_decls_and_set_type { (my $f, my $stref) = @_;
                          my $nval = $Sf->{'Parameters'}{'Set'}{$nvar}{'Val'};
 #                    say "NPAR: $nvar = $nval";
 # TODO: WEAK we only support scalars parnam=parval
+# FIXME: This should use \b not \W !!!
                     if ($rline=~/\s*,\s*$nvar\s*=\s*$nval\W?/) {
                         $rline=~s/\s*,\s*$nvar\s*=\s*$nval(\W?)/$1/;
                     } elsif ($rline=~/(\W)$nvar\s*=\s*$nval\s*,\s*/) {
@@ -2089,6 +2091,7 @@ sub __parse_f95_decl {
                 if ( $line =~ /,\s*parameter\s*.*?::\s*(\w+\s*=\s*.+?)\s*$/ )
                 {    # F95-style parameters
                     $info->{'ParsedParDecl'} = $pt; #WV20150709 currently used by OpenCLTranslation, TODO: use ParamDecl
+#                    die $line.Dumper($pt);
                     my $parliststr = $1;
                     my $var        = $pt->{'Pars'}{'Var'};
                     my $val        = $pt->{'Pars'}{'Val'};

@@ -1,16 +1,20 @@
+THIS IS COMPLETELY UNFINISHED AND SHOULD BE OBSOLETE, use genOclWrapperTemplate.pl
 #!/usr/bin/perl
 use strict;
 use warnings; 
 use 5.010;
-use F95ArgDeclParser qw( parse_F95_arg_decl );
+use F95VarDeclParser qw( parse_F95_var_decl );
 use F95Normaliser qw( normalise_F95_src );
 
 use Data::Dumper;
 $Data::Dumper::Indent=1;#0;
 $Data::Dumper::Terse =1;
-our $VV= 0;
+our $VV= 1;
 
-our $src_templ= $ARGV[0] // 'main.f95';
+if (not @ARGV) {
+    die 'Please specify the source file';
+}
+our $src_templ= $ARGV[0] ;#// 'main.f95';
 our $src_gen = $src_templ;
 $src_gen=~s/\.f95/_ocl.f95/;
 #-------------------------------------------------------------------------------- 
@@ -56,14 +60,14 @@ sub parse_F95_src {
 		next if $line=~/^\s*$/;
 		next if ($line=~/^\s*[*!]/ || ($line=~/^C/i)) && $line !~/^\s*!\s*\$/; # We only support !$ACC, not c,C or *
 
-        $line=~/^\s+(subroutine|program)\s+(\w+)/ && do {
+        $line=~/^\s*(?:subroutine|program)\s+(\w+)/ && do {
             $in_sub=1;
             $current_sub=$1;
             $subs->{$current_sub}={};
             next;
         };    
 
-        $in_sub && $line=~/^\s+end\s+(subroutine|program)/ && do {
+        $in_sub && $line=~/^\s*end\s+(?:subroutine|program)/ && do {
             $in_sub=0;
             @{$subs->{$current_sub}{VarLines}}=@{$var_lines};
             @{$subs->{$current_sub}{ParLines}}=@{$par_lines};
@@ -130,17 +134,17 @@ sub parse_arg_decls {
 
     for my $str (@{$var_lines}) {
         say "\n>>> <$str>\n" if $vv;
-        my $pt = parse_F95_arg_decl($str);
-        print Dumper($pt),"\n" if $vv;
+        my $pt = parse_F95_var_decl($str);
+        print Dumper($pt),"\n" if $vv==1;
         my $type = $pt->{TypeTup}{Type};
         my $wordsz = $pt->{TypeTup}{Kind};
-        my $ndims = scalar @{ $pt->{Dim} };
-        if ($ndims==1 && $pt->{Dim}[0]!~/:/ && $pt->{Dim}[0] ==0) {
+        my $ndims = exists $pt->{'Attributes'} ? scalar @{ $pt->{'Attributes'}{'Dim'} } : 0 ;
+        if ($ndims==1 && $pt->{'Attributes'}{'Dim'}[0]!~/:/ && $pt->{'Attributes'}{'Dim'}[0] ==0) {
             $ndims=0;
         }
-        my @var_names=@{ $pt->{Args} };
+        my @var_names=@{ $pt->{Vars} };
         @arg_names=(@arg_names, @var_names);
-        my $argmode =  $ndims==0 ? 'Const' : $pt->{AccPragma}{AccVal};
+        my $argmode =  $ndims==0 ? 'Const' : $pt->{'AccPragma'}{'AccVal'};
         if ($argmode eq 'ReadWrite') {
 # check intent
             if (exists $pt->{Intent}) {
@@ -191,10 +195,11 @@ sub generate_ocl_wrapper { (my $subs)=@_;
 #-------------------------------------------------------------------------------- 
 
 # Find the sources, check the module name and find all subs in each source.
-sub find_modules { (my $subs)=@_;
+sub find_modules {
     my @all_sources=glob('*.f95'); # FIXME: WEAK! Assumes all sources are in a single folder. Need an approach similar to rf4a
         my $all_subs_modules={}; # for every sub, its module   
         for my $src ( @all_sources ) {
+            say "PROCESSING SRC $src";
             my $subs_in_module = get_subs_in_module($src); # for every sub, list the module name
                 for my $sub (keys %{$subs_in_module}) {
                     my $module=$subs_in_module->{$sub};
@@ -212,13 +217,15 @@ sub get_subs_in_module { (my $src)=@_;
     for my $line (<$SRC>) {
         $line=~/^\s*$/ && next;
         $line=~/^\s*!/ && next;
-        $line=~/^\s+module\s+(\w+)/ && do {
+        $line=~/^\s*module\s+(\w+)/ && do {            
             $current_module=$1;
+            say "SRC is a MODULE $current_module";
             next;
         };
-        $line=~/^\s+subroutine\s+(\w+)/ && do {
+        $line=~/^\s*subroutine\s+(\w+)/ && do {
             my $current_sub=$1;
             $subs_in_module->{$current_sub}=$current_module;
+            say " $current_sub in $current_module";
             next;
         };
     }
@@ -226,6 +233,12 @@ sub get_subs_in_module { (my $src)=@_;
     return $subs_in_module;
 } # END of get_subs_in_module()
 
+
+sub merge_args {
+    (my $current_sub_args,my $called_sub_arg_decls,my $arg_names,my $const_arg_names) = @_;
+    say Dumper(@_) if $VV;
+    return $called_sub_arg_decls;
+}
 ###############################
 =info
 Read the source and get the subroutine records:
@@ -247,7 +260,7 @@ These modules will need to be removed from the main sub, unless they contains su
 sub main {
     (my $src_lines,my $subs) = parse_F95_src($src_templ);
 # Find modules for called subs in wrapper and outside. Make list of modules that occur in wrapper, and others that occur in main 
-    my $all_subs_modules = find_modules($subs);
+    my $all_subs_modules = find_modules();
 
 # Analyse called sub arguments for every called sub in wrapper. For each of the variables, add the declaration to the wrapper. 
     for my $current_sub (keys %{$subs}) {
@@ -260,6 +273,7 @@ sub main {
         for my $ckname (keys %{$subs->{$current_sub}{KernelWrappers}}) {
             say "KERNEL WRAPPER:$ckname" if $VV;
             for my $called_sub ( keys %{ $subs->{$current_sub}{KernelWrappers}{$ckname}{SubCalls} } ){
+                say "CALLED SUB: $called_sub"; 
                 my $arg_str= $subs->{$current_sub}{KernelWrappers}{$ckname}{SubCalls}{$called_sub}{ArgStr};
                 my $called_sub_args = get_called_sub_args($arg_str );
                 $subs->{$current_sub}{KernelWrappers}{$ckname}{SubCalls}{$called_sub}{Args} = $called_sub_args;
@@ -271,15 +285,17 @@ sub main {
             }
         }
     }
+# TODO!!!    
 # At this point, we can create the wrapper. If the wrapper only contains sub calls, we create a single kernel, otherwise separate kernels.
 # So, the wrapper sub gets the union of all arguments of all called subs
 # It also gets a Kernel pragma, or a list of them
     my $ocl_wrapper_src_lines = generate_ocl_wrapper($subs);
     map {say $_} @{$ocl_wrapper_src_lines};
 # We then need to add the module file for the wrapper to the main module list
+# TODO!!!
 # At that point we can create the main program, with the revised module list and the call to the wrapper sub
-    my $ocl_main_src_lines = generate_ocl_main($src_lines, $subs);
-    map {say $_} @{$ocl_main_src_lines};
+#    my $ocl_main_src_lines = generate_ocl_main($src_lines, $subs);
+#    map {say $_} @{$ocl_main_src_lines};
 }
 
 
