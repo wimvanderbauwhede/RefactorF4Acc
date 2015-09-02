@@ -77,6 +77,7 @@ sub parse_fortran_src {
 
 ## 2. Parse the type declarations in the source, create a per-target table Vars and a per-line VarDecl list and other context-free stuff
 # NOTE: The Vars set are the *declared* variables, not the *used* ones
+
         print "ANALYSE LINES of $f\n" if $V;
         $stref = _analyse_lines( $f, $stref );
         print "DONE _analyse_lines( $f )\n" if $V;

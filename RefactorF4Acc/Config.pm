@@ -82,7 +82,7 @@ for my $line (<$CFG>) {
 	if ($v=~/,/) {
 		my @vs=split(/\s*,\s*/,$v);
 		$Config{$k}=[@vs];
-	} elsif ($k !~/TOP|NEWSRCPATH|PREFIX/) {
+	} elsif ($k !~/TOP|NEWSRCPATH|PREFIX|KERNEL|MODULE/) {
 		$Config{$k}=[$v];
 	} else {
 		$Config{$k}=$v;

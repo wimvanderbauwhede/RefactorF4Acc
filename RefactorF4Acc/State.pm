@@ -19,7 +19,11 @@ use Exporter;
 );
 
 sub init_state {
-    ( my $subname ) = @_;
+    ( my $vref ) = @_;
+    my $subname = $vref;
+    if (ref($vref) eq 'HASH') {
+        $subname =$vref->{'Top'};
+    } 
 
     # Nodes|Subroutines|Includes|NId|BuildSources|Indents
     my $stateref = {
@@ -39,5 +43,11 @@ sub init_state {
 #            }
         }
     };
+    
+    if (ref($vref) eq 'HASH') {
+        for my $k (keys %{$vref}) {
+            $stateref->{$k} = $vref->{$k};
+        }
+    }
     return $stateref;
 }

@@ -5,6 +5,7 @@ use warnings;
 use warnings FATAL => qw(uninitialized);
 use strict;
 use Data::Dumper;
+use Carp;
 $Data::Dumper::Indent = 0;
 $Data::Dumper::Terse = 1;
 
@@ -13,7 +14,7 @@ use RefactorF4Acc::Utils;
 use RefactorF4Acc::State qw( init_state );
 use RefactorF4Acc::Inventory qw( find_subroutines_functions_and_includes );
 use RefactorF4Acc::Parser qw( parse_fortran_src );
-use RefactorF4Acc::CallGraph qw( create_call_graph );
+use RefactorF4Acc::CallTree qw( create_call_tree );
 use RefactorF4Acc::Analysis qw( analyse_all );
 use RefactorF4Acc::Refactoring qw( refactor_all );
 use RefactorF4Acc::Emitter qw( emit_all );
@@ -23,7 +24,7 @@ use RefactorF4Acc::OpenCLTranslation qw( translate_to_OpenCL);
 use Getopt::Std;
 
 our $usage = "
-    $0 [-hwvicC] <subroutine name(s) for translation to OpenCL> <header file with macro definitions>
+    $0 [-hwvicC] <module name> <subroutine name(s) for translation to OpenCL> <header file with macro definitions>
     Typical use: $0 -c ./rf4a.cfg -v -i main   
     -h: help
     -w: show warnings 
@@ -38,15 +39,19 @@ our $usage = "
 # -----------------------------------------------------------------------------
 
 sub main {
-	(my $mod_name, my $kernel_name, my $build) = parse_args();
+	(my $mod_name, my $kernel_name, my $top_name, my $build) = parse_args();
 	#  Initialise the global state.
-	my $stateref = init_state($mod_name);
+	
+	my $inits = { 'Modules'=>{ $mod_name=>{} }, 'Top' => $top_name, 'Subroutines' =>  { $kernel_name =>{}} };
+	
+	my $stateref = init_state($top_name);
 	say "**** INVENTORY ****" if $V;    
 	# Find all subroutines in the source code tree
 	$stateref = find_subroutines_functions_and_includes($stateref);
+#	croak Dumper($stateref);
 #	     map {say $_ } keys %{ $stateref->{'Modules'}{$mod_name} };
-
-
+#
+#die;
     say "**** PARSING ****" if $V;
     # Parse the source
 	$stateref = parse_fortran_src( $mod_name, $stateref );
@@ -100,10 +105,10 @@ sub parse_args {
          $cfgrc= $opts{'c'} ;
     } 
 	read_config($cfgrc);
-	if (@ARGV<2) {die "Please specify the module and subroutine for the kernel, in that order\n"; }
+	if (@ARGV<2 and not exists $Config{'MODULE'} and not exists $Config{'KERNEL'}) {die "Please specify the module and subroutine for the kernel, in that order\n"; }
 	my $mod_name = $ARGV[0];
 	if ($mod_name) {
-		$mod_name =~ s/\.f(?:9[05])?$//;
+		$mod_name =~ s/\.f(?:9[05])?$//; # Strip the extension
 	} elsif (exists $Config{'MODULE'}) {
 		$mod_name = $Config{'MODULE'};
 	} else {
@@ -115,6 +120,15 @@ sub parse_args {
             $kernel_name = $Config{'KERNEL'};
         } else {
             die "No default for kernel subroutine (KERNEL) in rf4a.cfg, please specify the kernel on command line\n";
+        }
+    }
+    
+    my $top_name = $ARGV[2];
+    if (not $top_name) {
+        if (exists $Config{'TOP'}) {
+            $top_name = $Config{'TOP'};
+        } else {
+            die "No default for toplevel program (TOP) in rf4a.cfg, please specify the program on command line\n";
         }
     }
     
@@ -132,7 +146,7 @@ sub parse_args {
 
 	my $build = ( $opts{'B'} ) ? 1 : 0;
 
-	return ($mod_name,$kernel_name, $build);
+	return ($mod_name,$kernel_name, $top_name, $build);
 }
 
 =head1 SYNOPSIS

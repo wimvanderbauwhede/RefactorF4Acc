@@ -102,7 +102,7 @@ sub find_subroutines_functions_and_includes {
             
     	} 
 #    	else {
-#    	   print "F90 SOURCE: $src\n"; 
+    	   print "F95 SOURCE: $src\n"; 
 #    	}
     	
         $stref=_process_src($src,$stref);
@@ -132,6 +132,7 @@ sub _process_src {
     my $in_interface_block=0;
     my $is_module=0;
     my $mod_name='NONE'; 
+    my $sub_name='NONE'; 
     
     open my $SRC, '<', $src;
     while ( my $line = <$SRC> ) {
@@ -208,7 +209,7 @@ sub _process_src {
                 my $sub  = lc($2);
                 my $is_rec = ($tmp =~/recursive/i) ? 1 : 0;
                 if ( $is_prog == 1 ) {
-                    print "Found program $2 in $src\n" if $V;                    
+                    print "Found program $sub in $src\n" if $V;                    
                 }
                 if ($is_module) {
                     $stref->{'Modules'}{$mod_name}{'Subroutines'}{$sub}={};
@@ -258,6 +259,7 @@ sub _process_src {
                 } else {
                 	$stref->{$srctype}{$f}{'Interface'}{$sub}=1; #WV: TODO: add functionality here
                 }
+                $sub_name=$sub;
             };
             
             # Find include statements
@@ -283,11 +285,13 @@ sub _process_src {
             
             # Find use statements, for F90/F95. 
 #die $line if $f=~/common/ and $line=~/params_common_sn/;
-            $line =~/^\s*use\s+([_\w]+)(?:\s*,\s*only\s*:\s*(.+)\s*)?/ && do { #FIXME: no support for R1108 rename ; R1109 is incomplete; no support for R1110, R1111
+            $line =~/^\s*use\s+([_\w]+)(?:\s*,\s*only\s*:\s*(.+)\s*)?/ && do { #FIXME: no support for R1108 rename ; R1109 is incomplete; no support for R1110, R1111           
                 my $mod = lc($1); 
                 my $only_list = $2;
                 if ($is_module) {
                     $stref->{'Modules'}{$mod_name}{'Uses'}{$mod}={};
+                } else { # must be a bare sub or a program
+                    $stref->{'Subroutines'}{$sub_name}{'Uses'}{$mod}={};
                 }
                 if ( not exists $stref->{'Modules'}{$mod} ) {
                     $stref->{'Modules'}{$mod}{'Status'} = $UNREAD;                                        

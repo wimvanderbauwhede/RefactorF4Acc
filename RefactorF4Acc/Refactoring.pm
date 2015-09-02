@@ -57,7 +57,7 @@ sub refactor_all {
     
     print "DONE determine_argument_io_direction_rec()\n" if $V;
     # So at this point we know everything there is to know about the argument declarations, we can now update them
-die;
+#die;
 #    $stref = find_and_add_missing_var_decls($stref);
     say "remove_vars_masking_functions";    
     $stref = remove_vars_masking_functions($stref);

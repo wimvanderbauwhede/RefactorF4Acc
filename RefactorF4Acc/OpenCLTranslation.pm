@@ -29,7 +29,7 @@ sub translate_to_OpenCL {
     ( my $stref, my $mod_name, my $kernel_name, my $macro_src ) = @_;
     my $retval = _preprocess( $stref, $mod_name );
     ( $stref, my $prep_src_lines, my $can_be_consts ) = @{$retval};
-#    map {say $_} @{$prep_src_lines};die;
+    map {say $_} @{$prep_src_lines};die;
     my $f_src = $mod_name.'_ocl.f95';
     _run_cpp (  $f_src,  $prep_src_lines, $macro_src );
     #	map { say $_ } @{$refactored_annlines};
