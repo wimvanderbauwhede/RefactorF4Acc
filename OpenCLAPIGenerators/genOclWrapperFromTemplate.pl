@@ -369,7 +369,7 @@ The table has following structure
 =cut
 sub parse_arg_decls {
     (my $var_lines, my $kernel_args)=@_;
-#    local $vv=1;
+    local $vv=1;
     say '=' x 80 if $vv;
     my $all = defined $kernel_args? 0 : 1;
     my %ocl_args=();
@@ -595,15 +595,17 @@ sub get_kernel_args { (my $argstr)=@_;
 # Parse the kernel stub, and find for every argument its Intent, and update OclArgs
 sub get_intent_from_kernel_sub { (my $ksub_name, my $ocl_args) =@_;
     my $ksub_path = $kstub_path.'/'.$ksub_name.'.f95';
+#    die $ksub_path ;
     (my $src_lines,my $subs) = parse_F90_src($ksub_path);
 #die "SUBS: ".Dumper($subs);
     (my $subname, my $record) = each %{$subs}; # TODO: Assuming there is only 1 sub in the source file! WEAK!
         my $var_lines = $record->{VarLines};
     (my $kernel_args,my $arg_names)  = parse_arg_decls($var_lines);
+#    die Dumper($kernel_args);
     my $arg_pos=0;
     for my $arg_name (@{$arg_names}) {
         if (exists $ocl_args->{$arg_name}) {
-        $ocl_args->{$arg_name}{ArgMode} = $kernel_args->{$arg_name}{ArgMode};                
+            $ocl_args->{$arg_name}{ArgMode} = $kernel_args->{$arg_name}{ArgMode};                
         } else {
             say "WARNING: $ksub_name: declared kernel argument $arg_name does not match any in called argument names.\n";
             # Try to match by position
@@ -669,7 +671,7 @@ sub generate_OclWrapper_code { (my $src_lines, my $subs)=@_;
                 ];
             my $ocl_kernel_api_lines = [
                     '',
-                    'if ( init_ocl_local /= 1 ) then ',
+                    'if ( init_'.$current_sub.'_local /= 1 ) then ',
                     '  init_'.$current_sub.'_local = 1',
                     
                     'if ( init_'.$current_sub.' /= 1 ) then ',
@@ -707,9 +709,10 @@ sub generate_OclWrapper_code { (my $src_lines, my $subs)=@_;
                     ];
                 
                     (my $ocl_args,my $arg_names,my $const_arg_names)= @{$subs->{$current_sub}{Kernels}{$current_kernel}{OclArgs}};
-
+                    
                     my $gen_ocl_kernel_api_decl_lines = gen_OpenCL_API_calls ( $ocl_args,$arg_names,$const_arg_names, $ocl_kernel_api_decl_lines);
                     my $gen_ocl_kernel_api_lines = gen_OpenCL_API_calls ( $ocl_args,$arg_names,$const_arg_names, $ocl_kernel_api_lines);
+                   
 
                  for my $ocl_kernel_api_decl_line (@{$gen_ocl_kernel_api_decl_lines}) {
                      if (not exists $gen_ocl_api_decl_lines{$ocl_kernel_api_decl_line}) {
@@ -719,7 +722,7 @@ sub generate_OclWrapper_code { (my $src_lines, my $subs)=@_;
                      }                
                  }
                  for my $ocl_kernel_api_line (@{$gen_ocl_kernel_api_lines}) {
-                                         push  @{$gen_src_lines_without_ocl_decls}, $ws.$ocl_kernel_api_line ;
+                       push  @{$gen_src_lines_without_ocl_decls}, $ws.$ocl_kernel_api_line ;
                  }
             
             };
@@ -805,9 +808,10 @@ sub generate_OclWrapper_code { (my $src_lines, my $subs)=@_;
             }
 
 # local guard around OpenCL init etc, to makes sure it happens only once per call to a subroutine
-               my $init_local_decl = 'integer :: init_ocl_local';
-                my $init_local_assignment = 'init_ocl_local = 0';
-                push @{$gen_src_lines}, '    '.$init_local_decl;
+# init_'.$current_sub.'_local
+#               my $init_local_decl = 'integer :: init_ocl_local';
+                my $init_local_assignment = 'init_'.$current_sub.'_local = 0';
+#                push @{$gen_src_lines}, '    '.$init_local_decl;
                 push @{$gen_src_lines}, '    '.$init_local_assignment;
                 
         } else {

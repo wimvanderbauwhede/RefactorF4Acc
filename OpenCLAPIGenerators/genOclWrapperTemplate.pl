@@ -314,6 +314,7 @@ sub generate_acc_main {
 # For every block that is a subroutine, do stuff; for the other blocks, just produce the lines
 # We can test by name but that is of course weak
     my $skip=0;
+    my $default_name=0;
     # So first, add the extra modules
     my @blocks = @{ $src->{BlockList}};
     for my $block (@blocks) {
@@ -348,7 +349,30 @@ sub generate_acc_main {
                                 '    )',
                            );
                         $gen_src_lines= [@{$gen_src_lines},@wrapper_call_lines];
+                        $default_name=0;
                     $skip=1;
+                } elsif ( $line=~/^\s*\!\s*\$ACC\s+KernelWrapper\s*$/i ) {
+                    $default_name=1;
+                    $skip=1;
+                } elsif ($default_name==1 and $line=~/^\s*call\s+(\w+)/i ) {    
+                    my $subname=$1;
+                    my $wrapper_subname=$subname;
+                    $wrapper_subname.='_wrapper';
+                    $line=~s/$subname/$wrapper_subname/;
+                    $gen_src_lines= [@{$gen_src_lines},$line];
+                    $skip=0;
+# Create the subroutine call for this wrapper; make sure to skip all lines inside the pragam
+#                        my $sub_name = $subs->{$current_sub}{KernelWrappers}{$subname}{WrapperSubName};
+#                        my $sub_args= $subs->{$current_sub}{KernelWrappers}{$subname}{WrapperArgs};
+#                        my @wrapper_call_lines= (
+#                                "! Wrapper call",
+#                                "    call $sub_name ( &",
+#                                @{$sub_args},
+#                                '    )',
+#                           );
+#                        $gen_src_lines= [@{$gen_src_lines},@wrapper_call_lines];
+#                    $skip=1;
+                    
                 } elsif ( $line=~/^\s*\!\s*\$ACC\s+End\s+KernelWrapper/i ) {
                     $skip=0;
                 } elsif ($skip==0) {
