@@ -56,6 +56,7 @@ sub analyse_all {
         
 #    say Dumper($stref->{'Subroutines'}{'getfields'});
 #    die 'analyse_all() ' . __LINE__;
+
     # Now we can do proper globals handling
     # We need to walk the tree again, find the globals in rec descent.
 #    print "\t** RESOLVE GLOBALS **\n" if $V;
@@ -163,7 +164,7 @@ sub _analyse_variables {
                           if $W;
                     } else {               
                         if ($stref->{'IncludeFiles'}{$inc}{'InclType'} eq 'Common') {          
-                        print "FOUND $mvar in INC $inc in $line\n" if $V;
+                        print "FOUND COMMON $mvar in INC $inc in $line\n" if $V;
                         my $decl =  $stref->{'IncludeFiles'}{$inc}{'Vars'}{$mvar}{'Decl'};
                        if (exists $stref->{'IncludeFiles'}{$inc}{'Commons'}{$mvar} ) {
                             push @{ $stref->{'Subroutines'}{$f}{'Globals'}{$inc}{'List'} }, $mvar;

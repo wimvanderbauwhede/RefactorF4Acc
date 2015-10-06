@@ -105,6 +105,7 @@ sub _refactor_include_file {
 		} 
 		if ( exists $info->{'ParamDecl'} ) {
 #			print Dumper(%{$info});
+            if (exists $info->{'ParamDecl'}{'Name'}) {
 			my $var_val = $info->{'ParamDecl'}{'Name'};
 			(my $var,my $val)=@{$var_val};
 #				print "PAR: $var ($line)\n";
@@ -117,6 +118,24 @@ sub _refactor_include_file {
                     $info->{'ParamDecl'}=[$gvar];    
                     print "WARNING: WEAK! renamed $var to $gvar ($line) refactor_include_file() 121\n" if $W;                 
                 }			
+            } elsif (exists $info->{'ParamDecl'}{'Names'}) { #die $line.Dumper($info);
+                for my $var_val (@{ $info->{'ParamDecl'}{'Names'} }) {
+			(my $var,my $val)=@{$var_val};
+#				print "PAR: $var ($line)\n";
+                if ( exists $stref->{'IncludeFiles'}{$inc_f}{'ConflictingGlobals'} {$var} )
+                {
+                    die 'BOOM!';
+                	my $gvar=$stref->{'IncludeFiles'}{$inc_f}{'ConflictingGlobals'}{$var}[0];
+                	$line=~s/\b$var\b/$gvar/;
+                	$info->{'Ref'}++;
+                    $info->{'ParamDecl'}=[$gvar];    
+                    print "WARNING: WEAK! renamed $var to $gvar ($line) refactor_include_file() 121\n" if $W;                 
+                }			
+                }
+ 
+            }
+
+
 		}
 		if ( exists $info->{'Implicit'} ) {
 		    print "WARNING: IMPLICIT: removing the implicit type declaration <$line> in $inc_f, please make sure your code does not use them!\n" if $W;		    

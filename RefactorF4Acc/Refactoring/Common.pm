@@ -265,14 +265,25 @@ sub context_free_refactorings {
                 # WV 20130709: why should I remove this?
 #                croak Dumper($info) . __LINE__;                
 #            my @par_lines = ();
-                my $par_decl= $info->{'ParamDecl'};
+                my $par_decls= [ $info->{'ParamDecl'} ];
+                
                  my $info_ref = $info->{'Ref'} // 0;
                 if ($info->{'ParamDecl'}{'Status'} == 0 ) {
+                    if (exists $info->{'ParamDecl'}{'Name'} ) {
+
                            
                              my $var_val = $info->{'ParamDecl'}{'Name'};
                                 ( my $var, my $val ) = @{$var_val};                
-                                $par_decl = format_f95_par_decl( $stref, $f, $var );
+                                $par_decls = [ format_f95_par_decl( $stref, $f, $var ) ];
+                    } elsif (exists $info->{'ParamDecl'}{'Names'} ) {
+                        $par_decls = [];
+                        for my $var_val (@{  $info->{'ParamDecl'}{'Names'} }) {
+                                ( my $var, my $val ) = @{$var_val};                
+                                push @{$par_decls}, format_f95_par_decl( $stref, $f, $var );
+                        }
+                    }
                 } 
+                for my $par_decl (@{ $par_decls }) {
                 my $new_line =
                   emit_f95_var_decl($par_decl) . ' ! context-free ParamDecl';
                 # Here the declaration is complete
@@ -289,6 +300,7 @@ sub context_free_refactorings {
                   ; # Create parameter declarations before variable declarations            
             $line = '!! Original line context-free ParamDecl !! ' . $line;
             $info->{'Deleted'} = 1;
+                }
         }
 
 # ------------------------------------------------------------------------------

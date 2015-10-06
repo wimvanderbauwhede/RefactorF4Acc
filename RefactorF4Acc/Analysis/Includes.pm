@@ -107,8 +107,7 @@ sub _find_root_for_include {
             delete $Ssub->{'CommonIncludes'}{$inc};
             _find_root_for_include( $stref, $inc, $singlechild );
                     
-        } else {
-            
+        } else {            
             # head node is root
             #           print "Found $nchildren children with $inc\n";
             $stref->{'IncludeFiles'}{$inc}{'Root'} = $sub;

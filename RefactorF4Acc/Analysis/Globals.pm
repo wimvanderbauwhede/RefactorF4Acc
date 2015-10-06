@@ -146,7 +146,7 @@ sub _resolve_conflicts_with_params {
 sub _identify_globals_used_in_subroutine {
     ( my $f, my $stref ) = @_;
 
-       #local $V=1;# if $f eq 'particles_main_loop';
+       local $V=1;# if $f eq 'particles_main_loop';
     my $Sf = $stref->{'Subroutines'}{$f};
 
 #    # First determine subroutine arguments. => 20150812: we do this in the Parser
@@ -179,7 +179,7 @@ sub _identify_globals_used_in_subroutine {
 
     my $srcref = $Sf->{'AnnLines'};
     print "\tGLOBALS ANALYSIS in $f\n" if $V; 
-    if ( defined $srcref and not exists $Sf->{'Globals'}) { #  
+    if ( defined $srcref and (not exists $Sf->{'Globals'} or scalar keys %{$Sf->{'Globals'}} == 0) ) { #  
     
         for my $cinc ( keys %{ $Sf->{'CommonIncludes'} } ) {
             print "\n\tGLOBAL VAR ANALYSIS for $cinc in $f\n" if $V;
@@ -222,7 +222,10 @@ sub _identify_globals_used_in_subroutine {
             $Sf->{'HasCommons'} = 1;
         }
         
-    }
+    } 
+#    else {
+#        die "GLOBALS FOR $f:".Dumper($Sf->{'Globals'}); 
+#    }
 #    die if $f eq 'main';
 #    die Dumper($Sf->{'Globals'}) if $f eq 'main';
     return $stref;
@@ -396,8 +399,12 @@ sub lift_globals {
             my $Scsub = $stref->{'Subroutines'}{$csub};
             # If $csub has globals, merge them with globals for $f
             if (exists $Scsub->{'ExGlobArgDecls'} ) {
-                $Sf->{'ExGlobArgDecls'}{'List'} = ordered_union( $Sf->{'ExGlobArgDecls'}{'List'},$Scsub->{'ExGlobArgDecls'}{'List'} );
-                if ( exists $Sf->{'ExGlobArgDecls'}{'Set'} ) {            	                   	   
+                if (exists $Sf->{'ExGlobArgDecls'} ) {
+                    $Sf->{'ExGlobArgDecls'}{'List'} = ordered_union( $Sf->{'ExGlobArgDecls'}{'List'},$Scsub->{'ExGlobArgDecls'}{'List'} );
+                } else {
+                    $Sf->{'ExGlobArgDecls'}{'List'} = $Scsub->{'ExGlobArgDecls'}{'List'} ;
+                } 
+                if ( exists $Sf->{'ExGlobArgDecls'}{'Set'} ) {      
             	   $Sf->{'ExGlobArgDecls'}{'Set'} = { %{ $Sf->{'ExGlobArgDecls'}{'Set'} }, %{ $Scsub->{'ExGlobArgDecls'}{'Set'} } };
                 } else {
                     $Sf->{'ExGlobArgDecls'}{'Set'} = {  %{ $Scsub->{'ExGlobArgDecls'}{'Set'} } };
@@ -408,6 +415,7 @@ sub lift_globals {
     } else {
         # Leaf node, find globals
         say "SUB $f is LEAF" if $V;
+        $stref = _identify_globals_used_in_subroutine( $f, $stref );
     }    
     
     # We only come here when the recursion and merge is done.   
