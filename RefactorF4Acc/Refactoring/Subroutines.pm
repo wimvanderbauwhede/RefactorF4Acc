@@ -382,15 +382,18 @@ sub _refactor_globals_new {
     for my $annline ( @{$annlines} ) {
         (my $line, my $info) = @{ $annline };
         
-        print '*** ' . join( ', ', map {"$_ => ".Dumper($info=>{$_})} keys(%{$info}) ) . "\n" if $V;
+        print '*** ' . join( ', ', map {"$_ => ".Dumper($info->{$_})} keys(%{$info}) ) . "\n" if $V;
         print '*** ' . $line . "\n" if $V;
         my $skip = 0;
 
         if ( exists $info->{'Signature'} ) {
             if (not exists $Sf->{'HasRefactoredArgs'} ) {
-                die 'SHOULD NEVER HAPPEN! ' .'_refactor_globals_new() '. __LINE__ ;
+                # This probably means the subroutine has no arguments at all.
                  # Do this before the analysis for RefactoredArgs!
+                 #die 'SHOULD NEVER HAPPEN! ' .'_refactor_globals_new() '. __LINE__ . Dumper($Sf);
                  $stref = refactor_subroutine_signature( $stref, $f );
+                warn '_refactor_globals_new() '. __LINE__ . " $f does not have HasRefactoredArgs\n";
+                say 'WARNING: _refactor_globals_new() '. __LINE__ . " $f does not have HasRefactoredArgs";
             }
             $rlines =
               create_refactored_subroutine_signature( $stref, $f, $annline, $rlines );

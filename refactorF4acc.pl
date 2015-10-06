@@ -153,9 +153,9 @@ sub main {
    say 'AFTER analyse_all()';
 # Do here, the extracted sub is still fine ...
 #	die Dumper(sort keys %{$stref});
-die Dumper($stref);
+#die Dumper($stref->{IncludeFiles});
 #WV20150710 I worked my way through the code to here and indeed, implicitly declared non-global vars still need to be captured
-die 'WV20151005:  I worked my way through the code to here and globals are not resolved!';
+#die 'WV20151005:  I worked my way through the code to here and globals are not resolved!';
 
     # Refactor the source
 	$stref = refactor_all($stref,$subname);

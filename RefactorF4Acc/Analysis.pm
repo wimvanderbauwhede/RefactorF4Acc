@@ -130,7 +130,7 @@ sub _analyse_variables {
     my $Sf     = $stref->{'Subroutines'}{$f};
            $Sf->{'Globals'}={};
 #        $Sf->{'ExGlobArgDecls'}={ 'List'=>[],'Set'=>{} };
-    
+    say "_analyse_variables($f)" if $V; 
     my $__analyse_vars_on_line = sub {
             (my $annline, my $state) =@_;
             (my $line, my $info) = @{$annline};
@@ -154,8 +154,10 @@ sub _analyse_variables {
             if ( not exists $identified_vars->{$mvar} and not exists $Sf->{'Args'}{'Set'}{$mvar}  and not exists $Sf->{'DeclaredVars'}{'Set'}{$mvar} ) {
                 my $in_incl = 0;
                 for my $inc ( keys %{ $Sf->{'Includes'} } ) {
- 
-                    if (exists $stref->{'IncludeFiles'}{$inc}{'Vars'}{$mvar}) {
+                say "LOOKING FOR $mvar from $f in $inc" if $V;
+
+                # A variable can be declared in an include file or not and can be listed as common or not
+                    if (exists $stref->{'IncludeFiles'}{$inc}{'Vars'}{$mvar} or exists $stref->{'IncludeFiles'}{$inc}{'Commons'}{$mvar} ) {
                         $in_incl=1;
                     if ( $stref->{'IncludeFiles'}{$inc}{'InclType'} eq 'Parameter'
                         )
@@ -165,7 +167,7 @@ sub _analyse_variables {
                     } else {               
                         if ($stref->{'IncludeFiles'}{$inc}{'InclType'} eq 'Common') {          
                         print "FOUND COMMON $mvar in INC $inc in $line\n" if $V;
-                        my $decl =  $stref->{'IncludeFiles'}{$inc}{'Vars'}{$mvar}{'Decl'};
+                        my $decl = (exists $stref->{'IncludeFiles'}{$inc}{'Vars'}{$mvar}) ?  $stref->{'IncludeFiles'}{$inc}{'Vars'}{$mvar}{'Decl'} :  $stref->{'IncludeFiles'}{$inc}{'Commons'}{$mvar}{'Decl'};
                        if (exists $stref->{'IncludeFiles'}{$inc}{'Commons'}{$mvar} ) {
                             push @{ $stref->{'Subroutines'}{$f}{'Globals'}{$inc}{'List'} }, $mvar;
                             $stref->{'Subroutines'}{$f}{'Globals'}{$inc}{'Set'}{$mvar} =  $decl;
@@ -211,6 +213,8 @@ sub _analyse_variables {
     if (defined  $stref->{'Subroutines'}{$f}{'ExGlobArgDecls'} and scalar @{ $stref->{'Subroutines'}{$f}{'ExGlobArgDecls'}{'List'} } > 0 ) {
         $Sf->{'HasCommons'} = 1;
     }
+
+    croak Dumper($Sf) if $f eq 'press';
     return $stref;
 }    # END of _analyse_variables()
 
