@@ -83,9 +83,9 @@ sub _find_argument_declarations { (my  $stref, my  $f) = @_;
    my $Sf                 = $stref->{$sub_or_func_or_mod}{$f};   
    $Sf->{'ExInclArgDecls'}={ 'List'=>[],'Set'=>{} };
    $Sf->{'ExImplicitArgDecls'}={ 'List'=>[],'Set'=>{} };
-       for my $arg (@{ $Sf->{'Args'}{'List'} }  ) {
-           if (not exists $Sf->{'DeclaredArgs'}{'Set'}{$arg}) {
-               say "MISSING ARG DECLS for '$f'" if $V and $once;$once=0;
+       for my $arg (@{ $Sf->{'OrigArgs'}{'List'} }  ) {
+           if (not exists $Sf->{'DeclaredOrigArgs'}{'Set'}{$arg}) {
+               say "MISSING ORIG ARG DECLS for '$f'" if $V and $once;$once=0;
                say "ARG: $arg" if $V;
                my $in_incl=0;
                for my $inc ( keys %{ $Sf->{'Includes'} } ) {
@@ -117,7 +117,7 @@ sub _find_argument_declarations { (my  $stref, my  $f) = @_;
 
 
 # -----------------------------------------------------------------------------
-#2.4 Find variables and test:
+#2.4 Find all variables in a subroutine and categorise them:
 #- IF NOT IN Args:
 #	- IF NOT DeclaredVars 
 #		IF IN Commons for any Incl => ExGlobArgDecls, Globals
@@ -151,7 +151,7 @@ sub _analyse_variables {
 #            die '<'.$mvar.'>;'.$line if $mvar =~/if/;
 #            say $line."\t".Dumper($info);
 #            say "MAYBE VAR: $mvar";
-            if ( not exists $identified_vars->{$mvar} and not exists $Sf->{'Args'}{'Set'}{$mvar}  and not exists $Sf->{'DeclaredVars'}{'Set'}{$mvar} ) {
+            if ( not exists $identified_vars->{$mvar} and not exists $Sf->{'OrigArgs'}{'Set'}{$mvar}  and not exists $Sf->{'DeclaredOrigLocalVars'}{'Set'}{$mvar} ) {
                 my $in_incl = 0;
                 for my $inc ( keys %{ $Sf->{'Includes'} } ) {
                 say "LOOKING FOR $mvar from $f in $inc" if $V;
@@ -214,7 +214,7 @@ sub _analyse_variables {
         $Sf->{'HasCommons'} = 1;
     }
 
-    croak Dumper($Sf) if $f eq 'press';
+#    croak Dumper($Sf) if $f eq 'press';
     return $stref;
 }    # END of _analyse_variables()
 
@@ -267,7 +267,7 @@ sub _create_refactored_args {
        (my $stref, my $f ) = @_;
     my $Sf = $stref->{'Subroutines'}{$f};
     if (exists $Sf->{'ExGlobArgDecls'} and exists $Sf->{'ExGlobArgDecls'}{'List'}) {
-        $Sf->{'RefactoredArgs'}{'List'} = ordered_union( $Sf->{'Args'}{'List'}, $Sf->{'ExGlobArgDecls'}{'List'} );
+        $Sf->{'RefactoredArgs'}{'List'} = ordered_union( $Sf->{'OrigArgs'}{'List'}, $Sf->{'ExGlobArgDecls'}{'List'} );
         $Sf->{'HasRefactoredArgs'} = 1;
     } 
     return $stref;

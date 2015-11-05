@@ -146,7 +146,7 @@ sub _resolve_conflicts_with_params {
 sub _identify_globals_used_in_subroutine {
     ( my $f, my $stref ) = @_;
 
-       local $V=1;# if $f eq 'particles_main_loop';
+#       local $V=1;# if $f eq 'particles_main_loop';
     my $Sf = $stref->{'Subroutines'}{$f};
 
 #    # First determine subroutine arguments. => 20150812: we do this in the Parser
@@ -265,8 +265,8 @@ sub __determine_subroutine_arguments_OFF {
                 $info->{'Signature'}{'Args'}{'List'} = [@args];
                 $info->{'Signature'}{'Args'}{'Set'} = { map {$_=>1} @args};
                 $info->{'Signature'}{'Name'} = $name;
-                $Sf->{'Args'}{'List'} = [@args];
-                $Sf->{'Args'}{'Set'} = {map {$_=>1} @args};
+                $Sf->{'OrigArgs'}{'List'} = [@args];
+                $Sf->{'OrigArgs'}{'Set'} = {map {$_=>1} @args};
                 last;
             } elsif ( $line =~ /^\s+subroutine\s+(\w+)[^\(]*$/ 
             or $line =~ /^\s+recursive\s+subroutine\s+(\w+)[^\(]*$/ 
@@ -292,8 +292,8 @@ sub __determine_subroutine_arguments_OFF {
                     }
                 }
                 $info->{'Signature'}{'Name'} = $name;
-                $Sf->{'Args'}{'List'} = [];
-                $Sf->{'Args'}{'Set'} = {};
+                $Sf->{'OrigArgs'}{'List'} = [];
+                $Sf->{'OrigArgs'}{'Set'} = {};
                 last;
             } elsif ( $line =~ /^\s+program\s+(\w+)\s*$/ ) {;
                 # If it's a program, there are no arguments
@@ -303,8 +303,8 @@ sub __determine_subroutine_arguments_OFF {
                 $info->{'Signature'}{'Name'} = $name;
 #                $info->{'ExGlobArgDecls'} =  ++$Sf->{ExGlobVarDeclHook};#{}; # FIXME: This is not good: if an include exists, it should be after the include!!! What we need is to track where it should go: after Sig, after last Incl or before first VarDecl
 #                print "__determine_subroutine_arguments($f)\t",$line,"\tEX:",$info->{'ExGlobArgDecls'},'<>',$Sf->{ExGlobVarDeclHook},"\n";
-                $Sf->{'Args'}{'List'} = [];
-                $Sf->{'Args'}{'Set'} = {};
+                $Sf->{'OrigArgs'}{'List'} = [];
+                $Sf->{'OrigArgs'}{'Set'} = {};
                 last;
             }
             $srcref->[$index]=[ $line, $info];
@@ -394,10 +394,10 @@ sub lift_globals {
         and scalar keys %{ $Sf->{'CalledSubs'} } )
     {
         my @csubs = keys %{ $Sf->{'CalledSubs'} };
-        for my $csub (@csubs) {
+        for my $csub (@csubs) {            
             $stref = lift_globals($stref, $csub );
             my $Scsub = $stref->{'Subroutines'}{$csub};
-            # If $csub has globals, merge them with globals for $f
+            # If $csub has globals, merge them with globals for $f, otherwise inherit them
             if (exists $Scsub->{'ExGlobArgDecls'} ) {
                 if (exists $Sf->{'ExGlobArgDecls'} ) {
                     $Sf->{'ExGlobArgDecls'}{'List'} = ordered_union( $Sf->{'ExGlobArgDecls'}{'List'},$Scsub->{'ExGlobArgDecls'}{'List'} );

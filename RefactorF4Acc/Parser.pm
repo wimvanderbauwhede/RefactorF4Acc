@@ -6,7 +6,7 @@ use RefactorF4Acc::CallTree qw( add_to_call_tree );
 use RefactorF4Acc::Refactoring::Common
   qw( format_f95_var_decl emit_f95_var_decl );
 use RefactorF4Acc::Parser::SrcReader qw( read_fortran_src );
-use RefactorF4Acc::CTranslation qw( add_to_C_build_sources );
+use RefactorF4Acc::CTranslation qw( add_to_C_build_sources ); # OBSOLETE
 use RefactorF4Acc::Analysis::ArgumentIODirs qw( parse_assignment );
 use RefactorF4Acc::Analysis::LoopDetect qw( outer_loop_start_detect );
 
@@ -59,13 +59,12 @@ sub parse_fortran_src {
     if ( $sub_or_incl_or_mod ne 'ExternalSubroutines' and 
     not $is_external_include
     ) {
-        my $Sf = $stref->{$sub_or_incl_or_mod}{$f};       
-        if (not exists $Sf->{'DeclaredArgs'} ) {
-            $Sf->{'DeclaredArgs'}={ 'Set' => {}, 'List' => [] };
-        } 
-        if (not exists $Sf->{'DeclaredVars'} ) {
-            $Sf->{'DeclaredVars'}={ 'Set' => {}, 'List' => [] };
-        }         
+        my $Sf = $stref->{$sub_or_incl_or_mod}{$f};    
+# OK, time to declare all the variable sets and declaration sets        
+        $Sf = _initialise_decl_var_tables($Sf, $is_incl);
+     
+        
+             
 # Set 'RefactorGlobals' to 0, we only refactor the globals for subs that are kernel targets and their dependencies
         if ( not exists $Sf->{'RefactorGlobals'} ) {
             $Sf->{'RefactorGlobals'} = 0;
@@ -180,7 +179,148 @@ sub refactor_marked_blocks_into_subroutines {
 # -----------------------------------------------------------------------------
 
 
+sub _initialise_decl_var_tables { (my $Sf, my $is_incl) = @_;
+    # WV20151021 what we need here is a check that this function has not been called before for this $Sf
+    if (not exists $Sf->{'DoneInitTables'} ) {
+        # WV20151021 maybe need to do that for all subsets of Vars too?
+        # WV20151021 the question is if this needs to be hierarchical?
+        # Also, I think I wil use 'Subsets'
+        $Sf->{'DeclaredOrigLocalVars'}={ 'Set' => {}, 'List' => [] };
+        $Sf->{'UndeclaredOrigLocalVars'}={ 'Set' => {}, 'List' => [] } ;
+        if (not $is_incl) { 
+        $Sf->{'ExGlobArgs'} = {'Set' => {}, 'List' => []} ;
+        $Sf->{'Globals'} = $Sf->{'ExGlobArgs'};
+        $Sf->{'ExInclArgs'} = {'Set' => {}, 'List' => []} ;
+        $Sf->{'DeclaredOrigArgs'}={ 'Set' => {}, 'List' => [] };
+        $Sf->{'UndeclaredOrigArgs'}={ 'Set' => {}, 'List' => [] } ;
+        
+        
+        $Sf->{'ExInclLocalVars'}={ 'Set' => {}, 'List' => [] } ;                
+        $Sf->{'OrigLocalVars'} = {'Subsets' => 
+            { 'DeclaredOrigLocalVars' =>$Sf->{'DeclaredOrigLocalVars'},
+              'UndeclaredOrigLocalVars' => $Sf->{'UndeclaredOrigLocalVars'}        
+            }
+        } ;
+        $Sf->{'LocalVars'} = {
+            'Subsets' => {'OrigLocalVars' =>$Sf->{'OrigLocalVars'},
+                'ExInclLocalVars' => $Sf->{'ExInclLocalVars'}
+            }
+        } ;
+        $Sf->{'Args'} = {
+            'Subsets' => {
+                'OrigArgs' => $Sf->{'OrigArgs'},
+                'ExGlobArgs' => $Sf->{'ExGlobArgs'} ,
+                'ExInclArgs'  => $Sf->{'ExInclArgs'} 
+            }
+        } ;
+        $Sf->{'OrigArgs'} = {
+            'Subset' => {
+                'UndeclaredOrigArgs' => $Sf->{'UndeclaredOrigArgs'},
+                'DeclaredOrigArgs' => $Sf->{'DeclaredOrigArgs'}
+            }
+        } ;
+        $Sf->{'Vars'} = {
+            'Subsets' => {
+                'Args' => $Sf->{'Args'},
+                'LocalVars' => $Sf->{'LocalVars'}
+            }
+        } ;   
+        } else {
+            # Includes only have LocalVars and Commons  
+            $Sf->{'DeclaredCommonVars'} = {'Set' => {}, 'List' => []} ;
+            $Sf->{'UndeclaredCommonVars'} = {'Set' => {}, 'List' => []} ;
+            $Sf->{'CommonVars'} = {'Subsets' => {
+                'DeclaredCommonVars' =>$Sf->{'DeclaredCommonVars'},
+                'UndeclaredCommonVars' =>$Sf->{'UndeclaredCommonVars'},
+                }
+            };
+            $Sf->{'Commons'} = {};
+            $Sf->{'OrigLocalVars'} = {'Subsets' => 
+                { 'DeclaredOrigLocalVars' =>$Sf->{'DeclaredOrigLocalVars'},
+                'UndeclaredOrigLocalVars' => $Sf->{'UndeclaredOrigLocalVars'}        
+                }
+            };
+            $Sf->{'LocalVars'} = {
+                'Subsets' => {'OrigLocalVars' =>$Sf->{'OrigLocalVars'}                
+                }
+            };
+            
+            $Sf->{'Vars'} = {
+                'Subsets' => {
+                'LocalVars' => $Sf->{'LocalVars'},
+                'CommonVars' => $Sf->{'CommonVars'}
+                }
+            };             
+        } 
+# While I'm at it, I might as well declare all declarations as well
+if (not $is_incl) {
+    $Sf->{'ExGlobArgDecls'} = $Sf->{'ExGlobArgs'};
+    $Sf->{'ExInclArgDecls'} = $Sf->{'ExInclArgs'};
+    $Sf->{'ExImplicitArgDecls'} = $Sf->{'UndeclaredOrigArgs'};
+    $Sf->{'OrigArgDecls'} = $Sf->{'DeclaredOrigArgs'};
+    # ExtraArgDecls
+    $Sf->{'ExtraArgDecls'} = {
+        'Subsets' => {
+            'ExGlobArgDecls' =>    $Sf->{'ExGlobArgDecls'} ,
+    'ExInclArgDecls' => $Sf->{'ExInclArgDecls'} ,
+    'ExImplicitArgDecls' => $Sf->{'ExImplicitArgDecls'}
+            
+        }
+    };
+    # ArgDecls
+    $Sf->{'ArgDecls'} = {
+        'Subsets' => {
+            'ExtraArgDecls' => $Sf->{'ExtraArgDecls'},
+            'OrigArgDecls' => $Sf->{'OrigArgDecls'}
+        }
+    };
+    
+    $Sf->{'ExtraVarDecls'} = {
+        'Subsets' => {
+            'ExImplicitVarDecls' =>$Sf->{'UndeclaredOrigLocalVars'},
+            'ExInclVarDecls' => $Sf->{'ExInclLocalVars'}
+        }
+    };
+    # LocalVarDecls
+    $Sf->{'LocalVarDecls'} = {
+        'Subsets' => {
+            'OrigVarDecls' => $Sf->{'DeclaredOrigLocalVars'},
+            'ExtraVarDecls' => $Sf->{'ExtraVarDecls'}
+        }
+    };
+    # Decls
+     $Sf->{'Decls'} = {
+        'Subsets' => {
+            'ArgDecls' => $Sf->{'ArgDecls'},
+            'LocalVarDecls' => $Sf->{'LocalVarDecls'}
+        }
+     };
+} else {
+        $Sf->{'ExtraVarDecls'} = {
+        'Subsets' => {
+            'ExImplicitVarDecls' =>$Sf->{'UndeclaredOrigLocalVars'},
+            'ExInclVarDecls' => $Sf->{'ExInclLocalVars'}
+        }
+    };
+    # LocalVarDecls
+    $Sf->{'LocalVarDecls'} = {
+        'Subsets' => {
+            'OrigVarDecls' => $Sf->{'DeclaredOrigLocalVars'},
+            'ExtraVarDecls' => $Sf->{'ExtraVarDecls'}
+        }
+    };
+    # Decls
+     $Sf->{'Decls'} = {
+        'Subsets' => {            
+            'LocalVarDecls' => $Sf->{'LocalVarDecls'}
+        }
+     };
 
+}
+    $Sf->{'DoneInitTables'} = 1;
+    }  ;
+    return $Sf;
+}
 
 
 # _analyse_lines() parses every line and determines its purpose, the info is added to $info. Furthermore, 
@@ -204,7 +344,7 @@ sub _analyse_lines {
     if ( defined $srcref ) {
         print "\nVAR DECLS in $f:\n" if $V;
         my %vars       = ();
-        $Sf->{'Vars'} = {} unless exists $Sf->{'Vars'};
+               
         my $first      = 1;
         my $is_f77_vardecl = 0;
         my $type       = 'NONE';
@@ -297,7 +437,7 @@ sub _analyse_lines {
 #WV20150303: We parse this assignment and return {Lhs => {Varname, ArrayOrScalar, IndexExpr}, Rhs => {Expr, VarList}}
                 my $vref = parse_assignment($line);
                 $info->{'Assignment'} = {
-                    'Lhs' => $vref->[0],
+                    'Lhs' => $vref->[0], 
                     'Rhs' => {
                         'VarList' => $vref->[1],
                         'Expr'    => $vref->[2],
@@ -595,7 +735,7 @@ sub _separate_blocks {
     $Data::Dumper::Indent = 2;
 
     # All local variables in the parent subroutine
-    my $varsref = $Sf->{'Vars'};
+    my $varsref = get_vars_from_set($Sf->{'Vars'});
     
 
     # Occurence
@@ -947,7 +1087,7 @@ sub _get_commons_params_from_includes {
         $Sincf->{'Parameters'}{'Set'} = {}
           unless exists $Sincf->{'Parameters'}{'Set'};
 
-        my %vars = %{ $stref->{'IncludeFiles'}{$inc}{'Vars'} };
+#        my %vars = %{ $stref->{'IncludeFiles'}{$inc}{'Vars'} };
 
         if ( exists $Sincf->{'Vars'}{''} ) { croak "EMPTY VAR! in $inc" }
         my $has_pars    = 0;
@@ -969,7 +1109,7 @@ sub _get_commons_params_from_includes {
                 $has_commons = 1;
                 (my $parsedvars, my $parsedvars_lst) = f77_var_decl_parser( $commonlst, 0 );
                 for my $var ( @{$parsedvars_lst} ) {                    
-                    if ( not defined $Sincf->{'Vars'}{$var} ) {
+                    if ( not in_set($Sincf->{'Vars'},$var) ) { # This means that it is an undeclared common
                         if (
                             exists $stref->{'Implicits'}{$inc}
                             { lc( substr( $var, 0, 1 ) ) } )
@@ -999,22 +1139,47 @@ sub _get_commons_params_from_includes {
                                 'Indent' => $indent, 
                                 'ArrayOrScalar'   => $parsedvars->{$var}{'ArrayOrScalar'}
                             };
-                            $Sincf->{'Commons'}{$var} = $var_rec;
-                            $Sincf->{'Vars'}{$var} = $var_rec;
+                            $Sincf->{'Commons'}{$var} = $var;#_rec;
+#                            $Sincf->{'Vars'}{$var} = $var_rec;
+                            if (exists $Sincf->{'DeclaredOrigLocalVars'}{'Set'}{$var} ) { die "SHOULD BE IMPOSSIBLE!";
+                                $Sincf->{'DeclaredCommonVars'}{'Set'}{$var} = $var_rec;
+                                delete $Sincf->{'DeclaredOrigLocalVars'}{'Set'}{$var};
+                                @{ $Sincf->{'DeclaredOrigLocalVars'}{'List'} } = grep {$_ ne $var} @{ $Sincf->{'DeclaredOrigLocalVars'}{'List'} };
+                                 push @{ $Sincf->{'DeclaredCommonVars'}{'List'}} ,$var;
+                            } else {
+                                $Sincf->{'UndeclaredCommonVars'}{'Set'}{$var} = $var_rec;
+                                push @{ $Sincf->{'UndeclaredCommonVars'}{'List'}} ,$var;
+                                warn "UNDECLARED COMMON VAR $var from $inc\n";
+                                # So this one will have to be typed via Implicits later on
+                            }
+                            
                         } else {
                             print "WARNING: common <", $var,
                               "> is not in {'IncludeFiles'}{$inc}{'Vars'}\n"
                               if $W;
                         }
-                    } else {                        
-                        print $var, "\t", $Sincf->{'Vars'}{$var}{'Type'}, "\n"
-                          if $V;
-                        if ( exists $parsedvars->{$var}{Shape} and scalar @{$parsedvars->{$var}{Shape}}>0 ) {                            
-                            $Sincf->{'Vars'}{$var}{Shape} = $parsedvars->{$var}{Shape};
-                            $Sincf->{'Vars'}{$var}{ArrayOrScalar}  = 'Array';
-                        }
-                        $stref->{'IncludeFiles'}{$inc}{'Commons'}{$var} =
-                          $Sincf->{'Vars'}{$var};
+                    } else {  # Means the var is already declared. So just use the existing declaration                       
+#                        print $var, "\t", $Sincf->{'Vars'}{$var}{'Type'}, "\n"
+#                          if $V;
+#                        if ( exists $parsedvars->{$var}{Shape} and scalar @{$parsedvars->{$var}{Shape}}>0 ) {                            
+#                            $Sincf->{'Vars'}{$var}{Shape} = $parsedvars->{$var}{Shape};
+#                            $Sincf->{'Vars'}{$var}{ArrayOrScalar}  = 'Array';
+#                        }
+#                        $Sincf->{'Commons'}{$var} = $Sincf->{'Vars'}{$var};    
+                        $Sincf->{'Commons'}{$var} = $var; # Because we should use 'Commons' only for tests!
+                        
+                        if (exists $Sincf->{'DeclaredOrigLocalVars'}{'Set'}{$var} ) { 
+                                $Sincf->{'DeclaredCommonVars'}{'Set'}{$var} = { %{ $Sincf->{'DeclaredOrigLocalVars'}{'Set'}{$var} } };
+                                delete $Sincf->{'DeclaredOrigLocalVars'}{'Set'}{$var};
+                                @{ $Sincf->{'DeclaredOrigLocalVars'}{'List'} } = grep {$_ ne $var} @{ $Sincf->{'DeclaredOrigLocalVars'}{'List'} };
+                                 push @{ $Sincf->{'DeclaredCommonVars'}{'List'}} ,$var;
+                                $Sincf->{'DeclaredCommonVars'}{'Set'}{$var}{'Shape'} = $parsedvars->{$var}{'Shape'};
+                                $Sincf->{'DeclaredCommonVars'}{'Set'}{$var}{'ArrayOrScalar'}  = 'Array';
+                            } else { die "SHOULD BE IMPOSSIBLE!";                                    
+                                
+                            }
+                        
+                                              
                     }
                 }
                 $srcref->[$index][1]{'Common'} =
@@ -1107,7 +1272,7 @@ sub _get_commons_params_from_includes {
             }
         }
 
-        $Sincf->{'Vars'} = {%vars};
+#        $Sincf->{'Vars'} = {%vars};
 
         # FIXME!
         # An include file should basically only contain parameters and commons.
@@ -1649,17 +1814,17 @@ sub __construct_new_subroutine_signatures {
          
         my $Sblock = $stref->{'Subroutines'}{$block};
         
-        if (not exists $Sblock->{'Args'} ) {
-            $Sblock->{'Args'} = {'Set'=>{}, 'List' => []};
+        if (not exists $Sblock->{'OrigArgs'} ) {
+            $Sblock->{'OrigArgs'} = {'Set'=>{}, 'List' => []};
         }
-        if (not exists $Sblock->{'DeclaredArgs'} ) {
-            $Sblock->{'DeclaredArgs'} = {'Set'=>{}, 'List' => []};
+        if (not exists $Sblock->{'DeclaredOrigArgs'} ) {
+            $Sblock->{'DeclaredOrigArgs'} = {'Set'=>{}, 'List' => []};
         }
          if (not exists $Sblock->{'LocalVars'} ) {
             $Sblock->{'LocalVars'} = {'Set'=>{}, 'List' => []};
         }
-        if (not exists $Sblock->{'DeclaredVars'} ) {
-            $Sblock->{'DeclaredVars'} = {'Set'=>{}, 'List' => []};
+        if (not exists $Sblock->{'DeclaredOrigLocalVars'} ) {
+            $Sblock->{'DeclaredOrigLocalVars'} = {'Set'=>{}, 'List' => []};
         }       
         print "\nARGS for BLOCK $block:\n" if $V;
         $args{$block} =[];
@@ -1672,7 +1837,7 @@ sub __construct_new_subroutine_signatures {
             } 
             $Sblock->{'Vars'}{$var} = $varsref->{$var}; # FIXME: this is "inheritance, but in principle a re-parse is better?"
         }
-        $Sblock->{'Args'}{'List'} = $args{$block} ;
+        $Sblock->{'OrigArgs'}{'List'} = $args{$block} ;
 
         
         # Create Signature and corresponding Decls
@@ -1690,10 +1855,10 @@ sub __construct_new_subroutine_signatures {
             $sig .= "$argv,";
             my $decl = format_f95_var_decl( $Sf, $argv );    
             $decl->{'Indent'} .= $sixspaces;
-            $Sblock->{'Args'}{'Set'}{$argv}{'Decl'} = $decl;
-            $Sblock->{'DeclaredArgs'}{'Set'}{$argv}{'Decl'} = $decl;
-            push @{ $Sblock->{'DeclaredArgs'}{'List'} }, $argv;
-            $Sf->{'Vars'}{$argv}{'Decl'} = $decl;
+#            $Sblock->{'OrigArgs'}{'Set'}{$argv}{'Decl'} = $decl; # WV: this is now handled via the Subsets
+            $Sblock->{'DeclaredOrigArgs'}{'Set'}{$argv}{'Decl'} = $decl;
+            push @{ $Sblock->{'DeclaredOrigArgs'}{'List'} }, $argv;
+#            $Sf->{'Vars'}{$argv}{'Decl'} = $decl; # WV: this is now handled via the Subsets
         }
         
 #        croak Dumper($Sblock);
@@ -1711,8 +1876,8 @@ sub __construct_new_subroutine_signatures {
             for my $iter (@{ $iters } ) {
                  my $decl = format_f95_var_decl( $stref,$f,$iter );
                  $Sblock->{'LocalVars'}{'Set'}{$iter}{'Decl'}=$decl;                 
-                 $Sblock->{'DeclaredVars'}{'Set'}{$iter}{'Decl'}=$decl;
-                 push @{ $Sblock->{'DeclaredVars'}{'List'} }, $iter;
+                 $Sblock->{'DeclaredOrigLocalVars'}{'Set'}{$iter}{'Decl'}=$decl;
+                 push @{ $Sblock->{'DeclaredOrigLocalVars'}{'List'} }, $iter;
 #                 say Dumper($decl); 
              unshift @{ $Sblock->{'AnnLines'} },
               [ emit_f95_var_decl($decl), { 'VarDecl' => $decl, 'Ann' => '__construct_new_subroutine_signatures '. __LINE__ .' -> ' } ];              
@@ -1720,7 +1885,7 @@ sub __construct_new_subroutine_signatures {
         }
 
         for my $argv ( @{ $args{$block} } ) {
-            my $decl = $Sblock->{'Args'}{'Set'}{$argv}{'Decl'};# format_f95_var_decl( $stref,$f,$argv );            
+            my $decl = $Sblock->{'OrigArgs'}{'Set'}{$argv}{'Decl'};# format_f95_var_decl( $stref,$f,$argv );            
             unshift @{ $Sblock->{'AnnLines'} },
               [ emit_f95_var_decl($decl), { 'VarDecl' => $decl, 'Ann' => '__construct_new_subroutine_signatures '. __LINE__ .' -> '  } ];
         }
@@ -1824,11 +1989,19 @@ sub _split_multivar_decls { (my $f, my $stref) = @_;
                 my %rinfo = %{$info};
 #                say "VAR: $var";
                 $rinfo{'LineID'} =$nextLineID++;
-
-                my $dim = $Sf->{'Vars'}{$var}{'Shape'} // [];    
+                my $subset = '';
+                if (exists $Sf->{'DeclaredArgs'}{'Set'}{$var} ) {
+                    $subset= 'DeclaredArgs';
+                } elsif ( exists $Sf->{'DeclaredOrigLocalVars'}{'Set'}{$var} ) {
+                    $subset = 'DeclaredOrigLocalVars' ;
+                } elsif ( exists $Sf->{'DeclaredCommonVars'}{'Set'}{$var}) {
+                    $subset = 'DeclaredCommonVars';
+                } else { die 'IMPOSSIBLE!';
+                } 
+                my $dim = $Sf->{$subset}{$var}{'Shape'} // [];    
                 my $decl = {
                     'Indent' => $info->{'VarDecl'}{'Indent'},
-                    'Type' =>  $Sf->{'Vars'}{$var}{'Type'},
+                    'Type' =>  $Sf->{$subset}{$var}{'Type'},
                     'Attr' =>  $info->{'VarDecl'}{'Attr'},
                     'Dim' => $dim,
                     'Name' => $var,
@@ -1839,7 +2012,7 @@ sub _split_multivar_decls { (my $f, my $stref) = @_;
                  
                 $rinfo{'Ann'} .= '_split_multivar_decls '. __LINE__ .' -> '; 
                 my $rline=$line;
-                $Sf->{'Vars'}{$var}{'Decl'}{'Name'}=$var;
+                $Sf->{$subset}{$var}{'Decl'}{'Name'}=$var;
 #                die Dumper($rinfo{'VarDecl'}) if $var eq 'drydeposit';
                 if ( scalar @{$info->{'VarDecl'}{'Names'}}>1 ) {
                 for my $nvar (@nvars) {
@@ -2013,8 +2186,8 @@ sub __parse_sub_func_prog_decls {
                 $info->{'Signature'}{'Args'}{'List'} = [@args];
                 $info->{'Signature'}{'Args'}{'Set'} = { map {$_=>1} @args};
                 $info->{'Signature'}{'Name'} = $name;
-                $Sf->{'Args'}{'List'} = [@args];
-                $Sf->{'Args'}{'Set'} = {map {$_=>1} @args};
+                $Sf->{'UndeclaredOrigArgs'}{'List'} = [@args];
+                $Sf->{'UndeclaredOrigArgs'}{'Set'} = {map {$_=>1} @args};
                 if ($line=~/function/) {
                     $info->{'Signature'}{'Function'}=1;
                 } else {
@@ -2031,8 +2204,8 @@ sub __parse_sub_func_prog_decls {
                 $info->{'Signature'}{'Args'}{'Set'} = {};
                 $info->{'Signature'}{'Name'} = $name;
                 $info->{'Signature'}{'Function'}=0;
-                $Sf->{'Args'}{'List'} = [];
-                $Sf->{'Args'}{'Set'} = {};
+#                $Sf->{'OrigArgs'}{'Subsets'}{'UndeclaredOrigArgs'}{'List'} = [];
+#                $Sf->{'OrigArgs'}{'Subsets'}{'UndeclaredOrigArgs'}{'Set'} = {};
                 
             } elsif ( $line =~ /^\s+program\s+(\w+)\s*$/ ) {;
                 # If it's a program, there are no arguments
@@ -2041,8 +2214,8 @@ sub __parse_sub_func_prog_decls {
                 $info->{'Signature'}{'Args'}{'List'} = [];
                 $info->{'Signature'}{'Name'} = $name;
                 $info->{'Signature'}{'Program'} = 1;
-                $Sf->{'Args'}{'List'} = [];
-                $Sf->{'Args'}{'Set'} = {};
+#                $Sf->{'OrigArgs'}{'Subsets'}{'UndeclaredOrigArgs'}{'List'} = [];
+#                $Sf->{'OrigArgs'}{'Subsets'}{'UndeclaredOrigArgs'}{'Set'} = {};
                 
             }
     return ($Sf,$line,$info);
@@ -2163,10 +2336,23 @@ sub __parse_f95_decl {
                         }
                                             
                         $decl->{'IODir'} = $pt->{'Attributes'}{'Intent'};
+                        
                         $Sf->{'Vars'}{$tvar}{'Decl'}=$decl;
-                        my $local_var_or_arg = ( exists $Sf->{'Args'}{'Set'}{$tvar}) ? 'DeclaredArgs' : 'DeclaredVars';
-                        $Sf->{$local_var_or_arg}{'Set'}{$tvar}=$decl;
-                        $Sf->{$local_var_or_arg}{'List'} = ordered_union($Sf->{$local_var_or_arg}{'List'}, $pt->{'Vars'});
+#                        my $local_var_or_arg = ( exists $Sf->{'OrigArgs'}{'Set'}{$tvar}) ? 'DeclaredOrigArgs' : 'DeclaredOrigLocalVars';
+#                        $Sf->{$local_var_or_arg}{'Set'}{$tvar}=$decl;
+#                        $Sf->{$local_var_or_arg}{'List'} = ordered_union($Sf->{$local_var_or_arg}{'List'}, $pt->{'Vars'});
+                        
+                        my $tvar_rec = $decl;
+                    if (exists $Sf->{'UndeclaredOrigArgs'}{'Set'}{$tvar}) {
+                        $Sf->{'DeclaredOrigArgs'}{'Set'}{$tvar} = $tvar_rec;# $Sf->{'UndeclaredOrigArgs'}{'Set'}{$var};
+                        delete $Sf->{'UndeclaredOrigArgs'}{'Set'}{$tvar};
+                         @{ $Sf->{'UndeclaredOrigArgs'}{'List'} } = grep {$_ ne $tvar} @{ $Sf->{'UndeclaredOrigArgs'}{'List'} };
+                        $Sf->{'DeclaredOrigArgs'}{'List'} = ordered_union($Sf->{'DeclaredOrigArgs'}{'List'},[ $tvar ] );
+                                                
+                    } else { # A var decl must be unique, so it it's not a arg, it's a local
+                        $Sf->{'DeclaredOrigLocalVars'}{'Set'}{$tvar} = $tvar_rec;# $Sf->{'UndeclaredOrigArgs'}{'Set'}{$var};
+                        push @{ $Sf->{'DeclaredOrigLocalVars'} }, $tvar;
+                    }                                                
 #                    die 'F95 VarDecl: '.Dumper($Sf->{'Vars'}{$tvar}) if $tvar eq 'drydeposit';
                     }
                     }
@@ -2290,25 +2476,26 @@ sub __parse_f77_var_decl {
                     if ( $var eq '' ) { croak "<$line> in $f" }
                     my $tvar = $var;
                     if (ref($var) eq 'ARRAY') {die __LINE__ .':'.Dumper($var);}
-                    $Sf->{'Vars'}{$tvar}{'Type'}  = $type;
-                    $Sf->{'Vars'}{$tvar}{'Shape'} = $pvars->{$var}{'Shape'};
-                    $Sf->{'Vars'}{$tvar}{'ArrayOrScalar'}  = $pvars->{$var}{'ArrayOrScalar'};
+                    my $tvar_rec = {};
+                    $tvar_rec->{'Type'}  = $type;
+                    $tvar_rec->{'Shape'} = $pvars->{$var}{'Shape'};
+                    $tvar_rec->{'ArrayOrScalar'}  = $pvars->{$var}{'ArrayOrScalar'};
                     if ( not exists $pvars->{$var}{'Attr'} ) {
                         if ($attr) {
                             if ( $type =~ /character/ ) {
-                                $Sf->{'Vars'}{$tvar}{'Attr'} = '(len=' . $attr . ')';
+                                $tvar_rec->{'Attr'} = '(len=' . $attr . ')';
                             } else {
-                                $Sf->{'Vars'}{$tvar}{'Attr'} = '(kind=' . $attr . ')';
+                                $tvar_rec->{'Attr'} = '(kind=' . $attr . ')';
                             }
                         } else {
-                            $Sf->{'Vars'}{$tvar}{'Attr'} = '';
+                            $tvar_rec->{'Attr'} = '';
                         }
                     } else {
                         if ( $type =~ /character/ ) {
-                            $Sf->{'Vars'}{$tvar}{'Attr'} =
+                            $tvar_rec->{'Attr'} =
                               '(len=' . $pvars->{$var}{'Attr'} . ')';
                         } else {
-                            $Sf->{'Vars'}{$tvar}{'Attr'} =
+                            $tvar_rec->{'Attr'} =
                               '(kind=' . $pvars->{$var}{'Attr'} . ')';
                         }
                     }
@@ -2320,28 +2507,40 @@ sub __parse_f77_var_decl {
                         if ( $iodir eq 'Inout' ) {
                             $iodir = 'InOut';
                         }
-                        $Sf->{'Vars'}{$tvar}{'IODir'} = $iodir;
+                        $tvar_rec->{'IODir'} = $iodir;
                     }
                     my $decl = {
                         'Indent' => $indent,
                         'Type' => $type,
-                        'Attr' => $Sf->{'Vars'}{$tvar}{'Attr'},
+                        'Attr' => $tvar_rec->{'Attr'},
                         'Dim' => [@{$pvars->{$var}{'Shape'}}],
                         'Name' => $tvar,
-                        'Intent' => $Sf->{'Vars'}{$tvar}{'IODir'},
+                        'Intent' => $tvar_rec->{'IODir'},
                         'Status' => 0
                     };
-                    $Sf->{'Vars'}{$tvar}{'Decl'} = $decl; #[ $indent, [$type], [$var], 0 ];
-                    $Sf->{'Vars'}{$tvar}{'Indent'} = $indent; 
+                    $tvar_rec->{'Decl'} = $decl; #[ $indent, [$type], [$var], 0 ];
+                    $tvar_rec->{'Indent'} = $indent; 
                   
                     push @varnames, $tvar;
-                    my $local_var_or_arg = ( exists $Sf->{'Args'}{'Set'}{$tvar}) ? 'DeclaredArgs' : 'DeclaredVars';
-                    $Sf->{$local_var_or_arg}{'Set'}{$tvar}=$decl;
-                    $Sf->{$local_var_or_arg}{'List'} = ordered_union($Sf->{$local_var_or_arg}{'List'}, [$tvar] );    
+#                    my $local_var_or_arg = ( exists $Sf->{'OrigArgs'}{'Set'}{$tvar}) ? 'DeclaredOrigArgs' : 'DeclaredOrigLocalVars';
+#                    $Sf->{$local_var_or_arg}{'Set'}{$tvar}=$decl;
+#                    $Sf->{$local_var_or_arg}{'List'} = ordered_union($Sf->{$local_var_or_arg}{'List'}, [$tvar] );   
+                    
+                    if (exists $Sf->{'UndeclaredOrigArgs'}{'Set'}{$var}) {
+                        $Sf->{'DeclaredOrigArgs'}{'Set'}{$var} = $tvar_rec;# $Sf->{'UndeclaredOrigArgs'}{'Set'}{$var};
+                        delete $Sf->{'UndeclaredOrigArgs'}{'Set'}{$var};
+                         @{ $Sf->{'UndeclaredOrigArgs'}{'List'} } = grep {$_ ne $var} @{ $Sf->{'UndeclaredOrigArgs'}{'List'} };
+                        $Sf->{'DeclaredOrigArgs'}{'List'} = ordered_union($Sf->{'DeclaredOrigArgs'}{'List'},[ $var ] );
+                                                
+                    } else { # A var decl must be unique, so it it's not a arg, it's a local
+                        $Sf->{'DeclaredOrigLocalVars'}{'Set'}{$var} = $tvar_rec;# $Sf->{'UndeclaredOrigArgs'}{'Set'}{$var};
+                        push @{ $Sf->{'DeclaredOrigLocalVars'} }, $var;
+                    }
+                    
+                     
                     
                 }    # loop over all vars declared on a single line
                 
-
                 print "\tVARS <$line>:\n ", join( ',', sort @varnames ), "\n"
                   if $V;
                   

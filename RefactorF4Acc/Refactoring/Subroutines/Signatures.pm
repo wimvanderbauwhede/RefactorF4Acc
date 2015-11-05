@@ -151,8 +151,8 @@ sub refactor_subroutine_signature {
     my $Sf = $stref->{'Subroutines'}{$f};
     
     if ($V) {
-        if ( exists $Sf->{'Args'} ) {
-            print "SUB $f ORIG ARGS:" . join( ',', @{ $Sf->{'Args'}{'List'} } ), "\n";
+        if ( exists $Sf->{'OrigArgs'} ) {
+            print "SUB $f ORIG ARGS:" . join( ',', @{ $Sf->{'OrigArgs'}{'List'} } ), "\n";
         } else {
             print "SUB $f ORIG ARGS: ()\n";
         }
@@ -199,7 +199,7 @@ sub refactor_subroutine_signature {
     }
     # Now combine the original subroutine arguments with the ex-globals
     # and store in $Sf->{'RefactoredArgs'}{'List'}     
-    my $args_ref = (exists $Sf->{'Args'}) ? ordered_union( $Sf->{'Args'}{'List'}, \@nexglobs ) : \@nexglobs;
+    my $args_ref = (exists $Sf->{'OrigArgs'}) ? ordered_union( $Sf->{'OrigArgs'}{'List'}, \@nexglobs ) : \@nexglobs;
 #    my @blanks = grep {$_ eq '' } @{$args_ref};
 #    say "RefactoredArgs for $f: ".Dumper($args_ref); 
     $Sf->{'RefactoredArgs'}{'List'} = $args_ref;

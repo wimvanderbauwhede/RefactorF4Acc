@@ -32,6 +32,8 @@ use Exporter;
     &make_lookup_table    
     &generate_docs    
     &show_status
+    &in_set
+    &get_vars_from_set
 );
 
 sub sub_func_incl_mod {
@@ -326,6 +328,34 @@ sub show_status {
     my @status_str = ( 'UNREAD', 'INVENTORIED', 'READ', 'PARSED', 'FROM_BLOCK', 'C_SOURCE' );
     return $status_str[$st];    
 }
+
+sub in_set { (my $set, my $var)=@_;
+
+    if (exists $set->{'Subsets'} ) {
+        for my $subset (keys %{  $set->{'Subsets'} } ) {
+            in_set($set->{'Subsets'}{$subset}, $var);
+        }
+    } elsif (exists $set->{'Set'}) {
+        return (exists $set->{'Set'}{$var});
+    } else {
+        return 0;
+    }
+}
+
+sub get_vars_from_set { (my $set)=@_;
+    my %vars=();
+     if (exists $set->{'Subsets'} ) {
+        for my $subset (keys %{  $set->{'Subsets'} } ) {
+            my $vars_ref= get_vars($set->{'Subsets'}{$subset});
+            %vars = ( %vars, ${$vars_ref} );
+        }
+    } elsif (exists $set->{'Set'}) {
+        return ${$set->{'Set'}} ;
+        
+    } 
+        return \%vars;
+}
+
 our @F95_reserved_words_list = qw( 
 assign backspace block data call close common continue data dimension do else else if end endfile endif entry equivalence external 
 format function goto implicit inquire intrinsic open parameter pause print program read return rewind rewrite save stop subroutine 

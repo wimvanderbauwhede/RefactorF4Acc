@@ -370,8 +370,8 @@ sub _get_iodirs_from_subcall {
                  #				    		$called_arg_iodirs->{$call_arg} = 'InMaybeOut';
                  #					   }
                     } else {
-                        print
-"WARNING:Could not determine IODir for $call_arg in $name because there is no RefactoredArgs{$sig_arg}\n";
+                        say
+"WARNING: Could not determine IODir for $call_arg in $name because there is no RefactoredArgs{".$sig_arg.'} in  parse_assignment() -> _analyse_src_for_iodirs() -> _get_iodirs_from_subcall() '. __LINE__;
                     }
                 }
             }
@@ -442,7 +442,7 @@ sub _analyse_src_for_iodirs {
             {
                 my $read_str = $1;
                 (my $fh,my @rest) = split(/,/,$read_str); 
-                print "WARNING: IGNORING read call <$line> in $f, _analyse_src_for_iodirs() 369\n" if $W;
+                say "WARNING: IGNORING read call <$line> in $f, _analyse_src_for_iodirs() ". __LINE__  if $W;
                 $args = _find_vars_w_iodir( $fh, $args, \&_set_iodir_read );
                 for my $str (@rest) {
                 $args = _find_vars_w_iodir( $str, $args, \&_set_iodir_read_write );
@@ -815,6 +815,6 @@ sub parse_assignment {
         { 'VarName' => $var, 'ArrayOrScalar' => $array_or_scalar, 'IndexExpr' => $idx_expr },
         [ keys %{$args} ], $rhs
     ];
-}
+} # END of parse_assignment()
 
 # ----------------------------------------------------------------------------------------------------

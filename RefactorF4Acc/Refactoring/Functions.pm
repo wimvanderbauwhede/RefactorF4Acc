@@ -45,7 +45,7 @@ sub remove_vars_masking_functions { ( my $stref ) = @_;
             if (exists $stref->{'Subroutines'}{$f}{'CalledSubs'}{$var}) {
                 say "VAR $var is masking a function/sub in $f";
                 delete $stref->{'Subroutines'}{$f}{'Vars'}{$var};
-                delete $stref->{'Subroutines'}{$f}{'Args'}{$var};
+                delete $stref->{'Subroutines'}{$f}{'OrigArgs'}{$var};
                 delete $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{$var};
                 $info->{'Deleted'}=1;   
                 $line = '! '.$line;             

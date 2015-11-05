@@ -52,7 +52,7 @@ sub create_refactored_vardecls {
     my $Sf        = $stref->{'Subroutines'}{$f};
     my $line      = $annline->[0] || '';
     my $info = $annline->[1];
-    my %args      = %{ $Sf->{'Args'}{'Set'} };
+    my %args      = %{ $Sf->{'OrigArgs'}{'Set'} };
     my $globals = ( get_maybe_args_globs( $stref, $f ) )[1];
     my $skip=0;
     
@@ -133,7 +133,7 @@ sub create_exglob_var_declarations {
         local $W=1;
 
     my $Sf                 = $stref->{'Subroutines'}{$f};
-    my %args               = %{ $Sf->{'Args'}{'Set'} };
+    my %args               = %{ $Sf->{'OrigArgs'}{'Set'} };
     my $nextLineID=scalar @{$rlines}+1;
     
     for my $inc ( keys %{ $Sf->{'Globals'} } ) {
@@ -146,7 +146,7 @@ sub create_exglob_var_declarations {
 die "THIS CHECK IS NOT OK: RefactoredArgs can have an entry with a blank IODir here, FIXME!";
 #what we should do is check the content, or maybe better, check if there already exists an actual VarDecl line.
 #If not, we should create one. If it exists and is complete, we should skip it.
-#            if (exists $Sf->{'Args'}{'Set'}{$var} or exists $Sf->{'RefactoredArgs'}{'Set'}{$var} or exists $Sf->{'Vars'}{$var}) {
+#            if (exists $Sf->{'OrigArgs'}{'Set'}{$var} or exists $Sf->{'RefactoredArgs'}{'Set'}{$var} or exists $Sf->{'Vars'}{$var}) {
 #                my $rline = "! *** ARG MASKS GLOB $var from $inc in $f!";
 #                push @{$rlines}, [ $rline, {'Error' =>1, 'LineID' => $nextLineID++ } ];
 #                

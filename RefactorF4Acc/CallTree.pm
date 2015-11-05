@@ -62,7 +62,7 @@ sub create_call_tree { ( my $stref, my $subname ) = @_;
     }
     pop  @{ $stref->{'CallStack'} };	     
     return {%subs};
-}
+} # END of create_call_tree()
 # -----------------------------------------------------------------------------
 sub create_dot_call_tree {
     ( my $stref ) = @_;

@@ -74,22 +74,18 @@ sub find_subroutines_functions_and_includes {
 #    print Dumper(%src_files);die;
 #    find( $tf_finder, '.' );
 #	$stref->{'SourceFiles'}=\%src_files;
-    for my $src ( sort keys %src_files ) {#sort WV23JUL2012
-#    my $test_src=$src;
-        my $exclude=0;
-        
-#        die Dumper(%excluded_dirs);
+    for my $src ( sort keys %src_files ) {
+        my $exclude=0;        
         for my $excl_dir (keys %excluded_dirs) {            
             if ($src=~/$excl_dir\//) { 
                 $exclude=1;
-#                print "EXCLUDED DIR: $excl_dir\n" if $V;                
                 last;
             }
         }    
         next if $exclude;
-#        die $src if ($src=~/timdata/); 
+ 
     	if  ($src=~/\.c$/) { 
-#    		warn "C SOURCE: $src\n";
+    		say "WARNING: IGNORING C SOURCE: $src\n" if $W;
     		# FIXME: ugly ad-hoc hack!
     		# WRF uses cpp to make subroutine names match with Fortran
     		# So we need to call cpp first, but with all the correct macros ...
@@ -97,20 +93,14 @@ sub find_subroutines_functions_and_includes {
 #    		my @lines=`grep -v '#include' $src  | cpp -P -`;
     		# I guess we could use some command-line flag to add the macro definitions
     		# And now we must parse C sources too ...
-    		
-#    		die;
-            
     	} 
-#    	else {
-    	   print "F95 SOURCE: $src\n"; 
-#    	}
+
+        say "INFO: Fortran SOURCE: $src" if $I; 
+
     	
         $stref=_process_src($src,$stref);
     }
-#    for my $mn (sort keys %{ $stref->{'Modules'} } ) {
-#say "$mn:\t".Dumper($stref->{'Modules'}{$mn});
-#    }
-#    die;
+
     _test_can_be_inlined_all_modules($stref);    
     
     

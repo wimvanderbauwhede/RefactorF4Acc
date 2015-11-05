@@ -1089,7 +1089,7 @@ sub format_f95_par_decl {
     my $local_par = 0;
     if ( not exists $Sv->{'Decl'} ) {
         print
-"WARNING: PAR $var is probably local to $f in format_f95_par_decl()!\n"
+"WARNING: PARAMETER $var is probably local to $f in format_f95_par_decl(). If $f is a parameter include file, that is OK.\n"
           if $W;
         $local_par = 1;
 
