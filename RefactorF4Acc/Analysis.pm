@@ -81,31 +81,32 @@ sub _find_argument_declarations { (my  $stref, my  $f) = @_;
    my $once=1; 
    my $sub_or_func_or_mod = sub_func_incl_mod( $f, $stref );
    my $Sf                 = $stref->{$sub_or_func_or_mod}{$f};   
-   $Sf->{'ExInclArgDecls'}={ 'List'=>[],'Set'=>{} };
-   $Sf->{'ExImplicitArgDecls'}={ 'List'=>[],'Set'=>{} };
+#   $Sf->{'ExInclArgDecls'}={ 'List'=>[],'Set'=>{} };
+#   $Sf->{'ExImplicitArgDecls'}={ 'List'=>[],'Set'=>{} };
        for my $arg (@{ $Sf->{'OrigArgs'}{'List'} }  ) {
            if (not exists $Sf->{'DeclaredOrigArgs'}{'Set'}{$arg}) {
                say "MISSING ORIG ARG DECLS for '$f'" if $V and $once;$once=0;
                say "ARG: $arg" if $V;
                my $in_incl=0;
                for my $inc ( keys %{ $Sf->{'Includes'} } ) {
-                    if ( exists $stref->{'IncludeFiles'}{$inc}{'Vars'}{$arg}  ) {
+               	my $subset = in_nested_set($stref->{'IncludeFiles'}{$inc},'Vars',$arg);
+                    if ( $subset ne '' ) {
                         say "FOUND DECL for $arg in INC $inc" if $V;
-                        my $decl = $stref->{'IncludeFiles'}{$inc}{'Vars'}{$arg}{'Decl'};
+                        my $decl = $stref->{'IncludeFiles'}{$inc}{$subset}{'Set'}{$arg};
                         push @{  $Sf->{'ExInclArgDecls'}{'List'} }, $arg;
-                        $Sf->{'ExInclArgDecls'}{'Set'}{$arg}=$decl;
+                        $Sf->{'ExInclArgs'}{'Set'}{$arg}=$decl;
                         $in_incl=1;
                         last; 
                     }    
                }
                if (not $in_incl) {
                    say "TYPING $arg via IMPLICIT rules" if $V;
-                   (my $type, my $array_or_scalar, my $attr) = type_via_implicits($stref, $f, $arg);
+#                   (my $type, my $array_or_scalar, my $attr) = type_via_implicits($stref, $f, $arg);
 #                   say "$type $attr";    
                    my $decl = format_f95_var_decl($stref, $f, $arg);
 #                   say Dumper($decl);
-                    push @{  $Sf->{'ExImplicitArgDecls'}{'List'} }, $arg;
-                    $Sf->{'ExImplicitArgDecls'}{'Set'}{$arg}=$decl;                                  
+                    push @{  $Sf->{'ExImplicitArgs'}{'List'} }, $arg;
+                    $Sf->{'ExImplicitArgs'}{'Set'}{$arg}=$decl;                                  
                }
            }
        }      
@@ -128,7 +129,7 @@ sub _find_argument_declarations { (my  $stref, my  $f) = @_;
 sub _analyse_variables {
     ( my $stref, my $f) =@_;
     my $Sf     = $stref->{'Subroutines'}{$f};
-           $Sf->{'Globals'}={};
+#           $Sf->{'Globals'}={};
 #        $Sf->{'ExGlobArgDecls'}={ 'List'=>[],'Set'=>{} };
     say "_analyse_variables($f)" if $V; 
     my $__analyse_vars_on_line = sub {
@@ -151,7 +152,8 @@ sub _analyse_variables {
 #            die '<'.$mvar.'>;'.$line if $mvar =~/if/;
 #            say $line."\t".Dumper($info);
 #            say "MAYBE VAR: $mvar";
-            if ( not exists $identified_vars->{$mvar} and not exists $Sf->{'OrigArgs'}{'Set'}{$mvar}  and not exists $Sf->{'DeclaredOrigLocalVars'}{'Set'}{$mvar} ) {
+			my $maybe_orig_arg = in_nested_set($Sf,'OrigArgs',$mvar);	
+            if ( not exists $identified_vars->{$mvar} and ($maybe_orig_arg eq '')  and not exists $Sf->{'DeclaredOrigLocalVars'}{'Set'}{$mvar} ) {
                 my $in_incl = 0;
                 for my $inc ( keys %{ $Sf->{'Includes'} } ) {
                 say "LOOKING FOR $mvar from $f in $inc" if $V;
@@ -167,16 +169,26 @@ sub _analyse_variables {
                     } else {               
                         if ($stref->{'IncludeFiles'}{$inc}{'InclType'} eq 'Common') {          
                         print "FOUND COMMON $mvar in INC $inc in $line\n" if $V;
-                        my $decl = (exists $stref->{'IncludeFiles'}{$inc}{'Vars'}{$mvar}) ?  $stref->{'IncludeFiles'}{$inc}{'Vars'}{$mvar}{'Decl'} :  $stref->{'IncludeFiles'}{$inc}{'Commons'}{$mvar}{'Decl'};
+                        my $decl;
+                       my $subset_for_mvar =  in_nested_set( $stref->{'IncludeFiles'}{$inc},'Vars',$mvar);
+                       if ($subset_for_mvar ne '') {
+                       	if (exists $stref->{'IncludeFiles'}{$inc}{$subset_for_mvar}{$mvar}) {
+                       		$mvar = $stref->{'IncludeFiles'}{$inc}{$subset_for_mvar}{$mvar};
+                       	} else {
+                       		croak "No Decl for $mvar in $inc $subset_for_mvar";
+                       	}                       	                        	 
+                       } else {
+                       		croak "No Subset for $mvar in $inc $subset_for_mvar";
+                       }
                        if (exists $stref->{'IncludeFiles'}{$inc}{'Commons'}{$mvar} ) {
-                            push @{ $stref->{'Subroutines'}{$f}{'Globals'}{$inc}{'List'} }, $mvar;
-                            $stref->{'Subroutines'}{$f}{'Globals'}{$inc}{'Set'}{$mvar} =  $decl;
+#                            push @{ $stref->{'Subroutines'}{$f}{'Globals'}{$inc}{'List'} }, $mvar;
+#                            $stref->{'Subroutines'}{$f}{'Globals'}{$inc}{'Set'}{$mvar} =  $decl;
                             push @{ $stref->{'Subroutines'}{$f}{'ExGlobArgDecls'}{'List'} }, $mvar;
                             $stref->{'Subroutines'}{$f}{'ExGlobArgDecls'}{'Set'}{$mvar} =  $decl;
                        } else {
                            say "INFO: LOCAL VAR FROM $inc, NOT COMMON! " . '_analyse_variables() ' . __LINE__  if $I;
-                            push @{ $stref->{'Subroutines'}{$f}{'LocalVars'}{$inc}{'List'} }, $mvar;
-                            $stref->{'Subroutines'}{$f}{'LocalVars'}{$inc}{'Set'}{$mvar} =  $decl;
+#                            push @{ $stref->{'Subroutines'}{$f}{'LocalVars'}{$inc}{'List'} }, $mvar;
+#                            $stref->{'Subroutines'}{$f}{'LocalVars'}{$inc}{'Set'}{$mvar} =  $decl;
                             push @{ $stref->{'Subroutines'}{$f}{'ExInclVarDecls'}{'List'} }, $mvar;
                             $stref->{'Subroutines'}{$f}{'ExInclVarDecls'}{'Set'}{$mvar} =  $decl;                       
                        }                    
@@ -192,8 +204,8 @@ sub _analyse_variables {
                     } else {
                     say "INFO: LOCAL VAR <$mvar> in $f via IMPLICIT! " . $line .' _analyse_variables() ' . __LINE__  if $I;
                     my $decl = format_f95_var_decl($stref, $f, $mvar);
-                            push @{ $stref->{'Subroutines'}{$f}{'LocalVars'}{'List'} }, $mvar;
-                            $stref->{'Subroutines'}{$f}{'LocalVars'}{'Set'}{$mvar} = $decl;
+#                            push @{ $stref->{'Subroutines'}{$f}{'LocalVars'}{'List'} }, $mvar;
+#                            $stref->{'Subroutines'}{$f}{'LocalVars'}{'Set'}{$mvar} = $decl;
                             push @{ $stref->{'Subroutines'}{$f}{'ExImplicitVarDecls'}{'List'} }, $mvar;
                             $stref->{'Subroutines'}{$f}{'ExImplicitVarDecls'}{'Set'}{$mvar} = $decl;
                     }                     

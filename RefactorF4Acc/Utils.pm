@@ -32,8 +32,9 @@ use Exporter;
     &make_lookup_table    
     &generate_docs    
     &show_status
-    &in_set
+    &in_nested_set
     &get_vars_from_set
+    &get_var_record_from_set
 );
 
 sub sub_func_incl_mod {
@@ -117,17 +118,6 @@ if (not defined $var or $var eq '') {croak "VAR not defined!"}
         print "INFO: VAR <", $var, "> typed via Implicits for $f\n" if $I;                            
         my $type_kind_attr = $stref->{'Implicits'}{$f}{lc(substr($var,0,1))};
         ($type, $array_or_scalar, $attr)=@{$type_kind_attr};
-=info        
-        my $var_rec = {
-            'Decl' => ['       ', [$type], [$var],$formatted],
-            'Shape' => 'UNKNOWN', # if Array, get the shape
-            'Type' => $type,
-            'Attr' => '', # This is currently a string, WEAK!
-            'Indent' => '      ', #OBSOLETE
-            'ArrayOrScalar' => 'UNKNOWN', # Scalar|Array
-        };          
-        $stref->{$sub_func_incl}{$f}{'Vars'}{$var} = $var_rec;                                  
-=cut                                    
     } else {
         print "WARNING: common <", $var, "> has no rule in {'Implicits'}{$f}, typing via Fortran defaults\n" if $W;
         if ($var=~/^[i-nI-N]/) {
@@ -328,25 +318,29 @@ sub show_status {
     my @status_str = ( 'UNREAD', 'INVENTORIED', 'READ', 'PARSED', 'FROM_BLOCK', 'C_SOURCE' );
     return $status_str[$st];    
 }
-
-sub in_set { (my $set, my $var)=@_;
-
-    if (exists $set->{'Subsets'} ) {
-        for my $subset (keys %{  $set->{'Subsets'} } ) {
-            in_set($set->{'Subsets'}{$subset}, $var);
+# Test if a var is an element of a nested set. Returns the innermost set 
+sub in_nested_set { (my $set, my $set_key, my $var)=@_;
+    if (exists $set->{$set_key}{'Subsets'} ) {
+        for my $subset (keys %{  $set->{$set_key}{'Subsets'} } ) {
+            in_nested_set($set->{'Subsets'},$subset, $var);
         }
-    } elsif (exists $set->{'Set'}) {
-        return (exists $set->{'Set'}{$var});
+    } elsif (exists $set->{$set_key}{'Set'}) {
+    	# There are no Subsets but there is a Set
+        if (exists $set->{$set_key}{'Set'}{$var}) {
+        	return $set_key;
+        } else {
+        	return 0;
+        }
     } else {
         return 0;
     }
-}
+} # END of in_nested_set
 
 sub get_vars_from_set { (my $set)=@_;
     my %vars=();
      if (exists $set->{'Subsets'} ) {
         for my $subset (keys %{  $set->{'Subsets'} } ) {
-            my $vars_ref= get_vars($set->{'Subsets'}{$subset});
+            my $vars_ref= get_vars_from_set($set->{'Subsets'}{$subset});
             %vars = ( %vars, ${$vars_ref} );
         }
     } elsif (exists $set->{'Set'}) {
@@ -354,6 +348,20 @@ sub get_vars_from_set { (my $set)=@_;
         
     } 
         return \%vars;
+}
+
+
+sub get_var_record_from_set { (my $set, my $var)=@_;
+    my %vars=();
+     if (exists $set->{'Subsets'} ) {
+        for my $subset (keys %{  $set->{'Subsets'} } ) {
+            my $vars_ref= get_vars_from_set($set->{'Subsets'}{$subset});
+            %vars = ( %vars, ${$vars_ref} );
+        }
+    } elsif (exists $set->{'Set'}) {
+        return ${$set->{'Set'}} ;        
+    } 
+        return $vars{$var};
 }
 
 our @F95_reserved_words_list = qw( 

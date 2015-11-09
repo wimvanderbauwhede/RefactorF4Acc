@@ -114,8 +114,8 @@ sub refactor_kernel_signatures {
 #	    	print  'VARS: '.Dumper($info->{'VarDecl'}); 
 	    	my $arg = $info->{'VarDecl'}{'Name'};
 	    	if (not exists $info->{'Ref'})  {		    	
-		    	 if( exists  $Sf->{'Vars'}{$arg}{'Decl'} ) {    	
-		    	   my $line = format_f95_var_decl($Sf, $arg); # FIXME!
+		    	 if( in_nested_set($Sf,'Vars',$arg)   ) {    	
+		    	   my $line = emit_f95_var_decl($Sf, $arg); # FIXME!
 #		    	   print "$f: REF1 $line FOR $arg\n\n";
 		    	 } else {
 		    	 	print "WARNING: $arg is not in Vars for $f\n" if $W;
@@ -123,8 +123,8 @@ sub refactor_kernel_signatures {
 	    	} else {	    		
 #	    		print "$f: REF $line FOR $arg\n";
 #	    		print Dumper($annline);
-                if (exists $Sf->{'Vars'}{$arg}) {
-    	    		my $ref2line = format_f95_var_decl($Sf, $arg);	    		
+                if (in_nested_set($Sf,'Vars',$arg)) {
+    	    		my $ref2line = emit_f95_var_decl($Sf, $arg);	    		
 #	       		    print "$f: REF2 $ref2line FOR $arg\n\n";
 	       		    $line=$ref2line;
                 }

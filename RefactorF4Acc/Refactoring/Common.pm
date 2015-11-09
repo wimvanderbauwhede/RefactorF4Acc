@@ -28,7 +28,9 @@ use Exporter;
   &get_annotated_sourcelines
   &split_long_line
   &format_f95_par_decl
+  &get_f95_par_decl
   &format_f95_var_decl
+  &get_f95_var_decl
   &format_f77_var_decl
   &emit_f95_var_decl
   &splice_additional_lines
@@ -186,8 +188,7 @@ sub context_free_refactorings {
                 my $pvd = $info->{'ParsedVarDecl'}; 
                 if (scalar @{ $info->{'ParsedVarDecl'}{'Vars'} } == 1) {
 #                    die Dumper( $pvd).$line;
-                } else {
-                    
+                } else {                    
                     $line = _emit_f95_parsed_var_decl($pvd);
                 }
             } else { 
@@ -709,6 +710,7 @@ sub get_annotated_sourcelines {
 
 # -----------------------------------------------------------------------------
 sub format_f95_var_decl {
+	# This sub can be called in different ways, I think it would be better to create different subs that call a common core
     my $stref;
     my $f;
     my $Sf;
@@ -724,7 +726,6 @@ sub format_f95_var_decl {
         # Sub is called with  $Sf, $var_or_vardecl 
         ( $Sf, $var_or_vardecl ) = @_;
     }
-
     
     if ( ref($var_or_vardecl) eq 'ARRAY') { 
         if ( $var->[-1] == 1 ) {
@@ -745,104 +746,54 @@ sub format_f95_var_decl {
     my $attr   = '';
     my $type   = 'Unknown';
     my $nvar   = $var;
+# --------------------------------------------------------------------------------------------------------------------------------    
     # FIXME: we are using different data structures now!
-     if ( exists $Sf->{'RefactoredArgs'}{'Set'}{$var} ) {
-         
-         
-        my $Sv = $Sf->{'RefactoredArgs'}{'Set'}{$var};
-        
-        if ( not exists $Sv->{'Decl'} ) {
-            print
-"WARNING: VAR $var does not have Decl in RefactoredArgs in format_f95_var_decl()!\n"
-              if $W;
-
-		croak Dumper($Sv);
-        }
+    
+    my $subset = in_nested_set($Sf, 'Vars', $var); # Should tell us exactly where we are
+    if ($subset ne '') {
+    my $Sv = $Sf->{ $subset }{'Set'}{$var};    
+    if ( exists $Sf->{$subset}{'Set'}{$var} ) {
+#        if ( not exists $Sv->{'Decl'} ) {
+#            say "WARNING: VAR $var does not have Decl in $subset in format_f95_var_decl()!" if $W;
+#			croak Dumper($Sv);
+#        }
 
         if ( exists $Sf->{'ConflictingLiftedVars'}{$var} ) {
             $nvar = $Sf->{'ConflictingLiftedVars'}{$var};
+            say "WARNING: CONFLICT for VAR $var in $subset, setting var name to $nvar in format_f95_var_decl()!" if $W;
+			croak Dumper($Sv);
         }
-#        carp "$f: $var: ".Dumper($Sv) if $var eq 'drydeposit';
         $spaces =$Sv->{'Indent'};
-#          $Sv->{'Decl'}->[0];
            #WV20150707 Decl is a record of 4 entries: [spaces, [type], [varname],formatted(0|1)]
         $spaces =~ s/\S.*$//;
-        $shape = $Sv->{'Shape'};
+        $shape = $Sv->{'Dim'};
         $type  = $Sv->{'Type'};
         $attr  = $Sv->{'Attr'};
-        if ( exists $Sf->{'RefactoredArgs'}{'Set'}{$var} ) {
-            $intent =
-              [ 'intent', $Sf->{'RefactoredArgs'}{'Set'}{$var}{'IODir'} ];
-        }          
-     } elsif ( exists $Sf->{'Vars'}{$var} ) {
-         
-        my $Sv = $Sf->{'Vars'}{$var};
-        
-        if ( not exists $Sv->{'Decl'} ) {
-#            carp  "$var: ".Dumper($Sv) if $var eq 'drydeposit';
-            croak "WARNING: VAR $var does not exist in Vars in format_f95_var_decl()!\n" if $W;
+        $intent = $Sv->{'IODir'};                 
 
-            #		croak $var;
-        }
-
-        if ( exists $Sf->{'ConflictingLiftedVars'}{$var} ) {
-            $nvar = $Sf->{'ConflictingLiftedVars'}{$var};
-        }
-        $spaces = $Sv->{'Indent'} // '      ';
-          #WV20150707 Decl is a record of 4 entries: [spaces, [type], [varname],formatted(0|1)]
-        $spaces =~ s/\S.*$//;
-        $shape = $Sv->{'Shape'};
-        $type  = $Sv->{'Type'};
-        $attr  = $Sv->{'Attr'};
-        if ( exists $Sf->{'RefactoredArgs'}{'Set'}{$var} ) {
-            $intent =
-              [ 'intent', $Sf->{'RefactoredArgs'}{'Set'}{$var}{'IODir'} ];
-        }
-        } elsif (exists $Sf->{'Globals'}) {
-            for my $inc (keys %{$Sf->{'Globals'} } ) {
-                if (exists $Sf->{'Globals'}{$inc}{$var}) {
-                    die "FOUND $var as GLOBAL in $inc for $f";
-                }
-                
-            } 
-    } elsif ( defined $f and defined $stref and defined $var ) {
-        croak Dumper( $_[0] ) unless defined $stref;
-        ( $type, my $kind, $attr ) =
-          type_via_implicits( $stref, $f, $var );
+    } elsif ( defined $f and defined $stref and defined $var ) {        
+        ( $type, my $kind, $attr ) = type_via_implicits( $stref, $f, $var );
     } else {
         croak
 "Can't type $var, not in Vars and format_f95_var_decl() called the wrong way for implicits";
     }
-#    say "VAR: $nvar";
+    
+# --------------------------------------------------------------------------------------------------------------------------------    
     if (not defined $shape) {croak($var) };
     my $dim = [];
     # FIXME: I think the case dimension(:) is not covered!
     if ( @{$shape} >= 1) {
         $dim=$shape;
-#        my @dims = ();
-#        for my $i ( 0 .. ( @{$shape} / 2 - 1 ) ) {
-#            my $range =
-#              ( $shape->[ 2 * $i ] eq '1' )
-#              ? $shape->[ 2 * $i + 1 ]
-#              : $shape->[ 2 * $i ] . ':' . $shape->[ 2 * $i + 1 ];
-#            push @dims, $range;
-#        }
-#        $dim = [ 'dimension', [@dims] ];
-#    } elsif (scalar @{$shape}==1) {
-#
-#        $dim =  [ ['1',$shape->[0] ] ];
     } else {
         $dim = [];
     }
 
-
-#    return [ $spaces, [ $type, $attr, $dim, $intent ], [$nvar], 1 ];
     return {
         'Indent' => $spaces,
         'Type' => $type,
         'Attr' => $attr,
         'Dim' => $dim,
-        'Intent' => $intent,
+        'IODir' => $intent,
         'Names' => [$nvar],
         'Name' => $nvar,
         'Status' => 1
@@ -851,168 +802,54 @@ sub format_f95_var_decl {
 }    # format_f95_var_decl()
 
 # -----------------------------------------------------------------------------
-## OBSOLETE!
-#sub format_f77_var_decl {
-#    ( my $Sf, my $var ) = @_;
-#    my $Sfv = $Sf->{'Vars'};
-#    my $Sv  = $Sfv->{$var};
-#    if ( not exists $Sv->{'Decl'} ) {
-#        print "WARNING: VAR $var does not exist in format_f77_var_decl()!\n"
-#          if $W;
-#        croak $var;
-#    }
-#    my $spaces = $Sv->{'Indent'};
-#
-#    my $intent = '';
-#    if ( exists $Sf->{'RefactoredArgs'}{'Set'}{$var} ) {
-#        $intent = $Sf->{'RefactoredArgs'}{'Set'}{$var}{'IODir'};
-#
-#        #        warn "F77 $var: $intent\n";
-#    }
-#
-#    # FIXME: for multiple vars, we need to split this in multiple statements.
-#    # So I guess as soon as the Shape is not empty, need to split.
-#    my $shape = $Sv->{'Shape'};
-#
-#    my $dim  = '';
-#    my @dims = ();
-#    if ( @{$shape} ) {
-#
-#        for my $i ( 0 .. ( @{$shape} / 2 - 1 ) ) {
-#            my $range =
-#              ( $shape->[ 2 * $i ] eq '1' )
-#              ? $shape->[ 2 * $i + 1 ]
-#              : $shape->[ 2 * $i ] . ':' . $shape->[ 2 * $i + 1 ];
-#            push @dims, $range;
-#        }
-#        $dim = '(' . join( ',', @dims ) . ') ';
-#    }
-#    my $attr = '';
-#    if ( exists $Sv->{'Attr'} && $Sv->{'Attr'} ne '' ) {
-#        $attr = '*' . $Sv->{'Attr'};
-#    }
-#    my $decl_line = $spaces . $Sv->{'Type'} . $attr . ' ' . $var . $dim;
-#
-#    #    die $decl_line  if $dim;
-#    #WV20150424 this should become
-#    return [
-#        $spaces, [ $Sv->{'Type'}, $Sv->{'Attr'}, [ 'dimension', [@dims] ], [] ],
-#        [$var], 1
-#    ];    # so intent is empty, i.e. default
-#
-#    #    return $decl_line;
-#}    # format_f77_var_decl()
+sub get_f95_var_decl {
+	# This sub can be called in different ways, I think it would be better to create different subs that call a common core
+    (my $stref, my $f, my $var) = @_;
+    my $sub_or_func_or_inc = sub_func_incl_mod( $f, $stref );
+	my $Sf= $stref->{$sub_or_func_or_inc}{$f};    
+    my $spaces = '      ';
+    my $intent = '';
+    my $dim  = [];
+    my $attr   = '';
+    my $type   = 'Unknown';
+    my $nvar   = $var;
+    
+    my $subset = in_nested_set($Sf, 'Vars', $var); # Should tell us exactly where we are
+    if ($subset ne '' and exists $Sf->{$subset}{'Set'}{$var} ) {
+    		my $Sv = $Sf->{ $subset }{'Set'}{$var};
+        	if ( exists $Sf->{'ConflictingLiftedVars'}{$var} ) {
+            	$nvar = $Sf->{'ConflictingLiftedVars'}{$var};
+            	say "WARNING: CONFLICT for VAR $var in $subset, setting var name to $nvar in format_f95_var_decl()!" if $W;
+				croak Dumper($Sv);
+        	}
+	        $spaces =$Sv->{'Indent'};
+	        $spaces =~ s/\S.*$//;
+	        $dim = $Sv->{'Dim'};
+	        $type  = $Sv->{'Type'};
+	        $attr  = $Sv->{'Attr'};
+	        $intent = $Sv->{'IODir'};                 
+    } elsif ( defined $f and defined $stref and defined $var ) {        
+        ( $type, my $kind, $attr ) = type_via_implicits( $stref, $f, $var );
+    } else {
+        croak
+"Can't type $var, not in Vars and format_f95_var_decl() called the wrong way for implicits";
+    }
+
+    return {
+        'Indent' => $spaces,
+        'Type' => $type,
+        'Attr' => $attr,
+        'Dim' => $dim,
+        'IODir' => $intent,
+        'Names' => [$nvar],
+        'Name' => $nvar,
+        'Status' => 1
+    };
+
+}    # get_f95_var_decl()
 
 # -----------------------------------------------------------------------------
 
-# -----------------------------------------------------------------------------
-# OBSOLETE
-#sub _format_f95_multiple_var_decls {
-#    ( my $Sf, my @vars ) = @_;
-#
-#    my @Svs = map { $Sf->{'Vars'}{$_} } @vars;
-#    for my $Sv (@Svs) {
-#        if ( not exists $Sv->{'Decl'} ) {
-#            print
-#"WARNING: VAR $vars[0] does not exist in _format_f95_multiple_var_decls()!\n"
-#              if $W;
-#            croak $vars[0];
-#        }
-#    }
-#    my @nvars = ();
-#    for my $var (@vars) {
-#        if ( exists $Sf->{'ConflictingLiftedVars'}{$var} ) {
-#            push @nvars, $Sf->{'ConflictingLiftedVars'}{$var};
-#        } else {
-#            push @nvars, $var;
-#        }
-#    }
-#    my @spaces = map { $_->{'Indent'} } @Svs;
-#    my @types  = map { $_->{'Type'} } @Svs;
-#    my @attrs  = map { $_->{'Attr'} } @Svs;
-#
-#    # FIXME: for multiple vars, we need to split this in multiple statements.
-#    # So I guess as soon as the Shape is not empty, need to split.
-#    #	my $split = 0;
-#    #	if ( !$split ) {
-#    #		for my $var (@vars) {
-#    #			my $shape = $Sf->{'Vars'}{$var}{'Shape'};
-#    #			if ( @{$shape} > 0 && @vars > 1 ) {
-#    #				$split = 1;
-#    #				last;
-#    #			}
-#    #		}
-#    #	}
-#
-#    #	if ($split==1) {
-#
-#    #		my $decl_line = $spaces;    #.$Sv->{'Type'}.' :: '.join(', ',@vars);
-#    # What we need to do is split these into separate statements
-#    my $var_decl_rec  = [];
-#    my $var_decl_recs = [];
-#    my $idx           = 0;
-#    for my $var (@vars) {
-#        my $nvar   = shift @nvars;
-#        my $dim    = '';
-#        my $shape  = $Sf->{'Vars'}{$var}{'Shape'};
-#        my $dimrec = [];
-#        if ( @{$shape} > 1 ) {
-#            my @dims = ();
-#            for my $i ( 0 .. ( @{$shape} / 2 - 1 ) ) {
-#                my $range =
-#                  ( "$shape->[2*$i]" eq '1' )
-#                  ? $shape->[ 2 * $i + 1 ]
-#                  : $shape->[ 2 * $i ] . ':' . $shape->[ 2 * $i + 1 ];
-#                push @dims, $range;
-#            }
-#            $dim = ', dimension(' . join( ',', @dims ) . ') ';
-#            $dimrec = [ 'dimension', [@dims] ];
-#        }
-#
-#        #			my $decl = "$type$attr $dim :: $nvar; ";
-#        $var_decl_rec = [
-#            $spaces[$idx], [ $types[$idx], $attrs[$idx], $dimrec, [] ],
-#            [$nvar], 0
-#        ];
-#        push @{$var_decl_recs}, $var_decl_rec;
-#
-#        #			$decl_line .= $decl;
-#        $idx++;
-#    }
-#
-#    #		return $decl_line;
-#    return $var_decl_recs;
-#
-#    #	} else {
-#    #
-#    #		# for Shape, it means they are all empty OR there is just one!
-#    #		my $dim = '';
-#    #		my $dimrec=[];
-#    #		if ( @vars == 1 ) {
-#    #			my $shape = $Sf->{'Vars'}{ $vars[0] }{'Shape'};
-#    #			if ( @{$shape} ) {
-#    #				my @dims = ();
-#    #				for my $i ( 0 .. ( @{$shape} / 2 - 1 ) ) {
-#    #					my $range =
-#    #					  ( $shape->[ 2 * $i ] eq '1' )
-#    #					  ? $shape->[ 2 * $i + 1 ]
-#    #					  : $shape->[ 2 * $i ] . ':' . $shape->[ 2 * $i + 1 ];
-#    #					push @dims, $range;
-#    #				}
-#    #				$dim = ', dimension(' . join( ',', @dims ) . ') ';
-#    #				$dimrec=['dimension',[@dims]];
-#    #			}
-#    #		}
-#    #		my $decl_line =
-#    #		     $spaces . $type . $attr. $dim . ' :: '
-#    #		  . join( ', ', sort @nvars )
-#    #		  . ' !! Context-free, multi !! ';
-###		return $decl_line;
-#    #		return [[$spaces ,[ $type , $attr, $dimrec,[] ],[ sort @nvars ],1]];
-#    #
-#    #
-#    #	}
-#}    # _format_f95_multiple_var_decls()
 
 # ----------------------------------------------------------------------------------------------------
 
@@ -1087,7 +924,7 @@ sub format_f95_par_decl {
     #	print "<$val><$val_from_rec>\n";die;
     my $Sv        = $Sf->{'Vars'}{$var};
     my $local_par = 0;
-    if ( not exists $Sv->{'Decl'} ) {
+    if ( not defined $Sv ) {
         print
 "WARNING: PARAMETER $var is probably local to $f in format_f95_par_decl(). If $f is a parameter include file, that is OK.\n"
           if $W;
@@ -1096,7 +933,7 @@ sub format_f95_par_decl {
         #		croak $var;
         $Sv->{'Type'}   = $Sf->{'Parameters'}{'Set'}{$var}{'Type'};
         $Sv->{'Indent'} = ' ' x 6;
-        $Sv->{'Shape'}  = [];
+        $Sv->{'Dim'}  = [];
         $Sv->{'Attr'}   = '';
     }
 
@@ -1105,8 +942,8 @@ sub format_f95_par_decl {
     my $spaces = $Sv->{'Indent'};
 
     # FIXME: for multiple vars, we need to split this in multiple statements.
-    # So I guess as soon as the Shape is not empty, need to split.
-    my $shape = $Sv->{'Shape'};
+    # So I guess as soon as the Dim is not empty, need to split.
+    my $shape = $Sv->{'Dim'};
 
     #	die Dumper($shape) if join( '', @{$shape} ) =~ /;/;
     my $dim    = '';
@@ -1152,6 +989,42 @@ sub format_f95_par_decl {
         'Status' => 1
     };    
 }    # format_f95_par_decl()
+
+
+# -----------------------------------------------------------------------------
+
+sub get_f95_par_decl {
+    ( my $stref, my $f, my $var ) = @_;
+    my $sub_or_func_or_inc = sub_func_incl_mod( $f, $stref );
+    my $Sf = $stref->{$sub_or_func_or_inc}{$f};
+    my $Sv = $Sf->{'Parameters'}{'Set'}{$var};
+    
+    
+    if ( not defined $Sv ) {
+        print
+"WARNING: PARAMETER $var is probably local to $f in format_f95_par_decl(). If $f is a parameter include file, that is OK.\n"
+          if $W;
+        $Sv->{'Type'}   = $Sf->{'Parameters'}{'Set'}{$var}{'Type'};
+        $Sv->{'Indent'} = ' ' x 6;
+        $Sv->{'Dim'}  = [];
+        $Sv->{'Attr'}   = '';
+    }
+    my $spaces = $Sv->{'Indent'};
+    my $dim = $Sv->{'Dim'};
+	my $val = $Sv->{'Val'};
+    return {
+        'Indent' => $spaces,
+        'Type' => $Sv->{'Type'}, 
+        'Attr' => $Sv->{'Attr'}, 
+        'Dim' => $dim, 
+        'Parameter' => 'parameter',
+        'Name' => [ $var, $val ] ,
+        'Var' => $var, 
+        'Val' => $val,
+        'Status' => 1
+    };    
+}    # get_f95_par_decl()
+# -----------------------------------------------------------------------------
 
 sub _rename_conflicting_global_pars {
     ( my $stref, my $f, my $k, my $rhs_expr ) = @_;
@@ -1331,20 +1204,16 @@ sub emit_f95_var_decl {
 
     if ( not $is_par ) {
         # Variable
-        my $intent    =  $var_decl_rec->{'Intent'};
+        my $intent    =  $var_decl_rec->{'IODir'};        
         my $intentstr = '';
-        if ( scalar @{$intent} == 2 ) {
-            if ( $intent->[1] ne 'Unknown' ) {
-                $intentstr = $intent->[0].'('.$intent->[1].')'; 
+        
+            if ( $intent ne 'Unknown' ) {
+                $intentstr ='intent('.$intent.')'; 
             } else {
                 say "WARNING: Intent is Unknown for $var"                  
                   if $W;
             }
-        } elsif ( scalar @{$intent} == 1 ) {
-            say "WARNING: Intent has no value for $var"              
-              if $W;
-        }
-
+        
         if ($intentstr) {
             push @attrs, $intentstr;
         }
@@ -1539,10 +1408,6 @@ sub _emit_f95_parsed_var_decl { (my $pvd) =@_;
         if (exists $pvd->{'Attributes'}{'Intent'} ) {
             push @attrs,'intent('. $pvd->{'Attributes'}{'Intent'} .')';
         }
-                      
-                    
-          
-          
           my $vars = join(', ',@{  $pvd->{'Vars'} });
        my $line = join(', ', @attrs).' :: '.$vars;    
     return $line;

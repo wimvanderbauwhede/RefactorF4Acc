@@ -67,7 +67,7 @@ sub determine_argument_io_direction_rec {
 }    # determine_argument_io_direction_rec()
 
 # -----------------------------------------------------------------------------
-sub _determine_argument_io_direction_core {
+sub _determine_argument_io_direction_core { croak "FIXME: Should not use RefactoredArgs!";
     ( my $stref, my $f ) = @_;
     if ( exists $stref->{'Subroutines'}{$f} ) {
         my $Sf = $stref->{'Subroutines'}{$f};
@@ -95,13 +95,13 @@ if (0) {
                 my $type  = 'Unknown';
                 my $shape = [];
                 my $attr  = '';
-                my $decl=[];
+                
                 my $indent='      ';
-                if ( exists $maybe_args->{$arg}{'Decl'} ) {
-                    $decl= $maybe_args->{$arg}{'Decl'};
+                if ( exists $maybe_args->{$arg} ) {
+                    $decl= $maybe_args->{$arg};
                     $array_or_scalar  = $maybe_args->{$arg}{'ArrayOrScalar'};
                     $type  = $maybe_args->{$arg}{'Type'};
-                    $shape = $maybe_args->{$arg}{'Shape'};
+                    $shape = $maybe_args->{$arg}{'Dim'};
                     $attr  = $maybe_args->{$arg}{'Attr'};
                     $indent = $maybe_args->{$arg}{'Indent'};
                 } else {
@@ -110,7 +110,7 @@ if (0) {
                     # Problem is that we can't tell if this is an array or not. 
                     ( $type, $array_or_scalar, $attr ) =
                       type_via_implicits( $stref, $f, $arg );
-                      $decl = [$maybe_args->{$arg}{'Indent'},[$type, $attr, [], []],[$arg],1]; 
+                       
                     if ( $type eq 'Unknown' ) {
                         print
                           "WARNING: No type/kind/shape info for $arg in $f\n"
@@ -122,11 +122,9 @@ if (0) {
                 $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$arg}
                   {'Type'} = $type;
                 $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$arg}
-                  {'Shape'} = $shape;
+                  {'Dim'} = $shape;
                 $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$arg}
                   {'Attr'} = $attr;
-                $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$arg}
-                  {'Decl'} = $decl;
                   $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$arg}
                   {'Indent'} = $indent;                  
             }
