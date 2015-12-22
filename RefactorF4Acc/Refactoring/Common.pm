@@ -29,9 +29,7 @@ use Exporter;
   &split_long_line
   &format_f95_par_decl
   &get_f95_par_decl
-  &format_f95_var_decl
   &get_f95_var_decl
-  &format_f77_var_decl
   &emit_f95_var_decl
   &splice_additional_lines
   &splice_additional_lines_cond
@@ -709,101 +707,100 @@ sub get_annotated_sourcelines {
 # -----------------------------------------------------------------------------
 
 # -----------------------------------------------------------------------------
-sub format_f95_var_decl {
-	# This sub can be called in different ways, I think it would be better to create different subs that call a common core
-    my $stref;
-    my $f;
-    my $Sf;
-    my $var;
-    my $vardecl;
-    my $var_or_vardecl;
-    if ( scalar(@_) == 3 ) {
-        # Sub is called with  $stref, $f, $var_or_vardecl 
-        ( $stref, $f, $var_or_vardecl ) = @_;
-        my $code_unit = sub_func_incl_mod( $f, $stref );
-        $Sf = $stref->{$code_unit}{$f};
-    } else {
-        # Sub is called with  $Sf, $var_or_vardecl 
-        ( $Sf, $var_or_vardecl ) = @_;
-    }
-    
-    if ( ref($var_or_vardecl) eq 'ARRAY') { 
-        if ( $var->[-1] == 1 ) {
-            return $var_or_vardecl; # This means it was a formatted vardecl 
-        } elsif ( ref($var_or_vardecl) eq 'ARRAY' && $var->[-1] == 0 ) {
-            # This means it is a vardecl but it is not yet formatted correctly. 
-            $var = $var_or_vardecl->[2][0];
-        }  else {
-            die 'format_f95_var_decl: invalid input '.Dumper($var_or_vardecl);
-        }
-    } else {
-        $var = $var_or_vardecl;
-    }
-    
-    my $spaces = '      ';
-    my $intent = [];
-    my $shape  = [];
-    my $attr   = '';
-    my $type   = 'Unknown';
-    my $nvar   = $var;
-# --------------------------------------------------------------------------------------------------------------------------------    
-    # FIXME: we are using different data structures now!
-    
-    my $subset = in_nested_set($Sf, 'Vars', $var); # Should tell us exactly where we are
-    if ($subset ne '') {
-    my $Sv = $Sf->{ $subset }{'Set'}{$var};    
-    if ( exists $Sf->{$subset}{'Set'}{$var} ) {
-#        if ( not exists $Sv->{'Decl'} ) {
-#            say "WARNING: VAR $var does not have Decl in $subset in format_f95_var_decl()!" if $W;
+#sub _OBSOLETE_format_f95_var_decl {
+#	# This sub can be called in different ways, I think it would be better to create different subs that call a common core
+#    my $stref;
+#    my $f;
+#    my $Sf;
+#    my $var;
+#    my $vardecl;
+#    my $var_or_vardecl;
+#    if ( scalar(@_) == 3 ) {
+#        # Sub is called with  $stref, $f, $var_or_vardecl 
+#        ( $stref, $f, $var_or_vardecl ) = @_;
+#        my $code_unit = sub_func_incl_mod( $f, $stref );
+#        $Sf = $stref->{$code_unit}{$f};
+#    } else {
+#        # Sub is called with  $Sf, $var_or_vardecl 
+#        ( $Sf, $var_or_vardecl ) = @_;
+#    }
+#    
+#    if ( ref($var_or_vardecl) eq 'ARRAY') { 
+#        if ( $var->[-1] == 1 ) {
+#            return $var_or_vardecl; # This means it was a formatted vardecl 
+#        } elsif ( ref($var_or_vardecl) eq 'ARRAY' && $var->[-1] == 0 ) {
+#            # This means it is a vardecl but it is not yet formatted correctly. 
+#            $var = $var_or_vardecl->[2][0];
+#        }  else {
+#            die 'format_f95_var_decl: invalid input '.Dumper($var_or_vardecl);
+#        }
+#    } else {
+#        $var = $var_or_vardecl;
+#    }
+#    
+#    my $spaces = '      ';
+#    my $intent = [];
+#    my $shape  = [];
+#    my $attr   = '';
+#    my $type   = 'Unknown';
+#    my $nvar   = $var;
+## --------------------------------------------------------------------------------------------------------------------------------    
+#    # FIXME: we are using different data structures now!
+#    
+#    my $subset = in_nested_set($Sf, 'Vars', $var); # Should tell us exactly where we are
+#    if ($subset ne '') {
+#    my $Sv = $Sf->{ $subset }{'Set'}{$var};    
+#    if ( exists $Sf->{$subset}{'Set'}{$var} ) {
+##        if ( not exists $Sv->{'Decl'} ) {
+##            say "WARNING: VAR $var does not have Decl in $subset in format_f95_var_decl()!" if $W;
+##			croak Dumper($Sv);
+##        }
+#
+#        if ( exists $Sf->{'ConflictingLiftedVars'}{$var} ) {
+#            $nvar = $Sf->{'ConflictingLiftedVars'}{$var};
+#            say "WARNING: CONFLICT for VAR $var in $subset, setting var name to $nvar in format_f95_var_decl()!" if $W;
 #			croak Dumper($Sv);
 #        }
-
-        if ( exists $Sf->{'ConflictingLiftedVars'}{$var} ) {
-            $nvar = $Sf->{'ConflictingLiftedVars'}{$var};
-            say "WARNING: CONFLICT for VAR $var in $subset, setting var name to $nvar in format_f95_var_decl()!" if $W;
-			croak Dumper($Sv);
-        }
-        $spaces =$Sv->{'Indent'};
-           #WV20150707 Decl is a record of 4 entries: [spaces, [type], [varname],formatted(0|1)]
-        $spaces =~ s/\S.*$//;
-        $shape = $Sv->{'Dim'};
-        $type  = $Sv->{'Type'};
-        $attr  = $Sv->{'Attr'};
-        $intent = $Sv->{'IODir'};                 
-
-    } elsif ( defined $f and defined $stref and defined $var ) {        
-        ( $type, my $kind, $attr ) = type_via_implicits( $stref, $f, $var );
-    } else {
-        croak
-"Can't type $var, not in Vars and format_f95_var_decl() called the wrong way for implicits";
-    }
-    
-# --------------------------------------------------------------------------------------------------------------------------------    
-    if (not defined $shape) {croak($var) };
-    my $dim = [];
-    # FIXME: I think the case dimension(:) is not covered!
-    if ( @{$shape} >= 1) {
-        $dim=$shape;
-    } else {
-        $dim = [];
-    }
-
-    return {
-        'Indent' => $spaces,
-        'Type' => $type,
-        'Attr' => $attr,
-        'Dim' => $dim,
-        'IODir' => $intent,
-        'Names' => [$nvar],
-        'Name' => $nvar,
-        'Status' => 1
-    };
-
-}    # format_f95_var_decl()
+#        $spaces =$Sv->{'Indent'};
+#           #WV20150707 Decl is a record of 4 entries: [spaces, [type], [varname],formatted(0|1)]
+#        $spaces =~ s/\S.*$//;
+#        $shape = $Sv->{'Dim'};
+#        $type  = $Sv->{'Type'};
+#        $attr  = $Sv->{'Attr'};
+#        $intent = $Sv->{'IODir'};                 
+#
+#    } elsif ( defined $f and defined $stref and defined $var ) {        
+#        ( $type, my $kind, $attr ) = type_via_implicits( $stref, $f, $var );
+#    } else {
+#        croak
+#"Can't type $var, not in Vars and format_f95_var_decl() called the wrong way for implicits";
+#    }
+#    
+## --------------------------------------------------------------------------------------------------------------------------------    
+#    if (not defined $shape) {croak($var) };
+#    my $dim = [];
+#    # FIXME: I think the case dimension(:) is not covered!
+#    if ( @{$shape} >= 1) {
+#        $dim=$shape;
+#    } else {
+#        $dim = [];
+#    }
+#
+#    return {
+#        'Indent' => $spaces,
+#        'Type' => $type,
+#        'Attr' => $attr,
+#        'Dim' => $dim,
+#        'IODir' => $intent,
+#        'Names' => [$nvar],
+#        'Name' => $nvar,
+#        'Status' => 1
+#    };
+#
+#}    # format_f95_var_decl()
 
 # -----------------------------------------------------------------------------
-sub get_f95_var_decl {
-	# This sub can be called in different ways, I think it would be better to create different subs that call a common core
+sub get_f95_var_decl {	
     (my $stref, my $f, my $var) = @_;
     my $sub_or_func_or_inc = sub_func_incl_mod( $f, $stref );
 	my $Sf= $stref->{$sub_or_func_or_inc}{$f};    
@@ -998,8 +995,7 @@ sub get_f95_par_decl {
     my $sub_or_func_or_inc = sub_func_incl_mod( $f, $stref );
     my $Sf = $stref->{$sub_or_func_or_inc}{$f};
     my $Sv = $Sf->{'Parameters'}{'Set'}{$var};
-    
-    
+        
     if ( not defined $Sv ) {
         print
 "WARNING: PARAMETER $var is probably local to $f in format_f95_par_decl(). If $f is a parameter include file, that is OK.\n"
@@ -1414,6 +1410,3 @@ sub _emit_f95_parsed_var_decl { (my $pvd) =@_;
 }
 
 1;
-
-
-

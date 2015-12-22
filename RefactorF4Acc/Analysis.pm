@@ -6,7 +6,7 @@ use RefactorF4Acc::Analysis::Includes qw( find_root_for_includes );
 use RefactorF4Acc::Analysis::Globals qw( lift_globals );
 use RefactorF4Acc::Analysis::Sources qw( analyse_sources );
 use RefactorF4Acc::Analysis::LoopDetect qw( outer_loop_end_detect );
-use RefactorF4Acc::Refactoring::Common qw( format_f95_var_decl stateful_pass );
+use RefactorF4Acc::Refactoring::Common qw( get_f95_var_decl stateful_pass );
 # 
 #   (c) 2010-2015 Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
 #   
@@ -103,7 +103,7 @@ sub _find_argument_declarations { (my  $stref, my  $f) = @_;
                    say "TYPING $arg via IMPLICIT rules" if $V;
 #                   (my $type, my $array_or_scalar, my $attr) = type_via_implicits($stref, $f, $arg);
 #                   say "$type $attr";    
-                   my $decl = format_f95_var_decl($stref, $f, $arg);
+                   my $decl = get_f95_var_decl($stref, $f, $arg);
 #                   say Dumper($decl);
                     push @{  $Sf->{'ExImplicitArgs'}{'List'} }, $arg;
                     $Sf->{'ExImplicitArgs'}{'Set'}{$arg}=$decl;                                  
@@ -203,7 +203,7 @@ sub _analyse_variables {
                         say "INFO: LOCAL VAR <$mvar> in $f may be an EXTERNAL FUNCTION " if $I;
                     } else {
                     say "INFO: LOCAL VAR <$mvar> in $f via IMPLICIT! " . $line .' _analyse_variables() ' . __LINE__  if $I;
-                    my $decl = format_f95_var_decl($stref, $f, $mvar);
+                    my $decl = get_f95_var_decl($stref, $f, $mvar);
 #                            push @{ $stref->{'Subroutines'}{$f}{'LocalVars'}{'List'} }, $mvar;
 #                            $stref->{'Subroutines'}{$f}{'LocalVars'}{'Set'}{$mvar} = $decl;
                             push @{ $stref->{'Subroutines'}{$f}{'ExImplicitVarDecls'}{'List'} }, $mvar;

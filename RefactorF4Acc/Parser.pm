@@ -3,8 +3,7 @@ use v5.16;
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
 use RefactorF4Acc::CallTree qw( add_to_call_tree );
-use RefactorF4Acc::Refactoring::Common
-  qw( format_f95_var_decl emit_f95_var_decl );
+use RefactorF4Acc::Refactoring::Common qw( emit_f95_var_decl );
 use RefactorF4Acc::Parser::SrcReader qw( read_fortran_src );
 use RefactorF4Acc::CTranslation qw( add_to_C_build_sources ); # OBSOLETE
 use RefactorF4Acc::Analysis::ArgumentIODirs qw( parse_assignment );
@@ -1847,7 +1846,7 @@ sub __construct_new_subroutine_signatures {
  
         for my $argv ( @{ $args{$block} } ) {
             $sig .= "$argv,";
-            my $decl = format_f95_var_decl( $Sf, $argv );    
+            my $decl = get_f95_var_decl( $stref,$f, $argv );    
             $decl->{'Indent'} .= $sixspaces;
 #            $Sblock->{'OrigArgs'}{'Set'}{$argv}{'Decl'} = $decl; # WV: this is now handled via the Subsets
             $Sblock->{'DeclaredOrigArgs'}{'Set'}{$argv} = $decl;
@@ -1868,7 +1867,7 @@ sub __construct_new_subroutine_signatures {
         
         for my $iters ($itersref->{$block}) {
             for my $iter (@{ $iters } ) {
-                 my $decl = format_f95_var_decl( $stref,$f,$iter );
+                 my $decl = get_f95_var_decl( $stref,$f,$iter );
                  $Sblock->{'LocalVars'}{'Set'}{$iter}=$decl;                 
                  $Sblock->{'DeclaredOrigLocalVars'}{'Set'}{$iter}=$decl;
                  push @{ $Sblock->{'DeclaredOrigLocalVars'}{'List'} }, $iter;
@@ -1879,7 +1878,7 @@ sub __construct_new_subroutine_signatures {
         }
 
         for my $argv ( @{ $args{$block} } ) {
-            my $decl = $Sblock->{'OrigArgs'}{'Set'}{$argv};# format_f95_var_decl( $stref,$f,$argv );            
+            my $decl = $Sblock->{'OrigArgs'}{'Set'}{$argv};            
             unshift @{ $Sblock->{'AnnLines'} },
               [ emit_f95_var_decl($decl), { 'VarDecl' => $decl, 'Ann' => '__construct_new_subroutine_signatures '. __LINE__ .' -> '  } ];
         }

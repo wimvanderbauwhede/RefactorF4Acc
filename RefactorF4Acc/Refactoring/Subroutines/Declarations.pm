@@ -3,8 +3,8 @@ use v5.16;
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
 use RefactorF4Acc::Refactoring::Common qw( 
-    format_f95_var_decl 
-    format_f95_par_decl 
+    get_f95_var_decl 
+    get_f95_par_decl 
     emit_f95_var_decl 
     get_annotated_sourcelines
     splice_additional_lines
@@ -107,9 +107,9 @@ sub create_refactored_vardecls {
         for my $tnvar (@nvars) {
             my $rdecl=[];
                 if (exists ($Sf->{'Parameters'}{'Set'}{$vars[0]} ) ){
-                    $rdecl = format_f95_par_decl( $stref,$f,$tnvar );
+                    $rdecl = get_f95_par_decl( $stref,$f,$tnvar );
                 } else {
-                	$rdecl = format_f95_var_decl($Sf,$tnvar);# WV: seems this never happens!                	
+                	$rdecl = ($stref,$f,$tnvar);# WV: seems this never happens!                	
                 }
             $info->{'VarDecl'} = $rdecl;#[$tnvar];
             $info->{'Ref'} = 1; 
@@ -158,8 +158,7 @@ die "THIS CHECK IS NOT OK: RefactoredArgs can have an entry with a blank IODir h
 
 #                        croak "$f: INC $inc: VAR $var\n" if not exists $stref->{IncludeFiles}{$inc}{'Vars'}{$var};
 say "WARNING: $f:  VAR $var is not declared in INC $inc but is common, will be declared via implicit rules!" if $W;                        
-#                        my $rdecl = format_f95_var_decl( $stref->{'IncludeFiles'}{$inc},$var);
-                        my $rdecl = format_f95_var_decl( $stref,$inc,$var);
+                        my $rdecl = get_f95_var_decl( $stref,$inc,$var);
 #                        croak Dumper($stref->{'IncludeFiles'}{$inc}{Vars}{uprof}) if $var eq 'uprof';
                         if ( exists $Sf->{'ConflictingParams'}{$var} ) {
                             my $gvar = $Sf->{'ConflictingParams'}{$var}[0];
@@ -171,14 +170,6 @@ say "WARNING: $f:  VAR $var is not declared in INC $inc but is common, will be d
                         my $rline = emit_f95_var_decl($rdecl);
                         $rline .= " ! EX-GLOB from $inc";   
                         
-#                        my $rdecl = ['',[],[$var],0];
-#                        if ( not defined $rline ) {
-#                            print "*** NO DECL for $var in $f, taking from INC $inc!\n" if $V;
-#                            # FIXME: is it OK to just generate the decls here?
-#                            $rdecl = format_f95_var_decl($stref->{IncludeFiles}{$inc},$var);
-#                            $rline = emit_f95_var_decl($rdecl);
-#                            $rline .= " ! from $inc";   
-#                        }
                         my $info={};
                         $info->{'LineID'}= $nextLineID++;
                         $info->{'Ref'}=1;
@@ -205,7 +196,7 @@ sub _add_missing_var_decls { (my $stref,my $f,my $undeclared_vars)=@_;
 #        my $code_unit = sub_func_incl_mod($f,$stref);
 #        my $Sf = $stref->{$code_unit}{$f};
         say Dumper($var) if $f eq 'ew';
-        my $vd = format_f95_var_decl($stref,$f,$var);
+        my $vd = get_f95_var_decl($stref,$f,$var);
         say Dumper($vd) if $f eq 'ew';
         my $info = {'VarDecl'=>$vd}; # TODO: need some extra $info here
         my $line = emit_f95_var_decl($vd).' ! missing';
@@ -255,11 +246,11 @@ sub find_and_add_missing_var_decls {
                 # So let's find out where this has gone wrong
 #                die Dumper($stref->{'Subroutines'}{$f}{Vars}{$varname}) if $varname eq 'dsigw2dz';
                 if (not exists $info->{'Ref'} or $info->{'Ref'}==0) {
-                my $vardecl = format_f95_var_decl($stref,$f, $varname);
+                my $vardecl = get_f95_var_decl($stref,$f, $varname);
                 $line = emit_f95_var_decl($vardecl).' ! V6';
                 $info->{'Ref'}=1;
                 } else {
-                my $vardecl = format_f95_var_decl($stref,$f, $varname);
+                my $vardecl = get_f95_var_decl($stref,$f, $varname);
                 $line = emit_f95_var_decl($vardecl).' ! V7: intent'; 
                 $info->{'Ref'}=2;
                     
@@ -273,7 +264,7 @@ sub find_and_add_missing_var_decls {
                              
                 my $parname = $info->{'ParamDecl'}{'Name'}[0];
                 if (not exists $info->{'Ref'} or $info->{'Ref'}==0) {
-                my $pardecl = format_f95_par_decl($stref,$f, $parname);
+                my $pardecl = get_f95_par_decl($stref,$f, $parname);
                 $line = emit_f95_var_decl($pardecl).' ! V7'; # FIXME: Somehow this is emitted TWICE, I guess because it re-emits the commmented line?
                 $info->{'Ref'}=1;
                 }

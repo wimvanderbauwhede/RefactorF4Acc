@@ -8,9 +8,7 @@ use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
 use RefactorF4Acc::Refactoring::Common qw( 
     create_refactored_source 
-    get_annotated_sourcelines 
-    format_f95_var_decl 
-    format_f95_par_decl 
+    get_annotated_sourcelines      
     emit_f95_var_decl
     splice_additional_lines
     );

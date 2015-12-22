@@ -16,7 +16,7 @@ use strict;
 use Carp;
 use Data::Dumper;
 
-use RefactorF4Acc::Refactoring::Common qw( get_annotated_sourcelines format_f95_var_decl );
+use RefactorF4Acc::Refactoring::Common qw( get_annotated_sourcelines );
 
 use Exporter;
 

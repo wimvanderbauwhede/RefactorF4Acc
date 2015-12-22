@@ -2,8 +2,7 @@ package RefactorF4Acc::Parser::SrcReader;
 use v5.16;
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils qw( sub_func_incl_mod );
-use RefactorF4Acc::Refactoring::Common
-  qw( format_f95_var_decl format_f77_var_decl );
+use RefactorF4Acc::Refactoring::Common;
 use F95Normaliser qw( normalise_F95_src );
 
 #
