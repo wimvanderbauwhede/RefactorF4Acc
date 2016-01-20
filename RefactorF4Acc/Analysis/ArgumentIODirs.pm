@@ -84,7 +84,7 @@ if (0) {
         $Sf = $stref->{'Subroutines'}{$f};
         my $args = $Sf->{'RefactoredArgs'}{'Set'};       
         
-        my $maybe_args = ( get_maybe_args_globs( $stref, $f ) )[0];
+        my $maybe_args = ( get_maybe_args_globs( $stref, $f ) )[0]; # returns a hash ref
         
         if ( scalar keys %{$args} > 0 ) {
             for my $arg ( keys %{$args} ) {
@@ -95,6 +95,7 @@ if (0) {
                 my $type  = 'Unknown';
                 my $shape = [];
                 my $attr  = '';
+                my $decl; 
                 
                 my $indent='      ';
                 if ( exists $maybe_args->{$arg} ) {

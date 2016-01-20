@@ -41,6 +41,7 @@ our $usage = "
 #    -B: Build FLEXPART (implies -b), currently ignored
 #    -G: Generate Markdown documentation (currently broken)
 
+our @unit_tests= (1,2);
 &main();
 
 # -----------------------------------------------------------------------------
@@ -123,15 +124,29 @@ This routine analyses the code for goto-based loops and breaks, so that we can r
 =cut
 
 sub main {
+	(my $unit_test_list)=@_;
+		
 	(my $subname, my $subs_to_translate, my $gen_scons, my $build) = parse_args();
 	#  Initialise the global state.
 	my $stref = init_state($subname);
     $stref->{'SubsToTranslate'}=$subs_to_translate;
 	# Find all subroutines in the source code tree
 	$stref = find_subroutines_functions_and_includes($stref);
-
+test(1,$stref, sub { (my $stref)=@_;
+	my $res= (scalar keys %{$stref->{'Subroutines'}} == 22) ? 'PASS' : 'FAIL';
+}, sub {(my $stref)=@_;
+	return keys %{$stref};
+});
     # Parse the source
+    
 	$stref = parse_fortran_src( $subname, $stref );
+test(2,$stref,
+sub { return 'FAIL';
+},
+sub {
+	(my $stref)=@_;
+	return $stref->{Subroutines}{main}{AnnLines};
+});
 	$stref = refactor_marked_blocks_into_subroutines( $stref );
 #	say Dumper( $stref->{'Subroutines'}{'timemanager'} );
 #	show_annlines($stref->{'Subroutines'}{'particles_main_loop'}{'AnnLines'},1);
@@ -559,3 +574,18 @@ Nodes = Hash.Map Int Node
 =cut
 
 
+sub test { (my $test_num, my $stref, my $test_subref, my $fail_subref) = @_;
+	my %unit_tests_map = map {$_=>1} @unit_tests;		
+	my $last_test = [sort {$b <=> $a} @unit_tests]->[0];	
+	if (exists $unit_tests_map{$test_num}) {
+	my $res=  $test_subref->($stref);
+	
+	if ($res eq 'FAIL') {
+	die "Test $test_num: FAIL\n".Dumper( $fail_subref->($stref)  );
+	} else {
+		say "Test $test_num: ".$res;
+	}	 
+	die if $last_test==$test_num;
+}
+	
+}

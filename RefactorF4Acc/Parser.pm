@@ -1119,11 +1119,10 @@ sub _get_commons_params_from_includes {
                             print "INFO: common <", $var,
                               "> typed via Implicits for $inc\n"
                               if $I; 
-                            my $type_kind_shape_attr =
-                              $stref->{'Implicits'}{$inc}
-                              { lc( substr( $var, 0, 1 ) ) };
-                            ( my $type, my $array_or_scalar, my $shape, my $attr ) =
-                              @{$type_kind_shape_attr};
+                            my @type_kind_attr = type_via_implicits( $stref, $inc, $var);
+#                              $stref->{'Implicits'}{$inc}
+#                              { lc( substr( $var, 0, 1 ) ) };
+                            ( my $type, my $array_or_scalar,  my $attr ) = @type_kind_attr;
                             my $indent      = ' ' x 6;
                             my $decl = {
                                 'Indent' => $indent,
@@ -1135,7 +1134,9 @@ sub _get_commons_params_from_includes {
                                  'ArrayOrScalar'   => $parsedvars->{$var}{'ArrayOrScalar'}                                
                             };
                             $Sincf->{'Commons'}{$var} = $var;
-                            if (exists $Sincf->{'DeclaredOrigLocalVars'}{'Set'}{$var} ) { die "SHOULD BE IMPOSSIBLE!";
+                            if (exists $Sincf->{'DeclaredOrigLocalVars'}{'Set'}{$var} ) {
+                            # What this means is that the include file contains declared variables that are in a common block.
+                            # So we monve them to DeclaredCommonVars
                                 $Sincf->{'DeclaredCommonVars'}{'Set'}{$var} = $decl;
                                 delete $Sincf->{'DeclaredOrigLocalVars'}{'Set'}{$var};
                                 @{ $Sincf->{'DeclaredOrigLocalVars'}{'List'} } = grep {$_ ne $var} @{ $Sincf->{'DeclaredOrigLocalVars'}{'List'} };
@@ -1143,8 +1144,7 @@ sub _get_commons_params_from_includes {
                             } else {
                                 $Sincf->{'UndeclaredCommonVars'}{'Set'}{$var} = $decl;
                                 push @{ $Sincf->{'UndeclaredCommonVars'}{'List'}} ,$var;
-                                warn "UNDECLARED COMMON VAR $var from $inc\n";
-                                # So this one will have to be typed via Implicits later on
+                                say "WARNING: UNDECLARED COMMON VAR $var from $inc, was typed via implicit rules\n" if $W;
                             }
                             
                         } else {
@@ -1290,6 +1290,7 @@ sub _get_commons_params_from_includes {
         }
 
 # Checking if any variable encountered in the include file is either a Parameter or Common var
+		my %vars = %{ $Sincf->{'Vars'} };
         for my $var ( keys %vars ) {
             my $is_not_par = $has_pars && !exists( $Sincf->{'Parameters'}{'Set'}{$var} );
             my $is_not_common =
@@ -2505,7 +2506,7 @@ sub __parse_f77_var_decl {
                                                 
                     } else { # A var decl must be unique, so it it's not a arg, it's a local
                         $Sf->{'DeclaredOrigLocalVars'}{'Set'}{$var} = $decl;# $Sf->{'UndeclaredOrigArgs'}{'Set'}{$var};
-                        push @{ $Sf->{'DeclaredOrigLocalVars'} }, $var;
+                        push @{ $Sf->{'DeclaredOrigLocalVars'}{'List'} }, $var;
                     }
                     
                      

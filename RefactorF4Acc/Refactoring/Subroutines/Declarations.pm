@@ -109,7 +109,7 @@ sub create_refactored_vardecls {
                 if (exists ($Sf->{'Parameters'}{'Set'}{$vars[0]} ) ){
                     $rdecl = get_f95_par_decl( $stref,$f,$tnvar );
                 } else {
-                	$rdecl = ($stref,$f,$tnvar);# WV: seems this never happens!                	
+                	$rdecl = [$stref,$f,$tnvar];# WV: seems this never happens!                	
                 }
             $info->{'VarDecl'} = $rdecl;#[$tnvar];
             $info->{'Ref'} = 1; 
