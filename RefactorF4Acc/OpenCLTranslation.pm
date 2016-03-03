@@ -24,17 +24,23 @@ use Exporter;
 @RefactorF4Acc::OpenCLTranslation::EXPORT_OK = qw(
   &translate_to_OpenCL
 );
-
+# Actually, $stref is not used!
 sub translate_to_OpenCL {
     ( my $stref, my $mod_name, my $kernel_name, my $macro_src ) = @_;
+    if (defined $macro_src) {
     my $retval = _preprocess( $stref, $mod_name );
     ( $stref, my $prep_src_lines, my $can_be_consts ) = @{$retval};
 #    map {say $_} @{$prep_src_lines};die;
     my $f_src = $mod_name.'_ocl.f95';
     _run_cpp (  $f_src,  $prep_src_lines, $macro_src );
 #    map { say $_ } @{$refactored_annlines};
-#    die;
+#    die;}
     _generate_C($mod_name, $f_src, $can_be_consts, $kernel_name);
+    } else {
+    	my $f_src=$mod_name.'.f95';
+    	# 'module_kernels_press_out', 'module_kernels_press_out.f95',{},'reduce_rhsav_area_73'
+		_generate_C($mod_name, $f_src, {}, $kernel_name);
+    }
     return $stref;
 }    # END of translate_to_OpenCL()
 
@@ -354,7 +360,7 @@ sub _fix_F2C_ACC_translation { (my $csrc, my $can_be_consts, my $kernel_name)=@_
        
        my %sub_names=();
     my @ocl_src_lines=();
-    
+    my $null_check=0;
     while(my $line=<$SRC>) {
 #    chomp $line;
 # remove includes
@@ -388,14 +394,53 @@ sub _fix_F2C_ACC_translation { (my $csrc, my $can_be_consts, my $kernel_name)=@_
                 }; 
         $line=~/^(\s*)void\s+$kernel_name\((.+?\{)$/ && do { #die $line; 
             $line = $1.'__kernel void '.$kernel_name.'('.$2; }; # FIXME: must be the subroutine with the right name!
+# malloc needs to become static array
+        #  float *local_rhsav_array = (float*) malloc((64)*sizeof(float));
+        $line=~/malloc/ && do {
+        	$line=~s/\*//;
+        	$line=~s/..sizeof.+$/];/;
+        	$line=~s/=.+malloc../[/;        	
+        };    
+# delete calls to free()
+$line=~/^\s*free\s*\(/ && do {next;};        
+# remove any checks for NULL
+		
+		$line=~/NULL/ && do {
+			$null_check=1;
+			next;		
+		};
+		if ($null_check==1) {
+			if ($line=~/^\s+\}\s*$/) {
+			$null_check=0;
+			}
+			next;									
+		}
+		
+# Fix OpenCL API call syntax
+
+$line=~/(get_local_size|get_local_id|get_group_id|get_num_groups|get_group_size|get_global_id)\s*\(\s*(\w+)\s*,\s*(\d+)\s*\)/ && do {
+	$line = '    '.$2.' = '.$1.'('.$3.');'."\n";
+};
+#  get_local_id( local_id,0 );
+#  get_group_id( group_id,0 );
+#  get_num_groups( num_groups,0 );
+#  get_group_size( group_size,0 );
+#  get_global_id( global_id,0 );
+
+# barrier fix
+	$line=~/(CLK_(GLOBAL|LOCAL)_MEM_FENCE)/i && do {
+		my $flag=$1;
+		my $ucflag=uc($flag);
+		$line=~s/$flag/$ucflag/;
+	};
 # Replace goto with break:
-    $line=~/(goto\s+C__\d+)/ && do {
-        my $goto = $1;
-        $line=~s/$goto/break/;
-    };     
-    $line=~/\d+\s+continue/ && ($line="\n");
-        push @ocl_src_lines, $line;
-    }
+    	$line=~/(goto\s+C__\d+)/ && do {
+        	my $goto = $1;
+        	$line=~s/$goto/break/;
+    	};     
+    	$line=~/\d+\s+continue/ && ($line="\n");
+    	push @ocl_src_lines, $line;
+	} # END of loop over src lines
     close $SRC;
     
 
@@ -441,7 +486,7 @@ sub _fix_F2C_ACC_translation { (my $csrc, my $can_be_consts, my $kernel_name)=@_
                 $consts{ ${const_varstr}.'__G'}=$const_varstr;
                 next;
             } else {
-                die "NOT A CONST, KEEP ".${const_varstr}.'__G';
+               warn "NOT A CONST, KEEP ".${const_varstr}.'__G'; # was die()
             }
         };
         push @ocl_src_lines_tf1, $line;
@@ -451,7 +496,8 @@ sub _fix_F2C_ACC_translation { (my $csrc, my $can_be_consts, my $kernel_name)=@_
      my @ocl_src_lines_tf2=();
 # An extra complication is that the arguments for the functions called from the kernel must be in the same memory space as the kernel arguments.
 # That is quite difficult. I need to see how the functions are called, if any of the args is a global, and if so, change the corresponding argument.
-my %global_args=(); 
+
+	my %global_args=(); 
     for my $line ( @ocl_src_lines_tf1 ) {
         $line=~/void.+\{/ && do {
             my $argstr = $line;
@@ -509,7 +555,7 @@ my %global_args=();
     }
     
 #       map {print $_} @ocl_src_lines_tf3;
-#    die; 
+    say 'GENERATE FIXED KERNEL SRC' if $V; 
     
 
     open my $FIXED_SRC,'>',$csrc;

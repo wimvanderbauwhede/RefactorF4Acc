@@ -24,21 +24,23 @@ use RefactorF4Acc::OpenCLTranslation qw( translate_to_OpenCL);
 use Getopt::Std;
 
 our $usage = "
-This script generates an OpenCL kernel from a Fortran-95 subroutine.
+This script generates an OpenCL kernel from a Fortran-95 subroutine. It is primarily meant to be used in an integrated way, i.e. not on stand-alone code.
+To use it on stand-alone code (a module with kernel candidates), use the flag -S.
 
 USAGE:
  
 The script needs following information from the rf4a config file (rf4a.cfg or ~/.rf4a)
 
-TOP: the name of the toplevel program that calls the kernel subroutine
-TOP_SRC: the source file name for TOP
-MODULE: the module that contains the kernel subroutine
-MODULE_SRC: the source file name for MODULE
-KERNEL: the name of the  kernel subroutine
-MACRO_SRC: the source file name containing macro definitions if the source code contains macros. 
+TOP = the name of the toplevel program that calls the kernel subroutine
+TOP_SRC = the source file name for TOP
+MODULE = the module that contains the kernel subroutine
+MODULE_SRC = the source file name for MODULE
+KERNEL = the name of the  kernel subroutine
+MACRO_SRC = the source file name containing macro definitions if the source code contains macros. 
+
 OPTIONS:
 
-    $0 [-hwvicC] 
+    $0 [-hwvicCS] 
     Typical use: $0 -c ./rf4a.cfg -v -i  
     -h: help
     -w: show warnings 
@@ -46,6 +48,7 @@ OPTIONS:
     -i: show info messages
     -c <cfg file name>: use this cfg file (default is ~/.rf4a)
     -C: Only generate call tree, don't refactor or emit
+    -S: Run on stand-alone code
     \n";
 
 &main();
@@ -53,9 +56,9 @@ OPTIONS:
 # -----------------------------------------------------------------------------
 
 sub main {
-	(my $mod_name, my $mod_src,my $kernel_name, my $top_name, my $top_src, my $macro_src, my $build) = parse_args();
+	(my $mod_name, my $mod_src,my $kernel_name, my $top_name, my $top_src, my $macro_src, my $build, my $stand_alone) = parse_args();
 	#  Initialise the global state.
-	
+	if (not $stand_alone) {
 	my $inits = { 
 	    'Modules'=>{ $mod_name=>{'Source' => $mod_src} }, 
 	    'Top' => $top_name, 
@@ -99,8 +102,9 @@ sub main {
 #   map {say Dumper($_->[1]) } @{ $stref->{'Modules'}{'module_press'}{'AnnLines'} };die;
 #	say Dumper( $stref->{'Modules'}{'module_press'} );die;
    $stref = translate_to_OpenCL($stref,$mod_name, $kernel_name, $macro_src);
-    
-
+   } else {
+       translate_to_OpenCL({},$mod_name, $kernel_name);
+   }
 
 #	create_build_script($stref);
 #	if ($build) {
@@ -116,7 +120,7 @@ sub parse_args {
 		die "Please specifiy FORTRAN subroutine or program to refactor\n";
 	}
 	my %opts = ();
-	getopts( 'vwihgc:CNB', \%opts );
+	getopts( 'vwihgc:CNBS', \%opts );
 	
 	my $help = ( $opts{'h'} ) ? 1 : 0;
     if ($help) {
@@ -128,18 +132,20 @@ sub parse_args {
         $cfgrc='./rf4a.cfg';
     }    
     if ($opts{'c'}) {
-         $cfgrc= $opts{'c'} ;
+         $cfgrc= $opts{'c'};
     } 
 	read_config($cfgrc);
 	if (not exists $Config{'MODULE'} or not exists $Config{'KERNEL'}) {
-	    die "Sorry, $cfgrc does not contain the necessary information:". $usage; 	
+	    die "Sorry, $cfgrc does not contain the necessary information:". $usage . Dumper(%Config); 	
 	}
+    my $stand_alone = $opts{'S'} ? '1': '0';
+    
     my $mod_name = $Config{'MODULE'};
     my $mod_src = exists $Config{'MODULE_SRC'} ? $Config{'MODULE_SRC'} : do { say "WARNING: Using DEFAULT module source file name!"; 'module_'.$mod_name.'.f95';};
     my $kernel_name = $Config{'KERNEL'};    
-    my $top_name = $Config{'TOP'};
+    my $top_name = $stand_alone ? 'NO_MAIN' : $Config{'TOP'};
     my $top_src = exists $Config{'TOP_SRC'} ? $Config{'TOP_SRC'} : do { say "WARNING: Using DEFAULT top source file name!"; $top_name.'.f95';};
-    my $macro_src =  $Config{'MACRO_SRC'}; 
+    my $macro_src =  $stand_alone ? 'NO_MACROS' : $Config{'MACRO_SRC'}; 
     if ( exists $Config{'NEWSRCPATH'}) {
         $targetdir =  $Config{'NEWSRCPATH'};
     }   
@@ -154,8 +160,8 @@ sub parse_args {
 
 	my $build = ( $opts{'B'} ) ? 1 : 0;
 
-	return ($mod_name,$mod_src,$kernel_name, $top_name,$top_src, $macro_src, $build);
-}
+	return ($mod_name,$mod_src,$kernel_name, $top_name,$top_src, $macro_src, $build, $stand_alone);
+} # END of parse_args()
 
 sub read_macros { (my $stref,my $macro_src) = @_;
     $stref->{'Macros'}={};

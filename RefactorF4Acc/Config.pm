@@ -68,17 +68,18 @@ our $targetdir = '../RefactoredSources';
 
 our %Config=();
 
-sub read_config {
+sub read_config { 
 	(my $cfgrc)=@_;
-open my $CFG, '<', $cfgrc or die $!,': ',$cfgrc;
-for my $line (<$CFG>) {
+	open my $CFG, '<', $cfgrc or die $!,': ',$cfgrc;
+	for my $line (<$CFG>) {
+#	say "LINE:".$line;
 	next if $line=~/^\s*#/;
 	next unless $line=~/=/;
 	print $line if $V;
 	chomp $line;
 	$line=~s/\s+$//;
 	(my $k, my $v) = split(/\s*\=\s*/,$line);
-	# 
+	say "$k => $v";
 	if ($v=~/,/) {
 		my @vs=split(/\s*,\s*/,$v);
 		$Config{$k}=[@vs];

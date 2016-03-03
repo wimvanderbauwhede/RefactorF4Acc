@@ -1,4 +1,4 @@
-THIS IS COMPLETELY UNFINISHED AND SHOULD BE OBSOLETE, use genOclWrapperTemplate.pl
+die 'THIS IS COMPLETELY UNFINISHED AND SHOULD BE OBSOLETE, use genOclWrapperTemplate.pl';
 #!/usr/bin/perl
 use strict;
 use warnings; 

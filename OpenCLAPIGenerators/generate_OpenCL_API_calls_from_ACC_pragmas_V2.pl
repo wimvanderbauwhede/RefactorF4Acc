@@ -1,4 +1,4 @@
-THIS IS OBSOLETE, use genOclWrapperFromTemplate.pl
+die 'THIS IS OBSOLETE, use genOclWrapperFromTemplate.pl';
 #!/usr/bin/perl
 use strict;
 use warnings; 

@@ -276,7 +276,7 @@ sub outer_loop_variable_analysis {
                 if ( $code_region == $LOOP and exists $info->{'Assignment'} ) {
 
                     say "INFO: ASSIGNMENT in loop: $line:\t"
-                      . join( ';', keys $info ) if $I;
+                      . join( ';', keys %{$info} ) if $I;
                     my $varname = $info->{'Assignment'}{'Lhs'}{'VarName'};
                     $loop_updated_vars->{$varname} = $varname;
                 }
@@ -284,7 +284,7 @@ sub outer_loop_variable_analysis {
                     and exists $info->{'SubroutineCall'} )
                 {
                     say "INFO: SUBROUTINE CALL in loop: $line:\t"
-                      . join( ';', keys $info ) if $I;    #die Dumper($info);
+                      . join( ';', keys %{$info} ) if $I;    #die Dumper($info);
                       # So here I need to find all arguments of the sub with Intent Out or InOut
                     my $sub_name = $info->{'SubroutineCall'}{'Name'};
                     my $sub_args =
