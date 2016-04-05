@@ -125,7 +125,9 @@ sub parse_fortran_src {
 	print
 "LEAVING parse_fortran_src( $f ) with Status $stref->{$sub_or_incl_or_mod}{$f}{'Status'}\n"
 	  if $V;
+	  
 	return $stref;
+	
 }    # END of parse_fortran_src()
 
 # -----------------------------------------------------------------------------

@@ -35,6 +35,7 @@ use Exporter;
     &in_nested_set
     &get_vars_from_set
     &get_var_record_from_set
+    &get_kv_for_all_elts_in_set
 );
 
 sub sub_func_incl_mod {
@@ -322,17 +323,21 @@ sub show_status {
 sub in_nested_set { (my $set, my $set_key, my $var)=@_;
     if (exists $set->{$set_key}{'Subsets'} ) {
         for my $subset (keys %{  $set->{$set_key}{'Subsets'} } ) {
-            in_nested_set($set->{'Subsets'},$subset, $var);
+            my $retval = in_nested_set($set->{$set_key}{'Subsets'},$subset, $var);
+            # As soon as we have found a match we return it.
+            if ($retval ne '') {
+            	return $retval;
+            }
         }
     } elsif (exists $set->{$set_key}{'Set'}) {
     	# There are no Subsets but there is a Set
         if (exists $set->{$set_key}{'Set'}{$var}) {
-        	return $set_key;
+        	return $set_key; # This returns to the caller, does not end the recursion
         } else {
-        	return 0;
+        	return ''; # This returns to the caller, does not end the recursion
         }
-    } else {
-        return 0;
+    } else {    	
+        return '';
     }
 } # END of in_nested_set
 
@@ -361,6 +366,22 @@ sub get_var_record_from_set { (my $set, my $var)=@_;
         return ${$set->{'Set'}} ;        
     } 
         return $vars{$var};
+}
+
+# For every key in a hash $set, get the hash that is its value, and in that has kind the kv pair for the key $k
+# Typical use is e.g. get_kv_for_all_elts_in_set( $stref->{Subroutines},'IncludeFiles' ) or
+# get_kv_for_all_elts_in_set( $stref->{'IncludeFiles'},'Root')
+
+sub get_kv_for_all_elts_in_set {
+	(my $set, my $k) =@_;
+	my $results={};
+	for my $elt (keys %{$set}) {
+		if (exists $set->{$elt}{$k} ) {
+			my $v = $set->{$elt}{$k};
+			$results->{$elt}=$v;
+		}
+	}
+	return $results;
 }
 
 our @F95_reserved_words_list = qw( 

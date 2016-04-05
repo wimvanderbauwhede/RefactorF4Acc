@@ -133,6 +133,7 @@ sub main {
     $stref->{'SubsToTranslate'}=$subs_to_translate;
 	# Find all subroutines in the source code tree
 	$stref = find_subroutines_functions_and_includes($stref);
+	
 test(1,$stref, sub { (my $stref)=@_;
 	if ($subname eq 'main') {
 		return (scalar keys %{$stref->{'Subroutines'}} == 22) ? 'PASS' : 'FAIL';
@@ -146,6 +147,7 @@ test(1,$stref, sub { (my $stref)=@_;
     # Parse the source
     
 	$stref = parse_fortran_src( $subname, $stref );
+	
 test(2,$stref,
 sub { return 'PASS';
 },
@@ -194,13 +196,30 @@ sub {
 
 #    say Dumper( $stref->{Subroutines}{main} );die;
     # Analyse the source
-	$stref = analyse_all($stref,$subname);
+    my $stage=3;
+	$stref = analyse_all($stref,$subname, $stage);	
 test(5,$stref,
 sub { return 'FAIL';
 },
 sub {
 	(my $stref)=@_;
-	return $stref->{'Nodes'};
+	my $sub = $subname eq 'main' ? 'press' : 'timemanager';
+	if ($stage==1) {
+		return get_kv_for_all_elts_in_set($stref->{'IncludeFiles'},'Root');
+	} elsif ($stage==2) {		
+#		return $stref->{'IncludeFiles'}{'common.sn'};
+		return {'ExInclArgs' => $stref->{'Subroutines'}{$sub}{'ExInclArgs'}, 'ExImplicitArgs' => $stref->{'Subroutines'}{$sub}{'ExImplicitArgs'} };
+	} elsif ($stage==3) {
+		return $stref->{'Subroutines'}{$sub}{'HasCommons'};			
+	} elsif ($stage==4) {
+		return $stref->{'Subroutines'}{$sub};		
+	} elsif ($stage==5) {
+		return $stref->{'Subroutines'}{$sub};
+	} elsif ($stage==6) {
+		return $stref->{'Subroutines'}{$sub};
+	} else {
+		return $stref->{'Subroutines'}{$sub};
+	}
 }
 );	
 
