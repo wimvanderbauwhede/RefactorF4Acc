@@ -1168,9 +1168,11 @@ sub _rename_conflicting_lhs_var {
 sub emit_f95_var_decl {
     ( my $var_decl_rec ) = @_;
 
-    #    say Dumper($var_decl_rec);
+	if (not defined $var_decl_rec) {
+		confess('Argument to emit_f95_var_decl is not defined!');
+	}
     if ( ref($var_decl_rec) ne 'HASH' ) {
-        croak "NOT ARRAY in emit_f95_var_decl($var_decl_rec)";
+        croak "NOT ARRAY in emit_f95_var_decl(".$var_decl_rec.")";
     }
     my $spaces = $var_decl_rec->{'Indent'};# [0];
 #    ( my $type, my $attr, my $dim, my $intent_or_par ) =

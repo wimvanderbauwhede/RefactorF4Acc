@@ -41,7 +41,7 @@ our $usage = "
 #    -B: Build FLEXPART (implies -b), currently ignored
 #    -G: Generate Markdown documentation (currently broken)
 
-our @unit_tests= (1,2);
+our @unit_tests= (1,2,3,4,5);
 &main();
 
 # -----------------------------------------------------------------------------
@@ -126,14 +126,20 @@ This routine analyses the code for goto-based loops and breaks, so that we can r
 sub main {
 	(my $unit_test_list)=@_;
 		
-	(my $subname, my $subs_to_translate, my $gen_scons, my $build) = parse_args();
+	(my $subname, my $subs_to_translate, my $gen_scons, my $build, my $call_tree_only) = parse_args();
+	
 	#  Initialise the global state.
 	my $stref = init_state($subname);
     $stref->{'SubsToTranslate'}=$subs_to_translate;
 	# Find all subroutines in the source code tree
 	$stref = find_subroutines_functions_and_includes($stref);
 test(1,$stref, sub { (my $stref)=@_;
-	my $res= (scalar keys %{$stref->{'Subroutines'}} == 22) ? 'PASS' : 'FAIL';
+	if ($subname eq 'main') {
+		return (scalar keys %{$stref->{'Subroutines'}} == 22) ? 'PASS' : 'FAIL';
+	} else {
+		say "#Subroutines in $subname codebase: ",scalar keys %{$stref->{'Subroutines'}};
+		return 'PASS' ;
+	}
 }, sub {(my $stref)=@_;
 	return keys %{$stref};
 });
@@ -141,29 +147,62 @@ test(1,$stref, sub { (my $stref)=@_;
     
 	$stref = parse_fortran_src( $subname, $stref );
 test(2,$stref,
-sub { return 'FAIL';
+sub { return 'PASS';
 },
 sub {
 	(my $stref)=@_;
-	return $stref->{Subroutines}{main}{AnnLines};
-});
+	if ($subname eq 'main') {
+	return [@{$stref->{Subroutines}{$subname}{AnnLines}},"\n\nPRESS\n\n",@{$stref->{Subroutines}{press}{AnnLines}}];
+	} else {
+		return $stref->{Subroutines}{$subname}{AnnLines};
+	}
+}
+);
 	$stref = refactor_marked_blocks_into_subroutines( $stref );
+test(3,$stref,
+sub { return 'PASS';
+},
+sub {
+	(my $stref)=@_;
+	return 'To be tested later, for now LES source has no blocks.';
+}
+);	
 #	say Dumper( $stref->{'Subroutines'}{'timemanager'} );
 #	show_annlines($stref->{'Subroutines'}{'particles_main_loop'}{'AnnLines'},1);
 #	die;
 #say 'FINAL'; say Dumper( $stref->{'Subroutines'}{'richardson'} );say 'DONE';die;
-	if ( $call_tree_only and not $ARGV[1] ) {
-		create_call_tree($stref,$subname);
+
+	if ( $call_tree_only  ) {
+		$stref->{'PPCallTree'}=[];
+		$stref=create_call_tree($stref,$subname);
+		map {print $_}  @{ $stref->{'PPCallTree'} };
 		exit(0);
 	}
 #	$stref->{'NId'}=0;
 #	$stref->{'Nodes'}={};
 	$stref = build_call_graph($subname, $stref);
+test(4,$stref,
+sub { return 'PASS';
+},
+sub {
+	(my $stref)=@_;
+	return $stref->{'Nodes'};
+}
+);	
+	
 #	die Dumper($stref->{'Nodes'});
 
 #    say Dumper( $stref->{Subroutines}{main} );die;
     # Analyse the source
 	$stref = analyse_all($stref,$subname);
+test(5,$stref,
+sub { return 'FAIL';
+},
+sub {
+	(my $stref)=@_;
+	return $stref->{'Nodes'};
+}
+);	
 
    say 'AFTER analyse_all()';
 # Do here, the extracted sub is still fine ...
@@ -276,8 +315,7 @@ sub parse_args {
 	
 	if ( $opts{'C'} ) {
 		$call_tree_only = 1;
-		$main_tree = $ARGV[1] ? 0 : 1;
-
+		$main_tree = $ARGV[1] ? 0 : 1;		 
 	}
 # OBSOLETE, use $!RF4A pragma instead	
 	my %subs_to_translate = ();
@@ -293,7 +331,7 @@ sub parse_args {
     if ($build) { 
         $gen_scons = 1;
     }
-	return ($subname,\%subs_to_translate,$gen_scons,$build);
+	return ($subname,\%subs_to_translate,$gen_scons,$build,$call_tree_only);
 } # END of parse_args()
 
 =head1 SYNOPSIS
@@ -573,19 +611,17 @@ Nodes = Hash.Map Int Node
 
 =cut
 
-
+# $test_subref is the actual test, $fail_subref is a routine that takes $stref and returns whatever you want to return on failure.
 sub test { (my $test_num, my $stref, my $test_subref, my $fail_subref) = @_;
-	my %unit_tests_map = map {$_=>1} @unit_tests;		
+	my %unit_tests_map = map {$_=>1} @unit_tests; # These are the ids of the tests to run		
 	my $last_test = [sort {$b <=> $a} @unit_tests]->[0];	
 	if (exists $unit_tests_map{$test_num}) {
-	my $res=  $test_subref->($stref);
-	
-	if ($res eq 'FAIL') {
-	die "Test $test_num: FAIL\n".Dumper( $fail_subref->($stref)  );
-	} else {
-		say "Test $test_num: ".$res;
-	}	 
-	die if $last_test==$test_num;
-}
-	
+		my $res=  $test_subref->($stref);	
+		if ($res eq 'FAIL') {
+			die "Test $test_num: FAIL\n".Dumper( $fail_subref->($stref)  );
+		} else {
+			say "Test $test_num: ".$res;
+		}	 
+		die if $last_test==$test_num;
+	}	
 }

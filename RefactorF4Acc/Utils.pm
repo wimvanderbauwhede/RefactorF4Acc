@@ -341,11 +341,10 @@ sub get_vars_from_set { (my $set)=@_;
      if (exists $set->{'Subsets'} ) {
         for my $subset (keys %{  $set->{'Subsets'} } ) {
             my $vars_ref= get_vars_from_set($set->{'Subsets'}{$subset});
-            %vars = ( %vars, ${$vars_ref} );
+            %vars = ( %vars, %{$vars_ref} );
         }
     } elsif (exists $set->{'Set'}) {
-        return ${$set->{'Set'}} ;
-        
+        %vars = %{ $set->{'Set'} } ;        
     } 
         return \%vars;
 }

@@ -1,5 +1,5 @@
 package RefactorF4Acc::CallTree;
-
+use v5.16;
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
 # 
@@ -43,25 +43,26 @@ $stref->{'CallTree'}{ 'Chain'} {$entry}++
 =cut
 
 sub create_call_tree { ( my $stref, my $subname ) = @_;
-
+	
     push @{ $stref->{'CallStack'} }, $subname;
 #    print '[',join(',',@{ $stref->{'CallStack'} }),']',"\n";
     my %subs = map {$_=>1} @{ $stref->{'CallStack'} }; 
     for my $entry ( @{ $stref->{'CallTree'}{ $subname } } ) {
         if (exists $subs{$entry}) {
-        	print "Found LOOP for $entry\n";
+        	push @{$stref->{'PPCallTree'}}, "Found LOOP for $entry\n";
     	   last;
         }
 
 	    	my $str = _format_call_tree_line($entry,$stref);
-	    	print $str;
+	    	push @{$stref->{'PPCallTree'}}, $str;
 	    	
 	    	   $stref->{'Indents'} += 4;    	
 	    	   create_call_tree ($stref,$entry);
 	    	   $stref->{'Indents'} -= 4;
     }
-    pop  @{ $stref->{'CallStack'} };	     
-    return {%subs};
+    pop  @{ $stref->{'CallStack'} };
+#    say Dumper(%subs);	     
+    return $stref;#{%subs};
 } # END of create_call_tree()
 # -----------------------------------------------------------------------------
 sub create_dot_call_tree {
