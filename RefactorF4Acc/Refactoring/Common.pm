@@ -196,7 +196,7 @@ sub context_free_refactorings {
                 $line = '!! Original line PAR:2 !! ' . $line;
                 $info->{'Deleted'} = 1;
             } elsif (not exists $info->{'Ref'} or $info->{'Ref'} == 0 ){
-#                say Dumper($info);
+                say Dumper($info);
                 # Not refactored  
                 my $var_decl =  $info->{'VarDecl'};
 #                  format_f95_var_decl( $stref, $f, $var );                  
@@ -812,6 +812,7 @@ sub get_f95_var_decl {
     my $nvar   = $var;
     
     my $subset = in_nested_set($Sf, 'Vars', $var); # Should tell us exactly where we are
+    croak $subset if $subset=~/Glob/;
     if ($subset ne '' and exists $Sf->{$subset}{'Set'}{$var} ) {
     		my $Sv = $Sf->{ $subset }{'Set'}{$var};
         	if ( exists $Sf->{'ConflictingLiftedVars'}{$var} ) {
@@ -1178,6 +1179,9 @@ sub emit_f95_var_decl {
 #    ( my $type, my $attr, my $dim, my $intent_or_par ) =
 #      @{ $var_decl_rec->[1] };
       my $type = $var_decl_rec->{'Type'}; 
+      if (not defined $type) {
+      	croak Dumper($var_decl_rec);
+      }
       my $attr= $var_decl_rec->{'Attr'}; 
       my $dim= $var_decl_rec->{'Dim'}; 
       
@@ -1202,7 +1206,17 @@ sub emit_f95_var_decl {
 
     if ( not $is_par ) {
         # Variable
-        my $intent    =  $var_decl_rec->{'IODir'};        
+        my $intent    =  $var_decl_rec->{'IODir'};
+        
+        if (not defined $intent ) {
+        	carp 'Intent not defined for '.Dumper($var_decl_rec);
+        	$intent='Unknown'; 
+        }
+        if (ref($intent) eq 'ARRAY' and scalar @{$intent}==0) {
+        	say "WARNING: Intent is [] for $var" if $W;
+        	$intent = 'Unknown';
+        }
+        
         my $intentstr = '';
         
             if ( $intent ne 'Unknown' ) {

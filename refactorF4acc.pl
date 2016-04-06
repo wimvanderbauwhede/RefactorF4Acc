@@ -41,7 +41,7 @@ our $usage = "
 #    -B: Build FLEXPART (implies -b), currently ignored
 #    -G: Generate Markdown documentation (currently broken)
 
-our @unit_tests= (1,2,3,4,5);
+our @unit_tests= (1,2,3,4,5,6);
 &main();
 
 # -----------------------------------------------------------------------------
@@ -196,10 +196,11 @@ sub {
 
 #    say Dumper( $stref->{Subroutines}{main} );die;
     # Analyse the source
-    my $stage=3;
+    my $stage=0;
 	$stref = analyse_all($stref,$subname, $stage);	
+#		die Dumper($stref->{'Subroutines'}{'hanna1'}{'Globals'});#{$commoninc});
 test(5,$stref,
-sub { return 'FAIL';
+sub { return 'PASS';
 },
 sub {
 	(my $stref)=@_;
@@ -210,15 +211,15 @@ sub {
 #		return $stref->{'IncludeFiles'}{'common.sn'};
 		return {'ExInclArgs' => $stref->{'Subroutines'}{$sub}{'ExInclArgs'}, 'ExImplicitArgs' => $stref->{'Subroutines'}{$sub}{'ExImplicitArgs'} };
 	} elsif ($stage==3) {
-		return $stref->{'Subroutines'}{$sub}{'HasCommons'};			
+		return $sub.'('.join( ',',keys $stref->{'Subroutines'}{$sub}{'ExGlobArgDecls'}{'Set'}).')';			
 	} elsif ($stage==4) {
-		return $stref->{'Subroutines'}{$sub};		
+		return $stref->{'Subroutines'}{$sub}{'ConflictingParams'};		
 	} elsif ($stage==5) {
-		return $stref->{'Subroutines'}{$sub};
+		return $stref->{'Subroutines'}{$sub}->{'ExGlobArgDecls'}{'Set'}
 	} elsif ($stage==6) {
-		return $stref->{'Subroutines'}{$sub};
+		return {'HasRefactoredArgs' => $stref->{'Subroutines'}{$sub}->{'HasRefactoredArgs'}, 'RefactoredArgs' => $stref->{'Subroutines'}{$sub}->{'RefactoredArgs'} };
 	} else {
-		return $stref->{'Subroutines'}{$sub};
+		return 'TODO outer_loop_end_detect';
 	}
 }
 );	
@@ -231,7 +232,34 @@ sub {
 #die 'WV20151005:  I worked my way through the code to here and globals are not resolved!';
 
     # Refactor the source
-	$stref = refactor_all($stref,$subname);
+    $stage=1;
+	$stref = refactor_all($stref,$subname, $stage);
+	
+test(6,$stref,
+sub { return 'FAIL';
+},
+sub {
+	(my $stref)=@_;
+	my $sub = $subname eq 'main' ? 'press' : 'timemanager';
+	if ($stage==1) {
+#		return $stref->{'IncludeFiles'};
+#		return get_kv_for_all_elts_in_set($stref->{'IncludeFiles'},'Commons');
+		return get_kv_for_all_elts_in_set($stref->{'IncludeFiles'},'RefactoredCode');
+	} elsif ($stage==2) {		
+  		return 'TODO';
+	} elsif ($stage==3) {
+  		return 'TODO';			
+	} elsif ($stage==4) {
+  		return 'TODO';		
+	} elsif ($stage==5) {
+  		return 'TODO';
+	} elsif ($stage==6) {
+  		return 'TODO'; 
+	} else {
+		return 'TODO';
+	}
+}	
+);
 #	die Dumper(sort keys %{$stref});#->{'Subroutines'});#->{'RefactoredSources'});
 #   print '=' x 80, "\n";
 #   map {say Dumper($_->[1]) } @{ $stref->{'Subroutines'}{'press'}{'AnnLines'} };

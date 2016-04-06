@@ -67,15 +67,15 @@ sub resolve_globals {
             my $Scsub = $stref->{'Subroutines'}{$csub};
             # If $csub has globasl, merge them with globals for $f
             if (exists $Scsub->{'Globals'} ) {
-                for my $inc ( keys %{ $Sf->{'CommonIncludes'} } ) {
-            	   if ( exists $Scsub->{'Globals'}{$inc}) {
-                    $Sf->{'Globals'}{$inc}{'List'} = ordered_union( $Sf->{'Globals'}{$inc}{'List'},
-                        $Scsub->{'Globals'}{$inc}{'List'} );
+#                for my $inc ( keys %{ $Sf->{'CommonIncludes'} } ) {
+            	   if ( exists $Scsub->{'Globals'}{'List'}) {
+                    $Sf->{'Globals'}{'List'} = ordered_union( $Sf->{'Globals'}{'List'},
+                        $Scsub->{'Globals'}{'List'} );
             	       
-            	   say $f, $csub, $inc;                
-            	   $Sf->{'Globals'}{$inc}{'Set'} = { %{ $Sf->{'Globals'}{$inc}{'Set'} }, %{ $Scsub->{'Globals'}{$inc}{'Set'} } };
+#            	   say $f, $csub;                
+            	   $Sf->{'Globals'}{'Set'} = { %{ $Sf->{'Globals'}{'Set'} }, %{ $Scsub->{'Globals'}{'Set'} } };
             	   }            	   
-                }    
+#                }    
             }            
         }
     } else {
@@ -103,10 +103,11 @@ sub _resolve_conflicts_with_params {
         if ( $stref->{'IncludeFiles'}{$inc}{'InclType'} eq 'Parameter' ) {
 
             # See if there are any conflicts between parameters and ex-globals
-            for my $commoninc ( keys %{ $Sf->{'Globals'} } ) {
-                for my $mpar ( @{ $Sf->{'Globals'}{$commoninc}{'List'} } ) {
+#            for my $commoninc ( keys %{ $Sf->{'Globals'} } ) {
+                for my $mpar ( @{ $Sf->{'Globals'}{'List'} } ) {
                     if ( exists $stref->{'IncludeFiles'}{$inc}{'Vars'}{$mpar} )
                     {
+                    	my $commoninc = $Sf->{'Globals'}{'Set'}{$mpar}{'Inc'};
                         print
 "WARNING: $mpar from $inc conflicts with $mpar from $commoninc\n"
                           if $V;
@@ -119,7 +120,7 @@ sub _resolve_conflicts_with_params {
 #                          print "CONFLICTING GLOBAL PARAMETER: $mpar in $f and $inc\n";
                     }
                 }
-            }
+#            }
         }
     }
 
@@ -149,33 +150,6 @@ sub _identify_globals_used_in_subroutine {
 #       local $V=1;# if $f eq 'particles_main_loop';
     my $Sf = $stref->{'Subroutines'}{$f};
 
-#    # First determine subroutine arguments. => 20150812: we do this in the Parser
-#    $stref = __determine_subroutine_arguments( $f, $stref );
-
-#    my %commons = ();
-#    print "COMMONS ANALYSIS in $f\n" if $V; 
-#    if ( not exists $Sf->{'Globals'} ) {
-#        $Sf->{'Globals'}={};
-#    }
-#    for my $inc ( keys %{ $Sf->{'CommonIncludes'} } ) {
-#        if (not exists $Sf->{'Globals'}{$inc} ) { 
-#            print "\tADD COMMONS from $inc in $f\n" if $V;
-#            
-##            $commons{$inc} = { %{ $stref->{'IncludeFiles'}{$inc}{'Commons'} } }; # This was a bug: ref insteaf of copy!
-#            $Sf->{'Globals'}{$inc}{'Set'} = { %{ $stref->{'IncludeFiles'}{$inc}{'Commons'} } };
-##            map { say $_ .' => '. $commons{$inc}{$_}{'ArrayOrScalar'} } keys %{ $commons{$inc} };
-#            $Sf->{'HasCommons'} = 1;
-#        } else {
-#                print "already done for $inc in $f\n" if $V;
-#        }         
-#    }
-
-#        $Sf->{'Commons'}    = \%commons;
-#        $Sf->{'HasCommons'} = 1;
-#    } else {
-#        print "already done\n" if $V;
-#        %commons = %{ $Sf->{'Commons'} };
-#    }
 
     my $srcref = $Sf->{'AnnLines'};
     print "\tGLOBALS ANALYSIS in $f\n" if $V; 
@@ -214,10 +188,10 @@ sub _identify_globals_used_in_subroutine {
                 print "\n";
             }
             
-            $Sf->{'Globals'}{$cinc}{'List'} = \@globs;
-            $Sf->{'Globals'}{$cinc}{'Set'}={};
+            $Sf->{'Globals'}{'List'} = \@globs;
+            $Sf->{'Globals'}{'Set'}={};
             for my $var (@globs) {
-                $Sf->{'Globals'}{$cinc}{'Set'}{$var} = { %{ $stref->{'IncludeFiles'}{$cinc}{'Commons'}{$var} } };
+                $Sf->{'Globals'}{'Set'}{$var} = { %{ $stref->{'IncludeFiles'}{$cinc}{'Commons'}{$var} }, 'Inc' => $cinc };
             }
             $Sf->{'HasCommons'} = 1;
         }
@@ -320,14 +294,13 @@ sub __look_for_variables {
     my @globs  = ();
     my @chunks = split( /\W+/, $line );
     for my $mvar (@chunks) {
-
 #    next if $mvar =~/\b(?:if|then|do|goto|integer|real|call|\d+)\b/; # is slower!
 # if a var on a line is declared locally, it is obviously not a global!
-        if ( exists $tvars->{$mvar} and not $Sf->{'Vars'}{$mvar} ) {
+        if ( exists $tvars->{$mvar} and not in_nested_set($Sf,'Vars',$mvar) ) {
             my $is_par = 0;
             for my $inc ( keys %{ $Sf->{'Includes'} } ) {
                 if ( $stref->{'IncludeFiles'}{$inc}{'InclType'} eq 'Parameter'
-                    and exists $stref->{'IncludeFiles'}{$inc}{'Vars'}{$mvar} )
+                    and in_nested_set($stref->{'IncludeFiles'}{$inc},'Vars',$mvar) )
                 {
                     print "WARNING: $mvar in $f is a PARAMETER from $inc!\n"
                       if $W;
@@ -372,7 +345,7 @@ croak 'lift_includes';
     for my $var (@vars) {
 #    	print "$f: VAR $var\n"; 
         for my $lifted_inc ( @{ $Sf->{'LiftedIncludes'} } ) {
-            if (exists $stref->{'IncludeFiles'}{$lifted_inc}{'Vars'}{$var}) {
+            if (in_nested_set( $stref->{'IncludeFiles'}{$lifted_inc},'Vars',$var)) {
             	$Sf->{'ConflictingLiftedVars'}{$var}=$var.'_LOCAL_'.$f;
             	warn "lift_includes( $f ): $var CONFLICT with $lifted_inc\n" if $V;
             	last;
@@ -399,7 +372,8 @@ sub lift_globals {
             my $Scsub = $stref->{'Subroutines'}{$csub};
             # If $csub has globals, merge them with globals for $f, otherwise inherit them
             if (exists $Scsub->{'ExGlobArgDecls'} ) {
-                if (exists $Sf->{'ExGlobArgDecls'} ) {
+                if (exists $Sf->{'ExGlobArgDecls'}{'List'} ) {
+#                	say "MERGE GLOBALS from $csub into $f: ".join(',',@{$Sf->{'ExGlobArgDecls'}{'List'}}). ' AND ' .join(',',@{$Scsub->{'ExGlobArgDecls'}{'List'}}); 
                     $Sf->{'ExGlobArgDecls'}{'List'} = ordered_union( $Sf->{'ExGlobArgDecls'}{'List'},$Scsub->{'ExGlobArgDecls'}{'List'} );
                 } else {
                     $Sf->{'ExGlobArgDecls'}{'List'} = $Scsub->{'ExGlobArgDecls'}{'List'} ;

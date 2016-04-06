@@ -31,7 +31,6 @@ use Exporter;
 # Refactor the includes into modules
 sub refactor_include_files {
 	( my $stref ) = @_;
-#    $stref=__resolve_module_deps($stref); FIXME!!!
 	for my $inc_f ( keys %{ $stref->{'IncludeFiles'} } ) {
             next if $stref->{'IncludeFiles'}{$inc_f}{'InclType'} eq 'External';
 			print "\nREFACTORING INCLUDE FILE $inc_f\n" if $V;

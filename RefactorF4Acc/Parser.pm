@@ -204,8 +204,7 @@ say "_initialise_decl_var_tables : INIT TABLES for subroutine $f" if $V;
 			$Sf->{'ExGlobArgs'} =
 			  { 'Set' => {}, 'List' => []
 			  }; # WV: I think I should have an additional record 'FromInclude' in the set record!
-			$Sf->{'Globals'} = $Sf->{'ExGlobArgs'
-			  };    # WV: the original Globals is separated per include file
+			$Sf->{'Globals'} = $Sf->{'ExGlobArgs'};    # WV: the original Globals is separated per include file
 			$Sf->{'ExInclArgs'}         = { 'Set' => {}, 'List' => [] };
 			$Sf->{'DeclaredOrigArgs'}   = { 'Set' => {}, 'List' => [] };
 			$Sf->{'UndeclaredOrigArgs'} = { 'Set' => {}, 'List' => [] };
@@ -2131,7 +2130,7 @@ sub _split_multivar_decls {
 		if ( exists $info->{'VarDecl'} and exists $info->{'VarDecl'}{'Names'} )
 		{
 
-#			die Dumper($info) if $line=~/idum/;
+#			die $line. ' : '.Dumper($info) if $line=~/nou1,nou2/;
 			#            if ($line=~/drydeposit/) { die $line.Dumper($info) }
 			#            say scalar @{$info->{'VarDecl'}{'Names'}};
 			my @nvars = @{ $info->{'VarDecl'}{'Names'} };
@@ -2143,35 +2142,36 @@ sub _split_multivar_decls {
 				$rinfo{'LineID'} = $nextLineID++;
 				my $subset = '';
 				if ($sub_incl_or_mod ne 'IncludeFiles') {
-				if ( exists $Sf->{'DeclaredOrigArgs'}{'Set'}{$var} ) {
-					$subset = 'DeclaredOrigArgs';
-				} elsif ( exists $Sf->{'DeclaredOrigLocalVars'}{'Set'}{$var} ) {
-					$subset = 'DeclaredOrigLocalVars';
-				} elsif ( exists $Sf->{'ExInclLocalVars'}{'Set'}{$var} ) {
-					$subset = 'ExInclLocalVars';
-				} elsif ( exists $Sf->{'ExInclArgs'}{'Set'}{$var} ) {
-					$subset = 'ExInclArgs';						
-				} else {
-					# Problem is that we get 'OrigArgs', not yet known if they are declared or not. 
-					croak 'IMPOSSIBLE for Sub/Func/Module! ',$f,' ',$var,' ',$line,"DeclaredOrigArgs:\n",Dumper($Sf->{'DeclaredOrigArgs'}),
-					"OrigArgs:\n",Dumper($Sf->{'OrigArgs'});
-				}
+					if ( exists $Sf->{'DeclaredOrigArgs'}{'Set'}{$var} ) {
+						$subset = 'DeclaredOrigArgs';
+					} elsif ( exists $Sf->{'DeclaredOrigLocalVars'}{'Set'}{$var} ) {
+						$subset = 'DeclaredOrigLocalVars';
+					} elsif ( exists $Sf->{'ExInclLocalVars'}{'Set'}{$var} ) {
+						$subset = 'ExInclLocalVars';
+					} elsif ( exists $Sf->{'ExInclArgs'}{'Set'}{$var} ) {
+						$subset = 'ExInclArgs';						
+					} else {
+						# Problem is that we get 'OrigArgs', not yet known if they are declared or not. 
+						croak 'IMPOSSIBLE for Sub/Func/Module! ',$f,' ',$var,' ',$line,"DeclaredOrigArgs:\n",Dumper($Sf->{'DeclaredOrigArgs'}),
+						"OrigArgs:\n",Dumper($Sf->{'OrigArgs'});
+					}
 				} else {
 #				if ( exists $Sf->{'DeclaredOrigArgs'}{'Set'}{$var} ) {
 #					$subset = 'DeclaredOrigArgs';
 #				} els
-				if ( exists $Sf->{'DeclaredOrigLocalVars'}{'Set'}{$var} ) {
-					$subset = 'DeclaredOrigLocalVars';
-				} elsif ( exists $Sf->{'DeclaredCommonVars'}{'Set'}{$var} ) {
-					$subset = 'DeclaredCommonVars';
-				} else {
-					die 'IMPOSSIBLE for Include! ',$f,' ',$sub_incl_or_mod;
-				}	
+					if ( exists $Sf->{'DeclaredOrigLocalVars'}{'Set'}{$var} ) {
+						$subset = 'DeclaredOrigLocalVars';
+					} elsif ( exists $Sf->{'DeclaredCommonVars'}{'Set'}{$var} ) {
+						$subset = 'DeclaredCommonVars';
+					} else {
+						die 'IMPOSSIBLE for Include! ',$f,' ',$sub_incl_or_mod;
+					}	
 				}
+#				die Dumper($Sf->{$subset}{'Set'}{$var}) if $var eq 'nou1';
 				my $dim = $Sf->{$subset}{$var}{'Dim'} // [];
 				my $decl = {
 					'Indent' => $info->{'VarDecl'}{'Indent'},
-					'Type'   => $Sf->{$subset}{$var}{'Type'},
+					'Type'   => $Sf->{$subset}{'Set'}{$var}{'Type'},
 					'Attr'   => $info->{'VarDecl'}{'Attr'},
 					'Dim'    => $dim,
 					'Name'   => $var
@@ -2183,7 +2183,7 @@ sub _split_multivar_decls {
 
 				$rinfo{'Ann'} .= '_split_multivar_decls ' . __LINE__ . ' -> ';
 				my $rline = $line;
-				$Sf->{$subset}{$var}{'Name'} = $var;
+				$Sf->{$subset}{'Set'}{$var}{'Name'} = $var;
 
 		 #                die Dumper($rinfo{'VarDecl'}) if $var eq 'drydeposit';
 				if ( scalar @{ $info->{'VarDecl'}{'Names'} } > 1 ) {

@@ -39,26 +39,28 @@ use Exporter;
 # -----------------------------------------------------------------------------
 
 sub refactor_all {
-	( my $stref, my $subname ) = @_;
+	( my $stref, my $subname, my $stage) = @_;
         
     $stref = refactor_include_files($stref);
-    
+    return $stref if $stage == 1;
     $stref = refactor_called_functions($stref);
-    
+    return $stref if $stage == 2;
     # Refactor the source, but don't split long lines and keep annotations
     $stref = refactor_all_subroutines($stref);
+    return $stref if $stage == 3;
     # At this point RefactoredArgs is still essentially empty
 #croak Dumper $stref->{'Subroutines'}{'map_set'}{'AnnLines'}[0];
     # This can't go into refactor_all_subroutines() because it is recursive
     # This is where somehow the parameters get added to RefactoredArgs, but in the wrong way.
     $stref = determine_argument_io_direction_rec( $subname, $stref );
-    
+    return $stref if $stage == 4;
     print "DONE determine_argument_io_direction_rec()\n" if $V;
     # So at this point we know everything there is to know about the argument declarations, we can now update them
 #die;
 #    $stref = find_and_add_missing_var_decls($stref);
     say "remove_vars_masking_functions";    
     $stref = remove_vars_masking_functions($stref);
+    return $stref if $stage == 5;
     say "add_module_decls";
     $stref=add_module_decls($stref);
     return $stref;	

@@ -92,7 +92,7 @@ sub get_maybe_args_globs {
     my @globs      = ();
     my %maybe_args = ();
     for my $inc ( keys %{ $Sf->{'Globals'} } ) {
-        if ( defined $Sf->{'Globals'}{$inc} ) {
+        if ( defined $Sf->{'Globals'}{$inc} and defined $Sf->{'Globals'}{$inc}{'List'} and scalar @{defined $Sf->{'Globals'}{$inc}{'List'}} > 0 ) {
             @globs = ( @globs, @{ $Sf->{'Globals'}{$inc}{'List'} } );
         }
         if ( defined $stref->{'IncludeFiles'}{$inc}{'Vars'} ) {

@@ -48,6 +48,7 @@ sub analyse_all {
 	return $stref if $stage == 2;
 	for my $f ( keys %{ $stref->{'Subroutines'} } ) {
 		next if $f eq '';
+		# In this stage, 'Globals' is populated
 		$stref = _analyse_variables( $stref, $f );
 	}
 	return $stref if $stage == 3;
@@ -159,7 +160,8 @@ sub _analyse_variables {
 				next if $mvar =~ /^__PH\d+__$/;
 				next if $mvar !~ /^[_a-z]\w*$/;
 				
-				my $maybe_orig_arg = in_nested_set( $Sf, 'OrigArgs', $mvar );
+				my $maybe_orig_arg = in_nested_set( $Sf, 'OrigArgs', $mvar );  
+				die $maybe_orig_arg  if $maybe_orig_arg =~/Glob/;
 #				say 'MVAR: ',$mvar,': <',$maybe_orig_arg,'>';
 				if (    not exists $identified_vars->{$mvar}
 					and ( $maybe_orig_arg eq '' ) # means $mvar is not present in the nested set OrigArgs
@@ -192,9 +194,8 @@ sub _analyse_variables {
 									my $subset_for_mvar = in_nested_set(
 										$stref->{'IncludeFiles'}{$inc},
 										'Vars', $mvar );
-										
+										die $subset_for_mvar  if $subset_for_mvar =~/Glob/;
 									if ( $subset_for_mvar ne '' ) {
-#										say 'SUBSET FOR MVAR: '.Dumper(keys %{$stref->{'IncludeFiles'}{$inc}{$subset_for_mvar}{'Set'}});
 										if (
 											exists $stref->{'IncludeFiles'}
 											{$inc}{$subset_for_mvar}{'Set'}{$mvar} )
@@ -215,13 +216,11 @@ sub _analyse_variables {
 										exists $stref->{'IncludeFiles'}{$inc}
 										{'Commons'}{$mvar} )
 									{
-
-#                            push @{ $stref->{'Subroutines'}{$f}{'Globals'}{$inc}{'List'} }, $mvar;
-#                            $stref->{'Subroutines'}{$f}{'Globals'}{$inc}{'Set'}{$mvar} =  $decl;
 										say "FOUND argdecl for $mvar via common block in $inc" if $V;
 										push @{ $stref->{'Subroutines'}{$f}
 											  {'ExGlobArgDecls'}{'List'} },
 										  $mvar;
+										  $decl->{'Inc'}=$inc; #WV20160406 this is a bit late an probably also redundant.
 										$stref->{'Subroutines'}{$f}
 										  {'ExGlobArgDecls'}{'Set'}{$mvar} =
 										  $decl;
@@ -231,8 +230,6 @@ sub _analyse_variables {
 										  . __LINE__
 										  if $I;
 
-#                            push @{ $stref->{'Subroutines'}{$f}{'LocalVars'}{$inc}{'List'} }, $mvar;
-#                            $stref->{'Subroutines'}{$f}{'LocalVars'}{$inc}{'Set'}{$mvar} =  $decl;
 										push @{ $stref->{'Subroutines'}{$f}
 											  {'ExInclVarDecls'}{'List'} },
 										  $mvar;
@@ -289,6 +286,7 @@ sub _analyse_variables {
 	{
 		$Sf->{'HasCommons'} = 1;
 	}
+	
 #	if ($f eq 'press') {croak Dumper($state)};
 	return $stref;
 }    # END of _analyse_variables()
@@ -302,12 +300,11 @@ sub _resolve_conflicts_with_params {
 	for my $inc ( keys %{ $Sf->{'Includes'} } ) {
 		if ( $stref->{'IncludeFiles'}{$inc}{'InclType'} eq 'Parameter' ) {
 
-			# See if there are any conflicts between parameters and ex-globals
-			for my $commoninc ( keys %{ $Sf->{'Globals'} } ) {
-
-				for my $mpar ( @{ $Sf->{'Globals'}{$commoninc}{'List'} } ) {
-					if ( exists $stref->{'IncludeFiles'}{$inc}{'Vars'}{$mpar} )
+			# See if there are any conflicts between parameters and ex-globals			
+				for my $mpar ( @{ $Sf->{'Globals'}{'List'} } ) {
+					if ( exists $stref->{'IncludeFiles'}{$inc}{'Vars'}{'Set'}{$mpar} )
 					{
+						my $commoninc = $Sf->{'Globals'}{'Set'}{$mpar}{'Inc'};
 						print
 "WARNING: $mpar from $inc conflicts with $mpar from $commoninc\n"
 						  if $W;
@@ -326,7 +323,7 @@ sub _resolve_conflicts_with_params {
 #                          print "CONFLICTING GLOBAL PARAMETER: $mpar in $f and $inc\n";
 					}
 				}
-			}
+			
 		}
 	}
 
@@ -345,16 +342,47 @@ sub _resolve_conflicts_with_params {
 	return $stref;
 }    # END of _resolve_conflicts_with_params
 
+# Create an entry 'RefactoredArgs' 
 sub _create_refactored_args {
 	( my $stref, my $f ) = @_;
 	my $Sf = $stref->{'Subroutines'}{$f};
-	if (    exists $Sf->{'ExGlobArgDecls'}
-		and exists $Sf->{'ExGlobArgDecls'}{'List'} )
-	{
-		$Sf->{'RefactoredArgs'}{'List'} =
-		  ordered_union( $Sf->{'OrigArgs'}{'List'},
-			$Sf->{'ExGlobArgDecls'}{'List'} );
-		$Sf->{'HasRefactoredArgs'} = 1;
+	if (exists $Sf->{'ExGlobArgDecls'} and exists $Sf->{'OrigArgs'} ) {
+		
+		if ( not exists $Sf->{'ExGlobArgDecls'}{'List'} ) {
+			$Sf->{'ExGlobArgDecls'}{'List'}=[];
+		}
+		
+		if ( not exists $Sf->{'OrigArgs'}{'List'} ) {
+			$Sf->{'OrigArgs'}{'List'}=[];
+		}
+		
+		if ( not exists $Sf->{'ExGlobArgDecls'}{'Set'} ) {
+			$Sf->{'ExGlobArgDecls'}{'Set'}={};
+		}
+		
+		if ( not exists $Sf->{'OrigArgs'}{'Set'} ) {
+			$Sf->{'OrigArgs'}{'Set'}={};
+		}
+			$Sf->{'RefactoredArgs'}{'List'} =
+			  ordered_union( $Sf->{'OrigArgs'}{'List'},
+				$Sf->{'ExGlobArgDecls'}{'List'} );
+
+			$Sf->{'RefactoredArgs'}{'Set'} =
+		  	{ %{ $Sf->{'OrigArgs'}{'Set'} },
+				%{ $Sf->{'ExGlobArgDecls'}{'Set'} } };
+			$Sf->{'HasRefactoredArgs'} = 1;
+		
+	} elsif (not exists $Sf->{'ExGlobArgDecls'} ) {
+		# No ExGlobArgDecls, so Refactored = Orig
+			$Sf->{'RefactoredArgs'} = $Sf->{'OrigArgs'};
+			$Sf->{'HasRefactoredArgs'} = 0;
+	} elsif (not exists $Sf->{'OrigArgs'} ) {
+		# No ExGlobArgDecls, so Refactored = Orig
+			$Sf->{'RefactoredArgs'} = $Sf->{'ExGlobArgDecls'};
+			$Sf->{'HasRefactoredArgs'} = 1;
+	} else {
+		$Sf->{'RefactoredArgs'} = { 'Set' => {}, 'List' => []};
+		$Sf->{'HasRefactoredArgs'} = 0;
 	}
 	return $stref;
 }
