@@ -196,7 +196,7 @@ sub context_free_refactorings {
                 $line = '!! Original line PAR:2 !! ' . $line;
                 $info->{'Deleted'} = 1;
             } elsif (not exists $info->{'Ref'} or $info->{'Ref'} == 0 ){
-                say Dumper($info);
+#                say Dumper($info);
                 # Not refactored  
                 my $var_decl =  $info->{'VarDecl'};
 #                  format_f95_var_decl( $stref, $f, $var );                  

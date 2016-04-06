@@ -232,7 +232,7 @@ sub {
 #die 'WV20151005:  I worked my way through the code to here and globals are not resolved!';
 
     # Refactor the source
-    $stage=1;
+    $stage=3;
 	$stref = refactor_all($stref,$subname, $stage);
 	
 test(6,$stref,
@@ -246,9 +246,9 @@ sub {
 #		return get_kv_for_all_elts_in_set($stref->{'IncludeFiles'},'Commons');
 		return get_kv_for_all_elts_in_set($stref->{'IncludeFiles'},'RefactoredCode');
 	} elsif ($stage==2) {		
-  		return 'TODO';
+  		return pp_annlines($stref->{'Subroutines'}{$sub}{'AnnLines'},1);
 	} elsif ($stage==3) {
-  		return 'TODO';			
+  		return pp_annlines($stref->{'Subroutines'}{$sub}{'AnnLines'},1);			
 	} elsif ($stage==4) {
   		return 'TODO';		
 	} elsif ($stage==5) {

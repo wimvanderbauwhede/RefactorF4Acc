@@ -70,14 +70,14 @@ sub refactor_called_functions {
 
     for my $f ( keys %{ $stref->{'Subroutines'} } ) {
         if (exists $stref->{'Subroutines'}{$f}{'Function'}) {
-        my $Ff = $stref->{'Subroutines'}{$f};
-        if ( defined $Ff->{'Called'} ) { # FIXME: This test is weak because the caller might not be called itself!
-        if ($Ff->{'Status'} == $READ) { 
-        	warn "refactor_called_functions(): Function $f was never parsed";
-        } else {        
-            $stref = _refactor_function( $f, $stref );
-        }
-        }
+        	my $Ff = $stref->{'Subroutines'}{$f};
+        	if ( defined $Ff->{'Called'} ) { # FIXME: This test is weak because the caller might not be called itself!
+        		if ($Ff->{'Status'} == $READ) { 
+        		warn "refactor_called_functions(): Function $f was never parsed";
+        		} else {        
+            		$stref = _refactor_function( $f, $stref );
+        		}
+        	}
         } 
     }
     return $stref;
@@ -93,7 +93,7 @@ sub _refactor_function {
         print "#" x 80, "\n";
     }
     my $Ff = $stref->{'Subroutines'}{$f};
-    print "REFACTORING FUNCTION $f\n" if $V;    
+    print "CONTEXT-FREE REFACTORING FUNCTION $f\n" if $V;    
 
     if (   not exists $Ff->{'RefactoredCode'}
         or $Ff->{'RefactoredCode'} == []

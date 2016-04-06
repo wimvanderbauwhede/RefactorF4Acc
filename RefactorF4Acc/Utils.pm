@@ -23,6 +23,7 @@ use Exporter;
     %F95_reserved_words
     &sub_func_incl_mod
     &show_annlines
+    &pp_annlines
     &get_maybe_args_globs
     &type_via_implicits
     &union
@@ -85,7 +86,33 @@ sub show_annlines {
     }
 }
  # -----------------------------------------------------------------------------
-
+sub pp_annlines {
+    (my $annlines, my $with_info)=@_;
+    my @pp_annlines=();
+    for my $annline (@{ $annlines }) {
+        if(ref($annline->[0]) eq 'ARRAY') {
+            die "NOT A STRING: ".Dumper($annline->[0]);
+        } else {
+            my $pp_annline = $annline->[0];
+            if($with_info) {
+#             ? "\t<";#.join(';',keys %{ $annline->[1] }).'>' : '');
+                $pp_annline.= "\t! <";
+                for my $k (keys %{ $annline->[1] }) {
+                    if ( not ref( $annline->[1]{$k} ) ) {
+                        $pp_annline.=  $k.'=>'.$annline->[1]{$k}.';';
+                    }  else {
+                        $pp_annline.= "$k;"
+                    }
+                }
+                $pp_annline.= ">";
+                
+            } 
+            push @pp_annlines,$pp_annline;
+        }
+    }
+    return \@pp_annlines;
+}
+ # -----------------------------------------------------------------------------
 sub get_maybe_args_globs {
     ( my $stref, my $f ) = @_;
     my $Sf         = $stref->{'Subroutines'}{$f};

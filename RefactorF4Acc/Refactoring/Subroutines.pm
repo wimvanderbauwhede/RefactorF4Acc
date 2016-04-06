@@ -456,7 +456,8 @@ sub _create_extra_arg_and_var_decls {
     ( my $stref, my $f, my $annline, my $rlines ) = @_;
 
     my $Sf                 = $stref->{'Subroutines'}{$f};
-    my %args               = %{ $Sf->{'Args'}{'Set'} };
+#    say "_create_extra_arg_and_var_decls($f): ".Dumper(keys %{$Sf->{'Args'}});
+#    my %args               = %{ $Sf->{'Args'}{'Set'} };
     my $nextLineID=scalar @{$rlines}+1;
             
     print "INFO: ExGlobArgDecls in $f\n" if $I;

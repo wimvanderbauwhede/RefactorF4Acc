@@ -220,7 +220,8 @@ sub _analyse_variables {
 										push @{ $stref->{'Subroutines'}{$f}
 											  {'ExGlobArgDecls'}{'List'} },
 										  $mvar;
-										  $decl->{'Inc'}=$inc; #WV20160406 this is a bit late an probably also redundant.
+										  $decl->{'Inc'}=$inc; #WV20160406 this is a bit late .
+										  $stref->{'Subroutines'}{$f}{'CommonIncs'}{$inc}=$inc;
 										$stref->{'Subroutines'}{$f}
 										  {'ExGlobArgDecls'}{'Set'}{$mvar} =
 										  $decl;
