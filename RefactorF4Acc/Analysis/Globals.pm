@@ -152,8 +152,10 @@ sub _identify_globals_used_in_subroutine {
 
 
     my $srcref = $Sf->{'AnnLines'};
-    print "\tGLOBALS ANALYSIS in $f\n" if $V; 
+    print "\tGLOBALS ANALYSIS in $f\n" if $V;
+     
     if ( defined $srcref and (not exists $Sf->{'Globals'} or scalar keys %{$Sf->{'Globals'}} == 0) ) { #  
+    croak '_identify_globals_used_in_subroutine LINE 158!';
     
         for my $cinc ( keys %{ $Sf->{'CommonIncludes'} } ) {
             print "\n\tGLOBAL VAR ANALYSIS for $cinc in $f\n" if $V;
@@ -358,7 +360,7 @@ croak 'lift_includes';
 # Here we start from the top, descend to the leaves, get the Globals in the leaves, and add them to the Globals of the caller.
 # And of course we need to update ExGlobVarDecls
 # This should be done before we create RefactoredArgs!
-sub lift_globals {
+sub lift_globals { ;
     (my $stref, my $f) = @_;
     print '=' x 80, "\nENTER resolve_globals( $f )\n" if $V;
     if (exists $stref->{'Subroutines'}{$f} ) {

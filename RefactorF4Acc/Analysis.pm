@@ -66,24 +66,11 @@ sub analyse_all {
 	}
 	return $stref if $stage == 6;
 
-	#    say Dumper($stref->{'Subroutines'}{'getfields'});
-	#    die 'analyse_all() ' . __LINE__;
-
-# Now we can do proper globals handling
-# We need to walk the tree again, find the globals in rec descent.
-#    print "\t** RESOLVE GLOBALS **\n" if $V;
-#    $stref = resolve_globals( $subname, $stref );
-#    print "\t** ANALYSE SOURCES **\n" if $V; # TODO: BETTER NAME
-#    $stref = analyse_sources($stref); # TODO: LIFTING OF INCLUDES SHOULD HAPPEN *AFTER* THIS
+# This is only for refactoring init out of time loops so very domain specific
 	for my $kernel_wrapper ( keys %{ $stref->{'KernelWrappers'} } ) {
 		$stref = outer_loop_end_detect( $kernel_wrapper, $stref );
 	}
 
-#    for my $inc (keys %{ $stref->{'IncludeFiles'} }) {
-#    for my $v (keys %{ $stref->{'IncludeFiles'}{$inc}{'Commons'} }) {
-#    say $v.' => '.Dumper($stref->{'IncludeFiles'}{$inc}{'Commons'}{$v});
-#    }
-#    }
 # So at this point all globals have been resolved and typed.
 # NOTE: It turns out that at this point any non-global not explicity declared variables don't have a declaration yet.
 	return $stref;
@@ -209,13 +196,9 @@ sub _analyse_variables {
 										}
 									} else {										
 										croak "No Subset for $mvar in $inc $subset_for_mvar";
-#										.': '.Dumper($stref->{'IncludeFiles'}{$inc}{'Vars'}{'Subsets'}{'CommonVars'}{'Subsets'});#{'UndeclaredCommonVars'}{'Set'}});
 									}
-#									say "MVAR: <$mvar>;";
-									if (									
-										exists $stref->{'IncludeFiles'}{$inc}
-										{'Commons'}{$mvar} )
-									{
+
+									if ( exists $stref->{'IncludeFiles'}{$inc}{'Commons'}{$mvar} ) {
 										say "FOUND argdecl for $mvar via common block in $inc" if $V;
 										push @{ $stref->{'Subroutines'}{$f}
 											  {'ExGlobArgDecls'}{'List'} },

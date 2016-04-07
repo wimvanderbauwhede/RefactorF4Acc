@@ -264,6 +264,7 @@ sub context_free_refactorings {
                 # WV 20130709: why should I remove this?
 #                croak Dumper($info) . __LINE__;                
 #            my @par_lines = ();
+say Dumper($annline);
                 my $par_decls= [ $info->{'ParamDecl'} ];
                 
                  my $info_ref = $info->{'Ref'} // 0;
@@ -1209,7 +1210,7 @@ sub emit_f95_var_decl {
         my $intent    =  $var_decl_rec->{'IODir'};
         
         if (not defined $intent ) {
-        	carp 'Intent not defined for '.Dumper($var_decl_rec);
+        	carp 'Intent not defined for '.Dumper($var_decl_rec) if $W;
         	$intent='Unknown'; 
         }
         if (ref($intent) eq 'ARRAY' and scalar @{$intent}==0) {

@@ -387,7 +387,8 @@ sub get_var_record_from_set { (my $set, my $var)=@_;
      if (exists $set->{'Subsets'} ) {
         for my $subset (keys %{  $set->{'Subsets'} } ) {
             my $vars_ref= get_vars_from_set($set->{'Subsets'}{$subset});
-            %vars = ( %vars, ${$vars_ref} );
+#            say '<'.Dumper($vars_ref).'>';
+            %vars = ( %vars, %{$vars_ref} );
         }
     } elsif (exists $set->{'Set'}) {
         return ${$set->{'Set'}} ;        

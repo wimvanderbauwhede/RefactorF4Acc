@@ -503,6 +503,16 @@ sub _analyse_lines {
 				my $parliststr = $1;
 				( $Sf, $info ) =
 				  __parse_f77_par_decl( $Sf, $f, $line, $info, $parliststr );
+				  my $parname = $info->{'ParamDecl'}{'Names'}[0][0];
+				  my $par_record=get_var_record_from_set($Sf->{'Vars'},$parname);
+				  if (defined $par_record) {
+				  my $subset=in_nested_set($Sf,'Vars',$parname);# if $parname =~/eps0/;
+				  $info->{'ParamDecl'}{'Type'}=$par_record->{'Type'};
+				  $Sf->{$subset}{'Set'}{$parname}{'Type'}=$par_record->{'Type'};
+				  } else {
+				  	croak 'TYPE VIA IMPLICITS!';
+				  }
+				  $Sf->{'Parameters'}{'Set'}{$parname}=$info->{'ParamDecl'};
 			}    # match var decls, parameter statements F77/F95
 			$srcref->[$index] = [ $line, $info ];
 		}    # Loop over lines
@@ -1224,17 +1234,7 @@ sub _get_commons_params_from_includes {
 							  if $W;
 						}
 					} else { # Means the var is already declared. So just use the existing declaration
-
-#                        print $var, "\t", $Sincf->{'Vars'}{$var}{'Type'}, "\n"
-#                          if $V;
-#                        if ( exists $parsedvars->{$var}{'Dim'} and scalar @{$parsedvars->{$var}{'Dim'}}>0 ) {
-#                            $Sincf->{'Vars'}{$var}{'Dim'} = $parsedvars->{$var}{'Dim'};
-#                            $Sincf->{'Vars'}{$var}{ArrayOrScalar}  = 'Array';
-#                        }
-#                        $Sincf->{'Commons'}{$var} = $Sincf->{'Vars'}{$var};
-						$Sincf->{'Commons'}{$var} = $var
-						  ;   # Because we should use 'Commons' only for tests!
-
+						$Sincf->{'Commons'}{$var} = $var;   # Because we should use 'Commons' only for tests!
 						if (
 							exists $Sincf->{'DeclaredOrigLocalVars'}{'Set'}
 							{$var} )
