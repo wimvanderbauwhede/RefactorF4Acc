@@ -248,7 +248,7 @@ sub {
 	} elsif ($stage==2) {		
   		return pp_annlines($stref->{'Subroutines'}{$sub}{'AnnLines'},1);
 	} elsif ($stage==3) {
-  		return pp_annlines($stref->{'Subroutines'}{$sub}{'AnnLines'},1);			
+  		return join("\n",@{ pp_annlines($stref->{'Subroutines'}{$sub}{'AnnLines'},1) });			
 	} elsif ($stage==4) {
   		return 'TODO';		
 	} elsif ($stage==5) {

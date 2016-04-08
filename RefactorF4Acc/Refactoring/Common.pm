@@ -264,7 +264,7 @@ sub context_free_refactorings {
                 # WV 20130709: why should I remove this?
 #                croak Dumper($info) . __LINE__;                
 #            my @par_lines = ();
-say Dumper($annline);
+#say Dumper($annline);
                 my $par_decls= [ $info->{'ParamDecl'} ];
                 
                  my $info_ref = $info->{'Ref'} // 0;
@@ -1209,7 +1209,7 @@ sub emit_f95_var_decl {
         # Variable
         my $intent    =  $var_decl_rec->{'IODir'};
         
-        if (not defined $intent ) {
+        if (not defined $intent or $intent eq '') {
         	carp 'Intent not defined for '.Dumper($var_decl_rec) if $W;
         	$intent='Unknown'; 
         }
@@ -1222,6 +1222,7 @@ sub emit_f95_var_decl {
         
             if ( $intent ne 'Unknown' ) {
                 $intentstr ='intent('.$intent.')'; 
+#                die 'BLANK:'.Dumper($var_decl_rec) if "$intent"=~/^\s*$/;
             } else {
                 say "WARNING: Intent is Unknown for $var"                  
                   if $W;
@@ -1419,7 +1420,7 @@ sub _emit_f95_parsed_var_decl { (my $pvd) =@_;
             push @attrs,'dimension('.join(', ',@{ $pvd->{'Attributes'}{'Dim'} }).')';
         }
         if (exists $pvd->{'Attributes'}{'Intent'} ) {
-            push @attrs,'intent('. $pvd->{'Attributes'}{'Intent'} .')';
+            push @attrs,'intent('. $pvd->{'Attributes'}{'Intent'} .')' ;
         }
           my $vars = join(', ',@{  $pvd->{'Vars'} });
        my $line = join(', ', @attrs).' :: '.$vars;    

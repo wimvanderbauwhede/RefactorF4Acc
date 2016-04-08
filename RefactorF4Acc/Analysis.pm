@@ -133,15 +133,16 @@ sub _analyse_variables {
 		if (   exists $info->{'Assignment'}
 			or exists $info->{'SubroutineCall'}
 			or exists $info->{'If'}
-			or exists $info->{'ElseIf'} )
+			or exists $info->{'ElseIf'}
+			or exists $info->{'BeginDo'}  
+			)
 		{
 
 			( my $stref, my $f, my $identified_vars ) = @{$state};
-#			say "LINE:\t$line" if $f eq 'press';
+#			say "LINE:\t$line" if $f eq 'bondfg';
 			my $Sf = $stref->{'Subroutines'}{$f};
 			my @chunks = split( /[^\.\w]/, $line );
-			for my $mvar (@chunks) {
-				
+			for my $mvar (@chunks) {				
 				next if exists $F95_reserved_words{$mvar};
 				next if exists $stref->{'Subroutines'}{$f}{'CalledSubs'}{$mvar};
 				next if $mvar =~ /^__PH\d+__$/;
@@ -255,6 +256,7 @@ sub _analyse_variables {
 			}
 			return ( $annline, [ $stref, $f, $identified_vars ] );
 		} else {
+			say Dumper($annline) if $f=~/bondfg/;
 			return ( $annline, $state );
 		}
 	};

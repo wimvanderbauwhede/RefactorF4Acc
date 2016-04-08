@@ -94,9 +94,6 @@ sub parse_fortran_src {
 ## 5. Parse subroutine and function calls
 		if ( not $is_incl ) {
 
-	   #            if ( $stref->{$sub_or_incl_or_mod}{$f}{'HasBlocks'} == 1 ) {
-	   #                $stref = _separate_blocks( $f, $stref );
-	   #            }
 
 			# Recursive descent via subroutine calls
 			$stref = _parse_subroutine_and_function_calls( $f, $stref );
@@ -506,11 +503,16 @@ sub _analyse_lines {
 				  my $parname = $info->{'ParamDecl'}{'Names'}[0][0];
 				  my $par_record=get_var_record_from_set($Sf->{'Vars'},$parname);
 				  if (defined $par_record) {
-				  my $subset=in_nested_set($Sf,'Vars',$parname);# if $parname =~/eps0/;
-				  $info->{'ParamDecl'}{'Type'}=$par_record->{'Type'};
-				  $Sf->{$subset}{'Set'}{$parname}{'Type'}=$par_record->{'Type'};
+				  	my $subset=in_nested_set($Sf,'Vars',$parname);# if $parname =~/eps0/;
+				  	$info->{'ParamDecl'}{'Type'}=$par_record->{'Type'};
+				  	$Sf->{$subset}{'Set'}{$parname}{'Type'}=$par_record->{'Type'};
 				  } else {
-				  	croak 'TYPE VIA IMPLICITS!';
+				  	
+				  	(my $type,my $array_or_scalar,my $attr) = type_via_implicits( $stref,$f,$parname);
+#				  	
+				  	$info->{'ParamDecl'}{'Type'}=$type;
+				  	$Sf->{'Parameters'}{'Set'}{$parname}=$info->{'ParamDecl'};
+#				  	croak 'TYPE VIA IMPLICITS!'.$parname.':'.Dumper($info->{'ParamDecl'});				  	
 				  }
 				  $Sf->{'Parameters'}{'Set'}{$parname}=$info->{'ParamDecl'};
 			}    # match var decls, parameter statements F77/F95

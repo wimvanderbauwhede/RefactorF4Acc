@@ -150,19 +150,19 @@ sub _identify_globals_used_in_subroutine {
 #       local $V=1;# if $f eq 'particles_main_loop';
     my $Sf = $stref->{'Subroutines'}{$f};
 
-
     my $srcref = $Sf->{'AnnLines'};
     print "\tGLOBALS ANALYSIS in $f\n" if $V;
-     
-    if ( defined $srcref and (not exists $Sf->{'Globals'} or scalar keys %{$Sf->{'Globals'}} == 0) ) { #  
-    croak '_identify_globals_used_in_subroutine LINE 158!';
+#    die Dumper($Sf->{'Globals'}) if $f=~/bondfg/i;
+    if ( defined $srcref and (not exists $Sf->{'Globals'} or scalar keys %{$Sf->{'Globals'}{'Set'}} == 0) ) { #  
+#    croak '_identify_globals_used_in_subroutine LINE 158!';
     
-        for my $cinc ( keys %{ $Sf->{'CommonIncludes'} } ) {
-            print "\n\tGLOBAL VAR ANALYSIS for $cinc in $f\n" if $V;
+        for my $cinc ( keys %{ $Sf->{'CommonIncludes'} } ) { 
+            print "\n\tGLOBAL VAR ANALYSIS for $cinc in $f\n" if $V; ;
             my @globs = ();
             my $tvars = { %{ $stref->{'IncludeFiles'}{$cinc}{'Commons'} } };
             for my $index ( 0 .. scalar( @{$srcref} ) - 1 ) {
                 my $line = $srcref->[$index][0];
+                
 #                my $info = $srcref->[$index][1];
                 if ( $line =~ /^\!\s+/ )                            { next; }
                 if ( $line =~ /^\s+end/ )                          { next; }
@@ -190,10 +190,17 @@ sub _identify_globals_used_in_subroutine {
                 print "\n";
             }
             
-            $Sf->{'Globals'}{'List'} = \@globs;
+            $Sf->{'Globals'}{'List'} = \@globs;            
             $Sf->{'Globals'}{'Set'}={};
+            
+            
             for my $var (@globs) {
-                $Sf->{'Globals'}{'Set'}{$var} = { %{ $stref->{'IncludeFiles'}{$cinc}{'Commons'}{$var} }, 'Inc' => $cinc };
+            	my $subset=in_nested_set($stref->{'IncludeFiles'}{$cinc}, 'Vars', $var);
+#            		say $subset;
+#            		say Dumper($stref->{'IncludeFiles'}{$cinc}{$subset}{'Set'});
+            	my $var_rec= $stref->{'IncludeFiles'}{$cinc}{$subset}{'Set'}{$var};
+#            	say Dumper($var_rec);
+                $Sf->{'Globals'}{'Set'}{$var} = $var_rec ;
             }
             $Sf->{'HasCommons'} = 1;
         }
@@ -294,6 +301,7 @@ sub __look_for_variables {
     ( my $stref, my $f, my $line, my $tvars ) = @_;
     my $Sf     = $stref->{'Subroutines'}{$f};
     my @globs  = ();
+    
     my @chunks = split( /\W+/, $line );
     for my $mvar (@chunks) {
 #    next if $mvar =~/\b(?:if|then|do|goto|integer|real|call|\d+)\b/; # is slower!
@@ -390,7 +398,7 @@ sub lift_globals { ;
         } 
     } else {
         # Leaf node, find globals
-        say "SUB $f is LEAF" if $V;
+        say "SUB $f is LEAF" if $V; 
         $stref = _identify_globals_used_in_subroutine( $f, $stref );
     }    
     
