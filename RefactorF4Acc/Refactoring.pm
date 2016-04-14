@@ -16,7 +16,7 @@ use RefactorF4Acc::Refactoring::Subroutines qw( refactor_all_subroutines refacto
 use RefactorF4Acc::Refactoring::Subroutines::Declarations qw( find_and_add_missing_var_decls );
 use RefactorF4Acc::Refactoring::Functions qw( refactor_called_functions remove_vars_masking_functions);
 use RefactorF4Acc::Refactoring::IncludeFiles qw( refactor_include_files );
-use RefactorF4Acc::Analysis::ArgumentIODirs qw( determine_argument_io_direction_rec );
+use RefactorF4Acc::Analysis::ArgumentIODirs qw( determine_argument_io_direction_rec update_argument_io_direction_all_subs);
 use RefactorF4Acc::Refactoring::Modules qw( add_module_decls );
 
 use vars qw( $VERSION );
@@ -52,11 +52,11 @@ sub refactor_all {
     return $stref if $stage == 3;
 
     # This can't go into refactor_all_subroutines() because it is recursive
-    # This is where somehow the parameters get added to RefactoredArgs, but in the wrong way.
+    # Also, this is actually analysis
     $stref = determine_argument_io_direction_rec( $subname, $stref );    
-    return $stref if $stage == 4;
-    
+    return $stref if $stage == 4;    
     print "DONE determine_argument_io_direction_rec()\n" if $V;
+    $stref = update_argument_io_direction_all_subs( $stref );
     # So at this point we know everything there is to know about the argument declarations, we can now update them
     say "remove_vars_masking_functions";    
     $stref = remove_vars_masking_functions($stref);

@@ -3,7 +3,7 @@ use v5.16;
 
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils qw( get_maybe_args_globs type_via_implicits );
-use RefactorF4Acc::Refactoring::Common qw( get_annotated_sourcelines );
+use RefactorF4Acc::Refactoring::Common qw( get_annotated_sourcelines stateful_pass emit_f95_var_decl );
 use RefactorF4Acc::Refactoring::Subroutines::Signatures
   qw( refactor_subroutine_signature );
 use RefactorF4Acc::Refactoring::Subroutines::Calls
@@ -29,6 +29,7 @@ use Exporter;
 
 @RefactorF4Acc::Analysis::ArgumentIODirs::EXPORT_OK = qw(
   &determine_argument_io_direction_rec
+  &update_argument_io_direction_all_subs
   &parse_assignment
   &type_via_implicits
 );
@@ -998,4 +999,44 @@ sub _get_iodirs_from_subcall {
 	return $called_arg_iodirs;
 }
 
+sub update_argument_io_direction_all_subs {
+	(my $stref)=@_;
+	  for my $f ( keys %{ $stref->{'Subroutines'} } ) {
+	  	next if $f eq '';
+	  	say "UPDATE IODIR IN $f";
+	  	$stref = _update_argument_io_direction($stref, $f); 
+	  }
+	return $stref;
+}
+
+sub _update_argument_io_direction {
+	(my $stref, my $f)=@_;
+	
+	my $__update_decl = sub { (my $annline, my $state)=@_;		
+		( my $line,    my $info )  = @{$annline};
+		(my $stref, my $f, my $rest) = @{$state};
+		if (exists $info->{'VarDecl'}) {
+			my $varname = $info->{'VarDecl'}{'Name'};
+			if (exists $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$varname}) {
+#							say $line;
+#			say "INFO:".Dumper($info->{'VarDecl'});
+				
+#			say $varname;
+#			say Dumper($stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$varname});
+			$info->{'VarDecl'}{'IODir'}=$stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$varname}{'IODir'};
+			my $rline = emit_f95_var_decl($info->{'VarDecl'});
+			$annline =[ $rline, $info];
+			} else {
+#				say $line;
+			}
+		}
+		return ( $annline, $state );	
+	};
+	my $state = [ $stref, $f, {} ];
+	 ($stref, $state) = stateful_pass($stref,$f,  $__update_decl,  $state,'_update_argument_io_direction() '. __LINE__);
+	
+
+	
+	return $stref;
+}
 1;

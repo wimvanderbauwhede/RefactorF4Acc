@@ -425,7 +425,7 @@ sub _refactor_globals_new {
 			  	$info->{'Include'}{'Name'}=$param_inc;
 			  	delete $info->{'Includes'};
 			  	$line=~s/$inc/$param_inc/;
-			  	$line.= "; _refactor_globals_new($f) line " . __LINE__;
+			  	$line.= "; ! _refactor_globals_new($f) line " . __LINE__;
 			  	$annline=[$line,$info];
 			  	push @{$rlines}, $annline ;
 			  	$skip=1;

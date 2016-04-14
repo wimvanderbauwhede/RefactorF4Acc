@@ -42,7 +42,17 @@ our $usage = "
 #    -B: Build FLEXPART (implies -b), currently ignored
 #    -G: Generate Markdown documentation (currently broken)
 
-our @unit_tests= (1,2,3,4,5,6);
+our @unit_tests= (1,2,3,4,5,6,7,8);
+our @test_descs =qw(
+find_subroutines_functions_and_includes
+parse_fortran_src
+refactor_marked_blocks_into_subroutines
+build_call_graph
+analyse_all
+refactor_all
+
+emit_all
+);
 &main();
 
 # -----------------------------------------------------------------------------
@@ -236,11 +246,11 @@ sub {
 #die 'WV20151005:  I worked my way through the code to here and globals are not resolved!';
 
     # Refactor the source
-    $stage=6;
+    $stage=0;
 	$stref = refactor_all($stref,$subname, $stage);
 
 test(6,$stref,
-sub { return 'FAIL';
+sub { return 'PASS';
 },
 sub {
 	(my $stref)=@_;
@@ -254,12 +264,13 @@ sub {
 	} elsif ($stage==3) {
   		return join("\n",@{ pp_annlines($stref->{'Subroutines'}{$sub}{'RefactoredCode'},0) });			
 	} elsif ($stage==4 or $stage==5) {		
-  		return join("\n",@{ pp_annlines($stref->{'Subroutines'}{$sub}{'RefactoredCode'},0) });
+  		return join("\n",@{ pp_annlines($stref->{'Subroutines'}{$sub}{'RefactoredCode'},1) });
 	} elsif ($stage==6) {
   		return join("\n",@{ pp_annlines($stref->{'RefactoredCode'}{'./press.f'},0) });
 	}
 }	
 );
+#die;
 #	die Dumper(sort keys %{$stref});#->{'Subroutines'});#->{'RefactoredSources'});
 #   print '=' x 80, "\n";
 #   map {say Dumper($_->[1]) } @{ $stref->{'Subroutines'}{'press'}{'AnnLines'} };
@@ -270,7 +281,7 @@ sub {
 #     say Dumper($stref->{Subroutines}{velnw});
 #     say '=' x 80;
 
-   say 'AFTER refactor_all()';
+#   say 'AFTER refactor_all()';
    # This is part of the refactoring of kernel subroutines in a simulation loop into a called-once init() and a run() called in the loop
    for my $kernel_wrapper (keys %{$stref->{'KernelWrappers'}}) {
         $stref = outer_loop_variable_analysis($kernel_wrapper,$stref);
@@ -285,12 +296,12 @@ sub {
 #   say map { $_->[0]."\t".join(';',keys $_->[1])."\n"} @{$stref->{'RefactoredSources'}{'./main.f'}};
 #   die;
    
-   $DUMMY=0;
+   $DUMMY=1;
 	if ( not $call_tree_only ) {
 		# Emit the refactored source
 		emit_all($stref);
 	}
-
+die;
 	if ( $translate == $YES ) {
 	    # Here we could actually call the genOclKernelFromF95Src script
 	    # The code below is OBSOLETE
@@ -667,9 +678,9 @@ sub test { (my $test_num, my $stref, my $test_subref, my $fail_subref) = @_;
 		if ($res eq 'FAIL') {
 			my $output = $fail_subref->($stref);			
 			if (ref($output) eq 'HASH' or ref($output) eq 'ARRAY') {  
-				die "! Test $test_num: $res\n".Dumper( $output );
+				die "! Test ".$test_descs[$test_num-1].": $res\n".Dumper( $output );
 			} else {
-				die "! Test $test_num: $res\n\n".$output."\n" ;
+				die "! Test ".$test_descs[$test_num-1].": $res\n\n".$output."\n" ;
 			}
 		} else {
 			say "Test $test_num: ".$res;
