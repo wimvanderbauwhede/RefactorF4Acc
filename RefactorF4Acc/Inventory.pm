@@ -71,10 +71,13 @@ sub find_subroutines_functions_and_includes {
 #    	print "$path\n";
         find( $tf_finder, $path );
     }
+    
 #    print Dumper(%src_files);die;
 #    find( $tf_finder, '.' );
 #	$stref->{'SourceFiles'}=\%src_files;
+
     for my $src ( sort keys %src_files ) {
+    	
         my $exclude=0;        
         for my $excl_dir (keys %excluded_dirs) {            
             if ($src=~/$excl_dir\//) { 
@@ -99,6 +102,7 @@ sub find_subroutines_functions_and_includes {
 
     	
         $stref=_process_src($src,$stref);
+        
     }
 
     _test_can_be_inlined_all_modules($stref);    
@@ -114,7 +118,7 @@ sub _process_src {
 	(my $src, my $stref)=@_;
 	
     my $srctype=''; # sub, func or incl; for F90/95 also module, and then we must tag the module by what it contains
-    my $f=''; # name of the entity
+#    my $f=''; # name of the entity
     my $has_blocks=0;
     my $free_form=0;
     my $fstyle='F77';   
@@ -123,7 +127,8 @@ sub _process_src {
     my $is_module=0;
     my $mod_name='NONE'; 
     my $sub_name='NONE'; 
-    
+    my $in_contains=0;
+    my $container='';
     open my $SRC, '<', $src;
     while ( my $line = <$SRC> ) {
 
@@ -171,13 +176,20 @@ sub _process_src {
                 $is_module=1; 
                 $srctype='Modules';
                 $mod_name = lc($1); #die $line.':'.$mod_name;
-                $f=$mod_name;
+#                $f=$mod_name;
+                $container=$mod_name;
 # What I want is a connection between a module and its file name, and also with its content.
 # So that we can say, given a module name, get the source, from there get the contents                
 # Maybe we don't really need the source, as we can use the module name as identifier
                 $stref->{'Modules'}{$mod_name}{'Source'}=$src;
-                $fstyle='F95';
+                $fstyle='F95';                
+                $stref->{'Modules'}{$mod_name}{'FStyle'}=$fstyle;
+            	$stref->{'Modules'}{$mod_name}{'FreeForm'}=$free_form;                  
+                
             } 
+            if ( $line =~ /^\s*end\s+(?:module|program)/i ) { 
+            	$in_contains=0;
+            }
         if ($fstyle eq 'F77') {            
             if ( $line =~ /^\s*(.*)\s*::\s*(.*?)\s*$/ ) {
                  $fstyle='F95';
@@ -186,71 +198,171 @@ sub _process_src {
         
         if ( $line =~ /^\s+interface/i ) { #TODO: should be added to inventory of module
             $in_interface_block=1;
-             $stref->{$srctype}{$f}{'Interface'}={};
+             $stref->{$srctype}{$mod_name}{'Interface'}={};
         }
         if ( $line =~ /^\s+end\s+interface/i ) { 
             $in_interface_block=0;
         }
         
-            # Find subroutine/program signatures
-            $line =~ /^\s*(recursive\s+subroutine|subroutine|program)\s+(\w+)/i && do {
-                my $is_prog = (lc($1) eq 'program') ? 1 : 0;
-                my $tmp=$1;
-                my $sub  = lc($2);
-                my $is_rec = ($tmp =~/recursive/i) ? 1 : 0;
+        
+            # Find subroutine/function/program signatures
+           $line =~ /^\s*(recursive\s+(?:function|subroutine)|function|subroutine|program)\s+(\w+)/i && do {
+           	
+            	my $proc_type=$1;
+            	my $proc_name=$2;
+                my $is_prog = (lc($proc_type) eq 'program') ? 1 : 0;
+                my $is_function = ($proc_type =~/function/i) ? 1 : 0;
+                my $is_rec = ($proc_type =~/recursive/i) ? 1 : 0;
+                my $sub  = lc($proc_name);                
                 if ( $is_prog == 1 ) {
-                    print "Found program $sub in $src\n" if $V;                    
+                    print "Found program $sub in $src\n" if $V;
+                    $container=$sub;                    
                 }
                 if ($is_module) {
                     $stref->{'Modules'}{$mod_name}{'Subroutines'}{$sub}={};
                 }
-                die 'No subroutine name from '.$line if $sub eq '' or not defined $sub;
-                if (not $in_interface_block) {
-	                $f=$sub;                
+#                say "PROC NAME: $proc_name in SRC: $src";
+                die 'No subroutine/function name from '.$line if $sub eq '' or not defined $sub;
+                
+                if ((not $is_function and not $in_interface_block) or $is_function
+                ) {	                
 	                $srctype='Subroutines';
+	                
 	                $stref->{'Subroutines'}{$sub}={};
-	                $stref->{'SourceContains'}{$src}{$f}=$srctype;
+	                $stref->{'SourceContains'}{$src}{$sub}=$srctype;
 	                my $Ssub = $stref->{'Subroutines'}{$sub};
-	                if (
-	                    not exists $Ssub->{'Source'}
-	                    or (    $src =~ /$sub\.f(?:9[05])?/
-	                        and $Ssub->{'Source'} !~ /$sub\.f(?:9[05])?/ )
-	                  )
-	                {
-	                    if (    exists $Ssub->{'Source'}
-	                        and $src =~ /$sub\.f(?:9[05])?/
-	                        and $Ssub->{'Source'} !~ /$sub\.f(?:9[05])?/ )
-	                    {
-	                        print "WARNING: Ignoring source "
-	                          . $Ssub->{'Source'}
-	                          . " because source $src matches subroutine name $sub.\n"
-	                          if $W;
-	                    }
+	                if ($is_function) {
+	                	$Ssub->{'Function'} = 1;     
+	                }
 	                    $Ssub->{'Source'}  = $src;
 	                    $Ssub->{'Status'}  = $UNREAD;
 	                    $Ssub->{'Program'} = $is_prog;
 	                    $Ssub->{'Recursive'} = $is_rec;
+               if ($line=~/pure\s+function|pure\s+recursive\s+function/) {
+                	$Ssub->{'Pure'} = 1;
+                } else {
+                	$Ssub->{'Pure'} = 0;
+                }	                    
 	                    $Ssub->{'Callers'}  = {};
 	                    if ($is_prog==1) {
 	                    	$stref->{'Program'}=$src;	                    	
-	                    }
+	                    } elsif ($in_contains==1) {
+	                    	$Ssub->{'Container'} = $container;
+	                    } 
+	                    
 	                    if ($translate_to ne '') {
 	                        $Ssub->{'Translate'}  = $translate_to;
 	                        $translate_to = '';
 	                    }
 	
-	                } else {
-	                    print
-	"WARNING: Ignoring source $src for $sub because another source, "
-	                      . $Ssub->{'Source'}
-	                      . " exists.\n"
-	                      if $W;
-	                }
+                } elsif ($in_interface_block) {
+                	$stref->{$srctype}{$mod_name}{'Interface'}{$sub}=1; #WV: TODO: add functionality here
                 } else {
-                	$stref->{$srctype}{$f}{'Interface'}{$sub}=1; #WV: TODO: add functionality here
+                	croak 'TROUBLE!';
                 }
+                    $stref->{'Subroutines'}{$sub}{'FStyle'}=$fstyle;
+            		$stref->{'Subroutines'}{$sub}{'FreeForm'}=$free_form;  
+		            $stref->{'Subroutines'}{$sub}{'HasBlocks'}=$has_blocks;
                 $sub_name=$sub;
             };
+            
+                    
+#            # Find subroutine/program signatures
+#            $line =~ /^\s*(recursive\s+subroutine|subroutine|program)\s+(\w+)/i && do {
+#            	my $tmp=$1;
+#                my $is_prog = (lc($1) eq 'program') ? 1 : 0;
+#                my $is_rec = ($tmp =~/recursive/i) ? 1 : 0;
+#                my $sub  = lc($2);                
+#                if ( $is_prog == 1 ) {
+#                    print "Found program $sub in $src\n" if $V;
+#                    $container=$sub;                    
+#                }
+#                if ($is_module) {
+#                    $stref->{'Modules'}{$mod_name}{'Subroutines'}{$sub}={};
+#                }
+#                die 'No subroutine name from '.$line if $sub eq '' or not defined $sub;
+#                
+#                if (not $in_interface_block) {	                
+#	                $srctype='Subroutines';
+#	                $stref->{'Subroutines'}{$sub}={};
+#	                $stref->{'SourceContains'}{$src}{$sub}=$srctype;
+#	                my $Ssub = $stref->{'Subroutines'}{$sub};
+#	                
+##	                if (
+##	                    not exists $Ssub->{'Source'} # means we have not encountered it yet. This MUST be the case because we've just created $Ssub!
+##	                    or (    $src =~ /$sub\.f(?:9[05])?/ # the current $src has the subroutine name, VERY AD HOC!
+##	                        and $Ssub->{'Source'} !~ /$sub\.f(?:9[05])?/ ) # the subroutine source has a different name, but this is impossible as Source does not exist yet
+##	                  )
+##	                {
+##	                    if (    exists $Ssub->{'Source'}
+##	                        and $src =~ /$sub\.f(?:9[05])?/
+##	                        and $Ssub->{'Source'} !~ /$sub\.f(?:9[05])?/ )
+##	                    {
+##	                        print "WARNING: Ignoring source "
+##	                          . $Ssub->{'Source'}
+##	                          . " because source $src matches subroutine name $sub.\n"
+##	                          if $W;	                          
+##	                    }
+#	                    $Ssub->{'Source'}  = $src;
+#	                    $Ssub->{'Status'}  = $UNREAD;
+#	                    $Ssub->{'Program'} = $is_prog;
+#	                    $Ssub->{'Recursive'} = $is_rec;
+#	                    $Ssub->{'Callers'}  = {};
+#	                    if ($is_prog==1) {
+#	                    	$stref->{'Program'}=$src;	                    	
+#	                    } elsif ($in_contains==1) {
+#	                    	$Ssub->{'Container'} = $container;
+#	                    } 
+#	                    
+#	                    if ($translate_to ne '') {
+#	                        $Ssub->{'Translate'}  = $translate_to;
+#	                        $translate_to = '';
+#	                    }
+#	
+##	                } else {
+##	                    print
+##	"WARNING: Ignoring source $src for $sub because another source, "
+##	                      . $Ssub->{'Source'}
+##	                      . " exists.\n"
+##	                      if $W;
+##	                }
+#                } else {
+#                	$stref->{$srctype}{$f}{'Interface'}{$sub}=1; #WV: TODO: add functionality here
+#                }
+#                $sub_name=$sub;
+#            };
+#            
+#            # Find function signatures
+#            $line =~ /\bfunction\s+(\w+)/i && do {
+##            	print "FUNC: $line process_src() 216 \n";
+#                my $func = lc($1);                               
+#                if ($is_module) {
+#                    $stref->{'Modules'}{$mod_name}{'Subroutines'}{$func}={};
+#                }
+#                die 'No function name from '.$line if $func eq '' or not defined $func;
+#                
+#                $srctype='Subroutines';
+#                $stref->{'Subroutines'}{$func}={};
+#                $stref->{'SourceContains'}{$src}{$func}=$srctype;                                
+#                my $Sfunc =$stref->{'Subroutines'}{$func};
+#                
+#                $Sfunc->{'Function'} = 1;                
+#                $Sfunc->{'Source'} = $src;
+#                $Sfunc->{'Status'} = $UNREAD;
+#                if ($line=~/pure\s+function/) {
+#                	$Sfunc->{'Pure'} = 1;
+#                } else {
+#                	$Sfunc->{'Pure'} = 0;
+#                }
+#                $Sfunc->{'Callers'}  = {};
+#                if ($in_contains==1) {
+#	                    	$Sfunc->{'Container'} = $container;
+#	                    } 
+#                if ($translate_to ne '') {
+#                	$Sfunc->{'Translate'}  = $translate_to;
+#                   	$translate_to = '';
+#				}                  
+#            };            
             
             # Find include statements
             $line =~ /^\s*include\s+\'([\w\.]+)\'/ && do {
@@ -261,16 +373,16 @@ sub _process_src {
 
 #                print "FOUND INC $inc\n" if $V;
                 if ( not exists $stref->{'IncludeFiles'}{$inc} ) {
-                    $stref->{'IncludeFiles'}{$inc}{'Status'} = $UNREAD;                                        
-                    $srctype='IncludeFiles';
-                    $stref->{$srctype}{$inc}{'Source'}=$inc;
-                    $f=$inc;
+                    $stref->{'IncludeFiles'}{$inc}{'Status'} = $UNREAD;                                                            
+                    $stref->{'IncludeFiles'}{$inc}{'Source'}=$inc;                    
                     if (not -e $inc) {
-                    	$stref->{$srctype}{$inc}{'InclType'} = 'External';
+                    	$stref->{'IncludeFiles'}{$inc}{'InclType'} = 'External';
                     } else {
-                        $stref->{$srctype}{$inc}{'InclType'} = 'Local';
+                        $stref->{'IncludeFiles'}{$inc}{'InclType'} = 'Local';
                     }
                 }
+                $stref->{'IncludeFiles'}{$inc}{'FreeForm'}=$free_form;
+                $stref->{'IncludeFiles'}{$inc}{'FStyle'}=$fstyle;
             };
             
             # Find use statements, for F90/F95. 
@@ -288,26 +400,6 @@ sub _process_src {
                 }
             };
             
-            # Find function signatures
-            $line =~ /\bfunction\s+(\w+)/i && do {
-#            	print "FUNC: $line process_src() 216 \n";
-                my $func = lc($1);                               
-                if ($is_module) {
-                    $stref->{'Modules'}{$mod_name}{'Subroutines'}{$func}={};
-                }
-                $stref->{'Subroutines'}{$func}{'Function'} = 1;
-                
-                $stref->{'Subroutines'}{$func}{'Source'} = $src;
-                $stref->{'Subroutines'}{$func}{'Status'} = $UNREAD;
-                if ($translate_to ne '') {
-                        $stref->{'Subroutines'}{$func}{'Translate'}  = $translate_to;
-                        $translate_to = '';
-                    }
-                  $f=$func;
-                  $srctype='Subroutines';
-                  $stref->{'SourceContains'}{$src}{$f}=$srctype;
-            };
-
             $line =~/::/ && do {
                 if ($is_module) {
                     if ($line =~ /parameter/ ) {
@@ -323,11 +415,11 @@ sub _process_src {
                     $stref->{'Modules'}{$mod_name}{'ImplicitRules'}={};                    
                 }
             };
-         
-            $stref->{$srctype}{$f}{'FStyle'}=$fstyle;
-            $stref->{$srctype}{$f}{'FreeForm'}=$free_form;  
-            $stref->{$srctype}{$f}{'HasBlocks'}=$has_blocks;
-#            print "{$srctype}{$f}{'HasBlocks'}=$has_blocks\n";
+            
+            $line =~/^\s*contains\s*$/ &&  do {
+            	$in_contains=1;
+            };
+                     
             if ($is_module) {
                 $stref->{'Modules'}{$mod_name}{'Status'} = $INVENTORIED; 
             }

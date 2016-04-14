@@ -69,7 +69,7 @@ sub context_free_refactorings {
     ( my $stref, my $f ) = @_;
     print "CONTEXT-FREE REFACTORINGS for $f CODE\n" if $V ;
     
-    my $die_if_one         = 0;
+    my $die_if_one         = ($f eq 'BOOM')? 1 : 0;
     my @extra_lines        = ();
     my $sub_or_func_or_inc = sub_func_incl_mod( $f, $stref );
     my $Sf                 = $stref->{$sub_or_func_or_inc}{$f};
@@ -205,7 +205,7 @@ sub context_free_refactorings {
                 delete $info->{'ExGlobArgDecls'};
                 $info->{'Ref'} = 1; 
                 $info->{'Ann'} .= 'context_free_refactoring '. __LINE__ ."; ";
-                $line .= "\t!".$info->{'Ann'};
+                $line .= "  !".$info->{'Ann'};
             } else {
                 die 'BOOM! ' . 'context_free_refactoring '. __LINE__ ."; ";
             }            
@@ -310,7 +310,8 @@ sub context_free_refactorings {
         elsif ( exists $info->{'SubroutineCall'} ) {
 #            $line = _rename_conflicting_vars( $line, $stref, $f );
             $info->{'Ref'}++;
-        } elsif ( exists $info->{'Include'} ) {
+        } elsif ( exists $info->{'Include'} ) { 
+        	
             my $inc  = $info->{'Include'}{'Name'};
             my $tinc = $inc;
             $tinc =~ s/\./_/g;
@@ -342,11 +343,13 @@ sub context_free_refactorings {
 
     # now splice the include stack just below the signature
     if (@include_use_stack) {
+    	
         my $offset = 0;
         if ( exists $stref->{'IncludeFiles'}{$f} ) {
             $Sf->{'RefactoredCode'} =
               [ @include_use_stack, @{ $Sf->{'RefactoredCode'} } ];
         } else {
+        	
             # 1. Look for the signature
             for my $tmpannline ( @{ $Sf->{'RefactoredCode'} } ) {
                 if ( exists $tmpannline->[1]{'Signature'} ) {
@@ -364,6 +367,7 @@ sub context_free_refactorings {
                     $firstline, @include_use_stack, @{ $Sf->{'RefactoredCode'} }
                 );
                 $Sf->{'RefactoredCode'} = [@new];
+                
             } else {
                 my @part1 = ();
                 for ( 0 .. $offset ) {
@@ -687,17 +691,13 @@ sub get_annotated_sourcelines {
         } else {
             $annlines = $Sf->{'RefactoredCode'};           # Here a ref is OK
         }
-    } else {
+    } else {    	
         print "WARNING: get_annotated_sourcelines($f) STATUS: "
           . show_status( $Sf->{'Status'} )
           if $W;
         if ( $Sf->{'Status'} > $INVENTORIED )
         {    # Means it was READ, and INVENTORIED but not PARSED
             print ", NOT PARSED\n" if $W;
-
-            #		warn Dumper($Sf);
-            #		carp "$f NOT PARSED";
-            #		die "\n",caller,"\n";
         } else {
             print "\n" if $W;
         }
@@ -814,7 +814,7 @@ sub get_f95_var_decl {
     
     my $subset = in_nested_set($Sf, 'Vars', $var); # Should tell us exactly where we are
     croak $subset if $subset=~/Glob/;
-    if ($subset ne '' and exists $Sf->{$subset}{'Set'}{$var} ) {
+    if ($subset ne '' and exists $Sf->{$subset}{'Set'}{$var} and ref($Sf->{$subset}{'Set'}{$var}) eq 'HASH') {
     		my $Sv = $Sf->{ $subset }{'Set'}{$var};
         	if ( exists $Sf->{'ConflictingLiftedVars'}{$var} ) {
             	$nvar = $Sf->{'ConflictingLiftedVars'}{$var};

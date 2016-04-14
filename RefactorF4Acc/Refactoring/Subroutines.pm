@@ -107,16 +107,19 @@ sub _refactor_subroutine_main {
     say "context_free_refactorings($f)" if $V;
     $stref = context_free_refactorings( $stref, $f ); # FIXME maybe do this later    
 
+
     my $Sf = $stref->{'Subroutines'}{$f};
+    
 #    croak Dumper( $Sf->{'Globals' }) if $f eq 'ij_to_latlon';
     say "get_annotated_sourcelines($f)" if $V;
-    my $annlines = get_annotated_sourcelines($stref,$f);
+    my $annlines = $Sf->{'RefactoredCode'};
     
     if ( $Sf->{'HasCommons'} ) { 
         print "REFACTORING COMMONS for SUBROUTINE $f\n" if $V;
         if ( $Sf->{'RefactorGlobals'} == 1 ) {
             say "_refactor_globals_new($f)" if $V;
           $annlines = _refactor_globals_new( $stref, $f, $annlines );
+
         } elsif ( $Sf->{'RefactorGlobals'} == 2 ) { 
             die 'SHOULD BE OBSOLETE!  _refactor_subroutine_main() ' . __LINE__ ;
             say "_refactor_calls_globals($f)" if $V;
@@ -404,13 +407,26 @@ sub _refactor_globals_new {
         if ( exists $info->{'Include'} ) {
             $skip = skip_common_include_statement( $stref, $f, $annline );
 #            say "SKIP: $skip";
+# Now, if this was a Common include to be skipped but it contains a Parameter include, I will simply replace the line:
+# TODO: factor out!
+			  my $inc       = $info->{'Include'}{'Name'};
+			  if  ( exists $stref->{'IncludeFiles'}{$inc}{'ParamInclude'} ) { 
+			  	my $param_inc=$stref->{'IncludeFiles'}{$inc}{'ParamInclude'};
+			  	$skip=0;
+			  	$info->{'Include'}{'Name'}=$param_inc;
+			  	delete $info->{'Includes'};
+			  	$line=~s/$inc/$param_inc/;
+			  	$line.= "; _refactor_globals_new($f) line " . __LINE__;
+			  	$annline=[$line,$info];
+			  }
         }
         
-        if ( exists $info->{'ExGlobVarDeclHook'} ) {
+        if ( 0 && exists $info->{'ExGlobVarDeclHook'} ) { # OBSOLETE 
             # First, abuse ExGlobArgDecls as a hook for the addional includes, if any
             $rlines =
               create_new_include_statements( $stref, $f, $annline, $rlines );
-              
+        }
+        if ( exists $info->{'ExGlobVarDeclHook'} ) {       
            # Then generate declarations for ex-globals
            say "EX-GLOBS for $f" if $V;
             $rlines = _create_extra_arg_and_var_decls( $stref, $f, $annline, $rlines );

@@ -70,7 +70,7 @@ sub show_annlines {
             print $annline->[0];
             if($with_info) {
 #             ? "\t<";#.join(';',keys %{ $annline->[1] }).'>' : '');
-                print "\t! <";
+                print "  ! <";
                 for my $k (keys %{ $annline->[1] }) {
                     if ( not ref( $annline->[1]{$k} ) ) {
                         print  $k.'=>'.$annline->[1]{$k}.';';
@@ -96,7 +96,7 @@ sub pp_annlines {
             my $pp_annline = $annline->[0];
             if($with_info) {
 #             ? "\t<";#.join(';',keys %{ $annline->[1] }).'>' : '');
-                $pp_annline.= "\t! <";
+                $pp_annline.= "  ! <";
                 for my $k (keys %{ $annline->[1] }) {
                     if ( not ref( $annline->[1]{$k} ) ) {
                         $pp_annline.=  $k.'=>'.$annline->[1]{$k}.';';

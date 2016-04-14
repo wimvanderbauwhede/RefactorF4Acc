@@ -49,7 +49,6 @@ sub parse_fortran_src {
 ## 1. Read the source and do some minimal processsing, unless it's already been done (i.e. for extracted blocks)
 	$stref = read_fortran_src( $f, $stref );    #
 	print "DONE read_fortran_src( $f )\n" if $V;
-
 	my $sub_or_incl_or_mod = sub_func_incl_mod( $f, $stref );
 	my $is_incl = $sub_or_incl_or_mod eq 'IncludeFiles';
 	my $is_external_include =
@@ -77,6 +76,7 @@ sub parse_fortran_src {
 		# NOTE: The Vars set are the *declared* variables, not the *used* ones
 
 		print "ANALYSE LINES of $f\n" if $V;
+		
 		$stref = _analyse_lines( $f, $stref );
 		print "DONE _analyse_lines( $f )\n" if $V;
 
@@ -220,6 +220,14 @@ say "_initialise_decl_var_tables : INIT TABLES for subroutine $f" if $V;
 					'ExInclLocalVars' => $Sf->{'ExInclLocalVars'}
 				}
 			};
+			$Sf->{'OrigArgs'} = {
+				'Subset' => {
+					'UndeclaredOrigArgs' => $Sf->{'UndeclaredOrigArgs'},
+					'DeclaredOrigArgs'   => $Sf->{'DeclaredOrigArgs'}
+				},
+				'List'=>[],
+				'Set'=>{} # Stricty speaking we don't need this 
+			};			
 			$Sf->{'Args'} = {
 				'Subsets' => {
 					'OrigArgs'   => $Sf->{'OrigArgs'},
@@ -227,22 +235,18 @@ say "_initialise_decl_var_tables : INIT TABLES for subroutine $f" if $V;
 					'ExInclArgs' => $Sf->{'ExInclArgs'}
 				}
 			};
-			$Sf->{'OrigArgs'} = {
-				'Subset' => {
-					'UndeclaredOrigArgs' => $Sf->{'UndeclaredOrigArgs'},
-					'DeclaredOrigArgs'   => $Sf->{'DeclaredOrigArgs'}
-				}
-			};
+			
 			$Sf->{'Vars'} = {
 				'Subsets' => {
 					'Args'      => $Sf->{'Args'},
 					'LocalVars' => $Sf->{'LocalVars'}
 				}
 			};
-		} else {
+		} else { # For includes
 
 			# Includes only have LocalVars and Commons
 			# Commons can't be Args so they will always become ExInclLocalVars
+			$Sf->{'Commons'}       = {};  # This is only for testing which vars are commons, nothing else.
 			$Sf->{'DeclaredCommonVars'}   = { 'Set' => {}, 'List' => [] };
 			$Sf->{'UndeclaredCommonVars'} = { 'Set' => {}, 'List' => [] };
 			$Sf->{'CommonVars'}           = {
@@ -251,12 +255,11 @@ say "_initialise_decl_var_tables : INIT TABLES for subroutine $f" if $V;
 					'UndeclaredCommonVars' => $Sf->{'UndeclaredCommonVars'},
 				}
 			};
-			$Sf->{'Commons'}       = {};
+			
 			$Sf->{'OrigLocalVars'} = {
 				'Subsets' => {
 					'DeclaredOrigLocalVars' => $Sf->{'DeclaredOrigLocalVars'},
-					'UndeclaredOrigLocalVars' =>
-					  $Sf->{'UndeclaredOrigLocalVars'}
+					'UndeclaredOrigLocalVars' => $Sf->{'UndeclaredOrigLocalVars'}
 				}
 			};
 			$Sf->{'LocalVars'} =
@@ -276,7 +279,11 @@ say "_initialise_decl_var_tables : INIT TABLES for subroutine $f" if $V;
 			$Sf->{'ExInclArgDecls'}     = $Sf->{'ExInclArgs'};
 			$Sf->{'ExImplicitArgDecls'} = $Sf->{'UndeclaredOrigArgs'};
 			$Sf->{'OrigArgDecls'}       = $Sf->{'DeclaredOrigArgs'};
-
+			
+			$Sf->{'ExImplicitVarDecls'} = $Sf->{'UndeclaredOrigLocalVars'};
+			$Sf->{'ExInclVarDecls'}     = $Sf->{'ExInclLocalVars'};
+			$Sf->{'OrigVarDecls'} = $Sf->{'DeclaredOrigLocalVars'};
+			
 			# ExtraArgDecls
 			$Sf->{'ExtraArgDecls'} = {
 				'Subsets' => {
@@ -297,15 +304,15 @@ say "_initialise_decl_var_tables : INIT TABLES for subroutine $f" if $V;
 
 			$Sf->{'ExtraVarDecls'} = {
 				'Subsets' => {
-					'ExImplicitVarDecls' => $Sf->{'UndeclaredOrigLocalVars'},
-					'ExInclVarDecls'     => $Sf->{'ExInclLocalVars'}
+					'ExImplicitVarDecls' => $Sf->{'ExImplicitVarDecls'},
+					'ExInclVarDecls'     => $Sf->{'ExInclVarDecls'}
 				}
 			};
 
 			# LocalVarDecls
 			$Sf->{'LocalVarDecls'} = {
 				'Subsets' => {
-					'OrigVarDecls'  => $Sf->{'DeclaredOrigLocalVars'},
+					'OrigVarDecls'  => $Sf->{'OrigVarDecls'},
 					'ExtraVarDecls' => $Sf->{'ExtraVarDecls'}
 				}
 			};
@@ -320,15 +327,15 @@ say "_initialise_decl_var_tables : INIT TABLES for subroutine $f" if $V;
 		} else {
 			$Sf->{'ExtraVarDecls'} = {
 				'Subsets' => {
-					'ExImplicitVarDecls' => $Sf->{'UndeclaredOrigLocalVars'},
-					'ExInclVarDecls'     => $Sf->{'ExInclLocalVars'}
+					'ExImplicitVarDecls' => $Sf->{'ExImplicitVarDecls'},
+					'ExInclVarDecls'     => $Sf->{'ExInclVarDecls'}
 				}
 			};
 
 			# LocalVarDecls
 			$Sf->{'LocalVarDecls'} = {
 				'Subsets' => {
-					'OrigVarDecls'  => $Sf->{'DeclaredOrigLocalVars'},
+					'OrigVarDecls'  => $Sf->{'OrigVarDecls'},
 					'ExtraVarDecls' => $Sf->{'ExtraVarDecls'}
 				}
 			};
@@ -383,7 +390,7 @@ sub _analyse_lines {
 			if ( $line =~ /^\!\s+/ && $line !~ /^\!\s*\$(?:ACC|RF4A)\s/i ) {
 				next;
 			}
-
+#say "LINE: $line";
 			# Handle !$ACC
 			if ( $line =~ /^\!\s*\$(?:ACC|RF4A)\s.+$/i ) {
 				( $stref, $info ) = __handle_acc( $stref, $f, $index, $line );
@@ -453,9 +460,11 @@ sub _analyse_lines {
 				&& $line !~ /\bparameter\b/
 				&& $line =~ /[\w\)]\s*=\s*[^=]/ )
 			{
+				
 				$info->{'Assignment'} = 1;
 
 #WV20150303: We parse this assignment and return {Lhs => {Varname, ArrayOrScalar, IndexExpr}, Rhs => {Expr, VarList}}
+#say "WRONG LINE:".$line;
 				my $vref = parse_assignment($line);
 				$info->{'Assignment'} = {
 					'Lhs' => $vref->[0],
@@ -527,6 +536,7 @@ sub _analyse_lines {
 	}
 
 	#           die "FIXME: shapes not correct!";
+					  
 	return $stref;
 }    # END of _analyse_lines()
 
@@ -551,9 +561,11 @@ sub _parse_includes {
 			if ( $line =~ /^\!\s/ ) {
 				next;
 			}
-
-			if ( $line =~ /^\s*include\s+\'([\w\.]+)\'/ ) {
-				my $name = $1;
+			
+#			if ( $line =~ /^\s*include\s+\'([\w\.]+)\'/ ) {
+			if ( exists $info->{'Includes'}) {	
+#				my $name = $1;
+				my $name = $info->{'Includes'};
 				print "FOUND include $name in $f\n" if $V;
 				$Sf->{'Includes'}{$name} = $index;
 
@@ -829,6 +841,7 @@ sub _separate_blocks {
 	#	warn "-----\n";
 	#	croak "BOOM!" if $f eq 'timemanager';
 	#die Dumper($stref->{'Subroutines'}{'LES_kernel_wrapper'});
+	
 	return $stref;
 }    # END of _separate_blocks()
 
@@ -1064,6 +1077,7 @@ sub _parse_subroutine_and_function_calls {
 
 		#        $Sf->{'CalledSubs'}=\%called_subs;
 	}
+	
 	return $stref;
 }    # END of parse_subroutine_and_function_calls()
 
@@ -1368,7 +1382,7 @@ sub _get_commons_params_from_includes {
 		# FIXME!
 		# An include file should basically only contain parameters and commons.
 		# If it contains commons, we should remove them!
-		if ( $has_commons && $has_pars ) {
+		if ( $has_commons && $has_pars ) {			
 			print
 "INFO: The include file $inc contains both parameters and commons, attempting to split out params_$inc.\n"
 			  if $I;
@@ -1658,6 +1672,8 @@ sub __split_out_parameters {
 	$stref->{'IncludeFiles'}{"params_$f"}{'FreeForm'} =
 	  $stref->{'IncludeFiles'}{$f}{'FreeForm'};
 
+
+	$stref->{'IncludeFiles'}{$f}{'Includes'}{"params_$f"}=1;
 	#    die Dumper($stref->{'IncludeFiles'}{"params_$f"});
 	return $stref;
 }    # END of __split_out_parameters
@@ -1969,14 +1985,10 @@ sub __construct_new_subroutine_signatures {
 			my $decl = get_f95_var_decl( $stref, $f, $argv );
 			$decl->{'Indent'} .= $sixspaces;
 
-#            $Sblock->{'OrigArgs'}{'Set'}{$argv}{'Decl'} = $decl; # WV: this is now handled via the Subsets
 			$Sblock->{'DeclaredOrigArgs'}{'Set'}{$argv} = $decl;
 			push @{ $Sblock->{'DeclaredOrigArgs'}{'List'} }, $argv;
-
-#            $Sf->{'Vars'}{$argv}{'Decl'} = $decl; # WV: this is now handled via the Subsets
 		}
 
-		#        croak Dumper($Sblock);
 		if ( @{ $args{$block} } ) {
 			$sig =~ s/\,$/)/s;
 		} else {
@@ -2010,7 +2022,6 @@ sub __construct_new_subroutine_signatures {
 		}
 
 		for my $argv ( @{ $args{$block} } ) {
-#			say $block,"\n",$argv,"\n",@{ $args{$block} },"\n",Dumper(keys %{$Sblock}),"\n",Dumper($Sblock->{'DeclaredOrigArgs'});
 			my $decl = $Sblock->{'OrigArgs'}{'Set'}{$argv};
 			if (not defined $decl) {
 				$decl = $Sblock->{'DeclaredOrigArgs'}{'Set'}{$argv};
@@ -2170,7 +2181,7 @@ sub _split_multivar_decls {
 					}	
 				}
 #				die Dumper($Sf->{$subset}{'Set'}{$var}) if $var eq 'nou1';
-				my $dim = $Sf->{$subset}{$var}{'Dim'} // [];
+				my $dim = $Sf->{$subset}{'Set'}{$var}{'Dim'} // [];
 				my $decl = {
 					'Indent' => $info->{'VarDecl'}{'Indent'},
 					'Type'   => $Sf->{$subset}{'Set'}{$var}{'Type'},
@@ -2345,9 +2356,8 @@ sub __parse_sub_func_prog_decls {
 	if (
 		   $line =~ /^\s+subroutine\s+(\w+)\s*\((.*)\)/
 		or $line =~ /^\s+recursive\s+subroutine\s+(\w+)\s*\((.*)\)/
-		or $line =~ /^\s+function\s+(\w+)\s*\((.*)\)/
 		or $line =~ /^\s+\w+\s+function\s+(\w+)\s*\((.*)\)/
-
+		or $line =~ /^\s+function\s+(\w+)\s*\((.*)\)/
 	  )
 	{
 		my $name   = $1;
@@ -2360,6 +2370,9 @@ sub __parse_sub_func_prog_decls {
 		$info->{'Signature'}{'Name'}         = $name;
 		$Sf->{'UndeclaredOrigArgs'}{'List'}  = [@args];
 		$Sf->{'UndeclaredOrigArgs'}{'Set'} = { map { $_ => 1 } @args };
+
+		$Sf->{'OrigArgs'}{'List'}  = [@args];
+		$Sf->{'OrigArgs'}{'Set'} = { map { $_ => 1 } @args };
 
 		if ( $line =~ /function/ ) {
 			$info->{'Signature'}{'Function'} = 1;
@@ -2377,10 +2390,6 @@ sub __parse_sub_func_prog_decls {
 		$info->{'Signature'}{'Args'}{'Set'}  = {};
 		$info->{'Signature'}{'Name'}         = $name;
 		$info->{'Signature'}{'Function'}     = 0;
-
-#                $Sf->{'OrigArgs'}{'Subsets'}{'UndeclaredOrigArgs'}{'List'} = [];
-#                $Sf->{'OrigArgs'}{'Subsets'}{'UndeclaredOrigArgs'}{'Set'} = {};
-
 	} elsif ( $line =~ /^\s+program\s+(\w+)\s*$/ ) {
 		;
 
@@ -2390,10 +2399,6 @@ sub __parse_sub_func_prog_decls {
 		$info->{'Signature'}{'Args'}{'List'} = [];
 		$info->{'Signature'}{'Name'}         = $name;
 		$info->{'Signature'}{'Program'}      = 1;
-
-#                $Sf->{'OrigArgs'}{'Subsets'}{'UndeclaredOrigArgs'}{'List'} = [];
-#                $Sf->{'OrigArgs'}{'Subsets'}{'UndeclaredOrigArgs'}{'Set'} = {};
-
 	}
 	return ( $Sf, $line, $info );
 }    # END of __parse_sub_func_prog_decls()
@@ -2529,13 +2534,6 @@ sub __parse_f95_decl {
 				}
 
 				$decl->{'IODir'} = $pt->{'Attributes'}{'Intent'};
-
-#                        $Sf->{'Vars'}{$tvar}{'Decl'}=$decl;
-#                        my $local_var_or_arg = ( exists $Sf->{'OrigArgs'}{'Set'}{$tvar}) ? 'DeclaredOrigArgs' : 'DeclaredOrigLocalVars';
-#                        $Sf->{$local_var_or_arg}{'Set'}{$tvar}=$decl;
-#                        $Sf->{$local_var_or_arg}{'List'} = ordered_union($Sf->{$local_var_or_arg}{'List'}, $pt->{'Vars'});
-
-				#                        my $tvar_rec = $decl;
 				if ( exists $Sf->{'UndeclaredOrigArgs'}{'Set'}{$tvar} ) {
 					$Sf->{'DeclaredOrigArgs'}{'Set'}{$tvar} =
 					  $decl;    # $Sf->{'UndeclaredOrigArgs'}{'Set'}{$var};
@@ -2552,8 +2550,6 @@ sub __parse_f95_decl {
 					  $decl;    # $Sf->{'UndeclaredOrigArgs'}{'Set'}{$var};
 					push @{ $Sf->{'DeclaredOrigLocalVars'}{'List'} }, $tvar;
 				}
-
-#                    die 'F95 VarDecl: '.Dumper($Sf->{'Vars'}{$tvar}) if $tvar eq 'drydeposit';
 			}
 		}
 	}
@@ -2732,27 +2728,17 @@ sub __parse_f77_var_decl {
 			'Status' => 0
 		};
 
-#                    $tvar_rec->{'Decl'} = $decl; #[ $indent, [$type], [$var], 0 ];
-#                    $tvar_rec->{'Indent'} = $indent;
-
 		push @varnames, $tvar;
 
-#                    my $local_var_or_arg = ( exists $Sf->{'OrigArgs'}{'Set'}{$tvar}) ? 'DeclaredOrigArgs' : 'DeclaredOrigLocalVars';
-#                    $Sf->{$local_var_or_arg}{'Set'}{$tvar}=$decl;
-#                    $Sf->{$local_var_or_arg}{'List'} = ordered_union($Sf->{$local_var_or_arg}{'List'}, [$tvar] );
-
 		if ( exists $Sf->{'UndeclaredOrigArgs'}{'Set'}{$var} ) {
-			$Sf->{'DeclaredOrigArgs'}{'Set'}{$var} =
-			  $decl;    # $Sf->{'UndeclaredOrigArgs'}{'Set'}{$var};
+			$Sf->{'DeclaredOrigArgs'}{'Set'}{$var} = $decl;
 			delete $Sf->{'UndeclaredOrigArgs'}{'Set'}{$var};
 			@{ $Sf->{'UndeclaredOrigArgs'}{'List'} } =
 			  grep { $_ ne $var } @{ $Sf->{'UndeclaredOrigArgs'}{'List'} };
 			$Sf->{'DeclaredOrigArgs'}{'List'} =
 			  ordered_union( $Sf->{'DeclaredOrigArgs'}{'List'}, [$var] );
-
 		} else { # A var decl must be unique, so it it's not a arg, it's a local
-			$Sf->{'DeclaredOrigLocalVars'}{'Set'}{$var} =
-			  $decl;    # $Sf->{'UndeclaredOrigArgs'}{'Set'}{$var};
+			$Sf->{'DeclaredOrigLocalVars'}{'Set'}{$var} = $decl;
 			push @{ $Sf->{'DeclaredOrigLocalVars'}{'List'} }, $var;
 		}
 

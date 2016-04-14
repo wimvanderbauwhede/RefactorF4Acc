@@ -65,7 +65,7 @@ sub read_fortran_src {
         }
         my $need_to_read = 1 - $no_need_to_read;
 
-        if ($need_to_read) {
+        if ($need_to_read) { 
             my $ok = 1;
 
             open my $SRC, '<', $f or do {
@@ -75,7 +75,7 @@ sub read_fortran_src {
 
             if ($ok) {
 
-               #	print DBG "READING SOURCE for $f ($s, $sub_func_incl)\n" if $V;
+				say "READING SOURCE for $f ($s, $sub_func_incl)" if $V;
                 my $line       = '';
                 my $nextline   = '';
                 my $joinedline = '';
@@ -1026,7 +1026,7 @@ sub _procLine {
         } elsif ( $line !~ /\'/
             && $line !~ /^\s*end/i
             && $line =~ 
-/\b(module|program|recursive\s+subroutine|subroutine|function)\s+(\w+)/i
+/\b(module|program|recursive\s+subroutine|subroutine|\w+\s+function|function)\s+(\w+)/i
           )
         {
             

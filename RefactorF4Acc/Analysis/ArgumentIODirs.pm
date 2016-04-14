@@ -43,7 +43,9 @@ sub determine_argument_io_direction_rec {
         print "\t" x $c, $f, "\n";
     }
 
+
     my $Sf = $stref->{'Subroutines'}{$f};
+    
     if ( exists $Sf->{'CalledSubs'} ) {
         for my $calledsub ( keys %{ $Sf->{'CalledSubs'} } ) {
             $stref->{Counter}++ if $V;
@@ -67,7 +69,7 @@ sub determine_argument_io_direction_rec {
 }    # determine_argument_io_direction_rec()
 
 # -----------------------------------------------------------------------------
-sub _determine_argument_io_direction_core { croak "FIXME: Should not use RefactoredArgs!";
+sub _determine_argument_io_direction_core { 
     ( my $stref, my $f ) = @_;
     if ( exists $stref->{'Subroutines'}{$f} ) {
         my $Sf = $stref->{'Subroutines'}{$f};
@@ -187,11 +189,15 @@ if (0) {
 
 sub _set_iodir_read {
     ( my $mvar, my $args_ref ) = @_;
-
     #    if ( $args_ref->{$mvar}{'IODir'} eq 'Out' ) {
     #        print "FOUND InOut ARG $mvar\n" if $V;
     #        $args_ref->{$mvar}{'IODir'} = 'InOut';
     #    } els
+#    say Dumper($args_ref->{$mvar});
+    if (not exists $args_ref->{$mvar}{'IODir'}
+    or not defined $args_ref->{$mvar}{'IODir'}) {
+$args_ref->{$mvar}{'IODir'} = 'Unknown';
+        }
     if ( $args_ref->{$mvar}{'IODir'} eq 'Unknown' ) {
         print "FOUND In ARG $mvar\n" if $V;
         $args_ref->{$mvar}{'IODir'} = 'In';
@@ -200,10 +206,12 @@ sub _set_iodir_read {
 }
 
 sub _set_iodir_write {
-    ( my $mvar, my $args_ref ) = @_;
-    if (    exists $args_ref->{$mvar}
-        and exists $args_ref->{$mvar}{'IODir'} )
-    {
+    ( my $mvar, my $args_ref ) = @_;    
+    if (    exists $args_ref->{$mvar} 
+    	and ref($args_ref->{$mvar}) eq 'HASH'  ) {
+        if (exists $args_ref->{$mvar}{'IODir'}
+        and defined $args_ref->{$mvar}{'IODir'} 
+        ) {
         if ( $args_ref->{$mvar}{'IODir'} eq 'In' ) {
             print "FOUND InOut ARG $mvar\n" if $V;
             $args_ref->{$mvar}{'IODir'} = 'InOut';
@@ -214,28 +222,43 @@ sub _set_iodir_write {
     } else {
         $args_ref->{$mvar}{'IODir'} = 'Unknown';
     }
+    	}
     return $args_ref;
 }
 
 sub _set_iodir_read_write {
     ( my $mvar, my $args_ref ) = @_;
     if (    exists $args_ref->{$mvar}
-        and exists $args_ref->{$mvar}{'IODir'} )
+    	and ref($args_ref->{$mvar}) eq 'HASH'
+    	) {
+        if( exists $args_ref->{$mvar}{'IODir'} )
     {
         print "FOUND InOut ARG $mvar\n" if $V;
         $args_ref->{$mvar}{'IODir'} = 'InOut';
     }
+    	}
     return $args_ref;
 }
 
 # -----------------------------------------------------------------------------
 sub _find_vars_w_iodir {
     ( my $line, my $args_ref, my $subref ) = @_;
+    
     my @chunks = split( /\W+/, $line );
+    
     for my $mvar (@chunks) {
-        if ( exists $args_ref->{$mvar} && exists $args_ref->{$mvar}{'IODir'} ) {
-            $args_ref = $subref->( $mvar, $args_ref );
-        }
+    	next if $mvar eq '';    
+    	next if $mvar =~ /^\d+$/;
+    	next if $mvar =~/^(\-?(?:\d+|\d*\.\d*)(?:e[\-\+]?\d+)?)$/;	
+    	next if $mvar =~/\b(?:if|then|do|goto|integer|real|call|\d+)\b/;
+        if ( exists $args_ref->{$mvar} and ref($args_ref->{$mvar}) eq 'HASH') {
+        	
+        	if( exists $args_ref->{$mvar}{'IODir'} ) {
+            	$args_ref = $subref->( $mvar, $args_ref );
+        	}
+        } #else {
+        # Just means that this is not an argument!          
+        #}
     }
     return $args_ref;
 }    # END of _find_vars_w_iodir()
@@ -244,9 +267,13 @@ sub _find_vars_w_iodir {
 sub _find_vars {
     ( my $line ) = @_;
     my $args_ref = {};
+    
     my @chunks = split( /\W+/, $line );
     for my $mvar (@chunks) {
+    	next if $mvar eq '';    
         next if $mvar =~ /^\d+$/;
+        next if $mvar =~/^(\-?(?:\d+|\d*\.\d*)(?:e[\-\+]?\d+)?)$/;
+        next if $mvar =~/\b(?:if|then|do|goto|integer|real|call|\d+)\b/;
         $args_ref->{$mvar} = $mvar;
     }
     return $args_ref;
@@ -256,8 +283,10 @@ sub _find_vars {
 # The code needs to be reworked:
 # The main issue is that the names of the args a sub is called with is not the same as the name in the signature.
 # So we need to establish the mapping. This is what _get_iodirs_from_subcall() should do -- and nothing else.
+# Obviously this is only the case for the original arguments, because the ex-globs and ex-incls have the same name everywhere.
 
-sub _get_iodirs_from_subcall {
+
+sub _get_iodirs_from_subcall_OLD {
     ( my $stref, my $f, my $index, my $annlines ) = @_;
 
     my $Sf = $stref->{'Subroutines'}{$f};
@@ -277,10 +306,13 @@ sub _get_iodirs_from_subcall {
     my $called_arg_iodirs = {};
 
     # Now get the RefactoredArgs
+#    say Dumper($info);
     my $ref_call_args = $info->{'SubroutineCall'}{'RefactoredArgs'};
-
+say uc('ref_call_args:').Dumper($ref_call_args);
     # Get the RefactoredArgs List for the signature
     my $ref_sig_args = $Sname->{'RefactoredArgs'}{'List'};
+#    say Dumper($Sname->{'Vars'});
+say $name.uc('ref_sig_args:').Dumper($ref_sig_args);
     my $ca           = scalar( @{$ref_call_args} );
     my $sa           = scalar( @{$ref_sig_args} );
     if ( $ca != $sa ) {
@@ -325,6 +357,10 @@ sub _get_iodirs_from_subcall {
                       if $V;
                     my @maybe_args = split( /\W+/, $call_arg );
                     for my $maybe_arg (@maybe_args) {
+                    	next if $maybe_arg eq '';
+                    	next if $maybe_arg =~/^\d+$/;
+						next if $maybe_arg =~/^(\-?(?:\d+|\d*\.\d*)(?:e[\-\+]?\d+)?)$/;
+                    	next if $maybe_arg =~/\b(?:if|then|do|goto|integer|real|call|\d+)\b/;
                         if ( exists $args->{$maybe_arg}
                             and not exists $called_arg_iodirs->{$maybe_arg} )
                         {
@@ -377,7 +413,7 @@ sub _get_iodirs_from_subcall {
         }
     }
     return ( $called_arg_iodirs, $stref );
-}    # END of _get_iodirs_from_subcall()
+}    # END of _get_iodirs_from_subcall_OLD()
 
 # -----------------------------------------------------------------------------
 # Purely for clarity, maybe this routine should take the arguments as arguments?
@@ -400,7 +436,6 @@ sub _analyse_src_for_iodirs {
         }
         my $args = $Sf->{'RefactoredArgs'}{'Set'};
 
-        # here corr is NOT in $Sf->{'RefactoredArgs'}{'Set'} ;
         my $annlines = get_annotated_sourcelines( $stref, $f );
         for my $index ( 0 .. scalar( @{$annlines} ) - 1 ) {
             my $line = $annlines->[$index][0];
@@ -420,7 +455,10 @@ sub _analyse_src_for_iodirs {
             if ( exists $info->{'Signature'} ) {
                 next;
             }
-
+			# Skip any 'use' or 'include' lines
+			if (exists $info->{'Use'} or exists $info->{'Include'} ) { 
+				next;
+			}
             # Skip the declarations
             if ( exists $info->{'VarDecl'} ) { next; }
 
@@ -439,9 +477,8 @@ sub _analyse_src_for_iodirs {
             if (   $line =~ /^\s+(?:read)\s*\(\s*(.+)$/
                 or $line =~ /^\d+\s+(?:read)\s*\(\s*(.+)$/ )
             {
-                my $read_str = $1;
-                (my $fh,my @rest) = split(/,/,$read_str); 
-                say "WARNING: IGNORING read call <$line> in $f, _analyse_src_for_iodirs() ". __LINE__  if $W;
+                my $read_str = $1; 
+                (my $fh,my @rest) = split(/,/,$read_str);                 
                 $args = _find_vars_w_iodir( $fh, $args, \&_set_iodir_read );
                 for my $str (@rest) {
                 $args = _find_vars_w_iodir( $str, $args, \&_set_iodir_read_write );
@@ -453,8 +490,11 @@ sub _analyse_src_for_iodirs {
                 && exists $info->{'SubroutineCall'}{'Name'} )
             {
                 my $name = $info->{'SubroutineCall'}{'Name'};
+                # So we get the IODir for every arg in the call to the subroutine
+                # We need both the original args from the call and the ex-glob args
+                # It might be convenient to have both in $info; otoh we can get ExGlobArgs from the main table
                 ( my $iodirs_from_call, $stref ) =
-                  _get_iodirs_from_subcall( $stref, $f, $index, $annlines );
+                  _get_iodirs_from_subcall( $stref, $f, $info);#$index, $annlines );
                 for my $var ( keys %{$iodirs_from_call} ) {
 
 # Damn Perl! exists $args->{$var}{'IODir'} creates the entry for $var if it did not exist!
@@ -607,8 +647,10 @@ sub _analyse_src_for_iodirs {
                 if (exists $args->{$var}) {
                 $args = _set_iodir_write( $var, $args );
                 }
-            } else {    # not an assignment, do as before            
-                print "NON-ASSIGNMENT LINE: $line\n" if $V;
+            
+            } else {    # not an assignment, do as before                        
+                say "NON-ASSIGNMENT LINE: $line in $f" if $V;
+                
                 _find_vars_w_iodir( $line, $args, \&_set_iodir_read );
             }
         }
@@ -785,8 +827,10 @@ sub parse_assignment {
 
             #            next;
             return [ {}, [], $call ];
-        } elsif ( $tline !~ /::/ ) {    # proper assignments
+        } elsif ( $tline !~ /::/ and $tline) {    # proper assignments ( so ignore <> )
+#        say '<'.$tline.'>';
             ( $var, $rhs ) = split( /\s*=\s*/, $tline );
+            
             if ( $var =~ /\(/ ) {
 
                 # Must be an array assignment
@@ -817,3 +861,129 @@ sub parse_assignment {
 } # END of parse_assignment()
 
 # ----------------------------------------------------------------------------------------------------
+                # So we get the IODir for every arg in the call to the subroutine
+                # We need both the original args from the call and the ex-glob args
+                # It might be convenient to have both in $info; otoh we can get ExGlobArgs from the main table
+#                my $iodirs_from_call = _get_iodirs_from_subcall( $stref, $f, $info );
+
+# So what we do is: 
+# 1. get all vars from the ArgMap table. 
+# Note that some args are expressions, in which case they are used read-only per definition, so their IODir will always be In
+# For the non-expression args, we need to use the table and then look up the IODir from the OrigArgs but via get_var_record_from_set($Sf,'OrigArgs')
+
+sub _get_iodirs_from_subcall {
+    ( my $stref, my $f, my $info) = @_;
+	my $called_arg_iodirs={};
+    my $Sf = $stref->{'Subroutines'}{$f};
+	my $args = $Sf->{'RefactoredArgs'}{'Set'};
+#	say Dumper($info);
+    my $name  = $info->{'SubroutineCall'}{'Name'};
+    my $argmap = $info->{'SubroutineCall'}{'ArgMap'};
+    my $Sname = $stref->{'Subroutines'}{$name};
+#    for my $expr (keys %{$argmap}) {
+#    	if ($expr=~/[a-z_]\w*/) {
+#    		# It's a variable
+#    		my $sig_arg = $argmap->{$expr};
+#    		my $var_rec = get_var_record_from_set($Sname,'OrigArgs');
+#    		my $iodir = $var_rec->{'IODir'}; 
+#    		$called_arg_iodirs->{$expr}=$iodir;
+#    	} else { # it's an expression, so I need to split this into chunks and remove any constants
+#    		# Of course the only really good way is to do this in the parser and not just have Args as a list of strings,
+#    		# but as a 'Type/Expr' pair, Type being 'Const' | 'Expr' | 'Var' | 'Par' and Expr being the parsed expression 
+#    		# Or maybe we want the original expression and the parsed expression
+#    		# But for now we reparse this line here.
+#    		my @chunks = split( /\W+/, $expr );
+#   			for my $mvar (@chunks) {
+#   					 
+#    		}
+#		}	
+#    }
+    
+        my $i = 0;
+        for my $call_arg (keys %{$argmap}) {
+            my $sig_arg = $argmap->{$call_arg};
+
+            # int is a FORTRAN primitive converting float to int
+            # int2|short is a FORTRAN primitive converting float to int
+            # int8|long is a FORTRAN primitive converting float to int
+            # float is a FORTRAN primitive converting int to float
+            # dfloat|dble is a FORTRAN primitive converting int to float
+            # sngl is a FORTRAN primitive converting double to float
+            $call_arg =~
+              s/\b(?:int|int2|int8|short|long|sngl|dfloat|dble|float)\(//
+              && $call_arg =~ s/\)$//;    # FIXME: was (^|\W), OK?
+
+            # Clean up call args for comparison
+            $call_arg =~ s/(\w+)\(.*?\)/$1/g;
+            $i++;
+            if ( exists $args->{$call_arg} ) {
+
+                # This means that $call_arg is an argument of the caller $f
+                if (ref($args->{$call_arg}) eq 'HASH'
+                and ref($Sname->{'RefactoredArgs'}{'Set'}{$sig_arg}) eq 'HASH'
+                ) { # this caller argument has a record 
+                # look up the IO direction for the corresponding $sig_arg
+                
+                $called_arg_iodirs->{$call_arg} =
+                  $Sname->{'RefactoredArgs'}{'Set'}{$sig_arg}{'IODir'};
+                } else {
+                	say "CALLER ARG $call_arg for call to $name OR SIG ARG $sig_arg for $name in $f HAS NO REC: ".Dumper($Sname->{'DeclaredOrigArgs'});die; 
+                }
+            } else {
+                if ( $call_arg =~ /\W/ ) {
+                    print
+"INFO: ARG $call_arg in call to $name in $f is an expression\n"
+                      if $V;
+                    my @maybe_args = split( /\W+/, $call_arg );                    
+                    for my $maybe_arg (@maybe_args) {
+                    	next if $maybe_arg eq '';
+                    	next if $maybe_arg =~/^\d+$/; # quicker than the next line
+                    	next if $maybe_arg =~/^(\-?(?:\d+|\d*\.\d*)(?:e[\-\+]?\d+)?)$/;
+                        if ( exists $args->{$maybe_arg}
+                            and not exists $called_arg_iodirs->{$maybe_arg} )
+                        {
+                            print
+"INFO: Setting IO dir for $maybe_arg in call to $name in $f to In\n"
+                              if $V;
+                            $called_arg_iodirs->{$maybe_arg} = 'In';
+                            if (    scalar keys %{ $Sname->{'Callers'} } == 1
+                                and $Sname->{'Callers'}{$f} == 1
+                                and $Sname->{'RefactoredArgs'}{'Set'}{$sig_arg}
+                                {'IODir'} ne 'In' )
+                            {
+                                print
+"INFO: $name in $f is called only once; $sig_arg is an expression, setting IODir to 'In'\n"
+                                  if $I;
+                                $Sname->{'RefactoredArgs'}{'Set'}{$sig_arg}
+                                  {'IODir'} = 'In';
+                            }
+                        }
+                    }
+                } elsif ( $call_arg =~ /^(\-?(?:\d+|\d*\.\d*)(?:e[\-\+]?\d+)?)$/ ) { # TODO: use this in Parser instead
+                    if (    scalar keys %{ $Sname->{'Callers'} } == 1
+                        and $Sname->{'Callers'}{$f} == 1
+                        and $Sname->{'RefactoredArgs'}{'Set'}{$sig_arg}{'IODir'}
+                        ne 'In' )
+                    {
+                        print
+"INFO: $name in $f is called only once; $sig_arg is a numeric constant, setting IODir to 'In'\n"
+                          if $I;
+                        $Sname->{'RefactoredArgs'}{'Set'}{$sig_arg}{'IODir'} =
+                          'In';
+                    }
+                } else {
+                    if ( exists $Sname->{'RefactoredArgs'}{'Set'}{$sig_arg} ) {
+                        $called_arg_iodirs->{$call_arg} =
+                          $Sname->{'RefactoredArgs'}{'Set'}{$sig_arg}{'IODir'};
+                    } else {
+                        say
+"WARNING: Could not determine IODir for $call_arg in $name because there is no RefactoredArgs{".$sig_arg.'} in  parse_assignment() -> _analyse_src_for_iodirs() -> _get_iodirs_from_subcall() '. __LINE__;
+                    }
+                }
+            }
+        }    
+    
+	return $called_arg_iodirs;
+}
+
+1;

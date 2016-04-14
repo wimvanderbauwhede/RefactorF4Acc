@@ -4,6 +4,7 @@ use warnings::unused;
 use warnings;
 use warnings FATAL => qw(uninitialized);
 use strict;
+use Carp;
 use Data::Dumper;
 $Data::Dumper::Indent = 1;
 $Data::Dumper::Terse = 0;
@@ -136,7 +137,7 @@ sub main {
 	
 test(1,$stref, sub { (my $stref)=@_;
 	if ($subname eq 'main') {
-		return (scalar keys %{$stref->{'Subroutines'}} == 22) ? 'PASS' : 'FAIL';
+		return (scalar keys %{$stref->{'Subroutines'}} == 22) ? 'PASS' : 'FAIL: '.Dumper(keys %{$stref->{'Subroutines'}});
 	} else {
 		say "#Subroutines in $subname codebase: ",scalar keys %{$stref->{'Subroutines'}};
 		return 'PASS' ;
@@ -197,7 +198,8 @@ sub {
 #    say Dumper( $stref->{Subroutines}{main} );die;
     # Analyse the source
     my $stage=0;
-	$stref = analyse_all($stref,$subname, $stage);	
+	$stref = analyse_all($stref,$subname, $stage);
+		
 #		die Dumper($stref->{'Subroutines'}{'hanna1'}{'Globals'});#{$commoninc});
 test(5,$stref,
 sub { return 'PASS';
@@ -218,6 +220,8 @@ sub {
 		return $stref->{'Subroutines'}{$sub}->{'ExGlobArgDecls'}{'Set'}
 	} elsif ($stage==6) {
 		return {'HasRefactoredArgs' => $stref->{'Subroutines'}{$sub}->{'HasRefactoredArgs'}, 'RefactoredArgs' => $stref->{'Subroutines'}{$sub}->{'RefactoredArgs'} };
+	} elsif ($stage==7) {
+		return { };
 	} else {
 		return 'TODO outer_loop_end_detect';
 	}
@@ -232,9 +236,9 @@ sub {
 #die 'WV20151005:  I worked my way through the code to here and globals are not resolved!';
 
     # Refactor the source
-    $stage=3;
+    $stage=4;
 	$stref = refactor_all($stref,$subname, $stage);
-	
+
 test(6,$stref,
 sub { return 'FAIL';
 },
@@ -248,9 +252,9 @@ sub {
 	} elsif ($stage==2) {		
   		return pp_annlines($stref->{'Subroutines'}{$sub}{'AnnLines'},1);
 	} elsif ($stage==3) {
-  		return join("\n",@{ pp_annlines($stref->{'Subroutines'}{$sub}{'AnnLines'},1) });			
+  		return join("\n",@{ pp_annlines($stref->{'Subroutines'}{$sub}{'RefactoredCode'},0) });			
 	} elsif ($stage==4) {
-  		return 'TODO';		
+  		return join("\n",@{ pp_annlines($stref->{'Subroutines'}{$sub}{'RefactoredCode'},1) });		
 	} elsif ($stage==5) {
   		return 'TODO';
 	} elsif ($stage==6) {
@@ -665,7 +669,12 @@ sub test { (my $test_num, my $stref, my $test_subref, my $fail_subref) = @_;
 	if (exists $unit_tests_map{$test_num}) {
 		my $res=  $test_subref->($stref);	
 		if ($res eq 'FAIL') {
-			die "Test $test_num: FAIL\n".Dumper( $fail_subref->($stref)  );
+			my $output = $fail_subref->($stref);
+			if (ref($output) eq 'HASH' or ref($output) eq 'ARRAY') {  
+				die "! Test $test_num: $res\n".Dumper( $output );
+			} else {
+				die "! Test $test_num: $res\n\n".$output."\n" ;
+			}
 		} else {
 			say "Test $test_num: ".$res;
 		}	 

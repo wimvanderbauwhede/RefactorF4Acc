@@ -43,17 +43,19 @@ sub refactor_all {
         
     $stref = refactor_include_files($stref);
     return $stref if $stage == 1;
-    $stref = refactor_called_functions($stref);
+    $stref = refactor_called_functions($stref); # Context-free only
     return $stref if $stage == 2;
+    
     # Refactor the source, but don't split long lines and keep annotations
     $stref = refactor_all_subroutines($stref);
+#    die Dumper($stref->{'Subroutines'}{'boundsm'}{'Vars'});
     return $stref if $stage == 3;
-    # At this point RefactoredArgs is still essentially empty
-#croak Dumper $stref->{'Subroutines'}{'map_set'}{'AnnLines'}[0];
+
     # This can't go into refactor_all_subroutines() because it is recursive
     # This is where somehow the parameters get added to RefactoredArgs, but in the wrong way.
     $stref = determine_argument_io_direction_rec( $subname, $stref );
     return $stref if $stage == 4;
+    
     print "DONE determine_argument_io_direction_rec()\n" if $V;
     # So at this point we know everything there is to know about the argument declarations, we can now update them
 #die;

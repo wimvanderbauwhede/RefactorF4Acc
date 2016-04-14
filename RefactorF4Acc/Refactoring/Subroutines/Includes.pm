@@ -48,6 +48,7 @@ sub skip_common_include_statement {
                   and ( $f eq $stref->{'Top'} ) ) ? 1 : 0, "\n";
         }
         $skip = 1;
+        
     }
     return $skip;
 }    # END of skip_common_include_statement()
@@ -85,6 +86,7 @@ sub create_additional_include_statements {
 # THEN  create a new include statement
 
 # This should only be called if the old one was removed, which I think does not happen anymore.
+# We now resolve all globals and locals anyway so the only reason for an include is parameters. So this should be a NOOP
 sub create_new_include_statements {
     ( my $stref, my $f, my $annline, my $rlines ) = @_;
 #    local $V=1;
@@ -96,7 +98,9 @@ sub create_new_include_statements {
         print "INC: $inc, root: $stref->{'IncludeFiles'}{$inc}{'Root'} \n"
           if $V;
           my $params_only = $stref->{'IncludeFiles'}{$inc}{'InclType'} eq 'Parameter';
-          my $has_param_include = exists $stref->{'IncludeFiles'}{$inc}{'ParamInclude'};       
+          if  ( exists $stref->{'IncludeFiles'}{$inc}{'ParamInclude'} ) {
+          	die $stref->{'IncludeFiles'}{$inc}{'ParamInclude'};
+          };       
     }
 #    die Dumper($rlines) if $f eq 'aveflow';
     return $rlines;

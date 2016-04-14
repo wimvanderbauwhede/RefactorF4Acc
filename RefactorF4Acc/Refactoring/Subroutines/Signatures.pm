@@ -57,7 +57,7 @@ sub create_refactored_subroutine_signature {
     }
     $info->{'Refactored'} = 1;
     $info->{'Ref'} = 1;
-    $info->{'BOOM'} = 1;
+#    $info->{'BOOM'} = 1;
     $info->{'Signature'}{'Args'}=$Sf->{'RefactoredArgs'};
     $info->{'Signature'}{'RefactoredArgs'}=$Sf->{'RefactoredArgs'}; # not sure if this is needed
     $Sf->{'HasRefactoredArgs'} = 1;

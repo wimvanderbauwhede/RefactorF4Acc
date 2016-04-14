@@ -6,7 +6,7 @@ use RefactorF4Acc::Analysis::Includes qw( find_root_for_includes );
 use RefactorF4Acc::Analysis::Globals qw( lift_globals );
 use RefactorF4Acc::Analysis::Sources qw( analyse_sources );
 use RefactorF4Acc::Analysis::LoopDetect qw( outer_loop_end_detect );
-use RefactorF4Acc::Refactoring::Common qw( get_f95_var_decl stateful_pass );
+use RefactorF4Acc::Refactoring::Common qw( get_f95_var_decl stateful_pass stateless_pass );
 
 #
 #   (c) 2010-2015 Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
@@ -40,12 +40,14 @@ sub analyse_all {
 	$stref = find_root_for_includes( $stref, $subname );
 	return $stref if $stage == 1;
 
-# First find any additional argument declarations, either in includes or via implicits
+	# First find any additional argument declarations, either in includes or via implicits
 	for my $f ( keys %{ $stref->{'Subroutines'} } ) {
 		next if $f eq '';
+		
 		$stref = _find_argument_declarations( $stref, $f );
 	}
 	return $stref if $stage == 2;
+	
 	for my $f ( keys %{ $stref->{'Subroutines'} } ) {
 		next if $f eq '';
 		# In this stage, 'Globals' is populated
@@ -56,21 +58,31 @@ sub analyse_all {
 	for my $f ( keys %{ $stref->{'Subroutines'} } ) {
 		next if $f eq '';
 		$stref = _resolve_conflicts_with_params( $stref, $f );
-	}
+	}	
 	return $stref if $stage == 4;
+	
 	$stref = lift_globals( $stref, $subname );
 	return $stref if $stage == 5;
+	
 	for my $f ( keys %{ $stref->{'Subroutines'} } ) {
 		next if $f eq '';
 		$stref = _create_refactored_args( $stref, $f );
 	}
 	return $stref if $stage == 6;
 
+	for my $f ( keys %{ $stref->{'Subroutines'} } ) { # Assuming Functions are just special subroutines
+		next if $f eq '';
+		$stref = _map_call_args_to_sig_args( $stref, $f );
+	}
+	return $stref if $stage == 7;
+
+	
 # This is only for refactoring init out of time loops so very domain specific
 	for my $kernel_wrapper ( keys %{ $stref->{'KernelWrappers'} } ) {
 		$stref = outer_loop_end_detect( $kernel_wrapper, $stref );
 	}
 
+#	die Dumper($stref->{'Subroutines'}{'boundsm'}{'Vars'});
 # So at this point all globals have been resolved and typed.
 # NOTE: It turns out that at this point any non-global not explicity declared variables don't have a declaration yet.
 	return $stref;
@@ -82,6 +94,8 @@ sub _find_argument_declarations {
 	my $once               = 1;
 	my $sub_or_func_or_mod = sub_func_incl_mod( $f, $stref );
 	my $Sf                 = $stref->{$sub_or_func_or_mod}{$f};
+	
+	if (exists $Sf->{'OrigArgs'}{'List'}) {
 	for my $arg ( @{ $Sf->{'OrigArgs'}{'List'} } ) {
 		if ( not exists $Sf->{'DeclaredOrigArgs'}{'Set'}{$arg} ) {
 			say "MISSING ORIG ARG DECLS for '$f'" if $V and $once;
@@ -109,6 +123,8 @@ sub _find_argument_declarations {
 			}
 		}
 	}
+	}
+#	croak Dumper($stref->{'Subroutines'}{$f}{'Args'}) if $f eq 'caldate';
 	return $stref;
 }    # END of _find_argument_declarations
 
@@ -124,7 +140,6 @@ sub _find_argument_declarations {
 sub _analyse_variables {
 	( my $stref, my $f ) = @_;
 	my $Sf = $stref->{'Subroutines'}{$f};
-
 	say "_analyse_variables($f)" if $V;
 	
 	my $__analyse_vars_on_line = sub {
@@ -141,16 +156,17 @@ sub _analyse_variables {
 			( my $stref, my $f, my $identified_vars ) = @{$state};
 #			say "LINE:\t$line" if $f eq 'bondfg';
 			my $Sf = $stref->{'Subroutines'}{$f};
-			my @chunks = split( /[^\.\w]/, $line );
+#			my @chunks = split( /[^\.\w]/, $line );
+			my @chunks = split( /\W+/, $line );
 			for my $mvar (@chunks) {				
 				next if exists $F95_reserved_words{$mvar};
-				next if exists $stref->{'Subroutines'}{$f}{'CalledSubs'}{$mvar};
+				next if exists $stref->{'Subroutines'}{$f}{'CalledSubs'}{$mvar}; # Meams it's a function
 				next if $mvar =~ /^__PH\d+__$/;
 				next if $mvar !~ /^[_a-z]\w*$/;
 				
 				my $maybe_orig_arg = in_nested_set( $Sf, 'OrigArgs', $mvar );  
 				die $maybe_orig_arg  if $maybe_orig_arg =~/Glob/;
-#				say 'MVAR: ',$mvar,': <',$maybe_orig_arg,'>';
+#				say 'MVAR: ',$mvar,': <',$maybe_orig_arg,'>' if $f eq 'boundsm';
 				if (    not exists $identified_vars->{$mvar}
 					and ( $maybe_orig_arg eq '' ) # means $mvar is not present in the nested set OrigArgs
 					and not
@@ -243,8 +259,7 @@ sub _analyse_variables {
 
 #                            push @{ $stref->{'Subroutines'}{$f}{'LocalVars'}{'List'} }, $mvar;
 #                            $stref->{'Subroutines'}{$f}{'LocalVars'}{'Set'}{$mvar} = $decl;
-							push @{ $stref->{'Subroutines'}{$f}
-								  {'ExImplicitVarDecls'}{'List'} }, $mvar;
+							push @{ $stref->{'Subroutines'}{$f}{'ExImplicitVarDecls'}{'List'} }, $mvar;
 							$stref->{'Subroutines'}{$f}{'ExImplicitVarDecls'}
 							  {'Set'}{$mvar} = $decl;
 						}
@@ -256,7 +271,7 @@ sub _analyse_variables {
 			}
 			return ( $annline, [ $stref, $f, $identified_vars ] );
 		} else {
-			say Dumper($annline) if $f=~/bondfg/;
+#			say Dumper($annline) if $f=~/bondfg/;
 			return ( $annline, $state );
 		}
 	};
@@ -334,29 +349,27 @@ sub _create_refactored_args {
 	my $Sf = $stref->{'Subroutines'}{$f};
 	if (exists $Sf->{'ExGlobArgDecls'} and exists $Sf->{'OrigArgs'} ) {
 		
-		if ( not exists $Sf->{'ExGlobArgDecls'}{'List'} ) {
-			$Sf->{'ExGlobArgDecls'}{'List'}=[];
-		}
-		
-		if ( not exists $Sf->{'OrigArgs'}{'List'} ) {
-			$Sf->{'OrigArgs'}{'List'}=[];
-		}
-		
-		if ( not exists $Sf->{'ExGlobArgDecls'}{'Set'} ) {
-			$Sf->{'ExGlobArgDecls'}{'Set'}={};
-		}
-		
-		if ( not exists $Sf->{'OrigArgs'}{'Set'} ) {
-			$Sf->{'OrigArgs'}{'Set'}={};
-		}
-			$Sf->{'RefactoredArgs'}{'List'} =
-			  ordered_union( $Sf->{'OrigArgs'}{'List'},
-				$Sf->{'ExGlobArgDecls'}{'List'} );
+#		if ( not exists $Sf->{'ExGlobArgDecls'}{'List'} ) {
+#			$Sf->{'ExGlobArgDecls'}{'List'}=[];
+#		}
+#				
+#		if ( not exists $Sf->{'ExGlobArgDecls'}{'Set'} ) {
+#			$Sf->{'ExGlobArgDecls'}{'Set'}={};
+#		}
+#
+#		if ( not exists $Sf->{'OrigArgs'}{'List'} ) {  
+#			$Sf->{'OrigArgs'}{'List'}=[];
+#		}
+#		
+#		if ( not exists $Sf->{'OrigArgs'}{'Set'} ) {
+#			$Sf->{'OrigArgs'}{'Set'}={};
+#		}
+		$Sf->{'RefactoredArgs'}{'List'} = ordered_union( $Sf->{'OrigArgs'}{'List'}, $Sf->{'ExGlobArgDecls'}{'List'} );
 
-			$Sf->{'RefactoredArgs'}{'Set'} =
+		$Sf->{'RefactoredArgs'}{'Set'} =
 		  	{ %{ $Sf->{'OrigArgs'}{'Set'} },
 				%{ $Sf->{'ExGlobArgDecls'}{'Set'} } };
-			$Sf->{'HasRefactoredArgs'} = 1;
+		$Sf->{'HasRefactoredArgs'} = 1;
 		
 	} elsif (not exists $Sf->{'ExGlobArgDecls'} ) {
 		# No ExGlobArgDecls, so Refactored = Orig
@@ -371,6 +384,35 @@ sub _create_refactored_args {
 		$Sf->{'HasRefactoredArgs'} = 0;
 	}
 	return $stref;
+}
+
+sub _map_call_args_to_sig_args { (my $stref, my $f ) = @_;
+	say "_map_call_args_to_sig_args($f)\n" if $V;#.Dumper($stref->{'Subroutines'}{$f}{'OrigArgs'}{'List'});
+	
+		my $__map_call_args = sub {
+			( my $annline) = @_;
+			( my $line,    my $info )  = @{$annline};
+			if (exists $info->{'SubroutineCall'}) {
+				my $sub=$info->{'SubroutineCall'}{'Name'};
+#				say Dumper($info->{'SubroutineCall'}{'Args'}{'List'}).'<>'.Dumper($stref->{'Subroutines'}{$sub}{'OrigArgs'}{'List'});
+				$info->{'SubroutineCall'}{'ArgMap'}={};
+				my @sig_args=@{$stref->{'Subroutines'}{$sub}{'OrigArgs'}{'List'}};
+				my $i=0;
+				for my $call_arg (@{$info->{'SubroutineCall'}{'Args'}{'List'}}) {
+					$info->{'SubroutineCall'}{'ArgMap'}{$call_arg}=$sig_args[$i];
+					$i++;	
+				}
+#				say Dumper($info->{'SubroutineCall'}{'ArgMap'});
+			}
+			return $annline; 
+		};
+
+	my $state = [ $stref, $f, {} ];
+	( $stref, $state ) =
+	  stateless_pass( $stref, $f, $__map_call_args,
+		'_map_call_args_to_sig_args() ' . __LINE__ );
+	
+	return $stref ;
 }
 
 1;
