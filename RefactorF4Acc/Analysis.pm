@@ -204,9 +204,11 @@ sub _analyse_variables {
 											exists $stref->{'IncludeFiles'}
 											{$inc}{$subset_for_mvar}{'Set'}{$mvar} )
 										{
+											
 											$decl =
 											  $stref->{'IncludeFiles'}{$inc}
 											  {$subset_for_mvar}{'Set'}{$mvar};
+											
 										} else {
 											# This means the var decls in the include have not yet been declared via implicits
 											croak "No Decl for $mvar in $inc $subset_for_mvar".Dumper($stref->{'IncludeFiles'}{$inc}{'Decls'});
@@ -239,35 +241,58 @@ sub _analyse_variables {
 										  $decl;
 									}
 									$identified_vars->{$mvar} = 1;
+									
 									last;
 								}
 							}
 						}
 					}
 					if ( not $in_incl ) {
-						if ( $line =~ /$mvar\s*\(/ ) {
-							say
-"INFO: LOCAL VAR <$mvar> in $f may be an EXTERNAL FUNCTION "
-							  if $I;
-						} else {
-							say "INFO: LOCAL VAR <$mvar> in $f via IMPLICIT! "
-							  . $line
-							  . ' _analyse_variables() '
-							  . __LINE__
-							  if $I;
-							my $decl = get_f95_var_decl( $stref, $f, $mvar );
-
-#                            push @{ $stref->{'Subroutines'}{$f}{'LocalVars'}{'List'} }, $mvar;
-#                            $stref->{'Subroutines'}{$f}{'LocalVars'}{'Set'}{$mvar} = $decl;
-							push @{ $stref->{'Subroutines'}{$f}{'ExImplicitVarDecls'}{'List'} }, $mvar;
-							$stref->{'Subroutines'}{$f}{'ExImplicitVarDecls'}
-							  {'Set'}{$mvar} = $decl;
+						# Now check if this variable might be accessed via the containing program
+						$identified_vars->{$mvar} = 0;
+						if (exists $stref->{'Subroutines'}{$f}{'Container'}) {
+							my $container=$stref->{'Subroutines'}{$f}{'Container'};
+											my $subset =
+				  in_nested_set( $stref->{'Subroutines'}{$container}, 'Vars', $mvar );
+				if ( $subset ne '' ) {
+					say "FOUND VAR $mvar in CONTAINER $container";
+					# If so, this is treated as an ExGlob
+					push @{ $stref->{'Subroutines'}{$f}
+											  {'ExGlobArgDecls'}{'List'} },
+										  $mvar;
+					my $decl = $stref->{'Subroutines'}{$container}{$subset}{'Set'}{$mvar}; 										  	
+										  $decl->{'Container'}=$container; 
+										  
+										$stref->{'Subroutines'}{$f}
+										  {'ExGlobArgDecls'}{'Set'}{$mvar} =
+										  $decl;
+					$identified_vars->{$mvar} = 1;
+					croak 'EXGLOBS FROM CONTAINER';
+				} 
+						} 
+						if ($identified_vars->{$mvar} != 1) {
+							if ( $line =~ /$mvar\s*\(/ ) {
+								say
+	"INFO: LOCAL VAR <$mvar> in $f may be an EXTERNAL FUNCTION "
+								  if $I;
+							} else {
+								say "INFO: LOCAL VAR <$mvar> in $f via IMPLICIT! "
+								  . $line
+								  . ' _analyse_variables() '
+								  . __LINE__
+								  if $I;
+								my $decl = get_f95_var_decl( $stref, $f, $mvar );
+	
+	#                            push @{ $stref->{'Subroutines'}{$f}{'LocalVars'}{'List'} }, $mvar;
+	#                            $stref->{'Subroutines'}{$f}{'LocalVars'}{'Set'}{$mvar} = $decl;
+								push @{ $stref->{'Subroutines'}{$f}{'ExImplicitVarDecls'}{'List'} }, $mvar;
+								$stref->{'Subroutines'}{$f}{'ExImplicitVarDecls'}
+								  {'Set'}{$mvar} = $decl;
+							}
+							$identified_vars->{$mvar} = 1;
 						}
-						$identified_vars->{$mvar} = 1;
 					}
-
 				}
-
 			}
 			return ( $annline, [ $stref, $f, $identified_vars ] );
 		} else {
@@ -365,9 +390,9 @@ sub _create_refactored_args {
 #			$Sf->{'OrigArgs'}{'Set'}={};
 #		}
 		$Sf->{'RefactoredArgs'}{'List'} = ordered_union( $Sf->{'OrigArgs'}{'List'}, $Sf->{'ExGlobArgDecls'}{'List'} );
-
 		$Sf->{'RefactoredArgs'}{'Set'} =
-		  	{ %{ $Sf->{'OrigArgs'}{'Set'} },
+		  	{ %{ $Sf->{'UndeclaredOrigArgs'}{'Set'} },
+		  		 %{ $Sf->{'DeclaredOrigArgs'}{'Set'} },
 				%{ $Sf->{'ExGlobArgDecls'}{'Set'} } };
 		$Sf->{'HasRefactoredArgs'} = 1;
 		

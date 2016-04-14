@@ -93,8 +93,6 @@ sub parse_fortran_src {
 
 ## 5. Parse subroutine and function calls
 		if ( not $is_incl ) {
-
-
 			# Recursive descent via subroutine calls
 			$stref = _parse_subroutine_and_function_calls( $f, $stref );
 			$stref->{$sub_or_incl_or_mod}{$f}{'Status'} = $PARSED;
@@ -197,10 +195,8 @@ say "_initialise_decl_var_tables : INIT TABLES for subroutine $f" if $V;
 		$Sf->{'UndeclaredOrigLocalVars'} = { 'Set' => {}, 'List' => [] };
 
 		if ( not $is_incl ) {
-
-			$Sf->{'ExGlobArgs'} =
-			  { 'Set' => {}, 'List' => []
-			  }; # WV: I think I should have an additional record 'FromInclude' in the set record!
+# WV: Maybe I should have an additional record 'FromInclude' in the set record!
+			$Sf->{'ExGlobArgs'} = { 'Set' => {}, 'List' => []}; 
 			$Sf->{'Globals'} = $Sf->{'ExGlobArgs'};    # WV: the original Globals is separated per include file
 			$Sf->{'ExInclArgs'}         = { 'Set' => {}, 'List' => [] };
 			$Sf->{'DeclaredOrigArgs'}   = { 'Set' => {}, 'List' => [] };
@@ -490,6 +486,7 @@ sub _analyse_lines {
 			{
 				$type   = $1;
 				$varlst = $2;
+				
 				( $Sf, $info ) =
 				  __parse_f77_var_decl( $Sf, $f, $line, $info, $type, $varlst );
 
@@ -1186,7 +1183,9 @@ sub _get_commons_params_from_includes {
 				( my $parsedvars, my $parsedvars_lst ) =
 				  f77_var_decl_parser( $commonlst, 0 );
 				for my $var ( @{$parsedvars_lst} ) {
+					
 					my $subset = in_nested_set( $Sincf, 'Vars', $var );
+					
 					if ( $subset eq '' )
 					{    # This means that it is an undeclared common
 						if (
@@ -1205,6 +1204,7 @@ sub _get_commons_params_from_includes {
 							  @type_kind_attr;
 							my $indent = ' ' x 6;
 							my $decl   = {
+								'IODir' => 'Unknown',
 								'Indent' => $indent,
 								'Type'   => $type,
 								'Attr'   => $attr,
@@ -1272,6 +1272,7 @@ sub _get_commons_params_from_includes {
 							  $parsedvars->{$var}{'Dim'};
 							$Sincf->{'DeclaredCommonVars'}{'Set'}{$var}
 							  {'ArrayOrScalar'} = 'Array';
+#							  croak "$inc => ".Dumper($Sincf->{'DeclaredCommonVars'}{'Set'}{$var}) if $var eq 'bdate';
 						} else {
 							croak "SHOULD BE IMPOSSIBLE!";
 
@@ -2686,10 +2687,12 @@ sub __parse_f77_var_decl {
 		if ( $var eq '' ) { croak "<$line> in $f" }
 		my $tvar = $var;
 		if ( ref($var) eq 'ARRAY' ) { die __LINE__ . ':' . Dumper($var); }
-		my $tvar_rec = {};
-		$tvar_rec->{'Type'}          = $type;
-		$tvar_rec->{'Dim'}           = $pvars->{$var}{'Dim'};
-		$tvar_rec->{'ArrayOrScalar'} = $pvars->{$var}{'ArrayOrScalar'};
+		my $tvar_rec = {
+		'Type' => $type,
+		'Dim' => $pvars->{$var}{'Dim'},
+		'ArrayOrScalar' => $pvars->{$var}{'ArrayOrScalar'},
+		'IODir' => 'Unknown'
+		};
 		if ( not exists $pvars->{$var}{'Attr'} ) {
 
 			if ($attr) {

@@ -495,13 +495,18 @@ sub _analyse_src_for_iodirs {
                 # It might be convenient to have both in $info; otoh we can get ExGlobArgs from the main table
                 ( my $iodirs_from_call, $stref ) =
                   _get_iodirs_from_subcall( $stref, $f, $info);#$index, $annlines );
+                  
                 for my $var ( keys %{$iodirs_from_call} ) {
 
 # Damn Perl! exists $args->{$var}{'IODir'} creates the entry for $var if it did not exist!
-                    if ( exists $args->{$var} ) {
+#say "VAR: $var;".Dumper($args);
+                    if ( exists $args->{$var}
+                    and ref( $args->{$var} ) eq 'HASH'
+                    ) {
                         if ( exists $args->{$var}{'IODir'} ) {
                             if ( $iodirs_from_call->{$var} eq 'In' ) {
-                                if ( $args->{$var}{'IODir'} eq 'Unknown' ) {
+                            	
+                                if ( not defined $args->{$var}{'IODir'} or $args->{$var}{'IODir'} eq 'Unknown' ) {
                                     $args->{$var}{'IODir'} = 'In';
                                 } elsif ( $args->{$var}{'IODir'} eq 'Out' ) {
        # if the parent arg is Out and the child arg is In, parent arg stays Out!
@@ -927,7 +932,7 @@ sub _get_iodirs_from_subcall {
                 $called_arg_iodirs->{$call_arg} =
                   $Sname->{'RefactoredArgs'}{'Set'}{$sig_arg}{'IODir'};
                 } else {
-                	say "CALLER ARG $call_arg for call to $name OR SIG ARG $sig_arg for $name in $f HAS NO REC: ".Dumper($Sname->{'DeclaredOrigArgs'});die; 
+                	say "CALLER ARG $call_arg for call to $name OR SIG ARG $sig_arg for $name in $f HAS NO REC: ".Dumper($Sname->{'Args'});die; 
                 }
             } else {
                 if ( $call_arg =~ /\W/ ) {
