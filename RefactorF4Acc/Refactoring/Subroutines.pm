@@ -381,7 +381,13 @@ sub _refactor_globals_new {
     print "REFACTORING GLOBALS in $f\n" if $V; 
     my $rlines      = [];
     my $s           = $Sf->{'Source'};
-
+    my $hook_after_last_incl=0;
+    if ($Sf->{'ExGlobVarDeclHook'}==0 ) {
+		# If ExGlobVarDeclHook was not defined, we define it on the line *after* the last include.
+		$hook_after_last_incl=1;
+	}
+    
+ 	my $inc_counter = scalar keys %{$Sf->{'Includes'}};
     for my $annline ( @{$annlines} ) {
         (my $line, my $info) = @{ $annline };
         
@@ -397,7 +403,9 @@ sub _refactor_globals_new {
                  $stref = refactor_subroutine_signature( $stref, $f );
                 warn '_refactor_globals_new() '. __LINE__ . " $f does not have HasRefactoredArgs\n";
                 say 'WARNING: _refactor_globals_new() '. __LINE__ . " $f does not have HasRefactoredArgs";
+                
             }
+            
             $rlines =
               create_refactored_subroutine_signature( $stref, $f, $annline, $rlines );
 #              croak Dumper $rlines->[0] if $f eq 'map_set';              
@@ -405,6 +413,7 @@ sub _refactor_globals_new {
         } 
         # There should be no need to do this: all /common/ blocks should have been removed anyway!
         if ( exists $info->{'Include'} ) {
+        	--$inc_counter;
             $skip = skip_common_include_statement( $stref, $f, $annline );
 #            say "SKIP: $skip";
 # Now, if this was a Common include to be skipped but it contains a Parameter include, I will simply replace the line:
@@ -418,15 +427,24 @@ sub _refactor_globals_new {
 			  	$line=~s/$inc/$param_inc/;
 			  	$line.= "; _refactor_globals_new($f) line " . __LINE__;
 			  	$annline=[$line,$info];
+			  	push @{$rlines}, $annline ;
+			  	$skip=1;
+#			  	die Dumper($rlines) if $f eq 'bondv1';
 			  }
         }
         
-        if ( 0 && exists $info->{'ExGlobVarDeclHook'} ) { # OBSOLETE 
+        if ($inc_counter==0 and  not exists $info->{'Include'} and $hook_after_last_incl==1) {
+        	$info->{'ExGlobVarDeclHook'} = 'AFTER LAST Include via _refactor_globals_new()'; 
+        	$hook_after_last_incl=0;
+        }
+        if ( 0 and exists $info->{'ExGlobVarDeclHook'} ) { # OBSOLETE 
             # First, abuse ExGlobArgDecls as a hook for the addional includes, if any
             $rlines =
               create_new_include_statements( $stref, $f, $annline, $rlines );
         }
-        if ( exists $info->{'ExGlobVarDeclHook'} ) {       
+        if ( exists $info->{'ExGlobVarDeclHook'} ) {  
+#        	say "HOOK for $f: $line ";#.$info->{'Deleted'};
+#        	  croak if $f eq 'timdata';   
            # Then generate declarations for ex-globals
            say "EX-GLOBS for $f" if $V;
             $rlines = _create_extra_arg_and_var_decls( $stref, $f, $annline, $rlines );
@@ -459,28 +477,25 @@ sub _refactor_globals_new {
     return $rlines;
 }    # END of _refactor_globals_new()
 
-    
-    
-    
-
-
-
 # ExInclArgDecls, ExImplicitArgDecls and ExGlobArgDecls
 # ExInclVarDecls and ExImplicitVarDecls.
 sub _create_extra_arg_and_var_decls {
 
     ( my $stref, my $f, my $annline, my $rlines ) = @_;
 
+#local $I= $f eq 'bondv1';
+
     my $Sf                 = $stref->{'Subroutines'}{$f};
-#    say "_create_extra_arg_and_var_decls($f): ".Dumper(keys %{$Sf->{'Args'}});
+#croak "_create_extra_arg_and_var_decls($f): ".Dumper( $Sf->{'Decls'}) if $f eq 'boundsm';
 #    my %args               = %{ $Sf->{'Args'}{'Set'} };
     my $nextLineID=scalar @{$rlines}+1;
-            
+#die Dumper($Sf->{'RefactoredArgs'}{'Set'}) if $I;            
     print "INFO: ExGlobArgDecls in $f\n" if $I;
-    for my $var ( @{ $Sf->{'ExGlobVarDecls'}{'List'} } ) {
+    for my $var ( @{ $Sf->{'ExGlobArgDecls'}{'List'} } ) {
+    	say "INFO VAR: $var ".$Sf->{'RefactoredArgs'}{'Set'}{$var}{'IODir'} if $I;
                     my $rdecl = $Sf->{'ExGlobArgDecls'}{'Set'}{$var}; 
                     my $rline = emit_f95_var_decl($rdecl);
-                    $rline .= " ! EX-GLOB ";                           
+                    $rline .= " ! EX-GLOB ".$annline->[1]{'ExGlobVarDeclHook'};                           
                     my $info={};
                     $info->{'LineID'}= $nextLineID++;
                     $info->{'Ref'}=1;
@@ -490,6 +505,7 @@ sub _create_extra_arg_and_var_decls {
     
     print "INFO: ExInclArgDecls in $f\n" if $I;
     for my $var ( @{ $Sf->{'ExInclArgDecls'}{'List'} } ) {
+    	say "INFO VAR: $var" if $I;
                     my $rdecl = $Sf->{'ExInclArgDecls'}{'Set'}{$var}; 
                     my $rline = emit_f95_var_decl($rdecl);
                     $rline .= " ! EX-INCL ";                           
@@ -502,6 +518,7 @@ sub _create_extra_arg_and_var_decls {
 
     print "INFO: ExImplicitArgDecls in $f\n" if $I;
     for my $var ( @{ $Sf->{'ExImplicitArgDecls'}{'List'} } ) {
+    	say "INFO VAR: $var" if $I;
                     my $rdecl = $Sf->{'ExImplicitArgDecls'}{'Set'}{$var}; 
                     my $rline = emit_f95_var_decl($rdecl);
                     $rline .= " ! EX-IMPLICIT ";                           
@@ -514,6 +531,7 @@ sub _create_extra_arg_and_var_decls {
 
     print "INFO: ExInclVarDecls in $f\n" if $I;
     for my $var ( @{ $Sf->{'ExInclVarDecls'}{'List'} } ) {
+    	say "INFO VAR: $var" if $I;
                     my $rdecl = $Sf->{'ExInclVarDecls'}{'Set'}{$var}; 
                     my $rline = emit_f95_var_decl($rdecl);
                     $rline .= " ! EX-INCL VAR ";                           
@@ -526,6 +544,7 @@ sub _create_extra_arg_and_var_decls {
         
     print "INFO: ExImplicitVarDecls in $f\n" if $I;
     for my $var ( @{ $Sf->{'ExImplicitVarDecls'}{'List'} } ) {
+    	say "INFO VAR: $var" if $I;
                     my $rdecl = $Sf->{'ExImplicitVarDecls'}{'Set'}{$var}; 
                     my $rline = emit_f95_var_decl($rdecl);
                     $rline .= " ! EX-IMPLICIT VAR ";                           

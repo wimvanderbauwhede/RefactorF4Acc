@@ -401,7 +401,8 @@ sub context_free_refactorings {
             $has_includes++;
         }
         if (exists $info->{'VarDecl'}) {
-            $info->{'ExGlobVarDeclHook'}=1;
+            $info->{'ExGlobVarDeclHook'}='VarDecl';
+            $Sf->{'ExGlobVarDeclHook'}=1;
             $has_vardecl=1;
             last;
         }        
@@ -422,18 +423,21 @@ sub context_free_refactorings {
             }
             if ($has_pars) {
                 if (exists $info->{'ParamDecl'} and --$parlinecount == 0) {
-                    $info->{'ExGlobVarDeclHook'}=1;
+                    $info->{'ExGlobVarDeclHook'}='AFTER LAST ParamDecl';
+                    $Sf->{'ExGlobVarDeclHook'}=1;
                     last;
                 }
                 
             } elsif ($has_includes) {
-                if (exists $info->{'Inclide'} and --$incllinecount == 0) {
-                    $info->{'ExGlobVarDeclHook'}=1;
+                if (exists $info->{'Include'} and --$incllinecount == 0) {
+                    $info->{'ExGlobVarDeclHook'}='AFTER LAST Include';
+                    $Sf->{'ExGlobVarDeclHook'}=1;
                     last;
                 }
                 
             } elsif (exists $info->{'Signature'}) {
-                $info->{'ExGlobVarDeclHook'}=1;
+                $info->{'ExGlobVarDeclHook'}='Signature';
+                $Sf->{'ExGlobVarDeclHook'}=1;
                 last;
             }        
         }      
@@ -806,7 +810,7 @@ sub get_f95_var_decl {
     my $sub_or_func_or_inc = sub_func_incl_mod( $f, $stref );
 	my $Sf= $stref->{$sub_or_func_or_inc}{$f};    
     my $spaces = '      ';
-    my $intent = '';
+    my $intent = 'Unknown';
     my $dim  = [];
     my $attr   = '';
     my $type   = 'Unknown';

@@ -46,25 +46,27 @@ sub determine_argument_io_direction_rec {
 
     my $Sf = $stref->{'Subroutines'}{$f};
     
-    if ( exists $Sf->{'CalledSubs'} ) {
+    if ( exists $Sf->{'CalledSubs'} and scalar keys %{$Sf->{'CalledSubs'}} >0 ) {
         for my $calledsub ( keys %{ $Sf->{'CalledSubs'} } ) {
             $stref->{Counter}++ if $V;
-            $stref = determine_argument_io_direction_rec( $calledsub, $stref );
+            $stref = determine_argument_io_direction_rec( $calledsub, $stref );            
             $stref->{Counter}-- if $V;
         }
 
         #   die "Resolved IO for called subs, now use it!\n" if $f =~ /advance/;
         print "\t" x $c, "--------\n" if $V;
         $stref = _determine_argument_io_direction_core( $stref, $f );
+        # We come here for LES and all is well?
+        
     } else {
-
-#    	print "\t" x $c; print "LEAF\n";
+#	say  "\t" x $c; print "LEAF $f";
 # For a leaf, this should resolve all
 # For a non-leaf, we should merge the declarations from the calls
 # This is more tricky than it seems because a sub can be called multiple times with different arguments.
 # So first we need to determine the argument of the call, then map them to the arguments of the sub
         $stref = _determine_argument_io_direction_core( $stref, $f );
     }
+    
     return $stref;
 }    # determine_argument_io_direction_rec()
 
@@ -74,7 +76,7 @@ sub _determine_argument_io_direction_core {
     if ( exists $stref->{'Subroutines'}{$f} ) {
         my $Sf = $stref->{'Subroutines'}{$f};
 
-        #    local $V=1 if $f=~/f_esl/;
+            
         print "DETERMINE IO DIR FOR SUB $f\n" if $V;
 
         # Then for each of these, we go through the args.
@@ -421,9 +423,9 @@ say $name.uc('ref_sig_args:').Dumper($ref_sig_args);
 sub _analyse_src_for_iodirs {
     ( my $stref, my $f ) = @_;
 
-    #    local $W=1;local $V=1;
-    #    print "_analyse_src_for_iodirs() $f\n";
+#    local $W=1;local $V=1;
 
+    print "_analyse_src_for_iodirs() $f\n" if $V;
     my $Sf = $stref->{'Subroutines'}{$f};
     if ( not exists $Sf->{'IODirInfo'} or $Sf->{'IODirInfo'} == 0 ) {
         
@@ -431,12 +433,13 @@ sub _analyse_src_for_iodirs {
             or $Sf->{'HasRefactoredArgs'} == 0 )
         {
               say "SUB $f DOES NOT HAVE RefactoredArgs";
-#            croak 'BOOM!' . __LINE__ . $f . Dumper($Sf);
+            croak 'BOOM! ' . __LINE__ . ' '.$f . ' : '. Dumper($Sf);
 #            $stref = refactor_subroutine_signature( $stref, $f );
         }
         my $args = $Sf->{'RefactoredArgs'}{'Set'};
 
         my $annlines = get_annotated_sourcelines( $stref, $f );
+        
         for my $index ( 0 .. scalar( @{$annlines} ) - 1 ) {
             my $line = $annlines->[$index][0];
             my $info = $annlines->[$index][1];
@@ -493,9 +496,9 @@ sub _analyse_src_for_iodirs {
                 # So we get the IODir for every arg in the call to the subroutine
                 # We need both the original args from the call and the ex-glob args
                 # It might be convenient to have both in $info; otoh we can get ExGlobArgs from the main table
-                ( my $iodirs_from_call, $stref ) =
-                  _get_iodirs_from_subcall( $stref, $f, $info);#$index, $annlines );
-                  
+                
+                my $iodirs_from_call = _get_iodirs_from_subcall( $stref, $f, $info) ;
+                
                 for my $var ( keys %{$iodirs_from_call} ) {
 
 # Damn Perl! exists $args->{$var}{'IODir'} creates the entry for $var if it did not exist!
@@ -654,12 +657,11 @@ sub _analyse_src_for_iodirs {
                 }
             
             } else {    # not an assignment, do as before                        
-                say "NON-ASSIGNMENT LINE: $line in $f" if $V;
+#                say "NON-ASSIGNMENT LINE: $line in $f" if $V;
                 
                 _find_vars_w_iodir( $line, $args, \&_set_iodir_read );
             }
         }
-
         for my $arg ( keys %{$args} ) {
 
             if (
@@ -674,7 +676,10 @@ sub _analyse_src_for_iodirs {
         # Here for some reason corr has been added as an argument!
         $Sf->{'IODirInfo'} = 1;
     }    # if IODirInfo had not been set to 1
+    
      # So, at this point, $stref->{'Subroutines'}{$f}{'RefactoredArgs'} has full IODir info
+#     die if scalar keys %{$Sf} ==0; 
+#die Dumper($stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}) if $f eq 'bondv1';
     return $stref;
 }    # END of _analyse_src_for_iodirs()
 
@@ -932,7 +937,9 @@ sub _get_iodirs_from_subcall {
                 $called_arg_iodirs->{$call_arg} =
                   $Sname->{'RefactoredArgs'}{'Set'}{$sig_arg}{'IODir'};
                 } else {
-                	say "CALLER ARG $call_arg for call to $name OR SIG ARG $sig_arg for $name in $f HAS NO REC: ".Dumper($Sname->{'Args'});die; 
+                	say "CALLER ARG <$call_arg> for call to $name OR SIG ARG <$sig_arg> for $name in $f HAS NO REC: ".Dumper($Sname->{'Args'}).'<>'.Dumper($Sname->{'RefactoredArgs'}{'Set'}{$sig_arg});
+                	say Dumper($Sname->{'Args'});
+                	die; 
                 }
             } else {
                 if ( $call_arg =~ /\W/ ) {

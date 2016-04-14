@@ -228,7 +228,7 @@ sub {
 }
 );	
 
-   say 'AFTER analyse_all()';
+#   say 'AFTER analyse_all()';
 # Do here, the extracted sub is still fine ...
 #	die Dumper(sort keys %{$stref});
 #die Dumper($stref->{IncludeFiles});
@@ -236,7 +236,7 @@ sub {
 #die 'WV20151005:  I worked my way through the code to here and globals are not resolved!';
 
     # Refactor the source
-    $stage=4;
+    $stage=6;
 	$stref = refactor_all($stref,$subname, $stage);
 
 test(6,$stref,
@@ -244,7 +244,7 @@ sub { return 'FAIL';
 },
 sub {
 	(my $stref)=@_;
-	my $sub = $subname eq 'main' ? 'press' : 'timemanager';
+	my $sub = $subname eq 'main' ? 'bondv1' : 'timemanager';
 	if ($stage==1) {
 #		return $stref->{'IncludeFiles'};
 #		return get_kv_for_all_elts_in_set($stref->{'IncludeFiles'},'Commons');
@@ -253,14 +253,10 @@ sub {
   		return pp_annlines($stref->{'Subroutines'}{$sub}{'AnnLines'},1);
 	} elsif ($stage==3) {
   		return join("\n",@{ pp_annlines($stref->{'Subroutines'}{$sub}{'RefactoredCode'},0) });			
-	} elsif ($stage==4) {
-  		return join("\n",@{ pp_annlines($stref->{'Subroutines'}{$sub}{'RefactoredCode'},1) });		
-	} elsif ($stage==5) {
-  		return 'TODO';
+	} elsif ($stage==4 or $stage==5) {		
+  		return join("\n",@{ pp_annlines($stref->{'Subroutines'}{$sub}{'RefactoredCode'},0) });
 	} elsif ($stage==6) {
-  		return 'TODO'; 
-	} else {
-		return 'TODO';
+  		return join("\n",@{ pp_annlines($stref->{'RefactoredCode'}{'./press.f'},0) });
 	}
 }	
 );
@@ -669,7 +665,7 @@ sub test { (my $test_num, my $stref, my $test_subref, my $fail_subref) = @_;
 	if (exists $unit_tests_map{$test_num}) {
 		my $res=  $test_subref->($stref);	
 		if ($res eq 'FAIL') {
-			my $output = $fail_subref->($stref);
+			my $output = $fail_subref->($stref);			
 			if (ref($output) eq 'HASH' or ref($output) eq 'ARRAY') {  
 				die "! Test $test_num: $res\n".Dumper( $output );
 			} else {

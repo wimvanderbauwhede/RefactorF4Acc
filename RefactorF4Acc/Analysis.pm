@@ -141,7 +141,8 @@ sub _analyse_variables {
 	( my $stref, my $f ) = @_;
 	my $Sf = $stref->{'Subroutines'}{$f};
 	say "_analyse_variables($f)" if $V;
-	
+#	die Dumper($Sf->{'Vars'}) if $f eq 'gser';
+	local $V = ($f eq 'gser') ? 1:0;
 	my $__analyse_vars_on_line = sub {
 		( my $annline, my $state ) = @_;
 		( my $line,    my $info )  = @{$annline};
@@ -154,25 +155,35 @@ sub _analyse_variables {
 		{
 
 			( my $stref, my $f, my $identified_vars ) = @{$state};
-#			say "LINE:\t$line" if $f eq 'bondfg';
+			
 			my $Sf = $stref->{'Subroutines'}{$f};
 #			my @chunks = split( /[^\.\w]/, $line );
 			my @chunks = split( /\W+/, $line );
 			for my $mvar (@chunks) {				
 				next if exists $F95_reserved_words{$mvar};
-				next if exists $stref->{'Subroutines'}{$f}{'CalledSubs'}{$mvar}; # Meams it's a function
+				next if exists $stref->{'Subroutines'}{$f}{'CalledSubs'}{$mvar}; # Means it's a function
 				next if $mvar =~ /^__PH\d+__$/;
 				next if $mvar !~ /^[_a-z]\w*$/;
-				
-				my $maybe_orig_arg = in_nested_set( $Sf, 'OrigArgs', $mvar );  
-				die $maybe_orig_arg  if $maybe_orig_arg =~/Glob/;
+
+				my $maybe_orig_arg = in_nested_set( $Sf, 'OrigArgs', $mvar );
+				  my $maybe_decl_orig_arg = exists  $Sf->{'DeclaredOrigArgs'}{'Set'}{$mvar} ? 'DeclaredOrigArgs' : '';
+				  my $undecl_orig_arg = exists  $Sf->{'UndeclaredOrigArgs'}{'Set'}{$mvar} ? 1 : 0;
+#				say Dumper($stref->{'Subroutines'}{$f}{'UndeclaredOrigArgs'}) if $f eq 'gser' and $mvar eq 'a';
+#			die "LINE:\t$line => $mvar:".$maybe_orig_arg if $f eq 'gser' and $mvar eq 'a';
+			# Here it is still possible that the variables don't have any declarations
+			# If that is the case for OrigArgs we must type them via Implicits
+			# But should this not have happened already? No, because UndeclaredOrigArgs could be declared vi Includes,
+			# and that is checked here.
+			# So I think we exclude the DeclaredOrigArgs only
+								
 #				say 'MVAR: ',$mvar,': <',$maybe_orig_arg,'>' if $f eq 'boundsm';
 				if (    not exists $identified_vars->{$mvar}
-					and ( $maybe_orig_arg eq '' ) # means $mvar is not present in the nested set OrigArgs
-					and not
-					exists $Sf->{'DeclaredOrigLocalVars'}{'Set'}{$mvar} )
+					and ( $maybe_decl_orig_arg eq '' ) # means $mvar is not present in the set DeclaredOrigArgs
+					and 
+					(not exists $Sf->{'DeclaredOrigLocalVars'}{'Set'}{$mvar} or $Sf->{'DeclaredOrigLocalVars'}{'Set'}{$mvar}==1))
 				{
 					my $in_incl = 0;
+					
 					for my $inc ( keys %{ $Sf->{'Includes'} } ) {
 						say "LOOKING FOR $mvar from $f in $inc" if $V;
 
@@ -250,6 +261,7 @@ sub _analyse_variables {
 					if ( not $in_incl ) {
 						# Now check if this variable might be accessed via the containing program
 						$identified_vars->{$mvar} = 0;
+						
 						if (exists $stref->{'Subroutines'}{$f}{'Container'}) {
 							my $container=$stref->{'Subroutines'}{$f}{'Container'};
 											my $subset =
@@ -271,23 +283,32 @@ sub _analyse_variables {
 				} 
 						} 
 						if ($identified_vars->{$mvar} != 1) {
+							
 							if ( $line =~ /$mvar\s*\(/ ) {
 								say
 	"INFO: LOCAL VAR <$mvar> in $f may be an EXTERNAL FUNCTION "
 								  if $I;
 							} else {
+#								die "LINE:\t$line => $mvar:".$maybe_decl_orig_arg if $f eq 'gser' and $mvar eq 'a';
 								say "INFO: LOCAL VAR <$mvar> in $f via IMPLICIT! "
 								  . $line
 								  . ' _analyse_variables() '
 								  . __LINE__
 								  if $I;
 								my $decl = get_f95_var_decl( $stref, $f, $mvar );
-	
+#	die "<$undecl_orig_arg>" if $f eq 'gser' and $mvar eq 'a';
 	#                            push @{ $stref->{'Subroutines'}{$f}{'LocalVars'}{'List'} }, $mvar;
 	#                            $stref->{'Subroutines'}{$f}{'LocalVars'}{'Set'}{$mvar} = $decl;
+								if (not $undecl_orig_arg) {
 								push @{ $stref->{'Subroutines'}{$f}{'ExImplicitVarDecls'}{'List'} }, $mvar;
 								$stref->{'Subroutines'}{$f}{'ExImplicitVarDecls'}
 								  {'Set'}{$mvar} = $decl;
+								} else { 
+								push @{ $stref->{'Subroutines'}{$f}{'ExImplicitArgDecls'}{'List'} }, $mvar;
+								$stref->{'Subroutines'}{$f}{'ExImplicitArgDecls'}
+								  {'Set'}{$mvar} = $decl;
+#									die Dumper($stref->{'Subroutines'}{$f}{'UndeclaredOrigArgs'}{'Set'}) if $mvar eq 'a' and $f eq 'gser';
+								}
 							}
 							$identified_vars->{$mvar} = 1;
 						}

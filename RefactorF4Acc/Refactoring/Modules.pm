@@ -64,6 +64,7 @@ sub add_module_decls {
 	    
 	}
     for my $src (keys %{ $stref->{'SourceContains'} } ) {
+    	
         $no_module= $stref->{'Program'} eq $src;
         print "INFO: adding module decls to $src\n" if $V;
         
@@ -128,8 +129,9 @@ sub add_module_decls {
             		
             		}
             	}            	
-            	$stref->{'RefactoredCode'}{$src}=[@prog_p1,@mod_uses,@prog_p2];            	
+            	$stref->{'RefactoredCode'}{$src}=[@prog_p1,@mod_uses,@prog_p2];          	
             }        
+            
     } # loop over all source files
 
     return $stref;
