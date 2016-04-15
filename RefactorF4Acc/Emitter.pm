@@ -89,163 +89,163 @@ sub _emit_refactored_include {
 } # END of emit_refactored_include
 
 # -----------------------------------------------------------------------------
+#
+#sub UNUSED_emit_refactored_function {
+#    ( my $f, my $dir, my $stref ) = @_;
+#    my $Ff = $stref->{'Functions'}{$f};
+#    print "EMITTING source for FUNCTION $f\n" if $V;
+#
+#    #    die Dumper($Ff->) if $f =~/ran3/;
+#    my $overwrite = 0;
+#
+#    my $srcref = $Ff->{'RefactoredCode'};
+#    my $s      = $Ff->{'Source'};
+#    if ( defined $srcref ) {
+#        print "INFO: emitting refactored code for function $f\n" if $V;
+#        $s=~s/\.f$/.f95/;
+#
+#        #    } else {
+#        #       $srcref=$Ff->{'Lines'};
+#        #    }
+#        my $mode = '>';
+#        if ( -e "$dir/$s" and not $overwrite ) {
+#            $mode = '>>';
+#        } else {
+#            if (    not exists $stref->{'BuildSources'}{'C'}{$s}
+#                and not exists $stref->{'BuildSources'}{'F'}{$s} )
+#            {
+#                $stref->{'BuildSources'}{'F'}{$s} = 1;
+#            }
+#        }
+#        open my $SRC, $mode, "$dir/$s" or die $!;
+#        if ( $mode eq '>>' ) {
+#            print $SRC "\n! *** FUNCTION $f ***\n";
+#        }
+#        my $prevline='C ';
+#        for my $annline ( @{$srcref} ) {
+#        	my $line = $annline->[0]; 
+#            if (not ($prevline =~/^\s*$/ and $line =~/^\s*$/)) {
+#            print $SRC "$line\n";
+#            print "$line\n" if $V;
+#            }
+#            $prevline=$line;
+#        }
+#        close $SRC;
+#
+#    }
+#
+#    #    else {
+#    #       warn "NO REFACTORED CODE FOR $f\n";
+#    #       warn Dumper($Ff->{'Lines'});
+#    #    }
+#} # END of emit_refactored_function()
 
-sub UNUSED_emit_refactored_function {
-    ( my $f, my $dir, my $stref ) = @_;
-    my $Ff = $stref->{'Functions'}{$f};
-    print "EMITTING source for FUNCTION $f\n" if $V;
-
-    #    die Dumper($Ff->) if $f =~/ran3/;
-    my $overwrite = 0;
-
-    my $srcref = $Ff->{'RefactoredCode'};
-    my $s      = $Ff->{'Source'};
-    if ( defined $srcref ) {
-        print "INFO: emitting refactored code for function $f\n" if $V;
-        $s=~s/\.f$/.f95/;
-
-        #    } else {
-        #       $srcref=$Ff->{'Lines'};
-        #    }
-        my $mode = '>';
-        if ( -e "$dir/$s" and not $overwrite ) {
-            $mode = '>>';
-        } else {
-            if (    not exists $stref->{'BuildSources'}{'C'}{$s}
-                and not exists $stref->{'BuildSources'}{'F'}{$s} )
-            {
-                $stref->{'BuildSources'}{'F'}{$s} = 1;
-            }
-        }
-        open my $SRC, $mode, "$dir/$s" or die $!;
-        if ( $mode eq '>>' ) {
-            print $SRC "\n! *** FUNCTION $f ***\n";
-        }
-        my $prevline='C ';
-        for my $annline ( @{$srcref} ) {
-        	my $line = $annline->[0]; 
-            if (not ($prevline =~/^\s*$/ and $line =~/^\s*$/)) {
-            print $SRC "$line\n";
-            print "$line\n" if $V;
-            }
-            $prevline=$line;
-        }
-        close $SRC;
-
-    }
-
-    #    else {
-    #       warn "NO REFACTORED CODE FOR $f\n";
-    #       warn Dumper($Ff->{'Lines'});
-    #    }
-} # END of emit_refactored_function()
-
-# -----------------------------------------------------------------------------
-# This must change: we first need to create a list src -> subs
-sub UNUSED_emit_refactored_subroutine {
-    ( my $f, my $dir, my $stref, my $overwrite ) = @_;
-    my $Sf     = $stref->{'Subroutines'}{$f};
-    my $srcref = $Sf->{'RefactoredCode'};
-    if ( defined $srcref ) {
-        my $s = $Sf->{'Source'};
-        $s=~s/\.f$/.f95/;
-        print "INFO: emitting refactored code for $f in $s\n" if $V;
-        if ( $s =~ /\w\/\w/ ) {
-
-            # Source resides in subdirectory, create it if required
-            my @dirs = split( /\//, $s );
-            pop @dirs;
-            map {
-                my $targetdir = $_;
-                if ( not -e $targetdir ) {
-                    mkdir $targetdir;
-                }
-            } @dirs;
-        }
-        
-        my $mode = '>';
-        if ( -e "$dir/$s" and not $overwrite ) {
-            $mode = '>>';
-        } else {
-            if (    not exists $stref->{'BuildSources'}{'C'}{$s}
-                and not exists $stref->{'BuildSources'}{'F'}{$s} )
-            {
-                $stref->{'BuildSources'}{'F'}{$s} = 1;
-            }
-        }
-        open my $SRC, $mode, "$dir/$s" or die $!;
-        if ( $mode eq '>>' ) {
-            print $SRC "\n! *** SUBROUTINE $f ***\n";
-        }
-        my $prevline='! ';
-        for my $annline ( @{$srcref} ) {
-        	my $line = $annline->[0]; 
-            if (not ($prevline =~/^\s*$/ and $line =~/^\s*$/)) {
-            print $SRC "$line\n";
-            print "$line\n" if $V;
-            }
-            $prevline=$line;
-        }
-        close $SRC;
-    }
-} # END of emit_refactored_subroutine()
-
-# -----------------------------------------------------------------------------
-
-sub UNUSED_emit_refactored_function_new {
-    ( my $f, my $stref ) = @_;
-    my $Ff = $stref->{'Functions'}{$f};
-#	local $V=1;
-    print "EMITTING source for FUNCTION $f\n" if $V;
-    my @lines=();
-
-    my $srcref = $Ff->{'RefactoredCode'};
-    my $s      = $Ff->{'Source'};
-    if ( defined $srcref ) {
-            push @lines, "\n! *** FUNCTION $f ***\n";
-        
-        my $prevline='C ';
-        for my $annline ( @{$srcref} ) {
-            my $line = $annline->[0]; 
-            if (not ($prevline =~/^\s*$/ and $line =~/^\s*$/)) {
-            push @lines, "$line\n";
-            print "$line\n" if $V;
-            }
-            $prevline=$line;
-        }
-    }
-    return @lines;
-    #    else {
-    #       warn "NO REFACTORED CODE FOR $f\n";
-    #       warn Dumper($Ff->{'Lines'});
-    #    }
-} # END of emit_refactored_function_new()
+## -----------------------------------------------------------------------------
+## This must change: we first need to create a list src -> subs
+#sub UNUSED_emit_refactored_subroutine {
+#    ( my $f, my $dir, my $stref, my $overwrite ) = @_;
+#    my $Sf     = $stref->{'Subroutines'}{$f};
+#    my $srcref = $Sf->{'RefactoredCode'};
+#    if ( defined $srcref ) {
+#        my $s = $Sf->{'Source'};
+#        $s=~s/\.f$/.f95/;
+#        print "INFO: emitting refactored code for $f in $s\n" if $V;
+#        if ( $s =~ /\w\/\w/ ) {
+#
+#            # Source resides in subdirectory, create it if required
+#            my @dirs = split( /\//, $s );
+#            pop @dirs;
+#            map {
+#                my $targetdir = $_;
+#                if ( not -e $targetdir ) {
+#                    mkdir $targetdir;
+#                }
+#            } @dirs;
+#        }
+#        
+#        my $mode = '>';
+#        if ( -e "$dir/$s" and not $overwrite ) {
+#            $mode = '>>';
+#        } else {
+#            if (    not exists $stref->{'BuildSources'}{'C'}{$s}
+#                and not exists $stref->{'BuildSources'}{'F'}{$s} )
+#            {
+#                $stref->{'BuildSources'}{'F'}{$s} = 1;
+#            }
+#        }
+#        open my $SRC, $mode, "$dir/$s" or die $!;
+#        if ( $mode eq '>>' ) {
+#            print $SRC "\n! *** SUBROUTINE $f ***\n";
+#        }
+#        my $prevline='! ';
+#        for my $annline ( @{$srcref} ) {
+#        	my $line = $annline->[0]; 
+#            if (not ($prevline =~/^\s*$/ and $line =~/^\s*$/)) {
+#            print $SRC "$line\n";
+#            print "$line\n" if $V;
+#            }
+#            $prevline=$line;
+#        }
+#        close $SRC;
+#    }
+#} # END of emit_refactored_subroutine()
 
 # -----------------------------------------------------------------------------
-# This must change: we first need to create a list src -> subs
-sub UNUSED_emit_refactored_subroutine_new {
-    ( my $f, my $stref ) = @_;
-    my $Sf     = $stref->{'Subroutines'}{$f};
-    my $srcref = $Sf->{'RefactoredCode'};
-#	local $V=1;
-    my @lines=();
-    if ( defined $srcref ) {
-        print "INFO: emitting refactored code for $f\n" if $V;
-            push @lines,"\n! *** SUBROUTINE $f ***\n";
-        my $prevline='! ';
-        for my $annline ( @{$srcref} ) {
-            my $line = $annline->[0]; 
-            if (not ($prevline =~/^\s*$/ and $line =~/^\s*$/)) {
-            push @lines,"$line\n";
-            print "$line\n" if $V;
-            }
-            $prevline=$line;
-        }        
-    } else {
-	print "! SUBROUTINE $f: NO RefactoredCode (most likely sub not used)\n";
-	}
-    return @lines;
-} # END of emit_refactored_subroutine_new()
+
+#sub UNUSED_emit_refactored_function_new {
+#    ( my $f, my $stref ) = @_;
+#    my $Ff = $stref->{'Functions'}{$f};
+##	local $V=1;
+#    print "EMITTING source for FUNCTION $f\n" if $V;
+#    my @lines=();
+#
+#    my $srcref = $Ff->{'RefactoredCode'};
+#    my $s      = $Ff->{'Source'};
+#    if ( defined $srcref ) {
+#            push @lines, "\n! *** FUNCTION $f ***\n";
+#        
+#        my $prevline='C ';
+#        for my $annline ( @{$srcref} ) {
+#            my $line = $annline->[0]; 
+#            if (not ($prevline =~/^\s*$/ and $line =~/^\s*$/)) {
+#            push @lines, "$line\n";
+#            print "$line\n" if $V;
+#            }
+#            $prevline=$line;
+#        }
+#    }
+#    return @lines;
+#    #    else {
+#    #       warn "NO REFACTORED CODE FOR $f\n";
+#    #       warn Dumper($Ff->{'Lines'});
+#    #    }
+#} # END of emit_refactored_function_new()
+
+## -----------------------------------------------------------------------------
+## This must change: we first need to create a list src -> subs
+#sub UNUSED_emit_refactored_subroutine_new {
+#    ( my $f, my $stref ) = @_;
+#    my $Sf     = $stref->{'Subroutines'}{$f};
+#    my $srcref = $Sf->{'RefactoredCode'};
+##	local $V=1;
+#    my @lines=();
+#    if ( defined $srcref ) {
+#        print "INFO: emitting refactored code for $f\n" if $V;
+#            push @lines,"\n! *** SUBROUTINE $f ***\n";
+#        my $prevline='! ';
+#        for my $annline ( @{$srcref} ) {
+#            my $line = $annline->[0]; 
+#            if (not ($prevline =~/^\s*$/ and $line =~/^\s*$/)) {
+#            push @lines,"$line\n";
+#            print "$line\n" if $V;
+#            }
+#            $prevline=$line;
+#        }        
+#    } else {
+#	print "! SUBROUTINE $f: NO RefactoredCode (most likely sub not used)\n";
+#	}
+#    return @lines;
+#} # END of emit_refactored_subroutine_new()
 # -----------------------------------------------------------------------------
 sub emit_all {
     (my $stref)=@_;
