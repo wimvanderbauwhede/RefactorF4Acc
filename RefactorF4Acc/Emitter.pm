@@ -286,12 +286,12 @@ sub emit_all {
             $stref->{'BuildSources'}{'F'}{$src} = 1;
         }        
 
-			my $nsrc=$src;$nsrc=~s/\.f$/.f95/;
-			  if ($DUMMY) {
-			      say '! '.('=' x 80);
+		my $nsrc=$src;$nsrc=~s/\.f$/.f95/;
+		if ($DUMMY) {
+			say '! '.('=' x 80);
             say "! FILE: $targetdir/$nsrc";
             say '! '.('=' x 80);
-        show_annlines($stref->{'RefactoredCode'}{$src},0);
+        	show_annlines($stref->{'RefactoredCode'}{$src},0);
         } else {
 			open my $TGT, '>', "$targetdir/$nsrc" or die $!;
 			for my $mod_line (@{ $stref->{'RefactoredCode'}{$src} }) {

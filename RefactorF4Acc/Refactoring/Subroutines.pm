@@ -137,8 +137,9 @@ sub _refactor_subroutine_main {
 # -----------------------------------------------------------------------------
 # The code below fixes the end lines of the code by adding 'program $f' or 'subroutine $f' or 'function $f'
 # For some reason this is BROKEN elsewhere
-sub _fix_end_lines {
+sub _fix_end_lines {	
     (my $stref, my $f, my $rlines) = @_;
+#    croak "FIXME" if $f eq 'vertical';
     my $Sf=$stref->{'Subroutines'}{$f}; 
     my $sub_or_prog = ( exists $Sf->{'Program'} and $Sf->{'Program'} == 1) ? 'program' : 
     (exists $Sf->{'Function'} and $Sf->{'Function'} == 1 ) ? 'function' : 'subroutine';
@@ -158,6 +159,13 @@ sub _fix_end_lines {
             $line=~s/\s+$//;
             push @{$rlines},[ $line." $sub_or_prog $f",$info];
             $done_fix_end=1;
+        }
+        
+        if ($line=~/^\s*contains\s*$/ ) {
+            $line=~s/\s+$//;
+            push @{$rlines},$annline;
+            push @{$rlines},[ "end $sub_or_prog $f",$info];
+            $done_fix_end=1; 
         }
     }
     return $rlines;

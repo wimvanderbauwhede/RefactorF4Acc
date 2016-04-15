@@ -166,8 +166,8 @@ sub _analyse_variables {
 				next if $mvar !~ /^[_a-z]\w*$/;
 
 				my $maybe_orig_arg = in_nested_set( $Sf, 'OrigArgs', $mvar );
-				  my $maybe_decl_orig_arg = exists  $Sf->{'DeclaredOrigArgs'}{'Set'}{$mvar} ? 'DeclaredOrigArgs' : '';
-				  my $undecl_orig_arg = exists  $Sf->{'UndeclaredOrigArgs'}{'Set'}{$mvar} ? 1 : 0;
+				my $maybe_decl_orig_arg = exists  $Sf->{'DeclaredOrigArgs'}{'Set'}{$mvar} ? 'DeclaredOrigArgs' : '';
+				my $undecl_orig_arg = exists  $Sf->{'UndeclaredOrigArgs'}{'Set'}{$mvar} ? 1 : 0;
 #				say Dumper($stref->{'Subroutines'}{$f}{'UndeclaredOrigArgs'}) if $f eq 'gser' and $mvar eq 'a';
 #			die "LINE:\t$line => $mvar:".$maybe_orig_arg if $f eq 'gser' and $mvar eq 'a';
 			# Here it is still possible that the variables don't have any declarations
@@ -261,13 +261,13 @@ sub _analyse_variables {
 					if ( not $in_incl ) {
 						# Now check if this variable might be accessed via the containing program
 						$identified_vars->{$mvar} = 0;
-						
+#						croak $mvar if $f eq 'kernelb' and $mvar eq 'connv';
 						if (exists $stref->{'Subroutines'}{$f}{'Container'}) {
 							my $container=$stref->{'Subroutines'}{$f}{'Container'};
 											my $subset =
 				  in_nested_set( $stref->{'Subroutines'}{$container}, 'Vars', $mvar );
 				if ( $subset ne '' ) {
-					say "FOUND VAR $mvar in CONTAINER $container";
+					say "FOUND VAR $mvar in CONTAINER $container"; 
 					# If so, this is treated as an ExGlob
 					push @{ $stref->{'Subroutines'}{$f}
 											  {'ExGlobArgDecls'}{'List'} },
@@ -279,7 +279,7 @@ sub _analyse_variables {
 										  {'ExGlobArgDecls'}{'Set'}{$mvar} =
 										  $decl;
 					$identified_vars->{$mvar} = 1;
-					croak 'EXGLOBS FROM CONTAINER';
+#					croak 'EXGLOBS FROM CONTAINER: '.$mvar;
 				} 
 						} 
 						if ($identified_vars->{$mvar} != 1) {

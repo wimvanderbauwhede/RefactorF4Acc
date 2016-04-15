@@ -970,9 +970,11 @@ sub _procLine {
     my $info = { 'Ref' => 0 };    # means 0 refactorings
 
     # Detect and standardise comments
-    if ( $line =~ /^[CD\*\!]/i or $line =~ /^\ {6}\s*\!/i ) {
+    if ( $line!~/^\s*contains\s*$/ and ($line =~ /^[CD\*\!]/i or $line =~ /^\ {6}\s*\!/i )) {
         $line =~ s/^\s*[CcDd\*\!]/! /;
         $info->{'Comments'} = 1;
+	} elsif ( $line =~ /^\s*contains\s*$/) {
+		$info->{'Contains'}=1;       
     } elsif ( $line =~ /.\!.*$/ ) {    # FIXME: trailing comments are discarded!
         my $tline = $line;
         my $nline = '';
@@ -1078,7 +1080,7 @@ sub _isCommentOrBlank {
     ( my $line ) = @_;
 
     # Detect comments & blank lines
-    if ( $line =~ /^[CD\*\!]/i or $line =~ /^\ {6}\s*\!/i ) {
+    if ( $line!~/^\s*contains\s*$/i and ( $line =~ /^[CD\*\!]/i or $line =~ /^\ {6}\s*\!/i )) {
         return 1;
     } elsif ( $line =~ /^\s*$/ ) {
         return 1;

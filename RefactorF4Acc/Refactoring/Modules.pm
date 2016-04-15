@@ -31,26 +31,14 @@ This subroutine created the module declarations around the original F77 files
 =cut
 
 # -----------------------------------------------------------------------------
-## FIXME: this should go in Refactoring::Modules
-## RefactorF4Acc::Refactoring::Modules
-sub add_module_decls {
-#	print "\n\nadd_module_decls()\n\n";
-    (my $stref)=@_;
-    my $no_module=0;
-    
-	for my $src (keys %{ $stref->{'SourceContains'} } ) {
-	    say $src if $src =~/calcpar/;
+sub add_module_decls { (my $stref)=@_;
+    my $no_module=0;    
+	for my $src (keys %{ $stref->{'SourceContains'} } ) {	    
 	    for my $sub_or_func (keys %{  $stref->{'SourceContains'}{$src}   } ) {
-	        say $sub_or_func if $src =~/calcpar/;
 	        my $sub_func_type= $stref->{'SourceContains'}{$src}{$sub_or_func};
-	        say $sub_func_type if $src =~/calcpar/;; 
 	        my $Sf = $stref->{$sub_func_type}{$sub_or_func};
-#	        die "$src => $sub_or_func".Dumper($Sf->{AnnLines}) if $src =~ /LES/;
-#	        my $called_sub_or_func = (exists $stref->{'Subroutines'}{$sub_or_func}{'Function'}) ? 'CalledFunctions' : 'CalledSubs' ;
 	        my $called_sub_or_func =  'CalledSubs' ;
-	        say $called_sub_or_func if $src =~/calcpar/;
-	        for my $called_sub ( keys %{ $Sf->{$called_sub_or_func} } ) {
-	            say "CALLS:".$called_sub if $src =~/calcpar/;
+	        for my $called_sub ( keys %{ $Sf->{$called_sub_or_func} } ) {	    
 	            my $cs_src;
 	            if (exists $stref->{'Subroutines'}{$called_sub} and exists $stref->{'Subroutines'}{$called_sub}{'Source'}) {
 	               $cs_src=$stref->{'Subroutines'}{$called_sub}{'Source'};
@@ -60,21 +48,19 @@ sub add_module_decls {
                 next if $cs_src eq $src; # FIXME: ad-hoc!
 	            $stref->{'UsedModules'}{$src}{$cs_src}=1;
 	        }
-	    }
-	    
+	    }	    
 	}
-    for my $src (keys %{ $stref->{'SourceContains'} } ) {
-    	
+	
+    for my $src (keys %{ $stref->{'SourceContains'} } ) {    	
         $no_module= $stref->{'Program'} eq $src;
-        print "INFO: adding module decls to $src\n" if $V;
-        
+        print "INFO: adding module decls to $src\n" if $V;        
        if ($I) {
             print '! ','-' x 80,"\n";
             print "! SRC: $src\n";
             print "!\tCONTAINS: ";
             print join(', ',keys %{  $stref->{'SourceContains'}{$src}   } ),"\n";
-       }
-             
+       }             
+       
             my $mod_name=$src;
             $mod_name=~s/\.\///;
             $mod_name=~s/\..*$//;
@@ -99,17 +85,20 @@ sub add_module_decls {
             for my $f (keys %{  $stref->{'SourceContains'}{$src} }) {            	
             	die if $f=~/^\s*$/;            	
                 my $annlines = get_annotated_sourcelines( $stref, $f );
+                
                 my $refactored_lines = create_refactored_source( $stref,$annlines );
                 @refactored_source_lines=(@refactored_source_lines,@{$refactored_lines})
             }
             if (!$no_module) {
                 $stref->{'RefactoredCode'}{$src}=[$mod_header, @mod_uses,$mod_contains, @refactored_source_lines,$mod_footer];
-            } else {
+            } else { 
+            	croak "FIX THIS FOR PROGRAM CONTAINING SUBS!";
             	my $before=1;
             	my @prog_p1=();
             	my @prog_p2=();
 
             	for my $annline (@refactored_source_lines) {
+            		
             		my $info = $annline->[1];
 #            		if (exists $info->{Signature}
 #            		and exists $info->{Signature}{Name} ) {
@@ -121,15 +110,15 @@ sub add_module_decls {
             			push @prog_p2, $annline;
             		}
             		if (exists $info->{'Signature'} and exists $info->{'Signature'}{'Program'}) {
-            			my $progname = $info->{'Signature'}{'Name'};
             			
-            		if ( exists $stref->{'Subroutines'}{$progname}{'Program'}) {	
-            			$before=0;
-            		}
-            		
+            			my $progname = $info->{'Signature'}{'Name'};            			
+            			if ( exists $stref->{'Subroutines'}{$progname}{'Program'}) {	
+            				$before=0;
+            			}            		
             		}
             	}            	
-            	$stref->{'RefactoredCode'}{$src}=[@prog_p1,@mod_uses,@prog_p2];          	
+            	$stref->{'RefactoredCode'}{$src}=[@prog_p1,@mod_uses,@prog_p2];  
+            	 	
             }        
             
     } # loop over all source files

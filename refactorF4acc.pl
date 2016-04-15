@@ -205,7 +205,7 @@ sub {
 	
 #	die Dumper($stref->{'Nodes'});
 
-#    say Dumper( $stref->{Subroutines}{main} );die;
+    
     # Analyse the source
     my $stage=0;
 	$stref = analyse_all($stref,$subname, $stage);
@@ -239,9 +239,10 @@ sub {
 );	
 
 #   say 'AFTER analyse_all()';
+#say Dumper( $stref->{Subroutines}{vertical}{RefactoredCode} );die;
 # Do here, the extracted sub is still fine ...
 #	die Dumper(sort keys %{$stref});
-#die Dumper($stref->{IncludeFiles});
+
 #WV20150710 I worked my way through the code to here and indeed, implicitly declared non-global vars still need to be captured
 #die 'WV20151005:  I worked my way through the code to here and globals are not resolved!';
 
@@ -250,18 +251,18 @@ sub {
 	$stref = refactor_all($stref,$subname, $stage);
 
 test(6,$stref,
-sub { return 'PASS';
+sub { return 'FAIL';
 },
 sub {
 	(my $stref)=@_;
-	my $sub = $subname eq 'main' ? 'bondv1' : 'timemanager';
+	my $sub = $subname eq 'main' ? 'bondv1' : ($subname eq 'vertical' ? 'vertical' : 'timemanager');
 	if ($stage==1) {
 #		return $stref->{'IncludeFiles'};
 #		return get_kv_for_all_elts_in_set($stref->{'IncludeFiles'},'Commons');
 		return get_kv_for_all_elts_in_set($stref->{'IncludeFiles'},'RefactoredCode');
 	} elsif ($stage==2) {		
-  		return pp_annlines($stref->{'Subroutines'}{$sub}{'AnnLines'},1);
-	} elsif ($stage==3) {
+  		return join("\n",@{ pp_annlines($stref->{'Subroutines'}{$sub}{'RefactoredCode'},1)});
+	} elsif ($stage==3) {# THIS STAGE BREAKS 'vertical'!
   		return join("\n",@{ pp_annlines($stref->{'Subroutines'}{$sub}{'RefactoredCode'},0) });			
 	} elsif ($stage==4 or $stage==5) {		
   		return join("\n",@{ pp_annlines($stref->{'Subroutines'}{$sub}{'RefactoredCode'},1) });
@@ -270,7 +271,9 @@ sub {
 	}
 }	
 );
-#die;
+
+
+
 #	die Dumper(sort keys %{$stref});#->{'Subroutines'});#->{'RefactoredSources'});
 #   print '=' x 80, "\n";
 #   map {say Dumper($_->[1]) } @{ $stref->{'Subroutines'}{'press'}{'AnnLines'} };
@@ -363,7 +366,7 @@ sub parse_args {
 	$V = ( $opts{'v'} ) ? 1 : 0;
 	$I = ( $opts{'i'} or $V ) ? 1 : 0;
 	$W = ( $opts{'w'} or $V ) ? 1 : 0;
-	$refactor_toplevel_globals=( $opts{'g'} ) ? 1 : 0;
+	$refactor_toplevel_globals=( $opts{'g'} ) ? 1 : 0; # Global from Config
 # Currently broken	
 	if ( $opts{'G'} ) {
 		print "Generating docs...\n";

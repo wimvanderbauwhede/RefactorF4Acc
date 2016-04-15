@@ -135,6 +135,7 @@ sub _process_src {
             # Skip blanks
         $line =~ /^\s*$/ && next;
             # Translate pragma
+            
         if ( $line =~ /^\!\s*\$(?:ACC|RF4A)\stranslate\s(\w+)/i ) { 
             $translate_to=$1;
         }             
@@ -155,7 +156,8 @@ sub _process_src {
                 }
             }
             
-            # Skip comments 
+            # Skip comments
+         $line!~/^\s*contains\s*$/i &&     
             $line =~ /^\s*[C\*\!]/i && next;
             
         # Tests for free or fixed form
@@ -417,7 +419,7 @@ sub _process_src {
             };
             
             $line =~/^\s*contains\s*$/ &&  do {
-            	$in_contains=1;
+            	$in_contains=1; 
             };
                      
             if ($is_module) {
