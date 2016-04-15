@@ -26,6 +26,7 @@ use Exporter;
 @RefactorF4Acc::Parser::Expressions::EXPORT_OK = qw(
   &parse_expression
   &emit_expression
+  &get_vars_from_expression
 );
 
 my $DBG=0;
@@ -142,7 +143,25 @@ sub emit_expression {(my $ast, my $expr_str)=@_;
 	} else {
 		$expr_str.=join(';',@expr_chunks);
 	}
-	return $expr_str;	
-	
+	return $expr_str;		
 }
+
+sub get_vars_from_expression {(my $ast, my $vars)=@_;
+	for my  $idx (0 .. scalar @{$ast}-1) {		
+		my $entry = $ast->[$idx];
+		if (ref($entry) eq 'ARRAY') {
+			$vars = get_vars_from_expression( $entry, $vars);			
+		} else {			
+			if ($entry eq '$' ) {
+				my $mvar = $ast->[$idx+1];
+				$vars->{$mvar}='Scalar';					
+			} elsif ($entry eq '@') {
+				my $mvar = $ast->[$idx+1];
+				$vars->{$mvar}='Array';					
+			} 
+		}				
+	}
+	return $vars;		
+}
+
 1;
