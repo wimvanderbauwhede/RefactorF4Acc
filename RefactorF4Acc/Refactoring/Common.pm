@@ -1397,13 +1397,15 @@ sub stateful_pass {
     (my $stref, my $f, my $pass_actions, my $state, my $info ) = @_;
     local $Data::Dumper::Indent =0;
     local $Data::Dumper::Terse=1;
-    say "STATEFUL PASS ".Dumper($info)." for $f" if $V;
+    say "STATEFUL PASS ".Dumper($info)." for $f" if $V; 
     my $sub_or_func_or_mod = sub_func_incl_mod( $f, $stref );
-    my $Sf                 = $stref->{$sub_or_func_or_mod}{$f};
+     
+    my $Sf                 = $stref->{$sub_or_func_or_mod}{$f};    
     my $annlines           = get_annotated_sourcelines( $stref, $f );
+    
     my $nextLineID         = scalar @{$annlines} + 1;
     my $new_annlines=[];
-    for my $annline ( @{$annlines} ) {
+    for my $annline ( @{$annlines} ) {    	
         (my $new_annline, $state) = $pass_actions->($annline, $state);
         push @{$new_annlines}, $new_annline;
     }

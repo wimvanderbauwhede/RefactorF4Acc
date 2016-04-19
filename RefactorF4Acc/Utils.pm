@@ -37,7 +37,15 @@ use Exporter;
     &get_vars_from_set
     &get_var_record_from_set
     &get_kv_for_all_elts_in_set
+    &comment
+    $BLANK_LINE
 );
+
+our $BLANK_LINE = ['',{'Blank'=>1,'Ref'=>1}];
+
+sub comment { (my $comment)=@_;
+	return ['! '.$comment, {'Comment'=>1,'Ref'=>1}];
+}
 
 sub sub_func_incl_mod {
     ( my $f, my $stref ) = @_;

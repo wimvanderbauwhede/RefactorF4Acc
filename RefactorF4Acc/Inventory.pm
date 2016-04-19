@@ -136,14 +136,14 @@ sub _process_src {
         $line =~ /^\s*$/ && next;
             # Translate pragma
             
-        if ( $line =~ /^\!\s*\$(?:ACC|RF4A)\stranslate\s(\w+)/i ) { 
+        if ( $line =~ /^\s*\!\s*\$(?:ACC|RF4A)\stranslate\s(\w+)/i ) { 
             $translate_to=$1;
         }             
 
         # Detect blocks. FIXME: we need to distinguish between the Subroutine and KernelWrapper pragmas!
             if ( $has_blocks == 0 ) {
-                if ( $line =~ /^[Cc\*\!]\s+BEGIN\sSUBROUTINE\s(\w+)/ 
-        or $line =~ /^\!\s*\$(?:ACC|RF4A)\s+(Subroutine|KernelWrapper)\s+(\w+)/i ){
+                if ( $line =~ /^(?:[Cc\*]|\s*\!)\s+BEGIN\sSUBROUTINE\s(\w+)/ 
+        or $line =~ /^\s*\!\s*\$(?:ACC|RF4A)\s+(Subroutine|KernelWrapper)\s+(\w+)/i ){
                         my $block_type=$1;
                          my $sub=$2;
                          say 'Detected block: '."$block_type $sub" if $V;
@@ -156,9 +156,8 @@ sub _process_src {
                 }
             }
             
-            # Skip comments
-         $line!~/^\s*contains\s*$/i &&     
-            $line =~ /^\s*[C\*\!]/i && next;
+            # Skip comments              
+            $line =~ /^(?:[CD\*]|\s*\!)/i && next;
             
         # Tests for free or fixed form
         if ($free_form==0) {
@@ -250,6 +249,7 @@ sub _process_src {
 	                    	$stref->{'Program'}=$src;	                    	
 	                    } elsif ($in_contains==1) {
 	                    	$Ssub->{'Container'} = $container;
+	                    	push @{ $stref->{'Subroutines'}{$container}{'Contains'} }, $sub;
 	                    } 
 	                    
 	                    if ($translate_to ne '') {
@@ -418,8 +418,9 @@ sub _process_src {
                 }
             };
             
-            $line =~/^\s*contains\s*$/ &&  do {
+            $line =~/^\s+contains\s*$/ &&  do {
             	$in_contains=1; 
+            	$stref->{'Subroutines'}{$container}{'Contains'} =[];
             };
                      
             if ($is_module) {

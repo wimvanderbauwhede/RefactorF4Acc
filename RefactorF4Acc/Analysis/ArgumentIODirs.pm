@@ -1003,7 +1003,7 @@ sub update_argument_io_direction_all_subs {
 	(my $stref)=@_;
 	  for my $f ( keys %{ $stref->{'Subroutines'} } ) {
 	  	next if $f eq '';
-	  	say "UPDATE IODIR IN $f";
+	  	say "UPDATE IODIR IN $f" if $V;
 	  	$stref = _update_argument_io_direction($stref, $f); 
 	  }
 	return $stref;

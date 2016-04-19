@@ -1,7 +1,7 @@
 package RefactorF4Acc::Parser::SrcReader;
 use v5.16;
 use RefactorF4Acc::Config;
-use RefactorF4Acc::Utils qw( sub_func_incl_mod );
+use RefactorF4Acc::Utils qw( sub_func_incl_mod show_status);
 use RefactorF4Acc::Refactoring::Common;
 use F95Normaliser qw( normalise_F95_src );
 
@@ -60,7 +60,9 @@ sub read_fortran_src {
                 my $status  = $stref->{$srctype}{$item}{'Status'};
 
                 # if one of them is still UNREAD, need to read.
+#                say $no_need_to_read , ' ',$item,' ',show_status($status) ;
                 $no_need_to_read *= ( $status != $UNREAD );
+                
             }
         }
         my $need_to_read = 1 - $no_need_to_read;
@@ -816,7 +818,8 @@ Suppose we don't:
 # I'm assuming that $srctype can only be Subroutines or Modules
 sub _pushAnnLine {
     ( my $stref, my $f, my $srctype, my $line, my $free_form ) = @_;
-
+#    say "_pushAnnLine  <$f> ";
+if ($stref->{'Subroutines'}{$f}{'Status'}<$PARSED) {
     #		print "HERE: $line\n";
     my $pline = _procLine( $line, $free_form );
     
@@ -840,9 +843,8 @@ sub _pushAnnLine {
                 }
             }
 
-            $f =
-              $pline->[1]{'SubroutineSig'}[1];   #[$spaces, $subname,[@subargs]]
-            $stref->{$srctype}{$f}{'AnnLines'} = [];
+            $f = $pline->[1]{'SubroutineSig'}[1];
+            $stref->{$srctype}{$f}{'AnnLines'} = [] unless $stref->{'Subroutines'}{$f}{'Status'} == $PARSED;
             
         } elsif ( exists $pline->[1]{'FunctionSig'} ) {
             if ( $f ne '' ) {
@@ -863,7 +865,8 @@ sub _pushAnnLine {
             $stref->{'Subroutines'}{$f}{'AnnLines'} = [];
         }
     }
-    push @{ $stref->{$srctype}{$f}{'AnnLines'} }, $pline;            
+    push @{ $stref->{$srctype}{$f}{'AnnLines'} }, $pline unless $stref->{'Subroutines'}{$f}{'Status'} == $PARSED;;         
+}   
     return ( $stref, $f, $srctype );
 }    # END of  _pushAnnLine()
 
@@ -970,10 +973,10 @@ sub _procLine {
     my $info = { 'Ref' => 0 };    # means 0 refactorings
 
     # Detect and standardise comments
-    if ( $line!~/^\s*contains\s*$/ and ($line =~ /^[CD\*\!]/i or $line =~ /^\ {6}\s*\!/i )) {
-        $line =~ s/^\s*[CcDd\*\!]/! /;
+    if ( $line =~ /^(?:[CD\*]|\s*\!)/i or $line =~ /^\ {6}\s*\!/i ) {
+        $line =~ s/^(?:[CcDd\*]|\s*\!)/! /;
         $info->{'Comments'} = 1;
-	} elsif ( $line =~ /^\s*contains\s*$/) {
+	} elsif ( $line =~ /^\s+contains\s*$/) {
 		$info->{'Contains'}=1;       
     } elsif ( $line =~ /.\!.*$/ ) {    # FIXME: trailing comments are discarded!
         my $tline = $line;

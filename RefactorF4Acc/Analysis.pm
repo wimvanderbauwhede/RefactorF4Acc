@@ -142,9 +142,16 @@ sub _analyse_variables {
 	my $Sf = $stref->{'Subroutines'}{$f};
 	say "_analyse_variables($f)" if $V;
 #	die Dumper($Sf->{'Vars'}) if $f eq 'gser';
-	local $V = ($f eq 'gser') ? 1:0;
+	
+	
+#	my $state = [ $stref, $f, {} ];
+#	
+#	( $stref, $state ) =
+#	  stateful_pass( $stref, $f, $__analyse_vars_on_line, $state, '_analyse_variables() ' . __LINE__ );		
+# (my $stref, my $f, my $pass_actions, my $state, my $info ) = @_;
 	my $__analyse_vars_on_line = sub {
 		( my $annline, my $state ) = @_;
+#		say Dumper($annline);
 		( my $line,    my $info )  = @{$annline};
 		if (   exists $info->{'Assignment'}
 			or exists $info->{'SubroutineCall'}
@@ -153,7 +160,6 @@ sub _analyse_variables {
 			or exists $info->{'BeginDo'}  
 			)
 		{
-
 			( my $stref, my $f, my $identified_vars ) = @{$state};
 			
 			my $Sf = $stref->{'Subroutines'}{$f};
@@ -267,7 +273,7 @@ sub _analyse_variables {
 											my $subset =
 				  in_nested_set( $stref->{'Subroutines'}{$container}, 'Vars', $mvar );
 				if ( $subset ne '' ) {
-					say "FOUND VAR $mvar in CONTAINER $container"; 
+					say "FOUND VAR $mvar in CONTAINER $container" if $V; 
 					# If so, this is treated as an ExGlob
 					push @{ $stref->{'Subroutines'}{$f}
 											  {'ExGlobArgDecls'}{'List'} },
@@ -323,10 +329,10 @@ sub _analyse_variables {
 	};
 	
 	my $state = [ $stref, $f, {} ];
+	
 	( $stref, $state ) =
 	  stateful_pass( $stref, $f, $__analyse_vars_on_line, $state,
-		'_analyse_variables() ' . __LINE__ );
-		
+		'_analyse_variables() ' . __LINE__ );		
 	if ( defined $stref->{'Subroutines'}{$f}{'ExGlobArgDecls'}
 		and scalar @{ $stref->{'Subroutines'}{$f}{'ExGlobArgDecls'}{'List'} } >
 		0 )

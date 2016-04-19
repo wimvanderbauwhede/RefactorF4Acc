@@ -149,7 +149,7 @@ test(1,$stref, sub { (my $stref)=@_;
 	if ($subname eq 'main') {
 		return (scalar keys %{$stref->{'Subroutines'}} == 22) ? 'PASS' : 'FAIL: '.Dumper(keys %{$stref->{'Subroutines'}});
 	} else {
-		say "#Subroutines in $subname codebase: ",scalar keys %{$stref->{'Subroutines'}};
+#		say "#Subroutines in $subname codebase: ",scalar keys %{$stref->{'Subroutines'}};
 		return 'PASS' ;
 	}
 }, sub {(my $stref)=@_;
@@ -171,6 +171,7 @@ sub {
 	}
 }
 );
+
 	$stref = refactor_marked_blocks_into_subroutines( $stref );
 test(3,$stref,
 sub { return 'PASS';
@@ -180,10 +181,6 @@ sub {
 	return 'To be tested later, for now LES source has no blocks.';
 }
 );	
-#	say Dumper( $stref->{'Subroutines'}{'timemanager'} );
-#	show_annlines($stref->{'Subroutines'}{'particles_main_loop'}{'AnnLines'},1);
-#	die;
-#say 'FINAL'; say Dumper( $stref->{'Subroutines'}{'richardson'} );say 'DONE';die;
 
 	if ( $call_tree_only  ) {
 		$stref->{'PPCallTree'}=[];
@@ -191,9 +188,9 @@ sub {
 		map {print $_}  @{ $stref->{'PPCallTree'} };
 		exit(0);
 	}
-#	$stref->{'NId'}=0;
-#	$stref->{'Nodes'}={};
+
 	$stref = build_call_graph($subname, $stref);
+	
 test(4,$stref,
 sub { return 'PASS';
 },
@@ -203,20 +200,16 @@ sub {
 }
 );	
 	
-#	die Dumper($stref->{'Nodes'});
-
-    
     # Analyse the source
     my $stage=0;
 	$stref = analyse_all($stref,$subname, $stage);
-		
-#		die Dumper($stref->{'Subroutines'}{'hanna1'}{'Globals'});#{$commoninc});
+			
 test(5,$stref,
 sub { return 'PASS';
 },
 sub {
 	(my $stref)=@_;
-	my $sub = $subname eq 'main' ? 'press' : 'timemanager';
+	my $sub = $subname eq 'main' ? 'bondv1' : ($subname eq 'vertical' ? 'init' : 'timemanager');
 	if ($stage==1) {
 		return get_kv_for_all_elts_in_set($stref->{'IncludeFiles'},'Root');
 	} elsif ($stage==2) {		
@@ -238,10 +231,7 @@ sub {
 }
 );	
 
-#   say 'AFTER analyse_all()';
-#say Dumper( $stref->{Subroutines}{vertical}{RefactoredCode} );die;
-# Do here, the extracted sub is still fine ...
-#	die Dumper(sort keys %{$stref});
+#die 'AFTER analyse_all()';
 
 #WV20150710 I worked my way through the code to here and indeed, implicitly declared non-global vars still need to be captured
 #die 'WV20151005:  I worked my way through the code to here and globals are not resolved!';
@@ -251,7 +241,7 @@ sub {
 	$stref = refactor_all($stref,$subname, $stage);
 
 test(6,$stref,
-sub { return 'FAIL';
+sub { return 'PASS';
 },
 sub {
 	(my $stref)=@_;
@@ -686,7 +676,7 @@ sub test { (my $test_num, my $stref, my $test_subref, my $fail_subref) = @_;
 				die "! Test ".$test_descs[$test_num-1].": $res\n\n".$output."\n" ;
 			}
 		} else {
-			say "Test $test_num: ".$res;
+			say "! Test $test_num: ".$res;
 		}	 
 		die if $last_test==$test_num;
 	}	

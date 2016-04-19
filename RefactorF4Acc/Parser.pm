@@ -45,7 +45,7 @@ sub parse_fortran_src {
 
 	#    local $V=1;
 	print "parse_fortran_src(): PARSING $f\n " if $V;
-
+#say 'INIT PRE:'.Dumper($stref->{'Subroutines'}{'init'}{'AnnLines'}) ; # OK!
 ## 1. Read the source and do some minimal processsing, unless it's already been done (i.e. for extracted blocks)
 	$stref = read_fortran_src( $f, $stref );    #
 	print "DONE read_fortran_src( $f )\n" if $V;
@@ -55,6 +55,9 @@ sub parse_fortran_src {
 	  $is_incl ? ( $stref->{'IncludeFiles'}{$f}{'InclType'} eq 'External' ) : 0;
 
 	print "SRC TYPE for $f: $sub_or_incl_or_mod\n" if $V;
+#	say 'INIT:'.Dumper($stref->{'Subroutines'}{'init'}{'AnnLines'}) ;
+#	say 'POST:'.Dumper($stref->{'Subroutines'}{'post'}{'AnnLines'}) ;
+#	die if $f eq 'post';
 	if ( $sub_or_incl_or_mod ne 'ExternalSubroutines'
 		and not $is_external_include )
 	{
@@ -97,6 +100,7 @@ sub parse_fortran_src {
 			$stref = _parse_subroutine_and_function_calls( $f, $stref );
 			$stref->{$sub_or_incl_or_mod}{$f}{'Status'} = $PARSED;
 			print "DONE PARSING $sub_or_incl_or_mod $f\n" if $V;
+#			say "AFTER PARSING $f:".Dumper($stref->{'Subroutines'}{'init'}{'AnnLines'}) ;
 		} else {    # includes
 ## 6. For includes, parse common blocks and parameters, create $stref->{'IncludeFiles'}{$inc}{'Commons'}
 			$stref = _get_commons_params_from_includes( $f, $stref );
@@ -118,9 +122,9 @@ sub parse_fortran_src {
 	#
 
 	print
-"LEAVING parse_fortran_src( $f ) with Status $stref->{$sub_or_incl_or_mod}{$f}{'Status'}\n"
+"LEAVING parse_fortran_src( $f ) with Status ".show_status($stref->{$sub_or_incl_or_mod}{$f}{'Status'})."\n"
 	  if $V;
-	  
+#	  say "AFTER $f:".Dumper($stref->{'Subroutines'}{'init'}{'AnnLines'}) ;
 	return $stref;
 	
 }    # END of parse_fortran_src()
@@ -849,6 +853,7 @@ sub _separate_blocks {
 sub _parse_subroutine_and_function_calls {
 	( my $f, my $stref ) = @_;
 	print "PARSING SUBROUTINE/FUNCTION CALLS in $f\n" if $V;
+	
 	my $pnid               = $stref->{'NId'};
 	my $sub_or_func_or_mod = sub_func_incl_mod( $f, $stref );
 	my $Sf                 = $stref->{$sub_or_func_or_mod}{$f};
@@ -1007,7 +1012,8 @@ sub _parse_subroutine_and_function_calls {
 						or $Sname->{'Status'} < $PARSED
 						or $gen_sub )
 					{
-						print "\tFOUND SUBROUTINE CALL $name in $f\n" if $V;
+						print "\tFOUND SUBROUTINE CALL $name in $f with STATUS=".show_status($Sname->{'Status'}).", PARSING\n" if $V;
+#						say "STATE OF init:".Dumper($stref->{'Subroutines'}{'init'}{'AnnLines'}) ;
 						$stref = parse_fortran_src( $name, $stref );
 					}
 				}

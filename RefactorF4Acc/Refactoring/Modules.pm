@@ -82,17 +82,65 @@ sub add_module_decls { (my $stref)=@_;
             
             my $mod_contains = ["contains\n",{'Ref'=>1}];
             my @refactored_source_lines=();
-            for my $f (keys %{  $stref->{'SourceContains'}{$src} }) {            	
-            	die if $f=~/^\s*$/;            	
-                my $annlines = get_annotated_sourcelines( $stref, $f );
-                
-                my $refactored_lines = create_refactored_source( $stref,$annlines );
-                @refactored_source_lines=(@refactored_source_lines,@{$refactored_lines})
+            # Normally we simply concatenate all lines for every $f in SourceContains
+            # However, if this is a Program that contains subroutines, we need to do this differently
+            # And in principle a source file can contain a combination.
+            if ($no_module) { # This means that $src is a source file with a Program 
+            	# What is the Program?
+#            	say "PROGRAM:".Dumper($stref->{'Program'});
+#            	say "PROGRAM CONTAINS:".Dumper($stref->{'SourceContains'}{$stref->{'Program'}});
+            	my $prog_name='PROGRAM_NAME_UNKNOWN';
+				for my $f (keys %{  $stref->{'SourceContains'}{$src} }) {            	
+	            	if(exists $stref->{'Subroutines'}{$f}{'Program'}
+	            	and $stref->{'Subroutines'}{$f}{'Program'}==1
+	            	) {
+	            		$prog_name=$f;
+	            		last;
+	            	}
+	            }
+#	            say $prog_name;
+#	            say Dumper($stref->{'Subroutines'}{$prog_name}{'Program'});
+	             my $annlines = get_annotated_sourcelines( $stref, $prog_name );
+#	             say Dumper($annlines);
+	            	my $before=1;
+            	my @prog_p1=();
+            	my @prog_p2=();
+            	my @contained_subs=();
+            	for my $annline (@{$annlines}) {            		
+            		my $info = $annline->[1];
+            		if ($before) {
+            			push @prog_p1, $annline;
+            		} else {
+            			push @prog_p2, $annline;
+            		}
+            		if (exists $info->{'Contains'} ) {            			
+            				$before=0;
+            		}
+            	}
+            	for my $sub (@{$stref->{'Subroutines'}{$prog_name}{'Contains'}}) {
+#            		say "SUB: $sub";
+            		my $annlines = get_annotated_sourcelines( $stref, $sub );
+            		@contained_subs=(@contained_subs,$BLANK_LINE, comment("CONTAINED SUB $sub"),$BLANK_LINE,@{$annlines},$BLANK_LINE);
+            	}  	            
+#	            $stref->{'RefactoredCode'}{$src}=[@prog_p1,@contained_subs,@prog_p2];
+	            @refactored_source_lines=(  @prog_p1,@contained_subs,@prog_p2 );
+#	            show_annlines($stref->{'RefactoredCode'}{$src},0);
+            	
+            } else {
+	            for my $f (keys %{  $stref->{'SourceContains'}{$src} }) {            	
+	            	die if $f=~/^\s*$/;            	
+	                my $annlines = get_annotated_sourcelines( $stref, $f );
+	                
+	                my $refactored_lines = create_refactored_source( $stref,$annlines );
+	                @refactored_source_lines=(@refactored_source_lines,@{$refactored_lines})
+	            }
             }
             if (!$no_module) {
                 $stref->{'RefactoredCode'}{$src}=[$mod_header, @mod_uses,$mod_contains, @refactored_source_lines,$mod_footer];
             } else { 
-            	croak "FIX THIS FOR PROGRAM CONTAINING SUBS!";
+            	
+            	# In case it is a program
+            	# We add the 'use' declarations after the program signature             	            	 
             	my $before=1;
             	my @prog_p1=();
             	my @prog_p2=();
@@ -104,6 +152,7 @@ sub add_module_decls { (my $stref)=@_;
 #            		and exists $info->{Signature}{Name} ) {
 #            		 $prog_name = $info->{Signature}{Name};
 #            		}
+#say $annline->[0];
             		if ($before) {
             			push @prog_p1, $annline;
             		} else {
@@ -112,13 +161,16 @@ sub add_module_decls { (my $stref)=@_;
             		if (exists $info->{'Signature'} and exists $info->{'Signature'}{'Program'}) {
             			
             			my $progname = $info->{'Signature'}{'Name'};            			
-            			if ( exists $stref->{'Subroutines'}{$progname}{'Program'}) {	
+            			if ( exists $stref->{'Subroutines'}{$progname}{'Program'}
+            			and $stref->{'Subroutines'}{$progname}{'Program'}==1
+            			) {	
             				$before=0;
             			}            		
             		}
             	}            	
-            	$stref->{'RefactoredCode'}{$src}=[@prog_p1,@mod_uses,@prog_p2];  
-            	 	
+            	$stref->{'RefactoredCode'}{$src}=[@prog_p1,@mod_uses,@prog_p2];
+#            	die;  
+#            	show_annlines($stref->{'RefactoredCode'}{$src},0);die;	 	
             }        
             
     } # loop over all source files

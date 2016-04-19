@@ -71,6 +71,7 @@ our %Config=();
 sub read_config { 
 	(my $cfgrc)=@_;
 	open my $CFG, '<', $cfgrc or die $!,': ',$cfgrc;
+	say "INFO: CONFIG FILE $cfgrc:" if $I;
 	for my $line (<$CFG>) {
 #	say "LINE:".$line;
 	next if $line=~/^\s*#/;
@@ -79,7 +80,7 @@ sub read_config {
 	chomp $line;
 	$line=~s/\s+$//;
 	(my $k, my $v) = split(/\s*\=\s*/,$line);
-	say "$k => $v";
+	say "INFO: $k => $v" if $I;
 	if ($v=~/,/) {
 		my @vs=split(/\s*,\s*/,$v);
 		$Config{$k}=[@vs];
