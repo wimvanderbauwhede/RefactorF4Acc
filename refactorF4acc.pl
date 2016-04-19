@@ -158,17 +158,14 @@ test(1,$stref, sub { (my $stref)=@_;
     # Parse the source
     
 	$stref = parse_fortran_src( $subname, $stref );
-	
+#	die;
 test(2,$stref,
 sub { return 'PASS';
 },
 sub {
 	(my $stref)=@_;
-	if ($subname eq 'main') {
-	return [@{$stref->{Subroutines}{$subname}{AnnLines}},"\n\nPRESS\n\n",@{$stref->{Subroutines}{press}{AnnLines}}];
-	} else {
-		return $stref->{Subroutines}{$subname}{AnnLines};
-	}
+	my $sub = $subname eq 'main' ? 'bondv1' : ($subname eq 'vertical' ? 'vertical' : 'timemanager');
+	return $stref->{Subroutines}{$sub}{'Status'};
 }
 );
 

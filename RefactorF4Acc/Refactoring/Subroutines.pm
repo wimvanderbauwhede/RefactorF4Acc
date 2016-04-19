@@ -44,7 +44,7 @@ Subroutines
 
 sub refactor_all_subroutines {
     ( my $stref ) = @_;
-    for my $f ( keys %{ $stref->{'Subroutines'} } ) {
+    for my $f ( keys %{ $stref->{'Subroutines'} } ) { 
         next if ($f eq '' or not defined $f);
         my $Sf = $stref->{'Subroutines'}{$f};                
         if ( not defined $Sf->{'Status'} ) {
@@ -59,8 +59,7 @@ sub refactor_all_subroutines {
 #            $stref = refactor_called_functions($stref, $f);
         } else {
             $stref = _refactor_subroutine_main($stref, $f);
-        }
-      
+        }      
     }
 
     return $stref;
@@ -95,7 +94,9 @@ This is a node called 'RefactoredSubroutineCall'
 
 sub _refactor_subroutine_main {
     ( my $stref, my $f ) = @_;
-#    local $V=1;
+    local $V=1;
+    local $I=1;
+    local $W=1;
     if ($V) {
         print "\n\n";
         print "#" x 80, "\n";
@@ -114,7 +115,9 @@ sub _refactor_subroutine_main {
     say "get_annotated_sourcelines($f)" if $V;
     my $annlines = $Sf->{'RefactoredCode'};
     
-    if ( $Sf->{'HasCommons'} ) { 
+    if ( $Sf->{'HasCommons'} or (
+    exists $Sf->{'Contains'} and
+    scalar @{$Sf->{'Contains'}}>0)) { 
         print "REFACTORING COMMONS for SUBROUTINE $f\n" if $V;
         if ( $Sf->{'RefactorGlobals'} == 1 ) {
             say "_refactor_globals_new($f)" if $V;
@@ -268,6 +271,9 @@ sub _refactor_globals {
 sub _refactor_calls_globals {
     ( my $stref, my $f, my $annlines ) = @_;
 #    my $annlines = get_annotated_sourcelines($stref,$f);
+local $V =1;
+local $I =1;
+local $W =1; 
     print "REFACTORING CALLS WITH GLOBALS in $f\n" if $V;
     my $rlines      = [];
 #    local $V=1;
@@ -398,9 +404,9 @@ sub _refactor_globals_new {
  	my $inc_counter = scalar keys %{$Sf->{'Includes'}};
     for my $annline ( @{$annlines} ) {
         (my $line, my $info) = @{ $annline };
-        
-        print '*** ' . join( ', ', map {"$_ => ".Dumper($info->{$_})} keys(%{$info}) ) . "\n" if $V;
-        print '*** ' . $line . "\n" if $V;
+        show_annlines([$annline],1);
+#        print '*** ' . join( ', ', map {"$_ => ".Dumper($info->{$_})} keys(%{$info}) ) . "\n" if $V;
+#        print '*** ' . $line . "\n" if $V;
         my $skip = 0;
 
         if ( exists $info->{'Signature'} ) {
@@ -466,8 +472,8 @@ sub _refactor_globals_new {
 #            $skip = 1;
 #        }
 
-        if ( exists $info->{'SubroutineCall'} ) {
-            # simply tag the common vars onto the arguments
+        if ( exists $info->{'SubroutineCall'} ) { 
+            # simply tag the common vars onto the arguments            
             $rlines = _create_refactored_subroutine_call( $stref, $f, $annline, $rlines );        
             $skip = 1;
         }

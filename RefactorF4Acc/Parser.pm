@@ -100,7 +100,7 @@ sub parse_fortran_src {
 			$stref = _parse_subroutine_and_function_calls( $f, $stref );
 			$stref->{$sub_or_incl_or_mod}{$f}{'Status'} = $PARSED;
 			print "DONE PARSING $sub_or_incl_or_mod $f\n" if $V;
-#			say "AFTER PARSING $f:".Dumper($stref->{'Subroutines'}{'init'}{'AnnLines'}) ;
+#			say "AFTER PARSING $f:".Dumper($stref->{'Subroutines'}{'vertical'}{'AnnLines'}) ; croak if $f eq 'vertical';
 		} else {    # includes
 ## 6. For includes, parse common blocks and parameters, create $stref->{'IncludeFiles'}{$inc}{'Commons'}
 			$stref = _get_commons_params_from_includes( $f, $stref );
@@ -124,7 +124,7 @@ sub parse_fortran_src {
 	print
 "LEAVING parse_fortran_src( $f ) with Status ".show_status($stref->{$sub_or_incl_or_mod}{$f}{'Status'})."\n"
 	  if $V;
-#	  say "AFTER $f:".Dumper($stref->{'Subroutines'}{'init'}{'AnnLines'}) ;
+	  say "AFTER $f:".Dumper($stref->{'Subroutines'}{'vertical'}{'AnnLines'}) ;
 	return $stref;
 	
 }    # END of parse_fortran_src()
@@ -1076,11 +1076,15 @@ sub _parse_subroutine_and_function_calls {
 			}
 
 			$srcref->[$index] = [ $line, $info ];
+#			say "$index\t$line\t".Dumper($info) if $f eq 'vertical';
 		}    # loop over all annlines
 
 		#        $Sf->{'CalledSubs'}=\%called_subs;
+		$stref->{$sub_or_func_or_mod}{$f}{'AnnLines'}=[@{$srcref}];
 	}
 	
+#	die Dumper($srcref) if $f eq 'vertical';
+#			croak Dumper($stref->{'Subroutines'}{'vertical'}{'AnnLines'}).';'.$sub_or_func_or_mod.' '.$f.' ' if $f eq 'vertical';
 	return $stref;
 }    # END of parse_subroutine_and_function_calls()
 
