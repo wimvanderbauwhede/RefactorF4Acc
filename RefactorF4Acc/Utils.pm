@@ -21,6 +21,7 @@ use Exporter;
 
 @RefactorF4Acc::Utils::EXPORT = qw(
     %F95_reserved_words
+    %F95_intrinsics
     &sub_func_incl_mod
     &show_annlines
     &pp_annlines
@@ -419,6 +420,12 @@ sub get_kv_for_all_elts_in_set {
 	}
 	return $results;
 }
+# There are many more!
+our @F95_intrinsics_list = qw(
+    random_number
+    random_seed
+); 
+our %F95_intrinsics = map { $_=>1 } @F95_intrinsics_list;
 
 our @F95_reserved_words_list = qw( 
 assign backspace block data call close common continue data dimension do else else if end endfile endif entry equivalence external 
@@ -692,6 +699,7 @@ and or lt gt ne le ge eq
     zsqrt 
 );
 our %F95_reserved_words = map { $_=>1 } @F95_reserved_words_list ; 
+
 
 
 1;

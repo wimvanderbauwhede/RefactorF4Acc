@@ -164,8 +164,8 @@ sub { return 'PASS';
 },
 sub {
 	(my $stref)=@_;
-	my $sub = $subname eq 'main' ? 'bondv1' : ($subname eq 'vertical' ? 'vertical' : 'timemanager');
-	return $stref->{Subroutines}{$sub}{'Status'};
+	my $sub = $subname eq 'main' ? 'bondv1' : ($subname eq 'vertical' ? 'post' : 'timemanager');
+	return pp_annlines($stref->{Subroutines}{$sub}{'AnnLines'},1);
 }
 );
 
@@ -200,7 +200,7 @@ sub {
     # Analyse the source
     my $stage=0;
 	$stref = analyse_all($stref,$subname, $stage);
-			
+			 
 test(5,$stref,
 sub { return 'PASS';
 },
@@ -276,7 +276,7 @@ sub {
    for my $kernel_wrapper (keys %{$stref->{'KernelWrappers'}}) {
         $stref = outer_loop_variable_analysis($kernel_wrapper,$stref);
     }
-    say 'AFTER outer_loop_variable_analysis()';
+#    say 'AFTER outer_loop_variable_analysis()';
 #    map {say} keys $stref->{Subroutines}{LES_kernel_wrapper};
 #    say Dumper $stref->{Subroutines}{LES_kernel_wrapper}{RefactoredArgs};
 #   map {say $_->[0] } @{$stref->{Subroutines}{LES_kernel_wrapper}{RefactoredCode}};

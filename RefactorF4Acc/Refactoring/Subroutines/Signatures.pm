@@ -38,11 +38,12 @@ Subroutines
 sub create_refactored_subroutine_signature {
     ( my $stref, my $f, my $annline, my $rlines ) = @_;
     my $Sf        = $stref->{'Subroutines'}{$f};
+    
     my $info = $annline->[1];    
     my $args_ref = $Sf->{'RefactoredArgs'}{'List'};
     my $args_str = join( ',', @{$args_ref} );
     print "NEW ARGS: $args_str\n" if $V;
-#    die $args_str if $f eq 'map_set';
+#    die $args_str if $f eq 'post';
     my $rline = '';
     if ( $Sf->{'Program'} ) {
         $rline = '      program ' . $f;

@@ -246,7 +246,7 @@ sub _set_iodir_read_write {
 # -----------------------------------------------------------------------------
 sub _find_vars_w_iodir {
     ( my $line, my $args_ref, my $subref ) = @_;
-    
+    # So we just split this in chunks, which means we ignore any arrays or function calls!
     my @chunks = split( /\W+/, $line );
     
     for my $mvar (@chunks) {
@@ -465,7 +465,7 @@ sub _analyse_src_for_iodirs {
 			}
             # Skip the declarations
             if ( exists $info->{'VarDecl'} ) { next; }
-
+say "LINE3: $line\t".Dumper($info) if $f eq 'init';
             # Write & File open statements
             if (   $line =~ /^\s+(?:write|print|open)\s*\(\s*(.+)$/
                 or $line =~ /^\d+\s+(?:write|print|open)\s*\(\s*(.+)$/
@@ -499,7 +499,7 @@ sub _analyse_src_for_iodirs {
                 # It might be convenient to have both in $info; otoh we can get ExGlobArgs from the main table
                 
                 my $iodirs_from_call = _get_iodirs_from_subcall( $stref, $f, $info) ;
-                
+#                croak Dumper($iodirs_from_call) if $name =~/random/;
                 for my $var ( keys %{$iodirs_from_call} ) {
 
 # Damn Perl! exists $args->{$var}{'IODir'} creates the entry for $var if it did not exist!
@@ -651,7 +651,7 @@ sub _analyse_src_for_iodirs {
                 # First check the RHS for In
                 die "_analyse_src_for_iodirs(): RHS not defined inf $f: $line\n"
                   unless defined $rhs;
-                
+                # So anything on the RHS is "In", this is OK
                 $args = _find_vars_w_iodir( $rhs, $args, \&_set_iodir_read );
                 if (exists $args->{$var}) {
                 $args = _set_iodir_write( $var, $args );
@@ -885,10 +885,12 @@ sub parse_assignment {
 sub _get_iodirs_from_subcall {
     ( my $stref, my $f, my $info) = @_;
 	my $called_arg_iodirs={};
+	my $name  = $info->{'SubroutineCall'}{'Name'};
+	if (not exists $stref->{'ExternalSubroutines'}{$name}) {
     my $Sf = $stref->{'Subroutines'}{$f};
 	my $args = $Sf->{'RefactoredArgs'}{'Set'};
 #	say Dumper($info);
-    my $name  = $info->{'SubroutineCall'}{'Name'};
+    
     my $argmap = $info->{'SubroutineCall'}{'ArgMap'};
     my $Sname = $stref->{'Subroutines'}{$name};
 #    for my $expr (keys %{$argmap}) {
@@ -995,14 +997,21 @@ sub _get_iodirs_from_subcall {
                 }
             }
         }    
-    
-	return $called_arg_iodirs;
+} else { 
+#	croak "HERE".Dumper($info);
+	for my $arg (@{ $info->{'SubroutineCall'}{'Args'}{'List'} }) {
+		$called_arg_iodirs->{$arg}='InOut';
+	}
 }
+	return $called_arg_iodirs;
+} # END of _get_iodirs_from_subcall()
 
 sub update_argument_io_direction_all_subs {
 	(my $stref)=@_;
 	  for my $f ( keys %{ $stref->{'Subroutines'} } ) {
 	  	next if $f eq '';
+	  	next if exists $stref->{'ExternalSubroutines'}{$f};
+	  	next if $stref->{'Subroutines'}{$f}{'Program'}==1;
 	  	say "UPDATE IODIR IN $f" if $V;
 	  	$stref = _update_argument_io_direction($stref, $f); 
 	  }
@@ -1018,7 +1027,7 @@ sub _update_argument_io_direction {
 		if (exists $info->{'VarDecl'}) {
 			my $varname = $info->{'VarDecl'}{'Name'};
 			if (exists $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$varname}) {
-#							say $line;
+							say $line if $f eq 'vertical';
 #			say "INFO:".Dumper($info->{'VarDecl'});
 				
 #			say $varname;

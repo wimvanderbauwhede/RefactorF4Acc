@@ -72,6 +72,7 @@ sub analyse_all {
 
 	for my $f ( keys %{ $stref->{'Subroutines'} } ) { # Assuming Functions are just special subroutines
 		next if $f eq '';
+#		next if exists $stref->{'ExternalSubroutines'}{$f};
 		$stref = _map_call_args_to_sig_args( $stref, $f );
 	}
 	return $stref if $stage == 7;
@@ -141,7 +142,7 @@ sub _analyse_variables {
 	( my $stref, my $f ) = @_;
 	my $Sf = $stref->{'Subroutines'}{$f};
 	say "_analyse_variables($f)" if $V;
-#	die Dumper($Sf->{'Vars'}) if $f eq 'gser';
+#	die Dumper($Sf->{'Vars'}) if $f eq 'post';
 	
 	
 #	my $state = [ $stref, $f, {} ];
@@ -151,16 +152,22 @@ sub _analyse_variables {
 # (my $stref, my $f, my $pass_actions, my $state, my $info ) = @_;
 	my $__analyse_vars_on_line = sub {
 		( my $annline, my $state ) = @_;
-#		say Dumper($annline);
 		( my $line,    my $info )  = @{$annline};
 		if (   exists $info->{'Assignment'}
 			or exists $info->{'SubroutineCall'}
 			or exists $info->{'If'}
 			or exists $info->{'ElseIf'}
-			or exists $info->{'BeginDo'}  
+			or exists $info->{'Do'}
+			or exists $info->{'WriteCall'}
+			or exists $info->{'PrintCall'}
+			or exists $info->{'ReadCall'}
+			or exists $info->{'OpenCall'} 
+			or exists $info->{'CloseCall'} 
 			)
 		{
-			( my $stref, my $f, my $identified_vars ) = @{$state};
+
+		( my $stref, my $f, my $identified_vars ) = @{$state};
+#		say Dumper($annline) if $f eq 'post';
 			
 			my $Sf = $stref->{'Subroutines'}{$f};
 #			my @chunks = split( /[^\.\w]/, $line );
@@ -174,8 +181,8 @@ sub _analyse_variables {
 				my $maybe_orig_arg = in_nested_set( $Sf, 'OrigArgs', $mvar );
 				my $maybe_decl_orig_arg = exists  $Sf->{'DeclaredOrigArgs'}{'Set'}{$mvar} ? 'DeclaredOrigArgs' : '';
 				my $undecl_orig_arg = exists  $Sf->{'UndeclaredOrigArgs'}{'Set'}{$mvar} ? 1 : 0;
-#				say Dumper($stref->{'Subroutines'}{$f}{'UndeclaredOrigArgs'}) if $f eq 'gser' and $mvar eq 'a';
-#			die "LINE:\t$line => $mvar:".$maybe_orig_arg if $f eq 'gser' and $mvar eq 'a';
+#				
+#			say "LINE:\t$line => $mvar:".$maybe_orig_arg if $f eq 'post' ;
 			# Here it is still possible that the variables don't have any declarations
 			# If that is the case for OrigArgs we must type them via Implicits
 			# But should this not have happened already? No, because UndeclaredOrigArgs could be declared vi Includes,
@@ -280,7 +287,7 @@ sub _analyse_variables {
 										  $mvar;
 					my $decl = $stref->{'Subroutines'}{$container}{$subset}{'Set'}{$mvar}; 										  	
 										  $decl->{'Container'}=$container; 
-										  
+										  $decl->{'Indent'}='      '; # ad hoc!
 										$stref->{'Subroutines'}{$f}
 										  {'ExGlobArgDecls'}{'Set'}{$mvar} =
 										  $decl;
@@ -444,7 +451,7 @@ sub _map_call_args_to_sig_args { (my $stref, my $f ) = @_;
 		my $__map_call_args = sub {
 			( my $annline) = @_;
 			( my $line,    my $info )  = @{$annline};
-			if (exists $info->{'SubroutineCall'}) {
+			if (exists $info->{'SubroutineCall'} and not exists $info->{'SubroutineCall'}{'IsExternal'}) {
 				my $sub=$info->{'SubroutineCall'}{'Name'};
 #				say Dumper($info->{'SubroutineCall'}{'Args'}{'List'}).'<>'.Dumper($stref->{'Subroutines'}{$sub}{'OrigArgs'}{'List'});
 				$info->{'SubroutineCall'}{'ArgMap'}={};

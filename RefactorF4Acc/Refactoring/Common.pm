@@ -205,7 +205,7 @@ sub context_free_refactorings {
                 delete $info->{'ExGlobArgDecls'};
                 $info->{'Ref'} = 1; 
                 $info->{'Ann'} .= 'context_free_refactoring '. __LINE__ ."; ";
-                $line .= "  !".$info->{'Ann'};
+                $line .= "  ! ".$info->{'Ann'};
             } else {
                 die 'BOOM! ' . 'context_free_refactoring '. __LINE__ ."; ";
             }            
@@ -683,7 +683,7 @@ sub get_annotated_sourcelines {
     my $Sf = $stref->{$sub_or_func_or_inc}{$f};
 
     my $annlines = [];
-
+croak Dumper ($Sf) if not exists $Sf->{Status};
     if ( $Sf->{'Status'} == $PARSED ) {
         if ( not exists $Sf->{'RefactoredCode'} ) {
             $Sf->{'RefactoredCode'} = [];
@@ -1178,7 +1178,7 @@ sub emit_f95_var_decl {
 		confess('Argument to emit_f95_var_decl is not defined!');
 	}
     if ( ref($var_decl_rec) ne 'HASH' ) {
-        croak "NOT ARRAY in emit_f95_var_decl(".$var_decl_rec.")";
+        croak "NOT a HASH in emit_f95_var_decl(".$var_decl_rec.")";
     }
     my $spaces = $var_decl_rec->{'Indent'};# [0];
 #    ( my $type, my $attr, my $dim, my $intent_or_par ) =
@@ -1186,7 +1186,13 @@ sub emit_f95_var_decl {
       my $type = $var_decl_rec->{'Type'}; 
       if (not defined $type) {
       	croak Dumper($var_decl_rec);
-      }
+      } elsif(ref($type) eq 'HASH') {
+      	# Contains Type and Kind
+      	my $ttype=$type->{'Type'};
+      	my $tkind=$type->{'Kind'};
+      	$type= $ttype . (defined $tkind ?  "($tkind)" : '');      	
+      } 
+      
       my $attr= $var_decl_rec->{'Attr'}; 
       my $dim= $var_decl_rec->{'Dim'}; 
       

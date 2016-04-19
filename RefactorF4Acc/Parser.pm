@@ -124,7 +124,7 @@ sub parse_fortran_src {
 	print
 "LEAVING parse_fortran_src( $f ) with Status ".show_status($stref->{$sub_or_incl_or_mod}{$f}{'Status'})."\n"
 	  if $V;
-	  say "AFTER $f:".Dumper($stref->{'Subroutines'}{'vertical'}{'AnnLines'}) ;
+#	  say "AFTER $f:".Dumper($stref->{'Subroutines'}{'vertical'}{'AnnLines'}) ;
 	return $stref;
 	
 }    # END of parse_fortran_src()
@@ -415,11 +415,18 @@ sub _analyse_lines {
 			} elsif ( $line =~ /^\d*\s+(else\s+if)/ ) {
 				$info->{'ElseIf'} = 1;
 			} elsif ( $line =~
-				/^\d*\s+(if|else|select|case|read|write|print|open|close)\s*\(/
+				/^\d*\s+(if|else|select|case)\s*\(/
 				or $line =~ /^\d*\s+(return|stop)\s*/ )
 			{
 				my $keyword = $1;
 				$info->{ ucfirst($keyword) } = 1;
+				
+			} elsif ( $line =~
+				/^\d*\s+(read|write|print|open|close)\s*\(/
+				 )
+			{
+				my $keyword = $1;
+				$info->{ ucfirst($keyword).'Call' } = 1;
 			} elsif ( $line =~ /^\d*\s+end\s+(if|case|do)\s*/ ) {
 				my $keyword = $1;
 				my $kw      = ucfirst($keyword);
@@ -430,9 +437,10 @@ sub _analyse_lines {
 					$info->{'EndDo'} = $corresponding_do_info->{'Do'};
 					delete $info->{'EndDo'}{'Label'};
 				}
-			} elsif ( $line =~ /\b(subroutine|function|program)\b/ ) {
+			} elsif ( $line =~ /\b(subroutine|function|program)\b/ ){
 				( $Sf, $line, $info ) =
 				  __parse_sub_func_prog_decls( $Sf, $line );
+				  
 			} elsif (
 				$line =~ /^\d*\s*end\s+(subroutine|module|function)\s*(\w+)/ )
 			{
@@ -857,7 +865,7 @@ sub _parse_subroutine_and_function_calls {
 	my $pnid               = $stref->{'NId'};
 	my $sub_or_func_or_mod = sub_func_incl_mod( $f, $stref );
 	my $Sf                 = $stref->{$sub_or_func_or_mod}{$f};
-
+	my $external_sub=0;
 	# For C translation and call tree generation
 	# TODO: $translate is obsolete!
 	if ( $translate == $GO
@@ -913,6 +921,11 @@ sub _parse_subroutine_and_function_calls {
 			{
 				my $name =
 				  $1;    # The name of the called subroutine. The caller is $f
+				my $argstr = $2 || '';
+				if ( $argstr =~ /^\s*$/ ) {
+					$argstr = '';
+				}
+				  
 				if ( $in_kernel_wrapper_region == 1 ) {
 					if ($in_kernel_sub_region) {
 						$stref->{'KernelWrappers'}{$kernel_wrapper_name}
@@ -926,48 +939,18 @@ sub _parse_subroutine_and_function_calls {
 							  $info->{'LineID'} };    # slot for the arguments
 					}
 				}
+
 				$stref = add_to_call_tree( $name, $stref, $f );
 				if ( not exists $stref->{'Subroutines'}{$name} ) {
 					$stref->{'ExternalSubroutines'}{$name}{'Called'} = 1;
-					return $stref;
+					# This is wrong, all I need to do is not parse this one.
+					# But when I continue it breaks as there is no definition
+					# Also check if it is intrinsic.
+#					croak "FIX INTRINSICS!";
+#					return $stref;
+					$external_sub=1;
 				}
-				my $Sname = $stref->{'Subroutines'}{$name};
-
-				if ( exists $Sf->{'Translate'}
-					and not exists $Sname->{'Translate'} )
-				{
-					$Sname->{'Translate'} = $Sf->{'Translate'};
-				}
-
-		  #                $stref->{'NId'}++;
-		  #                my $nid = $stref->{'NId'};
-		  #                push @{ $stref->{'Nodes'}{$pnid}{'Children'} }, $nid;
-		  #                $stref->{'Nodes'}{$nid} = {
-		  #                    'Parent'     => $pnid,
-		  #                    'Children'   => [],
-		  #                    'Subroutine' => $name
-		  #                };
-
-				my $argstr = $2 || '';
-				if ( $argstr =~ /^\s*$/ ) {
-					$argstr = '';
-				}
-
-				$Sname->{'Called'} = 1;
-
-# What I want to know is: where in $f does the call to $name occur?
-# Problem is of course that this is before refactoring, so after refactoring this line might be wrong!
-# But then we probably want to do the analysis before we refactor anyway.
-# The proper way of course is to change the index of the line after refactoring, but then it has to change in any datastructure that uses it as well!
-				if ( not exists $Sname->{'Callers'}{$f} ) {
-					$Sname->{'Callers'}{$f} = [];
-				}
-				push @{ $Sname->{'Callers'}{$f} }, $index;
-
-				if ( $Sf->{'RefactorGlobals'} == 1 ) {
-					print "SUB $name NEEDS GLOBALS REFACTORING\n" if $V;
-					$Sname->{'RefactorGlobals'} = 1;
-				}
+				
 
 				my $tvarlst = $argstr;
 
@@ -999,6 +982,32 @@ sub _parse_subroutine_and_function_calls {
 				  { map { $_ => 1 } @argvars };
 				$info->{'SubroutineCall'}{'Name'} = $name;
 
+			if($external_sub==0) {
+				my $Sname = $stref->{'Subroutines'}{$name};
+
+				if ( exists $Sf->{'Translate'}
+					and not exists $Sname->{'Translate'} )
+				{
+					$Sname->{'Translate'} = $Sf->{'Translate'};
+				}
+
+				$Sname->{'Called'} = 1;
+
+# What I want to know is: where in $f does the call to $name occur?
+# Problem is of course that this is before refactoring, so after refactoring this line might be wrong!
+# But then we probably want to do the analysis before we refactor anyway.
+# The proper way of course is to change the index of the line after refactoring, but then it has to change in any datastructure that uses it as well!
+				if ( not exists $Sname->{'Callers'}{$f} ) {
+					$Sname->{'Callers'}{$f} = [];
+				}
+				push @{ $Sname->{'Callers'}{$f} }, $index;
+
+				if ( $Sf->{'RefactorGlobals'} == 1 ) {
+					print "SUB $name NEEDS GLOBALS REFACTORING\n" if $V;
+					$Sname->{'RefactorGlobals'} = 1;
+				}
+
+
 				if ( defined $Sname
 					and not exists $Sf->{'CalledSubs'}{$name} )
 				{
@@ -1016,6 +1025,10 @@ sub _parse_subroutine_and_function_calls {
 #						say "STATE OF init:".Dumper($stref->{'Subroutines'}{'init'}{'AnnLines'}) ;
 						$stref = parse_fortran_src( $name, $stref );
 					}
+				}
+				} else {
+					# An external sub
+					$info->{'SubroutineCall'}{'IsExternal'}=1;
 				}
 			}
 
@@ -2364,11 +2377,12 @@ sub __parse_sub_func_prog_decls {
 	( my $Sf, my $line, my $info ) = @_;
 
 	# Determine the subroutine arguments
+
 	if (
-		   $line =~ /^\s+subroutine\s+(\w+)\s*\((.*)\)/
-		or $line =~ /^\s+recursive\s+subroutine\s+(\w+)\s*\((.*)\)/
-		or $line =~ /^\s+\w+\s+function\s+(\w+)\s*\((.*)\)/
-		or $line =~ /^\s+function\s+(\w+)\s*\((.*)\)/
+		   $line =~ /^\s*subroutine\s+(\w+)\s*\((.*)\)/
+		or $line =~ /^\s*recursive\s+subroutine\s+(\w+)\s*\((.*)\)/
+		or $line =~ /^\s*\w+\s+function\s+(\w+)\s*\((.*)\)/
+		or $line =~ /^\s*function\s+(\w+)\s*\((.*)\)/
 	  )
 	{
 		my $name   = $1;
@@ -2391,17 +2405,16 @@ sub __parse_sub_func_prog_decls {
 			$info->{'Signature'}{'Function'} = 0;
 		}
 
-	} elsif ( $line =~ /^\s+subroutine\s+(\w+)[^\(]*$/
-		or $line =~ /^\s+recursive\s+subroutine\s+(\w+)[^\(]*$/ )
+	} elsif ( $line =~ /^\s*subroutine\s+(\w+)[^\(]*$/
+		or $line =~ /^\s*recursive\s+subroutine\s+(\w+)[^\(]*$/ )
 	{
-
 		# Subroutine without arguments
 		my $name = $1;
 		$info->{'Signature'}{'Args'}{'List'} = [];
 		$info->{'Signature'}{'Args'}{'Set'}  = {};
 		$info->{'Signature'}{'Name'}         = $name;
 		$info->{'Signature'}{'Function'}     = 0;
-	} elsif ( $line =~ /^\s+program\s+(\w+)\s*$/ ) {
+	} elsif ( $line =~ /^\s*program\s+(\w+)\s*$/ ) {
 		;
 
 		# If it's a program, there are no arguments

@@ -126,11 +126,11 @@ sub create_refactored_vardecls {
 # We need to check if these variables are not still present in any includes of $f!
 sub create_exglob_var_declarations {
     ( my $stref, my $f, my $annline, my $rlines ) = @_;
-    say "HERE: $f";	
+croak "create_exglob_var_declarations OBSOLETE?";	
 
-        local $I=1;
-        local $V=1;
-        local $W=1;
+#        local $I=1;
+#        local $V=1;
+#        local $W=1;
 
     my $Sf                 = $stref->{'Subroutines'}{$f};
     my %args               = %{ $Sf->{'OrigArgs'}{'Set'} };

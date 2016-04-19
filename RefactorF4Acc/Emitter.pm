@@ -303,16 +303,16 @@ sub emit_all {
     
     for my $f ( keys %{ $stref->{'IncludeFiles'} } ) {
         if ($I) {
-        print "=" x 80,"\n";
-        print "INCLUDE FILE: $f\n";
-        print "=" x 80,"\n";
+        print "! "."=" x 80,"\n";
+        print "! INCLUDE FILE: $f\n";
+        print "! "."=" x 80,"\n";
         }
         _emit_refactored_include( $f, $targetdir, $stref );
     }
     if ($DUMMY) {
-        say '=' x 80;
-        say 'DUMMY GENERATION DONE';
-        say '=' x 80;
+        say '! '. '=' x 80;
+        say '! DUMMY GENERATION DONE';
+        say '! '.'=' x 80;
     }
     # NOOP source
     # Note that we always use the C source

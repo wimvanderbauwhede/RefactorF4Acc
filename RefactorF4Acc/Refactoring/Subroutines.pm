@@ -2,7 +2,7 @@ package RefactorF4Acc::Refactoring::Subroutines;
 use v5.016;
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
-use RefactorF4Acc::Refactoring::Common qw( get_annotated_sourcelines create_refactored_source context_free_refactorings emit_f95_var_decl );
+use RefactorF4Acc::Refactoring::Common qw( get_annotated_sourcelines create_refactored_source context_free_refactorings emit_f95_var_decl);
 use RefactorF4Acc::Refactoring::Subroutines::Signatures qw( create_refactored_subroutine_signature refactor_subroutine_signature refactor_kernel_signatures ); 
 use RefactorF4Acc::Refactoring::Subroutines::Includes qw( skip_common_include_statement create_new_include_statements create_additional_include_statements );
 use RefactorF4Acc::Refactoring::Subroutines::Declarations qw( create_exglob_var_declarations create_refactored_vardecls );
@@ -94,9 +94,9 @@ This is a node called 'RefactoredSubroutineCall'
 
 sub _refactor_subroutine_main {
     ( my $stref, my $f ) = @_;
-    local $V=1;
-    local $I=1;
-    local $W=1;
+#    local $V=1;
+#    local $I=1;
+#    local $W=1;
     if ($V) {
         print "\n\n";
         print "#" x 80, "\n";
@@ -111,7 +111,7 @@ sub _refactor_subroutine_main {
 
     my $Sf = $stref->{'Subroutines'}{$f};
     
-#    croak Dumper( $Sf->{'Globals' }) if $f eq 'ij_to_latlon';
+#    croak Dumper( $Sf) if $f eq 'post';
     say "get_annotated_sourcelines($f)" if $V;
     my $annlines = $Sf->{'RefactoredCode'};
     
@@ -119,14 +119,15 @@ sub _refactor_subroutine_main {
     exists $Sf->{'Contains'} and
     scalar @{$Sf->{'Contains'}}>0)) { 
         print "REFACTORING COMMONS for SUBROUTINE $f\n" if $V;
+        
         if ( $Sf->{'RefactorGlobals'} == 1 ) {
             say "_refactor_globals_new($f)" if $V;
           $annlines = _refactor_globals_new( $stref, $f, $annlines );
 
         } elsif ( $Sf->{'RefactorGlobals'} == 2 ) { 
             die 'SHOULD BE OBSOLETE!  _refactor_subroutine_main() ' . __LINE__ ;
-            say "_refactor_calls_globals($f)" if $V;
-            $annlines = _refactor_calls_globals( $stref, $f, $annlines );            
+#            say "_refactor_calls_globals($f)" if $V;
+#            $annlines = _refactor_calls_globals( $stref, $f, $annlines );            
         }
     }
     
@@ -271,9 +272,9 @@ sub _refactor_globals {
 sub _refactor_calls_globals {
     ( my $stref, my $f, my $annlines ) = @_;
 #    my $annlines = get_annotated_sourcelines($stref,$f);
-local $V =1;
-local $I =1;
-local $W =1; 
+#local $V =1;
+#local $I =1;
+#local $W =1; 
     print "REFACTORING CALLS WITH GLOBALS in $f\n" if $V;
     my $rlines      = [];
 #    local $V=1;
@@ -376,23 +377,40 @@ sub _refactor_globals_new {
 #    croak Dumper($Sf) if $f eq 'ij_to_latlon';
     if ($Sf->{'RefactorGlobals'}==2) {
     	die "This should NEVER happen!";
-        warn "FIXME: the caller of a sub with RefactorGlobals ($f) should refactor its globals!";
-        # Which child has RefactorGlobals==1?
-        my @additional_includes=();
-        for my $cs ($Sf->{'CalledSubs'}) {          
-            if ($stref->{'Subroutines'}{$cs}{'RefactorGlobals'}==1) {
-                for my $inc ($stref->{'Subroutines'}{$cs}{'CommonIncludes'}) {
-                    if (not exists $Sf->{'CommonIncludes'}{$inc}) {
-                        push @additional_includes, $inc;
-                        croak "$inc from $cs was missing from $f"; 
-                    } 
-                }
-                
-            }
-        }       
+#        warn "FIXME: the caller of a sub with RefactorGlobals ($f) should refactor its globals!";
+#        # Which child has RefactorGlobals==1?
+#        my @additional_includes=();
+#        for my $cs ($Sf->{'CalledSubs'}) {          
+#            if ($stref->{'Subroutines'}{$cs}{'RefactorGlobals'}==1) {
+#                for my $inc ($stref->{'Subroutines'}{$cs}{'CommonIncludes'}) {
+#                    if (not exists $Sf->{'CommonIncludes'}{$inc}) {
+#                        push @additional_includes, $inc;
+#                        croak "$inc from $cs was missing from $f"; 
+#                    } 
+#                }
+#                
+#            }
+#        }       
     }
     
+    # For the case of Contained subroutines
+	my @par_decl_lines_from_container=();
+	if (exists $Sf->{'Container'}) {
+		my $container =$Sf->{'Container'};
+		if (exists $stref->{'Subroutines'}{$container}{'Parameters'}) {
+			$Sf->{'Parameters'}=$stref->{'Subroutines'}{$container}{'Parameters'};
+			for my $par (@{ $stref->{'Subroutines'}{$container}{'Parameters'}{'List'} } ) {
+#				say $par;
+				my $par_decl =$stref->{'Subroutines'}{$container}{'Parameters'}{'Set'}{$par};
+#					say Dumper($par_decl);
+				my $par_decl_line=[ '      '.emit_f95_var_decl($par_decl), {'ParamDecl' => $par_decl,'Ref'=>1}];
+				push @par_decl_lines_from_container,$par_decl_line; 
+			}			
+		}
+	}
+    
     print "REFACTORING GLOBALS in $f\n" if $V; 
+#    croak Dumper($Sf->{'AnnLines'}) if $f eq 'post';
     my $rlines      = [];
     my $s           = $Sf->{'Source'};
     my $hook_after_last_incl=0;
@@ -404,12 +422,12 @@ sub _refactor_globals_new {
  	my $inc_counter = scalar keys %{$Sf->{'Includes'}};
     for my $annline ( @{$annlines} ) {
         (my $line, my $info) = @{ $annline };
-        show_annlines([$annline],1);
+#        show_annlines([$annline],1);
 #        print '*** ' . join( ', ', map {"$_ => ".Dumper($info->{$_})} keys(%{$info}) ) . "\n" if $V;
 #        print '*** ' . $line . "\n" if $V;
         my $skip = 0;
 
-        if ( exists $info->{'Signature'} ) {
+        if ( exists $info->{'Signature'} ) { 
             if (not exists $Sf->{'HasRefactoredArgs'} ) {
                 # This probably means the subroutine has no arguments at all.
                  # Do this before the analysis for RefactoredArgs!
@@ -417,12 +435,13 @@ sub _refactor_globals_new {
                  $stref = refactor_subroutine_signature( $stref, $f );
                 warn '_refactor_globals_new() '. __LINE__ . " $f does not have HasRefactoredArgs\n";
                 say 'WARNING: _refactor_globals_new() '. __LINE__ . " $f does not have HasRefactoredArgs";
-                
+                croak;
             }
             
             $rlines =
               create_refactored_subroutine_signature( $stref, $f, $annline, $rlines );
-#              croak Dumper $rlines->[0] if $f eq 'map_set';              
+#              croak Dumper $rlines->[0] if $f eq 'map_set';
+			$rlines = [@{$rlines},@par_decl_lines_from_container];              
             $skip = 1;
         } 
         # There should be no need to do this: all /common/ blocks should have been removed anyway!
@@ -443,7 +462,6 @@ sub _refactor_globals_new {
 			  	$annline=[$line,$info];
 			  	push @{$rlines}, $annline ;
 			  	$skip=1;
-#			  	die Dumper($rlines) if $f eq 'bondv1';
 			  }
         }
         
@@ -451,39 +469,23 @@ sub _refactor_globals_new {
         	$info->{'ExGlobVarDeclHook'} = 'AFTER LAST Include via _refactor_globals_new()'; 
         	$hook_after_last_incl=0;
         }
-        if ( 0 and exists $info->{'ExGlobVarDeclHook'} ) { # OBSOLETE 
-            # First, abuse ExGlobArgDecls as a hook for the addional includes, if any
-            $rlines =
-              create_new_include_statements( $stref, $f, $annline, $rlines );
-        }
-        if ( exists $info->{'ExGlobVarDeclHook'} ) {  
-#        	say "HOOK for $f: $line ";#.$info->{'Deleted'};
-#        	  croak if $f eq 'timdata';   
+#        if ( 0 and exists $info->{'ExGlobVarDeclHook'} ) { # OBSOLETE 
+#            # First, abuse ExGlobArgDecls as a hook for the addional includes, if any
+#            $rlines =
+#              create_new_include_statements( $stref, $f, $annline, $rlines );
+#        }
+        if ( exists $info->{'ExGlobVarDeclHook'} and $Sf->{Program}==0) {
+        	# FIXME: I don't like this, because in the case of a program there should simply be no globals etc.  
            # Then generate declarations for ex-globals
            say "EX-GLOBS for $f" if $V;
             $rlines = _create_extra_arg_and_var_decls( $stref, $f, $annline, $rlines );
-#            $rlines = create_exglob_var_declarations( $stref, $f, $annline, $rlines );
-
         } 
-        
-        # This is what breaks flexpart, but it's OK for les ...
-#        if ( exists $info->{'VarDecl'} and not exists $info->{'Deleted'} and (not exists $info->{Ref} or $info->{Ref}==0)) {
-#            $rlines = create_refactored_vardecls( $stref, $f, $annline, $rlines,0 );
-#            $skip = 1;
-#        }
 
         if ( exists $info->{'SubroutineCall'} ) { 
             # simply tag the common vars onto the arguments            
             $rlines = _create_refactored_subroutine_call( $stref, $f, $annline, $rlines );        
             $skip = 1;
         }
-
-#        if ( not exists $info->{'Comments'} and not exists $info->{'Deleted'} and $skip == 0 ) {
-#            $rlines =
-#              rename_conflicting_locals( $stref, $f, $annline, $rlines );
-#            $skip = 1;
-#        }
-#        say "SKIP ULT: $skip";
         push @{$rlines}, $annline unless $skip;
         
     } # loop over all lines
@@ -559,6 +561,8 @@ sub _create_extra_arg_and_var_decls {
     print "INFO: ExImplicitVarDecls in $f\n" if $I;
     for my $var ( @{ $Sf->{'ExImplicitVarDecls'}{'List'} } ) {
     	say "INFO VAR: $var" if $I;
+    	# Check if it is not a parameter
+    	if (not exists $Sf->{'Parameters'}{'Set'}{$var} ) {
                     my $rdecl = $Sf->{'ExImplicitVarDecls'}{'Set'}{$var}; 
                     my $rline = emit_f95_var_decl($rdecl);
                     $rline .= " ! EX-IMPLICIT VAR ";                           
@@ -566,7 +570,8 @@ sub _create_extra_arg_and_var_decls {
                     $info->{'LineID'}= $nextLineID++;
                     $info->{'Ref'}=1;
                     $info->{'VarDecl'}=$rdecl;
-                    push @{$rlines}, [ $rline,  $info ];                        
+                    push @{$rlines}, [ $rline,  $info ];   
+    	}                     
     }    # for        
     return $rlines;
 } # END of _create_extra_arg_and_var_decls();
