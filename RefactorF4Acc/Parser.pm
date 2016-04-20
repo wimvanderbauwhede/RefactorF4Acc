@@ -197,6 +197,17 @@ say "_initialise_decl_var_tables : INIT TABLES for subroutine $f" if $V;
 		# Also, I think I wil use 'Subsets'
 		$Sf->{'DeclaredOrigLocalVars'}   = { 'Set' => {}, 'List' => [] };
 		$Sf->{'UndeclaredOrigLocalVars'} = { 'Set' => {}, 'List' => [] };
+		
+		$Sf->{'Parameters'} = {};
+		$Sf->{'Parameters'}{'List'}=[];		
+		$Sf->{'Parameters'}{'Set'}={};
+		$Sf->{'LocalParameters'} = $Sf->{'Parameters'}; # TODO: subsets
+				
+		if (exists $Sf->{'Container'}) {
+			$Sf->{'ParametersFromContainer'} = {};
+			$Sf->{'ParametersFromContainer'}{'List'}=[];		
+			$Sf->{'ParametersFromContainer'}{'Set'}={};			
+		}
 
 		if ( not $is_incl ) {
 # WV: Maybe I should have an additional record 'FromInclude' in the set record!
@@ -1176,11 +1187,11 @@ sub _get_commons_params_from_includes {
 
 	if ( defined $srcref ) {
 
-		$Sincf->{'Parameters'} = {} unless exists $Sincf->{'Parameters'};
-		$Sincf->{'Parameters'}{'List'} = []
-		  unless exists $Sincf->{'Parameters'}{'List'};
-		$Sincf->{'Parameters'}{'Set'} = {}
-		  unless exists $Sincf->{'Parameters'}{'Set'};
+#		$Sincf->{'Parameters'} = {} unless exists $Sincf->{'Parameters'};
+#		$Sincf->{'Parameters'}{'List'} = []
+#		  unless exists $Sincf->{'Parameters'}{'List'};
+#		$Sincf->{'Parameters'}{'Set'} = {}
+#		  unless exists $Sincf->{'Parameters'}{'Set'};
 
 		#        my %vars = %{ $stref->{'IncludeFiles'}{$inc}{'Vars'} };
 

@@ -398,7 +398,7 @@ sub _refactor_globals_new {
 	if (exists $Sf->{'Container'}) {
 		my $container =$Sf->{'Container'};
 		if (exists $stref->{'Subroutines'}{$container}{'Parameters'}) {
-			$Sf->{'Parameters'}=$stref->{'Subroutines'}{$container}{'Parameters'};
+			$Sf->{'ParametersFromContainer'}=$stref->{'Subroutines'}{$container}{'Parameters'};
 			for my $par (@{ $stref->{'Subroutines'}{$container}{'Parameters'}{'List'} } ) {
 #				say $par;
 				my $par_decl =$stref->{'Subroutines'}{$container}{'Parameters'}{'Set'}{$par};
@@ -562,7 +562,7 @@ sub _create_extra_arg_and_var_decls {
     for my $var ( @{ $Sf->{'ExImplicitVarDecls'}{'List'} } ) {
     	say "INFO VAR: $var" if $I;
     	# Check if it is not a parameter
-    	if (not exists $Sf->{'Parameters'}{'Set'}{$var} ) {
+    	if (not exists $Sf->{'Parameters'}{'Set'}{$var} and not exists $Sf->{'ParametersFromContainer'}{'Set'}{$var}) {
                     my $rdecl = $Sf->{'ExImplicitVarDecls'}{'Set'}{$var}; 
                     my $rline = emit_f95_var_decl($rdecl);
                     $rline .= " ! EX-IMPLICIT VAR ";                           

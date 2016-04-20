@@ -465,7 +465,7 @@ sub _analyse_src_for_iodirs {
 			}
             # Skip the declarations
             if ( exists $info->{'VarDecl'} ) { next; }
-say "LINE3: $line\t".Dumper($info) if $f eq 'init';
+
             # Write & File open statements
             if (   $line =~ /^\s+(?:write|print|open)\s*\(\s*(.+)$/
                 or $line =~ /^\d+\s+(?:write|print|open)\s*\(\s*(.+)$/
