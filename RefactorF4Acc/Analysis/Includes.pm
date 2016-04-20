@@ -196,7 +196,7 @@ sub __merge_includes {
                 if ( $stref->{'IncludeFiles'}{$inc}{'InclType'} eq 'Common'
                     and not exists $Ssub->{'CommonIncludes'}{$inc} )
                 {
-                    say "Adding $inc to CommonIncludes in $sub" if $V;
+                    say "Adding $inc to CommonIncludes in $sub" if $DBG;
                     $Ssub->{'CommonIncludes'}{$inc} = 1;
                 }
             }

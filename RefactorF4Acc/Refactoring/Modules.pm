@@ -53,7 +53,7 @@ sub add_module_decls { (my $stref)=@_;
 	
     for my $src (keys %{ $stref->{'SourceContains'} } ) {    	
         $no_module= $stref->{'Program'} eq $src;
-        print "INFO: adding module decls to $src\n" if $V;        
+        print "INFO: adding module decls to $src\n" if $I;        
        if ($I) {
             print '! ','-' x 80,"\n";
             print "! SRC: $src\n";

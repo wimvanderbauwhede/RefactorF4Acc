@@ -156,7 +156,7 @@ if (not defined $var or $var eq '') {croak "VAR not defined!"}
         my $type_kind_attr = $stref->{'Implicits'}{$f}{lc(substr($var,0,1))};
         ($type, $array_or_scalar, $attr)=@{$type_kind_attr};
     } else {
-        print "WARNING: common <", $var, "> has no rule in {'Implicits'}{$f}, typing via Fortran defaults\n" if $W;
+        print "INFO: Common <", $var, "> has no rule in {'Implicits'}{$f}, typing via Fortran defaults\n" if $I;
         if ($var=~/^[i-nI-N]/) {
     return ('integer', 'Scalar',  '');        
         } else {
@@ -377,6 +377,7 @@ sub in_nested_set { (my $set, my $set_key, my $var)=@_;
     }
 } # END of in_nested_set
 
+# For a set with subsets, this get the vars from all subsets
 sub get_vars_from_set { (my $set)=@_;
     my %vars=();
      if (exists $set->{'Subsets'} ) {
@@ -537,10 +538,12 @@ and or lt gt ne le ge eq
     fdate
     fget
     fgetc
+    file
     float
     floor
     flush
     fnum
+    form
     fput
     fputc
     fraction
@@ -670,7 +673,7 @@ and or lt gt ne le ge eq
     sqrt
     srand
     stat
-    stat
+    status
     sum
     symlnk
     system

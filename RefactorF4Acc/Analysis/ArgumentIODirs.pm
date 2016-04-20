@@ -202,7 +202,7 @@ sub _set_iodir_read {
 $args_ref->{$mvar}{'IODir'} = 'Unknown';
         }
     if ( $args_ref->{$mvar}{'IODir'} eq 'Unknown' ) {
-        print "FOUND In ARG $mvar\n" if $V;
+        print "FOUND In ARG $mvar\n" if $DBG;
         $args_ref->{$mvar}{'IODir'} = 'In';
     }
     return $args_ref;
@@ -216,10 +216,10 @@ sub _set_iodir_write {
         and defined $args_ref->{$mvar}{'IODir'} 
         ) {
         if ( $args_ref->{$mvar}{'IODir'} eq 'In' ) {
-            print "FOUND InOut ARG $mvar\n" if $V;
+            print "FOUND InOut ARG $mvar\n" if  $DBG;
             $args_ref->{$mvar}{'IODir'} = 'InOut';
         } elsif ( $args_ref->{$mvar}{'IODir'} eq 'Unknown' ) {
-            print "FOUND In ARG $mvar\n" if $V;
+            print "FOUND In ARG $mvar\n" if  $DBG;
             $args_ref->{$mvar}{'IODir'} = 'Out';
         }
     } else {
@@ -236,7 +236,7 @@ sub _set_iodir_read_write {
     	) {
         if( exists $args_ref->{$mvar}{'IODir'} )
     {
-        print "FOUND InOut ARG $mvar\n" if $V;
+        print "FOUND InOut ARG $mvar\n" if  $DBG;
         $args_ref->{$mvar}{'IODir'} = 'InOut';
     }
     	}
@@ -357,7 +357,7 @@ say $name.uc('ref_sig_args:').Dumper($ref_sig_args);
                 if ( $call_arg =~ /\W/ ) {
                     print
 "INFO: ARG $call_arg in call to $name in $f is an expression\n"
-                      if $V;
+                      if  $DBG;
                     my @maybe_args = split( /\W+/, $call_arg );
                     for my $maybe_arg (@maybe_args) {
                     	next if $maybe_arg eq '';
@@ -369,7 +369,7 @@ say $name.uc('ref_sig_args:').Dumper($ref_sig_args);
                         {
                             print
 "INFO: Setting IO dir for $maybe_arg in call to $name in $f to In\n"
-                              if $V;
+                              if  $DBG;
                             $called_arg_iodirs->{$maybe_arg} = 'In';
                             if (    scalar keys %{ $Sname->{'Callers'} } == 1
                                 and $Sname->{'Callers'}{$f} == 1
@@ -533,7 +533,7 @@ sub _analyse_src_for_iodirs {
                             } else {
                                 print
 "WARNING: IO direction for $var in call to $name in $f is Unknown\n"
-                                  if $V;
+                                  if $W;
                             }
                         } else {
                             print "WARNING: $f: NO IODir info for $var\n" if $W;
@@ -948,7 +948,7 @@ sub _get_iodirs_from_subcall {
                 if ( $call_arg =~ /\W/ ) {
                     print
 "INFO: ARG $call_arg in call to $name in $f is an expression\n"
-                      if $V;
+                      if $DBG;
                     my @maybe_args = split( /\W+/, $call_arg );                    
                     for my $maybe_arg (@maybe_args) {
                     	next if $maybe_arg eq '';
@@ -959,7 +959,7 @@ sub _get_iodirs_from_subcall {
                         {
                             print
 "INFO: Setting IO dir for $maybe_arg in call to $name in $f to In\n"
-                              if $V;
+                              if $DBG;
                             $called_arg_iodirs->{$maybe_arg} = 'In';
                             if (    scalar keys %{ $Sname->{'Callers'} } == 1
                                 and $Sname->{'Callers'}{$f} == 1
@@ -1012,7 +1012,7 @@ sub update_argument_io_direction_all_subs {
 	  	next if $f eq '';
 	  	next if exists $stref->{'ExternalSubroutines'}{$f};
 	  	next if $stref->{'Subroutines'}{$f}{'Program'}==1;
-	  	say "UPDATE IODIR IN $f" if $V;
+	  	say "UPDATE IODIR IN $f" if $DBG;
 	  	$stref = _update_argument_io_direction($stref, $f); 
 	  }
 	return $stref;

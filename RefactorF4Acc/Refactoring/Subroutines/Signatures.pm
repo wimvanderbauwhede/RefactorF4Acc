@@ -42,7 +42,7 @@ sub create_refactored_subroutine_signature {
     my $info = $annline->[1];    
     my $args_ref = $Sf->{'RefactoredArgs'}{'List'};
     my $args_str = join( ',', @{$args_ref} );
-    print "NEW ARGS: $args_str\n" if $V;
+    print "NEW ARGS: $args_str\n" if $DBG;
 #    die $args_str if $f eq 'post';
     my $rline = '';
     if ( $Sf->{'Program'} ) {

@@ -212,8 +212,8 @@ sub _refactor_globals {
     for my $annline ( @{$annlines} ) {
         (my $line, my $info) = @{ $annline };
         
-        print '*** ' . join( ', ', map {"$_ => ".Dumper($info=>{$_})} keys(%{$info}) ) . "\n" if $V;
-        print '*** ' . $line . "\n" if $V;
+        print '*** ' . join( ', ', map {"$_ => ".Dumper($info=>{$_})} keys(%{$info}) ) . "\n" if $DBG;
+        print '*** ' . $line . "\n" if $DBG;
         my $skip = 0;
 
         if ( exists $info->{'Signature'} ) {
@@ -284,8 +284,8 @@ sub _refactor_calls_globals {
         my $line      = $annline->[0] || '';
         my $info = $annline->[1];
         
-        print '*** ' . join( ',', map {"$_ => ".$info->{$_}} keys(%{$info}) ) . "\n" if $V;
-        print '*** ' . $line . "\n" if $V;
+        print '*** ' . join( ',', map {"$_ => ".$info->{$_}} keys(%{$info}) ) . "\n" if $DBG;
+        print '*** ' . $line . "\n" if $DBG;
         my $skip = 0;
 
 # FIXME: rather we should find the line _after_ the last include!
@@ -474,8 +474,9 @@ sub _refactor_globals_new {
 #            $rlines =
 #              create_new_include_statements( $stref, $f, $annline, $rlines );
 #        }
-        if ( exists $info->{'ExGlobVarDeclHook'} and $Sf->{Program}==0) {
-        	# FIXME: I don't like this, because in the case of a program there should simply be no globals etc.  
+        if ( exists $info->{'ExGlobVarDeclHook'} ) {
+        	# FIXME: I don't like this, because in the case of a program there should simply be no globals etc.
+        	#   
            # Then generate declarations for ex-globals
            say "EX-GLOBS for $f" if $V;
             $rlines = _create_extra_arg_and_var_decls( $stref, $f, $annline, $rlines );
@@ -495,6 +496,7 @@ sub _refactor_globals_new {
 
 # ExInclArgDecls, ExImplicitArgDecls and ExGlobArgDecls
 # ExInclVarDecls and ExImplicitVarDecls.
+# I must make sure that these do not already exists!
 sub _create_extra_arg_and_var_decls {
 
     ( my $stref, my $f, my $annline, my $rlines ) = @_;
@@ -502,12 +504,19 @@ sub _create_extra_arg_and_var_decls {
 #local $I= $f eq 'bondv1';
 
     my $Sf                 = $stref->{'Subroutines'}{$f};
+#    if ($f eq 'anime') { croak Dumper($Sf->{'Vars'}); }
 #croak "_create_extra_arg_and_var_decls($f): ".Dumper( $Sf->{'Decls'}) if $f eq 'boundsm';
 #    my %args               = %{ $Sf->{'Args'}{'Set'} };
     my $nextLineID=scalar @{$rlines}+1;
 #die Dumper($Sf->{'RefactoredArgs'}{'Set'}) if $I;            
     print "INFO: ExGlobArgDecls in $f\n" if $I;
+#    croak Dumper( $Sf->{'Vars'})."\n UNIT: $f" if $f=~/main|vertical/ ;
     for my $var ( @{ $Sf->{'ExGlobArgDecls'}{'List'} } ) {
+    	
+    	# Need to check if these were not already declared
+    	if (not exists $Sf->{'DeclaredOrigLocalVars'}{'Set'}{$var}
+    	and not exists $Sf->{'DeclaredOrigArgs'}{'Set'}{$var}
+    	) {
     	say "INFO VAR: $var ".$Sf->{'RefactoredArgs'}{'Set'}{$var}{'IODir'} if $I;
                     my $rdecl = $Sf->{'ExGlobArgDecls'}{'Set'}{$var}; 
                     my $rline = emit_f95_var_decl($rdecl);
@@ -516,7 +525,8 @@ sub _create_extra_arg_and_var_decls {
                     $info->{'LineID'}= $nextLineID++;
                     $info->{'Ref'}=1;
                     $info->{'VarDecl'}=$rdecl;
-                    push @{$rlines}, [ $rline,  $info ];                        
+                    push @{$rlines}, [ $rline,  $info ];
+    	}                        
     }    # for
     
     print "INFO: ExInclArgDecls in $f\n" if $I;
@@ -561,8 +571,10 @@ sub _create_extra_arg_and_var_decls {
     print "INFO: ExImplicitVarDecls in $f\n" if $I;
     for my $var ( @{ $Sf->{'ExImplicitVarDecls'}{'List'} } ) {
     	say "INFO VAR: $var" if $I;
+    	croak Dumper(%F95_reserved_words) if $var eq 'file';
     	# Check if it is not a parameter
     	if (not exists $Sf->{'Parameters'}{'Set'}{$var} and not exists $Sf->{'ParametersFromContainer'}{'Set'}{$var}) {
+    		if (not exists $F95_reserved_words{$var}) {
                     my $rdecl = $Sf->{'ExImplicitVarDecls'}{'Set'}{$var}; 
                     my $rline = emit_f95_var_decl($rdecl);
                     $rline .= " ! EX-IMPLICIT VAR ";                           
@@ -570,7 +582,10 @@ sub _create_extra_arg_and_var_decls {
                     $info->{'LineID'}= $nextLineID++;
                     $info->{'Ref'}=1;
                     $info->{'VarDecl'}=$rdecl;
-                    push @{$rlines}, [ $rline,  $info ];   
+                    push @{$rlines}, [ $rline,  $info ];
+    		} else {
+    			say "INFO: $var is a reserverd word" if $I;
+    		}   
     	}                     
     }    # for        
     return $rlines;

@@ -258,57 +258,45 @@ sub {
 	}
 }	
 );
-
-
-
-#	die Dumper(sort keys %{$stref});#->{'Subroutines'});#->{'RefactoredSources'});
-#   print '=' x 80, "\n";
-#   map {say Dumper($_->[1]) } @{ $stref->{'Subroutines'}{'press'}{'AnnLines'} };
-#   print Dumper($stref->{'Subroutines'}{'press'}{'AnnLines'});
-#     say '=' x 80;
-#     say Dumper($stref->{Subroutines}{LES_kernel_wrapper});
-#     say '=' x 80;
-#     say Dumper($stref->{Subroutines}{velnw});
-#     say '=' x 80;
-
 #   say 'AFTER refactor_all()';
+
    # This is part of the refactoring of kernel subroutines in a simulation loop into a called-once init() and a run() called in the loop
+   # It is actually only useful for OpenCL acceleration because the init writes state to the device
    for my $kernel_wrapper (keys %{$stref->{'KernelWrappers'}}) {
         $stref = outer_loop_variable_analysis($kernel_wrapper,$stref);
     }
 #    say 'AFTER outer_loop_variable_analysis()';
-#    map {say} keys $stref->{Subroutines}{LES_kernel_wrapper};
-#    say Dumper $stref->{Subroutines}{LES_kernel_wrapper}{RefactoredArgs};
-#   map {say $_->[0] } @{$stref->{Subroutines}{LES_kernel_wrapper}{RefactoredCode}};
-#   die;
-#   say map {"$_\n"} (sort keys $stref->{'RefactoredSources'});
-#    map { say $_->[0] } @{$stref->{'RefactoredSources'}{'./main.f'}};
-#   say map { $_->[0]."\t".join(';',keys $_->[1])."\n"} @{$stref->{'RefactoredSources'}{'./main.f'}};
-#   die;
+
+   
    
    $DUMMY=1;
 	if ( not $call_tree_only ) {
 		# Emit the refactored source
 		emit_all($stref);
 	}
-die;
+
 	if ( $translate == $YES ) {
 	    # Here we could actually call the genOclKernelFromF95Src script
-	    # The code below is OBSOLETE
+
 		$translate = $GO;
 		for my $subname ( keys %{ $stref->{'SubsToTranslate'} }) {
-			print "\nTranslating $subname to C\n";
+			print "\nTranslating $subname to OpenCL C\n";
 			$gen_sub  = 1;
-			$stref = parse_fortran_src( $subname, $stref );
-			$stref = refactor_C_targets($stref);
-			emit_C_targets($stref);
-			translate_to_C($stref);
+#	    # The code below is OBSOLETE			
+#			$stref = parse_fortran_src( $subname, $stref );
+#			$stref = refactor_C_targets($stref);
+#			emit_C_targets($stref);
+#			translate_to_C($stref);
 		}
 	}
-	if ($gen_scons) {
+
+	if (0 && $gen_scons) {
+			# This routine is BROKEN
 	   create_build_script($stref);
 	}
-	if ($build) {
+	
+	if (0 && $build) {
+			# This routine is BROKEN		
 		build_executable();
 	}
 	exit(0);
@@ -321,7 +309,7 @@ sub parse_args {
 		die "Please specifiy FORTRAN subroutine or program to refactor\n";
 	}
 	my %opts = ();
-	getopts( 'vwihCTNgbBGc:', \%opts );
+	getopts( 'vwidhCTNgbBGc:', \%opts );
 	
 	my $help = ( $opts{'h'} ) ? 1 : 0;
     if ($help) {
@@ -351,8 +339,10 @@ sub parse_args {
     }   
     
 	$V = ( $opts{'v'} ) ? 1 : 0;
-	$I = ( $opts{'i'} or $V ) ? 1 : 0;
-	$W = ( $opts{'w'} or $V ) ? 1 : 0;
+	$I = ( $opts{'i'} ) ? 1 : 0;
+	$W = ( $opts{'w'} ) ? 1 : 0;
+	$DBG = ( $opts{'d'} ) ? 1 : 0;
+	
 	$refactor_toplevel_globals=( $opts{'g'} ) ? 1 : 0; # Global from Config
 # Currently broken	
 	if ( $opts{'G'} ) {

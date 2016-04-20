@@ -29,9 +29,9 @@ sub init_state {
     # Nodes|Subroutines|Includes|NId|BuildSources|Indents
     my $stateref = {
         'Top'          => $subname,
-        'IncludeFiles' => {},
-
+        'IncludeFiles' => {},		
         'Subroutines'  => {}, # {$f}{Function} = 1
+        'SourceFiles' => {}, # This is for anything not in a code unit, usually just comments and blank lines 
         'BuildSources' => {}
         ,    # sources to be built, can be C, H (header) or F (Fortran)
         'Indents' => 0,    # bit silly, purely for pretty-printing

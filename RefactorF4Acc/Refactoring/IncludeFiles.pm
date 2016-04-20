@@ -72,8 +72,8 @@ sub _refactor_include_file {
 		next if not defined $annline; 
 		(my $line, my $info)      =@{ $annline };
 				
-		print '*** ' . join( ',', keys(%{$info}) ) . "\n" if $V;
-		print '*** ' . $line . "\n" if $V;
+		print '*** ' . join( ',', keys(%{$info}) ) . "\n" if $DBG;
+		print '*** ' . $line . "\n" if $DBG;
 		my $skip = 0;
 		if ( exists $info->{'Common'} ) {
 			$skip = 1;

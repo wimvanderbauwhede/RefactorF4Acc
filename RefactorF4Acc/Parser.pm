@@ -255,8 +255,8 @@ say "_initialise_decl_var_tables : INIT TABLES for subroutine $f" if $V;
 			};
 		} else { # For includes
 
-			# Includes only have LocalVars and Commons
-			# Commons can't be Args so they will always become ExInclLocalVars
+			# Includes can contain LocalVars, CommonVars or Parameters
+			# Commons can't be Args so they will go in ExInclLocalVars?
 			$Sf->{'Commons'}       = {};  # This is only for testing which vars are commons, nothing else.
 			$Sf->{'DeclaredCommonVars'}   = { 'Set' => {}, 'List' => [] };
 			$Sf->{'UndeclaredCommonVars'} = { 'Set' => {}, 'List' => [] };
@@ -1255,7 +1255,7 @@ sub _get_commons_params_from_includes {
 							{
 
 # What this means is that the include file contains declared variables that are in a common block.
-# So we monve them to DeclaredCommonVars
+# So we move them to DeclaredCommonVars
 								$Sincf->{'DeclaredCommonVars'}{'Set'}{$var} =
 								  $decl;
 								delete $Sincf->{'DeclaredOrigLocalVars'}{'Set'}
@@ -1274,8 +1274,8 @@ sub _get_commons_params_from_includes {
 								  @{ $Sincf->{'UndeclaredCommonVars'}{'List'} },
 								  $var;
 								say
-"WARNING: UNDECLARED COMMON VAR $var from $inc, was typed via implicit rules\n"
-								  if $W;
+"INFO: UNDECLARED COMMON VAR $var from $inc, was typed via implicit rules"
+								  if $I;
 							}
 
 						} else {
@@ -1405,14 +1405,12 @@ sub _get_commons_params_from_includes {
 			$srcref->[$index] = [ $line, $info ];
 		}    # loop over annlines
 
-		if ($V) {
+		if ($DBG) {
 			print "\nCOMMONS for $inc:\n\n";
 			for my $v ( sort keys %{ $Sincf->{'Commons'} } ) {
 				print $v, "\n";
 			}
 		}
-
-		#        $Sincf->{'Vars'} = {%vars};
 
 		# FIXME!
 		# An include file should basically only contain parameters and commons.
@@ -1427,7 +1425,6 @@ sub _get_commons_params_from_includes {
 
 		# What we should do is split this split out parameters into params_$name
 		# and include params_$name in $name
-
 		} elsif ($has_commons) {
 			$Sincf->{'InclType'} = 'Common';
 		} elsif ($has_pars) {
@@ -1437,7 +1434,7 @@ sub _get_commons_params_from_includes {
 		}
 
 # Checking if any variable encountered in the include file is either a Parameter or Common var
-		my %vars = %{ $Sincf->{'Vars'} };
+		my %vars = %{ get_vars_from_set($Sincf->{'Vars'}) }; 
 		for my $var ( keys %vars ) {
 			my $is_not_par =
 			  $has_pars && !exists( $Sincf->{'Parameters'}{'Set'}{$var} );
@@ -1445,17 +1442,15 @@ sub _get_commons_params_from_includes {
 			  $has_commons && !exists( $Sincf->{'Commons'}{$var} );
 			if ( $is_not_par or $is_not_common ) {
 				for my $annline ( @{ $Sincf->{'AnnLines'} } ) {
-					next
-					  if $annline->[0] eq ''
-						  or exists $annline->[1]{'Comments'};
+					next if $annline->[0] eq '' or exists $annline->[1]{'Comments'};
 					if ( $annline->[0] =~ /\b$var\b/ ) {
 						my $info =
 						  $is_not_par
 						  ? "$inc has params but $var is not a param"
 						  : "$inc has commons but $var is not common";
-						warn
-"WARNING: Parser: $info on the following line in $inc:\n";
-						warn $annline->[0], "\n";
+						warn "WARNING: Parser: $info on the following line in $inc:\n";
+						warn $annline->[0],"\n";
+#						warn Dumper( $Sincf->{'DeclaredOrigLocalVars'}{'Set'}{$var} );
 					}
 				}
 				print
@@ -1463,8 +1458,6 @@ sub _get_commons_params_from_includes {
 				  if $W;
 			}
 		}
-
-	  #        die $inc;#.Dumper( $Sincf->{Commons} ) ;#if $inc eq 'includecom';
 	}
 	return $stref;
 }    # END of get_commons_params_from_includes()
@@ -2163,11 +2156,6 @@ sub _split_multivar_decls {
 
 	my $sub_incl_or_mod = sub_func_incl_mod( $f, $stref );
 
-	#         if ($f eq 'includeinterpol') {
-	#         say Dumper($stref->{$sub_incl_or_mod}{$f});
-	#         die;
-	#     }
-
 	my $Sf           = $stref->{$sub_incl_or_mod}{$f};
 	my $annlines     = $Sf->{'AnnLines'};
 	my $nextLineID   = scalar @{$annlines} + 1;
@@ -2178,15 +2166,11 @@ sub _split_multivar_decls {
 		if ( exists $info->{'VarDecl'} and exists $info->{'VarDecl'}{'Names'} )
 		{
 
-#			die $line. ' : '.Dumper($info) if $line=~/nou1,nou2/;
-			#            if ($line=~/drydeposit/) { die $line.Dumper($info) }
-			#            say scalar @{$info->{'VarDecl'}{'Names'}};
 			my @nvars = @{ $info->{'VarDecl'}{'Names'} };
 			for my $var ( @{ $info->{'VarDecl'}{'Names'} } ) {
 
 				my %rinfo = %{$info};
 
-#				                say "VAR: $var";
 				$rinfo{'LineID'} = $nextLineID++;
 				my $subset = '';
 				if ($sub_incl_or_mod ne 'IncludeFiles') {
@@ -2194,7 +2178,7 @@ sub _split_multivar_decls {
 						$subset = 'DeclaredOrigArgs';
 					} elsif ( exists $Sf->{'DeclaredOrigLocalVars'}{'Set'}{$var} ) {
 						$subset = 'DeclaredOrigLocalVars';
-					} elsif ( exists $Sf->{'ExInclLocalVars'}{'Set'}{$var} ) {
+					} elsif ( exists $Sf->{'ExInclLocalVars'}{'Set'}{$var} ) { 
 						$subset = 'ExInclLocalVars';
 					} elsif ( exists $Sf->{'ExInclArgs'}{'Set'}{$var} ) {
 						$subset = 'ExInclArgs';						

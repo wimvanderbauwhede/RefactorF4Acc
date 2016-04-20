@@ -101,13 +101,13 @@ sub _find_argument_declarations {
 		if ( not exists $Sf->{'DeclaredOrigArgs'}{'Set'}{$arg} ) {
 			say "MISSING ORIG ARG DECLS for '$f'" if $V and $once;
 			$once = 0;
-			say "ARG: $arg" if $V;
+			say "ARG: $arg" if $DBG;
 			my $in_incl = 0;
 			for my $inc ( keys %{ $Sf->{'Includes'} } ) {
 				my $subset =
 				  in_nested_set( $stref->{'IncludeFiles'}{$inc}, 'Vars', $arg );
 				if ( $subset ne '' ) {
-					say "FOUND DECL for $arg in INC $inc" if $V;
+					say "FOUND DECL for $arg in INC $inc" if $DBG;
 					my $decl =
 					  $stref->{'IncludeFiles'}{$inc}{$subset}{'Set'}{$arg};
 					push @{ $Sf->{'ExInclArgDecls'}{'List'} }, $arg;
@@ -117,7 +117,7 @@ sub _find_argument_declarations {
 				}
 			}
 			if ( not $in_incl ) {
-				say "TYPING $arg via IMPLICIT rules" if $V;
+				say "TYPING $arg via IMPLICIT rules" if $DBG;
 				my $decl = get_f95_var_decl( $stref, $f, $arg );
 				push @{ $Sf->{'ExImplicitArgs'}{'List'} }, $arg;
 				$Sf->{'ExImplicitArgs'}{'Set'}{$arg} = $decl;
@@ -141,7 +141,7 @@ sub _find_argument_declarations {
 sub _analyse_variables {
 	( my $stref, my $f ) = @_;
 	my $Sf = $stref->{'Subroutines'}{$f};
-	say "_analyse_variables($f)" if $V;
+	say "_analyse_variables($f)" if $DBG;
 #	die Dumper($Sf->{'Vars'}) if $f eq 'post';
 	
 	
@@ -167,7 +167,7 @@ sub _analyse_variables {
 		{
 
 		( my $stref, my $f, my $identified_vars ) = @{$state};
-#		say Dumper($annline) if $f eq 'post';
+		
 			
 			my $Sf = $stref->{'Subroutines'}{$f};
 #			my @chunks = split( /[^\.\w]/, $line );
@@ -198,15 +198,17 @@ sub _analyse_variables {
 					my $in_incl = 0;
 					
 					for my $inc ( keys %{ $Sf->{'Includes'} } ) {
-						say "LOOKING FOR $mvar from $f in $inc" if $V;
-
+						say "LOOKING FOR $mvar from $f in $inc" if $DBG;
+#croak Dumper($annline). ' => '. $inc  if $f eq 'anime' and $mvar eq 'a1';
 # A variable can be declared in an include file or not and can be listed as common or not
 						if (
-							exists $stref->{'IncludeFiles'}{$inc}{'Vars'}{$mvar}
+						 in_nested_set($stref->{'IncludeFiles'}{$inc}, 'Vars', $mvar)
+#							exists $stref->{'IncludeFiles'}{$inc}{'Vars'}{$mvar}
 							or exists $stref->{'IncludeFiles'}{$inc}{'Commons'}
 							{$mvar} )
 						{
 							$in_incl = 1;
+					
 							if ( $stref->{'IncludeFiles'}{$inc}{'InclType'} eq
 								'Parameter' )
 							{
@@ -217,7 +219,7 @@ sub _analyse_variables {
 									eq 'Common' )
 								{
 									print "FOUND COMMON $mvar in INC $inc in $line\n"
-									  if $V;
+									  if $DBG;
 									my $decl;
 									my $subset_for_mvar = in_nested_set(
 										$stref->{'IncludeFiles'}{$inc},
@@ -242,7 +244,7 @@ sub _analyse_variables {
 									}
 
 									if ( exists $stref->{'IncludeFiles'}{$inc}{'Commons'}{$mvar} ) {
-										say "FOUND argdecl for $mvar via common block in $inc" if $V;
+										say "FOUND argdecl for $mvar via common block in $inc" if $DBG;
 										push @{ $stref->{'Subroutines'}{$f}
 											  {'ExGlobArgDecls'}{'List'} },
 										  $mvar;
@@ -280,7 +282,7 @@ sub _analyse_variables {
 											my $subset =
 				  in_nested_set( $stref->{'Subroutines'}{$container}, 'Vars', $mvar );
 				if ( $subset ne '' ) {
-					say "FOUND VAR $mvar in CONTAINER $container" if $V; 
+					say "FOUND VAR $mvar in CONTAINER $container" if $DBG; 
 					# If so, this is treated as an ExGlob
 					push @{ $stref->{'Subroutines'}{$f}
 											  {'ExGlobArgDecls'}{'List'} },
@@ -354,9 +356,9 @@ sub _analyse_variables {
 sub _resolve_conflicts_with_params {
 	( my $stref, my $f ) = @_;
 	my $Sf = $stref->{'Subroutines'}{$f};
-	local $V = 1;
-	local $W -= 1;
-	local $I = 1;
+#	local $V = 1;
+#	local $W -= 1;
+#	local $I = 1;
 	for my $inc ( keys %{ $Sf->{'Includes'} } ) {
 		if ( $stref->{'IncludeFiles'}{$inc}{'InclType'} eq 'Parameter' ) {
 
@@ -446,7 +448,7 @@ sub _create_refactored_args {
 }
 
 sub _map_call_args_to_sig_args { (my $stref, my $f ) = @_;
-	say "_map_call_args_to_sig_args($f)\n" if $V;#.Dumper($stref->{'Subroutines'}{$f}{'OrigArgs'}{'List'});
+	say "_map_call_args_to_sig_args($f)\n" if $DBG;#.Dumper($stref->{'Subroutines'}{$f}{'OrigArgs'}{'List'});
 	
 		my $__map_call_args = sub {
 			( my $annline) = @_;

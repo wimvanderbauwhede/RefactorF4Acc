@@ -464,7 +464,7 @@ sub create_refactored_source {
         if ( not exists $info->{'Comments'}
             and ( exists $info->{'InBlock'} or not exists $info->{'Deleted'} ) )
         {
-            print $line, "\n" if $V;
+            print $line, "\n" if $DBG;
             if ( $line =~ /;/ && $line !~ /[\'\"]/ ) {
                 my $spaces = $line;
                 $spaces =~ s/\S.*$//;
@@ -510,7 +510,7 @@ sub create_refactored_source_OLD {
         if ( not exists $info->{'Comments'}
             and ( exists $info->{'InBlock'} or not exists $info->{'Deleted'} ) )
         {
-            print $line, "\n" if $V;
+            print $line, "\n" if $DBG;
             if ( $line =~ /;/ && $line !~ /[\'\"]/ ) {
                 my $spaces = $line;
                 $spaces =~ s/\S.*$//;
@@ -548,7 +548,7 @@ sub split_long_line {
 
     my $nchars = 64 + 28;
     if ( scalar(@chunks) == 0 ) {
-        print "\nLINE: \n$line\n" if $V;
+        print "\nLINE: \n<$line>\n" if $DBG;
         $nchars = 72 + 28;
     }
     my $split_on  = ',';
@@ -572,15 +572,15 @@ sub split_long_line {
         if ( $idx < 0 && $idx2 < 0 && $idx3 < 0 && $idx4 < 0 ) {
             print "WARNING: Can't split line \n$line\n" if $W;
         } elsif ( $idx >= 0 ) {
-            print "Split line on ", $ll - $idx, ", '$split_on'\n" if $V;
+            print "Split line on ", $ll - $idx, ", '$split_on'\n" if $DBG;
         } elsif ( $idx < 0 && $idx2 >= 0 ) {
             $idx = $idx2;
             print "Split line on ", $ll - $idx2, ", '$split_on2'\n"
-              if $V;
+              if $DBG;
         } elsif ( $idx < 0 && $idx2 < 0 && $idx3 >= 0 ) {
             $idx = $idx3;
             print "SPLIT line on ", $ll - $idx, ", '$split_on3'\n"
-              if $V;
+              if $DBG;
 
             # Need smarter split
             $smart = 1;
@@ -588,7 +588,7 @@ sub split_long_line {
         } elsif ( $idx < 0 && $idx2 < 0 && $idx4 >= 0 ) {
             $idx = $idx4;
             print "SPLIT line on ", $ll - $idx, ", '$split_on4'\n"
-              if $V;
+              if $DBG;
 
             # Need smarter split
             $smart = 1;
@@ -599,8 +599,8 @@ sub split_long_line {
 #           die substr( $line, 0, $ll - $idx3, '' ) if length(substr( $line, 0, $ll - $idx3, '' ))>$nchars;
 #       }
         push @chunks, substr( $line, 0, $ll - $idx, '' );
-        print "CHUNKS:\n", join( "\n", @chunks ), "\n" if $V;
-        print "REST:\n", $line, "\n" if $V;
+        print "CHUNKS:\n", join( "\n", @chunks ), "\n" if $DBG;
+        print "REST:\n", $line, "\n" if $DBG;
         split_long_line( $line, @chunks );
     } else {
         push @chunks, $line;
@@ -1103,11 +1103,11 @@ sub _rename_conflicting_vars {
                  # To decide on renaming, I should test if the include with commons containing the conflicting name is included in the current file.
                  
                 if ( exists $Sf->{'ConflictingGlobals'}{$val} ) {
-                    print "CONFLICT: $val in $expr ($f)\n" if $V;
+                    say "INFO: CONFLICT: $val in $expr ($f)" if $I;
                     $n_vals[$i] = $Sf->{'ConflictingGlobals'}{$val}[0];
                     $conflict = 1;
                 } elsif ( exists $Sf->{'ConflictingLiftedVars'}{$val} ) {
-                    warn "CONFLICT (LIFT) for $val: $f: $expr\n" if $V;
+                    say "CONFLICT (LIFT) for $val: $f: $expr" if $I;
                     $n_vals[$i] = $Sf->{'ConflictingLiftedVars'}{$val}[0];
                     $conflict = 1;
                 } else {
@@ -1115,9 +1115,9 @@ sub _rename_conflicting_vars {
                         if (
                             exists $stref->{'IncludeFiles'}{$inc}{'ConflictingGlobals'}{$val} )
                         {
-                            print
-"CONFLICT (INC): $val in <$expr> ($f), from $inc\n"
-                              if $V;
+                            say
+"CONFLICT (INC): $val in <$expr> ($f), from $inc"
+                              if $I;
                             $conflict = 1;
                             $n_vals[$i] =
                               $stref->{'IncludeFiles'}{$inc}{'ConflictingGlobals'}{$val}[0];
@@ -1135,8 +1135,8 @@ sub _rename_conflicting_vars {
             $expr =~ s/\b$v\b/$nv/;
         }
     }
-    warn "EXPR: $expr\n"  if $conflict && $V;
-    print "EXPR: $expr\n" if $conflict && $V;
+#    warn "EXPR: $expr\n"  if $conflict && $V;
+#    print "EXPR: $expr\n" if $conflict && $V;
     return $expr;
 }    # END of _rename_conflicting_vars()
 
@@ -1147,12 +1147,12 @@ sub _rename_conflicting_lhs_var {
     my $val                = $expr;
 
     if ( exists $Sf->{'ConflictingGlobals'}{$val} ) {
-        warn "CONFLICT LHS : $val in $expr ($f)\n" if $V;
+        say "INFO: CONFLICT LHS : $val in $expr ($f)" if $I;
         return $Sf->{'ConflictingGlobals'}{$val}[0];
     } elsif ( exists $Sf->{'ConflictingLiftedVars'}{$val} ) {
-        warn "CONFLICT LHS (LIFT) for $val: $f: $expr "
-          . $Sf->{'ConflictingLiftedVars'}{$val}[0] . "\n"
-          if $V;
+        say  "INFO: CONFLICT LHS (LIFT) for $val: $f: $expr "
+          . $Sf->{'ConflictingLiftedVars'}{$val}[0] 
+          if $I;
         return $Sf->{'ConflictingLiftedVars'}{$val}[0];
     } else {
         for my $inc ( keys %{ $Sf->{'Includes'} } ) {
@@ -1160,8 +1160,8 @@ sub _rename_conflicting_lhs_var {
                 exists $stref->{'IncludeFiles'}{$inc}{'ConflictingGlobals'}
                 {$val} )
             {
-                warn "CONFLICT  LHS (INC): $val in <$expr> ($f), from $inc\n"
-                  if $V;
+                say "INFO: CONFLICT  LHS (INC): $val in <$expr> ($f), from $inc"
+                  if $I;
                 return $stref->{'IncludeFiles'}{$inc}{'ConflictingGlobals'}
                   {$val}[0];
                 last;
@@ -1224,7 +1224,7 @@ sub emit_f95_var_decl {
         	$intent='Unknown'; 
         }
         if (ref($intent) eq 'ARRAY' and scalar @{$intent}==0) {
-        	say "WARNING: Intent is [] for $var" if $W;
+        	say "INFO: Intent is [] for $var, setting to Unknown" if $I;
         	$intent = 'Unknown';
         }
         
@@ -1233,10 +1233,11 @@ sub emit_f95_var_decl {
             if ( $intent ne 'Unknown' ) {
                 $intentstr ='intent('.$intent.')'; 
 #                die 'BLANK:'.Dumper($var_decl_rec) if "$intent"=~/^\s*$/;
-            } else {
-                say "WARNING: Intent is Unknown for $var"                  
-                  if $W;
-            }
+            } 
+#            else {
+#                say "WARNING: Intent is Unknown for $var"                  
+#                  if $W;
+#            }
         
         if ($intentstr) {
             push @attrs, $intentstr;
@@ -1303,22 +1304,22 @@ sub splice_additional_lines {
 
             #            say "SPLICE POINT $line";
             if ( not $skip_insert_pos_line and not $insert_before ) {
-                say $annline->[0] if $V;
+                say $annline->[0] if $DBG;
                 push @{$merged_annlines}, $annline;
             }
             for my $extra_annline ( @{$new_annlines} ) {
                 ( my $nline, my $ninfo ) = @{$extra_annline};
                 $ninfo->{'LineID'} = $nextLineID++;
-                say $nline if $V;
+                say $nline if $DBG;
                 push @{$merged_annlines}, [ $nline, $ninfo ];
             }
             if ( not $skip_insert_pos_line and $insert_before ) {
-                say $annline->[0] if $V;
+                say $annline->[0] if $DBG;
                 push @{$merged_annlines}, $annline;
             }
 
         } else {
-            say $annline->[0] if $V;
+            say $annline->[0] if $DBG;
             push @{$merged_annlines}, $annline;
         }
     }
@@ -1358,22 +1359,22 @@ sub splice_additional_lines_cond {
 
             #            say "SPLICE POINT $line";
             if ( not $skip_insert_pos_line and not $insert_before ) {
-                say $annline->[0] if $V;
+                say $annline->[0] if $DBG;
                 push @{$merged_annlines}, $annline;
             }
             for my $extra_annline ( @{$new_annlines} ) {
                 ( my $nline, my $ninfo ) = @{$extra_annline};
                 $ninfo->{'LineID'} = $nextLineID++;
-                say $nline if $V;
+                say $nline if $DBG;
                 push @{$merged_annlines}, [ $nline, $ninfo ];
             }
             if ( not $skip_insert_pos_line and $insert_before ) {
-                say $annline->[0] if $V;
+                say $annline->[0] if $DBG;
                 push @{$merged_annlines}, $annline;
             }
 
         } else {
-            say $annline->[0] if $V;
+            say $annline->[0] if $DBG;
             push @{$merged_annlines}, $annline;
         }
     }
@@ -1385,7 +1386,7 @@ sub splice_additional_lines_cond {
 
 sub stateless_pass {
     (my $stref, my $f, my $pass_actions, my $info) = @_;
-    say "STATELESS PASS ".Dumper($info)." for $f" if $V;
+    say "STATELESS PASS ".Dumper($info)." for $f" if $DBG;
     my $sub_or_func_or_mod = sub_func_incl_mod( $f, $stref );
     my $Sf                 = $stref->{$sub_or_func_or_mod}{$f};
     my $annlines           = get_annotated_sourcelines( $stref, $f );
@@ -1403,7 +1404,7 @@ sub stateful_pass {
     (my $stref, my $f, my $pass_actions, my $state, my $info ) = @_;
     local $Data::Dumper::Indent =0;
     local $Data::Dumper::Terse=1;
-    say "STATEFUL PASS ".Dumper($info)." for $f" if $V; 
+    say "STATEFUL PASS ".Dumper($info)." for $f" if $DBG; 
     my $sub_or_func_or_mod = sub_func_incl_mod( $f, $stref );
      
     my $Sf                 = $stref->{$sub_or_func_or_mod}{$f};    

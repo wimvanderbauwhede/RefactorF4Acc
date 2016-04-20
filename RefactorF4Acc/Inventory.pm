@@ -129,6 +129,12 @@ sub _process_src {
     my $sub_name='NONE'; 
     my $in_contains=0;
     my $container='';
+    if (not exists $stref->{'SourceFiles'}{$src}) {
+    	$stref->{'SourceFiles'}{$src}={};
+    	$stref->{'SourceFiles'}{$src}{'AnnLines'}=[];
+    } else {
+    	croak "Already processed $src!";
+    }
     open my $SRC, '<', $src;
     while ( my $line = <$SRC> ) {
 
@@ -431,7 +437,7 @@ sub _process_src {
             
         close $SRC;
 #        if ($mod_name =~/module_bondFG/) { die $mod_name.':'.Dumper($stref->{'Modules'}{$mod_name}) };
-
+		
         return $stref;	
 	
 } # END of _process_src()
