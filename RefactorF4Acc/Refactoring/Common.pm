@@ -204,8 +204,7 @@ sub context_free_refactorings {
                 $line = emit_f95_var_decl($var_decl) ;
                 delete $info->{'ExGlobArgDecls'};
                 $info->{'Ref'} = 1; 
-                $info->{'Ann'} .= 'context_free_refactoring '. __LINE__ ."; ";
-                $line .= "  ! ".$info->{'Ann'};
+                push @{$info->{'Ann'}}, 'context_free_refactoring '. __LINE__ ;                
             } else {
                 die 'BOOM! ' . 'context_free_refactoring '. __LINE__ ."; ";
             }            
@@ -285,7 +284,7 @@ sub context_free_refactorings {
                 } 
                 for my $par_decl (@{ $par_decls }) {
                 my $new_line =
-                  emit_f95_var_decl($par_decl) . ' ! context-free ParamDecl';
+                  emit_f95_var_decl($par_decl) ;
                 # Here the declaration is complete
                 push @extra_lines,
                   [
@@ -294,11 +293,13 @@ sub context_free_refactorings {
                         'Extra'     => 1,
                         'ParamDecl' => $par_decl,
                         'Ref'       => $info_ref + 1,
-                        'LineID'    => $nextLineID++                        
+                        'LineID'    => $nextLineID++,
+                        'Ann' => [annotate($f, __LINE__, ' : ParamDecl') ]                        
                     }
                   ]
                   ; # Create parameter declarations before variable declarations            
-            $line = '!! Original line context-free ParamDecl !! ' . $line;
+            $line = '!! ' . $line;
+            $info->{'Ann'}=[ annotate($f, __LINE__ .' Original ParamDecl' ) ];
             $info->{'Deleted'} = 1;
                 }
         }
@@ -317,10 +318,12 @@ sub context_free_refactorings {
             $tinc =~ s/\./_/g;
             if ( $stref->{IncludeFiles}{$inc}{InclType} ne 'External' ) {
                 $line =
-                  "      use $tinc ! context_free_refactorings() line " . __LINE__;
+                  "      use $tinc";
+                  push @{ $info->{'Ann'} }, annotate($f, __LINE__);
             } else {
                 $line =
-                  "      include '$inc' ! context_free_refactorings() line " . __LINE__;
+                  "      include '$inc'";
+                  push @{ $info->{'Ann'} }, annotate($f, __LINE__);
             }
             $info->{'Ref'}++;
 

@@ -39,6 +39,8 @@ sub find_subroutines_functions_and_includes {
     my @srcdirs=@{ $Config{SRCDIRS} };
     my %excluded_sources = map { $_ => 1 } @{ $Config{EXCL_SRCS} };
     my %excluded_dirs = map { $_ => 1 } @{ $Config{EXCL_DIRS} };
+    my $excl_srcs_pattern    = join('|', @{ $Config{EXCL_SRCS} });
+	my $excl_srcs_regex      = qr/$excl_srcs_pattern/;
     # find sources (borrowed from PerlMonks)
     
     my %src_files = ();
@@ -53,7 +55,8 @@ sub find_subroutines_functions_and_includes {
 #        print "<$srcdir>\n";
         if (not (
          exists $excluded_sources{$srcname} or 
-         exists $excluded_sources{"./$srcname"} 
+         exists $excluded_sources{"./$srcname"} or
+         $srcname=~$excl_srcs_regex
         ) and
         not exists $excluded_dirs{$srcdir} # this does not work as the $srcdir is simply '.' 
          ) {

@@ -65,7 +65,8 @@ sub create_additional_include_statements {
             my $tinc = $inc;
             die $tinc if $tinc =~/params_com/ or $f eq 'main';
             $tinc=~s/\./_/g;
-            	my $rline = "      use $tinc ! create_additional_include_statements() line 67";
+            	my $rline = "      use $tinc";
+            $info->{'Ann'} = ["create_additional_include_statements($f) " . __LINE__ ];
             $info->{'Include'}{'Name'} = $inc;
             $info->{'Ref'}=1;
             if ($info->{'ExGlobArgDecls'} >= $Sf->{'ExGlobVarDeclHook'}) {

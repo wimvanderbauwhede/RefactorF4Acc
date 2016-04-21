@@ -76,8 +76,8 @@ sub add_module_decls { (my $stref)=@_;
                 $used_mod_name=~s/\./_/g;
                 next if $used_mod_name eq $mod_name; # FIXME: ad-hoc!
                 $used_mod_name="module_$used_mod_name";
-                my $use_mod_line ="      use $used_mod_name"; $use_mod_line.= " ! add_module_decls() line 85" ;#if $V;
-                push @mod_uses, [$use_mod_line,{'Ref'=>1}];
+                my $use_mod_line ="      use $used_mod_name";                 
+                push @mod_uses, [$use_mod_line,{'Ref'=>1, 'Ann' => [ annotate('', __LINE__) ] } ];
             }
             
             my $mod_contains = ["contains\n",{'Ref'=>1}];

@@ -456,9 +456,11 @@ sub _refactor_globals_new {
 			  	my $param_inc=$stref->{'IncludeFiles'}{$inc}{'ParamInclude'};
 			  	$skip=0;
 			  	$info->{'Include'}{'Name'}=$param_inc;
+			  	my $mod_param_inc=$param_inc;
+			  	$mod_param_inc=~s/\./_/g;
 			  	delete $info->{'Includes'};
-			  	$line=~s/$inc/$param_inc/;
-			  	$line.= "; ! _refactor_globals_new($f) line " . __LINE__;
+			  	$line=~s/$inc/$mod_param_inc/;			  			  	
+			  	$info->{'Ann'}=[  annotate($f, __LINE__) ];                    			  	
 			  	$annline=[$line,$info];
 			  	push @{$rlines}, $annline ;
 			  	$skip=1;
@@ -466,7 +468,7 @@ sub _refactor_globals_new {
         }
         
         if ($inc_counter==0 and  not exists $info->{'Include'} and $hook_after_last_incl==1) {
-        	$info->{'ExGlobVarDeclHook'} = 'AFTER LAST Include via _refactor_globals_new()'; 
+        	$info->{'ExGlobVarDeclHook'} = 'AFTER LAST Include via _refactor_globals_new() line ' . __LINE__; 
         	$hook_after_last_incl=0;
         }
 #        if ( 0 and exists $info->{'ExGlobVarDeclHook'} ) { # OBSOLETE 
@@ -520,8 +522,8 @@ sub _create_extra_arg_and_var_decls {
     	say "INFO VAR: $var ".$Sf->{'RefactoredArgs'}{'Set'}{$var}{'IODir'} if $I;
                     my $rdecl = $Sf->{'ExGlobArgDecls'}{'Set'}{$var}; 
                     my $rline = emit_f95_var_decl($rdecl);
-                    $rline .= " ! EX-GLOB ".$annline->[1]{'ExGlobVarDeclHook'};                           
                     my $info={};
+                    $info->{'Ann'}=[ annotate($f, __LINE__ .' : EX-GLOB ' . $annline->[1]{'ExGlobVarDeclHook'} ) ];                                               
                     $info->{'LineID'}= $nextLineID++;
                     $info->{'Ref'}=1;
                     $info->{'VarDecl'}=$rdecl;
@@ -533,9 +535,9 @@ sub _create_extra_arg_and_var_decls {
     for my $var ( @{ $Sf->{'ExInclArgDecls'}{'List'} } ) {
     	say "INFO VAR: $var" if $I;
                     my $rdecl = $Sf->{'ExInclArgDecls'}{'Set'}{$var}; 
-                    my $rline = emit_f95_var_decl($rdecl);
-                    $rline .= " ! EX-INCL ";                           
+                    my $rline = emit_f95_var_decl($rdecl);                                                                   
                     my $info={};
+                    $info->{'Ann'}=[annotate($f, __LINE__ .' : EX-INCL' ) ];
                     $info->{'LineID'}= $nextLineID++;
                     $info->{'Ref'}=1;
                     $info->{'VarDecl'}=$rdecl;
@@ -546,9 +548,9 @@ sub _create_extra_arg_and_var_decls {
     for my $var ( @{ $Sf->{'ExImplicitArgDecls'}{'List'} } ) {
     	say "INFO VAR: $var" if $I;
                     my $rdecl = $Sf->{'ExImplicitArgDecls'}{'Set'}{$var}; 
-                    my $rline = emit_f95_var_decl($rdecl);
-                    $rline .= " ! EX-IMPLICIT ";                           
+                    my $rline = emit_f95_var_decl($rdecl);                                         
                     my $info={};
+                    $info->{'Ann'}=[annotate($f, __LINE__ .' : EX-IMPLICIT')  ];
                     $info->{'LineID'}= $nextLineID++;
                     $info->{'Ref'}=1;
                     $info->{'VarDecl'}=$rdecl;
@@ -560,8 +562,8 @@ sub _create_extra_arg_and_var_decls {
     	say "INFO VAR: $var" if $I;
                     my $rdecl = $Sf->{'ExInclVarDecls'}{'Set'}{$var}; 
                     my $rline = emit_f95_var_decl($rdecl);
-                    $rline .= " ! EX-INCL VAR ";                           
                     my $info={};
+                    $info->{'Ann'}=[annotate($f, __LINE__ .' : EX-INCL VAR' ) ];
                     $info->{'LineID'}= $nextLineID++;
                     $info->{'Ref'}=1;
                     $info->{'VarDecl'}=$rdecl;
@@ -577,8 +579,8 @@ sub _create_extra_arg_and_var_decls {
     		if (not exists $F95_reserved_words{$var}) {
                     my $rdecl = $Sf->{'ExImplicitVarDecls'}{'Set'}{$var}; 
                     my $rline = emit_f95_var_decl($rdecl);
-                    $rline .= " ! EX-IMPLICIT VAR ";                           
                     my $info={};
+                    $info->{'Ann'}=[annotate($f, __LINE__ .' : EX-IMPLICIT VAR' ) ];                    
                     $info->{'LineID'}= $nextLineID++;
                     $info->{'Ref'}=1;
                     $info->{'VarDecl'}=$rdecl;

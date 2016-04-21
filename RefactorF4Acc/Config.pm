@@ -11,7 +11,7 @@ use Exporter;
 @RefactorF4Acc::Config::ISA = qw(Exporter);
 @RefactorF4Acc::Config::EXPORT = qw(
 $VER
-$V $W $I $DBG $DUMMY
+$V $W $I $DBG $DUMMY $ANN
 $NO $YES $GO
 $UNREAD $INVENTORIED $READ $PARSED $FROM_BLOCK $C_SOURCE
 $noop
@@ -31,6 +31,7 @@ our $V = 0;    # Verbose
 our $W = 0;    # Warnings
 our $I = 0;    # Info
 our $DBG = 0;    # Debug
+our $ANN = 1; # Annotations
 our $DUMMY = 0; # Dummy run, print out code rather than printing to file
 
 # Instead of FORTRAN's 'continue', we can insert a call to a subroutine noop() that does nothing

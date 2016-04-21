@@ -40,9 +40,16 @@ use Exporter;
     &get_kv_for_all_elts_in_set
     &comment
     $BLANK_LINE
+    &annotate
 );
 
 our $BLANK_LINE = ['',{'Blank'=>1,'Ref'=>1}];
+
+sub annotate { (my $f, my $ann)=@_;	
+    (my $package, my $filename, my $line, my $subroutine, my @rest) = caller(1);
+    $subroutine=~s/RefactorF4Acc:://;
+    return $subroutine.'('.$f.') '.$ann; 
+}
 
 sub comment { (my $comment)=@_;
 	return ['! '.$comment, {'Comment'=>1,'Ref'=>1}];
@@ -690,6 +697,7 @@ and or lt gt ne le ge eq
     ttynam
     ubound
     umask
+    unit
     unlink
     unpack
     verify

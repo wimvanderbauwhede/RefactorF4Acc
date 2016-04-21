@@ -295,7 +295,13 @@ sub emit_all {
         } else {
 			open my $TGT, '>', "$targetdir/$nsrc" or die $!;
 			for my $mod_line (@{ $stref->{'RefactoredCode'}{$src} }) {
-				print $TGT $mod_line->[0],"\n"; 
+				
+				print $TGT	$mod_line->[0];
+				if ($ANN and exists $mod_line->[1]->{'Ann'}) {
+				say $TGT ' ! '.join('; ',@{ $mod_line->[1]{'Ann'} });
+				} else {
+				print $TGT "\n";
+				} 
 			}
 			close $TGT;
         }

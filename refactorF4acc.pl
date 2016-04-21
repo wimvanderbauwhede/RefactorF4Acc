@@ -269,7 +269,7 @@ sub {
 
    
    
-   $DUMMY=1;
+   $DUMMY=0;
 	if ( not $call_tree_only ) {
 		# Emit the refactored source
 		emit_all($stref);
@@ -309,7 +309,7 @@ sub parse_args {
 		die "Please specifiy FORTRAN subroutine or program to refactor\n";
 	}
 	my %opts = ();
-	getopts( 'vwidhCTNgbBGc:', \%opts );
+	getopts( 'vwidhACTNgbBGc:', \%opts );
 	
 	my $help = ( $opts{'h'} ) ? 1 : 0;
     if ($help) {
@@ -338,6 +338,7 @@ sub parse_args {
         $targetdir =  $Config{'NEWSRCPATH'};
     }   
     
+    $ANN = ( $opts{'A'} ) ? 0 : 1;
 	$V = ( $opts{'v'} ) ? 1 : 0;
 	$I = ( $opts{'i'} ) ? 1 : 0;
 	$W = ( $opts{'w'} ) ? 1 : 0;

@@ -1433,31 +1433,31 @@ sub _get_commons_params_from_includes {
 			$Sincf->{'InclType'} = 'None';
 		}
 
-# Checking if any variable encountered in the include file is either a Parameter or Common var
-		my %vars = %{ get_vars_from_set($Sincf->{'Vars'}) }; 
-		for my $var ( keys %vars ) {
-			my $is_not_par =
-			  $has_pars && !exists( $Sincf->{'Parameters'}{'Set'}{$var} );
-			my $is_not_common =
-			  $has_commons && !exists( $Sincf->{'Commons'}{$var} );
-			if ( $is_not_par or $is_not_common ) {
-				for my $annline ( @{ $Sincf->{'AnnLines'} } ) {
-					next if $annline->[0] eq '' or exists $annline->[1]{'Comments'};
-					if ( $annline->[0] =~ /\b$var\b/ ) {
-						my $info =
-						  $is_not_par
-						  ? "$inc has params but $var is not a param"
-						  : "$inc has commons but $var is not common";
-						warn "WARNING: Parser: $info on the following line in $inc:\n";
-						warn $annline->[0],"\n";
-#						warn Dumper( $Sincf->{'DeclaredOrigLocalVars'}{'Set'}{$var} );
-					}
-				}
-				print
-"WARNING: The include $inc contains a variable <$var> that is neither a parameter nor a common variable, this is not supported\n"
-				  if $W;
-			}
-		}
+## Checking if any variable encountered in the include file is either a Parameter or Common var
+#		my %vars = %{ get_vars_from_set($Sincf->{'Vars'}) }; 
+#		for my $var ( keys %vars ) {
+#			my $is_not_par =
+#			  $has_pars && !exists( $Sincf->{'Parameters'}{'Set'}{$var} );
+#			my $is_not_common =
+#			  $has_commons && !exists( $Sincf->{'Commons'}{$var} );
+#			if ( $is_not_par or $is_not_common ) {
+#				for my $annline ( @{ $Sincf->{'AnnLines'} } ) {
+#					next if $annline->[0] eq '' or exists $annline->[1]{'Comments'};
+#					if ( $annline->[0] =~ /\b$var\b/ ) {
+#						my $info =
+#						  $is_not_par
+#						  ? "$inc has params but $var is not a param"
+#						  : "$inc has commons but $var is not common";
+#						warn "WARNING: Parser: $info on the following line in $inc:\n";
+#						warn $annline->[0],"\n";
+##						warn Dumper( $Sincf->{'DeclaredOrigLocalVars'}{'Set'}{$var} );
+#					}
+#				}
+#				print
+#"WARNING: The include $inc contains a variable <$var> that is neither a parameter nor a common variable, this is not supported\n"
+#				  if $W;
+#			}
+#		}
 	}
 	return $stref;
 }    # END of get_commons_params_from_includes()
@@ -2043,7 +2043,7 @@ sub __construct_new_subroutine_signatures {
 					{
 						'VarDecl' => $decl,
 						'Ann'     => '__construct_new_subroutine_signatures '
-						  . __LINE__ . ' -> '
+						  . __LINE__ 
 					}
 				  ];
 			}
@@ -2060,7 +2060,7 @@ sub __construct_new_subroutine_signatures {
 				{
 					'VarDecl' => $decl,
 					'Ann'     => '__construct_new_subroutine_signatures ' 
-					  . __LINE__ . ' -> '
+					  . __LINE__ 
 				}
 			  ];
 		}
@@ -2213,7 +2213,7 @@ sub _split_multivar_decls {
 				};
 				$rinfo{'VarDecl'} = $decl;
 
-				$rinfo{'Ann'} .= '_split_multivar_decls ' . __LINE__ . ' -> ';
+				push @{$rinfo{'Ann'}}, '_split_multivar_decls ' . __LINE__ ;
 				my $rline = $line;
 				$Sf->{$subset}{'Set'}{$var}{'Name'} = $var;
 
@@ -2774,7 +2774,7 @@ sub __parse_f77_var_decl {
 		'Status' => 0
 	};
 
-	$info->{'Ann'} .= $line . ' -> _analyse_lines ' . __LINE__ . ' -> ';
+	push @{$info->{'Ann'}}, ' _analyse_lines ' . __LINE__ ;
 
 	return ( $Sf, $info );
 }    # END of __parse_f77_var_decl()

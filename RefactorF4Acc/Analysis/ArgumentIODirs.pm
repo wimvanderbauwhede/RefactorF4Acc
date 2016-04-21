@@ -473,6 +473,7 @@ sub _analyse_src_for_iodirs {
                 or $line =~ /^\d+\s+print.+?,(.+)$/ )
             {
                 my $str = $1;
+                if ($line=~/write|print/) { warn " FIXME: use proper parser for write and print! analyse_src_for_iodirs($f) " . __LINE__; }                
                 die $line unless defined $str;
                 $args = _find_vars_w_iodir( $str, $args, \&_set_iodir_read ); 
                 next;
@@ -481,7 +482,9 @@ sub _analyse_src_for_iodirs {
             if (   $line =~ /^\s+(?:read)\s*\(\s*(.+)$/
                 or $line =~ /^\d+\s+(?:read)\s*\(\s*(.+)$/ )
             {
-                my $read_str = $1; 
+                my $read_str = $1;
+                warn " FIXME: use proper parser for read! analyse_src_for_iodirs($f) " . __LINE__; 
+#                croak $read_str; 
                 (my $fh,my @rest) = split(/,/,$read_str);                 
                 $args = _find_vars_w_iodir( $fh, $args, \&_set_iodir_read );
                 for my $str (@rest) {
@@ -565,7 +568,9 @@ sub _analyse_src_for_iodirs {
 # WV20150304 TODO: factor this out and export it so we can use it as a parser for assignments
             if (    $line =~ /[\w\s\)]=[\w\s\(\+\-\.]/
                 and $line !~ /^\s*do\s+.+\s*=/
-                and $line !~ /\bparameter\b/ )
+                and $line !~ /\bparameter\b/
+                and $line !~ /read|write|print/ # for implicit DO
+                 )
             {
 
                 # FIXME: if (...) open|write is not covered
@@ -600,14 +605,13 @@ sub _analyse_src_for_iodirs {
                                 \&_set_iodir_read );
                         }
                     } elsif ( $tline =~ /read\s*\(/ ) {
-                        print
-                          "WARNING: IGNORING conditional read call <$tline>\n"
-                          if $W;
+                        croak
+                          "WARNING: IGNORING conditional read call <$tline>";
+                        
                         next;
                     } elsif ( $tline =~ /print.+?,/ ) {
-                        print
-                          "WARNING: IGNORING conditional print call <$tline>\n"
-                          if $W;
+                        croak
+                          "WARNING: IGNORING conditional print call <$tline>";
                         next;
                     } else {
                         ( my $cond, my $call, $rhs ) =
@@ -620,14 +624,24 @@ sub _analyse_src_for_iodirs {
                           _find_vars_w_iodir( $cond, $args, \&_set_iodir_read );
                     }
                 } else {
-                    if ( $tline =~ /(open|write|read|print|close)\s*\(/ ) {
+                	
+                    if ( $tline =~ /(open|close)\s*\(/ ) {
                         my $call = $1;
-                        print
-"WARNING: IGNORING conditional $call <$tline> (_analyse_src_for_iodirs)\n"
-                          if $W;
+
+                        print 
+"WARNING: IGNORING conditional $call <$tline> (_analyse_src_for_iodirs) " . __LINE__  if $W;
 
                         #            	 		warn "IGNORING $call call <$tline>\n";
                         next;
+                    } elsif ( $tline =~ /(write|read|print)\s*\(/ ) {
+                        my $call = $1;
+                        croak "THIS IS NEVER REACHED";
+                        croak
+"WARNING: IGNORING conditional $call <$tline> (_analyse_src_for_iodirs) " . __LINE__;
+
+                        #            	 		warn "IGNORING $call call <$tline>\n";
+                        next;
+
                     } else {
                           
                         ( $var, $rhs ) = split( /\s*=\s*/, $tline );
@@ -817,10 +831,10 @@ sub parse_assignment {
                 $args = { %{$args}, %{$args_sep} };
             }
         } elsif ( $tline =~ /read\s*\(/ ) {
-            print "WARNING: IGNORING conditional read call <$tline>\n" if $W;
+            croak "WARNING: IGNORING conditional read call <$tline>";
             next;
         } elsif ( $tline =~ /print.+?,/ ) {
-            print "WARNING: IGNORING conditional print call <$tline>\n" if $W;
+            croak "WARNING: IGNORING conditional print call <$tline>";
             next;
         } else {
             ( my $cond, my $call, $rhs ) =
@@ -835,6 +849,9 @@ sub parse_assignment {
             print
 "WARNING: IGNORING conditional $call <$tline> (_analyse_src_for_iodirs)\n"
               if $W;
+            warn
+"WARNING: IGNORING conditional $call <$tline> (_analyse_src_for_iodirs)\n";
+              
 
             #            next;
             return [ {}, [], $call ];
@@ -856,6 +873,10 @@ sub parse_assignment {
                     print
 "WARNING: IGNORING <$tline>, CAN'T HANDLE IT (_analyse_src_for_iodirs)\n"
                       if $W;
+                    warn
+"WARNING: IGNORING <$tline>, CAN'T HANDLE IT (_analyse_src_for_iodirs) ". __LINE__ ."\n";
+                      
+                      
                 } else {
 
                     #                    $args=_find_vars( $str);
