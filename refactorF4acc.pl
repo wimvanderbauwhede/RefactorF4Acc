@@ -213,7 +213,7 @@ sub {
 #		return $stref->{'IncludeFiles'}{'common.sn'};
 		return {'ExInclArgs' => $stref->{'Subroutines'}{$sub}{'ExInclArgs'}, 'ExImplicitArgs' => $stref->{'Subroutines'}{$sub}{'ExImplicitArgs'} };
 	} elsif ($stage==3) {
-		return $sub.'('.join( ',',keys $stref->{'Subroutines'}{$sub}{'ExGlobArgDecls'}{'Set'}).')';			
+		return $sub.'('.join( ',',keys %{ $stref->{'Subroutines'}{$sub}{'ExGlobArgDecls'}{'Set'} }).')';			
 	} elsif ($stage==4) {
 		return $stref->{'Subroutines'}{$sub}{'ConflictingParams'};		
 	} elsif ($stage==5) {

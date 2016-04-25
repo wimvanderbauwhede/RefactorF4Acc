@@ -243,6 +243,7 @@ sub _set_iodir_read_write {
     return $args_ref;
 }
 
+
 # -----------------------------------------------------------------------------
 sub _find_vars_w_iodir {
     ( my $line, my $args_ref, my $subref ) = @_;
@@ -466,32 +467,72 @@ sub _analyse_src_for_iodirs {
             # Skip the declarations
             if ( exists $info->{'VarDecl'} ) { next; }
 
-            # Write & File open statements
-            if (   $line =~ /^\s+(?:write|print|open)\s*\(\s*(.+)$/
-                or $line =~ /^\d+\s+(?:write|print|open)\s*\(\s*(.+)$/
-                or $line =~ /^\s+print.+?,(.+)$/
-                or $line =~ /^\d+\s+print.+?,(.+)$/ )
+            # File open statements
+            if (   $line =~ /^\s+open\s*\(\s*(.+)$/
+                or $line =~ /^\d+\s+open\s*\(\s*(.+)$/ )
             {
-                my $str = $1;
-                if ($line=~/write|print/) { warn " FIXME: use proper parser for write and print! analyse_src_for_iodirs($f) " . __LINE__; }                
-                die $line unless defined $str;
+                my $str= $1;
                 $args = _find_vars_w_iodir( $str, $args, \&_set_iodir_read ); 
                 next;
             }
+            
+			if (exists $info->{'WriteCall'} or exists $info->{'PrintCall'} ) {
+				# All variables are read from, so IODir is read
+				 for my $mvar (@{$info->{'CallArgs'}{'List'}}, @{$info->{'ExprVars'}{'List'}} ) {
+	        		if ( exists $args->{$mvar} and ref($args->{$mvar}) eq 'HASH') {        	
+	        			if( exists $args->{$mvar}{'IODir'} ) {
+	            			$args = _set_iodir_read( $mvar, $args );
+	        			}
+	        		}
+				 }
+				 next; 
+    		}
 
-            if (   $line =~ /^\s+(?:read)\s*\(\s*(.+)$/
-                or $line =~ /^\d+\s+(?:read)\s*\(\s*(.+)$/ )
-            {
-                my $read_str = $1;
-                warn " FIXME: use proper parser for read! analyse_src_for_iodirs($f) " . __LINE__; 
-#                croak $read_str; 
-                (my $fh,my @rest) = split(/,/,$read_str);                 
-                $args = _find_vars_w_iodir( $fh, $args, \&_set_iodir_read );
-                for my $str (@rest) {
-                $args = _find_vars_w_iodir( $str, $args, \&_set_iodir_read_write );
-                }
-                next;
-            }
+			if (exists $info->{'ReadCall'}) {
+				# Arguments are written to, so IODir is write; others are read
+				 for my $mvar (@{$info->{'CallArgs'}{'List'}}) {
+	        		if ( exists $args->{$mvar} and ref($args->{$mvar}) eq 'HASH') {        	
+	        			if( exists $args->{$mvar}{'IODir'} ) {
+	            			$args = _set_iodir_write( $mvar, $args );
+	        			}
+	        		}
+				 }
+				 for my $mvar ( @{$info->{'ExprVars'}{'List'}} ) {
+	        		if ( exists $args->{$mvar} and ref($args->{$mvar}) eq 'HASH') {        	
+	        			if( exists $args->{$mvar}{'IODir'} ) {
+	            			$args = _set_iodir_read( $mvar, $args );
+	        			}
+	        		}
+				 }
+				 
+				 next; 
+    		}
+
+#            # Write & Print statements
+#            if (   $line =~ /^\s+(?:write|print)\s*\(\s*(.+)$/
+#                or $line =~ /^\d+\s+(?:write|print)\s*\(\s*(.+)$/
+#                or $line =~ /^\s+print.+?,(.+)$/
+#                or $line =~ /^\d+\s+print.+?,(.+)$/ )
+#            {
+#                my $str = $1;
+#                if ($line=~/write|print/) { warn " FIXME: use proper parser for write and print! analyse_src_for_iodirs($f) " . __LINE__; }                
+#                die $line unless defined $str;
+#                $args = _find_vars_w_iodir( $str, $args, \&_set_iodir_read ); 
+#                next;
+#            }
+
+#            if (   $line =~ /^\s+(?:read)\s*\(\s*(.+)$/
+#                or $line =~ /^\d+\s+(?:read)\s*\(\s*(.+)$/ )
+#            {
+#                my $read_str = $1;
+#                warn " FIXME: use proper parser for read! analyse_src_for_iodirs($f) " . __LINE__; 
+#                (my $fh,my @rest) = split(/,/,$read_str);                 
+#                $args = _find_vars_w_iodir( $fh, $args, \&_set_iodir_read );
+#                for my $str (@rest) {
+#                $args = _find_vars_w_iodir( $str, $args, \&_set_iodir_read_write );
+#                }
+#                next;
+#            }
 # Subroutine call
             if (   exists $info->{'SubroutineCall'}
                 && exists $info->{'SubroutineCall'}{'Name'} )
@@ -907,13 +948,16 @@ sub _get_iodirs_from_subcall {
     ( my $stref, my $f, my $info) = @_;
 	my $called_arg_iodirs={};
 	my $name  = $info->{'SubroutineCall'}{'Name'};
+#	say "SUB NAME: $name";
 	if (not exists $stref->{'ExternalSubroutines'}{$name}) {
     my $Sf = $stref->{'Subroutines'}{$f};
 	my $args = $Sf->{'RefactoredArgs'}{'Set'};
 #	say Dumper($info);
     
     my $argmap = $info->{'SubroutineCall'}{'ArgMap'};
+#    say "ARGMAP:".Dumper($argmap);
     my $Sname = $stref->{'Subroutines'}{$name};
+    
 #    for my $expr (keys %{$argmap}) {
 #    	if ($expr=~/[a-z_]\w*/) {
 #    		# It's a variable
@@ -935,6 +979,7 @@ sub _get_iodirs_from_subcall {
     
         my $i = 0;
         for my $call_arg (keys %{$argmap}) {
+        	say $call_arg;
             my $sig_arg = $argmap->{$call_arg};
 
             # int is a FORTRAN primitive converting float to int

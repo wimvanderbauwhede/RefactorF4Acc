@@ -160,8 +160,8 @@ sub _analyse_variables {
 			or exists $info->{'Do'}
 			or exists $info->{'WriteCall'}
 			or exists $info->{'PrintCall'}
-			or exists $info->{'ReadCall'}
-			or exists $info->{'OpenCall'} 
+			or exists $info->{'ReadCall'} 
+			or exists $info->{'OpenCall'}  
 			or exists $info->{'CloseCall'} 
 			)
 		{
@@ -171,56 +171,27 @@ sub _analyse_variables {
 			
 			my $Sf = $stref->{'Subroutines'}{$f};
 #			my @chunks = split( /[^\.\w]/, $line );
-			my $tline = $line;
-			if ( exists $info->{'ReadCall'} 
+			my @chunks = ();
+			if (exists $info->{'PrintCall'}
 			or exists $info->{'WriteCall'}
-			or exists $info->{'PrintCall'}			
-			) {				
-				my $call =  exists $info->{'ReadCall'} ? 'READ' :   exists $info->{'WriteCall'} ? 'WRITE' : 'PRINT';
-#				say $line;
-				# This only works for read (), not for read*
-				if ($tline=~/(read|write|print)\s*\(/) {
-				while (substr($tline,0,1) ne ')') {
-					$tline=substr $tline,1;
-				}
-				$tline=~s/\)\s*//;
-				} elsif ($tline=~/(read|write|print)\s+\'\(.+\'\)\s*,/) {
-					#READ '(A6,I3)', A, I
-					$tline=~s/(read|write|print)\s+\'\(.+\'\)\s*,//;
-				} elsif ($tline=~/(read|write|print)\s+[^,]+,/) {
-					$tline=~s/^.+?,//;
-				}
-				# ((( u(i,j,k),i=1,im) ,j=1,jm) ,k=1,km), 
-				if ($tline=~/=/) {
-					$tline=~s/\s+//g;
-					my @implied_do_iters = ();
-					# I am fed up so I'm going to assume that the bounds are constants or scalars
-					while ($tline=~/=/) {
-						if ($tline=~/,(\w+)=(\w+),(\w+)\)/) {
-							my $idx=$1;
-							my $idx_b=$2;
-							my $idx_e=$3;
-							$tline=~s/,(\w+)=(\w+),(\w+)\)//;
-							$tline=~s/^\(//;
-							push @implied_do_iters, [$idx, $idx_b, $idx_e]
-						}
-					}
-					for my $entry (@implied_do_iters) {
-						my $idx=$entry->[0];
-						$tline=~s/${idx}[,\)]//;
-					}
-					$tline=~s/\(//;
-				} 
-#				say  "$call: $tline";
-			}
-#say 'HERE';
-			my @chunks = split( /\W+/, $tline );
-			for my $mvar (@chunks) {				
-				next if exists $F95_reserved_words{$mvar};
-				next if exists $stref->{'Subroutines'}{$f}{'CalledSubs'}{$mvar}; # Means it's a function
-				next if $mvar =~ /^__PH\d+__$/;
-				next if $mvar !~ /^[_a-z]\w*$/;
+			or exists $info->{'ReadCall'}
+			or exists $info->{'SubroutineCall'} ) {
+				@chunks = (@{$info->{'CallArgs'}{'List'}}, @{$info->{'ExprVars'}{'List'}} ) ;
+			} elsif (exists $info->{'Assignment'}) {
+#				say Dumper($info);
+					@chunks = ($info->{'Lhs'}{'VarName'},@{$info->{'Lhs'}{'IndexVars'}{'List'}}, @{$info->{'Rhs'}{'VarList'}{'List'}} ) ;
+			} else {
 
+				my @mchunks = split( /\W+/, $line );
+				for my $mvar (@chunks) {				
+					next if exists $F95_reserved_words{$mvar};
+					next if exists $stref->{'Subroutines'}{$f}{'CalledSubs'}{$mvar}; # Means it's a function
+					next if $mvar =~ /^__PH\d+__$/;
+					next if $mvar !~ /^[_a-z]\w*$/;
+					push @chunks, $mvar;
+				}
+			}
+			for my $mvar (@chunks) {				
 				my $maybe_orig_arg = in_nested_set( $Sf, 'OrigArgs', $mvar );
 				my $maybe_decl_orig_arg = exists  $Sf->{'DeclaredOrigArgs'}{'Set'}{$mvar} ? 'DeclaredOrigArgs' : '';
 				my $undecl_orig_arg = exists  $Sf->{'UndeclaredOrigArgs'}{'Set'}{$mvar} ? 1 : 0;

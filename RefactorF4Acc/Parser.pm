@@ -5,6 +5,7 @@ use RefactorF4Acc::Utils;
 use RefactorF4Acc::CallTree qw( add_to_call_tree );
 use RefactorF4Acc::Refactoring::Common qw( emit_f95_var_decl get_f95_var_decl );
 use RefactorF4Acc::Parser::SrcReader qw( read_fortran_src );
+use RefactorF4Acc::Parser::Expressions qw(  parse_expression  get_args_vars_from_expression );
 use RefactorF4Acc::CTranslation qw( add_to_C_build_sources );    # OBSOLETE
 use RefactorF4Acc::Analysis::ArgumentIODirs qw( parse_assignment );
 use RefactorF4Acc::Analysis::LoopDetect qw( outer_loop_start_detect );
@@ -433,11 +434,23 @@ sub _analyse_lines {
 				$info->{ ucfirst($keyword) } = 1;
 				
 			} elsif ( $line =~
-				/^\d*\s+(read|write|print|open|close)\s*\(/
+				/^\d*\s+(read|write|print)\s*\(/
 				 )
 			{
 				my $keyword = $1;
 				$info->{ ucfirst($keyword).'Call' } = 1;
+				
+				$info = parse_read_write_print($line, $info, $stref, $f);
+				
+				
+			} elsif ( $line =~
+				/^\d*\s+(open|close)\s*\(/
+				 )
+			{
+				my $keyword = $1;
+				$info->{ ucfirst($keyword).'Call' } = 1;
+				
+				
 			} elsif ( $line =~ /^\d*\s+end\s+(if|case|do)\s*/ ) {
 				my $keyword = $1;
 				my $kw      = ucfirst($keyword);
@@ -484,14 +497,15 @@ sub _analyse_lines {
 
 #WV20150303: We parse this assignment and return {Lhs => {Varname, ArrayOrScalar, IndexExpr}, Rhs => {Expr, VarList}}
 #say "WRONG LINE:".$line;
-				my $vref = parse_assignment($line);
-				$info->{'Assignment'} = {
-					'Lhs' => $vref->[0],
-					'Rhs' => {
-						'VarList' => $vref->[1],
-						'Expr'    => $vref->[2],
-					}
-				};
+				$info = _parse_assignment($line, $info, $stref, $f );
+#				my $vref = parse_assignment($line);
+#				$info->{'Assignment'} = {
+#					'Lhs' => $vref->[0],
+#					'Rhs' => {
+#						'VarList' => $vref->[1],
+#						'Expr'    => $vref->[2],
+#					}
+#				};
 			}
 
 			# Actual variable declaration line (F77)
@@ -515,7 +529,7 @@ sub _analyse_lines {
 
 		#                 $is_f77_vardecl = 1; # Actual parsing happens later on
 			} elsif ( $line =~ /^\s*(.*)\s*::\s*(.*?)\s*$/ ) {
-
+# 
 				# F95 VarDecl
 				# F95 declaration, no need for refactoring
 				$type   = $1;
@@ -936,7 +950,7 @@ sub _parse_subroutine_and_function_calls {
 				if ( $argstr =~ /^\s*$/ ) {
 					$argstr = '';
 				}
-				  
+				$info->{'SubroutineCall'}{'Name'} = $name;  
 				if ( $in_kernel_wrapper_region == 1 ) {
 					if ($in_kernel_sub_region) {
 						$stref->{'KernelWrappers'}{$kernel_wrapper_name}
@@ -961,37 +975,44 @@ sub _parse_subroutine_and_function_calls {
 #					return $stref;
 					$external_sub=1;
 				}
+				my $ast= parse_expression("$name($argstr)",$info, $stref, $f);
+#				say Dumper($ast);
+				(my $expr_args,my $expr_other_vars)= @{ get_args_vars_from_expression($ast) };
+#				say Dumper($expr_args);
+				$info->{'CallArgs'}=$expr_args;
+				$info->{'ExprVars'}=$expr_other_vars;				 
+				$info->{'SubroutineCall'}{'Args'}=$info->{'CallArgs'};
+
+#				my $tvarlst = $argstr;
+## replace , by ; in array indices and nested function calls FIXME: UGLY! USE PROPER FSM!
+#				if ( $tvarlst =~ /\(((?:[^\(\),]*?,)+[^\(]*?)\)/ ) {
+#					while ( $tvarlst =~ /\(((?:[^\(\),]*?,)+[^\(]*?)\)/ ) {
+#						my $chunk  = $1;
+#						my $chunkr = $chunk;
+#						$chunkr =~ s/,/;/g;
+#						my $pos = index( $tvarlst, $chunk );
+#						substr( $tvarlst, $pos, length($chunk), $chunkr );
+#					}
+#				}
+#
+#				# now split on , FIXME: UGLY! USE PROPER FSM!
+#				my @tvars = split( /\s*\,\s*/, $tvarlst );
+#
+#				# now replace ; by , FIXME: UGLY! USE PROPER FSM!
+#				my @argvars = ();
+#				for my $var (@tvars) {
+#					$var =~ s/^\s+//;
+#					$var =~ s/\s+$//;
+#					$var =~ s/;/,/g;
+#					push @argvars, $var;
+#				}
+#
+#				$info->{'SubroutineCall'}{'Args'}{'List'} = \@argvars;
+#				$info->{'SubroutineCall'}{'Args'}{'Set'} =
+#				  { map { $_ => 1 } @argvars };
+#				$info->{'SubroutineCall'}{'Name'} = $name;
 				
-
-				my $tvarlst = $argstr;
-
-# replace , by ; in array indices and nested function calls FIXME: UGLY! USE PROPER FSM!
-				if ( $tvarlst =~ /\(((?:[^\(\),]*?,)+[^\(]*?)\)/ ) {
-					while ( $tvarlst =~ /\(((?:[^\(\),]*?,)+[^\(]*?)\)/ ) {
-						my $chunk  = $1;
-						my $chunkr = $chunk;
-						$chunkr =~ s/,/;/g;
-						my $pos = index( $tvarlst, $chunk );
-						substr( $tvarlst, $pos, length($chunk), $chunkr );
-					}
-				}
-
-				# now split on , FIXME: UGLY! USE PROPER FSM!
-				my @tvars = split( /\s*\,\s*/, $tvarlst );
-
-				# now replace ; by , FIXME: UGLY! USE PROPER FSM!
-				my @argvars = ();
-				for my $var (@tvars) {
-					$var =~ s/^\s+//;
-					$var =~ s/\s+$//;
-					$var =~ s/;/,/g;
-					push @argvars, $var;
-				}
-
-				$info->{'SubroutineCall'}{'Args'}{'List'} = \@argvars;
-				$info->{'SubroutineCall'}{'Args'}{'Set'} =
-				  { map { $_ => 1 } @argvars };
-				$info->{'SubroutineCall'}{'Name'} = $name;
+#				die Dumper($info).$f;
 
 			if($external_sub==0) {
 				my $Sname = $stref->{'Subroutines'}{$name};
@@ -2032,7 +2053,7 @@ sub __construct_new_subroutine_signatures {
 		for my $iters ( $itersref->{$block} ) {
 			for my $iter ( @{$iters} ) {
 				my $decl = get_f95_var_decl( $stref, $f, $iter );
-				$Sblock->{'LocalVars'}{'Set'}{$iter}             = $decl;
+				$Sblock->{'LocalVars'}{'Set'}{$iter}             = $decl;#
 				$Sblock->{'DeclaredOrigLocalVars'}{'Set'}{$iter} = $decl;
 				push @{ $Sblock->{'DeclaredOrigLocalVars'}{'List'} }, $iter;
 
@@ -2894,6 +2915,117 @@ sub _identify_loops_breaks {
 	return $stref;
 }    # END of _identify_loops_breaks()
 
+sub parse_read_write_print { ( my $tline, my $info, my $stref, my $f)=@_;
+	
+	my $call =  exists $info->{'ReadCall'} ? 'read' :   exists $info->{'WriteCall'} ? 'write' : 'print';
+#				say $line;
+				# This only works for read (), not for read*
+				if ($tline=~/(read|write|print)\s*\(/) {
+				while (substr($tline,0,1) ne ')') {
+					$tline=substr $tline,1;
+				}
+				$tline=~s/\)\s*//;
+				} elsif ($tline=~/(read|write|print)\s+\'\(.+\'\)\s*,/) {
+					#READ '(A6,I3)', A, I
+					$tline=~s/(read|write|print)\s+\'\(.+\'\)\s*,//;
+				} elsif ($tline=~/(read|write|print)\s+[^,]+,/) {
+					$tline=~s/^.+?,//;
+				}
+				# ((( u(i,j,k),i=1,im) ,j=1,jm) ,k=1,km),
+				 # (((real(a1(i,j,k)),i=1,im),j=1,jm),k=1,km), (((real(a3(i,j,k)),i=1,im),j=1,jm),k=1,km), (((real(a2(i,j,k)),i=1,im),j=1,jm),k=1,km)
+				 # replace  i=1,im by range(i,1,im) :
+				 
+#				if ($tline=~/=/) {
+#					$tline=~s/\s+//g;
+#					my @implied_do_iters = ();
+#					# I am fed up so I'm going to assume that the bounds are constants or scalars
+#					while ($tline=~/=/) {
+#						if ($tline=~/,(\w+)=(\w+),(\w+)\)/) {
+#							my $idx=$1;
+#							my $idx_b=$2;
+#							my $idx_e=$3;
+#							$tline=~s/,(\w+)=(\w+),(\w+)\)//;
+#							$tline=~s/^\(//;
+#							push @implied_do_iters, [$idx, $idx_b, $idx_e]
+#						}
+#					}
+#					for my $entry (@implied_do_iters) {
+#						my $idx=$entry->[0];
+#						$tline=~s/${idx}[,\)]//;
+#					}
+#					$tline=~s/\(//;
+#				}
+				if ($tline=~/=/) {
+					$tline=~s/\s+//g;
+					my @implied_do_iters = ();
+					# I am fed up so I'm going to assume that the bounds are constants or scalars
+					while ($tline=~/=/) {
+						if ($tline=~/,(\w+)=(\w+),(\w+)\)/) {
+							my $idx=$1;
+							my $idx_b=$2;
+							my $idx_e=$3;
+							$tline=~s/,(\w+)=(\w+),(\w+)\)/,range($idx,$idx_b,$idx_e))/;
+						}
+					}
+#					say "TLINE $f: $tline" ;
+				
+				# replace  ^\(\(\( and ,\s*\(\(\( with do(do(do( 
+				while ($tline=~/^\(/) {					
+					$tline=~s/\(([^\(])/do(${1}/;
+#				$tline=~s/(^|,\s*)do\(\(/${1}do(do(/;				
+				}
+#				say "TLINE $f: $tline" ; 
+				while ($tline=~/\)\s*,\s*\(/) {										
+					$tline=~s/(\)\s*,\s*\(*)\(([^\(])/${1}do(${2}/;
+#					say "TLINE $f: $tline" ; 
+#					say $tline;
+#				$tline=~s/(^|,\s*)do\(\(/${1}do(do(/;
+				
+				}
+#				die if $f eq 'anime';
+				
+#				die $tline;
+				} 
+#				say "TLINE: $tline" if $f eq 'anime';
+				# At this point we should have just the arguments, let's parse this as an expression
+				my $ast = parse_expression("$call($tline)",$info, $stref, $f);
+				(my $args,my $other_vars)= @{ get_args_vars_from_expression($ast) };
+				$info->{'CallArgs'}=$args;
+				$info->{'ExprVars'}=$other_vars;				 
+	return $info;		
+} # END of parse_read_write_print()
+
+# -----------------------------------------------------------------------------
+sub _parse_assignment {
+    ( my $line, my $info, my $stref, my $f ) = @_;
+
+    my $tline = $line;
+    $tline =~ s/^\s*\d+//;         # remove labels
+    $tline =~ s/^\s+//; # remove blanks
+    $tline =~ s/\s+$//; # remove blanks
+    (my $lhs, my $rhs ) = split( /\s*=\s*/, $tline );
+	my $lhs_ast = parse_expression($lhs,$info, $stref, $f);
+#	say Dumper($lhs_ast);
+	(my $lhs_args,my $lhs_vars)= @{ get_args_vars_from_expression($lhs_ast) };
+#	say 'ARGS:'.Dumper($lhs_args);
+#	say Dumper($lhs_vars);
+	my $rhs_ast = parse_expression($rhs,$info, $stref, $f);
+	(my $rhs_args,my $rhs_vars)= @{ get_args_vars_from_expression($rhs_ast) };
+	#{Lhs => {VarName, ArrayOrScalar, IndexExpr}, Rhs => {Expr, VarList}}
+	my $lhs_varname= $lhs_args->{'List'}[0];
+	$info->{'Lhs'}={
+		'VarName'=>$lhs_varname,
+		'IndexVars' =>$lhs_vars,
+		'ArrayOrScalar' =>$lhs_args->{'Set'}{$lhs_varname}{'Type'},
+		'ExpressionAST'=>$lhs_ast
+	};   
+	$info->{'Rhs'}={
+		'VarList'=>$rhs_vars,
+		'ExpressionAST'=>$rhs_ast
+	};
+#	say "ASSIGNMENT LINE: $line => ".$info->{'Lhs'}{'VarName'}.' ; '.join(',',@{ $info->{'Rhs'}{'VarList'}{'List'}});
+	return $info;
+} # END of _parse_assignment()
 # -----------------------------------------------------------------------------
 
 1;
