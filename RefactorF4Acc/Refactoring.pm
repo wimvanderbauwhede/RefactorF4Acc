@@ -56,8 +56,10 @@ sub refactor_all {
     $stref = determine_argument_io_direction_rec( $subname, $stref );    
     return $stref if $stage == 4;    
     print "DONE determine_argument_io_direction_rec()\n" if $V;
+
     $stref = update_argument_io_direction_all_subs( $stref );
     # So at this point we know everything there is to know about the argument declarations, we can now update them
+    
     say "remove_vars_masking_functions" if $V;    
     $stref = remove_vars_masking_functions($stref);
     return $stref if $stage == 5;

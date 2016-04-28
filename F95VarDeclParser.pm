@@ -54,9 +54,11 @@ sub parse_F95_var_decl {
 	if (ref($varlist) ne 'ARRAY') {
 		$pt->{Vars} = [$varlist];
 	}
-    my $parlist = $pt->{Pars}->[0]; #HACK
-    my $lhs =$parlist->[0]->{Lhs};
-    my $rhs =$parlist->[1]->{Rhs};
+
+    my $parlist = $pt->{Pars};#->[0]; #HACK
+#    say Dumper($parlist);	
+    my $lhs =$parlist->{Lhs};
+    my $rhs =$parlist->{Rhs};
      	$pt->{Pars} = {Var => $lhs, Val => $rhs};
 #	if (ref($parlist) ne 'ARRAY') {    
 #		$pt->{Pars} = [$parlist];
@@ -76,7 +78,7 @@ sub f95_var_decl_parser {
         maybe(
         sequence [
         comma,
-        {Attributes => sepBy(',',&attribute_parser)}
+        {Attributes => sepByChar(',',&attribute_parser)}
         ]
         ),
     	&varlist_parser,
@@ -128,7 +130,7 @@ sub type_parser {
 sub dim_parser {
 		sequence [
 			symbol('dimension'),
-        {Dim => parens sepBy(',', regex('[^,\)]+')) },
+        {Dim => parens sepByChar(',', regex('[^,\)]+')) },
         maybe( char(')'))
 		] 
 }
@@ -151,7 +153,7 @@ sub allocatable_parser {
 sub varlist_parser {
 	sequence [	
 	symbol('::'),	
-	choice({Pars => try(sepBy(',',&param_assignment)) },{Vars => sepBy(',',word) })
+	choice({Pars => try(sepByChar(',',&param_assignment)) },{Vars => sepByChar(',',word) })
 	]
 }
 

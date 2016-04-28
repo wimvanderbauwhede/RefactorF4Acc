@@ -11,7 +11,11 @@ use RefactorF4Acc::Analysis::ArgumentIODirs qw( parse_assignment );
 use RefactorF4Acc::Analysis::LoopDetect qw( outer_loop_start_detect );
 
 use F95VarDeclParser qw( parse_F95_var_decl );
-
+use FortranConstructParser  qw(
+		parse_Fortran_open_call
+		parse_Fortran_do_construct
+		parse_Fortran_if_construct
+);
 #
 #   (c) 2010-2012 Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
 #
@@ -402,7 +406,7 @@ sub _analyse_lines {
 			if ( $line =~ /^\!\s+/ && $line !~ /^\!\s*\$(?:ACC|RF4A)\s/i ) {
 				next;
 			}
-#say "LINE: $line";
+
 			# Handle !$ACC
 			if ( $line =~ /^\!\s*\$(?:ACC|RF4A)\s.+$/i ) {
 				( $stref, $info ) = __handle_acc( $stref, $f, $index, $line );
@@ -435,22 +439,22 @@ sub _analyse_lines {
 				
 			} elsif ( $line =~
 				/^\d*\s+(read|write|print)\s*\(/
-				 )
-			{
+			) {
 				my $keyword = $1;
-				$info->{ ucfirst($keyword).'Call' } = 1;
-				
-				$info = parse_read_write_print($line, $info, $stref, $f);
-				
-				
+				$info->{ ucfirst($keyword).'Call' } = 1;				
+				$info = parse_read_write_print($line, $info, $stref, $f);								
 			} elsif ( $line =~
-				/^\d*\s+(open|close)\s*\(/
-				 )
-			{
-				my $keyword = $1;
+				/^\d*\s*(open|close)\s*\(/
+			) {
+				my $keyword = $1;				
 				$info->{ ucfirst($keyword).'Call' } = 1;
-				
-				
+				if ($keyword eq 'open') {
+					my $ast = parse_Fortran_open_call($line);
+					$info->{'Ast'} = $ast;
+					if (exists $ast->{'FileName'} and exists $ast->{'FileName'}{'Var'} and $ast->{'FileName'}{'Var'} !~/__PH/) {
+						$info->{'FileNameVar'} = $ast->{'FileName'}{'Var'}; # TODO: in principle almost any other field could be a var						
+					}					
+				}								
 			} elsif ( $line =~ /^\d*\s+end\s+(if|case|do)\s*/ ) {
 				my $keyword = $1;
 				my $kw      = ucfirst($keyword);
@@ -475,15 +479,41 @@ sub _analyse_lines {
 
 #WV20150304: We parse the do and store the iterator and the range { 'Iterator' => $i,'Range' =>[$start,$stop]}
 				my $do_stmt = $line;
-				$do_stmt =~ s/^\d*\s+do\s+(\d*)\s+//;
+				my $label = 'LABEL_NOT_DEFINED';
+				if ($do_stmt =~/do\s+\d+/) {
+					$do_stmt =~ s/^\d*\s+do\s+(\d*)\s+//;
 				my $label = $1;
+				} else {
+					$do_stmt =~ s/^\d*\s+do\s+//;
+				}
+				
 
 				( my $iter, my $range ) = split( /\s*=\s*/, $do_stmt );
 				( my $range_start, my $range_stop ) = split( /s*,\s*/, $range );
+				my $mvars=[];
+				for my $mchunk ($range_start, $range_stop ) {
+							next if $mchunk =~/^\d+$/; 
+							my @mchunks =();
+							if ($mchunk=~/\W/) {
+								 @mchunks = split( /\W+/, $mchunk );
+							} elsif ($mchunk=~/^\w+$/) {
+									push @mchunks,$mchunk 
+							} else {
+								croak "Unknown pattern $mchunk in Do Range";
+							}
+							for my $mvar (@mchunks) {				
+								next if exists $F95_reserved_words{$mvar};
+								next if exists $stref->{'Subroutines'}{$f}{'CalledSubs'}{$mvar}; # Means it's a function
+								next if $mvar =~ /^__PH\d+__$/;
+								next if $mvar !~ /^[_a-z]\w*$/;
+								push @{$mvars}, $mvar;
+							}
+#							carp "DO VARS: $mchunk =>".Dumper($mvars) if scalar(@{$mvars})>1;
+						}
 				$info->{'Do'} = {
 					'Iterator' => $iter,
 					'Label'    => $label,
-					'Range'    => [ $range_start, $range_stop ],
+					'Range'    => {'Expressions' => [ $range_start, $range_stop ], 'Vars' => $mvars},
 					'LineID'   => $info->{'LineID'}
 				};
 				$do_counter++;
@@ -2179,6 +2209,7 @@ sub _split_multivar_decls {
 
 	my $Sf           = $stref->{$sub_incl_or_mod}{$f};
 	my $annlines     = $Sf->{'AnnLines'};
+#	say Dumper($annlines).$f;
 	my $nextLineID   = scalar @{$annlines} + 1;
 	my $new_annlines = [];
 	for my $annline ( @{$annlines} ) {
@@ -2915,46 +2946,31 @@ sub _identify_loops_breaks {
 	return $stref;
 }    # END of _identify_loops_breaks()
 
-sub parse_read_write_print { ( my $tline, my $info, my $stref, my $f)=@_;
+sub parse_read_write_print { ( my $line, my $info, my $stref, my $f)=@_;
 	
 	my $call =  exists $info->{'ReadCall'} ? 'read' :   exists $info->{'WriteCall'} ? 'write' : 'print';
-#				say $line;
+				my $tline=$line;
+#say "TLINE1: $tline";
 				# This only works for read (), not for read*
 				if ($tline=~/(read|write|print)\s*\(/) {
-				while (substr($tline,0,1) ne ')') {
-					$tline=substr $tline,1;
-				}
-				$tline=~s/\)\s*//;
+					while (substr($tline,0,1) ne ')') {
+						$tline=substr $tline,1;
+					}
+					$tline=~s/\)\s*//;
 				} elsif ($tline=~/(read|write|print)\s+\'\(.+\'\)\s*,/) {
 					#READ '(A6,I3)', A, I
 					$tline=~s/(read|write|print)\s+\'\(.+\'\)\s*,//;
 				} elsif ($tline=~/(read|write|print)\s+[^,]+,/) {
 					$tline=~s/^.+?,//;
 				}
-				# ((( u(i,j,k),i=1,im) ,j=1,jm) ,k=1,km),
-				 # (((real(a1(i,j,k)),i=1,im),j=1,jm),k=1,km), (((real(a3(i,j,k)),i=1,im),j=1,jm),k=1,km), (((real(a2(i,j,k)),i=1,im),j=1,jm),k=1,km)
-				 # replace  i=1,im by range(i,1,im) :
-				 
-#				if ($tline=~/=/) {
-#					$tline=~s/\s+//g;
-#					my @implied_do_iters = ();
-#					# I am fed up so I'm going to assume that the bounds are constants or scalars
-#					while ($tline=~/=/) {
-#						if ($tline=~/,(\w+)=(\w+),(\w+)\)/) {
-#							my $idx=$1;
-#							my $idx_b=$2;
-#							my $idx_e=$3;
-#							$tline=~s/,(\w+)=(\w+),(\w+)\)//;
-#							$tline=~s/^\(//;
-#							push @implied_do_iters, [$idx, $idx_b, $idx_e]
-#						}
-#					}
-#					for my $entry (@implied_do_iters) {
-#						my $idx=$entry->[0];
-#						$tline=~s/${idx}[,\)]//;
-#					}
-#					$tline=~s/\(//;
-#				}
+								while ($tline=~/[\"\'][^\"\']+[\"\']/) {
+#					say "STRING CONST $tline";
+					$tline=~s/[\"\'][^\"\']+[\"\']//; # so at this point we could have e.g. var1,\s*,var2 or ^\*,var1 or var1,\s*$ 
+					$tline=~s/,\s*,//;
+					$tline=~s/^\s*,\s*//;
+					$tline=~s/\s*,\s*$//;
+				} 
+#say "TLINE2: $tline";
 				if ($tline=~/=/) {
 					$tline=~s/\s+//g;
 					my @implied_do_iters = ();
@@ -2967,31 +2983,31 @@ sub parse_read_write_print { ( my $tline, my $info, my $stref, my $f)=@_;
 							$tline=~s/,(\w+)=(\w+),(\w+)\)/,range($idx,$idx_b,$idx_e))/;
 						}
 					}
-#					say "TLINE $f: $tline" ;
-				
+#				say "TLINE3: $tline";
 				# replace  ^\(\(\( and ,\s*\(\(\( with do(do(do( 
 				while ($tline=~/^\(/) {					
 					$tline=~s/\(([^\(])/do(${1}/;
-#				$tline=~s/(^|,\s*)do\(\(/${1}do(do(/;				
 				}
-#				say "TLINE $f: $tline" ; 
 				while ($tline=~/\)\s*,\s*\(/) {										
 					$tline=~s/(\)\s*,\s*\(*)\(([^\(])/${1}do(${2}/;
-#					say "TLINE $f: $tline" ; 
-#					say $tline;
-#				$tline=~s/(^|,\s*)do\(\(/${1}do(do(/;
-				
 				}
-#				die if $f eq 'anime';
-				
-#				die $tline;
 				} 
-#				say "TLINE: $tline" if $f eq 'anime';
+#				say "TLINE: $tline";
 				# At this point we should have just the arguments, let's parse this as an expression
+				# But the expression parser can only handle numerical expressions so first check if we have strings
+				
+
+#				carp "TLINE STRIPPED: $tline" if $f eq 'ifdata' and $line=~/fghold/;
+				if ($tline!~/^\s*$/) {
 				my $ast = parse_expression("$call($tline)",$info, $stref, $f);
+#				carp Dumper($ast) if $f eq 'ifdata' and $line=~/fghold/;
 				(my $args,my $other_vars)= @{ get_args_vars_from_expression($ast) };
+#				carp "ARGS_VARS:".Dumper($args,$other_vars) if $f eq 'ifdata' and $line=~/fghold/;
+#				croak if $f eq 'ifdata' and $line=~/fghold/;
 				$info->{'CallArgs'}=$args;
-				$info->{'ExprVars'}=$other_vars;				 
+				$info->{'ExprVars'}=$other_vars;
+				}				 
+				
 	return $info;		
 } # END of parse_read_write_print()
 

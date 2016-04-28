@@ -88,6 +88,8 @@ sub read_config {
 		$Config{$k}=[@vs];
 	} elsif ($k !~/TOP\w*|NEWSRCPATH|PREFIX|KERNEL|MODULE\w*|MACRO_SRC/) {
 		$Config{$k}=[$v];
+	} elsif ($k eq 'TOP') {
+		$Config{$k}=lc($v);
 	} else {
 		$Config{$k}=$v;
 	}

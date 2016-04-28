@@ -370,7 +370,7 @@ sub parse_args {
     if ($build) { 
         $gen_scons = 1;
     }
-	return ($subname,\%subs_to_translate,$gen_scons,$build,$call_tree_only);
+	return (lc($subname),\%subs_to_translate,$gen_scons,$build,$call_tree_only);
 } # END of parse_args()
 
 =head1 SYNOPSIS

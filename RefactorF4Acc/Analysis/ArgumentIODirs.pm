@@ -49,8 +49,12 @@ sub determine_argument_io_direction_rec {
     
     if ( exists $Sf->{'CalledSubs'} and scalar keys %{$Sf->{'CalledSubs'}} >0 ) {
         for my $calledsub ( keys %{ $Sf->{'CalledSubs'} } ) {
+        	carp  $calledsub ;
             $stref->{Counter}++ if $V;
-            $stref = determine_argument_io_direction_rec( $calledsub, $stref );            
+carp "\n\nCARP BEFORE REC CALL $f -> $calledsub: ".Dumper($stref->{'Subroutines'}{$calledsub}{'RefactoredArgs'}{'Set'}{'n'}{'IODir'}) if $calledsub eq 'bondv1';            
+            $stref = determine_argument_io_direction_rec( $calledsub, $stref );         
+carp "\n\nCARP AFTER REC CALL $f -> $calledsub: ".Dumper($stref->{'Subroutines'}{$calledsub}{'RefactoredArgs'}{'Set'}{'n'}{'IODir'}) if $calledsub eq 'bondv1';            
+               
             $stref->{Counter}-- if $V;
         }
 
@@ -86,55 +90,55 @@ sub _determine_argument_io_direction_core {
         $stref = _analyse_src_for_iodirs( $stref, $f );
         
 if (0) {        
-        $Sf = $stref->{'Subroutines'}{$f};
-        my $args = $Sf->{'RefactoredArgs'}{'Set'};       
-        
-        my $maybe_args = ( get_maybe_args_globs( $stref, $f ) )[0]; # returns a hash ref
-        
-        if ( scalar keys %{$args} > 0 ) {
-            for my $arg ( keys %{$args} ) {
-                
-                next if $arg eq '';    # FIXME: WHY?!
-
-                my $array_or_scalar  = 'Unknown';
-                my $type  = 'Unknown';
-                my $shape = [];
-                my $attr  = '';
-                my $decl; 
-                
-                my $indent='      ';
-                if ( exists $maybe_args->{$arg} ) {
-                    $decl= $maybe_args->{$arg};
-                    $array_or_scalar  = $maybe_args->{$arg}{'ArrayOrScalar'};
-                    $type  = $maybe_args->{$arg}{'Type'};
-                    $shape = $maybe_args->{$arg}{'Dim'};
-                    $attr  = $maybe_args->{$arg}{'Attr'};
-                    $indent = $maybe_args->{$arg}{'Indent'};
-                } else {
-                    say "WARNING: _determine_argument_io_direction_core ". __LINE__ ." : No Decl for $arg in $f, using IMPLICIT ".Dumper($maybe_args->{$arg}) ;
-                    # FIXME: Implicit rules can include a kind!
-                    # Problem is that we can't tell if this is an array or not. 
-                    ( $type, $array_or_scalar, $attr ) =
-                      type_via_implicits( $stref, $f, $arg );
-                       
-                    if ( $type eq 'Unknown' ) {
-                        print
-                          "WARNING: No type/kind/shape info for $arg in $f\n"
-                          if $W;
-                    }
-                }
-                $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$arg}
-                  {'ArrayOrScalar'} = $array_or_scalar;
-                $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$arg}
-                  {'Type'} = $type;
-                $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$arg}
-                  {'Dim'} = $shape;
-                $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$arg}
-                  {'Attr'} = $attr;
-                  $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$arg}
-                  {'Indent'} = $indent;                  
-            }
-        }
+#        $Sf = $stref->{'Subroutines'}{$f};
+#        my $args = $Sf->{'RefactoredArgs'}{'Set'};       
+#        
+#        my $maybe_args = ( get_maybe_args_globs( $stref, $f ) )[0]; # returns a hash ref
+#        
+#        if ( scalar keys %{$args} > 0 ) {
+#            for my $arg ( keys %{$args} ) {
+#                
+#                next if $arg eq '';    # FIXME: WHY?!
+#
+#                my $array_or_scalar  = 'Unknown';
+#                my $type  = 'Unknown';
+#                my $shape = [];
+#                my $attr  = '';
+#                my $decl; 
+#                
+#                my $indent='      ';
+#                if ( exists $maybe_args->{$arg} ) {
+#                    $decl= $maybe_args->{$arg};
+#                    $array_or_scalar  = $maybe_args->{$arg}{'ArrayOrScalar'};
+#                    $type  = $maybe_args->{$arg}{'Type'};
+#                    $shape = $maybe_args->{$arg}{'Dim'};
+#                    $attr  = $maybe_args->{$arg}{'Attr'};
+#                    $indent = $maybe_args->{$arg}{'Indent'};
+#                } else {
+#                    say "WARNING: _determine_argument_io_direction_core ". __LINE__ ." : No Decl for $arg in $f, using IMPLICIT ".Dumper($maybe_args->{$arg}) ;
+#                    # FIXME: Implicit rules can include a kind!
+#                    # Problem is that we can't tell if this is an array or not. 
+#                    ( $type, $array_or_scalar, $attr ) =
+#                      type_via_implicits( $stref, $f, $arg );
+#                       
+#                    if ( $type eq 'Unknown' ) {
+#                        print
+#                          "WARNING: No type/kind/shape info for $arg in $f\n"
+#                          if $W;
+#                    }
+#                }
+#                $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$arg}
+#                  {'ArrayOrScalar'} = $array_or_scalar;
+#                $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$arg}
+#                  {'Type'} = $type;
+#                $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$arg}
+#                  {'Dim'} = $shape;
+#                $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$arg}
+#                  {'Attr'} = $attr;
+#                  $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$arg}
+#                  {'Indent'} = $indent;                  
+#            }
+#        }
 } # if (0)
         # FIXME: I don't think this should be done here
         #TODO   $stref = remap_args( $stref, $f );
@@ -429,6 +433,9 @@ sub _analyse_src_for_iodirs {
 
     print "_analyse_src_for_iodirs() $f\n" if $V;
     my $Sf = $stref->{'Subroutines'}{$f};
+    
+    carp "\n\nCARP ON IN: ".Dumper($stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{'n'}{'IODir'}) if $f eq 'bondv1';
+    
     if ( not exists $Sf->{'IODirInfo'} or $Sf->{'IODirInfo'} == 0 ) {
         
         if ( not exists $Sf->{'HasRefactoredArgs'}
@@ -466,7 +473,23 @@ sub _analyse_src_for_iodirs {
 			}
             # Skip the declarations
             if ( exists $info->{'VarDecl'} ) { next; }
-
+            carp "LINE: $line" if $f eq 'bondv1';
+			if ( exists $info->{'Do'} ) {
+				  my $mvar = $info->{'Do'}{'Iterator'};
+	        		if ( exists $args->{$mvar} and ref($args->{$mvar}) eq 'HASH') {        	
+	        			if( exists $args->{$mvar}{'IODir'} ) {
+	            			$args = _set_iodir_write( $mvar, $args );
+	        			}
+	        		}				 
+				 for my $mvar ( @{$info->{'Do'}{'Range'}{'Vars'}} ) {
+	        		if ( exists $args->{$mvar} and ref($args->{$mvar}) eq 'HASH') {        	
+	        			if( exists $args->{$mvar}{'IODir'} ) {
+	            			$args = _set_iodir_read( $mvar, $args );
+	        			}
+	        		}
+				 }
+				next; 
+			}
             # File open statements
             if (   $line =~ /^\s+open\s*\(\s*(.+)$/
                 or $line =~ /^\d+\s+open\s*\(\s*(.+)$/ )
@@ -490,7 +513,9 @@ sub _analyse_src_for_iodirs {
 
 			if (exists $info->{'ReadCall'}) {
 				# Arguments are written to, so IODir is write; others are read
+#				carp Dumper($info);
 				 for my $mvar (@{$info->{'CallArgs'}{'List'}}) {
+#				 	croak if $mvar eq 'fghold';
 	        		if ( exists $args->{$mvar} and ref($args->{$mvar}) eq 'HASH') {        	
 	        			if( exists $args->{$mvar}{'IODir'} ) {
 	            			$args = _set_iodir_write( $mvar, $args );
@@ -601,6 +626,7 @@ sub _analyse_src_for_iodirs {
                     die $line unless defined $cond;
                     $args =
                       _find_vars_w_iodir( $cond, $args, \&_set_iodir_read );
+                      
                 }                
                 next;
             }    # SubroutineCall
@@ -734,8 +760,10 @@ sub _analyse_src_for_iodirs {
     }    # if IODirInfo had not been set to 1
     
      # So, at this point, $stref->{'Subroutines'}{$f}{'RefactoredArgs'} has full IODir info
-#     die if scalar keys %{$Sf} ==0; 
-#die Dumper($stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}) if $f eq 'bondv1';
+#     die if scalar keys %{$Sf} ==0;
+#carp Dumper($stref->{'Subroutines'}{'main'}{'RefactoredArgs'}{'Set'}{'n'}) if $f eq 'bondv1'; 
+carp "\n\n".'CARP ON OUT: '.Dumper($stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{'n'}{'IODir'}) if $f eq 'bondv1';
+die if $f eq 'bondv1' and $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{'n'}{'IODir'} eq 'InOut';
     return $stref;
 }    # END of _analyse_src_for_iodirs()
 

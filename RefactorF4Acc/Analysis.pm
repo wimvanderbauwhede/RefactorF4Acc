@@ -52,12 +52,14 @@ sub analyse_all {
 		next if $f eq '';
 		# In this stage, 'Globals' is populated
 		$stref = _analyse_variables( $stref, $f );
+		
 	}
 	return $stref if $stage == 3;
 	
 	for my $f ( keys %{ $stref->{'Subroutines'} } ) {
 		next if $f eq '';
 		$stref = _resolve_conflicts_with_params( $stref, $f );
+		
 	}	
 	return $stref if $stage == 4;
 	
@@ -66,8 +68,8 @@ sub analyse_all {
 	
 	for my $f ( keys %{ $stref->{'Subroutines'} } ) {
 		next if $f eq '';
-		$stref = _create_refactored_args( $stref, $f );
-	}
+		$stref = _create_refactored_args( $stref, $f );		
+	}	
 	return $stref if $stage == 6;
 
 	for my $f ( keys %{ $stref->{'Subroutines'} } ) { # Assuming Functions are just special subroutines
@@ -177,13 +179,19 @@ sub _analyse_variables {
 			or exists $info->{'ReadCall'}
 			or exists $info->{'SubroutineCall'} ) {
 				@chunks = (@{$info->{'CallArgs'}{'List'}}, @{$info->{'ExprVars'}{'List'}} ) ;
+			} elsif (exists $info->{'OpenCall'}) {
+				if (exists $info->{'FileNameVar'} ) {
+				push @chunks, $info->{'FileNameVar'};
+				}
+			} elsif (exists $info->{'Do'}) {
+						@chunks = ($info->{'Do'}{'Iterator'}, @{ $info->{'Do'}{'Range'}{'Vars'} } );						
 			} elsif (exists $info->{'Assignment'}) {
 #				say Dumper($info);
 					@chunks = ($info->{'Lhs'}{'VarName'},@{$info->{'Lhs'}{'IndexVars'}{'List'}}, @{$info->{'Rhs'}{'VarList'}{'List'}} ) ;
 			} else {
 
 				my @mchunks = split( /\W+/, $line );
-				for my $mvar (@chunks) {				
+				for my $mvar (@mchunks) {				
 					next if exists $F95_reserved_words{$mvar};
 					next if exists $stref->{'Subroutines'}{$f}{'CalledSubs'}{$mvar}; # Means it's a function
 					next if $mvar =~ /^__PH\d+__$/;
@@ -363,7 +371,7 @@ sub _analyse_variables {
 		$Sf->{'HasCommons'} = 1;
 	}
 	
-#	if ($f eq 'press') {croak Dumper($state)};
+#	if ($f eq 'ifdata') {croak Dumper($stref->{'Subroutines'}{$f}{'Vars'})};
 	return $stref;
 }    # END of _analyse_variables()
 

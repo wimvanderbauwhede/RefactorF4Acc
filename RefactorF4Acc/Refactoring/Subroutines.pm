@@ -183,7 +183,7 @@ sub _fix_end_lines {
 #- create_refactored_vardecls is a misnomer, it renames locals conflicting woth globals. I think that has been sorted now. We should generate decls for ExInclVarDecls and ExImplicitVarDecls.
 #- create_refactored_subroutine_call, I hope we can keep this
 #- rename_conflicting_locals, I hope we can keep this
-sub _refactor_globals {
+sub _refactor_globals { croak 'OBSOLETE, I HOPE!';
     ( my $stref, my $f, my $annlines ) = @_;
     my $Sf = $stref->{'Subroutines'}{$f};
     

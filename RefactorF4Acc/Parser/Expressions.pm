@@ -244,7 +244,7 @@ sub get_vars_from_expression {(my $ast, my $vars)=@_;
 }
 # if the expression is a sub call (or in fact just a comma-sep list), return the arguments and also all variables that are not arguments
 sub get_args_vars_from_expression {(my $ast)=@_;
-#	say Dumper($ast);
+	
 	my $all_vars={'List'=>[],'Set'=>{} };
 	my $args={'List'=>[],'Set'=>{}};
 	if (ref($ast) eq 'ARRAY') {
@@ -281,6 +281,15 @@ sub get_args_vars_from_expression {(my $ast)=@_;
 					if ($ast->[$idx][0] eq '@') {
 #						push @{$args->{'List'}},$arg;
 						$args->{'Set'}{$arg}={ 'Type'=>'Array','Vars'=>$vars};
+					} elsif($ast->[$idx][1] eq 'do')	{ 
+						my $tast=[@{$ast->[$idx]}];
+						while($tast->[1] eq 'do') {
+							$tast=$tast->[2]
+						}
+						
+						my $arg_from_implicit_do = $tast->[1];
+						$args->{'Set'}{$arg_from_implicit_do}={ 'Type'=>'Array'};
+						delete $all_vars->{'Set'}{$arg_from_implicit_do};
 					}
 				} elsif($arg!~/__PH\d/) {				
 #				push @{$args->{'List'}},$arg;
