@@ -183,90 +183,90 @@ sub _fix_end_lines {
 #- create_refactored_vardecls is a misnomer, it renames locals conflicting woth globals. I think that has been sorted now. We should generate decls for ExInclVarDecls and ExImplicitVarDecls.
 #- create_refactored_subroutine_call, I hope we can keep this
 #- rename_conflicting_locals, I hope we can keep this
-sub _refactor_globals { croak 'OBSOLETE, I HOPE!';
-    ( my $stref, my $f, my $annlines ) = @_;
-    my $Sf = $stref->{'Subroutines'}{$f};
-    
-    if ($Sf->{'RefactorGlobals'}==2) {
-    	die "This should NEVER happen!";
-        warn "FIXME: the caller of a sub with RefactorGlobals ($f) should refactor its globals!";
-        # Which child has RefactorGlobals==1?
-        my @additional_includes=();
-        for my $cs ($Sf->{'CalledSubs'}) {          
-            if ($stref->{'Subroutines'}{$cs}{'RefactorGlobals'}==1) {
-                for my $inc ($stref->{'Subroutines'}{$cs}{'CommonIncludes'}) {
-                    if (not exists $Sf->{'CommonIncludes'}{$inc}) {
-                        push @additional_includes, $inc;
-                        croak "$inc from $cs was missing from $f"; 
-                    } 
-                }
-                
-            }
-        }       
-    }
-    
-    print "REFACTORING GLOBALS in $f\n" if $V; 
-    my $rlines      = [];
-    my $s           = $Sf->{'Source'};
-
-    for my $annline ( @{$annlines} ) {
-        (my $line, my $info) = @{ $annline };
-        
-        print '*** ' . join( ', ', map {"$_ => ".Dumper($info=>{$_})} keys(%{$info}) ) . "\n" if $DBG;
-        print '*** ' . $line . "\n" if $DBG;
-        my $skip = 0;
-
-        if ( exists $info->{'Signature'} ) {
-            if (not exists $Sf->{'HasRefactoredArgs'} ) {
-                 # Do this before the analysis for RefactoredArgs!
-                 $stref = refactor_subroutine_signature( $stref, $f );
-            }
-            $rlines =
-              create_refactored_subroutine_signature( $stref, $f, $annline,
-                $rlines );
-            $skip = 1;
-        } 
-        # There should be no need to do this: all /common/ blocks should have been removed anyway!
-        if ( exists $info->{'Include'} ) {
-            $skip = skip_common_include_statement( $stref, $f, $annline );
-#            say "SKIP: $skip";
-        }
-        
-        if ( exists $info->{'ExGlobVarDeclHook'} ) {
-            # First, abuse ExGlobArgDecls as a hook for the addional includes, if any
-            $rlines =
-              create_new_include_statements( $stref, $f, $annline, $rlines );
-              
-           # Then generate declarations for ex-globals
-           say "EX-GLOBS for $f" if $V;
-            $rlines = create_exglob_var_declarations( $stref, $f, $annline, $rlines );
-
-        } 
-        
-        # This is what breaks flexpart, but it's OK for les ...
-        if ( exists $info->{'VarDecl'} and not exists $info->{'Deleted'} and (not exists $info->{Ref} or $info->{Ref}==0)) {
-            $rlines = create_refactored_vardecls( $stref, $f, $annline, $rlines,0 );
-            $skip = 1;
-        }
-
-        if ( exists $info->{'SubroutineCall'} ) {
-            # simply tag the common vars onto the arguments
-            $rlines = create_refactored_subroutine_call( $stref, $f, $annline, $rlines );        
-            $skip = 1;
-        }
-
-        if ( not exists $info->{'Comments'} and not exists $info->{'Deleted'} and $skip == 0 ) {
-            $rlines =
-              rename_conflicting_locals( $stref, $f, $annline, $rlines );
-            $skip = 1;
-        }
-#        say "SKIP ULT: $skip";
-        push @{$rlines}, $annline unless $skip;
-        
-    } # loop over all lines
-    
-    return $rlines;
-}    # END of _refactor_globals()
+#sub _refactor_globals { croak 'OBSOLETE, I HOPE!';
+#    ( my $stref, my $f, my $annlines ) = @_;
+#    my $Sf = $stref->{'Subroutines'}{$f};
+#    
+#    if ($Sf->{'RefactorGlobals'}==2) {
+#    	die "This should NEVER happen!";
+#        warn "FIXME: the caller of a sub with RefactorGlobals ($f) should refactor its globals!";
+#        # Which child has RefactorGlobals==1?
+#        my @additional_includes=();
+#        for my $cs ($Sf->{'CalledSubs'}) {          
+#            if ($stref->{'Subroutines'}{$cs}{'RefactorGlobals'}==1) {
+#                for my $inc ($stref->{'Subroutines'}{$cs}{'CommonIncludes'}) {
+#                    if (not exists $Sf->{'CommonIncludes'}{$inc}) {
+#                        push @additional_includes, $inc;
+#                        croak "$inc from $cs was missing from $f"; 
+#                    } 
+#                }
+#                
+#            }
+#        }       
+#    }
+#    
+#    print "REFACTORING GLOBALS in $f\n" if $V; 
+#    my $rlines      = [];
+#    my $s           = $Sf->{'Source'};
+#
+#    for my $annline ( @{$annlines} ) {
+#        (my $line, my $info) = @{ $annline };
+#        
+#        print '*** ' . join( ', ', map {"$_ => ".Dumper($info=>{$_})} keys(%{$info}) ) . "\n" if $DBG;
+#        print '*** ' . $line . "\n" if $DBG;
+#        my $skip = 0;
+#
+#        if ( exists $info->{'Signature'} ) {
+#            if (not exists $Sf->{'HasRefactoredArgs'} ) {
+#                 # Do this before the analysis for RefactoredArgs!
+#                 $stref = refactor_subroutine_signature( $stref, $f );
+#            }
+#            $rlines =
+#              create_refactored_subroutine_signature( $stref, $f, $annline,
+#                $rlines );
+#            $skip = 1;
+#        } 
+#        # There should be no need to do this: all /common/ blocks should have been removed anyway!
+#        if ( exists $info->{'Include'} ) {
+#            $skip = skip_common_include_statement( $stref, $f, $annline );
+##            say "SKIP: $skip";
+#        }
+#        
+#        if ( exists $info->{'ExGlobVarDeclHook'} ) {
+#            # First, abuse ExGlobArgDecls as a hook for the addional includes, if any
+#            $rlines =
+#              create_new_include_statements( $stref, $f, $annline, $rlines );
+#              
+#           # Then generate declarations for ex-globals
+#           say "EX-GLOBS for $f" if $V;
+#            $rlines = create_exglob_var_declarations( $stref, $f, $annline, $rlines );
+#
+#        } 
+#        
+#        # This is what breaks flexpart, but it's OK for les ...
+#        if ( exists $info->{'VarDecl'} and not exists $info->{'Deleted'} and (not exists $info->{Ref} or $info->{Ref}==0)) {
+#            $rlines = create_refactored_vardecls( $stref, $f, $annline, $rlines,0 );
+#            $skip = 1;
+#        }
+#
+#        if ( exists $info->{'SubroutineCall'} ) {
+#            # simply tag the common vars onto the arguments
+#            $rlines = create_refactored_subroutine_call( $stref, $f, $annline, $rlines );        
+#            $skip = 1;
+#        }
+#
+#        if ( not exists $info->{'Comments'} and not exists $info->{'Deleted'} and $skip == 0 ) {
+#            $rlines =
+#              rename_conflicting_locals( $stref, $f, $annline, $rlines );
+#            $skip = 1;
+#        }
+##        say "SKIP ULT: $skip";
+#        push @{$rlines}, $annline unless $skip;
+#        
+#    } # loop over all lines
+#    
+#    return $rlines;
+#}    # END of _refactor_globals()
 
 # -----------------------------------------------------------------------------
 sub _refactor_calls_globals {
@@ -303,7 +303,7 @@ sub _refactor_calls_globals {
 ## While we're here, might as well generate the declarations for remapping and reshaping.
 ## If the subroutine contains a call to a function that requires this, of course.
 ## Executive decision: do this only for the routines to be translated to C/OpenCL
-#            for my $called_sub ( keys %{ $Sf->{'CalledSubs'} } ) {
+#            for my $called_sub ( keys %{ $Sf->{'CalledSubs'}{'Set'} } ) {
 #                if ( exists $subs_to_translate{$called_sub} ) {
 #
 #                 # OK, we need to do the remapping, so create the machinery here
@@ -380,7 +380,7 @@ sub _refactor_globals_new {
 #        warn "FIXME: the caller of a sub with RefactorGlobals ($f) should refactor its globals!";
 #        # Which child has RefactorGlobals==1?
 #        my @additional_includes=();
-#        for my $cs ($Sf->{'CalledSubs'}) {          
+#        for my $cs ($Sf->{'CalledSubs'}{'Set'}) {          
 #            if ($stref->{'Subroutines'}{$cs}{'RefactorGlobals'}==1) {
 #                for my $inc ($stref->{'Subroutines'}{$cs}{'CommonIncludes'}) {
 #                    if (not exists $Sf->{'CommonIncludes'}{$inc}) {
@@ -576,6 +576,9 @@ sub _create_extra_arg_and_var_decls {
     	croak Dumper(%F95_reserved_words) if $var eq 'file';
     	# Check if it is not a parameter
     	if (not exists $Sf->{'Parameters'}{'Set'}{$var} and not exists $Sf->{'ParametersFromContainer'}{'Set'}{$var}) {
+    		# Somehow this is empty, we need to get the Parameters from the includes so we need to either update 'Includes'
+    		# when we create the params version, or get ParamInclude from the Include
+    		croak Dumper($Sf->{Includes}).Dumper(  $stref->{IncludeFiles}{'params_common.sn'}{Parameters}) if $f eq 'set';
     		if (not exists $F95_reserved_words{$var}) {
                     my $rdecl = $Sf->{'ExImplicitVarDecls'}{'Set'}{$var}; 
                     my $rline = emit_f95_var_decl($rdecl);

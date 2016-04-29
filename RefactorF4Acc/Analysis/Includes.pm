@@ -88,7 +88,7 @@ sub _find_root_for_include {
         # $sub is (currently) not 'Root' for $inc
         my $nchildren   = 0;
         my $singlechild = '';
-        for my $calledsub ( keys %{ $Ssub->{'CalledSubs'} } ) {
+        for my $calledsub ( keys %{ $Ssub->{'CalledSubs'}{'Set'} } ) {
             if (
                 exists $stref->{'Subroutines'}{$calledsub}{'CommonIncludes'}
                 {$inc} )

@@ -59,7 +59,8 @@ sub refactor_all {
 
     $stref = update_argument_io_direction_all_subs( $stref );
     # So at this point we know everything there is to know about the argument declarations, we can now update them
-    
+#    say Dumper($stref->{'Subroutines'}{'les'}{'Vars'});
+
     say "remove_vars_masking_functions" if $V;    
     $stref = remove_vars_masking_functions($stref);
     return $stref if $stage == 5;

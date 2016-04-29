@@ -826,7 +826,7 @@ if ($f eq 'UNKNOWN_SRC' or $stref->{$srctype}{$f}{'Status'}<$PARSED ) {
     my $pline = _procLine( $line, $free_form );
 #    say "PLINE:".Dumper($pline) if $f eq 'UNKNOWN_SRC';
     if (exists $stref->{'Macros'} ) {
-        $pline->[0] = restore_case_of_macros($stref,$pline->[0]);        
+        $pline->[0] = _restore_case_of_macros($stref,$pline->[0]);        
     }
     if ( exists $pline->[1]{'Module'} and $srctype eq 'Modules' ) {
         if ( $f ne 'UNKNOWN_SRC' ) {
@@ -883,7 +883,7 @@ if ($f eq 'UNKNOWN_SRC' or $stref->{$srctype}{$f}{'Status'}<$PARSED ) {
 # -----------------------------------------------------------------------------
 # -----------------------------------------------------------------------------
 
-sub _hasCont {
+sub _hasCont { croak 'UNUSED';
     ( my $line ) = @_;
     if ( $line =~ /\&\s*$/ ) {
         return 1;
@@ -1102,7 +1102,7 @@ sub _isCommentOrBlank {
 }
 
 # -----------------------------------------------------------------------------
-sub restore_case_of_macros { (my $stref,my $line) = @_;
+sub _restore_case_of_macros { (my $stref,my $line) = @_;
     for my $macro (keys %{ $stref->{'Macros'} }) {
         my $lc_macro=lc($macro);
         $line=~s/\b$lc_macro\b/$macro/g;

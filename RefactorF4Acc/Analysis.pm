@@ -4,7 +4,6 @@ use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
 use RefactorF4Acc::Analysis::Includes qw( find_root_for_includes );
 use RefactorF4Acc::Analysis::Globals qw( lift_globals );
-use RefactorF4Acc::Analysis::Sources qw( analyse_sources );
 use RefactorF4Acc::Analysis::LoopDetect qw( outer_loop_end_detect );
 use RefactorF4Acc::Refactoring::Common qw( get_f95_var_decl stateful_pass stateless_pass );
 
@@ -85,7 +84,7 @@ sub analyse_all {
 		$stref = outer_loop_end_detect( $kernel_wrapper, $stref );
 	}
 
-#	die Dumper($stref->{'Subroutines'}{'boundsm'}{'Vars'});
+	
 # So at this point all globals have been resolved and typed.
 # NOTE: It turns out that at this point any non-global not explicity declared variables don't have a declaration yet.
 	return $stref;
@@ -155,6 +154,7 @@ sub _analyse_variables {
 	my $__analyse_vars_on_line = sub {
 		( my $annline, my $state ) = @_;
 		( my $line,    my $info )  = @{$annline};
+		
 		if (   exists $info->{'Assignment'}
 			or exists $info->{'SubroutineCall'}
 			or exists $info->{'If'}
@@ -179,6 +179,7 @@ sub _analyse_variables {
 			or exists $info->{'ReadCall'}
 			or exists $info->{'SubroutineCall'} ) {
 				@chunks = (@{$info->{'CallArgs'}{'List'}}, @{$info->{'ExprVars'}{'List'}} ) ;
+				
 			} elsif (exists $info->{'OpenCall'}) {
 				if (exists $info->{'FileNameVar'} ) {
 				push @chunks, $info->{'FileNameVar'};
@@ -186,20 +187,20 @@ sub _analyse_variables {
 			} elsif (exists $info->{'Do'}) {
 						@chunks = ($info->{'Do'}{'Iterator'}, @{ $info->{'Do'}{'Range'}{'Vars'} } );						
 			} elsif (exists $info->{'Assignment'}) {
-#				say Dumper($info);
+#				croak $line.Dumper($info) if $line=~/diu1/ and $f eq 'les';
 					@chunks = ($info->{'Lhs'}{'VarName'},@{$info->{'Lhs'}{'IndexVars'}{'List'}}, @{$info->{'Rhs'}{'VarList'}{'List'}} ) ;
+#					croak Dumper(@chunks) if $line=~/__PH\d+__/ and $f eq 'set';
 			} else {
-
 				my @mchunks = split( /\W+/, $line );
 				for my $mvar (@mchunks) {				
 					next if exists $F95_reserved_words{$mvar};
-					next if exists $stref->{'Subroutines'}{$f}{'CalledSubs'}{$mvar}; # Means it's a function
+					next if exists $stref->{'Subroutines'}{$f}{'CalledSubs'}{'Set'}{$mvar}; # Means it's a function
 					next if $mvar =~ /^__PH\d+__$/;
 					next if $mvar !~ /^[_a-z]\w*$/;
 					push @chunks, $mvar;
 				}
 			}
-			for my $mvar (@chunks) {				
+			for my $mvar (@chunks) {	 			
 				my $maybe_orig_arg = in_nested_set( $Sf, 'OrigArgs', $mvar );
 				my $maybe_decl_orig_arg = exists  $Sf->{'DeclaredOrigArgs'}{'Set'}{$mvar} ? 'DeclaredOrigArgs' : '';
 				my $undecl_orig_arg = exists  $Sf->{'UndeclaredOrigArgs'}{'Set'}{$mvar} ? 1 : 0;
@@ -470,14 +471,13 @@ sub _create_refactored_args {
 }
 
 sub _map_call_args_to_sig_args { (my $stref, my $f ) = @_;
-	say "_map_call_args_to_sig_args($f)\n" if $DBG;#.Dumper($stref->{'Subroutines'}{$f}{'OrigArgs'}{'List'});
-	
+	say "_map_call_args_to_sig_args($f)\n" if $DBG;	 
 		my $__map_call_args = sub {
 			( my $annline) = @_;
 			( my $line,    my $info )  = @{$annline};
 			if (exists $info->{'SubroutineCall'} and not exists $info->{'SubroutineCall'}{'IsExternal'}) {
 				my $sub=$info->{'SubroutineCall'}{'Name'};
-#				say Dumper($info->{'SubroutineCall'}{'Args'}{'List'}).'<>'.Dumper($stref->{'Subroutines'}{$sub}{'OrigArgs'}{'List'});
+				
 				$info->{'SubroutineCall'}{'ArgMap'}={};
 				my @sig_args=@{$stref->{'Subroutines'}{$sub}{'OrigArgs'}{'List'}};
 				my $i=0;
@@ -485,7 +485,6 @@ sub _map_call_args_to_sig_args { (my $stref, my $f ) = @_;
 					$info->{'SubroutineCall'}{'ArgMap'}{$call_arg}=$sig_args[$i];
 					$i++;	
 				}
-#				say Dumper($info->{'SubroutineCall'}{'ArgMap'});
 			}
 			return $annline; 
 		};

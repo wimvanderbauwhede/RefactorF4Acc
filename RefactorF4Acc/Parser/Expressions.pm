@@ -93,7 +93,7 @@ sub _change_func_to_array { (my $stref, my $f,  my $info, my $ast, my $ast_node_
 #				say $mvar;
 #				say Dumper($stref->{'Subroutines'}{$f});
 				my $subname = (exists $info->{'SubroutineCall'} and exists $info->{'SubroutineCall'}{'Name'}) ? $info->{'SubroutineCall'}{'Name'} : '#dummy#';
- 				if ($mvar ne '#dummy#' and not exists $stref->{'Subroutines'}{$f}{'CalledSubs'}{$mvar}
+ 				if ($mvar ne '#dummy#' and not exists $stref->{'Subroutines'}{$f}{'CalledSubs'}{'Set'}{$mvar}
 				and not exists $F95_reserved_words{$mvar}
 				and $mvar ne $subname
 				) {
@@ -135,7 +135,7 @@ sub _walk_ast { (my $stref, my $f, my $info, my $ast, my $ast_node_action)=@_;
 				my $mvar = $ast->[$idx+1];
 #				say $mvar;
 #				say Dumper($stref->{'Subroutines'}{$f});
-				if ($mvar ne '#dummy#' and not exists $stref->{'Subroutines'}{$f}{'CalledSubs'}{$mvar}
+				if ($mvar ne '#dummy#' and not exists $stref->{'Subroutines'}{$f}{'CalledSubs'}{'Set'}{$mvar}
 				and $mvar ne $info->{'SubroutineCall'}{'Name'}
 				) {
     		# change & to @
@@ -230,13 +230,15 @@ sub get_vars_from_expression {(my $ast, my $vars)=@_;
 		my $entry = $ast->[$idx];
 		if (ref($entry) eq 'ARRAY') {
 			$vars = get_vars_from_expression( $entry, $vars);			
-		} else {			
-			if ($entry eq '$' ) {
+		} else {
+			if ($entry eq '$' ) {				
+			my $mvar = $ast->[$idx+1];
+				next if $mvar=~/__PH\d+__/;			
+				$vars->{$mvar}={'Type'=>'Scalar'} ;					
+			} elsif ($entry eq '@') {				
 				my $mvar = $ast->[$idx+1];
-				$vars->{$mvar}='Scalar';					
-			} elsif ($entry eq '@') {
-				my $mvar = $ast->[$idx+1];
-				$vars->{$mvar}='Array';					
+				next if $mvar=~/__PH\d+__/;			
+				$vars->{$mvar}={'Type' =>'Array'};					
 			} 
 		}				
 	}
@@ -253,16 +255,9 @@ sub get_args_vars_from_expression {(my $ast)=@_;
 		if ($ast->[$idx] eq '@') {
 			my $arg = $ast->[$idx+1];
 			my $vars = get_vars_from_expression($ast,{} );
-					delete $vars->{$arg}; 
-					$all_vars->{'Set'}=$vars;
-						$args->{'Set'}{$arg}={ 'Type'=>'Array','Vars'=>$vars};
-			
-#			for my $j (2 .. scalar @{$ast->[$idx]}-1) {
-#				my $vars = get_vars_from_expression($ast->[$idx+$j],{} );
-#					delete $vars->{$arg}; 
-#					$all_vars->{'Set'}={%{ $all_vars->{'Set'} },%{$vars}};
-#						$args->{'Set'}{$arg}={ 'Type'=>'Array','Vars'=>$vars};
-#
+			delete $vars->{$arg}; 
+			$all_vars->{'Set'}=$vars;
+			$args->{'Set'}{$arg}={ 'Type'=>'Array','Vars'=>$vars};
 			last;
 		} else {
 			
@@ -291,9 +286,8 @@ sub get_args_vars_from_expression {(my $ast)=@_;
 						$args->{'Set'}{$arg_from_implicit_do}={ 'Type'=>'Array'};
 						delete $all_vars->{'Set'}{$arg_from_implicit_do};
 					}
-				} elsif($arg!~/__PH\d/) {				
-#				push @{$args->{'List'}},$arg;
-				$args->{'Set'}{$arg}={ 'Type'=>'Scalar'};
+				} elsif($arg!~/__PH\d+__/) {				
+					$args->{'Set'}{$arg}={ 'Type'=>'Scalar'};
 				} 
 			} else {
 				# This is an expression in its own right. 
@@ -302,8 +296,8 @@ sub get_args_vars_from_expression {(my $ast)=@_;
 						$all_vars->{'Set'}={%{ $all_vars->{'Set'} },%{$vars}};
 			}
 		} elsif ($ast->[$idx] eq '$') { 
-			my $arg=$ast->[$idx+1];
-			$args->{'Set'}{$arg}={ 'Type'=>'Scalar'};
+			my $arg=$ast->[$idx+1];			
+			$args->{'Set'}{$arg}={ 'Type'=>'Scalar'} unless $arg=~/__PH\d+__/;
 		}
 		}
 	}	

@@ -20,8 +20,7 @@ use Exporter;
 
 @RefactorF4Acc::Analysis::Globals::ISA = qw(Exporter);
 
-@RefactorF4Acc::Analysis::Globals::EXPORT = qw(
-    &resolve_globals
+@RefactorF4Acc::Analysis::Globals::EXPORT = qw(    
     &lift_includes
     &lift_globals
 );
@@ -43,54 +42,41 @@ use Exporter;
 =end markdown
 
 =cut 
-
-sub resolve_globals {
-    ( my $f, my $stref ) = @_;
-#    say $f;
-#    if ($f eq 'main') {
-#    local $V=1;
+#
+#sub resolve_globals_OFF {
+#    ( my $f, my $stref ) = @_;
+#    print '=' x 80, "\nENTER resolve_globals( $f )\n" if $V;
+#    if (exists $stref->{'Subroutines'}{$f} ) {
+#    my $Sf = $stref->{'Subroutines'}{$f};
+#    if ( exists $Sf->{'CalledSubs'}
+#        and scalar keys %{ $Sf->{'CalledSubs'} } )
+#    {
+#        # Globals for $csub have been determined
+#        print "GLOBALS for CALLED SUBS in $f have been determined\n" if $V;
+#        $stref = _identify_globals_used_in_subroutine( $f, $stref );
+#        my @csubs = keys %{ $Sf->{'CalledSubs'} };
+#        for my $csub (@csubs) {
+#            $stref = resolve_globals( $csub, $stref );
+#            my $Scsub = $stref->{'Subroutines'}{$csub};
+#            # If $csub has globasl, merge them with globals for $f
+#            if (exists $Scsub->{'Globals'} ) {
+#            	   if ( exists $Scsub->{'Globals'}{'List'}) {
+#                    $Sf->{'Globals'}{'List'} = ordered_union( $Sf->{'Globals'}{'List'},
+#                        $Scsub->{'Globals'}{'List'} );
+#            	   $Sf->{'Globals'}{'Set'} = { %{ $Sf->{'Globals'}{'Set'} }, %{ $Scsub->{'Globals'}{'Set'} } };
+#            	   }            	   
+#            }            
+#        }
+#    } else {
+#        # Leaf node, find globals
+#        print "SUB $f is LEAF\n" if $V;
+#        $stref = _identify_globals_used_in_subroutine( $f, $stref );
 #    }
-    print '=' x 80, "\nENTER resolve_globals( $f )\n" if $V;
-    if (exists $stref->{'Subroutines'}{$f} ) {
-#        die Dumper( $stref->{'Subroutines'}{$f}  ) if $f=~/module_press/;
-    my $Sf = $stref->{'Subroutines'}{$f};
-    if ( exists $Sf->{'CalledSubs'}
-        and scalar keys %{ $Sf->{'CalledSubs'} } )
-    {
-        # Globals for $csub have been determined
-        print "GLOBALS for CALLED SUBS in $f have been determined\n" if $V;
-        $stref = _identify_globals_used_in_subroutine( $f, $stref );
-        my @csubs = keys %{ $Sf->{'CalledSubs'} };
-        for my $csub (@csubs) {
-#        	warn "CALLED $csub from $f\n";
-            $stref = resolve_globals( $csub, $stref );
-            my $Scsub = $stref->{'Subroutines'}{$csub};
-            # If $csub has globasl, merge them with globals for $f
-            if (exists $Scsub->{'Globals'} ) {
-#                for my $inc ( keys %{ $Sf->{'CommonIncludes'} } ) {
-            	   if ( exists $Scsub->{'Globals'}{'List'}) {
-                    $Sf->{'Globals'}{'List'} = ordered_union( $Sf->{'Globals'}{'List'},
-                        $Scsub->{'Globals'}{'List'} );
-            	       
-#            	   say $f, $csub;                
-            	   $Sf->{'Globals'}{'Set'} = { %{ $Sf->{'Globals'}{'Set'} }, %{ $Scsub->{'Globals'}{'Set'} } };
-            	   }            	   
-#                }    
-            }            
-        }
-    } else {
-        # Leaf node, find globals
-        print "SUB $f is LEAF\n" if $V;
-        $stref = _identify_globals_used_in_subroutine( $f, $stref );
-    }
-
-    # We only come here when the recursion and merge is done.   
-    $stref = _resolve_conflicts_with_params( $f, $stref );
-
-    }
-    
-    return $stref;
-}    # END of resolve_globals()
+#    # We only come here when the recursion and merge is done.   
+#    $stref = _resolve_conflicts_with_params( $f, $stref );
+#    }    
+#    return $stref;
+#}    # END of resolve_globals()
 
 # ----------------------------------------------------------------------------------------------------
 # I create a table ConflictingGlobals in $f, $inc and $commoninc
@@ -215,87 +201,6 @@ sub _identify_globals_used_in_subroutine {
 }    # END of _identify_globals_used_in_subroutine()
 # -----------------------------------------------------------------------------
 
-sub __determine_subroutine_arguments_OFF {
-    ( my $f, my $stref ) = @_;
-
-    #   local $V=1 if $f=~/interpol/;
-    my $Sf     = $stref->{'Subroutines'}{$f};
-    my $srcref = $Sf->{'AnnLines'};
-    if ( defined $srcref ) {
-
-        # First determine subroutine arguments. Factor out?
-        for my $index ( 0 .. scalar( @{$srcref} ) - 1 ) {
-            my $line = $srcref->[$index][0];
-            my $info = $srcref->[$index][1];
-#           my $SfI  = $Sf->{'Info'};
-            if ( $line =~ /^\!\s/ ) {
-                next;
-            }
-
-            # Determine the subroutine arguments
-            if ( $line =~ /^\s+subroutine\s+(\w+)\s*\((.*)\)/            
-            or  $line =~ /^\s+recursive\s+subroutine\s+(\w+)\s*\((.*)\)/
-            or  $line =~ /^\s+function\s+(\w+)\s*\((.*)\)/
-            or  $line =~ /^\s+\w+\s+function\s+(\w+)\s*\((.*)\)/
-            
-            ) {
-#                if (not exists $info->{SubroutineSig}) {say Dumper($info);die;}
-                my $name   = $1;                
-                my $argstr = $2;
-                $argstr =~ s/^\s+//;
-                $argstr =~ s/\s+$//;
-                my @args = split( /\s*,\s*/, $argstr );
-                $info->{'Signature'}{'Args'}{'List'} = [@args];
-                $info->{'Signature'}{'Args'}{'Set'} = { map {$_=>1} @args};
-                $info->{'Signature'}{'Name'} = $name;
-                $Sf->{'OrigArgs'}{'List'} = [@args];
-                $Sf->{'OrigArgs'}{'Set'} = {map {$_=>1} @args};
-                last;
-            } elsif ( $line =~ /^\s+subroutine\s+(\w+)[^\(]*$/ 
-            or $line =~ /^\s+recursive\s+subroutine\s+(\w+)[^\(]*$/ 
-            ) {
-
-                # Subroutine without arguments
-                my $name = $1;
-                $info->{'Signature'}{'Args'}{'List'} = [];
-                $info->{'Signature'}{'Args'}{'Set'} = {};
-                my $has_var_decls = scalar %{ $Sf->{'Vars'} };
-                if ( not $has_var_decls ) {
-                    print "INFO: $f has no arguments and no local var decls\n"
-                      if $V;
-                      
-                    if ( exists $Sf->{'ImplicitNone'} ) {
-                        print "INFO: $f has 'implicit none'\n" if $V;
-                        my $idx = $Sf->{'ImplicitNone'} + 1;
-#                        $srcref->[$idx][1]{'ExGlobArgDecls'} =  ++$Sf->{ExGlobVarDeclHook}; #{}; 
-#                        print "__determine_subroutine_arguments($f)\t",$srcref->[$idx][0],"\tEX:",$srcref->[$idx][1]{'ExGlobArgDecls'},'<>',$Sf->{ExGlobVarDeclHook},"\n";                                       
-                    } else {
-#                        $info->{'ExGlobArgDecls'} =  ++$Sf->{ExGlobVarDeclHook};#{}; 
-#                        print "__determine_subroutine_arguments($f)\t",$line,"\tEX:",$info->{'ExGlobArgDecls'},'<>',$Sf->{ExGlobVarDeclHook},"\n";
-                    }
-                }
-                $info->{'Signature'}{'Name'} = $name;
-                $Sf->{'OrigArgs'}{'List'} = [];
-                $Sf->{'OrigArgs'}{'Set'} = {};
-                last;
-            } elsif ( $line =~ /^\s+program\s+(\w+)\s*$/ ) {;
-                # If it's a program, there are no arguments
-                my $name = $1;
-                
-                $info->{'Signature'}{'Args'}{'List'} = [];
-                $info->{'Signature'}{'Name'} = $name;
-#                $info->{'ExGlobArgDecls'} =  ++$Sf->{ExGlobVarDeclHook};#{}; # FIXME: This is not good: if an include exists, it should be after the include!!! What we need is to track where it should go: after Sig, after last Incl or before first VarDecl
-#                print "__determine_subroutine_arguments($f)\t",$line,"\tEX:",$info->{'ExGlobArgDecls'},'<>',$Sf->{ExGlobVarDeclHook},"\n";
-                $Sf->{'OrigArgs'}{'List'} = [];
-                $Sf->{'OrigArgs'}{'Set'} = {};
-                last;
-            }
-            $srcref->[$index]=[ $line, $info];
-        }    # for each line
-    }
-    $Sf->{'AnnLines'}=$srcref; # WV: required?
-    return $stref;
-}    # END of __determine_subroutine_arguments_OFF()
 # -----------------------------------------------------------------------------
 sub __look_for_variables {
     ( my $stref, my $f, my $line, my $tvars ) = @_;
@@ -338,7 +243,7 @@ sub lift_includes {
     my $Sf = $stref->{'Subroutines'}{$f};    
         # Which child has RefactorGlobals==1?    
     $Sf->{'LiftedIncludes'} =[]; # We will use this to create the additional include statements
-    for my $cs (keys %{ $Sf->{'CalledSubs'} }) {             
+    for my $cs (keys %{ $Sf->{'CalledSubs'}{'Set'} }) {             
     	croak 'No subroutine name ' if $cs eq '' or not defined $cs;
         if ($stref->{'Subroutines'}{$cs}{'RefactorGlobals'}==1) {
             for my $inc (keys %{ $stref->{'Subroutines'}{$cs}{'CommonIncludes'} }) {
@@ -373,10 +278,10 @@ sub lift_globals { ;
     print '=' x 80, "\nENTER resolve_globals( $f )\n" if $V;
     if (exists $stref->{'Subroutines'}{$f} ) {
     my $Sf = $stref->{'Subroutines'}{$f};
-    if ( exists $Sf->{'CalledSubs'}
-        and scalar keys %{ $Sf->{'CalledSubs'} } )
+    if ( exists $Sf->{'CalledSubs'}{'Set'}
+        and scalar keys %{ $Sf->{'CalledSubs'}{'Set'} } )
     {
-        my @csubs = keys %{ $Sf->{'CalledSubs'} };
+        my @csubs = keys %{ $Sf->{'CalledSubs'}{'Set'} };
         for my $csub (@csubs) {            
             $stref = lift_globals($stref, $csub );
             my $Scsub = $stref->{'Subroutines'}{$csub};

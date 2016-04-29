@@ -7,7 +7,6 @@ use RefactorF4Acc::Refactoring::Common qw( emit_f95_var_decl get_f95_var_decl );
 use RefactorF4Acc::Parser::SrcReader qw( read_fortran_src );
 use RefactorF4Acc::Parser::Expressions qw(  parse_expression  get_args_vars_from_expression );
 use RefactorF4Acc::CTranslation qw( add_to_C_build_sources );    # OBSOLETE
-use RefactorF4Acc::Analysis::ArgumentIODirs qw( parse_assignment );
 use RefactorF4Acc::Analysis::LoopDetect qw( outer_loop_start_detect );
 
 use F95VarDeclParser qw( parse_F95_var_decl );
@@ -190,10 +189,14 @@ sub refactor_marked_blocks_into_subroutines {
 }    # END of refactor_marked_blocks_into_subroutines()
 
 # -----------------------------------------------------------------------------
-
+# Here I initialise tables for Variables and Declarations and a few other Subroutine-specific data structures
 sub _initialise_decl_var_tables { 
 	( my $Sf, my $f, my $is_incl ) = @_;
 say "_initialise_decl_var_tables for subroutine $f" if $V;
+
+	if ( not exists $Sf->{'CalledSubs'} ) {
+		$Sf->{'CalledSubs'} ={'List' => [], 'Set' => {} };
+	}
 # WV20151021 what we need here is a check that this function has not been called before for this $Sf
 	if ( not exists $Sf->{'DoneInitTables'} ) {
 say "_initialise_decl_var_tables : INIT TABLES for subroutine $f" if $V;
@@ -503,7 +506,7 @@ sub _analyse_lines {
 							}
 							for my $mvar (@mchunks) {				
 								next if exists $F95_reserved_words{$mvar};
-								next if exists $stref->{'Subroutines'}{$f}{'CalledSubs'}{$mvar}; # Means it's a function
+								next if exists $stref->{'Subroutines'}{$f}{'CalledSubs'}{'Set'}{$mvar}; # Means it's a function
 								next if $mvar =~ /^__PH\d+__$/;
 								next if $mvar !~ /^[_a-z]\w*$/;
 								push @{$mvars}, $mvar;
@@ -528,14 +531,6 @@ sub _analyse_lines {
 #WV20150303: We parse this assignment and return {Lhs => {Varname, ArrayOrScalar, IndexExpr}, Rhs => {Expr, VarList}}
 #say "WRONG LINE:".$line;
 				$info = _parse_assignment($line, $info, $stref, $f );
-#				my $vref = parse_assignment($line);
-#				$info->{'Assignment'} = {
-#					'Lhs' => $vref->[0],
-#					'Rhs' => {
-#						'VarList' => $vref->[1],
-#						'Expr'    => $vref->[2],
-#					}
-#				};
 			}
 
 			# Actual variable declaration line (F77)
@@ -797,36 +792,7 @@ sub _parse_use {
 	return $stref;
 }    # END of parse_includes()
 
-# -----------------------------------------------------------------------------
 
-sub OBSOLETE_detect_blocks {
-	( my $stref, my $s ) = @_;
-	print "CHECKING BLOCKS in $s\n" if $V;
-	my $sub_incl_or_mod = sub_func_incl_mod( $s, $stref );
-	die "$sub_incl_or_mod $s " . $stref->{$sub_incl_or_mod}{$s}{'HasBlocks'}
-	  if $s eq 'timemanager';
-	$stref->{$sub_incl_or_mod}{$s}{'HasBlocks'} = 0;
-	my $srcref = $stref->{$sub_incl_or_mod}{$s}{'AnnLines'};
-	for my $annline ( @{$srcref} ) {
-		my $line = $annline->[0];
-		if ( $line =~ /^\!\s/ ) {
-
-# I'd like to use the OpenACC compliant pragma !$acc kernels , !$acc end kernels
-# but OpenACC does not allow to provide a name
-# so I propose my own tag: !$acc subroutine name, !$acc end subroutine
-			if (   $line =~ /^\!\s+BEGIN\sSUBROUTINE\s(\w+)/
-				or $line =~ /^\!\s*\$(?:ACC|RF4A)\ssubroutine\s(\w+)/i )
-			{
-				$stref->{$sub_incl_or_mod}{$s}{'HasBlocks'} = 1;
-				my $tgt = uc( substr( $sub_incl_or_mod, 0, 3 ) );
-				print "$tgt $s HAS BLOCK: $1\n" if $V;
-				last;
-			}
-		}
-	}
-
-	return $stref;
-}    # END of detect_blocks()
 
 # -----------------------------------------------------------------------------
 
@@ -864,7 +830,7 @@ sub _separate_blocks {
 	my $itersref = {};
 
 	# A map of every block in the parent
-	my $blocksref = { 'OUTER' => { 'AnnLines' => [] } };
+	my $blocksref = { 'OUTER' => { 'AnnLines' => [], 'CalledSubs' =>{'List'=>[], 'Set'=>{}} } };
 
 # 1. Process every line in $f, scan for blocks marked with pragmas.
 # What this does is to separate the code into blocks (%blocks) and keep track of the line numbers
@@ -895,6 +861,9 @@ sub _separate_blocks {
 		$itersref, $varsref, $f );
 
 	$stref = __reparse_extracted_subroutines( $stref, $blocksref );
+	
+	$blocksref = __find_called_subs_in_OUTER( $blocksref );
+	
 	$stref = __update_caller_datastructures( $stref, $blocksref );
 
 #        my @callinfo = caller(0);
@@ -910,7 +879,16 @@ sub _separate_blocks {
 }    # END of _separate_blocks()
 
 # -----------------------------------------------------------------------------
-
+sub __find_called_subs_in_OUTER { (my $blocksref)=@_;
+	for my $annline ( @{ $blocksref->{'OUTER'}{'AnnLines'} } ) {
+		(my $line, my $info) = @{$annline};
+		if (exists $info->{'SubroutineCall'}) {
+			push @{ $blocksref->{'OUTER'}{'CalledSubs'}{'List'}   },$info->{'SubroutineCall'}{'Name'};
+			$blocksref->{'OUTER'}{'CalledSubs'}{'Set'}{$info->{'SubroutineCall'}{'Name'}}=1; 
+		}
+	} 
+	return $blocksref;
+}
 # -----------------------------------------------------------------------------
 # We need access to the info about the ACC pragma's here.
 sub _parse_subroutine_and_function_calls {
@@ -1071,13 +1049,15 @@ sub _parse_subroutine_and_function_calls {
 
 
 				if ( defined $Sname
-					and not exists $Sf->{'CalledSubs'}{$name} )
+					and not exists $Sf->{'CalledSubs'}{'Set'}{$name} )
 				{
 					if ( $sub_or_func_or_mod eq 'Subroutines' ) {
-						$Sf->{'CalledSubs'}{$name} = 1;
+						$Sf->{'CalledSubs'}{'Set'}{$name} = 1;
+						push @{ $Sf->{'CalledSubs'}{'List'}},$name;
 					} else {
-						$Sf->{'Subroutines'}{$current_sub_name}{'CalledSubs'}
+						$Sf->{'Subroutines'}{$current_sub_name}{'CalledSubs'}{'Set'}
 						  {$name} = 1;
+						  push @{ $Sf->{'Subroutines'}{$current_sub_name}{'CalledSubs'}{'List'} },$name;
 					}
 					if (   not exists $Sname->{'Status'}
 						or $Sname->{'Status'} < $PARSED
@@ -1115,10 +1095,11 @@ sub _parse_subroutine_and_function_calls {
 						and exists $stref->{'Subroutines'}{$chunk}{'Function'}
 
 					   # This means it's the first call to function $chunk in $f
-						and not exists $Sf->{'CalledSubs'}{$chunk}
+						and not exists $Sf->{'CalledSubs'}{'Set'}{$chunk}
 					  )
 					{
-						$Sf->{'CalledSubs'}{$chunk} = 1;
+						$Sf->{'CalledSubs'}{'Set'}{$chunk} = 1;
+						push @{ $Sf->{'CalledSubs'}{'List'} }, $chunk;
 						print "FOUND FUNCTION CALL $chunk in $f\n" if $V;
 						if ( $chunk eq $f ) {
 							show($srcref);
@@ -1154,7 +1135,7 @@ sub _parse_subroutine_and_function_calls {
 #			say "$index\t$line\t".Dumper($info) if $f eq 'vertical';
 		}    # loop over all annlines
 
-		#        $Sf->{'CalledSubs'}=\%called_subs;
+		#        $Sf->{'CalledSubs'}{'Set'}=\%called_subs;
 		$stref->{$sub_or_func_or_mod}{$f}{'AnnLines'}=[@{$srcref}];
 	}
 	
@@ -1965,7 +1946,7 @@ sub __create_new_subroutine_entries {
 }    # END of __create_new_subroutine_entries()
 
 # -----------------------------------------------------------------------------
-sub __find_vars_in_block {
+sub __find_vars_in_block { carp "This should use the same code as _analyse_variables"; 
 	( my $blocksref, my $varsref, my $occsref ) = @_;
 	my $itersref = {};
 	for my $block ( keys %{$blocksref} ) {
@@ -1983,18 +1964,24 @@ sub __find_vars_in_block {
 				delete $tvars{$iter};
 
 				# Bit of a hack: I simply join the range expressions
-				$tline = join( ',', @{ $info->{'Do'}{'Range'} } );
+#				$tline = join( ',', @{ $info->{'Do'}{'Range'} } );
+				for my $var_in_do (@{ $info->{'Do'}{'Range'}{'Vars'} } ) {
+					if (exists $tvars{$var_in_do}) {
+						print "FOUND $var_in_do\n" if $V;										
+						$occsref->{$block}{$var_in_do} = $var_in_do;
+						delete $tvars{$var_in_do};
+					}
+				}				
 			} else {
-				$tline =~ s/\'.+?\'//;    # FIXME: looks like a HACK!
-			}
-			for my $var ( sort keys %tvars ) {
-				if ( $tline =~ /\b$var\b/ ) {
-					print "FOUND $var\n" if $V;
-					$occsref->{$block}{$var} = $var;
-					delete $tvars{$var};
+				$tline =~ s/\'.+?\'//;    # FIXME: looks like a HACK!		
+				for my $var ( sort keys %tvars ) {
+					if ( $tline =~ /\b$var\b/ ) {
+						print "FOUND $var\n" if $V;
+						$occsref->{$block}{$var} = $var;
+						delete $tvars{$var};
+					}
 				}
 			}
-
 		}
 	}
 	return [ $occsref, $itersref ];
@@ -2182,20 +2169,24 @@ sub __reparse_extracted_subroutines {
 }
 
 # -----------------------------------------------------------------------------
-sub __update_caller_datastructures {
+sub __update_caller_datastructures { 
 	( my $stref, my $blocksref ) = @_;
-	delete $blocksref->{'OUTER'};
+#	delete $blocksref->{'OUTER'};
+		# Create new CalledSubs for $f
+	
 	for my $block ( keys %{$blocksref} ) {
-		for my $f ( keys %{ $stref->{'Subroutines'}{$block}{'Callers'} } ) {
-			my $call_line_id =
-			  $stref->{'Subroutines'}{$block}{'Callers'}{$f}[0];
-			for my $called_in_block (
-				keys %{ $stref->{'Subroutines'}{$block}{'CalledSubs'} } )
-			{
-				delete $stref->{'Subroutines'}{$f}{'CalledSubs'}
-				  {$called_in_block};
-			}
-			$stref->{'Subroutines'}{$f}{'CalledSubs'}{$block} = 1;
+		croak "There can only be one caller for a factored-out subroutine" if scalar keys %{ $stref->{'Subroutines'}{$block}{'Callers'} } != 1;
+		
+		for my $f ( keys %{ $stref->{'Subroutines'}{$block}{'Callers'} } ) { # There can only be one caller for $block
+			if ($block eq 'OUTER') {
+				$stref->{'Subroutines'}{$f}{'CalledSubs'}= $blocksref->{'OUTER'}{'CalledSubs'};
+			} else {
+				# Add $block to CalledSubs in $f
+				$stref->{'Subroutines'}{$f}{'CalledSubs'}{'Set'}{$block} = 1;
+				carp "FIXME: Incorrect because there might be subs in $f called after $block";
+				# What we need to do is put a marker in CalledSubs when we encounter the pragma, and not register any subcalls in the region!!!
+				push @{$stref->{'Subroutines'}{$f}{'CalledSubs'}{'List'}},$block;
+			}						
 		}
 	}
 	return $stref;
@@ -3027,6 +3018,10 @@ sub _parse_assignment {
 #	say Dumper($lhs_vars);
 	my $rhs_ast = parse_expression($rhs,$info, $stref, $f);
 	(my $rhs_args,my $rhs_vars)= @{ get_args_vars_from_expression($rhs_ast) };
+	my $rhs_all_vars = {
+		'Set' => { %{$rhs_args->{'Set'}},%{$rhs_vars->{'Set'}} },
+		'List' =>[@{$rhs_args->{'List'}},@{$rhs_vars->{'List'}}]
+	};
 	#{Lhs => {VarName, ArrayOrScalar, IndexExpr}, Rhs => {Expr, VarList}}
 	my $lhs_varname= $lhs_args->{'List'}[0];
 	$info->{'Lhs'}={
@@ -3036,10 +3031,13 @@ sub _parse_assignment {
 		'ExpressionAST'=>$lhs_ast
 	};   
 	$info->{'Rhs'}={
-		'VarList'=>$rhs_vars,
+		'VarList'=>$rhs_all_vars,
 		'ExpressionAST'=>$rhs_ast
 	};
-#	say "ASSIGNMENT LINE: $line => ".$info->{'Lhs'}{'VarName'}.' ; '.join(',',@{ $info->{'Rhs'}{'VarList'}{'List'}});
+#	my %test = map {$_ => 1}  @{ $info->{'Rhs'}{'VarList'}{'List'}};
+#	if (exists $test{'__PH0__'}) {croak Dumper($info)} 
+#croak Dumper($info) if $line=~/data10/ and $f eq 'set';
+
 	return $info;
 } # END of _parse_assignment()
 # -----------------------------------------------------------------------------

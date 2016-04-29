@@ -36,9 +36,8 @@ sub add_module_decls { (my $stref)=@_;
 	for my $src (keys %{ $stref->{'SourceContains'} } ) {	    
 	    for my $sub_or_func (keys %{  $stref->{'SourceContains'}{$src}   } ) {
 	        my $sub_func_type= $stref->{'SourceContains'}{$src}{$sub_or_func};
-	        my $Sf = $stref->{$sub_func_type}{$sub_or_func};
-	        my $called_sub_or_func =  'CalledSubs' ;
-	        for my $called_sub ( keys %{ $Sf->{$called_sub_or_func} } ) {	    
+	        my $Sf = $stref->{$sub_func_type}{$sub_or_func};	        
+	        for my $called_sub ( keys %{ $Sf->{'CalledSubs'}{'Set'} } ) {	    
 	            my $cs_src;
 	            if (exists $stref->{'Subroutines'}{$called_sub} and exists $stref->{'Subroutines'}{$called_sub}{'Source'}) {
 	               $cs_src=$stref->{'Subroutines'}{$called_sub}{'Source'};
