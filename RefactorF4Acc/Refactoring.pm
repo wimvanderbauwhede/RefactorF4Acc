@@ -43,6 +43,7 @@ sub refactor_all {
         
     $stref = refactor_include_files($stref);
     return $stref if $stage == 1;
+    
     $stref = refactor_called_functions($stref); # Context-free only
     return $stref if $stage == 2;
     

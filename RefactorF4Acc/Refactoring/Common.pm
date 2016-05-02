@@ -191,7 +191,9 @@ sub context_free_refactorings {
                 }
             } else { 
             my $var =  $info->{'VarDecl'}{'Name'};
-            if ( exists( $Sf->{'Parameters'}{'Set'}{ $var } ) ) {
+            if ( exists $Sf->{'Parameters'} 
+            and exists $Sf->{'Parameters'}{'Set'} 
+            and exists( $Sf->{'Parameters'}{'Set'}{ $var } ) ) {
                 # Remove this line, because this param should have been declared above
                 $line = '!! Original line PAR:2 !! ' . $line;
                 $info->{'Deleted'} = 1;

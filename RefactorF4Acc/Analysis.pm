@@ -174,12 +174,17 @@ sub _analyse_variables {
 			my $Sf = $stref->{'Subroutines'}{$f};
 #			my @chunks = split( /[^\.\w]/, $line );
 			my @chunks = ();
+			if ( exists $info->{'If'} ) {
+#				say Dumper($info);
+				@chunks = keys %{ $info->{'CondVars'} } ;
+			}			
+			
 			if (exists $info->{'PrintCall'}
 			or exists $info->{'WriteCall'}
 			or exists $info->{'ReadCall'}
 			or exists $info->{'SubroutineCall'} ) {
-				@chunks = (@{$info->{'CallArgs'}{'List'}}, @{$info->{'ExprVars'}{'List'}} ) ;
-				
+#				carp $line.Dumper($info) if exists $info->{'WriteCall'};
+				@chunks = (@chunks,@{$info->{'CallArgs'}{'List'}}, @{$info->{'ExprVars'}{'List'}} ) ;				
 			} elsif (exists $info->{'OpenCall'}) {
 				if (exists $info->{'FileNameVar'} ) {
 				push @chunks, $info->{'FileNameVar'};

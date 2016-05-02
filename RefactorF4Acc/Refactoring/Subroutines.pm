@@ -575,15 +575,32 @@ sub _create_extra_arg_and_var_decls {
     	say "INFO VAR: $var" if $I;
     	croak Dumper(%F95_reserved_words) if $var eq 'file';
     	# Check if it is not a parameter
-    	if (not exists $Sf->{'Parameters'}{'Set'}{$var} and not exists $Sf->{'ParametersFromContainer'}{'Set'}{$var}) {
+    	my $is_param=0;
+    	if (exists $Sf->{'Parameters'}{'Set'}{$var} or exists $Sf->{'ParametersFromContainer'}{'Set'}{$var}) {
+    		$is_param=1;
+    	}
     		# Somehow this is empty, we need to get the Parameters from the includes so we need to either update 'Includes'
     		# when we create the params version, or get ParamInclude from the Include
-    		croak Dumper($Sf->{Includes}).Dumper(  $stref->{IncludeFiles}{'params_common.sn'}{Parameters}) if $f eq 'set';
-    		if (not exists $F95_reserved_words{$var}) {
+    		
+    		
+    		for my $inc (keys %{$Sf->{Includes}}) {
+    			if (exists $stref->{IncludeFiles}{$inc}{'Parameters'}
+    			and exists $stref->{IncludeFiles}{$inc}{'Parameters'}{'Set'}{$var}
+    			) { # This is possible if it was 'InclType' eq 'Parameter'
+    					$is_param=1;last;
+    			} elsif (exists $stref->{IncludeFiles}{$inc}{'ParamInclude'}) {
+    				my $param_include =$stref->{IncludeFiles}{$inc}{'ParamInclude'};
+    				if (exists $stref->{IncludeFiles}{$param_include}{'Parameters'}{'Set'}{$var}) {
+    					$is_param=1;last;
+    				}
+    			}
+    		}
+    	
+    		if (not exists $F95_reserved_words{$var} and not $is_param) {    			
                     my $rdecl = $Sf->{'ExImplicitVarDecls'}{'Set'}{$var}; 
-                    my $rline = emit_f95_var_decl($rdecl);
+                    my $rline = emit_f95_var_decl($rdecl);                                         
                     my $info={};
-                    $info->{'Ann'}=[annotate($f, __LINE__ .' : EX-IMPLICIT VAR' ) ];                    
+                    $info->{'Ann'}=[annotate($f, __LINE__ .' : EX-IMPLICIT VAR') ];                    
                     $info->{'LineID'}= $nextLineID++;
                     $info->{'Ref'}=1;
                     $info->{'VarDecl'}=$rdecl;
@@ -591,7 +608,7 @@ sub _create_extra_arg_and_var_decls {
     		} else {
     			say "INFO: $var is a reserverd word" if $I;
     		}   
-    	}                     
+    	                     
     }    # for        
     return $rlines;
 } # END of _create_extra_arg_and_var_decls();

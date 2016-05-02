@@ -403,13 +403,13 @@ sub _analyse_lines {
 			my $attr = '';
 			( my $line, my $info ) = @{ $srcref->[$index] };
 			$line =~ /^(\s+).*/ && do { $indent = $1; };
-
+			
 			$info->{'LineID'} = $index;
 
 			if ( $line =~ /^\!\s+/ && $line !~ /^\!\s*\$(?:ACC|RF4A)\s/i ) {
 				next;
 			}
-
+			my $mline = $line; # modifiable copy of $line
 			# Handle !$ACC
 			if ( $line =~ /^\!\s*\$(?:ACC|RF4A)\s.+$/i ) {
 				( $stref, $info ) = __handle_acc( $stref, $f, $index, $line );
@@ -439,20 +439,55 @@ sub _analyse_lines {
 			{
 				my $keyword = $1;
 				$info->{ ucfirst($keyword) } = 1;
+				# Must parse at least the if statements here!
+#				say $line if $line=~/^\s*if/;
+				if ( $line =~ /^\s*if\s*\((.+)\)\s+(\w+)/ ) {					
+					my $cond = $1;
+					my $rest = $2;
+					
+					$cond =~ s/[\(\)]+/ /g; 
+					$cond =~ s/\.(eq|ne|gt|ge|lt|le|and|or|not|eqv|neqv)\./ /g;
+					my @chunks = split( /\W+/, $cond );
+					my %vars_in_cond_expr=();
+					for my $mvar (@chunks) {
+						next if $mvar eq '';
+						next if $mvar =~ /^\d+$/;
+						next if $mvar =~ /^(\-?(?:\d+|\d*\.\d*)(?:e[\-\+]?\d+)?)$/;
+						next if exists $F95_reserved_words{$mvar};
+						$vars_in_cond_expr{ $mvar}=1;
+					}
+					$info->{'CondVars'}= { %vars_in_cond_expr };
+					next if $rest eq 'then';
+					$info->{'CondExecExpr'} = $rest;										
+					$mline=~s/if.+?$rest/$rest/;					
+# 
+#    Arithmetic, logical, statement label (ASSIGN), and character assignment statements
+#    Unconditional GO TO, assigned GO TO, and computed GO TO statements
+#    Arithmetic IF and logical IF statements
+#    CONTINUE statement
+#    STOP and PAUSE statements
+#    DO statement
+#    READ, WRITE, and PRINT statements
+#    REWIND, BACKSPACE, ENDFILE, OPEN, CLOSE, and INQUIRE statements
+#    CALL and RETURN statements
+
+
+				}
+			}
 				
-			} elsif ( $line =~
+			if ( $mline =~
 				/^\d*\s+(read|write|print)\s*\(/
 			) {
 				my $keyword = $1;
 				$info->{ ucfirst($keyword).'Call' } = 1;				
-				$info = parse_read_write_print($line, $info, $stref, $f);								
-			} elsif ( $line =~
+				$info = parse_read_write_print($mline, $info, $stref, $f);								
+			} elsif ( $mline =~
 				/^\d*\s*(open|close)\s*\(/
 			) {
 				my $keyword = $1;				
 				$info->{ ucfirst($keyword).'Call' } = 1;
 				if ($keyword eq 'open') {
-					my $ast = parse_Fortran_open_call($line);
+					my $ast = parse_Fortran_open_call($mline);
 					$info->{'Ast'} = $ast;
 					if (exists $ast->{'FileName'} and exists $ast->{'FileName'}{'Var'} and $ast->{'FileName'}{'Var'} !~/__PH/) {
 						$info->{'FileNameVar'} = $ast->{'FileName'}{'Var'}; # TODO: in principle almost any other field could be a var						
@@ -478,10 +513,10 @@ sub _analyse_lines {
 				my $kw   = $1;
 				my $name = $2;
 				$info->{ 'End' . ucfirst($kw) } = { 'Name' => $name };
-			} elsif ( $line =~ /^\d*\s+do\b/ ) {
+			} elsif ( $mline =~ /^\d*\s+do\b/ ) {
 
 #WV20150304: We parse the do and store the iterator and the range { 'Iterator' => $i,'Range' =>[$start,$stop]}
-				my $do_stmt = $line;
+				my $do_stmt = $mline;
 				my $label = 'LABEL_NOT_DEFINED';
 				if ($do_stmt =~/do\s+\d+/) {
 					$do_stmt =~ s/^\d*\s+do\s+(\d*)\s+//;
@@ -521,16 +556,16 @@ sub _analyse_lines {
 				};
 				$do_counter++;
 				push @do_stack, $info;
-			} elsif ( $line !~ /::/
-				&& $line !~ /\bparameter\b/
-				&& $line =~ /[\w\)]\s*=\s*[^=]/ )
+			} elsif ( $mline !~ /::/
+				&& $mline !~ /\bparameter\b/
+				&& $mline =~ /[\w\)]\s*=\s*[^=]/ )
 			{
 				
 				$info->{'Assignment'} = 1;
 
 #WV20150303: We parse this assignment and return {Lhs => {Varname, ArrayOrScalar, IndexExpr}, Rhs => {Expr, VarList}}
 #say "WRONG LINE:".$line;
-				$info = _parse_assignment($line, $info, $stref, $f );
+				$info = _parse_assignment($mline, $info, $stref, $f );
 			}
 
 			# Actual variable declaration line (F77)
@@ -1720,7 +1755,7 @@ sub __split_out_parameters {
 	$stref->{'IncludeFiles'}{"params_$f"}{'Parameters'} =
 	  dclone( $stref->{'IncludeFiles'}{$f}{'Parameters'} );
 	delete $stref->{'IncludeFiles'}{$f}{'Parameters'};
-
+	delete $stref->{'IncludeFiles'}{$f}{'LocalParameters'};
 	#    die Dumper( $stref->{'IncludeFiles'}{"$f"}{'RefactorGlobals'} );
 	$stref->{'IncludeFiles'}{"params_$f"}{'Root'}   = $f;
 	$stref->{'IncludeFiles'}{"params_$f"}{'Source'} = 'Virtual';   #"params_$f";
@@ -1734,7 +1769,7 @@ sub __split_out_parameters {
 
 
 	$stref->{'IncludeFiles'}{$f}{'Includes'}{"params_$f"}=1;
-	#    die Dumper($stref->{'IncludeFiles'}{"params_$f"});
+	
 	return $stref;
 }    # END of __split_out_parameters
 
@@ -2941,7 +2976,7 @@ sub parse_read_write_print { ( my $line, my $info, my $stref, my $f)=@_;
 	
 	my $call =  exists $info->{'ReadCall'} ? 'read' :   exists $info->{'WriteCall'} ? 'write' : 'print';
 				my $tline=$line;
-#say "TLINE1: $tline";
+
 				# This only works for read (), not for read*
 				if ($tline=~/(read|write|print)\s*\(/) {
 					while (substr($tline,0,1) ne ')') {
@@ -2983,7 +3018,7 @@ sub parse_read_write_print { ( my $line, my $info, my $stref, my $f)=@_;
 					$tline=~s/(\)\s*,\s*\(*)\(([^\(])/${1}do(${2}/;
 				}
 				} 
-#				say "TLINE: $tline";
+#				say "TLINE: $tline" if $f eq 'post';
 				# At this point we should have just the arguments, let's parse this as an expression
 				# But the expression parser can only handle numerical expressions so first check if we have strings
 				
@@ -2991,13 +3026,17 @@ sub parse_read_write_print { ( my $line, my $info, my $stref, my $f)=@_;
 #				carp "TLINE STRIPPED: $tline" if $f eq 'ifdata' and $line=~/fghold/;
 				if ($tline!~/^\s*$/) {
 				my $ast = parse_expression("$call($tline)",$info, $stref, $f);
-#				carp Dumper($ast) if $f eq 'ifdata' and $line=~/fghold/;
+#				carp Dumper($ast) if $f eq 'post' and $line=~/write/;
 				(my $args,my $other_vars)= @{ get_args_vars_from_expression($ast) };
-#				carp "ARGS_VARS:".Dumper($args,$other_vars) if $f eq 'ifdata' and $line=~/fghold/;
+#				carp "ARGS_VARS:".Dumper($args,$other_vars) if $f eq 'post' and $line=~/write/;
 #				croak if $f eq 'ifdata' and $line=~/fghold/;
 				$info->{'CallArgs'}=$args;
 				$info->{'ExprVars'}=$other_vars;
-				}				 
+				}	else {
+				$info->{'CallArgs'}={'List'=>[],'Set'=>{}};
+				$info->{'ExprVars'}={'List'=>[],'Set'=>{}};
+					
+				}			 
 				
 	return $info;		
 } # END of parse_read_write_print()
