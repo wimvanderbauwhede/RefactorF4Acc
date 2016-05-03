@@ -183,8 +183,10 @@ sub _analyse_variables {
 			or exists $info->{'WriteCall'}
 			or exists $info->{'ReadCall'}
 			or exists $info->{'SubroutineCall'} ) {
-#				carp $line.Dumper($info) if exists $info->{'WriteCall'};
-				@chunks = (@chunks,@{$info->{'CallArgs'}{'List'}}, @{$info->{'ExprVars'}{'List'}} ) ;				
+				
+				if (exists $info->{'CallArgs'} and exists $info->{'ExprVars'}) {									
+					@chunks = (@chunks,@{$info->{'CallArgs'}{'List'}}, @{$info->{'ExprVars'}{'List'}} ) ;
+				}				
 			} elsif (exists $info->{'OpenCall'}) {
 				if (exists $info->{'FileNameVar'} ) {
 				push @chunks, $info->{'FileNameVar'};
@@ -198,7 +200,8 @@ sub _analyse_variables {
 			} else {
 				my @mchunks = split( /\W+/, $line );
 				for my $mvar (@mchunks) {				
-					next if exists $F95_reserved_words{$mvar};
+					next if exists $F95_reserved_words{$mvar}; # This should be, unless some idiot has assigned to a reserved word somewhere. We assume they only redefine intrinsic functions but who knows?
+					next if exists $F95_other_intrinsics{$mvar}; 
 					next if exists $stref->{'Subroutines'}{$f}{'CalledSubs'}{'Set'}{$mvar}; # Means it's a function
 					next if $mvar =~ /^__PH\d+__$/;
 					next if $mvar !~ /^[_a-z]\w*$/;

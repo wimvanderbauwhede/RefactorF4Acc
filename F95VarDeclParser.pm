@@ -38,7 +38,7 @@ sub parse_F95_var_decl {
 	} elsif (exists $pt->{TypeTup}{Kind}) {
 		$pt->{TypeTup}{Kind}*=1;
 	}
-#	print Dumper($pt);
+#	print "parse_F95_var_decl:".Dumper($pt);
     if ((exists $pt->{Attributes}) && (ref($pt->{Attributes}) eq 'HASH')) {
         if ( exists $pt->{Attributes}{Dim}) {
 	       my $dim = $pt->{Attributes}{Dim};    
@@ -55,13 +55,13 @@ sub parse_F95_var_decl {
 		$pt->{Vars} = [$varlist];
 	}
 
-    my $parlist = $pt->{Pars};#->[0]; #HACK
+    my $parlist = $pt->{'Pars'};#->[0]; #HACK
 #    say Dumper($parlist);	
     my $lhs =$parlist->{Lhs};
     my $rhs =$parlist->{Rhs};
-     	$pt->{Pars} = {Var => $lhs, Val => $rhs};
+     	$pt->{'Pars'} = {Var => $lhs, Val => $rhs};
 #	if (ref($parlist) ne 'ARRAY') {    
-#		$pt->{Pars} = [$parlist];
+#		$pt->{'Pars'} = [$parlist];
 #	}
 	if (not exists $pt->{AccPragma}) {
 		$pt->{AccPragma} = {AccKeyword => 'ArgMode', AccVal => 'ReadWrite'}
@@ -74,11 +74,11 @@ sub parse_F95_var_decl {
 sub f95_var_decl_parser {
     sequence [
     	whiteSpace,
-        {TypeTup => &type_parser},
+        {'TypeTup' => &type_parser},
         maybe(
         sequence [
         comma,
-        {Attributes => sepByChar(',',&attribute_parser)}
+        {'Attributes' => sepByChar(',',&attribute_parser)}
         ]
         ),
     	&varlist_parser,
@@ -95,13 +95,13 @@ sub f95_var_decl_parser_ORIG {
 		    sequence [
 			    comma,
                 &dim_parser
-	    	], 
+	    	] 
     	),
 	    maybe(
     		sequence [
 	    		comma,
 		    	&intent_parser
-    		], 
+    		] 
 	    ),
     	&varlist_parser,
 		maybe( &openacc_pragma_parser) 
@@ -115,13 +115,13 @@ sub attribute_parser {
 
 sub type_parser {	
 		sequence [
-        {Type =>	word},
+        {'Type' =>	word},
         maybe parens choice(
-                {Kind => natural},
+                {'Kind' => natural},
 						sequence [
 							choice( symbol('kind'), symbol('len') ),
 							symbol('='),
-                            {Kind => natural}
+                            {'Kind' => natural}
 						] 
 					)        
 		] 
@@ -130,7 +130,7 @@ sub type_parser {
 sub dim_parser {
 		sequence [
 			symbol('dimension'),
-        {Dim => parens sepByChar(',', regex('[^,\)]+')) },
+        {'Dim' => parens sepByChar(',', regex('[^,\)]+')) },
         maybe( char(')'))
 		] 
 }
@@ -138,7 +138,7 @@ sub dim_parser {
 sub intent_parser {
 	 sequence [
         symbol('intent'),
-     {Intent => parens word}
+     {'Intent' => parens word}
 		] 
 }
 
@@ -147,30 +147,30 @@ sub parameter_parser {
 }
 
 sub allocatable_parser {
-    {Allocatable => symbol('allocatable')}
+    {'Allocatable' => symbol('allocatable')}
 }
 
 sub varlist_parser {
 	sequence [	
 	symbol('::'),	
-	choice({Pars => try(sepByChar(',',&param_assignment)) },{Vars => sepByChar(',',word) })
+	choice({'Pars' => try(sepByChar(',',&param_assignment)) },{'Vars' => sepByChar(',',word) })
 	]
 }
 
 sub param_assignment {
     sequence [
-        {Lhs => word},
+        {'Lhs' => word},
         symbol('='),
-        {Rhs => choice(word,number) } #regex('[\.\d]+')} #FIXME very weak !
+        {'Rhs' => choice(word,number) } #regex('[\.\d]+')} #FIXME very weak !
     ]    
 }
 sub openacc_pragma_parser { sequence [
         char('!'),
         whiteSpace,
         choice( symbol('$ACC'), symbol('$acc')),
-		{AccPragma => sequence [
-		{AccKeyWord => word},
-		{AccVal => word}
+		{'AccPragma' => sequence [
+		{'AccKeyWord' => word},
+		{'AccVal' => word}
 		] }
         ]
 }

@@ -18,7 +18,7 @@ use Data::Dumper;
 $Data::Dumper::Indent = 1;
 
 use Math::Expression::Evaluator::Parser; 
-use RefactorF4Acc::Utils qw( %F95_reserved_words );
+use RefactorF4Acc::Utils qw( %F95_reserved_words %F95_intrinsics %F95_other_intrinsics %F95_intrinsic_functions );
 use Exporter;
 
 @RefactorF4Acc::Parser::Expressions::ISA = qw(Exporter);
@@ -65,10 +65,10 @@ sub parse_expression { (my $exp, my $info, my $stref, my $f)=@_;
 	}
     my $ast = Math::Expression::Evaluator::Parser::parse($wrapped_expr, {});
 #    shift @{$ast};shift @{$ast};
-if ($wrap) {
-    $ast->[0]='&';
-    $ast->[1]=~s/_/\#/g;
-}
+	if ($wrap) {
+	    $ast->[0]='&';
+	    $ast->[1]=~s/_/\#/g;
+	}
     #( $stref, $f, $ast)
     $ast = _change_func_to_array($stref,$f,$info,$ast, sub {});
 #    say Dumper($ast);
@@ -95,6 +95,7 @@ sub _change_func_to_array { (my $stref, my $f,  my $info, my $ast, my $ast_node_
 				my $subname = (exists $info->{'SubroutineCall'} and exists $info->{'SubroutineCall'}{'Name'}) ? $info->{'SubroutineCall'}{'Name'} : '#dummy#';
  				if ($mvar ne '#dummy#' and not exists $stref->{'Subroutines'}{$f}{'CalledSubs'}{'Set'}{$mvar}
 				and not exists $F95_reserved_words{$mvar}
+				and not exists $F95_other_intrinsics{$mvar} # so we leave out intrinsic functions from this check 
 				and $mvar ne $subname
 				) {
     		# change & to @

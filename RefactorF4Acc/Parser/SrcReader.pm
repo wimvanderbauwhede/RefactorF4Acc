@@ -837,37 +837,43 @@ if ($f eq 'UNKNOWN_SRC' or $stref->{$srctype}{$f}{'Status'}<$PARSED ) {
         }
     }
     if ( $srctype ne 'Modules' ) {
-        if ( exists $pline->[1]{'SubroutineSig'} ) {
+        if ( exists $pline->[1]{'SubroutineSig'} or exists $pline->[1]{'FunctionSig'}) {
             if ( $f ne 'UNKNOWN_SRC' ) {
                 if ( $stref->{$srctype}{$f}{'Status'} == $UNREAD )
                 {    # FIXME: bit late, can I catch this earlier?
                     $stref->{$srctype}{$f}{'Status'} = $READ;
                 }
             }
-
+ 			if ( exists $pline->[1]{'SubroutineSig'} ) {
             $f = $pline->[1]{'SubroutineSig'}[1];
-            $stref->{$srctype}{$f}{'AnnLines'} = [] unless $stref->{'Subroutines'}{$f}{'Status'} == $PARSED;
-            
-        } elsif ( exists $pline->[1]{'FunctionSig'} ) {
-            if ( $f ne 'UNKNOWN_SRC' ) {
-                if (not exists $stref->{'Subroutines'}{$f}{'Function'}) {
+ 			} else {
+ 				$f = $pline->[1]{'FunctionSig'}[1];
+ 				if (not exists $stref->{'Subroutines'}{$f}{'Function'}) {
                     $stref->{'Subroutines'}{$f}{'Function'}=1;
-                }
-                
-                if (not exists $stref->{'Subroutines'}{$f}{'Status'} ) { 
-                    die "No Status for $srctype $f".$pline->[0];
-                } else {
-                if ( $stref->{'Subroutines'}{$f}{'Status'} == $UNREAD ) {
-                    $stref->{'Subroutines'}{$f}{'Status'} = $READ;
-                }
-                }
-            }
-
-            my $ff = $pline->[1]{'FunctionSig'}[1];
-            croak $ff if $f eq 'UNKNOWN_SRC';
-            $f = $ff;
-            $stref->{'Subroutines'}{$f}{'AnnLines'} = [];
-        }
+                }            	 				
+ 			}
+            $stref->{$srctype}{$f}{'AnnLines'} = [] unless $stref->{'Subroutines'}{$f}{'Status'} == $PARSED;
+        } 
+#        elsif ( exists $pline->[1]{'FunctionSig'} ) {
+#            if ( $f ne 'UNKNOWN_SRC' ) {
+#                if (not exists $stref->{'Subroutines'}{$f}{'Function'}) {
+#                    $stref->{'Subroutines'}{$f}{'Function'}=1;
+#                }
+#                
+#                if (not exists $stref->{'Subroutines'}{$f}{'Status'} ) { 
+#                    die "No Status for $srctype $f".$pline->[0];
+#                } else {
+#                if ( $stref->{'Subroutines'}{$f}{'Status'} == $UNREAD ) {
+#                    $stref->{'Subroutines'}{$f}{'Status'} = $READ;
+#                }
+#                }
+#            }
+#
+#            my $ff = $pline->[1]{'FunctionSig'}[1];
+#            croak $ff if $f eq 'UNKNOWN_SRC';
+#            $f = $ff;
+#            $stref->{'Subroutines'}{$f}{'AnnLines'} = [];
+#        }
     }
     if ($f ne  'UNKNOWN_SRC') {
     push @{ $stref->{$srctype}{$f}{'AnnLines'} }, $pline unless $stref->{$srctype}{$f}{'Status'} == $PARSED;;
@@ -898,7 +904,7 @@ sub _isCont {
     my $is_cont = 0;
     if ( $free_form == 0 ) {
         if ( $line =~ /^\ {5}[^0\s]/ )
-        {    # continuation line. Continuation character can be anything!
+        {    # continuation line. Continuation character can be anything! 
             $is_cont = 1;
         } elsif ( $line =~ /^\&/ ) {
             $is_cont = 1;
@@ -935,10 +941,7 @@ sub _removeCont {
         }
         if ( $line =~ /\&\s*$/ ) {
             $line =~ s/\&\s*//;
-
-            #				$line=~s/^\s+//;
         }
-
     }
     if ( $line =~ /.\!.*$/ ) {    # FIXME: trailing comments are discarded!
         my $tline = $line;

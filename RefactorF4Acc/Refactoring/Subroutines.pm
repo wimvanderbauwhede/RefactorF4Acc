@@ -572,8 +572,7 @@ sub _create_extra_arg_and_var_decls {
         
     print "INFO: ExImplicitVarDecls in $f\n" if $I;
     for my $var ( @{ $Sf->{'ExImplicitVarDecls'}{'List'} } ) {
-    	say "INFO VAR: $var" if $I;
-    	croak Dumper(%F95_reserved_words) if $var eq 'file';
+    	say "INFO VAR: $var" if $I;    	
     	# Check if it is not a parameter
     	my $is_param=0;
     	if (exists $Sf->{'Parameters'}{'Set'}{$var} or exists $Sf->{'ParametersFromContainer'}{'Set'}{$var}) {
@@ -595,8 +594,12 @@ sub _create_extra_arg_and_var_decls {
     				}
     			}
     		}
-    	
-    		if (not exists $F95_reserved_words{$var} and not $is_param) {    			
+    	# I don't explicitly declare variables that conflict with reserved words or intrinsics.
+    		if (not exists $F95_reserved_words{$var}
+    		and not exists $F95_intrinsics{$var}    		
+    		and not $is_param
+    		and $var!~/__PH\d+__/ # FIXME! TOO LATE HERE!
+    		) {    			
                     my $rdecl = $Sf->{'ExImplicitVarDecls'}{'Set'}{$var}; 
                     my $rline = emit_f95_var_decl($rdecl);                                         
                     my $info={};

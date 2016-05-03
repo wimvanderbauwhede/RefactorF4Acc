@@ -20,8 +20,10 @@ use Exporter;
 @RefactorF4Acc::Utils::ISA = qw(Exporter);
 
 @RefactorF4Acc::Utils::EXPORT = qw(
-    %F95_reserved_words
+    %F95_reserved_words    
     %F95_intrinsics
+    %F95_intrinsic_functions
+    %F95_other_intrinsics
     &sub_func_incl_mod
     &show_annlines
     &pp_annlines
@@ -42,6 +44,8 @@ use Exporter;
     $BLANK_LINE
     &annotate
 );
+
+
 
 our $BLANK_LINE = ['',{'Blank'=>1,'Ref'=>1}];
 
@@ -429,289 +433,355 @@ sub get_kv_for_all_elts_in_set {
 	}
 	return $results;
 }
-# There are many more!
-our @F95_intrinsics_list = qw(
-    random_number
-    random_seed
+# From the gfortran manual
+our @F95_intrinsic_functions_list = qw(
+abort
+abs
+access
+achar
+acos
+adjustl
+adjustr
+aimag
+aint
+alarm
+all
+allocated
+alog
+alog10
+amax0
+amax1
+amin0
+amin1
+amod
+and
+anint
+any
+asin
+associated
+atan
+atan2
+besj0
+besj1
+besjn
+besy0
+besy1
+besyn
+bit_size
+btest
+cabs
+ccos
+ceiling
+cexp
+char
+clog
+cmplx
+complex
+conjg
+cos
+cosh
+count
+cpu_time
+cshift
+csin
+csqrt
+dabs
+dacos
+dasin
+datan
+datan2
+date_and_time
+dbesj0
+dbesj1
+dbesjn
+dbesy0
+dbesy1
+dbesyn
+dble
+dcos
+dcosh
+ddim
+derf
+derfc
+dexp
+digits
+dim
+dint
+dlog
+dlog10
+dmax1
+dmin1
+dmod
+dnint
+dot_product
+dprod
+dsign
+dsin
+dsinh
+dsqrt
+dtan
+dtanh
+eoshift
+epsilon
+erf
+erfc
+exit
+exp
+exponent
+float
+floor
+flush
+fnum
+fraction
+fseek
+gerror
+getarg
+getenv
+getgid
+getlog
+getpid
+getuid
+gmtime
+huge
+iabs
+iachar
+iand
+iargc
+ibclr
+ibits
+ibset
+ichar
+idim
+idint
+idnint
+ieor
+ierrno
+ifix
+imag
+imagpart
+index
+int
+int2
+int8
+ior
+irand
+isatty
+ishft
+ishftc
+isign
+itime
+kind
+lbound
+len
+len_trim
+lge
+lgt
+lle
+llt
+lnblnk
+loc
+log
+log10
+logical
+long
+lshift
+ltime
+matmul
+max
+max0
+max1
+maxexponent
+maxloc
+maxval
+mclock
+mclock8
+merge
+min
+min0
+min1
+minexponent
+minloc
+minval
+mod
+modulo
+mvbits
+nearest
+nint
+not
+or
+pack
+perror
+precision
+present
+product
+radix
+rand
+random_number
+random_seed
+range
+real
+realpart
+repeat
+reshape
+rrspacing
+rshift
+scale
+scan
+selected_int_kind
+selected_real_kind
+set_exponent
+shape
+short
+sign
+sin
+sinh
+sleep
+sngl
+spacing
+spread
+sqrt
+srand
+sum
+system_clock
+tan
+tanh
+time8
+tiny
+transfer
+transpose
+trim
+ubound
+unpack
+verify
+xor
+zabs
+zcos
+zexp
+zlog
+zsin
+zsqrt
 ); 
-our %F95_intrinsics = map { $_=>1 } @F95_intrinsics_list;
+our %F95_intrinsic_functions = map { $_=>1 } @F95_intrinsic_functions_list;
+
+
+our @F95_other_intrinsics = qw(
+idate
+time
+chdir
+chmod
+ctime
+dtime
+etime
+fdate
+fget
+fgetc
+fput
+fputc
+fstat
+ftell
+getcwd
+hostnm
+kill
+link
+lstat
+rename
+second
+signal
+stat
+symlnk
+system
+ttynam
+umask
+unlink
+);
+
+our %F95_other_intrinsics = map { $_=>1 } @F95_other_intrinsics;
 
 our @F95_reserved_words_list = qw( 
-assign backspace block data call close common continue data dimension do else else if end endfile endif entry equivalence external 
-format function goto implicit inquire intrinsic open parameter pause print program read return rewind rewrite save stop subroutine 
-then write allocatable allocate case contains cycle deallocate elsewhere exit include interface intent module namelist nullify only 
-operator optional pointer private procedure public recursive result select sequence target use while where elemental forall pure
-and or lt gt ne le ge eq
-    abort
-    abs
-    access
-    achar
-    acos
-    adjustl
-    adjustr
-    aimag
-    aint
-    alarm
-    all
-    allocated
-    alog
-    alog10
-    amax0
-    amax1
-    amin0
-    amin1
-    amod
-    and
-    anint
-    any
-    asin
-    associated
-    atan
-    atan2
-    besj0
-    besj1
-    besjn
-    besy0
-    besy1
-    besyn
-    bit_size
-    btest
-    cabs
-    ccos
-    ceiling
-    cexp
-    char
-    chdir
-    chmod
-    clog
-    cmplx
-    complex
-    conjg
-    cos
-    cosh
-    count
-    cpu_time
-    cshift
-    csin
-    csqrt
-    ctime
-    ctime
-    dabs
-    dacos
-    dasin
-    datan
-    datan2
-    date_and_time
-    dbesj0
-    dbesj1
-    dbesjn
-    dbesy0
-    dbesy1
-    dbesyn
-    dble
-    dcos
-    dcosh
-    ddim
-    derf
-    derfc
-    dexp
-    digits
-    dim
-    dint
-    dlog
-    dlog10
-    dmax1
-    dmin1
-    dmod
-    dnint
-    dot_product
-    dprod
-    dsign
-    dsin
-    dsinh
-    dsqrt
-    dtan
-    dtanh
-    dtime
-    eoshift
-    epsilon
-    erf
-    erfc
-    etime
-    etime
-    exit
-    exp
-    exponent
-    fdate
-    fdate
-    fget
-    fgetc
-    file
-    float
-    floor
-    flush
-    fnum
-    form
-    fput
-    fputc
-    fraction
-    fseek
-    fstat
-    fstat
-    ftell
-    ftell
-    gerror
-    getarg
-    getcwd
-    getcwd
-    getenv
-    getgid
-    getlog
-    getpid
-    getuid
-    gmtime
-    hostnm
-    hostnm
-    huge
-    iabs
-    iachar
-    iand
-    iargc
-    ibclr
-    ibits
-    ibset
-    ichar
-    idate
-    idim
-    idint
-    idnint
-    ieor
-    ierrno
-    ifix
-    imag
-    imagpart
-    index
-    int
-    int2
-    int8
-    ior
-    irand
-    isatty
-    ishft
-    ishftc
-    isign
-    itime
-    kill
-    kind
-    lbound
-    len
-    len_trim
-    lge
-    lgt
-    link
-    lle
-    llt
-    lnblnk
-    loc
-    log
-    log10
-    logical
-    long
-    lshift
-    lstat
-    lstat
-    ltime
-    matmul
-    max
-    max0
-    max1
-    maxexponent
-    maxloc
-    maxval
-    mclock
-    mclock8
-    merge
-    min
-    min0
-    min1
-    minexponent
-    minloc
-    minval
-    mod
-    modulo
-    mvbits
-    nearest
-    nint
-    not
-    or
-    pack
-    perror
-    precision
-    present
-    product
-    radix
-    rand
-    random_number
-    random_seed
-    range
-    real
-    realpart
-    rename
-    repeat
-    reshape
-    rrspacing
-    rshift
-    scale
-    scan
-    second
-    second
-    selected_int_kind
-    selected_real_kind
-    set_exponent
-    shape
-    short
-    sign
-    signal
-    sin
-    sinh
-    sleep
-    sngl
-    spacing
-    spread
-    sqrt
-    srand
-    stat
-    status
-    sum
-    symlnk
-    system
-    system_clock
-    tan
-    tanh
-    time
-    time8
-    tiny
-    transfer
-    transpose
-    trim
-    ttynam
-    ttynam
-    ubound
-    umask
-    unit
-    unlink
-    unpack
-    verify
-    xor
-    zabs
-    zcos
-    zexp
-    zlog
-    zsin
-    zsqrt 
+assign
+backspace
+block
+data
+call
+close
+common
+continue
+data
+dimension
+do
+else
+else
+if
+end
+endfile
+endif
+entry
+equivalence
+external
+format
+function
+goto
+implicit
+inquire
+intrinsic
+open
+parameter
+pause
+print
+program
+read
+return
+rewind
+rewrite
+save
+stop
+subroutine
+then
+write
+allocatable
+allocate
+case
+contains
+cycle
+deallocate
+elsewhere
+include
+interface
+intent
+module
+namelist
+nullify
+only
+operator
+optional
+pointer
+private
+procedure
+public
+recursive
+result
+select
+sequence
+target
+use
+while
+where
+elemental
+forall
+pure
+lt
+gt
+ne
+le
+ge
+eq
+file
+form
+status
+unit
 );
 our %F95_reserved_words = map { $_=>1 } @F95_reserved_words_list ; 
 
-
+our %F95_intrinsics = (%F95_intrinsic_functions,%F95_other_intrinsics);
 
 1;

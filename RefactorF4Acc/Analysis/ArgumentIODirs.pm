@@ -33,6 +33,7 @@ use Exporter;
   &determine_argument_io_direction_rec
   &update_argument_io_direction_all_subs
   &type_via_implicits
+  &conditional_assignment_fsm
 );
 
 # -----------------------------------------------------------------------------
@@ -552,7 +553,7 @@ sub _analyse_src_for_iodirs {
 # FIXME: If the LHS is an array assignment we are not checking the index for its IO dir
 					if ( $tline !~ /(open|write|read|print|close)\s*\(/ ) {
 						( my $cond, $var, my $sep, $rhs ) =
-						  _conditional_assignment_fsm($tline);
+						  conditional_assignment_fsm($tline);
 						$args =
 						  _find_vars_w_iodir( $cond, $args, \&_set_iodir_read );
 						if ( $sep ne '' ) {
@@ -674,7 +675,7 @@ sub _analyse_src_for_iodirs {
 #
 #\s*LHS
 
-sub _conditional_assignment_fsm {
+sub conditional_assignment_fsm {
 	( my $line ) = @_;
 	my (
 		$do_nothing,    # 0
@@ -753,7 +754,7 @@ sub _conditional_assignment_fsm {
 
 	#    print "if(| $cond  |) [| $lhs |] = [| $rhs |]\n";
 	return ( $cond, $lhs, $sep, $rhs );
-}    # END of _conditional_assignment_fsm
+}    # END of conditional_assignment_fsm
 
 # ----------------------------------------------------------------------------------------------------
 # So we get the IODir for every arg in the call to the subroutine
