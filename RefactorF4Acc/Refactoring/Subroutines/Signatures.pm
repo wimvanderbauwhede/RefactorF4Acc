@@ -47,8 +47,7 @@ sub create_refactored_subroutine_signature {
     my $rline = '';
     if ( $Sf->{'Program'} ) {
         $rline = '      program ' . $f;
-    } elsif ( $Sf->{'Recursive'} ) {
-    	# FIXME: deal with RECURSIVE!
+    } elsif ( $Sf->{'Recursive'} ) { 
         $rline = '      recursive subroutine ' . $f . '(' . $args_str . ')';    
     } elsif ( $Sf->{'Function'} ) { croak 'BOOM: FUNCTION!' . __LINE__ ;
     	# FIXME: deal with RECURSIVE!

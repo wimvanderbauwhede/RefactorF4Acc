@@ -40,6 +40,7 @@ use Exporter;
     &get_vars_from_set
     &get_var_record_from_set
     &get_kv_for_all_elts_in_set
+    &append_to_set
     &comment
     $BLANK_LINE
     &annotate
@@ -166,13 +167,15 @@ if (not defined $var or $var eq '') {croak "VAR not defined!"}
         print "INFO: VAR <", $var, "> typed via Implicits for $f\n" if $I;                            
         my $type_kind_attr = $stref->{'Implicits'}{$f}{lc(substr($var,0,1))};
         ($type, $array_or_scalar, $attr)=@{$type_kind_attr};
+#        $type.='_IMPLICIT_RULE';
     } else {
         print "INFO: Common <", $var, "> has no rule in {'Implicits'}{$f}, typing via Fortran defaults\n" if $I;
         if ($var=~/^[i-nI-N]/) {
     return ('integer', 'Scalar',  '');        
         } else {
     return ('real', 'Scalar',  '');
-        } 
+        }
+#        $type.='_IMPLICIT'; 
     }
     return ($type, $array_or_scalar, $attr);
 } # END of type_via_implicits()
@@ -389,7 +392,7 @@ sub in_nested_set { (my $set, my $set_key, my $var)=@_;
     }
 } # END of in_nested_set
 
-# For a set with subsets, this get the vars from all subsets
+# For a set with subsets, this get the var records from all subsets
 sub get_vars_from_set { (my $set)=@_;
     my %vars=();
      if (exists $set->{'Subsets'} ) {
@@ -432,6 +435,14 @@ sub get_kv_for_all_elts_in_set {
 		}
 	}
 	return $results;
+}
+# This expects a ref to { 'Set' => ...} for $set1 and either { 'Set' => ...} or { 'Subsets' => ...} for $set2 
+sub append_to_set { (my $set1, my $set2) = @_;
+	# Flatten the set
+	my $all_subsets_set2 = get_vars_from_set($set2);
+	$set1->{'Set'} = { %{$set1->{'Set'}}, %{$all_subsets_set2} };
+	$set1->{'List'} = [keys %{ $set1->{'Set'} } ];
+	return $set1;
 }
 # From the gfortran manual
 our @F95_intrinsic_functions_list = qw(

@@ -191,12 +191,15 @@ sub context_free_refactorings {
                 }
             } else { 
             my $var =  $info->{'VarDecl'}{'Name'};
-            if ( exists $Sf->{'Parameters'} 
-            and exists $Sf->{'Parameters'}{'Set'} 
-            and exists( $Sf->{'Parameters'}{'Set'}{ $var } ) ) {
+            if ( in_nested_set($Sf, 'Parameters', $var)
+#             exists $Sf->{'Parameters'} 
+#            and exists $Sf->{'Parameters'}{'Set'} 
+#            and exists( $Sf->{'Parameters'}{'Set'}{ $var } ) 
+            ) {
                 # Remove this line, because this param should have been declared above
                 $line = '!! Original line PAR:2 !! ' . $line;
                 $info->{'Deleted'} = 1;
+                $info->{'Ann'}=[ annotate($f, __LINE__ .' Removed ParamDecl' ) ];
             } elsif (not exists $info->{'Ref'} or $info->{'Ref'} == 0 ){
 #                say Dumper($info);
                 # Not refactored  
@@ -265,14 +268,12 @@ sub context_free_refactorings {
                 # WV 20130709: why should I remove this?
 #                croak Dumper($info) . __LINE__;                
 #            my @par_lines = ();
-#say Dumper($annline);
+#carp Dumper($annline);
                 my $par_decls= [ $info->{'ParamDecl'} ];
                 
                  my $info_ref = $info->{'Ref'} // 0;
-                if ($info->{'ParamDecl'}{'Status'} == 0 ) {
+#                if ($info->{'ParamDecl'}{'Status'} == 0 ) {
                     if (exists $info->{'ParamDecl'}{'Name'} ) {
-
-                           
                              my $var_val = $info->{'ParamDecl'}{'Name'};
                                 ( my $var, my $val ) = @{$var_val};                
                                 $par_decls = [ format_f95_par_decl( $stref, $f, $var ) ];
@@ -283,7 +284,7 @@ sub context_free_refactorings {
                                 push @{$par_decls}, format_f95_par_decl( $stref, $f, $var );
                         }
                     }
-                } 
+#                } 
                 for my $par_decl (@{ $par_decls }) {
                 my $new_line =
                   emit_f95_var_decl($par_decl) ;
@@ -861,49 +862,49 @@ sub get_f95_var_decl {
 
 # ----------------------------------------------------------------------------------------------------
 
-# This could work but it means the code has to be regenerated every time a parameter changes ...
-sub UNUSED_resolve_params {
-    ( my $Sf, my $val ) = @_;
-
-    $val =~ s/\s*$//;
-    $val =~ s/^\s+//;
-
-    if ( $val =~ /\b[a-df-z_]\w*\b/ ) {
-        print "CALL: $val\n";
-        my @chunks = split( /\s*[\/\+\-\*]\s*/, $val );
-        my @maybe_pars;
-        for my $chunk (@chunks) {
-            print "[$chunk]\n";
-            if ( $chunk =~ /^[a-z_]\w*/ ) {
-                if ( exists $Sf->{'Parameters'}{'Set'}{$chunk} ) {
-                    push @maybe_pars, $chunk;
-                } else {
-                    croak "Can't find PARAM $chunk";
-                }
-            }
-        }
-        print "VAL:<$val>\n";
-        if (@maybe_pars) {
-            for my $par (@maybe_pars) {
-
-                #				print "TEST PAR:{$par}\n";
-                my $tval = $Sf->{'Parameters'}{'Set'}{$par}{'Val'};
-
-                #				print 'PAR:', $par, ' VAL:', $tval, "\n";
-                $val =~ s/\b$par\b/$tval/;
-
-                #				print "AFTER SUB:<$val>\n";
-            }
-
-            #                    die;
-            UNUSED_resolve_params( $Sf, $val );
-        } else {
-            return $val;
-        }
-    } else {
-        return $val;
-    }
-}    # END of UNUSED_resolve_params()
+## This could work but it means the code has to be regenerated every time a parameter changes ...
+#sub UNUSED_resolve_params {
+#    ( my $Sf, my $val ) = @_;
+#
+#    $val =~ s/\s*$//;
+#    $val =~ s/^\s+//;
+#
+#    if ( $val =~ /\b[a-df-z_]\w*\b/ ) {
+#        print "CALL: $val\n";
+#        my @chunks = split( /\s*[\/\+\-\*]\s*/, $val );
+#        my @maybe_pars;
+#        for my $chunk (@chunks) {
+#            print "[$chunk]\n";
+#            if ( $chunk =~ /^[a-z_]\w*/ ) {
+#                if ( exists $Sf->{'Parameters'}{'Set'}{$chunk} ) {
+#                    push @maybe_pars, $chunk;
+#                } else {
+#                    croak "Can't find PARAM $chunk";
+#                }
+#            }
+#        }
+#        print "VAL:<$val>\n";
+#        if (@maybe_pars) {
+#            for my $par (@maybe_pars) {
+#
+#                #				print "TEST PAR:{$par}\n";
+#                my $tval = $Sf->{'Parameters'}{'Set'}{$par}{'Val'};
+#
+#                #				print 'PAR:', $par, ' VAL:', $tval, "\n";
+#                $val =~ s/\b$par\b/$tval/;
+#
+#                #				print "AFTER SUB:<$val>\n";
+#            }
+#
+#            #                    die;
+#            UNUSED_resolve_params( $Sf, $val );
+#        } else {
+#            return $val;
+#        }
+#    } else {
+#        return $val;
+#    }
+#}    # END of UNUSED_resolve_params()
 
 # -----------------------------------------------------------------------------
 
@@ -913,11 +914,9 @@ sub format_f95_par_decl {
         return $var_rec;
     }
     my $var = do {
-        if ( ref($var_rec) eq 'HAS' && $var_rec->{'Status'} == 0 ) {
+        if ( ref($var_rec) eq 'HASH' && $var_rec->{'Status'} == 0 ) {
             $var_rec->{'Name'};
         } else {
-
-            #	    croak $var_rec;
             $var_rec;
         }
     };
@@ -926,76 +925,83 @@ sub format_f95_par_decl {
     my $Sf = $stref->{$sub_or_func_or_inc}{$f};
 
     #    print "VAR:<".Dumper($var)."> ";
-    my $val = $Sf->{'Parameters'}{'Set'}{$var}{'Val'};
+    my $par_rec = get_var_record_from_set( $Sf->{'Parameters'},$var);
+#    say 'PAR REC:'.Dumper($par_rec);
+    my $val = $par_rec->{'Val'};
 
-    #	my $val_from_rec = 	$var_rec->[2][0][1];
-    #	print "<$val><$val_from_rec>\n";die;
-    my $Sv        = $Sf->{'Vars'}{$var};
-    my $local_par = 0;
-    if ( not defined $Sv ) {
-        print
-"WARNING: PARAMETER $var is probably local to $f in format_f95_par_decl(). If $f is a parameter include file, that is OK.\n"
+	my $type = defined $par_rec->{'Type'} ? $par_rec->{'Type'} : 'Unknown'; 
+	my $attr = '';
+    my $spaces = ' ' x 6;
+	my $dim = [];
+#	say 'HERE0'.$type;
+	if (not defined $par_rec->{'Type'} or $par_rec->{'Type'} eq 'Unknown') {
+#		say 'HERE1'.$type;		
+		my $Sv = get_var_record_from_set($Sf->{'LocalVars'},$var);
+#		say 'VAR REC:'.Dumper($Sv);
+		if (not defined $Sv) {
+#			say 'HERE2'.$type;
+        say
+"WARNING: PARAMETER $var is probably local to $f in format_f95_par_decl(). If $f is a parameter include file, that is OK."
           if $W;
-        $local_par = 1;
-
-        #		croak $var;
-        $Sv->{'Type'}   = $Sf->{'Parameters'}{'Set'}{$var}{'Type'};
-        $Sv->{'Indent'} = ' ' x 6;
-        $Sv->{'Dim'}  = [];
-        $Sv->{'Attr'}   = '';
-    }
-
+			
+		} else {
+#			say 'VAR REC:'.Dumper($Sv) if $var eq 'pi';
+#			say 'HERE3'.$type;
+			$spaces = $Sv->{'Indent'};
+			$dim=$Sv->{'Dim'};
+			if (
+		 		not defined $Sv->{'Type'} or $Sv->{'Type'} eq 'Unknown'
+			) {
+				
+#				say 'HERE4'.$type;
+				say "IMPLICIT TYPING OF PARAM $var from $f";croak;
+				($type, my $array_or_scalar, $attr) =type_via_implicits( $stref, $f, $var);
+			} else {	
+#				say 'HERE5'.$type;
+				$type = $Sv->{'Type'};
+			}
+		}
+	}
+    
+#       # Can't trust the type set via implicits!
+#       if ($val=~/^\d+$/) {
+#       	$type = 'integer_FROM_VALUE';
+#       } elsif ($val=~/^(\-?(?:\d+|\d*\.\d*)(?:e[\-\+]?\d+)?)$/) {
+#       	$type = 'real_FROM_VALUE';
+#       	} elsif ($val=~/^[\'\"]/) {
+#       		my $len = length($val) -2;
+#       		$type = "character($len)_FROM_VALUE";	
+#       } else {
+#       	#FIXME
+#       	# This is an expression, so we should parse it and get the type from the constituents.
+##       	$type = 'real'; 
+#       }
+    
     # Here we should rename for globals? Maybe not: let's just rename the globals instead
 #    ( $var, $val ) = _rename_conflicting_global_pars( $stref, $f, $var, $val );
-    my $spaces = $Sv->{'Indent'};
+    
 
     # FIXME: for multiple vars, we need to split this in multiple statements.
     # So I guess as soon as the Dim is not empty, need to split.
-    my $shape = $Sv->{'Dim'};
-
-    #	die Dumper($shape) if join( '', @{$shape} ) =~ /;/;
-    my $dim    = '';
+    my $shape = $dim;    
     my $dimrec = [];
     if ( @{$shape} ) {
-#        my @dims = ();
-#        for my $i ( 0 .. ( @{$shape} / 2 - 1 ) ) {
-#            my $range =
-#              ( $shape->[ 2 * $i ] eq '1' )
-#              ? $shape->[ 2 * $i + 1 ]
-#              : $shape->[ 2 * $i ] . ':' . $shape->[ 2 * $i + 1 ];
-#            push @dims, $range;
-#        }
         $dimrec = $shape; #', dimension(' . join( ',', @dims ) . ') ';
-        #$dimrec = [ 'dimension', [@dims] ];
     }
-#    if ($local_par) {
-#        my $decl_line =
-#            $spaces
-#          . $Sv->{'Type'}
-#          . $Sv->{'Attr'}
-#          . $dim
-#          . ', parameter ' . ' :: '
-#          . $var . ' = '
-#          . $val;
-#        print "WARNING: LOCAL PAR: $decl_line\n" if $W;
-#    }
 
-    #	return $decl_line;
-#    return [
-#        $spaces,
-#        [ $Sv->{'Type'}, $Sv->{'Attr'}, $dimrec, 'parameter' ],
-#        [ [ $var, $val ] ], 1
-#    ];
-    
-    return {
+    my $final_par_rec=
+     {
         'Indent' => $spaces,
-        'Type' => $Sv->{'Type'}, 
-        'Attr' => $Sv->{'Attr'}, 
+        'Type' => $type, 
+        'Attr' => $attr, 
         'Dim' => $dimrec, 
         'Parameter' => 'parameter',
         'Name' => [ $var, $val ] ,
         'Status' => 1
-    };    
+    };
+    
+     carp 'FINAL PAR REC:'.Dumper($final_par_rec) if $type eq 'Unknown';
+    return $final_par_rec; 
 }    # format_f95_par_decl()
 
 
@@ -1005,13 +1011,14 @@ sub get_f95_par_decl {
     ( my $stref, my $f, my $var ) = @_;
     my $sub_or_func_or_inc = sub_func_incl_mod( $f, $stref );
     my $Sf = $stref->{$sub_or_func_or_inc}{$f};
-    my $Sv = $Sf->{'Parameters'}{'Set'}{$var};
+    my $Sv = get_var_record_from_set($Sf->{'Parameters'},$var);
         
     if ( not defined $Sv ) {
         print
 "WARNING: PARAMETER $var is probably local to $f in format_f95_par_decl(). If $f is a parameter include file, that is OK.\n"
           if $W;
-        $Sv->{'Type'}   = $Sf->{'Parameters'}{'Set'}{$var}{'Type'};
+          my $rec_from_f=get_var
+        $Sv->{'Type'}   = 'Unknown';#$Sf->{'Parameters'}{'Set'}{$var}{'Type'};
         $Sv->{'Indent'} = ' ' x 6;
         $Sv->{'Dim'}  = [];
         $Sv->{'Attr'}   = '';

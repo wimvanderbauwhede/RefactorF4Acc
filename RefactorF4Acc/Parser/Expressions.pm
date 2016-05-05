@@ -28,6 +28,7 @@ use Exporter;
   &emit_expression
   &get_vars_from_expression
   &get_args_vars_from_expression
+  &get_args_vars_from_subcall
 );
 
 my $DBG=0;
@@ -70,20 +71,20 @@ sub parse_expression { (my $exp, my $info, my $stref, my $f)=@_;
 	    $ast->[1]=~s/_/\#/g;
 	}
     #( $stref, $f, $ast)
-    $ast = _change_func_to_array($stref,$f,$info,$ast, sub {});
+    $ast = _change_func_to_array($stref,$f,$info,$ast, $exp);
 #    say Dumper($ast);
 return $ast;
 }
 
 # This function changes functions to arrays
-sub _change_func_to_array { (my $stref, my $f,  my $info, my $ast, my $ast_node_action)=@_;
+sub _change_func_to_array { (my $stref, my $f,  my $info, my $ast, my $exp)=@_;
 	if (ref($ast) eq 'ARRAY') {
 	for my  $idx (0 .. scalar @{$ast}-1) {		
 		my $entry = $ast->[$idx];
 #		print "IDX: $idx => "; say Dumper ($ast); say $entry;
 		if (ref($entry) eq 'ARRAY') {
 #			( $stref,  $f,   my $entry) = _change_func_to_array($stref,$f, $entry, $ast_node_action);
-			my $entry = _change_func_to_array($stref,$f, $info,$entry, $ast_node_action);
+			my $entry = _change_func_to_array($stref,$f, $info,$entry, $exp);
 			$ast->[$idx] = $entry;
 		} else {
 			if ($entry eq '&') {
@@ -93,15 +94,22 @@ sub _change_func_to_array { (my $stref, my $f,  my $info, my $ast, my $ast_node_
 #				say $mvar;
 #				say Dumper($stref->{'Subroutines'}{$f});
 				my $subname = (exists $info->{'SubroutineCall'} and exists $info->{'SubroutineCall'}{'Name'}) ? $info->{'SubroutineCall'}{'Name'} : '#dummy#';
- 				if ($mvar ne '#dummy#' and not exists $stref->{'Subroutines'}{$f}{'CalledSubs'}{'Set'}{$mvar}
-				and not exists $F95_reserved_words{$mvar}
-				and not exists $F95_other_intrinsics{$mvar} # so we leave out intrinsic functions from this check 
-				and $mvar ne $subname
+ 				if (
+ 				exists $stref->{'Subroutines'}{$f}{'MaskedIntrinsics'}{$mvar} 
+ 				or (
+ 					$mvar ne '#dummy#' 
+ 					and not exists $stref->{'Subroutines'}{$f}{'CalledSubs'}{'Set'}{$mvar}
+					and not exists $F95_reserved_words{$mvar}
+					and not exists $F95_intrinsics{$mvar} # Dangerous, because some idiot may have overwritten an intrinsic with an array! 
+					and $mvar ne $subname
+					)		
 				) {
     		# change & to @
     				$ast->[$idx]='@';
     				say "Found array $mvar" if $DBG;
-				}    	
+				} elsif (   	exists $F95_intrinsics{$mvar} ) {
+					say "parse_expression('$exp')" . __LINE__.": WARNING: treating $mvar in $f as an intrinsic! " if $W;  
+				}
 			} elsif ($entry eq '$') {
 				my $mvar = $ast->[$idx+1];
 				say "Found scalar $mvar" if $DBG;
@@ -306,6 +314,67 @@ sub get_args_vars_from_expression {(my $ast)=@_;
 	$all_vars->{'List'} = [keys %{ $all_vars->{'Set'} }]; 
 	}
 	return [$args,$all_vars];
+}
+
+# if the expression is a sub call (or in fact just a comma-sep list), return the arguments and also all variables that are not arguments
+# We can of course have duplication here, and also some of the args can be functions or expressions. 
+# So we have Args that can be Scalar, Array, Sub, Expr or Const
+
+sub get_args_vars_from_subcall {(my $ast)=@_;
+	
+	my $all_vars={'List'=>[],'Set'=>{} };
+	my $args={'List'=>[],'Set'=>{}};
+	
+	if (scalar @{$ast} > 2 ) {			
+		for my  $idx (2 .. scalar @{$ast}-1) { # 0 and 1 are '&" and the subroutine name				
+			if( ref( $ast->[$idx] ) eq 'ARRAY') { 				 
+				my $arg = $ast->[$idx][1];
+				if ($arg=~/__PH\d+__/ ) {
+					$arg=0;
+				}			
+				if ( $ast->[$idx][0]  eq '@' 
+				or  $ast->[$idx][0]  eq '$'
+				or  $ast->[$idx][0]  eq '&') {
+					if ($ast->[$idx][0] eq '@' or $ast->[$idx][0] eq '&') {
+						my $vars = get_vars_from_expression($ast->[$idx],{} );
+						delete $vars->{$arg}; 
+						$all_vars->{'Set'}={%{ $all_vars->{'Set'} },%{$vars}};
+						if ($ast->[$idx][0] eq '@') {
+							my $array_expr = emit_expression($ast->[$idx]);
+							$args->{'Set'}{$arg}={ 'Type'=>'Array','Vars'=>$vars, 'Expr' => $array_expr};
+							push @{$args->{'List'}}, $arg;
+						} else {
+							
+							my $arg_expr=emit_expression($ast->[$idx]);
+							$args->{'Set'}{$arg_expr}={ 'Type'=>'Sub','Vars'=>$vars, 'Expr' => $arg_expr};
+							push @{$args->{'List'}}, $arg_expr;
+						}
+					} else { # A scalar			
+						$args->{'Set'}{$arg}={ 'Type'=>'Scalar',  'Expr' => $arg};
+						push @{$args->{'List'}}, $arg;
+					} 
+					
+				} else {
+					# This is an expression in its own right. 
+					# In that case, $arg will be an array ref.
+					my $arg_expr = emit_expression($ast->[$idx]);
+					push @{$args->{'List'}}, $arg_expr;
+					my $vars = get_vars_from_expression($ast->[$idx],{} );
+					$args->{'Set'}{$arg_expr}={ 'Type'=>'Expr','Vars'=>$vars, 'AST'=>$ast->[$idx], 'Expr' => $arg_expr};
+					$all_vars->{'Set'}={%{ $all_vars->{'Set'} },%{$vars}};
+				}
+			} else  { # It must be a constant 
+				my $arg=$ast->[$idx];			
+				if ($arg=~/__PH\d+__/ ) {
+					$arg=0;
+				}
+				$args->{'Set'}{$arg}={ 'Type'=>'Const', 'Expr' => $arg};
+				push @{$args->{'List'}}, $arg; 
+			}		
+		}	
+	}
+	$all_vars->{'List'} = [keys %{ $all_vars->{'Set'} }];
+	return ($args,$all_vars);
 }
 
 1;

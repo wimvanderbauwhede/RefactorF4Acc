@@ -54,12 +54,12 @@ sub refactor_all_subroutines {
         next if $Sf->{'Status'} == $UNREAD;
         next if $Sf->{'Status'} == $READ;
         next if $Sf->{'Status'} == $FROM_BLOCK;
-        next if (exists $Sf->{'Function'} and $Sf->{'Function'} ==1 ); # FIXME: instead, do if/then and use  refactor_called_functions()
-        if (exists $Sf->{'Function'} and $Sf->{'Function'} ==1 ) {
-#            $stref = refactor_called_functions($stref, $f);
-        } else {
+#        next if (exists $Sf->{'Function'} and $Sf->{'Function'} ==1 ); # FIXME: instead, do if/then and use  refactor_called_functions()
+#        if (exists $Sf->{'Function'} and $Sf->{'Function'} ==1 ) {
+## $stref = refactor_called_functions($stref, $f);
+#        } else {
             $stref = _refactor_subroutine_main($stref, $f);
-        }      
+#        }      
     }
 
     return $stref;
@@ -97,11 +97,16 @@ sub _refactor_subroutine_main {
 #    local $V=1;
 #    local $I=1;
 #    local $W=1;
+	my $Sf = $stref->{'Subroutines'}{$f};
     if ($V) {
         print "\n\n";
         print "#" x 80, "\n";
         print "Refactoring $f\n";
+          if (exists $Sf->{'Function'} and $Sf->{'Function'} ==1 ) {
+          	print "REFACTORING FUNCTION $f\n";
+          } else {
         print "REFACTORING SUBROUTINE $f\n";
+          }
         print "#" x 80, "\n";
     }
     
@@ -109,7 +114,7 @@ sub _refactor_subroutine_main {
     $stref = context_free_refactorings( $stref, $f ); # FIXME maybe do this later    
 
 
-    my $Sf = $stref->{'Subroutines'}{$f};
+    
     
 #    croak Dumper( $Sf) if $f eq 'post';
     say "get_annotated_sourcelines($f)" if $V;
@@ -125,7 +130,7 @@ sub _refactor_subroutine_main {
           $annlines = _refactor_globals_new( $stref, $f, $annlines );
 
         } elsif ( $Sf->{'RefactorGlobals'} == 2 ) { 
-            die 'SHOULD BE OBSOLETE!  _refactor_subroutine_main() ' . __LINE__ ;
+            croak 'SHOULD BE OBSOLETE!';
 #            say "_refactor_calls_globals($f)" if $V;
 #            $annlines = _refactor_calls_globals( $stref, $f, $annlines );            
         }
@@ -398,10 +403,12 @@ sub _refactor_globals_new {
 	if (exists $Sf->{'Container'}) {
 		my $container =$Sf->{'Container'};
 		if (exists $stref->{'Subroutines'}{$container}{'Parameters'}) {
-			$Sf->{'ParametersFromContainer'}=$stref->{'Subroutines'}{$container}{'Parameters'};
-			for my $par (@{ $stref->{'Subroutines'}{$container}{'Parameters'}{'List'} } ) {
+			$Sf->{'ParametersFromContainer'}=$stref->{'Subroutines'}{$container}{'Parameters'}; # Note this is a nested set
+			my $all_pars_in_container = get_vars_from_set( $stref->{'Subroutines'}{$container}{'Parameters'} );
+			for my $par ( keys %{$all_pars_in_container} ) { # @{ $stref->{'Subroutines'}{$container}{'Parameters'}{'List'} } ) {
 #				say $par;
-				my $par_decl =$stref->{'Subroutines'}{$container}{'Parameters'}{'Set'}{$par};
+#				my $par_decl = $stref->{'Subroutines'}{$container}{'Parameters'}{'Set'}{$par};
+				my $par_decl = $all_pars_in_container->{$par};
 #					say Dumper($par_decl);
 				my $par_decl_line=[ '      '.emit_f95_var_decl($par_decl), {'ParamDecl' => $par_decl,'Ref'=>1}];
 				push @par_decl_lines_from_container,$par_decl_line; 
@@ -575,30 +582,33 @@ sub _create_extra_arg_and_var_decls {
     	say "INFO VAR: $var" if $I;    	
     	# Check if it is not a parameter
     	my $is_param=0;
-    	if (exists $Sf->{'Parameters'}{'Set'}{$var} or exists $Sf->{'ParametersFromContainer'}{'Set'}{$var}) {
+    	if ( in_nested_set($Sf, 'Parameters', $var)
+#    	exists $Sf->{'Parameters'}{'Set'}{$var} or exists $Sf->{'ParametersFromContainer'}{'Set'}{$var}
+		) {
     		$is_param=1;
     	}
     		# Somehow this is empty, we need to get the Parameters from the includes so we need to either update 'Includes'
     		# when we create the params version, or get ParamInclude from the Include
     		
     		
-    		for my $inc (keys %{$Sf->{Includes}}) {
-    			if (exists $stref->{IncludeFiles}{$inc}{'Parameters'}
-    			and exists $stref->{IncludeFiles}{$inc}{'Parameters'}{'Set'}{$var}
-    			) { # This is possible if it was 'InclType' eq 'Parameter'
-    					$is_param=1;last;
-    			} elsif (exists $stref->{IncludeFiles}{$inc}{'ParamInclude'}) {
-    				my $param_include =$stref->{IncludeFiles}{$inc}{'ParamInclude'};
-    				if (exists $stref->{IncludeFiles}{$param_include}{'Parameters'}{'Set'}{$var}) {
-    					$is_param=1;last;
-    				}
-    			}
-    		}
+#    		for my $inc (keys %{$Sf->{Includes}}) {
+#    			if (exists $stref->{IncludeFiles}{$inc}{'Parameters'}
+#    			and exists $stref->{IncludeFiles}{$inc}{'Parameters'}{'Set'}{$var}
+#    			) { # This is possible if it was 'InclType' eq 'Parameter'
+#    					$is_param=1;last;
+#    			} elsif (exists $stref->{IncludeFiles}{$inc}{'ParamInclude'}) {
+#    				my $param_include =$stref->{IncludeFiles}{$inc}{'ParamInclude'};
+#    				if (exists $stref->{IncludeFiles}{$param_include}{'Parameters'}{'Set'}{$var}) {
+#    					$is_param=1;last;
+#    				}
+#    			}
+#    		}
     	# I don't explicitly declare variables that conflict with reserved words or intrinsics.
     		if (not exists $F95_reserved_words{$var}
     		and not exists $F95_intrinsics{$var}    		
     		and not $is_param
     		and $var!~/__PH\d+__/ # FIXME! TOO LATE HERE!
+    		and $var=~/^[a-z][a-z0-9_]*$/ # FIXME: rather check if Expr or Sub
     		) {    			
                     my $rdecl = $Sf->{'ExImplicitVarDecls'}{'Set'}{$var}; 
                     my $rline = emit_f95_var_decl($rdecl);                                         
@@ -616,16 +626,20 @@ sub _create_extra_arg_and_var_decls {
     return $rlines;
 } # END of _create_extra_arg_and_var_decls();
 
-sub _create_refactored_subroutine_call {
+sub _create_refactored_subroutine_call { 
     ( my $stref, my $f, my $annline, my $rlines ) = @_;;
     my $Sf        = $stref->{'Subroutines'}{$f};
     (my $line, my $info) = @{ $annline };
 
     # simply tag the common vars onto the arguments
     my $name = $info->{'SubroutineCall'}{'Name'};
+#    croak Dumper($info) if $f eq 'advance' and $name eq 'interpol_vdep';
 #    croak Dumper($info)."\n\n".Dumper($stref->{'Subroutines'}{$name}) if $name eq 'ij_to_latlon' and $f eq 'map_set';
     croak $line . Dumper($info) unless defined $info->{'SubroutineCall'}{'Args'}{'List'};# . Dumper(    $stref->{'Subroutines'}{$name});
-    my @orig_args = @{ $info->{'SubroutineCall'}{'Args'}{'List'} };    
+    my @orig_args =();# @{ $info->{'SubroutineCall'}{'Args'}{'List'} };    
+    for my $call_arg (@{ $info->{'SubroutineCall'}{'Args'}{'List'} }) {
+    	push @orig_args , $info->{'SubroutineCall'}{'Args'}{'Set'}{$call_arg}{'Expr'};
+    }
     my $args_ref = [@orig_args]; # NOT ordered union, if they repeat that should be OK 
     
     if (exists $stref->{'Subroutines'}{$name}{'ExGlobArgDecls'}) {       

@@ -106,7 +106,7 @@ sub create_refactored_vardecls {
         # And we use the declaration from the include
         for my $tnvar (@nvars) {
             my $rdecl=[];
-                if (exists ($Sf->{'Parameters'}{'Set'}{$vars[0]} ) ){
+                if (in_nested_set($Sf,'Parameters',$vars[0])  ){
                     $rdecl = get_f95_par_decl( $stref,$f,$tnvar );
                 } else {
                 	$rdecl = [$stref,$f,$tnvar];# WV: seems this never happens!                	
@@ -143,7 +143,7 @@ croak "create_exglob_var_declarations OBSOLETE?";
 
         for my $var ( sort @{ $Sf->{'Globals'}{$inc}{'List'} } ) {
             
-die "THIS CHECK IS NOT OK: RefactoredArgs can have an entry with a blank IODir here, FIXME!";
+croak "THIS CHECK IS NOT OK: RefactoredArgs can have an entry with a blank IODir here, FIXME!";
 #what we should do is check the content, or maybe better, check if there already exists an actual VarDecl line.
 #If not, we should create one. If it exists and is complete, we should skip it.
 #            if (exists $Sf->{'OrigArgs'}{'Set'}{$var} or exists $Sf->{'RefactoredArgs'}{'Set'}{$var} or exists $Sf->{'Vars'}{$var}) {

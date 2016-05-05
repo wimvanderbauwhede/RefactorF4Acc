@@ -43,6 +43,7 @@ sub create_refactored_subroutine_call {
 
     # simply tag the common vars onto the arguments
     my $name = $tags{'SubroutineCall'}{'Name'};
+    croak Dumper(%tags) ;#if $name eq 'interpol_vdep' and $f eq 'advance';
     my $conflicting_locals = {};
     if ( exists $Sf->{'ConflictingGlobals'} ) {
         $conflicting_locals = $Sf->{'ConflictingGlobals'};

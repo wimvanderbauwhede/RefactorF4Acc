@@ -83,7 +83,6 @@ sub analyse_all {
 	for my $kernel_wrapper ( keys %{ $stref->{'KernelWrappers'} } ) {
 		$stref = outer_loop_end_detect( $kernel_wrapper, $stref );
 	}
-
 	
 # So at this point all globals have been resolved and typed.
 # NOTE: It turns out that at this point any non-global not explicity declared variables don't have a declaration yet.
@@ -182,14 +181,13 @@ sub _analyse_variables {
 			if (exists $info->{'PrintCall'}
 			or exists $info->{'WriteCall'}
 			or exists $info->{'ReadCall'}
-			or exists $info->{'SubroutineCall'} ) {
-				
-				if (exists $info->{'CallArgs'} and exists $info->{'ExprVars'}) {									
-					@chunks = (@chunks,@{$info->{'CallArgs'}{'List'}}, @{$info->{'ExprVars'}{'List'}} ) ;
-				}				
+			) {
+				@chunks = (@chunks,@{$info->{'CallArgs'}{'List'}}, @{$info->{'ExprVars'}{'List'}},@{$info->{'CallAttrs'}{'List'}} ) ;
+			} elsif( exists $info->{'SubroutineCall'} ) {				
+					@chunks = (@chunks,@{$info->{'CallArgs'}{'List'}}) ;				
 			} elsif (exists $info->{'OpenCall'}) {
 				if (exists $info->{'FileNameVar'} ) {
-				push @chunks, $info->{'FileNameVar'};
+					push @chunks, $info->{'FileNameVar'};
 				}
 			} elsif (exists $info->{'Do'}) {
 						@chunks = ($info->{'Do'}{'Iterator'}, @{ $info->{'Do'}{'Range'}{'Vars'} } );						
@@ -486,12 +484,13 @@ sub _map_call_args_to_sig_args { (my $stref, my $f ) = @_;
 			if (exists $info->{'SubroutineCall'} and not exists $info->{'SubroutineCall'}{'IsExternal'}) {
 				my $sub=$info->{'SubroutineCall'}{'Name'};
 				
-				$info->{'SubroutineCall'}{'ArgMap'}={};
-				my @sig_args=@{$stref->{'Subroutines'}{$sub}{'OrigArgs'}{'List'}};
+				$info->{'SubroutineCall'}{'ArgMap'}={}; # A map from the sig arg to the call arg, because there can be duplicate call args but not sig args
+				
+				my $call_args = $info->{'SubroutineCall'}{'Args'}{'List'};
 				my $i=0;
-				for my $call_arg (@{$info->{'SubroutineCall'}{'Args'}{'List'}}) {
-					$info->{'SubroutineCall'}{'ArgMap'}{$call_arg}=$sig_args[$i];
-					$i++;	
+				for my $sig_arg (@{$stref->{'Subroutines'}{$sub}{'OrigArgs'}{'List'}}) {
+					$info->{'SubroutineCall'}{'ArgMap'}{$sig_arg}=$call_args->[$i];
+					$i++;
 				}
 			}
 			return $annline; 
