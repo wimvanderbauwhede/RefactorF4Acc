@@ -53,20 +53,8 @@ sub determine_argument_io_direction_rec {
 	{
 		for my $calledsub ( @{ $Sf->{'CalledSubs'}{'List'} } ) {
 			$stref->{Counter}++ if $V;
-#			say
-#"determine_argument_io_direction_rec($f) BEFORE REC CALL $f CALLING $calledsub: ";
-#			say $stref->{'Subroutines'}{'velfg'}{'RefactoredArgs'}{'Set'}
-#			  {'diu1'}{'IODir'};
 
 			$stref = determine_argument_io_direction_rec( $calledsub, $stref );
-#			say "AFTER REC CALL RETURNING FROM $calledsub TO $f: ";
-#			say $stref->{'Subroutines'}{'vel2'}{'RefactoredArgs'}{'Set'}{'diu1'}
-#			  {'IODir'};
-#			say $stref->{'Subroutines'}{'velfg'}{'RefactoredArgs'}{'Set'}
-#			  {'diu1'}{'IODir'};
-#			croak
-#			  if $stref->{'Subroutines'}{'velfg'}{'RefactoredArgs'}{'Set'}
-#				  {'diu1'}{'IODir'} eq 'In';
 
 			$stref->{Counter}-- if $V;
 		}
@@ -102,63 +90,6 @@ sub _determine_argument_io_direction_core {
 		# If an arg has a non-'U' value, we overwrite it.
 		# Up to here RefactoredArgs does not contain any parameter decls
 		$stref = _analyse_src_for_iodirs( $stref, $f );
-
-		if (0) {
-
-#        $Sf = $stref->{'Subroutines'}{$f};
-#        my $args = $Sf->{'RefactoredArgs'}{'Set'};
-#
-#        my $maybe_args = ( get_maybe_args_globs( $stref, $f ) )[0]; # returns a hash ref
-#
-#        if ( scalar keys %{$args} > 0 ) {
-#            for my $arg ( keys %{$args} ) {
-#
-#                next if $arg eq '';    # FIXME: WHY?!
-#
-#                my $array_or_scalar  = 'Unknown';
-#                my $type  = 'Unknown';
-#                my $shape = [];
-#                my $attr  = '';
-#                my $decl;
-#
-#                my $indent='      ';
-#                if ( exists $maybe_args->{$arg} ) {
-#                    $decl= $maybe_args->{$arg};
-#                    $array_or_scalar  = $maybe_args->{$arg}{'ArrayOrScalar'};
-#                    $type  = $maybe_args->{$arg}{'Type'};
-#                    $shape = $maybe_args->{$arg}{'Dim'};
-#                    $attr  = $maybe_args->{$arg}{'Attr'};
-#                    $indent = $maybe_args->{$arg}{'Indent'};
-#                } else {
-#                    say "WARNING: _determine_argument_io_direction_core ". __LINE__ ." : No Decl for $arg in $f, using IMPLICIT ".Dumper($maybe_args->{$arg}) ;
-#                    # FIXME: Implicit rules can include a kind!
-#                    # Problem is that we can't tell if this is an array or not.
-#                    ( $type, $array_or_scalar, $attr ) =
-#                      type_via_implicits( $stref, $f, $arg );
-#
-#                    if ( $type eq 'Unknown' ) {
-#                        print
-#                          "WARNING: No type/kind/shape info for $arg in $f\n"
-#                          if $W;
-#                    }
-#                }
-#                $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$arg}
-#                  {'ArrayOrScalar'} = $array_or_scalar;
-#                $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$arg}
-#                  {'Type'} = $type;
-#                $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$arg}
-#                  {'Dim'} = $shape;
-#                $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$arg}
-#                  {'Attr'} = $attr;
-#                  $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$arg}
-#                  {'Indent'} = $indent;
-#            }
-#        }
-		}    # if (0)
-		     # FIXME: I don't think this should be done here
-		     #TODO   $stref = remap_args( $stref, $f );
-		     #TODO   $stref = reshape_args( $stref, $f );
-		     #    $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}=$args;
 	}
 	return $stref;
 }    # _determine_argument_io_direction_core()
@@ -311,7 +242,6 @@ sub _analyse_src_for_iodirs {
 			#            $stref = refactor_subroutine_signature( $stref, $f );
 		}
 		my $args = dclone( $Sf->{'RefactoredArgs'}{'Set'} );
-#croak "For Functions, we force them all to In here";
  if (exists $Sf->{'Function'} and $Sf->{'Function'} ==1 ) {
  	# Don't touch
  } else {
@@ -320,17 +250,6 @@ sub _analyse_src_for_iodirs {
 		for my $index ( 0 .. scalar( @{$annlines} ) - 1 ) {
 			my $line = $annlines->[$index][0];
 			my $info = $annlines->[$index][1];
-#			if ( ( $f eq 'vel2' or $f eq 'velfg' ) and $line =~ /\bdiu1\b/ ) {
-#				say "_analyse_src_for_iodirs($f) " . __LINE__
-#				  . " LINE AT ENTRY: <$line>";
-#				say "IODIR diu1 in vel2:"
-#				  . $stref->{'Subroutines'}{'vel2'}{'RefactoredArgs'}{'Set'}
-#				  {'diu1'}{'IODir'};
-#				say "IODIR diu1 in velfg:"
-#				  . $stref->{'Subroutines'}{'velfg'}{'RefactoredArgs'}{'Set'}
-#				  {'diu1'}{'IODir'};
-#
-#			}
 
 			if ( $line =~ /^\s*\!/ ) {
 				next;
@@ -443,17 +362,6 @@ sub _analyse_src_for_iodirs {
 # So we get the IODir for every arg in the call to the subroutine
 # We need both the original args from the call and the ex-glob args
 # It might be convenient to have both in $info; otoh we can get ExGlobArgs from the main table
-#				if ( ( $f eq 'vel2' or $f eq 'velfg' ) and $name eq 'vel2' ) {
-#					say "_analyse_src_for_iodirs($f) " . __LINE__
-#					  . " SUBCALL $name: <$line>";
-#					say "IODIR diu1 in vel2:"
-#					  . $stref->{'Subroutines'}{'vel2'}{'RefactoredArgs'}{'Set'}
-#					  {'diu1'}{'IODir'};
-#					say "IODIR diu1 in velfg:"
-#					  . $stref->{'Subroutines'}{'velfg'}{'RefactoredArgs'}
-#					  {'Set'}{'diu1'}{'IODir'};
-#
-#				}
 
 				my $iodirs_from_call =
 				  _get_iodirs_from_subcall( $stref, $f, $info );
@@ -461,7 +369,7 @@ sub _analyse_src_for_iodirs {
 				for my $var ( keys %{$iodirs_from_call} ) {
 
 # Damn Perl! exists $args->{$var}{'IODir'} creates the entry for $var if it did not exist!
-#say "VAR: $var;".Dumper($args);
+
 					if ( exists $args->{$var}
 						and ref( $args->{$var} ) eq 'HASH' )
 					{
@@ -664,7 +572,7 @@ sub _analyse_src_for_iodirs {
 		$Sf->{'IODirInfo'} = 1;
 	}    # if IODirInfo had not been set to 1
 
-# So, at this point, $stref->{'Subroutines'}{$f}{'RefactoredArgs'} has full IODir info
+
 	return $stref;
 }    # END of _analyse_src_for_iodirs()
 
@@ -808,9 +716,7 @@ sub _get_iodirs_from_subcall {
 				# This means that $call_arg is an argument of the caller $f
 				# That is what interestes us as we want the IODir in that case
 				if (  exists  $args->{$call_arg} 
-#					and ref( $args->{$call_arg} ) eq 'HASH'
 					and exists $Sname->{'RefactoredArgs'}{'Set'}{$sig_arg}
-#					and ref( $Sname->{'RefactoredArgs'}{'Set'}{$sig_arg} ) eq 'HASH' 
 					)
 				{ # this caller argument has a record in RefactoredArgs of $f
 					   # look up the IO direction for the corresponding $sig_arg
@@ -870,99 +776,6 @@ sub _get_iodirs_from_subcall {
 			}
 		}
 			
-			
-			# int is a FORTRAN primitive converting float to int
-			# int2|short is a FORTRAN primitive converting float to int
-			# int8|long is a FORTRAN primitive converting float to int
-			# float is a FORTRAN primitive converting int to float
-			# dfloat|dble is a FORTRAN primitive converting int to float
-			# sngl is a FORTRAN primitive converting double to float
-#			$call_arg =~
-#			  s/\b(?:int|int2|int8|short|long|sngl|dfloat|dble|float)\(//
-#			  && $call_arg =~ s/\)$//;    # FIXME: was (^|\W), OK?
-#
-#			# Clean up call args for comparison
-#			$call_arg =~ s/(\w+)\(.*?\)/$1/g;
-#			$i++;
-#			if ( exists $args->{$call_arg} ) {
-#				# This means that $call_arg is an argument of the caller $f
-#				# That is what interestes us as we want the IODir in that case
-#				if (    ref( $args->{$call_arg} ) eq 'HASH'
-#					and ref( $Sname->{'RefactoredArgs'}{'Set'}{$sig_arg} ) eq
-#					'HASH' )
-#				{ # this caller argument has a record
-#					   # look up the IO direction for the corresponding $sig_arg
-#					$called_arg_iodirs->{$call_arg} =
-#					  $Sname->{'RefactoredArgs'}{'Set'}{$sig_arg}{'IODir'};
-#				} else {
-#					say
-#"CALLER ARG <$call_arg> for call to $name OR SIG ARG <$sig_arg> for $name in $f HAS NO REC: "
-#					  . Dumper( $Sname->{'Args'} ) . '<>'
-#					  . Dumper( $Sname->{'RefactoredArgs'}{'Set'}{$sig_arg} );
-#					say Dumper( $Sname->{'Args'} );
-#					die;
-#				}
-#			} else {
-#				if ( $call_arg =~ /\W/ ) { # Expression
-#					print
-#"INFO: ARG $call_arg in call to $name in $f is an expression\n"
-#					  if $DBG;
-#					my @maybe_args = split( /\W+/, $call_arg );
-#					for my $maybe_arg (@maybe_args) {
-#						next if $maybe_arg eq '';
-#						next
-#						  if $maybe_arg =~ /^\d+$/; # quicker than the next line
-#						next
-#						  if $maybe_arg =~
-#							  /^(\-?(?:\d+|\d*\.\d*)(?:e[\-\+]?\d+)?)$/;
-#						if ( exists $args->{$maybe_arg}
-#							and not exists $called_arg_iodirs->{$maybe_arg} )
-#						{
-#							print
-#"INFO: Setting IO dir for $maybe_arg in call to $name in $f to In\n"
-#							  if $DBG;
-#							$called_arg_iodirs->{$maybe_arg} = 'In';
-#							if (    scalar keys %{ $Sname->{'Callers'} } == 1
-#								and $Sname->{'Callers'}{$f} == 1
-#								and $Sname->{'RefactoredArgs'}{'Set'}{$sig_arg}
-#								{'IODir'} ne 'In' )
-#							{
-#								print
-#"INFO: $name in $f is called only once; $sig_arg is an expression, setting IODir to 'In'\n"
-#								  if $I;
-#								$Sname->{'RefactoredArgs'}{'Set'}{$sig_arg}
-#								  {'IODir'} = 'In';
-#							}
-#						}
-#					}
-#				} elsif ( # Constant
-#					$call_arg =~ /^(\-?(?:\d+|\d*\.\d*)(?:e[\-\+]?\d+)?)$/ )
-#				{    # TODO: use this in Parser instead
-#					if (    scalar keys %{ $Sname->{'Callers'} } == 1
-#						and $Sname->{'Callers'}{$f} == 1
-#						and $Sname->{'RefactoredArgs'}{'Set'}{$sig_arg}{'IODir'}
-#						ne 'In' )
-#					{
-#						print
-#"INFO: $name in $f is called only once; $sig_arg is a numeric constant, setting IODir to 'In'\n"
-#						  if $I;
-#						$Sname->{'RefactoredArgs'}{'Set'}{$sig_arg}{'IODir'} =
-#						  'In';
-#					}
-#				} else { # No idea how we can get here, because it means we have a variable used as call arg and it is not a refactored arg and not
-#					if ( exists $Sname->{'RefactoredArgs'}{'Set'}{$sig_arg} ) {
-#						$called_arg_iodirs->{$call_arg} =
-#						  $Sname->{'RefactoredArgs'}{'Set'}{$sig_arg}{'IODir'};
-#					} else {
-#						say
-#"WARNING: Could not determine IODir for $call_arg in $name because there is no RefactoredArgs{"
-#						  . $sig_arg
-#						  . '} in  parse_assignment() -> _analyse_src_for_iodirs() -> _get_iodirs_from_subcall() '
-#						  . __LINE__;
-#					}
-#				}
-#			}
-#		}
 		# For the refactored args that were not original args, we just copy the IODir
 		# So we take all refactored args but exclude the args in the argmap 
 		for my $ref_arg (keys %{ $Sname->{'RefactoredArgs'}{'Set'} } ) {			
@@ -1007,12 +820,6 @@ sub _update_argument_io_direction {
 				exists $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}
 				{$varname} )
 			{
-				say $line if $f eq 'vertical';
-
-				#			say "INFO:".Dumper($info->{'VarDecl'});
-
- #			say $varname;
- #			say Dumper($stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$varname});
 				$info->{'VarDecl'}{'IODir'} =
 				  $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$varname}
 				  {'IODir'};

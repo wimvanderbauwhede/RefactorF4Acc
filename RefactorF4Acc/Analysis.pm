@@ -63,6 +63,7 @@ sub analyse_all {
 	return $stref if $stage == 4;
 	
 	$stref = lift_globals( $stref, $subname );
+	croak Dumper( $stref->{'Subroutines'}{'test_xyindex_to_ll_wrf'}{'ExGlobArgDecls'}{'List'} ) ; 
 	return $stref if $stage == 5;
 	
 	for my $f ( keys %{ $stref->{'Subroutines'} } ) {
@@ -187,7 +188,8 @@ sub _analyse_variables {
 					@chunks = (@chunks,@{$info->{'CallArgs'}{'List'}}) ;				
 			} elsif (exists $info->{'OpenCall'}) {
 				if (exists $info->{'FileNameVar'} ) {
-					push @chunks, $info->{'FileNameVar'};
+#					push @chunks, $info->{'FileNameVar'};
+					@chunks = (@chunks,@{$info->{'Vars'}{'List'}});
 				}
 			} elsif (exists $info->{'Do'}) {
 						@chunks = ($info->{'Do'}{'Iterator'}, @{ $info->{'Do'}{'Range'}{'Vars'} } );						
@@ -438,22 +440,6 @@ sub _create_refactored_args {
 	( my $stref, my $f ) = @_;
 	my $Sf = $stref->{'Subroutines'}{$f};
 	if (exists $Sf->{'ExGlobArgDecls'} and exists $Sf->{'OrigArgs'} ) {
-		
-#		if ( not exists $Sf->{'ExGlobArgDecls'}{'List'} ) {
-#			$Sf->{'ExGlobArgDecls'}{'List'}=[];
-#		}
-#				
-#		if ( not exists $Sf->{'ExGlobArgDecls'}{'Set'} ) {
-#			$Sf->{'ExGlobArgDecls'}{'Set'}={};
-#		}
-#
-#		if ( not exists $Sf->{'OrigArgs'}{'List'} ) {  
-#			$Sf->{'OrigArgs'}{'List'}=[];
-#		}
-#		
-#		if ( not exists $Sf->{'OrigArgs'}{'Set'} ) {
-#			$Sf->{'OrigArgs'}{'Set'}={};
-#		}
 		$Sf->{'RefactoredArgs'}{'List'} = ordered_union( $Sf->{'OrigArgs'}{'List'}, $Sf->{'ExGlobArgDecls'}{'List'} );
 		$Sf->{'RefactoredArgs'}{'Set'} =
 		  	{ %{ $Sf->{'UndeclaredOrigArgs'}{'Set'} },

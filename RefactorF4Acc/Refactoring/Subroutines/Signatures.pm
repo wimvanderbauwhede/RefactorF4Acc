@@ -24,8 +24,7 @@ use Exporter;
 
 @RefactorF4Acc::Refactoring::Subroutines::Signatures::EXPORT_OK = qw(
     &create_refactored_subroutine_signature
-    &refactor_subroutine_signature
-    &refactor_kernel_signatures
+    &refactor_subroutine_signature    
 );
 
 =pod
@@ -67,83 +66,51 @@ sub create_refactored_subroutine_signature {
     return $rlines;
 }    # END of create_refactored_subroutine_signature()
 # -----------------------------------------------------------------------------
-# At this point, the IODirs have been resolved, but unfortunately the argument declaration lines
-# have already been created as strings. Not good.
-# FIXME: IODir needs to be used as INTENT for arguments, rather than just being documentation
-# So when we emit the actual subroutine body code, we need to add the information from
-#  $Sf->{'RefactoredArgs'}{'Set'}{$arg}{'IODir'} for every $arg
 # WV 2014-12-19 this should become add_intent_to_subroutine_signature()
-sub refactor_kernel_signatures {
-    ( my $stref, my $f ) = @_;
-    my $Sf        = $stref->{'Subroutines'}{$f};
-    my $args_ref = $Sf->{'RefactoredArgs'}{'List'};
-    $Sf->{'HasRefactoredArgs'} = 1;
-    # IO direction information
-    my @rlines=();# ( [ "!    SUBROUTINE $f IO INFO\n", { 'Comment' => 1, 'Ref'=>1 } ] );
-
-    # Now add $rlines to the refactored signature
-	# WV: this just adds the IO info as comments
-    my @extra_lines = ();#@rlines;
-    
-    if ( $Sf->{'Status'} != $PARSED ) {
-        croak "NOT PARSED: $f\n".caller()."\n";
-    }
-    my $annlines = get_annotated_sourcelines( $stref, $f );
-    # OK here for les.f
-#    if ($f eq 'les') {
-#        print "refactor_kernel_signatures(les)\n";
-#        map {print $_->[0]."\t".join(';',keys( %{$_->[1]}))."\n" } @{$annlines};
-#        die; 
+#sub refactor_kernel_signatures_OFF {
+#    ( my $stref, my $f ) = @_;
+#    my $Sf        = $stref->{'Subroutines'}{$f};
+#    my $args_ref = $Sf->{'RefactoredArgs'}{'List'};
+#    $Sf->{'HasRefactoredArgs'} = 1;
+#    # IO direction information
+#    my @rlines=();
+#
+#    # Now add $rlines to the refactored signature
+#	# WV: this just adds the IO info as comments
+#    my @extra_lines = ();#@rlines;
+#    
+#    if ( $Sf->{'Status'} != $PARSED ) {
+#        croak "NOT PARSED: $f\n".caller()."\n";
 #    }
-    $Sf->{'RefactoredCode'}=[];
-    for my $annline ( @{$annlines} ) {    	
-        if ( not defined $annline or not defined $annline->[0] ) {
-            croak
-              "Undefined source code line for $f in refactor_kernel_signatures()";
-        }
-        my $line = $annline->[0];
-        my $info = $annline->[1];        
-        my %tags      = %{$info};
-#        if ( exists $tags{'Signature'} ) {
-#            for my $extra_line (@extra_lines) {
-#                push @{ $Sf->{'RefactoredCode'} }, $extra_line;
-#            }
+#    my $annlines = get_annotated_sourcelines( $stref, $f );
+#    $Sf->{'RefactoredCode'}=[];
+#    for my $annline ( @{$annlines} ) {    	
+#        if ( not defined $annline or not defined $annline->[0] ) {
+#            croak
+#              "Undefined source code line for $f in refactor_kernel_signatures()";
 #        }
-#print "$f: LINE $line:\t".join(';', keys %{$info})."\t";
-	    if ( exists $info->{'VarDecl'} ) {
-#	    	print  'VARS: '.Dumper($info->{'VarDecl'}); 
-	    	my $arg = $info->{'VarDecl'}{'Name'};
-	    	if (not exists $info->{'Ref'})  {		    	
-		    	 if( in_nested_set($Sf,'Vars',$arg)   ) {    	
-		    	   my $line = emit_f95_var_decl($Sf, $arg); # FIXME!
-#		    	   print "$f: REF1 $line FOR $arg\n\n";
-		    	 } else {
-		    	 	print "WARNING: $arg is not in Vars for $f\n" if $W;
-		    	 }
-	    	} else {	    		
-#	    		print "$f: REF $line FOR $arg\n";
-#	    		print Dumper($annline);
-                if (in_nested_set($Sf,'Vars',$arg)) {
-    	    		my $ref2line = emit_f95_var_decl($Sf, $arg);	    		
-#	       		    print "$f: REF2 $ref2line FOR $arg\n\n";
-	       		    $line=$ref2line;
-                }
-	    	}
-	    } else {
-#	    	print "\n";
-	    }
-        push @{ $Sf->{'RefactoredCode'} }, [ $line, $info ];# if $line ne '';
-    }    
-#    die 'BOOM' if $f eq 'adam';
-#    die Dumper( map {$_->[0] } @{$Sf->{'RefactoredCode'}} ) if $f eq 'adam';
-# WRONG HERE for les.f!
-#if ($f eq 'les') {
-#	print "refactor_kernel_signatures(les)\n";
-#	 map {print $_->[0]."\n" } @{$Sf->{'RefactoredCode'}};
-#	 die; 
-#}
-    return $stref;
-}    # END of refactor_kernel_signatures()
+#        my $line = $annline->[0];
+#        my $info = $annline->[1];        
+#        my %tags      = %{$info};
+#	    if ( exists $info->{'VarDecl'} ) {
+#	    	my $arg = $info->{'VarDecl'}{'Name'};
+#	    	if (not exists $info->{'Ref'})  {		    	
+#		    	 if( in_nested_set($Sf,'Vars',$arg)   ) {    	
+#		    	   my $line = emit_f95_var_decl($Sf, $arg); # FIXME!
+#		    	 } else {
+#		    	 	print "WARNING: $arg is not in Vars for $f\n" if $W;
+#		    	 }
+#	    	} else {	    		
+#                if (in_nested_set($Sf,'Vars',$arg)) {
+#    	    		my $ref2line = emit_f95_var_decl($Sf, $arg);	    		
+#	       		    $line=$ref2line;
+#                }
+#	    	}
+#	    } 
+#        push @{ $Sf->{'RefactoredCode'} }, [ $line, $info ];# if $line ne '';
+#    }    
+#    return $stref;
+#}    # END of refactor_kernel_signatures_OFF()
 # -----------------------------------------------------------------------------
 
 sub refactor_subroutine_signature {

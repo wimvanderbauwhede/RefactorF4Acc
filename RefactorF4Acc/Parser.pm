@@ -529,9 +529,33 @@ sub _analyse_lines {
 				if ($keyword eq 'open') {
 					my $ast = parse_Fortran_open_call($mline);
 					$info->{'Ast'} = $ast;
-					if (exists $ast->{'FileName'} and exists $ast->{'FileName'}{'Var'} and $ast->{'FileName'}{'Var'} !~/__PH/) {
-						$info->{'FileNameVar'} = $ast->{'FileName'}{'Var'}; # TODO: in principle almost any other field could be a var						
+
+					if (exists $ast->{'FileName'} ) {
+						if( exists $ast->{'FileName'}{'Var'} and $ast->{'FileName'}{'Var'} !~/__PH/) {
+							$info->{'FileNameVar'} = $ast->{'FileName'}{'Var'}; # TODO: in principle almost any other field could be a var
+							$info->{'Vars'}{'Set'}{$ast->{'FileName'}{'Var'}}=1;
+						} elsif (exists $ast->{'FileName'}{'Expr'} ) {
+							my $expr=$ast->{'FileName'}{'Expr'};
+							if (exists $ast->{'FileName'}{'ExprVar'} ) {
+								$expr=$ast->{'FileName'}{'ExprVar'}.$expr;
+							}
+							
+							my @chunks =split(/\W+/,$expr);
+							for my $mvar (@chunks) {
+								next if $mvar eq '';
+								next if $mvar =~ /^\d+$/;
+								next if $mvar =~ /^(\-?(?:\d+|\d*\.\d*)(?:e[\-\+]?\d+)?)$/;
+								next if $mvar=~/__PH\d+__/;
+								next if exists $F95_reserved_words{$mvar};
+								$info->{'Vars'}{'Set'}{$mvar}=1;
+							}
+#							croak "CHECK FOR VARS: $expr => ".Dumper($info->{'FileNameVars'});
+						}
 					}
+					if (exists $ast->{'UnitVar'} ) {
+						$info->{'Vars'}{'Set'}{$ast->{'UnitVar'}}=1; 
+					}
+					@{ $info->{'Vars'}{'List'} }= keys %{ $info->{'Vars'}{'Set'} };
 #					say "MLINE AFTER OPEN: $mline";							
 				}
 										
@@ -3037,7 +3061,7 @@ sub parse_read_write_print { ( my $line, my $info, my $stref, my $f)=@_;
 	
 	for my $call_attr (@call_attrs) {
 		if ($call_attr=~/=/) {
-			(my $attr_name,$call_attr)=split(/\s*=\s*/,$call_attr);
+			(my $attr_name,$call_attr)=split(/\s*=\s*/,$call_attr);			
 		}
 		
 		next if $call_attr eq '*';

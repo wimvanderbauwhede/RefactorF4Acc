@@ -3,7 +3,7 @@ use v5.016;
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
 use RefactorF4Acc::Refactoring::Common qw( get_annotated_sourcelines create_refactored_source context_free_refactorings emit_f95_var_decl);
-use RefactorF4Acc::Refactoring::Subroutines::Signatures qw( create_refactored_subroutine_signature refactor_subroutine_signature refactor_kernel_signatures ); 
+use RefactorF4Acc::Refactoring::Subroutines::Signatures qw( create_refactored_subroutine_signature refactor_subroutine_signature ); 
 use RefactorF4Acc::Refactoring::Subroutines::Includes qw( skip_common_include_statement create_new_include_statements create_additional_include_statements );
 use RefactorF4Acc::Refactoring::Subroutines::Declarations qw( create_exglob_var_declarations create_refactored_vardecls );
 use RefactorF4Acc::Refactoring::Subroutines::Calls qw( create_refactored_subroutine_call );
@@ -27,8 +27,7 @@ use Exporter;
 @RefactorF4Acc::Refactoring::Subroutines::ISA = qw(Exporter);
 
 @RefactorF4Acc::Refactoring::Subroutines::EXPORT_OK = qw(
-    &refactor_all_subroutines
-    &refactor_kernel_signatures
+    &refactor_all_subroutines    
 );
 
 =pod
@@ -510,23 +509,18 @@ sub _create_extra_arg_and_var_decls {
 
     ( my $stref, my $f, my $annline, my $rlines ) = @_;
 
-#local $I= $f eq 'bondv1';
-
     my $Sf                 = $stref->{'Subroutines'}{$f};
-#    if ($f eq 'anime') { croak Dumper($Sf->{'Vars'}); }
-#croak "_create_extra_arg_and_var_decls($f): ".Dumper( $Sf->{'Decls'}) if $f eq 'boundsm';
-#    my %args               = %{ $Sf->{'Args'}{'Set'} };
     my $nextLineID=scalar @{$rlines}+1;
-#die Dumper($Sf->{'RefactoredArgs'}{'Set'}) if $I;            
+            
     print "INFO: ExGlobArgDecls in $f\n" if $I;
-#    croak Dumper( $Sf->{'Vars'})."\n UNIT: $f" if $f=~/main|vertical/ ;
+
     for my $var ( @{ $Sf->{'ExGlobArgDecls'}{'List'} } ) {
     	
     	# Need to check if these were not already declared
     	if (not exists $Sf->{'DeclaredOrigLocalVars'}{'Set'}{$var}
     	and not exists $Sf->{'DeclaredOrigArgs'}{'Set'}{$var}
     	) {
-    	say "INFO VAR: $var ".$Sf->{'RefactoredArgs'}{'Set'}{$var}{'IODir'} if $I;
+    	say "INFO VAR: $var ".Dumper($Sf->{'ExGlobArgDecls'}{'Set'}{$var}{'IODir'} ) if $I;
                     my $rdecl = $Sf->{'ExGlobArgDecls'}{'Set'}{$var}; 
                     my $rline = emit_f95_var_decl($rdecl);
                     my $info={};
@@ -644,12 +638,25 @@ sub _create_refactored_subroutine_call {
     
     if (exists $stref->{'Subroutines'}{$name}{'ExGlobArgDecls'}) {       
         my @globals = @{ $stref->{'Subroutines'}{$name}{'ExGlobArgDecls'}{'List'} };        
-        $args_ref = [@orig_args, @globals ]; # NOT ordered union, if they repeat that should be OK
+        # Problem is that in $f globals from $name may have been renamed. I store the renamed ones in 
+        # $Sf->{'RenamedInheritedExGLobs'}
+        my @maybe_renamed_exglobs=();
+        for my $ex_glob (@globals) {
+#        	croak Dumper($Sf->{'RenamedInheritedExGLobs'}) if $ex_glob eq 'ustar' and $f eq 'advance' and $name eq 'interpol_all';
+        	if (exists $Sf->{'RenamedInheritedExGLobs'}{'Set'}{$ex_glob}) {
+        		say "RENAMED $ex_glob => ".$Sf->{'RenamedInheritedExGLobs'}{'Set'}{$ex_glob} . ' in call to ' . $name . ' in '. $f;
+        		push @maybe_renamed_exglobs, $Sf->{'RenamedInheritedExGLobs'}{'Set'}{$ex_glob};
+        	} else {
+        		push @maybe_renamed_exglobs,$ex_glob;
+        	}
+        }
+        $args_ref = [@orig_args, @maybe_renamed_exglobs ]; # NOT ordered union, if they repeat that should be OK
  
         $info->{'SubroutineCall'}{'Args'}{'List'}= $args_ref;
     my $args_str = join( ',', @{$args_ref} );
     $line =~ s/call\s.*$//; # Basically keep the indent
     my $rline = "call $name($args_str)\n";
+    $info->{'Ann'}=[annotate($f, __LINE__ ) ];
     push @{$rlines}, [ $line . $rline, $info ];
     } else {
         push @{$rlines}, [ $line , $info ];

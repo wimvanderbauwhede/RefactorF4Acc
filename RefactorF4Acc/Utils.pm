@@ -30,7 +30,12 @@ use Exporter;
     &get_maybe_args_globs
     &type_via_implicits
     &union
+    &difference
+    &intersection
     &ordered_union
+    &ordered_difference
+    &ordered_intersection
+    &find_duplicates_in_list
     &module_has
     &module_has_only
     &make_lookup_table    
@@ -219,6 +224,59 @@ sub ordered_union {
 	    return \@us;
     }
 }    # END of ordered_union()
+# -----------------------------------------------------------------------------
+# This is the set of all members of $bref not in $aref, not the other way round
+sub ordered_difference {
+    ( my $aref, my $bref ) = @_;
+    croak("ordered_difference()") unless (defined $aref and defined $bref);   
+    if (not defined $aref) { # assume it's empty
+    	return $bref;
+    } elsif (not defined $bref) {
+        return [];
+    } else {    
+	    my @b_diff_a = ();
+	    my %as = map { $_ => 1 } @{$aref}; # all elts of a
+	    for my $elt ( @{$bref} ) {
+	        if ( not exists $as{$elt} ) { # elt is not in a, so OK
+	            push @b_diff_a, $elt;
+	        }
+	    }
+	    return \@b_diff_a;
+    }
+}    # END of ordered_difference()
+# -----------------------------------------------------------------------------
+# This is the set of all members of $bref that also occur in $aref (or vice-versa of course)
+sub ordered_intersection {
+    ( my $aref, my $bref ) = @_;
+    croak("ordered_intersection()") unless (defined $aref and defined $bref);   
+    if (not defined $aref) {
+    	return [];
+    } elsif (not defined $bref) {
+        return [];
+    } else {    
+	    my @is = [];
+	    my %as = map { $_ => 1 } @{$aref};
+	    for my $elt ( @{$bref} ) {
+	        if ( exists $as{$elt} ) {
+	            push @is, $elt;
+	        }
+	    }
+	    return \@is;
+    }
+}    # END of ordered_intersection()
+# -----------------------------------------------------------------------------
+sub find_duplicates_in_list { (my $lst) =@_;
+	my %uniques=();
+	my $dups={};
+	for my $elt (@{$lst}) {
+		if (not exists $uniques{$elt}) {
+			$uniques{$elt}=$elt;
+		} else {
+			$dups->{$elt}=$elt
+		}
+	}
+	return $dups;
+}
 # -----------------------------------------------------------------------------
 # Returns true if the module contains all items in the  $mod_has_lst
 sub module_has { (my $stref, my $mod_name, my $mod_has_lst) = @_;

@@ -139,19 +139,12 @@ croak "create_exglob_var_declarations OBSOLETE?";
     for my $inc ( keys %{ $Sf->{'Globals'} } ) {
         
         print "INFO: GLOBALS from INC $inc in $f\n" if $I;
-#if ($f eq 'flexpart_wrf') { die Dumper($Sf); }
 
         for my $var ( sort @{ $Sf->{'Globals'}{$inc}{'List'} } ) {
             
 croak "THIS CHECK IS NOT OK: RefactoredArgs can have an entry with a blank IODir here, FIXME!";
 #what we should do is check the content, or maybe better, check if there already exists an actual VarDecl line.
 #If not, we should create one. If it exists and is complete, we should skip it.
-#            if (exists $Sf->{'OrigArgs'}{'Set'}{$var} or exists $Sf->{'RefactoredArgs'}{'Set'}{$var} or exists $Sf->{'Vars'}{$var}) {
-#                my $rline = "! *** ARG MASKS GLOB $var from $inc in $f!";
-#                push @{$rlines}, [ $rline, {'Error' =>1, 'LineID' => $nextLineID++ } ];
-#                
-#            } else { 
-                # croak $f.Dumper( $Sf->{'Globals'} );
                 if ( exists $Sf->{'Globals'}{$inc} ) { #die $inc;
                     
 # FIXME: we need to remove these declarations from the include file!

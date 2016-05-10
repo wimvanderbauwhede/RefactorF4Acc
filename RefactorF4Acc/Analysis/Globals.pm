@@ -13,6 +13,7 @@ use warnings::unused;
 use warnings;
 use warnings FATAL => qw(uninitialized);
 use strict;
+use Storable qw( dclone );
 use Carp;
 use Data::Dumper;
 
@@ -129,7 +130,9 @@ sub _resolve_conflicts_with_params {
 # Here we identify which globals from the includes are actually used in the subroutine.
 # This is not correct because globals used in called subroutines are not recognised
 # So what I should do is find the globals for every called sub recursively.
-# WV20150806: I should first work out what the includes with commons are in all subroutines and then "lift" them and then call this subroutine. 
+# WV20150806: I should first work out what the includes with commons are in all subroutines and then "lift" them and then call this subroutine.
+
+# WV20160510: is it possible that here we have an issue with renamed ex-globals? 
 sub _identify_globals_used_in_subroutine {
     ( my $f, my $stref ) = @_;
 
@@ -179,24 +182,15 @@ sub _identify_globals_used_in_subroutine {
             $Sf->{'Globals'}{'List'} = \@globs;            
             $Sf->{'Globals'}{'Set'}={};
             
-            
             for my $var (@globs) {
             	my $subset=in_nested_set($stref->{'IncludeFiles'}{$cinc}, 'Vars', $var);
-#            		say $subset;
-#            		say Dumper($stref->{'IncludeFiles'}{$cinc}{$subset}{'Set'});
             	my $var_rec= $stref->{'IncludeFiles'}{$cinc}{$subset}{'Set'}{$var};
-#            	say Dumper($var_rec);
                 $Sf->{'Globals'}{'Set'}{$var} = $var_rec ;
             }
             $Sf->{'HasCommons'} = 1;
         }
         
     } 
-#    else {
-#        die "GLOBALS FOR $f:".Dumper($Sf->{'Globals'}); 
-#    }
-#    die if $f eq 'main';
-#    die Dumper($Sf->{'Globals'}) if $f eq 'main';
     return $stref;
 }    # END of _identify_globals_used_in_subroutine()
 # -----------------------------------------------------------------------------
@@ -243,7 +237,7 @@ sub lift_includes {
     my $Sf = $stref->{'Subroutines'}{$f};    
         # Which child has RefactorGlobals==1?    
     $Sf->{'LiftedIncludes'} =[]; # We will use this to create the additional include statements
-    for my $cs (keys %{ $Sf->{'CalledSubs'}{'Set'} }) {             
+    for my $cs (@{ $Sf->{'CalledSubs'}{'List'} }) {             
     	croak 'No subroutine name ' if $cs eq '' or not defined $cs;
         if ($stref->{'Subroutines'}{$cs}{'RefactorGlobals'}==1) {
             for my $inc (keys %{ $stref->{'Subroutines'}{$cs}{'CommonIncludes'} }) {
@@ -275,41 +269,122 @@ croak 'lift_includes';
 # This should be done before we create RefactoredArgs!
 sub lift_globals { ;
     (my $stref, my $f) = @_;
-    print '=' x 80, "\nENTER resolve_globals( $f )\n" if $V;
+    local $V=1;
+    say '=' x 80, "\nENTER lift_globals( $f )" if $V;
     if (exists $stref->{'Subroutines'}{$f} ) {
-    my $Sf = $stref->{'Subroutines'}{$f};
-    if ( exists $Sf->{'CalledSubs'}{'Set'}
-        and scalar keys %{ $Sf->{'CalledSubs'}{'Set'} } )
-    {
-        my @csubs = keys %{ $Sf->{'CalledSubs'}{'Set'} };
-        for my $csub (@csubs) {            
-            $stref = lift_globals($stref, $csub );
-            my $Scsub = $stref->{'Subroutines'}{$csub};
-            # If $csub has globals, merge them with globals for $f, otherwise inherit them
-            if (exists $Scsub->{'ExGlobArgDecls'} ) {
-                if (exists $Sf->{'ExGlobArgDecls'}{'List'} ) {
-#                	say "MERGE GLOBALS from $csub into $f: ".join(',',@{$Sf->{'ExGlobArgDecls'}{'List'}}). ' AND ' .join(',',@{$Scsub->{'ExGlobArgDecls'}{'List'}}); 
-                    $Sf->{'ExGlobArgDecls'}{'List'} = ordered_union( $Sf->{'ExGlobArgDecls'}{'List'},$Scsub->{'ExGlobArgDecls'}{'List'} );
-                } else {
-                    $Sf->{'ExGlobArgDecls'}{'List'} = $Scsub->{'ExGlobArgDecls'}{'List'} ;
-                } 
-                if ( exists $Sf->{'ExGlobArgDecls'}{'Set'} ) {      
-            	   $Sf->{'ExGlobArgDecls'}{'Set'} = { %{ $Sf->{'ExGlobArgDecls'}{'Set'} }, %{ $Scsub->{'ExGlobArgDecls'}{'Set'} } };
-                } else {
-                    $Sf->{'ExGlobArgDecls'}{'Set'} = {  %{ $Scsub->{'ExGlobArgDecls'}{'Set'} } };
-                    $Sf->{'HasCommons'} = 1;
-                }            	       
-            }            
-        } 
-    } else {
-        # Leaf node, find globals
-        say "SUB $f is LEAF" if $V; 
-        $stref = _identify_globals_used_in_subroutine( $f, $stref );
-    }    
-    
-    # We only come here when the recursion and merge is done.   
-    $stref = _resolve_conflicts_with_params( $f, $stref );
-
+    	my $Sf = $stref->{'Subroutines'}{$f};
+    	if ( exists $Sf->{'CalledSubs'}{'List'}
+        and scalar @{ $Sf->{'CalledSubs'}{'List'} }>0 )
+	    {
+	    	# This sub is calling other subs	    	
+	        my @csubs = @{ $Sf->{'CalledSubs'}{'List'} };
+	        $Sf->{'RenamedInheritedExGLobs'}  = { 'List' => [], 'Set' => {}} unless exists $Sf->{'RenamedInheritedExGLobs'};
+			my $dups = find_duplicates_in_list($Sf->{'ExGlobArgDecls'}{'List'});
+	        if (scalar keys %{$dups}>0) {
+	            	croak "$f has DUPS:".Dumper($dups)
+	        } else {
+	        	say "NO DUPS in $f"; 
+			} 
+	        for my $csub (@csubs) {       
+	       		say "CALL TO  $csub from $f" if $V;     
+	            $stref = lift_globals($stref, $csub );
+	            say "RETURN TO $f from CALL to $csub" if $V;
+	            my $Scsub = $stref->{'Subroutines'}{$csub};
+	            my %tmp = map { $_ => 1 } @{ $Scsub->{'ExGlobArgDecls'}{'List'} };
+	        	for my $k (keys %tmp) {
+	        		croak "$f => $k after $csub: ".Dumper( $Scsub->{'ExGlobArgDecls'}{'List'} ) if $k=~/_GLOB/ and $f eq 'map_set';
+	        	} 
+				my $dups3 = find_duplicates_in_list($Sf->{'ExGlobArgDecls'}{'List'});
+		        if (scalar keys %{$dups3}>0) {
+	    	    	croak "ON RETURN FROM $csub: $f has DUPS:".Dumper($dups3)
+	        	} else {
+	        		say "ON RETURN FROM $csub: NO DUPS in $f"; 
+				} 
+# ------------------	            	            
+	            # If $f and $csub both have globals, merge them, otherwise inherit them
+	            if (exists $Scsub->{'ExGlobArgDecls'} ) {
+	            	# First find all vars in $csub that are not in $f
+	            	# because if a var is present in $f it should NOT be renamed 
+	            	my $ex_globs_from_csub_only_list = ordered_difference( $Sf->{'ExGlobArgDecls'}{'List'}, $Scsub->{'ExGlobArgDecls'}{'List'} );
+	            	say Dumper($ex_globs_from_csub_only_list);	            	
+	            	my %ex_globs_from_csub_only = map { $_ => 1 } @{$ex_globs_from_csub_only_list};
+	            	# Then rename only these	            	            	
+	            	my $ext = '_GLOB' ;#'_GLOB_from_'.$csub
+	            	my $renamed_inherited_globs = { 'List' => [], 'Set' => {}};
+	            				
+	            	my $dups3 = find_duplicates_in_list($Scsub->{'ExGlobArgDecls'}{'List'});
+	        if (scalar keys %{$dups3}>0) {
+	            	say "$csub has DUPS:".Dumper($dups3)
+	        } else {
+	        	say " NO DUPS in $csub ExGlobArgDecls:\n".Dumper($dups3).Dumper($Scsub->{'ExGlobArgDecls'}{'List'}); 
+			} 
+	            	
+	            	for my $ex_glob ( @{$Scsub->{'ExGlobArgDecls'}{'List'}} ) {
+	            		my $maybe_renamed_ex_glob = $ex_glob;
+	            		if (exists $ex_globs_from_csub_only{$ex_glob} and $ex_glob!~/$ext/) {
+	            			$maybe_renamed_ex_glob .= $ext;
+	            		} 
+	            		push @{ $renamed_inherited_globs->{'List'} }, $maybe_renamed_ex_glob;
+	            	}
+	            	my $dups3 = find_duplicates_in_list($renamed_inherited_globs->{'List'});
+	        if (scalar keys %{$dups3}>0) {
+	            	croak "$csub renamed_inherited_globs has DUPS:\n".Dumper($dups3).Dumper($renamed_inherited_globs->{'List'});
+	        } else {
+	        	say " NO DUPS in $csub"; 
+			} 
+	            	for my $ex_glob (keys %{ $Scsub->{'ExGlobArgDecls'}{'Set'} }) {
+	            		my $maybe_renamed_ex_glob = $ex_glob;
+	            		if (exists $ex_globs_from_csub_only{$ex_glob} ) {
+	            			$maybe_renamed_ex_glob .= $ext unless $ex_glob=~/$ext/;
+	            			$Sf->{'RenamedInheritedExGLobs'}{'Set'}{$ex_glob}=$maybe_renamed_ex_glob;
+	            		} 
+	            		$renamed_inherited_globs->{'Set'}{$maybe_renamed_ex_glob}=dclone($Scsub->{'ExGlobArgDecls'}{'Set'}{$ex_glob});
+	            		$renamed_inherited_globs->{'Set'}{$maybe_renamed_ex_glob}{'Name'}=$maybe_renamed_ex_glob;
+	            	}
+	            	# Now merge or inherit
+	                if (exists $Sf->{'ExGlobArgDecls'}{'List'} ) {
+	                	# Merge
+	                	# The idea is that this merge will only at unique new vars
+	                	# But I do find duplicates!
+	                    $Sf->{'ExGlobArgDecls'}{'List'} = ordered_union( $Sf->{'ExGlobArgDecls'}{'List'},$renamed_inherited_globs->{'List'} );
+# ------------------	                    
+	                    			my $dups2 = find_duplicates_in_list($Sf->{'ExGlobArgDecls'}{'List'});
+	        if (scalar keys %{$dups2}>0) {
+	            	croak "AFTER $csub: $f has DUPS:".Dumper($dups2)
+	        } else {
+	        	say "AFTER $csub: NO DUPS in $f"; 
+			} 
+	                    
+	                } else {
+	                	# Inherit
+	                    $Sf->{'ExGlobArgDecls'}{'List'} = [@{$renamed_inherited_globs->{'List'} }];
+	                } 
+	                if ( exists $Sf->{'ExGlobArgDecls'}{'Set'} ) {
+	                	# Merge      
+	            	   $Sf->{'ExGlobArgDecls'}{'Set'} = { %{ $Sf->{'ExGlobArgDecls'}{'Set'} }, %{ $renamed_inherited_globs->{'Set'} } };#%{ $Scsub->{'ExGlobArgDecls'}{'Set'} } };
+	                } else {
+	                	# Inherit
+	                    $Sf->{'ExGlobArgDecls'}{'Set'} = $renamed_inherited_globs->{'Set'};#{  %{ $Scsub->{'ExGlobArgDecls'}{'Set'} } };
+	                    $Sf->{'HasCommons'} = 1;
+	                }            	       
+	            }   
+     
+			my $dups2 = find_duplicates_in_list($Sf->{'ExGlobArgDecls'}{'List'});
+	        if (scalar keys %{$dups2}>0) {
+	            	croak "AFTER: $f has DUPS:".Dumper($dups2)
+	        } else {
+	        	say "AFTER: NO DUPS in $f"; 
+			} 
+       
+	        } 
+	    } else {
+	        # Leaf node, find globals
+	        say "SUB $f is LEAF" if $V; 
+	        $stref = _identify_globals_used_in_subroutine( $f, $stref );
+	    }    
+	    
+	    # We only come here when the recursion and merge is done.   
+	    $stref = _resolve_conflicts_with_params( $f, $stref );
     }
     
     return $stref;
