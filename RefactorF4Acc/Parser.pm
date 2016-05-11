@@ -200,6 +200,8 @@ say "_initialise_decl_var_tables for subroutine $f" if $V;
 # WV20151021 what we need here is a check that this function has not been called before for this $Sf
 	if ( not exists $Sf->{'DoneInitTables'} ) {
 say "_initialise_decl_var_tables : INIT TABLES for subroutine $f" if $V;
+
+		$Sf->{'HasCommons'} = 0;
 		# WV20151021 maybe need to do that for all subsets of Vars too?
 		# WV20151021 the question is if this needs to be hierarchical?
 		# Also, I think I wil use 'Subsets'
@@ -725,7 +727,7 @@ sub _parse_includes {
 #				my $name = $1;
 				my $name = $info->{'Includes'};
 				print "FOUND include $name in $f\n" if $V;
-				$Sf->{'Includes'}{$name} = $index;
+				$Sf->{'Includes'}{$name} = { 'LineID' => $index};
 
 				if (    exists $Sf->{'Translate'}
 					and exists $stref->{'IncludeFiles'}{$name}

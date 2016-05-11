@@ -780,11 +780,12 @@ sub _get_iodirs_from_subcall {
 		# So we take all refactored args but exclude the args in the argmap 
 		for my $ref_arg (keys %{ $Sname->{'RefactoredArgs'}{'Set'} } ) {			
 			if (exists $called_arg_iodirs->{$ref_arg} ) {
-				say "SKIPPING $ref_arg in $f, already DONE: ".$called_arg_iodirs->{$ref_arg} if $called_arg_iodirs->{$ref_arg} eq 'Unknown';
+				say "INFO: SKIPPING $ref_arg in $f, already DONE: ".$called_arg_iodirs->{$ref_arg} if $called_arg_iodirs->{$ref_arg} eq 'Unknown' and $I;
 				next ;
 			}
 			$called_arg_iodirs->{$ref_arg} = 	$Sname->{'RefactoredArgs'}{'Set'}{$ref_arg}{'IODir'};
-				say "SETTING $ref_arg in $f: ".$called_arg_iodirs->{$ref_arg} if $called_arg_iodirs->{$ref_arg} eq 'Unknown'; 
+#				say "SETTING $ref_arg in $f: ".$called_arg_iodirs->{$ref_arg} if $called_arg_iodirs->{$ref_arg} eq 'Unknown';
+				say "INFO: IODir is Unknown for $ref_arg in $f" if $called_arg_iodirs->{$ref_arg} eq 'Unknown' and $I;  
 		}
 		
 	} else {

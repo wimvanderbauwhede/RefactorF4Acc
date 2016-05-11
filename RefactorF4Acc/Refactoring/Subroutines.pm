@@ -112,10 +112,6 @@ sub _refactor_subroutine_main {
     say "context_free_refactorings($f)" if $V;
     $stref = context_free_refactorings( $stref, $f ); # FIXME maybe do this later    
 
-
-    
-    
-#    croak Dumper( $Sf) if $f eq 'post';
     say "get_annotated_sourcelines($f)" if $V;
     my $annlines = $Sf->{'RefactoredCode'};
     
@@ -642,9 +638,13 @@ sub _create_refactored_subroutine_call {
         # $Sf->{'RenamedInheritedExGLobs'}
         my @maybe_renamed_exglobs=();
         for my $ex_glob (@globals) {
-#        	croak Dumper($Sf->{'RenamedInheritedExGLobs'}) if $ex_glob eq 'ustar' and $f eq 'advance' and $name eq 'interpol_all';
+        	# $ex_glob may be renamed or not. I test this using OrigName. 
+        	# This way I am sure I get only original names
+        	if (exists $stref->{'Subroutines'}{$name}{'ExGlobArgDecls'}{'Set'}{$ex_glob}{'OrigName'}) {
+				$ex_glob = $stref->{'Subroutines'}{$name}{'ExGlobArgDecls'}{'Set'}{$ex_glob}{'OrigName'};		
+        	}        	
         	if (exists $Sf->{'RenamedInheritedExGLobs'}{'Set'}{$ex_glob}) {
-        		say "RENAMED $ex_glob => ".$Sf->{'RenamedInheritedExGLobs'}{'Set'}{$ex_glob} . ' in call to ' . $name . ' in '. $f;
+        		say "INFO: RENAMED $ex_glob => ".$Sf->{'RenamedInheritedExGLobs'}{'Set'}{$ex_glob} . ' in call to ' . $name . ' in '. $f if $I;
         		push @maybe_renamed_exglobs, $Sf->{'RenamedInheritedExGLobs'}{'Set'}{$ex_glob};
         	} else {
         		push @maybe_renamed_exglobs,$ex_glob;

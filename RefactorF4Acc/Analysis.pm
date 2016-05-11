@@ -3,7 +3,7 @@ use v5.16;
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
 use RefactorF4Acc::Analysis::Includes qw( find_root_for_includes );
-use RefactorF4Acc::Analysis::Globals qw( lift_globals );
+use RefactorF4Acc::Analysis::Globals qw( identify_inherited_exglobs_to_rename lift_globals rename_inherited_exglobs );
 use RefactorF4Acc::Analysis::LoopDetect qw( outer_loop_end_detect );
 use RefactorF4Acc::Refactoring::Common qw( get_f95_var_decl stateful_pass stateless_pass );
 
@@ -61,9 +61,10 @@ sub analyse_all {
 		
 	}	
 	return $stref if $stage == 4;
-	
+	$stref = identify_inherited_exglobs_to_rename( $stref, $subname );
 	$stref = lift_globals( $stref, $subname );
-	croak Dumper( $stref->{'Subroutines'}{'test_xyindex_to_ll_wrf'}{'ExGlobArgDecls'}{'List'} ) ; 
+	$stref = rename_inherited_exglobs( $stref, $subname );
+#	croak Dumper( $stref->{'Subroutines'}{'advance'}{'ExGlobArgDecls'}{'List'} ) ; 
 	return $stref if $stage == 5;
 	
 	for my $f ( keys %{ $stref->{'Subroutines'} } ) {
@@ -86,7 +87,11 @@ sub analyse_all {
 	}
 	
 # So at this point all globals have been resolved and typed.
-# NOTE: It turns out that at this point any non-global not explicity declared variables don't have a declaration yet.
+
+	for my $f ( keys %{ $stref->{'Subroutines'} } ) {
+		next if $f eq '';
+		$stref = _analyse_var_decls_for_params( $stref, $f );		
+	}
 	return $stref;
 }    # END of analyse_all()
 
@@ -187,8 +192,7 @@ sub _analyse_variables {
 			} elsif( exists $info->{'SubroutineCall'} ) {				
 					@chunks = (@chunks,@{$info->{'CallArgs'}{'List'}}) ;				
 			} elsif (exists $info->{'OpenCall'}) {
-				if (exists $info->{'FileNameVar'} ) {
-#					push @chunks, $info->{'FileNameVar'};
+				if (exists $info->{'Vars'} ) {
 					@chunks = (@chunks,@{$info->{'Vars'}{'List'}});
 				}
 			} elsif (exists $info->{'Do'}) {
@@ -245,6 +249,14 @@ sub _analyse_variables {
 							{
 								print "WARNING: $mvar in $f is a PARAMETER from $inc!\n"
 								  if $W;
+#								  if (ref($Sf->{'Includes'}{$inc}) eq '') {
+#								  my $line_id=$Sf->{'Includes'}{$inc};								  
+#								  $Sf->{'Includes'}{$inc}={'LineID' => $line_id, 'Only'=> { $mvar => 1}};
+#								  } else {
+								  	$Sf->{'Includes'}{$inc}{'Only'}{ $mvar }= 1;
+#								  }
+#								  say "$mvar in $f is a PARAMETER from $inc ".Dumper($Sf->{'Includes'});
+								  
 							} else {
 								if ( $stref->{'IncludeFiles'}{$inc}{'InclType'}
 									eq 'Common' )
@@ -255,7 +267,7 @@ sub _analyse_variables {
 									my $subset_for_mvar = in_nested_set(
 										$stref->{'IncludeFiles'}{$inc},
 										'Vars', $mvar );
-										die $subset_for_mvar  if $subset_for_mvar =~/Glob/;
+										croak $subset_for_mvar  if $subset_for_mvar =~/Glob/;
 									if ( $subset_for_mvar ne '' ) {
 										if (
 											exists $stref->{'IncludeFiles'}
@@ -488,6 +500,55 @@ sub _map_call_args_to_sig_args { (my $stref, my $f ) = @_;
 		'_map_call_args_to_sig_args() ' . __LINE__ );
 	
 	return $stref ;
+}
+
+sub _analyse_var_decls_for_params { (my $stref,my  $f )=@_;
+	my $Sf = $stref->{'Subroutines'}{$f};
+	# So now I need a list of _all_ variable declarations in the system. 
+	my $var_recs = get_vars_from_set($Sf->{'Vars'});
+	my %found_pars=();
+	for my $var (keys %{$var_recs}) {
+		my $var_rec=$var_recs->{$var};
+#		say Dumper($var_rec);
+		if (ref($var_rec) eq 'HASH' and exists $var_rec->{'Dim'} and @{ $var_rec->{'Dim'} } >0) {
+			for my $dim (@{ $var_rec->{'Dim'} } ) {
+				if (ref($dim) eq 'ARRAY')  {
+					for my $bound (@{ $dim } ) {
+										next if $bound =~/^\d+$/;
+				my @pars=split(/\W+/,$bound);
+				for my $par (@pars) {
+					next if $par =~/^\d+$/;
+#					say "FOUND PAR $par in var decl for $var in $f";
+					$found_pars{$par}=$var;
+#					say Dumper( get_var_record_from_set($Sf->{'Parameters'},$par) );					
+				}						
+					}
+				} else {
+					croak "SHOULD NOT HAPPEN";
+				next if $dim =~/^\d+$/;
+				my @pars=split(/\W+/,$dim);
+				for my $par (@pars) {
+					say "FOUND2 PAR $par in var decl for $var in $f";
+					$found_pars{$par}=$var;
+				}
+				}
+			}
+		}
+	}
+	for my $par (keys %found_pars) {
+		my $var = $found_pars{$par};
+#		say "FOUND PAR $par in var decl for $var in $f";
+		for my $inc (keys %{ $Sf->{'Includes'} }) {
+			if ($stref->{'IncludeFiles'}{$inc}{'InclType'} eq 'Parameter') {
+				if (in_nested_set($stref->{'IncludeFiles'}{$inc},'Parameters',$par)) {
+#					say "FOUND PAR $par decl in $inc";
+					$Sf->{'Includes'}{$inc}{'Only'}{$par}=1;
+				}
+			}
+		}
+	}
+	
+	return $stref;
 }
 
 1;

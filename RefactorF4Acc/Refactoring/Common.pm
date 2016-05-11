@@ -73,6 +73,7 @@ sub context_free_refactorings {
     my @extra_lines        = ();
     my $sub_or_func_or_inc = sub_func_incl_mod( $f, $stref );
     my $Sf                 = $stref->{$sub_or_func_or_inc}{$f};
+  
     if ( $Sf->{'Status'} != $PARSED ) {
         croak "NOT PARSED: $f\n" . caller() . "\n";
     }
@@ -320,9 +321,15 @@ sub context_free_refactorings {
             my $tinc = $inc;
             $tinc =~ s/\./_/g;
             if ( $stref->{IncludeFiles}{$inc}{InclType} ne 'External' ) {
-                $line =
-                  "      use $tinc";
-                  push @{ $info->{'Ann'} }, annotate($f, __LINE__);
+            	if (exists $Sf->{'Includes'}{$inc}{'Only'} and scalar keys %{ $Sf->{'Includes'}{$inc}{'Only'} }>0) {            		            	
+            		my @used_params = keys %{ $Sf->{'Includes'}{$inc}{'Only'} };
+                	$line = "      use $tinc, only : ".join(', ', @used_params);
+                  	push @{ $info->{'Ann'} }, annotate($f, __LINE__ );
+            	} else {
+            		# No 'Only' or 'Only' list is empty, SKIP
+                	$line = "!      use $tinc";
+                  	push @{ $info->{'Ann'} }, annotate($f, __LINE__ . ' no pars used'); #croak 'SKIP USE PARAM';            		
+            	}
             } else {
                 $line =
                   "      include '$inc'";
