@@ -93,7 +93,9 @@ sub context_free_refactorings {
 #            
 #        }
 #    }
-    
+#if (in_nested_set($Sf,'Vars','varname') ){
+#    say "$f BEFORE:".Dumper(get_var_record_from_set($Sf->{'Vars'},'varname'));
+#}
     # FIXME: This is way too long and quite unclear
     for my $annline ( @{$annlines} ) {
         if ( not defined $annline or not defined $annline->[0] ) {
@@ -107,7 +109,7 @@ sub context_free_refactorings {
         }
         if ( exists $info->{'ImplicitNone'} ) {
             next;
-        }
+        }	
 
         if ( exists $info->{'Goto'} ) {
             $line =~ s/\bgo\sto\b/goto/;
@@ -183,6 +185,7 @@ sub context_free_refactorings {
 # ------------------------------------------------------------------------------
 
         if ( exists $info->{'VarDecl'} ) {
+        	my $var =  $info->{'VarDecl'}{'Name'};
             if (exists  $info->{'ParsedVarDecl'} ) {
                 my $pvd = $info->{'ParsedVarDecl'}; 
                 if (scalar @{ $info->{'ParsedVarDecl'}{'Vars'} } == 1) {
@@ -190,8 +193,10 @@ sub context_free_refactorings {
                 } else {                    
                     $line = _emit_f95_parsed_var_decl($pvd);
                 }
+                
+                
             } else { 
-            my $var =  $info->{'VarDecl'}{'Name'};
+#            my $var =  $info->{'VarDecl'}{'Name'};
             if ( in_nested_set($Sf, 'Parameters', $var)
 #             exists $Sf->{'Parameters'} 
 #            and exists $Sf->{'Parameters'}{'Set'} 
@@ -202,10 +207,13 @@ sub context_free_refactorings {
                 $info->{'Deleted'} = 1;
                 $info->{'Ann'}=[ annotate($f, __LINE__ .' Removed ParamDecl' ) ];
             } elsif (not exists $info->{'Ref'} or $info->{'Ref'} == 0 ){
-#                say Dumper($info);
-                # Not refactored  
-                my $var_decl =  $info->{'VarDecl'};
-#                  format_f95_var_decl( $stref, $f, $var );                  
+#                my $var_decl =  $info->{'VarDecl'};
+                my $var_decl = get_var_record_from_set( $Sf->{'Vars'},$var);
+#                if (defined $var_decl->{'Attr'}) {
+#				carp "$f: $line => ".Dumper($info).Dumper($var_decl->{'Attr'}) if $var eq 'varname' ;
+#                } else {
+#                	croak "$f: $line => ".Dumper($info).Dumper($var_decl->{'Attr'}) if $var eq 'varname' ;
+#                }                  
 #                $info->{'VarDecl'} = $var_decl;
                 $line = emit_f95_var_decl($var_decl) ;
                 delete $info->{'ExGlobArgDecls'};
@@ -213,8 +221,10 @@ sub context_free_refactorings {
                 push @{$info->{'Ann'}}, 'context_free_refactoring '. __LINE__ ;                
             } else {
                 die 'BOOM! ' . 'context_free_refactoring '. __LINE__ ."; ";
-            }            
             }
+                        
+            }
+            
         }
 
 # ------------------------------------------------------------------------------
@@ -226,7 +236,7 @@ sub context_free_refactorings {
                 $line =~ s/\.\s+(and|not|or|neqv|eqv)\./ .$1. /;
             }
             while ( $line =~ /\.\s+(?:and|not|or|neqv|eqv)\./ ) {
-                $line =~ s/\.(and|not|or|neqv|eqv)\s+\./ .$1. /;
+                $line =~ s/\.(and|not|or|neqv|eqv)\s+\./ .$1. /	;
             }
             while ( $line =~ /\.\s*(?:eq|ne|gt|lt|le|ge)\s*\./ ) {
                 $line =~ s/\.\s*(eq|ne|gt|lt|le|ge)\s*\./ $f95ops{$1} /;
@@ -455,7 +465,9 @@ sub context_free_refactorings {
             }        
         }      
     }
-    
+#    if (in_nested_set($Sf,'Vars','varname') ){
+#    say "$f AFTER:".Dumper(get_var_record_from_set($Sf->{'Vars'},'varname'));
+#    }
     if ($die_if_one) { die Dumper( $Sf->{'RefactoredCode'} ); }
     return $stref;
 }    # END of context_free_refactorings()
@@ -933,7 +945,7 @@ sub format_f95_par_decl {
 
     #    print "VAR:<".Dumper($var)."> ";
     my $par_rec = get_var_record_from_set( $Sf->{'Parameters'},$var);
-#    say 'PAR REC:'.Dumper($par_rec);
+#    carp 'PAR REC:'.Dumper($par_rec);
     my $val = $par_rec->{'Val'};
 
 	my $type = defined $par_rec->{'Type'} ? $par_rec->{'Type'} : 'Unknown'; 
@@ -1213,11 +1225,12 @@ sub emit_f95_var_decl {
       } 
       
       my $attr= $var_decl_rec->{'Attr'}; 
+      
       my $dim= $var_decl_rec->{'Dim'}; 
       
       my $is_par = exists $var_decl_rec->{'Parameter'} ? 1 : 0;
       my $var = $var_decl_rec->{'Name'};
-      
+#      carp Dumper($var_decl_rec) if $type eq 'character' and $var eq 'varname';
     my $dimstr = '';
 #    say Dumper($dim);
     if ( ref($dim) eq 'ARRAY' and scalar @{$dim}>0) {

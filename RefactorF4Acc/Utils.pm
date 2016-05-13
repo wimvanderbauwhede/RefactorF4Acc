@@ -451,17 +451,22 @@ sub in_nested_set { (my $set, my $set_key, my $var)=@_;
 } # END of in_nested_set
 
 # For a set with subsets, this get the var records from all subsets
+#our $indent=1;
 sub get_vars_from_set { (my $set)=@_;
-    my %vars=();
+    my $vars={};
      if (exists $set->{'Subsets'} ) {
         for my $subset (keys %{  $set->{'Subsets'} } ) {
+#        	say "  " x $indent,$subset;
+#$indent++;
             my $vars_ref= get_vars_from_set($set->{'Subsets'}{$subset});
-            %vars = ( %vars, %{$vars_ref} );
+#            $indent--;
+            $vars = { %{$vars}, %{$vars_ref} };
         }
     } elsif (exists $set->{'Set'}) {
-        %vars = %{ $set->{'Set'} } ;        
+#    	say 'SET!';
+        $vars = $set->{'Set'}  ;        
     } 
-        return \%vars;
+        return $vars;
 }
 
 

@@ -196,7 +196,7 @@ sub {
 	return $stref->{'Nodes'};
 }
 );	
-	
+		
     # Analyse the source
     my $stage=0;
 	$stref = analyse_all($stref,$subname, $stage);

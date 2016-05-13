@@ -66,51 +66,7 @@ sub create_refactored_subroutine_signature {
     return $rlines;
 }    # END of create_refactored_subroutine_signature()
 # -----------------------------------------------------------------------------
-# WV 2014-12-19 this should become add_intent_to_subroutine_signature()
-#sub refactor_kernel_signatures_OFF {
-#    ( my $stref, my $f ) = @_;
-#    my $Sf        = $stref->{'Subroutines'}{$f};
-#    my $args_ref = $Sf->{'RefactoredArgs'}{'List'};
-#    $Sf->{'HasRefactoredArgs'} = 1;
-#    # IO direction information
-#    my @rlines=();
-#
-#    # Now add $rlines to the refactored signature
-#	# WV: this just adds the IO info as comments
-#    my @extra_lines = ();#@rlines;
-#    
-#    if ( $Sf->{'Status'} != $PARSED ) {
-#        croak "NOT PARSED: $f\n".caller()."\n";
-#    }
-#    my $annlines = get_annotated_sourcelines( $stref, $f );
-#    $Sf->{'RefactoredCode'}=[];
-#    for my $annline ( @{$annlines} ) {    	
-#        if ( not defined $annline or not defined $annline->[0] ) {
-#            croak
-#              "Undefined source code line for $f in refactor_kernel_signatures()";
-#        }
-#        my $line = $annline->[0];
-#        my $info = $annline->[1];        
-#        my %tags      = %{$info};
-#	    if ( exists $info->{'VarDecl'} ) {
-#	    	my $arg = $info->{'VarDecl'}{'Name'};
-#	    	if (not exists $info->{'Ref'})  {		    	
-#		    	 if( in_nested_set($Sf,'Vars',$arg)   ) {    	
-#		    	   my $line = emit_f95_var_decl($Sf, $arg); # FIXME!
-#		    	 } else {
-#		    	 	print "WARNING: $arg is not in Vars for $f\n" if $W;
-#		    	 }
-#	    	} else {	    		
-#                if (in_nested_set($Sf,'Vars',$arg)) {
-#    	    		my $ref2line = emit_f95_var_decl($Sf, $arg);	    		
-#	       		    $line=$ref2line;
-#                }
-#	    	}
-#	    } 
-#        push @{ $Sf->{'RefactoredCode'} }, [ $line, $info ];# if $line ne '';
-#    }    
-#    return $stref;
-#}    # END of refactor_kernel_signatures_OFF()
+
 # -----------------------------------------------------------------------------
 
 sub refactor_subroutine_signature {

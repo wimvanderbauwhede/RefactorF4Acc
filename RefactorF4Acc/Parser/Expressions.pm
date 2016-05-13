@@ -1,7 +1,7 @@
 package RefactorF4Acc::Parser::Expressions;
 use v5.16;
 use RefactorF4Acc::Config;
-
+#use RefactorF4Acc::Utils qw( in_nested_set );
 #
 #   (c) 2010-2016 Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
 #
@@ -94,13 +94,16 @@ sub _change_func_to_array { (my $stref, my $f,  my $info, my $ast, my $exp)=@_;
 #				say $mvar;
 #				say Dumper($stref->{'Subroutines'}{$f});
 				my $subname = (exists $info->{'SubroutineCall'} and exists $info->{'SubroutineCall'}{'Name'}) ? $info->{'SubroutineCall'}{'Name'} : '#dummy#';
+#				my $is_declared_var = in_nested_set( $stref->{'Subroutines'}{$f},'Vars',$mvar);
+#				say "DECLARED: $mvar : $is_declared_var"; 
  				if (
- 				exists $stref->{'Subroutines'}{$f}{'MaskedIntrinsics'}{$mvar} 
+ 				exists $stref->{'Subroutines'}{$f}{'MaskedIntrinsics'}{$mvar}
+# 				or $is_declared_var
  				or (
  					$mvar ne '#dummy#' 
  					and not exists $stref->{'Subroutines'}{$f}{'CalledSubs'}{'Set'}{$mvar}
 					and not exists $F95_reserved_words{$mvar}
-					and not exists $F95_intrinsics{$mvar} # Dangerous, because some idiot may have overwritten an intrinsic with an array! 
+#					and not exists $F95_intrinsics{$mvar} # Dangerous, because some idiot may have overwritten an intrinsic with an array! 
 					and $mvar ne $subname
 					)		
 				) {
@@ -231,6 +234,7 @@ sub emit_expression {(my $ast, my $expr_str)=@_;
 	if ($expr_str=~s/^\#dummy\#\(//) {
 		$expr_str=~s/\)$//;
 	}
+	$expr_str=~s/\+\-/-/g;
 	return $expr_str;		
 }
 # All variables in the expression
@@ -341,10 +345,9 @@ sub get_args_vars_from_subcall {(my $ast)=@_;
 						$all_vars->{'Set'}={%{ $all_vars->{'Set'} },%{$vars}};
 						if ($ast->[$idx][0] eq '@') {
 							my $array_expr = emit_expression($ast->[$idx]);
-							$args->{'Set'}{$arg}={ 'Type'=>'Array','Vars'=>$vars, 'Expr' => $array_expr};
-							push @{$args->{'List'}}, $arg;
-						} else {
-							
+							$args->{'Set'}{$array_expr}={ 'Type'=>'Array','Vars'=>$vars, 'Expr' => $array_expr, 'Arg' => $arg};
+							push @{$args->{'List'}}, $array_expr;#$arg;
+						} else {							
 							my $arg_expr=emit_expression($ast->[$idx]);
 							$args->{'Set'}{$arg_expr}={ 'Type'=>'Sub','Vars'=>$vars, 'Expr' => $arg_expr};
 							push @{$args->{'List'}}, $arg_expr;

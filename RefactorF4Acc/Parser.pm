@@ -238,12 +238,12 @@ say "_initialise_decl_var_tables : INIT TABLES for subroutine $f" if $V;
 				}
 			};
 			$Sf->{'OrigArgs'} = {
-				'Subset' => {
+				'Subsets' => {
 					'UndeclaredOrigArgs' => $Sf->{'UndeclaredOrigArgs'},
 					'DeclaredOrigArgs'   => $Sf->{'DeclaredOrigArgs'}
 				},
 				'List'=>[],
-				'Set'=>{} # Stricty speaking we don't need this 
+#				'Set'=>{} # Stricty speaking we don't need this 
 			};			
 			$Sf->{'Args'} = {
 				'Subsets' => {
@@ -462,30 +462,31 @@ sub _analyse_lines {
 				my $is_cond_assign=0;
 				my $is_cond=0;
 				my $cond=''; my $rest='';
-			if ( $line =~ /^\s*if\s*\(.+=/) {
-				(my $if_cond, my $rest)=_parse_if_cond($line);
-#				say "IF_COND $if_cond REST $rest";
-				(my $maybe_lhs, my $maybe_rhs)=_parse_array_access_or_function_call($rest);
-#				say "LHS $maybe_lhs RHS <$maybe_rhs>";
-				if ($maybe_rhs=~/=/) { #croak "COND ASSIGN: $maybe_lhs$maybe_rhs" } 
-#					( $cond, my $lhs, my $sep, my $rhs ) = conditional_assignment_fsm($line);
-					$mline = "$maybe_lhs$maybe_rhs";
-					$info->{'CondExecExpr'} = $mline;	
-					$is_cond_assign=1;
-					$is_cond=1;
-				} else {
-					$mline=$rest;
+				if ( $line =~ /^\s*if\s*\(.+=/) {
+					(my $if_cond, my $rest)=_parse_if_cond($line);
+	#				say "IF_COND $if_cond REST $rest"; 
+					(my $maybe_lhs, my $maybe_rhs)=_parse_array_access_or_function_call($rest);
+	#				say "LHS $maybe_lhs RHS <$maybe_rhs>";
+					if ($maybe_rhs=~/=/) {  
+	#					( $cond, my $lhs, my $sep, my $rhs ) = conditional_assignment_fsm($line);
+						$mline = "$maybe_lhs$maybe_rhs";
+						$info->{'CondExecExpr'} = $mline;	
+						$is_cond_assign=1;
+						$is_cond=1;
+					} else {
+						$mline=$rest;
+					}
 				}
-			}
-			if ( $line =~ /^\s*if\s*\((.+)\)\s*(\w+)/ ) {					
-					 $cond = $1;
-					$rest = $2;
-					$is_cond=1;
-			}
+			
+				if ( $line =~ /^\s*if\s*\((.+)\)\s*(\w+)/ ) {					
+						 $cond = $1;
+						$rest = $2;
+						$is_cond=1;
+				}
 			if ($is_cond_assign or $is_cond) {
 					$cond =~ s/[\(\)]+/ /g; 
 					$cond =~ s/\.(eq|ne|gt|ge|lt|le|and|or|not|eqv|neqv)\./ /g;
-#					say "COND: $cond REST: $rest";
+#					say "COND: $cond REST: $rest"; 
 					my @chunks = split( /\W+/, $cond );
 					my %vars_in_cond_expr=();
 					for my $mvar (@chunks) {
@@ -496,6 +497,7 @@ sub _analyse_lines {
 						$vars_in_cond_expr{ $mvar}=1;
 					}
 					$info->{'CondVars'}= { %vars_in_cond_expr };
+#					croak Dumper($info->{'CondVars'}) if $f eq 'boundcond_domainfill' and $line=~/xglobal/;
 					next if $rest eq 'then';
 					if (not $is_cond_assign) {
 					$info->{'CondExecExpr'} = $rest;										
@@ -627,8 +629,7 @@ sub _analyse_lines {
 			} elsif ( $mline !~ /::/
 				&& $mline !~ /\bparameter\b/
 				&& $mline =~ /[\w\)]\s*=\s*[^=]/ )
-			{
-				
+			{	
 				$info->{'Assignment'} = 1;
 #WV20150303: We parse this assignment and return {Lhs => {Varname, ArrayOrScalar, IndexExpr}, Rhs => {Expr, VarList}}
 #say "WRONG LINE:".$line;
@@ -636,21 +637,25 @@ sub _analyse_lines {
 			}
 
 			# Actual variable declaration line (F77)
-			# In principle every type can be followed by '*<number>' or *(*)
+			# In principle every type can be followed by '*<number>' or *(*) or (<number>)
 			# F77 VarDecl
 			elsif (
 				(
 					$line =~
 /\b(logical|integer|real|double\s*precision|character)\s+([^\*]?.*)\s*$/
 					or $line =~
+/\b((?:logical|integer|real|double\s*precision|character)\s*\(\d+\))([^\*]?.*)\s*$/
+
+					or $line =~
 /\b((?:logical|integer|real|double\s*precision|character)\s*\*(?:\d+|\(\*\)))\s+(.+)\s*$/
 				)
 				and $line !~ /^\s+\w+\s+function\s+/
 			  )
 			{
+				
 				$type   = $1;
 				$varlst = $2;
-				
+#				croak "$line =>$type; $varlst" if $f eq 'readreceptors' and $line=~/xreceptor_j/;
 				( $Sf, $info ) =
 				  __parse_f77_var_decl( $Sf, $f, $line, $info, $type, $varlst );
 				
@@ -684,6 +689,9 @@ sub _analyse_lines {
 				  }
 				  $Sf->{'LocalParameters'}{'Set'}{$parname}=$info->{'ParamDecl'};
 			}    # match var decls, parameter statements F77/F95
+#			else {
+#			croak $line if $f eq 'readreceptors' and $line=~/xreceptor_j/;
+#			}
 			$srcref->[$index] = [ $line, $info ];
 			
 		}    # Loop over lines
@@ -779,14 +787,10 @@ sub _parse_includes {
 						}
 					}
 				}
-				# The include has been parsed.
-				
+				# The include has been parsed.				
 				if (exists $stref->{'IncludeFiles'}{$name}) { # Otherwise it means it is an external include
-				# 'Parameters' her is OK because the include might contain other includes
+				# 'Parameters' here is OK because the include might contain other includes
 				$Sf->{'IncludedParameters'} = &append_to_set($Sf->{'IncludedParameters'},$stref->{'IncludeFiles'}{$name}{'Parameters'});
-#					$Sf->{'IncludedParameters'}	= $stref->{'IncludeFiles'}{$name}{'Parameters'};
-##					$Sf->{'Parameters'}{'Subsets'}{'IncludedParameters'}=$stref->{'IncludeFiles'}{$name}{'Parameters'};
-#					croak 'WHY IS THIS WRONG?'.Dumper($Sf->{'Parameters'}	) if $name eq 'includepar' and $f eq 'readcommand';
 				}
 			}
 			$srcref->[$index] = [ $line, $info ];
@@ -1100,36 +1104,6 @@ sub _parse_subroutine_and_function_calls {
 				$info->{'CallArgs'}=$expr_args;
 				$info->{'ExprVars'}=$expr_other_vars;				 
 				$info->{'SubroutineCall'}{'Args'}=$info->{'CallArgs'};
-#				my $tvarlst = $argstr;
-## replace , by ; in array indices and nested function calls FIXME: UGLY! USE PROPER FSM!
-#				if ( $tvarlst =~ /\(((?:[^\(\),]*?,)+[^\(]*?)\)/ ) {
-#					while ( $tvarlst =~ /\(((?:[^\(\),]*?,)+[^\(]*?)\)/ ) {
-#						my $chunk  = $1;
-#						my $chunkr = $chunk;
-#						$chunkr =~ s/,/;/g;
-#						my $pos = index( $tvarlst, $chunk );
-#						substr( $tvarlst, $pos, length($chunk), $chunkr );
-#					}
-#				}
-#
-#				# now split on , FIXME: UGLY! USE PROPER FSM!
-#				my @tvars = split( /\s*\,\s*/, $tvarlst );
-#
-#				# now replace ; by , FIXME: UGLY! USE PROPER FSM!
-#				my @argvars = ();
-#				for my $var (@tvars) {
-#					$var =~ s/^\s+//;
-#					$var =~ s/\s+$//;
-#					$var =~ s/;/,/g;
-#					push @argvars, $var;
-#				}
-#
-#				$info->{'SubroutineCall'}{'Args'}{'List'} = \@argvars;
-#				$info->{'SubroutineCall'}{'Args'}{'Set'} =
-#				  { map { $_ => 1 } @argvars };
-#				$info->{'SubroutineCall'}{'Name'} = $name;
-				
-#				die Dumper($info).$f;
 
 			if($external_sub==0) {
 				my $Sname = $stref->{'Subroutines'}{$name};
@@ -2120,7 +2094,8 @@ sub __construct_new_subroutine_signatures {
 			$Sblock->{'Vars'}{$var} = $varsref->{$var
 			  }; # FIXME: this is "inheritance, but in principle a re-parse is better?"
 		}
-		$Sblock->{'OrigArgs'}{'List'} = $args{$block};
+		# We declare them right away
+		$Sblock->{'DeclaredOrigArgs'}{'List'} = $args{$block};
 
 		# Create Signature and corresponding Decls
 		my $sixspaces = ' ' x 6;
@@ -2174,8 +2149,9 @@ sub __construct_new_subroutine_signatures {
 		}
 
 		for my $argv ( @{ $args{$block} } ) {
-			my $decl = $Sblock->{'OrigArgs'}{'Set'}{$argv};
+			my $decl = get_var_record_from_set($Sblock->{'OrigArgs'},$argv);
 			if (not defined $decl) {
+				croak;
 				$decl = $Sblock->{'DeclaredOrigArgs'}{'Set'}{$argv};
 			}
 			unshift @{ $Sblock->{'AnnLines'} },
@@ -2522,10 +2498,10 @@ sub __parse_sub_func_prog_decls {
 		$info->{'Signature'}{'Args'}{'Set'}  = { map { $_ => 1 } @args };
 		$info->{'Signature'}{'Name'}         = $name;
 		$Sf->{'UndeclaredOrigArgs'}{'List'}  = [@args];
-		$Sf->{'UndeclaredOrigArgs'}{'Set'} = { map { $_ => 1 } @args };
-
+		$Sf->{'UndeclaredOrigArgs'}{'Set'} = { map { $_ => 1 } @args }; # UGH!
+		
 		$Sf->{'OrigArgs'}{'List'}  = [@args];
-		$Sf->{'OrigArgs'}{'Set'} = { map { $_ => 1 } @args };
+#		$Sf->{'OrigArgs'}{'Set'} = { map { $_ => 1 } @args };
 
 		if ( $line =~ /function/ ) {
 			$info->{'Signature'}{'Function'} = 1;
@@ -2606,7 +2582,9 @@ sub __parse_f95_decl {
 		my $var        = $pt->{'Pars'}{'Var'};
 		my $val        = $pt->{'Pars'}{'Val'};
 		my $type       = $pt->{'TypeTup'};
-
+		
+		my $pars_in_val=___check_par_val_for_pars($val);
+		
 		my $param_decl = {
 			'Indent'    => $indent,
 			'Type'      => $type,
@@ -2617,20 +2595,16 @@ sub __parse_f95_decl {
 			'Status'    => 0
 		};    # F95-style
 		$info->{'ParamDecl'} = $param_decl;
+		$info->{'UsedParameters'}=$pars_in_val;
 		if ( not exists $Sf->{'LocalParameters'}{'List'} ) {
+			croak 'BOOM!';
 			$Sf->{'LocalParameters'}{'List'} = [];
 		}
 		if ( not exists $Sf->{'LocalParameters'}{'Set'} ) {
+			croak 'BOOM!';
 			$Sf->{'LocalParameters'}{'Set'} = {};
 		}
 		$Sf->{'LocalParameters'}{'Set'}{$var} = $param_decl;
-
-		#                     {
-		#                        'Type' => $type,
-		#                        'Var'  => $var,
-		#                        'Val'  => $val,
-		#                        'Decl' => $param_decl
-		#                    };
 		# List is only used in Parser, find out what it does
 		@{ $Sf->{'LocalParameters'}{'List'} } =
 		  ( @{ $Sf->{'LocalParameters'}{'List'} }, $var )
@@ -2737,31 +2711,32 @@ sub __parse_f77_par_decl {
 	my @pvarl = map { s/\s*=.+//; $_ } @partups;
 	my $pars = [];
 
-	if ( not exists $Sf->{'LocalParameters'}{'List'} ) {
+	if ( not exists $Sf->{'LocalParameters'}{'List'} ) { croak 'BOOM!';
 		$Sf->{'LocalParameters'}{'List'} = [];
 	}
-	if ( not exists $Sf->{'LocalParameters'}{'Set'} ) {
+	if ( not exists $Sf->{'LocalParameters'}{'Set'} ) { croak 'BOOM!';
 		$Sf->{'LocalParameters'}{'Set'} = {};
 	}
-
+	my $pars_in_val ={};
 	for my $var (@pvarl) {
-		die if ref($var) eq 'ARRAY';
-
-		if ( not defined $Sf->{'Vars'}{$var} ) {
-
+		croak if ref($var) eq 'ARRAY';
+		if ( not in_nested_set $Sf,'LocalVars',$var ) {
 			if ( exists $pvars{$var} ) {
-
 				my $val = $pvars{$var};
-				if ( $val =~ /[0-9eE\.\+\-]/ ) {
-					$type = 'Unknown';
-					if (   $val =~ /\./
-						or $val =~ /e/i
-						or $val =~ /\// )
-					{
-						$type = 'real';    # FIXME: could be double!
-					} else {
-						$type = 'integer';
-					}
+				 my $pars_in_val_tmp = ___check_par_val_for_pars($val);
+				 $type = 'Unknown';
+				 if ($val =~ /^\-?\d+/) {
+				 	$type = 'integer';
+				 } elsif ( $val =~ /^(\-?(?:\d+|\d*\.\d*)(?:e[\-\+]?\d+)?)$/ ) {
+				 	$type = 'real';
+				 } else {
+				 	for my $mpar (keys %{$pars_in_val_tmp}) {
+				 		my $mpar_rec = get_var_record_from_set($Sf->{'Parameters'},$mpar);
+#				 		croak Dumper($mpar_rec);
+				 		$type = $mpar_rec->{'Type'}; 
+				 	}
+				 }
+				 $pars_in_val = {%{$pars_in_val},%{$pars_in_val_tmp} };
 					$Sf->{'LocalParameters'}{'Set'}{$var} = {
 						'Type' => $type,
 						'Var'  => $var,
@@ -2772,27 +2747,23 @@ sub __parse_f77_par_decl {
 					  if $I;
 					push @{$pars}, $var;
 
-				} else {
-					print
-"WARNING: LOCAL PARAMETER $var not declared in $f; can't infer type:\n"
-					  if $W;
-					print
-"WARNING: LOCAL PARAMETER $var has NON_NUMERIC val $pvars{$var} in $f  (Parser::_analyse_lines)\n"
-					  if $W;
-				}
 			}
 		} else {
-
-			#                        die Dumper( $Sf->{'Vars'}{$var} );
-			$type = $Sf->{'Vars'}{$var}{'Type'};
+			my $var_rec = get_var_record_from_set($Sf->{'LocalVars'},$var);
+			$type = $var_rec->{'Type'};
 			$Sf->{'LocalParameters'}{'Set'}{$var} = {
 				'Type' => $type,
-				'Var'  => $Sf->{'Vars'}{$var},
+				'Var'  => $var,
 				'Val'  => $pvars{$var}
 			};
+			
+			my $val = $pvars{$var};
+			$pars_in_val = {%{$pars_in_val},%{___check_par_val_for_pars($val)}};
 			push @{$pars}, $var;
 		}
+#		croak Dumper($Sf->{'LocalParameters'}{'Set'}{$var}) if $var eq 'const' and $f eq 'richardson';
 	}
+	$info->{'UsedParameters'}=$pars_in_val;
 	$info->{'ParamDecl'} = {
 		'Indent'    => $indent,
 		'Type'      => $type,
@@ -2813,7 +2784,7 @@ sub __parse_f77_par_decl {
 
 sub __parse_f77_var_decl {
 	( my $Sf, my $f, my $line, my $info, my $type, my $varlst ) = @_;
-
+#say "TYPE1: $type";
 #                die $line .':'.Dumper($varlst) if $line=~/pplev.nuvz..ulev/;
 # Now an ad hoc fix for spaces between the type and the asterisk. FIXME! I should just write a better FSM!
 	if ( $line =~ /\w+\s+(\*\s*(\d+|\(\s*\*\s*\)))/ )
@@ -2821,13 +2792,19 @@ sub __parse_f77_var_decl {
 		my $len = $1;
 		$type .= $len;
 		$varlst =~ s/^\S+\s+//;
-
 	}
+#	say "TYPE2: $type";
 	my $attr = '';
 	$type =~ /\*/ && do {
 		( $type, $attr ) = split( /\*/, $type );
 		if ( $attr eq '(' ) { $attr = '*' }
 	};
+	$type =~ /\((\d+)\)/ && do {
+		$attr=$1;
+		( $type, my $rest) = split( /\(/, $type );		
+	};
+	
+#	say "TYPE3: $type, $attr";
 	my $indent = $line;
 	$indent =~ s/\S.*$//;
 
@@ -2836,7 +2813,7 @@ sub __parse_f77_var_decl {
 
 	#                $T = 1 if $f eq 'timemanager' and $line=~/drydeposit/;
 	( my $pvars, my $pvars_lst ) = f77_var_decl_parser( $varlst, $T );
-#croak Dumper($pvars) if $line=~/drydepspec/ and $f eq 'includecom';
+
 	# I verified that here the dimensions are correct
 	my @varnames = ();
 
@@ -2879,6 +2856,7 @@ sub __parse_f77_var_decl {
 			}
 			$tvar_rec->{'IODir'} = $iodir;
 		}
+		
 		my $decl = {
 			'Indent' => $indent,
 			'Type'   => $type,
@@ -2888,7 +2866,7 @@ sub __parse_f77_var_decl {
 			'IODir'  => $tvar_rec->{'IODir'},
 			'Status' => 0
 		};
-
+#croak "TYPE4: $line => $type". $tvar_rec->{'Attr'} if $line=~/character\*\d+\s+\w+/;
 		push @varnames, $tvar;
 
 		if ( exists $Sf->{'UndeclaredOrigArgs'}{'Set'}{$var} ) {
@@ -3101,7 +3079,7 @@ sub parse_read_write_print { ( my $line, my $info, my $stref, my $f)=@_;
 					$tline=~s/\s*,\s*$//;
 				} 
 #say "TLINE2: <$tline>" ;
-	my @exprs=_parse_comma_sep_expr_list($tline);
+			my @exprs=_parse_comma_sep_expr_list($tline);
 #croak Dumper(@exprs) if $f eq 'plumetraj' and $tline=~/ireleasestart/;
 					$info->{'CallArgs'}={'List'=>[],'Set'=>{}};
 					$info->{'ExprVars'}={'List'=>[],'Set'=>{}};
@@ -3276,7 +3254,9 @@ sub _parse_assignment {
 	 ) {
 	 	my $tmp_line=$line;
 	 	$tmp_line=~s/__PH\d+__/.../g;
-	 	say "Assignment to reserved word or intrinsic '".$lhs_ast->[1]."' at line '".$tmp_line ,"' in subroutine/function '$f' in '".$stref->{'Subroutines'}{$f}{'Source'}."', this is not allowed, please fix your code!";
+	 	say "Assignment to reserved word or intrinsic '".$lhs_ast->[1]
+	 	."' at line '".$tmp_line ,"' in subroutine/function '$f' in '".$stref->{'Subroutines'}{$f}{'Source'}
+	 	."', this is DANGEROUS, please fix your code!";
 	 	$stref->{'Subroutines'}{$f}{'MaskedIntrinsics'}={$lhs_ast->[1] => 1};
 	 }
 	my $rhs_ast = parse_expression($rhs,$info, $stref, $f);
@@ -3311,7 +3291,7 @@ sub _parse_assignment {
 	};
 #	my %test = map {$_ => 1}  @{ $info->{'Rhs'}{'VarList'}{'List'}};
 #	if (exists $test{'__PH0__'}) {croak Dumper($info)} 
-#croak Dumper($info) if $line=~/data10/ and $f eq 'set';
+#croak Dumper($info) if $line=~/wfname.ifn/ and $f eq 'gridcheck';
 
 	return $info;
 } # END of _parse_assignment()
@@ -3456,6 +3436,25 @@ sub _parse_comma_sep_expr_list {
 		}		
 	}
 	return @matched_strs;
+}
+# What we do is find the words in the value, 
+sub ___check_par_val_for_pars { (my $val)=@_;
+	return {} if $val =~ /^\d+$/;
+	return {} if $val =~ /^\'/;
+	return {} if $val =~ /^(\-?(?:\d+|\d*\.\d*)(?:e[\-\+]?\d+)?)$/;
+
+	my @mpars = split(/\W+/,$val);
+	my $pars_in_val={};
+	for my $mpar (@mpars) {
+		next if $mpar =~ /^\d+$/;
+		next if $mpar =~ /^\'/;
+		next if $mpar =~ /^(\-?(?:\d+|\d*\.\d*)(?:e[\-\+]?\d+)?)$/;	
+		next if exists $F95_reserved_words{$mpar};		
+		$pars_in_val->{$mpar}=1;
+	}
+#	say "PARS IN VAL:".Dumper($pars_in_val);
+	
+	return $pars_in_val;
 }
 
 1;

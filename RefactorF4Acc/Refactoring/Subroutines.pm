@@ -43,7 +43,7 @@ Subroutines
 
 sub refactor_all_subroutines {
     ( my $stref ) = @_;
-    for my $f ( keys %{ $stref->{'Subroutines'} } ) { 
+    for my $f ( sort keys %{ $stref->{'Subroutines'} } ) { 
         next if ($f eq '' or not defined $f);
         my $Sf = $stref->{'Subroutines'}{$f};                
         if ( not defined $Sf->{'Status'} ) {
@@ -108,10 +108,12 @@ sub _refactor_subroutine_main {
           }
         print "#" x 80, "\n";
     }
-    
+#    if (in_nested_set($Sf,'Vars','varname') ){
+#    say "_refactor_subroutine_main($f):".Dumper(get_var_record_from_set($Sf->{'Vars'},'varname'));
+#    }
     say "context_free_refactorings($f)" if $V;
     $stref = context_free_refactorings( $stref, $f ); # FIXME maybe do this later    
-
+	    
     say "get_annotated_sourcelines($f)" if $V;
     my $annlines = $Sf->{'RefactoredCode'};
     
@@ -624,7 +626,7 @@ sub _create_refactored_subroutine_call {
     # simply tag the common vars onto the arguments
     my $name = $info->{'SubroutineCall'}{'Name'};
 #    croak Dumper($info) if $f eq 'advance' and $name eq 'interpol_vdep';
-#    croak Dumper($info)."\n\n".Dumper($stref->{'Subroutines'}{$name}) if $name eq 'ij_to_latlon' and $f eq 'map_set';
+#    croak Dumper($info) if $name eq 'interpol_rain' and $f eq 'wetdepo';
     croak $line . Dumper($info) unless defined $info->{'SubroutineCall'}{'Args'}{'List'};# . Dumper(    $stref->{'Subroutines'}{$name});
     my @orig_args =();# @{ $info->{'SubroutineCall'}{'Args'}{'List'} };    
     for my $call_arg (@{ $info->{'SubroutineCall'}{'Args'}{'List'} }) {

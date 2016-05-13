@@ -48,11 +48,13 @@ sub create_refactored_vardecls {
     ( my $stref, my $f, my $annline, my $rlines, my $is_C_target ) = @_; 
 #local $V=1;
     print "create_refactored_vardecls( $f )\n" if $V;
+    croak "create_refactored_vardecls OBSOLETE?";	
 #    die "Bug to be fixed: applying context-free refactoring breaks the next stage!";
     my $Sf        = $stref->{'Subroutines'}{$f};
     my $line      = $annline->[0] || '';
     my $info = $annline->[1];
-    my %args      = %{ $Sf->{'OrigArgs'}{'Set'} };
+#    my %args      = %{ $Sf->{'OrigArgs'}{'Set'} }; 
+    my %args      = %{ get_vars_from_set($Sf->{'OrigArgs'}) };
     my $globals = ( get_maybe_args_globs( $stref, $f ) )[1];
     my $skip=0;
     
@@ -133,7 +135,8 @@ croak "create_exglob_var_declarations OBSOLETE?";
 #        local $W=1;
 
     my $Sf                 = $stref->{'Subroutines'}{$f};
-    my %args               = %{ $Sf->{'OrigArgs'}{'Set'} };
+#    my %args               = %{ $Sf->{'OrigArgs'}{'Set'} };
+    my %args      = %{ get_vars_from_set($Sf->{'OrigArgs'}) };
     my $nextLineID=scalar @{$rlines}+1;
     
     for my $inc ( keys %{ $Sf->{'Globals'} } ) {

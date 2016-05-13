@@ -72,14 +72,14 @@ sub analyse_all {
 		$stref = _create_refactored_args( $stref, $f );		
 	}	
 	return $stref if $stage == 6;
-
+#croak Dumper( $stref->{'Subroutines'}{'gridcheck'}{'UndeclaredOrigLocalVars'} );
 	for my $f ( keys %{ $stref->{'Subroutines'} } ) { # Assuming Functions are just special subroutines
 		next if $f eq '';
 #		next if exists $stref->{'ExternalSubroutines'}{$f};
 		$stref = _map_call_args_to_sig_args( $stref, $f );
 	}
 	return $stref if $stage == 7;
-
+#croak Dumper( $stref->{'Subroutines'}{'gridcheck'}{'UndeclaredOrigLocalVars'} );
 	
 # This is only for refactoring init out of time loops so very domain specific
 	for my $kernel_wrapper ( keys %{ $stref->{'KernelWrappers'} } ) {
@@ -102,7 +102,7 @@ sub _find_argument_declarations {
 	my $sub_or_func_or_mod = sub_func_incl_mod( $f, $stref );
 	my $Sf                 = $stref->{$sub_or_func_or_mod}{$f};
 	
-	if (exists $Sf->{'OrigArgs'}{'List'}) {
+#	if (exists $Sf->{'OrigArgs'}{'List'}) {
 	for my $arg ( @{ $Sf->{'OrigArgs'}{'List'} } ) {
 		if ( not exists $Sf->{'DeclaredOrigArgs'}{'Set'}{$arg} ) {
 			say "MISSING ORIG ARG DECLS for '$f'" if $V and $once;
@@ -130,7 +130,7 @@ sub _find_argument_declarations {
 			}
 		}
 	}
-	}
+#	}
 #	croak Dumper($stref->{'Subroutines'}{$f}{'Args'}) if $f eq 'caldate';
 	return $stref;
 }    # END of _find_argument_declarations
@@ -170,6 +170,7 @@ sub _analyse_variables {
 			or exists $info->{'ReadCall'} 
 			or exists $info->{'OpenCall'}  
 			or exists $info->{'CloseCall'} 
+			or exists $info->{'ParamDecl'} 
 			)
 		{
 
@@ -182,6 +183,7 @@ sub _analyse_variables {
 			if ( exists $info->{'If'} ) {
 #				say Dumper($info);
 				@chunks = keys %{ $info->{'CondVars'} } ;
+#				croak $line.' => '.Dumper(@chunks) if $line=~/xglobal/ and $f eq 'boundcond_domainfill';
 			}			
 			
 			if (exists $info->{'PrintCall'}
@@ -190,17 +192,24 @@ sub _analyse_variables {
 			) {
 				@chunks = (@chunks,@{$info->{'CallArgs'}{'List'}}, @{$info->{'ExprVars'}{'List'}},@{$info->{'CallAttrs'}{'List'}} ) ;
 			} elsif( exists $info->{'SubroutineCall'} ) {				
-					@chunks = (@chunks,@{$info->{'CallArgs'}{'List'}}) ;				
+				for my $var_expr (@{$info->{'CallArgs'}{'List'}}) {
+					if (exists $info->{'CallArgs'}{'Set'}{$var_expr}{'Arg'}) {
+						push @chunks,  $info->{'CallArgs'}{'Set'}{$var_expr}{'Arg'};
+					} else {
+						push @chunks, $var_expr;
+					}
+				}
+#					@chunks = (@chunks,@{$info->{'CallArgs'}{'List'}}) ;				
 			} elsif (exists $info->{'OpenCall'}) {
 				if (exists $info->{'Vars'} ) {
 					@chunks = (@chunks,@{$info->{'Vars'}{'List'}});
 				}
 			} elsif (exists $info->{'Do'}) {
-						@chunks = ($info->{'Do'}{'Iterator'}, @{ $info->{'Do'}{'Range'}{'Vars'} } );						
-			} elsif (exists $info->{'Assignment'}) {
-#				croak $line.Dumper($info) if $line=~/diu1/ and $f eq 'les';
-					@chunks = ($info->{'Lhs'}{'VarName'},@{$info->{'Lhs'}{'IndexVars'}{'List'}}, @{$info->{'Rhs'}{'VarList'}{'List'}} ) ;
-#					croak Dumper(@chunks) if $line=~/__PH\d+__/ and $f eq 'set';
+					@chunks =  (@chunks,$info->{'Do'}{'Iterator'}, @{ $info->{'Do'}{'Range'}{'Vars'} } );						
+			} elsif (exists $info->{'Assignment'}) {					
+					@chunks = (@chunks,$info->{'Lhs'}{'VarName'},@{$info->{'Lhs'}{'IndexVars'}{'List'}}, @{$info->{'Rhs'}{'VarList'}{'List'}} );
+			} elsif ( exists $info->{'ParamDecl'} ) {
+				@chunks = (@chunks, keys %{ $info->{'UsedParameters'} });
 			} else {
 				my @mchunks = split( /\W+/, $line );
 				for my $mvar (@mchunks) {				
@@ -216,15 +225,12 @@ sub _analyse_variables {
 				my $maybe_orig_arg = in_nested_set( $Sf, 'OrigArgs', $mvar );
 				my $maybe_decl_orig_arg = exists  $Sf->{'DeclaredOrigArgs'}{'Set'}{$mvar} ? 'DeclaredOrigArgs' : '';
 				my $undecl_orig_arg = exists  $Sf->{'UndeclaredOrigArgs'}{'Set'}{$mvar} ? 1 : 0;
-#				
-#			say "LINE:\t$line => $mvar:".$maybe_orig_arg if $f eq 'post' ;
 			# Here it is still possible that the variables don't have any declarations
 			# If that is the case for OrigArgs we must type them via Implicits
 			# But should this not have happened already? No, because UndeclaredOrigArgs could be declared vi Includes,
 			# and that is checked here.
 			# So I think we exclude the DeclaredOrigArgs only
 								
-#				say 'MVAR: ',$mvar,': <',$maybe_orig_arg,'>' if $f eq 'boundsm';
 				if (    not exists $identified_vars->{$mvar}
 					and ( $maybe_decl_orig_arg eq '' ) # means $mvar is not present in the set DeclaredOrigArgs
 					and 
@@ -249,20 +255,13 @@ sub _analyse_variables {
 							{
 								print "WARNING: $mvar in $f is a PARAMETER from $inc!\n"
 								  if $W;
-#								  if (ref($Sf->{'Includes'}{$inc}) eq '') {
-#								  my $line_id=$Sf->{'Includes'}{$inc};								  
-#								  $Sf->{'Includes'}{$inc}={'LineID' => $line_id, 'Only'=> { $mvar => 1}};
-#								  } else {
 								  	$Sf->{'Includes'}{$inc}{'Only'}{ $mvar }= 1;
-#								  }
-#								  say "$mvar in $f is a PARAMETER from $inc ".Dumper($Sf->{'Includes'});
-								  
 							} else {
 								if ( $stref->{'IncludeFiles'}{$inc}{'InclType'}
 									eq 'Common' )
 								{
 									print "FOUND COMMON $mvar in INC $inc in $line\n"
-									  if $DBG;
+									  if $DBG;									  
 									my $decl;
 									my $subset_for_mvar = in_nested_set(
 										$stref->{'IncludeFiles'}{$inc},
@@ -272,8 +271,7 @@ sub _analyse_variables {
 										if (
 											exists $stref->{'IncludeFiles'}
 											{$inc}{$subset_for_mvar}{'Set'}{$mvar} )
-										{
-											
+										{											
 											$decl =
 											  $stref->{'IncludeFiles'}{$inc}
 											  {$subset_for_mvar}{'Set'}{$mvar};
@@ -296,6 +294,8 @@ sub _analyse_variables {
 										$stref->{'Subroutines'}{$f}
 										  {'ExGlobArgDecls'}{'Set'}{$mvar} =
 										  $decl;
+										  $stref->{'Subroutines'}{$f}{'MaskedIntrinsics'}{$mvar}=1;
+#										  croak "FOUND argdecl for $mvar via common block in $inc" if $mvar eq 'len';
 									} else {
 										say "INFO: LOCAL VAR FROM $inc, NOT COMMON! "
 										  . '_analyse_variables() '
@@ -308,6 +308,7 @@ sub _analyse_variables {
 										$stref->{'Subroutines'}{$f}
 										  {'ExInclVarDecls'}{'Set'}{$mvar} =
 										  $decl;
+										  croak "INFO: LOCAL VAR FROM $inc, NOT COMMON! " if $mvar eq 'len';
 									}
 									$identified_vars->{$mvar} = 1;
 									
@@ -461,7 +462,8 @@ sub _create_refactored_args {
 		
 	} elsif (not exists $Sf->{'ExGlobArgDecls'} ) {
 		# No ExGlobArgDecls, so Refactored = Orig
-			$Sf->{'RefactoredArgs'} = $Sf->{'OrigArgs'};
+			$Sf->{'RefactoredArgs'}{'Set'} = $Sf->{'OrigArgs'}{'Set'};
+			$Sf->{'RefactoredArgs'}{'List'} = $Sf->{'OrigArgs'}{'List'};
 			$Sf->{'HasRefactoredArgs'} = 0;
 	} elsif (not exists $Sf->{'OrigArgs'} ) {
 		# No ExGlobArgDecls, so Refactored = Orig
@@ -474,6 +476,7 @@ sub _create_refactored_args {
 	return $stref;
 }
 
+# Here we can finally check if a call arg is an unmasked intrinsic
 sub _map_call_args_to_sig_args { (my $stref, my $f ) = @_;
 	say "_map_call_args_to_sig_args($f)\n" if $DBG;	 
 		my $__map_call_args = sub {
@@ -485,9 +488,35 @@ sub _map_call_args_to_sig_args { (my $stref, my $f ) = @_;
 				$info->{'SubroutineCall'}{'ArgMap'}={}; # A map from the sig arg to the call arg, because there can be duplicate call args but not sig args
 				
 				my $call_args = $info->{'SubroutineCall'}{'Args'}{'List'};
+#				croak Dumper($info) if exists $info->{'CallArgs'}{'Set'}{'float'}; 
+				for my $call_arg_expr (@{$info->{'CallArgs'}{'List'}} ) {
+#					croak Dumper($info->{'CallArgs'}{'Set'}{$call_arg_expr}) if $call_arg_expr =~/float/;
+					my $call_arg = $call_arg_expr; 
+					if ( $info->{'CallArgs'}{'Set'}{$call_arg_expr}{'Type'} eq 'Array') {
+						$call_arg = $info->{'CallArgs'}{'Set'}{$call_arg_expr}{'Arg'};
+					}
+					if (
+						exists $F95_intrinsics{$call_arg}
+						or exists $F95_reserved_words{$call_arg}
+					) {					
+						if (not exists $stref->{'Subroutines'}{$sub}{'MaskedIntrinsics'}{$call_arg}
+						) {
+						# This is an unmasked intrinsic, set to 'Sub'!
+						say "Unmasked intrinsic $call_arg in $f";
+						$info->{'CallArgs'}{'Set'}{$call_arg_expr}{'Type'}='Sub';
+						} else {
+							say "Intrinsic $call_arg is MASKED in $f";
+						}
+					}
+				}
 				my $i=0;
 				for my $sig_arg (@{$stref->{'Subroutines'}{$sub}{'OrigArgs'}{'List'}}) {
-					$info->{'SubroutineCall'}{'ArgMap'}{$sig_arg}=$call_args->[$i];
+					my $call_arg_expr = $call_args->[$i];
+#					my $call_arg = $call_arg_expr; 
+#					if ( $info->{'CallArgs'}{'Set'}{$call_arg_expr}{'Type'} eq 'Array') {
+#						$call_arg = $info->{'CallArgs'}{'Set'}{$call_arg_expr}{'Arg'};
+#					}
+					$info->{'SubroutineCall'}{'ArgMap'}{$sig_arg}=$call_arg_expr ;
 					$i++;
 				}
 			}
@@ -500,16 +529,22 @@ sub _map_call_args_to_sig_args { (my $stref, my $f ) = @_;
 		'_map_call_args_to_sig_args() ' . __LINE__ );
 	
 	return $stref ;
-}
+} # END of _map_call_args_to_sig_args()
 
 sub _analyse_var_decls_for_params { (my $stref,my  $f )=@_;
 	my $Sf = $stref->{'Subroutines'}{$f};
 	# So now I need a list of _all_ variable declarations in the system. 
+#	say "Vars";
 	my $var_recs = get_vars_from_set($Sf->{'Vars'});
 	my %found_pars=();
+#	if ($f eq 'partdep' ) {		
+#		say Dumper($Sf->{'Args'}).Dumper($var_recs->{'density'});croak;
+#		}
 	for my $var (keys %{$var_recs}) {
 		my $var_rec=$var_recs->{$var};
-#		say Dumper($var_rec);
+#		if ($f eq 'partdep' and $var eq 'density') {
+#		say Dumper($var_rec) ;croak;
+#		}
 		if (ref($var_rec) eq 'HASH' and exists $var_rec->{'Dim'} and @{ $var_rec->{'Dim'} } >0) {
 			for my $dim (@{ $var_rec->{'Dim'} } ) {
 				if (ref($dim) eq 'ARRAY')  {
