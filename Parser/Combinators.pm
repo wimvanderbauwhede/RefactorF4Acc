@@ -536,7 +536,7 @@ sub symbol ($) {
 	return $gen;
 }
 
-# This parser parses anything up to the last occurence ofa given literal and trailing whitespace
+# This parser parses anything up to the last occurence of a given literal and trailing whitespace
 sub greedyUpto {
 	( my $lit_str ) = @_;
 	$lit_str =~ s/(\W)/\\$1/g;

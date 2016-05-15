@@ -560,7 +560,10 @@ sub _analyse_lines {
 						$info->{'Vars'}{'Set'}{$ast->{'UnitVar'}}=1; 
 					}
 					@{ $info->{'Vars'}{'List'} }= keys %{ $info->{'Vars'}{'Set'} };
-#					say "MLINE AFTER OPEN: $mline";							
+#					if ($f eq 'flexpart_wrf' and $mline=~/path/) {
+#					say "MLINE AFTER OPEN: $mline".Dumper($info);
+#					croak;
+#					}							
 				}
 										
 			} elsif ( $line =~ /^\d*\s+end\s+(if|case|do)\s*/ ) {
@@ -3018,22 +3021,15 @@ sub parse_read_write_print { ( my $line, my $info, my $stref, my $f)=@_;
 	
 	$info->{'CallAttrs'}={'Set'=>{},'List'=>[]};
 				my $tline=$line;
-#				my $dbg=0;
 # Remove any labels
-#say Dumper($info);
 	if (exists $info->{'Label'}) {		
 		my $label = $info->{'Label'};
-#		say "LABEL:$label";
 		$tline=~s/^\s*$label\s+//;
 	} elsif ($tline=~s/^(\s*)(\d+)(\s+)/$1$3/ ) {
 		$info->{'Label'}=$2;
-#		say "LABEL:$2";
 	}
-#	say Dumper($info);
-#say "TLINE: $tline";# if $line=~/read\(iunit,\*\)/ and $f eq 'skplin';
 # Parse 
 	(my $matched_str, my $rest)=_parse_IO_sub_call($tline);
-#	say "CALL:$matched_str"; 
 	# Parse the actual call args to see if there are any variables.
 	$matched_str=~s/\w+\(//;
 	$matched_str=~s/\)//;

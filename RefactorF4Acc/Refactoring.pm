@@ -52,7 +52,7 @@ sub refactor_all {
 #croak Dumper($stref->{'Subroutines'}{'gridcheck_nests'}{'DeclaredOrigLocalVars'}{'Set'}{'varname'});
 #    die Dumper($stref->{'Subroutines'}{'boundsm'}{'Vars'});
     return $stref if $stage == 3;
-
+#say "VARS:\n".Dumper($stref->{'Subroutines'}{'timemanager'}{'Vars'})."\nREFACTORED ARGS:\n".Dumper($stref->{'Subroutines'}{'timemanager'}{'RefactoredArgs'});croak;    
     # This can't go into refactor_all_subroutines() because it is recursive
     # Also, this is actually analysis
     $stref = determine_argument_io_direction_rec( $subname, $stref );    

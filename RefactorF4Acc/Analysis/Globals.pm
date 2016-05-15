@@ -332,9 +332,11 @@ sub rename_inherited_exglobs  {
             			say "RENAMING $exglob TO $exglob$ext in $f" if $V;
             			my $new_name = $Sf->{'RenamedInheritedExGLobs'}{'Set'}{$exglob};
             			push @{$renamed_exglob_list},$new_name;
-            			$renamed_exglob_set->{$new_name}={%{$renamed_exglob_set->{$exglob} } };
+            			$renamed_exglob_set->{$new_name}=dclone($renamed_exglob_set->{$exglob} );
 						$renamed_exglob_set->{$new_name}{'Name'}=$new_name;
 						$renamed_exglob_set->{$new_name}{'OrigName'}=$exglob;
+						# Seems to me I should then delete the entry for the old name!
+						delete $renamed_exglob_set->{$exglob};
             		} else {
             			say "NOT RENAMING $exglob in $f" if $V;
             			push @{$renamed_exglob_list},$exglob;
