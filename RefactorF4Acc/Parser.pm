@@ -1467,15 +1467,21 @@ sub _get_commons_params_from_includes {
 "WARNING: PARAMETER $var not declared in $inc (Parser::_get_commons_params_from_includes)\n"
 						  if $W;
 					}
-#					if ( $pvars{$var} =~ /^\d*/ ) {
-#						$type = 'integer';
-#					} elsif ( $pvars{$var} =~ /^[\d\.]+/ ) {    # FIXME: weak
-#						$type = 'real';
-#					}
+					# These are early-on checks for constants as that is the most common case
+					if ( $pvars{$var} =~ /^\-?\d+$/ ) {
+						$type = 'integer';
+					} elsif ( $pvars{$var} =~ /^(\-?(?:\d+|\d*\.\d*)(?:e[\-\+]?\d+)?)$/ ) {  
+						$type = 'real';
+					}
 					$Sincf->{'LocalParameters'}{'Set'}{$var} = {
 						'Type' => $type,
 						'Var'  => $Sincf->{'Vars'}{$var},
-						'Val'  => $pvars{$var}
+						'Val'  => $pvars{$var},
+						'Indent'    => $indent,
+						'Attr'      => '',
+						'Dim'       => [],
+						'Parameter' => 'parameter',
+						'Name'      => [ $var, $pvars{$var} ],																		
 					};
 					push @pars, $var;
 				}
@@ -1753,6 +1759,7 @@ sub f77_var_decl_parser {
 sub __split_out_parameters {
 	( my $f, my $stref ) = @_;
 	my $Sf          = $stref->{'IncludeFiles'}{$f};
+	
 	my $srcref      = $Sf->{'AnnLines'};
 	my $param_lines = [];
 	my $nsrcref     = [];
@@ -1768,7 +1775,7 @@ sub __split_out_parameters {
 		$nindex = $index + $nidx_offset;
 		my $line = $srcref->[$index][0];
 		my $info = $srcref->[$index][1];
-		if ( exists $info->{'ParamDecl'} ) {
+		if ( exists $info->{'ParamDecl'} ) {			
 			push @{$param_lines},
 			  [ $line, { 'ParamDecl' => { %{ $info->{'ParamDecl'} } } } ]
 			  ;    # split out parameters from 'Common' include file
@@ -1802,8 +1809,13 @@ sub __split_out_parameters {
 	  $stref->{'IncludeFiles'}{$f}{'FreeForm'};
 
 
-	$stref->{'IncludeFiles'}{$f}{'Includes'}{"params_$f"}=1;
-	
+	$stref->{'IncludeFiles'}{$f}{'Includes'}{"params_$f"}={'Only' => {}};
+	$stref->{'IncludeFiles'}{"params_$f"}{'Parameters'}=dclone($stref->{'IncludeFiles'}{$f}{'Parameters'});
+	$stref->{'IncludeFiles'}{"params_$f"}{'Vars'}{'Subsets'}{'Parameters'} = $stref->{'IncludeFiles'}{"params_$f"}{'Parameters'};
+	delete  $stref->{'IncludeFiles'}{$f}{'Parameters'};
+	delete  $stref->{'IncludeFiles'}{$f}{'Vars'}{'Subsets'}{'Parameters'};
+#	croak Dumper($stref->{'IncludeFiles'}{"params_$f"}{'Vars'})."\n\n".Dumper($stref->{'IncludeFiles'}{"$f"}{'Vars'});
+#	croak Dumper( $stref->{'IncludeFiles'}{$f}{'Vars'});
 	return $stref;
 }    # END of __split_out_parameters
 
@@ -2726,7 +2738,7 @@ sub __parse_f77_par_decl {
 					$Sf->{'LocalParameters'}{'Set'}{$var} = {
 						'Type' => $type,
 						'Var'  => $var,
-						'Val'  => $val
+						'Val'  => $val,						
 					};
 					print
 					  "INFO: LOCAL PARAMETER $var infered type: $type $var = $val\n"
@@ -2740,7 +2752,7 @@ sub __parse_f77_par_decl {
 			$Sf->{'LocalParameters'}{'Set'}{$var} = {
 				'Type' => $type,
 				'Var'  => $var,
-				'Val'  => $pvars{$var}
+				'Val'  => $pvars{$var},
 			};
 			
 			my $val = $pvars{$var};

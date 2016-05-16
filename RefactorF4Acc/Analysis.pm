@@ -42,7 +42,7 @@ sub analyse_all {
 	# First find any additional argument declarations, either in includes or via implicits
 	for my $f ( keys %{ $stref->{'Subroutines'} } ) {
 		next if $f eq '';
-		
+		$stref = _lift_param_includes($stref, $f );
 		$stref = _find_argument_declarations( $stref, $f );
 	}
 	return $stref if $stage == 2;
@@ -147,15 +147,9 @@ sub _find_argument_declarations {
 sub _analyse_variables {
 	( my $stref, my $f ) = @_;
 	my $Sf = $stref->{'Subroutines'}{$f};
+#	local $DBG=1;
 	say "_analyse_variables($f)" if $DBG;
-#	die Dumper($Sf->{'Vars'}) if $f eq 'post';
-	
-	
-#	my $state = [ $stref, $f, {} ];
-#	
-#	( $stref, $state ) =
-#	  stateful_pass( $stref, $f, $__analyse_vars_on_line, $state, '_analyse_variables() ' . __LINE__ );		
-# (my $stref, my $f, my $pass_actions, my $state, my $info ) = @_;
+
 	my $__analyse_vars_on_line = sub {
 		( my $annline, my $state ) = @_;
 		( my $line,    my $info )  = @{$annline};
@@ -173,17 +167,12 @@ sub _analyse_variables {
 			or exists $info->{'ParamDecl'} 
 			)
 		{
-
-		( my $stref, my $f, my $identified_vars ) = @{$state};
-		
+		( my $stref, my $f, my $identified_vars ) = @{$state};		
 			
 			my $Sf = $stref->{'Subroutines'}{$f};
-#			my @chunks = split( /[^\.\w]/, $line );
 			my @chunks = ();
 			if ( exists $info->{'If'} ) {
-#				say Dumper($info);
 				@chunks = keys %{ $info->{'CondVars'} } ;
-#				croak $line.' => '.Dumper(@chunks) if $line=~/xglobal/ and $f eq 'boundcond_domainfill';
 			}			
 			
 			if (exists $info->{'PrintCall'}
@@ -202,7 +191,6 @@ sub _analyse_variables {
 				for my $expr_var (@{$info->{'ExprVars'}{'List'}}) {
 					push @chunks, $expr_var;
 				}
-#					@chunks = (@chunks,@{$info->{'CallArgs'}{'List'}}) ;				
 			} elsif (exists $info->{'OpenCall'}) {
 				if (exists $info->{'Vars'} ) {
 					@chunks = (@chunks,@{$info->{'Vars'}{'List'}});
@@ -257,31 +245,34 @@ sub _analyse_variables {
 								'Parameter' )
 							{
 								print "WARNING: $mvar in $f is a PARAMETER from $inc!\n"
-								  if $W;
+								  if $W; 
 								  	$Sf->{'Includes'}{$inc}{'Only'}{ $mvar }= 1;
+								  	say "PARAM $mvar for $f from $inc";
 							} else {
 								if ( $stref->{'IncludeFiles'}{$inc}{'InclType'}
 									eq 'Common' )
 								{
 									print "FOUND COMMON $mvar in INC $inc in $line\n"
-									  if $DBG;									  
+									  if $DBG;
+									croak "COMMON $mvar for $f". in_nested_set($stref->{'IncludeFiles'}{$inc}, 'Vars', $mvar) if $mvar eq 'kp';  									  
 									my $decl;
 									my $subset_for_mvar = in_nested_set(
 										$stref->{'IncludeFiles'}{$inc},
 										'Vars', $mvar );
-										croak $subset_for_mvar  if $subset_for_mvar =~/Glob/;
+#										croak $subset_for_mvar  if $subset_for_mvar =~/Glob/;
+									say "Found $mvar in $subset_for_mvar " if $DBG;
 									if ( $subset_for_mvar ne '' ) {
-										if (
-											exists $stref->{'IncludeFiles'}
-											{$inc}{$subset_for_mvar}{'Set'}{$mvar} )
-										{											
-											$decl =
-											  $stref->{'IncludeFiles'}{$inc}
-											  {$subset_for_mvar}{'Set'}{$mvar};
-											
+										my $var_rec = get_var_record_from_set($stref->{'IncludeFiles'}
+											{$inc}{'Vars'},$mvar);
+										if ( not defined $var_rec ) {
+											# This means this var decl in the include has not been declared 
+											say "No Decl for $mvar in $inc $subset_for_mvar";#.Dumper($stref->{'IncludeFiles'}{$inc}{'Parameters'});
+											croak Dumper($stref->{'IncludeFiles'}{$inc}{'Vars'}) if $mvar eq 'data23';
+											# So we should type this one via Implicits
+											$decl = get_f95_var_decl($stref,$f,$mvar);
+											say Dumper($decl);
 										} else {
-											# This means the var decls in the include have not yet been declared via implicits
-											croak "No Decl for $mvar in $inc $subset_for_mvar".Dumper($stref->{'IncludeFiles'}{$inc}{'Decls'});
+											$decl = $var_rec;
 										}
 									} else {										
 										croak "No Subset for $mvar in $inc $subset_for_mvar";
@@ -586,6 +577,22 @@ sub _analyse_var_decls_for_params { (my $stref,my  $f )=@_;
 		}
 	}
 	
+	return $stref;
+}
+
+sub  _lift_param_includes { (my $stref, my $f ) = @_;
+#	say "PARAM INCL For $f?";
+	my $sub_or_func_or_mod = sub_func_incl_mod( $f, $stref );
+	my $Sf                 = $stref->{$sub_or_func_or_mod}{$f};
+	for my $inc (keys %{ $Sf->{'Includes'} } ) {
+#		say "INC: $inc";
+		if (exists $stref->{'IncludeFiles'}{$inc}{'ParamInclude'}) {
+			
+			my $param_include = $stref->{'IncludeFiles'}{$inc}{'ParamInclude'};
+#			say "FOUND PARAM INCLUDE $param_include FOR $f via $inc!";
+			$Sf->{'Includes'}{$param_include}={'Only' => {}};	
+		}
+	}
 	return $stref;
 }
 

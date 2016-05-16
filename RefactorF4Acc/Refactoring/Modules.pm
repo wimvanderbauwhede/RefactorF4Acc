@@ -54,10 +54,10 @@ sub add_module_decls { (my $stref)=@_;
         $no_module= $stref->{'Program'} eq $src;
         print "INFO: adding module decls to $src\n" if $I;        
        if ($I) {
-            print '! ','-' x 80,"\n";
-            print "! SRC: $src\n";
+            say '! ','-' x 80;
+            say "! SRC: $src";
             print "!\tCONTAINS: ";
-            print join(', ',keys %{  $stref->{'SourceContains'}{$src}   } ),"\n";
+            say join(', ',keys %{  $stref->{'SourceContains'}{$src}   } );
        }             
        
             my $mod_name=$src;

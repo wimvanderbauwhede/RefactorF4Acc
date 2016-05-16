@@ -191,9 +191,7 @@ sub context_free_refactorings {
                 $line = emit_f95_var_decl($var_decl) ;
                 delete $info->{'ExGlobArgDecls'};
                 $info->{'Ref'} = 1;                 
-                say "REF==0: $f: $line";
                 push @{$info->{'Ann'}}, annotate($f, __LINE__ .': Ref==0' );
-                say Dumper(          $info->{'Ann'} );      
             } else {
                 croak 'BOOM! ' . 'context_free_refactoring '. __LINE__ ."; ";
             }
@@ -300,13 +298,14 @@ sub context_free_refactorings {
             my $tinc = $inc;
             $tinc =~ s/\./_/g;
             if ( $stref->{IncludeFiles}{$inc}{InclType} ne 'External' ) {
+            	say $f . ' => '.$inc. ' => '.Dumper($Sf->{'Includes'}{$inc});
             	if (exists $Sf->{'Includes'}{$inc}{'Only'} and scalar keys %{ $Sf->{'Includes'}{$inc}{'Only'} }>0) {            		            	
             		my @used_params = keys %{ $Sf->{'Includes'}{$inc}{'Only'} };
                 	$line = "      use $tinc, only : ".join(', ', @used_params);
                   	push @{ $info->{'Ann'} }, annotate($f, __LINE__. ' Include' );
             	} else {
             		# No 'Only' or 'Only' list is empty, SKIP
-                	$line = "!      use $tinc";
+                	$line = "!      use $tinc ! ONLY LIST EMPTY";
                   	push @{ $info->{'Ann'} }, annotate($f, __LINE__ . ' no pars used'); #croak 'SKIP USE PARAM';            		
             	}
             } else {
@@ -986,7 +985,7 @@ sub format_f95_par_decl {
         'Status' => 1
     };
     
-     carp 'FINAL PAR REC:'.Dumper($final_par_rec) if $type eq 'Unknown';
+     carp "FINAL PAR REC $f:".Dumper($final_par_rec) if $type eq 'Unknown';
     return $final_par_rec; 
 }    # format_f95_par_decl()
 
@@ -1179,6 +1178,7 @@ sub emit_f95_var_decl {
         croak "NOT a HASH in emit_f95_var_decl(".$var_decl_rec.")";
     }
     my $spaces = $var_decl_rec->{'Indent'};# [0];
+    croak Dumper($var_decl_rec) if not defined $spaces;
 #    ( my $type, my $attr, my $dim, my $intent_or_par ) =
 #      @{ $var_decl_rec->[1] };
       my $type = $var_decl_rec->{'Type'}; 
@@ -1270,7 +1270,7 @@ sub emit_f95_var_decl {
         #  	say 'emit_f95_var_decl PARAM: '.$decl_line ;
         return $decl_line;
     }
-}
+} # END of emit_f95_var_decl();
 
 # -----------------------------------------------------------------------------
 # This routine take $stref, $f, $insert_pos_lineID, $new_annlines, $insert_before, $skip_insert_pos_line
