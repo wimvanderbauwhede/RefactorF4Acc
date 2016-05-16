@@ -298,11 +298,24 @@ sub context_free_refactorings {
             my $tinc = $inc;
             $tinc =~ s/\./_/g;
             if ( $stref->{IncludeFiles}{$inc}{InclType} ne 'External' ) {
-            	say $f . ' => '.$inc. ' => '.Dumper($Sf->{'Includes'}{$inc});
+#            	say $f . ' => '.$inc. ' => '.Dumper($Sf->{'Includes'}{$inc});
             	if (exists $Sf->{'Includes'}{$inc}{'Only'} and scalar keys %{ $Sf->{'Includes'}{$inc}{'Only'} }>0) {            		            	
             		my @used_params = keys %{ $Sf->{'Includes'}{$inc}{'Only'} };
                 	$line = "      use $tinc, only : ".join(', ', @used_params);
                   	push @{ $info->{'Ann'} }, annotate($f, __LINE__. ' Include' );
+            	} elsif (exists $stref->{'IncludeFiles'}{$inc}{'ParamInclude'}) {
+            		my $param_include=$stref->{'IncludeFiles'}{$inc}{'ParamInclude'};
+            		my $tinc = $param_include;
+            		$tinc =~ s/\./_/g;            		
+            		  	if (exists $Sf->{'Includes'}{$param_include}{'Only'} and scalar keys %{ $Sf->{'Includes'}{$param_include}{'Only'} }>0) {            		            	
+            		my @used_params = keys %{ $Sf->{'Includes'}{$param_include}{'Only'} };
+                	$line = "      use $tinc, only : ".join(', ', @used_params);
+                  	push @{ $info->{'Ann'} }, annotate($f, __LINE__. ' Include' );
+            		  	} else {
+                	$line = "!      use $tinc ! ONLY LIST EMPTY";
+                  	push @{ $info->{'Ann'} }, annotate($f, __LINE__ . ' no pars used'); #croak 'SKIP USE PARAM';            		
+            		  		
+            		  	}
             	} else {
             		# No 'Only' or 'Only' list is empty, SKIP
                 	$line = "!      use $tinc ! ONLY LIST EMPTY";
