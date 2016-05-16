@@ -243,7 +243,8 @@ sub _analyse_src_for_iodirs {
 		if ( exists $Sf->{'Function'} and $Sf->{'Function'} == 1 ) {			
 			# Don't touch
 			# Why not? even a Function can have Intents other than In!
-			say "SKIPPING IODir analysis for FUNCTION $f";
+			# FIXME!
+			say "INFO: SKIPPING IODir analysis for FUNCTION $f" if $I;
 		} else {
 			my $annlines = get_annotated_sourcelines( $stref, $f );
 
@@ -368,7 +369,16 @@ sub _analyse_src_for_iodirs {
 # So we get the IODir for every arg in the call to the subroutine
 # We need both the original args from the call and the ex-glob args
 # It might be convenient to have both in $info; otoh we can get ExGlobArgs from the main table
-
+#croak Dumper($info->{'ExprVars'}{'List'}) if scalar @{ $info->{'ExprVars'}{'List'} } >3; 
+				for my $mvar ( @{$info->{'ExprVars'}{'List'}} ) {
+					# So these var can be local, global or even intrinsics. 
+					# Check if they are global first.
+					if ( exists $args->{$mvar} and ref( $args->{$mvar} ) eq 'HASH' ) {
+						if ( exists $args->{$mvar}{'IODir'} ) {
+								$args = _set_iodir_read( $mvar, $args );
+							}
+					}
+				}
 					my $iodirs_from_call =
 					  _get_iodirs_from_subcall( $stref, $f, $info );
 
@@ -709,7 +719,7 @@ sub _get_iodirs_from_subcall {
 
 		# This is the parent
 		my $Sf = $stref->{'Subroutines'}{$f};
-
+#croak 'FIXME: must add ExprVars as well, but they are all intent(In)';
 		# These are the refactored arguments of the parent
 		my $args   = $Sf->{'RefactoredArgs'}{'Set'};
 		my $argmap = $info->{'SubroutineCall'}{'ArgMap'};
@@ -811,7 +821,8 @@ sub _get_iodirs_from_subcall {
 			} else {  # If it is a Const or Expr or Sub,  the sig_arg must be In
 				 # Before 20160513, this had "and there is only a single subroutine call in the code" but that is not correct
 				 # It leads to Error: Non-variable expression in variable definition context (actual argument to INTENT = OUT/INOUT) at (1)
-				carp "FIXME: DOING THIS BREAKS CODE!";
+#				carp "FIXME: DOING THIS BREAKS CODE!";
+				say "WARNING: Setting intent(In) for argument $sig_arg of $name because the called argument is not a variable!" if $W; 
 				$Sname->{'RefactoredArgs'}{'Set'}{$sig_arg}{'IODir'} = 'In';
 
 #				if (    scalar keys %{ $Sname->{'Callers'} } == 1

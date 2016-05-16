@@ -50,6 +50,7 @@ sub parse_fortran_src {
 
 	#    local $V=1;
 	print "parse_fortran_src(): PARSING $f\n " if $V;
+	
 #say 'INIT PRE:'.Dumper($stref->{'Subroutines'}{'init'}{'AnnLines'}) ; # OK!
 ## 1. Read the source and do some minimal processsing, unless it's already been done (i.e. for extracted blocks)
 	$stref = read_fortran_src( $f, $stref );    #
@@ -517,6 +518,8 @@ sub _analyse_lines {
 				}
 			}
 				
+				
+				
 			if ( $mline =~
 				/^\d*\s+(read|write|print)\s*\(/
 			) {
@@ -577,6 +580,7 @@ sub _analyse_lines {
 					delete $info->{'EndDo'}{'Label'};
 				}
 			} elsif ( $line =~ /\b(subroutine|function|program)\b/ ){
+				
 				( $Sf, $line, $info ) =
 				  __parse_sub_func_prog_decls( $Sf, $line );
 				  
@@ -636,7 +640,9 @@ sub _analyse_lines {
 				$info->{'Assignment'} = 1;
 #WV20150303: We parse this assignment and return {Lhs => {Varname, ArrayOrScalar, IndexExpr}, Rhs => {Expr, VarList}}
 #say "WRONG LINE:".$line;
-				$info = _parse_assignment($mline, $info, $stref, $f );				
+
+				$info = _parse_assignment($mline, $info, $stref, $f );
+#				croak 'pbl_profile: '.Dumper($info).$line if $f eq 'pbl_profile' and $line=~/psim\(/;				
 			}
 
 			# Actual variable declaration line (F77)
@@ -1107,7 +1113,7 @@ sub _parse_subroutine_and_function_calls {
 				$info->{'CallArgs'}=$expr_args;
 				$info->{'ExprVars'}=$expr_other_vars;				 
 				$info->{'SubroutineCall'}{'Args'}=$info->{'CallArgs'};
-
+#croak Dumper($info) if $name eq 'getvdep' and $f eq 'calcpar';
 			if($external_sub==0) {
 				my $Sname = $stref->{'Subroutines'}{$name};
 
@@ -1226,7 +1232,7 @@ sub _parse_subroutine_and_function_calls {
 	}
 	
 #	die Dumper($srcref) if $f eq 'vertical';
-#			croak Dumper($stref->{'Subroutines'}{'vertical'}{'AnnLines'}).';'.$sub_or_func_or_mod.' '.$f.' ' if $f eq 'vertical';
+#			croak Dumper($stref->{'Subroutines'}{'calcpar'}{'AnnLines'}).';'.$sub_or_func_or_mod.' '.$f.' ' if $f eq 'vertical';
 	return $stref;
 }    # END of parse_subroutine_and_function_calls()
 
@@ -2265,7 +2271,6 @@ sub _split_multivar_decls {
 
 	my $Sf           = $stref->{$sub_incl_or_mod}{$f};
 	my $annlines     = $Sf->{'AnnLines'};
-#	say Dumper($annlines).$f;
 	my $nextLineID   = scalar @{$annlines} + 1;
 	my $new_annlines = [];
 	for my $annline ( @{$annlines} ) {
@@ -2273,16 +2278,13 @@ sub _split_multivar_decls {
 
 		if ( exists $info->{'VarDecl'} and exists $info->{'VarDecl'}{'Names'} )
 		{
-
 			my @nvars = @{ $info->{'VarDecl'}{'Names'} };
-			push @{$info->{'Ann'}}, '_split_multivar_decls ' . __LINE__ ;
-			for my $var ( @{ $info->{'VarDecl'}{'Names'} } ) {
-				
-				my %rinfo = %{$info};
-
+			push @{$info->{'Ann'}}, annotate($f, __LINE__  );
+			for my $var ( @{ $info->{'VarDecl'}{'Names'} } ) {				
+				my $rinfo_c = dclone($info);
+				my %rinfo=%{$rinfo_c };
 				$rinfo{'LineID'} = $nextLineID++;
-				my $subset = '';
-				
+				my $subset = '';				
 				if ($sub_incl_or_mod ne 'IncludeFiles') {
 					if ( exists $Sf->{'DeclaredOrigArgs'}{'Set'}{$var} ) {
 						$subset = 'DeclaredOrigArgs';
@@ -2296,12 +2298,8 @@ sub _split_multivar_decls {
 						# Problem is that we get 'OrigArgs', not yet known if they are declared or not. 
 						croak 'IMPOSSIBLE for Sub/Func/Module! ',$f,' ',$var,' ',$line,"DeclaredOrigArgs:\n",Dumper($Sf->{'DeclaredOrigArgs'}),
 						"OrigArgs:\n",Dumper($Sf->{'OrigArgs'});
-					}
-					
+					}					
 				} else {
-#				if ( exists $Sf->{'DeclaredOrigArgs'}{'Set'}{$var} ) {
-#					$subset = 'DeclaredOrigArgs';
-#				} els
 					if ( exists $Sf->{'DeclaredOrigLocalVars'}{'Set'}{$var} ) {
 						$subset = 'DeclaredOrigLocalVars';
 					} elsif ( exists $Sf->{'DeclaredCommonVars'}{'Set'}{$var} ) {
@@ -2309,9 +2307,7 @@ sub _split_multivar_decls {
 					} else {
 						die 'IMPOSSIBLE for Include! ',$f,' ',$sub_incl_or_mod;
 					}	
-#					croak Dumper($info->{'VarDecl'}).$subset if $var eq 'drydepspec';
 				}
-#				croak $f.':'.Dumper($Sf->{$subset}{'Set'}{$var}) if $var eq 'drydepspec';
 				my $dim = $Sf->{$subset}{'Set'}{$var}{'Dim'} // [];
 				my $decl = {
 					'Indent' => $info->{'VarDecl'}{'Indent'},
@@ -2324,17 +2320,11 @@ sub _split_multivar_decls {
 					'Status' => 0
 				};
 				$rinfo{'VarDecl'} = $decl;
-
-				
 				my $rline = $line;
 				$Sf->{$subset}{'Set'}{$var}{'Name'} = $var;
-
-		 #                die Dumper($rinfo{'VarDecl'}) if $var eq 'drydeposit';
 				if ( scalar @{ $info->{'VarDecl'}{'Names'} } > 1 ) {
 					for my $nvar (@nvars) {
 						if ( $nvar ne $var ) {
-
-							#                    say "NVAR: $nvar";
 							# FIXME: This should use \b not \W !!!
 							if ( $rline =~ /\s*,\s*$nvar\([^\(]+\)\W?/ ) {
 								$rline =~ s/\s*,\s*$nvar\([^\(]+\)(\W?)/$1/;
@@ -2349,20 +2339,12 @@ sub _split_multivar_decls {
 							} elsif ( $rline =~ /\s*,\s*$nvar\W?/ ) {
 								$rline =~ s/\s*,\s*$nvar(\W?)/$1/;
 							}
-
-							#                    $rline=~s/,,/,/;
 						}
 					}
-
-#croak  "\t$rline\n".Dumper(%rinfo) if $rline=~/drydepspec/;
 				}
-
-   #                $info->{'VarDecl'} = $decl; #$info->{'VarDecl'}{'Names'}[0];
-   #                delete  $info->{'VarDecl'}{'Names'};
 				push @{$new_annlines}, [ $rline, {%rinfo} ];
 			}
 		} else {
-
 			push @{$new_annlines}, $annline;
 		}
 	}
@@ -2494,6 +2476,7 @@ sub __parse_sub_func_prog_decls {
 	{
 		my $name   = $1;
 		my $argstr = $2;
+
 		$argstr =~ s/^\s+//;
 		$argstr =~ s/\s+$//;
 		my @args = split( /\s*,\s*/, $argstr );
@@ -2895,7 +2878,7 @@ sub __parse_f77_var_decl {
 		'Status' => 0
 	};
 
-	push @{$info->{'Ann'}}, ' _analyse_lines ' . __LINE__ ;
+	push @{$info->{'Ann'}}, annotate($f, __LINE__  );#' _analyse_lines ' . __LINE__ ;
 #carp Dumper($Sf->{'DeclaredOrigLocalVars'}{'Set'}{'drydepspec'}) if $line=~/drydepspec/ and $f eq 'includecom';
 	return ( $Sf, $info );
 }    # END of __parse_f77_var_decl()
@@ -3250,9 +3233,9 @@ sub _parse_assignment {
 	 ) {
 	 	my $tmp_line=$line;
 	 	$tmp_line=~s/__PH\d+__/.../g;
-	 	say "Assignment to reserved word or intrinsic '".$lhs_ast->[1]
-	 	."' at line '".$tmp_line ,"' in subroutine/function '$f' in '".$stref->{'Subroutines'}{$f}{'Source'}
-	 	."', this is DANGEROUS, please fix your code!";
+	 	say "WARNING: ASSIGNMENT to reserved word or intrinsic '".$lhs_ast->[1]
+	 	."' at line\n '".$tmp_line ,"' in subroutine/function '$f' in '".$stref->{'Subroutines'}{$f}{'Source'}
+	 	."'\nThis is DANGEROUS, please fix your code!";
 	 	$stref->{'Subroutines'}{$f}{'MaskedIntrinsics'}={$lhs_ast->[1] => 1};
 	 }
 	my $rhs_ast = parse_expression($rhs,$info, $stref, $f);

@@ -82,20 +82,6 @@ sub context_free_refactorings {
     my $firstdecl  = 1;
     $Sf->{'RefactoredCode'} = [];
     my @include_use_stack = ();
-
-#    my %params_declared_in_file = ();
-#    for my $annline ( @{$annlines} ) {
-#        ( my $line, my $info ) = @{$annline};
-#        if ( exists $info->{'ParamDecl'} ) {
-#            my $partup = $info->{'ParamDecl'}{'Name'}  ;
-#                ( my $par, my $parval ) = @{$partup};
-#                $params_declared_in_file{$par} = 1;
-#            
-#        }
-#    }
-#if (in_nested_set($Sf,'Vars','varname') ){
-#    say "$f BEFORE:".Dumper(get_var_record_from_set($Sf->{'Vars'},'varname'));
-#}
     # FIXME: This is way too long and quite unclear
     for my $annline ( @{$annlines} ) {
         if ( not defined $annline or not defined $annline->[0] ) {
@@ -193,34 +179,23 @@ sub context_free_refactorings {
                 } else {                    
                     $line = _emit_f95_parsed_var_decl($pvd);
                 }
-                
-                
             } else { 
 #            my $var =  $info->{'VarDecl'}{'Name'};
-            if ( in_nested_set($Sf, 'Parameters', $var)
-#             exists $Sf->{'Parameters'} 
-#            and exists $Sf->{'Parameters'}{'Set'} 
-#            and exists( $Sf->{'Parameters'}{'Set'}{ $var } ) 
-            ) {
+            if ( in_nested_set($Sf, 'Parameters', $var) ) {
                 # Remove this line, because this param should have been declared above
                 $line = '!! Original line PAR:2 !! ' . $line;
                 $info->{'Deleted'} = 1;
                 $info->{'Ann'}=[ annotate($f, __LINE__ .' Removed ParamDecl' ) ];
             } elsif (not exists $info->{'Ref'} or $info->{'Ref'} == 0 ){
-#                my $var_decl =  $info->{'VarDecl'};
                 my $var_decl = get_var_record_from_set( $Sf->{'Vars'},$var);
-#                if (defined $var_decl->{'Attr'}) {
-#				carp "$f: $line => ".Dumper($info).Dumper($var_decl->{'Attr'}) if $var eq 'varname' ;
-#                } else {
-#                	croak "$f: $line => ".Dumper($info).Dumper($var_decl->{'Attr'}) if $var eq 'varname' ;
-#                }                  
-#                $info->{'VarDecl'} = $var_decl;
                 $line = emit_f95_var_decl($var_decl) ;
                 delete $info->{'ExGlobArgDecls'};
-                $info->{'Ref'} = 1; 
-                push @{$info->{'Ann'}}, 'context_free_refactoring '. __LINE__ ;                
+                $info->{'Ref'} = 1;                 
+                say "REF==0: $f: $line";
+                push @{$info->{'Ann'}}, annotate($f, __LINE__ .': Ref==0' );
+                say Dumper(          $info->{'Ann'} );      
             } else {
-                die 'BOOM! ' . 'context_free_refactoring '. __LINE__ ."; ";
+                croak 'BOOM! ' . 'context_free_refactoring '. __LINE__ ."; ";
             }
                         
             }
@@ -277,13 +252,9 @@ sub context_free_refactorings {
         elsif ( exists $info->{'ParamDecl'} )
         {    # so this is a parameter declaration "pur sang"
                 # WV 20130709: why should I remove this?
-#                croak Dumper($info) . __LINE__;                
-#            my @par_lines = ();
-#carp Dumper($annline);
                 my $par_decls= [ $info->{'ParamDecl'} ];
                 
                  my $info_ref = $info->{'Ref'} // 0;
-#                if ($info->{'ParamDecl'}{'Status'} == 0 ) {
                     if (exists $info->{'ParamDecl'}{'Name'} ) {
                              my $var_val = $info->{'ParamDecl'}{'Name'};
                                 ( my $var, my $val ) = @{$var_val};                
@@ -295,7 +266,6 @@ sub context_free_refactorings {
                                 push @{$par_decls}, format_f95_par_decl( $stref, $f, $var );
                         }
                     }
-#                } 
                 for my $par_decl (@{ $par_decls }) {
                 my $new_line =
                   emit_f95_var_decl($par_decl) ;
@@ -323,7 +293,6 @@ sub context_free_refactorings {
 # ------------------------------------------------------------------------------
 # Subroutine call
         elsif ( exists $info->{'SubroutineCall'} ) {
-#            $line = _rename_conflicting_vars( $line, $stref, $f );
             $info->{'Ref'}++;
         } elsif ( exists $info->{'Include'} ) { 
         	
@@ -334,7 +303,7 @@ sub context_free_refactorings {
             	if (exists $Sf->{'Includes'}{$inc}{'Only'} and scalar keys %{ $Sf->{'Includes'}{$inc}{'Only'} }>0) {            		            	
             		my @used_params = keys %{ $Sf->{'Includes'}{$inc}{'Only'} };
                 	$line = "      use $tinc, only : ".join(', ', @used_params);
-                  	push @{ $info->{'Ann'} }, annotate($f, __LINE__ );
+                  	push @{ $info->{'Ann'} }, annotate($f, __LINE__. ' Include' );
             	} else {
             		# No 'Only' or 'Only' list is empty, SKIP
                 	$line = "!      use $tinc";
@@ -343,7 +312,7 @@ sub context_free_refactorings {
             } else {
                 $line =
                   "      include '$inc'";
-                  push @{ $info->{'Ann'} }, annotate($f, __LINE__);
+                  push @{ $info->{'Ann'} }, annotate($f, __LINE__ . ' External ');
             }
             $info->{'Ref'}++;
 
@@ -465,9 +434,7 @@ sub context_free_refactorings {
             }        
         }      
     }
-#    if (in_nested_set($Sf,'Vars','varname') ){
-#    say "$f AFTER:".Dumper(get_var_record_from_set($Sf->{'Vars'},'varname'));
-#    }
+
     if ($die_if_one) { die Dumper( $Sf->{'RefactoredCode'} ); }
     return $stref;
 }    # END of context_free_refactorings()

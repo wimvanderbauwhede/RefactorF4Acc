@@ -290,7 +290,7 @@ sub {
 		}
 	}
 
-	if (0 && $gen_scons) {
+	if ($gen_scons) {
 			# This routine is BROKEN
 	   create_build_script($stref);
 	}

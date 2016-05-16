@@ -11,7 +11,7 @@ $VERSION = "1.0.0";
 use warnings;
 use strict;
 use Data::Dumper;
-use Carp qw( croak );
+use Carp qw( carp croak );
 use Exporter;
 
 @RefactorF4Acc::Inventory::ISA = qw(Exporter);
@@ -218,13 +218,21 @@ sub _process_src {
         
         
             # Find subroutine/function/program signatures
-           $line =~ /^\s*(recursive\s+(?:function|subroutine)|function|subroutine|program)\s+(\w+)/i && do {
+           $line =~ /^\s*(\w+\s+\w+\s+(?:function|subroutine)|\w+\s+(?:function|subroutine)|function|subroutine|program)\s+(\w+)/i && do {
            	
-            	my $proc_type=$1;
+            	my $full_proc_type=$1;
+#            	say "PROC TYPE: $proc_type";
             	my $proc_name=$2;
+#            	croak if $proc_name eq 'psim';
+				my @proc_type_chunks = split(/\s+/,$full_proc_type);
+				my $proc_type=$proc_type_chunks[-1];
                 my $is_prog = (lc($proc_type) eq 'program') ? 1 : 0;
-                my $is_function = ($proc_type =~/function/i) ? 1 : 0;
-                my $is_rec = ($proc_type =~/recursive/i) ? 1 : 0;
+                my $is_function = (lc($proc_type) eq 'function') ? 1 : 0;
+                my $is_rec = ($full_proc_type =~/recursive/i) ? 1 : 0;
+                my $is_pure = ($full_proc_type =~/pure/i) ? 1 : 0;
+                my @maybe_type = grep { $_!~/pure|recursive|function|subroutine|program/ } ( map { lc($_) } @proc_type_chunks) ;
+                my $has_type = @maybe_type ? $maybe_type[0] : '';
+#                say "$line => $has_type" if $has_type;   
                 my $sub  = lc($proc_name);                
                 if ( $is_prog == 1 ) {
                     print "Found program $sub in $src\n" if $V;
@@ -250,6 +258,8 @@ sub _process_src {
 	                    $Ssub->{'Status'}  = $UNREAD;
 	                    $Ssub->{'Program'} = $is_prog;
 	                    $Ssub->{'Recursive'} = $is_rec;
+	                    $Ssub->{'Pure'} = $is_pure;
+	                    $Ssub->{'HasType'} = $has_type;
                if ($line=~/pure\s+function|pure\s+recursive\s+function/) {
                 	$Ssub->{'Pure'} = 1;
                 } else {

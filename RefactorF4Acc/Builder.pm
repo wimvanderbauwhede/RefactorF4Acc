@@ -44,7 +44,7 @@ sub create_build_script {
     my $date  = localtime;
     # FIXME: this is Flexpart-specific, we should use a template instead!
     my $scons = <<ENDSCONS;
-# Generated build script for refactored FLEXPART source code
+# Generated build script for refactored Flexpart source code
 # $date
 
 csources =[$csources]
@@ -55,14 +55,14 @@ envC=Environment(CC='$gcc',CPPPATH=[]);
 if csources:
     envC.Library('wrfc',csources)
 
-FFLAGS  = ['-O3', '-m64', '-ffree-form', '-fconvert=little-endian', '-frecord-marker=4']
+FFLAGS  = ['-O3', '-m64', '-ffree-form', '-ffree-line-length-0','-fconvert=little-endian', '-frecord-marker=4']
 envF=Environment(F95='$gfortran',LINK='$gfortran',F95FLAGS=FFLAGS,F95PATH=['.','/opt/local/include','/usr/local/include'])
 if csources:
     envF.Program('flexpart_wrf',fsources,LIBS=['netcdff','wrfc','m'],LIBPATH=['.','/opt/local/lib','/usr/local/lib'])   
 else:
     envF.Program('flexpart_wrf',fsources,LIBS=['netcdff','m'],LIBPATH=['.','/opt/local/lib','/usr/local/lib'])
 ENDSCONS
-    open my $SC, '>', "$targetdir/SConstruct.rf4a";
+    open my $SC, '>', "$targetdir/SConstruct_Flexpart.rf4a";
     print $SC $scons;
     print $scons if $V;
     close $SC;

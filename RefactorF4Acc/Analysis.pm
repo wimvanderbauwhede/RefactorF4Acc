@@ -199,6 +199,9 @@ sub _analyse_variables {
 						push @chunks, $var_expr;
 					}
 				}
+				for my $expr_var (@{$info->{'ExprVars'}{'List'}}) {
+					push @chunks, $expr_var;
+				}
 #					@chunks = (@chunks,@{$info->{'CallArgs'}{'List'}}) ;				
 			} elsif (exists $info->{'OpenCall'}) {
 				if (exists $info->{'Vars'} ) {
@@ -502,7 +505,7 @@ sub _map_call_args_to_sig_args { (my $stref, my $f ) = @_;
 						if (not exists $stref->{'Subroutines'}{$sub}{'MaskedIntrinsics'}{$call_arg}
 						) {
 						# This is an unmasked intrinsic, set to 'Sub'!
-						say "Unmasked intrinsic $call_arg in $f";
+						say "INFO: Unmasked intrinsic $call_arg in $f" if $I;
 						$info->{'CallArgs'}{'Set'}{$call_arg_expr}{'Type'}='Sub';
 						} else {
 							say "Intrinsic $call_arg is MASKED in $f";
