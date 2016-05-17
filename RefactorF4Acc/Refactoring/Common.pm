@@ -480,11 +480,16 @@ sub create_refactored_source {
             } else {
                 $line =~ s/\s+\!\!.*$//
                   ; # FIXME: ad-hoc to remove comments from context-free refactoring
-
+				if (not exists $info->{'ReadCall'} and
+				not exists $info->{'WriteCall'} and
+				not exists $info->{'PrintCall'} ) {
                 my @split_lines = split_long_line($line);
                 for my $sline (@split_lines) {
                     push @{$refactored_lines}, [ $sline, $info ];
                 }
+				} else {
+					push @{$refactored_lines}, [ $line, $info ];
+				}
             }
         } else {
             push @{$refactored_lines}, [ $line, $info ];

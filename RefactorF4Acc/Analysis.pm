@@ -247,7 +247,7 @@ sub _analyse_variables {
 								print "WARNING: $mvar in $f is a PARAMETER from $inc!\n"
 								  if $W; 
 								  	$Sf->{'Includes'}{$inc}{'Only'}{ $mvar }= 1;
-								  	say "PARAM $mvar for $f from $inc";
+#								  	say "PARAM $mvar for $f from $inc";
 							} else {
 								if ( $stref->{'IncludeFiles'}{$inc}{'InclType'}
 									eq 'Common' )

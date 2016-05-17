@@ -527,7 +527,12 @@ sub _analyse_lines {
 				my $keyword = $1;
 				$info->{ ucfirst($keyword).'Call' } = 1;				
 				$info = parse_read_write_print($mline, $info, $stref, $f);
-#				carp "MLINE3: $mline";								
+#				carp "MLINE3: $mline";		
+			} elsif ( $mline =~
+				/^\d*\s+print\s+/
+			) {
+				$info->{ 'PrintCall' } = 1;				
+				$info = parse_read_write_print($mline, $info, $stref, $f);								
 			} elsif ( $mline =~
 				/^\d*\s*(open|close)\s*\(/
 			) {
@@ -1445,6 +1450,7 @@ sub _get_commons_params_from_includes {
 			# TODO: also, why is this not the same code as above? Refactor!
 			#  parameter(ip=150,jp=150,kp=90)
 			if ( $line =~ /parameter\s*\(\s*(.*)\s*\)/ ) {
+				
 				my $parliststr = $1;
 				$has_pars = 1;
 				my @partups = split( /\s*,\s*/, $parliststr );
@@ -2697,6 +2703,7 @@ sub __parse_f77_par_decl {
 	# F77-style parameters
 	#                my $parliststr = $1;
 	( my $Sf, my $f, my $line, my $info, my $parliststr ) = @_;
+	
 	my $indent = $line;
 	my $type   = 'Unknown';
 	$indent =~ s/\S.*$//;
@@ -2717,13 +2724,15 @@ sub __parse_f77_par_decl {
 	}
 	my $pars_in_val ={};
 	for my $var (@pvarl) {
+		
 		croak if ref($var) eq 'ARRAY';
 		if ( not in_nested_set $Sf,'LocalVars',$var ) {
 			if ( exists $pvars{$var} ) {
+				
 				my $val = $pvars{$var};
 				 my $pars_in_val_tmp = ___check_par_val_for_pars($val);
 				 $type = 'Unknown';
-				 if ($val =~ /^\-?\d+/) {
+				 if ($val =~ /^\-?\d+$/) {
 				 	$type = 'integer';
 				 } elsif ( $val =~ /^(\-?(?:\d+|\d*\.\d*)(?:e[\-\+]?\d+)?)$/ ) {
 				 	$type = 'real';
@@ -2744,7 +2753,7 @@ sub __parse_f77_par_decl {
 					  "INFO: LOCAL PARAMETER $var infered type: $type $var = $val\n"
 					  if $I;
 					push @{$pars}, $var;
-
+#carp Dumper($Sf->{'LocalParameters'}{'Set'}{$var}) ;
 			}
 		} else {
 			my $var_rec = get_var_record_from_set($Sf->{'LocalVars'},$var);
@@ -3016,6 +3025,7 @@ sub parse_read_write_print { ( my $line, my $info, my $stref, my $f)=@_;
 	
 	$info->{'CallAttrs'}={'Set'=>{},'List'=>[]};
 				my $tline=$line;
+
 # Remove any labels
 	if (exists $info->{'Label'}) {		
 		my $label = $info->{'Label'};
@@ -3024,8 +3034,13 @@ sub parse_read_write_print { ( my $line, my $info, my $stref, my $f)=@_;
 		$info->{'Label'}=$2;
 	}
 # Parse 
+
+if ($tline!~/^\s*print/) {
+#	For Open, Write and Read
 	(my $matched_str, my $rest)=_parse_IO_sub_call($tline);
+	
 	# Parse the actual call args to see if there are any variables.
+	# 
 	$matched_str=~s/\w+\(//;
 	$matched_str=~s/\)//;
 	my @call_attrs=_parse_comma_sep_expr_list($matched_str);
@@ -3047,22 +3062,14 @@ sub parse_read_write_print { ( my $line, my $info, my $stref, my $f)=@_;
 		}
 	}
 	$tline=$rest;
+} else {
+	# For Print, HACK!
+	$tline=~s/print[^\,]+\,\s*//;
+}
+	# Parse the rest of the statement
 	
-	
-#say "CALL ATTRS: ".join(';',@call_attrs);#." REST <$rest>" ;# if $line=~/read\(iunit,\*\)/ and $f eq 'skplin';
-				# This only works for read (), not for read*
-#				if ($tline=~/(read|write|print)\s*\(/) {
-#					while (substr($tline,0,1) ne ')') {
-#						$tline=substr $tline,1;
-#					}
-#					$tline=~s/\)\s*//;
-#				} elsif ($tline=~/(read|write|print)\s+\'\(.+\'\)\s*,/) {
-#					#READ '(A6,I3)', A, I
-#					$tline=~s/(read|write|print)\s+\'\(.+\'\)\s*,//;
-#				} elsif ($tline=~/(read|write|print)\s+[^,]+,/) {
-#					$tline=~s/^.+?,//;
-#				}
-								while ($tline=~/[\"\'][^\"\']+[\"\']/) {
+#say "TLINE1: <$tline>" ;
+	while ($tline=~/[\"\'][^\"\']+[\"\']/) {
 					say "STRING CONST $tline";
 					$tline=~s/[\"\'][^\"\']+[\"\']//; # so at this point we could have e.g. var1,\s*,var2 or ^\*,var1 or var1,\s*$ 
 					$tline=~s/,\s*,//;
@@ -3082,39 +3089,7 @@ sub parse_read_write_print { ( my $line, my $info, my $stref, my $f)=@_;
 					$tline=~s/\)\s*\(/,/;
 				}
 				$tline=~s/:/,/g;
-	
-#				if ($tline=~/=/) {
-#					$tline=~s/\s+//g;
-#					my @implied_do_iters = ();
-#					# I am fed up so I'm going to assume that the bounds are constants or scalars
-#					my $check_inf_loop=10;
-#					while ($tline=~/=/) {
-#						--$check_inf_loop;
-#						if ($tline=~/,(\w+)=(\w+),(\w+)\)/) {
-#							my $idx=$1;
-#							my $idx_b=$2;
-#							my $idx_e=$3;
-#							$tline=~s/,(\w+)=(\w+),(\w+)\)/,range($idx,$idx_b,$idx_e))/;
-#						}					
-#						last if $check_inf_loop==0;	
-#					}			
-#					if ($check_inf_loop==0) {
-#						# The above failed, try something more brutal
-#						# (kz,eta_w_wrf(kz),eta_u_wrf(kz),kz=1,nwz-1)
-#						$tline=~s/=/,/g;
-#					}
-#					# replace  ^\(\(\( and ,\s*\(\(\( with do(do(do( 
-#					while ($tline=~/^\(/) {					
-#						$tline=~s/\(([^\(])/do(${1}/;
-#					}
-#				}
-#				say "TLINE:$tline";
-#say "TLINE5: $tline";
-				# At this point we should have just the arguments, let's parse this as an expression
-				# But the expression parser can only handle numerical expressions so first check if we have strings
-				
-#
-#				say "TLINE STRIPPED: $tline" unless $tline=~/__PH/;				
+			
 				if ($tline!~/^\s*$/) {
 					if ($tline=~/^\(/) {
 						# If an argument is ( ... ) it means we only have Vars
@@ -3166,11 +3141,7 @@ sub parse_read_write_print { ( my $line, my $info, my $stref, my $f)=@_;
 								$info->{'ExprVars'}{'Set'}={ %{ $info->{'ExprVars'}{'Set'} },%{ $other_vars->{'Set'} }};								
 							}
 							$info->{'CallArgs'}{'List'}=[ keys %{ $info->{'CallArgs'}{'Set'} } ];
-							$info->{'ExprVars'}{'List'}=[ keys %{ $info->{'ExprVars'}{'Set'} } ];
-#							my $fake_range_expr = 'range('.join(',',												
-#												say Dumper($info);
-#					$info->{'ExprVars'}=$other_vars;
-																					
+							$info->{'ExprVars'}{'List'}=[ keys %{ $info->{'ExprVars'}{'Set'} } ];																				
 						} else {
 							# This is an expression in parentheses, so it must be treated as Vars-only
 											my @chunks = split( /\W+/, $tline );
@@ -3195,14 +3166,8 @@ sub parse_read_write_print { ( my $line, my $info, my $stref, my $f)=@_;
 					$info->{'ExprVars'}=append_to_set($info->{'ExprVars'},$other_vars);
 					}
 				}
-#					else {
-#					$info->{'CallArgs'}={'List'=>[],'Set'=>{}};
-#					$info->{'ExprVars'}={'List'=>[],'Set'=>{}};
-#						
-#				}						
 }
-#say "INFO: ".Dumper($info); 
-#croak  if $line=~/read\(iunit,\*\)/ and $f eq 'skplin'; 
+#croak Dumper($info) if $line=~/print/;
 	return $info;		
 } # END of parse_read_write_print()
 
@@ -3352,8 +3317,9 @@ sub _parse_IO_sub_call {
 		$matched_str.=$ch;
 	}		
 	my $rest = join('',@chars);
+
 	return ($matched_str, $rest)
-}
+} # END of _parse_IO_sub_call()
 
 sub _parse_if_cond {
 	(my $str)=@_;

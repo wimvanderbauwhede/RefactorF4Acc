@@ -2,6 +2,7 @@ package RefactorF4Acc::Emitter;
 use v5.16;
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
+use RefactorF4Acc::Refactoring::Common qw( create_refactored_source );
 # 
 #   (c) 2010-2012 Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
 #   
@@ -74,7 +75,7 @@ sub _emit_refactored_include {
         
         open my $SRC, '>', "$dir/$incsrc" or die "$!: $dir/$incsrc";
         my $prevline='C ';
-        
+        $srcref = create_refactored_source($stref,$srcref);
         for my $annline ( @{$srcref} ) {
         	my $line = $annline->[0];  
             if (not ($prevline =~/^\s*$/ and $line =~/^\s*$/)) {
@@ -294,7 +295,10 @@ sub emit_all {
         	show_annlines($stref->{'RefactoredCode'}{$src},0);
         } else {
 			open my $TGT, '>', "$targetdir/$nsrc" or die $!;
-			for my $mod_line (@{ $stref->{'RefactoredCode'}{$src} }) {
+			
+			my $mod_lines = $stref->{'RefactoredCode'}{$src};
+#			my $mod_lines = create_refactored_source($stref,$stref->{'RefactoredCode'}{$src}); # BROKEN!
+			for my $mod_line (@{ $mod_lines }) {
 				
 				print $TGT	$mod_line->[0];
 				if ($ANN and exists $mod_line->[1]->{'Ann'}) {
