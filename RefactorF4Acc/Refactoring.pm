@@ -46,9 +46,11 @@ sub refactor_all {
     
     $stref = refactor_called_functions($stref); # Context-free only
     return $stref if $stage == 2;
+    
 #croak Dumper(get_var_record_from_set($stref->{'Subroutines'}{'read_ncwrfout_1realfield'}{'Vars'},'varname'));    
     # Refactor the source, but don't split long lines and keep annotations
     $stref = refactor_all_subroutines($stref);
+    
 #croak Dumper($stref->{'Subroutines'}{'gridcheck_nests'}{'DeclaredOrigLocalVars'}{'Set'}{'varname'});
 #    die Dumper($stref->{'Subroutines'}{'boundsm'}{'Vars'});
     return $stref if $stage == 3;
@@ -64,10 +66,12 @@ sub refactor_all {
 #    say Dumper($stref->{'Subroutines'}{'les'}{'Vars'});
 
     say "remove_vars_masking_functions" if $V;    
-    $stref = remove_vars_masking_functions($stref);
+    $stref = remove_vars_masking_functions($stref);    
     return $stref if $stage == 5;
+    
     say "add_module_decls" if $V;
     $stref=add_module_decls($stref);
+    
     return $stref;	
 } # END of refactor_all()  
 

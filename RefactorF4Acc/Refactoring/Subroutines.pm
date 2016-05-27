@@ -136,7 +136,8 @@ sub _refactor_subroutine_main {
     $annlines = _fix_end_lines($stref, $f, $annlines); # FIXME maybe do this later
     
     $Sf->{'RefactoredCode'}=$annlines;    
-    $Sf->{'AnnLines'}=$annlines;    
+    $Sf->{'AnnLines'}=$annlines;
+#    croak Dumper($stref->{'Subroutines'}{'fm001'}{'AnnLines'}).'HERE';    
     return $stref;
 }    # END of _refactor_subroutine_main()
 
@@ -153,7 +154,9 @@ sub _fix_end_lines {
     my $done_fix_end=0;
     while (!$done_fix_end and @{$rlines}) {
         my $annline =pop @{$rlines};
+        
         (my $line, my $info )= @{ $annline };
+#        say "LINE: $line";
         next if ( $line=~/^\s*$/); # Skip comments
         if ( $line=~/^\s*end\s+$sub_or_prog/) {
             push @{$rlines}, $annline;
@@ -166,7 +169,7 @@ sub _fix_end_lines {
             push @{$rlines},[ $line." $sub_or_prog $f",$info];
             $done_fix_end=1;
         }
-        
+
         if ($line=~/^\s*contains\s*$/ ) {
             $line=~s/\s+$//;
             push @{$rlines},$annline;

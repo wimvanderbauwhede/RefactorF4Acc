@@ -5,7 +5,7 @@ use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils
   qw( get_maybe_args_globs type_via_implicits in_nested_set );
 use RefactorF4Acc::Refactoring::Common
-  qw( get_annotated_sourcelines stateful_pass emit_f95_var_decl );
+  qw( get_annotated_sourcelines stateful_pass emit_f95_var_decl get_f95_var_decl );
 use RefactorF4Acc::Refactoring::Subroutines::Signatures
   qw( refactor_subroutine_signature );
 use RefactorF4Acc::Refactoring::Subroutines::Calls
@@ -329,7 +329,7 @@ sub _analyse_src_for_iodirs {
 					next;
 				}
 
-				if ( exists $info->{'ReadCall'} ) {
+				if ( exists $info->{'ReadCall'} or exists $info->{'InquireCall'}) {
 
 				  # Arguments are written to, so IODir is write; others are read
 				  #				carp Dumper($info);
@@ -582,12 +582,19 @@ sub _analyse_src_for_iodirs {
 			}
 		}
 		for my $arg ( keys %{$args} ) {
+			
 			if (
 				exists $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}
 				{$arg} )
 			{
+				if ($args->{$arg} != 1) {
 				$stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$arg} =
 				  { %{ $args->{$arg} } };
+				} else {
+					my $decl = get_f95_var_decl($stref, $f, $arg);
+#					say "DECL:".Dumper($decl);
+					$stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$arg} = $decl;
+				}
 
 			}
 		}
@@ -784,19 +791,21 @@ sub _get_iodirs_from_subcall {
 						say
 "CALLER ARG <$call_arg> for call to $name in $f IS A PARAMETER."
 						  if $DBG;
-						if (    scalar keys %{ $Sname->{'Callers'} } == 1
-							and $Sname->{'Callers'}{$f} == 1
-							and
-							$Sname->{'RefactoredArgs'}{'Set'}{$sig_arg}{'IODir'}
-							ne 'In' )
-						{
+#						if (    
+#						scalar keys %{ $Sname->{'Callers'} } == 1
+#							and $Sname->{'Callers'}{$f} == 1
+#							and
+#							$Sname->{'RefactoredArgs'}{'Set'}{$sig_arg}{'IODir'}
+#							ne 'In' )
+#						{
 
+say "WARNING: Setting intent(In) for argument $sig_arg of $name because the called argument is a parameter!" if $W;
 							print
 "INFO: $name in $f is called only once; $sig_arg is a parameter, setting IODir to 'In'\n"
 							  if $I;
 							$Sname->{'RefactoredArgs'}{'Set'}{$sig_arg}
 							  {'IODir'} = 'In';
-						}
+#						}
 					} else {
 
 # If it's a var, we don't do anything I guess? But suppose a var is being written to, and then an arg is being assigned to this var

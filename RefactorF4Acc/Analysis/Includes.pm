@@ -30,7 +30,8 @@ use Exporter;
     &find_root_for_includes    
 );
 
-# This routine is called after the subroutines have been parsed, and the call graph has been created as part of the process.
+# This routine is called after the subroutines have been parsed, and the call graph has been created.
+# The "root for includes" algorithm intends to find the subroutine where the include should be placed
 sub find_root_for_includes {
     ( my $stref, my $f ) = @_;
     $stref = _create_include_chains( $stref, 1 );  # assumes we start at node 1 in the tree. Typically that is the main program.
@@ -38,18 +39,13 @@ sub find_root_for_includes {
     for my $inc ( keys %{ $stref->{'IncludeFiles'} } ) {
        
         next if $stref->{'IncludeFiles'}{$inc}{'InclType'} eq 'External';
-#        print "INC: $inc\n";
         if ($stref->{'IncludeFiles'}{$inc}{'Status'}==$UNREAD) {
         	#WV23JUL2012: This is weak, clearly the only good way is to find the includes in rec descent 
             croak "TROUBLE: $inc (in $f) not yet parsed, how come?";#.Dumper($stref);
-#            print "WARNING: $inc not yet parsed, parsing ...\n";
-#                $stref->{'IncludeFiles'}{$inc}{'Root'}      = $f;
                 $stref->{'IncludeFiles'}{$inc}{'HasBlocks'} = 0;
                 $stref = parse_fortran_src( $inc, $stref );   
-#                print Dumper($stref->{'IncludeFiles'}{$inc});         
         }
         if ( $stref->{'IncludeFiles'}{$inc}{'InclType'} eq 'Common' ) {
-#            print "FINDING ROOT FOR $inc ($f)\n" ;die;
             $stref = _find_root_for_include( $stref, $inc, $f );
             print "ROOT for $inc is "
               . $stref->{'IncludeFiles'}{$inc}{'Root'} . "\n"
@@ -122,26 +118,20 @@ sub _find_root_for_include {
 # We also need to add the include to all nodes in the divergent paths
 sub _create_include_chains {
     ( my $stref, my $nid ) = @_;
-#say $stref->{'Nodes'}{$nid}{'Subroutine'};
     if ( exists $stref->{'Nodes'}{$nid}{'Children'}
         and scalar @{ $stref->{'Nodes'}{$nid}{'Children'} } > 0 )
-    {
-        
+    {        
         # Find all children of $nid
         my @children = @{ $stref->{'Nodes'}{$nid}{'Children'} };
-
         #  Now for each of these children, find their children until the leaf nodes are reached
         for my $child (@children) {
-#            say $child->[1];
             my $cnid = $child->[0];            
             $stref = _create_include_chains( $stref, $cnid );
         }
     } else {
 # We reached a leaf node
-#       print "Reached leaf $nid ".$stref->{'Nodes'}{$nid}{'Subroutine'}."\n";
 # Now we work our way back up via the parent using a separate recursive function
         $stref = __merge_includes( $stref, $nid, $nid, '' );
-
 # The chain is identified by the name of the leaf child
 # Check if the chain contains the $inc on the way up
 # Note that we can check this for every inc so we need to do this only once if we're clever -- looks like the coffee is working!
@@ -160,15 +150,10 @@ sub _create_include_chains {
 
 sub __merge_includes {
     ( my $stref, my $nid, my $cnid, my $chain ) = @_;
-
     # If there are includes with common blocks, merge them into CommonIncludes
-
     my $pnid = $stref->{'Nodes'}{$nid}{'Parent'};   
-    my $sub  = $stref->{'Nodes'}{$nid}{'Subroutine'};
-      
+    my $sub  = $stref->{'Nodes'}{$nid}{'Subroutine'};      
     if (defined $sub and exists $stref->{'Subroutines'}{$sub}) {
-        
-#        say "\n$sub $cnid $nid  $pnid";  
         my $Ssub = $stref->{'Subroutines'}{$sub};    
         my $f=$stref->{'Nodes'}{$pnid}{'Subroutine'} ;
         if ($pnid == 0) {$f = '__TOP__' };    
@@ -178,7 +163,6 @@ sub __merge_includes {
                $chain .="$sub -> ";
                 }
             } else {
-    #            $chain=~s/....$//;
                 print "__merge_includes(): $chain\n" if $chain=~/->/;
             }
         } # $V

@@ -1,4 +1,4 @@
-#!/usr/bin/perl
+#!/usr/bin/env perl
 use 5.016;
 use warnings::unused;
 use warnings;
@@ -36,7 +36,8 @@ our $usage = "
     -C: Only generate call tree, don't refactor or emit
     -N: Don't replace CONTINUE by CALL NOOP
     -g: refactor globals inside toplevel subroutine
-    -b: Generate SCons build script 
+    -b: Generate SCons build script
+    -A: DO NOT annotate the refactored lines 
     \n";
 #    -T: Translate <subroutine name> and dependencies to C 
 #    -B: Build FLEXPART (implies -b), currently ignored
@@ -159,6 +160,8 @@ test(1,$stref, sub { (my $stref)=@_;
     
 	$stref = parse_fortran_src( $subname, $stref );
 #	die;
+say Dumper 	pp_annlines($stref->{Subroutines}{$subname}{'AnnLines'},1);
+croak ;
 test(2,$stref,
 sub { return 'PASS';
 },
@@ -196,7 +199,7 @@ sub {
 	return $stref->{'Nodes'};
 }
 );	
-		
+	
     # Analyse the source
     my $stage=0;
 	$stref = analyse_all($stref,$subname, $stage);
@@ -267,7 +270,7 @@ sub {
     }
 #    say 'AFTER outer_loop_variable_analysis()';
 
-   
+#   die Dumper($stref->{'Subroutines'}{$subname}{'AnnLines'});
    
    $DUMMY=0;
 	if ( not $call_tree_only ) {
@@ -652,6 +655,7 @@ Nodes = Hash.Map Int Node
 
 # $test_subref is the actual test, $fail_subref is a routine that takes $stref and returns whatever you want to return on failure.
 sub test { (my $test_num, my $stref, my $test_subref, my $fail_subref) = @_;
+	return;
 	my %unit_tests_map = map {$_=>1} @unit_tests; # These are the ids of the tests to run		
 	my $last_test = [sort {$b <=> $a} @unit_tests]->[0];	
 	if (exists $unit_tests_map{$test_num}) {

@@ -58,12 +58,31 @@ $VAR1 = [
         ];
 =cut         
 sub parse_expression { (my $exp, my $info, my $stref, my $f)=@_;
+	my $preproc_expr = $exp;
+	$preproc_expr =~s/\s+//g;
+	# EVIL HACK because the Math::Expression::Evaluator::Parser does not support things like a ** b ** c
+	$preproc_expr =~s/\*\*\s*(\w+)\s*\*\*\s*(\w+)/**($1 * $2)/;
+	while ($preproc_expr=~/\.\w+\./) {
+	$preproc_expr =~s/\.not\.//g;
+	$preproc_expr =~s/\.false\./0/g;
+	$preproc_expr =~s/\.true\./1/g;
+	$preproc_expr =~s/\.\w+\./+/g; 
+	}
+	# F77 allows 1D7 or 2Q-5 instead of 1E7 and 2E-5 
+	while ($preproc_expr=~/\W[\.\d]+[dq][\d\-\+]/) { 
+		$preproc_expr=~s/(\W[\.\d]+)[dq]([\d\-\+])/${1}e$2/;
+	}
+	
+#	 if ($exp =~/\*\*\s*(\w+)\s*\*\*\s*(\w+)/) {
+#	 	croak $preproc_expr;
+#	 }
 	my $wrap=0;
 	# We want to wrap if this is a list. But how can I tell without parsing it?
-	my $wrapped_expr = $exp;
+	my $wrapped_expr = $preproc_expr;
 	if ($wrap) {
-	 $wrapped_expr = '_dummy_('.$exp.')';
+	 $wrapped_expr = '_dummy_('.$preproc_expr.')';
 	}
+	
     my $ast = Math::Expression::Evaluator::Parser::parse($wrapped_expr, {});
 #    shift @{$ast};shift @{$ast};
 	if ($wrap) {

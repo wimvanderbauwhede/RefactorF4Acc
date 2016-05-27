@@ -40,7 +40,8 @@ sub find_subroutines_functions_and_includes {
     my %excluded_sources = map { $_ => 1 } @{ $Config{EXCL_SRCS} };
     my %excluded_dirs = map { $_ => 1 } @{ $Config{EXCL_DIRS} };
     my $has_pattern = $Config{EXCL_SRCS} ne '' ? 0 : 1;    
-    my $excl_srcs_pattern    = join('|', @{ $Config{EXCL_SRCS} });    
+    my $excl_srcs_pattern    = @{ $Config{EXCL_SRCS} }>1? join('|', @{ $Config{EXCL_SRCS} }) : $Config{EXCL_SRCS}->[0];
+    say     'Exlcude pattern: /'.$excl_srcs_pattern.'/' if $V;
 	my $excl_srcs_regex      = qr/$excl_srcs_pattern/;
     # find sources (borrowed from PerlMonks)
     
@@ -126,6 +127,8 @@ sub _process_src {
 #    my $f=''; # name of the entity
     my $has_blocks=0;
     my $free_form=0;
+    my $tab_format=0;
+    my $is_cont=0;
     my $fstyle='F77';   
     my $translate_to='';
     my $in_interface_block=0;
@@ -172,14 +175,55 @@ sub _process_src {
             
         # Tests for free or fixed form
         if ($free_form==0) {
+        				my $cols1to6 = substr($line,0,6);
+			my @cols1to6_chars = split('',$cols1to6);
+# Standard Fixed Format        	
+#The standard fixed format source lines are defined as follows:
+#• The first 72 columns of each line are scanned. See “Extended Lines,” page 9.
+#• Continuation lines are identified by a nonblank, nonzero in column 6.
+			if ($cols1to6_chars[5] ne " " 
+			and $cols1to6_chars[5] ne "0") {
+				$is_cont=1;
+			} 
+
+#• Short lines are padded to 72 characters.
+#• Long lines are truncated. See “Extended Lines,” below.
+        	
+#• The first five columns must be blank or contain a numeric label.
+        	# And the whitespace at the start of the line does not contain tabs
             if ( $line !~ /^[\s\d]{5}.+/ and $line !~ /^\t[\t\s]*\w/ and $line !~/^\s+\t/) {
                 $free_form = 1;       
 #                die $line,$src;                                                     
             } 
-               
-            if ($line =~ /\&\s*$/ ) {
-                    $free_form = 1;          
+
+            # TAB format
+#A tab in any of columns 1 through 6, or an ampersand in column 1,
+#establishes the line as a tab-format source line.
+				my $col_ctr=0;
+            for my $cols1to6_char (@cols1to6_chars) {
+            	
+            	if ($cols1to6_char eq "\t") {
+            		 $free_form = 0;     
+            		 $tab_format=1;
+#• Continuation lines are identified by  a nonzero digit after the first tab.                        		 
+            		 if ($cols1to6_chars[$col_ctr+1] =~/1-9/) {
+            		 	$is_cont=1;
+            		 }
+            		 last;
+            	}
+            	$col_ctr++;
+            }   
+#• Continuation lines are identified by an ampersand (&) in column 1.            
+            if ($cols1to6_chars[0] eq '&' ) {
+            		$tab_format=1;            	
+                    $free_form = 0;          
+                    $is_cont=1;
             }
+
+#• If the tab is the first nonblank character, the text following the tab is scanned
+#as if it started in column 7.
+#• A comment indicator or a statement number can precede the tab.
+            
         }   
         # Tests for F77 or F95
         
@@ -197,7 +241,7 @@ sub _process_src {
                 $fstyle='F95';                
                 $stref->{'Modules'}{$mod_name}{'FStyle'}=$fstyle;
             	$stref->{'Modules'}{$mod_name}{'FreeForm'}=$free_form;                  
-                
+                $stref->{'Modules'}{$mod_name}{'TabFormat'}=$tab_format;         
             } 
             if ( $line =~ /^\s*end\s+(?:module|program)/i ) { 
             	$in_contains=0;
@@ -285,6 +329,7 @@ sub _process_src {
                 }
                     $stref->{'Subroutines'}{$sub}{'FStyle'}=$fstyle;
             		$stref->{'Subroutines'}{$sub}{'FreeForm'}=$free_form;  
+            		$stref->{'Subroutines'}{$sub}{'TabFormat'}=$tab_format;
 		            $stref->{'Subroutines'}{$sub}{'HasBlocks'}=$has_blocks;
                 $sub_name=$sub;
             };

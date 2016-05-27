@@ -36,6 +36,7 @@ sub init_state {
         ,    # sources to be built, can be C, H (header) or F (Fortran)
         'Indents' => 0,    # bit silly, purely for pretty-printing
         'NId'     => 0,    # running node id for traversal
+        'PNids'	=> [],
         'Nodes'   => {     # nodes in call tree
 #            0 => {
 #                'Parent'     => 0,

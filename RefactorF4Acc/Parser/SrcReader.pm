@@ -136,7 +136,22 @@ Suppose we don't:
                     my $in_cont              = 0;
                     my @comments_stack       = ();
                     my $firstline            = 1;
+                    # There is an extension to allow 132 characters. But that is a compiler flag so I can't tell
+                    # I can guess based on the max line length. 
+                    # Let's say if it is > 102 characters then we have a 132-line program
+                    my $max_line_length=0;
+                    for my $line (@lines) {
+                    	my $cline= chomp $line;
+                    	my $line_length = length($cline);
+                    	$max_line_length= $line_length > $max_line_length ? $line_length : $max_line_length; 
+                    }
+                    my $ncols = $max_line_length > 102 ? 132 : 72;
+                    for my $line (@lines) {
+                    	$line=substr($line,0,$ncols);
+                    }
                     while (@lines) {
+                    	# OK, this is a HACK but I will remove anything after the 72nd character 
+#                    	say $line;
 #                    	say "$s LINE: $line";# if $s eq './timdata.f';
                         $line_set_to_nextline = 0;
                         if ($next2) {
@@ -810,6 +825,7 @@ Suppose we don't:
             print "NO NEED TO READ $s\n" if $I;
         }   # if $need_to_read
     }    # if $f is defined
+    
     return $stref;
 }    # END of read_fortran_src()
 
@@ -822,9 +838,9 @@ sub _pushAnnLine {
     ( my $stref, my $f, my $srctype, my $src, my $line, my $free_form ) = @_;
 #say "F:$f";say $srctype;
 if ($f eq 'UNKNOWN_SRC' or $stref->{$srctype}{$f}{'Status'}<$PARSED ) {
-#say  "HERE: $line" if $f eq 'UNKNOWN_SRC';
+#print  "HERE: $line" ;
     my $pline = _procLine( $line, $free_form );
-#    say "PLINE:".Dumper($pline) if $f eq 'UNKNOWN_SRC';
+#    say "PLINE:".Dumper($pline) ;
     if (exists $stref->{'Macros'} ) {
         $pline->[0] = _restore_case_of_macros($stref,$pline->[0]);        
     }
@@ -953,6 +969,11 @@ sub _removeCont {
             $tline =~ s/(\'.+?\')/__PH${i}__/;
             $i++;
         }
+        while ( $tline =~ /(\".+?\")/ ) {
+            $phs{"__PH${i}__"} = $1;
+            $tline =~ s/(\".+?\")/__PH${i}__/;
+            $i++;
+        }        
         if ( $tline =~ /\!.*$/ ) {
             $nline = ( split( /\!/, $tline ) )[0];
             for my $phk ( keys %phs ) {
@@ -1001,6 +1022,12 @@ sub _procLine {
             $tline =~ s/(\'.+?\')/__PH${i}__/;
             $i++;
         }
+        while ( $tline =~ /(\".+?\")/ ) {
+            $phs{"__PH${i}__"} = $1;
+            $tline =~ s/(\".+?\")/__PH${i}__/;
+            $i++;
+        }
+        
         my $cline = $line;
         $cline =~ s/^.+?\!//;          # FIXME: not quite correct
 
@@ -1038,10 +1065,10 @@ sub _procLine {
         };
     }
     if ( substr( $line, 0, 2 ) ne '! ' ) {
-        if ( $line =~ /^\s+include\s+\'([\w\.]+)\'/i ) {
+        if ( $line =~ /^\s+include\s+[\'\"]([\w\.]+)[\'\"]/i ) {
             $info->{'Includes'} = $1;
             $line =~ s/\bINCLUDE\b/include/;
-        } elsif ( $line !~ /\'/
+        } elsif ( $line !~ /[\'\"]/
             && $line !~ /^\s*end/i
             && $line =~ 
 /\b(module|program|recursive\s+subroutine|subroutine|\w+\s+function|function)\s+(\w+)/i
@@ -1076,7 +1103,15 @@ sub _procLine {
                 $phs_ref->{$ph} = $strconst;
                 $line =~ s/\'.*?\'/$ph/;
                 $ct++;
+            }            
+            while ( $line =~ /(\".*?\")/ ) {
+                my $strconst = $1;
+                my $ph       = '__PH' . $ct . '__';
+                $phs_ref->{$ph} = $strconst;
+                $line =~ s/\".*?\"/$ph/;
+                $ct++;
             }
+            
             my $lcline =
               ( substr( $line, 0, 2 ) eq '! ' )
               ? $line

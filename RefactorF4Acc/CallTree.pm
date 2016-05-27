@@ -42,10 +42,8 @@ $stref->{'CallTree'}{ 'Chain'} {$entry}++
 
 =cut
 
-sub create_call_tree { ( my $stref, my $subname ) = @_;
-	
+sub create_call_tree { ( my $stref, my $subname ) = @_;	
     push @{ $stref->{'CallStack'} }, $subname;
-#    print '[',join(',',@{ $stref->{'CallStack'} }),']',"\n";
     my %subs = map {$_=>1} @{ $stref->{'CallStack'} }; 
     for my $entry ( @{ $stref->{'CallTree'}{ $subname } } ) {
         if (exists $subs{$entry}) {
@@ -61,8 +59,7 @@ sub create_call_tree { ( my $stref, my $subname ) = @_;
 	    	   $stref->{'Indents'} -= 4;
     }
     pop  @{ $stref->{'CallStack'} };
-#    say Dumper(%subs);	     
-    return $stref;#{%subs};
+    return $stref;
 } # END of create_call_tree()
 # -----------------------------------------------------------------------------
 sub create_dot_call_tree {

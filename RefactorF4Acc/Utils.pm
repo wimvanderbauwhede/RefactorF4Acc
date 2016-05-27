@@ -158,9 +158,8 @@ sub get_maybe_args_globs {
     return ( \%maybe_args, \%globals );
 }
 # -----------------------------------------------------------------------------
-sub type_via_implicits {
-    
-(my $stref, my $f, my $var)=@_;
+sub type_via_implicits { (my $stref, my $f, my $var)=@_;
+	#return ($type, $array_or_scalar, $attr);
 if (not defined $var or $var eq '') {croak "VAR not defined!"}
 #say 'type_via_implicits'.scalar(@_).$var;
     my $sub_func_incl = sub_func_incl_mod( $f, $stref );
@@ -173,7 +172,9 @@ if (not defined $var or $var eq '') {croak "VAR not defined!"}
         my $type_kind_attr = $stref->{'Implicits'}{$f}{lc(substr($var,0,1))};
         ($type, $array_or_scalar, $attr)=@{$type_kind_attr};
 #        $type.='_IMPLICIT_RULE';
-    } else {
+#croak Dumper($stref->{'Implicits'}{$f}) if $var =~/aa/;
+    } 
+    if ($type eq 'Unknown') {
         print "INFO: Common <", $var, "> has no rule in {'Implicits'}{$f}, typing via Fortran defaults\n" if $I;
         if ($var=~/^[i-nI-N]/) {
     return ('integer', 'Scalar',  '');        
