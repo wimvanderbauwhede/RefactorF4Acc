@@ -160,8 +160,6 @@ test(1,$stref, sub { (my $stref)=@_;
     
 	$stref = parse_fortran_src( $subname, $stref );
 #	die;
-say Dumper 	pp_annlines($stref->{Subroutines}{$subname}{'AnnLines'},1);
-croak ;
 test(2,$stref,
 sub { return 'PASS';
 },

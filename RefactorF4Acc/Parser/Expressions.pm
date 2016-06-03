@@ -63,11 +63,17 @@ sub parse_expression { (my $exp, my $info, my $stref, my $f)=@_;
 	# EVIL HACK because the Math::Expression::Evaluator::Parser does not support things like a ** b ** c
 	$preproc_expr =~s/\*\*\s*(\w+)\s*\*\*\s*(\w+)/**($1 * $2)/;
 	while ($preproc_expr=~/\.\w+\./) {
-	$preproc_expr =~s/\.not\.//g;
-	$preproc_expr =~s/\.false\./0/g;
-	$preproc_expr =~s/\.true\./1/g;
-	$preproc_expr =~s/\.\w+\./+/g; 
+#		$preproc_expr =~s/\.not\.//g; # b .and. .not. a => b +_AND_+_NOT_+a
+#		$preproc_expr =~s/\.false\./0/g;
+#		$preproc_expr =~s/\.true\./1/g;
+#		$preproc_expr =~s/\.\w+\./+/g;
+		$preproc_expr =~s/\.not\./__not__\+/g; # b .and. .not. a => b +_AND_+_NOT_+a		
+		$preproc_expr =~s/\.false\./__false__/g;
+		$preproc_expr =~s/\.true\./__true__/g;
+		$preproc_expr =~s/\.(\w+)\./\+__${1}__\+/g; 
+		 
 	}
+#	if ($preproc_expr=~/\__/) {say $preproc_expr}
 	# F77 allows 1D7 or 2Q-5 instead of 1E7 and 2E-5 
 	while ($preproc_expr=~/\W[\.\d]+[dq][\d\-\+]/) { 
 		$preproc_expr=~s/(\W[\.\d]+)[dq]([\d\-\+])/${1}e$2/;
@@ -82,7 +88,7 @@ sub parse_expression { (my $exp, my $info, my $stref, my $f)=@_;
 	if ($wrap) {
 	 $wrapped_expr = '_dummy_('.$preproc_expr.')';
 	}
-	
+#	say "PRE:$preproc_expr" if $preproc_expr=~/lvon01/;
     my $ast = Math::Expression::Evaluator::Parser::parse($wrapped_expr, {});
 #    shift @{$ast};shift @{$ast};
 	if ($wrap) {
@@ -91,8 +97,8 @@ sub parse_expression { (my $exp, my $info, my $stref, my $f)=@_;
 	}
     #( $stref, $f, $ast)
     $ast = _change_func_to_array($stref,$f,$info,$ast, $exp);
-#    say Dumper($ast);
-return $ast;
+#    say Dumper($ast) if $preproc_expr=~/lvon01/;
+	return $ast;
 }
 
 # This function changes functions to arrays
@@ -232,13 +238,21 @@ sub emit_expression {(my $ast, my $expr_str)=@_;
 		$expr_str.=join(',',@expr_chunks);
 		$expr_str.=')'; 
 	} elsif ($ast->[0] ne '$' and $ast->[0] =~ /\W/) {
-		if (defined $ast->[2]) {
+		my $op = $ast->[0];
+		if (scalar @{$ast} > 2) {
+			my @ts=();
+			for my $elt (1 .. scalar @{$ast} -1 ) {
+				$ts[$elt-1] = (ref($ast->[$elt]) eq 'ARRAY') ? emit_expression( $ast->[$elt], '') : $ast->[$elt];					
+			} 
+			if ($op eq '^') {$op = '**'};
+			$expr_str.=join($op,@ts);#$t1.$ast->[0].$t2;
+		} elsif (defined $ast->[2]) { croak "OBSOLETE!";
 			my $t1 = (ref($ast->[1]) eq 'ARRAY') ? emit_expression( $ast->[1], '') : $ast->[1];
 			my $t2 = (ref($ast->[2]) eq 'ARRAY') ? emit_expression( $ast->[2], '') : $ast->[2];			
 			$expr_str.=$t1.$ast->[0].$t2;
 			if ($ast->[0] ne '=') {
 				$expr_str="($expr_str)";
-			}
+			}			
 		} else {
 			# FIXME! UGLY!
 			my $t1 = (ref($ast->[1]) eq 'ARRAY') ? emit_expression( $ast->[1], '') : $ast->[1];
@@ -254,8 +268,22 @@ sub emit_expression {(my $ast, my $expr_str)=@_;
 		$expr_str=~s/\)$//;
 	}
 	$expr_str=~s/\+\-/-/g;
+#	say "PRE2: $expr_str" if $expr_str=~/false/;
+	while ($expr_str=~/__[a-z]+__/ or $expr_str=~/\.\w+\.\+/) {
+		$expr_str =~s/\+\.(\w+)\.\+/\.${1}\./g;
+		$expr_str =~s/\.(\w+)\.\+/\.${1}\./g;
+		$expr_str =~s/__not__\+/\.not\./g; 
+		$expr_str =~s/__not__/\.not\./g; 		
+		$expr_str =~s/__false__/\.false\./g;
+		$expr_str =~s/__true__/\.true\./g;
+		$expr_str =~s/\+__(\w+)__\+/\.${1}\./g;
+		
+		$expr_str =~s/__(\w+)__/\.${1}\./g; 
+ 		
+	}
+#	say "POST: $expr_str" if $expr_str=~/false/;
 	return $expr_str;		
-}
+} # END of emit_expr
 # All variables in the expression
 sub get_vars_from_expression {(my $ast, my $vars)=@_;
 	for my  $idx (0 .. scalar @{$ast}-1) {		
@@ -355,6 +383,9 @@ sub get_args_vars_from_subcall {(my $ast)=@_;
 				if ($arg=~/__PH\d+__/ ) {
 					$arg=0;
 				}			
+				if ($arg=~/^__(\w+)__$/) {
+					$arg=~s/__(\w+)__/\.${1}\./;
+				}
 				if ( $ast->[$idx][0]  eq '@' 
 				or  $ast->[$idx][0]  eq '$'
 				or  $ast->[$idx][0]  eq '&') {

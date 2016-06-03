@@ -47,12 +47,18 @@ sub create_refactored_subroutine_signature {
     if ( $Sf->{'Program'} ) {
         $rline = '      program ' . $f;
     } elsif ( $Sf->{'Recursive'} ) { 
-        $rline = '      recursive subroutine ' . $f . '(' . $args_str . ')';    
-    } elsif ( $Sf->{'Function'} ) { croak 'BOOM: FUNCTION!' . __LINE__ ;
-    	# FIXME: deal with RECURSIVE!
-        $rline = '      function ' . $f . '(' . $args_str . ')';    
-    } else {    	
-        $rline = '      subroutine ' . $f . '(' . $args_str . ')';
+    	$rline = $annline->[0];
+    	$rline =~s/subroutine.*$//;	
+        $rline .= 'subroutine ' . $f . '(' . $args_str . ')';
+#        $rline = '      recursive subroutine ' . $f . '(' . $args_str . ')';    
+    } elsif ( $Sf->{'Function'} ) {# carp 'FUNCTION! create_refactored_subroutine_signature' . __LINE__ .Dumper($annline);
+    	$rline = $annline->[0];
+    	$rline =~s/function.*$//;
+        $rline .= 'function ' . $f . '(' . $args_str . ')';    
+    } else {    
+    		$rline = $annline->[0];
+    	$rline =~s/subroutine.*$//;	
+        $rline .= 'subroutine ' . $f . '(' . $args_str . ')';
     }
     $info->{'Refactored'} = 1;
     $info->{'Ref'} = 1;

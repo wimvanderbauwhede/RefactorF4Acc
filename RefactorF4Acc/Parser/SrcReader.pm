@@ -1,7 +1,7 @@
 package RefactorF4Acc::Parser::SrcReader;
 use v5.16;
 use RefactorF4Acc::Config;
-use RefactorF4Acc::Utils qw( sub_func_incl_mod show_status);
+use RefactorF4Acc::Utils qw( sub_func_incl_mod show_status show_annlines);
 use RefactorF4Acc::Refactoring::Common;
 use F95Normaliser qw( normalise_F95_src );
 
@@ -148,6 +148,17 @@ Suppose we don't:
                     my $ncols = $max_line_length > 102 ? 132 : 72;
                     for my $line (@lines) {
                     	$line=substr($line,0,$ncols);
+                    	# Here a minor hack: if there is a label in the 6th col and a non-blank in the 7th, I insert a blank
+                    	if (length($line) > 6 ) {
+                    	my $c6 = substr($line,5,1);
+                    	my $c7 = substr($line,6,1);
+                    	if ($c6 eq '0') {
+                    		$line = substr($line,0,5).' '.substr($line,6);
+                    	} 
+#                    	elsif ($c6 ne ' ' and $c6 ne "\t" and $c7 ne ' ' and $c7 ne "\t") {
+#                    		$line = substr($line,0,6).' '.substr($line,6); 
+#                    	} 
+                    	}
                     }
                     while (@lines) {
                     	# OK, this is a HACK but I will remove anything after the 72nd character 
@@ -820,7 +831,28 @@ Suppose we don't:
                         $stref->{$srctype}{$s}{'Status'} = $READ;
                     }
                 }    # free or fixed form
+            
+            
+# # This is an attempt to remove spaces but it is broken because in F77 not all spaces are meaningless!
+#	            for my $annline (@{ $stref->{$sub_func_incl}{$s}{'AnnLines'} }) {
+#	
+#					if (not exists $annline->[1]{'Comments'} and not exists $annline->[1]{'Blank'} ) {
+#						my $line = $annline->[0];
+#						my $c1to6='';
+#						if (not $free_form) {
+#							$c1to6=substr($line,0,5).' '.substr($line,6);
+#						} elsif ($line=~/^(\s*\d+\s+)/  ) {
+#							$c1to6=~$1;
+#							$line= substr($line,length($c1to6)); 
+#						}
+#						my $indent = $line;
+#						$indent =~s/\S.*$//;
+#						$line=~s/\s+//g;
+#						$annline->[0] = $c1to6.$indent.$line;
+#					}
+#	            }
             }    #ok
+            
         } else {
             print "NO NEED TO READ $s\n" if $I;
         }   # if $need_to_read
@@ -945,7 +977,7 @@ sub _removeCont {
     if ( $free_form == 0 ) {
         if ( $line =~ /^\ {5}[^0\s]/ )
         {    # continuation line. Continuation character can be anything!
-            $line =~ s/^\s{5}.\s*/ /;
+            $line =~ s/^\s{5}.\s*//; # Can't have a blank here as they can split in the middle of a variable name!
         } elsif ( $line =~ /^\&/ ) {
             $line =~ s/^\&\t*/ /;
         } elsif ( $line =~ /^\t[1-9]/ ) {

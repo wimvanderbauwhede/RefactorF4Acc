@@ -96,6 +96,24 @@ sub context_free_refactorings {
         if ( exists $info->{'ImplicitNone'} ) {
             next;
         }	
+        if ( exists $info->{'Implicit'} ) { 
+        	$line = '! '.$line;
+        	$info->{'Deleted'}=1;
+        	$info->{'Ann'}=[ annotate($f, __LINE__ .' Original Implicit statement' ) ];
+#            next;
+        }	        
+        if ( exists $info->{'Dimension'} ) { 
+        	$line = '! '.$line;
+        	$info->{'Deleted'}=1;
+        	$info->{'Ann'}=[ annotate($f, __LINE__ .' Original Dimension statement' ) ];
+#            next;
+        }	
+        if ( exists $info->{'Common'} ) { 
+        	$line = '! '.$line;
+        	$info->{'Deleted'}=1;
+        	$info->{'Ann'}=[ annotate($f, __LINE__ .' Original Common statement' ) ];
+#            next;
+        }	
 
         if ( exists $info->{'Goto'} ) {
             $line =~ s/\bgo\sto\b/goto/;
@@ -104,8 +122,11 @@ sub context_free_refactorings {
 
         # BeginDo: just remove the label
         if ( exists $info->{'BeginDo'} ) {
-            $line =~ s/do\s+\d+\s+/do /;
-            $info->{'Ref'}++;
+        	my $label = $info->{'BeginDo'}{'Label'};
+        	if ($Sf->{'DoLabelTarget'}{$label} eq 'Continue' or $Sf->{'DoLabelTarget'}{$label} eq 'EndDo') {         	
+            	$line =~ s/do\s+\d+\s+/do /;
+            	$info->{'Ref'}++;
+        	}
         }
 
         # EndDo: replace label CONTINUE by END DO;
@@ -122,7 +143,14 @@ sub context_free_refactorings {
             my $count = $info->{'EndDo'}{'Count'};
             if ( exists $info->{'Continue'} ) {
                 if ( $is_goto_target == 0 ) {
-                    $line = '      end do';
+                	my $label='';
+                	if (exists $info->{'EndDo'}{'Label'}) {
+                		$label = $info->{'EndDo'}{'Label'}
+                	} elsif (exists $info->{'Continue'}{'Label'}) {
+                		$label = $info->{'Continue'}{'Label'}
+                	}
+                    $line = ' '.$label.    ' end do';
+                    
                     $count--;
                 } elsif ($noop) {
                     $line =~ s/continue/call noop/;
@@ -171,6 +199,7 @@ sub context_free_refactorings {
 # ------------------------------------------------------------------------------
 
         if ( exists $info->{'VarDecl'} ) {
+#        	say "LINE: $line";
         	my $var =  $info->{'VarDecl'}{'Name'};
             if (exists  $info->{'ParsedVarDecl'} ) {
                 my $pvd = $info->{'ParsedVarDecl'}; 
@@ -214,35 +243,9 @@ sub context_free_refactorings {
             while ( $line =~ /\.\s*(?:eq|ne|gt|lt|le|ge)\s*\./ ) {
                 $line =~ s/\.\s*(eq|ne|gt|lt|le|ge)\s*\./ $f95ops{$1} /;
             }
-
- # FIXME: it is possible that there is a conflict in the conditional expression!
-#            $line = _rename_conflicting_vars( $line, $stref, $f );
             $info->{'Ref'}++;
-        } elsif ( exists $info->{'Assignment'} or exists $info->{'Do'} ) {
-
-            # Assignment
-            my $kv     = $line;
-            my $spaces = $line;
-            $spaces =~ s/\S.*$//;
-            $kv     =~ s/^\s+//;
-            $kv     =~ s/\s+$//;
-            if ( exists $info->{'Do'} ) {
-                $kv =~ s/do\s+//;
-            }
-            ( my $k, my $rhs_expr ) = split( /\s*=\s*/, $kv );
-
-#            $rhs_expr = _rename_conflicting_vars( $rhs_expr, $stref, $f );
-
-            if ( exists $info->{'Do'} ) {
-                my $nk = $k;#_rename_conflicting_lhs_var( $k, $stref, $f );
-                $line = $spaces . 'do ' . $nk . ' = ' . $rhs_expr;
-            } else {
-                my $nk = $k;#_rename_conflicting_vars( $k, $stref, $f );
-                $line = $spaces . $nk . ' = ' . $rhs_expr;
-            }
-            $info->{'Ref'}++;
-        }    # assignment
-
+        } 
+        
 # ------------------------------------------------------------------------------
 # This section refactors parameter declarations, this is what generates the parameters in LES params_common
 # Problem is that in flexpart, these parameters have already been declared before the variable declarations
@@ -1215,6 +1218,7 @@ sub emit_f95_var_decl {
       
       my $is_par = exists $var_decl_rec->{'Parameter'} ? 1 : 0;
       my $var = $var_decl_rec->{'Name'};
+croak       Dumper($var_decl_rec) if not defined $var;
 #      carp Dumper($var_decl_rec) if $type eq 'character' and $var eq 'varname';
     my $dimstr = '';
 #    say Dumper($dim);

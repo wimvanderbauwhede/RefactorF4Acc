@@ -242,31 +242,51 @@ sub _analyse_variables {
 					push @chunks, $mvar;
 				}
 			}
+# ------------------------------------------------------------------------------------------------------------------- 
 			for my $mvar (@chunks) {
 				next if $mvar =~ /^\d+$/;
 				next if not defined $mvar or $mvar eq '';
-				my $maybe_orig_arg = in_nested_set( $Sf, 'OrigArgs', $mvar );
-				my $maybe_decl_orig_arg =
+#				my $maybe_orig_arg = in_nested_set( $Sf, 'OrigArgs', $mvar );
+				# Means arg was declared 
+				my $in_vars_subset = in_nested_set($Sf,'Vars',$mvar);
+				my $decl_orig_arg =
 				  exists $Sf->{'DeclaredOrigArgs'}{'Set'}{$mvar}
-				  ? 'DeclaredOrigArgs'
-				  : '';
+				  ? 1
+				  : 0;
+				  # Means arg has been declared via Implicits 
 				my $undecl_orig_arg =
 				  exists $Sf->{'UndeclaredOrigArgs'}{'Set'}{$mvar} ? 1 : 0;
-
+				  # Means var was declared 
+				my $decl_orig_local_var = exists $Sf->{'DeclaredOrigLocalVars'}{'Set'}{$mvar} ? 1 : 0;
+				# Means var has been declared via Implicits
+				my $undecl_orig_local_var = exists $Sf->{'UndeclaredOrigLocalVars'}{'Set'}{$mvar} ? 1 : 0;
+				my $decl_common_var = exists $Sf->{'DeclaredCommonVars'}{'Set'}{$mvar} ? 1 : 0;
+				my $undecl_common_var = exists $Sf->{'UndeclaredCommonVars'}{'Set'}{$mvar} ? 1 : 0;
 # Here it is still possible that the variables don't have any declarations
 # If that is the case for OrigArgs we must type them via Implicits
 # But should this not have happened already? No, because UndeclaredOrigArgs could be declared via Includes,
 # and that is checked here.
 # So I think we exclude the DeclaredOrigArgs only
+# The same is true I thin for UndeclaredOrigLocalVars: we must type them via implicits
 
+# So is it actually not simply a case of saying, 
+# if it's in not Vars OR
+# it is in Vars  but the decl is 1 ?
+#say "$f LINE: $line " if $mvar eq 'ivcn01';
 				if (
 					not exists $identified_vars->{$mvar}
-					and ( $maybe_decl_orig_arg eq ''
-					)   # means $mvar is not present in the set DeclaredOrigArgs
-					and
-					( not exists $Sf->{'DeclaredOrigLocalVars'}{'Set'}{$mvar}
-						or $Sf->{'DeclaredOrigLocalVars'}{'Set'}{$mvar} == 1 )
-					and not exists  $Sf->{'DeclaredCommonVars'}{'Set'}{$mvar} 
+					and (
+					not $in_vars_subset 
+					or ($in_vars_subset and $Sf->{$in_vars_subset}{'Set'}{$mvar} eq '1'))
+#					
+#					
+#					
+#					 not $decl_orig_arg 
+#					)   # means $mvar is not present in the set DeclaredOrigArgs
+#					and
+#					( not $decl_orig_local_var
+#						or $Sf->{'DeclaredOrigLocalVars'}{'Set'}{$mvar} == 1 )
+#					and not exists  $Sf->{'DeclaredCommonVars'}{'Set'}{$mvar} 
 				  )
 
 				{
@@ -425,7 +445,7 @@ sub _analyse_variables {
 							}
 						}
 						if ( $identified_vars->{$mvar} != 1 ) {
-							if ( $line =~ /$mvar\s*\(/ ) {
+							if ( $mvar!~/\*/ and $line =~ /$mvar\s*\(/ ) { # Very ugly HACK because somehow ** got into the var name!
 								say
 "INFO: LOCAL VAR <$mvar> in $f may be an EXTERNAL FUNCTION "
 								  if $I;
@@ -437,6 +457,7 @@ sub _analyse_variables {
 							  . ' _analyse_variables() '
 							  . __LINE__
 							  if $I;
+							  
 							my $decl = get_f95_var_decl( $stref, $f, $mvar );
 
 							if ( not $undecl_orig_arg ) {
@@ -457,6 +478,8 @@ sub _analyse_variables {
 							$identified_vars->{$mvar} = 1;
 						}
 					}
+				} else {
+					say "_analyse_variables($f) " . __LINE__ ." : $mvar ALREADY DECLARED in $in_vars_subset:\n".Dumper($Sf->{$in_vars_subset}{'Set'}{$mvar}) if $I;
 				}
 			}
 			return ( $annline, [ $stref, $f, $identified_vars ] );
@@ -478,8 +501,23 @@ sub _analyse_variables {
 	{
 		$Sf->{'HasCommons'} = 1;
 	}
+	# Now at this point any variable that was not yet declared will be declared via Implicits.
+	# This is a catch-all for lines that are not properly analysed!
+	# The possible cases are
+	# UndeclaredOrigArgs
+	# UndeclaredCommonVars
+	# UndeclaredOrigLocalVars
+	# Or we could of course just wait and catch them at the point of use. But that is not so neat
+	for my $subset( qw(	UndeclaredOrigArgs UndeclaredCommonVars UndeclaredOrigLocalVars )) {
+		for my $var (sort keys %{ $Sf->{$subset}{'Set'} } ) {
+			if ($Sf->{$subset}{'Set'}{$var} eq '1') {
+				say "WARNING: VAR $var from $subset in $f not yet declared, this means the variable was not detected properly!" if $W;
+				my $decl = get_f95_var_decl( $stref, $f, $var );
+				$Sf->{$subset}{'Set'}{$var} =$decl;
+			}
+		}
+	}
 
-	#	if ($f eq 'ifdata') {croak Dumper($stref->{'Subroutines'}{$f}{'Vars'})};
 	return $stref;
 }    # END of _analyse_variables()
 

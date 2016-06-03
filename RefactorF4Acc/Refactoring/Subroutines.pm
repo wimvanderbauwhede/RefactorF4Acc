@@ -117,12 +117,12 @@ sub _refactor_subroutine_main {
     say "get_annotated_sourcelines($f)" if $V;
     my $annlines = $Sf->{'RefactoredCode'};
     
-    if ( $Sf->{'HasCommons'} or (
+    if (1 or $Sf->{'HasCommons'} or (
     exists $Sf->{'Contains'} and
     scalar @{$Sf->{'Contains'}}>0)) { 
         print "REFACTORING COMMONS for SUBROUTINE $f\n" if $V;
         
-        if ( $Sf->{'RefactorGlobals'} == 1 ) {
+        if ( $Sf->{'RefactorGlobals'} == 1 ) { 
             say "_refactor_globals_new($f)" if $V;
           $annlines = _refactor_globals_new( $stref, $f, $annlines );
 
@@ -379,23 +379,9 @@ sub rename_conflicting_locals {
 sub _refactor_globals_new {
     ( my $stref, my $f, my $annlines ) = @_;
     my $Sf = $stref->{'Subroutines'}{$f};
-#    croak Dumper($Sf) if $f eq 'ij_to_latlon';
+
     if ($Sf->{'RefactorGlobals'}==2) {
-    	die "This should NEVER happen!";
-#        warn "FIXME: the caller of a sub with RefactorGlobals ($f) should refactor its globals!";
-#        # Which child has RefactorGlobals==1?
-#        my @additional_includes=();
-#        for my $cs ($Sf->{'CalledSubs'}{'Set'}) {          
-#            if ($stref->{'Subroutines'}{$cs}{'RefactorGlobals'}==1) {
-#                for my $inc ($stref->{'Subroutines'}{$cs}{'CommonIncludes'}) {
-#                    if (not exists $Sf->{'CommonIncludes'}{$inc}) {
-#                        push @additional_includes, $inc;
-#                        croak "$inc from $cs was missing from $f"; 
-#                    } 
-#                }
-#                
-#            }
-#        }       
+    	die "This should NEVER happen!";    
     }
     
     # For the case of Contained subroutines
@@ -406,10 +392,7 @@ sub _refactor_globals_new {
 			$Sf->{'ParametersFromContainer'}=$stref->{'Subroutines'}{$container}{'Parameters'}; # Note this is a nested set
 			my $all_pars_in_container = get_vars_from_set( $stref->{'Subroutines'}{$container}{'Parameters'} );
 			for my $par ( keys %{$all_pars_in_container} ) { # @{ $stref->{'Subroutines'}{$container}{'Parameters'}{'List'} } ) {
-#				say $par;
-#				my $par_decl = $stref->{'Subroutines'}{$container}{'Parameters'}{'Set'}{$par};
 				my $par_decl = $all_pars_in_container->{$par};
-#					say Dumper($par_decl);
 				my $par_decl_line=[ '      '.emit_f95_var_decl($par_decl), {'ParamDecl' => $par_decl,'Ref'=>1}];
 				push @par_decl_lines_from_container,$par_decl_line; 
 			}			
@@ -417,7 +400,6 @@ sub _refactor_globals_new {
 	}
     
     print "REFACTORING GLOBALS in $f\n" if $V; 
-#    croak Dumper($Sf->{'AnnLines'}) if $f eq 'post';
     my $rlines      = [];
     my $s           = $Sf->{'Source'};
     my $hook_after_last_incl=0;
@@ -429,16 +411,12 @@ sub _refactor_globals_new {
  	my $inc_counter = scalar keys %{$Sf->{'Includes'}};
     for my $annline ( @{$annlines} ) {
         (my $line, my $info) = @{ $annline };
-#        show_annlines([$annline],1);
-#        print '*** ' . join( ', ', map {"$_ => ".Dumper($info->{$_})} keys(%{$info}) ) . "\n" if $V;
-#        print '*** ' . $line . "\n" if $V;
         my $skip = 0;
 
         if ( exists $info->{'Signature'} ) { 
             if (not exists $Sf->{'HasRefactoredArgs'} ) {
                 # This probably means the subroutine has no arguments at all.
                  # Do this before the analysis for RefactoredArgs!
-                 #die 'SHOULD NEVER HAPPEN! ' .'_refactor_globals_new() '. __LINE__ . Dumper($Sf);
                  $stref = refactor_subroutine_signature( $stref, $f );
                 warn '_refactor_globals_new() '. __LINE__ . " $f does not have HasRefactoredArgs\n";
                 say 'WARNING: _refactor_globals_new() '. __LINE__ . " $f does not have HasRefactoredArgs";
@@ -447,7 +425,6 @@ sub _refactor_globals_new {
             
             $rlines =
               create_refactored_subroutine_signature( $stref, $f, $annline, $rlines );
-#              croak Dumper $rlines->[0] if $f eq 'map_set';
 			$rlines = [@{$rlines},@par_decl_lines_from_container];              
             $skip = 1;
         } 
@@ -455,10 +432,8 @@ sub _refactor_globals_new {
         if ( exists $info->{'Include'} ) {
         	--$inc_counter;
             $skip = skip_common_include_statement( $stref, $f, $annline );
-#            say "SKIP: $skip";
 # Now, if this was a Common include to be skipped but it contains a Parameter include, I will simply replace the line:
 # TODO: factor out!
-#say "LINE: $line";
 			  my $inc       = $info->{'Include'}{'Name'};
 			  if  ( exists $stref->{'IncludeFiles'}{$inc}{'ParamInclude'} ) { 
 			  	my $param_inc=$stref->{'IncludeFiles'}{$inc}{'ParamInclude'};
@@ -467,12 +442,6 @@ sub _refactor_globals_new {
 			  	my $mod_param_inc=$param_inc;
 			  	$mod_param_inc=~s/\./_/g;
 			  	delete $info->{'Includes'};
-#			  	$line=~s/$inc/$mod_param_inc/;
-			  	# FIXME: ad-hoc!
-#			  	if ($line=~/^\s*\!/) {
-#			  		say "FIXME: line had been commented out before!";
-#			  	$line=~s/^\s*\!//;		
-#			  	}	  			  	
 			  	$info->{'Ann'}=[  annotate($f, __LINE__) ];                    			  	
 			  	$annline=[$line,$info];
 			  	push @{$rlines}, $annline ;
@@ -484,14 +453,8 @@ sub _refactor_globals_new {
         	$info->{'ExGlobVarDeclHook'} = 'AFTER LAST Include via _refactor_globals_new() line ' . __LINE__; 
         	$hook_after_last_incl=0;
         }
-#        if ( 0 and exists $info->{'ExGlobVarDeclHook'} ) { # OBSOLETE 
-#            # First, abuse ExGlobArgDecls as a hook for the addional includes, if any
-#            $rlines =
-#              create_new_include_statements( $stref, $f, $annline, $rlines );
-#        }
         if ( exists $info->{'ExGlobVarDeclHook'} ) {
         	# FIXME: I don't like this, because in the case of a program there should simply be no globals etc.
-        	#   
            # Then generate declarations for ex-globals
            say "EX-GLOBS for $f" if $V;
             $rlines = _create_extra_arg_and_var_decls( $stref, $f, $annline, $rlines );
@@ -588,22 +551,6 @@ sub _create_extra_arg_and_var_decls {
 		) {
     		$is_param=1;
     	}
-    		# Somehow this is empty, we need to get the Parameters from the includes so we need to either update 'Includes'
-    		# when we create the params version, or get ParamInclude from the Include
-    		
-    		
-#    		for my $inc (keys %{$Sf->{Includes}}) {
-#    			if (exists $stref->{IncludeFiles}{$inc}{'Parameters'}
-#    			and exists $stref->{IncludeFiles}{$inc}{'Parameters'}{'Set'}{$var}
-#    			) { # This is possible if it was 'InclType' eq 'Parameter'
-#    					$is_param=1;last;
-#    			} elsif (exists $stref->{IncludeFiles}{$inc}{'ParamInclude'}) {
-#    				my $param_include =$stref->{IncludeFiles}{$inc}{'ParamInclude'};
-#    				if (exists $stref->{IncludeFiles}{$param_include}{'Parameters'}{'Set'}{$var}) {
-#    					$is_param=1;last;
-#    				}
-#    			}
-#    		}
     	# I don't explicitly declare variables that conflict with reserved words or intrinsics.
     		if (not exists $F95_reserved_words{$var}
     		and not exists $F95_intrinsics{$var}    		
@@ -621,9 +568,23 @@ sub _create_extra_arg_and_var_decls {
                     push @{$rlines}, [ $rline,  $info ];
     		} else {
     			say "INFO: $var is a reserverd word" if $I;
-    		}   
-    	                     
-    }    # for        
+    		}       	                     
+    }    # for  
+
+    print "INFO: ExCommonVarDecls in $f\n" if $I;
+    for my $var ( @{ $Sf->{'UndeclaredCommonVars'}{'List'} } ) {
+    	say "INFO VAR: $var" if $I;
+                    my $rdecl = $Sf->{'UndeclaredCommonVars'}{'Set'}{$var}; 
+                    my $rline = emit_f95_var_decl($rdecl);                                         
+                    my $info={};
+                    $info->{'Ann'}=[annotate($f, __LINE__ .' : EX-IMPLICIT COMMON')  ];
+                    $info->{'LineID'}= $nextLineID++;
+                    $info->{'Ref'}=1;
+                    $info->{'VarDecl'}=$rdecl;
+                    push @{$rlines}, [ $rline,  $info ];                        
+    }    # for    
+    
+          
     return $rlines;
 } # END of _create_extra_arg_and_var_decls();
 
