@@ -516,8 +516,11 @@ sub _create_extra_arg_and_var_decls {
     }    # for
 
     print "INFO: ExImplicitArgDecls in $f\n" if $I;
+    my %unique_ex_impl=();
     for my $var ( @{ $Sf->{'ExImplicitArgDecls'}{'List'} } ) {
     	say "INFO VAR: $var" if $I;
+    	if (not exists $unique_ex_impl{$var}) {
+    			$unique_ex_impl{$var}=$var;
                     my $rdecl = $Sf->{'ExImplicitArgDecls'}{'Set'}{$var}; 
                     my $rline = emit_f95_var_decl($rdecl);                                         
                     my $info={};
@@ -525,7 +528,8 @@ sub _create_extra_arg_and_var_decls {
                     $info->{'LineID'}= $nextLineID++;
                     $info->{'Ref'}=1;
                     $info->{'VarDecl'}=$rdecl;
-                    push @{$rlines}, [ $rline,  $info ];                        
+                    push @{$rlines}, [ $rline,  $info ];
+    	}                        
     }    # for
 
     print "INFO: ExInclVarDecls in $f\n" if $I;

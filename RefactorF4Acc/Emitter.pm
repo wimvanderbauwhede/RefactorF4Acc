@@ -279,7 +279,7 @@ sub emit_all {
             print '! ','-' x 80,"\n";
             print "! SRC: $src\n";
             print "!\tCONTAINS: ";
-            print join(', ',keys %{  $stref->{'SourceContains'}{$src}   } ),"\n";
+            print join(', ',@{ $stref->{'SourceContains'}{$src}{'List'}   } ),"\n";
 	   }
 	   
         if (    not exists $stref->{'BuildSources'}{'C'}{$src}

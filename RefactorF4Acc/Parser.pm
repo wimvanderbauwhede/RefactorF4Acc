@@ -234,8 +234,7 @@ sub _initialise_decl_var_tables {
 
  # WV: Maybe I should have an additional record 'FromInclude' in the set record!
 			$Sf->{'ExGlobArgs'} = { 'Set' => {}, 'List' => [] };
-			$Sf->{'Globals'} = $Sf->{'ExGlobArgs'
-			  };    # WV: the original Globals is separated per include file
+			$Sf->{'Globals'} = $Sf->{'ExGlobArgs'};    
 			$Sf->{'ExInclArgs'}         = { 'Set' => {}, 'List' => [] };
 			$Sf->{'DeclaredOrigArgs'}   = { 'Set' => {}, 'List' => [] };
 			$Sf->{'UndeclaredOrigArgs'} = { 'Set' => {}, 'List' => [] };
@@ -244,6 +243,8 @@ sub _initialise_decl_var_tables {
 			
 			
 			$Sf->{'DeclaredCommonVars'}   = { 'Set' => {}, 'List' => [] };
+			
+			
 			$Sf->{'UndeclaredCommonVars'} = { 'Set' => {}, 'List' => [] };
 			$Sf->{'CommonVars'}           = {
 				'Subsets' => {
@@ -496,8 +497,26 @@ sub _analyse_lines {
 			$line =~ /^\s*(\w+\s+\w+\s+(?:function|subroutine)|\w+\s+(?:function|subroutine)|function|subroutine|program)\s+(\w+)/ && do {
 				my $full_proc_type=$1;
 				my $proc_name=$2;			
-				my $proc_type = $full_proc_type=~/program/ ? 'program' : $full_proc_type=~/subroutine/ ? 'subroutine' : 'function';   
-            						
+				my $proc_type = $full_proc_type=~/program/ ? 'program' : $full_proc_type=~/subroutine/ ? 'subroutine' : 'function';   					    
+				if ($proc_type eq 'function') {
+					$full_proc_type=~s/\s+$//;
+					if ($full_proc_type ne 'function') {
+						$full_proc_type=~s/\s+function//;
+						$full_proc_type=~s/\s*(?:pure|recursive)\s*//;
+						if ($full_proc_type ne '') {
+							$Sf->{'DeclaredOrigLocalVars'}{'Set'}{$proc_name}={
+								'Indent'=> $indent,
+								'Type'          => 'BOOM'.$full_proc_type ,
+								'ArrayOrScalar' => 'Scalar',
+								'Dim'           => [],
+								'Attr' => '',
+								'IODir' => 'Out',
+								'Name'=>$proc_name
+							};
+							push @{ $Sf->{'DeclaredOrigLocalVars'}{'List'} },$proc_name; 
+						}
+					}
+				}								        						
 				++$block_nest_counter;
 				++$block_counter;
 				
@@ -582,6 +601,7 @@ sub _analyse_lines {
 					} else {
 						$mline = $rest;
 					}
+					
 				}
 
 				if ( $line =~ /^\s*\d*\s+if\s*\((.+)\)\s*(\w+)/ ) {
@@ -782,9 +802,10 @@ sub _analyse_lines {
 			{
 				$info->{'Assignment'} = 1;
 				my $free_form =  $Sf->{'FreeForm'};
-				$line = __remove_blanks($mline,$free_form);
+							
+				$mline = __remove_blanks($mline,$free_form);
+				$line = __remove_blanks($line,$free_form);
 #WV20150303: We parse this assignment and return {Lhs => {Varname, ArrayOrScalar, IndexExpr}, Rhs => {Expr, VarList}}
-#say "WRONG LINE:".$line;
 
 				$info = _parse_assignment( $mline, $info, $stref, $f );
 
@@ -924,6 +945,7 @@ sub _analyse_lines {
 					 my $vline = $indent."$type, $var_dim  :: $varname";
 				( $Sf, my $info ) =
 				  __parse_f95_decl( $Sf, $vline, {'Dimension' => 1}, "$type, $var_dim", $varname );
+				  
 				  
 					push @{ $extra_lines{$index} }, [$indent."dimension $dline",$info];  
 				}
@@ -2465,8 +2487,8 @@ sub __create_new_subroutine_entries {
 			$annline->[1]{'LineID'} = $line_id++;
 		}
 
-		$stref->{'SourceContains'}{"./$block.f95"}{$block} =
-		  'Subroutines';                                # was $Sf->{'Source'}
+		$stref->{'SourceContains'}{"./$block.f95"}{'Set'}{$block} = 'Subroutines';
+		push @{ $stref->{'SourceContains'}{"./$block.f95"}{'List'} }, $block;		  
 		$Sblock->{'RefactorGlobals'} = 1;
 		$stref->{'Subroutines'}{$block} = $Sblock;
 		if ( $Sf->{'RefactorGlobals'} == 0 ) {
@@ -3153,7 +3175,9 @@ sub __parse_f95_decl {
 				}
 
 				$decl->{'IODir'} = $pt->{'Attributes'}{'Intent'};
+				
 				if ( exists $Sf->{'UndeclaredOrigArgs'}{'Set'}{$tvar} ) {
+					
 					$Sf->{'DeclaredOrigArgs'}{'Set'}{$tvar} = $decl;
 					delete $Sf->{'UndeclaredOrigArgs'}{'Set'}{$tvar};
 					@{ $Sf->{'UndeclaredOrigArgs'}{'List'} } =
@@ -3163,15 +3187,35 @@ sub __parse_f95_decl {
 					  ordered_union( $Sf->{'DeclaredOrigArgs'}{'List'},
 						[$tvar] );
 				} else { # A var decl must be unique, so it it's not a arg, it's a local
+				
 				# I added this check so that I can use the parser for variables that are declared using implicit rules 
-				if (exists $Sf->{'UndeclaredOrigLocalVars'}{'Set'}{$tvar} ) {
-					$Sf->{'UndeclaredOrigLocalVars'}{'Set'}{$tvar} = $decl;
-					push @{ $Sf->{'UndeclaredOrigLocalVars'}{'List'} }, $tvar;
-					
-				} else {
-					$Sf->{'DeclaredOrigLocalVars'}{'Set'}{$tvar} = $decl;
-					push @{ $Sf->{'DeclaredOrigLocalVars'}{'List'} }, $tvar;
-				}
+					if (exists $Sf->{'UndeclaredOrigLocalVars'}{'Set'}{$tvar} ) {
+						
+						$Sf->{'UndeclaredOrigLocalVars'}{'Set'}{$tvar} = $decl;
+												
+						my @test=grep {$_ eq $tvar}  @{ $Sf->{'UndeclaredOrigLocalVars'}{'List'} };
+						if ( scalar @test == 0) { 
+							push @{ $Sf->{'UndeclaredOrigLocalVars'}{'List'} }, $tvar;
+						} 
+					} else {
+						
+					if (exists $Sf->{'UndeclaredCommonVars'}{'Set'}{$tvar} ) {
+						$Sf->{'UndeclaredCommonVars'}{'Set'}{$tvar} = $decl;
+						my @test=grep {$_ eq $tvar}  @{ $Sf->{'UndeclaredCommonVars'}{'List'} };
+						if ( scalar @test == 0) { 
+							push @{ $Sf->{'UndeclaredCommonVars'}{'List'} }, $tvar;
+						} 
+					} else {
+						
+						
+						$Sf->{'DeclaredOrigLocalVars'}{'Set'}{$tvar} = $decl;
+						
+						my @test=grep {$_ eq $tvar}  @{ $Sf->{'DeclaredOrigLocalVars'}{'List'} };
+						if ( scalar @test == 0) { 
+							push @{ $Sf->{'DeclaredOrigLocalVars'}{'List'} }, $tvar;
+						}
+					}
+					}
 				}
 			}
 		}

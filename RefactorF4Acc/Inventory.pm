@@ -106,7 +106,10 @@ sub find_subroutines_functions_and_includes {
 
         say "INFO: Fortran SOURCE: $src" if $I; 
 
-    	
+    	$stref->{'SourceContains'}{$src}={
+    		'Set'=>{},
+    		'List'=>[]
+    	};
         $stref=_process_src($src,$stref);
         
     }
@@ -265,9 +268,10 @@ sub _process_src {
            $line =~ /^\s*(\w+\s+\w+\s+(?:function|subroutine)|\w+\s+(?:function|subroutine)|function|subroutine|program)\s+(\w+)/i && do {
            	
             	my $full_proc_type=$1;
-#            	say "PROC TYPE: $proc_type";
+            	
             	my $proc_name=$2;
 #            	croak if $proc_name eq 'psim';
+#				say "PROC NAME: $proc_name PROC TYPE: $full_proc_type";
 				my @proc_type_chunks = split(/\s+/,$full_proc_type);
 				my $proc_type=$proc_type_chunks[-1];
                 my $is_prog = (lc($proc_type) eq 'program') ? 1 : 0;
@@ -293,13 +297,15 @@ sub _process_src {
 	                $srctype='Subroutines';
 	                
 	                $stref->{'Subroutines'}{$sub}={};
-	                $stref->{'SourceContains'}{$src}{$sub}=$srctype;
+	                $stref->{'SourceContains'}{$src}{'Set'}{$sub}=$srctype;
+	                push @{ $stref->{'SourceContains'}{$src}{'List'} },$sub;
 	                my $Ssub = $stref->{'Subroutines'}{$sub};
 	                if ($is_function) {
 	                	$Ssub->{'Function'} = 1;     
 	                }
 	                    $Ssub->{'Source'}  = $src;
 	                    $Ssub->{'Status'}  = $UNREAD;
+	                    
 	                    $Ssub->{'Program'} = $is_prog;
 	                    $Ssub->{'Recursive'} = $is_rec;
 	                    $Ssub->{'Pure'} = $is_pure;
@@ -309,18 +315,19 @@ sub _process_src {
                 } else {
                 	$Ssub->{'Pure'} = 0;
                 }	                    
-	                    $Ssub->{'Callers'}  = {};
-	                    if ($is_prog==1) {
-	                    	$stref->{'Program'}=$src;	                    	
-	                    } elsif ($in_contains==1) {
-	                    	$Ssub->{'Container'} = $container;
-	                    	push @{ $stref->{'Subroutines'}{$container}{'Contains'} }, $sub;
-	                    } 
-	                    
-	                    if ($translate_to ne '') {
-	                        $Ssub->{'Translate'}  = $translate_to;
-	                        $translate_to = '';
-	                    }
+                    $Ssub->{'Callers'}  = {};
+                    if ($is_prog==1) {
+                    	
+                    	$stref->{'Program'}=$src;	                    	
+                    } elsif ($in_contains==1) {
+                    	$Ssub->{'Container'} = $container;
+                    	push @{ $stref->{'Subroutines'}{$container}{'Contains'} }, $sub;
+                    } 
+                    
+                    if ($translate_to ne '') {
+                        $Ssub->{'Translate'}  = $translate_to;
+                        $translate_to = '';
+                    }
 	
                 } elsif ($in_interface_block) {
                 	$stref->{$srctype}{$mod_name}{'Interface'}{$sub}=1; #WV: TODO: add functionality here

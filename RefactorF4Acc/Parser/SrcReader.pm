@@ -53,8 +53,8 @@ sub read_fortran_src {
         if ( not exists $stref->{'SourceContains'}{$f} ) {
             $no_need_to_read = 0;
         } else {
-            for my $item ( keys %{ $stref->{'SourceContains'}{$f} } ) {
-                my $srctype = $stref->{'SourceContains'}{$f}{$item};
+            for my $item ( @{ $stref->{'SourceContains'}{$f}{'List'} } ) {
+                my $srctype = $stref->{'SourceContains'}{$f}{'Set'}{$item};
                 my $status  = $stref->{$srctype}{$item}{'Status'};
 
                 # if one of them is still UNREAD, need to read.
