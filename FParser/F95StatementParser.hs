@@ -1,17 +1,27 @@
-module F95StatementParser  ( parseF95Statement ) where
+module F95StatementParser  ( parseF95Statement,parseF95Decl ) where
 
 -- import whatever you need
 import Language.Fortran.Parser
 import Language.Fortran
+import qualified Data.Map as H
+type A0 = H.Map String [String]
 -- Must be compiled with -i../language-fortran/src/
 
 -- This function takes a single line of F95, no preprocessing is required from your side
 -- It returns the string resulting from calling `show` on the parsed expression
-parseF95Statement :: String -> String -> String
-parseF95Statement f95_line context_str = show (fortranAst,contextAst)
+parseF95Statement :: String  -> (Fortran A0, String)
+parseF95Statement f95_line = (fortranAst, show fortranAst ) -- ,contextAst)
 		where
-			fortranAst = statement_parse "var = v(42)+w(2*i+j)\n" -- f95_line
-			contextAst = context_parse "integer :: vvv,v" -- context_str
+			fortranAst = statement_parse f95_line
+--			contextAst = context_parse "integer :: vvv,v" -- context_str
+
+parseF95Decl :: String  -> (Decl A0, String)
+parseF95Decl f95_line = (contextAst, show contextAst ) -- ,contextAst)
+		where
+--			fortranAst = statement_parse f95_line
+			contextAst = context_parse f95_line
+
+
 -- Lanauge fortran doesn't include type information with assignments and my compiler only
 -- considers types when evaluating iterator value ranges during loop analysis. 
 
