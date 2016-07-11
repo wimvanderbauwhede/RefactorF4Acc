@@ -570,42 +570,47 @@ sub _analyse_lines {
 				next;				
 			} elsif ( $line =~ /^\s*\d*\s+(else\s+if)/ ) {
 				$info->{'ElseIf'} = 1;
+				# FIXME: I should parse this as well! 
 			} elsif ( $line =~ /^\s*\d*\s+(if|else|select|case)\s*\(/
 				or $line =~ /^\s*\d*\s+(return|stop)\s*/ )
 			{
-				
+			 	
 				my $keyword = $1;
 				$info->{ ucfirst($keyword) } = 1;
-
-				# Must parse at least the if statements here!
-				#				say $line if $line=~/^\s*if/;
+			
+			# The following part should be in a separate condition block I think
+			
+			# What I should do is:
+			# Detect an IF. If so, detect if it is a THEN or an expression. 
+			# Get any variables from the condition. If it's an expression, assign it to $mline and just carry on. 
+			
 				my $is_cond_assign = 0;
 				my $is_cond        = 0;
 				my $cond           = '';
 				my $rest           = '';
-				if ( $line =~ /^\s*\d*\s+if\s*\(.+=/ ) {
+				if ( $line =~ /^\s*\d*\s+if\s*\(.+=/ ) { # an IF with an equals sign
 					( my $if_cond, my $rest ) = _parse_if_cond($line);
 
-					#				say "IF_COND $if_cond REST $rest";
+					# So here we look at the part after the condition expression
 					( my $maybe_lhs, my $maybe_rhs ) =
 					  _parse_array_access_or_function_call($rest);
 
 					#				say "LHS $maybe_lhs RHS <$maybe_rhs>";
 					if ( $maybe_rhs =~ /=/ ) {
-
- #					( $cond, my $lhs, my $sep, my $rhs ) = conditional_assignment_fsm($line);
+# Is this an assignment?
 						$mline                  = "$maybe_lhs$maybe_rhs";
 						$info->{'CondExecExpr'} = $mline;
 						$is_cond_assign         = 1;
 						$is_cond                = 1;
 					} else {
+						# Otherwise it is a subroutine call, but I guess it could also just be 'then' 
 						$mline = $rest;
 					}
 					
 				}
 
-				if ( $line =~ /^\s*\d*\s+if\s*\((.+)\)\s*(\w+)/ ) {
-					
+				if ( $line =~ /^\s*\d*\s+if\s*\((.+)\)\s*(\w+)/ ) { # and IF 
+					# This just tests for a condition
 					$cond    = $1;
 					$rest    = $2;			
 					# remove spaces from condition							
@@ -624,6 +629,7 @@ sub _analyse_lines {
 					$is_cond = 1;
 				}
 				if ( $is_cond_assign or $is_cond ) {
+					# This part looks at the condition to get variables form it
 					$cond =~ s/[\(\)]+/ /g;
 					$cond =~ s/\.(eq|ne|gt|ge|lt|le|and|or|not|eqv|neqv)\./ /g;
 
@@ -954,9 +960,10 @@ sub _analyse_lines {
 				next;
 #				 croak Dumper($Sf->{'Vars'}); 	
 
-			# COMMON block processing
+			# COMMON block processing for common blocks not in an include file
 			# common /name/ x...
 			# However, common/name/x is also valid, and even  common x, damn F77!
+			# And in fact, so is common /name/ x,y, /name2/ w,z
 		} elsif ( $line =~ /^\s*common\s*\/\s*([\w\d]+)\s*\/\s*(.+)$/ or 
 				$line =~ /^\s*(common)\s+(.+)$/ 
 		 ) {
@@ -1792,6 +1799,7 @@ sub _get_commons_params_from_includes {
 			# COMMON block processing
 			# common /name/ x...
 			# However, common/name/x is also valid, damn F77!
+			# And in fact, so is common /name/ x,y, /name2/ w,z 
 			if ( $line =~ /^\s*common\s*\/\s*([\w\d]+)\s*\/\s*(.+)$/ ) {
 				my $common_block_name = $1;
 				my $commonlst         = $2;
