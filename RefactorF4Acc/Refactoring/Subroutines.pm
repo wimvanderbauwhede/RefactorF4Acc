@@ -7,7 +7,7 @@ use RefactorF4Acc::Refactoring::Subroutines::Signatures qw( create_refactored_su
 use RefactorF4Acc::Refactoring::Subroutines::Includes qw( skip_common_include_statement create_new_include_statements create_additional_include_statements );
 use RefactorF4Acc::Refactoring::Subroutines::Declarations qw( create_exglob_var_declarations create_refactored_vardecls );
 use RefactorF4Acc::Refactoring::Subroutines::Calls qw( create_refactored_subroutine_call );
-
+use RefactorF4Acc::Parser::Expressions qw( emit_expression );
 # 
 #   (c) 2010-2012 Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
 #   
@@ -179,165 +179,72 @@ sub _fix_end_lines {
     }
     return $rlines;
 } # END of _fix_end_lines()
+
 # -----------------------------------------------------------------------------
-#_refactor_globals() 
-#- creates a refactored subroutine sig based on RefactoredArgs
-#- skips Common include statements, so it only keeps Parameter (I hope)
-#- create_new_include_statements, this should be OBSOLETE, except that it takes ParamIncludes out of other Includes and instantiates them.
-#- creates ex-glob arg declarations, basically we have to look at ExInclArgs, UndeclaredOrigArgs and ExGlobArgs.  
-#- create_refactored_vardecls is a misnomer, it renames locals conflicting woth globals. I think that has been sorted now. We should generate decls for ExInclLocalVars and UndeclaredOrigLocalVars.
-#- create_refactored_subroutine_call, I hope we can keep this
-#- rename_conflicting_locals, I hope we can keep this
-#sub _refactor_globals { croak 'OBSOLETE, I HOPE!';
+#sub _refactor_calls_globals {
 #    ( my $stref, my $f, my $annlines ) = @_;
-#    my $Sf = $stref->{'Subroutines'}{$f};
-#    
-#    if ($Sf->{'RefactorGlobals'}==2) {
-#    	die "This should NEVER happen!";
-#        warn "FIXME: the caller of a sub with RefactorGlobals ($f) should refactor its globals!";
-#        # Which child has RefactorGlobals==1?
-#        my @additional_includes=();
-#        for my $cs ($Sf->{'CalledSubs'}) {          
-#            if ($stref->{'Subroutines'}{$cs}{'RefactorGlobals'}==1) {
-#                for my $inc ($stref->{'Subroutines'}{$cs}{'CommonIncludes'}) {
-#                    if (not exists $Sf->{'CommonIncludes'}{$inc}) {
-#                        push @additional_includes, $inc;
-#                        croak "$inc from $cs was missing from $f"; 
-#                    } 
-#                }
-#                
-#            }
-#        }       
-#    }
-#    
-#    print "REFACTORING GLOBALS in $f\n" if $V; 
+##    my $annlines = get_annotated_sourcelines($stref,$f);
+##local $V =1;
+##local $I =1;
+##local $W =1; 
+#    croak "OBSOLETE! REFACTORING CALLS WITH GLOBALS in $f\n" if $V;
 #    my $rlines      = [];
-#    my $s           = $Sf->{'Source'};
-#
+##    local $V=1;
+#    my $idx         = 0;
+#    my $firstinc=1;
 #    for my $annline ( @{$annlines} ) {
-#        (my $line, my $info) = @{ $annline };
+#        my $line      = $annline->[0] || '';
+#        my $info = $annline->[1];
 #        
-#        print '*** ' . join( ', ', map {"$_ => ".Dumper($info=>{$_})} keys(%{$info}) ) . "\n" if $DBG;
+#        print '*** ' . join( ',', map {"$_ => ".$info->{$_}} keys(%{$info}) ) . "\n" if $DBG;
 #        print '*** ' . $line . "\n" if $DBG;
 #        my $skip = 0;
 #
-#        if ( exists $info->{'Signature'} ) {
-#            if (not exists $Sf->{'HasRefactoredArgs'} ) {
-#                 # Do this before the analysis for RefactoredArgs!
-#                 $stref = refactor_subroutine_signature( $stref, $f );
-#            }
-#            $rlines =
-#              create_refactored_subroutine_signature( $stref, $f, $annline,
-#                $rlines );
-#            $skip = 1;
-#        } 
-#        # There should be no need to do this: all /common/ blocks should have been removed anyway!
-#        if ( exists $info->{'Include'} ) {
-#            $skip = skip_common_include_statement( $stref, $f, $annline );
-##            say "SKIP: $skip";
+## FIXME: rather we should find the line _after_ the last include!
+## so we need $prevline in the reader or parser
+## Basically I can keep an index counter and increment it every time I find an include
+## then the next line, whatever it is, becomes "ExtraIncludesHook"        
+##croak "Hook" if $f eq 'timemanager';
+#        if ( (exists $info->{'ExtraIncludesHook'}) && ($firstinc==1)) {        	   
+#        	
+##        if ( exists $info->{'Include'} && $firstinc ) {
+#        	$firstinc =0;
+#            # First, add addional includes if required
+#            $rlines = create_additional_include_statements( $stref, $f, $annline, $rlines );
+#            
+### While we're here, might as well generate the declarations for remapping and reshaping.
+### If the subroutine contains a call to a function that requires this, of course.
+### Executive decision: do this only for the routines to be translated to C/OpenCL
+##            for my $called_sub ( keys %{ $Sf->{'CalledSubs'}{'Set'} } ) {
+##                if ( exists $subs_to_translate{$called_sub} ) {
+##
+##                 # OK, we need to do the remapping, so create the machinery here
+##                 # 1. Get the arguments of the called sub
+##
+### 2. Work out if they need reshaping. If so, create the declarations for the new 1-D arrays
+##
+### 3. Work out which remapped arrays will be used; create the declarations for these arrays
+##
+##                }
+##            }
+##            $skip = 1;
 #        }
-#        
-#        if ( exists $info->{'ExGlobVarDeclHook'} ) {
-#            # First, abuse ExGlobArgs as a hook for the addional includes, if any
-#            $rlines =
-#              create_new_include_statements( $stref, $f, $annline, $rlines );
-#              
-#           # Then generate declarations for ex-globals
-#           say "EX-GLOBS for $f" if $V;
-#            $rlines = create_exglob_var_declarations( $stref, $f, $annline, $rlines );
-#
-#        } 
-#        
-#        # This is what breaks flexpart, but it's OK for les ...
-#        if ( exists $info->{'VarDecl'} and not exists $info->{'Deleted'} and (not exists $info->{Ref} or $info->{Ref}==0)) {
-#            $rlines = create_refactored_vardecls( $stref, $f, $annline, $rlines,0 );
-#            $skip = 1;
-#        }
-#
-#        if ( exists $info->{'SubroutineCall'} ) {
+#        if ( exists $info->{'SubroutineCall'} 
+#        &&  exists $stref->{'Subroutines'}{ $info->{'SubroutineCall'}{'Name'} }{'RefactorGlobals'} 
+#        &&  $stref->{'Subroutines'}{ $info->{'SubroutineCall'}{'Name'} }{'RefactorGlobals'} ==1
+#        ) {
 #            # simply tag the common vars onto the arguments
-#            $rlines = create_refactored_subroutine_call( $stref, $f, $annline, $rlines );        
+#            $rlines = create_refactored_subroutine_call( $stref, $f, $annline,
+#                $rlines );
+#                
 #            $skip = 1;
 #        }
 #
-#        if ( not exists $info->{'Comments'} and not exists $info->{'Deleted'} and $skip == 0 ) {
-#            $rlines =
-#              rename_conflicting_locals( $stref, $f, $annline, $rlines );
-#            $skip = 1;
-#        }
-##        say "SKIP ULT: $skip";
 #        push @{$rlines}, $annline unless $skip;
-#        
-#    } # loop over all lines
-#    
-#    return $rlines;
-#}    # END of _refactor_globals()
-
-# -----------------------------------------------------------------------------
-sub _refactor_calls_globals {
-    ( my $stref, my $f, my $annlines ) = @_;
-#    my $annlines = get_annotated_sourcelines($stref,$f);
-#local $V =1;
-#local $I =1;
-#local $W =1; 
-    print "REFACTORING CALLS WITH GLOBALS in $f\n" if $V;
-    my $rlines      = [];
-#    local $V=1;
-    my $idx         = 0;
-    my $firstinc=1;
-    for my $annline ( @{$annlines} ) {
-        my $line      = $annline->[0] || '';
-        my $info = $annline->[1];
-        
-        print '*** ' . join( ',', map {"$_ => ".$info->{$_}} keys(%{$info}) ) . "\n" if $DBG;
-        print '*** ' . $line . "\n" if $DBG;
-        my $skip = 0;
-
-# FIXME: rather we should find the line _after_ the last include!
-# so we need $prevline in the reader or parser
-# Basically I can keep an index counter and increment it every time I find an include
-# then the next line, whatever it is, becomes "ExtraIncludesHook"        
-#croak "Hook" if $f eq 'timemanager';
-        if ( (exists $info->{'ExtraIncludesHook'}) && ($firstinc==1)) {        	   
-        	
-#        if ( exists $info->{'Include'} && $firstinc ) {
-        	$firstinc =0;
-            # First, add addional includes if required
-            $rlines = create_additional_include_statements( $stref, $f, $annline, $rlines );
-            
-## While we're here, might as well generate the declarations for remapping and reshaping.
-## If the subroutine contains a call to a function that requires this, of course.
-## Executive decision: do this only for the routines to be translated to C/OpenCL
-#            for my $called_sub ( keys %{ $Sf->{'CalledSubs'}{'Set'} } ) {
-#                if ( exists $subs_to_translate{$called_sub} ) {
-#
-#                 # OK, we need to do the remapping, so create the machinery here
-#                 # 1. Get the arguments of the called sub
-#
-## 2. Work out if they need reshaping. If so, create the declarations for the new 1-D arrays
-#
-## 3. Work out which remapped arrays will be used; create the declarations for these arrays
-#
-#                }
-#            }
-#            $skip = 1;
-        }
-        if ( exists $info->{'SubroutineCall'} 
-        &&  exists $stref->{'Subroutines'}{ $info->{'SubroutineCall'}{'Name'} }{'RefactorGlobals'} 
-        &&  $stref->{'Subroutines'}{ $info->{'SubroutineCall'}{'Name'} }{'RefactorGlobals'} ==1
-        ) {
-            # simply tag the common vars onto the arguments
-            $rlines = create_refactored_subroutine_call( $stref, $f, $annline,
-                $rlines );
-                
-            $skip = 1;
-        }
-
-        push @{$rlines}, $annline unless $skip;
-        $idx++;
-    }
-    return $rlines;    
-}    # END of _refactor_calls_globals()
+#        $idx++;
+#    }
+#    return $rlines;    
+#}    # END of _refactor_calls_globals()
 
 # --------------------------------------------------------------------------------
 # This routine renames instances of locals that conflict with globals (using names from ConflictingGlobals )
@@ -411,6 +318,8 @@ sub _refactor_globals_new {
  	my $inc_counter = scalar keys %{$Sf->{'Includes'}};
     for my $annline ( @{$annlines} ) {
         (my $line, my $info) = @{ $annline };
+#        say "LINE: $line";
+#        if ($line=~/ff059/) {say Dumper($info)};
         my $skip = 0;
 
         if ( exists $info->{'Signature'} ) { 
@@ -423,8 +332,7 @@ sub _refactor_globals_new {
                 croak;
             }
             
-            $rlines =
-              create_refactored_subroutine_signature( $stref, $f, $annline, $rlines );
+            $rlines = create_refactored_subroutine_signature( $stref, $f, $annline, $rlines );
 			$rlines = [@{$rlines},@par_decl_lines_from_container];              
             $skip = 1;
         } 
@@ -465,6 +373,14 @@ sub _refactor_globals_new {
             $rlines = _create_refactored_subroutine_call( $stref, $f, $annline, $rlines );        
             $skip = 1;
         }
+        
+        if ( exists $info->{'FunctionCalls'} ) {
+#        	say "LINE HAS FUNCTION CALL: $line"; 
+            # Assignment and Subroutine call lines can contain function calls that also need exglob refactoring!            
+            $rlines = _create_refactored_function_calls( $stref, $f, $annline, $rlines );        
+            $skip = 1;
+        }        
+        
         push @{$rlines}, $annline unless $skip;
         
     } # loop over all lines
@@ -492,7 +408,7 @@ sub _create_extra_arg_and_var_decls {
     	and not exists $Sf->{'DeclaredCommonVars'}{'Set'}{$var}
 #    	and not exists $Sf->{'UndeclaredCommonVars'}{'Set'}{$var}
     	) {
-#    		say "WHERE is $var? ".in_nested_set($Sf,'Vars',$var);
+#    		say "WHERE is $var in $f? ".in_nested_set($Sf,'CommonVars',$var) if $var eq 'iacn11';
     	say "INFO VAR: $var ".Dumper($Sf->{'ExGlobArgs'}{'Set'}{$var}{'IODir'} ) if $I;
                     my $rdecl = $Sf->{'ExGlobArgs'}{'Set'}{$var}; 
                     my $rline = emit_f95_var_decl($rdecl);
@@ -643,3 +559,79 @@ sub _create_refactored_subroutine_call {
     }
     return $rlines;
 }    # END of _create_refactored_subroutine_call()
+
+# This is for lines that contain function calls, so in practice either assignments or subroutine calls
+sub _create_refactored_function_calls { 
+    ( my $stref, my $f, my $annline, my $rlines ) = @_;
+    my $Sf        = $stref->{'Subroutines'}{$f};
+    (my $line, my $info) = @{ $annline };
+
+    
+     
+		# Get the AST
+		my $ast = [];
+		if (exists $info->{'Assignment'} ) {
+			$ast= $info->{'Rhs'}{'ExpressionAST'};
+		} elsif ( exists $info->{'SubroutineCall'} ) {
+			$ast = $info->{'SubroutineCall'}{'ExpressionAST'}
+		} else {
+			carp "UNSUPPORTED STATEMENT FOR FUNCTION CALL: $line ( _create_refactored_function_calls )";
+		} 	
+		# Update the function calls in the AST
+		# Basically, whenever we meet a function, we query it for ExGlobArgs and tag these onto te argument list.
+		my $updated_ast = __update_function_calls_in_AST($stref,$Sf,$f,$ast);
+		my $updated_line = emit_expression($updated_ast);
+    
+		if (exists $info->{'Assignment'} ) {
+			$line=~s/=.+$//;
+			$line.=	' = '.$updated_line;
+		} elsif (exists $info->{'SubroutineCall'}) {
+			$line=~s/call.+$//;
+			$line.=	'call '.$updated_line;			
+		}
+    push @{$rlines}, [ $line , $info ];
+    
+    return $rlines;
+}    # END of _create_refactored_function_calls()
+
+sub __update_function_calls_in_AST { (my $stref, my $Sf,my $f, my $ast) = @_;
+	if (ref($ast) eq 'ARRAY') {
+		my $nelts = scalar @{$ast};
+		for my  $idx (0 .. $nelts-1) {		
+			my $entry = $ast->[$idx];
+			if (ref($entry) eq 'ARRAY') {
+				my $entry = __update_function_calls_in_AST($stref,$Sf,$f,$entry);
+				$ast->[$idx] = $entry;
+			} else {
+				if ($entry eq '&') {				
+					my $name = $ast->[$idx+1];
+				    if ($name ne $f and exists $stref->{'Subroutines'}{$name}{'ExGlobArgs'}) {       
+				        my @globals = @{ $stref->{'Subroutines'}{$name}{'ExGlobArgs'}{'List'} };        
+				        my @maybe_renamed_exglobs=();
+				        for my $ex_glob (@globals) {
+				        	# $ex_glob may be renamed or not. I test this using OrigName. 
+				        	# This way I am sure I get only original names
+				        	if (exists $stref->{'Subroutines'}{$name}{'ExGlobArgs'}{'Set'}{$ex_glob}{'OrigName'}) {
+								$ex_glob = $stref->{'Subroutines'}{$name}{'ExGlobArgs'}{'Set'}{$ex_glob}{'OrigName'};		
+				        	}        	
+				        	if (exists $Sf->{'RenamedInheritedExGLobs'}{'Set'}{$ex_glob}) {
+				        		say "INFO: RENAMED $ex_glob => ".$Sf->{'RenamedInheritedExGLobs'}{'Set'}{$ex_glob} . ' in call to ' . $name . ' in '. $f if $I;
+				        		push @maybe_renamed_exglobs, $Sf->{'RenamedInheritedExGLobs'}{'Set'}{$ex_glob};
+				        	} else {
+				        		push @maybe_renamed_exglobs,$ex_glob;
+				        	}
+				        }
+				    
+				    	my $j=0;
+					    for my $extra_arg (@maybe_renamed_exglobs) {
+					    	$ast->[$nelts+$j]=['$',$extra_arg];
+					    	$j++;
+					    }
+				    }						
+				} 
+			}		
+		}
+	}
+	return  $ast;#($stref,$f, $ast);
+	
+} # END of __update_function_calls_in_AST()

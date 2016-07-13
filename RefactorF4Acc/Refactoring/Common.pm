@@ -102,13 +102,15 @@ sub context_free_refactorings {
         	$info->{'Ann'}=[ annotate($f, __LINE__ .' Original Implicit statement' ) ];
 #            next;
         }	        
-        if ( exists $info->{'Dimension'} ) { 
+        if ( exists $info->{'Dimension'} ) {
+        	say "DIM LINE: $line STMT COUNT".Dumper($info->{'StmtCount'}); 
         	$line = '! '.$line;
         	$info->{'Deleted'}=1;
         	$info->{'Ann'}=[ annotate($f, __LINE__ .' Original Dimension statement' ) ];
 #            next;
         }	
-        if ( exists $info->{'Common'} ) { 
+        if ( exists $info->{'Common'} ) {
+        	say "COMMON LINE: $line STMT COUNT ".Dumper($info->{'StmtCount'}); 
         	$line = '! '.$line;
         	$info->{'Deleted'}=1;
         	$info->{'Ann'}=[ annotate($f, __LINE__ .' Original Common statement' ) ];
@@ -198,9 +200,9 @@ sub context_free_refactorings {
 # This section refactors variable and parameter declarations
 # ------------------------------------------------------------------------------
 
-        if ( exists $info->{'VarDecl'} ) {
-#        	say "LINE: $line";
+        if ( exists $info->{'VarDecl'} ) {        	        
         	my $var =  $info->{'VarDecl'}{'Name'};
+        	say "LINE: $line STMT COUNT $var = ".$info->{'StmtCount'}{$var};
             if (exists  $info->{'ParsedVarDecl'} ) {
                 my $pvd = $info->{'ParsedVarDecl'}; 
                 if (scalar @{ $info->{'ParsedVarDecl'}{'Vars'} } == 1) {
@@ -216,8 +218,9 @@ sub context_free_refactorings {
                 $info->{'Deleted'} = 1;
                 $info->{'Ann'}=[ annotate($f, __LINE__ .' Removed ParamDecl' ) ];
             } elsif (not exists $info->{'Ref'} or $info->{'Ref'} == 0 ){
+#            	say Dumper($Sf->{'Vars'});
                 my $var_decl = get_var_record_from_set( $Sf->{'Vars'},$var);
-                $line = emit_f95_var_decl($var_decl) ;
+                $line = emit_f95_var_decl($var_decl) ;                
                 delete $info->{'ExGlobArgDecls'};
                 $info->{'Ref'} = 1;                 
                 push @{$info->{'Ann'}}, annotate($f, __LINE__ .': Ref==0' );

@@ -48,7 +48,8 @@ sub remove_vars_masking_functions { ( my $stref ) = @_;
                 delete $stref->{'Subroutines'}{$f}{'OrigArgs'}{$var};
                 delete $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{$var};
                 $info->{'Deleted'}=1;   
-                $line = '! '.$line;             
+#                $line = '! '.$line;
+                push @{$info->{'Ann'}}, annotate($f, __LINE__  );             
                 return ([$line, $info], [$stref, $f]);
             }
         }

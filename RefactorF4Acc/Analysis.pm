@@ -385,7 +385,7 @@ sub _analyse_variables {
 	my $state = [ $stref, $f, {} ];
 
 	( $stref, $state ) = stateful_pass( $stref, $f, $__analyse_vars_on_line, $state, '_analyse_variables() ' . __LINE__ );
-#	say "$f:".Dumper($stref->{'Subroutines'}{$f}{'ExGlobArgs'});
+	say "$f ExGlobArgs:".Dumper($stref->{'Subroutines'}{$f}{'ExGlobArgs'});
 	my $maybe_ex_globs = $stref->{'Subroutines'}{$f}{'ExGlobArgs'}{'List'};
 #	say "$f:".Dumper($maybe_ex_globs);
 	if (

@@ -96,7 +96,7 @@ sub parse_expression { (my $exp, my $info, my $stref, my $f)=@_;
 	    $ast->[1]=~s/_/\#/g;
 	}
     #( $stref, $f, $ast)
-    $ast = _change_func_to_array($stref,$f,$info,$ast, $exp);
+    $ast =  _change_func_to_array($stref,$f,$info,$ast, $exp);
 #    say Dumper($ast) if $preproc_expr=~/lvon01/;
 	return $ast;
 }
@@ -108,28 +108,31 @@ sub _change_func_to_array { (my $stref, my $f,  my $info, my $ast, my $exp)=@_;
 		my $entry = $ast->[$idx];
 #		print "IDX: $idx => "; say Dumper ($ast); say $entry;
 		if (ref($entry) eq 'ARRAY') {
-#			( $stref,  $f,   my $entry) = _change_func_to_array($stref,$f, $entry, $ast_node_action);
 			my $entry = _change_func_to_array($stref,$f, $info,$entry, $exp);
 			$ast->[$idx] = $entry;
 		} else {
-			if ($entry eq '&') {
-				
+			if ($entry eq '&') {				
 				my $mvar = $ast->[$idx+1];
 				say 'Found function '.$mvar  if $DBG;
-#				say $mvar;
-#				say Dumper($stref->{'Subroutines'}{$f});
+				# If the line is not a subroutine call, we set subname to #dummy#
+				# We do this to check if the $mvar is maybe the subroutine itself
 				my $subname = (exists $info->{'SubroutineCall'} and exists $info->{'SubroutineCall'}{'Name'}) ? $info->{'SubroutineCall'}{'Name'} : '#dummy#';
-#				my $is_declared_var = in_nested_set( $stref->{'Subroutines'}{$f},'Vars',$mvar);
-#				say "DECLARED: $mvar : $is_declared_var"; 
+				# Now, when is $mvar NOT a function?
+				# - if $mvar ne $subname including #dummy#, because this function is used for parsing both subcalls and assignments
+				#	AND $mvar is not a called sub in $f AND $mvar is not an unmasked intrinsic
+				# - if $mvar is in MaskedIntrinsics then it's a var masking an intrinsic
+				# - if $f does not have a Called Sub named $mvar. Seems acceptable, but what if it's a function call and we have v = f(x) ?
+				# So I say, if $mvar is the name of a subroutine in the whole source code base, and it's a function
+				# 
  				if (
- 				exists $stref->{'Subroutines'}{$f}{'MaskedIntrinsics'}{$mvar}
-# 				or $is_declared_var
+ 				not ( exists $stref->{'Subroutines'}{$mvar} and exists $stref->{'Subroutines'}{$mvar}{'Function'} and $stref->{'Subroutines'}{$mvar}{'Function'} == 1) 
+ 				and ( exists $stref->{'Subroutines'}{$f}{'MaskedIntrinsics'}{$mvar}
  				or (
- 					$mvar ne '#dummy#' 
+ 					$mvar ne '#dummy#' and $mvar ne $subname 
  					and not exists $stref->{'Subroutines'}{$f}{'CalledSubs'}{'Set'}{$mvar}
 					and not exists $F95_reserved_words{$mvar}
-#					and not exists $F95_intrinsics{$mvar} # Dangerous, because some idiot may have overwritten an intrinsic with an array! 
-					and $mvar ne $subname
+#					and not exists $F95_intrinsics{$mvar} # Dangerous, because some idiot may have overwritten an intrinsic with an array! 					
+					)
 					)		
 				) {
     		# change & to @
@@ -137,6 +140,20 @@ sub _change_func_to_array { (my $stref, my $f,  my $info, my $ast, my $exp)=@_;
     				say "Found array $mvar" if $DBG;
 				} elsif (   	exists $F95_intrinsics{$mvar} ) {
 					say "parse_expression('$exp')" . __LINE__.": WARNING: treating $mvar in $f as an intrinsic! " if $W;  
+				} else {
+					# So, this line contains a function call, so we should say so in $info!
+					# I introduce FunctionCalls for this purpose!
+					if (
+					( exists $stref->{'Subroutines'}{$mvar} and exists $stref->{'Subroutines'}{$mvar}{'Function'} and $stref->{'Subroutines'}{$mvar}{'Function'} == 1) and (
+					$mvar ne '#dummy#' and $mvar ne $subname 
+ 					and not exists $stref->{'Subroutines'}{$f}{'CalledSubs'}{'Set'}{$mvar}
+					and not exists $F95_reserved_words{$mvar}
+#					and not exists $F95_intrinsics{$mvar} # Dangerous, because some idiot may have overwritten an intrinsic with an array! 					
+)
+					) {
+#						say "TAG FunctionCalls $mvar" ;
+					$info->{'FunctionCalls'}{$mvar}=1;
+					}
 				}
 			} elsif ($entry eq '$') {
 				my $mvar = $ast->[$idx+1];
