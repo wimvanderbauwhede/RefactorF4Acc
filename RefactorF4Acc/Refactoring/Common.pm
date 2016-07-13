@@ -1218,7 +1218,7 @@ sub emit_f95_var_decl {
       
       my $is_par = exists $var_decl_rec->{'Parameter'} ? 1 : 0;
       my $var = $var_decl_rec->{'Name'};
-croak       Dumper($var_decl_rec) if not defined $var;
+croak Dumper($var_decl_rec) if not defined $var;
 #      carp Dumper($var_decl_rec) if $type eq 'character' and $var eq 'varname';
     my $dimstr = '';
 #    say Dumper($dim);

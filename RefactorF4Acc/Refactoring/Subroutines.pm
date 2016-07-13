@@ -77,11 +77,11 @@ for every line:
 - check if it needs changing:
 - need to mark the insert points for subroutine calls that replace the refactored blocks! 
 This is a node called 'RefactoredSubroutineCall'
-- we also need the "entry point" for adding the declarations for the localized global variables 'ExGlobArgDecls'
+- we also need the "entry point" for adding the declarations for the localized global variables 'ExGlobArgs'
 
 * Signature: add the globals to the signature
 (* VarDecls: keep as is)
-* ExGlobArgDecls: add new var decls
+* ExGlobArgs: add new var decls
 * SubroutineCall: add globals for that subroutine to the call
 * RefactoredSubroutineCall: insert a new subroutine call instead of the "begin of block" comment. 
 * InBlock: skip; we need to handle the blocks separately
@@ -184,8 +184,8 @@ sub _fix_end_lines {
 #- creates a refactored subroutine sig based on RefactoredArgs
 #- skips Common include statements, so it only keeps Parameter (I hope)
 #- create_new_include_statements, this should be OBSOLETE, except that it takes ParamIncludes out of other Includes and instantiates them.
-#- creates ex-glob arg declarations, basically we have to look at ExInclArgDecls, ExImplicitArgDecls and ExGlobArgDecls.  
-#- create_refactored_vardecls is a misnomer, it renames locals conflicting woth globals. I think that has been sorted now. We should generate decls for ExInclVarDecls and ExImplicitVarDecls.
+#- creates ex-glob arg declarations, basically we have to look at ExInclArgs, UndeclaredOrigArgs and ExGlobArgs.  
+#- create_refactored_vardecls is a misnomer, it renames locals conflicting woth globals. I think that has been sorted now. We should generate decls for ExInclLocalVars and UndeclaredOrigLocalVars.
 #- create_refactored_subroutine_call, I hope we can keep this
 #- rename_conflicting_locals, I hope we can keep this
 #sub _refactor_globals { croak 'OBSOLETE, I HOPE!';
@@ -238,7 +238,7 @@ sub _fix_end_lines {
 #        }
 #        
 #        if ( exists $info->{'ExGlobVarDeclHook'} ) {
-#            # First, abuse ExGlobArgDecls as a hook for the addional includes, if any
+#            # First, abuse ExGlobArgs as a hook for the addional includes, if any
 #            $rlines =
 #              create_new_include_statements( $stref, $f, $annline, $rlines );
 #              
@@ -372,8 +372,8 @@ sub rename_conflicting_locals {
 #- creates a refactored subroutine sig based on RefactoredArgs
 #- skips Common include statements, so it only keeps Parameter (I hope)
 #- create_new_include_statements, this should be OBSOLETE, except that it takes ParamIncludes out of other Includes and instantiates them, so RENAME
-#- creates ex-glob arg declarations, basically we have to look at ExInclArgDecls, ExImplicitArgDecls and ExGlobArgDecls.  
-#- create_refactored_vardecls is a misnomer, it renames locals conflicting woth globals. I think that has been sorted now. We should generate decls for ExInclVarDecls and ExImplicitVarDecls.
+#- creates ex-glob arg declarations, basically we have to look at ExInclArgs, UndeclaredOrigArgs and ExGlobArgs.  
+#- create_refactored_vardecls is a misnomer, it renames locals conflicting woth globals. I think that has been sorted now. We should generate decls for ExInclLocalVars and UndeclaredOrigLocalVars.
 #- create_refactored_subroutine_call, I hope we can keep this
 #- rename_conflicting_locals, I hope we can keep this; or maybe we should not do this!
 sub _refactor_globals_new {
@@ -472,8 +472,8 @@ sub _refactor_globals_new {
     return $rlines;
 }    # END of _refactor_globals_new()
 
-# ExInclArgDecls, ExImplicitArgDecls and ExGlobArgDecls
-# ExInclVarDecls and ExImplicitVarDecls.
+# ExInclArgs, UndeclaredOrigArgs and ExGlobArgs
+# ExInclLocalVars and UndeclaredOrigLocalVars.
 # I must make sure that these do not already exists!
 sub _create_extra_arg_and_var_decls {
 
@@ -482,16 +482,19 @@ sub _create_extra_arg_and_var_decls {
     my $Sf                 = $stref->{'Subroutines'}{$f};
     my $nextLineID=scalar @{$rlines}+1;
             
-    print "INFO: ExGlobArgDecls in $f\n" if $I;
+    print "INFO: ExGlobArgs in $f\n" if $I;
 
-    for my $var ( @{ $Sf->{'ExGlobArgDecls'}{'List'} } ) {
+    for my $var ( @{ $Sf->{'ExGlobArgs'}{'List'} } ) {
     	
     	# Need to check if these were not already declared
     	if (not exists $Sf->{'DeclaredOrigLocalVars'}{'Set'}{$var}
     	and not exists $Sf->{'DeclaredOrigArgs'}{'Set'}{$var}
+    	and not exists $Sf->{'DeclaredCommonVars'}{'Set'}{$var}
+#    	and not exists $Sf->{'UndeclaredCommonVars'}{'Set'}{$var}
     	) {
-    	say "INFO VAR: $var ".Dumper($Sf->{'ExGlobArgDecls'}{'Set'}{$var}{'IODir'} ) if $I;
-                    my $rdecl = $Sf->{'ExGlobArgDecls'}{'Set'}{$var}; 
+#    		say "WHERE is $var? ".in_nested_set($Sf,'Vars',$var);
+    	say "INFO VAR: $var ".Dumper($Sf->{'ExGlobArgs'}{'Set'}{$var}{'IODir'} ) if $I;
+                    my $rdecl = $Sf->{'ExGlobArgs'}{'Set'}{$var}; 
                     my $rline = emit_f95_var_decl($rdecl);
                     my $info={};
                     $info->{'Ann'}=[ annotate($f, __LINE__ .' : EX-GLOB ' . $annline->[1]{'ExGlobVarDeclHook'} ) ];                                               
@@ -502,10 +505,10 @@ sub _create_extra_arg_and_var_decls {
     	}                        
     }    # for
     
-    print "INFO: ExInclArgDecls in $f\n" if $I;
-    for my $var ( @{ $Sf->{'ExInclArgDecls'}{'List'} } ) {
+    print "INFO: ExInclArgs in $f\n" if $I;
+    for my $var ( @{ $Sf->{'ExInclArgs'}{'List'} } ) {
     	say "INFO VAR: $var" if $I;
-                    my $rdecl = $Sf->{'ExInclArgDecls'}{'Set'}{$var}; 
+                    my $rdecl = $Sf->{'ExInclArgs'}{'Set'}{$var}; 
                     my $rline = emit_f95_var_decl($rdecl);                                                                   
                     my $info={};
                     $info->{'Ann'}=[annotate($f, __LINE__ .' : EX-INCL' ) ];
@@ -515,13 +518,13 @@ sub _create_extra_arg_and_var_decls {
                     push @{$rlines}, [ $rline,  $info ];                        
     }    # for
 
-    print "INFO: ExImplicitArgDecls in $f\n" if $I;
+    print "INFO: UndeclaredOrigArgs in $f\n" if $I;
     my %unique_ex_impl=();
-    for my $var ( @{ $Sf->{'ExImplicitArgDecls'}{'List'} } ) {
+    for my $var ( @{ $Sf->{'UndeclaredOrigArgs'}{'List'} } ) {
     	say "INFO VAR: $var" if $I;
     	if (not exists $unique_ex_impl{$var}) {
     			$unique_ex_impl{$var}=$var;
-                    my $rdecl = $Sf->{'ExImplicitArgDecls'}{'Set'}{$var}; 
+                    my $rdecl = $Sf->{'UndeclaredOrigArgs'}{'Set'}{$var}; 
                     my $rline = emit_f95_var_decl($rdecl);                                         
                     my $info={};
                     $info->{'Ann'}=[annotate($f, __LINE__ .' : EX-IMPLICIT')  ];
@@ -532,10 +535,10 @@ sub _create_extra_arg_and_var_decls {
     	}                        
     }    # for
 
-    print "INFO: ExInclVarDecls in $f\n" if $I;
-    for my $var ( @{ $Sf->{'ExInclVarDecls'}{'List'} } ) {
+    print "INFO: ExInclLocalVars in $f\n" if $I;
+    for my $var ( @{ $Sf->{'ExInclLocalVars'}{'List'} } ) {
     	say "INFO VAR: $var" if $I;
-                    my $rdecl = $Sf->{'ExInclVarDecls'}{'Set'}{$var}; 
+                    my $rdecl = $Sf->{'ExInclLocalVars'}{'Set'}{$var}; 
                     my $rline = emit_f95_var_decl($rdecl);
                     my $info={};
                     $info->{'Ann'}=[annotate($f, __LINE__ .' : EX-INCL VAR' ) ];
@@ -545,8 +548,8 @@ sub _create_extra_arg_and_var_decls {
                     push @{$rlines}, [ $rline,  $info ];                        
     }    # for
         
-    print "INFO: ExImplicitVarDecls in $f\n" if $I;
-    for my $var ( @{ $Sf->{'ExImplicitVarDecls'}{'List'} } ) {
+    print "INFO: UndeclaredOrigLocalVars in $f\n" if $I;
+    for my $var ( @{ $Sf->{'UndeclaredOrigLocalVars'}{'List'} } ) {
     	say "INFO VAR: $var" if $I;    	
     	# Check if it is not a parameter
     	my $is_param=0;
@@ -562,7 +565,7 @@ sub _create_extra_arg_and_var_decls {
     		and $var!~/__PH\d+__/ # FIXME! TOO LATE HERE!
     		and $var=~/^[a-z][a-z0-9_]*$/ # FIXME: rather check if Expr or Sub
     		) {    			
-                    my $rdecl = $Sf->{'ExImplicitVarDecls'}{'Set'}{$var}; 
+                    my $rdecl = $Sf->{'UndeclaredOrigLocalVars'}{'Set'}{$var}; 
                     my $rline = emit_f95_var_decl($rdecl);                                         
                     my $info={};
                     $info->{'Ann'}=[annotate($f, __LINE__ .' : EX-IMPLICIT VAR') ];                    
@@ -577,6 +580,7 @@ sub _create_extra_arg_and_var_decls {
 
     print "INFO: ExCommonVarDecls in $f\n" if $I;
     for my $var ( @{ $Sf->{'UndeclaredCommonVars'}{'List'} } ) {
+    	next if ( exists $Sf->{'ExGlobArgs'}{'Set'}{$var} );
     	say "INFO VAR: $var" if $I;
                     my $rdecl = $Sf->{'UndeclaredCommonVars'}{'Set'}{$var}; 
                     my $rline = emit_f95_var_decl($rdecl);                                         
@@ -608,16 +612,16 @@ sub _create_refactored_subroutine_call {
     }
     my $args_ref = [@orig_args]; # NOT ordered union, if they repeat that should be OK 
     
-    if (exists $stref->{'Subroutines'}{$name}{'ExGlobArgDecls'}) {       
-        my @globals = @{ $stref->{'Subroutines'}{$name}{'ExGlobArgDecls'}{'List'} };        
+    if (exists $stref->{'Subroutines'}{$name}{'ExGlobArgs'}) {       
+        my @globals = @{ $stref->{'Subroutines'}{$name}{'ExGlobArgs'}{'List'} };        
         # Problem is that in $f globals from $name may have been renamed. I store the renamed ones in 
         # $Sf->{'RenamedInheritedExGLobs'}
         my @maybe_renamed_exglobs=();
         for my $ex_glob (@globals) {
         	# $ex_glob may be renamed or not. I test this using OrigName. 
         	# This way I am sure I get only original names
-        	if (exists $stref->{'Subroutines'}{$name}{'ExGlobArgDecls'}{'Set'}{$ex_glob}{'OrigName'}) {
-				$ex_glob = $stref->{'Subroutines'}{$name}{'ExGlobArgDecls'}{'Set'}{$ex_glob}{'OrigName'};		
+        	if (exists $stref->{'Subroutines'}{$name}{'ExGlobArgs'}{'Set'}{$ex_glob}{'OrigName'}) {
+				$ex_glob = $stref->{'Subroutines'}{$name}{'ExGlobArgs'}{'Set'}{$ex_glob}{'OrigName'};		
         	}        	
         	if (exists $Sf->{'RenamedInheritedExGLobs'}{'Set'}{$ex_glob}) {
         		say "INFO: RENAMED $ex_glob => ".$Sf->{'RenamedInheritedExGLobs'}{'Set'}{$ex_glob} . ' in call to ' . $name . ' in '. $f if $I;
