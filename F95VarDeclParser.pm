@@ -7,6 +7,7 @@ our $VERSION = '0.01';
 use Parser::Combinators;
 $Parser::Combinators::V=0;
 
+use Carp;
 use Data::Dumper;
 $Data::Dumper::Indent = 0;
 $Data::Dumper::Terse = 1;
@@ -33,7 +34,14 @@ sub parse_F95_var_decl {
 	print 'PARSE TREE:'.Dumper($pt),"\n" if $VV;
 	
 	my $typetup = $pt->{TypeTup};
+#	carp "TYPE TUPLE:".Dumper( $typetup );
+	if (exists $typetup->{'Type'}{'Opt'}) {
+		$typetup->{'Type'}= $typetup->{'Type'}{'Main'}. ' ' . $typetup->{'Type'}{'Opt'};
+	} else {
+		$typetup->{'Type'}= $typetup->{'Type'}{'Main'};
+	}
 	if (ref($typetup) eq 'ARRAY') {
+		
 		$pt->{TypeTup} = { each %{$typetup->[0]}, Kind => 4};
 	} elsif (exists $pt->{TypeTup}{Kind}) {
 		$pt->{TypeTup}{Kind}*=1;
@@ -115,7 +123,7 @@ sub attribute_parser {
 
 sub type_parser {	
 		sequence [
-        {'Type' =>	word},
+        {'Type' =>	sequence( [{'Main' => word},maybe( {'Opt'=>word} ) ])  },
         maybe parens choice(
                 {'Kind' => natural},
 						sequence [

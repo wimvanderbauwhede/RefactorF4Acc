@@ -157,7 +157,9 @@ test(1,$stref, sub { (my $stref)=@_;
 	return keys %{$stref};
 });
     # Parse the source
-    
+    for my $data_block (keys %{ $stref->{'BlockData'} } ) {
+    	$stref = parse_fortran_src( $data_block, $stref );
+    }
 	$stref = parse_fortran_src( $subname, $stref );
 #	die;
 test(2,$stref,

@@ -148,8 +148,11 @@ sub _fix_end_lines {
     (my $stref, my $f, my $rlines) = @_;
 #    croak "FIXME" if $f eq 'vertical';
     my $Sf=$stref->{'Subroutines'}{$f}; 
-    my $sub_or_prog = ( exists $Sf->{'Program'} and $Sf->{'Program'} == 1) ? 'program' : 
-    (exists $Sf->{'Function'} and $Sf->{'Function'} == 1 ) ? 'function' : 'subroutine';
+    my $sub_or_prog = 
+    (exists $Sf->{'Program'} and $Sf->{'Program'} == 1) ? 'program' : 
+    (exists $Sf->{'Function'} and $Sf->{'Function'} == 1 ) ? 'function' :
+    (exists $Sf->{'BlockData'} and $Sf->{'BlockData'} == 1 ) ? 'block data' : 
+    'subroutine';
     say 'fix end '.$f if $V;
     my $done_fix_end=0;
     while (!$done_fix_end and @{$rlines}) {
@@ -408,7 +411,7 @@ sub _create_extra_arg_and_var_decls {
     	and not exists $Sf->{'DeclaredCommonVars'}{'Set'}{$var}
 #    	and not exists $Sf->{'UndeclaredCommonVars'}{'Set'}{$var}
     	) {
-#    		say "WHERE is $var in $f? ".in_nested_set($Sf,'CommonVars',$var) if $var eq 'iacn11';
+#    		carp "WHERE is $var in $f? ".in_nested_set($Sf,'CommonVars',$var) if $var eq 'iacn11' and $f eq 'fs055';
     	say "INFO VAR: $var ".Dumper($Sf->{'ExGlobArgs'}{'Set'}{$var}{'IODir'} ) if $I;
                     my $rdecl = $Sf->{'ExGlobArgs'}{'Set'}{$var}; 
                     my $rline = emit_f95_var_decl($rdecl);
@@ -426,7 +429,7 @@ sub _create_extra_arg_and_var_decls {
     	say "INFO VAR: $var" if $I;
                     my $rdecl = $Sf->{'ExInclArgs'}{'Set'}{$var}; 
                     my $rline = emit_f95_var_decl($rdecl);                                                                   
-                    my $info={};
+                    my $info={};                    
                     $info->{'Ann'}=[annotate($f, __LINE__ .' : EX-INCL' ) ];
                     $info->{'LineID'}= $nextLineID++;
                     $info->{'Ref'}=1;

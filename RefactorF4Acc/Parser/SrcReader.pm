@@ -1103,12 +1103,19 @@ sub _procLine {
         } elsif ( $line !~ /[\'\"]/
             && $line !~ /^\s*end/i
             && $line =~ 
-/\b(module|program|recursive\s+subroutine|subroutine|\w+\s+function|function)\s+(\w+)/i
+/\b(module|program|recursive\s+subroutine|subroutine|\w+\s+function|function|block)\s+(\w+)/i
           )
         {
             
             my $keyword = lc($1);
             my $name    = lc($2);
+            if ($keyword  eq 'block' and $name eq 'data') {
+            	$keyword = 'block data';
+            	$name = '<init_exglobs>';
+            	$line=~/block\s+data\s+(\w+)/i && do {
+            		$name = lc($1);
+            	};
+            }
 
             die "_procLine(): No $keyword name " if $name eq '';
             my $spaces = ' ' x 6;

@@ -20,6 +20,7 @@ use warnings FATAL => qw(uninitialized);
 use strict;
 use Carp;
 use Data::Dumper;
+use Storable qw( dclone );
 
 use Exporter;
 
@@ -46,6 +47,15 @@ sub analyse_all {
 		$stref = _find_argument_declarations( $stref, $f );
 	}
 	return $stref if $stage == 2;
+
+
+	for my $f ( keys %{ $stref->{'Subroutines'} } ) {
+		next if $f eq '';
+
+		# In this stage, 'ExGlobArgs' is populated
+		$stref = _populate_exglobs_from_commonvars( $stref, $f );
+
+	}
 
 	for my $f ( keys %{ $stref->{'Subroutines'} } ) {
 		next if $f eq '';
@@ -261,6 +271,8 @@ sub _analyse_variables {
 				  ) {
 					my $in_incl = 0;
 					if ( not exists $Sf->{'Commons'}{$mvar} ) {
+						
+						
 						for my $inc ( keys %{ $Sf->{'Includes'} } ) {
 							say "LOOKING FOR $mvar from $f in $inc" if $DBG;
 
@@ -291,7 +303,7 @@ sub _analyse_variables {
 
 												# So we should type this one via Implicits
 												$decl = get_f95_var_decl( $stref, $f, $mvar );
-												say Dumper($decl);
+#												say Dumper($decl);
 											} else {
 												$decl = $var_rec;
 											}
@@ -307,11 +319,11 @@ sub _analyse_variables {
 											$stref->{'Subroutines'}{$f}{'CommonIncs'}{$inc}         = $inc;
 											$stref->{'Subroutines'}{$f}{'ExGlobArgs'}{'Set'}{$mvar} = $decl;
 											$stref->{'Subroutines'}{$f}{'MaskedIntrinsics'}{$mvar}  = 1;
-#										} elsif ( in_nested_set($stref->{'Subroutines'}{$f},'CommonVars',$mvar) ) { 
-#											say "FOUND argdecl for $mvar via common block in $f" if $DBG;
-#											push @{ $stref->{'Subroutines'}{$f}{'ExGlobArgs'}{'List'} }, $mvar;
-#											$stref->{'Subroutines'}{$f}{'ExGlobArgs'}{'Set'}{$mvar} = $decl;
-#											$stref->{'Subroutines'}{$f}{'MaskedIntrinsics'}{$mvar}  = 1;											
+										} elsif ( in_nested_set($stref->{'Subroutines'}{$f},'CommonVars',$mvar) ) { 
+											say "FOUND argdecl for $mvar via common block in $f" if $DBG;
+											push @{ $stref->{'Subroutines'}{$f}{'ExGlobArgs'}{'List'} }, $mvar;
+											$stref->{'Subroutines'}{$f}{'ExGlobArgs'}{'Set'}{$mvar} = $decl;
+											$stref->{'Subroutines'}{$f}{'MaskedIntrinsics'}{$mvar}  = 1;											
 										} else {
 											say "INFO: LOCAL VAR FROM $inc, NOT COMMON! " . '_analyse_variables() ' . __LINE__ if $I;
 											push @{ $stref->{'Subroutines'}{$f}{'ExInclLocalVars'}{'List'} }, $mvar;
@@ -324,7 +336,9 @@ sub _analyse_variables {
 								}
 							}
 						}
-					}
+					} else {
+						
+								}
 					if ( not $in_incl ) {
 
 						# Now check if this variable might be accessed via the containing program
@@ -385,10 +399,10 @@ sub _analyse_variables {
 	my $state = [ $stref, $f, {} ];
 
 	( $stref, $state ) = stateful_pass( $stref, $f, $__analyse_vars_on_line, $state, '_analyse_variables() ' . __LINE__ );
-	say "$f ExGlobArgs:".Dumper($stref->{'Subroutines'}{$f}{'ExGlobArgs'});
+#	say "$f ExGlobArgs:".Dumper($stref->{'Subroutines'}{$f}{'ExGlobArgs'});
 	my $maybe_ex_globs = $stref->{'Subroutines'}{$f}{'ExGlobArgs'}{'List'};
 #	say "$f:".Dumper($maybe_ex_globs);
-	if (
+	if ( defined $maybe_ex_globs  and
 		scalar @{ $maybe_ex_globs } > 0 )
 	{
 		$Sf->{'HasCommons'} = 1;
@@ -460,18 +474,25 @@ sub _resolve_conflicts_with_params {
 sub _create_refactored_args {
 	( my $stref, my $f ) = @_;
 	my $Sf = $stref->{'Subroutines'}{$f};
-	if ( exists $Sf->{'ExGlobArgs'} and exists $Sf->{'OrigArgs'} ) {
+	if ( exists $Sf->{'ExGlobArgs'} and exists $Sf->{'OrigArgs'}
+	and  exists $Sf->{'ExGlobArgs'}{'List'} and exists $Sf->{'OrigArgs'}{'List'}
+	) {
+#		carp Dumper($Sf->{'OrigArgs'} ).';'.Dumper($Sf->{'ExGlobArgs'} );
 		$Sf->{'RefactoredArgs'}{'List'} = ordered_union( $Sf->{'OrigArgs'}{'List'}, $Sf->{'ExGlobArgs'}{'List'} );
 		$Sf->{'RefactoredArgs'}{'Set'} = { %{ $Sf->{'UndeclaredOrigArgs'}{'Set'} }, %{ $Sf->{'DeclaredOrigArgs'}{'Set'} }, %{ $Sf->{'ExGlobArgs'}{'Set'} } };
 		$Sf->{'HasRefactoredArgs'} = 1;
 
-	} elsif ( not exists $Sf->{'ExGlobArgs'} ) {
+	} elsif ( not exists $Sf->{'ExGlobArgs'} 
+	and exists $Sf->{'OrigArgs'}{'List'}
+	) {
 
 		# No ExGlobArgs, so Refactored = Orig
 		$Sf->{'RefactoredArgs'}{'Set'}  = $Sf->{'OrigArgs'}{'Set'};
 		$Sf->{'RefactoredArgs'}{'List'} = $Sf->{'OrigArgs'}{'List'};
 		$Sf->{'HasRefactoredArgs'}      = 0;
-	} elsif ( not exists $Sf->{'OrigArgs'} ) {
+	} elsif ( not exists $Sf->{'OrigArgs'} 
+	and  exists $Sf->{'ExGlobArgs'}{'List'} 
+	) {
 
 		# No ExGlobArgs, so Refactored = Orig
 		$Sf->{'RefactoredArgs'}    = $Sf->{'ExGlobArgs'};
@@ -626,5 +647,44 @@ sub _lift_param_includes {
 	}
 	return $stref;
 }
+
+sub _populate_exglobs_from_commonvars { ( my $stref, my $f ) = @_;
+	my $sub_or_func_or_mod = sub_func_incl_mod( $f, $stref );
+	my $Sf = $stref->{$sub_or_func_or_mod}{$f};
+	my @subsets=();
+	if (exists $Sf->{'DeclaredCommonVars'} ) {
+#		say 'DECLARED '.Dumper($Sf->{'DeclaredCommonVars'} );
+		 push @subsets,'DeclaredCommonVars';
+	} 
+	if (exists $Sf->{'DeclaredCommonVars'} ) {
+#		say 'UNDECLARED '.Dumper($Sf->{'UndeclaredCommonVars'} );
+		push @subsets,'UndeclaredCommonVars';
+	}
+	for my $subset (@subsets) {
+		for my $var (@{$Sf->{$subset}{'List'}}) {
+				my $decl; 							
+#				say "COMMON: Found $var in $subset";						
+#				say Dumper($stref->{'Subroutines'}{$f}{$subset});
+				my $var_rec = dclone( $stref->{'Subroutines'}{$f}{$subset}{'Set'}{ $var} );
+#				say Dumper($var_rec);
+				if ( not defined $var_rec ) {
+					# This means this var decl in the include has not been declared
+					croak "SHOULD NOT HAPPEN: No Decl for $var in $f $subset";
+					# So we should type this one via Implicits
+					$decl = get_f95_var_decl( $stref, $f, $var );
+#					say Dumper($decl);
+				} else {
+					$decl = $var_rec;
+				}			
+				if (exists $stref->{'Subroutines'}{$f}{'ExGlobArgs'}{'Set'}{$var} ) {croak "$var in $f : duplicate exglob"}
+#				carp "FOUND argdecl for $var via common block $subset in $f";
+				push @{ $stref->{'Subroutines'}{$f}{'ExGlobArgs'}{'List'} }, $var;
+				$stref->{'Subroutines'}{$f}{'ExGlobArgs'}{'Set'}{$var} = $decl;
+				$stref->{'Subroutines'}{$f}{'MaskedIntrinsics'}{$var}  = 1;
+		}
+	}
+	return $stref;
+}
+
 
 1;

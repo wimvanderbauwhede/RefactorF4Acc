@@ -209,7 +209,7 @@ sub union {
 # This union is obtained by removing duplicates from @b. It is a bit slower but preserves the order
 sub ordered_union {
     ( my $aref, my $bref ) = @_;
-    croak("ordered_union()") unless (defined $aref and defined $bref);   
+    croak("ordered_union(): both args must be defined!") unless (defined $aref and defined $bref);   
     if (not defined $aref) {
     	return $bref;
     } elsif (not defined $bref) {

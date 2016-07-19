@@ -78,7 +78,10 @@ sub parse_expression { (my $exp, my $info, my $stref, my $f)=@_;
 	while ($preproc_expr=~/\W[\.\d]+[dq][\d\-\+]/) { 
 		$preproc_expr=~s/(\W[\.\d]+)[dq]([\d\-\+])/${1}e$2/;
 	}
-	
+	# More EVIL HACK to "support" complex numbers
+	while ($preproc_expr=~/\W\(/) { 
+		$preproc_expr=~s/(\W)\(/${1}complex\(/;
+	}
 #	 if ($exp =~/\*\*\s*(\w+)\s*\*\*\s*(\w+)/) {
 #	 	croak $preproc_expr;
 #	 }

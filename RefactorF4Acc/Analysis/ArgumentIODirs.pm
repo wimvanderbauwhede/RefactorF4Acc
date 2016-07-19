@@ -460,7 +460,7 @@ sub _analyse_src_for_iodirs {
 # Encounter Assignment
 # WV20150304 TODO: factor this out and export it so we can use it as a parser for assignments
 				if (
-					    $line =~ /[\w\s\)]=[\w\s\(\+\-\.]/
+					    $line =~ /[\w\s\)]=[\w\s\(\+\-\.\'\"]/
 					and $line !~ /^\s*do\s+.+\s*=/
 					and $line !~ /\bparameter\b/
 					and $line !~ /read|write|print/    # for implicit DO
@@ -540,7 +540,7 @@ sub _analyse_src_for_iodirs {
 							next;
 
 						} else {
-
+#							croak $tline if $tline=~/\'YZ\'/;
 							( $var, $rhs ) = split( /\s*=\s*/, $tline );
 							if ( $var =~ /\(/ ) {
 
@@ -905,11 +905,12 @@ sub _update_argument_io_direction {
 				$info->{'VarDecl'}{'IODir'} =
 				  $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$varname}
 				  {'IODir'};
-
-				#				my $rline = emit_f95_var_decl( $info->{'VarDecl'} );
-				my $rline = emit_f95_var_decl(
-					$stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}
-					  {$varname} );
+				
+				my $rline = emit_f95_var_decl($stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$varname} );								
+                    if (exists $info->{'Skip'}) {
+                    	$rline = '! '.$rline;
+                    	push @{$info->{'Ann'}},'SKIP';
+                    }                    
 				$annline = [ $rline, $info ];
 			} else {
 

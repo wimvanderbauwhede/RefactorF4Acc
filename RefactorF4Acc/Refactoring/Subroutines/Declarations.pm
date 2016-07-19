@@ -115,6 +115,7 @@ sub create_refactored_vardecls {
                 }
             $info->{'VarDecl'} = $rdecl;#[$tnvar];
             $info->{'Ref'} = 1; 
+            
             push @{$rlines}, [ emit_f95_var_decl($rdecl), $info ];
         }
         $skip=1;

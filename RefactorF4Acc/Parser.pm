@@ -428,7 +428,7 @@ sub _analyse_lines {
 		my %block_id = ();
 		my @blocks_stack=();
 		my %extra_lines=(); # $index => [ ... ]
-		
+#		croak Dumper($srcref) if $f eq 'sn501';
 		for my $index ( 0 .. scalar( @{$srcref} ) - 1 ) {
 			my $attr = '';
 			( my $line, my $info ) = @{ $srcref->[$index] };
@@ -441,7 +441,7 @@ sub _analyse_lines {
 			}
 			my $mline = $line;    # modifiable copy of $line
 
-
+#say "LINE: $line";
 			# Handle !$ACC
 			if ( $line =~ /^\!\s*\$(?:ACC|RF4A)\s.+$/i ) {
 				( $stref, $info ) = __handle_acc( $stref, $f, $index, $line );
@@ -453,7 +453,7 @@ sub _analyse_lines {
 			#                  ->[$index]{'TrailingComments'} = {};
 			#                next;
 			#            }
-			$line=~/^\s*\d*\s+(map|structure|union|case|block)\s+/ && do {
+			$line=~/^\s*\d*\s+(map|structure|union|case)\s+/ && do {
 				++$block_nest_counter;
 				++$block_counter;
 				$block_id{$block_counter}={'Nest'=>$block_nest_counter, 'Type' => $1};
@@ -473,16 +473,25 @@ sub _analyse_lines {
 				push @blocks_stack,$block;
 #				say "\t" x $block_nest_counter,"BEGIN block #$block_counter DO LABEL $2";
 			};						
-			$line =~ /^\s*(\w+\s+\w+\s+(?:function|subroutine)|\w+\s+(?:function|subroutine)|function|subroutine|program)\s+(\w+)/ && do {
+			$line =~ /^\s*(\w+\s+\w+\s+(?:function|subroutine)|\w+\s+(?:function|subroutine)|function|subroutine|program|block)\s+(\w+)/ && do {
 				my $full_proc_type=$1;
 				my $proc_name=$2;			
-				my $proc_type = $full_proc_type=~/program/ ? 'program' : $full_proc_type=~/subroutine/ ? 'subroutine' : 'function';   					    
+				my $proc_type = $full_proc_type=~/program/ ? 'program' : 
+					$full_proc_type=~/subroutine/ ? 'subroutine' : 
+					($full_proc_type eq 'block' and $proc_name eq 'data') ? 'block data' : 
+					'function';
+				if ($proc_type eq 'block data') {
+					$full_proc_type = 'block data';
+					$proc_name = '<init_exglobs>';
+                	$line=~/block\s+data\s+(\w+)/i && do { $proc_name=$1 };
+#					carp "FOUND BLOCK DATA $proc_name: $line";
+				}
 				if ($proc_type eq 'function') {
 					$full_proc_type=~s/\s+$//;
 					if ($full_proc_type ne 'function') {
 						$full_proc_type=~s/\s+function//;
 						$full_proc_type=~s/\s*(?:pure|recursive)\s*//;
-						if ($full_proc_type ne '') {
+						if ($full_proc_type ne '' and $full_proc_type ne 'block data') {
 							$Sf->{'DeclaredOrigLocalVars'}{'Set'}{$proc_name}={
 								'Indent'=> $indent,
 								'Type'          => 'BOOM'.$full_proc_type ,
@@ -501,12 +510,12 @@ sub _analyse_lines {
 				
 				my $block={'Nest'=>$block_nest_counter, 'Type' => $proc_type, 'Name'=>$proc_name};
 				push @blocks_stack,$block;
-#				say "\t" x $block_nest_counter,"BEGIN block #$block_counter, NEST:".$block->{'Nest'}." $proc_type $proc_name";
+#				say "\nLINE <$line>\n","\t" x $block_nest_counter,"BEGIN block #$block_counter, NEST:".$block->{'Nest'}." $proc_type $proc_name ";
 			};
 			# END of BLOCK:
 			$line=~/^\s*\d*\s+end\s+/ && $line!~/^\s*\d*\s+end\s+do/ && do {
 				my $block = pop @blocks_stack;
-#				print "\t" x $block_nest_counter,"END for block #$block_counter, NEST:".$block->{'Nest'}.' '.$block->{'Type'};
+#				print "\t" x $block_nest_counter,"END for block #$block_counter, NEST:".$block->{'Nest'}.' '.$block->{'Type'}. ' ';
 #				 if (exists $block->{'Name'} ) {
 #				 	say ' '.$block->{'Name'} ;
 #				 	$info->{'End'.ucfirst($block->{'Type'}) } =$block->{'Name'};
@@ -698,18 +707,19 @@ sub _analyse_lines {
 					my $corresponding_do_info = pop @do_stack;
 					$info->{'EndDo'} = $corresponding_do_info->{'Do'};
 					delete $info->{'EndDo'}{'Label'};
-					my $do_label = $corresponding_do_info->{'Do'}{'Label'};
-					if ($do_label ne 'LABEL_NOT_DEFINED') {
+#					carp "LINE in $f: $line ".Dumper($corresponding_do_info);
+					my $do_label = $corresponding_do_info->{'Do'}{'Label'};					
+					if (defined $do_label and $do_label ne 'LABEL_NOT_DEFINED') {						
 						$Sf->{'DoLabelTarget'}{$do_label}='EndDo';
 					}					
 				}
-			} elsif ( $line =~ /\b(subroutine|function|program)\b/ ) {
+			} elsif ( $line =~ /\b(subroutine|function|program|block)\b/ ) {
 
 				( $Sf, $line, $info ) =
 				  __parse_sub_func_prog_decls( $Sf, $line );
 
 			} elsif (
-				$line =~ /^\s*\d*\s*end\s+(subroutine|module|function)\s*(\w+)/ )
+				$line =~ /^\s*\d*\s*end\s+(subroutine|module|function|block\s+data)\s*(\w+)/ )
 			{
 				my $kw   = $1;
 				my $name = $2;
@@ -764,6 +774,7 @@ sub _analyse_lines {
 				$do_counter++;
 				push @do_stack, $info;
 			} elsif ( $mline !~ /::/
+				&& $mline !~ /^\s*\d*\s+data/
 				&& $mline !~ /\bparameter\b/
 				&& $mline =~ /[\w\)]\s*=\s*[^=]/ ) {
 				$info->{'Assignment'} = 1;
@@ -779,12 +790,12 @@ sub _analyse_lines {
 			elsif (
 				(
 					$line =~
-/\b(logical|integer|real|double\s*precision|character)\s+([^\*]?.*)\s*$/
+/\b(logical|complex|integer|real|double\s*precision|character)\s+([^\*]?.*)\s*$/
 					or $line =~
-/\b((?:logical|integer|real|double\s*precision|character)\s*\(\d+\))([^\*]?.*)\s*$/
+/\b((?:logical|complex|integer|real|double\s*precision|character)\s*\(\d+\))([^\*]?.*)\s*$/
 
 					or $line =~
-/\b((?:logical|integer|real|double\s*precision|character)\s*\*(?:\d+|\(\*\)))\s+(.+)\s*$/
+/\b((?:logical|complex|integer|real|double\s*precision|character)\s*\*(?:\d+|\((?:\*|\w+)\)))\s+(.+)\s*$/
 				)
 				and $line !~ /^\s+\w+\s+function\s+/
 			  ) {
@@ -866,7 +877,7 @@ sub _analyse_lines {
 =cut					
 
 					my $subset;
-					my $stmt_count=1;
+#					my $stmt_count=1;
 					if (not in_nested_set( $Sf, 'Vars', $varname ) ) {
 						# So this var was not declared before. Declare it and type it, then get the dimension 
 						($type, my $array_or_scalar, my $attr)= type_via_implicits($stref, $f,$varname);
@@ -878,19 +889,21 @@ sub _analyse_lines {
 								'Dim'=>[],
 								'Name'=>$varname,
 								'Names'=>[$varname],
-								'StmtCount' => 1,
+#								'StmtCount' => 1,
 							};		
 							$subset='DeclaredOrigLocalVars';					
 					} else {
+						
 						my $decl = get_var_record_from_set($Sf->{'Vars'},$varname);
 						$subset = in_nested_set( $Sf, 'Vars', $varname );
-						if ($subset eq 'ExGlobArgs' ) {
-							$subset = 'DeclaredCommonVars'; # because in_nested_set() can find either one
-						}
-						if ($decl eq '1') {			
+#						
+#						if ($subset eq 'ExGlobArgs' ) {
+#							$subset = 'DeclaredCommonVars'; # because in_nested_set() can find either one
+#						}
+						if ($decl eq '1' and $subset eq 'UndeclaredOrigArgs') {			
 							# This is for so far undeclared arguments: they already have an entry
 							# We call __parse_f95_decl on them and that will make them DeclaredOrigArgs
-							if ( $subset eq 'UndeclaredOrigArgs') {
+							
 								($type, my $array_or_scalar, my $attr)= type_via_implicits($stref, $f,$varname);
 								$decl={
 									'Indent' => $indent,
@@ -901,32 +914,35 @@ sub _analyse_lines {
 									'Name'=>$varname,
 									'Names'=>[$varname],
 									'IODir' => 'Unknown',
-									'StmtCount' => 1,
+#									'StmtCount' => 1,
 								};		
-								$Sf->{'UndeclaredOrigArgs'}{'Set'}{$varname}=$decl;													
-							}
+								$Sf->{'UndeclaredOrigArgs'}{'Set'}{$varname}=$decl;																				
 						} else {
-							# Means that the variable was declared either via T or C. 							
-								$stmt_count=$Sf->{$subset}{'Set'}{$varname}{'StmtCount'};
-								$stmt_count++;
+							
+							# Means that the variable is either declared via T or undeclared via C. 	
+							if ($subset eq 'UndeclaredCommonVars') {
+#							carp "$f => $subset" if $varname eq 'iacn11' and $f eq 'fs055';	 
+								my $decl = dclone( $Sf->{'UndeclaredCommonVars'}{'Set'}{$varname} );
+								$Sf->{'DeclaredCommonVars'}{'Set'}{$varname} = $decl;
+								delete $Sf->{'UndeclaredCommonVars'}{'Set'}{$varname};
+								@{ $Sf->{'UndeclaredCommonVars'}{'List'} } =  grep { $_ ne $varname } @{ $Sf->{'UndeclaredCommonVars'}{'List'} };
+								$Sf->{'DeclaredCommonVars'}{'List'} = ordered_union( $Sf->{'DeclaredCommonVars'}{'List'}, [$varname] );
+								
+							}  						
+#								$stmt_count=$Sf->{$subset}{'Set'}{$varname}{'StmtCount'};
+#								$stmt_count++;
+							
 						}
 						$type = $decl->{'Type'};
 					}
 #					say 'STMT COUNT : '.$varname.' : '.$subset.' : '.$Sf->{$subset}{'Set'}{$varname}{'StmtCount'};
 					 my $vline = $indent."$type, $var_dim  :: $varname";
 				( $Sf, my $info ) = __parse_f95_decl( $Sf, $vline, {'Dimension' => 1}, "$type, $var_dim", $varname );
-				say 'STMT COUNT : '.$varname.' : '.$subset.' : '.$stmt_count;#$Sf->{$subset}{'Set'}{$varname}{'StmtCount'};
-				$info->{'StmtCount'}{$varname}=$stmt_count;#$Sf->{$subset}{'Set'}{$varname}{'StmtCount'};
+#				say 'STMT COUNT : '.$varname.' : '.$subset.' : '.$stmt_count;#$Sf->{$subset}{'Set'}{$varname}{'StmtCount'};
+				$Sf->{'DeclCount'}{$varname}++;
+				$info->{'StmtCount'}{$varname}=$Sf->{'DeclCount'}{$varname};#$stmt_count;#$Sf->{$subset}{'Set'}{$varname}{'StmtCount'};
+				carp $info->{'StmtCount'}{$varname} if $varname eq 'ladn1d';
 					push @{ $extra_lines{$index} }, [$indent."dimension $dline",$info];
-					my $is_ex_glob = in_nested_set($Sf,'ExGlobArgs',$varname);
-
-					if ($is_ex_glob ) {
-						# Must make sure the ExGlobArgs entry is up-to-date
-						my $subset = in_nested_set($Sf,'CommonVars',$varname);
-						my $updated_decl = dclone(	$Sf->{$subset}{'Set'}{$varname} );
-						$Sf->{'ExGlobArgs'}{'Set'}{$varname} = $updated_decl;
-						
-					}
 				}
 				next;
 
@@ -934,17 +950,21 @@ sub _analyse_lines {
 			# common /name/ x...
 			# However, common/name/x is also valid, and even  common x, damn F77!
 			# And in fact, so is common /name/ x,y, /name2/ w,z
+			# Worse, the spec is COMMON [/[ cb ]/] nlist [[,]/[ cb ] / nlist ]
+			# so  x//y is also OK and //x also ... 
 		} elsif ( $line =~ /^\s*common\s*\/\s*([\w\d]+)\s*\/\s*(.+)$/ or 
 				$line =~ /^\s*(common)\s+(.+)$/ 
 		 ) {
 				my $common_block_name = $1;
 				my $commonlst         = $2;
-				$commonlst=~s/\/\///;         				
-				say "COMMON for $f: $commonlst"; 
-				( my $parsedvars, my $parsedvars_lst ) =
-				  f77_var_decl_parser( $commonlst, 0 );
+				$commonlst=~s/\/\//,/g;
+				$commonlst=~s/^,//;         				
+#				say "COMMON for $f: $commonlst"; 
+				( my $parsedvars, my $parsedvars_lst ) = f77_var_decl_parser( $commonlst, 0 );
+#				say Dumper($parsedvars);
 				for my $var ( @{$parsedvars_lst} ) {	
-					my $subset;
+#					my $subset;
+					$Sf->{'Commons'}{$var} = $var;
 					if ( not in_nested_set( $Sf, 'Vars', $var ) ) {    # This means that it is an undeclared common
 							print "INFO: common <", $var, "> typed via Implicits for $f\n" if $I;
 							my @type_kind_attr =
@@ -961,29 +981,30 @@ sub _analyse_lines {
 								'Name'   => $var,
 								'Status' => 1,								
 								'ArrayOrScalar' => $parsedvars->{$var}{'ArrayOrScalar'},
-								'StmtCount' => 1
+#								'StmtCount' => 1
 							};
-							$Sf->{'Commons'}{$var} = $var;
-							$Sf->{'DeclaredCommonVars'}{'Set'}{$var} = $decl;
-							push  @{ $Sf->{'DeclaredCommonVars'}{'List'} },$var;
+							
+							$Sf->{'UndeclaredCommonVars'}{'Set'}{$var} = $decl;
+							push  @{ $Sf->{'UndeclaredCommonVars'}{'List'} },$var;
 							say "INFO: DECLARED COMMON VAR $var from $f, was typed via implicit rules" if $I;							
-							$Sf->{'ExGlobArgs'}{'Set'}{$var}=$decl;
-							push @{	$Sf->{'ExGlobArgs'}{'List'}},$var;											
+#							$Sf->{'ExGlobArgs'}{'Set'}{$var}=$decl;
+#							push @{	$Sf->{'ExGlobArgs'}{'List'}},$var;											
 					} else { # Means the var is already declared. So just use the existing declaration
 						# As this is a common it can't be an argument
-						$Sf->{'Commons'}{$var} = $var;   # Because we should use 'Commons' only for tests!
+#						$Sf->{'Commons'}{$var} = $var;   # Because we should use 'Commons' only for tests!
 						if (exists $Sf->{'DeclaredOrigLocalVars'}{'Set'}{$var} ){
 							my $decl = $Sf->{'DeclaredOrigLocalVars'}{'Set'}{$var};
 							$Sf->{'DeclaredCommonVars'}{'Set'}{$var} = dclone($decl);
 							delete $Sf->{'DeclaredOrigLocalVars'}{'Set'}{$var};
 							@{ $Sf->{'DeclaredOrigLocalVars'}{'List'} } = grep { $_ ne $var } @{ $Sf->{'DeclaredOrigLocalVars'}{'List'} };
 							push @{ $Sf->{'DeclaredCommonVars'}{'List'} }, $var;
-							$Sf->{'DeclaredCommonVars'}{'Set'}{$var}{'StmtCount'}++;																	
+#							$Sf->{'DeclaredCommonVars'}{'Set'}{$var}{'StmtCount'}++;																	
 						} else {
-							croak 'SHOULD BE IMPOSSIBLE!';
+							my $subset = in_nested_set( $Sf, 'Vars', $var );
+							croak "SHOULD BE IMPOSSIBLE!  $var in $subset in $f: $line".Dumper( $Sf->{$subset}{'Set'}{$var} );
 						}						
 					}
-					$info->{'StmtCount'}{$var}=$Sf->{'DeclaredCommonVars'}{'Set'}{$var}{'StmtCount'};
+#					$info->{'StmtCount'}{$var}=$Sf->{'DeclaredCommonVars'}{'Set'}{$var}{'StmtCount'};
 =OLD							
 					if ( not in_nested_set( $Sf, 'Vars', $var ) ) {    # This means that it is an undeclared common
 							print "INFO: common <", $var, "> typed via Implicits for $f\n" if $I;
@@ -1795,24 +1816,15 @@ sub _get_commons_params_from_includes {
 				( my $parsedvars, my $parsedvars_lst ) =
 				  f77_var_decl_parser( $commonlst, 0 );
 				for my $var ( @{$parsedvars_lst} ) {
-
 					my $subset = in_nested_set( $Sincf, 'Vars', $var );
-
 		   #					croak $subset if $var eq 'drydepspec' and $inc eq 'includecom';
-					if ( $subset eq '' )
-					{    # This means that it is an undeclared common
+					if ( $subset eq '' ) {    # This means that it is an undeclared common
 						if (
-							exists $stref->{'Implicits'}{$inc}
-							{ lc( substr( $var, 0, 1 ) ) } )
-						{
+							exists $stref->{'Implicits'}{$inc}{ lc( substr( $var, 0, 1 ) ) } ){
 							print "INFO: common <", $var,
 							  "> typed via Implicits for $inc\n"
 							  if $I;
-							my @type_kind_attr =
-							  type_via_implicits( $stref, $inc, $var );
-
-				  #                              $stref->{'Implicits'}{$inc}
-				  #                              { lc( substr( $var, 0, 1 ) ) };
+							my @type_kind_attr = type_via_implicits( $stref, $inc, $var );
 							( my $type, my $array_or_scalar, my $attr ) =
 							  @type_kind_attr;
 							my $indent = ' ' x 6;
@@ -1863,12 +1875,8 @@ sub _get_commons_params_from_includes {
 							  if $W;
 						}
 					} else { # Means the var is already declared. So just use the existing declaration
-						$Sincf->{'Commons'}{$var} = $var
-						  ;   # Because we should use 'Commons' only for tests!
-						if (
-							exists $Sincf->{'DeclaredOrigLocalVars'}{'Set'}
-							{$var} )
-						{
+						$Sincf->{'Commons'}{$var} = $var;   # Because we should use 'Commons' only for tests!
+						if ( exists $Sincf->{'DeclaredOrigLocalVars'}{'Set'}{$var} ) {
 							$Sincf->{'DeclaredCommonVars'}{'Set'}{$var} = {
 								%{
 									$Sincf->{'DeclaredOrigLocalVars'}{'Set'}
@@ -1895,8 +1903,25 @@ sub _get_commons_params_from_includes {
 							  {'ArrayOrScalar'} = 'Array';
 
 #							  croak "$inc => ".Dumper($Sincf->{'DeclaredCommonVars'}{'Set'}{$var}) if $var eq 'bdate';
+						}  elsif (exists $Sincf->{'DeclaredCommonVars'}{'Set'}{$var} ) {
+							# The var is declared and is a common var. Update the dim if required
+							my $dim =
+							  $Sincf->{'DeclaredCommonVars'}{'Set'}{$var}
+							  {'Dim'};    # FIXME GET FROM Set
+							my $updated_dim =
+							  scalar @{$dim} == 0
+							  ? $parsedvars->{$var}{'Dim'}
+							  : $dim;
+							$Sincf->{'DeclaredCommonVars'}{'Set'}{$var}{'Dim'} =
+							  $updated_dim;
+							$Sincf->{'DeclaredCommonVars'}{'Set'}{$var}
+							  {'ArrayOrScalar'} = 'Array';
+						}  elsif (exists $Sincf->{'UndeclaredCommonVars'}{'Set'}{$var} ) {
+							# The variable is in UndeclaredCommonVars, means it was actually typed via implicits
+							# I guess I just do nothing?
+							say "INFO: UndeclaredCommonVars in $inc: $var" if $I;	
 						} else {
-							croak "SHOULD BE IMPOSSIBLE!";
+							croak "SHOULD BE IMPOSSIBLE! $var in $inc ".Dumper(in_nested_set($Sincf,'Vars',$var));
 
 						}
 					}
@@ -2831,8 +2856,9 @@ sub _split_multivar_decls {
 						}
 					}
 				}
+#				say Dumper(%rinfo);
 				push @{$new_annlines}, [ $rline, {%rinfo} ];
-			}
+			} # for each $var
 		} else {
 			push @{$new_annlines}, $annline;
 		}
@@ -2998,14 +3024,20 @@ sub __parse_sub_func_prog_decls {
 		$info->{'Signature'}{'Name'}         = $name;
 		$info->{'Signature'}{'Function'}     = 0;
 	} elsif ( $line =~ /^\s*program\s+(\w+)\s*$/ ) {
-		;
-
 		# If it's a program, there are no arguments
 		my $name = $1;
 
 		$info->{'Signature'}{'Args'}{'List'} = [];
 		$info->{'Signature'}{'Name'}         = $name;
 		$info->{'Signature'}{'Program'}      = 1;
+	} elsif ( $line =~ /^\s*data\s+block\s*$/ ) {
+		my $name = '<init_exglobs>';
+		if ( $line =~ /^\s*data\s+block\s+(\w+)\s*$/ ) {
+			$name=$1;
+		}
+		$info->{'Signature'}{'Args'}{'List'} = [];
+		$info->{'Signature'}{'Name'}         = $name;
+		$info->{'Signature'}{'BlockData'}      = 1;				
 	}
 	return ( $Sf, $line, $info );
 }    # END of __parse_sub_func_prog_decls()
@@ -3048,7 +3080,7 @@ sub __parse_f95_decl {
 	my $indent = $line;
 	$indent =~ s/\S.*$//;
 	my $pt = parse_F95_var_decl($line);
-
+#carp $line."\n".Dumper($pt);
 	# But this could be a parameter declaration, with an assignment ...
 	if ( $line =~ /,\s*parameter\s*.*?::\s*(\w+\s*=\s*.+?)\s*$/ )
 	{    # F95-style parameters
@@ -3100,6 +3132,7 @@ sub __parse_f95_decl {
 				'Names'  => $pt->{'Vars'},
 				'Status' => 0
 			};
+			
 			for my $tvar ( @{ $pt->{'Vars'} } ) {								
 				my $decl = {};
 #				if (exists $Sf->{'UndeclaredOrigLocalVars'}{'Set'}{$tvar} ) {
@@ -3187,7 +3220,12 @@ sub __parse_f95_decl {
 							push @{ $Sf->{'DeclaredCommonVars'}{'List'} }, $tvar;
 						} 						 
 					} else {
-						croak "$tvar in  nest set ".in_nested_set($Sf,'Vars',$tvar);
+						my $subset =in_nested_set($Sf,'Vars',$tvar);
+						if ($subset ne '') {
+							carp "LINE $line: $tvar in subset $subset of Vars";
+						} else {
+						say "INFO: $line: $tvar does not have a record in Vars" if $I;
+						}
 					}
 					
 				}
@@ -3308,14 +3346,20 @@ sub __parse_f77_var_decl {
 		$varlst =~ s/^\S+\s+//;
 	}
 	my $attr = '';
+#	say "TYPE1: $line => $type;$attr" if $line=~/character.*lpi/;
 	$type =~ /\*/ && do {
 		( $type, $attr ) = split( /\*/, $type );
 		if ( $attr eq '(' ) { $attr = '*' }
 	};
+#	say "TYPE2: $line => $type;$attr" if $line=~/character.*lpi/;
 	$type =~ /\((\d+)\)/ && do {
 		$attr = $1;
 		( $type, my $rest ) = split( /\(/, $type );
 	};
+	$attr=~/\((\w+)\)/ && do { # FIXME: WEAK: in principle it can be a complete expression: character*(z+7*w-4)
+		$attr = $1;
+	};
+#	say "TYPE3: $line => $type;$attr" if $line=~/character.*lpi/;
 	my $indent = $line;
 	$indent =~ s/\S.*$//;
 	my $T = 0;
@@ -3336,19 +3380,26 @@ sub __parse_f77_var_decl {
 			if (scalar @{$tdim}>0) {
 				$dim=$tdim;
 			}			
-			$stmt_count = $Sf->{'DeclaredOrigLocalVars'}{'Set'}{$tvar}{'StmtCount'};
+#			$stmt_count = $Sf->{'DeclaredOrigLocalVars'}{'Set'}{$tvar}{'StmtCount'};
 		} elsif (exists $Sf->{'DeclaredOrigLocalArgs'}{'Set'}{$tvar} ) {
 			my $tdim =dclone($Sf->{'DeclaredOrigLocalArgs'}{'Set'}{$tvar}{'Dim'});
 						if (scalar @{$tdim}>0) {
 				$dim=$tdim;
 			}
-			$stmt_count = $Sf->{'DeclaredOrigLocalArgs'}{'Set'}{$tvar}{'StmtCount'};
+#			$stmt_count = $Sf->{'DeclaredOrigLocalArgs'}{'Set'}{$tvar}{'StmtCount'};
 		} elsif (exists $Sf->{'DeclaredCommonVars'}{'Set'}{$tvar} ) { 
 			my $tdim =dclone($Sf->{'DeclaredCommonVars'}{'Set'}{$tvar}{'Dim'});
 						if (scalar @{$tdim}>0) {
 				$dim=$tdim;
 			}
-			$stmt_count = $Sf->{'DeclaredCommonVars'}{'Set'}{$tvar}{'StmtCount'};
+#			$stmt_count = $Sf->{'DeclaredCommonVars'}{'Set'}{$tvar}{'StmtCount'};
+		} elsif (exists $Sf->{'UndeclaredCommonVars'}{'Set'}{$tvar} ) { 
+			my $tdim =dclone($Sf->{'UndeclaredCommonVars'}{'Set'}{$tvar}{'Dim'});
+						if (scalar @{$tdim}>0) {
+				$dim=$tdim;
+			}
+#			$stmt_count = $Sf->{'UndeclaredCommonVars'}{'Set'}{$tvar}{'StmtCount'};
+			
 		}
 		my $tvar_rec = {
 			'Type'          => $type,
@@ -3356,7 +3407,7 @@ sub __parse_f77_var_decl {
 			'ArrayOrScalar' => $pvars->{$var}{'ArrayOrScalar'},
 			'Attr'			=> $pvars->{$var}{'Attr'},
 			'IODir'         => 'Unknown',
-			'StmtCount'	=> $stmt_count,
+#			'StmtCount'	=> $stmt_count,
 		};
 		if ( not exists $pvars->{$var}{'Attr'} ) {
 
@@ -3397,6 +3448,7 @@ sub __parse_f77_var_decl {
 			'Status' => 0,
 			'StmtCount'	=> $tvar_rec->{'StmtCount'},
 		};
+#		carp Dumper($decl) if $var eq 'ladn11';
 		push @varnames, $tvar;
 		
 # This is like before, when we encounter UndeclaredOrigArgs we make them DeclaredOrigArgs
@@ -3406,21 +3458,25 @@ sub __parse_f77_var_decl {
 			@{ $Sf->{'UndeclaredOrigArgs'}{'List'} } = grep { $_ ne $var } @{ $Sf->{'UndeclaredOrigArgs'}{'List'} };
 			$Sf->{'DeclaredOrigArgs'}{'List'} = ordered_union( $Sf->{'DeclaredOrigArgs'}{'List'}, [$var] );
 			$Sf->{'DeclaredOrigArgs'}{'Set'}{$var}{'StmtCount'}=1;
+		} elsif ( exists $Sf->{'UndeclaredCommonVars'}{'Set'}{$var} ) {
+			$Sf->{'DeclaredCommonVars'}{'Set'}{$var} = $decl;
+			delete $Sf->{'UndeclaredCommonVars'}{'Set'}{$var}; # Regardless of what was there
+			@{ $Sf->{'UndeclaredCommonVars'}{'List'} } = grep { $_ ne $var } @{ $Sf->{'UndeclaredCommonVars'}{'List'} };
+			$Sf->{'DeclaredCommonVars'}{'List'} = ordered_union( $Sf->{'DeclaredCommonVars'}{'List'}, [$var] );
+			$Sf->{'DeclaredCommonVars'}{'Set'}{$var}{'StmtCount'}=1;
+			
 		} else { # A var decl must be unique, so if it's not a arg, it's a local or a common
 		
 		# The var can be either DeclaredOrigLocalVars or DeclaredCommonVars. 
 		# In both case we simply update the record
-		my $subset = in_nested_set($Sf,'Vars',$var);
-		if($subset eq 'ExGlobArgs') {
-			$subset = 'DeclaredCommonVars';
-			$Sf->{'ExGlobArgs'}{'Set'}{$var} = $decl;
-		} elsif ($subset eq '') { # Var doesn't exist yet so it becomes DeclaredOrigLocalVars 
-			$subset = 'DeclaredOrigLocalVars';
-			push @{$Sf->{'DeclaredOrigLocalVars'}{'List'}}, $var;
-		}
-		$Sf->{$subset}{'Set'}{$var} = $decl;
-#		say $subset.' : '.Dumper($decl) if $var eq 'ff305';		
-		$info->{'StmtCount'}{$var}=$decl->{'StmtCount'};
+			my $subset = in_nested_set($Sf,'Vars',$var);
+			if ($subset eq '') { # Var doesn't exist yet so it becomes DeclaredOrigLocalVars 
+				$subset = 'DeclaredOrigLocalVars';
+				push @{$Sf->{'DeclaredOrigLocalVars'}{'List'}}, $var;
+			}
+#			carp Dumper($decl) if $var eq 'ladn11';
+			$Sf->{$subset}{'Set'}{$var} = $decl;
+#			$info->{'StmtCount'}{$var}=$decl->{'StmtCount'};
 =OLD		
 		# I think this is not possible: even if we had a DIMENSION it would be DeclaredOrigLocalVars
 			if ( exists $Sf->{'UndeclaredOrigLocalVars'}{'Set'}{$var} ) {
@@ -3447,6 +3503,9 @@ sub __parse_f77_var_decl {
 			}
 =cut			
 		}
+		$Sf->{'DeclCount'}{$var}++;
+		$info->{'StmtCount'}{$var} = $Sf->{'DeclCount'}{$var};
+		carp $info->{'StmtCount'}{$var} if $var eq 'ladn1d';
 	}    # loop over all vars declared on a single line
 
 	print "\tVARS <$line>:\n ", join( ',', sort @varnames ), "\n" if $V;
@@ -3835,9 +3894,8 @@ sub _parse_assignment {
 		  . $tmp_line,
 		  "' in subroutine/function '$f' in '"
 		  . $stref->{'Subroutines'}{$f}{'Source'}
-		  . "'\nThis is DANGEROUS, please fix your code!";
-		$stref->{'Subroutines'}{$f}{'MaskedIntrinsics'} =
-		  { $lhs_ast->[1] => 1 };
+		  . "'\nThis is DANGEROUS, please fix your code!" if $W;
+		$stref->{'Subroutines'}{$f}{'MaskedIntrinsics'} = { $lhs_ast->[1] => 1 };
 	}
 	my $rhs_ast = parse_expression( $rhs, $info, $stref, $f );
 

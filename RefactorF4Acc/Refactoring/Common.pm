@@ -102,15 +102,15 @@ sub context_free_refactorings {
         	$info->{'Ann'}=[ annotate($f, __LINE__ .' Original Implicit statement' ) ];
 #            next;
         }	        
-        if ( exists $info->{'Dimension'} ) {
-        	say "DIM LINE: $line STMT COUNT".Dumper($info->{'StmtCount'}); 
+        if ( exists $info->{'Dimension'} and not exists $info->{'VarDecl'} ) {
+#        	say "DIM LINE: <$line> STMT COUNT ".join(' = ',each(%{$info->{'StmtCount'}})); 
         	$line = '! '.$line;
         	$info->{'Deleted'}=1;
         	$info->{'Ann'}=[ annotate($f, __LINE__ .' Original Dimension statement' ) ];
 #            next;
         }	
         if ( exists $info->{'Common'} ) {
-        	say "COMMON LINE: $line STMT COUNT ".Dumper($info->{'StmtCount'}); 
+#        	say "COMMON LINE: $line STMT COUNT ".Dumper($info->{'StmtCount'}); 
         	$line = '! '.$line;
         	$info->{'Deleted'}=1;
         	$info->{'Ann'}=[ annotate($f, __LINE__ .' Original Common statement' ) ];
@@ -200,38 +200,61 @@ sub context_free_refactorings {
 # This section refactors variable and parameter declarations
 # ------------------------------------------------------------------------------
 
-        if ( exists $info->{'VarDecl'} ) {        	        
+        if ( exists $info->{'VarDecl'} ) {
+        	        	        
         	my $var =  $info->{'VarDecl'}{'Name'};
-        	say "LINE: $line STMT COUNT $var = ".$info->{'StmtCount'}{$var};
+			my $stmt_count = $info->{'StmtCount'}{$var};
+			if (not defined $stmt_count) {$stmt_count=1; };
+#			say "LINE: $line => $stmt_count";
             if (exists  $info->{'ParsedVarDecl'} ) {
                 my $pvd = $info->{'ParsedVarDecl'}; 
                 if (scalar @{ $info->{'ParsedVarDecl'}{'Vars'} } == 1) {
-#                    die Dumper( $pvd).$line;
+                    if (exists $info->{'Dimension'}) {
+#                    	croak Dumper($info) if $var eq 'ladn11';
+#                    	$line = _emit_f95_parsed_var_decl($pvd);
+                    	my $var_decl = get_var_record_from_set( $Sf->{'Vars'},$var);
+                    	$line = emit_f95_var_decl($var_decl);
+                    	push @{$info->{'Ann'}}, annotate($f, __LINE__ .': Dimension, '.($stmt_count == 1 ? '' : 'SKIP'));
+#                    	carp $stmt_count;
+#                    	if ($stmt_count>1) {
+#                    		carp "DUP!";
+#                    		$line = "! DUP2 ! $line";
+#                    	}
+                    }
                 } else {                    
                     $line = _emit_f95_parsed_var_decl($pvd);
+                    push @{$info->{'Ann'}}, annotate($f, __LINE__ .': ParsedVarDecl, '.($stmt_count == 1 ? '' : 'SKIP'));                    
                 }
             } else { 
-#            my $var =  $info->{'VarDecl'}{'Name'};
-            if ( in_nested_set($Sf, 'Parameters', $var) ) {
-                # Remove this line, because this param should have been declared above
-                $line = '!! Original line PAR:2 !! ' . $line;
-                $info->{'Deleted'} = 1;
-                $info->{'Ann'}=[ annotate($f, __LINE__ .' Removed ParamDecl' ) ];
-            } elsif (not exists $info->{'Ref'} or $info->{'Ref'} == 0 ){
-#            	say Dumper($Sf->{'Vars'});
-                my $var_decl = get_var_record_from_set( $Sf->{'Vars'},$var);
-                $line = emit_f95_var_decl($var_decl) ;                
-                delete $info->{'ExGlobArgDecls'};
-                $info->{'Ref'} = 1;                 
-                push @{$info->{'Ann'}}, annotate($f, __LINE__ .': Ref==0' );
-            } else {
-                croak 'BOOM! ' . 'context_free_refactoring '. __LINE__ ."; ";
-            }
-                        
+	            if ( in_nested_set($Sf, 'Parameters', $var) ) {
+	                # Remove this line, because this param should have been declared above
+	                $line = '!! Original line PAR:2 !! ' . $line;
+	                $info->{'Deleted'} = 1;
+	                $info->{'Ann'}=[ annotate($f, __LINE__ .' Removed ParamDecl' ) ];
+	            } elsif (not exists $info->{'Ref'} or $info->{'Ref'} == 0 ){
+	                my $var_decl = get_var_record_from_set( $Sf->{'Vars'},$var);
+	                $line = emit_f95_var_decl($var_decl) ;                
+	                delete $info->{'ExGlobArgDecls'};
+	                $info->{'Ref'} = 1;                 
+	                push @{$info->{'Ann'}}, annotate($f, __LINE__ .': Ref==0, '.$stmt_count );
+	            } else {
+	                croak 'BOOM! ' . 'context_free_refactoring '. __LINE__ ."; ";
+	            }                        
             }
             
+            if ($stmt_count != 1) {
+            	$line = "! DUP $stmt_count $line";
+            	$info->{'Skip'}=1; 
+            } else {
+            	if ($line=~/^\s*dimension/) {
+            		$line = "! $line ! DUP DIM !";
+            		$info->{'Skip'}=1;
+            	}
+            }  
+#            if (exists $info->{'Dimension'}) {
+#            	croak Dumper($line,$info);
+#            }         
         }
-
 # ------------------------------------------------------------------------------
 # END of section refactoring variable and parameter declarations
 # ------------------------------------------------------------------------------
@@ -258,7 +281,7 @@ sub context_free_refactorings {
                 # WV 20130709: why should I remove this?
                 my $par_decls= [ $info->{'ParamDecl'} ];
                 
-                 my $info_ref = $info->{'Ref'} // 0;
+                my $info_ref = $info->{'Ref'} // 0;
                     if (exists $info->{'ParamDecl'}{'Name'} ) {
                              my $var_val = $info->{'ParamDecl'}{'Name'};
                                 ( my $var, my $val ) = @{$var_val};                
@@ -271,24 +294,28 @@ sub context_free_refactorings {
                         }
                     }
                 for my $par_decl (@{ $par_decls }) {
-                my $new_line =
-                  emit_f95_var_decl($par_decl) ;
-                # Here the declaration is complete
-                push @extra_lines,
-                  [
-                    $new_line,
-                    {
-                        'Extra'     => 1,
-                        'ParamDecl' => $par_decl,
-                        'Ref'       => $info_ref + 1,
-                        'LineID'    => $nextLineID++,
-                        'Ann' => [annotate($f, __LINE__, ' : ParamDecl') ]                        
-                    }
-                  ]
-                  ; # Create parameter declarations before variable declarations            
-            $line = '!! ' . $line;
-            $info->{'Ann'}=[ annotate($f, __LINE__ .' Original ParamDecl' ) ];
-            $info->{'Deleted'} = 1;
+                	# We must check for string placeholders in parameter decls!
+                	if ($par_decl->{'Name'}[1]=~/(__PH\d+__)/) {
+                		my $ph=$1;
+                		$par_decl->{'Name'}[1]=$info->{'PlaceHolders'}{$ph};
+                	}
+	                my $new_line =emit_f95_var_decl($par_decl) ;
+	                # Here the declaration is complete
+	                push @extra_lines,
+	                  [
+	                    $new_line,
+	                    {
+	                        'Extra'     => 1,
+	                        'ParamDecl' => $par_decl,
+	                        'Ref'       => $info_ref + 1,
+	                        'LineID'    => $nextLineID++,
+	                        'Ann' => [annotate($f, __LINE__, ' : ParamDecl') ]                        
+	                    }
+	                  ]
+	                  ; # Create parameter declarations before variable declarations            
+		            $line = '!! ' . $line;
+		            $info->{'Ann'}=[ annotate($f, __LINE__ .' Original ParamDecl' ) ];
+		            $info->{'Deleted'} = 1;
                 }
         }
 
@@ -341,6 +368,7 @@ sub context_free_refactorings {
             push @include_use_stack, [ $line, $info ];    # if $line ne '';
             next;
         }
+#        carp $line if $line=~/double/;
         push @{ $Sf->{'RefactoredCode'} }, [ $line, $info ];   # if $line ne '';
         if (@extra_lines) {
             for my $extra_line (@extra_lines) {
@@ -453,7 +481,7 @@ sub context_free_refactorings {
         }      
     }
 
-    if ($die_if_one) { die Dumper( $Sf->{'RefactoredCode'} ); }
+    if ($die_if_one) { croak Dumper( $Sf->{'RefactoredCode'} ); }
     return $stref;
 }    # END of context_free_refactorings()
 

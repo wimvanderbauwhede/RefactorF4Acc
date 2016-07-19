@@ -178,8 +178,16 @@ sub _process_src {
             
         # Tests for free or fixed form
         if ($free_form==0) {
-        				my $cols1to6 = substr($line,0,6);
+        	my $cols1to6 = substr($line,0,6);
+        	if ($cols1to6 =~/^\s*\d*\t/) {
+        		my $tline = $line;
+        		chomp $tline;
+        		$tline=~s/\t/    /g;
+        		$cols1to6 = substr($tline,0,6);
+        	}
 			my @cols1to6_chars = split('',$cols1to6);
+			my $nchars= scalar @cols1to6_chars ;
+			
 # Standard Fixed Format        	
 #The standard fixed format source lines are defined as follows:
 #• The first 72 columns of each line are scanned. See “Extended Lines,” page 9.
@@ -265,15 +273,15 @@ sub _process_src {
         
         
             # Find subroutine/function/program signatures
-           $line =~ /^\s*(\w+\s+\w+\s+(?:function|subroutine)|\w+\s+(?:function|subroutine)|function|subroutine|program)\s+(\w+)/i && do {
+           $line =~ /^\s*(\w+\s+\w+\s+(?:function|subroutine)|\w+\s+(?:function|subroutine)|function|subroutine|program|block)\s+(\w+)/i && do {
            	
-            	my $full_proc_type=$1;
-            	
+            	my $full_proc_type=$1;            	
             	my $proc_name=$2;
 #            	croak if $proc_name eq 'psim';
 #				say "PROC NAME: $proc_name PROC TYPE: $full_proc_type";
 				my @proc_type_chunks = split(/\s+/,$full_proc_type);
 				my $proc_type=$proc_type_chunks[-1];
+				my $is_block_data = (lc($proc_type) eq 'block' and lc($proc_name) eq 'data' ) ? 1 : 0;
                 my $is_prog = (lc($proc_type) eq 'program') ? 1 : 0;
                 my $is_function = (lc($proc_type) eq 'function') ? 1 : 0;
                 my $is_rec = ($full_proc_type =~/recursive/i) ? 1 : 0;
@@ -286,6 +294,13 @@ sub _process_src {
                 if ( $is_prog == 1 ) {
                     print "Found program $sub in $src\n" if $V;
                     $container=$sub;                    
+                }
+                if ( $is_block_data == 1 ) {
+                	if (lc($sub) eq 'data') {
+                		$sub = '<init_exglobs>';
+                		$line=~/block\s+data\s+(\w+)/i && do { $sub=lc($1) };
+                	}
+					say "Found block data $sub in $src: $line" if $V;
                 }
                 if ($is_module) {
                     $stref->{'Modules'}{$mod_name}{'Subroutines'}{$sub}={};
@@ -304,6 +319,10 @@ sub _process_src {
 	                if ($is_function) {
 	                	$Ssub->{'Function'} = 1;     
 	                }
+	                if ( $is_block_data == 1 ) {
+	                		$Ssub->{'BlockData'} = 1;
+	                		$stref->{'BlockData'}{$sub}=1;
+	                }
 	                    $Ssub->{'Source'}  = $src;
 	                    $Ssub->{'Status'}  = $UNREAD;
 	                    
@@ -318,8 +337,7 @@ sub _process_src {
                 	$Ssub->{'Pure'} = 0;
                 }	                    
                     $Ssub->{'Callers'}  = {};
-                    if ($is_prog==1) {
-                    	
+                    if ($is_prog==1) {                    	
                     	$stref->{'Program'}=$src;	                    	
                     } elsif ($in_contains==1) {
                     	$Ssub->{'Container'} = $container;
