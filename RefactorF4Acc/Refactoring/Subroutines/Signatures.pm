@@ -42,6 +42,7 @@ sub create_refactored_subroutine_signature {
     my $args_ref = $Sf->{'RefactoredArgs'}{'List'};
     my $args_str = join( ',', @{$args_ref} );
     print "NEW ARGS: $args_str\n" if $DBG;
+    
 #    die $args_str if $f eq 'post';
     my $rline = '';
     if ( $Sf->{'Program'} ) {
@@ -57,7 +58,7 @@ sub create_refactored_subroutine_signature {
         $rline .= 'function ' . $f . '(' . $args_str . ')';    
     } else {    
     		$rline = $annline->[0];
-    	$rline =~s/subroutine.*$//;	
+    	$rline =~s/(?:subroutine|block\s+data).*$//;	
         $rline .= 'subroutine ' . $f . '(' . $args_str . ')';
     }
     $info->{'Refactored'} = 1;

@@ -1111,7 +1111,7 @@ sub _procLine {
             my $name    = lc($2);
             if ($keyword  eq 'block' and $name eq 'data') {
             	$keyword = 'block data';
-            	$name = '<init_exglobs>';
+            	$name = 'block_data';
             	$line=~/block\s+data\s+(\w+)/i && do {
             		$name = lc($1);
             	};

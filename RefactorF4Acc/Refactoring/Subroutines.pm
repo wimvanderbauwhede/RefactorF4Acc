@@ -43,7 +43,8 @@ Subroutines
 
 sub refactor_all_subroutines {
     ( my $stref ) = @_;
-    for my $f ( sort keys %{ $stref->{'Subroutines'} } ) { 
+    for my $f ( sort keys %{ $stref->{'Subroutines'} } ) {
+    	 
         next if ($f eq '' or not defined $f);
         my $Sf = $stref->{'Subroutines'}{$f};                
         if ( not defined $Sf->{'Status'} ) {
@@ -57,6 +58,7 @@ sub refactor_all_subroutines {
 #        if (exists $Sf->{'Function'} and $Sf->{'Function'} ==1 ) {
 ## $stref = refactor_called_functions($stref, $f);
 #        } else {
+	
             $stref = _refactor_subroutine_main($stref, $f);
 #        }      
     }
@@ -123,6 +125,7 @@ sub _refactor_subroutine_main {
         print "REFACTORING COMMONS for SUBROUTINE $f\n" if $V;
         
         if ( $Sf->{'RefactorGlobals'} == 1 ) { 
+        	
             say "_refactor_globals_new($f)" if $V;
           $annlines = _refactor_globals_new( $stref, $f, $annlines );
 
@@ -151,7 +154,7 @@ sub _fix_end_lines {
     my $sub_or_prog = 
     (exists $Sf->{'Program'} and $Sf->{'Program'} == 1) ? 'program' : 
     (exists $Sf->{'Function'} and $Sf->{'Function'} == 1 ) ? 'function' :
-    (exists $Sf->{'BlockData'} and $Sf->{'BlockData'} == 1 ) ? 'block data' : 
+    (exists $Sf->{'BlockData'} and $Sf->{'BlockData'} == 1 ) ? 'subroutine' : 
     'subroutine';
     say 'fix end '.$f if $V;
     my $done_fix_end=0;
@@ -169,6 +172,7 @@ sub _fix_end_lines {
         
         if ($line=~/^\s*end\s*$/ ) {
             $line=~s/\s+$//;
+#            my $ff = $f eq 'block_data' ? '' : $f;
             push @{$rlines},[ $line." $sub_or_prog $f",$info];
             $done_fix_end=1;
         }
@@ -321,7 +325,7 @@ sub _refactor_globals_new {
  	my $inc_counter = scalar keys %{$Sf->{'Includes'}};
     for my $annline ( @{$annlines} ) {
         (my $line, my $info) = @{ $annline };
-#        say "LINE: $line";
+#        say "LINE: $line INFO: ".Dumper($info) if $f=~/init/;
 #        if ($line=~/ff059/) {say Dumper($info)};
         my $skip = 0;
 

@@ -6,7 +6,7 @@ use RefactorF4Acc::CallTree qw( add_to_call_tree );
 use RefactorF4Acc::Refactoring::Common qw( emit_f95_var_decl get_f95_var_decl );
 use RefactorF4Acc::Parser::SrcReader qw( read_fortran_src );
 use RefactorF4Acc::Parser::Expressions
-  qw(  parse_expression  get_args_vars_from_expression get_args_vars_from_subcall );
+  qw(  parse_expression  get_args_vars_from_expression get_args_vars_from_subcall emit_expression);
 use RefactorF4Acc::CTranslation qw( add_to_C_build_sources );    # OBSOLETE
 use RefactorF4Acc::Analysis::LoopDetect qw( outer_loop_start_detect );
 use RefactorF4Acc::Analysis::ArgumentIODirs qw(  &conditional_assignment_fsm );
@@ -482,7 +482,7 @@ sub _analyse_lines {
 					'function';
 				if ($proc_type eq 'block data') {
 					$full_proc_type = 'block data';
-					$proc_name = '<init_exglobs>';
+					$proc_name = 'block_data';
                 	$line=~/block\s+data\s+(\w+)/i && do { $proc_name=$1 };
 #					carp "FOUND BLOCK DATA $proc_name: $line";
 				}
@@ -637,6 +637,14 @@ sub _analyse_lines {
 						$mline =~ s/if.+?$rest/$rest/;
 					}
 				}
+			} elsif ($line=~/^\s*\d*\s+data\s+/) {
+#				say "DATA declaration $line" if $V;
+
+			
+				$extra_lines{$index}=_parse_data_declaration($line,$info, $stref, $f);
+#				push @{$extra_lines{$index}}, ["! $line", {%{$info}, ('Skip'=>1)}];
+#				carp Dumper(%extra_lines);
+				next;
 			}
 
 #    Arithmetic, logical, statement label (ASSIGN), and character assignment statements
@@ -941,7 +949,7 @@ sub _analyse_lines {
 #				say 'STMT COUNT : '.$varname.' : '.$subset.' : '.$stmt_count;#$Sf->{$subset}{'Set'}{$varname}{'StmtCount'};
 				$Sf->{'DeclCount'}{$varname}++;
 				$info->{'StmtCount'}{$varname}=$Sf->{'DeclCount'}{$varname};#$stmt_count;#$Sf->{$subset}{'Set'}{$varname}{'StmtCount'};
-				carp $info->{'StmtCount'}{$varname} if $varname eq 'ladn1d';
+#				carp $info->{'StmtCount'}{$varname} if $varname eq 'ladn1d';
 					push @{ $extra_lines{$index} }, [$indent."dimension $dline",$info];
 				}
 				next;
@@ -3030,9 +3038,9 @@ sub __parse_sub_func_prog_decls {
 		$info->{'Signature'}{'Args'}{'List'} = [];
 		$info->{'Signature'}{'Name'}         = $name;
 		$info->{'Signature'}{'Program'}      = 1;
-	} elsif ( $line =~ /^\s*data\s+block\s*$/ ) {
-		my $name = '<init_exglobs>';
-		if ( $line =~ /^\s*data\s+block\s+(\w+)\s*$/ ) {
+	} elsif ( $line =~ /^\s*block\s+data/ ) { 
+		my $name = 'block_data';
+		if ( $line =~ /^\s*block\s+data\s+(\w+)\s*/ ) {
 			$name=$1;
 		}
 		$info->{'Signature'}{'Args'}{'List'} = [];
@@ -4128,6 +4136,59 @@ sub __remove_blanks { (my $line, my $free_form)=@_;
 #	say "ASSIGN:".$c1to6.'|'.$indent.'|'.$line if $line=~/rvon01/;
 	return  $c1to6.$indent.$line;
 }
+
+sub _parse_data_declaration { (my $line,my $info, my $stref, my $f) = @_;
+	my $new_annlines=[];
+	my $indent =$line;$indent=~s/\S.*$//;
+	$line=~s/^\s+data\s+//;
+	$line=~s/\/\s*$//;
+	(my $lhs, my $rhs) = split (/\s*\/\s*/,$line);
+	my @lhs_vars =  split (/\s*,\s*/,$lhs);
+		
+	
+	my $rhs_expr = 'dummy('.$rhs.')';
+	my $ast = parse_expression($rhs_expr, $info,$stref, $f);
+	
+#	croak Dumper($ast);
+#	my @rhs_vals =  ();
+	my $rhs_idx=2;
+	for my $lhs_varname (@lhs_vars) {
+		my $rhs_val_ast = $ast->[$rhs_idx++];
+		my $rhs_val = ref($rhs_val_ast) eq 'ARRAY' ? emit_expression($rhs_val_ast) : $rhs_val_ast;
+			# I am lazy so I use a regex to substitute the placeholders 
+	while ($rhs_val =~ /(__PH\d+__)/) {
+		my $ph=$1;
+		my $ph_str = $info->{'PlaceHolders'}{$ph};
+		$rhs_val=~s/$ph/$ph_str/;
+	}
+		
+		my $new_line = "$indent$lhs_varname = $rhs_val";
+		
+	my $rinfo = dclone($info);
+	$rinfo->{'Assignment'}=1;
+		$rinfo->{'Lhs'} = {
+			'VarName'       => $lhs_varname,
+			'IndexVars'     => {'List'=>[],'Set'=>{}},
+			'ArrayOrScalar' => 'Scalar',
+			'ExpressionAST' => [ '$', $lhs_varname ]
+		};
+			( my $rhs_args, my $rhs_vars ) =
+	  @{ get_args_vars_from_expression($rhs_val_ast) };
+	my $rhs_all_vars = {
+		'Set'  => { %{ $rhs_args->{'Set'} },  %{ $rhs_vars->{'Set'} } },
+		'List' => [ @{ $rhs_args->{'List'} }, @{ $rhs_vars->{'List'} } ]
+	};
+	$rinfo->{'Rhs'} = {
+		'VarList'       => $rhs_all_vars,
+		'ExpressionAST' => $rhs_val_ast
+	};	
+	push @{ $new_annlines }, [$new_line,$rinfo];
+	}
+	
+	return $new_annlines;
+	
+} # END of _parse_data_declaration()
+
 
 1;
 

@@ -297,8 +297,8 @@ sub _process_src {
                 }
                 if ( $is_block_data == 1 ) {
                 	if (lc($sub) eq 'data') {
-                		$sub = '<init_exglobs>';
-                		$line=~/block\s+data\s+(\w+)/i && do { $sub=lc($1) };
+                		$sub = 'block_data';
+                		$line=~/block\s+data\s{1,4}(\w+)/i && do { $sub=lc($1) };
                 	}
 					say "Found block data $sub in $src: $line" if $V;
                 }

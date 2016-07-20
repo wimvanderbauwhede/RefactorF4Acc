@@ -79,8 +79,12 @@ sub parse_expression { (my $exp, my $info, my $stref, my $f)=@_;
 		$preproc_expr=~s/(\W[\.\d]+)[dq]([\d\-\+])/${1}e$2/;
 	}
 	# More EVIL HACK to "support" complex numbers
+	
+	if ($preproc_expr=~/^\([^\(\)]+,[^\(\)]+\)/) {
+		$preproc_expr='_complex_'.$preproc_expr;
+	}
 	while ($preproc_expr=~/\W\(/) { 
-		$preproc_expr=~s/(\W)\(/${1}complex\(/;
+		$preproc_expr=~s/(\W)\(/${1}_complex_\(/;
 	}
 #	 if ($exp =~/\*\*\s*(\w+)\s*\*\*\s*(\w+)/) {
 #	 	croak $preproc_expr;
@@ -284,6 +288,7 @@ sub emit_expression {(my $ast, my $expr_str)=@_;
 	} else {
 		$expr_str.=join(';',@expr_chunks);
 	}	
+	$expr_str=~s/_complex_//g;
 	if ($expr_str=~s/^\#dummy\#\(//) {
 		$expr_str=~s/\)$//;
 	}
