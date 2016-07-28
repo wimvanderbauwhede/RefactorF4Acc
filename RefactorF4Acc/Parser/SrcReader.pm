@@ -74,7 +74,7 @@ sub read_fortran_src {
             };
 
             if ($ok) {
-
+#say "PROCEDURE (BEFORE): $sub_func_incl $s";
 				say "READING SOURCE for $f ($s, $sub_func_incl)" if $V;
                 my $line       = '';
                 my $nextline   = '';
@@ -175,7 +175,7 @@ Suppose we don't:
                             $nextline = shift(@lines) // '';    # '/
                             $next2 = 1;
                         }
-#                        print DBG "LINE: $line";
+#                        print "LINE: $line";
 #                        print DBG "NEXTLINE: $nextline";
 #######################################################################
                         if ($in_cont) {
@@ -851,8 +851,68 @@ Suppose we don't:
 #						$annline->[0] = $c1to6.$indent.$line;
 #					}
 #	            }
-            }    #ok
             
+            		    
+	    for my $sub_or_func ( @{  $stref->{'SourceContains'}{$f}{'List'}   } ) {
+	        my $sub_func_type= $stref->{'SourceContains'}{$f}{'Set'}{$sub_or_func};
+	        my $Sf = $stref->{$sub_func_type}{$sub_or_func};
+
+            my @annlines = @{  $Sf->{'AnnLines'} };
+            my $new_annlines=[];
+            for my $annline (@annlines) {
+            	(my $line, my $info)=@{$annline};            	
+                    # Split lines with multiple common block declarations
+                    if ($line=~/^\s*\d*\s+common/) {                    	
+						# 'Normal' is common /name/ x
+						# But also  
+						# common x//y 
+						# common x/name/y 
+						# common //x 
+						# If we split on '/' we want to know: how many '/' are there? i.e. scalar @chunks -1
+						# But we need to cater for the bare common as a first occurence, so test /common\s+[a-z]/
+						my $tline = $line;
+#						say "ORIG COMMON: $line";
+						my @chunks = split(/\s*\/\s*/,$tline);
+						
+						my $multiple_common_blocks=0;
+						my $first_block_bare=0;						 						 
+                        if (scalar @chunks > 3) {
+                        	$multiple_common_blocks=1;
+                        } elsif (scalar @chunks == 3 and $chunks[0]=~/common\s+[a-z]/) {
+                        	$multiple_common_blocks=1;
+                        	$first_block_bare=1;	
+                        }
+                        if ($multiple_common_blocks==1) {
+                        	
+                        		my $fst = shift @chunks;
+                        		(my $indent, my $rest) = split(/common/, $fst);
+                        		$rest=~s/\s*,\s*$//;
+                        		my $common = $indent.'common ';
+#                        		shift @chunks;
+                        	if ($first_block_bare==1) {
+#                        		say 'BARE!';
+                        		# so we have 'common l1 ','[n2]',l2,...
+                        		
+                        		my $nline = $common.'// '.$rest;
+                        		 push @{$new_annlines},[$nline, $info];
+#                        		 say $nline;
+                        	} else {
+#                        		say "MULTIPLE COMMON: $line";
+#                        	say "CHUNKS:".Dumper(@chunks).'---';
+                        	}
+                        	for my $i (0 .. (scalar @chunks)/2-1) {
+                        		my $nline = $common. '/'.$chunks[2*$i].'/ '.$chunks[2*$i+1];
+                        		push @{$new_annlines},[$nline, $info];
+#                        		say $nline ;
+							}
+                        	next;                        	                               
+                        }
+                    } 
+            	push @{$new_annlines}, [$line,$info];
+            }
+			$Sf->{'AnnLines'} = $new_annlines;
+	    }	                        
+            }    #ok
         } else {
             print "NO NEED TO READ $s\n" if $I;
         }   # if $need_to_read
@@ -900,6 +960,7 @@ if ($f eq 'UNKNOWN_SRC' or $stref->{$srctype}{$f}{'Status'}<$PARSED ) {
                     $stref->{'Subroutines'}{$f}{'Function'}=1;
                 }            	 				
  			}
+ 			
             $stref->{$srctype}{$f}{'AnnLines'} = [] unless $stref->{'Subroutines'}{$f}{'Status'} == $PARSED;
         } 
 #        elsif ( exists $pline->[1]{'FunctionSig'} ) {
@@ -977,7 +1038,14 @@ sub _removeCont {
     if ( $free_form == 0 ) {
         if ( $line =~ /^\ {5}[^0\s]/ )
         {    # continuation line. Continuation character can be anything!
-            $line =~ s/^\s{5}.\s*//; # Can't have a blank here as they can split in the middle of a variable name!
+            # Can't have a blank here as they can split in the middle of a variable name!
+            # However, removing the blanks leads to errors in strings.
+            # A crude ad-hoc: if we detect a quote we don't remove the spaces ... WEAK, of course!
+            if ($line!~/[\'\"]/) {
+            $line =~ s/^\s{5}.\s*//;
+            } else {
+            	$line =~ s/^\s{5}.//;
+            } 
         } elsif ( $line =~ /^\&/ ) {
             $line =~ s/^\&\t*/ /;
         } elsif ( $line =~ /^\t[1-9]/ ) {

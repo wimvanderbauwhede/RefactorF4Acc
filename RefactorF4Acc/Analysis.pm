@@ -33,12 +33,30 @@ use Exporter;
 sub analyse_all {
 
 	( my $stref, my $subname, my $stage ) = @_;
-
-	# Find the 'root', i.e. the outermost calling subroutine, for each include file
+	my $annlines =	_add_BLOCK_DATA_call_after_last_VarDecl($subname,$stref);
+	
+#	# Find the 'root', i.e. the outermost calling subroutine, for each include file
 
 	print "\t** FIND ROOT FOR INCLUDES **\n" if $V;
 	$stref = find_root_for_includes( $stref, $subname );
 	return $stref if $stage == 1;
+
+
+	# Insert BLOCK DATA calls in the main program
+	# if (exists $Sf->{'Program'} and $Sf->{'Program'} == 1)
+	# Find the last declaration. Just use a statefull pass or even a conditional splice.
+	# Problem is of course comments. The condition is "line is a Decl and next line that is not a comment is not a decl
+	# Also, if it's a COMMON or DIMENSION it is effectively a decl
+	#  
+
+	# In this stage, 'ExGlobArgs' is populated from CommonVars by looking at the common blocks that occur in the call chain
+	# Note that this does not cover common blocks in includes so hopefully ExGlobArgs will not be affected for the case with includes.
+	# Because this is recursive, it currently does not work for the 'block data' routines
+	# What I need to do is put the calls to the ex-BLOCK DATA routines in the main program
+#    for my $data_block (keys %{ $stref->{'BlockData'} } ) {
+#    	$stref = _determine_exglobargs_rec( $data_block, $stref );
+#    }	 	
+	_determine_exglobargs_rec($subname, $stref);
 
 	# First find any additional argument declarations, either in includes or via implicits
 	for my $f ( keys %{ $stref->{'Subroutines'} } ) {
@@ -49,13 +67,13 @@ sub analyse_all {
 	return $stref if $stage == 2;
 
 
-	for my $f ( keys %{ $stref->{'Subroutines'} } ) {
-		next if $f eq '';
-
-		# In this stage, 'ExGlobArgs' is populated
-		$stref = _populate_exglobs_from_commonvars( $stref, $f );
-
-	}
+#	for my $f ( keys %{ $stref->{'Subroutines'} } ) {
+#		next if $f eq '';
+#
+#		# In this stage, 'ExGlobArgs' is populated
+#		$stref = _populate_exglobs_from_commonvars( $stref, $f );
+#
+#	}
 
 	for my $f ( keys %{ $stref->{'Subroutines'} } ) {
 		next if $f eq '';
@@ -213,7 +231,7 @@ sub _analyse_variables {
 				}
 			} elsif ( exists $info->{'Do'} ) {
 				@chunks = ( @chunks, $info->{'Do'}{'Iterator'}, @{ $info->{'Do'}{'Range'}{'Vars'} } );
-			} elsif ( exists $info->{'Assignment'} ) {
+			} elsif ( exists $info->{'Assignment'} and not exists $info->{'Data'}) {
 				@chunks = ( @chunks, $info->{'Lhs'}{'VarName'}, @{ $info->{'Lhs'}{'IndexVars'}{'List'} }, @{ $info->{'Rhs'}{'VarList'}{'List'} } );
 			} elsif ( exists $info->{'ParamDecl'} ) {
 				@chunks = ( @chunks, keys %{ $info->{'UsedParameters'} } );
@@ -653,31 +671,24 @@ sub _populate_exglobs_from_commonvars { ( my $stref, my $f ) = @_;
 	my $Sf = $stref->{$sub_or_func_or_mod}{$f};
 	my @subsets=();
 	if (exists $Sf->{'DeclaredCommonVars'} ) {
-#		say 'DECLARED '.Dumper($Sf->{'DeclaredCommonVars'} );
 		 push @subsets,'DeclaredCommonVars';
 	} 
 	if (exists $Sf->{'DeclaredCommonVars'} ) {
-#		say 'UNDECLARED '.Dumper($Sf->{'UndeclaredCommonVars'} );
 		push @subsets,'UndeclaredCommonVars';
 	}
 	for my $subset (@subsets) {
 		for my $var (@{$Sf->{$subset}{'List'}}) {
 				my $decl; 							
-#				say "COMMON: Found $var in $subset";						
-#				say Dumper($stref->{'Subroutines'}{$f}{$subset});
 				my $var_rec = dclone( $stref->{'Subroutines'}{$f}{$subset}{'Set'}{ $var} );
-#				say Dumper($var_rec);
 				if ( not defined $var_rec ) {
 					# This means this var decl in the include has not been declared
 					croak "SHOULD NOT HAPPEN: No Decl for $var in $f $subset";
 					# So we should type this one via Implicits
-					$decl = get_f95_var_decl( $stref, $f, $var );
-#					say Dumper($decl);
+					$decl = get_f95_var_decl( $stref, $f, $var );#					say Dumper($decl);
 				} else {
 					$decl = $var_rec;
 				}			
 				if (exists $stref->{'Subroutines'}{$f}{'ExGlobArgs'}{'Set'}{$var} ) {croak "$var in $f : duplicate exglob"}
-#				carp "FOUND argdecl for $var via common block $subset in $f";
 				push @{ $stref->{'Subroutines'}{$f}{'ExGlobArgs'}{'List'} }, $var;
 				$stref->{'Subroutines'}{$f}{'ExGlobArgs'}{'Set'}{$var} = $decl;
 				$stref->{'Subroutines'}{$f}{'MaskedIntrinsics'}{$var}  = 1;
@@ -685,6 +696,189 @@ sub _populate_exglobs_from_commonvars { ( my $stref, my $f ) = @_;
 	}
 	return $stref;
 }
+
+
+	
+# We do a recusive descent for all called subroutines, and for the leaves we do the analysis.
+# TODO: in principle this should also work for called functions ...
+sub _determine_exglobargs_rec {
+	( my $f, my $stref ) = @_;
+	my $c;
+	if ($V) {
+		$c = ( defined $stref->{Counter} ) ? $stref->{Counter} : 0;
+		say "\t" x $c, $f;
+	}
+	
+    push @{ $stref->{'CallStack'} }, $f;
+    my %subs = map {$_=>1} @{ $stref->{'CallStack'} }; 
+	
+	my $Sf = $stref->{'Subroutines'}{$f};
+	if ( exists $Sf->{'CalledSubs'}{'List'}
+		and scalar @{ $Sf->{'CalledSubs'}{'List'} } > 0 ) {
+
+		# First we must look up the call stack for the 'current' exglobargs, this is quite the same as in the leaf node
+		$stref = __determine_exglobargs_core( $stref, $f );
+		# Then we must create the union of all exglobargs of all called subroutines
+		# There is a possible complication that f1 can have v1 from b1 and f2 v1 from b2
+		# But I am going to ignore that and blindly merge all exglobargs	
+		for my $calledsub ( @{ $Sf->{'CalledSubs'}{'List'} } ) {
+			$stref->{Counter}++ if $V;
+			$stref = _determine_exglobargs_rec( $calledsub, $stref );
+#			say "AFTER rec into called sub $calledsub for $f";
+			$Sf->{'ExGlobArgs'}{'Set'}={%{ $Sf->{'ExGlobArgs'}{'Set'} },%{ $stref->{'Subroutines'}{$calledsub}{'ExGlobArgs'}{'Set'} } };
+			$stref->{Counter}-- if $V;
+		}
+		say "\t" x $c, "--------" if $V;
+#		say "AFTER rec into all called subs for $f";
+		$Sf->{'ExGlobArgs'}{'List'} =[ sort keys %{ $Sf->{'ExGlobArgs'}{'Set'} } ];  
+#		$stref = __determine_exglobargs_core( $stref, $f );
+		# When do we come here? 
+	} else {
+#	say  "\t" x $c, "LEAF $f";
+		
+#		say Dumper($stref->{'CallStack'});
+		$stref = __determine_exglobargs_core( $stref, $f );
+	}
+#	say "EX-GLOBS from SUB $f: ".Dumper( $Sf->{'ExGlobArgs'}{'List'} );
+	pop  @{ $stref->{'CallStack'} };
+	return $stref;
+}    # _determine_exglobargs_rec()
+
+
+#- we create a new argument for every common block variable, by copying ${Var}_ARG into ExGlobArgs; 
+# hopefully this will automatically create the additional argument declarations.
+# we are only renaming (must dclone and change 'Name' though)
+# So, 
+# if (exists $Sf->{'BlockData'} ) { # rename }
+#
+sub __determine_exglobargs_core { ( my $stref, my $f ) = @_;
+	
+	my $Sf = $stref->{'Subroutines'}{$f};
+	my $is_block_data = exists $Sf->{'BlockData'} ? 1 : 0;
+	
+	my $common_decls_current=__get_common_decls($stref,$f);
+	# Determine if this $var occurs in  $common_block_name anywhere up the stack
+	# So either I go for every var through all callers or for every caller through all vars
+	# Or better: create an intermediate datastructure $var => { $block => {$f =>1, ...} }
+	my $common_decls_callers ={};
+	for my $caller (@{$stref->{'CallStack'}}) {
+		my $common_decls_caller=__get_common_decls($stref,$caller);
+		for my $var (keys %{ $common_decls_caller }) {
+			if (not exists $common_decls_caller->{$var}{'CommonBlockName'}) {
+				croak "$caller => ".Dumper($common_decls_caller->{$var});
+			}
+			my $common_block_name = $common_decls_caller->{$var}{'CommonBlockName'};
+			$common_decls_callers->{$var}{$common_block_name}{$caller}=1;
+		} 		
+	}
+	# Now I go through all vars in $common_decls_current and test
+	# If a var occurs in any caller, it must become an ExGlobArg
+	for my $var (keys %{ $common_decls_current }) {
+		my $decl = $common_decls_current->{$var};
+		my $common_block_name = $decl->{'CommonBlockName'};
+		if (exists	$common_decls_callers->{$var}{$common_block_name} ) {
+#			say Dumper( $common_decls_callers->{$var}{$common_block_name} );
+			if (not $is_block_data) {
+				$Sf->{'ExGlobArgs'}{'Set'}{$var}=$decl;
+			} else {
+				# BLOCK DATA
+				say "INFO: RENAMING ARGS FOR BLOCK DATA" if $I;
+				my $mod_decl = dclone($decl);
+				$mod_decl->{'Name'}=$var.'_ARG';
+				$mod_decl->{'OrigName'}=$var;
+				$Sf->{'ExGlobArgs'}{'Set'}{$var.'_ARG'}=$mod_decl ;
+			}			
+		}
+	} 	
+	$Sf->{'ExGlobArgs'}{'List'} =[ sort keys %{ $Sf->{'ExGlobArgs'}{'Set'} } ];
+	return $stref;
+} # END of __determine_exglobargs_core()
+
+# This returns a hash $varname => $common_block_name 
+sub __get_common_decls { ( my $stref, my $f ) = @_;
+	my $sub_or_func_or_mod = sub_func_incl_mod( $f, $stref );
+	my $Sf = $stref->{$sub_or_func_or_mod}{$f};	
+	my $common_decls = get_vars_from_set($Sf->{'CommonVars'});
+	return $common_decls;	
+} # END of __get_common_decls()
+=pod
+- start from the top
+- recursive descent to leave (no callers), push the path onto a stack
+- For every Common in a leave node:
+	- go through the stack in order check if this Common var is declared in any of the callers 
+if (my $subset=in_nested_sets($Sf,'CommonVars',$var) and $Sf->{$subset}{'Set'}{$var}{'CommonBlockName'} eq $common_block_name) {
+# add this $var to ExGlobArgs
+}
+
+=cut
+
+sub _add_BLOCK_DATA_call_after_last_VarDecl { 
+	( my $f, my $stref ) = @_;
+	my $Sf = $stref->{'Subroutines'}{$f};	
+	my $annlines=$Sf->{'AnnLines'};
+	
+	my $in_decls=0;
+	my $decl=0;
+	my $found_hook=0;
+	my $new_annlines=[];
+	for my $annline (@{$annlines}) {
+		(my $line, my $info)=@{$annline};
+		
+		if (exists $info->{'Comments'} or exists $info->{'Blank'}) {
+			push @{$new_annlines}, $annline;
+			next;
+		}
+#		say $line;
+		if (
+		(exists $info->{'Signature'} and $info->{'Signature'}{'Program'} == 1) or
+		exists $info->{'Include'} or
+		exists $info->{'VarDecl'} or
+		exists $info->{'Common'} or
+		exists $info->{'Dimension'} # I guess there might be others ...
+		) {
+			$decl=1;
+		} else {
+			$decl=0;
+		}
+		if ($decl and $in_decls==0) {
+			$in_decls=1;
+		}
+		if ($in_decls and not $decl and $found_hook==0) {
+			$found_hook=1;
+			# So here we should put in the additional calls to BLOCK DATA
+			for my $block_data (keys %{ $stref->{'BlockData'} } ) { 
+				my $call_block_data_line = "        call $block_data"; 
+				push @{$new_annlines}, [
+				$call_block_data_line, 
+				{
+					'SubroutineCall'=> {
+						'Name' => $block_data,
+						'Args' => {'List'=>[],'Set'=>{} },
+						'ExpressionAST' => [
+          					'&',$block_data
+        				],
+					},
+					'ExprVars' => {
+        				'List' => [],
+        				'Set' => {}
+      				},
+					'CallArgs' => {
+        				'Set' => {},
+        				'List' => []
+      				},
+      				'LineID' => ++$annlines->[-1][1]{'LineID'}
+				}
+				];
+				unshift @{$stref->{'Subroutines'}{$f}{'CalledSubs'}{'List'}}, $block_data;
+				$stref->{'Subroutines'}{$f}{'CalledSubs'}{'Set'}{$block_data}=1;
+			}
+		} 
+		push @{$new_annlines}, $annline;
+	}
+	$stref->{'Subroutines'}{$f}{'AnnLines'}=$new_annlines;
+	
+	return $stref;
+} # END of _add_BLOCK_DATA_call_after_last_VarDecl
 
 
 1;

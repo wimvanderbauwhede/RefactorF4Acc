@@ -43,7 +43,7 @@ sub refactor_all {
     $stref = refactor_include_files($stref);
     return $stref if $stage == 1;
     
-    $stref = refactor_called_functions($stref); # Context-free only
+    $stref = refactor_called_functions($stref); # Context-free only FIXME: this should be treated just like subs, but if course that requires full parsing of expressions
     return $stref if $stage == 2;
     
 #croak Dumper(get_var_record_from_set($stref->{'Subroutines'}{'read_ncwrfout_1realfield'}{'Vars'},'varname'));    

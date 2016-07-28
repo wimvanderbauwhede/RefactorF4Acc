@@ -637,16 +637,7 @@ sub _analyse_lines {
 						$mline =~ s/if.+?$rest/$rest/;
 					}
 				}
-			} elsif ($line=~/^\s*\d*\s+data\s+/) {
-#				say "DATA declaration $line" if $V;
-
-			
-				$extra_lines{$index}=_parse_data_declaration($line,$info, $stref, $f);
-#				push @{$extra_lines{$index}}, ["! $line", {%{$info}, ('Skip'=>1)}];
-#				carp Dumper(%extra_lines);
-				next;
-			}
-
+			} 
 #    Arithmetic, logical, statement label (ASSIGN), and character assignment statements
 #    Unconditional GO TO, assigned GO TO, and computed GO TO statements
 #    Arithmetic IF and logical IF statements
@@ -963,7 +954,7 @@ sub _analyse_lines {
 		} elsif ( $line =~ /^\s*common\s*\/\s*([\w\d]+)\s*\/\s*(.+)$/ or 
 				$line =~ /^\s*(common)\s+(.+)$/ 
 		 ) {
-				my $common_block_name = $1;
+				my $common_block_name = $1; # means it will be 'common' for a blank block
 				my $commonlst         = $2;
 				$commonlst=~s/\/\//,/g;
 				$commonlst=~s/^,//;         				
@@ -989,121 +980,41 @@ sub _analyse_lines {
 								'Name'   => $var,
 								'Status' => 1,								
 								'ArrayOrScalar' => $parsedvars->{$var}{'ArrayOrScalar'},
-#								'StmtCount' => 1
+								'CommonBlockName' => $common_block_name
 							};
 							
 							$Sf->{'UndeclaredCommonVars'}{'Set'}{$var} = $decl;
 							push  @{ $Sf->{'UndeclaredCommonVars'}{'List'} },$var;
 							say "INFO: DECLARED COMMON VAR $var from $f, was typed via implicit rules" if $I;							
-#							$Sf->{'ExGlobArgs'}{'Set'}{$var}=$decl;
-#							push @{	$Sf->{'ExGlobArgs'}{'List'}},$var;											
 					} else { # Means the var is already declared. So just use the existing declaration
 						# As this is a common it can't be an argument
-#						$Sf->{'Commons'}{$var} = $var;   # Because we should use 'Commons' only for tests!
 						if (exists $Sf->{'DeclaredOrigLocalVars'}{'Set'}{$var} ){
 							my $decl = $Sf->{'DeclaredOrigLocalVars'}{'Set'}{$var};
 							$Sf->{'DeclaredCommonVars'}{'Set'}{$var} = dclone($decl);
+							$Sf->{'DeclaredCommonVars'}{'Set'}{$var}{'CommonBlockName'} = $common_block_name;
 							delete $Sf->{'DeclaredOrigLocalVars'}{'Set'}{$var};
 							@{ $Sf->{'DeclaredOrigLocalVars'}{'List'} } = grep { $_ ne $var } @{ $Sf->{'DeclaredOrigLocalVars'}{'List'} };
 							push @{ $Sf->{'DeclaredCommonVars'}{'List'} }, $var;
-#							$Sf->{'DeclaredCommonVars'}{'Set'}{$var}{'StmtCount'}++;																	
 						} else {
 							my $subset = in_nested_set( $Sf, 'Vars', $var );
 							croak "SHOULD BE IMPOSSIBLE!  $var in $subset in $f: $line".Dumper( $Sf->{$subset}{'Set'}{$var} );
 						}						
 					}
-#					$info->{'StmtCount'}{$var}=$Sf->{'DeclaredCommonVars'}{'Set'}{$var}{'StmtCount'};
-=OLD							
-					if ( not in_nested_set( $Sf, 'Vars', $var ) ) {    # This means that it is an undeclared common
-							print "INFO: common <", $var, "> typed via Implicits for $f\n" if $I;
-							my @type_kind_attr =
-							  type_via_implicits( $stref, $f, $var );
-							( my $type, my $array_or_scalar, my $attr ) =
-							  @type_kind_attr;
-							my $indent = ' ' x 6;
-							my $decl   = {
-								'IODir'  => 'Unknown',
-								'Indent' => $indent,
-								'Type'   => $type,
-								'Attr'   => $attr,
-								'Dim'    => [ @{ $parsedvars->{$var}{'Dim'} } ],
-								'Name'   => $var,
-								'Status' => 1,								
-								'ArrayOrScalar' => $parsedvars->{$var}{'ArrayOrScalar'},
-								'StmtCount' => 1
-							};
-							$Sf->{'Commons'}{$var} = $var;
-							if ( exists $Sf->{'DeclaredOrigLocalVars'}{'Set'}{$var} ) {
-								croak "SHOULD BE IMPOSSIBLE!";
-# What this means is that the include file contains declared variables that are in a common block.
-# So we move them to DeclaredCommonVars
-								$Sf->{'DeclaredCommonVars'}{'Set'}{$var} = $decl;
-								delete $Sf->{'DeclaredOrigLocalVars'}{'Set'}{$var};
-								@{ $Sf->{'DeclaredOrigLocalVars'}{'List'} } = grep { $_ ne $var }
-								  @{ $Sf->{'DeclaredOrigLocalVars'}{'List'} };
-								push @{ $Sf->{'DeclaredCommonVars'}{'List'} },$var;
-							} else {
-#								say "UNDECLARED COMMON for $f via IMPLICIT: $var ".Dumper($decl) if $var eq 'iacn11';
-								$Sf->{'UndeclaredCommonVars'}{'Set'}{$var} = $decl;
-								push  @{ $Sf->{'UndeclaredCommonVars'}{'List'} },$var;
-								say "INFO: UNDECLARED COMMON VAR $var from $f, was typed via implicit rules" if $I;
-							}
-#							my $decl = dclone($Sf->{'DeclaredCommonVars'}{'Set'}{$var});
-							$Sf->{'ExGlobArgs'}{'Set'}{$var}=$decl;
-							push @{	$Sf->{'ExGlobArgs'}{'List'}},$var;				
-							
-					} else { # Means the var is already declared. So just use the existing declaration
-						# As this is a common it can't be an argument
-						$Sf->{'Commons'}{$var} = $var;   # Because we should use 'Commons' only for tests!
-						if (exists $Sf->{'DeclaredOrigLocalVars'}{'Set'}{$var} ){
-							$Sf->{'DeclaredCommonVars'}{'Set'}{$var} = {
-								%{
-									$Sf->{'DeclaredOrigLocalVars'}{'Set'}{$var}
-								  }
-							};
-							delete $Sf->{'DeclaredOrigLocalVars'}{'Set'}{$var};
-							@{ $Sf->{'DeclaredOrigLocalVars'}{'List'} } = grep { $_ ne $var } @{ $Sf->{'DeclaredOrigLocalVars'}{'List'} };
-							push @{ $Sf->{'DeclaredCommonVars'}{'List'} }, $var;
-							my $dim = $Sf->{'DeclaredCommonVars'}{'Set'}{$var}{'Dim'};    # FIXME GET FROM Set
-							my $updated_dim = scalar @{$dim} == 0 ? $parsedvars->{$var}{'Dim'} : $dim;
-							$Sf->{'DeclaredCommonVars'}{'Set'}{$var}{'Dim'} = $updated_dim;
-							$Sf->{'DeclaredCommonVars'}{'Set'}{$var}{'ArrayOrScalar'} = 'Array';
-							my $decl = dclone($Sf->{'DeclaredCommonVars'}{'Set'}{$var});
-							$Sf->{'ExGlobArgs'}{'Set'}{$var}=$decl;
-							push @{	$Sf->{'ExGlobArgs'}{'List'}},$var;				
-							croak Dumper($decl) if not exists $decl->{'Name'};
-#							  
-						} else {
-							# So we come here if the $var is in UndeclaredOrigLocalVars, which means we declared it via Implicits but did not encounter a common block 
-							# So all we need to do is move this $var from UndeclaredOrigLocalVars to UndeclaredCommonVars
-#      DIMENSION IACN1F(3)                                               00910302
-#      COMMON /BLK7/IVCNF1,IVCNF2,IVCNF3,IACN1F                          00920302	
-
-							if ( exists $Sf->{'UndeclaredOrigLocalVars'}{'Set'}{$var} ) {
-								my $decl = dclone( $Sf->{'UndeclaredOrigLocalVars'}{'Set'}{$var} );
-								$Sf->{'UndeclaredCommonVars'}{'Set'}{$var} = $decl;
-								delete $Sf->{'UndeclaredOrigLocalVars'}{'Set'}{$var};
-								@{ $Sf->{'UndeclaredOrigLocalVars'}{'List'} } =  grep { $_ ne $var } @{ $Sf->{'UndeclaredOrigLocalVars'}{'List'} };
-								$Sf->{'UndeclaredCommonVars'}{'List'} = ordered_union( $Sf->{'UndeclaredCommonVars'}{'List'}, [$var] );
-								$Sf->{'ExGlobArgs'}{'Set'}{$var}=$decl;
-								push @{	$Sf->{'ExGlobArgs'}{'List'}},$var;		
-								croak Dumper($decl) if not exists $decl->{'Name'};		
-							} else {						
-								croak "SHOULD BE IMPOSSIBLE! $f => $var: " .in_nested_set( $Sf, 'Vars', $var ) ;
-							}
-						}
-					}
-=cut					
-				} # for loop I guess
+				} # for loop 
 				
 				$info->{'Common'} = { 'Name' => $common_block_name };
 #				croak Dumper($info);
 		 } elsif ($line=~/^\s*\d*\s+data\s+/) {
-		 	$line.=' ! removed spaces from data';
+		 	$line.=' ! Parser line '.__LINE__.' : removed spaces from data';
 		 	my @chunks = split(/\//,$line);
 		 	$chunks[1]=~s/\s+//g;
 		 	$line=join('/',@chunks);
-			} elsif ( $line =~ /^\s*(.*)\s*::\s*(.*?)\s*$/ ) {
+#			$line = _expand_repeat_data($line);		
+				say "DATA declaration $line" if $V;
+#				$extra_lines{$index}=_parse_data_declaration($line,$info, $stref, $f);
+#				next;
+		 	
+		} elsif ( $line =~ /^\s*(.*)\s*::\s*(.*?)\s*$/ ) {
 
 				#
 				# F95 VarDecl
@@ -1817,6 +1728,7 @@ sub _get_commons_params_from_includes {
 			# common /name/ x...
 			# However, common/name/x is also valid, damn F77!
 			# And in fact, so is common /name/ x,y, /name2/ w,z 
+			# TODO: this is now duplicated in the main parser, factor out and see if this version is not out of date
 			if ( $line =~ /^\s*common\s*\/\s*([\w\d]+)\s*\/\s*(.+)$/ ) {
 				my $common_block_name = $1;
 				my $commonlst         = $2;
@@ -1845,7 +1757,8 @@ sub _get_commons_params_from_includes {
 								'Name'   => $var,
 								'Status' => 1,
 								'ArrayOrScalar' =>
-								  $parsedvars->{$var}{'ArrayOrScalar'}
+								  $parsedvars->{$var}{'ArrayOrScalar'},
+								  'CommonBlockName' => $common_block_name
 							};
 							$Sincf->{'Commons'}{$var} = $var;
 							if (
@@ -1857,6 +1770,7 @@ sub _get_commons_params_from_includes {
 # So we move them to DeclaredCommonVars
 								$Sincf->{'DeclaredCommonVars'}{'Set'}{$var} =
 								  $decl;
+								$Sincf->{'DeclaredCommonVars'}{'Set'}{$var}{  'CommonBlockName'} = $common_block_name;
 								delete $Sincf->{'DeclaredOrigLocalVars'}{'Set'}
 								  {$var};
 								@{ $Sincf->{'DeclaredOrigLocalVars'}{'List'} } =
@@ -1869,6 +1783,7 @@ sub _get_commons_params_from_includes {
 							} else {
 								$Sincf->{'UndeclaredCommonVars'}{'Set'}{$var} =
 								  $decl;
+								  $Sincf->{'UndeclaredCommonVars'}{'Set'}{$var}{  'CommonBlockName'} = $common_block_name;
 								push
 								  @{ $Sincf->{'UndeclaredCommonVars'}{'List'} },
 								  $var;
@@ -1887,43 +1802,34 @@ sub _get_commons_params_from_includes {
 						if ( exists $Sincf->{'DeclaredOrigLocalVars'}{'Set'}{$var} ) {
 							$Sincf->{'DeclaredCommonVars'}{'Set'}{$var} = {
 								%{
-									$Sincf->{'DeclaredOrigLocalVars'}{'Set'}
-									  {$var}
+									$Sincf->{'DeclaredOrigLocalVars'}{'Set'}{$var}
 								  }
 							};
-							delete $Sincf->{'DeclaredOrigLocalVars'}{'Set'}
-							  {$var};
+							
+							delete $Sincf->{'DeclaredOrigLocalVars'}{'Set'}{$var};
 							@{ $Sincf->{'DeclaredOrigLocalVars'}{'List'} } =
-							  grep { $_ ne $var }
-							  @{ $Sincf->{'DeclaredOrigLocalVars'}{'List'} };
-							push @{ $Sincf->{'DeclaredCommonVars'}{'List'} },
-							  $var;
-							my $dim =
-							  $Sincf->{'DeclaredCommonVars'}{'Set'}{$var}
-							  {'Dim'};    # FIXME GET FROM Set
+							  grep { $_ ne $var } @{ $Sincf->{'DeclaredOrigLocalVars'}{'List'} };
+							push @{ $Sincf->{'DeclaredCommonVars'}{'List'} }, $var;
+							my $dim = $Sincf->{'DeclaredCommonVars'}{'Set'}{$var}{'Dim'};    # FIXME GET FROM Set
 							my $updated_dim =
 							  scalar @{$dim} == 0
 							  ? $parsedvars->{$var}{'Dim'}
 							  : $dim;
-							$Sincf->{'DeclaredCommonVars'}{'Set'}{$var}{'Dim'} =
-							  $updated_dim;
-							$Sincf->{'DeclaredCommonVars'}{'Set'}{$var}
-							  {'ArrayOrScalar'} = 'Array';
-
+							$Sincf->{'DeclaredCommonVars'}{'Set'}{$var}{'Dim'} = $updated_dim;
+							$Sincf->{'DeclaredCommonVars'}{'Set'}{$var}{'ArrayOrScalar'} = 'Array';
+							$Sincf->{'DeclaredCommonVars'}{'Set'}{$var}{  'CommonBlockName'} = $common_block_name;
 #							  croak "$inc => ".Dumper($Sincf->{'DeclaredCommonVars'}{'Set'}{$var}) if $var eq 'bdate';
 						}  elsif (exists $Sincf->{'DeclaredCommonVars'}{'Set'}{$var} ) {
 							# The var is declared and is a common var. Update the dim if required
 							my $dim =
-							  $Sincf->{'DeclaredCommonVars'}{'Set'}{$var}
-							  {'Dim'};    # FIXME GET FROM Set
+							  $Sincf->{'DeclaredCommonVars'}{'Set'}{$var}{'Dim'};    # FIXME GET FROM Set
 							my $updated_dim =
 							  scalar @{$dim} == 0
 							  ? $parsedvars->{$var}{'Dim'}
 							  : $dim;
-							$Sincf->{'DeclaredCommonVars'}{'Set'}{$var}{'Dim'} =
-							  $updated_dim;
-							$Sincf->{'DeclaredCommonVars'}{'Set'}{$var}
-							  {'ArrayOrScalar'} = 'Array';
+							$Sincf->{'DeclaredCommonVars'}{'Set'}{$var}{'Dim'} = $updated_dim;
+							$Sincf->{'DeclaredCommonVars'}{'Set'}{$var}{'ArrayOrScalar'} = 'Array';
+							$Sincf->{'DeclaredCommonVars'}{'Set'}{$var}{  'CommonBlockName'} = $common_block_name;
 						}  elsif (exists $Sincf->{'UndeclaredCommonVars'}{'Set'}{$var} ) {
 							# The variable is in UndeclaredCommonVars, means it was actually typed via implicits
 							# I guess I just do nothing?
@@ -3216,13 +3122,17 @@ sub __parse_f95_decl {
 							push @{ $Sf->{'DeclaredOrigLocalVars'}{'List'} }, $tvar;
 						} 						
 					} elsif (exists $Sf->{'UndeclaredCommonVars'}{'Set'}{$tvar} ) {
+						my $common_block_name = $Sf->{'UndeclaredCommonVars'}{'Set'}{$tvar}{'CommonBlockName'};
 							$Sf->{'UndeclaredCommonVars'}{'Set'}{$tvar} = $decl;
+							$Sf->{'UndeclaredCommonVars'}{'Set'}{$tvar}{'CommonBlockName'} = $common_block_name;
 							my @test=grep {$_ eq $tvar}  @{ $Sf->{'UndeclaredCommonVars'}{'List'} };
 							if ( scalar @test == 0) { 
 								push @{ $Sf->{'UndeclaredCommonVars'}{'List'} }, $tvar;
 							} 
 					} elsif (exists $Sf->{'DeclaredCommonVars'}{'Set'}{$tvar} ) {
+						my $common_block_name = $Sf->{'DeclaredCommonVars'}{'Set'}{$tvar}{'CommonBlockName'};
 						$Sf->{'DeclaredCommonVars'}{'Set'}{$tvar} = $decl;
+						$Sf->{'DeclaredCommonVars'}{'Set'}{$tvar}{'CommonBlockName'} = $common_block_name;
 						my @test=grep {$_ eq $tvar}  @{ $Sf->{'DeclaredCommonVars'}{'List'} };
 						if ( scalar @test == 0) { 
 							push @{ $Sf->{'DeclaredCommonVars'}{'List'} }, $tvar;
@@ -3251,7 +3161,7 @@ sub __parse_f77_par_decl {
 	# F77-style parameters
 	#                my $parliststr = $1;
 	( my $Sf, my $f, my $line, my $info, my $parliststr ) = @_;
-
+#say $line;
 	my $indent = $line;
 	my $type   = 'Unknown';
 	$indent =~ s/\S.*$//;
@@ -3381,6 +3291,7 @@ sub __parse_f77_var_decl {
 		if ( ref($var) eq 'ARRAY' ) { die __LINE__ . ':' . Dumper($var); }
 		my $dim = $pvars->{$var}{'Dim'};
 		my $stmt_count = 1;
+		my $common_block_name='';
 		# In all the cases below, we get the dimension from the record
 		# Because I think it only happens for DIMENSION and COMMON lines.
 		if (exists $Sf->{'DeclaredOrigLocalVars'}{'Set'}{$tvar} ) {			
@@ -3400,12 +3311,14 @@ sub __parse_f77_var_decl {
 						if (scalar @{$tdim}>0) {
 				$dim=$tdim;
 			}
+			$common_block_name = $Sf->{'DeclaredCommonVars'}{'Set'}{$tvar}{'CommonBlockName'};
 #			$stmt_count = $Sf->{'DeclaredCommonVars'}{'Set'}{$tvar}{'StmtCount'};
 		} elsif (exists $Sf->{'UndeclaredCommonVars'}{'Set'}{$tvar} ) { 
 			my $tdim =dclone($Sf->{'UndeclaredCommonVars'}{'Set'}{$tvar}{'Dim'});
 						if (scalar @{$tdim}>0) {
 				$dim=$tdim;
 			}
+			$common_block_name = $Sf->{'UndeclaredCommonVars'}{'Set'}{$tvar}{'CommonBlockName'};
 #			$stmt_count = $Sf->{'UndeclaredCommonVars'}{'Set'}{$tvar}{'StmtCount'};
 			
 		}
@@ -3456,6 +3369,9 @@ sub __parse_f77_var_decl {
 			'Status' => 0,
 			'StmtCount'	=> $tvar_rec->{'StmtCount'},
 		};
+		if ($common_block_name ne '') {
+			$decl->{'CommonBlockName'} = $common_block_name;
+		}
 #		carp Dumper($decl) if $var eq 'ladn11';
 		push @varnames, $tvar;
 		
@@ -3513,7 +3429,7 @@ sub __parse_f77_var_decl {
 		}
 		$Sf->{'DeclCount'}{$var}++;
 		$info->{'StmtCount'}{$var} = $Sf->{'DeclCount'}{$var};
-		carp $info->{'StmtCount'}{$var} if $var eq 'ladn1d';
+#		carp $info->{'StmtCount'}{$var} if $var eq 'ladn1d';
 	}    # loop over all vars declared on a single line
 
 	print "\tVARS <$line>:\n ", join( ',', sort @varnames ), "\n" if $V;
@@ -3712,8 +3628,7 @@ sub parse_read_write_print {
 #say "TLINE1: <$tline>" ;
 	while ( $tline =~ /[\"\'][^\"\']+[\"\']/ ) {
 		say "STRING CONST $tline";
-		$tline =~ s/[\"\'][^\"\']+[\"\']//
-		  ; # so at this point we could have e.g. var1,\s*,var2 or ^\*,var1 or var1,\s*$
+		$tline =~ s/[\"\'][^\"\']+[\"\']//; # so at this point we could have e.g. var1,\s*,var2 or ^\*,var1 or var1,\s*$
 		$tline =~ s/,\s*,//;
 		$tline =~ s/^\s*,\s*//;
 		$tline =~ s/\s*,\s*$//;
@@ -3729,21 +3644,17 @@ sub parse_read_write_print {
 		while ( $tline =~ /\/\// ) {
 			$tline =~ s/\/\//+/;
 		}
-		while ( $tline =~ /\)\s*\(/ ) {
-			$tline =~ s/\)\s*\(/,/;
+		while ( $tline =~ /\)\s*\(/ ) { # )(
+			$tline =~ s/\)\s*\(/,/; # ,
 		}
-		$tline =~ s/:/,/g;
-		$tline =~ s/\(,/(/g;
+		$tline =~ s/:/,/g; #
+		$tline =~ s/\(,/(/g; 
 		$tline =~ s/,\)/)/g;
 		if ( $tline !~ /^\s*$/ ) {
 			if ( $tline =~ /^\(/ ) {
-
 				# If an argument is ( ... ) it means we only have Vars
-				if ( $tline =~ /=/ )
-				{ # must be an implied do, but don't do anything about that for now.
-					 # If it's an implied do, we should identify the arguments, we can do this actually:
-
-					#						say "IMPLIED DO: $tline";
+				if ( $tline =~ /=/ ) { # must be an implied do
+					 # If it's an implied do, we should identify the arguments
 					my @args     = ();
 					my @vars     = ();
 					my $in_range = 0;
@@ -3751,18 +3662,13 @@ sub parse_read_write_print {
 						$tline =~ s/^\(*//;
 						$tline =~ s/\)$//;    # This is WEAK!
 						last if $tline eq '';
-						( my $arg, my $rest ) =
-						  _parse_array_access_or_function_call($tline);
-
-			  #								say $tline.' => '.Dumper($arg).$rest;croak if $arg eq '';
+						( my $arg, my $rest ) = _parse_array_access_or_function_call($tline);
 						if ( $arg =~ /=/ ) {
 							( my $lhs, my $rhs ) = split( /=/, $arg );
 							push @vars, $lhs;
 							push @vars, $rhs;
 							$in_range = 1;
 						} elsif ($in_range) {
-
-							#									say "RANGE VAR: $arg";
 							$arg =~ s/\)$//;    # This is WEAK!
 							push @vars, $arg;
 						} else {
@@ -3771,31 +3677,21 @@ sub parse_read_write_print {
 						$rest =~ s/,//;
 						$tline = $rest;
 					}
-
-					#							say 'RANGE VARS:'.Dumper(@vars);
 					my $fake_range_expr = 'range(' . join( ',', @vars ) . ')';
-					my $ast =
-					  parse_expression( $fake_range_expr, $info, $stref, $f );
-					( my $call_args, my $other_vars ) =
-					  @{ get_args_vars_from_expression($ast) };
+					my $ast = parse_expression( $fake_range_expr, $info, $stref, $f );
+					( my $call_args, my $other_vars ) = @{ get_args_vars_from_expression($ast) };
 					$info->{'ExprVars'}{'Set'} = {
 						%{ $info->{'ExprVars'}{'Set'} },
 						%{ $other_vars->{'Set'} }
 					};
 
-					#							say Dumper($other_vars);
 					for my $mvar (@args) {
 						next if $mvar eq '';
 						next if $mvar =~ /^\d+$/;
-						next
-						  if $mvar =~ /^(\-?(?:\d+|\d*\.\d*)(?:[edq][\-\+]?\d+)?)$/;
+						next if $mvar =~ /^(\-?(?:\d+|\d*\.\d*)(?:[edq][\-\+]?\d+)?)$/;
 						next if exists $F95_reserved_words{$mvar};
 						my $ast = parse_expression( $mvar, $info, $stref, $f );
-						( my $call_args, my $other_vars ) =
-						  @{ get_args_vars_from_expression($ast) };
-
-					 #								carp "ARGS_VARS:".Dumper($call_args,$other_vars) ;
-					 #				croak if $f eq 'ifdata' and $line=~/fghold/;
+						( my $call_args, my $other_vars ) = @{ get_args_vars_from_expression($ast) };
 						$info->{'CallArgs'}{'Set'} = {
 							%{ $info->{'CallArgs'}{'Set'} },
 							%{ $call_args->{'Set'} }
@@ -3810,7 +3706,6 @@ sub parse_read_write_print {
 					$info->{'ExprVars'}{'List'} =
 					  [ keys %{ $info->{'ExprVars'}{'Set'} } ];
 				} else {
-
 	  # This is an expression in parentheses, so it must be treated as Vars-only
 					my @chunks = split( /\W+/, $tline );
 					my %vars_in_expr = ();
@@ -3826,19 +3721,11 @@ sub parse_read_write_print {
 						'List' => [ keys %vars_in_expr ],
 						'Set'  => {%vars_in_expr}
 					};
-
-					#						 $info->{'CallArgs'}={'List'=>[],'Set'=>{}};
 				}
 			} else {    # ok, maybe we can parse this
 				my $ast =
 				  parse_expression( "$call($tline)", $info, $stref, $f );
-
-				#					carp 'AST:'.Dumper($ast) ;
-				( my $args, my $other_vars ) =
-				  @{ get_args_vars_from_expression($ast) };
-
-#					carp "ARGS_VARS:".Dumper($args,$other_vars) if $f eq 'post' and $line=~/write/;
-#				croak if $f eq 'ifdata' and $line=~/fghold/;
+				( my $args, my $other_vars ) = @{ get_args_vars_from_expression($ast) };
 				$info->{'CallArgs'} =
 				  append_to_set( $info->{'CallArgs'}, $args );
 				$info->{'ExprVars'} =
@@ -4139,39 +4026,85 @@ sub __remove_blanks { (my $line, my $free_form)=@_;
 
 sub _parse_data_declaration { (my $line,my $info, my $stref, my $f) = @_;
 	my $new_annlines=[];
-	my $indent =$line;$indent=~s/\S.*$//;
-	$line=~s/^\s+data\s+//;
-	$line=~s/\/\s*$//;
-	(my $lhs, my $rhs) = split (/\s*\/\s*/,$line);
-	my @lhs_vars =  split (/\s*,\s*/,$lhs);
-		
+	my $indent =$line;$indent=~s/data.*$//;
+	my $mline=$line;
+#	carp $line;
+
+	$mline=~s/^\s*\d*\s+data\s+//; 
+	$mline=~s/\/\s*$//;
 	
+	(my $lhs, my $rhs) = split (/\s*\/\s*/,$mline);
+#croak "$lhs => $rhs" if $mline=~/ivon02/;
+if ($lhs=~/,/ or $rhs=~/,/) {
+	my @lhs_exprs = _parse_comma_sep_expr_list($lhs);
+	# TODO: in principle I must do a full argument and variable analysis here, like in IO calls. Leave that for later.
+	# Question is if an implied do can appear on an lhs
+	
+	for my $lhs_expr (@lhs_exprs) {
+		if ($lhs_expr =~/=/) {
+				say 'WARNING: Sorry, no support for implied-do in data declarations for now' if $W;
+				return [[$line,$info]];			
+		}
+	}
+
+#	my @lhs_vars =  split (/\s*,\s*/,$lhs);
+	my $lhs_expr = 'dummy('.$lhs.')';
+	my $lhs_ast = parse_expression($lhs_expr, $info,$stref, $f);		
+	
+#	if ($rhs =~/\d+\s*\*\s*/) {
+#			
+#	}
 	my $rhs_expr = 'dummy('.$rhs.')';
-	my $ast = parse_expression($rhs_expr, $info,$stref, $f);
+	my $rhs_ast = parse_expression($rhs_expr, $info,$stref, $f);
 	
 #	croak Dumper($ast);
 #	my @rhs_vals =  ();
 	my $rhs_idx=2;
-	for my $lhs_varname (@lhs_vars) {
-		my $rhs_val_ast = $ast->[$rhs_idx++];
-		my $rhs_val = ref($rhs_val_ast) eq 'ARRAY' ? emit_expression($rhs_val_ast) : $rhs_val_ast;
-			# I am lazy so I use a regex to substitute the placeholders 
-	while ($rhs_val =~ /(__PH\d+__)/) {
-		my $ph=$1;
-		my $ph_str = $info->{'PlaceHolders'}{$ph};
-		$rhs_val=~s/$ph/$ph_str/;
-	}
+	for my $idx  (2 .. @{$lhs_ast}-3) {
+		my $lhs_var_ast = $lhs_ast->[$idx];
+		( my $lhs_args, my $lhs_vars ) = @{ get_args_vars_from_expression($lhs_var_ast) };
 		
-		my $new_line = "$indent$lhs_varname = $rhs_val";
+		my $lhs_var = ref($lhs_var_ast) eq 'ARRAY' ? emit_expression($lhs_var_ast) : $lhs_var_ast;
+		 
+#		say Dumper($lhs_var_ast);
+		
+	if ( scalar @{ $lhs_args->{'List'} } > 0 ) {
+		my $lhs_varname = $lhs_args->{'List'}[0];
+
+		$info->{'Lhs'} = {
+			'VarName'       => $lhs_varname,
+			'IndexVars'     => $lhs_vars,
+			'ArrayOrScalar' => $lhs_args->{'Set'}{$lhs_varname}{'Type'},
+			'ExpressionAST' => $lhs_ast
+		};
+	} else {
+		$info->{'Lhs'} = {
+			'ArrayOrScalar' => 'Other',
+			'ExpressionAST' => $lhs_ast
+		};
+	}		
+		
+		
+		my $rhs_val_ast = $rhs_ast->[$rhs_idx++];
+		
+		my $rhs_val = ref($rhs_val_ast) eq 'ARRAY' ? emit_expression($rhs_val_ast) : $rhs_val_ast;
+			# I am lazy so I use a regex to substitute the placeholders
+			if (not defined $rhs_val) { 
+				# FIXME: this means we failed to parse this correctly, just warn and keep the old line.
+				say "WARNING: Could not parse this DATA declaration: $line" if $W;
+				return [[$line,$info]];
+			};  
+			while ($rhs_val =~ /(__PH\d+__)/) {
+				my $ph=$1;
+				my $ph_str = $info->{'PlaceHolders'}{$ph};
+				$rhs_val=~s/$ph/$ph_str/;
+			}
+		
+		my $new_line = "$indent$lhs_var = $rhs_val";
 		
 	my $rinfo = dclone($info);
 	$rinfo->{'Assignment'}=1;
-		$rinfo->{'Lhs'} = {
-			'VarName'       => $lhs_varname,
-			'IndexVars'     => {'List'=>[],'Set'=>{}},
-			'ArrayOrScalar' => 'Scalar',
-			'ExpressionAST' => [ '$', $lhs_varname ]
-		};
+$rinfo->{'Data'}=1;
 			( my $rhs_args, my $rhs_vars ) =
 	  @{ get_args_vars_from_expression($rhs_val_ast) };
 	my $rhs_all_vars = {
@@ -4184,12 +4117,24 @@ sub _parse_data_declaration { (my $line,my $info, my $stref, my $f) = @_;
 	};	
 	push @{ $new_annlines }, [$new_line,$rinfo];
 	}
-	
+} else {
+	# No comma in LHS so it must be a single var, easy:
+		$info->{'Assignment'}=1;
+		$info->{'Data'}=1;
+	# But NO! it can be something absurd like 
+	#  DATA  LADN1D/.TRUE., .FALSE./ 
+	# So let's say, if there is no comma in the RHS either we do that. 
+	# Otherwise we count and if it does not match, we give up!
+#	croak "$indent$lhs = $rhs";
+	return [["$indent$lhs = $rhs",$info]];
+}
 	return $new_annlines;
 	
 } # END of _parse_data_declaration()
 
-
+sub _expand_repeat_data { (my $line)=@_;
+	return $line;
+}
 1;
 
 =pod

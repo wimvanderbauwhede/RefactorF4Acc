@@ -2,7 +2,7 @@ package RefactorF4Acc::Refactoring::Subroutines;
 use v5.016;
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
-use RefactorF4Acc::Refactoring::Common qw( get_annotated_sourcelines create_refactored_source context_free_refactorings emit_f95_var_decl);
+use RefactorF4Acc::Refactoring::Common qw( get_annotated_sourcelines create_refactored_source context_free_refactorings emit_f95_var_decl splice_additional_lines_cond);
 use RefactorF4Acc::Refactoring::Subroutines::Signatures qw( create_refactored_subroutine_signature refactor_subroutine_signature ); 
 use RefactorF4Acc::Refactoring::Subroutines::Includes qw( skip_common_include_statement create_new_include_statements create_additional_include_statements );
 use RefactorF4Acc::Refactoring::Subroutines::Declarations qw( create_exglob_var_declarations create_refactored_vardecls );
@@ -99,6 +99,7 @@ sub _refactor_subroutine_main {
 #    local $I=1;
 #    local $W=1;
 	my $Sf = $stref->{'Subroutines'}{$f};
+	my $is_block_data = (exists $Sf->{'BlockData'} and $Sf->{'BlockData'} == 1 ) ? 1 : 0;
     if ($V) {
         print "\n\n";
         print "#" x 80, "\n";
@@ -135,9 +136,12 @@ sub _refactor_subroutine_main {
 #            $annlines = _refactor_calls_globals( $stref, $f, $annlines );            
         }
     }
-    
     $annlines = _fix_end_lines($stref, $f, $annlines); # FIXME maybe do this later
-    
+    if ($is_block_data) {
+    	$annlines = _add_extra_assignments_in_block_data($stref, $f, $annlines);
+#    	croak Dumper($annlines ); 
+    }
+#    croak Dumper($annlines );
     $Sf->{'RefactoredCode'}=$annlines;    
     $Sf->{'AnnLines'}=$annlines;
 #    croak Dumper($stref->{'Subroutines'}{'fm001'}{'AnnLines'}).'HERE';    
@@ -151,10 +155,12 @@ sub _fix_end_lines {
     (my $stref, my $f, my $rlines) = @_;
 #    croak "FIXME" if $f eq 'vertical';
     my $Sf=$stref->{'Subroutines'}{$f}; 
+	my $is_block_data = (exists $Sf->{'BlockData'} and $Sf->{'BlockData'} == 1 ) ? 1 : 0;    
+    my $what_is_block_data = 'subroutine'; #'block data'
     my $sub_or_prog = 
     (exists $Sf->{'Program'} and $Sf->{'Program'} == 1) ? 'program' : 
     (exists $Sf->{'Function'} and $Sf->{'Function'} == 1 ) ? 'function' :
-    (exists $Sf->{'BlockData'} and $Sf->{'BlockData'} == 1 ) ? 'subroutine' : 
+    (exists $Sf->{'BlockData'} and $Sf->{'BlockData'} == 1 ) ? $what_is_block_data : 
     'subroutine';
     say 'fix end '.$f if $V;
     my $done_fix_end=0;
@@ -172,7 +178,9 @@ sub _fix_end_lines {
         
         if ($line=~/^\s*end\s*$/ ) {
             $line=~s/\s+$//;
-#            my $ff = $f eq 'block_data' ? '' : $f;
+            if ($is_block_data) {
+            	$info->{'EndBlockData'}=1;
+            }
             push @{$rlines},[ $line." $sub_or_prog $f",$info];
             $done_fix_end=1;
         }
@@ -642,3 +650,26 @@ sub __update_function_calls_in_AST { (my $stref, my $Sf,my $f, my $ast) = @_;
 	return  $ast;#($stref,$f, $ast);
 	
 } # END of __update_function_calls_in_AST()
+
+sub _add_extra_assignments_in_block_data { (my $stref, my $f, my $annlines) = @_;
+	my $Sf = $stref->{'Subroutines'}{$f};
+	my $new_annlines=[];
+	for my $arg ( @{ $Sf->{'ExGlobArgs'}{'List'} } ) { 
+#		say $arg;
+		my $arg_name = $Sf->{'ExGlobArgs'}{'Set'}{$arg}{'OrigName'};
+		push @{ $new_annlines }, ["        $arg = $arg_name", {'Extra'=>1}];
+	}
+     
+	my $merged_annlines = splice_additional_lines_cond(
+        $stref,$f, 
+        sub {(my $annline)=@_; return exists $annline->[1]{'EndBlockData'} ? 1 : 0 ;},
+        $annlines,
+        $new_annlines,
+        1,
+        0,
+        1
+    ) ;	
+	 
+	return $merged_annlines;
+} # END of _add_extra_assignments_in_block_data
+1;

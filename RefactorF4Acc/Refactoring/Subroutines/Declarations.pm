@@ -7,8 +7,7 @@ use RefactorF4Acc::Refactoring::Common qw(
     get_f95_par_decl 
     emit_f95_var_decl 
     get_annotated_sourcelines
-    splice_additional_lines
-    splice_additional_lines_cond
+    splice_additional_lines    
 );
 
 # 
@@ -190,11 +189,9 @@ sub _add_missing_var_decls { (my $stref,my $f,my $undeclared_vars)=@_;
     for my $var (@{$undeclared_vars}) {
         next if $var eq ''; # FIXME: WHY?!           
         say "\tADDING MISSING VAR DECL for <$var> " if $V;# T:$type, K:$kind, S:@{$shape}, A:$attr";
-#        my $code_unit = sub_func_incl_mod($f,$stref);
-#        my $Sf = $stref->{$code_unit}{$f};
-        say Dumper($var) if $f eq 'ew';
+#        say Dumper($var) if $f eq 'ew';
         my $vd = get_f95_var_decl($stref,$f,$var);
-        say Dumper($vd) if $f eq 'ew';
+#        say Dumper($vd) if $f eq 'ew';
         my $info = {'VarDecl'=>$vd}; # TODO: need some extra $info here
         my $line = emit_f95_var_decl($vd).' ! missing';
         my $annline = [ $line, $info];
@@ -215,7 +212,10 @@ sub _add_missing_var_decls { (my $stref,my $f,my $undeclared_vars)=@_;
        } 
     }
     
-    $stref = splice_additional_lines($stref,$f,$insert_pos_lineID, $extra_annlines, 0, 0);
+    my $merged_annlines = splice_additional_lines($stref,$f,$insert_pos_lineID, $extra_annlines, 0, 0);
+	my $code_unit = sub_func_incl_mod($f,$stref);
+    my $Sf = $stref->{$code_unit}{$f};    
+    $Sf->{'RefactoredCode'} = $merged_annlines;
     return $stref;
 } # END of _add_missing_var_decls()
 

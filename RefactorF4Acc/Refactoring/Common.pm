@@ -111,7 +111,7 @@ sub context_free_refactorings {
         }	
         if ( exists $info->{'Common'} ) {
 #        	say "COMMON LINE: $line STMT COUNT ".Dumper($info->{'StmtCount'}); 
-        	$line = '! '.$line;
+        	$line = '! '.$line unless exists $Sf->{'BlockData'};
         	$info->{'Deleted'}=1;
         	$info->{'Ann'}=[ annotate($f, __LINE__ .' Original Common statement' ) ];
 #            next;
@@ -189,10 +189,16 @@ sub context_free_refactorings {
         }
         if ( exists $info->{'PlaceHolders'} ) {
 
-            for my $ph ( keys %{ $info->{'PlaceHolders'} } ) {
-                my $str = $info->{'PlaceHolders'}->{$ph};
-                $line =~ s/$ph/$str/;
-            }
+#            for my $ph ( keys %{ $info->{'PlaceHolders'} } ) {
+#                my $str = $info->{'PlaceHolders'}->{$ph};
+#                $line =~ s/$ph/$str/;
+#            }
+			while ($line =~ /(__PH\d+__)/) {
+				my $ph=$1;
+				my $ph_str = $info->{'PlaceHolders'}{$ph};
+				$line=~s/$ph/$ph_str/;
+			}
+                                    
             $info->{'Ref'}++;
         }
 
@@ -512,15 +518,40 @@ sub create_refactored_source {
                     push @{$refactored_lines}, [ $spaces . $sline, $info ];
                 }
             } else {
-                $line =~ s/\s+\!\!.*$//
-                  ; # FIXME: ad-hoc to remove comments from context-free refactoring
+#                $line =~ s/\s+\!\!.*$// ; # FIXME: ad-hoc to remove comments from context-free refactoring
 				if (not exists $info->{'ReadCall'} and
 				not exists $info->{'WriteCall'} and
 				not exists $info->{'PrintCall'} ) {
-                my @split_lines = split_long_line($line);
-                for my $sline (@split_lines) {
-                    push @{$refactored_lines}, [ $sline, $info ];
-                }
+					my $line_without_comment = $line;
+					# Problem is of course that strings can contain comments and comments can contain quotes. 
+					# So in principle I must look for the first ! outside any pair of ' or "
+					# say I split a line on ' => pre ' str1 ' sep1 ' str2 ' sep2_maybe_! ' 
+					# So I remove pre; then I remove str then look at sep. If sep has ! => OK, found comment.  
+				 if (exists $info->{'PlaceHolders'} ) {
+				 	my $ph_line=$line;
+				 	for my $ph (keys %{$info->{'PlaceHolders'}} ) {
+				 		my $ph_str = $info->{'PlaceHolders'}{$ph};
+				 		$ph_str=~s/\)/\\\)/g;
+				 		$ph_str=~s/\(/\\\(/g;
+				 		$ph_line=~s/$ph_str/$ph/;
+				 	}
+				 	$line_without_comment = $ph_line;
+				 }
+				 my $comment = '';
+				 if ($line_without_comment =~/!(.+)$/) {
+				 	$comment=$1;  	
+				 	$line_without_comment = $line;
+				 	$line_without_comment =~s/\!$comment//;
+				 } else {
+				 	$line_without_comment = $line;
+				 }
+ 
+ 
+	                my @split_lines = split_long_line($line_without_comment);
+    	            for my $sline (@split_lines) {
+        	            push @{$refactored_lines}, [ $sline, $info ];
+            	    }
+            	    $refactored_lines->[-1][0].='!'.$comment;
 				} else {
 					push @{$refactored_lines}, [ $line, $info ];
 				}
@@ -583,6 +614,9 @@ sub create_refactored_source_OLD {
 # A convenience function to split long lines.
 # - count the number of characters, i.e. length()
 # - find the last comma before we exceed 64 characters (I guess it's really 72-5?):
+# There is a problem with trailing comments 
+# So I have to remove these first, then see if the line must be split, then append the comment to the last segment
+
 
 sub split_long_line {
     my $line = shift;
@@ -1375,8 +1409,8 @@ sub splice_additional_lines {
             push @{$merged_annlines}, $annline;
         }
     }
-    $Sf->{'RefactoredCode'} = $merged_annlines;
-    return $stref;
+    
+    return $merged_annlines;
 
 }    # END of splice_additional_lines()
 
@@ -1390,6 +1424,7 @@ sub splice_additional_lines_cond {
     (
         my $stref, my $f,
         my $insert_cond_subref,
+        my $old_annlines,
         my $new_annlines,
         my $insert_before,
         my $skip_insert_pos_line,
@@ -1398,7 +1433,7 @@ sub splice_additional_lines_cond {
     say "SPLICE on condition for $f" if $V;
     my $sub_or_func_or_mod = sub_func_incl_mod( $f, $stref );
     my $Sf                 = $stref->{$sub_or_func_or_mod}{$f};
-    my $annlines           = get_annotated_sourcelines( $stref, $f );
+    my $annlines           = scalar @{$old_annlines} ? $old_annlines : get_annotated_sourcelines( $stref, $f );
     my $nextLineID         = scalar @{$annlines} + 1;
     my $merged_annlines    = [];
     $do_once = defined $do_once ? $do_once : 1;
@@ -1409,7 +1444,6 @@ sub splice_additional_lines_cond {
         if ( $insert_cond_subref->($annline) and $once ) {
             $once = 0 unless $do_once==0;
 
-            #            say "SPLICE POINT $line";
             if ( not $skip_insert_pos_line and not $insert_before ) {
                 say $annline->[0] if $DBG;
                 push @{$merged_annlines}, $annline;
@@ -1430,8 +1464,8 @@ sub splice_additional_lines_cond {
             push @{$merged_annlines}, $annline;
         }
     }
-    $Sf->{'RefactoredCode'} = $merged_annlines;
-    return $stref;
+    
+    return $merged_annlines;
 
 }    # END of splice_additional_lines_cond()
 

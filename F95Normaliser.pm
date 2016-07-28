@@ -19,6 +19,7 @@ sub normalise_F95_src {(my $orig_lines)=@_;
                 my $joined_lines=[];
 				for my $line (@{$orig_lines}) {		
                     chomp $line;
+                    # Split lines with multiple statements
                     if (not isCommentOrBlank($line) && $line=~/;/) {
 
                         my $tline = $line;
@@ -49,7 +50,7 @@ sub normalise_F95_src {(my $orig_lines)=@_;
                             }
                             $line = $tline;
                         }
-                    }
+                    }                   
 					if ($in_cont==0) {
 					    if ( isCont( $line ) ) {
 #                            die "CONT:$line";

@@ -41,6 +41,8 @@ sub create_refactored_subroutine_signature {
     my $info = $annline->[1];    
     my $args_ref = $Sf->{'RefactoredArgs'}{'List'};
     my $args_str = join( ',', @{$args_ref} );
+    my $what_is_block_data = 'subroutine'; #'block data'
+    my $block_data_has_args = 1;
     print "NEW ARGS: $args_str\n" if $DBG;
     
 #    die $args_str if $f eq 'post';
@@ -55,10 +57,14 @@ sub create_refactored_subroutine_signature {
     } elsif ( $Sf->{'Function'} ) {# carp 'FUNCTION! create_refactored_subroutine_signature' . __LINE__ .Dumper($annline);
     	$rline = $annline->[0];
     	$rline =~s/function.*$//;
-        $rline .= 'function ' . $f . '(' . $args_str . ')';    
+        $rline .= 'function ' . $f . '(' . $args_str . ')';
+    } elsif ( $Sf->{'BlockData'} ) { 
+		$rline = $annline->[0];
+    	$rline =~s/block\s+data.*$//;	
+        $rline .= $what_is_block_data. ' ' . $f . ($block_data_has_args ? '(' . $args_str . ')' : '');            	        
     } else {    
     		$rline = $annline->[0];
-    	$rline =~s/(?:subroutine|block\s+data).*$//;	
+    	$rline =~s/subroutine.*$//;	
         $rline .= 'subroutine ' . $f . '(' . $args_str . ')';
     }
     $info->{'Refactored'} = 1;
