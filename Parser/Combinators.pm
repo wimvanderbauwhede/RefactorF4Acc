@@ -691,10 +691,13 @@ sub regex {
 	( my $regex_str ) = @_;
 	my $gen = sub {
 		( my $str ) = @_;
+#		$regex_str=~s/\//\\\//g;
+		$regex_str=~s/\*/\\\*/g;
 		say "* regex( '/$regex_str/', '$str' )" if $V;
 		my $matches = undef;
 		if ( $str =~ s/($regex_str)\s*// ) {
 			my $m = $1;
+#			say "MATCH:<$m> REST:<$str>";
 			$matches = $m;
 			say "regex: remainder => <$str>"   if $V;
 			say "regex: matches => [$matches]" if $V;

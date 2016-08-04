@@ -46,7 +46,7 @@ sub add_module_decls { (my $stref)=@_;
 	            if (exists $stref->{'Subroutines'}{$called_sub} and exists $stref->{'Subroutines'}{$called_sub}{'Source'}) {
 	               $cs_src=$stref->{'Subroutines'}{$called_sub}{'Source'};
 	            } else {
-	                die "PROBLEM: NO $called_sub in $src";
+	                croak "PROBLEM: NO $called_sub in $src".Dumper(keys %{$stref->{'Subroutines'}}).$stref->{'Subroutines'}{$called_sub}{'Source'};
 	            }
                 next if $cs_src eq $src; # FIXME: ad-hoc!
 	            $stref->{'UsedModules'}{$src}{$cs_src}=1;

@@ -882,7 +882,7 @@ sub update_argument_io_direction_all_subs {
 	for my $f ( keys %{ $stref->{'Subroutines'} } ) {
 		next if $f eq '';
 		next if exists $stref->{'ExternalSubroutines'}{$f};
-		next if $stref->{'Subroutines'}{$f}{'Program'} == 1;
+		next if (exists $stref->{'Subroutines'}{$f}{'Program'} and $stref->{'Subroutines'}{$f}{'Program'} == 1);
 		say "UPDATE IODIR IN $f" if $DBG;
 		$stref = _update_argument_io_direction( $stref, $f );
 	}

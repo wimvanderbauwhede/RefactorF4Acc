@@ -1,5 +1,5 @@
-#!/usr/bin/perl
-use 5.012;
+#!/usr/bin/env perl
+use 5.016;
 use warnings::unused;
 use warnings;
 use warnings FATAL => qw(uninitialized);
@@ -101,9 +101,9 @@ sub main {
    print '=' x 80, "\n" if $V;
 #   map {say Dumper($_->[1]) } @{ $stref->{'Modules'}{'module_press'}{'AnnLines'} };die;
 #	say Dumper( $stref->{'Modules'}{'module_press'} );die;
-   $stref = translate_to_OpenCL($stref,$mod_name, $kernel_name, $macro_src);
+   $stref = translate_to_OpenCL($stref,$mod_name, $kernel_name, $macro_src,$stand_alone);
    } else {
-       translate_to_OpenCL({},$mod_name, $kernel_name);
+       translate_to_OpenCL({},$mod_name, $kernel_name, $macro_src,$stand_alone);
    }
 
 #	create_build_script($stref);
@@ -145,7 +145,7 @@ sub parse_args {
     my $kernel_name = $Config{'KERNEL'};    
     my $top_name = $stand_alone ? 'NO_MAIN' : $Config{'TOP'};
     my $top_src = exists $Config{'TOP_SRC'} ? $Config{'TOP_SRC'} : do { say "WARNING: Using DEFAULT top source file name!"; $top_name.'.f95';};
-    my $macro_src =  $stand_alone ? 'NO_MACROS' : $Config{'MACRO_SRC'}; 
+    my $macro_src =  $Config{'MACRO_SRC'}; 
     if ( exists $Config{'NEWSRCPATH'}) {
         $targetdir =  $Config{'NEWSRCPATH'};
     }   

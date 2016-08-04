@@ -1,5 +1,9 @@
 #!/usr/bin/perl
 # NOTE: On Mavericks, it MUST be /usr/bin/perl, NOT the MacPorts Perl!
+#
+BEGIN {
+push @INC, $ENV{'HOME'}.'/Git/Perl-Call-Haskell/lib';
+}
 use warnings;
 use strict;
 use v5.16;
@@ -60,8 +64,8 @@ say Dumper(\@nds5);
 my $nds6 = traverse(\@nds5,\&emit); 
 say Dumper($nds6);
 
-die;
-my $decl_str='"integer,parameter :: v1 = 42*v2"';
+
+my $decl_str='"complex,parameter :: v1 = (42*v2+3)"';
 my $decl = parseF95Decl($decl_str);
 my $ndecl = traverse_with_state($decl,\&simplify,$vars_in_expr);
 

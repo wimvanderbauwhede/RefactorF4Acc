@@ -187,18 +187,15 @@ sub context_free_refactorings {
 
             # $line=~s/goto\s+(\d+)/call break($1)/;
         }
-        if ( exists $info->{'PlaceHolders'} ) {
+        
+        if ( exists $info->{'PlaceHolders'} ) { 
 
-#            for my $ph ( keys %{ $info->{'PlaceHolders'} } ) {
-#                my $str = $info->{'PlaceHolders'}->{$ph};
-#                $line =~ s/$ph/$str/;
-#            }
 			while ($line =~ /(__PH\d+__)/) {
 				my $ph=$1;
 				my $ph_str = $info->{'PlaceHolders'}{$ph};
 				$line=~s/$ph/$ph_str/;
 			}
-                                    
+#carp "COMMON: ".$line if $line=~/cf716\(3/;                                    
             $info->{'Ref'}++;
         }
 
@@ -455,7 +452,9 @@ sub context_free_refactorings {
     if ($has_vardecl==0) {
         my $parlinecount=$has_pars;
         my $incllinecount=$has_includes;
+        
         for my $annline ( @{$Sf->{'RefactoredCode'}} ) {
+#        	say Dumper($annline);
             if ( not defined $annline or not defined $annline->[0] ) {
                 croak
                   "Undefined source code line for $f in create_refactored_source()";
@@ -482,9 +481,11 @@ sub context_free_refactorings {
             } elsif (exists $info->{'Signature'}) {
                 $info->{'ExGlobVarDeclHook'}='Signature';
                 $Sf->{'ExGlobVarDeclHook'}=1;
+                
                 last;
             }        
         }      
+#        croak $f;
     }
 
     if ($die_if_one) { croak Dumper( $Sf->{'RefactoredCode'} ); }
@@ -760,7 +761,7 @@ sub get_annotated_sourcelines {
     my $Sf = $stref->{$sub_or_func_or_inc}{$f};
 
     my $annlines = [];
-croak Dumper ($Sf) if not exists $Sf->{Status};
+croak $f.Dumper ($Sf) if not exists $Sf->{Status};
     if ( $Sf->{'Status'} == $PARSED ) {
         if ( not exists $Sf->{'RefactoredCode'} ) {
             $Sf->{'RefactoredCode'} = [];

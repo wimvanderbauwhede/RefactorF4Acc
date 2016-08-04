@@ -379,6 +379,7 @@ sub _refactor_globals_new {
         if ( exists $info->{'ExGlobVarDeclHook'} ) {
         	# FIXME: I don't like this, because in the case of a program there should simply be no globals etc.
            # Then generate declarations for ex-globals
+           say "HOOK for $f: " .$info->{'ExGlobVarDeclHook'} if $V;
            say "EX-GLOBS for $f" if $V;
             $rlines = _create_extra_arg_and_var_decls( $stref, $f, $annline, $rlines );
         } 
@@ -468,7 +469,7 @@ sub _create_extra_arg_and_var_decls {
 
     print "INFO: ExInclLocalVars in $f\n" if $I;
     for my $var ( @{ $Sf->{'ExInclLocalVars'}{'List'} } ) {
-    	say "INFO VAR: $var" if $I;
+    	say "INFO VAR: $var" if $I;    	
                     my $rdecl = $Sf->{'ExInclLocalVars'}{'Set'}{$var}; 
                     my $rline = emit_f95_var_decl($rdecl);
                     my $info={};
@@ -496,6 +497,7 @@ sub _create_extra_arg_and_var_decls {
     		and $var!~/__PH\d+__/ # FIXME! TOO LATE HERE!
     		and $var=~/^[a-z][a-z0-9_]*$/ # FIXME: rather check if Expr or Sub
     		) {    			
+    			croak if $var eq 'ivd001';
                     my $rdecl = $Sf->{'UndeclaredOrigLocalVars'}{'Set'}{$var}; 
                     my $rline = emit_f95_var_decl($rdecl);                                         
                     my $info={};
@@ -596,7 +598,17 @@ sub _create_refactored_function_calls {
 		# Basically, whenever we meet a function, we query it for ExGlobArgs and tag these onto te argument list.
 		my $updated_ast = __update_function_calls_in_AST($stref,$Sf,$f,$ast);
 		my $updated_line = emit_expression($updated_ast);
-    
+#		croak Dumper($annline ) if exists $info->{PlaceHolders}; 
+if ( exists $info->{'PlaceHolders'} ) { 
+
+			while ($updated_line =~ /(__PH\d+__)/) {
+				my $ph=$1;
+				my $ph_str = $info->{'PlaceHolders'}{$ph};
+				$updated_line=~s/$ph/$ph_str/;
+			}
+#carp "_create_refactored_function_calls($f): ".$updated_line if $updated_line=~/cf716\(3/;                                    
+            $info->{'Ref'}++;
+        }    
 		if (exists $info->{'Assignment'} ) {
 			$line=~s/=.+$//;
 			$line.=	' = '.$updated_line;

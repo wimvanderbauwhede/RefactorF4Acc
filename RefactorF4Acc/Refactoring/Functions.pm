@@ -96,11 +96,11 @@ sub _refactor_function {
     }
     my $Ff = $stref->{'Subroutines'}{$f};
     print "CONTEXT-FREE REFACTORING FUNCTION $f\n" if $V;    
-
+	
     if (   not exists $Ff->{'RefactoredCode'}
         or $Ff->{'RefactoredCode'} == []
-        or exists $stref->{'BuildSources'}{'C'}{ $Ff->{'Source'} } )
-    {
+#        or exists $stref->{'BuildSources'}{'C'}{ $Ff->{'Source'} } 
+        ) {
         $stref = context_free_refactorings( $stref, $f );
     }
 

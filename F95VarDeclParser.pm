@@ -138,7 +138,10 @@ sub type_parser {
 sub dim_parser {
 		sequence [
 			symbol('dimension'),
-        {'Dim' => parens sepByChar(',', regex('[^,\)]+')) },
+#        {'Dim' => parens sepByChar(',', regex('[^,\)]+')) }, # FIXME: does not work for dim expressions with parentheses!
+#        {'Dim' => parens sepByChar(',', choice( regex('(?:[^,\)]*(?:\([^,\)]+\))?[^,\)]*)+'), regex('[^,\)]+') ) ) },
+# This is a very ugly hack, it works only for 1 pair of parens
+        {'Dim' => parens sepByChar(',',  choice( regex('^[^,\)\(]+?(?:\([^,\)\(]+\))[^,\(\)]+'), regex('^[^,\)\(]+?(?:\([^,\)\(]+\))'),regex('^[^,\)]+') )   ) },
         maybe( char(')'))
 		] 
 }

@@ -59,53 +59,68 @@ $VAR1 = [
 =cut         
 sub parse_expression { (my $exp, my $info, my $stref, my $f)=@_;
 	my $preproc_expr = $exp;
+	 
 	$preproc_expr =~s/\s+//g;
+	# HACK to support ':'
+	# Remove ':' because again this only occurs for characters strings
+	my $wrap=0;
+	my $has_colons=0;
+	
+	if ($preproc_expr =~ /:/) {
+#		say "EXPR $exp";
+		$has_colons=1;
+#		$preproc_expr =~ s/:/,_COLON_PRE_,_COLON_POST_,/g;
+		$preproc_expr =~ s/:/,_COLON_PRE_,/g;
+	}
+		
+	# HACK to support '//'
+	my $has_concat=0;
+	if ($preproc_expr =~ /\/\//) {
+		$preproc_expr =~ s/\/\//,_CONCAT_PRE_,/g;
+#		say "_CONCAT_PRE_: $preproc_expr";
+		$wrap=1;
+	}	  
 	# EVIL HACK because the Math::Expression::Evaluator::Parser does not support things like a ** b ** c
 	$preproc_expr =~s/\*\*\s*(\w+)\s*\*\*\s*(\w+)/**($1 * $2)/;
 	while ($preproc_expr=~/\.\w+\./) {
-#		$preproc_expr =~s/\.not\.//g; # b .and. .not. a => b +_AND_+_NOT_+a
-#		$preproc_expr =~s/\.false\./0/g;
-#		$preproc_expr =~s/\.true\./1/g;
-#		$preproc_expr =~s/\.\w+\./+/g;
 		$preproc_expr =~s/\.not\./__not__\+/g; # b .and. .not. a => b +_AND_+_NOT_+a		
 		$preproc_expr =~s/\.false\./__false__/g;
 		$preproc_expr =~s/\.true\./__true__/g;
-		$preproc_expr =~s/\.(\w+)\./\+__${1}__\+/g; 
-		 
+		$preproc_expr =~s/\.(\w+)\./\+__${1}__\+/g; 		 
 	}
-#	if ($preproc_expr=~/\__/) {say $preproc_expr}
+
 	# F77 allows 1D7 or 2Q-5 instead of 1E7 and 2E-5 
 	while ($preproc_expr=~/\W[\.\d]+[dq][\d\-\+]/) { 
 		$preproc_expr=~s/(\W[\.\d]+)[dq]([\d\-\+])/${1}e$2/;
 	}
-	# More EVIL HACK to "support" complex numbers
 	
+	# More EVIL HACK to "support" complex numbers	
 	if ($preproc_expr=~/^\([^\(\)]+,[^\(\)]+\)/) {
 		$preproc_expr='_complex_'.$preproc_expr;
 	}
 	while ($preproc_expr=~/\W\(/) { 
 		$preproc_expr=~s/(\W)\(/${1}_complex_\(/;
 	}
-#	 if ($exp =~/\*\*\s*(\w+)\s*\*\*\s*(\w+)/) {
-#	 	croak $preproc_expr;
-#	 }
-	my $wrap=0;
+
+	
 	# We want to wrap if this is a list. But how can I tell without parsing it?
 	my $wrapped_expr = $preproc_expr;
 	if ($wrap) {
 	 $wrapped_expr = '_dummy_('.$preproc_expr.')';
 	}
-#	say "PRE:$preproc_expr" if $preproc_expr=~/lvon01/;
+#	say "WRAPPED EXPR: $wrapped_expr" if $has_colons;
     my $ast = Math::Expression::Evaluator::Parser::parse($wrapped_expr, {});
-#    shift @{$ast};shift @{$ast};
+
 	if ($wrap) {
 	    $ast->[0]='&';
 	    $ast->[1]=~s/_/\#/g;
 	}
-    #( $stref, $f, $ast)
-    $ast =  _change_func_to_array($stref,$f,$info,$ast, $exp);
-#    say Dumper($ast) if $preproc_expr=~/lvon01/;
-	return $ast;
+	
+    my $ast2 =  _change_func_to_array($stref,$f,$info,$ast, $exp);
+    
+    my $ast3 = _fix_colons_in_ast($ast2);
+    my $ast4 = _fix_string_concat_in_ast($ast3);
+	return $ast4;
 }
 
 # This function changes functions to arrays
@@ -183,12 +198,12 @@ sub _change_func_to_array { (my $stref, my $f,  my $info, my $ast, my $exp)=@_;
 }
 
 # This function changes functions to arrays
-sub _walk_ast { (my $stref, my $f, my $info, my $ast, my $ast_node_action)=@_;
+sub _UNUSED_walk_ast { (my $stref, my $f, my $info, my $ast, my $ast_node_action)=@_;
 	for my  $idx (0 .. scalar @{$ast}-1) {		
 		my $entry = $ast->[$idx];
 #		print "IDX: $idx => "; say Dumper ($ast); say $entry;
 		if (ref($entry) eq 'ARRAY') {
-			( $stref,  $f,  $info, my $entry) = _walk_ast($stref,$f,$info, $entry, $ast_node_action);
+			( $stref,  $f,  $info, my $entry) = _UNUSED_walk_ast($stref,$f,$info, $entry, $ast_node_action);
 			$ast->[$idx] = $entry;
 		} else {
 			if ($entry eq '&') {
@@ -219,7 +234,7 @@ sub _walk_ast { (my $stref, my $f, my $info, my $ast, my $ast_node_action)=@_;
 		}		
 	}
 	return ($stref,$f,$info, $ast);	
-}
+} # _UNUSED_walk_ast
 
 sub emit_expression {(my $ast, my $expr_str)=@_;
 	my @expr_chunks=();
@@ -293,7 +308,7 @@ sub emit_expression {(my $ast, my $expr_str)=@_;
 		$expr_str=~s/\)$//;
 	}
 	$expr_str=~s/\+\-/-/g;
-#	say "PRE2: $expr_str" if $expr_str=~/false/;
+	# UGLY! HACK to fix boolean operations
 	while ($expr_str=~/__[a-z]+__/ or $expr_str=~/\.\w+\.\+/) {
 		$expr_str =~s/\+\.(\w+)\.\+/\.${1}\./g;
 		$expr_str =~s/\.(\w+)\.\+/\.${1}\./g;
@@ -301,14 +316,13 @@ sub emit_expression {(my $ast, my $expr_str)=@_;
 		$expr_str =~s/__not__/\.not\./g; 		
 		$expr_str =~s/__false__/\.false\./g;
 		$expr_str =~s/__true__/\.true\./g;
-		$expr_str =~s/\+__(\w+)__\+/\.${1}\./g;
-		
-		$expr_str =~s/__(\w+)__/\.${1}\./g; 
- 		
+		$expr_str =~s/\+__(\w+)__\+/\.${1}\./g;		
+		$expr_str =~s/__(\w+)__/\.${1}\./g;  		
 	}
-#	say "POST: $expr_str" if $expr_str=~/false/;
+#	carp "POST: $expr_str" if $expr_str=~/cf716\(3/;
 	return $expr_str;		
 } # END of emit_expr
+
 # All variables in the expression
 sub get_vars_from_expression {(my $ast, my $vars)=@_;
 	for my  $idx (0 .. scalar @{$ast}-1) {		
@@ -318,11 +332,13 @@ sub get_vars_from_expression {(my $ast, my $vars)=@_;
 		} else {
 			if ($entry eq '$' ) {				
 			my $mvar = $ast->[$idx+1];
-				next if $mvar=~/__PH\d+__/;			
+				next if $mvar=~/__PH\d+__/;		
+				next if $mvar=~/_(?:CONCAT|COLON)_(?:PRE|POST)_/;			
 				$vars->{$mvar}={'Type'=>'Scalar'} ;					
 			} elsif ($entry eq '@') {				
 				my $mvar = $ast->[$idx+1];
-				next if $mvar=~/__PH\d+__/;			
+				next if $mvar=~/__PH\d+__/;
+				next if $mvar=~/_(?:CONCAT|COLON)_(?:PRE|POST)_/;		
 				$vars->{$mvar}={'Type' =>'Array'};					
 			} 
 		}				
@@ -371,7 +387,7 @@ sub get_args_vars_from_expression {(my $ast)=@_;
 						$args->{'Set'}{$arg_from_implicit_do}={ 'Type'=>'Array'};
 						delete $all_vars->{'Set'}{$arg_from_implicit_do};
 					}
-				} elsif($arg!~/__PH\d+__/) {				
+				} elsif($arg!~/__PH\d+__/ and $arg!~/_(?:CONCAT|COLON)_(?:PRE|POST)_/) {				
 					$args->{'Set'}{$arg}={ 'Type'=>'Scalar'};
 				} 
 			} else {
@@ -382,7 +398,7 @@ sub get_args_vars_from_expression {(my $ast)=@_;
 			}
 		} elsif ($ast->[$idx] eq '$') { 
 			my $arg=$ast->[$idx+1];			
-			$args->{'Set'}{$arg}={ 'Type'=>'Scalar'} unless $arg=~/__PH\d+__/;
+			$args->{'Set'}{$arg}={ 'Type'=>'Scalar'} unless ( $arg=~/__PH\d+__/ or $arg=~/_(?:CONCAT|COLON)_(?:PRE|POST)_/);
 		}
 		}
 	}	
@@ -405,7 +421,7 @@ sub get_args_vars_from_subcall {(my $ast)=@_;
 		for my  $idx (2 .. scalar @{$ast}-1) { # 0 and 1 are '&" and the subroutine name				
 			if( ref( $ast->[$idx] ) eq 'ARRAY') { 				 
 				my $arg = $ast->[$idx][1];
-				if ($arg=~/__PH\d+__/ ) {
+				if ($arg=~/__PH\d+__/ or $arg=~/_(?:CONCAT|COLON)_(?:PRE|POST)_/ ) {
 					$arg=0;
 				}			
 				if ($arg=~/^__(\w+)__$/) {
@@ -443,7 +459,7 @@ sub get_args_vars_from_subcall {(my $ast)=@_;
 				}
 			} else  { # It must be a constant 
 				my $arg=$ast->[$idx];			
-				if ($arg=~/__PH\d+__/ ) {
+				if ($arg=~/__PH\d+__/ or $arg=~/_(?:CONCAT|COLON)_(?:PRE|POST)_/ ) {
 					$arg=0;
 				}
 				$args->{'Set'}{$arg}={ 'Type'=>'Const', 'Expr' => $arg};
@@ -454,5 +470,115 @@ sub get_args_vars_from_subcall {(my $ast)=@_;
 	$all_vars->{'List'} = [keys %{ $all_vars->{'Set'} }];
 	return ($args,$all_vars);
 }
+
+sub _fix_colons_in_ast { (my $orig_ast)=@_;
+	my $ast=_fix_colons_in_expr($orig_ast);
+	if ( ref($ast) eq 'ARRAY') {
+	my $new_ast=[];
+	for my  $idx (0 .. scalar @{$ast}-1) {		
+		my $entry = $ast->[$idx];
+		if (ref($entry) eq 'ARRAY') {
+			my $new_entry = _fix_colons_in_ast($entry);
+			push @{$new_ast}, $new_entry;
+		} else {
+			push @{$new_ast}, $entry;
+		} 		
+	}
+	return $new_ast;			
+	} else {
+		return $ast;
+	}
+}
+ 
+sub _fix_colons_in_expr { (my $ast)=@_;
+	if ( ref($ast) eq 'ARRAY' ) {
+		my $cloned_ast = [@{$ast}];
+	    my $new_ast=();
+	    for my $i ( 0 ..   @{$cloned_ast} -1 ) {
+	        my $elt=$cloned_ast->[$i];
+	        next unless defined $elt;
+	        
+	        if ($i==0 and ref($elt) eq 'ARRAY' and $elt->[1] eq '_COLON_PRE_') { 
+	            $elt = [':',$cloned_ast->[$i+2]];
+	            push @{$new_ast}, $elt;
+	            $cloned_ast->[$i+1]=undef;
+#	            $cloned_ast->[$i+2]=undef;
+	            next;
+	        }
+	        if (ref($cloned_ast->[$i+1]) eq 'ARRAY' and $cloned_ast->[$i+1][1] eq '_COLON_PRE_') {
+	            $elt=[':', $elt];
+	            if (defined $cloned_ast->[$i+2]) {
+	                push @{$elt},$cloned_ast->[$i+2];
+	            }
+	            push @{$new_ast}, $elt;
+	            $cloned_ast->[$i+1]=undef;
+	            $cloned_ast->[$i+2]=undef;
+#	            $cloned_ast->[$i+3]=undef;	            
+	            next;
+	        }	
+	        push @{$new_ast}, $elt;
+	    }
+    	return $new_ast;
+	} else { 
+		return $ast;
+	}	
+}
+
+sub _fix_string_concat_in_ast { (my $orig_ast)=@_;
+	my $ast=_fix_string_concat_in_expr($orig_ast);
+	if ( ref($ast) eq 'ARRAY') {
+	my $new_ast=[];
+	for my  $idx (0 .. scalar @{$ast}-1) {		
+		my $entry = $ast->[$idx];
+		if (ref($entry) eq 'ARRAY') {
+			my $new_entry = _fix_string_concat_in_ast($entry);
+			push @{$new_ast}, $new_entry;
+		} else {
+			push @{$new_ast}, $entry;
+		} 		
+	}
+	if ($new_ast->[1] eq '#dummy#' and $new_ast->[2][0] eq '//') {
+		$new_ast = $new_ast->[2];
+	} 
+	return $new_ast;			
+	} else {
+		return $ast;
+	}
+}
+ 
+sub _fix_string_concat_in_expr { (my $ast)=@_;
+	if ( ref($ast) eq 'ARRAY' ) {
+		my $cloned_ast = [@{$ast}];
+	    my $new_ast=();
+	    for my $i ( 0 ..   @{$cloned_ast} -1 ) {
+	        my $elt=$cloned_ast->[$i];
+	        next unless defined $elt;
+	        
+	        if ($i==0 and ref($elt) eq 'ARRAY' and $elt->[1] eq '_CONCAT_PRE_') { 
+	            $elt = ['//',$cloned_ast->[$i+2]];
+	            push @{$new_ast}, $elt;
+	            $cloned_ast->[$i+1]=undef;
+#	            $cloned_ast->[$i+2]=undef;
+	            next;
+	        }
+	        if (ref($cloned_ast->[$i+1]) eq 'ARRAY' and $cloned_ast->[$i+1][1] eq '_CONCAT_PRE_') {
+	            $elt=['//', $elt];
+	            if (defined $cloned_ast->[$i+2]) {
+	                push @{$elt},$cloned_ast->[$i+2];
+	            }
+	            push @{$new_ast}, $elt;
+	            $cloned_ast->[$i+1]=undef;
+	            $cloned_ast->[$i+2]=undef;
+#	            $cloned_ast->[$i+3]=undef;	            
+	            next;
+	        }	
+	        push @{$new_ast}, $elt;
+	    }	    
+    	return $new_ast;
+	} else { 
+		return $ast;
+	}	
+}
+
 
 1;

@@ -31,7 +31,7 @@ use Exporter;
 sub read_fortran_src {
     ( my $s, my $stref ) = @_;
 
-    #    local $V=1;
+#	 local $V=1;
 
     # Determine the type of file (Include or not)
     my $is_incl = exists $stref->{'IncludeFiles'}{$s} ? 1 : 0;
@@ -48,7 +48,7 @@ sub read_fortran_src {
 
     my $f = $is_incl ? $s : $stref->{$sub_func_incl}{$s}{'Source'};
 
-    if ( defined $f ) {
+    if ( defined $f ) { 
         my $no_need_to_read = 1;
         if ( not exists $stref->{'SourceContains'}{$f} ) {
             $no_need_to_read = 0;
@@ -65,7 +65,7 @@ sub read_fortran_src {
         }
         my $need_to_read = 1 - $no_need_to_read;
 
-        if ($need_to_read) { 
+        if ($need_to_read) {  
             my $ok = 1;
 
             open my $SRC, '<', $f or do {
@@ -917,7 +917,7 @@ Suppose we don't:
             print "NO NEED TO READ $s\n" if $I;
         }   # if $need_to_read
     }    # if $f is defined
-    
+#    croak Dumper($stref);
     return $stref;
 }    # END of read_fortran_src()
 
@@ -959,6 +959,9 @@ if ($f eq 'UNKNOWN_SRC' or $stref->{$srctype}{$f}{'Status'}<$PARSED ) {
  				if (not exists $stref->{'Subroutines'}{$f}{'Function'}) {
                     $stref->{'Subroutines'}{$f}{'Function'}=1;
                 }            	 				
+ 			}
+ 			if ( not defined $stref->{'Subroutines'}{$f}{'Status'} ) {
+ 				$stref->{'Subroutines'}{$f}{'Status'} = $UNREAD;
  			}
  			
             $stref->{$srctype}{$f}{'AnnLines'} = [] unless $stref->{'Subroutines'}{$f}{'Status'} == $PARSED;
@@ -1171,7 +1174,7 @@ sub _procLine {
         } elsif ( $line !~ /[\'\"]/
             && $line !~ /^\s*end/i
             && $line =~ 
-/\b(module|program|recursive\s+subroutine|subroutine|\w+\s+function|function|block)\s+(\w+)/i
+/\b(module|program|recursive\s+subroutine|subroutine|[\*\(\)\w]+\s+function|function|block)\s+(\w+)/i
           )
         {
             
@@ -1188,7 +1191,7 @@ sub _procLine {
             die "_procLine(): No $keyword name " if $name eq '';
             my $spaces = ' ' x 6;
 # This is  only used inside _procLine!             
-            if ( $keyword eq 'function') {
+            if ( $keyword =~/function/) {
                 $info->{'FunctionSig'} = [ $spaces, $name, [] ];
             } elsif ( $keyword eq 'module' ) {
                 $info->{'Module'} = $name;

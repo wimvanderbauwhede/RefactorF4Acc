@@ -26,20 +26,24 @@ use Exporter;
 );
 # Actually, $stref is not used!
 sub translate_to_OpenCL {
-    ( my $stref, my $mod_name, my $kernel_name, my $macro_src ) = @_;
-    if (defined $macro_src) {
-    my $retval = _preprocess( $stref, $mod_name );
-    ( $stref, my $prep_src_lines, my $can_be_consts ) = @{$retval};
-#    map {say $_} @{$prep_src_lines};die;
-    my $f_src = $mod_name.'_ocl.f95';
-    _run_cpp (  $f_src,  $prep_src_lines, $macro_src );
-#    map { say $_ } @{$refactored_annlines};
-#    die;}
-    _generate_C($mod_name, $f_src, $can_be_consts, $kernel_name);
+    ( my $stref, my $mod_name, my $kernel_name, my $macro_src, my $stand_alone ) = @_;
+    
+    if (not $stand_alone) {
+	    if (defined $macro_src) { 
+		    my $retval = _preprocess( $stref, $mod_name );
+		    ( $stref, my $prep_src_lines, my $can_be_consts ) = @{$retval};
+		    my $f_src = $mod_name.'_ocl.f95';
+		    _run_cpp (  $f_src,  $prep_src_lines, $macro_src, $stand_alone );
+		    _generate_C($mod_name, $f_src, {'Consts' => $can_be_consts, 'Locals'=>{}}, $kernel_name);
+	    } else {
+	    	die "Sorry, you must specify a macro source unless you use -S";
+	    }
     } else {
     	my $f_src=$mod_name.'.f95';
-    	# 'module_kernels_press_out', 'module_kernels_press_out.f95',{},'reduce_rhsav_area_73'
-		_generate_C($mod_name, $f_src, {}, $kernel_name);
+		my %locals = _preprocess_standalone( $f_src);
+		my $f_src_fix=$mod_name.'.f95.FIX';		
+		_run_cpp (  $f_src_fix,  [], $macro_src,  $stand_alone);    	    	
+		_generate_C($mod_name, $f_src_fix, {'Locals' =>\%locals, 'Consts' =>{} }, $kernel_name);
     }
     return $stref;
 }    # END of translate_to_OpenCL()
@@ -77,16 +81,44 @@ sub _preprocess {
     my $sub_table ={};
     my $emit_contains = 1;
     get_subs_to_be_inlined ($stref, $mod_name,$sub_table );
-#    die Dumper($sub_table);
-my $annlines = get_annotated_sourcelines($stref,$mod_name);
+	my $annlines = get_annotated_sourcelines($stref,$mod_name);
+	my $case_var='';
+	my $first_case=1;
     for my $annline ( @{ $annlines } ) {
         ( my $line, my $info ) = @{$annline};
+        say $line;
 #        next if _skip_IO($info);
 #        next if _skip_return($info);
 
-        #        print Dumper($info),"\n";
+		# Replace select/case by if/then
+		if ($line=~/select\s+case/) { die Dumper($annline); }
+		if (exists $info->{'Select'})  {
+			 $case_var =$info->{'CaseVar'};
+			 } elsif (exists $info->{'CaseDefault'})  {
+				my $indent=$line;
+				$indent=~s/case.+$//;
+				$line = $indent.'else';	 	
+			 } elsif (exists $info->{'Case'})  {
+			my $maybe_else= ($first_case==1) ? '' : 'else ';
+			my $indent=$line;
+			$indent=~s/case.+$//;
+			my $cond_str="$case_var == ";
+			if (scalar @{$info->{'CaseVals'}}==1) {
+				$cond_str.=$info->{'CaseVals'}[0];
+			} else {
+				my @conds=();
+				for my $case_val ( @{$info->{'CaseVals'}} ) {
+					push @conds, $cond_str.$case_val;
+				}
+				$cond_str = join(' .or. ',@conds);
+			}			
+			$line= $indent.$maybe_else.'if ('.$cond_str.') then';
+		}			 
+		if (exists $info->{'EndSelect'})  {
+			$line=~s/select/if/;	 
+		}	 
 # We need to check if a variable can be a scalar constant. The rule we use is: it is a scalar and the intent is In
-        if (    exists $info->{'ParsedVarDecl'}
+        if ( exists $info->{'ParsedVarDecl'}
             and lc($info->{'ParsedVarDecl'}{'Attributes'}{'Intent'}) eq 'in'
             and $info->{'ParsedVarDecl'}{'Attributes'}{'Dim'}->[0] eq '0' )
         {
@@ -106,11 +138,9 @@ my $annlines = get_annotated_sourcelines($stref,$mod_name);
             my $mod_lines = _inline_module( $stref, $inlined_mod_name );
             $refactored_annlines = [ @{$refactored_annlines}, @{$mod_lines} ];
             next;
-
            }
            
            if ($stref->{'Modules'}{$inlined_mod_name}{'InlineableSubs'} == 1) {
-#            print "USE MODULE $inlined_mod_name: INLINEABLE SUBS\n";
             if ($emit_contains) {
                push @{$refactored_annlines},['    contains',{'Contains'=>1}];
                $emit_contains=0;
@@ -126,16 +156,15 @@ my $annlines = get_annotated_sourcelines($stref,$mod_name);
         
         push @{$refactored_annlines}, $annline unless exists $info->{'Comments'};
     }
+    
     my $refactored_lines     = [];
     push @{$refactored_annlines}, ['',{'Blank'=>{}}];
     
     my $idx=0;
     for  (0 .. @{$refactored_annlines}-1 ) {
         if ($idx > @{$refactored_annlines}-1) {last}
-#        say "IDX: $idx";
          my $annline=$refactored_annlines->[$idx];
         ( my $line, my $info ) = @{$annline};
-#        say 'KEYS: '. $idx. ':'   . join('; ',keys %{$info});
         
         #FIXME: this is WEAK! To do it proper we need to do this iteratively until there are no changes anymore.
         # Also, for simplicity I removed the comments but it would be nicer to keep them.
@@ -143,7 +172,6 @@ my $annlines = get_annotated_sourcelines($stref,$mod_name);
         
         if (defined $next_annline) {
         (my $next_line, my $next_info ) = @{$next_annline};
-#        say 'NEXT KEYS: '. ($idx+1). ':'   . join('; ',keys %{$next_info});
         if (exists $info->{'If'} and exists $next_info->{'EndIf'}) {            
             $idx+=2;
             next;
@@ -164,7 +192,63 @@ my $annlines = get_annotated_sourcelines($stref,$mod_name);
      }
     return [ $stref, $refactored_lines, $can_be_consts ];
 } # END of _preprocess()
-
+#  -----------------------------------------------------------------------------
+sub _preprocess_standalone {
+    ( my $f_src ) = @_;
+    my %locals=();
+       open my $SRC,'<',$f_src;
+       open my $SRC_FIX,'>',"$f_src.FIX";
+	my $case_var='';
+	my $first_case=1;
+	while(my $line=<$SRC>) {        
+#        say $line;
+		# Replace select/case by if/then
+		if ($line=~/(\w+)\s+\!\s*\$ACC\s+MemSpace\s+local/) {
+			my $local=$1;
+			$locals{$local}=1;
+#			say "Found local $local";
+		}
+		if ($line=~/select\s+case\s*\(\s*(\w+)\s*\)/) {   
+			 $case_var =$1;
+			 next;
+		} elsif ($line=~/case\s+default/)  { 
+				my $indent=$line;
+				$indent=~s/case.+$//;
+				$line = $indent.'else';
+				croak $line;	 	
+		} elsif ($line=~/case\s*\(\s*(.+)\s*\)/)  { 
+			 	my $case_val_str=$1; 
+			my $maybe_else= ($first_case==1) ? '' : 'else '; 
+			if ($first_case==1) {$first_case=0;}
+			my $indent=$line;
+			$indent=~s/case.+$//;
+			my $cond_str="$case_var == ";
+			
+			
+			if ($case_val_str!~/,/) {
+				$cond_str.=$case_val_str;
+			} else {
+				my @conds=();
+				my @case_vals=split(/\s*,\s*/,$case_val_str);
+				for my $case_val (@case_vals ) {
+					push @conds, $cond_str.$case_val;
+				}
+				$cond_str = join(' .or. ',@conds);
+			}			
+			$line= $indent.$maybe_else.'if ('.$cond_str.') then'."\n";
+			
+		}			 
+		if ($line=~/end\s+select/)  { 
+			$line=~s/select/if/;
+				 
+		}
+#		print $line;
+		print $SRC_FIX $line;	
+	} 
+	close $SRC;
+	close $SRC_FIX;
+	return %locals;
+} # END of _preprocess_standalone()
 #  -----------------------------------------------------------------------------
 sub _inline_module {
     ( my $stref, my $mod_name ) = @_;
@@ -202,12 +286,9 @@ sub _inline_subs {
     my $sub_lines = []; 
     for my $sub (keys %{$subs_in_module}) {
         if (exists $sub_table->{$sub}) {
-#            print "SUB TO BE INLINED: $sub\n";
             my $annlines = get_annotated_sourcelines($stref,$sub);
             for my $annline (@{ $annlines }) {
                 ( my $line, my $info ) = @{$annline};
-#                next if _skip_IO($info);
-#                next if _skip_return($info);
         if (    exists $info->{'Use'}
             and exists $info->{'Use'}{'Inlineable'} )
         {
@@ -216,7 +297,6 @@ sub _inline_subs {
             $sub_lines = [ @{$sub_lines}, @{$nested_mod_lines} ];
             next;
         } else {                
-#            if ($line=~/return/) {die Dumper($info); }
             if (exists $info->{'EndModule'}) { next; } # FIXME! This should be done when extracting the subroutines! 
                 push @{$sub_lines}, $annline;
         }
@@ -238,17 +318,19 @@ sub _inline_subs {
 #  -----------------------------------------------------------------------------
 #  -----------------------------------------------------------------------------
 sub _run_cpp {
-    ( my $f_src, my $src_lines, my $macro_src ) = @_;
+    ( my $f_src, my $src_lines, my $macro_src, my $stand_alone ) = @_;
 
+if (not $stand_alone) {
     open my $SRC, '>', $f_src;
     for my $line ( @{$src_lines} ) {
         say $SRC $line;
     }
     close $SRC;
+}
 
     if ( not defined $macro_src ) {
         $macro_src = $f_src;
-        $macro_src =~ s/\.f95$/.h/;
+        $macro_src =~ s/\.f95.*$/.h/;
     }
 
     my @undefined_macros = ();
@@ -283,20 +365,21 @@ sub _run_cpp {
 } # END of _run_cpp()
 
 #  -----------------------------------------------------------------------------
-sub _generate_C { (my $mod_name, my $src, my $can_be_consts, my $kernel_name) = @_;
+sub _generate_C { (my $mod_name, my $src, my $state, my $kernel_name) = @_;
     chdir 'PostCPP';
-    
+    system('cp ../*.f95 .');
     open my $FML, '>', 'Fortran_Module_Lookup.txt';
     say $FML "$mod_name $src";
     close $FML;
     my $F2C_HOME=$ENV{F2C_HOME};    
     say "\n$F2C_HOME/bin/F2C-ACC --Free --Generate=C $src";
+    
     system("$F2C_HOME/bin/F2C-ACC --Free --Generate=C $src");
     system("cp $F2C_HOME/include/ftocmacros.h .");      
      my $csrc=$src;
-     $csrc=~s/\.f95/.c/;
+     $csrc=~s/\.f95.*/.c/;
      
-    _fix_F2C_ACC_translation($csrc, $can_be_consts,$kernel_name);
+    _fix_F2C_ACC_translation($csrc, $state,$kernel_name);
     # TODO 
     # After running F2C_ACC we need to do some cleaning-up:
     # remove the includes/macros: OK
@@ -352,7 +435,9 @@ sub _skip_return { (my $info)=@_;
         exists $info->{'Return'};
 }
 # -----------------------------------------------------------------------------
-sub _fix_F2C_ACC_translation { (my $csrc, my $can_be_consts, my $kernel_name)=@_;
+sub _fix_F2C_ACC_translation { (my $csrc, my $state, my $kernel_name)=@_;
+        my $can_be_consts = $state->{'Consts'};
+    my $locals = $state->{'Locals'};
     
         if (-e $csrc) {
     rename $csrc, "$csrc.TO_FIX";
@@ -362,9 +447,11 @@ sub _fix_F2C_ACC_translation { (my $csrc, my $can_be_consts, my $kernel_name)=@_
     my @ocl_src_lines=();
     my $null_check=0;
     while(my $line=<$SRC>) {
-#    chomp $line;
 # remove includes
     next if $line=~/^\s*\#include\s\</;
+    next if $line=~/float\s+CLK_(?:GLOB|LOC)AL_MEM_FENCE/;
+    next if $line=~/int\s+nth/;
+    next if $line=~/int\s+nunits/;
 # F2C_ACC has a bug that causes expressions with '--' etc to be generated. Fix that.        
         while ( $line=~/(([\+-]+\d+){2,})/) {
             my $orig_expr=$1;
@@ -379,6 +466,7 @@ sub _fix_F2C_ACC_translation { (my $csrc, my $can_be_consts, my $kernel_name)=@_
             $line=~s/$orig_expr/$sval/;
         }
         # FIXME: WEAK: should do this until no more matches
+        $line=~s/\bpowf\(/pow(/;
         $line=~s/\babs\(/fabs(/;
         $line=~s/MAX\(/max(/;
         $line=~s/MIN\(/min(/;
@@ -389,10 +477,8 @@ sub _fix_F2C_ACC_translation { (my $csrc, my $can_be_consts, my $kernel_name)=@_
                     $sub_names{$sub_name}=[];
                     my $nline = "$1void $sub_name($3";
                     $line = $nline;
-#                    push @ocl_src_lines, $nline;
-#                    next; 
                 }; 
-        $line=~/^(\s*)void\s+$kernel_name\((.+?\{)$/ && do { #die $line; 
+        $line=~/^(\s*)void\s+$kernel_name\((.+?\{)$/ && do {  
             $line = $1.'__kernel void '.$kernel_name.'('.$2; }; # FIXME: must be the subroutine with the right name!
 # malloc needs to become static array
         #  float *local_rhsav_array = (float*) malloc((64)*sizeof(float));
@@ -427,12 +513,22 @@ $line=~/(get_local_size|get_local_id|get_group_id|get_num_groups|get_group_size|
 #  get_group_size( group_size,0 );
 #  get_global_id( global_id,0 );
 
-# barrier fix
+# barrier fix: force upper case
 	$line=~/(CLK_(GLOBAL|LOCAL)_MEM_FENCE)/i && do {
 		my $flag=$1;
 		my $ucflag=uc($flag);
 		$line=~s/$flag/$ucflag/;
 	};
+	$line=~/(nth)/i && do { # very AD-HOC!
+		my $flag=$1;
+		my $ucflag=uc($flag);
+		$line=~s/$flag/$ucflag/g;
+	};
+	$line=~/(nunits)/i && do { # very AD-HOC!
+		my $flag=$1;
+		my $ucflag=uc($flag);
+		$line=~s/$flag/$ucflag/g;
+	};	
 # Replace goto with break:
     	$line=~/(goto\s+C__\d+)/ && do {
         	my $goto = $1;
@@ -440,22 +536,44 @@ $line=~/(get_local_size|get_local_id|get_group_id|get_num_groups|get_group_size|
     	};     
     	$line=~/\d+\s+continue/ && ($line="\n");
     	push @ocl_src_lines, $line;
+    	
 	} # END of loop over src lines
     close $SRC;
-    
-
 
     my %consts=();       
     my @ext_vars=();
     my @ocl_src_lines_tf1=();
     
     for my $line (@ocl_src_lines) {
-        
-        $line=~/(\w+)\(\s((?:\w+,)+\w+)\s\);/ && do {
+    	
+        # Split sub name and args in declarations
+        my $tline=$line;
+#        $tline=~s/\s+//g;
+
+        $tline=~/(\w+)\s*\(\s*((?:\w+,)+\w+)\s*\)\s*;/ && do { # <subname> ( <...> ); 
           my $sub_name = $1;
           my $argstr=$2;
+          
           my @args=split(/,/,$argstr);
           $sub_names{$sub_name} = [@args]; 
+        };
+        $tline=~/(\w+)\s*\(\s*(\w+)\s*\)\s*;/ && do { # <subname> ( <...> ); 
+          my $sub_name = $1;
+          my $argstr=$2;
+#          say "$sub_name $argstr";           
+          $sub_names{$sub_name} = [$argstr]; 
+        };        
+        $line=~/extern\s+(\w+)\s+(.+)\s*;\s*$/ && do {
+        	$line=~s/extern\s+//; # HACK? 
+        };
+        $line=~/^\s*(\w+)(?:\s+\w+)?\s+(\w+)\s*\[/ && do { #HACKY: I assume only local statically defined arrays can be __local, and also that they are not unsigned int etc. weak!
+        	my $type=$1;
+        	my $maybe_local=$2;
+        	if (exists $locals->{$maybe_local}) {
+#        		say "LOCAL $type $maybe_local";
+				$line=~s/$type/__local $type/;
+#				say $line;	
+        	}
         };
 #        $line=~/extern\s+(\w+)\s+(.+)\s*;\s*$/ && do {
 #            my $type=$1;
@@ -464,12 +582,14 @@ $line=~/(get_local_size|get_local_id|get_group_id|get_num_groups|get_group_size|
 #            @ext_vars=(@ext_vars, map { ["const $type ",$_] } split(/\s*,\s*/,$ext_varstr));
 #           next; 
 #        };
+
 #        $line=~/^\s*(\w+)\s+(\w+)\s*=\s*\*H_(\w+);$/ && do {
 #            my $type=$1;
 #            my $const_varstr = $2;
 #            $consts{ 'H_'.${const_varstr} }=$const_varstr;
 #            next;
 #        };
+
     # Here we check for scalar constants that are parameters
     $line=~/^(\s*)(\w+)\s+(\w+)\s*=\s*(\-?\d*\.?\d*F?);$/ && do { # FIXME: only works for integers and simple floats, no x.yEz notation
     my $ws=$1;
@@ -516,7 +636,6 @@ $line=~/(get_local_size|get_local_id|get_group_id|get_num_groups|get_group_size|
                     if ($line=~/__kernel/) {
                      $new_arg_str .= '__global '.$argt. ' *'. $argn.',';
                      $global_args{$argn}=$argt;
-#                     say "GLOBAL ARG <$argn>";
                     } else {
                         # What we should do here is check if the argument is an argument of the kernel                         
                         $new_arg_str .= '__MAYBE__'.$idx.' '.$argt. ' *'. $argn.',';
@@ -526,27 +645,29 @@ $line=~/(get_local_size|get_local_id|get_group_id|get_num_groups|get_group_size|
             }
             $new_arg_str=~s/,$//;
             my $new_kline = $pre.'('.$new_arg_str.')'.$post;
-#            die  $new_kline;
              push @ocl_src_lines_tf2, $new_kline;
              next;
         };
         push @ocl_src_lines_tf2, $line;
     }
-#           map {print $_} @ocl_src_lines_tf2;
     
     my @ocl_src_lines_tf3=();
     for my $line ( @ocl_src_lines_tf2 ) {
         $line=~/void.(\w+).+__MAYBE__/ && do {
+        	
             my $sub_name=$1;
-            my $sub_args = $sub_names{$sub_name};
+            my $sub_args = $sub_names{$sub_name}; # sub args from call
             my $idx=0;
             for my $sub_arg (@{$sub_args}) {
-#                say "SUB $sub_name ARG <$sub_arg>";
+            	
                 if (exists $global_args{$sub_arg}) {
-                    $line=~s/__MAYBE__$idx/__global/;
-                    } else {
+                    $line=~s/__MAYBE__$idx/__global/;                    
+                } elsif (exists $locals->{$sub_arg}) {
+#                	say "LOCAL $sub_arg!";
+                    $line=~s/__MAYBE__$idx/__local/;                       
+                } else {
                     $line=~s/__MAYBE__$idx//;    
-                    }  
+                }  
                     $idx++;
             }             
             
@@ -554,9 +675,7 @@ $line=~/(get_local_size|get_local_id|get_group_id|get_num_groups|get_group_size|
         push @ocl_src_lines_tf3, $line;
     }
     
-#       map {print $_} @ocl_src_lines_tf3;
     say 'GENERATE FIXED KERNEL SRC' if $V; 
-    
 
     open my $FIXED_SRC,'>',$csrc;
     for my $line (@ocl_src_lines_tf3) {
@@ -568,7 +687,7 @@ $line=~/(get_local_size|get_local_id|get_group_id|get_num_groups|get_group_size|
         warn "There is no $csrc\n";
     }
  
-}
+} # END if _fix_F2C_ACC_translation()
 
 # -----------------------------------------------------------------------------
 

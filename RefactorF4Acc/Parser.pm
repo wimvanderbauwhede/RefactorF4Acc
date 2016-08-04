@@ -453,7 +453,7 @@ sub _analyse_lines {
 			#                  ->[$index]{'TrailingComments'} = {};
 			#                next;
 			#            }
-			$line=~/^\s*\d*\s+(map|structure|union|case)\s+/ && do {
+			$line=~/^\s*\d*\s+(map|structure|union|select)\s+/ && do {
 				++$block_nest_counter;
 				++$block_counter;
 				$block_id{$block_counter}={'Nest'=>$block_nest_counter, 'Type' => $1};
@@ -473,7 +473,7 @@ sub _analyse_lines {
 				push @blocks_stack,$block;
 #				say "\t" x $block_nest_counter,"BEGIN block #$block_counter DO LABEL $2";
 			};						
-			$line =~ /^\s*(\w+\s+\w+\s+(?:function|subroutine)|\w+\s+(?:function|subroutine)|function|subroutine|program|block)\s+(\w+)/ && do {
+			$line =~ /^\s*(\w+\s+\w+\s+(?:function|subroutine)|\w+\s+subroutine|[\*\(\)\w]+\s+function|function|subroutine|program|block)\s+(\w+)/ && do {
 				my $full_proc_type=$1;
 				my $proc_name=$2;			
 				my $proc_type = $full_proc_type=~/program/ ? 'program' : 
@@ -490,11 +490,11 @@ sub _analyse_lines {
 					$full_proc_type=~s/\s+$//;
 					if ($full_proc_type ne 'function') {
 						$full_proc_type=~s/\s+function//;
-						$full_proc_type=~s/\s*(?:pure|recursive)\s*//;
+						$full_proc_type=~s/\s*(?:pure|recursive|elemental)\s*//;
 						if ($full_proc_type ne '' and $full_proc_type ne 'block data') {
 							$Sf->{'DeclaredOrigLocalVars'}{'Set'}{$proc_name}={
 								'Indent'=> $indent,
-								'Type'          => 'BOOM'.$full_proc_type ,
+								'Type'          => $full_proc_type ,
 								'ArrayOrScalar' => 'Scalar',
 								'Dim'           => [],
 								'Attr' => '',
@@ -637,6 +637,16 @@ sub _analyse_lines {
 						$mline =~ s/if.+?$rest/$rest/;
 					}
 				}
+				
+				if ($line=~/select\s+case\s+\((\w+)\)/) {
+					$info->{'CaseVar'} = $1;
+				} elsif ($line=~/case\s+\((.+)\)\s*$/) {
+					my $case_vals_str = $1;
+					my @case_vals = _parse_comma_sep_expr_list($case_vals_str);
+					$info->{'CaseVals'} = [@case_vals];				
+				} elsif ($line=~/case\s+\default/) {
+					$info->{'CaseDefault'} = 1;
+				}
 			} 
 #    Arithmetic, logical, statement label (ASSIGN), and character assignment statements
 #    Unconditional GO TO, assigned GO TO, and computed GO TO statements
@@ -655,7 +665,7 @@ sub _analyse_lines {
 			} elsif ( $mline =~ /^\s*\d*\s+print\s+/ ) {
 				$info->{'PrintCall'} = 1;
 				$info = parse_read_write_print( $mline, $info, $stref, $f );
-			} elsif ( $mline =~ /^\s*\d*\s*(open|close)\s*\(/ ) {
+			} elsif ( $mline =~ /^\s*\d*\s*(open|close|rewind)\s*\(/ ) {
 				my $keyword = $1;
 				$info->{ ucfirst($keyword) . 'Call' } = 1;
 				if ( $keyword eq 'open' ) {
@@ -697,7 +707,7 @@ sub _analyse_lines {
 					  keys %{ $info->{'Vars'}{'Set'} };
 				}
 
-			} elsif ( $line =~ /^\s*\d*\s+end\s+(if|case|do)\s*/ ) {
+			} elsif ( $line =~ /^\s*\d*\s+end\s+(if|select|do)\s*/ ) {
 				my $keyword = $1;
 				my $kw      = ucfirst($keyword);
 				$info->{ 'End' . $kw } = {};
@@ -936,6 +946,9 @@ sub _analyse_lines {
 					}
 #					say 'STMT COUNT : '.$varname.' : '.$subset.' : '.$Sf->{$subset}{'Set'}{$varname}{'StmtCount'};
 					 my $vline = $indent."$type, $var_dim  :: $varname";
+#					 if ($var_dim=~/\(2\*ivd003/) {
+#					 	die $var_dim;
+#					 } 
 				( $Sf, my $info ) = __parse_f95_decl( $Sf, $vline, {'Dimension' => 1}, "$type, $var_dim", $varname );
 #				say 'STMT COUNT : '.$varname.' : '.$subset.' : '.$stmt_count;#$Sf->{$subset}{'Set'}{$varname}{'StmtCount'};
 				$Sf->{'DeclCount'}{$varname}++;
@@ -2902,7 +2915,7 @@ sub __parse_sub_func_prog_decls {
 
 	if (   $line =~ /^\s*subroutine\s+(\w+)\s*\((.*)\)/
 		or $line =~ /^\s*recursive\s+subroutine\s+(\w+)\s*\((.*)\)/
-		or $line =~ /^\s*\w+\s+function\s+(\w+)\s*\((.*)\)/
+		or $line =~ /^\s*[\w\(\)\*]+\s+function\s+(\w+)\s*\((.*)\)/
 		or $line =~ /^\s*function\s+(\w+)\s*\((.*)\)/ )
 	{
 		my $name   = $1;
@@ -3047,7 +3060,8 @@ sub __parse_f95_decl {
 				'Status' => 0
 			};
 			
-			for my $tvar ( @{ $pt->{'Vars'} } ) {								
+			for my $tvar ( @{ $pt->{'Vars'} } ) {
+				croak $line.Dumper($pt) unless defined $tvar;								
 				my $decl = {};
 #				if (exists $Sf->{'UndeclaredOrigLocalVars'}{'Set'}{$tvar} ) {
 #					# Basically this means the var has been declared using Implicits. 
@@ -3641,13 +3655,17 @@ sub parse_read_write_print {
 	$info->{'CallArgs'} = { 'List' => [], 'Set' => {} };
 	$info->{'ExprVars'} = { 'List' => [], 'Set' => {} };
 	for my $tline (@exprs) {
-		while ( $tline =~ /\/\// ) {
-			$tline =~ s/\/\//+/;
-		}
+#		while ( $tline =~ /\/\// ) {
+#			$tline =~ s/\/\//+/;
+#		}
 		while ( $tline =~ /\)\s*\(/ ) { # )(
 			$tline =~ s/\)\s*\(/,/; # ,
 		}
-		$tline =~ s/:/,/g; #
+#		$tline =~ s/\(:/(1,/g;
+#		$tline =~ s/,:/(,1,/g;
+#		$tline =~ s/:\)/(,0/g; # FIXME: this is WRONG. All it does is fix the parse error!
+#		$tline =~ s/:,/(,0,/g; # FIXME: this is WRONG. All it does is fix the parse error!
+#		$tline =~ s/:/,/g; #
 		$tline =~ s/\(,/(/g; 
 		$tline =~ s/,\)/)/g;
 		if ( $tline !~ /^\s*$/ ) {
@@ -3751,18 +3769,22 @@ sub _parse_assignment {
 
 	# TODO: proper Fortran expression parser.
 	# For now we sanitise the lines as follows:
-	# Replace '//' by '+' because the parser does not know '//'
-	while ( $tline =~ /\/\// ) {
-		$tline =~ s/\/\//+/;
-	}
+#	# Replace '//' by '+' because the parser does not know '//'
+#	while ( $tline =~ /\/\// ) {
+#		$tline =~ s/\/\//+/;
+#	}
 
 	# Remove ')(', this I think only occurs for characters strings
 	while ( $tline =~ /\)\s*\(/ ) {
 		$tline =~ s/\)\s*\(/,/;
 	}
 
-	# Remove ':' because again this only occurs for characters strings
-	$tline =~ s/:/,/g;
+#	# Remove ':' because again this only occurs for characters strings
+#		$tline =~ s/\(:/(1,/g;
+#		$tline =~ s/,:/,1,/g;
+#		$tline =~ s/:\)/,0)/g ; # FIXME: this is WRONG. All it does is fix the parse error! What we really need is the end of the array!
+#		$tline =~ s/:,/,0,/g; # FIXME: this is WRONG. All it does is fix the parse error!
+#		$tline =~ s/:/,/g; #
 
 	#    say "ALINE: $tline";
 	( my $lhs, my $rhs ) = split( /\s*=\s*/, $tline );
@@ -3826,9 +3848,11 @@ sub _parse_assignment {
 		'ExpressionAST' => $rhs_ast
 	};
 
+
+
 	#	my %test = map {$_ => 1}  @{ $info->{'Rhs'}{'VarList'}{'List'}};
 	#	if (exists $test{'__PH0__'}) {croak Dumper($info)}
-	#croak Dumper($info) if $line=~/wfname.ifn/ and $f eq 'gridcheck';
+#	carp Dumper($line, $info) if $line=~/cf716\(3/ ;
 
 	return $info;
 }    # END of _parse_assignment()
@@ -3942,6 +3966,7 @@ sub _parse_if_cond {
 	return ( $matched_str, $rest );
 }
 
+# Takes a string which contains a comma-separated list of expressions, returns a list of the expressions
 sub _parse_comma_sep_expr_list {
 
 	( my $str ) = @_;

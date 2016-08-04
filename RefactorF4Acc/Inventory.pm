@@ -273,7 +273,7 @@ sub _process_src {
         
         
             # Find subroutine/function/program signatures
-           $line =~ /^\s*(\w+\s+\w+\s+(?:function|subroutine)|\w+\s+(?:function|subroutine)|function|subroutine|program|block)\s+(\w+)/i && do {
+           $line =~ /^\s*(\w+\s+\w+\s+(?:function|subroutine)|\w+\s+subroutine|[\*\(\)\w]+\s+function|function|subroutine|program|block)\s+(\w+)/i && do {
            	
             	my $full_proc_type=$1;            	
             	my $proc_name=$2;
