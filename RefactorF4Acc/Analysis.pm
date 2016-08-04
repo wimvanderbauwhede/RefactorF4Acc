@@ -214,6 +214,7 @@ sub _analyse_variables {
 				or exists $info->{'InquireCall'} )
 			{
 				@chunks = ( @chunks, @{ $info->{'CallArgs'}{'List'} }, @{ $info->{'ExprVars'}{'List'} }, @{ $info->{'CallAttrs'}{'List'} } );
+				
 			} elsif ( exists $info->{'SubroutineCall'} ) {
 				for my $var_expr ( @{ $info->{'CallArgs'}{'List'} } ) {
 					if ( exists $info->{'CallArgs'}{'Set'}{$var_expr}{'Arg'} ) {
@@ -376,10 +377,10 @@ sub _analyse_variables {
 							}
 						}
 						if ( $identified_vars->{$mvar} != 1 ) {
+							
 							if ( $mvar !~ /\*/ and $line =~ /$mvar\s*\(/ ) {                            # Very ugly HACK because somehow ** got into the var name!
 								say "INFO: LOCAL VAR <$mvar> in $f may be an EXTERNAL FUNCTION "
 								  if $I;
-
 							}
 
 							#							else {
@@ -834,7 +835,9 @@ sub _add_BLOCK_DATA_call_after_last_VarDecl {
 		exists $info->{'Include'} or
 		exists $info->{'VarDecl'} or
 		exists $info->{'Common'} or
-		exists $info->{'Dimension'} # I guess there might be others ...
+		exists $info->{'Dimension'} or 
+		exists $info->{'External'} or
+		exists $info->{'Equivalence'} # I guess there might be others ...
 		) {
 			$decl=1;
 		} else {

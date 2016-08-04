@@ -497,7 +497,7 @@ sub _create_extra_arg_and_var_decls {
     		and $var!~/__PH\d+__/ # FIXME! TOO LATE HERE!
     		and $var=~/^[a-z][a-z0-9_]*$/ # FIXME: rather check if Expr or Sub
     		) {    			
-    			croak if $var eq 'ivd001';
+#    			croak if $var eq 'ivd001';
                     my $rdecl = $Sf->{'UndeclaredOrigLocalVars'}{'Set'}{$var}; 
                     my $rline = emit_f95_var_decl($rdecl);                                         
                     my $info={};

@@ -761,7 +761,7 @@ sub get_annotated_sourcelines {
     my $Sf = $stref->{$sub_or_func_or_inc}{$f};
 
     my $annlines = [];
-croak $f.Dumper ($Sf) if not exists $Sf->{Status};
+	croak $f.Dumper ($Sf) if not exists $Sf->{Status};
     if ( $Sf->{'Status'} == $PARSED ) {
         if ( not exists $Sf->{'RefactoredCode'} ) {
             $Sf->{'RefactoredCode'} = [];
@@ -1035,9 +1035,12 @@ sub format_f95_par_decl {
 		}
 	}
     
-#       # Can't trust the type set via implicits!
-#       if ($val=~/^\d+$/) {
-#       	$type = 'integer_FROM_VALUE';
+#       # Can't trust the type set via implicits! WEAK!
+       if ($val=~/^[\+\-\*\d]+$/) {
+       	$type = 'integer';
+       } elsif ($val=~/^[\.\+\-\*\/\d]+$/) {
+       	$type = 'real';
+       }       	
 #       } elsif ($val=~/^(\-?(?:\d+|\d*\.\d*)(?:e[\-\+]?\d+)?)$/) {
 #       	$type = 'real_FROM_VALUE';
 #       	} elsif ($val=~/^[\'\"]/) {

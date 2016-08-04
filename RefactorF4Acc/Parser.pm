@@ -812,6 +812,7 @@ sub _analyse_lines {
 				$varlst = $2;
 				( $Sf, $info ) = __parse_f77_var_decl( $Sf, $f, $line, $info, $type, $varlst );
 		} elsif ( $line =~ /^\s+dimension/ ) {
+			# DIMENSION
 # Although a Dimension line is not a declaration, I will use it as such, so the var must be in DeclaredLocalVars/DeclaredCommonVars
 				$info->{'Dimension'}=1;
 				$type   = 'Unknown';
@@ -830,60 +831,7 @@ sub _analyse_lines {
 					my $varname = $var_dim;
 					$varname=~s/\s*\(.+//;
 					$var_dim=~s/^\w+/dimension/;
-					my $type='Unknown';
-=OLD					
-					if (not in_nested_set( $Sf, 'Vars', $varname ) ) {
-						# So this var was not declared before. Declare it and type it, then get the dimension 
-						($type, my $array_or_scalar, my $attr)= type_via_implicits($stref, $f,$varname);
-							$Sf->{'UndeclaredOrigLocalVars'}{'Set'}{$varname}={
-								'Indent' => $indent,
-								'Type' => $type,
-								'ArrayOrScalar'=>$array_or_scalar,
-								'Attr' => $attr,
-								'Dim'=>[],
-								'Name'=>$varname,
-								'Names'=>[$varname]
-							};							
-					} else {
-						my $decl = get_var_record_from_set($Sf->{'Vars'},$varname);
-						if ($decl eq '1') {			
-							carp "DECL == 1 for $varname in $f";				
-							if ( in_nested_set( $Sf, 'Vars', $varname ) eq 'UndeclaredOrigArgs') {
-							($type, my $array_or_scalar, my $attr)= type_via_implicits($stref, $f,$varname);
-							$Sf->{'UndeclaredOrigArgs'}{'Set'}{$varname}={
-								'Indent' => $indent,
-								'Type' => $type,
-								'ArrayOrScalar'=>$array_or_scalar,
-								'Attr' => $attr,
-								'Dim'=>[],
-								'Name'=>$varname,
-								'Names'=>[$varname],
-								'IODir' => 'Unknown'
-							};															
-							}
-						} else {					
-							 if ( exists $Sf->{'UndeclaredCommonVars'}{'Set'}{$varname}) {
-							 	my $var = $varname;
-							 	my $decl=dclone(	$Sf->{'UndeclaredCommonVars'}{'Set'}{$var} );
-								$Sf->{'DeclaredCommonVars'}{'Set'}{$var} = $decl;
-								delete $Sf->{'UndeclaredCommonVars'}{'Set'}{$var};
-								@{ $Sf->{'UndeclaredCommonVars'}{'List'} } = grep { $_ ne $var } @{ $Sf->{'UndeclaredCommonVars'}{'List'} };
-								push @{ $Sf->{'DeclaredCommonVars'}{'List'} },$var;
-							 	
-							 } elsif (exists $Sf->{'UndeclaredOrigLocalVars'}{'Set'}{$varname}) {
-#							 	croak $varname;
-							 	my $var = $varname;
-							 	my $decl=dclone(	$Sf->{'UndeclaredOrigLocalVars'}{'Set'}{$var} );
-								$Sf->{'DeclaredOrigLocalVars'}{'Set'}{$var} = $decl;
-								delete $Sf->{'UndeclaredOrigLocalVars'}{'Set'}{$var};
-								@{ $Sf->{'UndeclaredOrigLocalVars'}{'List'} } = grep { $_ ne $var } @{ $Sf->{'UndeclaredOrigLocalVars'}{'List'} };
-								push @{ $Sf->{'DeclaredOrigLocalVars'}{'List'} },$var;							 	
-							 }
-							
-							$type = $decl->{'Type'};
-						}
-					}
-=cut					
+					my $type='Unknown';				
 
 					my $subset;
 #					my $stmt_count=1;
@@ -1003,6 +951,21 @@ sub _analyse_lines {
 						# As this is a common it can't be an argument
 						if (exists $Sf->{'DeclaredOrigLocalVars'}{'Set'}{$var} ){
 							my $decl = $Sf->{'DeclaredOrigLocalVars'}{'Set'}{$var};
+#							say Dumper($decl).'<>'.Dumper($parsedvars->{$var});
+							if (
+							(not exists $decl->{'ArrayOrScalar'} or
+								$decl->{'ArrayOrScalar'} eq 'Scalar') and 
+								$parsedvars->{$var}{'ArrayOrScalar'} eq 'Array'
+							) {								
+								$decl->{'Dim'} =  [ @{ $parsedvars->{$var}{'Dim'} } ];	
+							} elsif (
+							exists $decl->{'ArrayOrScalar'} and
+								$decl->{'ArrayOrScalar'} eq 'Array' and 
+								$parsedvars->{$var}{'ArrayOrScalar'} eq 'Array'							
+							) {
+								croak "This should be an error: dimension of $var speficied both in VarDecl and Common";
+							}
+							
 							$Sf->{'DeclaredCommonVars'}{'Set'}{$var} = dclone($decl);
 							$Sf->{'DeclaredCommonVars'}{'Set'}{$var}{'CommonBlockName'} = $common_block_name;
 							delete $Sf->{'DeclaredOrigLocalVars'}{'Set'}{$var};
@@ -1018,6 +981,8 @@ sub _analyse_lines {
 				$info->{'Common'} = { 'Name' => $common_block_name };
 #				croak Dumper($info);
 		 } elsif ($line=~/^\s*\d*\s+data\s+/) {
+		 	# DATA
+		 	$info->{'Data'} = 1; 
 		 	$line.=' ! Parser line '.__LINE__.' : removed spaces from data';
 		 	my @chunks = split(/\//,$line);
 		 	$chunks[1]=~s/\s+//g;
@@ -1026,7 +991,15 @@ sub _analyse_lines {
 				say "DATA declaration $line" if $V;
 #				$extra_lines{$index}=_parse_data_declaration($line,$info, $stref, $f);
 #				next;
-		 	
+		 	} elsif ($line=~/^\s*\d*\s+external\s+([\w,\s]+)/) {
+		 		my $external_procs_str = $1;
+		 		my @external_procs = split(/\s*,\s*/,$external_procs_str);
+		 	# EXTERNAL
+		 		$info->{'External'} = [ map {$_=>1} @external_procs];
+		 		$Sf->{'External'}=[ map {$_=>1} @external_procs];
+		 	} elsif ($line=~/^\s*\d*\s+equivalence\s+/) {
+		 	# EQUIVALENCE (IADN14(1), IADN15(1)), (RADN14(2),RADN15(2))
+		 	$info->{'Equivalence'} = 1;
 		} elsif ( $line =~ /^\s*(.*)\s*::\s*(.*?)\s*$/ ) {
 
 				#
@@ -2915,7 +2888,7 @@ sub __parse_sub_func_prog_decls {
 
 	if (   $line =~ /^\s*subroutine\s+(\w+)\s*\((.*)\)/
 		or $line =~ /^\s*recursive\s+subroutine\s+(\w+)\s*\((.*)\)/
-		or $line =~ /^\s*[\w\(\)\*]+\s+function\s+(\w+)\s*\((.*)\)/
+		or $line =~ /^\s*(?:\w+\s+)*[\w\(\)\*]+\s+function\s+(\w+)\s*\((.*)\)/		
 		or $line =~ /^\s*function\s+(\w+)\s*\((.*)\)/ )
 	{
 		my $name   = $1;
@@ -2939,7 +2912,7 @@ sub __parse_sub_func_prog_decls {
 		} else {
 			$info->{'Signature'}{'Function'} = 0;
 		}
-
+#croak $line.Dumper($info) if $line=~/ff029/;
 	} elsif ( $line =~ /^\s*subroutine\s+(\w+)[^\(]*$/
 		or $line =~ /^\s*recursive\s+subroutine\s+(\w+)[^\(]*$/ )
 	{
@@ -3179,7 +3152,8 @@ sub __parse_f77_par_decl {
 	my $indent = $line;
 	my $type   = 'Unknown';
 	$indent =~ s/\S.*$//;
-	my @partups = split( /\s*,\s*/, $parliststr );
+	my @partups = _parse_comma_sep_expr_list( $parliststr ); 
+	
 	my %pvars =
 	  map { split( /\s*=\s*/, $_ ) } @partups;    # Perl::Critic, EYHO
 	my @var_vals =
@@ -3622,12 +3596,21 @@ sub parse_read_write_print {
 			next if $call_attr eq '*';
 			next if $call_attr =~ /^\d+$/;
 			next if $call_attr =~ /^(?:__PH\d+__)+$/;
-			if ( $call_attr !~ /^[a-z][a-z0-0_]*/ ) {
+			if ( $call_attr !~ /^[a-z][a-z0-9_]*/  and $call_attr !~ /^__PH\d+__/) {
 				carp "UNKNOWN CALL ATTR VAL <$call_attr> on LINE <$line>";
 			} else {
 				my $type = $call_attr =~ /\(/ ? 'Array' : 'Scalar';
 				$info->{'CallAttrs'}{'Set'}{$call_attr} = { 'Type' => $type };
+				if ( $call_attr =~ /\(/ ) {
+					$call_attr =~s/\)//g;
+					my @call_attr_chunks=split(/\(/,$call_attr);
+					for my $call_attr ( @call_attr_chunks ) {
+						push @{ $info->{'CallAttrs'}{'List'} }, $call_attr;
+					}
+				} else {
+				
 				push @{ $info->{'CallAttrs'}{'List'} }, $call_attr;
+				}
 			}
 		}
 		$tline = $rest;
@@ -4002,7 +3985,7 @@ sub _parse_comma_sep_expr_list {
 		}
 	}
 	return @matched_strs;
-}
+} # END of _parse_comma_sep_expr_list
 
 # What we do is find the words in the value,
 sub ___check_par_val_for_pars {

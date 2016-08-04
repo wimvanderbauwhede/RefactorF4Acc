@@ -71,12 +71,19 @@ sub parse_expression { (my $exp, my $info, my $stref, my $f)=@_;
 		$has_colons=1;
 #		$preproc_expr =~ s/:/,_COLON_PRE_,_COLON_POST_,/g;
 		$preproc_expr =~ s/:/,_COLON_PRE_,/g;
+		$preproc_expr =~ s/\(,_COLON_PRE_/\(_COLON_PRE_/g;
+		$preproc_expr =~ s/_COLON_PRE_,\)/_COLON_PRE_\)/g;
+		$preproc_expr =~ s/,,_COLON_PRE_/,_COLON_PRE_/g;
+		$preproc_expr =~ s/_COLON_PRE_,,/_COLON_PRE_,/g;
 	}
 		
 	# HACK to support '//'
 	my $has_concat=0;
 	if ($preproc_expr =~ /\/\//) {
 		$preproc_expr =~ s/\/\//,_CONCAT_PRE_,/g;
+		$preproc_expr =~ s/\(,_CONCAT_PRE_/\(_CONCAT_PRE_/g;
+		$preproc_expr =~ s/_CONCAT_PRE_,\)/_CONCAT_PRE_\)/g;
+		
 #		say "_CONCAT_PRE_: $preproc_expr";
 		$wrap=1;
 	}	  
@@ -284,7 +291,7 @@ sub emit_expression {(my $ast, my $expr_str)=@_;
 				$ts[$elt-1] = (ref($ast->[$elt]) eq 'ARRAY') ? emit_expression( $ast->[$elt], '') : $ast->[$elt];					
 			} 
 			if ($op eq '^') {$op = '**'};
-			$expr_str.=join($op,@ts);#$t1.$ast->[0].$t2;
+			$expr_str.=join($op,@ts);
 		} elsif (defined $ast->[2]) { croak "OBSOLETE!";
 			my $t1 = (ref($ast->[1]) eq 'ARRAY') ? emit_expression( $ast->[1], '') : $ast->[1];
 			my $t2 = (ref($ast->[2]) eq 'ARRAY') ? emit_expression( $ast->[2], '') : $ast->[2];			
@@ -499,16 +506,18 @@ sub _fix_colons_in_expr { (my $ast)=@_;
 	        next unless defined $elt;
 	        
 	        if ($i==0 and ref($elt) eq 'ARRAY' and $elt->[1] eq '_COLON_PRE_') { 
-	            $elt = [':',$cloned_ast->[$i+2]];
+	            $elt = [':','',$cloned_ast->[$i+2]];
 	            push @{$new_ast}, $elt;
 	            $cloned_ast->[$i+1]=undef;
 #	            $cloned_ast->[$i+2]=undef;
 	            next;
 	        }
 	        if (ref($cloned_ast->[$i+1]) eq 'ARRAY' and $cloned_ast->[$i+1][1] eq '_COLON_PRE_') {
-	            $elt=[':', $elt];
+	            
 	            if (defined $cloned_ast->[$i+2]) {
-	                push @{$elt},$cloned_ast->[$i+2];
+	                $elt=[':', $elt,$cloned_ast->[$i+2]];
+	            } else {
+	            	$elt=[':', $elt,''];
 	            }
 	            push @{$new_ast}, $elt;
 	            $cloned_ast->[$i+1]=undef;
