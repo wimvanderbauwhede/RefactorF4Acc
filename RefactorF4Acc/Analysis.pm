@@ -112,6 +112,13 @@ sub analyse_all {
 	}
 	return $stref if $stage == 7;
 
+
+	for my $f ( keys %{ $stref->{'Subroutines'} } ) {    # Assuming Functions are just special subroutines
+		next if $f eq '';
+
+		$stref = _identify_external_proc_args( $stref, $f );
+	}
+	return $stref if $stage == 8;
 	#croak Dumper( $stref->{'Subroutines'}{'gridcheck'}{'UndeclaredOrigLocalVars'} );
 
 	# This is only for refactoring init out of time loops so very domain specific
@@ -580,6 +587,37 @@ sub _map_call_args_to_sig_args {
 
 	return $stref;
 }    # END of _map_call_args_to_sig_args()
+
+
+sub _identify_external_proc_args {
+	( my $stref, my $f ) = @_;
+	say "_identify_external_proc_args($f)\n" if $DBG;
+	
+	my $__mark_args_as_external = sub {
+		( my $annline ) = @_;
+		( my $line, my $info ) = @{$annline};
+		if ( exists $info->{'SubroutineCall'}
+			and not exists $info->{'SubroutineCall'}{'IsExternal'} )
+		{
+			my $sub = $info->{'SubroutineCall'}{'Name'};
+			for my $sig_arg ( @{ $stref->{'Subroutines'}{$sub}{'OrigArgs'}{'List'} } ) {			
+				my $call_arg = $info->{'SubroutineCall'}{'ArgMap'}{$sig_arg};
+				if (exists $stref->{'Subroutines'}{$f}{'External'}{$call_arg}) {
+					my $set = in_nested_set($stref->{'Subroutines'}{$sub},'Vars',$sig_arg);
+					say "In proc $f, in call to sub $sub, arg $call_arg is EXTERNAL so setting $sig_arg attr External in set $set";
+					
+					$stref->{'Subroutines'}{$sub}{$set}{'Set'}{$sig_arg}{'External'}=1;
+				}
+			}							
+		}
+		return $annline;
+	};
+	
+	 $stref = stateless_pass( $stref, $f, $__mark_args_as_external, '__mark_args_as_external() ' . __LINE__ );
+#croak Dumper( $stref->{'Subroutines'}{'sn725'}{'OrigArgs'}
+	return $stref;
+}    # END of _identify_external_proc_args()
+
 
 sub _analyse_var_decls_for_params {
 	( my $stref, my $f ) = @_;

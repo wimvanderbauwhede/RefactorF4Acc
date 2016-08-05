@@ -996,7 +996,7 @@ sub _analyse_lines {
 		 		my @external_procs = split(/\s*,\s*/,$external_procs_str);
 		 	# EXTERNAL
 		 		$info->{'External'} = [ map {$_=>1} @external_procs];
-		 		$Sf->{'External'}=[ map {$_=>1} @external_procs];
+		 		$Sf->{'External'}={ map {$_=>1} @external_procs };
 		 	} elsif ($line=~/^\s*\d*\s+equivalence\s+/) {
 		 	# EQUIVALENCE (IADN14(1), IADN15(1)), (RADN14(2),RADN15(2))
 		 	$info->{'Equivalence'} = 1;

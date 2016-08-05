@@ -251,12 +251,14 @@ sub _analyse_src_for_iodirs {
 			for my $index ( 0 .. scalar( @{$annlines} ) - 1 ) {
 				my $line = $annlines->[$index][0];
 				my $info = $annlines->[$index][1];
-
+				
+				# TDDO: use $info
 				if ( $line =~ /^\s*\!/ ) {
 					next;
 				}
 
 				# Skip format statements
+				# TDDO: use $info
 				if (   $line =~ /^\s+format/
 					or $line =~ /^\d+\s+format/ )
 				{
@@ -298,6 +300,7 @@ sub _analyse_src_for_iodirs {
 				}
 
 				# File open statements
+				# TDDO: use $info
 				if (   $line =~ /^\s+open\s*\(\s*(.+)$/
 					or $line =~ /^\d+\s+open\s*\(\s*(.+)$/ )
 				{
@@ -370,21 +373,19 @@ sub _analyse_src_for_iodirs {
 # We need both the original args from the call and the ex-glob args
 # It might be convenient to have both in $info; otoh we can get ExGlobArgs from the main table
 #croak Dumper($info->{'ExprVars'}{'List'}) if scalar @{ $info->{'ExprVars'}{'List'} } >3; 
-				for my $mvar ( @{$info->{'ExprVars'}{'List'}} ) {
-					# So these var can be local, global or even intrinsics. 
-					# Check if they are global first.
-					if ( exists $args->{$mvar} and ref( $args->{$mvar} ) eq 'HASH' ) {
-						if ( exists $args->{$mvar}{'IODir'} ) {
-								$args = _set_iodir_read( $mvar, $args );
-							}
+					for my $mvar ( @{$info->{'ExprVars'}{'List'}} ) {
+						# So these var can be local, global or even intrinsics. 
+						# Check if they are global first.
+						if ( exists $args->{$mvar} and ref( $args->{$mvar} ) eq 'HASH' ) {
+							if ( exists $args->{$mvar}{'IODir'} ) {
+									$args = _set_iodir_read( $mvar, $args );
+								}
+						}
 					}
-				}
-					my $iodirs_from_call =
-					  _get_iodirs_from_subcall( $stref, $f, $info );
+					my $iodirs_from_call = _get_iodirs_from_subcall( $stref, $f, $info );
 
 #				croak "DEAL WITH MULTIPLE OCCURRENCES: $f => $name => ".Dumper($iodirs_from_call) if $name eq 'reorder_ncwrfout_1realfield' and exists  $iodirs_from_call->{'vardata'};
 					for my $var ( keys %{$iodirs_from_call} ) {
-
 # Damn Perl! exists $args->{$var}{'IODir'} creates the entry for $var if it did not exist!
 
 						if ( exists $args->{$var}
@@ -442,23 +443,21 @@ sub _analyse_src_for_iodirs {
 
 						# So at this point, $args has correct IODir information
 					}
-
+					# TODO: use $info
 					if ( $line =~ /^\s*if\s*\((.+)\)\s+call\s+/ ) {
 						my $cond = $1;
 						$cond =~ s/[\(\)]+//g;
 						$cond =~
 						  s/\.(eq|ne|gt|ge|lt|le|and|or|not|eqv|neqv)\./ /;
 						die $line unless defined $cond;
-						$args =
-						  _find_vars_w_iodir( $cond, $args, \&_set_iodir_read );
-
+						$args = _find_vars_w_iodir( $cond, $args, \&_set_iodir_read );
 					}
-
 					next;
 				}    # SubroutineCall
 
 # Encounter Assignment
 # WV20150304 TODO: factor this out and export it so we can use it as a parser for assignments
+# TODO: use $info
 				if (
 					    $line =~ /[\w\s\)]=[\w\s\(\+\-\.\'\"]/
 					and $line !~ /^\s*do\s+.+\s*=/
@@ -761,8 +760,7 @@ sub _get_iodirs_from_subcall {
 					and exists $Sname->{'RefactoredArgs'}{'Set'}{$sig_arg} )
 				{    # this caller argument has a record in RefactoredArgs of $f
 					   # look up the IO direction for the corresponding $sig_arg
-					my $sig_iodir =
-					  $Sname->{'RefactoredArgs'}{'Set'}{$sig_arg}{'IODir'};
+					my $sig_iodir = $Sname->{'RefactoredArgs'}{'Set'}{$sig_arg}{'IODir'};
 					if ( not exists $called_arg_iodirs->{$call_arg} ) {
 						$called_arg_iodirs->{$call_arg} = $sig_iodir;
 					} else {

@@ -1267,6 +1267,8 @@ sub emit_f95_var_decl {
     if ( ref($var_decl_rec) ne 'HASH' ) {
         croak "NOT a HASH in emit_f95_var_decl(".$var_decl_rec.")";
     }
+#    croak Dumper($var_decl_rec) if $var_decl_rec->{'Name'} eq 'dtint';
+    my $external = exists $var_decl_rec->{'External'} ? 1 : 0;
     my $spaces = $var_decl_rec->{'Indent'};# [0];
     croak Dumper($var_decl_rec) if not defined $spaces;
 #    ( my $type, my $attr, my $dim, my $intent_or_par ) =
@@ -1328,9 +1330,12 @@ croak Dumper($var_decl_rec) if not defined $var;
 #                say "WARNING: Intent is Unknown for $var"                  
 #                  if $W;
 #            }
-        
+        if (not $external) {
         if ($intentstr) {
             push @attrs, $intentstr;
+        } 
+        } else {
+        	    push @attrs, 'external';
         }
         
         if ( @attrs && $attrs[0] =~ /^\s*\(/ ) {
