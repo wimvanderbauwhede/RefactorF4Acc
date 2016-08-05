@@ -454,6 +454,7 @@ sub _create_extra_arg_and_var_decls {
     my %unique_ex_impl=();
     for my $var ( @{ $Sf->{'UndeclaredOrigArgs'}{'List'} } ) {
     	say "INFO VAR: $var" if $I;
+    	next if $var eq '*';
     	if (not exists $unique_ex_impl{$var}) {
     			$unique_ex_impl{$var}=$var;
                     my $rdecl = $Sf->{'UndeclaredOrigArgs'}{'Set'}{$var}; 

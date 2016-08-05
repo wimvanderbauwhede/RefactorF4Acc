@@ -1462,9 +1462,8 @@ sub _parse_subroutine_and_function_calls {
 					#					croak "FIX INTRINSICS!";
 					#					return $stref;
 					$external_sub = 1;
-				}
-				my $ast =
-				  parse_expression( "$name($argstr)", $info, $stref, $f );
+				}				
+				my $ast = parse_expression( "$name($argstr)", $info, $stref, $f );
 
 				#				say Dumper($ast);
 				( my $expr_args, my $expr_other_vars ) = get_args_vars_from_subcall($ast);
@@ -3641,9 +3640,9 @@ sub parse_read_write_print {
 #		while ( $tline =~ /\/\// ) {
 #			$tline =~ s/\/\//+/;
 #		}
-		while ( $tline =~ /\)\s*\(/ ) { # )(
-			$tline =~ s/\)\s*\(/,/; # ,
-		}
+#		while ( $tline =~ /\)\s*\(/ ) { # )(
+#			$tline =~ s/\)\s*\(/,/; # ,
+#		}
 #		$tline =~ s/\(:/(1,/g;
 #		$tline =~ s/,:/(,1,/g;
 #		$tline =~ s/:\)/(,0/g; # FIXME: this is WRONG. All it does is fix the parse error!
