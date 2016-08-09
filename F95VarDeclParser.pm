@@ -162,18 +162,18 @@ sub allocatable_parser {
 }
 
 sub varlist_parser {
-	sequence [	
-	symbol('::'),	
-	choice({'Pars' => try(sepByChar(',',&param_assignment)) },{'Vars' => sepByChar(',',word) })
-	]
+	sequence( [	
+	symbol('::'),		
+	choice({'Pars' => try(sepBy(comma,&param_assignment)) },{'Vars' => sepByChar(',',word) })
+	] )
 }
 
 sub param_assignment {
-    sequence [
-        {'Lhs' => word},
-        symbol('='),
-        {'Rhs' => choice(word,number) } #regex('[\.\d]+')} #FIXME very weak !
-    ]    
+    sequence( [
+        {'Lhs' => word },
+        symbol('='),                
+		{'Rhs' => choice(word,regex('[\.\d]+')) } #regex('[\.\d]+')} #FIXME very weak !
+    ] )
 }
 sub openacc_pragma_parser { sequence [
         char('!'),

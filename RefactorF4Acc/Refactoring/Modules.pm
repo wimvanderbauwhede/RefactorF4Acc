@@ -2,7 +2,7 @@ package RefactorF4Acc::Refactoring::Modules;
 use v5.016;
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
-use RefactorF4Acc::Refactoring::Common qw( get_annotated_sourcelines create_refactored_source );
+use RefactorF4Acc::Refactoring::Common qw( get_annotated_sourcelines create_refactored_source splice_additional_lines_cond );
 
 # 
 #   (c) 2010-2012 Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
@@ -32,14 +32,21 @@ This subroutine created the module declarations around the original F77 files
 
 # -----------------------------------------------------------------------------
 sub add_module_decls { (my $stref)=@_;
-    my $no_module=0;    
-    
-	for my $src (keys %{ $stref->{'SourceContains'} } ) {	    
-	    for my $sub_or_func ( @{  $stref->{'SourceContains'}{$src}{'List'}   } ) {
-	        my $sub_func_type= $stref->{'SourceContains'}{$src}{'Set'}{$sub_or_func};
-	        my $Sf = $stref->{$sub_func_type}{$sub_or_func};
-#	        if (exists $Sf->{'Function'} and $Sf->{'Function'}==1) {
-#	        	say "FUNCTION $sub_or_func"} elsif (exists $Sf->{'Program'} and $Sf->{'Program'}==1) {say "PROGRAM $sub_or_func"} else { say "SUBROUTINE $sub_or_func" }
+#    my $no_module=0;    
+    my %is_existing_module = ();
+    my %existing_module_name = ();
+          
+    # THis assumes a source file contains only a single module
+	for my $src (keys %{ $stref->{'SourceContains'} } ) {	    		
+	    for my $sub_or_func_or_mod ( @{  $stref->{'SourceContains'}{$src}{'List'}   } ) {
+	    	 
+	        my $sub_func_type= $stref->{'SourceContains'}{$src}{'Set'}{$sub_or_func_or_mod};
+	        ;
+	        if ($sub_func_type eq 'Modules') {
+	        	$is_existing_module{$src}=1;
+	        	$existing_module_name{$src} = $sub_or_func_or_mod;
+	        }
+	        my $Sf = $stref->{$sub_func_type}{$sub_or_func_or_mod};
 	        	        
 	        for my $called_sub ( keys %{ $Sf->{'CalledSubs'}{'Set'} } ) {	    
 	            my $cs_src;
@@ -54,8 +61,10 @@ sub add_module_decls { (my $stref)=@_;
 	    }	    
 	}
 	
-    for my $src (keys %{ $stref->{'SourceContains'} } ) {    	
-        $no_module= $stref->{'Program'} eq $src;
+    for my $src (keys %{ $stref->{'SourceContains'} } ) {       	 	
+        my $no_module= $stref->{'Program'} eq $src ? 1 :0;
+#        my $is_module = exists $stref->{'Modules
+		
         print "INFO: adding module decls to $src\n" if $I;        
        if ($I) {
             say '! ','-' x 80;
@@ -63,7 +72,33 @@ sub add_module_decls { (my $stref)=@_;
             print "!\tCONTAINS: ";
             say join(', ',@{ $stref->{'SourceContains'}{$src}{'List'} } );
        }             
-       
+       if ($is_existing_module{$src}) {
+#       	croak "SRC $src MODULE ".$existing_module_name{$src}.":".Dumper($stref->{'Modules'}{$existing_module_name{$src}}) if $src=~/sub/;
+       	
+       	
+       	# What we need to do is find $info->{'Contains'} and splice in the subroutines in order there.
+       	# So we create $new_annlines simply by merging the annlines for all subs, then splice.
+       	my $new_annlines=[];
+       	for my $sub (@{ $stref->{'Modules'}{$existing_module_name{$src}}{'Contains'} } ) {
+       		say '=' x 80;
+       		say 'SUB: '.$sub;
+       		$new_annlines =[ @{$new_annlines}, @{ $stref->{'Subroutines'}{$sub}{'AnnLines'}} ];
+       		say '=' x 80;
+       	}
+       	my $old_annlines = $stref->{'Modules'}{$existing_module_name{$src}}{'AnnLines'};
+       	if (scalar @{$new_annlines}>0) {
+       		
+       		my $merged_annlines = splice_additional_lines_cond( $stref, $existing_module_name{$src}, sub { (my $annline)=@_; (my $line, my $info) = @{$annline};return $line=~/^\s*contains\s*$/ },$old_annlines, $new_annlines, 0, 0, 1 );
+       		$stref->{'RefactoredCode'}{$src}=$merged_annlines;
+#       		say "MERGED";
+#       		show_annlines($merged_annlines );       		
+       	} else {
+       		$stref->{'RefactoredCode'}{$src}=$old_annlines;
+       	}
+#       	say $existing_module_name{$src};
+#       	croak if $src=~/sub/;
+       	
+       } else {
             my $mod_name=$src;
             $mod_name=~s/\.\///;
             $mod_name=~s/\..*$//;
@@ -185,10 +220,11 @@ sub add_module_decls { (my $stref)=@_;
             	$stref->{'RefactoredCode'}{$src}=[@prog_p1,@mod_uses,@prog_p2];
 #            	die;  
 #            	show_annlines($stref->{'RefactoredCode'}{$src},0);die;	 	
-            }        
+            }     
+       }   
 #croak Dumper $stref->{'RefactoredCode'}{$src};            
     } # loop over all source files
-
+#	croak;
     return $stref;
 } # END of add_module_decls()
 1;

@@ -263,17 +263,17 @@ sub emit_all {
         
         print "INFO: emitting refactored code for $src\n" if $V;
         if (not $DUMMY) {
-        if ( $src =~ /\w\/\w/ ) {    
-            # Source resides in subdirectory, create it if required
-            my @dirs = split( /\//, $src );
-            pop @dirs;
-            map {
-                my $targetdir = $_;
-                if ( not -e $targetdir ) {
-                    mkdir $targetdir;
-                }
-            } @dirs;
-        }
+	        if ( $src =~ /\w\/\w/ ) {    
+	            # Source resides in subdirectory, create it if required
+	            my @dirs = split( /\//, $src );
+	            pop @dirs;
+	            map {
+	                my $targetdir = $_;
+	                if ( not -e $targetdir ) {
+	                    mkdir $targetdir;
+	                }
+	            } @dirs;
+	        }
         }
 	   if ($I) {
             print '! ','-' x 80,"\n";

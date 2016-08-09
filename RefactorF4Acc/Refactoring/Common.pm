@@ -761,7 +761,7 @@ sub get_annotated_sourcelines {
     my $Sf = $stref->{$sub_or_func_or_inc}{$f};
 
     my $annlines = [];
-	croak $f.Dumper ($Sf) if not exists $Sf->{Status};
+	croak "$sub_or_func_or_inc $f:".Dumper ($Sf) if not exists $Sf->{Status};
     if ( $Sf->{'Status'} == $PARSED ) {
         if ( not exists $Sf->{'RefactoredCode'} ) {
             $Sf->{'RefactoredCode'} = [];
@@ -1424,11 +1424,11 @@ sub splice_additional_lines {
 }    # END of splice_additional_lines()
 
 # Usage: 
-# $stref = _create_extra_arg_decls( $stref, $f, $insert_cond_subref, $new_annlines, $insert_before, $skip_insert_pos_line, $once )
+# $merged_annlines = splice_additional_lines_cond( $stref, $f, $insert_cond_subref, $old_annlines, $new_annlines, $insert_before, $skip_insert_pos_line, $once )
 #- Go through the AnnLines
-#- Find the hook based on a condition on the $annline
-#- splice the new lines after the hook.
-#- if $once is 0, do this whenever the condition is met. Otherwise
+#- Find the hook based on a condition on the $annline (i.e. $insert_cond_subref->($annline) )
+#- splice the new lines before/after the hook depending on $insert_before
+#- if $once is 0, do this whenever the condition is met. Otherwise do it once
 sub splice_additional_lines_cond {
     (
         my $stref, my $f,
@@ -1450,6 +1450,7 @@ sub splice_additional_lines_cond {
 
     for my $annline ( @{$annlines} ) {
         ( my $line, my $info ) = @{$annline};
+#        say Dumper($info);
         if ( $insert_cond_subref->($annline) and $once ) {
             $once = 0 unless $do_once==0;
 

@@ -51,14 +51,18 @@ sub parse_fortran_src {
 	  ;  # NOTE $f is not the name of the source but of the sub/func/incl/module
 
 	#    local $V=1;
-	print "parse_fortran_src(): PARSING $f\n " if $V;
+	print "parse_fortran_src(): PARSING $f\n" if $V;
 
 	#say 'INIT PRE:'.Dumper($stref->{'Subroutines'}{'init'}{'AnnLines'}) ; # OK!
 ## 1. Read the source and do some minimal processsing, unless it's already been done (i.e. for extracted blocks)
+	print "parse_fortran_src(): CALL read_fortran_src( $f )\n" if $V;
 	$stref = read_fortran_src( $f, $stref );    #
 	print "DONE read_fortran_src( $f )\n" if $V;
+	
+	
 	my $sub_or_incl_or_mod = sub_func_incl_mod( $f, $stref );
-	my $is_incl = $sub_or_incl_or_mod eq 'IncludeFiles';
+	my $is_incl = $sub_or_incl_or_mod eq 'IncludeFiles' ? 1 : 0;
+	my $is_mod = $sub_or_incl_or_mod eq 'Modules' ? 1 : 0;
 	my $is_external_include =
 	  $is_incl ? ( $stref->{'IncludeFiles'}{$f}{'InclType'} eq 'External' ) : 0;
 
@@ -72,9 +76,9 @@ sub parse_fortran_src {
 	{
 		my $Sf = $stref->{$sub_or_incl_or_mod}{$f};
 
-		# OK, time to declare all the variable sets and declaration sets
-		$Sf = _initialise_decl_var_tables( $Sf, $f, $is_incl );
-
+		# OK, time to declare all the variable sets and declaration sets		
+		$Sf = _initialise_decl_var_tables( $Sf, $f, $is_incl,$is_mod );
+		
 # Set 'RefactorGlobals' to 0, we only refactor the globals for subs that are kernel targets and their dependencies
 		if ( not exists $Sf->{'RefactorGlobals'} ) {
 			$Sf->{'RefactorGlobals'} = 0;
@@ -105,7 +109,7 @@ sub parse_fortran_src {
 		$stref = _parse_includes( $f, $stref );
 
 ## 5. Parse subroutine and function calls
-		if ( not $is_incl ) {
+		if ( not $is_incl and not $is_mod) {
 
 			# Recursive descent via subroutine calls
 			$stref = _parse_subroutine_and_function_calls( $f, $stref );
@@ -113,10 +117,13 @@ sub parse_fortran_src {
 			print "DONE PARSING $sub_or_incl_or_mod $f\n" if $V;
 
 #			say "AFTER PARSING $f:".Dumper($stref->{'Subroutines'}{'vertical'}{'AnnLines'}) ; croak if $f eq 'vertical';
-		} else {    # includes
+		} elsif ($is_incl) {    # includes
 ## 6. For includes, parse common blocks and parameters, create $stref->{'IncludeFiles'}{$inc}{'Commons'}
 			$stref = _get_commons_params_from_includes( $f, $stref );
 			$stref->{'IncludeFiles'}{$f}{'Status'} = $PARSED;
+		} else {			
+			
+			$stref->{'Modules'}{$f}{'Status'} = $PARSED;			
 		}
 
 #            say 'parse_fortan_source: '. __LINE__.' : '. Dumper($stref->{'Subroutines'}{$f}{Vars}{indzindicator}) if $f eq 'particles_main_loop';
@@ -200,7 +207,7 @@ sub refactor_marked_blocks_into_subroutines {
 # -----------------------------------------------------------------------------
 # Here I initialise tables for Variables and Declarations and a few other Subroutine-specific data structures
 sub _initialise_decl_var_tables {
-	( my $Sf, my $f, my $is_incl ) = @_;
+	( my $Sf, my $f, my $is_incl, my $is_mod ) = @_;
 	say "_initialise_decl_var_tables for subroutine $f" if $V;
 
 	if ( not exists $Sf->{'CalledSubs'} ) {
@@ -248,7 +255,7 @@ sub _initialise_decl_var_tables {
 					  $Sf->{'UndeclaredOrigLocalVars'}
 				}
 			};
-		if ( not $is_incl ) {
+		if ( not $is_incl and not $is_mod ) {
 
  # WV: Maybe I should have an additional record 'FromInclude' in the set record!
  # This seemed like a good idea but it requires so many changes. Instead I think I'll just populate ExGlobArgs on the fly
@@ -413,7 +420,7 @@ sub _analyse_lines {
 	my $srcref = $Sf->{'AnnLines'};
 
 	if ( defined $srcref ) {
-		print "\nVAR DECLS in $f:\n" if $V;
+		print "\nINFO: VAR DECLS in $f:\n" if $I;
 		my %vars = ();
 
 		my $first          = 1;
@@ -733,7 +740,7 @@ sub _analyse_lines {
 				my $kw   = $1;
 				my $name = $2;
 				$info->{ 'End' . ucfirst($kw) } = { 'Name' => $name };
-			} elsif ( $mline =~ /^\s*\d*\s+do\b/ ) {
+			} elsif ( $mline =~ /^\s*\d*\s+do\b/ or $mline =~ /^do\b/) {
 #WV20150304: We parse the do and store the iterator and the range { 'Iterator' => $i,'Range' =>[$start,$stop]}
 				my $do_stmt = $mline;
 				my $label   = 'LABEL_NOT_DEFINED';
@@ -742,6 +749,7 @@ sub _analyse_lines {
 					my $label = $1;
 				} else {
 					$do_stmt =~ s/^\s*\d*\s+do\s+//;
+					$do_stmt =~ s/^do\s+//;
 				}
 
 				( my $iter, my $range ) = split( /\s*=\s*/, $do_stmt );
@@ -1052,8 +1060,8 @@ sub _analyse_lines {
 		}
 		$Sf->{'AnnLines'}=$srcref;
 	} else {
-		print "WARNING: NO AnnLines for $f\n";
-		die "SOURCE for $f: " . Dumper($Sf);
+		print "WARNING: NO AnnLines for $f ($sub_incl_or_mod)\n";
+		croak "SOURCE for $f: " . Dumper($Sf);
 # FIXME: if we can't find the source, we should search the include path, but not attempt to create a module for that source!
 	}
 
@@ -2978,14 +2986,14 @@ sub __parse_f95_decl {
 	( my $Sf, my $line, my $info, my $type, my $varlst ) = @_;
 	my $indent = $line;
 	$indent =~ s/\S.*$//;
+#	say "LINE:<$line>";
 	my $pt = parse_F95_var_decl($line);
-#carp $line."\n".Dumper($pt);
-	# But this could be a parameter declaration, with an assignment ...
-	if ( $line =~ /,\s*parameter\s*.*?::\s*(\w+\s*=\s*.+?)\s*$/ )
-	{    # F95-style parameters
-		$info->{'ParsedParDecl'} = $pt
-		  ; #WV20150709 currently used by OpenCLTranslation, TODO: use ParamDecl
 
+	# But this could be a parameter declaration, with an assignment ...
+	if ( $line =~ /,\s*parameter\s*.*?::\s*(\w+\s*=\s*.+?)\s*$/ ) {    
+		# F95-style parameters
+		$info->{'ParsedParDecl'} = $pt; #WV20150709 currently used by OpenCLTranslation, TODO: use ParamDecl
+		
 		my $parliststr = $1;
 		my $var        = $pt->{'Pars'}{'Var'};
 		my $val        = $pt->{'Pars'}{'Val'};
@@ -3419,7 +3427,7 @@ sub __parse_f77_var_decl {
 #		carp $info->{'StmtCount'}{$var} if $var eq 'ladn1d';
 	}    # loop over all vars declared on a single line
 
-	print "\tVARS <$line>:\n ", join( ',', sort @varnames ), "\n" if $V;
+	print "\tINFO: VARS <$line>:\n ", join( ',', sort @varnames ), "\n" if $I;
 
 	$info->{'VarDecl'} = {
 		'Indent' => $indent,
@@ -4024,7 +4032,13 @@ sub __remove_blanks { (my $line, my $free_form)=@_;
 	
 	my $indent = $line;
 	$indent =~s/\S.*$//;
-	$line=~s/\s+//g;
+	if ($line=~/^do\s+/) {
+		$line=~s/^do\s+//;
+		$line=~s/\s+//g;
+		$line = "do $line";
+	} else {
+		$line=~s/\s+//g;
+	}	
 	#FM351 
 #	croak "INDENT IS WRONG!";
 #	say "ASSIGN:".$c1to6.'|'.$indent.'|'.$line if $line=~/rvon01/;

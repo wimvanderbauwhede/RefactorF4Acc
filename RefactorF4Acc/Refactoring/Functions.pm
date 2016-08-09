@@ -56,9 +56,11 @@ sub remove_vars_masking_functions { ( my $stref ) = @_;
         return ($annline, $state)        
     };
     
-    for my $f ( keys %{ $stref->{'Subroutines'} } ) {        
+    for my $f ( keys %{ $stref->{'Subroutines'} } ) {   
+    	     
         next unless (defined $f and $f ne '');
         next if exists $stref->{'ExternalSubroutines'}{$f};
+        next if exists $stref->{'Modules'}{$f}; # HACK! FIXME!
         my $state = [$stref,$f];
         ($stref, $state) = stateful_pass($stref,$f, $pass_actions, $state, '');
     }

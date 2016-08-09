@@ -50,18 +50,22 @@ sub read_fortran_src {
 
     if ( defined $f ) { 
         my $no_need_to_read = 1;
-        if ( not exists $stref->{'SourceContains'}{$f} ) {
+        if ( not exists $stref->{'SourceContains'}{$f}
+        or ( scalar @{ $stref->{'SourceContains'}{$f}{'List'} } == 0)
+        ) {
             $no_need_to_read = 0;
         } else {
+        	 
             for my $item ( @{ $stref->{'SourceContains'}{$f}{'List'} } ) {
                 my $srctype = $stref->{'SourceContains'}{$f}{'Set'}{$item};
                 my $status  = $stref->{$srctype}{$item}{'Status'};
 
                 # if one of them is still UNREAD, need to read.
-#                say $no_need_to_read , ' ',$item,' ',show_status($status) ;
-                $no_need_to_read *= ( $status != $UNREAD );
                 
+                $no_need_to_read *= ( ( ( $status != $UNREAD) && ( $status != $INVENTORIED ) ) ? 1 : 0);
+                say "\t",$no_need_to_read , ' ',$item,' ',show_status($status) ;
             }
+#            croak Dumper($stref->{'SourceContains'}{$f} ) if $s=~/sub/;#;#$stref->{$sub_func_incl}{$s})
         }
         my $need_to_read = 1 - $no_need_to_read;
 
@@ -75,7 +79,7 @@ sub read_fortran_src {
 
             if ($ok) {
 #say "PROCEDURE (BEFORE): $sub_func_incl $s";
-				say "READING SOURCE for $f ($s, $sub_func_incl)" if $V;
+				say "read_fortran_src($s): READING SOURCE for $f ($s, $sub_func_incl)" if $V;
                 my $line       = '';
                 my $nextline   = '';
                 my $joinedline = '';
@@ -114,15 +118,14 @@ Suppose we don't:
                     my $norm_lines = normalise_F95_src( [@lines]); 
 
                     for my $line ( @{$norm_lines} ) {
-
                         # emit line
                         if ( $line ne '' ) {
                             ( $stref, $s, $srctype ) =
-                              _pushAnnLine( $stref, $s, $srctype, $f, $line,
-                                $free_form );
-
+                              _pushAnnLine( $stref, $s, $srctype, $f, $line, $free_form );
                         }
                     }
+#                    die $stref->{'Subroutines'}{$s}{'Status'}  if $s=~/shapiro/;
+                    # So problem here is that in _pushAnnLine() we don't move the sub source to Subroutines
 
 
       # --------------------- # END of free-form parsing # ---------------------
@@ -854,9 +857,11 @@ Suppose we don't:
             
             		    
 	    for my $sub_or_func ( @{  $stref->{'SourceContains'}{$f}{'List'}   } ) {
+	    	
 	        my $sub_func_type= $stref->{'SourceContains'}{$f}{'Set'}{$sub_or_func};
+	        
 	        my $Sf = $stref->{$sub_func_type}{$sub_or_func};
-
+croak "No ANNLINES in $sub_func_type $sub_or_func ($f): ".$Sf->{'Status'} unless exists $Sf->{'AnnLines'};
             my @annlines = @{  $Sf->{'AnnLines'} };
             my $new_annlines=[];
             for my $annline (@annlines) {
@@ -928,73 +933,84 @@ Suppose we don't:
 # I'm assuming that $srctype can only be Subroutines or Modules
 sub _pushAnnLine {
     ( my $stref, my $f, my $srctype, my $src, my $line, my $free_form ) = @_;
-#say "F:$f";say $srctype;
+#say "\$f => $f: ";
+#say "<$line>";
+#say $srctype;
 if ($f eq 'UNKNOWN_SRC' or $stref->{$srctype}{$f}{'Status'}<$PARSED ) {
 #print  "HERE: $line" ;
     my $pline = _procLine( $line, $free_form );
+#    say "PLINE $f:".$pline->[0] ;
 #    say "PLINE:".Dumper($pline) ;
     if (exists $stref->{'Macros'} ) {
         $pline->[0] = _restore_case_of_macros($stref,$pline->[0]);        
     }
+
     if ( exists $pline->[1]{'Module'} and $srctype eq 'Modules' ) {
         if ( $f ne 'UNKNOWN_SRC' ) {
             if ( $stref->{$srctype}{$f}{'Status'} < $READ )
             {    # FIXME: bit late, can I catch this earlier?
-                $stref->{$srctype}{$f}{'Status'} = $READ;
+            say "\t$srctype $f : READ";
+                $stref->{$srctype}{$f}{'Status'} = $READ;                
             }
         }
     }
-    if ( $srctype ne 'Modules' ) {
+    
+    
+
+    
+#    croak "WRONG HERE FOR MODULES!";    
+#    if ( $srctype ne 'Modules' ) {
         if ( exists $pline->[1]{'SubroutineSig'} or exists $pline->[1]{'FunctionSig'}) {
+#        	if ($f eq 'sub') {
+#        		croak Dumper($stref->{'Modules'}{'sub'});
+#        	}
+        	if ( not defined $stref->{$srctype}{$f}{'Status'} ) {
+ 				$stref->{$srctype}{$f}{'Status'} = $UNREAD;
+ 			}
             if ( $f ne 'UNKNOWN_SRC' ) {
                 if ( $stref->{$srctype}{$f}{'Status'} == $UNREAD )
                 {    # FIXME: bit late, can I catch this earlier?
                     $stref->{$srctype}{$f}{'Status'} = $READ;
+                    say "\t$srctype $f : READ";
                 }
             }
  			if ( exists $pline->[1]{'SubroutineSig'} ) {
-            $f = $pline->[1]{'SubroutineSig'}[1];
+            	$f = $pline->[1]{'SubroutineSig'}[1];
  			} else {
  				$f = $pline->[1]{'FunctionSig'}[1];
  				if (not exists $stref->{'Subroutines'}{$f}{'Function'}) {
                     $stref->{'Subroutines'}{$f}{'Function'}=1;
                 }            	 				
  			}
- 			if ( not defined $stref->{'Subroutines'}{$f}{'Status'} ) {
- 				$stref->{'Subroutines'}{$f}{'Status'} = $UNREAD;
- 			}
- 			
-            $stref->{$srctype}{$f}{'AnnLines'} = [] unless $stref->{'Subroutines'}{$f}{'Status'} == $PARSED;
+ 			$srctype='Subroutines';	 			
+            $stref->{'Subroutines'}{$f}{'AnnLines'} = [] unless $stref->{'Subroutines'}{$f}{'Status'} == $PARSED;
         } 
-#        elsif ( exists $pline->[1]{'FunctionSig'} ) {
-#            if ( $f ne 'UNKNOWN_SRC' ) {
-#                if (not exists $stref->{'Subroutines'}{$f}{'Function'}) {
-#                    $stref->{'Subroutines'}{$f}{'Function'}=1;
-#                }
-#                
-#                if (not exists $stref->{'Subroutines'}{$f}{'Status'} ) { 
-#                    die "No Status for $srctype $f".$pline->[0];
-#                } else {
-#                if ( $stref->{'Subroutines'}{$f}{'Status'} == $UNREAD ) {
-#                    $stref->{'Subroutines'}{$f}{'Status'} = $READ;
-#                }
-#                }
-#            }
-#
-#            my $ff = $pline->[1]{'FunctionSig'}[1];
-#            croak $ff if $f eq 'UNKNOWN_SRC';
-#            $f = $ff;
-#            $stref->{'Subroutines'}{$f}{'AnnLines'} = [];
-#        }
-    }
-    if ($f ne  'UNKNOWN_SRC') {
-    push @{ $stref->{$srctype}{$f}{'AnnLines'} }, $pline unless $stref->{$srctype}{$f}{'Status'} == $PARSED;;
+#    }
+#say "PLINE2: ($srctype $f)".Dumper($pline) ;
+
+    if ( exists $pline->[1]{'EndModule'} and $srctype eq 'Subroutines' ) { 
+        if ( $f ne 'UNKNOWN_SRC' ) {
+            if ( $stref->{$srctype}{$f}{'Status'} < $READ )
+            {   
+            say "\t$srctype $f : READ";
+                $stref->{$srctype}{$f}{'Status'} = $READ;                
+            }
+        }
+        my $mod_name = $pline->[1]{'EndModule'};
+#        say $stref->{'Modules'}{$mod_name}{'Status'},'<>',$PARSED;
+        push @{ $stref->{'Modules'}{$mod_name}{'AnnLines'} }, $pline unless $stref->{'Modules'}{$mod_name}{'Status'} == $PARSED;
+#        croak $pline->[0];
+    } else {
+    if ($f ne  'UNKNOWN_SRC') { # WV: what should happen is that on exit of a subroutine we push the rest onto the Module annlines. 
+    	push @{ $stref->{$srctype}{$f}{'AnnLines'} }, $pline unless $stref->{$srctype}{$f}{'Status'} == $PARSED;
     } else {
     	chomp $line;
     	say "INFO: Adding <$line> to $src because code unit not yet known" if $I; 
     	push @{ $stref->{'SourceFiles'}{$src}{'AnnLines'} }, $pline;
-    }         
+    }       
+    }  
 }   
+
     return ( $stref, $f, $srctype );
 }    # END of  _pushAnnLine()
 
@@ -1110,8 +1126,8 @@ sub _procLine {
     my $info = { 'Ref' => 0 };    # means 0 refactorings
 
     # Detect and standardise comments
-    if ( $line =~ /^(?:[CD\*]|\s*\!)/i or $line =~ /^\ {6}\s*\!/i ) {
-        $line =~ s/^(?:[CcDd\*]|\s*\!)/! /;
+    if ( $line =~ /^(?:[CD]\s+|\*|\s*\!)/i or $line =~ /^\ {6}\s*\!/i ) {
+        $line =~ s/^(?:[CcDd\*]\s+|\s*\!)/! /;
         $info->{'Comments'} = 1;
 	} elsif ( $line =~ /^\s+contains\s*$/) {
 		$info->{'Contains'}=1;       
@@ -1199,9 +1215,15 @@ sub _procLine {
                 $info->{'SubroutineSig'} = [ $spaces, $name, [] ];
             }
             $line = lc($line);
+		} elsif ( $line =~ /^\s*end\s+(subroutine|module|function|program)\s+(\w+)/i ) {
+			# This will likely only work for F95 code
+			my $unit_type = ucfirst(lc($1));            
+			my $unit_name = lc($2);
+			$info->{'End'.$unit_type} =$unit_name; 
+			$line = lc($line); 
         } elsif ( $line =~ /^\s*$/ ) {
             $line = '';
-            $info->{'Blank'} = 1;
+            $info->{'Blank'} = 1;            
         } else {
 
             # replace string constants by placeholders

@@ -19,6 +19,7 @@ sub normalise_F95_src {(my $orig_lines)=@_;
                 my $joined_lines=[];
 				for my $line (@{$orig_lines}) {		
                     chomp $line;
+#                    $line=~s/\t/  /g; # AD-HOC replace tab by 2 spaces
                     # Split lines with multiple statements
                     if (not isCommentOrBlank($line) && $line=~/;/) {
 
@@ -105,7 +106,7 @@ sub normalise_F95_src {(my $orig_lines)=@_;
 		( my $line ) = @_;
 
 		# Detect comments & blank lines
-		if ( $line =~ /^[CD\*\!]/i or $line =~ /^\ {6}\s*\!/i ) {
+		if ( $line =~ /^[CD]\s+/i or $line =~ /^[\*\!]/i or $line =~ /^\ {6}\s*\!/i ) {			
 			return 1;
 		} elsif ( $line =~ /^\s*$/ ) {
 			return 1;
