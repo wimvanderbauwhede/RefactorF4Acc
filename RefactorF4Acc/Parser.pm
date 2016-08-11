@@ -228,33 +228,35 @@ sub _initialise_decl_var_tables {
 
 		#		$Sf->{'Parameters'} = {};
 		$Sf->{'LocalParameters'}    = { 'Set' => {}, 'List' => [] };
-		$Sf->{'IncludedParameters'} = { 'Set' => {}, 'List' => [] };
+		$Sf->{'IncludedParameters'} = { 'Set' => {}, 'List' => [] }; # I think I will overload this rather than define UsedParameters?
 
-		#		if (exists $Sf->{'Container'}) {
 		$Sf->{'ParametersFromContainer'} = { 'Set' => {}, 'List' => [] };
 
-		#		}
 		# This is only for testing which vars are commons, nothing else.
 		$Sf->{'Commons'} = {}; 
 
 # FIXME At the moment we assume automatically that CommonVars become ExGlobArgs 
-			$Sf->{'DeclaredCommonVars'}   = { 'Set' => {}, 'List' => [] };						
-			$Sf->{'UndeclaredCommonVars'} = { 'Set' => {}, 'List' => [] };
-			
-			$Sf->{'CommonVars'}           = {
-				'Subsets' => {
-					'DeclaredCommonVars'   => $Sf->{'DeclaredCommonVars'},
-					'UndeclaredCommonVars' => $Sf->{'UndeclaredCommonVars'},
-				}
-			};
+		$Sf->{'DeclaredCommonVars'}   = { 'Set' => {}, 'List' => [] };						
+		$Sf->{'UndeclaredCommonVars'} = { 'Set' => {}, 'List' => [] };
+		
+		$Sf->{'CommonVars'}           = {
+			'Subsets' => {
+				'DeclaredCommonVars'   => $Sf->{'DeclaredCommonVars'},
+				'UndeclaredCommonVars' => $Sf->{'UndeclaredCommonVars'},
+			}
+		};
 
-			$Sf->{'OrigLocalVars'} = {
-				'Subsets' => {
-					'DeclaredOrigLocalVars' => $Sf->{'DeclaredOrigLocalVars'},
-					'UndeclaredOrigLocalVars' =>
-					  $Sf->{'UndeclaredOrigLocalVars'}
-				}
-			};
+		$Sf->{'OrigLocalVars'} = {
+			'Subsets' => {
+				'DeclaredOrigLocalVars' => $Sf->{'DeclaredOrigLocalVars'},
+				'UndeclaredOrigLocalVars' =>
+				  $Sf->{'UndeclaredOrigLocalVars'}
+			}
+		};
+		
+		# Var decls via a 'use' declaration
+		$Sf->{'UsedLocalVars'} = { 'Set' => {}, 'List' => [] };		
+		
 		if ( not $is_incl and not $is_mod ) {
 
  # WV: Maybe I should have an additional record 'FromInclude' in the set record!
@@ -268,20 +270,18 @@ sub _initialise_decl_var_tables {
 			$Sf->{'ExGlobArgs'} = { 
 				'Set' => {}, 'List' => [] 
 			};
-#			$Sf->{'Globals'} = $Sf->{'ExGlobArgs'};    
+    
 			$Sf->{'ExInclArgs'}         = { 'Set' => {}, 'List' => [] };
 			$Sf->{'DeclaredOrigArgs'}   = { 'Set' => {}, 'List' => [] };
 			$Sf->{'UndeclaredOrigArgs'} = { 'Set' => {}, 'List' => [] };
 
 			$Sf->{'ExInclLocalVars'} = { 'Set' => {}, 'List' => [] };
-			
-			
-						
 
 			$Sf->{'LocalVars'} = {
 				'Subsets' => {
 					'OrigLocalVars'   => $Sf->{'OrigLocalVars'},
-					'ExInclLocalVars' => $Sf->{'ExInclLocalVars'}
+					'ExInclLocalVars' => $Sf->{'ExInclLocalVars'},
+					'UsedLocalVars' => $Sf->{'UsedLocalVars'}
 				}
 			};
 			
@@ -318,14 +318,18 @@ sub _initialise_decl_var_tables {
 				}
 			};
 
-		} else {    # For includes
+		} else {    # For includes and modules
 
 			# Includes can contain LocalVars, CommonVars or Parameters
 			# Commons can't be Args so they will go in ExInclLocalVars?
-
+			# I guess includes can contain other includes that contain all this as well, how do I deal with that?			
 
 			$Sf->{'LocalVars'} =
-			  { 'Subsets' => { 'OrigLocalVars' => $Sf->{'OrigLocalVars'} } };
+			  { 'Subsets' => { 
+			  	'OrigLocalVars' => $Sf->{'OrigLocalVars'},
+			  	'UsedLocalVars' => $Sf->{'UsedLocalVars'} 
+			  } 
+			  };
 
 			$Sf->{'Parameters'} = {
 				'Subsets' => {
@@ -341,61 +345,7 @@ sub _initialise_decl_var_tables {
 				}
 			};
 		}
-=obsolete
-		# While I'm at it, I might as well declare all declarations as well
-			$Sf->{'ExImplicitVarDecls'} = $Sf->{'UndeclaredOrigLocalVars'};
-			$Sf->{'ExInclVarDecls'}     = $Sf->{'ExInclLocalVars'};
-			$Sf->{'OrigVarDecls'}       = $Sf->{'DeclaredOrigLocalVars'};
-		
-		if ( not $is_incl ) {
-			$Sf->{'ExGlobArgDecls'}     = $Sf->{'ExGlobArgs'};
-			$Sf->{'ExInclArgDecls'}     = $Sf->{'ExInclArgs'};
-			$Sf->{'ExImplicitArgDecls'} = $Sf->{'UndeclaredOrigArgs'};
-			$Sf->{'OrigArgDecls'}       = $Sf->{'DeclaredOrigArgs'};
 
-
-			# ExtraArgDecls, currently unused
-			$Sf->{'ExtraArgDecls'} = {
-				'Subsets' => {
-					'ExGlobArgDecls'     => $Sf->{'ExGlobArgs'},
-					'ExInclArgDecls'     => $Sf->{'ExInclArgs'},
-					'ExImplicitArgDecls' => $Sf->{'UndeclaredOrigArgs'}
-
-				}
-			};
-
-			# ArgDecls, currently unused
-			$Sf->{'ArgDecls'} = {
-				'Subsets' => {
-					'ExtraArgDecls' => $Sf->{'ExtraArgDecls'},
-					'OrigArgDecls'  => $Sf->{'OrigArgDecls'}
-				}
-			};
-		}
-			# ExtraVarDecls, currently unused
-			$Sf->{'ExtraVarDecls'} = {
-				'Subsets' => {
-					'ExImplicitVarDecls' => $Sf->{'UndeclaredOrigLocalVars'},
-					'ExInclVarDecls'     => $Sf->{'ExInclLocalVars'}
-				}
-			};
-
-			# LocalVarDecls, currently unused
-			$Sf->{'LocalVarDecls'} = {
-				'Subsets' => {
-					'OrigVarDecls'  => $Sf->{'DeclaredOrigLocalVars'},
-					'ExtraVarDecls' => $Sf->{'ExtraVarDecls'}
-				}
-			};
-
-			# Decls, currently unused
-			$Sf->{'Decls'} = {
-				'Subsets' => {
-					'ArgDecls'      => $Sf->{'ArgDecls'},
-					'LocalVarDecls' => $Sf->{'LocalVarDecls'}
-				}
-			};
-=cut
 		$Sf->{'DoneInitTables'} = 1;
 	}
 	return $Sf;
@@ -1092,11 +1042,7 @@ sub _parse_includes {
 			if ( $line =~ /^\!\s/ ) {
 				next;
 			}
-
-			#			if ( $line =~ /^\s*include\s+\'([\w\.]+)\'/ ) {
 			if ( exists $info->{'Includes'} ) {
-
-				#				my $name = $1;
 				my $name = $info->{'Includes'};
 				print "FOUND include $name in $f\n" if $V;
 				$Sf->{'Includes'}{$name} = { 'LineID' => $index };
@@ -1160,18 +1106,16 @@ sub _parse_includes {
 					  &append_to_set( $Sf->{'IncludedParameters'},
 						$stref->{'IncludeFiles'}{$name}{'Parameters'} );
 				}
-			}
+			} # If the line contains an 'include' statement
 			$srcref->[$index] = [ $line, $info ];
-		}
+		} # loop over all lines
 	} else {
 		print "WARNING: NO LOCAL SOURCE for $f\n";
-
-	# FIXME: if we can't find the source, we should search the include path, but
-	# not attempt to create a module for that source!
+		# FIXME: if we can't find the source, we should search the include path, but
+		# not attempt to create a module for that source!
 	}
 
 	# tag the next line after the last include
-
 	$last_inc_idx++;
 	$srcref->[$last_inc_idx][1]{'ExtraIncludesHook'} = 1;
 	return $stref;
@@ -1199,7 +1143,7 @@ sub _parse_use {
 				next;
 			}
 
-			if ( $line =~ /^\s*use\s+(\w+)/ ) {
+			if ( $line =~ /^\s*use\s+(\w+)/ ) { # if exists $info->{'Includes'}
 				my $name = $1;
 				print "FOUND module $name in $f\n" if $V;
 				$Sf->{'Uses'}{$name} = $index;
@@ -1223,14 +1167,12 @@ sub _parse_use {
 
 				$info->{'Use'} = {};
 				$info->{'Use'}{'Name'} = $name;
+				
 				if ( not exists $stref->{'Modules'}{$name}{'Status'}
 					or $stref->{'Modules'}{$name}{'Status'} < $READ )
 				{
 					print $line, "\n" if $V;
 
-					#				# Initial guess for Root. OK? FIXME?
-					#				$stref->{'IncludeFiles'}{$name}{'Root'}      = $f;
-					#				$stref->{'IncludeFiles'}{$name}{'HasBlocks'} = 0;
 					$stref = parse_fortran_src( $name, $stref );
 				} else {
 					print $line, " already processed\n" if $V;
@@ -1257,7 +1199,19 @@ sub _parse_use {
 						}
 					}
 				}
-			}
+				
+				# the used module has been parsed
+				if ( exists $stref->{'Modules'}{$name} )
+				{    # Otherwise it means it is an external module
+					 # 'Parameters' here is OK because the include might contain other includes
+					$Sf->{'IncludedParameters'} =
+					  &append_to_set( $Sf->{'IncludedParameters'},
+						$stref->{'Modules'}{$name}{'Parameters'} );
+					# I think here I should 'inherit' UsedLocalVars from this module, i.e. any LocalVars in $name
+					$Sf->{'UsedLocalVars'} = append_to_set( $Sf->{'UsedLocalVars'}, $stref->{'Modules'}{$name}{'LocalVars'} ); 	
+										
+				}
+			} # If the line contains a 'use' statement			
 			$srcref->[$index] = [ $line, $info ];
 		}
 	} else {

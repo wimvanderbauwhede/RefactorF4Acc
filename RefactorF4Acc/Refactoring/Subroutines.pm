@@ -6,7 +6,7 @@ use RefactorF4Acc::Refactoring::Common qw( get_annotated_sourcelines create_refa
 use RefactorF4Acc::Refactoring::Subroutines::Signatures qw( create_refactored_subroutine_signature refactor_subroutine_signature ); 
 use RefactorF4Acc::Refactoring::Subroutines::Includes qw( skip_common_include_statement create_new_include_statements create_additional_include_statements );
 use RefactorF4Acc::Refactoring::Subroutines::Declarations qw( create_exglob_var_declarations create_refactored_vardecls );
-use RefactorF4Acc::Refactoring::Subroutines::Calls qw( create_refactored_subroutine_call );
+#use RefactorF4Acc::Refactoring::Subroutines::Calls qw( create_refactored_subroutine_call );
 use RefactorF4Acc::Parser::Expressions qw( emit_expression );
 # 
 #   (c) 2010-2012 Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
@@ -425,8 +425,8 @@ sub _create_extra_arg_and_var_decls {
 #    	and not exists $Sf->{'UndeclaredCommonVars'}{'Set'}{$var}
     	) {
 #    		carp "WHERE is $var in $f? ".in_nested_set($Sf,'CommonVars',$var) if $var eq 'iacn11' and $f eq 'fs055';
-    	say "INFO VAR: $var ".Dumper($Sf->{'ExGlobArgs'}{'Set'}{$var}{'IODir'} ) if $I;
-                    my $rdecl = $Sf->{'ExGlobArgs'}{'Set'}{$var}; 
+    	say "INFO VAR in $f: $var ".Dumper($Sf->{'RefactoredArgs'}{'Set'}{$var}{'IODir'} ) if $I; # was ExGlobArgs
+                    my $rdecl = $Sf->{'RefactoredArgs'}{'Set'}{$var}; 
                     my $rline = emit_f95_var_decl($rdecl);
                     my $info={};
                     $info->{'Ann'}=[ annotate($f, __LINE__ .' : EX-GLOB ' . $annline->[1]{'ExGlobVarDeclHook'} ) ];                                               
@@ -436,6 +436,8 @@ sub _create_extra_arg_and_var_decls {
                     push @{$rlines}, [ $rline,  $info ];
     	}                        
     }    # for
+    say "EXGLOB".Dumper($stref->{'Subroutines'}{'init'}{'ExGlobArgs'}{'Set'}{'hzero'});
+croak "REFACTORED".Dumper($stref->{'Subroutines'}{'init'}{'RefactoredArgs'}{'Set'}{'hzero'});
     
     print "INFO: ExInclArgs in $f\n" if $I;
     for my $var ( @{ $Sf->{'ExInclArgs'}{'List'} } ) {
@@ -557,7 +559,7 @@ sub _create_refactored_subroutine_call {
         	if (exists $stref->{'Subroutines'}{$name}{'ExGlobArgs'}{'Set'}{$ex_glob}{'OrigName'}) {
 				$ex_glob = $stref->{'Subroutines'}{$name}{'ExGlobArgs'}{'Set'}{$ex_glob}{'OrigName'};		
         	}        	
-        	if (exists $Sf->{'RenamedInheritedExGLobs'}{'Set'}{$ex_glob}) {
+        	if (exists $Sf->{'RenamedInheritedExGLobs'}{'Set'}{$ex_glob} and not exists $Sf->{'UsedLocalVars'}{'Set'}{$ex_glob} and not exists $Sf->{'IncludedParameters'}{'Set'}{$ex_glob}) {
         		say "INFO: RENAMED $ex_glob => ".$Sf->{'RenamedInheritedExGLobs'}{'Set'}{$ex_glob} . ' in call to ' . $name . ' in '. $f if $I;
         		push @maybe_renamed_exglobs, $Sf->{'RenamedInheritedExGLobs'}{'Set'}{$ex_glob};
         	} else {

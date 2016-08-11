@@ -505,7 +505,7 @@ sub append_to_set { (my $set1, my $set2) = @_;
 	# Flatten the set
 	my $all_subsets_set2 = get_vars_from_set($set2);
 	$set1->{'Set'} = { %{$set1->{'Set'}}, %{$all_subsets_set2} };
-	$set1->{'List'} = [keys %{ $set1->{'Set'} } ];
+	$set1->{'List'} = [ sort keys %{ $set1->{'Set'} } ]; # WV: this destroys the order, but does it matter? 
 	return $set1;
 }
 # From the gfortran manual

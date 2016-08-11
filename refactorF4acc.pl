@@ -32,6 +32,7 @@ our $usage = "
     -w: show warnings 
     -v: verbose (implies -w)
     -i: show info messages
+    -d: show debug messages
     -c <cfg file name>: use this cfg file (default is ~/.rf4a)
     -C: Only generate call tree, don't refactor or emit
     -N: Don't replace CONTINUE by CALL NOOP

@@ -63,7 +63,7 @@ sub read_fortran_src {
                 # if one of them is still UNREAD, need to read.
                 
                 $no_need_to_read *= ( ( ( $status != $UNREAD) && ( $status != $INVENTORIED ) ) ? 1 : 0);
-                say "\t",$no_need_to_read , ' ',$item,' ',show_status($status) ;
+                say "\t",$no_need_to_read , ' ',$item,' ',show_status($status) if $V ;
             }
 #            croak Dumper($stref->{'SourceContains'}{$f} ) if $s=~/sub/;#;#$stref->{$sub_func_incl}{$s})
         }
@@ -949,7 +949,7 @@ if ($f eq 'UNKNOWN_SRC' or $stref->{$srctype}{$f}{'Status'}<$PARSED ) {
         if ( $f ne 'UNKNOWN_SRC' ) {
             if ( $stref->{$srctype}{$f}{'Status'} < $READ )
             {    # FIXME: bit late, can I catch this earlier?
-            say "\t$srctype $f : READ";
+#            say "\t$srctype $f : READ";
                 $stref->{$srctype}{$f}{'Status'} = $READ;                
             }
         }
@@ -971,7 +971,7 @@ if ($f eq 'UNKNOWN_SRC' or $stref->{$srctype}{$f}{'Status'}<$PARSED ) {
                 if ( $stref->{$srctype}{$f}{'Status'} == $UNREAD )
                 {    # FIXME: bit late, can I catch this earlier?
                     $stref->{$srctype}{$f}{'Status'} = $READ;
-                    say "\t$srctype $f : READ";
+#                    say "\t$srctype $f : READ";
                 }
             }
  			if ( exists $pline->[1]{'SubroutineSig'} ) {
@@ -992,7 +992,7 @@ if ($f eq 'UNKNOWN_SRC' or $stref->{$srctype}{$f}{'Status'}<$PARSED ) {
         if ( $f ne 'UNKNOWN_SRC' ) {
             if ( $stref->{$srctype}{$f}{'Status'} < $READ )
             {   
-            say "\t$srctype $f : READ";
+#            say "\t$srctype $f : READ";
                 $stref->{$srctype}{$f}{'Status'} = $READ;                
             }
         }
@@ -1126,10 +1126,11 @@ sub _procLine {
     my $info = { 'Ref' => 0 };    # means 0 refactorings
 
     # Detect and standardise comments
+    
     if ( $line =~ /^(?:[CD]\s+|\*|\s*\!)/i or $line =~ /^\ {6}\s*\!/i ) {
         $line =~ s/^(?:[CcDd\*]\s+|\s*\!)/! /;
         $info->{'Comments'} = 1;
-	} elsif ( $line =~ /^\s+contains\s*$/) {
+	} elsif ( $line =~ /^\s*contains\s*$/i) { 
 		$info->{'Contains'}=1;       
     } elsif ( $line =~ /.\!.*$/ ) {    # FIXME: trailing comments are discarded!
         my $tline = $line;

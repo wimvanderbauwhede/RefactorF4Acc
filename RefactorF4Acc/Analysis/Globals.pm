@@ -223,11 +223,9 @@ sub identify_inherited_exglobs_to_rename {
     say '=' x 80, "\nENTER lift_globals( $f )" if $V;
     if (exists $stref->{'Subroutines'}{$f} ) {
     	my $Sf = $stref->{'Subroutines'}{$f};
-#    	croak Dumper($Sf->{'ExGlobArgs'}) if $f eq 'interpol_all';
     	if ( exists $Sf->{'CalledSubs'}{'List'}
         and scalar @{ $Sf->{'CalledSubs'}{'List'} }>0 )
-	    {
-	    	
+	    {	    	
 	    	# This sub is calling other subs	    	
 	        my @csubs = @{ $Sf->{'CalledSubs'}{'List'} };
 	        $Sf->{'RenamedInheritedExGlobs'}  = { 'List' => [], 'Set' => {}} unless exists $Sf->{'RenamedInheritedExGLobs'};
@@ -255,6 +253,7 @@ sub identify_inherited_exglobs_to_rename {
 	        say "SUB $f is LEAF" if $V; 
 	    }    
     }    
+    
     return $stref;
 } #  END of identify_inherited_exglobs_to_rename()
 
@@ -273,6 +272,12 @@ sub rename_inherited_exglobs  {
             	my $renamed_exglob_set = dclone( $Sf->{'ExGlobArgs'}{'Set'} );
             	for my $exglob (@{  $Sf->{'ExGlobArgs'}{'List'} }) {            		
             		if (exists  $Sf->{'RenamedInheritedExGLobs'}{'Set'}{$exglob}) {
+            			# Here I can check if this $exglob maybe exists in UsedLocalVars. If so, don't rename
+            			if (exists $Sf->{'UsedLocalVars'}{'Set'}{$exglob}) {
+            				say "NOT RENAMING $exglob in $f because in UsedLocalVars" if $V;
+            			} elsif (exists $Sf->{'IncludedParameters'}{'Set'}{$exglob}) {
+            				say "NOT RENAMING $exglob in $f because in IncludedParameters" if $V;    				
+            			} else {
             			say "RENAMING $exglob TO $exglob$ext in $f" if $V;
             			my $new_name = $Sf->{'RenamedInheritedExGLobs'}{'Set'}{$exglob};
             			push @{$renamed_exglob_list},$new_name;
@@ -281,6 +286,7 @@ sub rename_inherited_exglobs  {
 						$renamed_exglob_set->{$new_name}{'OrigName'}=$exglob;
 						# Seems to me I should then delete the entry for the old name!
 						delete $renamed_exglob_set->{$exglob};
+            			}
             		} else {
             			say "NOT RENAMING $exglob in $f" if $V;
             			push @{$renamed_exglob_list},$exglob;
@@ -336,9 +342,7 @@ sub lift_globals {
 	            # If $f and $csub both have globals, merge them, otherwise inherit them
 	            if (exists $Scsub->{'ExGlobArgs'} ) {
 	                if (exists $Sf->{'ExGlobArgs'}{'List'} ) {
-	                	# Merge
-	                	# The idea is that this merge will only at unique new vars
-	                	# But I do find duplicates!
+	                	# Merge ExGlobArgs of $csub with those of $f  
 	                    $Sf->{'ExGlobArgs'}{'List'} = ordered_union( $Sf->{'ExGlobArgs'}{'List'},$Scsub->{'ExGlobArgs'}{'List'} );
 # ------------------	                    
 	                    

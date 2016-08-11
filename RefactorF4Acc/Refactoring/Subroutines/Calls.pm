@@ -34,7 +34,7 @@ use Exporter;
 # The heavy lifting is done by _determine_exglob_subroutine_call_args()
 # Then we merge the original args, renamed for local/global clashes, with the globals
 
-sub create_refactored_subroutine_call {
+sub create_refactored_subroutine_call {croak 'OBSOLETE';
     ( my $stref, my $f, my $annline, my $rlines ) = @_;;
     my $Sf        = $stref->{'Subroutines'}{$f};
     my $line      = $annline->[0] || '';
@@ -69,7 +69,7 @@ sub create_refactored_subroutine_call {
 # ----------------------------------------------------------------------------------------------------
 
 # ----------------------------------------------------------------------------------------------------
-sub _determine_exglob_subroutine_call_args {
+sub _determine_exglob_subroutine_call_args {croak 'OBSOLETE';
     ( my $stref, my $f, my $name ) = @_;
     my $Sf                 = $stref->{'Subroutines'}{$f};
     my $Sname              = $stref->{'Subroutines'}{$name};
@@ -111,7 +111,7 @@ sub _determine_exglob_subroutine_call_args {
 
 # ----------------------------------------------------------------------------------------------------
 # 
-sub refactor_subroutine_call_args {
+sub refactor_subroutine_call_args {croak 'OBSOLETE';
     ( my $stref, my $f, my $idx ) = @_;
     if (exists $stref->{'Subroutines'}{$f} ) {
     my $Sf   = $stref->{'Subroutines'}{$f};

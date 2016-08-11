@@ -77,28 +77,30 @@ sub analyse_all {
 
 	for my $f ( keys %{ $stref->{'Subroutines'} } ) {
 		next if $f eq '';
-
 		# In this stage, 'ExGlobArgs' is populated
 		$stref = _analyse_variables( $stref, $f );
-
 	}
 	return $stref if $stage == 3;
 
 	for my $f ( keys %{ $stref->{'Subroutines'} } ) {
 		next if $f eq '';
+		
 		$stref = _resolve_conflicts_with_params( $stref, $f );
 
 	}
 	return $stref if $stage == 4;
+	
 	$stref = identify_inherited_exglobs_to_rename( $stref, $subname );
+	
 	$stref = lift_globals( $stref, $subname );
+	
 	$stref = rename_inherited_exglobs( $stref, $subname );
-
-	#	croak Dumper( $stref->{'Subroutines'}{'advance'}{'ExGlobArgs'}{'List'} ) ;
+	
 	return $stref if $stage == 5;
 
 	for my $f ( keys %{ $stref->{'Subroutines'} } ) {
 		next if $f eq '';
+		# RefactoredArgs = OrigArgs ++ ExGlobArgs and at this point any necessary renaming has been done
 		$stref = _create_refactored_args( $stref, $f );
 	}
 	return $stref if $stage == 6;
@@ -185,6 +187,7 @@ sub _find_argument_declarations {
 # Then merge the Args and ExGlobArgs
 sub _analyse_variables {
 	( my $stref, my $f ) = @_;
+	
 	my $Sf = $stref->{'Subroutines'}{$f};
 
 	#	local $DBG=1;
@@ -367,33 +370,29 @@ sub _analyse_variables {
 								}
 					if ( not $in_incl ) {
 
-						# Now check if this variable might be accessed via the containing program
+						# Now check if this variable might be accessed via the containing program or module
 						$identified_vars->{$mvar} = 0;
-						if ( exists $stref->{'Subroutines'}{$f}{'Container'} ) {
+						if ( exists $stref->{'Subroutines'}{$f}{'Container'} ) { 
 							my $container = $stref->{'Subroutines'}{$f}{'Container'};
-							my $subset = in_nested_set( $stref->{'Subroutines'}{$container}, 'Vars', $mvar );
-							if ( $subset ne '' ) { say "FOUND VAR $mvar in CONTAINER $container" if $DBG;
-
+							my $srctype = exists $stref->{'Modules'}{$container} ? 'Modules' : 'Subroutines';
+							
+							my $subset = in_nested_set( $stref->{$srctype}{$container}, 'Vars', $mvar );
+							if ( $subset ne '' ) { say "FOUND VAR $mvar in $subset in CONTAINER $container ($srctype) " if $DBG;
+#								croak ;
 								# If so, this is treated as an ExGlob
 								push @{ $stref->{'Subroutines'}{$f}{'ExGlobArgs'}{'List'} }, $mvar;
-								my $decl = $stref->{'Subroutines'}{$container}{$subset}{'Set'}{$mvar};
+								my $decl = $stref->{$srctype}{$container}{$subset}{'Set'}{$mvar};
 								$decl->{'Container'}                                    = $container;
 								$decl->{'Indent'}                                       = '      ';     # ad hoc!
 								$stref->{'Subroutines'}{$f}{'ExGlobArgs'}{'Set'}{$mvar} = $decl;
 								$identified_vars->{$mvar}                               = 1;
 							}
 						}
-						if ( $identified_vars->{$mvar} != 1 ) {
-							
+						if ( $identified_vars->{$mvar} != 1 ) {							
 							if ( $mvar !~ /\*/ and $line =~ /$mvar\s*\(/ ) {                            # Very ugly HACK because somehow ** got into the var name!
-								say "INFO: LOCAL VAR <$mvar> in $f may be an EXTERNAL FUNCTION "
-								  if $I;
+								say "INFO: LOCAL VAR <$mvar> in $f may be an EXTERNAL FUNCTION " if $I;
 							}
-
-							#							else {
-							say "INFO: LOCAL VAR <$mvar> in $f via IMPLICIT! " . $line . ' _analyse_variables() ' . __LINE__
-							  if $I;
-
+							say "INFO: LOCAL VAR <$mvar> in $f via IMPLICIT! " . $line . ' _analyse_variables() ' . __LINE__ if $I;
 							my $decl = get_f95_var_decl( $stref, $f, $mvar );
 
 							if ( not $undecl_orig_arg ) {
@@ -402,11 +401,7 @@ sub _analyse_variables {
 							} else {
 								push @{ $stref->{'Subroutines'}{$f}{'UndeclaredOrigArgs'}{'List'} }, $mvar;
 								$stref->{'Subroutines'}{$f}{'UndeclaredOrigArgs'}{'Set'}{$mvar} = $decl;
-
-								#									die Dumper($stref->{'Subroutines'}{$f}{'UndeclaredOrigArgs'}{'Set'}) if $mvar eq 'a' and $f eq 'gser';
 							}
-
-							#							}
 							$identified_vars->{$mvar} = 1;
 						}
 					}
@@ -416,8 +411,6 @@ sub _analyse_variables {
 			}
 			return ( $annline, [ $stref, $f, $identified_vars ] );
 		} else {
-
-			#			say Dumper($annline) if $f=~/bondfg/;
 			return ( $annline, $state );
 		}
 	};
@@ -425,12 +418,9 @@ sub _analyse_variables {
 	my $state = [ $stref, $f, {} ];
 
 	( $stref, $state ) = stateful_pass( $stref, $f, $__analyse_vars_on_line, $state, '_analyse_variables() ' . __LINE__ );
-#	say "$f ExGlobArgs:".Dumper($stref->{'Subroutines'}{$f}{'ExGlobArgs'});
+	
 	my $maybe_ex_globs = $stref->{'Subroutines'}{$f}{'ExGlobArgs'}{'List'};
-#	say "$f:".Dumper($maybe_ex_globs);
-	if ( defined $maybe_ex_globs  and
-		scalar @{ $maybe_ex_globs } > 0 )
-	{
+	if ( defined $maybe_ex_globs  and scalar @{ $maybe_ex_globs } > 0 ) {
 		$Sf->{'HasCommons'} = 1;
 	}
 

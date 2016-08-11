@@ -1289,7 +1289,9 @@ sub emit_f95_var_decl {
       
       my $is_par = exists $var_decl_rec->{'Parameter'} ? 1 : 0;
       my $var = $var_decl_rec->{'Name'};
-croak Dumper($var_decl_rec) if not defined $var;
+      my $val = $var_decl_rec->{'Val'};
+      
+#croak Dumper($var_decl_rec) if $var eq 'nx_GLOB';
 #      carp Dumper($var_decl_rec) if $type eq 'character' and $var eq 'varname';
     my $dimstr = '';
 #    say Dumper($dim);
@@ -1354,7 +1356,8 @@ croak Dumper($var_decl_rec) if not defined $var;
         }
     } else {
         # Parameter        
-        my $var_val = $var->[0] . '=' . $var->[1] ;
+        
+        my $var_val = ref($var) eq 'ARRAY' ? $var->[0] . '=' . $var->[1] :  $var.'='.$val;
         my $decl_line =
             $spaces 
           . $type 

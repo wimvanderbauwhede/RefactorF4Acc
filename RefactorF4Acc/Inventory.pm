@@ -74,14 +74,9 @@ sub find_subroutines_functions_and_includes {
     	if ($dir eq '.') {
     	   $path=$prefix;
     	} 
-#    	print "$path\n";
         find( $tf_finder, $path );
     }
     
-#    print Dumper(%src_files);die;
-#    find( $tf_finder, '.' );
-#	$stref->{'SourceFiles'}=\%src_files;
-
     for my $src ( sort keys %src_files ) {
     	
         my $exclude=0;        
@@ -242,6 +237,7 @@ sub _process_src {
             
                 $in_module=1; 
                 $srctype='Modules';
+                $stref->{'SourceFiles'}{$src}{'SourceType'}='Modules';
                 $mod_name = lc($1); #die $line.':'.$mod_name;
 #                say "SRC $src IS MODULE SRC: $mod_name";
 #                $f=$mod_name;
@@ -316,7 +312,9 @@ sub _process_src {
                 if ((not $is_function and not $in_interface_block) or $is_function) {	
                 	                
 	                $srctype='Subroutines';
-	                
+	                if (not exists $stref->{'SourceFiles'}{$src}{'SourceType'}) {
+	                	$stref->{'SourceFiles'}{$src}{'SourceType'}='Subroutines';
+	                }
 	                $stref->{'Subroutines'}{$sub}={};
 	                $stref->{'SourceContains'}{$src}{'Set'}{$sub}=$srctype;
 	                push @{ $stref->{'SourceContains'}{$src}{'List'} },$sub;
@@ -382,7 +380,8 @@ sub _process_src {
 #                print "FOUND INC $inc\n" if $V;
                 if ( not exists $stref->{'IncludeFiles'}{$inc} ) {
                     $stref->{'IncludeFiles'}{$inc}{'Status'} = $UNREAD;                                                            
-                    $stref->{'IncludeFiles'}{$inc}{'Source'}=$inc;                    
+                    $stref->{'IncludeFiles'}{$inc}{'Source'}=$inc;
+					$stref->{'SourceFiles'}{$inc}{'SourceType'}='IncludeFiles';
                     if (not -e $inc) {
                     	$stref->{'IncludeFiles'}{$inc}{'InclType'} = 'External';
                     } else {

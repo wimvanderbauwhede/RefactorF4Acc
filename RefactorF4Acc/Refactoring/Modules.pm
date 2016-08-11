@@ -36,12 +36,12 @@ sub add_module_decls { (my $stref)=@_;
     my %is_existing_module = ();
     my %existing_module_name = ();
           
-    # THis assumes a source file contains only a single module
-	for my $src (keys %{ $stref->{'SourceContains'} } ) {	    		
+    # This assumes a source file contains only a single module
+	for my $src (keys %{ $stref->{'SourceContains'} } ) {
+		# Get the unit name from the list	    		
 	    for my $sub_or_func_or_mod ( @{  $stref->{'SourceContains'}{$src}{'List'}   } ) {
-	    	 
+	    	# Get its type
 	        my $sub_func_type= $stref->{'SourceContains'}{$src}{'Set'}{$sub_or_func_or_mod};
-	        ;
 	        if ($sub_func_type eq 'Modules') {
 	        	$is_existing_module{$src}=1;
 	        	$existing_module_name{$src} = $sub_or_func_or_mod;
@@ -51,11 +51,15 @@ sub add_module_decls { (my $stref)=@_;
 	        for my $called_sub ( keys %{ $Sf->{'CalledSubs'}{'Set'} } ) {	    
 	            my $cs_src;
 	            if (exists $stref->{'Subroutines'}{$called_sub} and exists $stref->{'Subroutines'}{$called_sub}{'Source'}) {
-	               $cs_src=$stref->{'Subroutines'}{$called_sub}{'Source'};
+	               	$cs_src=$stref->{'Subroutines'}{$called_sub}{'Source'};
 	            } else {
 	                croak "PROBLEM: NO $called_sub in $src".Dumper(keys %{$stref->{'Subroutines'}}).$stref->{'Subroutines'}{$called_sub}{'Source'};
 	            }
                 next if $cs_src eq $src; # FIXME: ad-hoc!
+#                say "$src: $cs_src";
+#                say Dumper($stref->{'SourceFiles'});
+                next if $stref->{'SourceFiles'}{$cs_src}{'SourceType'} eq 'Modules';
+                
 	            $stref->{'UsedModules'}{$src}{$cs_src}=1;
 	        }
 	    }	    
@@ -80,15 +84,15 @@ sub add_module_decls { (my $stref)=@_;
        	# So we create $new_annlines simply by merging the annlines for all subs, then splice.
        	my $new_annlines=[];
        	for my $sub (@{ $stref->{'Modules'}{$existing_module_name{$src}}{'Contains'} } ) {
-       		say '=' x 80;
-       		say 'SUB: '.$sub;
+       		say '=' x 80 if $V;
+       		say 'SUB: '.$sub if $V;
        		$new_annlines =[ @{$new_annlines}, @{ $stref->{'Subroutines'}{$sub}{'AnnLines'}} ];
-       		say '=' x 80;
+       		say '=' x 80 if $V;
        	}
        	my $old_annlines = $stref->{'Modules'}{$existing_module_name{$src}}{'AnnLines'};
        	if (scalar @{$new_annlines}>0) {
        		
-       		my $merged_annlines = splice_additional_lines_cond( $stref, $existing_module_name{$src}, sub { (my $annline)=@_; (my $line, my $info) = @{$annline};return $line=~/^\s*contains\s*$/ },$old_annlines, $new_annlines, 0, 0, 1 );
+       		my $merged_annlines = splice_additional_lines_cond( $stref, $existing_module_name{$src}, sub { (my $annline)=@_; (my $line, my $info) = @{$annline};return exists $info->{'Contains'} },$old_annlines, $new_annlines, 0, 0, 1 );
        		$stref->{'RefactoredCode'}{$src}=$merged_annlines;
 #       		say "MERGED";
 #       		show_annlines($merged_annlines );       		
@@ -99,6 +103,9 @@ sub add_module_decls { (my $stref)=@_;
 #       	croak if $src=~/sub/;
        	
        } else {
+       	
+       	# This is either a subroutine or the main program
+       	# So I wonder why I have this code when it's a program?
             my $mod_name=$src;
             $mod_name=~s/\.\///;
             $mod_name=~s/\..*$//;
@@ -106,6 +113,7 @@ sub add_module_decls { (my $stref)=@_;
             $mod_name="module_$mod_name";
             my $mod_header=["module $mod_name\n",{'Ref'=>1}];
             my $mod_footer=["\nend module $mod_name\n",{'Ref'=>1}];
+            
             my @mod_uses=();
             for my $mod_src (keys %{ $stref->{'UsedModules'}{$src} }) {
                 my $used_mod_name = $mod_src;

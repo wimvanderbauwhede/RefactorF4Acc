@@ -431,10 +431,11 @@ sub _analyse_src_for_iodirs {
 								  if $W;
 							}
 						} else {
-							print
-"INFO: $f: $var is not an argument, ignoring IODir "
-							  . $iodirs_from_call->{$var} . "\n"
-							  if $I;
+							if (exists $iodirs_from_call->{$var} and defined $iodirs_from_call->{$var}) {
+							print "INFO: $f: $var is not an argument, ignoring IODir " . $iodirs_from_call->{$var} . "\n" if $I;
+							} else {
+								say "INFO: $f: $var is not in \$iodirs_from_call" if $I;
+							}
 						}
 
 	 #                    else {
@@ -465,7 +466,7 @@ sub _analyse_src_for_iodirs {
 					and $line !~ /read|write|print/    # for implicit DO
 				  )
 				{
-
+ 
 					# FIXME: if (...) open|write is not covered
 					my $tline = $line;
 					$tline =~ s/^\s*\d+//;             # Labels
@@ -521,7 +522,7 @@ sub _analyse_src_for_iodirs {
 						if ( $tline =~ /(open|close)\s*\(/ ) {
 							my $call = $1;
 
-							print
+							say
 "WARNING: IGNORING conditional $call <$tline> (_analyse_src_for_iodirs) "
 							  . __LINE__
 							  if $W;
@@ -539,18 +540,14 @@ sub _analyse_src_for_iodirs {
 							next;
 
 						} else {
-#							croak $tline if $tline=~/\'YZ\'/;
+#							croak $tline if $tline=~/dx/;
 							( $var, $rhs ) = split( /\s*=\s*/, $tline );
 							if ( $var =~ /\(/ ) {
-
 								# Must be an array assignment
 								$var =~ s/\s*\((.+)\)$//;
-
 								my $str = $1;
 								if ( not defined $str ) {
-									print
-"WARNING: IGNORING <$tline>, CAN'T HANDLE IT (_analyse_src_for_iodirs)\n"
-									  if $W;
+									print "WARNING: IGNORING <$tline>, CAN'T HANDLE IT (_analyse_src_for_iodirs)\n" if $W;
 								} else {
 									$args = _find_vars_w_iodir( $str, $args,
 										\&_set_iodir_read );
@@ -560,17 +557,14 @@ sub _analyse_src_for_iodirs {
 					}
 
 					# First check the RHS for In
-					die
-"_analyse_src_for_iodirs(): RHS not defined inf $f: $line\n"
-					  unless defined $rhs;
+					die "_analyse_src_for_iodirs(): RHS not defined inf $f: $line\n" unless defined $rhs;
 
 					# So anything on the RHS is "In", this is OK
-					$args =
-					  _find_vars_w_iodir( $rhs, $args, \&_set_iodir_read );
+					$args = _find_vars_w_iodir( $rhs, $args, \&_set_iodir_read );
 					if ( exists $args->{$var} ) {
 						$args = _set_iodir_write( $var, $args );
 					}
-
+#					croak Dumper($args) if $tline=~/dx/;
 				} else {    # not an assignment, do as before
 
 				  #                say "NON-ASSIGNMENT LINE: $line in $f" if $V;
@@ -601,7 +595,6 @@ sub _analyse_src_for_iodirs {
 		# Here for some reason corr has been added as an argument!
 		$Sf->{'IODirInfo'} = 1;
 	}    # if IODirInfo had not been set to 1
-
 	return $stref;
 }    # END of _analyse_src_for_iodirs()
 
@@ -862,10 +855,14 @@ say "WARNING: Setting intent(In) for argument $sig_arg of $name because the call
 					$I; # if $called_arg_iodirs->{$ref_arg} eq 'Unknown' and $I;
 				next;
 			}
-			$called_arg_iodirs->{$ref_arg} =
-			  $Sname->{'RefactoredArgs'}{'Set'}{$ref_arg}{'IODir'};
-			say "INFO: IODir is Unknown for $ref_arg in $f"
-			  if $called_arg_iodirs->{$ref_arg} eq 'Unknown' and $I;
+			$called_arg_iodirs->{$ref_arg} = $Sname->{'RefactoredArgs'}{'Set'}{$ref_arg}{'IODir'};
+#			  say "REF ARG: $ref_arg RECORD: ".Dumper($Sname->{'RefactoredArgs'}{'Set'}{$ref_arg});
+			  if (exists $called_arg_iodirs->{$ref_arg} and defined $called_arg_iodirs->{$ref_arg}) {
+#			  	say '<'.$called_arg_iodirs->{$ref_arg}.'>';
+				say "INFO: IODir is Unknown for $ref_arg in $f" if $called_arg_iodirs->{$ref_arg} eq 'Unknown' and $I;
+			  } else {
+			  		say "INFO: NO $ref_arg in %called_arg_iodirs in $f" if $I;
+			  }
 		}
 	} else {
 		for my $arg ( @{ $info->{'SubroutineCall'}{'Args'}{'List'} } ) {
