@@ -741,7 +741,7 @@ sub _analyse_lines {
 				$do_counter++;
 				push @do_stack, $info;
 			} elsif ( $mline !~ /::/
-				&& $mline !~ /^\s*\d*\s+data/
+				&& $mline !~ /^\s*\d*\s+data\b/
 				&& $mline !~ /\bparameter\b/
 				&& $mline =~ /[\w\)]\s*=\s*[^=]/ ) {
 				$info->{'Assignment'} = 1;
@@ -749,6 +749,7 @@ sub _analyse_lines {
 				$mline = __remove_blanks($mline,$free_form);
 				$line = __remove_blanks($line,$free_form);
 #WV20150303: We parse this assignment and return {Lhs => {Varname, ArrayOrScalar, IndexExpr}, Rhs => {Expr, VarList}}
+#croak "<$mline>" if $mline=~/data10/ and $f eq 'set';
 				$info = _parse_assignment( $mline, $info, $stref, $f );
 			}
   # Actual variable declaration line (F77)

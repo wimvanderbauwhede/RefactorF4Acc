@@ -1127,8 +1127,8 @@ sub _procLine {
 
     # Detect and standardise comments
     
-    if ( $line =~ /^(?:[CD]\s+|\*|\s*\!)/i or $line =~ /^\ {6}\s*\!/i ) {
-        $line =~ s/^(?:[CcDd\*]\s+|\s*\!)/! /;
+    if ( $line =~ /^(?:[CD]\W+|\*|\s*\!)/i or $line =~ /^[CD]$/i or $line =~ /^\ {6}\s*\!/i ) {
+        $line =~ s/^(?:[CcDd\*]\s*|\s*\!)/! /;
         $info->{'Comments'} = 1;
 	} elsif ( $line =~ /^\s*contains\s*$/i) { 
 		$info->{'Contains'}=1;       

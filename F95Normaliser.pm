@@ -17,22 +17,27 @@ sub normalise_F95_src {(my $orig_lines)=@_;
                 my $joinedline='';
                 my @comments_stack       = ();
                 my $joined_lines=[];
+                my $idx=0;                
 				for my $line (@{$orig_lines}) {		
                     chomp $line;
+                    my $next_line=$orig_lines->[$idx+1];
+                    $idx++;
 #                    $line=~s/\t/  /g; # AD-HOC replace tab by 2 spaces
                     # Split lines with multiple statements
                     if (not isCommentOrBlank($line) && $line=~/;/) {
 
                         my $tline = $line;
                         my $nline = '';
+                        # Placeholders for strings
                         my $i     = 0;
                         my %phs   = ();
                         while ( $tline =~ /(\'.+?\')/ ) {
                             $phs{"__PH${i}__"} = $1;
                             $tline =~ s/(\'.+?\')/__PH${i}__/;
                             $i++;
-                        }
+                        }                        
                         if ( $tline =~ /;/ ) {
+                        	# Multiple statements on one line
                             my @tlines = split( /\s*;\s*/, $tline ) ;
                             my @nlines=();
                             for my $nline (@tlines) {                
@@ -53,10 +58,14 @@ sub normalise_F95_src {(my $orig_lines)=@_;
                         }
                     }                   
 					if ($in_cont==0) {
+						# This is not a continuation line. 
 					    if ( isCont( $line ) ) {
-#                            die "CONT:$line";
+#                            say "CONT:$line <> $joinedline";
 						   $in_cont=1;
-					       $joinedline .= removeCont( $line );	
+					       $joinedline .= removeCont( $line );
+					    } elsif (defined $next_line and isPrefixCont( $next_line ) ) {
+					    	$in_cont=2;
+					    	$joinedline=$line;   	
 					    } else {
 					        # emit line
 					        if ( $line ne '' ) {
@@ -64,14 +73,15 @@ sub normalise_F95_src {(my $orig_lines)=@_;
 					        }	
 					    }
 					} else { # inside continuation line
+#					say "IN CONT: $line";
 						if ( isCont( $line ) ) {
 						   $joinedline .= removeCont( $line );
 						} elsif ( isCommentOrBlank($line) ) {
 					        push @comments_stack, $line;
-						} else {
+						} else { 
 							# In cont but line is not cont => end of cont line => 
-                            # I still call removeCont to clean up the line
-						   $joinedline .= removeCont( $line );
+                            # I still call removeCont to clean up the line                 	
+						   $joinedline .= removeCont( $line ) unless $in_cont==2;
 #                           my $ws = $joinedline; $ws=~s/\S+$//;
                            $joinedline=~s/\s*,\s*/,/g;
 							# emit comments;
@@ -82,6 +92,9 @@ sub normalise_F95_src {(my $orig_lines)=@_;
 							# emit joined line
 					        if ( $joinedline ne '' ) {
 					            push @{$joined_lines}, $joinedline;
+					        }
+					        if ($in_cont==2) {
+					        	push @{$joined_lines}, $line;
 					        }   
 							$joinedline='';
 							$in_cont=0;
@@ -102,11 +115,24 @@ sub normalise_F95_src {(my $orig_lines)=@_;
 
 
  # -----------------------------------------------------------------------------
+ 
+ 	sub isPrefixCont {
+		( my $line ) = @_;
+		my $is_cont = 0;
+			if ( $line =~ /^\s*\&/) {
+				$is_cont = 1;
+			}		
+		return $is_cont;
+	} # END of isCont
+
+
+ # -----------------------------------------------------------------------------
+ 
 	sub isCommentOrBlank {
 		( my $line ) = @_;
 
 		# Detect comments & blank lines
-		if ( $line =~ /^[CD]\s+/i or $line =~ /^[\*\!]/i or $line =~ /^\ {6}\s*\!/i ) {			
+		if ( $line =~ /^[CD]\s+/i or $line =~ /^[CD]$/i or $line =~ /^[\*\!]/i or $line =~ /^\ {6}\s*\!/i ) {			
 			return 1;
 		} elsif ( $line =~ /^\s*$/ ) {
 			return 1;

@@ -63,7 +63,7 @@ sub create_additional_include_statements {
             print "INFO: instantiating merged INC $inc in $f\n" if $V;
 
             my $tinc = $inc;
-            croak $tinc if $tinc =~/params_com/ or $f eq 'main';
+            
             $tinc=~s/\./_/g;
             	my $rline = "      use $tinc";
             $info->{'Ann'} = [annotate($f, __LINE__  )];
@@ -103,7 +103,7 @@ sub create_new_include_statements {
           	die $stref->{'IncludeFiles'}{$inc}{'ParamInclude'};
           };       
     }
-#    die Dumper($rlines) if $f eq 'aveflow';
+
     return $rlines;
 }    # END of create_new_include_statements()
 

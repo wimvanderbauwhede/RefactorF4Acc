@@ -333,8 +333,6 @@ sub _refactor_globals_new {
  	my $inc_counter = scalar keys %{$Sf->{'Includes'}};
     for my $annline ( @{$annlines} ) {
         (my $line, my $info) = @{ $annline };
-#        say "LINE: $line INFO: ".Dumper($info) if $f=~/init/;
-#        if ($line=~/ff059/) {say Dumper($info)};
         my $skip = 0;
 
         if ( exists $info->{'Signature'} ) { 
@@ -357,9 +355,13 @@ sub _refactor_globals_new {
             $skip = skip_common_include_statement( $stref, $f, $annline );
 # Now, if this was a Common include to be skipped but it contains a Parameter include, I will simply replace the line:
 # TODO: factor out!
+
 			  my $inc       = $info->{'Include'}{'Name'};
+#			  carp "INC: $inc" if $f eq 'set';
 			  if  ( exists $stref->{'IncludeFiles'}{$inc}{'ParamInclude'} ) { 
 			  	my $param_inc=$stref->{'IncludeFiles'}{$inc}{'ParamInclude'};
+#			  	carp "PARAM INC: $param_inc" if $f eq 'set';
+#			  	croak Dumper($stref->{'IncludeFiles'}{$inc});
 			  	$skip=0;
 			  	$info->{'Include'}{'Name'}=$param_inc;
 			  	my $mod_param_inc=$param_inc;
