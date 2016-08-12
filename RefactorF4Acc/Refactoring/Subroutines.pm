@@ -425,8 +425,8 @@ sub _create_extra_arg_and_var_decls {
 #    	and not exists $Sf->{'UndeclaredCommonVars'}{'Set'}{$var}
     	) {
 #    		carp "WHERE is $var in $f? ".in_nested_set($Sf,'CommonVars',$var) if $var eq 'iacn11' and $f eq 'fs055';
-    	say "INFO VAR in $f: $var ".Dumper($Sf->{'RefactoredArgs'}{'Set'}{$var}{'IODir'} ) if $I; # was ExGlobArgs
-                    my $rdecl = $Sf->{'RefactoredArgs'}{'Set'}{$var}; 
+    	say "INFO VAR in $f: $var ".Dumper($Sf->{'ExGlobArgs'}{'Set'}{$var}{'IODir'} ) if $I; 
+                    my $rdecl = $Sf->{'ExGlobArgs'}{'Set'}{$var}; 
                     my $rline = emit_f95_var_decl($rdecl);
                     my $info={};
                     $info->{'Ann'}=[ annotate($f, __LINE__ .' : EX-GLOB ' . $annline->[1]{'ExGlobVarDeclHook'} ) ];                                               
@@ -436,8 +436,6 @@ sub _create_extra_arg_and_var_decls {
                     push @{$rlines}, [ $rline,  $info ];
     	}                        
     }    # for
-    say "EXGLOB".Dumper($stref->{'Subroutines'}{'init'}{'ExGlobArgs'}{'Set'}{'hzero'});
-croak "REFACTORED".Dumper($stref->{'Subroutines'}{'init'}{'RefactoredArgs'}{'Set'}{'hzero'});
     
     print "INFO: ExInclArgs in $f\n" if $I;
     for my $var ( @{ $Sf->{'ExInclArgs'}{'List'} } ) {

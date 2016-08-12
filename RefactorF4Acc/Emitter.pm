@@ -288,6 +288,7 @@ sub emit_all {
         }        
 
 		my $nsrc=$src;$nsrc=~s/\.f$/.f95/;
+		
 		if ($DUMMY) {
 			say '! '.('=' x 80);
             say "! FILE: $targetdir/$nsrc";

@@ -880,6 +880,7 @@ sub update_argument_io_direction_all_subs {
 		next if exists $stref->{'Modules'}{$f}; # HACK! FIXME!
 		next if (exists $stref->{'Subroutines'}{$f}{'Program'} and $stref->{'Subroutines'}{$f}{'Program'} == 1);
 		say "UPDATE IODIR IN $f" if $DBG;
+		
 		$stref = _update_argument_io_direction( $stref, $f );
 	}
 	return $stref;
@@ -892,32 +893,46 @@ sub _update_argument_io_direction {
 		( my $annline, my $state ) = @_;
 		( my $line,    my $info )  = @{$annline};
 		( my $stref, my $f, my $rest ) = @{$state};
+		say $line.Dumper($info) if $line=~/parameter.+nx/;	
+		
 		if ( exists $info->{'VarDecl'} ) {
 			my $varname = $info->{'VarDecl'}{'Name'};
+			my $is_param=0;
+			if (ref($varname) eq 'ARRAY') {
+				$is_param=1;
+				$varname = $varname->[0];							
+			}
 			if (
-				exists $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}
-				{$varname} )
-			{
-				$info->{'VarDecl'}{'IODir'} =
-				  $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$varname}
-				  {'IODir'};
-				
-				my $rline = emit_f95_var_decl($stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$varname} );								
+					exists $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$varname} 
+				){
+					
+#					croak "REFACTORED".Dumper($stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$varname}) if $is_param;
+					my $decl =  $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$varname};
+					if (not $is_param) {
+					$info->{'VarDecl'}{'IODir'} = $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$varname}{'IODir'};
+					} else {
+						$info->{'VarDecl'}{'IODir'} ='In';
+						delete $decl->{'Parameter'};
+						$decl->{'Name'} = $decl->{'Var'};
+						delete $decl->{'Val'};
+						$decl->{'IODir'}='In';
+#						croak Dumper($decl);
+					}
+					my $rline = emit_f95_var_decl($decl );
+											
                     if (exists $info->{'Skip'}) {
                     	$rline = '! '.$rline;
                     	push @{$info->{'Ann'}},'SKIP';
                     }                    
 				$annline = [ $rline, $info ];
 			} else {
-
 				#				say $line;
 			}
 		}
 		return ( $annline, $state );
 	};
 	my $state = [ $stref, $f, {} ];
-	( $stref, $state ) = stateful_pass( $stref, $f, $__update_decl, $state,
-		'_update_argument_io_direction() ' . __LINE__ );
+	( $stref, $state ) = stateful_pass( $stref, $f, $__update_decl, $state,'_update_argument_io_direction() ' . __LINE__ );
 
 	return $stref;
 }

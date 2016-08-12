@@ -86,7 +86,7 @@ sub add_module_decls { (my $stref)=@_;
        	for my $sub (@{ $stref->{'Modules'}{$existing_module_name{$src}}{'Contains'} } ) {
        		say '=' x 80 if $V;
        		say 'SUB: '.$sub if $V;
-       		$new_annlines =[ @{$new_annlines}, @{ $stref->{'Subroutines'}{$sub}{'AnnLines'}} ];
+       		$new_annlines =[ @{$new_annlines}, @{ $stref->{'Subroutines'}{$sub}{'RefactoredCode'}} ];
        		say '=' x 80 if $V;
        	}
        	my $old_annlines = $stref->{'Modules'}{$existing_module_name{$src}}{'AnnLines'};
