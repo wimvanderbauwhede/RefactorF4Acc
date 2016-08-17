@@ -6,7 +6,7 @@ use RefactorF4Acc::CallTree qw( add_to_call_tree );
 use RefactorF4Acc::Refactoring::Common qw( emit_f95_var_decl get_f95_var_decl );
 use RefactorF4Acc::Parser::SrcReader qw( read_fortran_src );
 use RefactorF4Acc::Parser::Expressions
-  qw(  parse_expression  get_args_vars_from_expression get_args_vars_from_subcall emit_expression);
+  qw( get_vars_from_expression parse_expression  get_args_vars_from_expression get_args_vars_from_subcall emit_expression);
 use RefactorF4Acc::CTranslation qw( add_to_C_build_sources );    # OBSOLETE
 use RefactorF4Acc::Analysis::LoopDetect qw( outer_loop_start_detect );
 use RefactorF4Acc::Analysis::ArgumentIODirs qw(  &conditional_assignment_fsm );
@@ -553,93 +553,72 @@ sub _analyse_lines {
 			
 				my $is_cond_assign = 0;
 				my $is_cond        = 0;
-				my $cond           = '';
-				my $rest           = '';
-				
-				if ( $line =~ /^\s*\d*\s+(?:else\s+)?if\s*\(.+=/ ) { # an IF with an equals sign
-				
-#				say "$f\nIF: $line" ; 
-					( my $if_cond, my $rest ) = _parse_if_cond($line);
-						$cond = $if_cond;
-						$cond=~s/if\s*\(\s*//;
-						$cond=~s/\s*\)\s*$//;
-						
-						
-					# So here we look at the part after the condition expression
-					if ($rest=~/\(/) { # There are parens so it could be a subroutine call
-					( my $maybe_lhs, my $maybe_rhs ) = _parse_array_access_or_function_call($rest,1);
-
-#					say "MAYBE SUB: LHS $maybe_lhs RHS <$maybe_rhs>" ;
-					if ( $maybe_rhs =~ /=/ ) { # Is this an assignment?
-						$mline                  = $rest;# "$maybe_lhs$maybe_rhs";
-							
-						$info->{'CondExecExpr'} = $mline;
-						$is_cond_assign         = 1;
-						$is_cond                = 1;
-					} else {
-						# Otherwise it is a subroutine call, but I guess it could also just be 'then' 
-						$mline = $rest;
-					}					
-					} elsif ($rest=~/=/) {
-						( my $maybe_lhs, my $maybe_rhs )=split(/\s*=\s*/, $rest);
-						croak "ASSIGN: LINE: $line => LHS <$maybe_lhs> RHS <$maybe_rhs>"  if $f eq 'init_domainfill' and $line=~/ran1.idummy/;	
-						$mline = "$maybe_lhs = $maybe_rhs";
-						$info->{'CondExecExpr'} = $mline;
-						$is_cond_assign         = 1;
-						$is_cond                = 1;					
-					}
-					
-				} elsif ( $line =~ /^(\s*\d*\s+)((?:else\s+)?if\s*\(.+)$/ ) { #  IF with either an executable statement or THEN
-					my $indent=$1;
-					my $rest_of_line=$2;
-					my $has_else=$rest_of_line=~/else\s+if/ ? 1 : 0;
-					$rest_of_line=~s/else\s+if/if/;
-#				 	say $line;
-					# This just tests for a condition
-#					$cond    = $1;
-#					$rest    = $2;
-					( my $if_cond, my $rest ) = _parse_if_cond($rest_of_line);
-					$cond = $if_cond;
-							$cond=~s/if\s*\(\s*//;
-					$cond=~s/\s*\)\s*$//;				
-					# remove spaces from condition							
-					my $conds = $cond;
-					$conds=~s/\s+//g if defined $cond;
-					$cond=$conds;
-					if ($has_else) {
-						$line = $indent.'else if ('.$conds.') '.$rest;
-					} else {
-						$line = $indent.'if ('.$conds.') '.$rest;
-					}
-#					
-#					my $tline=$line;
-#					$tline=~s/^([^\(]+)//;
-#					my $lline=$1;
-#					$tline=~s/([^\)]+)$//;
-#					my $rline=$1;
-#					$tline=~s/\s+/ /g;					
-#					$line = $lline.$tline.$rline;										
-					
-					$is_cond = 1;
-					
-#					say $line;
+#				my $cond           = '';
+#				my $rest           = '';
+				( my $cond, $mline ) = _parse_if_cond($line);
+				$info->{'CondExecExpr'}=$cond;
+				if ( $mline =~ /=/ ) { # Is this an assignment?
+					$is_cond_assign = 1;
 				}
 				
+#				if ( $line =~ /^\s*\d*\s+(?:else\s+)?if\s*\(.+=/ ) { # an IF with an equals sign
+#					( my $if_cond, my $rest ) = _parse_if_cond_OLD($line);
+#						$cond = $if_cond;
+#						$cond=~s/if\s*\(\s*//;
+#						$cond=~s/\s*\)\s*$//;
+#						
+#						
+#					# So here we look at the part after the condition expression
+#					if ($rest=~/\(/) { # There are parens so it could be a subroutine call
+#					( my $maybe_lhs, my $maybe_rhs ) = _parse_array_access_or_function_call($rest,1);
+#					if ( $maybe_rhs =~ /=/ ) { # Is this an assignment?
+#						$mline                  = $rest;# "$maybe_lhs$maybe_rhs";
+#							
+#						$info->{'CondExecExpr'} = $mline;
+#						$is_cond_assign         = 1;
+#						$is_cond                = 1;
+#					} else {
+#						# Otherwise it is a subroutine call, but I guess it could also just be 'then' 
+#						$mline = $rest;
+#					}					
+#					} elsif ($rest=~/=/) {
+#						( my $maybe_lhs, my $maybe_rhs )=split(/\s*=\s*/, $rest);
+#						croak "ASSIGN: LINE: $line => LHS <$maybe_lhs> RHS <$maybe_rhs>"  if $f eq 'init_domainfill' and $line=~/ran1.idummy/;	
+#						$mline = "$maybe_lhs = $maybe_rhs";
+#						$info->{'CondExecExpr'} = $mline;
+#						$is_cond_assign         = 1;
+#						$is_cond                = 1;					
+#					}
+#					
+#				} elsif ( $line =~ /^(\s*\d*\s+)((?:else\s+)?if\s*\(.+)$/ ) { #  IF with either an executable statement or THEN
+#					my $indent=$1;
+#					my $rest_of_line=$2;
+#					my $has_else=$rest_of_line=~/else\s+if/ ? 1 : 0;
+#					$rest_of_line=~s/else\s+if/if/;
+#					( my $if_cond, my $rest ) = _parse_if_cond_OLD($rest_of_line);
+#					$cond = $if_cond;
+#							$cond=~s/if\s*\(\s*//;
+#					$cond=~s/\s*\)\s*$//;				
+#					# remove spaces from condition							
+#					my $conds = $cond;
+#					$conds=~s/\s+//g if defined $cond;
+#					$cond=$conds;
+#					if ($has_else) {
+#						$line = $indent.'else if ('.$conds.') '.$rest;
+#					} else {
+#						$line = $indent.'if ('.$conds.') '.$rest;
+#					}
+#					$is_cond = 1;
+#				}
+#				
 				
-				if ( $is_cond_assign or $is_cond ) {
-					#  if (((.not.xglobal).or.(nx_we(2).ne.(nx-2))).and.((xtra1(i).lt.float(nx_we(1))).or.(xtra1(i).gt.float(nx_we(2))))) itra1(i)=-99999999911
+#				if ( $is_cond_assign or $is_cond ) {
 					
 					# This part looks at the condition to get variables form it
-					$cond =~ s/[\(\)]+/ /g;
+#					$cond =~ s/[\(\)]+/ /g;
+					my $ast = parse_expression($cond,  $info,  $stref,  $f);
+					my $cond_vars =  get_vars_from_expression( $ast,{});
 					$cond =~ s/\.(eq|ne|gt|ge|lt|le|and|or|not|eqv|neqv)\./ /g;
-#					if ($f eq 'read_ncwrfout_gridinfo' and $line=~/idiagaa.+write/) {
-#						croak $line;
-#					}
-#if ($f eq 'boundcond_domainfill' and $line=~/xglobal/) {
-#						croak $cond;
-#					}
-
-					#					say "COND: $cond REST: $rest";
 					my @chunks = split( /\W+/, $cond );
 					my %vars_in_cond_expr = ();
 					for my $mvar (@chunks) {
@@ -650,13 +629,17 @@ sub _analyse_lines {
 						next if exists $F95_reserved_words{$mvar};
 						$vars_in_cond_expr{$mvar} = 1;
 					}
-					$info->{'CondVars'} = {%vars_in_cond_expr};					
-					next if $rest eq 'then';
-					if ( not $is_cond_assign ) {
-						$info->{'CondExecExpr'} = $rest;
-						$mline =~ s/if.+?$rest/$rest/;
-					}
-				}
+					$info->{'CondVars'} = {%vars_in_cond_expr};
+					say Dumper($cond_vars);			
+					say Dumper(%vars_in_cond_expr);
+					
+							
+					next if $mline eq 'then';
+#					if ( not $is_cond_assign ) {
+#						$info->{'CondExecExpr'} = $rest;
+#						$mline =~ s/if.+?$rest/$rest/;
+#					}
+#				}
 
 			} 
 
@@ -1407,9 +1390,10 @@ sub _parse_subroutine_and_function_calls {
 		my $in_kernel_sub_region     = 0;
 		my $kernel_wrapper_name      = '';
 		my $current_sub_name         = '';
+		
 		for my $index ( 0 .. scalar( @{$srcref} ) - 1 ) {
-			my $line = $srcref->[$index][0];
-			my $info = $srcref->[$index][1];
+			(my $line, my $info) = @{$srcref->[$index]};
+			
 			next if ( $line =~ /^\!\s/ and $line !~ /^\!\s*\$(?:ACC|RF4A)\s/i );
 			if ( exists $info->{'AccPragma'} ) {
 				if ( exists $info->{'AccPragma'}{'BeginKernelWrapper'} ) {
@@ -1538,7 +1522,7 @@ sub _parse_subroutine_and_function_calls {
 			# Maybe Function calls
 			if (   $line !~ /function\s/
 				&& $line !~ /subroutine\s/
-				&& $line =~ /(\w+)\(/ )
+				&& $line =~ /(\w+)\s*\(/ )
 			{
 				my @chunks = ();
 				my $cline  = $line;
@@ -3841,7 +3825,7 @@ sub _parse_assignment {
 
 	#	my %test = map {$_ => 1}  @{ $info->{'Rhs'}{'VarList'}{'List'}};
 	#	if (exists $test{'__PH0__'}) {croak Dumper($info)}
-#	carp Dumper($line, $info) if $line=~/cf716\(3/ ;
+#	croak Dumper($line, $info) if $line=~/ff054/ ;
 
 	return $info;
 }    # END of _parse_assignment()
@@ -3917,9 +3901,44 @@ sub _parse_IO_sub_call {
 
 	return ( $matched_str, $rest );
 }    # END of _parse_IO_sub_call()
-
 # --------------------------------------------------------------------------------
 sub _parse_if_cond {
+	( my $str ) = @_;
+
+	my $parens_count = 1;
+	
+	
+	my $open_paren_idx=index($str,'(');
+	my $close_paren_idx=-1;
+
+
+	for my $idx ($open_paren_idx+1 .. length($str)-1 ) {
+		my $ch = substr($str,$idx,1);
+		# skip blanks
+		if ( $ch eq ' ' or $ch eq "\t" ) { 
+			next;
+		} elsif ( $ch eq '(' ) { 			
+			++$parens_count;
+		} elsif ( $ch eq ')' ) {
+			--$parens_count;
+			if ($parens_count == 0) {
+				$close_paren_idx=$idx;
+				last;
+			}
+		}
+	}
+	my $cond = substr($str,$open_paren_idx+1, $close_paren_idx-$open_paren_idx-1);
+	my $rest = substr($str, $close_paren_idx+1);
+#	while(substr($rest,0,1) eq ' ') {
+#		$rest = substr($rest,1);
+#	}
+#say $rest;
+	$rest=~s/^\s*//;
+	$rest=~s/\s*$//;
+	return ($cond,$rest); 
+} # END _parse_if_cond()
+# --------------------------------------------------------------------------------
+sub _parse_if_cond_OLD {
 	( my $str ) = @_;
 
 	my $parens_count = 0;
@@ -3951,7 +3970,7 @@ sub _parse_if_cond {
 	}
 	my $rest = join( '', @chars );
 	return ( $matched_str, $rest );
-}
+} # END of _parse_if_cond_OLD()
 # --------------------------------------------------------------------------------
 # Takes a string which contains a comma-separated list of expressions, returns a list of the expressions
 sub _parse_comma_sep_expr_list {

@@ -134,6 +134,8 @@ sub analyse_all {
 		next if $f eq '';
 		$stref = _analyse_var_decls_for_params( $stref, $f );
 	}
+	
+	
 	return $stref;
 }    # END of analyse_all()
 

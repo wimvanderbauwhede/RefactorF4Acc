@@ -57,11 +57,20 @@ $VAR1 = [
           ]
         ];
 =cut         
+
+# '_dummy_(write(__PH1__,_CONCAT_PRE_,path(numpath+2*_OPEN_PAR_(...', 'HASH(0x7fb906282f70)') called at /Users/wim/Git/RefactorF4Acc/RefactorF4Acc/Parser/Expressions.pm line 144
+# 'write(__PH1__//path(numpath+2*(k-1)+2)(1:len(numpath+2*(k-1)+2))
+#write(*,'(a)') '     '//path(numpath+2*(k-1)+2)(1:len(numpath+2*(k-1)+2))
+
+
+# Returns the AST
 sub parse_expression { (my $exp, my $info, my $stref, my $f)=@_;
 	my $preproc_expr = $exp;
-	 
-
-	 
+#	say "EXPR: $preproc_expr" if $preproc_expr=~/write.+path.numpath/; 
+	 # To make this robust, what I'll do is replace any '(' with '_OPEN_PAR_(' so that is looks like a function.
+	while($preproc_expr=~/[\+\-\*\/,:]\(/) { # basically, it can be: ,+-*/ 
+			$preproc_expr=~s/([\+\-\*\/,:])\(/${1}_OPEN_PAR_\(/;
+	}	 
 	$preproc_expr =~s/\s+//g;
 	
 	# EVIL HACK to 'support' Alternate Returns
@@ -76,18 +85,19 @@ sub parse_expression { (my $exp, my $info, my $stref, my $f)=@_;
 		$preproc_expr =~s/\.true\./__true__/g;
 		$preproc_expr =~s/\.(\w+)\./\+__${1}__\+/g; 		 
 	}
+	$preproc_expr =~s/\+\-/-/g;
 	# F77 allows 1D7 or 2Q-5 instead of 1E7 and 2E-5 
 	while ($preproc_expr=~/\W[\.\d]+[dq][\d\-\+]/) { 
 		$preproc_expr=~s/(\W[\.\d]+)[dq]([\d\-\+])/${1}e$2/;
 	}
-	# More EVIL HACK to "support" complex numbers, WEAK!	
-	# ( <not ( ) > , <not ( )> )
-	if ($preproc_expr=~/^\([^\(\)]+,[^\(\)]+\)/) {
-		$preproc_expr='_complex_'.$preproc_expr;
-	}
-	while ($preproc_expr=~/\W\([^\(\)]+,[^\(\)]+\)/) { 
-		$preproc_expr=~s/(\W)\(/${1}_complex_\(/;
-	}
+#	# More EVIL HACK to "support" complex numbers, WEAK!	
+#	# ( <not ( ) > , <not ( )> )
+#	if ($preproc_expr=~/^\([^\(\)]+,[^\(\)]+\)/) {
+#		$preproc_expr='_complex_'.$preproc_expr;
+#	}
+#	while ($preproc_expr=~/\W\([^\(\)]+,[^\(\)]+\)/) { 
+#		$preproc_expr=~s/(\W)\(/${1}_complex_\(/;
+#	}
 	# HACK to support ':'
 	# Remove ':' because again this only occurs for characters strings
 	my $wrap=0;
@@ -137,7 +147,7 @@ sub parse_expression { (my $exp, my $info, my $stref, my $f)=@_;
 	 $wrapped_expr = '_dummy_('.$preproc_expr.')';
 	}
 
-#	croak  "WRAPPED EXPR: $wrapped_expr" if $wrapped_expr=~/path.+len.+wfname/; 
+#	croak  "WRAPPED EXPR: $wrapped_expr" if $wrapped_expr=~/write.+path.numpath/; 
     my $ast = Math::Expression::Evaluator::Parser::parse($wrapped_expr, {});
 
 	if ($wrap) {
@@ -334,7 +344,8 @@ sub emit_expression {(my $ast, my $expr_str)=@_;
 	} else {
 		$expr_str.=join(';',@expr_chunks);
 	}	
-	$expr_str=~s/_complex_//g;
+#	$expr_str=~s/_complex_//g;
+	$expr_str=~s/_OPEN_PAR_//g;
 	$expr_str=~s/_LABEL_ARG_//g;
 	if ($expr_str=~s/^\#dummy\#\(//) {
 		$expr_str=~s/\)$//;
@@ -356,6 +367,7 @@ sub emit_expression {(my $ast, my $expr_str)=@_;
 } # END of emit_expr
 
 # All variables in the expression
+# $vars = {} to start
 sub get_vars_from_expression {(my $ast, my $vars)=@_;
 	for my  $idx (0 .. scalar @{$ast}-1) {		
 		my $entry = $ast->[$idx];
@@ -363,13 +375,15 @@ sub get_vars_from_expression {(my $ast, my $vars)=@_;
 			$vars = get_vars_from_expression( $entry, $vars);			
 		} else {
 			if ($entry eq '$' ) {				
-			my $mvar = $ast->[$idx+1];
+				my $mvar = $ast->[$idx+1];
+				next if $mvar=~/__[a-z]+__/;
 				next if $mvar=~/__PH\d+__/;		
 				next if $mvar=~/_(?:CONCAT|COLON)_PRE_/;
 				next if $mvar=~/_PAREN_PAIR_/;			
 				$vars->{$mvar}={'Type'=>'Scalar'} ;					
 			} elsif ($entry eq '@') {				
 				my $mvar = $ast->[$idx+1];
+				next if $mvar=~/__[a-z]+__/;
 				next if $mvar=~/__PH\d+__/;
 				next if $mvar=~/_(?:CONCAT|COLON)_PRE_/;
 				next if $mvar=~/_PAREN_PAIR_/;		

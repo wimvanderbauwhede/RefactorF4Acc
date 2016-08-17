@@ -653,8 +653,9 @@ sub __update_function_calls_in_AST { (my $stref, my $Sf,my $f, my $ast) = @_;
 			} else {
 				if ($entry eq '&') {				
 					my $name = $ast->[$idx+1];
+					
 				    if ($name ne $f and exists $stref->{'Subroutines'}{$name}{'ExGlobArgs'}) {       
-				        my @globals = @{ $stref->{'Subroutines'}{$name}{'ExGlobArgs'}{'List'} };        
+				        my @globals = exists  $stref->{'Subroutines'}{$name}{'ExGlobArgs'}{'List'} ? @{ $stref->{'Subroutines'}{$name}{'ExGlobArgs'}{'List'} } : ();        
 				        my @maybe_renamed_exglobs=();
 				        for my $ex_glob (@globals) {
 				        	# $ex_glob may be renamed or not. I test this using OrigName. 
