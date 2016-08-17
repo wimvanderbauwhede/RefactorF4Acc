@@ -893,7 +893,6 @@ sub _update_argument_io_direction {
 		( my $annline, my $state ) = @_;
 		( my $line,    my $info )  = @{$annline};
 		( my $stref, my $f, my $rest ) = @{$state};
-		say $line.Dumper($info) if $line=~/parameter.+nx/;	
 		
 		if ( exists $info->{'VarDecl'} ) {
 			my $varname = $info->{'VarDecl'}{'Name'};

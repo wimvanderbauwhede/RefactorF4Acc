@@ -1,7 +1,7 @@
 package RefactorF4Acc::Parser::SrcReader;
 use v5.16;
 use RefactorF4Acc::Config;
-use RefactorF4Acc::Utils qw( sub_func_incl_mod show_status show_annlines);
+use RefactorF4Acc::Utils qw( sub_func_incl_mod show_status show_annlines %F95_reserved_words %F95_types);
 use RefactorF4Acc::Refactoring::Common;
 use F95Normaliser qw( normalise_F95_src );
 
@@ -178,6 +178,7 @@ Suppose we don't:
                             $nextline = shift(@lines) // '';    # '/
                             $next2 = 1;
                         }
+                        my $remove_spaces_ok = $joinedline=~/\w\s*$/ ? 1 : 0;
 #                        print "LINE: $line";
 #                        print DBG "NEXTLINE: $nextline";
 #######################################################################
@@ -190,16 +191,17 @@ Suppose we don't:
                                     #+ n
                                     @comments_stack = ();    # redundant?
                                     $joinedline .=
-                                      _removeCont( $line, $free_form );
+                                      _removeCont( $line, $free_form , $remove_spaces_ok);
+                                    my $remove_spaces_ok2 = $joinedline=~/\w\s*$/ ? 1 : 0;
                                     $joinedline .=
-                                      _removeCont( $nextline, $free_form );
+                                      _removeCont( $nextline, $free_form, $remove_spaces_ok2 );
                                 } elsif ( _isCommentOrBlank($nextline) ) {
 #                                    print DBG "C+!\n";
 
                                     #+ l
                                     #! n
                                     $joinedline .=
-                                      _removeCont( $line, $free_form );
+                                      _removeCont( $line, $free_form, $remove_spaces_ok );
                                     $line                 = $nextline;
                                     $next2                = 0;
                                     $in_cont              = 0;
@@ -211,7 +213,7 @@ Suppose we don't:
                              #  n
                              #=> join l, emit joined, set l=n, set maybe_in_cont
                                     $joinedline .=
-                                      _removeCont( $line, $free_form );
+                                      _removeCont( $line, $free_form, $remove_spaces_ok );
 
                                     ( $stref, $s, $srctype ) =
                                       _pushAnnLine( $stref, $s, $srctype, $f,
@@ -231,7 +233,7 @@ Suppose we don't:
                                     #=> ignore the comment, join n
                                     push @comments_stack, $line;
                                     $joinedline .=
-                                      _removeCont( $nextline, $free_form );
+                                      _removeCont( $nextline, $free_form, $remove_spaces_ok );
                                 } elsif ( _isCommentOrBlank($nextline) ) {
 #                                    print DBG "C!!\n";
 
@@ -280,9 +282,10 @@ Suppose we don't:
 
                        #=> push l onto joined; push n onto joined; (set in_cont)
                                     $joinedline .=
-                                      _removeCont( $line, $free_form );
+                                      _removeCont( $line, $free_form, $remove_spaces_ok );
+                                      my $remove_spaces_ok2 = $joinedline=~/\w\s*$/ ? 1 : 0;
                                     $joinedline .=
-                                      _removeCont( $nextline, $free_form );
+                                      _removeCont( $nextline, $free_form, $remove_spaces_ok2 );
                                 } elsif ( _isCommentOrBlank($nextline) ) {
 #                                    print DBG "C !\n";
 
@@ -297,7 +300,7 @@ Suppose we don't:
                                     }
                                     $in_cont = 0;
                                     $joinedline .=
-                                      _removeCont( $line, $free_form );
+                                      _removeCont( $line, $free_form, $remove_spaces_ok );
                                     push @comments_stack, $nextline;
                                 } else {    # isPlain
 #                                    print DBG "C  \n";
@@ -331,9 +334,10 @@ Suppose we don't:
                                    #=> dump the comments, join both, set in_cont
                                     @comments_stack = ();
                                     $joinedline .=
-                                      _removeCont( $line, $free_form );
+                                      _removeCont( $line, $free_form, $remove_spaces_ok );
+                                      my $remove_spaces_ok2 = $joinedline=~/\w\s*$/ ? 1 : 0;
                                     $joinedline .=
-                                      _removeCont( $nextline, $free_form );
+                                      _removeCont( $nextline, $free_form, $remove_spaces_ok2 );
                                     $in_cont = 1;
                                 } elsif ( _isCommentOrBlank($nextline) ) {
 #                                    print DBG "M+!\n";
@@ -343,7 +347,7 @@ Suppose we don't:
                             #=> dump the comments, join l, set $in_cont, set l=n
                                     @comments_stack = ();
                                     $joinedline .=
-                                      _removeCont( $line, $free_form );
+                                      _removeCont( $line, $free_form, $remove_spaces_ok );
                                     $line                 = $nextline;
                                     $next2                = 0;
                                     $in_cont              = 1;
@@ -356,7 +360,7 @@ Suppose we don't:
          #=> dump the comments, join l, emit joined, set l=n (set maybe_in_cont)
                                     @comments_stack = ();
                                     $joinedline .=
-                                      _removeCont( $line, $free_form );
+                                      _removeCont( $line, $free_form, $remove_spaces_ok );
                                     ( $stref, $s, $srctype ) =
                                       _pushAnnLine( $stref, $s, $srctype, $f,
                                         $joinedline, $free_form );
@@ -374,7 +378,7 @@ Suppose we don't:
                                     #=> dump the comments, join n, set in_cont
                                     @comments_stack = ();
                                     $joinedline .=
-                                      _removeCont( $nextline, $free_form );
+                                      _removeCont( $nextline, $free_form, $remove_spaces_ok );
                                     $in_cont = 1;
                                 } elsif ( _isCommentOrBlank($nextline) ) {
 #                                    print DBG "M!!\n";
@@ -430,9 +434,11 @@ Suppose we don't:
                                     @comments_stack = ();
                                     $in_cont        = 1;
                                     $joinedline .=
-                                      _removeCont( $line, $free_form );
+                                      _removeCont( $line, $free_form, $remove_spaces_ok );
+                                      
+                                      my $remove_spaces_ok2 = $joinedline=~/\w\s*$/ ? 1 : 0;
                                     $joinedline .=
-                                      _removeCont( $nextline, $free_form );
+                                      _removeCont( $nextline, $free_form , $remove_spaces_ok2);
                                 } elsif ( _isCommentOrBlank($nextline) ) {
 #                                    print DBG "M !\n";
 
@@ -452,7 +458,7 @@ Suppose we don't:
                                     }
                                     @comments_stack = ();
                                     $joinedline .=
-                                      _removeCont( $line, $free_form );
+                                      _removeCont( $line, $free_form, $remove_spaces_ok );
                                     $line = '';    # TEST
                                     push @comments_stack, $nextline;
                                 } else {           # isPlain
@@ -490,7 +496,7 @@ Suppose we don't:
                             }
                         }
                     }    # loop over source lines
-
+					my $remove_spaces_ok = $joinedline=~/\w\s*$/ ? 1 : 0;
                     if ($in_cont) {
                         if ( _isCont( $line, $free_form ) ) {
                             if ( _isCont( $nextline, $free_form ) ) {
@@ -498,9 +504,10 @@ Suppose we don't:
 
                                 #+ l
                                 #+ n
-                                $joinedline .= _removeCont( $line, $free_form );
+                                $joinedline .= _removeCont( $line, $free_form, $remove_spaces_ok );
+                                my $remove_spaces_ok2 = $joinedline=~/\w\s*$/ ? 1 : 0;
                                 $joinedline .=
-                                  _removeCont( $nextline, $free_form );
+                                  _removeCont( $nextline, $free_form, $remove_spaces_ok2 );
                                 ( $stref, $s, $srctype ) =
                                   _pushAnnLine( $stref, $s, $srctype, $f,
                                     $joinedline, $free_form );
@@ -509,7 +516,7 @@ Suppose we don't:
 
                                 #+ l
                                 #! n
-                                $joinedline .= _removeCont( $line, $free_form );
+                                $joinedline .= _removeCont( $line, $free_form, $remove_spaces_ok );
                                 ( $stref, $s, $srctype ) =
                                   _pushAnnLine( $stref, $s, $srctype, $f,
                                     $joinedline, $free_form );
@@ -523,7 +530,7 @@ Suppose we don't:
                              #+ l
                              #  n
                              #=> join l, emit joined, set l=n, set maybe_in_cont
-                                $joinedline .= _removeCont( $line, $free_form );
+                                $joinedline .= _removeCont( $line, $free_form, $remove_spaces_ok );
                                 ( $stref, $s, $srctype ) =
                                   _pushAnnLine( $stref, $s, $srctype, $f,
                                     $joinedline, $free_form );
@@ -539,7 +546,7 @@ Suppose we don't:
                                 #+ n
                                 #=> ignore the comment, join n
                                 $joinedline .=
-                                  _removeCont( $nextline, $free_form );
+                                  _removeCont( $nextline, $free_form, $remove_spaces_ok );
                                 ( $stref, $s, $srctype ) =
                                   _pushAnnLine( $stref, $s, $srctype, $f,
                                     $joinedline, $free_form );
@@ -589,9 +596,10 @@ Suppose we don't:
                                 }
 
                        #=> push l onto joined; push n onto joined; (set in_cont)
-                                $joinedline .= _removeCont( $line, $free_form );
+                                $joinedline .= _removeCont( $line, $free_form, $remove_spaces_ok );
+                                my $remove_spaces_ok2 = $joinedline=~/\w\s*$/ ? 1 : 0;
                                 $joinedline .=
-                                  _removeCont( $nextline, $free_form );
+                                  _removeCont( $nextline, $free_form, $remove_spaces_ok2 );
                                 ( $stref, $s, $srctype ) =
                                   _pushAnnLine( $stref, $s, $srctype, $f,
                                     $joinedline, $free_form );
@@ -645,9 +653,10 @@ Suppose we don't:
                                 #+ n
                                 #=> dump the comments, join both, set in_cont
 
-                                $joinedline .= _removeCont( $line, $free_form );
+                                $joinedline .= _removeCont( $line, $free_form, $remove_spaces_ok );
+                                my $remove_spaces_ok2 = $joinedline=~/\w\s*$/ ? 1 : 0;
                                 $joinedline .=
-                                  _removeCont( $nextline, $free_form );
+                                  _removeCont( $nextline, $free_form , $remove_spaces_ok2);
                                 ( $stref, $s, $srctype ) =
                                   _pushAnnLine( $stref, $s, $srctype, $f,
                                     $joinedline, $free_form );
@@ -659,7 +668,7 @@ Suppose we don't:
                             #! n
                             #=> dump the comments, join l, set $in_cont, set l=n
 
-                                $joinedline .= _removeCont( $line, $free_form );
+                                $joinedline .= _removeCont( $line, $free_form, $remove_spaces_ok );
                                 ( $stref, $s, $srctype ) =
                                   _pushAnnLine( $stref, $s, $srctype, $f,
                                     $joinedline, $free_form );
@@ -673,7 +682,7 @@ Suppose we don't:
          #  n
          #=> dump the comments, join l, emit joined, set l=n (set maybe_in_cont)
 
-                                $joinedline .= _removeCont( $line, $free_form );
+                                $joinedline .= _removeCont( $line, $free_form, $remove_spaces_ok );
                                 ( $stref, $s, $srctype ) =
                                   _pushAnnLine( $stref, $s, $srctype, $f,
                                     $joinedline, $free_form );
@@ -766,9 +775,10 @@ Suppose we don't:
                                       _pushAnnLine( $stref, $s, $srctype, $f,
                                         $commentline, $free_form );
                                 }
-                                $joinedline .= _removeCont( $line, $free_form );
+                                $joinedline .= _removeCont( $line, $free_form, $remove_spaces_ok );
+                                my $remove_spaces_ok2 = $joinedline=~/\w\s*$/ ? 1 : 0;
                                 $joinedline .=
-                                  _removeCont( $nextline, $free_form );
+                                  _removeCont( $nextline, $free_form, $remove_spaces_ok2 );
                                 ( $stref, $s, $srctype ) =
                                   _pushAnnLine( $stref, $s, $srctype, $f,
                                     $joinedline, $free_form );
@@ -933,14 +943,9 @@ croak "No ANNLINES in $sub_func_type $sub_or_func ($f): ".$Sf->{'Status'} unless
 # I'm assuming that $srctype can only be Subroutines or Modules
 sub _pushAnnLine {
     ( my $stref, my $f, my $srctype, my $src, my $line, my $free_form ) = @_;
-#say "\$f => $f: ";
-#say "<$line>";
-#say $srctype;
 if ($f eq 'UNKNOWN_SRC' or $stref->{$srctype}{$f}{'Status'}<$PARSED ) {
-#print  "HERE: $line" ;
+
     my $pline = _procLine( $line, $free_form );
-#    say "PLINE $f:".$pline->[0] ;
-#    say "PLINE:".Dumper($pline) ;
     if (exists $stref->{'Macros'} ) {
         $pline->[0] = _restore_case_of_macros($stref,$pline->[0]);        
     }
@@ -949,21 +954,12 @@ if ($f eq 'UNKNOWN_SRC' or $stref->{$srctype}{$f}{'Status'}<$PARSED ) {
         if ( $f ne 'UNKNOWN_SRC' ) {
             if ( $stref->{$srctype}{$f}{'Status'} < $READ )
             {    # FIXME: bit late, can I catch this earlier?
-#            say "\t$srctype $f : READ";
                 $stref->{$srctype}{$f}{'Status'} = $READ;                
             }
         }
     }
     
-    
-
-    
-#    croak "WRONG HERE FOR MODULES!";    
-#    if ( $srctype ne 'Modules' ) {
         if ( exists $pline->[1]{'SubroutineSig'} or exists $pline->[1]{'FunctionSig'}) {
-#        	if ($f eq 'sub') {
-#        		croak Dumper($stref->{'Modules'}{'sub'});
-#        	}
         	if ( not defined $stref->{$srctype}{$f}{'Status'} ) {
  				$stref->{$srctype}{$f}{'Status'} = $UNREAD;
  			}
@@ -985,21 +981,16 @@ if ($f eq 'UNKNOWN_SRC' or $stref->{$srctype}{$f}{'Status'}<$PARSED ) {
  			$srctype='Subroutines';	 			
             $stref->{'Subroutines'}{$f}{'AnnLines'} = [] unless $stref->{'Subroutines'}{$f}{'Status'} == $PARSED;
         } 
-#    }
-#say "PLINE2: ($srctype $f)".Dumper($pline) ;
 
     if ( exists $pline->[1]{'EndModule'} and $srctype eq 'Subroutines' ) { 
         if ( $f ne 'UNKNOWN_SRC' ) {
             if ( $stref->{$srctype}{$f}{'Status'} < $READ )
             {   
-#            say "\t$srctype $f : READ";
                 $stref->{$srctype}{$f}{'Status'} = $READ;                
             }
         }
         my $mod_name = $pline->[1]{'EndModule'};
-#        say $stref->{'Modules'}{$mod_name}{'Status'},'<>',$PARSED;
         push @{ $stref->{'Modules'}{$mod_name}{'AnnLines'} }, $pline unless $stref->{'Modules'}{$mod_name}{'Status'} == $PARSED;
-#        croak $pline->[0];
     } else {
     if ($f ne  'UNKNOWN_SRC') { # WV: what should happen is that on exit of a subroutine we push the rest onto the Module annlines. 
     	push @{ $stref->{$srctype}{$f}{'AnnLines'} }, $pline unless $stref->{$srctype}{$f}{'Status'} == $PARSED;
@@ -1049,26 +1040,32 @@ sub _isCont {
 
 # -----------------------------------------------------------------------------
 sub _removeCont {
-    ( my $line, my $free_form ) = @_;
+    ( my $line, my $free_form, my $remove_blanks_ok ) = @_;
     chomp $line;
     if ( _isCommentOrBlank($line) ) {
         return '';
     }
+    
     if ( $free_form == 0 ) {
-        if ( $line =~ /^\ {5}[^0\s]/ )
-        {    # continuation line. Continuation character can be anything!
+        if ( $line =~ /^\ {5}[^0\s]/ ) {    # continuation line. Continuation character can be anything!
             # Can't have a blank here as they can split in the middle of a variable name!
             # However, removing the blanks leads to errors in strings.
             # A crude ad-hoc: if we detect a quote we don't remove the spaces ... WEAK, of course!
-            if ($line!~/[\'\"]/) {
-            $line =~ s/^\s{5}.\s*//;
-            } else {
-            	$line =~ s/^\s{5}.//;
+            # We can do better: of the first character of the line is a word character, and the last character of the prev line is also a word character, we remove all spaces
+            # But for that we need more info in _removeCont:
+            
+            if ($line!~/[\'\"]/ and $remove_blanks_ok) {
+            	
+            	$line =~ s/^\s{5}.\s*//;
+            } else {            	
+            	$line =~ s/^\s{5}.//;            	
             } 
         } elsif ( $line =~ /^\&/ ) {
             $line =~ s/^\&\t*/ /;
         } elsif ( $line =~ /^\t[1-9]/ ) {
             $line =~ s/^\t[0-9]/ /;
+        } else {
+        	croak $line. $remove_blanks_ok if $line=~/iatt\,\ attname/;
         }
     } else {
         if ( $line =~ /^\s*\&/ ) {
@@ -1127,9 +1124,22 @@ sub _procLine {
 
     # Detect and standardise comments
     
-    if ( $line =~ /^(?:[CD]\W+|\*|\s*\!)/i or $line =~ /^[CD]$/i or $line =~ /^\ {6}\s*\!/i ) {
-        $line =~ s/^(?:[CcDd\*]\s*|\s*\!)/! /;
-        $info->{'Comments'} = 1;
+# A line with a c, C, *, d, D, or! in column one is a comment line. The d, D, and! are nonstandard.     
+    if ($free_form==0 and $line=~/^[CD\*\!]/i) {
+    	$info->{'Comments'} = 1;
+    	$line = '! '.substr($line,1);
+    } elsif ($line=~/^\s*\!/) {
+# If you put an exclamation mark (!) in any column of the statement field, except within character literals, then everything after the ! on that line is a comment.    	
+    	$info->{'Comments'} = 1;	
+#    if ( $line =~ /^(?:[CD]\W+|\*|\s*\!)/i or $line =~ /^[CD]$/i or $line =~ /^\ {6}\s*\!/i ) {
+#        $line =~ s/^(?:[CcDd\*]\s*|\s*\!)/! /;
+#        $info->{'Comments'} = 1;
+#    } elsif ($free_form==0 and $line=~/^\s*([cd]\w+)\b/i) {
+#    	my $maybe_comment=lc($1);
+#    	if (not exists $F95_reserved_words{$maybe_comment} and not exists $F95_types{$maybe_comment}) {
+#    		$info->{'Comments'} = 1;
+#    		$line =~ s/^\s*/! /;
+#    	}     
 	} elsif ( $line =~ /^\s*contains\s*$/i) { 
 		$info->{'Contains'}=1;       
     } elsif ( $line =~ /.\!.*$/ ) {    # FIXME: trailing comments are discarded!
@@ -1184,7 +1194,18 @@ sub _procLine {
             $line =~ s/^(\d+)\s+/$str/;
         };
     }
+    
     if ( substr( $line, 0, 2 ) ne '! ' ) {
+    	
+    	if ($line!~/character\s*\*/i and  $line=~/\d+\s+[Ee]\s*[\+\-]?\d+/ or $line=~/\d+\s*[Ee]\s+[\+\-]?\d+/) {
+    		
+    		while ($line=~/\d+(\s+[Ee]\s*)[\+\-]?\d+/ or $line=~/\d+(\s*[Ee]\s+)[\+\-]?\d+/ ) {
+    			my $orig=$1;
+    			my $fix=$orig;$fix=~s/\s+//g;
+    			$line=~s/$orig/$fix/;    			    			
+    		}
+    		
+    	}
         if ( $line =~ /^\s+include\s+[\'\"]([\w\.]+)[\'\"]/i ) {
             $info->{'Includes'} = $1;
             $line =~ s/\bINCLUDE\b/include/;
@@ -1260,11 +1281,13 @@ sub _procLine {
 }    # END of _procLine()
 
 # -----------------------------------------------------------------------------
-sub _isCommentOrBlank {
+sub _isCommentOrBlank { # for fixed form
     ( my $line ) = @_;
 
     # Detect comments & blank lines
-    if ( $line!~/^\s*contains\s*$/i and ( $line =~ /^[CD\*\!]/i or $line =~ /^\ {6}\s*\!/i )) {
+# A line with a c, C, *, d, D, or! in column one is a comment line. The d, D, and! are nonstandard.         
+    if ($line=~/^[CD\*\!]/i or $line=~/^\s*\!/) {    
+#    if ( $line!~/^\s*contains\s*$/i and ( $line =~ /^[CD\*\!]/i or $line =~ /^\ {6}\s*\!/i )) {
         return 1;
     } elsif ( $line =~ /^\s*$/ ) {
         return 1;

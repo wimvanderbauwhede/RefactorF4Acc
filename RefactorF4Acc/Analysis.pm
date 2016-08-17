@@ -214,7 +214,7 @@ sub _analyse_variables {
 
 			my $Sf     = $stref->{'Subroutines'}{$f};
 			my @chunks = ();
-			if ( exists $info->{'If'} ) {
+			if ( exists $info->{'If'} or exists $info->{'ElseIf'} ) {
 				@chunks = keys %{ $info->{'CondVars'} };
 			}
 
@@ -264,10 +264,11 @@ sub _analyse_variables {
 			for my $mvar (@chunks) {
 				next if $mvar =~ /^\d+$/;
 				next if not defined $mvar or $mvar eq '';
-#say "TESTING $mvar in $f " if $mvar eq 'rvcn01';
+
 				#				my $maybe_orig_arg = in_nested_set( $Sf, 'OrigArgs', $mvar );
 				# Means arg was declared
 				my $in_vars_subset = in_nested_set( $Sf, 'Vars', $mvar );
+#				say "SUBSET: $in_vars_subset";
 				my $decl_orig_arg = exists $Sf->{'DeclaredOrigArgs'}{'Set'}{$mvar} ? 1 : 0;
 
 				# Means arg has been declared via Implicits
@@ -294,14 +295,14 @@ sub _analyse_variables {
 				#say "$f LINE: $line " if $mvar eq 'ivcn01';
 #				 die $in_vars_subset if $mvar eq 'rvcn01';
 				if (
-					not exists $identified_vars->{$mvar}
-					and ( not $in_vars_subset
-						or ( $in_vars_subset and $Sf->{$in_vars_subset}{'Set'}{$mvar} eq '1' ) )
+					not exists $identified_vars->{$mvar} # mvar not yet identified
+					and ( 
+						not $in_vars_subset
+						or ( $in_vars_subset and $Sf->{$in_vars_subset}{'Set'}{$mvar} eq '1' ) 
+						)
 				  ) {
 					my $in_incl = 0;
-					if ( not exists $Sf->{'Commons'}{$mvar} ) {
-						
-						
+					if ( not exists $Sf->{'Commons'}{$mvar} ) {												
 						for my $inc ( keys %{ $Sf->{'Includes'} } ) {
 							say "LOOKING FOR $mvar from $f in $inc" if $DBG;
 
@@ -365,9 +366,8 @@ sub _analyse_variables {
 								}
 							}
 						}
-					} else {
-						
-								}
+					} 
+					
 					if ( not $in_incl ) {
 
 						# Now check if this variable might be accessed via the containing program or module
@@ -407,7 +407,20 @@ sub _analyse_variables {
 					}
 				} else {
 					say "_analyse_variables($f) " . __LINE__ . " : $mvar ALREADY DECLARED in $in_vars_subset:\n" . Dumper( $Sf->{$in_vars_subset}{'Set'}{$mvar} ) if $I;
+					for my $inc ( keys %{ $Sf->{'Includes'} } ) {
+							say "LOOKING FOR $mvar from $f in $inc" if $DBG;
+							# A variable can be declared in an include file or not and can be listed as common or not
+							if ( in_nested_set( $stref->{'IncludeFiles'}{$inc}, 'Vars', $mvar )
+								)
+							{								
+								if ( $stref->{'IncludeFiles'}{$inc}{'InclType'} eq 'Parameter' ) {
+									print "WARNING: $mvar in $f is a PARAMETER from $inc!\n" if $W;
+									 $Sf->{'Includes'}{$inc}{'Only'}{$mvar} =1;
+								}
+							}
+					}
 				}
+#				croak $in_vars_subset. ';' if $mvar eq 'unitboundcond' and $f eq 'boundcond_domainfill';
 			}
 			return ( $annline, [ $stref, $f, $identified_vars ] );
 		} else {

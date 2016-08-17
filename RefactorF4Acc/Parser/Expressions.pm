@@ -60,6 +60,8 @@ $VAR1 = [
 sub parse_expression { (my $exp, my $info, my $stref, my $f)=@_;
 	my $preproc_expr = $exp;
 	 
+
+	 
 	$preproc_expr =~s/\s+//g;
 	
 	# EVIL HACK to 'support' Alternate Returns
@@ -90,7 +92,6 @@ sub parse_expression { (my $exp, my $info, my $stref, my $f)=@_;
 	# Remove ':' because again this only occurs for characters strings
 	my $wrap=0;
 	my $has_colons=0;
-	
 	if ($preproc_expr =~ /:/) {
 #		say "EXPR $exp";
 		$has_colons=1;
@@ -100,17 +101,19 @@ sub parse_expression { (my $exp, my $info, my $stref, my $f)=@_;
 		$preproc_expr =~ s/,,_COLON_PRE_/,_COLON_PRE_/g;
 		$preproc_expr =~ s/_COLON_PRE_,,/_COLON_PRE_,/g;
 	}
-		
+#		carp "EXPR 3: $preproc_expr" if $preproc_expr=~/path.+len.+wfname/;
 	# HACK to support '//'
 	my $has_concat=0;
 	if ($preproc_expr =~ /\/\//) {
 		# If this expression contains parens I just remove them!
-		$preproc_expr =~ s/[\)\(]//g;
+		# This is bad, it breaks 	 	#   path(3)(1:len(3))//wfname(ifn)
+#		$preproc_expr =~ s/[\)\(]//g;
 		$preproc_expr =~ s/\/\//,_CONCAT_PRE_,/g;
 		$preproc_expr =~ s/\(,_CONCAT_PRE_/\(_CONCAT_PRE_/g;
 		$preproc_expr =~ s/_CONCAT_PRE_,\)/_CONCAT_PRE_\)/g;
 		$wrap=1;
 	}	  
+#	carp "EXPR 4: $preproc_expr" if $preproc_expr=~/path.+len.+wfname/;
 	
 	my $double_paren=0;
 	# EVIL HACK to get rid of f(x)(y)
@@ -127,13 +130,14 @@ sub parse_expression { (my $exp, my $info, my $stref, my $f)=@_;
 		$preproc_expr =~ s/,,_PAREN_PAIR_/,_PAREN_PAIR_/g;
 		$preproc_expr =~ s/_PAREN_PAIR_,,/_PAREN_PAIR_,/g;		
 	}	  	
-	 		
+#	 		carp "EXPR 5: $preproc_expr" if $preproc_expr=~/path.+len.+wfname/;
 	# We want to wrap if this is a list. But how can I tell without parsing it?
 	my $wrapped_expr = $preproc_expr;
 	if ($wrap) {
 	 $wrapped_expr = '_dummy_('.$preproc_expr.')';
 	}
-#	say "WRAPPED EXPR: $wrapped_expr" if $has_colons;
+
+#	croak  "WRAPPED EXPR: $wrapped_expr" if $wrapped_expr=~/path.+len.+wfname/; 
     my $ast = Math::Expression::Evaluator::Parser::parse($wrapped_expr, {});
 
 	if ($wrap) {

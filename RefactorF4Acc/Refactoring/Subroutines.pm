@@ -54,13 +54,10 @@ sub refactor_all_subroutines {
         next if $Sf->{'Status'} == $UNREAD;
         next if $Sf->{'Status'} == $READ;
         next if $Sf->{'Status'} == $FROM_BLOCK;
-#        next if (exists $Sf->{'Function'} and $Sf->{'Function'} ==1 ); # FIXME: instead, do if/then and use  refactor_called_functions()
-#        if (exists $Sf->{'Function'} and $Sf->{'Function'} ==1 ) {
-## $stref = refactor_called_functions($stref, $f);
-#        } else {
 	
             $stref = _refactor_subroutine_main($stref, $f);
-#        }      
+                
+
     }
 
     return $stref;
@@ -111,15 +108,11 @@ sub _refactor_subroutine_main {
           }
         print "#" x 80, "\n";
     }
-#    if (in_nested_set($Sf,'Vars','varname') ){
-#    say "_refactor_subroutine_main($f):".Dumper(get_var_record_from_set($Sf->{'Vars'},'varname'));
-#    }
     say "context_free_refactorings($f)" if $V;
-    $stref = context_free_refactorings( $stref, $f ); # FIXME maybe do this later    
-	    
+    $stref = context_free_refactorings( $stref, $f ); # FIXME maybe do this later
     say "get_annotated_sourcelines($f)" if $V;
     my $annlines = $Sf->{'RefactoredCode'};
-    
+
     if (1 or $Sf->{'HasCommons'} or (
     exists $Sf->{'Contains'} and
     scalar @{$Sf->{'Contains'}}>0)) { 
@@ -132,19 +125,21 @@ sub _refactor_subroutine_main {
 
         } elsif ( $Sf->{'RefactorGlobals'} == 2 ) { 
             croak 'SHOULD BE OBSOLETE!';
-#            say "_refactor_calls_globals($f)" if $V;
-#            $annlines = _refactor_calls_globals( $stref, $f, $annlines );            
         }
     }
+	 
     $annlines = _fix_end_lines($stref, $f, $annlines); # FIXME maybe do this later
+    
     if ($is_block_data) {
     	$annlines = _add_extra_assignments_in_block_data($stref, $f, $annlines);
-#    	croak Dumper($annlines ); 
+ 
     }
+    
 #    croak Dumper($annlines );
     $Sf->{'RefactoredCode'}=$annlines;    
     $Sf->{'AnnLines'}=$annlines;
 #    croak Dumper($stref->{'Subroutines'}{'fm001'}{'AnnLines'}).'HERE';    
+
     return $stref;
 }    # END of _refactor_subroutine_main()
 
@@ -313,7 +308,7 @@ sub _refactor_globals_new {
 		if (exists $stref->{'Subroutines'}{$container}{'Parameters'}) {
 			$Sf->{'ParametersFromContainer'}=$stref->{'Subroutines'}{$container}{'Parameters'}; # Note this is a nested set
 			my $all_pars_in_container = get_vars_from_set( $stref->{'Subroutines'}{$container}{'Parameters'} );
-			for my $par ( keys %{$all_pars_in_container} ) { # @{ $stref->{'Subroutines'}{$container}{'Parameters'}{'List'} } ) {
+			for my $par ( keys %{$all_pars_in_container} ) { 
 				my $par_decl = $all_pars_in_container->{$par};
 				my $par_decl_line=[ '      '.emit_f95_var_decl($par_decl), {'ParamDecl' => $par_decl,'Ref'=>1}];
 				push @par_decl_lines_from_container,$par_decl_line; 
@@ -331,6 +326,7 @@ sub _refactor_globals_new {
 	}
     
  	my $inc_counter = scalar keys %{$Sf->{'Includes'}};
+ 	
     for my $annline ( @{$annlines} ) {
         (my $line, my $info) = @{ $annline };
         my $skip = 0;
@@ -379,6 +375,7 @@ sub _refactor_globals_new {
         	$hook_after_last_incl=0;
         }
         if ( exists $info->{'ExGlobVarDeclHook'} ) {
+        	
         	# FIXME: I don't like this, because in the case of a program there should simply be no globals etc.
            # Then generate declarations for ex-globals
            say "HOOK for $f: " .$info->{'ExGlobVarDeclHook'} if $V;
@@ -387,12 +384,13 @@ sub _refactor_globals_new {
         } 
 
         if ( exists $info->{'SubroutineCall'} ) { 
+        	
             # simply tag the common vars onto the arguments            
             $rlines = _create_refactored_subroutine_call( $stref, $f, $annline, $rlines );        
             $skip = 1;
         }
         
-        if ( exists $info->{'FunctionCalls'} ) {
+        if ( exists $info->{'FunctionCalls'} ) {        	
 #        	say "LINE HAS FUNCTION CALL: $line"; 
             # Assignment and Subroutine call lines can contain function calls that also need exglob refactoring!            
             $rlines = _create_refactored_function_calls( $stref, $f, $annline, $rlines );        
@@ -586,8 +584,6 @@ sub _create_refactored_function_calls {
     my $Sf        = $stref->{'Subroutines'}{$f};
     (my $line, my $info) = @{ $annline };
 
-    
-     
 		# Get the AST
 		my $ast = [];
 		if (exists $info->{'Assignment'} ) {
@@ -601,19 +597,41 @@ sub _create_refactored_function_calls {
 		# Basically, whenever we meet a function, we query it for ExGlobArgs and tag these onto te argument list.
 		my $updated_ast = __update_function_calls_in_AST($stref,$Sf,$f,$ast);
 		my $updated_line = emit_expression($updated_ast);
-#		croak Dumper($annline ) if exists $info->{PlaceHolders}; 
-if ( exists $info->{'PlaceHolders'} ) { 
+ 
+		if ( exists $info->{'PlaceHolders'} ) { 
 
 			while ($updated_line =~ /(__PH\d+__)/) {
 				my $ph=$1;
 				my $ph_str = $info->{'PlaceHolders'}{$ph};
 				$updated_line=~s/$ph/$ph_str/;
-			}
-#carp "_create_refactored_function_calls($f): ".$updated_line if $updated_line=~/cf716\(3/;                                    
+			}                                    
             $info->{'Ref'}++;
         }    
 		if (exists $info->{'Assignment'} ) {
-			$line=~s/=.+$//;
+			# This is a HACK!
+			my %F95_ops =(
+			    '==' => '.eq.',  
+    			'/=' => '.ne.',  
+     			'<=' => '.le.',  
+     			'>=' => '.ge.',
+			    'eq' => '==',
+			    'ne' => '/=',
+			    'le' => '<=',
+			    'ge' => '>=',     			
+			);
+			for my $op (  '==', '/=', '<=','>=' ) {
+				my $rop =  $F95_ops{$op};
+				while($line=~/$op/) {
+					$line=~s/$op/$rop/;
+				}
+			}
+			$line=~s/=.+$//; 
+			for my $op (  'eq', 'ne', 'le','ge' ) {
+				my $rop =  $F95_ops{$op};
+				while($line=~/\.$op\./) {
+					$line=~s/\.$op\./$rop/;
+				}
+			}			
 			$line.=	' = '.$updated_line;
 		} elsif (exists $info->{'SubroutineCall'}) {
 			$line=~s/call.+$//;

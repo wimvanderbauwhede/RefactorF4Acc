@@ -337,7 +337,7 @@ sub context_free_refactorings {
 #            	say $f . ' => '.$inc. ' => '.Dumper($Sf->{'Includes'}{$inc});
             	if (exists $Sf->{'Includes'}{$inc}{'Only'} and scalar keys %{ $Sf->{'Includes'}{$inc}{'Only'} }>0) {            		            	
             		my @used_params = keys %{ $Sf->{'Includes'}{$inc}{'Only'} };
-                	$line = "      use $tinc, only : ".join(', ', @used_params);
+                	$line = "      use $tinc". ($NO_ONLY ?  '!' : '') .', only : '.join(', ', @used_params) ;
                   	push @{ $info->{'Ann'} }, annotate($f, __LINE__. ' Include' );
             	} elsif (exists $stref->{'IncludeFiles'}{$inc}{'ParamInclude'}) {
             		my $param_include=$stref->{'IncludeFiles'}{$inc}{'ParamInclude'};
@@ -345,7 +345,7 @@ sub context_free_refactorings {
             		$tinc =~ s/\./_/g;            		
             		  	if (exists $Sf->{'Includes'}{$param_include}{'Only'} and scalar keys %{ $Sf->{'Includes'}{$param_include}{'Only'} }>0) {            		            	
             		my @used_params = keys %{ $Sf->{'Includes'}{$param_include}{'Only'} };
-                	$line = "      use $tinc, only : ".join(', ', @used_params);
+                	$line = "      use $tinc". ($NO_ONLY ?  '!' : '') .", only : ".join(', ', @used_params);
                   	push @{ $info->{'Ann'} }, annotate($f, __LINE__. ' Include' );
             		  	} else {
                 	$line = "!      use $tinc ! ONLY LIST EMPTY";
@@ -358,8 +358,9 @@ sub context_free_refactorings {
                   	push @{ $info->{'Ann'} }, annotate($f, __LINE__ . ' no pars used'); #croak 'SKIP USE PARAM';            		
             	}
             } else {
-                $line =
-                  "      include '$inc'";
+            	say 'WARNING: EXTERNAL INCLUDES ARE COMMENTED OUT!' if $W;
+                $line =                
+                  "!      include '$inc'"; # FIXME
                   push @{ $info->{'Ann'} }, annotate($f, __LINE__ . ' External ');
             }
             $info->{'Ref'}++;
@@ -519,7 +520,6 @@ sub create_refactored_source {
                     push @{$refactored_lines}, [ $spaces . $sline, $info ];
                 }
             } else {
-#                $line =~ s/\s+\!\!.*$// ; # FIXME: ad-hoc to remove comments from context-free refactoring
 				if (not exists $info->{'ReadCall'} and
 				not exists $info->{'WriteCall'} and
 				not exists $info->{'PrintCall'} ) {
@@ -534,6 +534,7 @@ sub create_refactored_source {
 				 		my $ph_str = $info->{'PlaceHolders'}{$ph};
 				 		$ph_str=~s/\)/\\\)/g;
 				 		$ph_str=~s/\(/\\\(/g;
+				 		$ph_str=~s/\*/\\\*/g;
 				 		$ph_line=~s/$ph_str/$ph/;
 				 	}
 				 	$line_without_comment = $ph_line;
@@ -546,13 +547,14 @@ sub create_refactored_source {
 				 } else {
 				 	$line_without_comment = $line;
 				 }
- 
- 
-	                my @split_lines = split_long_line($line_without_comment);
+				 
+ 	                my @split_lines = $SPLIT_LONG_LINES ? split_long_line($line_without_comment) : ( $line );
     	            for my $sline (@split_lines) {
         	            push @{$refactored_lines}, [ $sline, $info ];
             	    }
-            	    $refactored_lines->[-1][0].='!'.$comment;
+            	    if ($comment ne '') {
+            	    $refactored_lines->[-1][0].=' !'.$comment;
+            	    }
 				} else {
 					push @{$refactored_lines}, [ $line, $info ];
 				}
@@ -565,7 +567,7 @@ sub create_refactored_source {
 }    # END of create_refactored_source()
 
 # -----------------------------------------------------------------------------
-sub create_refactored_source_OLD {
+sub create_refactored_source_OLD { croak "OBSOLETE!";
     ( my $stref, my $f, ) = @_;
     print "CREATING FINAL $f CODE\n" if $V;
     die join( ' ; ', caller ) if $stref !~ /0x/;

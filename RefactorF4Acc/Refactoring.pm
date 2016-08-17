@@ -39,21 +39,16 @@ use Exporter;
 
 sub refactor_all {
 	( my $stref, my $subname, my $stage) = @_;
-        
+
     $stref = refactor_include_files($stref);
     return $stref if $stage == 1;
-    
+
     $stref = refactor_called_functions($stref); # Context-free only FIXME: this should be treated just like subs, but if course that requires full parsing of expressions
     return $stref if $stage == 2;
-    
-#croak Dumper(get_var_record_from_set($stref->{'Subroutines'}{'read_ncwrfout_1realfield'}{'Vars'},'varname'));    
     # Refactor the source, but don't split long lines and keep annotations
     $stref = refactor_all_subroutines($stref);
     
-#croak Dumper($stref->{'Subroutines'}{'gridcheck_nests'}{'DeclaredOrigLocalVars'}{'Set'}{'varname'});
-#    die Dumper($stref->{'Subroutines'}{'boundsm'}{'Vars'});
     return $stref if $stage == 3;
-#say "VARS:\n".Dumper($stref->{'Subroutines'}{'timemanager'}{'Vars'})."\nREFACTORED ARGS:\n".Dumper($stref->{'Subroutines'}{'timemanager'}{'RefactoredArgs'});croak;    
     # This can't go into refactor_all_subroutines() because it is recursive
     # Also, this is actually analysis
     $stref = determine_argument_io_direction_rec( $subname, $stref );    

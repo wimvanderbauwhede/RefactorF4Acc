@@ -24,6 +24,7 @@ use Exporter;
     %F95_intrinsics
     %F95_intrinsic_functions
     %F95_other_intrinsics
+    %F95_types
     &sub_func_incl_mod
     &show_annlines
     &pp_annlines
@@ -855,7 +856,21 @@ form
 status
 unit
 );
+
+our @F95_types_list = qw(
+real
+integer
+double
+precision
+doubleprecision
+logical
+character 
+complex
+);
+
 our %F95_reserved_words = map { $_=>1 } @F95_reserved_words_list ; 
+our %F95_types = map { $_=>1 } @F95_types_list;
+
 
 our %F95_intrinsics = (%F95_intrinsic_functions,%F95_other_intrinsics);
 

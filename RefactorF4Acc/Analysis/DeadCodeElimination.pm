@@ -24,7 +24,7 @@ use Exporter;
 );
 
 =info
-I want a flexible way to optimise away dead code. Basically, I go through the code and register when I find e.g. a Do or If, and then and EndDo or EndIf. If in between there are only comments, then all that can be removed. Actually, if there are not assignments or subroutine calls, the code can be removed.
+I want a flexible way to optimise away dead code. Basically, I go through the code and register when I find e.g. a Do or If, and then and EndDo or EndIf. If in between there are only comments, then all that can be removed. Actually, if there are no assignments or subroutine calls, the code can be removed.
 =cut
 
 

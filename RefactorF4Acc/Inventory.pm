@@ -41,7 +41,7 @@ sub find_subroutines_functions_and_includes {
     my %excluded_dirs = map { $_ => 1 } @{ $Config{EXCL_DIRS} };
     my $has_pattern = $Config{EXCL_SRCS} ne '' ? 0 : 1;    
     my $excl_srcs_pattern    = @{ $Config{EXCL_SRCS} }>1? join('|', @{ $Config{EXCL_SRCS} }) : $Config{EXCL_SRCS}->[0];
-    say     'Exlcude pattern: /'.$excl_srcs_pattern.'/' if $V;
+    say     'Exclude pattern: /'.$excl_srcs_pattern.'/' if $V;
 	my $excl_srcs_regex      = qr/$excl_srcs_pattern/;
     # find sources (borrowed from PerlMonks)
     
@@ -169,11 +169,21 @@ sub _process_src {
             }
             
             # Skip comments              
-            $line =~ /^(?:[Cc\*]\s+|\s*\!)/i && next;
-            
+            # A line with a c, C, *, d, D, or! in column one is a comment line. The d, D, and! are nonstandard.
+            # Problem is, if this is free form, then this line could be a statement line. But the declarations should come first so should be OK. 
+            if ($free_form == 0 and $line =~ /^[CD\*\!]/i ) {
+            	 next;
+            }
+            if ($line =~ /^\s*\!/) {
+            	 next; # for free form
+            }
+#             $line =~ /^\s*\*/ && next;
+#             $line =~ /^\s*[CcDd]\W/ && next;
         # Tests for free or fixed form
         if ($free_form==0) {
+        	# Get 6 cols
         	my $cols1to6 = substr($line,0,6);
+        	# FIXME: HACK: change TAB to 4 spaces
         	if ($cols1to6 =~/^\s*\d*\t/) {
         		my $tline = $line;
         		chomp $tline;
@@ -187,7 +197,9 @@ sub _process_src {
 #The standard fixed format source lines are defined as follows:
 #• The first 72 columns of each line are scanned. See “Extended Lines,” page 9.
 #• Continuation lines are identified by a nonblank, nonzero in column 6.
-			if ($cols1to6_chars[5] ne " " 
+			if (
+				defined $cols1to6_chars[5] 
+			and $cols1to6_chars[5] ne " " 
 			and $cols1to6_chars[5] ne "0") {
 				$is_cont=1;
 			} 
@@ -198,8 +210,7 @@ sub _process_src {
 #• The first five columns must be blank or contain a numeric label.
         	# And the whitespace at the start of the line does not contain tabs
             if ( $line !~ /^[\s\d]{5}.+/ and $line !~ /^\t[\t\s]*\w/ and $line !~/^\s+\t/) {
-                $free_form = 1;       
-#                die $line,$src;                                                     
+                $free_form = 1;     
             } 
 
             # TAB format
@@ -211,6 +222,7 @@ sub _process_src {
             	if ($cols1to6_char eq "\t") {
             		 $free_form = 0;     
             		 $tab_format=1;
+            		 carp 'TAB FORMAT IS NOT WELL SUPPORTED!';
 #• Continuation lines are identified by  a nonzero digit after the first tab.                        		 
             		 if ($cols1to6_chars[$col_ctr+1] =~/1-9/) {
             		 	$is_cont=1;
@@ -232,7 +244,6 @@ sub _process_src {
             
         }   
         # Tests for F77 or F95
-        
             if ( $line =~ /^\s*module\s+(\w+)/i ) { # die "LINE: $line";
             
                 $in_module=1; 
