@@ -354,8 +354,7 @@ sub _analyse_lines {
 		print "\nINFO: VAR DECLS in $f:\n" if $I;
 		my %vars = ();
 
-		my $first          = 1;
-		my $is_f77_vardecl = 0;
+		my $first          = 1;		
 		my $type           = 'NONE';
 		my $varlst         = '';
 		my $indent         = '';
@@ -369,36 +368,40 @@ sub _analyse_lines {
 
 		for my $index ( 0 .. scalar( @{$srcref} ) - 1 ) {
 			my $attr = '';
-			( my $line, my $info ) = @{ $srcref->[$index] };
+			( my $lline, my $info ) = @{ $srcref->[$index] };
 			# Get indent			
-			$line =~ /^(\s+).*/ && do { $indent = $1; };
+			$lline =~ /^(\s+).*/ && do { $indent = $1; }; # This is not OK for lines with labels of course.
 
 			$info->{'LineID'} = $index;
 			# Skip comments 
-			if ( $line =~ /^\s*\!/ && $line !~ /^\!\s*\$(?:ACC|RF4A)\s/i ) {
+			if ( $lline =~ /^\s*\!/ && $lline !~ /^\!\s*\$(?:ACC|RF4A)\s/i ) {
 				next;
 			}
-			my $mline = $line;    # modifiable copy of $line
+		
 
 			# Handle !$ACC
-			if ( $line =~ /^\!\s*\$(?:ACC|RF4A)\s.+$/i ) {
-				( $stref, $info ) = __handle_acc( $stref, $f, $index, $line );
+			if ( $lline =~ /^\!\s*\$(?:ACC|RF4A)\s.+$/i ) {
+				( $stref, $info ) = __handle_acc( $stref, $f, $index, $lline );
 			}
-
+		
+			# Here we remove the label if there is one.
+			my $line = $lline;
 			
-			# FIXME Trailing comments are ignored!
-			#            if ( $line =~ /^\!\s/ ) {
-			#                $stref->{$sub_incl_or_mod}{$f}{'Info'}
-			#                  ->[$index]{'TrailingComments'} = {};
-			#                next;
-			#            }
-			
+			if ($line=~/^\s*(\d+)/) {
+				my $label=$1;
+				$info->{'Label'}=$label;
+				$line=~s/^\s*\d+\s*//;	
+			} else {
+				# remove any leading spaces
+				$line=~s/^\s+//;
+			}
 			
 			# --------------------------------------------------------------------------------
 			# BLOCK identification code
 			# --------------------------------------------------------------------------------
+			# START of BLOCK
 			
-			$line=~/^\s*\d*\s+(map|structure|union|select)\s+/ && do {
+			$line=~/^(map|structure|union|select)\s+/ && do {
 				my $block_type=$1;
 				++$block_nest_counter;
 				++$block_counter;
@@ -407,22 +410,20 @@ sub _analyse_lines {
 				$info->{ucfirst($block_type)}=1;
 			};
 			
-			$line=~/^\s*\d*\s+(if).*?then\s+/ && do {
+			$line=~/^if.*?then\s+/ && do {
 				++$block_nest_counter;
 				++$block_counter;				
-				my $block={'Nest'=>$block_nest_counter, 'Type' => $1};
+				my $block={'Nest'=>$block_nest_counter, 'Type' => 'if'};
 				push @blocks_stack,$block;
-#				say "\t" x $block_nest_counter,"BEGIN block #$block_counter IF";
 			};	
-			$line=~/^\s*\d*\s+(do)\s+(\w+)\s+\w+\s*=/ && do {				 
+			$line=~/^do\s+(\w+)\s+\w+\s*=/ && do {				 
 				++$block_nest_counter;
 				++$block_counter;				
-				my $block={'Nest'=>$block_nest_counter, 'Type' => $1, 'Label' => $2};
+				my $block={'Nest'=>$block_nest_counter, 'Type' => 'do', 'Label' => $1};
 				push @blocks_stack,$block;
-#				say "\t" x $block_nest_counter,"BEGIN block #$block_counter DO LABEL $2";
 			};		
 			# Procedure block identification				
-			$line =~ /^\s*(\w+\s+\w+\s+(?:function|subroutine)|\w+\s+subroutine|[\*\(\)\w]+\s+function|function|subroutine|program|block)\s+(\w+)/ && do {
+			$line =~ /^(\w+\s+\w+\s+(?:function|subroutine)|\w+\s+subroutine|[\*\(\)\w]+\s+function|function|subroutine|program|block)\s+(\w+)/ && do {
 				my $full_proc_type=$1;
 				my $proc_name=$2;			
 				my $proc_type = $full_proc_type=~/program/ ? 'program' : 
@@ -433,7 +434,6 @@ sub _analyse_lines {
 					$full_proc_type = 'block data';
 					$proc_name = 'block_data';
                 	$line=~/block\s+data\s+(\w+)/i && do { $proc_name=$1 };
-#					carp "FOUND BLOCK DATA $proc_name: $line";
 				}
 				# If it's a function, create a record for the return value
 				if ($proc_type eq 'function') {
@@ -460,24 +460,18 @@ sub _analyse_lines {
 				
 				my $block={'Nest'=>$block_nest_counter, 'Type' => $proc_type, 'Name'=>$proc_name};
 				push @blocks_stack,$block;
-#				say "\nLINE <$line>\n","\t" x $block_nest_counter,"BEGIN block #$block_counter, NEST:".$block->{'Nest'}." $proc_type $proc_name ";
 			};
 			
 			# END of BLOCK:			
-			$line=~/^\s*\d*\s+end\s+/ && $line!~/^\s*\d*\s+end\s+do/ && do {
+			$line=~/^end\s+/ && $line!~/^end\s+do/ && do {
 				my $block = pop @blocks_stack;
-#				print "\t" x $block_nest_counter,"END for block #$block_counter, NEST:".$block->{'Nest'}.' '.$block->{'Type'}. ' ';
-#				 if (exists $block->{'Name'} ) {
-#				 	say ' '.$block->{'Name'} ;
-#				 	$info->{'End'.ucfirst($block->{'Type'}) } =$block->{'Name'};
-#				 } else {
-#				 	say '';
-#				 }
 				--$block_nest_counter;
 			};
-#    CONTINUE statement			
-			$line=~/^\s*(\d+)\s+continue/ && do {
-				my $cont_label=$1;
+			
+#    CONTINUE statement. 			
+			$line=~/^continue/ && do {
+				if (exists $info->{'Label'} ) {
+				my $cont_label=$info->{'Label'} ;
 				$info->{'Continue'}={'Label' => $cont_label};
 				my $block = pop @blocks_stack;
 				if (exists $block->{'Label'} ) {
@@ -491,17 +485,71 @@ sub _analyse_lines {
 				} else {
 					push @blocks_stack, $block;
 				}
+				} else {
+					$info->{'Continue'}={};
+				}
 			};
 			# --------------------------------------------------------------------------------
 			# END of BLOCK identification code			
 			# --------------------------------------------------------------------------------
+						
+						
+			# --------------------------------------------------------------------------------
+			# Declarations, anything not an executable statement. Last one in the chain is the IF/THEN/ELSE			
+			# --------------------------------------------------------------------------------
+
+=info non-executable statements
+Statements with * are currently ignored
+Statements with ** are currently not even recognised
+
+AUTOMATIC*
+EQUIVALENCE*
+EXTERNAL*
+INTRINSIC*
+STATIC*
+MAP/END MAP*
+STRUCTURE/END STRUCTURE*
+UNION/END UNION*
+
+ENTRY**
+FORMAT**
+NAMELIST**
+OPTIONS**
+POINTER**
+PRAGMA**
+RECORD**
+SAVE**
+VOLATILE**
+
+BLOCK DATA
+BYTE
+CHARACTER
+COMMON
+COMPLEX
+DATA
+DIMENSION
+DOUBLE COMPLEX
+DOUBLE PRECISION
+FUNCTION
+IMPLICIT
+INCLUDE
+INTEGER
+LOGICAL
+PARAMETER
+PROGRAM
+REAL
+SUBROUTINE
+VIRTUAL
+
+=cut
+						
 						
 			if ( $line =~ /implicit\s+none/ ) {
 				$info->{'ImplicitNone'} = 1;
 				$Sf->{'ImplicitNone'}   = $index;
 				$srcref->[$index] = [ $line, $info ];
 				next;
-			} elsif ( $line =~ /^\s*use\s+(\w+)/ ) {
+			} elsif ( $line =~ /^use\s+(\w+)/ ) {
 				my $module = $1;
 				$info->{'Use'} = $module;
 				$srcref->[$index] = [ $line, $info ];
@@ -511,196 +559,10 @@ sub _analyse_lines {
 				$info->{'Implicit'} = 1;
 				$stref = _parse_implicit( $line, $f, $stref );
 				$srcref->[$index] = [ $line, $info ];
-				next;				
-#    Arithmetic, logical, statement label (ASSIGN), and character assignment statements				
-			} elsif ($line=~/^\s*\d*\s+assign\s+(\w+)\s+to\s+(\w+)/) {				
-				$info->{'Assign'}={'Label' => $1, 'Var' => $2};			
-#    BACKSPACE, ENDFILE statements			
-			} elsif ($line=~/(backspace|endfile)/) {
-				my $keyword = $1;
-				$info->{ ucfirst($keyword) } = 1;
-				warn uc($keyword)." is ignored!" if $W;
-#    STOP and PAUSE statements		
-			} elsif ($line=~/^\s*\d*\s+(return|stop|pause)/) {	
-				my $keyword = $1;
-				$info->{ ucfirst($keyword) } = 1;
-#	 SELECT/CASE 
-			} elsif ($line=~/select\s+case\s+\((\w+)\)/) {
-					$info->{'CaseVar'} = $1;
-				} elsif ($line=~/case\s+\((.+)\)\s*$/) {
-					my $case_vals_str = $1;
-					my @case_vals = _parse_comma_sep_expr_list($case_vals_str);
-					$info->{'CaseVals'} = [@case_vals];				
-				} elsif ($line=~/case\s+\default/) {
-					$info->{'CaseDefault'} = 1;			
-			} elsif ( $line =~ /^\s*\d*\s+else\s*$/ ) {			 	
-					$info->{'Else'} = 1;					
-#    Block, Arithmetic and logical IF statements		
-# st can be any executable statement, except a DO block, IF, ELSE IF, ELSE,
-# END IF, END, or another logical IF statement.		
-			} elsif ( $line =~ /^\s*\d*\s+(if|else\s+if)\s*\(/ ) {			 	
-				my $keyword = $1;				
-				if ( $line =~ /^\s*\d*\s+(else\s+if)/ ) {
-					$info->{'ElseIf'} = 1;
-				} else {
-					$info->{ ucfirst($keyword) } = 1;	
-				}
-				
-			# The following part should be in a separate condition block I think			
-			# What I should do is:
-			# Detect an IF. If so, detect if it is a THEN or an expression. 
-			# Get any variables from the condition. If it's an expression, assign it to $mline and just carry on. 
-			
-				my $is_cond_assign = 0;
-				my $is_cond        = 0;
-#				my $cond           = '';
-#				my $rest           = '';
-				( my $cond, $mline ) = _parse_if_cond($line);
-				$info->{'CondExecExpr'}=$cond;
-				if ( $mline =~ /=/ ) { # Is this an assignment?
-					$is_cond_assign = 1;
-				}
-				
-#				if ( $line =~ /^\s*\d*\s+(?:else\s+)?if\s*\(.+=/ ) { # an IF with an equals sign
-#					( my $if_cond, my $rest ) = _parse_if_cond_OLD($line);
-#						$cond = $if_cond;
-#						$cond=~s/if\s*\(\s*//;
-#						$cond=~s/\s*\)\s*$//;
-#						
-#						
-#					# So here we look at the part after the condition expression
-#					if ($rest=~/\(/) { # There are parens so it could be a subroutine call
-#					( my $maybe_lhs, my $maybe_rhs ) = _parse_array_access_or_function_call($rest,1);
-#					if ( $maybe_rhs =~ /=/ ) { # Is this an assignment?
-#						$mline                  = $rest;# "$maybe_lhs$maybe_rhs";
-#							
-#						$info->{'CondExecExpr'} = $mline;
-#						$is_cond_assign         = 1;
-#						$is_cond                = 1;
-#					} else {
-#						# Otherwise it is a subroutine call, but I guess it could also just be 'then' 
-#						$mline = $rest;
-#					}					
-#					} elsif ($rest=~/=/) {
-#						( my $maybe_lhs, my $maybe_rhs )=split(/\s*=\s*/, $rest);
-#						croak "ASSIGN: LINE: $line => LHS <$maybe_lhs> RHS <$maybe_rhs>"  if $f eq 'init_domainfill' and $line=~/ran1.idummy/;	
-#						$mline = "$maybe_lhs = $maybe_rhs";
-#						$info->{'CondExecExpr'} = $mline;
-#						$is_cond_assign         = 1;
-#						$is_cond                = 1;					
-#					}
-#					
-#				} elsif ( $line =~ /^(\s*\d*\s+)((?:else\s+)?if\s*\(.+)$/ ) { #  IF with either an executable statement or THEN
-#					my $indent=$1;
-#					my $rest_of_line=$2;
-#					my $has_else=$rest_of_line=~/else\s+if/ ? 1 : 0;
-#					$rest_of_line=~s/else\s+if/if/;
-#					( my $if_cond, my $rest ) = _parse_if_cond_OLD($rest_of_line);
-#					$cond = $if_cond;
-#							$cond=~s/if\s*\(\s*//;
-#					$cond=~s/\s*\)\s*$//;				
-#					# remove spaces from condition							
-#					my $conds = $cond;
-#					$conds=~s/\s+//g if defined $cond;
-#					$cond=$conds;
-#					if ($has_else) {
-#						$line = $indent.'else if ('.$conds.') '.$rest;
-#					} else {
-#						$line = $indent.'if ('.$conds.') '.$rest;
-#					}
-#					$is_cond = 1;
-#				}
-#				
-				
-#				if ( $is_cond_assign or $is_cond ) {
-					
-					# This part looks at the condition to get variables form it
-#					$cond =~ s/[\(\)]+/ /g;
-					my $ast = parse_expression($cond,  $info,  $stref,  $f);
-					my $cond_vars =  get_vars_from_expression( $ast,{});
-					$cond =~ s/\.(eq|ne|gt|ge|lt|le|and|or|not|eqv|neqv)\./ /g;
-					my @chunks = split( /\W+/, $cond );
-					my %vars_in_cond_expr = ();
-					for my $mvar (@chunks) {
-						next if $mvar eq '';
-						next if $mvar =~ /^\d+$/;
-						next
-						  if $mvar =~ /^(\-?(?:\d+|\d*\.\d*)(?:[edq][\-\+]?\d+)?)$/;
-						next if exists $F95_reserved_words{$mvar};
-						$vars_in_cond_expr{$mvar} = 1;
-					}
-					$info->{'CondVars'} = {%vars_in_cond_expr};
-					say Dumper($cond_vars);			
-					say Dumper(%vars_in_cond_expr);
-					
-							
-					next if $mline eq 'then';
-#					if ( not $is_cond_assign ) {
-#						$info->{'CondExecExpr'} = $rest;
-#						$mline =~ s/if.+?$rest/$rest/;
-#					}
-#				}
-
-			} 
-
-# So in principle anything after this can come after IF (...) 
-
-#    READ, WRITE, and PRINT statements			
-			if ( $mline =~ /^\s*\d*\s+(read|accept|inquire|write|print)\s*\(/ ) {
-				my $keyword = $1;
-				$info->{ ucfirst($keyword) . 'Call' } = 1;
-				$info->{'IO'}=1;
-				$info = parse_read_write_print( $mline, $info, $stref, $f );
-			} elsif ( $mline =~ /^\s*\d*\s+print\s+/ ) {
-				$info->{'PrintCall'} = 1;
-				$info->{'IO'}=1;
-				$info = parse_read_write_print( $mline, $info, $stref, $f );
-#    REWIND, OPEN, CLOSE statements				
-			} elsif ( $mline =~ /^\s*\d*\s*(open|close|rewind)\s*\(/ ) {
-				my $keyword = $1;
-				$info->{ ucfirst($keyword) . 'Call' } = 1;
-				$info->{'IO'}=1;
-				if ( $keyword eq 'open' ) {
-					my $ast = parse_Fortran_open_call($mline);
-#					croak Dumper($ast) if $f eq 'boundcond_domainfill' and $mline=~/unitboundcond/;
-					$info->{'Ast'} = $ast;
-
-					if ( exists $ast->{'FileName'} ) {
-						if ( exists $ast->{'FileName'}{'Var'}
-							and $ast->{'FileName'}{'Var'} !~ /__PH/ )
-						{
-							$info->{'FileNameVar'} =
-							  $ast->{'FileName'}{'Var'
-							  }; # TODO: in principle almost any other field could be a var
-							$info->{'Vars'}{'Set'}
-							  { $ast->{'FileName'}{'Var'} } = 1;
-						} elsif ( exists $ast->{'FileName'}{'Expr'} ) {
-							my $expr = $ast->{'FileName'}{'Expr'};
-							if ( exists $ast->{'FileName'}{'ExprVar'} ) {
-								$expr = $ast->{'FileName'}{'ExprVar'} . $expr;
-							}
-
-							my @chunks = split( /\W+/, $expr );
-							for my $mvar (@chunks) {
-								next if $mvar eq '';
-								next if $mvar =~ /^\d+$/;
-								next
-								  if $mvar =~
-									  /^(\-?(?:\d+|\d*\.\d*)(?:[edq][\-\+]?\d+)?)$/;
-								next if $mvar =~ /__PH\d+__/;
-								next if exists $F95_reserved_words{$mvar};
-								$info->{'Vars'}{'Set'}{$mvar} = 1;
-							}
-						}
-					}
-					if ( exists $ast->{'UnitVar'} ) {
-						$info->{'Vars'}{'Set'}{ $ast->{'UnitVar'} } = 1;
-					}
-					@{ $info->{'Vars'}{'List'} } = keys %{ $info->{'Vars'}{'Set'} };
-				}
-			
-			} elsif ( $line =~ /^\s*\d*\s+end\s+(if|select|do)\s*/ ) {
-# CLEARLY THIS CANNOT COME AFTER IF (...) so MOVE to before IF			
+				next;	
+			}			
+# END of IF/SELECT/DO						
+			elsif ( $line =~ /^end\s+(if|select|do)\s*/ ) {			
 				my $keyword = $1;
 				my $kw      = ucfirst($keyword);
 				$info->{ 'End' . $kw } = {};
@@ -715,111 +577,15 @@ sub _analyse_lines {
 						$Sf->{'DoLabelTarget'}{$do_label}='EndDo';
 					}					
 				}
-			} elsif ( $line =~ /\b(subroutine|function|program|block)\b/ ) {
-
-				( $Sf, $line, $info ) =
-				  __parse_sub_func_prog_decls( $Sf, $line );
-
-			} elsif (
-				$line =~ /^\s*\d*\s*end\s+(subroutine|module|function|block\s+data)\s*(\w+)/ )
-			{
-				my $kw   = $1;
-				my $name = $2;
-				$info->{ 'End' . ucfirst($kw) } = { 'Name' => $name };
-#    DO statement				
-			} elsif ( $mline =~ /^\s*\d*\s+do\b/ or $mline =~ /^do\b/) {
-#WV20150304: We parse the do and store the iterator and the range { 'Iterator' => $i,'Range' =>[$start,$stop]}
-				my $do_stmt = $mline;
-				my $label   = 'LABEL_NOT_DEFINED';
-				if ( $do_stmt =~ /do\s+\d+/ ) {
-					$do_stmt =~ s/^\s*\d*\s+do\s+(\d*)\s+//;
-					my $label = $1;
-				} else {
-					$do_stmt =~ s/^\s*\d*\s+do\s+//;
-					$do_stmt =~ s/^do\s+//;
-				}
-
-				( my $iter, my $range ) = split( /\s*=\s*/, $do_stmt );
-				( my $range_start, my $range_stop, my $range_step ) = split( /s*,\s*/, $range );
-				if (not defined $range_step) {
-					$range_step=1; # the default
-				}
-				my $mvars = [];
-				for my $mchunk ( $range_start, $range_stop,$range_step ) {
-					next if not defined $mchunk;
-					next if $mchunk =~ /^\d+$/;
-					my @mchunks = ();
-					if ( $mchunk =~ /\W/ ) {
-						@mchunks = split( /\W+/, $mchunk );
-					} elsif ( $mchunk =~ /^\w+$/ ) {
-						push @mchunks, $mchunk;
-					} else {
-						croak "Unknown pattern $mchunk in Do Range";
-					}
-					for my $mvar (@mchunks) {
-						next if exists $F95_reserved_words{$mvar};
-						next
-						  if exists $stref->{'Subroutines'}{$f}{'CalledSubs'}
-							  {'Set'}{$mvar};    # Means it's a function
-						next if $mvar =~ /^__PH\d+__$/;
-						next if $mvar !~ /^[_a-z]\w*$/;
-						push @{$mvars}, $mvar;
-					}
-				}
-				$info->{'Do'} = {
-					'Iterator' => $iter,
-					'Label'    => $label,
-					'Range'    => {
-						'Expressions' => [ $range_start, $range_stop, $range_step ],
-						'Vars'        => $mvars
-					},
-					'LineID' => $info->{'LineID'}
-				};
-				$do_counter++;
-				push @do_stack, $info;
-# This is an ASSIGNMENT and so can come after IF (...)				
-			} elsif ( $mline !~ /::/
-				&& $mline !~ /^\s*\d*\s+data\b/
-				&& $mline !~ /\bparameter\b/
-				&& $mline =~ /[\w\)]\s*=\s*[^=]/ ) {
-					
-					$info->{'Assignment'} = 1;
-					my $free_form =  $Sf->{'FreeForm'};							
-					$mline = __remove_blanks($mline,$free_form);
-#					$line = __remove_blanks($line,$free_form);
-#WV20150303: We parse this assignment and return {Lhs => {Varname, ArrayOrScalar, IndexExpr}, Rhs => {Expr, VarList}}
-#croak "<$mline>" if $mline=~/data10/ and $f eq 'set';
-
-					$info = _parse_assignment( $mline, $info, $stref, $f );
-			}
-  # Actual variable declaration line (F77)
-  # In principle every type can be followed by '*<number>' or *(*) or (<number>)
-  # F77 VarDecl
-			elsif (
-				(				
-					$line =~
-/\b(logical|complex|integer|real|double\s*precision|character)\s+([^\*]?.*)\s*$/
-					or $line =~
-/\b((?:logical|complex|integer|real|double\s*precision|character)\s*\(\d+\))([^\*]?.*)\s*$/
-
-					or $line =~
-/\b((?:logical|complex|integer|real|double\s*precision|character)\s*\*(?:\d+|\((?:\*|\w+)\)))\s+(.+)\s*$/
-				)
-				and $line !~ /^\s+\w+\s+function\s+/
-			  ) {
-				$type   = $1;
-				$varlst = $2;
-
-				( $Sf, $info ) = __parse_f77_var_decl( $Sf, $f, $line, $info, $type, $varlst );
-
-		} elsif ( $line =~ /^\s+dimension/ ) {
-			# DIMENSION
+			}			
+# DIMENSION (VIRTUAL)		
+		 elsif ( $line =~ /^(?:dimension|virtual)/ ) {			
 # Although a Dimension line is not a declaration, I will use it as such, so the var must be in DeclaredLocalVars/DeclaredCommonVars
 				$info->{'Dimension'}=1;
 				$type   = 'Unknown';
 				$varlst = $line;
-				$varlst =~s/^\s+dimension\s+//;			
-				my $indent =$line;$indent=~s/\S.*$//;	
+				$varlst =~s/^(?:dimension|virtual)\s+//;			
+#				my $indent =$line;$indent=~s/\S.*$//;	
 				my @vars_with_dim = _parse_comma_sep_expr_list($varlst);
 # If @vars_with_dim > 1 then we should split this line.
 # We currently do $srcref->[$index], with $index = 0 .. scalar( @{$srcref} ) - 1 ) 				
@@ -898,7 +664,7 @@ sub _analyse_lines {
 #					 if ($var_dim=~/\(2\*ivd003/) {
 #					 	die $var_dim;
 #					 } 
-				( $Sf, my $info ) = __parse_f95_decl( $Sf, $vline, {'Dimension' => 1}, "$type, $var_dim", $varname );
+				( $Sf, my $info ) = __parse_f95_decl( $Sf, $vline, {'Dimension' => 1});#, "$type, $var_dim", $varname );
 #				say 'STMT COUNT : '.$varname.' : '.$subset.' : '.$stmt_count;#$Sf->{$subset}{'Set'}{$varname}{'StmtCount'};
 				$Sf->{'DeclCount'}{$varname}++;
 				$info->{'StmtCount'}{$varname}=$Sf->{'DeclCount'}{$varname};#$stmt_count;#$Sf->{$subset}{'Set'}{$varname}{'StmtCount'};
@@ -906,15 +672,15 @@ sub _analyse_lines {
 					push @{ $extra_lines{$index} }, [$indent."dimension $dline",$info];
 				}
 				next;
-
+		}
 			# COMMON block processing for common blocks not in an include file
 			# common /name/ x...
 			# However, common/name/x is also valid, and even  common x, damn F77!
 			# And in fact, so is common /name/ x,y, /name2/ w,z
 			# Worse, the spec is COMMON [/[ cb ]/] nlist [[,]/[ cb ] / nlist ]
 			# so  x//y is also OK and //x also ... 
-		} elsif ( $line =~ /^\s*common\s*\/\s*([\w\d]+)\s*\/\s*(.+)$/ or 
-				$line =~ /^\s*(common)\s+(.+)$/ 
+		 elsif ( $line =~ /^common\s*\/\s*([\w\d]+)\s*\/\s*(.+)$/ or 
+				$line =~ /^(common)\s+(.+)$/ 
 		 ) {
 				my $common_block_name = $1; # means it will be 'common' for a blank block
 				my $commonlst         = $2;
@@ -932,10 +698,10 @@ sub _analyse_lines {
 							  type_via_implicits( $stref, $f, $var );
 							( my $type, my $array_or_scalar, my $attr ) =
 							  @type_kind_attr;
-							my $indent = ' ' x 6;
+							my $default_indent = ' ' x 6;
 							my $decl   = {
 								'IODir'  => 'Unknown',
-								'Indent' => $indent,
+								'Indent' => $default_indent,
 								'Type'   => $type,
 								'Attr'   => $attr,
 								'Dim'    => [ @{ $parsedvars->{$var}{'Dim'} } ],
@@ -981,7 +747,9 @@ sub _analyse_lines {
 				
 				$info->{'Common'} = { 'Name' => $common_block_name };
 #				croak Dumper($info);
-		 } elsif ($line=~/^\s*\d*\s+data\b/) {
+			}			
+# DATA
+		  elsif ($line=~/^data\b/) {
 		 	# DATA
 		 	$info->{'Data'} = 1; 
 		 	$line.=' ! Parser line '.__LINE__.' : removed spaces from data';
@@ -992,27 +760,54 @@ sub _analyse_lines {
 				say "DATA declaration $line" if $V;
 #				$extra_lines{$index}=_parse_data_declaration($line,$info, $stref, $f);
 #				next;
-		 	} elsif ($line=~/^\s*\d*\s+external\s+([\w,\s]+)/) {
-		 		my $external_procs_str = $1;
+		 	}
+# INTRINSIC, EXTERNAL, STATIC, AUTOMATIC
+		 	elsif ($line=~/^(intrinsic|external|static|automatic)\s+([\w,\s]+)/) {
+		 		my $qualifier = $1;
+		 		my $external_procs_str = $2;
 		 		my @external_procs = split(/\s*,\s*/,$external_procs_str);
-		 	# EXTERNAL
-		 		$info->{'External'} = [ map {$_=>1} @external_procs];
-		 		$Sf->{'External'}={ map {$_=>1} @external_procs };
-		 	} elsif ($line=~/^\s*\d*\s+equivalence\s+/) {
-		 	# EQUIVALENCE (IADN14(1), IADN15(1)), (RADN14(2),RADN15(2))
-		 	$info->{'Equivalence'} = 1;
-		} elsif ( $line =~ /^\s*(.*)\s*::\s*(.*?)\s*$/ ) {
 
-				#
-				# F95 VarDecl
-				# F95 declaration, no need for refactoring
+		 		$info->{ucfirst($qualifier)} = [ map {$_=>1} @external_procs];
+		 		$Sf->{ucfirst($qualifier)}={ map {$_=>1} @external_procs };
+		 		
+		 			say "WARNING: ".uc($qualifier)." IS IGNORED!" if $qualifier ne 'external' and $W;
+		 	}
+# EQUIVALENCE (IADN14(1), IADN15(1)), (RADN14(2),RADN15(2))		 	 
+		 	elsif ($line=~/^equivalence\s+/) {		 	
+		 		$info->{'Equivalence'} = 1;
+		 		say "WARNING: EQUIVALENCE IS IGNORED!" if $W;
+		 	}		
+# Actual variable declaration line (F77)
+# In principle every type can be followed by '*<number>' or *(*) or (<number>)
+# F77 VarDecl
+			elsif (
+				(				
+					$line =~
+/\b(logical|complex|byte|integer|real|double\s*(?:precision|complex)|character)\s+([^\*]?.*)\s*$/
+					or $line =~
+/\b((?:logical|complex|byte|integer|real|double\s*(?:precision|complex)|character)\s*\(\d+\))([^\*]?.*)\s*$/
+
+					or $line =~
+/\b((?:logical|complex|byte|integer|real|double\s*(?:precision|complex)|character)\s*\*(?:\d+|\((?:\*|\w+)\)))\s+(.+)\s*$/
+				)
+				and $line !~ /^\w+\s+function\s+/
+			  ) {
 				$type   = $1;
 				$varlst = $2;
-				( $Sf, $info ) =
-				  __parse_f95_decl( $Sf, $line, $info, $type, $varlst );
 
-				$is_f77_vardecl = 0;
-			} elsif ( $line =~ /parameter\s*\(\s*(.*)\s*\)/ ) {    # F77-style parameters
+				( $Sf, $info ) = __parse_f77_var_decl( $Sf, $f, $line, $info, $type, $varlst );
+		}
+# F95 declaration, no need for refactoring		 	
+		 elsif ( $line =~ /^(.+)\s*::\s*(.+)\s*$/ ) {
+				# F95 VarDecl				
+#				$type   = $1;
+#				$varlst = $2;
+				
+				( $Sf, $info ) = __parse_f95_decl( $Sf, $line, $info);#, $type, $varlst );
+				
+			} 
+# F77-style parameters			
+			elsif ( $line =~ /parameter\s*\(\s*(.*)\s*\)/ ) {    
 				my $parliststr = $1;
 				( $Sf, $info ) =
 				  __parse_f77_par_decl( $Sf, $f, $line, $info, $parliststr );
@@ -1034,9 +829,340 @@ sub _analyse_lines {
 				}
 				$Sf->{'LocalParameters'}{'Set'}{$parname} =
 				  $info->{'ParamDecl'};
-			}    # match var decls, parameter statements F77/F95
+			}    # match var decls, parameter statements F77/F95								
+# SIGNATURES				
+			 elsif ( $line =~ /\b(subroutine|function|program|block)\b/ ) {
+				( $Sf, $line, $info ) =
+				  __parse_sub_func_prog_decls( $Sf, $line );
+			 }
+# END of CODE UNIT
+			 elsif (
+				$line =~ /^end\s+(subroutine|module|function|block\s+data)\s*(\w+)/ 
+				) {
+				my $kw   = $1;
+				my $name = $2;
+				$info->{ 'End' . ucfirst($kw) } = { 'Name' => $name };
+# DO statement				
+			} elsif ( $line =~ /^do\b/) {
+#WV20150304: We parse the do and store the iterator and the range { 'Iterator' => $i,'Range' =>[$start,$stop]}
+				my $do_stmt = $line;
+				my $label   = $info->{'Label'} // 'LABEL_NOT_DEFINED';
+				if ( $do_stmt =~ /do\s+\d+/ ) {
+					$do_stmt =~ s/^do\s+(\d+)\s+//;
+					my $label = $1;
+				} else {					
+					$do_stmt =~ s/^do\s+//;
+				}
 
-			$srcref->[$index] = [ $line, $info ];
+				( my $iter, my $range ) = split( /\s*=\s*/, $do_stmt );
+				( my $range_start, my $range_stop, my $range_step ) = split( /s*,\s*/, $range );
+				if (not defined $range_step) {
+					$range_step=1; # the default
+				}
+				my $mvars = [];
+				for my $mchunk ( $range_start, $range_stop,$range_step ) {
+					next if not defined $mchunk;
+					next if $mchunk =~ /^\d+$/;
+					my @mchunks = ();
+					if ( $mchunk =~ /\W/ ) {
+						@mchunks = split( /\W+/, $mchunk );
+					} elsif ( $mchunk =~ /^\w+$/ ) {
+						push @mchunks, $mchunk;
+					} else {
+						croak "Unknown pattern $mchunk in Do Range";
+					}
+					for my $mvar (@mchunks) {
+						next if exists $F95_reserved_words{$mvar};
+						next
+						  if exists $stref->{'Subroutines'}{$f}{'CalledSubs'}
+							  {'Set'}{$mvar};    # Means it's a function
+						next if $mvar =~ /^__PH\d+__$/;
+						next if $mvar !~ /^[_a-z]\w*$/;
+						push @{$mvars}, $mvar;
+					}
+				}
+				$info->{'Do'} = {
+					'Iterator' => $iter,
+					'Label'    => $label,
+					'Range'    => {
+						'Expressions' => [ $range_start, $range_stop, $range_step ],
+						'Vars'        => $mvars
+					},
+					'LineID' => $info->{'LineID'}
+				};
+				$do_counter++;
+				push @do_stack, $info;
+# SELECT/CASE 
+			} elsif ($line=~/select\s+case\s+\((\w+)\)/) {
+					$info->{'CaseVar'} = $1;
+				} elsif ($line=~/case\s+\((.+)\)\s*$/) {
+					my $case_vals_str = $1;
+					my @case_vals = _parse_comma_sep_expr_list($case_vals_str);
+					$info->{'CaseVals'} = [@case_vals];				
+				} elsif ($line=~/case\s+\default/) {
+					$info->{'CaseDefault'} = 1;			
+			}
+# ELSE			 
+			elsif ( $line =~ /^else\s*$/ ) {			 	
+					$info->{'Else'} = 1;					
+	
+			} else {
+# Check for IF and remove it, then check for executable statements that can come after IF				
+				my $mline = $line;    # modifiable copy of $line				
+
+				
+#    Block, Arithmetic and logical IF statements		
+# st can be any executable statement, except a DO block, IF, ELSE IF, ELSE,
+# END IF, END, or another logical IF statement.					
+			if ( $line =~ /^(if|else\s+if)\s*\(/ ) {			 	
+				my $keyword = $1;				
+				if ( $line =~ /^(else\s+if)/ ) {
+					$info->{'ElseIf'} = 1;
+				} else {
+					$info->{ ucfirst($keyword) } = 1;	
+				}
+#				carp "$f <$line>" if $line=~/write.unitpartout/ ;
+			# The following part should be in a separate condition block I think			
+			# What I should do is:
+			# Detect an IF. If so, detect if it is a THEN or an expression. 
+			# Get any variables from the condition. If it's an expression, assign it to $mline and just carry on. 
+			
+				my $is_cond_assign = 0;
+				my $is_cond        = 0;
+#				my $cond           = '';
+#				my $rest           = '';
+				( my $cond, $mline ) = _parse_if_cond($line);
+				$info->{'CondExecExpr'}=$cond;
+				
+#				if ( $mline =~ /=/ ) { # Is this an assignment?
+#					$is_cond_assign = 1;
+#				}
+				
+#				if ( $line =~ /^\s*\d*\s+(?:else\s+)?if\s*\(.+=/ ) { # an IF with an equals sign
+#					( my $if_cond, my $rest ) = _parse_if_cond_OLD($line);
+#						$cond = $if_cond;
+#						$cond=~s/if\s*\(\s*//;
+#						$cond=~s/\s*\)\s*$//;
+#						
+#						
+#					# So here we look at the part after the condition expression
+#					if ($rest=~/\(/) { # There are parens so it could be a subroutine call
+#					( my $maybe_lhs, my $maybe_rhs ) = _parse_array_access_or_function_call($rest,1);
+#					if ( $maybe_rhs =~ /=/ ) { # Is this an assignment?
+#						$mline                  = $rest;# "$maybe_lhs$maybe_rhs";
+#							
+#						$info->{'CondExecExpr'} = $mline;
+#						$is_cond_assign         = 1;
+#						$is_cond                = 1;
+#					} else {
+#						# Otherwise it is a subroutine call, but I guess it could also just be 'then' 
+#						$mline = $rest;
+#					}					
+#					} elsif ($rest=~/=/) {
+#						( my $maybe_lhs, my $maybe_rhs )=split(/\s*=\s*/, $rest);
+#						croak "ASSIGN: LINE: $line => LHS <$maybe_lhs> RHS <$maybe_rhs>"  if $f eq 'init_domainfill' and $line=~/ran1.idummy/;	
+#						$mline = "$maybe_lhs = $maybe_rhs";
+#						$info->{'CondExecExpr'} = $mline;
+#						$is_cond_assign         = 1;
+#						$is_cond                = 1;					
+#					}
+#					
+#				} elsif ( $line =~ /^(\s*\d*\s+)((?:else\s+)?if\s*\(.+)$/ ) { #  IF with either an executable statement or THEN
+#					my $indent=$1;
+#					my $rest_of_line=$2;
+#					my $has_else=$rest_of_line=~/else\s+if/ ? 1 : 0;
+#					$rest_of_line=~s/else\s+if/if/;
+#					( my $if_cond, my $rest ) = _parse_if_cond_OLD($rest_of_line);
+#					$cond = $if_cond;
+#							$cond=~s/if\s*\(\s*//;
+#					$cond=~s/\s*\)\s*$//;				
+#					# remove spaces from condition							
+#					my $conds = $cond;
+#					$conds=~s/\s+//g if defined $cond;
+#					$cond=$conds;
+#					if ($has_else) {
+#						$line = $indent.'else if ('.$conds.') '.$rest;
+#					} else {
+#						$line = $indent.'if ('.$conds.') '.$rest;
+#					}
+#					$is_cond = 1;
+#				}
+#				
+				
+#				if ( $is_cond_assign or $is_cond ) {
+					
+					# This part looks at the condition to get variables form it
+#					$cond =~ s/[\(\)]+/ /g;
+					my $ast = parse_expression($cond,  $info,  $stref,  $f);
+					my $vars_in_cond_expr =  get_vars_from_expression( $ast,{});
+#					$cond =~ s/\.(eq|ne|gt|ge|lt|le|and|or|not|eqv|neqv)\./ /g;
+#					my @chunks = split( /\W+/, $cond );
+#					my %vars_in_cond_expr = ();
+#					for my $mvar (@chunks) {
+#						next if $mvar eq '';
+#						next if $mvar =~ /^\d+$/;
+#						next
+#						  if $mvar =~ /^(\-?(?:\d+|\d*\.\d*)(?:[edq][\-\+]?\d+)?)$/;
+#						next if exists $F95_reserved_words{$mvar};
+#						$vars_in_cond_expr{$mvar} = 1;
+#					}
+#					$info->{'CondVars'} = {%vars_in_cond_expr};
+					$info->{'CondVars'} = $vars_in_cond_expr;
+#					next if $mline eq 'then';
+#					if ( not $is_cond_assign ) {
+#						$info->{'CondExecExpr'} = $rest;
+#						$mline =~ s/if.+?$rest/$rest/;
+#					}
+#				}
+
+			} 
+
+# So in principle anything after this can come after IF (...) 
+			# --------------------------------------------------------------------------------
+			# Executable statements, last one is assignment			
+			# --------------------------------------------------------------------------------
+=info executable statements allowed after IF
+
+st can be any executable statement, except a DO block, IF, ELSE IF, ELSE,
+END IF, END, or another logical IF statement
+
+Statements with * are currently ignored
+
+ASSIGN*
+DECODE*
+ENCODE*
+ENDFILE*
+
+ACCEPT
+Assignment
+BACKSPACE
+CALL
+CLOSE
+CONTINUE
+GOTO
+GOTO (Assigned)*
+GOTO (Unconditional)*
+
+INQUIRE
+OPEN
+PAUSE
+PRINT
+READ
+RETURN
+REWIND
+STOP
+TYPE
+WRITE 
+=cut
+
+=info other executable statements 
+Statements with * are currently ignored
+Statements with ** are currently not even recognised
+DO
+DO WHILE*
+ELSE
+ELSE IF
+
+IF (Arithmetic)
+IF (Block)
+IF (Logical)
+
+END
+END DO
+END FILE**
+END IF
+=cut 
+
+#    READ, WRITE, and PRINT statements			
+			if ( $mline =~ /^(read|accept|inquire|write|type|print)(?:\s*\(|]s+)/ ) {				
+				my $keyword = $1;
+				$info->{ ucfirst($keyword) . 'Call' } = 1;
+				$info->{'IO'}=1;
+				$info = parse_read_write_print( $mline, $info, $stref, $f );
+				
+			}
+#    REWIND, OPEN, CLOSE statements				
+			elsif ( $mline =~ /^(open|close|rewind)\s*\(/ ) {
+				my $keyword = $1;
+				$info->{ ucfirst($keyword) . 'Call' } = 1;
+				$info->{'IO'}=1;
+				if ( $keyword eq 'open' ) {
+					my $ast = parse_Fortran_open_call($mline);
+					$info->{'Ast'} = $ast;
+
+					if ( exists $ast->{'FileName'} ) {
+						if ( exists $ast->{'FileName'}{'Var'}
+							and $ast->{'FileName'}{'Var'} !~ /__PH/ )
+						{
+							$info->{'FileNameVar'} =
+							  $ast->{'FileName'}{'Var'
+							  }; # TODO: in principle almost any other field could be a var
+							$info->{'Vars'}{'Set'}
+							  { $ast->{'FileName'}{'Var'} } = 1;
+						} elsif ( exists $ast->{'FileName'}{'Expr'} ) {
+							my $expr = $ast->{'FileName'}{'Expr'};
+							if ( exists $ast->{'FileName'}{'ExprVar'} ) {
+								$expr = $ast->{'FileName'}{'ExprVar'} . $expr;
+							}
+
+							my @chunks = split( /\W+/, $expr );
+							for my $mvar (@chunks) {
+								next if $mvar eq '';
+								next if $mvar =~ /^\d+$/;
+								next
+								  if $mvar =~
+									  /^(\-?(?:\d+|\d*\.\d*)(?:[edq][\-\+]?\d+)?)$/;
+								next if $mvar =~ /__PH\d+__/;
+								next if exists $F95_reserved_words{$mvar};
+								$info->{'Vars'}{'Set'}{$mvar} = 1;
+							}
+						}
+					}
+					if ( exists $ast->{'UnitVar'} ) {
+						$info->{'Vars'}{'Set'}{ $ast->{'UnitVar'} } = 1;
+					}
+					@{ $info->{'Vars'}{'List'} } = keys %{ $info->{'Vars'}{'Set'} };
+				}			
+#    BACKSPACE, ENDFILE statements			
+			} elsif ($mline=~/(backspace|endfile)/) {
+				my $keyword = $1;
+				$info->{ ucfirst($keyword) } = 1;
+				warn uc($keyword)." is ignored!" if $W;
+#    STOP and PAUSE statements		
+			} elsif ($mline=~/^(return|stop|pause)/) {	
+				my $keyword = $1;
+				$info->{ ucfirst($keyword) } = 1;
+			}
+#    ASSIGN ... TO ...				
+			 elsif ($mline=~/^assign\s+(\w+)\s+to\s+(\w+)/) {				
+				$info->{'Assign'}={'Label' => $1, 'Var' => $2};
+				say 'WARNING: ASSIGN IS IGNORED!' if $W;
+			 }													
+#    CONTINUE statement. 			
+			elsif ($line=~/continue/) {				
+				$info->{'Continue'}={};				
+			}
+#    DECODE/ENCODE statement. 			
+			elsif ($line=~/(decode|encode)/) {		
+				my $keyword = $1;
+				$info->{ ucfirst($keyword) } = 1;
+				say "WARNING: ".uc($keyword).' IS IGNORED!' if $W;					
+			}							
+# This is an ASSIGNMENT and so can come after IF (...)				
+#			elsif ( $mline !~ /::/ && $mline !~ /^\s*\d*\s+data\b/ && $mline !~ /\bparameter\b/ && $mline =~ /[\w\)]\s*=\s*[^=]/ ) 
+			elsif ( $mline =~ /[\w\)]\s*=\s*[^=]/ ) {		
+					$info->{'Assignment'} = 1;
+					my $free_form =  $Sf->{'FreeForm'};							
+					$mline = __remove_blanks($mline,$free_form);
+#					$line = __remove_blanks($line,$free_form);
+#WV20150303: We parse this assignment and return {Lhs => {Varname, ArrayOrScalar, IndexExpr}, Rhs => {Expr, VarList}}
+croak "$f <$mline>" if $mline=~/^\s*\d*\s*write/ ;
+
+					$info = _parse_assignment( $mline, $info, $stref, $f );
+			}
+			}
+
+			$srcref->[$index] = [ $lline, $info ];
 
 		}    # Loop over lines
 
@@ -1045,6 +1171,7 @@ sub _analyse_lines {
 			$srcref = [@{$srcref}[0..$idx-1],@{ $extra_lines{$idx} },@{$srcref}[($idx+1) .. (scalar(@{$srcref})-1)] ]; 
 		}
 		$Sf->{'AnnLines'}=$srcref;
+
 	} else {
 		print "WARNING: NO AnnLines for $f ($sub_incl_or_mod)\n";
 		croak "SOURCE for $f: " . Dumper($Sf);
@@ -2957,12 +3084,10 @@ sub __handle_acc {
 }    # END of __handle_acc()
 
 # -----------------------------------------------------------------------------
-sub __parse_f95_decl {
 	# F95 VarDecl
 	# F95 declaration, no need for refactoring
-	#                $type   = $1;
-	#                $varlst = $2;
-	( my $Sf, my $line, my $info, my $type, my $varlst ) = @_;
+sub __parse_f95_decl {
+	( my $Sf, my $line, my $info) = @_;
 	my $indent = $line;
 	$indent =~ s/\S.*$//;
 #	say "LINE:<$line>";
@@ -3012,6 +3137,8 @@ sub __parse_f95_decl {
 		if (    not exists $info->{'ParsedVarDecl'}
 			and not exists $info->{'VarDecl'} )
 		{
+
+			
 			$info->{'ParsedVarDecl'} = $pt;
 			$info->{'VarDecl'} = {
 				'Indent' => $indent,
@@ -3020,7 +3147,7 @@ sub __parse_f95_decl {
 			};
 			
 			for my $tvar ( @{ $pt->{'Vars'} } ) {
-				croak $line.Dumper($pt) unless defined $tvar;								
+										
 				my $decl = {};
 #				if (exists $Sf->{'UndeclaredOrigLocalVars'}{'Set'}{$tvar} ) {
 #					# Basically this means the var has been declared using Implicits. 
@@ -3031,9 +3158,13 @@ sub __parse_f95_decl {
 				$decl->{'Type'}          = $pt->{'TypeTup'}{'Type'};
 				$decl->{'ArrayOrScalar'} = 'Scalar';
 				$decl->{'Dim'}           = [];
+				my $type =$decl->{'Type'}; 
 				if ( exists $pt->{'Attributes'} ) {
 					if ( exists $pt->{'Attributes'}{'Dim'} ) {
-						if ( $pt->{'Attributes'}{'Dim'}[0] ne '0' ) {
+						if ( $pt->{'Attributes'}{'Dim'}[0] ne ':' ) {
+							$decl->{'Dim'}           = [':'];
+							$decl->{'ArrayOrScalar'} = 'Array';
+						} elsif ( $pt->{'Attributes'}{'Dim'}[0] ne '0' ) {
 							my @shape = ();
 							for my $range ( @{ $pt->{'Attributes'}{'Dim'} } ) {
 								if ( $range =~ /:/ ) {
@@ -3046,14 +3177,15 @@ sub __parse_f95_decl {
 							$decl->{'ArrayOrScalar'} = 'Array';
 						}
 					}
+					if ( $pt->{'Attributes'}{'Allocatable'}) {
+						$decl->{'Allocatable'}='allocatable';
+					}
 				}
 				if ( $type =~ /character/ ) {
 					if (exists $pt->{TypeTup}{'ArrayOrScalar'} ) {
-					$decl->{'Attr'} = '(len='
-					  . $pt->{TypeTup}{'ArrayOrScalar'} . ')';
-					} elsif (exists $pt->{'Attributes'}{'Dim'}) {
-						$decl->{'Attr'} = '(len='
-					  . $pt->{'Attributes'}{'Dim'}[0] . ')';
+					$decl->{'Attr'} = '(len=' . $pt->{TypeTup}{'ArrayOrScalar'} . ')';
+					} elsif (exists $pt->{'	'}{'Dim'}) {
+						$decl->{'Attr'} = '(len=' . $pt->{'Attributes'}{'Dim'}[0] . ')';
 					} else {
 						say "WARNING: no length for character string $tvar" if $W;
 						$decl->{'Attr'} = '(len=*)';
@@ -3062,14 +3194,16 @@ sub __parse_f95_decl {
 					$decl->{'Attr'} = '(kind=' . $pt->{'TypeTup'}{'Kind'} . ')';
 				} else {
 					$decl->{'Attr'} = '';
+					
 				}
 
 				$decl->{'IODir'} = $pt->{'Attributes'}{'Intent'};
 				$decl->{'Name'}=$tvar;
-#				say Dumper($decl);
+				
 				# It is possible that at this point the variable had not been declared yet and we use implicit rules
 				# Then we change it to declared.
-				if ( exists $Sf->{'UndeclaredOrigArgs'}{'Set'}{$tvar} ) {					
+				if ( exists $Sf->{'UndeclaredOrigArgs'}{'Set'}{$tvar} ) {			
+					
 					$Sf->{'DeclaredOrigArgs'}{'Set'}{$tvar} = $decl;
 					delete $Sf->{'UndeclaredOrigArgs'}{'Set'}{$tvar};
 					@{ $Sf->{'UndeclaredOrigArgs'}{'List'} } =
@@ -3083,12 +3217,14 @@ sub __parse_f95_decl {
 				# I added this check so that I can use the parser for variables that are declared using implicit rules 
 				# All this does is update the var entry
 					if (exists $Sf->{'UndeclaredOrigLocalVars'}{'Set'}{$tvar} ) {
+						
 						$Sf->{'UndeclaredOrigLocalVars'}{'Set'}{$tvar} = $decl;
 						my @test=grep {$_ eq $tvar}  @{ $Sf->{'UndeclaredOrigLocalVars'}{'List'} };
 						if ( scalar @test == 0) { 
 							push @{ $Sf->{'UndeclaredOrigLocalVars'}{'List'} }, $tvar;
 						} 
 					} elsif	(exists $Sf->{'DeclaredOrigLocalVars'}{'Set'}{$tvar} ) {
+						
 						$Sf->{'DeclaredOrigLocalVars'}{'Set'}{$tvar} = $decl;
 						my @test=grep {$_ eq $tvar}  @{ $Sf->{'DeclaredOrigLocalVars'}{'List'} };
 						if ( scalar @test == 0) { 
@@ -3110,12 +3246,13 @@ sub __parse_f95_decl {
 						if ( scalar @test == 0) { 
 							push @{ $Sf->{'DeclaredCommonVars'}{'List'} }, $tvar;
 						} 						 
-					} else {
+					} else {						
 						my $subset =in_nested_set($Sf,'Vars',$tvar);
 						if ($subset ne '') {
 							carp "LINE $line: $tvar in subset $subset of Vars";
 						} else {
-						say "INFO: $line: $tvar does not have a record in Vars" if $I;
+							say "INFO: $line: $tvar does not have a record in Vars" if $I;
+							$Sf->{'DeclaredOrigLocalVars'}{'Set'}{$tvar}=$decl;
 						}
 					}
 					
@@ -3786,7 +3923,6 @@ sub _parse_assignment {
 		$stref->{'Subroutines'}{$f}{'MaskedIntrinsics'} = { $lhs_ast->[1] => 1 };
 	}
 	
-#carp  "_parse_assignment($rhs)" if $line=~/fnamenc=path.+wfname/ and $f eq 'gridcheck';	
 	my $rhs_ast = parse_expression( $rhs, $info, $stref, $f );
 
 	#	say 'RHS_AST:'.Dumper($rhs_ast );
@@ -3820,12 +3956,6 @@ sub _parse_assignment {
 		'VarList'       => $rhs_all_vars,
 		'ExpressionAST' => $rhs_ast
 	};
-
-#croak  "_parse_assignment($tline)".Dumper($info) if $line=~/fnamenc=path.+wfname/ and $f eq 'gridcheck';
-
-	#	my %test = map {$_ => 1}  @{ $info->{'Rhs'}{'VarList'}{'List'}};
-	#	if (exists $test{'__PH0__'}) {croak Dumper($info)}
-#	croak Dumper($line, $info) if $line=~/ff054/ ;
 
 	return $info;
 }    # END of _parse_assignment()

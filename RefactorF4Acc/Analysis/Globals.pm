@@ -105,7 +105,7 @@ sub _identify_globals_used_in_subroutine {
 
                 # We shouldn't look for globals in the declarations, silly!
                 if ( $line =~
-/(logical|integer|real|double\s*precision|character|character\*?(?:\d+|\(\*\)))\s+(.+)\s*$/
+/(logical|integer|real|double\s*(?:precision|complex)|character|character\*?(?:\d+|\(\*\)))\s+(.+)\s*$/
                   )
                 {
                     next;

@@ -866,6 +866,7 @@ doubleprecision
 logical
 character 
 complex
+doublecomplex
 );
 
 our %F95_reserved_words = map { $_=>1 } @F95_reserved_words_list ; 

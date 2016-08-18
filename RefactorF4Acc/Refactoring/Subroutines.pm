@@ -328,6 +328,7 @@ sub _refactor_globals_new {
  	my $inc_counter = scalar keys %{$Sf->{'Includes'}};
  	
     for my $annline ( @{$annlines} ) {
+    	
         (my $line, my $info) = @{ $annline };
         my $skip = 0;
 

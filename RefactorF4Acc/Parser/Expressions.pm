@@ -79,6 +79,13 @@ sub parse_expression { (my $exp, my $info, my $stref, my $f)=@_;
 
 	# EVIL HACK because the Math::Expression::Evaluator::Parser does not support things like a ** b ** c
 	$preproc_expr =~s/\*\*\s*(\w+)\s*\*\*\s*(\w+)/**($1 * $2)/;
+	# EVIL HACK because the Math::Expression::Evaluator::Parser does not support <=, ==, =>, /=
+	$preproc_expr =~s/\<\=/.le./g;
+	$preproc_expr =~s/\>\=/.ge./g;
+	$preproc_expr =~s/\=\=/.eq./g;
+	$preproc_expr =~s/\/\=/.ne./g;
+	$preproc_expr =~s/\>/.gt./g;
+	$preproc_expr =~s/\</.lt./g;
 	while ($preproc_expr=~/\.\w+\./) {
 		$preproc_expr =~s/\.not\./__not__\+/g; # b .and. .not. a => b +_AND_+_NOT_+a		
 		$preproc_expr =~s/\.false\./__false__/g;
