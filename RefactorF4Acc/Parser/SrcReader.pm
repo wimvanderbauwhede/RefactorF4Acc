@@ -48,7 +48,7 @@ sub read_fortran_src {
 
     my $f = $is_incl ? $s : $stref->{$sub_func_incl}{$s}{'Source'};
 
-    if ( defined $f ) { 
+    if ( defined $f ) {     	
         my $no_need_to_read = 1;
         if ( not exists $stref->{'SourceContains'}{$f}
         or ( scalar @{ $stref->{'SourceContains'}{$f}{'List'} } == 0)
@@ -71,27 +71,35 @@ sub read_fortran_src {
 
         if ($need_to_read) {  
             my $ok = 1;
-
-            open my $SRC, '<', $f or do {
-                say "WARNING: Can't find '$f' ($s)\n" if $W;
+			my $fpath=$f;
+			if ( $is_incl and
+				exists $stref->{'IncludeFiles'}{$s}{ 'ExtPath' }
+			) {
+				$fpath= $stref->{'IncludeFiles'}{$s}{ 'ExtPath' };
+			}
+			
+            open my $SRC, '<', $fpath or do {
+                say "WARNING: Can't find '$fpath' ($s)\n" if $W;
                 $ok = 0;
             };
 
             if ($ok) {
-#say "PROCEDURE (BEFORE): $sub_func_incl $s";
 				say "read_fortran_src($s): READING SOURCE for $f ($s, $sub_func_incl)" if $V;
-                my $line       = '';
-                my $nextline   = '';
-                my $joinedline = '';
-                my $next2      = 1;
 
                 my @rawlines = <$SRC>;
                 close $SRC;
+                
                 my @lines = @rawlines;
                 
                 push @lines, ("      \n");
                 my $free_form = $stref->{$sub_func_incl}{$s}{'FreeForm'};
                 my $srctype   = $sub_func_incl;
+                
+                my $line       = '';
+                my $nextline   = '';
+                my $joinedline = '';
+                my $next2      = 1;
+
 
                 if ($free_form) {    # I take this to mean F95, FIXME!
 

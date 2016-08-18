@@ -260,7 +260,10 @@ sub emit_all {
 
     _init_emit_all() unless $DUMMY;
     for my $src (keys %{ $stref->{'SourceContains'} } ) {
-        
+        if (exists $stref->{'SourceContains'}{$src}{'Path'} and  exists $stref->{'SourceContains'}{$src}{'Path'}{'Ext'}) {
+        	say "SKIPPING $src";
+        	next ;
+        }
         print "INFO: emitting refactored code for $src\n" if $V;
         if (not $DUMMY) {
 	        if ( $src =~ /\w\/\w/ ) {    
@@ -298,7 +301,7 @@ sub emit_all {
 			open my $TGT, '>', "$targetdir/$nsrc" or die $!;
 			
 			my $mod_lines = $stref->{'RefactoredCode'}{$src};
-#			my $mod_lines = create_refactored_source($stref,$stref->{'RefactoredCode'}{$src}); # BROKEN!
+			
 			for my $mod_line (@{ $mod_lines }) {
 				
 				print $TGT	$mod_line->[0];

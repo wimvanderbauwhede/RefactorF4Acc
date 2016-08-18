@@ -162,7 +162,6 @@ test(1,$stref, sub { (my $stref)=@_;
     	$stref = parse_fortran_src( $data_block, $stref );
     }
 	$stref = parse_fortran_src( $subname, $stref );
-#die;
 
 test(2,$stref,
 sub { return 'PASS';
@@ -201,6 +200,7 @@ sub {
 	return $stref->{'Nodes'};
 }
 );	
+
 	
     # Analyse the source
     my $stage=0;

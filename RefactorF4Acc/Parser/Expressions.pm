@@ -68,8 +68,9 @@ sub parse_expression { (my $exp, my $info, my $stref, my $f)=@_;
 	my $preproc_expr = $exp;
 #	say "EXPR: $preproc_expr" if $preproc_expr=~/write.+path.numpath/; 
 	 # To make this robust, what I'll do is replace any '(' with '_OPEN_PAR_(' so that is looks like a function.
-	while($preproc_expr=~/[\+\-\*\/,:]\(/) { # basically, it can be: ,+-*/ 
-			$preproc_expr=~s/([\+\-\*\/,:])\(/${1}_OPEN_PAR_\(/;
+	 $preproc_expr=~s/^\(/_OPEN_PAR_\(/;
+	while($preproc_expr=~/[\+\-\*\/,:\(]\(/) { # basically, it can be: ,+-*/ 
+			$preproc_expr=~s/([\+\-\*\/,:\(])\(/${1}_OPEN_PAR_\(/;
 	}	 
 	$preproc_expr =~s/\s+//g;
 	
@@ -78,7 +79,9 @@ sub parse_expression { (my $exp, my $info, my $stref, my $f)=@_;
 	 $preproc_expr =~s/\(\s*\*/\(_LABEL_ARG_\*/;
 
 	# EVIL HACK because the Math::Expression::Evaluator::Parser does not support things like a ** b ** c
-	$preproc_expr =~s/\*\*\s*(\w+)\s*\*\*\s*(\w+)/**($1 * $2)/;
+	while ($preproc_expr =~/\*\*\s*(\w+)\s*\*\*\s*(\w+)/) {
+		$preproc_expr =~s/\*\*\s*(\w+)\s*\*\*\s*(\w+)/**($1 * $2)/;
+	}
 	# EVIL HACK because the Math::Expression::Evaluator::Parser does not support <=, ==, =>, /=
 	$preproc_expr =~s/\<\=/.le./g;
 	$preproc_expr =~s/\>\=/.ge./g;
@@ -86,13 +89,15 @@ sub parse_expression { (my $exp, my $info, my $stref, my $f)=@_;
 	$preproc_expr =~s/\/\=/.ne./g;
 	$preproc_expr =~s/\>/.gt./g;
 	$preproc_expr =~s/\</.lt./g;
-	while ($preproc_expr=~/\.\w+\./) {
+	while ($preproc_expr=~/\.[a-z]+\./) {
 		$preproc_expr =~s/\.not\./__not__\+/g; # b .and. .not. a => b +_AND_+_NOT_+a		
 		$preproc_expr =~s/\.false\./__false__/g;
 		$preproc_expr =~s/\.true\./__true__/g;
-		$preproc_expr =~s/\.(\w+)\./\+__${1}__\+/g; 		 
+		$preproc_expr =~s/\.([a-z]+)\./\+__${1}__\+/g;
+		
 	}
 	$preproc_expr =~s/\+\-/-/g;
+	$preproc_expr =~s/\+\+/+/g;
 	# F77 allows 1D7 or 2Q-5 instead of 1E7 and 2E-5 
 	while ($preproc_expr=~/\W[\.\d]+[dq][\d\-\+]/) { 
 		$preproc_expr=~s/(\W[\.\d]+)[dq]([\d\-\+])/${1}e$2/;
@@ -154,7 +159,7 @@ sub parse_expression { (my $exp, my $info, my $stref, my $f)=@_;
 	 $wrapped_expr = '_dummy_('.$preproc_expr.')';
 	}
 
-#	croak  "WRAPPED EXPR: $wrapped_expr" if $wrapped_expr=~/write.+path.numpath/; 
+#	say "WRAPPED EXPR: $wrapped_expr" ; 
     my $ast = Math::Expression::Evaluator::Parser::parse($wrapped_expr, {});
 
 	if ($wrap) {
@@ -285,6 +290,7 @@ sub _UNUSED_walk_ast { (my $stref, my $f, my $info, my $ast, my $ast_node_action
 } # _UNUSED_walk_ast
 
 sub emit_expression {(my $ast, my $expr_str)=@_;
+	if (ref($ast) ne 'ARRAY') {return $ast;}
 	my @expr_chunks=();
 	my $skip=0;
 	for my  $idx (0 .. scalar @{$ast}-1) {		

@@ -36,6 +36,7 @@ Functions
 
 
 sub remove_vars_masking_functions { ( my $stref ) = @_;
+	
     my $pass_actions = sub {
         (my $annline,  my $state) = @_;
         (my $stref, my $f) =@{$state};
@@ -44,11 +45,26 @@ sub remove_vars_masking_functions { ( my $stref ) = @_;
             my $var = $info->{'VarDecl'}{'Name'};
             if (exists $stref->{'Subroutines'}{$f}{'CalledSubs'}{'Set'}{$var}) {
                 say "INFO: VAR $var is masking a function/sub in $f, LINE: $line" if $I;
-                delete $stref->{'Subroutines'}{$f}{'Vars'}{$var};
-                delete $stref->{'Subroutines'}{$f}{'OrigArgs'}{$var};
-                delete $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{$var};
-                $info->{'Deleted'}=1;   
-#                $line = '! '.$line;
+                my $Sf = $stref->{'Subroutines'}{$f};
+                
+                
+				my $src = $Sf->{'Source'};
+				croak 'FIXME!'.$src;  
+	            my $cs_src = $stref->{'Subroutines'}{$var}{'Source'};
+                 if (($cs_src eq $src) or (
+                $stref->{'SourceFiles'}{$cs_src}{'SourceType'} eq 'Modules')
+            ) {
+            	 # Keep them
+            } else {
+            	                delete $Sf->{'Vars'}{$var};
+                delete $Sf->{'OrigArgs'}{$var};
+                delete $Sf->{'RefactoredArgs'}{$var};
+                $info->{'Deleted'}=1;
+            	 $line = '! '.$line;
+            }                
+	                     
+   
+               
                 push @{$info->{'Ann'}}, annotate($f, __LINE__  );             
                 return ([$line, $info], [$stref, $f]);
             }

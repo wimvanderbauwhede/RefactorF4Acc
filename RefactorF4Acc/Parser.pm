@@ -70,8 +70,9 @@ sub parse_fortran_src {
 	#	say 'INIT:'.Dumper($stref->{'Subroutines'}{'init'}{'AnnLines'}) ;
 	#	say 'POST:'.Dumper($stref->{'Subroutines'}{'post'}{'AnnLines'}) ;
 	#	die if $f eq 'post';
+	# and not $is_external_include 
 	if ( $sub_or_incl_or_mod ne 'ExternalSubroutines'
-		and not $is_external_include )
+		)
 	{
 		my $Sf = $stref->{$sub_or_incl_or_mod}{$f};
 
@@ -138,7 +139,8 @@ sub parse_fortran_src {
 	print "LEAVING parse_fortran_src( $f ) with Status "
 	  . show_status( $stref->{$sub_or_incl_or_mod}{$f}{'Status'} ) . "\n"
 	  if $V;
-
+	   if ($f eq 'read_ncwrfout_gridinfo') {
+	   }
 	return $stref;
 
 }    # END of parse_fortran_src()
@@ -177,7 +179,7 @@ sub refactor_marked_blocks_into_subroutines {
 					}
 				}
 			} else {
-				say "INFO: $f is EXTERNA" if $I;
+				say "INFO: $f is EXTERNAL" if $I;
 			}
 			say "LEAVING refactor_marked_blocks_into_subroutines( $f ) with Status $stref->{$sub_or_incl_or_mod}{$f}{'Status'}" if $V;
 		}
@@ -423,7 +425,7 @@ sub _analyse_lines {
 				push @blocks_stack,$block;
 			};		
 			# Procedure block identification				
-			$line =~ /^(\w+\s+\w+\s+(?:function|subroutine)|\w+\s+subroutine|[\*\(\)\w]+\s+function|function|subroutine|program|block)\s+(\w+)/ && do {
+			$line =~ /^(\w+\s+\w+\s+(?:function|subroutine)|\w+\s+subroutine|[\*\(\)\w]+\s+function|function|subroutine|program|block)\s+(\w+)/ && do {				
 				my $full_proc_type=$1;
 				my $proc_name=$2;			
 				my $proc_type = $full_proc_type=~/program/ ? 'program' : 
@@ -660,11 +662,11 @@ VIRTUAL
 						$type = $decl->{'Type'};
 					}
 #					say 'STMT COUNT : '.$varname.' : '.$subset.' : '.$Sf->{$subset}{'Set'}{$varname}{'StmtCount'};
-					 my $vline = $indent."$type, $var_dim  :: $varname";
+					 my $vline = "$type, $var_dim  :: $varname";
 #					 if ($var_dim=~/\(2\*ivd003/) {
 #					 	die $var_dim;
 #					 } 
-				( $Sf, my $info ) = __parse_f95_decl( $Sf, $vline, {'Dimension' => 1});#, "$type, $var_dim", $varname );
+				( $Sf, my $info ) = __parse_f95_decl( $Sf, $indent, $vline, {'Dimension' => 1});#, "$type, $var_dim", $varname );
 #				say 'STMT COUNT : '.$varname.' : '.$subset.' : '.$stmt_count;#$Sf->{$subset}{'Set'}{$varname}{'StmtCount'};
 				$Sf->{'DeclCount'}{$varname}++;
 				$info->{'StmtCount'}{$varname}=$Sf->{'DeclCount'}{$varname};#$stmt_count;#$Sf->{$subset}{'Set'}{$varname}{'StmtCount'};
@@ -783,19 +785,20 @@ VIRTUAL
 			elsif (
 				(				
 					$line =~
-/\b(logical|complex|byte|integer|real|double\s*(?:precision|complex)|character)\s+([^\*]?.*)\s*$/
+/^(logical|complex|byte|integer|real|double\s*(?:precision|complex)|character)\s+([^\*]?.*)\s*$/
 					or $line =~
-/\b((?:logical|complex|byte|integer|real|double\s*(?:precision|complex)|character)\s*\(\d+\))([^\*]?.*)\s*$/
+/^((?:logical|complex|byte|integer|real|double\s*(?:precision|complex)|character)\s*\(\d+\))([^\*]?.*)\s*$/
 
 					or $line =~
-/\b((?:logical|complex|byte|integer|real|double\s*(?:precision|complex)|character)\s*\*(?:\d+|\((?:\*|\w+)\)))\s+(.+)\s*$/
+/^((?:logical|complex|byte|integer|real|double\s*(?:precision|complex)|character)\s*\*(?:\d+|\((?:\*|\w+)\)))\s+(.+)\s*$/
 				)
-				and $line !~ /^\w+\s+function\s+/
+				and $line !~ /\s+function\s+\w+/
 			  ) {
+			  	croak $line if $line=~/bvs.+0.7625d1/;
 				$type   = $1;
 				$varlst = $2;
 
-				( $Sf, $info ) = __parse_f77_var_decl( $Sf, $f, $line, $info, $type, $varlst );
+				( $Sf, $info ) = __parse_f77_var_decl( $Sf, $f,$indent, $line, $info, $type, $varlst );
 		}
 # F95 declaration, no need for refactoring		 	
 		 elsif ( $line =~ /^(.+)\s*::\s*(.+)\s*$/ ) {
@@ -803,14 +806,14 @@ VIRTUAL
 #				$type   = $1;
 #				$varlst = $2;
 				
-				( $Sf, $info ) = __parse_f95_decl( $Sf, $line, $info);#, $type, $varlst );
+				( $Sf, $info ) = __parse_f95_decl( $Sf, $indent, $line, $info);#, $type, $varlst );
 				
 			} 
 # F77-style parameters			
 			elsif ( $line =~ /parameter\s*\(\s*(.*)\s*\)/ ) {    
 				my $parliststr = $1;
 				( $Sf, $info ) =
-				  __parse_f77_par_decl( $Sf, $f, $line, $info, $parliststr );
+				  __parse_f77_par_decl( $Sf, $f, $indent, $line, $info, $parliststr );
 				my $parname = $info->{'ParamDecl'}{'Names'}[0][0];
 				my $par_record =
 				  get_var_record_from_set( $Sf->{'Vars'}, $parname );
@@ -1074,11 +1077,11 @@ END IF
 =cut 
 
 #    READ, WRITE, and PRINT statements			
-			if ( $mline =~ /^(read|accept|inquire|write|type|print)(?:\s*\(|]s+)/ ) {				
+			if ( $mline =~ /^(read|accept|inquire|write|type|print)(?:\s*\(|\s+)/ ) {				
 				my $keyword = $1;
 				$info->{ ucfirst($keyword) . 'Call' } = 1;
 				$info->{'IO'}=1;
-				$info = parse_read_write_print( $mline, $info, $stref, $f );
+				$info = _parse_read_write_print( $mline, $info, $stref, $f );
 				
 			}
 #    REWIND, OPEN, CLOSE statements				
@@ -3087,9 +3090,7 @@ sub __handle_acc {
 	# F95 VarDecl
 	# F95 declaration, no need for refactoring
 sub __parse_f95_decl {
-	( my $Sf, my $line, my $info) = @_;
-	my $indent = $line;
-	$indent =~ s/\S.*$//;
+	( my $Sf, my $indent, my $line, my $info) = @_;
 #	say "LINE:<$line>";
 	my $pt = parse_F95_var_decl($line);
 
@@ -3161,10 +3162,7 @@ sub __parse_f95_decl {
 				my $type =$decl->{'Type'}; 
 				if ( exists $pt->{'Attributes'} ) {
 					if ( exists $pt->{'Attributes'}{'Dim'} ) {
-						if ( $pt->{'Attributes'}{'Dim'}[0] ne ':' ) {
-							$decl->{'Dim'}           = [':'];
-							$decl->{'ArrayOrScalar'} = 'Array';
-						} elsif ( $pt->{'Attributes'}{'Dim'}[0] ne '0' ) {
+						if ( $pt->{'Attributes'}{'Dim'}[0] ne '0' ) {
 							my @shape = ();
 							for my $range ( @{ $pt->{'Attributes'}{'Dim'} } ) {
 								if ( $range =~ /:/ ) {
@@ -3182,6 +3180,7 @@ sub __parse_f95_decl {
 					}
 				}
 				if ( $type =~ /character/ ) {
+#					croak Dumper($pt) if $line=~/catn13/;
 					if (exists $pt->{TypeTup}{'ArrayOrScalar'} ) {
 					$decl->{'Attr'} = '(len=' . $pt->{TypeTup}{'ArrayOrScalar'} . ')';
 					} elsif (exists $pt->{'	'}{'Dim'}) {
@@ -3200,6 +3199,15 @@ sub __parse_f95_decl {
 				$decl->{'IODir'} = $pt->{'Attributes'}{'Intent'};
 				$decl->{'Name'}=$tvar;
 				
+				my $subset =in_nested_set($Sf,'Vars',$tvar);						
+				my $orig_decl = $subset ne '' ? $Sf->{$subset}{'Set'}{$tvar} : {};
+				if ($decl->{'Type'} eq 'character'  
+					and exists $decl->{'Attr'}
+					and exists $orig_decl->{'Attr'}
+					) {
+						$decl->{'Attr'}=$orig_decl->{'Attr'};
+				}  		  						
+#				croak Dumper($pt, $decl, $orig_decl) if $line=~/catn13/;
 				# It is possible that at this point the variable had not been declared yet and we use implicit rules
 				# Then we change it to declared.
 				if ( exists $Sf->{'UndeclaredOrigArgs'}{'Set'}{$tvar} ) {			
@@ -3270,9 +3278,9 @@ sub __parse_f77_par_decl {
 
 	# F77-style parameters
 	#                my $parliststr = $1;
-	( my $Sf, my $f, my $line, my $info, my $parliststr ) = @_;
+	( my $Sf, my $f,my $indent, my $line, my $info, my $parliststr ) = @_;
 #say $line;
-	my $indent = $line;
+	
 	my $type   = 'Unknown';
 	$indent =~ s/\S.*$//;
 	my @partups = _parse_comma_sep_expr_list( $parliststr ); 
@@ -3366,7 +3374,7 @@ sub __parse_f77_par_decl {
 # -----------------------------------------------------------------------------
 
 sub __parse_f77_var_decl {
-	( my $Sf, my $f, my $line, my $info, my $type, my $varlst ) = @_;
+	( my $Sf, my $f,my $indent,  my $line, my $info, my $type, my $varlst ) = @_;
 # Now an ad hoc fix for spaces between the type and the asterisk. FIXME! I should just write a better FSM!
 #croak $line if $line=~/double\s+precision/ and $f eq 'includecom';
 
@@ -3377,12 +3385,12 @@ sub __parse_f77_var_decl {
 		$varlst =~ s/^\S+\s+//;
 	}
 	my $attr = '';
-#	say "TYPE1: $line => $type;$attr" if $line=~/character.*lpi/;
+#	say "TYPE1: $line => $type;$attr" ;
 	$type =~ /\*/ && do {
 		( $type, $attr ) = split( /\*/, $type );
 		if ( $attr eq '(' ) { $attr = '*' }
 	};
-#	say "TYPE2: $line => $type;$attr" if $line=~/character.*lpi/;
+#	say "TYPE2: $line => $type;$attr" ;
 	$type =~ /\((\d+)\)/ && do {
 		$attr = $1;
 		( $type, my $rest ) = split( /\(/, $type );
@@ -3390,9 +3398,9 @@ sub __parse_f77_var_decl {
 	$attr=~/\((\w+)\)/ && do { # FIXME: WEAK: in principle it can be a complete expression: character*(z+7*w-4)
 		$attr = $1;
 	};
-#	say "TYPE3: $line => $type;$attr" if $line=~/character.*lpi/;
-	my $indent = $line;
-	$indent =~ s/\S.*$//;
+#	say "TYPE3: $line => $type;$attr" ;
+
+
 	my $T = 0;
 	( my $pvars, my $pvars_lst ) = f77_var_decl_parser( $varlst, $T );
 	
@@ -3485,7 +3493,7 @@ sub __parse_f77_var_decl {
 		if ($common_block_name ne '') {
 			$decl->{'CommonBlockName'} = $common_block_name;
 		}
-#		carp Dumper($decl) if $var eq 'ladn11';
+#		carp Dumper($decl) if $var eq 'catn13';
 		push @varnames, $tvar;
 		
 # This is like before, when we encounter UndeclaredOrigArgs we make them DeclaredOrigArgs
@@ -3679,7 +3687,7 @@ sub _identify_loops_breaks {
 	return $stref;
 }    # END of _identify_loops_breaks()
 
-sub parse_read_write_print {
+sub _parse_read_write_print {
 	( my $line, my $info, my $stref, my $f ) = @_;
 
 	my $call =
@@ -3690,14 +3698,14 @@ sub parse_read_write_print {
 
 	$info->{'CallAttrs'} = { 'Set' => {}, 'List' => [] };
 	my $tline = $line;
-#say "TLINE: $line";
-	# Remove any labels
-	if ( exists $info->{'Label'} ) {
-		my $label = $info->{'Label'};
-		$tline =~ s/^\s*$label\s+//;
-	} elsif ( $tline =~ s/^(\s*)(\d+)(\s+)/$1$3/ ) {
-		$info->{'Label'} = $2;
-	}
+#say "TLINE: $line" if $f eq 'main';
+#	# Remove any labels
+#	if ( exists $info->{'Label'} ) {
+#		my $label = $info->{'Label'};
+#		$tline =~ s/^\s*$label\s+//;
+#	} elsif ( $tline =~ s/^(\s*)(\d+)(\s+)/$1$3/ ) {
+#		$info->{'Label'} = $2;
+#	}
 
 	# Parse
 
@@ -3749,7 +3757,7 @@ sub parse_read_write_print {
 
 #say "TLINE1: <$tline>" ;
 	while ( $tline =~ /[\"\'][^\"\']+[\"\']/ ) {
-		say "STRING CONST $tline";
+		croak "STRING CONST $tline";
 		$tline =~ s/[\"\'][^\"\']+[\"\']//; # so at this point we could have e.g. var1,\s*,var2 or ^\*,var1 or var1,\s*$
 		$tline =~ s/,\s*,//;
 		$tline =~ s/^\s*,\s*//;
@@ -3860,9 +3868,9 @@ sub parse_read_write_print {
 		}
 	}
 
-	#croak Dumper($info) if $line=~/print/;
+
 	return $info;
-}    # END of parse_read_write_print()
+}    # END of _parse_read_write_print()
 
 # -----------------------------------------------------------------------------
 sub _parse_assignment {

@@ -38,6 +38,14 @@ sub add_module_decls { (my $stref)=@_;
           
     # This assumes a source file contains only a single module
 	for my $src (keys %{ $stref->{'SourceContains'} } ) {
+		
+		if (exists $stref->{'SourceContains'}{$src}{'Path'}
+		and  exists $stref->{'SourceContains'}{$src}{'Path'}{'Ext'} ) {	
+		# External, SKIP!
+			say "SKIPPING $src";
+			
+		} else {
+		
 		# Get the unit name from the list	    		
 	    for my $sub_or_func_or_mod ( @{  $stref->{'SourceContains'}{$src}{'List'}   } ) {
 	    	# Get its type
@@ -232,7 +240,8 @@ sub add_module_decls { (my $stref)=@_;
        }   
 #croak Dumper $stref->{'RefactoredCode'}{$src};            
     } # loop over all source files
-#	croak;
+#	croak; 
+	}
     return $stref;
 } # END of add_module_decls()
 1;

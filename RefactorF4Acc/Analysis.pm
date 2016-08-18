@@ -77,7 +77,7 @@ sub analyse_all {
 
 	for my $f ( keys %{ $stref->{'Subroutines'} } ) {
 		next if $f eq '';
-		# In this stage, 'ExGlobArgs' is populated
+		# In this stage, 'ExGlobArgs' is populated	
 		$stref = _analyse_variables( $stref, $f );
 	}
 	return $stref if $stage == 3;
@@ -192,7 +192,7 @@ sub _analyse_variables {
 	
 	my $Sf = $stref->{'Subroutines'}{$f};
 
-	#	local $DBG=1;
+	#	local $DBG= ;
 	say "_analyse_variables($f)" if $DBG;
 
 	my $__analyse_vars_on_line = sub {
@@ -215,6 +215,7 @@ sub _analyse_variables {
 			( my $stref, my $f, my $identified_vars ) = @{$state};
 
 			my $Sf     = $stref->{'Subroutines'}{$f};
+			
 			my @chunks = ();
 			if ( exists $info->{'If'} or exists $info->{'ElseIf'} ) {
 				@chunks = keys %{ $info->{'CondVars'} };
@@ -223,8 +224,8 @@ sub _analyse_variables {
 			if (   exists $info->{'PrintCall'}
 				or exists $info->{'WriteCall'}
 				or exists $info->{'ReadCall'}
-				or exists $info->{'InquireCall'} )
-			{
+				or exists $info->{'InquireCall'} 
+				) {
 				@chunks = ( @chunks, @{ $info->{'CallArgs'}{'List'} }, @{ $info->{'ExprVars'}{'List'} }, @{ $info->{'CallAttrs'}{'List'} } );
 				
 			} elsif ( exists $info->{'SubroutineCall'} ) {
@@ -263,14 +264,15 @@ sub _analyse_variables {
 			}
 
 			# -------------------------------------------------------------------------------------------------------------------
+			
 			for my $mvar (@chunks) {
 				next if $mvar =~ /^\d+$/;
 				next if not defined $mvar or $mvar eq '';
-
+ 
 				#				my $maybe_orig_arg = in_nested_set( $Sf, 'OrigArgs', $mvar );
 				# Means arg was declared
 				my $in_vars_subset = in_nested_set( $Sf, 'Vars', $mvar );
-#				say "SUBSET: $in_vars_subset";
+#				say "$mvar SUBSET: $in_vars_subset" if $f eq 'read_ncwrfout_gridinfo';
 				my $decl_orig_arg = exists $Sf->{'DeclaredOrigArgs'}{'Set'}{$mvar} ? 1 : 0;
 
 				# Means arg has been declared via Implicits
@@ -303,6 +305,7 @@ sub _analyse_variables {
 						or ( $in_vars_subset and $Sf->{$in_vars_subset}{'Set'}{$mvar} eq '1' ) 
 						)
 				  ) {
+				  	
 					my $in_incl = 0;
 					if ( not exists $Sf->{'Commons'}{$mvar} ) {												
 						for my $inc ( keys %{ $Sf->{'Includes'} } ) {
@@ -314,6 +317,7 @@ sub _analyse_variables {
 							{
 								$in_incl = 1;
 
+								if (not exists $stref->{'IncludeFiles'}{$inc}{'ExtPath'} ) {
 								if ( $stref->{'IncludeFiles'}{$inc}{'InclType'} eq 'Parameter' ) {
 									print "WARNING: $mvar in $f is a PARAMETER from $inc!\n" if $W;
 									$Sf->{'Includes'}{$inc}{'Only'}{$mvar} = 1;
@@ -364,7 +368,12 @@ sub _analyse_variables {
 										}
 										$identified_vars->{$mvar} = 1;
 										last;
+									} else {
+										croak $mvar ,$inc;
 									}
+								}
+								} else {
+									say "INFO: $inc is EXTERNAL, not creating a declaration for $mvar in $f" if $I;
 								}
 							}
 						}
@@ -424,6 +433,7 @@ sub _analyse_variables {
 				}
 #				croak $in_vars_subset. ';' if $mvar eq 'unitboundcond' and $f eq 'boundcond_domainfill';
 			}
+			
 			return ( $annline, [ $stref, $f, $identified_vars ] );
 		} else {
 			return ( $annline, $state );
@@ -661,7 +671,7 @@ sub _analyse_var_decls_for_params {
 						}
 					}
 				} else {
-					croak "SHOULD NOT HAPPEN";
+					croak "SHOULD NOT HAPPEN ".Dumper($var_rec);
 					next if $dim =~ /^\d+$/;
 					my @pars = split( /\W+/, $dim );
 					for my $par (@pars) {

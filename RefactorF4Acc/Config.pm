@@ -60,6 +60,7 @@ our $targetdir = '../RefactoredSources';
 
 #PREFIX = .
 #SRCDIRS = .
+#EXTSRCDIRS = ../NetCDF 
 
 # Config should support at least the following keys:
 
@@ -90,6 +91,7 @@ sub read_config {
 		my @vs=split(/\s*,\s*/,$v);
 		$Config{$k}=[@vs];
 	} elsif ($k !~/TOP\w*|NEWSRCPATH|PREFIX|KERNEL|MODULE\w*|MACRO_SRC/) {
+		# These are key that take a list but it has only one element
 		$Config{$k}=[$v];
 	} elsif ($k eq 'TOP') {
 		$Config{$k}=lc($v);

@@ -37,6 +37,8 @@ sub find_subroutines_functions_and_includes {
     my $stref = shift;
     my $prefix   = $Config{PREFIX};
     my @srcdirs=@{ $Config{SRCDIRS} };
+    my @extsrcdirs=@{ $Config{EXTSRCDIRS} }; # External sources, should not be refactored but can be parsed
+    my %ext_src_dirs = map { $prefix.'/'.$_ => 1 } @extsrcdirs; 
     my %excluded_sources = map { $_ => 1 } @{ $Config{EXCL_SRCS} };
     my %excluded_dirs = map { $_ => 1 } @{ $Config{EXCL_DIRS} };
     my $has_pattern = $Config{EXCL_SRCS} ne '' ? 0 : 1;    
@@ -46,30 +48,27 @@ sub find_subroutines_functions_and_includes {
     # find sources (borrowed from PerlMonks)
     
     my %src_files = ();
-    my $tf_finder = sub {
+    my $tf_finder = sub { 
         return if !-f;
         return if (!/\.f(?:9[05])?$/ &&!/\.c$/); # rather ad-hoc for Flexpart + WRF
-        # FIXME: we must have a list of folders to search or not to search!
-        my $srcname = $File::Find::name; 
+        my $filepath = $File::Find::name;  # i.e. $path+ the name of the file found
+        my $srcname = $filepath;
         $srcname =~s/^\.\///;
-        my $srcdir = $File::Find::name; 
-        $srcdir=~s/\/.+$//;        
-#        print "<$srcdir>\n";
+        my $srcdir = $filepath;  
+        $srcdir=~s/\/.+$//;        # i.e. $path
         if (not (
-         exists $excluded_sources{$srcname} or 
-         exists $excluded_sources{"./$srcname"} or
-         ($has_pattern and
-         $srcname=~$excl_srcs_regex)
-        ) and
-        not exists $excluded_dirs{$srcdir} # this does not work as the $srcdir is simply '.' 
+	         exists $excluded_sources{$srcname} or 
+    	     exists $excluded_sources{"./$srcname"} or
+        	 ($has_pattern and $srcname=~$excl_srcs_regex)
+        	) and not exists $excluded_dirs{$srcdir} # this does not work as the $srcdir is simply '.' 
          ) {
-         $src_files{$File::Find::name} = 1;
+         $src_files{$File::Find::name} = (exists $ext_src_dirs{$srcdir}) ? { 'Ext' => $filepath }  : {'Local' => $filepath };
         } else {
             print "EXCLUDED SOURCE: $srcname\n" if $V;
         }
     };
     
-    for my $dir (@srcdirs) {
+    for my $dir (@srcdirs,@extsrcdirs) {
     	my $path="$prefix/$dir";
     	if ($dir eq '.') {
     	   $path=$prefix;
@@ -102,13 +101,15 @@ sub find_subroutines_functions_and_includes {
         say "INFO: Fortran SOURCE: $src" if $I; 
 
     	$stref->{'SourceContains'}{$src}={
+    		'Path' => $src_files{$src},
     		'Set'=>{},
     		'List'=>[]
     	};
+    	
         $stref=_process_src($src,$stref);
         
     }
-
+    
     _test_can_be_inlined_all_modules($stref);    
     
     
@@ -120,7 +121,8 @@ sub find_subroutines_functions_and_includes {
 
 sub _process_src {
 	(my $src, my $stref)=@_;
-	
+	my @extsrcdirs=@{ $Config{'EXTSRCDIRS'} };
+	my $prefix   = $Config{'PREFIX'};
     my $srctype=''; # sub, func or incl; for F90/95 also module, and then we must tag the module by what it contains
 #    my $f=''; # name of the entity
     my $has_blocks=0;
@@ -138,6 +140,7 @@ sub _process_src {
     if (not exists $stref->{'SourceFiles'}{$src}) {
     	$stref->{'SourceFiles'}{$src}={};
     	$stref->{'SourceFiles'}{$src}{'AnnLines'}=[];
+    	$stref->{'SourceFiles'}{$src}{'Path'} =$stref->{'SourceContains'}{$src}{'Path'} ;  
     } else {
     	croak "Already processed $src!";
     }
@@ -395,6 +398,17 @@ sub _process_src {
 					$stref->{'SourceFiles'}{$inc}{'SourceType'}='IncludeFiles';
                     if (not -e $inc) {
                     	$stref->{'IncludeFiles'}{$inc}{'InclType'} = 'External';
+                    	for my $ext_dir (@extsrcdirs) {
+                    		if (-e "$prefix/$ext_dir/$inc") { 
+                    			$stref->{'IncludeFiles'}{$inc}{'ExtPath'} =  "$prefix/$ext_dir/$inc";
+                    			$stref->{'SourceContains'}{$inc}={
+                    				'Path' => { 'Ext' => "$prefix/$ext_dir/$inc"},                    				
+    								'Set'=>{},
+    								'List'=>[]
+                    			};
+                    			last;
+                    		}
+                    	}
                     } else {
                         $stref->{'IncludeFiles'}{$inc}{'InclType'} = 'Local';
                     }
@@ -516,4 +530,8 @@ sub _subs_can_be_inlined { (my $stref, my $mod_name, my $inline_ok) = @_;
         return 0;
     }
     return $inline_ok;
+}
+
+sub _find_sources {
+	
 }

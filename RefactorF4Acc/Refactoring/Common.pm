@@ -116,7 +116,14 @@ sub context_free_refactorings {
         	$info->{'Ann'}=[ annotate($f, __LINE__ .' Original Common statement' ) ];
 #            next;
         }	
-
+		if ( exists $info->{'Data'} ) {
+			my @chunks=split(/data\s+/,$line);
+			croak if scalar @chunks > 2;
+			my $str = $chunks[1];
+			$str=~s/\s+//g;
+			$str=~s/\// \/ /g;
+			$line = $chunks[0].'data '.$str;
+		}
         if ( exists $info->{'Goto'} ) {
             $line =~ s/\bgo\sto\b/goto/;
             $info->{'Ref'}++;
@@ -333,9 +340,9 @@ sub context_free_refactorings {
             my $inc  = $info->{'Include'}{'Name'};
             my $tinc = $inc;
             $tinc =~ s/\./_/g;
-            if ( $stref->{IncludeFiles}{$inc}{InclType} ne 'External' ) {
+            if ( not exists $stref->{'IncludeFiles'}{$inc}{'ExtPath'} ) { # FIXME: this is because 'InclType' => 'External' gets overwritten by 'Parameter' 
 #            	say $f . ' => '.$inc. ' => '.Dumper($Sf->{'Includes'}{$inc});
-            	if (exists $Sf->{'Includes'}{$inc}{'Only'} and scalar keys %{ $Sf->{'Includes'}{$inc}{'Only'} }>0) {            		            	
+            	if (exists $Sf->{'Includes'}{$inc}{'Only'} and scalar keys %{ $Sf->{'Includes'}{$inc}{'Only'} }>0) {            		            		            	
             		my @used_params = keys %{ $Sf->{'Includes'}{$inc}{'Only'} };
                 	$line = "      use $tinc". ($NO_ONLY ?  '!' : '') .', only : '.join(', ', @used_params) ;
                   	push @{ $info->{'Ann'} }, annotate($f, __LINE__. ' Include' );
@@ -358,9 +365,9 @@ sub context_free_refactorings {
                   	push @{ $info->{'Ann'} }, annotate($f, __LINE__ . ' no pars used'); #croak 'SKIP USE PARAM';            		
             	}
             } else {
-            	say 'WARNING: EXTERNAL INCLUDES ARE COMMENTED OUT!' if $W;
+#            	say 'WARNING: EXTERNAL INCLUDES ARE COMMENTED OUT!' if $W;
                 $line =                
-                  "!      include '$inc'"; # FIXME
+                  "      include '$inc'"; # FIXME
                   push @{ $info->{'Ann'} }, annotate($f, __LINE__ . ' External ');
             }
             $info->{'Ref'}++;
