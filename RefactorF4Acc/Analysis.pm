@@ -776,6 +776,7 @@ sub _determine_exglobargs_rec {
 		# There is a possible complication that f1 can have v1 from b1 and f2 v1 from b2
 		# But I am going to ignore that and blindly merge all exglobargs	
 		for my $calledsub ( @{ $Sf->{'CalledSubs'}{'List'} } ) {
+			next if exists $stref->{'ExternalSubroutines'}{$calledsub}; # Don't descend into external subs   
 			$stref->{Counter}++ if $V;
 			$stref = _determine_exglobargs_rec( $calledsub, $stref );
 #			say "AFTER rec into called sub $calledsub for $f";

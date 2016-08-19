@@ -184,7 +184,8 @@ sub lift_includes {
     my $Sf = $stref->{'Subroutines'}{$f};    
         # Which child has RefactorGlobals==1?    
     $Sf->{'LiftedIncludes'} =[]; # We will use this to create the additional include statements
-    for my $cs (@{ $Sf->{'CalledSubs'}{'List'} }) {             
+    for my $cs (@{ $Sf->{'CalledSubs'}{'List'} }) {
+    	next if exists $stref->{'ExternalSubroutines'}{$cs}; # Don't descend into external subs             
     	croak 'No subroutine name ' if $cs eq '' or not defined $cs;
         if ($stref->{'Subroutines'}{$cs}{'RefactorGlobals'}==1) {
             for my $inc (keys %{ $stref->{'Subroutines'}{$cs}{'CommonIncludes'} }) {

@@ -69,8 +69,8 @@ sub parse_expression { (my $exp, my $info, my $stref, my $f)=@_;
 #	say "EXPR: $preproc_expr" if $preproc_expr=~/write.+path.numpath/; 
 	 # To make this robust, what I'll do is replace any '(' with '_OPEN_PAR_(' so that is looks like a function.
 	 $preproc_expr=~s/^\(/_OPEN_PAR_\(/;
-	while($preproc_expr=~/[\+\-\*\/,:\(]\(/) { # basically, it can be: ,+-*/ 
-			$preproc_expr=~s/([\+\-\*\/,:\(])\(/${1}_OPEN_PAR_\(/;
+	while($preproc_expr=~/[\+\-\*\/,:\(]\s*\(/) { # basically, it can be: ,+-*/ 
+			$preproc_expr=~s/([\+\-\*\/,:\(])\s*\(/${1}_OPEN_PAR_\(/;
 	}	 
 	$preproc_expr =~s/\s+//g;
 	

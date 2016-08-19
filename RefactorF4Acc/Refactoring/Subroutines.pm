@@ -456,16 +456,33 @@ sub _create_extra_arg_and_var_decls {
     for my $var ( @{ $Sf->{'UndeclaredOrigArgs'}{'List'} } ) {
     	say "INFO VAR: $var" if $I;
     	next if $var eq '*';
+    	
+#    	say Dumper($Sf);
+    	if (exists $Sf->{'CalledSubs'} and exists $Sf->{'CalledSubs'}{$var} and not exists $Sf->{'UndeclaredOrigArgs'}{'Set'}{$var}) {
+    		
+    		next;
+    	} 
+  		if ( exists $stref->{'ExternalSubroutines'}{$var} and not exists $Sf->{'UndeclaredOrigArgs'}{'Set'}{$var}) {
+  			
+    		next;
+    	}
     	if (not exists $unique_ex_impl{$var}) {
+    		
     			$unique_ex_impl{$var}=$var;
-                    my $rdecl = $Sf->{'UndeclaredOrigArgs'}{'Set'}{$var}; 
-                    my $rline = emit_f95_var_decl($rdecl);                                         
-                    my $info={};
-                    $info->{'Ann'}=[annotate($f, __LINE__ .' : EX-IMPLICIT')  ];
-                    $info->{'LineID'}= $nextLineID++;
-                    $info->{'Ref'}=1;
-                    $info->{'VarDecl'}=$rdecl;
-                    push @{$rlines}, [ $rline,  $info ];
+                    my $rdecl = $Sf->{'UndeclaredOrigArgs'}{'Set'}{$var};
+                    
+                    if (not exists $rdecl->{'External'}
+                    or (exists $rdecl->{'External'} and exists $Sf->{'UndeclaredOrigArgs'}{'Set'}{$var})
+                    ) {
+                    	  
+	                    my $rline = emit_f95_var_decl($rdecl);                                         
+	                    my $info={};
+	                    $info->{'Ann'}=[annotate($f, __LINE__ .' : EX-IMPLICIT')  ];
+	                    $info->{'LineID'}= $nextLineID++;
+	                    $info->{'Ref'}=1;
+	                    $info->{'VarDecl'}=$rdecl;
+	                    push @{$rlines}, [ $rline,  $info ];
+                    }
     	}                        
     }    # for
 
@@ -485,6 +502,15 @@ sub _create_extra_arg_and_var_decls {
     print "INFO: UndeclaredOrigLocalVars in $f\n" if $I;
     for my $var ( @{ $Sf->{'UndeclaredOrigLocalVars'}{'List'} } ) {
     	say "INFO VAR: $var" if $I;    	
+    	if (exists $Sf->{'CalledSubs'} and exists $Sf->{'CalledSubs'}{$var}) {
+    		next;
+    	} 
+    	if ( exists $stref->{'Subroutines'}{$var}) {
+    		next;
+    	}
+  		if ( exists $stref->{'ExternalSubroutines'}{$var}) {
+    		next;
+    	}    	
     	# Check if it is not a parameter
     	my $is_param=0;
     	if ( in_nested_set($Sf, 'Parameters', $var)

@@ -45,24 +45,32 @@ sub remove_vars_masking_functions { ( my $stref ) = @_;
             my $var = $info->{'VarDecl'}{'Name'};
             if (exists $stref->{'Subroutines'}{$f}{'CalledSubs'}{'Set'}{$var}) {
                 say "INFO: VAR $var is masking a function/sub in $f, LINE: $line" if $I;
-                my $Sf = $stref->{'Subroutines'}{$f};
-                
-                
+                my $Sf = $stref->{'Subroutines'}{$f};                                
 				my $src = $Sf->{'Source'};
-				croak 'FIXME!'.$src;  
-	            my $cs_src = $stref->{'Subroutines'}{$var}{'Source'};
-                 if (($cs_src eq $src) or (
-                $stref->{'SourceFiles'}{$cs_src}{'SourceType'} eq 'Modules')
-            ) {
-            	 # Keep them
-            } else {
-            	                delete $Sf->{'Vars'}{$var};
-                delete $Sf->{'OrigArgs'}{$var};
-                delete $Sf->{'RefactoredArgs'}{$var};
-                $info->{'Deleted'}=1;
-            	 $line = '! '.$line;
-            }                
-	                     
+#				croak 'FIXME!'.$src;  
+				if (exists $stref->{'Subroutines'}{$var}{'Source'}) { # otherwise $var must be external
+	           		my $cs_src = $stref->{'Subroutines'}{$var}{'Source'};
+	           		# We comment the line out unless it's a program 
+                 	if (
+                 		($cs_src eq $src) and                  		
+                 		(
+                 		(exists $stref->{'Subroutines'}{$var}{'Program'} and $stref->{'Subroutines'}{$var}{'Program'}==1)
+                 		or ($stref->{'Program'} eq $src)
+                 		)
+#	                	or ($stref->{'SourceFiles'}{$cs_src}{'SourceType'} eq 'Modules')
+    	        	) {
+    	        		$line.= '! decl of func/sub in program';
+    	        	} else {
+						delete $Sf->{'Vars'}{$var};
+    	        	    delete $Sf->{'OrigArgs'}{$var};
+        	        	delete $Sf->{'RefactoredArgs'}{$var};
+            	    	$info->{'Deleted'}=1;
+            		 	$line = '! '.$line. "$cs_src <> $src;".$stref->{'Subroutines'}{$var}{'Program'}.';'.$stref->{'Program'};
+         	   		}                
+				} else {
+					# $var is an external subroutine, for now just mark it
+					$line = '! '.$line. '! EXTERNAL SUB';
+				}     
    
                
                 push @{$info->{'Ann'}}, annotate($f, __LINE__  );             

@@ -309,6 +309,7 @@ sub context_free_refactorings {
                 		my $ph=$1;
                 		$par_decl->{'Name'}[1]=$info->{'PlaceHolders'}{$ph};
                 	}
+#                	croak Dumper($par_decl) if $line=~/cpn002/;
 	                my $new_line =emit_f95_var_decl($par_decl) ;
 	                # Here the declaration is complete
 	                push @extra_lines,
@@ -770,8 +771,9 @@ sub get_annotated_sourcelines {
     my $Sf = $stref->{$sub_or_func_or_inc}{$f};
 
     my $annlines = [];
-	croak "$sub_or_func_or_inc $f:".Dumper ($Sf) if not exists $Sf->{Status};
-    if ( $Sf->{'Status'} == $PARSED ) {
+#	croak "$sub_or_func_or_inc $f:".Dumper ($Sf) if not exists $Sf->{Status};
+if (exists  $Sf->{'Status'} ) {
+    if ($Sf->{'Status'} == $PARSED ) {
         if ( not exists $Sf->{'RefactoredCode'} ) {
             $Sf->{'RefactoredCode'} = [];
             if ( defined $Sf->{'AnnLines'} ) {
@@ -793,6 +795,9 @@ sub get_annotated_sourcelines {
             print "\n" if $W;
         }
     }
+} else {
+	warn "$sub_or_func_or_inc $f has no Status";
+}
     return $annlines;
 }    # END of get_annotated_sourcelines()
 
@@ -1004,57 +1009,45 @@ sub format_f95_par_decl {
 
     my $sub_or_func_or_inc = sub_func_incl_mod( $f, $stref );
     my $Sf = $stref->{$sub_or_func_or_inc}{$f};
-
-    #    print "VAR:<".Dumper($var)."> ";
     my $par_rec = get_var_record_from_set( $Sf->{'Parameters'},$var);
-#    carp 'PAR REC:'.Dumper($par_rec);
     my $val = $par_rec->{'Val'};
 
 	my $type = defined $par_rec->{'Type'} ? $par_rec->{'Type'} : 'Unknown'; 
-	my $attr = '';
+	my $attr = defined $par_rec->{'Attr'} ? $par_rec->{'Attr'} :  '';
     my $spaces = ' ' x 6;
 	my $dim = [];
-#	say 'HERE0'.$type;
+
 	if (not defined $par_rec->{'Type'} or $par_rec->{'Type'} eq 'Unknown') {
-#		say 'HERE1'.$type;		
+		
 		my $Sv = get_var_record_from_set($Sf->{'LocalVars'},$var);
-#		say 'VAR REC:'.Dumper($Sv);
+
 		if (not defined $Sv) {
-#			say 'HERE2'.$type;
-        say
-"WARNING: PARAMETER $var is probably local to $f in format_f95_par_decl(). If $f is a parameter include file, that is OK."
-          if $W;
+
+        say "WARNING: PARAMETER $var is probably local to $f in format_f95_par_decl(). If $f is a parameter include file, that is OK." if $W;
 			
 		} else {
-#			say 'VAR REC:'.Dumper($Sv) if $var eq 'pi';
-#			say 'HERE3'.$type;
 			$spaces = $Sv->{'Indent'};
 			$dim=$Sv->{'Dim'};
 			if (
 		 		not defined $Sv->{'Type'} or $Sv->{'Type'} eq 'Unknown'
 			) {
-				
-#				say 'HERE4'.$type;
 				say "IMPLICIT TYPING OF PARAM $var from $f";croak;
 				($type, my $array_or_scalar, $attr) =type_via_implicits( $stref, $f, $var);
 			} else {	
-#				say 'HERE5'.$type;
 				$type = $Sv->{'Type'};
 			}
 		}
-	}
-    
+	}    
 #       # Can't trust the type set via implicits! WEAK!
        if ($val=~/^[\+\-\*\d]+$/) {
        	$type = 'integer';
        } elsif ($val=~/^[\.\+\-\*\/\d]+$/) {
        	$type = 'real';
-       }       	
-#       } elsif ($val=~/^(\-?(?:\d+|\d*\.\d*)(?:e[\-\+]?\d+)?)$/) {
-#       	$type = 'real_FROM_VALUE';
-#       	} elsif ($val=~/^[\'\"]/) {
-#       		my $len = length($val) -2;
-#       		$type = "character($len)_FROM_VALUE";	
+       	} elsif ($val=~/^[\'\"]/) {
+       		my $len = length($val) -2;
+       		$type = 'character';
+       		$attr="(len=$len)";
+       	}	
 #       } else {
 #       	#FIXME
 #       	# This is an expression, so we should parse it and get the type from the constituents.

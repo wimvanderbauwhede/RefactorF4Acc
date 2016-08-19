@@ -57,6 +57,7 @@ sub add_module_decls { (my $stref)=@_;
 	        my $Sf = $stref->{$sub_func_type}{$sub_or_func_or_mod};
 	        	        
 	        for my $called_sub ( keys %{ $Sf->{'CalledSubs'}{'Set'} } ) {	    
+	        	next if exists $stref->{'ExternalSubroutines'}{$called_sub}; # Don't descend into external subs   
 	            my $cs_src;
 	            if (exists $stref->{'Subroutines'}{$called_sub} and exists $stref->{'Subroutines'}{$called_sub}{'Source'}) {
 	               	$cs_src=$stref->{'Subroutines'}{$called_sub}{'Source'};

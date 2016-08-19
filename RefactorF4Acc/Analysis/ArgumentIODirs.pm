@@ -53,6 +53,7 @@ sub determine_argument_io_direction_rec {
 		and scalar @{ $Sf->{'CalledSubs'}{'List'} } > 0 )
 	{
 		for my $calledsub ( @{ $Sf->{'CalledSubs'}{'List'} } ) {
+			next if exists $stref->{'ExternalSubroutines'}{$calledsub}; # Don't descend into external subs
 			$stref->{Counter}++ if $V;
 
 			$stref = determine_argument_io_direction_rec( $calledsub, $stref );

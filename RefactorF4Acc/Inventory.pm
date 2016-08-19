@@ -37,7 +37,7 @@ sub find_subroutines_functions_and_includes {
     my $stref = shift;
     my $prefix   = $Config{PREFIX};
     my @srcdirs=@{ $Config{SRCDIRS} };
-    my @extsrcdirs=@{ $Config{EXTSRCDIRS} }; # External sources, should not be refactored but can be parsed
+    my @extsrcdirs=exists $Config{EXTSRCDIRS} ? @{ $Config{EXTSRCDIRS} } : (); # External sources, should not be refactored but can be parsed
     my %ext_src_dirs = map { $prefix.'/'.$_ => 1 } @extsrcdirs; 
     my %excluded_sources = map { $_ => 1 } @{ $Config{EXCL_SRCS} };
     my %excluded_dirs = map { $_ => 1 } @{ $Config{EXCL_DIRS} };
@@ -121,7 +121,7 @@ sub find_subroutines_functions_and_includes {
 
 sub _process_src {
 	(my $src, my $stref)=@_;
-	my @extsrcdirs=@{ $Config{'EXTSRCDIRS'} };
+	my @extsrcdirs=exists $Config{EXTSRCDIRS} ? @{ $Config{EXTSRCDIRS} } : (); # External sources, should not be refactored but can be parsed
 	my $prefix   = $Config{'PREFIX'};
     my $srctype=''; # sub, func or incl; for F90/95 also module, and then we must tag the module by what it contains
 #    my $f=''; # name of the entity

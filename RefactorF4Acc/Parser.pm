@@ -812,26 +812,21 @@ VIRTUAL
 # F77-style parameters			
 			elsif ( $line =~ /parameter\s*\(\s*(.*)\s*\)/ ) {    
 				my $parliststr = $1;
-				( $Sf, $info ) =
-				  __parse_f77_par_decl( $Sf, $f, $indent, $line, $info, $parliststr );
+				( $Sf, $info ) = __parse_f77_par_decl( $Sf, $f, $indent, $line, $info, $parliststr );
 				my $parname = $info->{'ParamDecl'}{'Names'}[0][0];
-				my $par_record =
-				  get_var_record_from_set( $Sf->{'Vars'}, $parname );
-				if ( defined $par_record ) {
-					my $subset = in_nested_set( $Sf, 'Vars', $parname )
-					  ;    # if $parname =~/eps0/;
-					$info->{'ParamDecl'}{'Type'} = $par_record->{'Type'};
-					$Sf->{$subset}{'Set'}{$parname}{'Type'} =
-					  $par_record->{'Type'};
-				} else {
-					( my $type, my $array_or_scalar, my $attr ) =
-					  type_via_implicits( $stref, $f, $parname );
-					$info->{'ParamDecl'}{'Type'} = $type;
-					$Sf->{'LocalParameters'}{'Set'}{$parname} =
-					  $info->{'ParamDecl'};
-				}
-				$Sf->{'LocalParameters'}{'Set'}{$parname} =
-				  $info->{'ParamDecl'};
+#				my $par_record = get_var_record_from_set( $Sf->{'Vars'}, $parname );
+#				if ( defined $par_record ) {
+#					my $subset = in_nested_set( $Sf, 'Vars', $parname);
+#					$info->{'ParamDecl'}{'Type'} = $par_record->{'Type'};
+#					$Sf->{$subset}{'Set'}{$parname}{'Type'} = $par_record->{'Type'};
+#				} else {
+#					( my $type, my $array_or_scalar, my $attr ) = type_via_implicits( $stref, $f, $parname );
+#					$info->{'ParamDecl'}{'Type'} = $type;
+#					$Sf->{'LocalParameters'}{'Set'}{$parname} = $info->{'ParamDecl'};
+#				}
+#				say '1:'.$parname.Dumper($Sf->{'LocalParameters'}{'Set'}{$parname});
+#				$Sf->{'LocalParameters'}{'Set'}{$parname} = $info->{'ParamDecl'};
+#				say '2:'.$parname.Dumper($Sf->{'LocalParameters'}{'Set'}{$parname});
 			}    # match var decls, parameter statements F77/F95								
 # SIGNATURES				
 			 elsif ( $line =~ /\b(subroutine|function|program|block)\b/ ) {
@@ -1554,6 +1549,7 @@ sub _parse_subroutine_and_function_calls {
 				if ( $argstr =~ /^\s*$/ ) {
 					$argstr = '';
 				}
+				
 				$info->{'SubroutineCall'}{'Name'} = $name;
 				if ( $in_kernel_wrapper_region == 1 ) {
 					if ($in_kernel_sub_region) {
@@ -1570,6 +1566,7 @@ sub _parse_subroutine_and_function_calls {
 				}
 
 				$stref = add_to_call_tree( $name, $stref, $f );
+				
 				if ( not exists $stref->{'Subroutines'}{$name} ) {
 					$stref->{'ExternalSubroutines'}{$name}{'Called'} = 1;
 
@@ -1591,6 +1588,7 @@ sub _parse_subroutine_and_function_calls {
 				$info->{'SubroutineCall'}{'Args'} = $info->{'CallArgs'};
 				$info->{'SubroutineCall'}{'ExpressionAST'} = $ast;
 				#croak Dumper($info) if $name eq 'getvdep' and $f eq 'calcpar';
+				
 				if ( $external_sub == 0 ) {
 					my $Sname = $stref->{'Subroutines'}{$name};
 
@@ -1609,6 +1607,7 @@ sub _parse_subroutine_and_function_calls {
 					if ( not exists $Sname->{'Callers'}{$f} ) {
 						$Sname->{'Callers'}{$f} = [];
 					}
+					
 					push @{ $Sname->{'Callers'}{$f} }, $index;
 
 					if ( $Sf->{'RefactorGlobals'} == 1 ) {
@@ -1619,14 +1618,14 @@ sub _parse_subroutine_and_function_calls {
 					if ( defined $Sname
 						and not exists $Sf->{'CalledSubs'}{'Set'}{$name} )
 					{
-						if ( $sub_or_func_or_mod eq 'Subroutines' ) {
-							$Sf->{'CalledSubs'}{'Set'}{$name} = 1;
+						
+						if ( $sub_or_func_or_mod eq 'Subroutines' ) { # The current code unit is a subroutine 
+							$Sf->{'CalledSubs'}{'Set'}{$name} = 1; # mark $name a called sub in $f
 							push @{ $Sf->{'CalledSubs'}{'List'} }, $name;
-						} else {
-							$Sf->{'Subroutines'}{$current_sub_name}
-							  {'CalledSubs'}{'Set'}{$name} = 1;
-							push @{ $Sf->{'Subroutines'}{$current_sub_name}
-								  {'CalledSubs'}{'List'} }, $name;
+						} else { # The current code unit is NOT a subroutine, which means it is a Module I guess
+						# mark $name as a called sub in $current_sub_name 
+							$Sf->{'Subroutines'}{$current_sub_name}{'CalledSubs'}{'Set'}{$name} = 1;
+							push @{ $Sf->{'Subroutines'}{$current_sub_name}{'CalledSubs'}{'List'} }, $name;
 						}
 						if (   not exists $Sname->{'Status'}
 							or $Sname->{'Status'} < $PARSED
@@ -1646,6 +1645,16 @@ sub _parse_subroutine_and_function_calls {
 
 					# An external sub
 					$info->{'SubroutineCall'}{'IsExternal'} = 1;
+					# I should add these to CalledSubs I think
+					if ( $sub_or_func_or_mod eq 'Subroutines' ) { # The current code unit is a subroutine 
+							$Sf->{'CalledSubs'}{'Set'}{$name} = 1; # mark $name a called sub in $f
+							push @{ $Sf->{'CalledSubs'}{'List'} }, $name;
+						} else { # The current code unit is NOT a subroutine, which means it is a Module I guess
+						# mark $name as a called sub in $current_sub_name 
+							$Sf->{'Subroutines'}{$current_sub_name}{'CalledSubs'}{'Set'}{$name} = 1;
+							push @{ $Sf->{'Subroutines'}{$current_sub_name}{'CalledSubs'}{'List'} }, $name;
+						}
+					
 				}
 			}
 
@@ -2910,10 +2919,11 @@ sub _split_multipar_decls_and_set_type {
 					my %rinfo = %{$info};
 					$rinfo{'LineID'}    = $nextLineID++;
 					$rinfo{'ParamDecl'} = {};
+#					say $var,$Sf->{'LocalParameters'}{'Set'}{$var}{'Attr'};
 					my $param_decl = {
 						'Indent' => $info->{'ParamDecl'}{'Indent'},
-						'Type' => $Sf->{'LocalParameters'}{'Set'}{$var}{'Type'},
-						'Attr' => '',
+						'Type' => $Sf->{'LocalParameters'}{'Set'}{$var}{'Type'}, #$info->{'ParamDecl'}{'Type'},
+						'Attr' => $Sf->{'LocalParameters'}{'Set'}{$var}{'Attr'}, #$info->{'ParamDecl'}{'Attr'},
 						'Dim'  => [],
 						'Parameter' => 'parameter',
 						'Name'      => [ $var, $val ],
@@ -2924,7 +2934,7 @@ sub _split_multipar_decls_and_set_type {
 
 					$Sf->{'LocalParameters'}{'Set'}{$var} = $param_decl;
 					$rinfo{'ParamDecl'} = $Sf->{'LocalParameters'}{'Set'}{$var};
-
+#say $var.Dumper($param_decl);
 					my $rline = $line;
 					if ( scalar @{ $info->{'ParamDecl'}{'Names'} } > 1 ) {
 
@@ -3282,45 +3292,38 @@ sub __parse_f77_par_decl {
 #say $line;
 	
 	my $type   = 'Unknown';
+	my $attr = '';
 	$indent =~ s/\S.*$//;
 	my @partups = _parse_comma_sep_expr_list( $parliststr ); 
 	
-	my %pvars =
-	  map { split( /\s*=\s*/, $_ ) } @partups;    # Perl::Critic, EYHO
-	my @var_vals =
-	  map { ( my $k, my $v ) = split( /\s*=\s*/, $_ ); [ $k, $v ] }
-	  @partups;                                   # Perl::Critic, EYHO
+	my %pvars = map { split( /\s*=\s*/, $_ ) } @partups;    # Perl::Critic, EYHO
+	my @var_vals = map { ( my $k, my $v ) = split( /\s*=\s*/, $_ ); [ $k, $v ] } @partups; # Perl::Critic, EYHO
 	my @pvarl = map { s/\s*=.+//; $_ } @partups;
 	my $pars = [];
 
-	if ( not exists $Sf->{'LocalParameters'}{'List'} ) {
-		croak 'BOOM!';
-		$Sf->{'LocalParameters'}{'List'} = [];
-	}
-	if ( not exists $Sf->{'LocalParameters'}{'Set'} ) {
-		croak 'BOOM!';
-		$Sf->{'LocalParameters'}{'Set'} = {};
-	}
 	my $pars_in_val = {};
+	
 	for my $var (@pvarl) {
 
 		croak if ref($var) eq 'ARRAY';
-		if ( not in_nested_set $Sf, 'LocalVars', $var ) {
+		if ( not in_nested_set $Sf, 'LocalVars', $var ) { 
 			if ( exists $pvars{$var} ) {
 
 				my $val             = $pvars{$var};
 				my $pars_in_val_tmp = ___check_par_val_for_pars($val);
 				$type = 'Unknown';
+				$attr='';
 				if ( $val =~ /^\-?\d+$/ ) {
 					$type = 'integer';
 				} elsif ( $val =~ /^(\-?(?:\d+|\d*\.\d*)(?:[edq][\-\+]?\d+)?)$/ ) {
 					$type = 'real';
+				} elsif ( $val =~ /^[\"\'].+[\'\"]$/ ) {
+					my $nchars = length ($val) -2;
+					$attr = "(len=$nchars)";
+					$type = 'character';					
 				} else {
 					for my $mpar ( keys %{$pars_in_val_tmp} ) {
-						my $mpar_rec =
-						  get_var_record_from_set( $Sf->{'Parameters'}, $mpar );
-
-						#				 		croak Dumper($mpar_rec);
+						my $mpar_rec = get_var_record_from_set( $Sf->{'Parameters'}, $mpar );
 						$type = $mpar_rec->{'Type'};
 					}
 				}
@@ -3329,21 +3332,26 @@ sub __parse_f77_par_decl {
 					'Type' => $type,
 					'Var'  => $var,
 					'Val'  => $val,
+					'Attr' => $attr
 				};
 				print
-				  "INFO: LOCAL PARAMETER $var infered type: $type $var = $val\n"
-				  if $I;
+				  "INFO: LOCAL PARAMETER $var infered type: $type $var = $val\n" if $I;
 				push @{$pars}, $var;
 
 				#carp Dumper($Sf->{'LocalParameters'}{'Set'}{$var}) ;
+			} else {
+				say "WARNING: no VAL for VAR $var ($line)" if $W;
 			}
 		} else {
 			my $var_rec = get_var_record_from_set( $Sf->{'LocalVars'}, $var );
+			
 			$type = $var_rec->{'Type'};
+			$attr = $var_rec->{'Attr'};
 			$Sf->{'LocalParameters'}{'Set'}{$var} = {
 				'Type' => $type,
 				'Var'  => $var,
 				'Val'  => $pvars{$var},
+				'Attr' => $attr
 			};
 
 			my $val = $pvars{$var};
@@ -3352,21 +3360,23 @@ sub __parse_f77_par_decl {
 			push @{$pars}, $var;
 		}
 
-#		croak Dumper($Sf->{'LocalParameters'}{'Set'}{$var}) if $var eq 'const' and $f eq 'richardson';
+		
 	}
 	$info->{'UsedParameters'} = $pars_in_val;
 	$info->{'ParamDecl'}      = {
 		'Indent'    => $indent,
 		'Type'      => $type,
-		'Attr'      => '',
+		'Attr'      => $attr,
 		'Dim'       => [],
 		'Parameter' => 'parameter',
 		'Names'     => [@var_vals],
 		'Status'    => 0
 	};
-	;    # F77-style
-	@{ $Sf->{'LocalParameters'}{'List'} } =
-	  ( @{ $Sf->{'LocalParameters'}{'List'} }, @{$pars} );
+	
+	@{ $Sf->{'LocalParameters'}{'List'} } =  ( @{ $Sf->{'LocalParameters'}{'List'} }, @{$pars} );
+#	for my $var (@{$pars}) {
+#	say $f,$var,$Sf->{'LocalParameters'}{'Set'}{$var}{'Attr'};
+#	}
 	return ( $Sf, $info );
 
 }    # END of __parse_f77_par_decl()
