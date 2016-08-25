@@ -2,7 +2,7 @@ package RefactorF4Acc::Refactoring::Functions;
 use v5.16;
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
-use RefactorF4Acc::Refactoring::Common qw( context_free_refactorings create_refactored_source stateful_pass );
+use RefactorF4Acc::Refactoring::Common qw( context_free_refactorings stateful_pass );
 
 # 
 #   (c) 2010-2012 Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
@@ -71,13 +71,12 @@ sub remove_vars_masking_functions { ( my $stref ) = @_;
 					# $var is an external subroutine, for now just mark it
 					$line = '! '.$line. '! EXTERNAL SUB';
 				}     
-   
                
                 push @{$info->{'Ann'}}, annotate($f, __LINE__  );             
-                return ([$line, $info], [$stref, $f]);
+                return ([ [$line, $info] ], [$stref, $f]);
             }
         }
-        return ($annline, $state)        
+        return ([$annline], $state)        
     };
     
     for my $f ( keys %{ $stref->{'Subroutines'} } ) {   

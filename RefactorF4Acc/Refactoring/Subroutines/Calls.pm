@@ -68,46 +68,46 @@ sub create_refactored_subroutine_call {croak 'OBSOLETE';
 
 # ----------------------------------------------------------------------------------------------------
 
-# ----------------------------------------------------------------------------------------------------
-sub _determine_exglob_subroutine_call_args {croak 'OBSOLETE';
-    ( my $stref, my $f, my $name ) = @_;
-    my $Sf                 = $stref->{'Subroutines'}{$f};
-    my $Sname              = $stref->{'Subroutines'}{$name};
-    my %conflicting_locals = ();
-    my %conflicting_params = ();
-    if ( exists $Sf->{'ConflictingParams'} ) {
-        %conflicting_params = %{ $Sf->{'ConflictingParams'} };
-    }
-    if ( exists $Sf->{'ConflictingGlobals'} ) {
-        %conflicting_locals = %{ $Sf->{'ConflictingGlobals'} };
-    }
-    my %conflicting_exglobs_params = ();
-    if (%conflicting_params) {
-        %conflicting_exglobs_params =
-          ( %conflicting_locals, %conflicting_params );
-    }
-    my @globals = ();
-    for my $inc ( keys %{ $Sname->{'Globals'} } ) {
-        next if $stref->{'IncludeFiles'}{$inc}{'Root'} eq $name;
-        if ( defined $Sname->{'Globals'}{$inc} ) {
-            if (%conflicting_exglobs_params) {
-                for my $var ( @{ $Sname->{'Globals'}{$inc}{'List'} } ) {
-                    if ( exists $conflicting_exglobs_params{$var} ) {
-                        print
-"WARNING: CONFLICT in call to $name in $f:renaming $var with ${var}_GLOB!\n"
-                          if $W;
-                        push @globals, $conflicting_exglobs_params{$var}[0];
-                    } else {
-                        push @globals, $var;
-                    }
-                }
-            } else {
-                @globals = ( @globals, @{ $Sname->{'Globals'}{$inc}{'List'} } );
-            }
-        }
-    }
-    return \@globals;
-}    # END of _determine_exglob_subroutine_call_args
+## ----------------------------------------------------------------------------------------------------
+#sub _determine_exglob_subroutine_call_args {croak 'OBSOLETE';
+#    ( my $stref, my $f, my $name ) = @_;
+#    my $Sf                 = $stref->{'Subroutines'}{$f};
+#    my $Sname              = $stref->{'Subroutines'}{$name};
+#    my %conflicting_locals = ();
+#    my %conflicting_params = ();
+#    if ( exists $Sf->{'ConflictingParams'} ) {
+#        %conflicting_params = %{ $Sf->{'ConflictingParams'} };
+#    }
+#    if ( exists $Sf->{'ConflictingGlobals'} ) {
+#        %conflicting_locals = %{ $Sf->{'ConflictingGlobals'} };
+#    }
+#    my %conflicting_exglobs_params = ();
+#    if (%conflicting_params) {
+#        %conflicting_exglobs_params =
+#          ( %conflicting_locals, %conflicting_params );
+#    }
+#    my @globals = ();
+#    for my $inc ( keys %{ $Sname->{'Globals'} } ) {
+#        next if $stref->{'IncludeFiles'}{$inc}{'Root'} eq $name;
+#        if ( defined $Sname->{'Globals'}{$inc} ) {
+#            if (%conflicting_exglobs_params) {
+#                for my $var ( @{ $Sname->{'Globals'}{$inc}{'List'} } ) {
+#                    if ( exists $conflicting_exglobs_params{$var} ) {
+#                        print
+#"WARNING: CONFLICT in call to $name in $f:renaming $var with ${var}_GLOB!\n"
+#                          if $W;
+#                        push @globals, $conflicting_exglobs_params{$var}[0];
+#                    } else {
+#                        push @globals, $var;
+#                    }
+#                }
+#            } else {
+#                @globals = ( @globals, @{ $Sname->{'Globals'}{$inc}{'List'} } );
+#            }
+#        }
+#    }
+#    return \@globals;
+#}    # END of _determine_exglob_subroutine_call_args
 
 # ----------------------------------------------------------------------------------------------------
 # 
@@ -138,41 +138,8 @@ sub refactor_subroutine_call_args {croak 'OBSOLETE';
         %conflicting_exglobs_params =
           ( %conflicting_locals, %conflicting_params );
     }
-#    say " $f VARS:".Dumper($Sf->{'Vars'});
     my $globals =$Sf->{'ExGlobArgs'}{'List'} // [];
-#    say " $f GLOBALS:".Dumper($globals);
-#    croak 'FIXME, TOTALLY OBSOLETE: JUST USE THE LISTS FROM ExGlobArgs';
-#    for my $inc ( keys %{ $Sname->{'CommonIncludes'} } ) {  
-#        next if $stref->{'IncludeFiles'}{$inc}{'Root'} eq $name;
-#        if ( defined $Sname->{'Globals'}{$inc} ) {
-#            if (%conflicting_exglobs_params) {
-#                for my $var ( @{ $Sname->{'Globals'}{$inc}{'List'} } ) {
-#                    if ( exists $conflicting_exglobs_params{$var} ) {
-#                        print
-#"WARNING: CONFLICT in call to $name in $f:renaming $var with ${var}_GLOB!\n"
-#                          if $W;
-#                        push @globals, $conflicting_exglobs_params{$var};
-#                    } else {
-#                        push @globals, $var;
-#                    }
-#                }
-#            } else {
-#                @globals = ( @globals, @{ $Sname->{'Globals'}{$inc}{'List'} } );
-#            }
-#        }
-#    }
-#say "$f DECLORIGARGS:".Dumper($Sf->{'DeclaredOrigArgs'}{'List'});
-#say "$f UNDECLORIGARGS:".Dumper($Sf->{'UndeclaredOrigArgs'}{'List'});
-my $orig_args =[ @{$Sf->{'DeclaredOrigArgs'}{'List'}},@{$Sf->{'UndeclaredOrigArgs'}{'List'}} ];
-#    my $orig_args = [];
-#    for my $arg ( @{ $tags->{'SubroutineCall'}{'Args'}{'List'} } ) {
-#        if ( exists $conflicting_locals{$arg} ) {
-#            push @{$orig_args}, $conflicting_locals{$arg}[0];
-#        } else {
-#            push @{$orig_args}, $arg;
-#        }
-#    }
-#    my $args_ref = ordered_union( $orig_args, $globals );
+	my $orig_args =[ @{$Sf->{'DeclaredOrigArgs'}{'List'}},@{$Sf->{'UndeclaredOrigArgs'}{'List'}} ];
 	my $args_ref = [ @{$orig_args}, @{$globals}];
     $tags->{'SubroutineCall'}{'RefactoredArgs'} = $args_ref;
     $Sf->{'RefactoredCode'}[$idx][1] = $tags;

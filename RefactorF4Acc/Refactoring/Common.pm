@@ -505,68 +505,72 @@ sub context_free_refactorings {
 # This routine essentially discards unused lines and splits long lines
 # I think this could actually be part of the emitter
 sub create_refactored_source {
-    ( my $stref, my $annlines, ) = @_;
+    ( my $stref, my $f, my $annlines, ) = @_;
     my $refactored_lines = [];
+#    say "CALL to create_refactored_source($f)";
     for my $annline ( @{$annlines} ) {
 
-        if ( not defined $annline or not defined $annline->[0] ) {
-            croak "Undefined source code line in create_refactored_source()";
-        }
-        my $line = $annline->[0];
-        my $info = $annline->[1];
+#        if ( not defined $annline or not defined $annline->[0] ) {
+#            croak "Undefined source code line in create_refactored_source()";
+#        }
+       ( my $line , my $info ) = @{ $annline};        
 
-        if ( not exists $info->{'Comments'}
-            and ( exists $info->{'InBlock'} or not exists $info->{'Deleted'} ) )
-        {
+        if ( not exists $info->{'Comments'} and ( exists $info->{'InBlock'} or not exists $info->{'Deleted'} ) ) {
             print $line, "\n" if $DBG;
-            if ( $line =~ /;/ && $line !~ /[\'\"]/ ) {
-                my $spaces = $line;
-                $spaces =~ s/\S.*$//;
-                $line   =~ s/^\s+//;
-                my @split_lines = split( /\s*;\s*/, $line );
-                for my $sline (@split_lines) {
-                    push @{$refactored_lines}, [ $spaces . $sline, $info ];
-                }
-            } else {
-				if (not exists $info->{'ReadCall'} and
-				not exists $info->{'WriteCall'} and
-				not exists $info->{'PrintCall'} ) {
-					my $line_without_comment = $line;
+#            if ( $line =~ /;/ && $line !~ /[\'\"]/ ) { croak;
+#                my $spaces = $line;
+#                $spaces =~ s/\S.*$//;
+#                $line   =~ s/^\s+//;
+#                my @split_lines = split( /\s*;\s*/, $line );
+#                for my $sline (@split_lines) {
+#                    push @{$refactored_lines}, [ $spaces . $sline, $info ];
+#                }
+#            } else {
+				if (not exists $info->{'ReadCall'} and not exists $info->{'WriteCall'} and not exists $info->{'PrintCall'} ) {
+#					if (not exists $info->{'IO'}) {
+					
 					# Problem is of course that strings can contain comments and comments can contain quotes. 
 					# So in principle I must look for the first ! outside any pair of ' or "
 					# say I split a line on ' => pre ' str1 ' sep1 ' str2 ' sep2_maybe_! ' 
-					# So I remove pre; then I remove str then look at sep. If sep has ! => OK, found comment.  
-				 if (exists $info->{'PlaceHolders'} ) {
-				 	my $ph_line=$line;
-				 	for my $ph (keys %{$info->{'PlaceHolders'}} ) {
-				 		my $ph_str = $info->{'PlaceHolders'}{$ph};
-				 		$ph_str=~s/\)/\\\)/g;
-				 		$ph_str=~s/\(/\\\(/g;
-				 		$ph_str=~s/\*/\\\*/g;
-				 		$ph_line=~s/$ph_str/$ph/;
-				 	}
-				 	$line_without_comment = $ph_line;
-				 }
-				 my $comment = '';
-				 if ($line_without_comment =~/!(.+)$/) {
-				 	$comment=$1;  	
-				 	$line_without_comment = $line;
-				 	$line_without_comment =~s/\!$comment//;
-				 } else {
-				 	$line_without_comment = $line;
-				 }
+					# So I remove pre; then I remove str then look at sep. If sep has ! => OK, found comment.
+					my $line_without_comment = $line;  
+					 if (exists $info->{'PlaceHolders'} ) {
+					 	my $ph_line=$line;
+					 	for my $ph (keys %{$info->{'PlaceHolders'}} ) {
+					 		my $ph_str = $info->{'PlaceHolders'}{$ph};
+					 		$ph_str=~s/\)/\\\)/g;
+					 		$ph_str=~s/\(/\\\(/g;
+					 		$ph_str=~s/\*/\\\*/g;
+					 		$ph_line=~s/$ph_str/$ph/;
+					 	}
+					 	$line_without_comment = $ph_line;
+					 }
 				 
- 	                my @split_lines = $SPLIT_LONG_LINES ? split_long_line($line_without_comment) : ( $line );
-    	            for my $sline (@split_lines) {
-        	            push @{$refactored_lines}, [ $sline, $info ];
-            	    }
-            	    if ($comment ne '') {
-            	    $refactored_lines->[-1][0].=' !'.$comment;
-            	    }
+					 
+						 my $comment = '';
+						 
+						 if ($line_without_comment =~/!(.+)$/) {
+						 	$comment=$1;  	
+						 	$line_without_comment = $line;
+						 	$line_without_comment =~s/\!$comment//;
+						 } else {
+						 	$line_without_comment = $line;
+						 }
+				 
+ 	           	     	my @split_lines = $SPLIT_LONG_LINES ? split_long_line($line_without_comment) : ( $line );
+    	         		for my $sline (@split_lines) {
+        	            	push @{$refactored_lines}, [ $sline, $info ];
+            	    	}
+            	    	if ($comment ne '') {
+            	    		$refactored_lines->[-1][0].=' !'.$comment;
+            	    	}            	    
+#					} else {
+#						push @{$refactored_lines}, [ $line, $info ];
+#					}
 				} else {
 					push @{$refactored_lines}, [ $line, $info ];
 				}
-            }
+#            }
         } else {
             push @{$refactored_lines}, [ $line, $info ];
         }
@@ -1494,8 +1498,10 @@ sub stateless_pass {
     my $nextLineID         = scalar @{$annlines} + 1;
     my $new_annlines=[];
     for my $annline ( @{$annlines} ) {
-        my $new_annline = $pass_actions->($annline);
-        push @{$new_annlines}, $new_annline;
+        my $pass_annlines = $pass_actions->($annline); # returns an ARRAY ref
+        for my $new_annline (@{ $pass_annlines }) { 
+        	push @{$new_annlines}, $new_annline;
+        }
     }
     $Sf->{'RefactoredCode'} = $new_annlines;
     return $stref;
@@ -1514,8 +1520,11 @@ sub stateful_pass {
     my $nextLineID         = scalar @{$annlines} + 1;
     my $new_annlines=[];
     for my $annline ( @{$annlines} ) {    	
-        (my $new_annline, $state) = $pass_actions->($annline, $state);
-        push @{$new_annlines}, $new_annline;
+        (my $pass_annlines, $state) = $pass_actions->($annline, $state);
+        for my $new_annline (@{ $pass_annlines }) { 
+        	push @{$new_annlines}, $new_annline;
+        }
+
     }
     $Sf->{'RefactoredCode'} = $new_annlines;
     

@@ -929,7 +929,7 @@ sub _update_argument_io_direction {
 				#				say $line;
 			}
 		}
-		return ( $annline, $state );
+		return ( [$annline], $state );
 	};
 	my $state = [ $stref, $f, {} ];
 	( $stref, $state ) = stateful_pass( $stref, $f, $__update_decl, $state,'_update_argument_io_direction() ' . __LINE__ );

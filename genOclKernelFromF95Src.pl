@@ -174,6 +174,8 @@ sub read_macros { (my $stref,my $macro_src) = @_;
     return $stref;
 }
 
+
+
 =head1 SYNOPSIS
 
 Generates an OpenCL kernel from an F95 source using F2C_ACC. The actual work is done in RefactorF4Acc::OpenCLTranslation.

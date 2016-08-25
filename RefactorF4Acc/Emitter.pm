@@ -75,7 +75,7 @@ sub _emit_refactored_include {
         
         open my $SRC, '>', "$dir/$incsrc" or die "$!: $dir/$incsrc";
         my $prevline='C ';
-        $srcref = create_refactored_source($stref,$srcref);
+        $srcref = create_refactored_source($stref,$f,$srcref);
         for my $annline ( @{$srcref} ) {
         	my $line = $annline->[0];  
             if (not ($prevline =~/^\s*$/ and $line =~/^\s*$/)) {
@@ -298,7 +298,7 @@ sub emit_all {
             say '! '.('=' x 80);
         	show_annlines($stref->{'RefactoredCode'}{$src},0);
         } else {
-			open my $TGT, '>', "$targetdir/$nsrc" or die $!;
+			open my $TGT, '>', "$targetdir/$nsrc" or die $!."$targetdir/$nsrc";
 			
 			my $mod_lines = $stref->{'RefactoredCode'}{$src};
 			

@@ -125,61 +125,61 @@ sub create_refactored_vardecls {
 }    # END of create_refactored_vardecls()
 
 # --------------------------------------------------------------------------------
-# We need to check if these variables are not still present in any includes of $f!
-sub create_exglob_var_declarations {
-    ( my $stref, my $f, my $annline, my $rlines ) = @_;
-croak "create_exglob_var_declarations OBSOLETE?";	
-
-#        local $I=1;
-#        local $V=1;
-#        local $W=1;
-
-    my $Sf                 = $stref->{'Subroutines'}{$f};
-#    my %args               = %{ $Sf->{'OrigArgs'}{'Set'} };
-    my %args      = %{ get_vars_from_set($Sf->{'OrigArgs'}) };
-    my $nextLineID=scalar @{$rlines}+1;
-    
-    for my $inc ( keys %{ $Sf->{'Globals'} } ) {
-        
-        print "INFO: GLOBALS from INC $inc in $f\n" if $I;
-
-        for my $var ( sort @{ $Sf->{'Globals'}{$inc}{'List'} } ) {
-            
-croak "THIS CHECK IS NOT OK: RefactoredArgs can have an entry with a blank IODir here, FIXME!";
-#what we should do is check the content, or maybe better, check if there already exists an actual VarDecl line.
-#If not, we should create one. If it exists and is complete, we should skip it.
-                if ( exists $Sf->{'Globals'}{$inc} ) { #die $inc;
-                    
-# FIXME: we need to remove these declarations from the include file!
-
-#                        croak "$f: INC $inc: VAR $var\n" if not exists $stref->{IncludeFiles}{$inc}{'Vars'}{$var};
-say "WARNING: $f:  VAR $var is not declared in INC $inc but is common, will be declared via implicit rules!" if $W;                        
-                        my $rdecl = get_f95_var_decl( $stref,$inc,$var);
-#                        croak Dumper($stref->{'IncludeFiles'}{$inc}{Vars}{uprof}) if $var eq 'uprof';
-                        if ( exists $Sf->{'ConflictingParams'}{$var} ) {
-                            my $gvar = $Sf->{'ConflictingParams'}{$var}[0];
-                            print
-"WARNING: CONFLICT in arg decls for $f: renaming $var to ${var}_GLOB\n"
-                              if $W;
-                            $rdecl->[2][0] =~ s/\b$var\b/$gvar/; #FIXME: only works for a single var!
-                        }
-                        my $rline = emit_f95_var_decl($rdecl);
-                        $rline .= " ! EX-GLOB from $inc";   
-                        
-                        my $info={};
-                        $info->{'LineID'}= $nextLineID++;
-                        $info->{'Ref'}=1;
-                        $info->{'VarDecl'}=$rdecl;
-                        push @{$rlines}, [ $rline,  $info ];
-                        
-                    } else {
-#                        say
-                    }
-#            }
-        }    # for
-    }
-    return $rlines;
-}    # END of create_exglob_var_declarations()
+## We need to check if these variables are not still present in any includes of $f!
+#sub create_exglob_var_declarations {
+#    ( my $stref, my $f, my $annline, my $rlines ) = @_;
+#croak "create_exglob_var_declarations OBSOLETE?";	
+#
+##        local $I=1;
+##        local $V=1;
+##        local $W=1;
+#
+#    my $Sf                 = $stref->{'Subroutines'}{$f};
+##    my %args               = %{ $Sf->{'OrigArgs'}{'Set'} };
+#    my %args      = %{ get_vars_from_set($Sf->{'OrigArgs'}) };
+#    my $nextLineID=scalar @{$rlines}+1;
+#    
+#    for my $inc ( keys %{ $Sf->{'Globals'} } ) {
+#        
+#        print "INFO: GLOBALS from INC $inc in $f\n" if $I;
+#
+#        for my $var ( sort @{ $Sf->{'Globals'}{$inc}{'List'} } ) {
+#            
+#croak "THIS CHECK IS NOT OK: RefactoredArgs can have an entry with a blank IODir here, FIXME!";
+##what we should do is check the content, or maybe better, check if there already exists an actual VarDecl line.
+##If not, we should create one. If it exists and is complete, we should skip it.
+#                if ( exists $Sf->{'Globals'}{$inc} ) { #die $inc;
+#                    
+## FIXME: we need to remove these declarations from the include file!
+#
+##                        croak "$f: INC $inc: VAR $var\n" if not exists $stref->{IncludeFiles}{$inc}{'Vars'}{$var};
+#say "WARNING: $f:  VAR $var is not declared in INC $inc but is common, will be declared via implicit rules!" if $W;                        
+#                        my $rdecl = get_f95_var_decl( $stref,$inc,$var);
+##                        croak Dumper($stref->{'IncludeFiles'}{$inc}{Vars}{uprof}) if $var eq 'uprof';
+#                        if ( exists $Sf->{'ConflictingParams'}{$var} ) {
+#                            my $gvar = $Sf->{'ConflictingParams'}{$var}[0];
+#                            print
+#"WARNING: CONFLICT in arg decls for $f: renaming $var to ${var}_GLOB\n"
+#                              if $W;
+#                            $rdecl->[2][0] =~ s/\b$var\b/$gvar/; #FIXME: only works for a single var!
+#                        }
+#                        my $rline = emit_f95_var_decl($rdecl);
+#                        $rline .= " ! EX-GLOB from $inc";   
+#                        
+#                        my $info={};
+#                        $info->{'LineID'}= $nextLineID++;
+#                        $info->{'Ref'}=1;
+#                        $info->{'VarDecl'}=$rdecl;
+#                        push @{$rlines}, [ $rline,  $info ];
+#                        
+#                    } else {
+##                        say
+#                    }
+##            }
+#        }    # for
+#    }
+#    return $rlines;
+#}    # END of create_exglob_var_declarations()
 
 # --------------------------------------------------------------------------------
 # We can assume that these variables are not subroutine arguments, so the Intent should be blank

@@ -5,8 +5,7 @@ use RefactorF4Acc::Utils;
 use RefactorF4Acc::CallTree qw( add_to_call_tree );
 use RefactorF4Acc::Refactoring::Common qw( emit_f95_var_decl get_f95_var_decl );
 use RefactorF4Acc::Parser::SrcReader qw( read_fortran_src );
-use RefactorF4Acc::Parser::Expressions
-  qw( get_vars_from_expression parse_expression  get_args_vars_from_expression get_args_vars_from_subcall emit_expression);
+use RefactorF4Acc::Parser::Expressions qw( get_vars_from_expression parse_expression  get_args_vars_from_expression get_args_vars_from_subcall emit_expression);
 use RefactorF4Acc::CTranslation qw( add_to_C_build_sources );    # OBSOLETE
 use RefactorF4Acc::Analysis::LoopDetect qw( outer_loop_start_detect );
 use RefactorF4Acc::Analysis::ArgumentIODirs qw(  &conditional_assignment_fsm );
@@ -249,7 +248,10 @@ sub _initialise_decl_var_tables {
 #			};
 # 			$Sf->{'ExContainerGlobArgs'} = { 
 #				'Set' => {}, 'List' => [] 
-#			}; 
+#			};
+ 
+			$Sf->{'RenamedInheritedExGlobs'}  = { 'List' => [], 'Set' => {}};
+			
 			$Sf->{'ExGlobArgs'} = { 
 				'Set' => {}, 'List' => [] 
 			};
@@ -372,10 +374,15 @@ sub _analyse_lines {
 			my $attr = '';
 			( my $lline, my $info ) = @{ $srcref->[$index] };
 			# Get indent			
-			$lline =~ /^(\s+).*/ && do { $indent = $1; }; # This is not OK for lines with labels of course.
-
+			$lline =~ /^(\s+).*/ && do { $indent = $1; }; # This is not OK for lines with labels of course.						
 			$info->{'LineID'} = $index;
-			# Skip comments 
+			
+			# Check for CPP macros
+			if ($lline=~/^\s*\#/) {
+				$info->{'Macro'}=1;				
+			} 
+			
+			# Skip comments (we already marked them in SrcReader)
 			if ( $lline =~ /^\s*\!/ && $lline !~ /^\!\s*\$(?:ACC|RF4A)\s/i ) {
 				next;
 			}
@@ -412,16 +419,18 @@ sub _analyse_lines {
 				$info->{ucfirst($block_type)}=1;
 			};
 			
-			$line=~/^if.*?then\s+/ && do {
+			$line=~/^if.*?then\s*$/ && do {
 				++$block_nest_counter;
 				++$block_counter;				
 				my $block={'Nest'=>$block_nest_counter, 'Type' => 'if'};
+				$info->{'Block'}= $block;
 				push @blocks_stack,$block;
 			};	
 			$line=~/^do\s+(\w+)\s+\w+\s*=/ && do {				 
 				++$block_nest_counter;
 				++$block_counter;				
 				my $block={'Nest'=>$block_nest_counter, 'Type' => 'do', 'Label' => $1};
+				$info->{'Block'}= $block;
 				push @blocks_stack,$block;
 			};		
 			# Procedure block identification				
@@ -461,12 +470,14 @@ sub _analyse_lines {
 				++$block_counter;
 				
 				my $block={'Nest'=>$block_nest_counter, 'Type' => $proc_type, 'Name'=>$proc_name};
+				$info->{'Block'}= $block;
 				push @blocks_stack,$block;
 			};
 			
 			# END of BLOCK:			
 			$line=~/^end\s+/ && $line!~/^end\s+do/ && do {
 				my $block = pop @blocks_stack;
+				$info->{'Block'}= $block;
 				--$block_nest_counter;
 			};
 			
@@ -476,10 +487,13 @@ sub _analyse_lines {
 				my $cont_label=$info->{'Label'} ;
 				$info->{'Continue'}={'Label' => $cont_label};
 				my $block = pop @blocks_stack;
+				
 				if (exists $block->{'Label'} ) {
 					my $do_label =$block->{'Label'};
 					if ($cont_label eq $do_label) {
-#						say "\t" x $block_nest_counter,"END for block #$block_counter, NEST:".$block->{'Nest'}.' CONTINUE'." LABEL: ".$do_label;				 
+#						say "\t" x $block_nest_counter,"END for block #$block_counter, NEST:".$block->{'Nest'}.' CONTINUE'." LABEL: ".$do_label;
+						$info->{'Block'}= $block;
+						$info->{'EndControl'}= 1;				 
 						--$block_nest_counter;
 					} else {
 						push @blocks_stack, $block;
@@ -568,6 +582,7 @@ VIRTUAL
 				my $keyword = $1;
 				my $kw      = ucfirst($keyword);
 				$info->{ 'End' . $kw } = {};
+				$info->{ 'EndControl' } = 1;
 				if ( $kw eq 'Do' ) {
 					$do_counter--;
 					my $corresponding_do_info = pop @do_stack;
@@ -888,21 +903,27 @@ VIRTUAL
 					},
 					'LineID' => $info->{'LineID'}
 				};
+				$info->{ 'Control' } = 1;
 				$do_counter++;
 				push @do_stack, $info;
 # SELECT/CASE 
 			} elsif ($line=~/select\s+case\s+\((\w+)\)/) {
 					$info->{'CaseVar'} = $1;
+					$info->{ 'Control' } = 1;
 				} elsif ($line=~/case\s+\((.+)\)\s*$/) {
 					my $case_vals_str = $1;
 					my @case_vals = _parse_comma_sep_expr_list($case_vals_str);
-					$info->{'CaseVals'} = [@case_vals];				
+					$info->{'CaseVals'} = [@case_vals];
+					$info->{ 'Control' } = 1;				
 				} elsif ($line=~/case\s+\default/) {
-					$info->{'CaseDefault'} = 1;			
+					$info->{'CaseDefault'} = 1;
+					$info->{ 'Control' } = 1;			
 			}
 # ELSE			 
 			elsif ( $line =~ /^else\s*$/ ) {			 	
-					$info->{'Else'} = 1;					
+					$info->{'Else'} = 1;			
+					$info->{ 'Control' } = 1;
+					$info->{ 'EndControl' } = 1;		
 	
 			} else {
 # Check for IF and remove it, then check for executable statements that can come after IF				
@@ -915,10 +936,12 @@ VIRTUAL
 			if ( $line =~ /^(if|else\s+if)\s*\(/ ) {			 	
 				my $keyword = $1;				
 				if ( $line =~ /^(else\s+if)/ ) {
-					$info->{'ElseIf'} = 1;
+					$info->{'ElseIf'} = 1;					
+					$info->{ 'EndControl' } = 1;
 				} else {
 					$info->{ ucfirst($keyword) } = 1;	
 				}
+				
 #				carp "$f <$line>" if $line=~/write.unitpartout/ ;
 			# The following part should be in a separate condition block I think			
 			# What I should do is:
@@ -1006,7 +1029,9 @@ VIRTUAL
 #					}
 #					$info->{'CondVars'} = {%vars_in_cond_expr};
 					$info->{'CondVars'} = $vars_in_cond_expr;
-#					next if $mline eq 'then';
+					if ($mline eq 'then') {
+						$info->{ 'Control' } = 1;
+					}
 #					if ( not $is_cond_assign ) {
 #						$info->{'CondExecExpr'} = $rest;
 #						$mline =~ s/if.+?$rest/$rest/;
@@ -1125,6 +1150,7 @@ END IF
 			} elsif ($mline=~/(backspace|endfile)/) {
 				my $keyword = $1;
 				$info->{ ucfirst($keyword) } = 1;
+				$info->{'IO'}=1;
 				warn uc($keyword)." is ignored!" if $W;
 #    STOP and PAUSE statements		
 			} elsif ($mline=~/^(return|stop|pause)/) {	
@@ -1144,6 +1170,7 @@ END IF
 			elsif ($line=~/(decode|encode)/) {		
 				my $keyword = $1;
 				$info->{ ucfirst($keyword) } = 1;
+				$info->{'IO'}=1;
 				say "WARNING: ".uc($keyword).' IS IGNORED!' if $W;					
 			}							
 # This is an ASSIGNMENT and so can come after IF (...)				
@@ -2745,9 +2772,6 @@ sub __construct_new_subroutine_signatures {
 			if ( $tindex == $blocksref->{$block}{'BeginBlockIdx'} ) {
 				$sig =~ s/subroutine/call/;
 				$srcref->[$tindex][0] = $sig;
-
-# Here we also need to update the $info
-#                croak Dumper( $sigrec)."\n\n".Dumper($srcref->[$tindex]).$tindex;
 				$srcref->[$tindex][1]{'SubroutineCall'} = $sigrec;
 				$srcref->[$tindex][1]{'LineID'} = $Sblock->{'Callers'}{$f}[0];
 			} elsif ( $tindex > $blocksref->{$block}{'BeginBlockIdx'}
@@ -2758,11 +2782,6 @@ sub __construct_new_subroutine_signatures {
 			}
 		}
 
-#        unshift @{ $Sblock->{'Info'} }, $fl; # put the comment back at the front, no change to the lines
-
-		#        $Sblock->{'AnnLines'}[0][1] = $fal;
-
-		#		print "YES! GENERATED DECLS ARE WRONG!!!\n";die;
 		if ($V) {
 			print 'SIG:' . $sig, "\n";
 

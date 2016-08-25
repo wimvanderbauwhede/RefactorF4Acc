@@ -31,46 +31,46 @@ use Exporter;
 # ----------------------------------------------------------------------------------------------------
 # I create a table ConflictingGlobals in $f, $inc and $commoninc
 # I think the right approach is to rename the common vars, not the parameters.
-sub _resolve_conflicts_with_params {
-    ( my $f, my $stref ) = @_;
-    my $Sf = $stref->{'Subroutines'}{$f};
-
-    for my $inc ( keys %{ $Sf->{'Includes'} } ) {
-        if ( $stref->{'IncludeFiles'}{$inc}{'InclType'} eq 'Parameter' ) {
-
-            # See if there are any conflicts between parameters and ex-globals
-                for my $mpar ( @{ $Sf->{'ExGlobArgs'}{'List'} } ) {
-                    if ( exists $stref->{'IncludeFiles'}{$inc}{'Vars'}{$mpar} )
-                    {
-                    	my $commoninc = $Sf->{'ExGlobArgs'}{'Set'}{$mpar}{'Inc'};
-                        print
-"WARNING: $mpar from $inc conflicts with $mpar from $commoninc\n"
-                          if $V;
-                          # So we store the new name, the Common include and the Parameter include in that order
-                        $Sf->{'ConflictingGlobals'}{$mpar} = [$mpar . '_GLOB_'.$commoninc,$commoninc,$inc];# In fact, just $commoninc is enough                         
-                        $stref->{'IncludeFiles'}{$commoninc}
-                          {'ConflictingGlobals'}{$mpar} = [$mpar . '_GLOB_'.$inc,$commoninc,$inc];
-                        $stref->{'IncludeFiles'}{$inc}{'ConflictingGlobals'}
-                          {$mpar} =[ $mpar . '_GLOB_'.$inc,$commoninc,$inc];
-                    }
-                }
-        }
-    }
-
-    $Sf->{'ConflictingParams'} = {};
-    for my $inc ( keys %{ $Sf->{'Includes'} } ) {
-        if ( $stref->{'IncludeFiles'}{$inc}{'InclType'} eq 'Parameter' ) {
-            if ( exists $stref->{'IncludeFiles'}{$inc}{'ConflictingGlobals'} ) {
-                %{ $Sf->{'ConflictingParams'} } = (
-                    %{ $Sf->{'ConflictingParams'} },
-                    %{ $stref->{'IncludeFiles'}{$inc}{'ConflictingGlobals'} }
-                );
-            }
-        }
-    }
-
-    return $stref;
-}    # END of _resolve_conflicts_with_params
+#sub _resolve_conflicts_with_params { croak "OBSOLETE!";
+#    ( my $f, my $stref ) = @_;
+#    my $Sf = $stref->{'Subroutines'}{$f};
+#
+#    for my $inc ( keys %{ $Sf->{'Includes'} } ) {
+#        if ( $stref->{'IncludeFiles'}{$inc}{'InclType'} eq 'Parameter' ) {
+#
+#            # See if there are any conflicts between parameters and ex-globals
+#                for my $mpar ( @{ $Sf->{'ExGlobArgs'}{'List'} } ) {
+#                    if ( exists $stref->{'IncludeFiles'}{$inc}{'Vars'}{$mpar} )
+#                    {
+#                    	my $commoninc = $Sf->{'ExGlobArgs'}{'Set'}{$mpar}{'Inc'};
+#                        print
+#"WARNING: $mpar from $inc conflicts with $mpar from $commoninc\n"
+#                          if $V;
+#                          # So we store the new name, the Common include and the Parameter include in that order
+#                        $Sf->{'ConflictingGlobals'}{$mpar} = [$mpar . '_GLOB_'.$commoninc,$commoninc,$inc];# In fact, just $commoninc is enough                         
+#                        $stref->{'IncludeFiles'}{$commoninc}
+#                          {'ConflictingGlobals'}{$mpar} = [$mpar . '_GLOB_'.$inc,$commoninc,$inc];
+#                        $stref->{'IncludeFiles'}{$inc}{'ConflictingGlobals'}
+#                          {$mpar} =[ $mpar . '_GLOB_'.$inc,$commoninc,$inc];
+#                    }
+#                }
+#        }
+#    }
+#
+#    $Sf->{'ConflictingParams'} = {};
+#    for my $inc ( keys %{ $Sf->{'Includes'} } ) {
+#        if ( $stref->{'IncludeFiles'}{$inc}{'InclType'} eq 'Parameter' ) {
+#            if ( exists $stref->{'IncludeFiles'}{$inc}{'ConflictingGlobals'} ) {
+#                %{ $Sf->{'ConflictingParams'} } = (
+#                    %{ $Sf->{'ConflictingParams'} },
+#                    %{ $stref->{'IncludeFiles'}{$inc}{'ConflictingGlobals'} }
+#                );
+#            }
+#        }
+#    }
+#
+#    return $stref;
+#}    # END of _resolve_conflicts_with_params
 
 # ----------------------------------------------------------------------------------------------------
 # Here we identify which globals from the includes are actually used in the subroutine.
@@ -79,7 +79,7 @@ sub _resolve_conflicts_with_params {
 # WV20150806: I should first work out what the includes with commons are in all subroutines and then "lift" them and then call this subroutine.
 
 # WV20160510: is it possible that here we have an issue with renamed ex-globals? 
-sub _identify_globals_used_in_subroutine {
+sub _identify_globals_used_in_subroutine { croak "UNUSED!";
     ( my $f, my $stref ) = @_;
 
 #       local $V=1;# if $f eq 'particles_main_loop';
@@ -179,7 +179,7 @@ sub __look_for_variables {
 # What this does is lift the includes from child node to parent node, i.e. if a called sub contains an 
 # include and the caller doesn't, and if RefactorGlobals == 2 and it is an include with common blocks, then it is lifted.
 # I've actually forgotten why this is needed.
-sub lift_includes {
+sub lift_includes { croak "OBSOLETE!";
     ( my $stref, my $f) = @_;
     my $Sf = $stref->{'Subroutines'}{$f};    
         # Which child has RefactorGlobals==1?    
@@ -217,6 +217,7 @@ croak 'lift_includes';
 # This should be done before we create RefactoredArgs!
 
 # This is lift_globals without the merge part
+# RenamedInheritedExGlobs, ExGlobArgs
 sub identify_inherited_exglobs_to_rename {
 	  (my $stref, my $f) = @_;
 #    local $V=1;
@@ -229,7 +230,8 @@ sub identify_inherited_exglobs_to_rename {
 	    {	    	
 	    	# This sub is calling other subs	    	
 	        my @csubs = @{ $Sf->{'CalledSubs'}{'List'} };
-	        $Sf->{'RenamedInheritedExGlobs'}  = { 'List' => [], 'Set' => {}} unless exists $Sf->{'RenamedInheritedExGLobs'};
+	        # FIXME: do this in the Parser
+	        
 	        for my $csub (@csubs) {       
 	       		say "CALL TO  $csub from $f" if $V;     
 	            $stref = identify_inherited_exglobs_to_rename($stref, $csub );
@@ -332,21 +334,19 @@ sub lift_globals {
 	    {
 	    	# This sub is calling other subs	    	
 	        my @csubs = @{ $Sf->{'CalledSubs'}{'List'} };
-	        $Sf->{'RenamedInheritedExGLobs'}  = { 'List' => [], 'Set' => {}} unless exists $Sf->{'RenamedInheritedExGLobs'};
+	        # Clearly this should be done elsewhere
+#	        $Sf->{'RenamedInheritedExGLobs'}  = { 'List' => [], 'Set' => {}} unless exists $Sf->{'RenamedInheritedExGLobs'};
 	        for my $csub (@csubs) {       
 	       		say "CALL TO  $csub from $f" if $V;     
 	            $stref = lift_globals($stref, $csub );
 	            say "RETURN TO $f from CALL to $csub" if $V;
 	            my $Scsub = $stref->{'Subroutines'}{$csub};
-
 # ------------------	            	            
 	            # If $f and $csub both have globals, merge them, otherwise inherit them
 	            if (exists $Scsub->{'ExGlobArgs'} ) {
 	                if (exists $Sf->{'ExGlobArgs'}{'List'} ) {
 	                	# Merge ExGlobArgs of $csub with those of $f  
-	                    $Sf->{'ExGlobArgs'}{'List'} = ordered_union( $Sf->{'ExGlobArgs'}{'List'},$Scsub->{'ExGlobArgs'}{'List'} );
-# ------------------	                    
-	                    
+	                    $Sf->{'ExGlobArgs'}{'List'} = ordered_union( $Sf->{'ExGlobArgs'}{'List'},$Scsub->{'ExGlobArgs'}{'List'} );  	                    
 	                } else {
 	                	# Inherit
 	                    $Sf->{'ExGlobArgs'}{'List'} = [@{$Scsub->{'ExGlobArgs'}{'List'} }];
@@ -361,7 +361,7 @@ sub lift_globals {
 	                }       
 	            	  	       
 	            }   
-           
+# ------------------	                             
 	        } 
 	    } else {
 	        # Leaf node, find globals

@@ -41,31 +41,25 @@ sub analyse_all {
 	$stref = find_root_for_includes( $stref, $subname );
 	return $stref if $stage == 1;
 
-
 	# Insert BLOCK DATA calls in the main program
 	# if (exists $Sf->{'Program'} and $Sf->{'Program'} == 1)
 	# Find the last declaration. Just use a statefull pass or even a conditional splice.
 	# Problem is of course comments. The condition is "line is a Decl and next line that is not a comment is not a decl
 	# Also, if it's a COMMON or DIMENSION it is effectively a decl
-	#  
 
 	# In this stage, 'ExGlobArgs' is populated from CommonVars by looking at the common blocks that occur in the call chain
 	# Note that this does not cover common blocks in includes so hopefully ExGlobArgs will not be affected for the case with includes.
-	# Because this is recursive, it currently does not work for the 'block data' routines
-	# What I need to do is put the calls to the ex-BLOCK DATA routines in the main program
-#    for my $data_block (keys %{ $stref->{'BlockData'} } ) {
-#    	$stref = _determine_exglobargs_rec( $data_block, $stref );
-#    }	 	
 	_determine_exglobargs_rec($subname, $stref);
 
 	# First find any additional argument declarations, either in includes or via implicits
 	for my $f ( keys %{ $stref->{'Subroutines'} } ) {
 		next if $f eq '';
+		# Includes
 		$stref = _lift_param_includes( $stref, $f );
+		# ExImplicitArgs, ExInclArgs
 		$stref = _find_argument_declarations( $stref, $f );
 	}
 	return $stref if $stage == 2;
-
 
 #	for my $f ( keys %{ $stref->{'Subroutines'} } ) {
 #		next if $f eq '';
@@ -76,12 +70,13 @@ sub analyse_all {
 #	}
 
 	for my $f ( keys %{ $stref->{'Subroutines'} } ) {
-		next if $f eq '';
-		# In this stage, 'ExGlobArgs' is populated	
+		next if $f eq '';	
 		$stref = _analyse_variables( $stref, $f );
 	}
 	return $stref if $stage == 3;
 
+
+# ConflictingGlobals: ex-common vars conflicting with params, both from include files
 	for my $f ( keys %{ $stref->{'Subroutines'} } ) {
 		next if $f eq '';
 		
@@ -90,10 +85,10 @@ sub analyse_all {
 	}
 	return $stref if $stage == 4;
 	
+	# The next three routines work on ExGlobArgs and RenamedInheritedExGLobs
 	$stref = identify_inherited_exglobs_to_rename( $stref, $subname );
-	
-	$stref = lift_globals( $stref, $subname );
-	
+	# Although this seems duplication, it is actually required!	
+	$stref = lift_globals( $stref, $subname );	
 	$stref = rename_inherited_exglobs( $stref, $subname );
 	
 	return $stref if $stage == 5;
@@ -105,17 +100,13 @@ sub analyse_all {
 	}
 	return $stref if $stage == 6;
 
-	#croak Dumper( $stref->{'Subroutines'}{'gridcheck'}{'UndeclaredOrigLocalVars'} );
-	for my $f ( keys %{ $stref->{'Subroutines'} } ) {    # Assuming Functions are just special subroutines
+	for my $f ( keys %{ $stref->{'Subroutines'} } ) {    # Functions are just special subroutines
 		next if $f eq '';
-
-		#		next if exists $stref->{'ExternalSubroutines'}{$f};
 		$stref = _map_call_args_to_sig_args( $stref, $f );
 	}
 	return $stref if $stage == 7;
 
-
-	for my $f ( keys %{ $stref->{'Subroutines'} } ) {    # Assuming Functions are just special subroutines
+	for my $f ( keys %{ $stref->{'Subroutines'} } ) { # Functions are just special subroutines
 		next if $f eq '';
 
 		$stref = _identify_external_proc_args( $stref, $f );
@@ -123,10 +114,10 @@ sub analyse_all {
 	return $stref if $stage == 8;
 	#croak Dumper( $stref->{'Subroutines'}{'gridcheck'}{'UndeclaredOrigLocalVars'} );
 
-	# This is only for refactoring init out of time loops so very domain specific
-	for my $kernel_wrapper ( keys %{ $stref->{'KernelWrappers'} } ) {
-		$stref = outer_loop_end_detect( $kernel_wrapper, $stref );
-	}
+#	# This is only for refactoring init out of time loops so very domain specific
+#	for my $kernel_wrapper ( keys %{ $stref->{'KernelWrappers'} } ) {
+#		$stref = outer_loop_end_detect( $kernel_wrapper, $stref );
+#	}
 
 	# So at this point all globals have been resolved and typed.
 
@@ -138,15 +129,15 @@ sub analyse_all {
 	
 	return $stref;
 }    # END of analyse_all()
-
+# -----------------------------------------------------------------------------
 # If the sub has arguments but they were not declared, see if we can find the declarations in include files, otherwise use implicit rules
+# This is like _analyse_variables but for arguments
 sub _find_argument_declarations {
 	( my $stref, my $f ) = @_;
 	my $once               = 1;
 	my $sub_or_func_or_mod = sub_func_incl_mod( $f, $stref );
 	my $Sf                 = $stref->{$sub_or_func_or_mod}{$f};
 
-	#	if (exists $Sf->{'OrigArgs'}{'List'}) {
 	for my $arg ( @{ $Sf->{'OrigArgs'}{'List'} } ) {
 		if ( not exists $Sf->{'DeclaredOrigArgs'}{'Set'}{$arg} ) {
 			say "MISSING ORIG ARG DECLS for '$f'" if $V and $once;
@@ -172,9 +163,6 @@ sub _find_argument_declarations {
 			}
 		}
 	}
-
-	#	}
-	#	croak Dumper($stref->{'Subroutines'}{$f}{'Args'}) if $f eq 'caldate';
 	return $stref;
 }    # END of _find_argument_declarations
 
@@ -318,60 +306,56 @@ sub _analyse_variables {
 								$in_incl = 1;
 
 								if (not exists $stref->{'IncludeFiles'}{$inc}{'ExtPath'} ) {
-								if ( $stref->{'IncludeFiles'}{$inc}{'InclType'} eq 'Parameter' ) {
-									print "WARNING: $mvar in $f is a PARAMETER from $inc!\n" if $W;
-									$Sf->{'Includes'}{$inc}{'Only'}{$mvar} = 1;
-								} else {
-									if ( $stref->{'IncludeFiles'}{$inc}{'InclType'} eq 'Common' ) {
-										print "FOUND COMMON $mvar in INC $inc in $line\n" if $DBG;
-										croak "COMMON $mvar for $f" . in_nested_set( $stref->{'IncludeFiles'}{$inc}, 'Vars', $mvar )
-										  if $mvar eq 'kp';
-										my $decl;
-										my $subset_for_mvar = in_nested_set( $stref->{'IncludeFiles'}{$inc}, 'Vars', $mvar );
-										say "Found $mvar in $subset_for_mvar "
-										  if $DBG;
-										if ( $subset_for_mvar ne '' ) {
-											my $var_rec = get_var_record_from_set( $stref->{'IncludeFiles'}{$inc}{'Vars'}, $mvar );
-											if ( not defined $var_rec ) {
-
-												# This means this var decl in the include has not been declared
-												say "No Decl for $mvar in $inc $subset_for_mvar";
-
-												# So we should type this one via Implicits
-												$decl = get_f95_var_decl( $stref, $f, $mvar );
-#												say Dumper($decl);
-											} else {
-												$decl = $var_rec;
-											}
-										} else {
-											croak "No Subset for $mvar in $inc $subset_for_mvar";
-										}
-
-										if ( exists $stref->{'IncludeFiles'}{$inc}{'Commons'}{$mvar} ) {
-											say "FOUND argdecl for $mvar via common block in $inc"
-											  if $DBG;
-											push @{ $stref->{'Subroutines'}{$f}{'ExGlobArgs'}{'List'} }, $mvar;
-											$decl->{'Inc'}                                          = $inc;    #WV20160406 this is a bit late .
-											$stref->{'Subroutines'}{$f}{'CommonIncs'}{$inc}         = $inc;
-											$stref->{'Subroutines'}{$f}{'ExGlobArgs'}{'Set'}{$mvar} = $decl;
-											$stref->{'Subroutines'}{$f}{'MaskedIntrinsics'}{$mvar}  = 1;
-										} elsif ( in_nested_set($stref->{'Subroutines'}{$f},'CommonVars',$mvar) ) { 
-											say "FOUND argdecl for $mvar via common block in $f" if $DBG;
-											push @{ $stref->{'Subroutines'}{$f}{'ExGlobArgs'}{'List'} }, $mvar;
-											$stref->{'Subroutines'}{$f}{'ExGlobArgs'}{'Set'}{$mvar} = $decl;
-											$stref->{'Subroutines'}{$f}{'MaskedIntrinsics'}{$mvar}  = 1;											
-										} else {
-											say "INFO: LOCAL VAR FROM $inc, NOT COMMON! " . '_analyse_variables() ' . __LINE__ if $I;
-											push @{ $stref->{'Subroutines'}{$f}{'ExInclLocalVars'}{'List'} }, $mvar;
-											$stref->{'Subroutines'}{$f}{'ExInclLocalVars'}{'Set'}{$mvar} = $decl;
-											croak "INFO: LOCAL VAR FROM $inc, NOT COMMON! " if $mvar eq 'len';
-										}
-										$identified_vars->{$mvar} = 1;
-										last;
+									if ( $stref->{'IncludeFiles'}{$inc}{'InclType'} eq 'Parameter' ) {
+										print "WARNING: $mvar in $f is a PARAMETER from $inc!\n" if $W;
+										$Sf->{'Includes'}{$inc}{'Only'}{$mvar} = 1;
 									} else {
-										croak $mvar ,$inc;
+										if ( $stref->{'IncludeFiles'}{$inc}{'InclType'} eq 'Common' ) {
+											print "FOUND COMMON $mvar in INC $inc in $line\n" if $DBG;
+											croak "COMMON $mvar for $f" . in_nested_set( $stref->{'IncludeFiles'}{$inc}, 'Vars', $mvar )
+											  if $mvar eq 'kp';
+											my $decl;
+											my $subset_for_mvar = in_nested_set( $stref->{'IncludeFiles'}{$inc}, 'Vars', $mvar );
+											say "Found $mvar in $subset_for_mvar "
+											  if $DBG;
+											if ( $subset_for_mvar ne '' ) {
+												my $var_rec = get_var_record_from_set( $stref->{'IncludeFiles'}{$inc}{'Vars'}, $mvar );
+												if ( not defined $var_rec ) {	
+													# This means this var decl in the include has not been declared
+													say "No Decl for $mvar in $inc $subset_for_mvar";	
+													# So we should type this one via Implicits
+													$decl = get_f95_var_decl( $stref, $f, $mvar );
+												} else {
+													$decl = $var_rec;
+												}
+											} else {
+												croak "No Subset for $mvar in $inc $subset_for_mvar";
+											}
+	
+											if ( exists $stref->{'IncludeFiles'}{$inc}{'Commons'}{$mvar} ) {
+												say "FOUND argdecl for $mvar via common block in $inc" if $DBG;
+												push @{ $stref->{'Subroutines'}{$f}{'ExGlobArgs'}{'List'} }, $mvar;
+												$decl->{'Inc'}                                          = $inc;    #WV20160406 this is a bit late .
+												$stref->{'Subroutines'}{$f}{'CommonIncs'}{$inc}         = $inc;
+												$stref->{'Subroutines'}{$f}{'ExGlobArgs'}{'Set'}{$mvar} = $decl;
+												$stref->{'Subroutines'}{$f}{'MaskedIntrinsics'}{$mvar}  = 1;
+											} elsif ( in_nested_set($stref->{'Subroutines'}{$f},'CommonVars',$mvar) ) { 
+												say "FOUND argdecl for $mvar via common block in $f" if $DBG;
+												push @{ $stref->{'Subroutines'}{$f}{'ExGlobArgs'}{'List'} }, $mvar;
+												$stref->{'Subroutines'}{$f}{'ExGlobArgs'}{'Set'}{$mvar} = $decl;
+												$stref->{'Subroutines'}{$f}{'MaskedIntrinsics'}{$mvar}  = 1;											
+											} else {
+												say "INFO: LOCAL VAR FROM $inc, NOT COMMON! " . '_analyse_variables() ' . __LINE__ if $I;
+												push @{ $stref->{'Subroutines'}{$f}{'ExInclLocalVars'}{'List'} }, $mvar;
+												$stref->{'Subroutines'}{$f}{'ExInclLocalVars'}{'Set'}{$mvar} = $decl;
+												croak "INFO: LOCAL VAR FROM $inc, NOT COMMON! " if $mvar eq 'len';
+											}
+											$identified_vars->{$mvar} = 1;
+											last;
+										} else {
+											croak $mvar ,$inc;
+										}
 									}
-								}
 								} else {
 									say "INFO: $inc is EXTERNAL, not creating a declaration for $mvar in $f" if $I;
 								}
@@ -431,12 +415,10 @@ sub _analyse_variables {
 							}
 					}
 				}
-#				croak $in_vars_subset. ';' if $mvar eq 'unitboundcond' and $f eq 'boundcond_domainfill';
-			}
-			
-			return ( $annline, [ $stref, $f, $identified_vars ] );
+			}			
+			return ( [$annline], [ $stref, $f, $identified_vars ] );
 		} else {
-			return ( $annline, $state );
+			return ( [$annline], $state );
 		}
 	};
 
@@ -465,7 +447,7 @@ sub _analyse_variables {
 			}
 		}
 	}
-
+	
 	return $stref;
 }    # END of _analyse_variables()
 
@@ -515,10 +497,11 @@ sub _resolve_conflicts_with_params {
 sub _create_refactored_args {
 	( my $stref, my $f ) = @_;
 	my $Sf = $stref->{'Subroutines'}{$f};
+	
 	if ( exists $Sf->{'ExGlobArgs'} and exists $Sf->{'OrigArgs'}
 	and  exists $Sf->{'ExGlobArgs'}{'List'} and exists $Sf->{'OrigArgs'}{'List'}
 	) {
-#		carp Dumper($Sf->{'OrigArgs'} ).';'.Dumper($Sf->{'ExGlobArgs'} );
+
 		$Sf->{'RefactoredArgs'}{'List'} = ordered_union( $Sf->{'OrigArgs'}{'List'}, $Sf->{'ExGlobArgs'}{'List'} );
 		$Sf->{'RefactoredArgs'}{'Set'} = { %{ $Sf->{'UndeclaredOrigArgs'}{'Set'} }, %{ $Sf->{'DeclaredOrigArgs'}{'Set'} }, %{ $Sf->{'ExGlobArgs'}{'Set'} } };
 		$Sf->{'HasRefactoredArgs'} = 1;
@@ -594,7 +577,7 @@ sub _map_call_args_to_sig_args {
 				$i++;
 			}
 		}
-		return $annline;
+		return [$annline];
 	};
 
 	my $state = [ $stref, $f, {} ];
@@ -625,7 +608,7 @@ sub _identify_external_proc_args {
 				}
 			}							
 		}
-		return $annline;
+		return [$annline];
 	};
 	
 	 $stref = stateless_pass( $stref, $f, $__mark_args_as_external, '__mark_args_as_external() ' . __LINE__ );
@@ -699,28 +682,21 @@ sub _analyse_var_decls_for_params {
 
 	return $stref;
 }
-
+# This is for param includes inside other includes, and it is not recursive, FIXME!
 sub _lift_param_includes {
 	( my $stref, my $f ) = @_;
-
-	#	say "PARAM INCL For $f?";
 	my $sub_or_func_or_mod = sub_func_incl_mod( $f, $stref );
 	my $Sf = $stref->{$sub_or_func_or_mod}{$f};
-	for my $inc ( keys %{ $Sf->{'Includes'} } ) {
-
-		#		say "INC: $inc";
+	for my $inc ( keys %{ $Sf->{'Includes'} } ) {		
 		if ( exists $stref->{'IncludeFiles'}{$inc}{'ParamInclude'} ) {
-
 			my $param_include = $stref->{'IncludeFiles'}{$inc}{'ParamInclude'};
-
-			#			say "FOUND PARAM INCLUDE $param_include FOR $f via $inc!";
 			$Sf->{'Includes'}{$param_include} = { 'Only' => {} };
 		}
 	}
 	return $stref;
 }
 
-sub _populate_exglobs_from_commonvars { ( my $stref, my $f ) = @_;
+sub _populate_exglobs_from_commonvars { ( my $stref, my $f ) = @_; croak "UNUSED";
 	my $sub_or_func_or_mod = sub_func_incl_mod( $f, $stref );
 	my $Sf = $stref->{$sub_or_func_or_mod}{$f};
 	my @subsets=();
@@ -779,38 +755,30 @@ sub _determine_exglobargs_rec {
 			next if exists $stref->{'ExternalSubroutines'}{$calledsub}; # Don't descend into external subs   
 			$stref->{Counter}++ if $V;
 			$stref = _determine_exglobargs_rec( $calledsub, $stref );
-#			say "AFTER rec into called sub $calledsub for $f";
-			$Sf->{'ExGlobArgs'}{'Set'}={%{ $Sf->{'ExGlobArgs'}{'Set'} },%{ $stref->{'Subroutines'}{$calledsub}{'ExGlobArgs'}{'Set'} } };
+			$Sf->{'ExGlobArgs'}{'Set'} = { %{ $Sf->{'ExGlobArgs'}{'Set'} }, %{ $stref->{'Subroutines'}{$calledsub}{'ExGlobArgs'}{'Set'} } };			
 			$stref->{Counter}-- if $V;
 		}
 		say "\t" x $c, "--------" if $V;
-#		say "AFTER rec into all called subs for $f";
 		$Sf->{'ExGlobArgs'}{'List'} =[ sort keys %{ $Sf->{'ExGlobArgs'}{'Set'} } ];  
-#		$stref = __determine_exglobargs_core( $stref, $f );
 		# When do we come here? 
 	} else {
-#	say  "\t" x $c, "LEAF $f";
-		
-#		say Dumper($stref->{'CallStack'});
 		$stref = __determine_exglobargs_core( $stref, $f );
 	}
-#	say "EX-GLOBS from SUB $f: ".Dumper( $Sf->{'ExGlobArgs'}{'List'} );
 	pop  @{ $stref->{'CallStack'} };
 	return $stref;
 }    # _determine_exglobargs_rec()
 
 
-#- we create a new argument for every common block variable, by copying ${Var}_ARG into ExGlobArgs; 
-# hopefully this will automatically create the additional argument declarations.
-# we are only renaming (must dclone and change 'Name' though)
-# So, 
-# if (exists $Sf->{'BlockData'} ) { # rename }
-#
+# For BLOCK DATA, we create a new argument for every common block variable, by copying ${Var}_ARG into ExGlobArgs. 
+# This will automatically create the additional argument declarations.
+# We are only renaming (must dclone and change 'Name' though)
+
 sub __determine_exglobargs_core { ( my $stref, my $f ) = @_;
 	
 	my $Sf = $stref->{'Subroutines'}{$f};
 	my $is_block_data = exists $Sf->{'BlockData'} ? 1 : 0;
 	
+	# Get declarations from CommonVars	
 	my $common_decls_current=__get_common_decls($stref,$f);
 	# Determine if this $var occurs in  $common_block_name anywhere up the stack
 	# So either I go for every var through all callers or for every caller through all vars
@@ -856,6 +824,7 @@ sub __get_common_decls { ( my $stref, my $f ) = @_;
 	my $common_decls = get_vars_from_set($Sf->{'CommonVars'});
 	return $common_decls;	
 } # END of __get_common_decls()
+
 =pod
 - start from the top
 - recursive descent to leave (no callers), push the path onto a stack

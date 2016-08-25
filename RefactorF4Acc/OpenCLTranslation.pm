@@ -375,11 +375,14 @@ sub _generate_C { (my $mod_name, my $src, my $state, my $kernel_name) = @_;
     say "\n$F2C_HOME/bin/F2C-ACC --Free --Generate=C $src";
     
     system("$F2C_HOME/bin/F2C-ACC --Free --Generate=C $src");
-    system("cp $F2C_HOME/include/ftocmacros.h .");      
+#    system("cp $F2C_HOME/include/ftocmacros.h .");      
      my $csrc=$src;
      $csrc=~s/\.f95.*/.c/;
      
     _fix_F2C_ACC_translation($csrc, $state,$kernel_name);
+    if (-e $csrc ) {
+    	system("cp $csrc ../${csrc}l");
+    }
     # TODO 
     # After running F2C_ACC we need to do some cleaning-up:
     # remove the includes/macros: OK
@@ -448,7 +451,14 @@ sub _fix_F2C_ACC_translation { (my $csrc, my $state, my $kernel_name)=@_;
     my $null_check=0;
     while(my $line=<$SRC>) {
 # remove includes
-    next if $line=~/^\s*\#include\s\</;
+	if ($line=~/^\s*\#include.+ftocmacros.h/) {
+		my @ftocmacros_lines = __gen_ftocmacros_lines();
+		for my $line (@ftocmacros_lines ) {
+			push @ocl_src_lines, $line;
+		}
+		next;
+	}
+    next if $line=~/^\s*\#/;
     next if $line=~/float\s+CLK_(?:GLOB|LOC)AL_MEM_FENCE/;
     next if $line=~/int\s+nth/;
     next if $line=~/int\s+nunits/;
@@ -689,6 +699,41 @@ $line=~/(get_local_size|get_local_id|get_group_id|get_num_groups|get_group_size|
  
 } # END if _fix_F2C_ACC_translation()
 
+# -----------------------------------------------------------------------------
+sub __gen_ftocmacros_lines {
+	my $ftoc_str ='
+inline unsigned int FTNREF3D(
+                int ix, int jx, int kx,
+                        unsigned int iz,unsigned int jz,
+                                int i_lb, int j_lb, int k_lb
+                                        ) {
+        return (iz*jz*(kx-k_lb)+iz*(jx-j_lb)+ix-i_lb);
+}
+
+inline unsigned int FTNREF3D0(
+                int ix, int jx, int kx,
+                        unsigned int iz,unsigned int jz
+                                ) {
+        return iz*jz*kx+iz*jx+ix ;
+}
+
+inline unsigned int FTNREF1D(int ix,int i_lb) {
+            return ix-i_lb;
+}
+
+
+// These functions take the lower and upper bounds, rather than the range and the lower bound
+inline unsigned int FTNREF3Du(int ix,int jx,int kx,unsigned int i_ub,unsigned int j_ub,int i_lb,int j_lb,int k_lb) {
+    return (i_ub - i_lb + 1)*(j_ub - j_lb + 1)*(kx - k_lb)+(i_ub - i_lb + 1)*(jx - j_lb)+(ix - i_lb);
+}
+// For lower bounds all 0
+inline unsigned int FTNREF3Du0(int ix,int jx,int kx,unsigned int i_ub,unsigned int j_ub) {
+    return (i_ub + 1)*(j_ub + 1)*kx+(i_ub + 1)*jx+ix;
+}
+';
+
+	return 	map { "$_\n"} split(/\n/,$ftoc_str);
+}
 # -----------------------------------------------------------------------------
 
 1;

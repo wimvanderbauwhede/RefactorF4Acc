@@ -11,6 +11,7 @@ $Data::Dumper::Terse = 0;
 
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
+use RefactorF4Acc::Refactoring::Common qw( get_annotated_sourcelines );
 use RefactorF4Acc::State qw( init_state );
 use RefactorF4Acc::Inventory qw( find_subroutines_functions_and_includes );
 use RefactorF4Acc::Parser qw( parse_fortran_src build_call_graph refactor_marked_blocks_into_subroutines );
@@ -267,9 +268,9 @@ sub {
 
    # This is part of the refactoring of kernel subroutines in a simulation loop into a called-once init() and a run() called in the loop
    # It is actually only useful for OpenCL acceleration because the init writes state to the device
-   for my $kernel_wrapper (keys %{$stref->{'KernelWrappers'}}) {
-        $stref = outer_loop_variable_analysis($kernel_wrapper,$stref);
-    }
+#   for my $kernel_wrapper (keys %{$stref->{'KernelWrappers'}}) {
+#        $stref = outer_loop_variable_analysis($kernel_wrapper,$stref);
+#    }
 #    say 'AFTER outer_loop_variable_analysis()';
 
 #   die Dumper($stref->{'Subroutines'}{$subname}{'AnnLines'});

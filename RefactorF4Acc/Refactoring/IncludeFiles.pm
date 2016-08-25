@@ -2,7 +2,7 @@ package RefactorF4Acc::Refactoring::IncludeFiles;
 use v5.16;
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
-use RefactorF4Acc::Refactoring::Common qw( get_annotated_sourcelines create_refactored_source context_free_refactorings );
+use RefactorF4Acc::Refactoring::Common qw( get_annotated_sourcelines context_free_refactorings );
 
 #
 #   (c) 2010-2012 Wim Vanderbauwhede <wim@dcs.gla.ac.uk>

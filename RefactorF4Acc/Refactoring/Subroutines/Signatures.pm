@@ -124,9 +124,7 @@ sub refactor_subroutine_signature {
     # Loop over @exglobs, rename vars that conflict with parameters
     for my $var (@exglobs) {
         if ( exists $Sf->{'ConflictingParams'}{$var} ) {
-            print
-"WARNING: CONFLICT in arguments for $f, renamed $var to ${var}_GLOB\n"
-              if $W;
+            print "WARNING: CONFLICT in arguments for $f, renamed $var to ${var}_GLOB\n" if $W;
             push @nexglobs, $Sf->{'ConflictingParams'}{$var}[0];
             $Sf->{'Vars'}{ $Sf->{'ConflictingParams'}{$var}[0] } = $Sf->{'Vars'}{$var};
         } else {
