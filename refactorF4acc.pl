@@ -36,10 +36,10 @@ our $usage = "
     -d: show debug messages
     -c <cfg file name>: use this cfg file (default is ~/.rf4a)
     -C: Only generate call tree, don't refactor or emit
-    -N: Don't replace CONTINUE by CALL NOOP
-    -g: refactor globals inside toplevel subroutine
+    -N: Replace CONTINUE by CALL NOOP
+    -g: refactor globals inside toplevel subroutine 
     -b: Generate SCons build script
-    -A: DO NOT annotate the refactored lines 
+    -A: Annotate the refactored lines 
     \n";
 #    -T: Translate <subroutine name> and dependencies to C 
 #    -B: Build FLEXPART (implies -b), currently ignored
@@ -344,7 +344,7 @@ sub parse_args {
         $targetdir =  $Config{'NEWSRCPATH'};
     }   
     
-    $ANN = ( $opts{'A'} ) ? 0 : 1;
+    $ANN = ( $opts{'A'} ) ? 1 : 0;
 	$V = ( $opts{'v'} ) ? 1 : 0;
 	$I = ( $opts{'i'} ) ? 1 : 0;
 	$W = ( $opts{'w'} ) ? 1 : 0;

@@ -102,7 +102,7 @@ sub read_fortran_src {
 
 
                 if ($free_form) {    # I take this to mean F95, FIXME!
-
+				
 =info_free_form_parsing
 The main difference is in the continuation lines:
 For free form, they are
@@ -127,12 +127,12 @@ Suppose we don't:
 
                     for my $line ( @{$norm_lines} ) {
                         # emit line
-                        if ( $line ne '' ) {
+                        if ( $line ne '' ) {                        	
                             ( $stref, $s, $srctype ) =
                               _pushAnnLine( $stref, $s, $srctype, $f, $line, $free_form );
                         }
                     }
-#                    die $stref->{'Subroutines'}{$s}{'Status'}  if $s=~/shapiro/;
+                    
                     # So problem here is that in _pushAnnLine() we don't move the sub source to Subroutines
 
 
@@ -951,7 +951,7 @@ croak "No ANNLINES in $sub_func_type $sub_or_func ($f): ".$Sf->{'Status'} unless
 # I'm assuming that $srctype can only be Subroutines or Modules
 sub _pushAnnLine {
     ( my $stref, my $f, my $srctype, my $src, my $line, my $free_form ) = @_;
-if ($f eq 'UNKNOWN_SRC' or $stref->{$srctype}{$f}{'Status'}<$PARSED ) {
+if ($f eq 'UNKNOWN_SRC' or  not exists $stref->{$srctype}{$f}{'Status'} or $stref->{$srctype}{$f}{'Status'}<$PARSED ) {
 
     my $pline = _procLine( $line, $free_form );
     if (exists $stref->{'Macros'} ) {
@@ -987,7 +987,7 @@ if ($f eq 'UNKNOWN_SRC' or $stref->{$srctype}{$f}{'Status'}<$PARSED ) {
                 }            	 				
  			}
  			$srctype='Subroutines';	 			
-            $stref->{'Subroutines'}{$f}{'AnnLines'} = [] unless $stref->{'Subroutines'}{$f}{'Status'} == $PARSED;
+            $stref->{'Subroutines'}{$f}{'AnnLines'} = [] unless (exists $stref->{'Subroutines'}{$f}{'Status'} and $stref->{'Subroutines'}{$f}{'Status'} == $PARSED);
         } 
 
     if ( exists $pline->[1]{'EndModule'} and $srctype eq 'Subroutines' ) { 
@@ -1001,7 +1001,7 @@ if ($f eq 'UNKNOWN_SRC' or $stref->{$srctype}{$f}{'Status'}<$PARSED ) {
         push @{ $stref->{'Modules'}{$mod_name}{'AnnLines'} }, $pline unless $stref->{'Modules'}{$mod_name}{'Status'} == $PARSED;
     } else {
     if ($f ne  'UNKNOWN_SRC') { # WV: what should happen is that on exit of a subroutine we push the rest onto the Module annlines. 
-    	push @{ $stref->{$srctype}{$f}{'AnnLines'} }, $pline unless $stref->{$srctype}{$f}{'Status'} == $PARSED;
+    	push @{ $stref->{$srctype}{$f}{'AnnLines'} }, $pline unless (exists $stref->{$srctype}{$f}{'Status'} and $stref->{$srctype}{$f}{'Status'} == $PARSED);
     } else {
     	chomp $line;
     	say "INFO: Adding <$line> to $src because code unit not yet known" if $I; 
@@ -1130,10 +1130,13 @@ sub _procLine {
     chomp $line;
     my $info = { 'Ref' => 0 };    # means 0 refactorings
 
-    # Detect and standardise comments
-    
+# First of all, handle pragma lines
+	if ($line=~/^!\s*\$/) {
+		$info->{'Pragma'}=1;		
+	} 
+    # Detect and standardise comments    
 # A line with a c, C, *, d, D, or! in column one is a comment line. The d, D, and! are nonstandard.     
-    if ($free_form==0 and $line=~/^[CD\*\!]/i) {
+    elsif ($free_form==0 and $line=~/^[CD\*\!]/i) {
     	$info->{'Comments'} = 1;
     	$line = '! '.substr($line,1);
     } elsif ($line=~/^\s*\!/) {
@@ -1150,7 +1153,9 @@ sub _procLine {
 #    	}     
 	} elsif ( $line =~ /^\s*contains\s*$/i) { 
 		$info->{'Contains'}=1;       
-    } elsif ( $line =~ /.\!.*$/ ) {    # FIXME: trailing comments are discarded!
+    } 
+     # FIXME: trailing comments. I think they are discarded!
+    elsif ( $line =~ /.\!.*$/ ) {   
         my $tline = $line;
         my $nline = '';
         my $i     = 0;
@@ -1183,6 +1188,7 @@ sub _procLine {
         }
         $info->{'TrailingComment'} = $cline;
     } else {
+    	# Label processing
         my $sixspaces = ' ' x 6;
         $line =~ s/^\t/$sixspaces/;
         $line =~ /^(\d+)\t/ && do {
@@ -1202,8 +1208,8 @@ sub _procLine {
             $line =~ s/^(\d+)\s+/$str/;
         };
     }
-    
-    if ( substr( $line, 0, 2 ) ne '! ' ) {
+    # If the line is not a normalised comment
+    if ( substr( $line, 0, 2 ) ne '! ' and not exists $info->{'Pragma'}) {
     	
     	if ($line!~/character\s*\*/i and  $line=~/\d+\s+[Ee]\s*[\+\-]?\d+/ or $line=~/\d+\s*[Ee]\s+[\+\-]?\d+/) {
     		

@@ -63,7 +63,7 @@ sub annotate { (my $f, my $ann)=@_;
 }
 
 sub comment { (my $comment)=@_;
-	return ['! '.$comment, {'Comment'=>1,'Ref'=>1}];
+	return ['! '.$comment, {'Comments'=>1,'Ref'=>1}];
 }
 
 sub sub_func_incl_mod {
@@ -99,7 +99,7 @@ sub show_annlines {
 #             ? "\t<";#.join(';',keys %{ $annline->[1] }).'>' : '');
                 print "  ! <";
                 for my $k (keys %{ $annline->[1] }) {
-                    if ( not ref( $annline->[1]{$k} ) ) {
+                    if ( not ref( $annline->[1]{$k} ) and defined $annline->[1]{$k} ) {
                         print  $k.'=>'.$annline->[1]{$k}.';';
                     }  else {
                         print "$k;"

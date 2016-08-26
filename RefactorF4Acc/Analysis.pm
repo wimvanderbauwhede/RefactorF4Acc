@@ -189,15 +189,15 @@ sub _analyse_variables {
 
 		if (   exists $info->{'Assignment'}
 			or exists $info->{'SubroutineCall'}
-			or exists $info->{'If'}
-			or exists $info->{'ElseIf'}
-			or exists $info->{'Do'}
-			or exists $info->{'WriteCall'}
-			or exists $info->{'PrintCall'}
-			or exists $info->{'ReadCall'}
-			or exists $info->{'InquireCall'}
-			or exists $info->{'OpenCall'}
-			or exists $info->{'CloseCall'}
+			or exists $info->{'If'} # Control
+			or exists $info->{'ElseIf'} # Control
+			or exists $info->{'Do'} # Control
+			or exists $info->{'WriteCall'}# IO
+			or exists $info->{'PrintCall'}# IO
+			or exists $info->{'ReadCall'}# IO
+			or exists $info->{'InquireCall'}# IO
+			or exists $info->{'OpenCall'}# IO
+			or exists $info->{'CloseCall'}# IO
 			or exists $info->{'ParamDecl'} )
 		{
 			( my $stref, my $f, my $identified_vars ) = @{$state};
@@ -206,7 +206,7 @@ sub _analyse_variables {
 			
 			my @chunks = ();
 			if ( exists $info->{'If'} or exists $info->{'ElseIf'} ) {
-				@chunks = keys %{ $info->{'CondVars'} };
+				@chunks = @{ $info->{'CondVars'}{'List'} };
 			}
 
 			if (   exists $info->{'PrintCall'}

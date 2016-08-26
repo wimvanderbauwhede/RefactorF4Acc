@@ -117,8 +117,9 @@ sub add_module_decls { (my $stref)=@_;
 	                next if $used_mod_name eq $mod_name; # FIXME: ad-hoc!
 	                $used_mod_name="module_$used_mod_name";
 	                my $use_mod_line ="      use $used_mod_name";      
-	                my $only_list = join(', ',@{ $stref->{'SourceContains'}{$src}{'List'} } );
-	                $use_mod_line .= ($NO_ONLY ?  '!' : '') .', only : '.$only_list;
+	                # NOT OK: must check if the sub is actually used!
+	                #my $only_list = join(', ',@{ $stref->{'SourceContains'}{$mod_src}{'List'} } );
+	                #$use_mod_line .= ($NO_ONLY ?  '!' : '') .', only : '.$only_list;
 	                push @mod_uses, [$use_mod_line,{'Ref'=>1, 'Ann' => [ annotate('', __LINE__) ] } ];
 	            }
 	            

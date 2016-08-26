@@ -158,12 +158,13 @@ sub _process_src {
         # Detect blocks. FIXME: we need to distinguish between the Subroutine and KernelWrapper pragmas!
             if ( $has_blocks == 0 ) {
                 if ( $line =~ /^(?:[Cc\*]|\s*\!)\s+BEGIN\sSUBROUTINE\s(\w+)/ 
-        or $line =~ /^\s*\!\s*\$(?:ACC|RF4A)\s+(Subroutine|KernelWrapper)\s+(\w+)/i ){
+        		  or $line =~ /^\s*\!\s*\$(?:ACC|RF4A)\s+(Subroutine|KernelWrapper)\s+(\w+)/i ){
                         my $block_type=$1;
                          my $sub=$2;
-                         say 'Detected block: '."$block_type $sub" if $V;
+                         say 'Detected block: '."$block_type $sub in $srctype $sub_name" if $V;
                          croak 'Detect blocks: No '.$block_type.' name from '.$line if $sub eq '';
                         $has_blocks = 1;
+                        $stref->{$srctype}{$sub_name}{'HasBlocks'}=$has_blocks;
                         if ($translate_to ne '') {
                             $stref->{'Subroutines'}{$sub}{'Translate'}= $translate_to;
                             $translate_to='';                           
@@ -381,7 +382,7 @@ sub _process_src {
             		$stref->{'Subroutines'}{$sub}{'FreeForm'}=$free_form;  
             		$stref->{'Subroutines'}{$sub}{'TabFormat'}=$tab_format;
 		            $stref->{'Subroutines'}{$sub}{'HasBlocks'}=$has_blocks;
-                $sub_name=$sub;
+                	$sub_name=$sub;
             };
             
             # Find include statements
@@ -467,7 +468,7 @@ sub _process_src {
             
         close $SRC;
 #        if ($mod_name =~/module_bondFG/) { die $mod_name.':'.Dumper($stref->{'Modules'}{$mod_name}) };
-		
+
         return $stref;	
 	
 } # END of _process_src()
