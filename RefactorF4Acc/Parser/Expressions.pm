@@ -159,7 +159,7 @@ sub parse_expression { (my $exp, my $info, my $stref, my $f)=@_;
 	 $wrapped_expr = '_dummy_('.$preproc_expr.')';
 	}
 
-#	say "WRAPPED EXPR: $wrapped_expr" ; 
+#	say "WRAPPED EXPR $f: $wrapped_expr" ; 
     my $ast = Math::Expression::Evaluator::Parser::parse($wrapped_expr, {});
 
 	if ($wrap) {
@@ -199,17 +199,23 @@ sub _change_func_to_array { (my $stref, my $f,  my $info, my $ast, my $exp)=@_;
 				# - if $f does not have a Called Sub named $mvar. Seems acceptable, but what if it's a function call and we have v = f(x) ?
 				# So I say, if $mvar is the name of a subroutine in the whole source code base, and it's a function
 				# 
+				
+				
  				if (
- 				not ( exists $stref->{'Subroutines'}{$mvar} and exists $stref->{'Subroutines'}{$mvar}{'Function'} and $stref->{'Subroutines'}{$mvar}{'Function'} == 1) 
- 				and ( exists $stref->{'Subroutines'}{$f}{'MaskedIntrinsics'}{$mvar}
- 				or (
+ 					(
+ 				# 1. $mvar is not a function
+ 					not( exists $stref->{'Subroutines'}{$mvar} and exists $stref->{'Subroutines'}{$mvar}{'Function'} and $stref->{'Subroutines'}{$mvar}{'Function'} == 1)
+ 				# 2. $mvar is a masked intrinsic	 
+ 					and exists $stref->{'Subroutines'}{$f}{'MaskedIntrinsics'}{$mvar}
+ 					) or (
+				# 3. $mvar is actually an array 					 					  	
  					$mvar ne '#dummy#' and $mvar ne $subname 
  					and not exists $stref->{'Subroutines'}{$f}{'CalledSubs'}{'Set'}{$mvar}
 					and not exists $F95_reserved_words{$mvar}
 #					and not exists $F95_intrinsics{$mvar} # Dangerous, because some idiot may have overwritten an intrinsic with an array! 					
-					)
-					)		
+					)							
 				) {
+					
     		# change & to @
     				$ast->[$idx]='@';
     				say "Found array $mvar" if $DBG;
@@ -483,7 +489,7 @@ sub get_args_vars_from_subcall {(my $ast)=@_;
 			if( ref( $ast->[$idx] ) eq 'ARRAY') { 				 
 				my $arg = $ast->[$idx][1];
 				if ($arg=~/__PH\d+__/ or $arg=~/_(?:CONCAT|COLON)_(?:PRE|POST)_/ or $arg=~/_PAREN_PAIR_/) {
-					$arg=0;
+					$arg=0;  # FIXME! UGLY!
 				}			
 				if ($arg=~/^__(\w+)__$/) {
 					$arg=~s/__(\w+)__/\.${1}\./;
@@ -505,7 +511,11 @@ sub get_args_vars_from_subcall {(my $ast)=@_;
 							push @{$args->{'List'}}, $arg_expr;
 						}
 					} else { # A scalar			
+						if ("$arg" ne '0' ) { # FIXME! UGLY!
 						$args->{'Set'}{$arg}={ 'Type'=>'Scalar',  'Expr' => $arg};
+						} else {
+							$args->{'Set'}{$arg}={ 'Type'=>'Const',  'Expr' => $arg};
+						}
 						push @{$args->{'List'}}, $arg;
 					} 
 					

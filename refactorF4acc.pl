@@ -147,7 +147,7 @@ sub main {
     $stref->{'SubsToTranslate'}=$subs_to_translate;
 	# Find all subroutines in the source code tree
 	$stref = find_subroutines_functions_and_includes($stref);
-	
+
 test(1,$stref, sub { (my $stref)=@_;
 	if ($subname eq 'main') {
 		return (scalar keys %{$stref->{'Subroutines'}} == 22) ? 'PASS' : 'FAIL: '.Dumper(keys %{$stref->{'Subroutines'}});
@@ -190,7 +190,7 @@ sub {
 		map {print $_}  @{ $stref->{'PPCallTree'} };
 		exit(0);
 	}
-
+croak;
 	$stref = build_call_graph($subname, $stref);
 	
 test(4,$stref,

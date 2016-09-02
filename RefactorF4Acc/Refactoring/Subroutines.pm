@@ -5,7 +5,7 @@ use RefactorF4Acc::Utils;
 use RefactorF4Acc::Refactoring::Common qw( get_annotated_sourcelines context_free_refactorings emit_f95_var_decl splice_additional_lines_cond);
 use RefactorF4Acc::Refactoring::Subroutines::Signatures qw( create_refactored_subroutine_signature refactor_subroutine_signature ); 
 use RefactorF4Acc::Refactoring::Subroutines::Includes qw( skip_common_include_statement create_new_include_statements create_additional_include_statements );
-use RefactorF4Acc::Refactoring::Subroutines::Declarations qw( create_exglob_var_declarations create_refactored_vardecls );
+#use RefactorF4Acc::Refactoring::Subroutines::Declarations qw( create_exglob_var_declarations create_refactored_vardecls );
 #use RefactorF4Acc::Refactoring::Subroutines::Calls qw( create_refactored_subroutine_call );
 use RefactorF4Acc::Parser::Expressions qw( emit_expression );
 # 
@@ -425,7 +425,7 @@ sub _create_extra_arg_and_var_decls {
     	and not exists $Sf->{'DeclaredCommonVars'}{'Set'}{$var}
 #    	and not exists $Sf->{'UndeclaredCommonVars'}{'Set'}{$var}
     	) {
-#    		carp "WHERE is $var in $f? ".in_nested_set($Sf,'CommonVars',$var) if $var eq 'iacn11' and $f eq 'fs055';
+
     	say "INFO VAR in $f: $var ".Dumper($Sf->{'ExGlobArgs'}{'Set'}{$var}{'IODir'} ) if $I; 
                     my $rdecl = $Sf->{'ExGlobArgs'}{'Set'}{$var}; 
                     my $rline = emit_f95_var_decl($rdecl);
@@ -433,7 +433,7 @@ sub _create_extra_arg_and_var_decls {
                     $info->{'Ann'}=[ annotate($f, __LINE__ .' : EX-GLOB ' . $annline->[1]{'ExGlobVarDeclHook'} ) ];                                               
                     $info->{'LineID'}= $nextLineID++;
                     $info->{'Ref'}=1;
-                    $info->{'VarDecl'}=$rdecl;
+                    $info->{'VarDecl'}={'Name' => $var};#$rdecl;
                     push @{$rlines}, [ $rline,  $info ];
     	}                        
     }    # for
@@ -447,7 +447,7 @@ sub _create_extra_arg_and_var_decls {
                     $info->{'Ann'}=[annotate($f, __LINE__ .' : EX-INCL' ) ];
                     $info->{'LineID'}= $nextLineID++;
                     $info->{'Ref'}=1;
-                    $info->{'VarDecl'}=$rdecl;
+                    $info->{'VarDecl'}={'Name' => $var};#$rdecl;
                     push @{$rlines}, [ $rline,  $info ];                        
     }    # for
 
@@ -456,21 +456,15 @@ sub _create_extra_arg_and_var_decls {
     for my $var ( @{ $Sf->{'UndeclaredOrigArgs'}{'List'} } ) {
     	say "INFO VAR: $var" if $I;
     	next if $var eq '*';
-    	
-#    	say Dumper($Sf);
-    	if (exists $Sf->{'CalledSubs'} and exists $Sf->{'CalledSubs'}{$var} and not exists $Sf->{'UndeclaredOrigArgs'}{'Set'}{$var}) {
-    		
+    	if (exists $Sf->{'CalledSubs'} and exists $Sf->{'CalledSubs'}{$var} and not exists $Sf->{'UndeclaredOrigArgs'}{'Set'}{$var}) {    		
     		next;
     	} 
-  		if ( exists $stref->{'ExternalSubroutines'}{$var} and not exists $Sf->{'UndeclaredOrigArgs'}{'Set'}{$var}) {
-  			
+  		if ( exists $stref->{'ExternalSubroutines'}{$var} and not exists $Sf->{'UndeclaredOrigArgs'}{'Set'}{$var}) {  			
     		next;
     	}
-    	if (not exists $unique_ex_impl{$var}) {
-    		
+    	if (not exists $unique_ex_impl{$var}) {    		
     			$unique_ex_impl{$var}=$var;
-                    my $rdecl = $Sf->{'UndeclaredOrigArgs'}{'Set'}{$var};
-                    
+                    my $rdecl = $Sf->{'UndeclaredOrigArgs'}{'Set'}{$var};                    
                     if (not exists $rdecl->{'External'}
                     or (exists $rdecl->{'External'} and exists $Sf->{'UndeclaredOrigArgs'}{'Set'}{$var})
                     ) {
@@ -480,7 +474,7 @@ sub _create_extra_arg_and_var_decls {
 	                    $info->{'Ann'}=[annotate($f, __LINE__ .' : EX-IMPLICIT')  ];
 	                    $info->{'LineID'}= $nextLineID++;
 	                    $info->{'Ref'}=1;
-	                    $info->{'VarDecl'}=$rdecl;
+	                    $info->{'VarDecl'}={'Name' => $var};#$rdecl;
 	                    push @{$rlines}, [ $rline,  $info ];
                     }
     	}                        
@@ -495,7 +489,7 @@ sub _create_extra_arg_and_var_decls {
                     $info->{'Ann'}=[annotate($f, __LINE__ .' : EX-INCL VAR' ) ];
                     $info->{'LineID'}= $nextLineID++;
                     $info->{'Ref'}=1;
-                    $info->{'VarDecl'}=$rdecl;
+                    $info->{'VarDecl'}={'Name' => $var};#$rdecl;
                     push @{$rlines}, [ $rline,  $info ];                        
     }    # for
         
@@ -532,7 +526,7 @@ sub _create_extra_arg_and_var_decls {
                     $info->{'Ann'}=[annotate($f, __LINE__ .' : EX-IMPLICIT VAR') ];                    
                     $info->{'LineID'}= $nextLineID++;
                     $info->{'Ref'}=1;
-                    $info->{'VarDecl'}=$rdecl;
+                    $info->{'VarDecl'}={'Name' => $var};#$rdecl;
                     push @{$rlines}, [ $rline,  $info ];
     		} else {
     			say "INFO: $var is a reserverd word" if $I;
@@ -549,7 +543,7 @@ sub _create_extra_arg_and_var_decls {
                     $info->{'Ann'}=[annotate($f, __LINE__ .' : EX-IMPLICIT COMMON')  ];
                     $info->{'LineID'}= $nextLineID++;
                     $info->{'Ref'}=1;
-                    $info->{'VarDecl'}=$rdecl;
+                    $info->{'VarDecl'}={'Name' => $var};#$rdecl;
                     push @{$rlines}, [ $rline,  $info ];                        
     }    # for    
     
@@ -594,11 +588,11 @@ sub _create_refactored_subroutine_call {
         $args_ref = [@orig_args, @maybe_renamed_exglobs ]; # NOT ordered union, if they repeat that should be OK
  
         $info->{'SubroutineCall'}{'Args'}{'List'}= $args_ref;
-    my $args_str = join( ',', @{$args_ref} );
-    $line =~ s/call\s.*$//; # Basically keep the indent
-    my $rline = "call $name($args_str)\n";
-    $info->{'Ann'}=[annotate($f, __LINE__ ) ];
-    push @{$rlines}, [ $line . $rline, $info ];
+	    my $args_str = join( ',', @{$args_ref} );
+	    $line =~ s/call\s.*$//; # Basically keep the indent
+	    my $rline = "call $name($args_str)\n";
+	    $info->{'Ann'}=[annotate($f, __LINE__ ) ];
+	    push @{$rlines}, [ $line . $rline, $info ];
     } else {
         push @{$rlines}, [ $line , $info ];
     }

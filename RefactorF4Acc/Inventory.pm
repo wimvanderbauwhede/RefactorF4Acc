@@ -36,7 +36,7 @@ use RefactorF4Acc::Utils qw(module_has_only);
 sub find_subroutines_functions_and_includes {	
     my $stref = shift;
     my $prefix   = $Config{PREFIX};
-    my @srcdirs=@{ $Config{SRCDIRS} };
+    my @srcdirs=@{ $Config{SRCDIRS} };    
     my @extsrcdirs=exists $Config{EXTSRCDIRS} ? @{ $Config{EXTSRCDIRS} } : (); # External sources, should not be refactored but can be parsed
     my %ext_src_dirs = map { $prefix.'/'.$_ => 1 } @extsrcdirs; 
     my %excluded_sources = map { $_ => 1 } @{ $Config{EXCL_SRCS} };
@@ -45,13 +45,18 @@ sub find_subroutines_functions_and_includes {
     my $excl_srcs_pattern    = @{ $Config{EXCL_SRCS} }>1? join('|', @{ $Config{EXCL_SRCS} }) : $Config{EXCL_SRCS}->[0];
     say     'Exclude pattern: /'.$excl_srcs_pattern.'/' if $V;
 	my $excl_srcs_regex      = qr/$excl_srcs_pattern/;
+	
+	
+	$stref->{'SourceDirs'} = [@srcdirs];
+	$stref->{'Prefix'} = $prefix;
     # find sources (borrowed from PerlMonks)
     
     my %src_files = ();
     my $tf_finder = sub { 
         return if !-f;
-        return if (!/\.f(?:9[05])?$/ &&!/\.c$/); # rather ad-hoc for Flexpart + WRF
+        return if (!/\.f(?:9[05])?$/ &&!/\.c$/); # rather ad-hoc for Flexpart + WRF # FIXME: make pattern configurable in rf4a.cfg
         my $filepath = $File::Find::name;  # i.e. $path+ the name of the file found
+        
         my $srcname = $filepath;
         $srcname =~s/^\.\///;
         my $srcdir = $filepath;  
@@ -72,12 +77,13 @@ sub find_subroutines_functions_and_includes {
     	my $path="$prefix/$dir";
     	if ($dir eq '.') {
     	   $path=$prefix;
-    	} 
+    	}     	
+
         find( $tf_finder, $path );
     }
     
     for my $src ( sort keys %src_files ) {
-    	
+
         my $exclude=0;        
         for my $excl_dir (keys %excluded_dirs) {            
             if ($src=~/$excl_dir\//) { 
@@ -112,6 +118,7 @@ sub find_subroutines_functions_and_includes {
     
     _test_can_be_inlined_all_modules($stref);    
     
+    _add_path_to_includes($stref);
     
     return $stref;
 }    # END of find_subroutines_functions_and_includes()
@@ -213,7 +220,7 @@ sub _process_src {
         	
 #• The first five columns must be blank or contain a numeric label.
         	# And the whitespace at the start of the line does not contain tabs
-            if ( $line !~ /^[\s\d]{5}.+/ and $line !~ /^\t[\t\s]*\w/ and $line !~/^\s+\t/) {
+            if ( $line !~ /^[\s\d]{5}.+/ and $line !~ /^\t[\t\s]*\w/ and $line !~/^\s+\t/ and $line!~/^\s*\#/) {
                 $free_form = 1;     
             } 
 
@@ -386,7 +393,7 @@ sub _process_src {
             };
             
             # Find include statements
-            $line =~ /^\s*include\s+\'([\w\.]+)\'/ && do {
+            $line =~ /^\s*\#?include\s+[\"\']([\w\.]+)[\"\']/ && do {
                 my $inc = $1;
                  if ($in_module) {
                     $stref->{'Modules'}{$mod_name}{'IncludeFiles'}{$inc}={};
@@ -533,6 +540,28 @@ sub _subs_can_be_inlined { (my $stref, my $mod_name, my $inline_ok) = @_;
     return $inline_ok;
 }
 
-sub _find_sources {
+
+sub _add_path_to_includes { (my $stref) =@_; 
+	my $prefix = $stref->{'Prefix'};
 	
+	for my $entry ( keys %{$stref->{'SourceFiles'} } ) {
+		
+		next if $entry=~/\//;
+		for my $srcdir (@{ $stref->{'SourceDirs'} } ) {
+			my $inclpath="$srcdir/$entry";
+			if ($prefix ne '') {
+				$inclpath="$prefix/$inclpath";
+			}
+			if (exists $stref->{'SourceFiles'}{$inclpath}) {
+		say " $entry => $inclpath" if $V;		
+				my $new_record = { %{ $stref->{'SourceFiles'}{$entry} }, %{ $stref->{'SourceFiles'}{$inclpath} } };
+				delete $stref->{'SourceFiles'}{$entry};
+				$stref->{'SourceFiles'}{$inclpath} = $new_record;
+#				croak Dumper($stref->{'SourceFiles'}{$entry}).Dumper($stref->{'SourceFiles'}{$inclpath})."\n".Dumper($new_record);;
+			}
+		}
+	}
+	return $stref;
 }
+
+1;

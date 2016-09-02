@@ -18,6 +18,7 @@ use Carp;
 use Data::Dumper;
 use Digest::MD5;
 use File::Copy;
+use Cwd;
 
 use Exporter;
 @RefactorF4Acc::Emitter::ISA = qw(Exporter);
@@ -27,35 +28,48 @@ use Exporter;
 
 # -----------------------------------------------------------------------------
 # This routine does not generate or manipulate files, it only does copying etc. 
-sub _init_emit_all {
+sub _init_emit_all { (my $stref) = @_;
         # if target dir for refactored code does not exist, create it
         # and copy include files into it
     if ( not -e $targetdir ) {
+    	
         mkdir $targetdir;
         # FIXME: the includes should be taken from $stref->{'Includes'}
         # But actually, all includes should have been converted to F95 modules!        
     } elsif ( not -d $targetdir ) {
-        die "ERROR: $targetdir exists but is not a directory!\n";
+        die "ERROR: $targetdir exists but is not a directory!\n";        
     } else {
+    	# target dir exists. check if subdirs exists
+    	my $wd=cwd();
+        for my $srcdir (@{ $stref->{'SourceDirs'} }) {
+        	if (not -d "$wd/$targetdir/$srcdir") {
+				system("mkdir -p $wd/$targetdir/$srcdir"); # FIXME: WEAK! only one level!
+        	}
+        }        
+    	
+    	
+    	
     	# Remove existing Fortran-95 sources
-        my @oldsrcs = glob("$targetdir/*.f95");        
-        map { unlink $_ } @oldsrcs;
-
+#        my @oldsrcs = glob("$targetdir/*.f95");        
+#        map { unlink $_ } @oldsrcs;
+		__remove_previously_generated_f95_sources($stref);
         # Check if includes have changed
-        my @incs = glob('include*');
-        for my $inc (@incs) {
-            open( my $OLD, $inc );
-            binmode($OLD);
-            open( my $NEW, $inc );
-            binmode($NEW);
-            if ( Digest::MD5->new->addfile($OLD)->hexdigest ne
-                Digest::MD5->new->addfile($NEW)->hexdigest )
-            {
-                copy( $inc, "$targetdir/$inc" );
-            }
-            close $OLD;
-            close $NEW;
-        }
+        # WV: This is rididiculous because it only works for include files of pattern "include*"
+        # I should instead test all include files in the tree, FIXME!
+#        my @incs = glob('include*');
+#        for my $inc (@incs) {
+#            open( my $OLD, $inc );
+#            binmode($OLD);
+#            open( my $NEW, $inc );
+#            binmode($NEW);
+#            if ( Digest::MD5->new->addfile($OLD)->hexdigest ne
+#                Digest::MD5->new->addfile($NEW)->hexdigest )
+#            {
+#                copy( $inc, "$targetdir/$inc" );
+#            }
+#            close $OLD;
+#            close $NEW;
+#        }
     }    
 }
 # -----------------------------------------------------------------------------
@@ -258,7 +272,7 @@ sub emit_all {
     
           
 
-    _init_emit_all() unless $DUMMY;
+    _init_emit_all($stref) unless $DUMMY;
     for my $src (keys %{ $stref->{'SourceContains'} } ) {
         if (exists $stref->{'SourceContains'}{$src}{'Path'} and  exists $stref->{'SourceContains'}{$src}{'Path'}{'Ext'}) {
         	say "SKIPPING $src";
@@ -273,7 +287,7 @@ sub emit_all {
 	            map {
 	                my $targetdir = $_;
 	                if ( not -e $targetdir ) {
-	                    mkdir $targetdir;
+	                    mkdir $targetdir;													                    
 	                }
 	            } @dirs;
 	        }
@@ -359,4 +373,16 @@ void break(int l) {
 }
 ';
 close $BREAK;
+}
+
+sub __remove_previously_generated_f95_sources { (my $stref)=@_;
+	my $wd=cwd();
+	for my $srcdir (@{ $stref->{'SourceDirs'} }) {
+		chdir "$wd/$targetdir/$srcdir";
+		my @srcs = glob("*.f95");
+		for my $src (@srcs) {
+			unlink $src;
+		}
+		chdir $wd;
+	}
 }

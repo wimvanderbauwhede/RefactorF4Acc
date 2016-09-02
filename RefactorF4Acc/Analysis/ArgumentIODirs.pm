@@ -719,125 +719,91 @@ sub _get_iodirs_from_subcall {
 
 		# This is the parent
 		my $Sf = $stref->{'Subroutines'}{$f};
-#croak 'FIXME: must add ExprVars as well, but they are all intent(In)';
 		# These are the refactored arguments of the parent
 		my $args   = $Sf->{'RefactoredArgs'}{'Set'};
 		my $argmap = $info->{'SubroutineCall'}{'ArgMap'};
-
-		#		croak Dumper($info->{'CallArgs'}) if $name eq 'interpol_all';
 		my $Sname = $stref->{'Subroutines'}{$name};
-
-		#		my $i     = 0;
 
 		# For every argument of the ORIGINAL called subroutine
 		for my $sig_arg ( keys %{$argmap} ) {
-
+		
 # See if there is a corresponding argument in the signature of the called subroutine
 			my $call_arg = $argmap->{$sig_arg};
-
+				if (defined $call_arg ) {
 # The $call_arg can be Array, Scalar, Sub, Expr or Const
 # Only if it is Array or Scalar  does it need to be considered for writing to by the subroutine
 # We need to check the other variables in Array, Sub and Expr but they cannot be anything else than read-only
-
-			my $call_arg_type = $info->{'CallArgs'}{'Set'}{$call_arg}{'Type'};
-
-			if ( $call_arg_type eq 'Scalar' or $call_arg_type eq 'Array' ) {
-
-				# This means that $call_arg is an argument of the caller $f
-				# That is what interests us as we want the IODir in that case
-
-				if ( $call_arg_type eq 'Array' ) {
-					$call_arg = $info->{'CallArgs'}{'Set'}{$call_arg}{'Arg'};
-				}
-
-				if (    exists $args->{$call_arg}
-					and exists $Sname->{'RefactoredArgs'}{'Set'}{$sig_arg} )
-				{    # this caller argument has a record in RefactoredArgs of $f
-					   # look up the IO direction for the corresponding $sig_arg
-					my $sig_iodir = $Sname->{'RefactoredArgs'}{'Set'}{$sig_arg}{'IODir'};
-					if ( not exists $called_arg_iodirs->{$call_arg} ) {
-						$called_arg_iodirs->{$call_arg} = $sig_iodir;
-					} else {
-						if (
-							(
-								    $called_arg_iodirs->{$call_arg} eq 'In'
-								and $sig_iodir eq 'Out'
-							)
-							or (    $called_arg_iodirs->{$call_arg} eq 'Out'
-								and $sig_iodir eq 'In' )
-						  )
-						{
-							$called_arg_iodirs->{$call_arg} = 'InOut';
-						}
+				
+				my $call_arg_type = $info->{'CallArgs'}{'Set'}{$call_arg}{'Type'};
+	
+				if ( $call_arg_type eq 'Scalar' or $call_arg_type eq 'Array' ) {
+	
+					# This means that $call_arg is an argument of the caller $f
+					# That is what interests us as we want the IODir in that case
+	
+					if ( $call_arg_type eq 'Array' ) {
+						$call_arg = $info->{'CallArgs'}{'Set'}{$call_arg}{'Arg'};
 					}
-				} else {
-
-		  # Of course called args can be local variables or parameters.
-		  # In the case of Parameters, we can set the called sub's sig arg to In
-
-					# It could be that this call arg is a parameter, let's check
-					# But to do so I should include Parameters in Vars
-					# Basically, they can be LocalParam and InclParam
-					# In that way we can look them up in the nested sets
-					if ( in_nested_set( $Sf, 'Parameters', $call_arg ) ) {
-						say
-"CALLER ARG <$call_arg> for call to $name in $f IS A PARAMETER."
-						  if $DBG;
-#						if (    
-#						scalar keys %{ $Sname->{'Callers'} } == 1
-#							and $Sname->{'Callers'}{$f} == 1
-#							and
-#							$Sname->{'RefactoredArgs'}{'Set'}{$sig_arg}{'IODir'}
-#							ne 'In' )
-#						{
-
-say "WARNING: Setting intent(In) for argument $sig_arg of $name because the called argument is a parameter!" if $W;
-							print
-"INFO: $name in $f is called only once; $sig_arg is a parameter, setting IODir to 'In'\n"
-							  if $I;
-							$Sname->{'RefactoredArgs'}{'Set'}{$sig_arg}
-							  {'IODir'} = 'In';
-#						}
-					} else {
-
-# If it's a var, we don't do anything I guess? But suppose a var is being written to, and then an arg is being assigned to this var
-# A var must always be written to anyway or it would be undefined.
-						if ( in_nested_set( $Sf, 'Vars', $call_arg ) ) {
-							say
-"CALLER ARG <$call_arg> for call to $name in $f IS A LOCAL VAR."
-							  if $DBG;
+	
+					if (    exists $args->{$call_arg}
+						and exists $Sname->{'RefactoredArgs'}{'Set'}{$sig_arg} )
+					{    # this caller argument has a record in RefactoredArgs of $f
+						   # look up the IO direction for the corresponding $sig_arg
+						my $sig_iodir = $Sname->{'RefactoredArgs'}{'Set'}{$sig_arg}{'IODir'};
+						if ( not exists $called_arg_iodirs->{$call_arg} ) {
+							$called_arg_iodirs->{$call_arg} = $sig_iodir;
 						} else {
-							say
-"CALLER ARG <$call_arg> for call to $name HAS NO REC in Vars($f): "
-							  . Dumper( $Sf->{'Vars'} );    # . '<>'
-
-			  #						  	. Dumper( $Sname->{'RefactoredArgs'}{'Set'}{$sig_arg} );
-			  #						say Dumper( $Sf->{'Vars'} );
-							croak;
+							if (
+								(
+									    $called_arg_iodirs->{$call_arg} eq 'In'
+									and $sig_iodir eq 'Out'
+								)
+								or (    $called_arg_iodirs->{$call_arg} eq 'Out'
+									and $sig_iodir eq 'In' )
+							  )
+							{
+								$called_arg_iodirs->{$call_arg} = 'InOut';
+							}
+						}
+					} else {
+	
+			  # Of course called args can be local variables or parameters.
+			  # In the case of Parameters, we can set the called sub's sig arg to In
+	
+						# It could be that this call arg is a parameter, let's check
+						# But to do so I should include Parameters in Vars
+						# Basically, they can be LocalParam and InclParam
+						# In that way we can look them up in the nested sets
+						if ( in_nested_set( $Sf, 'Parameters', $call_arg ) ) {
+							say "CALLER ARG <$call_arg> for call to $name in $f IS A PARAMETER." if $DBG;
+	say "WARNING: Setting intent(In) for argument $sig_arg of $name because the called argument is a parameter!" if $W;
+								print
+	"INFO: $name in $f is called only once; $sig_arg is a parameter, setting IODir to 'In'\n"
+								  if $I;
+								$Sname->{'RefactoredArgs'}{'Set'}{$sig_arg}{'IODir'} = 'In';
+						} else {
+	
+	# If it's a var, we don't do anything I guess? But suppose a var is being written to, and then an arg is being assigned to this var
+	# A var must always be written to anyway or it would be undefined.
+							if ( in_nested_set( $Sf, 'Vars', $call_arg ) ) {
+								say "CALLER ARG <$call_arg> for call to $name in $f IS A LOCAL VAR." if $DBG;
+							} else {
+								say Dumper( $Sf->{'Vars'} ). "\nCALLER ARG <$call_arg> for call to <$name> HAS NO REC in Vars($f) $call_arg_type ";
+								croak;
+							}
 						}
 					}
-
-					#					croak;
+				} else {  # If it is a Const or Expr or Sub,  the sig_arg must be In
+					 # Before 20160513, this had "and there is only a single subroutine call in the code" but that is not correct
+					 # It leads to Error: Non-variable expression in variable definition context (actual argument to INTENT = OUT/INOUT) at (1)
+					say "WARNING: Setting intent(In) for argument $sig_arg of $name because the called argument is not a variable!" if $W; 
+					$Sname->{'RefactoredArgs'}{'Set'}{$sig_arg}{'IODir'} = 'In';
+	
 				}
-			} else {  # If it is a Const or Expr or Sub,  the sig_arg must be In
-				 # Before 20160513, this had "and there is only a single subroutine call in the code" but that is not correct
-				 # It leads to Error: Non-variable expression in variable definition context (actual argument to INTENT = OUT/INOUT) at (1)
-#				carp "FIXME: DOING THIS BREAKS CODE!";
-				say "WARNING: Setting intent(In) for argument $sig_arg of $name because the called argument is not a variable!" if $W; 
+			} else {
 				$Sname->{'RefactoredArgs'}{'Set'}{$sig_arg}{'IODir'} = 'In';
-
-#				if (    scalar keys %{ $Sname->{'Callers'} } == 1
-#						and $Sname->{'Callers'}{$f} == 1
-#						and $Sname->{'RefactoredArgs'}{'Set'}{$sig_arg}{'IODir'}
-#						ne 'In' )
-#					{
-#						print
-#"INFO: $name in $f is called only once; $sig_arg is a numeric constant or expression, setting IODir to 'In'\n"
-#						  if $I;
-#						$Sname->{'RefactoredArgs'}{'Set'}{$sig_arg}{'IODir'} = 'In';
-#					}
 			}
-		}
+		} # for loop		
 
 # For the refactored args that were not original args, we just copy the IODir
 # So we take all refactored args but exclude the args in the argmap
@@ -897,26 +863,26 @@ sub _update_argument_io_direction {
 		
 		if ( exists $info->{'VarDecl'} ) {
 			my $varname = $info->{'VarDecl'}{'Name'};
-			my $is_param=0;
-			if (ref($varname) eq 'ARRAY') {
-				$is_param=1;
-				$varname = $varname->[0];							
-			}
+#			my $is_param=0;
+#			if (ref($varname) eq 'ARRAY') { 
+#				$is_param=1;
+#				$varname = $varname->[0];							
+#			}
 			if (
 					exists $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$varname} 
 				){
 					
-#					croak "REFACTORED".Dumper($stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$varname}) if $is_param;
 					my $decl =  $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$varname};
-					if (not $is_param) {
-					$info->{'VarDecl'}{'IODir'} = $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$varname}{'IODir'};
-					} else {
-						$info->{'VarDecl'}{'IODir'} ='In';
+#					if (not $is_param) {
+#						$info->{'VarDecl'}{'IODir'} = $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$varname}{'IODir'};
+#					} else {
+#						$info->{'VarDecl'}{'IODir'} ='In';
+
+					if ( exists $decl->{'Parameter'} ) {
 						delete $decl->{'Parameter'};
 						$decl->{'Name'} = $decl->{'Var'};
 						delete $decl->{'Val'};
 						$decl->{'IODir'}='In';
-#						croak Dumper($decl);
 					}
 					my $rline = emit_f95_var_decl($decl );
 											

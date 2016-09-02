@@ -77,7 +77,15 @@ sub read_fortran_src {
 			) {
 				$fpath= $stref->{'IncludeFiles'}{$s}{ 'ExtPath' };
 			}
-			
+			if (not -e $fpath) {
+				for my $srcdir (@{ $stref->{'SourceDirs'} }) {					
+					if ( -e "$srcdir/$fpath") {
+						 $fpath="$srcdir/$fpath";
+						 $stref->{$sub_func_incl}{$s}{'Source'}=$fpath;
+						 last;
+					}
+				}
+			}
             open my $SRC, '<', $fpath or do {
                 say "WARNING: Can't find '$fpath' ($s)\n" if $W;
                 $ok = 0;
@@ -1136,7 +1144,7 @@ sub _procLine {
 	} 
     # Detect and standardise comments    
 # A line with a c, C, *, d, D, or! in column one is a comment line. The d, D, and! are nonstandard.     
-    elsif ($free_form==0 and $line=~/^[CD\*\!]/i) {
+    elsif ($free_form==0 and $line=~/^[CD\*\!]/i) { 
     	$info->{'Comments'} = 1;
     	$line = '! '.substr($line,1);
     } elsif ($line=~/^\s*\!/) {
@@ -1220,7 +1228,14 @@ sub _procLine {
     		}
     		
     	}
-        if ( $line =~ /^\s+include\s+[\'\"]([\w\.]+)[\'\"]/i ) {
+		# Check for CPP macros
+		if ($line=~/^\s*\#/) {
+			$info->{'Macro'}=1;	
+			if ( $line =~ /^\s*\#include\s+[\'\"]([\w\.]+)[\'\"]/i ) {
+            	$info->{'Includes'} = $1;
+            	$line =~ s/\bINCLUDE\b/include/;
+			}
+		} elsif ( $line =~ /^\s+include\s+[\'\"]([\w\.]+)[\'\"]/i ) {
             $info->{'Includes'} = $1;
             $line =~ s/\bINCLUDE\b/include/;
         } elsif ( $line !~ /[\'\"]/

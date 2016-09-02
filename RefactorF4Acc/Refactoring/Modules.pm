@@ -103,7 +103,8 @@ sub add_module_decls { (my $stref)=@_;
 	            my $mod_name=$src;
 	            $mod_name=~s/\.\///;
 	            $mod_name=~s/\..*$//;
-	            $mod_name=~s/\./_/g;
+	            $mod_name=~s/[\.\/\-]/_/g;
+	            
 	            $mod_name="module_$mod_name";
 	            my $mod_header=["module $mod_name\n",{'Ref'=>1}];
 	            my $mod_footer=["\nend module $mod_name\n",{'Ref'=>1}];
@@ -113,7 +114,8 @@ sub add_module_decls { (my $stref)=@_;
 	                my $used_mod_name = $mod_src;
 	                $used_mod_name =~s/\.\///;
 	                $used_mod_name =~s/\..*$//;
-	                $used_mod_name=~s/\./_/g;
+	                $used_mod_name=~s/[\.\/\-]/_/g;
+	                
 	                next if $used_mod_name eq $mod_name; # FIXME: ad-hoc!
 	                $used_mod_name="module_$used_mod_name";
 	                my $use_mod_line ="      use $used_mod_name";      

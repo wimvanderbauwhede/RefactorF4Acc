@@ -497,6 +497,11 @@ sub _resolve_conflicts_with_params {
 sub _create_refactored_args {
 	( my $stref, my $f ) = @_;
 	my $Sf = $stref->{'Subroutines'}{$f};
+#	say "$f ".Dumper $Sf->{'Source'};
+#	say 'ExGlobArgs'.Dumper $Sf->{'ExGlobArgs'}{'List'};
+#	say 'OrigArgs'.Dumper $Sf->{'OrigArgs'};
+#	say 'DeclaredOrigArgs'.Dumper $Sf->{'DeclaredOrigArgs'}{'Set'};
+#	say 'UndeclaredOrigArgs'.Dumper $Sf->{'UndeclaredOrigArgs'}{'Set'};
 	
 	if ( exists $Sf->{'ExGlobArgs'} and exists $Sf->{'OrigArgs'}
 	and  exists $Sf->{'ExGlobArgs'}{'List'} and exists $Sf->{'OrigArgs'}{'List'}
@@ -544,7 +549,7 @@ sub _map_call_args_to_sig_args {
 
 			my $call_args = $info->{'SubroutineCall'}{'Args'}{'List'};
 
-			#				croak Dumper($info) if exists $info->{'CallArgs'}{'Set'}{'float'};
+			
 			for my $call_arg_expr ( @{ $info->{'CallArgs'}{'List'} } ) {
 
 				#					croak Dumper($info->{'CallArgs'}{'Set'}{$call_arg_expr}) if $call_arg_expr =~/float/;
@@ -568,11 +573,7 @@ sub _map_call_args_to_sig_args {
 			my $i = 0;
 			for my $sig_arg ( @{ $stref->{'Subroutines'}{$sub}{'OrigArgs'}{'List'} } ) {
 				my $call_arg_expr = $call_args->[$i];
-
-				#					my $call_arg = $call_arg_expr;
-				#					if ( $info->{'CallArgs'}{'Set'}{$call_arg_expr}{'Type'} eq 'Array') {
-				#						$call_arg = $info->{'CallArgs'}{'Set'}{$call_arg_expr}{'Arg'};
-				#					}
+#croak $line.Dumper($call_args) if not defined $call_arg_expr ;
 				$info->{'SubroutineCall'}{'ArgMap'}{$sig_arg} = $call_arg_expr;
 				$i++;
 			}
@@ -598,13 +599,22 @@ sub _identify_external_proc_args {
 			and not exists $info->{'SubroutineCall'}{'IsExternal'} )
 		{
 			my $sub = $info->{'SubroutineCall'}{'Name'};
-			for my $sig_arg ( @{ $stref->{'Subroutines'}{$sub}{'OrigArgs'}{'List'} } ) {			
+			for my $sig_arg ( @{ $stref->{'Subroutines'}{$sub}{'OrigArgs'}{'List'} } ) {
+				
+#				say "SUB: $sub" ;
+#				say  Dumper($stref->{'Subroutines'}{$sub}).$sub;#{'Source'}; 
+#				say " $sub => $sig_arg"; 
+#				say Dumper($info->{'SubroutineCall'}{'ArgMap'}) if $line=~/xabort/;			
+
 				my $call_arg = $info->{'SubroutineCall'}{'ArgMap'}{$sig_arg};
-				if (exists $stref->{'Subroutines'}{$f}{'External'}{$call_arg}) {
-					my $set = in_nested_set($stref->{'Subroutines'}{$sub},'Vars',$sig_arg);
-					say "In proc $f, in call to sub $sub, arg $call_arg is EXTERNAL so setting $sig_arg attr External in set $set";
-					
-					$stref->{'Subroutines'}{$sub}{$set}{'Set'}{$sig_arg}{'External'}=1;
+				
+				if (defined $call_arg) {									
+					if (exists $stref->{'Subroutines'}{$f}{'External'}{$call_arg}) {
+						my $set = in_nested_set($stref->{'Subroutines'}{$sub},'Vars',$sig_arg);
+						say "In proc $f, in call to sub $sub, arg $call_arg is EXTERNAL so setting $sig_arg attr External in set $set";
+						
+						$stref->{'Subroutines'}{$sub}{$set}{'Set'}{$sig_arg}{'External'}=1;
+					}
 				}
 			}							
 		}
