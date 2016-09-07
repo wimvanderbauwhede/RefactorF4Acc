@@ -358,8 +358,30 @@ sub lift_globals {
 	                	# Inherit
 	                    $Sf->{'ExGlobArgs'}{'Set'} = dclone( $Scsub->{'ExGlobArgs'}{'Set'} );
 	                    $Sf->{'HasCommons'} = 1;
-	                }       
-	            	  	       
+	                }  
+	                # Here we deal with parameters used in declarations 
+	                for my $var (@{ $Scsub->{'ExGlobArgs'}{'List'} } ) {
+	                	if (exists $Scsub->{'ExGlobArgs'}{'Set'}{$var}{'InheritedParams'}) {
+	                		
+#	                		for my $par (keys %{ $Scsub->{'ExGlobArgs'}{'Set'}{$var}{'InheritedParams'}{'Set'} }) {
+#	                			$Sf->{'InheritedParameters'}{'Set'}{$par}=dclone($Scsub->{'LocalParameters'}{'Set'}{$par});
+#	                		}
+	                		my $all_inherited_parameters = _get_all_inherited_parameters(
+	                			$Scsub,
+        						$Scsub->{'ExGlobArgs'}{'Set'}{$var}{'InheritedParams'}{'Set'},
+        						$Scsub->{'ExGlobArgs'}{'Set'}{$var}{'InheritedParams'}{'Set'} # Initial list
+        					);
+#        					say  "VAR $var in $csub HAS InheritedParams: ",join(', ',sort keys %{ $all_inherited_parameters } );
+        					for my $par (keys %{ $all_inherited_parameters } ) {
+        						$Sf->{'InheritedParameters'}{'Set'}{$par}=dclone($Scsub->{'LocalParameters'}{'Set'}{$par});
+        					}	
+        					
+#        					croak Dumper($Sf->{'InheritedParameters'}).$f if $csub eq 'atmos';
+							
+	                	}
+	                }     
+					$Sf->{'InheritedParameters'}{'List'} = _list_inherited_params_in_order($Sf);
+#					carp Dumper( _list_inherited_params_in_order($Sf) ).$f ;	            	  	       
 	            }   
 # ------------------	                             
 	        } 
@@ -376,3 +398,66 @@ sub lift_globals {
     return $stref;
     
 } # END of lift_globals()
+
+
+sub _get_all_inherited_parameters { (my $Sf,my $pars, my $all_inherited_parameters)=@_;
+
+	for my $par (keys %{$pars}) {
+	#	say "CHECKING PARAM $par"; 
+		
+	    if (exists $Sf->{'LocalParameters'}{'Set'}{$par}{'InheritedParams'}
+	    and exists $Sf->{'LocalParameters'}{'Set'}{$par}{'InheritedParams'}{'Set'}) { 
+	#        say "PAR $par INHERITS ".join(', ',keys %{  $Sf->{'LocalParameters'}{'Set'}{$par}{'InheritedParams'}{'Set'} });
+	        $all_inherited_parameters = { %{$all_inherited_parameters}, %{ $Sf->{'LocalParameters'}{'Set'}{$par}{'InheritedParams'}{'Set'} } };
+	        $all_inherited_parameters = _get_all_inherited_parameters($Sf, $Sf->{'LocalParameters'}{'Set'}{$par}{'InheritedParams'}{'Set'},$all_inherited_parameters);
+	    } else {
+	#        say "PAR $par ADDED";
+	        $all_inherited_parameters->{$par}=1; 
+	    }
+	}
+	return $all_inherited_parameters;
+}
+
+# What I also need is a way to list the parameters by dependency
+# So clearly, we list the ones without inheritance (constant ones) first.
+# But then? We keep a list of what we've listed and if a par was not listed but its InheritedParams were listed, we list it.
+# We do that until the list is empty.
+# So first we create a map $par => InheritedParams
+sub _list_inherited_params_in_order { (my $Sf)=@_;
+	my %par_map = ();
+	my $par_list=[];
+	my %listed_pars=();
+	for my $par (sort keys %{ $Sf->{'InheritedParameters'}{'Set'} }) {
+		if (exists $Sf->{'InheritedParameters'}{'Set'}{$par}{'InheritedParams'}
+		and exists $Sf->{'InheritedParameters'}{'Set'}{$par}{'InheritedParams'}{'Set'}
+		) {
+			$par_map{$par}= { %{ $Sf->{'InheritedParameters'}{'Set'}{$par}{'InheritedParams'}{'Set'} } };
+		} else {
+			$par_map{$par}= {};
+		}
+	}
+	while (scalar keys %par_map>0) {
+		for my $par (sort keys %par_map  ) {
+			if (scalar keys %{ $par_map{$par} } == 0) {
+				push @{$par_list}, $par;
+				$listed_pars{$par}=1;
+				delete  $par_map{$par};
+			} else {
+				for my $ipar (sort keys %{ $par_map{$par} }) {
+					if (exists $listed_pars{$ipar}) {
+						delete $par_map{$par}{$ipar};
+					}
+				}
+				if (scalar keys %{ $par_map{$par} } == 0 ) {
+					push @{$par_list}, $par;
+					$listed_pars{$par}=1;
+					delete  $par_map{$par};					
+				}
+			}
+		}
+	}
+	return $par_list;
+}
+  
+
+1;

@@ -45,12 +45,15 @@ sub refactor_all_subroutines {
     ( my $stref ) = @_;
     for my $f ( sort keys %{ $stref->{'Subroutines'} } ) {
     	 
-        next if ($f eq '' or not defined $f);
-        my $Sf = $stref->{'Subroutines'}{$f};                
+        next if ($f eq '' or $f eq 'UNKNOWN_SRC' or not defined $f);                
+        my $Sf = $stref->{'Subroutines'}{$f};
+        
+        next if $Sf->{'Entry'} == 1;                
         if ( not defined $Sf->{'Status'} ) {
             $Sf->{'Status'} = $UNREAD;
             print "WARNING: no Status for $f\n" if $W;            
         }
+        
         next if $Sf->{'Status'} == $UNREAD;
         next if $Sf->{'Status'} == $READ;
         next if $Sf->{'Status'} == $FROM_BLOCK;
@@ -514,7 +517,8 @@ sub _create_extra_arg_and_var_decls {
     	}
     	# I don't explicitly declare variables that conflict with reserved words or intrinsics.
     		if (not exists $F95_reserved_words{$var}
-    		and not exists $F95_intrinsics{$var}    		
+    		and not exists $F95_intrinsics{$var}
+    		and not exists  $Sf->{'Namelist'}{$var}   		
     		and not $is_param
     		and $var!~/__PH\d+__/ # FIXME! TOO LATE HERE!
     		and $var=~/^[a-z][a-z0-9_]*$/ # FIXME: rather check if Expr or Sub
@@ -558,6 +562,9 @@ sub _create_refactored_subroutine_call {
 
     # simply tag the common vars onto the arguments
     my $name = $info->{'SubroutineCall'}{'Name'};
+    if (exists $stref->{'ExternalSubroutines'}{$name} or $stref->{'Subroutines'}{$name}{'Entry'} == 1) {
+    	return $rlines;
+    }
 #    croak Dumper($info) if $f eq 'advance' and $name eq 'interpol_vdep';
 #    croak Dumper($info) if $name eq 'interpol_rain' and $f eq 'wetdepo';
     croak $line . Dumper($info) unless defined $info->{'SubroutineCall'}{'Args'}{'List'};# . Dumper(    $stref->{'Subroutines'}{$name});
@@ -567,7 +574,8 @@ sub _create_refactored_subroutine_call {
     }
     my $args_ref = [@orig_args]; # NOT ordered union, if they repeat that should be OK 
     
-    if (exists $stref->{'Subroutines'}{$name}{'ExGlobArgs'}) {       
+    if (exists $stref->{'Subroutines'}{$name}{'ExGlobArgs'}) {
+		    	       
         my @globals = @{ $stref->{'Subroutines'}{$name}{'ExGlobArgs'}{'List'} };        
         # Problem is that in $f globals from $name may have been renamed. I store the renamed ones in 
         # $Sf->{'RenamedInheritedExGLobs'}
@@ -591,6 +599,15 @@ sub _create_refactored_subroutine_call {
 	    my $args_str = join( ',', @{$args_ref} );
 	    $line =~ s/call\s.*$//; # Basically keep the indent
 	    my $rline = "call $name($args_str)\n";
+		if ( exists $info->{'PlaceHolders'} ) { 
+
+			while ($rline =~ /(__PH\d+__)/) {
+				my $ph=$1;
+				my $ph_str = $info->{'PlaceHolders'}{$ph};
+				$rline=~s/$ph/$ph_str/;
+			}                                    
+            $info->{'Ref'}++;
+        }  	    
 	    $info->{'Ann'}=[annotate($f, __LINE__ ) ];
 	    push @{$rlines}, [ $line . $rline, $info ];
     } else {

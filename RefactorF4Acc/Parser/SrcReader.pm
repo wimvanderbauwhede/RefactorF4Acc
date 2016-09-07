@@ -887,6 +887,7 @@ Suppose we don't:
 	        my $sub_func_type= $stref->{'SourceContains'}{$f}{'Set'}{$sub_or_func};
 	        
 	        my $Sf = $stref->{$sub_func_type}{$sub_or_func};
+	        next if $Sf->{'Entry'}==1; 
 croak "No ANNLINES in $sub_func_type $sub_or_func ($f): ".$Sf->{'Status'} unless exists $Sf->{'AnnLines'};
             my @annlines = @{  $Sf->{'AnnLines'} };
             my $new_annlines=[];
@@ -1144,7 +1145,8 @@ sub _procLine {
 	} 
     # Detect and standardise comments    
 # A line with a c, C, *, d, D, or! in column one is a comment line. The d, D, and! are nonstandard.     
-    elsif ($free_form==0 and $line=~/^[CD\*\!]/i) { 
+    elsif ($free_form==0 and $line=~/^[CD\*\!]/i) {
+    	 
     	$info->{'Comments'} = 1;
     	$line = '! '.substr($line,1);
     } elsif ($line=~/^\s*\!/) {
@@ -1241,7 +1243,7 @@ sub _procLine {
         } elsif ( $line !~ /[\'\"]/
             && $line !~ /^\s*end/i
             && $line =~ 
-/\b(module|program|recursive\s+subroutine|subroutine|[\*\(\)\w]+\s+function|function|block)\s+(\w+)/i
+/\b(module|program|recursive\s+subroutine|subroutine|entry|[\*\(\)\w]+\s+function|function|block)\s+(\w+)/i
           )
         {
             
@@ -1262,6 +1264,8 @@ sub _procLine {
                 $info->{'FunctionSig'} = [ $spaces, $name, [] ];
             } elsif ( $keyword eq 'module' ) {
                 $info->{'Module'} = $name;
+            } elsif ( $keyword eq 'entry' ) {
+                $info->{'EntrySig'} = $name;                
             } else {
                 $info->{'SubroutineSig'} = [ $spaces, $name, [] ];
             }

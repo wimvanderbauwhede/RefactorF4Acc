@@ -72,10 +72,11 @@ sub parse_fortran_src {
 	#	say 'POST:'.Dumper($stref->{'Subroutines'}{'post'}{'AnnLines'}) ;
 	#	die if $f eq 'post';
 	# and not $is_external_include 
-	if ( $sub_or_incl_or_mod ne 'ExternalSubroutines'
-		)
-	{
+	if ( 
+		$sub_or_incl_or_mod ne 'ExternalSubroutines'
+		) {
 		my $Sf = $stref->{$sub_or_incl_or_mod}{$f};
+		if ($Sf->{'Entry'} == 0 ) {
 
 		# OK, time to declare all the variable sets and declaration sets		
 		$Sf = _initialise_decl_var_tables( $Sf, $f, $is_incl,$is_mod );
@@ -133,7 +134,9 @@ sub parse_fortran_src {
 		$stref = _split_multivar_decls( $f, $stref );
 		
 		$stref = _split_multipar_decls_and_set_type( $f, $stref );
-
+		} else {
+			say "INFO: SKIPPING ENTRY $f" if $I;
+		}
 	} else {
 		print "INFO: $f is EXTERNAL\n" if $I;
 	}
@@ -215,7 +218,7 @@ sub _initialise_decl_var_tables {
 		#		$Sf->{'Parameters'} = {};
 		$Sf->{'LocalParameters'}    = { 'Set' => {}, 'List' => [] };
 		$Sf->{'IncludedParameters'} = { 'Set' => {}, 'List' => [] }; # I think I will overload this rather than define UsedParameters?
-
+		$Sf->{'InheritedParameters'} = { 'Set' => {}, 'List' => [] }; 
 		$Sf->{'ParametersFromContainer'} = { 'Set' => {}, 'List' => [] };
 
 		# This is only for testing which vars are commons, nothing else.
@@ -294,6 +297,7 @@ sub _initialise_decl_var_tables {
 				'Subsets' => {
 					'LocalParameters'    => $Sf->{'LocalParameters'},
 					'IncludedParameters' => $Sf->{'IncludedParameters'},
+					'InheritedParameters' => $Sf->{'InheritedParameters'},
 					'ParametersFromContainer' =>
 					  $Sf->{'ParametersFromContainer'}
 				}
@@ -775,7 +779,21 @@ VIRTUAL
 				
 				$info->{'Common'} = { 'Name' => $common_block_name };
 #				croak Dumper($info);
-			}			
+			}		
+# NAMELIST
+		elsif (	$line =~ /^namelist\s*\/\s*([\w\d]+)\s*\/\s*(.+)$/ 				 
+		 ) {
+				my $namelist_group_name = $1;
+				my $namelist_varlst         = $2;
+				$namelist_varlst=~s/\/\//,/g;
+				$namelist_varlst=~s/^,//;        
+				$info->{'Namelist'}=$namelist_group_name; 				
+				 $Sf->{'Namelist'}{$namelist_group_name} = [ split(/\s*,\s*/,$namelist_varlst) ];
+				 
+		 }
+		elsif ( $line =~/^format/) {
+			$info->{'Format'}=1;
+		}
 # DATA
 		  elsif ($line=~/^data\b/ and $line!~/=/) {
 		  	
@@ -835,10 +853,12 @@ VIRTUAL
 					$has_pars=1;
 				}		
 			} 
+# PARAMETER			
 # F77-style parameters			
 			elsif ( $line =~ /parameter\s*\(\s*(.*)\s*\)/ ) {    
 				my $parliststr = $1;
 				( $Sf, $info ) = __parse_f77_par_decl( $Sf, $f, $indent, $line, $info, $parliststr );
+				
 				$has_pars=1;
 			}    # match var decls, parameter statements F77/F95								
 # SIGNATURES SUBROUTINE FUNCTION PROGRAM
@@ -1142,6 +1162,15 @@ END IF
 					if ( exists $ast->{'UnitVar'} ) {
 						$info->{'Vars'}{'Set'}{ $ast->{'UnitVar'} } = 1;
 					}
+					if ( exists $ast->{'IOStat'} ) {
+						$info->{'Vars'}{'Set'}{ $ast->{'IOStat'} } = 1;
+					}
+                    if ( exists $ast->{'AttrVal'} ) {
+                        for my $val (@{ $ast->{'AttrVal'} } ) {
+                            next if $val=~/__PH\d+__/; 
+                            $info->{'Vars'}{'Set'}{ $val } = 1;
+                        }
+					}
 					@{ $info->{'Vars'}{'List'} } = keys %{ $info->{'Vars'}{'Set'} };
 				}			
 #    BACKSPACE, ENDFILE statements			
@@ -1217,8 +1246,10 @@ croak "$f <$mline>" if $mline=~/^\s*\d*\s*write/ ;
 		
 	} else {
 		print "WARNING: NO AnnLines for $f ($sub_incl_or_mod)\n";
-		croak "SOURCE for $f: " . Dumper($Sf). $Sf->{'Source'}.$f;
+		if ($Sf->{'Entry'} ==0) {
+		croak "SOURCE for $f: " . Dumper($Sf). ' , Source: '.$Sf->{'Source'}.$f.' , Entry: '.$Sf->{'Entry'};
 		# FIXME: if we can't find the source, we should search the include path, but not attempt to create a module for that source!
+		}
 	}
 
 
@@ -1631,13 +1662,11 @@ sub _parse_subroutine_and_function_calls {
 #				croak "$line => $name external_sub=" .$external_sub if $line=~/call\s+clcout/i; 			
 				my $ast = parse_expression( "$name($argstr)", $info, $stref, $f );
 				( my $expr_args, my $expr_other_vars ) = get_args_vars_from_subcall($ast);
-
-				#				say Dumper($expr_args);
+				
 				$info->{'CallArgs'}               = $expr_args;
 				$info->{'ExprVars'}               = $expr_other_vars;
 				$info->{'SubroutineCall'}{'Args'} = $info->{'CallArgs'};
 				$info->{'SubroutineCall'}{'ExpressionAST'} = $ast;
-				#croak Dumper($info) if $name eq 'getvdep' and $f eq 'calcpar';
 				
 				if ( $external_sub == 0 ) {
 					
@@ -1666,10 +1695,10 @@ sub _parse_subroutine_and_function_calls {
 						$Sname->{'RefactorGlobals'} = 1;
 					}
 
-					if ( defined $Sname
-						and not exists $Sf->{'CalledSubs'}{'Set'}{$name} )
-					{
-						
+					if ( defined $Sname and not exists $Sf->{'CalledSubs'}{'Set'}{$name}
+						and  $stref->{'Subroutines'}{$name}{'Entry'}==0
+						) {
+#						say $name.':'. $stref->{'Subroutines'}{$name}{'Entry'};
 						if ( $sub_or_func_or_mod eq 'Subroutines' ) { # The current code unit is a subroutine 
 							$Sf->{'CalledSubs'}{'Set'}{$name} = 1; # mark $name a called sub in $f
 							push @{ $Sf->{'CalledSubs'}{'List'} }, $name;
@@ -2420,7 +2449,8 @@ sub _parse_implicit {
 			if ( $attr eq '(' ) { $attr = '(*)' }
 			else {
 				if ($type ne 'character') {
-				$attr = "(kind=$attr)";
+					$attr = "(kind=$attr)";
+					
 				} else {
 					$attr = "($attr)";
 				}
@@ -2982,6 +3012,7 @@ sub _split_multipar_decls_and_set_type {
 						'Val'       => $val,             # backwards comp
 						'Var'       => $var,             # backwards comp
 						'Status'    => 1,
+						'InheritedParams' => $Sf->{'LocalParameters'}{'Set'}{$var}{'InheritedParams'},
 					};
 
 					$Sf->{'LocalParameters'}{'Set'}{$var} = $param_decl;
@@ -3256,6 +3287,7 @@ sub __parse_f95_decl {
 					}
 				} elsif ( exists $pt->{'TypeTup'}{'Kind'} ) {
 					$decl->{'Attr'} = '(kind=' . $pt->{'TypeTup'}{'Kind'} . ')';
+					croak $decl->{'Attr'};
 				} else {
 					$decl->{'Attr'} = '';
 					
@@ -3344,7 +3376,7 @@ sub __parse_f77_par_decl {
 	# F77-style parameters
 	#                my $parliststr = $1;
 	( my $Sf, my $f,my $indent, my $line, my $info, my $parliststr ) = @_;
-#say $line;
+
 	
 	my $type   = 'Unknown';
 	my $attr = '';
@@ -3359,7 +3391,7 @@ sub __parse_f77_par_decl {
 	my $pars_in_val = {};
 	
 	for my $var (@pvarl) {
-
+		my $pars_in_val_for_var = {};
 		croak if ref($var) eq 'ARRAY';
 		if ( not in_nested_set $Sf, 'LocalVars', $var ) { 
 			if ( exists $pvars{$var} ) {
@@ -3380,9 +3412,11 @@ sub __parse_f77_par_decl {
 					for my $mpar ( keys %{$pars_in_val_tmp} ) {
 						my $mpar_rec = get_var_record_from_set( $Sf->{'Parameters'}, $mpar );
 						$type = $mpar_rec->{'Type'};
+#						warn "Create InheritedParameters $var in $f: $mpar\n";
+						
 					}
 				}
-				$pars_in_val = { %{$pars_in_val}, %{$pars_in_val_tmp} };
+				$pars_in_val_for_var = { %{$pars_in_val_for_var}, %{$pars_in_val_tmp} };
 				$Sf->{'LocalParameters'}{'Set'}{$var} = {
 					'Type' => $type,
 					'Var'  => $var,
@@ -3410,13 +3444,17 @@ sub __parse_f77_par_decl {
 			};
 
 			my $val = $pvars{$var};
-			$pars_in_val =
-			  { %{$pars_in_val}, %{ ___check_par_val_for_pars($val) } };
+			$pars_in_val_for_var =
+			  { %{$pars_in_val_for_var}, %{ ___check_par_val_for_pars($val) } };
 			push @{$pars}, $var;
+		}				
+		for my $mpar ( keys %{$pars_in_val_for_var} ) {
+			my $mpar_rec = get_var_record_from_set( $Sf->{'Parameters'}, $mpar );												
+			$Sf->{'LocalParameters'}{'Set'}{$var}{'InheritedParams'}{'Set'}{$mpar}=1;
 		}
-
-		
+		$pars_in_val = { %{$pars_in_val}, %{$pars_in_val_for_var} };
 	}
+
 	$info->{'UsedParameters'} = $pars_in_val;
 	$info->{'ParamDecl'}      = {
 		'Indent'    => $indent,
@@ -3425,7 +3463,7 @@ sub __parse_f77_par_decl {
 		'Dim'       => [],
 		'Parameter' => 'parameter',
 		'Names'     => [@var_vals],
-		'Status'    => 0
+		'Status'    => 0		 
 	};
 	
 	@{ $Sf->{'LocalParameters'}{'List'} } =  ( @{ $Sf->{'LocalParameters'}{'List'} }, @{$pars} );
@@ -3442,17 +3480,21 @@ sub __parse_f77_var_decl {
 	( my $Sf, my $stref, my $f,my $indent,  my $line, my $info, my $type, my $varlst ) = @_;
 # Now an ad hoc fix for spaces between the type and the asterisk. FIXME! I should just write a better FSM!
 #croak $line if $line=~/double\s+precision/ and $f eq 'includecom';
+
 my $attr='';
 my $char_decls={};
 my $char_lst=[];
 my $is_char = 0;
-if ($line=~/^character/) {	
+
+if ($line=~/^character/) {
+	$type = 'character';		
 	$is_char=1;
     $line=~s/\s+\*/*/g;
     $line=~s/\*\s+/*/g;
 	$line=~s/\(\*\)/0/g;
 	
-    if ($line=~/^character\s*(\w+)\s+([a-z]\w*.*)$/ ){
+    if ($line=~/^character\*(\w+)\s+([a-z]\w*.*)$/ ){
+    	
        # CHARACTER*4 V
 # CHARACTER*(*) V(2)
         my $len = $1; 
@@ -3473,8 +3515,15 @@ if ($line=~/^character/) {
          		'Attr' => "len=$len",
          		'ArrayOrScalar' => scalar @{$dim}==0 ? 'Scalar' : 'Array'
          	};
+         	if ($len=~/[a-z]\w*/) {
+         		if (in_nested_set($Sf,'Parameters',$len) ) {
+         			$char_decls->{$var}{'InheritedParams'}{'Set'}{$len}=1;
+         		}
+         	}
          	push @{$char_lst},$var;
+#         	say "character(len=$len), dimension(".join(',', map { join(':', @{ $_ }) } @{$dim}).") :: $var";
          }         
+         
     } elsif ( $line=~/^character\s+([a-z]\w*.*)$/ ) {
     	
 # CHARACTER V*4,W(2)*5
@@ -3496,11 +3545,17 @@ if ($line=~/^character/) {
          		'Type' => 'character',
          		'Name' => $var,
          		'Dim' => $dim,
-         		'Attr' => "len=$len",
+         		'Attr' => $len eq '' ? '' : "len=$len",
          		'ArrayOrScalar' => scalar @{$dim}==0 ? 'Scalar' : 'Array'
          	};
+         	if ($len=~/[a-z]\w*/) {
+         		if (in_nested_set($Sf,'Parameters',$len) ) {
+         			$char_decls->{$var}{'InheritedParams'}{'Set'}{$len}=1;
+         		}
+         	}         	
          	push @{$char_lst},$var;
-#         	say "character(len=$len), dimension(".join(',', map { join(':', @{ $_ }) } @{$dim}).") :: $var";          	
+#         	say "character(len=$len), dimension(".join(',', map { join(':', @{ $_ }) } @{$dim}).") :: $var";
+         	         	
          }
          
         
@@ -3519,13 +3574,18 @@ if ($line=~/^character/) {
          	my $ast=parse_expression($var, $info, $stref, $f);
 #         	say "AST3:".Dumper($ast);
          	my $var = _get_var_from_ast( $ast );
-         	         	$char_decls->{$var}={
+			$char_decls->{$var}={
          		'Type' => 'character',
          		'Name' => $var,
          		'Dim' => $dim,
          		'Attr' => "len=$len",
          		'ArrayOrScalar' => scalar @{$dim}==0 ? 'Scalar' : 'Array'
          	};
+			if ($len=~/[a-z]\w*/) {
+         		if (in_nested_set($Sf,'Parameters',$len) ) {
+         			$char_decls->{$var}{'InheritedParams'}{'Set'}{$len}=1;
+         		}
+         	}
          	push @{$char_lst},$var;
          }        
          
@@ -3550,11 +3610,15 @@ if ($line=~/^character/) {
          		'Dim' => $dim,
          		'Attr' => "len=$len",
          		'ArrayOrScalar' => scalar @{$dim}==0 ? 'Scalar' : 'Array'
-         	};
-         	push @{$char_lst},$var;
+         	    };
+				if ($len=~/[a-z]\w*/) {
+	         		if (in_nested_set($Sf,'Parameters',$len) ) {
+	         			$char_decls->{$var}{'InheritedParams'}{'Set'}{$len}=1;
+	         		}
+	         	}         	
+	         	push @{$char_lst},$var;         	
 #        		say "AST4:".Dumper($ast);
-        	}
-        	
+        	};        	
         }
 		croak "TODO!";
     }
@@ -3661,19 +3725,14 @@ if ($line=~/^character/) {
 		if ( not exists $pvars->{$var}{'Attr'} ) {
 
 			if ($attr) {
-				if ( $type =~ /character/ ) {
-#					croak 'BOOM!';
-#					$tvar_rec->{'Attr'} = '(len=' . $attr . ')';
-				} else {
-					$tvar_rec->{'Attr'} = '(kind=' . $attr . ')';
+				if ( $type !~ /character/ ) {
+					$tvar_rec->{'Attr'} = $attr ;
 				}
 			} else {
 				$tvar_rec->{'Attr'} = '';
 			}
 		} else {
-			if ( $type =~ /character/ ) {
-#				$tvar_rec->{'Attr'} = '(len=' . $pvars->{$var}{'Attr'} . ')';
-			} else {
+			if ( $type !~ /character/ ) {
 				$tvar_rec->{'Attr'} = '(kind=' . $pvars->{$var}{'Attr'} . ')';
 			}
 		}
@@ -3690,7 +3749,7 @@ if ($line=~/^character/) {
 
 		my $decl = {
 			'Indent' => $indent,
-			'Type'   => $type,
+			'Type'   => $tvar_rec->{'Type'},
 			'Attr'   => $tvar_rec->{'Attr'},
 			'Dim'    => $dim,
 			'Name'   => $tvar,
@@ -3701,6 +3760,21 @@ if ($line=~/^character/) {
 		if ($common_block_name ne '') {
 			$decl->{'CommonBlockName'} = $common_block_name;
 		}
+		if (scalar @{$dim}>1) {
+			for my $dimpair (@{$dim}) {
+				for my $mexpr ( @{$dimpair} ) {
+					my @mpars = split(/\W+/, $mexpr);
+					for my $mpar (@mpars) {
+						if (defined $mpar and in_nested_set($Sf,'Parameters',$mpar) ) {
+#							say "ADDING $mpar to InheritedParams for $var in $f";
+	         				$decl->{'InheritedParams'}{'Set'}{$mpar}=1;
+	         			}				
+					}
+				}
+			}
+		} 
+		
+		
 #		carp Dumper($decl) if $var eq 'catn13';
 
 		push @varnames, $tvar;

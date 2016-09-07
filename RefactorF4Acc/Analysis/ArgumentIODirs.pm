@@ -161,7 +161,7 @@ sub _set_iodir_read {
 	}
 	return $args_ref;
 }
-
+# -----------------------------------------------------------------------------
 sub _set_iodir_write {
 	( my $mvar, my $args_ref ) = @_;
 	if ( exists $args_ref->{$mvar}
@@ -183,7 +183,7 @@ sub _set_iodir_write {
 	}
 	return $args_ref;
 }
-
+# -----------------------------------------------------------------------------
 sub _set_iodir_read_write {
 	( my $mvar, my $args_ref ) = @_;
 	if ( exists $args_ref->{$mvar}
@@ -192,6 +192,21 @@ sub _set_iodir_read_write {
 		if ( exists $args_ref->{$mvar}{'IODir'} ) {
 			print "FOUND InOut ARG $mvar\n" if $DBG;
 			$args_ref->{$mvar}{'IODir'} = 'InOut';
+		}
+	}
+	return $args_ref;
+}
+
+# -----------------------------------------------------------------------------
+
+sub _set_iodir_ignore {
+	( my $mvar, my $args_ref ) = @_;
+	if ( exists $args_ref->{$mvar}
+		and ref( $args_ref->{$mvar} ) eq 'HASH' )
+	{
+		if ( exists $args_ref->{$mvar}{'IODir'} ) {
+			print "FOUND InOut ARG $mvar\n" if $DBG;
+			$args_ref->{$mvar}{'IODir'} = 'Ignore';
 		}
 	}
 	return $args_ref;
@@ -253,16 +268,12 @@ sub _analyse_src_for_iodirs {
 				my $line = $annlines->[$index][0];
 				my $info = $annlines->[$index][1];
 				
-				# TDDO: use $info
-				if ( $line =~ /^\s*\!/ ) {
+				if ( exists $info->{'Blank'} or exists $info->{'Comments'} ) {
 					next;
 				}
 
 				# Skip format statements
-				# TDDO: use $info
-				if (   $line =~ /^\s+format/
-					or $line =~ /^\d+\s+format/ )
-				{
+				if (  exists $info->{'Format'} ) {
 					next;
 				}
 
@@ -301,20 +312,27 @@ sub _analyse_src_for_iodirs {
 				}
 
 				# File open statements
-				# TDDO: use $info
-				if (   $line =~ /^\s+open\s*\(\s*(.+)$/
-					or $line =~ /^\d+\s+open\s*\(\s*(.+)$/ )
-				{
-					my $str = $1;
-					$args =
-					  _find_vars_w_iodir( $str, $args, \&_set_iodir_read );
+				if ( 
+					exists $info->{'OpenCall'} #   $line =~ /^\s+open\s*\(\s*(.+)$/ or $line =~ /^\d+\s+open\s*\(\s*(.+)$/ 
+				) {
+#					my $str = $1;
+#					$args = _find_vars_w_iodir( $str, $args, \&_set_iodir_read );
+#                  croak $line."\n".Dumper($info)."\nARGS:".Dumper(keys %{$args});
+                  for my $var ( @{ $info->{'Vars'}{'List'} } ){
+                  	$args = _set_iodir_ignore( $var, $args );
+#                  	if (exists $info->{'Ast'}{'IOStat'} and $info->{'Ast'}{'IOStat'} eq $var) {
+#                  		$args = _set_iodir_write( $var, $args );
+#                  	}  else {
+#                  		$args = _set_iodir_read( $var, $args );
+#                  	}
+                  }
 					next;
 				}
 
 				if (   exists $info->{'WriteCall'}
 					or exists $info->{'PrintCall'} )
 				{
-
+#croak Dumper($info) if $line=~/htime/;
 					# All variables are read from, so IODir is read
 					for my $mvar (
 						@{ $info->{'CallArgs'}{'List'} },
@@ -326,7 +344,8 @@ sub _analyse_src_for_iodirs {
 							and ref( $args->{$mvar} ) eq 'HASH' )
 						{
 							if ( exists $args->{$mvar}{'IODir'} ) {
-								$args = _set_iodir_read( $mvar, $args );
+								$args = _set_iodir_ignore( $mvar, $args );
+#								$args = _set_iodir_read_write( $mvar, $args );
 							}
 						}
 					}
@@ -344,7 +363,8 @@ sub _analyse_src_for_iodirs {
 							and ref( $args->{$mvar} ) eq 'HASH' )
 						{
 							if ( exists $args->{$mvar}{'IODir'} ) {
-								$args = _set_iodir_write( $mvar, $args );
+#								$args = _set_iodir_write( $mvar, $args );
+								$args = _set_iodir_ignore( $mvar, $args );
 							}
 						}
 					}
@@ -357,7 +377,8 @@ sub _analyse_src_for_iodirs {
 							and ref( $args->{$mvar} ) eq 'HASH' )
 						{
 							if ( exists $args->{$mvar}{'IODir'} ) {
-								$args = _set_iodir_read( $mvar, $args );
+								$args = _set_iodir_ignore( $mvar, $args );
+#								$args = _set_iodir_read( $mvar, $args );
 							}
 						}
 					}

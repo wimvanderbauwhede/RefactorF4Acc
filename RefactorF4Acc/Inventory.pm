@@ -57,10 +57,10 @@ sub find_subroutines_functions_and_includes {
         return if (!/\.f(?:9[05])?$/ &&!/\.c$/); # rather ad-hoc for Flexpart + WRF # FIXME: make pattern configurable in rf4a.cfg
         my $filepath = $File::Find::name;  # i.e. $path+ the name of the file found
         
-        my $srcname = $filepath;
-        $srcname =~s/^\.\///;
+        my $srcname = $filepath; # e.g. ./admin/aadmn.f
+        $srcname =~s/^\.\///;  # e.g. admin/aadmn.f
         my $srcdir = $filepath;  
-        $srcdir=~s/\/.+$//;        # i.e. $path
+        $srcdir=~s/\/.+$//;        # i.e. $path # e.g. admin
         if (not (
 	         exists $excluded_sources{$srcname} or 
     	     exists $excluded_sources{"./$srcname"} or
@@ -152,16 +152,20 @@ sub _process_src {
     	croak "Already processed $src!";
     }
     open my $SRC, '<', $src;
-    while ( my $line = <$SRC> ) {
+    while ( my $lline = <$SRC> ) {
 
             # Skip blanks
-        $line =~ /^\s*$/ && next;
+        $lline =~ /^\s*$/ && next;
             # Translate pragma
             
-        if ( $line =~ /^\s*\!\s*\$(?:ACC|RF4A)\stranslate\s(\w+)/i ) { 
+        if ( $lline =~ /^\s*\!\s*\$(?:ACC|RF4A)\stranslate\s(\w+)/i ) { 
             $translate_to=$1;
         }             
-
+		my $line = $lline;
+		$line=~s/\s+\!.+$//;
+		# Skip blanks
+        $line =~ /^\s*$/ && next;
+		 
         # Detect blocks. FIXME: we need to distinguish between the Subroutine and KernelWrapper pragmas!
             if ( $has_blocks == 0 ) {
                 if ( $line =~ /^(?:[Cc\*]|\s*\!)\s+BEGIN\sSUBROUTINE\s(\w+)/ 
@@ -220,8 +224,9 @@ sub _process_src {
         	
 #• The first five columns must be blank or contain a numeric label.
         	# And the whitespace at the start of the line does not contain tabs
-            if ( $line !~ /^[\s\d]{5}.+/ and $line !~ /^\t[\t\s]*\w/ and $line !~/^\s+\t/ and $line!~/^\s*\#/) {
-                $free_form = 1;     
+            if ( $line!~/^\s*$/ and $line !~ /^[\s\d]{5}.+/ and $line !~ /^\t[\t\s]*\w/ and $line !~/^\s+\t/ and $line!~/^\s*\#/) {
+                $free_form = 1;
+                croak "<$line>" if $src=~/ucaln/;     
             } 
 
             # TAB format
@@ -296,21 +301,22 @@ sub _process_src {
         
         
             # Find subroutine/function/program signatures
-           $line =~ /^\s*(\w+\s+\w+\s+(?:function|subroutine)|\w+\s+subroutine|[\*\(\)\w]+\s+function|function|subroutine|program|block)\s+(\w+)/i && $line!~/end\s+/i && do {
-           	
+            
+           $line =~ /^\s*(\w+\s+\w+\s+(?:function|subroutine|entry)|\w+\s+(?:subroutine|entry)|[\*\(\)\w]+\s+function|function|subroutine|entry|program|block)\s+(\w+)/i && $line!~/\Wend\s+/i && do {           	
             	my $full_proc_type=$1;            	
             	my $proc_name=$2;
-#            	croak if $proc_name eq 'psim';
+
 #				say "PROC NAME: $proc_name PROC TYPE: $full_proc_type" unless $full_proc_type=~/END/;
 				my @proc_type_chunks = split(/\s+/,$full_proc_type);
 				my $proc_type=$proc_type_chunks[-1];
 				my $is_block_data = (lc($proc_type) eq 'block' and lc($proc_name) eq 'data' ) ? 1 : 0;
                 my $is_prog = (lc($proc_type) eq 'program') ? 1 : 0;
                 my $is_function = (lc($proc_type) eq 'function') ? 1 : 0;
+                my $is_entry = (lc($proc_type) eq 'entry') ? 1 : 0;
                 my $is_rec = ($full_proc_type =~/recursive/i) ? 1 : 0;
                 my $is_pure = ($full_proc_type =~/pure/i) ? 1 : 0;
                 my $is_elemental = ($full_proc_type =~/elemental/i) ? 1 : 0;
-                my @maybe_type = grep { $_!~/pure|elemental|recursive|function|subroutine|program/ } ( map { lc($_) } @proc_type_chunks) ;
+                my @maybe_type = grep { $_!~/pure|elemental|recursive|function|subroutine|entry|program/ } ( map { lc($_) } @proc_type_chunks) ;
                 my $has_type = @maybe_type ? $maybe_type[0] : '';
 #                say "$line => $has_type" if $has_type;   
                 my $sub  = lc($proc_name);                
@@ -331,6 +337,7 @@ sub _process_src {
 #                say "PROC NAME: $proc_name in SRC: $src";
                 die 'No subroutine/function name from '.$line if $sub eq '' or not defined $sub;
                 
+                	
                 if ((not $is_function and not $in_interface_block) or $is_function) {	
                 	                
 	                $srctype='Subroutines';
@@ -352,6 +359,7 @@ sub _process_src {
                     $Ssub->{'Status'}  = $UNREAD;
                     
                     $Ssub->{'Program'} = $is_prog;
+                    $Ssub->{'Entry'} = $is_entry;
                     $Ssub->{'Recursive'} = $is_rec;
                     $Ssub->{'Pure'} = $is_pure;
                     $Ssub->{'Elemental'} = $is_elemental;

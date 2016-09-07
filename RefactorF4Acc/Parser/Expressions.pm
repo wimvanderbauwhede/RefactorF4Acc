@@ -98,10 +98,10 @@ sub parse_expression { (my $exp, my $info, my $stref, my $f)=@_;
 	}
 	$preproc_expr =~s/\+\-/-/g;
 	$preproc_expr =~s/\+\+/+/g;
-	# F77 allows 1D7 or 2Q-5 instead of 1E7 and 2E-5 
-	while ($preproc_expr=~/\W[\.\d]+[dq][\d\-\+]/) { 
-		$preproc_expr=~s/(\W[\.\d]+)[dq]([\d\-\+])/${1}e$2/;
-	}
+#	# F77 allows 1D7 or 2Q-5 instead of 1E7 and 2E-5 
+#	while ($preproc_expr=~/\W[\.\d]+[dq][\d\-\+]/) { 
+#		$preproc_expr=~s/(\W[\.\d]+)[dq]([\d\-\+])/${1}e$2/;
+#	}
 #	# More EVIL HACK to "support" complex numbers, WEAK!	
 #	# ( <not ( ) > , <not ( )> )
 #	if ($preproc_expr=~/^\([^\(\)]+,[^\(\)]+\)/) {
@@ -485,13 +485,16 @@ sub get_args_vars_from_subcall {(my $ast)=@_;
 	my $args={'List'=>[],'Set'=>{}};
 	
 	if (scalar @{$ast} > 2 ) {			
-		for my  $idx (2 .. scalar @{$ast}-1) { # 0 and 1 are '&" and the subroutine name				
+		for my  $idx (2 .. scalar @{$ast}-1) { # 0 and 1 are '&" and the subroutine name
+		my $ignore=0;				
 			if( ref( $ast->[$idx] ) eq 'ARRAY') { 				 
 				my $arg = $ast->[$idx][1];
+				
 				if ($arg=~/__PH\d+__/ or $arg=~/_(?:CONCAT|COLON)_(?:PRE|POST)_/ or $arg=~/_PAREN_PAIR_/) {
-					$arg=0;  # FIXME! UGLY!
-				}			
-				if ($arg=~/^__(\w+)__$/) {
+					$ignore=1;											
+#					$arg=0;  # FIXME! UGLY!					
+				} 			
+				elsif ($arg=~/^__(\w+)__$/) {
 					$arg=~s/__(\w+)__/\.${1}\./;
 				}
 				if ( $ast->[$idx][0]  eq '@' 
@@ -531,7 +534,8 @@ sub get_args_vars_from_subcall {(my $ast)=@_;
 			} else  { # It must be a constant 
 				my $arg=$ast->[$idx];			
 				if ($arg=~/__PH\d+__/ or $arg=~/_(?:CONCAT|COLON)_(?:PRE|POST)_/ or $arg=~/_PAREN_PAIR_/) {
-					$arg=0;
+					$ignore=1;
+#					$arg=0;
 				}
 				$args->{'Set'}{$arg}={ 'Type'=>'Const', 'Expr' => $arg};
 				push @{$args->{'List'}}, $arg; 

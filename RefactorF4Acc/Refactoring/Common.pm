@@ -158,8 +158,8 @@ sub context_free_refactorings {
                 	} elsif (exists $info->{'Continue'}{'Label'}) {
                 		$label = $info->{'Continue'}{'Label'}
                 	}
-                    $line = ' '.$label.    ' end do';
-                    
+#                    $line = ' '.$label.    ' end do'; # END DO can't be a label target I think
+                    $line = $info->{'Indent'}.' end do';
                     $count--;
                 } elsif ($noop) {
                     $line =~ s/continue/call noop/;
@@ -1283,7 +1283,7 @@ sub emit_f95_var_decl {
       	my $tkind=$type->{'Kind'};
       	$type= $ttype . (defined $tkind ?  "($tkind)" : '');      	
       } 
-      
+      croak Dumper($var_decl_rec) if $type eq 'character*70';
       my $attr= $var_decl_rec->{'Attr'}; 
       
       my $dim= $var_decl_rec->{'Dim'}; 
@@ -1303,8 +1303,15 @@ sub emit_f95_var_decl {
 #        croak Dumper($dim); 
     }
     my @attrs = ();
-    if ($attr) {
+    if ($attr) {    	
+    	if ($attr=~/len/ && $type eq 'character') {
+    		$type.='('.$attr.')';
+    	} elsif ($attr=~/kind/ ) {
+    		$type=~s/\*\d+$//;
+    		$type.='('.$attr.')';
+    	} else {
         push @attrs, $attr;
+    	}
     }
     if ($dimstr) {
         push @attrs, $dimstr;
@@ -1325,9 +1332,8 @@ sub emit_f95_var_decl {
         
         my $intentstr = '';
         
-            if ( $intent ne 'Unknown' ) {
+            if ( $intent ne 'Unknown' and $intent ne 'Ignore' ) {
                 $intentstr ='intent('.$intent.')'; 
-#                die 'BLANK:'.Dumper($var_decl_rec) if "$intent"=~/^\s*$/;
             } 
 #            else {
 #                say "WARNING: Intent is Unknown for $var"                  
