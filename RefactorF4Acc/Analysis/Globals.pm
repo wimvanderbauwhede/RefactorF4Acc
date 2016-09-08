@@ -379,6 +379,7 @@ sub lift_globals {
 #        					croak Dumper($Sf->{'InheritedParameters'}).$f if $csub eq 'atmos';
 							
 	                	}
+#	                	croak Dumper($Sf->{'InheritedParameters'}{'Set'}) if $var eq 'qdpnm';
 	                }     
 					$Sf->{'InheritedParameters'}{'List'} = _list_inherited_params_in_order($Sf);
 #					carp Dumper( _list_inherited_params_in_order($Sf) ).$f ;	            	  	       

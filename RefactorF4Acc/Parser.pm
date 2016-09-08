@@ -3501,7 +3501,7 @@ if ($line=~/^character/) {
         my $vars_dims_str = $2;
 # split vars on outer commas, we have a function for that
         my @vars_dims = _parse_comma_sep_expr_list($vars_dims_str);
-#         say "$f CASE1: $line => len=".$common_len.", rest=".join(';',@vars_dims);
+#         say "$f CASE1: $line => len=".$len.", rest=".join(';',@vars_dims);
          
          for my $var_dim (@vars_dims) {
          	my $ast=parse_expression($var_dim, $info, $stref, $f);
@@ -3549,7 +3549,7 @@ if ($line=~/^character/) {
          		'ArrayOrScalar' => scalar @{$dim}==0 ? 'Scalar' : 'Array'
          	};
          	if ($len=~/[a-z]\w*/) {
-         		if (in_nested_set($Sf,'Parameters',$len) ) {
+         		if (in_nested_set($Sf,'Parameters',$len) ) {          			
          			$char_decls->{$var}{'InheritedParams'}{'Set'}{$len}=1;
          		}
          	}         	
@@ -3569,7 +3569,7 @@ if ($line=~/^character/) {
 #        my $ast=parse_expression($var_dim_len, $info, $stref, $f);
         my $vars_str=$3;
         my @vars = _parse_comma_sep_expr_list($vars_str);
-#        say "$f CASE3: $line => len=".$common_len.", dim=".$common_dim.", vars=".join(';',@vars);
+#        say "$f CASE3: $line => len=".$len.", dim=".$dim.", vars=".join(';',@vars);
          for my $var (@vars) {
          	my $ast=parse_expression($var, $info, $stref, $f);
 #         	say "AST3:".Dumper($ast);
@@ -3760,6 +3760,12 @@ if ($line=~/^character/) {
 		if ($common_block_name ne '') {
 			$decl->{'CommonBlockName'} = $common_block_name;
 		}
+		if (exists $pvars->{$var}{'InheritedParams'}) {
+			for my $mpar (keys %{ $pvars->{$var}{'InheritedParams'}{'Set'} }) {
+#				say "InheritedParams for $var in $f: $mpar";
+				$decl->{'InheritedParams'}{'Set'}{$mpar}=1;
+			}
+		}
 		if (scalar @{$dim}>1) {
 			for my $dimpair (@{$dim}) {
 				for my $mexpr ( @{$dimpair} ) {
@@ -3772,10 +3778,7 @@ if ($line=~/^character/) {
 					}
 				}
 			}
-		} 
-		
-		
-#		carp Dumper($decl) if $var eq 'catn13';
+		} 						
 
 		push @varnames, $tvar;
 		
@@ -4656,7 +4659,10 @@ sub  _get_len_from_ast { (my  $ast ) = @_;
 			$len = $len_expr;
 		} else {
 			# could be thart we have to strip parens here
-			$len = emit_expression($len_expr);		
+			$len = emit_expression($len_expr);
+			if ($len=~/\(([a-z]\w+)\)/) {
+				$len=$1;				
+			}		
 		}
 	} 
 	return $len;

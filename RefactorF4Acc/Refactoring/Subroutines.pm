@@ -378,8 +378,7 @@ sub _refactor_globals_new {
         	$info->{'ExGlobVarDeclHook'} = 'AFTER LAST Include via _refactor_globals_new() line ' . __LINE__; 
         	$hook_after_last_incl=0;
         }
-        if ( exists $info->{'ExGlobVarDeclHook'} ) {
-        	
+        if ( exists $info->{'ExGlobVarDeclHook'} ) {        	
         	# FIXME: I don't like this, because in the case of a program there should simply be no globals etc.
            # Then generate declarations for ex-globals
            say "HOOK for $f: " .$info->{'ExGlobVarDeclHook'} if $V;
@@ -417,7 +416,24 @@ sub _create_extra_arg_and_var_decls {
 
     my $Sf                 = $stref->{'Subroutines'}{$f};
     my $nextLineID=scalar @{$rlines}+1;
+    
+    if (exists $Sf->{'InheritedParameters'}{'List'} and
+    scalar  @{ $Sf->{'InheritedParameters'}{'List'} } > 0) { 
+    print "INFO: InheritedParameters in $f\n" if $I;
             
+    for my $par ( @{ $Sf->{'InheritedParameters'}{'List'} } ) {
+    	say "INFO PAR in $f: $par ".Dumper($Sf->{'InheritedParameters'}{'Set'}{$par} ) if $I; 
+                    my $rdecl = $Sf->{'InheritedParameters'}{'Set'}{$par}; 
+                    my $rline = emit_f95_var_decl($rdecl);
+                    my $info={};
+                    $info->{'Ann'}=[ annotate($f, __LINE__ .' : INHERITED PARAM ' . $annline->[1]{'ExGlobVarDeclHook'} ) ];                                               
+                    $info->{'LineID'}= $nextLineID++;
+                    $info->{'Ref'}=1;
+                    $info->{'ParamDecl'}={'Name' => $par};
+                    push @{$rlines}, [ $rline,  $info ];    	
+    }             
+    push @{$rlines},$BLANK_LINE;
+    }
     print "INFO: ExGlobArgs in $f\n" if $I;
 
     for my $var ( @{ $Sf->{'ExGlobArgs'}{'List'} } ) {
