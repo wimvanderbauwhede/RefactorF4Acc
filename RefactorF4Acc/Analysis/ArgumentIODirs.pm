@@ -854,7 +854,7 @@ sub _get_iodirs_from_subcall {
 		}
 	} else {
 		for my $arg ( @{ $info->{'SubroutineCall'}{'Args'}{'List'} } ) {
-			$called_arg_iodirs->{$arg} = 'InOut';
+			$called_arg_iodirs->{$arg} = 'Ignore';
 		}
 	}
 	return $called_arg_iodirs;

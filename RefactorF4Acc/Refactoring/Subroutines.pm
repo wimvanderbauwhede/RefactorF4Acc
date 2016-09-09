@@ -423,6 +423,7 @@ sub _create_extra_arg_and_var_decls {
     print "INFO: InheritedParameters in $f\n" if $I;
             
     for my $par ( @{ $Sf->{'InheritedParameters'}{'List'} } ) {
+    	if (not in_nested_set($Sf,'Parameters',$par) ) {
     	say "INFO PAR in $f: $par ".Dumper($Sf->{'InheritedParameters'}{'Set'}{$par} ) if $I; 
                     my $rdecl = $Sf->{'InheritedParameters'}{'Set'}{$par}; 
                     my $rline = emit_f95_var_decl($rdecl);
@@ -431,7 +432,8 @@ sub _create_extra_arg_and_var_decls {
                     $info->{'LineID'}= $nextLineID++;
                     $info->{'Ref'}=1;
                     $info->{'ParamDecl'}={'Name' => $par};
-                    push @{$rlines}, [ $rline,  $info ];    	
+                    push @{$rlines}, [ $rline,  $info ];
+    	}    	
     }             
     push @{$rlines},$BLANK_LINE;
     }

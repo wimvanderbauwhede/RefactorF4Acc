@@ -297,7 +297,7 @@ sub _initialise_decl_var_tables {
 				'Subsets' => {
 					'LocalParameters'    => $Sf->{'LocalParameters'},
 					'IncludedParameters' => $Sf->{'IncludedParameters'},
-					'InheritedParameters' => $Sf->{'InheritedParameters'},
+#					'InheritedParameters' => $Sf->{'InheritedParameters'},
 					'ParametersFromContainer' =>
 					  $Sf->{'ParametersFromContainer'}
 				}
