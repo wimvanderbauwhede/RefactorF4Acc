@@ -317,7 +317,13 @@ sub emit_all {
 			my $mod_lines = $stref->{'RefactoredCode'}{$src};
 			
 			for my $mod_line (@{ $mod_lines }) {
-				
+				my $info = $mod_line->[1];
+				if (exists $info->{'Blank'}
+				or exists $info->{'Skip'}
+				or exists $info->{'Deleted'}
+				) {
+					next;
+				}
 				print $TGT	$mod_line->[0];
 				if ($ANN and exists $mod_line->[1]->{'Ann'}) {
 					say $TGT ' ! '.join('; ',@{ $mod_line->[1]{'Ann'} });

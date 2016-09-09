@@ -40,6 +40,7 @@ sub refactor_all {
 
     $stref = refactor_called_functions($stref); # Context-free only FIXME: this should be treated just like subs, but if course that requires full parsing of expressions
     return $stref if $stage == 2;
+    
     # Refactor the source, but don't split long lines and keep annotations
     $stref = refactor_all_subroutines($stref);
     

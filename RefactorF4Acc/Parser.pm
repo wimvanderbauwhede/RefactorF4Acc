@@ -533,7 +533,7 @@ Statements with * are currently ignored
 Statements with ** are currently not even recognised
 
 AUTOMATIC*
-EQUIVALENCE*
+EQUIVALENCE* => WARNING
 EXTERNAL*
 INTRINSIC*
 STATIC*
@@ -541,7 +541,7 @@ MAP/END MAP*
 STRUCTURE/END STRUCTURE*
 UNION/END UNION*
 
-ENTRY**
+ENTRY** => WARNING
 FORMAT**
 NAMELIST**
 OPTIONS**
@@ -823,6 +823,11 @@ VIRTUAL
 		 	elsif ($line=~/^equivalence\s+/) {		 	
 		 		$info->{'Equivalence'} = 1;
 		 		say "WARNING: EQUIVALENCE IS IGNORED!" if $W;
+		 		warn "The EQUIVALENCE  statement is not supported, please rewrite your code (or ignore at your peril):\n".
+			 		'SOURCE: '.$stref->{'Subroutines'}{$f}{'Source'}.' LINE #'. $info->{'LineID'}."\n".
+			 		'CODE UNIT: '.$f."\n".
+			 		'LINE: '."'$line'\n";
+		 		
 		 	}		
 # Actual variable declaration line (F77)
 # In principle every type can be followed by '*<number>' or *(*) or (<number>)
@@ -866,6 +871,14 @@ VIRTUAL
 				( $Sf, $line, $info ) =
 				  __parse_sub_func_prog_decls( $Sf, $line );
 			 }
+# ENTRY			 
+			 elsif ( $line =~ /\b(entry)\b/ ) {
+			 		$info->{'Entry'}=1;
+			 		warn 'The ENTRY statement is not supported, please rewrite your code (or ignore at your peril):'."\n".
+			 		'SOURCE: '.$stref->{'Subroutines'}{$f}{'Source'}.' LINE #'. $info->{'LineID'}."\n".
+			 		'CODE UNIT: '.$f."\n".
+			 		'LINE: '."'$line'\n";
+			 }			 
 # END of CODE UNIT
 			 elsif (
 				$line =~ /^end\s+(subroutine|module|function|block\s+data)\s*(\w+)/ 

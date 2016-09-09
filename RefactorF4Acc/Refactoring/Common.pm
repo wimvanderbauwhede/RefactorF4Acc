@@ -230,6 +230,7 @@ sub context_free_refactorings {
 	            if ( in_nested_set($Sf, 'Parameters', $var) ) {
 	                # Remove this line, because this param should have been declared above
 	                $line = '!! Original line PAR:2 !! ' . $line;
+	                $info->{'Skip'}=1;
 	                $info->{'Deleted'} = 1;
 	                $info->{'Ann'}=[ annotate($f, __LINE__ .' Removed ParamDecl' ) ];
 	            } elsif (not exists $info->{'Ref'} or $info->{'Ref'} == 0 ){

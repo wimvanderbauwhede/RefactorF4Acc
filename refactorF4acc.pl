@@ -174,7 +174,7 @@ sub { return 'PASS';
 },
 sub {
 	(my $stref)=@_;
-	my $sub = $subname eq 'main' ? 'bondv1' : ($subname eq 'vertical' ? 'post' : 'timemanager');
+	my $sub = 'wrgdst';#$subname eq 'main' ? 'bondv1' : ($subname eq 'vertical' ? 'post' : 'timemanager');
 	return pp_annlines($stref->{Subroutines}{$sub}{'AnnLines'},1);
 }
 );

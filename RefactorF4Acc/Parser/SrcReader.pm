@@ -1137,6 +1137,7 @@ sub _procLine {
     ( my $line, my $free_form ) = @_;
 
     chomp $line;
+    
     my $info = { 'Ref' => 0 };    # means 0 refactorings
 
 # First of all, handle pragma lines
@@ -1218,9 +1219,10 @@ sub _procLine {
             $line =~ s/^(\d+)\s+/$str/;
         };
     }
+    
     # If the line is not a normalised comment
     if ( substr( $line, 0, 2 ) ne '! ' and not exists $info->{'Pragma'}) {
-    	
+   	
     	if ($line!~/character\s*\*/i and  $line=~/\d+\s+[Ee]\s*[\+\-]?\d+/ or $line=~/\d+\s*[Ee]\s+[\+\-]?\d+/) {
     		
     		while ($line=~/\d+(\s+[Ee]\s*)[\+\-]?\d+/ or $line=~/\d+(\s*[Ee]\s+)[\+\-]?\d+/ ) {
@@ -1230,23 +1232,24 @@ sub _procLine {
     		}
     		
     	}
+
 		# Check for CPP macros
 		if ($line=~/^\s*\#/) {
+				    	
 			$info->{'Macro'}=1;	
 			if ( $line =~ /^\s*\#include\s+[\'\"]([\w\.]+)[\'\"]/i ) {
             	$info->{'Includes'} = $1;
             	$line =~ s/\bINCLUDE\b/include/;
 			}
-		} elsif ( $line =~ /^\s+include\s+[\'\"]([\w\.]+)[\'\"]/i ) {
+		} elsif ( $line =~ /^\s+include\s+[\'\"]([\w\.]+)[\'\"]/i ) {			
             $info->{'Includes'} = $1;
-            $line =~ s/\bINCLUDE\b/include/;
-        } elsif ( $line !~ /[\'\"]/
+            $line =~ s/\bINCLUDE\b/include/;            
+        } elsif ( $line !~ /[\'\"]/	
             && $line !~ /^\s*end/i
             && $line =~ 
 /\b(module|program|recursive\s+subroutine|subroutine|entry|[\*\(\)\w]+\s+function|function|block)\s+(\w+)/i
           )
-        {
-            
+        {            
             my $keyword = lc($1);
             my $name    = lc($2);
             if ($keyword  eq 'block' and $name eq 'data') {
@@ -1279,8 +1282,7 @@ sub _procLine {
         } elsif ( $line =~ /^\s*$/ ) {
             $line = '';
             $info->{'Blank'} = 1;            
-        } else {
-
+        } else {			
             # replace string constants by placeholders
             my $phs_ref = {};
             my $ct      = 0;
@@ -1290,7 +1292,7 @@ sub _procLine {
                 $phs_ref->{$ph} = $strconst;
                 $line =~ s/\'.*?\'/$ph/;
                 $ct++;
-            }            
+            }
             while ( $line =~ /(\".*?\")/ ) {
                 my $strconst = $1;
                 my $ph       = '__PH' . $ct . '__';
@@ -1298,13 +1300,11 @@ sub _procLine {
                 $line =~ s/\".*?\"/$ph/;
                 $ct++;
             }
-            
             my $lcline =
               ( substr( $line, 0, 2 ) eq '! ' )
               ? $line
               : lc($line);                            
-              
-            $lcline =~ s/__ph(\d+)__/__PH$1__/g;
+            $lcline =~ s/__ph(\d+)__/__PH$1__/g;            
             $line = $lcline;
             $info->{'PlaceHolders'} = $phs_ref
               unless ( keys %{$phs_ref} == 0 );

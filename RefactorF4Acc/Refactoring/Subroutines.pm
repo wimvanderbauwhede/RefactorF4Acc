@@ -125,7 +125,6 @@ sub _refactor_subroutine_main {
         	
             say "_refactor_globals_new($f)" if $V;
           $annlines = _refactor_globals_new( $stref, $f, $annlines );
-
         } elsif ( $Sf->{'RefactorGlobals'} == 2 ) { 
             croak 'SHOULD BE OBSOLETE!';
         }
@@ -138,6 +137,7 @@ sub _refactor_subroutine_main {
  
     }
     
+#croak Dumper(pp_annlines( $stref->{'Subroutines'}{'wrgdst'}{'RefactoredCode'},1) ) if $f eq 'wrgdst';    
 #    croak Dumper($annlines );
     $Sf->{'RefactoredCode'}=$annlines;    
     $Sf->{'AnnLines'}=$annlines;
@@ -389,7 +389,8 @@ sub _refactor_globals_new {
         if ( exists $info->{'SubroutineCall'} ) { 
         	
             # simply tag the common vars onto the arguments            
-            $rlines = _create_refactored_subroutine_call( $stref, $f, $annline, $rlines );        
+            $rlines = _create_refactored_subroutine_call( $stref, $f, $annline, $rlines );
+#            croak Dumper( $rlines->[-1]) if $f eq 'wrgdst' and $annline->[0]=~/gdwrit/;        
             $skip = 1;
         }
         
@@ -575,16 +576,16 @@ sub _create_refactored_subroutine_call {
     ( my $stref, my $f, my $annline, my $rlines ) = @_;;
     my $Sf        = $stref->{'Subroutines'}{$f};
     (my $line, my $info) = @{ $annline };
-
+# say "LINE: $line" if $f eq 'wrgdst';
     # simply tag the common vars onto the arguments
     my $name = $info->{'SubroutineCall'}{'Name'};
     if (exists $stref->{'ExternalSubroutines'}{$name} or $stref->{'Subroutines'}{$name}{'Entry'} == 1) {
+#    	say "LINE2: $line" if $f eq 'wrgdst';
+    	push @{$rlines}, [ $line , $info ];
     	return $rlines;
     }
-#    croak Dumper($info) if $f eq 'advance' and $name eq 'interpol_vdep';
-#    croak Dumper($info) if $name eq 'interpol_rain' and $f eq 'wetdepo';
-    croak $line . Dumper($info) unless defined $info->{'SubroutineCall'}{'Args'}{'List'};# . Dumper(    $stref->{'Subroutines'}{$name});
-    my @orig_args =();# @{ $info->{'SubroutineCall'}{'Args'}{'List'} };    
+    croak $line . Dumper($info) unless defined $info->{'SubroutineCall'}{'Args'}{'List'};
+    my @orig_args =();    
     for my $call_arg (@{ $info->{'SubroutineCall'}{'Args'}{'List'} }) {
     	push @orig_args , $info->{'SubroutineCall'}{'Args'}{'Set'}{$call_arg}{'Expr'};
     }
@@ -627,6 +628,7 @@ sub _create_refactored_subroutine_call {
 	    $info->{'Ann'}=[annotate($f, __LINE__ ) ];
 	    push @{$rlines}, [ $line . $rline, $info ];
     } else {
+#    	say "LINE2: $line" if $f eq 'wrgdst';
         push @{$rlines}, [ $line , $info ];
     }
     return $rlines;
