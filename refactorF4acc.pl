@@ -334,7 +334,7 @@ sub parse_args {
     if ($opts{'c'}) {
          $cfgrc= $opts{'c'} ;
     } 
-	read_config($cfgrc);
+	read_rf4a_config($cfgrc);
 	
 	my $subname = $ARGV[0];
 	if ($subname) {

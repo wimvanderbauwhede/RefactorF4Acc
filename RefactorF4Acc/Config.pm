@@ -24,7 +24,7 @@ $gen_sub
 $translate
 $targetdir
 %Config
-&read_config    
+&read_rf4a_config    
 );
 
 our $VER = '0.3';
@@ -74,7 +74,7 @@ our $targetdir = '../RefactoredSources';
 
 our %Config=();
 
-sub read_config { 
+sub read_rf4a_config { 
 	(my $cfgrc)=@_;
 	open my $CFG, '<', $cfgrc or die $!,': ',$cfgrc;
 	say "INFO: CONFIG FILE $cfgrc:" if $I;
