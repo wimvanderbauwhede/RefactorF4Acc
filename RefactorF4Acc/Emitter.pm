@@ -16,8 +16,8 @@ use warnings FATAL => qw(uninitialized);
 use strict;
 use Carp;
 use Data::Dumper;
-use Digest::MD5;
-use File::Copy;
+#use Digest::MD5;
+#use File::Copy;
 use Cwd;
 
 use Exporter;
