@@ -796,7 +796,7 @@ if (exists  $Sf->{'Status'} ) {
         }
     }
 } else {
-	warn "$sub_or_func_or_inc $f has no Status";
+	carp "$sub_or_func_or_inc $f has no Status";
 }
     return $annlines;
 }    # END of get_annotated_sourcelines()

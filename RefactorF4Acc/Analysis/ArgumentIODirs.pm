@@ -256,7 +256,13 @@ sub _analyse_src_for_iodirs {
 			croak 'BOOM! ' . __LINE__ . ' ' . $f . ' : ' . Dumper($Sf);
 		}
 		my $args = dclone( $Sf->{'RefactoredArgs'}{'Set'} );
-		if ( exists $Sf->{'Function'} and $Sf->{'Function'} == 1 ) {			
+		if ( exists $Sf->{'HasEntries'}  ) {
+			say "INFO: Setting IODir to Ignore for all args in subroutine $f because of ENTRIES" if $I;
+			for my $arg (keys %{$args}) {
+#				say $arg;
+				$args->{$arg}{'IODir'} = 'Ignore';
+			}
+		} elsif ( exists $Sf->{'Function'} and $Sf->{'Function'} == 1 ) {			
 			# Don't touch
 			# Why not? even a Function can have Intents other than In!
 			# FIXME!
@@ -390,6 +396,9 @@ sub _analyse_src_for_iodirs {
 					&& exists $info->{'SubroutineCall'}{'Name'} )
 				{
 					my $name = $info->{'SubroutineCall'}{'Name'};
+					
+#					croak Dumper($stref->{'Subroutines'}{$name}) if $name eq 'vdw2uv';
+ 					
 
 # So we get the IODir for every arg in the call to the subroutine
 # We need both the original args from the call and the ex-glob args
@@ -736,7 +745,10 @@ sub _get_iodirs_from_subcall {
 
 	my $name              = $info->{'SubroutineCall'}{'Name'};
 	my $called_arg_iodirs = {};
-	if ( not exists $stref->{'ExternalSubroutines'}{$name} ) {
+	if ( not (exists $stref->{'ExternalSubroutines'}{$name}	
+		or (exists $stref->{'Subroutines'}{$name}{'Entry'}  and $stref->{'Subroutines'}{$name}{'Entry'}==1)
+		or exists $stref->{'Subroutines'}{$name}{'HasEntries'} ) 
+	 ) {
 
 		# This is the parent
 		my $Sf = $stref->{'Subroutines'}{$f};
@@ -750,7 +762,7 @@ sub _get_iodirs_from_subcall {
 		
 # See if there is a corresponding argument in the signature of the called subroutine
 			my $call_arg = $argmap->{$sig_arg};
-				if (defined $call_arg ) {
+				if (defined $call_arg ) { 
 # The $call_arg can be Array, Scalar, Sub, Expr or Const
 # Only if it is Array or Scalar  does it need to be considered for writing to by the subroutine
 # We need to check the other variables in Array, Sub and Expr but they cannot be anything else than read-only
@@ -853,9 +865,16 @@ sub _get_iodirs_from_subcall {
 			  }
 		}
 	} else {
-		for my $arg ( @{ $info->{'SubroutineCall'}{'Args'}{'List'} } ) {
+			
+		if ($I) {
+		say $name. ' EXTERNAL' if exists $stref->{'ExternalSubroutines'}{$name}; 
+		say $name.' ENTRY' if exists $stref->{'Subroutines'}{$name}{'Entry'} and $stref->{'Subroutines'}{$name}{'Entry'}==1 ;
+		say $name.' HAS ENTRIES' if exists $stref->{'Subroutines'}{$name}{'HasEntries'};
+			} 
+		for my $arg ( @{ $info->{'SubroutineCall'}{'Args'}{'List'} } ) {			
 			$called_arg_iodirs->{$arg} = 'Ignore';
 		}
+		croak "$name in $f" if $name eq 'dsetvh';
 	}
 	return $called_arg_iodirs;
 }    # END of _get_iodirs_from_subcall()

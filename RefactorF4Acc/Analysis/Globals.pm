@@ -326,12 +326,14 @@ sub lift_globals {
     (my $stref, my $f) = @_;
     local $V=0;
 #    my $ext = '_GLOB' ;
-    say '=' x 80, "\nENTER lift_globals( $f )" if $V;
+    say '=' x 80, "\nENTER lift_globals( $f )" if $V; 
     if (exists $stref->{'Subroutines'}{$f} ) {
     	my $Sf = $stref->{'Subroutines'}{$f};
     	if ( exists $Sf->{'CalledSubs'}{'List'}
         and scalar @{ $Sf->{'CalledSubs'}{'List'} }>0 )
+        # FIXME: This is also true for called ENTRYs
 	    {
+	    	
 	    	# This sub is calling other subs	    	
 	        my @csubs = @{ $Sf->{'CalledSubs'}{'List'} };
 	        # Clearly this should be done elsewhere
@@ -343,6 +345,7 @@ sub lift_globals {
 	            my $Scsub = $stref->{'Subroutines'}{$csub};
 # ------------------	            	            
 	            # If $f and $csub both have globals, merge them, otherwise inherit them
+	            
 	            if (exists $Scsub->{'ExGlobArgs'} ) {
 	                if (exists $Sf->{'ExGlobArgs'}{'List'} ) {
 	                	# Merge ExGlobArgs of $csub with those of $f  
@@ -359,13 +362,12 @@ sub lift_globals {
 	                    $Sf->{'ExGlobArgs'}{'Set'} = dclone( $Scsub->{'ExGlobArgs'}{'Set'} );
 	                    $Sf->{'HasCommons'} = 1;
 	                }  
+	                
 	                # Here we deal with parameters used in declarations 
+	                # FIXME: the InheritedParams are for ANY new arg, not just ex-glob args!
+	                
 	                for my $var (@{ $Scsub->{'ExGlobArgs'}{'List'} } ) {
 	                	if (exists $Scsub->{'ExGlobArgs'}{'Set'}{$var}{'InheritedParams'}) {
-	                		
-#	                		for my $par (keys %{ $Scsub->{'ExGlobArgs'}{'Set'}{$var}{'InheritedParams'}{'Set'} }) {
-#	                			$Sf->{'InheritedParameters'}{'Set'}{$par}=dclone($Scsub->{'LocalParameters'}{'Set'}{$par});
-#	                		}
 	                		my $all_inherited_parameters = _get_all_inherited_parameters(
 	                			$Scsub,
         						$Scsub->{'ExGlobArgs'}{'Set'}{$var}{'InheritedParams'}{'Set'},
@@ -382,8 +384,10 @@ sub lift_globals {
 #	                	croak Dumper($Sf->{'InheritedParameters'}{'Set'}) if $var eq 'qdpnm';
 	                }     
 					$Sf->{'InheritedParameters'}{'List'} = _list_inherited_params_in_order($Sf);
-#					carp Dumper( _list_inherited_params_in_order($Sf) ).$f ;	            	  	       
-	            }   
+#					carp Dumper( _list_inherited_params_in_order($Sf) ) if $f eq ;	            	  	       
+	            } else {
+#	            	carp "$csub in $f has no EX-GLOBS" ;
+	            }  
 # ------------------	                             
 	        } 
 	    } else {

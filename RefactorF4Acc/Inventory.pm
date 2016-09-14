@@ -35,12 +35,12 @@ use RefactorF4Acc::Utils qw(module_has_only);
 # Uses, Subroutines, Functions, Includes, Parameters, TypeDecls, ImplicitRules, Interfaces (not yet).
 sub find_subroutines_functions_and_includes {	
     my $stref = shift;
-    my $prefix   = $Config{PREFIX};
-    my @srcdirs=@{ $Config{SRCDIRS} };    
+    my $prefix   = exists $Config{PREFIX} ? $Config{PREFIX} : '.';
+    my @srcdirs=exists $Config{SRCDIRS} ?  @{ $Config{SRCDIRS} } : ('.');    
     my @extsrcdirs=exists $Config{EXTSRCDIRS} ? @{ $Config{EXTSRCDIRS} } : (); # External sources, should not be refactored but can be parsed
     my %ext_src_dirs = map { $prefix.'/'.$_ => 1 } @extsrcdirs; 
-    my %excluded_sources = map { $_ => 1 } @{ $Config{EXCL_SRCS} };
-    my %excluded_dirs = map { $_ => 1 } @{ $Config{EXCL_DIRS} };
+    my %excluded_sources = exists $Config{EXCL_SRCS} ? map { $_ => 1 } @{ $Config{EXCL_SRCS} } : ();
+    my %excluded_dirs = $Config{EXCL_DIRS} ? map { $_ => 1 } @{ $Config{EXCL_DIRS} } : ();
     my $has_pattern = $Config{EXCL_SRCS} ne '' ? 0 : 1;    
     my $excl_srcs_pattern    = @{ $Config{EXCL_SRCS} }>1? join('|', @{ $Config{EXCL_SRCS} }) : $Config{EXCL_SRCS}->[0];
     say     'Exclude pattern: /'.$excl_srcs_pattern.'/' if $V;
@@ -360,6 +360,10 @@ sub _process_src {
                     
                     $Ssub->{'Program'} = $is_prog;
                     $Ssub->{'Entry'} = $is_entry;
+                    if ($is_entry) {
+#                    	say "PARENT FOR $sub is '$sub_name'";
+                    	$stref->{'Entries'}{$sub}=$sub_name;
+                    }
                     $Ssub->{'Recursive'} = $is_rec;
                     $Ssub->{'Pure'} = $is_pure;
                     $Ssub->{'Elemental'} = $is_elemental;

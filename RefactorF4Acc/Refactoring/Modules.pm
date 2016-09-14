@@ -35,6 +35,8 @@ sub add_module_decls { (my $stref)=@_;
 #    my $no_module=0;    
     my %is_existing_module = ();
     my %existing_module_name = ();
+    my %no_modules =  exists $Config{'NO_MODULE'} ?  map { $_ => 1 } @{ $Config{'NO_MODULE'} } : ();
+    
     my $refactored_sources={};      
     # This assumes a source file contains only a single module
 	for my $src (keys %{ $stref->{'SourceContains'} } ) {		
@@ -53,8 +55,10 @@ sub add_module_decls { (my $stref)=@_;
 		        }
 		        my $Sf = $stref->{$sub_func_type}{$sub_or_func_or_mod};
 		        	        
-		        for my $called_sub ( keys %{ $Sf->{'CalledSubs'}{'Set'} } ) {	    
-		        	next if exists $stref->{'ExternalSubroutines'}{$called_sub}; # Don't descend into external subs   
+		        for my $called_sub ( keys %{ $Sf->{'CalledSubs'}{'Set'} } ) {
+		        		    
+		        	next if exists $stref->{'ExternalSubroutines'}{$called_sub}; # Don't descend into external subs
+		        	
 		            my $cs_src;
 		            if (exists $stref->{'Subroutines'}{$called_sub} and exists $stref->{'Subroutines'}{$called_sub}{'Source'}) {
 		               	$cs_src=$stref->{'Subroutines'}{$called_sub}{'Source'};
@@ -66,11 +70,29 @@ sub add_module_decls { (my $stref)=@_;
 	                
 		            $stref->{'UsedModules'}{$src}{$cs_src}=1;
 		        }
+		        for my $called_entry ( keys %{ $Sf->{'CalledEntries'}{'Set'} } ) {
+		        		    		        	
+		        	my $parent_sub = $stref->{'Entries'}{$called_entry};
+		            my $cs_src;
+		            if (exists $stref->{'Subroutines'}{$parent_sub} and exists $stref->{'Subroutines'}{$parent_sub}{'Source'}) {
+		               	$cs_src=$stref->{'Subroutines'}{$parent_sub}{'Source'};
+		            } else {
+		                croak "PROBLEM: NO $parent_sub in $src".Dumper(keys %{$stref->{'Subroutines'}}).$stref->{'Subroutines'}{$parent_sub}{'Source'};
+		            }
+	                next if $cs_src eq $src; # FIXME: ad-hoc!
+	                next if $stref->{'SourceFiles'}{$cs_src}{'SourceType'} eq 'Modules';
+	                
+		            $stref->{'UsedModules'}{$src}{$cs_src}=1;
+		        }
+		        
+		        
 		    }	    
 		}
 	}
-	    for my $src (keys %{ $stref->{'SourceContains'} } ) {       	 	
+	    for my $src (keys %{ $stref->{'SourceContains'} } ) {
+	    	my $is_program = $stref->{'Program'} eq $src ? 1 :0;       	 	
 	        my $no_module= $stref->{'Program'} eq $src ? 1 :0;
+	        $no_module= exists $no_modules{$src} ? 1 : $no_module; 
 	        print "INFO: adding module decls to $src\n" if $I;        
 	       if ($I) {
 	            say '! ','-' x 80;
@@ -111,6 +133,8 @@ sub add_module_decls { (my $stref)=@_;
 	            
 	            my @mod_uses=();
 	            for my $mod_src (keys %{ $stref->{'UsedModules'}{$src} }) {
+#	            	say Dumper(%no_modules).$mod_src;
+	            	next if exists $no_modules{$mod_src};
 	                my $used_mod_name = $mod_src;
 	                $used_mod_name =~s/\.\///;
 	                $used_mod_name =~s/\..*$//;
@@ -131,63 +155,79 @@ sub add_module_decls { (my $stref)=@_;
 	            # However, if this is a Program that contains subroutines, we need to do this differently
 	            # And in principle a source file can contain a combination.
 	            # Step 1            
-	            if ($no_module) { # This means that $src is a source file with a Program 
-	            	# What is the Program?
-	            	my $prog_name='PROGRAM_NAME_UNKNOWN';
-					for my $f (@{  $stref->{'SourceContains'}{$src}{'List'} }) {            	
-		            	if(exists $stref->{'Subroutines'}{$f}{'Program'}
-		            	and $stref->{'Subroutines'}{$f}{'Program'}==1
-		            	) {
-		            		$prog_name=$f;
-		            		last;
+	            if ($no_module) { 
+	            	if ($is_program) {
+		            	# This means that $src is a source file with a Program 
+		            	# What is the Program?
+		            	my $prog_name='PROGRAM_NAME_UNKNOWN';
+						for my $f (@{  $stref->{'SourceContains'}{$src}{'List'} }) {            	
+			            	if(exists $stref->{'Subroutines'}{$f}{'Program'}
+			            	and $stref->{'Subroutines'}{$f}{'Program'}==1
+			            	) {
+			            		$prog_name=$f;
+			            		last;
+			            	}
+			            }
+			             my $annlines = get_annotated_sourcelines( $stref, $prog_name );
+			            	my $before=1;
+		            	my @prog_p1=();
+		            	my @prog_p2=();
+		            	my @contained_subs=();
+		            	for my $annline (@{$annlines}) {            		
+		            		my $info = $annline->[1];
+		            		if ($before) {
+		            			push @prog_p1, $annline;
+		            		} else {
+		            			push @prog_p2, $annline;
+		            		}
+		            		if (exists $info->{'Contains'} ) {            			
+		            				$before=0;
+		            		}
 		            	}
-		            }
-		             my $annlines = get_annotated_sourcelines( $stref, $prog_name );
-		            	my $before=1;
-	            	my @prog_p1=();
-	            	my @prog_p2=();
-	            	my @contained_subs=();
-	            	for my $annline (@{$annlines}) {            		
-	            		my $info = $annline->[1];
-	            		if ($before) {
-	            			push @prog_p1, $annline;
-	            		} else {
-	            			push @prog_p2, $annline;
-	            		}
-	            		if (exists $info->{'Contains'} ) {            			
-	            				$before=0;
-	            		}
-	            	}
-	            	for my $sub (@{$stref->{'Subroutines'}{$prog_name}{'Contains'}}) {
-	            		my $annlines = get_annotated_sourcelines( $stref, $sub );
-	            		@contained_subs=(@contained_subs,$BLANK_LINE, comment("CONTAINED SUB $sub"),$BLANK_LINE,@{$annlines},$BLANK_LINE);
-	            	}  	            
-		            @refactored_source_lines=(  @prog_p1,@contained_subs,@prog_p2 );
-	
-					# If there are subs or functions that are not contained in the program, tag them on after the program
-					for my $sub ( @{ $stref->{'SourceContains'}{$src}{'List'} } ) {
-	
-						if ( not exists $stref->{'Subroutines'}{$sub}{'Program'}
-		            		or $stref->{'Subroutines'}{$sub}{'Program'}==0
-		            	 ) {						
-	#						say "PROC $sub";
-							my $annlines = get_annotated_sourcelines( $stref, $sub );
-							if (not exists $refactored_sources->{$sub} ){           
-							 $annlines = create_refactored_source( $stref,$sub,$annlines );
-							 $refactored_sources->{$sub}=1;
+		            	for my $sub (@{$stref->{'Subroutines'}{$prog_name}{'Contains'}}) {
+		            		my $annlines = get_annotated_sourcelines( $stref, $sub );
+		            		@contained_subs=(@contained_subs,$BLANK_LINE, comment("CONTAINED SUB $sub"),$BLANK_LINE,@{$annlines},$BLANK_LINE);
+		            	}  	            
+			            @refactored_source_lines=(  @prog_p1,@contained_subs,@prog_p2 );
+		
+						# If there are subs or functions that are not contained in the program, tag them on after the program
+						for my $sub ( @{ $stref->{'SourceContains'}{$src}{'List'} } ) {
+		
+							if ( not exists $stref->{'Subroutines'}{$sub}{'Program'}
+			            		or $stref->{'Subroutines'}{$sub}{'Program'}==0
+			            	 ) {						
+		#						say "PROC $sub";
+								my $annlines = get_annotated_sourcelines( $stref, $sub );
+								if (not exists $refactored_sources->{$sub} ){           
+								 $annlines = create_refactored_source( $stref,$sub,$annlines );
+								 $refactored_sources->{$sub}=1;
+								}
+								@refactored_source_lines=(@refactored_source_lines,@{$annlines});
+							}					
+						}         
+					
+	            	} else {
+	            		
+	            		#  source listed in NO_MODULE in rf4a.cfg,  do not  turn into a module for compatibily with F77
+			            for my $f (@{  $stref->{'SourceContains'}{$src}{'List'} }) {            	
+							my $annlines = get_annotated_sourcelines( $stref, $f );
+							if (not exists $refactored_sources->{$f} ){            	# This is a HACK because we need to make sure this is caught higher up	                	                
+				                $annlines = create_refactored_source( $stref,$f,$annlines );
+				                $refactored_sources->{$f}=1;
 							}
-							@refactored_source_lines=(@refactored_source_lines,@{$annlines});
-						}					
-					}            	
+			                @refactored_source_lines=(@refactored_source_lines,@{$annlines})
+			            }
+	            		
+	            	}   	
 	            } else {            	
 	            	# It's a module. We just get the refactored sources here, do the rest in the next step 
 		            for my $f (@{  $stref->{'SourceContains'}{$src}{'List'} }) {            	
 	#	            	croak if $f=~/^\s*$/;
-					my $annlines = get_annotated_sourcelines( $stref, $f );
-					if (not exists $refactored_sources->{$f} ){            	# This is a HACK because we need to make sure this is caught higher up	                	                
-		                $annlines = create_refactored_source( $stref,$f,$annlines );
-		                $refactored_sources->{$f}=1;
-					}
+						my $annlines = get_annotated_sourcelines( $stref, $f );
+						if (not exists $refactored_sources->{$f} ){            	# This is a HACK because we need to make sure this is caught higher up	                	                
+			                $annlines = create_refactored_source( $stref,$f,$annlines );
+			                $refactored_sources->{$f}=1;
+						}
 		                @refactored_source_lines=(@refactored_source_lines,@{$annlines})
 		            }
 	            }
@@ -196,6 +236,7 @@ sub add_module_decls { (my $stref)=@_;
 	                $stref->{'RefactoredCode'}{$src}=[$mod_header, @mod_uses,$mod_contains, @refactored_source_lines,$mod_footer];
 	            } else { 
 	            	
+	            	if ($is_program) {
 	            	# In case it is a program
 	            	# We add the 'use' declarations after the program signature             	            	 
 	            	my $before=1;
@@ -221,6 +262,9 @@ sub add_module_decls { (my $stref)=@_;
 	            		}
 	            	}            	
 	            	$stref->{'RefactoredCode'}{$src}=[@prog_p1,@mod_uses,@prog_p2];
+	            	} else {
+	            		$stref->{'RefactoredCode'}{$src}=[@refactored_source_lines];
+	            	}
 	            }     
 	       }   
 	    } # loop over all source files
