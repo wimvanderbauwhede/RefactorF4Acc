@@ -574,39 +574,53 @@ sub _create_extra_arg_and_var_decls {
     return $rlines;
 } # END of _create_extra_arg_and_var_decls();
 
+# AKA refactor_call_args, RefactorCallArgs
 sub _create_refactored_subroutine_call { 
     ( my $stref, my $f, my $annline, my $rlines ) = @_;;
-    my $Sf        = $stref->{'Subroutines'}{$f};
+    
     (my $line, my $info) = @{ $annline };
 # say "LINE: $line" if $f eq 'wrgdst';
     # simply tag the common vars onto the arguments
     my $name = $info->{'SubroutineCall'}{'Name'};
-    if (exists $stref->{'ExternalSubroutines'}{$name} or $stref->{'Subroutines'}{$name}{'Entry'} == 1) {
+    
+#    if (exists $stref->{'Entries'}{$name}) {
+#    	croak '# Deal with entry calls: '.Dumper($info);
+#    }
+    my $Sf        = $stref->{'Subroutines'}{$f};
+    if (exists $stref->{'ExternalSubroutines'}{$name} ) { #or $stref->{'Subroutines'}{$name}{'Entry'} == 1) {    	
 #    	say "LINE2: $line" if $f eq 'wrgdst';
     	push @{$rlines}, [ $line , $info ];
     	return $rlines;
     }
+    
     croak $line . Dumper($info) unless defined $info->{'SubroutineCall'}{'Args'}{'List'};
     my @orig_args =();    
     for my $call_arg (@{ $info->{'SubroutineCall'}{'Args'}{'List'} }) {
     	push @orig_args , $info->{'SubroutineCall'}{'Args'}{'Set'}{$call_arg}{'Expr'};
     }
     my $args_ref = [@orig_args]; # NOT ordered union, if they repeat that should be OK 
-    
-    if (exists $stref->{'Subroutines'}{$name}{'ExGlobArgs'}) {
-		    	       
-        my @globals = @{ $stref->{'Subroutines'}{$name}{'ExGlobArgs'}{'List'} };        
+    my $parent_sub_name =  exists $stref->{'Entries'}{$name} ? $stref->{'Entries'}{$name} : $name;
+#    say "$name => $parent_sub_name"; 
+#   if  (exists $stref->{'Entries'}{$name}) {
+#    	my $parent_sub =  $stref->{'Entries'}{$name};
+#    	if (exists $stref->{'Subroutines'}{$parent_sub }{'ExGlobArgs'}) {
+#    		croak '# Deal with entry calls: '.Dumper($info);
+#    		
+#    	}	        
+#    } els
+    if (exists $stref->{'Subroutines'}{$parent_sub_name}{'ExGlobArgs'}) {		    	       
+        my @globals = @{ $stref->{'Subroutines'}{$parent_sub_name}{'ExGlobArgs'}{'List'} };        
         # Problem is that in $f globals from $name may have been renamed. I store the renamed ones in 
         # $Sf->{'RenamedInheritedExGLobs'}
         my @maybe_renamed_exglobs=();
         for my $ex_glob (@globals) {
         	# $ex_glob may be renamed or not. I test this using OrigName. 
         	# This way I am sure I get only original names
-        	if (exists $stref->{'Subroutines'}{$name}{'ExGlobArgs'}{'Set'}{$ex_glob}{'OrigName'}) {
-				$ex_glob = $stref->{'Subroutines'}{$name}{'ExGlobArgs'}{'Set'}{$ex_glob}{'OrigName'};		
+        	if (exists $stref->{'Subroutines'}{$parent_sub_name}{'ExGlobArgs'}{'Set'}{$ex_glob}{'OrigName'}) {
+				$ex_glob = $stref->{'Subroutines'}{$parent_sub_name}{'ExGlobArgs'}{'Set'}{$ex_glob}{'OrigName'};		
         	}        	
         	if (exists $Sf->{'RenamedInheritedExGLobs'}{'Set'}{$ex_glob} and not exists $Sf->{'UsedLocalVars'}{'Set'}{$ex_glob} and not exists $Sf->{'IncludedParameters'}{'Set'}{$ex_glob}) {
-        		say "INFO: RENAMED $ex_glob => ".$Sf->{'RenamedInheritedExGLobs'}{'Set'}{$ex_glob} . ' in call to ' . $name . ' in '. $f if $I;
+        		say "INFO: RENAMED $ex_glob => ".$Sf->{'RenamedInheritedExGLobs'}{'Set'}{$ex_glob} . ' in call to ' . $parent_sub_name . ' in '. $f if $I;
         		push @maybe_renamed_exglobs, $Sf->{'RenamedInheritedExGLobs'}{'Set'}{$ex_glob};
         	} else {
         		push @maybe_renamed_exglobs,$ex_glob;
@@ -629,6 +643,7 @@ sub _create_refactored_subroutine_call {
         }  	    
 	    $info->{'Ann'}=[annotate($f, __LINE__ ) ];
 	    push @{$rlines}, [ $line . $rline, $info ];
+ 
     } else {
 #    	say "LINE2: $line" if $f eq 'wrgdst';
         push @{$rlines}, [ $line , $info ];

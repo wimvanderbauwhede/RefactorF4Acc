@@ -97,6 +97,9 @@ sub analyse_all {
 		next if $f eq '';
 		# RefactoredArgs = OrigArgs ++ ExGlobArgs and at this point any necessary renaming has been done
 		$stref = _create_refactored_args( $stref, $f );
+		if (exists $stref->{'Subroutines'}{$f}{'HasEntries'} ) {
+			$stref = _create_refactored_entry_args( $stref, $f );
+		}
 	}
 	return $stref if $stage == 6;
 
@@ -531,7 +534,47 @@ sub _create_refactored_args {
 		$Sf->{'HasRefactoredArgs'} = 0;
 	}
 	return $stref;
-}
+} # END of _create_refactored_args
+
+# Create an entry 'RefactoredArgs'
+sub _create_refactored_entry_args {
+	( my $stref, my $f ) = @_;
+	my $Spf = $stref->{'Subroutines'}{$f};
+	
+	for my $f ( 	@{ $Spf->{'Entries'}{'List'} } ) {
+		my $Sf =  $Spf->{'Entries'}{'Set'}{$f};
+				
+		if ( exists $Spf->{'ExGlobArgs'} and exists $Sf->{'OrigArgs'}
+		and  exists $Spf->{'ExGlobArgs'}{'List'} and exists $Sf->{'OrigArgs'}{'List'}
+		) {
+	
+			$Sf->{'RefactoredArgs'}{'List'} = ordered_union( $Sf->{'OrigArgs'}{'List'}, $Spf->{'ExGlobArgs'}{'List'} );
+			$Sf->{'RefactoredArgs'}{'Set'} = { %{ $Sf->{'UndeclaredOrigArgs'}{'Set'} }, %{ $Sf->{'DeclaredOrigArgs'}{'Set'} }, %{ $Spf->{'ExGlobArgs'}{'Set'} } };
+			$Sf->{'HasRefactoredArgs'} = 1;
+	
+		} elsif ( not exists $Spf->{'ExGlobArgs'} 
+		and exists $Sf->{'OrigArgs'}{'List'}
+		) {
+	
+			# No ExGlobArgs, so Refactored = Orig
+			$Sf->{'RefactoredArgs'}{'Set'}  = $Sf->{'OrigArgs'}{'Set'};
+			$Sf->{'RefactoredArgs'}{'List'} = $Sf->{'OrigArgs'}{'List'};
+			$Sf->{'HasRefactoredArgs'}      = 0;
+		} elsif ( not exists $Sf->{'OrigArgs'} 
+		and  exists $Spf->{'ExGlobArgs'}{'List'} 
+		) {
+	
+			# No ExGlobArgs, so Refactored = Orig
+			$Sf->{'RefactoredArgs'}    = $Spf->{'ExGlobArgs'};
+			$Sf->{'HasRefactoredArgs'} = 1;
+		} else {
+			$Sf->{'RefactoredArgs'} = { 'Set' => {}, 'List' => [] };
+			$Sf->{'HasRefactoredArgs'} = 0;
+		}	
+	}
+		
+	return $stref;
+} # END of _create_refactored_entry_args
 
 # Here we can finally check if a call arg is an unmasked intrinsic
 sub _map_call_args_to_sig_args {

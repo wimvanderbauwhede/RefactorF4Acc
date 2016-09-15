@@ -348,6 +348,7 @@ sub _process_src {
 	                $stref->{'SourceContains'}{$src}{'Set'}{$sub}=$srctype;
 	                push @{ $stref->{'SourceContains'}{$src}{'List'} },$sub;
 	                my $Ssub = $stref->{'Subroutines'}{$sub};
+	                $Ssub->{'Name'}=$sub;
 	                if ($is_function) {
 	                	$Ssub->{'Function'} = 1;     
 	                }
@@ -401,7 +402,7 @@ sub _process_src {
             		$stref->{'Subroutines'}{$sub}{'FreeForm'}=$free_form;  
             		$stref->{'Subroutines'}{$sub}{'TabFormat'}=$tab_format;
 		            $stref->{'Subroutines'}{$sub}{'HasBlocks'}=$has_blocks;
-                	$sub_name=$sub;
+                	$sub_name=$sub unless $is_entry;
             };
             
             # Find include statements

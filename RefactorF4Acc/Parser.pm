@@ -205,6 +205,9 @@ sub _initialise_decl_var_tables {
 	if ( not exists $Sf->{'CalledEntries'} ) {
 		$Sf->{'CalledEntries'} = { 'List' => [], 'Set' => {} };
 	}
+	if ( not exists $Sf->{'Entries'} ) {
+		$Sf->{'Entries'} = { 'List' => [], 'Set' => {} };
+	}
 # WV20151021 what we need here is a check that this function has not been called before for this $Sf
 	if ( not exists $Sf->{'DoneInitTables'} ) {
 		say "_initialise_decl_var_tables : INIT TABLES for subroutine $f" if $V;
@@ -870,23 +873,11 @@ VIRTUAL
 				
 				$has_pars=1;
 			}    # match var decls, parameter statements F77/F95								
-# SIGNATURES SUBROUTINE FUNCTION PROGRAM
-			 elsif ( $line =~ /\b(subroutine|function|program|block)\b/ ) {
+# SIGNATURES SUBROUTINE FUNCTION PROGRAM ENTRY
+			 elsif ( $line =~ /\b(subroutine|function|program|entry|block)\b/ and $line !~ /^end\s+/) {
 				( $Sf, $line, $info ) =
-				  __parse_sub_func_prog_decls( $Sf, $line );
+				  __parse_sub_func_prog_decls( $Sf, $line, $info );
 			 }
-# ENTRY			 
-			 elsif ( $line =~ /\bentry\s+(\w+)/ ) {
-			 	my $entry_name = $1;
-			 		$info->{'Entry'}=1;
-#			 		say "ENTRY: $f => $entry_name";
-			 		warn 'The ENTRY statement is not supported, please rewrite your code (or ignore at your peril):'."\n".
-			 		'SOURCE: '.$stref->{'Subroutines'}{$f}{'Source'}.' LINE #'. $info->{'LineID'}."\n".
-			 		'CODE UNIT: '.$f."\n".
-			 		'LINE: '."'$line'\n";
-			 		 $stref->{'Subroutines'}{$f}{'HasEntries'} =1;
-#			 		 $stref->{'Entries'}{$entry_name}= $f; # sub to wich entry belongs 
-			 }			 
 # END of CODE UNIT
 			 elsif (
 				$line =~ /^end\s+(subroutine|module|function|block\s+data)\s*(\w+)/ 
@@ -1200,7 +1191,7 @@ END IF
 				$info->{ ucfirst($keyword) } = 1;
 				$info->{'IO'}=1;
 				warn uc($keyword)." is ignored!" if $W;
-#    STOP and PAUSE statements		
+#    RETURN, STOP and PAUSE statements		
 			} elsif ($mline=~/^(return|stop|pause)/) {	
 				my $keyword = $1;
 				$info->{ ucfirst($keyword) } = 1;
@@ -3012,6 +3003,8 @@ sub _split_multivar_decls {
 #				};
 				$rinfo{'VarDecl'} = {'Name' => $var},#$decl;
 				my $rline = $line;
+#				say $f,':',$line,'=>',$subset,'.',$var,'  ', Dumper($Sf->{$subset}{'Set'}{$var});
+#				say( __LINE__,' ',( exists $stref->{'Entries'}{$f} ? 'ENTRY' : 'SUB'),' ',$f);
 				$Sf->{$subset}{'Set'}{$var}{'Name'} = $var;
 				if ( scalar @{ $info->{'VarDecl'}{'Names'} } > 1 ) {
 					for my $nvar (@nvars) {
@@ -3219,6 +3212,57 @@ sub __parse_sub_func_prog_decls {
 		$info->{'Signature'}{'Args'}{'List'} = [];
 		$info->{'Signature'}{'Name'}         = $name;
 		$info->{'Signature'}{'BlockData'}      = 1;				
+	}
+	elsif (   $line =~ /^entry\s+(\w+)/
+	) {
+		 $name   = $1;
+		 my $argstr ='';
+		 if ( $line =~ /^entry\s+\w+\s*\((.*)\)/) {
+			$argstr = $1;
+		 }
+		$argstr =~ s/^\s+//;
+		$argstr =~ s/\s+$//;
+		my @args = split( /\s*,\s*/, $argstr );
+		$info->{'Signature'}{'Args'}{'List'} = [@args];
+		$info->{'Signature'}{'Args'}{'Set'}  = { map { $_ => 1 } @args };
+		$info->{'Signature'}{'Name'}         = $name;
+		$info->{'Signature'}{'Entry'} = 1;
+		$info->{'Entry'}=1; # FIXME
+		$info->{'Signature'}{'Function'} = 0;
+		
+		$Sf->{'HasEntries'} =1;
+# The entry arg list is different from the parent sub arg list. 
+# Also we already parsed the parent, so there should be no undeclared args in principle
+# Anyway, what I need is to have OrigArgs for the ENTRY, not the parent.
+# So maybe I can do $Sf->{'Entry'}{$name}, call this $Sname, and take it from there
+		$Sf->{'Entries'}{'Set'}{$name} = {};
+		push @{ $Sf->{'Entries'}{'List'} },$name;
+		my $Sname = $Sf->{'Entries'}{'Set'}{$name};
+		# FIXME
+		# As all vars are declared (or not) *before* ENTRY, I think we should pretend that 
+		# all args are declared. That way I'm sure not extra declarations will be added 
+		
+		$Sname->{'DeclaredOrigArgs'}{'List'}  = [@args];
+		$Sname->{'DeclaredOrigArgs'}{'Set'} = { map { $_ => 1 } @args };   # UGH! 		
+		$Sname->{'UndeclaredOrigArgs'}{'List'}  = [];
+		$Sname->{'UndeclaredOrigArgs'}{'Set'} = { };
+		$Sname-> {'OrigArgs'} = { 			
+				'Subsets' => {
+					'UndeclaredOrigArgs' => $Sname->{'UndeclaredOrigArgs'},
+					'DeclaredOrigArgs'   => $Sname->{'DeclaredOrigArgs'}
+				},
+				'List' => [@args],
+			};				
+		
+		
+		warn 'The ENTRY statement is not supported, please rewrite your code (or ignore at your peril):'."\n".
+			'SOURCE: '.$Sf->{'Source'}.
+			' LINE #'. $info->{'LineID'}."\n".
+			'CODE UNIT: '.$Sf->{'Name'}."\n".
+			'LINE: '."'$line'\n";
+		
+	} else { 
+		croak 'BOOM: '.$line;
 	}
 #	croak Dumper $info if $name eq 'gzwrit';
 	return ( $Sf, $line, $info );

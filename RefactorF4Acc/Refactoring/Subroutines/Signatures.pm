@@ -39,13 +39,21 @@ sub create_refactored_subroutine_signature {
     my $Sf        = $stref->{'Subroutines'}{$f};
     
     my $info = $annline->[1];    
-    my $args_ref = $Sf->{'RefactoredArgs'}{'List'};
+    my $args_ref = [];
+    if (not exists $info->{'EntrySig'} ) {
+    	$args_ref = $Sf->{'RefactoredArgs'}{'List'};
+    } else {
+    	# ENTRY!
+    	my $name = $info->{'Signature'}{'Name'};
+    	my $Sname = $Sf->{'Entries'}{'Set'}{$name};
+    	$args_ref = $Sname->{'RefactoredArgs'}{'List'};
+#    	croak Dumper($info).Dumper($args_ref);
+    }
     my $args_str = join( ',', @{$args_ref} );
     my $what_is_block_data = 'subroutine'; #'block data'
     my $block_data_has_args = 1;
     print "NEW ARGS: $args_str\n" if $DBG;
     
-#    die $args_str if $f eq 'post';
     my $rline = '';
     if ( $Sf->{'Program'} ) {
         $rline = '      program ' . $f;
@@ -53,7 +61,6 @@ sub create_refactored_subroutine_signature {
     	$rline = $annline->[0];
     	$rline =~s/subroutine.*$//;	
         $rline .= 'subroutine ' . $f . '(' . $args_str . ')';
-#        $rline = '      recursive subroutine ' . $f . '(' . $args_str . ')';    
     } elsif ( $Sf->{'Function'} ) {# carp 'FUNCTION! create_refactored_subroutine_signature' . __LINE__ .Dumper($annline);
     	$rline = $annline->[0];
     	$rline =~s/function.*$//;
@@ -61,15 +68,18 @@ sub create_refactored_subroutine_signature {
     } elsif ( $Sf->{'BlockData'} ) { 
 		$rline = $annline->[0];
     	$rline =~s/block\s+data.*$//;	
-        $rline .= $what_is_block_data. ' ' . $f . ($block_data_has_args ? '(' . $args_str . ')' : '');            	        
+        $rline .= $what_is_block_data. ' ' . $f . ($block_data_has_args ? '(' . $args_str . ')' : '');
+    } elsif ( exists $info->{'EntrySig'} ) {
+    	$rline = $annline->[0];
+    	$rline =~s/entry.*$//;	
+        $rline .= 'entry ' . $f . '(' . $args_str . ')';    	                	        
     } else {    
-    		$rline = $annline->[0];
+    	$rline = $annline->[0];
     	$rline =~s/subroutine.*$//;	
         $rline .= 'subroutine ' . $f . '(' . $args_str . ')';
     }
     $info->{'Refactored'} = 1;
     $info->{'Ref'} = 1;
-#    $info->{'BOOM'} = 1;
     $info->{'Signature'}{'Args'}=$Sf->{'RefactoredArgs'};
     $info->{'Signature'}{'RefactoredArgs'}=$Sf->{'RefactoredArgs'}; # not sure if this is needed
     $Sf->{'HasRefactoredArgs'} = 1;

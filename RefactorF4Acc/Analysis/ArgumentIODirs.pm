@@ -271,9 +271,8 @@ sub _analyse_src_for_iodirs {
 			my $annlines = get_annotated_sourcelines( $stref, $f );
 
 			for my $index ( 0 .. scalar( @{$annlines} ) - 1 ) {
-				my $line = $annlines->[$index][0];
-				my $info = $annlines->[$index][1];
-				
+				(my $line,my $info)  = @{ $annlines->[$index] };				 
+								
 				if ( exists $info->{'Blank'} or exists $info->{'Comments'} ) {
 					next;
 				}
