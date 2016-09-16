@@ -579,7 +579,7 @@ sub _create_refactored_subroutine_call {
     ( my $stref, my $f, my $annline, my $rlines ) = @_;;
     
     (my $line, my $info) = @{ $annline };
-# say "LINE: $line" if $f eq 'wrgdst';
+# say Dumper($annline) if $line=~/clc/;
     # simply tag the common vars onto the arguments
     my $name = $info->{'SubroutineCall'}{'Name'};
     
@@ -631,6 +631,7 @@ sub _create_refactored_subroutine_call {
         $info->{'SubroutineCall'}{'Args'}{'List'}= $args_ref;
 	    my $args_str = join( ',', @{$args_ref} );
 	    $line =~ s/call\s.*$//; # Basically keep the indent
+#	    say "ENTRY $name ";
 	    my $rline = "call $name($args_str)\n";
 		if ( exists $info->{'PlaceHolders'} ) { 
 

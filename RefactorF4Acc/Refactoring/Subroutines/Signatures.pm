@@ -70,9 +70,10 @@ sub create_refactored_subroutine_signature {
     	$rline =~s/block\s+data.*$//;	
         $rline .= $what_is_block_data. ' ' . $f . ($block_data_has_args ? '(' . $args_str . ')' : '');
     } elsif ( exists $info->{'EntrySig'} ) {
+    	my $name = $info->{'Signature'}{'Name'};
     	$rline = $annline->[0];
     	$rline =~s/entry.*$//;	
-        $rline .= 'entry ' . $f . '(' . $args_str . ')';    	                	        
+        $rline .= 'entry ' . $name . '(' . $args_str . ')';    	                	        
     } else {    
     	$rline = $annline->[0];
     	$rline =~s/subroutine.*$//;	
