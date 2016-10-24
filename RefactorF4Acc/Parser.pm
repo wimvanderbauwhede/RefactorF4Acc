@@ -76,7 +76,7 @@ sub parse_fortran_src {
 		$sub_or_incl_or_mod ne 'ExternalSubroutines'
 		) {
 		my $Sf = $stref->{$sub_or_incl_or_mod}{$f};
-		if ($Sf->{'Entry'} == 0 ) {
+		if (not exists $Sf->{'Entry'} or $Sf->{'Entry'} == 0 ) {
 
 		# OK, time to declare all the variable sets and declaration sets		
 		$Sf = _initialise_decl_var_tables( $Sf, $f, $is_incl,$is_mod );
@@ -302,7 +302,6 @@ sub _initialise_decl_var_tables {
 				'Subsets' => {
 					'LocalParameters'    => $Sf->{'LocalParameters'},
 					'IncludedParameters' => $Sf->{'IncludedParameters'},
-#					'InheritedParameters' => $Sf->{'InheritedParameters'},
 					'ParametersFromContainer' =>
 					  $Sf->{'ParametersFromContainer'}
 				}
@@ -821,7 +820,7 @@ VIRTUAL
 		 		my $external_procs_str = $2;
 		 		my @external_procs = split(/\s*,\s*/,$external_procs_str);
 
-		 		$info->{ucfirst($qualifier)} = [ map {$_=>1} @external_procs];
+		 		$info->{ucfirst($qualifier)} = { map {$_=>1} @external_procs};
 		 		$Sf->{ucfirst($qualifier)}={ map {$_=>1} @external_procs };
 		 		
 		 			say "WARNING: ".uc($qualifier)." IS IGNORED!" if $qualifier ne 'external' and $W;
@@ -869,8 +868,7 @@ VIRTUAL
 # F77-style parameters			
 			elsif ( $line =~ /parameter\s*\(\s*(.*)\s*\)/ ) {    
 				my $parliststr = $1;
-				( $Sf, $info ) = __parse_f77_par_decl( $Sf, $f, $indent, $line, $info, $parliststr );
-				
+				( $Sf, $info ) = __parse_f77_par_decl( $Sf, $f, $indent, $line, $info, $parliststr );				
 				$has_pars=1;
 			}    # match var decls, parameter statements F77/F95								
 # SIGNATURES SUBROUTINE FUNCTION PROGRAM ENTRY
@@ -1135,12 +1133,12 @@ END IF
 				
 			}
 #    REWIND, OPEN, CLOSE statements				
-			elsif ( $mline =~ /^(open|close|rewind)\s*\(/ ) {
+			elsif ( $mline =~ /^(open|close|rewind)\s*\(/ ) {				
 				my $keyword = $1;
 				$info->{ ucfirst($keyword) . 'Call' } = 1;
 				$info->{'IO'}=1;
 				if ( $keyword eq 'open' ) {
-					my $ast = parse_Fortran_open_call($mline);
+					my $ast = parse_Fortran_open_call($mline);					
 					$info->{'Ast'} = $ast;
 
 					if ( exists $ast->{'FileName'} ) {
@@ -1177,7 +1175,7 @@ END IF
 					if ( exists $ast->{'IOStat'} ) {
 						$info->{'Vars'}{'Set'}{ $ast->{'IOStat'} } = 1;
 					}
-                    if ( exists $ast->{'AttrVal'} ) {
+                    if ( exists $ast->{'AttrVal'} and ref($ast->{'AttrVal'}) eq 'ARRAY') {
                         for my $val (@{ $ast->{'AttrVal'} } ) {
                             next if $val=~/__PH\d+__/; 
                             $info->{'Vars'}{'Set'}{ $val } = 1;
@@ -1325,7 +1323,7 @@ sub _parse_includes {
 					$stref->{'IncludeFiles'}{$name}{'HasBlocks'} = 0;
 					$stref = parse_fortran_src( $name, $stref );
 				} else {
-					print $line, " already processed\n" if $V;
+					print $line, " already processed\n" if $V;					
 				}
 				if (    exists $stref->{'Implicits'}
 					and exists $stref->{'Implicits'}{$name} )
@@ -1354,6 +1352,16 @@ sub _parse_includes {
 					$Sf->{'IncludedParameters'} =
 					  &append_to_set( $Sf->{'IncludedParameters'},
 						$stref->{'IncludeFiles'}{$name}{'Parameters'} );
+						
+					if (exists $stref->{'IncludeFiles'}{$name}{'Includes'}) {
+						for my $param_inc (keys %{ $stref->{'IncludeFiles'}{$name}{'Includes'} } ) {
+					$Sf->{'IncludedParameters'} =
+					  &append_to_set( $Sf->{'IncludedParameters'},
+						$stref->{'IncludeFiles'}{$param_inc}{'Parameters'} );
+							
+						}
+					}
+#						croak $name.Dumper($Sf->{'IncludedParameters'}) if $f eq 'restax' and $name =~/comm/;
 				}
 			} # If the line contains an 'include' statement
 			$srcref->[$index] = [ $line, $info ];
@@ -1568,6 +1576,7 @@ sub __find_called_subs_in_OUTER {
 }
 
 # -----------------------------------------------------------------------------
+# CALL
 # We need access to the info about the ACC pragma's here.
 # As this comes after analyse_lines, I should use $info not regex!
 sub _parse_subroutine_and_function_calls {
@@ -1629,7 +1638,7 @@ sub _parse_subroutine_and_function_calls {
 			if ( exists $info->{'Signature'} ) {
 				$current_sub_name = $info->{'Signature'}{'Name'};
 			}
-
+		# CALL
 	  # Subroutine calls. Surprisingly, these even occur in functions! *shudder*
 			if (   $line =~ /call\s+(\w+)\s*\((.*)\)/
 				|| $line =~ /call\s+(\w+)\s*$/ )
@@ -1657,8 +1666,7 @@ sub _parse_subroutine_and_function_calls {
 					}
 				}
 
-				$stref = add_to_call_tree( $name, $stref, $f );
-#				croak "$line => $name" .$external_sub if $line=~/call\s+clcout/i;
+				$stref = add_to_call_tree( $name, $stref, $f ); # Calls to ENTRY are treated as ordinary calls. Anyway, CallTree is only used in OpenCLTranslation 
 				if ( not exists $stref->{'Subroutines'}{$name}
 				and not exists $stref->{'Entries'}{$name}
 				) {
@@ -1679,7 +1687,6 @@ sub _parse_subroutine_and_function_calls {
 						$entry_call=0;
 					}
 				}
-#				croak "$line => $name external_sub=" .$external_sub if $line=~/call\s+clcout/i; 			
 				my $ast = parse_expression( "$name($argstr)", $info, $stref, $f );
 				( my $expr_args, my $expr_other_vars ) = get_args_vars_from_subcall($ast);
 				
@@ -1724,8 +1731,6 @@ sub _parse_subroutine_and_function_calls {
 								  . show_status( $Sname->{'Status'} )
 								  . ", PARSING\n"
 								  if $V;
-	
-	
 								$stref = parse_fortran_src( $name, $stref );
 							}
 						}						
@@ -2458,10 +2463,8 @@ sub __split_out_parameters {
 	  $stref->{'IncludeFiles'}{$f}{'FreeForm'};
 
 	$stref->{'IncludeFiles'}{$f}{'Includes'}{"params_$f"} = { 'Only' => {} };
-	$stref->{'IncludeFiles'}{"params_$f"}{'Parameters'} =
-	  dclone( $stref->{'IncludeFiles'}{$f}{'Parameters'} );
-	$stref->{'IncludeFiles'}{"params_$f"}{'Vars'}{'Subsets'}{'Parameters'} =
-	  $stref->{'IncludeFiles'}{"params_$f"}{'Parameters'};
+	$stref->{'IncludeFiles'}{"params_$f"}{'Parameters'} = dclone( $stref->{'IncludeFiles'}{$f}{'Parameters'} );
+	$stref->{'IncludeFiles'}{"params_$f"}{'Vars'}{'Subsets'}{'Parameters'} = $stref->{'IncludeFiles'}{"params_$f"}{'Parameters'};
 	delete $stref->{'IncludeFiles'}{$f}{'Parameters'};
 	delete $stref->{'IncludeFiles'}{$f}{'Vars'}{'Subsets'}{'Parameters'};
 	return $stref;
@@ -3526,9 +3529,7 @@ sub __parse_f77_par_decl {
 				} else {
 					for my $mpar ( keys %{$pars_in_val_tmp} ) {
 						my $mpar_rec = get_var_record_from_set( $Sf->{'Parameters'}, $mpar );
-						$type = $mpar_rec->{'Type'};
-#						warn "Create InheritedParameters $var in $f: $mpar\n";
-						
+						$type = $mpar_rec->{'Type'};						
 					}
 				}
 				$pars_in_val_for_var = { %{$pars_in_val_for_var}, %{$pars_in_val_tmp} };

@@ -175,42 +175,7 @@ use Exporter;
 #}    # END of __look_for_variables()
 
 ## -----------------------------------------------------------------------------
-## Only to be called for subs with RefactorGlobals == 2
-## What this does is lift the includes from child node to parent node, i.e. if a called sub contains an 
-## include and the caller doesn't, and if RefactorGlobals == 2 and it is an include with common blocks, then it is lifted.
-## I've actually forgotten why this is needed.
-#sub lift_includes { croak "OBSOLETE!";
-#    ( my $stref, my $f) = @_;
-#    my $Sf = $stref->{'Subroutines'}{$f};    
-#        # Which child has RefactorGlobals==1?    
-#    $Sf->{'LiftedIncludes'} =[]; # We will use this to create the additional include statements
-#    for my $cs (@{ $Sf->{'CalledSubs'}{'List'} }) {
-#    	next if exists $stref->{'ExternalSubroutines'}{$cs}; # Don't descend into external subs             
-#    	croak 'No subroutine name ' if $cs eq '' or not defined $cs;
-#        if ($stref->{'Subroutines'}{$cs}{'RefactorGlobals'}==1) {
-#            for my $inc (keys %{ $stref->{'Subroutines'}{$cs}{'CommonIncludes'} }) {
-#                if (not exists $Sf->{'Includes'}{$inc} and $stref->{'IncludeFiles'}{$inc}{'InclType'} eq 'Common') {
-##                	print "LIFTED $inc\n";                	
-#croak 'lift_includes';        
-#                    push @{ $Sf->{'LiftedIncludes'} }, $inc;
-#                } 
-#            }
-#        }
-#    }            
-#    # Once we know the includes, we can check for conflicts.
-#    my @vars = keys %{ $Sf->{'Vars'} };
-#    for my $var (@vars) {
-##    	print "$f: VAR $var\n"; 
-#        for my $lifted_inc ( @{ $Sf->{'LiftedIncludes'} } ) {
-#            if (in_nested_set( $stref->{'IncludeFiles'}{$lifted_inc},'Vars',$var)) {
-#            	$Sf->{'ConflictingLiftedVars'}{$var}=$var.'_LOCAL_'.$f;
-#            	warn "lift_includes( $f ): $var CONFLICT with $lifted_inc\n" if $V;
-#            	last;
-#            }
-#        }
-#    }
-#    return $stref;
-#}    # END of lift_includes()
+
 
 # Here we start from the top, descend to the leaves, get the Globals in the leaves, and add them to the Globals of the caller.
 # And of course we need to update ExGlobVarDecls
@@ -221,7 +186,7 @@ use Exporter;
 sub identify_inherited_exglobs_to_rename {
 	  (my $stref, my $f) = @_;
 #    local $V=1;
-    my $ext = '_GLOB' ;
+    my $ext = $RENAME_EXT;#'_GLOB' ;
     say '=' x 80, "\nENTER lift_globals( $f )" if $V;
     if (exists $stref->{'Subroutines'}{$f} ) {
     	my $Sf = $stref->{'Subroutines'}{$f};
@@ -264,7 +229,7 @@ sub identify_inherited_exglobs_to_rename {
 sub rename_inherited_exglobs  {
 		  (my $stref, my $f) = @_;
 #    local $V=1;
-    my $ext = '_GLOB' ;
+    my $ext = $RENAME_EXT;#'_GLOB' ;
     say '=' x 80, "\nENTER lift_globals( $f )" if $V;
     if (exists $stref->{'Subroutines'}{$f} ) {
     	my $Sf = $stref->{'Subroutines'}{$f};
@@ -375,7 +340,9 @@ sub lift_globals {
         					);
 #        					say  "VAR $var in $csub HAS InheritedParams: ",join(', ',sort keys %{ $all_inherited_parameters } );
         					for my $par (keys %{ $all_inherited_parameters } ) {
-        						$Sf->{'InheritedParameters'}{'Set'}{$par}=dclone($Scsub->{'LocalParameters'}{'Set'}{$par});
+        						my $subset = in_nested_set($Scsub,'Parameters',$par);
+#        						carp "SUBSET: $subset";
+        						$Sf->{'InheritedParameters'}{'Set'}{$par}=dclone($Scsub->{$subset}{'Set'}{$par});
         					}	
         					
 #        					croak Dumper($Sf->{'InheritedParameters'}).$f if $csub eq 'atmos';
@@ -409,12 +376,14 @@ sub _get_all_inherited_parameters { (my $Sf,my $pars, my $all_inherited_paramete
 
 	for my $par (keys %{$pars}) {
 	#	say "CHECKING PARAM $par"; 
+		my $subset = in_nested_set($Sf,'Parameters',$par);
+#		carp 'SUBSET:'.$Sf->{'Name'}.':'.$par.':'.$subset if $subset ne 'LocalParameters';         						
 		
-	    if (exists $Sf->{'LocalParameters'}{'Set'}{$par}{'InheritedParams'}
-	    and exists $Sf->{'LocalParameters'}{'Set'}{$par}{'InheritedParams'}{'Set'}) { 
+	    if (exists $Sf->{$subset}{'Set'}{$par}{'InheritedParams'}
+	    and exists $Sf->{$subset}{'Set'}{$par}{'InheritedParams'}{'Set'}) { 
 	#        say "PAR $par INHERITS ".join(', ',keys %{  $Sf->{'LocalParameters'}{'Set'}{$par}{'InheritedParams'}{'Set'} });
-	        $all_inherited_parameters = { %{$all_inherited_parameters}, %{ $Sf->{'LocalParameters'}{'Set'}{$par}{'InheritedParams'}{'Set'} } };
-	        $all_inherited_parameters = _get_all_inherited_parameters($Sf, $Sf->{'LocalParameters'}{'Set'}{$par}{'InheritedParams'}{'Set'},$all_inherited_parameters);
+	        $all_inherited_parameters = { %{$all_inherited_parameters}, %{ $Sf->{$subset}{'Set'}{$par}{'InheritedParams'}{'Set'} } };
+	        $all_inherited_parameters = _get_all_inherited_parameters($Sf, $Sf->{$subset}{'Set'}{$par}{'InheritedParams'}{'Set'},$all_inherited_parameters);
 	    } else {
 	#        say "PAR $par ADDED";
 	        $all_inherited_parameters->{$par}=1; 

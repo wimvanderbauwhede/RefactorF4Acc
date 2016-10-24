@@ -105,11 +105,9 @@ sub refactor_subroutine_signature {
         }
     }
 
-    my @exglobs            = ();
-    my @nexglobs           = ();    
     # Loop over all globals and create the list @exglobs by concatenation
-    # Also add all vars to $Sf->{'Vars'} unless they were already there    
-    
+    # Also add all vars to $Sf->{'Vars'} unless they were already there
+    my @exglobs            = ();        
     for my $inc ( keys %{ $Sf->{'Globals'} } ) {
         print "INFO: INC $inc in $f\n" if $V;
         if ( not exists $stref->{'IncludeFiles'}{$inc}{'Root'} ) {
@@ -133,6 +131,7 @@ sub refactor_subroutine_signature {
         }
     }
     # Loop over @exglobs, rename vars that conflict with parameters
+    my @nexglobs           = ();
     for my $var (@exglobs) {
         if ( exists $Sf->{'ConflictingParams'}{$var} ) {
             print "WARNING: CONFLICT in arguments for $f, renamed $var to ${var}_GLOB\n" if $W;
@@ -142,11 +141,9 @@ sub refactor_subroutine_signature {
             push @nexglobs, $var;
         }
     }
-    # Now combine the original subroutine arguments with the ex-globals
-    # and store in $Sf->{'RefactoredArgs'}{'List'}     
+    
+    # Now combine the original subroutine arguments with the ex-globals and store in $Sf->{'RefactoredArgs'}{'List'}     
     my $args_ref = (exists $Sf->{'OrigArgs'}) ? ordered_union( $Sf->{'OrigArgs'}{'List'}, \@nexglobs ) : \@nexglobs;
-#    my @blanks = grep {$_ eq '' } @{$args_ref};
-#    say "RefactoredArgs for $f: ".Dumper($args_ref); 
     $Sf->{'RefactoredArgs'}{'List'} = $args_ref;
     %{ $Sf->{'RefactoredArgs'}{'Set'}} = map {$_ => {'IODir' => 'Unknown'} } @{ $args_ref };    
     $Sf->{'HasRefactoredArgs'} = 1;

@@ -55,7 +55,7 @@ sub add_module_decls { (my $stref)=@_;
 		        }
 		        my $Sf = $stref->{$sub_func_type}{$sub_or_func_or_mod};
 		        	        
-		        for my $called_sub ( keys %{ $Sf->{'CalledSubs'}{'Set'} } ) {
+		        for my $called_sub ( @{ $Sf->{'CalledSubs'}{'List'} } ) {
 		        		    
 		        	next if exists $stref->{'ExternalSubroutines'}{$called_sub}; # Don't descend into external subs
 		        	
@@ -70,7 +70,7 @@ sub add_module_decls { (my $stref)=@_;
 	                
 		            $stref->{'UsedModules'}{$src}{$cs_src}=1;
 		        }
-		        for my $called_entry ( keys %{ $Sf->{'CalledEntries'}{'Set'} } ) {
+		        for my $called_entry ( @{ $Sf->{'CalledEntries'}{'List'} } ) {
 		        		    		        	
 		        	my $parent_sub = $stref->{'Entries'}{$called_entry};
 		            my $cs_src;
@@ -84,8 +84,7 @@ sub add_module_decls { (my $stref)=@_;
 	                
 		            $stref->{'UsedModules'}{$src}{$cs_src}=1;
 		        }
-		        
-		        
+		        		        
 		    }	    
 		}
 	}

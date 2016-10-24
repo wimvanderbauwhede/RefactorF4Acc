@@ -116,6 +116,32 @@ sub context_free_refactorings {
         	$info->{'Ann'}=[ annotate($f, __LINE__ .' Original Common statement' ) ];
 #            next;
         }	
+        
+        if ( exists $info->{'External'} ) {
+#        	warn "EXTERNAL LINE: $line in $f";
+        	if (scalar keys %{ $info->{'External'}} >1) {
+        		carp 'Cannot handle EXTERNAL with multiple names, IGNORING!';
+        	} else {
+        	for my $maybe_ext (keys %{ $info->{'External'} } ) {
+        		if ($stref->{'Subroutines'}{$maybe_ext}{'Source'}
+        		eq $Sf->{'Source'}) {
+#        			croak "NOT EXT $maybe_ext in $f";
+        			$line = '! '.$line." ! $maybe_ext is defined in this file";
+        			$info->{'Deleted'}=1;        			
+        		} else {
+        			# Now it is possible that we have identified a source for this func
+        			if (exists $stref->{'Subroutines'}{$maybe_ext}) {
+#        				croak "FOUND source for EXTERNAL $maybe_ext"; 
+						$line = '! '.$line." ! $maybe_ext is accessed via 'use'";
+						$info->{'Deleted'}=1;
+        			}
+        		}
+        	}  
+        	}
+#        	$line = '! '.$line if 
+        	
+        	$info->{'Ann'}=[ annotate($f, __LINE__ .' External statement' ) ];
+        }	                
 		if ( exists $info->{'Data'} ) {
 			my @chunks=split(/data\s+/,$line);
 			croak if scalar @chunks > 2;
@@ -124,6 +150,7 @@ sub context_free_refactorings {
 			$str=~s/\// \/ /g;
 			$line = $chunks[0].'data '.$str;
 		}
+			
         if ( exists $info->{'Goto'} ) {
             $line =~ s/\bgo\sto\b/goto/;
             $info->{'Ref'}++;
@@ -227,7 +254,7 @@ sub context_free_refactorings {
                     push @{$info->{'Ann'}}, annotate($f, __LINE__ .': ParsedVarDecl, '.($stmt_count == 1 ? '' : 'SKIP'));                    
                 }
             } else { 
-	            if ( in_nested_set($Sf, 'Parameters', $var) ) {
+	            if ( in_nested_set($Sf, 'Parameters', $var) ) { 
 	                # Remove this line, because this param should have been declared above
 	                $line = '!! Original line PAR:2 !! ' . $line;
 	                $info->{'Skip'}=1;
@@ -344,6 +371,7 @@ sub context_free_refactorings {
                 	$line = "      use $tinc". ($NO_ONLY ?  '!' : '') .', only : '.join(', ', @used_params) ;
                   	push @{ $info->{'Ann'} }, annotate($f, __LINE__. ' Include' );
             	} elsif (exists $stref->{'IncludeFiles'}{$inc}{'ParamInclude'}) {
+#            		croak 'OBSOLETE?';
             		my $param_include=$stref->{'IncludeFiles'}{$inc}{'ParamInclude'};
             		my $tinc = $param_include;
             		$tinc =~ s/\./_/g;            		
@@ -352,14 +380,22 @@ sub context_free_refactorings {
                 	$line = "      use $tinc". ($NO_ONLY ?  '!' : '') .", only : ".join(', ', @used_params);
                   	push @{ $info->{'Ann'} }, annotate($f, __LINE__. ' Include' );
             		  	} else {
-                	$line = "!      use $tinc ! ONLY LIST EMPTY";
+                	$line = "!!      use $tinc ! ONLY LIST EMPTY";
                   	push @{ $info->{'Ann'} }, annotate($f, __LINE__ . ' no pars used'); #croak 'SKIP USE PARAM';            		
             		  		
             		  	}
-            	} else {
+				} elsif (exists $stref->{'IncludeFiles'}{$tinc}{'InclType'}
+					and $stref->{'IncludeFiles'}{$tinc}{'InclType'} eq 'Parameter'
+				) {
+					# This is a factored-out parameter module. 
+					# No 'Only' , FIXME!
+                	$line = "      use $tinc";
+                  	push @{ $info->{'Ann'} }, annotate($f, __LINE__ . ' no pars used'); #croak 'SKIP USE PARAM';									            		  	
+            	} else {            		
             		# No 'Only' or 'Only' list is empty, SKIP
                 	$line = "!      use $tinc ! ONLY LIST EMPTY";
-                  	push @{ $info->{'Ann'} }, annotate($f, __LINE__ . ' no pars used'); #croak 'SKIP USE PARAM';            		
+                  	push @{ $info->{'Ann'} }, annotate($f, __LINE__ . ' no pars used'); #croak 'SKIP USE PARAM';
+                  	$info->{'Deleted'}=1;            		
             	}
             } else {
 #            	say 'WARNING: EXTERNAL INCLUDES ARE COMMENTED OUT!' if $W;
@@ -1262,7 +1298,7 @@ sub _rename_conflicting_lhs_var {
 
 sub emit_f95_var_decl {
     ( my $var_decl_rec ) = @_;
-
+ 
 	if (not defined $var_decl_rec) {
 		confess('Argument to emit_f95_var_decl is not defined!');
 	}

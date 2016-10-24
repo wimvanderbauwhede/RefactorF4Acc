@@ -350,13 +350,14 @@ sub parse_args {
     }   
     
     $ANN = ( $opts{'A'} ) ? 1 : 0;
+    
 	$V = ( $opts{'v'} ) ? 1 : 0;
 	$I = ( $opts{'i'} ) ? 1 : 0;
 	$W = ( $opts{'w'} ) ? 1 : 0;
 	$DBG = ( $opts{'d'} ) ? 1 : 0;
 	$NO_ONLY = (exists $Config{'NO_ONLY'}[0] ) ? $Config{'NO_ONLY'}[0] : $NO_ONLY;
 	$SPLIT_LONG_LINES = (exists $Config{'SPLIT_LONG_LINES'}[0] ) ? $Config{'SPLIT_LONG_LINES'}[0] : $SPLIT_LONG_LINES;
-	
+	$RENAME_EXT = (exists $Config{'RENAME_EXT'}[0] ) ? $Config{'RENAME_EXT'}[0] : $RENAME_EXT;
 	$refactor_toplevel_globals=( $opts{'g'} ) ? 1 : 0; # Global from Config
 # Currently broken	
 	if ( $opts{'G'} ) {

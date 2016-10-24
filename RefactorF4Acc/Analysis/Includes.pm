@@ -84,7 +84,7 @@ sub _find_root_for_include {
         # $sub is (currently) not 'Root' for $inc
         my $nchildren   = 0;
         my $singlechild = '';
-        for my $calledsub ( keys %{ $Ssub->{'CalledSubs'}{'Set'} } ) {
+        for my $calledsub ( @{ $Ssub->{'CalledSubs'}{'List'} } ) {
         	next if exists $stref->{'ExternalSubroutines'}{$calledsub}; # Don't descend into external subs   
             if (
                 exists $stref->{'Subroutines'}{$calledsub}{'CommonIncludes'}

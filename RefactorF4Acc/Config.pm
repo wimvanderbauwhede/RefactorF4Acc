@@ -16,6 +16,7 @@ $NO $YES $GO
 $UNREAD $INVENTORIED $READ $PARSED $FROM_BLOCK $C_SOURCE
 $SPLIT_LONG_LINES
 $NO_ONLY
+$RENAME_EXT
 $noop
 $refactor_toplevel_globals
 $call_tree_only
@@ -37,6 +38,7 @@ our $ANN = 1; # Annotations
 our $DUMMY = 0; # Dummy run, print out code rather than printing to file
 our $SPLIT_LONG_LINES = 1;
 our $NO_ONLY = 0;
+our $RENAME_EXT = '_GLOB';
 # Instead of FORTRAN's 'continue', we can insert a call to a subroutine noop() that does nothing
 our $noop           = 0;
 our $refactor_toplevel_globals = 0;

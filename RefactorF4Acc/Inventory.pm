@@ -39,10 +39,15 @@ sub find_subroutines_functions_and_includes {
     my @srcdirs=exists $Config{SRCDIRS} ?  @{ $Config{SRCDIRS} } : ('.');    
     my @extsrcdirs=exists $Config{EXTSRCDIRS} ? @{ $Config{EXTSRCDIRS} } : (); # External sources, should not be refactored but can be parsed
     my %ext_src_dirs = map { $prefix.'/'.$_ => 1 } @extsrcdirs; 
+    
     my %excluded_sources = exists $Config{EXCL_SRCS} ? map { $_ => 1 } @{ $Config{EXCL_SRCS} } : ();
+    if (not exists $Config{EXCL_SRCS}) {
+    	$Config{EXCL_SRCS} = [];
+    }
     my %excluded_dirs = $Config{EXCL_DIRS} ? map { $_ => 1 } @{ $Config{EXCL_DIRS} } : ();
-    my $has_pattern = $Config{EXCL_SRCS} ne '' ? 0 : 1;    
-    my $excl_srcs_pattern    = @{ $Config{EXCL_SRCS} }>1? join('|', @{ $Config{EXCL_SRCS} }) : $Config{EXCL_SRCS}->[0];
+# exists $Config{EXCL_SRCS} and     
+    my $has_pattern =  scalar @{ $Config{EXCL_SRCS} } > 0 ? 1 : 0;    
+    my $excl_srcs_pattern    = @{ $Config{EXCL_SRCS} }>1? join('|', @{ $Config{EXCL_SRCS} }) : @{ $Config{EXCL_SRCS} }==1 ? $Config{EXCL_SRCS}->[0] : '';
     say     'Exclude pattern: /'.$excl_srcs_pattern.'/' if $V;
 	my $excl_srcs_regex      = qr/$excl_srcs_pattern/;
 	
