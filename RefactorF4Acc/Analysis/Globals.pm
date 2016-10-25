@@ -193,11 +193,9 @@ sub identify_inherited_exglobs_to_rename {
     	if ( exists $Sf->{'CalledSubs'}{'List'}
         and scalar @{ $Sf->{'CalledSubs'}{'List'} }>0 )
 	    {	    	
-	    	# This sub is calling other subs	    	
-	        my @csubs = @{ $Sf->{'CalledSubs'}{'List'} };
 	        # FIXME: do this in the Parser
 	        
-	        for my $csub (@csubs) {       
+	        for my $csub ( @{ $Sf->{'CalledSubs'}{'List'} }) {       
 	       		say "CALL TO  $csub from $f" if $V;     
 	            $stref = identify_inherited_exglobs_to_rename($stref, $csub );
 	            say "RETURN TO $f from CALL to $csub" if $V;
@@ -300,18 +298,21 @@ sub lift_globals {
 	    {
 	    	
 	    	# This sub is calling other subs	    	
-	        my @csubs = @{ $Sf->{'CalledSubs'}{'List'} };
 	        # Clearly this should be done elsewhere
 #	        $Sf->{'RenamedInheritedExGLobs'}  = { 'List' => [], 'Set' => {}} unless exists $Sf->{'RenamedInheritedExGLobs'};
-	        for my $csub (@csubs) {       
-	       		say "CALL TO  $csub from $f" if $V;     
+	        for my $csub ( @{ $Sf->{'CalledSubs'}{'List'} }) {       
+	       		say "CALL TO  $csub from $f" if $V;   
+	       		# Check if it is an entry
+	       		if (exists $stref->{'Entries'}{$csub}) {
+	       			$csub = $stref->{'Entries'}{$csub};
+	       		}  
 	            $stref = lift_globals($stref, $csub );
 	            say "RETURN TO $f from CALL to $csub" if $V;
 	            my $Scsub = $stref->{'Subroutines'}{$csub};
 # ------------------	            	            
 	            # If $f and $csub both have globals, merge them, otherwise inherit them
 	            
-	            if (exists $Scsub->{'ExGlobArgs'} ) {
+	            if (exists $Scsub->{'ExGlobArgs'} and defined $Scsub->{'ExGlobArgs'}) {
 	                if (exists $Sf->{'ExGlobArgs'}{'List'} ) {
 	                	# Merge ExGlobArgs of $csub with those of $f  
 	                    $Sf->{'ExGlobArgs'}{'List'} = ordered_union( $Sf->{'ExGlobArgs'}{'List'},$Scsub->{'ExGlobArgs'}{'List'} );  	                    

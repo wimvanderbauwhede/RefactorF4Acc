@@ -26,6 +26,7 @@ use Exporter;
     &determine_kernel_wrapper_args    
 );
  
+croak 'UNUSED!'; 
 
 =pod
 What I call KernelArgs are those arguments of a kernel that have to be written or read, so they must be an argument of the kernel stub

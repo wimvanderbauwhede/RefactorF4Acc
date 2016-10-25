@@ -84,17 +84,17 @@ sub _find_root_for_include {
         # $sub is (currently) not 'Root' for $inc
         my $nchildren   = 0;
         my $singlechild = '';
-        for my $calledsub ( @{ $Ssub->{'CalledSubs'}{'List'} } ) {
+        for my $called_sub_or_entry ( @{ $Ssub->{'CalledSubs'}{'List'} } ) {
+			my $calledsub = $called_sub_or_entry; 
+			if (exists  $stref->{'Entries'}{$called_sub_or_entry} ) {
+				$calledsub = $stref->{'Entries'}{$called_sub_or_entry};
+			}        	
         	next if exists $stref->{'ExternalSubroutines'}{$calledsub}; # Don't descend into external subs   
-            if (
-                exists $stref->{'Subroutines'}{$calledsub}{'CommonIncludes'}
-                {$inc} )
-            {
+            if ( exists $stref->{'Subroutines'}{$calledsub}{'CommonIncludes'}{$inc} ) {
                 $nchildren++;
                 $singlechild = $calledsub;
             }
         }
-
         if ( $nchildren == 0 ) {
             die
 "_find_root_for_include(): Can't find $inc in parent $sub or any children, something's wrong!\n";

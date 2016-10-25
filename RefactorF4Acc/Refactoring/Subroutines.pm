@@ -4,7 +4,7 @@ use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
 use RefactorF4Acc::Refactoring::Common qw( get_annotated_sourcelines context_free_refactorings emit_f95_var_decl splice_additional_lines_cond);
 use RefactorF4Acc::Refactoring::Subroutines::Signatures qw( create_refactored_subroutine_signature refactor_subroutine_signature ); 
-use RefactorF4Acc::Refactoring::Subroutines::Includes qw( skip_common_include_statement create_new_include_statements create_additional_include_statements );
+use RefactorF4Acc::Refactoring::Subroutines::IncludeStatements qw( skip_common_include_statement create_new_include_statements create_additional_include_statements );
 use RefactorF4Acc::Parser::Expressions qw( emit_expression );
 # 
 #   (c) 2010-2012 Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
@@ -43,7 +43,9 @@ sub refactor_all_subroutines {
     ( my $stref ) = @_;
     for my $f ( sort keys %{ $stref->{'Subroutines'} } ) {
     	 
-        next if ($f eq '' or $f eq 'UNKNOWN_SRC' or not defined $f);                
+        next if ($f eq '' or $f eq 'UNKNOWN_SRC' or not defined $f);
+        next if exists $stref->{'Entries'}{$f};
+                        
         my $Sf = $stref->{'Subroutines'}{$f};
         
         next if $Sf->{'Entry'} == 1;                
@@ -523,7 +525,6 @@ sub _create_refactored_subroutine_call {
     	return $rlines;
     }
     
-    croak $line . Dumper($info) unless defined $info->{'SubroutineCall'}{'Args'}{'List'};
     # Collect original args
     my @orig_args =();    
     for my $call_arg (@{ $info->{'SubroutineCall'}{'Args'}{'List'} }) {
@@ -557,7 +558,6 @@ sub _create_refactored_subroutine_call {
         # This is the emitter, maybe that should not be done here but later on? TODO!
 	    my $args_str = join( ',', @{$args_ref} );	    
 	    my $indent = $info->{'Indent'};
-	    croak Dumper ($annline);
 	    my $rline = "call $name($args_str)\n";
 		if ( exists $info->{'PlaceHolders'} ) { 
 			while ($rline =~ /(__PH\d+__)/) {

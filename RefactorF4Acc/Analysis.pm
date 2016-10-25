@@ -54,6 +54,11 @@ sub analyse_all {
 	# First find any additional argument declarations, either in includes or via implicits
 	for my $f ( keys %{ $stref->{'Subroutines'} } ) {
 		next if $f eq '';
+		if (exists $stref->{'Entries'}{$f}) {
+			say "SKIPPING ENTRY $f in analyse_all() line ". __LINE__;
+			next;
+		}
+		
 		# Includes
 		$stref = _lift_param_includes( $stref, $f );
 		# ExImplicitArgs, ExInclArgs
@@ -71,6 +76,11 @@ sub analyse_all {
 
 	for my $f ( keys %{ $stref->{'Subroutines'} } ) {
 		next if $f eq '';	
+		if (exists $stref->{'Entries'}{$f}) {
+			say "SKIPPING ENTRY $f in analyse_all() line ". __LINE__;
+			next;
+		}
+		
 		$stref = _analyse_variables( $stref, $f );
 	}
 	return $stref if $stage == 3;
@@ -79,6 +89,10 @@ sub analyse_all {
 # ConflictingGlobals: ex-common vars conflicting with params, both from include files
 	for my $f ( keys %{ $stref->{'Subroutines'} } ) {
 		next if $f eq '';
+		if (exists $stref->{'Entries'}{$f}) {
+			say "SKIPPING ENTRY $f in analyse_all() line ". __LINE__;
+			next;
+		}
 		
 		$stref = _resolve_conflicts_with_params( $stref, $f );
 
@@ -95,6 +109,10 @@ sub analyse_all {
 
 	for my $f ( keys %{ $stref->{'Subroutines'} } ) {
 		next if $f eq '';
+		if (exists $stref->{'Entries'}{$f}) {
+			say "SKIPPING ENTRY $f in analyse_all() line ". __LINE__;
+			next;
+		}
 		# RefactoredArgs = OrigArgs ++ ExGlobArgs and at this point any necessary renaming has been done
 		$stref = _create_refactored_args( $stref, $f );
 		if (exists $stref->{'Subroutines'}{$f}{'HasEntries'} ) {
@@ -104,13 +122,20 @@ sub analyse_all {
 	return $stref if $stage == 6;
 
 	for my $f ( keys %{ $stref->{'Subroutines'} } ) {    # Functions are just special subroutines
-		next if $f eq '';
+		next if $f eq '';		
+		if (exists $stref->{'Entries'}{$f}) {
+			next;
+		}
 		$stref = _map_call_args_to_sig_args( $stref, $f );
 	}
 	return $stref if $stage == 7;
 
 	for my $f ( keys %{ $stref->{'Subroutines'} } ) { # Functions are just special subroutines
 		next if $f eq '';
+		if (exists $stref->{'Entries'}{$f}) {
+			say "SKIPPING ENTRY $f in analyse_all() line ". __LINE__;
+			next;
+		}
 
 		$stref = _identify_external_proc_args( $stref, $f );
 	}
@@ -126,6 +151,11 @@ sub analyse_all {
 
 	for my $f ( keys %{ $stref->{'Subroutines'} } ) {
 		next if $f eq '';
+		if (exists $stref->{'Entries'}{$f}) {
+			say "SKIPPING ENTRY $f in analyse_all() line ". __LINE__;
+			next;
+		}
+		
 		$stref = _analyse_var_decls_for_params( $stref, $f );
 	}
 	
@@ -804,7 +834,12 @@ sub _determine_exglobargs_rec {
 		# Then we must create the union of all exglobargs of all called subroutines
 		# There is a possible complication that f1 can have v1 from b1 and f2 v1 from b2
 		# But I am going to ignore that and blindly merge all exglobargs	
-		for my $calledsub ( @{ $Sf->{'CalledSubs'}{'List'} } ) {
+		for my $called_sub_or_entry ( @{ $Sf->{'CalledSubs'}{'List'} } ) {
+			my $calledsub = $called_sub_or_entry; 
+			if (exists  $stref->{'Entries'}{$called_sub_or_entry} ) {
+				$calledsub = $stref->{'Entries'}{$called_sub_or_entry};
+			}		        		    
+			
 			next if exists $stref->{'ExternalSubroutines'}{$calledsub}; # Don't descend into external subs   
 			$stref->{Counter}++ if $V;
 			$stref = _determine_exglobargs_rec( $calledsub, $stref );
@@ -814,6 +849,7 @@ sub _determine_exglobargs_rec {
 		say "\t" x $c, "--------" if $V;
 		$Sf->{'ExGlobArgs'}{'List'} =[ sort keys %{ $Sf->{'ExGlobArgs'}{'Set'} } ];  
 		# When do we come here? 
+	 		
 	} else {
 		$stref = __determine_exglobargs_core( $stref, $f );
 	}

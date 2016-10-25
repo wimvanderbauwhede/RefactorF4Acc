@@ -82,6 +82,7 @@ sub remove_vars_masking_functions { ( my $stref ) = @_;
     for my $f ( keys %{ $stref->{'Subroutines'} } ) {   
     	     
         next unless (defined $f and $f ne '');
+        next if exists $stref->{'Entries'}{$f};
         next if exists $stref->{'ExternalSubroutines'}{$f};
         next if exists $stref->{'Modules'}{$f}; # HACK! FIXME!
         my $state = [$stref,$f];
@@ -96,6 +97,7 @@ sub refactor_called_functions {
     ( my $stref ) = @_;
 
     for my $f ( keys %{ $stref->{'Subroutines'} } ) {
+    	next if exists $stref->{'Entries'}{$f};
         if (exists $stref->{'Subroutines'}{$f}{'Function'}) {
         	my $Ff = $stref->{'Subroutines'}{$f};
         	if ( defined $Ff->{'Called'} ) { # FIXME: This test is weak because the caller might not be called itself!

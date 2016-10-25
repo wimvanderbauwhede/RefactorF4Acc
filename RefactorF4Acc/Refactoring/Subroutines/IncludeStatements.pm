@@ -1,4 +1,4 @@
-package RefactorF4Acc::Refactoring::Subroutines::Includes;
+package RefactorF4Acc::Refactoring::Subroutines::IncludeStatements;
 use v5.16;
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
@@ -18,9 +18,9 @@ use Data::Dumper;
 
 use Exporter;
 
-@RefactorF4Acc::Refactoring::Subroutines::Includes::ISA = qw(Exporter);
+@RefactorF4Acc::Refactoring::Subroutines::IncludeStatements::ISA = qw(Exporter);
 
-@RefactorF4Acc::Refactoring::Subroutines::Includes::EXPORT_OK = qw(
+@RefactorF4Acc::Refactoring::Subroutines::IncludeStatements::EXPORT_OK = qw(
     &skip_common_include_statement
     &create_new_include_statements
     &create_additional_include_statements

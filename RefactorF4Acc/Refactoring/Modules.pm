@@ -55,8 +55,11 @@ sub add_module_decls { (my $stref)=@_;
 		        }
 		        my $Sf = $stref->{$sub_func_type}{$sub_or_func_or_mod};
 		        	        
-		        for my $called_sub ( @{ $Sf->{'CalledSubs'}{'List'} } ) {
-		        		    
+		        for my $called_sub_or_entry ( @{ $Sf->{'CalledSubs'}{'List'} } ) {
+					my $called_sub = $called_sub_or_entry; 
+					if (exists  $stref->{'Entries'}{$called_sub_or_entry} ) {
+						$called_sub = $stref->{'Entries'}{$called_sub_or_entry};
+					}		        		    
 		        	next if exists $stref->{'ExternalSubroutines'}{$called_sub}; # Don't descend into external subs
 		        	
 		            my $cs_src;
@@ -69,22 +72,7 @@ sub add_module_decls { (my $stref)=@_;
 	                next if $stref->{'SourceFiles'}{$cs_src}{'SourceType'} eq 'Modules';
 	                
 		            $stref->{'UsedModules'}{$src}{$cs_src}=1;
-		        }
-		        for my $called_entry ( @{ $Sf->{'CalledEntries'}{'List'} } ) {
-		        		    		        	
-		        	my $parent_sub = $stref->{'Entries'}{$called_entry};
-		            my $cs_src;
-		            if (exists $stref->{'Subroutines'}{$parent_sub} and exists $stref->{'Subroutines'}{$parent_sub}{'Source'}) {
-		               	$cs_src=$stref->{'Subroutines'}{$parent_sub}{'Source'};
-		            } else {
-		                croak "PROBLEM: NO $parent_sub in $src".Dumper(keys %{$stref->{'Subroutines'}}).$stref->{'Subroutines'}{$parent_sub}{'Source'};
-		            }
-	                next if $cs_src eq $src; # FIXME: ad-hoc!
-	                next if $stref->{'SourceFiles'}{$cs_src}{'SourceType'} eq 'Modules';
-	                
-		            $stref->{'UsedModules'}{$src}{$cs_src}=1;
-		        }
-		        		        
+		        }	        		        
 		    }	    
 		}
 	}

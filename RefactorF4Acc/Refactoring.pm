@@ -91,6 +91,7 @@ sub _ifdef_io_QD { (my $stref) = @_;
 	};	
 	
 	for my $f ( keys %{ $stref->{'Subroutines'} } ) {
+		next if exists $stref->{'Entries'}{$f};
 		$stref = stateless_pass( $stref, $f, $__ifdef_io, '__ifdef_io() ' . __LINE__ );
 	}	
 	
@@ -101,6 +102,7 @@ sub _ifdef_io_QD { (my $stref) = @_;
 sub _ifdef_io_all { (my $stref) = @_;
 	
 	for my $f ( keys %{ $stref->{'Subroutines'} } ) {
+		next if exists $stref->{'Entries'}{$f};
 #		say "\n! SOURCE $f\n"; 
 		$stref = _ifdef_io_per_source($stref,$f); 
 	}	

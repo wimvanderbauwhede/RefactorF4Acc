@@ -44,33 +44,20 @@ sub determine_argument_io_direction_rec {
 
 	my $Sf = $stref->{'Subroutines'}{$f};
 
-	if ( exists $Sf->{'CalledSubs'}{'List'}
-		and scalar @{ $Sf->{'CalledSubs'}{'List'} } > 0 )
-	{
-		for my $calledsub ( @{ $Sf->{'CalledSubs'}{'List'} } ) {
+	if ( exists $Sf->{'CalledSubs'}{'List'} and scalar @{ $Sf->{'CalledSubs'}{'List'} } > 0 ) {
+		for my $called_sub_or_entry ( @{ $Sf->{'CalledSubs'}{'List'} } ) {
+			my $calledsub = $called_sub_or_entry; 
+			if (exists  $stref->{'Entries'}{$called_sub_or_entry} ) {
+				$calledsub = $stref->{'Entries'}{$called_sub_or_entry};
+			}
 			next if exists $stref->{'ExternalSubroutines'}{$calledsub}; # Don't descend into external subs
 			$stref->{Counter}++ if $V;
-
 			$stref = determine_argument_io_direction_rec( $calledsub, $stref );
-
 			$stref->{Counter}-- if $V;
 		}
-
-		#   die "Resolved IO for called subs, now use it!\n" if $f =~ /advance/;
+	} 
 		print "\t" x $c, "--------\n" if $V;
 		$stref = _determine_argument_io_direction_core( $stref, $f );
-
-		# We come here for LES and all is well?
-
-	} else {
-
-#	say  "\t" x $c; print "LEAF $f";
-# For a leaf, this should resolve all
-# For a non-leaf, we should merge the declarations from the calls
-# This is more tricky than it seems because a sub can be called multiple times with different arguments.
-# So first we need to determine the argument of the call, then map them to the arguments of the sub
-		$stref = _determine_argument_io_direction_core( $stref, $f );
-	}
 
 	return $stref;
 }    # determine_argument_io_direction_rec()
@@ -877,6 +864,7 @@ sub update_argument_io_direction_all_subs {
 	( my $stref ) = @_;
 	for my $f ( keys %{ $stref->{'Subroutines'} } ) {
 		next if $f eq '';
+		next if exists $stref->{'Entries'}{$f};
 		next if exists $stref->{'ExternalSubroutines'}{$f};
 		next if exists $stref->{'Modules'}{$f}; # HACK! FIXME!
 		next if (exists $stref->{'Subroutines'}{$f}{'Program'} and $stref->{'Subroutines'}{$f}{'Program'} == 1);

@@ -162,7 +162,7 @@ sub refactor_marked_blocks_into_subroutines {
 
 #	local $V=1;
 	for my $f ( keys %{ $stref->{'Subroutines'} } ) {
-
+		next if exists $stref->{'Entries'}{$f}; 
 		if ( exists $stref->{'Subroutines'}{$f}{'HasBlocks'}
 			and $stref->{'Subroutines'}{$f}{'HasBlocks'} == 1 )
 		{
@@ -1566,10 +1566,9 @@ sub __find_called_subs_in_OUTER {
 	for my $annline ( @{ $blocksref->{'OUTER'}{'AnnLines'} } ) {
 		( my $line, my $info ) = @{$annline};
 		if ( exists $info->{'SubroutineCall'} ) {
-			push @{ $blocksref->{'OUTER'}{'CalledSubs'}{'List'} },
-			  $info->{'SubroutineCall'}{'Name'};
-			$blocksref->{'OUTER'}{'CalledSubs'}{'Set'}
-			  { $info->{'SubroutineCall'}{'Name'} } = 1;
+			push @{ $blocksref->{'OUTER'}{'CalledSubs'}{'List'} }, $info->{'SubroutineCall'}{'Name'};
+			$blocksref->{'OUTER'}{'CalledSubs'}{'Set'}{ $info->{'SubroutineCall'}{'Name'} } = 1;
+			# Now test if this is maybe an ENTRY
 		}
 	}
 	return $blocksref;
@@ -1666,10 +1665,8 @@ sub _parse_subroutine_and_function_calls {
 					}
 				}
 
-				$stref = add_to_call_tree( $name, $stref, $f ); # Calls to ENTRY are treated as ordinary calls. Anyway, CallTree is only used in OpenCLTranslation 
-				if ( not exists $stref->{'Subroutines'}{$name}
-				and not exists $stref->{'Entries'}{$name}
-				) {
+				$stref = add_to_call_tree( $name, $stref, $f ); # Calls to ENTRY are treated as ordinary calls.  
+				if ( not exists $stref->{'Subroutines'}{$name} and not exists $stref->{'Entries'}{$name} ) {
 					$stref->{'ExternalSubroutines'}{$name}{'Called'} = 1;
 
 					# This is wrong, all I need to do is not parse this one.
@@ -1700,48 +1697,46 @@ sub _parse_subroutine_and_function_calls {
 					# as CalledEntries
 					# I think we need this only to determine which modules to use
 					# We can do that via the subroutine to which the entry belongs.
-					if ($entry_call==1) {
+#					if ($entry_call==1) {						
+#						my $parent_sub_name = $stref->{'Entries'}{$name};
+#						my $Sname = $stref->{'Subroutines'}{$parent_sub_name};
+#	
+#						if ( $Sf->{'RefactorGlobals'} == 1 ) {
+#							print "SUB $name NEEDS GLOBALS REFACTORING\n" if $V;
+#							$Sname->{'RefactorGlobals'} = 1;
+#						}
+#	
+#						if ( defined $Sname and not exists $Sf->{'CalledEntries'}{'Set'}{$name}						
+#							) {													
+#							if ( $sub_or_func_or_mod eq 'Subroutines' ) { # The current code unit is a subroutine 
+#								$Sf->{'CalledEntries'}{'Set'}{$name} = 1; # mark $name a called sub in $f
+#								push @{ $Sf->{'CalledEntries'}{'List'} }, $name;
+#							} else { # The current code unit is NOT a subroutine, which means it is a Module I guess
+#								# mark $name as a called sub in $current_sub_name 
+#								$Sf->{'Subroutines'}{$current_sub_name}{'CalledEntries'}{'Set'}{$name} = 1;
+#								push @{ $Sf->{'Subroutines'}{$current_sub_name}{'CalledEntries'}{'List'} }, $name;
+#							}
+#							
+#							if (   not exists $Sname->{'Status'}
+#								or $Sname->{'Status'} < $PARSED
+#								or $gen_sub )
+#							{
+#								print
+#								  "\tFOUND SUBROUTINE CALL $name in $f with STATUS="
+#								  . show_status( $Sname->{'Status'} )
+#								  . ", PARSING\n"
+#								  if $V;
+#								$stref = parse_fortran_src( $name, $stref );
+#							}
+#						}						
 						
-						my $parent_sub_name = $stref->{'Entries'}{$name};
-#						print "ENTRY CALL: $name => "; say $parent_sub_name ;
-						my $Sname = $stref->{'Subroutines'}{$parent_sub_name};
+#					} else {			
 	
-						if ( $Sf->{'RefactorGlobals'} == 1 ) {
-							print "SUB $name NEEDS GLOBALS REFACTORING\n" if $V;
-							$Sname->{'RefactorGlobals'} = 1;
-						}
-	
-						if ( defined $Sname and not exists $Sf->{'CalledEntries'}{'Set'}{$name}						
-							) {													
-							if ( $sub_or_func_or_mod eq 'Subroutines' ) { # The current code unit is a subroutine 
-								$Sf->{'CalledEntries'}{'Set'}{$name} = 1; # mark $name a called sub in $f
-								push @{ $Sf->{'CalledEntries'}{'List'} }, $name;
-							} else { # The current code unit is NOT a subroutine, which means it is a Module I guess
-							# mark $name as a called sub in $current_sub_name 
-								$Sf->{'Subroutines'}{$current_sub_name}{'CalledEntries'}{'Set'}{$name} = 1;
-								push @{ $Sf->{'Subroutines'}{$current_sub_name}{'CalledEntries'}{'List'} }, $name;
-							}
-							
-							if (   not exists $Sname->{'Status'}
-								or $Sname->{'Status'} < $PARSED
-								or $gen_sub )
-							{
-								print
-								  "\tFOUND SUBROUTINE CALL $name in $f with STATUS="
-								  . show_status( $Sname->{'Status'} )
-								  . ", PARSING\n"
-								  if $V;
-								$stref = parse_fortran_src( $name, $stref );
-							}
-						}						
-						
-					} else {
-					
-						my $Sname = $stref->{'Subroutines'}{$name};
-	
+									
+						my $Sname = $entry_call ? $stref->{'Subroutines'}{$stref->{'Entries'}{$name}} : $stref->{'Subroutines'}{$name};
+									
 						if ( exists $Sf->{'Translate'}
-							and not exists $Sname->{'Translate'} )
-						{
+							and not exists $Sname->{'Translate'} ) {
 							$Sname->{'Translate'} = $Sf->{'Translate'};
 						}
 						$Sname->{'Called'} = 1;
@@ -1751,8 +1746,7 @@ sub _parse_subroutine_and_function_calls {
 	# The proper way of course is to change the index of the line after refactoring, but then it has to change in any datastructure that uses it as well!
 						if ( not exists $Sname->{'Callers'}{$f} ) {
 							$Sname->{'Callers'}{$f} = [];
-						}
-						
+						}						
 						push @{ $Sname->{'Callers'}{$f} }, $index;
 	
 						if ( $Sf->{'RefactorGlobals'} == 1 ) {
@@ -1760,11 +1754,7 @@ sub _parse_subroutine_and_function_calls {
 							$Sname->{'RefactorGlobals'} = 1;
 						}
 
-						if ( defined $Sname and not exists $Sf->{'CalledSubs'}{'Set'}{$name}
-	#						and  $stref->{'Subroutines'}{$name}{'Entry'}==0
-							) {
-#								croak $f if $name eq 'atmos';
-	#						say $name.':'. $stref->{'Subroutines'}{$name}{'Entry'};
+						if ( defined $Sname and not exists $Sf->{'CalledSubs'}{'Set'}{$name} ) {
 							if ( $sub_or_func_or_mod eq 'Subroutines' ) { # The current code unit is a subroutine 
 								$Sf->{'CalledSubs'}{'Set'}{$name} = 1; # mark $name a called sub in $f
 								push @{ $Sf->{'CalledSubs'}{'List'} }, $name;
@@ -1783,12 +1773,22 @@ sub _parse_subroutine_and_function_calls {
 								  . show_status( $Sname->{'Status'} )
 								  . ", PARSING\n"
 								  if $V;
-	
-	
 								$stref = parse_fortran_src( $name, $stref );
 							}
+						} 
+						if ($entry_call==1) {
+							if ( defined $Sname and not exists $Sf->{'CalledEntries'}{'Set'}{$name}) {													
+								if ( $sub_or_func_or_mod eq 'Subroutines' ) { # The current code unit is a subroutine 
+									$Sf->{'CalledEntries'}{'Set'}{$name} = 1; # mark $name a called sub in $f
+									push @{ $Sf->{'CalledEntries'}{'List'} }, $name;
+								} else { # The current code unit is NOT a subroutine, which means it is a Module I guess
+									# mark $name as a called sub in $current_sub_name 
+									$Sf->{'Subroutines'}{$current_sub_name}{'CalledEntries'}{'Set'}{$name} = 1;
+									push @{ $Sf->{'Subroutines'}{$current_sub_name}{'CalledEntries'}{'List'} }, $name;
+								}
+							}
 						}
-					}
+#					}
 				} else {
 
 					# An external sub
