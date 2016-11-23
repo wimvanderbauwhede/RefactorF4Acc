@@ -87,10 +87,13 @@ sub add_module_decls { (my $stref)=@_;
 	            print "!\tCONTAINS: ";
 	            say join(', ',@{ $stref->{'SourceContains'}{$src}{'List'} } );
 	       }             
-	       if ($is_existing_module{$src}) {
+	       if ($is_existing_module{$src} 
+#	       and exists $stref->{'Modules'}{$existing_module_name{$src}}{'Contains'}
+	       ) {
 	       	# What we need to do is find $info->{'Contains'} and splice in the subroutines in order there.
 	       	# So we create $new_annlines simply by merging the annlines for all subs, then splice.
 	       	my $new_annlines=[];
+#	       	croak $src.$existing_module_name{$src}.Dumper( $stref->{'Modules'}{$existing_module_name{$src}}{'Contains'} );
 	       	for my $sub (@{ $stref->{'Modules'}{$existing_module_name{$src}}{'Contains'} } ) {
 	       		say '=' x 80 if $V;
 	       		say 'SUB: '.$sub if $V;
@@ -98,13 +101,13 @@ sub add_module_decls { (my $stref)=@_;
 	       		say '=' x 80 if $V;
 	       	}
 	       	my $old_annlines = $stref->{'Modules'}{$existing_module_name{$src}}{'AnnLines'};
-	       	if (scalar @{$new_annlines}>0) {
-	       		
+	       	if (scalar @{$new_annlines}>0) {	       		
 	       		my $merged_annlines = splice_additional_lines_cond( $stref, $existing_module_name{$src}, sub { (my $annline)=@_; (my $line, my $info) = @{$annline};return exists $info->{'Contains'} },$old_annlines, $new_annlines, 0, 0, 1 );
 	       		$stref->{'RefactoredCode'}{$src}=$merged_annlines;
-	       	} else {
+	       	} else {	       		
 	       		$stref->{'RefactoredCode'}{$src}=$old_annlines;
 	       	}
+#	       	 croak ;#show_annlines($stref->{'RefactoredCode'}{$src});
 	       } else {
 	       	
 	       	# This is either a subroutine or the main program

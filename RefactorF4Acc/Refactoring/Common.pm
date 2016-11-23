@@ -123,8 +123,9 @@ sub context_free_refactorings {
         		carp 'Cannot handle EXTERNAL with multiple names, IGNORING!';
         	} else {
         	for my $maybe_ext (keys %{ $info->{'External'} } ) {
-        		if ($stref->{'Subroutines'}{$maybe_ext}{'Source'}
-        		eq $Sf->{'Source'}) {
+        		if (exists $stref->{'Subroutines'}{$maybe_ext}
+        		and exists $stref->{'Subroutines'}{$maybe_ext}{'Source'}
+        		 and $stref->{'Subroutines'}{$maybe_ext}{'Source'} eq $Sf->{'Source'}) {
 #        			croak "NOT EXT $maybe_ext in $f";
         			$line = '! '.$line." ! $maybe_ext is defined in this file";
         			$info->{'Deleted'}=1;        			
@@ -159,7 +160,10 @@ sub context_free_refactorings {
         # BeginDo: just remove the label
         if ( exists $info->{'BeginDo'} ) {
         	my $label = $info->{'BeginDo'}{'Label'};
-        	if ($Sf->{'DoLabelTarget'}{$label} eq 'Continue' or $Sf->{'DoLabelTarget'}{$label} eq 'EndDo') {         	
+        	# This should have an extra check
+        	
+#        	if ( (not exists $Sf->{'ReferencedLabels'}{$label}) and 
+        	if ($Sf->{'DoLabelTarget'}{$label} eq 'Continue' or $Sf->{'DoLabelTarget'}{$label} eq 'EndDo')  {         	
             	$line =~ s/do\s+\d+\s+/do /;
             	$info->{'Ref'}++;
         	}
@@ -178,6 +182,7 @@ sub context_free_refactorings {
             }
             my $count = $info->{'EndDo'}{'Count'};
             if ( exists $info->{'Continue'} ) {
+            	
                 if ( $is_goto_target == 0 ) {
                 	my $label='';
                 	if (exists $info->{'EndDo'}{'Label'}) {
@@ -185,8 +190,12 @@ sub context_free_refactorings {
                 	} elsif (exists $info->{'Continue'}{'Label'}) {
                 		$label = $info->{'Continue'}{'Label'}
                 	}
-#                    $line = ' '.$label.    ' end do'; # END DO can't be a label target I think
-                    $line = $info->{'Indent'}.' end do';
+                	if ($label ne '' and exists  $Sf->{'ReferencedLabels'}{$label}) {                		
+                    	$line = $info->{'Indent'}. $label.    ' end do'; # END DO can't be a label target I think
+					} else {
+                    	$line = $info->{'Indent'}.' end do';
+					}
+#					$line = ' end do';
                     $count--;
                 } elsif ($noop) {
                     $line =~ s/continue/call noop/;
@@ -360,18 +369,16 @@ sub context_free_refactorings {
         elsif ( exists $info->{'SubroutineCall'} ) {
             $info->{'Ref'}++;
         } elsif ( exists $info->{'Include'} ) { 
-        	
+        	# I don't think we can have statement labels in front of includes
             my $inc  = $info->{'Include'}{'Name'};
             my $tinc = $inc;
             $tinc =~ s/\./_/g;
             if ( not exists $stref->{'IncludeFiles'}{$inc}{'ExtPath'} ) { # FIXME: this is because 'InclType' => 'External' gets overwritten by 'Parameter' 
-#            	say $f . ' => '.$inc. ' => '.Dumper($Sf->{'Includes'}{$inc});
             	if (exists $Sf->{'Includes'}{$inc}{'Only'} and scalar keys %{ $Sf->{'Includes'}{$inc}{'Only'} }>0) {            		            		            	
             		my @used_params = keys %{ $Sf->{'Includes'}{$inc}{'Only'} };
                 	$line = "      use $tinc". ($NO_ONLY ?  '!' : '') .', only : '.join(', ', @used_params) ;
                   	push @{ $info->{'Ann'} }, annotate($f, __LINE__. ' Include' );
             	} elsif (exists $stref->{'IncludeFiles'}{$inc}{'ParamInclude'}) {
-#            		croak 'OBSOLETE?';
             		my $param_include=$stref->{'IncludeFiles'}{$inc}{'ParamInclude'};
             		my $tinc = $param_include;
             		$tinc =~ s/\./_/g;            		
@@ -411,8 +418,11 @@ sub context_free_refactorings {
             $info->{'LineID'} = $nextLineID++;
             push @include_use_stack, [ $line, $info ];    # if $line ne '';
             next;
-        }
-#        carp $line if $line=~/double/;
+        } # exists $info->{'Include'} )
+         
+#		my $indent=$info->{'Indent'} // '';
+#		my $maybe_label= ( exists $info->{'Label'} and exists $Sf->{'ReferencedLabels'}{$info->{'Label'}} ) ?  $info->{'Label'}.' ' : '';
+#        push @{ $Sf->{'RefactoredCode'} }, [ "$indent$maybe_label".$line, $info ];   # if $line ne '';
         push @{ $Sf->{'RefactoredCode'} }, [ $line, $info ];   # if $line ne '';
         if (@extra_lines) {
             for my $extra_line (@extra_lines) {
@@ -1343,9 +1353,12 @@ sub emit_f95_var_decl {
     if ($attr) {    	
     	if ($attr=~/len/ && $type eq 'character') {
     		$type.='('.$attr.')';
+    		$attr='';
     	} elsif ($attr=~/kind/ ) {
     		$type=~s/\*\d+$//;
-    		$type.='('.$attr.')';
+    		if ($attr!~/\(.+\)/) {
+    			$type.='('.$attr.')';
+    		}
     	} else {
         push @attrs, $attr;
     	}
@@ -1404,7 +1417,7 @@ sub emit_f95_var_decl {
         my $var_val = ref($var) eq 'ARRAY' ? $var->[0] . '=' . $var->[1] :  $var.'='.$val;
         my $decl_line =
             $spaces 
-          . $type 
+          . $type  
           . $attr . ', ' 
           . $dimstr
           . 'parameter' . ' :: '
@@ -1572,7 +1585,8 @@ sub stateful_pass {
 
 
 sub _emit_f95_parsed_var_decl { (my $pvd) =@_;
-    my $type= $pvd->{'TypeTup'}{'Type'} . (exists $pvd->{'TypeTup'}{'Kind'} ?  '('.$pvd->{'TypeTup'}{'Kind'}.')' : '');
+    my $type= $pvd->{'TypeTup'}{'Type'} . (exists $pvd->{'TypeTup'}{'Kind'} ?  '( '.$pvd->{'TypeTup'}{'Kind'}.')' : '');
+    
          my  @attrs=($type); 
          if (exists $pvd->{'Attributes'}{'Allocatable'}) {
             push @attrs, 'allocatable';

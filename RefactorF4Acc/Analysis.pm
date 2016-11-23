@@ -55,7 +55,6 @@ sub analyse_all {
 	for my $f ( keys %{ $stref->{'Subroutines'} } ) {
 		next if $f eq '';
 		if (exists $stref->{'Entries'}{$f}) {
-			say "SKIPPING ENTRY $f in analyse_all() line ". __LINE__;
 			next;
 		}
 		
@@ -77,7 +76,6 @@ sub analyse_all {
 	for my $f ( keys %{ $stref->{'Subroutines'} } ) {
 		next if $f eq '';	
 		if (exists $stref->{'Entries'}{$f}) {
-			say "SKIPPING ENTRY $f in analyse_all() line ". __LINE__;
 			next;
 		}
 		
@@ -90,7 +88,6 @@ sub analyse_all {
 	for my $f ( keys %{ $stref->{'Subroutines'} } ) {
 		next if $f eq '';
 		if (exists $stref->{'Entries'}{$f}) {
-			say "SKIPPING ENTRY $f in analyse_all() line ". __LINE__;
 			next;
 		}
 		
@@ -110,7 +107,6 @@ sub analyse_all {
 	for my $f ( keys %{ $stref->{'Subroutines'} } ) {
 		next if $f eq '';
 		if (exists $stref->{'Entries'}{$f}) {
-			say "SKIPPING ENTRY $f in analyse_all() line ". __LINE__;
 			next;
 		}
 		# RefactoredArgs = OrigArgs ++ ExGlobArgs and at this point any necessary renaming has been done
@@ -133,7 +129,6 @@ sub analyse_all {
 	for my $f ( keys %{ $stref->{'Subroutines'} } ) { # Functions are just special subroutines
 		next if $f eq '';
 		if (exists $stref->{'Entries'}{$f}) {
-			say "SKIPPING ENTRY $f in analyse_all() line ". __LINE__;
 			next;
 		}
 
@@ -152,7 +147,6 @@ sub analyse_all {
 	for my $f ( keys %{ $stref->{'Subroutines'} } ) {
 		next if $f eq '';
 		if (exists $stref->{'Entries'}{$f}) {
-			say "SKIPPING ENTRY $f in analyse_all() line ". __LINE__;
 			next;
 		}
 		

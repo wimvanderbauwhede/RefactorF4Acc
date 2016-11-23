@@ -404,6 +404,9 @@ sub _analyse_src_for_iodirs {
 							and ref( $args->{$var} ) eq 'HASH' )
 						{
 							if ( exists $args->{$var}{'IODir'} ) {
+								if (not defined $args->{$var}{'IODir'} ) {
+									$args->{$var}{'IODir'}='Unknown';
+								}
 
 								if ( $iodirs_from_call->{$var} eq 'In' ) {
 									if ( not defined $args->{$var}{'IODir'}

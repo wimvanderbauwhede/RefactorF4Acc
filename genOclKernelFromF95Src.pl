@@ -102,7 +102,7 @@ sub main {
 #   map {say Dumper($_->[1]) } @{ $stref->{'Modules'}{'module_press'}{'AnnLines'} };die;
 #	say Dumper( $stref->{'Modules'}{'module_press'} );die;
    $stref = translate_to_OpenCL($stref,$mod_name, $kernel_name, $macro_src,$stand_alone);
-   } else {
+   } else {   	
        translate_to_OpenCL({},$mod_name, $kernel_name, $macro_src,$stand_alone);
    }
 
@@ -134,21 +134,22 @@ sub parse_args {
     if ($opts{'c'}) {
          $cfgrc= $opts{'c'};
     } 
-	read_config($cfgrc);
+	read_rf4a_config($cfgrc);
 	if (not exists $Config{'MODULE'} or not exists $Config{'KERNEL'}) {
 	    die "Sorry, $cfgrc does not contain the necessary information:". $usage . Dumper(%Config); 	
 	}
     my $stand_alone = $opts{'S'} ? '1': '0';
     
-    my $mod_name = $Config{'MODULE'};
+    my $mod_name =  $Config{'MODULE'}[0] ;
     my $mod_src = exists $Config{'MODULE_SRC'} ? $Config{'MODULE_SRC'} : do { say "WARNING: Using DEFAULT module source file name!"; 'module_'.$mod_name.'.f95';};
+    
     my $kernel_name = $Config{'KERNEL'};    
     my $top_name = $stand_alone ? 'NO_MAIN' : $Config{'TOP'};
     my $top_src = exists $Config{'TOP_SRC'} ? $Config{'TOP_SRC'} : do { say "WARNING: Using DEFAULT top source file name!"; $top_name.'.f95';};
-    my $macro_src =  $Config{'MACRO_SRC'}; 
-    if ( exists $Config{'NEWSRCPATH'}) {
-        $targetdir =  $Config{'NEWSRCPATH'};
-    }   
+    my $macro_src =  exists $Config{'MACRO_SRC'} ? $Config{'MACRO_SRC'}  :  'NO_MACROS'; 
+#    if ( exists $Config{'NEWSRCPATH'}) {
+#        $targetdir =  $Config{'NEWSRCPATH'};
+#    }   
     
 	$V = ( $opts{'v'} ) ? 1 : 0;
 	$I = ( $opts{'i'} or $V ) ? 1 : 0;
@@ -159,7 +160,17 @@ sub parse_args {
 	}
 
 	my $build = ( $opts{'B'} ) ? 1 : 0;
-
+	say "MODULE: $mod_name";
+	say "MODULE SRC: $mod_name";
+	say "KERNEL: $kernel_name";
+	say "MACRO SRC: $macro_src";
+	if (not $stand_alone ) {
+	say "TOP NAME: $top_name";
+	say "TOP SRC: $top_src";
+	} else {
+		say "Stand-alone operation: no analysis of containing program";
+	}
+	
 	return ($mod_name,$mod_src,$kernel_name, $top_name,$top_src, $macro_src, $build, $stand_alone);
 } # END of parse_args()
 

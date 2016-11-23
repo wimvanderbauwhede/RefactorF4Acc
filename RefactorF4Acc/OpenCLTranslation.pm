@@ -29,7 +29,7 @@ sub translate_to_OpenCL {
     ( my $stref, my $mod_name, my $kernel_name, my $macro_src, my $stand_alone ) = @_;
     
     if (not $stand_alone) {
-	    if (defined $macro_src) { 
+	    if (defined $macro_src and $macro_src ne 'NO_MACROS') { 
 		    my $retval = _preprocess( $stref, $mod_name );
 		    ( $stref, my $prep_src_lines, my $can_be_consts ) = @{$retval};
 		    my $f_src = $mod_name.'_ocl.f95';
@@ -194,7 +194,7 @@ sub _preprocess {
 } # END of _preprocess()
 #  -----------------------------------------------------------------------------
 sub _preprocess_standalone {
-    ( my $f_src ) = @_;
+    ( my $f_src ) = @_;    
     my %locals=();
        open my $SRC,'<',$f_src;
        open my $SRC_FIX,'>',"$f_src.FIX";
@@ -708,6 +708,14 @@ inline unsigned int FTNREF3D(
                                 int i_lb, int j_lb, int k_lb
                                         ) {
         return (iz*jz*(kx-k_lb)+iz*(jx-j_lb)+ix-i_lb);
+}
+
+inline unsigned int FTNREF2D(
+                int ix, int jx,
+                        unsigned int iz,
+                                int i_lb, int j_lb
+                                        ) {
+	return (iz)*(jx-(j_lb))+ix-i_lb;        
 }
 
 inline unsigned int FTNREF3D0(

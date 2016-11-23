@@ -887,7 +887,8 @@ Suppose we don't:
 	        my $sub_func_type= $stref->{'SourceContains'}{$f}{'Set'}{$sub_or_func};
 	        
 	        my $Sf = $stref->{$sub_func_type}{$sub_or_func};
-	        next if $Sf->{'Entry'}==1; 
+	         
+	        next if (exists $Sf->{'Entry'} and $Sf->{'Entry'}==1); 
 croak "No ANNLINES in $sub_func_type $sub_or_func ($f): ".$Sf->{'Status'} unless exists $Sf->{'AnnLines'};
             my @annlines = @{  $Sf->{'AnnLines'} };
             my $new_annlines=[];

@@ -88,7 +88,7 @@ sub find_subroutines_functions_and_includes {
     }
     
     for my $src ( sort keys %src_files ) {
-
+#		say "SRC: $src";
         my $exclude=0;        
         for my $excl_dir (keys %excluded_dirs) {            
             if ($src=~/$excl_dir\//) { 
@@ -133,6 +133,7 @@ sub find_subroutines_functions_and_includes {
 
 sub _process_src {
 	(my $src, my $stref)=@_;
+#	say "_process_src($src)";
 	my @extsrcdirs=exists $Config{EXTSRCDIRS} ? @{ $Config{EXTSRCDIRS} } : (); # External sources, should not be refactored but can be parsed
 	my $prefix   = $Config{'PREFIX'};
     my $srctype=''; # sub, func or incl; for F90/95 also module, and then we must tag the module by what it contains
@@ -307,7 +308,7 @@ sub _process_src {
         
             # Find subroutine/function/program signatures
             
-           $line =~ /^\s*(\w+\s+\w+\s+(?:function|subroutine|entry)|\w+\s+(?:subroutine|entry)|[\*\(\)\w]+\s+function|function|subroutine|entry|program|block)\s+(\w+)/i && $line!~/\Wend\s+/i && do {           	
+           $line =~ /^\s*(\w+\s+\w+\s+(?:function|subroutine|entry)|\w+\s+(?:subroutine|entry)|[\*\(\)\w]+\s+function|function|subroutine|entry|program|block)\s+(\w+)/i && $line!~/\Wend\s+/i && $line!~/^end\s+/i && do {           	
             	my $full_proc_type=$1;            	
             	my $proc_name=$2;
 

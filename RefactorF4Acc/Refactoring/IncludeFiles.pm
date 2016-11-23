@@ -181,7 +181,9 @@ sub __resolve_module_deps {
             for my $var ( @vars ) {
 	           if ( not exists $stref->{'IncludeFiles'}{$inc_f}{'Vars'}{$var} ) {
                     for my $inc ( keys %{ $stref->{'IncludeFiles'} } ) {
-                        if (   $stref->{'IncludeFiles'}{$inc}{'InclType'} eq 'Parameter' ) {
+#                    	say $inc;
+#                    	say Dumper($stref->{'IncludeFiles'}{$inc});
+                        if (exists $stref->{'IncludeFiles'}{$inc}{'InclType'} and $stref->{'IncludeFiles'}{$inc}{'InclType'} eq 'Parameter' ) {
                         	if ( exists $stref->{'IncludeFiles'}{$inc}{'Vars'}{$var} ) {
                         		$stref->{'IncludeFiles'}{$inc_f}{'Deps'}{$inc}=1;
                         		last;

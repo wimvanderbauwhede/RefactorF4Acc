@@ -117,6 +117,7 @@ sub parse_expression { (my $exp, my $info, my $stref, my $f)=@_;
 	if ($preproc_expr =~ /:/) {
 #		say "EXPR $exp";
 		$has_colons=1;
+		$preproc_expr =~ s/:\s*\*/,_COLON_PRE_,_STAR_/g;
 		$preproc_expr =~ s/:/,_COLON_PRE_,/g;
 		$preproc_expr =~ s/\(,_COLON_PRE_/\(_COLON_PRE_/g;
 		$preproc_expr =~ s/_COLON_PRE_,\)/_COLON_PRE_\)/g;
@@ -189,6 +190,7 @@ sub _change_func_to_array { (my $stref, my $f,  my $info, my $ast, my $exp)=@_;
 			if ($entry eq '&') {				
 				my $mvar = $ast->[$idx+1];
 				say 'Found function '.$mvar  if $DBG;
+				
 				# If the line is not a subroutine call, we set subname to #dummy#
 				# We do this to check if the $mvar is maybe the subroutine itself
 				my $subname = (exists $info->{'SubroutineCall'} and exists $info->{'SubroutineCall'}{'Name'}) ? $info->{'SubroutineCall'}{'Name'} : '#dummy#';
@@ -203,20 +205,34 @@ sub _change_func_to_array { (my $stref, my $f,  my $info, my $ast, my $exp)=@_;
 				
  				if (
  					(
- 				# 1. $mvar is not a function
- 					not( exists $stref->{'Subroutines'}{$mvar} and exists $stref->{'Subroutines'}{$mvar}{'Function'} and $stref->{'Subroutines'}{$mvar}{'Function'} == 1)
- 				# 2. $mvar is a masked intrinsic	 
- 					and exists $stref->{'Subroutines'}{$f}{'MaskedIntrinsics'}{$mvar}
- 					) or (
-				# 3. $mvar is actually an array 					 					  	
- 					$mvar ne '#dummy#' and $mvar ne $subname 
- 					and not exists $stref->{'Subroutines'}{$f}{'CalledSubs'}{'Set'}{$mvar}
-					and not exists $F95_reserved_words{$mvar}
-#					and not exists $F95_intrinsics{$mvar} # Dangerous, because some idiot may have overwritten an intrinsic with an array! 					
-					)							
+ 				# 1. $mvar is not a function, including intrinsic
+ 					not(  (
+ 					exists $stref->{'Subroutines'}{$mvar} and 
+ 					exists $stref->{'Subroutines'}{$mvar}{'Function'} and 
+ 					$stref->{'Subroutines'}{$mvar}{'Function'} == 1 ) or (
+ 					exists $F95_intrinsics{$mvar}
+ 					) 
+ 					
+ 					)
+ 				# 2. OR $mvar is a masked intrinsic	 
+ 					or exists $stref->{'Subroutines'}{$f}{'MaskedIntrinsics'}{$mvar}
+ 					) 
+# 					or (
+#				# 3. OR $mvar is actually an array 					 					  	
+# 					$mvar ne '#dummy#' and $mvar ne $subname 
+# 					and not exists $stref->{'Subroutines'}{$f}{'CalledSubs'}{'Set'}{$mvar}
+#					and not exists $F95_reserved_words{$mvar}
+##					and not exists $F95_intrinsics{$mvar} # Dangerous, because some idiot may have overwritten an intrinsic with an array! 					
+#					)							
 				) {
-					
     		# change & to @
+    		croak '<'.(
+    		not( 
+ 					exists $stref->{'Subroutines'}{$mvar} and 
+ 					exists $stref->{'Subroutines'}{$mvar}{'Function'} and 
+ 					$stref->{'Subroutines'}{$mvar}{'Function'} == 1
+ 					)
+    		).'><'.( exists $stref->{'Subroutines'}{$f}{'MaskedIntrinsics'}{$mvar} ).'>' if $mvar eq 'aint';
     				$ast->[$idx]='@';
     				say "Found array $mvar" if $DBG;
 				} elsif (   	exists $F95_intrinsics{$mvar} ) {
@@ -491,8 +507,7 @@ sub get_args_vars_from_subcall {(my $ast)=@_;
 				my $arg = $ast->[$idx][1];
 				
 				if ($arg=~/__PH\d+__/ or $arg=~/_(?:CONCAT|COLON)_(?:PRE|POST)_/ or $arg=~/_PAREN_PAIR_/) {
-					$ignore=1;											
-#					$arg=0;  # FIXME! UGLY!					
+					$ignore=1;																
 				} 			
 				elsif ($arg=~/^__(\w+)__$/) {
 					$arg=~s/__(\w+)__/\.${1}\./;
@@ -515,8 +530,8 @@ sub get_args_vars_from_subcall {(my $ast)=@_;
 						}
 					} else { # A scalar			
 						if ("$arg" ne '0' ) { # FIXME! UGLY!
-						$args->{'Set'}{$arg}={ 'Type'=>'Scalar',  'Expr' => $arg};
-						} else {
+							$args->{'Set'}{$arg}={ 'Type'=>'Scalar',  'Expr' => $arg};
+						} else {							
 							$args->{'Set'}{$arg}={ 'Type'=>'Const',  'Expr' => $arg};
 						}
 						push @{$args->{'List'}}, $arg;
@@ -573,19 +588,23 @@ sub _fix_colons_in_expr { (my $ast)=@_;
 	        my $elt=$cloned_ast->[$i];
 	        next unless defined $elt;
 	        
-	        if ($i==0 and ref($elt) eq 'ARRAY' and $elt->[1] eq '_COLON_PRE_') { 
+	        if ($i==0 and ref($elt) eq 'ARRAY' and $elt->[1] eq '_COLON_PRE_') {
+	        	if (ref($cloned_ast->[$i+2]) eq 'ARRAY' and $cloned_ast->[$i+2][1] eq '_STAR_') {
+	        	 	$cloned_ast->[$i+2][1]='*';
+	        	}
 	            $elt = [':','',$cloned_ast->[$i+2]];
 	            push @{$new_ast}, $elt;
 	            $cloned_ast->[$i+1]=undef;
-#	            $cloned_ast->[$i+2]=undef;
 	            next;
 	        }
-	        if (ref($cloned_ast->[$i+1]) eq 'ARRAY' and $cloned_ast->[$i+1][1] eq '_COLON_PRE_') {
-	            
+	        if (ref($cloned_ast->[$i+1]) eq 'ARRAY' and $cloned_ast->[$i+1][1] eq '_COLON_PRE_') {	            
 	            if (defined $cloned_ast->[$i+2]) {
 	                $elt=[':', $elt,$cloned_ast->[$i+2]];
+	                if (ref($cloned_ast->[$i+2]) eq 'ARRAY' and $cloned_ast->[$i+2][1] eq '_STAR_') {
+	                	$cloned_ast->[$i+2][1]='*';
+	                }
 	            } else {
-	            	$elt=[':', $elt,''];
+	            	$elt=[':', $elt,''];	            	
 	            }
 	            push @{$new_ast}, $elt;
 	            $cloned_ast->[$i+1]=undef;

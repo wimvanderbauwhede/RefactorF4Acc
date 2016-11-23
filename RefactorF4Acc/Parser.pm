@@ -198,7 +198,13 @@ sub refactor_marked_blocks_into_subroutines {
 sub _initialise_decl_var_tables {
 	( my $Sf, my $f, my $is_incl, my $is_mod ) = @_;
 	say "_initialise_decl_var_tables for subroutine $f" if $V;
-
+	
+	if ( not exists $Sf->{'ReferencedLabels'}) {
+		$Sf->{'ReferencedLabels'}={};
+	}
+	if ( not exists $Sf->{'MaskedIntrinsics'} ) {
+		$Sf->{'MaskedIntrinsics'}={};
+	}
 	if ( not exists $Sf->{'CalledSubs'} ) {
 		$Sf->{'CalledSubs'} = { 'List' => [], 'Set' => {} };
 	}
@@ -207,6 +213,7 @@ sub _initialise_decl_var_tables {
 	}
 	if ( not exists $Sf->{'Entries'} ) {
 		$Sf->{'Entries'} = { 'List' => [], 'Set' => {} };
+		$Sf->{'Entry'}=0;
 	}
 # WV20151021 what we need here is a check that this function has not been called before for this $Sf
 	if ( not exists $Sf->{'DoneInitTables'} ) {
@@ -409,7 +416,7 @@ sub _analyse_lines {
 				( $stref, $info ) = __handle_acc( $stref, $f, $index, $lline );
 			}
 		
-			# Here we remove the label if there is one.
+			# Here we remove the label if there is one, but we store it in Label so we can re-emit it
 			my $line = $lline;
 			
 			if ($line=~/^\s*(\d+)/) {
@@ -801,19 +808,29 @@ VIRTUAL
 			$info->{'Format'}=1;
 		}
 # DATA
-		  elsif ($line=~/^data\b/ and $line!~/=/) {
-		  	
+		elsif ($line=~/^data\b/ and $line!~/=/) { 
 		 	# DATA
-		 	$info->{'Data'} = 1; 
-		 	$line.=' ! Parser line '.__LINE__.' : removed spaces from data';
-		 	my @chunks = split(/\//,$line);
-		 	$chunks[1]=~s/\s+//g;
-		 	$line=join('/',@chunks);
-#			$line = _expand_repeat_data($line);		
+		 	$info->{'Data'} = 1;
+		 	
+		 		$line.=' ! Parser line '.__LINE__.' : removed spaces from data';
+			 	my @chunks = split(/\//,$line);
+			 	$chunks[1]=~s/\s+//g;
+			 	$line=join('/',@chunks);
+#				$line = _expand_repeat_data($line);		
 				say "DATA declaration $line" if $V;
 #				$extra_lines{$index}=_parse_data_declaration($line,$info, $stref, $f);
 #				next;
-		 	}
+		} 
+		elsif  ($line=~/^data\b/ and $line=~/=/ and $line=~/\/\s*$/ ) {
+		    	# This is either a DATA declaration with an implicit DO, or else an assignment to the variable data
+		    	# which can be an array with an arbitrary expression ...
+		    	# A really ugly, ad-hoc way is like this:
+		    	# if the last character is a '/'
+		    	# and there is a match on ')/'
+		    	# we can split between the ')' and '/'
+		    	# However, how about we do just nothing?
+		    	say "DATA declaration with IMPLIED DO at $line" if $V;
+		}
 # INTRINSIC, EXTERNAL, STATIC, AUTOMATIC
 		 	elsif ($line=~/^(intrinsic|external|static|automatic)\s+([\w,\s]+)/) {
 		 		my $qualifier = $1;
@@ -849,8 +866,8 @@ VIRTUAL
 /^((?:logical|complex|byte|integer|real|double\s*(?:precision|complex)|character)\s*\*(?:\d+|\((?:\*|\w+)\)))\s+(.+)\s*$/
 				)
 				and $line !~ /\s+function\s+\w+/
-			  ) {
-			  	
+				and $line !~/^(.+)\s*::\s*(.+)\s*$/ 
+			  ) {			  	
 				$type   = $1;
 				$varlst = $2;
 
@@ -859,7 +876,7 @@ VIRTUAL
 		}
 # F95 declaration, no need for refactoring		 	
 		 elsif ( $line =~ /^(.+)\s*::\s*(.+)\s*$/ ) {
-				( $Sf, $info ) = __parse_f95_decl( $Sf, $indent, $line, $info);
+				( $Sf, $info ) = __parse_f95_decl( $Sf, $indent, $line, $info);								
 				if (exists $info->{'ParamDecl'}) {
 					$has_pars=1;
 				}		
@@ -980,7 +997,12 @@ VIRTUAL
 #				my $rest           = '';
 				( my $cond, $mline ) = _parse_if_cond($line);
 				$info->{'CondExecExpr'}=$cond;
-				
+				if ($mline=~/(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*$/) {
+					# arithmetic IF
+					$Sf->{'ReferencedLabels'}{$1}=$1;
+					$Sf->{'ReferencedLabels'}{$2}=$2;
+					$Sf->{'ReferencedLabels'}{$3}=$3;					
+				}
 #				if ( $mline =~ /=/ ) { # Is this an assignment?
 #					$is_cond_assign = 1;
 #				}
@@ -1195,8 +1217,11 @@ END IF
 				$info->{ ucfirst($keyword) } = 1;
 			}
 #    ASSIGN ... TO ...				
-			 elsif ($mline=~/^assign\s+(\w+)\s+to\s+(\w+)/) {				
-				$info->{'Assign'}={'Label' => $1, 'Var' => $2};
+			 elsif ($mline=~/^assign\s+(\w+)\s+to\s+(\w+)/) {
+			 	my $label=$1;
+			 	my $var = $2;				
+				$info->{'Assign'}={'Label' => $label, 'Var' => $var};
+				$Sf->{'ReferencedLabels'}{$label}=$label;
 				say 'WARNING: ASSIGN IS IGNORED!' if $W;
 			 }													
 #    CONTINUE statement. 			
@@ -1686,7 +1711,12 @@ sub _parse_subroutine_and_function_calls {
 				}
 				my $ast = parse_expression( "$name($argstr)", $info, $stref, $f );
 				( my $expr_args, my $expr_other_vars ) = get_args_vars_from_subcall($ast);
-				
+				for my $expr_arg(@{$expr_args->{'List'}}) {
+					if (substr($expr_arg,0,1) eq '*') {
+						my $label=substr($expr_arg,1);
+						$Sf->{'ReferencedLabels'}{$label}=$label;		
+					}
+				}
 				$info->{'CallArgs'}               = $expr_args;
 				$info->{'ExprVars'}               = $expr_other_vars;
 				$info->{'SubroutineCall'}{'Args'} = $info->{'CallArgs'};
@@ -3257,13 +3287,6 @@ sub __parse_sub_func_prog_decls {
 				'List' => [@args],
 			};				
 		
-		
-		warn 'The ENTRY statement is not supported, please rewrite your code (or ignore at your peril):'."\n".
-			'SOURCE: '.$Sf->{'Source'}.
-			' LINE #'. $info->{'LineID'}."\n".
-			'CODE UNIT: '.$Sf->{'Name'}."\n".
-			'LINE: '."'$line'\n";
-		
 	} else { 
 		croak 'BOOM: '.$line;
 	}
@@ -3607,12 +3630,14 @@ if ($line=~/^character/) {
 	$is_char=1;
     $line=~s/\s+\*/*/g;
     $line=~s/\*\s+/*/g;
-	$line=~s/\(\*\)/0/g;
+	$line=~s/\(\*\)/_PARENS_STAR_/g;
 	
     if ($line=~/^character\*(\w+)\s+([a-z]\w*.*)$/ ){
     	
-       # CHARACTER*4 V
-# CHARACTER*(*) V(2)
+        # CHARACTER*4 V
+		# CHARACTER*(*) V(2)
+		# But unfortunately also
+		# CHARACTER*10 B10VK, C10VK, E11VK*11, G10VK
         my $len = $1; 
         my $vars_dims_str = $2;
 # split vars on outer commas, we have a function for that
@@ -3623,14 +3648,19 @@ if ($line=~/^character/) {
          	my $ast=parse_expression($var_dim, $info, $stref, $f);
 #         	say "AST1:".Dumper($ast);
          	my $var = _get_var_from_ast( $ast );
-         	my $dim=_get_dim_from_ast( $ast );	
+         	my $dim = _get_dim_from_ast( $ast );
+         	my $len_override = _get_len_from_ast( $ast );
+         	if ($len eq '_PARENS_STAR_') {
+         		$len='*';
+         	}	
          	$char_decls->{$var}={
          		'Type' => 'character',
          		'Name' => $var,
          		'Dim' => $dim,
-         		'Attr' => "len=$len",
+         		'Attr' => "len=". ($len_override ? $len_override : $len),
          		'ArrayOrScalar' => scalar @{$dim}==0 ? 'Scalar' : 'Array'
          	};
+         	
          	if ($len=~/[a-z]\w*/) {
          		if (in_nested_set($Sf,'Parameters',$len) ) {
          			$char_decls->{$var}{'InheritedParams'}{'Set'}{$len}=1;
@@ -3638,11 +3668,12 @@ if ($line=~/^character/) {
          	}
          	push @{$char_lst},$var;
 #         	say "character(len=$len), dimension(".join(',', map { join(':', @{ $_ }) } @{$dim}).") :: $var";
+
          }         
          
     } elsif ( $line=~/^character\s+([a-z]\w*.*)$/ ) {
     	
-# CHARACTER V*4,W(2)*5
+		# CHARACTER V*4,W(2)*5
         my $vars_lens_str=$1;
 # split $vars_lens on outer commas, we have a function for that
         my @vars_dims_lens = _parse_comma_sep_expr_list($vars_lens_str);
@@ -3657,6 +3688,9 @@ if ($line=~/^character/) {
          	my $var = _get_var_from_ast( $ast );#$ast->[1][0] eq '@' ? $ast->[1][1] : $ast->[1];         	         	
 			my $dim=_get_dim_from_ast( $ast );	
          	my $len = _get_len_from_ast( $ast );
+         	if ($len eq '_PARENS_STAR_') {
+         		$len='*';
+         	}
          	$char_decls->{$var}={
          		'Type' => 'character',
          		'Name' => $var,
@@ -3676,9 +3710,10 @@ if ($line=~/^character/) {
          
         
     } elsif ( $line=~/^character\*(\w+)\s*\((.+)\)\s+([a-z]\w*.+)$/) {
-# Non-standard, e.g.
-# CHARACTER*(*)(3) V, ...
-# WEAK as I assume no parens inside the parens
+    	croak if $line=~/_PARENS_STAR_/;
+		# Non-standard, e.g.
+		# CHARACTER*(*)(3) V, ...
+		# WEAK as I assume no parens inside the parens
         my $len=$1;
         my $dim=$2; # FIXME
         croak 'FIXME!'; 
@@ -3690,6 +3725,9 @@ if ($line=~/^character/) {
          	my $ast=parse_expression($var, $info, $stref, $f);
 #         	say "AST3:".Dumper($ast);
          	my $var = _get_var_from_ast( $ast );
+         	if ($len eq '_PARENS_STAR_') {
+         		$len='*';
+         	}
 			$char_decls->{$var}={
          		'Type' => 'character',
          		'Name' => $var,
@@ -3706,8 +3744,9 @@ if ($line=~/^character/) {
          }        
          
     } elsif ( $line=~/^character\s+/ && $line=~/[a-z]\w*\*\d+\s*\(/ ) {
-# Non-standard, e.g.
-# CHARACTER A*17, B*17(3,4), V*17(9)	
+    	croak if $line=~/_PARENS_STAR_/;
+		# Non-standard, e.g.
+		# CHARACTER A*17, B*17(3,4), V*17(9)	
         my $vars_str=$line;
         $vars_str=~s/character\s+//;
         #split $vars_lens on outer commas, we have a function for that
@@ -3720,6 +3759,9 @@ if ($line=~/^character/) {
         		my $dim_str = $3;
         		my $ast=parse_expression($dim_str, $info, $stref, $f);
 				my $dim = _get_dim_from_ast( $ast );
+				if ($len eq '_PARENS_STAR_') {
+         		$len='*';
+         		}
          	    $char_decls->{$var}={
          		'Type' => 'character',
          		'Name' => $var,
@@ -3882,7 +3924,7 @@ if ($line=~/^character/) {
 				$decl->{'InheritedParams'}{'Set'}{$mpar}=1;
 			}
 		}
-		
+				
 		if (scalar @{$dim}>=1) {
 			for my $dimpair (@{$dim}) {
 				for my $mexpr ( @{$dimpair} ) {
@@ -3983,6 +4025,7 @@ sub _identify_loops_breaks {
 			$line =~ /^\s*\d*\s+.*?[\)\ ]\s*go\s?to\s+(\d+)\s*$/ && do {
 				my $label = $1;
 				$info->{'Goto'}{'Label'} = $label;
+				$Sf->{'ReferencedLabels'}{$label}=$label;
 				$Sf->{'Gotos'}{$label} = 1;				
 				push @{ $gotos{$label} }, [ $index, $nest ];
 				next;
@@ -4729,14 +4772,20 @@ sub  _get_dim_from_ast { (my  $ast ) = @_;
 			# It's an array so there is a dim
 			for my $pdim_idx (2 .. @{$ast->[1]}-1) {
 				my $pdim = $ast->[1][$pdim_idx];
-				if ($pdim->[0] eq ':') {
-					my $dim_start = emit_expression($pdim->[1],'');
-					my $dim_stop = emit_expression($pdim->[2],'');
-					push @{$dim}, [$dim_start ,$dim_stop ]; 
-				} else {
+				if (ref($pdim) eq 'ARRAY') {
+					if ($pdim->[0] eq ':') {
+						my $dim_start = emit_expression($pdim->[1],'');
+						my $dim_stop = emit_expression($pdim->[2],'');
+						push @{$dim}, [$dim_start ,$dim_stop ]; 
+					} else {
+						my $dim_start = 1;
+						my $dim_stop = emit_expression($pdim,'');
+						push @{$dim}, [$dim_start ,$dim_stop ]; 					
+					}
+				} else { # must be scalar
 					my $dim_start = 1;
 					my $dim_stop = emit_expression($pdim,'');
-					push @{$dim}, [$dim_start ,$dim_stop ]; 					
+					push @{$dim}, [$dim_start ,$dim_stop ];
 				}
 			}
 		} elsif ($ast->[1][0] eq '$') {
@@ -4751,10 +4800,16 @@ sub  _get_dim_from_ast { (my  $ast ) = @_;
 		} elsif ($ast->[0] eq '@') {
 			for my $pdim_idx (2 .. @{$ast}-1) {
 				my $pdim = $ast->[$pdim_idx];
-				if ($pdim->[0] eq ':') {
-					my $dim_start = emit_expression($pdim->[1],'');
-					my $dim_stop = emit_expression($pdim->[2],'');
-					$dim = [$dim_start ,$dim_stop ]; 
+				if (ref($pdim) eq 'ARRAY') {
+					if ($pdim->[0] eq ':') {
+						my $dim_start = emit_expression($pdim->[1],'');
+						my $dim_stop = emit_expression($pdim->[2],'');
+						push @{$dim}, [$dim_start ,$dim_stop ]; 
+					}
+				} else { # must be a scalar
+					my $dim_start = 1;
+					my $dim_stop = emit_expression($pdim,'');
+					push @{$dim}, [$dim_start ,$dim_stop ];					
 				}
 			}
 		} else {

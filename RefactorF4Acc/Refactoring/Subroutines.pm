@@ -324,7 +324,8 @@ sub _refactor_globals_new {
             $skip = 1;
         }
         
-        if ( exists $info->{'FunctionCalls'} ) {        	
+        if ( exists $info->{'FunctionCalls'} ) {
+        	        	
             # Assignment and Subroutine call lines can contain function calls that also need exglob refactoring!            
             $rlines = _create_refactored_function_calls( $stref, $f, $annline, $rlines );        
             $skip = 1;
@@ -557,7 +558,8 @@ sub _create_refactored_subroutine_call {
         $info->{'SubroutineCall'}{'Args'}{'List'}= $args_ref;
         # This is the emitter, maybe that should not be done here but later on? TODO!
 	    my $args_str = join( ',', @{$args_ref} );	    
-	    my $indent = $info->{'Indent'};
+	    my $indent = $info->{'Indent'} // '      ';
+	    my $maybe_label= ( exists $info->{'Label'} and exists $Sf->{'ReferencedLabels'}{$info->{'Label'}} ) ?  $info->{'Label'}.' ' : '';
 	    my $rline = "call $name($args_str)\n";
 		if ( exists $info->{'PlaceHolders'} ) { 
 			while ($rline =~ /(__PH\d+__)/) {
@@ -568,7 +570,7 @@ sub _create_refactored_subroutine_call {
             $info->{'Ref'}++;
         }  	    
 	    $info->{'Ann'}=[annotate($f, __LINE__ ) ];
-	    push @{$rlines}, [ $indent . $rline, $info ];
+	    push @{$rlines}, [ $indent . $maybe_label . $rline, $info ];
     } else {
         push @{$rlines}, [ $line , $info ];
     }
@@ -651,7 +653,8 @@ sub __update_function_calls_in_AST { (my $stref, my $Sf,my $f, my $ast) = @_;
 				if ($entry eq '&') {				
 					my $name = $ast->[$idx+1];
 					
-				    if ($name ne $f and exists $stref->{'Subroutines'}{$name}{'ExGlobArgs'}) {       
+				    if ($name ne $f and exists $stref->{'Subroutines'}{$name}{'ExGlobArgs'}) {
+				    	     
 				        my @globals = exists  $stref->{'Subroutines'}{$name}{'ExGlobArgs'}{'List'} ? @{ $stref->{'Subroutines'}{$name}{'ExGlobArgs'}{'List'} } : ();        
 				        my @maybe_renamed_exglobs=();
 				        for my $ex_glob (@globals) {
