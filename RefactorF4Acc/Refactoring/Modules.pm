@@ -102,7 +102,13 @@ sub add_module_decls { (my $stref)=@_;
 	       	}
 	       	my $old_annlines = $stref->{'Modules'}{$existing_module_name{$src}}{'AnnLines'};
 	       	if (scalar @{$new_annlines}>0) {	       		
-	       		my $merged_annlines = splice_additional_lines_cond( $stref, $existing_module_name{$src}, sub { (my $annline)=@_; (my $line, my $info) = @{$annline};return exists $info->{'Contains'} },$old_annlines, $new_annlines, 0, 0, 1 );
+	       		my $merged_annlines = splice_additional_lines_cond( 
+	       			$stref, 
+	       			$existing_module_name{$src}, 
+	       			sub { (my $annline)=@_; (my $line, my $info) = @{$annline};return exists $info->{'Contains'} },
+	       			$old_annlines, 
+	       			$new_annlines, 
+	       			0, 0, 1 );
 	       		$stref->{'RefactoredCode'}{$src}=$merged_annlines;
 	       	} else {	       		
 	       		$stref->{'RefactoredCode'}{$src}=$old_annlines;

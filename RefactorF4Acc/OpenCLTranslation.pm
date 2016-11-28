@@ -118,6 +118,7 @@ sub _preprocess {
 			$line=~s/select/if/;	 
 		}	 
 # We need to check if a variable can be a scalar constant. The rule we use is: it is a scalar and the intent is In
+
         if ( exists $info->{'ParsedVarDecl'}
             and lc($info->{'ParsedVarDecl'}{'Attributes'}{'Intent'}) eq 'in'
             and $info->{'ParsedVarDecl'}{'Attributes'}{'Dim'}->[0] eq '0' )
@@ -125,6 +126,7 @@ sub _preprocess {
             for my $var_name ( @{ $info->{'ParsedVarDecl'}{'Vars'} } ) {
                 $can_be_consts->{$var_name} = 1;
             }
+            
         }
 # If a module is marked as Inlineable the inline it. The rule for this is defined in _can_be_inlined() in Inventory
         if (    exists $info->{'Use'} ) {

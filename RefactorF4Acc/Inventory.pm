@@ -45,7 +45,7 @@ sub find_subroutines_functions_and_includes {
     	$Config{EXCL_SRCS} = [];
     }
     my %excluded_dirs = $Config{EXCL_DIRS} ? map { $_ => 1 } @{ $Config{EXCL_DIRS} } : ();
-# exists $Config{EXCL_SRCS} and     
+	# if there is an entry in $Config{EXCL_SRCS} then it is a regex
     my $has_pattern =  scalar @{ $Config{EXCL_SRCS} } > 0 ? 1 : 0;    
     my $excl_srcs_pattern    = @{ $Config{EXCL_SRCS} }>1? join('|', @{ $Config{EXCL_SRCS} }) : @{ $Config{EXCL_SRCS} }==1 ? $Config{EXCL_SRCS}->[0] : '';
     say     'Exclude pattern: /'.$excl_srcs_pattern.'/' if $V;

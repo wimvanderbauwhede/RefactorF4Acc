@@ -13,6 +13,8 @@ use RefactorF4Acc::Refactoring::IncludeFiles qw( refactor_include_files );
 use RefactorF4Acc::Analysis::ArgumentIODirs qw( determine_argument_io_direction_rec update_argument_io_direction_all_subs);
 use RefactorF4Acc::Refactoring::Modules qw( add_module_decls );
 
+use RefactorF4Acc::Parser::Expressions qw(emit_expression);
+
 use vars qw( $VERSION );
 $VERSION = "1.0.0";
 
@@ -33,38 +35,38 @@ use Exporter;
 # -----------------------------------------------------------------------------
 
 sub refactor_all {
-	( my $stref, my $subname, my $stage) = @_;
+	( my $stref, my $subname, my $pass) = @_;
 
+	if ($pass =~/rename_array_accesses_to_scalars/) {
+		$stref = _rename_array_accesses_to_scalars_all($stref);		
+	}
+	if ($pass =~/ifdef_io/i) {
+		$stref = _ifdef_io_all($stref);		
+	}
+	if ($pass ne '') {
+		return $stref;
+	}
     $stref = refactor_include_files($stref);
-    return $stref if $stage == 1;
 
     $stref = refactor_called_functions($stref); # Context-free only FIXME: this should be treated just like subs, but if course that requires full parsing of expressions
-    return $stref if $stage == 2;
     
     # Refactor the source, but don't split long lines and keep annotations
     $stref = refactor_all_subroutines($stref);
     
-    return $stref if $stage == 3;
     # This can't go into refactor_all_subroutines() because it is recursive
     # Also, this is actually analysis
     $stref = determine_argument_io_direction_rec( $subname, $stref );    
-    return $stref if $stage == 4;    
-    print "DONE determine_argument_io_direction_rec()\n" if $V;
+    say "DONE determine_argument_io_direction_rec()" if $V;
 
     $stref = update_argument_io_direction_all_subs( $stref );
+    
     # So at this point we know everything there is to know about the argument declarations, we can now update them
-
     say "remove_vars_masking_functions" if $V;    
     $stref = remove_vars_masking_functions($stref);    
-    return $stref if $stage == 5;
     
     # Custom refactoring, must be done before creating final modules
-#    $stref=_ifdef_io_all($stref);
-    
     say "add_module_decls" if $V;
     $stref=add_module_decls($stref);
-    
-    
     
     return $stref;	
 } # END of refactor_all()  
@@ -267,206 +269,362 @@ sub get_next_relevant_statement { (my $annlines, my  $idx_start) = @_;
 
 
 
-sub _ifdef_io_per_source_RUBBISH { (my $stref,my $f) =@_;
+#sub _ifdef_io_per_source_RUBBISH { (my $stref,my $f) =@_;
+#	
+#    my $sub_or_func_or_mod = sub_func_incl_mod( $f, $stref );
+#    my $Sf                 = $stref->{$sub_or_func_or_mod}{$f};
+#    my $annlines           = get_annotated_sourcelines( $stref, $f );
+#    my $nextLineID         = scalar @{$annlines} + 1;
+#    my $new_annlines=[];
+#    my $eof_idx = scalar @{$annlines} -1;
+#    my $idx = 0;
+#    while ($idx <= $eof_idx ) {
+#    	(my $line, my $info) = @{$annlines->[$idx]}; 
+#		if (exists $info->{'IO'} ) {
+#			# Start at the line before the current IO line and go up
+#			my $b_idx = $idx-1;
+#			my $b_idx_ctl = $b_idx;
+#			(my  $b_line,my $b_info) = @{ $annlines->[$b_idx]};
+#			while ( 
+#				(
+#				exists $b_info->{'Control'} or
+#				exists $b_info->{'Blank'} or
+#				exists $b_info->{'Comments'} or
+#				exists $b_info->{'Deleted'}) 
+#				and $b_idx>0 			
+#			) {
+#				if (exists $b_info->{'Control'} and not exists $b_info->{'Deleted'}) {
+#					$b_idx_ctl=$b_idx;
+#				} 
+#					$b_idx--;					
+#				(  $b_line, $b_info) = @{ $annlines->[$b_idx]};
+#			
+#			}
+#			
+#			if ($b_idx==0) {
+#				# Didn't find any Control before this IO line.
+#				# put #ifndef immediately before the current IO line
+#				$annlines->[$idx][1]{'Ifdef'}= '#ifndef NO_IO // IO';
+#				$b_idx = $idx-1; # because we use $b_idx+1
+#			}			
+#			# Start at the line after the current IO line and go down
+#			my $f_idx = $idx+1;
+#			my $f_idx_io_ctl=$f_idx;
+#			(my  $f_line,my $f_info) = @{ $annlines->[$f_idx]};
+#			while ( 
+#				(
+#				exists $f_info->{'EndControl'} or
+#				exists $f_info->{'Blank'} or
+#				exists $f_info->{'Comments'} or
+#				exists $f_info->{'Deleted'}) 
+#				and $f_idx<$eof_idx		
+#			) {
+#				if (exists $f_info->{'EndControl'} or exists $f_info->{'IO'} and not exists $f_info->{'Deleted'}) {
+#					$f_idx_io_ctl=$f_idx;
+#				} 
+#				
+#				$f_idx++;
+#				(  $f_line, $f_info) = @{ $annlines->[$f_idx]};
+#				
+#			}
+#			
+#			if ($f_idx>$eof_idx) {
+#				# If we hit EOF without finding any Control, 
+#				# put #endif immediately after the current IO line
+#				$annlines->[$idx][1]{'EndIfdef'}= '#endif // IO';
+#				$f_idx=$idx+1;
+#			}
+#			# Now we need to check if the begin and end is matched in terms of blocks
+#			
+#			# if Control is a do-block, the EndControl must be the corresponding EndDo, else we need to shift up/down a line
+#			if (exists $annlines->[$b_idx+1][1]{'Do'} ) {
+#				# Is there an EndDo ?
+#				if (exists $annlines->[$f_idx-1][1]{'EndDo'} ) {
+#				# is the EndDo correct?
+##				say Dumper($annlines->[$b_idx+1][1]).'<>'.Dumper($annlines->[$f_idx-1][1]);					
+#					my $b_block_id = $annlines->[$b_idx+1][1]{'Block'}{'Nest'};
+#					my $f_block_id = $annlines->[$f_idx-1][1]{'Block'}{'Nest'};
+#					if (not defined $f_block_id) {
+#						# try via label						
+#						$b_block_id = $annlines->[$b_idx+1][1]{'BeginDo'}{'Label'};
+#						$f_block_id = $annlines->[$f_idx-1][1]{'EndDo'}{'Label'};
+#					}
+#					if ($b_block_id == $f_block_id) {
+#						# Both OK!
+#						$annlines->[$b_idx+1][1]{'Ifdef'}= '#ifndef NO_IO // OK (Do)';
+#						$annlines->[$f_idx-1][1]{'EndIfdef'}= '#endif // OK (EndDo)';
+#					} else {
+#						# NOK
+#						# See which one is smallest
+#						if ($b_block_id<$f_block_id) {
+#							# Do is OK
+#							$annlines->[$b_idx+1][1]{'Ifdef'}= '#ifndef NO_IO  // OK (Do)';
+#							# take the line before the EndDo
+#							$f_idx--;
+#							$annlines->[$f_idx-1][1]{'EndIfdef'}= '#endif  // -1 (EndDo)';
+#							
+#						} else {
+#							# take the line after the Do
+#							$b_idx++;
+#							$annlines->[$b_idx+1][1]{'Ifdef'}= '#ifndef NO_IO // +1 (Do)';
+#							# EndDo is OK
+#							$annlines->[$f_idx-1][1]{'EndIfdef'}= '#endif // OK (EndDo)';
+#						}
+#					}
+#				} else {
+#					# NOK, take the line down after the Do
+#					$b_idx++;
+#					$annlines->[$b_idx+1][1]{'Ifdef'}= '#ifndef NO_IO // +1 (Do)';
+#					# The #endif line should be OK, but to be sure:
+#					$annlines->[$f_idx-1][1]{'EndIfdef'}= '#endif // OK (IO)';
+#				}								
+#			} elsif (exists $annlines->[$f_idx-1][1]{'EndDo'} ) {
+#				# There is no Do
+#					# NOK, take the line up before the EndDo
+#					$f_idx--;
+#					$annlines->[$f_idx-1][1]{'EndIfdef'}= '#endif // -1 (EndDo)';
+#					# the #ifndef line should be OK
+#					$annlines->[$b_idx+1][1]{'Ifdef'}= '#ifndef NO_IO // OK (IO)';
+#			}
+## For if-blocks I do the same, currently ignoring the complications of else if and else 			
+#		elsif (exists $annlines->[$b_idx+1][1]{'If'} ) {
+#				# Is there an EndIf ?
+#				if (exists $annlines->[$f_idx-1][1]{'EndIf'} ) {
+#				# is the EndIf correct?					
+#					my $b_block_id = $annlines->[$b_idx+1][1]{'Block'}{'Nest'};
+#					my $f_block_id = $annlines->[$f_idx-1][1]{'Block'}{'Nest'};
+#					if ($b_block_id == $f_block_id) {
+#						# Both OK!
+#						$annlines->[$b_idx+1][1]{'Ifdef'}= '#ifndef NO_IO // OK (If)';
+#						$annlines->[$f_idx-1][1]{'EndIfdef'}= '#endif // OK (EndIf)';
+#					} else {
+#						# NOK
+#						# See which one is smallest
+#						if ($b_block_id<$f_block_id) {
+#							# If is OK
+#							$annlines->[$b_idx+1][1]{'Ifdef'}= '#ifndef NO_IO // OK (If)';
+#							# take the line before the EndIf
+#							$f_idx--;
+#							$annlines->[$f_idx-1][1]{'EndIfdef'}= '#endif // -1 (EndIf)';
+#							
+#						} else {
+#							# take the line after the If
+#							$b_idx++;
+#							$annlines->[$b_idx+1][1]{'Ifdef'}= '#ifndef NO_IO // +1 (If)';
+#							# EndIf is OK
+#							$annlines->[$f_idx-1][1]{'EndIfdef'}= '#endif // OK (EndIf)';
+#						}
+#					}
+#				} else {
+#					# NOK, take the line down after the If
+#					$b_idx++;
+#					$annlines->[$b_idx+1][1]{'Ifdef'}= '#ifndef NO_IO // +1 (If)';
+#					# The #endif line should be OK
+#					$annlines->[$f_idx-1][1]{'EndIfdef'}= '#endif // OK (IO)';
+#				}		
+#						
+#			} elsif (exists $annlines->[$f_idx-1][1]{'EndIf'} ) {
+#				# This is an elsif so there is no If
+#					# NOK, take the line up before the EndIf
+#					$f_idx--;
+#					$annlines->[$f_idx-1][1]{'EndIfdef'}= '#endif // -1 (EndIf)';
+#					# the #ifndef line should be OK
+#					$annlines->[$b_idx+1][1]{'Ifdef'}= '#ifndef NO_IO // OK (IO)';
+#			} else {
+#				# We come here if there are no blocks. This is means it is a Blank or Deleted for the UP case
+#				# For the DOWN case it can be IO, Blank or deleted.
+#				if (exists $annlines->[$b_idx+1][1]{'IO'}) {
+#					$annlines->[$b_idx+1][1]{'Ifdef'}= '#ifndef NO_IO // OK ()';
+#				} else {
+#					$annlines->[$b_idx_ctl][1]{'Ifdef'}= '#ifndef NO_IO // OK (LastDown)';
+#				}
+#				if (exists $annlines->[$f_idx-1][1]{'IO'} ) {
+#					$annlines->[$f_idx-1][1]{'EndIfdef'}= '#endif // OK ()';
+#				} else {
+#				$annlines->[$f_idx_io_ctl][1]{'EndIfdef'}= '#endif // OK (LastUp)';
+#				}				
+#			} 			
+#			$idx = $f_idx+1;	
+#		} else {
+#			$idx++;
+#		}               
+#    }
+#    for my $annline (@{$annlines}) {
+#    	(my $line, my $info) = @{$annline};			
+#		if (exists $info->{'Ifdef'}) {
+#		say $info->{'Ifdef'};
+#		}
+#		say $line;			
+#		if (exists $info->{'EndIfdef'}) {
+#		say $info->{'EndIfdef'};
+#		}    	 
+#    }
+#    
+##    $Sf->{'RefactoredCode'} = $new_annlines;
+#    return $stref;
+#}
+
+
+
+sub _rename_array_accesses_to_scalars_all { (my $stref) = @_; 
+		
+#	for my $f ( keys %{ $stref->{'Subroutines'} } ) {
+		my $f='sub_map_109';
+		say "\nPASS _rename_array_accesses_to_scalars on $f\n";
+		$stref=_rename_array_accesses_to_scalars($stref, $f);
+		die ;	
+#	}
 	
-    my $sub_or_func_or_mod = sub_func_incl_mod( $f, $stref );
-    my $Sf                 = $stref->{$sub_or_func_or_mod}{$f};
-    my $annlines           = get_annotated_sourcelines( $stref, $f );
-    my $nextLineID         = scalar @{$annlines} + 1;
-    my $new_annlines=[];
-    my $eof_idx = scalar @{$annlines} -1;
-    my $idx = 0;
-    while ($idx <= $eof_idx ) {
-    	(my $line, my $info) = @{$annlines->[$idx]}; 
-		if (exists $info->{'IO'} ) {
-			# Start at the line before the current IO line and go up
-			my $b_idx = $idx-1;
-			my $b_idx_ctl = $b_idx;
-			(my  $b_line,my $b_info) = @{ $annlines->[$b_idx]};
-			while ( 
-				(
-				exists $b_info->{'Control'} or
-				exists $b_info->{'Blank'} or
-				exists $b_info->{'Comments'} or
-				exists $b_info->{'Deleted'}) 
-				and $b_idx>0 			
-			) {
-				if (exists $b_info->{'Control'} and not exists $b_info->{'Deleted'}) {
-					$b_idx_ctl=$b_idx;
-				} 
-					$b_idx--;					
-				(  $b_line, $b_info) = @{ $annlines->[$b_idx]};
-			
-			}
-			
-			if ($b_idx==0) {
-				# Didn't find any Control before this IO line.
-				# put #ifndef immediately before the current IO line
-				$annlines->[$idx][1]{'Ifdef'}= '#ifndef NO_IO // IO';
-				$b_idx = $idx-1; # because we use $b_idx+1
-			}			
-			# Start at the line after the current IO line and go down
-			my $f_idx = $idx+1;
-			my $f_idx_io_ctl=$f_idx;
-			(my  $f_line,my $f_info) = @{ $annlines->[$f_idx]};
-			while ( 
-				(
-				exists $f_info->{'EndControl'} or
-				exists $f_info->{'Blank'} or
-				exists $f_info->{'Comments'} or
-				exists $f_info->{'Deleted'}) 
-				and $f_idx<$eof_idx		
-			) {
-				if (exists $f_info->{'EndControl'} or exists $f_info->{'IO'} and not exists $f_info->{'Deleted'}) {
-					$f_idx_io_ctl=$f_idx;
-				} 
-				
-				$f_idx++;
-				(  $f_line, $f_info) = @{ $annlines->[$f_idx]};
-				
-			}
-			
-			if ($f_idx>$eof_idx) {
-				# If we hit EOF without finding any Control, 
-				# put #endif immediately after the current IO line
-				$annlines->[$idx][1]{'EndIfdef'}= '#endif // IO';
-				$f_idx=$idx+1;
-			}
-			# Now we need to check if the begin and end is matched in terms of blocks
-			
-			# if Control is a do-block, the EndControl must be the corresponding EndDo, else we need to shift up/down a line
-			if (exists $annlines->[$b_idx+1][1]{'Do'} ) {
-				# Is there an EndDo ?
-				if (exists $annlines->[$f_idx-1][1]{'EndDo'} ) {
-				# is the EndDo correct?
-#				say Dumper($annlines->[$b_idx+1][1]).'<>'.Dumper($annlines->[$f_idx-1][1]);					
-					my $b_block_id = $annlines->[$b_idx+1][1]{'Block'}{'Nest'};
-					my $f_block_id = $annlines->[$f_idx-1][1]{'Block'}{'Nest'};
-					if (not defined $f_block_id) {
-						# try via label
-						$b_block_id = $annlines->[$b_idx+1][1]{'BeginDo'}{'Label'};
-						$f_block_id = $annlines->[$f_idx-1][1]{'EndDo'}{'Label'};
-					}
-					if ($b_block_id == $f_block_id) {
-						# Both OK!
-						$annlines->[$b_idx+1][1]{'Ifdef'}= '#ifndef NO_IO // OK (Do)';
-						$annlines->[$f_idx-1][1]{'EndIfdef'}= '#endif // OK (EndDo)';
-					} else {
-						# NOK
-						# See which one is smallest
-						if ($b_block_id<$f_block_id) {
-							# Do is OK
-							$annlines->[$b_idx+1][1]{'Ifdef'}= '#ifndef NO_IO  // OK (Do)';
-							# take the line before the EndDo
-							$f_idx--;
-							$annlines->[$f_idx-1][1]{'EndIfdef'}= '#endif  // -1 (EndDo)';
-							
-						} else {
-							# take the line after the Do
-							$b_idx++;
-							$annlines->[$b_idx+1][1]{'Ifdef'}= '#ifndef NO_IO // +1 (Do)';
-							# EndDo is OK
-							$annlines->[$f_idx-1][1]{'EndIfdef'}= '#endif // OK (EndDo)';
-						}
-					}
-				} else {
-					# NOK, take the line down after the Do
-					$b_idx++;
-					$annlines->[$b_idx+1][1]{'Ifdef'}= '#ifndef NO_IO // +1 (Do)';
-					# The #endif line should be OK, but to be sure:
-					$annlines->[$f_idx-1][1]{'EndIfdef'}= '#endif // OK (IO)';
-				}								
-			} elsif (exists $annlines->[$f_idx-1][1]{'EndDo'} ) {
-				# There is no Do
-					# NOK, take the line up before the EndDo
-					$f_idx--;
-					$annlines->[$f_idx-1][1]{'EndIfdef'}= '#endif // -1 (EndDo)';
-					# the #ifndef line should be OK
-					$annlines->[$b_idx+1][1]{'Ifdef'}= '#ifndef NO_IO // OK (IO)';
-			}
-# For if-blocks I do the same, currently ignoring the complications of else if and else 			
-		elsif (exists $annlines->[$b_idx+1][1]{'If'} ) {
-				# Is there an EndIf ?
-				if (exists $annlines->[$f_idx-1][1]{'EndIf'} ) {
-				# is the EndIf correct?					
-					my $b_block_id = $annlines->[$b_idx+1][1]{'Block'}{'Nest'};
-					my $f_block_id = $annlines->[$f_idx-1][1]{'Block'}{'Nest'};
-					if ($b_block_id == $f_block_id) {
-						# Both OK!
-						$annlines->[$b_idx+1][1]{'Ifdef'}= '#ifndef NO_IO // OK (If)';
-						$annlines->[$f_idx-1][1]{'EndIfdef'}= '#endif // OK (EndIf)';
-					} else {
-						# NOK
-						# See which one is smallest
-						if ($b_block_id<$f_block_id) {
-							# If is OK
-							$annlines->[$b_idx+1][1]{'Ifdef'}= '#ifndef NO_IO // OK (If)';
-							# take the line before the EndIf
-							$f_idx--;
-							$annlines->[$f_idx-1][1]{'EndIfdef'}= '#endif // -1 (EndIf)';
-							
-						} else {
-							# take the line after the If
-							$b_idx++;
-							$annlines->[$b_idx+1][1]{'Ifdef'}= '#ifndef NO_IO // +1 (If)';
-							# EndIf is OK
-							$annlines->[$f_idx-1][1]{'EndIfdef'}= '#endif // OK (EndIf)';
-						}
-					}
-				} else {
-					# NOK, take the line down after the If
-					$b_idx++;
-					$annlines->[$b_idx+1][1]{'Ifdef'}= '#ifndef NO_IO // +1 (If)';
-					# The #endif line should be OK
-					$annlines->[$f_idx-1][1]{'EndIfdef'}= '#endif // OK (IO)';
-				}		
-						
-			} elsif (exists $annlines->[$f_idx-1][1]{'EndIf'} ) {
-				# This is an elsif so there is no If
-					# NOK, take the line up before the EndIf
-					$f_idx--;
-					$annlines->[$f_idx-1][1]{'EndIfdef'}= '#endif // -1 (EndIf)';
-					# the #ifndef line should be OK
-					$annlines->[$b_idx+1][1]{'Ifdef'}= '#ifndef NO_IO // OK (IO)';
-			} else {
-				# We come here if there are no blocks. This is means it is a Blank or Deleted for the UP case
-				# For the DOWN case it can be IO, Blank or deleted.
-				if (exists $annlines->[$b_idx+1][1]{'IO'}) {
-					$annlines->[$b_idx+1][1]{'Ifdef'}= '#ifndef NO_IO // OK ()';
-				} else {
-					$annlines->[$b_idx_ctl][1]{'Ifdef'}= '#ifndef NO_IO // OK (LastDown)';
-				}
-				if (exists $annlines->[$f_idx-1][1]{'IO'} ) {
-					$annlines->[$f_idx-1][1]{'EndIfdef'}= '#endif // OK ()';
-				} else {
-				$annlines->[$f_idx_io_ctl][1]{'EndIfdef'}= '#endif // OK (LastUp)';
-				}				
-			} 			
-			$idx = $f_idx+1;	
-		} else {
-			$idx++;
-		}               
-    }
-    for my $annline (@{$annlines}) {
-    	(my $line, my $info) = @{$annline};			
-		if (exists $info->{'Ifdef'}) {
-		say $info->{'Ifdef'};
+	return $stref;
+}
+
+
+# Rename every array access and keep track
+=info_AST
+{
+	'Assignment' => 1,
+	'Indent' => '    ',
+	'Lhs' => {
+		'ArrayOrScalar' => 'Scalar',
+		'ExpressionAST' => ['$','g'],
+		'VarName' => 'g',
+		'IndexVars' => {
+			'Set' => {},
+			'List' => []
 		}
-		say $line;			
-		if (exists $info->{'EndIfdef'}) {
-		say $info->{'EndIfdef'};
-		}    	 
-    }
-    
-#    $Sf->{'RefactoredCode'} = $new_annlines;
-    return $stref;
+	},
+	'Rhs' => {
+		'ExpressionAST' => ['@','g_ptr','1'],
+		'VarList' => {
+			'List' => ['g_ptr'],
+			'Set' => {
+				'g_ptr' => {'Type' => 'Array','Vars' => {}}				
+			}
+		}
+	},
+	'LineID' => 32,
+	'Ref' => 0
+}
+
+
+# hsn = 0.5*(vn(j-1,k)-abs(vn(j-1,k)))*h(j,k)
+{
+	'Assignment' => 1,
+	'Indent' => '  ',
+	'Lhs' => {'ArrayOrScalar' => 'Scalar','IndexVars' => {'List' => [],'Set' => {}},'ExpressionAST' => ['$','hsn'],'VarName' => 'hsn'},'Ref' => 0,'LineID' => 76,
+	'Rhs' => {
+	'VarList' => {
+		'List' => ['h','_OPEN_PAR_','j','k','vn'],
+		'Set' => {
+			'h' => {
+				'Type' => 'Array',
+				'Vars' => {'k' => {'Type' => 'Scalar'},'j' => {'Type' => 'Scalar'}}
+			},
+			'k' => {'Type' => 'Scalar'},
+			'vn' => {'Type' => 'Array'},
+			'_OPEN_PAR_' => {
+				'Vars' => {
+					'j' => {'Type' => 'Scalar'},
+					'vn' => {'Type' => 'Array'},
+					'k' => {'Type' => 'Scalar'}
+				},
+				'Type' => 'Array'
+			},
+			'j' => {'Type' => 'Scalar'}
+		}
+	},
+	'ExpressionAST' => [
+		'*','0.5',[
+			'@','_OPEN_PAR_',[
+				'+',['@','vn',
+						[
+							'+',['$','j'],['-','1']
+						],
+						['$','k']
+					],
+					['-',
+						['&','abs',['@','vn',['+',['$','j'],['-','1']],['$','k']]]]]],['@','h',['$','j'],['$','k']]]
+	}
+}
+=cut
+	
+
+sub _rename_array_accesses_to_scalars { (my $stref, my $f) = @_;
+	
+	my $pass_action = sub { (my $annline, my $state)=@_;
+		(my $line,my $info)=@{$annline};
+		if (exists $info->{'Assignment'} ) {
+			if (scalar @{ $info->{'Rhs'}{'VarList'}{'List'} } ==1 and $info->{'Rhs'}{'VarList'}{'List'}[0]=~/_ptr/) {
+				# IGNORE, this is not a true array access
+			} else {				
+				# Rename all array accesses. But we can only do this in the AST!
+				_rename_ast_entry($stref, $f,  $info, $info->{'Rhs'}{'ExpressionAST'}); 
+#				for my $v ( @{ $info->{'Rhs'}{'VarList'}{'List'} } ) {
+#					next if $v eq '_OPEN_PAR_';
+#					if (
+#					$info->{'Rhs'}{'VarList'}{'Set'}{$v}{'Type'} eq 'Array'
+#					) {
+#						
+#					}					
+#				}
+#				say $line;
+#				say Dumper($info);
+			}
+		}
+		my $new_annlines = [$annline];
+
+		return ($new_annlines,$state);
+	};
+
+	my $state = {};
+ 	($stref,$state) = stateful_pass($stref,$f,$pass_action, $state,'_rename_array_accesses_to_scalars() ' . __LINE__  ) ;	
+	
+	return $stref;
 }
 
 
 
+	# This function changes functions to arrays
 
+sub _rename_ast_entry { (my $stref, my $f,  my $info, my $ast)=@_;
+	if (ref($ast) eq 'ARRAY') {
+	for my  $idx (0 .. scalar @{$ast}-1) {		
+		my $entry = $ast->[$idx];
 
-
+		if (ref($entry) eq 'ARRAY') {
+			my $entry = _rename_ast_entry($stref,$f, $info,$entry);
+			$ast->[$idx] = $entry;
+		} else {
+			if ($entry eq '@') {				
+				my $mvar = $ast->[$idx+1];
+				if ($mvar ne '_OPEN_PAR_') {
+					say 'Found array access '.$mvar  if $DBG;
+					my $expr_str = emit_expression($ast,'');
+					$expr_str=~s/[\(\),]/_/g;
+					$expr_str=~s/\+/p/g;
+					$expr_str=~s/\-/m/g;
+					$expr_str=~s/\*/t/g;
+					say 'Found array access '.$mvar.' => '.$expr_str ;
+				}
+			} elsif ($entry eq '$') {
+				my $mvar = $ast->[$idx+1];
+				say "Found scalar $mvar" if $DBG;
+				
+			} elsif ($entry eq '@') {
+				my $mvar = $ast->[$idx+1];
+				say "Found array $mvar" if $DBG;
+			} elsif ($entry eq '#') {
+				my $mvar = $ast->[$idx+1];
+				say "Found dummy $mvar" if $DBG;				
+			} else {
+#				say $entry;
+			}
+		}		
+	}
+	}
+	return  $ast;#($stref,$f, $ast);	
+	
+}
 
 
 

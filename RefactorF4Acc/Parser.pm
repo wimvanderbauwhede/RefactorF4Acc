@@ -67,7 +67,7 @@ sub parse_fortran_src {
 
 	print "SRC TYPE for $f: $sub_or_incl_or_mod\n" if $V;
 	
-
+#croak Dumper($stref);
 	#	say 'INIT:'.Dumper($stref->{'Subroutines'}{'init'}{'AnnLines'}) ;
 	#	say 'POST:'.Dumper($stref->{'Subroutines'}{'post'}{'AnnLines'}) ;
 	#	die if $f eq 'post';
@@ -612,7 +612,7 @@ VIRTUAL
 				if ( $kw eq 'Do' ) {
 					$do_counter--;
 					my $corresponding_do_info = pop @do_stack;
-					$info->{'EndDo'} = $corresponding_do_info->{'Do'};
+					$info->{'EndDo'} = $corresponding_do_info->{'Do'};					
 					delete $info->{'EndDo'}{'Label'};
 #					carp "LINE in $f: $line ".Dumper($corresponding_do_info);
 					my $do_label = $corresponding_do_info->{'Do'}{'Label'};					
@@ -866,7 +866,7 @@ VIRTUAL
 /^((?:logical|complex|byte|integer|real|double\s*(?:precision|complex)|character)\s*\*(?:\d+|\((?:\*|\w+)\)))\s+(.+)\s*$/
 				)
 				and $line !~ /\s+function\s+\w+/
-				and $line !~/^(.+)\s*::\s*(.+)\s*$/ 
+				and $line !~/^.+,.+::\s*.+\s*$/ # What we say here is that a declaration such as real(4) :: v(nx+1,ny) is treated as F77 
 			  ) {			  	
 				$type   = $1;
 				$varlst = $2;
@@ -3328,7 +3328,7 @@ sub __handle_acc {
 	# F95 declaration, no need for refactoring
 sub __parse_f95_decl {
 	( my $Sf, my $indent, my $line, my $info) = @_;
-#	say "LINE:<$line>";
+
 	my $pt = parse_F95_var_decl($line);
 
 	# But this could be a parameter declaration, with an assignment ...
@@ -3384,14 +3384,9 @@ sub __parse_f95_decl {
 				'Status' => 0
 			};
 			
-			for my $tvar ( @{ $pt->{'Vars'} } ) {
+			for my $tvar ( @{ $pt->{'Vars'} } ) { # corresponds to @{$pvars_lst} in F77
 										
 				my $decl = {};
-#				if (exists $Sf->{'UndeclaredOrigLocalVars'}{'Set'}{$tvar} ) {
-#					# Basically this means the var has been declared using Implicits. 
-#					# This would actually not happen in F95 so I only need to guard against the 
-#					# use of this parser for dimension lines. So in that case I don't need to do anything I think.
-#				}
 				$decl->{'Indent'}        = $indent;
 				$decl->{'Type'}          = $pt->{'TypeTup'}{'Type'};
 				$decl->{'ArrayOrScalar'} = 'Scalar';
@@ -3417,7 +3412,6 @@ sub __parse_f95_decl {
 					}
 				}
 				if ( $type =~ /character/ ) {
-#					croak Dumper($pt) if $line=~/catn13/;
 					if (exists $pt->{TypeTup}{'ArrayOrScalar'} ) {
 					$decl->{'Attr'} = '(len=' . $pt->{TypeTup}{'ArrayOrScalar'} . ')';
 					} elsif (exists $pt->{'	'}{'Dim'}) {
@@ -3428,10 +3422,9 @@ sub __parse_f95_decl {
 					}
 				} elsif ( exists $pt->{'TypeTup'}{'Kind'} ) {
 					$decl->{'Attr'} = '(kind=' . $pt->{'TypeTup'}{'Kind'} . ')';
-					croak $decl->{'Attr'};
+#					croak $decl->{'Attr'};
 				} else {
-					$decl->{'Attr'} = '';
-					
+					$decl->{'Attr'} = '';					
 				}
 
 				$decl->{'IODir'} = $pt->{'Attributes'}{'Intent'};
@@ -3445,20 +3438,23 @@ sub __parse_f95_decl {
 					) {
 						$decl->{'Attr'}=$orig_decl->{'Attr'};
 				}  		  						
-#				croak Dumper($pt, $decl, $orig_decl) if $line=~/catn13/;
 				# It is possible that at this point the variable had not been declared yet and we use implicit rules
 				# Then we change it to declared.
-				if ( exists $Sf->{'UndeclaredOrigArgs'}{'Set'}{$tvar} ) {			
-					
+				if ( exists $Sf->{'UndeclaredOrigArgs'}{'Set'}{$tvar} ) {								
 					$Sf->{'DeclaredOrigArgs'}{'Set'}{$tvar} = $decl;
 					delete $Sf->{'UndeclaredOrigArgs'}{'Set'}{$tvar};
-					@{ $Sf->{'UndeclaredOrigArgs'}{'List'} } =
-					  grep { $_ ne $tvar }
-					  @{ $Sf->{'UndeclaredOrigArgs'}{'List'} };
-					$Sf->{'DeclaredOrigArgs'}{'List'} =
-					  ordered_union( $Sf->{'DeclaredOrigArgs'}{'List'},
-						[$tvar] );
-				} else { # A var decl must be unique, so it it's not a arg, it's a local
+					@{ $Sf->{'UndeclaredOrigArgs'}{'List'} } = grep { $_ ne $tvar } @{ $Sf->{'UndeclaredOrigArgs'}{'List'} };
+					$Sf->{'DeclaredOrigArgs'}{'List'} = ordered_union( $Sf->{'DeclaredOrigArgs'}{'List'}, [$tvar] );
+					
+				} 
+				# In principle F95 code can also have COMMON vars
+# When we encounter UndeclaredCommonVars we make them DeclaredCommonVars
+				elsif ( exists $Sf->{'UndeclaredCommonVars'}{'Set'}{$tvar} ) {
+					$Sf->{'DeclaredCommonVars'}{'Set'}{$tvar} = $decl;
+					delete $Sf->{'UndeclaredCommonVars'}{'Set'}{$tvar}; # Regardless of what was there
+					@{ $Sf->{'UndeclaredCommonVars'}{'List'} } = grep { $_ ne $tvar } @{ $Sf->{'UndeclaredCommonVars'}{'List'} };
+					$Sf->{'DeclaredCommonVars'}{'List'} = ordered_union( $Sf->{'DeclaredCommonVars'}{'List'}, [$tvar] );
+				} else { # A var decl must be unique, so it it's not a arg, it's a local or a common
 				
 				# I added this check so that I can use the parser for variables that are declared using implicit rules 
 				# All this does is update the var entry
@@ -3469,8 +3465,7 @@ sub __parse_f95_decl {
 						if ( scalar @test == 0) { 
 							push @{ $Sf->{'UndeclaredOrigLocalVars'}{'List'} }, $tvar;
 						} 
-					} elsif	(exists $Sf->{'DeclaredOrigLocalVars'}{'Set'}{$tvar} ) {
-						
+					} elsif	(exists $Sf->{'DeclaredOrigLocalVars'}{'Set'}{$tvar} ) {						
 						$Sf->{'DeclaredOrigLocalVars'}{'Set'}{$tvar} = $decl;
 						my @test=grep {$_ eq $tvar}  @{ $Sf->{'DeclaredOrigLocalVars'}{'List'} };
 						if ( scalar @test == 0) { 
@@ -3496,16 +3491,19 @@ sub __parse_f95_decl {
 						my $subset =in_nested_set($Sf,'Vars',$tvar);
 						if ($subset ne '') {
 							carp "LINE $line: $tvar in subset $subset of Vars";
+							$Sf->{$subset}{'Set'}{$tvar} = $decl;
 						} else {
 							say "INFO: $line: $tvar does not have a record in Vars" if $I;
 							$Sf->{'DeclaredOrigLocalVars'}{'Set'}{$tvar}=$decl;
+							push @{$Sf->{'DeclaredOrigLocalVars'}{'List'}}, $tvar;
 						}
-					}
-					
+					}					
 				}
 			}
 		}
 	}
+	
+	push @{ $info->{'Ann'} }, annotate( $Sf->{'Source'}, __LINE__ );
 	return ( $Sf, $info );
 
 }    # END of __parse_f95_decl()
@@ -3617,9 +3615,13 @@ sub __parse_f77_par_decl {
 
 sub __parse_f77_var_decl {
 	( my $Sf, my $stref, my $f,my $indent,  my $line, my $info, my $type, my $varlst ) = @_;
+	
+# Half-baked F95/F77 declarations are threated as F77, so remove the :: here
+$line=~s/\:://;
+	
 # Now an ad hoc fix for spaces between the type and the asterisk. FIXME! I should just write a better FSM!
-#croak $line if $line=~/double\s+precision/ and $f eq 'includecom';
-
+#
+# This is ad-hoc character declaration parsing
 my $attr='';
 my $char_decls={};
 my $char_lst=[];
@@ -3632,8 +3634,7 @@ if ($line=~/^character/) {
     $line=~s/\*\s+/*/g;
 	$line=~s/\(\*\)/_PARENS_STAR_/g;
 	
-    if ($line=~/^character\*(\w+)\s+([a-z]\w*.*)$/ ){
-    	
+    if ($line=~/^character\*(\w+)\s+([a-z]\w*.*)$/ ){    	
         # CHARACTER*4 V
 		# CHARACTER*(*) V(2)
 		# But unfortunately also
@@ -3786,49 +3787,9 @@ if ($line=~/^character/) {
 	$attr = "kind=$1";
 }
 
-#croak 'NOW LINK THIS TO $pvars!';
-
-=off
-
-	if ( $line =~ /\w+\s+(\*\s*(\d+|\(\s*\*\s*\)))/ )
-	{    # FIXME: I assume after the asterisk there MUST be an integer constant
-		my $len = $1;
-		$type .= $len;
-		$varlst =~ s/^\S+\s+//;
-	}
-	my $attr = '';
-	if ( $line =~ /character\s+(\w+)\s+(\*\s*(\d+|	))/ )
-	{    # FIXME: I assume after the asterisk there MUST be an integer constant
-		$varlst = $1;
-		my $len = $2;
-		$type = 'character';
-		$attr = $len;
-		
-	}
-		if ( $line =~ /character\s+(\w+)\s+\*\s*\((\w+)\)/ )
-	{    # FIXME: I assume after the asterisk there MUST be an integer constant
-		$varlst = $1;
-		my $len = $2;
-		$type = 'character';
-		$attr = $len;
-		
-	}
-	
-#	say "TYPE1: $line => $type;$attr" ;
-	$type =~ /\*/ && do {
-		( $type, $attr ) = split( /\*/, $type );
-		if ( $attr eq '(' ) { $attr = '*' }
-	};
-#	say "TYPE2: $line => $type;$attr" ;
-	$type =~ /\((\d+)\)/ && do {
-		$attr = $1;
-		( $type, my $rest ) = split( /\(/, $type );
-	};
-	$attr=~/\((\w+|\*)\)/ && do { # FIXME: WEAK: in principle it can be a complete expression: character*(z+7*w-4)
-		$attr = $1;
-	};
-#	say "TYPE3: $line => $type;$attr" ;
-=cut
+# If it was a character, we set $pvars to $char_decls and $pvars_lst to $char_lst
+# Otherwise we get these from f77_var_decl_parser
+# If the line had a pattern like integer*4, we set $attr 
 
 	my $T = 0;
 	( my $pvars, my $pvars_lst ) = $is_char ? ($char_decls, $char_lst) : f77_var_decl_parser( $varlst, $T );
@@ -3839,9 +3800,9 @@ if ($line=~/^character/) {
 		if ( $var eq '' ) { croak "<$line> in $f" }
 		my $tvar = $var;
 		if ( ref($var) eq 'ARRAY' ) { die __LINE__ . ':' . Dumper($var); }
-		my $dim = $pvars->{$var}{'Dim'};
-		my $stmt_count = 1;
 		my $common_block_name='';
+		# As the Dim can be defined elsewhere, we need extra checks to get the correct value
+		my $dim = $pvars->{$var}{'Dim'};		
 		# In all the cases below, we get the dimension from the record
 		# Because I think it only happens for DIMENSION and COMMON lines.
 		if (exists $Sf->{'DeclaredOrigLocalVars'}{'Set'}{$tvar} ) {			
@@ -3849,39 +3810,34 @@ if ($line=~/^character/) {
 			if (scalar @{$tdim}>0) {
 				$dim=$tdim;
 			}			
-#			$stmt_count = $Sf->{'DeclaredOrigLocalVars'}{'Set'}{$tvar}{'StmtCount'};
 		} elsif (exists $Sf->{'DeclaredOrigLocalArgs'}{'Set'}{$tvar} ) {
 			my $tdim =dclone($Sf->{'DeclaredOrigLocalArgs'}{'Set'}{$tvar}{'Dim'});
 						if (scalar @{$tdim}>0) {
 				$dim=$tdim;
 			}
-#			$stmt_count = $Sf->{'DeclaredOrigLocalArgs'}{'Set'}{$tvar}{'StmtCount'};
 		} elsif (exists $Sf->{'DeclaredCommonVars'}{'Set'}{$tvar} ) { 
 			my $tdim =dclone($Sf->{'DeclaredCommonVars'}{'Set'}{$tvar}{'Dim'});
 						if (scalar @{$tdim}>0) {
 				$dim=$tdim;
 			}
 			$common_block_name = $Sf->{'DeclaredCommonVars'}{'Set'}{$tvar}{'CommonBlockName'};
-#			$stmt_count = $Sf->{'DeclaredCommonVars'}{'Set'}{$tvar}{'StmtCount'};
 		} elsif (exists $Sf->{'UndeclaredCommonVars'}{'Set'}{$tvar} ) { 
 			my $tdim =dclone($Sf->{'UndeclaredCommonVars'}{'Set'}{$tvar}{'Dim'});
 						if (scalar @{$tdim}>0) {
 				$dim=$tdim;
 			}
 			$common_block_name = $Sf->{'UndeclaredCommonVars'}{'Set'}{$tvar}{'CommonBlockName'};
-#			$stmt_count = $Sf->{'UndeclaredCommonVars'}{'Set'}{$tvar}{'StmtCount'};
-			
 		}
+		
 		my $tvar_rec = {
-			'Type'          => $type,
-			'Dim'           => $dim,
+			'Type'          => $type, # this is passed in as an argument  
+			'Dim'           => $dim, # see above
 			'ArrayOrScalar' => $pvars->{$var}{'ArrayOrScalar'},
 			'Attr'			=> $pvars->{$var}{'Attr'},
 			'IODir'         => 'Unknown',
-#			'StmtCount'	=> $stmt_count,
 		};
+		# The Attr field depends on if it is a character or not
 		if ( not exists $pvars->{$var}{'Attr'} ) {
-
 			if ($attr) {
 				if ( $type !~ /character/ ) {
 					$tvar_rec->{'Attr'} = $attr ;
@@ -3896,6 +3852,7 @@ if ($line=~/^character/) {
 		}
 
 		# Take IODir from INTENT if it exists
+		# Because F77 has an INTENT declaration
 		if ( $type =~ /\bintent\s*\(\s*(\w+)\s*\)/ ) {
 			my $iodir = $1;
 			$iodir = ucfirst($iodir);
@@ -3904,7 +3861,7 @@ if ($line=~/^character/) {
 			}
 			$tvar_rec->{'IODir'} = $iodir;
 		}
-
+		# Create the final declaration
 		my $decl = {
 			'Indent' => $indent,
 			'Type'   => $tvar_rec->{'Type'},
@@ -3915,12 +3872,12 @@ if ($line=~/^character/) {
 			'Status' => 0,
 			'StmtCount'	=> $tvar_rec->{'StmtCount'},
 		};
+		
 		if ($common_block_name ne '') {
 			$decl->{'CommonBlockName'} = $common_block_name;
 		}
 		if (exists $pvars->{$var}{'InheritedParams'}) {
 			for my $mpar (keys %{ $pvars->{$var}{'InheritedParams'}{'Set'} }) {
-#				say "InheritedParams for $var in $f: $mpar";
 				$decl->{'InheritedParams'}{'Set'}{$mpar}=1;
 			}
 		}
@@ -3931,7 +3888,6 @@ if ($line=~/^character/) {
 					my @mpars = split(/\W+/, $mexpr);
 					for my $mpar (@mpars) {
 						if (defined $mpar and in_nested_set($Sf,'Parameters',$mpar) ) {
-#							say "ADDING $mpar to InheritedParams for $var in $f";
 	         				$decl->{'InheritedParams'}{'Set'}{$mpar}=1;
 	         			}				
 					}
@@ -3941,14 +3897,16 @@ if ($line=~/^character/) {
 
 		push @varnames, $tvar;
 		
-# This is like before, when we encounter UndeclaredOrigArgs we make them DeclaredOrigArgs
+# When we encounter UndeclaredOrigArgs we make them DeclaredOrigArgs
 		if ( exists $Sf->{'UndeclaredOrigArgs'}{'Set'}{$var} ) {
 			$Sf->{'DeclaredOrigArgs'}{'Set'}{$var} = $decl;
 			delete $Sf->{'UndeclaredOrigArgs'}{'Set'}{$var}; # Regardless of what was there
 			@{ $Sf->{'UndeclaredOrigArgs'}{'List'} } = grep { $_ ne $var } @{ $Sf->{'UndeclaredOrigArgs'}{'List'} };
 			$Sf->{'DeclaredOrigArgs'}{'List'} = ordered_union( $Sf->{'DeclaredOrigArgs'}{'List'}, [$var] );
 			$Sf->{'DeclaredOrigArgs'}{'Set'}{$var}{'StmtCount'}=1;
-		} elsif ( exists $Sf->{'UndeclaredCommonVars'}{'Set'}{$var} ) {
+		}
+# When we encounter UndeclaredCommonVars we make them DeclaredCommonVars
+		elsif ( exists $Sf->{'UndeclaredCommonVars'}{'Set'}{$var} ) {
 			$Sf->{'DeclaredCommonVars'}{'Set'}{$var} = $decl;
 			delete $Sf->{'UndeclaredCommonVars'}{'Set'}{$var}; # Regardless of what was there
 			@{ $Sf->{'UndeclaredCommonVars'}{'List'} } = grep { $_ ne $var } @{ $Sf->{'UndeclaredCommonVars'}{'List'} };
@@ -3964,26 +3922,21 @@ if ($line=~/^character/) {
 				$subset = 'DeclaredOrigLocalVars';
 				push @{$Sf->{'DeclaredOrigLocalVars'}{'List'}}, $var;
 			}
-#			carp Dumper($decl) if $var eq 'ladn11';
 			$Sf->{$subset}{'Set'}{$var} = $decl;
-#			$info->{'StmtCount'}{$var}=$decl->{'StmtCount'};		
 		}
 		$Sf->{'DeclCount'}{$var}++;
 		$info->{'StmtCount'}{$var} = $Sf->{'DeclCount'}{$var};
-#		carp $info->{'StmtCount'}{$var} if $var eq 'ladn1d';
 	}    # loop over all vars declared on a single line
 
 	print "\tINFO: VARS <$line>:\n ", join( ',', sort @varnames ), "\n" if $I;
 
 	$info->{'VarDecl'} = {
-		'Indent' => $indent,
+		'Indent' => $indent,	
 		'Names'  => \@varnames,
 		'Status' => 0
 	};
 
-	push @{ $info->{'Ann'} }, annotate( $f, __LINE__ );   
-
-
+	push @{ $info->{'Ann'} }, annotate( $f, __LINE__ );	   
 	return ( $Sf, $info );
 }    # END of __parse_f77_var_decl()
 
@@ -4011,6 +3964,11 @@ sub _identify_loops_breaks {
 			$line =~ /^\s*\d*\s+do\s+(\d+)\s+\w/ && do {
 				my $label = $1;
 				$info->{'BeginDo'}{'Label'} = $label;
+#				if (not exists $info->{'Do'}{'Label'}  or $info->{'Do'}{'Label'} eq 'LABEL_NOT_DEFINED') {
+#					$info->{'Do'}{'Label'} = $label;
+#				} else {
+#					say "Do label already defined: $label <> ". $info->{'Do'}{'Label'};
+#				}
 				$Sf->{'DoLabelTarget'}{$label}='Unknown';
 				if ( not exists $do_loops{$label} ) {
 					@{ $do_loops{$label} } = ( [$index], $nest );

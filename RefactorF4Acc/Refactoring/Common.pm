@@ -159,7 +159,7 @@ sub context_free_refactorings {
 
         # BeginDo: just remove the label
         if ( exists $info->{'BeginDo'} ) {
-        	my $label = $info->{'BeginDo'}{'Label'};
+        	my $label = $info->{'BeginDo'}{'Label'};# carp Dumper($info->{'BeginDo'}).Dumper($info->{'Do'});
         	# This should have an extra check
         	
 #        	if ( (not exists $Sf->{'ReferencedLabels'}{$label}) and 
@@ -1491,7 +1491,8 @@ sub splice_additional_lines {
 #- if $once is 0, do this whenever the condition is met. Otherwise do it once
 sub splice_additional_lines_cond {
     (
-        my $stref, my $f,
+        my $stref, 
+        my $f,
         my $insert_cond_subref,
         my $old_annlines,
         my $new_annlines,
@@ -1502,6 +1503,7 @@ sub splice_additional_lines_cond {
     say "SPLICE on condition for $f" if $V;
     my $sub_or_func_or_mod = sub_func_incl_mod( $f, $stref );
     my $Sf                 = $stref->{$sub_or_func_or_mod}{$f};
+    carp $old_annlines;
     my $annlines           = scalar @{$old_annlines} ? $old_annlines : get_annotated_sourcelines( $stref, $f );
     my $nextLineID         = scalar @{$annlines} + 1;
     my $merged_annlines    = [];

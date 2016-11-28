@@ -40,6 +40,7 @@ our $usage = "
     -g: refactor globals inside toplevel subroutine 
     -b: Generate SCons build script
     -A: Annotate the refactored lines 
+    -P: Name of pass to be performed
     \n";
 #    -T: Translate <subroutine name> and dependencies to C 
 #    -B: Build FLEXPART (implies -b), currently ignored
@@ -140,7 +141,7 @@ This routine analyses the code for goto-based loops and breaks, so that we can r
 sub main {
 	(my $unit_test_list)=@_;
 		
-	(my $subname, my $subs_to_translate, my $gen_scons, my $build, my $call_tree_only) = parse_args();
+	(my $subname, my $subs_to_translate, my $gen_scons, my $build, my $call_tree_only, my $pass) = parse_args();
 	
 	#  Initialise the global state.
 	my $stref = init_state($subname);
@@ -152,42 +153,14 @@ sub main {
 		say $sub,"\t=>\t",$stref->{'Subroutines'}{$sub}{'Source'};
 	}
 	}
-#	croak;
-test(1,$stref, sub { (my $stref)=@_;
-	if ($subname eq 'main') {
-		return (scalar keys %{$stref->{'Subroutines'}} == 22) ? 'PASS' : 'FAIL: '.Dumper(keys %{$stref->{'Subroutines'}});
-	} else {
-#		say "#Subroutines in $subname codebase: ",scalar keys %{$stref->{'Subroutines'}};
-		return 'PASS' ;
-	}
-}, sub {(my $stref)=@_;
-	return keys %{$stref};
-});
+
     # Parse the source
     for my $data_block (keys %{ $stref->{'BlockData'} } ) {
     	$stref = parse_fortran_src( $data_block, $stref );
     }
 	$stref = parse_fortran_src( $subname, $stref );
 
-test(2,$stref,
-sub { return 'PASS';
-},
-sub {
-	(my $stref)=@_;
-	my $sub = 'wrgdst';#$subname eq 'main' ? 'bondv1' : ($subname eq 'vertical' ? 'post' : 'timemanager');
-	return pp_annlines($stref->{Subroutines}{$sub}{'AnnLines'},1);
-}
-);
-
 	$stref = refactor_marked_blocks_into_subroutines( $stref );
-test(3,$stref,
-sub { return 'PASS';
-},
-sub {
-	(my $stref)=@_;
-	return 'To be tested later, for now LES source has no blocks.';
-}
-);	
 
 	if ( $call_tree_only  ) {
 		$stref->{'PPCallTree'}=[];
@@ -198,88 +171,17 @@ sub {
 
 	$stref = build_call_graph($subname, $stref);
 	
-test(4,$stref,
-sub { return 'PASS';
-},
-sub {
-	(my $stref)=@_;
-	return $stref->{'Nodes'};
-}
-);	
-
-	
     # Analyse the source
     my $stage=0;
 	$stref = analyse_all($stref,$subname, $stage);
+#say Dumper($stref->{'Subroutines'}{'sub_map_109'});
+
 			 
-test(5,$stref,
-sub { return 'PASS';
-},
-sub {
-	(my $stref)=@_;
-	my $sub = $subname eq 'main' ? 'bondv1' : ($subname eq 'vertical' ? 'init' : 'timemanager');
-	if ($stage==1) {
-		return get_kv_for_all_elts_in_set($stref->{'IncludeFiles'},'Root');
-	} elsif ($stage==2) {		
-#		return $stref->{'IncludeFiles'}{'common.sn'};
-		return {'ExInclArgs' => $stref->{'Subroutines'}{$sub}{'ExInclArgs'}, 'ExImplicitArgs' => $stref->{'Subroutines'}{$sub}{'ExImplicitArgs'} };
-	} elsif ($stage==3) {
-		return $sub.'('.join( ',',keys %{ $stref->{'Subroutines'}{$sub}{'ExGlobArgDecls'}{'Set'} }).')';			
-	} elsif ($stage==4) {
-		return $stref->{'Subroutines'}{$sub}{'ConflictingParams'};		
-	} elsif ($stage==5) {
-		return $stref->{'Subroutines'}{$sub}->{'ExGlobArgDecls'}{'Set'}
-	} elsif ($stage==6) {
-		return {'HasRefactoredArgs' => $stref->{'Subroutines'}{$sub}->{'HasRefactoredArgs'}, 'RefactoredArgs' => $stref->{'Subroutines'}{$sub}->{'RefactoredArgs'} };
-	} elsif ($stage==7) {
-		return { };
-	} else {
-		return 'TODO outer_loop_end_detect';
-	}
-}
-);	
-
-#die 'AFTER analyse_all()';
-
-#WV20150710 I worked my way through the code to here and indeed, implicitly declared non-global vars still need to be captured
-#die 'WV20151005:  I worked my way through the code to here and globals are not resolved!';
-
     # Refactor the source
-    $stage=0;
-	$stref = refactor_all($stref,$subname, $stage);
-
-test(6,$stref,
-sub { return 'PASS';
-},
-sub {
-	(my $stref)=@_;
-	my $sub = $subname eq 'main' ? 'bondv1' : ($subname eq 'vertical' ? 'vertical' : 'timemanager');
-	if ($stage==1) {
-#		return $stref->{'IncludeFiles'};
-#		return get_kv_for_all_elts_in_set($stref->{'IncludeFiles'},'Commons');
-		return get_kv_for_all_elts_in_set($stref->{'IncludeFiles'},'RefactoredCode');
-	} elsif ($stage==2) {		
-  		return join("\n",@{ pp_annlines($stref->{'Subroutines'}{$sub}{'RefactoredCode'},1)});
-	} elsif ($stage==3) {# THIS STAGE BREAKS 'vertical'!
-  		return join("\n",@{ pp_annlines($stref->{'Subroutines'}{$sub}{'RefactoredCode'},0) });			
-	} elsif ($stage==4 or $stage==5) {		
-  		return join("\n",@{ pp_annlines($stref->{'Subroutines'}{$sub}{'RefactoredCode'},1) });
-	} elsif ($stage==6) {
-  		return join("\n",@{ pp_annlines($stref->{'RefactoredCode'}{'./press.f'},0) });
-	}
-}	
-);
-#   say 'AFTER refactor_all()';
-
-   # This is part of the refactoring of kernel subroutines in a simulation loop into a called-once init() and a run() called in the loop
-   # It is actually only useful for OpenCL acceleration because the init writes state to the device
-#   for my $kernel_wrapper (keys %{$stref->{'KernelWrappers'}}) {
-#        $stref = outer_loop_variable_analysis($kernel_wrapper,$stref);
-#    }
-#    say 'AFTER outer_loop_variable_analysis()';
-
-#   die Dumper($stref->{'Subroutines'}{$subname}{'AnnLines'});
-   
+    # if a pass is given using -P on command line, it is performed
+    # multiple passes can be comma-separated    
+	$stref = refactor_all($stref,$subname, $pass);
+die;
    $DUMMY=0;
 	if ( not $call_tree_only ) {
 		# Emit the refactored source
@@ -320,7 +222,7 @@ sub parse_args {
 		die "Please specifiy FORTRAN subroutine or program to refactor\n";
 	}
 	my %opts = ();
-	getopts( 'vwidhACTNgbBGc:', \%opts );
+	getopts( 'vwidhACTNgbBGc:P:', \%opts );
 	
 	my $help = ( $opts{'h'} ) ? 1 : 0;
     if ($help) {
@@ -348,6 +250,8 @@ sub parse_args {
     if ( exists $Config{'NEWSRCPATH'}) {
         $targetdir =  $Config{'NEWSRCPATH'};
     }   
+    
+    my $pass =  $opts{'P'} // '';
     
     $ANN = ( $opts{'A'} ) ? 1 : 0;
     
@@ -384,7 +288,7 @@ sub parse_args {
     if ($build) { 
         $gen_scons = 1;
     }
-	return (lc($subname),\%subs_to_translate,$gen_scons,$build,$call_tree_only);
+	return (lc($subname),\%subs_to_translate,$gen_scons,$build,$call_tree_only, $pass);
 } # END of parse_args()
 
 =head1 SYNOPSIS

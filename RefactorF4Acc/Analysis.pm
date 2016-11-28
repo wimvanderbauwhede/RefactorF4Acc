@@ -935,9 +935,9 @@ sub _add_BLOCK_DATA_call_after_last_VarDecl {
 			push @{$new_annlines}, $annline;
 			next;
 		}
-#		say $line;
+		
 		if (
-		(exists $info->{'Signature'} and $info->{'Signature'}{'Program'} == 1) or
+		(exists $info->{'Signature'} and exists $info->{'Signature'}{'Program'} and $info->{'Signature'}{'Program'} == 1) or
 		exists $info->{'Include'} or
 		exists $info->{'VarDecl'} or
 		exists $info->{'Common'} or
