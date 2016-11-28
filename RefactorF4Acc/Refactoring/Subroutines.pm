@@ -26,6 +26,8 @@ use Exporter;
 
 @RefactorF4Acc::Refactoring::Subroutines::EXPORT_OK = qw(
     &refactor_all_subroutines    
+    &emit_subroutine_call
+    &emit_subroutine_sig
 );
 
 =pod
@@ -510,7 +512,7 @@ sub _create_extra_arg_and_var_decls {
 # It should update $stref->{'ExGlobArgDecls'} 
 # Furthermore I notice that sometimes these arguments are not passed on to the containing subroutine. That should be an issue in the subroutine refactoring code, in   
 sub _create_refactored_subroutine_call { 
-    ( my $stref, my $f, my $annline, my $rlines ) = @_;;
+    ( my $stref, my $f, my $annline, my $rlines ) = @_;
     
     (my $line, my $info) = @{ $annline };
 
@@ -576,6 +578,53 @@ sub _create_refactored_subroutine_call {
     }
     return $rlines;
 }    # END of _create_refactored_subroutine_call()
+
+sub emit_subroutine_call { (my $stref, my $f, my $annline)=@_;
+	    (my $line, my $info) = @{ $annline };
+	    my $Sf        = $stref->{'Subroutines'}{$f};
+	    my $name = $info->{'SubroutineCall'}{'Name'};
+	    say "NAME: $name";
+		my $args_ref = $info->{'SubroutineCall'}{'Args'}{'List'};
+#		say Dumper($args_ref);	    
+	    my $indent = $info->{'Indent'} // '      ';
+	    my $maybe_label= ( exists $info->{'Label'} and exists $Sf->{'ReferencedLabels'}{$info->{'Label'}} ) ?  $info->{'Label'}.' ' : '';
+	    my $args_str = join( ',', @{$args_ref} );	    
+	    my $rline = "call $name($args_str)\n";
+		if ( exists $info->{'PlaceHolders'} ) { 
+			while ($rline =~ /(__PH\d+__)/) {
+				my $ph=$1;
+				my $ph_str = $info->{'PlaceHolders'}{$ph};
+				$rline=~s/$ph/$ph_str/;
+			}                                    
+            $info->{'Ref'}++;
+        }  	    
+	    $info->{'Ann'}=[annotate($f, __LINE__ ) ];
+		return ( $indent . $maybe_label . $rline, $info );
+}
+
+
+sub emit_subroutine_sig { (my $stref, my $f, my $annline)=@_;
+	    (my $line, my $info) = @{ $annline };
+	    my $Sf        = $stref->{'Subroutines'}{$f};
+	    
+	    my $name = $info->{'Signature'}{'Name'};
+	    
+		my $args_ref = $info->{'Signature'}{'Args'}{'List'};
+#		say Dumper($args_ref);	    
+	    my $indent = $info->{'Indent'} // '      ';	    
+	    my $args_str = join( ',', @{$args_ref} );	    
+	    my $rline = "subroutine $name($args_str)\n";
+		if ( exists $info->{'PlaceHolders'} ) { 
+			while ($rline =~ /(__PH\d+__)/) {
+				my $ph=$1;
+				my $ph_str = $info->{'PlaceHolders'}{$ph};
+				$rline=~s/$ph/$ph_str/;
+			}                                    
+            $info->{'Ref'}++;
+        }  	    
+	    $info->{'Ann'}=[annotate($f, __LINE__ ) ];
+		return ( $indent . $rline, $info );
+}
 
 # This is for lines that contain function calls, so in practice either assignments or subroutine calls
 sub _create_refactored_function_calls { 

@@ -136,11 +136,10 @@ Suppose we don't:
                     for my $line ( @{$norm_lines} ) {
                         # emit line
                         if ( $line ne '' ) {                        	
-                            ( $stref, $s, $srctype ) =
-                              _pushAnnLine( $stref, $s, $srctype, $f, $line, $free_form );
+                            ( $stref, $s, $srctype ) = _pushAnnLine( $stref, $s, $srctype, $f, $line, $free_form );
                         }
                     }
-                    
+          
                     # So problem here is that in _pushAnnLine() we don't move the sub source to Subroutines
 
 
@@ -961,21 +960,20 @@ croak "No ANNLINES in $sub_func_type $sub_or_func ($f): ".$Sf->{'Status'} unless
 # I'm assuming that $srctype can only be Subroutines or Modules
 sub _pushAnnLine {
     ( my $stref, my $f, my $srctype, my $src, my $line, my $free_form ) = @_;
-if ($f eq 'UNKNOWN_SRC' or  not exists $stref->{$srctype}{$f}{'Status'} or $stref->{$srctype}{$f}{'Status'}<$PARSED ) {
+	if ($f eq 'UNKNOWN_SRC' or  not exists $stref->{$srctype}{$f}{'Status'} or $stref->{$srctype}{$f}{'Status'}<$PARSED ) {
+    	my $pline = _procLine( $line, $free_form );
+    	if (exists $stref->{'Macros'} ) {
+        	$pline->[0] = _restore_case_of_macros($stref,$pline->[0]);        
+    	}
 
-    my $pline = _procLine( $line, $free_form );
-    if (exists $stref->{'Macros'} ) {
-        $pline->[0] = _restore_case_of_macros($stref,$pline->[0]);        
-    }
-
-    if ( exists $pline->[1]{'Module'} and $srctype eq 'Modules' ) {
-        if ( $f ne 'UNKNOWN_SRC' ) {
-            if ( $stref->{$srctype}{$f}{'Status'} < $READ )
-            {    # FIXME: bit late, can I catch this earlier?
-                $stref->{$srctype}{$f}{'Status'} = $READ;                
-            }
-        }
-    }
+	    if ( exists $pline->[1]{'Module'} and $srctype eq 'Modules' ) {
+	        if ( $f ne 'UNKNOWN_SRC' ) {
+	            if ( $stref->{$srctype}{$f}{'Status'} < $READ )
+	            {    # FIXME: bit late, can I catch this earlier?
+	                $stref->{$srctype}{$f}{'Status'} = $READ;                
+	            }
+	        }
+	    }
     
         if ( exists $pline->[1]{'SubroutineSig'} or exists $pline->[1]{'FunctionSig'}) {
         	if ( not defined $stref->{$srctype}{$f}{'Status'} ) {
@@ -1000,25 +998,28 @@ if ($f eq 'UNKNOWN_SRC' or  not exists $stref->{$srctype}{$f}{'Status'} or $stre
             $stref->{'Subroutines'}{$f}{'AnnLines'} = [] unless (exists $stref->{'Subroutines'}{$f}{'Status'} and $stref->{'Subroutines'}{$f}{'Status'} == $PARSED);
         } 
 
-    if ( exists $pline->[1]{'EndModule'} and $srctype eq 'Subroutines' ) { 
-        if ( $f ne 'UNKNOWN_SRC' ) {
-            if ( $stref->{$srctype}{$f}{'Status'} < $READ )
-            {   
-                $stref->{$srctype}{$f}{'Status'} = $READ;                
-            }
-        }
-        my $mod_name = $pline->[1]{'EndModule'};
-        push @{ $stref->{'Modules'}{$mod_name}{'AnnLines'} }, $pline unless $stref->{'Modules'}{$mod_name}{'Status'} == $PARSED;
-    } else {
-    if ($f ne  'UNKNOWN_SRC') { # WV: what should happen is that on exit of a subroutine we push the rest onto the Module annlines. 
-    	push @{ $stref->{$srctype}{$f}{'AnnLines'} }, $pline unless (exists $stref->{$srctype}{$f}{'Status'} and $stref->{$srctype}{$f}{'Status'} == $PARSED);
-    } else {
-    	chomp $line;
-    	say "INFO: Adding <$line> to $src because code unit not yet known" if $I; 
-    	push @{ $stref->{'SourceFiles'}{$src}{'AnnLines'} }, $pline;
-    }       
-    }  
-}   
+	    if ( exists $pline->[1]{'EndModule'} and $srctype eq 'Subroutines' ) {	    	
+	        if ( $f ne 'UNKNOWN_SRC' ) {
+	            if ( $stref->{$srctype}{$f}{'Status'} < $READ )
+	            {   
+	                $stref->{$srctype}{$f}{'Status'} = $READ;                
+	            }
+	        }
+	        my $mod_name = $pline->[1]{'EndModule'};
+	        push @{ $stref->{'Modules'}{$mod_name}{'AnnLines'} }, $pline unless $stref->{'Modules'}{$mod_name}{'Status'} == $PARSED;
+	    } else {
+		    if ($f ne  'UNKNOWN_SRC') { # WV: what should happen is that on exit of a subroutine we push the rest onto the Module annlines.		     
+		    	if (not (exists $stref->{$srctype}{$f}{'Status'} and $stref->{$srctype}{$f}{'Status'} == $PARSED) ) {		    	
+#		    		say "$srctype $f";
+		    		push @{ $stref->{$srctype}{$f}{'AnnLines'} }, $pline;
+		    	}
+		    } else {
+		    	chomp $line;
+		    	say "INFO: Adding <$line> to $src because code unit not yet known" if $I;		    	 
+		    	push @{ $stref->{'SourceFiles'}{$src}{'AnnLines'} }, $pline;
+		    }       
+	    }  
+	}   
 
     return ( $stref, $f, $srctype );
 }    # END of  _pushAnnLine()
@@ -1247,8 +1248,7 @@ sub _procLine {
             $line =~ s/\bINCLUDE\b/include/;            
         } elsif ( $line !~ /[\'\"]/	
             && $line !~ /^\s*end/i
-            && $line =~ 
-/\b(module|program|recursive\s+subroutine|subroutine|entry|[\*\(\)\w]+\s+function|function|block)\s+(\w+)/i
+            && $line =~ /\b(module|program|recursive\s+subroutine|subroutine|entry|[\*\(\)\w]+\s+function|function|block)\s+(\w+)/i
           )
         {            
             my $keyword = lc($1);

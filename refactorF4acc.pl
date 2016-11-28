@@ -159,7 +159,7 @@ sub main {
     	$stref = parse_fortran_src( $data_block, $stref );
     }
 	$stref = parse_fortran_src( $subname, $stref );
-
+#say Dumper($stref);die;
 	$stref = refactor_marked_blocks_into_subroutines( $stref );
 
 	if ( $call_tree_only  ) {
@@ -181,7 +181,7 @@ sub main {
     # if a pass is given using -P on command line, it is performed
     # multiple passes can be comma-separated    
 	$stref = refactor_all($stref,$subname, $pass);
-die;
+
    $DUMMY=0;
 	if ( not $call_tree_only ) {
 		# Emit the refactored source

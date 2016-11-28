@@ -6,14 +6,14 @@ package RefactorF4Acc::Refactoring;
 use v5.016;
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
-use RefactorF4Acc::Refactoring::Common qw( stateful_pass stateless_pass get_annotated_sourcelines );
-use RefactorF4Acc::Refactoring::Subroutines qw( refactor_all_subroutines );
+use RefactorF4Acc::Refactoring::Common qw( stateful_pass stateless_pass get_annotated_sourcelines emit_f95_var_decl );
+use RefactorF4Acc::Refactoring::Subroutines qw( refactor_all_subroutines emit_subroutine_sig );
 use RefactorF4Acc::Refactoring::Functions qw( refactor_called_functions remove_vars_masking_functions);
 use RefactorF4Acc::Refactoring::IncludeFiles qw( refactor_include_files );
 use RefactorF4Acc::Analysis::ArgumentIODirs qw( determine_argument_io_direction_rec update_argument_io_direction_all_subs);
 use RefactorF4Acc::Refactoring::Modules qw( add_module_decls );
 
-use RefactorF4Acc::Parser::Expressions qw(emit_expression);
+use RefactorF4Acc::Parser::Expressions qw(parse_expression emit_expression);
 
 use vars qw( $VERSION );
 $VERSION = "1.0.0";
@@ -154,7 +154,7 @@ sub _ifdef_io_per_source_PASS1 { (my $stref,my $f) =@_;
 					} else {
 						# Else it means the block is not empty, so don't do anything
 					}
-				} elsif (exists $info->{'IfThen'}) { 
+				} elsif (exists $info->{'If'}) { 
 				#- If next relevant non-removed statement is EndIf, remove the whole block
 #				say "$iter IFTHEN: $line";
 					(my $next_relevant_statement, my $relevant_annline_idx) = get_next_relevant_statement($annlines, $idx);
@@ -467,14 +467,35 @@ sub get_next_relevant_statement { (my $annlines, my  $idx_start) = @_;
 
 
 sub _rename_array_accesses_to_scalars_all { (my $stref) = @_; 
-		
-#	for my $f ( keys %{ $stref->{'Subroutines'} } ) {
-		my $f='sub_map_109';
-		say "\nPASS _rename_array_accesses_to_scalars on $f\n";
-		$stref=_rename_array_accesses_to_scalars($stref, $f);
-		die ;	
-#	}
+	    my %is_existing_module = ();
+    my %existing_module_name = ();
 	
+for my $src (keys %{ $stref->{'SourceContains'} } ) {
+			
+		if (exists $stref->{'SourceContains'}{$src}{'Path'}
+		and  exists $stref->{'SourceContains'}{$src}{'Path'}{'Ext'} ) {	
+		# External, SKIP!
+			say "SKIPPING $src";			
+		} else {		
+		# Get the unit name from the list	    		
+		    for my $sub_or_func_or_mod ( @{  $stref->{'SourceContains'}{$src}{'List'}   } ) {
+#		    	say "SRC: $src => $sub_or_func_or_mod <>".$stref->{'Top'};
+		    	# Get its type
+		        my $sub_func_type= $stref->{'SourceContains'}{$src}{'Set'}{$sub_or_func_or_mod};
+		        if ($sub_func_type eq 'Modules') {
+		        	$is_existing_module{$src}=1;
+		        	$existing_module_name{$src} = $sub_or_func_or_mod;
+		        }		
+		    }
+		}
+
+	my @subs= $is_existing_module{$src} ? @{ $stref->{'Modules'}{$existing_module_name{$src}}{'Contains'} } :   sort keys %{ $stref->{'Subroutines'} };
+	for my $f ( @subs ) {
+		say "\n! PASS _rename_array_accesses_to_scalars on $f\n";
+		$stref=_rename_array_accesses_to_scalars($stref, $f);
+		show_annlines($stref->{'Subroutines'}{$f}{'RefactoredCode'},0);
+	}
+}	
 	return $stref;
 }
 
@@ -558,72 +579,186 @@ sub _rename_array_accesses_to_scalars { (my $stref, my $f) = @_;
 				# IGNORE, this is not a true array access
 			} else {				
 				# Rename all array accesses. But we can only do this in the AST!
-				_rename_ast_entry($stref, $f,  $info, $info->{'Rhs'}{'ExpressionAST'}); 
-#				for my $v ( @{ $info->{'Rhs'}{'VarList'}{'List'} } ) {
-#					next if $v eq '_OPEN_PAR_';
-#					if (
-#					$info->{'Rhs'}{'VarList'}{'Set'}{$v}{'Type'} eq 'Array'
-#					) {
-#						
-#					}					
-#				}
-#				say $line;
-#				say Dumper($info);
+				(my $ast, $state) = _rename_ast_entry($stref, $f,  $state, $info->{'Rhs'}{'ExpressionAST'},'In');
+				 $info->{'Rhs'}{'ExpressionAST'}=$ast;
+#				 say "$line => AST:".Dumper($ast);
 			}
+			if ($info->{'Lhs'}{'ArrayOrScalar'} eq 'Array') {
+				(my $ast, $state) = _rename_ast_entry($stref, $f,  $state, $info->{'Lhs'}{'ExpressionAST'}, 'Out');
+				$info->{'Lhs'}{'ExpressionAST'}=$ast;				
+			}
+		} elsif (exists $info->{'If'} ) {		
+			
+			my $cond_expr_ast=parse_expression($info->{'CondExecExpr'}, $info,$stref, $f);
+			
+			(my $ast, $state) = _rename_ast_entry($stref, $f,  $state, $cond_expr_ast, 'In');
+			
+			$info->{'CondExecExpr'}=$ast;			
 		}
-		my $new_annlines = [$annline];
-
-		return ($new_annlines,$state);
+		return ([[$line,$info]],$state);
 	};
 
 	my $state = {};
- 	($stref,$state) = stateful_pass($stref,$f,$pass_action, $state,'_rename_array_accesses_to_scalars() ' . __LINE__  ) ;	
+ 	($stref,$state) = stateful_pass($stref,$f,$pass_action, $state,'_rename_array_accesses_to_scalars_PASS1() ' . __LINE__  ) ;	
+#	say Dumper($state);
+
+# So now we have identified all stream vars. In the next pass, update the subroutine signature and declarations
+	
+	my $pass_action_2 = sub { (my $annline, my $state)=@_;
+		(my $line,my $info)=@{$annline};
+		if (exists $info->{'Signature'} ) { 
+			
+			my $new_args=[];
+			for my $arg (@{ $info->{'Signature'}{'Args'}{'List'} } ) {
+#				say Dumper($state);
+				if (exists $state->{$arg} ) {
+#					say $arg,Dumper($state);
+				$new_args=[@{$new_args},  sort keys %{ $state->{$arg} }  ];
+				} else {
+					push @{$new_args}, $arg;
+				} 
+			}
+			$info->{'Signature'}{'Args'}{'List'}=$new_args;
+			$info->{'Signature'}{'Args'}{'Set'} = { map {$_=>1} @{$new_args} };
+#			say Dumper($info);
+		} elsif (exists $info->{'VarDecl'} ) {
+#			say Dumper($info->{'VarDecl'})."\t".
+			my $var = $info->{'VarDecl'}{'Name'};
+			if (exists $state->{$var}) {
+				my @vars = sort keys %{ $state->{$var} };
+				if (exists $info->{'ParsedVarDecl'}) {
+					$info->{'ParsedVarDecl'}{'StreamVars'}=$state->{$var};
+					$info->{'ParsedVarDecl'}{'Vars'}=[@vars];
+					delete $info->{'ParsedVarDecl'}{'Attributes'}{'Dim'};
+					# In principle I should deal with the INTENT as well but I will just delete it and see
+					if (exists $info->{'ParsedVarDecl'}{'Attributes'}{'Intent'} ) {
+						delete $info->{'ParsedVarDecl'}{'Attributes'}{'Intent'};
+					}
+#					say Dumper($info->{'ParsedVarDecl'});
+				} else {
+					croak "TROUBLE: ".Dumper($annline); 
+				}
+			}
+		}
+		return ([[$line,$info]],$state);
+	};
+
+#	my $state = {};
+ 	($stref,$state) = stateful_pass($stref,$f,$pass_action_2, $state,'_rename_array_accesses_to_scalars_PASS2() ' . __LINE__  ) ;		
+	
+	
+# my $rline = emit_f95_var_decl($rdecl);	
+	my $pass_action_3 = sub { (my $annline, my $state)=@_;		
+		(my $line,my $info)=@{$annline};
+		(my $stref, my $f) = @{$state};
+		my $rline=$line;
+		my $rlines=[];
+		if (exists $info->{'Signature'} ) { 
+			($rline, $info) = emit_subroutine_sig( $stref, $f, $annline);
+			say $rline if $DBG;
+			push @{$rlines},[$rline,$info];			
+		} elsif (
+			exists $info->{'VarDecl'} and exists $info->{'ParsedVarDecl'}{'StreamVars'}
+		) {
+		
+			my $tvar_rec = $info->{'ParsedVarDecl'};
+			for my $tvar (keys %{  $tvar_rec->{'StreamVars'} }) {
+				my $type = $tvar_rec->{'TypeTup'}{'Type'};
+				my $kind = exists $tvar_rec->{'TypeTup'}{'Kind'} ? '(kind='.$tvar_rec->{'TypeTup'}{'Kind'} .')' : '';
+				my $intent = $tvar_rec->{'StreamVars'}{$tvar};
+				my $rdecl = {
+				'Indent' => $info->{'Indent'},
+				'Type'   => $type.$kind,
+				'Attr'   => '',#$tvar_rec->{'Attributes'},
+				'Dim'    => [],
+				'Name'   => $tvar,
+				'IODir'  => $intent,
+				};
+				$rline = emit_f95_var_decl($rdecl);
+				say $rline if $DBG;
+				push @{$rlines},[$rline,$info];			
+			}	
+		} elsif (exists $info->{'Assignment'} ) {
+			($rline, $info)=_emit_assignment($annline);
+			say $rline if $DBG;
+			push @{$rlines},[$rline,$info];
+		} elsif (exists $info->{'If'} ) {
+			($rline, $info)=_emit_ifthen($annline);
+			say $rline if $DBG;
+			push @{$rlines},[$rline,$info];
+			
+		} else {
+			if ( exists $info->{'PlaceHolders'} ) { 
+				while ($rline =~ /(__PH\d+__)/) {
+					my $ph=$1;
+					my $ph_str = $info->{'PlaceHolders'}{$ph};
+					$rline=~s/$ph/$ph_str/;
+				}
+			}                                    
+            $info->{'Ref'}++;
+			say $rline if $DBG;
+			push @{$rlines},[$rline,$info];
+		}
+		
+		return ($rlines,$state);
+	};
+	
+	$state=[$stref,$f];
+ 	($stref,$state) = stateful_pass($stref,$f,$pass_action_3, $state,'_rename_array_accesses_to_scalars_PASS3() ' . __LINE__  ) ;	
 	
 	return $stref;
-}
+} # END of _rename_array_accesses_to_scalars()
 
 
 
 	# This function changes functions to arrays
 
-sub _rename_ast_entry { (my $stref, my $f,  my $info, my $ast)=@_;
+sub _rename_ast_entry { (my $stref, my $f,  my $state, my $ast, my $intent)=@_;
 	if (ref($ast) eq 'ARRAY') {
-	for my  $idx (0 .. scalar @{$ast}-1) {		
-		my $entry = $ast->[$idx];
-
-		if (ref($entry) eq 'ARRAY') {
-			my $entry = _rename_ast_entry($stref,$f, $info,$entry);
-			$ast->[$idx] = $entry;
-		} else {
-			if ($entry eq '@') {				
-				my $mvar = $ast->[$idx+1];
-				if ($mvar ne '_OPEN_PAR_') {
-					say 'Found array access '.$mvar  if $DBG;
-					my $expr_str = emit_expression($ast,'');
-					$expr_str=~s/[\(\),]/_/g;
-					$expr_str=~s/\+/p/g;
-					$expr_str=~s/\-/m/g;
-					$expr_str=~s/\*/t/g;
-					say 'Found array access '.$mvar.' => '.$expr_str ;
-				}
-			} elsif ($entry eq '$') {
-				my $mvar = $ast->[$idx+1];
-				say "Found scalar $mvar" if $DBG;
-				
-			} elsif ($entry eq '@') {
-				my $mvar = $ast->[$idx+1];
-				say "Found array $mvar" if $DBG;
-			} elsif ($entry eq '#') {
-				my $mvar = $ast->[$idx+1];
-				say "Found dummy $mvar" if $DBG;				
-			} else {
-#				say $entry;
-			}
-		}		
-	}
-	}
-	return  $ast;#($stref,$f, $ast);	
+		for my  $idx (0 .. scalar @{$ast}-1) {		
+			my $entry = $ast->[$idx];
 	
+			if (ref($entry) eq 'ARRAY') {
+				(my $entry, $state) = _rename_ast_entry($stref,$f, $state,$entry,$intent);
+				$ast->[$idx] = $entry;
+			} else {
+				if ($entry eq '@') {				
+					my $mvar = $ast->[$idx+1];
+					if ($mvar ne '_OPEN_PAR_') {
+						say 'Found array access '.$mvar  if $DBG;
+						my $expr_str = emit_expression($ast,'');
+						$expr_str=~s/[\(\),]/_/g;
+						$expr_str=~s/\+/p/g;
+						$expr_str=~s/\-/m/g;
+						$expr_str=~s/\*/t/g;
+#						say 'Found array access '.$mvar.' => '.$expr_str ;
+						$state->{$mvar}{$expr_str}=$intent;
+						$ast=['$',$expr_str];
+						last;
+					}
+				} 
+			}		
+		}
+	}
+	return  ($ast, $state);	
+	
+}
+sub _emit_assignment { (my $annline)=@_;
+	( my $line, my $info ) = @{$annline};
+	my $lhs_ast =  $info->{'Lhs'}{'ExpressionAST'};
+	my $lhs = emit_expression($lhs_ast,'');
+	my $rhs_ast =  $info->{'Rhs'}{'ExpressionAST'};
+	my $rhs = emit_expression($rhs_ast,'');
+	my $rline = $info->{'Indent'}.$lhs.' = '.$rhs;	
+	return ($rline, $info);
+}
+
+sub _emit_ifthen { (my $annline)=@_;
+	( my $line, my $info ) = @{$annline};
+	my $cond_expr_ast=$info->{'CondExecExpr'};
+	my $cond_expr = emit_expression($cond_expr_ast);
+	my $rline = $info->{'Indent'}.'if ('.$cond_expr.') then';	
+	return ($rline, $info);
 }
 
 
