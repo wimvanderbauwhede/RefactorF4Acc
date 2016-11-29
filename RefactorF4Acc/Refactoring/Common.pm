@@ -35,6 +35,7 @@ use Exporter;
   &splice_additional_lines_cond
   &stateless_pass
   &stateful_pass
+  &stateful_pass_reverse
 );
 
 our %f95ops = (
@@ -1572,13 +1573,32 @@ sub stateful_pass {
         for my $new_annline (@{ $pass_annlines }) { 
         	push @{$new_annlines}, $new_annline;
         }
-
     }
     $Sf->{'RefactoredCode'} = $new_annlines;
     
     return ($stref,$state);
 } # END of stateful_pass()
 
+sub stateful_pass_reverse {
+    (my $stref, my $f, my $pass_actions, my $state, my $info ) = @_;
+    my $sub_or_func_or_mod = sub_func_incl_mod( $f, $stref );
+     
+    my $Sf                 = $stref->{$sub_or_func_or_mod}{$f};    
+    my $annlines           = get_annotated_sourcelines( $stref, $f );
+    
+    my $nextLineID         = scalar @{$annlines} + 1;
+    my $new_annlines=[];
+    for my $annline ( reverse @{$annlines} ) {    	
+        (my $pass_annlines, $state) = $pass_actions->($annline, $state);
+        for my $new_annline (@{ $pass_annlines }) { 
+        	push @{$new_annlines}, $new_annline;
+        }
+    }
+    $new_annlines =[ reverse @{ $new_annlines  } ]; 
+    $Sf->{'RefactoredCode'} = $new_annlines;
+    
+    return ($stref,$state);
+} # END of stateful_pass()
 
 
 sub _emit_f95_parsed_var_decl { (my $pvd) =@_;

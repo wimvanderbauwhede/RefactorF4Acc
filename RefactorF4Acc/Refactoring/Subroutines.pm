@@ -583,9 +583,9 @@ sub emit_subroutine_call { (my $stref, my $f, my $annline)=@_;
 	    (my $line, my $info) = @{ $annline };
 	    my $Sf        = $stref->{'Subroutines'}{$f};
 	    my $name = $info->{'SubroutineCall'}{'Name'};
-	    say "NAME: $name";
+	    
 		my $args_ref = $info->{'SubroutineCall'}{'Args'}{'List'};
-#		say Dumper($args_ref);	    
+			    
 	    my $indent = $info->{'Indent'} // '      ';
 	    my $maybe_label= ( exists $info->{'Label'} and exists $Sf->{'ReferencedLabels'}{$info->{'Label'}} ) ?  $info->{'Label'}.' ' : '';
 	    my $args_str = join( ',', @{$args_ref} );	    

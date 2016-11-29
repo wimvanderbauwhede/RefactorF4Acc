@@ -6,7 +6,7 @@ package RefactorF4Acc::Refactoring;
 use v5.016;
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
-use RefactorF4Acc::Refactoring::Common qw( stateful_pass stateless_pass get_annotated_sourcelines emit_f95_var_decl );
+use RefactorF4Acc::Refactoring::Common qw( stateful_pass stateful_pass_reverse stateless_pass get_annotated_sourcelines emit_f95_var_decl );
 use RefactorF4Acc::Refactoring::Subroutines qw( refactor_all_subroutines emit_subroutine_sig );
 use RefactorF4Acc::Refactoring::Functions qw( refactor_called_functions remove_vars_masking_functions);
 use RefactorF4Acc::Refactoring::IncludeFiles qw( refactor_include_files );
@@ -22,6 +22,9 @@ use warnings::unused;
 use warnings;
 use warnings FATAL => qw(uninitialized);
 use strict;
+
+use Storable qw( dclone );
+
 use Carp;
 $Carp::Verbose = 1;
 use Data::Dumper; 
@@ -492,9 +495,16 @@ sub _rename_array_accesses_to_scalars_all { (my $stref) = @_;
 		my @subs= $is_existing_module{$src} ? @{ $stref->{'Modules'}{$existing_module_name{$src}}{'Contains'} } :   sort keys %{ $stref->{'Subroutines'} };
 		for my $f ( @subs ) {
 			say "\n! PASS _rename_array_accesses_to_scalars on $f\n" if $V;
-			$stref=_rename_array_accesses_to_scalars($stref, $f);
+			$stref=_rename_array_accesses_to_scalars($stref, $f);			
 #			show_annlines($stref->{'Subroutines'}{$f}{'RefactoredCode'},0);
 		}
+		# It is possible that the subs with renamed args are called in other subs.
+		# In practice, they should be called from a single other sub, the superkernel
+		# But there could be more than one kernel etc.
+		for my $f ( @subs ) {			
+			$stref=_rename_array_accesses_to_scalars_called_subs($stref, $f);
+		}
+		
 	}	
 	return $stref;
 }
@@ -572,7 +582,7 @@ sub _rename_array_accesses_to_scalars_all { (my $stref) = @_;
 
 sub _rename_array_accesses_to_scalars { (my $stref, my $f) = @_;
 	
-	my $pass_action = sub { (my $annline, my $state)=@_;
+	my $pass_rename_in_ast = sub { (my $annline, my $state)=@_;
 		(my $line,my $info)=@{$annline};
 		if (exists $info->{'Assignment'} ) {
 			if (scalar @{ $info->{'Rhs'}{'VarList'}{'List'} } ==1 and $info->{'Rhs'}{'VarList'}{'List'}[0]=~/_ptr/) {
@@ -587,20 +597,52 @@ sub _rename_array_accesses_to_scalars { (my $stref, my $f) = @_;
 				(my $ast, $state) = _rename_ast_entry($stref, $f,  $state, $info->{'Lhs'}{'ExpressionAST'}, 'Out');
 				$info->{'Lhs'}{'ExpressionAST'}=$ast;				
 			}
+			$state->{'IndexVars'}={ %{$state->{'IndexVars'} }, %{ $info->{'Lhs'}{'IndexVars'}{'Set'} } };
+			for my $var ( @{ $info->{'Rhs'}{'VarList'}{'List'} } ) {
+				next if $var eq '_OPEN_PAR_';
+				if ($info->{'Rhs'}{'VarList'}{'Set'}{$var}{'Type'} eq 'Array' and exists $info->{'Rhs'}{'VarList'}{'Set'}{$var}{'IndexVars'}) {					
+					$state->{'IndexVars'}={ %{ $state->{'IndexVars'} }, %{ $info->{'Rhs'}{'VarList'}{'Set'}{$var}{'IndexVars'} } }
+				}
+			}
+				
 		} elsif (exists $info->{'If'} ) {		
 			
 			my $cond_expr_ast=parse_expression($info->{'CondExecExpr'}, $info,$stref, $f);
 			
 			(my $ast, $state) = _rename_ast_entry($stref, $f,  $state, $cond_expr_ast, 'In');
 			
-			$info->{'CondExecExpr'}=$ast;			
+			$info->{'CondExecExpr'}=$ast;
+			for my $var ( @{ $info->{'CondVars'}{'List'} } ) {
+				next if $var eq '_OPEN_PAR_';
+				if ($info->{'CondVars'}{'Set'}{$var}{'Type'} eq 'Array' and exists $info->{'CondVars'}{'Set'}{$var}{'IndexVars'}) {					
+					$state->{'IndexVars'}={ %{ $state->{'IndexVars'} }, %{ $info->{'CondVars'}{'Set'}{$var}{'IndexVars'} } }
+				}
+			}
+						
 		}
 		return ([[$line,$info]],$state);
 	};
 
-	my $state = {};
- 	($stref,$state) = stateful_pass($stref,$f,$pass_action, $state,'_rename_array_accesses_to_scalars_PASS1() ' . __LINE__  ) ;	
-#	say Dumper($state);
+	my $state = {'IndexVars'=>{}, 'StreamVars'=>{}};
+ 	($stref,$state) = stateful_pass($stref,$f,$pass_rename_in_ast, $state,'_rename_array_accesses_to_scalars_PASS1() ' . __LINE__  ) ;
+ 	
+ 	$stref->{'Subroutines'}{$f}{'LiftedScalarAssignments'}=[];
+	for my $var (keys %{ $state->{'StreamVars'} } ){
+		for my $stream_var (sort keys %{ $state->{'StreamVars'}{$var} } ){
+			my $assignment_line= '      '.$stream_var.' = '.$state->{'StreamVars'}{$var}{$stream_var}{'ArrayIndexExpr'};
+			push @{ $stref->{'Subroutines'}{$f}{'LiftedScalarAssignments'} }, 
+			[$assignment_line,
+				{
+					'Assignment'=> {
+						'Lhs'=> {   
+							'ArrayOrScalar' => 'Scalar','IndexVars' => {'List' => [],'Set' => {}},'ExpressionAST' => ['$',$stream_var],'VarName' => $stream_var
+						  },
+						'Rhs' => {}
+					}
+				}
+			]; 
+		}		
+	}
 
 # So now we have identified all stream vars. In the next pass, update the subroutine signature and declarations
 	
@@ -611,9 +653,9 @@ sub _rename_array_accesses_to_scalars { (my $stref, my $f) = @_;
 			my $new_args=[];
 			for my $arg (@{ $info->{'Signature'}{'Args'}{'List'} } ) {
 #				say Dumper($state);
-				if (exists $state->{$arg} ) {
+				if (exists $state->{'StreamVars'}{$arg} ) {
 #					say $arg,Dumper($state);
-				$new_args=[@{$new_args},  sort keys %{ $state->{$arg} }  ];
+					$new_args=[@{$new_args},  sort keys %{ $state->{'StreamVars'}{$arg} }  ];
 				} else {
 					push @{$new_args}, $arg;
 				} 
@@ -624,10 +666,10 @@ sub _rename_array_accesses_to_scalars { (my $stref, my $f) = @_;
 		} elsif (exists $info->{'VarDecl'} ) {
 #			say Dumper($info->{'VarDecl'})."\t".
 			my $var = $info->{'VarDecl'}{'Name'};
-			if (exists $state->{$var}) {
-				my @vars = sort keys %{ $state->{$var} };
+			if (exists $state->{'StreamVars'}{$var}) {
+				my @vars = sort keys %{ $state->{'StreamVars'}{$var} };
 				if (exists $info->{'ParsedVarDecl'}) {
-					$info->{'ParsedVarDecl'}{'StreamVars'}=$state->{$var};
+					$info->{'ParsedVarDecl'}{'StreamVars'}=$state->{'StreamVars'}{$var};
 					$info->{'ParsedVarDecl'}{'Vars'}=[@vars];
 					delete $info->{'ParsedVarDecl'}{'Attributes'}{'Dim'};
 					# In principle I should deal with the INTENT as well but I will just delete it and see
@@ -643,12 +685,104 @@ sub _rename_array_accesses_to_scalars { (my $stref, my $f) = @_;
 		return ([[$line,$info]],$state);
 	};
 
-#	my $state = {};
- 	($stref,$state) = stateful_pass($stref,$f,$pass_action_2, $state,'_rename_array_accesses_to_scalars_PASS2() ' . __LINE__  ) ;		
+ 	($stref,$state) = stateful_pass($stref,$f,$pass_action_2, $state,'_rename_array_accesses_to_scalars_PASS2() ' . __LINE__  ) ;
+ 	
+ 	# So at this point we should do the lifting of everything to do with indexing
+ 	
+# Finally, after having updated the calls we can add the missing declarations
+# I am making the assumption that in the superkernel we will assign the variables to the original array accesses
+# However, the array indices are computed from the global id on a per-sub basis.
+# Meaning that i,j,k are different for each sub.
+# So  we need to extract the calculations of i,j,k out of the sub
+# We can do this by analysing which vars are used in the array accesses
+# Then for each of these, which vars they use, I guess the best way is to go through the annlines in reverse 
+# Then all the expressions and declarations can be removed from the sub and the args from the sig
+# Then when we find a call we need to insert the expressions before the call, and then the array assignments
+# Then we need to add the missing declarations.
+# Clearly, this is a lot of work
+
+	my  $pass_lift_array_index_calculations = sub {(my $annline, my $state)=@_;
+		(my $line,my $info)=@{$annline};
+	# Every Assignment line that has one of these on the LHS gets removed from AnnLines and stored in LiftedIndexCalcLines, and we take list of all vars on the RHS {'Rhs'}{'VarList'}{'List'} and add these to $index_vars
+	# We do this until we have all of them. Basically, if we start from the back and push in reverse, we can do this in a single pass
+		
+		if (exists $info->{'Assignment'} ) {
+			my $lhs_var = $info->{'Lhs'}{'VarName'};
+			if (exists $state->{'IndexVars'}{$lhs_var}) {				
+				unshift @{ $state->{'LiftedIndexCalcLines'} }, dclone($annline);
+				$info->{'Deleted'}=1;
+	  			my $rhs_vars = $info->{'Rhs'}{'VarList'}{'Set'};
+				$state->{'IndexVars'}={ %{ $state->{'IndexVars'} }, %{ $rhs_vars } };				  
+				return ([["! $line",$info]],$state);
+			}
+		} elsif (exists $info->{'SubroutineCall'} ) {
+			for my $arg ( @{ $info->{'SubroutineCall'}{'Args'}{'List'} } ){
+				if (exists $state->{'IndexVars'}{$arg} ) {					
+					unshift @{ $state->{'LiftedIndexCalcLines'} }, dclone($annline);
+					$info->{'Deleted'}=1;
+		  			my $args = $info->{'SubroutineCall'}{'Args'}{'Set'};
+		  			# TODO: of course this ignores any indices or function call args
+					$state->{'IndexVars'}={ %{ $state->{'IndexVars'} }, %{ $args } };				  
+					return ([["! $line",$info]],$state);
+				}
+			}
+		}
+		 	# Then we can remove the declarations as well, and store these in LiftedIndexVarDecls
+		elsif (exists $info->{'VarDecl'}) {
+			my $decl_var = $info->{'VarDecl'}{'Name'};
+			if (exists $state->{'IndexVars'}{$decl_var}) {				
+				unshift @{ $state->{'LiftedIndexVarDecls'}{'List'} }, dclone($annline);
+				$info->{'Deleted'}=1;
+	  			$state->{'LiftedIndexVarDecls'}{'Set'}{$decl_var}=$annline;								  
+				return ([["! $line",$info]],$state);
+			}			
+		}
+		# Finally we remove the $index_vars from the Args in the Signature
+		elsif (exists $info->{'Signature'} ) { 			
+			my $new_args=[];
+			for my $arg (@{ $info->{'Signature'}{'Args'}{'List'} } ) {
+				if (not exists $state->{'IndexVars'}{$arg} ) {
+					push @{$new_args}, $arg;
+				} 
+			}
+			$info->{'Signature'}{'Args'}{'List'}=$new_args;
+			$info->{'Signature'}{'Args'}{'Set'} = { map {$_=>1} @{$new_args} };
+		}
+		
+		return ([[$line,$info]],$state);
+	};
+	$state->{'LiftedIndexCalcLines'}=[];
+	$state->{'LiftedIndexVarDecls'}={'List'=>[],'Set'=>{}};
+ 	($stref,$state) = stateful_pass_reverse($stref,$f,$pass_lift_array_index_calculations, $state,'_rename_array_accesses_to_scalars_lift() ' . __LINE__  ) ;
+ 	
+	# And then we can update $stref->{$Subroutines}{$f} and add LiftedIndexCalcLines and LiftedIndexVarDecls so that when we find a call we can splice in these lines
+	$stref->{'Subroutines'}{$f}{'LiftedIndexCalcLines'}=dclone($state->{'LiftedIndexCalcLines'});
+	$stref->{'Subroutines'}{$f}{'LiftedIndexVarDecls'}=dclone($state->{'LiftedIndexVarDecls'});
+
+	# We must also create the assignment lines for every newly created stream var and put these in LiftedScalarAssignments	  
+
+ 	
+ 	my @updated_args_list=();		
+	for my $orig_arg ( @{ $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'List'} } ) {
+		if (exists $state->{'StreamVars'}{$orig_arg}) {
+			my $new_decl = dclone( $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$orig_arg} );
+			for my $new_arg (sort keys %{ $state->{'StreamVars'}{$orig_arg} }) {
+				push @updated_args_list,$new_arg;
+				$new_decl->{'ArrayOrScalar'}='Scalar';
+				$new_decl->{'Dim'}=[];
+				$new_decl->{'IODir'}=$state->{'StreamVars'}{$orig_arg}{$new_arg}{'IODir'};
+				$new_decl->{'ArrayIndexExpr'}=$state->{'StreamVars'}{$orig_arg}{$new_arg}{'ArrayIndexExpr'};
+				$stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$new_arg}=$new_decl;
+				delete $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$orig_arg};
+			}			
+		} else {
+			push @updated_args_list, $orig_arg;	
+		}
+	}
+	$stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'List'}=[@updated_args_list];
 	
-	
-# my $rline = emit_f95_var_decl($rdecl);	
-	my $pass_action_3 = sub { (my $annline, my $state)=@_;		
+	# Now we emit the updated code for the subroutine signature, the variable declarations, assignment expressions and ifthen expressions 	
+	my $pass_emit_updated_code = sub { (my $annline, my $state)=@_;		
 		(my $line,my $info)=@{$annline};
 		(my $stref, my $f) = @{$state};
 		my $rline=$line;
@@ -665,7 +799,7 @@ sub _rename_array_accesses_to_scalars { (my $stref, my $f) = @_;
 			for my $tvar (keys %{  $tvar_rec->{'StreamVars'} }) {
 				my $type = $tvar_rec->{'TypeTup'}{'Type'};
 				my $kind = exists $tvar_rec->{'TypeTup'}{'Kind'} ? '(kind='.$tvar_rec->{'TypeTup'}{'Kind'} .')' : '';
-				my $intent = $tvar_rec->{'StreamVars'}{$tvar};
+				my $intent = $tvar_rec->{'StreamVars'}{$tvar}{'IODir'};
 				my $rdecl = {
 				'Indent' => $info->{'Indent'},
 				'Type'   => $type.$kind,
@@ -703,13 +837,84 @@ sub _rename_array_accesses_to_scalars { (my $stref, my $f) = @_;
 		return ($rlines,$state);
 	};
 	
-	$state=[$stref,$f];
- 	($stref,$state) = stateful_pass($stref,$f,$pass_action_3, $state,'_rename_array_accesses_to_scalars_PASS3() ' . __LINE__  ) ;	
-	
+	my $global_state_access=[$stref,$f];
+ 	($stref,$global_state_access) = stateful_pass($stref,$f,$pass_emit_updated_code , $global_state_access,'_rename_array_accesses_to_scalars_PASS3() ' . __LINE__  ) ;
+# 	say $f;	
+#	show_annlines($stref->{'Subroutines'}{$f}{'LiftedIndexCalcLines'});
 	return $stref;
 } # END of _rename_array_accesses_to_scalars()
 
+# After we've renamed all args in the subroutine definitions, we update the calls as well 
+sub _rename_array_accesses_to_scalars_called_subs { (my $stref, my $f) = @_;
+#	say "_rename_array_accesses_to_scalars_called_subs($f)";
+	my $pass_action = sub { (my $annline, my $state)=@_;		
+		(my $line,my $info)=@{$annline};
+		(my $stref, my $f) = @{$state};
+		my $rline=$line;
+		my $rlines=[];
+		if ( exists $info->{'SubroutineCall'} and 
+			not exists $stref->{'ExternalSubroutines'}{ $info->{'SubroutineCall'}{'Name'} }
+			){
+				my $subname = $info->{'SubroutineCall'}{'Name'};
+#				say $subname;
+#				show_annlines($stref->{'Subroutines'}{$subname}{'LiftedIndexCalcLines'});
+			if ( exists  $stref->{'Subroutines'}{$subname}{'LiftedIndexCalcLines'} ) {				
+				$rlines = [@{$rlines},@{ $stref->{'Subroutines'}{$subname}{'LiftedIndexCalcLines'} }];
+			}								
+			if ( exists  $stref->{'Subroutines'}{$subname}{'LiftedScalarAssignments'} ) {				
+				$rlines = [@{$rlines},@{ $stref->{'Subroutines'}{$subname}{'LiftedScalarAssignments'} }];
+			}								
+				
+			($rline, $info) = _emit_subroutine_call( $stref, $f, $annline);
+			say $rline if $DBG;
+			push @{$rlines},[$rline,$info];
+#			show_annlines($rlines,1);			
+		} else {
+#			if ( exists $info->{'PlaceHolders'} ) { 
+#				while ($rline =~ /(__PH\d+__)/) {
+#					my $ph=$1;
+#					my $ph_str = $info->{'PlaceHolders'}{$ph};
+#					$rline=~s/$ph/$ph_str/;
+#				}
+#			}                                    
+#            $info->{'Ref'}++;
+			say $rline if $DBG;
+			push @{$rlines},[$rline,$info];
+		}
+		
+		return ($rlines,$state);
+	};
+	
+	my $state=[$stref,$f];
+ 	($stref,$state) = stateful_pass($stref,$f,$pass_action, $state,'_rename_array_accesses_to_scalars_called_subs() ' . __LINE__  ) ;	
+	
+	return $stref;
+} # END of _rename_array_accesses_to_scalars_called_subs()
 
+# Finally, after having updated the calls we can add the missing declarations
+# I am making the assumption that in the superkernel we will assign the variables to the original array accesses
+# However, the array indices are computed from the global id on a per-sub basis.
+# Meaning that i,j,k are different for each sub.
+# So  we need to extract the calculations of i,j,k out of the sub
+# We can do this by analysing which vars are used in the array accesses
+# Then for each of these, which vars they use, I guess the best way is to go through the annlines in reverse 
+# Then all the expressions and declarations can be removed from the sub and the args from the sig
+# Then when we find a call we need to insert the expressions before the call, and then the array assignments
+# Then we need to add the missing declarations.
+# Clearly, this is a lot of work
+
+sub _lift_array_index_calculations { 
+	return 1;
+	# Also, we need the original array access expression to be stored, so we have  { 'IODir' => ..., ArrayIndexExpr => '...' }
+	# For every array index, identify the variables used. This is easy: we have 'IndexVars'
+	# Put these into $index_vars
+	# Every Assignment line that has one of these on the LHS gets removed from AnnLines and stored in LiftedIndexCalcLines, and we take list of all vars on the RHS {'Rhs'}{'VarList'}{'List'} and add these to $index_vars
+	# We do this until we have all of them. Basically, if we start from the back and push in reverse, we can do this in a single pass
+	# Then we can remove the declarations as well, and store these in LiftedIndexVarDecls
+	# Finally we remove the $index_vars from the Args in the Signature
+	# And then we can update $stref->{$Subroutines}{$f} and add LiftedIndexCalcLines and LiftedIndexVarDecls so that when we find a call we can splice in these lines
+	# We must also create the assignment lines for every newly created var and put these in LiftedScalarAssignments	  
+}
 
 	# This function changes functions to arrays
 
@@ -727,13 +932,14 @@ sub _rename_ast_entry { (my $stref, my $f,  my $state, my $ast, my $intent)=@_;
 					if ($mvar ne '_OPEN_PAR_') {
 						say 'Found array access '.$mvar  if $DBG;
 						my $expr_str = emit_expression($ast,'');
-						$expr_str=~s/[\(\),]/_/g;
-						$expr_str=~s/\+/p/g;
-						$expr_str=~s/\-/m/g;
-						$expr_str=~s/\*/t/g;
+						my $var_str=$expr_str;
+						$var_str=~s/[\(\),]/_/g;
+						$var_str=~s/\+/p/g;
+						$var_str=~s/\-/m/g;
+						$var_str=~s/\*/t/g;
 #						say 'Found array access '.$mvar.' => '.$expr_str ;
-						$state->{$mvar}{$expr_str}=$intent;
-						$ast=['$',$expr_str];
+						$state->{'StreamVars'}{$mvar}{$var_str}={'IODir'=>$intent,'ArrayIndexExpr'=>$expr_str} ;
+						$ast=['$',$var_str];
 						last;
 					}
 				} 
@@ -761,6 +967,30 @@ sub _emit_ifthen { (my $annline)=@_;
 	return ($rline, $info);
 }
 
+# This is fairly generic and assumes the updated call args are RefactoredArgs
+sub _emit_subroutine_call { (my $stref, my $f, my $annline)=@_;
+	    (my $line, my $info) = @{ $annline };
+	    my $Sf        = $stref->{'Subroutines'}{$f};
+	    my $name = $info->{'SubroutineCall'}{'Name'};
+	    
+		my $args_ref = $stref->{'Subroutines'}{$name}{'RefactoredArgs'}{'List'};
+			    
+	    my $indent = $info->{'Indent'} // '      ';
+	    my $maybe_label= ( exists $info->{'Label'} and exists $Sf->{'ReferencedLabels'}{$info->{'Label'}} ) ?  $info->{'Label'}.' ' : '';
+	    my $args_str = join( ',', @{$args_ref} );	    
+	    my $rline = "call $name($args_str)\n";
+		if ( exists $info->{'PlaceHolders'} ) { 
+			while ($rline =~ /(__PH\d+__)/) {
+				my $ph=$1;
+				my $ph_str = $info->{'PlaceHolders'}{$ph};
+				$rline=~s/$ph/$ph_str/;
+			}                                    
+            $info->{'Ref'}++;
+        }  	    
+	    $info->{'Ann'}=[annotate($f, __LINE__ ) ];
+		return ( $indent . $maybe_label . $rline, $info );
+}
+
 sub _top_src_is_module {( my $stref, my $s) = @_;
     my $sub_func_incl = sub_func_incl_mod( $s, $stref ); 
 	my $is_incl = exists $stref->{'IncludeFiles'}{$s} ? 1 : 0;
@@ -778,5 +1008,7 @@ sub _top_src_is_module {( my $stref, my $s) = @_;
     }	
 	return 0;        
 }
+
+
 
 1;

@@ -418,7 +418,21 @@ sub get_vars_from_expression {(my $ast, my $vars)=@_;
 				next if $mvar=~/__PH\d+__/;
 				next if $mvar=~/_(?:CONCAT|COLON)_PRE_/;
 				next if $mvar=~/_PAREN_PAIR_/;		
-				$vars->{$mvar}={'Type' =>'Array'};					
+				$vars->{$mvar}={'Type' =>'Array'};
+				my $index_vars={};
+				for my $elt_idx (2 ..  scalar @{$ast}-1) {
+					if (ref($ast->[$idx+$elt_idx]) eq 'ARRAY') {
+						$index_vars =  get_vars_from_expression($ast->[$idx+$elt_idx],$index_vars);
+					}
+					
+					for my $idx_var (keys %{ $index_vars }) {
+						if ($index_vars->{$idx_var}{'Type'} eq 'Array') {
+							delete $index_vars->{$idx_var};
+						}
+					}					
+					$vars->{$mvar}{'IndexVars'} = $index_vars;
+				}					
+				#['@','eta',['$','j'],['+',['$','k'],'1']]
 			} 
 		}				
 	}
