@@ -69,7 +69,8 @@ sub comment { (my $comment)=@_;
 sub sub_func_incl_mod {
     ( my $f, my $stref ) = @_;
     if (not defined $stref) {croak "arg not defined sub_func_incl_mod" }
-    die join(' ; ', caller ) if $stref!~/0x/;        
+    die join(' ; ', caller ) if $stref!~/0x/;
+    croak if not defined $f;        
     if ( exists $stref->{'Subroutines'}{$f} ) {
         return 'Subroutines';
 #    } elsif ( exists $stref->{'Functions'}{$f} ) {

@@ -124,7 +124,6 @@ sub parse_expression { (my $exp, my $info, my $stref, my $f)=@_;
 		$preproc_expr =~ s/,,_COLON_PRE_/,_COLON_PRE_/g;
 		$preproc_expr =~ s/_COLON_PRE_,,/_COLON_PRE_,/g;
 	}
-#		carp "EXPR 3: $preproc_expr" if $preproc_expr=~/path.+len.+wfname/;
 	# HACK to support '//'
 	my $has_concat=0;
 	if ($preproc_expr =~ /\/\//) {
@@ -136,7 +135,6 @@ sub parse_expression { (my $exp, my $info, my $stref, my $f)=@_;
 		$preproc_expr =~ s/_CONCAT_PRE_,\)/_CONCAT_PRE_\)/g;
 		$wrap=1;
 	}	  
-#	carp "EXPR 4: $preproc_expr" if $preproc_expr=~/path.+len.+wfname/;
 	
 	my $double_paren=0;
 	# EVIL HACK to get rid of f(x)(y)
@@ -153,7 +151,6 @@ sub parse_expression { (my $exp, my $info, my $stref, my $f)=@_;
 		$preproc_expr =~ s/,,_PAREN_PAIR_/,_PAREN_PAIR_/g;
 		$preproc_expr =~ s/_PAREN_PAIR_,,/_PAREN_PAIR_,/g;		
 	}	  	
-#	 		carp "EXPR 5: $preproc_expr" if $preproc_expr=~/path.+len.+wfname/;
 	# We want to wrap if this is a list. But how can I tell without parsing it?
 	my $wrapped_expr = $preproc_expr;
 	if ($wrap) {
@@ -173,7 +170,7 @@ sub parse_expression { (my $exp, my $info, my $stref, my $f)=@_;
     my $ast3 = _fix_colons_in_ast($ast2);
     my $ast4 = _fix_string_concat_in_ast($ast3);
     my $ast5 = _fix_double_paren_in_ast($ast4);
-#    die Dumper($ast5) if $double_paren;
+
 	return $ast5;
 }
 
@@ -182,7 +179,7 @@ sub _change_func_to_array { (my $stref, my $f,  my $info, my $ast, my $exp)=@_;
 	if (ref($ast) eq 'ARRAY') {
 	for my  $idx (0 .. scalar @{$ast}-1) {		
 		my $entry = $ast->[$idx];
-#		print "IDX: $idx => "; say Dumper ($ast); say $entry;
+
 		if (ref($entry) eq 'ARRAY') {
 			my $entry = _change_func_to_array($stref,$f, $info,$entry, $exp);
 			$ast->[$idx] = $entry;
@@ -397,7 +394,6 @@ sub emit_expression {(my $ast, my $expr_str)=@_;
 		$expr_str =~s/\+__(\w+)__\+/\.${1}\./g;		
 		$expr_str =~s/__(\w+)__/\.${1}\./g;  		
 	}
-#	carp "POST: $expr_str" if $expr_str=~/cf716\(3/;
 	return $expr_str;		
 } # END of emit_expr
 

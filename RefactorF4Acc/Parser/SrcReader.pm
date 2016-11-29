@@ -36,7 +36,7 @@ sub read_fortran_src {
     # Determine the type of file (Include or not)
     my $is_incl = exists $stref->{'IncludeFiles'}{$s} ? 1 : 0;
 
-    my $sub_func_incl = sub_func_incl_mod( $s, $stref );
+    my $sub_func_incl = sub_func_incl_mod( $s, $stref ); 
     if ( $sub_func_incl eq 'ExternalSubroutines' ) {
         $stref->{$sub_func_incl}{$s}{'Status'} = $UNREAD;
     }
@@ -47,9 +47,13 @@ sub read_fortran_src {
     }
 
     my $f = $is_incl ? $s : $stref->{$sub_func_incl}{$s}{'Source'};
+	
+	
 
     if ( defined $f ) {     	
         my $no_need_to_read = 1;
+        my $sub_contained_in_module=0;
+        my $containing_module='';
         if ( not exists $stref->{'SourceContains'}{$f}
         or ( scalar @{ $stref->{'SourceContains'}{$f}{'List'} } == 0)
         ) {
@@ -64,6 +68,17 @@ sub read_fortran_src {
                 
                 $no_need_to_read *= ( ( ( $status != $UNREAD) && ( $status != $INVENTORIED ) ) ? 1 : 0);
                 say "\t",$no_need_to_read , ' ',$item,' ',show_status($status) if $V ;
+                
+			    # If $s is a subroutine, it could be that the source file is a Module, and then we should set that as the entry source type            
+				if ($stref->{'SourceContains'}{$f}{'Set'}{$item} eq 'Modules') {
+					my @subs_in_mod= @{ $stref->{'Modules'}{$item}{'Contains'} };
+					if (grep {$_ eq $s} @subs_in_mod) {
+						say "Subroutine $s is contained in module $item in $f" if $I;
+						$sub_contained_in_module=1;
+						$containing_module=$item;								
+					}
+				}		
+                
             }
 #            croak Dumper($stref->{'SourceContains'}{$f} ) if $s=~/sub/;#;#$stref->{$sub_func_incl}{$s})
         }
@@ -93,21 +108,24 @@ sub read_fortran_src {
 
             if ($ok) {
 				say "read_fortran_src($s): READING SOURCE for $f ($s, $sub_func_incl)" if $V;
-
+  
                 my @rawlines = <$SRC>;
                 close $SRC;
                 
                 my @lines = @rawlines;
                 
-                push @lines, ("      \n");
+                push @lines, "      \n";
                 my $free_form = $stref->{$sub_func_incl}{$s}{'FreeForm'};
                 my $srctype   = $sub_func_incl;
+                if ($sub_contained_in_module) {
+                	$srctype   = 'Modules';
+                	$s = $containing_module;                	
+                }
                 
                 my $line       = '';
                 my $nextline   = '';
                 my $joinedline = '';
                 my $next2      = 1;
-
 
                 if ($free_form) {    # I take this to mean F95, FIXME!
 				
@@ -860,96 +878,65 @@ Suppose we don't:
                     }
                 }    # free or fixed form
             
-            
-# # This is an attempt to remove spaces but it is broken because in F77 not all spaces are meaningless!
-#	            for my $annline (@{ $stref->{$sub_func_incl}{$s}{'AnnLines'} }) {
-#	
-#					if (not exists $annline->[1]{'Comments'} and not exists $annline->[1]{'Blank'} ) {
-#						my $line = $annline->[0];
-#						my $c1to6='';
-#						if (not $free_form) {
-#							$c1to6=substr($line,0,5).' '.substr($line,6);
-#						} elsif ($line=~/^(\s*\d+\s+)/  ) {
-#							$c1to6=~$1;
-#							$line= substr($line,length($c1to6)); 
-#						}
-#						my $indent = $line;
-#						$indent =~s/\S.*$//;
-#						$line=~s/\s+//g;
-#						$annline->[0] = $c1to6.$indent.$line;
-#					}
-#	            }
-            
-            		    
-	    for my $sub_or_func ( @{  $stref->{'SourceContains'}{$f}{'List'}   } ) {
-	    	
-	        my $sub_func_type= $stref->{'SourceContains'}{$f}{'Set'}{$sub_or_func};
-	        
-	        my $Sf = $stref->{$sub_func_type}{$sub_or_func};
-	         
-	        next if (exists $Sf->{'Entry'} and $Sf->{'Entry'}==1); 
-croak "No ANNLINES in $sub_func_type $sub_or_func ($f): ".$Sf->{'Status'} unless exists $Sf->{'AnnLines'};
-            my @annlines = @{  $Sf->{'AnnLines'} };
-            my $new_annlines=[];
-            for my $annline (@annlines) {
-            	(my $line, my $info)=@{$annline};            	
-                    # Split lines with multiple common block declarations
-                    if ($line=~/^\s*\d*\s+common/) {                    	
-						# 'Normal' is common /name/ x
-						# But also  
-						# common x//y 
-						# common x/name/y 
-						# common //x 
-						# If we split on '/' we want to know: how many '/' are there? i.e. scalar @chunks -1
-						# But we need to cater for the bare common as a first occurence, so test /common\s+[a-z]/
-						my $tline = $line;
-#						say "ORIG COMMON: $line";
-						my @chunks = split(/\s*\/\s*/,$tline);
-						
-						my $multiple_common_blocks=0;
-						my $first_block_bare=0;						 						 
-                        if (scalar @chunks > 3) {
-                        	$multiple_common_blocks=1;
-                        } elsif (scalar @chunks == 3 and $chunks[0]=~/common\s+[a-z]/) {
-                        	$multiple_common_blocks=1;
-                        	$first_block_bare=1;	
-                        }
-                        if ($multiple_common_blocks==1) {
-                        	
-                        		my $fst = shift @chunks;
-                        		(my $indent, my $rest) = split(/common/, $fst);
-                        		$rest=~s/\s*,\s*$//;
-                        		my $common = $indent.'common ';
-#                        		shift @chunks;
-                        	if ($first_block_bare==1) {
-#                        		say 'BARE!';
-                        		# so we have 'common l1 ','[n2]',l2,...
-                        		
-                        		my $nline = $common.'// '.$rest;
-                        		 push @{$new_annlines},[$nline, $info];
-#                        		 say $nline;
-                        	} else {
-#                        		say "MULTIPLE COMMON: $line";
-#                        	say "CHUNKS:".Dumper(@chunks).'---';
-                        	}
-                        	for my $i (0 .. (scalar @chunks)/2-1) {
-                        		my $nline = $common. '/'.$chunks[2*$i].'/ '.$chunks[2*$i+1];
-                        		push @{$new_annlines},[$nline, $info];
-#                        		say $nline ;
-							}
-                        	next;                        	                               
-                        }
-                    } 
-            	push @{$new_annlines}, [$line,$info];
-            }
-			$Sf->{'AnnLines'} = $new_annlines;
-	    }	                        
+				# Split lines with multiple common block declarations            
+			    for my $sub_or_func ( @{  $stref->{'SourceContains'}{$f}{'List'}   } ) {			    	
+			        my $sub_func_type= $stref->{'SourceContains'}{$f}{'Set'}{$sub_or_func};			        
+			        my $Sf = $stref->{$sub_func_type}{$sub_or_func};			         
+			        next if (exists $Sf->{'Entry'} and $Sf->{'Entry'}==1);
+			         
+		            my @annlines = @{  $Sf->{'AnnLines'} };
+		            my $new_annlines=[];
+		            for my $annline (@annlines) {
+		            	(my $line, my $info)=@{$annline};            	
+	                    if ($line=~/^\s*\d*\s+common/) {                    	
+							# 'Normal' is common /name/ x
+							# But also  
+							# common x//y 
+							# common x/name/y 
+							# common //x 
+							# If we split on '/' we want to know: how many '/' are there? i.e. scalar @chunks -1
+							# But we need to cater for the bare common as a first occurence, so test /common\s+[a-z]/
+							my $tline = $line;
+							my @chunks = split(/\s*\/\s*/,$tline);
+							
+							my $multiple_common_blocks=0;
+							my $first_block_bare=0;						 						 
+	                        if (scalar @chunks > 3) {
+	                        	$multiple_common_blocks=1;
+	                        } elsif (scalar @chunks == 3 and $chunks[0]=~/common\s+[a-z]/) {
+	                        	$multiple_common_blocks=1;
+	                        	$first_block_bare=1;	
+	                        }
+	                        if ($multiple_common_blocks==1) {		                        	
+	                        		my $fst = shift @chunks;
+	                        		(my $indent, my $rest) = split(/common/, $fst);
+	                        		$rest=~s/\s*,\s*$//;
+	                        		my $common = $indent.'common ';
+	                        	if ($first_block_bare==1) {
+	#                        		say 'BARE!';
+	                        		# so we have 'common l1 ','[n2]',l2,...		                        		
+	                        		my $nline = $common.'// '.$rest;
+	                        		 push @{$new_annlines},[$nline, $info];
+	                        	} else {
+	#                        		say "MULTIPLE COMMON: $line";
+	                        	}
+	                        	for my $i (0 .. (scalar @chunks)/2-1) {
+	                        		my $nline = $common. '/'.$chunks[2*$i].'/ '.$chunks[2*$i+1];
+	                        		push @{$new_annlines},[$nline, $info];
+								}
+	                        	next;                        	                               
+	                        }
+	                    } 
+	            		push @{$new_annlines}, [$line,$info];
+		            }
+					$Sf->{'AnnLines'} = $new_annlines;
+			    }	                        
             }    #ok
         } else {
             print "NO NEED TO READ $s\n" if $I;
         }   # if $need_to_read
     }    # if $f is defined
-#    croak Dumper($stref);
+
     return $stref;
 }    # END of read_fortran_src()
 
@@ -960,6 +947,7 @@ croak "No ANNLINES in $sub_func_type $sub_or_func ($f): ".$Sf->{'Status'} unless
 # I'm assuming that $srctype can only be Subroutines or Modules
 sub _pushAnnLine {
     ( my $stref, my $f, my $srctype, my $src, my $line, my $free_form ) = @_;
+    
 	if ($f eq 'UNKNOWN_SRC' or  not exists $stref->{$srctype}{$f}{'Status'} or $stref->{$srctype}{$f}{'Status'}<$PARSED ) {
     	my $pline = _procLine( $line, $free_form );
     	if (exists $stref->{'Macros'} ) {
@@ -968,8 +956,8 @@ sub _pushAnnLine {
 
 	    if ( exists $pline->[1]{'Module'} and $srctype eq 'Modules' ) {
 	        if ( $f ne 'UNKNOWN_SRC' ) {
-	            if ( $stref->{$srctype}{$f}{'Status'} < $READ )
-	            {    # FIXME: bit late, can I catch this earlier?
+
+	            if ( $stref->{$srctype}{$f}{'Status'} < $READ ) {    # FIXME: bit late, can I catch this earlier?
 	                $stref->{$srctype}{$f}{'Status'} = $READ;                
 	            }
 	        }

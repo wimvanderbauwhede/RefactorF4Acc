@@ -342,10 +342,7 @@ sub _analyse_src_for_iodirs {
 				if ( exists $info->{'ReadCall'} or exists $info->{'InquireCall'}) {
 
 				  # Arguments are written to, so IODir is write; others are read
-				  #				carp Dumper($info);
 					for my $mvar ( @{ $info->{'CallArgs'}{'List'} } ) {
-
-						#				 	croak if $mvar eq 'fghold';
 						if ( exists $args->{$mvar}
 							and ref( $args->{$mvar} ) eq 'HASH' )
 						{
@@ -374,12 +371,8 @@ sub _analyse_src_for_iodirs {
 
 				# Subroutine call
 				if (   exists $info->{'SubroutineCall'}
-					&& exists $info->{'SubroutineCall'}{'Name'} )
-				{
+					&& exists $info->{'SubroutineCall'}{'Name'} ) {
 					my $name = $info->{'SubroutineCall'}{'Name'};
-					
-#					croak Dumper($stref->{'Subroutines'}{$name}) if $name eq 'vdw2uv';
- 					
 
 # So we get the IODir for every arg in the call to the subroutine
 # We need both the original args from the call and the ex-glob args
@@ -396,7 +389,6 @@ sub _analyse_src_for_iodirs {
 					}
 					my $iodirs_from_call = _get_iodirs_from_subcall( $stref, $f, $info );
 
-#				croak "DEAL WITH MULTIPLE OCCURRENCES: $f => $name => ".Dumper($iodirs_from_call) if $name eq 'reorder_ncwrfout_1realfield' and exists  $iodirs_from_call->{'vardata'};
 					for my $var ( keys %{$iodirs_from_call} ) {
 # Damn Perl! exists $args->{$var}{'IODir'} creates the entry for $var if it did not exist!
 

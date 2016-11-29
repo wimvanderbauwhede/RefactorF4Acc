@@ -77,8 +77,8 @@ sub add_module_decls { (my $stref)=@_;
 		}
 	}
 	    for my $src (keys %{ $stref->{'SourceContains'} } ) {
-	    	my $is_program = $stref->{'Program'} eq $src ? 1 :0;       	 	
-	        my $no_module= $stref->{'Program'} eq $src ? 1 :0;
+	    	my $is_program = exists $stref->{'Program'} and $stref->{'Program'} eq $src ? 1 :0;       	 	
+	        my $no_module= $is_program;
 	        $no_module= exists $no_modules{$src} ? 1 : $no_module; 
 	        print "INFO: adding module decls to $src\n" if $I;        
 	       if ($I) {

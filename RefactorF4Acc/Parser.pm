@@ -614,7 +614,6 @@ VIRTUAL
 					my $corresponding_do_info = pop @do_stack;
 					$info->{'EndDo'} = $corresponding_do_info->{'Do'};					
 					delete $info->{'EndDo'}{'Label'};
-#					carp "LINE in $f: $line ".Dumper($corresponding_do_info);
 					my $do_label = $corresponding_do_info->{'Do'}{'Label'};					
 					if (defined $do_label and $do_label ne 'LABEL_NOT_DEFINED') {						
 						$Sf->{'DoLabelTarget'}{$do_label}='EndDo';
@@ -688,7 +687,6 @@ VIRTUAL
 							
 							# Means that the variable is either declared via T or undeclared via C. 	
 							if ($subset eq 'UndeclaredCommonVars') {
-#							carp "$f => $subset" if $varname eq 'iacn11' and $f eq 'fs055';	 
 								my $decl = dclone( $Sf->{'UndeclaredCommonVars'}{'Set'}{$varname} );
 								$Sf->{'DeclaredCommonVars'}{'Set'}{$varname} = $decl;
 								delete $Sf->{'UndeclaredCommonVars'}{'Set'}{$varname};
@@ -696,22 +694,13 @@ VIRTUAL
 								$Sf->{'DeclaredCommonVars'}{'List'} = ordered_union( $Sf->{'DeclaredCommonVars'}{'List'}, [$varname] );
 								
 							}  						
-#								$stmt_count=$Sf->{$subset}{'Set'}{$varname}{'StmtCount'};
-#								$stmt_count++;
-							
 						}
 						$type = $decl->{'Type'};
 					}
-#					say 'STMT COUNT : '.$varname.' : '.$subset.' : '.$Sf->{$subset}{'Set'}{$varname}{'StmtCount'};
 					 my $vline = "$type, $var_dim  :: $varname";
-#					 if ($var_dim=~/\(2\*ivd003/) {
-#					 	die $var_dim;
-#					 } 
 				( $Sf, my $info ) = __parse_f95_decl( $Sf, $indent, $vline, {'Dimension' => 1});#, "$type, $var_dim", $varname );
-#				say 'STMT COUNT : '.$varname.' : '.$subset.' : '.$stmt_count;#$Sf->{$subset}{'Set'}{$varname}{'StmtCount'};
 				$Sf->{'DeclCount'}{$varname}++;
 				$info->{'StmtCount'}{$varname}=$Sf->{'DeclCount'}{$varname};#$stmt_count;#$Sf->{$subset}{'Set'}{$varname}{'StmtCount'};
-#				carp $info->{'StmtCount'}{$varname} if $varname eq 'ladn1d';
 					push @{ $extra_lines{$index} }, [$indent."dimension $dline",$info];
 				}
 				next;
@@ -973,7 +962,7 @@ VIRTUAL
 				my $mline = $line;    # modifiable copy of $line				
 
 				
-#    Block, Arithmetic and logical IF statements		
+# Block, Arithmetic and logical IF statements		
 # st can be any executable statement, except a DO block, IF, ELSE IF, ELSE,
 # END IF, END, or another logical IF statement.					
 			if ( $line =~ /^(if|else\s+if)\s*\(/ ) {			 	
@@ -985,7 +974,6 @@ VIRTUAL
 					$info->{ ucfirst($keyword) } = 1;	
 				}
 				
-#				carp "$f <$line>" if $line=~/write.unitpartout/ ;
 			# The following part should be in a separate condition block I think			
 			# What I should do is:
 			# Detect an IF. If so, detect if it is a THEN or an expression. 
@@ -1449,7 +1437,8 @@ sub _parse_use {
 
 				$info->{'Use'} = {};
 				$info->{'Use'}{'Name'} = $name;
-				
+				if (exists $stref->{'Modules'}{$name}{'ModType'} and
+				$stref->{'Modules'}{$name}{'ModType'} ne 'External') {
 				if ( not exists $stref->{'Modules'}{$name}{'Status'}
 					or $stref->{'Modules'}{$name}{'Status'} < $READ )
 				{
@@ -1483,8 +1472,8 @@ sub _parse_use {
 				}
 				
 				# the used module has been parsed
-				if ( exists $stref->{'Modules'}{$name} )
-				{    # Otherwise it means it is an external module
+				if ( exists $stref->{'Modules'}{$name} ) {    # Otherwise it means it is an external module
+				
 					 # 'Parameters' here is OK because the include might contain other includes
 					$Sf->{'IncludedParameters'} =
 					  &append_to_set( $Sf->{'IncludedParameters'},
@@ -1492,6 +1481,9 @@ sub _parse_use {
 					# I think here I should 'inherit' UsedLocalVars from this module, i.e. any LocalVars in $name
 					$Sf->{'UsedLocalVars'} = append_to_set( $Sf->{'UsedLocalVars'}, $stref->{'Modules'}{$name}{'LocalVars'} ); 	
 										
+				}
+				} else {
+					say "WARNING: module $name is EXTERNAL" if $W;
 				}
 			} # If the line contains a 'use' statement			
 			$srcref->[$index] = [ $line, $info ];
@@ -2789,10 +2781,8 @@ sub __construct_new_subroutine_signatures {
 	( my $stref, my $blocksref, my $occsref, my $itersref, my $varsref, my $f )
 	  = @_;
 
-	#carp('__construct_new_subroutine_signatures:');
 	#    local $V = 1;
-	my $sub_or_func_or_mod = sub_func_incl_mod( $f, $stref )
-	  ;    # This is not a misnomer as it can also be a module.
+	my $sub_or_func_or_mod = sub_func_incl_mod( $f, $stref );    # This is not a misnomer as it can also be a module.
 	my $Sf     = $stref->{$sub_or_func_or_mod}{$f};
 	my $srcref = $Sf->{'AnnLines'};
 
@@ -2944,8 +2934,6 @@ sub __construct_new_subroutine_signatures {
 		}
 		$Sblock->{'Status'} = $READ;
 
-		#die 'BOOM:'.Dumper($Sblock->{'AnnLines'});
-		#		carp 'DeclaredOrigArgs:'.Dumper($Sblock->{'DeclaredOrigArgs'});
 	}
 
 	return $stref;
@@ -2983,8 +2971,7 @@ sub __update_caller_datastructures {
 
 				# Add $block to CalledSubs in $f
 				$stref->{'Subroutines'}{$f}{'CalledSubs'}{'Set'}{$block} = 1;
-				carp
-"FIXME: Incorrect because there might be subs in $f called after $block";
+				carp "FIXME: Incorrect because there might be subs in $f called after $block";
 
 # What we need to do is put a marker in CalledSubs when we encounter the pragma, and not register any subcalls in the region!!!
 				push @{ $stref->{'Subroutines'}{$f}{'CalledSubs'}{'List'} },
@@ -3560,11 +3547,8 @@ sub __parse_f77_par_decl {
 					'Val'  => $val,
 					'Attr' => $attr
 				};
-				print
-				  "INFO: LOCAL PARAMETER $var infered type: $type $var = $val\n" if $I;
+				say "INFO: LOCAL PARAMETER $var infered type: $type $var = $val" if $I;
 				push @{$pars}, $var;
-
-				#carp Dumper($Sf->{'LocalParameters'}{'Set'}{$var}) ;
 			} else {
 				say "WARNING: no VAL for VAR $var ($line)" if $W;
 			}
@@ -4582,7 +4566,6 @@ sub _parse_data_declaration { (my $line,my $info, my $stref, my $f) = @_;
 	my $new_annlines=[];
 	my $indent =$line;$indent=~s/data.*$//;
 	my $mline=$line;
-#	carp $line;
 
 	$mline=~s/^\s*\d*\s+data\s+//; 
 	$mline=~s/\/\s*$//;

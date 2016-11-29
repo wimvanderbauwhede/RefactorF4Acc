@@ -61,7 +61,7 @@ sub create_refactored_subroutine_signature {
     	$rline = $annline->[0];
     	$rline =~s/subroutine.*$//;	
         $rline .= 'subroutine ' . $f . '(' . $args_str . ')';
-    } elsif ( $Sf->{'Function'} ) {# carp 'FUNCTION! create_refactored_subroutine_signature' . __LINE__ .Dumper($annline);
+    } elsif ( $Sf->{'Function'} ) {
     	$rline = $annline->[0];
     	$rline =~s/function.*$//;
         $rline .= 'function ' . $f . '(' . $args_str . ')';

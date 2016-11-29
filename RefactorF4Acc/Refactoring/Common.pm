@@ -159,7 +159,7 @@ sub context_free_refactorings {
 
         # BeginDo: just remove the label
         if ( exists $info->{'BeginDo'} ) {
-        	my $label = $info->{'BeginDo'}{'Label'};# carp Dumper($info->{'BeginDo'}).Dumper($info->{'Do'});
+        	my $label = $info->{'BeginDo'}{'Label'};
         	# This should have an extra check
         	
 #        	if ( (not exists $Sf->{'ReferencedLabels'}{$label}) and 
@@ -238,7 +238,7 @@ sub context_free_refactorings {
 				my $ph_str = $info->{'PlaceHolders'}{$ph};
 				$line=~s/$ph/$ph_str/;
 			}
-#carp "COMMON: ".$line if $line=~/cf716\(3/;                                    
+                                    
             $info->{'Ref'}++;
         }
 
@@ -1339,15 +1339,10 @@ sub emit_f95_var_decl {
       my $var = $var_decl_rec->{'Name'};
       my $val = $var_decl_rec->{'Val'};
       
-#croak Dumper($var_decl_rec) if $var eq 'nx_GLOB';
-#      carp Dumper($var_decl_rec) if $type eq 'character' and $var eq 'varname';
     my $dimstr = '';
-#    say Dumper($dim);
     if ( ref($dim) eq 'ARRAY' and scalar @{$dim}>0) {
         my @dimpairs = map { $_->[0].':'.$_->[1] } @{ $dim };
         $dimstr = 'dimension(' . join( ',', @dimpairs) . ')';
-    } else {
-#        croak Dumper($dim); 
     }
     my @attrs = ();
     if ($attr) {    	
@@ -1503,7 +1498,7 @@ sub splice_additional_lines_cond {
     say "SPLICE on condition for $f" if $V;
     my $sub_or_func_or_mod = sub_func_incl_mod( $f, $stref );
     my $Sf                 = $stref->{$sub_or_func_or_mod}{$f};
-    carp $old_annlines;
+    
     my $annlines           = scalar @{$old_annlines} ? $old_annlines : get_annotated_sourcelines( $stref, $f );
     my $nextLineID         = scalar @{$annlines} + 1;
     my $merged_annlines    = [];

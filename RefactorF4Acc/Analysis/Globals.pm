@@ -22,157 +22,10 @@ use Exporter;
 @RefactorF4Acc::Analysis::Globals::ISA = qw(Exporter);
 
 @RefactorF4Acc::Analysis::Globals::EXPORT = qw(    
-    &lift_includes
     &identify_inherited_exglobs_to_rename
     &lift_globals
     &rename_inherited_exglobs
 );
-
-# ----------------------------------------------------------------------------------------------------
-# I create a table ConflictingGlobals in $f, $inc and $commoninc
-# I think the right approach is to rename the common vars, not the parameters.
-#sub _resolve_conflicts_with_params { croak "OBSOLETE!";
-#    ( my $f, my $stref ) = @_;
-#    my $Sf = $stref->{'Subroutines'}{$f};
-#
-#    for my $inc ( keys %{ $Sf->{'Includes'} } ) {
-#        if ( $stref->{'IncludeFiles'}{$inc}{'InclType'} eq 'Parameter' ) {
-#
-#            # See if there are any conflicts between parameters and ex-globals
-#                for my $mpar ( @{ $Sf->{'ExGlobArgs'}{'List'} } ) {
-#                    if ( exists $stref->{'IncludeFiles'}{$inc}{'Vars'}{$mpar} )
-#                    {
-#                    	my $commoninc = $Sf->{'ExGlobArgs'}{'Set'}{$mpar}{'Inc'};
-#                        print
-#"WARNING: $mpar from $inc conflicts with $mpar from $commoninc\n"
-#                          if $V;
-#                          # So we store the new name, the Common include and the Parameter include in that order
-#                        $Sf->{'ConflictingGlobals'}{$mpar} = [$mpar . '_GLOB_'.$commoninc,$commoninc,$inc];# In fact, just $commoninc is enough                         
-#                        $stref->{'IncludeFiles'}{$commoninc}
-#                          {'ConflictingGlobals'}{$mpar} = [$mpar . '_GLOB_'.$inc,$commoninc,$inc];
-#                        $stref->{'IncludeFiles'}{$inc}{'ConflictingGlobals'}
-#                          {$mpar} =[ $mpar . '_GLOB_'.$inc,$commoninc,$inc];
-#                    }
-#                }
-#        }
-#    }
-#
-#    $Sf->{'ConflictingParams'} = {};
-#    for my $inc ( keys %{ $Sf->{'Includes'} } ) {
-#        if ( $stref->{'IncludeFiles'}{$inc}{'InclType'} eq 'Parameter' ) {
-#            if ( exists $stref->{'IncludeFiles'}{$inc}{'ConflictingGlobals'} ) {
-#                %{ $Sf->{'ConflictingParams'} } = (
-#                    %{ $Sf->{'ConflictingParams'} },
-#                    %{ $stref->{'IncludeFiles'}{$inc}{'ConflictingGlobals'} }
-#                );
-#            }
-#        }
-#    }
-#
-#    return $stref;
-#}    # END of _resolve_conflicts_with_params
-
-# ----------------------------------------------------------------------------------------------------
-# Here we identify which globals from the includes are actually used in the subroutine.
-# This is not correct because globals used in called subroutines are not recognised
-# So what I should do is find the globals for every called sub recursively.
-# WV20150806: I should first work out what the includes with commons are in all subroutines and then "lift" them and then call this subroutine.
-
-## WV20160510: is it possible that here we have an issue with renamed ex-globals? 
-#sub _identify_globals_used_in_subroutine { croak "UNUSED!";
-#    ( my $f, my $stref ) = @_;
-#
-##       local $V=1;# if $f eq 'particles_main_loop';
-#    my $Sf = $stref->{'Subroutines'}{$f};
-#
-#    my $srcref = $Sf->{'AnnLines'};
-#    print "\tGLOBALS ANALYSIS in $f\n" if $V;
-#	
-#    if ( scalar keys %{ $Sf->{'ExGlobArgs'}{'Set'} } == 0 ) {   
-#    carp "_identify_globals_used_in_subroutine($f) LINE " . __LINE__ .' : '.Dumper($Sf->{'ExGlobArgs'});
-#    
-#        for my $cinc ( keys %{ $Sf->{'CommonIncludes'} } ) { 
-#            print "\n\tGLOBAL VAR ANALYSIS for $cinc in $f\n" if $V; ;
-#            my @globs = ();
-#            my $tvars = { %{ $stref->{'IncludeFiles'}{$cinc}{'Commons'} } };
-#            for my $index ( 0 .. scalar( @{$srcref} ) - 1 ) {
-#                my $line = $srcref->[$index][0];
-#                
-##                my $info = $srcref->[$index][1];
-#                if ( $line =~ /^\!\s+/ )                            { next; }
-#                if ( $line =~ /^\s+end/ )                          { next; }
-#                if ( $line =~ /^\s+(recursive\s+subroutine|subroutine|program)\s+(\w+)/ ) { next; }
-#
-#                # We shouldn't look for globals in the declarations, silly!
-#                if ( $line =~
-#/(logical|integer|real|double\s*(?:precision|complex)|character|character\*?(?:\d+|\(\*\)))\s+(.+)\s*$/
-#                  )
-#                {
-#                    next;
-#                }
-#
-#                # For all other lines, look for variables
-#                @globs =
-#                  ( @globs, __look_for_variables( $stref, $f, $line, $tvars ) );
-##                  $srcref->[$index]= [ $line, $info];
-#            }    # for each line
-#            
-#            if ($V) {
-#                print "\nGLOBAL VARS from $cinc in subroutine $f:\n\n";
-#                for my $var (@globs) {
-#                    print "VAR: $var\n".Dumper( $stref->{'IncludeFiles'}{$cinc}{'Commons'}{$var} );                    
-#                }
-#                print "\n";
-#            }
-#            
-#            $Sf->{'ExGlobArgs'}{'List'} = \@globs;            
-#            $Sf->{'ExGlobArgs'}{'Set'}={};
-#            
-#            for my $var (@globs) {
-#            	my $subset=in_nested_set($stref->{'IncludeFiles'}{$cinc}, 'Vars', $var);
-#            	my $var_rec= $stref->{'IncludeFiles'}{$cinc}{$subset}{'Set'}{$var};
-#                $Sf->{'ExGlobArgs'}{'Set'}{$var} = $var_rec ;
-#            }
-#            $Sf->{'HasCommons'} = 1;
-#        }
-#        croak "_identify_globals_used_in_subroutine($f) LINE " . __LINE__ .' : '.Dumper($Sf->{'ExGlobArgs'}) if scalar keys %{$Sf->{'ExGlobArgs'}{'Set'}} > 0;        
-#    } 
-#    
-#    return $stref;
-#}    # END of _identify_globals_used_in_subroutine()
-## -----------------------------------------------------------------------------
-
-## -----------------------------------------------------------------------------
-#sub __look_for_variables {
-#    ( my $stref, my $f, my $line, my $tvars ) = @_;
-#    my $Sf     = $stref->{'Subroutines'}{$f};
-#    my @globs  = ();
-#    
-#    my @chunks = split( /\W+/, $line );
-#    for my $mvar (@chunks) {
-##    next if $mvar =~/\b(?:if|then|do|goto|integer|real|call|\d+)\b/; # is slower!
-## if a var on a line is declared locally, it is obviously not a global!
-#        if ( exists $tvars->{$mvar} and not in_nested_set($Sf,'Vars',$mvar) ) {
-#            my $is_par = 0;
-#            for my $inc ( keys %{ $Sf->{'Includes'} } ) {
-#                if ( $stref->{'IncludeFiles'}{$inc}{'InclType'} eq 'Parameter'
-#                    and in_nested_set($stref->{'IncludeFiles'}{$inc},'Vars',$mvar) )
-#                {
-#                    print "WARNING: $mvar in $f is a PARAMETER from $inc!\n"
-#                      if $W;
-#                    $is_par = 1;
-#                    last;
-#                }
-#            }
-#            if ( not $is_par ) {
-#                print "FOUND global $mvar in $line\n" if $V;
-#                push @globs, $mvar;
-#                delete $tvars->{$mvar};
-#            }
-#        }
-#    }
-#    return @globs;
-#}    # END of __look_for_variables()
 
 ## -----------------------------------------------------------------------------
 
@@ -339,24 +192,15 @@ sub lift_globals {
         						$Scsub->{'ExGlobArgs'}{'Set'}{$var}{'InheritedParams'}{'Set'},
         						$Scsub->{'ExGlobArgs'}{'Set'}{$var}{'InheritedParams'}{'Set'} # Initial list
         					);
-#        					say  "VAR $var in $csub HAS InheritedParams: ",join(', ',sort keys %{ $all_inherited_parameters } );
         					for my $par (keys %{ $all_inherited_parameters } ) {
         						my $subset = in_nested_set($Scsub,'Parameters',$par);
-#        						carp "SUBSET: $subset";
         						$Sf->{'InheritedParameters'}{'Set'}{$par}=dclone($Scsub->{$subset}{'Set'}{$par});
         					}	
-        					
-#        					croak Dumper($Sf->{'InheritedParameters'}).$f if $csub eq 'atmos';
-							
 	                	}
-#	                	croak Dumper($Sf->{'InheritedParameters'}{'Set'}) if $var eq 'qdpnm';
 	                }     
 					$Sf->{'InheritedParameters'}{'List'} = _list_inherited_params_in_order($Sf);
-#					carp Dumper( _list_inherited_params_in_order($Sf) ) if $f eq ;	            	  	       
-	            } else {
-#	            	carp "$csub in $f has no EX-GLOBS" ;
-	            }  
-# ------------------	                             
+	            }
+	            # ------------------	                             
 	        } 
 	    } else {
 	        # Leaf node, find globals
@@ -375,18 +219,13 @@ sub lift_globals {
 
 sub _get_all_inherited_parameters { (my $Sf,my $pars, my $all_inherited_parameters)=@_;
 
-	for my $par (keys %{$pars}) {
-	#	say "CHECKING PARAM $par"; 
+	for my $par (keys %{$pars}) { 
 		my $subset = in_nested_set($Sf,'Parameters',$par);
-#		carp 'SUBSET:'.$Sf->{'Name'}.':'.$par.':'.$subset if $subset ne 'LocalParameters';         						
-		
 	    if (exists $Sf->{$subset}{'Set'}{$par}{'InheritedParams'}
 	    and exists $Sf->{$subset}{'Set'}{$par}{'InheritedParams'}{'Set'}) { 
-	#        say "PAR $par INHERITS ".join(', ',keys %{  $Sf->{'LocalParameters'}{'Set'}{$par}{'InheritedParams'}{'Set'} });
 	        $all_inherited_parameters = { %{$all_inherited_parameters}, %{ $Sf->{$subset}{'Set'}{$par}{'InheritedParams'}{'Set'} } };
 	        $all_inherited_parameters = _get_all_inherited_parameters($Sf, $Sf->{$subset}{'Set'}{$par}{'InheritedParams'}{'Set'},$all_inherited_parameters);
 	    } else {
-	#        say "PAR $par ADDED";
 	        $all_inherited_parameters->{$par}=1; 
 	    }
 	}

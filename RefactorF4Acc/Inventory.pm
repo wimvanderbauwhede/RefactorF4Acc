@@ -120,6 +120,7 @@ sub find_subroutines_functions_and_includes {
         $stref=_process_src($src,$stref);
         
     }
+    _find_external_modules($stref);
     
     _test_can_be_inlined_all_modules($stref);    
     
@@ -417,8 +418,6 @@ sub _process_src {
                  if ($in_module) {
                     $stref->{'Modules'}{$mod_name}{'IncludeFiles'}{$inc}={};
                 }
-
-#                print "FOUND INC $inc\n" if $V;
                 if ( not exists $stref->{'IncludeFiles'}{$inc} ) {
                     $stref->{'IncludeFiles'}{$inc}{'Status'} = $UNREAD;                                                            
                     $stref->{'IncludeFiles'}{$inc}{'Source'}=$inc;
@@ -445,7 +444,6 @@ sub _process_src {
             };
             
             # Find use statements, for F90/F95. 
-#die $line if $f=~/common/ and $line=~/params_common_sn/;
             $line =~/^\s*use\s+([_\w]+)(?:\s*,\s*only\s*:\s*(.+)\s*)?/i && do { #FIXME: no support for R1108 rename ; R1109 is incomplete; no support for R1110, R1111           
                 my $mod = lc($1); 
                 my $only_list = $2;
@@ -580,6 +578,21 @@ sub _add_path_to_includes { (my $stref) =@_;
 			}
 		}
 	}
+	return $stref;
+}
+
+sub _find_external_modules { (my $stref) =@_; 
+	my $prefix = $stref->{'Prefix'};
+	
+	for my $mod ( keys %{$stref->{'Modules'} } ) {
+	                if ( $stref->{'Modules'}{$mod}{'Status'} == $UNREAD ) {
+	                	say "MODULE $mod is EXTERNAL" if $V;
+						$stref->{'Modules'}{$mod}{'ModType'} = 'External';                		
+	                } else {
+	                	$stref->{'Modules'}{$mod}{'ModType'} = 'Local';
+	                }                                        
+                }
+                         
 	return $stref;
 }
 

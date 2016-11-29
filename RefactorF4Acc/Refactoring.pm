@@ -44,6 +44,9 @@ sub refactor_all {
 		$stref = _ifdef_io_all($stref);		
 	}
 	if ($pass ne '') {
+		if (_top_src_is_module($stref, $subname)) {
+			$stref=add_module_decls($stref);
+		}
 		return $stref;
 	}
     $stref = refactor_include_files($stref);
@@ -467,11 +470,10 @@ sub get_next_relevant_statement { (my $annlines, my  $idx_start) = @_;
 
 
 sub _rename_array_accesses_to_scalars_all { (my $stref) = @_; 
-	    my %is_existing_module = ();
+	my %is_existing_module = ();
     my %existing_module_name = ();
 	
-for my $src (keys %{ $stref->{'SourceContains'} } ) {
-			
+	for my $src (keys %{ $stref->{'SourceContains'} } ) {			
 		if (exists $stref->{'SourceContains'}{$src}{'Path'}
 		and  exists $stref->{'SourceContains'}{$src}{'Path'}{'Ext'} ) {	
 		# External, SKIP!
@@ -479,7 +481,6 @@ for my $src (keys %{ $stref->{'SourceContains'} } ) {
 		} else {		
 		# Get the unit name from the list	    		
 		    for my $sub_or_func_or_mod ( @{  $stref->{'SourceContains'}{$src}{'List'}   } ) {
-#		    	say "SRC: $src => $sub_or_func_or_mod <>".$stref->{'Top'};
 		    	# Get its type
 		        my $sub_func_type= $stref->{'SourceContains'}{$src}{'Set'}{$sub_or_func_or_mod};
 		        if ($sub_func_type eq 'Modules') {
@@ -488,14 +489,13 @@ for my $src (keys %{ $stref->{'SourceContains'} } ) {
 		        }		
 		    }
 		}
-
-	my @subs= $is_existing_module{$src} ? @{ $stref->{'Modules'}{$existing_module_name{$src}}{'Contains'} } :   sort keys %{ $stref->{'Subroutines'} };
-	for my $f ( @subs ) {
-		say "\n! PASS _rename_array_accesses_to_scalars on $f\n";
-		$stref=_rename_array_accesses_to_scalars($stref, $f);
-		show_annlines($stref->{'Subroutines'}{$f}{'RefactoredCode'},0);
-	}
-}	
+		my @subs= $is_existing_module{$src} ? @{ $stref->{'Modules'}{$existing_module_name{$src}}{'Contains'} } :   sort keys %{ $stref->{'Subroutines'} };
+		for my $f ( @subs ) {
+			say "\n! PASS _rename_array_accesses_to_scalars on $f\n" if $V;
+			$stref=_rename_array_accesses_to_scalars($stref, $f);
+#			show_annlines($stref->{'Subroutines'}{$f}{'RefactoredCode'},0);
+		}
+	}	
 	return $stref;
 }
 
@@ -761,6 +761,22 @@ sub _emit_ifthen { (my $annline)=@_;
 	return ($rline, $info);
 }
 
-
+sub _top_src_is_module {( my $stref, my $s) = @_;
+    my $sub_func_incl = sub_func_incl_mod( $s, $stref ); 
+	my $is_incl = exists $stref->{'IncludeFiles'}{$s} ? 1 : 0;
+    my $f = $is_incl ? $s : $stref->{$sub_func_incl}{$s}{'Source'};
+    if ( defined $f ) {     	
+		for my $item ( @{ $stref->{'SourceContains'}{$f}{'List'} } ) {
+			# If $s is a subroutine, it could be that the source file is a Module, and then we should set that as the entry source type            
+			if ($stref->{'SourceContains'}{$f}{'Set'}{$item} eq 'Modules') {
+				my @subs_in_mod= @{ $stref->{'Modules'}{$item}{'Contains'} };
+				if (grep {$_ eq $s} @subs_in_mod) {
+					return 1;
+				}
+			}		                
+		}
+    }	
+	return 0;        
+}
 
 1;
