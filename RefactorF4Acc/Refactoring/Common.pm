@@ -1537,30 +1537,35 @@ sub splice_additional_lines_cond {
 
 }    # END of splice_additional_lines_cond()
 
-
+# The passes below go through all lines of code that are not marked as Deleted
+# TODO: add some control over this
 sub stateless_pass {
-    (my $stref, my $f, my $pass_actions, my $info) = @_;
-    say "STATELESS PASS ".Dumper($info)." for $f" if $DBG;
+    (my $stref, my $f, my $pass_actions, my $pass_info) = @_;
+    say "STATELESS PASS ".Dumper($pass_info)." for $f" if $DBG;
     my $sub_or_func_or_mod = sub_func_incl_mod( $f, $stref );
     my $Sf                 = $stref->{$sub_or_func_or_mod}{$f};
     my $annlines           = get_annotated_sourcelines( $stref, $f );
     my $nextLineID         = scalar @{$annlines} + 1;
     my $new_annlines=[];
-    for my $annline ( @{$annlines} ) {
-        my $pass_annlines = $pass_actions->($annline); # returns an ARRAY ref
-        for my $new_annline (@{ $pass_annlines }) { 
-        	push @{$new_annlines}, $new_annline;
-        }
+    for my $annline ( @{$annlines} ) {    
+    	if (not exists $annline->[1]{'Deleted'}) {
+	        my $pass_annlines = $pass_actions->($annline); # returns an ARRAY ref
+	        for my $new_annline (@{ $pass_annlines }) { 
+	        	push @{$new_annlines}, $new_annline;
+	        }
+    	} else {
+    		push @{$new_annlines}, $annline;
+    	}
     }
     $Sf->{'RefactoredCode'} = $new_annlines;
     return $stref;
 } # END of stateless_pass() 
 
 sub stateful_pass {
-    (my $stref, my $f, my $pass_actions, my $state, my $info ) = @_;
+    (my $stref, my $f, my $pass_actions, my $state, my $pass_info ) = @_;
     local $Data::Dumper::Indent =0;
     local $Data::Dumper::Terse=1;
-    say "STATEFUL PASS ".Dumper($info)." for $f" if $DBG; 
+    say "STATEFUL PASS ".Dumper($pass_info)." for $f" if $DBG; 
     my $sub_or_func_or_mod = sub_func_incl_mod( $f, $stref );
      
     my $Sf                 = $stref->{$sub_or_func_or_mod}{$f};    
@@ -1569,10 +1574,14 @@ sub stateful_pass {
     my $nextLineID         = scalar @{$annlines} + 1;
     my $new_annlines=[];
     for my $annline ( @{$annlines} ) {    	
-        (my $pass_annlines, $state) = $pass_actions->($annline, $state);
-        for my $new_annline (@{ $pass_annlines }) { 
-        	push @{$new_annlines}, $new_annline;
-        }
+    	if (not exists $annline->[1]{'Deleted'}) {    	
+	        (my $pass_annlines, $state) = $pass_actions->($annline, $state);
+    	    for my $new_annline (@{ $pass_annlines }) { 
+        		push @{$new_annlines}, $new_annline;
+        	}
+    	} else {
+    		push @{$new_annlines}, $annline;
+    	}        	
     }
     $Sf->{'RefactoredCode'} = $new_annlines;
     
@@ -1580,7 +1589,7 @@ sub stateful_pass {
 } # END of stateful_pass()
 
 sub stateful_pass_reverse {
-    (my $stref, my $f, my $pass_actions, my $state, my $info ) = @_;
+    (my $stref, my $f, my $pass_actions, my $state, my $pass_info ) = @_;
     my $sub_or_func_or_mod = sub_func_incl_mod( $f, $stref );
      
     my $Sf                 = $stref->{$sub_or_func_or_mod}{$f};    
@@ -1589,10 +1598,14 @@ sub stateful_pass_reverse {
     my $nextLineID         = scalar @{$annlines} + 1;
     my $new_annlines=[];
     for my $annline ( reverse @{$annlines} ) {    	
-        (my $pass_annlines, $state) = $pass_actions->($annline, $state);
-        for my $new_annline (@{ $pass_annlines }) { 
-        	push @{$new_annlines}, $new_annline;
-        }
+    	if (not exists $annline->[1]{'Deleted'}) {    	
+	        (my $pass_annlines, $state) = $pass_actions->($annline, $state);
+    	    for my $new_annline (@{ $pass_annlines }) { 
+        		push @{$new_annlines}, $new_annline;
+        	}
+    	} else {
+    		push @{$new_annlines}, $annline;
+    	}        	        	
     }
     $new_annlines =[ reverse @{ $new_annlines  } ]; 
     $Sf->{'RefactoredCode'} = $new_annlines;

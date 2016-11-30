@@ -6,14 +6,14 @@ package RefactorF4Acc::Refactoring;
 use v5.016;
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
-use RefactorF4Acc::Refactoring::Common qw( stateful_pass stateful_pass_reverse stateless_pass get_annotated_sourcelines emit_f95_var_decl );
+use RefactorF4Acc::Refactoring::Common qw( stateful_pass stateful_pass_reverse stateless_pass get_annotated_sourcelines emit_f95_var_decl splice_additional_lines_cond  );
 use RefactorF4Acc::Refactoring::Subroutines qw( refactor_all_subroutines emit_subroutine_sig );
 use RefactorF4Acc::Refactoring::Functions qw( refactor_called_functions remove_vars_masking_functions);
 use RefactorF4Acc::Refactoring::IncludeFiles qw( refactor_include_files );
 use RefactorF4Acc::Analysis::ArgumentIODirs qw( determine_argument_io_direction_rec update_argument_io_direction_all_subs);
 use RefactorF4Acc::Refactoring::Modules qw( add_module_decls );
 
-use RefactorF4Acc::Parser::Expressions qw(parse_expression emit_expression);
+use RefactorF4Acc::Parser::Expressions qw(parse_expression emit_expression get_vars_from_expression);
 
 use vars qw( $VERSION );
 $VERSION = "1.0.0";
@@ -40,6 +40,7 @@ use Exporter;
 sub refactor_all {
 	( my $stref, my $subname, my $pass) = @_;
 
+	
 	if ($pass =~/rename_array_accesses_to_scalars/) {
 		$stref = _rename_array_accesses_to_scalars_all($stref);		
 	}
@@ -264,7 +265,7 @@ sub get_next_relevant_statement { (my $annlines, my  $idx_start) = @_;
 		my $annline = $annlines->[$idx];
 		(my $line, my $info) = @{$annline};
 #		say '>>>'.$line.' : '.join(';',keys %{$info});
-		if ( not exists $info->{'Deleted'} and not exists $info->{'Comments'} and not exists $info->{'Blank'} and not exists $info->{'Removed'}) {
+		if ( not exists $info->{'Comments'} and not exists $info->{'Blank'} and not exists $info->{'Removed'}) {
 			$relevant_annline = $annline;
 			$relevant_annline_idx = $idx;
 			last;
@@ -494,15 +495,18 @@ sub _rename_array_accesses_to_scalars_all { (my $stref) = @_;
 		}
 		my @subs= $is_existing_module{$src} ? @{ $stref->{'Modules'}{$existing_module_name{$src}}{'Contains'} } :   sort keys %{ $stref->{'Subroutines'} };
 		for my $f ( @subs ) {
-			say "\n! PASS _rename_array_accesses_to_scalars on $f\n" if $V;
+			say "\n! PASS _removed_unused_variables on $f\n" if $V;
+			$stref = _removed_unused_variables($stref, $f);
+			say "\n! PASS _rename_array_accesses_to_scalars on $f\n" if $V; 
 			$stref=_rename_array_accesses_to_scalars($stref, $f);			
-#			show_annlines($stref->{'Subroutines'}{$f}{'RefactoredCode'},0);
+			
 		}
 		# It is possible that the subs with renamed args are called in other subs.
 		# In practice, they should be called from a single other sub, the superkernel
 		# But there could be more than one kernel etc.
 		for my $f ( @subs ) {			
 			$stref=_rename_array_accesses_to_scalars_called_subs($stref, $f);
+			
 		}
 		
 	}	
@@ -732,8 +736,8 @@ sub _rename_array_accesses_to_scalars { (my $stref, my $f) = @_;
 			my $decl_var = $info->{'VarDecl'}{'Name'};
 			if (exists $state->{'IndexVars'}{$decl_var}) {				
 				unshift @{ $state->{'LiftedIndexVarDecls'}{'List'} }, dclone($annline);
-				$info->{'Deleted'}=1;
-	  			$state->{'LiftedIndexVarDecls'}{'Set'}{$decl_var}=$annline;								  
+				$state->{'LiftedIndexVarDecls'}{'Set'}{$decl_var}=dclone($annline);
+				$info->{'Deleted'}=1;	  											  
 				return ([["! $line",$info]],$state);
 			}			
 		}
@@ -743,14 +747,19 @@ sub _rename_array_accesses_to_scalars { (my $stref, my $f) = @_;
 			for my $arg (@{ $info->{'Signature'}{'Args'}{'List'} } ) {
 				if (not exists $state->{'IndexVars'}{$arg} ) {
 					push @{$new_args}, $arg;
-				} 
+				} else {
+					push @{ $state->{'DeletedArgs'} }, $arg;				
+				}
 			}
 			$info->{'Signature'}{'Args'}{'List'}=$new_args;
+			$state->{'RemainingArgs'}=$new_args;
 			$info->{'Signature'}{'Args'}{'Set'} = { map {$_=>1} @{$new_args} };
 		}
 		
 		return ([[$line,$info]],$state);
 	};
+	$state->{'RemainingArgs'}=[];
+	$state->{'DeletedArgs'}=[];
 	$state->{'LiftedIndexCalcLines'}=[];
 	$state->{'LiftedIndexVarDecls'}={'List'=>[],'Set'=>{}};
  	($stref,$state) = stateful_pass_reverse($stref,$f,$pass_lift_array_index_calculations, $state,'_rename_array_accesses_to_scalars_lift() ' . __LINE__  ) ;
@@ -758,12 +767,13 @@ sub _rename_array_accesses_to_scalars { (my $stref, my $f) = @_;
 	# And then we can update $stref->{$Subroutines}{$f} and add LiftedIndexCalcLines and LiftedIndexVarDecls so that when we find a call we can splice in these lines
 	$stref->{'Subroutines'}{$f}{'LiftedIndexCalcLines'}=dclone($state->{'LiftedIndexCalcLines'});
 	$stref->{'Subroutines'}{$f}{'LiftedIndexVarDecls'}=dclone($state->{'LiftedIndexVarDecls'});
-
+	$stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'List'}=dclone($state->{'RemainingArgs'});
+	map { delete $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$_} }  @{ $state->{'DeletedArgs'} };
 	# We must also create the assignment lines for every newly created stream var and put these in LiftedScalarAssignments	  
 
  	
  	my @updated_args_list=();		
-	for my $orig_arg ( @{ $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'List'} } ) {
+	for my $orig_arg ( @{ $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'List'} } ) {		
 		if (exists $state->{'StreamVars'}{$orig_arg}) {
 			my $new_decl = dclone( $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$orig_arg} );
 			for my $new_arg (sort keys %{ $state->{'StreamVars'}{$orig_arg} }) {
@@ -864,7 +874,10 @@ sub _rename_array_accesses_to_scalars_called_subs { (my $stref, my $f) = @_;
 			if ( exists  $stref->{'Subroutines'}{$subname}{'LiftedScalarAssignments'} ) {				
 				$rlines = [@{$rlines},@{ $stref->{'Subroutines'}{$subname}{'LiftedScalarAssignments'} }];
 			}								
-				
+			$stref->{'Subroutines'}{$f}{'LiftedVarDecls'}{'Set'} = {
+				%{ $stref->{'Subroutines'}{$f}{'LiftedVarDecls'}{'Set'} },
+				%{ $stref->{'Subroutines'}{$subname}{'LiftedIndexVarDecls'}{'Set'} }
+			};	
 			($rline, $info) = _emit_subroutine_call( $stref, $f, $annline);
 			say $rline if $DBG;
 			push @{$rlines},[$rline,$info];
@@ -884,10 +897,38 @@ sub _rename_array_accesses_to_scalars_called_subs { (my $stref, my $f) = @_;
 		
 		return ($rlines,$state);
 	};
-	
+	$stref->{'Subroutines'}{$f}{'LiftedVarDecls'}={'Set'=>{}};
 	my $state=[$stref,$f];
  	($stref,$state) = stateful_pass($stref,$f,$pass_action, $state,'_rename_array_accesses_to_scalars_called_subs() ' . __LINE__  ) ;	
 	
+	
+	# Get all declarations 
+	# $stref->{'Subroutines'}{$f}{'LiftedIndexVarDecls'}
+	
+	my $pass_add_decls_lifted_vars = sub { (my $annline, my $state)=@_;	
+		(my $line,my $info)=@{$annline};
+		(my $stref, my $f) = @{$state};
+		
+		if ( exists $info->{'VarDecl'} ) {
+			my $var = $info->{'VarDecl'}{'Name'};
+			say "VAR $var from LiftedVarDecls already declared in $f"  if $DBG;
+			 delete $stref->{'Subroutines'}{$f}{'LiftedVarDecls'}{'Set'}{$var};
+		}		
+		
+		return ([$annline],$state);
+	};
+	
+#	my $state=[$stref,$f];
+ 	($stref,$state) = stateful_pass($stref,$f,$pass_add_decls_lifted_vars, $state,'_rename_array_accesses_to_scalars_called_subs() ' . __LINE__  ) ;	
+	my @lifted_var_decls = map { $stref->{'Subroutines'}{$f}{'LiftedVarDecls'}{'Set'}{$_} } sort keys %{ $stref->{'Subroutines'}{$f}{'LiftedVarDecls'}{'Set'} };
+	say "\nSUB: $f\n";
+	
+	# Now we want to splice these after the last var decl 
+	
+    
+    my $merged_annlines = splice_additional_lines_cond( $stref, $f, sub {(my $al)=@_;exists $al->[1]{'VarDecl'} ? 1 : 0 }, $stref->{'Subroutines'}{$f}{'RefactoredCode'}, \@lifted_var_decls,1, 0,1);
+    $stref->{'Subroutines'}{$f}{'RefactoredCode'}=$merged_annlines;
+    show_annlines( $stref->{'Subroutines'}{$f}{'RefactoredCode'},1);
 	return $stref;
 } # END of _rename_array_accesses_to_scalars_called_subs()
 
@@ -1008,7 +1049,159 @@ sub _top_src_is_module {( my $stref, my $s) = @_;
     }	
 	return 0;        
 }
+sub _removed_unused_variables { (my $stref, my $f)=@_;
+	# If a variable is assigned but does not occur in any RHS or SubroutineCall, it is unused. 
+	# If a variable is declared but not used in any LHS, RHS  or SubroutineCall, it is unused.
+	# So start with all declared variables, put in $state->{'ExprVars'}
+	# Make a list of all variables anywhere in the code via Lhs, Rhs, Args
+	my $pass_action = sub { (my $annline, my $state)=@_;		
+		(my $line,my $info)=@{$annline};
+		
+		my $rline=$line;
+		my $rlines=[];
+		
+ 		if ( exists $info->{'Signature'} ) {
+ 			$state->{'Args'} = $info->{'Signature'}{'Args'}{'Set'}; 
+ 		}
+ 		elsif (exists $info->{'Select'})  {
+ 			# FIXME: what about CaseVar?
+# 			croak Dumper($info).$line;
+ 			my $select_expr_str=$line;
+ 			$select_expr_str=~s/^.\s*select\s+case\s*\(\s*//;
+ 			$select_expr_str=~s/\s*\)\s*$//;
+ 			my $select_expr_ast=parse_expression($select_expr_str, $info,{}, '');
+# 			say Dumper($select_expr_ast);die;
+ 			my $vars = get_vars_from_expression($select_expr_ast,{});
+ 			$state->{'ExprVars'} ={ %{ $state->{'ExprVars'} }, %{ $vars } };
+ 		} 		
+		elsif (exists $info->{'CaseVals'})  {
+# 			croak Dumper($info).$line;
+			for my $val (@{ $info->{'CaseVals'} }) {
+				if ($val=~/^[a-z]\w*/) {
+ 					$state->{'ExprVars'}{$val}=1;
+ 				} 		
+			}
+		}
+		elsif ( exists $info->{'VarDecl'} ) {
+			$state->{'DeclaredVars'}{ $info->{'VarDecl'}{'Name'}}=1;
+		}
+		elsif ( exists $info->{'Assignment'}  ) {
+			my $var = $info->{'Lhs'}{'VarName'};
+			if (exists $state->{'UnusedVars'}{$var}) {
+				say "REMOVED ASSIGNMENT $line in $f"  if $DBG;
+				$annline=['! '.$line, {%{$info},'Deleted'=>1}];
+				delete $state->{'UnusedVars'}{$var};
+				delete $state->{'AssignedVars'}{$var};	
+				# I should now also remove all vars			
+			} else {
+				$state->{'AssignedVars'}{$var}=1;
+				
+				if (exists $info->{'Lhs'}{'IndexVars'}) {
+					$state->{'ExprVars'} ={%{$state->{'ExprVars'}},%{ $info->{'Lhs'}{'IndexVars'}{'Set'} } };
+				}
+				$state->{'ExprVars'} ={ %{ $state->{'ExprVars'} }, %{ $info->{'Rhs'}{'VarList'}{'Set'} } };
+				# and in principle also Vars, IndexVars for $info->{'Rhs'}{'VarList'}{'Set'}{$var}
+				for my $var (keys %{  $info->{'Rhs'}{'VarList'}{'Set'} } ) {
+					if (exists $info->{'Rhs'}{'VarList'}{'Set'}{$var}{'Vars'}) {
+						$state->{'ExprVars'} ={%{$state->{'ExprVars'}},%{ $info->{'Rhs'}{'VarList'}{'Set'}{$var}{'Vars'} }};
+					}
+					if (exists $info->{'Rhs'}{'VarList'}{'Set'}{$var}{'IndexVars'}) {
+						$state->{'ExprVars'} ={%{$state->{'ExprVars'}},%{ $info->{'Rhs'}{'VarList'}{'Set'}{$var}{'IndexVars'} }};
+					}			
+				}
+			}
+		}
+		elsif (exists $info->{'If'} ) {		
+				
+				my $cond_expr_ast=parse_expression($info->{'CondExecExpr'}, $info,$stref, $f);
+				$state->{'ExprVars'} ={%{$state->{'ExprVars'}},%{ $info->{'CondVars'}{'Set'} } }; 
+				for my $var ( @{ $info->{'CondVars'}{'List'} } ) {
+					next if $var eq '_OPEN_PAR_';					
+					if (exists  $info->{'CondVars'}{'Set'}{$var}{'IndexVars'} ) {								
+						$state->{'ExprVars'} ={%{$state->{'ExprVars'}},%{ $info->{'CondVars'}{'Set'}{$var}{'IndexVars'} } };
+					}				
+				}
+							
+		}
+		elsif ( exists $info->{'SubroutineCall'} ) {
+			$state->{'ExprVars'} ={%{$state->{'ExprVars'}},%{$info->{'SubroutineCall'}{'Args'}{'Set'} } };
+		}
+		
+		return ([$annline],$state);
+	};
+		
+	my $state= {'DeclaredVars'=>{},
+		'ExprVars'=>{},
+		'AssignedVars'=>{},'Args'=>{},
+		'UnusedVars'=>{},
+		'UnusedDeclaredVars'=>{}
+	};
+	do {
+		$state->{ExprVars}={};
+		$state->{AssignedVars}={};
+ 		($stref,$state) = stateful_pass_reverse($stref,$f,$pass_action, $state,'_removed_unused_variables() ' . __LINE__  ) ;
+ 	
+ 	# Once we have these lists, we can now check if there are any variables that occur on an Lhs an are not used anywhere
+ 	# We simply check for every AssignedVar if it is used as an ExprVar
+	 	for my $var (keys %{ $state->{'AssignedVars'} }) {
+	 		if (not exists $state->{'ExprVars'}{$var} and not exists $state->{'Args'}{$var}) {
+	 			say "VAR $var is unused in $f" if $DBG;
+	 			$state->{'UnusedVars'}{$var}=1;
+	 		} 
+	 	}
+	} until scalar keys %{ $state->{'UnusedVars'} } ==0; 
+	
+ 	# So now we have removed all assignments. 
+ 	# Now we need to check which vars are declared but not used and remove those declarations. 
+ 	for my $var (keys %{ $state->{'DeclaredVars'} }) {
+ 		if (not exists $state->{'ExprVars'}{$var} 
+# 		and not exists $state->{'Args'}{$var} 
+ 		and not exists $state->{'AssignedVars'}{$var}) {
+ 			say "VAR $var is declared but unused in $f" if $DBG;
+ 			$state->{'UnusedDeclaredVars'}{$var}=1;
+ 		} 
+ 	}
+ 	
+ 	# Now we should remove these declarations
 
+	my $pass_action_decls = sub { (my $annline, my $state)=@_;		
+		(my $line,my $info)=@{$annline};		
+		my $rline=$line;
+		my $rlines=[];
+		if ( exists $info->{'VarDecl'} ) {		
+			my $var = $info->{'VarDecl'}{'Name'};
+			if (exists $state->{'UnusedDeclaredVars'}{$var}) {
+				say "REMOVED DECL $line in $f" if $DBG;
+				$annline=['! '.$line, {%{$info},'Deleted'=>1}];
+#				delete $state->{'UnusedDeclaredVars'}{$var};
+				delete $state->{'DeclaredVars'}{$var};				
+			} 
+		}
+		elsif ( exists $info->{'Signature'} ) {
+			my $new_args=[];
+			for my $arg (@{ $info->{'Signature'}{'Args'}{'List'} } ) {
+				if (not exists $state->{'UnusedDeclaredVars'}{$arg} ) {
+					push @{$new_args}, $arg;
+				} else {
+					push @{ $state->{'DeletedArgs'} }, $arg;
+					say "REMOVED ARG $arg from signature of $f" if $DBG;	
+				} 
+			}
+			$info->{'Signature'}{'Args'}{'List'}=$new_args;
+			$state->{'RemainingArgs'}=$new_args;
+			$info->{'Signature'}{'Args'}{'Set'} = { map {$_=>1} @{$new_args} };			
+		}
+		return ([$annline],$state);
+	}; 	
+	$state->{'RemainingArgs'}=[];
+	$state->{'DeletedArgs'}=[];
+	($stref,$state) = stateful_pass_reverse($stref,$f,$pass_action_decls, $state,'_removed_unused_variables() ' . __LINE__  ) ;
+ 	# I suppose I should adapt the signature in $stref here
+ 	$stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'List'}=dclone($state->{'RemainingArgs'});
+ 	map { delete $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$_} }  @{ $state->{'DeletedArgs'} };
+ 	
+	return $stref;
+}
 
 
 1;
