@@ -33,6 +33,7 @@ use Exporter;
 sub analyse_all {
 
 	( my $stref, my $subname, my $stage ) = @_;
+	if (not defined $stage) {$stage=0}
 	my $annlines =	_add_BLOCK_DATA_call_after_last_VarDecl($subname,$stref);
 	
 #	# Find the 'root', i.e. the outermost calling subroutine, for each include file

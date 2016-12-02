@@ -71,11 +71,13 @@ sub read_fortran_src {
                 
 			    # If $s is a subroutine, it could be that the source file is a Module, and then we should set that as the entry source type            
 				if ($stref->{'SourceContains'}{$f}{'Set'}{$item} eq 'Modules') {
+					if (exists  $stref->{'Modules'}{$item}{'Contains'} ) {
 					my @subs_in_mod= @{ $stref->{'Modules'}{$item}{'Contains'} };
 					if (grep {$_ eq $s} @subs_in_mod) {
 						say "Subroutine $s is contained in module $item in $f" if $I;
 						$sub_contained_in_module=1;
 						$containing_module=$item;								
+					}
 					}
 				}		
                 

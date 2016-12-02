@@ -26,24 +26,26 @@ use Exporter;
 );
 # Actually, $stref is not used!
 sub translate_to_OpenCL {
-    ( my $stref, my $mod_name, my $kernel_name, my $macro_src, my $stand_alone ) = @_;
+    ( my $stref, my $mod_name, my $kernel_name, my $macro_src, my $stand_alone, my $consts ) = @_;
     
     if (not $stand_alone) {
-	    if (defined $macro_src and $macro_src ne 'NO_MACROS') { 
+ 
 		    my $retval = _preprocess( $stref, $mod_name );
 		    ( $stref, my $prep_src_lines, my $can_be_consts ) = @{$retval};
 		    my $f_src = $mod_name.'_ocl.f95';
+	    if (defined $macro_src and $macro_src ne 'NO_MACROS') {		    
 		    _run_cpp (  $f_src,  $prep_src_lines, $macro_src, $stand_alone );
-		    _generate_C($mod_name, $f_src, {'Consts' => $can_be_consts, 'Locals'=>{}}, $kernel_name);
-	    } else {
-	    	die "Sorry, you must specify a macro source unless you use -S";
 	    }
+		    _generate_C($mod_name, $f_src, {'Consts' => $can_be_consts, 'Locals'=>{}}, $kernel_name);
+#	    } else {
+#	    	die "Sorry, you must specify a macro source unless you use -S";
+#	    }
     } else {
     	my $f_src=$mod_name.'.f95';
 		my %locals = _preprocess_standalone( $f_src);
 		my $f_src_fix=$mod_name.'.f95.FIX';		
 		_run_cpp (  $f_src_fix,  [], $macro_src,  $stand_alone);    	    	
-		_generate_C($mod_name, $f_src_fix, {'Locals' =>\%locals, 'Consts' =>{} }, $kernel_name);
+		_generate_C($mod_name, $f_src_fix, {'Locals' =>\%locals, 'Consts' =>$consts }, $kernel_name);
     }
     return $stref;
 }    # END of translate_to_OpenCL()

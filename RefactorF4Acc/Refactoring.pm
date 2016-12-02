@@ -12,6 +12,7 @@ use RefactorF4Acc::Refactoring::Functions qw( refactor_called_functions remove_v
 use RefactorF4Acc::Refactoring::IncludeFiles qw( refactor_include_files );
 use RefactorF4Acc::Analysis::ArgumentIODirs qw( determine_argument_io_direction_rec update_argument_io_direction_all_subs);
 use RefactorF4Acc::Refactoring::Modules qw( add_module_decls );
+use RefactorF4Acc::OpenCLTranslation qw( translate_to_OpenCL );
 
 use RefactorF4Acc::Parser::Expressions qw(parse_expression emit_expression get_vars_from_expression);
 
@@ -497,6 +498,7 @@ sub _rename_array_accesses_to_scalars_all { (my $stref) = @_;
 		for my $f ( @subs ) {
 			say "\n! PASS _removed_unused_variables on $f\n" if $V;
 			$stref = _removed_unused_variables($stref, $f);
+			$stref= _fix_scalar_ptr_args($stref, $f);
 			say "\n! PASS _rename_array_accesses_to_scalars on $f\n" if $V; 
 			$stref=_rename_array_accesses_to_scalars($stref, $f);			
 			
@@ -509,7 +511,12 @@ sub _rename_array_accesses_to_scalars_all { (my $stref) = @_;
 			
 		}
 		
-	}	
+	}
+	
+	
+#	translate_to_OpenCL($stref, 'module_sub_superkernel','sub_superkernel', 'NO_MACROS',0);
+	
+		
 	return $stref;
 }
 
@@ -921,14 +928,14 @@ sub _rename_array_accesses_to_scalars_called_subs { (my $stref, my $f) = @_;
 #	my $state=[$stref,$f];
  	($stref,$state) = stateful_pass($stref,$f,$pass_add_decls_lifted_vars, $state,'_rename_array_accesses_to_scalars_called_subs() ' . __LINE__  ) ;	
 	my @lifted_var_decls = map { $stref->{'Subroutines'}{$f}{'LiftedVarDecls'}{'Set'}{$_} } sort keys %{ $stref->{'Subroutines'}{$f}{'LiftedVarDecls'}{'Set'} };
-	say "\nSUB: $f\n";
+#	say "\nSUB: $f\n";
 	
 	# Now we want to splice these after the last var decl 
 	
     
     my $merged_annlines = splice_additional_lines_cond( $stref, $f, sub {(my $al)=@_;exists $al->[1]{'VarDecl'} ? 1 : 0 }, $stref->{'Subroutines'}{$f}{'RefactoredCode'}, \@lifted_var_decls,1, 0,1);
     $stref->{'Subroutines'}{$f}{'RefactoredCode'}=$merged_annlines;
-    show_annlines( $stref->{'Subroutines'}{$f}{'RefactoredCode'},1);
+#    show_annlines( $stref->{'Subroutines'}{$f}{'RefactoredCode'},1);
 	return $stref;
 } # END of _rename_array_accesses_to_scalars_called_subs()
 
@@ -1049,6 +1056,7 @@ sub _top_src_is_module {( my $stref, my $s) = @_;
     }	
 	return 0;        
 }
+
 sub _removed_unused_variables { (my $stref, my $f)=@_;
 	# If a variable is assigned but does not occur in any RHS or SubroutineCall, it is unused. 
 	# If a variable is declared but not used in any LHS, RHS  or SubroutineCall, it is unused.
@@ -1201,7 +1209,75 @@ sub _removed_unused_variables { (my $stref, my $f)=@_;
  	map { delete $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$_} }  @{ $state->{'DeletedArgs'} };
  	
 	return $stref;
-}
+} # END of _removed_unused_variables()
+
+# Gavin's code has _ptr arrays to pass scalar pointers. This is necessary for actual Fortran code, not for code that is to be translated to OpenCL
+sub _fix_scalar_ptr_args { (my $stref, my $f)=@_;
+	
+	# TODO: In principle I must update the $stref->{Subroutines}{$f} records as well
+	my $pass_action = sub { (my $annline, my $state)=@_;		
+		(my $line,my $info)=@{$annline};
+		
+		my $rline=$line;
+		my $rlines=[$annline];
+		
+		# Here we simply replace any _ptr name with the name without _ptr
+ 		if ( exists $info->{'Signature'} ) {
+			my $new_args=[];
+			for my $arg (@{ $info->{'Signature'}{'Args'}{'List'} } ) {
+				if ($arg=~/_ptr/) {
+					my $new_arg=$arg;
+					$new_arg=~s/_ptr$//;
+					push @{$new_args}, $new_arg;
+				} else {
+					push @{$new_args}, $arg;
+				} 
+			}
+			$info->{'Signature'}{'Args'}{'List'}=$new_args;
+			$info->{'Signature'}{'Args'}{'Set'} = { map {$_=>1} @{$new_args} };
+			my $sig_str = $line;
+			$sig_str=~s/_ptr//g;
+			$rlines=[[$sig_str,$info]];			 
+ 		}
+		elsif ( exists $info->{'VarDecl'} ) {
+			my $var= $info->{'VarDecl'}{'Name'};
+			
+			if ($var=~/_ptr$/) {
+					my $new_arg=$var;
+					$new_arg=~s/_ptr$//;		
+					$info->{'VarDecl'}{'Name'}=$new_arg;
+  					$info->{'ParsedVarDecl'}{'Attributes'}{'Dim'} = [];
+    				$info->{'ParsedVarDecl'}{'Attributes'}{'Vars'} = [$new_arg]; 					
+
+				my $decl_str = $line;
+				$decl_str =~s/_ptr//g;
+				$decl_str =~s/,\s+dimension\(1\)//;
+				$rlines=[["!$decl_str ",$info]];			 
+			}			
+		}
+		elsif ( exists $info->{'Assignment'}  ) {
+			my $var = $info->{'Lhs'}{'VarName'};
+			if ($line=~/=\s*\w+_ptr/) {
+#				say $line;
+				say "REMOVED ASSIGNMENT $line in $f"  if $DBG;
+				$annline=['! '.$line, { %{$info},'Deleted'=>1 }];
+				$rlines=[$annline];
+				# I should now also remove all vars			
+			} 
+		}
+		
+		return ($rlines,$state);
+	};
+		
+	my $state= {
+	};
+	
+ 		($stref,$state) = stateful_pass_reverse($stref,$f,$pass_action, $state,'_removed_unused_variables() ' . __LINE__  ) ;
+
+ 	
+	return $stref;
+} # END of _fix_scalar_ptr_args()
+ 
 
 
 1;

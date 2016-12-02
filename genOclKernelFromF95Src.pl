@@ -56,7 +56,7 @@ OPTIONS:
 # -----------------------------------------------------------------------------
 
 sub main {
-	(my $mod_name, my $mod_src,my $kernel_name, my $top_name, my $top_src, my $macro_src, my $build, my $stand_alone) = parse_args();
+	(my $mod_name, my $mod_src,my $kernel_name, my $top_name, my $top_src, my $macro_src, my $build, my $stand_alone, my $consts) = parse_args();
 	#  Initialise the global state.
 	if (not $stand_alone) {
 	my $inits = { 
@@ -70,7 +70,7 @@ sub main {
 	
 	my $stref = init_state($top_name);
 	
-	if (defined $macro_src) {
+	if ($macro_src ne 'NO_MACROS') {
 	    $stref = read_macros($stref,$macro_src);
 	}
 	
@@ -103,7 +103,7 @@ sub main {
 #	say Dumper( $stref->{'Modules'}{'module_press'} );die;
    $stref = translate_to_OpenCL($stref,$mod_name, $kernel_name, $macro_src,$stand_alone);
    } else {   	
-       translate_to_OpenCL({},$mod_name, $kernel_name, $macro_src,$stand_alone);
+       translate_to_OpenCL({},$mod_name, $kernel_name, $macro_src,$stand_alone, $consts);
    }
 
 #	create_build_script($stref);
@@ -120,7 +120,7 @@ sub parse_args {
 		die "Please specifiy FORTRAN subroutine or program to refactor\n";
 	}
 	my %opts = ();
-	getopts( 'vwihgc:CNBS', \%opts );
+	getopts( 'vwihgc:NBSC:', \%opts );
 	
 	my $help = ( $opts{'h'} ) ? 1 : 0;
     if ($help) {
@@ -134,6 +134,11 @@ sub parse_args {
     if ($opts{'c'}) {
          $cfgrc= $opts{'c'};
     } 
+    my %consts=();
+    if ($opts{'C'}) {
+    	my @cs = split(/\s*,\s*/,$opts{'C'});
+         %consts= map {$_ => 1} @cs; 
+    }     
 	read_rf4a_config($cfgrc);
 	if (not exists $Config{'MODULE'} or not exists $Config{'KERNEL'}) {
 	    die "Sorry, $cfgrc does not contain the necessary information:". $usage . Dumper(%Config); 	
@@ -171,7 +176,7 @@ sub parse_args {
 		say "Stand-alone operation: no analysis of containing program";
 	}
 	
-	return ($mod_name,$mod_src,$kernel_name, $top_name,$top_src, $macro_src, $build, $stand_alone);
+	return ($mod_name,$mod_src,$kernel_name, $top_name,$top_src, $macro_src, $build, $stand_alone, \%consts);
 } # END of parse_args()
 
 sub read_macros { (my $stref,my $macro_src) = @_;
