@@ -62,7 +62,16 @@ $VAR1 = [
 # 'write(__PH1__//path(numpath+2*(k-1)+2)(1:len(numpath+2*(k-1)+2))
 #write(*,'(a)') '     '//path(numpath+2*(k-1)+2)(1:len(numpath+2*(k-1)+2))
 
-
+my %F95_ops =(
+	'==' => '.eq.',  
+    '/=' => '.ne.',  
+    '<=' => '.le.',  
+    '>=' => '.ge.',
+	'eq' => '==',
+	'ne' => '/=',
+	'le' => '<=',
+	'ge' => '>=',     			
+);
 # Returns the AST
 sub parse_expression { (my $exp, my $info, my $stref, my $f)=@_;
 	my $preproc_expr = $exp;
@@ -392,8 +401,11 @@ sub emit_expression {(my $ast, my $expr_str)=@_;
 		$expr_str =~s/__false__/\.false\./g;
 		$expr_str =~s/__true__/\.true\./g;
 		$expr_str =~s/\+__(\w+)__\+/\.${1}\./g;		
-		$expr_str =~s/__(\w+)__/\.${1}\./g;  		
+		$expr_str =~s/__(\w+)__/\.${1}\./g;
+		
+#		  		$expr_str =~s/\.(\w+)\./$F95_ops{$1}/g;
 	}
+	 
 	return $expr_str;		
 } # END of emit_expr
 

@@ -27,6 +27,122 @@ use Exporter;
     &emit_C_targets
     &translate_to_C
 );
+
+
+## So assuming a subroutine has been marked with 
+# if (exists $stref->{'Subroutines'}{$sub}{'Translate'} and $stref->{'Subroutines'}{$sub}{'Translate'} eq 'C') {
+# 	# Then we can emit C code 
+# 		translate_sub_to_C($stref,$sub);
+# }
+ 
+
+# -----------------------------------------------------------------------------
+sub translate_sub_to_C {  (my $stref, my $f) = @_;
+=info	
+	# First we collect info. What we need to know is:
+	
+	- What are the subroutine arguments, and their types?
+	- Scalar && IODir eq 'In' => emit a scalar
+	- otherwise => emit a pointer
+	- make a list/table of all the arguments, of course we already have that in $stref->{'Subroutines'}{$f}{'RefactoredArgs'}
+	- Then for every VarDecl we encounter:
+		- if it's an Arg, remove it
+		- otherwise, convert it to C syntax
+		- In any case, if it is an array, we need the dimensions; but that should exists already in $stref->{'Subroutines'}{$f}{'Vars'}
+	- If we find a select/case, we need to mark the *first* case to indicate that it should *not* be prefixed with  "}\n break;"
+	- so maybe we actually don't need a separate pass after all ...
+		 		
+=cut
+	my $pass_collect_info = sub { (my $annline, my $state)=@_;
+		(my $line,my $info)=@{$annline};
+		if (exists $info->{'Signature'} ) {
+		my $name = $info->{'Signature'}{'Name'};	
+		for my $arg (@{ $info->{'Signature'}{'Args'}{'List'} }) {
+			say $arg.Dumper($info->{'Signature'}{'Args'}{'Set'}{$arg});
+		}
+		
+			
+			# For every arg we need to determine the new signature based on the type.
+#			void $name ( $type $arg, ... ) {
+#			- Types
+#			real*4 => float
+#			integer*4 => int
+#			logical => bool
+			
+			}
+			elsif (exists $info->{'VarDecl'} ) {
+#			- Types
+#			real*4 => float
+#			integer*4 => int
+#			logical => bool
+			
+			}
+			elsif (exists $info->{'Select'} ) {
+			}
+			elsif (exists $info->{'Case'} ) {
+			
+#			select case () => switch (...) {
+#			case ... => case : { ... } break;
+			}
+			elsif (exists $info->{'BeginDo'} ) { 
+#			do i=1,n => for (int i = 1; i<=n; i++) { }
+			}
+		if (exists $info->{'Assignment'} ) {
+			if (scalar @{ $info->{'Rhs'}{'VarList'}{'List'} } ==1 and $info->{'Rhs'}{'VarList'}{'List'}[0]=~/_ptr/) {
+				# IGNORE, this is not a true array access
+			} else {				
+				# Rename all array accesses. But we can only do this in the AST!
+#				croak "FIXME: In is only correct if there was no previous Out etc!";
+				(my $ast, $state) = _rename_ast_entry($stref, $f,  $state, $info->{'Rhs'}{'ExpressionAST'},'In');
+				 $info->{'Rhs'}{'ExpressionAST'}=$ast;
+#				 say "$line => AST:".Dumper($ast);
+			}
+			if ($info->{'Lhs'}{'ArrayOrScalar'} eq 'Array') {
+				(my $ast, $state) = _rename_ast_entry($stref, $f,  $state, $info->{'Lhs'}{'ExpressionAST'}, 'Out');
+				$info->{'Lhs'}{'ExpressionAST'}=$ast;				
+			}
+			$state->{'IndexVars'}={ %{$state->{'IndexVars'} }, %{ $info->{'Lhs'}{'IndexVars'}{'Set'} } };
+			for my $var ( @{ $info->{'Rhs'}{'VarList'}{'List'} } ) {
+				next if $var eq '_OPEN_PAR_';
+				if ($info->{'Rhs'}{'VarList'}{'Set'}{$var}{'Type'} eq 'Array' and exists $info->{'Rhs'}{'VarList'}{'Set'}{$var}{'IndexVars'}) {					
+					$state->{'IndexVars'}={ %{ $state->{'IndexVars'} }, %{ $info->{'Rhs'}{'VarList'}{'Set'}{$var}{'IndexVars'} } }
+				}
+			}
+				
+		} 
+		elsif (exists $info->{'EndDo'} or exists $info->{'EndIf'} or exists $info->{'EndSelect'} or exists $info->{'EndSubroutine'} ) {
+				push @{$state->{'TranslatedCode'}}, $info->{'Indent'}.'}';
+		}
+		
+		if (exists $info->{'If'} ) {		
+			
+			my $cond_expr_ast=parse_expression($info->{'CondExecExpr'}, $info,$stref, $f); # Of course this should have been done in the parser! Call the expression string CondExecExprStr!
+			
+			(my $ast, $state) = _rename_ast_entry($stref, $f,  $state, $cond_expr_ast, 'In');
+			
+			$info->{'CondExecExpr'}=$ast;
+			for my $var ( @{ $info->{'CondVars'}{'List'} } ) {
+				next if $var eq '_OPEN_PAR_';
+				if ($info->{'CondVars'}{'Set'}{$var}{'Type'} eq 'Array' and exists $info->{'CondVars'}{'Set'}{$var}{'IndexVars'}) {					
+					$state->{'IndexVars'}={ %{ $state->{'IndexVars'} }, %{ $info->{'CondVars'}{'Set'}{$var}{'IndexVars'} } }
+				}
+			}
+						
+		}
+		if (exists $info->{'Comments'} ) {
+			push @{ $state->{'TranslatedCode'} }, $info->{'Indent'}.'//'.$line;
+		}	
+		
+		return ([$annline],$state);
+	};
+
+	my $state = {'TranslatedCode'=>[]};
+ 	($stref,$state) = stateful_pass($stref,$f,$pass_collect_info, $state,'C_translation_collect_info() ' . __LINE__  ) ;
+	
+} # END of translate_sub_to_C()
+
+
+
 sub translate_to_C {
 	( my $stref ) = @_;
     $translate = $GO;
@@ -68,8 +184,6 @@ sub emit_C_targets {
         }
     }
 }    # END of emit_C_targets()
-# -----------------------------------------------------------------------------
-sub translate_sub_to_C { }
 # -----------------------------------------------------------------------------
 sub translate_all_to_C {
     ( my $stref ) = @_;

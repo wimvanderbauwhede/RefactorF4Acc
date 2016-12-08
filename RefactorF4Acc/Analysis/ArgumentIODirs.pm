@@ -132,6 +132,7 @@ sub _set_iodir_read {
 	#        $args_ref->{$mvar}{'IODir'} = 'InOut';
 	#    } els
 	#    say Dumper($args_ref->{$mvar});
+	# So if it was OUT, a read should NOT turn it into INOUT for a scalar . Also also should process RHS first, then LHS! 
 	if (   not exists $args_ref->{$mvar}{'IODir'}
 		or not defined $args_ref->{$mvar}{'IODir'} )
 	{
@@ -471,9 +472,7 @@ sub _analyse_src_for_iodirs {
 					and $line !~ /^\s*do\s+.+\s*=/
 					and $line !~ /\bparameter\b/
 					and $line !~ /read|write|print/    # for implicit DO
-				  )
-				{
- 
+				  ) {
 					# FIXME: if (...) open|write is not covered
 					my $tline = $line;
 					$tline =~ s/^\s*\d+//;             # Labels
@@ -485,9 +484,8 @@ sub _analyse_src_for_iodirs {
 					my $var = '';
 					my $rhs = '';
 
-					# First check if this is a single-line if statement
+					# First check if this is a single-line IF statement					
 					if ( $tline =~ /^if\b/ ) {
-
 # split on
 # space or closing paren
 # word
@@ -498,56 +496,33 @@ sub _analyse_src_for_iodirs {
 						if ( $tline !~ /(open|write|read|print|close)\s*\(/ ) {
 							( my $cond, $var, my $sep, $rhs ) =
 							  conditional_assignment_fsm($tline);
-							$args = _find_vars_w_iodir( $cond, $args,
-								\&_set_iodir_read );
+							$args = _find_vars_w_iodir( $cond, $args,\&_set_iodir_read );
 							if ( $sep ne '' ) {
 								die $line unless defined $sep;
-								$args = _find_vars_w_iodir( $sep, $args,
-									\&_set_iodir_read );
+								$args = _find_vars_w_iodir( $sep, $args,\&_set_iodir_read );
 							}
 						} elsif ( $tline =~ /read\s*\(/ ) {
-							croak
-"WARNING: IGNORING conditional read call <$tline>";
-
+							croak "WARNING: IGNORING conditional read call <$tline>";
 							next;
 						} elsif ( $tline =~ /print.+?,/ ) {
-							croak
-"WARNING: IGNORING conditional print call <$tline>";
+							croak "WARNING: IGNORING conditional print call <$tline>";
 							next;
 						} else {
-							( my $cond, my $call, $rhs ) =
-							  split( /(open|write)/, $tline );
-
-						   #                      print $tline,"\n";
-						   #                      print "$cond ? $call $expr\n";
-							die $line unless defined $cond;
-							$args = _find_vars_w_iodir( $cond, $args,
-								\&_set_iodir_read );
+							( my $cond, my $call, $rhs ) = split( /(open|write)/, $tline );
+							croak $line unless defined $cond;
+							$args = _find_vars_w_iodir( $cond, $args,\&_set_iodir_read );
 						}
 					} else {
-
 						if ( $tline =~ /(open|close)\s*\(/ ) {
 							my $call = $1;
-
-							say
-"WARNING: IGNORING conditional $call <$tline> (_analyse_src_for_iodirs) "
-							  . __LINE__
-							  if $W;
-
-						 #            	 		warn "IGNORING $call call <$tline>\n";
+							say "WARNING: IGNORING conditional $call <$tline> (_analyse_src_for_iodirs) " . __LINE__ if $W;
 							next;
 						} elsif ( $tline =~ /(write|read|print)\s*\(/ ) {
 							my $call = $1;
 							croak "THIS IS NEVER REACHED";
-							croak
-"WARNING: IGNORING conditional $call <$tline> (_analyse_src_for_iodirs) "
-							  . __LINE__;
-
-						 #            	 		warn "IGNORING $call call <$tline>\n";
+							croak "WARNING: IGNORING conditional $call <$tline> (_analyse_src_for_iodirs) " . __LINE__;
 							next;
-
 						} else {
-#							croak $tline if $tline=~/dx/;
 							( $var, $rhs ) = split( /\s*=\s*/, $tline );
 							if ( $var =~ /\(/ ) {
 								# Must be an array assignment
@@ -556,8 +531,8 @@ sub _analyse_src_for_iodirs {
 								if ( not defined $str ) {
 									print "WARNING: IGNORING <$tline>, CAN'T HANDLE IT (_analyse_src_for_iodirs)\n" if $W;
 								} else {
-									$args = _find_vars_w_iodir( $str, $args,
-										\&_set_iodir_read );
+									# index vars
+									$args = _find_vars_w_iodir( $str, $args,\&_set_iodir_read );
 								}
 							}
 						}
@@ -567,6 +542,8 @@ sub _analyse_src_for_iodirs {
 					die "_analyse_src_for_iodirs(): RHS not defined inf $f: $line\n" unless defined $rhs;
 
 					# So anything on the RHS is "In", this is OK
+					croak 'This is not correct. If a scalar arg is assigned on LHS before it was read, it is OUT. If it is in then read, it stays OUT.  
+					If an array arg occurs on LHS and RHS then it would be OUT only if the index expr is identical, otherwise it must be INOUT';
 					$args = _find_vars_w_iodir( $rhs, $args, \&_set_iodir_read );
 					if ( exists $args->{$var} ) {
 						$args = _set_iodir_write( $var, $args );
