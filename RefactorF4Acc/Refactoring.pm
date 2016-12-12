@@ -478,6 +478,8 @@ sub get_next_relevant_statement { (my $annlines, my  $idx_start) = @_;
 
 
 sub _rename_array_accesses_to_scalars_all { (my $stref) = @_; 
+	
+	# Boilerplate, TODO: put in a function that returns @subs
 	my %is_existing_module = ();
     my %existing_module_name = ();
 	
@@ -1111,7 +1113,8 @@ sub _removed_unused_variables { (my $stref, my $f)=@_;
 	# If a variable is declared but not used in any LHS, RHS  or SubroutineCall, it is unused.
 	# So start with all declared variables, put in $state->{'ExprVars'}
 	# Make a list of all variables anywhere in the code via Lhs, Rhs, Args
-	my $pass_action = sub { (my $annline, my $state)=@_;		
+
+	my $pass_action_find_all_used_vars = sub { (my $annline, my $state)=@_;		
 		(my $line,my $info)=@{$annline};
 		
 		my $rline=$line;
@@ -1187,7 +1190,7 @@ sub _removed_unused_variables { (my $stref, my $f)=@_;
 		return ([$annline],$state);
 	};
 		
-	my $state= {'DeclaredVars'=>{},
+	my $state= {'DeclaredVars'=>{},'UndeclaredVars'=>{},
 		'ExprVars'=>{},
 		'AssignedVars'=>{},'Args'=>{},
 		'UnusedVars'=>{},
@@ -1196,10 +1199,10 @@ sub _removed_unused_variables { (my $stref, my $f)=@_;
 	do {
 		$state->{ExprVars}={};
 		$state->{AssignedVars}={};
- 		($stref,$state) = stateful_pass_reverse($stref,$f,$pass_action, $state,'_removed_unused_variables() ' . __LINE__  ) ;
+ 		($stref,$state) = stateful_pass_reverse($stref,$f,$pass_action_find_all_used_vars, $state,'_removed_unused_variables() ' . __LINE__  ) ;
  	
  	# Once we have these lists, we can now check if there are any variables that occur on an Lhs an are not used anywhere
- 	# We simply check for every AssignedVar if it is used as an ExprVar
+ 	# We simply check for every AssignedVar if it is used as an ExprVar 	
 	 	for my $var (keys %{ $state->{'AssignedVars'} }) {
 	 		if (not exists $state->{'ExprVars'}{$var} and not exists $state->{'Args'}{$var}) {
 	 			say "VAR $var is unused in $f" if $DBG;
@@ -1207,6 +1210,8 @@ sub _removed_unused_variables { (my $stref, my $f)=@_;
 	 		} 
 	 	}
 	} until scalar keys %{ $state->{'UnusedVars'} } ==0; 
+	
+
 	
  	# So now we have removed all assignments. 
  	# Now we need to check which vars are declared but not used and remove those declarations. 
@@ -1252,12 +1257,59 @@ sub _removed_unused_variables { (my $stref, my $f)=@_;
 	}; 	
 	$state->{'RemainingArgs'}=[];
 	$state->{'DeletedArgs'}=[];
+	# FIXME: should this be _reverse?
 	($stref,$state) = stateful_pass_reverse($stref,$f,$pass_action_decls, $state,'_removed_unused_variables() ' . __LINE__  ) ;
  	# Adapt the signature in $stref
  	$stref->{'Subroutines'}{$f}{'DeletedArgs'} =$state->{'DeletedArgs'};
  	$stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'List'}=dclone($state->{'RemainingArgs'});
  	map { delete $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$_} }  @{ $state->{'DeletedArgs'} };
  	
+	# As we are going through the whole code we can also test for undeclared vars	
+	for my $expr_var (keys %{ $state->{'ExprVars'} } ) {
+		if (not exists $state->{'DeclaredVars'}{$expr_var} ) {
+			say "VAR <$expr_var> in $f is UNDECLARED!";
+			if ($expr_var ne '_OPEN_PAR_' and $expr_var!~/^\d/) {
+				$state->{'UndeclaredVars'}{$expr_var}='MAYBE real'; # the default
+				# Now, what is the type of this $expr_var?
+				# We can determine the type if they are assigned using an extra pass, by looking at any vars in the RHS or if there aren't the type of the constants in the expression. Sigh. 
+				# I guess we start by setting them to real scalars.
+#				if (exists $state->{'AssignedVars'}{$expr_var} ) {
+##					say "ASSIGNED $expr_var".Dumper($state->{'AssignedVars'}{$expr_var});
+#					$state->{'UndeclaredVars'}{$expr_var}=2; # 2 meaning is assigned	
+#				}
+			} 
+		}
+	}
+	
+		my $pass_action_type_undeclared = sub { (my $annline, my $state)=@_;
+			(my $stref, my $f, my $pass_state)=@{$state};
+		(my $line,my $info)=@{$annline};
+		
+		if (exists $info->{'Assignment'} ) { 
+			
+			my $var = $info->{'Lhs'}{'VarName'};
+			say "LINE: $line => <$var>"	;
+			
+			if (exists $pass_state->{'UndeclaredVars'}{$var}) {				
+#			croak Dumper($info->{'Rhs'}{'VarList'}{'Set'});
+			# Now from this list via 
+				my $var_type = 'integer';
+				for my $rhs_var (@{ $info->{'Rhs'}{'VarList'}{'List'} } ) {
+					my $decl = get_var_record_from_set($stref->{'Subroutines'}{$f}{'Vars'},$rhs_var) ;
+					
+					if ($decl->{'Type'} eq 'real') {
+						$var_type = 'real';last;
+					}
+				}
+				$pass_state->{'UndeclaredVars'}{$var}=$var_type;
+			}
+		} 
+		return ([[$line,$info]],[$stref,$f,$pass_state]);
+	};
+
+	my $full_state = [$stref,$f,$state];
+ 	($stref,$full_state) = stateful_pass($stref,$f,$pass_action_type_undeclared, $full_state,'_pass_action_type_undeclared() ' . __LINE__  ) ;
+	 	croak Dumper($full_state->[2]{'UndeclaredVars'});
 	return $stref;
 } # END of _removed_unused_variables()
 
@@ -1326,7 +1378,7 @@ sub _fix_scalar_ptr_args { (my $stref, my $f)=@_;
 		
 	my $state= {
 	};
-	
+	# FIXME: this is a stateless pass!
  		($stref,$state) = stateful_pass_reverse($stref,$f,$pass_action, $state,'_removed_unused_variables() ' . __LINE__  ) ;
 
  	
@@ -1628,13 +1680,13 @@ sub _emit_expression_C {(my $ast, my $expr_str, my $stref, my $f)=@_;
 						(my $lb, my $hb)=@{$boundspair };
 						push @ranges, "(($hb - $lb )+1)";
 						push @lower_bounds, $lb; 
-					} 
-					
+					} 				
 				# For convenience we define a different function, not FTNREF
 				 # F3D2C(
 #                        unsigned int iz,unsigned int jz, // ranges, i.e. (hb-lb)+1
 #                                int i_lb, int j_lb, int k_lb, // lower bounds
 #                int ix, int jx, int kx)
+# with the same definition as FTN3DREF
 					$expr_str.=$mvar.'[F'.$dim.'D2C('.join(',',@ranges).' , '.join(',',@lower_bounds). ' , ';
 				}
 				$skip=1;
