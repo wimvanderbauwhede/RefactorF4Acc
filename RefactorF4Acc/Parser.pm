@@ -3087,7 +3087,7 @@ sub _split_multipar_decls_and_set_type {
 					my %rinfo = %{$info};
 					$rinfo{'LineID'}    = $nextLineID++;
 					$rinfo{'ParamDecl'} = {};
-#					say $var,$Sf->{'LocalParameters'}{'Set'}{$var}{'Attr'};
+
 					my $param_decl = {
 						'Indent' => $info->{'Indent'},
 						'Type' => $Sf->{'LocalParameters'}{'Set'}{$var}{'Type'},
@@ -3104,7 +3104,7 @@ sub _split_multipar_decls_and_set_type {
 					$Sf->{'LocalParameters'}{'Set'}{$var} = $param_decl;
 					$rinfo{'ParamDecl'} = {'Name'      => [ $var, $val ]}; # $Sf->{'LocalParameters'}{'Set'}{$var};# {'Name' => $var};#
 					$rinfo{'VarDecl'}= {'Name' => $var};
-#say $var.Dumper($param_decl);
+
 					my $rline = $line;
 					if ( scalar @{ $info->{'ParamDecl'}{'Names'} } > 1 ) {
 
@@ -3147,11 +3147,6 @@ sub _split_multipar_decls_and_set_type {
 		}
 	}
 	$Sf->{'AnnLines'} = $new_annlines;
-
-	#     if ($f eq 'includepar') {
-	#         say show_annlines($stref->{$sub_incl_or_mod}{$f}{AnnLines});
-	#         die;
-	#     }
 	return $stref;
 }    # END of _split_multipar_decls_and_set_type
 
@@ -3319,7 +3314,7 @@ sub __parse_f95_decl {
 	( my $Sf, my $indent, my $line, my $info) = @_;
 
 	my $pt = parse_F95_var_decl($line);
-
+#croak $line  if $line=~/etan/;	
 	# But this could be a parameter declaration, with an assignment ...
 	if ( $line =~ /,\s*parameter\s*.*?::\s*(\w+\s*=\s*.+?)\s*$/ ) {    
 		# F95-style parameters
@@ -3426,7 +3421,8 @@ sub __parse_f95_decl {
 					and exists $orig_decl->{'Attr'}
 					) {
 						$decl->{'Attr'}=$orig_decl->{'Attr'};
-				}  		  						
+				}  		  		
+							
 				# It is possible that at this point the variable had not been declared yet and we use implicit rules
 				# Then we change it to declared.
 				if ( exists $Sf->{'UndeclaredOrigArgs'}{'Set'}{$tvar} ) {								

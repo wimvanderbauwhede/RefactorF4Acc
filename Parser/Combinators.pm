@@ -921,41 +921,54 @@ sub remove_nested_singletons {
 sub l2m {
 	( my $hlist, my $hmap ) = @_;
 	if ( ref($hlist) eq 'ARRAY' ) {
+
+		my $all_scalars=1;
 		for my $elt ( @{$hlist} ) {
-#			say "ELT IN:".Dumper($elt);
-			#	- if what it contains is a single-elt hash,
-			if ( ref($elt) eq 'HASH' ) {
-				if ( scalar keys %{$elt} == 1 ) {
-
-		 #first check the value: if it is also an array, call the function on it
-					( my $k, my $v ) = each( %{$elt} );
-
-#					say "PAIR1 $k => ".Dumper($v);
-					if ( ref($v) eq 'ARRAY' ) {
-#						say '$v is ARRAY';
-						my $mv = l2m( $v, {} );
-						#add it to a new hash
-						$hmap=add_to_map( $hmap, $k, $mv );
+			if (ref($elt) ne '') {
+				$all_scalars=0;
+				last;
+			}
+		}
+		if ($all_scalars) {
+			return $hlist;
+		} else {
+			for my $elt ( @{$hlist} ) {
+	#			say "ELT IN:".Dumper($elt);
+				#	- if what it contains is a single-elt hash,
+				if ( ref($elt) eq 'HASH' ) {
+					if ( scalar keys %{$elt} == 1 ) {
+	
+			 #first check the value: if it is also an array, call the function on it
+						( my $k, my $v ) = each( %{$elt} );
+	
+	#					say "PAIR1 $k => ".Dumper($v);
+						if ( ref($v) eq 'ARRAY' ) { 
+#							say "ARRAY1 v: ".Dumper($v);
+							my $mv = l2m( $v, {} );
+#							say "ARRAY1 mv: ".Dumper($mv);
+							#add it to a new hash
+							$hmap=add_to_map( $hmap, $k, $mv );
+						} else {
+	#						say "PAIR2 $k => ".Dumper($v);
+							$hmap=add_to_map( $hmap, $k, $v );
+	#						say 'PAIR3:'.Dumper($hmap);						
+						}
 					} else {
-#						say "PAIR2 $k => ".Dumper($v);
-						$hmap=add_to_map( $hmap, $k, $v );
-#						say 'PAIR3:'.Dumper($hmap);						
+						die 'BOOM!';
+					}
+				} elsif ( ref($elt) eq 'ARRAY' ) {
+	
+	#	- if it is an array, descend and return the hash and make sure it gets added as well
+					my $mv = l2m( $elt, {} );
+					for my $k ( keys %{$mv} ) {
+						$hmap=add_to_map( $hmap, $k, $mv->{$k} );
 					}
 				} else {
-					die 'BOOM!';
+	#				say "ELT: <$elt>";
+					return $elt;
 				}
-			} elsif ( ref($elt) eq 'ARRAY' ) {
-
-#	- if it is an array, descend and return the hash and make sure it gets added as well
-				my $mv = l2m( $elt, {} );
-				for my $k ( keys %{$mv} ) {
-					$hmap=add_to_map( $hmap, $k, $mv->{$k} );
-				}
-			} else {
-#				say "ELT: <$elt>";
-				return $elt;
+	#			say 'AFTER:'.Dumper($elt);
 			}
-#			say 'AFTER:'.Dumper($elt);
 		}
 	} elsif ( ref($hlist) eq 'HASH' ) {
 		say Dumper($hlist);
@@ -1031,12 +1044,13 @@ sub l2m_OLD {
 sub getParseTree {
 	( my $m ) = @_;
 	my $mm = remove_undefined_values($m);
-#	say Dumper($mm);
+#	say "AFTER remove_undefined_values:".Dumper($mm);
 	my $tal = get_tree_as_lists($m);
-#	say "\nTAL:\n" . Dumper($tal);
-	my $map = l2m( $tal, {} );
+#	say "AFTER get_tree_as_lists:".Dumper($tal);
 
-	#    say "\nM:\n".say Dumper($map);
+	my $map = l2m( $tal, {} );
+#say "AFTER l2m:".Dumper($map);
+
 	return $map;
 }
 
