@@ -388,6 +388,7 @@ sub _analyse_lines {
 		my $indent         = '';
 		my @do_stack       = ();
 		my $do_counter     = 0;
+		my $case_counter     = 0;
 		my $block_nest_counter = 0;
 		my $block_counter = 0;
 		my %block_id = ();
@@ -946,7 +947,8 @@ VIRTUAL
 					my $case_vals_str = $1;
 					my @case_vals = _parse_comma_sep_expr_list($case_vals_str);
 					$info->{'CaseVals'} = [@case_vals];
-					$info->{ 'Control' } = 1;				
+					$info->{ 'Control' } = 1;
+					$info->{ 'Case' } = ++$case_counter;				
 				} elsif ($line=~/case\s+\default/) {
 					$info->{'CaseDefault'} = 1;
 					$info->{ 'Control' } = 1;			

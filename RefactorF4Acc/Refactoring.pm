@@ -13,7 +13,7 @@ use RefactorF4Acc::Refactoring::IncludeFiles qw( refactor_include_files );
 use RefactorF4Acc::Analysis::ArgumentIODirs qw( determine_argument_io_direction_rec update_argument_io_direction_all_subs);
 use RefactorF4Acc::Refactoring::Modules qw( add_module_decls );
 use RefactorF4Acc::OpenCLTranslation qw( translate_to_OpenCL );
-
+use RefactorF4Acc::CTranslation qw( toCType );
 use RefactorF4Acc::Parser::Expressions qw(parse_expression emit_expression get_vars_from_expression);
 
 use vars qw( $VERSION );
@@ -501,13 +501,14 @@ sub _rename_array_accesses_to_scalars_all { (my $stref) = @_;
 			$stref= _fix_scalar_ptr_args($stref, $f);
 			say "\n! PASS _rename_array_accesses_to_scalars on $f\n" if $V; 
 			$stref=_rename_array_accesses_to_scalars($stref, $f);			
-			
+			$stref=translate_sub_to_C($stref, $f);
 		}
 		# It is possible that the subs with renamed args are called in other subs.
 		# In practice, they should be called from a single other sub, the superkernel
 		# But there could be more than one kernel etc.
 		for my $f ( @subs ) {			
 			$stref=_rename_array_accesses_to_scalars_called_subs($stref, $f);
+			
 			
 		}
 		
@@ -658,7 +659,7 @@ sub _rename_array_accesses_to_scalars { (my $stref, my $f) = @_;
 	}
 
 # So now we have identified all stream vars. In the next pass, update the subroutine signature and declarations
-	
+
 	my $pass_action_2 = sub { (my $annline, my $state)=@_;
 		(my $line,my $info)=@{$annline};
 		if (exists $info->{'Signature'} ) { 
@@ -668,7 +669,7 @@ sub _rename_array_accesses_to_scalars { (my $stref, my $f) = @_;
 #				say Dumper($state);
 				if (exists $state->{'StreamVars'}{$arg} ) {
 #					say $arg,Dumper($state);
-					$new_args=[@{$new_args},  sort keys %{ $state->{'StreamVars'}{$arg} }  ];
+					$new_args=[@{$new_args},  sort keys %{ $state->{'StreamVars'}{$arg} }  ];										
 				} else {
 					push @{$new_args}, $arg;
 				} 
@@ -699,7 +700,7 @@ sub _rename_array_accesses_to_scalars { (my $stref, my $f) = @_;
 	};
 
  	($stref,$state) = stateful_pass($stref,$f,$pass_action_2, $state,'_rename_array_accesses_to_scalars_PASS2() ' . __LINE__  ) ;
- 	
+	 	
  	# So at this point we should do the lifting of everything to do with indexing
  	
 # Finally, after having updated the calls we can add the missing declarations
@@ -776,13 +777,16 @@ sub _rename_array_accesses_to_scalars { (my $stref, my $f) = @_;
 	# And then we can update $stref->{$Subroutines}{$f} and add LiftedIndexCalcLines and LiftedIndexVarDecls so that when we find a call we can splice in these lines
 	$stref->{'Subroutines'}{$f}{'LiftedIndexCalcLines'}=dclone($state->{'LiftedIndexCalcLines'});
 	$stref->{'Subroutines'}{$f}{'LiftedIndexVarDecls'}=dclone($state->{'LiftedIndexVarDecls'});
-	$stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'List'}=dclone($state->{'RemainingArgs'});
+	# Here we update RefactoredArgs List
+#
+	# Delete the args replaced by streaming args from the Set
 	map { delete $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$_} }  @{ $state->{'DeletedArgs'} };
+	map { delete $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$_} }  @{ $state->{'DeletedArgs'} };
 	# We must also create the assignment lines for every newly created stream var and put these in LiftedScalarAssignments	  
 
- 	
+ 	# At this point the argument list already has the stream vars as args
  	my @updated_args_list=();		
-	for my $orig_arg ( @{ $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'List'} } ) {		
+	for my $orig_arg ( @{ $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'List'} } ) {	
 		if (exists $state->{'StreamVars'}{$orig_arg}) {
 			my $new_decl = dclone( $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$orig_arg} );
 			for my $new_arg (sort keys %{ $state->{'StreamVars'}{$orig_arg} }) {
@@ -792,14 +796,17 @@ sub _rename_array_accesses_to_scalars { (my $stref, my $f) = @_;
 				$new_decl->{'IODir'}=$state->{'StreamVars'}{$orig_arg}{$new_arg}{'IODir'};
 				$new_decl->{'ArrayIndexExpr'}=$state->{'StreamVars'}{$orig_arg}{$new_arg}{'ArrayIndexExpr'};
 				$stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$new_arg}=$new_decl;
-				delete $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$orig_arg};
+				delete $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$orig_arg};				
 			}			
 		} else {
-			push @updated_args_list, $orig_arg;	
+			if (exists $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$orig_arg} ) {
+				push @updated_args_list, $orig_arg;	
+			}
 		}
 	}
 	$stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'List'}=[@updated_args_list];
-	
+#	show_annlines($stref->{'Subroutines'}{$f}{'RefactoredCode'});
+#	say Dumper($stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'List'})."\n<>\n".Dumper($state->{'RemainingArgs'});	
 	# Now we emit the updated code for the subroutine signature, the variable declarations, assignment expressions and ifthen expressions 	
 	my $pass_emit_updated_code = sub { (my $annline, my $state)=@_;		
 		(my $line,my $info)=@{$annline};
@@ -829,6 +836,9 @@ sub _rename_array_accesses_to_scalars { (my $stref, my $f) = @_;
 				'IODir'  => $intent,
 				};
 				$rline = emit_f95_var_decl($rdecl);
+				my $orig_name =$info->{'VarDecl'}{'Name'}; 
+				$info->{'VarDecl'}{'Name'}=$tvar;
+				$info->{'VarDecl'}{'OrigName'}=$orig_name;
 				say $rline if $DBG;
 				push @{$rlines},[$rline,$info];			
 			}	
@@ -890,16 +900,7 @@ sub _rename_array_accesses_to_scalars_called_subs { (my $stref, my $f) = @_;
 			($rline, $info) = _emit_subroutine_call( $stref, $f, $annline);
 			say $rline if $DBG;
 			push @{$rlines},[$rline,$info];
-#			show_annlines($rlines,1);			
 		} else {
-#			if ( exists $info->{'PlaceHolders'} ) { 
-#				while ($rline =~ /(__PH\d+__)/) {
-#					my $ph=$1;
-#					my $ph_str = $info->{'PlaceHolders'}{$ph};
-#					$rline=~s/$ph/$ph_str/;
-#				}
-#			}                                    
-#            $info->{'Ref'}++;
 			say $rline if $DBG;
 			push @{$rlines},[$rline,$info];
 		}
@@ -920,8 +921,17 @@ sub _rename_array_accesses_to_scalars_called_subs { (my $stref, my $f) = @_;
 		
 		if ( exists $info->{'VarDecl'} ) {
 			my $var = $info->{'VarDecl'}{'Name'};
+			if (exists $stref->{'Subroutines'}{$f}{'LiftedVarDecls'}{'Set'}{$var} ) {
 			say "VAR $var from LiftedVarDecls already declared in $f"  if $DBG;
 			 delete $stref->{'Subroutines'}{$f}{'LiftedVarDecls'}{'Set'}{$var};
+			}
+#			if (exists $info->{'VarDecl'}{'OrigName'} ) {
+#				my $orig_var = 	$info->{'VarDecl'}{'OrigName'};
+#				if (exists $stref->{'Subroutines'}{$f}{'LiftedVarDecls'}{'Set'}{$orig_var} ) {
+#					say "VAR $var from LiftedVarDecls already declared in $f"  if $DBG;
+#			 		delete $stref->{'Subroutines'}{$f}{'LiftedVarDecls'}{'Set'}{$orig_var};
+#				}
+#			}
 		}		
 		
 		return ([$annline],$state);
@@ -1213,7 +1223,8 @@ sub _removed_unused_variables { (my $stref, my $f)=@_;
 	$state->{'RemainingArgs'}=[];
 	$state->{'DeletedArgs'}=[];
 	($stref,$state) = stateful_pass_reverse($stref,$f,$pass_action_decls, $state,'_removed_unused_variables() ' . __LINE__  ) ;
- 	# I suppose I should adapt the signature in $stref here
+ 	# Adapt the signature in $stref
+ 	$stref->{'Subroutines'}{$f}{'DeletedArgs'} =$state->{'DeletedArgs'};
  	$stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'List'}=dclone($state->{'RemainingArgs'});
  	map { delete $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$_} }  @{ $state->{'DeletedArgs'} };
  	
@@ -1238,12 +1249,17 @@ sub _fix_scalar_ptr_args { (my $stref, my $f)=@_;
 					my $new_arg=$arg;
 					$new_arg=~s/_ptr$//;
 					push @{$new_args}, $new_arg;
+					$stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$new_arg} = dclone($stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$arg} );
+					delete $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$arg} ;					
 				} else {
 					push @{$new_args}, $arg;
-				} 
+				}
+				  
 			}
 			$info->{'Signature'}{'Args'}{'List'}=$new_args;
+			$stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'List'}=$new_args ;
 			$info->{'Signature'}{'Args'}{'Set'} = { map {$_=>1} @{$new_args} };
+			
 			my $sig_str = $line;
 			$sig_str=~s/_ptr//g;
 			$rlines=[[$sig_str,$info]];			 
@@ -1307,35 +1323,32 @@ sub translate_sub_to_C {  (my $stref, my $f) = @_;
 	my $pass_collect_info = sub { (my $annline, my $state)=@_;
 		(my $line,my $info)=@{$annline};
 		my $c_line=$line;
+		(my $stref, my $f, my $pass_state)=@{$state};
+#		say Dumper($stref->{'Subroutines'}{$f}{'DeletedArgs'});
+		my $skip=0;
 		if (exists $info->{'Signature'} ) {
-		my $name = $info->{'Signature'}{'Name'};	
-		for my $arg (@{ $info->{'Signature'}{'Args'}{'List'} }) {
-			say $arg.Dumper($stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$arg} );
-		}
-		
-			
-			# For every arg we need to determine the new signature based on the type.
-#			void $name ( $type $arg, ... ) {
-#			- Types
-#			real*4 => float
-#			integer*4 => int
-#			logical => bool
-			
+			$c_line = _emit_subroutine_sig_C( $stref, $f, $annline);
 			}
 			elsif (exists $info->{'VarDecl'} ) {
-#			- Types
-#			real*4 => float
-#			integer*4 => int
-#			logical => bool
 				my $var = $info->{'VarDecl'}{'Name'};
-				if (exists $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$var}) {
-					say "VAR $var is ARG, remove decl!";
+				if (exists $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$var}
+				) {
+					$c_line='//'.$line;
+					$skip=1;
+				} else {
+					$c_line = _emit_var_decl_C($stref,$f,$var); 
 				}
-			elsif (exists $info->{'Select'} ) {
-				$c_line='switch';
+			}
+			elsif (exists $info->{'Select'} ) {				
+				$c_line=$line;
+				$c_line=~s/select\s+case/switch/;
+				$c_line.='{';
 			}
 			elsif (exists $info->{'Case'} ) {
-			$c_line='case';
+			$c_line=$line.': {';#'case';
+			if ($info->{'Case'}>1) {
+				$c_line = $info->{'Indent'}."} break;\n".$info->{'Indent'}.$c_line;
+			}
 #			select case () => switch (...) {
 #			case ... => case : { ... } break;
 			}
@@ -1349,31 +1362,293 @@ sub translate_sub_to_C {  (my $stref, my $f) = @_;
 			# Scalars need to be changed to pointer access if they are in the 'Pointers' list
 
 			# This goes both for LHS and RHS  
-				$c_line = _emit_assignment_C($stref, $f,  $state, $info);
-			}
-
-				
-		} 
+				$c_line = _emit_assignment_C($stref, $f, $info).';';
+		}
+		elsif (exists $info->{'SubroutineCall'} ) {
+			my $subcall_ast = $info->{'SubroutineCall'}{'ExpressionAST'};
+			$subcall_ast->[0] = '&';
+			$c_line = _emit_expression_C($subcall_ast,'',$stref,$f).';';
+		}			 
 		elsif (exists $info->{'If'} ) {		
-			
-			my $cond_expr_ast=parse_expression($info->{'CondExecExpr'}, $info,$stref, $f); # Of course this should have been done in the parser! Call the expression string CondExecExprStr!
-			
-			$c_line = _emit_ifthen_C($stref, $f,  $state, $cond_expr_ast);
+			$c_line = _emit_ifthen_C($stref, $f, $info);
+		}
+		elsif (exists $info->{'Else'} ) {		
+			$c_line = ' } else {';
 		}
 		elsif (exists $info->{'EndDo'} or exists $info->{'EndIf'} or exists $info->{'EndSelect'} or exists $info->{'EndSubroutine'} ) {
 				 $c_line = '}';
 		}
 		elsif (exists $info->{'Comments'} ) {
+			$c_line = $line;
+			$c_line=~s/\!/\/\//;
+		}
+		elsif (exists $info->{'Use'} ) {
 			$c_line = '//'.$line;
 		}	
-		push @{$state->{'TranslatedCode'}},$info->{'Indent'}.$c_line;
+		push @{$pass_state->{'TranslatedCode'}},$info->{'Indent'}.$c_line unless $skip;
 		
-		return ([$annline],$state);
+		return ([$annline],[$stref,$f,$pass_state]);
 	};
 
-	my $state = {'TranslatedCode'=>[]};
+	my $state = [$stref,$f,{'TranslatedCode'=>[]}];
  	($stref,$state) = stateful_pass($stref,$f,$pass_collect_info, $state,'C_translation_collect_info() ' . __LINE__  ) ;
+ 	map {say $_ } @{$state->[2]{'TranslatedCode'}};
+ 	return $stref;
 	
 } # END of translate_sub_to_C()
+
+sub _emit_subroutine_sig_C { (my $stref, my $f, my $annline)=@_;
+#	say "//SUB $f";
+	    (my $line, my $info) = @{ $annline };
+	    my $Sf        = $stref->{'Subroutines'}{$f};
+	    
+	    my $name = $info->{'Signature'}{'Name'};
+#	    say "NAME $name";
+		my $args_ref = $info->{'Signature'}{'Args'}{'List'};
+		my $c_args_ref=[];	    			
+		for my $arg (@{ $args_ref }) {
+			($stref,my $c_arg_decl) = _emit_arg_decl_C($stref,$f,$arg);
+			push @{$c_args_ref},$c_arg_decl;
+		}
+#g => {'Dim' => [['1','1']],'ArrayOrScalar' => 'Array','Name' => 'g_ptr','IODir' => undef,'Type' => 'real','Indent' => '    ','Attr' => ''}
+#eta_j_k_ => {'Dim' => [],'ArrayIndexExpr' => 'eta(j+1,k)','Type' => 'real','IODir' => 'in','Attr' => '','ArrayOrScalar' => 'Scalar','Name' => 'eta','Indent' => '    '}	    
+	    my $args_str = join( ',', @{$c_args_ref} );	    
+	    my $rline = "void $name($args_str) {\n";
+		return  $rline;
+}
+
+sub _emit_arg_decl_C { (my $stref,my $f,my $arg)=@_;
+	my $decl =	$stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$arg};
+	my $array = $decl->{'ArrayOrScalar'} eq 'Array' ? 1 : 0;
+	my $const = 1;
+	if (not defined $decl->{'IODir'}) {
+		$const = 0;
+	} else { 
+		$const =    $decl->{'IODir'} eq 'In' ? 1 : 0;
+	}
+	my $ptr = ($array || !$const) ? '*' : '';
+	$stref->{'Subroutines'}{$f}{'Pointers'}{$arg}=$ptr;
+	my $ftype = $decl->{'Type'};
+	my $fkind = $decl->{'Attr'};
+	$fkind=~s/\(kind=//;
+	$fkind=~s/\)//;
+	if ($fkind eq '') {$fkind=4};
+	my $c_type = toCType($ftype,$fkind);
+	my $c_arg_decl = $c_type.' '.$ptr.$arg;
+	return ($stref,$c_arg_decl);
+}
+
+
+
+sub _emit_var_decl_C { (my $stref,my $f,my $var)=@_;
+	my $decl =  get_var_record_from_set($stref->{'Subroutines'}{$f}{'Vars'},$var);
+#		say Dumper($decl);
+# {'Var' => 'st_sub_map_124','Status' => 1,'Dim' => [],'Attr' => '','Type' => {'Type' => 'integer'},'Val' => '0','Indent' => '  ','Name' => ['st_sub_map_124','0'],'InheritedParams' => undef,'Parameter' => 'parameter'}		
+	my $array = (exists $decl->{'ArrayOrScalar'} and $decl->{'ArrayOrScalar'} eq 'Array') ? 1 : 0;
+	my $const = '';
+	my $val='';
+	if (defined $decl->{'Parameter'}) {
+		$const = 'const ';
+		$val = ' = '.$decl->{'Val'};
+	}
+	my $ptr = $array  ? '*' : '';
+	$stref->{'Subroutines'}{$f}{'Pointers'}{$var}=$ptr;
+	my $ftype = $decl->{'Type'};
+	my $fkind = $decl->{'Attr'};
+	if (ref ($ftype) eq 'HASH') {
+		
+		if (exists $ftype->{'Kind'}) {
+			$fkind = $ftype->{'Kind'};
+		}
+		$ftype = $ftype->{'Type'};
+	}
+	$fkind=~s/\(kind=//;
+	$fkind=~s/\)//;
+	if ($fkind eq '') {$fkind=4};
+	my $c_type = toCType($ftype,$fkind);
+	my $c_var_decl = $const.$c_type.' '.$ptr.$var.$val.';';
+	return ($stref,$c_var_decl);
+}
+
+sub _emit_assignment_C { (my $stref, my $f, my $info)=@_;	
+	
+	my $lhs_ast =  $info->{'Lhs'}{'ExpressionAST'};
+	my $lhs = _emit_expression_C($lhs_ast,'',$stref,$f);
+	$lhs=~s/^\(// && $lhs=~s/\)$//;
+	my $rhs_ast =  $info->{'Rhs'}{'ExpressionAST'};	
+#	carp Dumper($rhs_ast);
+	my $rhs = _emit_expression_C($rhs_ast,'',$stref,$f);
+	my $rhs_stripped = $rhs;
+	$rhs_stripped=~s/^\(// && $rhs_stripped=~s/\)$//;
+	if ( $rhs_stripped=~/[\(\)]/) {
+		# Undo!
+		$rhs_stripped=$rhs;
+	}
+	my $rline = $info->{'Indent'}.$lhs.' = '.$rhs_stripped;
+	if (exists $info->{'If'}) {
+		my $if_str = _emit_ifthen_C($stref,$f,$info);
+		$rline =$if_str.' '.$rline; 
+	}	
+	return $rline;
+}
+
+
+
+sub _emit_ifthen_C { (my $stref, my $f, my $info)=@_;	
+	my $cond_expr_ast=$info->{'CondExecExpr'};
+	my $cond_expr = _emit_expression_C($cond_expr_ast,'',$stref,$f);
+	$cond_expr=_change_operators_to_C($cond_expr);
+	my $rline = $info->{'Indent'}.'if ('.$cond_expr.') '. (exists $info->{'IfThen'} ? '{' : '');
+		
+	return $rline;
+}
+
+sub _emit_expression_C {(my $ast, my $expr_str, my $stref, my $f)=@_;
+#	carp Dumper($ast);
+	if (ref($ast) ne 'ARRAY') {return $ast;}
+	my @expr_chunks=();
+	my $skip=0;
+	for my  $idx (0 .. scalar @{$ast}-1) {		
+		my $entry = $ast->[$idx];
+		if (ref($entry) eq 'ARRAY') {
+			 my $nest_expr_str = _emit_expression_C( $entry, '',$stref,$f);
+#			 say "NEST:$nest_expr_str ";
+			push @expr_chunks, $nest_expr_str;
+		} else {
+			if ($entry =~/#/) {
+				$skip=1;
+			} elsif ($entry eq '&') {
+				my $mvar = $ast->[$idx+1];
+				
+				$expr_str.=$mvar.'(';
+				$skip=1;
+			} elsif ($entry eq '$') {
+				my $mvar = $ast->[$idx+1];
+#				carp $mvar;
+				if (exists $stref->{'Subroutines'}{$f}{'Pointers'}{$mvar} ) {
+				my $ptr = $stref->{'Subroutines'}{$f}{'Pointers'}{$mvar};
+				push @expr_chunks,  $ptr eq '' ? $mvar : '('.$ptr.$mvar.')';
+				} else {
+					push @expr_chunks,$mvar;
+				}
+				$skip=1;				
+			} elsif ($entry eq '@') {
+				
+				my $mvar = $ast->[$idx+1];
+				if ($mvar eq '_OPEN_PAR_') {
+					$expr_str.=$mvar.'(';
+				} else {
+					my $decl = get_var_record_from_set($stref->{'Subroutines'}{$f}{'Vars'},$mvar);
+
+					my $dims =  $decl->{'Dim'};
+					my $dim = scalar @{$dims};
+					my @ranges=();
+					my @lower_bounds=();
+					for my $boundspair (@{$dims}) {
+						(my $lb, my $hb)=@{$boundspair };
+						push @ranges, ($hb-$lb)+1;
+						push @lower_bounds, $lb; 
+					} 
+					
+				# For convenience we define a different function, not FTNREF
+				 # F3D2C(
+#                        unsigned int iz,unsigned int jz, // ranges, i.e. (hb-lb)+1
+#                                int i_lb, int j_lb, int k_lb, // lower bounds
+#                int ix, int jx, int kx)
+					$expr_str.=$mvar.'[F'.$dim.'D2C('.join(',',@ranges).' , '.join(',',@lower_bounds). ' , ';
+				}
+				$skip=1;
+			} elsif (
+				$ast->[$idx-1]!~/^[\&\@\$]/ 
+			) {
+#				say "ENTRY:$entry SKIP: $skip";
+				push @expr_chunks,$entry;
+				$skip=0;
+			}
+		}				
+	}
+	if ($ast->[0] eq '&' ) {
+		my @expr_chunks_stripped = map { $_=~s/^\(//;$_=~s/\)$//;$_} @expr_chunks; 
+		$expr_str.=join(',',@expr_chunks_stripped);
+		$expr_str.=')'; 
+	} elsif ( $ast->[0] eq '@') {
+		my @expr_chunks_stripped = map { $_=~s/^\(//;$_=~s/\)$//;$_} @expr_chunks;
+		$expr_str.=join(',',@expr_chunks_stripped);
+		# But here we'd need to know what the var is!
+		$expr_str.=')';
+		if ($expr_str=~/\[/) {
+		$expr_str.=']'; 		
+		} 
+	} elsif ($ast->[0] ne '$' and $ast->[0] =~ /\W/) {
+		my $op = $ast->[0];		
+		if (scalar @{$ast} > 2) {
+			my @ts=();
+			for my $elt (1 .. scalar @{$ast} -1 ) {
+				$ts[$elt-1] = (ref($ast->[$elt]) eq 'ARRAY') ? _emit_expression_C( $ast->[$elt], '',$stref,$f) : $ast->[$elt];					
+			} 
+			if ($op eq '^') {
+				$op = '**';
+				warn "TODO: should be pow()";
+			};
+			$expr_str.=join($op,@ts);
+		} elsif (defined $ast->[2]) { croak "OBSOLETE!";
+			my $t1 = (ref($ast->[1]) eq 'ARRAY') ? _emit_expression_C( $ast->[1], '',$stref,$f) : $ast->[1];
+			my $t2 = (ref($ast->[2]) eq 'ARRAY') ? _emit_expression_C( $ast->[2], '',$stref,$f) : $ast->[2];			
+			$expr_str.=$t1.$ast->[0].$t2;
+			if ($ast->[0] ne '=') {
+				$expr_str="($expr_str)";
+			}			
+		} else {
+			# FIXME! UGLY!
+			my $t1 = (ref($ast->[1]) eq 'ARRAY') ? _emit_expression_C( $ast->[1], '',$stref,$f) : $ast->[1];
+			$expr_str=$ast->[0].$t1;
+			if ($ast->[0] eq '/') {
+				$expr_str='1.0'.$expr_str; 
+			}
+		}
+	} else {
+		$expr_str.=join(';',@expr_chunks);
+	}	
+#	$expr_str=~s/_complex_//g;
+	$expr_str=~s/_OPEN_PAR_//g;
+	$expr_str=~s/_LABEL_ARG_//g;
+	if ($expr_str=~s/^\#dummy\#\(//) {
+		$expr_str=~s/\)$//;
+	}
+	$expr_str=~s/\+\-/-/g;
+	# UGLY! HACK to fix boolean operations
+	 
+	while ($expr_str=~/__[a-z]+__/ or $expr_str=~/\.\w+\.\+/) {
+		$expr_str =~s/\+\.(\w+)\.\+/\.${1}\./g;
+		$expr_str =~s/\.(\w+)\.\+/\.${1}\./g;
+		$expr_str =~s/__not__\+/\!/g; 
+		$expr_str =~s/__not__/\!/g; 		
+		$expr_str =~s/__false__/0/g;
+		$expr_str =~s/__true__/1/g;
+		$expr_str =~s/\+__(\w+)__\+/\.${1}\./g;		
+		$expr_str =~s/__(\w+)__/\.${1}\./g;
+#		  		$expr_str =~s/\.(\w+)\./$F95_ops{$1}/g;
+	}	
+	return $expr_str;		
+} # END of _emit_expression_C()
+
+sub _change_operators_to_C { (my $cond_expr) = @_;
+	
+my %C_ops =(
+	'eq' => '==',
+	'ne' => '!=',
+	'le' => '<=',
+	'ge' => '>=',
+	'gt' => '>',
+	'lt' => '<',
+	'not' => '!',
+	'and' => '&&',
+	'or' => '||',	     			
+);
+while ($cond_expr=~/\.(\w+)\./) {	
+	$cond_expr=~s/\.(\w+)\./$C_ops{$1}/;
+}
+	return $cond_expr;
+}
 
 1;
