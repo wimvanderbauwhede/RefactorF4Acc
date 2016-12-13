@@ -1597,7 +1597,8 @@ sub stateful_pass_reverse {
     
     my $nextLineID         = scalar @{$annlines} + 1;
     my $new_annlines=[];
-    for my $annline ( reverse @{$annlines} ) {    	
+    for my $annline ( reverse @{$annlines} ) {
+#    	if (ref(    	$annline->[1] ) ne 'HASH') {croak 'ANNLINE: '. Dumper($annline);}
     	if (not exists $annline->[1]{'Deleted'}) {    	
 	        (my $pass_annlines, $state) = $pass_actions->($annline, $state);
     	    for my $new_annline (@{ $pass_annlines }) { 

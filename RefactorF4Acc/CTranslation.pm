@@ -1,4 +1,5 @@
 package RefactorF4Acc::CTranslation;
+use v5.016;
 # THIS SUBROUTINE IS CURRENTLY OBSOLETE, WE USE OpenCLTranslation INSTEAD
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
@@ -550,6 +551,7 @@ sub postprocess_C {
 # -----------------------------------------------------------------------------
 sub toCType {
     ( my $ftype, my $kind ) = @_;
+    
     if (not defined $kind) {$kind=4};
     my %corr = (
         'logical'          => 'int', # C has no bool

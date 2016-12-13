@@ -940,10 +940,10 @@ VIRTUAL
 				$do_counter++;
 				push @do_stack, $info;
 # SELECT/CASE 
-			} elsif ($line=~/select\s+case\s+\((\w+)\)/) {
+			} elsif ($line=~/select\s+case\s*\((\w+)\)/) {
 					$info->{'CaseVar'} = $1;
 					$info->{ 'Control' } = 1;
-				} elsif ($line=~/case\s+\((.+)\)\s*$/) {
+				} elsif ($line=~/case\s*\((.+)\)\s*$/) {
 					my $case_vals_str = $1;
 					my @case_vals = _parse_comma_sep_expr_list($case_vals_str);
 					$info->{'CaseVals'} = [@case_vals];
