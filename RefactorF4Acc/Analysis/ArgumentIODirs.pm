@@ -34,8 +34,7 @@ use Exporter;
 
 # -----------------------------------------------------------------------------
 # We do a recusive descent for all called subroutines, and for the leaves we do the analysis
-sub determine_argument_io_direction_rec {
-	( my $f, my $stref ) = @_;
+sub determine_argument_io_direction_rec { ( my $f, my $stref ) = @_;
 	my $c;
 	if ($V) {
 		$c = ( defined $stref->{Counter} ) ? $stref->{Counter} : 0;
@@ -107,17 +106,25 @@ sub _determine_argument_io_direction_core {
 #
 #* If an argument is read from and never written to, its IO direction is In:
 #
-#Unknown & Read =>  In
+# Unknown & Read =>  In
 #
 
-#* If an argument is written to before it is read from, its IO direction is Out.
+#* If a Scalar argument is written to before it is read from, its IO direction is Out.
 #
 #Unknown & Write =>  Out
 #
 
-#* If an argument is read from and later written to, its IO direction is InOut.
+
+#* If an Array argument is written to and later read from, its IO direction is InOut.
 #
-#In & Write =>  InOut
+# Out & Read =>  InOut
+#
+
+
+
+#* If a (Scalar or Array) argument is read from and later written to, its IO direction is InOut.
+#
+# In & Write =>  InOut
 #
 
 #* If an argument was not used in the subroutine body, set the status to Unused:
@@ -126,14 +133,10 @@ sub _determine_argument_io_direction_core {
 
 sub _set_iodir_read {
 	( my $mvar, my $args_ref ) = @_;
-
-	#    if ( $args_ref->{$mvar}{'IODir'} eq 'Out' ) {
-	#        print "FOUND InOut ARG $mvar\n" if $V;
-	#        $args_ref->{$mvar}{'IODir'} = 'InOut';
-	#    } els
-	#    say Dumper($args_ref->{$mvar});
-	# So if it was OUT, a read should NOT turn it into INOUT for a scalar . Also also should process RHS first, then LHS! 
-	if (   not exists $args_ref->{$mvar}{'IODir'}
+carp Dumper($args_ref->{$mvar});
+	 if ( $args_ref->{$mvar}{'IODir'} eq 'Out'  and $args_ref->{$mvar}{'ArrayOrScalar'} eq 'Array') {		
+		$args_ref->{$mvar}{'IODir'} = 'InOut';
+	} elsif (   not exists $args_ref->{$mvar}{'IODir'}
 		or not defined $args_ref->{$mvar}{'IODir'} )
 	{
 		$args_ref->{$mvar}{'IODir'} = 'Unknown';
@@ -194,8 +197,26 @@ sub _set_iodir_ignore {
 	}
 	return $args_ref;
 }
+# -----------------------------------------------------------------------------
+sub _set_iodir_vars {
+	( my $vars, my $args_ref, my $subref ) = @_;
+
+	for my $mvar (@{$vars}) {
+#		next if $mvar eq '';
+#		next if $mvar =~ /^\d+$/;
+#		next if $mvar =~ /^(\-?(?:\d+|\d*\.\d*)(?:e[\-\+]?\d+)?)$/;
+#		next if $mvar =~ /\b(?:if|then|do|goto|integer|real|call|\d+)\b/;
+		if ( exists $args_ref->{$mvar} and ref( $args_ref->{$mvar} ) eq 'HASH' ){
+			if ( exists $args_ref->{$mvar}{'IODir'} ) {
+				$args_ref = $subref->( $mvar, $args_ref );
+			}
+		}
+	}
+	return $args_ref;
+}    # END of _find_vars_w_iodir()
 
 # -----------------------------------------------------------------------------
+
 sub _find_vars_w_iodir {
 	( my $line, my $args_ref, my $subref ) = @_;
 
@@ -224,6 +245,256 @@ sub _find_vars_w_iodir {
 # Purely for clarity, maybe this routine should take the arguments as arguments?
 # What we want in this routine is determine IO dirs for leaves and look them up for non-leaves
 sub _analyse_src_for_iodirs {
+	( my $stref, my $f ) = @_;
+
+	#    local $W=1;local $V=1;
+
+	print "_analyse_src_for_iodirs() $f\n" if $V;
+	my $Sf = $stref->{'Subroutines'}{$f};
+
+	if ( not exists $Sf->{'IODirInfo'} or $Sf->{'IODirInfo'} == 0 ) {
+		if ( not exists $Sf->{'HasRefactoredArgs'} or $Sf->{'HasRefactoredArgs'} == 0 ) {
+			say "SUB $f DOES NOT HAVE RefactoredArgs";
+			croak 'BOOM! ' . __LINE__ . ' ' . $f . ' : ' . Dumper($Sf);
+		}
+		my $args = dclone( $Sf->{'RefactoredArgs'}{'Set'} ); 
+		say Dumper($args);
+		if ( exists $Sf->{'HasEntries'}  ) {
+			say "INFO: Setting IODir to Ignore for all args in subroutine $f because of ENTRIES" if $I;
+			for my $arg (keys %{$args}) {
+				$args->{$arg}{'IODir'} = 'Ignore';
+			}
+		} elsif ( exists $Sf->{'Function'} and $Sf->{'Function'} == 1 ) {			
+			# Don't touch
+			# Why not? even a Function can have Intents other than In!
+			# FIXME!
+			say "INFO: SKIPPING IODir analysis for FUNCTION $f" if $I;
+		} else {
+			my $annlines = get_annotated_sourcelines( $stref, $f );
+
+			for my $index ( 0 .. scalar( @{$annlines} ) - 1 ) {
+				(my $line,my $info)  = @{ $annlines->[$index] };				 
+								
+				if ( exists $info->{'Blank'} or exists $info->{'Comments'} or exists $info->{'Deleted'}) {
+					next;
+				}
+
+				# Skip format statements
+				if (  exists $info->{'Format'} ) {
+					next;
+				}
+
+				# Skip the signature
+				if ( exists $info->{'Signature'} ) {
+					next;
+				}
+
+				# Skip any 'use' or 'include' lines
+				if ( exists $info->{'Use'} or exists $info->{'Include'} ) {
+					next;
+				}
+
+				# Skip the declarations
+				if ( exists $info->{'VarDecl'} ) { 
+					next; 
+				}
+				# -----------------------------------------------------------------------------
+				if ( exists $info->{'Do'} ) {
+					my $mvar = $info->{'Do'}{'Iterator'};
+					if ( exists $args->{$mvar}
+						and ref( $args->{$mvar} ) eq 'HASH' ) {
+						if ( exists $args->{$mvar}{'IODir'} ) {
+							$args = _set_iodir_write( $mvar, $args );
+						}
+					}
+					for my $mvar ( @{ $info->{'Do'}{'Range'}{'Vars'} } ) {
+						if ( exists $args->{$mvar} and ref( $args->{$mvar} ) eq 'HASH' ) {
+							if ( exists $args->{$mvar}{'IODir'} ) {
+								$args = _set_iodir_read( $mvar, $args );
+							}
+						}
+					}
+					next;
+				}
+				# -----------------------------------------------------------------------------
+				# File open statements
+				if ( 
+					exists $info->{'OpenCall'}  
+				) {
+                  for my $var ( @{ $info->{'Vars'}{'List'} } ) {
+                  	$args = _set_iodir_ignore( $var, $args );
+                  }
+					next;
+				}
+				# -----------------------------------------------------------------------------
+				if (   exists $info->{'WriteCall'} or exists $info->{'PrintCall'} ) {
+					# All variables are read from, so IODir is read
+					for my $mvar (
+						@{ $info->{'CallArgs'}{'List'} },
+						@{ $info->{'ExprVars'}{'List'} },
+						@{ $info->{'CallAttrs'}{'List'} }
+					  )
+					{
+						if ( exists $args->{$mvar}
+							and ref( $args->{$mvar} ) eq 'HASH' )
+						{
+							if ( exists $args->{$mvar}{'IODir'} ) {
+								$args = _set_iodir_ignore( $mvar, $args );
+							}
+						}
+					}
+					next;
+				}
+				# -----------------------------------------------------------------------------
+				if ( exists $info->{'ReadCall'} or exists $info->{'InquireCall'}) {
+				  # Arguments are written to, so IODir is write; others are read
+					for my $mvar ( @{ $info->{'CallArgs'}{'List'} } ) {
+						if ( exists $args->{$mvar} and ref( $args->{$mvar} ) eq 'HASH' ) {
+							if ( exists $args->{$mvar}{'IODir'} ) {
+								$args = _set_iodir_ignore( $mvar, $args );
+							}
+						}
+					}
+					for my $mvar (
+						@{ $info->{'ExprVars'}{'List'} },
+						@{ $info->{'CallAttrs'}{'List'} }
+					  ) {
+						if ( exists $args->{$mvar}
+							and ref( $args->{$mvar} ) eq 'HASH' )
+						{
+							if ( exists $args->{$mvar}{'IODir'} ) {
+								$args = _set_iodir_ignore( $mvar, $args );
+							}
+						}
+					}
+					next;
+				}
+				if (exists $info->{'If'}  ) {
+						my $cond_vars = $info->{'CondVars'}{'List'};						
+						$args = _set_iodir_vars( $cond_vars, $args, \&_set_iodir_read );						
+#						next; # NOT next: maybe it is a subcall or an assignment!
+				}
+				# -----------------------------------------------------------------------------
+				# Subroutine call
+				if (   exists $info->{'SubroutineCall'} && exists $info->{'SubroutineCall'}{'Name'} ) {
+					my $name = $info->{'SubroutineCall'}{'Name'};
+# So we get the IODir for every arg in the call to the subroutine
+# We need both the original args from the call and the ex-glob args
+# It might be convenient to have both in $info; otoh we can get ExGlobArgs from the main table
+#croak Dumper($info->{'ExprVars'}{'List'}) if scalar @{ $info->{'ExprVars'}{'List'} } >3; 
+					for my $mvar ( @{$info->{'ExprVars'}{'List'}} ) {
+						# So these var can be local, global or even intrinsics. 
+						# Check if they are global first.
+						if ( exists $args->{$mvar} and ref( $args->{$mvar} ) eq 'HASH' ) {
+							if ( exists $args->{$mvar}{'IODir'} ) {
+									$args = _set_iodir_read( $mvar, $args );
+								}
+						}
+					}
+					my $iodirs_from_call = _get_iodirs_from_subcall( $stref, $f, $info );
+
+					for my $var ( keys %{$iodirs_from_call} ) {
+# Damn Perl! exists $args->{$var}{'IODir'} creates the entry for $var if it did not exist!
+						if ( exists $args->{$var} and ref( $args->{$var} ) eq 'HASH' ) {
+							if ( exists $args->{$var}{'IODir'} ) {
+								if (not defined $args->{$var}{'IODir'} ) {
+									$args->{$var}{'IODir'}='Unknown';
+								}
+								if ( $iodirs_from_call->{$var} eq 'In' ) {
+									if ( not defined $args->{$var}{'IODir'}
+										or $args->{$var}{'IODir'} eq 'Unknown' )
+									{
+										$args->{$var}{'IODir'} = 'In';
+									} elsif ( $args->{$var}{'IODir'} eq 'Out' )
+									{
+	   # if the parent arg is Out and the child arg is In, parent arg stays Out!
+										$args->{$var}{'IODir'} = 'Out';
+									} # if it's already In or InOut, it stays like it is.
+								} elsif ( $iodirs_from_call->{$var} eq 'InOut' ) {
+									if ( $args->{$var}{'IODir'} eq 'Unknown' ) {
+										$args->{$var}{'IODir'} = 'InOut';
+									} elsif ( $args->{$var}{'IODir'} eq 'Out' ) {
+										$args->{$var}{'IODir'} = 'Out';
+									} elsif ( $args->{$var}{'IODir'} eq 'In' ) {
+										$args->{$var}{'IODir'} = 'InOut';
+									}    # if it is In, it stays In
+								} elsif ( $iodirs_from_call->{$var} eq 'Out' ) {
+									if ( $args->{$var}{'IODir'} eq 'Unknown' ) {
+										$args->{$var}{'IODir'} = 'Out';
+									} elsif ( $args->{$var}{'IODir'} eq 'In' ) {
+										$args->{$var}{'IODir'} = 'InOut';
+									} # if it's already InOut or Out, stays like it is.
+								} else {
+									say "WARNING: IO direction for $var in call to $name in $f is Unknown" if $W;
+								}
+							} else {
+								say "WARNING: $f: NO IODir info for $var" if $W;
+							}
+						} else {
+							if (exists $iodirs_from_call->{$var} and defined $iodirs_from_call->{$var}) {
+								say "INFO: $f: $var is not an argument, ignoring IODir " . $iodirs_from_call->{$var}  if $I;
+							} else {
+								say "INFO: $f: $var is not in \$iodirs_from_call" if $I;
+							}
+						}
+						# So at this point, $args has correct IODir information
+					}
+					next;
+				}    # SubroutineCall
+
+# Encounter Assignment
+				elsif (exists $info->{'Assignment'} ) {
+					# First check the RHS
+					carp "$f => $line";
+#					croak $f.Dumper($info) if $f eq 'sub_map_124' and $line=~/g/;
+					my $rhs_vars = $info->{'Rhs'}{'VarList'}{'List'};
+#					carp Dumper($info->{'Rhs'});
+					if (scalar @{$rhs_vars}>0) {   
+						_set_iodir_vars($rhs_vars,$args, \&_set_iodir_read );
+					}
+#					carp Dumper($info->{'Lhs'});
+					my $lhs_var = $info->{'Lhs'}{'VarName'};
+					_set_iodir_vars([$lhs_var],$args, \&_set_iodir_write );
+					my $lhs_index_vars = $info->{'Lhs'}{'IndexVars'}{'List'};
+					if (scalar @{$lhs_index_vars}>0) {
+						_set_iodir_vars($lhs_index_vars,$args, \&_set_iodir_read );
+					}
+					
+					# Now check the LHS
+					next;
+				} else {    # not an assignment, do as before
+					say "NON-ASSIGNMENT LINE: $line in $f" if $DBG;
+					_find_vars_w_iodir( $line, $args, \&_set_iodir_read );
+				}
+			}
+		}
+		for my $arg ( keys %{$args} ) {
+			
+			if (
+				exists $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}
+				{$arg} )
+			{
+				if ($args->{$arg} != 1) {
+				$stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$arg} =
+				  { %{ $args->{$arg} } };
+				} else {
+					my $decl = get_f95_var_decl($stref, $f, $arg);
+#					say "DECL:".Dumper($decl);
+					$stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$arg} = $decl;
+				}
+
+			}
+		}
+
+		# Here for some reason corr has been added as an argument!
+		$Sf->{'IODirInfo'} = 1;
+	}    # if IODirInfo had not been set to 1
+	return $stref;
+}    # END of _analyse_src_for_iodirs()
+
+# -----------------------------------------------------------------------------
+
+sub _analyse_src_for_iodirs_OLD {
 	( my $stref, my $f ) = @_;
 
 	#    local $W=1;local $V=1;
@@ -333,7 +604,6 @@ sub _analyse_src_for_iodirs {
 						{
 							if ( exists $args->{$mvar}{'IODir'} ) {
 								$args = _set_iodir_ignore( $mvar, $args );
-#								$args = _set_iodir_read_write( $mvar, $args );
 							}
 						}
 					}
@@ -580,9 +850,10 @@ sub _analyse_src_for_iodirs {
 		$Sf->{'IODirInfo'} = 1;
 	}    # if IODirInfo had not been set to 1
 	return $stref;
-}    # END of _analyse_src_for_iodirs()
+}    # END of _analyse_src_for_iodirs_OLD()
 
 # -----------------------------------------------------------------------------
+
 
 #stronger:
 #- we replaced <=> by <>

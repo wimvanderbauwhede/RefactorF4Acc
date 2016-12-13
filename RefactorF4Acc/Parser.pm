@@ -973,7 +973,7 @@ VIRTUAL
 					$info->{'ElseIf'} = 1;					
 					$info->{ 'EndControl' } = 1;
 				} else {
-					$info->{ ucfirst($keyword) } = 1;	
+					$info->{ ucfirst($keyword) } = 1; # 'If'	
 				}
 				
 			# The following part should be in a separate condition block I think			
@@ -993,91 +993,16 @@ VIRTUAL
 					$Sf->{'ReferencedLabels'}{$2}=$2;
 					$Sf->{'ReferencedLabels'}{$3}=$3;					
 				}
-#				if ( $mline =~ /=/ ) { # Is this an assignment?
-#					$is_cond_assign = 1;
-#				}
-				
-#				if ( $line =~ /^\s*\d*\s+(?:else\s+)?if\s*\(.+=/ ) { # an IF with an equals sign
-#					( my $if_cond, my $rest ) = _parse_if_cond_OLD($line);
-#						$cond = $if_cond;
-#						$cond=~s/if\s*\(\s*//;
-#						$cond=~s/\s*\)\s*$//;
-#						
-#						
-#					# So here we look at the part after the condition expression
-#					if ($rest=~/\(/) { # There are parens so it could be a subroutine call
-#					( my $maybe_lhs, my $maybe_rhs ) = _parse_array_access_or_function_call($rest,1);
-#					if ( $maybe_rhs =~ /=/ ) { # Is this an assignment?
-#						$mline                  = $rest;# "$maybe_lhs$maybe_rhs";
-#							
-#						$info->{'CondExecExpr'} = $mline;
-#						$is_cond_assign         = 1;
-#						$is_cond                = 1;
-#					} else {
-#						# Otherwise it is a subroutine call, but I guess it could also just be 'then' 
-#						$mline = $rest;
-#					}					
-#					} elsif ($rest=~/=/) {
-#						( my $maybe_lhs, my $maybe_rhs )=split(/\s*=\s*/, $rest);
-#						croak "ASSIGN: LINE: $line => LHS <$maybe_lhs> RHS <$maybe_rhs>"  if $f eq 'init_domainfill' and $line=~/ran1.idummy/;	
-#						$mline = "$maybe_lhs = $maybe_rhs";
-#						$info->{'CondExecExpr'} = $mline;
-#						$is_cond_assign         = 1;
-#						$is_cond                = 1;					
-#					}
-#					
-#				} elsif ( $line =~ /^(\s*\d*\s+)((?:else\s+)?if\s*\(.+)$/ ) { #  IF with either an executable statement or THEN
-#					my $indent=$1;
-#					my $rest_of_line=$2;
-#					my $has_else=$rest_of_line=~/else\s+if/ ? 1 : 0;
-#					$rest_of_line=~s/else\s+if/if/;
-#					( my $if_cond, my $rest ) = _parse_if_cond_OLD($rest_of_line);
-#					$cond = $if_cond;
-#							$cond=~s/if\s*\(\s*//;
-#					$cond=~s/\s*\)\s*$//;				
-#					# remove spaces from condition							
-#					my $conds = $cond;
-#					$conds=~s/\s+//g if defined $cond;
-#					$cond=$conds;
-#					if ($has_else) {
-#						$line = $indent.'else if ('.$conds.') '.$rest;
-#					} else {
-#						$line = $indent.'if ('.$conds.') '.$rest;
-#					}
-#					$is_cond = 1;
-#				}
-#				
-				
-#				if ( $is_cond_assign or $is_cond ) {
-					
-					# This part looks at the condition to get variables form it
-#					$cond =~ s/[\(\)]+/ /g;
 					my $ast = parse_expression($cond,  $info,  $stref,  $f);
+					$info->{'CondExecAST'}= $ast;
 					my $vars_in_cond_expr =  get_vars_from_expression( $ast,{});
-#					$cond =~ s/\.(eq|ne|gt|ge|lt|le|and|or|not|eqv|neqv)\./ /g;
-#					my @chunks = split( /\W+/, $cond );
-#					my %vars_in_cond_expr = ();
-#					for my $mvar (@chunks) {
-#						next if $mvar eq '';
-#						next if $mvar =~ /^\d+$/;
-#						next
-#						  if $mvar =~ /^(\-?(?:\d+|\d*\.\d*)(?:[edq][\-\+]?\d+)?)$/;
-#						next if exists $F95_reserved_words{$mvar};
-#						$vars_in_cond_expr{$mvar} = 1;
-#					}
-#					$info->{'CondVars'} = {%vars_in_cond_expr};
+
 					$info->{'CondVars'}{'Set'} = $vars_in_cond_expr;
 					$info->{'CondVars'}{'List'} = [ keys %{$vars_in_cond_expr} ];
 					if ($mline eq 'then') {
 						$info->{ 'Control' } = 1;	
 						$info->{ 'IfThen' } = 1;						
 					}
-#					if ( not $is_cond_assign ) {
-#						$info->{'CondExecExpr'} = $rest;
-#						$mline =~ s/if.+?$rest/$rest/;
-#					}
-#				}
-
 			} 
 
 # So in principle anything after this can come after IF (...) 
@@ -3779,6 +3704,7 @@ if ($line=~/^character/) {
 	my @varnames = ();
 	# Add type information to Vars
 	for my $var ( @{$pvars_lst} ) {
+		
 		if ( $var eq '' ) { croak "<$line> in $f" }
 		my $tvar = $var;
 		if ( ref($var) eq 'ARRAY' ) { die __LINE__ . ':' . Dumper($var); }
@@ -3853,6 +3779,7 @@ if ($line=~/^character/) {
 			'IODir'  => $tvar_rec->{'IODir'},
 			'Status' => 0,
 			'StmtCount'	=> $tvar_rec->{'StmtCount'},
+			'ArrayOrScalar' => $pvars->{$var}{'ArrayOrScalar'},
 		};
 		
 		if ($common_block_name ne '') {
@@ -3908,6 +3835,7 @@ if ($line=~/^character/) {
 		}
 		$Sf->{'DeclCount'}{$var}++;
 		$info->{'StmtCount'}{$var} = $Sf->{'DeclCount'}{$var};
+
 	}    # loop over all vars declared on a single line
 
 	print "\tINFO: VARS <$line>:\n ", join( ',', sort @varnames ), "\n" if $I;

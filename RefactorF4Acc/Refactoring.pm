@@ -515,6 +515,9 @@ sub _rename_array_accesses_to_scalars_all { (my $stref) = @_;
 		for my $f ( @subs ) {			
 			$stref=_rename_array_accesses_to_scalars_called_subs($stref, $f);
 		}
+		for my $f ( @subs ) {
+			$stref = determine_argument_io_direction_rec($f, $stref);
+		}
 	}
 	return $stref;
 }
@@ -672,7 +675,9 @@ sub _rename_array_accesses_to_scalars { (my $stref, my $f) = @_;
 			
 			my $assignment_line= '      '.$stream_var.' = '.$state->{'StreamVars'}{$var}{$stream_var}{'ArrayIndexExpr'};
 			my $rhs_ast = parse_expression($state->{'StreamVars'}{$var}{$stream_var}{'ArrayIndexExpr'}, {},$stref, $f);
-#			croak Dumper($rhs_ast);
+			my $rhs_vars = get_vars_from_expression($rhs_ast ,{});
+			my $rhs_vars_list = [ sort keys %{$rhs_vars} ];
+#			croak Dumper($rhs_vars);
 			push @{ $stref->{'Subroutines'}{$f}{'LiftedScalarAssignments'} }, 
 			[$assignment_line,
 				{
@@ -682,7 +687,8 @@ sub _rename_array_accesses_to_scalars { (my $stref, my $f) = @_;
 							'ArrayOrScalar' => 'Scalar','IndexVars' => {'List' => [],'Set' => {}},'ExpressionAST' => ['$',$stream_var],'VarName' => $stream_var
 						  },
 						'Rhs' => {
-							'ExpressionAST' => $rhs_ast
+							'ExpressionAST' => $rhs_ast,
+							'VarList' => {'List' => $rhs_vars_list,'Set' =>$rhs_vars},
 						}
 					
 				}
@@ -873,6 +879,7 @@ sub _rename_array_accesses_to_scalars { (my $stref, my $f) = @_;
 				'Dim'    => [],
 				'Name'   => $tvar,
 				'IODir'  => $intent,
+				'ArrayOrScalar'=>'Scalar'
 				};
 				$rline = emit_f95_var_decl($rdecl);
 				my $orig_name =$info->{'VarDecl'}{'Name'}; 
@@ -1089,6 +1096,9 @@ sub _emit_subroutine_call { (my $stref, my $f, my $annline)=@_;
 	    $info->{'SubroutineCall'}{'ExpressionAST'}=$updated_expr_ast;
 	    $info->{'SubroutineCall'}{'Args'}{'List'}= $args_ref;
 	    $info->{'SubroutineCall'}{'Args'}{'Set'}=  $stref->{'Subroutines'}{$name}{'RefactoredArgs'}{'Set'};
+	    $info->{'CallArgs'}{'Set'}=$info->{'SubroutineCall'}{'Args'}{'Set'};
+	    $info->{'CallArgs'}{'List'}=$info->{'SubroutineCall'}{'Args'}{'List'};
+	    %{ $info->{'SubroutineCall'}{'ArgMap'} } = map {$_ => $_} @{ $info->{'SubroutineCall'}{'Args'}{'List'} }; 
 	    # FIXME: I'm not dealing properly with ArgMap!
 	    
 		if ( exists $info->{'PlaceHolders'} ) { 
@@ -1596,15 +1606,18 @@ sub _emit_subroutine_sig_C { (my $stref, my $f, my $annline)=@_;
 }
 
 sub _emit_arg_decl_C { (my $stref,my $f,my $arg)=@_;
-	my $decl =	$stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$arg};
+#	my $decl =	$stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$arg};
+say $f;
+	my $decl =	get_var_record_from_set($stref->{'Subroutines'}{$f}{'Vars'},$arg); say  $arg.'<'.Dumper($decl).'>';
 	my $array = $decl->{'ArrayOrScalar'} eq 'Array' ? 1 : 0;
 	my $const = 1;
 	if (not defined $decl->{'IODir'}) {
 		$const = 0;
 	} else { 
-		$const =    $decl->{'IODir'} eq 'In' ? 1 : 0;
+		$const =    lc($decl->{'IODir'}) eq 'in' ? 1 : 0;
 	}
-	my $ptr = ($array || !$const) ? '*' : '';
+	my $ptr = ($array || ($const==0)) ? '*' : '';
+	croak $f.Dumper($decl).$ptr if $arg eq 'etan_j_k_';
 	$stref->{'Subroutines'}{$f}{'Pointers'}{$arg}=$ptr;	
 	my $ftype = $decl->{'Type'};
 	my $fkind = $decl->{'Attr'};
