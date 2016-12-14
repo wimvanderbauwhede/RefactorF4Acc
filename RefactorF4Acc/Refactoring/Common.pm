@@ -36,6 +36,7 @@ use Exporter;
   &stateless_pass
   &stateful_pass
   &stateful_pass_reverse
+  &pass_wrapper_subs_in_module
 );
 
 our %f95ops = (
@@ -1631,6 +1632,39 @@ sub _emit_f95_parsed_var_decl { (my $pvd) =@_;
           my $vars = join(', ',@{  $pvd->{'Vars'} });
        my $line = join(', ', @attrs).' :: '.$vars;    
     return $line;
+}
+
+# This is a wrapper to get the subroutines out of a module
+sub pass_wrapper_subs_in_module { (my $stref,my $pass_sequences) = @_;
+	my %is_existing_module = ();
+    my %existing_module_name = ();
+	
+	for my $src (keys %{ $stref->{'SourceContains'} } ) {			
+		if (exists $stref->{'SourceContains'}{$src}{'Path'}
+		and  exists $stref->{'SourceContains'}{$src}{'Path'}{'Ext'} ) {	
+		# External, SKIP!
+			say "SKIPPING $src";			
+		} else {		
+		# Get the unit name from the list	    		
+		    for my $sub_or_func_or_mod ( @{  $stref->{'SourceContains'}{$src}{'List'}   } ) {
+		    	# Get its type
+		        my $sub_func_type= $stref->{'SourceContains'}{$src}{'Set'}{$sub_or_func_or_mod};
+		        if ($sub_func_type eq 'Modules') {
+		        	$is_existing_module{$src}=1;
+		        	$existing_module_name{$src} = $sub_or_func_or_mod;
+		        }		
+		    }
+		}
+		my @subs= $is_existing_module{$src} ? @{ $stref->{'Modules'}{$existing_module_name{$src}}{'Contains'} } :   sort keys %{ $stref->{'Subroutines'} };
+		for my $pass_sequence (@{$pass_sequences}) {	
+			for my $f ( @subs ) {
+				for my $pass_sub_ref (@{$pass_sequence}) {			
+					$stref=$pass_sub_ref->($stref, $f);
+				}			
+			}
+		}
+	}
+	return $stref;
 }
 
 1;

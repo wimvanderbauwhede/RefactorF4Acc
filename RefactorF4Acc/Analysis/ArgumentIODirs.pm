@@ -34,7 +34,7 @@ use Exporter;
 
 # -----------------------------------------------------------------------------
 # We do a recusive descent for all called subroutines, and for the leaves we do the analysis
-sub determine_argument_io_direction_rec { ( my $f, my $stref ) = @_;
+sub determine_argument_io_direction_rec { ( my $stref,my $f ) = @_;
 	my $c;
 	if ($V) {
 		$c = ( defined $stref->{Counter} ) ? $stref->{Counter} : 0;
@@ -51,7 +51,7 @@ sub determine_argument_io_direction_rec { ( my $f, my $stref ) = @_;
 			}
 			next if exists $stref->{'ExternalSubroutines'}{$calledsub}; # Don't descend into external subs
 			$stref->{Counter}++ if $V;
-			$stref = determine_argument_io_direction_rec( $calledsub, $stref );
+			$stref = determine_argument_io_direction_rec( $stref, $calledsub );
 			$stref->{Counter}-- if $V;
 		}
 	} 
@@ -258,7 +258,7 @@ sub _analyse_src_for_iodirs {
 			croak 'BOOM! ' . __LINE__ . ' ' . $f . ' : ' . Dumper($Sf);
 		}
 		my $args = dclone( $Sf->{'RefactoredArgs'}{'Set'} ); 
-		say Dumper($args);
+		carp Dumper($args);
 		if ( exists $Sf->{'HasEntries'}  ) {
 			say "INFO: Setting IODir to Ignore for all args in subroutine $f because of ENTRIES" if $I;
 			for my $arg (keys %{$args}) {

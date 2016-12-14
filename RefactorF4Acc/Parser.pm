@@ -20,7 +20,7 @@ use FortranConstructParser qw(
 
 #
 #   (c) 2010-2012 Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
-#
+
 
 use vars qw( $VERSION );
 $VERSION = "1.0.0";
@@ -994,7 +994,7 @@ VIRTUAL
 					$Sf->{'ReferencedLabels'}{$3}=$3;					
 				}
 					my $ast = parse_expression($cond,  $info,  $stref,  $f);
-					$info->{'CondExecAST'}= $ast;
+					$info->{'CondExecExprAST'}= $ast;
 					my $vars_in_cond_expr =  get_vars_from_expression( $ast,{});
 
 					$info->{'CondVars'}{'Set'} = $vars_in_cond_expr;

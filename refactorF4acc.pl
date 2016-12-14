@@ -19,7 +19,7 @@ use RefactorF4Acc::CallTree qw( create_call_tree );
 use RefactorF4Acc::Analysis qw( analyse_all );
 use RefactorF4Acc::Refactoring qw( refactor_all );
 use RefactorF4Acc::Emitter qw( emit_all );
-use RefactorF4Acc::CTranslation qw( refactor_C_targets emit_C_targets translate_to_C);
+#use RefactorF4Acc::CTranslation qw( refactor_C_targets emit_C_targets translate_to_C);
 use RefactorF4Acc::Builder qw( create_build_script build_executable );
 use RefactorF4Acc::Analysis::LoopDetect qw( outer_loop_variable_analysis );
 
