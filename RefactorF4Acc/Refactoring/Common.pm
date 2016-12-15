@@ -36,6 +36,7 @@ use Exporter;
   &stateless_pass
   &stateful_pass
   &stateful_pass_reverse
+  &top_src_is_module
   &pass_wrapper_subs_in_module
 );
 
@@ -1632,6 +1633,24 @@ sub _emit_f95_parsed_var_decl { (my $pvd) =@_;
           my $vars = join(', ',@{  $pvd->{'Vars'} });
        my $line = join(', ', @attrs).' :: '.$vars;    
     return $line;
+}
+
+sub top_src_is_module {( my $stref, my $s) = @_;
+    my $sub_func_incl = sub_func_incl_mod( $s, $stref ); 
+	my $is_incl = exists $stref->{'IncludeFiles'}{$s} ? 1 : 0;
+    my $f = $is_incl ? $s : $stref->{$sub_func_incl}{$s}{'Source'};
+    if ( defined $f ) {     	
+		for my $item ( @{ $stref->{'SourceContains'}{$f}{'List'} } ) {
+			# If $s is a subroutine, it could be that the source file is a Module, and then we should set that as the entry source type            
+			if ($stref->{'SourceContains'}{$f}{'Set'}{$item} eq 'Modules') {
+				my @subs_in_mod= @{ $stref->{'Modules'}{$item}{'Contains'} };
+				if (grep {$_ eq $s} @subs_in_mod) {
+					return 1;
+				}
+			}		                
+		}
+    }	
+	return 0;        
 }
 
 # This is a wrapper to get the subroutines out of a module

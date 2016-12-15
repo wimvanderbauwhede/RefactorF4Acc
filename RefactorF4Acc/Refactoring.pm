@@ -6,7 +6,7 @@ package RefactorF4Acc::Refactoring;
 use v5.016;
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
-use RefactorF4Acc::Refactoring::Common qw( pass_wrapper_subs_in_module stateful_pass stateful_pass_reverse stateless_pass get_annotated_sourcelines emit_f95_var_decl splice_additional_lines_cond  );
+use RefactorF4Acc::Refactoring::Common qw( top_src_is_module pass_wrapper_subs_in_module stateful_pass stateful_pass_reverse stateless_pass get_annotated_sourcelines emit_f95_var_decl splice_additional_lines_cond  );
 use RefactorF4Acc::Refactoring::Subroutines qw( refactor_all_subroutines emit_subroutine_sig );
 use RefactorF4Acc::Refactoring::Functions qw( refactor_called_functions remove_vars_masking_functions);
 use RefactorF4Acc::Refactoring::IncludeFiles qw( refactor_include_files );
@@ -53,7 +53,7 @@ sub refactor_all {
 		$stref = _ifdef_io_all($stref);		
 	}
 	if ($pass ne '') {
-		if (_top_src_is_module($stref, $subname)) {
+		if (top_src_is_module($stref, $subname)) {
 			$stref=add_module_decls($stref);
 		}
 		return $stref;

@@ -3,6 +3,7 @@ use v5.016;
 # THIS SUBROUTINE IS CURRENTLY OBSOLETE, WE USE OpenCLTranslation INSTEAD
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
+use RefactorF4Acc::Refactoring::Common qw( stateful_pass );
 # 
 #   (c) 2010-2012 Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
 #   
@@ -111,8 +112,8 @@ sub translate_to_C {  (my $stref, my $f) = @_;
 			# But the problem is of course that we have just replaced the called args by the sig args
 			# So what we need to do is check the type in $f and $subname, and use that to see if we need a '*' or even an '&' or nothing
 			$c_line = _emit_expression_C($subcall_ast,'',$stref,$f).';';
-			if ($c_line=~/get_get_global_id/) {
-				$c_line = "global_id = get_global_id(0);";
+			if ($c_line=~/get_global_id/) {
+				$c_line = "    global_id = get_global_id(0);";
 			}
 		}			 
 		elsif (exists $info->{'If'} ) {		
@@ -188,9 +189,9 @@ sub _emit_subroutine_sig_C { (my $stref, my $f, my $annline)=@_;
 }
 
 sub _emit_arg_decl_C { (my $stref,my $f,my $arg)=@_;
-#	my $decl =	$stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$arg};
-say $f;
-	my $decl =	get_var_record_from_set($stref->{'Subroutines'}{$f}{'Vars'},$arg); say  $arg.'<'.Dumper($decl).'>';
+	my $decl =	$stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$arg};
+
+#	my $decl =	get_var_record_from_set($stref->{'Subroutines'}{$f}{'Vars'},$arg);
 	my $array = $decl->{'ArrayOrScalar'} eq 'Array' ? 1 : 0;
 	my $const = 1;
 	if (not defined $decl->{'IODir'}) {
@@ -334,15 +335,15 @@ sub _emit_expression_C {(my $ast, my $expr_str, my $stref, my $f)=@_;
 				my $mvar = $ast->[$idx+1];
 				if ($mvar eq '_OPEN_PAR_') {
 					$expr_str.=$mvar.'(';
-				} elsif ($mvar eq 'abs') { croak;
-					$expr_str.=$mvar.'(';					
+#				} elsif ($mvar eq 'abs' ) { croak;
+#					$expr_str.=$mvar.'(';					
 				} else {
+					if (scalar @{$ast} == 3 and $ast->[2] eq '1') {
+						$expr_str.='*'.$mvar;
+					}  else {
 					my $decl = get_var_record_from_set($stref->{'Subroutines'}{$f}{'Vars'},$mvar);
-
 					my $dims =  $decl->{'Dim'};
-					
 					my $dim = scalar @{$dims};
-#					say $mvar . Dumper( $decl). ' => ' .$dim;
 					my @ranges=();
 					my @lower_bounds=();
 					for my $boundspair (@{$dims}) {
@@ -357,6 +358,7 @@ sub _emit_expression_C {(my $ast, my $expr_str, my $stref, my $f)=@_;
 #                int ix, int jx, int kx)
 # with the same definition as FTN3DREF
 					$expr_str.=$mvar.'[F'.$dim.'D2C('.join(',',@ranges).' , '.join(',',@lower_bounds). ' , ';
+					}
 				}
 				$skip=1;
 			} elsif (
@@ -369,21 +371,27 @@ sub _emit_expression_C {(my $ast, my $expr_str, my $stref, my $f)=@_;
 		}				
 	}
 	if ($ast->[0] eq '&' ) {
-		my @expr_chunks_stripped = map { $_=~s/^\(([^\(\)]+)\)$/$1/;$_} @expr_chunks; 
-		$expr_str.=join(',',@expr_chunks_stripped);
-		$expr_str.=')'; 
-		if ($ast->[1]  eq $stref->{'CalledSub'} ) {
-		$stref->{'CalledSub'} ='';
-		}
+		my @expr_chunks_stripped = map { $_=~s/^\(([^\(\)]+)\)$/$1/;$_} @expr_chunks;
+		
+			$expr_str.=join(',',@expr_chunks_stripped);
+			$expr_str.=')'; 
+		
+			if ($ast->[1]  eq $stref->{'CalledSub'} ) {
+				$stref->{'CalledSub'} ='';
+			}
+		
 #		say "CLOSE OF &:".$expr_str if $expr_str=~/abs/;
 	} elsif ( $ast->[0] eq '@') {
-		my @expr_chunks_stripped =   map {  $_=~s/^\(([^\(\)]+)\)$/$1/;$_} @expr_chunks;
-		$expr_str.=join(',',@expr_chunks_stripped);
-		# But here we'd need to know what the var is!
-		$expr_str.=')';
-		if ($expr_str=~/\[/) {
-		$expr_str.=']'; 		
-		} 
+		my @expr_chunks_stripped =   map {  $_=~s/^\(([^\(\)]+)\)$/$1/;$_} @expr_chunks;		
+		if ( not ($expr_str=~/^\*/ and $expr_chunks_stripped[0]==1) ) { 
+			$expr_str.=join(',',@expr_chunks_stripped);
+			# But here we'd need to know what the var is!
+			$expr_str.=')';
+			if ($expr_str=~/\[/) {
+				$expr_str.=']'; 				 
+			} 
+		}
+		
 	} elsif ($ast->[0] ne '$' and $ast->[0] =~ /\W/) {
 		my $op = $ast->[0];		
 		if (scalar @{$ast} > 2) {

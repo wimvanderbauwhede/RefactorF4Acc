@@ -3336,7 +3336,8 @@ sub __parse_f95_decl {
 					$decl->{'Attr'} = '';					
 				}
 
-				$decl->{'IODir'} = $pt->{'Attributes'}{'Intent'};
+				$decl->{'IODir'} = defined $pt->{'Attributes'}{'Intent'} ? $pt->{'Attributes'}{'Intent'} : 'Unknown';
+				
 				$decl->{'Name'}=$tvar;
 				
 				my $subset =in_nested_set($Sf,'Vars',$tvar);						

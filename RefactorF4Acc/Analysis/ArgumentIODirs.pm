@@ -133,7 +133,7 @@ sub _determine_argument_io_direction_core {
 
 sub _set_iodir_read {
 	( my $mvar, my $args_ref ) = @_;
-carp Dumper($args_ref->{$mvar});
+
 	 if ( $args_ref->{$mvar}{'IODir'} eq 'Out'  and $args_ref->{$mvar}{'ArrayOrScalar'} eq 'Array') {		
 		$args_ref->{$mvar}{'IODir'} = 'InOut';
 	} elsif (   not exists $args_ref->{$mvar}{'IODir'}
@@ -258,7 +258,7 @@ sub _analyse_src_for_iodirs {
 			croak 'BOOM! ' . __LINE__ . ' ' . $f . ' : ' . Dumper($Sf);
 		}
 		my $args = dclone( $Sf->{'RefactoredArgs'}{'Set'} ); 
-		carp Dumper($args);
+
 		if ( exists $Sf->{'HasEntries'}  ) {
 			say "INFO: Setting IODir to Ignore for all args in subroutine $f because of ENTRIES" if $I;
 			for my $arg (keys %{$args}) {
@@ -381,7 +381,7 @@ sub _analyse_src_for_iodirs {
 # So we get the IODir for every arg in the call to the subroutine
 # We need both the original args from the call and the ex-glob args
 # It might be convenient to have both in $info; otoh we can get ExGlobArgs from the main table
-#croak Dumper($info->{'ExprVars'}{'List'}) if scalar @{ $info->{'ExprVars'}{'List'} } >3; 
+ 
 					for my $mvar ( @{$info->{'ExprVars'}{'List'}} ) {
 						# So these var can be local, global or even intrinsics. 
 						# Check if they are global first.
@@ -391,6 +391,7 @@ sub _analyse_src_for_iodirs {
 								}
 						}
 					}
+					
 					my $iodirs_from_call = _get_iodirs_from_subcall( $stref, $f, $info );
 
 					for my $var ( keys %{$iodirs_from_call} ) {
@@ -445,8 +446,8 @@ sub _analyse_src_for_iodirs {
 # Encounter Assignment
 				elsif (exists $info->{'Assignment'} ) {
 					# First check the RHS
-					carp "$f => $line";
-#					croak $f.Dumper($info) if $f eq 'sub_map_124' and $line=~/g/;
+
+					
 					my $rhs_vars = $info->{'Rhs'}{'VarList'}{'List'};
 #					carp Dumper($info->{'Rhs'});
 					if (scalar @{$rhs_vars}>0) {   
@@ -458,9 +459,8 @@ sub _analyse_src_for_iodirs {
 					my $lhs_index_vars = $info->{'Lhs'}{'IndexVars'}{'List'};
 					if (scalar @{$lhs_index_vars}>0) {
 						_set_iodir_vars($lhs_index_vars,$args, \&_set_iodir_read );
-					}
-					
-					# Now check the LHS
+					}					
+					#
 					next;
 				} else {    # not an assignment, do as before
 					say "NON-ASSIGNMENT LINE: $line in $f" if $DBG;
@@ -477,6 +477,7 @@ sub _analyse_src_for_iodirs {
 				if ($args->{$arg} != 1) {
 				$stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$arg} =
 				  { %{ $args->{$arg} } };
+				  
 				} else {
 					my $decl = get_f95_var_decl($stref, $f, $arg);
 #					say "DECL:".Dumper($decl);
@@ -978,13 +979,13 @@ sub _get_iodirs_from_subcall {
 		my $Sf = $stref->{'Subroutines'}{$f};
 		# These are the refactored arguments of the parent
 		my $args   = $Sf->{'RefactoredArgs'}{'Set'};
-		my $argmap = $info->{'SubroutineCall'}{'ArgMap'};
+		my $argmap = $info->{'SubroutineCall'}{'ArgMap'};		
 		my $Sname = $stref->{'Subroutines'}{$name};
 
-		# For every argument of the ORIGINAL called subroutine
+		# For every argument of the ORIGINAL signature of the called subroutine
 		for my $sig_arg ( keys %{$argmap} ) {
 		
-# See if there is a corresponding argument in the signature of the called subroutine
+# See if there is a corresponding argument in the called args of the called subroutine
 			my $call_arg = $argmap->{$sig_arg};
 				if (defined $call_arg ) { 
 # The $call_arg can be Array, Scalar, Sub, Expr or Const
