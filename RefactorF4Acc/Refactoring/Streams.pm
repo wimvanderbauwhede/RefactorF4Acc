@@ -47,9 +47,9 @@ sub pass_rename_array_accesses_to_scalars {(my $stref)=@_;
 	$stref = pass_wrapper_subs_in_module($stref,
 			[
 				[ sub { (my $stref, my $f)=@_;  alias_ordered_set($stref,$f,'DeclaredOrigArgs','RefactoredArgs'); } ],
-				[
-					
-			  		\&_fix_scalar_ptr_args,
+				[ \&_fix_scalar_ptr_args ],
+		  		[\&_fix_scalar_ptr_args_subcall],
+		  		[
 			  		\&_declare_undeclared_variables,
 					\&_rename_array_accesses_to_scalars,
 					\&_removed_unused_variables,
@@ -65,6 +65,7 @@ sub pass_rename_array_accesses_to_scalars {(my $stref)=@_;
 				],				
 			]
 		);			
+		croak;
 	return $stref;
 }
 
@@ -149,7 +150,9 @@ sub _rename_array_accesses_to_scalars { (my $stref, my $f) = @_;
 	my $pass_rename_array_accesses_in_exprs = sub { (my $annline, my $state)=@_;
 		(my $line,my $info)=@{$annline};
 		if (exists $info->{'Assignment'} ) {
-			if (scalar @{ $info->{'Rhs'}{'VarList'}{'List'} } ==1 and $info->{'Rhs'}{'VarList'}{'List'}[0]=~/_ptr/) {
+			carp $line;
+			if (scalar @{ $info->{'Rhs'}{'VarList'}{'List'} } == 1 and $info->{'Rhs'}{'VarList'}{'List'}[0]=~/_ptr/) {
+				croak 'FIXME: What we want is that only array variables with IndexVars are renamed. So constant indices should stay as they are';
 				# IGNORE, this is not a true array access: this is an assignment of the shape
 				# v = v_ptr(1)
 				# and we will remove these later on
@@ -802,21 +805,7 @@ sub _emit_subroutine_call { (my $stref, my $f, my $annline)=@_;
 	    my $Sf        = $stref->{'Subroutines'}{$f};
 	    my $name = $info->{'SubroutineCall'}{'Name'};
 
-	# First update the ArgMap 
-	# This is to account for the renamed pointers	
-	my $new_arg_map = {};
-	for my $sig_arg (keys %{$info->{'SubroutineCall'}{'ArgMap'} }) {
-		my $call_arg = $info->{'SubroutineCall'}{'ArgMap'}{$sig_arg};
-		if ($sig_arg =~/_ptr/) {			
-			my $ren_sig_arg = $sig_arg;
-			$ren_sig_arg =~s/_ptr//;
-			$new_arg_map->{$ren_sig_arg}=$call_arg;
-			$info->{'CallArgs'}{'Set'}{$call_arg} = {'Expr' => $call_arg.'(1)','Type'=>'Scalar'};
-		} else {
-			$new_arg_map->{$sig_arg}=$call_arg;
-		}
-	}
-	$info->{'SubroutineCall'}{'ArgMap'} = $new_arg_map;
+	my $new_arg_map = $info->{'SubroutineCall'}{'ArgMap'} ;
 	
 	# Then update CallArgs and again the ArgMap
       my $orig_call_args = $info->{'CallArgs'}{'List'};
@@ -840,9 +829,11 @@ sub _emit_subroutine_call { (my $stref, my $f, my $annline)=@_;
       				$info->{'SubroutineCall'}{'ArgMap'}{$stream_arg}=$stream_arg;
       			}      				
       	} elsif (exists $stref->{'Subroutines'}{$name}{'RefactoredArgs'}{'Set'}{$current_sig_arg}) {
+#      		carp "$f => $name => SIG ARG: $current_sig_arg ".Dumper($stref->{'Subroutines'}{$name}{'RefactoredArgs'}{'Set'}{$current_sig_arg});
       		push @{$new_call_args}, $call_arg;
       	} else {
       		# This argument was deleted
+      		carp "$f => $name => DELETED SIG ARG: $current_sig_arg";
       		delete $info->{'CallArgs'}{'Set'}{$call_arg};
       		delete $info->{'SubroutineCall'}{'ArgMap'}{$call_arg};
       	}     	    
@@ -1201,7 +1192,7 @@ sub _declare_undeclared_variables { (my $stref, my $f)=@_;
 # ================================================================================================================================================
 # Gavin's code has _ptr arrays to pass scalar pointers. This is necessary for actual Fortran code, not for code that is to be translated to OpenCL
 sub _fix_scalar_ptr_args { (my $stref, my $f)=@_;
-	
+	if ($f ne $Config{'KERNEL'} ) {
 	# TODO:  I must update the $stref->{Subroutines}{$f} records as well
 	my $pass_fix_scalar_ptr_args = sub { (my $annline, my $state)=@_;		
 		(my $line,my $info)=@{$annline};
@@ -1267,17 +1258,14 @@ sub _fix_scalar_ptr_args { (my $stref, my $f)=@_;
 			$rhs_ast->[1] eq $var.'_ptr' &&
 			$rhs_ast->[2] eq '1' 
 			) { 			
-#			if ($line=~/=\s*\w+_ptr/) {
-#				croak Dumper($info) ;
 				say "REMOVED ASSIGNMENT $line in $f"  if $DBG;
 				$annline=['! '.$line, { %{$info},'Deleted'=>1 }];
 				$rlines=[$annline];
 				# I should now also remove all vars			
 			} 
 		}
-		
+
 		return ($rlines,[$stref,$f,$pass_state]);
-#		return ($rlines,[$stref,$f]);
 	};
 		
 	my $pass_state ={
@@ -1286,12 +1274,93 @@ sub _fix_scalar_ptr_args { (my $stref, my $f)=@_;
 	my $state= [$stref,$f,$pass_state];
 	
  	($stref,$state) = stateful_pass($stref,$f,$pass_fix_scalar_ptr_args, $state,'pass_fix_scalar_ptr_args() ' . __LINE__  ) ;
-
+}
  	
 	return $stref;
 } # END of _fix_scalar_ptr_args()
  
 # -----------------------------------------------------------------------------
+sub _fix_scalar_ptr_args_subcall { (my $stref, my $f)=@_;
+	
+	
+		if ($f eq $Config{'KERNEL'} ) {
+	# TODO:  I must update the $stref->{Subroutines}{$f} records as well
+	my $pass_fix_scalar_ptr_args_subcall = sub { (my $annline, my $state)=@_;		
+		(my $line,my $info)=@{$annline};
+		(my $stref,my $f)=@{$state};
+#		(my $stref,my $f)=@{$state};
+		
+		my $rlines=[$annline];
+		if ( exists $info->{'SubroutineCall'} and not exists $stref->{'ExternalSubroutines'}{ $info->{'SubroutineCall'}{'Name'} } ) {
+	    	my $Sf        = $stref->{'Subroutines'}{$f};
+	    	my $name = $info->{'SubroutineCall'}{'Name'};
 
+			# First update the ArgMap 
+			# This is to account for the renamed pointers
+			my $new_arg_map = {};	
+			
+			for my $sig_arg (keys %{$info->{'SubroutineCall'}{'ArgMap'} }) {
+				my $call_arg = $info->{'SubroutineCall'}{'ArgMap'}{$sig_arg};
+				if ($sig_arg =~/_ptr/) {			
+					my $ren_sig_arg = $sig_arg;
+					$ren_sig_arg =~s/_ptr//;
+					$new_arg_map->{$ren_sig_arg}=$call_arg;
+					$info->{'CallArgs'}{'Set'}{$call_arg} = {'Expr' => $call_arg.'(1)','Type'=>'Scalar'};
+				} else {
+					$new_arg_map->{$sig_arg}=$call_arg;
+				}
+			}
+			$info->{'SubroutineCall'}{'ArgMap'} = $new_arg_map;	
+		
+		# Then update CallArgs and again the ArgMap
+	      my $orig_call_args = $info->{'CallArgs'}{'List'};
+	      my $new_call_args = [];
+	      for my $call_arg (@{ $orig_call_args } ) {
+	      	# get the sig_arg
+	      	my $current_sig_arg = $call_arg;
+	      	for my $sig_arg (keys %{$new_arg_map}) {
+	      		if ($new_arg_map->{$sig_arg} eq $call_arg) {
+	      			$current_sig_arg=$sig_arg ;
+	      			last;
+	      		}
+	      	}
+	      	
+			if (exists $stref->{'Subroutines'}{$name}{'RefactoredArgs'}{'Set'}{$current_sig_arg}) {
+	      		push @{$new_call_args}, $call_arg;
+	      	} else {
+	      		# This argument was deleted
+	#      		carp "$f => $name => DELETED SIG ARG: $current_sig_arg";
+	      		delete $info->{'CallArgs'}{'Set'}{$call_arg};
+	      		delete $info->{'SubroutineCall'}{'ArgMap'}{$call_arg};
+	      	}     	    
+	      }
+	      $info->{'CallArgs'}{'List'}=$new_call_args;
+	      
+	      	    my $indent = $info->{'Indent'} // '      ';
+		    my $maybe_label= ( exists $info->{'Label'} and exists $Sf->{'ReferencedLabels'}{$info->{'Label'}} ) ?  $info->{'Label'}.' ' : '';
+		    my @new_call_exprs = map  { $info->{'CallArgs'}{'Set'}{$_}{'Expr'} } @{$new_call_args};  
+		    my $args_str = join( ',', @new_call_exprs );	    
+		    my $rline = "call $name($args_str)\n";
+		    my $updated_expr_ast = parse_expression("$name($args_str)",$info, $stref,$f);
+		    $info->{'SubroutineCall'}{'ExpressionAST'}=$updated_expr_ast;
+	
+	      $rlines=[[$rline, $info]];
+      }
+		
+		
+		
+		return ($rlines,[$stref,$f]);
+	};
+		
+	my $state= [$stref,$f];
+	
+ 	($stref,$state) = stateful_pass($stref,$f,$pass_fix_scalar_ptr_args_subcall, $state,'pass_fix_scalar_ptr_args_subcall() ' . __LINE__  ) ;
+ 	
+ 	 
+} 
 
+ 	
+	return $stref;
+      
+} # END of _fix_scalar_ptr_args_subcall
 1;
