@@ -50,6 +50,7 @@ sub pass_rename_array_accesses_to_scalars {(my $stref)=@_;
 				[
 					
 			  		\&_fix_scalar_ptr_args,
+			  		\&_declare_undeclared_variables,
 					\&_rename_array_accesses_to_scalars,
 					\&_removed_unused_variables,
 				],
@@ -135,7 +136,7 @@ sub pass_rename_array_accesses_to_scalars {(my $stref)=@_;
 	}
 }
 =cut
-	
+# ================================================================================================================================================	
 # This composite pass renames array accesses in the called subroutines in a superkernel to scalar accesses
 sub _rename_array_accesses_to_scalars { (my $stref, my $f) = @_;
 	if ($f ne $Config{'KERNEL'} ) {
@@ -540,7 +541,7 @@ sub _rename_array_accesses_to_scalars { (my $stref, my $f) = @_;
 	} # IF NOT A KERNEL
 	return $stref;
 } # END of _rename_array_accesses_to_scalars()
-
+# ================================================================================================================================================
 # After we've renamed all args in the subroutine definitions, we update the calls as well, but ONLY in the kernel 
 sub _rename_array_accesses_to_scalars_called_subs { (my $stref, my $f) = @_;
 	if ($f eq $Config{'KERNEL'} ) {
@@ -618,7 +619,7 @@ sub _rename_array_accesses_to_scalars_called_subs { (my $stref, my $f) = @_;
 	return $stref;
 } # END of _rename_array_accesses_to_scalars_called_subs()
 
-
+# ================================================================================================================================================
 # After we've renamed all args in the subroutine definitions, we update the calls as well, but ONLY in the kernel 
 sub _add_assignments_for_called_subs { (my $stref, my $f) = @_;
 	if ($f eq $Config{'KERNEL'} ) {
@@ -637,7 +638,7 @@ sub _add_assignments_for_called_subs { (my $stref, my $f) = @_;
 				}								
 				if ( exists  $stref->{'Subroutines'}{$subname}{'LiftedScalarAssignments'} ) {
 					for my $lifted_annline ( @{ $stref->{'Subroutines'}{$subname}{'LiftedScalarAssignments'} } ) {
-						say $line;
+
 						my $var = $lifted_annline->[1]{'Lhs'}{'VarName'};
 						if (exists $stref->{'Subroutines'}{$subname}{'RefactoredArgs'}{'Set'}{$var}) {
 						my $iodir =  $stref->{'Subroutines'}{$subname}{'RefactoredArgs'}{'Set'}{$var}{'IODir'};
@@ -717,7 +718,7 @@ sub _add_assignments_for_called_subs { (my $stref, my $f) = @_;
 	} # IF KERNEL
 	return $stref;
 } # END of _add_assignments_for_called_subs()
-
+# ================================================================================================================================================
 # Finally, after having updated the calls we can add the missing declarations
 # I am making the assumption that in the superkernel we will assign the variables to the original array accesses
 # However, the array indices are computed from the global id on a per-sub basis.
@@ -770,6 +771,7 @@ sub _rename_ast_entry { (my $stref, my $f,  my $state, my $ast, my $intent)=@_;
 	return  ($ast, $state);	
 	
 }
+# ================================================================================================================================================
 sub _emit_assignment { (my $annline)=@_;
 	( my $line, my $info ) = @{$annline};
 	my $lhs_ast =  $info->{'Lhs'}{'ExpressionAST'};
@@ -783,7 +785,7 @@ sub _emit_assignment { (my $annline)=@_;
 	}	
 	return ($rline, $info);
 }
-
+# ================================================================================================================================================
 sub _emit_ifthen { (my $annline)=@_;
 	( my $line, my $info ) = @{$annline};
 	my $cond_expr_ast=$info->{'CondExecExpr'};
@@ -791,7 +793,7 @@ sub _emit_ifthen { (my $annline)=@_;
 	my $rline = $info->{'Indent'}.'if ('.$cond_expr.') '. (exists $info->{'IfThen'} ? 'then' : '');	
 	return ($rline, $info);
 }
-
+# ================================================================================================================================================
 # This is fairly generic and assumes the updated call args are RefactoredArgs
 
 sub _emit_subroutine_call { (my $stref, my $f, my $annline)=@_;
@@ -875,8 +877,8 @@ sub _emit_subroutine_call { (my $stref, my $f, my $annline)=@_;
         }  	    
 	    $info->{'Ann'}=[annotate($f, __LINE__ ) ];
 		return ( $indent . $maybe_label . $rline, $info );
-}
-
+} # END of 
+# ================================================================================================================================================
 sub _removed_unused_variables { (my $stref, my $f)=@_;
 	# If a variable is assigned but is not and arg and does not occur in any RHS or SubroutineCall, it is unused. 
 	# If a variable is declared but not used in any LHS, RHS  or SubroutineCall, it is unused.
@@ -1033,12 +1035,90 @@ sub _removed_unused_variables { (my $stref, my $f)=@_;
  	$stref->{'Subroutines'}{$f}{'DeletedArgs'} =$state->{'DeletedArgs'};
  	$stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'List'}=dclone($state->{'RemainingArgs'});
  	map { delete $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$_} }  @{ $state->{'DeletedArgs'} };
- 	# Now we also need to update the DeclaredOrigArgs
-# 	$stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}=$stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'};
-#	$stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'List'}=$stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'List'};
-	# --------------------------------------------------------------------------------------------------------------------------------	
-	# ADD UNDECLARED> TODO: FACTOR OUT!
-	# --------------------------------------------------------------------------------------------------------------------------------	 	
+		
+	return $stref;
+} # END of _removed_unused_variables()
+# ================================================================================================================================================
+
+sub _declare_undeclared_variables { (my $stref, my $f)=@_;
+	# If a variable is assigned but is not and arg and does not occur in any RHS or SubroutineCall, it is unused. 
+	# If a variable is declared but not used in any LHS, RHS  or SubroutineCall, it is unused.
+	# So start with all declared variables, put in $state->{'DeclaredVars'}
+	# Make a list of all variables anywhere in the code via Lhs, Rhs, Args, put in $state->{'ExprVars'}
+	my $pass_action_find_all_used_vars = sub { (my $annline, my $state)=@_;		
+		(my $line,my $info)=@{$annline};
+		
+		my $rline=$line;
+		my $rlines=[];
+		
+ 		if ( exists $info->{'Signature'} ) {
+ 			$state->{'Args'} = $info->{'Signature'}{'Args'}{'Set'}; 
+ 		}
+ 		elsif (exists $info->{'Select'})  {
+ 			my $select_expr_str = $info->{'CaseVar'}; 
+ 			my $select_expr_ast=parse_expression($select_expr_str, $info,{}, '');
+ 			my $vars = get_vars_from_expression($select_expr_ast,{});
+ 			$state->{'ExprVars'} ={ %{ $state->{'ExprVars'} }, %{ $vars } };
+ 		} 		
+		elsif (exists $info->{'CaseVals'})  {
+			for my $val (@{ $info->{'CaseVals'} }) {
+				if ($val=~/^[a-z]\w*/) {
+ 					$state->{'ExprVars'}{$val}=1;
+ 				} else  {
+					my $case_expr_ast=parse_expression($val, $info,{}, '');
+ 					my $vars = get_vars_from_expression($case_expr_ast,{});
+ 					$state->{'ExprVars'} ={ %{ $state->{'ExprVars'} }, %{ $vars } };
+ 				}		
+			}
+		}
+		elsif ( exists $info->{'VarDecl'} ) {
+			$state->{'DeclaredVars'}{ $info->{'VarDecl'}{'Name'}}=1;
+		}
+		elsif ( exists $info->{'Assignment'}  ) {
+			my $var = $info->{'Lhs'}{'VarName'};
+				$state->{'AssignedVars'}{$var}=1;
+				
+				if (exists $info->{'Lhs'}{'IndexVars'}) {
+					$state->{'ExprVars'} ={%{$state->{'ExprVars'}},%{ $info->{'Lhs'}{'IndexVars'}{'Set'} } };
+				}
+				$state->{'ExprVars'} ={ %{ $state->{'ExprVars'} }, %{ $info->{'Rhs'}{'VarList'}{'Set'} } };
+				for my $var (keys %{  $info->{'Rhs'}{'VarList'}{'Set'} } ) {
+					if (exists $info->{'Rhs'}{'VarList'}{'Set'}{$var}{'Vars'}) {
+						$state->{'ExprVars'} ={%{$state->{'ExprVars'}},%{ $info->{'Rhs'}{'VarList'}{'Set'}{$var}{'Vars'} }};
+					}
+					if (exists $info->{'Rhs'}{'VarList'}{'Set'}{$var}{'IndexVars'}) {
+						$state->{'ExprVars'} ={%{$state->{'ExprVars'}},%{ $info->{'Rhs'}{'VarList'}{'Set'}{$var}{'IndexVars'} }};
+					}			
+				}			
+		}
+		elsif ( exists $info->{'SubroutineCall'} ) {
+			$state->{'ExprVars'} ={%{$state->{'ExprVars'}},%{$info->{'SubroutineCall'}{'Args'}{'Set'} } };
+		}		
+		if (exists $info->{'If'} ) {						
+				my $cond_expr_ast=$info->{'CondExecExprAST'};#= $ast;parse_expression($info->{'CondExecExpr'}, $info,$stref, $f);
+				$state->{'ExprVars'} ={%{$state->{'ExprVars'}},%{ $info->{'CondVars'}{'Set'} } }; 
+				for my $var ( @{ $info->{'CondVars'}{'List'} } ) {
+					next if $var eq '_OPEN_PAR_';					
+					if (exists  $info->{'CondVars'}{'Set'}{$var}{'IndexVars'} ) {								
+						$state->{'ExprVars'} ={%{$state->{'ExprVars'}},%{ $info->{'CondVars'}{'Set'}{$var}{'IndexVars'} } };
+					}				
+				}
+		}
+		
+		return ([$annline],$state);
+	};
+		
+	my $state= {
+		'DeclaredVars'=>{},
+		'UndeclaredVars'=>{},
+		'ExprVars'=>{},
+		'AssignedVars'=>{},
+		'Args'=>{},
+	};
+        # The pass finds ExprVars and AssignedVars
+ 		($stref,$state) = stateful_pass($stref,$f,$pass_action_find_all_used_vars, $state,'_find_all_unused_variables() ' . __LINE__  ) ;
+
+	# --------------------------------------------------------------------------------------------------------------------------------
 	# As we are going through the whole code we can also test for undeclared vars 
 	# This is very ad-hoc
 	for my $expr_var (keys %{ $state->{'ExprVars'} } ) {
@@ -1048,7 +1128,7 @@ sub _removed_unused_variables { (my $stref, my $f)=@_;
 			} 
 		}
 	}
-		
+	# --------------------------------------------------------------------------------------------------------------------------------	 			
 	my $pass_action_type_undeclared = sub { (my $annline, my $state)=@_;
 		(my $stref, my $f, my $pass_state)=@{$state};
 		(my $line,my $info)=@{$annline};
@@ -1117,8 +1197,8 @@ sub _removed_unused_variables { (my $stref, my $f)=@_;
 	@{ $stref->{'Subroutines'}{$f}{'DeclaredOrigLocalVars'}{'List'} } = sort keys %{ $stref->{'Subroutines'}{$f}{'DeclaredOrigLocalVars'}{'Set'} } ;
 		
 	return $stref;
-} # END of _removed_unused_variables()
-
+} # END of _declare_undeclared_variables()
+# ================================================================================================================================================
 # Gavin's code has _ptr arrays to pass scalar pointers. This is necessary for actual Fortran code, not for code that is to be translated to OpenCL
 sub _fix_scalar_ptr_args { (my $stref, my $f)=@_;
 	
