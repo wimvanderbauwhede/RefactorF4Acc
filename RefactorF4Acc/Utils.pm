@@ -50,11 +50,20 @@ use Exporter;
     &comment
     $BLANK_LINE
     &annotate
+    &alias_ordered_set
 );
 
 
 
 our $BLANK_LINE = ['',{'Blank'=>1,'Ref'=>1}];
+
+# This is a utility function to create references for one set to another. 
+# now we can say e.g.  alias_ordered_set($stref,$f, 'DeclaredOrigArgs', 
+sub alias_ordered_set { (my $stref,my $f,my $alias,my $orig) = @_;
+	$stref->{'Subroutines'}{$f}{$alias}{'Set'}=$stref->{'Subroutines'}{$f}{$orig}{'Set'};
+	$stref->{'Subroutines'}{$f}{$alias}{'List'}=$stref->{'Subroutines'}{$f}{$orig}{'List'};
+	return $stref;
+}
 
 sub annotate { (my $f, my $ann)=@_;	
     (my $package, my $filename, my $line, my $subroutine, my @rest) = caller(1);
