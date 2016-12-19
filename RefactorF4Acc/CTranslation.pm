@@ -3,7 +3,7 @@ use v5.016;
 # THIS SUBROUTINE IS CURRENTLY OBSOLETE, WE USE OpenCLTranslation INSTEAD
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
-use RefactorF4Acc::Refactoring::Common qw( stateful_pass );
+use RefactorF4Acc::Refactoring::Common qw( stateful_pass pass_wrapper_subs_in_module );
 # 
 #   (c) 2010-2012 Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
 #   
@@ -24,8 +24,8 @@ use Exporter;
 
 @RefactorF4Acc::CTranslation::EXPORT_OK = qw(
     &add_to_C_build_sources
-    &translate_to_C
-
+    &translate_module_to_C
+	&translate_sub_to_C
 );
 #    &translate_all_to_C        
 #    &refactor_C_targets
@@ -39,7 +39,68 @@ use Exporter;
 # }
 
 #### #### #### #### BEGIN OF C TRANSLATION CODE #### #### #### ####
-sub translate_to_C {  (my $stref, my $f) = @_;
+
+sub translate_module_to_C {  (my $stref, my $ocl) = @_;
+	$stref->{'TranslatedCode'}=[];	
+	$stref = pass_wrapper_subs_in_module($stref,[[\&add_OpenCL_address_space_qualifiers],[\&translate_sub_to_C]],$ocl);
+	$stref = _write_headers($stref,$ocl);
+	$stref = _emit_C_code($stref);
+}
+sub add_OpenCL_address_space_qualifiers { (my $stref, my $f, my $ocl) = @_;
+	
+	if ($ocl==1) {
+		if ($f eq $Config{'KERNEL'} ) {
+
+
+#	The pass is as follows: 
+#- in the Kernel sig, if it's a ptr, it's global. Means if it's not a scalar.
+#- In the called subs, if a global ptr is passed as is, i.e. as an Array, the sig arg must get global as well.
+#so in the arg map we check if an arg is a global ptr by checking the Expr
+#if this is the case then we set the sig arg OclAddressSpace to global too.
+
+			my $pass_add_OpenCL_address_space_qualifiers = sub { (my $annline, my $state)=@_;
+				(my $line,my $info)=@{$annline};		
+				(my $stref, my $f)=@{$state};
+		#		say Dumper($stref->{'Subroutines'}{$f}{'DeletedArgs'});
+				my $skip=0;
+				if (exists $info->{'Signature'} ) {
+						for my $arg (@{ $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'List'} } ) {
+							my $decl = $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$arg};
+							if ($decl->{'ArrayOrScalar'} eq 'Array') {
+								$decl->{'OclAddressSpace'} = '__global';
+							}
+						}
+				}
+				elsif (exists $info->{'SubroutineCall'} and 
+					not exists $stref->{'ExternalSubroutines'}{ $info->{'SubroutineCall'}{'Name'} }
+					){
+						my $subname = $info->{'SubroutineCall'}{'Name'};
+						
+					# First update the ArgMap 
+					# This is to account for the renamed pointers
+					
+					for my $sig_arg (keys %{$info->{'SubroutineCall'}{'ArgMap'} }) {
+						my $call_arg = $info->{'SubroutineCall'}{'ArgMap'}{$sig_arg};
+						my $call_arg_expr =  $info->{'CallArgs'}{'Set'}{$call_arg}{'Expr'};
+						if (exists $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$call_arg_expr} and 
+						exists $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$call_arg_expr}{'OclAddressSpace'} ) {
+							my $ocl_address_space = $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$call_arg_expr}{'OclAddressSpace'};
+#							carp "$f => $subname => setting OpenCL address space for $sig_arg to $ocl_address_space"; 								
+							$stref->{'Subroutines'}{$subname}{'RefactoredArgs'}{'Set'}{$sig_arg}{'OclAddressSpace'}=$ocl_address_space;
+						}
+					}			
+				}
+				return ([$annline],[$stref,$f]);
+			};  
+			my $state = [$stref,$f];
+ 			($stref,$state) = stateful_pass($stref,$f,$pass_add_OpenCL_address_space_qualifiers, $state,'pass_add_OpenCL_address_space_qualifiers() ' . __LINE__  ) ;
+		}		
+	}	
+	return $stref;
+} # END of
+
+sub translate_sub_to_C {  (my $stref, my $f, my $ocl) = @_;
+	
 =info	
 	# First we collect info. What we need to know is:
 	
@@ -55,6 +116,8 @@ sub translate_to_C {  (my $stref, my $f) = @_;
 	- so maybe we actually don't need a separate pass after all ...
 		 		
 =cut
+
+
 	my $pass_translate_to_C = sub { (my $annline, my $state)=@_;
 		(my $line,my $info)=@{$annline};
 		my $c_line=$line;
@@ -63,6 +126,9 @@ sub translate_to_C {  (my $stref, my $f) = @_;
 		my $skip=0;
 		if (exists $info->{'Signature'} ) {
 			$c_line = _emit_subroutine_sig_C( $stref, $f, $annline);
+			if ($ocl==1 and $f eq $Config{'KERNEL'}) {
+				$c_line = '__kernel '.$c_line;
+			}
 		}
 		elsif (exists $info->{'VarDecl'} ) {
 				my $var = $info->{'VarDecl'}{'Name'};
@@ -161,12 +227,31 @@ sub translate_to_C {  (my $stref, my $f) = @_;
 		return ([$annline],[$stref,$f,$pass_state]);
 	};
 
-	my $state = [$stref,$f,{'TranslatedCode'=>[]}];
+	my $state = [$stref,$f, {'TranslatedCode'=>[]}];
  	($stref,$state) = stateful_pass($stref,$f,$pass_translate_to_C, $state,'C_translation_collect_info() ' . __LINE__  ) ;
- 	map {say $_ } @{$state->[2]{'TranslatedCode'}};
+
+ 	$stref->{'Subroutines'}{$f}{'TranslatedCode'}=$state->[2]{'TranslatedCode'};
+ 	$stref->{'TranslatedCode'}=[@{$stref->{'TranslatedCode'}},@{$state->[2]{'TranslatedCode'}}];
+# 	croak Dumper($stref->{'TranslatedCode'});
  	return $stref;
 	
-} # END of translate_to_C()
+} # END of translate_sub_to_C()
+
+sub _write_headers { (my $stref, my $ocl)=@_;
+	
+	my @headers=(
+		($ocl ? '' : '#include <stdlib.h>'),
+		'#include "array_index_f2c1d.h"',
+		''
+		);
+		$stref->{'TranslatedCode'}=[@headers,@{$stref->{'TranslatedCode'}}];
+		return $stref;
+} # END of _write_headers()
+
+sub _emit_C_code { (my $stref)=@_;
+ 	map {say $_ } @{$stref->{'TranslatedCode'}};
+	return $stref;
+} # END of _emit_C_code
 
 sub _emit_subroutine_sig_C { (my $stref, my $f, my $annline)=@_;
 #	say "//SUB $f";
@@ -190,7 +275,7 @@ sub _emit_subroutine_sig_C { (my $stref, my $f, my $annline)=@_;
 
 sub _emit_arg_decl_C { (my $stref,my $f,my $arg)=@_;
 	my $decl =	$stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$arg};
-
+#croak Dumper($decl) if $f eq 'sub_map_124' and $arg eq 'duu';
 #	my $decl =	get_var_record_from_set($stref->{'Subroutines'}{$f}{'Vars'},$arg);
 	my $array = $decl->{'ArrayOrScalar'} eq 'Array' ? 1 : 0;
 	my $const = 1;
@@ -199,8 +284,9 @@ sub _emit_arg_decl_C { (my $stref,my $f,my $arg)=@_;
 	} else { 
 		$const =    lc($decl->{'IODir'}) eq 'in' ? 1 : 0;
 	}
-	my $ptr = ($array || ($const==0)) ? '*' : '';
-	croak $f.Dumper($decl).$ptr if $arg eq 'etan_j_k_';
+	my $is_ptr =$array || ($const==0);
+	my $ptr = $is_ptr ? '*' : '';
+	
 	$stref->{'Subroutines'}{$f}{'Pointers'}{$arg}=$ptr;	
 	my $ftype = $decl->{'Type'};
 	my $fkind = $decl->{'Attr'};
@@ -208,7 +294,8 @@ sub _emit_arg_decl_C { (my $stref,my $f,my $arg)=@_;
 	$fkind=~s/\)//;
 	if ($fkind eq '') {$fkind=4};
 	my $c_type = toCType($ftype,$fkind);
-	my $c_arg_decl = $c_type.' '.$ptr.$arg;
+	my $ocl_address_space = (exists $decl->{'OclAddressSpace'} and $is_ptr ) ? $decl->{'OclAddressSpace'}.' ' : '';	
+	my $c_arg_decl = $ocl_address_space . $c_type.' '.$ptr.$arg;
 	return ($stref,$c_arg_decl);
 }
 
@@ -357,7 +444,11 @@ sub _emit_expression_C {(my $ast, my $expr_str, my $stref, my $f)=@_;
 #                                int i_lb, int j_lb, int k_lb, // lower bounds
 #                int ix, int jx, int kx)
 # with the same definition as FTN3DREF
-					$expr_str.=$mvar.'[F'.$dim.'D2C('.join(',',@ranges).' , '.join(',',@lower_bounds). ' , ';
+					if ($dim==1) {
+						$expr_str.=$mvar.'[F'.$dim.'D2C('.' , '.join(',',@lower_bounds). ' , ';
+					} else {
+						$expr_str.=$mvar.'[F'.$dim.'D2C('.join(',',@ranges[0.. ($dim-2)]).' , '.join(',',@lower_bounds). ' , ';						
+					}
 					}
 				}
 				$skip=1;

@@ -61,11 +61,12 @@ sub pass_rename_array_accesses_to_scalars {(my $stref)=@_;
 					\&determine_argument_io_direction_rec
 				],
 				[
+					\&_update_call_args,
 					\&_add_assignments_for_called_subs
 				],				
 			]
 		);			
-		croak;
+
 	return $stref;
 }
 
@@ -141,7 +142,7 @@ sub pass_rename_array_accesses_to_scalars {(my $stref)=@_;
 # This composite pass renames array accesses in the called subroutines in a superkernel to scalar accesses
 sub _rename_array_accesses_to_scalars { (my $stref, my $f) = @_;
 	if ($f ne $Config{'KERNEL'} ) {
-
+		
 	# This pass performs renaming in assignments and conditional expressions of IFs
 	# TODO: It does _not_ rename
 	# * subroutine call arguments (because there should not be any)
@@ -150,7 +151,7 @@ sub _rename_array_accesses_to_scalars { (my $stref, my $f) = @_;
 	my $pass_rename_array_accesses_in_exprs = sub { (my $annline, my $state)=@_;
 		(my $line,my $info)=@{$annline};
 		if (exists $info->{'Assignment'} ) {
-			carp $line;
+#			carp $line;
 			if (scalar @{ $info->{'Rhs'}{'VarList'}{'List'} } == 1 and $info->{'Rhs'}{'VarList'}{'List'}[0]=~/_ptr/) {
 				croak 'FIXME: What we want is that only array variables with IndexVars are renamed. So constant indices should stay as they are';
 				# IGNORE, this is not a true array access: this is an assignment of the shape
@@ -398,15 +399,13 @@ sub _rename_array_accesses_to_scalars { (my $stref, my $f) = @_;
 		}
 		# Finally we remove the $index_vars from the Args in the Signature
 		elsif (exists $info->{'Signature'} ) {
-#			croak 'MUST DO THIS IN RefactoredArgs and DeclaredOrigArgs TOO!'; 			
 			my $new_args=[];
 			for my $arg (@{ $info->{'Signature'}{'Args'}{'List'} } ) {				
 				if (not exists $state->{'IndexVars'}{$arg} ) {
 					push @{$new_args}, $arg;
 				} else {
-#					carp $f.' => '.$arg.' => '.Dumper($stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'List'}) if $f eq 'sub_map_124';
 					push @{ $state->{'DeletedArgs'} }, $arg;
-					delete $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{'$arg'};
+					delete $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$arg};
 					my @updated_args_list = grep {$_ ne $arg } @{ $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'List'} };
 					$stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'List'} = [@updated_args_list];				
 				}
@@ -425,7 +424,7 @@ sub _rename_array_accesses_to_scalars { (my $stref, my $f) = @_;
 	$state->{'LiftedIndexVarDecls'}={'List'=>[],'Set'=>{}};
 	$state->{'LiftedStreamVarDecls'}={'List'=>[],'Set'=>{}};
  	($stref,$state) = stateful_pass_reverse($stref,$f,$pass_lift_array_index_calculations, $state,'_rename_array_accesses_to_scalars_lift() ' . __LINE__  ) ;
- 	
+
 	# And then we can update $stref->{$Subroutines}{$f} and add LiftedIndexCalcLines and LiftedIndexVarDecls so that when we find a call we can splice in these lines
 	$stref->{'Subroutines'}{$f}{'LiftedIndexCalcLines'}=dclone($state->{'LiftedIndexCalcLines'});
 	$stref->{'Subroutines'}{$f}{'LiftedIndexVarDecls'}=dclone($state->{'LiftedIndexVarDecls'});
@@ -621,7 +620,77 @@ sub _rename_array_accesses_to_scalars_called_subs { (my $stref, my $f) = @_;
 	
 	return $stref;
 } # END of _rename_array_accesses_to_scalars_called_subs()
+# ================================================================================================================================================
 
+sub _update_call_args { (my $stref, my $f) = @_;
+	 
+	if ($f eq $Config{'KERNEL'} ) {
+			
+	my $pass_update_call_args = sub { (my $annline, my $state)=@_;		
+		(my $line,my $info)=@{$annline};
+		(my $stref, my $f) = @{$state};
+		my $Sf        = $stref->{'Subroutines'}{$f};
+		my $rline=$line;
+		my $rlines=[];
+		if ( exists $info->{'SubroutineCall'} and 
+			not exists $stref->{'ExternalSubroutines'}{ $info->{'SubroutineCall'}{'Name'} }
+			){
+				my $subname = $info->{'SubroutineCall'}{'Name'};
+				
+			# First update the ArgMap 
+			# This is to account for the renamed pointers
+			
+			for my $sig_arg (keys %{$info->{'SubroutineCall'}{'ArgMap'} }) {
+				my $call_arg = $info->{'SubroutineCall'}{'ArgMap'}{$sig_arg};
+					# This is only correct if the signature arg is a scalar. 
+				my $sig_iodir = $stref->{'Subroutines'}{$subname}{'RefactoredArgs'}{'Set'}{$sig_arg}{'IODir'};
+				if ($sig_iodir ne 'in') { # means the sig arg is a pointer anyway
+					if ($info->{'CallArgs'}{'Set'}{$call_arg}{'Expr'} eq $call_arg.'(1)') {
+						$info->{'CallArgs'}{'Set'}{$call_arg}{'Expr'} = $call_arg;
+					}
+				}
+			}
+#		# Then update CallArgs and again the ArgMap
+#	      my $orig_call_args = $info->{'CallArgs'}{'List'};
+#	      my $new_call_args = [];
+#	      for my $call_arg (@{ $orig_call_args } ) {
+#	      	# get the sig_arg
+#	      	my $current_sig_arg = $call_arg;
+#			if (exists $stref->{'Subroutines'}{$subname}{'RefactoredArgs'}{'Set'}{$current_sig_arg}) {
+#	      		push @{$new_call_args}, $call_arg;
+#	      	} else {
+#	      		# This argument was deleted
+#	      		delete $info->{'CallArgs'}{'Set'}{$call_arg};
+#	      		delete $info->{'SubroutineCall'}{'ArgMap'}{$call_arg};
+#	      	}     	    
+#	      }
+#	      $info->{'CallArgs'}{'List'}=$new_call_args;
+	      
+	      	    my $indent = $info->{'Indent'} // '      ';
+		    my $maybe_label= ( exists $info->{'Label'} and exists $Sf->{'ReferencedLabels'}{$info->{'Label'}} ) ?  $info->{'Label'}.' ' : '';
+		    my @new_call_exprs = map  { $info->{'CallArgs'}{'Set'}{$_}{'Expr'} } @{$info->{'CallArgs'}{'List'}};  
+		    my $args_str = join( ',', @new_call_exprs );	    
+		    my $rline = "call $subname($args_str)\n";
+		    my $updated_expr_ast = parse_expression("$subname($args_str)",$info, $stref,$f);
+		    $info->{'SubroutineCall'}{'ExpressionAST'}=$updated_expr_ast;
+	
+	      $rlines=[[$rline, $info]];
+		} else {
+			say $rline if $DBG;
+			push @{$rlines},[$rline,$info];
+		}
+				
+		return ($rlines,[$stref,$f]);
+	};
+	
+
+	my $state=[$stref,$f];
+ 	($stref,$state) = stateful_pass($stref,$f,$pass_update_call_args, $state,'pass_update_call_args() ' . __LINE__  ) ;	
+	
+	 	    
+	} # IF KERNEL	
+	return $stref;
+} # END of _update_call_args()
 # ================================================================================================================================================
 # After we've renamed all args in the subroutine definitions, we update the calls as well, but ONLY in the kernel 
 sub _add_assignments_for_called_subs { (my $stref, my $f) = @_;
@@ -680,7 +749,7 @@ sub _add_assignments_for_called_subs { (my $stref, my $f) = @_;
 					}						
 #					$rlines = [@{$rlines},@{ $stref->{'Subroutines'}{$subname}{'LiftedArrayAssignments'} }];
 				}						
-				
+#				croak Dumper($stref->{'Subroutines'}{$subname}{'RefactoredArgs'}{'Set'}{'duu'});
 		} else {
 			say $rline if $DBG;
 			push @{$rlines},[$rline,$info];
@@ -833,7 +902,7 @@ sub _emit_subroutine_call { (my $stref, my $f, my $annline)=@_;
       		push @{$new_call_args}, $call_arg;
       	} else {
       		# This argument was deleted
-      		carp "$f => $name => DELETED SIG ARG: $current_sig_arg";
+#      		carp "$f => $name => DELETED SIG ARG: $current_sig_arg";
       		delete $info->{'CallArgs'}{'Set'}{$call_arg};
       		delete $info->{'SubroutineCall'}{'ArgMap'}{$call_arg};
       	}     	    
@@ -875,6 +944,8 @@ sub _removed_unused_variables { (my $stref, my $f)=@_;
 	# If a variable is declared but not used in any LHS, RHS  or SubroutineCall, it is unused.
 	# So start with all declared variables, put in $state->{'DeclaredVars'}
 	# Make a list of all variables anywhere in the code via Lhs, Rhs, Args, put in $state->{'ExprVars'}
+	
+	
 	my $pass_action_find_all_used_vars = sub { (my $annline, my $state)=@_;		
 		(my $line,my $info)=@{$annline};
 		
@@ -1026,7 +1097,7 @@ sub _removed_unused_variables { (my $stref, my $f)=@_;
  	$stref->{'Subroutines'}{$f}{'DeletedArgs'} =$state->{'DeletedArgs'};
  	$stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'List'}=dclone($state->{'RemainingArgs'});
  	map { delete $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$_} }  @{ $state->{'DeletedArgs'} };
-		
+
 	return $stref;
 } # END of _removed_unused_variables()
 # ================================================================================================================================================
@@ -1192,7 +1263,7 @@ sub _declare_undeclared_variables { (my $stref, my $f)=@_;
 # ================================================================================================================================================
 # Gavin's code has _ptr arrays to pass scalar pointers. This is necessary for actual Fortran code, not for code that is to be translated to OpenCL
 sub _fix_scalar_ptr_args { (my $stref, my $f)=@_;
-	if ($f ne $Config{'KERNEL'} ) {
+	if ($f ne $Config{'KERNEL'} ) { 
 	# TODO:  I must update the $stref->{Subroutines}{$f} records as well
 	my $pass_fix_scalar_ptr_args = sub { (my $annline, my $state)=@_;		
 		(my $line,my $info)=@{$annline};
@@ -1274,7 +1345,7 @@ sub _fix_scalar_ptr_args { (my $stref, my $f)=@_;
 	my $state= [$stref,$f,$pass_state];
 	
  	($stref,$state) = stateful_pass($stref,$f,$pass_fix_scalar_ptr_args, $state,'pass_fix_scalar_ptr_args() ' . __LINE__  ) ;
-}
+} # IF NOT KERNEL
  	
 	return $stref;
 } # END of _fix_scalar_ptr_args()
@@ -1287,10 +1358,9 @@ sub _fix_scalar_ptr_args_subcall { (my $stref, my $f)=@_;
 	# TODO:  I must update the $stref->{Subroutines}{$f} records as well
 	my $pass_fix_scalar_ptr_args_subcall = sub { (my $annline, my $state)=@_;		
 		(my $line,my $info)=@{$annline};
-		(my $stref,my $f)=@{$state};
-#		(my $stref,my $f)=@{$state};
-		
+		(my $stref,my $f)=@{$state};		
 		my $rlines=[$annline];
+		
 		if ( exists $info->{'SubroutineCall'} and not exists $stref->{'ExternalSubroutines'}{ $info->{'SubroutineCall'}{'Name'} } ) {
 	    	my $Sf        = $stref->{'Subroutines'}{$f};
 	    	my $name = $info->{'SubroutineCall'}{'Name'};
@@ -1301,10 +1371,12 @@ sub _fix_scalar_ptr_args_subcall { (my $stref, my $f)=@_;
 			
 			for my $sig_arg (keys %{$info->{'SubroutineCall'}{'ArgMap'} }) {
 				my $call_arg = $info->{'SubroutineCall'}{'ArgMap'}{$sig_arg};
-				if ($sig_arg =~/_ptr/) {			
+				if ($sig_arg =~/_ptr/) { # duu_ptr			
 					my $ren_sig_arg = $sig_arg;
-					$ren_sig_arg =~s/_ptr//;
-					$new_arg_map->{$ren_sig_arg}=$call_arg;
+					$ren_sig_arg =~s/_ptr//; # duu
+					$new_arg_map->{$ren_sig_arg}=$call_arg; # duu => duu
+					# This is only correct if the signature arg is a scalar. 
+#					croak Dumper( $stref->{'Subroutines'}{$name}{'RefactoredArgs'}{'Set'}{$ren_sig_arg} ) if $ren_sig_arg eq 'duu';					
 					$info->{'CallArgs'}{'Set'}{$call_arg} = {'Expr' => $call_arg.'(1)','Type'=>'Scalar'};
 				} else {
 					$new_arg_map->{$sig_arg}=$call_arg;
@@ -1329,7 +1401,6 @@ sub _fix_scalar_ptr_args_subcall { (my $stref, my $f)=@_;
 	      		push @{$new_call_args}, $call_arg;
 	      	} else {
 	      		# This argument was deleted
-	#      		carp "$f => $name => DELETED SIG ARG: $current_sig_arg";
 	      		delete $info->{'CallArgs'}{'Set'}{$call_arg};
 	      		delete $info->{'SubroutineCall'}{'ArgMap'}{$call_arg};
 	      	}     	    

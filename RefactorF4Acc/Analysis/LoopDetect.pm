@@ -49,7 +49,7 @@ $stref->{'KernelWrappers'}{$kernelwrapper}={
 
 # For some reason this is called twice??!
 sub outer_loop_start_detect {
-
+croak 'NOT UP TO DATE!';
     ( my $kernelwrapper, my $stref ) = @_;
     say "calling loop_detect($kernelwrapper)\n" if $V;
     my $f = $stref->{'KernelWrappers'}{$kernelwrapper}{'BeginKernelWrapper'}[0];
@@ -134,6 +134,7 @@ sub _find_call_index {
 }    # END of _find_call_index()
 
 sub outer_loop_end_detect {
+croak 'NOT UP TO DATE!';
     ( my $kernelwrapper, my $stref ) = @_;
 
     ( my $f, my $outer_loop_info ) =
@@ -227,6 +228,7 @@ This is easy enough to do by generating a kernel from a kernelwrapper routine wi
 # This routine is called after refactor_all()
 # It should be called after all subroutines have their explicit arguments
 sub outer_loop_variable_analysis {
+croak 'NOT UP TO DATE!';
 
     ( my $kernelwrapper, my $stref ) = @_;
 

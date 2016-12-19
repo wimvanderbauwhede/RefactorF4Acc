@@ -34,37 +34,37 @@ use Exporter;
 # The heavy lifting is done by _determine_exglob_subroutine_call_args()
 # Then we merge the original args, renamed for local/global clashes, with the globals
 
-sub create_refactored_subroutine_call {croak 'OBSOLETE';
-    ( my $stref, my $f, my $annline, my $rlines ) = @_;;
-    my $Sf        = $stref->{'Subroutines'}{$f};
-    my $line      = $annline->[0] || '';
-    my $tags_lref = $annline->[1];
-    my %tags      = ( defined $tags_lref ) ? %{$tags_lref} : ();
-
-    # simply tag the common vars onto the arguments
-    my $name = $tags{'SubroutineCall'}{'Name'};
-    croak Dumper(%tags) ;#if $name eq 'interpol_vdep' and $f eq 'advance';
-    my $conflicting_locals = {};
-    if ( exists $Sf->{'ConflictingGlobals'} ) {
-        $conflicting_locals = $Sf->{'ConflictingGlobals'};
-    }
-    my $globals = _determine_exglob_subroutine_call_args( $stref, $f, $name );
-    my $orig_args = [];
-    for my $arg ( @{ $tags{'SubroutineCall'}{'Args'}{'List'} } ) {
-        if ( exists $conflicting_locals->{$arg} ) {
-            push @{$orig_args}, $conflicting_locals->{$arg}[0];
-        } else {
-            push @{$orig_args}, $arg;
-        }
-    }
-    my $args_ref = ordered_union( $orig_args, $globals );
-
-    my $args_str = join( ',', @{$args_ref} );
-    $line =~ s/call\s.*$//;
-    my $rline = "call $name($args_str)\n";
-    push @{$rlines}, [ $line . $rline, $tags_lref ];
-    return $rlines;
-}    # END of create_refactored_subroutine_call()
+#sub create_refactored_subroutine_call {croak 'OBSOLETE';
+#    ( my $stref, my $f, my $annline, my $rlines ) = @_;;
+#    my $Sf        = $stref->{'Subroutines'}{$f};
+#    my $line      = $annline->[0] || '';
+#    my $tags_lref = $annline->[1];
+#    my %tags      = ( defined $tags_lref ) ? %{$tags_lref} : ();
+#
+#    # simply tag the common vars onto the arguments
+#    my $name = $tags{'SubroutineCall'}{'Name'};
+#    croak Dumper(%tags) ;#if $name eq 'interpol_vdep' and $f eq 'advance';
+#    my $conflicting_locals = {};
+#    if ( exists $Sf->{'ConflictingGlobals'} ) {
+#        $conflicting_locals = $Sf->{'ConflictingGlobals'};
+#    }
+#    my $globals = _determine_exglob_subroutine_call_args( $stref, $f, $name );
+#    my $orig_args = [];
+#    for my $arg ( @{ $tags{'SubroutineCall'}{'Args'}{'List'} } ) {
+#        if ( exists $conflicting_locals->{$arg} ) {
+#            push @{$orig_args}, $conflicting_locals->{$arg}[0];
+#        } else {
+#            push @{$orig_args}, $arg;
+#        }
+#    }
+#    my $args_ref = ordered_union( $orig_args, $globals );
+#
+#    my $args_str = join( ',', @{$args_ref} );
+#    $line =~ s/call\s.*$//;
+#    my $rline = "call $name($args_str)\n";
+#    push @{$rlines}, [ $line . $rline, $tags_lref ];
+#    return $rlines;
+#}    # END of create_refactored_subroutine_call()
 
 # ----------------------------------------------------------------------------------------------------
 
@@ -111,39 +111,39 @@ sub create_refactored_subroutine_call {croak 'OBSOLETE';
 
 # ----------------------------------------------------------------------------------------------------
 # 
-sub refactor_subroutine_call_args {croak 'OBSOLETE';
-    ( my $stref, my $f, my $idx ) = @_;
-    if (exists $stref->{'Subroutines'}{$f} ) {
-    my $Sf   = $stref->{'Subroutines'}{$f};
-    
-    my $tags = ${get_annotated_sourcelines($stref,$f)}[$idx][1];
-    
-    # simply tag the common vars onto the arguments
-    my $name               = $tags->{'SubroutineCall'}{'Name'};
-    
-    my $Sname              = $stref->{'Subroutines'}{$name};
-    if (not exists $Sname->{'HasRefactoredArgs'} or $Sname->{'HasRefactoredArgs'}==0) {
-    	$stref = refactor_subroutine_signature( $stref, $name );
-    }
-    my %conflicting_locals = ();
-    my %conflicting_params = ();
-    if ( exists $Sf->{'ConflictingParams'} ) {
-        %conflicting_params = %{ $Sf->{'ConflictingParams'} };
-    }
-    if ( exists $Sf->{'ConflictingGlobals'} ) {
-        %conflicting_locals = %{ $Sf->{'ConflictingGlobals'} };
-    }
-    my %conflicting_exglobs_params = ();
-    if (%conflicting_params) {
-        %conflicting_exglobs_params =
-          ( %conflicting_locals, %conflicting_params );
-    }
-    my $globals =$Sf->{'ExGlobArgs'}{'List'} // [];
-	my $orig_args =[ @{$Sf->{'DeclaredOrigArgs'}{'List'}},@{$Sf->{'UndeclaredOrigArgs'}{'List'}} ];
-	my $args_ref = [ @{$orig_args}, @{$globals}];
-    $tags->{'SubroutineCall'}{'RefactoredArgs'} = $args_ref;
-    $Sf->{'RefactoredCode'}[$idx][1] = $tags;
-    } #else {die $f;}
-    return $stref;
-}    # END of refactor_subroutine_call_args
+#sub refactor_subroutine_call_args {croak 'OBSOLETE';
+#    ( my $stref, my $f, my $idx ) = @_;
+#    if (exists $stref->{'Subroutines'}{$f} ) {
+#    my $Sf   = $stref->{'Subroutines'}{$f};
+#    
+#    my $tags = ${get_annotated_sourcelines($stref,$f)}[$idx][1];
+#    
+#    # simply tag the common vars onto the arguments
+#    my $name               = $tags->{'SubroutineCall'}{'Name'};
+#    
+#    my $Sname              = $stref->{'Subroutines'}{$name};
+#    if (not exists $Sname->{'HasRefactoredArgs'} or $Sname->{'HasRefactoredArgs'}==0) {
+#    	$stref = refactor_subroutine_signature( $stref, $name );
+#    }
+#    my %conflicting_locals = ();
+#    my %conflicting_params = ();
+#    if ( exists $Sf->{'ConflictingParams'} ) {
+#        %conflicting_params = %{ $Sf->{'ConflictingParams'} };
+#    }
+#    if ( exists $Sf->{'ConflictingGlobals'} ) {
+#        %conflicting_locals = %{ $Sf->{'ConflictingGlobals'} };
+#    }
+#    my %conflicting_exglobs_params = ();
+#    if (%conflicting_params) {
+#        %conflicting_exglobs_params =
+#          ( %conflicting_locals, %conflicting_params );
+#    }
+#    my $globals =$Sf->{'ExGlobArgs'}{'List'} // [];
+#	my $orig_args =[ @{$Sf->{'DeclaredOrigArgs'}{'List'}},@{$Sf->{'UndeclaredOrigArgs'}{'List'}} ];
+#	my $args_ref = [ @{$orig_args}, @{$globals}];
+#    $tags->{'SubroutineCall'}{'RefactoredArgs'} = $args_ref;
+#    $Sf->{'RefactoredCode'}[$idx][1] = $tags;
+#    } #else {die $f;}
+#    return $stref;
+#}    # END of refactor_subroutine_call_args
 # -----------------------------------------------------------------------------

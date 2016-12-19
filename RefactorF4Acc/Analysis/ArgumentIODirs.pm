@@ -993,7 +993,7 @@ sub _get_iodirs_from_subcall {
 # We need to check the other variables in Array, Sub and Expr but they cannot be anything else than read-only
 				
 				my $call_arg_type = $info->{'CallArgs'}{'Set'}{$call_arg}{'Type'};
-carp "CALL ARG: $call_arg";	
+#carp "CALL ARG: $call_arg";	
 				if ( $call_arg_type eq 'Scalar' or $call_arg_type eq 'Array' ) {
 	
 					# This means that $call_arg is an argument of the caller $f

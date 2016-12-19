@@ -1654,7 +1654,7 @@ sub top_src_is_module {( my $stref, my $s) = @_;
 }
 
 # This is a wrapper to get the subroutines out of a module
-sub pass_wrapper_subs_in_module { (my $stref,my $pass_sequences) = @_;
+sub pass_wrapper_subs_in_module { (my $stref,my $pass_sequences, my @rest) = @_;
 	my %is_existing_module = ();
     my %existing_module_name = ();
 	
@@ -1678,7 +1678,7 @@ sub pass_wrapper_subs_in_module { (my $stref,my $pass_sequences) = @_;
 		for my $pass_sequence (@{$pass_sequences}) {	
 			for my $f ( @subs ) {
 				for my $pass_sub_ref (@{$pass_sequence}) {			
-					$stref=$pass_sub_ref->($stref, $f);
+					$stref=$pass_sub_ref->($stref, $f, @rest);
 				}			
 			}
 		}

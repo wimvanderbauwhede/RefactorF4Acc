@@ -15,7 +15,7 @@ use RefactorF4Acc::Refactoring::Modules qw( add_module_decls );
 use RefactorF4Acc::Refactoring::Streams qw( pass_rename_array_accesses_to_scalars );
 use RefactorF4Acc::Parser::Expressions qw(parse_expression emit_expression get_vars_from_expression);
 #use RefactorF4Acc::OpenCLTranslation qw( translate_to_OpenCL );
-use RefactorF4Acc::CTranslation qw( translate_to_C );
+use RefactorF4Acc::CTranslation qw( translate_module_to_C );
 
 use vars qw( $VERSION );
 $VERSION = "1.0.0";
@@ -47,7 +47,7 @@ sub refactor_all {
 		$stref = pass_rename_array_accesses_to_scalars($stref);				
 	}
 	if ($pass =~/translate_to_C/) {
-		$stref = pass_wrapper_subs_in_module($stref,[[\&translate_to_C]]);
+		$stref = translate_module_to_C($stref,1);
 	}
 	if ($pass =~/ifdef_io/i) {
 		$stref = _ifdef_io_all($stref);		

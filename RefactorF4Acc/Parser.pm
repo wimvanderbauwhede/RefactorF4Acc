@@ -3401,7 +3401,7 @@ sub __parse_f95_decl {
 					} else {						
 						my $subset =in_nested_set($Sf,'Vars',$tvar);
 						if ($subset ne '') {
-							carp "LINE $line: $tvar in subset $subset of Vars";
+#							carp "LINE $line: $tvar in subset $subset of Vars";
 							$Sf->{$subset}{'Set'}{$tvar} = $decl;
 						} else {
 							say "INFO: $line: $tvar does not have a record in Vars" if $I;
