@@ -1,0 +1,21 @@
+version : 0.53
+languages : %
+    C : C
+    Foo : Foo
+    PYTHON : Python
+    Python : Python
+    foo : Foo
+    py : Python
+    python : Python
+types : %
+    C : compiled
+    Foo : interpreted
+    Python : interpreted
+modules : %
+    C : Inline::C
+    Foo : Inline::Foo
+    Python : Inline::Python
+suffixes : %
+    C : bundle
+    Foo : foo
+    Python : pydat

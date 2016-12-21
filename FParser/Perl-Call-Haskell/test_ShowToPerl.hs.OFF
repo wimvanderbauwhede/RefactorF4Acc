@@ -1,0 +1,14 @@
+module Main where
+import ShowToPerl ( showToPerl )
+
+vds1 = "MkVarDecl {vd_vartype = MkVarType {at_numtype = F95Real, at_wordsz = 4}, vd_dimension = [MkRange {r_start = Const 1, r_stop = Var \"ip\"},MkRange {r_start = Const 1, r_stop = Var \"jp\"},MkRange {r_start = Const 1, r_stop = Var \"kp\"}], vd_intent = InOut, vd_varlist = [\"u\"], vd_argmode = ReadWrite, vd_is_arg = True, vd_has_const_ranges = False, vd_shape=[]}"
+vds = "((42,\"42\",True,MkTup 42 False (\"42\",3)),MkVarDecl {vd_vartype = MkVarType {at_numtype = F95Real, at_wordsz = (4,\"42\",5)}, vd_dimension = [MkRange {r_start = Const 1 \"1\", r_stop = Var \"ip\"},MkRange {r_start = Const 1, r_stop = Var \"jp\"},MkRange {r_start = Const 1 , r_stop = Var \"kp\"}], vd_intent = InOut, vd_varlist = [\"u\"], vd_argmode = ReadWrite, vd_is_arg = True, vd_has_const_ranges = False, vd_shape=[]})"
+h="(Int 4,fromList [(\"k5\",([11,12,13],\"v4\")),(\"k1\",([1,2,3],\"v1\")),(\"k3\",([4,5,6],\"v2\")),(\"k4\",([7,8,9],\"v3\"))])"
+h1="MkTest (Int 4) (fromList [(\"k5\",([11,12,13],\"v4\")),(\"k1\",([1,2,3],\"v1\")),(\"k3\",([4,5,6],\"v2\")),(\"k4\",([7,8,9],\"v3\"))])"
+
+main = do
+--    putStrLn $ showToPerl vds1
+--    putStrLn $ showToPerl vds
+    putStrLn $ showToPerl h
+    putStrLn $ showToPerl h1
+
