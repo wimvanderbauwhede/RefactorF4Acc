@@ -3525,7 +3525,7 @@ sub __parse_f77_var_decl {
 	( my $Sf, my $stref, my $f,my $indent,  my $line, my $info, my $type, my $varlst ) = @_;
 	
 # Half-baked F95/F77 declarations are threated as F77, so remove the :: here
-$line=~s/\:://;
+my $half_baked = ($line=~s/\:://);
 	
 # Now an ad hoc fix for spaces between the type and the asterisk. FIXME! I should just write a better FSM!
 #
@@ -3847,7 +3847,12 @@ if ($line=~/^character/) {
 		'Status' => 0
 	};
 
-	push @{ $info->{'Ann'} }, annotate( $f, __LINE__ );	   
+	push @{ $info->{'Ann'} }, annotate( $f, __LINE__ );
+#	if ($Sf->{'FStyle'} eq 'F95') {
+#	$info->{'VarDecl'}{'FStyle'} = 'F77';
+#	map {say emit_f95_var_decl( get_var_record_from_set($Sf->{'Vars'},$_)) } @{ $info->{'VarDecl'}{'Names'} };
+#	croak $f.$line.Dumper($info) if $line=~/hzero/; 	   
+#	}
 	return ( $Sf, $info );
 }    # END of __parse_f77_var_decl()
 

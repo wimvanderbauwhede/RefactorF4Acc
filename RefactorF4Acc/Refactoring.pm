@@ -69,7 +69,7 @@ sub refactor_all {
     
     # This can't go into refactor_all_subroutines() because it is recursive
     # Also, this is actually analysis
-    $stref = determine_argument_io_direction_rec( $subname, $stref );    
+    $stref = determine_argument_io_direction_rec( $stref,$subname );    
     say "DONE determine_argument_io_direction_rec()" if $V;
 
     $stref = update_argument_io_direction_all_subs( $stref );

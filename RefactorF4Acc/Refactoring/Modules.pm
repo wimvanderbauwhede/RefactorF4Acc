@@ -2,7 +2,7 @@ package RefactorF4Acc::Refactoring::Modules;
 use v5.016;
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
-use RefactorF4Acc::Refactoring::Common qw( get_annotated_sourcelines create_refactored_source splice_additional_lines_cond );
+use RefactorF4Acc::Refactoring::Common qw( get_annotated_sourcelines create_refactored_source splice_additional_lines_cond emit_f95_var_decl );
 
 # 
 #   (c) 2010-2012 Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
@@ -101,6 +101,18 @@ sub add_module_decls { (my $stref)=@_;
 	       		say '=' x 80 if $V;
 	       	}
 	       	my $old_annlines = $stref->{'Modules'}{$existing_module_name{$src}}{'AnnLines'};
+	       	my $old_annlines_with_refactored_vardecls = [
+			map { my $annline = $_;
+	       		(my $line, my $info) = @{$annline};
+	       		if (exists $info->{'VarDecl'} ) {
+	       		 my $ref_vardecl_line =  emit_f95_var_decl( get_var_record_from_set( $stref->{'Modules'}{$existing_module_name{$src}}{'Vars'}, $info->{'VarDecl'}{'Name'} ));
+	       		 [$ref_vardecl_line,$info];
+	       		} else {
+	       			$annline;
+	       		}
+	       	} @{ $old_annlines } 
+	       	];
+	       	$old_annlines = $old_annlines_with_refactored_vardecls;
 	       	if (scalar @{$new_annlines}>0) {	       		
 	       		my $merged_annlines = splice_additional_lines_cond( 
 	       			$stref, 
