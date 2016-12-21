@@ -42,6 +42,7 @@ use Exporter;
 
 sub translate_module_to_C {  (my $stref, my $ocl) = @_;
 	if (not defined $ocl) {$ocl=0;}
+	$stref->{'OpenCL'}=$ocl;
 	$stref->{'TranslatedCode'}=[];	
 	$stref = pass_wrapper_subs_in_module($stref,[[\&add_OpenCL_address_space_qualifiers],[\&translate_sub_to_C]],$ocl);
 	$stref = _write_headers($stref,$ocl);
@@ -69,7 +70,7 @@ sub add_OpenCL_address_space_qualifiers { (my $stref, my $f, my $ocl) = @_;
 							my $decl = $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$arg};
 							if ($decl->{'ArrayOrScalar'} eq 'Array') {
 								$decl->{'OclAddressSpace'} = '__global';
-							}
+							} 
 						}
 				}
 				elsif (exists $info->{'SubroutineCall'} and 
@@ -295,7 +296,7 @@ sub _emit_arg_decl_C { (my $stref,my $f,my $arg)=@_;
 	}
 	my $is_ptr =$array || ($const==0);
 	my $ptr = $is_ptr ? '*' : '';
-	
+#	my $const_str = $ocl==1 and $f eq $Config{'KERNEL'} and ($const && !$array) ? 'const ' : '';
 	$stref->{'Subroutines'}{$f}{'Pointers'}{$arg}=$ptr;	
 	my $ftype = $decl->{'Type'};
 	my $fkind = $decl->{'Attr'};
@@ -303,8 +304,9 @@ sub _emit_arg_decl_C { (my $stref,my $f,my $arg)=@_;
 	$fkind=~s/\)//;
 	if ($fkind eq '') {$fkind=4};
 	my $c_type = toCType($ftype,$fkind);
-	my $ocl_address_space = (exists $decl->{'OclAddressSpace'} and $is_ptr ) ? $decl->{'OclAddressSpace'}.' ' : '';	
-	my $c_arg_decl = $ocl_address_space . $c_type.' '.$ptr.$arg;
+	my $ocl_address_space = ($stref->{'OpenCL'} ==1 and exists $decl->{'OclAddressSpace'} and $is_ptr ) ? $decl->{'OclAddressSpace'}.' ' : '';
+	my $maybe_const = ($stref->{'OpenCL'} ==1 and $f eq $Config{'KERNEL'} and $ocl_address_space eq '') ? 'const ' : ''; 	
+	my $c_arg_decl = $ocl_address_space . $maybe_const . $c_type.' '.$ptr.$arg;
 	return ($stref,$c_arg_decl);
 }
 
