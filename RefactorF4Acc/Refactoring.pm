@@ -47,6 +47,8 @@ sub refactor_all {
 		$stref = pass_rename_array_accesses_to_scalars($stref);				
 	}
 	if ($pass =~/translate_to_C/) {
+		$stref = translate_module_to_C($stref,0);
+	} elsif ( $pass =~/translate_to_OpenCL/) {
 		$stref = translate_module_to_C($stref,1);
 	}
 	if ($pass =~/ifdef_io/i) {

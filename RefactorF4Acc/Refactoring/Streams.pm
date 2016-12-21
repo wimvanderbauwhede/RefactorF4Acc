@@ -64,6 +64,9 @@ sub pass_rename_array_accesses_to_scalars {(my $stref)=@_;
 					\&_update_call_args,
 					\&_add_assignments_for_called_subs
 				],				
+				[
+					\&_make_dim_vars_scalar_consts_in_sigs
+				],
 			]
 		);			
 
@@ -951,6 +954,7 @@ sub _removed_unused_variables { (my $stref, my $f)=@_;
 		
 		my $rline=$line;
 		my $rlines=[];
+		my $skip_if=0;
 		
  		if ( exists $info->{'Signature'} ) {
  			$state->{'Args'} = $info->{'Signature'}{'Args'}{'Set'}; 
@@ -959,16 +963,22 @@ sub _removed_unused_variables { (my $stref, my $f)=@_;
  			my $select_expr_str = $info->{'CaseVar'}; 
  			my $select_expr_ast=parse_expression($select_expr_str, $info,{}, '');
  			my $vars = get_vars_from_expression($select_expr_ast,{});
- 			$state->{'ExprVars'} ={ %{ $state->{'ExprVars'} }, %{ $vars } };
+ 			for my $var (keys %{ $vars } ) {
+ 				$state->{'ExprVars'}{$var}++;	
+ 			}
+# 			$state->{'ExprVars'} ={ %{ $state->{'ExprVars'} }, %{ $vars } };
  		} 		
 		elsif (exists $info->{'CaseVals'})  {
 			for my $val (@{ $info->{'CaseVals'} }) {
 				if ($val=~/^[a-z]\w*/) {
- 					$state->{'ExprVars'}{$val}=1;
+ 					$state->{'ExprVars'}{$val}++;
  				} else  {
 					my $case_expr_ast=parse_expression($val, $info,{}, '');
  					my $vars = get_vars_from_expression($case_expr_ast,{});
- 					$state->{'ExprVars'} ={ %{ $state->{'ExprVars'} }, %{ $vars } };
+ 					for my $var (keys %{ $vars } ) {
+ 				$state->{'ExprVars'}{$var}++;	
+ 			}
+# 					$state->{'ExprVars'} ={ %{ $state->{'ExprVars'} }, %{ $vars } };
  				}		
 			}
 		}
@@ -983,34 +993,66 @@ sub _removed_unused_variables { (my $stref, my $f)=@_;
 				$annline=['! '.$line, {%{$info},'Deleted'=>1}];
 				delete $state->{'UnusedVars'}{$var};
 				delete $state->{'AssignedVars'}{$var};	
-				# I should now also remove all vars			
-			} else {
-				$state->{'AssignedVars'}{$var}=1;
-				
+				# I should now also remove all vars		
 				if (exists $info->{'Lhs'}{'IndexVars'}) {
-					$state->{'ExprVars'} ={%{$state->{'ExprVars'}},%{ $info->{'Lhs'}{'IndexVars'}{'Set'} } };
+					for my $var (keys %{ $info->{'Lhs'}{'IndexVars'}{'Set'} }) {
+ 						$state->{'ExprVars'}{$var}--;	
+		 				if ( $state->{'ExprVars'}{$var} == 0) {
+		 					delete $state->{'ExprVars'}{$var};
+		 					carp "DELETE ExprVar $var in IF";
+		 				}	 						
+ 					}
 				}
-				$state->{'ExprVars'} ={ %{ $state->{'ExprVars'} }, %{ $info->{'Rhs'}{'VarList'}{'Set'} } };
+				$skip_if=1;							
+			} else {
+				$state->{'AssignedVars'}{$var}=1;				
+				if (exists $info->{'Lhs'}{'IndexVars'}) {
+#					$state->{'ExprVars'} ={%{$state->{'ExprVars'}}, };
+					for my $var (keys %{ $info->{'Lhs'}{'IndexVars'}{'Set'} }) {
+ 						$state->{'ExprVars'}{$var}++;	
+ 					}
+				}
+#				$state->{'ExprVars'} ={ %{ $state->{'ExprVars'} }, };
+				for my $var (keys %{$info->{'Rhs'}{'VarList'}{'Set'} }) {
+ 						$state->{'ExprVars'}{$var}++;	
+ 					}
 				for my $var (keys %{  $info->{'Rhs'}{'VarList'}{'Set'} } ) {
 					if (exists $info->{'Rhs'}{'VarList'}{'Set'}{$var}{'Vars'}) {
-						$state->{'ExprVars'} ={%{$state->{'ExprVars'}},%{ $info->{'Rhs'}{'VarList'}{'Set'}{$var}{'Vars'} }};
+#						$state->{'ExprVars'} ={%{$state->{'ExprVars'}},%{ $info->{'Rhs'}{'VarList'}{'Set'}{$var}{'Vars'} }};
+						for my $var (keys %{ $info->{'Rhs'}{'VarList'}{'Set'}{$var}{'Vars'} }) {
+ 							$state->{'ExprVars'}{$var}++;	
+ 						}
 					}
 					if (exists $info->{'Rhs'}{'VarList'}{'Set'}{$var}{'IndexVars'}) {
-						$state->{'ExprVars'} ={%{$state->{'ExprVars'}},%{ $info->{'Rhs'}{'VarList'}{'Set'}{$var}{'IndexVars'} }};
+#						$state->{'ExprVars'} ={%{$state->{'ExprVars'}},%{  }};
+						for my $var (keys %{ $info->{'Rhs'}{'VarList'}{'Set'}{$var}{'IndexVars'} }) {
+ 							$state->{'ExprVars'}{$var}++;	
+ 						}						
 					}			
 				}
 			}
 		}
 		elsif ( exists $info->{'SubroutineCall'} ) {
-			$state->{'ExprVars'} ={%{$state->{'ExprVars'}},%{$info->{'SubroutineCall'}{'Args'}{'Set'} } };
+#			$state->{'ExprVars'} ={%{$state->{'ExprVars'}},%{ } };
+			for my $var (keys %{ $info->{'SubroutineCall'}{'Args'}{'Set'} }) {
+ 				$state->{'ExprVars'}{$var}++;	
+			}			
 		}		
-		if (exists $info->{'If'} ) {						
+		if (exists $info->{'If'} and not $skip_if) {						
 				my $cond_expr_ast=$info->{'CondExecExprAST'};#= $ast;parse_expression($info->{'CondExecExpr'}, $info,$stref, $f);
-				$state->{'ExprVars'} ={%{$state->{'ExprVars'}},%{ $info->{'CondVars'}{'Set'} } }; 
+#				$state->{'ExprVars'} ={%{$state->{'ExprVars'}},%{ $info->{'CondVars'}{'Set'} } }; 
+			for my $var (keys %{ $info->{'CondVars'}{'Set'} }) {
+				say "ADDING $var to ExprVars in IF" if $DBG;
+ 				$state->{'ExprVars'}{$var}++;
+ 					
+			}						
 				for my $var ( @{ $info->{'CondVars'}{'List'} } ) {
 					next if $var eq '_OPEN_PAR_';					
 					if (exists  $info->{'CondVars'}{'Set'}{$var}{'IndexVars'} ) {								
-						$state->{'ExprVars'} ={%{$state->{'ExprVars'}},%{ $info->{'CondVars'}{'Set'}{$var}{'IndexVars'} } };
+#						$state->{'ExprVars'} ={%{$state->{'ExprVars'}},%{  } };
+						for my $var (keys %{ $info->{'CondVars'}{'Set'}{$var}{'IndexVars'} }) {
+ 							$state->{'ExprVars'}{$var}++;	
+						}
 					}				
 				}
 		}
@@ -1048,9 +1090,11 @@ sub _removed_unused_variables { (my $stref, my $f)=@_;
  	# So now we have removed all assignments. 
  	# Now we need to check which vars are declared but not used and remove those declarations. 
  	for my $var (keys %{ $state->{'DeclaredVars'} }) {
+ 		
  		if (not exists $state->{'ExprVars'}{$var} 
 # 		and not exists $state->{'Args'}{$var} 
  		and not exists $state->{'AssignedVars'}{$var}) {
+ 			
  			say "VAR $var is declared but unused in $f" if $DBG;
  			$state->{'UnusedDeclaredVars'}{$var}=1;
  		} 
@@ -1305,6 +1349,7 @@ sub _fix_scalar_ptr_args { (my $stref, my $f)=@_;
 			# We want to keep v and delete v_ptr
 			
 			my $var= $info->{'VarDecl'}{'Name'};
+			
 			if (exists $pass_state->{'ExPtrArgs'}{$var} ) {
 				$rlines=[["!$rline",{ %{$info},'Deleted'=>1 }]];	
 			} elsif ($var=~/_ptr$/) {
@@ -1434,4 +1479,62 @@ sub _fix_scalar_ptr_args_subcall { (my $stref, my $f)=@_;
 	return $stref;
       
 } # END of _fix_scalar_ptr_args_subcall
+
+
+# ============================================================================================================
+sub _make_dim_vars_scalar_consts_in_sigs { (my $stref, my $f)=@_;
+	
+	# TODO:  I must update the $stref->{Subroutines}{$f} records as well
+	my $pass_make_dim_vars_scalar_consts_in_sigs = sub { (my $annline, my $state)=@_;		
+		(my $line,my $info)=@{$annline};
+		(my $stref,my $f,my $pass_state)=@{$state};
+#		(my $stref,my $f)=@{$state};
+		my $rline=$line;
+		my $rlines=[$annline];
+		
+	if ( exists $info->{'VarDecl'} ) {
+			# So we have e.g. v and v_ptr
+			# We want to keep v and delete v_ptr
+			
+			my $var= $info->{'VarDecl'}{'Name'};
+			
+			# Get variables from DIMENSION attribute
+			if (exists $info->{'ParsedVarDecl'}{'Attributes'}{'Dim'}
+			and scalar @{ $info->{'ParsedVarDecl'}{'Attributes'}{'Dim'} } > 0
+			) {
+				my $dim_parse_str = '('.join(',',@{ $info->{'ParsedVarDecl'}{'Attributes'}{'Dim'} }).')';
+				my $dim_ast=parse_expression($dim_parse_str,$info, $stref,$f);
+				my $dim_vars=get_vars_from_expression($dim_ast,{}) ;
+				for my $dim_var (keys %{$dim_vars} ){
+					if (not exists $pass_state->{'DimVars'}{$dim_var}) {
+						$pass_state->{'DimVars'}{$dim_var}=1;
+						if (exists  $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$dim_var}) {
+#							carp "$f => $dim_var => ".Dumper($stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$dim_var}) ;
+							$stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$dim_var}{'ArrayOrScalar'}='Scalar';
+							$stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$dim_var}{'IODir'}='in';
+						}
+					}
+				}
+			}
+		
+		}
+
+
+		return ($rlines,[$stref,$f,$pass_state]);
+	};
+		
+	my $pass_state ={
+		'DimVars' => {}
+	};
+	my $state= [$stref,$f,$pass_state];
+	
+ 	($stref,$state) = stateful_pass($stref,$f,$pass_make_dim_vars_scalar_consts_in_sigs, $state,'pass_fix_scalar_ptr_args() ' . __LINE__  ) ;
+
+ 	
+	return $stref;
+} # END of _make_dim_vars_scalar_consts_in_sigs()
+ 
+
+# ============================================================================================================
+
 1;

@@ -41,10 +41,11 @@ use Exporter;
 #### #### #### #### BEGIN OF C TRANSLATION CODE #### #### #### ####
 
 sub translate_module_to_C {  (my $stref, my $ocl) = @_;
+	if (not defined $ocl) {$ocl=0;}
 	$stref->{'TranslatedCode'}=[];	
 	$stref = pass_wrapper_subs_in_module($stref,[[\&add_OpenCL_address_space_qualifiers],[\&translate_sub_to_C]],$ocl);
 	$stref = _write_headers($stref,$ocl);
-	$stref = _emit_C_code($stref);
+	$stref = _emit_C_code($stref, $ocl);
 }
 sub add_OpenCL_address_space_qualifiers { (my $stref, my $f, my $ocl) = @_;
 	
@@ -241,6 +242,8 @@ sub _write_headers { (my $stref, my $ocl)=@_;
 	
 	my @headers=(
 		($ocl ? '' : '#include <stdlib.h>'),
+		($ocl ? '' : '#include <math.h>'),
+		($ocl ? '' : 'inline unsigned int get_global_id(unsigned int n) { return 0; }'),
 		'#include "array_index_f2c1d.h"',
 		''
 		);
@@ -248,8 +251,14 @@ sub _write_headers { (my $stref, my $ocl)=@_;
 		return $stref;
 } # END of _write_headers()
 
-sub _emit_C_code { (my $stref)=@_;
- 	map {say $_ } @{$stref->{'TranslatedCode'}};
+sub _emit_C_code { (my $stref, my $ocl)=@_;
+ 	map {say $_ } @{$stref->{'TranslatedCode'}} if $V;
+ 	my $ext = $ocl ? 'cl' : 'c';
+ 	my $fsrc = $Config{'MODULE_SRC'};
+ 	my $csrc = $fsrc;$csrc=~s/\.\w+$//;
+ 	open my $OUT, '>', "$csrc.$ext";
+ 	map {say $OUT $_ } @{$stref->{'TranslatedCode'}};
+ 	close $OUT;
 	return $stref;
 } # END of _emit_C_code
 
@@ -386,7 +395,9 @@ sub _emit_expression_C {(my $ast, my $expr_str, my $stref, my $f)=@_;
 			if ($entry =~/#/) {
 				$skip=1;
 			} elsif ($entry eq '&') {
-				my $mvar = $ast->[$idx+1];				
+				my $mvar = $ast->[$idx+1];
+				# AD-HOC, replacing abs/min/max to fabs/fmin/fmax without any type checking ... FIXME!!!
+				$mvar=~s/^(abs|min|max)$/f$1/;				
 				$expr_str.=$mvar.'(';
 				
 				 $stref->{'CalledSub'}= $mvar;
