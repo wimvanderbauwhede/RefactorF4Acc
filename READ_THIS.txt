@@ -73,21 +73,20 @@ Features
   * Extracted subroutine and any routine in its call tree are 
     refactored so that there are no shared global variables
 
-* C translation
-
-  * We use Mark Govett's F2C_ACC for C translation
+* OpenCL/C translation
 
   * You simply annotate any subroutine or function to be 
     translated:
 
   !$ACC TRANSLATE C
 
+  * Or you provide the OpenCL/C translation as a pass to the compiler command line (-P translate_to_C/translate_to_OpenCL)	
+
 * Call graph generation
 
 
 
 How it works
-
 
 
 * Inventory of source code by following function/subroutine call 
@@ -103,12 +102,6 @@ How it works
   DO
 
 * IO direction analysis to determine INTENT
-
-
-
-<Graphics file: /Users/wim/Dropbox/OpenCL Course/Figs/Sun_and_planet_gears.png>
-
-
 
 
 
@@ -136,12 +129,6 @@ Status
 
 
 
-<Graphics file: /Users/wim/Dropbox/OpenCL Course/Figs/conccol_I-131_20110406T150000.gif>
-
-
-
-
-
 Practicalities
 
 
@@ -161,12 +148,6 @@ git://github.com/wimvanderbauwhede/flx_wrf2.git
 
 
 
-<Graphics file: /Users/wim/Dropbox/OpenCL Course/Figs/lrg.jpg>
-
-
-
-
-
 Further work
 
 
@@ -176,12 +157,4 @@ Further work
 * Full integration with C translation
 
 * Automatic OpenMP or OpenACC annotations
-
-
-
-<Graphics file: /Users/wim/Dropbox/OpenCL Course/Figs/Octocat.png>
-
-
-
-
 

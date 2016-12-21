@@ -1,3 +1,5 @@
+The source code for RefactorF4ACC is written in Perl and requires v5.16. There are no dependencies and no compilation is required. 
+
 To install RefactorF4ACC:
 
 - Put the script refactorF4ACC.pl in your path
@@ -7,6 +9,7 @@ To install RefactorF4ACC:
 For example, I have /home/wim/bin in my PATH, so I put refactorF4ACC.pl there; and I have PERL5LIB="/home/wim/perl5/lib/perl5" so I put the RefactorF4ACC folder
 there.
 
-The directory 'warnings' contains a sub for the 'use warnings qw(unused)' pragma. If you have the proper 'warnings::unused' installed
+The directory 'warnings' contains a stub for the 'use warnings qw(unused)' pragma. If you have the proper 'warnings::unused' installed
 (http://search.cpan.org/dist/warnings-unused/) you can delete this folder.
 
+The code will actually work with Perl v5.10 and later, if you don't have v5.16 you can search and replace the version. To make it work with older Perl (e.g. v5.8) you will have to replace all occurences of `say` with `print` and add a newline.
