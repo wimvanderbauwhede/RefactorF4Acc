@@ -1,0 +1,5 @@
+- It is assumed that the tests are in a subfolder of the source code.
+- To run test_<name>:
+
+    $ ./test.hs <name>
+

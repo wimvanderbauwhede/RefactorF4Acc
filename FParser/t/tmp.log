@@ -1,0 +1,251 @@
+Glasgow Haskell Compiler, Version 7.8.3, stage 2 booted by GHC version 7.6.3
+Using binary package database: /Library/Frameworks/GHC.framework/Versions/7.8.3-x86_64/usr/lib/ghc-7.8.3/package.conf.d/package.cache
+Using binary package database: /Users/wim/.ghc/x86_64-darwin-7.8.3/package.conf.d/package.cache
+hiding package Cabal-1.18.1.4 to avoid conflict with later version Cabal-1.20.0.2
+wired-in package ghc-prim mapped to ghc-prim-0.3.1.0-954cb57749cf319beafdc89b3415422c
+wired-in package integer-gmp mapped to integer-gmp-0.5.1.0-d42e6a7874a019e6a0d1c7305ebc83c4
+wired-in package base mapped to base-4.7.0.1-df210ede1eb79477fef5662549c32927
+wired-in package rts mapped to builtin_rts
+wired-in package template-haskell mapped to template-haskell-2.9.0.0-1b116efce4b8d0d027f75248473a95bb
+wired-in package dph-seq not found.
+wired-in package dph-par not found.
+Hsc static flags: 
+hiding package Cabal-1.18.1.4 to avoid conflict with later version Cabal-1.20.0.2
+wired-in package ghc-prim mapped to ghc-prim-0.3.1.0-954cb57749cf319beafdc89b3415422c
+wired-in package integer-gmp mapped to integer-gmp-0.5.1.0-d42e6a7874a019e6a0d1c7305ebc83c4
+wired-in package base mapped to base-4.7.0.1-df210ede1eb79477fef5662549c32927
+wired-in package rts mapped to builtin_rts
+wired-in package template-haskell mapped to template-haskell-2.9.0.0-1b116efce4b8d0d027f75248473a95bb
+wired-in package dph-seq not found.
+wired-in package dph-par not found.
+*** Chasing dependencies:
+Chasing modules from: *test_OpenCLAPIGenerator.hs
+Stable obj: [OpenCLAPIGenerator, F95Types, RunTestWV,
+             NormaliseF95Code, F95SubDecl, F95ParDecl, F95VarDecl]
+Stable BCO: []
+Ready for upsweep
+  [NONREC
+      ModSummary {
+         ms_hs_date = 2014-11-11 12:01:56 UTC
+         ms_mod = main:F95VarDecl,
+         ms_textual_imps = [import (implicit) Prelude]
+         ms_srcimps = []
+      },
+   NONREC
+      ModSummary {
+         ms_hs_date = 2013-09-30 11:22:48 UTC
+         ms_mod = main:F95ParDecl,
+         ms_textual_imps = [import (implicit) Prelude, import F95VarDecl]
+         ms_srcimps = []
+      },
+   NONREC
+      ModSummary {
+         ms_hs_date = 2013-11-13 22:32:42 UTC
+         ms_mod = main:F95SubDecl,
+         ms_textual_imps = [import (implicit) Prelude, import F95ParDecl,
+                            import F95VarDecl]
+         ms_srcimps = []
+      },
+   NONREC
+      ModSummary {
+         ms_hs_date = 2013-12-04 11:59:35 UTC
+         ms_mod = main:NormaliseF95Code,
+         ms_textual_imps = [import (implicit) Prelude, import Data.Char]
+         ms_srcimps = []
+      },
+   NONREC
+      ModSummary {
+         ms_hs_date = 2013-12-04 12:34:44 UTC
+         ms_mod = main:RunTestWV,
+         ms_textual_imps = [import (implicit) Prelude,
+                            import System.IO ( Handle, stderr, stdout, hPutStr, hPutStrLn ),
+                            import Test.HUnit]
+         ms_srcimps = []
+      },
+   NONREC
+      ModSummary {
+         ms_hs_date = 2013-10-14 11:35:49 UTC
+         ms_mod = main:F95Types,
+         ms_textual_imps = [import (implicit) Prelude, import Data.Map,
+                            import F95ParDecl, import F95VarDecl, import F95SubDecl]
+         ms_srcimps = []
+      },
+   NONREC
+      ModSummary {
+         ms_hs_date = 2014-11-19 16:37:16 UTC
+         ms_mod = main:OpenCLAPIGenerator,
+         ms_textual_imps = [import (implicit) Prelude,
+                            import System.IO.Unsafe ( unsafePerformIO ), import System.Process,
+                            import qualified Data.Map as H ( lookup ),
+                            import Data.List ( intercalate ), import Data.Char,
+                            import Text.Regex.TDFA, import F95Types]
+         ms_srcimps = []
+      },
+   NONREC
+      ModSummary {
+         ms_hs_date = 2014-11-19 16:49:53 UTC
+         ms_mod = main:Main,
+         ms_textual_imps = [import (implicit) Prelude,
+                            import Data.Char ( toLower ), import qualified Data.Map as H,
+                            import NormaliseF95Code
+                                ( normalise_F95_code, normalise_F95_code_lines ),
+                            import System.IO ( Handle, stderr, stdout, hPutStr, hPutStrLn ),
+                            import RunTestWV, import Test.HUnit, import F95Types,
+                            import OpenCLAPIGenerator]
+         ms_srcimps = []
+      }]
+compile: input file ../F95VarDecl.hs
+Created temporary directory: tmp/ghc59990_0
+*** Checking old interface for main:F95VarDecl:
+[1 of 8] Skipping  F95VarDecl       ( ../F95VarDecl.hs, ../F95VarDecl.o )
+compile: input file ../F95ParDecl.hs
+*** Checking old interface for main:F95ParDecl:
+[2 of 8] Skipping  F95ParDecl       ( ../F95ParDecl.hs, ../F95ParDecl.o )
+compile: input file ../F95SubDecl.hs
+*** Checking old interface for main:F95SubDecl:
+[3 of 8] Skipping  F95SubDecl       ( ../F95SubDecl.hs, ../F95SubDecl.o )
+compile: input file ./NormaliseF95Code.hs
+*** Checking old interface for main:NormaliseF95Code:
+[4 of 8] Skipping  NormaliseF95Code ( NormaliseF95Code.hs, NormaliseF95Code.o )
+compile: input file ./RunTestWV.hs
+*** Checking old interface for main:RunTestWV:
+[5 of 8] Skipping  RunTestWV        ( RunTestWV.hs, RunTestWV.o )
+compile: input file ../F95Types.hs
+*** Checking old interface for main:F95Types:
+[6 of 8] Skipping  F95Types         ( ../F95Types.hs, ../F95Types.o )
+compile: input file ../OpenCLAPIGenerator.hs
+*** Checking old interface for main:OpenCLAPIGenerator:
+[7 of 8] Skipping  OpenCLAPIGenerator ( ../OpenCLAPIGenerator.hs, ../OpenCLAPIGenerator.o )
+compile: input file test_OpenCLAPIGenerator.hs
+*** Checking old interface for main:Main:
+[8 of 8] Compiling Main             ( test_OpenCLAPIGenerator.hs, test_OpenCLAPIGenerator.o )
+*** Parser:
+*** Renamer/typechecker:
+*** Desugar:
+Result size of Desugar (after optimization)
+  = {terms: 650, types: 408, coercions: 0}
+*** Simplifier:
+Result size of Simplifier iteration=1
+  = {terms: 658, types: 416, coercions: 0}
+Result size of Simplifier = {terms: 658, types: 416, coercions: 0}
+*** Tidy Core:
+Result size of Tidy Core = {terms: 658, types: 416, coercions: 0}
+writeBinIface: 1 Names
+writeBinIface: 66 dict entries
+*** CorePrep:
+Result size of CorePrep = {terms: 1,290, types: 990, coercions: 0}
+*** Stg2Stg:
+*** CodeOutput:
+*** New CodeGen:
+*** CPSZ:
+*** CPSZ:
+*** CPSZ:
+*** CPSZ:
+*** CPSZ:
+*** CPSZ:
+*** CPSZ:
+*** CPSZ:
+*** CPSZ:
+*** CPSZ:
+*** CPSZ:
+*** CPSZ:
+*** CPSZ:
+*** CPSZ:
+*** CPSZ:
+*** CPSZ:
+*** CPSZ:
+*** CPSZ:
+*** CPSZ:
+*** CPSZ:
+*** CPSZ:
+*** CPSZ:
+*** CPSZ:
+*** CPSZ:
+*** CPSZ:
+*** CPSZ:
+*** CPSZ:
+*** CPSZ:
+*** CPSZ:
+*** CPSZ:
+*** CPSZ:
+*** CPSZ:
+*** CPSZ:
+*** CPSZ:
+*** CPSZ:
+*** CPSZ:
+*** CPSZ:
+*** CPSZ:
+*** CPSZ:
+*** CPSZ:
+*** CPSZ:
+*** CPSZ:
+*** CPSZ:
+*** CPSZ:
+*** CPSZ:
+*** CPSZ:
+*** CPSZ:
+*** CPSZ:
+*** CPSZ:
+*** CPSZ:
+*** CPSZ:
+*** CPSZ:
+*** CPSZ:
+*** CPSZ:
+*** CPSZ:
+*** CPSZ:
+*** CPSZ:
+*** CPSZ:
+*** CPSZ:
+*** CPSZ:
+*** CPSZ:
+*** CPSZ:
+*** CPSZ:
+*** CPSZ:
+*** CPSZ:
+*** CPSZ:
+*** CPSZ:
+*** CPSZ:
+*** CPSZ:
+*** CPSZ:
+*** CPSZ:
+*** CPSZ:
+*** CPSZ:
+*** CPSZ:
+*** CPSZ:
+*** CPSZ:
+*** CPSZ:
+*** CPSZ:
+*** CPSZ:
+*** CPSZ:
+*** CPSZ:
+*** CPSZ:
+*** CPSZ:
+*** CPSZ:
+*** CPSZ:
+*** CPSZ:
+*** Assembler:
+/usr/bin/gcc -m64 -fno-stack-protector -DTABLES_NEXT_TO_CODE -I. -Qunused-arguments -x assembler -c tmp/ghc59990_0/ghc59990_9.s -o test_OpenCLAPIGenerator.o
+Upsweep completely successful.
+link: linkables are ...
+LinkableM (2014-11-20 13:09:37 UTC) main:OpenCLAPIGenerator
+   [DotO ../OpenCLAPIGenerator.o]
+LinkableM (2014-11-19 17:04:05 UTC) main:F95Types
+   [DotO ../F95Types.o]
+LinkableM (2014-11-20 15:15:18 UTC) main:RunTestWV
+   [DotO ./RunTestWV.o]
+LinkableM (2014-11-20 15:15:19 UTC) main:NormaliseF95Code
+   [DotO ./NormaliseF95Code.o]
+LinkableM (2014-11-20 15:15:21 UTC) main:Main
+   [DotO test_OpenCLAPIGenerator.o]
+LinkableM (2014-11-19 17:04:02 UTC) main:F95VarDecl
+   [DotO ../F95VarDecl.o]
+LinkableM (2014-11-19 17:04:03 UTC) main:F95ParDecl
+   [DotO ../F95ParDecl.o]
+LinkableM (2014-11-19 17:04:05 UTC) main:F95SubDecl
+   [DotO ../F95SubDecl.o]
+Linking test_OpenCLAPIGenerator ...
+*** C Compiler:
+/usr/bin/gcc -m64 -fno-stack-protector -DTABLES_NEXT_TO_CODE -c tmp/ghc59990_0/ghc59990_11.c -o tmp/ghc59990_0/ghc59990_12.o -I/Library/Frameworks/GHC.framework/Versions/7.8.3-x86_64/usr/lib/ghc-7.8.3/include
+*** Linker:
+/usr/bin/gcc -m64 -fno-stack-protector -DTABLES_NEXT_TO_CODE -m64 -o test_OpenCLAPIGenerator -Wl,-no_compact_unwind ../OpenCLAPIGenerator.o ../F95Types.o ./RunTestWV.o ./NormaliseF95Code.o test_OpenCLAPIGenerator.o ../F95VarDecl.o ../F95ParDecl.o ../F95SubDecl.o -L/Library/Haskell/ghc-7.8.3-x86_64/lib/HUnit-1.2.5.2 -L/Users/wim/.cabal/lib/x86_64-osx-ghc-7.8.3/regex-tdfa-1.2.0 -L/Library/Haskell/ghc-7.8.3-x86_64/lib/regex-base-0.93.2 -L/Library/Frameworks/GHC.framework/Versions/7.8.3-x86_64/usr/lib/ghc-7.8.3/process-1.2.0.0 -L/Library/Frameworks/GHC.framework/Versions/7.8.3-x86_64/usr/lib/ghc-7.8.3/directory-1.2.1.0 -L/Library/Frameworks/GHC.framework/Versions/7.8.3-x86_64/usr/lib/ghc-7.8.3/unix-2.7.0.1 -L/Library/Frameworks/GHC.framework/Versions/7.8.3-x86_64/usr/lib/ghc-7.8.3/time-1.4.2 -L/Library/Frameworks/GHC.framework/Versions/7.8.3-x86_64/usr/lib/ghc-7.8.3/old-locale-1.0.0.6 -L/Library/Frameworks/GHC.framework/Versions/7.8.3-x86_64/usr/lib/ghc-7.8.3/filepath-1.3.0.2 -L/Library/Haskell/ghc-7.8.3-x86_64/lib/parsec-3.1.5 -L/Library/Haskell/ghc-7.8.3-x86_64/lib/text-1.1.0.0 -L/Library/Haskell/ghc-7.8.3-x86_64/lib/mtl-2.1.3.1 -L/Library/Frameworks/GHC.framework/Versions/7.8.3-x86_64/usr/lib/ghc-7.8.3/transformers-0.3.0.0 -L/Library/Frameworks/GHC.framework/Versions/7.8.3-x86_64/usr/lib/ghc-7.8.3/containers-0.5.5.1 -L/Library/Frameworks/GHC.framework/Versions/7.8.3-x86_64/usr/lib/ghc-7.8.3/bytestring-0.10.4.0 -L/Library/Frameworks/GHC.framework/Versions/7.8.3-x86_64/usr/lib/ghc-7.8.3/deepseq-1.3.0.2 -L/Library/Frameworks/GHC.framework/Versions/7.8.3-x86_64/usr/lib/ghc-7.8.3/array-0.5.0.0 -L/Library/Frameworks/GHC.framework/Versions/7.8.3-x86_64/usr/lib/ghc-7.8.3/base-4.7.0.1 -L/Library/Frameworks/GHC.framework/Versions/7.8.3-x86_64/usr/lib/ghc-7.8.3/integer-gmp-0.5.1.0 -L/Library/Frameworks/GHC.framework/Versions/7.8.3-x86_64/usr/lib/ghc-7.8.3/ghc-prim-0.3.1.0 -L/Library/Frameworks/GHC.framework/Versions/7.8.3-x86_64/usr/lib/ghc-7.8.3/rts-1.0 tmp/ghc59990_0/ghc59990_12.o -Wl,-u,_ghczmprim_GHCziTypes_Izh_static_info -Wl,-u,_ghczmprim_GHCziTypes_Czh_static_info -Wl,-u,_ghczmprim_GHCziTypes_Fzh_static_info -Wl,-u,_ghczmprim_GHCziTypes_Dzh_static_info -Wl,-u,_base_GHCziPtr_Ptr_static_info -Wl,-u,_ghczmprim_GHCziTypes_Wzh_static_info -Wl,-u,_base_GHCziInt_I8zh_static_info -Wl,-u,_base_GHCziInt_I16zh_static_info -Wl,-u,_base_GHCziInt_I32zh_static_info -Wl,-u,_base_GHCziInt_I64zh_static_info -Wl,-u,_base_GHCziWord_W8zh_static_info -Wl,-u,_base_GHCziWord_W16zh_static_info -Wl,-u,_base_GHCziWord_W32zh_static_info -Wl,-u,_base_GHCziWord_W64zh_static_info -Wl,-u,_base_GHCziStable_StablePtr_static_info -Wl,-u,_ghczmprim_GHCziTypes_Izh_con_info -Wl,-u,_ghczmprim_GHCziTypes_Czh_con_info -Wl,-u,_ghczmprim_GHCziTypes_Fzh_con_info -Wl,-u,_ghczmprim_GHCziTypes_Dzh_con_info -Wl,-u,_base_GHCziPtr_Ptr_con_info -Wl,-u,_base_GHCziPtr_FunPtr_con_info -Wl,-u,_base_GHCziStable_StablePtr_con_info -Wl,-u,_ghczmprim_GHCziTypes_False_closure -Wl,-u,_ghczmprim_GHCziTypes_True_closure -Wl,-u,_base_GHCziPack_unpackCString_closure -Wl,-u,_base_GHCziIOziException_stackOverflow_closure -Wl,-u,_base_GHCziIOziException_heapOverflow_closure -Wl,-u,_base_ControlziExceptionziBase_nonTermination_closure -Wl,-u,_base_GHCziIOziException_blockedIndefinitelyOnMVar_closure -Wl,-u,_base_GHCziIOziException_blockedIndefinitelyOnSTM_closure -Wl,-u,_base_ControlziExceptionziBase_nestedAtomically_closure -Wl,-u,_base_GHCziWeak_runFinalizzerBatch_closure -Wl,-u,_base_GHCziTopHandler_flushStdHandles_closure -Wl,-u,_base_GHCziTopHandler_runIO_closure -Wl,-u,_base_GHCziTopHandler_runNonIO_closure -Wl,-u,_base_GHCziConcziIO_ensureIOManagerIsRunning_closure -Wl,-u,_base_GHCziConcziIO_ioManagerCapabilitiesChanged_closure -Wl,-u,_base_GHCziConcziSync_runSparks_closure -Wl,-u,_base_GHCziConcziSignal_runHandlers_closure -Wl,-search_paths_first -lHSHUnit-1.2.5.2 -lHSregex-tdfa-1.2.0 -lHSregex-base-0.93.2 -lHSprocess-1.2.0.0 -lHSdirectory-1.2.1.0 -lHSunix-2.7.0.1 -lHStime-1.4.2 -lHSold-locale-1.0.0.6 -lHSfilepath-1.3.0.2 -lHSparsec-3.1.5 -lHStext-1.1.0.0 -lHSmtl-2.1.3.1 -lHStransformers-0.3.0.0 -lHScontainers-0.5.5.1 -lHSbytestring-0.10.4.0 -lHSdeepseq-1.3.0.2 -lHSarray-0.5.0.0 -lHSbase-4.7.0.1 -lHSinteger-gmp-0.5.1.0 -lHSghc-prim-0.3.1.0 -lHSrts -lCffi -ldl -liconv -lm -ldl
+link: done

@@ -1,0 +1,50 @@
+
+#include <stdio.h>      /* printf, scanf, NULL */
+#include <stdlib.h>
+#include "ProcessStrCWrapper.h"
+
+
+char* f2(char* x1) {
+    printf("BEFORE hs_init()\n");
+    hs_ProcessStr_init();
+    printf("BEFORE FFI CALL\n");
+    char* res = f2_ffi_c(x1);
+    printf("BEFORE hs_end()\n");
+    hs_ProcessStr_end();
+    printf("AFTER hs_end()\n");
+    char* nres = res;
+    return nres;
+}
+        int main(int argc, char* argv[]) {
+            char* str = (char*)malloc(80);
+            str="Hello, world!\n";
+            hs_ProcessStr_init();
+            char* retstr=f2(str);
+            hs_ProcessStr_end();
+            printf("%s",retstr);
+//            free (str);
+            char* str1 = (char*)malloc(15);
+            str1="Hello, world!\n";
+            hs_ProcessStr_init();
+            char* retstr2=f2(str1);
+            hs_ProcessStr_end();
+            printf("%s",retstr2);
+            free (str1);
+            return 1;
+        }
+    
+
+gcc -c test_src.c
+ghc -v -keep-tmp-files -tmpdir=./tmp  -no-hs-main test_src.o -L. -lProcessStrHsC -o testl
+./testl 
+
+So, it turns out there are two problems: 
+1/ Haskell seems to de-allocate any strings passed to it!
+2/ Calling hs_end between repeated calls to a Haskell function gives a strange error:
+
+<unk: error: a C finalizer called back into Haskell.
+   This was previously allowed, but is disallowed in GHC 6.10.2 and later.
+      To create finalizers that may call back into Haskell, use
+         Foreign.Concurrent.newForeignPtr instead of Foreign.newForeignPtr.
+
+         
