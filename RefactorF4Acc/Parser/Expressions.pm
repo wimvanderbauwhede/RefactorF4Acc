@@ -17,7 +17,7 @@ use Carp;
 use Data::Dumper;
 $Data::Dumper::Indent = 1;
 
-use Math::Expression::Evaluator::Parser; 
+use Fortran::Expression::Evaluator::Parser; 
 use RefactorF4Acc::Utils qw( %F95_reserved_words %F95_intrinsics %F95_other_intrinsics %F95_intrinsic_functions );
 use Exporter;
 
@@ -32,35 +32,6 @@ use Exporter;
 );
 
 my $DBG=0;
-=pod
-[wim@workai RefactorF4Acc]$ perl -e 'use Data::Dumper;use Math::Expression::Evaluator::Parser; print Dumper(Math::Expression::Evaluator::Parser::parse("f(a,12.3,b(2,2.3e-4+v))",{}))'
-$VAR1 = [
-          '&',
-          'f',
-          [
-            '$',
-            'a'
-          ],
-          '12.3',
-          [
-            '&',
-            'b',
-            '2',
-            [
-              '+',
-              '2.3e-4',
-              [
-                '$',
-                'v'
-              ]
-            ]
-          ]
-        ];
-=cut         
-
-# '_dummy_(write(__PH1__,_CONCAT_PRE_,path(numpath+2*_OPEN_PAR_(...', 'HASH(0x7fb906282f70)') called at /Users/wim/Git/RefactorF4Acc/RefactorF4Acc/Parser/Expressions.pm line 144
-# 'write(__PH1__//path(numpath+2*(k-1)+2)(1:len(numpath+2*(k-1)+2))
-#write(*,'(a)') '     '//path(numpath+2*(k-1)+2)(1:len(numpath+2*(k-1)+2))
 
 my %F95_ops =(
 	'==' => '.eq.',  
@@ -87,11 +58,11 @@ sub parse_expression { (my $exp, my $info, my $stref, my $f)=@_;
 	 $preproc_expr =~s/,\s*\*/,_LABEL_ARG_\*/g;
 	 $preproc_expr =~s/\(\s*\*/\(_LABEL_ARG_\*/;
 
-	# EVIL HACK because the Math::Expression::Evaluator::Parser does not support things like a ** b ** c
+	# EVIL HACK because the Fortran::Expression::Evaluator::Parser does not support things like a ** b ** c
 	while ($preproc_expr =~/\*\*\s*(\w+)\s*\*\*\s*(\w+)/) {
 		$preproc_expr =~s/\*\*\s*(\w+)\s*\*\*\s*(\w+)/**($1 * $2)/;
 	}
-	# EVIL HACK because the Math::Expression::Evaluator::Parser does not support <=, ==, =>, /=
+	# EVIL HACK because the Fortran::Expression::Evaluator::Parser does not support <=, ==, =>, /=
 	$preproc_expr =~s/\<\=/.le./g;
 	$preproc_expr =~s/\>\=/.ge./g;
 	$preproc_expr =~s/\=\=/.eq./g;
@@ -167,7 +138,7 @@ sub parse_expression { (my $exp, my $info, my $stref, my $f)=@_;
 	}
 
 #	say "WRAPPED EXPR $f: $wrapped_expr" ; 
-    my $ast = Math::Expression::Evaluator::Parser::parse($wrapped_expr, {});
+    my $ast = Fortran::Expression::Evaluator::Parser::parse($wrapped_expr, {});
 
 	if ($wrap) {
 	    $ast->[0]='&';

@@ -10,8 +10,8 @@ use RefactorF4Acc::CTranslation qw( add_to_C_build_sources );    # OBSOLETE
 use RefactorF4Acc::Analysis::LoopDetect qw( outer_loop_start_detect );
 use RefactorF4Acc::Analysis::ArgumentIODirs qw(  &conditional_assignment_fsm );
 
-use F95VarDeclParser qw( parse_F95_var_decl );
-use FortranConstructParser qw(
+use Fortran::F95VarDeclParser qw( parse_F95_var_decl );
+use Fortran::ConstructParser qw(
   parse_Fortran_open_call
 );  
 #  parse_Fortran_do_construct
