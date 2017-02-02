@@ -81,7 +81,13 @@ sub sub_func_incl_mod {
     die join(' ; ', caller ) if $stref!~/0x/;
     croak if not defined $f;        
     if ( exists $stref->{'Subroutines'}{$f} ) {
-        return 'Subroutines';
+        if (not  exists $stref->{'Modules'}{$f} ) {
+            return 'Subroutines';
+        } elsif (exists $stref->{'Subroutines'}{$f}{'Source'}) {
+                return 'Subroutines';
+        } elsif (exists $stref->{'Modules'}{$f}{'Source'}) {
+            return 'Modules';
+        }
 #    } elsif ( exists $stref->{'Functions'}{$f} ) {
 #        return 'Functions';
     } elsif ( exists $stref->{'IncludeFiles'}{$f} ) {

@@ -50,7 +50,7 @@ sub refactor_all_subroutines {
                         
         my $Sf = $stref->{'Subroutines'}{$f};
         
-        next if $Sf->{'Entry'} == 1;                
+        next if (exists $Sf->{'Entry'} && $Sf->{'Entry'} == 1);                
         if ( not defined $Sf->{'Status'} ) {
             $Sf->{'Status'} = $UNREAD;
             print "WARNING: no Status for $f\n" if $W;            

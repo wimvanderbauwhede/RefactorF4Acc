@@ -32,14 +32,20 @@ use Exporter;
 
 sub analyse_all {
 
-	( my $stref, my $subname, my $stage ) = @_;
-	if (not defined $stage) {$stage=0}
-	my $annlines =	_add_BLOCK_DATA_call_after_last_VarDecl($subname,$stref);
+	( my $stref, my $code_unit_name, my $stage ) = @_;
+	my $sub_or_func_or_mod = sub_func_incl_mod( $code_unit_name, $stref );
 	
-#	# Find the 'root', i.e. the outermost calling subroutine, for each include file
-
+		
+	
+	if (not defined $stage) {$stage=0}
+	
+	my $annlines =	_add_BLOCK_DATA_call_after_last_VarDecl($code_unit_name,$stref);
+	
+	if ($sub_or_func_or_mod eq 'Subroutines') {
+	# Find the 'root', i.e. the outermost calling subroutine, for each include file
 	print "\t** FIND ROOT FOR INCLUDES **\n" if $V;
-	$stref = find_root_for_includes( $stref, $subname );
+	$stref = find_root_for_includes( $stref, $code_unit_name );
+	}
 	return $stref if $stage == 1;
 
 	# Insert BLOCK DATA calls in the main program
@@ -50,8 +56,9 @@ sub analyse_all {
 
 	# In this stage, 'ExGlobArgs' is populated from CommonVars by looking at the common blocks that occur in the call chain
 	# Note that this does not cover common blocks in includes so hopefully ExGlobArgs will not be affected for the case with includes.
-	_determine_exglobargs_rec($subname, $stref);
-
+	if ($sub_or_func_or_mod eq 'Subroutines') {
+	_determine_exglobargs_rec($code_unit_name, $stref);
+	}
 	# First find any additional argument declarations, either in includes or via implicits
 	for my $f ( keys %{ $stref->{'Subroutines'} } ) {
 		next if $f eq '';
@@ -64,6 +71,7 @@ sub analyse_all {
 		# ExImplicitArgs, ExInclArgs
 		$stref = _find_argument_declarations( $stref, $f );
 	}
+	
 	return $stref if $stage == 2;
 
 #	for my $f ( keys %{ $stref->{'Subroutines'} } ) {
@@ -93,16 +101,16 @@ sub analyse_all {
 		}
 		
 		$stref = _resolve_conflicts_with_params( $stref, $f );
-
 	}
 	return $stref if $stage == 4;
 	
 	# The next three routines work on ExGlobArgs and RenamedInheritedExGLobs
-	$stref = identify_inherited_exglobs_to_rename( $stref, $subname );
+	if ($sub_or_func_or_mod eq 'Subroutines') {
+	$stref = identify_inherited_exglobs_to_rename( $stref, $code_unit_name );
 	# Although this seems duplication, it is actually required!	
-	$stref = lift_globals( $stref, $subname );	
-	$stref = rename_inherited_exglobs( $stref, $subname );
-	
+	$stref = lift_globals( $stref, $code_unit_name );	
+	$stref = rename_inherited_exglobs( $stref, $code_unit_name );
+	}
 	return $stref if $stage == 5;
 
 	for my $f ( keys %{ $stref->{'Subroutines'} } ) {
@@ -526,6 +534,8 @@ sub _create_refactored_args {
 	( my $stref, my $f ) = @_;
 	my $Sf = $stref->{'Subroutines'}{$f};
 #	say "$f ".Dumper $Sf->{'Source'};
+#    say Dumper($stref);	    
+    return $stref unless defined $Sf->{'Source'};
 #	say 'ExGlobArgs'.Dumper $Sf->{'ExGlobArgs'}{'List'};
 #	say 'OrigArgs'.Dumper $Sf->{'OrigArgs'};
 #	say 'DeclaredOrigArgs'.Dumper $Sf->{'DeclaredOrigArgs'}{'Set'};

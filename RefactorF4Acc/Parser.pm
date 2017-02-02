@@ -197,7 +197,8 @@ sub refactor_marked_blocks_into_subroutines {
 # Here I initialise tables for Variables and Declarations and a few other Subroutine-specific data structures
 sub _initialise_decl_var_tables {
 	( my $Sf, my $f, my $is_incl, my $is_mod ) = @_;
-	say "_initialise_decl_var_tables for subroutine $f" if $V;
+	my $code_unit = $is_incl ? 'include' : $is_mod ? 'module' : 'subroutine';
+	say "_initialise_decl_var_tables for $code_unit $f" if $V;	
 	
 	if ( not exists $Sf->{'ReferencedLabels'}) {
 		$Sf->{'ReferencedLabels'}={};
@@ -217,7 +218,7 @@ sub _initialise_decl_var_tables {
 	}
 # WV20151021 what we need here is a check that this function has not been called before for this $Sf
 	if ( not exists $Sf->{'DoneInitTables'} ) {
-		say "_initialise_decl_var_tables : INIT TABLES for subroutine $f" if $V;
+		say "_initialise_decl_var_tables : INIT TABLES for $code_unit $f" if $V;
 
 		$Sf->{'HasCommons'} = 0;
 
@@ -3240,6 +3241,7 @@ sub __parse_f95_decl {
 
 	my $pt = parse_F95_var_decl($line);
 #croak $line  if $line=~/etan/;	
+
 	# But this could be a parameter declaration, with an assignment ...
 	if ( $line =~ /,\s*parameter\s*.*?::\s*(\w+\s*=\s*.+?)\s*$/ ) {    
 		# F95-style parameters
@@ -3292,7 +3294,7 @@ sub __parse_f95_decl {
 				'Names'  => $pt->{'Vars'},
 				'Status' => 0
 			};
-			
+			my $idx=0;
 			for my $tvar ( @{ $pt->{'Vars'} } ) { # corresponds to @{$pvars_lst} in F77
 										
 				my $decl = {};
@@ -3300,6 +3302,7 @@ sub __parse_f95_decl {
 				$decl->{'Type'}          = $pt->{'TypeTup'}{'Type'};
 				$decl->{'ArrayOrScalar'} = 'Scalar';
 				$decl->{'Dim'}           = [];
+				
 				my $type =$decl->{'Type'}; 
 				if ( exists $pt->{'Attributes'} ) {
 					if ( exists $pt->{'Attributes'}{'Dim'} ) {
@@ -3316,8 +3319,12 @@ sub __parse_f95_decl {
 							$decl->{'ArrayOrScalar'} = 'Array';
 						}
 					}
-					if ( $pt->{'Attributes'}{'Allocatable'}) {
+					if ( exists $pt->{'Attributes'}{'Allocatable'}) {
 						$decl->{'Allocatable'}='allocatable';
+						my $alloc_dim = $pt->{'Attributes'}{'Dim'}[$idx];
+						my @dims = map { ['',''] } @{$alloc_dim};
+						$decl->{'Dim'}           = \@dims;
+						
 					}
 				}
 				if ( $type =~ /character/ ) {
@@ -3348,7 +3355,7 @@ sub __parse_f95_decl {
 					) {
 						$decl->{'Attr'}=$orig_decl->{'Attr'};
 				}  		  		
-							
+							 
 				# It is possible that at this point the variable had not been declared yet and we use implicit rules
 				# Then we change it to declared.
 				if ( exists $Sf->{'UndeclaredOrigArgs'}{'Set'}{$tvar} ) {								
@@ -3404,12 +3411,13 @@ sub __parse_f95_decl {
 #							carp "LINE $line: $tvar in subset $subset of Vars";
 							$Sf->{$subset}{'Set'}{$tvar} = $decl;
 						} else {
-							say "INFO: $line: $tvar does not have a record in Vars" if $I;
+							say "INFO: <$line>: $tvar does not have a record in Vars" if $I;
 							$Sf->{'DeclaredOrigLocalVars'}{'Set'}{$tvar}=$decl;
 							push @{$Sf->{'DeclaredOrigLocalVars'}{'List'}}, $tvar;
 						}
 					}					
 				}
+				$idx++;
 			}
 		}
 	}

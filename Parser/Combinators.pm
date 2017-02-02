@@ -1049,7 +1049,7 @@ sub getParseTree {
 #	say "AFTER get_tree_as_lists:".Dumper($tal);
 
 	my $map = l2m( $tal, {} );
-#say "AFTER l2m:".Dumper($map);
+#   say "AFTER l2m:".Dumper($map);
 
 	return $map;
 }

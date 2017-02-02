@@ -26,7 +26,8 @@ sub parse_F95_var_decl {
 	print $str,"\n" if $VV;
 	my $p =f95_var_decl_parser();
 	(my $st, my $rest, my $matches) =$p->($str);
-    print 'REST:'. Dumper($rest),"\n"  if $VV;
+    print "\n" if $VV;
+    print 'REST:'. "\n".Dumper($rest),"\n"  if $VV;
 
 	print 'MATCHES:'.Dumper($matches),"\n"  if $VV;
 #    die unless @{$matches};
@@ -76,7 +77,15 @@ sub parse_F95_var_decl {
 	if (not exists $pt->{AccPragma}) {
 		$pt->{AccPragma} = {AccKeyword => 'ArgMode', AccVal => 'ReadWrite'}
 	}
-    print Dumper($pt),"\n" if $VV;
+if (exists  $pt->{VarsDims} && @{  $pt->{VarsDims}{'Dim'} } > 0 ) {
+
+    my @dims = map { [  map { ':' } @{ $_->{'Sep'} }] } @{$pt->{VarsDims}{Dim}};
+    $pt->{Attributes}{Dim}=\@dims;
+    $pt->{'Vars'}= $pt->{VarsDims}{Var};
+    delete  $pt->{VarsDims} ;
+}
+
+    print "<<<".Dumper($pt),">>>\n" if $VV;
 
 	return $pt;
 }
@@ -126,14 +135,16 @@ sub attribute_parser {
 sub type_parser {	
 		sequence [
         {'Type' =>	sequence( [{'Main' => word},maybe( {'Opt'=>word} ) ])  },
-        maybe parens choice(
+        choice( sequence([symbol('*'),{ 'Kind' => natural }]),
+        maybe( parens( choice(
                 {'Kind' => natural},
 						sequence [
 							choice( symbol('kind'), symbol('len') ),
 							symbol('='),
                             {'Kind' => choice(natural, char('*'))}
 						] 
-					)        
+					)  ))
+            )      
 		] 
 }
 
@@ -143,6 +154,7 @@ sub dim_parser {
 #        {'Dim' => parens sepByChar(',', regex('[^,\)]+')) }, # FIXME: does not work for dim expressions with parentheses!
 #        {'Dim' => parens sepByChar(',', choice( regex('(?:[^,\)]*(?:\([^,\)]+\))?[^,\)]*)+'), regex('[^,\)]+') ) ) },
 # This is a very ugly hack, it works only for 1 pair of parens
+# What this matches is "start with anything except ",)(", then "(" whatever ")"
         {'Dim' => parens sepByChar(',',  choice( regex('^[^,\)\(]+?(?:\([^,\)\(]+\))[^,\(\)]+'), regex('^[^,\)\(]+?(?:\([^,\)\(]+\))'),regex('^[^,\)]+') )   ) },
         maybe( char(')'))
 		] 
@@ -166,7 +178,19 @@ sub allocatable_parser {
 sub varlist_parser {
 	sequence( [	
 	symbol('::'),		
-	choice({'Pars' => try(sepBy(comma,&param_assignment)) },{'Vars' => sepByChar(',',word) })
+	choice({'Pars' => try(sepBy(comma,&param_assignment)) }
+        #, {'VarsDims' =>sepByChar(',',  choice( regex('^[^,\)\(]+?(?:\([^,\)\(]+\))[^,\(\)]+'), regex('^[^,\)\(]+?(?:\([^,\)\(]+\))'),regex('^[^,\)]+') )   )}
+        , {'VarsDims' => sepByChar(',',#comma, 
+                sequence [
+                    {'Var' => word}, 
+                    {'Dim' => parens(
+                            {'Sep' => sepBy(comma, symbol(':')) } 
+                    )
+                }
+                ]
+#                choice(  regex('\w+\(:\)') , regex('\w+\(:,:\)'), regex('\w+\(:,:,:\)') )  
+            ) }
+        ,{'Vars' => sepByChar(',',word) } )
 	] )
 }
 

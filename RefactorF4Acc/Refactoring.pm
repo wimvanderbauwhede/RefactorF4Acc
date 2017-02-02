@@ -40,8 +40,8 @@ use Exporter;
 # -----------------------------------------------------------------------------
 
 sub refactor_all {
-	( my $stref, my $subname, my $pass) = @_;
-
+	( my $stref, my $code_unit_name, my $pass) = @_;
+	my $sub_or_func_or_mod = sub_func_incl_mod( $code_unit_name, $stref );
 	
 	if ($pass =~/rename_array_accesses_to_scalars/) {
 		$stref = pass_rename_array_accesses_to_scalars($stref);				
@@ -55,7 +55,7 @@ sub refactor_all {
 		$stref = _ifdef_io_all($stref);		
 	}
 	if ($pass ne '') {
-		if (top_src_is_module($stref, $subname)) {
+		if (top_src_is_module($stref, $code_unit_name)) {
 			$stref=add_module_decls($stref);
 		}
 		return $stref;
@@ -69,10 +69,13 @@ sub refactor_all {
     
     # This can't go into refactor_all_subroutines() because it is recursive
     # Also, this is actually analysis
-    $stref = determine_argument_io_direction_rec( $stref,$subname );    
+    # And this is only for Subroutines of course, not for Modules
+    if ($sub_or_func_or_mod eq 'Subroutines') {
+    $stref = determine_argument_io_direction_rec( $stref,$code_unit_name );    
     say "DONE determine_argument_io_direction_rec()" if $V;
 
     $stref = update_argument_io_direction_all_subs( $stref );
+    }
     
     # So at this point we know everything there is to know about the argument declarations, we can now update them
     say "remove_vars_masking_functions" if $V;    

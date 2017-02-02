@@ -816,8 +816,9 @@ sub split_long_line {
 # -----------------------------------------------------------------------------
 sub get_annotated_sourcelines {
     ( my $stref, my $f ) = @_;
-    my $sub_or_func_or_inc = sub_func_incl_mod( $f, $stref );
+        my $sub_or_func_or_inc = sub_func_incl_mod( $f, $stref );
     my $Sf = $stref->{$sub_or_func_or_inc}{$f};
+#die Dumper $stref->{Subroutines}{'global'}{Source};
 
     my $annlines = [];
 #	croak "$sub_or_func_or_inc $f:".Dumper ($Sf) if not exists $Sf->{Status};
