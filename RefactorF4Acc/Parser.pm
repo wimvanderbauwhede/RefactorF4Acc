@@ -897,7 +897,7 @@ VIRTUAL
 				
 		}
 # F95 declaration, no need for refactoring		 	
-		 elsif ( $line =~ /^(.+)\s*::\s*(.+)\s*$/ ) {
+		 elsif ( $line =~ /^(.+)\s*::\s*(.+)\s*$/ ) { 
 				( $Sf, $info ) = __parse_f95_decl( $Sf, $indent, $line, $info);								
 				if (exists $info->{'ParamDecl'}) {
 					$has_pars=1;
@@ -1222,6 +1222,7 @@ END IF
 
 			$srcref->[$index] = [ $lline, $info ];
 } else {
+	# Comment out the code shielded with if (0) then ... endif 
 	$srcref->[$index] = [ '!0 '.$lline, {'Blank'=>1}];
 	if ($in_excluded_block==2) {
 		$in_excluded_block=0;
@@ -1237,7 +1238,7 @@ END IF
 			$srcref = [@{$srcref}[0..$idx-1],@{ $extra_lines{$idx} },@{$srcref}[($idx+1) .. (scalar(@{$srcref})-1)] ]; 
 		}
 		$Sf->{'AnnLines'}=$srcref;
-		show_annlines($srcref);croak;
+#		show_annlines($srcref);croak;
 		
 		if ( $is_incl ) {
 			my $inc = $f;
@@ -3304,7 +3305,7 @@ sub __parse_f95_decl {
 
 	my $pt = parse_F95_var_decl($line);
 #croak $line  if $line=~/etan/;	
-
+#croak Dumper($pt) if $line=~/ihead/;
 	# But this could be a parameter declaration, with an assignment ...
 	if ( $line =~ /,\s*parameter\s*.*?::\s*(\w+\s*=\s*.+?)\s*$/ ) {    
 		# F95-style parameters
@@ -3351,7 +3352,11 @@ sub __parse_f95_decl {
 		if (    not exists $info->{'ParsedVarDecl'}
 			and not exists $info->{'VarDecl'} )
 		{
-			$info->{'ParsedVarDecl'} = $pt;
+			
+			if (not exists $pt->{'Attributes'}{'Allocatable'}) {
+				# This is a HACK because we changed the structure of Dim in the case of allocatable arrays
+				$info->{'ParsedVarDecl'} = $pt;
+			} 
 			$info->{'VarDecl'} = {
 				'Indent' => $indent,
 				'Names'  => $pt->{'Vars'},
@@ -3387,7 +3392,6 @@ sub __parse_f95_decl {
 						my $alloc_dim = $pt->{'Attributes'}{'Dim'}[$idx];
 						my @dims = map { ['',''] } @{$alloc_dim};
 						$decl->{'Dim'}           = \@dims;
-						
 					}
 				}
 				if ( $type =~ /character/ ) {
@@ -3480,6 +3484,7 @@ sub __parse_f95_decl {
 						}
 					}					
 				}
+#				croak Dumper($Sf->{'DeclaredOrigLocalVars'}{'Set'}{'ihead'}) if $line=~/rnorm/;
 				$idx++;
 			}
 		}

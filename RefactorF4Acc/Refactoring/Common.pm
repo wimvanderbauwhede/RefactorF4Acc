@@ -1323,6 +1323,7 @@ sub emit_f95_var_decl {
     my $external = exists $var_decl_rec->{'External'} ? 1 : 0;
     my $spaces = $var_decl_rec->{'Indent'};# [0];
     croak Dumper($var_decl_rec) if not defined $spaces;
+    
 #    ( my $type, my $attr, my $dim, my $intent_or_par ) =
 #      @{ $var_decl_rec->[1] };
       my $type = $var_decl_rec->{'Type'}; 
@@ -1361,6 +1362,9 @@ sub emit_f95_var_decl {
     	} else {
         push @attrs, $attr;
     	}
+    }
+    if (exists $var_decl_rec->{'Allocatable'} ) {
+    	push @attrs, 'allocatable';
     }
     if ($dimstr) {
         push @attrs, $dimstr;
@@ -1410,6 +1414,7 @@ sub emit_f95_var_decl {
               . $var;
             return $decl_line;
         }
+        
     } else {
         # Parameter        
         
@@ -1423,6 +1428,7 @@ sub emit_f95_var_decl {
           . $var_val;
 
         #  	say 'emit_f95_var_decl PARAM: '.$decl_line ;
+        
         return $decl_line;
     }
 } # END of emit_f95_var_decl();
@@ -1626,6 +1632,7 @@ sub _emit_f95_parsed_var_decl { (my $pvd) =@_;
             push @attrs, 'allocatable';
         }
         if (exists $pvd->{'Attributes'}{'Dim'} ) {
+        	croak Dumper($pvd);
             push @attrs,'dimension('.join(', ',@{ $pvd->{'Attributes'}{'Dim'} }).')';
         }
         if (exists $pvd->{'Attributes'}{'Intent'} ) {
