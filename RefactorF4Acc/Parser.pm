@@ -893,6 +893,7 @@ VIRTUAL
 				$info->{ 'End' . ucfirst($kw) } = { 'Name' => $name };
 # DO statement				
 			} elsif ( $line =~ /^do\b/) { 
+
 #WV20150304: We parse the do and store the iterator and the range { 'Iterator' => $i,'Range' =>[$start,$stop]}
 				my $do_stmt = $line;
 				my $label   = $info->{'Label'} // 'LABEL_NOT_DEFINED';
@@ -902,41 +903,60 @@ VIRTUAL
 				} else {					
 					$do_stmt =~ s/^do\s+//;
 				}
-
-				( my $iter, my $range ) = split( /\s*=\s*/, $do_stmt );
-				( my $range_start, my $range_stop, my $range_step ) = split( /s*,\s*/, $range );
-				if (not defined $range_step) {
-					$range_step=1; # the default
-				}
-				my $mvars = [];
-				for my $mchunk ( $range_start, $range_stop,$range_step ) {
-					next if not defined $mchunk;
-					next if $mchunk =~ /^\d+$/;
-					my @mchunks = ();
-					if ( $mchunk =~ /\W/ ) {
-						@mchunks = split( /\W+/, $mchunk );
-					} elsif ( $mchunk =~ /^\w+$/ ) {
-						push @mchunks, $mchunk;
-					} else {
-						croak "Unknown pattern $mchunk in Do Range";
+				# test for while here
+				if ($do_stmt=~/while/) {
+					$do_stmt=~s/while\s*//;
+					# we can parse this as a normal expression I think						
+					my $ast = parse_expression($do_stmt,  $info,  $stref,  $f);
+					my $mvars = get_vars_from_expression($ast,{});
+					my $vars= [ grep {!/_OPEN_PAR_/} keys %{$mvars} ];
+					carp 'FIXME: support for WHILE:'.$line.Dumper($vars);
+					$info->{'Do'} = {
+						'While' =>1,
+						'Iterator' => '',
+						'Label'    => $label,
+							'ExpressionsAst' => $ast,
+						'Range'    => {	
+							'Vars'        => $vars,
+						},
+						'LineID' => $info->{'LineID'}
+					};
+				} else {
+					( my $iter, my $range ) = split( /\s*=\s*/, $do_stmt );
+					( my $range_start, my $range_stop, my $range_step ) = split( /s*,\s*/, $range );
+					if (not defined $range_step) {
+						$range_step=1; # the default
 					}
-					for my $mvar (@mchunks) {
-						next if exists $F95_reserved_words{$mvar};
-						next if exists $stref->{'Subroutines'}{$f}{'CalledSubs'}{'Set'}{$mvar};    # Means it's a function
-						next if $mvar =~ /^__PH\d+__$/;
-						next if $mvar !~ /^[_a-z]\w*$/;
-						push @{$mvars}, $mvar;
+					my $mvars = [];
+					for my $mchunk ( $range_start, $range_stop,$range_step ) {
+						next if not defined $mchunk;
+						next if $mchunk =~ /^\d+$/;
+						my @mchunks = ();
+						if ( $mchunk =~ /\W/ ) {
+							@mchunks = split( /\W+/, $mchunk );
+						} elsif ( $mchunk =~ /^\w+$/ ) {
+							push @mchunks, $mchunk;
+						} else {
+							croak "Unknown pattern $mchunk in Do Range";
+						}
+						for my $mvar (@mchunks) {
+							next if exists $F95_reserved_words{$mvar};
+							next if exists $stref->{'Subroutines'}{$f}{'CalledSubs'}{'Set'}{$mvar};    # Means it's a function
+							next if $mvar =~ /^__PH\d+__$/;
+							next if $mvar !~ /^[_a-z]\w*$/;
+							push @{$mvars}, $mvar;
+						}
 					}
+					$info->{'Do'} = {
+						'Iterator' => $iter,
+						'Label'    => $label,
+						'Range'    => {
+							'Expressions' => [ $range_start, $range_stop, $range_step ],
+							'Vars'        => $mvars
+						},
+						'LineID' => $info->{'LineID'}
+					};
 				}
-				$info->{'Do'} = {
-					'Iterator' => $iter,
-					'Label'    => $label,
-					'Range'    => {
-						'Expressions' => [ $range_start, $range_stop, $range_step ],
-						'Vars'        => $mvars
-					},
-					'LineID' => $info->{'LineID'}
-				};
 				$info->{ 'Control' } = 1;
 				$do_counter++;
 				push @do_stack, $info;
@@ -986,7 +1006,9 @@ VIRTUAL
 				my $is_cond        = 0;
 #				my $cond           = '';
 #				my $rest           = '';
+
 				( my $cond, $mline ) = _parse_if_cond($line);
+				
 				$info->{'CondExecExpr'}=$cond;
 				if ($mline=~/(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*$/) {
 					# arithmetic IF
@@ -994,6 +1016,8 @@ VIRTUAL
 					$Sf->{'ReferencedLabels'}{$2}=$2;
 					$Sf->{'ReferencedLabels'}{$3}=$3;					
 				}
+				if ($cond=~/^\d+$/) { $cond.='+0';}
+#				say "COND:$cond";  
 					my $ast = parse_expression($cond,  $info,  $stref,  $f);
 					$info->{'CondExecExprAST'}= $ast;
 					my $vars_in_cond_expr =  get_vars_from_expression( $ast,{});
@@ -1076,13 +1100,13 @@ END IF
 				$info->{ ucfirst($keyword) . 'Call' } = 1;
 				$info->{'IO'}=1;
 				if ( $keyword eq 'open' ) {
-					my $ast = parse_Fortran_open_call($mline);					
+					$mline=~s/\s+$//;
+					my $ast = parse_Fortran_open_call($mline);
+										
 					$info->{'Ast'} = $ast;
-
-					if ( exists $ast->{'FileName'} ) {
-						if ( exists $ast->{'FileName'}{'Var'}
-							and $ast->{'FileName'}{'Var'} !~ /__PH/ )
-						{
+carp "MLINE:$mline".Dumper($ast);
+					if ( exists $ast->{'FileName'} ) {						
+						if ( exists $ast->{'FileName'}{'Var'} and $ast->{'FileName'}{'Var'} !~ /__PH/ ) {						
 							$info->{'FileNameVar'} =
 							  $ast->{'FileName'}{'Var'
 							  }; # TODO: in principle almost any other field could be a var
@@ -1159,7 +1183,7 @@ END IF
 					$mline = __remove_blanks($mline,$free_form);
 #					$line = __remove_blanks($line,$free_form);
 #WV20150303: We parse this assignment and return {Lhs => {Varname, ArrayOrScalar, IndexExpr}, Rhs => {Expr, VarList}}
-croak "$f <$mline>" if $mline=~/^\s*\d*\s*write/ ;
+#croak "$f <$mline>" if $mline=~/^\s*\d*\s*write/ ;
 
 					$info = _parse_assignment( $mline, $info, $stref, $f );
 			}
@@ -4020,7 +4044,7 @@ sub _parse_read_write_print {
 		#
 		$matched_str =~ s/^\w+\(//;
 		$matched_str =~ s/\)$//;
-#		say "$line => <$matched_str><$rest>" if $tline=~/read/;
+		say "$line => <$matched_str><$rest>" if $tline=~/read/;
 		my @call_attrs = _parse_comma_sep_expr_list($matched_str);
 
 		for my $call_attr (@call_attrs) {
@@ -4233,8 +4257,18 @@ sub _parse_assignment {
 		$stref->{'Subroutines'}{$f}{'MaskedIntrinsics'}{ $lhs_ast->[1] } = 1;
 		$lhs_ast = parse_expression( $lhs, $info, $stref, $f );
 	}
+	my $array_constant=0;
+	if ($rhs=~/\(\/.+\/\)/) {
+		$rhs=~s/\(\//(/;
+		$rhs=~s/\/\)/)/;
+		$array_constant=1;
+	}
 	
 	my $rhs_ast = parse_expression( $rhs, $info, $stref, $f );
+	if ($array_constant==1) {
+		$rhs_ast->[1]='_OPEN_CONST_ARRAY_';
+#		croak 'RHS_AST:'.Dumper($rhs_ast ).emit_expression($rhs_ast, '');
+	}
 
 	#	say 'RHS_AST:'.Dumper($rhs_ast );
 	( my $rhs_args, my $rhs_vars ) =

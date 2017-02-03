@@ -2,7 +2,7 @@ package F95Normaliser;
 use strict;
 use warnings; 
 use 5.012;
-
+use Carp;
 use Exporter 'import';
 
 @F95Normaliser::EXPORT    = qw(
@@ -22,9 +22,14 @@ sub normalise_F95_src {(my $orig_lines)=@_;
                     chomp $line;
                     my $next_line=$orig_lines->[$idx+1];
                     $idx++;
+#                    while(isCommentOrBlank($next_line)) {
+#                    	push @comments_stack,$next_line;
+#                    	$next_line=$orig_lines->[$idx+1];
+#                    	$idx++;                    	
+#                    }
 #                    $line=~s/\t/  /g; # AD-HOC replace tab by 2 spaces
                     # Split lines with multiple statements
-                    if (not isCommentOrBlank($line) && $line=~/;/) {
+                    if (not isCommentOrBlank($line)  && $line=~/;/) {
 
                         my $tline = $line;
                         my $nline = '';
@@ -56,26 +61,52 @@ sub normalise_F95_src {(my $orig_lines)=@_;
                             }
                             $line = $tline;
                         }
-                    }                   
+                    }    
+                                   
 					if ($in_cont==0) {
 						# This is not a continuation line. 
 					    if ( isCont( $line ) ) {
-#                            say "CONT:$line <> $joinedline";
+#                            say "CONT:$line <> $joinedline ";
 						   $in_cont=1;
 					       $joinedline .= removeCont( $line );
-					    } elsif (defined $next_line and isPrefixCont( $next_line ) ) {
-					    	$in_cont=2;
-					    	$joinedline=$line;   	
+					    } elsif (defined $next_line and isPrefixCont( $next_line ) ) {					    	
+					    	if(isCommentOrBlank($line)) {
+					    		$in_cont=3;
+                    			push @comments_stack,$line ;
+                    			$joined_lines->[-1].= removeCont( $next_line );      
+                    			      $joinedline='!!!';  				
+					    	} else {
+					    		$in_cont=2;
+					    		$joinedline=$line;
+					    	}   	
 					    } else {
 					        # emit line
 					        if ( $line ne '' ) {
 					            push @{$joined_lines}, $line;
 					        }	
+					        #WV: should I not clear $joinedline?
+#					        carp 'CHECK THIS!';
+#					        $joinedline=''; 
 					    }
 					} else { # inside continuation line
-#					say "IN CONT: $line";
-						if ( isCont( $line ) ) {
-						   $joinedline .= removeCont( $line );
+					say "IN CONT: $line";
+						if ( isCont( $line ) and $in_cont!=3 ) {
+						   $joinedline .=removeCont( $line );
+						   # WV20170201 I added this because otherwise the next line for a continuation line of type & ... will be tagged onto it, should only be for type ... &
+						   
+						   if ( isPrefixCont($line) ) {
+						   	say "LINE: $line => $joinedline";
+						   	if (defined $next_line and not isPrefixCont( $next_line ) ) {
+								if(isCommentOrBlank($next_line)) {
+                    				push @comments_stack,$next_line ;
+								} else {
+						   			push @{$joined_lines}, $joinedline;								
+						   			$joinedline='';
+								}
+#						   	carp 'CHECK THIS!';
+						   	$in_cont=0; 						   	
+							}
+						   }
 						} elsif ( isCommentOrBlank($line) ) {
 					        push @comments_stack, $line;
 						} else { 
@@ -90,7 +121,7 @@ sub normalise_F95_src {(my $orig_lines)=@_;
 					        }                                        
 					        @comments_stack       = ();
 							# emit joined line
-					        if ( $joinedline ne '' ) {
+					        if ( $joinedline ne '' and $in_cont!=3) {
 					            push @{$joined_lines}, $joinedline;
 					        }
 					        if ($in_cont==2) {
@@ -123,8 +154,17 @@ sub normalise_F95_src {(my $orig_lines)=@_;
 				$is_cont = 1;
 			}		
 		return $is_cont;
-	} # END of isCont
+	} # END of isPrefixCont
 
+ # -----------------------------------------------------------------------------
+	sub isSuffixCont {
+		( my $line ) = @_;
+		my $is_cont = 0;
+			if ( $line=~/&\s*$/) {
+				$is_cont = 1;
+			}		
+		return $is_cont;
+	} # END of isSuffixCont
 
  # -----------------------------------------------------------------------------
  

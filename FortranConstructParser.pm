@@ -109,7 +109,7 @@ sequence(
                 sequence( [
                     choice(
                         symbol( 'recl'), symbol( 'recordsize')
-                    ) ,&eqs, natural
+                    ) ,&eqs,  {Recl => regex('[\w\d\-\*\+]+') } #natural,word
                 ] ),
                 sequence( [
                     choice(

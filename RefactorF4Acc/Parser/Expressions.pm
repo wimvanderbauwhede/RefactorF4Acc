@@ -387,6 +387,11 @@ sub emit_expression {(my $ast, my $expr_str)=@_;
 	}	
 #	$expr_str=~s/_complex_//g;
 	$expr_str=~s/_OPEN_PAR_//g;
+	if ($expr_str=~/_OPEN_CONST_ARRAY_/ ) {
+		$expr_str=~s/_OPEN_CONST_ARRAY_//;
+		$expr_str=~s/^\(/\(\//;
+		$expr_str=~s/\)/\/\)/;
+	};
 	$expr_str=~s/_LABEL_ARG_//g;
 	if ($expr_str=~s/^\#dummy\#\(//) {
 		$expr_str=~s/\)$//;
@@ -412,6 +417,7 @@ sub emit_expression {(my $ast, my $expr_str)=@_;
 # All variables in the expression
 # $vars = {} to start
 sub get_vars_from_expression {(my $ast, my $vars)=@_;
+	croak unless ref($ast) eq 'ARRAY';
 	for my  $idx (0 .. scalar @{$ast}-1) {		
 		my $entry = $ast->[$idx];
 		if (ref($entry) eq 'ARRAY') {
