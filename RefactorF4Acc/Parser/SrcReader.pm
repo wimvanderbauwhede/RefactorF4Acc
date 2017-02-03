@@ -152,7 +152,8 @@ Suppose we don't:
                     my $in_cont        = 0;
                     my @comments_stack = ();                    
                     my $norm_lines = normalise_F95_src( [@lines]); 
-croak Dumper($norm_lines );
+#					map { say $_} @{$norm_lines };
+#					croak ;
                     for my $line ( @{$norm_lines} ) {
                         # emit line
                         if ( $line ne '' ) {                        	

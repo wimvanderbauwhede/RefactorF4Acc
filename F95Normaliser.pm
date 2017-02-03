@@ -74,7 +74,7 @@ sub normalise_F95_src {(my $orig_lines)=@_;
 					    		$in_cont=3;
                     			push @comments_stack,$line ;
                     			$joined_lines->[-1].= removeCont( $next_line );      
-                    			      $joinedline='!!!';  				
+                    			$joinedline='!!!';  				
 					    	} else {
 					    		$in_cont=2;
 					    		$joinedline=$line;
@@ -86,16 +86,16 @@ sub normalise_F95_src {(my $orig_lines)=@_;
 					        }	
 					        #WV: should I not clear $joinedline?
 #					        carp 'CHECK THIS!';
-#					        $joinedline=''; 
+					        $joinedline=''; 
 					    }
 					} else { # inside continuation line
-					say "IN CONT: $line";
+#					say "IN CONT: $line";
 						if ( isCont( $line ) and $in_cont!=3 ) {
 						   $joinedline .=removeCont( $line );
 						   # WV20170201 I added this because otherwise the next line for a continuation line of type & ... will be tagged onto it, should only be for type ... &
 						   
 						   if ( isPrefixCont($line) ) {
-						   	say "LINE: $line => $joinedline";
+#						   	say "LINE: $line => $joinedline";
 						   	if (defined $next_line and not isPrefixCont( $next_line ) ) {
 								if(isCommentOrBlank($next_line)) {
                     				push @comments_stack,$next_line ;
@@ -121,8 +121,12 @@ sub normalise_F95_src {(my $orig_lines)=@_;
 					        }                                        
 					        @comments_stack       = ();
 							# emit joined line
-					        if ( $joinedline ne '' and $in_cont!=3) {
+					        if ( $joinedline ne '') {
+					        	if( $in_cont!=3) {
 					            push @{$joined_lines}, $joinedline;
+					        	} else {
+					        		$joinedline='';
+					        	}
 					        }
 					        if ($in_cont==2) {
 					        	push @{$joined_lines}, $line;

@@ -77,12 +77,20 @@ sub parse_F95_var_decl {
 	if (not exists $pt->{AccPragma}) {
 		$pt->{AccPragma} = {AccKeyword => 'ArgMode', AccVal => 'ReadWrite'}
 	}
-if (exists  $pt->{VarsDims} && @{  $pt->{VarsDims}{'Dim'} } > 0 ) {
-
-    my @dims = map { [  map { ':' } @{ $_->{'Sep'} }] } @{$pt->{VarsDims}{Dim}};
-    $pt->{Attributes}{Dim}=\@dims;
-    $pt->{'Vars'}= $pt->{VarsDims}{Var};
-    delete  $pt->{VarsDims} ;
+	
+if (exists  $pt->{VarsDims} && exists  $pt->{VarsDims}{'Dim'} ) {
+	if (ref($pt->{VarsDims}{'Dim'}) eq 'ARRAY' and  @{  $pt->{VarsDims}{'Dim'} } > 0 ) {
+	
+	    my @dims = map { [  map { ':' } @{ $_->{'Sep'} }] } @{$pt->{VarsDims}{Dim}};
+	    $pt->{Attributes}{Dim}=\@dims;
+	    $pt->{'Vars'}= $pt->{VarsDims}{Var};
+	    delete  $pt->{VarsDims} ;
+	} else {
+	    my @dims = ( [  map { ':' } @{ $pt->{VarsDims}{Dim}{Sep} } ] );
+	    $pt->{Attributes}{Dim}=\@dims;
+	    $pt->{'Vars'}= [$pt->{VarsDims}{Var}];
+	    delete  $pt->{VarsDims} ;
+	}
 }
 
     print "<<<".Dumper($pt),">>>\n" if $VV;

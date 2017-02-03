@@ -381,6 +381,8 @@ sub _analyse_lines {
 		print "\nINFO: VAR DECLS in $f:\n" if $I;
 		my %vars = ();
 
+		my $in_excluded_block	   = 0; # for printing a given block for debug
+		my $excluded_block   = -1;
 		my $first          = 1;		
 		my $type           = 'NONE';
 		my $has_commons	= 0;
@@ -405,6 +407,7 @@ sub _analyse_lines {
 			$info->{'Indent'}=$indent;						
 			$info->{'LineID'} = $index;
 			
+
 			# Skip comments (we already marked them in SrcReader)
 			if ( $lline =~ /^\s*\!/ && $lline !~ /^\!\s*\$(?:ACC|RF4A)\s/i ) {
 				next;
@@ -442,14 +445,22 @@ sub _analyse_lines {
 				$block_id{$block_counter}={'Nest'=>$block_nest_counter, 'Type' => $block_type};
 				push @blocks_stack,$block_id{$block_counter}; 
 				$info->{ucfirst($block_type)}=1;
+				say $lline. "\t\tPUSH $block_nest_counter " if $in_excluded_block and $DBG;
 			};
 			
-			$line=~/^if.*?then\s*$/ && do {
+			$line=~/^if.*?then\s*$/ && do {				
 				++$block_nest_counter;
 				++$block_counter;				
 				my $block={'Nest'=>$block_nest_counter, 'Type' => 'if'};
+				if ($line=~/if\s*\(\s*0\s*\)/) {
+					$in_excluded_block=1;
+					$excluded_block=$block_nest_counter;
+					$block->{'Type'}='if0';
+				}
+				
 				$info->{'Block'}= $block;
 				push @blocks_stack,$block;
+				say $lline. "\t\tPUSH $block_nest_counter" if $in_excluded_block and $DBG;
 			};	
 			$line=~/^do\s+(\w+)\s+\w+\s*=/ && do {				 
 				++$block_nest_counter;
@@ -457,7 +468,16 @@ sub _analyse_lines {
 				my $block={'Nest'=>$block_nest_counter, 'Type' => 'do', 'Label' => $1};
 				$info->{'Block'}= $block;
 				push @blocks_stack,$block;
-			};		
+				say $lline. "\t\tPUSH $block_nest_counter" if $in_excluded_block and $DBG;
+			};	
+			$line=~/^do\s+\w+\s*=/ && do {				 
+				++$block_nest_counter;
+				++$block_counter;				
+				my $block={'Nest'=>$block_nest_counter, 'Type' => 'do', 'Label' => ''};
+				$info->{'Block'}= $block;
+				push @blocks_stack,$block;
+				say $lline. "\t\tPUSH $block_nest_counter DO (NO LABEL)" if $in_excluded_block and $DBG;
+			};						
 			# SUBROUTINE FUNCTION PROGRAM
 			# Procedure block identification				
 			$line =~ /^(\w+\s+\w+\s+(?:function|subroutine)|\w+\s+subroutine|[\*\(\)\w]+\s+function|function|subroutine|program|block)\s+(\w+)/ && do {				
@@ -499,14 +519,22 @@ sub _analyse_lines {
 				my $block={'Nest'=>$block_nest_counter, 'Type' => $proc_type, 'Name'=>$proc_name};
 				$info->{'Block'}= $block;
 				push @blocks_stack,$block;
+				say $lline. "\t\tPUSH $block_nest_counter" if $in_excluded_block and $DBG;
 			};
 			
 			# END of BLOCK:			
 #			$line=~/^end/ && $line!~/^end\s*do/ && do {
-			$line=~/^end/  && do {
+			$line=~/^end/  && do { 
 				my $block = pop @blocks_stack;
+				say $lline. "\t\tPOP $block_nest_counter ".uc($block->{'Type'})  if $in_excluded_block and $DBG;
 				$info->{'Block'}= $block;
 				--$block_nest_counter;
+#				croak Dumper($block) if $line=~/endif/ and ;
+				if (defined $block and exists $block->{'Nest'} and $block->{'Nest'} == $excluded_block and $in_excluded_block==1) {
+#					say "ENDIF: $lline";croak;
+					$in_excluded_block=2;
+					$excluded_block=-1;
+				}
 			};
 			
 #    CONTINUE statement. 			
@@ -514,8 +542,9 @@ sub _analyse_lines {
 				if (exists $info->{'Label'} ) {
 				my $cont_label=$info->{'Label'} ;
 				$info->{'Continue'}={'Label' => $cont_label};
-				my $block = pop @blocks_stack;
-				
+
+				my $block = pop @blocks_stack; 
+				say $lline. "\t\tPOP $block_nest_counter continue" if $in_excluded_block and $DBG;
 				if (exists $block->{'Label'} ) {
 					my $do_label =$block->{'Label'};
 					if ($cont_label eq $do_label) {
@@ -525,9 +554,11 @@ sub _analyse_lines {
 						--$block_nest_counter;
 					} else {
 						push @blocks_stack, $block;
+						say $lline. "\t\tPUSH $block_nest_counter continue (incorrect DO label)" if $in_excluded_block and $DBG;
 					}
 				} else {
 					push @blocks_stack, $block;
+					say $lline. "\t\tPUSH $block_nest_counter continue (no DO label)" if $in_excluded_block and $DBG;
 				}
 				} else {
 					$info->{'Continue'}={};
@@ -537,7 +568,7 @@ sub _analyse_lines {
 			# END of BLOCK identification code			
 			# --------------------------------------------------------------------------------
 						
-						
+if ($in_excluded_block==0) {						
 			# --------------------------------------------------------------------------------
 			# Declarations, anything not an executable statement. Last one in the chain is the IF/THEN/ELSE			
 			# --------------------------------------------------------------------------------
@@ -1104,7 +1135,7 @@ END IF
 					my $ast = parse_Fortran_open_call($mline);
 										
 					$info->{'Ast'} = $ast;
-carp "MLINE:$mline".Dumper($ast);
+#carp "MLINE:$mline".Dumper($ast);
 					if ( exists $ast->{'FileName'} ) {						
 						if ( exists $ast->{'FileName'}{'Var'} and $ast->{'FileName'}{'Var'} !~ /__PH/ ) {						
 							$info->{'FileNameVar'} =
@@ -1190,7 +1221,15 @@ carp "MLINE:$mline".Dumper($ast);
 			}
 
 			$srcref->[$index] = [ $lline, $info ];
-
+} else {
+	$srcref->[$index] = [ '!0 '.$lline, {'Blank'=>1}];
+	if ($in_excluded_block==2) {
+		$in_excluded_block=0;
+	}
+}
+			if ($in_excluded_block==1 and not exists $info->{'Block'}) {
+				say $lline if $DBG;
+			}
 		}    # Loop over lines
 
 		# We sort the indices from high to low so that the insertions are at the correct index 
@@ -1198,7 +1237,7 @@ carp "MLINE:$mline".Dumper($ast);
 			$srcref = [@{$srcref}[0..$idx-1],@{ $extra_lines{$idx} },@{$srcref}[($idx+1) .. (scalar(@{$srcref})-1)] ]; 
 		}
 		$Sf->{'AnnLines'}=$srcref;
-		
+		show_annlines($srcref);croak;
 		
 		if ( $is_incl ) {
 			my $inc = $f;
@@ -4044,7 +4083,7 @@ sub _parse_read_write_print {
 		#
 		$matched_str =~ s/^\w+\(//;
 		$matched_str =~ s/\)$//;
-		say "$line => <$matched_str><$rest>" if $tline=~/read/;
+#		say "$line => <$matched_str><$rest>" if $tline=~/read/;
 		my @call_attrs = _parse_comma_sep_expr_list($matched_str);
 
 		for my $call_attr (@call_attrs) {
