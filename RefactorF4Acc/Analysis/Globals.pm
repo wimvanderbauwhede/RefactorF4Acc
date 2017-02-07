@@ -80,7 +80,9 @@ sub identify_inherited_exglobs_to_rename {
 sub rename_inherited_exglobs  {
 		  (my $stref, my $f) = @_;
 #    local $V=1;
+if ($RENAME_EXT ne '') {
     my $ext = $RENAME_EXT;#'_GLOB' ;
+    
     say '=' x 80, "\nENTER lift_globals( $f )" if $V;
     if (exists $stref->{'Subroutines'}{$f} ) {
     	my $Sf = $stref->{'Subroutines'}{$f};
@@ -132,6 +134,7 @@ sub rename_inherited_exglobs  {
 	        say "SUB $f is LEAF" if $V; 
 	    }    
     }    
+}
     return $stref;
 	
 } #  END of identify_globals_to_rename()

@@ -4,6 +4,7 @@ use v5.016;
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
 use RefactorF4Acc::Refactoring::Common qw( stateful_pass pass_wrapper_subs_in_module );
+use RefactorF4Acc::Refactoring::Streams qw( _declare_undeclared_variables _removed_unused_variables _fix_scalar_ptr_args _fix_scalar_ptr_args_subcall );
 # 
 #   (c) 2010-2012 Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
 #   
@@ -44,7 +45,14 @@ sub translate_module_to_C {  (my $stref, my $ocl) = @_;
 	if (not defined $ocl) {$ocl=0;}
 	$stref->{'OpenCL'}=$ocl;
 	$stref->{'TranslatedCode'}=[];	
-	$stref = pass_wrapper_subs_in_module($stref,[[\&add_OpenCL_address_space_qualifiers],[\&translate_sub_to_C]],$ocl);
+	$stref = pass_wrapper_subs_in_module($stref,[
+					[ sub { (my $stref, my $f)=@_;  alias_ordered_set($stref,$f,'DeclaredOrigArgs','RefactoredArgs'); } ],
+					[ \&_fix_scalar_ptr_args ],
+		  		[\&_fix_scalar_ptr_args_subcall],	
+		[\&_declare_undeclared_variables],#,\&_removed_unused_variables],
+		[\&add_OpenCL_address_space_qualifiers],
+		[\&translate_sub_to_C]
+		],$ocl);
 	$stref = _write_headers($stref,$ocl);
 	$stref = _emit_C_code($stref, $ocl);
 }
@@ -92,6 +100,7 @@ sub add_OpenCL_address_space_qualifiers { (my $stref, my $f, my $ocl) = @_;
 						}
 					}			
 				}
+			
 				return ([$annline],[$stref,$f]);
 			};  
 			my $state = [$stref,$f];
@@ -133,14 +142,30 @@ sub translate_sub_to_C {  (my $stref, my $f, my $ocl) = @_;
 			}
 		}
 		elsif (exists $info->{'VarDecl'} ) {
+			
 				my $var = $info->{'VarDecl'}{'Name'};
+				
 				if (exists $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$var}
 				) {
 					$c_line='//'.$line;
 					$skip=1;
 				} else {
 									
-					$c_line = _emit_var_decl_C($stref,$f,$var); 
+					$c_line = _emit_var_decl_C($stref,$f,$var);
+					if (exists $info->{'TrailingComment'} and $info->{'TrailingComment'}=~/\$ACC\s+MemSpace\s+(\w+)/) {
+						# This code will basically only work for arrays with dimensions defined by constants and macros
+#						croak Dumper()
+						my $decl =  get_var_record_from_set($stref->{'Subroutines'}{$f}{'Vars'},$var);
+						my $dim = $decl->{'Dim'};
+						my @sizes = map {  '('.$_->[1].' - '.$_->[0].' +1)'   } @{$dim} ; #[['1','nth']]
+						my $size_str = (scalar @sizes==1) ? $sizes[0] : join('*',@sizes);
+						my $memspace='__'.$1;
+						my $indent = ($c_line =~s/^\s+//);
+						$c_line=~s/\*//;
+						$c_line=~s/;//;
+						
+						$c_line = $indent.	 $memspace.' '.$c_line.'['.uc($size_str).'];' ;
+					}
 				}
 		}
 		elsif ( exists $info->{'ParamDecl'} ) {
@@ -164,6 +189,13 @@ sub translate_sub_to_C {  (my $stref, my $f, my $ocl) = @_;
 		elsif (exists $info->{'CaseDefault'}) {
 			$c_line = $info->{'Indent'}."} break;\n".$info->{'Indent'}.'default : {';
 		}
+		elsif (exists $info->{'Do'} ) { #say $line.Dumper($info->{Expressions});
+			# do r_iter=start_position, ((start_position + local_chunk_size) - 1)
+				$c_line='for ('. 
+				$info->{'Do'}{'Iterator'}.' = '.$info->{'Do'}{'Range'}{'Expressions'}[0] .';'. 
+				$info->{'Do'}{'Iterator'}.' <= '.$info->{'Do'}{'Range'}{'Expressions'}[1] .';'.
+				$info->{'Do'}{'Iterator'}.' += '.$info->{'Do'}{'Range'}{'Expressions'}[2] .') {'; 
+		}		
 		elsif (exists $info->{'BeginDo'} ) {
 				$c_line='for () {'; 
 		}
@@ -180,8 +212,10 @@ sub translate_sub_to_C {  (my $stref, my $f, my $ocl) = @_;
 			# But the problem is of course that we have just replaced the called args by the sig args
 			# So what we need to do is check the type in $f and $subname, and use that to see if we need a '*' or even an '&' or nothing
 			$c_line = _emit_expression_C($subcall_ast,'',$stref,$f).';';
-			if ($c_line=~/get_global_id/) {
-				$c_line = "    global_id = get_global_id(0);";
+#			croak Dumper($subcall_ast) if $c_line=~/adam_map_26/;
+			if ($c_line=~/get_(local|global|group)_id/) {
+				my $qual = $1;
+				$c_line = "    ${qual}_id = get_${qual}_id(0);";
 			}
 		}			 
 		elsif (exists $info->{'If'} ) {		
@@ -204,14 +238,25 @@ sub translate_sub_to_C {  (my $stref, my $f, my $ocl) = @_;
 			$c_line = $line;
 			$c_line=~s/\!/\/\//;
 		}
-		elsif (exists $info->{'Use'} or
+		elsif (exists $info->{'Use'}) {
+			if ($line=~/$f/) {
+				$c_line = '//'.$line; $skip=1;
+			} else {
+			# We should parse the module, or we can simply assume that we replace it with an include with the same name
+			warn "Replacing USE with #include: ".$line;
+			$line=~s/^\s*use\s+//;
+			$line=~s/\s*$//;
+			$c_line = '#include "'.$line.'.h"';
+			}			
+		}
+		elsif (
 		exists $info->{'ImplicitNone'} or
 		exists $info->{'Implicit'}		
 		) {
 			$c_line = '//'.$line; $skip=1;
 		}	
 		elsif (exists $info->{'Include'} ) {
-			$line=~s/^\s*$//;
+			$line=~s/^\s*//;
 			$c_line = '#'.$line;
 		}
 		elsif (exists $info->{'Goto'} ) {
@@ -285,7 +330,7 @@ sub _emit_subroutine_sig_C { (my $stref, my $f, my $annline)=@_;
 
 sub _emit_arg_decl_C { (my $stref,my $f,my $arg)=@_;
 	my $decl =	$stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$arg};
-#croak Dumper($decl) if $f eq 'sub_map_124' and $arg eq 'duu';
+#croak Dumper($decl) if $f eq 'adam_map_26' and $arg eq 'km';
 #	my $decl =	get_var_record_from_set($stref->{'Subroutines'}{$f}{'Vars'},$arg);
 	my $array = $decl->{'ArrayOrScalar'} eq 'Array' ? 1 : 0;
 	my $const = 1;
@@ -314,7 +359,7 @@ sub _emit_arg_decl_C { (my $stref,my $f,my $arg)=@_;
 
 sub _emit_var_decl_C { (my $stref,my $f,my $var)=@_;
 	my $decl =  get_var_record_from_set($stref->{'Subroutines'}{$f}{'Vars'},$var);
-#		carp "SUB $f => VAR $var =>".Dumper($decl);
+#croak "SUB $f => VAR $var =>".Dumper($decl) if $var=~/local_aaa/;
 # {'Var' => 'st_sub_map_124','Status' => 1,'Dim' => [],'Attr' => '','Type' => {'Type' => 'integer'},'Val' => '0','Indent' => '  ','Name' => ['st_sub_map_124','0'],'InheritedParams' => undef,'Parameter' => 'parameter'}		
 	my $array = (exists $decl->{'ArrayOrScalar'} and $decl->{'ArrayOrScalar'} eq 'Array') ? 1 : 0;
 	my $const = '';
@@ -347,7 +392,14 @@ sub _emit_assignment_C { (my $stref, my $f, my $info)=@_;
 	my $lhs_ast =  $info->{'Lhs'}{'ExpressionAST'};
 #	say Dumper($lhs_ast);
 	my $lhs = _emit_expression_C($lhs_ast,'',$stref,$f);
-	$lhs=~s/\(([^\(\)]+)\)/$1/;
+	my $indent='';
+	$lhs=~/^(\s+)/ && do {
+		$indent=$1;
+		$lhs=~s/^\s+//;	
+	};
+	$lhs=~s/^\(([^\(\)]+)\)/$1/;
+	$lhs=$indent.$lhs;
+#	croak $lhs.Dumper($lhs_ast) if $lhs=~/F1D2C/;
 	my $rhs_ast =  $info->{'Rhs'}{'ExpressionAST'};	
 #	carp Dumper($rhs_ast) if $lhs=~/k_range/;
 
@@ -355,6 +407,7 @@ sub _emit_assignment_C { (my $stref, my $f, my $info)=@_;
 #	say "RHS:$rhs" if$rhs=~/abs/;
 	my $rhs_stripped = $rhs;
 	$rhs_stripped=~s/^\(([^\(\)]+)\)$/$1/;
+	
 #	say "RHS STRIPPED:$rhs_stripped" if$rhs=~/abs/;
 #	$rhs_stripped=~s/^\(// && $rhs_stripped=~s/\)$//;
 #	if ( $rhs_stripped=~/[\(\)]/) {
@@ -387,6 +440,11 @@ sub _emit_expression_C {(my $ast, my $expr_str, my $stref, my $f)=@_;
 	my @expr_chunks=();
 	my $skip=0;
 	
+	if ($ast->[0] eq '^') {
+		$ast->[0]='pow';
+		unshift @{$ast},'&';		
+	}
+	
 	for my  $idx (0 .. scalar @{$ast}-1) {		
 		my $entry = $ast->[$idx];
 		if (ref($entry) eq 'ARRAY') {
@@ -399,7 +457,8 @@ sub _emit_expression_C {(my $ast, my $expr_str, my $stref, my $f)=@_;
 			} elsif ($entry eq '&') {
 				my $mvar = $ast->[$idx+1];
 				# AD-HOC, replacing abs/min/max to fabs/fmin/fmax without any type checking ... FIXME!!!
-				$mvar=~s/^(abs|min|max)$/f$1/;				
+				$mvar=~s/^(abs|min|max)$/f$1/;
+				$mvar=~s/^am(ax|in)1$/fm$1/;				
 				$expr_str.=$mvar.'(';
 				
 				 $stref->{'CalledSub'}= $mvar;
@@ -458,7 +517,7 @@ sub _emit_expression_C {(my $ast, my $expr_str, my $stref, my $f)=@_;
 #                int ix, int jx, int kx)
 # with the same definition as FTN3DREF
 					if ($dim==1) {
-						$expr_str.=$mvar.'[F'.$dim.'D2C('.' , '.join(',',@lower_bounds). ' , ';
+						$expr_str.=$mvar.'[F1D2C('.join(',',@lower_bounds). ' , ';
 					} else {
 						$expr_str.=$mvar.'[F'.$dim.'D2C('.join(',',@ranges[0.. ($dim-2)]).' , '.join(',',@lower_bounds). ' , ';						
 					}
@@ -473,11 +532,14 @@ sub _emit_expression_C {(my $ast, my $expr_str, my $stref, my $f)=@_;
 				$skip=0;
 			}
 		}				
-	}
+	} # for
 	if ($ast->[0] eq '&' ) {
 		my @expr_chunks_stripped = map { $_=~s/^\(([^\(\)]+)\)$/$1/;$_} @expr_chunks;
-		
+		if ($ast->[1] eq 'pow') {
+				$expr_str.=join(',', map { "(float)($_)" } @expr_chunks_stripped);
+		} else {
 			$expr_str.=join(',',@expr_chunks_stripped);
+		}
 			$expr_str.=')'; 
 		
 			if ($ast->[1]  eq $stref->{'CalledSub'} ) {
@@ -485,14 +547,19 @@ sub _emit_expression_C {(my $ast, my $expr_str, my $stref, my $f)=@_;
 			}
 		
 #		say "CLOSE OF &:".$expr_str if $expr_str=~/abs/;
-	} elsif ( $ast->[0] eq '@') {
+	} elsif ( $ast->[0] eq '@') {				
 		my @expr_chunks_stripped =   map {  $_=~s/^\(([^\(\)]+)\)$/$1/;$_} @expr_chunks;		
 		if ( not ($expr_str=~/^\*/ and $expr_chunks_stripped[0]==1) ) { 
 			$expr_str.=join(',',@expr_chunks_stripped);
 			# But here we'd need to know what the var is!
 			$expr_str.=')';
 			if ($expr_str=~/\[/) {
-				$expr_str.=']'; 				 
+				my $count_open_bracket = () =$expr_str=~/\[/;
+				my $count_close_bracket = () =$expr_str=~/\]/; 
+#				warn("FIXME: this is incorrect, I should count the brackets!");
+				if ($count_open_bracket == $count_close_bracket + 1) { 
+					$expr_str.=']'; #FIXME: this is incorrect, I should count the brackets!
+				} 				 
 			} 
 		}
 		
@@ -506,6 +573,7 @@ sub _emit_expression_C {(my $ast, my $expr_str, my $stref, my $f)=@_;
 			if ($op eq '^') {
 				$op = '**';
 				warn "TODO: should be pow()";
+#				croak Dumper($ast);
 			};
 			$expr_str.=join($op,@ts);
 		} elsif (defined $ast->[2]) { croak "OBSOLETE!";
@@ -533,6 +601,7 @@ sub _emit_expression_C {(my $ast, my $expr_str, my $stref, my $f)=@_;
 		$expr_str=~s/\)$//;
 	}
 	$expr_str=~s/\+\-/-/g;
+	$expr_str=~s/\-\-/\- \-/g;
 	# UGLY! HACK to fix boolean operations
 #	 say "BEFORE HACK:".$expr_str if $expr_str=~/abs/;
 	while ($expr_str=~/__[a-z]+__/ or $expr_str=~/\.\w+\.\+/) {

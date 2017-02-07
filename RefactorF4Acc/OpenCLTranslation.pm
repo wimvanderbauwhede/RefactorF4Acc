@@ -93,7 +93,7 @@ sub _preprocess {
 #        next if _skip_return($info);
 
 		# Replace select/case by if/then
-		if ($line=~/select\s+case/) { die Dumper($annline); }
+		if ($line=~/select\s+case/) { croak Dumper($annline); }
 		if (exists $info->{'Select'})  {
 			 $case_var =$info->{'CaseVar'};
 			 } elsif (exists $info->{'CaseDefault'})  {

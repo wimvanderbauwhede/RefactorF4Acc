@@ -3305,7 +3305,7 @@ sub __parse_f95_decl {
 
 	my $pt = parse_F95_var_decl($line);
 #croak $line  if $line=~/etan/;	
-#croak Dumper($pt) if $line=~/ihead/;
+#croak $line.Dumper($info) if $line=~/local_aaa/;
 	# But this could be a parameter declaration, with an assignment ...
 	if ( $line =~ /,\s*parameter\s*.*?::\s*(\w+\s*=\s*.+?)\s*$/ ) {    
 		# F95-style parameters
@@ -3415,7 +3415,10 @@ sub __parse_f95_decl {
 				$decl->{'Name'}=$tvar;
 				
 				my $subset =in_nested_set($Sf,'Vars',$tvar);						
-				my $orig_decl = $subset ne '' ? $Sf->{$subset}{'Set'}{$tvar} : {};
+				my $orig_decl = ($subset ne '') ? $Sf->{$subset}{'Set'}{$tvar} : {};
+				if (ref($orig_decl) ne 'HASH') {
+					$orig_decl  = {};
+				}
 				if ($decl->{'Type'} eq 'character'  
 					and exists $decl->{'Attr'}
 					and exists $orig_decl->{'Attr'}

@@ -77,9 +77,11 @@ sub add_module_decls { (my $stref)=@_;
 		}
 	}
 	    for my $src (keys %{ $stref->{'SourceContains'} } ) {
-	    	my $is_program = exists $stref->{'Program'} and $stref->{'Program'} eq $src ? 1 :0;       	 	
-	        my $no_module= $is_program;
-	        $no_module= exists $no_modules{$src} ? 1 : $no_module; 
+	    	my $is_program = (exists $stref->{'Program'} and $stref->{'Program'} eq $src) ? 1 :0;
+	    	# Means "do not wrap in module statements"       	 	
+	        my $no_module= $is_program; # if it's a program
+	        $no_module= exists $no_modules{$src} ? 1 : $no_module; # if it occurs in %no_modules 
+#	        say "NO_MODULE $src:$no_module ($is_program)"; 
 	        print "INFO: adding module decls to $src\n" if $I;        
 	       if ($I) {
 	            say '! ','-' x 80;
@@ -134,20 +136,20 @@ sub add_module_decls { (my $stref)=@_;
 	            $mod_name=~s/\.\///;
 	            $mod_name=~s/\..*$//;
 	            $mod_name=~s/[\.\/\-]/_/g;
-	            
+	        
 	            $mod_name="module_$mod_name";
 	            my $mod_header=["module $mod_name\n",{'Ref'=>1}];
 	            my $mod_footer=["\nend module $mod_name\n",{'Ref'=>1}];
 	            
 	            my @mod_uses=();
 	            for my $mod_src (keys %{ $stref->{'UsedModules'}{$src} }) {
-#	            	say Dumper(%no_modules).$mod_src;
+#	            	say "NO_MODULES: <<".Dumper(%no_modules).' >> '.$mod_src;
 	            	next if exists $no_modules{$mod_src};
 	                my $used_mod_name = $mod_src;
 	                $used_mod_name =~s/\.\///;
 	                $used_mod_name =~s/\..*$//;
 	                $used_mod_name=~s/[\.\/\-]/_/g;
-	                
+#	        say "$used_mod_name <> $mod_name";            
 	                next if $used_mod_name eq $mod_name; # FIXME: ad-hoc!
 	                $used_mod_name="module_$used_mod_name";
 	                my $use_mod_line ="      use $used_mod_name";      
@@ -163,6 +165,7 @@ sub add_module_decls { (my $stref)=@_;
 	            # However, if this is a Program that contains subroutines, we need to do this differently
 	            # And in principle a source file can contain a combination.
 	            # Step 1            
+#	            say "STEP 1 : $src => $no_module";
 	            if ($no_module) { 
 	            	if ($is_program) {
 		            	# This means that $src is a source file with a Program 
@@ -240,8 +243,10 @@ sub add_module_decls { (my $stref)=@_;
 		            }
 	            }
 	            # Step 2
+#	            say "STEP 2 : $src => $no_module";
 	            if (!$no_module) {
 	                $stref->{'RefactoredCode'}{$src}=[$mod_header, @mod_uses,$mod_contains, @refactored_source_lines,$mod_footer];
+#	                croak Dumper($stref->{'RefactoredCode'}{$src}) if $src=~/press/;
 	            } else { 
 	            	
 	            	if ($is_program) {

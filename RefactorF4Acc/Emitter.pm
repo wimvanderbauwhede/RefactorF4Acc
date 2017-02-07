@@ -269,8 +269,6 @@ sub emit_all {
         print "ENTERING EMIT_ALL\n";
         print "=" x 80,"\n";
     }
-    
-          
 
     _init_emit_all($stref) unless $DUMMY;
     for my $src (keys %{ $stref->{'SourceContains'} } ) {
@@ -308,8 +306,9 @@ sub emit_all {
 		
 		if ($DUMMY) {
 			say '! '.('=' x 80);
-            say "! FILE: $targetdir/$nsrc";
+            say "! FILE: $targetdir/$nsrc ($src)";
             say '! '.('=' x 80);
+#            croak Dumper($stref->{Subroutines}{press}{RefactoredCode}) if $src=~/press/;
         	show_annlines($stref->{'RefactoredCode'}{$src},0);
         } else {
 			open my $TGT, '>', "$targetdir/$nsrc" or die $!."$targetdir/$nsrc";

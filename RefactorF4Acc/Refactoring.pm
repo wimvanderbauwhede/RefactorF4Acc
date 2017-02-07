@@ -132,9 +132,11 @@ sub _ifdef_io_all { (my $stref) = @_;
 
 
 sub _ifdef_io_per_source{ (my $stref,my $f) =@_;
+#	show_annlines( $stref->{'Subroutines'}{$f}{'RefactoredCode'});
 	$stref = _ifdef_io_per_source_PASS1($stref,$f); 	
 	$stref = _ifdef_io_per_source_PASS2a($stref,$f);
 	$stref = _ifdef_io_per_source_PASS2b($stref,$f);
+#	say $f;
 #	show_annlines( $stref->{'Subroutines'}{$f}{'RefactoredCode'});
 	return $stref;
 }
@@ -210,6 +212,7 @@ sub _ifdef_io_per_source_PASS1 { (my $stref,my $f) =@_;
 	    $annlines=$new_annlines;
 			#Iterate the above until $removed_count == 0
 	} # while
+	
 	$stref->{$sub_or_func_or_mod}{$f}{'RefactoredCode'}=$annlines;
 	return $stref;
 }

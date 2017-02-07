@@ -22,7 +22,8 @@ use Exporter 'import';
 
 sub parse_F95_var_decl {
 	(my $str) = @_;
-
+#$str=~s/^\s+//;
+#chomp $str;
 	print $str,"\n" if $VV;
 	my $p =f95_var_decl_parser();
 	(my $st, my $rest, my $matches) =$p->($str);
@@ -34,7 +35,7 @@ sub parse_F95_var_decl {
 #carp Dumper($matches);
 	my $pt = getParseTree($matches);
 	print 'PARSE TREE:'.Dumper($pt),"\n" if $VV;
-	
+#carp $str .' => '.Dumper($pt);	
 	my $typetup = $pt->{TypeTup};
 #	carp "TYPE TUPLE:".Dumper( $typetup );
 	if (exists $typetup->{'Type'}{'Opt'}) {

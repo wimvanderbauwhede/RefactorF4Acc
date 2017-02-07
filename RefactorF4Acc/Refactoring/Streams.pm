@@ -41,6 +41,11 @@ use Exporter;
 
 @RefactorF4Acc::Refactoring::Streams::EXPORT_OK = qw(
 	&pass_rename_array_accesses_to_scalars
+	&_declare_undeclared_variables
+	&_removed_unused_variables
+	&_fix_scalar_ptr_args
+	&_fix_scalar_ptr_args_subcall
+	&_make_dim_vars_scalar_consts_in_sigs
 );
 
 sub pass_rename_array_accesses_to_scalars {(my $stref)=@_;
@@ -1153,7 +1158,7 @@ sub _declare_undeclared_variables { (my $stref, my $f)=@_;
 	# Make a list of all variables anywhere in the code via Lhs, Rhs, Args, put in $state->{'ExprVars'}
 	my $pass_action_find_all_used_vars = sub { (my $annline, my $state)=@_;		
 		(my $line,my $info)=@{$annline};
-		
+#		say "$f LINE: $line" if $line=~/range/;
 		my $rline=$line;
 		my $rlines=[];
 		
@@ -1181,6 +1186,7 @@ sub _declare_undeclared_variables { (my $stref, my $f)=@_;
 			$state->{'DeclaredVars'}{ $info->{'VarDecl'}{'Name'}}=1;
 		}
 		elsif ( exists $info->{'Assignment'}  ) {
+#			say "$f ASSIGN: $line" if $line=~/range/;
 			my $var = $info->{'Lhs'}{'VarName'};
 				$state->{'AssignedVars'}{$var}=1;
 				
@@ -1234,6 +1240,13 @@ sub _declare_undeclared_variables { (my $stref, my $f)=@_;
 			} 
 		}
 	}
+	for my $lhs_var (keys %{ $state->{'AssignedVars'} } ) {
+		if (not exists $state->{'DeclaredVars'}{$lhs_var} ) {
+#			if ($expr_var ne '_OPEN_PAR_' and $expr_var!~/^\d/) {				
+				$state->{'UndeclaredVars'}{$lhs_var}='real'; # the default
+#			} 
+		}
+	}	
 	# --------------------------------------------------------------------------------------------------------------------------------	 			
 	my $pass_action_type_undeclared = sub { (my $annline, my $state)=@_;
 		(my $stref, my $f, my $pass_state)=@{$state};
@@ -1242,7 +1255,8 @@ sub _declare_undeclared_variables { (my $stref, my $f)=@_;
 		if (exists $info->{'Assignment'} ) { 
 			
 			my $var = $info->{'Lhs'}{'VarName'};
-			if (exists $pass_state->{'UndeclaredVars'}{$var}) {
+			if (exists $pass_state->{'UndeclaredVars'}{$var}) { 
+#				say "$f VAR: $var is UNDECLARED" if $var=~/range/;
 			# Now from this list via 
 				my $var_type = 'integer';
 				for my $rhs_var (@{ $info->{'Rhs'}{'VarList'}{'List'} } ) {
@@ -1327,8 +1341,8 @@ sub _fix_scalar_ptr_args { (my $stref, my $f)=@_;
 					$pass_state->{'ExPtrArgs'}{$arg}=$new_arg;
 					push @{$new_args}, $new_arg;
 					my $orig_decl = dclone($stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$arg} );
-					$orig_decl->{'ArrayOrScalar'} = 'Scalar';
-					$orig_decl->{'Dim'} = [];
+#					$orig_decl->{'ArrayOrScalar'} = 'Scalar';
+#					$orig_decl->{'Dim'} = [];
 					$stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$new_arg} = $orig_decl ; 
 					delete $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$arg} ;					
 				} else {
@@ -1420,9 +1434,15 @@ sub _fix_scalar_ptr_args_subcall { (my $stref, my $f)=@_;
 					my $ren_sig_arg = $sig_arg;
 					$ren_sig_arg =~s/_ptr//; # duu
 					$new_arg_map->{$ren_sig_arg}=$call_arg; # duu => duu
-					# This is only correct if the signature arg is a scalar. 
-#					croak Dumper( $stref->{'Subroutines'}{$name}{'RefactoredArgs'}{'Set'}{$ren_sig_arg} ) if $ren_sig_arg eq 'duu';					
-					$info->{'CallArgs'}{'Set'}{$call_arg} = {'Expr' => $call_arg.'(1)','Type'=>'Scalar'};
+					# This is only correct if the signature arg of the called sub is a scalar.
+#					if ($call_arg eq 'km') {
+#						croak $f.Dumper($sig_arg).Dumper($stref->{'Subroutines'}{$name}{'RefactoredArgs'}{'Set'}{$call_arg});
+#					} 					
+					if ($stref->{'Subroutines'}{$name}{'RefactoredArgs'}{'Set'}{$ren_sig_arg}{'ArrayOrScalar'} eq 'Scalar') {
+						$info->{'CallArgs'}{'Set'}{$call_arg} = {'Expr' => $call_arg.'(1)','Type'=>'Scalar'};
+					} else {
+						$info->{'CallArgs'}{'Set'}{$call_arg} = {'Expr' => $call_arg,'Type'=>'Array'};
+					}
 				} else {
 					$new_arg_map->{$sig_arg}=$call_arg;
 				}
@@ -1528,7 +1548,7 @@ sub _make_dim_vars_scalar_consts_in_sigs { (my $stref, my $f)=@_;
 	};
 	my $state= [$stref,$f,$pass_state];
 	
- 	($stref,$state) = stateful_pass($stref,$f,$pass_make_dim_vars_scalar_consts_in_sigs, $state,'pass_fix_scalar_ptr_args() ' . __LINE__  ) ;
+ 	($stref,$state) = stateful_pass($stref,$f,$pass_make_dim_vars_scalar_consts_in_sigs, $state,'pass_make_dim_vars_scalar_consts_in_sigs() ' . __LINE__  ) ;
 
  	
 	return $stref;
