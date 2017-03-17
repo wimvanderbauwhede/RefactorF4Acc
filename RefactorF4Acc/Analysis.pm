@@ -42,9 +42,9 @@ sub analyse_all {
 	my $annlines =	_add_BLOCK_DATA_call_after_last_VarDecl($code_unit_name,$stref);
 	
 	if ($sub_or_func_or_mod eq 'Subroutines') {
-	# Find the 'root', i.e. the outermost calling subroutine, for each include file
-	print "\t** FIND ROOT FOR INCLUDES **\n" if $V;
-	$stref = find_root_for_includes( $stref, $code_unit_name );
+		# Find the 'root', i.e. the outermost calling subroutine, for each include file
+		print "\t** FIND ROOT FOR INCLUDES **\n" if $V;
+		$stref = find_root_for_includes( $stref, $code_unit_name );
 	}
 	return $stref if $stage == 1;
 
@@ -57,7 +57,7 @@ sub analyse_all {
 	# In this stage, 'ExGlobArgs' is populated from CommonVars by looking at the common blocks that occur in the call chain
 	# Note that this does not cover common blocks in includes so hopefully ExGlobArgs will not be affected for the case with includes.
 	if ($sub_or_func_or_mod eq 'Subroutines') {
-	_determine_exglobargs_rec($code_unit_name, $stref);
+		_determine_exglobargs_rec($code_unit_name, $stref);
 	}
 	# First find any additional argument declarations, either in includes or via implicits
 	for my $f ( keys %{ $stref->{'Subroutines'} } ) {
@@ -222,7 +222,6 @@ sub _analyse_variables {
 	my $__analyse_vars_on_line = sub {
 		( my $annline, my $state ) = @_;
 		( my $line,    my $info )  = @{$annline};
-
 		if (   exists $info->{'Assignment'}
 			or exists $info->{'SubroutineCall'}
 			or exists $info->{'If'} # Control
@@ -453,6 +452,8 @@ sub _analyse_variables {
 				}
 			}			
 			return ( [$annline], [ $stref, $f, $identified_vars ] );
+#		} elsif (  exists $info->{'VarDecl'} ) {
+#				croak Dumper($info);
 		} else {
 			return ( [$annline], $state );
 		}

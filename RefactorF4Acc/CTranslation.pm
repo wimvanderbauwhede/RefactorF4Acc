@@ -47,8 +47,8 @@ sub translate_module_to_C {  (my $stref, my $ocl) = @_;
 	$stref->{'TranslatedCode'}=[];	
 	$stref = pass_wrapper_subs_in_module($stref,[
 					[ sub { (my $stref, my $f)=@_;  alias_ordered_set($stref,$f,'DeclaredOrigArgs','RefactoredArgs'); } ],
-					[ \&_fix_scalar_ptr_args ],
-		  		[\&_fix_scalar_ptr_args_subcall],	
+#					[ \&_fix_scalar_ptr_args ],
+#		  		[\&_fix_scalar_ptr_args_subcall],	
 		[\&_declare_undeclared_variables],#,\&_removed_unused_variables],
 		[\&add_OpenCL_address_space_qualifiers],
 		[\&translate_sub_to_C]
@@ -88,7 +88,6 @@ sub add_OpenCL_address_space_qualifiers { (my $stref, my $f, my $ocl) = @_;
 						
 					# First update the ArgMap 
 					# This is to account for the renamed pointers
-					
 					for my $sig_arg (keys %{$info->{'SubroutineCall'}{'ArgMap'} }) {
 						my $call_arg = $info->{'SubroutineCall'}{'ArgMap'}{$sig_arg};
 						my $call_arg_expr =  $info->{'CallArgs'}{'Set'}{$call_arg}{'Expr'};
@@ -211,14 +210,17 @@ sub translate_sub_to_C {  (my $stref, my $f, my $ocl) = @_;
 			# If the called arg is a pointer and the sig arg is a pointer, no '*', else, we need a '*'
 			# But the problem is of course that we have just replaced the called args by the sig args
 			# So what we need to do is check the type in $f and $subname, and use that to see if we need a '*' or even an '&' or nothing
-			$c_line = _emit_expression_C($subcall_ast,'',$stref,$f).';';
-#			croak Dumper($subcall_ast) if $c_line=~/adam_map_26/;
-			if ($c_line=~/get_(local|global|group)_id/) {
+			
+			if ($subcall_ast->[1] eq 'barrier') {
+				$subcall_ast->[2][1]=uc($subcall_ast->[2][1]);
+				$c_line = $info->{'Indent'}._emit_expression_C($subcall_ast,'',$stref,$f).';';
+			}
+			elsif ($subcall_ast->[1]=~/get_(local|global|group)_id/) {
 				my $qual = $1;
-				$c_line = "    ${qual}_id = get_${qual}_id(0);";
+				$c_line = $info->{'Indent'}."${qual}_id = get_${qual}_id(0);";
 			}
 		}			 
-		elsif (exists $info->{'If'} ) {		
+		elsif (exists $info->{'If'} ) {				
 			$c_line = _emit_ifthen_C($stref, $f, $info);
 		}
 		elsif (exists $info->{'ElseIf'} ) {		
@@ -426,11 +428,12 @@ sub _emit_assignment_C { (my $stref, my $f, my $info)=@_;
 
 
 sub _emit_ifthen_C { (my $stref, my $f, my $info)=@_;	
-	my $cond_expr_ast=$info->{'CondExecExpr'};
+	my $cond_expr_ast=$info->{'CondExecExprAST'};	
 	my $cond_expr = _emit_expression_C($cond_expr_ast,'',$stref,$f);
 	$cond_expr=_change_operators_to_C($cond_expr);
-	my $rline = 'if ('.$cond_expr.') '. (exists $info->{'IfThen'} ? '{' : '');
-		
+	# FIXME! fix for stray '+'
+	$cond_expr=~s/\+\>/>/g;
+	my $rline = 'if ('.$cond_expr.') '. (exists $info->{'IfThen'} ? '{' : '');		
 	return $rline;
 }
 
@@ -443,6 +446,10 @@ sub _emit_expression_C {(my $ast, my $expr_str, my $stref, my $f)=@_;
 	if ($ast->[0] eq '^') {
 		$ast->[0]='pow';
 		unshift @{$ast},'&';		
+	} 
+	elsif ($ast->[0] eq '&' && $ast->[1] eq 'mod') {		
+		shift @{$ast};
+		$ast->[0]='%';	
 	}
 	
 	for my  $idx (0 .. scalar @{$ast}-1) {		
@@ -570,7 +577,7 @@ sub _emit_expression_C {(my $ast, my $expr_str, my $stref, my $f)=@_;
 			for my $elt (1 .. scalar @{$ast} -1 ) {
 				$ts[$elt-1] = (ref($ast->[$elt]) eq 'ARRAY') ? _emit_expression_C( $ast->[$elt], '',$stref,$f) : $ast->[$elt];					
 			} 
-			if ($op eq '^') {
+			if ($op eq '^') { croak "OBSOLETE!";
 				$op = '**';
 				warn "TODO: should be pow()";
 #				croak Dumper($ast);

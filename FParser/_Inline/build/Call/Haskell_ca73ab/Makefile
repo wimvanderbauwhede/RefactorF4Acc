@@ -527,22 +527,22 @@ clean_subdirs :
 
 clean :: clean_subdirs
 	- $(RM_F) \
-	  pm_to_blib.ts $(BOOTSTRAP) \
-	  mon.out pm_to_blib \
-	  MYMETA.json core \
-	  *$(OBJ_EXT) $(MAKE_APERL_FILE) \
-	  perl so_locations \
-	  core.[0-9][0-9] $(INST_ARCHAUTODIR)/extralibs.ld \
-	  Haskell_ca73ab.c $(BASEEXT).x \
-	  core.[0-9][0-9][0-9] core.[0-9][0-9][0-9][0-9] \
-	  tmon.out MYMETA.yml \
-	  perlmain.c blibdirs.ts \
-	  perl$(EXE_EXT) lib$(BASEEXT).def \
-	  $(BASEEXT).def $(BASEEXT).exp \
-	  $(BASEEXT).bso core.[0-9] \
-	  $(INST_ARCHAUTODIR)/extralibs.all *$(LIB_EXT) \
-	  perl.exe core.*perl.*.? \
-	  *perl.core core.[0-9][0-9][0-9][0-9][0-9] 
+	  $(BASEEXT).def so_locations \
+	  core.*perl.*.? pm_to_blib.ts \
+	  perl *$(OBJ_EXT) \
+	  core MYMETA.json \
+	  perlmain.c mon.out \
+	  $(BOOTSTRAP) pm_to_blib \
+	  $(INST_ARCHAUTODIR)/extralibs.all MYMETA.yml \
+	  perl.exe $(INST_ARCHAUTODIR)/extralibs.ld \
+	  *$(LIB_EXT) perl$(EXE_EXT) \
+	  core.[0-9][0-9][0-9] core.[0-9][0-9][0-9][0-9][0-9] \
+	  $(BASEEXT).exp *perl.core \
+	  tmon.out Haskell_ca73ab.c \
+	  blibdirs.ts core.[0-9][0-9][0-9][0-9] \
+	  $(MAKE_APERL_FILE) $(BASEEXT).bso \
+	  $(BASEEXT).x core.[0-9][0-9] \
+	  lib$(BASEEXT).def core.[0-9] 
 	- $(RM_RF) \
 	  blib 
 	- $(MV) $(FIRST_MAKEFILE) $(MAKEFILE_OLD) $(DEV_NULL)

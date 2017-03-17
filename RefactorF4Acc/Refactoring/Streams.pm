@@ -52,8 +52,8 @@ sub pass_rename_array_accesses_to_scalars {(my $stref)=@_;
 	$stref = pass_wrapper_subs_in_module($stref,
 			[
 				[ sub { (my $stref, my $f)=@_;  alias_ordered_set($stref,$f,'DeclaredOrigArgs','RefactoredArgs'); } ],
-				[ \&_fix_scalar_ptr_args ],
-		  		[\&_fix_scalar_ptr_args_subcall],
+#				[ \&_fix_scalar_ptr_args ],
+#		  		[\&_fix_scalar_ptr_args_subcall],
 		  		[
 			  		\&_declare_undeclared_variables,
 					\&_rename_array_accesses_to_scalars,

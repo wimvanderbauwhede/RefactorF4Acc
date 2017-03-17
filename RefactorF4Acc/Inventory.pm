@@ -414,8 +414,8 @@ sub _process_src {
             
             # Find include statements
             $line =~ /^\s*\#?include\s+[\"\']([\w\.]+)[\"\']/ && do {
-                my $inc = $1;
-                 if ($in_module) {
+                my $inc = $1;                
+                if ($in_module) {
                     $stref->{'Modules'}{$mod_name}{'IncludeFiles'}{$inc}={};
                 }
                 if ( not exists $stref->{'IncludeFiles'}{$inc} ) {

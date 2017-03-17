@@ -753,8 +753,7 @@ VIRTUAL
 				$commonlst=~s/^,//;        
 				$has_commons=1; 				
 #				say "COMMON for $f: $commonlst"; 
-				( my $parsedvars, my $parsedvars_lst ) = f77_var_decl_parser( $commonlst, 0 );
-#				say Dumper($parsedvars);
+				( my $parsedvars, my $parsedvars_lst ) = f77_var_decl_parser( $commonlst, 0 );				
 				for my $var ( @{$parsedvars_lst} ) {	
 #					my $subset;
 					$Sf->{'Commons'}{$var} = $var;
@@ -812,7 +811,11 @@ VIRTUAL
 #					croak Dumper($Sf->{'DeclaredCommonVars'}{'Set'}{'alat'}) if $f eq 'atmos' and $var eq 'alat';
 				} # for loop 
 				
-				$info->{'Common'} = { 'Name' => $common_block_name };
+				$info->{'Common'} = { 'Name' => $common_block_name , 'Vars' => 
+					{
+						'Set' =>$parsedvars, 'List' => $parsedvars_lst
+					}
+				};
 #				croak Dumper($info);
 			}		
 # NAMELIST
@@ -1248,6 +1251,7 @@ END IF
 				  if $I;
 				$Sincf->{'InclType'} = 'Both';
 				$stref = __split_out_parameters( $inc, $stref );
+				$stref = __find_parameter_used_in_inc_and_add_to_Only( $inc, $stref );
 				$has_pars = 0;
 	
 			} elsif ($has_commons) {
@@ -1280,21 +1284,25 @@ END IF
 sub _parse_includes {
 	( my $f, my $stref ) = @_;
 
-	#	local $V=1;
+#		local $V=1;
 
 	my $sub_or_func_or_mod_or_inc_or_mod = sub_func_incl_mod( $f, $stref );
 	my $Sf = $stref->{$sub_or_func_or_mod_or_inc_or_mod}{$f};
 	print "PARSING INCLUDES for $f ($sub_or_func_or_mod_or_inc_or_mod)\n" if $V;
 	my $srcref       = $Sf->{'AnnLines'};
 	my $last_inc_idx = 0;
-	if ( defined $srcref ) {
+	if ( defined $srcref ) { 
+		
 		for my $index ( 0 .. scalar( @{$srcref} ) - 1 ) {
 			my $line = $srcref->[$index][0];
 			my $info = $srcref->[$index][1];
+			
+			
 			if ( $line =~ /^\!\s/ ) {
 				next;
 			}
-			if ( exists $info->{'Includes'} ) {
+			
+			if ( exists $info->{'Includes'} ) { 
 				my $name = $info->{'Includes'};
 				print "FOUND include $name in $f\n" if $V;
 				$Sf->{'Includes'}{$name} = { 'LineID' => $index };
@@ -2483,7 +2491,63 @@ sub __split_out_parameters {
 	delete $stref->{'IncludeFiles'}{$f}{'Vars'}{'Subsets'}{'Parameters'};
 	return $stref;
 }    # END of __split_out_parameters
+# -----------------------------------------------------------------------------
+sub __find_parameter_used_in_inc_and_add_to_Only { (my $inc, my $stref ) = @_;
+	
+	my $Sinc = $stref->{'IncludeFiles'}{$inc};
 
+	my $srcref      = $Sinc->{'AnnLines'};	
+	
+	for my $index ( 0 .. scalar( @{$srcref} ) - 1 ) {		
+		my $line = $srcref->[$index][0];
+		my $info = $srcref->[$index][1];
+		if (exists $info->{'Include'} and $info->{'Include'}{'InclType'} eq 'Parameter' ) {
+			my $param_inc = 	$info->{'Include'}{'Name'};
+		}
+		elsif ( exists $info->{'VarDecl'}  ) {
+			for my $var ( @{ $info->{'VarDecl'}{'Names'} } ) {
+				my $decl=get_var_record_from_set($Sinc->{'Vars'},$var);
+				if ($decl->{'ArrayOrScalar'} eq 'Array') {
+					my %dim_tmpstr = map { ($_->[0] => 1,$_->[1] => 1) } @{$decl->{'Dim'}};
+					my @maybe_parstrs = grep { !/^\-?\d+$/ } keys %dim_tmpstr;
+					my $maybe_pars_str = '('.join(',',@maybe_parstrs).')';#Dumper($decl->{'Dim'});# 	
+					# So now parse this 
+					my $ast=parse_expression($maybe_pars_str, {}, $stref, $inc);
+					my $pars = get_vars_from_expression($ast,{});
+					delete $pars->{'_OPEN_PAR_'};
+					for my $par (keys %{$pars}) {
+						$Sinc->{'Includes'}{"params_$inc"}{'Only'}{$par}=1;
+					}   		
+				}
+			}
+
+		}
+		elsif ( exists $info->{'Common'} ) {
+			for my $var ( @{ $info->{'Common'}{'Vars'}{'List'} } ) {
+				
+				my $decl=get_var_record_from_set($Sinc->{'Vars'},$var);
+				if ($decl->{'ArrayOrScalar'} eq 'Array') {
+					my %dim_tmpstr = map { ($_->[0] => 1,$_->[1] => 1) } @{$decl->{'Dim'}};
+					my @maybe_parstrs = grep { !/^\-?\d+$/ } keys %dim_tmpstr;
+					my $maybe_pars_str = '('.join(',',@maybe_parstrs).')';#Dumper($decl->{'Dim'});# 	
+					# So now parse this 
+					my $ast=parse_expression($maybe_pars_str, {}, $stref, $inc);
+					my $pars = get_vars_from_expression($ast,{});
+					delete $pars->{'_OPEN_PAR_'};
+					for my $par (keys %{$pars}) {
+						$Sinc->{'Includes'}{"params_$inc"}{'Only'}{$par}=1;
+					}   		
+				}						
+			}			
+		}
+		elsif ( exists $info->{'Dimension'} ) {
+			say "DIMENSION $line"; say Dumper($info);
+		}
+	}
+	
+	
+	return $stref;
+}
 # -----------------------------------------------------------------------------
 sub _parse_implicit {
 	( my $line, my $f, my $stref ) = @_;

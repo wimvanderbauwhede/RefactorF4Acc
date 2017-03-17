@@ -41,7 +41,7 @@ sub find_root_for_includes {
         next if $stref->{'IncludeFiles'}{$inc}{'InclType'} eq 'External';
         if ($stref->{'IncludeFiles'}{$inc}{'Status'}==$UNREAD) {
         	#WV23JUL2012: This is weak, clearly the only good way is to find the includes in rec descent 
-            croak "TROUBLE: $inc (in $f) not yet parsed, how come?";#.Dumper($stref);
+            croak "TROUBLE: $inc (in $f) not yet parsed, how come? (Hint: likely the tree contains refactored sources)";#.Dumper($stref);
                 $stref->{'IncludeFiles'}{$inc}{'HasBlocks'} = 0;
                 $stref = parse_fortran_src( $inc, $stref );   
         }

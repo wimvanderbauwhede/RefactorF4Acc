@@ -164,8 +164,16 @@ sub dim_parser {
 #        {'Dim' => parens sepByChar(',', choice( regex('(?:[^,\)]*(?:\([^,\)]+\))?[^,\)]*)+'), regex('[^,\)]+') ) ) },
 # This is a very ugly hack, it works only for 1 pair of parens
 # What this matches is "start with anything except ",)(", then "(" whatever ")"
-        {'Dim' => parens sepByChar(',',  choice( regex('^[^,\)\(]+?(?:\([^,\)\(]+\))[^,\(\)]+'), regex('^[^,\)\(]+?(?:\([^,\)\(]+\))'),regex('^[^,\)]+') )   ) },
-        maybe( char(')'))
+		{'Dim' =>  parens( &comma_sep_expr_list ) }
+#        {'Dim' => parens sepByChar(',',  
+#        	choice( 
+#        		regex('^[^,\)\(]+?(?:\([^,\)\(]+\))[^,\(\)]+'), 
+#        		regex('^[^,\)\(]+?(?:\([^,\)\(]+\))'),
+#        		regex('^[^,\)]+') 
+#        		)   
+#        	) 
+#        },
+#        maybe( char(')'))
 		] 
 }
 
@@ -220,5 +228,74 @@ sub openacc_pragma_parser { sequence [
 		] }
         ]
 }
+
+
+# matches an unsigned integer
+sub comma_sep_expr_list {
+#	local $V=1;
+	my $gen = sub {
+		( my $str ) = @_;
+#		local $V=1;
+		say "* comma_sep_expr_list( '$str' )" if $V;
+		my $status = 0;
+		my $matches_remainder = _parse_comma_sep_expr_list($str);
+		(my $matches, my $remainder)=@{$matches_remainder};
+		if ( scalar @{$matches} > 0  ) {
+			$status = 1;
+#			$str = substr($str,0,length($str)-length($remainder)); # 1234 5678
+			say "comma_sep_expr_list: remainder => <$remainder>"   if $V;		
+#			say "comma_sep_expr_list: str => <$str>"   if $V;			
+			say "comma_sep_expr_list: matches => [".join(',',@{$matches})."]" if $V;
+			return ( $status, $remainder, $matches );			
+		} else {
+			say "comma_sep_expr_list: match failed => <$str>" if $V;
+			return ( $status, $str, undef );   # assumes $status is 0|1, $str is string, $matches is [string]
+		}
+	};
+	return $gen;
+}
+
+
+sub _parse_comma_sep_expr_list {
+
+	( my $str ) = @_;
+
+	my $parens_count = 0;
+	my $found_parens = 0;
+	my @chars        = split( '', $str );
+	my $nchars       = scalar @chars;
+
+	my $matched_str  = '';
+	my @matched_strs = ();
+
+	for my $ch_idx ( 0 .. $nchars - 1 ) {
+		my $ch = shift @chars;
+		if ( $ch eq '(' ) {
+			$found_parens = 1;
+			++$parens_count;
+			$matched_str .= $ch;
+		} elsif ( $ch eq ')' ) {
+			--$parens_count;
+			if ( $found_parens == 1 and $parens_count == 0 ) {
+				$found_parens = 0;
+			} elsif ($parens_count<0) {
+				push @matched_strs, $matched_str;
+				unshift @chars,')';
+				last;
+			}
+			$matched_str .= $ch;
+		} elsif ( $ch eq ',' and $found_parens == 0 ) {
+			push @matched_strs, $matched_str;
+			$matched_str = '';
+		} elsif ( $ch ne ' ' ) {
+			$matched_str .= $ch;
+		}
+		if ( $ch_idx == $nchars - 1 ) {
+			push @matched_strs, $matched_str;
+		}
+	}
+	my $remainder = join('',@chars);
+	return [\@matched_strs,$remainder];
+} # END of _parse_comma_sep_expr_list
 
 1;
