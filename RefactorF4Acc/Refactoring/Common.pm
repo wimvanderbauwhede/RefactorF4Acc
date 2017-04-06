@@ -241,7 +241,7 @@ sub context_free_refactorings {
 				my $ph_str = $info->{'PlaceHolders'}{$ph};
 				$line=~s/$ph/$ph_str/;
 			}
-                                    
+#if ( exists $info->{'IO'} and $line=~/open/ and $f=~/adam/) { carp  $f. ' : '.$line."\t=>\t".Dumper($info); }                                    
             $info->{'Ref'}++;
         }
 
@@ -426,6 +426,7 @@ sub context_free_refactorings {
 #		my $indent=$info->{'Indent'} // '';
 #		my $maybe_label= ( exists $info->{'Label'} and exists $Sf->{'ReferencedLabels'}{$info->{'Label'}} ) ?  $info->{'Label'}.' ' : '';
 #        push @{ $Sf->{'RefactoredCode'} }, [ "$indent$maybe_label".$line, $info ];   # if $line ne '';
+#if ( exists $info->{'IO'} and $line=~/open/ and $f=~/adam/) { croak  $f. ' : '.$line."\t=>\t".Dumper($info); }
         push @{ $Sf->{'RefactoredCode'} }, [ $line, $info ];   # if $line ne '';
         if (@extra_lines) {
             for my $extra_line (@extra_lines) {
@@ -831,7 +832,7 @@ if (exists  $Sf->{'Status'} ) {
             } else {
                 die 'get_annotated_sourcelines: no AnnLines for ' . $f;
             }
-        } else {
+        } else {        	
             $annlines = $Sf->{'RefactoredCode'};           # Here a ref is OK
         }
     } else {    	
@@ -1128,6 +1129,9 @@ sub format_f95_par_decl {
     };
     
      carp "FINAL PAR REC $f:".Dumper($final_par_rec) if $type eq 'Unknown';
+#     if ($type eq 'Unknown') {
+#     	$final_par_rec->{'Type'} = 'real';
+#     } 
     return $final_par_rec; 
 }    # format_f95_par_decl()
 

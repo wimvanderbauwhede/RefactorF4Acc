@@ -28,6 +28,7 @@ use Exporter;
   &emit_expression
   &get_vars_from_expression
   &get_args_vars_from_expression
+  &get_consts_from_expression
   &get_args_vars_from_subcall
 );
 
@@ -456,6 +457,36 @@ sub get_vars_from_expression {(my $ast, my $vars)=@_;
 	}
 	return $vars;		
 }
+
+# All variables in the expression
+# $vars = {} to start
+sub get_consts_from_expression {(my $ast, my $vars)=@_;
+	croak unless ref($ast) eq 'ARRAY';
+	for my  $idx (0 .. scalar @{$ast}-1) {		
+		my $entry = $ast->[$idx];
+		if (ref($entry) eq 'ARRAY') {
+			$vars = get_consts_from_expression( $entry, $vars);			
+		} else {
+			my $val = $entry;
+			if ($entry eq '-') {
+				 $val =$ast->[$idx+1];
+			}
+			if ($val =~/^[\.\d]/ ) {
+				my $type='Unknown';
+				if ( $val =~ /^\-?\d+$/ ) {
+					$type = 'integer';
+				}
+				elsif ( $val =~ /^(\-?(?:\d+|\d*\.\d*)(?:[edq][\-\+]?\d+)?)$/ ) {
+					$type = 'real';
+				} 
+				$vars->{$val}=$type ;					
+			} 
+		}				
+	}
+	return $vars;		
+}
+
+
 # if the expression is a sub call (or in fact just a comma-sep list), return the arguments and also all variables that are not arguments
 sub get_args_vars_from_expression {(my $ast)=@_;
 	

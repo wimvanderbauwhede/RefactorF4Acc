@@ -6,7 +6,7 @@ package RefactorF4Acc::Refactoring;
 use v5.016;
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
-use RefactorF4Acc::Refactoring::Common qw( top_src_is_module pass_wrapper_subs_in_module stateful_pass stateful_pass_reverse stateless_pass get_annotated_sourcelines emit_f95_var_decl splice_additional_lines_cond  );
+use RefactorF4Acc::Refactoring::Common qw( top_src_is_module pass_wrapper_subs_in_module stateful_pass stateful_pass_reverse stateless_pass get_annotated_sourcelines emit_f95_var_decl splice_additional_lines_cond context_free_refactorings );
 use RefactorF4Acc::Refactoring::Subroutines qw( refactor_all_subroutines emit_subroutine_sig );
 use RefactorF4Acc::Refactoring::Functions qw( refactor_called_functions remove_vars_masking_functions);
 use RefactorF4Acc::Refactoring::IncludeFiles qw( refactor_include_files );
@@ -52,9 +52,12 @@ sub refactor_all {
 		$stref = translate_module_to_C($stref,1);
 	}
 	if ($pass =~/ifdef_io/i) {
-		$stref = _ifdef_io_all($stref);		
+		$stref = _ifdef_io_all($stref);				
 	}
 	if ($pass ne '') {
+		
+		$stref=_substitute_placeholders($stref);
+		
 		if (top_src_is_module($stref, $code_unit_name)) {
 			$stref=add_module_decls($stref);
 		}
@@ -124,7 +127,8 @@ sub _ifdef_io_all { (my $stref) = @_;
 		next if exists $stref->{'Entries'}{$f};
 #		say "\n! SOURCE $f\n"; 
 		$stref = _ifdef_io_per_source($stref,$f); 
-	}	
+	 
+	}
 #	$stref = _ifdef_io_per_source($stref,'wave1d');
 #	die;
 	return $stref;	
@@ -205,6 +209,7 @@ sub _ifdef_io_per_source_PASS1 { (my $stref,my $f) =@_;
 					 	}							
 					}
 				}
+
 	    	}
 			push @{$new_annlines}, $annline;
 			$idx++;
@@ -287,7 +292,34 @@ sub get_next_relevant_statement { (my $annlines, my  $idx_start) = @_;
 	return ($relevant_annline, $relevant_annline_idx);
 }
 
+sub _substitute_placeholders { (my $stref)=@_;
+	for my $f ( keys %{ $stref->{'Subroutines'} } ) {		
+		next if exists $stref->{'Entries'}{$f};
+		$stref=_substitute_placeholders_per_source($stref,$f);
+	}	
+	return $stref;
+}
 
+sub _substitute_placeholders_per_source { (my $stref,my $f) =@_;
+	
+	my $pass_action = sub { (my $annline, my $prev_annline)=@_;
+		(my $line,my $info)=@{$annline};	
+		if (exists $info->{'PlaceHolders'}) {					
+			while ($line =~ /(__PH\d+__)/) {
+				my $ph=$1;
+				my $ph_str = $info->{'PlaceHolders'}{$ph};
+				$line=~s/$ph/$ph_str/;
+			}                                    
+			$annline = [$line, $info];
+		}
+		return [$annline];						
+	};
+	
+ 	$stref = stateless_pass($stref,$f,$pass_action, '_substitute_placeholders_per_source() ' . __LINE__  ) ;
+	return $stref
+	
+	
+} 
 
 #sub _ifdef_io_per_source_RUBBISH { (my $stref,my $f) =@_;
 #	

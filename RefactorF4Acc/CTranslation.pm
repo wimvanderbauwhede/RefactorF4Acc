@@ -218,7 +218,9 @@ sub translate_sub_to_C {  (my $stref, my $f, my $ocl) = @_;
 			elsif ($subcall_ast->[1]=~/get_(local|global|group)_id/) {
 				my $qual = $1;
 				$c_line = $info->{'Indent'}."${qual}_id = get_${qual}_id(0);";
-			}
+			} else {
+				$c_line = $info->{'Indent'}._emit_expression_C($subcall_ast,'',$stref,$f).';';
+            }
 		}			 
 		elsif (exists $info->{'If'} ) {				
 			$c_line = _emit_ifthen_C($stref, $f, $info);
@@ -369,6 +371,7 @@ sub _emit_var_decl_C { (my $stref,my $f,my $var)=@_;
 	if (defined $decl->{'Parameter'}) {
 		$const = 'const ';
 		$val = ' = '.$decl->{'Val'};
+		#say "PARAM $var => $val" if $var=~/st_\w+_(map|reduce)_\d+/;
 	}
 	my $ptr = $array  ? '*' : '';
 	$stref->{'Subroutines'}{$f}{'Pointers'}{$var}=$ptr;
@@ -464,8 +467,9 @@ sub _emit_expression_C {(my $ast, my $expr_str, my $stref, my $f)=@_;
 			} elsif ($entry eq '&') {
 				my $mvar = $ast->[$idx+1];
 				# AD-HOC, replacing abs/min/max to fabs/fmin/fmax without any type checking ... FIXME!!!
-				$mvar=~s/^(abs|min|max)$/f$1/;
-				$mvar=~s/^am(ax|in)1$/fm$1/;				
+				# The (float) cast is necessary because otherwise I get an "ambiguous" error
+				$mvar=~s/^(abs|min|max)$/(float)f$1/;
+				$mvar=~s/^am(ax|in)1$/(float)fm$1/;				
 				$expr_str.=$mvar.'(';
 				
 				 $stref->{'CalledSub'}= $mvar;
@@ -505,7 +509,10 @@ sub _emit_expression_C {(my $ast, my $expr_str, my $stref, my $f)=@_;
 #					$expr_str.=$mvar.'(';					
 				} else {
 					if (scalar @{$ast} == 3 and $ast->[2] eq '1') {
-						$expr_str.='*'.$mvar;
+						$expr_str.='(*'.$mvar.')';
+						$ast->[2]='';
+						$ast->[0]='$';
+#						croak Dumper($ast);
 					}  else {
 					my $decl = get_var_record_from_set($stref->{'Subroutines'}{$f}{'Vars'},$mvar);
 					my $dims =  $decl->{'Dim'};
@@ -599,7 +606,7 @@ sub _emit_expression_C {(my $ast, my $expr_str, my $stref, my $f)=@_;
 			}
 		}
 	} else {
-		$expr_str.=join(';',@expr_chunks);
+		$expr_str.=join(';',grep {$_ ne '' } @expr_chunks);
 	}	
 #	$expr_str=~s/_complex_//g;
 	$expr_str=~s/_OPEN_PAR_//g;
@@ -1142,8 +1149,8 @@ sub toCType {
     if (not defined $kind) {$kind=4};
     my %corr = (
         'logical'          => 'int', # C has no bool
-        'integer'          => ($kind == 8 ? 'long' : 'int'),
-        'real'             => ($kind == 8 ? 'double' : 'float'),
+        'integer'          => ($ftype eq 'integer' and $kind == 8 ? 'long' : 'int'),
+        'real'             => ($ftype eq 'real' and $kind == 8 ? 'double' : 'float'),
         'double precision' => 'double',
         'doubleprecision'  => 'double',
         'character'        => 'char'

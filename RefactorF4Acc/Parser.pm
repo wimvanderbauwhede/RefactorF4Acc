@@ -5,7 +5,7 @@ use RefactorF4Acc::Utils;
 use RefactorF4Acc::CallTree qw( add_to_call_tree );
 use RefactorF4Acc::Refactoring::Common qw( emit_f95_var_decl get_f95_var_decl );
 use RefactorF4Acc::Parser::SrcReader qw( read_fortran_src );
-use RefactorF4Acc::Parser::Expressions qw( get_vars_from_expression parse_expression  get_args_vars_from_expression get_args_vars_from_subcall emit_expression);
+use RefactorF4Acc::Parser::Expressions qw( get_vars_from_expression parse_expression  get_args_vars_from_expression get_args_vars_from_subcall emit_expression get_consts_from_expression);
 use RefactorF4Acc::CTranslation qw( add_to_C_build_sources );    # OBSOLETE
 use RefactorF4Acc::Analysis::LoopDetect qw( outer_loop_start_detect );
 use RefactorF4Acc::Analysis::ArgumentIODirs qw(  &conditional_assignment_fsm );
@@ -2151,6 +2151,13 @@ sub _get_commons_params_from_includes { croak "OBSOLETE";
 						/^(\-?(?:\d+|\d*\.\d*)(?:[edq][\-\+]?\d+)?)$/ )
 					{
 						$type = 'real';
+					} 
+					elsif ( $pvars{$var} =~
+						/\*\*/ ) 
+					{
+						my $ast = parse_expression($pvars{$var});
+						carp Dumper($ast);
+							$type = 'real';
 					}
 					$Sincf->{'LocalParameters'}{'Set'}{$var} = {
 						'Type'      => $type,
@@ -3597,6 +3604,17 @@ sub __parse_f77_par_decl {
 					$type = 'integer';
 				} elsif ( $val =~ /^(\-?(?:\d+|\d*\.\d*)(?:[edq][\-\+]?\d+)?)$/ ) {
 					$type = 'real';
+				} elsif ( $val =~/[\*\+\-\/]/ ) { # an expression 
+						my $ast = parse_expression($val);
+						my $consts = get_consts_from_expression($ast,{});
+						for my $const_type (values %{$consts}) {
+							if ($const_type eq 'real') {
+								$type = 'real';
+								last;
+							} elsif ($const_type ne 'Unknown') {
+								$type=$const_type;
+							}
+						}
 				} elsif ( $val =~ /^[\"\'].+[\'\"]$/ ) {
 					my $nchars = length ($val) -2;
 					$attr = "(len=$nchars)";

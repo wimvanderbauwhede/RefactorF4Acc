@@ -326,8 +326,7 @@ sub _refactor_globals_new {
             $skip = 1;
         }
         
-        if ( exists $info->{'FunctionCalls'} ) {
-        	        	
+        if ( exists $info->{'FunctionCalls'} ) {        	        	
             # Assignment and Subroutine call lines can contain function calls that also need exglob refactoring!            
             $rlines = _create_refactored_function_calls( $stref, $f, $annline, $rlines );        
             $skip = 1;
