@@ -430,13 +430,14 @@ sub get_vars_from_expression {(my $ast, my $vars)=@_;
 				next if $mvar=~/__PH\d+__/;		
 				next if $mvar=~/_(?:CONCAT|COLON)_PRE_/;
 				next if $mvar=~/_PAREN_PAIR_/;			
+				next if exists $Config{'Macros'}{uc($mvar)};
 				$vars->{$mvar}={'Type'=>'Scalar'} ;					
 			} elsif ($entry eq '@') {				
 				my $mvar = $ast->[$idx+1];
 				next if $mvar=~/__[a-z]+__/;
 				next if $mvar=~/__PH\d+__/;
 				next if $mvar=~/_(?:CONCAT|COLON)_PRE_/;
-				next if $mvar=~/_PAREN_PAIR_/;		
+				next if $mvar=~/_PAREN_PAIR_/;						
 				$vars->{$mvar}={'Type' =>'Array'};
 				my $index_vars={};
 				for my $elt_idx (2 ..  scalar @{$ast}-1) {
