@@ -189,6 +189,13 @@ sub translate_sub_to_C {  (my $stref, my $f, my $ocl) = @_;
 			$c_line = $info->{'Indent'}."} break;\n".$info->{'Indent'}.'default : {';
 		}
 		elsif (exists $info->{'Do'} ) { #say $line.Dumper($info->{Expressions});
+		# bit ad-hoc but we need to check this for macros too.
+			for my $macro (keys %{ $Config{'Macros'} } ) {
+				my $lc_macro=lc($macro);
+				for my $i (0 ..2) {
+					$info->{'Do'}{'Range'}{'Expressions'}[$i]=~s/\b$lc_macro\b/$macro/g;
+				}				
+			}
 			# do r_iter=start_position, ((start_position + local_chunk_size) - 1)
 				$c_line='for ('. 
 				$info->{'Do'}{'Iterator'}.' = '.$info->{'Do'}{'Range'}{'Expressions'}[0] .';'. 
@@ -412,6 +419,11 @@ sub _emit_assignment_C { (my $stref, my $f, my $info)=@_;
 #	say "RHS:$rhs" if$rhs=~/abs/;
 	my $rhs_stripped = $rhs;
 	$rhs_stripped=~s/^\(([^\(\)]+)\)$/$1/;
+	
+	for my $macro (keys %{ $Config{'Macros'} } ) {
+		my $lc_macro=lc($macro);
+		$rhs_stripped=~s/\b$lc_macro\b/$macro/g;
+	}
 	
 #	say "RHS STRIPPED:$rhs_stripped" if$rhs=~/abs/;
 #	$rhs_stripped=~s/^\(// && $rhs_stripped=~s/\)$//;

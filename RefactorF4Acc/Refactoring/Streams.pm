@@ -1234,6 +1234,7 @@ sub _declare_undeclared_variables { (my $stref, my $f)=@_;
 	# As we are going through the whole code we can also test for undeclared vars 
 	# This is very ad-hoc
 	for my $expr_var (keys %{ $state->{'ExprVars'} } ) {
+		next if exists $Config{'Macros'}{uc($expr_var)};
 		if (not exists $state->{'DeclaredVars'}{$expr_var} ) {
 			if ($expr_var ne '_OPEN_PAR_' and $expr_var!~/^\d/) {				
 				$state->{'UndeclaredVars'}{$expr_var}='real'; # the default
@@ -1241,6 +1242,7 @@ sub _declare_undeclared_variables { (my $stref, my $f)=@_;
 		}
 	}
 	for my $lhs_var (keys %{ $state->{'AssignedVars'} } ) {
+		next if exists $Config{'Macros'}{uc($lhs_var)};
 		if (not exists $state->{'DeclaredVars'}{$lhs_var} ) {
 #			if ($expr_var ne '_OPEN_PAR_' and $expr_var!~/^\d/) {				
 				$state->{'UndeclaredVars'}{$lhs_var}='real'; # the default
@@ -1260,6 +1262,7 @@ sub _declare_undeclared_variables { (my $stref, my $f)=@_;
 			# Now from this list via 
 				my $var_type = 'integer';
 				for my $rhs_var (@{ $info->{'Rhs'}{'VarList'}{'List'} } ) {
+					next if exists $Config{'Macros'}{uc($rhs_var)};
 					next if $rhs_var  eq '_OPEN_PAR_';
 					my $decl = get_var_record_from_set($stref->{'Subroutines'}{$f}{'Vars'},$rhs_var) ;
 					if ($decl->{'Type'} eq 'real') {

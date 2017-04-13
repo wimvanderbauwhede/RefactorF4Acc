@@ -1,8 +1,8 @@
 package RefactorF4Acc::State;
 use v5.16;
-
+use RefactorF4Acc::Config;
 # 
-#   (c) 2010-2012 Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
+#   (c) 2010- Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
 #   
 
 use vars qw( $VERSION );
@@ -43,8 +43,42 @@ sub init_state {
 #                'Children'   => [],
 #                'Subroutine' => $subname
 #            }
+        },
+        'Macros' => {
+        	'Define' => {},
+        	'Undef' => {},
+        	'All' => {}
         }
     };
+    
+    if (exists $Config{'MACRO_SRC'} ){
+    	my $macro_src =$Config{'MACRO_SRC'};
+    	if ( -e $macro_src ) {
+	        open my $MACROS, '<', $macro_src;
+    	    while ( my $line = <$MACROS> ) {
+        	    next unless $line =~ /^\s*\#/;
+            	$line =~ /\#define\s+(.+)\s*$/ && do {
+	                my $pair = $1;
+	                $pair=~s/\s+/ /g;
+	                $pair=~s/\s/=/;
+	                (my $macro, my $val)=split(/=/,$pair);
+	                if (not defined $val) {$val = ''};
+	                $stateref->{'Macros'}{'Undef'}{$macro}=$val;
+	                $stateref->{'Macros'}{'All'}{$macro}=$val;
+	                $Config{'Macros'}{$macro}=$val;
+	                next;
+            	};
+            	$line =~ /\#undef\s+(.+)\s*$/ && do {
+                	my $macro = $1;
+                	$stateref->{'Macros'}{'Undef'}{$macro}='';
+                	$stateref->{'Macros'}{'All'}{$macro}='';
+                	$Config{'Macros'}{$macro}='';
+                	next;
+            	};             	           
+        	}
+        	close $MACROS;
+	    }    	
+    }
     
     if (ref($vref) eq 'HASH') {
         for my $k (keys %{$vref}) {

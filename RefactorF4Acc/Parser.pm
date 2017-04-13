@@ -677,6 +677,8 @@ VIRTUAL
 
 					my $subset;
 #					my $stmt_count=1;
+					my $is_macro = exists $Config{'Macros'}{uc($varname)} ? 1 : 0;
+					if (not $is_macro ) {
 					if (not in_nested_set( $Sf, 'Vars', $varname ) ) {
 						# So this var was not declared before. Declare it and type it, then get the dimension 
 						($type, my $array_or_scalar, my $attr)= type_via_implicits($stref, $f,$varname);
@@ -735,7 +737,8 @@ VIRTUAL
 				$Sf->{'DeclCount'}{$varname}++;
 				$info->{'StmtCount'}{$varname}=$Sf->{'DeclCount'}{$varname};#$stmt_count;#$Sf->{$subset}{'Set'}{$varname}{'StmtCount'};
 					push @{ $extra_lines{$index} }, [$indent."dimension $dline",$info];
-				}
+				} # if it's not a macro
+		 }
 				next;
 		}
 			# COMMON block processing for common blocks not in an include file
@@ -974,6 +977,7 @@ VIRTUAL
 							croak "Unknown pattern $mchunk in Do Range";
 						}
 						for my $mvar (@mchunks) {
+							next if exists $Config{'Macros'}{uc($mvar)}; # skip macros
 							next if exists $F95_reserved_words{$mvar};
 							next if exists $stref->{'Subroutines'}{$f}{'CalledSubs'}{'Set'}{$mvar};    # Means it's a function
 							next if $mvar =~ /^__PH\d+__$/;
@@ -1055,7 +1059,9 @@ VIRTUAL
 					my $ast = parse_expression($cond,  $info,  $stref,  $f);
 					$info->{'CondExecExprAST'}= $ast;
 					my $vars_in_cond_expr =  get_vars_from_expression( $ast,{});
-
+					for my $macro (keys %{$Config{'Macros'}} ) {
+						delete $vars_in_cond_expr->{ lc($macro) };
+					}
 					$info->{'CondVars'}{'Set'} = $vars_in_cond_expr;
 					$info->{'CondVars'}{'List'} = [ keys %{$vars_in_cond_expr} ];
 					if ($mline eq 'then') {
@@ -1161,6 +1167,7 @@ END IF
 									  /^(\-?(?:\d+|\d*\.\d*)(?:[edq][\-\+]?\d+)?)$/;
 								next if $mvar =~ /__PH\d+__/;
 								next if exists $F95_reserved_words{$mvar};
+								next if exists $Config{'Macros'}{uc($mvar)};
 								$info->{'Vars'}{'Set'}{$mvar} = 1;
 							}
 						}
@@ -1500,7 +1507,7 @@ sub _parse_use {
 	$last_inc_idx++;
 	$srcref->[$last_inc_idx][1]{'ExtraModulesHook'} = 1;
 	return $stref;
-}    # END of parse_includes()
+}    # END of parse_use()
 
 # -----------------------------------------------------------------------------
 
@@ -1888,6 +1895,7 @@ sub _parse_subroutine_and_function_calls {
 						next
 						  if $mvar =~ /^(\-?(?:\d+|\d*\.\d*)(?:[edq][\-\+]?\d+)?)$/;
 						next if exists $F95_reserved_words{$mvar};
+						next if exists $Config{'Macros'}{uc($mvar)};
 						if (exists $stref->{'Subroutines'}{$mvar}) {
 							$sub_func_as_arg{$mvar} = 1;
 						}
@@ -2012,7 +2020,7 @@ sub _get_commons_params_from_includes { croak "OBSOLETE";
 
 					if ( $subset eq '' ) {    # This means that it is an undeclared common
 						if (
-							exists $stref->{'Implicits'}{$inc}{ lc( substr( $var, 0, 1 ) ) } ){
+							exists $stref->{'Implicits'}{$inc}{ lc( substr( $var, 0, 1 ) ) } ){ # WV20170413: lc() is redundant
 							print "INFO: common <", $var,
 							  "> typed via Implicits for $inc\n"
 							  if $I;
@@ -4141,10 +4149,12 @@ sub _identify_loops_breaks {
 	}
 	return $stref;
 }    # END of _identify_loops_breaks()
-
+# -----------------------------------------------------------------------------
 sub _parse_read_write_print {
 	( my $line, my $info, my $stref, my $f ) = @_;
-
+	my $sub_or_func = sub_func_incl_mod( $f, $stref );
+	my $Sf          = $stref->{$sub_or_func}{$f};
+	
 	my $call =
 	    exists $info->{'ReadCall'}  ? 'read'
 	  : exists $info->{'InquireCall'} ? 'inquire'
@@ -4279,6 +4289,7 @@ sub _parse_read_write_print {
 						next if $mvar =~ /^\d+$/;
 						next if $mvar =~ /^(\-?(?:\d+|\d*\.\d*)(?:[edq][\-\+]?\d+)?)$/;
 						next if exists $F95_reserved_words{$mvar};
+						next if exists $Config{'Macros'}{uc($mvar)};
 						my $ast = parse_expression( $mvar, $info, $stref, $f );
 						( my $call_args, my $other_vars ) = @{ get_args_vars_from_expression($ast) };
 						$info->{'CallArgs'}{'Set'} = {
@@ -4304,6 +4315,7 @@ sub _parse_read_write_print {
 						next
 						  if $mvar =~ /^(\-?(?:\d+|\d*\.\d*)(?:[edq][\-\+]?\d+)?)$/;
 						next if exists $F95_reserved_words{$mvar};
+						next if exists $Config{'Macros'}{uc($mvar)};
 						$vars_in_expr{$mvar} = { 'Type' => 'Unknown' };
 					}
 					$info->{'ExprVars'} = {
@@ -4628,6 +4640,7 @@ sub ___check_par_val_for_pars {
 		next if $mpar =~ /^[\'\"]/;
 		next if $mpar =~ /^(\-?(?:\d+|\d*\.\d*)(?:[edq][\-\+]?\d+)?)$/;
 		next if exists $F95_reserved_words{$mpar};
+		next if exists $Config{'Macros'}{uc($mpar)}; # macros
 		$pars_in_val->{$mpar} = 1;
 	}
 
