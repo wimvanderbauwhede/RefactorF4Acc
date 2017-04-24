@@ -220,7 +220,11 @@ sub translate_sub_to_C {  (my $stref, my $f, my $ocl) = @_;
 			
 			if ($subcall_ast->[1] eq 'barrier') {
 				$subcall_ast->[2][1]=uc($subcall_ast->[2][1]);
+				push @{$pass_state->{'TranslatedCode'}},'#ifdef BARRIER_OK';
 				$c_line = $info->{'Indent'}._emit_expression_C($subcall_ast,'',$stref,$f).';';
+				push @{$pass_state->{'TranslatedCode'}},$c_line ;
+				push @{$pass_state->{'TranslatedCode'}},'#endif // BARRIER_OK';
+				$skip=1;
 			}
 			elsif ($subcall_ast->[1]=~/get_(local|global|group)_id/) {
 				my $qual = $1;
@@ -332,8 +336,6 @@ sub _emit_subroutine_sig_C { (my $stref, my $f, my $annline)=@_;
 			($stref,my $c_arg_decl) = _emit_arg_decl_C($stref,$f,$arg);
 			push @{$c_args_ref},$c_arg_decl;
 		}
-#g => {'Dim' => [['1','1']],'ArrayOrScalar' => 'Array','Name' => 'g_ptr','IODir' => undef,'Type' => 'real','Indent' => '    ','Attr' => ''}
-#eta_j_k_ => {'Dim' => [],'ArrayIndexExpr' => 'eta(j+1,k)','Type' => 'real','IODir' => 'in','Attr' => '','ArrayOrScalar' => 'Scalar','Name' => 'eta','Indent' => '    '}	    
 	    my $args_str = join( ',', @{$c_args_ref} );	    
 	    my $rline = "void $name($args_str) {\n";
 		return  $rline;
@@ -341,8 +343,6 @@ sub _emit_subroutine_sig_C { (my $stref, my $f, my $annline)=@_;
 
 sub _emit_arg_decl_C { (my $stref,my $f,my $arg)=@_;
 	my $decl =	$stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$arg};
-#croak Dumper($decl) if $f eq 'adam_map_26' and $arg eq 'km';
-#	my $decl =	get_var_record_from_set($stref->{'Subroutines'}{$f}{'Vars'},$arg);
 	my $array = $decl->{'ArrayOrScalar'} eq 'Array' ? 1 : 0;
 	my $const = 1;
 	if (not defined $decl->{'IODir'}) {
@@ -352,7 +352,6 @@ sub _emit_arg_decl_C { (my $stref,my $f,my $arg)=@_;
 	}
 	my $is_ptr =$array || ($const==0);
 	my $ptr = $is_ptr ? '*' : '';
-#	my $const_str = $ocl==1 and $f eq $Config{'KERNEL'} and ($const && !$array) ? 'const ' : '';
 	$stref->{'Subroutines'}{$f}{'Pointers'}{$arg}=$ptr;	
 	my $ftype = $decl->{'Type'};
 	my $fkind = $decl->{'Attr'};
@@ -378,6 +377,7 @@ sub _emit_var_decl_C { (my $stref,my $f,my $var)=@_;
 	if (defined $decl->{'Parameter'}) {
 		$const = 'const ';
 		$val = ' = '.$decl->{'Val'};
+#		croak Dumper($decl) if $var eq 'alpha';
 		#say "PARAM $var => $val" if $var=~/st_\w+_(map|reduce)_\d+/;
 	}
 	my $ptr = $array  ? '*' : '';

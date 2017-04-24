@@ -215,7 +215,7 @@ sub param_assignment {
     sequence( [
         {'Lhs' => word },
         symbol('='),                
-		{'Rhs' => choice(word,regex('[\.\d]+')) } #regex('[\.\d]+')} #FIXME very weak !
+		{'Rhs' => choice(word,regex('[\-\.\dedq]+')) } #FIXME  weak !
     ] )
 }
 sub openacc_pragma_parser { sequence [
