@@ -1,7 +1,10 @@
 package Parser::Combinators;
 
 use strict;
-use 5.010;
+use v5.10;
+#
+#   (c) 2010-2017 Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
+#
 our $VERSION = '0.05';
 
 use Exporter 'import';

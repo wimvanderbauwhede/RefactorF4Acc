@@ -1,7 +1,11 @@
 package FortranConstructParser;
 use warnings;
 use strict;
-use 5.016;
+use v5.10;
+# 
+#   (c) 2010-2017 Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
+#   
+
 our $VERSION = '0.01';
 
 use Parser::Combinators;

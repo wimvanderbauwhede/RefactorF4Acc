@@ -1,7 +1,10 @@
 package F95Normaliser;
 use strict;
 use warnings; 
-use 5.012;
+use v5.10;
+#
+#   (c) 2010-2017 Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
+#
 use Carp;
 use Exporter 'import';
 

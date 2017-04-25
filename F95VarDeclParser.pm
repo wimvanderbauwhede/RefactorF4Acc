@@ -1,7 +1,10 @@
 package F95VarDeclParser;
 use warnings;
 use strict;
-use 5.016;
+use v5.10;
+#
+#   (c) 2010-2017 Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
+#
 our $VERSION = '0.01';
 
 use Parser::Combinators;
@@ -18,7 +21,9 @@ use Exporter 'import';
 @F95VarDeclParser::EXPORT    = qw(
 		parse_F95_var_decl
 );
-
+#
+#   (c) 2010-2017 Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
+#
 
 sub parse_F95_var_decl {
 	(my $str) = @_;
