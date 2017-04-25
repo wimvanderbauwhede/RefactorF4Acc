@@ -2,7 +2,7 @@ package RefactorF4Acc::Analysis::DeadCodeElimination;
 
 use RefactorF4Acc::Config;
 # 
-#   (c) 2010-2015 Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
+#   (c) 2010-2017 Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
 #   
 
 use vars qw( $VERSION );

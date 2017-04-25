@@ -1,11 +1,11 @@
 package RefactorF4Acc::Refactoring::Modules;
-use v5.016;
+use v5.10;
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
 use RefactorF4Acc::Refactoring::Common qw( get_annotated_sourcelines create_refactored_source splice_additional_lines_cond emit_f95_var_decl );
 
 # 
-#   (c) 2010-2012 Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
+#   (c) 2010-2017 Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
 #   
 
 use vars qw( $VERSION );

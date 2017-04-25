@@ -1,10 +1,10 @@
 package RefactorF4Acc::Analysis::Sources; # TODO: a better name
-use v5.16;
+use v5.10;
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
 use RefactorF4Acc::Analysis::Globals qw( lift_includes ); # TODO: put lift_includes in this module
 # 
-#   (c) 2010-2012 Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
+#   (c) 2010-2017 Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
 #   
 
 use vars qw( $VERSION );

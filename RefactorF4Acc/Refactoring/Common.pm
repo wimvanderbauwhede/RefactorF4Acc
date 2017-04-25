@@ -1,10 +1,10 @@
 package RefactorF4Acc::Refactoring::Common;
-use v5.16;
+use v5.10;
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
 
 #
-#   (c) 2010-2012 Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
+#   (c) 2010-2017 Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
 #
 
 use vars qw( $VERSION );

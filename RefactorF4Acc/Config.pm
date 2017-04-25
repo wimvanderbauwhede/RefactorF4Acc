@@ -1,7 +1,7 @@
 package RefactorF4Acc::Config;
-use v5.16;
+use v5.10;
 # 
-#   (c) 2010-2012 Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
+#   (c) 2010-2017 Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
 #   
 
 use warnings;
@@ -18,7 +18,7 @@ $SPLIT_LONG_LINES
 $NO_ONLY
 $RENAME_EXT
 $noop
-$refactor_toplevel_globals
+$CFG_refactor_toplevel_globals
 $call_tree_only
 $main_tree
 $gen_sub
@@ -41,7 +41,7 @@ our $NO_ONLY = 0;
 our $RENAME_EXT = '_GLOB';
 # Instead of FORTRAN's 'continue', we can insert a call to a subroutine noop() that does nothing
 our $noop           = 0;
-our $refactor_toplevel_globals = 0;
+our $CFG_refactor_toplevel_globals = 0;
 our $call_tree_only = 0;
 our $main_tree      = 0;
 
@@ -92,7 +92,7 @@ sub read_rf4a_config {
 	if ($v=~/,/) {
 		my @vs=split(/\s*,\s*/,$v);
 		$Config{$k}=[@vs];
-	} elsif ($k !~/TOP\w*|NEWSRCPATH|PREFIX|KERNEL|MODULE_\w*|MACRO_SRC/) {
+	} elsif ($k !~/TOP\w*|NEWSRCPATH|PREFIX|KERNEL|MODULE_\w*|MACRO_SRC/) { # FIXME: Check this
 		# These are key that take a list but it has only one element
 		$Config{$k}=[$v];
 	} elsif ($k eq 'TOP') {
@@ -103,7 +103,47 @@ sub read_rf4a_config {
 }
 close $CFG;
 }
+=pod
+TOP: 			The name of the toplevel code unit for the analysis. Typically this is the main program name.
+PREFIX:			The path to the directory  where the script will run. Typically this is '.'
+KERNEL:			For OpenCL translatation, the name of the subroutine to become the OpenCL kernel (actually same as TOP) 
+MODULE_SRC:		For OpenCL translatation, the name of the source file containing a module which contains the kernel subroutine
+SRCDIRS: 		A comma-separated list of directories (relative to PREFIX) to be searched for source files. 
+EXTSRCDIRS:		A comma-separated list of directories (relative to PREFIX) to be searched for source files.
+EXCL_SRCS:		A regular expression matching the source files to be excluded from the analysis.		
+EXCL_DIRS:		A comma-separated list of directories (relative to PREFIX) NOT to be searched for source files.
+NO_MODULE
+MACRO_SRC:		If the sources use the C preprocessor, you can provide a file containing C preprocessor macro definitions 
+NEWSRCPATH:		Path to the directory that will contain the refactored sources
+MODULE:
+RENAME_EXT:		Extension for variables that need to be renamed because of conflicts (usually you don't need this)
+NO_ONLY:		Do not use the ONLY qualifier on the USE declaration
+SPLIT_LONG_LINES: Split long lines into chunks of no more than 80 characters
+REFACTOR_TOPLEVEL_GLOBALS: like -g
+Examples:
 
+TOP = main
+PREFIX = .
+SRCDIRS = .
+NEWSRCPATH = RefactoredSourcesV6
+EXCL_SRCS = main_screenshot.f, test.f, ^tmp.*
+EXCL_DIRS = GIS, data, RefactoredSources.*,  PostCPP,testDest.*
+NO_ONLY = 0
+SPLIT_LONG_LINES = 1
+RENAME_EXT =  
+
+MODULE = module_adam_bondv1_feedbf_les_press_v_etc_superkernel
+MODULE_SRC = module_adam_bondv1_feedbf_les_press_v_etc_superkernel.f95
+TOP = adam_bondv1_feedbf_les_press_v_etc_superkernel
+KERNEL = adam_bondv1_feedbf_les_press_v_etc_superkernel
+PREFIX = .
+SRCDIRS = .
+NEWSRCPATH = ./Temp
+EXCL_SRCS = (module_sub_superkernel_init|_host|\.[^f])
+EXCL_DIRS = ./PostCPP,./Temp
+MACRO_SRC = macros.h
+RENAME_EXT = _G
+=cut
 
 
 1;

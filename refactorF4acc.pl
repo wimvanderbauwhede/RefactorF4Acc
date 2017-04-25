@@ -1,5 +1,8 @@
+# 
+#   (c) 2010-2017 Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
+#   
 #!/usr/bin/env perl
-use 5.016;
+use v5.10;
 use warnings::unused;
 use warnings;
 use warnings FATAL => qw(uninitialized);
@@ -36,15 +39,12 @@ our $usage = "
     -d: show debug messages
     -c <cfg file name>: use this cfg file (default is ~/.rf4a)
     -C: Only generate call tree, don't refactor or emit
-    -N: Replace CONTINUE by CALL NOOP
     -g: refactor globals inside toplevel subroutine 
     -b: Generate SCons build script
     -A: Annotate the refactored lines 
     -P: Name of pass to be performed
     \n";
-#    -T: Translate <subroutine name> and dependencies to C 
-#    -B: Build FLEXPART (implies -b), currently ignored
-#    -G: Generate Markdown documentation (currently broken)
+#    -N: Replace CONTINUE by CALL NOOP    
 
 our @unit_tests= (1,2,3,4,5,6,7,8);
 our @test_descs =qw(
@@ -262,7 +262,8 @@ sub parse_args {
 	$NO_ONLY = (exists $Config{'NO_ONLY'}[0] ) ? $Config{'NO_ONLY'}[0] : $NO_ONLY;
 	$SPLIT_LONG_LINES = (exists $Config{'SPLIT_LONG_LINES'}[0] ) ? $Config{'SPLIT_LONG_LINES'}[0] : $SPLIT_LONG_LINES;
 	$RENAME_EXT = (exists $Config{'RENAME_EXT'}[0] ) ? $Config{'RENAME_EXT'}[0] : $RENAME_EXT;
-	$refactor_toplevel_globals=( $opts{'g'} ) ? 1 : 0; # Global from Config
+	$CFG_refactor_toplevel_globals = (exists $Config{'REFACTOR_TOPLEVEL_GLOBALS'}) ? 1 : 0 	;
+	$CFG_refactor_toplevel_globals=( $opts{'g'} ) ? 1 : $CFG_refactor_toplevel_globals; # Global from Config
 # Currently broken	
 	if ( $opts{'G'} ) {
 		print "Generating docs...\n";

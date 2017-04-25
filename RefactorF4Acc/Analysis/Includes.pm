@@ -1,5 +1,5 @@
 package RefactorF4Acc::Analysis::Includes;
-use v5.16;
+use v5.10;
 =info
 In Fortran-77, if a file with common blocks is included in a subroutine, the common variables are visible in called subroutines, even if these don't include that file.
 To determine which common variables are actually used by a subroutine, we perform the following analysis.
@@ -7,7 +7,7 @@ To determine which common variables are actually used by a subroutine, we perfor
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
 # 
-#   (c) 2010-2012 Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
+#   (c) 2010-2017 Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
 #   
 
 use vars qw( $VERSION );

@@ -1,5 +1,5 @@
 package RefactorF4Acc::Refactoring::Streams;
-use v5.016;
+use v5.10;
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
 use RefactorF4Acc::Refactoring::Common qw( 

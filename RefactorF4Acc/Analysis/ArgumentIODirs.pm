@@ -1,5 +1,5 @@
 package RefactorF4Acc::Analysis::ArgumentIODirs;
-use v5.16;
+use v5.10;
 
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils qw( get_maybe_args_globs type_via_implicits in_nested_set );
@@ -7,7 +7,7 @@ use RefactorF4Acc::Refactoring::Common qw( get_annotated_sourcelines stateful_pa
 use RefactorF4Acc::Refactoring::Subroutines::Signatures qw( refactor_subroutine_signature );
 
 #
-#   (c) 2010-2012 Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
+#   (c) 2010-2017 Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
 #
 
 use vars qw( $VERSION );

@@ -1,12 +1,12 @@
 package RefactorF4Acc::Parser::SrcReader;
-use v5.16;
+use v5.10;
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils qw( sub_func_incl_mod show_status show_annlines %F95_reserved_words %F95_types);
 use RefactorF4Acc::Refactoring::Common;
 use F95Normaliser qw( normalise_F95_src );
 
 #
-#   (c) 2010-2012 Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
+#   (c) 2010-2017 Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
 #
 
 use vars qw( $VERSION );

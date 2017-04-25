@@ -1,8 +1,8 @@
 package RefactorF4Acc::State;
-use v5.16;
+use v5.10;
 use RefactorF4Acc::Config;
 # 
-#   (c) 2010- Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
+#   (c) 2010-2017 Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
 #   
 
 use vars qw( $VERSION );

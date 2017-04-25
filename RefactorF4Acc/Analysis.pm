@@ -1,5 +1,5 @@
 package RefactorF4Acc::Analysis;
-use v5.16;
+use v5.10;
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
 use RefactorF4Acc::Analysis::Includes qw( find_root_for_includes );
@@ -8,7 +8,7 @@ use RefactorF4Acc::Analysis::LoopDetect qw( outer_loop_end_detect );
 use RefactorF4Acc::Refactoring::Common qw( get_f95_var_decl stateful_pass stateless_pass );
 
 #
-#   (c) 2010-2015 Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
+#   (c) 2010-2017 Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
 #
 
 use vars qw( $VERSION );

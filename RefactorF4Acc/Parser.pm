@@ -1,5 +1,5 @@
 package RefactorF4Acc::Parser;
-use v5.16;
+use v5.10;
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
 use RefactorF4Acc::CallTree qw( add_to_call_tree );
@@ -19,7 +19,7 @@ use FortranConstructParser qw(
 #);
 
 #
-#   (c) 2010-2012 Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
+#   (c) 2010-2017 Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
 
 
 use vars qw( $VERSION );
@@ -85,7 +85,7 @@ sub parse_fortran_src {
 		if ( not exists $Sf->{'RefactorGlobals'} ) {
 			$Sf->{'RefactorGlobals'} = 0;
 		}
-		if ( $refactor_toplevel_globals == 1 ) {
+		if ( $CFG_refactor_toplevel_globals == 1 ) {
 			print "INFO: set RefactorGlobals=1 for $f\n" if $I;
 			$Sf->{'RefactorGlobals'} = 1;
 		}

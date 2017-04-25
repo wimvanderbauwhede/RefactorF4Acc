@@ -1,12 +1,12 @@
 package RefactorF4Acc::CTranslation;
-use v5.016;
+use v5.10;
 # THIS SUBROUTINE IS CURRENTLY OBSOLETE, WE USE OpenCLTranslation INSTEAD
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
 use RefactorF4Acc::Refactoring::Common qw( stateful_pass pass_wrapper_subs_in_module );
 use RefactorF4Acc::Refactoring::Streams qw( _declare_undeclared_variables _removed_unused_variables _fix_scalar_ptr_args _fix_scalar_ptr_args_subcall );
 # 
-#   (c) 2010-2012 Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
+#   (c) 2010-2017 Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
 #   
 
 use vars qw( $VERSION );

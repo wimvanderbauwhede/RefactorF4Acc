@@ -1,9 +1,9 @@
 package RefactorF4Acc::Parser::Expressions;
-use v5.16;
+use v5.10;
 use RefactorF4Acc::Config;
 #use RefactorF4Acc::Utils qw( in_nested_set );
 #
-#   (c) 2010-2016 Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
+#   (c) 2010-2017 Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
 #
 
 use vars qw( $VERSION );
