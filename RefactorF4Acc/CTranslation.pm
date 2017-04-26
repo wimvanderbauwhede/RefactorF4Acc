@@ -1,6 +1,6 @@
 package RefactorF4Acc::CTranslation;
 use v5.10;
-# THIS SUBROUTINE IS CURRENTLY OBSOLETE, WE USE OpenCLTranslation INSTEAD
+
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
 use RefactorF4Acc::Refactoring::Common qw( stateful_pass pass_wrapper_subs_in_module );
