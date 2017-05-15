@@ -70,9 +70,9 @@ sub init_state {
             	};
             	$line =~ /\#undef\s+(.+)\s*$/ && do {
                 	my $macro = $1;
-                	$stateref->{'Macros'}{'Undef'}{$macro}='';
-                	$stateref->{'Macros'}{'All'}{$macro}='';
-                	$Config{'Macros'}{$macro}='';
+                	$stateref->{'Macros'}{'Undef'}{$macro}=$macro;
+                	$stateref->{'Macros'}{'All'}{$macro}=$macro;
+                	$Config{'Macros'}{$macro}=$macro;
                 	next;
             	};             	           
         	}

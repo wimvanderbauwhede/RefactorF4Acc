@@ -173,13 +173,11 @@ sub translate_sub_to_C {  (my $stref, my $f, my $ocl) = @_;
 				$c_line = _emit_var_decl_C($stref,$f,$var); 		
 		}
 		elsif (exists $info->{'Select'} ) {				
-#			$c_line=$line;
-#			$c_line=~s/select\s+case/switch/;
-#			$c_line.='{';
 			my $switch_expr = _emit_expression_C(['$',$info->{'CaseVar'}],'',$stref,$f);
 			$c_line ="switch ( $switch_expr ) {";
 		}
 		elsif (exists $info->{'Case'} ) {
+            # FIXME: support macros
 			$c_line=$line.': {';#'case';
 			if ($info->{'Case'}>1) {
 				$c_line = $info->{'Indent'}."} break;\n".$info->{'Indent'}.$c_line;
@@ -190,12 +188,12 @@ sub translate_sub_to_C {  (my $stref, my $f, my $ocl) = @_;
 		}
 		elsif (exists $info->{'Do'} ) { #say $line.Dumper($info->{Expressions});
 		# bit ad-hoc but we need to check this for macros too.
-			for my $macro (keys %{ $Config{'Macros'} } ) {
-				my $lc_macro=lc($macro);
-				for my $i (0 ..2) {
-					$info->{'Do'}{'Range'}{'Expressions'}[$i]=~s/\b$lc_macro\b/$macro/g;
-				}				
-			}
+#			for my $macro (keys %{ $Config{'Macros'} } ) {
+#				my $lc_macro=lc($macro);
+#				for my $i (0 ..2) {
+#					$info->{'Do'}{'Range'}{'Expressions'}[$i]=~s/\b$lc_macro\b/$macro/g;
+#				}				
+#			}
 			# do r_iter=start_position, ((start_position + local_chunk_size) - 1)
 				$c_line='for ('. 
 				$info->{'Do'}{'Iterator'}.' = '.$info->{'Do'}{'Range'}{'Expressions'}[0] .';'. 
@@ -491,6 +489,12 @@ sub _emit_expression_C {(my $ast, my $expr_str, my $stref, my $f)=@_;
 				my $mvar = $ast->[$idx+1];
 #				carp $mvar;
 				my $called_sub_name = $stref->{'CalledSub'} // '';
+                #WV20170515
+#    			for my $macro (keys %{ $Config{'Macros'} } ) {
+#	    			my $lc_macro=lc($macro);
+#					$mvar=~s/\b$lc_macro\b/$macro/g;
+#		    	}
+
 				if (exists $stref->{'Subroutines'}{$f}{'Pointers'}{$mvar} ) {
 					# Meaning that $mvar is a pointer in $f
 					# Now we need to check if it is also a pointer in $subname

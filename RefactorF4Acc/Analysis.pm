@@ -28,6 +28,7 @@ use Exporter;
 
 @RefactorF4Acc::Analysis::EXPORT = qw(
   &analyse_all
+  &identify_vars_on_line
 );
 
 sub analyse_all {
@@ -222,6 +223,8 @@ sub _analyse_variables {
 	my $__analyse_vars_on_line = sub {
 		( my $annline, my $state ) = @_;
 		( my $line,    my $info )  = @{$annline};
+        
+
 		if (   exists $info->{'Assignment'}
 			or exists $info->{'SubroutineCall'}
 			or exists $info->{'If'} # Control
@@ -238,57 +241,13 @@ sub _analyse_variables {
 			( my $stref, my $f, my $identified_vars ) = @{$state};
 
 			my $Sf     = $stref->{'Subroutines'}{$f};
-			
-			my @chunks = ();
-			if ( exists $info->{'If'} or exists $info->{'ElseIf'} ) {
-				@chunks = @{ $info->{'CondVars'}{'List'} };
-			}
-
-			if (   exists $info->{'PrintCall'}
-				or exists $info->{'WriteCall'}
-				or exists $info->{'ReadCall'}
-				or exists $info->{'InquireCall'} 
-				) {
-				@chunks = ( @chunks, @{ $info->{'CallArgs'}{'List'} }, @{ $info->{'ExprVars'}{'List'} }, @{ $info->{'CallAttrs'}{'List'} } );
-				
-			} elsif ( exists $info->{'SubroutineCall'} ) {
-				for my $var_expr ( @{ $info->{'CallArgs'}{'List'} } ) {
-					if ( exists $info->{'CallArgs'}{'Set'}{$var_expr}{'Arg'} ) {
-						push @chunks, $info->{'CallArgs'}{'Set'}{$var_expr}{'Arg'};
-					} else {
-						push @chunks, $var_expr;
-					}
-				}
-				for my $expr_var ( @{ $info->{'ExprVars'}{'List'} } ) {
-					push @chunks, $expr_var;
-				}
-			} elsif ( exists $info->{'OpenCall'} ) {
-				if ( exists $info->{'Vars'} ) {
-					@chunks = ( @chunks, @{ $info->{'Vars'}{'List'} } );
-				}
-			} elsif ( exists $info->{'Do'} ) {
-				@chunks = ( @chunks, $info->{'Do'}{'Iterator'}, @{ $info->{'Do'}{'Range'}{'Vars'} } );
-			} elsif ( exists $info->{'Assignment'} and not exists $info->{'Data'}) {
-				@chunks = ( @chunks, $info->{'Lhs'}{'VarName'}, @{ $info->{'Lhs'}{'IndexVars'}{'List'} }, @{ $info->{'Rhs'}{'VarList'}{'List'} } );
-			} elsif ( exists $info->{'ParamDecl'} ) {
-				@chunks = ( @chunks, keys %{ $info->{'UsedParameters'} } );
-			} else {
-				my @mchunks = split( /\W+/, $line );
-				for my $mvar (@mchunks) {
-					next
-					  if exists $F95_reserved_words{ $mvar };    # This should be, unless some idiot has assigned to a reserved word somewhere. We assume they only redefine intrinsic functions but who knows?
-					next if exists $F95_other_intrinsics{$mvar};
-					next
-					  if exists $stref->{'Subroutines'}{$f}{'CalledSubs'}{'Set'}{$mvar};    # Means it's a function
-					next if $mvar =~ /^__PH\d+__$/;
-					next if $mvar !~ /^[_a-z]\w*$/;
-					push @chunks, $mvar;
-				}
-			}
+		    my $chunks_ref = identify_vars_on_line($annline);	
+			my @chunks = @{ $chunks_ref };
 
 			# -------------------------------------------------------------------------------------------------------------------
 			
 			for my $mvar (@chunks) {
+                next if exists $stref->{'Subroutines'}{$f}{'CalledSubs'}{'Set'}{$mvar};    # Means it's a function
 				next if $mvar =~ /^\d+$/;
 				next if not defined $mvar or $mvar eq '';
  
@@ -440,9 +399,7 @@ sub _analyse_variables {
 					for my $inc ( keys %{ $Sf->{'Includes'} } ) {
 							say "LOOKING FOR $mvar from $f in $inc" if $DBG;
 							# A variable can be declared in an include file or not and can be listed as common or not
-							if ( in_nested_set( $stref->{'IncludeFiles'}{$inc}, 'Vars', $mvar )
-								)
-							{								
+							if ( in_nested_set( $stref->{'IncludeFiles'}{$inc}, 'Vars', $mvar )) {								
 								if ( $stref->{'IncludeFiles'}{$inc}{'InclType'} eq 'Parameter' ) {
 									print "WARNING: $mvar in $f is a PARAMETER from $inc!\n" if $W;
 									 $Sf->{'Includes'}{$inc}{'Only'}{$mvar} =1;
@@ -487,6 +444,76 @@ sub _analyse_variables {
 	
 	return $stref;
 }    # END of _analyse_variables()
+
+sub identify_vars_on_line {
+		( my $annline ) = @_;
+		( my $line,    my $info )  = @{$annline};
+
+		if (   exists $info->{'Assignment'}
+			or exists $info->{'SubroutineCall'}
+			or exists $info->{'If'} # Control
+			or exists $info->{'ElseIf'} # Control
+			or exists $info->{'Do'} # Control
+			or exists $info->{'WriteCall'}# IO
+			or exists $info->{'PrintCall'}# IO
+			or exists $info->{'ReadCall'}# IO
+			or exists $info->{'InquireCall'}# IO
+			or exists $info->{'OpenCall'}# IO
+			or exists $info->{'CloseCall'}# IO
+			or exists $info->{'ParamDecl'} )
+		{
+			
+			my @chunks = ();
+			if ( exists $info->{'If'} or exists $info->{'ElseIf'} ) {
+				@chunks = @{ $info->{'CondVars'}{'List'} };
+			}
+
+			if (   exists $info->{'PrintCall'}
+				or exists $info->{'WriteCall'}
+				or exists $info->{'ReadCall'}
+				or exists $info->{'InquireCall'} 
+				) {
+				@chunks = ( @chunks, @{ $info->{'CallArgs'}{'List'} }, @{ $info->{'ExprVars'}{'List'} }, @{ $info->{'CallAttrs'}{'List'} } );
+				
+			} elsif ( exists $info->{'SubroutineCall'} ) {
+				for my $var_expr ( @{ $info->{'CallArgs'}{'List'} } ) {
+					if ( exists $info->{'CallArgs'}{'Set'}{$var_expr}{'Arg'} ) {
+						push @chunks, $info->{'CallArgs'}{'Set'}{$var_expr}{'Arg'};
+					} else {
+						push @chunks, $var_expr;
+					}
+				}
+				for my $expr_var ( @{ $info->{'ExprVars'}{'List'} } ) {
+					push @chunks, $expr_var;
+				}
+			} elsif ( exists $info->{'OpenCall'} ) {
+				if ( exists $info->{'Vars'} ) {
+					@chunks = ( @chunks, @{ $info->{'Vars'}{'List'} } );
+				}
+			} elsif ( exists $info->{'Do'} ) {
+				@chunks = ( @chunks, $info->{'Do'}{'Iterator'}, @{ $info->{'Do'}{'Range'}{'Vars'} } );
+			} elsif ( exists $info->{'Assignment'} and not exists $info->{'Data'}) {
+				@chunks = ( @chunks, $info->{'Lhs'}{'VarName'}, @{ $info->{'Lhs'}{'IndexVars'}{'List'} }, @{ $info->{'Rhs'}{'VarList'}{'List'} } );
+			} elsif ( exists $info->{'ParamDecl'} ) {
+				@chunks = ( @chunks, keys %{ $info->{'UsedParameters'} } );
+			} else {
+				my @mchunks = split( /\W+/, $line );
+				for my $mvar (@mchunks) {
+					next
+					  if exists $F95_reserved_words{ $mvar };    # This should be, unless some idiot has assigned to a reserved word somewhere. We assume they only redefine intrinsic functions but who knows?
+					next if exists $F95_other_intrinsics{$mvar};
+#					next if exists $stref->{'Subroutines'}{$f}{'CalledSubs'}{'Set'}{$mvar};    # Means it's a function
+					next if $mvar =~ /^__PH\d+__$/;
+					next if $mvar !~ /^[_a-z]\w*$/;
+					push @chunks, $mvar;
+				}
+			}
+            return [@chunks];
+		} else {
+            return [];
+        }
+} # END of identify_vars_on_line
+
 
 sub _resolve_conflicts_with_params {
 	( my $stref, my $f ) = @_;

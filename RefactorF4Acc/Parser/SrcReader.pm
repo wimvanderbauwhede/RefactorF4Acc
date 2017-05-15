@@ -3,7 +3,7 @@ use v5.10;
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils qw( sub_func_incl_mod show_status show_annlines %F95_reserved_words %F95_types);
 use RefactorF4Acc::Refactoring::Common;
-use F95Normaliser qw( normalise_F95_src );
+use Fortran::F95Normaliser qw( normalise_F95_src );
 
 #
 #   (c) 2010-2017 Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
@@ -1322,10 +1322,16 @@ sub _isCommentOrBlank { # for fixed form
 
 # -----------------------------------------------------------------------------
 sub _restore_case_of_macros { (my $stref,my $line) = @_;
-    for my $macro (keys %{ $stref->{'Macros'} }) {
+    for my $macro (keys %{ $stref->{'Macros'}{'All'} }) {
         my $lc_macro=lc($macro);
         $line=~s/\b$lc_macro\b/$macro/g;
     }    
+# TDOD WV20170515 need this?    
+#    for my $macro (keys %{ $Config{'Macros'} } ) {
+#	    my $lc_macro=lc($macro);
+#	    $line=~s/\b$lc_macro\b/$macro/g;
+#	}
+    
     return $line;
 }
 

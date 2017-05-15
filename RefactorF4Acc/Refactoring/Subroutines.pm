@@ -530,7 +530,12 @@ sub _create_refactored_subroutine_call {
     # Collect original args
     my @orig_args =();    
     for my $call_arg (@{ $info->{'SubroutineCall'}{'Args'}{'List'} }) {
-    	push @orig_args , $info->{'SubroutineCall'}{'Args'}{'Set'}{$call_arg}{'Expr'};
+#        say "ARG: $call_arg",  
+        if (exists $info->{'SubroutineCall'}{'Args'}{'Set'}{$call_arg}{'Expr'} ) {
+        	push @orig_args , $info->{'SubroutineCall'}{'Args'}{'Set'}{$call_arg}{'Expr'};
+        } else {
+        	push @orig_args , $call_arg; # WV20170515: is this correct?
+        }
     }
     my $args_ref = [@orig_args]; # NOT ordered union, if they repeat that should be OK 
     my $parent_sub_name =  exists $stref->{'Entries'}{$name} ? $stref->{'Entries'}{$name} : $name;
@@ -555,9 +560,9 @@ sub _create_refactored_subroutine_call {
         }
         # Then we concatenate these arg lists
         $args_ref = [@orig_args, @maybe_renamed_exglobs ]; # NOT ordered union, if they repeat that should be OK
- 		
         $info->{'SubroutineCall'}{'Args'}{'List'}= $args_ref;
         # This is the emitter, maybe that should not be done here but later on? TODO!
+# 		say $f, $name, $parent_sub_name, Dumper($args_ref);
 	    my $args_str = join( ',', @{$args_ref} );	    
 	    my $indent = $info->{'Indent'} // '      ';
 	    my $maybe_label= ( exists $info->{'Label'} and exists $Sf->{'ReferencedLabels'}{$info->{'Label'}} ) ?  $info->{'Label'}.' ' : '';

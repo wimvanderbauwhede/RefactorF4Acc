@@ -17,7 +17,7 @@ use Carp;
 use Data::Dumper;
 $Data::Dumper::Indent = 1;
 
-use Math::Expression::Evaluator::Parser; 
+use Fortran::Expression::Evaluator::Parser; 
 use RefactorF4Acc::Utils qw( %F95_reserved_words %F95_intrinsics %F95_other_intrinsics %F95_intrinsic_functions );
 use Exporter;
 
@@ -34,7 +34,7 @@ use Exporter;
 
 my $DBG=0;
 =pod
-[wim@workai RefactorF4Acc]$ perl -e 'use Data::Dumper;use Math::Expression::Evaluator::Parser; print Dumper(Math::Expression::Evaluator::Parser::parse("f(a,12.3,b(2,2.3e-4+v))",{}))'
+[wim@workai RefactorF4Acc]$ perl -e 'use Data::Dumper;use Fortran::Expression::Evaluator::Parser; print Dumper(Fortran::Expression::Evaluator::Parser::parse("f(a,12.3,b(2,2.3e-4+v))",{}))'
 $VAR1 = [
           '&',
           'f',
@@ -88,11 +88,11 @@ sub parse_expression { (my $exp, my $info, my $stref, my $f)=@_;
 	 $preproc_expr =~s/,\s*\*/,_LABEL_ARG_\*/g;
 	 $preproc_expr =~s/\(\s*\*/\(_LABEL_ARG_\*/;
 
-	# EVIL HACK because the Math::Expression::Evaluator::Parser does not support things like a ** b ** c
+	# EVIL HACK because the Fortran::Expression::Evaluator::Parser does not support things like a ** b ** c
 	while ($preproc_expr =~/\*\*\s*(\w+)\s*\*\*\s*(\w+)/) {
 		$preproc_expr =~s/\*\*\s*(\w+)\s*\*\*\s*(\w+)/**($1 * $2)/;
 	}
-	# EVIL HACK because the Math::Expression::Evaluator::Parser does not support <=, ==, =>, /=
+	# EVIL HACK because the Fortran::Expression::Evaluator::Parser does not support <=, ==, =>, /=
 	$preproc_expr =~s/\<\=/.le./g;
 	$preproc_expr =~s/\>\=/.ge./g;
 	$preproc_expr =~s/\=\=/.eq./g;
@@ -168,7 +168,7 @@ sub parse_expression { (my $exp, my $info, my $stref, my $f)=@_;
 	}
 
 #	say "WRAPPED EXPR $f: $wrapped_expr" ; 
-    my $ast = Math::Expression::Evaluator::Parser::parse($wrapped_expr, {});
+    my $ast = Fortran::Expression::Evaluator::Parser::parse($wrapped_expr, {});
 
 	if ($wrap) {
 	    $ast->[0]='&';

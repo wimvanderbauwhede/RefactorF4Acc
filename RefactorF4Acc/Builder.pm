@@ -30,6 +30,7 @@ sub create_build_script {
 
     my $gfortran = $ENV{'FC'};
     my $gcc = $ENV{'CC'};
+    my $exe = $stref->{'Top'}; # FIXME: would make more sense to have $Config{'EXE'}
     my @fsourcelst = sort keys %{ $stref->{'BuildSources'}{'F'} };
     my $fsources = join( ',', map { s/\.f$/.f95/;"'" . $_ . "'" } @fsourcelst );
 
@@ -42,27 +43,31 @@ sub create_build_script {
         $csources = join( ',', map { s/\.f$/.c/; "'" . $_ . "'" } @csourcelst );
     }
     my $date  = localtime;
+    my $libpaths_str = ",'/opt/local/lib','/usr/local/lib'"; # TODO: get from rf4a.cfg
+    my $libs_str = ''; # TODO: get from rf4a.cfg
+    my $inclpaths_str=",'/opt/local/include','/usr/local/include'"; # TODO: get from rf4a.cfg
     # FIXME: this is Flexpart-specific, we should use a template instead!
     my $scons = <<ENDSCONS;
-# Generated build script for refactored Flexpart source code
+# Generated build script for refactored source code
 # $date
 
-csources =[$csources]
+#csources =[$csources]
 
 fsources = [$fsources]
 
 envC=Environment(CC='$gcc',CPPPATH=[]); 
-if csources:
-    envC.Library('wrfc',csources)
+#if csources:
+#    envC.Library('${exe}_c',csources)
 
 FFLAGS  = ['-O3', '-m64', '-ffree-form', '-ffree-line-length-0','-fconvert=little-endian', '-frecord-marker=4']
-envF=Environment(F95='$gfortran',LINK='$gfortran',F95FLAGS=FFLAGS,F95PATH=['.','/opt/local/include','/usr/local/include'])
-if csources:
-    envF.Program('flexpart_wrf',fsources,LIBS=['netcdff','wrfc','m'],LIBPATH=['.','/opt/local/lib','/usr/local/lib'])   
-else:
-    envF.Program('flexpart_wrf',fsources,LIBS=['netcdff','m'],LIBPATH=['.','/opt/local/lib','/usr/local/lib'])
+envF=Environment(F95='$gfortran',LINK='$gfortran',F95FLAGS=FFLAGS,F95PATH=['.' $inclpaths_str])
+#if csources:
+#    envF.Program('$exe',fsources,LIBS=[$libs_str '${exe}_c','m'],LIBPATH=['.' $libpaths_str])   
+#else:
+#    envF.Program('$exe',fsources,LIBS=[$libs_str 'm'],LIBPATH=['.' $libpaths_str])
+envF.Program('$exe',fsources,LIBS=[$libs_str 'm'],LIBPATH=['.' $libpaths_str])
 ENDSCONS
-    open my $SC, '>', "$targetdir/SConstruct_Flexpart.rf4a";
+    open my $SC, '>', "$targetdir/SConstruct.rf4a";
     print $SC $scons;
     print $scons if $V;
     close $SC;
