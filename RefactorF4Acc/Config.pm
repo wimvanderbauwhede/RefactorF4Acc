@@ -17,6 +17,8 @@ $UNREAD $INVENTORIED $READ $PARSED $FROM_BLOCK $C_SOURCE
 $SPLIT_LONG_LINES
 $NO_ONLY
 $RENAME_EXT
+$EXT
+$LIBS $LIBPATHS $INCLPATHS
 $noop
 $CFG_refactor_toplevel_globals
 $call_tree_only
@@ -44,7 +46,11 @@ our $noop           = 0;
 our $CFG_refactor_toplevel_globals = 0;
 our $call_tree_only = 0;
 our $main_tree      = 0;
+our $EXT = '.f95'; # TODO: get from rf4a.cfg
 
+our $LIBS = []; 
+our $LIBPATHS =  ['/opt/local/lib','/usr/local/lib'];
+our $INCLPATHS = ['/opt/local/include','/usr/local/include'];
 # Flag used when generating a subroutine from a marked block of code
 our $gen_sub = 0;
 

@@ -32,7 +32,7 @@ sub create_build_script {
     my $gcc = $ENV{'CC'};
     my $exe = $stref->{'Top'}; # FIXME: would make more sense to have $Config{'EXE'}
     my @fsourcelst = sort keys %{ $stref->{'BuildSources'}{'F'} };
-    my $fsources = join( ',', map { s/\.f$/.f95/;"'" . $_ . "'" } @fsourcelst );
+    my $fsources = join( ',', map { s/\.f$/$EXT/;"'" . $_ . "'" } @fsourcelst );
 
     my $csources = '';
     if ($noop) {
@@ -43,10 +43,10 @@ sub create_build_script {
         $csources = join( ',', map { s/\.f$/.c/; "'" . $_ . "'" } @csourcelst );
     }
     my $date  = localtime;
-    my $libpaths_str = ",'/opt/local/lib','/usr/local/lib'"; # TODO: get from rf4a.cfg
-    my $libs_str = ''; # TODO: get from rf4a.cfg
-    my $inclpaths_str=",'/opt/local/include','/usr/local/include'"; # TODO: get from rf4a.cfg
-    # FIXME: this is Flexpart-specific, we should use a template instead!
+    my $libpaths_str = @{$LIBPATHS} ? ','.join(',',map { "'".$_."'" } @{$LIBPATHS}) : '';#'/opt/local/lib','/usr/local/lib'"; # TODO: get from rf4a.cfg
+    my $libs_str = @{$LIBS} ? ','.join(',',map { "'".$_."'" } @{$LIBS}) : ''; # TODO: get from rf4a.cfg
+    my $inclpaths_str=@{$INCLPATHS} ? ','.join(',',map { "'".$_."'" } @{$INCLPATHS}) : '';#",'/opt/local/include','/usr/local/include'"; # TODO: get from rf4a.cfg
+
     my $scons = <<ENDSCONS;
 # Generated build script for refactored source code
 # $date

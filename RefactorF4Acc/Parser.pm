@@ -1545,23 +1545,23 @@ sub _separate_blocks {
     # WV20170515 This BEFORE/AFTER is no good: works only for a single subroutine
     # If there are more than 1, there can be many such portions. 
     # So maybe we need an array of OUTER or something
-	my $blocksref =
-	  { 
-          'OUTER' =>
-		  { 'AnnLines' => [], 
-		  	'CalledSubs' => { 'List' => [], 'Set' => {} } 
-		  },
-          'BEFORE' =>
-		  { 'AnnLines' => [], 
-		  	'CalledSubs' => { 'List' => [], 'Set' => {} } 
-		  },
-          'AFTER' =>
-		  { 'AnnLines' => [], 
-		  	'CalledSubs' => { 'List' => [], 'Set' => {} } 
-		  },
-	  };
+#	my $blocksref_OLD =
+#	  { 
+#          'OUTER' =>
+#		  { 'AnnLines' => [], 
+#		  	'CalledSubs' => { 'List' => [], 'Set' => {} } 
+#		  },
+#          'BEFORE' =>
+#		  { 'AnnLines' => [], 
+#		  	'CalledSubs' => { 'List' => [], 'Set' => {} } 
+#		  },
+#          'AFTER' =>
+#		  { 'AnnLines' => [], 
+#		  	'CalledSubs' => { 'List' => [], 'Set' => {} } 
+#		  },
+#	  };
     # The records in this array are {'Name' => 'OUTER' or actual name, 'CalledSubs', 'AnnLines'
-   my $blocksref_new = []; # Just an array 
+   	my $blocksref = []; # Just an array 
 
 
 # 1. Process every line in $f, scan for blocks marked with pragmas.
@@ -1602,30 +1602,36 @@ sub _separate_blocks {
 # For convenience this should have a BEFORE and AFTER
 sub __find_called_subs_in_OUTER {
 	( my $blocksref ) = @_;
-	for my $annline ( @{ $blocksref->{'OUTER'}{'AnnLines'} } ) {
-		( my $line, my $info ) = @{$annline};
-		if ( exists $info->{'SubroutineCall'} ) {
-			push @{ $blocksref->{'OUTER'}{'CalledSubs'}{'List'} }, $info->{'SubroutineCall'}{'Name'};
-			$blocksref->{'OUTER'}{'CalledSubs'}{'Set'}{ $info->{'SubroutineCall'}{'Name'} } = 1;
-			# Now test if this is maybe an ENTRY -- UGH!
+	for my $block_rec ( @{$blocksref}) {
+		my $block = $block_rec->{'Name'};
+		if ($block eq 'OUTER') {
+			for my $annline ( @{ $block_rec->{'AnnLines'} } ) {
+				( my $line, my $info ) = @{$annline};
+				if ( exists $info->{'SubroutineCall'} ) {
+					push @{ $block_rec->{'CalledSubs'}{'List'} }, $info->{'SubroutineCall'}{'Name'};
+					$block_rec->{'CalledSubs'}{'Set'}{ $info->{'SubroutineCall'}{'Name'} } = 1;
+					# Now test if this is maybe an ENTRY -- UGH!
+				}
+			}
 		}
 	}
-	for my $annline ( @{ $blocksref->{'BEFORE'}{'AnnLines'} } ) {
-		( my $line, my $info ) = @{$annline};
-		if ( exists $info->{'SubroutineCall'} ) {
-			push @{ $blocksref->{'BEFORE'}{'CalledSubs'}{'List'} }, $info->{'SubroutineCall'}{'Name'};
-			$blocksref->{'BEFORE'}{'CalledSubs'}{'Set'}{ $info->{'SubroutineCall'}{'Name'} } = 1;
-			# Now test if this is maybe an ENTRY -- UGH!
-		}
-	}
-	for my $annline ( @{ $blocksref->{'AFTER'}{'AnnLines'} } ) {
-		( my $line, my $info ) = @{$annline};
-		if ( exists $info->{'SubroutineCall'} ) {
-			push @{ $blocksref->{'AFTER'}{'CalledSubs'}{'List'} }, $info->{'SubroutineCall'}{'Name'};
-			$blocksref->{'AFTER'}{'CalledSubs'}{'Set'}{ $info->{'SubroutineCall'}{'Name'} } = 1;
-			# Now test if this is maybe an ENTRY -- UGH!
-		}
-	}
+	
+#	for my $annline ( @{ $blocksref->{'BEFORE'}{'AnnLines'} } ) {
+#		( my $line, my $info ) = @{$annline};
+#		if ( exists $info->{'SubroutineCall'} ) {
+#			push @{ $blocksref->{'BEFORE'}{'CalledSubs'}{'List'} }, $info->{'SubroutineCall'}{'Name'};
+#			$blocksref->{'BEFORE'}{'CalledSubs'}{'Set'}{ $info->{'SubroutineCall'}{'Name'} } = 1;
+#			# Now test if this is maybe an ENTRY -- UGH!
+#		}
+#	}
+#	for my $annline ( @{ $blocksref->{'AFTER'}{'AnnLines'} } ) {
+#		( my $line, my $info ) = @{$annline};
+#		if ( exists $info->{'SubroutineCall'} ) {
+#			push @{ $blocksref->{'AFTER'}{'CalledSubs'}{'List'} }, $info->{'SubroutineCall'}{'Name'};
+#			$blocksref->{'AFTER'}{'CalledSubs'}{'Set'}{ $info->{'SubroutineCall'}{'Name'} } = 1;
+#			# Now test if this is maybe an ENTRY -- UGH!
+#		}
+#	}
 	return $blocksref;
 }
 
@@ -2670,21 +2676,20 @@ sub __separate_into_blocks {
 	my $in_block = 0;
 
 	# Initial settings
-    #my $block = 'OUTER';
-	my $block = 'BEFORE';
-	$blocksref->{$block}{'AnnLines'}=[];
-	
+    my $block = 'OUTER';
+	my $block_rec={};
+	$block_rec->{'AnnLines'}=[];
+	$block_rec->{'Name'}='OUTER';
 	for my $index ( 0 .. scalar( @{$srcref} ) - 1 ) {
 		my $line = $srcref->[$index][0];
 		my $info = $srcref->[$index][1];
 
-#		if (   $line =~ /^\!\s+BEGIN\sSUBROUTINE\s(\w+)/
-#			or $line =~
-#			/^\!\s*\$(?:ACC|RF4A)\s+(?:Subroutine|KernelWrapper)\s+(\w+)/i )
-#		{
 		if ( exists $info->{'AccPragma'}{'BeginSubroutine'} ) { 
+			# Push the line with the pragma onto the list of 'OUTER' lines
+			push @{ $block_rec->{'AnnLines'} }, [ "! *** Refactored code into $block ***", {} ];
+			push @{ $blocksref }, $block_rec;			
+			$block_rec={};
 			$in_block = 1;
-#			$block    = $1;
 			$block = $info->{'AccPragma'}{'BeginSubroutine'}[0];
 			print "FOUND BLOCK $block\n";# if $V;
 
@@ -2694,63 +2699,45 @@ sub __separate_into_blocks {
 			delete $info->{'Comments'};
 			$info->{'BeginBlock'}{'Name'} = $block;
 
-			# Push the line with the pragma onto the list of 'BEFORE' lines 
-			push @{ $blocksref->{'BEFORE'}{'AnnLines'} },
-			  [ "! *** Refactored code into $block ***", {} ];
 
 		   # Push the line with the pragma onto the list of lines for the block,
 		   # to be replaced by function signature
-		   $blocksref->{$block}{'AnnLines'}=[];
-			push @{ $blocksref->{$block}{'AnnLines'} },
+		   $block_rec->{'AnnLines'}=[];
+		   $block_rec->{'Name'}=$block;
+		   push @{ $block_rec->{'AnnLines'} },
 			  [
 				"! === Original code from $f starts here ===",
 				{ 'RefactoredSubroutineCall' => { 'Name' => $block } }
 			  ];
 
-			# Push empty sig onto the list of lines for the block,
-            #push @{ $blocksref->{$block}{'AnnLines'} }, [ '      subroutine ' . $block, $info ];
-
-			$blocksref->{$block}{'BeginBlockIdx'} = $index;
+			$block_rec->{'BeginBlockIdx'} = $index;
 			next;
-		}
-		elsif ( exists $info->{'AccPragma'}{'EndSubroutine'} ) { 
-#		if (   $line =~ /^\!\s+END\sSUBROUTINE\s(\w+)/
-#			or $line =~
-#			/^\!\s*\$(?:ACC|RF4A)\s+end\s(?:subroutine|kernelwrapper)\s(\w+)/i )
-#		{
-			
-			$in_block = 2;
-#			$block    = $1;
+		} elsif ( exists $info->{'AccPragma'}{'EndSubroutine'} ) {
+			# Push 'end' onto the list of lines for the block			
+			push @{ $block_rec->{'AnnLines'} },  [ '      end subroutine ' . $block, dclone($info) ];
+			$block_rec->{'EndBlockIdx'} = $index;
+			push @{ $blocksref }, $block_rec;
+			$block_rec={};
+			$in_block = 0;
 			$block = $info->{'AccPragma'}{'EndSubroutine'}[0];
-			# Push end-of-block pragma onto 'AFTER'
-			push @{ $blocksref->{'AFTER'}{'AnnLines'} }, [ $line, {} ];
-
-			# Push 'end' onto the list of lines for the block,
-			push @{ $blocksref->{$block}{'AnnLines'} }, [ '      end subroutine ' . $block, dclone($info) ];
-
-	 # Add info to %blocks.
-	 #            push @{ $blocksref->{$block}{'Info'} }, $Sf->{'Info'}[$index];
-	 #            $Sf->{'Info'}[$index]{'EndBlock'}{'Name'} = $block;
-			$info->{'EndBlock'}{'Name'} = $block;
-			$blocksref->{$block}{'EndBlockIdx'} = $index;
+			$block_rec->{'Name'} = 'OUTER';
+			push @{ $block_rec->{'AnnLines'} }, [ $line, {} ];
+			$info->{'EndBlock'}{'Name'} = $block;			
 			next;
 		}
 		
 		if ($in_block==1) {
 			# Push the line onto the list of lines for the block
-			push @{ $blocksref->{$block}{'AnnLines'} }, [ $line, dclone($info) ];
-			# and the index onto Info in %blocks and $Sf
-			#            push @{ $blocksref->{$block}{'Info'} }, $info;
+			push @{ $block_rec->{'AnnLines'} }, [ $line, dclone($info) ];
 			$info->{'InBlock'}{'Name'} = $block;
-		} elsif ($in_block==2) {
-			push @{ $blocksref->{'AFTER'}{'AnnLines'} }, [ $line, $info ];
 		} else {
-			# Other lines go onto 'BEFORE'
-			push @{ $blocksref->{'BEFORE'}{'AnnLines'} }, [ $line, $info ];
+			# Other lines go onto 'OUTER'
+			push @{ $block_rec->{'AnnLines'} }, [ $line, $info ];			
 		}
 		
 		$srcref->[$index] = [ $line, $info ];
 	}    # loop over annlines
+	
 	return $blocksref;
 }    # END of __separate_into_blocks()
 
@@ -2761,42 +2748,25 @@ sub __create_new_subroutine_entries {
 	my $sub_or_func_or_mod = sub_func_incl_mod( $f, $stref );
 	my $Sf = $stref->{$sub_or_func_or_mod}{$f};
 
-	for my $block ( keys %{$blocksref} ) {
-
+	for my $block_rec ( @{$blocksref} ) {
+		
+		my $block = $block_rec->{'Name'};
 		#        say "\tBLOCK: $block";
 		die "EMPTY block name $block" if $block eq '';
 		next if $block eq 'OUTER';
-		next if $block eq 'BEFORE';
-		next if $block eq 'AFTER';
 		if ( not exists $stref->{'Subroutines'}{$block} ) {
 			$stref->{'Subroutines'}{$block} = {};
 			$stref->{'Subroutines'}{$block}{'Source'} =
 			  "./$block.f95";    #$Sf->{'Source'};
 		}
 
-#        elsif ( exists $stref->{'Subroutines'}{$block}{'Translate'} ) {
-#            if ( $stref->{'Subroutines'}{$block}{'Translate'} eq 'C' ) {
-#                $stref->{'Subroutines'}{$block}{'Source'} = "./$block.f95";
-#                $stref = add_to_C_build_sources( $block, $stref );
-#            } else {
-#                croak '!$acc translate ('
-#                  . $block . ') '
-#                  . $stref->{'Subroutines'}{$block}{'Translate'}
-#                  . ": Only C translation through F2C_ACC is currently supported.\n";
-#            }
-#        }
 		my $Sblock = $stref->{'Subroutines'}{$block};
 		$Sblock->{'AnnLines'} =
-		  [ @{ $blocksref->{$block}{'AnnLines'} } ];    # a copy
+		  [ @{ $block_rec->{'AnnLines'} } ];    # a copy
 		my $line_id = 0;
-#        my $new_annlines = [] ;
 		for my $annline ( @{ $Sblock->{'AnnLines'} } ) {
 			$annline->[1]{'LineID'} = $line_id++;
-#            say $block,':',$annline->[0];
-#            	delete $annline->[1]{'Deleted'};#=0;
-                #               push @{ $new_annlines }, $annline;
 		}
-#        $Sblock->{'AnnLines'} = $new_annlines; #die Dumper($new_annlines);
         my $src = "./$block.f95";
 
 		$stref->{'SourceContains'}{$src}{'Set'}{$block} = 'Subroutines';
@@ -2815,7 +2785,7 @@ sub __create_new_subroutine_entries {
 		$Sblock->{'FStyle'}      = $Sf->{'FStyle'};
 		$Sblock->{'FreeForm'}    = $Sf->{'FreeForm'};
 		$Sblock->{'Recursive'}   = 0;
-		$Sblock->{'Callers'}{$f} = [ $blocksref->{$block}{'BeginBlockIdx'} ];            
+		$Sblock->{'Callers'}{$f} = [ $block_rec->{'BeginBlockIdx'} ];            
 
 	}
 	return $stref;
@@ -2833,9 +2803,10 @@ sub __find_vars_in_block {
     #warn "This should use the same code as RefactorF4Acc::Analysis:: _analyse_variables";
 	( my $blocksref, my $varsref, my $occsref ) = @_;
 	my $itersref = {};
-	for my $block ( keys %{$blocksref} ) {
+	for my $block_rec ( @{$blocksref} ) {
+		my $block = $block_rec->{'Name'};		
 		$itersref->{$block} = [];
-		my @annlines = @{ $blocksref->{$block}{'AnnLines'} };
+		my @annlines = @{ $block_rec->{'AnnLines'} };
 		my %tvars = %{$varsref};    # Hurray for pass-by-value!
 
 		print "\nVARS in $block:\n\n" if $V;
@@ -2863,52 +2834,6 @@ sub __find_vars_in_block {
                 }
             }
         }
-#
-#			
-#			
-#			
-#			if (
-#			$block ne 'OUTER' and (
-#			exists $info->{'Assignment'} or
-#			exists $info->{'Call'} or
-#			exists $info->{'IO'} or
-#			exists $info->{'Control'}
-#				)
-#			
-#			) {
-#			croak $tline.Dumper($info).$block.Dumper($blocksref->{$block});
-#			# Do: Range Vars
-#			# IfThen: CondVars List
-#			# Assignment: Lhs VarName, Lhs IndexVars List, Rhs VarList  List
-#			# IO WriteCall: CallArgs List, ExprVars List, CallAttrs List
-#			# IO OpenCall: Vars List	
-#			  
-#			}
-#			
-#			if ( exists $info->{'Do'} ) {
-#				my $iter = $info->{'Do'}{'Iterator'};
-#				push @{ $itersref->{$block} }, $iter;
-#				delete $tvars{$iter};
-#
-#				for my $var_in_do ( @{ $info->{'Do'}{'Range'}{'Vars'} } ) {
-#					if ( exists $tvars{$var_in_do} ) {
-#						print "FOUND $var_in_do\n" if $V;
-#						$occsref->{$block}{$var_in_do} = $var_in_do;
-#						delete $tvars{$var_in_do};
-#					}
-#				}
-#			} else {
-#				$tline =~ s/[\'\"].+?[\'\"]// ; # FIXME: looks like a HACK and should never happen as we have the __PH__ approach in SrcReader
-#				for my $var ( sort keys %tvars ) {
-#					if ( $tline =~ /\b$var\b/ ) {
-#						print "FOUND $var\n" if $V;
-#						$occsref->{$block}{$var} = $var;
-#						delete $tvars{$var};
-#					}
-#				}
-#			}
-#		}
-#        
 	} # for each block
 	
 	return [ $occsref, $itersref ];
@@ -2929,10 +2854,10 @@ sub __construct_new_subroutine_signatures {
 
 	my %args = ();
 
-	for my $block ( keys %{$blocksref} ) {
+#	for my $block ( keys %{$blocksref} ) {
+	for my $block_rec ( @{$blocksref} ) {
+		my $block =$block_rec->{'Name'};
 		next if $block eq 'OUTER';
-		next if $block eq 'BEFORE';
-		next if $block eq 'AFTER';
 
 		my $Sblock = $stref->{'Subroutines'}{$block};
 
@@ -2981,19 +2906,13 @@ sub __construct_new_subroutine_signatures {
 		$sigrec->{'Args'}{'Set'}  = { map { $_ => {} } @{ $args{$block} } };
 		$sigrec->{'Name'}         = $block;
 		$sigrec->{'Function'}     = 0;
-#croak Dumper(@{ $args{$block} });
-#say "BLOCK: $block";
-#croak $args{$block},$Sblock->{'DeclaredOrigArgs'}{'List'};
 		for my $argv ( @{ $args{$block} } ) {
-#			say $argv;
 			$sig .= "$argv,";
 			my $decl = get_f95_var_decl( $stref, $f, $argv );
 			$decl->{'Indent'} .= $sixspaces;
 
 			$Sblock->{'DeclaredOrigArgs'}{'Set'}{$argv} = $decl;
-#			push @{ $Sblock->{'DeclaredOrigArgs'}{'List'} }, $argv;
 		}
-#croak;
 		if ( @{ $args{$block} } ) {
 			$sig =~ s/\,$/)/s;
 		} else {
@@ -3005,7 +2924,6 @@ sub __construct_new_subroutine_signatures {
 		my $sigline =
 		  shift @{ $Sblock->{'AnnLines'}
 		  }; # This is the line that says "! === Original code from $f starts here ==="
-          #die $sigline->[0];
 
 		for my $iters ( $itersref->{$block} ) {
 			for my $iter ( @{$iters} ) {
@@ -3061,19 +2979,16 @@ sub __construct_new_subroutine_signatures {
 
 		#        print "\n-----\n".Dumper($srcref)."\n-----";
 		for my $tindex ( 0 .. scalar( @{$srcref} ) - 1 ) {
-			if ( $tindex == $blocksref->{$block}{'BeginBlockIdx'} ) {
+			if ( $tindex == $block_rec->{'BeginBlockIdx'} ) {
 				$sig =~ s/subroutine/call/;
 				$srcref->[$tindex][0] = $sig;
 				$srcref->[$tindex][1]{'SubroutineCall'} = $sigrec;
 				$srcref->[$tindex][1]{'LineID'} = $Sblock->{'Callers'}{$f}[0];
-			} elsif ( $tindex > $blocksref->{$block}{'BeginBlockIdx'}
-				and $tindex <= $blocksref->{$block}{'EndBlockIdx'} )
+			} elsif ( $tindex > $block_rec->{'BeginBlockIdx'}
+				and $tindex <= $block_rec->{'EndBlockIdx'} ) 
 			{
 				$srcref->[$tindex][0] = '';
-                # So this deletes the lines in the new sub as well as in the old sub!
-                # But if I remove next line, both are printed, even if it should be ''
                 $srcref->[$tindex][1]{'Deleted'} = 1;
-#                croak 'TROUBLE';                
 			}
 		}
 
@@ -3092,10 +3007,9 @@ sub __construct_new_subroutine_signatures {
 # -----------------------------------------------------------------------------
 sub __reparse_extracted_subroutines {
 	( my $stref, my $blocksref ) = @_;
-	for my $block ( keys %{$blocksref} ) {
-	next if $block eq 'OUTER';
-	next if $block eq 'BEFORE';
-	next if $block eq 'AFTER';
+	for my $block_rec (@{$blocksref} ) {
+		my $block = $block_rec->{'Name'};
+		next if $block eq 'OUTER';
 		say "REPARSING $block" if $V;
 		$stref = parse_fortran_src( $block, $stref );
 	}
@@ -3108,11 +3022,17 @@ sub __update_caller_datastructures {
 
 	#	delete $blocksref->{'OUTER'};
 	# Create new CalledSubs for $f
+	
     my @called_subs=();
-	for my $block ( keys %{$blocksref} ) {
-        next if $block eq 'OUTER';
-        next if $block eq 'BEFORE';
-        next if $block eq 'AFTER';
+	for my $block_rec ( @{$blocksref} ) {
+		my $block = $block_rec->{'Name'};
+		
+         if ($block eq 'OUTER' ) {
+         		@called_subs = ( @called_subs, @{ $block_rec->{'CalledSubs'}{'List'} } );
+         } else {
+         	@called_subs = ( @called_subs,$block );
+#        next if $block eq 'BEFORE';
+#        next if $block eq 'AFTER';
         # Basically, we know that the new subs *must* be called from $f
 #		# Problem here is that there is NO caller!
 #		say $block,' : ',scalar keys %{ $stref->{'Subroutines'}{$block}{'Callers'} };
@@ -3126,7 +3046,7 @@ sub __update_caller_datastructures {
 #			} else {
 
 				# Add $block to CalledSubs in $f
-				$stref->{'Subroutines'}{$f}{'CalledSubs'}{'Set'}{$block} = 1;                 
+#				$stref->{'Subroutines'}{$f}{'CalledSubs'}{'Set'}{$block} = 1;                 
 
 # What we need to do is put a marker in CalledSubs when we encounter the pragma, and not register any subcalls in the region!!!
 # Not sure I understand, but the situation is:
@@ -3142,12 +3062,15 @@ sub __update_caller_datastructures {
 # This is indeed an issue, but not major. Basically, we need to split the OUTER in before and after and splice.
 #                carp "FIXME: Incorrect because there might be subs in $f called after $block";
 #				push @{ $stref->{'Subroutines'}{$f}{'CalledSubs'}{'List'} }, $block;
-                push @called_subs, $block;
+#                push @called_subs, $block;
 #			}
 #		}
+		}
 	} # for each block
-    $stref->{'Subroutines'}{$f}{'CalledSubs'}{'List'} =[ @{ $blocksref->{'BEFORE'}{'CalledSubs'}{'List'} }, @called_subs, @{ $blocksref->{'AFTER'}{'CalledSubs'}{'List'} } ];
-    $stref->{'Subroutines'}{$f}{'CalledSubs'}{'Set'} = { %{ $blocksref->{'BEFORE'}{'CalledSubs'}{'Set'} }, map { $_ => 1} @called_subs,  %{ $blocksref->{'AFTER'}{'CalledSubs'}{'Set'} } };
+	$stref->{'Subroutines'}{$f}{'CalledSubs'}{'List'}=[@called_subs];
+	$stref->{'Subroutines'}{$f}{'CalledSubs'}{'Set'} = { map { $_ => 1} @called_subs };
+#    $stref->{'Subroutines'}{$f}{'CalledSubs'}{'List'} =[ @{ $blocksref->{'BEFORE'}{'CalledSubs'}{'List'} }, @called_subs, @{ $blocksref->{'AFTER'}{'CalledSubs'}{'List'} } ];
+#    $stref->{'Subroutines'}{$f}{'CalledSubs'}{'Set'} = { %{ $blocksref->{'BEFORE'}{'CalledSubs'}{'Set'} }, map { $_ => 1} @called_subs,  %{ $blocksref->{'AFTER'}{'CalledSubs'}{'Set'} } };
     $stref->{'CallTree'}{$f}=[@{$stref->{'Subroutines'}{$f}{'CalledSubs'}{'List'}}];
 	return $stref;
 }    # END of __update_caller_datastructures()

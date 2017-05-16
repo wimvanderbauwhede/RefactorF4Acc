@@ -50,9 +50,9 @@ sub _refactor_include_file {
 	my $If = $stref->{'IncludeFiles'}{$inc_f};
 	my $inc_ff=$inc_f;
 	$inc_ff=~s/\./_/g;
-	$stref->{'IncludeFiles'}{$inc_f}{'Source'}=$inc_ff.'.f95'; # FIXME: ad hoc
+	$stref->{'IncludeFiles'}{$inc_f}{'Source'}=$inc_ff.$EXT; # FIXME: ad hoc
 	if ($stref->{'IncludeFiles'}{$inc_f}{'InclType'} eq 'Parameter') {
-		$stref->{'BuildSources'}{'F'}{$inc_f.'.f95'}=1;
+		$stref->{'BuildSources'}{'F'}{$inc_ff.$EXT}=1;
 	}
     if (   not exists $If->{'RefactoredCode'}
         or $If->{'RefactoredCode'} == []
