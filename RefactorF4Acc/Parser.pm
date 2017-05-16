@@ -1542,6 +1542,9 @@ sub _separate_blocks {
 	my $itersref = {};
 
 	# A map of every block in the parent
+    # WV20170515 This BEFORE/AFTER is no good: works only for a single subroutine
+    # If there are more than 1, there can be many such portions. 
+    # So maybe we need an array of OUTER or something
 	my $blocksref =
 	  { 
           'OUTER' =>
@@ -1557,6 +1560,9 @@ sub _separate_blocks {
 		  	'CalledSubs' => { 'List' => [], 'Set' => {} } 
 		  },
 	  };
+    # The records in this array are {'Name' => 'OUTER' or actual name, 'CalledSubs', 'AnnLines'
+   my $blocksref_new = []; # Just an array 
+
 
 # 1. Process every line in $f, scan for blocks marked with pragmas.
 # What this does is to separate the code into blocks (%blocks) and keep track of the line numbers
@@ -2720,7 +2726,7 @@ sub __separate_into_blocks {
 			push @{ $blocksref->{'AFTER'}{'AnnLines'} }, [ $line, {} ];
 
 			# Push 'end' onto the list of lines for the block,
-			push @{ $blocksref->{$block}{'AnnLines'} }, [ '      end subroutine ' . $block, $info ];
+			push @{ $blocksref->{$block}{'AnnLines'} }, [ '      end subroutine ' . $block, dclone($info) ];
 
 	 # Add info to %blocks.
 	 #            push @{ $blocksref->{$block}{'Info'} }, $Sf->{'Info'}[$index];
@@ -2732,7 +2738,7 @@ sub __separate_into_blocks {
 		
 		if ($in_block==1) {
 			# Push the line onto the list of lines for the block
-			push @{ $blocksref->{$block}{'AnnLines'} }, [ $line, $info ];
+			push @{ $blocksref->{$block}{'AnnLines'} }, [ $line, dclone($info) ];
 			# and the index onto Info in %blocks and $Sf
 			#            push @{ $blocksref->{$block}{'Info'} }, $info;
 			$info->{'InBlock'}{'Name'} = $block;
@@ -2783,14 +2789,20 @@ sub __create_new_subroutine_entries {
 		$Sblock->{'AnnLines'} =
 		  [ @{ $blocksref->{$block}{'AnnLines'} } ];    # a copy
 		my $line_id = 0;
+#        my $new_annlines = [] ;
 		for my $annline ( @{ $Sblock->{'AnnLines'} } ) {
 			$annline->[1]{'LineID'} = $line_id++;
+#            say $block,':',$annline->[0];
+#            	delete $annline->[1]{'Deleted'};#=0;
+                #               push @{ $new_annlines }, $annline;
 		}
+#        $Sblock->{'AnnLines'} = $new_annlines; #die Dumper($new_annlines);
         my $src = "./$block.f95";
 
 		$stref->{'SourceContains'}{$src}{'Set'}{$block} = 'Subroutines';
 		push @{ $stref->{'SourceContains'}{$src}{'List'} }, $block;		  
         $stref->{'SourceFiles'}{$src}{'SourceType'}='Subroutines';
+         $stref->{'BuildSources'}{'F'}{$src}=1;
 		$Sblock->{'RefactorGlobals'} = 1;
 		$stref->{'Subroutines'}{$block} = $Sblock;
 		if ( $Sf->{'RefactorGlobals'} == 0 ) {
@@ -3058,7 +3070,10 @@ sub __construct_new_subroutine_signatures {
 				and $tindex <= $blocksref->{$block}{'EndBlockIdx'} )
 			{
 				$srcref->[$tindex][0] = '';
-                #$srcref->[$tindex][1]{'Deleted'} = 2;
+                # So this deletes the lines in the new sub as well as in the old sub!
+                # But if I remove next line, both are printed, even if it should be ''
+                $srcref->[$tindex][1]{'Deleted'} = 1;
+#                croak 'TROUBLE';                
 			}
 		}
 

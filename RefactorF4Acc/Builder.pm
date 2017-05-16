@@ -59,7 +59,7 @@ envC=Environment(CC='$gcc',CPPPATH=[]);
 #if csources:
 #    envC.Library('${exe}_c',csources)
 
-FFLAGS  = ['-O3', '-m64', '-ffree-form', '-ffree-line-length-0','-fconvert=little-endian', '-frecord-marker=4']
+FFLAGS  = ['-cpp','-O3', '-m64', '-ffree-form', '-ffree-line-length-0','-fconvert=little-endian', '-frecord-marker=4']
 envF=Environment(F95='$gfortran',LINK='$gfortran',F95FLAGS=FFLAGS,F95PATH=['.' $inclpaths_str])
 #if csources:
 #    envF.Program('$exe',fsources,LIBS=[$libs_str '${exe}_c','m'],LIBPATH=['.' $libpaths_str])   
