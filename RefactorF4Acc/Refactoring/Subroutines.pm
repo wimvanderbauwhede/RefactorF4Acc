@@ -534,7 +534,7 @@ sub _create_refactored_subroutine_call {
         if (exists $info->{'SubroutineCall'}{'Args'}{'Set'}{$call_arg}{'Expr'} ) {
         	push @orig_args , $info->{'SubroutineCall'}{'Args'}{'Set'}{$call_arg}{'Expr'};
         } else {
-        	push @orig_args , $call_arg; # WV20170515: is this correct?
+        	#push @orig_args , $call_arg; # WV20170515: is this correct? Do nothing?
         }
     }
     my $args_ref = [@orig_args]; # NOT ordered union, if they repeat that should be OK 

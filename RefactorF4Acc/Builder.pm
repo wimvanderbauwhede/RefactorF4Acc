@@ -32,7 +32,18 @@ sub create_build_script {
     my $gcc = $ENV{'CC'};
     my $exe = $stref->{'Top'}; # FIXME: would make more sense to have $Config{'EXE'}
     my @fsourcelst = sort keys %{ $stref->{'BuildSources'}{'F'} };
-    my $fsources = join( ',', map { s/\.f$/$EXT/;"'" . $_ . "'" } @fsourcelst );
+    my $fsources = join( ',', map {
+    	# Ad-hoc: names that do not end in .f or $EXT are renamed by substituting . with _ and $EXT is appended
+    	# This is for includes transformed into modules
+    	my $src=$_;
+    	if ($src=~/\.f$/) { 
+    		$src=~s/\.f$/$EXT/;
+    	} elsif ($src!~/$EXT$/) {
+    		$src=~s/\./_/g;
+    		$src.=$EXT;
+    	}
+    	return "'" . $src . "'"; 
+    } @fsourcelst );
 
     my $csources = '';
     if ($noop) {

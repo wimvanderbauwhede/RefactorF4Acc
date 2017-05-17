@@ -141,7 +141,8 @@ sub emit_all {
 	   }
 	   
         if (    not exists $stref->{'BuildSources'}{'C'}{$src}
-                and not exists $stref->{'BuildSources'}{'F'}{$src} ) {
+                and not exists $stref->{'BuildSources'}{'F'}{$src} ) {                	
+#                	say "Emitter: ADD $src to BuildSources";
             $stref->{'BuildSources'}{'F'}{$src} = 1;
         }        
 

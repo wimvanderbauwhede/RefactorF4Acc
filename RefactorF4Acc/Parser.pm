@@ -2737,6 +2737,9 @@ sub __separate_into_blocks {
 		
 		$srcref->[$index] = [ $line, $info ];
 	}    # loop over annlines
+			$block_rec->{'EndBlockIdx'} = scalar( @{$srcref} ) ; 
+			push @{ $blocksref }, $block_rec;
+	
 	
 	return $blocksref;
 }    # END of __separate_into_blocks()
@@ -2841,7 +2844,8 @@ sub __find_vars_in_block {
 
 # -----------------------------------------------------------------------------
 # TODO: see if this can be separated into shorter subs
-# FIXME 20150824: When this is called, there is nothing in Args
+# FIXME 20170516: need includes for params in decls. Problem is, if we use COMMON blocks in the original subroutine, then there are no args so no decls.
+# So I need to check if vars used in the new sub are commons
 # As this belongs with _separate_blocks, I see no reason to keep declarations in $info 
 sub __construct_new_subroutine_signatures {
 	( my $stref, my $blocksref, my $occsref, my $itersref, my $varsref, my $f )
@@ -2850,18 +2854,18 @@ sub __construct_new_subroutine_signatures {
 	#    local $V = 1;
 	my $sub_or_func_or_mod = sub_func_incl_mod( $f, $stref );    # This is not a misnomer as it can also be a module.
 	my $Sf     = $stref->{$sub_or_func_or_mod}{$f};
+	
 	my $srcref = $Sf->{'AnnLines'};
 
 	my %args = ();
 
-#	for my $block ( keys %{$blocksref} ) {
 	for my $block_rec ( @{$blocksref} ) {
 		my $block =$block_rec->{'Name'};
 		next if $block eq 'OUTER';
 
 		my $Sblock = $stref->{'Subroutines'}{$block};
 
-		$Sf = _initialise_decl_var_tables( $Sblock, $block, 0 );
+		$Sblock = _initialise_decl_var_tables( $Sblock, $block, 0 );
 
 		if ( not exists $Sblock->{'OrigArgs'} ) {
 			croak 'BOOM!' . Dumper( $Sblock->{Args} );
@@ -2884,10 +2888,7 @@ sub __construct_new_subroutine_signatures {
 
 		# Collect args for new subroutine
 		for my $var ( sort keys %{ $occsref->{$block} } ) {
-			if ( exists $occsref->{'OUTER'}{$var} 
-                    or exists $occsref->{'BEFORE'}{$var} 
-                    or exists $occsref->{'AFTER'}{$var} 
-            ) {
+			if ( exists $occsref->{'OUTER'}{$var} ) {
 				print "$var\n" if $V;
 				push @{ $args{$block} }, $var;
 			}
@@ -2917,7 +2918,7 @@ sub __construct_new_subroutine_signatures {
 			$sig =~ s/\,$/)/s;
 		} else {
 			$sig .= ')';
-		}
+		}		
 
 		# Add variable declarations and info to line
 		# Here we know the vardecls have been formatted.
@@ -2964,17 +2965,13 @@ sub __construct_new_subroutine_signatures {
 		# Now also add include statements and the actual sig to the line
 
 		$Sblock->{'AnnLines'}[0][1] = {};
-		for my $inc ( keys %{ $Sf->{'Includes'} } ) {
-			$Sblock->{'Includes'}{$inc} = 1;
+		
+		for my $inc ( keys %{ $Sf->{'Includes'} } ) { 
+			$Sblock->{'Includes'}{$inc} = { 'LineID' => 2 };
 			unshift @{ $Sblock->{'AnnLines'} },
-			  [ "      include '$inc'", { 'Include' => { 'Name' => $inc } } ]
-			  ;    # add new lines at the front
-
-			$Sblock->{'Includes'}{$inc} = 1;
+			  [ "      include '$inc'", { 'Include' => { 'Name' => $inc } } ];    			
 		}
-		unshift @{ $Sblock->{'AnnLines'} },
-		  [ $sig, { 'Signature' => $sigrec } ];
-
+		unshift @{ $Sblock->{'AnnLines'} }, [ $sig, { 'Signature' => $sigrec } ];
 # And finally, in the original source, replace the blocks by calls to the new subs
 
 		#        print "\n-----\n".Dumper($srcref)."\n-----";
