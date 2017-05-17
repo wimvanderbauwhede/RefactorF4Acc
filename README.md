@@ -44,9 +44,18 @@ School of Computing Science, University of Glasgow, UK
   * Or you simply annotate any subroutine or function to be
     translated (sorry, I think this is currently broken):
         !$ACC TRANSLATE C  
-* Subroutine extraction  (sorry, I think this is currently broken)
+          ...
+        !$ACC END TRANSLATE C  
+* Subroutine extraction  
     * simply add an annotation
-          !$ACC SUBROUTINE particles_main_loop  
+          !$ACC SUBROUTINE <optional subroutine name>  
+          ... <code to be extracted as subroutine>
+          !$ACC END SUBROUTINE <optional subroutine name>         
+* Automatic parallelisation using OpenCL
+    * simply add an annotation
+          !$ACC KERNEL  <optional kernel name>
+          ... < code to be parallelised as OpenCL kernel >
+          !$ACC END KERNEL  <optional kernel name>
 * Call graph generation
 
 ## How it works
