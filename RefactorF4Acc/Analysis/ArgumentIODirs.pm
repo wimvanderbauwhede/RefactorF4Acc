@@ -1150,6 +1150,10 @@ sub _update_argument_io_direction {
 						delete $decl->{'Val'};
 						$decl->{'IODir'}='In';
 					}
+					if (exists $stref->{'Subroutines'}{$f}{'BlockData'} and $stref->{'Subroutines'}{$f}{'BlockData'}==1) {
+						warn "BLOCK DATA $f";
+						$decl->{'IODir'}='InOut';
+					}
 					my $rline = emit_f95_var_decl($decl );
 											
                     if (exists $info->{'Skip'}) {

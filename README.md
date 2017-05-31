@@ -1,5 +1,6 @@
+# The Glasgow Fortran Source-to-Source Compiler
 
-# An Automated Fortran Code Refactoring Tool to Facilitate Acceleration of Numerical Simulations
+An Automated Fortran Code Refactoring Tool to Facilitate Acceleration of Numerical Simulations
 
 (c) Wim Vanderbauwhede 2010-now
 
@@ -32,7 +33,7 @@ School of Computing Science, University of Glasgow, UK
 
 * F77 to F95 translation: the resulting F95 code has
   * proper F95 syntax, including types, parameters and operators
-  * MODULE support
+  * MODULE support with explicit import list (USE ... ONLY: ...)
   * INTENT attributes have been inferred
   * No IMPLICIT declarations, all variables are declared explicitly
   * proper DO ... END DO -loops, removal of redundant GOTO
@@ -40,12 +41,8 @@ School of Computing Science, University of Glasgow, UK
   * Preserves comments
 
 * OpenCL/C translation
-  * You provide the OpenCL/C translation as a pass to the compiler command line (-P translate_to_C/translate_to_OpenCL)
-  * Or you simply annotate any subroutine or function to be
-    translated (sorry, I think this is currently broken):
-        !$ACC TRANSLATE C  
-          ...
-        !$ACC END TRANSLATE C  
+  * Once refactored, modules can be translated to C or OpenCL kernel code in a separate pass
+
 * Subroutine extraction  
     * simply add an annotation
           !$ACC SUBROUTINE <optional subroutine name>  
@@ -69,7 +66,7 @@ School of Computing Science, University of Glasgow, UK
 
 ## Status
 
-To assess the correctness and capability of our refactoring compiler, we used the NIST (US National Institute of Standards and Technology) [FORTRAN78 test suite](http://www.itl.nist.gov/div897/ctg/fortran_form.htm), which aims to validate adherence to the ANSI X3.9-1978 (FORTRAN 77) standard. We used [a version with some minor changes](http://www.fortran-2000.com/ArnaudRecipes/fcvs21_f95.html): All files are properly formed; a non standard conforming FORMAT statement has been fixed in test file FM110.f; Hollerith strings in FORMAT statements have been converted to quoted strings. This test suite comprises about three thousand tests organised into 192 files.
+To assess the correctness and capability of our refactoring compiler, we used the NIST (US National Institute of Standards and Technology) [FORTRAN78 test suite](http://www.itl.nist.gov/div897/ctg/fortran_form.htm), which aims to validate adherence to the ANSI X3.9-1978 (FORTRAN 77) standard. We used [a version with some minor changes from Arnaud Desitter](http://www.fortran-2000.com/ArnaudRecipes/fcvs21_f95.html): All files are properly formed; a non standard conforming FORMAT statement has been fixed in test file `FM110.f`; Hollerith strings in FORMAT statements have been converted to quoted strings. This test suite comprises about three thousand tests organised into 192 files.
 
 We skipped some tests because they test features that our compiler does not support. In particular, we skipped tests that use spaces in variable names and keywords (3 files, 23 tests) and tests for corner cases of common blocks and block data (2 files, 37+16 tests). After skipping these types of tests, 2867 tests remain, in total 187 files for which refactored code is generated. The testbench driver provided in the archive skips another 8 tests because they relate to features deleted in Fortran 95. In total the test suite contains 72,473 lines of code (excluding comments). Two test files contain tests that fail in gfortran 4.9 (3 tests in total).
 
@@ -95,14 +92,14 @@ The source code for RefactorF4ACC is written in Perl and requires v5.10 or later
 
 To install RefactorF4ACC:
 
-- Put the script `refactorF4ACC.pl` in your path
+- Put the script `refactorF4ACC.pl` in your `$PATH`
 - Put the RefactorF4ACC folder somewhere where Perl will find it (e.g. `/usr/local/share/perl5`) or put it anywhere and append the path to PERL5LIB in your `.bashrc` or similar.
 
-For example, I have `/home/wim/bin` in my PATH, so I put `refactorF4ACC.pl` there; and I have `PERL5LIB="/home/wim/perl5/lib/perl5"` so I put the RefactorF4ACC folder there.
+For example, I have `$HOME/bin` in my `$PATH`, so I put `refactorF4ACC.pl` there; and I have `PERL5LIB="$HOME/perl5/lib/perl5"` so I put the RefactorF4ACC folder there.
 
-The directory 'warnings' contains a stub for the 'use warnings qw(unused)' pragma. If you have the proper 'warnings::unused' [installed](http://search.cpan.org/dist/warnings-unused/) you can delete this folder.
+The directory `warnings` contains a stub for the 'use warnings qw(unused)' pragma. If you have the proper 'warnings::unused' [installed](http://search.cpan.org/dist/warnings-unused/) you can delete this folder.
 
-The code will work with Perl v5.10 and later. To make it work with older Perl (e.g. v5.8) you will have to replace all occurrences of `say` with `print` and add a newline.
+The code will work with Perl v5.10 and later. To make it work with older Perl (e.g. v5.8) you would have to replace all occurrences of `say` with `print` and add a newline.
 
 ## Usage
 
@@ -144,7 +141,7 @@ The following keys are defined:
     -g: refactor globals inside toplevel subroutine
     -b: Generate SCons build script
     -A: Annotate the refactored lines
-    -P: Name of pass to be performed (currently there are only two built-in passes:  translate_to_C and translate_to_OpenCL)
+    -P translate_to_C|translate_to_OpenCL: to translate a module to C or OpenCL
     -w: show warnings
     -v: verbose (implies -w)
     -i: show info messages
@@ -152,7 +149,7 @@ The following keys are defined:
 
 ### Examples    
 
-* For example, assuming the script is in your `$PATH`, to refactor code:
+* To refactor code as explained above:
 
         $ refactorF4acc.pl -c ./rf4a.cfg -g
 
@@ -168,36 +165,51 @@ The following keys are defined:
 
   or for another example:    
 
-    # The name of the PROGRAM  
-	TOP = main
-	PREFIX = .
-	SRCDIRS = .
-	NEWSRCPATH = RefactoredSources
-	EXCL_SRCS = main_screenshot.f, test.f, ^tmp.*
-	EXCL_DIRS = GIS, data, RefactoredSources.*,  PostCPP,testDest.*
-	NO_ONLY = 0
-	SPLIT_LONG_LINES = 1
-	# By default the extension is _GLOB, this forces no extension
-	RENAME_EXT =  
+      # The name of the PROGRAM  
+    	TOP = main
+    	PREFIX = .
+    	SRCDIRS = .
+    	NEWSRCPATH = RefactoredSources
+    	EXCL_SRCS = main_screenshot.f, test.f, ^tmp.*
+    	EXCL_DIRS = GIS, data, RefactoredSources.*,  PostCPP,testDest.*
+    	NO_ONLY = 0
+    	SPLIT_LONG_LINES = 1
+    	# By default the extension is _GLOB, this forces no extension
+    	RENAME_EXT =  
 
-* For example to translate the refactored code toOpenCL/C:
+* To translate the refactored code to OpenCL/C:
 
       $ refactorF4acc.pl -P translate_to_C -c rf4a.cfg
 
    with `rf4a.cfg` containing:
 
-    # Name of the module containing the kernel subroutine and its source file
-	MODULE = module_les_superkernel
-	MODULE_SRC = module_les_superkernel.f95
-	TOP = les_superkernel
-	# Name of the kernel subroutine (so same as TOP, sorry)
-	KERNEL = les_superkernel
-	PREFIX = .
-	SRCDIRS = .
-	NEWSRCPATH = ./Temp
-	# Sources to be excluded (regular expression)
-	EXCL_SRCS = (module_sub_superkernel_init|_host|\.[^f])
-	# Folders to be excluded
-	EXCL_DIRS = ./PostCPP,./Temp
-	MACRO_SRC = macros.h
-	RENAME_EXT = _G      
+      # Name of the module containing the kernel subroutine and its source file
+    	MODULE = module_les_superkernel
+    	MODULE_SRC = module_les_superkernel.f95
+    	TOP = les_superkernel
+    	# Name of the kernel subroutine (so same as TOP, sorry)
+    	KERNEL = les_superkernel
+    	PREFIX = .
+    	SRCDIRS = .
+    	NEWSRCPATH = ./Temp
+    	# Sources to be excluded (regular expression)
+    	EXCL_SRCS = (module_sub_superkernel_init|_host|\.[^f])
+    	# Folders to be excluded
+    	EXCL_DIRS = ./PostCPP,./Temp
+    	MACRO_SRC = macros.h
+    	RENAME_EXT = _G      
+
+### To run the NIST test suite
+
+* Download the test suite ftp://ftp.fortran-2000.com/fcvs21_f95.tar.bz2
+
+      $ tar -jxvf fcvs21_f95.tar.bz2
+      $ cd fcvs21_f95
+
+* In this folder, unzip the archive `tests/NIST_test_scripts.zip`
+* This will create a folder `Test_rf4a` and a folder `RefactoredSources`
+
+      $ cd Test_rf4a
+      $ ./generate_and_run.sh
+
+* Generating, compiling and running the test suites takes about 15 minutes
