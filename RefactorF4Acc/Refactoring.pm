@@ -282,7 +282,6 @@ sub get_next_relevant_statement { (my $annlines, my  $idx_start) = @_;
 	for my $idx ($idx_start+1 .. $idx_eof) {
 		my $annline = $annlines->[$idx];
 		(my $line, my $info) = @{$annline};
-#		say '>>>'.$line.' : '.join(';',keys %{$info});
 		if ( not exists $info->{'Comments'} and not exists $info->{'Blank'} and not exists $info->{'Removed'}) {
 			$relevant_annline = $annline;
 			$relevant_annline_idx = $idx;

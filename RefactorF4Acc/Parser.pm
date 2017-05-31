@@ -3,7 +3,7 @@ use v5.10;
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
 use RefactorF4Acc::CallTree qw( add_to_call_tree );
-use RefactorF4Acc::Refactoring::Common qw( emit_f95_var_decl get_f95_var_decl );
+use RefactorF4Acc::Refactoring::Common qw( emit_f95_var_decl get_f95_var_decl stateful_pass ); 
 use RefactorF4Acc::Parser::SrcReader qw( read_fortran_src );
 use RefactorF4Acc::Parser::Expressions qw( get_vars_from_expression parse_expression  get_args_vars_from_expression get_args_vars_from_subcall emit_expression get_consts_from_expression);
 use RefactorF4Acc::CTranslation qw( add_to_C_build_sources );    # OBSOLETE
@@ -41,6 +41,7 @@ use Exporter;
 @RefactorF4Acc::Parser::EXPORT_OK = qw(
   &parse_fortran_src
   &refactor_marked_blocks_into_subroutines
+  &mark_blocks_between_calls
   &build_call_graph
 );
 
@@ -419,7 +420,9 @@ sub _analyse_lines {
 			if ( $lline =~ /^\!\s*\$(?:ACC|RF4A)\s.+$/i ) {				
 				( $stref, $info ) = __handle_acc( $stref, $f, $index, $lline );
 			}
-		
+			if (exists $info->{'AccPragma'}{'BeginKernel'}) {
+				$Sf->{'HasKernelRegion'}=1;
+			}
 			# Here we remove the label if there is one, but we store it in Label so we can re-emit it
 			my $line = $lline;
 			
@@ -3371,7 +3374,8 @@ sub __handle_acc {
 	( my $stref, my $f, my $index, my $line, my $info ) = @_;
 	my $accline = $line;
 	
-	$accline =~ s/^\!\s*\$(?:ACC|RF4A)\s+//i;
+	my $is_accline = ($accline =~ s/^\!\s*\$(?:ACC|RF4A)\s+//i);
+	if ($is_accline ) {
 	my @chunks = split( /\s+/, $accline );
 	my $pragma_name_prefix = 'Begin';
 	if ( $chunks[0] =~ /Begin/i ) {
@@ -3381,9 +3385,13 @@ sub __handle_acc {
 		shift @chunks;
 		$pragma_name_prefix = 'End';
 	}
+	
 	( my $pragma_name, my @pragma_args ) = @chunks;
-	$info->{'AccPragma'}{ $pragma_name_prefix . ucfirst( lc($pragma_name) ) } =
-	  [@pragma_args];
+	if (not @pragma_args) {
+		$pragma_args[0]=lc($pragma_name).'_'.$index;
+	}
+	$info->{'AccPragma'}{ $pragma_name_prefix . ucfirst( lc($pragma_name) ) } = [@pragma_args];
+	  # WV20170517 I think the following is OBSOLETE
 	if (    $pragma_name =~ /KernelWrapper/i
 		and $pragma_name_prefix eq 'Begin' )
 	{
@@ -3391,6 +3399,7 @@ sub __handle_acc {
 		  { $pragma_name_prefix . ucfirst( lc($pragma_name) ) } =
 		  [ $f, $index ];
 		$stref = outer_loop_start_detect( $pragma_args[0], $stref );
+	}
 	}
 	return ( $stref, $info );
 }    # END of __handle_acc()
@@ -4915,6 +4924,109 @@ sub  _get_len_from_ast { (my  $ast ) = @_;
 	} 
 	return $len;
 	
+}
+# This code runs on any sub that has a Kernel region
+# I could of course use this pass to enumerate all the subroutines, put them in KernelSubs 
+# Or I can do a separate pass later to do just that task 
+# 
+sub mark_blocks_between_calls { (my $stref)=@_;
+	my $n_kernel_regions=0;
+	for my $f ( keys %{ $stref->{'Subroutines'} } ) {
+		next unless exists $stref->{'Subroutines'}{$f}{'HasKernelRegion'};
+		$n_kernel_regions++;
+		if ($n_kernel_regions>1) {
+			die "Sorry, only one ACC Kernel region is currently supported.\n";
+		}
+		
+		my $in_kernel_region=0;
+		my $in_block=0;
+		my $nested_block='';
+		my $index=0;
+		my $extract_subs=0;
+		my $called_subs = [];
+		
+		my $pass_actions = sub { (my $annline, my $state) = @_;
+			(my $line, my $info)=@{$annline};
+			
+			(my $in_kernel_region, my $in_block, my $nested_block, my $index,my $extract_subs, my $called_subs)= @{$state};
+			my $skip=0;
+			if (exists $info->{'AccPragma'}{'BeginKernel'}) {
+				$in_kernel_region=1;
+				$skip=1; 		
+				$info->{'Removed'}=1;
+				$line=~s/\$//g;
+				$annline=[$line,$info];
+			}
+			if (exists $info->{'AccPragma'}{'EndKernel'}) {
+				$in_kernel_region=0;
+				$skip=1;
+				$info->{'Removed'}=1;
+				$line=~s/\$//g;
+				$annline=[$line,$info];
+			}
+			
+			if ( $skip==0 and $in_kernel_region and not exists $info->{'Comments'} and not exists $info->{'Blank'} and not exists $info->{'Removed'}) {
+					# if a line is relevant
+			# if not a call, put a begin marker before it
+				if (not exists $info->{'SubroutineCall'}) { #say $line."\t".Dumper($info);
+					$in_block=1;
+					my $begin_marker_line = '!$ACC Subroutine';
+					(my $dummy, my $begin_marker_info) = __handle_acc({}, '',$index, $begin_marker_line, {});
+					my $begin_marker_annline = [$begin_marker_line,$begin_marker_info];
+					my $sub_name = $begin_marker_info->{'AccPragma'}{'BeginSubroutine'}[0];				
+
+					if (exists $info->{'Block'}) {
+						if ( not exists $info->{'EndControl'}) {
+							push @{$called_subs}, $sub_name;
+							$nested_block=$info->{'Block'}{'Type'}.$info->{'Block'}{'Nest'};
+							return ([ $begin_marker_annline, $annline ], [$in_kernel_region,$in_block,$nested_block, $index++,$extract_subs, $called_subs] );
+						} else {
+							$nested_block='';
+							return ([  $annline ], [$in_kernel_region,$in_block,$nested_block, $index++,$extract_subs, $called_subs] );
+						}
+					} else {
+						push @{$called_subs}, $sub_name;
+						return ([ $begin_marker_annline, $annline ], [$in_kernel_region,$in_block,$nested_block, $index++,$extract_subs, $called_subs] );
+					}
+					
+					
+				} else {
+					my $sub_name = $info->{'SubroutineCall'}{'Name'};
+					
+					
+					if ($in_block) {
+						if ($nested_block eq '') {
+							push @{$called_subs}, $sub_name;
+							# if a call and $in_block and not nested, put an end marker before it
+							$in_block=0;
+							my $end_marker_line = '!$ACC End Subroutine';
+							$extract_subs=1;
+							(my $dummy, my $end_marker_info) = __handle_acc({}, '',$index, $end_marker_line, {});
+							my $end_marker_annline = [$end_marker_line , $end_marker_info ];	
+							return ( [ $end_marker_annline, $annline ], [$in_kernel_region,$in_block,$nested_block, $index,$extract_subs,  $called_subs] );
+						} else {
+							return ( [ $annline ], [$in_kernel_region,$in_block,$nested_block, $index,$extract_subs,  $called_subs] );
+						}
+					} else {
+						push @{$called_subs}, $sub_name;
+						return ( [ $annline ], [$in_kernel_region,$in_block,$nested_block, $index,$extract_subs,  $called_subs] );
+					}	
+				}	
+			} else {
+				return ([ $annline ], [$in_kernel_region,$in_block,$nested_block, $index,$extract_subs,  $called_subs] );
+			}
+		};
+		
+		($stref, my $state) = stateful_pass ($stref,  $f,  $pass_actions,  [$in_kernel_region,$in_block, $nested_block, $index,$extract_subs,$called_subs], 'mark_blocks_between_calls' );
+		($in_kernel_region,$in_block, $nested_block,$index,$extract_subs,$called_subs)=@{$state};
+		
+		$stref->{'Subroutines'}{$f}{'HasBlocks'}=$extract_subs;
+		if ($extract_subs) {
+			$stref->{'Subroutines'}{$f}{'AnnLines'}=$stref->{'Subroutines'}{$f}{'RefactoredCode'};
+		}
+		$stref->{'KernelSubs'}=$called_subs;		
+	}	
+	return $stref;
 }
 
 1;

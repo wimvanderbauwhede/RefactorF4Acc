@@ -117,19 +117,23 @@ The following keys are defined:
 <dl>
 <dt>TOP:</dt><dd>The name of the toplevel code unit for the analysis. Typically this is the main program name.</dd>
 <dt>PREFIX:</dt><dd>The path to the directory  where the script will run. Typically this is '.'.</dd>
-<dt>KERNEL:</dt><dd>For OpenCL translatation, the name of the subroutine to become the OpenCL kernel (actually same as TOP).</dd> 
+<dt>KERNEL:</dt><dd>For OpenCL translatation, the name of the subroutine to become the OpenCL kernel (actually same as TOP).</dd>
 <dt>MODULE_SRC:</dt><dd>For OpenCL translatation, the name of the source file containing a module which contains the kernel subroutine.</dd>
-<dt>SRCDIRS:</dt><dd>A comma-separated list of directories (relative to PREFIX) to be searched for source files.</dd> 
+<dt>SRCDIRS:</dt><dd>A comma-separated list of directories (relative to PREFIX) to be searched for source files.</dd>
 <dt>EXTSRCDIRS:</dt><dd>A comma-separated list of directories (relative to PREFIX) to be searched for source files.</dd>
-<dt>EXCL_SRCS:</dt><dd>A regular expression matching the source files to be excluded from the analysis.</dd>		
+<dt>EXCL_SRCS:</dt><dd>A regular expression matching the source files to be excluded from the analysis.</dd>
 <dt>EXCL_DIRS:</dt><dd>A comma-separated list of directories (relative to PREFIX) NOT to be searched for source files.</dd>
-<dt>MACRO_SRC:</dt><dd>If the sources use the C preprocessor, you can provide a file containing C preprocessor macro definitions</dd> 
+<dt>MACRO_SRC:</dt><dd>If the sources use the C preprocessor, you can provide a file containing C preprocessor macro definitions</dd>
 <dt>NEWSRCPATH:</dt><dd>Path to the directory that will contain the refactored sources</dd>
 <dt>MODULE:</dt><dd>
 <dt>NO_MODULE:</dt><dd>
 <dt>RENAME_EXT:</dt><dd>Extension for variables that need to be renamed because of conflicts (usually you don't need this; the default is _GLOB)</dd>
 <dt>NO_ONLY:</dt><dd>Do not use the ONLY qualifier on the USE declaration</dd>
-<dt>SPLIT_LONG_LINES:</dt><dd>Split long lines into chunks of no more than 80 characters</dd>  
+<dt>SPLIT_LONG_LINES:</dt><dd>Split long lines into chunks of no more than 80 characters</dd>
+<dt>EXT</dt><dd>Extension of generated source files. Default is `.f95`; must include the dot</dd>
+<dt>LIBS</dt><dd>SCons LIBS, comma-separated list</dd>
+<dt>LIBPATH</dt><dd>SCons LIBPATH, comma-separated list</dd>
+<dt>INCLPATH</dt><dd>SCons F95PATH, comma-separated list</dd>
 </dl>
 
 ### Command line flags
@@ -139,13 +143,13 @@ The following keys are defined:
     -C: Only generate call tree, don't refactor or emit
     -g: refactor globals inside toplevel subroutine
     -b: Generate SCons build script
-    -A: Annotate the refactored lines 
+    -A: Annotate the refactored lines
     -P: Name of pass to be performed (currently there are only two built-in passes:  translate_to_C and translate_to_OpenCL)
-    -w: show warnings 
+    -w: show warnings
     -v: verbose (implies -w)
-    -i: show info messages 
+    -i: show info messages
     -d: show debug messages
-    
+
 ### Examples    
 
 * For example, assuming the script is in your `$PATH`, to refactor code:
@@ -161,9 +165,9 @@ The following keys are defined:
       SRCDIRS = .
       # Path for refactored source
       NEWSRCPATH = ../RefactoredSources
-      
+
   or for another example:    
-     
+
     # The name of the PROGRAM  
 	TOP = main
 	PREFIX = .
@@ -181,7 +185,7 @@ The following keys are defined:
       $ refactorF4acc.pl -P translate_to_C -c rf4a.cfg
 
    with `rf4a.cfg` containing:
-   
+
     # Name of the module containing the kernel subroutine and its source file
 	MODULE = module_les_superkernel
 	MODULE_SRC = module_les_superkernel.f95
@@ -197,5 +201,3 @@ The following keys are defined:
 	EXCL_DIRS = ./PostCPP,./Temp
 	MACRO_SRC = macros.h
 	RENAME_EXT = _G      
-      
-

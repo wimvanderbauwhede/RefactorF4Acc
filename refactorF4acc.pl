@@ -18,7 +18,7 @@ use RefactorF4Acc::Utils;
 use RefactorF4Acc::Refactoring::Common qw( get_annotated_sourcelines );
 use RefactorF4Acc::State qw( init_state );
 use RefactorF4Acc::Inventory qw( find_subroutines_functions_and_includes );
-use RefactorF4Acc::Parser qw( parse_fortran_src build_call_graph refactor_marked_blocks_into_subroutines );
+use RefactorF4Acc::Parser qw( parse_fortran_src build_call_graph mark_blocks_between_calls refactor_marked_blocks_into_subroutines );
 use RefactorF4Acc::CallTree qw( create_call_tree );
 use RefactorF4Acc::Analysis qw( analyse_all );
 use RefactorF4Acc::Refactoring qw( refactor_all );
@@ -150,9 +150,9 @@ sub main {
 	# Find all subroutines in the source code tree
 	$stref = find_subroutines_functions_and_includes($stref);
 	if ($V) {
-	for my $sub (sort keys %{ $stref->{'Subroutines'} }) {
-		say $sub,"\t=>\t",$stref->{'Subroutines'}{$sub}{'Source'};
-	}
+		for my $sub (sort keys %{ $stref->{'Subroutines'} }) {
+			say $sub,"\t=>\t",$stref->{'Subroutines'}{$sub}{'Source'};
+		}
 	}
 
     # Parse the source
@@ -160,6 +160,7 @@ sub main {
     	$stref = parse_fortran_src( $data_block, $stref );
     }
 	$stref = parse_fortran_src( $subname, $stref );
+	$stref = mark_blocks_between_calls( $stref );
 	$stref = refactor_marked_blocks_into_subroutines( $stref );
 
 	if ( $call_tree_only  ) {
