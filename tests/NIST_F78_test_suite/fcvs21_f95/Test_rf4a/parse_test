@@ -1,0 +1,1 @@
+gfortran-mp-4.9 -cpp -ffree-form -ffree-line-length-0  -fsyntax-only $*

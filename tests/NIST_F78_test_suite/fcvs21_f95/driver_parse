@@ -1,0 +1,62 @@
+#! /bin/sh -u
+
+#
+# A simple driver for fcvs
+#
+
+# Fortran compiler name
+FC='g77 -fsyntax-only'
+# do not run tests that include deleted features in Fortran 95
+AVOID_DELETED_F95=0
+
+#
+# initialisation
+#
+skipped=0
+failed=0
+passed=0
+total=0
+
+#
+# main loop
+#
+for file in `ls FM???.f`
+do
+
+  total=`expr ${total} + 1`
+
+  process_it=1
+  #
+  # If requested, do not run tests that contain features
+  # deleted in Fortran 95
+  #
+  if [ x"${AVOID_DELETED_F95}" != x0 ]; then
+    if [ `grep -c '^[^C*].....[ ]*\bASSIGN\b' ${file}` -ne 0 ]; then
+      process_it=0
+    elif [ `grep -c '^[^C*].....[ ]*\bPAUSE\b' ${file}` -ne 0 ]; then
+      process_it=0
+    elif [ x"${file}" = x'FM719.f' ]; then
+      process_it=0
+    fi
+  fi
+
+  basename=`basename ${file} .f`
+  if [ "${process_it}" -eq 0 ]; then
+    echo "Skip ${basename}"
+    skipped=`expr ${skipped} + 1`
+  else
+    echo "Process ${basename}"
+    eval "${FC}" "${file}"
+    if [ $? -eq 0 ]; then
+      passed=`expr ${passed} + 1`
+    else
+      failed=`expr ${failed} + 1`
+    fi
+  fi
+done
+
+echo
+echo "Total  : ${total}"
+echo "Passed : ${passed}"
+echo "Failed : ${failed}"
+echo "Skipped: ${skipped}"

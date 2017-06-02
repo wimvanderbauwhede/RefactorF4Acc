@@ -68,9 +68,9 @@ School of Computing Science, University of Glasgow, UK
 
 To assess the correctness and capability of our refactoring compiler, we used the NIST (US National Institute of Standards and Technology) [FORTRAN78 test suite](http://www.itl.nist.gov/div897/ctg/fortran_form.htm), which aims to validate adherence to the ANSI X3.9-1978 (FORTRAN 77) standard. We used [a version with some minor changes from Arnaud Desitter](http://www.fortran-2000.com/ArnaudRecipes/fcvs21_f95.html): All files are properly formed; a non standard conforming FORMAT statement has been fixed in test file `FM110.f`; Hollerith strings in FORMAT statements have been converted to quoted strings. This test suite comprises about three thousand tests organised into 192 files.
 
-We skipped some tests because they test features that our compiler does not support. In particular, we skipped tests that use spaces in variable names and keywords (3 files, 23 tests) and tests for corner cases of common blocks and block data (2 files, 37+16 tests). After skipping these types of tests, 2867 tests remain, in total 187 files for which refactored code is generated. The testbench driver provided in the archive skips another 8 tests because they relate to features deleted in Fortran 95. In total the test suite contains 72,473 lines of code (excluding comments). Two test files contain tests that fail in gfortran 4.9 (3 tests in total).
+We skipped/modified some tests because they test features that our compiler does not support (see below for more details). After skipping these types of tests, 2890 tests remain, in total 190 files for which refactored code is generated. The testbench driver provided in the archive skips another 8 tests because they relate to features deleted in Fortran 95. In total the test suite contains 72,473 lines of code (excluding comments). Two test files contain tests that fail in gfortran 4.9 (3 tests in total).
 
-Our compiler successfully generates refactored code for _all_ tests, and the refactored code compiles correctly and passes all tests (2864 tests in total).
+Our compiler successfully generates refactored code for _all_ tests, and the refactored code compiles correctly and passes all tests (2887 tests in total).
 
 Furthermore, we tested the compiler on four real-word physics simulation models:
 
@@ -201,15 +201,59 @@ The following keys are defined:
 
 ### To run the NIST test suite
 
-* Download the test suite ftp://ftp.fortran-2000.com/fcvs21_f95.tar.bz2
+We use the [NIST FORTRAN78 test suite](ftp://ftp.fortran-2000.com/fcvs21_f95.tar.bz2) for validation.
 
-      $ tar -jxvf fcvs21_f95.tar.bz2
-      $ cd fcvs21_f95
+      $ cd tests/NIST_F78_test_suite/fcvs21_f95
 
-* In this folder, unzip the archive `tests/NIST_test_scripts.zip`
-* This will create a folder `Test_rf4a` and a folder `RefactoredSources`
+
+- The file `FM046.f` contains a change to TEST 759: the original test (`FM045.f`) has 57 nested parentheses, this was changed to 5 nested parentheses because the current expression parser takes too long to parse this.
+- The file `FM090.f` is a modified version of `FM010.f` without spaces in types, variable names, values and labels.
+- The file `FM091.f` is a modified version of `FM011.f` without spaces in types, variable names, values and labels.
+- The files `FM500.f` and `FM509.f` contain tests for corner cases of common blocks and block data (37+16 tests) which we don't support.
+
+In this folder, there are two subfolders `Test_rf4a` and  `RefactoredSources`. To verify the original test suite you can use the script `driver_parse`; to run it you can use the script `driver_run`; you may have to change the name of the Fortran compiler in `FC` at the start of these scripts.
+
+The refactored Fortran-95 code is generated in the folder `RefactoredSources`. There are three scripts in this folder, `driver_parse`, `driver_run` and `driver_run_single`. You may have to change the name of the Fortran compiler in `FC` at the start of these scripts.
+
+To generate the refactored Fortran-95 code for the test suite, build and run it, do:
 
       $ cd Test_rf4a
       $ ./generate_and_run.sh
 
-* Generating, compiling and running the test suites takes about 15 minutes
+Generating, compiling and running the test suites takes a few minutes.
+
+The final output should look like:
+
+        real	1m13.853s
+        user	1m8.707s
+        sys	0m4.152s
+
+        # Generation of the refactored test suite code:
+        TOTAL TESTS: 196
+        TESTS RUN: 190
+        SKIPPED: 6
+        Generation Failed:
+        0
+        Generation Succeeded:
+        190
+
+        real	0m7.035s
+        user	0m4.091s
+        sys	0m1.991s
+
+        # Compilation of the refactored test suite:
+
+        Total  : 190
+        Passed : 182
+        Failed : 0
+        Skipped: 8
+
+        real	0m22.753s
+        user	0m14.143s
+        sys	0m5.500s
+
+        # Running the refactored test suite:
+        PASSED: 2726
+        FAILED: 3
+        REQUIRE INSPECTION: 161
+        TOTAL: 2890
