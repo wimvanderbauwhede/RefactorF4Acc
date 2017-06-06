@@ -218,10 +218,10 @@ sub translate_sub_to_C {  (my $stref, my $f, my $ocl) = @_;
 			
 			if ($subcall_ast->[1] eq 'barrier') {
 				$subcall_ast->[2][1]=uc($subcall_ast->[2][1]);
-				push @{$pass_state->{'TranslatedCode'}},'#ifdef BARRIER_OK';
+#				push @{$pass_state->{'TranslatedCode'}},'#ifdef BARRIER_OK';
 				$c_line = $info->{'Indent'}._emit_expression_C($subcall_ast,'',$stref,$f).';';
 				push @{$pass_state->{'TranslatedCode'}},$c_line ;
-				push @{$pass_state->{'TranslatedCode'}},'#endif // BARRIER_OK';
+#				push @{$pass_state->{'TranslatedCode'}},'#endif // BARRIER_OK';
 				$skip=1;
 			}
 			elsif ($subcall_ast->[1]=~/get_(local|global|group)_id/) {

@@ -960,7 +960,7 @@ sub get_f95_var_decl {
     my $nvar   = $var;
     
     my $subset = in_nested_set($Sf, 'Vars', $var); # Should tell us exactly where we are
-    croak $subset if $subset=~/Glob/;
+
     if ($subset ne '' and exists $Sf->{$subset}{'Set'}{$var} and ref($Sf->{$subset}{'Set'}{$var}) eq 'HASH') {
     		my $Sv = $Sf->{ $subset }{'Set'}{$var};
         	if ( exists $Sf->{'ConflictingLiftedVars'}{$var} ) {

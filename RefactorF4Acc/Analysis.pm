@@ -569,30 +569,31 @@ sub _create_refactored_args {
 #	say 'DeclaredOrigArgs'.Dumper $Sf->{'DeclaredOrigArgs'}{'Set'};
 #	say 'UndeclaredOrigArgs'.Dumper $Sf->{'UndeclaredOrigArgs'}{'Set'};
 	
-	if ( exists $Sf->{'ExGlobArgs'} and exists $Sf->{'OrigArgs'}
-	and  exists $Sf->{'ExGlobArgs'}{'List'} and exists $Sf->{'OrigArgs'}{'List'}
+	if (  scalar @{$Sf->{'ExGlobArgs'}{'List'}}>0 and scalar @{ $Sf->{'OrigArgs'}{'List'} } >0
 	) {
 
 		$Sf->{'RefactoredArgs'}{'List'} = ordered_union( $Sf->{'OrigArgs'}{'List'}, $Sf->{'ExGlobArgs'}{'List'} );
 		$Sf->{'RefactoredArgs'}{'Set'} = { %{ $Sf->{'UndeclaredOrigArgs'}{'Set'} }, %{ $Sf->{'DeclaredOrigArgs'}{'Set'} }, %{ $Sf->{'ExGlobArgs'}{'Set'} } };
+		croak Dumper($Sf->{'RefactoredArgs'}) if $f=~/update/;
 		$Sf->{'HasRefactoredArgs'} = 1;
 
-	} elsif ( not exists $Sf->{'ExGlobArgs'} 
-	and exists $Sf->{'OrigArgs'}{'List'}
+	} elsif (scalar @{$Sf->{'ExGlobArgs'}{'List'}}==0
+	and scalar @{ $Sf->{'OrigArgs'}{'List'} } >0
 	) {
 
 		# No ExGlobArgs, so Refactored = Orig
 		$Sf->{'RefactoredArgs'}{'Set'}  = $Sf->{'OrigArgs'}{'Set'};
 		$Sf->{'RefactoredArgs'}{'List'} = $Sf->{'OrigArgs'}{'List'};
 		$Sf->{'HasRefactoredArgs'}      = 0;
-	} elsif ( not exists $Sf->{'OrigArgs'} 
-	and  exists $Sf->{'ExGlobArgs'}{'List'} 
+	} elsif ( scalar @{$Sf->{'ExGlobArgs'}{'List'}}>0
+	and scalar @{ $Sf->{'OrigArgs'}{'List'} } ==0
 	) {
 
 		# No ExGlobArgs, so Refactored = Orig
 		$Sf->{'RefactoredArgs'}    = $Sf->{'ExGlobArgs'};
 		$Sf->{'HasRefactoredArgs'} = 1;
-	} else {
+	} else { # No args at all, implies Globals that have not yet been resolved
+#		say "$f 4";
 		$Sf->{'RefactoredArgs'} = { 'Set' => {}, 'List' => [] };
 		$Sf->{'HasRefactoredArgs'} = 0;
 	}
@@ -613,6 +614,7 @@ sub _create_refactored_entry_args {
 	
 			$Sf->{'RefactoredArgs'}{'List'} = ordered_union( $Sf->{'OrigArgs'}{'List'}, $Spf->{'ExGlobArgs'}{'List'} );
 			$Sf->{'RefactoredArgs'}{'Set'} = { %{ $Sf->{'UndeclaredOrigArgs'}{'Set'} }, %{ $Sf->{'DeclaredOrigArgs'}{'Set'} }, %{ $Spf->{'ExGlobArgs'}{'Set'} } };
+#			say "$f 5";
 			$Sf->{'HasRefactoredArgs'} = 1;
 	
 		} elsif ( not exists $Spf->{'ExGlobArgs'} 
@@ -622,6 +624,7 @@ sub _create_refactored_entry_args {
 			# No ExGlobArgs, so Refactored = Orig
 			$Sf->{'RefactoredArgs'}{'Set'}  = $Sf->{'OrigArgs'}{'Set'};
 			$Sf->{'RefactoredArgs'}{'List'} = $Sf->{'OrigArgs'}{'List'};
+#			say "$f 6";
 			$Sf->{'HasRefactoredArgs'}      = 0;
 		} elsif ( not exists $Sf->{'OrigArgs'} 
 		and  exists $Spf->{'ExGlobArgs'}{'List'} 
@@ -629,9 +632,11 @@ sub _create_refactored_entry_args {
 	
 			# No ExGlobArgs, so Refactored = Orig
 			$Sf->{'RefactoredArgs'}    = $Spf->{'ExGlobArgs'};
+#			say "$f 7";
 			$Sf->{'HasRefactoredArgs'} = 1;
 		} else {
 			$Sf->{'RefactoredArgs'} = { 'Set' => {}, 'List' => [] };
+#			say "$f 8";
 			$Sf->{'HasRefactoredArgs'} = 0;
 		}	
 	}
@@ -660,6 +665,7 @@ sub _map_call_args_to_sig_args {
 
 				#					croak Dumper($info->{'CallArgs'}{'Set'}{$call_arg_expr}) if $call_arg_expr =~/float/;
 				my $call_arg = $call_arg_expr;
+#				croak $f.' => '.$sub."($call_arg_expr)\t".Dumper($info);
 				if ( $info->{'CallArgs'}{'Set'}{$call_arg_expr}{'Type'} eq 'Array' ) {
 					$call_arg = $info->{'CallArgs'}{'Set'}{$call_arg_expr}{'Arg'};
 				}

@@ -70,6 +70,7 @@ sub refactor_all {
     # Refactor the source, but don't split long lines and keep annotations
     $stref = refactor_all_subroutines($stref);
     
+    
     # This can't go into refactor_all_subroutines() because it is recursive
     # Also, this is actually analysis
     # And this is only for Subroutines of course, not for Modules

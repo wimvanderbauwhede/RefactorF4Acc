@@ -43,6 +43,7 @@ Subroutines
 
 sub refactor_all_subroutines {
     ( my $stref ) = @_;
+    
     for my $f ( sort keys %{ $stref->{'Subroutines'} } ) {
     	 
         next if ($f eq '' or $f eq 'UNKNOWN_SRC' or not defined $f);
@@ -117,7 +118,12 @@ sub _refactor_subroutine_main {
     
     say "get_annotated_sourcelines($f)" if $V;
     my $annlines = $Sf->{'RefactoredCode'};
-
+    # At this point, call line from annlines for extracted sub is OK
+    
+#    if ($f eq 'wave2d') {
+#		say Dumper($stref);croak ;
+#    }
+     
     if (1 or $Sf->{'HasCommons'} or ( # FIXME
     exists $Sf->{'Contains'} and
     scalar @{$Sf->{'Contains'}}>0)) { 
@@ -129,16 +135,18 @@ sub _refactor_subroutine_main {
             croak 'SHOULD BE OBSOLETE!';
         }
     }
+
 	 
     $annlines = _fix_end_lines($stref, $f, $annlines); # FIXME maybe do this later
+
     
-    if ($is_block_data) {
+    if ($is_block_data) { 
     	$annlines = _add_extra_assignments_in_block_data($stref, $f, $annlines);
     }
-    
-    $Sf->{'RefactoredCode'}=$annlines;    
+ 
+    $Sf->{'RefactoredCode'}=$annlines;
+        
     $Sf->{'AnnLines'}=$annlines;
-
     return $stref;
 }    # END of _refactor_subroutine_main()
 
@@ -253,6 +261,21 @@ sub _refactor_globals_new {
 			}			
 		}
 	}
+	
+    # For the case of subroutines in modules that either have params or USE params via modules 
+	my @par_decl_lines_from_module=();
+	if (exists $Sf->{'InModule'}) {
+		my $mod =$Sf->{'InModule'};
+		if (exists $stref->{'Modules'}{$mod}{'Parameters'}) { 
+			$Sf->{'ParametersFromModule'}=$stref->{'Modules'}{$mod}{'Parameters'}; # Note this is a nested set
+			my $all_pars_in_module = get_vars_from_set( $stref->{'Modules'}{$mod}{'Parameters'} );
+			for my $par ( keys %{$all_pars_in_module} ) {				 
+				my $par_decl = $all_pars_in_module->{$par};
+				my $par_decl_line=[ '      '.emit_f95_var_decl($par_decl), {'ParamDecl' => $par_decl,'Ref'=>1}];
+				push @par_decl_lines_from_module,$par_decl_line; 
+			}			
+		}
+	}	
     
     print "REFACTORING GLOBALS in $f\n" if $V; 
     my $rlines      = [];
@@ -271,18 +294,21 @@ sub _refactor_globals_new {
         (my $line, my $info) = @{ $annline };
         my $skip = 0;
 
-        if ( exists $info->{'Signature'} ) { 
-            if (not exists $Sf->{'HasRefactoredArgs'} ) {
+        if ( exists $info->{'Signature'} ) {
+        	 
+            	if (not exists $Sf->{'HasRefactoredArgs'} or $Sf->{'HasRefactoredArgs'} ==0 ) {
+            	
                 # This probably means the subroutine has no arguments at all.
                  # Do this before the analysis for RefactoredArgs!
                  $stref = refactor_subroutine_signature( $stref, $f );
-                warn '_refactor_globals_new() '. __LINE__ . " $f does not have HasRefactoredArgs\n";
-                say 'WARNING: _refactor_globals_new() '. __LINE__ . " $f does not have HasRefactoredArgs";
-                croak;
+#                warn '_refactor_globals_new() '. __LINE__ . " $f does not have HasRefactoredArgs\n";
+#                say 'WARNING: _refactor_globals_new() '. __LINE__ . " $f does not have HasRefactoredArgs";
+#                croak;
             }
             
-            $rlines = create_refactored_subroutine_signature( $stref, $f, $annline, $rlines );
-			$rlines = [@{$rlines},@par_decl_lines_from_container];              
+            $rlines = create_refactored_subroutine_signature( $stref, $f, $annline, $rlines );            
+			$rlines = [@{$rlines},@par_decl_lines_from_container,@par_decl_lines_from_module];     
+			croak Dumper($rlines) if $f=~/update/;         
             $skip = 1;
         } 
         
@@ -307,6 +333,18 @@ sub _refactor_globals_new {
 			  }
         }
         
+        # We should either inline everything from the module or rewrite the module. I go for the former
+        # In principle that is only possible if it's Inlineable
+        #
+        if ( exists $info->{'Use'} ) {
+        	if( exists $info->{'Use'}{'Inlineable'} ) {
+        	--$inc_counter;
+              $skip = 1;
+        } else {
+        	warn "Module ".$info->{'Use'}{'Name'}." in $f is not Inlineable"; 
+        }       
+        }
+        
         if ($inc_counter==0 and  not exists $info->{'Include'} and $hook_after_last_incl==1) {
         	$info->{'ExGlobVarDeclHook'} = 'AFTER LAST Include via _refactor_globals_new() line ' . __LINE__; 
         	$hook_after_last_incl=0;
@@ -321,8 +359,8 @@ sub _refactor_globals_new {
         } 
 
         if ( exists $info->{'SubroutineCall'} ) {         	
-            # simply tag the common vars onto the arguments            
-            $rlines = _create_refactored_subroutine_call( $stref, $f, $annline, $rlines );
+            # simply tag the common vars onto the arguments                        
+            $rlines = _create_refactored_subroutine_call( $stref, $f, $annline, $rlines );            
             $skip = 1;
         }
         
@@ -368,6 +406,11 @@ sub _create_extra_arg_and_var_decls {
     }             
     push @{$rlines},$BLANK_LINE;
     }
+    
+croak "NEED TO HANDLE THE CASE OF MODULE WITH PARAMETERS";
+    
+    
+    
     print "INFO: ExGlobArgs in $f\n" if $I;
 
     for my $var ( @{ $Sf->{'ExGlobArgs'}{'List'} } ) {
@@ -404,9 +447,31 @@ sub _create_extra_arg_and_var_decls {
                     push @{$rlines}, [ $rline,  $info ];                        
     }    # for
 
+    print "INFO: UsedGlobalVars in $f\n" if $I;
+    for my $var ( @{ $Sf->{'UsedGlobalVars'}{'List'} } ) {
+    	# Check if this var is used in the subroutine, right?
+    	if (exists $Sf->{'UndeclaredOrigLocalVars'}{'Set'}{$var}) {
+    	say "INFO VAR: $var" if $I;
+                    my $rdecl = $Sf->{'UsedGlobalVars'}{'Set'}{$var}; 
+                    my $rline = emit_f95_var_decl($rdecl);                                                                   
+                    my $info={};                    
+                    $info->{'Ann'}=[annotate($f, __LINE__ .' : EX-MODULE-GLOBAL' ) ];
+                    $info->{'LineID'}= $nextLineID++;
+                    $info->{'Ref'}=1;
+                    $info->{'VarDecl'}={'Name' => $var};#$rdecl;
+                    push @{$rlines}, [ $rline,  $info ];      
+                    # So now for convenience I will just add these to ExGlobArgs                    
+#                    $Sf->{'ExGlobArgs'}{'Set'}{$var}=$rdecl;
+                    $Sf->{'RefactoredArgs'}{'Set'}{$var}=$rdecl;
+#                   push @{$Sf->{'ExGlobArgs'}{'List'}}, $var;    
+                   push @{$Sf->{'RefactoredArgs'}{'List'}}, $var;  
+    	}             
+    }    # for
+
     print "INFO: UndeclaredOrigArgs in $f\n" if $I;
     my %unique_ex_impl=();
     for my $var ( @{ $Sf->{'UndeclaredOrigArgs'}{'List'} } ) {
+    	if (not exists $Sf->{'UsedGlobalVars'}{'Set'}{$var}) {
     	say "INFO VAR: $var" if $I;
     	next if $var eq '*';
     	if (exists $Sf->{'CalledSubs'} and exists $Sf->{'CalledSubs'}{$var} and not exists $Sf->{'UndeclaredOrigArgs'}{'Set'}{$var}) {    		
@@ -430,7 +495,8 @@ sub _create_extra_arg_and_var_decls {
 	                    $info->{'VarDecl'}={'Name' => $var};#$rdecl;
 	                    push @{$rlines}, [ $rline,  $info ];
                 }
-    	}                        
+    	}               
+    	}         
     }    # for
 
     print "INFO: ExInclLocalVars in $f\n" if $I;
@@ -448,6 +514,7 @@ sub _create_extra_arg_and_var_decls {
         
     print "INFO: UndeclaredOrigLocalVars in $f\n" if $I;
     for my $var ( @{ $Sf->{'UndeclaredOrigLocalVars'}{'List'} } ) {
+    	if (not exists $Sf->{'UsedGlobalVars'}{'Set'}{$var}) {
     	say "INFO VAR: $var" if $I;    	
     	if (exists $Sf->{'CalledSubs'} and exists $Sf->{'CalledSubs'}{$var}) {
     		next;
@@ -483,8 +550,9 @@ sub _create_extra_arg_and_var_decls {
                     $info->{'VarDecl'}={'Name' => $var};#$rdecl;
                     push @{$rlines}, [ $rline,  $info ];
     		} else {
-    			say "INFO: $var is a reserverd word" if $I;
-    		}       	                     
+    			say "INFO: $var is a reserved word" if $I;
+    		}       	        
+    	}             
     }    # for  
 
     print "INFO: ExCommonVarDecls in $f\n" if $I;
@@ -518,9 +586,6 @@ sub _create_refactored_subroutine_call {
     # simply tag the common vars onto the arguments
     my $name = $info->{'SubroutineCall'}{'Name'};
     
-#    if (exists $stref->{'Entries'}{$name}) {
-#    	croak '# Deal with entry calls: '.Dumper($info);
-#    }
     my $Sf        = $stref->{'Subroutines'}{$f};
     if (exists $stref->{'ExternalSubroutines'}{$name} ) { 
     	push @{$rlines}, [ $line , $info ];
@@ -530,22 +595,29 @@ sub _create_refactored_subroutine_call {
     # Collect original args
     my @orig_args =();    
     for my $call_arg (@{ $info->{'SubroutineCall'}{'Args'}{'List'} }) {
-#        say "ARG: $call_arg",  
         if (exists $info->{'SubroutineCall'}{'Args'}{'Set'}{$call_arg}{'Expr'} ) {
         	push @orig_args , $info->{'SubroutineCall'}{'Args'}{'Set'}{$call_arg}{'Expr'};
         } else {
-        	#push @orig_args , $call_arg; # WV20170515: is this correct? Do nothing?
+			push @orig_args , $call_arg; # WV20170515: is this correct? Do nothing?
         }
     }
-    my $args_ref = [@orig_args]; # NOT ordered union, if they repeat that should be OK 
+    
+    my $args_ref = [@orig_args]; # NOT ordered union, if they repeat that should be OK
+    
     my $parent_sub_name =  exists $stref->{'Entries'}{$name} ? $stref->{'Entries'}{$name} : $name;
+
 	# If there are any ex-global args, collect them
     if (exists $stref->{'Subroutines'}{$parent_sub_name}{'ExGlobArgs'}) {		    	       
-        my @globals = @{ $stref->{'Subroutines'}{$parent_sub_name}{'ExGlobArgs'}{'List'} };        
+        my @globals = @{ $stref->{'Subroutines'}{$parent_sub_name}{'ExGlobArgs'}{'List'} };
+        
+#        say Dumper( @globals ) if $name =~/if_f|update/;        
         # Problem is that in $f globals from $name may have been renamed. I store the renamed ones in $Sf->{'RenamedInheritedExGLobs'}
         # So we check and create @maybe_renamed_exglobs
         my @maybe_renamed_exglobs=();
         for my $ex_glob (@globals) {
+        	# WV 20170606 I need to check if maybe the ex-globs have already been added to the args
+        	# Because if the Args of the actual Call are the same as ex-globs then they must be ex-globs
+        	if (not exists  $info->{'SubroutineCall'}{'Args'}{'Set'}{$ex_glob} ) {
         	# $ex_glob may be renamed or not. I test this using OrigName. 
         	# This way I am sure I get only original names
         	if (exists $stref->{'Subroutines'}{$parent_sub_name}{'ExGlobArgs'}{'Set'}{$ex_glob}{'OrigName'}) {
@@ -557,16 +629,17 @@ sub _create_refactored_subroutine_call {
         	} else {
         		push @maybe_renamed_exglobs,$ex_glob;
         	}
+        	}
         }
         # Then we concatenate these arg lists
         $args_ref = [@orig_args, @maybe_renamed_exglobs ]; # NOT ordered union, if they repeat that should be OK
         $info->{'SubroutineCall'}{'Args'}{'List'}= $args_ref;
         # This is the emitter, maybe that should not be done here but later on? TODO!
-# 		say $f, $name, $parent_sub_name, Dumper($args_ref);
 	    my $args_str = join( ',', @{$args_ref} );	    
 	    my $indent = $info->{'Indent'} // '      ';
 	    my $maybe_label= ( exists $info->{'Label'} and exists $Sf->{'ReferencedLabels'}{$info->{'Label'}} ) ?  $info->{'Label'}.' ' : '';
 	    my $rline = "call $name($args_str)\n";
+	    
 		if ( exists $info->{'PlaceHolders'} ) { 
 			while ($rline =~ /(__PH\d+__)/) {
 				my $ph=$1;
@@ -580,6 +653,7 @@ sub _create_refactored_subroutine_call {
     } else {
         push @{$rlines}, [ $line , $info ];
     }
+#    croak Dumper( $info->{'SubroutineCall'}{'Args'}{'List'} ) if $name =~/if_f|update/;
     return $rlines;
 }    # END of _create_refactored_subroutine_call()
 

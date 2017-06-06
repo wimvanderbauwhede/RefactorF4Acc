@@ -120,6 +120,7 @@ sub find_subroutines_functions_and_includes {
         $stref=_process_src($src,$stref);
         
     }
+    
     _find_external_modules($stref);
     
     _test_can_be_inlined_all_modules($stref);    
@@ -338,9 +339,10 @@ sub _process_src {
                 	}
 					say "Found block data $sub in $src: $line" if $V;
                 }
-                if ($in_module) {
+                if ($in_module) {					
                     $stref->{'Modules'}{$mod_name}{'Subroutines'}{$sub}={};
-                }
+                    $stref->{'Subroutines'}{$sub}{'InModule'}=$mod_name;
+                } 
 #                say "PROC NAME: $proc_name in SRC: $src";
                 die 'No subroutine/function name from '.$line if $sub eq '' or not defined $sub;
                 
@@ -351,7 +353,7 @@ sub _process_src {
 	                if (not exists $stref->{'SourceFiles'}{$src}{'SourceType'}) {
 	                	$stref->{'SourceFiles'}{$src}{'SourceType'}='Subroutines';
 	                }
-	                $stref->{'Subroutines'}{$sub}={};
+	                $stref->{'Subroutines'}{$sub}={} unless exists $stref->{'Subroutines'}{$sub}{'InModule'};
 	                $stref->{'SourceContains'}{$src}{'Set'}{$sub}=$srctype;
 	                push @{ $stref->{'SourceContains'}{$src}{'List'} },$sub;
 	                my $Ssub = $stref->{'Subroutines'}{$sub};
@@ -529,7 +531,7 @@ sub _can_be_inlined { (my $stref, my $mod_name, my $inline_ok) = @_;
             $inline_ok*=_can_be_inlined($stref,$used_mods, $inline_ok);
         }
 #        if ($inline_ok) {
-#            print "Module $mod_name is INLINEABLE\n" if $V;
+#            print "Module $mod_name is INLINEABLE\n";# if $V;
 #        }
     } else {
         return 0;

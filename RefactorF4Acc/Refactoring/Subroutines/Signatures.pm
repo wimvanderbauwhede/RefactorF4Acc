@@ -86,6 +86,7 @@ sub create_refactored_subroutine_signature {
     $Sf->{'HasRefactoredArgs'} = 1;
     
     push @{$rlines}, [ $rline, $info ];
+    
 
     return $rlines;
 }    # END of create_refactored_subroutine_signature()
@@ -130,6 +131,31 @@ sub refactor_subroutine_signature {
             @exglobs = ( @exglobs, @{ $Sf->{'Globals'}{$inc}{'List'} } );
         }
     }
+    
+#            for my $var ( @{ $Sf->{'Globals'}{$inc}{'List'} } ) {
+#                if ( not exists $Sf->{'Vars'}{$var} ) {
+#                    $Sf->{'Vars'}{$var} =
+#                      $stref->{'IncludeFiles'}{$inc}{'Vars'}{$var};
+#                }
+#            }
+#            @exglobs = ( @exglobs, @{ $Sf->{'Globals'}{$inc}{'List'} } );
+#    
+
+    print "INFO: UsedGlobalVars in $f\n" if $I;
+    
+    for my $var ( @{ $Sf->{'UsedGlobalVars'}{'List'} } ) {
+    	# Check if this var is used in the subroutine
+    	if (exists $Sf->{'UndeclaredOrigLocalVars'}{'Set'}{$var}) {
+#    		say $var;
+    		say "INFO VAR: $var" if $I;
+			push @exglobs, $var;
+			$Sf->{'HasRefactoredArgs'}=1;                         
+    	}             
+    	
+    }    # for
+
+
+    
     # Loop over @exglobs, rename vars that conflict with parameters
     my @nexglobs           = ();
     for my $var (@exglobs) {

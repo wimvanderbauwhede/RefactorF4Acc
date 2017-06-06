@@ -190,7 +190,9 @@ sub refactor_marked_blocks_into_subroutines {
 			say "LEAVING refactor_marked_blocks_into_subroutines( $f ) with Status $stref->{$sub_or_incl_or_mod}{$f}{'Status'}" if $V;
 		}
 	}
+	
 	return $stref;
+	
 }    # END of refactor_marked_blocks_into_subroutines()
 
 # -----------------------------------------------------------------------------
@@ -257,7 +259,8 @@ sub _initialise_decl_var_tables {
 		};
 		
 		# Var decls via a 'use' declaration
-		$Sf->{'UsedLocalVars'} = { 'Set' => {}, 'List' => [] };		
+		$Sf->{'UsedLocalVars'} = { 'Set' => {}, 'List' => [] };
+		$Sf->{'UsedGlobalVars'} = { 'Set' => {}, 'List' => [] };		
 		
 		if ( not $is_incl and not $is_mod ) {
 
@@ -286,7 +289,7 @@ sub _initialise_decl_var_tables {
 				'Subsets' => {
 					'OrigLocalVars'   => $Sf->{'OrigLocalVars'},
 					'ExInclLocalVars' => $Sf->{'ExInclLocalVars'},
-					'UsedLocalVars' => $Sf->{'UsedLocalVars'}
+					'UsedLocalVars' => $Sf->{'UsedLocalVars'},					
 				}
 			};
 			
@@ -1401,9 +1404,9 @@ sub _parse_includes {
 }    # END of parse_includes()
 
 # -----------------------------------------------------------------------------
-# Parse 'use' declarations in case the module is inlineable
-#FIXME otherwise we don't? although maybe we should because the module can contain module-scoped variables etc.
-# So maybe we need to parse all the stuff in a module except the subroutines, as that is done elsewhere
+# Parse 'use' declarations 
+# the module can contain module-scoped variables etc.
+# So we need to parse all the stuff in a module except the subroutines, as that is done elsewhere
 sub _parse_use {
 	( my $f, my $stref ) = @_;
 
@@ -1484,12 +1487,15 @@ sub _parse_use {
 				if ( exists $stref->{'Modules'}{$name} ) {    # Otherwise it means it is an external module
 				
 					 # 'Parameters' here is OK because the include might contain other includes
-					$Sf->{'IncludedParameters'} =
-					  &append_to_set( $Sf->{'IncludedParameters'},
-						$stref->{'Modules'}{$name}{'Parameters'} );
+					$Sf->{'IncludedParameters'} = &append_to_set( $Sf->{'IncludedParameters'}, $stref->{'Modules'}{$name}{'Parameters'} );
 					# I think here I should 'inherit' UsedLocalVars from this module, i.e. any LocalVars in $name
-					$Sf->{'UsedLocalVars'} = append_to_set( $Sf->{'UsedLocalVars'}, $stref->{'Modules'}{$name}{'LocalVars'} ); 	
-										
+#					croak Dumper( $stref->{'Modules'}{$name}{'Parameters'} ).Dumper( $Sf->{'IncludedParameters'} );
+					if (exists $stref->{'Modules'}{$name}{'IsGlobal'} and $stref->{'Modules'}{$name}{'IsGlobal'}==1) {
+						$Sf->{'UsedGobalVars'} = append_to_set( $Sf->{'UsedGlobalVars'}, $stref->{'Modules'}{$name}{'LocalVars'} );
+					} else {
+						$stref->{'Modules'}{$name}{'IsGlobal'}=0;
+						$Sf->{'UsedLocalVars'} = append_to_set( $Sf->{'UsedLocalVars'}, $stref->{'Modules'}{$name}{'LocalVars'} );
+					} 											
 				}
 				} else {
 					say "WARNING: module $name is EXTERNAL" if $W;
@@ -1512,6 +1518,42 @@ sub _parse_use {
 }    # END of parse_use()
 
 # -----------------------------------------------------------------------------
+
+# UsedLocalVars is a misnomer, because these variables could be globals 
+sub __module_has_globals { (my $stref, my $f, my $mod_name, my $called_sub_name)=@_; 
+#	say "TEST: $called_sub_name";
+#	say exists $stref->{'Subroutines'}{$called_sub_name}{'Uses'}{$mod} ? 1 :0;
+#	say exists $stref->{'Subroutines'}{$called_sub_name}{'InModule'} ? 1:0;
+#	say exists $stref->{'Modules'}{  $stref->{'Subroutines'}{$called_sub_name}{'InModule'} }{'Uses'}{$mod} ? 1:0;
+		# This depends: for any called function, we should test if it uses the same module or resides in a module that uses the same module
+		my $Sf = $stref->{'Subroutines'}{$f};
+		if (exists $stref->{'Subroutines'}{$called_sub_name}{'Uses'}{$mod_name} or ( 
+			exists $stref->{'Subroutines'}{$called_sub_name}{'InModule'} and
+		 	exists $stref->{'Modules'}{  $stref->{'Subroutines'}{$called_sub_name}{'InModule'} }{'Uses'}{$mod_name} )
+		) {
+			say "INFO: MODULE $mod_name USED in $f is GLOBAL because of $called_sub_name" if $I;
+			$stref->{'Modules'}{$mod_name}{'IsGlobal'}=1;
+#			$Sf->{'ModuleGlobals'}{$mod_name}=$stref->{'Modules'}{$mod_name}{'LocalVars'};
+			
+			$Sf->{'UsedGlobalVars'} = append_to_set( $Sf->{'UsedGlobalVars'}, $stref->{'Modules'}{$mod_name}{'LocalVars'} );
+			
+#			$stref->{'Subroutines'}{$called_sub_name}{'ModuleGlobals'}{$mod_name}=$stref->{'Modules'}{$mod_name}{'LocalVars'};
+			for my $var (keys %{ get_vars_from_set($stref->{'Modules'}{$mod_name}{'LocalVars'} ) } ) {
+#				say "VAR $var";
+				$Sf->{'Commons'}{$var}=1;
+				$stref->{'Subroutines'}{$called_sub_name}{'Commons'}{$var}=1;				
+			}
+		}
+		return $stref;
+}	
+
+sub _check_used_modules_for_globals { (my $stref, my $f,  my $called_sub_name)=@_;
+	for my $mod_name (keys %{ $stref->{'Subroutines'}{$f}{'Uses'} } ) {
+#		say "MOD: $mod";
+		$stref = __module_has_globals($stref, $f, $mod_name, $called_sub_name);
+	}				
+	return $stref;
+}
 
 =pod
 
@@ -1707,7 +1749,8 @@ sub _parse_subroutine_and_function_calls {
 				|| $line =~ /call\s+(\w+)\s*$/ )
 			{
 				my $name = $1;    # The name of the called subroutine. The caller is $f
-				my $argstr = $2; 
+				my $argstr = $2;
+				 
 				if (not defined $argstr) {
 					$argstr='';
 				}
@@ -1748,6 +1791,7 @@ sub _parse_subroutine_and_function_calls {
 						$entry_call=0;
 					}
 				}
+				
 				my $ast = parse_expression( "$name($argstr)", $info, $stref, $f );
 				( my $expr_args, my $expr_other_vars ) = get_args_vars_from_subcall($ast);
 				for my $expr_arg(@{$expr_args->{'List'}}) {
@@ -1759,6 +1803,7 @@ sub _parse_subroutine_and_function_calls {
 				$info->{'CallArgs'}               = $expr_args;
 				$info->{'ExprVars'}               = $expr_other_vars;
 				$info->{'SubroutineCall'}{'Args'} = $info->{'CallArgs'};
+				
 				$info->{'SubroutineCall'}{'ExpressionAST'} = $ast;
 				
 				if ( $external_sub == 0 ) {
@@ -1873,6 +1918,9 @@ sub _parse_subroutine_and_function_calls {
 						}
 					
 				}
+				$stref = _check_used_modules_for_globals($stref, $f, $name);
+				
+				
 			}
 
 			# Maybe Function calls
@@ -2019,288 +2067,6 @@ sub build_call_graph {
 	}
 	return $stref;
 }    # END of build_call_graph()
-
-# -----------------------------------------------------------------------------
-# Identify the include file as containing params or commons.
-# If it contains both, split and call the routine again.
-# FIXME: This should be parsed exactly as any other file, i.e. using _analyse_lines
-sub _get_commons_params_from_includes { croak "OBSOLETE";
-	( my $inc, my $stref ) = @_;
-	my $Sincf  = $stref->{'IncludeFiles'}{$inc};
-	my $srcref = $Sincf->{'AnnLines'};
-	my $indent = '';
-
-	if ( defined $srcref ) {
-		
-		my $has_pars    = 0;
-		my $has_commons = 0;
-
-		for my $index ( 0 .. scalar( @{$srcref} ) - 1 ) {
-			my $line = $srcref->[$index][0];
-			my $info = $srcref->[$index][1];
-			if ( $line =~ /^\!\s/ ) {
-				next;
-			}
-			$line =~ /^(\s+).*/ && do { $indent = $1; };
-
-			# COMMON block processing
-			# common /name/ x...
-			# However, common/name/x is also valid, damn F77!
-			# And in fact, so is common /name/ x,y, /name2/ w,z 
-			# TODO: this is now duplicated in the main parser, factor out and see if this version is not out of date
-			if ( $line =~ /^\s*common\s*\/\s*([\w\d]+)\s*\/\s*(.+)$/ ) {
-				my $common_block_name = $1;
-				my $commonlst         = $2;
-				$has_commons = 1;
-				( my $parsedvars, my $parsedvars_lst ) =
-				  f77_var_decl_parser( $commonlst, 0 );
-				for my $var ( @{$parsedvars_lst} ) {
-					my $subset = in_nested_set( $Sincf, 'Vars', $var );
-
-					if ( $subset eq '' ) {    # This means that it is an undeclared common
-						if (
-							exists $stref->{'Implicits'}{$inc}{ lc( substr( $var, 0, 1 ) ) } ){ # WV20170413: lc() is redundant
-							print "INFO: common <", $var,
-							  "> typed via Implicits for $inc\n"
-							  if $I;
-							my @type_kind_attr = type_via_implicits( $stref, $inc, $var );
-							( my $type, my $array_or_scalar, my $attr ) =
-							  @type_kind_attr;
-							my $indent = ' ' x 6;
-							my $decl   = {
-								'IODir'  => 'Unknown',
-								'Indent' => $indent,
-								'Type'   => $type,
-								'Attr'   => $attr,
-								'Dim'    => [ @{ $parsedvars->{$var}{'Dim'} } ],
-								'Name'   => $var,
-								'Status' => 1,
-								'ArrayOrScalar' =>
-								  $parsedvars->{$var}{'ArrayOrScalar'},
-								  'CommonBlockName' => $common_block_name
-							};
-							$Sincf->{'Commons'}{$var} = $var;
-							if (
-								exists $Sincf->{'DeclaredOrigLocalVars'}{'Set'}
-								{$var} )
-							{
-
-# What this means is that the include file contains declared variables that are in a common block.
-# So we move them to DeclaredCommonVars
-								$Sincf->{'DeclaredCommonVars'}{'Set'}{$var} =
-								  $decl;
-								$Sincf->{'DeclaredCommonVars'}{'Set'}{$var}{  'CommonBlockName'} = $common_block_name;
-								delete $Sincf->{'DeclaredOrigLocalVars'}{'Set'}
-								  {$var};
-								@{ $Sincf->{'DeclaredOrigLocalVars'}{'List'} } =
-								  grep { $_ ne $var }
-								  @{ $Sincf->{'DeclaredOrigLocalVars'}
-									  {'List'} };
-								push
-								  @{ $Sincf->{'DeclaredCommonVars'}{'List'} },
-								  $var;
-							} else {
-								$Sincf->{'UndeclaredCommonVars'}{'Set'}{$var} =
-								  $decl;
-								  $Sincf->{'UndeclaredCommonVars'}{'Set'}{$var}{  'CommonBlockName'} = $common_block_name;
-								push
-								  @{ $Sincf->{'UndeclaredCommonVars'}{'List'} },
-								  $var;
-								say
-"INFO: UNDECLARED COMMON VAR $var from $inc, was typed via implicit rules"
-								  if $I;
-							}
-
-						} else {
-							print "WARNING: common <", $var,
-							  "> is not in {'IncludeFiles'}{$inc}{'Vars'}\n"
-							  if $W;
-						}
-					} else { # Means the var is already declared. So just use the existing declaration
-						$Sincf->{'Commons'}{$var} = $var;   # Because we should use 'Commons' only for tests!
-						if ( exists $Sincf->{'DeclaredOrigLocalVars'}{'Set'}{$var} ) {
-							$Sincf->{'DeclaredCommonVars'}{'Set'}{$var} = {
-								%{
-									$Sincf->{'DeclaredOrigLocalVars'}{'Set'}{$var}
-								  }
-							};
-							
-							delete $Sincf->{'DeclaredOrigLocalVars'}{'Set'}{$var};
-							@{ $Sincf->{'DeclaredOrigLocalVars'}{'List'} } =
-							  grep { $_ ne $var } @{ $Sincf->{'DeclaredOrigLocalVars'}{'List'} };
-							push @{ $Sincf->{'DeclaredCommonVars'}{'List'} }, $var;
-							my $dim = $Sincf->{'DeclaredCommonVars'}{'Set'}{$var}{'Dim'};    # FIXME GET FROM Set
-							my $updated_dim =
-							  scalar @{$dim} == 0
-							  ? $parsedvars->{$var}{'Dim'}
-							  : $dim;
-							$Sincf->{'DeclaredCommonVars'}{'Set'}{$var}{'Dim'} = $updated_dim;
-							$Sincf->{'DeclaredCommonVars'}{'Set'}{$var}{'ArrayOrScalar'} = 'Array';
-							$Sincf->{'DeclaredCommonVars'}{'Set'}{$var}{  'CommonBlockName'} = $common_block_name;
-#							  croak "$inc => ".Dumper($Sincf->{'DeclaredCommonVars'}{'Set'}{$var}) if $var eq 'bdate';
-						}  elsif (exists $Sincf->{'DeclaredCommonVars'}{'Set'}{$var} ) {
-							# The var is declared and is a common var. Update the dim if required
-							my $dim =
-							  $Sincf->{'DeclaredCommonVars'}{'Set'}{$var}{'Dim'};    # FIXME GET FROM Set
-							my $updated_dim =
-							  scalar @{$dim} == 0
-							  ? $parsedvars->{$var}{'Dim'}
-							  : $dim;
-							$Sincf->{'DeclaredCommonVars'}{'Set'}{$var}{'Dim'} = $updated_dim;
-							$Sincf->{'DeclaredCommonVars'}{'Set'}{$var}{'ArrayOrScalar'} = 'Array';
-							$Sincf->{'DeclaredCommonVars'}{'Set'}{$var}{  'CommonBlockName'} = $common_block_name;
-						}  elsif (exists $Sincf->{'UndeclaredCommonVars'}{'Set'}{$var} ) {
-							# The variable is in UndeclaredCommonVars, means it was actually typed via implicits
-							# I guess I just do nothing?
-							say "INFO: UndeclaredCommonVars in $inc: $var" if $I;	
-						} else {
-							croak "SHOULD BE IMPOSSIBLE! $var in $inc ".Dumper(in_nested_set($Sincf,'Vars',$var));
-
-						}
-					}
-				}
-				$srcref->[$index][1]{'Common'} =
-				  { 'Name' => $common_block_name };
-			}
-
-			# TODO: also, why is this not the same code as above? Refactor!
-			#  parameter(ip=150,jp=150,kp=90)
-			if ( $line =~ /parameter\s*\(\s*(.*)\s*\)/ ) {
-
-				my $parliststr = $1;
-				$has_pars = 1;
-				my @partups = split( /\s*,\s*/, $parliststr );
-				my %pvars =
-				  map { split( /\s*=\s*/, $_ ) }
-				  @partups;    # Perl::Critic, EYHO # s/\s*=.+//; $_
-				my @var_vals =
-				  map { ( my $k, my $v ) = split( /\s*=\s*/, $_ ); [ $k, $v ] }
-				  @partups;    # Perl::Critic, EYHO
-				my @pvarl = map { s/\s*=.+//; $_ } @partups;
-				my @pars  = ();
-				my $type  = 'Unknown';
-
-				for my $var (@pvarl) {
-
-					if (    not defined $Sincf->{'Vars'}{$var}
-						and not
-						exists $Sincf->{'LocalParameters'}{'Set'}{$var} )
-					{
-						print
-"WARNING: PARAMETER $var not declared in $inc (Parser::_get_commons_params_from_includes)\n"
-						  if $W;
-					}
-
-	   # These are early-on checks for constants as that is the most common case
-					if ( $pvars{$var} =~ /^\-?\d+$/ ) {
-						$type = 'integer';
-					} elsif ( $pvars{$var} =~
-						/^(\-?(?:\d+|\d*\.\d*)(?:[edq][\-\+]?\d+)?)$/ )
-					{
-						$type = 'real';
-					} 
-					elsif ( $pvars{$var} =~
-						/\*\*/ ) 
-					{
-						my $ast = parse_expression($pvars{$var});
-						carp Dumper($ast);
-							$type = 'real';
-					}
-					$Sincf->{'LocalParameters'}{'Set'}{$var} = {
-						'Type'      => $type,
-						'Var'       => $Sincf->{'Vars'}{$var},
-						'Val'       => $pvars{$var},
-						'Indent'    => $indent,
-						'Attr'      => '',
-						'Dim'       => [],
-						'Parameter' => 'parameter',
-						'Name'      => [ $var, $pvars{$var} ],
-					};
-					push @pars, $var;
-				}
-				@{ $Sincf->{'LocalParameters'}{'List'} } =
-				  ( @{ $Sincf->{'LocalParameters'}{'List'} }, @pars );
-				$srcref->[$index][1]{'ParamDecl'} = {
-					'Indent'    => $indent,
-					'Type'      => $type,
-					'Attr'      => '',
-					'Dim'       => [],
-					'Parameter' => 'parameter',
-					'Names'     => [@var_vals],
-					'Status'    => 0
-				};
-
-				# F77-style parameters in include file
-			} elsif ( $line =~ /,\s*parameter\s*.*?::\s*(\w+)\s*=\s*(.+?)\s*$/ )
-			{    # F95-style parameters
-				    # FIXME: use the combinator-based parser
-				my $type = $line;
-				$type =~ s/^\s+//;
-				$type =~ s/\s*\:\:.*$//;
-				my $parliststr = $1;
-				$has_pars = 1;
-				my @partups = split( /\s*,\s*/, $parliststr );
-				my %pvars =
-				  map { split( /\s*=\s*/, $_ ) } @partups;  # Perl::Critic, EYHO
-				my @pvarl = map { s/\s*=.+//; $_ } @partups;
-				my @pars = ();
-
-				for my $var (@pvarl) {
-					if ( not defined $Sincf->{'Vars'}{$var} ) {
-						print
-"WARNING: PARAMETER $var not declared in $inc (F95-style)\n"
-						  if $W;
-					} else {
-						$Sincf->{'LocalParameters'}{'Set'}{$var} = {
-							'Type' => $type,
-							'Var'  => $Sincf->{'Vars'}{$var},
-							'Val'  => $pvars{$var}
-						};
-						push @pars, $var;
-					}
-				}
-				@{ $Sincf->{'LocalParameters'}{'List'} } =
-				  ( @{ $Sincf->{'LocalParameters'}{'List'} }, @pars );
-				$srcref->[$index][1]{'ParamDecl'} =
-				  [@pars] && die 'BOOM!' . __LINE__;
-
-			}
-
-			$srcref->[$index] = [ $line, $info ];
-		}    # loop over annlines
-
-		if ($DBG) {
-			print "\nCOMMONS for $inc:\n\n";
-			for my $v ( sort keys %{ $Sincf->{'Commons'} } ) {
-				print $v, "\n";
-			}
-		}
-
-		# FIXME!
-		# An include file can contain parameters, commons and local vars.
-		# This is not properly identified!
-
-		if ( $has_commons && $has_pars ) {
-			print "INFO: The include file $inc contains both parameters and commons, attempting to split out params_$inc.\n"
-			  if $I;
-			$Sincf->{'InclType'} = 'Both';
-			$stref = __split_out_parameters( $inc, $stref );
-			$has_pars = 0;
-
-		} elsif ($has_commons) {
-			$Sincf->{'InclType'} = 'Common';
-		} elsif ($has_pars) {
-			$Sincf->{'InclType'} = 'Parameter';
-		} else {
-			$Sincf->{'InclType'} = 'None';
-		}
-
-	}
-	return $stref;
-}    # END of get_commons_params_from_includes()
-
-# -----------------------------------------------------------------------------
-# -----------------------------------------------------------------------------
 
 # -----------------------------------------------------------------------------
 # Proper FSM parser for F77 variable declarations (apart from the type)
@@ -2694,7 +2460,7 @@ sub __separate_into_blocks {
 			$block_rec={};
 			$in_block = 1;
 			$block = $info->{'AccPragma'}{'BeginSubroutine'}[0];
-			print "FOUND BLOCK $block\n";# if $V;
+			print "FOUND BLOCK $block\n" if $V;
 
 			# Enter the name of the block in the metadata for the line
 			$info->{'RefactoredSubroutineCall'}{'Name'} = $block;
@@ -2767,8 +2533,7 @@ sub __create_new_subroutine_entries {
 		}
 
 		my $Sblock = $stref->{'Subroutines'}{$block};
-		$Sblock->{'AnnLines'} =
-		  [ @{ $block_rec->{'AnnLines'} } ];    # a copy
+		$Sblock->{'AnnLines'} = [ @{ $block_rec->{'AnnLines'} } ];    # a copy
 		my $line_id = 0;
 		for my $annline ( @{ $Sblock->{'AnnLines'} } ) {
 			$annline->[1]{'LineID'} = $line_id++;
@@ -2870,33 +2635,43 @@ sub __construct_new_subroutine_signatures {
 
 		$Sblock = _initialise_decl_var_tables( $Sblock, $block, 0 );
 
-		if ( not exists $Sblock->{'OrigArgs'} ) {
-			croak 'BOOM!' . Dumper( $Sblock->{Args} );
-			$Sblock->{'OrigArgs'} = { 'Set' => {}, 'List' => [] };
-		}
-		if ( not exists $Sblock->{'DeclaredOrigArgs'} ) {
-			croak 'BOOM!';
-			$Sblock->{'DeclaredOrigArgs'} = { 'Set' => {}, 'List' => [] };
-		}
-		if ( not exists $Sblock->{'LocalVars'} ) {
-			croak 'BOOM!';
-			$Sblock->{'LocalVars'} = { 'Set' => {}, 'List' => [] };
-		}
-		if ( not exists $Sblock->{'DeclaredOrigLocalVars'} ) {
-			croak 'BOOM!';
-			$Sblock->{'DeclaredOrigLocalVars'} = { 'Set' => {}, 'List' => [] };
-		}
+#		if ( not exists $Sblock->{'OrigArgs'} ) {
+#			croak 'BOOM!' . Dumper( $Sblock->{Args} );
+#			$Sblock->{'OrigArgs'} = { 'Set' => {}, 'List' => [] };
+#		}
+#		if ( not exists $Sblock->{'DeclaredOrigArgs'} ) {
+#			croak 'BOOM!';
+#			$Sblock->{'DeclaredOrigArgs'} = { 'Set' => {}, 'List' => [] };
+#		}
+#		if ( not exists $Sblock->{'LocalVars'} ) {
+#			croak 'BOOM!';
+#			$Sblock->{'LocalVars'} = { 'Set' => {}, 'List' => [] };
+#		}
+#		if ( not exists $Sblock->{'DeclaredOrigLocalVars'} ) {
+#			croak 'BOOM!';
+#			$Sblock->{'DeclaredOrigLocalVars'} = { 'Set' => {}, 'List' => [] };
+#		}
 		print "\nARGS for BLOCK $block:\n" if $V;
 		$args{$block} = [];
 
 		# Collect args for new subroutine
-		for my $var ( sort keys %{ $occsref->{$block} } ) {
+		# At this stage, if a var is global, it should not become an argument.
+		for my $var ( sort keys %{ $occsref->{$block} } ) { ;
 			if ( exists $occsref->{'OUTER'}{$var} ) {
 				print "$var\n" if $V;
+				# Only if this $var is not COMMON!
+				if ( not exists $Sf->{'Commons'}{$var} and not exists $Sf->{'IncludedParameters'}{'Set'}{$var}		 
+				) {
+#					 carp "$f: $var is NOT COMMON!";
 				push @{ $args{$block} }, $var;
+				} 
+#				else { 
+#					carp "$f: $var is COMMON or PARAM!";
+#				}
 			}
 			$Sblock->{'Vars'}{$var} = $varsref->{ $var }; # FIXME: this is "inheritance, but in principle a re-parse is better?"
 		}
+		
 
 		# We declare them right away
 		$Sblock->{'DeclaredOrigArgs'}{'List'} = $args{$block};
@@ -2907,7 +2682,8 @@ sub __construct_new_subroutine_signatures {
 		my $sigrec    = {};
 
 		$sigrec->{'Args'}{'List'} = $args{$block};
-		$sigrec->{'Args'}{'Set'}  = { map { $_ => {} } @{ $args{$block} } };
+		$sigrec->{'Args'}{'Set'}  = { map { $_ => $Sblock->{'Vars'}{$_} } @{ $args{$block} } };
+		
 		$sigrec->{'Name'}         = $block;
 		$sigrec->{'Function'}     = 0;
 		for my $argv ( @{ $args{$block} } ) {
@@ -2925,9 +2701,7 @@ sub __construct_new_subroutine_signatures {
 
 		# Add variable declarations and info to line
 		# Here we know the vardecls have been formatted.
-		my $sigline =
-		  shift @{ $Sblock->{'AnnLines'}
-		  }; # This is the line that says "! === Original code from $f starts here ==="
+		my $sigline = shift @{ $Sblock->{'AnnLines'} }; # This is the line that says "! === Original code from $f starts here ==="
 
 		for my $iters ( $itersref->{$block} ) {
 			for my $iter ( @{$iters} ) {
@@ -2954,6 +2728,7 @@ sub __construct_new_subroutine_signatures {
 				croak;
 				$decl = $Sblock->{'DeclaredOrigArgs'}{'Set'}{$argv};
 			}
+			
 			unshift @{ $Sblock->{'AnnLines'} },
 			  [
 				emit_f95_var_decl($decl),
@@ -2974,7 +2749,18 @@ sub __construct_new_subroutine_signatures {
 			unshift @{ $Sblock->{'AnnLines'} },
 			  [ "      include '$inc'", { 'Include' => { 'Name' => $inc } } ];    			
 		}
-		unshift @{ $Sblock->{'AnnLines'} }, [ $sig, { 'Signature' => $sigrec } ];
+#		unshift @{ $Sblock->{'AnnLines'} }, [ $sig, { 'Signature' => $sigrec } ];
+		
+		for my $mod ( keys %{ $Sf->{'Uses'} } ) {
+			if (  $stref->{'Modules'}{$mod}{'Inlineable'} == 1 ) { 
+			$Sblock->{'Uses'}{$mod} = { 'LineID' => 2 };
+			my $line = "      use $mod";
+			my $info = { 'Use' => { 'Name' => $mod, 'Inlineable' => {} }  };						
+			unshift @{ $Sblock->{'AnnLines'} }, [$line , $info ];  
+		}  			
+		}
+		unshift @{ $Sblock->{'AnnLines'} }, [ $sig, { 'Signature' => $sigrec } ];		
+		
 # And finally, in the original source, replace the blocks by calls to the new subs
 
 		#        print "\n-----\n".Dumper($srcref)."\n-----";
@@ -2982,8 +2768,11 @@ sub __construct_new_subroutine_signatures {
 			if ( $tindex == $block_rec->{'BeginBlockIdx'} ) {
 				$sig =~ s/subroutine/call/;
 				$srcref->[$tindex][0] = $sig;
+				
 				$srcref->[$tindex][1]{'SubroutineCall'} = $sigrec;
+				$srcref->[$tindex][1]{'CallArgs'}=dclone($sigrec->{'Args'});
 				$srcref->[$tindex][1]{'LineID'} = $Sblock->{'Callers'}{$f}[0];
+				
 			} elsif ( $tindex > $block_rec->{'BeginBlockIdx'}
 				and $tindex <= $block_rec->{'EndBlockIdx'} ) 
 			{
@@ -3028,7 +2817,9 @@ sub __update_caller_datastructures {
 		my $block = $block_rec->{'Name'};
 		
          if ($block eq 'OUTER' ) {
+         	if ( exists $block_rec->{'CalledSubs'} and exists $block_rec->{'CalledSubs'}{'List'}) {
          		@called_subs = ( @called_subs, @{ $block_rec->{'CalledSubs'}{'List'} } );
+         	}
          } else {
          	@called_subs = ( @called_subs,$block );
 #        next if $block eq 'BEFORE';
@@ -3376,7 +3167,9 @@ sub __handle_acc {
 	
 	my $is_accline = ($accline =~ s/^\!\s*\$(?:ACC|RF4A)\s+//i);
 	if ($is_accline ) {
+		
 	my @chunks = split( /\s+/, $accline );
+	
 	my $pragma_name_prefix = 'Begin';
 	if ( $chunks[0] =~ /Begin/i ) {
 		shift @chunks;
@@ -3387,10 +3180,12 @@ sub __handle_acc {
 	}
 	
 	( my $pragma_name, my @pragma_args ) = @chunks;
+	
 	if (not @pragma_args) {
 		$pragma_args[0]=lc($pragma_name).'_'.$index;
 	}
 	$info->{'AccPragma'}{ $pragma_name_prefix . ucfirst( lc($pragma_name) ) } = [@pragma_args];
+	
 	  # WV20170517 I think the following is OBSOLETE
 	if (    $pragma_name =~ /KernelWrapper/i
 		and $pragma_name_prefix eq 'Begin' )
@@ -3402,6 +3197,7 @@ sub __handle_acc {
 	}
 	}
 	return ( $stref, $info );
+	
 }    # END of __handle_acc()
 
 # -----------------------------------------------------------------------------

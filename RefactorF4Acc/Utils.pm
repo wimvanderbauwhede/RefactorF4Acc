@@ -311,24 +311,29 @@ sub module_has { (my $stref, my $mod_name, my $mod_has_lst) = @_;
 # -----------------------------------------------------------------------------
 # Returns true if the module contains only items in the $mod_only list, at least one of them
 sub module_has_only { (my $stref, my $mod_name, my $mod_only) = @_;
-#print "MODULE $mod_name INLINEABLE?\n";
+#print "\nMODULE $mod_name INLINEABLE?\n";
     
-#    print 'MOD_KEYS:'."\n".Dumper(@mod_keys);
+#    print 'MOD_KEYS:'."\n".Dumper(keys %{ $stref->{'Modules'}{$mod_name} });
 my %mod_has=();
 for my $k ( keys %{ $stref->{'Modules'}{$mod_name} } ) {    
-    $mod_has{$k}=1;
+    $mod_has{$k}=$stref->{'Modules'}{$mod_name}{$k};
 }
-#print 'INL MOD_HAS:'.Dumper(%mod_has)."\n";
+
 #'TypeDecls' => {},'Uses' => {'params_common_sn' => {}},'Source' => './common_sn.f95'
-    for my $k (@{$mod_only},'Status','Source','FStyle','FreeForm','HasBlocks','Inlineable','InlineableSubs' ) {
+    for my $k (@{$mod_only},'Status','Source','FStyle','FreeForm','HasBlocks','Inlineable','InlineableSubs','TabFormat', 'ModType' ) {
 #        print "INL: ONLY: $k\n";
         if (exists $mod_has{$k}) {
             delete $mod_has{$k};
         }
     }
-#    print Dumper(keys %mod_has);
+#    print Dumper($mod_has{ModType});
+#print 'INL MOD_HAS:'.Dumper(sort keys %mod_has)."\n";    
 #    die $mod_name if $mod_name=~/common/;
-    if (scalar(keys( %mod_has )) > 0 ) { return 0; } else {
+    if (scalar(keys( %mod_has )) > 0 ) { 
+#    	print 'NOT INLINEABLE MOD: '.$mod_name."\n";
+    	return 0; 
+    	
+    } else {
 #        print 'MAYBE INLINEABLE MOD: '.$mod_name."\n";
         return 1; }
 }

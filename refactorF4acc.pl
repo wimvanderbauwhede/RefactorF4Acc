@@ -161,6 +161,7 @@ sub main {
     }
 	$stref = parse_fortran_src( $subname, $stref );
 	$stref = mark_blocks_between_calls( $stref );
+	
 	$stref = refactor_marked_blocks_into_subroutines( $stref );
 
 	if ( $call_tree_only  ) {
@@ -174,8 +175,9 @@ sub main {
 	
     # Analyse the source
     my $stage=0;
+
 	$stref = analyse_all($stref,$subname, $stage);
-#say Dumper($stref->{'Subroutines'}{'sub_map_109'});
+
 
 			 
     # Refactor the source
@@ -183,6 +185,7 @@ sub main {
     # multiple passes can be comma-separated    
 	$stref = refactor_all($stref,$subname, $pass);
 #say Dumper($stref->{Subroutines}{LES_kernel_wrapper}{AnnLines});die;
+# at this point all args in the extracted sub have been removed
 
    $DUMMY=0;
 	if ( not $call_tree_only ) {

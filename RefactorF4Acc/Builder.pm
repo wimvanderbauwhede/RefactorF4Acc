@@ -25,7 +25,7 @@ use Exporter;
     &build_executable
 );
 # -----------------------------------------------------------------------------
-sub create_build_script {
+sub create_build_script { 
     ( my $stref ) = @_;
 
     my $gfortran = $ENV{'FC'};
@@ -42,7 +42,7 @@ sub create_build_script {
     		$src=~s/\./_/g;
     		$src.=$EXT;
     	}
-    	return "'" . $src . "'"; 
+    	"'" . $src . "'"; 
     } @fsourcelst );
 
     my $csources = '';
@@ -78,6 +78,7 @@ envF=Environment(F95='$gfortran',LINK='$gfortran',F95FLAGS=FFLAGS,F95PATH=['.' $
 #    envF.Program('$exe',fsources,LIBS=[$libs_str 'm'],LIBPATH=['.' $libpaths_str])
 envF.Program('$exe',fsources,LIBS=[$libs_str 'm'],LIBPATH=['.' $libpaths_str])
 ENDSCONS
+
     open my $SC, '>', "$targetdir/SConstruct.rf4a";
     print $SC $scons;
     print $scons if $V;

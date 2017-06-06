@@ -133,8 +133,15 @@ sub _determine_argument_io_direction_core {
 
 sub _set_iodir_read {
 	( my $mvar, my $args_ref ) = @_;
-
-	 if ( $args_ref->{$mvar}{'IODir'} eq 'Out'  and $args_ref->{$mvar}{'ArrayOrScalar'} eq 'Array') {		
+	my $is_array=0;
+	if (exists $args_ref->{$mvar}{'ArrayOrScalar'}) {
+		$is_array=$args_ref->{$mvar}{'ArrayOrScalar'}
+	} elsif (exists $args_ref->{$mvar}{'Type'}) {
+		if( $args_ref->{$mvar}{'Type'} eq 'Array') {
+			$is_array=1;
+		}
+	}
+	 if ( $args_ref->{$mvar}{'IODir'} eq 'Out'  and $is_array) {		
 		$args_ref->{$mvar}{'IODir'} = 'InOut';
 	} elsif (   not exists $args_ref->{$mvar}{'IODir'}
 		or not defined $args_ref->{$mvar}{'IODir'} )
@@ -449,8 +456,9 @@ sub _analyse_src_for_iodirs {
 
 					
 					my $rhs_vars = $info->{'Rhs'}{'VarList'}{'List'};
-#					carp Dumper($info->{'Rhs'});
-					if (scalar @{$rhs_vars}>0) {   
+					
+					if (scalar @{$rhs_vars}>0) {
+						
 						_set_iodir_vars($rhs_vars,$args, \&_set_iodir_read );
 					}
 #					carp Dumper($info->{'Lhs'});
@@ -991,7 +999,7 @@ sub _get_iodirs_from_subcall {
 # The $call_arg can be Array, Scalar, Sub, Expr or Const
 # Only if it is Array or Scalar  does it need to be considered for writing to by the subroutine
 # We need to check the other variables in Array, Sub and Expr but they cannot be anything else than read-only
-				
+#				croak $f.' => '.$name."($call_arg => $sig_arg)\t".Dumper($info);
 				my $call_arg_type = $info->{'CallArgs'}{'Set'}{$call_arg}{'Type'};
 #carp "CALL ARG: $call_arg";	
 				if ( $call_arg_type eq 'Scalar' or $call_arg_type eq 'Array' ) {
