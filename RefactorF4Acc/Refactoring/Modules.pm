@@ -107,6 +107,7 @@ sub add_module_decls { (my $stref)=@_;
 			map { my $annline = $_;
 	       		(my $line, my $info) = @{$annline};
 	       		if (exists $info->{'VarDecl'} ) {
+#	       			say $existing_module_name{$src}, ';',$info->{'VarDecl'}{'Name'}.';'.Dumper($stref->{'Modules'}{$existing_module_name{$src}}{'Vars'});
 	       		 my $ref_vardecl_line =  emit_f95_var_decl( get_var_record_from_set( $stref->{'Modules'}{$existing_module_name{$src}}{'Vars'}, $info->{'VarDecl'}{'Name'} ));
 	       		 [$ref_vardecl_line,$info];
 	       		} else {

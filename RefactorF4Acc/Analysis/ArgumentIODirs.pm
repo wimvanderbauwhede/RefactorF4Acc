@@ -1137,6 +1137,7 @@ sub _update_argument_io_direction {
 		
 		if ( exists $info->{'VarDecl'} ) {
 			my $varname = $info->{'VarDecl'}{'Name'};
+			
 #			my $is_param=0;
 #			if (ref($varname) eq 'ARRAY') { 
 #				$is_param=1;
@@ -1147,6 +1148,7 @@ sub _update_argument_io_direction {
 				){
 					
 					my $decl =  $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$varname};
+					
 #					if (not $is_param) {
 #						$info->{'VarDecl'}{'IODir'} = $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$varname}{'IODir'};
 #					} else {

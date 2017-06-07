@@ -113,16 +113,12 @@ sub _refactor_subroutine_main {
         print "#" x 80, "\n";
         say "context_free_refactorings($f)" ;
     }
-    
+ 
     $stref = context_free_refactorings( $stref, $f ); # FIXME maybe do this later
-    
     say "get_annotated_sourcelines($f)" if $V;
     my $annlines = $Sf->{'RefactoredCode'};
-    # At this point, call line from annlines for extracted sub is OK
+    # At this point, call line from annlines for extracted sub has too many args
     
-#    if ($f eq 'wave2d') {
-#		say Dumper($stref);croak ;
-#    }
      
     if (1 or $Sf->{'HasCommons'} or ( # FIXME
     exists $Sf->{'Contains'} and
@@ -135,7 +131,14 @@ sub _refactor_subroutine_main {
             croak 'SHOULD BE OBSOLETE!';
         }
     }
-
+# here RefactoredArgs has been doubled!    
+#    if ($f eq 'wave2d') {
+#    say Dumper($stref); croak;
+#    }
+    
+#    if ($f eq 'wave2d') {
+#		show_annlines($annlines);croak ;
+#    }
 	 
     $annlines = _fix_end_lines($stref, $f, $annlines); # FIXME maybe do this later
 
@@ -308,7 +311,7 @@ sub _refactor_globals_new {
             
             $rlines = create_refactored_subroutine_signature( $stref, $f, $annline, $rlines );            
 			$rlines = [@{$rlines},@par_decl_lines_from_container,@par_decl_lines_from_module];     
-			croak Dumper($rlines) if $f=~/update/;         
+#			croak Dumper($rlines) if $f=~/update/;         
             $skip = 1;
         } 
         
@@ -337,12 +340,12 @@ sub _refactor_globals_new {
         # In principle that is only possible if it's Inlineable
         #
         if ( exists $info->{'Use'} ) {
-        	if( exists $info->{'Use'}{'Inlineable'} ) {
-        	--$inc_counter;
+        	if( exists $info->{'Use'}{'Inlineable'} and $info->{'Use'}{'Inlineable'}==1) {
+        		--$inc_counter;
               $skip = 1;
-        } else {
-        	warn "Module ".$info->{'Use'}{'Name'}." in $f is not Inlineable"; 
-        }       
+        	} else {
+        		warn "Module ".$info->{'Use'}{'Name'}." in $f is not Inlineable" if $W; 
+        	}       
         }
         
         if ($inc_counter==0 and  not exists $info->{'Include'} and $hook_after_last_incl==1) {
@@ -402,13 +405,35 @@ sub _create_extra_arg_and_var_decls {
                     $info->{'Ref'}=1;
                     $info->{'ParamDecl'}={'Name' => $par};
                     push @{$rlines}, [ $rline,  $info ];
-    	}    	
+    	} 	
     }             
     push @{$rlines},$BLANK_LINE;
     }
     
-croak "NEED TO HANDLE THE CASE OF MODULE WITH PARAMETERS";
-    
+#croak "NEED TO HANDLE THE CASE OF MODULE WITH PARAMETERS";
+    if (exists $Sf->{'UsedParameters'}{'List'} and
+    scalar  @{ $Sf->{'UsedParameters'}{'List'} } > 0) { 
+    print "INFO: UsedParameters in $f\n" if $I;
+            
+    for my $par ( @{ $Sf->{'UsedParameters'}{'List'} } ) {
+    	
+    	my $test_par = in_nested_set($Sf,'Parameters',$par);
+#    	say "$f PAR $par $test_par "; 
+    	if (not $test_par or $test_par eq 'UsedParameters') {
+    	say "INFO PAR in $f: $par ".Dumper($Sf->{'UsedParameters'}{'Set'}{$par} ) if $I; 
+                    my $rdecl = $Sf->{'UsedParameters'}{'Set'}{$par};
+#                    say Dumper($rdecl); 
+                    my $rline = emit_f95_var_decl($rdecl);
+                    my $info={};
+                    $info->{'Ann'}=[ annotate($f, __LINE__ .' : INCLUDED PARAM ' . $annline->[1]{'ExGlobVarDeclHook'} ) ];                                               
+                    $info->{'LineID'}= $nextLineID++;
+                    $info->{'Ref'}=1;
+                    $info->{'ParamDecl'}={'Name' => $par};
+                    push @{$rlines}, [ $rline,  $info ];
+    	} 	
+    }             
+    push @{$rlines},$BLANK_LINE;
+    }
     
     
     print "INFO: ExGlobArgs in $f\n" if $I;
@@ -447,26 +472,26 @@ croak "NEED TO HANDLE THE CASE OF MODULE WITH PARAMETERS";
                     push @{$rlines}, [ $rline,  $info ];                        
     }    # for
 
-    print "INFO: UsedGlobalVars in $f\n" if $I;
-    for my $var ( @{ $Sf->{'UsedGlobalVars'}{'List'} } ) {
-    	# Check if this var is used in the subroutine, right?
-    	if (exists $Sf->{'UndeclaredOrigLocalVars'}{'Set'}{$var}) {
-    	say "INFO VAR: $var" if $I;
-                    my $rdecl = $Sf->{'UsedGlobalVars'}{'Set'}{$var}; 
-                    my $rline = emit_f95_var_decl($rdecl);                                                                   
-                    my $info={};                    
-                    $info->{'Ann'}=[annotate($f, __LINE__ .' : EX-MODULE-GLOBAL' ) ];
-                    $info->{'LineID'}= $nextLineID++;
-                    $info->{'Ref'}=1;
-                    $info->{'VarDecl'}={'Name' => $var};#$rdecl;
-                    push @{$rlines}, [ $rline,  $info ];      
-                    # So now for convenience I will just add these to ExGlobArgs                    
-#                    $Sf->{'ExGlobArgs'}{'Set'}{$var}=$rdecl;
-                    $Sf->{'RefactoredArgs'}{'Set'}{$var}=$rdecl;
-#                   push @{$Sf->{'ExGlobArgs'}{'List'}}, $var;    
-                   push @{$Sf->{'RefactoredArgs'}{'List'}}, $var;  
-    	}             
-    }    # for
+#    print "INFO: UsedGlobalVars in $f\n" if $I;
+#    for my $var ( @{ $Sf->{'UsedGlobalVars'}{'List'} } ) {
+#    	# Check if this var is used in the subroutine, right?
+#    	if (exists $Sf->{'UndeclaredOrigLocalVars'}{'Set'}{$var}) {
+#    	say "INFO VAR: $var" if $I;
+#                    my $rdecl = $Sf->{'UsedGlobalVars'}{'Set'}{$var}; 
+#                    my $rline = emit_f95_var_decl($rdecl);                                                                   
+#                    my $info={};                    
+#                    $info->{'Ann'}=[annotate($f, __LINE__ .' : EX-MODULE-GLOBAL' ) ];
+#                    $info->{'LineID'}= $nextLineID++;
+#                    $info->{'Ref'}=1;
+#                    $info->{'VarDecl'}={'Name' => $var};#$rdecl;
+#                    push @{$rlines}, [ $rline,  $info ];      
+#                    # So now for convenience I will just add these to ExGlobArgs                    
+##                    $Sf->{'ExGlobArgs'}{'Set'}{$var}=$rdecl;
+##                    $Sf->{'RefactoredArgs'}{'Set'}{$var}=$rdecl;
+##                   push @{$Sf->{'ExGlobArgs'}{'List'}}, $var;    
+##                   push @{$Sf->{'RefactoredArgs'}{'List'}}, $var;  
+#    	}             
+#    }    # for
 
     print "INFO: UndeclaredOrigArgs in $f\n" if $I;
     my %unique_ex_impl=();
@@ -591,7 +616,7 @@ sub _create_refactored_subroutine_call {
     	push @{$rlines}, [ $line , $info ];
     	return $rlines;
     }
-    
+#    croak Dumper($info->{'SubroutineCall'}{'Args'}{'List'}) if $name =~/update/;
     # Collect original args
     my @orig_args =();    
     for my $call_arg (@{ $info->{'SubroutineCall'}{'Args'}{'List'} }) {

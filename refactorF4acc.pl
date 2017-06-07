@@ -178,12 +178,13 @@ sub main {
 
 	$stref = analyse_all($stref,$subname, $stage);
 
-
 			 
     # Refactor the source
     # if a pass is given using -P on command line, it is performed
     # multiple passes can be comma-separated    
 	$stref = refactor_all($stref,$subname, $pass);
+	
+#	
 #say Dumper($stref->{Subroutines}{LES_kernel_wrapper}{AnnLines});die;
 # at this point all args in the extracted sub have been removed
 
