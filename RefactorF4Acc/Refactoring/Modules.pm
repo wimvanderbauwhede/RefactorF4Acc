@@ -110,12 +110,15 @@ sub add_module_decls { (my $stref)=@_;
 #	       			say $existing_module_name{$src}, ';',$info->{'VarDecl'}{'Name'}.';'.Dumper($stref->{'Modules'}{$existing_module_name{$src}}{'Vars'});
 	       		 my $ref_vardecl_line =  emit_f95_var_decl( get_var_record_from_set( $stref->{'Modules'}{$existing_module_name{$src}}{'Vars'}, $info->{'VarDecl'}{'Name'} ));
 	       		 [$ref_vardecl_line,$info];
+	       		} elsif (exists $info->{'Use'} and $info->{'Use'}{'Inlineable'} == 1) {
+	       				['!      '. $line.' ! commented out in add_module_decls() because Inlineable', $info] ;
 	       		} else {
 	       			$annline;
 	       		}
 	       	} @{ $old_annlines } 
 	       	];
 	       	$old_annlines = $old_annlines_with_refactored_vardecls;
+	       	
 	       	if (scalar @{$new_annlines}>0) {	       		
 	       		my $merged_annlines = splice_additional_lines_cond( 
 	       			$stref, 
