@@ -45,14 +45,20 @@ sub translate_module_to_C {  (my $stref, my $ocl) = @_;
 	if (not defined $ocl) {$ocl=0;}
 	$stref->{'OpenCL'}=$ocl;
 	$stref->{'TranslatedCode'}=[];	
+	
 	$stref = pass_wrapper_subs_in_module($stref,[
-					[ sub { (my $stref, my $f)=@_;  alias_ordered_set($stref,$f,'DeclaredOrigArgs','RefactoredArgs'); } ],
+#					[ sub { (my $stref, my $f)=@_;  
+#						alias_ordered_set($stref,$f,'DeclaredOrigArgs','RefactoredArgs'); 
+##						say $f.' => '.Dumper($stref->{Subroutines}{$f}{DeclaredOrigArgs}) if $f eq 'adam_bondv1_feedbf_les_press_v_etc_superkernel';#adam_bondv1_feedbf_les_press_v_etc_superkernel
+##						croak if $f eq 'adam_bondv1_feedbf_les_press_v_etc_superkernel'; 
+#					} ],
 #					[ \&_fix_scalar_ptr_args ],
 #		  		[\&_fix_scalar_ptr_args_subcall],	
 		[\&_declare_undeclared_variables],#,\&_removed_unused_variables],
 		[\&add_OpenCL_address_space_qualifiers],
 		[\&translate_sub_to_C]
 		],$ocl);
+		
 	$stref = _write_headers($stref,$ocl);
 	$stref = _emit_C_code($stref, $ocl);
 }
@@ -74,8 +80,11 @@ sub add_OpenCL_address_space_qualifiers { (my $stref, my $f, my $ocl) = @_;
 		#		say Dumper($stref->{'Subroutines'}{$f}{'DeletedArgs'});
 				my $skip=0;
 				if (exists $info->{'Signature'} ) {
-						for my $arg (@{ $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'List'} } ) {
-							my $decl = $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$arg};
+						for my $arg (@{ $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'List'} } ) {
+#							my $decl = $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$arg};
+							my $decl = get_var_record_from_set($stref->{'Subroutines'}{$f}{'Vars'},$arg);
+#							say $f.Dumper( $stref->{'Subroutines'}{$f}{'Args'} );
+#							say $arg.Dumper($decl);
 							if ($decl->{'ArrayOrScalar'} eq 'Array') {
 								$decl->{'OclAddressSpace'} = '__global';
 							} 
@@ -91,11 +100,11 @@ sub add_OpenCL_address_space_qualifiers { (my $stref, my $f, my $ocl) = @_;
 					for my $sig_arg (keys %{$info->{'SubroutineCall'}{'ArgMap'} }) {
 						my $call_arg = $info->{'SubroutineCall'}{'ArgMap'}{$sig_arg};
 						my $call_arg_expr =  $info->{'CallArgs'}{'Set'}{$call_arg}{'Expr'};
-						if (exists $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$call_arg_expr} and 
-						exists $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$call_arg_expr}{'OclAddressSpace'} ) {
-							my $ocl_address_space = $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$call_arg_expr}{'OclAddressSpace'};
+						if (exists $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$call_arg_expr} and 
+						exists $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$call_arg_expr}{'OclAddressSpace'} ) {
+							my $ocl_address_space = $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$call_arg_expr}{'OclAddressSpace'};
 #							carp "$f => $subname => setting OpenCL address space for $sig_arg to $ocl_address_space"; 								
-							$stref->{'Subroutines'}{$subname}{'RefactoredArgs'}{'Set'}{$sig_arg}{'OclAddressSpace'}=$ocl_address_space;
+							$stref->{'Subroutines'}{$subname}{'DeclaredOrigArgs'}{'Set'}{$sig_arg}{'OclAddressSpace'}=$ocl_address_space;
 						}
 					}			
 				}
@@ -143,8 +152,8 @@ sub translate_sub_to_C {  (my $stref, my $f, my $ocl) = @_;
 		elsif (exists $info->{'VarDecl'} ) {
 			
 				my $var = $info->{'VarDecl'}{'Name'};
-				
-				if (exists $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$var}
+#				croak Dumper($stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}) if $var eq 'f';
+				if (exists $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$var}
 				) {
 					$c_line='//'.$line;
 					$skip=1;
@@ -153,7 +162,7 @@ sub translate_sub_to_C {  (my $stref, my $f, my $ocl) = @_;
 					$c_line = _emit_var_decl_C($stref,$f,$var);
 					if (exists $info->{'TrailingComment'} and $info->{'TrailingComment'}=~/\$ACC\s+MemSpace\s+(\w+)/) {
 						# This code will basically only work for arrays with dimensions defined by constants and macros
-#						croak Dumper()
+#						croak Dumper($var);
 						my $decl =  get_var_record_from_set($stref->{'Subroutines'}{$f}{'Vars'},$var);
 						my $dim = $decl->{'Dim'};
 						my @sizes = map {  '('.$_->[1].' - '.$_->[0].' +1)'   } @{$dim} ; #[['1','nth']]
@@ -340,7 +349,8 @@ sub _emit_subroutine_sig_C { (my $stref, my $f, my $annline)=@_;
 }
 
 sub _emit_arg_decl_C { (my $stref,my $f,my $arg)=@_;
-	my $decl =	$stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$arg};
+#	my $decl =	$stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$arg};
+	my $decl = get_var_record_from_set($stref->{'Subroutines'}{$f}{'Vars'},$arg);
 	my $array = $decl->{'ArrayOrScalar'} eq 'Array' ? 1 : 0;
 	my $const = 1;
 	if (not defined $decl->{'IODir'}) {
@@ -859,7 +869,7 @@ sub postprocess_C { croak 'OBSOLETE!';
                     my $ftype = $vars{$var}{'Type'};
                     my $ctype = toCType($ftype);
 #                    print Dumper($Ssub->{'RefactoredArgs'}{'Set'});
-                    my $iodir = $Ssub->{'RefactoredArgs'}{'Set'}{$var}{'IODir'};
+                    my $iodir = $Ssub->{'DeclaredOrigArgs'}{'Set'}{$var}{'IODir'};
                     my $kind  = $vars{$var}{'ArrayOrScalar'};
 
                     if ( $iodir eq 'In' and $kind eq 'Scalar' ) {
@@ -899,7 +909,7 @@ sub postprocess_C { croak 'OBSOLETE!';
             if ( $1 eq $2 ) {
                 my $var = $1;
                 my $iodir =
-                  $stref->{'Subroutines'}{$sub}{'RefactoredArgs'}{'Set'}{$var}
+                  $stref->{'Subroutines'}{$sub}{'DeclaredOrigArgs'}{'Set'}{$var}
                   {'IODir'};
                 my $kind = $vars{$var}{'ArrayOrScalar'};
                 if ( $iodir eq 'In' and $kind eq 'Scalar' ) {
@@ -1028,7 +1038,7 @@ sub postprocess_C { croak 'OBSOLETE!';
                   ; # FIXME: this will split things like v1,indzindicator[FTNREF1D(i,1)],v3
                 
                 my $called_sub_args =
-                  $stref->{'Subroutines'}{$calledsub}{'RefactoredArgs'}{'List'};
+                  $stref->{'Subroutines'}{$calledsub}{'DeclaredOrigArgs'}{'List'};
                 my @nargs = ();
 
                 for my $ii ( 0 .. scalar @{$called_sub_args} - 1 ) {
@@ -1038,7 +1048,7 @@ sub postprocess_C { croak 'OBSOLETE!';
                     my $is_input_scalar =
                       ( $stref->{'Subroutines'}{$calledsub}{'Vars'}
                           {$called_sub_arg}{'ArrayOrScalar'} eq 'Scalar' )
-                      && ( $stref->{'Subroutines'}{$calledsub}{'RefactoredArgs'}
+                      && ( $stref->{'Subroutines'}{$calledsub}{'DeclaredOrigArgs'}
                         {$called_sub_arg}{'IODir'} eq 'In' )
                       ? 1
                       : 0;

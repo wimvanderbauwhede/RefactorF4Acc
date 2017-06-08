@@ -160,6 +160,7 @@ sub main {
     	$stref = parse_fortran_src( $data_block, $stref );
     }
 	$stref = parse_fortran_src( $subname, $stref );
+	
 	$stref = mark_blocks_between_calls( $stref );
 	
 	$stref = refactor_marked_blocks_into_subroutines( $stref );
@@ -175,7 +176,7 @@ sub main {
 	
     # Analyse the source
     my $stage=0;
-
+    
 	$stref = analyse_all($stref,$subname, $stage);
 
 			 

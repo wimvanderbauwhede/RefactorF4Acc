@@ -48,7 +48,7 @@ sub refactor_all {
 	}
 	if ($pass =~/translate_to_C/) {
 		$stref = translate_module_to_C($stref,0);
-	} elsif ( $pass =~/translate_to_OpenCL/) {
+	} elsif ( $pass =~/translate_to_OpenCL/) {				
 		$stref = translate_module_to_C($stref,1);
 	}
 	if ($pass =~/ifdef_io/i) {

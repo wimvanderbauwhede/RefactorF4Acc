@@ -81,7 +81,7 @@ sub parse_fortran_src {
 		if (not exists $Sf->{'Entry'} or $Sf->{'Entry'} == 0 ) {
 
 		# OK, time to declare all the variable sets and declaration sets		
-		$Sf = _initialise_decl_var_tables( $Sf, $f, $is_incl,$is_mod );
+		$Sf = _initialise_decl_var_tables( $Sf, $stref, $f, $is_incl,$is_mod );
 		
 # Set 'RefactorGlobals' to 0, we only refactor the globals for subs that are kernel targets and their dependencies
 		if ( not exists $Sf->{'RefactorGlobals'} ) {
@@ -143,6 +143,14 @@ sub parse_fortran_src {
 	   if ($f eq 'read_ncwrfout_gridinfo') {
 	   }
 	   
+	   if ($is_mod) { 
+	   	for my $sub ( @{ $stref->{'Modules'}{ $f }{'Contains'} } ) {
+#	   		say $sub;
+	   		$stref = parse_fortran_src($sub, $stref);
+	   	}
+#		croak $f;
+	   }
+	   
 	return $stref;
 
 }    # END of parse_fortran_src()
@@ -192,7 +200,7 @@ sub refactor_marked_blocks_into_subroutines {
 # -----------------------------------------------------------------------------
 # Here I initialise tables for Variables and Declarations and a few other Subroutine-specific data structures
 sub _initialise_decl_var_tables {
-	( my $Sf, my $f, my $is_incl, my $is_mod ) = @_;
+	( my $Sf, my $stref, my $f, my $is_incl, my $is_mod ) = @_;
 	my $code_unit = $is_incl ? 'include' : $is_mod ? 'module' : 'subroutine';
 	say "_initialise_decl_var_tables for $code_unit $f" if $V;	
 	
@@ -325,7 +333,13 @@ sub _initialise_decl_var_tables {
 			};
 
 		} else {    # For includes and modules
-
+ 
+# 			say "MOD $f";
+ 			if ($is_mod) { 				
+ 				for my $sub (sort keys %{ $Sf->{Subroutines} }) {
+ 					$stref->{'Subroutines'}{$sub} =_initialise_decl_var_tables( $stref->{'Subroutines'}{$sub}, $stref, $sub,0,0);
+ 				}		
+ 			}
 			# Includes can contain LocalVars, CommonVars or Parameters
 			# Commons can't be Args so they will go in ExInclLocalVars?
 			# I guess includes can contain other includes that contain all this as well, how do I deal with that?			
@@ -403,6 +417,7 @@ sub _analyse_lines {
 		for my $index ( 0 .. scalar( @{$srcref} ) - 1 ) {
 			my $attr = '';
 			( my $lline, my $info ) = @{ $srcref->[$index] };
+			
 #			say $lline;
 			# Get indent			
 			$lline =~ /^(\s+).*/ && do { $indent = $1; }; # This is not OK for lines with labels of course.
@@ -2618,7 +2633,7 @@ sub __construct_new_subroutine_signatures {
 
 		my $Sblock = $stref->{'Subroutines'}{$block};
 
-		$Sblock = _initialise_decl_var_tables( $Sblock, $block, 0 );
+		$Sblock = _initialise_decl_var_tables( $Sblock, $stref, $block, 0 );
 
 #		if ( not exists $Sblock->{'OrigArgs'} ) {
 #			croak 'BOOM!' . Dumper( $Sblock->{Args} );
@@ -3196,6 +3211,7 @@ sub __handle_acc {
 	# F95 declaration, no need for refactoring
 sub __parse_f95_decl {
 	(my $stref, my $f,  my $Sf, my $indent, my $line, my $info) = @_;
+	
 my $is_module = (exists $stref->{'Modules'}{$f}) ? 1 : 0;
 	my $pt = parse_F95_var_decl($line);
 #croak $line  if $line=~/etan/;	

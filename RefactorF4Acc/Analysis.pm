@@ -643,12 +643,14 @@ sub _create_refactored_args {
 #	say "$f ".Dumper $Sf->{'Source'};
 #    say Dumper($stref);	    
     return $stref unless defined $Sf->{'Source'};
-#	say $f.'ExGlobArgs'.Dumper $Sf->{'ExGlobArgs'}{'List'};
-#	say $f.'OrigArgs'.Dumper $Sf->{'OrigArgs'};
+#	say $f.' ExGlobArgs => '.Dumper $Sf->{'ExGlobArgs'};
+#	say $f.' OrigArgs '.Dumper $Sf->{'OrigArgs'};
 #	say $f.'DeclaredOrigArgs'.Dumper $Sf->{'DeclaredOrigArgs'}{'Set'};
 #	say $f.'UndeclaredOrigArgs'.Dumper $Sf->{'UndeclaredOrigArgs'}{'Set'};
 	
-	if (  scalar @{$Sf->{'ExGlobArgs'}{'List'}}>0 and scalar @{ $Sf->{'OrigArgs'}{'List'} } >0
+	 
+	
+	if ( exists $Sf->{'ExGlobArgs'}{'List'} and scalar @{$Sf->{'ExGlobArgs'}{'List'}}>0 and scalar @{ $Sf->{'OrigArgs'}{'List'} } >0
 	) {
 
 		$Sf->{'RefactoredArgs'}{'List'} = ordered_union( $Sf->{'OrigArgs'}{'List'}, $Sf->{'ExGlobArgs'}{'List'} );
@@ -656,7 +658,7 @@ sub _create_refactored_args {
 #		croak Dumper($Sf->{'RefactoredArgs'}) if $f=~/update/;
 		$Sf->{'HasRefactoredArgs'} = 1;
 
-	} elsif (scalar @{$Sf->{'ExGlobArgs'}{'List'}}==0
+	} elsif ( exists $Sf->{'ExGlobArgs'}{'List'} and  scalar @{$Sf->{'ExGlobArgs'}{'List'}}==0
 	and scalar @{ $Sf->{'OrigArgs'}{'List'} } >0
 	) {
 
@@ -664,7 +666,7 @@ sub _create_refactored_args {
 		$Sf->{'RefactoredArgs'}{'Set'}  = $Sf->{'OrigArgs'}{'Set'};
 		$Sf->{'RefactoredArgs'}{'List'} = $Sf->{'OrigArgs'}{'List'};
 		$Sf->{'HasRefactoredArgs'}      = 0;
-	} elsif ( scalar @{$Sf->{'ExGlobArgs'}{'List'}}>0
+	} elsif (  exists $Sf->{'ExGlobArgs'}{'List'} and  scalar @{$Sf->{'ExGlobArgs'}{'List'}}>0
 	and scalar @{ $Sf->{'OrigArgs'}{'List'} } ==0
 	) {
 

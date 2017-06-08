@@ -78,7 +78,7 @@ sub comment { (my $comment)=@_;
 sub sub_func_incl_mod {
     ( my $f, my $stref ) = @_;
     if (not defined $stref) {croak "arg not defined sub_func_incl_mod" }
-    die join(' ; ', caller ) if $stref!~/0x/;
+    croak join(' ; ', caller ) if $stref!~/0x/;
     croak if not defined $f;        
     if ( exists $stref->{'Subroutines'}{$f} ) {
         if (not  exists $stref->{'Modules'}{$f} ) {
@@ -483,7 +483,9 @@ sub get_vars_from_set { (my $set)=@_;
 #$indent++;
             my $vars_ref= get_vars_from_set($set->{'Subsets'}{$subset});
 #            $indent--;
+#if (defined $vars_ref) {
             $vars = { %{$vars}, %{$vars_ref} };
+#}
         }
     } elsif (exists $set->{'Set'}) {
 #    	say 'SET!';
@@ -499,7 +501,9 @@ sub get_var_record_from_set { (my $set, my $var)=@_;
         for my $subset (keys %{  $set->{'Subsets'} } ) {
             my $vars_ref= get_vars_from_set($set->{'Subsets'}{$subset});
 #            say '<'.Dumper($vars_ref).'>';
+#			if (defined $vars_ref) {
             %vars = ( %vars, %{$vars_ref} );
+#			}
         }
     } elsif (exists $set->{'Set'}) {
         return ${$set->{'Set'}} ;        

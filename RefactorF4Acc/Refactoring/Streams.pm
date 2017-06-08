@@ -51,7 +51,7 @@ use Exporter;
 sub pass_rename_array_accesses_to_scalars {(my $stref)=@_;
 	$stref = pass_wrapper_subs_in_module($stref,
 			[
-				[ sub { (my $stref, my $f)=@_;  alias_ordered_set($stref,$f,'DeclaredOrigArgs','RefactoredArgs'); } ],
+				[ sub { (my $stref, my $f)=@_;  alias_ordered_set($stref,$f,'DeclaredOrigArgs','DeclaredOrigArgs'); } ],
 #				[ \&_fix_scalar_ptr_args ],
 #		  		[\&_fix_scalar_ptr_args_subcall],
 		  		[
@@ -294,7 +294,7 @@ sub _rename_array_accesses_to_scalars { (my $stref, my $f) = @_;
 
 # --------------------------------------------------------------------------------------------------------
 	# So now we have identified all stream vars. In the next pass, update the subroutine Signature and VarDecl declarations in $info
-	# We update RefactoredArgs record of $f in a separate pass below
+	# We update DeclaredOrigArgs record of $f in a separate pass below
 	my $pass_update_sig_and_decls = sub { (my $annline, my $state)=@_;
 		(my $line,my $info)=@{$annline};
 		if (exists $info->{'Signature'} ) { 			
@@ -333,30 +333,30 @@ sub _rename_array_accesses_to_scalars { (my $stref, my $f) = @_;
  	($stref,$state) = stateful_pass($stref,$f,$pass_update_sig_and_decls, $state,'pass_update_sig_and_decls' . __LINE__  ) ;
  	
 # --------------------------------------------------------------------------------------------------------	
-	# Here we update RefactoredArgs and DeclaredOrigArgs
+	# Here we update DeclaredOrigArgs and DeclaredOrigArgs
  	# At this point the argument list already has the stream vars as args
  	
  	my @updated_args_list=();		
-	for my $orig_arg ( @{ $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'List'} } ) {		
+	for my $orig_arg ( @{ $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'List'} } ) {		
 		if (exists $state->{'StreamVars'}{$orig_arg}) {
-			my $new_decl = dclone( $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$orig_arg} );
+			my $new_decl = dclone( $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$orig_arg} );
 			for my $new_arg (@{ $state->{'StreamVars'}{$orig_arg}{'List'} }) {
 				push @updated_args_list,$new_arg;
 				$new_decl->{'ArrayOrScalar'}='Scalar';
 				$new_decl->{'Dim'}=[];
 				$new_decl->{'IODir'}=$state->{'StreamVars'}{$orig_arg}{'Set'}{$new_arg}{'IODir'};
 				$new_decl->{'ArrayIndexExpr'}=$state->{'StreamVars'}{$orig_arg}{'Set'}{$new_arg}{'ArrayIndexExpr'};
-				$stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$new_arg}=$new_decl;
-				delete $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$orig_arg};				
+				$stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$new_arg}=$new_decl;
+				delete $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$orig_arg};				
 			}			
 		} else {
-			if (exists $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$orig_arg} ) {
+			if (exists $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$orig_arg} ) {
 				push @updated_args_list, $orig_arg;	
 			}
 		}
 	}
 	
-	$stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'List'}=[@updated_args_list]; 	
+	$stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'List'}=[@updated_args_list]; 	
 	
 # --------------------------------------------------------------------------------------------------------	 	
  	# So at this point we should do the lifting of everything to do with indexing
@@ -413,9 +413,9 @@ sub _rename_array_accesses_to_scalars { (my $stref, my $f) = @_;
 					push @{$new_args}, $arg;
 				} else {
 					push @{ $state->{'DeletedArgs'} }, $arg;
-					delete $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$arg};
-					my @updated_args_list = grep {$_ ne $arg } @{ $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'List'} };
-					$stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'List'} = [@updated_args_list];				
+					delete $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$arg};
+					my @updated_args_list = grep {$_ ne $arg } @{ $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'List'} };
+					$stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'List'} = [@updated_args_list];				
 				}
 			}
 			$info->{'Signature'}{'Args'}{'List'}=$new_args;
@@ -438,36 +438,36 @@ sub _rename_array_accesses_to_scalars { (my $stref, my $f) = @_;
 	$stref->{'Subroutines'}{$f}{'LiftedIndexVarDecls'}=dclone($state->{'LiftedIndexVarDecls'});
 	
 ## --------------------------------------------------------------------------------------------------------	
-#	# Here we update RefactoredArgs and DeclaredOrigArgs
+#	# Here we update DeclaredOrigArgs and DeclaredOrigArgs
 # 	# At this point the argument list already has the stream vars as args
 # 	
 # 	my @updated_args_list=();		
-#	for my $orig_arg ( @{ $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'List'} } ) {
+#	for my $orig_arg ( @{ $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'List'} } ) {
 #		
 #		if (exists $state->{'StreamVars'}{$orig_arg}) {
-#			my $new_decl = dclone( $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$orig_arg} );
+#			my $new_decl = dclone( $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$orig_arg} );
 #			for my $new_arg (@{ $state->{'StreamVars'}{$orig_arg}{'List'} }) {
 #				push @updated_args_list,$new_arg;
 #				$new_decl->{'ArrayOrScalar'}='Scalar';
 #				$new_decl->{'Dim'}=[];
 #				$new_decl->{'IODir'}=$state->{'StreamVars'}{$orig_arg}{'Set'}{$new_arg}{'IODir'};
 #				$new_decl->{'ArrayIndexExpr'}=$state->{'StreamVars'}{$orig_arg}{'Set'}{$new_arg}{'ArrayIndexExpr'};
-#				$stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$new_arg}=$new_decl;
-#				delete $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$orig_arg};				
+#				$stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$new_arg}=$new_decl;
+#				delete $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$orig_arg};				
 #			}			
 #		} else {
-#			if (exists $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$orig_arg} ) {
+#			if (exists $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$orig_arg} ) {
 #				push @updated_args_list, $orig_arg;	
 #			}
 #		}
 #	}
 #	
-#	$stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'List'}=[@updated_args_list];
-#	croak Dumper($stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'List'}) if $f eq 	'sub_map_124';
+#	$stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'List'}=[@updated_args_list];
+#	croak Dumper($stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'List'}) if $f eq 	'sub_map_124';
 	
 
-#	$stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}=$stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'};
-#	$stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'List'}=$stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'List'};		
+#	$stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}=$stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'};
+#	$stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'List'}=$stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'List'};		
 # --------------------------------------------------------------------------------------------------------		
 	# Now we emit the updated code for the subroutine signature, the variable declarations, assignment expressions and ifthen expressions
 	
@@ -509,8 +509,8 @@ sub _rename_array_accesses_to_scalars { (my $stref, my $f) = @_;
 				my $rannline=[$rline,$info];
 				$stref->{'Subroutines'}{$f}{'LiftedStreamVarDecls'}{'Set'}{$tvar}=dclone($annline);
 				
-				if (not exists $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$tvar}) { 					 
-					$stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$tvar}=$rdecl;
+				if (not exists $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$tvar}) { 					 
+					$stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$tvar}=$rdecl;
 				} 
 				
 #				if (not exists $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$tvar}) { 
@@ -574,7 +574,7 @@ sub _rename_array_accesses_to_scalars_called_subs { (my $stref, my $f) = @_;
 				for my $lifted_var ( sort keys %{ $stref->{'Subroutines'}{$f}{'LiftedVarDecls'}{'Set'} } ) {		
 #					carp 		"$f =>	$subname => $lifted_var "; 
 					if (not exists $stref->{'Subroutines'}{$f}{'DeclaredOrigLocalVars'}{'Set'}{$lifted_var}
-					and not exists $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$lifted_var}
+					and not exists $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$lifted_var}
 					) {						
 						$stref->{'Subroutines'}{$f}{'DeclaredOrigLocalVars'}{'Set'}{$lifted_var}= dclone( get_var_record_from_set( $stref->{'Subroutines'}{$subname}{'Vars'},$lifted_var ) );
 					}
@@ -651,7 +651,7 @@ sub _update_call_args { (my $stref, my $f) = @_;
 			for my $sig_arg (keys %{$info->{'SubroutineCall'}{'ArgMap'} }) {
 				my $call_arg = $info->{'SubroutineCall'}{'ArgMap'}{$sig_arg};
 					# This is only correct if the signature arg is a scalar. 
-				my $sig_iodir = $stref->{'Subroutines'}{$subname}{'RefactoredArgs'}{'Set'}{$sig_arg}{'IODir'};
+				my $sig_iodir = $stref->{'Subroutines'}{$subname}{'DeclaredOrigArgs'}{'Set'}{$sig_arg}{'IODir'};
 				if ($sig_iodir ne 'in') { # means the sig arg is a pointer anyway
 					if ($info->{'CallArgs'}{'Set'}{$call_arg}{'Expr'} eq $call_arg.'(1)') {
 						$info->{'CallArgs'}{'Set'}{$call_arg}{'Expr'} = $call_arg;
@@ -664,7 +664,7 @@ sub _update_call_args { (my $stref, my $f) = @_;
 #	      for my $call_arg (@{ $orig_call_args } ) {
 #	      	# get the sig_arg
 #	      	my $current_sig_arg = $call_arg;
-#			if (exists $stref->{'Subroutines'}{$subname}{'RefactoredArgs'}{'Set'}{$current_sig_arg}) {
+#			if (exists $stref->{'Subroutines'}{$subname}{'DeclaredOrigArgs'}{'Set'}{$current_sig_arg}) {
 #	      		push @{$new_call_args}, $call_arg;
 #	      	} else {
 #	      		# This argument was deleted
@@ -720,8 +720,8 @@ sub _add_assignments_for_called_subs { (my $stref, my $f) = @_;
 					for my $lifted_annline ( @{ $stref->{'Subroutines'}{$subname}{'LiftedScalarAssignments'} } ) {
 
 						my $var = $lifted_annline->[1]{'Lhs'}{'VarName'};
-						if (exists $stref->{'Subroutines'}{$subname}{'RefactoredArgs'}{'Set'}{$var}) {
-						my $iodir =  $stref->{'Subroutines'}{$subname}{'RefactoredArgs'}{'Set'}{$var}{'IODir'};
+						if (exists $stref->{'Subroutines'}{$subname}{'DeclaredOrigArgs'}{'Set'}{$var}) {
+						my $iodir =  $stref->{'Subroutines'}{$subname}{'DeclaredOrigArgs'}{'Set'}{$var}{'IODir'};
 						if ($iodir eq 'in' or $iodir eq 'inout') {
 							push @{$rlines}, $lifted_annline;
 						} 
@@ -737,7 +737,7 @@ sub _add_assignments_for_called_subs { (my $stref, my $f) = @_;
 #				};	
 #				for my $lifted_var ( keys %{ $stref->{'Subroutines'}{$f}{'LiftedVarDecls'}{'Set'} } ) {					 
 #					if (not exists $stref->{'Subroutines'}{$f}{'DeclaredOrigLocalVars'}{'Set'}{$lifted_var}
-#					and not exists $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$lifted_var}
+#					and not exists $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$lifted_var}
 #					) {						
 #						$stref->{'Subroutines'}{$f}{'DeclaredOrigLocalVars'}{'Set'}{$lifted_var}= dclone( get_var_record_from_set( $stref->{'Subroutines'}{$subname}{'Vars'},$lifted_var ) );
 #					}
@@ -748,8 +748,8 @@ sub _add_assignments_for_called_subs { (my $stref, my $f) = @_;
 				if ( exists  $stref->{'Subroutines'}{$subname}{'LiftedArrayAssignments'} ) {				
 					for my $lifted_annline ( @{ $stref->{'Subroutines'}{$subname}{'LiftedArrayAssignments'} } ) {
 						my $var = $lifted_annline->[1]{'Rhs'}{'VarList'}{'List'}[0];
-						if (exists $stref->{'Subroutines'}{$subname}{'RefactoredArgs'}{'Set'}{$var}) {
-						my $iodir =  $stref->{'Subroutines'}{$subname}{'RefactoredArgs'}{'Set'}{$var}{'IODir'};						
+						if (exists $stref->{'Subroutines'}{$subname}{'DeclaredOrigArgs'}{'Set'}{$var}) {
+						my $iodir =  $stref->{'Subroutines'}{$subname}{'DeclaredOrigArgs'}{'Set'}{$var}{'IODir'};						
 						if ($iodir eq 'out' or $iodir eq 'inout') {
 							push @{$rlines}, $lifted_annline;
 						} 
@@ -757,7 +757,7 @@ sub _add_assignments_for_called_subs { (my $stref, my $f) = @_;
 					}						
 #					$rlines = [@{$rlines},@{ $stref->{'Subroutines'}{$subname}{'LiftedArrayAssignments'} }];
 				}						
-#				croak Dumper($stref->{'Subroutines'}{$subname}{'RefactoredArgs'}{'Set'}{'duu'});
+#				croak Dumper($stref->{'Subroutines'}{$subname}{'DeclaredOrigArgs'}{'Set'}{'duu'});
 		} else {
 			say $rline if $DBG;
 			push @{$rlines},[$rline,$info];
@@ -837,8 +837,8 @@ sub _rename_ast_entry { (my $stref, my $f,  my $state, my $ast, my $intent)=@_;
 #						say 'Found array access '.$mvar.' => '.$expr_str ;
 						# Taking the IODir from the orig var is not optimal: it leads to many InOut that actually are Out
 						# Ideally I should re-run the analysis for the stream vars
-						if (exists $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$mvar}) { # DAMN PERL! It creates the entry unless I guard!
-							$intent = $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$mvar}{'IODir'};
+						if (exists $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$mvar}) { # DAMN PERL! It creates the entry unless I guard!
+							$intent = $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$mvar}{'IODir'};
 						}
 						$state->{'StreamVars'}{$mvar}{'Set'}{$var_str}={'IODir'=>$intent,'ArrayIndexExpr'=>$expr_str} ;
 						$ast=['$',$var_str];
@@ -874,7 +874,7 @@ sub _emit_ifthen { (my $annline)=@_;
 	return ($rline, $info);
 }
 # ================================================================================================================================================
-# This is fairly generic and assumes the updated call args are RefactoredArgs
+# This is fairly generic and assumes the updated call args are DeclaredOrigArgs
 
 sub _emit_subroutine_call { (my $stref, my $f, my $annline)=@_;
 	    (my $line, my $info) = @{ $annline };
@@ -905,8 +905,8 @@ sub _emit_subroutine_call { (my $stref, my $f, my $annline)=@_;
       			for my $stream_arg ( @{$stref->{'Subroutines'}{$name}{'StreamVars'}{$current_sig_arg}{'List'} } ) {
       				$info->{'SubroutineCall'}{'ArgMap'}{$stream_arg}=$stream_arg;
       			}      				
-      	} elsif (exists $stref->{'Subroutines'}{$name}{'RefactoredArgs'}{'Set'}{$current_sig_arg}) {
-#      		carp "$f => $name => SIG ARG: $current_sig_arg ".Dumper($stref->{'Subroutines'}{$name}{'RefactoredArgs'}{'Set'}{$current_sig_arg});
+      	} elsif (exists $stref->{'Subroutines'}{$name}{'DeclaredOrigArgs'}{'Set'}{$current_sig_arg}) {
+#      		carp "$f => $name => SIG ARG: $current_sig_arg ".Dumper($stref->{'Subroutines'}{$name}{'DeclaredOrigArgs'}{'Set'}{$current_sig_arg});
       		push @{$new_call_args}, $call_arg;
       	} else {
       		# This argument was deleted
@@ -916,9 +916,9 @@ sub _emit_subroutine_call { (my $stref, my $f, my $annline)=@_;
       	}     	    
       }
       $info->{'CallArgs'}{'List'}=$new_call_args;      
-	  my $args_ref = $stref->{'Subroutines'}{$name}{'RefactoredArgs'}{'List'};
+	  my $args_ref = $stref->{'Subroutines'}{$name}{'DeclaredOrigArgs'}{'List'};
 #		for my $arg (@{$args_ref}) {
-#			say $arg . ' => '.Dumper($stref->{'Subroutines'}{$name}{'RefactoredArgs'}{'Set'}{$arg});
+#			say $arg . ' => '.Dumper($stref->{'Subroutines'}{$name}{'DeclaredOrigArgs'}{'Set'}{$arg});
 #			
 #		}
 			    
@@ -930,7 +930,7 @@ sub _emit_subroutine_call { (my $stref, my $f, my $annline)=@_;
 	    my $updated_expr_ast = parse_expression("$name($args_str)",$info, $stref,$f);
 	    $info->{'SubroutineCall'}{'ExpressionAST'}=$updated_expr_ast;
 #	    $info->{'SubroutineCall'}{'Args'}{'List'}= $args_ref;
-#	    $info->{'SubroutineCall'}{'Args'}{'Set'}=  $stref->{'Subroutines'}{$name}{'RefactoredArgs'}{'Set'};
+#	    $info->{'SubroutineCall'}{'Args'}{'Set'}=  $stref->{'Subroutines'}{$name}{'DeclaredOrigArgs'}{'Set'};
 #	    $info->{'CallArgs'}{'Set'}=$info->{'SubroutineCall'}{'Args'}{'Set'};
 #	    $info->{'CallArgs'}{'List'}=$info->{'SubroutineCall'}{'Args'}{'List'};
 #	    %{ $info->{'SubroutineCall'}{'ArgMap'} } = map {$_ => $_} @{ $info->{'SubroutineCall'}{'Args'}{'List'} }; 
@@ -1089,7 +1089,7 @@ sub _removed_unused_variables { (my $stref, my $f)=@_;
 	 		} 
 	 	}
 	} until scalar keys %{ $state->{'UnusedVars'} } ==0; 
-#	croak Dumper($stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'});
+#	croak Dumper($stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'});
 
 	# --------------------------------------------------------------------------------------------------------------------------------
  	# So now we have removed all assignments. 
@@ -1144,8 +1144,8 @@ sub _removed_unused_variables { (my $stref, my $f)=@_;
 	# --------------------------------------------------------------------------------------------------------------------------------	
  	# Adapt the Signature in $stref
  	$stref->{'Subroutines'}{$f}{'DeletedArgs'} =$state->{'DeletedArgs'};
- 	$stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'List'}=dclone($state->{'RemainingArgs'});
- 	map { delete $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$_} }  @{ $state->{'DeletedArgs'} };
+ 	$stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'List'}=dclone($state->{'RemainingArgs'});
+ 	map { delete $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$_} }  @{ $state->{'DeletedArgs'} };
 
 	return $stref;
 } # END of _removed_unused_variables()
@@ -1343,19 +1343,19 @@ sub _fix_scalar_ptr_args { (my $stref, my $f)=@_;
 					$new_arg=~s/_ptr$//;
 					$pass_state->{'ExPtrArgs'}{$arg}=$new_arg;
 					push @{$new_args}, $new_arg;
-					my $orig_decl = dclone($stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$arg} );
+					my $orig_decl = dclone($stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$arg} );
 #					$orig_decl->{'ArrayOrScalar'} = 'Scalar';
 #					$orig_decl->{'Dim'} = [];
-					$stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$new_arg} = $orig_decl ; 
-					delete $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$arg} ;					
+					$stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$new_arg} = $orig_decl ; 
+					delete $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$arg} ;					
 				} else {
 					push @{$new_args}, $arg;
 				}				  
 			}
 			$info->{'Signature'}{'Args'}{'List'}=$new_args;
 			$info->{'Signature'}{'Args'}{'Set'} = { map {$_=>1} @{$new_args} };
-			$stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'List'}=$new_args ;
-#			$stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}= $stref->{'Subroutines'}{$f}{'RefactoredArgs'};
+			$stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'List'}=$new_args ;
+#			$stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}= $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'};
 			
 			my $sig_str = $line;
 			$sig_str=~s/_ptr//g;
@@ -1439,9 +1439,9 @@ sub _fix_scalar_ptr_args_subcall { (my $stref, my $f)=@_;
 					$new_arg_map->{$ren_sig_arg}=$call_arg; # duu => duu
 					# This is only correct if the signature arg of the called sub is a scalar.
 #					if ($call_arg eq 'km') {
-#						croak $f.Dumper($sig_arg).Dumper($stref->{'Subroutines'}{$name}{'RefactoredArgs'}{'Set'}{$call_arg});
+#						croak $f.Dumper($sig_arg).Dumper($stref->{'Subroutines'}{$name}{'DeclaredOrigArgs'}{'Set'}{$call_arg});
 #					} 					
-					if ($stref->{'Subroutines'}{$name}{'RefactoredArgs'}{'Set'}{$ren_sig_arg}{'ArrayOrScalar'} eq 'Scalar') {
+					if ($stref->{'Subroutines'}{$name}{'DeclaredOrigArgs'}{'Set'}{$ren_sig_arg}{'ArrayOrScalar'} eq 'Scalar') {
 						$info->{'CallArgs'}{'Set'}{$call_arg} = {'Expr' => $call_arg.'(1)','Type'=>'Scalar'};
 					} else {
 						$info->{'CallArgs'}{'Set'}{$call_arg} = {'Expr' => $call_arg,'Type'=>'Array'};
@@ -1465,7 +1465,7 @@ sub _fix_scalar_ptr_args_subcall { (my $stref, my $f)=@_;
 	      		}
 	      	}
 	      	
-			if (exists $stref->{'Subroutines'}{$name}{'RefactoredArgs'}{'Set'}{$current_sig_arg}) {
+			if (exists $stref->{'Subroutines'}{$name}{'DeclaredOrigArgs'}{'Set'}{$current_sig_arg}) {
 	      		push @{$new_call_args}, $call_arg;
 	      	} else {
 	      		# This argument was deleted
@@ -1531,10 +1531,10 @@ sub _make_dim_vars_scalar_consts_in_sigs { (my $stref, my $f)=@_;
 				for my $dim_var (keys %{$dim_vars} ){
 					if (not exists $pass_state->{'DimVars'}{$dim_var}) {
 						$pass_state->{'DimVars'}{$dim_var}=1;
-						if (exists  $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$dim_var}) {
-#							carp "$f => $dim_var => ".Dumper($stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$dim_var}) ;
-							$stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$dim_var}{'ArrayOrScalar'}='Scalar';
-							$stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$dim_var}{'IODir'}='in';
+						if (exists  $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$dim_var}) {
+#							carp "$f => $dim_var => ".Dumper($stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$dim_var}) ;
+							$stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$dim_var}{'ArrayOrScalar'}='Scalar';
+							$stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$dim_var}{'IODir'}='in';
 						}
 					}
 				}
