@@ -451,7 +451,7 @@ sub _analyse_variables {
 								$stref->{'Subroutines'}{$f}{'ExGlobArgs'}{'Set'}{$mvar} = $decl;
 								push @{ $stref->{'Subroutines'}{$f}{'ExGlobArgs'}{'List'} }, $mvar;
 								} else {
-									warn "VAR $mvar in $f from container $container is PARAMETER";
+									say "INFO: VAR $mvar in $f from container $container is PARAMETER" if $I ;
 								}
 								$identified_vars->{$mvar}                               = 1;
 							}
@@ -643,10 +643,10 @@ sub _create_refactored_args {
 #	say "$f ".Dumper $Sf->{'Source'};
 #    say Dumper($stref);	    
     return $stref unless defined $Sf->{'Source'};
-#	say 'ExGlobArgs'.Dumper $Sf->{'ExGlobArgs'}{'List'};
-#	say 'OrigArgs'.Dumper $Sf->{'OrigArgs'};
-#	say 'DeclaredOrigArgs'.Dumper $Sf->{'DeclaredOrigArgs'}{'Set'};
-#	say 'UndeclaredOrigArgs'.Dumper $Sf->{'UndeclaredOrigArgs'}{'Set'};
+#	say $f.'ExGlobArgs'.Dumper $Sf->{'ExGlobArgs'}{'List'};
+#	say $f.'OrigArgs'.Dumper $Sf->{'OrigArgs'};
+#	say $f.'DeclaredOrigArgs'.Dumper $Sf->{'DeclaredOrigArgs'}{'Set'};
+#	say $f.'UndeclaredOrigArgs'.Dumper $Sf->{'UndeclaredOrigArgs'}{'Set'};
 	
 	if (  scalar @{$Sf->{'ExGlobArgs'}{'List'}}>0 and scalar @{ $Sf->{'OrigArgs'}{'List'} } >0
 	) {
