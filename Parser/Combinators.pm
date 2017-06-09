@@ -260,8 +260,7 @@ sub returnP {
 # FIXME: Prototype does not guarantee that parens can be omitted. Should make it binary for that.
 sub choice ($$;@) {
 	my @parsers = @_;
-	my $gen     = sub {
-		( my $str ) = @_;
+	my $gen     = sub { ( my $str ) = @_;
 		say "* choice('$str')" if $V;
 		my $i = 0;
 		for my $p (@parsers) {
