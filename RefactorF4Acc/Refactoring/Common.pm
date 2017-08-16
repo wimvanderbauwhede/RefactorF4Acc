@@ -16,7 +16,7 @@ use warnings FATAL => qw(uninitialized);
 use strict;
 use Carp;
 use Data::Dumper;
-$Data::Dumper::Indent = 0;
+#$Data::Dumper::Indent = 0;
 
 use Exporter;
 
@@ -1576,8 +1576,8 @@ sub stateless_pass {
 
 sub stateful_pass {
     (my $stref, my $f, my $pass_actions, my $state, my $pass_info ) = @_;
-    local $Data::Dumper::Indent =0;
-    local $Data::Dumper::Terse=1;
+#    local $Data::Dumper::Indent =0;
+#    local $Data::Dumper::Terse=1;
     say "STATEFUL PASS ".Dumper($pass_info)." for $f" if $DBG; 
     my $sub_or_func_or_mod = sub_func_incl_mod( $f, $stref );
      

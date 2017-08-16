@@ -7,9 +7,11 @@ import re
 VERSION = '0.06'
 
 __all__ =[
+ 'debug',       
  'apply',
 # 'show',
  'sequence',
+ 'commaSep',
  'choice',
  'tryParse',
  'maybe',
@@ -38,8 +40,8 @@ __all__ =[
  'matches',
  'unwrap',
  'empty',
- 'run'
-# 'getParseTree'
+ 'run',
+ 'getParseTree'
 ]
 
 # I want to write the parser using lists, because sequencing is the most common operation.
@@ -48,23 +50,28 @@ __all__ =[
 # The first arg is a list ref, the second arg is an optional code ref to process the returned list of matches
 V=False
 
-def apply( p, str_ ):
+def apply( p, str_, *rest ):
+    V=rest
+    if V:
+        print('APPLY parser',p,str_)
     if type(p) is  types.FunctionType:
         if V: 
-            print('FUNCTION '+str_) 
+            print('FUNCTION ',p,str_) 
         # note: for barewords we need p()(str_) but this is not consistent I think.
         return p(str_)
     elif type(p) is list:
         if V: 
-            print('LIST!')
+            print('LIST ',p,str_)
         return sequence(p)(str_)
     elif type(p) is dict:
         if V:
-            print( p )
+            print( 'DICT ',p,str_ )
         if p:
-            ( k, pp ) = p.popitem()
-            ( status, str2, mms ) = pp(str_)
-            matches = { k : mms }
+            for (k,pp) in p.items():
+#            ( k, pp ) = p.popitem()
+                ( status, str2, mms ) = apply(pp, str_)
+                matches = { k : mms }
+                break
         else:
             status=0
             matches=None
@@ -72,7 +79,7 @@ def apply( p, str_ ):
         return ( status, str2, matches )
     else: # ( ref(p) eq 'REF' ):
         if V: 
-            print('ELSE!')
+            print('ELSE ',p,str_)
             print( type(p) )
         return p(str_)
 #    else:
@@ -129,7 +136,7 @@ def sequence( plst):
     return gen
 
 # Choice: try every parser in the list until one succeeds or return fail.  '<|>' in Parsec
-def choice( parsers ):
+def choice( *parsers ):
     def gen( str_ ) :
         for p  in parsers:
             ( status, str_, matches ) = apply( p, str_ )
@@ -171,10 +178,10 @@ def maybe( p ):
             return ( 1, rest, matches )
         else:
 #            #say "maybe: no matches for <str_>" if V
-            return ( 1, str_, undef )
+            return ( 1, str_, None )
     return gen
 
-def parens( p ):
+def parens_( p ):
     def gen( str_ ):
 #        #say "* parens(str_)" if V
         matches = None
@@ -241,6 +248,9 @@ def enclosedBy( open_char,close_char, p ):
         else:    # parse failed on opening paren
             return ( 0, str_3, None )
     return gen
+
+def parens( p ):
+    return enclosedBy('(',')',p)
 
 def brackets( p ):
     return enclosedBy('[',']',p)
@@ -318,6 +328,23 @@ def word_(*dummy):
                  # assumes status is 0|1, str is string, matches is [string]
     return gen
 
+def debug_(*dummy):
+    def gen ( str_ ):
+        print( "* debug( '"+str_+"' )" )
+        if  str_ == 'debug' :
+            patt2=re.compile('^debug\s*')
+            str_ = patt2.sub('',str_,count=1)
+            print( "debug: remainder => <"+str_+">")
+            print( "debug: matches => [ 'debug' ]", ( 1, str_, ['debug'] ))
+            return ( 1, str_, ['debug'] )
+        else:
+            print( "debug: match failed => <"+str_+">",( 0, str_, None )
+ ) 
+            return ( 0, str_, None )
+                 # assumes status is 0|1, str is string, matches is [string]
+    return gen
+
+debug = debug_()
 
 def identifier(*dummy):
     def gen ( str_ ):
@@ -534,7 +561,7 @@ def dot_():
     return punctuation('.')
 dot = dot_()
 # Matches a comma with optional whitespace
-def comma():
+def comma_():
     def gen( str_) :
         #say "* comma( 'str_' )" if V
         patt =re.compile('^\s*,\s*')
@@ -549,6 +576,9 @@ def comma():
         return ( st, str_, None )
     return gen
 
+comma=comma_()
+def commaSep( p ):
+    return sepBy(comma, p)
 # Matches a semicolon with optional whitespace
 def semi_():
     def gen( str_) :
@@ -567,7 +597,7 @@ def semi_():
 
 semi = semi_()
 # strip leading whitespace, always success
-def whiteSpace(): 
+def whiteSpace_(): 
     def gen ( str_ ):
         #say "* whiteSpace( \'str_\' )" if V
         patt = re.compile('^(\s*)')
@@ -576,6 +606,7 @@ def whiteSpace():
         return ( 1, str_1, m )
     return gen
 
+whiteSpace = whiteSpace_()
 
 def oneOf ( patt_lst ):
     def gen( str_) :
@@ -622,35 +653,118 @@ def empty( elt_in_array ):
 word = word_()
 natural = natural_()
 
-#TODO:
 
-def get_tree_as_lists ( list ):
-    return list
-def is_list_of_objects ( mlo ):
-    return mlo
-def flatten_lists_in_tree ( hlist ):
-    return hlist
+def remove_undefined_values( hlist ):
+        nhlist=[]
+        if type(hlist) is list:
+            for elt in hlist:
+                if elt is not None:
+                    nelt = remove_undefined_values(elt)
+                    nhlist+=[ nelt ]
+            hlist = nhlist
+        elif type(hlist) is dict:
+            for k in hlist.keys():
+                hlist[k] = remove_undefined_values( hlist[k] )
+                if hlist[k] is None:
+                    hlist.delete(k)
+        return hlist
+
+
+def get_tree_as_lists ( list_ ):
+    hlist = []
+    for elt in list_:
+        if ( type(elt) is list and len(elt) > 0 ):    # non-empty list
+            telt = get_tree_as_lists(elt)
+            if ( type(telt) is dict or len(telt) > 0 ):
+                hlist+=[ telt ]
+            else:
+                hlist+=[ telt ]
+        elif ( type(elt) is dict ):
+            # hash: need to process the rhs of the pair
+            for k in elt.keys():
+                v = elt[k]
+                if ( type(v) is not list ):
+                    # not an array => wrap in array and redo
+                    hlist+=[ { k : v } ]
+                elif ( len(v) == 1 and type( v[0] ) is list ):
+                    # a single-elt array where the elt also an array
+                    tv = get_tree_as_lists(v)
+                    hlist+=[ { k : tv } ]
+                else:
+                    pv = []
+                    for v_ in v:
+                        if ( type(v_) is list and len(v_) > 0 ):
+                                pv+=[ get_tree_as_lists(v_) ]
+                        elif ( type(v_) is dict ):
+                                pv+=[ get_tree_as_lists( [v_] ) ]
+                        elif ( v_  is not None ):
+                                pv+=[ v_ ]
+                    hlist+=[ { k : pv  } ]
+    if len(hlist)==1:
+        return hlist[0]
+    else:
+        return hlist
+
 def add_to_map ( hmap, k, rv ):
+    if ( k in hmap ):
+        if ( type( hmap[k] ) is not list ):
+            hmap[k] = [ hmap[k] ]        
+        if ( type(rv) is list ):
+            hmap[k]+= rv 
+        else:
+            hmap[k]+=[ rv ]        
+    else:
+        hmap[k] = rv    
     return hmap
-def remove_undefined_values ( hlist ):
-    return hlist
-def remove_nested_singletons ( hlist ):
-    return hlist
+
+# list to map
+# This is a map with a list of matches for every tag, so if the tags are not unique the matches are grouped.
 def l2m ( hlist, hmap ):
+    if ( type(hlist) is list ):
+        all_scalars=1
+        for elt in hlist:
+            if type(elt) is not list and type(elt) is not dict:
+                all_scalars=0
+                break                    
+        if all_scalars:
+            return hlist
+        else:
+            for elt in hlist:
+                if ( type(elt) is dict ):
+                    if len( elt.keys() == 1 ):
+                        ( k, v ) = elt.popitem()
+                        if ( type(v) is list ): 
+                            mv = l2m( v, {} )
+                            hmap=add_to_map( hmap, k, mv )
+                        else:
+                            hmap=add_to_map( hmap, k, v )
+                    else:
+                        exit( 'BOOM!' )
+                elif ( type(elt) is list ):
+                    mv = l2m( elt, {} )
+                    for k in mv.keys():
+                        hmap=add_to_map( hmap, k, mv[k] )                    
+                else:
+                    return elt
+    elif type(hlist) is dict :
+        for k in hlist.keys():
+            hmap=add_to_map( hmap, k, hlist[k] )        
+    else:
+        return hlist
     return hmap
 
 
 def getParseTree ( m ):
-#    mm = remove_undefined_values(m)
-#    tal = get_tree_as_lists(m)
-#    map_ = l2m( tal, {})
-#    return map_
-    return m
+    mm = remove_undefined_values(m)
+    tal = get_tree_as_lists(m)
+    map_ = l2m( tal, {})
+    return map_
+#    return m
 
 def run ( p, str_ ):
     ( st, rest, m ) = apply(p, str_ )
-    return m
-#    getParseTree(m)
+#    return m
+    return getParseTree(m)
 """
 "parser11 =  choice( [ natural(), word() ] ) 
 res11 = parser11("42 choices")

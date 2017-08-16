@@ -319,6 +319,7 @@ sub _UNUSED_walk_ast { (my $stref, my $f, my $info, my $ast, my $ast_node_action
 } # _UNUSED_walk_ast
 
 sub emit_expression {(my $ast, my $expr_str)=@_;
+	croak 'EMPTY AST' unless @{$ast};
 	if (ref($ast) ne 'ARRAY') {return $ast;}
 	my @expr_chunks=();
 	my $skip=0;

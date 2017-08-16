@@ -2,7 +2,7 @@ package RefactorF4Acc::Analysis::ArgumentIODirs;
 use v5.10;
 
 use RefactorF4Acc::Config;
-use RefactorF4Acc::Utils qw( get_maybe_args_globs type_via_implicits in_nested_set );
+use RefactorF4Acc::Utils qw( get_maybe_args_globs type_via_implicits in_nested_set get_var_record_from_set );
 use RefactorF4Acc::Refactoring::Common qw( get_annotated_sourcelines stateful_pass emit_f95_var_decl get_f95_var_decl );
 use RefactorF4Acc::Refactoring::Subroutines::Signatures qw( refactor_subroutine_signature );
 
@@ -1136,24 +1136,17 @@ sub _update_argument_io_direction {
 		( my $stref, my $f, my $rest ) = @{$state};
 		
 		if ( exists $info->{'VarDecl'} ) {
+#			say Dumper($annline);
 			my $varname = $info->{'VarDecl'}{'Name'};
 			
-#			my $is_param=0;
-#			if (ref($varname) eq 'ARRAY') { 
-#				$is_param=1;
-#				$varname = $varname->[0];							
-#			}
 			if (
-					exists $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$varname} 
+#					exists $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$varname}
+					in_nested_set( $stref->{'Subroutines'}{$f},'Args',$varname )
 				){
 					
-					my $decl =  $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$varname};
-					
-#					if (not $is_param) {
-#						$info->{'VarDecl'}{'IODir'} = $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$varname}{'IODir'};
-#					} else {
-#						$info->{'VarDecl'}{'IODir'} ='In';
-
+#					my $decl =  $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$varname};
+					my $decl = get_var_record_from_set( $stref->{'Subroutines'}{$f}{'Args'},$varname);
+					croak "VARS: $varname => ".Dumper($stref->{'Subroutines'}{$f}{Args}) if not exists $decl->{'Indent'};
 					if ( exists $decl->{'Parameter'} ) {
 						delete $decl->{'Parameter'};
 						$decl->{'Name'} = $decl->{'Var'};

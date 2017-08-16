@@ -99,8 +99,8 @@ sequence(
                         charExpr( 'zero'), charExpr( 'null')
                     )
                 ] ),
-                sequence( [
-                    symbol( 'err' ),&eqs, natural
+                sequence( [                
+                    symbol( 'err' ),&eqs, {'Err' => natural}
                 ] ),
                 sequence( [
                     symbol( 'form' ),&eqs, choice(

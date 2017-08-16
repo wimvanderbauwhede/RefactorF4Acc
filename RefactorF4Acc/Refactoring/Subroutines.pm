@@ -737,17 +737,19 @@ sub _create_refactored_function_calls {
 
 		# Get the AST
 		my $ast = [];
+		my $do_not_update=0;
 		if (exists $info->{'Assignment'} ) {
 			$ast= $info->{'Rhs'}{'ExpressionAST'};
 		} elsif ( exists $info->{'SubroutineCall'} ) {
 			$ast = $info->{'SubroutineCall'}{'ExpressionAST'}
 		} else {
-			carp "UNSUPPORTED STATEMENT FOR FUNCTION CALL: $line ( _create_refactored_function_calls )";
+			carp "UNSUPPORTED STATEMENT FOR FUNCTION CALL: $line ( _create_refactored_function_calls ) ".Dumper($info);
+			$do_not_update=1;
 		} 	
 		# Update the function calls in the AST
-		# Basically, whenever we meet a function, we query it for ExGlobArgs and tag these onto te argument list.
-		my $updated_ast = __update_function_calls_in_AST($stref,$Sf,$f,$ast);
-		my $updated_line = emit_expression($updated_ast);
+		# Basically, whenever we meet a function, we query it for ExGlobArgs and tag these onto te argument list.		
+		my $updated_ast = $do_not_update ? $ast : __update_function_calls_in_AST($stref,$Sf,$f,$ast);
+		my $updated_line = $do_not_update ? $line : emit_expression($updated_ast);
  
 		if ( exists $info->{'PlaceHolders'} ) { 
 

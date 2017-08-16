@@ -121,16 +121,22 @@ sub emit_all {
         }
         print "INFO: emitting refactored code for $src\n" if $V;
         if (not $DUMMY) {
-	        if ( $src =~ /\w\/\w/ ) {    
+	        if ( $src =~ /\w\/\w/ ) {
+#	        	say "SRC in SUBDIR: $src";    
 	            # Source resides in subdirectory, create it if required
 	            my @dirs = split( /\//, $src );
-	            pop @dirs;
-	            map {
-	                my $targetdir = $_;
-	                if ( not -e $targetdir ) {
-	                    mkdir $targetdir;													                    
-	                }
-	            } @dirs;
+	            say Dumper(@dirs);
+	            my @subdirs = grep {$_!~/\./} @dirs;
+	            my $dirpath=join('/',@subdirs);
+#	            say "MKDIR $targetdir/$dirpath";
+#	            die `pwd`;
+	            system("mkdir -p $targetdir/$dirpath");
+#	            map {
+#	                my $targetdir = $_;
+#	                if ( not -e $targetdir ) {
+#	                    mkdir $targetdir;													                    
+#	                }
+#	            } @dirs;
 	        }
         }
 	   if ($I) {
@@ -155,7 +161,7 @@ sub emit_all {
 #            croak Dumper($stref->{Subroutines}{press}{RefactoredCode}) if $src=~/press/;
         	show_annlines($stref->{'RefactoredCode'}{$src},0);
         } else {
-			open my $TGT, '>', "$targetdir/$nsrc" or die $!."$targetdir/$nsrc";
+			open my $TGT, '>', "$targetdir/$nsrc" or die $!.": $targetdir/$nsrc";
 			
 			my $mod_lines = $stref->{'RefactoredCode'}{$src};
 			

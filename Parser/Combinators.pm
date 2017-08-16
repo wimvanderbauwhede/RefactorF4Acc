@@ -2,6 +2,8 @@ package Parser::Combinators;
 
 use strict;
 use v5.10;
+
+use Carp qw( carp croak );
 #
 #   (c) 2010-2017 Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
 #
@@ -961,7 +963,12 @@ sub l2m {
 				} elsif ( ref($elt) eq 'ARRAY' ) {
 	
 	#	- if it is an array, descend and return the hash and make sure it gets added as well
+
 					my $mv = l2m( $elt, {} );
+					if (ref($mv) ne 'HASH') {
+						croak(Dumper($elt));
+					}
+					say Dumper($mv);
 					for my $k ( keys %{$mv} ) {
 						$hmap=add_to_map( $hmap, $k, $mv->{$k} );
 					}

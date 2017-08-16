@@ -490,6 +490,7 @@ sub _emit_expression_C {(my $ast, my $expr_str, my $stref, my $f)=@_;
 				# The (float) cast is necessary because otherwise I get an "ambiguous" error
 				$mvar=~s/^(abs|min|max)$/(float)f$1/;
 				$mvar=~s/^am(ax|in)1$/(float)fm$1/;				
+				$mvar=~s/^alog$/(float)log/;				
 				$expr_str.=$mvar.'(';
 				
 				 $stref->{'CalledSub'}= $mvar;
