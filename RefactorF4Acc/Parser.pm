@@ -410,6 +410,7 @@ sub _analyse_lines {
 		my $case_counter     = 0;
 		my $block_nest_counter = 0;
 		my $block_counter = 0;
+		my $current_block={};
 		my %block_id = ();
 		my @blocks_stack=();
 		my %extra_lines=(); # $index => [ ... ]
@@ -461,7 +462,9 @@ sub _analyse_lines {
 				my $block_type=$1;
 				++$block_nest_counter;
 				++$block_counter;
-				$block_id{$block_counter}={'Nest'=>$block_nest_counter, 'Type' => $block_type};
+				my $block = {'Nest'=>$block_nest_counter, 'Type' => $block_type, 'LineID' => $index, 'InBlock' => $current_block };
+				$block_id{$block_counter}=$block;
+				$current_block=$block;
 				push @blocks_stack,$block_id{$block_counter}; 
 				$info->{ucfirst($block_type)}=1;
 				say $lline. "\t\tPUSH $block_nest_counter " if $in_excluded_block and $DBG;
@@ -470,7 +473,7 @@ sub _analyse_lines {
 			$line=~/^if.*?then\s*$/ && do {				
 				++$block_nest_counter;
 				++$block_counter;				
-				my $block={'Nest'=>$block_nest_counter, 'Type' => 'if'};
+				my $block={'Nest'=>$block_nest_counter, 'Type' => 'if', 'LineID' => $index, 'InBlock' => $current_block };
 				if ($line=~/if\s*\(\s*0\s*\)/) {
 					$in_excluded_block=1;
 					$excluded_block=$block_nest_counter;
@@ -478,22 +481,25 @@ sub _analyse_lines {
 				}
 				
 				$info->{'Block'}= $block;
+				$current_block=$block;
 				push @blocks_stack,$block;
 				say $lline. "\t\tPUSH $block_nest_counter" if $in_excluded_block and $DBG;
 			};	
 			$line=~/^do\s+(\w+)\s+\w+\s*=/ && do {				 
 				++$block_nest_counter;
 				++$block_counter;				
-				my $block={'Nest'=>$block_nest_counter, 'Type' => 'do', 'Label' => $1};
+				my $block={'Nest'=>$block_nest_counter, 'Type' => 'do', 'Label' => $1, 'LineID' => $index, 'InBlock' => $current_block };
 				$info->{'Block'}= $block;
+				$current_block=$block;
 				push @blocks_stack,$block;
 				say $lline. "\t\tPUSH $block_nest_counter" if $in_excluded_block and $DBG;
 			};	
 			$line=~/^do\s+\w+\s*=/ && do {				 
 				++$block_nest_counter;
 				++$block_counter;				
-				my $block={'Nest'=>$block_nest_counter, 'Type' => 'do', 'Label' => ''};
+				my $block={'Nest'=>$block_nest_counter, 'Type' => 'do', 'Label' => '', 'LineID' => $index, 'InBlock' => $current_block };
 				$info->{'Block'}= $block;
+				$current_block=$block;
 				push @blocks_stack,$block;
 				say $lline. "\t\tPUSH $block_nest_counter DO (NO LABEL)" if $in_excluded_block and $DBG;
 			};						
@@ -535,8 +541,9 @@ sub _analyse_lines {
 				++$block_nest_counter;
 				++$block_counter;
 				
-				my $block={'Nest'=>$block_nest_counter, 'Type' => $proc_type, 'Name'=>$proc_name};
+				my $block={'Nest'=>$block_nest_counter, 'Type' => $proc_type, 'Name'=>$proc_name, 'LineID' => $index, 'InBlock' => $current_block };
 				$info->{'Block'}= $block;
+				$current_block=$block;
 				push @blocks_stack,$block;
 				say $lline. "\t\tPUSH $block_nest_counter" if $in_excluded_block and $DBG;
 			};
@@ -547,6 +554,7 @@ sub _analyse_lines {
 				my $block = pop @blocks_stack;
 				say $lline. "\t\tPOP $block_nest_counter ".uc($block->{'Type'})  if $in_excluded_block and $DBG;
 				$info->{'Block'}= $block;
+				$current_block=$block;
 				--$block_nest_counter;
 #				croak Dumper($block) if $line=~/endif/ and ;
 				if (defined $block and exists $block->{'Nest'} and $block->{'Nest'} == $excluded_block and $in_excluded_block==1) {
@@ -569,6 +577,7 @@ sub _analyse_lines {
 					if ($cont_label eq $do_label) {
 #						say "\t" x $block_nest_counter,"END for block #$block_counter, NEST:".$block->{'Nest'}.' CONTINUE'." LABEL: ".$do_label;
 						$info->{'Block'}= $block;
+						$current_block=$block;
 						$info->{'EndControl'}= 1;				 
 						--$block_nest_counter;
 					} else {
@@ -1248,7 +1257,10 @@ END IF
 					$info = _parse_assignment( $mline, $info, $stref, $f );
 			}
 			}
-
+			
+			if (not exists $info->{'Block'}) {
+				$info->{'Block'}=$current_block;
+			}
 			$srcref->[$index] = [ $lline, $info ];
 } else {
 	# Comment out the code shielded with if (0) then ... endif 
