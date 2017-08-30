@@ -980,10 +980,10 @@ VIRTUAL
 						'While' =>1,
 						'Iterator' => '',
 						'Label'    => $label,
-							'ExpressionsAst' => $ast,
+						'ExpressionsAst' => $ast,
 						'Range'    => {	
 							'Vars'        => $vars,
-						},
+							},
 						'LineID' => $info->{'LineID'}
 					};
 				} else {
