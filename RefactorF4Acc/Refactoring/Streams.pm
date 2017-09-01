@@ -177,9 +177,6 @@ sub _rename_array_accesses_to_scalars { (my $stref, my $f) = @_;
 				 } else {
 				 	$info->{'Rhs'}{'VarList'}={'List'=>[],'Set'=>{}};
 				 }
-#				croak Dumper($info->{'Rhs'}{'VarList'})."\n\n".Dumper($ast) if $line=~/etan.*huw/;
-#=> {'List' => ['eta','huw','hvn','j','hvs','dt','dy','k','_OPEN_PAR_','dx','hue']
-#	,'Set' => {'huw' => {'Type' => 'Scalar'}				 
 			}
 			if ($info->{'Lhs'}{'ArrayOrScalar'} eq 'Array') {
 				# Rename all array accesses in the LHS AST. This updates $state->{'StreamVars'}

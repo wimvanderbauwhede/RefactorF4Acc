@@ -16,6 +16,7 @@ use RefactorF4Acc::Refactoring::Streams qw( pass_rename_array_accesses_to_scalar
 use RefactorF4Acc::Parser::Expressions qw(parse_expression emit_expression get_vars_from_expression);
 #use RefactorF4Acc::OpenCLTranslation qw( translate_to_OpenCL );
 use RefactorF4Acc::CTranslation qw( translate_module_to_C );
+use RefactorF4Acc::Analysis::IdentifyStencils qw( pass_identify_stencils );
 
 use vars qw( $VERSION );
 $VERSION = "1.0.0";
@@ -42,7 +43,10 @@ use Exporter;
 sub refactor_all {
 	( my $stref, my $code_unit_name, my $pass) = @_;
 	my $sub_or_func_or_mod = sub_func_incl_mod( $code_unit_name, $stref );
-	
+
+	if ($pass =~/identify_stencils/) {
+		$stref = pass_identify_stencils($stref);				
+	}	
 	if ($pass =~/rename_array_accesses_to_scalars/) {
 		$stref = pass_rename_array_accesses_to_scalars($stref);				
 	}
