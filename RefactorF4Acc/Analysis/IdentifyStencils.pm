@@ -43,6 +43,117 @@ use Exporter;
 &pass_identify_stencils
 );
 
+
+=info20170903
+What we have now is for every array used in a subroutine, a set of all stencils with an indication if an access is constant or an offset from a given iterator.
+
+Now we have two use cases, one is OpenCL pipes and the other is TyTraCL
+For the stencils where all accesses use an iterator we have
+
+vs = stencil patt v
+v' = map f vs
+
+There are two other main use cases
+
+1/ LHS and RHS are both partial, i.e. one or more index is constant.
+We can check this by comparing the Read and Write arrays. For TyTraCL I think we want to generate code that will apply the map to the accessed ranges and keep the old values for the rest.
+But I think this still means we have to buffer: if e.g. we have
+
+v(0)=v(10)
+v(1) .. v(8) unchanged
+v(9)=v(1)
+v(10) unchanged
+
+then we need to construct a stream which reorders, so we'll have to buffer the stream until in this example we reach 10. That is not hard.
+ Furthermore, we need to write the partial ranges out to this stream in order of access. 
+ As the stream is characterised by offsets, ranges and constants, this should be possible, but it is not trivial!
+ 
+ For example
+ 
+              u(ip,j,k) = u(ip,j,k)-dt*uout *(u(ip,j,k)-u(ip-1,j,k))/dxs(ip)
+              v(ip+1,j,k) = v(ip+1,j,k)-dt*uout *(v(ip+1,j,k)-v(ip,j,k))/dxs(ip)
+              w(ip+1,j,k) = w(ip+1,j,k)-dt*uout *(w(ip+1,j,k)-w(ip,j,k))/dxs(ip)   
+
+so we have 
+u
+Write: [?,j,k] => [ip,0,0]
+Read: [?,j,k] => [ip,0,0],[ip-1,0,0]
+
+and
+i: 0 :(ip + 1)
+j: -1:(jp + 1)
+k: 0 :(kp + 1)
+
+So 
+if (i==ip) then
+	! apply the old code, but a stream - scalar value of it	
+	u(ip,j,k) = u(ip,j,k)-dt*uout *(u(ip,j,k)-u(ip-1,j,k))/dxs(ip)	
+else
+	! keep the old value
+	u(i,j,k) = u(i,j,k)
+end if
+
+So I guess what we do is, we create a tuple:
+
+u_ip_j_k, u_ipm1_j_k, u_i_j_k
+
+To do so, we need to identify the buffer, i.e. points within the range
+i: ip, ip-1 => this is a 2-point stencil  
+j: -1:(jp + 1)
+k: 0 :(kp + 1)
+
+Actually, by far the easiest solution would be to create this buffer and access it in non-streaming fashion. 
+The key problem however is that the rest of the stream can't be buffered in the meanwhile.
+
+2/ LHS is full and RHS is partial, i.e. one or more index is constant on RHS. This means we need to replicate the accesses. But in fact, random access as in case 1/ is probably best.
+
+In both cases, we need to express this someway in TyTraCL, and I think I will use `select` and `replicate` to do this.
+
+The unsolved question here is: if I do a "select"  I get a smaller 1-D list. So in case 1/ I apply this list to a part of the original list, but the question is: which part?
+To give a simple example on a 4x4 array I select a column
+[0,4,8,12] and I want to apply this to either to the bottom row [12,13,14,15] or the 2nd col [1,5,9,13] of the original list.
+We could do this via an operation `insert` 
+
+	insert target_pattern small_list target_list
+	
+Question is then where we get the target pattern, but I guess a start/stop/step should do:
+
+for i in [0 .. 3]
+	v1[i+12] = v_small[i]
+	v2[i*4+1] = v_small[i]	
+end
+ 
+This means for the select we had the opposite:
+
+for i in [0 .. 3]
+	v_small[i] = v[i*4+0]	  
+end
+
+Finally I am a bit unsure about replication because I have a feeling that there might be cases where we need to interleave, i.e. for example rather than creating
+
+[0,4,8,12,0,4,8,12,0,4,8,12,...]
+
+we have to create
+
+[0,0,0,...,4,4,4,...,8,8,8,...,12,12,12,...]
+
+
+A possible simplifying case is by applying replicate on a by-elt basis:
+
+replicate v n 
+map (\elt -> replicate elt n) v
+
+This could be good enough, but I need to work out how it relates to the actual assignement pattern.
+
+for i in ...
+	for j in ...
+		for k in ...
+			v(i,j,k) = v(a_i*i+b_i, a_j*j+b_j,k_const) 
+
+
+=cut
+
+
 =info
 Pass to determine stencils in map/reduce subroutines
 Because of their nature we don't even need to analyse loops: the loop variables and bounds have already been determined.
@@ -73,7 +184,7 @@ sub pass_identify_stencils {(my $stref)=@_;
 }
 
 sub _identify_array_accesses_in_exprs { (my $stref, my $f) = @_;
-
+if ($f!~/superkernel/) {
 	my $pass_identify_array_accesses_in_exprs = sub { (my $annline, my $state)=@_;
 		(my $line,my $info)=@{$annline};
 		if ( exists $info->{'Signature'} ) {
@@ -84,17 +195,22 @@ sub _identify_array_accesses_in_exprs { (my $stref, my $f) = @_;
 #			die if  $subname  eq 'bondv1_map_107';
 		}
 		if (exists $info->{'Assignment'} ) {
+			if ($info->{'Lhs'}{'ArrayOrScalar'} eq 'Scalar' and $info->{'Lhs'}{'VarName'} =~/^(\w+)_rel/) {
+				my $loop_iter=$1;
+				$state->{'Subroutines'}{ $state->{'CurrentSub'} }{'LoopIters'}{$loop_iter}={'Range' => 0};
+			}
 			if ($info->{'Lhs'}{'ArrayOrScalar'} eq 'Scalar' and $info->{'Lhs'}{'VarName'} =~/^(\w+)_range/) {
 				my $loop_iter=$1;
 				 
 				my $expr_str = emit_expression($info->{'Rhs'}{'ExpressionAST'},'');
 				my $loop_range = eval($expr_str);
 				$state->{'Subroutines'}{ $state->{'CurrentSub'} }{'LoopIters'}{$loop_iter}={'Range' => $loop_range};
-				say "$loop_iter: $loop_range";
+#				say "$loop_iter: $loop_range";
 					
 			} else {				
-				# Find all array accesses in the RHS AST.
-				(my $ast, $state) = _find_array_access_in_ast($stref, $f,  $state, $info->{'Rhs'}{'ExpressionAST'});
+				# Find all array accesses in the LHS and RHS AST.
+				(my $rhs_ast, $state) = _find_array_access_in_ast($stref, $f,  $state, $info->{'Rhs'}{'ExpressionAST'},'Read');
+				(my $lhs_ast, $state) = _find_array_access_in_ast($stref, $f,  $state, $info->{'Lhs'}{'ExpressionAST'},'Write');
 			}			
 			
 						
@@ -127,6 +243,7 @@ sub _identify_array_accesses_in_exprs { (my $stref, my $f) = @_;
 	my $state = {'CurrentSub'=>'', 'Subroutines'=>{}};
  	($stref,$state) = stateful_pass($stref,$f,$pass_identify_array_accesses_in_exprs, $state,'pass_identify_array_accesses_in_exprs ' . __LINE__  ) ;
  	say Dumper($state->{'Subroutines'});
+}
  	return $stref;	
 } # END of _identify_array_accesses_in_exprs()
 
@@ -204,13 +321,13 @@ v => { i => {offset, used}, j => ... }
 
 =cut
 # ============================================================================================================
-sub _find_array_access_in_ast { (my $stref, my $f,  my $state, my $ast)=@_;
+sub _find_array_access_in_ast { (my $stref, my $f,  my $state, my $ast, my $rw)=@_;
 	if (ref($ast) eq 'ARRAY') {
 		for my  $idx (0 .. scalar @{$ast}-1) {		
 			my $entry = $ast->[$idx];
 	
 			if (ref($entry) eq 'ARRAY') {
-				(my $entry, $state) = _find_array_access_in_ast($stref,$f, $state,$entry);
+				(my $entry, $state) = _find_array_access_in_ast($stref,$f, $state,$entry, $rw);
 				$ast->[$idx] = $entry;
 			} else {
 				if ($entry eq '@') {				
@@ -218,8 +335,37 @@ sub _find_array_access_in_ast { (my $stref, my $f,  my $state, my $ast)=@_;
 					if ($mvar ne '_OPEN_PAR_') {
 						
 						my $expr_str = emit_expression($ast,'');
-						say '  '.$expr_str;#."\n"  . Dumper($ast);
-						$state = determine_stencil_from_access($stref,$ast, $state);
+						say '  '.$expr_str;
+#						$state = determine_stencil_from_access($stref,$ast, $state);
+						$state = _find_iters_in_array_idx_expr($stref,$ast, $state,$rw);
+						say Dumper($state);
+						my $array_var = $ast->[1];
+						if ($array_var =~/(glob|loc)al_/) { return ($ast,$state); }
+#						# First we compute the offset
+						(my $ast0,$state ) = _replace_consts_in_ast($stref,$ast, $state,0);
+						my @ast_a0 = @{$ast0};						
+						my @idx_args0 = @ast_a0[2 .. $#ast_a0]; 
+						my @ast_exprs0 = map { emit_expression($_,'') } @idx_args0;
+						my @ast_vals0 = map { eval($_) } @ast_exprs0;
+						# Then we compute the multipliers (for proper stencils these are 1 but for the more general case e.g. copying a plane of a cube it can be different.
+						(my $ast1,$state ) = _replace_consts_in_ast($stref,$ast, $state,1);
+						my @ast_a1 = @{$ast1};
+						my $array_var1 = $ast1->[1];
+						my @idx_args1 = @ast_a1[2 .. $#ast_a1]; 
+						my @ast_exprs1 = map { emit_expression($_,'') } @idx_args1;
+						my @ast_vals1 = map { eval($_) } @ast_exprs1;
+						
+						my @iters = @{$state->{'Subroutines'}{ $state->{'CurrentSub'} }{'Arrays'}{$array_var}{$rw}{'Iterators'}};
+						say Dumper(@iters,$ast);
+						my $iter_val_pairs=[];						
+						for my $idx (0 .. @iters-1) {
+							my $offset_val=$ast_vals0[$idx];
+							my $mult_val=$ast_vals1[$idx]-$offset_val;
+							push @{$iter_val_pairs}, {$iters[$idx] => [$mult_val,$offset_val]};
+						}   
+						$state->{'Subroutines'}{ $state->{'CurrentSub'} }{'Arrays'}{$array_var}{$rw}{'Stencils'}{ join(',', @ast_vals0) } = $iter_val_pairs;#[[@iters],[@ast_vals]];
+#						say '    '.join(',',@ast_exprs).'  => '.join(',',@ast_vals);
+#						say '    '.join(',',@ast_vals); 
 						last;
 					}
 				} 
@@ -350,7 +496,7 @@ So I need to be able to distinguish constant access from iterator access. Once t
 But suppose something like u(i,j,k) = u(1,j,k)+u(i,1,k) then thar results in ((1,const),(0,j),(0,k)) and ((0,i),(1,const),(0,k))
 That is OK: the necessary information is there.
 So in short: per index: 
-- find iters, if not set to ''
+- find iters, if not set to '' => is this per sub or per expr? Let's start per expr.
 - replace iter with 0 and consts with their values
 - eval the expr and use as offset
 
@@ -358,29 +504,61 @@ So in short: per index:
 =cut
 
 # We replace LoopIters with 0 and Parameters with their values.
-sub _replace_consts_in_ast { (my $stref, my $f,  my $state, my $ast)=@_;
+# Apply to RHS of assignments
+sub _replace_consts_in_ast { (my $stref,  my $ast, my $state, my $const)=@_;
+	my $f = $state->{'CurrentSub'};
+#	say '_replace_consts_in_ast'; 
+#	say Dumper($ast);
 	if (ref($ast) eq 'ARRAY') {
-		for my  $idx (0 .. scalar @{$ast}-1) {		
-			my $entry = $ast->[$idx];
-	
+		for my  $idx (0 .. scalar @{$ast}-1) {								
+			my $entry = $ast->[$idx];	
+			
 			if (ref($entry) eq 'ARRAY') {
-				(my $entry, $state) = _replace_consts_in_ast($stref,$f, $state,$entry);
-				$ast->[$idx] = $entry;
+				(my $entry2, $state) = _replace_consts_in_ast($stref, $entry, $state,$const);
+				$ast->[$idx] = $entry2;
 			} else {
 				if ($entry eq '$') {				
 					my $mvar = $ast->[$idx+1];					
-					if (exists $state->{'Subroutines'}{ $state->{'CurrentSub'} }{'LoopIters'}{ $mvar }) {
-					$ast='0';
+					if (exists $state->{'Subroutines'}{ $f }{'LoopIters'}{ $mvar }) {
+						$ast=$const;
+						return ($ast,$state);
 					} elsif (in_nested_set($stref->{'Subroutines'}{$f},'Parameters',$mvar)) {				  				
-				  				my $decl = get_var_record_from_set( $stref->{'Subroutines'}{$f}{'Parameters'},$mvar);
-#				  				say "Parameter $parname = ".$decl->{'Val'};
-				  				my $val = $decl->{'Val'};
-				  				$ast=$val;						
-					}					
+		  				my $decl = get_var_record_from_set( $stref->{'Subroutines'}{$f}{'Parameters'},$mvar);
+#				  		say "Parameter $parname = ".$decl->{'Val'};
+		  				my $val = $decl->{'Val'};
+		  				$ast=$val;
+		  				return ($ast,$state);						
+					}	
+									
 				} 
 			}		
 		}
 	}
 	return  ($ast, $state);		
-}
+} # END of _replace_consts_in_ast()
+
+
+sub _find_iters_in_array_idx_expr { (my $stref, my $ast, my $state, my $rw)=@_;
+	my @ast_a = @{$ast};
+	my @args = @ast_a[2 .. $#ast_a]; 
+	my $array_var = $ast_a[1];
+	$state->{'Subroutines'}{ $state->{'CurrentSub'} }{'Arrays'}{$array_var}{$rw}{'Iterators'}=[];
+	for my $idx (0 .. @args-1) {
+		$state->{'Subroutines'}{ $state->{'CurrentSub'} }{'Arrays'}{$array_var}{$rw}{'Iterators'}[$idx]='?';
+  		my $item = $args[$idx];
+  		say "EXPR:".emit_expression($item,'');
+  		my $vars = get_vars_from_expression($item, {});
+  		say 'VARS:'.Dumper($vars);
+  		for my $var (keys %{$vars}) {
+  			if (exists $state->{'Subroutines'}{ $state->{'CurrentSub'} }{'LoopIters'}{ $var }) {
+  				# OK, I found an iterator in this index expression. I boldly assume there is only one.
+  				say "Found iterator $var at index $idx for $array_var access";
+  				$state->{'Subroutines'}{ $state->{'CurrentSub'} }{'Arrays'}{$array_var}{$rw}{'Iterators'}[$idx]=$var;
+  			}
+  		}
+	}
+#	say '    '.'['.join(',', @{ $state->{'Subroutines'}{ $state->{'CurrentSub'} }{'Arrays'}{$array_var}{$rw}{'Iterators'} }).']';
+	return $state;
+} # END of _find_iters_in_array_idx_expr
+
 1;

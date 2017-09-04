@@ -319,8 +319,10 @@ sub _UNUSED_walk_ast { (my $stref, my $f, my $info, my $ast, my $ast_node_action
 } # _UNUSED_walk_ast
 
 sub emit_expression {(my $ast, my $expr_str)=@_;
-	croak 'EMPTY AST' unless @{$ast};
+	
+	
 	if (ref($ast) ne 'ARRAY') {return $ast;}
+	croak 'EMPTY AST' unless @{$ast};
 	my @expr_chunks=();
 	my $skip=0;
 	for my  $idx (0 .. scalar @{$ast}-1) {		
@@ -419,7 +421,14 @@ sub emit_expression {(my $ast, my $expr_str)=@_;
 # All variables in the expression
 # $vars = {} to start
 sub get_vars_from_expression {(my $ast, my $vars)=@_;
-	croak unless ref($ast) eq 'ARRAY';
+#	croak Dumper($ast) unless 
+	if (ref($ast) ne 'ARRAY') {
+		if ($ast=~/([a-z]\w*)/) {
+			my $mvar = $1;
+			$vars->{$mvar}={'Type'=>'Scalar'} ;
+		}
+			return $vars;
+	}
 	for my  $idx (0 .. scalar @{$ast}-1) {		
 		my $entry = $ast->[$idx];
 		if (ref($entry) eq 'ARRAY') {
