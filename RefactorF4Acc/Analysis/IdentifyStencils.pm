@@ -182,6 +182,15 @@ So if we have a combination, then we can do either
 - create a stencil, then select from it
 - create multiple select expressions
 
+My current data structure is array_var => Read|Write => Stencils
+But maybe I need to actually link RHS with LHS?
+One way to do this is by checking for every LHS assignment:
+- what is the Dim?
+- which arrays with the same Dim are used on the RHS?
+Problem is, if the RHS has other vars, they can be indirections for these arrays.
+So we should also look at assignments of arrays to local vars used on the RHS
+SO, if the RHS has a var and this var is not an arg, see if it is used as the LHS of an assignment.
+If so, look at the RHS and identify any args with the right Dim, and do this recursively
 
 
 =cut
@@ -229,8 +238,11 @@ if ($stref->{'Subroutines'}{$f}{'Source'}=~/module_adam_bondv1_feedbf_les_press_
 #			die if  $subname  eq 'bondv1_map_107';
 		}
 		if (exists $info->{'VarDecl'} and not exists $info->{'ParamDecl'} and $line=~/dimension/) { # Lazy
-		 
+		 	
 			my $array_var=$info->{'VarDecl'}{'Name'};
+			
+			
+			
 			my @dims = @{ $info->{'ParsedVarDecl'}{'Attributes'}{'Dim'} };
 			$state->{'Subroutines'}{ $state->{'CurrentSub'} }{'Arrays'}{$array_var}{'Dims'}=[];
 			say @dims;
@@ -316,9 +328,9 @@ if ($stref->{'Subroutines'}{$f}{'Source'}=~/module_adam_bondv1_feedbf_les_press_
  		say "ARRAY <$array_var>";
  		next if not defined  $state->{'Subroutines'}{ $state->{'CurrentSub'} }{'Arrays'}{$array_var}{'Dims'} ;
  		next if scalar @{ $state->{'Subroutines'}{ $state->{'CurrentSub'} }{'Arrays'}{$array_var}{'Dims'} } < 3 ;
- 		for my $rw ('Read','Write') {
- 			 
+ 		for my $rw ('Write','Read') { 			  			
  			if (exists  $state->{'Subroutines'}{ $state->{'CurrentSub'} }{'Arrays'}{$array_var}{$rw} ) {
+ 				# because it could be read-only and even write-only: v = u+w 				
  				my $n_accesses  =scalar keys %{$state->{'Subroutines'}{ $state->{'CurrentSub'} }{'Arrays'}{$array_var}{$rw}{'Stencils'} } ;
  				my @non_zero_offsets = grep { /[^0]/ } keys %{$state->{'Subroutines'}{ $state->{'CurrentSub'} }{'Arrays'}{$array_var}{$rw}{'Stencils'} } ;
  				my $n_nonzeroffsets = scalar  @non_zero_offsets ;
@@ -671,5 +683,49 @@ sub _find_iters_in_array_idx_expr { (my $stref, my $ast, my $state, my $rw)=@_;
 #	say '    '.'['.join(',', @{ $state->{'Subroutines'}{ $state->{'CurrentSub'} }{'Arrays'}{$array_var}{$rw}{'Iterators'} }).']';
 	return $state;
 } # END of _find_iters_in_array_idx_expr
+
+=info
+$assignments = { $var => $assign_expr }
+
+=cut
+
+sub link_writes_to_reads { (my $stref, my $f, my $some_var,my $assignments,my $links)=@_;
+	my $decl = get_var_record_from_set( $stref->{'Subroutines'}{$f}{'Vars'},$some_var);
+	my $lhs_dim = scalar @{ $decl->{'Dim'} };
+	my $rhs = get_rhs($assignments, $some_var);
+	my @vars = get_vars($rhs);
+	for my $var ( @vars ) {
+		if (isArg($stref, $f, $var)) {
+			# look up Dim for $var
+			my $decl = get_var_record_from_set( $stref->{'Subroutines'}{$f}{'Args'},$var);			
+			my $dim = scalar @{ $decl->{'Dim'} };			
+			if ($dim == $lhs_dim) { 
+				$links->{$some_var}{$var}=1;
+			} else {
+			#	this is an arg but it is not the right Dim, so ignore it
+			}
+		} else { # var not arg
+			my $rhs = get_rhs($assignments, $var);
+			my @vars = get_vars($rhs);
+			for my $var (@vars) {		 
+ 				$links=link_writes_to_reads($stref, $f, $some_var,$assignments,$links);
+			}
+		}
+	}
+	return $links;			 				
+} # END of link_writes_to_reads()
+
+sub isArg { (my $stref, my $f, my $array_var)=@_;
+	
+#if (in_nested_set($stref->{'Subroutines'}{$f},'Parameters',$bound_expr_str)) {				  				
+#			  				my $decl = get_var_record_from_set( $stref->{'Subroutines'}{$f}{'Parameters'},$bound_expr_str);
+#			  				$dim_val = $decl->{'Val'};
+#						}	
+	if ( in_nested_set($stref->{'Subroutines'}{$f},'Args',$array_var)) {				  				
+			  				return 1;			  							  	
+			} else {
+				return 0;
+			}
+}
 
 1;
