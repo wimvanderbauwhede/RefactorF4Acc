@@ -34,6 +34,7 @@ use Storable qw( dclone );
 
 use Carp;
 use Data::Dumper;
+use Storable qw( dclone );
 
 use Exporter;
 
@@ -129,26 +130,58 @@ for i in [0 .. 3]
 	v_small[i] = v[i*4+0]	  
 end
 
-Finally I am a bit unsure about replication because I have a feeling that there might be cases where we need to interleave, i.e. for example rather than creating
 
-[0,4,8,12,0,4,8,12,0,4,8,12,...]
-
-we have to create
-
-[0,0,0,...,4,4,4,...,8,8,8,...,12,12,12,...]
+So the question is, how do we express this using `select` ?
 
 
-A possible simplifying case is by applying replicate on a by-elt basis:
+for i in 0 .. im-1
+	for j in 0 .. jm-1
+		for k in 0 .. km-1
+			v(i,j,k) = v(a_i*i+b_i, a_j*j_const+b_j,k)
+			
+Well, it is very easy:
 
-replicate v n 
-map (\elt -> replicate elt n) v
+-- selection can work like this
+select patt v = map (\idx -> v !! idx) patt
 
-This could be good enough, but I need to work out how it relates to the actual assignement pattern.
+v' = select [ i*jm*km+j*km+k_const | i <- [0 .. im-1],  j <- [0 .. jm-1], k <- [0..km-1] ] v
 
-for i in ...
-	for j in ...
-		for k in ...
-			v(i,j,k) = v(a_i*i+b_i, a_j*j+b_j,k_const) 
+Key questions of course are (1) if we can parallelise this, and (2) what the generated code looks like.
+(1) Translates to: given v :: Vec n a -> v" :: Vec m Vec n/m a
+Then what is the definition for select" such that
+
+v"' = select" patt v" 
+
+Is this possible in general? It *should* be possible, because what it means is that we only access the data present in each chunk.
+The problem is that the index pattern is not localised, for example
+
+v_rhs1 = select [ i*jm*km+j*km+k_const | i <- [0 .. im-1],  j <- [0 .. jm-1], k <- [0..km-1] ] v
+v_rhs2 = select [ i*jm*km+j_const*km+k | i <- [0 .. im-1],  j <- [0 .. jm-1], k <- [0..km-1] ] v
+v_rhs3 = select [ i_const*jm*km+j*km+k | i <- [0 .. im-1],  j <- [0 .. jm-1], k <- [0..km-1] ] v
+
+So I guess we need to consider (2), how to generate the most efficient buffer for this.
+
+The most important question to answer is: when is it a stencil, when a select, when both?
+
+#* It is a stencil if:
+if(  
+#- there is more than one access to an array => 
+	scalar keys %{$state->{'Subroutines'}{ $state->{'CurrentSub'} }{'Arrays'}{$array_var}{$rw}{'Stencils'} } > 1 and
+#- at least one of these accesses has a non-zero offset
+	scalar grep { /[^0]/ } keys %{$state->{'Subroutines'}{ $state->{'CurrentSub'} }{'Arrays'}{$array_var}{$rw}{'Stencils'} } > 0 and
+#- all points in the array are processes in order 
+	scalar grep { /\?/ } @{ $state->{'Subroutines'}{ $state->{'CurrentSub'} }{'Arrays'}{$array_var}{$rw}{'Iterators'} } == 0
+	} {
+		say "STENCIL";
+	}
+* It is a select if:
+- not all points in the array are covered, let's say this means we have a '?'
+(this ignores the fact that the bounds might not cover the array!)
+
+So if we have a combination, then we can do either
+- create a stencil, then select from it
+- create multiple select expressions
+
 
 
 =cut
@@ -184,7 +217,8 @@ sub pass_identify_stencils {(my $stref)=@_;
 }
 
 sub _identify_array_accesses_in_exprs { (my $stref, my $f) = @_;
-if ($f!~/superkernel/) {
+if ($stref->{'Subroutines'}{$f}{'Source'}=~/module_adam_bondv1_feedbf_les_press_v_etc_superkernel.f95/ && $f!~/superkernel/) {  
+	say  "Running _identify_array_accesses_in_exprs($f)";
 	my $pass_identify_array_accesses_in_exprs = sub { (my $annline, my $state)=@_;
 		(my $line,my $info)=@{$annline};
 		if ( exists $info->{'Signature'} ) {
@@ -193,6 +227,39 @@ if ($f!~/superkernel/) {
 			$state->{'CurrentSub'}= $subname  ;
 			$state->{'Subroutines'}{$subname }={};
 #			die if  $subname  eq 'bondv1_map_107';
+		}
+		if (exists $info->{'VarDecl'} and not exists $info->{'ParamDecl'} and $line=~/dimension/) { # Lazy
+		 
+			my $array_var=$info->{'VarDecl'}{'Name'};
+			my @dims = @{ $info->{'ParsedVarDecl'}{'Attributes'}{'Dim'} };
+			$state->{'Subroutines'}{ $state->{'CurrentSub'} }{'Arrays'}{$array_var}{'Dims'}=[];
+			say @dims;
+			for my $dim (@dims) {
+				(my $lo, my $hi)=$dim=~/:/ ? split(/:/,$dim) : (1,$dim);
+				my $dim_vals=[];
+				for my $bound_expr_str ($lo,$hi) {
+					my $dim_val=$bound_expr_str;
+					if ($bound_expr_str=~/\W/) {
+						say "$dim => $lo,$hi";
+						my $dim_ast=parse_expression($bound_expr_str,$info, $stref,$f);
+						say 'DIM_AST <'.Dumper($dim_ast).'>';
+						(my $dim_ast2, my $state) = _replace_consts_in_ast($stref,   $dim_ast, {'CurrentSub' =>$f}, 0);
+						my $dim_expr=emit_expression($dim_ast2,'');
+						$dim_val=eval($dim_expr);
+					} else {
+						# It is either a number or a var
+						
+						if (in_nested_set($stref->{'Subroutines'}{$f},'Parameters',$bound_expr_str)) {				  				
+			  				my $decl = get_var_record_from_set( $stref->{'Subroutines'}{$f}{'Parameters'},$bound_expr_str);
+			  				$dim_val = $decl->{'Val'};
+						}
+					}
+					push @{$dim_vals},$dim_val;
+				}
+				push @{ $state->{'Subroutines'}{ $state->{'CurrentSub'} }{'Arrays'}{$array_var}{'Dims'} },$dim_vals;
+#				say "$array_var
+			}
+			
 		}
 		if (exists $info->{'Assignment'} ) {
 			if ($info->{'Lhs'}{'ArrayOrScalar'} eq 'Scalar' and $info->{'Lhs'}{'VarName'} =~/^(\w+)_rel/) {
@@ -242,7 +309,44 @@ if ($f!~/superkernel/) {
 
 	my $state = {'CurrentSub'=>'', 'Subroutines'=>{}};
  	($stref,$state) = stateful_pass($stref,$f,$pass_identify_array_accesses_in_exprs, $state,'pass_identify_array_accesses_in_exprs ' . __LINE__  ) ;
- 	say Dumper($state->{'Subroutines'});
+# 	say Dumper($state->{'Subroutines'});die;
+ 	say "SUB $f\n";
+ 	for my $array_var (keys %{$state->{'Subroutines'}{ $state->{'CurrentSub'} }{'Arrays'}}) {
+ 		next if $array_var =~/^global_|^local_/;
+ 		say "ARRAY <$array_var>";
+ 		next if not defined  $state->{'Subroutines'}{ $state->{'CurrentSub'} }{'Arrays'}{$array_var}{'Dims'} ;
+ 		next if scalar @{ $state->{'Subroutines'}{ $state->{'CurrentSub'} }{'Arrays'}{$array_var}{'Dims'} } < 3 ;
+ 		for my $rw ('Read','Write') {
+ 			 
+ 			if (exists  $state->{'Subroutines'}{ $state->{'CurrentSub'} }{'Arrays'}{$array_var}{$rw} ) {
+ 				my $n_accesses  =scalar keys %{$state->{'Subroutines'}{ $state->{'CurrentSub'} }{'Arrays'}{$array_var}{$rw}{'Stencils'} } ;
+ 				my @non_zero_offsets = grep { /[^0]/ } keys %{$state->{'Subroutines'}{ $state->{'CurrentSub'} }{'Arrays'}{$array_var}{$rw}{'Stencils'} } ;
+ 				my $n_nonzeroffsets = scalar  @non_zero_offsets ;
+ 				my @qms = grep { /\?/ } @{ $state->{'Subroutines'}{ $state->{'CurrentSub'} }{'Arrays'}{$array_var}{$rw}{'Iterators'} };
+ 				my $all_points = scalar @qms == 0;
+ 				say '#ACCESSES: ',$n_accesses;
+ 				say 'NON-0 OFFSETS: ',$n_nonzeroffsets, @non_zero_offsets ;
+ 				say 'ALL POINTS: ',$all_points ? 'YES' : 'NO', @qms;
+#* It is a stencil if:
+if(  $n_accesses > 1
+#- there is more than one access to an array => 
+	 and
+#- at least one of these accesses has a non-zero offset
+	$n_nonzeroffsets > 0 and
+#- all points in the array are processes in order 
+	$all_points
+	) {
+		say "STENCIL for $rw of $array_var";
+	} 
+	
+if (not $all_points) {
+		say "SELECT for $rw of $array_var";
+}	
+		
+ 		}
+ 		}
+ 	}
+ 	
 }
  	return $stref;	
 } # END of _identify_array_accesses_in_exprs()
@@ -342,28 +446,34 @@ sub _find_array_access_in_ast { (my $stref, my $f,  my $state, my $ast, my $rw)=
 						my $array_var = $ast->[1];
 						if ($array_var =~/(glob|loc)al_/) { return ($ast,$state); }
 #						# First we compute the offset
-						(my $ast0,$state ) = _replace_consts_in_ast($stref,$ast, $state,0);
+						say "OFFSET";
+						my $ast0 = dclone($ast); 
+						($ast0,$state ) = _replace_consts_in_ast($stref,$ast0, $state,0);
 						my @ast_a0 = @{$ast0};						
 						my @idx_args0 = @ast_a0[2 .. $#ast_a0]; 
 						my @ast_exprs0 = map { emit_expression($_,'') } @idx_args0;
 						my @ast_vals0 = map { eval($_) } @ast_exprs0;
+						say Dumper($ast0);
 						# Then we compute the multipliers (for proper stencils these are 1 but for the more general case e.g. copying a plane of a cube it can be different.
-						(my $ast1,$state ) = _replace_consts_in_ast($stref,$ast, $state,1);
+						say "MULT";
+						my $ast1 = dclone($ast); 
+						($ast1,$state ) = _replace_consts_in_ast($stref,$ast1, $state,1);
 						my @ast_a1 = @{$ast1};
 						my $array_var1 = $ast1->[1];
 						my @idx_args1 = @ast_a1[2 .. $#ast_a1]; 
 						my @ast_exprs1 = map { emit_expression($_,'') } @idx_args1;
 						my @ast_vals1 = map { eval($_) } @ast_exprs1;
-						
+						say Dumper($ast1);
 						my @iters = @{$state->{'Subroutines'}{ $state->{'CurrentSub'} }{'Arrays'}{$array_var}{$rw}{'Iterators'}};
-						say Dumper(@iters,$ast);
+						say Dumper(@iters);
 						my $iter_val_pairs=[];						
 						for my $idx (0 .. @iters-1) {
 							my $offset_val=$ast_vals0[$idx];
 							my $mult_val=$ast_vals1[$idx]-$offset_val;
 							push @{$iter_val_pairs}, {$iters[$idx] => [$mult_val,$offset_val]};
-						}   
-						$state->{'Subroutines'}{ $state->{'CurrentSub'} }{'Arrays'}{$array_var}{$rw}{'Stencils'}{ join(',', @ast_vals0) } = $iter_val_pairs;#[[@iters],[@ast_vals]];
+						}
+						$state->{'Subroutines'}{ $state->{'CurrentSub'} }{'Arrays'}{$array_var}{$rw}{'Exprs'}{$expr_str}=1;   
+						$state->{'Subroutines'}{ $state->{'CurrentSub'} }{'Arrays'}{$array_var}{$rw}{'Stencils'}{ join('', @ast_vals0) } = $iter_val_pairs;#[[@iters],[@ast_vals]];
 #						say '    '.join(',',@ast_exprs).'  => '.join(',',@ast_vals);
 #						say '    '.join(',',@ast_vals); 
 						last;
@@ -520,7 +630,8 @@ sub _replace_consts_in_ast { (my $stref,  my $ast, my $state, my $const)=@_;
 				if ($entry eq '$') {				
 					my $mvar = $ast->[$idx+1];					
 					if (exists $state->{'Subroutines'}{ $f }{'LoopIters'}{ $mvar }) {
-						$ast=$const;
+						say 'Replacing ['."'".'$'."'".','.$mvar.'] by '.$const;
+						$ast=''.$const.'';
 						return ($ast,$state);
 					} elsif (in_nested_set($stref->{'Subroutines'}{$f},'Parameters',$mvar)) {				  				
 		  				my $decl = get_var_record_from_set( $stref->{'Subroutines'}{$f}{'Parameters'},$mvar);
