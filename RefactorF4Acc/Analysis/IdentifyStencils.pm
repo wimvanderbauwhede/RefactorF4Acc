@@ -226,140 +226,111 @@ sub pass_identify_stencils {(my $stref)=@_;
 }
 
 sub _identify_array_accesses_in_exprs { (my $stref, my $f) = @_;
-if ($stref->{'Subroutines'}{$f}{'Source'}=~/module_adam_bondv1_feedbf_les_press_v_etc_superkernel.f95/ && $f!~/superkernel/) {  
-	say  "Running _identify_array_accesses_in_exprs($f)";
-	my $pass_identify_array_accesses_in_exprs = sub { (my $annline, my $state)=@_;
-		(my $line,my $info)=@{$annline};
-		if ( exists $info->{'Signature'} ) {
-			my $subname =$info->{'Signature'}{'Name'} ; 
-			say  "\n".$subname ;
-			$state->{'CurrentSub'}= $subname  ;
-			$state->{'Subroutines'}{$subname }={};
-#			die if  $subname  eq 'bondv1_map_107';
-		}
-		if (exists $info->{'VarDecl'} and not exists $info->{'ParamDecl'} and $line=~/dimension/) { # Lazy
-		 	
-			my $array_var=$info->{'VarDecl'}{'Name'};
-			
-			
-			
-			my @dims = @{ $info->{'ParsedVarDecl'}{'Attributes'}{'Dim'} };
-			$state->{'Subroutines'}{ $state->{'CurrentSub'} }{'Arrays'}{$array_var}{'Dims'}=[];
-			say @dims;
-			for my $dim (@dims) {
-				(my $lo, my $hi)=$dim=~/:/ ? split(/:/,$dim) : (1,$dim);
-				my $dim_vals=[];
-				for my $bound_expr_str ($lo,$hi) {
-					my $dim_val=$bound_expr_str;
-					if ($bound_expr_str=~/\W/) {
-						say "$dim => $lo,$hi";
-						my $dim_ast=parse_expression($bound_expr_str,$info, $stref,$f);
-						say 'DIM_AST <'.Dumper($dim_ast).'>';
-						(my $dim_ast2, my $state) = _replace_consts_in_ast($stref,   $dim_ast, {'CurrentSub' =>$f}, 0);
-						my $dim_expr=emit_expression($dim_ast2,'');
-						$dim_val=eval($dim_expr);
-					} else {
-						# It is either a number or a var
-						
-						if (in_nested_set($stref->{'Subroutines'}{$f},'Parameters',$bound_expr_str)) {				  				
-			  				my $decl = get_var_record_from_set( $stref->{'Subroutines'}{$f}{'Parameters'},$bound_expr_str);
-			  				$dim_val = $decl->{'Val'};
-						}
-					}
-					push @{$dim_vals},$dim_val;
-				}
-				push @{ $state->{'Subroutines'}{ $state->{'CurrentSub'} }{'Arrays'}{$array_var}{'Dims'} },$dim_vals;
-#				say "$array_var
-			}
-			
-		}
-		if (exists $info->{'Assignment'} ) {
-			if ($info->{'Lhs'}{'ArrayOrScalar'} eq 'Scalar' and $info->{'Lhs'}{'VarName'} =~/^(\w+)_rel/) {
-				my $loop_iter=$1;
-				$state->{'Subroutines'}{ $state->{'CurrentSub'} }{'LoopIters'}{$loop_iter}={'Range' => 0};
-			}
-			if ($info->{'Lhs'}{'ArrayOrScalar'} eq 'Scalar' and $info->{'Lhs'}{'VarName'} =~/^(\w+)_range/) {
-				my $loop_iter=$1;
-				 
-				my $expr_str = emit_expression($info->{'Rhs'}{'ExpressionAST'},'');
-				my $loop_range = eval($expr_str);
-				$state->{'Subroutines'}{ $state->{'CurrentSub'} }{'LoopIters'}{$loop_iter}={'Range' => $loop_range};
-#				say "$loop_iter: $loop_range";
-					
-			} else {				
-				# Find all array accesses in the LHS and RHS AST.
-				(my $rhs_ast, $state) = _find_array_access_in_ast($stref, $f,  $state, $info->{'Rhs'}{'ExpressionAST'},'Read');
-				(my $lhs_ast, $state) = _find_array_access_in_ast($stref, $f,  $state, $info->{'Lhs'}{'ExpressionAST'},'Write');
-			}			
-			
-						
-		} 
-#		if (exists $info->{'If'} ) {					
-#			my $cond_expr_ast = $info->{'CondExecExprAST'};
-#			# Rename all array accesses in the AST. This updates $state->{'StreamVars'}			
-#			(my $ast, $state) = _rename_ast_entry($stref, $f,  $state, $cond_expr_ast, 'In');			
-#			$info->{'CondExecExpr'}=$ast;
-#			for my $var ( @{ $info->{'CondVars'}{'List'} } ) {
-#				next if $var eq '_OPEN_PAR_';
-#				if ($info->{'CondVars'}{'Set'}{$var}{'Type'} eq 'Array' and exists $info->{'CondVars'}{'Set'}{$var}{'IndexVars'}) {					
-#					$state->{'IndexVars'}={ %{ $state->{'IndexVars'} }, %{ $info->{'CondVars'}{'Set'}{$var}{'IndexVars'} } }
-#				}
-#			}
-#				 if (ref($ast) ne '') {
-#				my $vars=get_vars_from_expression($ast,{}) ;
-#
-#				$info->{'CondVars'}{'Set'}=$vars;
-#				$info->{'CondVars'}{'List'}= [ grep {$_ ne 'IndexVars' and $_ ne '_OPEN_PAR_' } sort keys %{$vars} ];
-#				 } else {
-#				 	$info->{'CondVars'}={'List'=>[],'Set'=>{}};
-#				 }
-#			
-#						
-#		}
-		return ([[$line,$info]],$state);
-	};
-
-	my $state = {'CurrentSub'=>'', 'Subroutines'=>{}};
- 	($stref,$state) = stateful_pass($stref,$f,$pass_identify_array_accesses_in_exprs, $state,'pass_identify_array_accesses_in_exprs ' . __LINE__  ) ;
-# 	say Dumper($state->{'Subroutines'});die;
- 	say "SUB $f\n";
- 	for my $array_var (keys %{$state->{'Subroutines'}{ $state->{'CurrentSub'} }{'Arrays'}}) {
- 		next if $array_var =~/^global_|^local_/;
- 		say "ARRAY <$array_var>";
- 		next if not defined  $state->{'Subroutines'}{ $state->{'CurrentSub'} }{'Arrays'}{$array_var}{'Dims'} ;
- 		next if scalar @{ $state->{'Subroutines'}{ $state->{'CurrentSub'} }{'Arrays'}{$array_var}{'Dims'} } < 3 ;
- 		for my $rw ('Write','Read') { 			  			
- 			if (exists  $state->{'Subroutines'}{ $state->{'CurrentSub'} }{'Arrays'}{$array_var}{$rw} ) {
- 				# because it could be read-only and even write-only: v = u+w 				
- 				my $n_accesses  =scalar keys %{$state->{'Subroutines'}{ $state->{'CurrentSub'} }{'Arrays'}{$array_var}{$rw}{'Stencils'} } ;
- 				my @non_zero_offsets = grep { /[^0]/ } keys %{$state->{'Subroutines'}{ $state->{'CurrentSub'} }{'Arrays'}{$array_var}{$rw}{'Stencils'} } ;
- 				my $n_nonzeroffsets = scalar  @non_zero_offsets ;
- 				my @qms = grep { /\?/ } @{ $state->{'Subroutines'}{ $state->{'CurrentSub'} }{'Arrays'}{$array_var}{$rw}{'Iterators'} };
- 				my $all_points = scalar @qms == 0;
- 				say '#ACCESSES: ',$n_accesses;
- 				say 'NON-0 OFFSETS: ',$n_nonzeroffsets, @non_zero_offsets ;
- 				say 'ALL POINTS: ',$all_points ? 'YES' : 'NO', @qms;
-#* It is a stencil if:
-if(  $n_accesses > 1
-#- there is more than one access to an array => 
-	 and
-#- at least one of these accesses has a non-zero offset
-	$n_nonzeroffsets > 0 and
-#- all points in the array are processes in order 
-	$all_points
-	) {
-		say "STENCIL for $rw of $array_var";
-	} 
 	
-if (not $all_points) {
-		say "SELECT for $rw of $array_var";
-}	
+	if ($stref->{'Subroutines'}{$f}{'Source'}=~/module_adam_bondv1_feedbf_les_press_v_etc_superkernel.f95/ && $f!~/superkernel/) {  
+		say  "Running _identify_array_accesses_in_exprs($f)";
+		my $pass_identify_array_accesses_in_exprs = sub { (my $annline, my $state)=@_;
+			(my $line,my $info)=@{$annline};
+			if ( exists $info->{'Signature'} ) {
+				my $subname =$info->{'Signature'}{'Name'} ; 
+				say  "\n".$subname ;
+				$state->{'CurrentSub'}= $subname  ;
+				croak if $subname ne $f;
+				$state->{'Subroutines'}{$subname }={};
+	#			die if  $subname  eq 'bondv1_map_107';
+			}
+			if (exists $info->{'VarDecl'} and not exists $info->{'ParamDecl'} and $line=~/dimension/) { # Lazy
+			 	
+				my $array_var=$info->{'VarDecl'}{'Name'};
+				
+				
+				
+				my @dims = @{ $info->{'ParsedVarDecl'}{'Attributes'}{'Dim'} };
+				$state->{'Subroutines'}{ $state->{'CurrentSub'} }{'Arrays'}{$array_var}{'Dims'}=[];
+				say @dims;
+				for my $dim (@dims) {
+					(my $lo, my $hi)=$dim=~/:/ ? split(/:/,$dim) : (1,$dim);
+					my $dim_vals=[];
+					for my $bound_expr_str ($lo,$hi) {
+						my $dim_val=$bound_expr_str;
+						if ($bound_expr_str=~/\W/) {
+							say "$dim => $lo,$hi";
+							my $dim_ast=parse_expression($bound_expr_str,$info, $stref,$f);
+							say 'DIM_AST <'.Dumper($dim_ast).'>';
+							(my $dim_ast2, my $state) = _replace_consts_in_ast($stref,   $dim_ast, {'CurrentSub' =>$f}, 0);
+							my $dim_expr=emit_expression($dim_ast2,'');
+							$dim_val=eval($dim_expr);
+						} else {
+							# It is either a number or a var
+							
+							if (in_nested_set($stref->{'Subroutines'}{$f},'Parameters',$bound_expr_str)) {				  				
+				  				my $decl = get_var_record_from_set( $stref->{'Subroutines'}{$f}{'Parameters'},$bound_expr_str);
+				  				$dim_val = $decl->{'Val'};
+							}
+						}
+						push @{$dim_vals},$dim_val;
+					}
+					push @{ $state->{'Subroutines'}{ $state->{'CurrentSub'} }{'Arrays'}{$array_var}{'Dims'} },$dim_vals;
+	#				say "$array_var
+				}
+				
+			}
+			if (exists $info->{'Assignment'} ) {
+				
+				if ($info->{'Lhs'}{'ArrayOrScalar'} eq 'Scalar' and $info->{'Lhs'}{'VarName'} =~/^(\w+)_rel/) {
+					my $loop_iter=$1;
+					$state->{'Subroutines'}{ $state->{'CurrentSub'} }{'LoopIters'}{$loop_iter}={'Range' => 0};
+				}
+				if ($info->{'Lhs'}{'ArrayOrScalar'} eq 'Scalar' and $info->{'Lhs'}{'VarName'} =~/^(\w+)_range/) {
+					my $loop_iter=$1;
+					 
+					my $expr_str = emit_expression($info->{'Rhs'}{'ExpressionAST'},'');
+					my $loop_range = eval($expr_str);
+					$state->{'Subroutines'}{ $state->{'CurrentSub'} }{'LoopIters'}{$loop_iter}={'Range' => $loop_range};
+	#				say "$loop_iter: $loop_range";
+						
+				} else {				
+					# Find all array accesses in the LHS and RHS AST.
+					(my $rhs_ast, $state) = _find_array_access_in_ast($stref, $f,  $state, $info->{'Rhs'}{'ExpressionAST'},'Read');
+					(my $lhs_ast, $state) = _find_array_access_in_ast($stref, $f,  $state, $info->{'Lhs'}{'ExpressionAST'},'Write');
+				}			
+				my $var_name = $info->{'Lhs'}{'VarName'};
+				$state->{'Subroutines'}{ $state->{'CurrentSub'} }{'Assignments'}{$var_name} = $info->{'Rhs'}{'ExpressionAST'};							
+			} 
+	#		if (exists $info->{'If'} ) {					
+	#			my $cond_expr_ast = $info->{'CondExecExprAST'};
+	#			# Rename all array accesses in the AST. This updates $state->{'StreamVars'}			
+	#			(my $ast, $state) = _rename_ast_entry($stref, $f,  $state, $cond_expr_ast, 'In');			
+	#			$info->{'CondExecExpr'}=$ast;
+	#			for my $var ( @{ $info->{'CondVars'}{'List'} } ) {
+	#				next if $var eq '_OPEN_PAR_';
+	#				if ($info->{'CondVars'}{'Set'}{$var}{'Type'} eq 'Array' and exists $info->{'CondVars'}{'Set'}{$var}{'IndexVars'}) {					
+	#					$state->{'IndexVars'}={ %{ $state->{'IndexVars'} }, %{ $info->{'CondVars'}{'Set'}{$var}{'IndexVars'} } }
+	#				}
+	#			}
+	#				 if (ref($ast) ne '') {
+	#				my $vars=get_vars_from_expression($ast,{}) ;
+	#
+	#				$info->{'CondVars'}{'Set'}=$vars;
+	#				$info->{'CondVars'}{'List'}= [ grep {$_ ne 'IndexVars' and $_ ne '_OPEN_PAR_' } sort keys %{$vars} ];
+	#				 } else {
+	#				 	$info->{'CondVars'}={'List'=>[],'Set'=>{}};
+	#				 }
+	#			
+	#						
+	#		}
+			return ([[$line,$info]],$state);
+		};
+	
+		my $state = {'CurrentSub'=>'', 'Subroutines'=>{}};
+	 	($stref,$state) = stateful_pass($stref,$f,$pass_identify_array_accesses_in_exprs, $state,'pass_identify_array_accesses_in_exprs ' . __LINE__  ) ;
+	# 	say Dumper($state->{'Subroutines'});die;
+		my $state2 = link_writes_to_reads( $stref, $f, $state);
+		say "LINKS:".Dumper($state->{'Subroutines'}{$f}{'Links'});
+
+		classify_accesses($stref, $f, $state);
 		
- 		}
- 		}
- 	}
- 	
-}
+	} # if subkernel not superkernel
  	return $stref;	
 } # END of _identify_array_accesses_in_exprs()
 
@@ -685,35 +656,67 @@ sub _find_iters_in_array_idx_expr { (my $stref, my $ast, my $state, my $rw)=@_;
 } # END of _find_iters_in_array_idx_expr
 
 =info
-$assignments = { $var => $assign_expr }
+So first we need to gather all assignments in the subroutine, i.e. in a separate, trivial pass
+I think I'll put this in the $state as 'Assignments'}
+
+	$assignments = { $var => $assign_expr }
+	
+The links table starts out empty:
+
+	$links = {}	
 
 =cut
 
-sub link_writes_to_reads { (my $stref, my $f, my $some_var,my $assignments,my $links)=@_;
-	my $decl = get_var_record_from_set( $stref->{'Subroutines'}{$f}{'Vars'},$some_var);
-	my $lhs_dim = scalar @{ $decl->{'Dim'} };
-	my $rhs = get_rhs($assignments, $some_var);
-	my @vars = get_vars($rhs);
-	for my $var ( @vars ) {
-		if (isArg($stref, $f, $var)) {
-			# look up Dim for $var
-			my $decl = get_var_record_from_set( $stref->{'Subroutines'}{$f}{'Args'},$var);			
-			my $dim = scalar @{ $decl->{'Dim'} };			
-			if ($dim == $lhs_dim) { 
-				$links->{$some_var}{$var}=1;
-			} else {
-			#	this is an arg but it is not the right Dim, so ignore it
-			}
-		} else { # var not arg
-			my $rhs = get_rhs($assignments, $var);
-			my @vars = get_vars($rhs);
-			for my $var (@vars) {		 
- 				$links=link_writes_to_reads($stref, $f, $some_var,$assignments,$links);
+sub link_writes_to_reads {(my $stref, my $f, my $state)=@_;
+	say "SUB $f";
+	my $links={};
+	my $assignments = $state->{'Subroutines'}{$f}{'Assignments'};
+	# So we have to establish the link for every variable that is a multi-dim (effectively 3-D) array argument
+	for my $some_var ( sort keys %{ $assignments }  ) {
+		say "LHS_VAR $some_var";
+		$links = _link_writes_to_reads($stref, $f, $some_var,$assignments,$links);
+	}
+	$state->{'Subroutines'}{$f}{'Links'}=$links;
+	return $state;			 				
+} # END of link_writes_to_reads()
+
+sub _link_writes_to_reads {(my $stref, my $f, my $some_var, my $assignments,my  $links)=@_;
+ 		my $decl = get_var_record_from_set( $stref->{'Subroutines'}{$f}{'Vars'},$some_var);
+		my $lhs_dim = scalar @{ $decl->{'Dim'} };
+		if (exists $assignments->{$some_var} ) {
+		my $rhs = $assignments->{$some_var};
+		say Dumper($rhs); 
+		my $vars = get_vars_from_expression($rhs,{});
+		for my $var ( keys %{$vars} ) {
+			next if exists $links->{$some_var}{$var};
+			next if $var eq $some_var;
+			if (isArg($stref, $f, $var)) {
+				# look up Dim for $var
+				my $decl = get_var_record_from_set( $stref->{'Subroutines'}{$f}{'Args'},$var);			
+				my $dim = scalar @{ $decl->{'Dim'} };			
+				if ($dim == $lhs_dim) { 
+					say "LINK $some_var => $var";
+					$links->{$some_var}{$var}=1;
+				} else {
+				#	this is an arg but it is not the right Dim, so ignore it
+				}
+			} else { # var not arg
+			say "VAR $var IS NOT ARG";
+				if (exists $assignments->{$var} ) {
+				my $non_arg_rhs = $assignments->{$var};
+				say Dumper($non_arg_rhs);
+				my $rhs_vars = get_vars_from_expression($non_arg_rhs,{});
+				for my $rhs_var (keys %{$rhs_vars}) {	
+					say "VAR in RHS of NON-ARG assignment for $var: $rhs_var";	 
+					next if $var eq $rhs_var;
+	 				$links=_link_writes_to_reads($stref, $f, $rhs_var,$assignments,$links);
+				}
+				}
 			}
 		}
-	}
-	return $links;			 				
-} # END of link_writes_to_reads()
+		}
+ 		return $links;
+}
 
 sub isArg { (my $stref, my $f, my $array_var)=@_;
 	
@@ -726,6 +729,44 @@ sub isArg { (my $stref, my $f, my $array_var)=@_;
 			} else {
 				return 0;
 			}
+}
+
+sub classify_accesses { (my $stref, my $f, my $state) =@_;
+ 	say "SUB $f\n";
+ 	for my $array_var (keys %{$state->{'Subroutines'}{ $state->{'CurrentSub'} }{'Arrays'}}) {
+ 		next if $array_var =~/^global_|^local_/;
+ 		say "ARRAY <$array_var>";
+ 		next if not defined  $state->{'Subroutines'}{ $state->{'CurrentSub'} }{'Arrays'}{$array_var}{'Dims'} ;
+ 		next if scalar @{ $state->{'Subroutines'}{ $state->{'CurrentSub'} }{'Arrays'}{$array_var}{'Dims'} } < 3 ;
+ 		for my $rw ('Write','Read') { 			  			
+ 			if (exists  $state->{'Subroutines'}{ $state->{'CurrentSub'} }{'Arrays'}{$array_var}{$rw} ) {
+ 				# because it could be read-only and even write-only: v = u+w 				
+ 				my $n_accesses  =scalar keys %{$state->{'Subroutines'}{ $state->{'CurrentSub'} }{'Arrays'}{$array_var}{$rw}{'Stencils'} } ;
+ 				my @non_zero_offsets = grep { /[^0]/ } keys %{$state->{'Subroutines'}{ $state->{'CurrentSub'} }{'Arrays'}{$array_var}{$rw}{'Stencils'} } ;
+ 				my $n_nonzeroffsets = scalar  @non_zero_offsets ;
+ 				my @qms = grep { /\?/ } @{ $state->{'Subroutines'}{ $state->{'CurrentSub'} }{'Arrays'}{$array_var}{$rw}{'Iterators'} };
+ 				my $all_points = scalar @qms == 0;
+ 				say '#ACCESSES: ',$n_accesses;
+ 				say 'NON-0 OFFSETS: ',$n_nonzeroffsets, @non_zero_offsets ;
+ 				say 'ALL POINTS: ',$all_points ? 'YES' : 'NO', @qms;
+				#* It is a stencil if:
+				if(  $n_accesses > 1
+				#- there is more than one access to an array => 
+					 and
+				#- at least one of these accesses has a non-zero offset
+					$n_nonzeroffsets > 0 and
+				#- all points in the array are processes in order 
+					$all_points
+					) {
+						say "STENCIL for $rw of $array_var";
+					} 
+					
+				if (not $all_points) {
+						say "SELECT for $rw of $array_var";
+				}							
+			}
+		}
+	} 	
 }
 
 1;
