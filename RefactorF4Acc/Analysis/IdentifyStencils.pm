@@ -235,7 +235,7 @@ sub _identify_array_accesses_in_exprs { (my $stref, my $f) = @_;
 			 	
 				my $array_var=$info->{'VarDecl'}{'Name'};
 				
-				die Dumper($annline) if $array_var eq 'zbm';
+#				die Dumper($annline) if $array_var eq 'zbm';
 				
 				my @dims = @{ $info->{'ParsedVarDecl'}{'Attributes'}{'Dim'} };
 				$state->{'Subroutines'}{ $f }{'Arrays'}{$array_var}{'Dims'}=[];
@@ -248,15 +248,27 @@ sub _identify_array_accesses_in_exprs { (my $stref, my $f) = @_;
 						if ($bound_expr_str=~/\W/) {
 #							say "$dim => $lo,$hi";
 							my $dim_ast=parse_expression($bound_expr_str,$info, $stref,$f);
-#							say 'DIM_AST <'.Dumper($dim_ast).'>';
-							(my $dim_ast2, my $state) = _replace_consts_in_ast($stref, $f,  $dim_ast, {'CurrentSub' =>$f}, 0);
+							
+				  			my $dim_ast2 = _replace_param_by_val($stref, $f, $dim_ast);
+#							say Dumper($dim_ast);
+#							say 'DIM_AST <'.Dumper($dim_ast2).'>';
+#							(my $dim_ast2, my $state) = _replace_consts_in_ast($stref, $f,  $dim_ast, {'CurrentSub' =>$f}, 0);
 							my $dim_expr=emit_expression($dim_ast2,'');
 							$dim_val=eval($dim_expr);
 						} else {
 							# It is either a number or a var
 							if (in_nested_set($stref->{'Subroutines'}{$f},'Parameters',$bound_expr_str)) {				  				
 				  				my $decl = get_var_record_from_set( $stref->{'Subroutines'}{$f}{'Parameters'},$bound_expr_str);
-				  				$dim_val = $decl->{'Val'};
+				  				my $dim_val = $decl->{'Val'};
+				  				my $dim_ast=parse_expression($bound_expr_str,$info, $stref,$f);
+#				  				$dim_ast = _replace_param_by_val($stref, $f, $dim_ast);
+				  			my $dim_ast2 = _replace_param_by_val($stref, $f, $dim_ast);
+#							say Dumper($dim_ast);
+#							say 'DIM_AST (NUM/VAR) <'.Dumper($dim_ast2).'>';
+#							(my $dim_ast2, my $state) = _replace_consts_in_ast($stref, $f,  $dim_ast, {'CurrentSub' =>$f}, 0);
+							my $dim_expr=emit_expression($dim_ast2,'');
+							$dim_val=eval($dim_expr);
+				  				
 				  				#FIXME: must check if this is not an expression in terms of other parameters!
 				  				# So, 
 				  				# - get Val
@@ -271,14 +283,15 @@ sub _identify_array_accesses_in_exprs { (my $stref, my $f) = @_;
 					push @{ $state->{'Subroutines'}{ $f }{'Arrays'}{$array_var}{'Dims'} },$dim_vals;
 	#				say "$array_var
 				}
-				
+#				die if $array_var eq 'zbm';
 			}
 			if (exists $info->{'Assignment'} ) {
-				
+				# Assignment to scalar *_rel 					
 				if ($info->{'Lhs'}{'ArrayOrScalar'} eq 'Scalar' and $info->{'Lhs'}{'VarName'} =~/^(\w+)_rel/) {
 					my $loop_iter=$1;
 					$state->{'Subroutines'}{ $f }{'LoopIters'}{$loop_iter}={'Range' => 0};
 				}
+				# Assignment to scalar *_range 
 				if ($info->{'Lhs'}{'ArrayOrScalar'} eq 'Scalar' and $info->{'Lhs'}{'VarName'} =~/^(\w+)_range/) {
 					my $loop_iter=$1;
 					 
@@ -289,11 +302,31 @@ sub _identify_array_accesses_in_exprs { (my $stref, my $f) = @_;
 						
 				} else {				
 					# Find all array accesses in the LHS and RHS AST.
+					if ( 
+						ref($info->{'Rhs'}{'ExpressionAST'}) eq 'ARRAY' 
+					and $info->{'Rhs'}{'ExpressionAST'}[0] eq '@'
+					and ref($info->{'Lhs'}{'ExpressionAST'}) eq 'ARRAY' 
+					and $info->{'Lhs'}{'ExpressionAST'}[0] eq '@'
+					and $info->{'Lhs'}{'ExpressionAST'}[1] eq $info->{'Rhs'}{'ExpressionAST'}[1]
+					) {
+						my $var_name = $info->{'Rhs'}{'ExpressionAST'}[1];
+						say "IDENTITY OP for $var_name : ",$line;
+						$state->{'Subroutines'}{ $f }{'Identity'}{$var_name} = 1;
+					} 
+#else {
+#						my $var_name = $info->{'Rhs'}{'ExpressionAST'}[1];
+#						say "IDENTITY OP for $var_name : ",$line;
+#						$state->{'Subroutines'}{ $f }{'Assignments'}{$var_name}{'Identity'} = 0;
+#					}
+					 
 					(my $rhs_ast, $state) = _find_array_access_in_ast($stref, $f,  $state, $info->{'Rhs'}{'ExpressionAST'},'Read');
 					(my $lhs_ast, $state) = _find_array_access_in_ast($stref, $f,  $state, $info->{'Lhs'}{'ExpressionAST'},'Write');
 				}			
 				my $var_name = $info->{'Lhs'}{'VarName'};
-				$state->{'Subroutines'}{ $f }{'Assignments'}{$var_name} = $info->{'Rhs'}{'ExpressionAST'};							
+				if (not exists $state->{'Subroutines'}{ $f }{'Assignments'}{$var_name}) {
+					$state->{'Subroutines'}{ $f }{'Assignments'}{$var_name}=[];
+				} 
+				push @{$state->{'Subroutines'}{ $f }{'Assignments'}{$var_name}}, $info->{'Rhs'}{'ExpressionAST'};							
 			} 
 	#		if (exists $info->{'If'} ) {					
 	#			my $cond_expr_ast = $info->{'CondExecExprAST'};
@@ -323,10 +356,14 @@ sub _identify_array_accesses_in_exprs { (my $stref, my $f) = @_;
 		my $state = {'CurrentSub'=>'', 'Subroutines'=>{}};
 	 	($stref,$state) = stateful_pass($stref,$f,$pass_identify_array_accesses_in_exprs, $state,'pass_identify_array_accesses_in_exprs ' . __LINE__  ) ;
 	# 	say Dumper($state->{'Subroutines'});die;
-		$state = link_writes_to_reads( $stref, $f, $state);
+		$state = _link_writes_to_reads( $stref, $f, $state);
 #		say "LINKS:";
-		pp_links($state->{'Subroutines'}{$f}{'Links'});
-		classify_accesses($stref, $f, $state);
+#		(my $out_tup, my $in_tup) = pp_links($state->{'Subroutines'}{$f}{'Links'});
+#		my $map_expr = '('.join(',',@{$out_tup}).')';
+#		$map_expr .= ' = map '.$f.' ';
+#		$map_expr .= '('.join(',',@{$in_tup}).')';
+#		say $map_expr; 
+		_classify_accesses($stref, $f, $state);
 		
 	} # if subkernel not superkernel
  	return $stref;	
@@ -620,7 +657,8 @@ sub _replace_consts_in_ast { (my $stref, my $f,  my $ast, my $state, my $const)=
 		  				#FIXME: the value could be an expression in terms of other parameters!
 #				  		say "Parameter $parname = ".$decl->{'Val'};
 		  				my $val = $decl->{'Val'};
-		  				$ast=$val;
+		  				$ast = parse_expression($val, {},$stref,$f);		  				
+#		  				$ast=$val;
 		  				return ($ast,$state);						
 					}	
 									
@@ -667,46 +705,72 @@ The links table starts out empty:
 
 =cut
 
-sub link_writes_to_reads {(my $stref, my $f, my $state)=@_;
+sub _link_writes_to_reads {(my $stref, my $f, my $state)=@_;
 #	say "SUB $f";
 	my $links={};
 	my $assignments = $state->{'Subroutines'}{$f}{'Assignments'};
+#	die Dumper($assignments->{'g'} ) if $f=~/116/;
 	# So we have to establish the link for every variable that is a multi-dim (effectively 3-D) array argument
 	for my $some_var ( sort keys %{ $assignments }  ) {
+		next if $some_var=~/_rel|_range/;
 #		say "LHS_VAR $some_var";
-		$links = _link_writes_to_reads($stref, $f, $some_var,$assignments,$links);
+		$links = _link_writes_to_reads_rec($stref, $f, $some_var,$assignments,$links,$state);
 	}
+#	die Dumper($links) if $f=~/116/;
+#	die Dumper($links) if $f=~/116/;
+	
+	$links = _collapse_links($stref,$f,$links);
+#	die Dumper($links) if $f=~/116/;
 	# Now remove anything that is not an array arg link
 	for my $var (keys %{$links} ){
+		
+		if (not isArg($stref, $f, $var) ) {
+#			say "NOT ARG $var";
+			delete $links->{$var};
+		} 
+#		else {
+#			say "KEEP ARG $var";
+#		}
 		for my $lvar (keys %{$links->{$var}} ){
-			if ($links->{$var}{$lvar} > 1 ) {
+			if ($links->{$var}{$lvar} > 2 or $lvar eq '_OPEN_PAR_') {
 				delete $links->{$var}{$lvar};
 			}			
 		}
-		if (scalar keys  %{ $links->{$var}} == 0 ) {
+		if (
+			scalar keys  %{ $links->{$var}} == 0 or  
+			$var eq '_OPEN_PAR_' 			
+		) {
 				delete $links->{$var};
 		}
 	}
-	
+	die Dumper($links) if $f=~/116/;
 	$state->{'Subroutines'}{$f}{'Links'}=$links;
 	return $state;			 				
-} # END of link_writes_to_reads()
+} # END of _link_writes_to_reads()
 
-sub _link_writes_to_reads {(my $stref, my $f, my $some_var, my $assignments,my  $links)=@_;
+sub _link_writes_to_reads_rec {(my $stref, my $f, my $some_var, my $assignments,my  $links, my $state)=@_;
  		my $decl = get_var_record_from_set( $stref->{'Subroutines'}{$f}{'Vars'},$some_var);
 		my $lhs_dim = scalar @{ $decl->{'Dim'} };
 		if (exists $assignments->{$some_var} ) {
-			my $rhs = $assignments->{$some_var};
+			my $rhs_array = $assignments->{$some_var};
 #			say Dumper($rhs); 
-			my $vars = get_vars_from_expression($rhs,{});
-			for my $var ( keys %{$vars} ) {
+			my $vars = {};
+			for my $rhs (@{ $rhs_array }) {
+				my %tvars = %{ get_vars_from_expression($rhs,{}) };
+				my %avars = _remove_index_vars($stref,$f,$state,\%tvars);
+				$vars = {%{$vars},%avars };
+			}
+#			die Dumper($vars) if $f=~/116/ and exists $vars->{'i'};
+			for my $var ( keys %{$vars} ) {				
+				next if $var=~/_rel|_range/;
 				next if exists $links->{$some_var}{$var};
 #				next if $var eq $some_var;
 				if (isArg($stref, $f, $var)) {
 					# look up Dim for $var
 					my $decl = get_var_record_from_set( $stref->{'Subroutines'}{$f}{'Args'},$var);			
 					my $dim = scalar @{ $decl->{'Dim'} };			
-					if ($dim == $lhs_dim) { 
+					if ($dim>0 && $dim == $lhs_dim) { 
+#						die "<$dim>" if $var eq 'pz' or $some_var eq 'pz';
 #						say "LINK $some_var => $var";
 						$links->{$some_var}{$var}=1;
 					} else {
@@ -714,24 +778,31 @@ sub _link_writes_to_reads {(my $stref, my $f, my $some_var, my $assignments,my  
 					#	this is an arg but it is not the right Dim, so ignore it
 					}
 				} else { # var not arg
-#					say "VAR $var IS NOT ARG";
+#					say "VAR $var IS NOT ARG";					
+					$links->{$some_var}{$var}=4 unless $var eq '_OPEN_PAR_';
 					if (exists $assignments->{$var} ) {
-						my $non_arg_rhs = $assignments->{$var};
+						my $non_arg_rhs_array = $assignments->{$var};						
+						my $rhs_vars = {};
+						for my $non_arg_rhs (@{ $non_arg_rhs_array }) {
+							my %tvars =  %{ get_vars_from_expression($non_arg_rhs,{}) };
+							my %avars = _remove_index_vars($stref,$f,$state,\%tvars);							
+							$rhs_vars = {%{$vars},%avars };
+						}						
 #						say Dumper($non_arg_rhs);
-						my $rhs_vars = get_vars_from_expression($non_arg_rhs,{});
+#						my $rhs_vars = get_vars_from_expression($non_arg_rhs,{});
 						for my $rhs_var (keys %{$rhs_vars}) {	
 #							say "VAR in RHS of NON-ARG assignment for $var: $rhs_var";
 							next if exists $links->{$var}{$rhs_var};
-							$links->{$var}{$rhs_var}=3;	 
+							$links->{$var}{$rhs_var}= isArg($stref, $f, $rhs_var) ? 2 : 3 unless $rhs_var eq '_OPEN_PAR_';	 
 #							next if $var eq $rhs_var;
-			 				$links=_link_writes_to_reads($stref, $f, $rhs_var,$assignments,$links);
+			 				$links=_link_writes_to_reads_rec($stref, $f, $rhs_var,$assignments,$links,$state);
 						}
 					}
 				}
 			}
 		}
  		return $links;
-}
+} # END of _link_writes_to_reads_rec()
 
 sub isArg { (my $stref, my $f, my $array_var)=@_;
 	
@@ -746,7 +817,7 @@ sub isArg { (my $stref, my $f, my $array_var)=@_;
 			}
 }
 
-sub classify_accesses { (my $stref, my $f, my $state) =@_;
+sub _classify_accesses { (my $stref, my $f, my $state) =@_;
 # 	say "SUB $f\n";
  	for my $array_var (keys %{$state->{'Subroutines'}{ $f }{'Arrays'}}) {
  		next if $array_var =~/^global_|^local_/;
@@ -756,8 +827,7 @@ sub classify_accesses { (my $stref, my $f, my $state) =@_;
  			say "$array_var 1-D"; 			 			
  		} elsif (scalar @{ $state->{'Subroutines'}{ $f }{'Arrays'}{$array_var}{'Dims'} } ==2 ) { 			
  			say "$array_var 2-D";
-# 			push @{ $state->{'Subroutines'}{ $f }{'Arrays'}{$array_var}{'Dims'} },$dim_vals;
- 			die Dumper($state->{'Subroutines'}{ $f }{'Arrays'}{$array_var}{'Dims'} );
+ 			say Dumper($state->{'Subroutines'}{ $f }{'Arrays'}{$array_var}{'Dims'} );
  		} else {
  			
  		}
@@ -788,29 +858,134 @@ sub classify_accesses { (my $stref, my $f, my $state) =@_;
 					 and
 				#- at least one of these accesses has a non-zero offset
 					$n_nonzeroffsets == 0 and
-				#- all points in the array are processes in order 
+				#- all points in the array are processed in order 
 					$all_points
 					) {
-						say "single access for $rw of $array_var";
+						say "single access for $rw of $array_var (info only)";
 					}
-					
-					
+										
 				if (not $all_points) {
+					if ($rw eq 'Read') {
 						say "SELECT for $rw of $array_var";
+					} else {
+						say "INSERT for $rw of $array_var";
+					}
 				}							
 			}
 		}
 	} 	
-}
+	
+		(my $out_tup, my $in_tup) = pp_links($state->{'Subroutines'}{$f}{'Links'});
+		my $map_expr = scalar @{$out_tup} > 1 ? '('.join(',',@{$out_tup}).')' : scalar @{$out_tup} > 0 ? $out_tup->[0] : 'BOOM!!';
+		$map_expr .= ' = map '.$f.' ';
+		$map_expr .=  scalar @{$in_tup} > 1 ? '('.join(',',@{$in_tup}).')' : scalar @{$in_tup} > 0 ? $in_tup->[0] : 'BOOM!';
+		say $map_expr; 
+	
+} # END of _classify_accesses()
+# What we need is the in and out tuples
+# i.e. keys %{$links} = OUT
+# union of vals is IN
 sub pp_links { (my $links)=@_;
+	my $in_tup_table={};
 	for my $lhs_var (sort keys %{$links}) {
 		print "$lhs_var => ";
 		my @rhs_vars=();
 		for my $lvar (sort keys %{$links->{$lhs_var}} ){
 			push @rhs_vars,$lvar;
+			$in_tup_table->{$lvar}=1;
 		}	
 		say join(', ',@rhs_vars);
 	}	
+	my $out_tup = [ sort keys  %{$links} ];
+	my $in_tup = [ sort keys  %{$in_tup_table} ];
+	return ($out_tup, $in_tup);
+}
+
+sub _replace_param_by_val { (my $stref, my $f, my $ast)=@_;
+#	if (in_nested_set($stref->{'Subroutines'}{$f},'Parameters',$ast)) {				  				
+#  		my $decl = get_var_record_from_set( $stref->{'Subroutines'}{$f}{'Parameters'},$ast);
+#  		my $val = $decl->{'Val'};
+  		# - see if $val contains vars
+  		my $vars=get_vars_from_expression($ast,{}) ;
+  		# - if so, substitute them using _replace_consts_in_ast  		
+  		my $state =  {'CurrentSub' =>$f};
+#  		say "AST0: ".Dumper($ast);
+  		while (
+  		(exists $vars->{'_OPEN_PAR_'} and scalar keys %{$vars} > 1) 
+  		or (not exists $vars->{'_OPEN_PAR_'} and scalar keys %{$vars} > 0)
+  		
+  		) {
+#  			say "again: ".Dumper($vars);
+			($ast, $state) = _replace_consts_in_ast($stref, $f,  $ast, $state, 0);
+			# - check if the result is var-free, else repeat
+			$vars=get_vars_from_expression($ast,{}) ;
+#			say 'VARS:'.Dumper($vars);
+#			say "AST: ".Dumper($ast);	
+  		}  				
+  		# - finally eval
+#  		say "AST: ".Dumper($ast);
+#	}
+	return $ast;			
+}
+
+
+sub _collapse_links { (my $stref, my $f, my $links)=@_;
+	
+	for my $var (keys %{$links}) {
+		if (isArg($stref, $f, $var)) {
+#say "ARG $var";
+my $deleted_entries={};
+	my $again=1;
+	do {
+			$again=0;
+			for my $lvar (keys %{ $links->{$var} } ) {
+				next if $lvar eq $var;
+				next if $lvar eq '_OPEN_PAR_';
+#				say "\tLVAR $lvar";
+				if ($links->{$var}{$lvar} > 2) { # Not an argument
+					$again=1;
+#					say "DEL $lvar IN $var: ".$links->{$var}{$lvar};					
+					delete $links->{$var}{$lvar};
+					$deleted_entries->{$lvar}=1;
+					for my $nlvar (keys %{ $links->{$lvar} } ) {
+						next if $nlvar eq $var;
+						next if $nlvar eq $lvar;
+						next if $nlvar eq '_OPEN_PAR_';
+						next if exists $deleted_entries->{$nlvar};
+						$links->{$var}{$nlvar} = $links->{$lvar}{$nlvar};
+					}					 
+				}
+			}				
+	} until $again == 0;
+			
+		}
+	}	
+	return $links;
+} # END of _collapse_links()
+
+#my @iters = @{$state->{'Subroutines'}{ $f }{'Arrays'}{$array_var}{$rw}{'Iterators'}};
+sub _remove_index_vars { (my $stref, my $f, my $state, my $vars_ref)=@_;
+	my %vars = %{$vars_ref};
+		my %non_idx_vars=();
+		my %idx_vars=();
+	for my $var (keys %vars ) {
+		if ($vars_ref->{$var}{'Type'} eq 'Array') {
+			for my $rw ('Read','Write') {
+				if (exists $state->{'Subroutines'}{ $f }{'Arrays'}{$var}{$rw} and 
+				exists $state->{'Subroutines'}{ $f }{'Arrays'}{$var}{$rw}{'Iterators'}
+				) {
+				my @iters = @{$state->{'Subroutines'}{ $f }{'Arrays'}{$var}{$rw}{'Iterators'}};
+				%idx_vars = (%idx_vars, map { $_ => 1 } @iters);
+				}
+		}
+	}
+	}
+	for my $var (keys %vars ) {
+		if (not exists $idx_vars{$var}) {
+			$non_idx_vars{$var}->{'Type'} = $vars_ref->{$var}{'Type'};
+		}
+	}
+	return %non_idx_vars;
 }
 
 1;
