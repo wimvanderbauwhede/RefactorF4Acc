@@ -220,7 +220,8 @@ sub pass_identify_stencils {(my $stref)=@_;
 sub _identify_array_accesses_in_exprs { (my $stref, my $f) = @_;
 	
 	if ($stref->{'Subroutines'}{$f}{'Source'}=~/module_adam_bondv1_feedbf_les_press_v_etc_superkernel.f95/ && $f!~/superkernel/) {  
-		say  "\nRunning _identify_array_accesses_in_exprs($f)\n";
+#		say  "\nRunning _identify_array_accesses_in_exprs($f)\n";
+		say  "\n-- $f\n";
 		my $pass_identify_array_accesses_in_exprs = sub { (my $annline, my $state)=@_;
 			(my $line,my $info)=@{$annline};
 			if ( exists $info->{'Signature'} ) {
@@ -310,7 +311,7 @@ sub _identify_array_accesses_in_exprs { (my $stref, my $f) = @_;
 					and $info->{'Lhs'}{'ExpressionAST'}[1] eq $info->{'Rhs'}{'ExpressionAST'}[1]
 					) {
 						my $var_name = $info->{'Rhs'}{'ExpressionAST'}[1];
-						say "IDENTITY OP for $var_name : ",$line;
+#						say "IDENTITY OP for $var_name : ",$line;
 						$state->{'Subroutines'}{ $f }{'Identity'}{$var_name} = 1;
 					} 
 #else {
@@ -743,7 +744,7 @@ sub _link_writes_to_reads {(my $stref, my $f, my $state)=@_;
 				delete $links->{$var};
 		}
 	}
-	die Dumper($links) if $f=~/116/;
+#	die Dumper($links) if $f=~/116/;
 	$state->{'Subroutines'}{$f}{'Links'}=$links;
 	return $state;			 				
 } # END of _link_writes_to_reads()
@@ -819,19 +820,25 @@ sub isArg { (my $stref, my $f, my $array_var)=@_;
 
 sub _classify_accesses { (my $stref, my $f, my $state) =@_;
 # 	say "SUB $f\n";
- 	for my $array_var (keys %{$state->{'Subroutines'}{ $f }{'Arrays'}}) {
+ 		my @extracts=();
+ 		my @inserts=();
+		my %stencils=();		
+		my %non_map_args=();
+		my %portions=();
+ 	for my $array_var (keys %{$state->{'Subroutines'}{ $f }{'Arrays'}}) {  
  		next if $array_var =~/^global_|^local_/;
  		
  		next if not defined  $state->{'Subroutines'}{ $f }{'Arrays'}{$array_var}{'Dims'} ;
  		if (scalar @{ $state->{'Subroutines'}{ $f }{'Arrays'}{$array_var}{'Dims'} } ==1 ) {
- 			say "$array_var 1-D"; 			 			
+# 			non_map_args{
+# 			say "$array_var 1-D"; 			 			
  		} elsif (scalar @{ $state->{'Subroutines'}{ $f }{'Arrays'}{$array_var}{'Dims'} } ==2 ) { 			
- 			say "$array_var 2-D";
- 			say Dumper($state->{'Subroutines'}{ $f }{'Arrays'}{$array_var}{'Dims'} );
+# 			say "$array_var 2-D";
+# 			say Dumper($state->{'Subroutines'}{ $f }{'Arrays'}{$array_var}{'Dims'} );
  		} else {
  			
  		}
- 		for my $rw ('Write','Read') { 			  			
+ 		for my $rw ('Read','Write') { 			  			
  			if (exists  $state->{'Subroutines'}{ $f }{'Arrays'}{$array_var}{$rw} ) {
  				# because it could be read-only and even write-only: v = u+w 				
  				my $n_accesses  =scalar keys %{$state->{'Subroutines'}{ $f }{'Arrays'}{$array_var}{$rw}{'Stencils'} } ;
@@ -851,7 +858,9 @@ sub _classify_accesses { (my $stref, my $f, my $state) =@_;
 				#- all points in the array are processes in order 
 					$all_points
 					) {
-						say "STENCIL for $rw of $array_var";
+#						say "STENCIL for $rw of $array_var";
+						say "${array_var}_tup = stencil patt $array_var";
+						$stencils{$array_var}=1;
 					} 
 					if(  $n_accesses > 0
 				#- there is more than one access to an array => 
@@ -861,14 +870,21 @@ sub _classify_accesses { (my $stref, my $f, my $state) =@_;
 				#- all points in the array are processed in order 
 					$all_points
 					) {
-						say "single access for $rw of $array_var (info only)";
+#						say "single access for $rw of $array_var (info only)";
 					}
 										
 				if (not $all_points) {
 					if ($rw eq 'Read') {
-						say "SELECT for $rw of $array_var";
+#						say "EXTRACT for $rw of $array_var";
+#						say "SELECT for $rw of $array_var";
+#						say "${array_var}_portion = extract patt $array_var";
+						push @extracts,"${array_var}_portion = extract patt $array_var";
+						$portions{$array_var}=1;
 					} else {
-						say "INSERT for $rw of $array_var";
+#						say "INSERT for $rw of $array_var";
+						;
+#						say "${array_var}_out = insert patt buf_to_insert $array_var";
+						push @inserts, "${array_var}_out = insert patt buf_to_insert $array_var";
 					}
 				}							
 			}
@@ -876,10 +892,48 @@ sub _classify_accesses { (my $stref, my $f, my $state) =@_;
 	} 	
 	
 		(my $out_tup, my $in_tup) = pp_links($state->{'Subroutines'}{$f}{'Links'});
-		my $map_expr = scalar @{$out_tup} > 1 ? '('.join(',',@{$out_tup}).')' : scalar @{$out_tup} > 0 ? $out_tup->[0] : 'BOOM!!';
-		$map_expr .= ' = map '.$f.' ';
-		$map_expr .=  scalar @{$in_tup} > 1 ? '('.join(',',@{$in_tup}).')' : scalar @{$in_tup} > 0 ? $in_tup->[0] : 'BOOM!';
-		say $map_expr; 
+		
+		my @in_tup_3D =  grep {
+			exists $state->{'Subroutines'}{ $f }{'Arrays'}{$_} and 
+			scalar @{ $state->{'Subroutines'}{ $f }{'Arrays'}{$_}{'Dims'} } > 2
+		} @{$in_tup} ;
+		
+		my @in_tup_non_map_args =  grep {
+			(not exists $state->{'Subroutines'}{ $f }{'Arrays'}{$_}) or 
+			(scalar @{ $state->{'Subroutines'}{ $f }{'Arrays'}{$_}{'Dims'} } < 3)
+		} @{$in_tup} ;
+		
+		my $in_tup_ms = [
+			map { 
+				exists $stencils{$_} ? 
+				$_.'_tup' :
+				exists $portions{$_} ?
+				$_.'_portion' : 
+				$_ 
+			} @in_tup_3D
+		];
+		my @non_map_args_ms = map { 
+				exists $stencils{$_} ? 
+				$_.'_tup' :
+				exists $portions{$_} ?
+				$_.'_portion' : 
+				$_ 
+			} @in_tup_non_map_args;
+		
+		my $map_expr = scalar @{$out_tup} > 1 ? '('.join(',',map { $_.'_out' } @{$out_tup}).')' : scalar @{$out_tup} > 0 ? $out_tup->[0].'_out' : 'BOOM!!';
+		$map_expr .= @non_map_args_ms ? 
+		' = map ('.$f.' '.join(' ',@non_map_args_ms).') '
+		:
+		' = map '.$f.' '
+		;
+		$map_expr .=  scalar @{$in_tup} > 1 ? '('.join(',',@{$in_tup_ms}).')' : scalar @{$in_tup_ms} > 0 ? $in_tup_ms->[0] : 'BOOM!';
+		
+			map { say $_ } @extracts;#"${array_var}_portion = extract patt $array_var";
+		
+		say $map_expr unless $map_expr=~/BOOM/; 
+		
+			map { say $_ } @inserts;	
+		
 	
 } # END of _classify_accesses()
 # What we need is the in and out tuples
@@ -888,13 +942,13 @@ sub _classify_accesses { (my $stref, my $f, my $state) =@_;
 sub pp_links { (my $links)=@_;
 	my $in_tup_table={};
 	for my $lhs_var (sort keys %{$links}) {
-		print "$lhs_var => ";
+#		print "$lhs_var => ";
 		my @rhs_vars=();
 		for my $lvar (sort keys %{$links->{$lhs_var}} ){
 			push @rhs_vars,$lvar;
 			$in_tup_table->{$lvar}=1;
 		}	
-		say join(', ',@rhs_vars);
+#		say join(', ',@rhs_vars);
 	}	
 	my $out_tup = [ sort keys  %{$links} ];
 	my $in_tup = [ sort keys  %{$in_tup_table} ];
