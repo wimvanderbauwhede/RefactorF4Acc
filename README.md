@@ -73,14 +73,11 @@ To assess the correctness and capability of our refactoring compiler, we used th
 
 We skipped/modified some tests because they test features that our compiler does not support (see below for more details). After skipping these types of tests, 2890 tests remain, in total 190 files for which refactored code is generated. The testbench driver provided in the archive skips another 8 tests because they relate to features deleted in Fortran 95. In total the test suite contains 72,473 lines of code (excluding comments). Two test files contain tests that fail in gfortran 4.9 (3 tests in total).
 
-Our compiler successfully generates refactored code for _all_ tests, and the refactored code compiles correctly and passes all tests (2887 tests in total).
+Our compiler successfully generates refactored code for _all_ tests, and the refactored code compiles correctly and passes all tests (2887 tests in total). The tests are available in `tests/NIST_F78_test_suite`.
 
 Furthermore, we tested the compiler on four real-word physics simulation models:
 
-<!--
-* The 2-D Shallow Water example from the book "Ocean Modelling for Beginners: Using Open-Source Software" by Jochen Kämpf. (188 loc)
--->
-
+* The 2-D Shallow Water example from the book "Ocean Modelling for Beginners: Using Open-Source Software" by Jochen Kämpf. (188 loc), available in `tests/ShallowWater2D`.
 * The [Large Eddy Simulator](https://github.com/wimvanderbauwhede/LES), a high-resolution turbulent flow model (1,391 loc)
 * The shallow water component of [Gmodel](http://www.sciamachy-validation.org/research/CKO/gmodel.html), an ocean model (1,533 loc)
 * [Flexpart-WRF](https://github.com/sajinh/flx_wrf2), a version of the Flexpart particle dispersion simulator that takes input data from WRF (13,829 loc)
@@ -110,6 +107,8 @@ To install RefactorF4ACC, you need to set some environment variables. Typically,
 		export PATH="$PATH:$RF4A_DIR/bin"	  
 
 To make the code work with older Perl versions (e.g. v5.8) you will have to replace all occurences of `say` with `print` and add a newline.
+
+
 
 ## Usage
 
@@ -274,7 +273,7 @@ The final output should look like:
 ### To run the Fortran to parallel OpenCL test
 
 As explained above, to run this test you need to install the [AutoParallel-Fortran](https://github.com/wimvanderbauwhede/AutoParallel-Fortran) compiler and the [OclWrapper Fortran OpenCL API](https://github.com/wimvanderbauwhede/OpenCLIntegration), as well as [scons](http://scons.org/), a Python-based build system. 
-We use a simple 2-D shallow simulation for validation. A more detailed explanation is available in the file `tests/ShallowWater2D/Auto-acceleration-README.md`.
+We use a simple 2-D shallow simulation for validation. A more detailed explanation is available in the file [tests/ShallowWater2D/Auto-acceleration-README.md](https://github.com/wimvanderbauwhede/RefactorF4Acc/blob/devel/tests/ShallowWater2D/Auto-acceleration-README.md).
 
       $ cd tests/ShallowWater2D/fortran
       
@@ -285,7 +284,7 @@ To generate the refactored Fortran-95 code used as starting point for autoparall
       
 This will generate refactored, accelerator-ready Fortan 95 code in the directory `tests/RefactoredSources`.	     
 
-	$ cd tests/ShallowWater2D/fortran
+	$ cd ../RefactoredSources
 	$ ./run_autoparallel_compiler GPU
 	
 This will generate OpenCL-ready parallelised code _in Fortran syntax_ in the directory `tests/Autopar`. To generate the actual kernel in OpenCL-C, do:
@@ -293,7 +292,9 @@ This will generate OpenCL-ready parallelised code _in Fortran syntax_ in the dir
 	$ cd ../Autopar
 	$ ./generate_OpenCL_kernel.sh module_shapiro_dyn_update_superkernel   	
 	
-You can now build this code for GPU as follows:
+This will generate the OpenCL kernel file `module_shapiro_dyn_update_superkernel.cl`.
+
+You can now build the refactored code for GPU as follows:
 
  - For running on an Intel Iris Pro
   	
@@ -303,5 +304,5 @@ You can now build this code for GPU as follows:
  	
 	$ scons -f SConstruct.auto dev=GPU nth=512 nunits=15 	
 	
-Running the accelerated code on this GPU results in 14x speedup compared to the original code running on the host (Intel(R) Core(TM) i7-4771 CPU @ 3.50GHz) 
+Running the accelerated code on this GPU results in 14x speedup compared to the original code running on the host (Intel Core i7 CPU @ 3.50GHz). 
 
