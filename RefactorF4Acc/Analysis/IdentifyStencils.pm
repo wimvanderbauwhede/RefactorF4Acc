@@ -191,7 +191,7 @@ At the moment I simply say: 3-D => stream, so scalarise; 1-D => local ; 2-D: Fla
 =info
 Pass to determine stencils in map/reduce subroutines
 Because of their nature we don't even need to analyse loops: the loop variables and bounds have already been determined.
-So, for every line we check
+So, for every line we check:
 If it is an assignment, a subroutine call or a condition in and If or Case, we go on
 But in the kernels we don't have subroutines at the moment. We also don't have Case I think
 If assignment, we separate LHS and RHS
@@ -219,7 +219,7 @@ sub pass_identify_stencils {(my $stref)=@_;
 
 sub _identify_array_accesses_in_exprs { (my $stref, my $f) = @_;
 	
-	if ($stref->{'Subroutines'}{$f}{'Source'}=~/module_adam_bondv1_feedbf_les_press_v_etc_superkernel.f95/ && $f!~/superkernel/) {  
+	if ($stref->{'Subroutines'}{$f}{'Source'}=~/module_adam_bondv1_feedbf_les_press_v_etc_superkernel.f95/ && $f!~/superkernel/) {  # TODO
 #		say  "\nRunning _identify_array_accesses_in_exprs($f)\n";
 		say  "\n-- $f\n";
 		my $pass_identify_array_accesses_in_exprs = sub { (my $annline, my $state)=@_;
@@ -232,10 +232,8 @@ sub _identify_array_accesses_in_exprs { (my $stref, my $f) = @_;
 				$state->{'Subroutines'}{$subname }={};
 	#			die if  $subname  eq 'bondv1_map_107';
 			}
-			if (exists $info->{'VarDecl'} and not exists $info->{'ParamDecl'} and $line=~/dimension/) { # Lazy
-			 	
-				my $array_var=$info->{'VarDecl'}{'Name'};
-				
+			if (exists $info->{'VarDecl'} and not exists $info->{'ParamDecl'} and $line=~/dimension/) { # Lazy			 	
+				my $array_var=$info->{'VarDecl'}{'Name'};				
 #				die Dumper($annline) if $array_var eq 'zbm';
 				
 				my @dims = @{ $info->{'ParsedVarDecl'}{'Attributes'}{'Dim'} };
@@ -364,7 +362,7 @@ sub _identify_array_accesses_in_exprs { (my $stref, my $f) = @_;
 #		$map_expr .= ' = map '.$f.' ';
 #		$map_expr .= '('.join(',',@{$in_tup}).')';
 #		say $map_expr; 
-		_classify_accesses($stref, $f, $state);
+		$stref = _classify_accesses($stref, $f, $state);
 		
 	} # if subkernel not superkernel
  	return $stref;	
@@ -707,31 +705,22 @@ The links table starts out empty:
 =cut
 
 sub _link_writes_to_reads {(my $stref, my $f, my $state)=@_;
-#	say "SUB $f";
 	my $links={};
 	my $assignments = $state->{'Subroutines'}{$f}{'Assignments'};
-#	die Dumper($assignments->{'g'} ) if $f=~/116/;
 	# So we have to establish the link for every variable that is a multi-dim (effectively 3-D) array argument
 	for my $some_var ( sort keys %{ $assignments }  ) {
 		next if $some_var=~/_rel|_range/;
-#		say "LHS_VAR $some_var";
 		$links = _link_writes_to_reads_rec($stref, $f, $some_var,$assignments,$links,$state);
 	}
-#	die Dumper($links) if $f=~/116/;
-#	die Dumper($links) if $f=~/116/;
 	
 	$links = _collapse_links($stref,$f,$links);
-#	die Dumper($links) if $f=~/116/;
 	# Now remove anything that is not an array arg link
 	for my $var (keys %{$links} ){
 		
 		if (not isArg($stref, $f, $var) ) {
-#			say "NOT ARG $var";
 			delete $links->{$var};
 		} 
-#		else {
-#			say "KEEP ARG $var";
-#		}
+
 		for my $lvar (keys %{$links->{$var}} ){
 			if ($links->{$var}{$lvar} > 2 or $lvar eq '_OPEN_PAR_') {
 				delete $links->{$var}{$lvar};
@@ -744,7 +733,7 @@ sub _link_writes_to_reads {(my $stref, my $f, my $state)=@_;
 				delete $links->{$var};
 		}
 	}
-#	die Dumper($links) if $f=~/116/;
+
 	$state->{'Subroutines'}{$f}{'Links'}=$links;
 	return $state;			 				
 } # END of _link_writes_to_reads()
@@ -820,15 +809,23 @@ sub isArg { (my $stref, my $f, my $array_var)=@_;
 
 sub _classify_accesses { (my $stref, my $f, my $state) =@_;
 # 	say "SUB $f\n";
- 		my @extracts=();
- 		my @inserts=();
-		my %stencils=();		
-		my %non_map_args=();
-		my %portions=();
+	my @extracts=();
+ 	my @inserts=();
+	my %stencils=();		
+	my %non_map_args=();
+	my %portions=();
+	if (not exists $stref->{'UniqueVarCounters'}) {
+		$stref->{'UniqueVarCounters'}={};
+	}
+	my $unique_var_counters=$stref->{'UniqueVarCounters'};
+	
  	for my $array_var (keys %{$state->{'Subroutines'}{ $f }{'Arrays'}}) {  
- 		next if $array_var =~/^global_|^local_/;
- 		
+ 		next if $array_var =~/^global_|^local_/; 		
  		next if not defined  $state->{'Subroutines'}{ $f }{'Arrays'}{$array_var}{'Dims'} ;
+ 		if (not exists $unique_var_counters->{$array_var}) {
+ 			$unique_var_counters->{$array_var}=0;
+ 		}
+ 		
  		if (scalar @{ $state->{'Subroutines'}{ $f }{'Arrays'}{$array_var}{'Dims'} } ==1 ) {
 # 			non_map_args{
 # 			say "$array_var 1-D"; 			 			
@@ -838,6 +835,7 @@ sub _classify_accesses { (my $stref, my $f, my $state) =@_;
  		} else {
  			
  		}
+ 		
  		for my $rw ('Read','Write') { 			  			
  			if (exists  $state->{'Subroutines'}{ $f }{'Arrays'}{$array_var}{$rw} ) {
  				# because it could be read-only and even write-only: v = u+w 				
@@ -859,7 +857,13 @@ sub _classify_accesses { (my $stref, my $f, my $state) =@_;
 					$all_points
 					) {
 #						say "STENCIL for $rw of $array_var";
-						say "${array_var}_tup = stencil patt $array_var";
+						my $ctr_in = $unique_var_counters->{$array_var};
+						say "${array_var}_tup = stencil patt ${array_var}_${ctr_in}";
+ 		if (not exists $unique_var_counters->{"${array_var}_tup"}) {
+ 			$unique_var_counters->{"${array_var}_tup"}=0;
+ 		} else {
+ 			$unique_var_counters->{"${array_var}_tup"}++;
+ 		}						
 						$stencils{$array_var}=1;
 					} 
 					if(  $n_accesses > 0
@@ -878,21 +882,31 @@ sub _classify_accesses { (my $stref, my $f, my $state) =@_;
 #						say "EXTRACT for $rw of $array_var";
 #						say "SELECT for $rw of $array_var";
 #						say "${array_var}_portion = extract patt $array_var";
-						push @extracts,"${array_var}_portion = extract patt $array_var";
+						my $ctr_in = $unique_var_counters->{$array_var};
+						push @extracts,"${array_var}_portion = extract patt ${array_var}_${ctr_in}";
+ 		if (not exists $unique_var_counters->{"${array_var}_portion"}) {
+ 			$unique_var_counters->{"${array_var}_portion"}=0;
+ 		} else {
+ 			$unique_var_counters->{"${array_var}_portion"}++;
+ 		}						
 						$portions{$array_var}=1;
 					} else {
 #						say "INSERT for $rw of $array_var";
 						;
 #						say "${array_var}_out = insert patt buf_to_insert $array_var";
-						push @inserts, "${array_var}_out = insert patt buf_to_insert $array_var";
+						my $ctr_in = $unique_var_counters->{$array_var};
+						my $ctr_out = ++$ctr_in;
+						$unique_var_counters->{$array_var}=$ctr_out;
+						push @inserts, "${array_var}_${ctr_out} = insert patt buf_to_insert ${array_var}_${ctr_in}";
 					}
 				}							
 			}
 		}
 	} 	
-	
+	# so this provides the output and input tuples for a given $f
+	# so for each var in $in_tup we need to get the counter, and for each var in $out_tup after that too. 
 		(my $out_tup, my $in_tup) = pp_links($state->{'Subroutines'}{$f}{'Links'});
-		
+		# FIXME: Bit of a hack	
 		my @in_tup_3D =  grep {
 			exists $state->{'Subroutines'}{ $f }{'Arrays'}{$_} and 
 			scalar @{ $state->{'Subroutines'}{ $f }{'Arrays'}{$_}{'Dims'} } > 2
@@ -904,23 +918,34 @@ sub _classify_accesses { (my $stref, my $f, my $state) =@_;
 		} @{$in_tup} ;
 		
 		my $in_tup_ms = [
-			map { 
+			map {
+				if (not exists $unique_var_counters->{$_}) {
+					$unique_var_counters->{$_}=0;
+				} 
 				exists $stencils{$_} ? 
-				$_.'_tup' :
+				$_.'_tup_'.$unique_var_counters->{$_.'_tup'} :
 				exists $portions{$_} ?
-				$_.'_portion' : 
-				$_ 
+				$_.'_portion_'.$unique_var_counters->{$_.'_portion'} : 
+				$_.'_'. ++$unique_var_counters->{$_}
 			} @in_tup_3D
 		];
 		my @non_map_args_ms = map { 
+				if (not exists $unique_var_counters->{$_}) {
+					$unique_var_counters->{$_}=0;
+				}
 				exists $stencils{$_} ? 
-				$_.'_tup' :
+				$_.'_tup_'.$unique_var_counters->{$_.'_tup'} :
 				exists $portions{$_} ?
-				$_.'_portion' : 
-				$_ 
+				$_.'_portion_'.$unique_var_counters->{$_.'_portion'} : 
+				$_.'_'. $unique_var_counters->{$_}
 			} @in_tup_non_map_args;
 		
-		my $map_expr = scalar @{$out_tup} > 1 ? '('.join(',',map { $_.'_out' } @{$out_tup}).')' : scalar @{$out_tup} > 0 ? $out_tup->[0].'_out' : 'BOOM!!';
+		for my $var (@{$out_tup}) {
+			if (not exists $unique_var_counters->{$var}) {
+				$unique_var_counters->{$var}=0;
+			}
+		}
+		my $map_expr = scalar @{$out_tup} > 1 ? '('.join(',',map { $_.'_'.$unique_var_counters->{$_} } @{$out_tup}).')' : scalar @{$out_tup} > 0 ? $out_tup->[0].'_'.$unique_var_counters->{$out_tup->[0]} : 'BOOM!!';
 		$map_expr .= @non_map_args_ms ? 
 		' = map ('.$f.' '.join(' ',@non_map_args_ms).') '
 		:
@@ -933,9 +958,9 @@ sub _classify_accesses { (my $stref, my $f, my $state) =@_;
 		say $map_expr unless $map_expr=~/BOOM/; 
 		
 			map { say $_ } @inserts;	
-		
-	
+	return $stref;			
 } # END of _classify_accesses()
+
 # What we need is the in and out tuples
 # i.e. keys %{$links} = OUT
 # union of vals is IN
@@ -953,7 +978,7 @@ sub pp_links { (my $links)=@_;
 	my $out_tup = [ sort keys  %{$links} ];
 	my $in_tup = [ sort keys  %{$in_tup_table} ];
 	return ($out_tup, $in_tup);
-}
+} # END of pp_links()
 
 sub _replace_param_by_val { (my $stref, my $f, my $ast)=@_;
 #	if (in_nested_set($stref->{'Subroutines'}{$f},'Parameters',$ast)) {				  				
