@@ -88,18 +88,25 @@ Each of these models has a different coding style, specifically in terms of the 
 
 ## Installation
 
-The source code for RefactorF4ACC is written in Perl and requires v5.10 or later. There are no dependencies and no compilation is required. I have tested it on Linux and Mac OS X.
+The source code for RefactorF4ACC is written in Perl and requires v5.10 or later. There are no dependencies and no compilation is required. I have tested it on Linux and MacOS.
 
-To install RefactorF4ACC:
+To install RefactorF4ACC, you need to set some environment variables. Typically, on Linux you would put them in `.bashrc`, on MacOS in `.profile`.
 
-- Put the script `refactorF4ACC.pl` in your `$PATH`
-- Put the RefactorF4ACC folder somewhere where Perl will find it (e.g. `/usr/local/share/perl5`) or put it anywhere and append the path to PERL5LIB in your `.bashrc` or similar.
+* If you cloned the GitHub repostitory:
+	- Let's assume your local Git repository directory is called `$RF4A_DIR` (e.g. on my machine it is `$HOME/Git/RF4A`)
+* If you downloaded the archive `RefactorF4Acc-master.zip`:
+	- Unzip the archive in a directory $DIR (this could be e.g. your home dir `$HOME`)
+	- Call `$RF4A_DIR=$DIR/RefactorF4Acc-master`
 
-For example, I have `$HOME/bin` in my `$PATH`, so I put `refactorF4ACC.pl` there; and I have `PERL5LIB="$HOME/perl5/lib/perl5"` so I put the RefactorF4ACC folder there.
+* Add `$RF4A_DIR` to the `$PERL5LIB` environment variable:
 
-The directory `warnings` contains a stub for the 'use warnings qw(unused)' pragma. If you have the proper 'warnings::unused' [installed](http://search.cpan.org/dist/warnings-unused/) you can delete this folder.
+		export PERL5LIB="$PERL5LIB:$RF4A_DIR"
+ 		
+* Add `$RF4A_DIR/bin` to your `$PATH` environment variable:
 
-The code will work with Perl v5.10 and later. To make it work with older Perl (e.g. v5.8) you would have to replace all occurrences of `say` with `print` and add a newline.
+		export PATH="$PATH:$RF4A_DIR/bin"	  
+
+To make the code work with older Perl versions (e.g. v5.8) you will have to replace all occurences of `say` with `print` and add a newline.
 
 ## Usage
 
