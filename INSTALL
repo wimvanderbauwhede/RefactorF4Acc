@@ -1,4 +1,4 @@
-The source code for RefactorF4ACC is written in Perl and requires v5.16. There are no dependencies and no compilation is required. 
+The source code for RefactorF4ACC is written in Perl and requires v5.10 or later. There are no dependencies and no compilation is required. 
 
 To install RefactorF4ACC, you need to set some environment variables. Typically, on Linux you would put them in `.bashrc`, on MacOS in `.profile`.
 
@@ -16,4 +16,4 @@ To install RefactorF4ACC, you need to set some environment variables. Typically,
 
 		export PATH="$PATH:$RF4A_DIR/bin"	  
 
-The code will actually work with Perl v5.10 and later, if you don't have v5.16 you can search and replace the version. To make it work with older Perl (e.g. v5.8) you will have to replace all occurences of `say` with `print` and add a newline.
+To make the code work with older Perl versions (e.g. v5.8) you will have to replace all occurences of `say` with `print` and add a newline.

@@ -1,1 +1,0 @@
-ghc --make -i.. test_*.hs && ./test_*

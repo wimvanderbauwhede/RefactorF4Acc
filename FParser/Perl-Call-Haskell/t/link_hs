@@ -1,1 +1,0 @@
-ghc --make -v -keep-tmp-files -tmpdir=./tmp  -no-hs-main test_src.o ProcessStrCWrapper.o ProcessStrFFIWrapper.o /Users/wim/SoC_Research/Code/Git/Perl-Call-Haskell/t/../ProcessStr.o /Users/wim/SoC_Research/Code/Git/Perl-Call-Haskell/t/../lib/FFIGenerator/ShowToPerl.o -package parsec -o testl

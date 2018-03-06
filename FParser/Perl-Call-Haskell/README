@@ -1,7 +1,0 @@
-To install call-haskell-from-anything:
-- download latest msgpack from hackage
-- change cabal (or use my cabal)
-
-Then change cabal for call-haskell-from-anything ( or use mine)
-
-

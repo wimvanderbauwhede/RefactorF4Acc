@@ -1,3 +1,0 @@
-gcc -c test_src_dbg.c
-ghc -v -keep-tmp-files -tmpdir=./tmp  -no-hs-main test_src_dbg.o -L. -lProcessStrHsC -o testl
-./testl
