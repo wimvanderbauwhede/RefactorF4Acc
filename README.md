@@ -272,27 +272,32 @@ The final output should look like:
 
 ### To run the Fortran to parallel OpenCL test
 
+This an example of automatic parallelisation and GPU-acceleration of legacy code.  It is the 2-D Shallow Water example from the book "Ocean Modelling for Beginners: Using Open-Source Software" by Jochen Kämpf. The code is effectively Fortran-77 except that it uses Fortran-90 style modules. 
+
 As explained above, to run this test you need to install the [AutoParallel-Fortran](https://github.com/wimvanderbauwhede/AutoParallel-Fortran) compiler and the [OclWrapper Fortran OpenCL API](https://github.com/wimvanderbauwhede/OpenCLIntegration), as well as [scons](http://scons.org/), a Python-based build system. 
-We use a simple 2-D shallow simulation for validation. A more detailed explanation is available in the file [tests/ShallowWater2D/Auto-acceleration-README.md](https://github.com/wimvanderbauwhede/RefactorF4Acc/blob/devel/tests/ShallowWater2D/Auto-acceleration-README.md).
+
+A more detailed explanation of the steps is available in the file [tests/ShallowWater2D/Auto-acceleration-README.md](https://github.com/wimvanderbauwhede/RefactorF4Acc/blob/devel/tests/ShallowWater2D/Auto-acceleration-README.md).
 
       $ cd tests/ShallowWater2D/fortran
       
 Please ensure that the environment varianble `$FC` is set to the Fortran compiler you want to use. I have tested the code only with `gfortran 4.9` and `gfortran 7.0`.
-To generate the refactored Fortran-95 code used as starting point for autoparallelisation and OpenCL conversion, run the command `./generate_and_run.sh`:
+
+We start from the original code, where the only change is the addition of a `!$ACC Subroutine` pragma to automatically extract a subroutine from the source code. This demonstrates the subroutine extraction feature of the compiler. 
+To generate the refactored Fortran-95 code used as starting point for autoparallelisation and OpenCL conversion, run the command `./generate_and_build.sh`:
       
-      $ ./generate_and_run.sh
+      $ ./generate_and_build.sh
       
-This will generate refactored, accelerator-ready Fortan 95 code in the directory `tests/RefactoredSources`.	     
+This will generate (and build) the refactored, accelerator-ready Fortan 95 code in the directory `tests/RefactoredSources`. This code produces exactly the same output as the original code, with the same performance. We can now run the auto-parallelising compiler on this refactored code:	     
 
 	$ cd ../RefactoredSources
 	$ ./run_autoparallel_compiler GPU
 	
-This will generate OpenCL-ready parallelised code _in Fortran syntax_ in the directory `tests/Autopar`. To generate the actual kernel in OpenCL-C, do:
+This step will generate OpenCL-ready parallelised code. The generated kernel is a single source file (`module_shapiro_dyn_update_superkernel .f95`) _in Fortran syntax_ in the directory `tests/Autopar`. To generate the actual kernel in OpenCL C syntax, do:
 
 	$ cd ../Autopar
 	$ ./generate_OpenCL_kernel.sh module_shapiro_dyn_update_superkernel   	
 	
-This will generate the OpenCL kernel file `module_shapiro_dyn_update_superkernel.cl`.
+This will generate the OpenCL kernel file `module_shapiro_dyn_update_superkernel.cl`. 
 
 You can now build the refactored code for GPU as follows:
 
