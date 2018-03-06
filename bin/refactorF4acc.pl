@@ -3,8 +3,8 @@
 #   (c) 2010-2017 Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
 #   
 
-use v5.10;
-use warnings::unused;
+use 5.010;
+#use warnings::unused;
 use warnings;
 use warnings FATAL => qw(uninitialized);
 use strict;

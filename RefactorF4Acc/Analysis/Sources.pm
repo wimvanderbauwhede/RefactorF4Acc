@@ -10,7 +10,7 @@ use RefactorF4Acc::Analysis::Globals qw( lift_includes ); # TODO: put lift_inclu
 use vars qw( $VERSION );
 $VERSION = "1.0.0";
 
-use warnings::unused;
+#use warnings::unused;
 use warnings;
 use warnings FATAL => qw(uninitialized);
 use strict;

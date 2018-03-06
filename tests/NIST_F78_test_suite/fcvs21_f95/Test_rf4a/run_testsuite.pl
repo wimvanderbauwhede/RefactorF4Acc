@@ -362,8 +362,8 @@ ENDCFG
 
     close $CFG;
     system("cp ../$src .");
-    say "~/Git/RefactorF4Acc/refactorF4acc.pl -c rf4a_$prog.cfg $flags -g $prog";
-    system("~/Git/RefactorF4Acc/refactorF4acc.pl -c rf4a_$prog.cfg $flags -g $prog");
+    say "refactorF4acc.pl -c rf4a_$prog.cfg $flags -g $prog";
+    system("refactorF4acc.pl -c rf4a_$prog.cfg $flags -g $prog");
     if ($batch==1) {
     system("rm -f $src");
     system("rm -f rf4a_$prog.cfg");

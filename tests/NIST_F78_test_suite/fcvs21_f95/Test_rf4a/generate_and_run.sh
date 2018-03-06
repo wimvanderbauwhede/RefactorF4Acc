@@ -10,6 +10,7 @@ echo 'Generation Succeeded:'
 ls -1 ../RefactoredSources/ | grep -c f95
 cd ../RefactoredSources
 time ./driver_parse > parse.log 2>&1
+echo ""
 echo "# Compilation of the refactored test suite:"
 tail -n 5 parse.log
 time ./driver_run > run.log 2>&1

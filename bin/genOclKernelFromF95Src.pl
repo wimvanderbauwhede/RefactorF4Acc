@@ -1,6 +1,6 @@
 #!/usr/bin/env perl
-use 5.016;
-use warnings::unused;
+use 5.010;
+#use warnings::unused;
 use warnings;
 use warnings FATAL => qw(uninitialized);
 use strict;

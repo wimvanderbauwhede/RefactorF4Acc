@@ -25,7 +25,7 @@ use RefactorF4Acc::Parser::Expressions qw(
 use vars qw( $VERSION );
 $VERSION = "1.0.0";
 
-use warnings::unused;
+#use warnings::unused;
 use warnings;
 use warnings FATAL => qw(uninitialized);
 use strict;

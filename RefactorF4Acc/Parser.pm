@@ -26,7 +26,7 @@ use Fortran::ConstructParser qw(
 use vars qw( $VERSION );
 $VERSION = "1.0.0";
 
-use warnings::unused;
+#use warnings::unused;
 use warnings;
 use warnings FATAL => qw(uninitialized);
 use strict;
@@ -926,7 +926,7 @@ VIRTUAL
 			  ) {			  	
 				$type   = $1;
 				$varlst = $2;
-
+				
 				( $Sf, $info ) = __parse_f77_var_decl( $Sf, $stref, $f,$indent, $line, $info, $type, $varlst );
 				
 		}
@@ -3561,6 +3561,7 @@ if ($line=~/^character/) {
 		# CHARACTER*(*) V(2)
 		# But unfortunately also
 		# CHARACTER*10 B10VK, C10VK, E11VK*11, G10VK
+		
         my $len = $1; 
         my $vars_dims_str = $2;
 # split vars on outer commas, we have a function for that
@@ -3715,20 +3716,23 @@ if ($line=~/^character/) {
 
 	my $T = 0;
 	( my $pvars, my $pvars_lst ) = $is_char ? ($char_decls, $char_lst) : f77_var_decl_parser( $varlst, $T );
-	
+	if ($is_char) {
+		$type='character';
+	}
 	my @varnames = ();
 	# Add type information to Vars
-	for my $var ( @{$pvars_lst} ) {
+	for my $tvar ( @{$pvars_lst} ) {
 		
-		if ( $var eq '' ) { croak "<$line> in $f" }
-		my $tvar = $var;
-		if ( ref($var) eq 'ARRAY' ) { die __LINE__ . ':' . Dumper($var); }
+		if ( $tvar eq '' ) { croak "<$line> in $f" }
+#		my $tvar = $var;
+		if ( ref($tvar) eq 'ARRAY' ) { die __LINE__ . ':' . Dumper($tvar); }
 		my $common_block_name='';
 		# As the Dim can be defined elsewhere, we need extra checks to get the correct value
-		my $dim = $pvars->{$var}{'Dim'};		
+		my $dim = $pvars->{$tvar}{'Dim'};		
 		# In all the cases below, we get the dimension from the record
 		# Because I think it only happens for DIMENSION and COMMON lines.
-		if (exists $Sf->{'DeclaredOrigLocalVars'}{'Set'}{$tvar} ) {			
+		if (exists $Sf->{'DeclaredOrigLocalVars'}{'Set'}{$tvar} ) {		
+			
 			my $tdim =dclone($Sf->{'DeclaredOrigLocalVars'}{'Set'}{$tvar}{'Dim'});
 			if (scalar @{$tdim}>0) {
 				$dim=$tdim;
@@ -3755,12 +3759,12 @@ if ($line=~/^character/) {
 		my $tvar_rec = {
 			'Type'          => $type, # this is passed in as an argument  
 			'Dim'           => $dim, # see above
-			'ArrayOrScalar' => $pvars->{$var}{'ArrayOrScalar'},
-			'Attr'			=> $pvars->{$var}{'Attr'},
+			'ArrayOrScalar' => $pvars->{$tvar}{'ArrayOrScalar'},
+			'Attr'			=> $pvars->{$tvar}{'Attr'},
 			'IODir'         => 'Unknown',
 		};
 		# The Attr field depends on if it is a character or not
-		if ( not exists $pvars->{$var}{'Attr'} ) {
+		if ( not exists $pvars->{$tvar}{'Attr'} ) {
 			if ($attr) {
 				if ( $type !~ /character/ ) {
 					$tvar_rec->{'Attr'} = $attr ;
@@ -3770,7 +3774,7 @@ if ($line=~/^character/) {
 			}
 		} else {
 			if ( $type !~ /character/ ) {
-				$tvar_rec->{'Attr'} = '(kind=' . $pvars->{$var}{'Attr'} . ')';
+				$tvar_rec->{'Attr'} = '(kind=' . $pvars->{$tvar}{'Attr'} . ')';
 			}
 		}
 
@@ -3794,14 +3798,15 @@ if ($line=~/^character/) {
 			'IODir'  => $tvar_rec->{'IODir'},
 			'Status' => 0,
 			'StmtCount'	=> $tvar_rec->{'StmtCount'},
-			'ArrayOrScalar' => $pvars->{$var}{'ArrayOrScalar'},
+			'ArrayOrScalar' => $pvars->{$tvar}{'ArrayOrScalar'},
 		};
+		# Here $decl->{'Type'} is OK
 		
 		if ($common_block_name ne '') {
 			$decl->{'CommonBlockName'} = $common_block_name;
 		}
-		if (exists $pvars->{$var}{'InheritedParams'}) {
-			for my $mpar (keys %{ $pvars->{$var}{'InheritedParams'}{'Set'} }) {
+		if (exists $pvars->{$tvar}{'InheritedParams'}) {
+			for my $mpar (keys %{ $pvars->{$tvar}{'InheritedParams'}{'Set'} }) {
 				$decl->{'InheritedParams'}{'Set'}{$mpar}=1;
 			}
 		}
@@ -3822,36 +3827,40 @@ if ($line=~/^character/) {
 		push @varnames, $tvar;
 		
 # When we encounter UndeclaredOrigArgs we make them DeclaredOrigArgs
-		if ( exists $Sf->{'UndeclaredOrigArgs'}{'Set'}{$var} ) {
-			$Sf->{'DeclaredOrigArgs'}{'Set'}{$var} = $decl;
-			delete $Sf->{'UndeclaredOrigArgs'}{'Set'}{$var}; # Regardless of what was there
-			@{ $Sf->{'UndeclaredOrigArgs'}{'List'} } = grep { $_ ne $var } @{ $Sf->{'UndeclaredOrigArgs'}{'List'} };
-			$Sf->{'DeclaredOrigArgs'}{'List'} = ordered_union( $Sf->{'DeclaredOrigArgs'}{'List'}, [$var] );
-			$Sf->{'DeclaredOrigArgs'}{'Set'}{$var}{'StmtCount'}=1;
-		}
+		if ( exists $Sf->{'UndeclaredOrigArgs'}{'Set'}{$tvar} ) {
+			$Sf->{'DeclaredOrigArgs'}{'Set'}{$tvar} = $decl;
+			delete $Sf->{'UndeclaredOrigArgs'}{'Set'}{$tvar}; # Regardless of what was there
+			@{ $Sf->{'UndeclaredOrigArgs'}{'List'} } = grep { $_ ne $tvar } @{ $Sf->{'UndeclaredOrigArgs'}{'List'} };
+			$Sf->{'DeclaredOrigArgs'}{'List'} = ordered_union( $Sf->{'DeclaredOrigArgs'}{'List'}, [$tvar] );
+			$Sf->{'DeclaredOrigArgs'}{'Set'}{$tvar}{'StmtCount'}=1;			
+		}		
 # When we encounter UndeclaredCommonVars we make them DeclaredCommonVars
-		elsif ( exists $Sf->{'UndeclaredCommonVars'}{'Set'}{$var} ) {
-			$Sf->{'DeclaredCommonVars'}{'Set'}{$var} = $decl;
-			delete $Sf->{'UndeclaredCommonVars'}{'Set'}{$var}; # Regardless of what was there
-			@{ $Sf->{'UndeclaredCommonVars'}{'List'} } = grep { $_ ne $var } @{ $Sf->{'UndeclaredCommonVars'}{'List'} };
-			$Sf->{'DeclaredCommonVars'}{'List'} = ordered_union( $Sf->{'DeclaredCommonVars'}{'List'}, [$var] );
-			$Sf->{'DeclaredCommonVars'}{'Set'}{$var}{'StmtCount'}=1;
+		elsif ( exists $Sf->{'UndeclaredCommonVars'}{'Set'}{$tvar} ) {
+			$Sf->{'DeclaredCommonVars'}{'Set'}{$tvar} = $decl;
+			delete $Sf->{'UndeclaredCommonVars'}{'Set'}{$tvar}; # Regardless of what was there
+			@{ $Sf->{'UndeclaredCommonVars'}{'List'} } = grep { $_ ne $tvar } @{ $Sf->{'UndeclaredCommonVars'}{'List'} };
+			$Sf->{'DeclaredCommonVars'}{'List'} = ordered_union( $Sf->{'DeclaredCommonVars'}{'List'}, [$tvar] );
+			$Sf->{'DeclaredCommonVars'}{'Set'}{$tvar}{'StmtCount'}=1;
 			
 		} else { # A var decl must be unique, so if it's not a arg, it's a local or a common
 		
 		# The var can be either DeclaredOrigLocalVars or DeclaredCommonVars. 
 		# In both case we simply update the record
-			my $subset = in_nested_set($Sf,'Vars',$var);
-
+			my $subset = in_nested_set($Sf,'Vars',$tvar);
+#			warn 'HERE:',$subset,$line, Dumper($decl) if $line=~/IADN13/i;
 			if ($subset eq '') { # Var doesn't exist yet so it becomes DeclaredOrigLocalVars 
 				$subset = $is_module ? 'DeclaredCommonVars' : 'DeclaredOrigLocalVars';
+				
 				if ($is_module) { $decl->{'CommonBlockName'} = $f; } # overload CommonBlockName with module name 
-				push @{$Sf->{$subset}{'List'}}, $var;
-				$Sf->{$subset}{'Set'}{$var} = $decl;
+				push @{$Sf->{$subset}{'List'}}, $tvar;
+				$Sf->{$subset}{'Set'}{$tvar} = $decl;
+			} else {
+				# Var was declared but this could be via e.g. Dimension				
+				$Sf->{$subset}{'Set'}{$tvar} = $decl;
 			}			
 		}
-		$Sf->{'DeclCount'}{$var}++;
-		$info->{'StmtCount'}{$var} = $Sf->{'DeclCount'}{$var};
+		$Sf->{'DeclCount'}{$tvar}++;
+		$info->{'StmtCount'}{$tvar} = $Sf->{'DeclCount'}{$tvar};
 
 	}    # loop over all vars declared on a single line
 
@@ -3869,6 +3878,7 @@ if ($line=~/^character/) {
 #	map {say emit_f95_var_decl( get_var_record_from_set($Sf->{'Vars'},$_)) } @{ $info->{'VarDecl'}{'Names'} };
 #	croak $f.$line.Dumper($info) if $line=~/hzero/; 	   
 #	}
+
 	return ( $Sf, $info );
 }    # END of __parse_f77_var_decl()
 

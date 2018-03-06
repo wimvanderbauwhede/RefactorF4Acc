@@ -11,7 +11,7 @@ use RefactorF4Acc::Refactoring::Common qw( get_annotated_sourcelines create_refa
 use vars qw( $VERSION );
 $VERSION = "1.0.0";
 
-use warnings::unused;
+#use warnings::unused;
 use warnings;
 use warnings FATAL => qw(uninitialized);
 use strict;

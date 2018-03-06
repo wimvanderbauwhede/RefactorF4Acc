@@ -21,7 +21,7 @@ use RefactorF4Acc::Analysis::IdentifyStencils qw( pass_identify_stencils );
 use vars qw( $VERSION );
 $VERSION = "1.0.0";
 
-use warnings::unused;
+#use warnings::unused;
 use warnings;
 use warnings FATAL => qw(uninitialized);
 use strict;
