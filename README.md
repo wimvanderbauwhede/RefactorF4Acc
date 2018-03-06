@@ -45,15 +45,18 @@ School of Computing Science, University of Glasgow, UK
 
 * Subroutine extraction  
     * simply add an annotation
+    
           !$ACC SUBROUTINE <optional subroutine name>  
           ... <code to be extracted as subroutine>
-          !$ACC END SUBROUTINE <optional subroutine name>         
-* Automatic parallelisation using OpenCL
-    * simply add an annotation
-          !$ACC KERNEL  <optional kernel name>
-          ... < code to be parallelised as OpenCL kernel >
-          !$ACC END KERNEL  <optional kernel name>
+          !$ACC END SUBROUTINE <optional subroutine name>
+                   
 * Call graph generation
+
+### Automatic parallelisation using OpenCL
+
+Automatic parallelisation and offloading of legacy code to accelerators is the ultimate aim of the project, and already works for many cases. 
+However, the work flow is more complicated and requires an additional compiler, [AutoParallel-Fortran](https://github.com/wimvanderbauwhede/AutoParallel-Fortran). This compiler is written in Haskell, which is not yet a 
+mainstream programming language. Furthermore, the generated OpenCL code relies on the [OclWrapper Fortran OpenCL API](https://github.com/wimvanderbauwhede/OpenCLIntegration), written in C++, and uses [scons](http://scons.org/), a Python-based build system. For these reasons, it is harder to install this autoparallelising compiler. However, if you have installed it, a test case for the full flow is provided in the `tests` folder, see below for more details.           
 
 ## How it works
 
@@ -211,7 +214,7 @@ The following keys are defined:
 
 ### To run the NIST test suite
 
-We use the [NIST FORTRAN78 test suite](ftp://ftp.fortran-2000.com/fcvs21_f95.tar.bz2) for validation.
+We use the [NIST FORTRAN78 test suite](ftp://ftp.fortran-2000.com/fcvs21_f95.tar.bz2) for validation. 
 
       $ cd tests/NIST_F78_test_suite/fcvs21_f95
 
@@ -223,7 +226,7 @@ We use the [NIST FORTRAN78 test suite](ftp://ftp.fortran-2000.com/fcvs21_f95.tar
 
 In this folder, there are two subfolders `Test_rf4a` and  `RefactoredSources`. To verify the original test suite you can use the script `driver_parse`; to run it you can use the script `driver_run`; you may have to change the name of the Fortran compiler in `FC` at the start of these scripts.
 
-The refactored Fortran-95 code is generated in the folder `RefactoredSources`. There are three scripts in this folder, `driver_parse`, `driver_run` and `driver_run_single`. You may have to change the name of the Fortran compiler in `FC` at the start of these scripts.
+The refactored Fortran-95 code is generated in the folder `RefactoredSources`. There are three scripts in this folder, `driver_parse`, `driver_run` and `driver_run_single`. You may have to change the name of the Fortran compiler in `FC` at the start of these scripts. Please ensure that the environment varianble `$FC` is set to the Fortran compiler you want to use. I have tested the code only with `gfortran 4.9` and `gfortran 7.0`.
 
 To generate the refactored Fortran-95 code for the test suite, build and run it, do:
 
@@ -267,3 +270,38 @@ The final output should look like:
         FAILED: 3
         REQUIRE INSPECTION: 161
         TOTAL: 2890
+
+### To run the Fortran to parallel OpenCL test
+
+As explained above, to run this test you need to install the [AutoParallel-Fortran](https://github.com/wimvanderbauwhede/AutoParallel-Fortran) compiler and the [OclWrapper Fortran OpenCL API](https://github.com/wimvanderbauwhede/OpenCLIntegration), as well as [scons](http://scons.org/), a Python-based build system. 
+We use a simple 2-D shallow simulation for validation. A more detailed explanation is available in the file `tests/ShallowWater2D/Auto-acceleration-README.md`.
+
+      $ cd tests/ShallowWater2D/fortran
+      
+Please ensure that the environment varianble `$FC` is set to the Fortran compiler you want to use. I have tested the code only with `gfortran 4.9` and `gfortran 7.0`.
+To generate the refactored Fortran-95 code used as starting point for autoparallelisation and OpenCL conversion, run the command `./generate_and_run.sh`:
+      
+      $ ./generate_and_run.sh
+      
+This will generate refactored, accelerator-ready Fortan 95 code in the directory `tests/RefactoredSources`.	     
+
+	$ cd tests/ShallowWater2D/fortran
+	$ ./run_autoparallel_compiler GPU
+	
+This will generate OpenCL-ready parallelised code _in Fortran syntax_ in the directory `tests/Autopar`. To generate the actual kernel in OpenCL-C, do:
+
+	$ cd ../Autopar
+	$ ./generate_OpenCL_kernel.sh module_shapiro_dyn_update_superkernel   	
+	
+You can now build this code for GPU as follows:
+
+ - For running on an Intel Iris Pro
+  	
+	$ scons -f SConstruct.auto dev=GPU nth=32 nunits=40
+	
+ - For running on an NVIDIA GeForce GTX TITAN Black
+ 	
+	$ scons -f SConstruct.auto dev=GPU nth=512 nunits=15 	
+	
+Running the accelerated code on this GPU results in 14x speedup compared to the original code running on the host (Intel(R) Core(TM) i7-4771 CPU @ 3.50GHz) 
+

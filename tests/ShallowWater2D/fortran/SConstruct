@@ -1,0 +1,14 @@
+import os
+
+FC=os.environ.get('FC')
+
+
+fsources = ['./sub.f95','./param.f95','./main.f95']
+
+LDFLAGS= [] # ['-fopenmp'] #  [,'-Wl,-stack_size,0x40000000']
+#FFLAGS  = ['-cpp','-Ofast','-floop-parallelize-all','-ftree-parallelize-loops=8', '-m64', '-Wall','-ffree-form', '-fconvert=big-endian','-fopenmp','-pthread']
+FFLAGS  = ['-cpp','-Ofast', '-m64', '-Wall','-ffree-form', '-fconvert=big-endian','-mcmodel=medium']
+
+envF=Environment(F95=FC,LINK=FC,LINKFLAGS=LDFLAGS,F95FLAGS=FFLAGS,F95PATH=['.'])
+
+envF.Program('shallow_water_2D',fsources,LIBS=['m'],LIBPATH=['.','/opt/local/lib','/usr/local/lib'])

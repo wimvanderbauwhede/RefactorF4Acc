@@ -1,0 +1,18 @@
+# Generated build script for refactored source code
+# Thu Jun  8 18:19:53 2017
+
+#csources =[]
+
+fsources = ['./dyn.f95','./init.f95','./main.f95','./param.f95','./shapiro.f95','./sub.f95','./update.f95']
+
+envC=Environment(CC='/opt/local/bin/gcc-mp-4.9',CPPPATH=[]); 
+#if csources:
+#    envC.Library('wave2d_c',csources)
+
+FFLAGS  = ['-cpp','-O3', '-m64', '-ffree-form', '-ffree-line-length-0','-fconvert=little-endian', '-frecord-marker=4']
+envF=Environment(F95='/opt/local/bin/gfortran-mp-4.9',LINK='/opt/local/bin/gfortran-mp-4.9',F95FLAGS=FFLAGS,F95PATH=['.' ,'/opt/local/include','/usr/local/include'])
+#if csources:
+#    envF.Program('wave2d',fsources,LIBS=[ 'wave2d_c','m'],LIBPATH=['.' ,'/opt/local/lib','/usr/local/lib'])   
+#else:
+#    envF.Program('wave2d',fsources,LIBS=[ 'm'],LIBPATH=['.' ,'/opt/local/lib','/usr/local/lib'])
+envF.Program('wave2d',fsources,LIBS=[ 'm'],LIBPATH=['.' ,'/opt/local/lib','/usr/local/lib'])

@@ -1,0 +1,2 @@
+AutoParallel-Fortran-exe ./shapiro.f95 ./dyn.f95 ./update.f95 -out ../Autopar/ -main ./main.f95 -v -plat $1 -X NO_IO -v
+

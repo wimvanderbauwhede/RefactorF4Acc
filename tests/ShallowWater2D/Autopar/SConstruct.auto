@@ -1,0 +1,249 @@
+EXTRA_FLAGS=['-DTIMINGS'] #,'-DBARRIER_OK'] #,'-DDBG']
+WV_DEBUG = '' # '-DWV_DEBUG'     #UNUSED!
+OCL_DEBUG =  '' # '-DDEBUG'     #UNUSED!
+NO_COMPUTE= '' # '-DNO_COMPUTE'
+
+#SOR_FLAGS='-DTWINNED_DOUBLE_BUFFER -DBARRIER_OK' # for GPU
+SOR_FLAGS=['-DTWINNED_DOUBLE_BUFFER', '-DFIXED_NTH'] # for CPU
+EXTRA_KOPTS=" ".join(SOR_FLAGS)
+
+external_wind_profile = False
+distributed_computation = False
+automatic_kernel_generation = False
+
+import os
+import commands
+import glob
+
+import OclBuilder
+# First build the OclWrapper library
+from OclBuilder import initOcl
+from sys import exit
+# Adding path to includes for kernels
+CWD= os.environ['PWD']
+
+OclBuilder.kopts='-cl-mad-enable -cl-fast-relaxed-math -I'+CWD+'/../OpenCL/Kernels/'
+
+from OclBuilder import getOpt
+
+OclBuilder.opts=Variables()
+
+envF=Environment(useF=1)
+    
+# Then build the rest of the code
+dbg = getOpt('dbg','Add DBG macro','0')
+if dbg  == '1':
+    EXTRA_FLAGS+=['-DDBG']
+
+    
+auto  = getOpt('auto','Automatic kernel generation','1')
+if auto  == '1':
+    automatic_kernel_generation = True
+
+nth = getOpt('nth', 'Number of threads', '1')
+nunits = getOpt('nunits', 'Number of compute units', '8')
+#if nth == '-1':
+#	exit("NTH argument has not been provided! (nth=<somevalue>)")
+#if nunits == '-1':
+#	exit("NUNITS argument has not been provided! (nunits=<somevalue>)")
+
+
+WITH_OCL=''
+
+print 'OclBuilder.kopts: '+OclBuilder.kopts
+
+OclBuilder.kopts
+WITH_OCL = '-D_OPENCL_LES_WV'
+envF=initOcl(envF)
+kernel_opts = envF['KERNEL_OPTS'] 
+print "envF['KERNEL_OPTS']: ", kernel_opts 
+barrier_ok=''
+if OclBuilder.dev == 'GPU':
+    barrier_ok='-DBARRIER_OK'
+    print 'dev:'+OclBuilder.dev
+else:
+    print 'dev:'+OclBuilder.dev
+
+def labelNewFilename(originalFilename, label):
+    (prefix, extension) = splitAtExtension(originalFilename)
+    return prefix + label + extension
+
+def splitAtExtension(originalFilename):
+    splitFilename = originalFilename.split('.')
+    prefix = ""
+    if len(splitFilename) > 2:
+        for section in splitFilename[1:-1]:
+            prefix += '.' + section
+        return (prefix, '.' + splitFilename[-1])
+    elif not hasExtension(originalFilename):
+        return (originalFilename, '')
+    else:
+        return (splitFilename[0], '.' + splitFilename[1])
+
+def configureKernelWorkGroupInfo(nunits, nth, kernelFilename):
+    cmd_cpp = 'cpp -P -DNUNITS=' + str(nunits) + ' -DNTH=' + str(nth) + ' '+barrier_ok+ ' '
+    print 'Configuring OpenCL kernel code in ' +kernelFilename + ' with appropriate NUNITS and NTH values: '+cmd_cpp
+    tempFilename = manufactureTempName()
+
+#    with open(kernelFilename) as kernelFile:
+#        content = kernelFile.readlines()
+
+#    badDeclarations = ['float nth;', 'float nunits;', 'float CLK_LOCAL_MEM_FENCE;', 'float clk_local_mem_fence;']
+#    removedDeclsStr = removeLines(badDeclarations, content)
+
+#    with open(tempFilename, 'w') as tempFile:
+#        tempFile.write(removedDeclsStr)
+
+    (kernelFilename_prefix, kernelFilename_extension) = splitAtExtension(kernelFilename)
+#    newKernelFilename = kernelFilename_prefix + '_FIN.cl'
+
+    cmd_cpp_file = cmd_cpp + ' '+kernelFilename_prefix + '_ORIG.cl' + ' > ' + tempFilename
+    print "Running command: "+cmd_cpp_file
+    os.system(cmd_cpp_file)
+    print "Done running command "+ cmd_cpp_file
+    #os.system('cp ' + kernelFilename + ' ' + kernelFilename_prefix + '_ORIG.cl')
+    os.system('mv ' + tempFilename + ' ' + kernelFilename)
+
+#    return newKernelFilename
+    return kernelFilename
+
+def removeLines(lineList, content):
+    contentWithoutOffendingDecls = []
+    for line in content:
+        trimmedLine = line.strip().lower()
+        offenderFound = False
+        for offender in lineList:
+            if trimmedLine == offender.lower():
+                offenderFound = True
+                break
+        if not offenderFound:
+            contentWithoutOffendingDecls += [line]
+    
+    finalStr = ""
+    for line in contentWithoutOffendingDecls:
+        finalStr += line
+    return finalStr
+
+def hasExtension(filename):
+    forbidden = '/\\'
+    hasExtension = False
+    for char in filename:
+        if char in forbidden:
+            hasExtension = False
+        elif char == '.':
+            hasExtension = True
+    return hasExtension
+
+def manufactureTempName():
+    base = './tempCPP'
+    current = base
+    count = 1
+    while (os.path.exists(current)):
+        current = base + str(count)
+        count += 1
+    return current
+
+TEST_SMALL_DOMAIN = 0
+USE_NETCDF_OUTPUT = 0
+MAX_REL_ERROR = '-DMAX_REL_ERROR=0.001' # UNUSED!
+
+NO_FILE_IO='-DNO_FILE_IO'
+ICAL = '-DICAL=0'
+IFBF='-DIFBF'
+IANIME='-DIANIME=0'
+IADAM='-DIADAM=0'
+
+sor_max_iters = getOpt('nmaxsor','SOR max iters','50') 
+SOR_MAX_ITERS = '-DSOR_MAX_ITERS ='+sor_max_iters
+
+NUNITS = '-DNUNITS=' + str(nunits)
+NTH = '-DNTH=' + str(nth)
+
+FFLAGS  = [ WITH_OCL, NO_FILE_IO, NO_COMPUTE, ICAL, IFBF,IANIME, IADAM] + SOR_FLAGS + EXTRA_FLAGS
+if USE_NETCDF_OUTPUT == 1:
+    FFLAGS  += ['-DUSE_NETCDF_OUTPUT']
+if TEST_SMALL_DOMAIN == 1:
+    FFLAGS  += ['-DTEST_SMALL_DOMAIN']
+if external_wind_profile:
+    FFLAGS  += ['-DEXTERNAL_WIND_PROFILE']
+if distributed_computation:
+    FFLAGS += ['-DHALO_EXCHANGE']
+#if automatic_kernel_generation:    
+#    FFLAGS += ['-DAUTO_KERNELS']
+
+status=0
+envF['STATUS'] = status
+        
+
+if OclBuilder.mcModel == 'm':    
+  FFLAGS += ['-mcmodel=medium']
+elif OclBuilder.mcModel == 'l':    
+  FFLAGS += ['-mcmodel=large']
+    
+csources=[]
+if os.path.exists('./noop.c'):
+    csources=['./noop.c']
+
+envC=Environment(CC='gcc')
+if csources:
+    envC.Library('csubs',csources)
+
+
+hostsources = ['./main_host.f95','./dyn_host.f95','./shapiro_host.f95','./update_host.f95','./module_shapiro_dyn_update_superkernel_init.f95']
+kernelSource = 'module_shapiro_dyn_update_superkernel.cl'
+fsources = ['./init.f95','./param.f95', './sub.f95']
+
+fsources.append('oclWrapper.o')
+	
+
+cwd = os.getcwd()
+
+# Basically, it's Linux unless it's OS X
+if os.uname()[0] == "Darwin":
+        OSX=1
+        OSFLAG='-DOSX'
+else:       
+        OSX=0
+        OSFLAG='-D__LINUX__'
+
+# Linker flags for OclWrapper		 
+OPENCL_DIR=os.environ['OPENCL_DIR']
+OCL_LDFLAGS =  ['-L.','-L'+OPENCL_DIR+'/OpenCLIntegration']
+
+if OSX == 1:
+    INCLPATH = '/opt/local/include' 
+    LIBPATH = '/opt/local/lib'
+else:    
+# test for devtoolset-2 ... so better use a var $DEVTOOLSETROOT?
+    if os.path.exists('/opt/rh/devtoolset-2'): 
+        INCLPATH = '/opt/rh/devtoolset-2/root/usr/include' 
+        LIBPATH = '/opt/rh/devtoolset-2/root/usr/lib'
+    else:
+# reasonable default ...
+        INCLPATH = '/usr/local/include' 
+        LIBPATH = '/usr/local/lib'
+    
+envF.Append(F95FLAGS=FFLAGS)
+
+
+envF.Append(F95PATH=['.',INCLPATH])
+
+
+envF.Append(LIBS=['m'])
+if USE_NETCDF_OUTPUT == 1:
+    envF.Append(LIBS=['netcdff','netcdf'])
+
+envF.Append(LIBPATH=['.',LIBPATH])
+    
+envF.Append(LIBS=['OclWrapperF','stdc++','OclWrapper'])
+if OSX==1:
+            envF.Append(FRAMEWORKS=['OpenCL'])
+else:
+            envF.Append(LIBS=['OpenCL'])   
+
+kernelFilename = configureKernelWorkGroupInfo(nunits, nth, kernelSource)
+
+fsources += hostsources #fsources_workgroup
+
+prog = envF.Program('wave2d_ocl',fsources)
+
