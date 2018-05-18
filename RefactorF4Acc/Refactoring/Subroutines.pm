@@ -344,7 +344,7 @@ sub _refactor_globals_new {
         		--$inc_counter;
               $skip = 1;
         	} else {
-        		warn "Module ".$info->{'Use'}{'Name'}." in $f is not Inlineable" if $W; 
+        		say "INFO: Module ".$info->{'Use'}{'Name'}." in $f is not Inlineable" if $I; 
         	}       
         }
         

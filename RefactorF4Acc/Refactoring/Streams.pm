@@ -1153,6 +1153,7 @@ sub _declare_undeclared_variables { (my $stref, my $f)=@_;
 	# If a variable is declared but not used in any LHS, RHS  or SubroutineCall, it is unused.
 	# So start with all declared variables, put in $state->{'DeclaredVars'}
 	# Make a list of all variables anywhere in the code via Lhs, Rhs, Args, put in $state->{'ExprVars'}
+#	die Dumper($stref->{'Subroutines'}{'feedbf_map_48'}{'Args'}{'Subsets'}{'OrigArgs'}{'Subsets'}{'DeclaredOrigArgs'}{'Set'}{'abcd_mask'});
 	my $pass_action_find_all_used_vars = sub { (my $annline, my $state)=@_;		
 		(my $line,my $info)=@{$annline};
 #		say "$f LINE: $line" if $line=~/range/;
@@ -1227,25 +1228,40 @@ sub _declare_undeclared_variables { (my $stref, my $f)=@_;
         # The pass finds ExprVars and AssignedVars
  		($stref,$state) = stateful_pass($stref,$f,$pass_action_find_all_used_vars, $state,'_find_all_unused_variables() ' . __LINE__  ) ;
 
+
+
 	# --------------------------------------------------------------------------------------------------------------------------------
 	# As we are going through the whole code we can also test for undeclared vars 
 	# This is very ad-hoc
 	for my $expr_var (keys %{ $state->{'ExprVars'} } ) {
 		next if exists $Config{'Macros'}{uc($expr_var)};
 		if (not exists $state->{'DeclaredVars'}{$expr_var} ) {
-			if ($expr_var ne '_OPEN_PAR_' and $expr_var!~/^\d/) {				
-				$state->{'UndeclaredVars'}{$expr_var}='real'; # the default
-			} 
+			# This is weak so I check the decl the proper way first!
+			my $subset = in_nested_set($stref->{'Subroutines'}{$f},'Vars',$expr_var);
+			if ($subset eq '') {
+				if ($expr_var ne '_OPEN_PAR_' and $expr_var!~/^\d/) {				
+					$state->{'UndeclaredVars'}{$expr_var}='real'; # the default
+				}
+			}
+			 
 		}
 	}
+	
 	for my $lhs_var (keys %{ $state->{'AssignedVars'} } ) {
 		next if exists $Config{'Macros'}{uc($lhs_var)};
 		if (not exists $state->{'DeclaredVars'}{$lhs_var} ) {
+			# This is weak so I check the decl the proper way first!
+			my $subset = in_nested_set($stref->{'Subroutines'}{$f},'Vars',$lhs_var);
+			if ($subset eq '') {
+			
 #			if ($expr_var ne '_OPEN_PAR_' and $expr_var!~/^\d/) {				
 				$state->{'UndeclaredVars'}{$lhs_var}='real'; # the default
-#			} 
+#			}
+			} 
 		}
 	}	
+	
+	
 	# --------------------------------------------------------------------------------------------------------------------------------	 			
 	my $pass_action_type_undeclared = sub { (my $annline, my $state)=@_;
 		(my $stref, my $f, my $pass_state)=@{$state};

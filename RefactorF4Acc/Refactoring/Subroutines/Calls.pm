@@ -8,6 +8,8 @@ use RefactorF4Acc::Refactoring::Subroutines::Signatures qw( refactor_subroutine_
 #   (c) 2010-2017 Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
 #   
 
+# OBSOLETE!
+
 use vars qw( $VERSION );
 $VERSION = "1.0.0";
 

@@ -243,7 +243,9 @@ sub _change_func_to_array { (my $stref, my $f,  my $info, my $ast, my $exp)=@_;
     				$ast->[$idx]='@';
     				say "Found array $mvar" if $DBG;
 				} elsif (   	exists $F95_intrinsics{$mvar} ) {
-					say "parse_expression('$exp')" . __LINE__.": WARNING: treating $mvar in $f as an intrinsic! " if $W;  
+#					say "Parser::Expressions::parse_expression('$exp') on line" . __LINE__.": WARNING: treating $mvar in $f as an intrinsic! " if $W;
+				} elsif (   	$mvar eq 'fakerange' ) {
+#					say "Parser::Expressions::parse_expression('$exp') on line" . __LINE__.": WARNING: treating $mvar in $f as an intrinsic! " if $W;					  
 				} else {
 					# So, this line contains a function call, so we should say so in $info!
 					# I introduce FunctionCalls for this purpose!

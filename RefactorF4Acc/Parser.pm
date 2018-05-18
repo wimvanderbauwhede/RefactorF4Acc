@@ -3236,7 +3236,7 @@ my $is_module = (exists $stref->{'Modules'}{$f}) ? 1 : 0;
 		my $parliststr = $1;
 		my $var        = $pt->{'Pars'}{'Var'};
 		my $val        = $pt->{'Pars'}{'Val'};
-		my $type       = $pt->{'TypeTup'};
+		my $type       = $pt->{'TypeTup'}{'Type'};
 
 		my $pars_in_val = ___check_par_val_for_pars($val);
 
@@ -3247,7 +3247,8 @@ my $is_module = (exists $stref->{'Modules'}{$f}) ? 1 : 0;
 			'Dim'       => [],
 			'Parameter' => 'parameter',
 			'Names'     => [ [ $var, $val ] ],
-			'Status'    => 0
+			'Status'    => 0,
+			'ArrayOrScalar' => 'Scalar' # FIXME: Asumption that parameters are always scalars  
 		};    # F95-style
 		$info->{'ParamDecl'} = $param_decl;
 		$info->{'VarDecl'} = {'Name' => $var };
@@ -3269,7 +3270,7 @@ my $is_module = (exists $stref->{'Modules'}{$f}) ? 1 : 0;
 		  ( @{ $Sf->{'LocalParameters'}{'List'} }, $var )
 		  ;    # FIXME: use ordered_union()
 
-	} else {
+	} else { 
 		# F95 VarDecl, continued
 		if (    not exists $info->{'ParsedVarDecl'}
 			and not exists $info->{'VarDecl'} )
@@ -3349,12 +3350,14 @@ my $is_module = (exists $stref->{'Modules'}{$f}) ? 1 : 0;
 				}  		  		
 							 
 				# It is possible that at this point the variable had not been declared yet and we use implicit rules
+				$subset='UNKNOWN';
 				# Then we change it to declared.
 				if ( exists $Sf->{'UndeclaredOrigArgs'}{'Set'}{$tvar} ) {								
 					$Sf->{'DeclaredOrigArgs'}{'Set'}{$tvar} = $decl;
 					delete $Sf->{'UndeclaredOrigArgs'}{'Set'}{$tvar};
 					@{ $Sf->{'UndeclaredOrigArgs'}{'List'} } = grep { $_ ne $tvar } @{ $Sf->{'UndeclaredOrigArgs'}{'List'} };
 					$Sf->{'DeclaredOrigArgs'}{'List'} = ordered_union( $Sf->{'DeclaredOrigArgs'}{'List'}, [$tvar] );
+					$subset='DeclaredOrigArgs';
 					
 				} 
 				# In principle F95 code can also have COMMON vars
@@ -3364,6 +3367,7 @@ my $is_module = (exists $stref->{'Modules'}{$f}) ? 1 : 0;
 					delete $Sf->{'UndeclaredCommonVars'}{'Set'}{$tvar}; # Regardless of what was there
 					@{ $Sf->{'UndeclaredCommonVars'}{'List'} } = grep { $_ ne $tvar } @{ $Sf->{'UndeclaredCommonVars'}{'List'} };
 					$Sf->{'DeclaredCommonVars'}{'List'} = ordered_union( $Sf->{'DeclaredCommonVars'}{'List'}, [$tvar] );
+					$subset='DeclaredCommonVars';
 				} else { # A var decl must be unique, so it it's not a arg, it's a local or a common
 				
 				# I added this check so that I can use the parser for variables that are declared using implicit rules 
@@ -3375,12 +3379,14 @@ my $is_module = (exists $stref->{'Modules'}{$f}) ? 1 : 0;
 						if ( scalar @test == 0) { 
 							push @{ $Sf->{'UndeclaredOrigLocalVars'}{'List'} }, $tvar;
 						} 
+						$subset='UndeclaredOrigLocalVars';
 					} elsif	(exists $Sf->{'DeclaredOrigLocalVars'}{'Set'}{$tvar} ) {						
 						$Sf->{'DeclaredOrigLocalVars'}{'Set'}{$tvar} = $decl;
 						my @test=grep {$_ eq $tvar}  @{ $Sf->{'DeclaredOrigLocalVars'}{'List'} };
 						if ( scalar @test == 0) { 
 							push @{ $Sf->{'DeclaredOrigLocalVars'}{'List'} }, $tvar;
-						} 						
+						} 					
+						$subset='DeclaredOrigLocalVars';	
 					} elsif (exists $Sf->{'UndeclaredCommonVars'}{'Set'}{$tvar} ) {
 						my $common_block_name = $Sf->{'UndeclaredCommonVars'}{'Set'}{$tvar}{'CommonBlockName'};
 							$Sf->{'UndeclaredCommonVars'}{'Set'}{$tvar} = $decl;
@@ -3389,6 +3395,7 @@ my $is_module = (exists $stref->{'Modules'}{$f}) ? 1 : 0;
 							if ( scalar @test == 0) { 
 								push @{ $Sf->{'UndeclaredCommonVars'}{'List'} }, $tvar;
 							} 
+						$subset='UndeclaredCommonVars';		
 					} elsif (exists $Sf->{'DeclaredCommonVars'}{'Set'}{$tvar} ) {
 						my $common_block_name = $Sf->{'DeclaredCommonVars'}{'Set'}{$tvar}{'CommonBlockName'};
 						$Sf->{'DeclaredCommonVars'}{'Set'}{$tvar} = $decl;
@@ -3396,9 +3403,10 @@ my $is_module = (exists $stref->{'Modules'}{$f}) ? 1 : 0;
 						my @test=grep {$_ eq $tvar}  @{ $Sf->{'DeclaredCommonVars'}{'List'} };
 						if ( scalar @test == 0) { 
 							push @{ $Sf->{'DeclaredCommonVars'}{'List'} }, $tvar;
-						} 						 
+						} 						
+						$subset='DeclaredCommonVars';		 
 					} else {						
-						my $subset =in_nested_set($Sf,'Vars',$tvar);
+						$subset =in_nested_set($Sf,'Vars',$tvar);
 						if ($subset ne '') {
 #							carp "LINE $line: $tvar in subset $subset of Vars";
 							$Sf->{$subset}{'Set'}{$tvar} = $decl;
@@ -3411,7 +3419,7 @@ my $is_module = (exists $stref->{'Modules'}{$f}) ? 1 : 0;
 						}
 					}					
 				}
-#				croak Dumper($Sf->{'DeclaredOrigLocalVars'}{'Set'}{'ihead'}) if $line=~/rnorm/;
+#				croak Dumper($subset,$decl, $Sf->{'DeclaredOrigArgs'}{'Set'}{'abcd_mask'}) if $line=~/abcd_mask/;
 				$idx++;
 			}
 		}
@@ -3483,7 +3491,8 @@ sub __parse_f77_par_decl {
 					'Type' => $type,
 					'Var'  => $var,
 					'Val'  => $val,
-					'Attr' => $attr
+					'Attr' => $attr,
+					'DEBUG' => 2
 				};
 				say "INFO: LOCAL PARAMETER $var infered type: $type $var = $val" if $I;
 				push @{$pars}, $var;
@@ -3499,7 +3508,8 @@ sub __parse_f77_par_decl {
 				'Type' => $type,
 				'Var'  => $var,
 				'Val'  => $pvars{$var},
-				'Attr' => $attr
+				'Attr' => $attr,
+				'DEBUG' => 1	
 			};
 
 			my $val = $pvars{$var};
@@ -3512,6 +3522,7 @@ sub __parse_f77_par_decl {
 			$Sf->{'LocalParameters'}{'Set'}{$var}{'InheritedParams'}{'Set'}{$mpar}=1;
 		}
 		$pars_in_val = { %{$pars_in_val}, %{$pars_in_val_for_var} };
+		
 	}
 
 	$info->{'UsedParameters'} = $pars_in_val;
@@ -3522,7 +3533,8 @@ sub __parse_f77_par_decl {
 		'Dim'       => [],
 		'Parameter' => 'parameter',
 		'Names'     => [@var_vals],
-		'Status'    => 0		 
+		'Status'    => 0,
+			 
 	};
 	
 	@{ $Sf->{'LocalParameters'}{'List'} } =  ( @{ $Sf->{'LocalParameters'}{'List'} }, @{$pars} );

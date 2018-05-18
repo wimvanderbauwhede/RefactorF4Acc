@@ -35,6 +35,7 @@ use Exporter;
 # -----------------------------------------------------------------------------
 # We do a recusive descent for all called subroutines, and for the leaves we do the analysis
 sub determine_argument_io_direction_rec { ( my $stref,my $f ) = @_;
+#	local $V=1;
 	my $c;
 	if ($V) {
 		$c = ( defined $stref->{Counter} ) ? $stref->{Counter} : 0;
@@ -62,12 +63,13 @@ sub determine_argument_io_direction_rec { ( my $stref,my $f ) = @_;
 }    # determine_argument_io_direction_rec()
 
 # -----------------------------------------------------------------------------
-sub _determine_argument_io_direction_core {
-	( my $stref, my $f ) = @_;
+sub _determine_argument_io_direction_core {	( my $stref, my $f ) = @_;
+#	local $V=1;
 	if ( exists $stref->{'Subroutines'}{$f} ) {
 		my $Sf = $stref->{'Subroutines'}{$f};
 
-		print "DETERMINE IO DIR FOR SUB $f\n" if $V;
+		say "_determine_argument_io_direction_core($f)" if $V;
+#		print "DETERMINE IO DIR FOR SUB $f\n" if $V;
 
 		# Then for each of these, we go through the args.
 		# If an arg has a non-'U' value, we overwrite it.
@@ -133,6 +135,7 @@ sub _determine_argument_io_direction_core {
 
 sub _set_iodir_read {
 	( my $mvar, my $args_ref ) = @_;
+#	say "VAR: $mvar";
 	my $is_array=0;
 	if (exists $args_ref->{$mvar}{'ArrayOrScalar'}) {
 		$is_array=$args_ref->{$mvar}{'ArrayOrScalar'}
@@ -151,7 +154,10 @@ sub _set_iodir_read {
 	if ( $args_ref->{$mvar}{'IODir'} eq 'Unknown' ) {
 		print "FOUND In ARG $mvar\n" if $DBG;
 		$args_ref->{$mvar}{'IODir'} = 'In';
-	}
+	} 
+#	else {
+#		say "ARG $mvar is ".$args_ref->{$mvar}{'IODir'};
+#	}
 	return $args_ref;
 }
 # -----------------------------------------------------------------------------
@@ -254,9 +260,9 @@ sub _find_vars_w_iodir {
 sub _analyse_src_for_iodirs {
 	( my $stref, my $f ) = @_;
 
-	#    local $W=1;local $V=1;
+#	    local $W=1;local $V=1;local $I=1;
 
-	print "_analyse_src_for_iodirs() $f\n" if $V;
+	say "_analyse_src_for_iodirs($f)" if $V;
 	my $Sf = $stref->{'Subroutines'}{$f};
 
 	if ( not exists $Sf->{'IODirInfo'} or $Sf->{'IODirInfo'} == 0 ) {
@@ -265,7 +271,7 @@ sub _analyse_src_for_iodirs {
 			croak 'BOOM! ' . __LINE__ . ' ' . $f . ' : ' . Dumper($Sf);
 		}
 		my $args = dclone( $Sf->{'RefactoredArgs'}{'Set'} ); 
-
+		# At this point both un and etan have Unknown
 		if ( exists $Sf->{'HasEntries'}  ) {
 			say "INFO: Setting IODir to Ignore for all args in subroutine $f because of ENTRIES" if $I;
 			for my $arg (keys %{$args}) {
@@ -334,7 +340,7 @@ sub _analyse_src_for_iodirs {
 					next;
 				}
 				# -----------------------------------------------------------------------------
-				if (   exists $info->{'WriteCall'} or exists $info->{'PrintCall'} ) {
+				if ( exists $info->{'WriteCall'} or exists $info->{'PrintCall'} ) {
 					# All variables are read from, so IODir is read
 					for my $mvar (
 						@{ $info->{'CallArgs'}{'List'} },
@@ -456,18 +462,19 @@ sub _analyse_src_for_iodirs {
 
 					
 					my $rhs_vars = $info->{'Rhs'}{'VarList'}{'List'};
-					
-					if (scalar @{$rhs_vars}>0) {
-						
-						_set_iodir_vars($rhs_vars,$args, \&_set_iodir_read );
+#					say "ARGS:".Dumper(keys( %{$args})) if $f eq 'wave2d';
+#					say "RHS:".Dumper($rhs_vars) if $f eq 'dyn';
+					if (scalar @{$rhs_vars}>0) {						
+						$args = _set_iodir_vars($rhs_vars,$args, \&_set_iodir_read );
 					}
 #					carp Dumper($info->{'Lhs'});
 					my $lhs_var = $info->{'Lhs'}{'VarName'};
-					_set_iodir_vars([$lhs_var],$args, \&_set_iodir_write );
+					$args = _set_iodir_vars([$lhs_var],$args, \&_set_iodir_write );
 					my $lhs_index_vars = $info->{'Lhs'}{'IndexVars'}{'List'};
 					if (scalar @{$lhs_index_vars}>0) {
-						_set_iodir_vars($lhs_index_vars,$args, \&_set_iodir_read );
+						$args = _set_iodir_vars($lhs_index_vars,$args, \&_set_iodir_read );
 					}					
+#					say "LHS:".Dumper($lhs_var,$lhs_index_vars) if $f eq 'waved2';
 					#
 					next;
 				} else {    # not an assignment, do as before
@@ -476,6 +483,7 @@ sub _analyse_src_for_iodirs {
 				}
 			}
 		}
+		
 		for my $arg ( keys %{$args} ) {
 			
 			if (
@@ -977,6 +985,7 @@ sub _get_iodirs_from_subcall {
 	( my $stref, my $f, my $info ) = @_;
 
 	my $name              = $info->{'SubroutineCall'}{'Name'};
+	
 	my $called_arg_iodirs = {};
 	if ( not (exists $stref->{'ExternalSubroutines'}{$name}	
 		or (exists $stref->{'Subroutines'}{$name}{'Entry'}  and $stref->{'Subroutines'}{$name}{'Entry'}==1)
@@ -992,7 +1001,7 @@ sub _get_iodirs_from_subcall {
 
 		# For every argument of the ORIGINAL signature of the called subroutine
 		for my $sig_arg ( keys %{$argmap} ) {
-		
+
 # See if there is a corresponding argument in the called args of the called subroutine
 			my $call_arg = $argmap->{$sig_arg};
 				if (defined $call_arg ) { 

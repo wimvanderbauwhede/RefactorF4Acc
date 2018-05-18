@@ -65,6 +65,7 @@ sub refactor_all {
 		if (top_src_is_module($stref, $code_unit_name)) {
 			$stref=add_module_decls($stref);
 		}
+		
 		return $stref;
 	}
     $stref = refactor_include_files($stref);
@@ -81,7 +82,7 @@ sub refactor_all {
     if ($sub_or_func_or_mod eq 'Subroutines') {
     $stref = determine_argument_io_direction_rec( $stref,$code_unit_name );    
     say "DONE determine_argument_io_direction_rec()" if $V;
-
+	# This is the actual update
     $stref = update_argument_io_direction_all_subs( $stref );
     }
     
