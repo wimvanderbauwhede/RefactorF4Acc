@@ -297,10 +297,9 @@ sub _refactor_globals_new {
         (my $line, my $info) = @{ $annline };
         my $skip = 0;
 
-        if ( exists $info->{'Signature'} ) {
-        	 
-            	if (not exists $Sf->{'HasRefactoredArgs'} or $Sf->{'HasRefactoredArgs'} ==0 ) {
-            	
+        if ( exists $info->{'Signature'} ) {        	 
+#        	carp Dumper($Sf->{RefactoredArgs}{'List'}) if $f eq 'dyn';
+			if (not exists $Sf->{'HasRefactoredArgs'} or $Sf->{'HasRefactoredArgs'} ==0 ) {            	
                 # This probably means the subroutine has no arguments at all.
                  # Do this before the analysis for RefactoredArgs!
                  $stref = refactor_subroutine_signature( $stref, $f );

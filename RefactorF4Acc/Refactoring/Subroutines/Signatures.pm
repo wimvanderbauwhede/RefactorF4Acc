@@ -93,11 +93,11 @@ sub create_refactored_subroutine_signature {
 # -----------------------------------------------------------------------------
 
 # -----------------------------------------------------------------------------
-
+# 
 sub refactor_subroutine_signature {
     ( my $stref, my $f ) = @_;
     my $Sf = $stref->{'Subroutines'}{$f};
-    
+    local $V=1;
     if ($V) {
         if ( exists $Sf->{'OrigArgs'} ) {
             print "SUB $f ORIG ARGS:" . join( ',', @{ $Sf->{'OrigArgs'}{'List'} } ), "\n";
@@ -105,7 +105,7 @@ sub refactor_subroutine_signature {
             print "SUB $f ORIG ARGS: ()\n";
         }
     }
-
+croak if $f eq 'dyn';
     # Loop over all globals and create the list @exglobs by concatenation
     # Also add all vars to $Sf->{'Vars'} unless they were already there
     my @exglobs            = ();        

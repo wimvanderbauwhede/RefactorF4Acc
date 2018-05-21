@@ -292,7 +292,7 @@ sub _analyse_variables {
 #				  	say "$f VAR2 $mvar";
 					my $in_incl = 0;
 					if ( not exists $Sf->{'Commons'}{$mvar} ) {												
-						for my $inc ( keys %{ $Sf->{'Includes'} } ) {
+						for my $inc ( sort keys %{ $Sf->{'Includes'} } ) {
 							say "LOOKING FOR $mvar from $f in $inc" if $DBG;
 
 							# A variable can be declared in an include file or not and can be listed as common or not
