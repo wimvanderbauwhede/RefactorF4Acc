@@ -126,7 +126,7 @@ sub add_module_decls {
 					map {
 						my $annline = $_;
 						( my $line, my $info ) = @{$annline};
-						carp $line.Dumper($info) if $line=~/Ignore/;
+						
 						if ( exists $info->{'VarDecl'} ) {
 							my $ref_vardecl_line = emit_f95_var_decl( get_var_record_from_set( $stref->{'Modules'}{ $existing_module_name{$src} }{'Vars'}, $info->{'VarDecl'}{'Name'} ) );
 							[ $ref_vardecl_line, $info ];
@@ -264,7 +264,7 @@ sub _create_module_src { (my $stref, my $src, my $subname, my $no_modules ) = @_
 			my @prog_p1        = ();
 			my @prog_p2        = ();
 			my @contained_subs = ();
-			for my $annline ( @{$annlines} ) {
+			for my $annline ( @{$annlines} ) {				
 				my $info = $annline->[1];
 				if ($before) {
 					push @prog_p1, $annline;
