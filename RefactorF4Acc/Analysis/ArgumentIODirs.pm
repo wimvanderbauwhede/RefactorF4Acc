@@ -313,6 +313,7 @@ sub _analyse_src_for_iodirs {
 						if ( exists $args->{$mvar}{'IODir'} ) {
 							$args = _set_iodir_write( $mvar, $args );
 						}
+#						carp "$f => $mvar => ".Dumper($args->{$mvar});
 					}
 					for my $mvar ( @{ $info->{'Do'}{'Range'}{'Vars'} } ) {
 						if ( exists $args->{$mvar} and ref( $args->{$mvar} ) eq 'HASH' ) {
@@ -1136,17 +1137,18 @@ sub _update_argument_io_direction {
 		( my $stref, my $f, my $rest ) = @{$state};
 		
 		if ( exists $info->{'VarDecl'} ) {
+			
 #			say Dumper($annline);
 			my $varname = $info->{'VarDecl'}{'Name'};
-			
+#			carp Dumper($info) if $f eq 'dyn' and $varname eq 'eta';
 			if (
 #					exists $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$varname}
 					in_nested_set( $stref->{'Subroutines'}{$f},'Args',$varname )
 				){
 					
 #					my $decl =  $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$varname};
-					my $decl = get_var_record_from_set( $stref->{'Subroutines'}{$f}{'Args'},$varname);
-					croak "VARS: $varname => ".Dumper($stref->{'Subroutines'}{$f}{Args}) if not exists $decl->{'Indent'};
+					my $decl = get_var_record_from_set( $stref->{'Subroutines'}{$f}{'Args'},$varname);					
+#					croak Dumper($decl) if $f eq 'dyn' and $varname eq 'eta';
 					if ( exists $decl->{'Parameter'} ) {
 						delete $decl->{'Parameter'};
 						$decl->{'Name'} = $decl->{'Var'};
@@ -1165,7 +1167,7 @@ sub _update_argument_io_direction {
                     }                    
 				$annline = [ $rline, $info ];
 			} else {
-				#				say $line;
+#				say "$line";
 			}
 		}
 		return ( [$annline], $state );

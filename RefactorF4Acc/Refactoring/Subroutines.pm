@@ -239,7 +239,6 @@ sub rename_conflicting_locals {
 #- skips Common include statements, so it only keeps Parameter (I hope)
 #- create_new_include_statements, this should be OBSOLETE, except that it takes ParamIncludes out of other Includes and instantiates them, so RENAME
 #- creates ex-glob arg declarations, basically we have to look at ExInclArgs, UndeclaredOrigArgs and ExGlobArgs.  
-#- create_refactored_vardecls is a misnomer, it renames locals conflicting woth globals. I think that has been sorted now. We should generate decls for ExInclLocalVars and UndeclaredOrigLocalVars.
 #- create_refactored_subroutine_call, I hope we can keep this
 #- rename_conflicting_locals, I hope we can keep this; or maybe we should not do this!
 sub _refactor_globals_new {
@@ -297,25 +296,26 @@ sub _refactor_globals_new {
         (my $line, my $info) = @{ $annline };
         my $skip = 0;
 
-        if ( exists $info->{'Signature'} ) {        	 
-#        	carp Dumper($Sf->{RefactoredArgs}{'List'}) if $f eq 'dyn';
+
+		# Create the refactored subroutine signature
+        if ( exists $info->{'Signature'} ) { 
 			if (not exists $Sf->{'HasRefactoredArgs'} or $Sf->{'HasRefactoredArgs'} ==0 ) {            	
                 # This probably means the subroutine has no arguments at all.
                  # Do this before the analysis for RefactoredArgs!
                  $stref = refactor_subroutine_signature( $stref, $f );
-#                warn '_refactor_globals_new() '. __LINE__ . " $f does not have HasRefactoredArgs\n";
-#                say 'WARNING: _refactor_globals_new() '. __LINE__ . " $f does not have HasRefactoredArgs";
-#                croak;
             }
             
             $rlines = create_refactored_subroutine_signature( $stref, $f, $annline, $rlines );            
 			$rlines = [@{$rlines},@par_decl_lines_from_container,@par_decl_lines_from_module];     
-#			croak Dumper($rlines) if $f=~/update/;         
             $skip = 1;
-        } 
+        } #else {
+        	# I'm assuming this means a PROGRAM or ENTRY
+        #}
+        
         
         # There should be no need to do this: all /common/ blocks should have been removed anyway!
         if ( exists $info->{'Include'} ) {
+        	# TODO: test if this is obsolete
         	--$inc_counter;
             $skip = skip_common_include_statement( $stref, $f, $annline );
 # Now, if this was a Common include to be skipped but it contains a Parameter include, I will simply replace the line:
@@ -445,8 +445,8 @@ sub _create_extra_arg_and_var_decls {
     	and not exists $Sf->{'DeclaredCommonVars'}{'Set'}{$var}
 #    	and not exists $Sf->{'UndeclaredCommonVars'}{'Set'}{$var}
     	) {
-
-    	say "INFO VAR in $f: $var ".Dumper($Sf->{'ExGlobArgs'}{'Set'}{$var}{'IODir'} ) if $I; 
+		
+    	say "INFO VAR in $f: IODir for $var: ".$Sf->{'ExGlobArgs'}{'Set'}{$var}{'IODir'}  if $I and not $Sf->{'Program'}; 
                     my $rdecl = $Sf->{'ExGlobArgs'}{'Set'}{$var}; 
                     my $rline = emit_f95_var_decl($rdecl);
                     my $info={};
@@ -601,7 +601,7 @@ sub _create_extra_arg_and_var_decls {
 # This subroutine adds additional arguments to a call to $name in $f.
 # What it does NOT do is update the list of variables in scope in $f. 
 # It should update $stref->{'ExGlobArgDecls'} 
-# Furthermore I notice that sometimes these arguments are not passed on to the containing subroutine. That should be an issue in the subroutine refactoring code, in   
+# Furthermore I notice that sometimes these arguments are not passed on to the containing subroutine. That should be an issue in the subroutine refactoring code   
 sub _create_refactored_subroutine_call { 
     ( my $stref, my $f, my $annline, my $rlines ) = @_;
     
@@ -615,7 +615,6 @@ sub _create_refactored_subroutine_call {
     	push @{$rlines}, [ $line , $info ];
     	return $rlines;
     }
-#    croak Dumper($info->{'SubroutineCall'}{'Args'}{'List'}) if $name =~/update/;
     # Collect original args
     my @orig_args =();    
     for my $call_arg (@{ $info->{'SubroutineCall'}{'Args'}{'List'} }) {
@@ -634,7 +633,6 @@ sub _create_refactored_subroutine_call {
     if (exists $stref->{'Subroutines'}{$parent_sub_name}{'ExGlobArgs'}) {		    	       
         my @globals = @{ $stref->{'Subroutines'}{$parent_sub_name}{'ExGlobArgs'}{'List'} };
         
-#        say Dumper( @globals ) if $name =~/if_f|update/;        
         # Problem is that in $f globals from $name may have been renamed. I store the renamed ones in $Sf->{'RenamedInheritedExGLobs'}
         # So we check and create @maybe_renamed_exglobs
         my @maybe_renamed_exglobs=();
@@ -658,6 +656,38 @@ sub _create_refactored_subroutine_call {
         # Then we concatenate these arg lists
         $args_ref = [@orig_args, @maybe_renamed_exglobs ]; # NOT ordered union, if they repeat that should be OK
         $info->{'SubroutineCall'}{'Args'}{'List'}= $args_ref;
+        
+        # WV20180522 I added this to have an ArgMap for the refactored subroutine signatures, not sure it is actually helpful
+        if (0) {
+        if (not exists $info->{'SubroutineCall'}{'ArgMap'}) {
+        	$info->{'SubroutineCall'}{'ArgMap'}={};
+        }
+        if (not exists $info->{'CallArgs'}) {
+        	 $info->{'CallArgs'}={'Set' =>{}};
+        } elsif(exists $info->{'CallArgs'} and not exists $info->{'CallArgs'}{'Set'}) {
+        	 $info->{'CallArgs'}{'Set'} ={};
+        } 
+        # for every arg in the signature, map the call arg
+        # Now, in  principle they should be identical. I overwrite whatever was present in the original ArgMap
+        my $i=0;
+        for my $ sig_arg ( @{ $stref->{'Subroutines'}{$name}{'RefactoredArgs'}{'List'}  } ){
+        	
+        	my $call_arg = $info->{'SubroutineCall'}{'Args'}{'List'}[$i];
+        	$info->{'SubroutineCall'}{'ArgMap'}{$sig_arg} = $call_arg;
+        	if ($sig_arg eq $call_arg) {
+        	if (not exists  $info->{'CallArgs'}{'Set'}{$sig_arg} ) {
+        		my $var_rec = get_var_record_from_set($Sf->{'Vars'},$sig_arg);
+        		my $var_type = $var_rec->{'ArrayOrScalar'};
+        		$info->{'CallArgs'}{'Set'}{$sig_arg}{'Type'} = $var_type;
+        		if ($var_type eq 'Array') {
+        			$info->{'CallArgs'}{'Set'}{$sig_arg}{'Arg'}=$sig_arg;
+        		}
+        	}
+        	}
+        	$i++;
+        }
+        }
+        
         # This is the emitter, maybe that should not be done here but later on? TODO!
 	    my $args_str = join( ',', @{$args_ref} );	    
 	    my $indent = $info->{'Indent'} // '      ';
@@ -677,7 +707,7 @@ sub _create_refactored_subroutine_call {
     } else {
         push @{$rlines}, [ $line , $info ];
     }
-#    croak Dumper( $info->{'SubroutineCall'}{'Args'}{'List'} ) if $name =~/if_f|update/;
+
     return $rlines;
 }    # END of _create_refactored_subroutine_call()
 

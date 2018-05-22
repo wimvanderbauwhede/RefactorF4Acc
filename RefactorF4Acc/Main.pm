@@ -4,10 +4,12 @@ package RefactorF4Acc::Main;
 #   
 
 use 5.010;
-#use warnings::unused;
+
 use warnings;
 use warnings FATAL => qw(uninitialized);
 use strict;
+use Getopt::Std;
+
 use Carp;
 use Data::Dumper;
 $Data::Dumper::Indent = 1;
@@ -15,7 +17,7 @@ $Data::Dumper::Terse = 0;
 
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
-use RefactorF4Acc::Refactoring::Common qw( get_annotated_sourcelines );
+
 use RefactorF4Acc::State qw( init_state );
 use RefactorF4Acc::Inventory qw( find_subroutines_functions_and_includes );
 use RefactorF4Acc::Parser qw( parse_fortran_src build_call_graph mark_blocks_between_calls refactor_marked_blocks_into_subroutines );
@@ -23,34 +25,16 @@ use RefactorF4Acc::CallTree qw( create_call_tree );
 use RefactorF4Acc::Analysis qw( analyse_all );
 use RefactorF4Acc::Refactoring qw( refactor_all );
 use RefactorF4Acc::Emitter qw( emit_all );
-#use RefactorF4Acc::CTranslation qw( refactor_C_targets emit_C_targets translate_to_C);
 use RefactorF4Acc::Builder qw( create_build_script build_executable );
 use RefactorF4Acc::Analysis::LoopDetect qw( outer_loop_variable_analysis );
-
-use Getopt::Std;
 
 use vars qw( $VERSION );
 $VERSION = "1.0.0";
 
-#use warnings::unused;
-use warnings;
-use warnings FATAL => qw(uninitialized);
-use strict;
-use Carp;
-use Data::Dumper;
-use Storable qw( dclone );
-
 use Exporter;
 
 @RefactorF4Acc::Main::ISA = qw(Exporter);
-
-@RefactorF4Acc::Main::EXPORT = qw(
-  &main
-);
-
-
-
-
+@RefactorF4Acc::Main::EXPORT = qw( &main );
 
 our $usage = "
     $0 [-hvwicCNg] <toplevel subroutine name> 
@@ -65,6 +49,7 @@ our $usage = "
     -C: Only generate call tree, don't refactor or emit
     -g: refactor globals inside toplevel subroutine 
     -b: Generate SCons build script
+    -B: Build the generated code
     -A: Annotate the refactored lines 
     -P: Name of pass to be performed
     \n";
@@ -132,19 +117,6 @@ This routine analyses the code for goto-based loops and breaks, so that we can r
         if ( not $call_tree_only ) {
             emit_all($stref);
         }
-
-- Translate to C:
-
-	    if ( $translate == $YES ) {
-	        $translate = $GO;
-	        for my $subname   (keys %subs_to_translate ) {
-	            $gen_sub  = 1;
-	            $stref = parse_fortran_src( $subname, $stref );
-	            $stref = refactor_C_targets($stref);
-	            emit_C_targets($stref);
-	            &translate_to_C($stref);
-	        }
-	    }
     
 - Create build script:
     
@@ -170,7 +142,9 @@ sub main {
 	#  Initialise the global state.
 	my $stref = init_state($subname);
     $stref->{'SubsToTranslate'}=$subs_to_translate;
-	# Find all subroutines in the source code tree
+    
+	# 1. Inventory: Find all subroutines in the source code tree
+	
 	$stref = find_subroutines_functions_and_includes($stref);
 	if ($V) {
 		for my $sub (sort keys %{ $stref->{'Subroutines'} }) {
@@ -178,7 +152,7 @@ sub main {
 		}
 	}
 
-    # Parse the source
+    # 2. Parser: Parse the source
     for my $data_block (keys %{ $stref->{'BlockData'} } ) {
     	$stref = parse_fortran_src( $data_block, $stref );
     }
@@ -197,24 +171,21 @@ sub main {
 
 	$stref = build_call_graph($subname, $stref);
 	
-    # Analyse the source
+    # 3. Analysis: Analyse the source
     my $stage=0;
     
 	$stref = analyse_all($stref,$subname, $stage);
 
 			 
-    # Refactor the source
-    # if a pass is given using -P on command line, it is performed
-    # multiple passes can be comma-separated    
+    # 4. Refactoring: Refactor the source    
+    # - if a pass is given using -P on command line, it is performed instead of the default refactoring
+    # - multiple passes can be comma-separated
+        
 	$stref = refactor_all($stref,$subname, $pass);
-	
-#	
-#say Dumper($stref->{Subroutines}{LES_kernel_wrapper}{AnnLines});die;
-# at this point all args in the extracted sub have been removed
 
-   $DUMMY=0;
+	# 5. Emitter: Emit the refactored source
+	
 	if ( not $call_tree_only ) {
-		# Emit the refactored source
 		emit_all($stref);
 	}
 
@@ -225,23 +196,19 @@ sub main {
 		for my $subname ( keys %{ $stref->{'SubsToTranslate'} }) {
 			print "\nTranslating $subname to OpenCL C\n";
 			$gen_sub  = 1;
-#	    # The code below is OBSOLETE			
-#			$stref = parse_fortran_src( $subname, $stref );
-#			$stref = refactor_C_targets($stref);
-#			emit_C_targets($stref);
-#			translate_to_C($stref);
 		}
 	}
 
+	# 6. Builder: Build and run the generated code
+	# - create an SCons build script
 	if ($gen_scons) {
-			# This routine is BROKEN
 	   create_build_script($stref);
 	}
-	
-	if (0 && $build) {
-			# This routine is BROKEN		
+	# - build the code
+	if ($build) {
 		build_executable();
 	}
+	
 	exit(0);
 
 }    # END of main()
@@ -410,7 +377,8 @@ It is designed to work on large FORTRAN programs, split over multiple files, wri
 
 ## DESIGN
 
-Because the aim of the tool is to refactor the source code, and not to translate or compile it, we don't use a full grammar-based lexer and parser but instead we perform context-free parsing using regular expressions. As in many cases we require the context to analyse the parsed data, the program maintains a global state with the following structure:
+Because the aim of the tool is to refactor the source code, and not to translate or compile it, we don't use a full grammar-based lexer and parser but instead we perform context-free parsing using regular expressions. 
+As in many cases we require the context to analyse the parsed data, the program maintains a global state with the following structure:
 
     State
         Top -- Toplevel sub name 
@@ -470,138 +438,7 @@ Because the aim of the tool is to refactor the source code, and not to translate
             RefactoredCode
         BuildSources    
 
-### Refactoring 'common' variables into subroutine arguments
-
-FORTRAN's `common` blocks are a mechanism to create global variables:
-
-"The COMMON statement defines a block of main memory storage so that
-different program units can share the same data without using arguments." [F77 ref]
-
-This is problematic for translation of code to OpenCL as of course it is not possible to have
-globals across memory spaces. 
-(Also, I personally think these globals are /evil/ -- as the FLEXPART codebase shows repeatedly:
-e.g. PI is defined in one place as a parameter and in another place as a common variable, which is only assigned
-in a deeply nested subroutine.) 
-
-### Codebase Inventory 
-
-To refactor 'common' variables into subroutine arguments requires first of all an analysis of the full codebase. 
-Therefore, the first step is to determine which files in a directory are used by the main program. 
-To do so we first create an inventory of all subroutines, functions and include files in the codebase, 
-and then we perform a dependency analysis and build the call tree.    
-The inventory is done by finding all FORTRAN source files (using `File::Find`, and looking in them 
-for subroutine, function and program signatures and include statements.
-
-### Dependency Analysis and Call Tree
- 
-Next, we perform a recursive descent on the main program, descending in all subroutine and function calls.
-
 =end markdown
-
-
-
-## Draft Outline  
-
-0.2 Get rid of "common" variables, move them into function arguments 
-This is refactoring, and there is really only one proper way to do this:
-- parse the FORTRAN source in a labeled-block-aware way
-- check which variables from the common block are used
-- put them in the function signature
-- for variables declared outside the block in question, find the ones that are used within the block
-and add them to the function signature as well
-
-Now, I don't have a full FORTRAN parser, but let's see what we can do with some limiting assumptions:
-- assume the block is simply identified with a comment "C BEGIN blockname" and "C END blockname"
-- assume any line starting with `/^\s[\+\&]/` is a continuation line, deal with these first
-- assume that _all_ variables in includecom are common, and _all_ variable in includepar are parameters?
-That won't do. No, we read the includes, and parse the "common" blocks
-- we're only really interested in a few specific intrinsic types: 
-
-    /(integer|real|double\s+precision|character\*?(?:\d+|\(\*\)))\s+(.+)\s*$/ 
-
-The most difficult bit is finding the variables, I guess `$varname` should do?
-
-With these assumptions, we can write a crude parser and function arg identifier as follows:
-0. Slurp the source; strip the comments
-1. Join up the continuation lines (maybe split lines with ; )
-2. Parse the type declarations in the source, create a table %vars
-3. Parse includes, recursively doing 0/1/2
-4. For includes, parse common blocks, create %commons
-5. Split the source based on the block markers
-6. Identify which vars are used
-    - in both => these become function arguments
-    - only in "outer" => do nothing for those
-    - only in "inner" => can be removed from outer variable declarations
-7. Identify which commons are used in inner, make them function arguments
-
-Not necessarily in this order:
-8. When encountering a CALL, recurse and resolve globals (but only that)
-9. When encountering a  function call, idem; although I'd prefer it if functions would be pure!
-
-How do we replace the args in a subroutine call?
-
-- Find a subroutine call
-- first check if we now about it by looking in a list of subroutine calls => We use 'IsSub'
-- if we know it, it means we have resolved the globals, the list should be added to the node;
-then just add the globals to the call
-- otherwise, add the index in the list of source lines to a hash of subs 
-- in fact, this can be a hash of "anythings", i.e.
- 
-        $stref->{'Nodes'}{$filename}{'SubroutineCall'}{$name}={'Pos'=>[$index,...],'Globals'=>[],...};
-    
-    As this is a "global", I need to pass it around between calls.
-- recurse and figure out globals used. also, store the signature in the node hash
-- add the globals to the end of the signature, and emit the new code.
-- it would be nice to emit the code in a hash 
-
-        $refactored_sources{$filename}=\@lines;
-    
-- return the list of all the globals to be added to the call
-- update the call in %refactored_sources
-
-        'Subroutines' => { 
-                    $name => {
-                       'Source' => $src,
-                       'Lines' =>[$line],
-                       'Blocks'=>{},
-                       'HasBlocks'=>0|1                       
-                       'Vars'=>
-                       'RefactoredCode' => {},    
-                       'Status' => 0|1|2|3,
-                       'Info' => [ {
-                            'Signature' => {'Name' => ..., 'Args' => ...},
-                            'Include' => {'Name' => ...,}
-                            'ExGlobVarDecls'=> ...
-                            'SubroutineCall'=>{'Name' => ..., 'Args' => ...}
-                            'VarDecl' => [...]
-                       } ],        
-                     }
-        }
-
-Status: for programs, subroutines, functions and includes 
-    0: after find_subroutines_functions_and_includes() 
-    1: after read_fortran_src()
-    2: after parse_fortran_src_OLD()
-    3: after create_subroutine_source_from_block()
-After building this structure, what we need is to go through it an revert it so it becomes index => information
-
-
-
-In Haskell, I guess we'd have a type representing all fields rather than a map:
-
-State = MkState {
-        subroutines::Subroutines
-    ,   nid::Int
-    ,   nodes::Nodes
-    ,   includes::Includes
-    ,   functions::Functions
-    ,   calltree::CallTree
-    ,
-
-}
-
-Nodes = Hash.Map Int Node
-
 =cut
 
 # $test_subref is the actual test, $fail_subref is a routine that takes $stref and returns whatever you want to return on failure.
@@ -624,3 +461,5 @@ sub test { (my $test_num, my $stref, my $test_subref, my $fail_subref) = @_;
 		die if $last_test==$test_num;
 	}	
 }
+
+1;

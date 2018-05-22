@@ -1,22 +1,20 @@
 # 
-#   (c) 2010-2017 Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
+#   (c) 2010-now Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
 #   
 
 package RefactorF4Acc::Refactoring;
 use v5.10;
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
-use RefactorF4Acc::Refactoring::Common qw( top_src_is_module pass_wrapper_subs_in_module stateful_pass stateful_pass_reverse stateless_pass get_annotated_sourcelines emit_f95_var_decl splice_additional_lines_cond context_free_refactorings );
-use RefactorF4Acc::Refactoring::Subroutines qw( refactor_all_subroutines emit_subroutine_sig );
+use RefactorF4Acc::Refactoring::Common qw( top_src_is_module stateful_pass stateless_pass get_annotated_sourcelines );
+use RefactorF4Acc::Refactoring::Subroutines qw( refactor_all_subroutines );
 use RefactorF4Acc::Refactoring::Functions qw( refactor_called_functions remove_vars_masking_functions);
 use RefactorF4Acc::Refactoring::IncludeFiles qw( refactor_include_files );
 use RefactorF4Acc::Analysis::ArgumentIODirs qw( determine_argument_io_direction_rec update_argument_io_direction_all_subs);
 use RefactorF4Acc::Refactoring::Modules qw( add_module_decls );
-use RefactorF4Acc::Refactoring::Streams qw( pass_rename_array_accesses_to_scalars );
-use RefactorF4Acc::Parser::Expressions qw(parse_expression emit_expression get_vars_from_expression);
-#use RefactorF4Acc::OpenCLTranslation qw( translate_to_OpenCL );
-use RefactorF4Acc::CTranslation qw( translate_module_to_C );
-use RefactorF4Acc::Analysis::IdentifyStencils qw( pass_identify_stencils );
+use RefactorF4Acc::Refactoring::Streams qw( pass_rename_array_accesses_to_scalars ); # CUSTOM PASS
+use RefactorF4Acc::CTranslation qw( translate_module_to_C ); # CUSTOM PASS
+use RefactorF4Acc::Analysis::IdentifyStencils qw( pass_identify_stencils ); # CUSTOM PASS
 
 use vars qw( $VERSION );
 $VERSION = "1.0.0";
@@ -43,7 +41,7 @@ use Exporter;
 sub refactor_all {
 	( my $stref, my $code_unit_name, my $pass) = @_;
 	my $sub_or_func_or_mod = sub_func_incl_mod( $code_unit_name, $stref );
-
+# Custom passes
 	if ($pass =~/identify_stencils/) {
 		$stref = pass_identify_stencils($stref);				
 	}	
@@ -58,6 +56,7 @@ sub refactor_all {
 	if ($pass =~/ifdef_io/i) {
 		$stref = _ifdef_io_all($stref);				
 	}
+# Default 	
 	if ($pass ne '') {
 		
 		$stref=_substitute_placeholders($stref);
@@ -69,11 +68,10 @@ sub refactor_all {
 	}
     $stref = refactor_include_files($stref);
 
-    $stref = refactor_called_functions($stref); # Context-free only FIXME: this should be treated just like subs, but if course that requires full parsing of expressions
-#    say Dumper($stref); croak;    
-    # Refactor the source, but don't split long lines and keep annotations
-    $stref = refactor_all_subroutines($stref);
+    $stref = refactor_called_functions($stref); # Context-free only FIXME: this should be treated just like subs, but of course that requires full parsing of expressions that contain function calls
     
+    # Refactor the source, but don't split long lines and keep annotations
+    $stref = refactor_all_subroutines($stref);    
     
     # This can't go into refactor_all_subroutines() because it is recursive
     # Also, this is actually analysis
@@ -126,7 +124,8 @@ sub _ifdef_io_QD { (my $stref) = @_;
 }
 
 
-sub _ifdef_io_all { (my $stref) = @_;
+sub _ifdef_io_all {  # CUSTOM PASS
+	(my $stref) = @_;
 	
 	for my $f ( keys %{ $stref->{'Subroutines'} } ) {
 		next if exists $stref->{'Entries'}{$f};

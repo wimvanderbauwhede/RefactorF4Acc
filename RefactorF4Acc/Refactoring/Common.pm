@@ -603,8 +603,8 @@ sub create_refactored_source {
 						 	$line_without_comment = $line;
 						 }
 				 
- 	           	     	my @split_lines = $SPLIT_LONG_LINES ? split_long_line($line_without_comment) : ( $line );
-    	         		for my $sline (@split_lines) {
+ 	           	     	my @split_lines = $SPLIT_LONG_LINES ? split_long_line($line_without_comment) : ( $line_without_comment );
+    	         		for my $sline (@split_lines) {    	         			
         	            	push @{$refactored_lines}, [ $sline, $info ];
             	    	}
             	    	if ($comment ne '') {
@@ -623,53 +623,6 @@ sub create_refactored_source {
     }
     return $refactored_lines;
 }    # END of create_refactored_source()
-
-# -----------------------------------------------------------------------------
-sub create_refactored_source_OLD { croak "OBSOLETE!";
-    ( my $stref, my $f, ) = @_;
-    print "CREATING FINAL $f CODE\n" if $V;
-    die join( ' ; ', caller ) if $stref !~ /0x/;
-    my $sub_or_func_or_inc = sub_func_incl_mod( $f, $stref );
-    my $Sf                 = $stref->{$sub_or_func_or_inc}{$f};
-    my $annlines           = get_annotated_sourcelines( $stref, $f );
-    $Sf->{'RefactoredCode'} = [];
-    for my $annline ( @{$annlines} ) {
-
-        if ( not defined $annline or not defined $annline->[0] ) {
-            croak
-              "Undefined source code line for $f in create_refactored_source()";
-        }
-        my $line = $annline->[0];
-        my $info = $annline->[1];
-
-        if ( not exists $info->{'Comments'}
-            and ( exists $info->{'InBlock'} or not exists $info->{'Deleted'} ) )
-        {
-            print $line, "\n" if $DBG;
-            if ( $line =~ /;/ && $line !~ /[\'\"]/ ) {
-                my $spaces = $line;
-                $spaces =~ s/\S.*$//;
-                $line   =~ s/^\s+//;
-                my @split_lines = split( /\s*;\s*/, $line );
-                for my $sline (@split_lines) {
-                    push @{ $Sf->{'RefactoredCode'} },
-                      [ $spaces . $sline, $info ];
-                }
-            } else {
-                $line =~ s/\s+\!\!.*$//
-                  ; # FIXME: ad-hoc to remove comments from context-free refactoring
-
-                my @split_lines = split_long_line($line);
-                for my $sline (@split_lines) {
-                    push @{ $Sf->{'RefactoredCode'} }, [ $sline, $info ];
-                }
-            }
-        } else {
-            push @{ $Sf->{'RefactoredCode'} }, [ $line, $info ];
-        }
-    }
-    return $stref;
-}    # END of create_refactored_source_OLD()
 
 # -----------------------------------------------------------------------------
 # A convenience function to split long lines.
@@ -1386,20 +1339,21 @@ sub emit_f95_var_decl {
         	say "INFO: Intent is [] for $var, setting to Unknown" if $I;
         	$intent = 'Unknown';
         }
-        
+        my $trailing_comment='';
         my $intentstr = '';
         
-            if ( $intent ne 'Unknown' and $intent ne 'Ignore' ) {
-                $intentstr ='intent('.$intent.')'; 
-            } 
-#            else {
-#                say "WARNING: Intent is Unknown for $var"                  
-#                  if $W;
-#            }
+        if ( $intent ne 'Unknown' and $intent ne 'Ignore' ) {
+        	$intentstr ='intent('.$intent.')'; 
+		} 
+		elsif ($intent eq 'Ignore') {			
+#			carp("VAR $var with intent Ignore");
+			$trailing_comment=" ! Intent $intent"; 
+		}
+		
         if (not $external) {
-        if ($intentstr) {
-            push @attrs, $intentstr;
-        } 
+	        if ($intentstr) {
+    	        push @attrs, $intentstr;
+        	} 
         } else {
         	    push @attrs, 'external';
         }
@@ -1409,13 +1363,15 @@ sub emit_f95_var_decl {
                 $spaces 
               . $type
               . join( ', ', @attrs ) . ' :: '
-              . $var;
+              . $var
+              . $trailing_comment;
             return $decl_line;
         } else {
             my $decl_line =
                 $spaces
               . join( ', ', ( $type, @attrs ) ) . ' :: '
-              . $var;
+              . $var
+              . $trailing_comment;
             return $decl_line;
         }
         

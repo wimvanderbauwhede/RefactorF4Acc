@@ -41,13 +41,12 @@ sub create_refactored_subroutine_signature {
     my $info = $annline->[1];    
     my $args_ref = [];
     if (not exists $info->{'EntrySig'} ) {
-    	$args_ref = $Sf->{'RefactoredArgs'}{'List'};
+    	$args_ref = $Sf->{'RefactoredArgs'}{'List'};        	
     } else {
     	# ENTRY!
     	my $name = $info->{'Signature'}{'Name'};
     	my $Sname = $Sf->{'Entries'}{'Set'}{$name};
-    	$args_ref = $Sname->{'RefactoredArgs'}{'List'};
-#    	croak Dumper($info).Dumper($args_ref);
+    	$args_ref = $Sname->{'RefactoredArgs'}{'List'};    	
     }
     my $args_str = join( ',', @{$args_ref} );
     my $what_is_block_data = 'subroutine'; #'block data'
@@ -105,7 +104,7 @@ sub refactor_subroutine_signature {
             print "SUB $f ORIG ARGS: ()\n";
         }
     }
-croak if $f eq 'dyn';
+
     # Loop over all globals and create the list @exglobs by concatenation
     # Also add all vars to $Sf->{'Vars'} unless they were already there
     my @exglobs            = ();        
@@ -149,6 +148,7 @@ croak if $f eq 'dyn';
 #    		say $var;
     		say "INFO VAR: $var" if $I;
 			push @exglobs, $var;
+#			carp "SET HasRefactoredArgs for $f";
 			$Sf->{'HasRefactoredArgs'}=1;                         
     	}             
     	
@@ -171,7 +171,8 @@ croak if $f eq 'dyn';
     # Now combine the original subroutine arguments with the ex-globals and store in $Sf->{'RefactoredArgs'}{'List'}     
     my $args_ref = (exists $Sf->{'OrigArgs'}) ? ordered_union( $Sf->{'OrigArgs'}{'List'}, \@nexglobs ) : \@nexglobs;
     $Sf->{'RefactoredArgs'}{'List'} = $args_ref;
-    %{ $Sf->{'RefactoredArgs'}{'Set'}} = map {$_ => {'IODir' => 'Unknown'} } @{ $args_ref };    
+    %{ $Sf->{'RefactoredArgs'}{'Set'}} = map {$_ => {'IODir' => 'Unknown'} } @{ $args_ref };
+#    carp "SET HasRefactoredArgs for $f";    
     $Sf->{'HasRefactoredArgs'} = 1;
     
     return $stref;
