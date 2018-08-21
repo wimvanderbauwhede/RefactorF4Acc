@@ -258,6 +258,7 @@ sub parse_args {
 	$DBG = ( $opts{'d'} ) ? 1 : 0;
 	$NO_ONLY = (exists $Config{'NO_ONLY'}[0] ) ? $Config{'NO_ONLY'}[0] : $NO_ONLY;
 	$SPLIT_LONG_LINES = (exists $Config{'SPLIT_LONG_LINES'}[0] ) ? $Config{'SPLIT_LONG_LINES'}[0] : $SPLIT_LONG_LINES;
+	$MAX_LINE_LENGTH = (exists $Config{'MAX_LINE_LENGTH'}[0] ) ? $Config{'MAX_LINE_LENGTH'}[0] : $MAX_LINE_LENGTH;
 	$RENAME_EXT = (exists $Config{'RENAME_EXT'}[0] ) ? $Config{'RENAME_EXT'}[0] : $RENAME_EXT;
 	$EXT = (exists $Config{'EXT'}[0] ) ? $Config{'EXT'}[0] : $EXT;
 	$LIBS = (exists $Config{'LIBS'} ) ? $Config{'LIBS'} : $LIBS;

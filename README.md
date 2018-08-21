@@ -45,17 +45,17 @@ School of Computing Science, University of Glasgow, UK
 
 * Subroutine extraction  
     * simply add an annotation
-    
+
           !$ACC SUBROUTINE <optional subroutine name>  
           ... <code to be extracted as subroutine>
           !$ACC END SUBROUTINE <optional subroutine name>
-                   
+
 * Call graph generation
 
 ### Automatic parallelisation using OpenCL
 
-Automatic parallelisation and offloading of legacy code to accelerators is the ultimate aim of the project, and already works for many cases. 
-However, the work flow is more complicated and requires an additional compiler, [AutoParallel-Fortran](https://github.com/wimvanderbauwhede/AutoParallel-Fortran). This compiler is written in Haskell, which is not yet a 
+Automatic parallelisation and offloading of legacy code to accelerators is the ultimate aim of the project, and already works for many cases.
+However, the work flow is more complicated and requires an additional compiler, [AutoParallel-Fortran](https://github.com/wimvanderbauwhede/AutoParallel-Fortran). This compiler is written in Haskell, which is not yet a
 mainstream programming language. Furthermore, the generated OpenCL code relies on the [OclWrapper Fortran OpenCL API](https://github.com/wimvanderbauwhede/OpenCLIntegration), written in C++, and uses [scons](http://scons.org/), a Python-based build system. For these reasons, it is harder to install this autoparallelising compiler. However, if you have installed it, a test case for the full flow is provided in the `tests` folder, see below for more details.           
 
 ## How it works
@@ -84,7 +84,7 @@ Furthermore, we tested the compiler on four real-word physics simulation models:
 * The [Linear Baroclinic Model](http://ccsr.aori.u-tokyo.ac.jp/~hiro/sub/lbm.html), an atmospheric climate model (39,336 loc)
 
 
-Each of these models has a different coding style, specifically in terms of the use of common blocks, include files, etc that affect the refactoring process. All of these codes are refactored fully automatically without changes to the original code and build and run correctly. The performance of the original and refactored code is the same in all cases.
+Each of these models has a different coding style, specifically in terms of the use of common blocks, include files, etc. that affect the refactoring process. All of these codes are refactored fully automatically without changes to the original code and build and run correctly. The performance of the original and refactored code is the same in all cases.
 
 ## Installation
 
@@ -101,7 +101,7 @@ To install RefactorF4ACC, you need to set some environment variables. Typically,
 * Add `$RF4A_DIR` to the `$PERL5LIB` environment variable:
 
 		export PERL5LIB="$PERL5LIB:$RF4A_DIR"
- 		
+
 * Add `$RF4A_DIR/bin` to your `$PATH` environment variable:
 
 		export PATH="$PATH:$RF4A_DIR/bin"	  
@@ -139,6 +139,7 @@ The following keys are defined:
 <dt>RENAME_EXT:</dt><dd>Extension for variables that need to be renamed because of conflicts (usually you don't need this; the default is _GLOB)</dd>
 <dt>NO_ONLY:</dt><dd>Do not use the ONLY qualifier on the USE declaration</dd>
 <dt>SPLIT_LONG_LINES:</dt><dd>Split long lines into chunks of no more than 80 characters</dd>
+<dt>MAX_LINE_LENGTH:</dt><dd>Maximum line length for fixed-format F77 code. The default is 132 characters.</dd>
 <dt>EXT</dt><dd>Extension of generated source files. Default is `.f95`; must include the dot</dd>
 <dt>LIBS</dt><dd>SCons LIBS, comma-separated list</dd>
 <dt>LIBPATH</dt><dd>SCons LIBPATH, comma-separated list</dd>
@@ -213,7 +214,7 @@ The following keys are defined:
 
 ### To run the NIST test suite
 
-We use the [NIST FORTRAN78 test suite](ftp://ftp.fortran-2000.com/fcvs21_f95.tar.bz2) for validation. 
+We use the [NIST FORTRAN78 test suite](ftp://ftp.fortran-2000.com/fcvs21_f95.tar.bz2) for validation.
 
       $ cd tests/NIST_F78_test_suite/fcvs21_f95
 
@@ -272,37 +273,36 @@ The final output should look like:
 
 ### To run the Fortran to parallel OpenCL test
 
-As explained above, to run this test you need to install the [AutoParallel-Fortran](https://github.com/wimvanderbauwhede/AutoParallel-Fortran) compiler and the [OclWrapper Fortran OpenCL API](https://github.com/wimvanderbauwhede/OpenCLIntegration), as well as [scons](http://scons.org/), a Python-based build system. 
+As explained above, to run this test you need to install the [AutoParallel-Fortran](https://github.com/wimvanderbauwhede/AutoParallel-Fortran) compiler and the [OclWrapper Fortran OpenCL API](https://github.com/wimvanderbauwhede/OpenCLIntegration), as well as [scons](http://scons.org/), a Python-based build system.
 We use a simple 2-D shallow simulation for validation. A more detailed explanation is available in the file [tests/ShallowWater2D/Auto-acceleration-README.md](https://github.com/wimvanderbauwhede/RefactorF4Acc/blob/devel/tests/ShallowWater2D/Auto-acceleration-README.md).
 
       $ cd tests/ShallowWater2D/fortran
-      
+
 Please ensure that the environment varianble `$FC` is set to the Fortran compiler you want to use. I have tested the code only with `gfortran 4.9` and `gfortran 7.0`.
 To generate the refactored Fortran-95 code used as starting point for autoparallelisation and OpenCL conversion, run the command `./generate_and_run.sh`:
-      
+
       $ ./generate_and_run.sh
-      
+
 This will generate refactored, accelerator-ready Fortan 95 code in the directory `tests/RefactoredSources`.	     
 
 	$ cd ../RefactoredSources
 	$ ./run_autoparallel_compiler GPU
-	
+
 This will generate OpenCL-ready parallelised code _in Fortran syntax_ in the directory `tests/Autopar`. To generate the actual kernel in OpenCL-C, do:
 
 	$ cd ../Autopar
 	$ ./generate_OpenCL_kernel.sh module_shapiro_dyn_update_superkernel   	
-	
+
 This will generate the OpenCL kernel file `module_shapiro_dyn_update_superkernel.cl`.
 
 You can now build the refactored code for GPU as follows:
 
  - For running on an Intel Iris Pro
-  	
-	$ scons -f SConstruct.auto dev=GPU nth=32 nunits=40
-	
- - For running on an NVIDIA GeForce GTX TITAN Black
- 	
-	$ scons -f SConstruct.auto dev=GPU nth=512 nunits=15 	
-	
-Running the accelerated code on this GPU results in 14x speedup compared to the original code running on the host (Intel Core i7 CPU @ 3.50GHz). 
 
+	$ scons -f SConstruct.auto dev=GPU nth=32 nunits=40
+
+ - For running on an NVIDIA GeForce GTX TITAN Black
+
+	$ scons -f SConstruct.auto dev=GPU nth=512 nunits=15 	
+
+Running the accelerated code on this GPU results in 14x speedup compared to the original code running on the host (Intel Core i7 CPU @ 3.50GHz).

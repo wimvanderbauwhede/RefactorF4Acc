@@ -1,7 +1,7 @@
 package RefactorF4Acc::Parser::Expressions;
 use v5.10;
 use RefactorF4Acc::Config;
-#use RefactorF4Acc::Utils qw( in_nested_set );
+use RefactorF4Acc::Utils qw( sub_func_incl_mod );
 #
 #   (c) 2010-2017 Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
 #
@@ -75,6 +75,7 @@ my %F95_ops =(
 );
 # Returns the AST
 sub parse_expression { (my $exp, my $info, my $stref, my $f)=@_;
+	
 	my $preproc_expr = $exp;
 #	say "EXPR: $preproc_expr" if $preproc_expr=~/write.+path.numpath/; 
 	 # To make this robust, what I'll do is replace any '(' with '_OPEN_PAR_(' so that is looks like a function.
@@ -186,6 +187,7 @@ sub parse_expression { (my $exp, my $info, my $stref, my $f)=@_;
 
 # This function changes functions to arrays
 sub _change_func_to_array { (my $stref, my $f,  my $info, my $ast, my $exp)=@_;
+	my $code_unit = sub_func_incl_mod( $f, $stref );
 	if (ref($ast) eq 'ARRAY') {
 	for my  $idx (0 .. scalar @{$ast}-1) {		
 		my $entry = $ast->[$idx];
@@ -214,20 +216,20 @@ sub _change_func_to_array { (my $stref, my $f,  my $info, my $ast, my $exp)=@_;
  					(
  				# 1. $mvar is not a function, including intrinsic
  					not(  (
- 					exists $stref->{'Subroutines'}{$mvar} and 
- 					exists $stref->{'Subroutines'}{$mvar}{'Function'} and 
- 					$stref->{'Subroutines'}{$mvar}{'Function'} == 1 ) or (
+ 					exists $stref->{$code_unit}{$mvar} and 
+ 					exists $stref->{$code_unit}{$mvar}{'Function'} and 
+ 					$stref->{$code_unit}{$mvar}{'Function'} == 1 ) or (
  					exists $F95_intrinsics{$mvar}
  					) 
  					
  					)
  				# 2. OR $mvar is a masked intrinsic	 
- 					or exists $stref->{'Subroutines'}{$f}{'MaskedIntrinsics'}{$mvar}
+ 					or exists $stref->{$code_unit}{$f}{'MaskedIntrinsics'}{$mvar}
  					) 
 # 					or (
 #				# 3. OR $mvar is actually an array 					 					  	
 # 					$mvar ne '#dummy#' and $mvar ne $subname 
-# 					and not exists $stref->{'Subroutines'}{$f}{'CalledSubs'}{'Set'}{$mvar}
+# 					and not exists $stref->{$code_unit}{$f}{'CalledSubs'}{'Set'}{$mvar}
 #					and not exists $F95_reserved_words{$mvar}
 ##					and not exists $F95_intrinsics{$mvar} # Dangerous, because some idiot may have overwritten an intrinsic with an array! 					
 #					)							
@@ -235,22 +237,23 @@ sub _change_func_to_array { (my $stref, my $f,  my $info, my $ast, my $exp)=@_;
     		# change & to @
     		croak '<'.(
     		not( 
- 					exists $stref->{'Subroutines'}{$mvar} and 
- 					exists $stref->{'Subroutines'}{$mvar}{'Function'} and 
- 					$stref->{'Subroutines'}{$mvar}{'Function'} == 1
+ 					exists $stref->{$code_unit}{$mvar} and 
+ 					exists $stref->{$code_unit}{$mvar}{'Function'} and 
+ 					$stref->{$code_unit}{$mvar}{'Function'} == 1
  					)
-    		).'><'.( exists $stref->{'Subroutines'}{$f}{'MaskedIntrinsics'}{$mvar} ).'>' if $mvar eq 'aint';
+    		).'><'.( exists $stref->{$code_unit}{$f}{'MaskedIntrinsics'}{$mvar} ).'>' if $mvar eq 'aint';
     				$ast->[$idx]='@';
     				say "Found array $mvar" if $DBG;
 				} elsif (   	exists $F95_intrinsics{$mvar} ) {
-					say "parse_expression('$exp')" . __LINE__.": WARNING: treating $mvar in $f as an intrinsic! " if $W;  
+					say "parse_expression('$exp')" . __LINE__ if $DBG;
+					say "WARNING: treating $mvar in $f as an intrinsic! " if $W;  
 				} else {
 					# So, this line contains a function call, so we should say so in $info!
 					# I introduce FunctionCalls for this purpose!
 					if (
-					( exists $stref->{'Subroutines'}{$mvar} and exists $stref->{'Subroutines'}{$mvar}{'Function'} and $stref->{'Subroutines'}{$mvar}{'Function'} == 1) and (
+					( exists $stref->{$code_unit}{$mvar} and exists $stref->{$code_unit}{$mvar}{'Function'} and $stref->{$code_unit}{$mvar}{'Function'} == 1) and (
 					$mvar ne '#dummy#' and $mvar ne $subname 
- 					and not exists $stref->{'Subroutines'}{$f}{'CalledSubs'}{'Set'}{$mvar}
+ 					and not exists $stref->{$code_unit}{$f}{'CalledSubs'}{'Set'}{$mvar}
 					and not exists $F95_reserved_words{$mvar}
 #					and not exists $F95_intrinsics{$mvar} # Dangerous, because some idiot may have overwritten an intrinsic with an array! 					
 )
@@ -278,45 +281,6 @@ sub _change_func_to_array { (my $stref, my $f,  my $info, my $ast, my $exp)=@_;
 	return  $ast;#($stref,$f, $ast);	
 	
 }
-
-# This function changes functions to arrays
-sub _UNUSED_walk_ast { (my $stref, my $f, my $info, my $ast, my $ast_node_action)=@_;
-	for my  $idx (0 .. scalar @{$ast}-1) {		
-		my $entry = $ast->[$idx];
-#		print "IDX: $idx => "; say Dumper ($ast); say $entry;
-		if (ref($entry) eq 'ARRAY') {
-			( $stref,  $f,  $info, my $entry) = _UNUSED_walk_ast($stref,$f,$info, $entry, $ast_node_action);
-			$ast->[$idx] = $entry;
-		} else {
-			if ($entry eq '&') {
-				say 'Found function'  if $DBG;
-				my $mvar = $ast->[$idx+1];
-#				say $mvar;
-#				say Dumper($stref->{'Subroutines'}{$f});
-				if ($mvar ne '#dummy#' and not exists $stref->{'Subroutines'}{$f}{'CalledSubs'}{'Set'}{$mvar}
-				and $mvar ne $info->{'SubroutineCall'}{'Name'}
-				) {
-    		# change & to @
-    				$ast->[$idx]='@';
-    				say "Found array $mvar" if $DBG;
-				}    	
-			} elsif ($entry eq '$') {
-				my $mvar = $ast->[$idx+1];
-				say "Found scalar $mvar" if $DBG;
-				
-			} elsif ($entry eq '@') {
-				my $mvar = $ast->[$idx+1];
-				say "Found array $mvar" if $DBG;
-			} elsif ($entry eq '#') {
-				my $mvar = $ast->[$idx+1];
-				say "Found dummy $mvar" if $DBG;				
-			} else {
-#				say $entry;
-			}
-		}		
-	}
-	return ($stref,$f,$info, $ast);	
-} # _UNUSED_walk_ast
 
 sub emit_expression {(my $ast, my $expr_str)=@_;
 	

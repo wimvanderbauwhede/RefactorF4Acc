@@ -13,11 +13,12 @@ use Exporter;
 $VER
 $V $W $I $DBG $DUMMY $ANN
 $NO $YES $GO
-$UNREAD $INVENTORIED $READ $PARSED $FROM_BLOCK $C_SOURCE
+$UNREAD $INVENTORIED $READ $PARSED $FROM_BLOCK $C_SOURCE $FILE_NOT_FOUND
 $SPLIT_LONG_LINES
 $NO_ONLY
 $RENAME_EXT
 $EXT
+$MAX_LINE_LENGTH
 $LIBS $LIBPATHS $INCLPATHS
 $noop
 $CFG_refactor_toplevel_globals
@@ -39,6 +40,7 @@ our $DBG = 0;    # Debug
 our $ANN = 1; # Annotations
 our $DUMMY = 0; # Dummy run, print out code rather than printing to file
 our $SPLIT_LONG_LINES = 1;
+our $MAX_LINE_LENGTH = 132;
 our $NO_ONLY = 0;
 our $RENAME_EXT = '_GLOB';
 # Instead of FORTRAN's 'continue', we can insert a call to a subroutine noop() that does nothing
@@ -61,7 +63,7 @@ our $translate         = $NO;
 # The state of each subroutine, function or include
 #   FROM_BLOCK indicates a marked block of code factored out into a subroutine
 #   C_SOURCE means that this source code will be translated to C
-( our $UNREAD, our $INVENTORIED, our $READ, our $PARSED, our $FROM_BLOCK, our $C_SOURCE ) = ( 0 .. 5 ); #  $stref->{$srctype}{$name}{'Status'}
+( our $UNREAD, our $INVENTORIED, our $READ, our $PARSED, our $FROM_BLOCK, our $C_SOURCE, our $FILE_NOT_FOUND ) = ( 0 .. 6 ); #  $stref->{$srctype}{$name}{'Status'}
 
 our $targetdir = '../RefactoredSources';
 # Config supports the following keys:

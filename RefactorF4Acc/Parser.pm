@@ -58,7 +58,7 @@ sub parse_fortran_src {
 ## 1. Read the source and do some minimal processsing, unless it's already been done (i.e. for extracted blocks)
 	print "parse_fortran_src(): CALL read_fortran_src( $f )\n" if $V;
 	$stref = read_fortran_src( $f, $stref );    #
-	
+#	die Dumper($stref->{IncludeFiles}{'dimensions.inc'}) if $f=~/dimensions.inc/;
 	print "DONE read_fortran_src( $f )\n" if $V;	
 	
 	my $sub_or_incl_or_mod = sub_func_incl_mod( $f, $stref ); # Maybe call this "code_unit()"
@@ -75,9 +75,10 @@ sub parse_fortran_src {
 	#	die if $f eq 'post';
 	# and not $is_external_include 
 	if ( 
-		$sub_or_incl_or_mod ne 'ExternalSubroutines'
+		$sub_or_incl_or_mod ne 'ExternalSubroutines' 
+		and $stref->{$sub_or_incl_or_mod}{$f}{'Status'} != $FILE_NOT_FOUND
 		) {
-		my $Sf = $stref->{$sub_or_incl_or_mod}{$f};
+		my $Sf = $stref->{$sub_or_incl_or_mod}{$f};		
 		if (not exists $Sf->{'Entry'} or $Sf->{'Entry'} == 0 ) {
 
 		# OK, time to declare all the variable sets and declaration sets		
@@ -91,21 +92,21 @@ sub parse_fortran_src {
 			print "INFO: set RefactorGlobals=1 for $f\n" if $I;
 			$Sf->{'RefactorGlobals'} = 1;
 		}
-
+#		say "After INIT ( $f ) ".sub_func_incl_mod( $f, $stref ) if $V;
 ## 2. Parse the type declarations in the source, create a per-target table Vars and a per-line VarDecl list and other context-free stuff
 		# NOTE: The Vars set are the *declared* variables, not the *used* ones
 
 		print "ANALYSE LINES of $f\n" if $V;
 		$stref = _analyse_lines( $f, $stref );
-		print "DONE _analyse_lines( $f )\n" if $V;
+		say "DONE _analyse_lines( $f )" if $V;
 
 		say "ANALYSE LOOPS/BREAKS in $f\n" if $V;
 		$stref = _identify_loops_breaks( $f, $stref );
-		say "DONE _identify_loops_breaks($f)\n" if $V;
+		say "DONE _identify_loops_breaks($f)" if $V;
 		
 ## 3. Parse use
 		$stref = _parse_use( $f, $stref );
-		print "DONE _parse_use( $f )\n" if $V;
+		say  "DONE _parse_use( $f )" if $V;
 
 ## 4. Parse includes
 # NOTE: Apart from simply parsing, this routine also causes IMPLICITs from the include file to be inherited by the parent
@@ -135,13 +136,14 @@ sub parse_fortran_src {
 		}
 	} else {
 		print "INFO: $f is EXTERNAL\n" if $I;
+		if ($stref->{$sub_or_incl_or_mod}{$f}{Status} == $FILE_NOT_FOUND) {
+			print "WARNING: NO source file for $f, if this is an external file please provide the path in EXTSRCDIRS in the config file\n" if $W;
+		};
 	}
 
 	print "LEAVING parse_fortran_src( $f ) with Status "
 	  . show_status( $stref->{$sub_or_incl_or_mod}{$f}{'Status'} ) . "\n"
 	  if $V;
-	   if ($f eq 'read_ncwrfout_gridinfo') {
-	   }
 	   
 	   if ($is_mod) { 
 	   	for my $sub ( @{ $stref->{'Modules'}{ $f }{'Contains'} } ) {
@@ -388,6 +390,8 @@ sub _analyse_lines {
 	my $sub_incl_or_mod = sub_func_incl_mod( $f, $stref );
 	
 	my $is_incl = $sub_incl_or_mod eq 'IncludeFiles' ? 1 : 0;
+	
+#	say "_analyse_lines( $f ) : $sub_incl_or_mod is_include: $is_incl";
 	my $Sf = $stref->{$sub_incl_or_mod}{$f};
 	$Sf->{'ExGlobVarDeclHook'} = 0;
 	my $srcref = $Sf->{'AnnLines'};
@@ -418,7 +422,7 @@ sub _analyse_lines {
 		for my $index ( 0 .. scalar( @{$srcref} ) - 1 ) {
 			my $attr = '';
 			( my $lline, my $info ) = @{ $srcref->[$index] };
-			
+		
 #			say $lline;
 			# Get indent			
 			$lline =~ /^(\s+).*/ && do { $indent = $1; }; # This is not OK for lines with labels of course.
@@ -549,7 +553,6 @@ sub _analyse_lines {
 			};
 			
 			# END of BLOCK:			
-#			$line=~/^end/ && $line!~/^end\s*do/ && do {
 			$line=~/^end/  && do { 
 				my $block = pop @blocks_stack;
 				say $lline. "\t\tPOP $block_nest_counter ".uc($block->{'Type'})  if $in_excluded_block and $DBG;
@@ -596,7 +599,8 @@ sub _analyse_lines {
 			# END of BLOCK identification code			
 			# --------------------------------------------------------------------------------
 						
-if ($in_excluded_block==0) {						
+if ($in_excluded_block==0) {	
+						
 			# --------------------------------------------------------------------------------
 			# Declarations, anything not an executable statement. Last one in the chain is the IF/THEN/ELSE			
 			# --------------------------------------------------------------------------------
@@ -902,8 +906,9 @@ VIRTUAL
 		 	elsif ($line=~/^equivalence\s+/) {		 	
 		 		$info->{'Equivalence'} = 1;
 		 		say "WARNING: EQUIVALENCE IS IGNORED!" if $W;
+		 		
 		 		warn "The EQUIVALENCE  statement is not supported, please rewrite your code (or ignore at your peril):\n".
-			 		'SOURCE: '.$stref->{'Subroutines'}{$f}{'Source'}.' LINE #'. $info->{'LineID'}."\n".
+			 		'SOURCE: '.$stref->{$sub_incl_or_mod}{$f}{'Source'}.' LINE #'. $info->{'LineID'}."\n".
 			 		'CODE UNIT: '.$f."\n".
 			 		'LINE: '."'$line'\n";
 		 		
@@ -939,13 +944,13 @@ VIRTUAL
 			} 
 # PARAMETER			
 # F77-style parameters			
-			elsif ( $line =~ /parameter\s*\(\s*(.*)\s*\)/ ) {    
+			elsif ( $line =~ /\bparameter\s*\(\s*(.*)\s*\)/ ) {    
 				my $parliststr = $1;
-				( $Sf, $info ) = __parse_f77_par_decl( $Sf, $f, $indent, $line, $info, $parliststr );				
+				( $Sf, $info ) = __parse_f77_par_decl( $Sf, $stref, $f, $indent, $line, $info, $parliststr );				
 				$has_pars=1;
 			}    # match var decls, parameter statements F77/F95								
 # SIGNATURES SUBROUTINE FUNCTION PROGRAM ENTRY
-			 elsif ( $line =~ /\b(subroutine|function|program|entry|block)\b/ and $line !~ /^end\s+/) {
+			 elsif ( $line =~ /\b(subroutine|function|program|entry|block)[\s\(]/ and $line !~ /^end\s+/) {
 				( $Sf, $line, $info ) =
 				  __parse_sub_func_prog_decls( $Sf, $line, $info );
 			 }
@@ -975,7 +980,7 @@ VIRTUAL
 					my $ast = parse_expression($do_stmt,  $info,  $stref,  $f);
 					my $mvars = get_vars_from_expression($ast,{});
 					my $vars= [ grep {!/_OPEN_PAR_/} keys %{$mvars} ];
-					carp 'FIXME: support for WHILE:'.$line.Dumper($vars);
+					warn 'FIXME: support for WHILE: '.$line;#.Dumper($vars);
 					$info->{'Do'} = {
 						'While' =>1,
 						'Iterator' => '',
@@ -1007,7 +1012,7 @@ VIRTUAL
 						for my $mvar (@mchunks) {
 							next if exists $Config{'Macros'}{uc($mvar)}; # skip macros
 							next if exists $F95_reserved_words{$mvar};
-							next if exists $stref->{'Subroutines'}{$f}{'CalledSubs'}{'Set'}{$mvar};    # Means it's a function
+							next if exists $stref->{$sub_incl_or_mod}{$f}{'CalledSubs'}{'Set'}{$mvar};    # Means it's a function
 							next if $mvar =~ /^__PH\d+__$/;
 							next if $mvar !~ /^[_a-z]\w*$/;
 							push @{$mvars}, $mvar;
@@ -1219,7 +1224,8 @@ END IF
 				my $keyword = $1;
 				$info->{ ucfirst($keyword) } = 1;
 				$info->{'IO'}=1;
-				warn uc($keyword)." is ignored!" if $W;
+				warn uc($keyword)." is ignored!" if $DBG;
+				say "WARNING: ".uc($keyword)." is ignored!" if $W; 
 #    RETURN, STOP and PAUSE statements		
 			} elsif ($mline=~/^(return|stop|pause)/) {	
 				my $keyword = $1;
@@ -1245,7 +1251,6 @@ END IF
 				say "WARNING: ".uc($keyword).' IS IGNORED!' if $W;					
 			}							
 # This is an ASSIGNMENT and so can come after IF (...)				
-#			elsif ( $mline !~ /::/ && $mline !~ /^\s*\d*\s+data\b/ && $mline !~ /\bparameter\b/ && $mline =~ /[\w\)]\s*=\s*[^=]/ ) 
 			elsif ( $mline =~ /[\w\)]\s*=\s*[^=]/ ) {		
 					$info->{'Assignment'} = 1;
 					my $free_form =  $Sf->{'FreeForm'};							
@@ -1272,6 +1277,7 @@ END IF
 			if ($in_excluded_block==1 and not exists $info->{'Block'}) {
 				say $lline if $DBG;
 			}
+			
 		}    # Loop over lines
 
 		# We sort the indices from high to low so that the insertions are at the correct index 
@@ -1280,7 +1286,7 @@ END IF
 		}
 		$Sf->{'AnnLines'}=$srcref;
 #		show_annlines($srcref);croak;
-		
+
 		if ( $is_incl ) {
 			my $inc = $f;
 			my $Sincf = $Sf;
@@ -1302,15 +1308,13 @@ END IF
 		}
 		
 	} else {
-		print "WARNING: NO AnnLines for $f ($sub_incl_or_mod)\n";
+		print "WARNING: NO source file found for $f ($sub_incl_or_mod). If this file is in an external directory, please speficy the directory in EXTSRCDIRS in the config file\n";
 		if ($Sf->{'Entry'} ==0) {
-		croak "SOURCE for $f: " . Dumper($Sf). ' , Source: '.$Sf->{'Source'}.$f.' , Entry: '.$Sf->{'Entry'};
+#			croak "SOURCE for $f: " . Dumper($Sf). ' , Source: '.$Sf->{'Source'}.$f.' , Entry: '.$Sf->{'Entry'};
 		# FIXME: if we can't find the source, we should search the include path, but not attempt to create a module for that source!
+			
 		}
 	}
-
-
-	#           die "FIXME: shapes not correct!";
 
 	return $stref;
 }    # END of _analyse_lines()
@@ -1329,6 +1333,7 @@ sub _parse_includes {
 	print "PARSING INCLUDES for $f ($sub_or_func_or_mod_or_inc_or_mod)\n" if $V;
 	my $srcref       = $Sf->{'AnnLines'};
 	my $last_inc_idx = 0;
+	
 	if ( defined $srcref ) { 
 		
 		for my $index ( 0 .. scalar( @{$srcref} ) - 1 ) {
@@ -2888,7 +2893,7 @@ sub __update_caller_datastructures {
 # 
 sub _split_multivar_decls {
 	( my $f, my $stref ) = @_;
-
+#say "_split_multivar_decls($f)" if $W;
 	my $sub_incl_or_mod = sub_func_incl_mod( $f, $stref );
 
 	my $Sf           = $stref->{$sub_incl_or_mod}{$f};
@@ -3425,17 +3430,17 @@ my $is_module = (exists $stref->{'Modules'}{$f}) ? 1 : 0;
 # -----------------------------------------------------------------------------
 
 sub __parse_f77_par_decl {
-
 	# F77-style parameters
 	#                my $parliststr = $1;
-	( my $Sf, my $f,my $indent, my $line, my $info, my $parliststr ) = @_;
+	( my $Sf, my $stref, my $f,my $indent, my $line, my $info, my $parliststr ) = @_;
 
 	
 	my $type   = 'Unknown';
 	my $attr = '';
 	$indent =~ s/\S.*$//;
 	my @partups = _parse_comma_sep_expr_list( $parliststr ); 
-	
+my @test = map { split( /\s*=\s*/, $_ ) } @partups;
+croak $parliststr if scalar @test==1;
 	my %pvars = map { split( /\s*=\s*/, $_ ) } @partups;    # Perl::Critic, EYHO
 	my @var_vals = map { ( my $k, my $v ) = split( /\s*=\s*/, $_ ); [ $k, $v ] } @partups; # Perl::Critic, EYHO
 	my @pvarl = map { s/\s*=.+//; $_ } @partups;
@@ -3458,7 +3463,7 @@ sub __parse_f77_par_decl {
 				} elsif ( $val =~ /^(\-?(?:\d+|\d*\.\d*)(?:[edq][\-\+]?\d+)?)$/ ) {
 					$type = 'real';
 				} elsif ( $val =~/[\*\+\-\/]/ ) { # an expression 
-						my $ast = parse_expression($val);
+						my $ast = parse_expression($val, $info, $stref, $f);
 						my $consts = get_consts_from_expression($ast,{});
 						for my $const_type (values %{$consts}) {
 							if ($const_type eq 'real') {
@@ -3537,6 +3542,7 @@ sub __parse_f77_par_decl {
 
 sub __parse_f77_var_decl {
 	( my $Sf, my $stref, my $f,my $indent,  my $line, my $info, my $type, my $varlst ) = @_;
+		
 				my $is_module = (exists $stref->{'Modules'}{$f}) ? 1 : 0;
 # Half-baked F95/F77 declarations are threated as F77, so remove the :: here
 my $half_baked = ($line=~s/\:://);
@@ -4009,6 +4015,8 @@ sub _identify_loops_breaks {
 # -----------------------------------------------------------------------------
 sub _parse_read_write_print {
 	( my $line, my $info, my $stref, my $f ) = @_;
+	
+#	die "<$line>" if $line=~/write.printstring.+rmin.+rmax/i;
 	my $sub_or_func = sub_func_incl_mod( $f, $stref );
 	my $Sf          = $stref->{$sub_or_func}{$f};
 	
@@ -4020,7 +4028,7 @@ sub _parse_read_write_print {
 
 	$info->{'CallAttrs'} = { 'Set' => {}, 'List' => [] };
 	my $tline = $line;
-#say "TLINE: $line" if $f eq 'main';
+#say "TLINE: $line" if $f eq 'createconnectivitymap';
 #	# Remove any labels
 #	if ( exists $info->{'Label'} ) {
 #		my $label = $info->{'Label'};
@@ -4093,39 +4101,43 @@ sub _parse_read_write_print {
 	$info->{'CallArgs'} = { 'List' => [], 'Set' => {} };
 	$info->{'ExprVars'} = { 'List' => [], 'Set' => {} };
 	for my $tline (@exprs) {
-#		while ( $tline =~ /\/\// ) {
-#			$tline =~ s/\/\//+/;
-#		}
-#		while ( $tline =~ /\)\s*\(/ ) { # )(
-#			$tline =~ s/\)\s*\(/,/; # ,
-#		}
-#		$tline =~ s/\(:/(1,/g;
-#		$tline =~ s/,:/(,1,/g;
-#		$tline =~ s/:\)/(,0/g; # FIXME: this is WRONG. All it does is fix the parse error!
-#		$tline =~ s/:,/(,0,/g; # FIXME: this is WRONG. All it does is fix the parse error!
-#		$tline =~ s/:/,/g; #
+
 		$tline =~ s/\(,/(/g; 
 		$tline =~ s/,\)/)/g;
 		if ( $tline !~ /^\s*$/ ) {
 			if ( $tline =~ /^\(/ ) {
 				# If an argument is ( ... ) it means we only have Vars
-				if ( $tline =~ /=/ ) { # must be an implied do
+				if ( $tline =~ /=/ ) { # must be an implied do				
 					 # If it's an implied do, we should identify the arguments
 					my @args     = ();
 					my @vars     = ();
 					my $in_range = 0;
+					
+	# (atomname(iprot,sczid(iprot,ires,i)),i=1,nscatoms(iprot,ires)) is fine
+	# atomname(iprot,sczid(iprot,ires,i)),i=1,nscatoms(iprot,ires)
+	# (atomname(iprot,sczid(iprot,ires,i)),i=1,nscatoms(iprot,ires)) is fine
+	# (atomname(iprot,sczid(iprot,ires,i)),i=1,nscatoms(iprot,ires)) is fine
 					while ( $tline ne '' ) {
-						$tline =~ s/^\(*//;
-						$tline =~ s/\)$//;    # This is WEAK!
+#						say "TLINE (before): '$tline'" if $tline=~/nscatoms.iprot/;
+						
+						if ($tline =~/^\(/) {
+							$tline =~ s/^\(//;
+							if ($tline =~/\)$/) {
+								$tline =~ s/\)$//;# This is WEAK!
+							}
+						}
+#						say "TLINE  (after): '$tline'" if $tline=~/nscatoms.iprot/;
 						last if $tline eq '';
 						( my $arg, my $rest ) = _parse_array_access_or_function_call($tline,0);
+#						say "ARG: $arg REST: $rest" if $tline=~/nscatoms.iprot/;
 						if ( $arg =~ /=/ ) {
 							( my $lhs, my $rhs ) = split( /=/, $arg );
 							push @vars, $lhs;
 							push @vars, $rhs;
 							$in_range = 1;
-						} elsif ($in_range) {
-							$arg =~ s/\)$//;    # This is WEAK!
+						} elsif ($in_range) {							
+#							$arg =~ s/\)$//;    # This is WEAK!
+#							say "TLINE: BOOM! $tline => ARG $arg" if $tline=~/nscatoms.iprot/;
 							push @vars, $arg;
 						} else {
 							push @args, $arg;
@@ -4199,7 +4211,7 @@ sub _parse_read_write_print {
 # -----------------------------------------------------------------------------
 sub _parse_assignment {
 	( my $line, my $info, my $stref, my $f ) = @_;
-
+	my $code_unit = sub_func_incl_mod( $f, $stref );
 	my $tline = $line;
 
 
@@ -4250,9 +4262,9 @@ sub _parse_assignment {
 		  . "' at line '"
 		  . $tmp_line,
 		  "' in subroutine/function '$f' in '"
-		  . $stref->{'Subroutines'}{$f}{'Source'}
+		  . $stref->{$code_unit}{$f}{'Source'}
 		  . "'\nThis is DANGEROUS, please fix your code!" if $W;
-		$stref->{'Subroutines'}{$f}{'MaskedIntrinsics'}{ $lhs_ast->[1] } = 1;
+		$stref->{$code_unit}{$f}{'MaskedIntrinsics'}{ $lhs_ast->[1] } = 1;
 		$lhs_ast = parse_expression( $lhs, $info, $stref, $f );
 	}
 	my $array_constant=0;

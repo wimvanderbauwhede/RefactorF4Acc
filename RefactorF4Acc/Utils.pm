@@ -447,7 +447,7 @@ ENDH
 }
 sub show_status {
     (my $st)=@_;
-    my @status_str = ( 'UNREAD', 'INVENTORIED', 'READ', 'PARSED', 'FROM_BLOCK', 'C_SOURCE' );
+    my @status_str = ( 'UNREAD', 'INVENTORIED', 'READ', 'PARSED', 'FROM_BLOCK', 'C_SOURCE','FILE_NOT_FOUND' );
     return $status_str[$st];    
 }
 # Test if a var is an element of a nested set. Returns the innermost set 

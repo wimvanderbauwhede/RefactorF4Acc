@@ -314,7 +314,7 @@ sub _process_src {
             	my $full_proc_type=$1;            	
             	my $proc_name=$2;
 
-#				say "PROC NAME: $proc_name PROC TYPE: $full_proc_type" unless $full_proc_type=~/END/;
+#				say "$src PROC NAME: $proc_name PROC TYPE: $full_proc_type" unless $full_proc_type=~/END/;
 				my @proc_type_chunks = split(/\s+/,$full_proc_type);
 				my $proc_type=$proc_type_chunks[-1];
 				my $is_block_data = (lc($proc_type) eq 'block' and lc($proc_name) eq 'data' ) ? 1 : 0;
@@ -425,7 +425,7 @@ sub _process_src {
                     $stref->{'IncludeFiles'}{$inc}{'Source'}=$inc;
 					$stref->{'SourceFiles'}{$inc}{'SourceType'}='IncludeFiles';
                     if (not -e $inc) {
-                    	$stref->{'IncludeFiles'}{$inc}{'InclType'} = 'External';
+                    	$stref->{'IncludeFiles'}{$inc}{'InclType'} = 'External';                    	
                     	for my $ext_dir (@extsrcdirs) {
                     		if (-e "$prefix/$ext_dir/$inc") { 
                     			$stref->{'IncludeFiles'}{$inc}{'ExtPath'} =  "$prefix/$ext_dir/$inc";

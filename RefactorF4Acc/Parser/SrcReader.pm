@@ -105,6 +105,7 @@ sub read_fortran_src {
 			}
             open my $SRC, '<', $fpath or do {
                 say "WARNING: Can't find '$fpath' ($code_unit)\n" if $W;
+                $stref->{$sub_func_incl}{$code_unit}{'Status'} = $FILE_NOT_FOUND;
                 $ok = 0;
             };
 
@@ -177,14 +178,19 @@ Suppose we don't:
                     my $firstline            = 1;
                     # There is an extension to allow 132 characters. But that is a compiler flag so I can't tell
                     # I can guess based on the max line length. 
-                    # Let's say if it is > 102 characters then we have a 132-line program
+                    # Let's say if it is > 72 characters then we have a 132-line program
+                    # But let's say if it is less than 102 we warn
                     my $max_line_length=0;
                     for my $line (@lines) {
-                    	my $cline= chomp $line;
-                    	my $line_length = length($cline);
-                    	$max_line_length= $line_length > $max_line_length ? $line_length : $max_line_length; 
-                    }
-                    my $ncols = $max_line_length > 102 ? 132 : 72;
+                    	my $cline= $line;
+                    	chomp $cline;
+                    	my $line_length = length($cline);                    	
+                    	$max_line_length = $line_length > $max_line_length ? $line_length : $max_line_length; 
+                    }                    
+                    if ($max_line_length > 72 && $max_line_length  < 102 ) {
+                    	say "WARNING: The file $f is a fixed-form F77 source file but the max line length is $max_line_length characters, using $MAX_LINE_LENGTH-character lines. To use a different max line length, set MAX_LINE_LENGTH in the config file." if $W;  	
+                    };
+                    my $ncols = $MAX_LINE_LENGTH;#$max_line_length > 72 ? 132 : 72;
                     for my $line (@lines) {
                     	$line=substr($line,0,$ncols);
                     	# Here a minor hack: if there is a label in the 6th col and a non-blank in the 7th, I insert a blank
@@ -198,6 +204,7 @@ Suppose we don't:
 #                    		$line = substr($line,0,6).' '.substr($line,6); 
 #                    	} 
                     	}
+                    	$line=~s/\x{d}//;
                     }
                     while (@lines) {
                     	# OK, this is a HACK but I will remove anything after the 72nd character 

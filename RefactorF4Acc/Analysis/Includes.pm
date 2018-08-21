@@ -96,8 +96,7 @@ sub _find_root_for_include {
             }
         }
         if ( $nchildren == 0 ) {
-            die
-"_find_root_for_include(): Can't find $inc in parent $sub or any children, something's wrong!\n";
+            die "_find_root_for_include(): Can't find $inc in parent $sub or any children, something's wrong!\n";
         } elsif ( $nchildren == 1 and $Ssub->{'RefactorGlobals'}==0) {
 
             #           print "DESCEND into $singlechild\n";

@@ -14,6 +14,8 @@ use strict;
 use Carp;
 use Data::Dumper;
 use Cwd qw( cwd );
+use Getopt::Std;
+
 use RefactorF4Acc::MacroFileToCmdLine qw( macro_file_to_cmd_line_str get_macro_defs_from_file);
 use Exporter;
 
@@ -30,17 +32,38 @@ use Exporter;
 #use Data::Dumper;
 #use Cwd;
 #
-our $VV=1;
+our $VV=0;
 our $wd=undef;
-#
+our $strip_comments=1;
+our $output_dir = '../PostCPP';
+
 #run_cpp(@ARGV);
+our $usage = <<'ENDH';
+	This script expects a file `macros.h` in the current folder
+	Without arguments, this script will call `cpp` on all files in the current folder and any subfolders (but only one level)
+	
+	The `cpp` arguments are `cpp -Wno-invalid-pp-token -P -Wno-extra-tokens`
+	
+	With a single filename as argument, this script will call `cpp` on that file
+	The processed files are put in `../PostCPP`, you can change this with the -o <path> flag.
+	
+	By default, the script strips comments, to keep them use the -C option.
+	The -v option will produce some debugging output.
+	
+	If you want to skip blocks of code guarded by #ifdef/#endif macros, you need to put those in a file `macros_to_skip.h` in the current folder.
+	This will produce a file `stash.pl` which contains the code that was skipped. To replace that code, you can use the script `restore_stashed_lines.pl`.
+ENDH
 
 sub run_cpp { my @args=@_;  
 	$wd=cwd();
+	parse_args(@args);
 
 	my $single=0;
 	my $single_src='';
 	if (@args) {
+#		if (@args == 1 && ($args[0] eq '-h' || $args[0] eq '--help')) {
+#			die $help; 
+#		} 
 	    $single=1;
 	    $single_src=$args[0];
 	}
@@ -49,6 +72,7 @@ sub run_cpp { my @args=@_;
 	my @defined_macros=();
 	my @undef_macros=();
 	my $no_macros=0;
+	my $no_macros_to_skip=0;
 	my $macros_str='';
 	my $defined_macros_str='';
 	 my $undef_macros_str=''; 
@@ -67,16 +91,19 @@ sub run_cpp { my @args=@_;
 			(my $defined_macros_ref,my $undef_macros_ref)= get_macro_defs_from_file('./macros_to_skip.h');
 			@macros_to_skip=@{ $defined_macros_ref };
 			my @undef_macros= @{ $undef_macros_ref }; # unused		
-	} elsif ($no_macros) {
-	    die 'Could not find macros.h or macros_to_skip.h';
+	} else {
+		$no_macros_to_skip=1;
+		if ($no_macros) {
+		    die 'Could not find macros.h or macros_to_skip.h'."\n\n".$usage;
+		}
 	}
 
 	# Processed files go in PostCPP
-	if (not -d "$wd/../PostCPP") {
-	    mkdir "$wd/../PostCPP";
+	if (not -d "$wd/$output_dir") {
+	    mkdir "$wd/$output_dir";
 	}
-	if (not -d "$wd/../PostCPP/PrePostCPP") {
-	    mkdir "$wd/../PostCPP/PrePostCPP";
+	if (not -d "$wd/$output_dir/PrePostCPP") {
+	    mkdir "$wd/$output_dir/PrePostCPP";
 	}
 	
 	my $stash_ref = {};
@@ -96,34 +123,51 @@ sub run_cpp { my @args=@_;
 
 
 	for my $srcdir (@srcdirs) {
-	    if (not -d "$wd/../PostCPP/$srcdir") {
-	        system("mkdir -p $wd/../PostCPP/$srcdir");
+		# Create the current subdirs in ../PostCPP 
+	    if (not -d "$wd/$output_dir/$srcdir") {
+	        system("mkdir -p $wd/$output_dir/$srcdir");
 	    }
-	    if (not -d "$wd/../PostCPP/PrePostCPP/$srcdir") {
-	        system("mkdir -p $wd/../PostCPP/PrePostCPP/$srcdir");
+	    # Create the current subdirs in ../PostCPP/PrePostCPP
+	    if (not -d "$wd/$output_dir/PrePostCPP/$srcdir") {
+	        system("mkdir -p $wd/$output_dir/PrePostCPP/$srcdir");
 	    }    
 	    chdir "$wd/$srcdir";
 	
-	    my @srcs = $single ? ( $single_src ) : glob("*.f95");
+	    my @srcs = $single ? ( $single_src ) : glob("*.f* *.F* *.inc");
+	    
 	    for my $src (@srcs) {
-	        my $src_path = "$wd/../PostCPP/PrePostCPP/$srcdir/$src";
+	        my $src_path = $no_macros_to_skip ? "$wd/$srcdir/$src" : "$wd/$output_dir/PrePostCPP/$srcdir/$src";
+	        if (not $no_macros_to_skip) {
 	        $stash_ref = stash_lines_to_skip($src,$stash_ref,\@macros_to_skip,$src_path);
-	        my $out_path = $single ? '' : "$wd/../PostCPP/$srcdir/$src";
+	        }
+	        if ($src=~/(\.F\d*)$/) {
+	        	my $ext = $1;
+	        	my $lc_ext = lc($ext);
+	        	$src=~s/\.(F\d*)$/$lc_ext/;
+	        }
+	        
+	        my $out_path = $single ? '' : "$wd/$output_dir/$srcdir/$src";
+	        
+	        
 	        run_cpp_and_clean_up( $no_macros, $includestr,  $macros_str, $src_path, $out_path );
 	    }
 	    chdir $wd;
 	}
-	say Dumper($stash_ref) if $VV;
-	open my $STASH, '>', 'stash.pl';
-	print $STASH Dumper($stash_ref);
-	close $STASH;
+	if (not $no_macros_to_skip) {	
+		say Dumper($stash_ref) if $VV;
+		open my $STASH, '>', 'stash.pl';
+		print $STASH Dumper($stash_ref);
+		close $STASH;
+	}
 
 } # END of run_cpp()
 #
 sub run_cpp_and_clean_up { (my $no_macros, my $includestr, my $definestr, my $src_path, my $out_path) = @_;
     my $cmd_cpp =  $no_macros ? "cat $src_path " : "cpp -Wno-invalid-pp-token -P  $includestr $definestr -Wno-extra-tokens $src_path ";
     my $redir = $out_path eq '' ? '' : '>';
-    my $cmd_clean_up = "| grep -v -E '^\\s*\\!\\s*[a-z\#]|^\\s*\$' | perl -p -e 's/^([^\\!]+)\\s*\\!.+\$/\$1/' $redir $out_path";#$wd/../PostCPP/$src_path";
+    # The grep removes comment lines  (starting with '!')
+    # The perl command removes trailing comments 
+    my $cmd_clean_up = $strip_comments ? "| grep -v -E '^(?:\\s*\\!\\s*|[cC]\\s+)[a-z\#]|^\\s*\$' | perl -p -e 's/^([^\\!]+)\\s*\\![^\\N{QUOTATION MARK}\\N{APOSTROPHE}]+\$/\$1/' $redir $out_path" : " $redir $out_path";
 	my $cmd = $cmd_cpp.$cmd_clean_up;
     say $cmd if $VV;
     system( $cmd );  
@@ -207,6 +251,28 @@ sub stash_lines_to_skip { (my $srcfile, my $stash_ref, my $macros_list, my $outp
         delete $stash_ref->{$srcfile};
     }
     return $stash_ref;
+}
+
+sub parse_args { 
+ 	# Argument parsing. Factor out!
+ 	@ARGV=@_;
+	my %opts = ();
+	getopts( 'hvCo:', \%opts );
+	
+	my $help = ( $opts{'h'} ) ? 1 : 0;
+	
+    if ($help) {
+        die $usage;
+    }
+    if ($opts{'v'}) {
+    	$VV=1;
+    }
+    if ($opts{'C'}) {
+    	$strip_comments=0;
+    }
+    if ($opts{'o'}) {
+         $output_dir= $opts{'o'} ;
+    }     
 }
 
 1;

@@ -30,7 +30,7 @@ our $VV=1;
 
 sub restore_stashed_lines { my @args = @_;
 	if (!@args) {
-	    die "$0 path-to-stash-file (probably ../src/stash.pl) optional-output-path (default is ./PostGen\n";
+	    die "$0 path-to-stash-file/stash.pl (in the sources folder) optional-output-path (default is ./PostGen)\n";
 	}
 	
 	my $stash_path = $args[0];
