@@ -1690,6 +1690,13 @@ sub __find_called_subs_in_OUTER {
 					$block_rec->{'CalledSubs'}{'Set'}{ $info->{'SubroutineCall'}{'Name'} } = 1;
 					# Now test if this is maybe an ENTRY -- UGH! TODO!
 				}
+				if ( exists $info->{'FunctionCalls'} ) {
+					for my $fcall_rec (@{ $info->{'FunctionCalls'} } ) {
+						my $fname =  $fcall_rec->{'Name'};  
+					push @{ $block_rec->{'CalledSubs'}{'List'} }, $fname ;
+					$block_rec->{'CalledSubs'}{'Set'}{ $fname  } = 1;
+					}
+				}
 			}
 		}
 	}
@@ -2076,6 +2083,16 @@ sub build_call_graph {
 					$stref = build_call_graph( $called_sub_name, $stref );
 					pop @{ $stref->{'PNIds'} };
 				}
+				
+				if ( exists $info->{'FunctionCalls'} ) {
+					for my $fcall_rec (@{ $info->{'FunctionCalls'} } ) {
+					$called_sub_name = $fcall_rec->{'Name'};
+					push @{ $stref->{'PNIds'} }, $nid;
+					$stref = build_call_graph( $called_sub_name, $stref );
+					pop @{ $stref->{'PNIds'} };
+					}
+				}
+				
 			}    # loop over all annlines
 		}
 	} else {
@@ -2845,46 +2862,10 @@ sub __update_caller_datastructures {
          	}
          } else {
          	@called_subs = ( @called_subs,$block );
-#        next if $block eq 'BEFORE';
-#        next if $block eq 'AFTER';
-        # Basically, we know that the new subs *must* be called from $f
-#		# Problem here is that there is NO caller!
-#		say $block,' : ',scalar keys %{ $stref->{'Subroutines'}{$block}{'Callers'} };
-#		croak "There can only be one caller for a factored-out subroutine" if scalar keys %{ $stref->{'Subroutines'}{$block}{'Callers'} } != 1;
-        
-#		for my $f ( keys %{ $stref->{'Subroutines'}{$block}{'Callers'} } )
-#		{    # There can only be one caller for $block
-#			if ( $block eq 'OUTER' ) {
-#				$stref->{'Subroutines'}{$f}{'CalledSubs'} =
-#				  $blocksref->{'OUTER'}{'CalledSubs'};
-#			} else {
-
-				# Add $block to CalledSubs in $f
-#				$stref->{'Subroutines'}{$f}{'CalledSubs'}{'Set'}{$block} = 1;                 
-
-# What we need to do is put a marker in CalledSubs when we encounter the pragma, and not register any subcalls in the region!!!
-# Not sure I understand, but the situation is:
-# before: call f1 , f2, f3, f4, f5, f6, f7 ...
-# after: call f1, f2; f_new containing f4, f5; f6, f7, ...
-# So in $f, we need to remove the subs called in f_new unless they were called elsewhere. So we decrement a count I guess
-# And in $f_new, we need to add f4 and f5 to CalledSubs.
-# So actual logic is to go through all blocks. Any call in OUTER + any new block goes to $f; 
-# $blocksref->{'OUTER'}{'CalledSubs'}{'Set'}{$called_sub_name}
-# any call in (not OUTER) goes to the CalledSubs of $block. But we have reparsed all these so I guess we'll have detected these
-#
-
-# This is indeed an issue, but not major. Basically, we need to split the OUTER in before and after and splice.
-#                carp "FIXME: Incorrect because there might be subs in $f called after $block";
-#				push @{ $stref->{'Subroutines'}{$f}{'CalledSubs'}{'List'} }, $block;
-#                push @called_subs, $block;
-#			}
-#		}
 		}
 	} # for each block
 	$stref->{'Subroutines'}{$f}{'CalledSubs'}{'List'}=[@called_subs];
 	$stref->{'Subroutines'}{$f}{'CalledSubs'}{'Set'} = { map { $_ => 1} @called_subs };
-#    $stref->{'Subroutines'}{$f}{'CalledSubs'}{'List'} =[ @{ $blocksref->{'BEFORE'}{'CalledSubs'}{'List'} }, @called_subs, @{ $blocksref->{'AFTER'}{'CalledSubs'}{'List'} } ];
-#    $stref->{'Subroutines'}{$f}{'CalledSubs'}{'Set'} = { %{ $blocksref->{'BEFORE'}{'CalledSubs'}{'Set'} }, map { $_ => 1} @called_subs,  %{ $blocksref->{'AFTER'}{'CalledSubs'}{'Set'} } };
     $stref->{'CallTree'}{$f}=[@{$stref->{'Subroutines'}{$f}{'CalledSubs'}{'List'}}];
 	return $stref;
 }    # END of __update_caller_datastructures()
@@ -2915,23 +2896,8 @@ sub _split_multivar_decls {
 				$rinfo{'LineID'} = $nextLineID++;
 				my $subset = in_nested_set($Sf,'Vars',$var);
 				my $orig_decl =$Sf->{$subset}{'Set'}{$var}; 
-#				my $dim = ref( $orig_decl ) eq 'HASH' ?  $orig_decl->{'Dim'} : [];
-#				say Dumper($info->{'VarDecl'});
-#				say Dumper($orig_decl);
-#				croak $info->{'VarDecl'}{'Attr'}.'<>'.$orig_decl->{'Attr'} if $info->{'VarDecl'}{'Attr'} ne $orig_decl->{'Attr'};
-#				my $decl = {
-#					'Indent' => $info->{'Indent'},
-#					'Type'   => $orig_decl->{'Type'},
-#					'Attr'   => $orig_decl->{'Attr'}, #$info->{'VarDecl'}{'Attr'},
-#					'Dim'    => $dim,
-#					'Name'   => $var,			
-#					'IODir'  => [],
-#					'Status' => 0
-#				};
 				$rinfo{'VarDecl'} = {'Name' => $var},#$decl;
 				my $rline = $line;
-#				say $f,':',$line,'=>',$subset,'.',$var,'  ', Dumper($Sf->{$subset}{'Set'}{$var});
-#				say( __LINE__,' ',( exists $stref->{'Entries'}{$f} ? 'ENTRY' : 'SUB'),' ',$f);
 				$Sf->{$subset}{'Set'}{$var}{'Name'} = $var;
 				if ( scalar @{ $info->{'VarDecl'}{'Names'} } > 1 ) {
 					for my $nvar (@nvars) {
@@ -4626,7 +4592,7 @@ if ($lhs=~/,/ or $rhs=~/,/) {
 		
 	my $rinfo = dclone($info);
 	$rinfo->{'Assignment'}=1;
-$rinfo->{'Data'}=1;
+	$rinfo->{'Data'}=1;
 			( my $rhs_args, my $rhs_vars ) =
 	  @{ get_args_vars_from_expression($rhs_val_ast) };
 	my $rhs_all_vars = {
@@ -4663,6 +4629,34 @@ sub  _get_var_from_ast { (my  $ast ) = @_;
 	# The AST is always an array
 	
 	# If there is a length, we need the 2nd elt
+	if (($ast->[0] & 0x0F) == 5) {
+	# That elt can either be a scalar
+	# or an array
+		if (($ast->[1][0] & 0xF) == 2) { # $
+			$var= $ast->[1][1];
+		} elsif (($ast->[1][0] & 0xF) == 10) { # @
+			$var= $ast->[1][1];
+		} else {
+			croak Dumper($ast);
+		}
+	  
+	} else {
+		if( ($ast->[0] & 0xF) == 2) {
+			$var= $ast->[1];
+		} elsif ( ($ast->[0] & 0xF) == 10) {
+			$var= $ast->[1];
+		} else {
+			croak Dumper($ast);
+		}
+	}
+	return $var;
+}
+
+sub  _get_var_from_ast_OLD { (my  $ast ) = @_;
+	my $var='';
+	# The AST is always an array
+	
+	# If there is a length, we need the 2nd elt
 	if ($ast->[0] eq '*') {
 	# That elt can either be a scalar
 	# or an array
@@ -4686,8 +4680,67 @@ sub  _get_var_from_ast { (my  $ast ) = @_;
 	return $var;
 }
 
-
 sub  _get_dim_from_ast { (my  $ast ) = @_;
+		my $dim=[];
+		
+# If there is a length, we need the 2nd elt
+	if (($ast->[0] & 0xF)==5) {
+	# That elt can either be a scalar
+	# or an array
+		if(($ast->[1][0] & 0xF)==2) {
+			# It's an array so there is a dim
+			for my $pdim_idx (2 .. @{$ast->[1]}-1) {
+				my $pdim = $ast->[1][$pdim_idx];
+				if (ref($pdim) eq 'ARRAY') {
+					if ($pdim->[0] eq ':') {
+						croak 'FIXME!';
+						my $dim_start = emit_expression($pdim->[1],'');
+						my $dim_stop = emit_expression($pdim->[2],'');
+						push @{$dim}, [$dim_start ,$dim_stop ]; 
+					} else {
+						my $dim_start = 1;
+						my $dim_stop = emit_expression($pdim,'');
+						push @{$dim}, [$dim_start ,$dim_stop ]; 					
+					}
+				} else { # must be scalar
+					my $dim_start = 1;
+					my $dim_stop = emit_expression($pdim,'');
+					push @{$dim}, [$dim_start ,$dim_stop ];
+				}
+			}
+		} elsif (($ast->[1][0] & 0xF) == 2) {
+			# no dim			
+		} else {
+			croak Dumper($ast);
+		}
+	  
+	} else {
+		if(($ast->[0] & 0xF) == 2) {
+			# no dim
+		} elsif (($ast->[0] & 0xF) ==10) {
+			for my $pdim_idx (2 .. @{$ast}-1) {
+				my $pdim = $ast->[$pdim_idx];
+				if (ref($pdim) eq 'ARRAY') {
+					if ($pdim->[0] eq ':') {
+						croak 'FIXME!';
+						my $dim_start = emit_expression($pdim->[1],'');
+						my $dim_stop = emit_expression($pdim->[2],'');
+						push @{$dim}, [$dim_start ,$dim_stop ]; 
+					}
+				} else { # must be a scalar
+					my $dim_start = 1;
+					my $dim_stop = emit_expression($pdim,'');
+					push @{$dim}, [$dim_start ,$dim_stop ];					
+				}
+			}
+		} else {
+			croak Dumper($ast);
+		}	
+	}	
+	return $dim;	
+}
+
+sub  _get_dim_from_ast_OLD { (my  $ast ) = @_;
 		my $dim=[];
 		
 # If there is a length, we need the 2nd elt
@@ -4745,8 +4798,27 @@ sub  _get_dim_from_ast { (my  $ast ) = @_;
 	return $dim;	
 }
 
-
 sub  _get_len_from_ast { (my  $ast ) = @_;
+	my $len='';
+	if (($ast->[0] & 0xF)==5) {
+		# there is a len
+		my $len_expr = $ast->[2];
+		if ($len_expr eq '0') {
+			$len = '*';	
+		} elsif ($len_expr=~/^\d+/) {
+			$len = $len_expr;
+		} else {
+			# could be thart we have to strip parens here
+			$len = emit_expression($len_expr);
+			if ($len=~/\(([a-z]\w+)\)/) {
+				$len=$1;				
+			}		
+		}
+	} 
+	return $len;	
+}
+
+sub  _get_len_from_ast_OLD { (my  $ast ) = @_;
 	my $len='';
 	if ($ast->[0] eq '*') {
 		# there is a len
@@ -4763,8 +4835,7 @@ sub  _get_len_from_ast { (my  $ast ) = @_;
 			}		
 		}
 	} 
-	return $len;
-	
+	return $len;	
 }
 # This code runs on any sub that has a Kernel region
 # I could of course use this pass to enumerate all the subroutines, put them in KernelSubs 

@@ -262,7 +262,7 @@ sub _analyse_src_for_iodirs {
 	if ( not exists $Sf->{'IODirInfo'} or $Sf->{'IODirInfo'} == 0 ) {
 		if ( not exists $Sf->{'HasRefactoredArgs'} or $Sf->{'HasRefactoredArgs'} == 0 ) {
 			say "SUB $f DOES NOT HAVE RefactoredArgs";
-			croak 'BOOM! ' . __LINE__ . ' ' . $f . ' : ' . Dumper($Sf);
+			croak 'BOOM! Logic is wrong:  HasRefactoredArgs 0/1 does not indicate presence of RefactoredArgs List/Set' . __LINE__ ;#. ' ' . $f . ' : ' . Dumper($Sf);
 		}
 		my $args = dclone( $Sf->{'RefactoredArgs'}{'Set'} ); 
 

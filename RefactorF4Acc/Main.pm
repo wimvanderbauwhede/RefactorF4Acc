@@ -170,7 +170,7 @@ sub main {
 	}
 
 	$stref = build_call_graph($subname, $stref);
-	
+#	die Dumper($stref->{'Nodes'});
     # 3. Analysis: Analyse the source
     my $stage=0;
     

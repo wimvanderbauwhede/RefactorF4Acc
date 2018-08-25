@@ -104,7 +104,7 @@ sub analyse_all {
 	}
 	return $stref if $stage == 5;
 
-	for my $f ( keys %{ $stref->{'Subroutines'} } ) {
+	for my $f ( keys %{ $stref->{'Subroutines'} } ) { 
 		next if $f eq '';
 		if (exists $stref->{'Entries'}{$f}) {
 			next;
@@ -514,7 +514,7 @@ sub _analyse_variables {
 sub identify_vars_on_line {
 		( my $annline ) = @_;
 		( my $line,    my $info )  = @{$annline};
-
+say $line, Dumper($info);
 		if (   exists $info->{'Assignment'}
 			or exists $info->{'SubroutineCall'}
 			or exists $info->{'If'} # Control
@@ -552,6 +552,7 @@ sub identify_vars_on_line {
 				for my $expr_var ( @{ $info->{'ExprVars'}{'List'} } ) {
 					push @chunks, $expr_var;
 				}
+				
 			} elsif ( exists $info->{'OpenCall'} ) {
 				if ( exists $info->{'Vars'} ) {
 					@chunks = ( @chunks, @{ $info->{'Vars'}{'List'} } );
@@ -654,6 +655,7 @@ sub _create_refactored_args {
 		$Sf->{'RefactoredArgs'}{'Set'}  = $Sf->{'OrigArgs'}{'Set'};
 		$Sf->{'RefactoredArgs'}{'List'} = $Sf->{'OrigArgs'}{'List'};
 		$Sf->{'HasRefactoredArgs'}      = 0;
+#		croak Dumper($Sf) if $f eq 'lowercase';
 	} elsif (  exists $Sf->{'ExGlobArgs'}{'List'} and  scalar @{$Sf->{'ExGlobArgs'}{'List'}}>0
 	and scalar @{ $Sf->{'OrigArgs'}{'List'} } ==0
 	) {
@@ -759,6 +761,46 @@ sub _map_call_args_to_sig_args {
 				$i++;
 			}
 		}
+
+		if ( exists $info->{'FunctionCalls'} ) {
+			for my $fcall_rec (@{$info->{'FunctionCalls'}}) {
+
+			my $sub = $fcall_rec->{'Name'};
+
+			$fcall_rec->{'ArgMap'} = {};    # A map from the sig arg to the call arg, because there can be duplicate call args but not sig args
+
+			my $call_args = $fcall_rec->{'Args'}{'List'};
+			
+			for my $call_arg_expr ( @{ $fcall_rec->{'Args'}{'List'} } ) {
+				say "_map_call_args_to_sig_args( $f ) " . __LINE__ . " FUNC $sub CALL ARG: $call_arg_expr "; 
+
+				my $call_arg = $call_arg_expr;
+				if ( $fcall_rec->{'Args'}{'Set'}{$call_arg_expr}{'Type'} eq 'Array' ) {
+					$call_arg = $fcall_rec->{'Args'}{'Set'}{$call_arg_expr}{'Arg'};
+				}
+				if (   exists $F95_intrinsics{$call_arg}
+					or exists $F95_reserved_words{$call_arg} )
+				{
+					if ( not exists $stref->{'Subroutines'}{$sub}{'MaskedIntrinsics'}{$call_arg} ) {
+
+						# This is an unmasked intrinsic, set to 'Sub'!
+						say "INFO: Unmasked intrinsic $call_arg in $f" if $I;
+						$fcall_rec->{'Args'}{'Set'}{$call_arg_expr}{'Type'} = 'Sub';
+					} else {
+						say "Intrinsic $call_arg is MASKED in $f";
+					}
+				}
+			}
+			
+			my $i = 0;
+			for my $sig_arg ( @{ $stref->{'Subroutines'}{$sub}{'OrigArgs'}{'List'} } ) {
+				my $call_arg_expr = $call_args->[$i];
+				$fcall_rec->{'ArgMap'}{$sig_arg} = $call_arg_expr;
+				$i++;
+			}				
+			}		
+		}
+	 
 		return [$annline];
 	};
 
