@@ -514,7 +514,7 @@ sub _analyse_variables {
 sub identify_vars_on_line {
 		( my $annline ) = @_;
 		( my $line,    my $info )  = @{$annline};
-say $line, Dumper($info);
+#say $line, Dumper($info);
 		if (   exists $info->{'Assignment'}
 			or exists $info->{'SubroutineCall'}
 			or exists $info->{'If'} # Control
