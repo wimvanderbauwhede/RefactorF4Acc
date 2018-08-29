@@ -146,6 +146,13 @@ sub pass_rename_array_accesses_to_scalars {(my $stref)=@_;
 	}
 }
 =cut
+=info_assumptions_array_access_detection
+Assumptions:
+- Array accesses use index expressions that are linear `a*idx+b`, where idx is part of IndexVars
+- For stencils we _only_ support idx+k where k is a positive or negative constant 
+- If an array has a constant index access, that is _not_ part of the stencil
+
+=cut
 # ================================================================================================================================================	
 # This composite pass renames array accesses in the called subroutines in a superkernel to scalar accesses
 sub _rename_array_accesses_to_scalars { (my $stref, my $f) = @_;
@@ -811,6 +818,13 @@ sub _add_assignments_for_called_subs { (my $stref, my $f) = @_;
 
 	# This function changes functions to arrays
 
+#['@','vn',
+#						[
+#							'+',['$','j'],['-','1']
+#						],
+#						['$','k']
+#					],
+
 sub _rename_ast_entry { (my $stref, my $f,  my $state, my $ast, my $intent)=@_;
 	if (ref($ast) eq 'ARRAY') {
 		for my  $idx (0 .. scalar @{$ast}-1) {		
@@ -820,10 +834,14 @@ sub _rename_ast_entry { (my $stref, my $f,  my $state, my $ast, my $intent)=@_;
 				(my $entry, $state) = _rename_ast_entry($stref,$f, $state,$entry,$intent);
 				$ast->[$idx] = $entry;
 			} else {
-				if ($entry eq '@') {				
+				if ($idx==0 and (($entry & 0xF) == 10)) {#'@'				
 					my $mvar = $ast->[$idx+1];
 					if ($mvar ne '_OPEN_PAR_') {
-						say 'Found array access '.$mvar  if $DBG;
+						say 'Found array access '.$mvar  if $DBG;			
+#						my $stencil=$state->{'StreamVars'}{$mvar}{'Stencil'};
+#						my $array_acccess = _extract_array_access($ast);
+#						my $array_acccess_str = join(':',@{$array_acccess}); # e.g. [0,-1,2] becomes 0:-1:2 and these are ordered  
+#						$stencil->{$array_acccess_str}=$array_acccess; 																			
 						my $expr_str = emit_expression($ast,'');
 						my $var_str=$expr_str;
 						$var_str=~s/[\(,]/_/g; 
@@ -838,6 +856,7 @@ sub _rename_ast_entry { (my $stref, my $f,  my $state, my $ast, my $intent)=@_;
 							$intent = $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$mvar}{'IODir'};
 						}
 						$state->{'StreamVars'}{$mvar}{'Set'}{$var_str}={'IODir'=>$intent,'ArrayIndexExpr'=>$expr_str} ;
+#						$state->{'StreamVars'}{$mvar}{'Stencil'}=$stencil;
 						$ast=['$',$var_str];
 						last;
 					}
@@ -1556,5 +1575,8 @@ sub _make_dim_vars_scalar_consts_in_sigs { (my $stref, my $f)=@_;
  
 
 # ============================================================================================================
-
+sub _extract_array_access { (my $ast) = @_;
+	my $array_access=[];
+	return $array_access;
+}
 1;

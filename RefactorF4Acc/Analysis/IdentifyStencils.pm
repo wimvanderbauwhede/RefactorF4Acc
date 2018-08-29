@@ -47,6 +47,26 @@ use Exporter;
 
 =info20170903
 What we have now is for every array used in a subroutine, a set of all stencils with an indication if an access is constant or an offset from a given iterator.
+The syntax is
+
+$state->{'Subroutines'}{ $f }{'Arrays'}{$array_var}{$rw}{'Stencils'}{ join(':', @ast_vals0) }
+{$iters[$idx] => [$mult_val,$offset_val]};
+
+ '0:-1' => [
+    {
+      'j' => [
+        1,
+        0
+      ]
+    },
+    {
+      'k' => [
+        1,
+        -1
+      ]
+    }
+  ],
+
 
 Now we have two use cases, one is OpenCL pipes and the other is TyTraCL
 For the stencils where all accesses use an iterator we have
@@ -213,17 +233,18 @@ sub pass_identify_stencils {(my $stref)=@_;
 				],
 			]
 		);			
-
+die "\n DONE pass_identify_stencils";
 	return $stref;
 }
-
+# There is no pretense that this works for anything but the OpenCL Fortran kernels emitted by this compiler. 
 sub _identify_array_accesses_in_exprs { (my $stref, my $f) = @_;
 	
-	if ($stref->{'Subroutines'}{$f}{'Source'}=~/module_adam_bondv1_feedbf_les_press_v_etc_superkernel.f95/ && $f!~/superkernel/) {  # TODO
+	if ($stref->{'Subroutines'}{$f}{'Source'}=~/module_\w+_superkernel.f95/ && $f!~/superkernel/) {  # TODO
 #		say  "\nRunning _identify_array_accesses_in_exprs($f)\n";
-		say  "\n-- $f\n";
+		say  "\n-- $f ";#.'_identify_array_accesses_in_exprs('.__LINE__.')'."\n";
 		my $pass_identify_array_accesses_in_exprs = sub { (my $annline, my $state)=@_;
 			(my $line,my $info)=@{$annline};
+			# Identify the subroutine 
 			if ( exists $info->{'Signature'} ) {
 				my $subname =$info->{'Signature'}{'Name'} ; 
 #				say  "\n".$subname ;
@@ -232,7 +253,9 @@ sub _identify_array_accesses_in_exprs { (my $stref, my $f) = @_;
 				$state->{'Subroutines'}{$subname }={};
 	#			die if  $subname  eq 'bondv1_map_107';
 			}
-			if (exists $info->{'VarDecl'} and not exists $info->{'ParamDecl'} and $line=~/dimension/) { # Lazy			 	
+			# For every VarDecl, identify dimension if it is an array
+			if (exists $info->{'VarDecl'} and not exists $info->{'ParamDecl'} and __is_array_decl($info)) { # $line=~/dimension/ Lazy.
+						
 				my $array_var=$info->{'VarDecl'}{'Name'};				
 #				die Dumper($annline) if $array_var eq 'zbm';
 				
@@ -303,9 +326,9 @@ sub _identify_array_accesses_in_exprs { (my $stref, my $f) = @_;
 					# Find all array accesses in the LHS and RHS AST.
 					if ( 
 						ref($info->{'Rhs'}{'ExpressionAST'}) eq 'ARRAY' 
-					and $info->{'Rhs'}{'ExpressionAST'}[0] eq '@'
+					and (($info->{'Rhs'}{'ExpressionAST'}[0] & 0xF) == 10) #eq '@'
 					and ref($info->{'Lhs'}{'ExpressionAST'}) eq 'ARRAY' 
-					and $info->{'Lhs'}{'ExpressionAST'}[0] eq '@'
+					and (($info->{'Lhs'}{'ExpressionAST'}[0] & 0xF) == 10) #eq '@'
 					and $info->{'Lhs'}{'ExpressionAST'}[1] eq $info->{'Rhs'}{'ExpressionAST'}[1]
 					) {
 						my $var_name = $info->{'Rhs'}{'ExpressionAST'}[1];
@@ -354,17 +377,27 @@ sub _identify_array_accesses_in_exprs { (my $stref, my $f) = @_;
 	
 		my $state = {'CurrentSub'=>'', 'Subroutines'=>{}};
 	 	($stref,$state) = stateful_pass($stref,$f,$pass_identify_array_accesses_in_exprs, $state,'pass_identify_array_accesses_in_exprs ' . __LINE__  ) ;
-	# 	say Dumper($state->{'Subroutines'});die;
+#	 	if ($f=~/vernieuw/) { 
+	 	
 		$state = _link_writes_to_reads( $stref, $f, $state);
+#		say Dumper( $state->{'Subroutines'}{$f}{'Links'});
+	 	
 #		say "LINKS:";
 #		(my $out_tup, my $in_tup) = pp_links($state->{'Subroutines'}{$f}{'Links'});
 #		my $map_expr = '('.join(',',@{$out_tup}).')';
 #		$map_expr .= ' = map '.$f.' ';
-#		$map_expr .= '('.join(',',@{$in_tup}).')';
-#		say $map_expr; 
+#		$map_expr .= '('.join(',', grep {$_!~/\!/} @{$in_tup}).')';
+#		say $map_expr;
+#		say 'END LINKS';
+			 		 			 
 		$stref = _classify_accesses($stref, $f, $state);
 		
 	} # if subkernel not superkernel
+	else {
+		say "-- SUPERKERNEL $f";
+#		map { say $_ } sort keys %{ $stref->{'Subroutines'}{$f} };
+		 say Dumper $stref->{'Subroutines'}{$f}{'RefactoredArgs'} ;
+	}
  	return $stref;	
 } # END of _identify_array_accesses_in_exprs()
 
@@ -451,7 +484,7 @@ sub _find_array_access_in_ast { (my $stref, my $f,  my $state, my $ast, my $rw)=
 				(my $entry, $state) = _find_array_access_in_ast($stref,$f, $state,$entry, $rw);
 				$ast->[$idx] = $entry;
 			} else {
-				if ($entry eq '@') {				
+				if ($idx==0 and (($entry & 0xF)==10)) { #$entry eq '@'				
 					my $mvar = $ast->[$idx+1];
 					if ($mvar ne '_OPEN_PAR_') {
 						
@@ -490,7 +523,7 @@ sub _find_array_access_in_ast { (my $stref, my $f,  my $state, my $ast, my $rw)=
 							push @{$iter_val_pairs}, {$iters[$idx] => [$mult_val,$offset_val]};
 						}
 						$state->{'Subroutines'}{ $f }{'Arrays'}{$array_var}{$rw}{'Exprs'}{$expr_str}=1;   
-						$state->{'Subroutines'}{ $f }{'Arrays'}{$array_var}{$rw}{'Stencils'}{ join('', @ast_vals0) } = $iter_val_pairs;#[[@iters],[@ast_vals]];
+						$state->{'Subroutines'}{ $f }{'Arrays'}{$array_var}{$rw}{'Stencils'}{ join(':', @ast_vals0) } = $iter_val_pairs;
 #						say '    '.join(',',@ast_exprs).'  => '.join(',',@ast_vals);
 #						say '    '.join(',',@ast_vals); 
 						last;
@@ -518,7 +551,7 @@ sub _UNUSED_determine_stencil_from_access { (my $stref,my $f, my $ast, my $state
   		my $offset=0;  		
   		# The expression for this index is an array
   		if (ref($item) eq 'ARRAY') {
-  			if ($item->[0] eq '$') {
+  			if (($item->[0] & 0xF) == 2) { # $item->[0] eq '$'
 		  		# means this access has 0 offset
 		  		my $miter = $item->[1];		  		
 		  		if (exists $state->{'Subroutines'}{ $f }{'LoopIters'}{ $miter }) {
@@ -550,7 +583,7 @@ sub _UNUSED_determine_stencil_from_access { (my $stref,my $f, my $ast, my $state
 #		  		$iter='';
 		  		for my $idx (1 .. scalar @{$item} -1) {
 		  		# get the iter
-		  			if (ref($item->[$idx]) eq 'ARRAY' and $item->[$idx][0] eq '$') {		  				
+		  			if (ref($item->[$idx]) eq 'ARRAY' and (($item->[$idx][0] & 0xF) == 2)) { # eq '$'		  				
 		  				my $miter = $item->[$idx][1];
 				  		if (exists $state->{'Subroutines'}{ $f }{'LoopIters'}{ $miter }) {
 				  			$iter = $miter;				  			
@@ -575,7 +608,7 @@ sub _UNUSED_determine_stencil_from_access { (my $stref,my $f, my $ast, my $state
 			  		if (ref($item->[$idx]) eq 'ARRAY' ) {
 			  			if( $item->[$idx][0] eq '-') {
 			  				 $offset += -1*$item->[$idx][1];
-			  			} elsif  ($item->[$idx][0] ne '$') {
+			  			} elsif  (($item->[$idx][0] & 0xF) !=2) { # ne '$'
 			  				# if it is a $ we've already processed it I guess
 			  			say "UNEXPECTED OP ".$item->[$idx][0] ;
 			  			}
@@ -645,7 +678,7 @@ sub _replace_consts_in_ast { (my $stref, my $f,  my $ast, my $state, my $const)=
 				(my $entry2, $state) = _replace_consts_in_ast($stref,$f, $entry, $state,$const);
 				$ast->[$idx] = $entry2;
 			} else {
-				if ($entry eq '$') {				
+				if ($idx==0 and (($entry & 0xF) == 2)) { #eq '$'				
 					my $mvar = $ast->[$idx+1];					
 					if (exists $state->{'Subroutines'}{ $f }{'LoopIters'}{ $mvar }) {
 #						say 'Replacing ['."'".'$'."'".','.$mvar.'] by '.$const;
@@ -659,8 +692,7 @@ sub _replace_consts_in_ast { (my $stref, my $f,  my $ast, my $state, my $const)=
 		  				$ast = parse_expression($val, {},$stref,$f);		  				
 #		  				$ast=$val;
 		  				return ($ast,$state);						
-					}	
-									
+					}										
 				} 
 			}		
 		}
@@ -709,7 +741,9 @@ sub _link_writes_to_reads {(my $stref, my $f, my $state)=@_;
 	my $assignments = $state->{'Subroutines'}{$f}{'Assignments'};
 	# So we have to establish the link for every variable that is a multi-dim (effectively 3-D) array argument
 	for my $some_var ( sort keys %{ $assignments }  ) {
+		
 		next if $some_var=~/_rel|_range/;
+		
 		$links = _link_writes_to_reads_rec($stref, $f, $some_var,$assignments,$links,$state);
 	}
 	
@@ -741,16 +775,18 @@ sub _link_writes_to_reads {(my $stref, my $f, my $state)=@_;
 sub _link_writes_to_reads_rec {(my $stref, my $f, my $some_var, my $assignments,my  $links, my $state)=@_;
  		my $decl = get_var_record_from_set( $stref->{'Subroutines'}{$f}{'Vars'},$some_var);
 		my $lhs_dim = scalar @{ $decl->{'Dim'} };
-		if (exists $assignments->{$some_var} ) {
-			my $rhs_array = $assignments->{$some_var};
-#			say Dumper($rhs); 
+		if (exists $assignments->{$some_var} ) {  
+			my $rhs_array = $assignments->{$some_var};			 
 			my $vars = {};
 			for my $rhs (@{ $rhs_array }) {
 				my %tvars = %{ get_vars_from_expression($rhs,{}) };
 				my %avars = _remove_index_vars($stref,$f,$state,\%tvars);
 				$vars = {%{$vars},%avars };
 			}
-#			die Dumper($vars) if $f=~/116/ and exists $vars->{'i'};
+			# If an array gets assigned to and returned but does not depend on inputs, we need to make sure it is also in links
+			if (scalar keys %{$vars} == 0) {
+				$links->{$some_var}{'!'.$some_var.'!'}=1;
+			}
 			for my $var ( keys %{$vars} ) {				
 				next if $var=~/_rel|_range/;
 				next if exists $links->{$some_var}{$var};
@@ -807,35 +843,41 @@ sub isArg { (my $stref, my $f, my $array_var)=@_;
 			}
 }
 
+# Either this is a misnomer or I should split out the code generation and emitter
+=info_classify_accesses 
+This routine does not $state; it modifies $stref by creating $stref->{UniqueVarCounters} 
+However, it does perform analysis:
+For every $array_var in  $state->{'Subroutines'}{ $f }{'Arrays'}} it does the following:
+- It populates UniqueVarCounters, although this is not very useful. We use $unique_var_counters to keep track of accesses to a variable for the purpose of creating unique names for TyTraCL
+- It tests if the access pattern for $array_var is a proper stencil:
+	- There is more than one access to an array, this is determined from $state->{'Subroutines'}{ $f }{'Arrays'}{$array_var}{$rw}{'Stencils'}, see _find_array_access_in_ast()
+	- At least one of these accesses has a non-zero offset, this is determined from $state->{'Subroutines'}{ $f }{'Arrays'}{$array_var}{$rw}{'Stencils'}
+	- All points in the array are processed in order, this is determined by checking $state->{'Subroutines'}{ $f }{'Arrays'}{$array_var}{$rw}{'Iterators'} for '?', see _find_iters_in_array_idx_expr()
+	There outcome is put in %stencils (1 or 0)
+
+
+=cut
 sub _classify_accesses { (my $stref, my $f, my $state) =@_;
 # 	say "SUB $f\n";
-	my @extracts=();
- 	my @inserts=();
-	my %stencils=();		
+	my @extracts=(); # These are portions of an array that are extracted, we need an `extract` primitive
+ 	my @inserts=(); # This is when a portion of an array is inserted, we need an `insert` primitive
+	my %stencils=(); # The `stencil` call		
 	my %non_map_args=();
 	my %portions=();
+	
 	if (not exists $stref->{'UniqueVarCounters'}) {
-		$stref->{'UniqueVarCounters'}={};
+		$stref->{'UniqueVarCounters'}={'!s' => 0};
 	}
 	my $unique_var_counters=$stref->{'UniqueVarCounters'};
 	
  	for my $array_var (keys %{$state->{'Subroutines'}{ $f }{'Arrays'}}) {  
  		next if $array_var =~/^global_|^local_/; 		
  		next if not defined  $state->{'Subroutines'}{ $f }{'Arrays'}{$array_var}{'Dims'} ;
+ 		
  		if (not exists $unique_var_counters->{$array_var}) {
  			$unique_var_counters->{$array_var}=0;
  		}
- 		
- 		if (scalar @{ $state->{'Subroutines'}{ $f }{'Arrays'}{$array_var}{'Dims'} } ==1 ) {
-# 			non_map_args{
-# 			say "$array_var 1-D"; 			 			
- 		} elsif (scalar @{ $state->{'Subroutines'}{ $f }{'Arrays'}{$array_var}{'Dims'} } ==2 ) { 			
-# 			say "$array_var 2-D";
-# 			say Dumper($state->{'Subroutines'}{ $f }{'Arrays'}{$array_var}{'Dims'} );
- 		} else {
- 			
- 		}
- 		
+ 		 		
  		for my $rw ('Read','Write') { 			  			
  			if (exists  $state->{'Subroutines'}{ $f }{'Arrays'}{$array_var}{$rw} ) {
  				# because it could be read-only and even write-only: v = u+w 				
@@ -853,29 +895,36 @@ sub _classify_accesses { (my $stref, my $f, my $state) =@_;
 					 and
 				#- at least one of these accesses has a non-zero offset
 					$n_nonzeroffsets > 0 and
-				#- all points in the array are processes in order 
-					$all_points
-					) {
-#						say "STENCIL for $rw of $array_var";
-						my $ctr_in = $unique_var_counters->{$array_var};
-						say "${array_var}_tup = stencil patt ${array_var}_${ctr_in}";
- 		if (not exists $unique_var_counters->{"${array_var}_tup"}) {
- 			$unique_var_counters->{"${array_var}_tup"}=0;
- 		} else {
- 			$unique_var_counters->{"${array_var}_tup"}++;
- 		}						
-						$stencils{$array_var}=1;
-					} 
-					if(  $n_accesses > 0
-				#- there is more than one access to an array => 
-					 and
-				#- at least one of these accesses has a non-zero offset
-					$n_nonzeroffsets == 0 and
 				#- all points in the array are processed in order 
 					$all_points
 					) {
-#						say "single access for $rw of $array_var (info only)";
-					}
+#						say "STENCIL for $rw of $array_var";#.': '.Dumper($state->{'Subroutines'}{ $f }{'Arrays'}{$array_var}{$rw}{'Stencils'});
+						my $ctr_st = ++$unique_var_counters->{'!s'};
+						my @stencil_pattern = map { $_=~s/:/,/;"[$_]" } keys %{$state->{'Subroutines'}{ $f }{'Arrays'}{$array_var}{$rw}{'Stencils'}};
+						my $patt = "s$ctr_st = [".join(',',@stencil_pattern).']';
+						say $patt;
+						my $ctr_in = $unique_var_counters->{$array_var};
+						
+				 		if (not exists $unique_var_counters->{"${array_var}_s"}) {
+				 			$unique_var_counters->{"${array_var}_s"}=0;
+				 		} else {
+				 			$unique_var_counters->{"${array_var}_s"}++;
+				 		}
+				 		my $ctr_sv = $unique_var_counters->{"${array_var}_s"};
+				 		say "${array_var}_s$ctr_sv = stencil s$ctr_st ${array_var}_${ctr_in}";						
+						$stencils{$array_var}=1;
+					} 
+					
+#					if(  $n_accesses > 0
+#				#- there is more than one access to an array => 
+#					 and
+#				#- at least one of these accesses has a non-zero offset
+#					$n_nonzeroffsets == 0 and
+#				#- all points in the array are processed in order 
+#					$all_points
+#					) {
+##						say "single access for $rw of $array_var (info only)";
+#					}
 										
 				if (not $all_points) {
 					if ($rw eq 'Read') {
@@ -883,12 +932,12 @@ sub _classify_accesses { (my $stref, my $f, my $state) =@_;
 #						say "SELECT for $rw of $array_var";
 #						say "${array_var}_portion = extract patt $array_var";
 						my $ctr_in = $unique_var_counters->{$array_var};
-						push @extracts,"${array_var}_portion = extract patt ${array_var}_${ctr_in}";
- 		if (not exists $unique_var_counters->{"${array_var}_portion"}) {
- 			$unique_var_counters->{"${array_var}_portion"}=0;
- 		} else {
- 			$unique_var_counters->{"${array_var}_portion"}++;
- 		}						
+						push @extracts,"${array_var}_portion = extract patt ${array_var}_${ctr_in} -- TODO";
+				 		if (not exists $unique_var_counters->{"${array_var}_portion"}) {
+				 			$unique_var_counters->{"${array_var}_portion"}=0;
+				 		} else {
+				 			$unique_var_counters->{"${array_var}_portion"}++;
+				 		}						
 						$portions{$array_var}=1;
 					} else {
 #						say "INSERT for $rw of $array_var";
@@ -897,7 +946,7 @@ sub _classify_accesses { (my $stref, my $f, my $state) =@_;
 						my $ctr_in = $unique_var_counters->{$array_var};
 						my $ctr_out = ++$ctr_in;
 						$unique_var_counters->{$array_var}=$ctr_out;
-						push @inserts, "${array_var}_${ctr_out} = insert patt buf_to_insert ${array_var}_${ctr_in}";
+						push @inserts, "${array_var}_${ctr_out} = insert patt buf_to_insert ${array_var}_${ctr_in} -- TODO";
 					}
 				}							
 			}
@@ -905,17 +954,21 @@ sub _classify_accesses { (my $stref, my $f, my $state) =@_;
 	} 	
 	# so this provides the output and input tuples for a given $f
 	# so for each var in $in_tup we need to get the counter, and for each var in $out_tup after that too. 
-		(my $out_tup, my $in_tup) = pp_links($state->{'Subroutines'}{$f}{'Links'});
-		# FIXME: Bit of a hack	
-		my @in_tup_3D =  grep {
-			exists $state->{'Subroutines'}{ $f }{'Arrays'}{$_} and 
-			scalar @{ $state->{'Subroutines'}{ $f }{'Arrays'}{$_}{'Dims'} } > 2
-		} @{$in_tup} ;
+		(my $out_tup, my $in_tup_maybe_dummies) = pp_links($state->{'Subroutines'}{$f}{'Links'});
+		# FIXME: A hack! If a problem is 2-D this fails entirely. 
+		# A slightly better way is to look at which arrays are covered entirely by a map operation
+		my $n_dims = scalar keys %{$state->{'Subroutines'}{ $f }{'LoopIters'}};
 		
+		my @in_tup = grep { $_!~/^\!/ } @{$in_tup_maybe_dummies};
+		my @in_tup_correct_dim =  grep {
+			exists $state->{'Subroutines'}{ $f }{'Arrays'}{$_} and 
+			scalar @{ $state->{'Subroutines'}{ $f }{'Arrays'}{$_}{'Dims'} } >= $n_dims
+		} @in_tup;#@in_tup;
+	
 		my @in_tup_non_map_args =  grep {
 			(not exists $state->{'Subroutines'}{ $f }{'Arrays'}{$_}) or 
-			(scalar @{ $state->{'Subroutines'}{ $f }{'Arrays'}{$_}{'Dims'} } < 3)
-		} @{$in_tup} ;
+			(scalar @{ $state->{'Subroutines'}{ $f }{'Arrays'}{$_}{'Dims'} } < $n_dims)
+		} @in_tup;#@in_tup ;
 		
 		my $in_tup_ms = [
 			map {
@@ -923,18 +976,18 @@ sub _classify_accesses { (my $stref, my $f, my $state) =@_;
 					$unique_var_counters->{$_}=0;
 				} 
 				exists $stencils{$_} ? 
-				$_.'_tup_'.$unique_var_counters->{$_.'_tup'} :
+				$_.'_s'.$unique_var_counters->{$_.'_s'} : #
 				exists $portions{$_} ?
 				$_.'_portion_'.$unique_var_counters->{$_.'_portion'} : 
-				$_.'_'. ++$unique_var_counters->{$_}
-			} @in_tup_3D
+				$_.'_'. $unique_var_counters->{$_}
+			} @in_tup_correct_dim
 		];
 		my @non_map_args_ms = map { 
 				if (not exists $unique_var_counters->{$_}) {
 					$unique_var_counters->{$_}=0;
 				}
 				exists $stencils{$_} ? 
-				$_.'_tup_'.$unique_var_counters->{$_.'_tup'} :
+				$_.'_s'.$unique_var_counters->{$_.'_s'} :
 				exists $portions{$_} ?
 				$_.'_portion_'.$unique_var_counters->{$_.'_portion'} : 
 				$_.'_'. $unique_var_counters->{$_}
@@ -943,21 +996,24 @@ sub _classify_accesses { (my $stref, my $f, my $state) =@_;
 		for my $var (@{$out_tup}) {
 			if (not exists $unique_var_counters->{$var}) {
 				$unique_var_counters->{$var}=0;
+			} else {
+				$unique_var_counters->{$var}++;
 			}
 		}
 		my $map_expr = scalar @{$out_tup} > 1 ? '('.join(',',map { $_.'_'.$unique_var_counters->{$_} } @{$out_tup}).')' : scalar @{$out_tup} > 0 ? $out_tup->[0].'_'.$unique_var_counters->{$out_tup->[0]} : 'BOOM!!';
+		my $maybe_unzipt =  scalar @{$out_tup} > 1 ? 'unzipt $ ' : '';
 		$map_expr .= @non_map_args_ms ? 
-		' = map ('.$f.' '.join(' ',@non_map_args_ms).') '
+		' = '. $maybe_unzipt . 'map ('.$f.' '.join(' ',@non_map_args_ms).') '
 		:
-		' = map '.$f.' '
+		' = ' .$maybe_unzipt .' map '.$f.' '
 		;
-		$map_expr .=  scalar @{$in_tup} > 1 ? '('.join(',',@{$in_tup_ms}).')' : scalar @{$in_tup_ms} > 0 ? $in_tup_ms->[0] : 'BOOM!';
+		$map_expr .=  scalar @in_tup > 1 ? '(zipt ('.join(',',@{$in_tup_ms}).'))' : scalar @{$in_tup_ms} > 0 ? $in_tup_ms->[0] : 'BOOM!';
 		
-			map { say $_ } @extracts;#"${array_var}_portion = extract patt $array_var";
+		map { say $_ } @extracts; # "${array_var}_portion = extract patt $array_var";
 		
-		say $map_expr unless $map_expr=~/BOOM/; 
+		say $map_expr;# unless $map_expr=~/BOOM/; 
 		
-			map { say $_ } @inserts;	
+		map { say $_ } @inserts;	
 	return $stref;			
 } # END of _classify_accesses()
 
@@ -1066,5 +1122,23 @@ sub _remove_index_vars { (my $stref, my $f, my $state, my $vars_ref)=@_;
 	}
 	return %non_idx_vars;
 }
+
+sub __is_array_decl { (my $info)=@_; 
+	
+	return (exists $info->{'ParsedVarDecl'}
+	&& exists $info->{'ParsedVarDecl'}{'Attributes'}
+	&& exists $info->{'ParsedVarDecl'}{'Attributes'}{'Dim'}
+	&& scalar @{$info->{'ParsedVarDecl'}{'Attributes'}{'Dim'}} >0);	
+}
+
+#sub _emit_TyTraCL {  (my $stref, my $f) = @_;
+#	my $tytracl_str = "\n-- $f";
+#						
+#	$tytracl_str .= "${array_var}_tup = stencil patt ${array_var}_${ctr_in}";
+#	map { $tytracl_str .=  $_ } @extracts; 
+#	$tytracl_str .=  $map_expr; 
+#	map { $tytracl_str .= $_ } @inserts;	
+#	return $tytracl_str;
+#}
 
 1;

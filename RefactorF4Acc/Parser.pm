@@ -3207,7 +3207,7 @@ my $is_module = (exists $stref->{'Modules'}{$f}) ? 1 : 0;
 		my $parliststr = $1;
 		my $var        = $pt->{'Pars'}{'Var'};
 		my $val        = $pt->{'Pars'}{'Val'};
-		my $type       = $pt->{'TypeTup'};
+		my $type       = $pt->{'TypeTup'}; # e.g. integer(kind=8) => {Type => 'integer', Kind => 8}
 
 		my $pars_in_val = ___check_par_val_for_pars($val);
 
