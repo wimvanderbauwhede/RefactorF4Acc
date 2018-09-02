@@ -225,6 +225,8 @@ We have `get_args_vars_from_expression` and `get_vars_from_expression` and we ca
 =cut
 
 sub pass_identify_stencils {(my $stref)=@_;
+    # WV: I think Extracts and Inserts should be in Lines but I'm not sure
+	$stref->{'TyTraCL_AST'} = {'Lines' => [], 'Extracts' => [], 'Inserts' => []};
 	$stref = pass_wrapper_subs_in_module($stref,
 			[
 #				[ sub { (my $stref, my $f)=@_;  alias_ordered_set($stref,$f,'DeclaredOrigArgs','DeclaredOrigArgs'); } ],
@@ -232,8 +234,12 @@ sub pass_identify_stencils {(my $stref)=@_;
 			  		\&_identify_array_accesses_in_exprs,
 				],
 			]
-		);			
-die "\n DONE pass_identify_stencils";
+		);					
+        my $tytracl_str = _emit_TyTraCL($stref);
+        say $tytracl_str;
+        die ;
+
+die "\n DONE pass_identify_stencils: ".Dumper($stref->{'TyTraCL_AST'});
 	return $stref;
 }
 # There is no pretense that this works for anything but the OpenCL Fortran kernels emitted by this compiler. 
@@ -241,7 +247,9 @@ sub _identify_array_accesses_in_exprs { (my $stref, my $f) = @_;
 	
 	if ($stref->{'Subroutines'}{$f}{'Source'}=~/module_\w+_superkernel.f95/ && $f!~/superkernel/) {  # TODO
 #		say  "\nRunning _identify_array_accesses_in_exprs($f)\n";
-		say  "\n-- $f ";#.'_identify_array_accesses_in_exprs('.__LINE__.')'."\n";
+        # This should be a comment in TyTraCL, so 
+        push @{ $stref->{'TyTraCL_AST'}{'Lines'} }, {'NodeType' => 'Comment', 'CommentStr' => $f };
+        #		say  "\n-- $f ";#.'_identify_array_accesses_in_exprs('.__LINE__.')'."\n";
 		my $pass_identify_array_accesses_in_exprs = sub { (my $annline, my $state)=@_;
 			(my $line,my $info)=@{$annline};
 			# Identify the subroutine 
@@ -389,14 +397,19 @@ sub _identify_array_accesses_in_exprs { (my $stref, my $f) = @_;
 #		$map_expr .= '('.join(',', grep {$_!~/\!/} @{$in_tup}).')';
 #		say $map_expr;
 #		say 'END LINKS';
-			 		 			 
-		$stref = _classify_accesses($stref, $f, $state);
+		
+		$stref = _classify_accesses_and_generate_TyTraCL($stref, $f, $state);
 		
 	} # if subkernel not superkernel
 	else {
-		say "-- SUPERKERNEL $f";
+        $stref->{'TyTraCL_AST'}{'Main'} = $f;
+        #		say "-- SUPERKERNEL $f";
 #		map { say $_ } sort keys %{ $stref->{'Subroutines'}{$f} };
-		 say Dumper $stref->{'Subroutines'}{$f}{'RefactoredArgs'} ;
+#		say Dumper $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'};
+		 for my $arg (@{ $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'List'} } ) {
+             #		 	say $arg. ' => '. $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$arg}{'IODir'};
+         $stref->{'TyTraCL_AST'}{'OrigArgs'}{$arg} =  $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$arg}{'IODir'};
+		 } 
 	}
  	return $stref;	
 } # END of _identify_array_accesses_in_exprs()
@@ -857,8 +870,10 @@ For every $array_var in  $state->{'Subroutines'}{ $f }{'Arrays'}} it does the fo
 
 
 =cut
-sub _classify_accesses { (my $stref, my $f, my $state) =@_;
-# 	say "SUB $f\n";
+sub _classify_accesses_and_generate_TyTraCL { (my $stref, my $f, my $state ) =@_;
+# 	say "SUB $f\n"; 
+	my $tytracl_ast = $stref->{'TyTraCL_AST'};
+	
 	my @extracts=(); # These are portions of an array that are extracted, we need an `extract` primitive
  	my @inserts=(); # This is when a portion of an array is inserted, we need an `insert` primitive
 	my %stencils=(); # The `stencil` call		
@@ -901,8 +916,13 @@ sub _classify_accesses { (my $stref, my $f, my $state) =@_;
 #						say "STENCIL for $rw of $array_var";#.': '.Dumper($state->{'Subroutines'}{ $f }{'Arrays'}{$array_var}{$rw}{'Stencils'});
 						my $ctr_st = ++$unique_var_counters->{'!s'};
 						my @stencil_pattern = map { $_=~s/:/,/;"[$_]" } keys %{$state->{'Subroutines'}{ $f }{'Arrays'}{$array_var}{$rw}{'Stencils'}};
-						my $patt = "s$ctr_st = [".join(',',@stencil_pattern).']';
-						say $patt;
+						my $stencil_definition = "s$ctr_st = [".join(',',@stencil_pattern).']';
+                        #						say $stencil_definition;
+						push @{$tytracl_ast->{'Lines'}}, 
+						{'NodeType' => 'StencilDef', 'FunctionName' => $f,
+							'Lhs' => {'Ctr' => $ctr_st}, 
+							'Rhs' => {'StencilPattern' => $state->{'Subroutines'}{ $f }{'Arrays'}{$array_var}{$rw}{'Stencils'}}
+						};
 						my $ctr_in = $unique_var_counters->{$array_var};
 						
 				 		if (not exists $unique_var_counters->{"${array_var}_s"}) {
@@ -911,7 +931,12 @@ sub _classify_accesses { (my $stref, my $f, my $state) =@_;
 				 			$unique_var_counters->{"${array_var}_s"}++;
 				 		}
 				 		my $ctr_sv = $unique_var_counters->{"${array_var}_s"};
-				 		say "${array_var}_s$ctr_sv = stencil s$ctr_st ${array_var}_${ctr_in}";						
+                        #say "${array_var}_s$ctr_sv = stencil s$ctr_st ${array_var}_${ctr_in}";
+				 		push @{ $tytracl_ast->{'Lines'} }, 
+				 		{'NodeType' => 'StencilAppl', 'FunctionName' => $f,
+				 			'Lhs' => {'Var' => [$array_var,$ctr_sv,'s'] }, 
+				 			'Rhs' => {'StencilCtr' => $ctr_st,'Var' => [$array_var, $ctr_in,''] }
+				 		};						
 						$stencils{$array_var}=1;
 					} 
 					
@@ -933,6 +958,11 @@ sub _classify_accesses { (my $stref, my $f, my $state) =@_;
 #						say "${array_var}_portion = extract patt $array_var";
 						my $ctr_in = $unique_var_counters->{$array_var};
 						push @extracts,"${array_var}_portion = extract patt ${array_var}_${ctr_in} -- TODO";
+						push @{ $tytracl_ast->{'Extracts'} },
+						{
+							'Lhs' => {'Var' => [$array_var, 'TODO','portion']}, 
+							'Rhs' =>  {'Var' => [$array_var, $ctr_in,''], 'Pattern' =>['TODO']}
+						};
 				 		if (not exists $unique_var_counters->{"${array_var}_portion"}) {
 				 			$unique_var_counters->{"${array_var}_portion"}=0;
 				 		} else {
@@ -947,6 +977,10 @@ sub _classify_accesses { (my $stref, my $f, my $state) =@_;
 						my $ctr_out = ++$ctr_in;
 						$unique_var_counters->{$array_var}=$ctr_out;
 						push @inserts, "${array_var}_${ctr_out} = insert patt buf_to_insert ${array_var}_${ctr_in} -- TODO";
+						push @{$tytracl_ast->{'Inserts'}},{
+							'Lhs' => {'Var' => [$array_var,$ctr_out,''] }, 
+							'Rhs' =>  {'Var' => [$array_var, $ctr_in,''], 'Pattern'=> ['TODO']},
+						};
 					}
 				}							
 			}
@@ -969,7 +1003,18 @@ sub _classify_accesses { (my $stref, my $f, my $state) =@_;
 			(not exists $state->{'Subroutines'}{ $f }{'Arrays'}{$_}) or 
 			(scalar @{ $state->{'Subroutines'}{ $f }{'Arrays'}{$_}{'Dims'} } < $n_dims)
 		} @in_tup;#@in_tup ;
-		
+		my $in_tup_ms_ast = [
+			map {
+				if (not exists $unique_var_counters->{$_}) {
+					$unique_var_counters->{$_}=0;
+				} 
+				exists $stencils{$_} ? 
+				[$_,$unique_var_counters->{$_.'_s'},'s'] : #
+				exists $portions{$_} ?
+				[$_,$unique_var_counters->{$_.'_portion'},'portion'] : 
+				[$_,$unique_var_counters->{$_},'']
+			} @in_tup_correct_dim
+		];
 		my $in_tup_ms = [
 			map {
 				if (not exists $unique_var_counters->{$_}) {
@@ -982,6 +1027,16 @@ sub _classify_accesses { (my $stref, my $f, my $state) =@_;
 				$_.'_'. $unique_var_counters->{$_}
 			} @in_tup_correct_dim
 		];
+		my @non_map_args_ms_ast = map { 
+				if (not exists $unique_var_counters->{$_}) {
+					$unique_var_counters->{$_}=0;
+				}
+				exists $stencils{$_} ? 
+				[$_,$unique_var_counters->{$_.'_s'},'s'] :
+				exists $portions{$_} ?
+				[$_,$unique_var_counters->{$_.'_portion'},'portion'] : 
+				[$_,$unique_var_counters->{$_},'']
+			} @in_tup_non_map_args;
 		my @non_map_args_ms = map { 
 				if (not exists $unique_var_counters->{$_}) {
 					$unique_var_counters->{$_}=0;
@@ -992,29 +1047,47 @@ sub _classify_accesses { (my $stref, my $f, my $state) =@_;
 				$_.'_portion_'.$unique_var_counters->{$_.'_portion'} : 
 				$_.'_'. $unique_var_counters->{$_}
 			} @in_tup_non_map_args;
-		
+		my @out_tup_ast=();
 		for my $var (@{$out_tup}) {
 			if (not exists $unique_var_counters->{$var}) {
 				$unique_var_counters->{$var}=0;
 			} else {
 				$unique_var_counters->{$var}++;
 			}
+			push @out_tup_ast,[$var,$unique_var_counters->{$var},'']
 		}
 		my $map_expr = scalar @{$out_tup} > 1 ? '('.join(',',map { $_.'_'.$unique_var_counters->{$_} } @{$out_tup}).')' : scalar @{$out_tup} > 0 ? $out_tup->[0].'_'.$unique_var_counters->{$out_tup->[0]} : 'BOOM!!';
-		my $maybe_unzipt =  scalar @{$out_tup} > 1 ? 'unzipt $ ' : '';
-		$map_expr .= @non_map_args_ms ? 
-		' = '. $maybe_unzipt . 'map ('.$f.' '.join(' ',@non_map_args_ms).') '
-		:
-		' = ' .$maybe_unzipt .' map '.$f.' '
-		;
+		my $maybe_unzipt =  scalar @{$out_tup} > 1 ? 'unzipt $' : '';
+        #        say " $f non-map args: <".scalar(@non_map_args_ms).'>';
+		$map_expr .= scalar @non_map_args_ms > 0 ? 
+    		' = '. $maybe_unzipt . 'map ('.$f.' '.join('>> ',@non_map_args_ms).') <<'
+	    	:
+		    ' = ' .$maybe_unzipt .' map '.$f.' '
+    		;
 		$map_expr .=  scalar @in_tup > 1 ? '(zipt ('.join(',',@{$in_tup_ms}).'))' : scalar @{$in_tup_ms} > 0 ? $in_tup_ms->[0] : 'BOOM!';
 		
-		map { say $_ } @extracts; # "${array_var}_portion = extract patt $array_var";
+        #		map { say $_ } @extracts; # "${array_var}_portion = extract patt $array_var";
 		
-		say $map_expr;# unless $map_expr=~/BOOM/; 
-		
-		map { say $_ } @inserts;	
-	return $stref;			
+        #		say $map_expr;# unless $map_expr=~/BOOM/; 
+		push @{$tytracl_ast->{'Lines'}},
+		{'NodeType' => 'Map','FunctionName' => $f,
+			
+			'Lhs' => {
+				'Vars' =>[@out_tup_ast],				
+			},
+			'Rhs' => {
+                'Function' => $f,
+				'NonMapArgs' => {
+					'Vars'=>[@non_map_args_ms_ast],					
+				},
+				'MapArgs' =>{
+					'Vars' =>$in_tup_ms_ast,					
+				}
+			}
+		};
+        #		map { say $_ } @inserts;	
+	$stref->{'TyTraCL_AST'} =$tytracl_ast;	
+	return $stref ;			
 } # END of _classify_accesses()
 
 # What we need is the in and out tuples
@@ -1131,14 +1204,363 @@ sub __is_array_decl { (my $info)=@_;
 	&& scalar @{$info->{'ParsedVarDecl'}{'Attributes'}{'Dim'}} >0);	
 }
 
-#sub _emit_TyTraCL {  (my $stref, my $f) = @_;
-#	my $tytracl_str = "\n-- $f";
-#						
-#	$tytracl_str .= "${array_var}_tup = stencil patt ${array_var}_${ctr_in}";
-#	map { $tytracl_str .=  $_ } @extracts; 
-#	$tytracl_str .=  $map_expr; 
-#	map { $tytracl_str .= $_ } @inserts;	
-#	return $tytracl_str;
-#}
+# {'Lines' => [
+#		{'NodeType' => 'StencilDef', 
+#			'Lhs' => {'Ctr' => $ctr_st}, 
+#			'Rhs' => {'StencilPattern' => $state->{'Subroutines'}{ $f }{'Arrays'}{$array_var}{$rw}{'Stencils'}}
+#		};
+# 		{'NodeType' => 'StencilAppl', 
+# 			'Lhs' => {'Var' => [$array_var,$ctr_sv,'s'] }, 
+# 			'Rhs' => {'StencilCtr' => $ctr_st,'Var' => [$array_var, $ctr_in,''] }
+# 		};						
+#		{'NodeType' => 'Map',
+#			'Lhs' => {
+#				'Vars' =>[@out_tup_ast],				
+#			},
+#			'Rhs' => {
+#				'NonMapArgs' => {
+#					'Vars'=>[@non_map_args_ms_ast],					
+#				},
+#				'MapArgs' =>{
+#					'Vars' =>$in_tup_ms_ast,					
+#				}
+#			}
+#		};	
+#	], 
+#	'Extracts' => [
+#						{
+#							'Lhs' => {'Var' => [$array_var, 'TODO','portion']}, 
+#							'Rhs' =>  {'Var' => [$array_var, $ctr_in,''], 'Pattern' =>['TODO']}
+#						};	
+#	], 
+#	'Inserts' => [
+#						{
+#							'Lhs' => {'Var' => [$array_var,$ctr_out,''] }, 
+#							'Rhs' =>  {'Var' => [$array_var, $ctr_in,''], 'Pattern'=> ['TODO']},
+#						};	
+#	]
+#};
 
+sub _emit_TyTraCL {  (my $stref) = @_;
+	# FIXME: we ignore Extracts and Inserts for now.
+    # We need the superkernel as the main, and we must identify its input and output arguments
+    # Input args have Ctr==0 on the Rhs
+    # Output args $arg have Ctr == $stref->{'UniqueVarCounters'}{$arg}
+	my $tytracl_ast = $stref->{'TyTraCL_AST'} ;
+	my $tytracl_strs = [];
+    my $main_rec = {'NodeType' => 'Main', 'InArgs' => [], 'OutArgs' => [],'Main' => $tytracl_ast->{'Main'}};
+    my $var_types={};
+    my $stencils={};    
+	for my $node (@{ $tytracl_ast->{'Lines'} } ) {
+        my $fname = $node->{'FunctionName'};
+		my $lhs = $node->{'Lhs'} ;
+		my $rhs = $node->{'Rhs'} ;
+        $main_rec = _addToMainSig($stref,$main_rec, $node, $lhs, $rhs, $fname);
+        ($var_types, $stencils) = _addToVarTypes($stref, $var_types, $stencils, $node, $lhs, $rhs, $fname);
+        # These are never arguments of the main function
+		if ($node->{'NodeType'} eq 'StencilDef') {
+			my $ctr = $lhs->{'Ctr'};
+			my $stencil_ast = $rhs->{'StencilPattern'};			
+			my @stencil_pattern = map { $_=~s/:/,/;"[$_]" } sort keys %{$stencil_ast};
+			my $stencil_definition = '['.join(',',@stencil_pattern).']';			
+			my $line = "s$ctr = $stencil_definition";
+			push @{$tytracl_strs},$line;
+		} 
+        # The stencil itself should be skipped but the others can be main args
+        # The value returned from a stencil application should never be an output arg
+        # Because of the way we identify and generate stencils, the stencil arg will always be a var, not a tuple
+		elsif ($node->{'NodeType'} eq 'StencilAppl') {
+			my $lhs_var = _mkVarName($lhs->{'Var'});
+			my $rhs_var = _mkVarName($rhs->{'Var'});
+            (my $var_name, my $ctr, my $ext) = @{$rhs->{'Var'}};
+            #            if ($ctr == 0 && $ext eq '') {
+            #                push @{ $main_rec->{'InArgs'} }, $var_name;
+            #            }
+			my $stencil_ctr = $rhs->{'StencilCtr'};
+			my $line = "$lhs_var = stencil s$stencil_ctr $rhs_var";
+			push @{$tytracl_strs},$line;
+		}
+#			'Lhs' => {
+#				'Vars' =>[@out_tup_ast],				
+#			},
+#			'Rhs' => {
+#				'Function' => $f,					
+#				'NonMapArgs' => {
+#					'Vars'=>[@non_map_args_ms_ast],					
+#				},
+#				'MapArgs' =>{
+#					'Vars' =>$in_tup_ms_ast,					
+#				}
+#			}		
+        # Arguments of map can be main args in several ways
+        # NonMapArgs, which I can make sure are not tuples
+        # MapArgs which can be (in fact will usually be) a ZipT of args
+		elsif ($node->{'NodeType'} eq 'Map') {
+			my $out_vars = $lhs->{'Vars'};
+			my $map_args = $rhs->{'MapArgs'}{'Vars'};
+			my $non_map_args = $rhs->{'NonMapArgs'}{'Vars'};
+			my $lhs_str = (scalar @{$out_vars} == 1 ) 
+				? _mkVarName($out_vars->[0]). ' = ' 
+				: '('.join(',',map {_mkVarName($_) } @{$out_vars}).') = unzipt $';
+			
+			my $non_map_arg_str = (scalar @{$non_map_args} == 0 ) ? '' : (scalar @{$non_map_args} == 1 ) 
+				? _mkVarName($non_map_args->[0]) 
+				: '('.join(',',map {_mkVarName($_) } @{$non_map_args}).')';
+			my $map_arg_str = (scalar @{$map_args} == 1 ) 
+					? _mkVarName($map_args->[0]) 
+					: '(zipt ('.join(',',map {_mkVarName($_) } @{$map_args}).'))';
+            my $f = $rhs->{'Function'};        
+			my $f_str = $non_map_arg_str eq '' ? $f : "($f $non_map_arg_str)";
+			my $line = "$lhs_str map $f_str $map_arg_str";
+			push @{$tytracl_strs},$line;			
+		} 
+        elsif ($node->{'NodeType'} eq 'Comment') {
+            my $line = ' -- ' . $node->{'CommentStr'};
+            push @{$tytracl_strs},$line;
+        }
+		else {
+			croak;
+		}					
+	} 	
+    # Indent
+     my @tytracl_strs_indent = map {"    $_"} @{$tytracl_strs};
+   #
+    
+    # Wrap into main    
+    #
+    my $main_in_args_str = scalar @{$main_rec->{'InArgs'}} > 1 ? '('.join(',', @{$main_rec->{'InArgs'}}).')' :  $main_rec->{'InArgs'}->[0];
+    my $main_out_args_str = scalar @{$main_rec->{'OutArgs'}} > 1 ? '('.join(',', @{$main_rec->{'OutArgs'}}).')' :  $main_rec->{'OutArgs'}->[0];
+    unshift @tytracl_strs_indent, '  let';
+    unshift @tytracl_strs_indent, "main $main_in_args_str =";
+    unshift @tytracl_strs_indent, "";
+    push @tytracl_strs_indent,'  in';
+    push @tytracl_strs_indent,"    $main_out_args_str";
+
+    # Add function type decls
+    #
+    for my $f (sort keys %{ $var_types }) {
+        #        say $f;
+        if (exists $var_types->{$f} and ref($var_types->{$f}) eq 'HASH' and exists $var_types->{$f}{'FunctionTypeDecl'}) {
+            unshift @tytracl_strs_indent,$var_types->{$f}{'FunctionTypeDecl'};
+        }
+    }
+    #    say Dumper($main_rec);
+	my $tytracl_str = join("\n", @tytracl_strs_indent);
+	return $tytracl_str;
+} # END of _emit_TyTraCL()
+
+sub _mkVarName { (my $rec) =@_;
+    #carp(Dumper($rec));
+	(my $v, my $c, my $e) = @{$rec};
+	if ($e eq '') {
+		return "${v}_${c}";
+	} else {
+		return "${v}_${e}_${c}";
+	}	
+} # END of _mkVarName()
+
+sub __isMainInArg { (my $var_rec, my $stref) = @_; 
+    (my $var_name, my $ctr, my $ext) = @{$var_rec};
+    my $orig_args = $stref->{'TyTraCL_AST'}{'OrigArgs'};
+    
+    #   say "TEST IN: $var_name $ctr <> 0 <$ext> <".(exists $orig_args->{$var_name} ) .">";
+    return (
+        $ctr == 0 
+        && $ext eq ''
+        && ( exists $orig_args->{$var_name} )
+        && (( $orig_args->{$var_name} eq 'in') 
+            || ( $orig_args->{$var_name} eq 'inout'))
+     
+    ) ? 1 : 0;
+} # END of __isMainInArg()
+
+sub __isMainOutArg { (my $var_rec, my $stref) = @_; 
+    (my $var_name, my $ctr, my $ext) = @{$var_rec};
+    my $orig_args = $stref->{'TyTraCL_AST'}{'OrigArgs'};
+
+    #    say "TEST OUT: $var_name $ctr <> ".$stref->{'UniqueVarCounters'}{$var_name}." <$ext> <".(exists $orig_args->{$var_name} ) .">";
+    return (
+        $ctr ==  $stref->{'UniqueVarCounters'}{$var_name}
+        && $ext eq ''
+        && ( exists $orig_args->{$var_name} )
+        && (( $orig_args->{$var_name} eq 'inout') 
+            || ( $orig_args->{$var_name} eq 'out'))
+    ) ? 1 : 0;
+} # END of __isMainOutArg()
+
+# argument should be a node
+sub _addToMainSig { (my $stref, my $main_rec, my $node, my $lhs, my $rhs, my $fname) = @_;
+    my $orig_args = $stref->{'TyTraCL_AST'}{'OrigArgs'};
+		if ($node->{'NodeType'} eq 'StencilAppl') {
+            # TODO: refactor!
+            (my $var_name, my $ctr, my $ext) = @{$rhs->{'Var'}};
+            if (exists $orig_args->{$var_name} and 
+                ($orig_args->{$var_name} eq 'in'
+                        or $orig_args->{$var_name} eq 'inout' )) {
+            if ($ctr == 0 && $ext eq '') {
+                push @{ $main_rec->{'InArgs'} }, _mkVarName($rhs->{'Var'});#$var_name;
+            }
+        }
+        } elsif ($node->{'NodeType'} eq 'Map') {
+			my $out_var_recs = $lhs->{'Vars'};#croak 'OUTVARS: '.Dumper($lhs);
+            for my $out_var_rec (@{$out_var_recs}) {
+                if (__isMainOutArg($out_var_rec,$stref)) {
+                    #                    my $var_name = $out_var_rec->[0];
+                    push @{ $main_rec->{'OutArgs'} }, _mkVarName($out_var_rec);
+                }
+            }
+			my $map_arg_recs = $rhs->{'MapArgs'}{'Vars'};
+            for my $map_var_rec (@{$map_arg_recs}) {
+                if (__isMainInArg($map_var_rec,$stref)) {
+                    my $var_name = $map_var_rec->[0];
+                    push @{ $main_rec->{'InArgs'} },  _mkVarName($map_var_rec);# $var_name;
+                }                 
+            }
+			my $non_map_arg_recs = $rhs->{'NonMapArgs'}{'Vars'};
+            for my $non_map_var_rec (@{$non_map_arg_recs}) {
+                if (__isMainInArg($non_map_var_rec,$stref)) {
+                    my $var_name = $non_map_var_rec->[0];
+                    push @{ $main_rec->{'InArgs'} }, _mkVarName($non_map_var_rec);#$var_name;
+                }                 
+            }
+        } elsif ($node->{'NodeType'} eq 'Fold') { 
+            # Main question is: what is the initial value of the accumulator?
+            # It can in practice be a constant or scalar variable
+            # In general of course it could be just about anything.
+            # The question at this point is only if it is a var or list of vars
+            croak('TODO: fold');
+        } elsif ($node->{'NodeType'} ne 'Comment' and $node->{'NodeType'} ne 'StencilDef') {
+            croak "NodeType type ".$node->{'NodeType'}.' not yet supported.';
+        }
+        return $main_rec;
+} # END of _addToMainSig()
+
+    # Add function type declarations. This is a bit complicated, but we have following steps:
+    # If it is a stencil, then I have to find the stencil pattern. We do this in the handling of the StencilDef node. 
+    # The actual type and the size of the array we should get via $stref->{'Subroutines'}{$f}
+    # The non-map args can be arrays, so in that case in principle we'd need the type.
+    # So, for every Map and Fold nodes we look a the vars, and we build up a table. If they are stencils we do this in the StencilDef node.
+sub _addToVarTypes { (my $stref, my $var_types, my $stencils, my $node, my $lhs, my $rhs, my $fname) = @_;
+    # DeclaredOrigArgs
+#		{'NodeType' => 'StencilDef', 
+#			'Lhs' => {'Ctr' => $ctr_st}, 
+#			'Rhs' => {'StencilPattern' => $state->{'Subroutines'}{ $f }{'Arrays'}{$array_var}{$rw}{'Stencils'}}
+#		};    
+        if ($node->{'NodeType'} eq 'StencilDef') {
+            my $s_var = $lhs->{'Ctr'};
+            my $s_size = scalar keys %{$rhs->{'StencilPattern'}};
+            $stencils->{$s_var}=$s_size;
+# 		{'NodeType' => 'StencilAppl', 
+# 			'Lhs' => {'Var' => [$array_var,$ctr_sv,'s'] }, 
+# 			'Rhs' => {'StencilCtr' => $ctr_st,'Var' => [$array_var, $ctr_in,''] }
+# 		};						            
+        } elsif ($node->{'NodeType'} eq 'StencilAppl') {
+            # Here we enter the stencil from the Lhs in the table
+            my $s_var = _mkVarName($lhs->{'Var'});
+            # A little problem: we don't quite know $f at this point, or do we? I'll need a 'FunctionName' node 
+            my $f = $fname;
+            my $var_name = $rhs->{'Var'}[0];
+            my $var_rec =  $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$var_name};
+            my $var_type =  __toTyTraCLType( $var_rec->{'Type'} );
+            my @s_type_array = ();
+            for (1 .. $stencils->{$rhs->{'StencilCtr'}}) {
+                push @s_type_array, $var_type;
+            }
+            my $s_type =  '('.join(',',@s_type_array).')';
+            $var_types->{$s_var}=$s_type;
+            #            say "STENCIL $s_var $s_type";
+
+            #_addToVarTypes
+#		{'NodeType' => 'Map',
+#			'Lhs' => {
+#				'Vars' =>[@out_tup_ast],				
+#			},
+#			'Rhs' => {
+#				'NonMapArgs' => {
+#					'Vars'=>[@non_map_args_ms_ast],					
+#				},
+#				'MapArgs' =>{
+#					'Vars' =>$in_tup_ms_ast,					
+#				}
+#			}
+#		};	            
+        } elsif ($node->{'NodeType'} eq 'Map') {
+            # Output arguments can't be stencil, so only DeclaredOrigArgs
+            my $out_args = $lhs->{'Vars'} ;
+            my $f = $fname;
+            my @out_arg_types_array;
+            for my $out_arg_rec (@{$out_args}) {
+                my $var_name = $out_arg_rec->[0];
+                my $var_rec =  $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$var_name};
+                my $var_type =  __toTyTraCLType( $var_rec->{'Type'} );
+                #my $out_arg = _mkVarName($out_arg_rec);
+                #                $var_types->{$out_arg}=$var_type;
+                push @out_arg_types_array, $var_type;                
+            }
+            $var_types->{$f}{'ReturnType'} = scalar @{$out_args} == 1 ? $out_arg_types_array[0] :  '('.join(',',@out_arg_types_array).')';
+            #            say "RETURN TYPE of $f: ".$var_types->{$f};
+            # This should always be a tuple and the values can only be scalars
+            my $map_args = $rhs->{'MapArgs'}{'Vars'} ;
+            #            say Dumper($map_args);
+            my @map_arg_types_array=();
+            for my $map_arg_rec (@{$map_args}) {
+                my $maybe_stencil = _mkVarName($map_arg_rec);
+                #say  "MAYBE STENCIL: $maybe_stencil";                
+                if (exists $var_types->{ $maybe_stencil }) {
+                    #   say 'STENCIL TYPE: ',$var_types->{ $maybe_stencil };
+                    push @map_arg_types_array,$var_types->{ $maybe_stencil };
+                } else {
+                    my $var_name = $map_arg_rec->[0];
+                    my $var_rec =  $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$var_name};
+                    my $var_type =  __toTyTraCLType( $var_rec->{'Type'} );
+                    push @map_arg_types_array, $var_type;                
+                }
+            }
+            my $map_arg_type = scalar @{$map_args} == 1 ? $map_arg_types_array[0] :  '('.join(',',@map_arg_types_array).')';
+            #            say "MAP ARG TYPE of $f: ".$map_arg_type;
+             $var_types->{$f}{'MapArgType'} = $map_arg_type;
+
+            # This should always be a tuple and the values can actually be arrays
+            my $non_map_args = $rhs->{'NonMapArgs'}{'Vars'} ;
+            my @non_map_arg_types_array=();
+            for my $non_map_arg_rec (@{$non_map_args}) {
+                    my $var_name = $non_map_arg_rec->[0];
+                    my $var_rec =  $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$var_name};
+                    my $var_type =  __toTyTraCLType( $var_rec->{'Type'} );
+                    push @non_map_arg_types_array, $var_type;                
+            }
+            my $non_map_arg_type = scalar @{$non_map_args} == 0 ? '' :
+            scalar @{$non_map_args} == 1 ? $non_map_arg_types_array[0] :  '('.join(',',@non_map_arg_types_array).')';
+            #            say "NON-MAP ARG TYPE of $f: ".$non_map_arg_type;                                    
+            $var_types->{$f}{'NonMapArgType'} = $non_map_arg_type;
+
+            my @arg_types= $non_map_arg_type ne '' ? ($non_map_arg_type) : ();
+            push @arg_types, $var_types->{$f}{'MapArgType'};
+            push @arg_types, $var_types->{$f}{'ReturnType'};
+
+            $var_types->{$f}{'FunctionTypeDecl'} = "$f :: ".join( ' -> ',  @arg_types) ;
+            #say $var_types->{$f}{'FunctionTypeDecl'};
+		} elsif ($node->{'NodeType'} eq 'Fold') { 
+            # Main question is: what is the initial value of the accumulator?
+            # It can in practice be a constant or scalar variable
+            # In general of course it could be just about anything.
+            # The question at this point is only if it is a var or list of vars
+            croak('TODO: fold');
+        } elsif ($node->{'NodeType'} ne 'Comment' and $node->{'NodeType'} ) {
+            croak "NodeType type ".$node->{'NodeType'}.' not yet supported.';
+        }
+
+
+    return ($var_types, $stencils) ;
+} # END of _addToVarTypes()
+
+sub __toTyTraCLType { (my $type)=@_;
+
+    if ($type eq 'real') { return 'Float';
+    } elsif ($type eq 'integer') { return 'Int';
+    } else {
+        # ad-hoc!
+        return ucfirst($type);
+    } 
+}
 1;
