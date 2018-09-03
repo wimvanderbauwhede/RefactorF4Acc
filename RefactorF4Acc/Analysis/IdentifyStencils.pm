@@ -242,6 +242,7 @@ sub pass_identify_stencils {(my $stref)=@_;
 die "\n DONE pass_identify_stencils: ".Dumper($stref->{'TyTraCL_AST'});
 	return $stref;
 }
+
 # There is no pretense that this works for anything but the OpenCL Fortran kernels emitted by this compiler. 
 sub _identify_array_accesses_in_exprs { (my $stref, my $f) = @_;
 	
@@ -265,23 +266,18 @@ sub _identify_array_accesses_in_exprs { (my $stref, my $f) = @_;
 			if (exists $info->{'VarDecl'} and not exists $info->{'ParamDecl'} and __is_array_decl($info)) { # $line=~/dimension/ Lazy.
 						
 				my $array_var=$info->{'VarDecl'}{'Name'};				
-#				die Dumper($annline) if $array_var eq 'zbm';
 				
 				my @dims = @{ $info->{'ParsedVarDecl'}{'Attributes'}{'Dim'} };
 				$state->{'Subroutines'}{ $f }{'Arrays'}{$array_var}{'Dims'}=[];
-#				say @dims;
+                #say $array_var .': '. join('*',@dims);
 				for my $dim (@dims) {
 					(my $lo, my $hi)=$dim=~/:/ ? split(/:/,$dim) : (1,$dim);
 					my $dim_vals=[];
 					for my $bound_expr_str ($lo,$hi) {
 						my $dim_val=$bound_expr_str;
 						if ($bound_expr_str=~/\W/) {
-#							say "$dim => $lo,$hi";
 							my $dim_ast=parse_expression($bound_expr_str,$info, $stref,$f);
-							
 				  			my $dim_ast2 = _replace_param_by_val($stref, $f, $dim_ast);
-#							say Dumper($dim_ast);
-#							say 'DIM_AST <'.Dumper($dim_ast2).'>';
 #							(my $dim_ast2, my $state) = _replace_consts_in_ast($stref, $f,  $dim_ast, {'CurrentSub' =>$f}, 0);
 							my $dim_expr=emit_expression($dim_ast2,'');
 							$dim_val=eval($dim_expr);
@@ -309,11 +305,10 @@ sub _identify_array_accesses_in_exprs { (my $stref, my $f) = @_;
 							}
 						}
 						push @{$dim_vals},$dim_val;
-					}
+					} 
+                    # This should be used to generate the 1-D stencils for TyTraCL
 					push @{ $state->{'Subroutines'}{ $f }{'Arrays'}{$array_var}{'Dims'} },$dim_vals;
-	#				say "$array_var
 				}
-#				die if $array_var eq 'zbm';
 			}
 			if (exists $info->{'Assignment'} ) {
 				# Assignment to scalar *_rel 					
@@ -537,6 +532,7 @@ sub _find_array_access_in_ast { (my $stref, my $f,  my $state, my $ast, my $rw)=
 						}
 						$state->{'Subroutines'}{ $f }{'Arrays'}{$array_var}{$rw}{'Exprs'}{$expr_str}=1;   
 						$state->{'Subroutines'}{ $f }{'Arrays'}{$array_var}{$rw}{'Stencils'}{ join(':', @ast_vals0) } = $iter_val_pairs;
+                        #  $state->{'Subroutines'}{ $f }{'Arrays'}{$array_var}{'Dims'}
 #						say '    '.join(',',@ast_exprs).'  => '.join(',',@ast_vals);
 #						say '    '.join(',',@ast_vals); 
 						last;
@@ -918,10 +914,15 @@ sub _classify_accesses_and_generate_TyTraCL { (my $stref, my $f, my $state ) =@_
 						my @stencil_pattern = map { $_=~s/:/,/;"[$_]" } keys %{$state->{'Subroutines'}{ $f }{'Arrays'}{$array_var}{$rw}{'Stencils'}};
 						my $stencil_definition = "s$ctr_st = [".join(',',@stencil_pattern).']';
                         #						say $stencil_definition;
+                        #	 $state->{'Subroutines'}{ $f }{'Arrays'}{$array_var}{'Dims'}					
 						push @{$tytracl_ast->{'Lines'}}, 
 						{'NodeType' => 'StencilDef', 'FunctionName' => $f,
 							'Lhs' => {'Ctr' => $ctr_st}, 
-							'Rhs' => {'StencilPattern' => $state->{'Subroutines'}{ $f }{'Arrays'}{$array_var}{$rw}{'Stencils'}}
+							'Rhs' => {'StencilPattern' => {
+                                    'Accesses' => $state->{'Subroutines'}{ $f }{'Arrays'}{$array_var}{$rw}{'Stencils'}, 
+                                    'Dims' => $state->{'Subroutines'}{ $f }{'Arrays'}{$array_var}{'Dims'}
+                                }
+                            }
 						};
 						my $ctr_in = $unique_var_counters->{$array_var};
 						
@@ -1207,7 +1208,8 @@ sub __is_array_decl { (my $info)=@_;
 # {'Lines' => [
 #		{'NodeType' => 'StencilDef', 
 #			'Lhs' => {'Ctr' => $ctr_st}, 
-#			'Rhs' => {'StencilPattern' => $state->{'Subroutines'}{ $f }{'Arrays'}{$array_var}{$rw}{'Stencils'}}
+#			'Rhs' => {'StencilPattern' => { 'Accesses' => $state->{'Subroutines'}{ $f }{'Arrays'}{$array_var}{$rw}{'Stencils'}},
+#			'Dims' => ...}
 #		};
 # 		{'NodeType' => 'StencilAppl', 
 # 			'Lhs' => {'Var' => [$array_var,$ctr_sv,'s'] }, 
@@ -1260,9 +1262,22 @@ sub _emit_TyTraCL {  (my $stref) = @_;
         # These are never arguments of the main function
 		if ($node->{'NodeType'} eq 'StencilDef') {
 			my $ctr = $lhs->{'Ctr'};
-			my $stencil_ast = $rhs->{'StencilPattern'};			
+			my $stencil_ast = $rhs->{'StencilPattern'}{'Accesses'};	
+            my $array_dims = $rhs->{'StencilPattern'}{'Dims'};
+            my @evaled_array_dims = ();
+            for my $array_dim (@{ $array_dims } ) {
+                push @evaled_array_dims, eval( $array_dim->[1].' - '.$array_dim->[0] );
+            }
+            
 			my @stencil_pattern = map { $_=~s/:/,/;"[$_]" } sort keys %{$stencil_ast};
-			my $stencil_definition = '['.join(',',@stencil_pattern).']';			
+            # I should get the linear dimension from somewhere, we could add this information to the stencil detection
+            # TODO: this needs to be generic so I should split the above and combine it with the dimensions
+            my @stencil_pattern_eval = map {my $res=eval("my \$a=$_;my \$b=\$a->[0]*".$evaled_array_dims[0]."+\$a->[1];\$b");$res} @stencil_pattern;# FIXME: HACK!
+            #            die Dumper @stencil_pattern_eval ;
+			my $stencil_definition = '['.join(',',@stencil_pattern).']';	
+            my $stencils_ = _generate_TyTraCL_stencils( $rhs->{'StencilPattern'} );
+            $stencil_definition = '['.join(',',@{$stencils_}).']';
+
 			my $line = "s$ctr = $stencil_definition";
 			push @{$tytracl_strs},$line;
 		} 
@@ -1444,11 +1459,11 @@ sub _addToVarTypes { (my $stref, my $var_types, my $stencils, my $node, my $lhs,
     # DeclaredOrigArgs
 #		{'NodeType' => 'StencilDef', 
 #			'Lhs' => {'Ctr' => $ctr_st}, 
-#			'Rhs' => {'StencilPattern' => $state->{'Subroutines'}{ $f }{'Arrays'}{$array_var}{$rw}{'Stencils'}}
+#			'Rhs' => {'StencilPattern' => {'Accesses' => $state->{'Subroutines'}{ $f }{'Arrays'}{$array_var}{$rw}{'Stencils'}}, 'Dims' => ...}
 #		};    
         if ($node->{'NodeType'} eq 'StencilDef') {
             my $s_var = $lhs->{'Ctr'};
-            my $s_size = scalar keys %{$rhs->{'StencilPattern'}};
+            my $s_size = scalar keys %{$rhs->{'StencilPattern'}{'Accesses'}};
             $stencils->{$s_var}=$s_size;
 # 		{'NodeType' => 'StencilAppl', 
 # 			'Lhs' => {'Var' => [$array_var,$ctr_sv,'s'] }, 
@@ -1467,6 +1482,8 @@ sub _addToVarTypes { (my $stref, my $var_types, my $stencils, my $node, my $lhs,
                 push @s_type_array, $var_type;
             }
             my $s_type =  '('.join(',',@s_type_array).')';
+            # Or rather, use SVec:
+            $s_type = "SVec ".$stencils->{$rhs->{'StencilCtr'}}." $var_type";
             $var_types->{$s_var}=$s_type;
             #            say "STENCIL $s_var $s_type";
 
@@ -1563,4 +1580,76 @@ sub __toTyTraCLType { (my $type)=@_;
         return ucfirst($type);
     } 
 }
+
+# Maybe I will be lazy and only support 1, 2, 3 and 4 dimension
+
+sub _generate_TyTraCL_stencils { (my $stencil_patt)=@_;
+    my $stencil_ast = $stencil_patt->{'Accesses'};	
+    my $array_dims = $stencil_patt->{'Dims'};
+    my @stencil_pattern = map { [ split(/:/,$_) ] } sort keys %{$stencil_ast};
+    #    say Dumper(@stencil_pattern). ' ; '.Dumper($array_dims );
+    my $tytracl_stencils=[];
+    for my $index_tuple (@stencil_pattern) {
+        my @ranges = ();
+        my @lower_bounds = ();
+        my $n_dims = scalar @{ $array_dims };
+        for my $array_dim (@{ $array_dims } ) {
+            push @ranges, eval( $array_dim->[1].' - '.$array_dim->[0] . ' + 1');
+            push @lower_bounds, $array_dim->[0];
+        }
+        if ($n_dims == 1) {
+            push @{$tytracl_stencils}, F1D2C(@lower_bounds, @{$index_tuple});
+        } elsif ($n_dims == 2) {
+            #            say Dumper( (@ranges[0..1],@lower_bounds, @{$index_tuple}) );
+            push @{$tytracl_stencils}, F2D2C($ranges[0],@lower_bounds, @{$index_tuple});
+        } elsif ($n_dims == 3) {
+            push @{$tytracl_stencils}, F3D2C(@ranges[0..1],@lower_bounds, @{$index_tuple});
+        } elsif ($n_dims == 4) {
+            push @{$tytracl_stencils}, F4D2C(@ranges[0..2],@lower_bounds, @{$index_tuple});
+        } else {
+            croak "Sorry, only up to 4 dimensions supported right now!";
+        }
+    }
+
+    my $tytracl_stencils_str;
+
+    return $tytracl_stencils
+}
+
+sub F3D2C { (
+         my $i_rng, my $j_rng, # ranges, i.e. (hb-lb)+1
+        my $i_lb, my $j_lb, my $k_lb, # lower bounds
+        my $ix, my $jx, my $kx
+        ) =@_;
+    return ($i_rng*$j_rng*($kx-$k_lb)+$i_rng*($jx-$j_lb)+$ix-$i_lb);
+}
+
+sub F2D2C { (
+         my $i_rng, # ranges, i.e. (hb-lb)+1
+        my $i_lb, my $j_lb, # lower bounds
+        my $ix, my $jx
+        ) =@_;
+    return ($i_rng*($jx-$j_lb)+$ix-$i_lb);
+}
+
+
+sub F1D2C { (
+        my $i_lb, #// lower bounds
+        my $ix
+        ) = @_;
+    return $ix-$i_lb;
+}
+
+sub F4D2C { (
+         my $i_rng, my $j_rng,  my $k_rng, # ranges, i.e. (hb-lb)+1
+        my $i_lb, my $j_lb, my $k_lb, my $l_lb, # lower bounds
+        my $ix, my $jx, my $kx, my $lx
+        ) = @_;
+    return ($i_rng*$j_rng*$k_rng*($lx-$l_lb)+
+            $i_rng*$j_rng*($kx-$k_lb)+
+            $i_rng*($jx-$j_lb)+
+            $ix-$i_lb
+            );
+}
+            
 1;
