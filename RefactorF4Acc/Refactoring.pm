@@ -14,7 +14,7 @@ use RefactorF4Acc::Analysis::ArgumentIODirs qw( determine_argument_io_direction_
 use RefactorF4Acc::Refactoring::Modules qw( add_module_decls );
 use RefactorF4Acc::Refactoring::Streams qw( pass_rename_array_accesses_to_scalars ); # CUSTOM PASS
 use RefactorF4Acc::CTranslation qw( translate_module_to_C ); # CUSTOM PASS
-use RefactorF4Acc::Analysis::IdentifyStencils qw( pass_identify_stencils ); # CUSTOM PASS
+use RefactorF4Acc::Analysis::IdentifyStencils qw( pass_identify_stencils pass_emit_TyTraCL ); # CUSTOM PASS
 
 use vars qw( $VERSION );
 $VERSION = "1.0.0";
@@ -42,6 +42,9 @@ sub refactor_all {
 	( my $stref, my $code_unit_name, my $pass) = @_;
 	my $sub_or_func_or_mod = sub_func_incl_mod( $code_unit_name, $stref );
 # Custom passes
+	if ($pass =~/emit_TyTraCL/i) {
+		$stref = pass_emit_TyTraCL($stref);				
+	}	
 	if ($pass =~/identify_stencils/) {
 		$stref = pass_identify_stencils($stref);				
 	}	

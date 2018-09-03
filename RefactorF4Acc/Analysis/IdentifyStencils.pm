@@ -42,6 +42,7 @@ use Exporter;
 
 @RefactorF4Acc::Analysis::IdentifyStencils::EXPORT_OK = qw(
 &pass_identify_stencils
+&pass_emit_TyTraCL
 );
 
 
@@ -235,13 +236,28 @@ sub pass_identify_stencils {(my $stref)=@_;
 				],
 			]
 		);					
+
+	return $stref;
+} # END of pass_identify_stencils()
+
+sub pass_emit_TyTraCL {(my $stref)=@_;
+    # WV: I think Extracts and Inserts should be in Lines but I'm not sure
+	$stref->{'TyTraCL_AST'} = {'Lines' => [], 'Extracts' => [], 'Inserts' => []};
+	$stref = pass_wrapper_subs_in_module($stref,
+			[
+#				[ sub { (my $stref, my $f)=@_;  alias_ordered_set($stref,$f,'DeclaredOrigArgs','DeclaredOrigArgs'); } ],
+		  		[
+			  		\&_identify_array_accesses_in_exprs,
+				],
+			]
+		);					
         my $tytracl_str = _emit_TyTraCL($stref);
         say $tytracl_str;
-        die ;
+        exit ;
 
-die "\n DONE pass_identify_stencils: ".Dumper($stref->{'TyTraCL_AST'});
 	return $stref;
-}
+} # END of pass_emit_TyTraCL()
+
 
 # There is no pretense that this works for anything but the OpenCL Fortran kernels emitted by this compiler. 
 sub _identify_array_accesses_in_exprs { (my $stref, my $f) = @_;
