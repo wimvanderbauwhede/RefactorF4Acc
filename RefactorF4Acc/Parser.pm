@@ -15,13 +15,8 @@ use Fortran::F95VarDeclParser qw( parse_F95_var_decl );
 use Fortran::ConstructParser qw(
   parse_Fortran_open_call
 );  
-#  parse_Fortran_do_construct
-#  parse_Fortran_if_construct
-#);
 
-#
-#   (c) 2010-2017 Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
-
+#   (c) 2010-2018 Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
 
 use vars qw( $VERSION );
 $VERSION = "1.0.0";

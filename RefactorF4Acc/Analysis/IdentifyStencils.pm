@@ -204,7 +204,6 @@ In any case, what we want to know is:
 - which variables need stencils
 - which variables need select.
 
-At the moment I simply say: 3-D => stream, so scalarise; 1-D => local ; 2-D: Flag!
 
 =cut
 
@@ -226,8 +225,8 @@ We have `get_args_vars_from_expression` and `get_vars_from_expression` and we ca
 =cut
 
 sub pass_identify_stencils {(my $stref)=@_;
-    # WV: I think Extracts and Inserts should be in Lines but I'm not sure
-	$stref->{'TyTraCL_AST'} = {'Lines' => [], 'Extracts' => [], 'Inserts' => []};
+    # WV: I think Selects and Inserts should be in Lines but I'm not sure
+	$stref->{'TyTraCL_AST'} = {'Lines' => [], 'Selects' => [], 'Inserts' => []};
 	$stref = pass_wrapper_subs_in_module($stref,
 			[
 #				[ sub { (my $stref, my $f)=@_;  alias_ordered_set($stref,$f,'DeclaredOrigArgs','DeclaredOrigArgs'); } ],
@@ -241,8 +240,8 @@ sub pass_identify_stencils {(my $stref)=@_;
 } # END of pass_identify_stencils()
 
 sub pass_emit_TyTraCL {(my $stref)=@_;
-    # WV: I think Extracts and Inserts should be in Lines but I'm not sure
-	$stref->{'TyTraCL_AST'} = {'Lines' => [], 'Extracts' => [], 'Inserts' => []};
+    # WV: I think Selects and Inserts should be in Lines but I'm not sure
+	$stref->{'TyTraCL_AST'} = {'Lines' => [], 'Selects' => [], 'Inserts' => []};
 	$stref = pass_wrapper_subs_in_module($stref,
 			[
 #				[ sub { (my $stref, my $f)=@_;  alias_ordered_set($stref,$f,'DeclaredOrigArgs','DeclaredOrigArgs'); } ],
@@ -263,66 +262,51 @@ sub pass_emit_TyTraCL {(my $stref)=@_;
 sub _identify_array_accesses_in_exprs { (my $stref, my $f) = @_;
 	
 	if ($stref->{'Subroutines'}{$f}{'Source'}=~/module_\w+_superkernel.f95/ && $f!~/superkernel/) {  # TODO
-#		say  "\nRunning _identify_array_accesses_in_exprs($f)\n";
-        # This should be a comment in TyTraCL, so 
+        # For TyTraCL
         push @{ $stref->{'TyTraCL_AST'}{'Lines'} }, {'NodeType' => 'Comment', 'CommentStr' => $f };
-        #		say  "\n-- $f ";#.'_identify_array_accesses_in_exprs('.__LINE__.')'."\n";
+
 		my $pass_identify_array_accesses_in_exprs = sub { (my $annline, my $state)=@_;
 			(my $line,my $info)=@{$annline};
 			# Identify the subroutine 
 			if ( exists $info->{'Signature'} ) {
 				my $subname =$info->{'Signature'}{'Name'} ; 
-#				say  "\n".$subname ;
 				$state->{'CurrentSub'}= $subname  ;
 				croak if $subname ne $f;
 				$state->{'Subroutines'}{$subname }={};
-	#			die if  $subname  eq 'bondv1_map_107';
 			}
 			# For every VarDecl, identify dimension if it is an array
-			if (exists $info->{'VarDecl'} and not exists $info->{'ParamDecl'} and __is_array_decl($info)) { # $line=~/dimension/ Lazy.
+			if (exists $info->{'VarDecl'} and not exists $info->{'ParamDecl'} and __is_array_decl($info)) { 
 						
 				my $array_var=$info->{'VarDecl'}{'Name'};				
-				
 				my @dims = @{ $info->{'ParsedVarDecl'}{'Attributes'}{'Dim'} };
 				$state->{'Subroutines'}{ $f }{'Arrays'}{$array_var}{'Dims'}=[];
-                #say $array_var .': '. join('*',@dims);
 				for my $dim (@dims) {
 					(my $lo, my $hi)=$dim=~/:/ ? split(/:/,$dim) : (1,$dim);
 					my $dim_vals=[];
 					for my $bound_expr_str ($lo,$hi) {
 						my $dim_val=$bound_expr_str;
 						if ($bound_expr_str=~/\W/) {
-							my $dim_ast=parse_expression($bound_expr_str,$info, $stref,$f);
-				  			my $dim_ast2 = _replace_param_by_val($stref, $f, $dim_ast);
-#							(my $dim_ast2, my $state) = _replace_consts_in_ast($stref, $f,  $dim_ast, {'CurrentSub' =>$f}, 0);
-							my $dim_expr=emit_expression($dim_ast2,'');
-							$dim_val=eval($dim_expr);
+                            #my $dim_ast=parse_expression($bound_expr_str,$info, $stref,$f);
+                            #my $dim_ast2 = _replace_param_by_val($stref, $f, $dim_ast);
+                            #my $dim_expr=emit_expression($dim_ast2,'');
+                            #$dim_val=eval($dim_expr);
+                            $dim_val=_eval_expression_w_params($bound_expr_str,$info, $stref,$f);
 						} else {
 							# It is either a number or a var
-							if (in_nested_set($stref->{'Subroutines'}{$f},'Parameters',$bound_expr_str)) {				  				
+							if (in_nested_set($stref->{'Subroutines'}{$f},'Parameters',$bound_expr_str)) {
+                                # Means it's a parameter
 				  				my $decl = get_var_record_from_set( $stref->{'Subroutines'}{$f}{'Parameters'},$bound_expr_str);
-				  				my $dim_val = $decl->{'Val'};
-				  				my $dim_ast=parse_expression($bound_expr_str,$info, $stref,$f);
-#				  				$dim_ast = _replace_param_by_val($stref, $f, $dim_ast);
-				  			my $dim_ast2 = _replace_param_by_val($stref, $f, $dim_ast);
-#							say Dumper($dim_ast);
-#							say 'DIM_AST (NUM/VAR) <'.Dumper($dim_ast2).'>';
-#							(my $dim_ast2, my $state) = _replace_consts_in_ast($stref, $f,  $dim_ast, {'CurrentSub' =>$f}, 0);
-							my $dim_expr=emit_expression($dim_ast2,'');
-							$dim_val=eval($dim_expr);
-				  				
-				  				#FIXME: must check if this is not an expression in terms of other parameters!
-				  				# So, 
-				  				# - get Val
-				  				# - see if it contains vars
-				  				# - if so, substitute them using _replace_consts_in_ast
-				  				# - check if the result is var-free, else repeat
-				  				# - finally eval
-							}
+                                $dim_val = $decl->{'Val'};
+                                #my $dim_ast=parse_expression($bound_expr_str,$info, $stref,$f);
+                                #my $dim_ast2 = _replace_param_by_val($stref, $f, $dim_ast);
+                                #my $dim_expr=emit_expression($dim_ast2,'');
+                                #$dim_val=eval($dim_expr);
+                                #$dim_val=_eval_expression_w_params($bound_expr_str,$info, $stref,$f);
+							} # otherwise it's a number and we fall through
 						}
 						push @{$dim_vals},$dim_val;
 					} 
-                    # This should be used to generate the 1-D stencils for TyTraCL
+                    # This is also used to generate the 1-D stencils for TyTraCL
 					push @{ $state->{'Subroutines'}{ $f }{'Arrays'}{$array_var}{'Dims'} },$dim_vals;
 				}
 			}
@@ -339,7 +323,6 @@ sub _identify_array_accesses_in_exprs { (my $stref, my $f) = @_;
 					my $expr_str = emit_expression($info->{'Rhs'}{'ExpressionAST'},'');
 					my $loop_range = eval($expr_str);
 					$state->{'Subroutines'}{ $f }{'LoopIters'}{$loop_iter}={'Range' => $loop_range};
-	#				say "$loop_iter: $loop_range";
 						
 				} else {				
 					# Find all array accesses in the LHS and RHS AST.
@@ -369,7 +352,13 @@ sub _identify_array_accesses_in_exprs { (my $stref, my $f) = @_;
 				} 
 				push @{$state->{'Subroutines'}{ $f }{'Assignments'}{$var_name}}, $info->{'Rhs'}{'ExpressionAST'};							
 			} 
-	#		if (exists $info->{'If'} ) {					
+	 		if (exists $info->{'If'} ) { 
+                # FIXME: Surely conditions of if-statements can contain array accesses, so FIX THIS!
+                say "IF statement, TODO: ".Dumper($info->{'CondExecExpr'});
+	 			my $cond_expr_ast = $info->{'CondExecExprAST'};
+				($cond_expr_ast, $state) = _find_array_access_in_ast($stref, $f,  $state, $cond_expr_ast,'Read');
+            }
+	#		if (exists $info->{'If'} ) { 
 	#			my $cond_expr_ast = $info->{'CondExecExprAST'};
 	#			# Rename all array accesses in the AST. This updates $state->{'StreamVars'}			
 	#			(my $ast, $state) = _rename_ast_entry($stref, $f,  $state, $cond_expr_ast, 'In');			
@@ -391,6 +380,20 @@ sub _identify_array_accesses_in_exprs { (my $stref, my $f) = @_;
 	#			
 	#						
 	#		}
+            if ( exists $info->{'Do'} and exists $info->{'Do'}{'Iterator'} ) {
+                # Do => { 
+                #           Label :: Int
+                #           Iterator :: Var
+                #           Range => { 
+                #               Vars => [ Var ],
+                #               Expressions => [ $range_start, $range_stop, $range_step ]
+                #            }
+                #       }
+                (my $range_start, my $range_stop, my $range_step) = @{ $info->{'Do'}{'Range'}{'Expressions'} };
+                my $loop_iter = $info->{'Do'}{'Iterator'};
+                my $loop_range_expr_str = $range_stop.' - '.$range_start; # FIXME Maybe we don't need this. But if we do, we should probably eval() it
+                $state->{'Subroutines'}{ $f }{'LoopIters'}{$loop_iter}={'Range' => $loop_range_expr_str};
+            }
 			return ([[$line,$info]],$state);
 		};
 	
@@ -662,7 +665,7 @@ sub _UNUSED_determine_stencil_from_access { (my $stref,my $f, my $ast, my $state
 	my $stencil=  join('_',@stencil);
 	$state->{'Subroutines'}{ $f }{'Arrays'}{$var}{'Stencils'}{$stencil}=1;
 	return $state;
-}
+} # END of _UNUSED_determine_stencil_from_access
 
 =info3
 
@@ -689,12 +692,9 @@ So in short: per index:
 
 =cut
 
-# We replace LoopIters with 0 and Parameters with their values.
+# We replace LoopIters with $const and Parameters with their values.
 # Apply to RHS of assignments
 sub _replace_consts_in_ast { (my $stref, my $f,  my $ast, my $state, my $const)=@_;
-#	my $f = $state->{'CurrentSub'};
-#	say '_replace_consts_in_ast'; 
-#	say Dumper($ast);
 	if (ref($ast) eq 'ARRAY') {
 		for my  $idx (0 .. scalar @{$ast}-1) {								
 			my $entry = $ast->[$idx];	
@@ -706,16 +706,13 @@ sub _replace_consts_in_ast { (my $stref, my $f,  my $ast, my $state, my $const)=
 				if ($idx==0 and (($entry & 0xF) == 2)) { #eq '$'				
 					my $mvar = $ast->[$idx+1];					
 					if (exists $state->{'Subroutines'}{ $f }{'LoopIters'}{ $mvar }) {
-#						say 'Replacing ['."'".'$'."'".','.$mvar.'] by '.$const;
 						$ast=''.$const.'';
 						return ($ast,$state);
 					} elsif (in_nested_set($stref->{'Subroutines'}{$f},'Parameters',$mvar)) {				  				
 		  				my $decl = get_var_record_from_set( $stref->{'Subroutines'}{$f}{'Parameters'},$mvar);
 		  				#FIXME: the value could be an expression in terms of other parameters!
-#				  		say "Parameter $parname = ".$decl->{'Val'};
 		  				my $val = $decl->{'Val'};
 		  				$ast = parse_expression($val, {},$stref,$f);		  				
-#		  				$ast=$val;
 		  				return ($ast,$state);						
 					}										
 				} 
@@ -725,27 +722,31 @@ sub _replace_consts_in_ast { (my $stref, my $f,  my $ast, my $state, my $const)=
 	return  ($ast, $state);		
 } # END of _replace_consts_in_ast()
 
-
+BOOM!
+# So when we find an iterator access in an array we must check in which loop this array is being accessed
+# If the loop iter must be per loop nest, not per subroutine
+# So I need at the very least 
+# $state->{'Subroutines'}{ $f }{$loop_label}{'LoopIters'}{ $var }
+# $state->{'Subroutines'}{ $f }{$loop_label}{'Arrays'}
+# And an the subroutine can have $loop_label = 0
+# So $loop_label should be an arg as well
 sub _find_iters_in_array_idx_expr { (my $stref, my $f, my $ast, my $state, my $rw)=@_;
 	my @ast_a = @{$ast};
-	my @args = @ast_a[2 .. $#ast_a]; 
+	my @args = @ast_a[2 .. $#ast_a];
 	my $array_var = $ast_a[1];
 	$state->{'Subroutines'}{ $f }{'Arrays'}{$array_var}{$rw}{'Iterators'}=[];
 	for my $idx (0 .. @args-1) {
 		$state->{'Subroutines'}{ $f }{'Arrays'}{$array_var}{$rw}{'Iterators'}[$idx]='?';
   		my $item = $args[$idx];
-#  		say "EXPR:".emit_expression($item,'');
   		my $vars = get_vars_from_expression($item, {});
-#  		say 'VARS:'.Dumper($vars);
   		for my $var (keys %{$vars}) {
   			if (exists $state->{'Subroutines'}{ $f }{'LoopIters'}{ $var }) {
   				# OK, I found an iterator in this index expression. I boldly assume there is only one.
-#  				say "Found iterator $var at index $idx for $array_var access";
+                # FIXME Loop Label!
   				$state->{'Subroutines'}{ $f }{'Arrays'}{$array_var}{$rw}{'Iterators'}[$idx]=$var;
   			}
   		}
 	}
-#	say '    '.'['.join(',', @{ $state->{'Subroutines'}{ $state->{'CurrentSub'} }{'Arrays'}{$array_var}{$rw}{'Iterators'} }).']';
 	return $state;
 } # END of _find_iters_in_array_idx_expr
 
@@ -886,7 +887,7 @@ sub _classify_accesses_and_generate_TyTraCL { (my $stref, my $f, my $state ) =@_
 # 	say "SUB $f\n"; 
 	my $tytracl_ast = $stref->{'TyTraCL_AST'};
 	
-	my @extracts=(); # These are portions of an array that are extracted, we need an `extract` primitive
+	my @selects=(); # These are portions of an array that are selected, we need an `select` primitive
  	my @inserts=(); # This is when a portion of an array is inserted, we need an `insert` primitive
 	my %stencils=(); # The `stencil` call		
 	my %non_map_args=();
@@ -970,12 +971,11 @@ sub _classify_accesses_and_generate_TyTraCL { (my $stref, my $f, my $state ) =@_
 										
 				if (not $all_points) {
 					if ($rw eq 'Read') {
-#						say "EXTRACT for $rw of $array_var";
 #						say "SELECT for $rw of $array_var";
-#						say "${array_var}_portion = extract patt $array_var";
+#						say "${array_var}_portion = select patt $array_var";
 						my $ctr_in = $unique_var_counters->{$array_var};
-						push @extracts,"${array_var}_portion = extract patt ${array_var}_${ctr_in} -- TODO";
-						push @{ $tytracl_ast->{'Extracts'} },
+						push @selects,"${array_var}_portion = select patt ${array_var}_${ctr_in} -- TODO";
+						push @{ $tytracl_ast->{'Selects'} },
 						{
 							'Lhs' => {'Var' => [$array_var, 'TODO','portion']}, 
 							'Rhs' =>  {'Var' => [$array_var, $ctr_in,''], 'Pattern' =>['TODO']}
@@ -1083,7 +1083,7 @@ sub _classify_accesses_and_generate_TyTraCL { (my $stref, my $f, my $state ) =@_
     		;
 		$map_expr .=  scalar @in_tup > 1 ? '(zipt ('.join(',',@{$in_tup_ms}).'))' : scalar @{$in_tup_ms} > 0 ? $in_tup_ms->[0] : 'BOOM!';
 		
-        #		map { say $_ } @extracts; # "${array_var}_portion = extract patt $array_var";
+        #		map { say $_ } @selects; # "${array_var}_portion = select patt $array_var";
 		
         #		say $map_expr;# unless $map_expr=~/BOOM/; 
 		push @{$tytracl_ast->{'Lines'}},
@@ -1127,32 +1127,31 @@ sub pp_links { (my $links)=@_;
 } # END of pp_links()
 
 sub _replace_param_by_val { (my $stref, my $f, my $ast)=@_;
-#	if (in_nested_set($stref->{'Subroutines'}{$f},'Parameters',$ast)) {				  				
-#  		my $decl = get_var_record_from_set( $stref->{'Subroutines'}{$f}{'Parameters'},$ast);
-#  		my $val = $decl->{'Val'};
   		# - see if $val contains vars
   		my $vars=get_vars_from_expression($ast,{}) ;
-  		# - if so, substitute them using _replace_consts_in_ast  		
+  		# - if so, substitute them using _replace_consts_in_ast
   		my $state =  {'CurrentSub' =>$f};
-#  		say "AST0: ".Dumper($ast);
   		while (
   		(exists $vars->{'_OPEN_PAR_'} and scalar keys %{$vars} > 1) 
   		or (not exists $vars->{'_OPEN_PAR_'} and scalar keys %{$vars} > 0)
-  		
   		) {
-#  			say "again: ".Dumper($vars);
 			($ast, $state) = _replace_consts_in_ast($stref, $f,  $ast, $state, 0);
 			# - check if the result is var-free, else repeat
 			$vars=get_vars_from_expression($ast,{}) ;
-#			say 'VARS:'.Dumper($vars);
-#			say "AST: ".Dumper($ast);	
   		}  				
-  		# - finally eval
-#  		say "AST: ".Dumper($ast);
-#	}
+  		# - return to be eval'ed
 	return $ast;			
-}
+} # END of _replace_param_by_val()
 
+sub _eval_expression_w_params { (my $expr_str,my $info, my $stref, my $f) = @_;
+
+    my $expr_ast=parse_expression($expr_str,$info, $stref,$f);
+    my $expr_ast2 = _replace_param_by_val($stref, $f, $expr_ast);
+    my $evaled_expr_str=emit_expression($expr_ast2,'');
+    my $expr_val=eval($evaled_expr_str);
+	return $expr_val;
+    
+} # END of _eval_expression_w_params()
 
 sub _collapse_links { (my $stref, my $f, my $links)=@_;
 	
@@ -1245,7 +1244,7 @@ sub __is_array_decl { (my $info)=@_;
 #			}
 #		};	
 #	], 
-#	'Extracts' => [
+#	'Selects' => [
 #						{
 #							'Lhs' => {'Var' => [$array_var, 'TODO','portion']}, 
 #							'Rhs' =>  {'Var' => [$array_var, $ctr_in,''], 'Pattern' =>['TODO']}
@@ -1260,7 +1259,7 @@ sub __is_array_decl { (my $info)=@_;
 #};
 
 sub _emit_TyTraCL {  (my $stref) = @_;
-	# FIXME: we ignore Extracts and Inserts for now.
+	# FIXME: we ignore Selects and Inserts for now.
     # We need the superkernel as the main, and we must identify its input and output arguments
     # Input args have Ctr==0 on the Rhs
     # Output args $arg have Ctr == $stref->{'UniqueVarCounters'}{$arg}
