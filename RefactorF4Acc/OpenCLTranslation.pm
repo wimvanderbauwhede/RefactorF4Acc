@@ -1,4 +1,5 @@
 package RefactorF4Acc::OpenCLTranslation;
+# OBSOLETE!
 use v5.10;
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;

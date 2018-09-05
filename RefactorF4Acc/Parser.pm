@@ -932,10 +932,11 @@ VIRTUAL
 		}
 # F95 declaration, no need for refactoring		 	
 		 elsif ( $line =~ /^(.+)\s*::\s*(.+)\s*$/ ) { 
-				( $Sf, $info ) = __parse_f95_decl( $stref, $f, $Sf, $indent, $line, $info);								
+				( $Sf, $info ) = __parse_f95_decl( $stref, $f, $Sf, $indent, $line, $info);
 				if (exists $info->{'ParamDecl'}) {
 					$has_pars=1;
 				}		
+
 			} 
 # PARAMETER			
 # F77-style parameters			
@@ -3190,7 +3191,7 @@ sub __handle_acc {
 sub __parse_f95_decl {
 	(my $stref, my $f,  my $Sf, my $indent, my $line, my $info) = @_;
 	
-my $is_module = (exists $stref->{'Modules'}{$f}) ? 1 : 0;
+    my $is_module = (exists $stref->{'Modules'}{$f}) ? 1 : 0;
 	my $pt = parse_F95_var_decl($line);
 #croak $line  if $line=~/etan/;	
 #croak $line.Dumper($info) if $line=~/local_aaa/;
@@ -3240,6 +3241,15 @@ my $is_module = (exists $stref->{'Modules'}{$f}) ? 1 : 0;
 		if (    not exists $info->{'ParsedVarDecl'}
 			and not exists $info->{'VarDecl'} )
 		{
+            my $halos=[];
+            my $has_halo_attr=0;
+            if (exists $info->{'TrailingComment'} and $info->{'TrailingComment'}=~/\$(?:ACC|RF4A)\s+[Hh]alos\s*\(+(.+?)\s*\)+\s*$/) {
+                    my $halo_str=$1;
+                    my @halo_chunks=split(/\s*\)\s*,\s*\(\s*/,$halo_str);
+                    @{$halos} = map { [ split(/\s*,\s*/,$_) ] } @halo_chunks;
+                    $has_halo_attr=1;
+                    #croak "HALOS: ".Dumper($halos);
+            }
 			
 			if (not exists $pt->{'Attributes'}{'Allocatable'}) {
 				# This is a HACK because we changed the structure of Dim in the case of allocatable arrays
@@ -3280,8 +3290,16 @@ my $is_module = (exists $stref->{'Modules'}{$f}) ? 1 : 0;
 						my $alloc_dim = $pt->{'Attributes'}{'Dim'}[$idx];
 						my @dims = map { ['',''] } @{$alloc_dim};
 						$decl->{'Dim'}           = \@dims;
-					}
+					}                    
 				}
+                # We ignore the halo attribute unless it's an array
+                # We should also check if the dims match!
+                if ($decl->{'ArrayOrScalar'} eq 'Array' and $has_halo_attr) {
+                    $decl->{'Halos'} = $halos;
+                    if( scalar( @{$decl->{'Dim'} } ) != scalar(@{$halos}) ) {
+                        croak("$line: ERROR: The halo attribute must have the same dimension as the array.");
+                    }
+                }
 				if ( $type =~ /character/ ) {
 					if (exists $pt->{TypeTup}{'ArrayOrScalar'} ) {
 					$decl->{'Attr'} = '(len=' . $pt->{TypeTup}{'ArrayOrScalar'} . ')';

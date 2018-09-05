@@ -258,7 +258,18 @@ sub pass_emit_TyTraCL {(my $stref)=@_;
 } # END of pass_emit_TyTraCL()
 
 
-# There is no pretense that this works for anything but the OpenCL Fortran kernels emitted by this compiler. 
+# This was only meant to work for the OpenCL Fortran kernels emitted by this compiler, but should now work for other subroutines as well.
+
+# Array accesses are stored in 
+# $state->{'Subroutines'}{ $f }{ $block_id }{'Arrays'}{$array_var}{$rw}{
+# 'Exprs' => { $expr_str_1 => 1,...},
+# 'Stencils' => { '0:1' =>  'j' => [1,0],'k' => [1,1]},
+# 'Iterators' => ['i','j']
+# };
+#
+# Array dimensions are stored in
+# 	$state->{'Subroutines'}{ $f }{ $block_id }{'Arrays'}{$array_var}{'Dims'} = [[0,501],[1,500],...]
+#
 sub _identify_array_accesses_in_exprs { (my $stref, my $f) = @_;
     #	die $f.' : '.Dumper($stref->{'Subroutines'}{$f}{Source});
     if ($stref->{'Subroutines'}{$f}{'Source'}=~/(?:dyn.f95|module_\w+_superkernel.f95)/ && $f!~/superkernel/) {  # TODO
@@ -268,8 +279,11 @@ sub _identify_array_accesses_in_exprs { (my $stref, my $f) = @_;
 
 		my $pass_identify_array_accesses_in_exprs = sub { (my $annline, my $state)=@_;
 			(my $line,my $info)=@{$annline};
-            #say "\'$line\' => BLOCK: ".$info->{LineID}.' '.$info->{Block}{LineID} if ($info->{LineID} == 0);# or $info->{Block}{LineID} == 0);
-            my $block_id = 0;#$info->{'Block'}{'LineID'};            
+                
+            my $in_block = exists $info->{Block} ? $info->{Block}{LineID} : '-1';
+            my $block_id = __mkLoopId( $state->{'Subroutines'}{$f}{'LoopNests'} );
+            #say 'BLOCK '.$info->{LineID}."\t$block_id\t\'$line\'";# => ;#.' '.$info->{Block}{LineID} ;#if ($info->{LineID} == 0);# or $info->{Block}{LineID} == 0);
+            #my $block_id = 0;#$info->{'Block'}{'LineID'};            
             #
 			# Identify the subroutine 
 			if ( exists $info->{'Signature'} ) {
@@ -278,12 +292,14 @@ sub _identify_array_accesses_in_exprs { (my $stref, my $f) = @_;
 				croak if $subname ne $f;
 				$state->{'Subroutines'}{$subname }={};
 				$state->{'Subroutines'}{$subname }{$block_id}={};
+                $state->{'Subroutines'}{$f}{'LoopNests'}=[ [0,{}] ];
 			}
 			# For every VarDecl, identify dimension if it is an array
 			if (exists $info->{'VarDecl'} and not exists $info->{'ParamDecl'} and __is_array_decl($info)) { 
 						
 				my $array_var=$info->{'VarDecl'}{'Name'};				
 				my @dims = @{ $info->{'ParsedVarDecl'}{'Attributes'}{'Dim'} };
+                 
 				$state->{'Subroutines'}{ $f }{ $block_id }{'Arrays'}{$array_var}{'Dims'}=[];
 				for my $dim (@dims) {
 					(my $lo, my $hi)=$dim=~/:/ ? split(/:/,$dim) : (1,$dim);
@@ -316,14 +332,13 @@ sub _identify_array_accesses_in_exprs { (my $stref, my $f) = @_;
 				}
 			}
 			if (exists $info->{'Assignment'} ) {
-                #say $line;
 				# Assignment to scalar *_rel 					
 				if ($info->{'Lhs'}{'ArrayOrScalar'} eq 'Scalar' and $info->{'Lhs'}{'VarName'} =~/^(\w+)_rel/) {
 					my $loop_iter=$1;
 					$state->{'Subroutines'}{ $f }{$block_id}{'LoopIters'}{$loop_iter}={'Range' => 0};
 				}
 				# Assignment to scalar *_range 
-				if ($info->{'Lhs'}{'ArrayOrScalar'} eq 'Scalar' and $info->{'Lhs'}{'VarName'} =~/^(\w+)_range/) {
+				elsif ($info->{'Lhs'}{'ArrayOrScalar'} eq 'Scalar' and $info->{'Lhs'}{'VarName'} =~/^(\w+)_range/) {
 					my $loop_iter=$1;
 					 
 					my $expr_str = emit_expression($info->{'Rhs'}{'ExpressionAST'},'');
@@ -331,7 +346,8 @@ sub _identify_array_accesses_in_exprs { (my $stref, my $f) = @_;
 					$state->{'Subroutines'}{ $f }{$block_id}{'LoopIters'}{$loop_iter}={'Range' => $loop_range};
 						
 				} else {				
-					# Find all array accesses in the LHS and RHS AST.
+					# This tests for the case of the same array on LHS and RHS, but maybe with a different access location, so a(...) = a(...)
+                    # Not sure why as this is rather unusual and it is unused
 					if ( 
 						ref($info->{'Rhs'}{'ExpressionAST'}) eq 'ARRAY' 
 					and (($info->{'Rhs'}{'ExpressionAST'}[0] & 0xF) == 10) #eq '@'
@@ -340,29 +356,27 @@ sub _identify_array_accesses_in_exprs { (my $stref, my $f) = @_;
 					and $info->{'Lhs'}{'ExpressionAST'}[1] eq $info->{'Rhs'}{'ExpressionAST'}[1]
 					) {
 						my $var_name = $info->{'Rhs'}{'ExpressionAST'}[1];
-#						say "IDENTITY OP for $var_name : ",$line;
+						say "IDENTITY OP for $var_name : ",$line;
 						$state->{'Subroutines'}{ $f }{$block_id}{'Identity'}{$var_name} = 1;
 					} 
-#else {
-#						my $var_name = $info->{'Rhs'}{'ExpressionAST'}[1];
-#						say "IDENTITY OP for $var_name : ",$line;
-#						$state->{'Subroutines'}{ $f }{'Assignments'}{$var_name}{'Identity'} = 0;
-#					}
 					 
-					(my $rhs_ast, $state) = _find_array_access_in_ast($stref, $f, $block_id, $state, $info->{'Rhs'}{'ExpressionAST'},'Read');
-					(my $lhs_ast, $state) = _find_array_access_in_ast($stref, $f, $block_id, $state, $info->{'Lhs'}{'ExpressionAST'},'Write');
-				}			
+					# Find all array accesses in the LHS and RHS AST.
+
+					(my $rhs_ast, $state, my $rhs_accesses) = _find_array_access_in_ast($stref, $f, $block_id, $state, $info->{'Rhs'}{'ExpressionAST'},'Read',{});
+					(my $lhs_ast, $state, my $lhs_accesses) = _find_array_access_in_ast($stref, $f, $block_id, $state, $info->{'Lhs'}{'ExpressionAST'},'Write',{});                    
+                    #say $line .' => '.Dumper([$rhs_accesses,$lhs_accesses]);
+                }			
 				my $var_name = $info->{'Lhs'}{'VarName'};
 				if (not exists $state->{'Subroutines'}{ $f }{$block_id}{'Assignments'}{$var_name}) {
 					$state->{'Subroutines'}{ $f }{$block_id}{'Assignments'}{$var_name}=[];
 				} 
-				push @{$state->{'Subroutines'}{ $f }{$block_id}{'Assignments'}{$var_name}}, $info->{'Rhs'}{'ExpressionAST'};							
+				push @{$state->{'Subroutines'}{ $f }{$block_id}{'Assignments'}{$var_name}}, $info->{'Rhs'}{'ExpressionAST'};
 			} 
 	 		if (exists $info->{'If'} ) { 
                 # FIXME: Surely conditions of if-statements can contain array accesses, so FIX THIS!
                 #say "IF statement, TODO: ".Dumper($info->{'CondExecExpr'});
-                #my $cond_expr_ast = $info->{'CondExecExprAST'};
-                #($cond_expr_ast, $state) = _find_array_access_in_ast($stref, $f, $block_id, $state, $cond_expr_ast,'Read');
+                my $cond_expr_ast = $info->{'CondExecExprAST'};
+                ($cond_expr_ast, $state, my $cond_accesses) = _find_array_access_in_ast($stref, $f, $block_id, $state, $cond_expr_ast,'Read',{});
             }
 	#		if (exists $info->{'If'} ) { 
 	#			my $cond_expr_ast = $info->{'CondExecExprAST'};
@@ -386,7 +400,9 @@ sub _identify_array_accesses_in_exprs { (my $stref, my $f) = @_;
 	#			
 	#						
 	#		}
-            if ( exists $info->{'Do'} and exists $info->{'Do'}{'Iterator'} ) {
+            elsif ( exists $info->{'Do'} ) {
+                    if (exists $info->{'Do'}{'Iterator'} ) {
+                        
                 # Do => { 
                 #           Label :: Int
                 #           Iterator :: Var
@@ -398,7 +414,18 @@ sub _identify_array_accesses_in_exprs { (my $stref, my $f) = @_;
                 (my $range_start, my $range_stop, my $range_step) = @{ $info->{'Do'}{'Range'}{'Expressions'} };
                 my $loop_iter = $info->{'Do'}{'Iterator'};
                 my $loop_range_expr_str = $range_stop.' - '.$range_start; # FIXME Maybe we don't need this. But if we do, we should probably eval() it
-                $state->{'Subroutines'}{ $f }{$block_id}{'LoopIters'}{$loop_iter}={'Range' => $loop_range_expr_str};
+                my $loop_id = $info->{'LineID'};
+                push @{ $state->{'Subroutines'}{$f}{'LoopNests'} },[$loop_id, $loop_iter , {'Range' => $loop_range_expr_str}];
+                my $block_id = __mkLoopId( $state->{'Subroutines'}{$f}{'LoopNests'} );
+                for my $loop_iter_rec ( @{ $state->{'Subroutines'}{$f}{'LoopNests'} } ) {
+                    (my $loop_id, my $loop_iter, my $range_rec) = @{$loop_iter_rec};
+                    $state->{'Subroutines'}{ $f }{$block_id}{'LoopIters'}{$loop_iter}=$range_rec;#{'Range' => $loop_range_expr_str};
+                }
+            } else {
+                croak "Sorry, a `do` loop without an iterator is not supported";
+            }
+            } elsif ( exists $info->{'EndDo'} ) {
+
             }
 			return ([[$line,$info]],$state);
 		};
@@ -424,7 +451,7 @@ sub _identify_array_accesses_in_exprs { (my $stref, my $f) = @_;
 	else {
         $stref->{'TyTraCL_AST'}{'Main'} = $f;
 
-        		say "-- SUPERKERNEL $f: ";die;
+        		say "-- SUPERKERNEL $f: ";
 #		map { say $_ } sort keys %{ $stref->{'Subroutines'}{$f} };
 #		say Dumper $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'};
 		 for my $arg (@{ $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'List'} } ) {
@@ -477,13 +504,13 @@ v => { i => {offset, used}, j => ... }
 
 =cut
 # ============================================================================================================
-sub _find_array_access_in_ast { (my $stref, my $f,  my $block_id, my $state, my $ast, my $rw)=@_;
-	if (ref($ast) eq 'ARRAY') {
+sub _find_array_access_in_ast { (my $stref, my $f,  my $block_id, my $state, my $ast, my $rw, my $accesses)=@_;
+    if (ref($ast) eq 'ARRAY') {
 		for my  $idx (0 .. scalar @{$ast}-1) {		
 			my $entry = $ast->[$idx];
 	
 			if (ref($entry) eq 'ARRAY') {
-				(my $entry, $state) = _find_array_access_in_ast($stref,$f, $block_id, $state,$entry, $rw);
+				(my $entry, $state) = _find_array_access_in_ast($stref,$f, $block_id, $state,$entry, $rw,$accesses);
 				$ast->[$idx] = $entry;
 			} else {
 				if ($idx==0 and (($entry & 0xF)==10)) { #$entry eq '@'				
@@ -491,11 +518,9 @@ sub _find_array_access_in_ast { (my $stref, my $f,  my $block_id, my $state, my 
 					if ($mvar ne '_OPEN_PAR_') {
 						
 						my $expr_str = emit_expression($ast,'');
-#						say '  '.$expr_str;
-#						$state = determine_stencil_from_access($stref,$f,$ast, $state);
 						$state = _find_iters_in_array_idx_expr($stref,$f,$block_id,$ast, $state,$rw);
-#						say Dumper($state);
 						my $array_var = $ast->[1];
+                        # Special case for our OpenCL kernels
 						if ($array_var =~/(glob|loc)al_/) { return ($ast,$state); }
 #						# First we compute the offset
 #						say "OFFSET";
@@ -505,7 +530,6 @@ sub _find_array_access_in_ast { (my $stref, my $f,  my $block_id, my $state, my 
 						my @idx_args0 = @ast_a0[2 .. $#ast_a0]; 
 						my @ast_exprs0 = map { emit_expression($_,'') } @idx_args0;
 						my @ast_vals0 = map { eval($_) } @ast_exprs0;
-#						say Dumper($ast0);
 						# Then we compute the multipliers (for proper stencils these are 1 but for the more general case e.g. copying a plane of a cube it can be different.
 #						say "MULT";
 						my $ast1 = dclone($ast); 
@@ -515,13 +539,8 @@ sub _find_array_access_in_ast { (my $stref, my $f,  my $block_id, my $state, my 
 						my @idx_args1 = @ast_a1[2 .. $#ast_a1]; 
 						my @ast_exprs1 = map { emit_expression($_,'') } @idx_args1;
 						my @ast_vals1 = map { eval($_) } @ast_exprs1;
-#						say Dumper($ast1);
-                        #say "$f $block_id {'Arrays'} $array_var $rw ".Dumper(keys %{ $state->{'Subroutines'}{ $f }{'0'}{Arrays}{$array_var}});
-                        #if (not exists $state->{'Subroutines'}{ $f }{ $block_id }{'Arrays'}{$array_var}{$rw}{'Iterators'}) {
-                        #    croak "BOOM!!! { $f }{ $block_id }{'Arrays'}{$array_var}{$rw}{'Iterators'}";
-                        #}
 						my @iters = @{$state->{'Subroutines'}{ $f }{ $block_id }{'Arrays'}{$array_var}{$rw}{'Iterators'}};
-#						say Dumper(@iters);
+                        
 						my $iter_val_pairs=[];						
 						for my $idx (0 .. @iters-1) {
 							my $offset_val=$ast_vals0[$idx];
@@ -530,18 +549,17 @@ sub _find_array_access_in_ast { (my $stref, my $f,  my $block_id, my $state, my 
 						}
 						$state->{'Subroutines'}{ $f }{ $block_id }{'Arrays'}{$array_var}{$rw}{'Exprs'}{$expr_str}=1;   
 						$state->{'Subroutines'}{ $f }{ $block_id }{'Arrays'}{$array_var}{$rw}{'Stencils'}{ join(':', @ast_vals0) } = $iter_val_pairs;
-                        #  $state->{'Subroutines'}{ $f }{'Arrays'}{$array_var}{'Dims'}
-#						say '    '.join(',',@ast_exprs).'  => '.join(',',@ast_vals);
-#						say '    '.join(',',@ast_vals); 
+                        $accesses->{'Arrays'}{$array_var}{$rw}{'Exprs'}{$expr_str}=1;
+                        $accesses->{'Arrays'}{$array_var}{$rw}{'Stencils'}{ join(':', @ast_vals0) } = $iter_val_pairs;
 						last;
 					}
 				} 
 			}		
 		}
 	}
-	return  ($ast, $state);	
+	return  ($ast, $state, $accesses);	
 	
-}
+} # END of _find_array_access_in_ast
 
 =info3
 
@@ -639,6 +657,7 @@ The links table starts out empty:
 sub _link_writes_to_reads {(my $stref, my $f, my $state)=@_;
 
     for my $block_id (sort keys %{ $state->{'Subroutines'}{$f} }) {
+       next if $block_id eq 'LoopNests';
 	my $links={};
 	my $assignments = $state->{'Subroutines'}{$f}{$block_id}{'Assignments'};
 	# So we have to establish the link for every variable that is a multi-dim (effectively 3-D) array argument
@@ -884,7 +903,6 @@ sub _classify_accesses_and_generate_TyTraCL { (my $stref, my $f, my $state ) =@_
 	# so this provides the output and input tuples for a given $f
 	# so for each var in $in_tup we need to get the counter, and for each var in $out_tup after that too. 
 		(my $out_tup, my $in_tup_maybe_dummies) = pp_links($state->{'Subroutines'}{$f}{$block_id}{'Links'});
-		# FIXME: A hack! If a problem is 2-D this fails entirely. 
 		# A slightly better way is to look at which arrays are covered entirely by a map operation
 		my $n_dims = scalar keys %{$state->{'Subroutines'}{ $f }{$block_id}{'LoopIters'}};
 		
@@ -892,12 +910,12 @@ sub _classify_accesses_and_generate_TyTraCL { (my $stref, my $f, my $state ) =@_
 		my @in_tup_correct_dim =  grep {
 			exists $state->{'Subroutines'}{ $f }{ $block_id }{'Arrays'}{$_} and 
 			scalar @{ $state->{'Subroutines'}{ $f }{ $block_id }{'Arrays'}{$_}{'Dims'} } >= $n_dims
-		} @in_tup;#@in_tup;
+		} @in_tup;
 	
 		my @in_tup_non_map_args =  grep {
 			(not exists $state->{'Subroutines'}{ $f }{ $block_id }{'Arrays'}{$_}) or 
 			(scalar @{ $state->{'Subroutines'}{ $f }{ $block_id }{'Arrays'}{$_}{'Dims'} } < $n_dims)
-		} @in_tup;#@in_tup ;
+		} @in_tup;
 		my $in_tup_ms_ast = [
 			map {
 				if (not exists $unique_var_counters->{$_}) {
@@ -1506,6 +1524,10 @@ sub _generate_TyTraCL_stencils { (my $stencil_patt)=@_;
     my $tytracl_stencils_str;
 
     return $tytracl_stencils
+}
+
+sub __mkLoopId { (my $loop_nest_stack ) =@_;
+    return join('',map {$_->[0]} @{$loop_nest_stack});
 }
 
 sub F3D2C { (
