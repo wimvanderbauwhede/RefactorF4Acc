@@ -65,8 +65,8 @@ $VAR1 = [
 # '_dummy_(write(__PH1__,_CONCAT_PRE_,path(numpath+2*_OPEN_PAR_(...', 'HASH(0x7fb906282f70)') called at /Users/wim/Git/RefactorF4Acc/RefactorF4Acc/Parser/Expressions.pm line 144
 # 'write(__PH1__//path(numpath+2*(k-1)+2)(1:len(numpath+2*(k-1)+2))
 #write(*,'(a)') '     '//path(numpath+2*(k-1)+2)(1:len(numpath+2*(k-1)+2))
-#                0    1    2    3    4    5    6    7    8     9    10   11   12   13   14
-my  @sigils = ( '{', '&', '$', '+', '-', '*', '/', '%', '**', '=', '@', '#', ':' ,'//',')(');
+#                 0    1    2    3    4    5    6    7    8     9   10   11   12   13   14
+our  @sigils = ( '{', '&', '$', '+', '-', '*', '/', '%', '**', '=', '@', '#', ':' ,'//',')(');
 my %F95_ops =(
 	'==' => '.eq.',  
     '/=' => '.ne.',  
@@ -103,6 +103,7 @@ sub parse_expression { (my $exp, my $info, my $stref, my $f)=@_;
 #	}
 	
 	# EVIL HACK because the Fortran::Expression::Evaluator::Parser does not support <=, ==, =>, /=
+	# I replace this with a sum where the operator is a fake argument variable
 	$preproc_expr =~s/\<\=/.le./g;
 	$preproc_expr =~s/\>\=/.ge./g;
 	$preproc_expr =~s/\=\=/.eq./g;
@@ -344,6 +345,14 @@ sub emit_expression {(my $ast, my $expr_str)=@_;
 	
 	
 	if (ref($ast) ne 'ARRAY') {return $ast;}
+	
+	if (ref($ast) eq 'ARRAY'
+	and scalar(@{$ast}<2)
+	) {
+		
+		croak Dumper($ast);
+	}
+	
 	croak 'EMPTY AST' unless @{$ast};
 	my @expr_chunks=();
 	my $skip=0;
@@ -759,6 +768,12 @@ sub _fix_colons_in_expr { (my $ast)=@_;
 }
 
 sub _fix_string_concat_in_ast { (my $orig_ast)=@_;
+	if (
+	ref($orig_ast) ne 'ARRAY' or
+	scalar(@{$orig_ast}) < 2
+	) {
+		return $orig_ast;
+	}
 	my $ast=_fix_string_concat_in_expr($orig_ast);
 	if ( ref($ast) eq 'ARRAY') {
 	my $new_ast=[];
@@ -771,6 +786,7 @@ sub _fix_string_concat_in_ast { (my $orig_ast)=@_;
 			push @{$new_ast}, $entry;
 		} 		
 	}
+#	say 'ORIG AST:'.Dumper($orig_ast);
 	if ($new_ast->[1] eq '#dummy#' and ( ($new_ast->[2][0] & 0xF) == 13) ) {#  '//'
 		$new_ast = $new_ast->[2];
 	} 
