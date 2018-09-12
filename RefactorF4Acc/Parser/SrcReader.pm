@@ -188,9 +188,11 @@ Suppose we don't:
                     	$max_line_length = $line_length > $max_line_length ? $line_length : $max_line_length; 
                     }                    
                     if ($max_line_length > 72 && $max_line_length  < 102 ) {
+#                    	die "WARNING: The file $f is a fixed-form F77 source file but the max line length is $max_line_length characters, using $MAX_LINE_LENGTH-character lines. To use a different max line length, set MAX_LINE_LENGTH in the config file."; 
                     	say "WARNING: The file $f is a fixed-form F77 source file but the max line length is $max_line_length characters, using $MAX_LINE_LENGTH-character lines. To use a different max line length, set MAX_LINE_LENGTH in the config file." if $W;  	
                     };
                     my $ncols = $MAX_LINE_LENGTH;#$max_line_length > 72 ? 132 : 72;
+#                    die $MAX_LINE_LENGTH;
                     for my $line (@lines) {
                     	$line=substr($line,0,$ncols);
                     	# Here a minor hack: if there is a label in the 6th col and a non-blank in the 7th, I insert a blank

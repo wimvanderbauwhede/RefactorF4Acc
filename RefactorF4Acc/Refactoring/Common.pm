@@ -123,7 +123,7 @@ sub context_free_refactorings {
         if ( exists $info->{'External'} ) {
 #        	warn "EXTERNAL LINE: $line in $f";
         	if (scalar keys %{ $info->{'External'}} >1) {
-        		carp 'Cannot handle EXTERNAL with multiple names, IGNORING!';
+        		say 'WARNING: Cannot handle EXTERNAL with multiple names, IGNORING!' if $W;
         	} else {
         	for my $maybe_ext (keys %{ $info->{'External'} } ) {
         		if (exists $stref->{'Subroutines'}{$maybe_ext}

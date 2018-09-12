@@ -734,7 +734,7 @@ sub _fix_colons_in_expr { (my $ast)=@_;
 	        
 	        if ($i==0 and ref($elt) eq 'ARRAY' and $elt->[1] eq '_COLON_PRE_') {
 	        	if (ref($cloned_ast->[$i+2]) eq 'ARRAY' and $cloned_ast->[$i+2][1] eq '_STAR_') {
-	        	 	$cloned_ast->[$i+2][1]= 5+(($cloned_ast->[$i+2][1]>>4)<<4);# '*';
+	        	 	$cloned_ast->[$i+2][1]= '*';#5+(($cloned_ast->[$i+2][1]>>4)<<4);# '*';
 	        	}
 	        	my $colon_code = 12+($Fortran::Expression::Evaluator::Parser::nodeId++<<4);
 	            $elt = [$colon_code,'',$cloned_ast->[$i+2]];
@@ -747,7 +747,7 @@ sub _fix_colons_in_expr { (my $ast)=@_;
 	            	my $colon_code = 12+($Fortran::Expression::Evaluator::Parser::nodeId++<<4);
 	                $elt=[$colon_code, $elt,$cloned_ast->[$i+2]];#':'
 	                if (ref($cloned_ast->[$i+2]) eq 'ARRAY' and $cloned_ast->[$i+2][1] eq '_STAR_') {
-	                	$cloned_ast->[$i+2][1]= 5+(($cloned_ast->[$i+2][1]>>4)<<4);# '*';
+	                	$cloned_ast->[$i+2][1]= '*';#5;#+(($cloned_ast->[$i+2][1]>>4)<<4);# '*';
 	                }
 	            } else {
 	            	my $colon_code = 12+($Fortran::Expression::Evaluator::Parser::nodeId++<<4);

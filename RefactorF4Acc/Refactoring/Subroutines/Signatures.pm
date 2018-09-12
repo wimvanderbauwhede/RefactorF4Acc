@@ -96,7 +96,7 @@ sub create_refactored_subroutine_signature {
 sub refactor_subroutine_signature {
     ( my $stref, my $f ) = @_;
     my $Sf = $stref->{'Subroutines'}{$f};
-    local $V=1;
+#    local $V=1;
     if ($V) {
         if ( exists $Sf->{'OrigArgs'} ) {
             print "SUB $f ORIG ARGS:" . join( ',', @{ $Sf->{'OrigArgs'}{'List'} } ), "\n";

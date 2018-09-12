@@ -251,6 +251,31 @@ sub translate_sub_to_SaC {  (my $stref, my $f) = @_;
 END_WITH_LOOP_MAP
 						$c_line = $with_loop_map;  
 				} elsif ($csub=~/_reduce_\d+/) {
+					
+=pod	
+
+So a folding function in SaC is f :: b -> a -> [a] -> b
+				
+	res  = with {
+		([0] <= [iv] <= [5]) : a[iv];
+    } : fold(reduce_kernel(c_in), initial_acc)
+
+and also with indexing:
+
+	inline int mult(int[6] a, int acc, int iv) {
+		return (acc*a[iv]);
+	}
+
+	res = with {
+    	([0] <= [iv] <= [5]): iv;
+	} : fold(mult(a), 1);
+   
+   
+So what I must do is inspect Gavin's reduce loops
+It should be easy as the fold accumulators have already been identified.
+Need to check what it looks like when generated for CPU.   
+=cut					
+					
 					croak "Sorry, fold handling not done yet!";
 				} else {
 					$c_line = $info->{'Indent'}._emit_expression_SaC($subcall_ast,'',$stref,$f).';';

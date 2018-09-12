@@ -1160,6 +1160,7 @@ END IF
 				my $keyword = $1;
 				$info->{ ucfirst($keyword) . 'Call' } = 1;
 				$info->{'IO'}=1;
+				
 				$info = _parse_read_write_print( $mline, $info, $stref, $f );
 				
 			}
@@ -3546,18 +3547,23 @@ if ($line=~/^character/) {
 		# CHARACTER*(*) V(2)
 		# But unfortunately also
 		# CHARACTER*10 B10VK, C10VK, E11VK*11, G10VK
+		# And even
+		# CHARACTER*4 C2N001(0:5,1:6), C2D002(2,1:3), C2N003(-2:1,3:10),
 		
         my $len = $1; 
         my $vars_dims_str = $2;
-# split vars on outer commas, we have a function for that
+		# split vars on outer commas, we have a function for that
         my @vars_dims = _parse_comma_sep_expr_list($vars_dims_str);
 #         say "$f CASE1: $line => len=".$len.", rest=".join(';',@vars_dims);
          
          for my $var_dim (@vars_dims) {
+         	
          	my $ast=parse_expression($var_dim, $info, $stref, $f);
 #         	say "AST1:".Dumper($ast);
          	my $var = _get_var_from_ast( $ast );
          	my $dim = _get_dim_from_ast( $ast );
+#         	say "DIM: ".Dumper($dim);
+#         	die if $ast->[1] eq 'c2d001';
          	my $len_override = _get_len_from_ast( $ast );
          	if ($len eq '_PARENS_STAR_') {
          		$len='*';
@@ -4096,12 +4102,16 @@ sub _parse_read_write_print {
 	# atomname(iprot,sczid(iprot,ires,i)),i=1,nscatoms(iprot,ires)
 	# (atomname(iprot,sczid(iprot,ires,i)),i=1,nscatoms(iprot,ires)) is fine
 	# (atomname(iprot,sczid(iprot,ires,i)),i=1,nscatoms(iprot,ires)) is fine
+#	say "TLINE:<$tline>";
 					while ( $tline ne '' ) {
 #						say "TLINE (before): '$tline'" if $tline=~/nscatoms.iprot/;
-						
+						# If the line matches an opening paren
 						if ($tline =~/^\(/) {
+							# remove it
 							$tline =~ s/^\(//;
+							# test for a closing paren
 							if ($tline =~/\)$/) {
+								# remove it
 								$tline =~ s/\)$//;# This is WEAK!
 							}
 						}
@@ -4115,7 +4125,7 @@ sub _parse_read_write_print {
 							push @vars, $rhs;
 							$in_range = 1;
 						} elsif ($in_range) {							
-#							$arg =~ s/\)$//;    # This is WEAK!
+							$arg =~ s/\)$//;    # This is WEAK!
 #							say "TLINE: BOOM! $tline => ARG $arg" if $tline=~/nscatoms.iprot/;
 							push @vars, $arg;
 						} else {
@@ -4124,7 +4134,9 @@ sub _parse_read_write_print {
 						$rest =~ s/,//;
 						$tline = $rest;
 					}
+#					say Dumper(@vars);
 					my $fake_range_expr = 'range(' . join( ',', @vars ) . ')';
+#					say "RANGE:<$fake_range_expr>" ;
 					my $ast = parse_expression( $fake_range_expr, $info, $stref, $f );
 					( my $call_args, my $other_vars ) = @{ get_args_vars_from_expression($ast) };
 					$info->{'ExprVars'}{'Set'} = {
@@ -4633,6 +4645,7 @@ if ($lhs=~/,/ or $rhs=~/,/) {
 	
 } # END of _parse_data_declaration()
 
+# TODO?
 sub _expand_repeat_data { (my $line)=@_;
 	return $line;
 }
@@ -4663,7 +4676,7 @@ sub  _get_var_from_ast { (my  $ast ) = @_;
 		}
 	}
 	return $var;
-}
+} # _get_var_from_ast()
 
 sub  _get_var_from_ast_OLD { (my  $ast ) = @_;
 	my $var='';
@@ -4693,14 +4706,14 @@ sub  _get_var_from_ast_OLD { (my  $ast ) = @_;
 	return $var;
 }
 
-sub  _get_dim_from_ast { (my  $ast ) = @_;
+sub _get_dim_from_ast { (my  $ast ) = @_;
 		my $dim=[];
 		
 # If there is a length, we need the 2nd elt
-	if (($ast->[0] & 0xF)==5) {
+	if (($ast->[0] & 0xF)==5) { # '*'
 	# That elt can either be a scalar
 	# or an array
-		if(($ast->[1][0] & 0xF)==2) {
+		if(($ast->[1][0] & 0xF)==10) { #'@'
 			# It's an array so there is a dim
 			for my $pdim_idx (2 .. @{$ast->[1]}-1) {
 				my $pdim = $ast->[1][$pdim_idx];
@@ -4721,7 +4734,7 @@ sub  _get_dim_from_ast { (my  $ast ) = @_;
 					push @{$dim}, [$dim_start ,$dim_stop ];
 				}
 			}
-		} elsif (($ast->[1][0] & 0xF) == 2) {
+		} elsif (($ast->[1][0] & 0xF) == 2) { # '$'
 			# no dim			
 		} else {
 			croak Dumper($ast);
@@ -4734,8 +4747,7 @@ sub  _get_dim_from_ast { (my  $ast ) = @_;
 			for my $pdim_idx (2 .. @{$ast}-1) {
 				my $pdim = $ast->[$pdim_idx];
 				if (ref($pdim) eq 'ARRAY') {
-					if ($pdim->[0] eq ':') {
-						croak 'FIXME!';
+					if (($pdim->[0] & 0x0F) == 12) {# eq ':'						
 						my $dim_start = emit_expression($pdim->[1],'');
 						my $dim_stop = emit_expression($pdim->[2],'');
 						push @{$dim}, [$dim_start ,$dim_stop ]; 
@@ -4751,7 +4763,7 @@ sub  _get_dim_from_ast { (my  $ast ) = @_;
 		}	
 	}	
 	return $dim;	
-}
+} # END of _get_dim_from_ast()
 
 sub  _get_dim_from_ast_OLD { (my  $ast ) = @_;
 		my $dim=[];
