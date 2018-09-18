@@ -232,7 +232,7 @@ sub pass_identify_stencils {(my $stref)=@_;
 			[
 #				[ sub { (my $stref, my $f)=@_;  alias_ordered_set($stref,$f,'DeclaredOrigArgs','DeclaredOrigArgs'); } ],
 		  		[
-			  		\&_identify_array_accesses_in_exprs,
+			  		\&_identify_array_accesses_in_exprs,			  		
 				],
 			]
 		);
@@ -272,10 +272,11 @@ sub pass_emit_TyTraCL {(my $stref)=@_;
 # 	$state->{'Subroutines'}{ $f }{ $block_id }{'Arrays'}{$array_var}{'Dims'} = [[0,501],[1,500],...]
 #
 sub _identify_array_accesses_in_exprs { (my $stref, my $f) = @_;
+#	say "\nIN SUB $f";
     #	die $f.' : '.Dumper($stref->{'Subroutines'}{$f}{Source});
     if ($stref->{'Subroutines'}{$f}{'Source'}=~/(?:dyn.f95|module_\w+_superkernel.f95)/ && $f!~/superkernel/) {  # TODO
 
-        # For TyTraCL
+        # For TyTraCL 
         push @{ $stref->{'TyTraCL_AST'}{'Lines'} }, {'NodeType' => 'Comment', 'CommentStr' => $f };
 
 		my $pass_identify_array_accesses_in_exprs = sub { (my $annline, my $state)=@_;
@@ -327,7 +328,10 @@ sub _identify_array_accesses_in_exprs { (my $stref, my $f) = @_;
 				# Assignment to scalar *_rel
 				if ($info->{'Lhs'}{'ArrayOrScalar'} eq 'Scalar' and $info->{'Lhs'}{'VarName'} =~/^(\w+)_rel/) {
 					my $loop_iter=$1;
-					$state->{'Subroutines'}{ $f }{$block_id}{'LoopIters'}{$loop_iter}={'Range' => 0};
+					if (not exists $state->{'Subroutines'}{ $f }{$block_id}{'LoopIters'}{$loop_iter}{'Range'}) {
+						croak "This should not happen!";
+						$state->{'Subroutines'}{ $f }{$block_id}{'LoopIters'}{$loop_iter}={'Range' => [0,0]};
+					}
 				}
 				# Assignment to scalar *_range
 				elsif ($info->{'Lhs'}{'ArrayOrScalar'} eq 'Scalar' and $info->{'Lhs'}{'VarName'} =~/^(\w+)_range/) {
@@ -335,7 +339,7 @@ sub _identify_array_accesses_in_exprs { (my $stref, my $f) = @_;
 
 					my $expr_str = emit_expression($info->{'Rhs'}{'ExpressionAST'},'');
 					my $loop_range = eval($expr_str);
-					$state->{'Subroutines'}{ $f }{$block_id}{'LoopIters'}{$loop_iter}={'Range' => $loop_range};
+					$state->{'Subroutines'}{ $f }{$block_id}{'LoopIters'}{$loop_iter}={'Range' => [1,$loop_range]};
 
 				} else {
 					# This tests for the case of the same array on LHS and RHS, but maybe with a different access location, so a(...) = a(...)
@@ -352,11 +356,24 @@ sub _identify_array_accesses_in_exprs { (my $stref, my $f) = @_;
 						$state->{'Subroutines'}{ $f }{$block_id}{'Identity'}{$var_name} = 1;
 					}
 
+					
 					# Find all array accesses in the LHS and RHS AST.
 
 					(my $rhs_ast, $state, my $rhs_accesses) = _find_array_access_in_ast($stref, $f, $block_id, $state, $info->{'Rhs'}{'ExpressionAST'},'Read',{});
 					(my $lhs_ast, $state, my $lhs_accesses) = _find_array_access_in_ast($stref, $f, $block_id, $state, $info->{'Lhs'}{'ExpressionAST'},'Write',{});
-                    say $line .' => '.Dumper([$rhs_accesses,$lhs_accesses]). ' ( ' . __LINE__ . ' ) ';
+					if (exists $lhs_accesses->{'Arrays'} or exists $rhs_accesses->{'Arrays'} ) {
+						# This is a line with array accesses. Check the halos!
+#                    say $line;# .' => '.Dumper([$rhs_accesses,$lhs_accesses]). ' ( ' . __LINE__ . ' ) ';
+					
+                    ($lhs_accesses,$rhs_accesses) = @{ _detect_halo_accesses($line, $lhs_accesses,$rhs_accesses,$state,$block_id,$stref,$f) };
+                    if (exists $rhs_accesses->{'HasHaloAccesses'}) {
+                    $info->{'Rhs'}{'ArrayAccesses'}=$rhs_accesses;
+                    }
+                    if (exists $lhs_accesses->{'HasHaloAccesses'}) {
+                    $info->{'Lhs'}{'ArrayAccesses'}=$lhs_accesses;
+                    }                     
+                    
+					}
                 }
 				my $var_name = $info->{'Lhs'}{'VarName'};
 				if (not exists $state->{'Subroutines'}{ $f }{$block_id}{'Assignments'}{$var_name}) {
@@ -405,9 +422,9 @@ sub _identify_array_accesses_in_exprs { (my $stref, my $f) = @_;
                 #       }
                 (my $range_start, my $range_stop, my $range_step) = @{ $info->{'Do'}{'Range'}{'Expressions'} };
                 my $loop_iter = $info->{'Do'}{'Iterator'};
-                my $loop_range_expr = [$range_start,$range_stop]; # FIXME Maybe we don't need this. But if we do, we should probably eval() it
+                my $loop_range_exprs = [$range_start,$range_stop]; # FIXME Maybe we don't need this. But if we do, we should probably eval() it
                 my $loop_id = $info->{'LineID'};
-                push @{ $state->{'Subroutines'}{$f}{'LoopNests'} },[$loop_id, $loop_iter , {'Range' => $loop_range_expr}];
+                push @{ $state->{'Subroutines'}{$f}{'LoopNests'} },[$loop_id, $loop_iter , {'Range' => $loop_range_exprs}];
                 my $block_id = __mkLoopId( $state->{'Subroutines'}{$f}{'LoopNests'} );
                 for my $loop_iter_rec ( @{ $state->{'Subroutines'}{$f}{'LoopNests'} } ) {
                     (my $loop_id, my $loop_iter, my $range_rec) = @{$loop_iter_rec};
@@ -423,7 +440,11 @@ sub _identify_array_accesses_in_exprs { (my $stref, my $f) = @_;
 		};
 
 		my $state = {'CurrentSub'=>'', 'Subroutines'=>{}};
+			
 	 	($stref,$state) = stateful_pass($stref,$f,$pass_identify_array_accesses_in_exprs, $state,'pass_identify_array_accesses_in_exprs ' . __LINE__  ) ;
+	 	
+	 	$stref = _collect_dependencies_for_halo_access($stref,$f);
+#	 	die Dumper $stref->{'Subroutines'}{$f}{'RefactoredCode'};
 #	 	if ($f=~/vernieuw/) {
 
 		$state = _link_writes_to_reads( $stref, $f, $state);
@@ -514,7 +535,7 @@ sub _find_array_access_in_ast { (my $stref, my $f,  my $block_id, my $state, my 
 						$state = _find_iters_in_array_idx_expr($stref,$f,$block_id,$ast, $state,$rw);
 						my $array_var = $ast->[1];
                         # Special case for our OpenCL kernels
-						if ($array_var =~/(glob|loc)al_/) { return ($ast,$state); }
+						if ($array_var =~/(?:glob|loc)al_/) { return ($ast,$state); }
 #						# First we compute the offset
 #						say "OFFSET";
 						my $ast0 = dclone($ast);
@@ -1578,6 +1599,224 @@ sub F4D2C { (
             $i_rng*($jx-$j_lb)+
             $ix-$i_lb
             );
+}
+
+# Halo access detection 
+# The main purpose is to detect writes to halos, because reads are never a problem
+# For the purpose of dividing the domain (e.g. chunking on GPU, or MPI) we need the read accesses to ensure that no read occurs outside the chunk visible to the process.
+# So first we must detect if a given access is inside a halo
+# Then we need to decide what to do about it. 
+# Let's first look if an LHS write requires an opposite bound for the RHS read
+# So what we need is a record of the array access, we put this in HaloAccesses
+
+# This is not good, I need to combine LHS and RHS into a single routine 
+sub _detect_halos {
+	(my $line, my $accesses, my $rw, my $state, my $block_id, my $stref, my $f) = @_;
+	if (not exists $accesses->{'Arrays'}) {
+		return $stref;
+	}
+	
+	for my $array_var (keys %{ $accesses->{'Arrays'} } ) {
+	
+#			say "SUB $f VAR: $array_var ";
+			my ($expr_id,$expr_recs ) = each %{ $accesses->{'Arrays'}{$array_var}{$rw}{'Accesses'} };
+			my $idx=0;
+			for my $expr_rec (@{$expr_recs}) { # i.e. i,j,k
+			    my ($loop_iter, $offset_t) = each %{$expr_rec};
+			    my $offset=$offset_t->[1];
+			    for my $b (0,1) { # $b is the bound index
+#			    	say "LOOP ITER: $loop_iter";
+#			    	say Dumper($state->{'Subroutines'}{ $f }{$block_id}{'LoopIters'});
+					# This is the loop bound
+			        my $loop_bound = $state->{'Subroutines'}{ $f }{$block_id}{'LoopIters'}{$loop_iter}{'Range'}->[$b];			        
+			        my $expr_loop_bound = $loop_bound+$offset;
+#			        say "EXPR: $expr_m ";
+			        my $array_bound = $state->{'Subroutines'}{ $f }{ $block_id }{'Arrays'}{$array_var}{'Dims'}[$idx][$b];
+#			        say  "BOUND: $array_bound" ;
+			        my $decl = get_var_record_from_set( $stref->{'Subroutines'}{$f}{'Vars'},$array_var);
+#			        say Dumper($decl);			        
+#			        my $decl = $stref->{'Subroutines'}{ $f }{'Vars'}{$array_var}{'Halos'}[$idx][$b];
+			        my $array_halo = $decl->{'Halos'}[$idx][$b];
+#			        say "HALO: $array_halo"; 
+			        my $in_halo = $b ? 
+			        ($expr_loop_bound > $array_bound - $array_halo) ? 1 : 0
+			        : ($expr_loop_bound < $array_bound + $array_halo) ? 1 : 0;
+			        if ($in_halo and $rw eq 'Write') {
+			        my $in_halo_expl = $b ? 
+			        ($expr_loop_bound > $array_bound - $array_halo) ? "upper bound and highest access is outside core: $expr_loop_bound > ".($array_bound - $array_halo) : ''
+			        : ($expr_loop_bound < $array_bound + $array_halo) ? "lower bound and lowest access is outside core: $expr_loop_bound < ".($array_bound + $array_halo) : '';
+			        
+			        say "SUB $f LINE	$line";
+			        say "HALO CHECK: $rw access to $loop_iter".($offset ?$offset:'')." in $array_var is ". ($in_halo ? '' : 'not ').'a halo access for the '. ($b ? 'upper' : 'lower').' bound: '.$in_halo_expl ;
+			        
+			        	# The test is
+			        	# Lower: $loop_bound + $offset < $array_bound + $array_halo
+			        	# Upper: $loop_bound + $offset > $array_bound - $array_halo			        	
+			        	$accesses->{'Arrays'}{$array_var}{$rw}{'HaloAccesses'}{$loop_iter}={'Bound' =>$b, 'Test' => [$loop_bound, $offset, $array_bound, $array_halo]};
+			        }
+			        
+			        
+			    }
+			    $idx++;
+			}
+		
+	}
+	return $accesses;
+
+}
+
+sub _detect_halo_accesses {
+	(my $line, my $lhs_accesses, my $rhs_accesses, my $state, my $block_id, my $stref, my $f) = @_;
+	if (exists $lhs_accesses->{'Arrays'}) {
+		
+		for my $array_var (keys %{ $lhs_accesses->{'Arrays'} } ) {
+	
+#			say "SUB $f VAR: $array_var ";
+			my ($expr_id,$expr_recs ) = each %{ $lhs_accesses->{'Arrays'}{$array_var}{'Write'}{'Accesses'} };
+			my $idx=0;
+			for my $expr_rec (@{$expr_recs}) { # i.e. i,j,k
+			    my ($loop_iter, $offset_t) = each %{$expr_rec};
+			    my $offset=$offset_t->[1];
+			    for my $b (0,1) { # $b is the bound index
+#			    	say "LOOP ITER: $loop_iter";
+#			    	say Dumper($state->{'Subroutines'}{ $f }{$block_id}{'LoopIters'});
+					# This is the loop bound
+			        my $loop_bound = $state->{'Subroutines'}{ $f }{$block_id}{'LoopIters'}{$loop_iter}{'Range'}->[$b];			        
+			        my $expr_loop_bound = $loop_bound+$offset;
+#			        say "EXPR: $expr_m ";
+			        my $array_bound = $state->{'Subroutines'}{ $f }{ $block_id }{'Arrays'}{$array_var}{'Dims'}[$idx][$b];
+#			        say  "BOUND: $array_bound" ;
+			        my $decl = get_var_record_from_set( $stref->{'Subroutines'}{$f}{'Vars'},$array_var);
+#			        say Dumper($decl);			        
+#			        my $decl = $stref->{'Subroutines'}{ $f }{'Vars'}{$array_var}{'Halos'}[$idx][$b];
+			        my $array_halo = $decl->{'Halos'}[$idx][$b];
+#			        say "HALO: $array_halo"; 
+			        my $in_halo = $b ? 
+			        ($expr_loop_bound > $array_bound - $array_halo) ? 1 : 0
+			        : ($expr_loop_bound < $array_bound + $array_halo) ? 1 : 0;
+			        if ($in_halo ) {
+			        my $in_halo_expl = $b ? 
+			        ($expr_loop_bound > $array_bound - $array_halo) ? "upper bound and highest access is outside core: $expr_loop_bound > ".($array_bound - $array_halo) : ''
+			        : ($expr_loop_bound < $array_bound + $array_halo) ? "lower bound and lowest access is outside core: $expr_loop_bound < ".($array_bound + $array_halo) : '';
+			        
+			        say "SUB $f LINE	$line";
+			        say "HALO CHECK: Write access to $loop_iter".($offset ?$offset:'')." in $array_var is ". ($in_halo ? '' : 'not ').'a halo access for the '. ($b ? 'upper' : 'lower').' bound: '.$in_halo_expl ;
+			        
+			        	# The test is
+			        	# Lower: $loop_bound + $offset < $array_bound + $array_halo
+			        	# Upper: $loop_bound + $offset > $array_bound - $array_halo			        	
+			        	$lhs_accesses->{'Arrays'}{$array_var}{'Write'}{'HaloAccesses'}{$loop_iter}={'Bound' =>$b, 'Test' => [$loop_bound, $offset, $array_bound, $array_halo]};
+			        	$lhs_accesses->{'HasHaloAccesses'}=1;
+			        }
+			    }
+			    $idx++;
+			}		
+		}
+	}
+	# This is for completeness mainly
+	if (exists $rhs_accesses->{'Arrays'}) {
+		
+		for my $array_var (keys %{ $rhs_accesses->{'Arrays'} } ) {
+	
+#			say "SUB $f VAR: $array_var ";
+			my ($expr_id,$expr_recs ) = each %{ $rhs_accesses->{'Arrays'}{$array_var}{'Read'}{'Accesses'} };
+			my $idx=0;
+			for my $expr_rec (@{$expr_recs}) { # i.e. i,j,k
+			    my ($loop_iter, $offset_t) = each %{$expr_rec};
+			    my $offset=$offset_t->[1];
+			    for my $b (0,1) { # $b is the bound index
+#			    	say "LOOP ITER: $loop_iter";
+#			    	say Dumper($state->{'Subroutines'}{ $f }{$block_id}{'LoopIters'});
+					# This is the loop bound
+			        my $loop_bound = $state->{'Subroutines'}{ $f }{$block_id}{'LoopIters'}{$loop_iter}{'Range'}->[$b];			        
+			        my $expr_loop_bound = $loop_bound+$offset;
+#			        say "EXPR: $expr_m ";
+			        my $array_bound = $state->{'Subroutines'}{ $f }{ $block_id }{'Arrays'}{$array_var}{'Dims'}[$idx][$b];
+#			        say  "BOUND: $array_bound" ;
+			        my $decl = get_var_record_from_set( $stref->{'Subroutines'}{$f}{'Vars'},$array_var);
+#			        say Dumper($decl);			        
+#			        my $decl = $stref->{'Subroutines'}{ $f }{'Vars'}{$array_var}{'Halos'}[$idx][$b];
+			        my $array_halo = $decl->{'Halos'}[$idx][$b];
+#			        say "HALO: $array_halo"; 
+			        my $in_halo = $b ? 
+			        ($expr_loop_bound > $array_bound - $array_halo) ? 1 : 0
+			        : ($expr_loop_bound < $array_bound + $array_halo) ? 1 : 0;
+			        if ($in_halo ) {
+			        my $in_halo_expl = $b ? 
+			        ($expr_loop_bound > $array_bound - $array_halo) ? "upper bound and highest access is outside core: $expr_loop_bound > ".($array_bound - $array_halo) : ''
+			        : ($expr_loop_bound < $array_bound + $array_halo) ? "lower bound and lowest access is outside core: $expr_loop_bound < ".($array_bound + $array_halo) : '';
+			        
+#			        say "SUB $f LINE	$line";
+#			        say "HALO CHECK: Read access to $loop_iter".($offset ?$offset:'')." in $array_var is ". ($in_halo ? '' : 'not ').'a halo access for the '. ($b ? 'upper' : 'lower').' bound: '.$in_halo_expl ;
+			        
+			        	# The test is
+			        	# Lower: $loop_bound + $offset < $array_bound + $array_halo
+			        	# Upper: $loop_bound + $offset > $array_bound - $array_halo			        	
+			        	$rhs_accesses->{'Arrays'}{$array_var}{'Read'}{'HaloAccesses'}{$loop_iter}={'Bound' =>$b, 'Test' => [$loop_bound, $offset, $array_bound, $array_halo]};
+			        	$rhs_accesses->{'HasHaloAccesses'}=1;
+			        }
+			    }
+			    $idx++;
+			}		
+		}
+	}	
+	return [$lhs_accesses, $rhs_accesses];
+	
+} # _detect_halo_accesses
+
+#For all lines with Write accesses to the halo, i.e. in $lhs_accesses
+#- find all dependencies on that lines
+#- look at any assignment line before that, and if the LHS is a dep, add it to a list.
+#- Somewhere in the end we must then merge all these lists so we'll need to keep them in order
+#- So I think tagging the lines is better
+#- And do this for downstream as well. So I guess I go through all lines, which means I need the LineID in the accesses as well
+sub _collect_dependencies_for_halo_access { (my $stref, my $f) = @_;
+	my $annlines = $stref->{'Subroutines'}{$f}{'RefactoredCode'};
+my $annline_ctr=0;	
+for my $annline (@{$annlines}) {
+	my ($line, $info) = @{$annline};
+	
+	if (exists $info->{'Assignment'} and exists $info->{'Lhs'} and exists $info->{'Lhs'}{'ArrayAccesses'}) {
+#		say $f.Dumper($info->{'Lhs'}{'ArrayAccesses'});
+		say $line;
+		# OK, a line with a halo access was found. From here, go up
+		# So we must make an inventory of (1) all vars on the RHS (2) all vars that are not the actual array var, on the LHS
+		# For each of these we must see if it is assigned to on the LHS of a preceding line.
+		# If so, must repeat this do this for that line itself; otherwise we can of course ignore it.
+		my ($array_var, $array_var_rec) = each %{$info->{'Lhs'}{'ArrayAccesses'}{'Arrays'}};
+		my $rhs_vars = get_vars_from_expression($info->{'Rhs'}{'ExpressionAST'});
+		my $lhs_vars = get_vars_from_expression($info->{'Lhs'}{'ExpressionAST'}); 		
+		delete $lhs_vars->{$array_var};
+		my %halo_deps=( %{$rhs_vars}, %{$lhs_vars} );
+		for my $annline_idx ( 0 .. $annline_ctr-1 ) {
+			
+			my $rev_annline_idx =  $annline_ctr - 1 - $annline_idx;
+			my $prec_annline =   $annlines->[$rev_annline_idx];
+			my ($prec_line, $prec_info) = @{$prec_annline};
+#			say $prec_line;
+			if (exists $prec_info->{'Assignment'}) {
+				my $lhs_vars = get_vars_from_expression($prec_info->{'Lhs'}{'ExpressionAST'});
+				for my $lhs_var (sort keys %{$lhs_vars}) {
+					if (exists $halo_deps{$lhs_var} ) {
+						$prec_info->{'HaloDep'}=1;
+						say "Halo access $array_var depends on line $prec_line";												
+					} 	
+				}
+				if (exists $prec_info->{'HaloDep'}) {
+					my $rhs_vars = get_vars_from_expression($prec_info->{'Rhs'}{'ExpressionAST'});
+					my %halo_deps=( %halo_deps, %{$rhs_vars}, %{$lhs_vars} );
+				}
+				
+			} # TODO: later we must extend this to subroutine calls as well
+#			die; 			
+			# Collect dependencies			
+		}  
+		die;
+	}
+	$annline_ctr++; 
+}	
+	
+return $stref;	
 }
 
 1;

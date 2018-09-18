@@ -3249,7 +3249,7 @@ sub __parse_f95_decl {
                     my @halo_chunks=split(/\s*\)\s*,\s*\(\s*/,$halo_str);
                     @{$halos} = map { [ split(/\s*,\s*/,$_) ] } @halo_chunks;
                     $has_halo_attr=1;
-                    #croak "HALOS: ".Dumper($halos);
+                    
             }
 			
 			if (not exists $pt->{'Attributes'}{'Allocatable'}) {
@@ -3296,6 +3296,7 @@ sub __parse_f95_decl {
                 # We ignore the halo attribute unless it's an array
                 # We should also check if the dims match!
                 if ($decl->{'ArrayOrScalar'} eq 'Array' and $has_halo_attr) {
+#                	say "SUB $f VAR $tvar HALOS: ".Dumper($halos);
                     $decl->{'Halos'} = $halos;
                     if( scalar( @{$decl->{'Dim'} } ) != scalar(@{$halos}) ) {
                         croak("$line: ERROR: The halo attribute must have the same dimension as the array.");
