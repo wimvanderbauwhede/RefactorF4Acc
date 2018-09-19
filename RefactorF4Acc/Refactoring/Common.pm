@@ -1627,6 +1627,7 @@ sub pass_wrapper_subs_in_module { (my $stref,my $pass_sequences, my @rest) = @_;
     my %existing_module_name = ();
 	
 	for my $src (keys %{ $stref->{'SourceContains'} } ) {		
+		
 		if (exists $stref->{'SourceContains'}{$src}{'Path'}
 		and  exists $stref->{'SourceContains'}{$src}{'Path'}{'Ext'} ) {	
 		# External, SKIP!
@@ -1643,9 +1644,11 @@ sub pass_wrapper_subs_in_module { (my $stref,my $pass_sequences, my @rest) = @_;
 		    }
 		}
 		my $has_contains = ( $is_existing_module{$src} and exists $stref->{'Modules'}{$existing_module_name{$src}}{'Contains'}  ) ? 1 : 0;
-		my @subs= $is_existing_module{$src}  ? $has_contains ? @{ $stref->{'Modules'}{$existing_module_name{$src}}{'Contains'} } : ()  :   sort keys %{ $stref->{'Subroutines'} };
+#		say "SRC: $src";
+		my @subs= $is_existing_module{$src}  ? $has_contains ? @{ $stref->{'Modules'}{$existing_module_name{$src}}{'Contains'} } : ()  :  grep {$_ ne 'UNKNOWN_SRC' } sort keys %{ $stref->{'Subroutines'} };
 		for my $pass_sequence (@{$pass_sequences}) {	
 			for my $f ( @subs ) {
+#				say "SUB $f";
 				for my $pass_sub_ref (@{$pass_sequence}) {			
 					$stref=$pass_sub_ref->($stref, $f, @rest);
 				}			

@@ -287,7 +287,7 @@ sub _process_src {
                 
                 $fstyle='F95';                
                 $stref->{'Modules'}{$mod_name}{'FStyle'}=$fstyle;
-            	$stref->{'Modules'}{$mod_name}{'FreeForm'}=$free_form;                  
+            	$stref->{'Modules'}{$mod_name}{'FreeForm'}=1;#$free_form;                  
                 $stref->{'Modules'}{$mod_name}{'TabFormat'}=$tab_format;         
             } 
             if ( $line =~ /^\s*end\s+(?:module|program)/i ) { 
@@ -295,7 +295,14 @@ sub _process_src {
             }
         if ($fstyle eq 'F77') {            
             if ( $line =~ /^\s*(.*)\s*::\s*(.*?)\s*$/ ) {
-                 $fstyle='F95';
+                 $fstyle='F95'; 
+#                 die $srctype . Dumper( $stref->{'SourceContains'}{$src} ) if $src=~/main/;
+                 if (scalar @{ $stref->{'SourceContains'}{$src}{'List'} } == 1) {
+                 	(my $code_unit, $srctype) = each %{ $stref->{'SourceContains'}{$src}{'Set'} };
+	                $stref->{$srctype}{$code_unit}{'FStyle'}='F95';
+    	        	$stref->{$srctype}{$code_unit}{'FreeForm'}=1;                                   	
+                 }
+                 
             }
         } 
         
@@ -407,11 +414,11 @@ sub _process_src {
                 } else {
                 	croak 'TROUBLE!';
                 }
-                    $stref->{'Subroutines'}{$sub}{'FStyle'}=$fstyle;
-            		$stref->{'Subroutines'}{$sub}{'FreeForm'}=$free_form;  
-            		$stref->{'Subroutines'}{$sub}{'TabFormat'}=$tab_format;
-		            $stref->{'Subroutines'}{$sub}{'HasBlocks'}=$has_blocks;
-                	$sub_name=$sub unless $is_entry;
+                $stref->{'Subroutines'}{$sub}{'FStyle'}=$fstyle;
+            	$stref->{'Subroutines'}{$sub}{'FreeForm'}=$free_form;  
+            	$stref->{'Subroutines'}{$sub}{'TabFormat'}=$tab_format;
+		        $stref->{'Subroutines'}{$sub}{'HasBlocks'}=$has_blocks;
+                $sub_name=$sub unless $is_entry;
             };
             
             # Find include statements

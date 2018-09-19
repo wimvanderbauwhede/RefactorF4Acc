@@ -119,6 +119,7 @@ sub read_fortran_src {
                 
                 push @lines, "      \n";
                 my $free_form = $stref->{$sub_func_incl}{$code_unit}{'FreeForm'};
+                die "$sub_func_incl $code_unit ".Dumper($stref->{$sub_func_incl}{$code_unit}) if !$free_form; 
                 my $srctype   = $sub_func_incl;
                 if ($sub_contained_in_module) {
                 	$srctype   = 'Modules';
@@ -156,6 +157,7 @@ Suppose we don't:
 #					map { say $_} @{$norm_lines };
 #					croak ;
                     for my $line ( @{$norm_lines} ) {
+                    	
                         # emit line
                         if ( $line ne '' ) {                        	
                             ( $stref, $code_unit , $srctype ) = _pushAnnLine( $stref, $code_unit , $srctype, $f, $line, $free_form );
@@ -892,7 +894,8 @@ Suppose we don't:
             
 				# Split lines with multiple common block declarations            
 			    for my $sub_or_func ( @{  $stref->{'SourceContains'}{$f}{'List'}   } ) {			    	
-			        my $sub_func_type= $stref->{'SourceContains'}{$f}{'Set'}{$sub_or_func};			        
+			        my $sub_func_type= $stref->{'SourceContains'}{$f}{'Set'}{$sub_or_func};
+			        			        
 			        my $Sf = $stref->{$sub_func_type}{$sub_or_func};			         
 			        next if (exists $Sf->{'Entry'} and $Sf->{'Entry'}==1);
 			         
@@ -967,8 +970,8 @@ sub _pushAnnLine {
     	}
 
 	    if ( exists $pline->[1]{'Module'} and $srctype eq 'Modules' ) {
+	    	
 	        if ( $f ne 'UNKNOWN_SRC' ) {
-
 	            if ( $stref->{$srctype}{$f}{'Status'} < $READ ) {    # FIXME: bit late, can I catch this earlier?
 	                $stref->{$srctype}{$f}{'Status'} = $READ;                
 	            }
@@ -983,7 +986,6 @@ sub _pushAnnLine {
                 if ( $stref->{$srctype}{$f}{'Status'} == $UNREAD )
                 {    # FIXME: bit late, can I catch this earlier?
                     $stref->{$srctype}{$f}{'Status'} = $READ;
-#                    say "\t$srctype $f : READ";
                 }
             }
  			if ( exists $pline->[1]{'SubroutineSig'} ) {
@@ -1008,7 +1010,7 @@ sub _pushAnnLine {
 	        my $mod_name = $pline->[1]{'EndModule'};
 	        push @{ $stref->{'Modules'}{$mod_name}{'AnnLines'} }, $pline unless $stref->{'Modules'}{$mod_name}{'Status'} == $PARSED;
 	    } else {
-		    if ($f ne  'UNKNOWN_SRC') { # WV: what should happen is that on exit of a subroutine we push the rest onto the Module annlines.		     
+		    if ($f ne  'UNKNOWN_SRC') { # WV: what should happen is that on exit of a subroutine we push the rest onto the Module annlines.		    
 		    	if (not (exists $stref->{$srctype}{$f}{'Status'} and $stref->{$srctype}{$f}{'Status'} == $PARSED) ) {		    	
 #		    		say "$srctype $f";
 		    		push @{ $stref->{$srctype}{$f}{'AnnLines'} }, $pline;
@@ -1018,8 +1020,9 @@ sub _pushAnnLine {
 		    	say "INFO: Adding <$line> to $src because code unit not yet known" if $I;		    	 
 		    	push @{ $stref->{'SourceFiles'}{$src}{'AnnLines'} }, $pline;
 		    }       
-	    }  
-	}   
+	    }
+	      
+	}  
 
     return ( $stref, $f, $srctype );
 }    # END of  _pushAnnLine()
@@ -1148,8 +1151,8 @@ sub _procLine {
 	} 
     # Detect and standardise comments    
 # A line with a c, C, *, d, D, or! in column one is a comment line. The d, D, and! are nonstandard.     
-    elsif ($free_form==0 and $line=~/^[CD\*\!]/i) {
-    	 
+    elsif ($free_form==0 and $line=~/^[CD\*\!]/i) {    	 
+    	croak $free_form;
     	$info->{'Comments'} = 1;
     	$line = '! '.substr($line,1);
     } elsif ($line=~/^\s*\!/) {
