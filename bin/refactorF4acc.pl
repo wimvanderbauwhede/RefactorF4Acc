@@ -8,6 +8,10 @@ use 5.010;
 use warnings;
 use warnings FATAL => qw(uninitialized);
 use strict;
+
+use vars qw( $VERSION );
+$VERSION = "1.0.0";
+
 use Carp;
 use Data::Dumper;
 $Data::Dumper::Indent = 1;
@@ -34,6 +38,7 @@ our $usage = "
        [<subroutine name(s) for C translation>]
     Typical use: rf4a -c ./rf4a.cfg -g -v -i main   
     -h: help
+    -V: print the version number
     -w: show warnings 
     -v: verbose (implies -w)
     -i: show info messages
@@ -229,8 +234,12 @@ sub parse_args {
 		die "Please specifiy FORTRAN subroutine or program to refactor\n";
 	}
 	my %opts = ();
-	getopts( 'vwidhACTNgbBGc:P:', \%opts );
+	getopts( 'vVwidhACTNgbBGc:P:', \%opts );
 	
+   if ($opts{'V'}) {
+		die "Version: $VERSION\n";
+    }
+
 	my $help = ( $opts{'h'} ) ? 1 : 0;
     if ($help) {
         die $usage;

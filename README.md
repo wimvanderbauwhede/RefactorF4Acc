@@ -85,6 +85,13 @@ Furthermore, we tested the compiler on four real-word physics simulation models:
 
 Each of these models has a different coding style, specifically in terms of the use of common blocks, include files, etc that affect the refactoring process. All of these codes are refactored fully automatically without changes to the original code and build and run correctly. The performance of the original and refactored code is the same in all cases.
 
+## Known issues
+
+- The compiler currently assumes that functions are pure, i.e. they do not use global variables. If your code uses impure functions, refactoring should still work but the globals in functions will not be removed.
+- The compiler does not replace C preprocessor macros, so it your code uses these, make sure to run `cpp` in advance.
+- The compiler supports mainly F77. If your code is a mixture of F77 and F90 or later, it may or may not work.
+- Some F77 features are ignored, notably `EQUIVALENCE` and `ASSIGN`.
+
 ## Installation
 
 The source code for RefactorF4ACC is written in Perl and requires v5.10 or later. There are no dependencies and no compilation is required. I have tested it on Linux and MacOS.
@@ -285,7 +292,7 @@ We start from the original code, where the only change is the addition of a `!$A
 To generate the refactored Fortran-95 code used as starting point for autoparallelisation and OpenCL conversion, run the command `./generate_and_build.sh`:
 
       $ ./generate_and_build.sh
-      
+
 This will generate (and build) the refactored, accelerator-ready Fortran 95 code in the directory `tests/RefactoredSources`. This code produces exactly the same output as the original code, with the same performance. We can now run the auto-parallelising compiler on this refactored code:	     
 
 	$ cd ../RefactoredSources
