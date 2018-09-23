@@ -1,4 +1,4 @@
-package RefactorF4Acc::Parser;
+/c::Parser;
 use v5.10;
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
@@ -1427,7 +1427,7 @@ sub _parse_includes {
 	$last_inc_idx++;
 	$srcref->[$last_inc_idx][1]{'ExtraIncludesHook'} = 1;
 	return $stref;
-}    # END of parse_includes()
+}    # END of _parse_includes()
 
 # -----------------------------------------------------------------------------
 # Parse 'use' declarations 
@@ -1545,7 +1545,7 @@ sub _parse_use {
 	$last_inc_idx++;
 	$srcref->[$last_inc_idx][1]{'ExtraModulesHook'} = 1;
 	return $stref;
-}    # END of parse_use()
+}    # END of _parse_use()
 
 # -----------------------------------------------------------------------------
 
@@ -1690,7 +1690,7 @@ sub __find_called_subs_in_OUTER {
 	}
 	
 	return $blocksref;
-}
+} # END of __find_called_subs_in_OUTER()
 
 # -----------------------------------------------------------------------------
 # CALL
@@ -2018,7 +2018,7 @@ sub _parse_subroutine_and_function_calls {
 		$stref->{$sub_or_func_or_mod}{$f}{'AnnLines'} = [ @{$srcref} ];
 	}
 	return $stref;
-}    # END of parse_subroutine_and_function_calls()
+}    # END of _parse_subroutine_and_function_calls()
 
 # -----------------------------------------------------------------------------
 
@@ -2379,7 +2379,7 @@ sub __find_parameter_used_in_inc_and_add_to_Only { (my $inc, my $stref ) = @_;
 	
 	
 	return $stref;
-}
+} # END of __find_parameter_used_in_inc_and_add_to_Only()
 # -----------------------------------------------------------------------------
 sub _parse_implicit {
 	( my $line, my $f, my $stref ) = @_;
@@ -4626,7 +4626,7 @@ if ($lhs=~/,/ or $rhs=~/,/) {
 		
 	my $rinfo = dclone($info);
 	$rinfo->{'Assignment'}=1;
-$rinfo->{'Data'}=1;
+    $rinfo->{'Data'}=1;
 			( my $rhs_args, my $rhs_vars ) =
 	  @{ get_args_vars_from_expression($rhs_val_ast) };
 	my $rhs_all_vars = {
@@ -4654,9 +4654,9 @@ $rinfo->{'Data'}=1;
 	
 } # END of _parse_data_declaration()
 
-sub _expand_repeat_data { (my $line)=@_;
-	return $line;
-}
+#sub _expand_repeat_data { (my $line)=@_;
+#	return $line;
+#}
 
 sub  _get_var_from_ast { (my  $ast ) = @_;
 	my $var='';
@@ -4868,7 +4868,7 @@ sub mark_blocks_between_calls { (my $stref)=@_;
 		$stref->{'KernelSubs'}=$called_subs;		
 	}	
 	return $stref;
-}
+} # END of mark_blocks_between_calls()
 
 1;
 

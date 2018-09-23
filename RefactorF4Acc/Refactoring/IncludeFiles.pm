@@ -116,7 +116,7 @@ sub _refactor_include_file {
                 	my $gvar=$stref->{'IncludeFiles'}{$inc_f}{'ConflictingGlobals'}{$var}[0];
                 	$line=~s/\b$var\b/$gvar/;
                 	$info->{'Ref'}++;
-                    $info->{'ParamDecl'}=[$gvar];    
+                    $info->{'ParamDecl'}=[$gvar]; # FIXME: This should be a map, surely?
                     print "WARNING: WEAK! renamed $var to $gvar ($line) refactor_include_file() 121\n" if $W;                 
                 }			
             } elsif (exists $info->{'ParamDecl'}{'Names'}) { #die $line.Dumper($info);
