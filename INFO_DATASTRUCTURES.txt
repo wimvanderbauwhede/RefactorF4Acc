@@ -1,17 +1,17 @@
-The compiler is written in a mostly functional style, with a global state that is passed around rather than accessed implicitly. However, in Perl variables are not immutable; what is passed around is a reference to the global state, by convention called $stref.
+The compiler is written in a mostly functional style, with a global state that is passed around rather than accessed implicitly. However, in Perl variables are not immutable; what is passed around is a reference to the global state, by convention called `$stref`.
 
 I use camel case for the names of the keys in the maps. 
 
 The compiler keeps an AST for each subroutine or function definition (in $stref->{Subroutines}).
 
-The AST used by the parser is not a conventional tree. Rather, it is a list of ($line, $info) pairs (which I call 'annotated lines' or AnnLines). To access the AST for a subroutine $f, you would typically do
+The AST used by the parser is not a conventional tree. Rather, it is a list of `($line, $info)` pairs (which I call 'annotated lines' or AnnLines). To access the AST for a subroutine `$f`, you would typically do
 
 	my $annlines = $stref->{Subroutines}{$f}{AnnLines};
 	for my $annline (@{$annlines}) {
 		my ($line, $info) = @{$annline};
 	}
 
-The $info field is a map. Most of the keys depend on the actual code on a given line but there are some general ones:
+The `$info` field is a map. Most of the keys depend on the actual code on a given line but there are some general ones:
 
 Deleted
 Removed
@@ -39,7 +39,7 @@ LineID is a unique ID for each line but you cannot assume that it monotonically 
 
 The main task of this compiler is to analyse and refactor variables. Variables put into a datastructere of nested sets, see XXX
 
-The variable declartion record is as follows:
+The variable declaration record is as follows:
 
 								$decl={
 									'Indent' => $indent,
@@ -74,18 +74,18 @@ String literals are replaces by placeholders to facilitate further parsing.
 
 Parser/SrcReader.pm
 _procLine < _pushAnnLine < read_fortran_src
-1138:		$info->{'Pragma'}=1;		
+1138:		$info->{'Pragma'} = 1;		
 1144,1148:    	$info->{'Comments'} = 1;
-1159:		$info->{'Contains'}=1;       
+1159:		$info->{'Contains'} = 1;       
 1193:       	$info->{'TrailingComment'} = $cline; 
 1204,1208:      	$info->{'Label'} = $label;
-1232:		$info->{'Macro'}=1;	
+1232:		$info->{'Macro'} = 1;	
 1234,1238:     	$info->{'Includes'} = $1;
 1259:          	$info->{'FunctionSig'} = [ $spaces, $name, [] ];
 1261:           	$info->{'Module'} = $name;
 1263:           	$info->{'EntrySig'} = $name;                
 1265:           	$info->{'SubroutineSig'} = [ $spaces, $name, [] ];
-1272:		$info->{'End(Subroutine|Module|Function|Program)'} =$unit_name; 
+1272:		$info->{'End(Subroutine|Module|Function|Program)'} = $unit_name; 
 1276:           	$info->{'Blank'} = 1;            
 1301:           	$info->{'PlaceHolders'} = $phs_ref
 
