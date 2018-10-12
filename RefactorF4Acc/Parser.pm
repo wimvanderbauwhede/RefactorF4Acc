@@ -1,4 +1,4 @@
-/c::Parser;
+package RefactorF4Acc::Parser;
 use v5.10;
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;

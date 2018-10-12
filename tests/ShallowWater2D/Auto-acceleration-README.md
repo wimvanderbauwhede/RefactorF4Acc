@@ -1,7 +1,9 @@
 # 2-D Shallow water code acceleration
 
-[gpu@gpuserver fortran]$ pwd
-/home/gpu/RF4A/tests/ShallowWater2D/fortran
+[gpu@gpuserver ShallowWater2D]$ pwd
+/home/gpu/RefactorF4Acc/tests/ShallowWater2D
+[gpu@gpuserver ShallowWater2D]$ cd fortran
+[gpu@gpuserver fortran]$ 
 
 ## Add a pragma
 
@@ -34,7 +36,7 @@ so that there are only subroutine calls in the main time loop
 	[gpu@gpuserver fortran]$ cd ../RefactoredSources
 	
 	[gpu@gpuserver RefactoredSources]$ pwd
-	/home/gpu/RF4A/tests/ShallowWater2D/RefactoredSources
+	/home/gpu/RefactorF4Acc/tests/ShallowWater2D/RefactoredSources
 	
 	[gpu@gpuserver RefactoredSources]$ scons -f SConstruct.rf4a 
 	[gpu@gpuserver RefactoredSources]$ time ./wave2d 
@@ -54,7 +56,7 @@ so that there are only subroutine calls in the main time loop
 
 	[gpu@gpuserver RefactoredSources]$ cd ../Autopar
 	[gpu@gpuserver Autopar]$ pwd
-	/home/gpu/RF4A/tests/ShallowWater2D/Autopar
+	/home/gpu/RefactorF4Acc/tests/ShallowWater2D/Autopar
 
 Copy some files from the refactored sources
 
