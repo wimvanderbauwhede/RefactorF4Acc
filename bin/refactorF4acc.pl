@@ -32,6 +32,7 @@ use RefactorF4Acc::Builder qw( create_build_script build_executable );
 use RefactorF4Acc::Analysis::LoopDetect qw( outer_loop_variable_analysis );
 
 use Getopt::Std;
+$Getopt::Std::STANDARD_HELP_VERSION=1; 
 
 our $usage = "
     $0 [-hvwicCNg] <toplevel subroutine name> 
@@ -235,6 +236,7 @@ sub parse_args {
 	}
 	my %opts = ();
 	getopts( 'vVwidhACTNgbBGc:P:', \%opts );
+	
 	
    if ($opts{'V'}) {
 		die "Version: $VERSION\n";
@@ -609,4 +611,11 @@ sub test { (my $test_num, my $stref, my $test_subref, my $fail_subref) = @_;
 		}	 
 		die if $last_test==$test_num;
 	}	
+}
+
+sub VERSION_MESSAGE {	
+	if (join(' ',@ARGV)=~/--help/) {
+		die $usage;
+	}
+	die "Version: $VERSION\n";
 }
