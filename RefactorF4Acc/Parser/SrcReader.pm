@@ -119,7 +119,7 @@ sub read_fortran_src {
                 
                 push @lines, "      \n";
                 my $free_form = $stref->{$sub_func_incl}{$code_unit}{'FreeForm'};
-                die "$sub_func_incl $code_unit ".Dumper($stref->{$sub_func_incl}{$code_unit}) if !$free_form; 
+#                die "$sub_func_incl $code_unit FreeForm=$free_form".Dumper($stref->{$sub_func_incl}{$code_unit}) if !$free_form; 
                 my $srctype   = $sub_func_incl;
                 if ($sub_contained_in_module) {
                 	$srctype   = 'Modules';
@@ -1152,7 +1152,7 @@ sub _procLine {
     # Detect and standardise comments    
 # A line with a c, C, *, d, D, or! in column one is a comment line. The d, D, and! are nonstandard.     
     elsif ($free_form==0 and $line=~/^[CD\*\!]/i) {    	 
-    	croak $free_form;
+#    	croak $free_form;
     	$info->{'Comments'} = 1;
     	$line = '! '.substr($line,1);
     } elsif ($line=~/^\s*\!/) {

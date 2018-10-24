@@ -1051,6 +1051,9 @@ sub format_f95_par_decl {
        		my $len = length($val) -2;
        		$type = 'character';
        		$attr="(len=$len)";
+       	} elsif ($val=~/^__PH\d+__/) {       		
+       		$type = 'character';
+       		$attr='len=*';
        	}	
 #       } else {
 #       	#FIXME
@@ -1290,7 +1293,7 @@ sub emit_f95_var_decl {
       	# Contains Type and Kind
       	my $ttype=$type->{'Type'};
       	my $tkind=$type->{'Kind'};
-      	$type= $ttype . (defined $tkind ?  "($tkind)" : '');      	
+      	$type= $ttype . (defined $tkind ?  "($tkind)" : '');       	
       } 
       croak Dumper($var_decl_rec) if $type eq 'character*70';
       my $attr= $var_decl_rec->{'Attr'}; 

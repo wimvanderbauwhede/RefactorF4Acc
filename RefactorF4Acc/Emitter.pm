@@ -86,7 +86,7 @@ sub _emit_refactored_include {
         show_annlines($srcref,0);
         } else {
         print "INFO: emitting refactored code for include $f\n" if $V;
-        
+        say "! FILE: $dir/$incsrc";
         open my $SRC, '>', "$dir/$incsrc" or die "$!: $dir/$incsrc";
         my $prevline='C ';
         $srcref = create_refactored_source($stref,$f,$srcref);
@@ -100,6 +100,8 @@ sub _emit_refactored_include {
         }
         close $SRC;
         }
+    } else {
+#    	say "Not writing $f";
     }
 } # END of emit_refactored_include
 
@@ -119,15 +121,17 @@ sub emit_all {
         	say "SKIPPING $src";
         	next ;
         }
-        print "INFO: emitting refactored code for $src\n" if $V;
+        print '! ','-' x 80,"\n" if $I;
+        print "INFO: emitting refactored code for $src\n" if $I;
         if (not $DUMMY) {
 	        if ( $src =~ /\w\/\w/ ) {
 #	        	say "SRC in SUBDIR: $src";    
 	            # Source resides in subdirectory, create it if required
 	            my @dirs = split( /\//, $src );
-	            say Dumper(@dirs);
+#	            say Dumper(@dirs);
 	            my @subdirs = grep {$_!~/\./} @dirs;
 	            my $dirpath=join('/',@subdirs);
+	            
 #	            say "MKDIR $targetdir/$dirpath";
 #	            die `pwd`;
 	            system("mkdir -p $targetdir/$dirpath");
@@ -139,11 +143,11 @@ sub emit_all {
 #	            } @dirs;
 	        }
         }
-	   if ($I) {
-            print '! ','-' x 80,"\n";
-            print "! SRC: $src\n";
-            print "!\tCONTAINS: ";
+	   if ($I) {            
+            print "INFO:\tSRC: $src\n";
+            print "INFO:\tCONTAINS: ";
             print join(', ',@{ $stref->{'SourceContains'}{$src}{'List'}   } ),"\n";
+            say "";
 	   }
 	   
         if (    not exists $stref->{'BuildSources'}{'C'}{$src}
@@ -151,8 +155,12 @@ sub emit_all {
 #                	say "Emitter: ADD $src to BuildSources";
             $stref->{'BuildSources'}{'F'}{$src} = 1;
         }        
+        
 
-		my $nsrc=$src;$nsrc=~s/\.f$/$EXT/;
+		my $nsrc=$src;
+		if (exists $stref->{'BuildSources'}{'F'}{$src} ) {
+			$nsrc=~s/\.\w+$/$EXT/;
+		}
 		
 		if ($DUMMY) {
 			say '! '.('=' x 80);
@@ -161,6 +169,7 @@ sub emit_all {
 #            croak Dumper($stref->{Subroutines}{press}{RefactoredCode}) if $src=~/press/;
         	show_annlines($stref->{'RefactoredCode'}{$src},0);
         } else {
+#        	say "! FILE: $targetdir/$nsrc ($src)";
 			open my $TGT, '>', "$targetdir/$nsrc" or die $!.": $targetdir/$nsrc";
 			
 			my $mod_lines = $stref->{'RefactoredCode'}{$src};
@@ -185,9 +194,17 @@ sub emit_all {
 	} # loop over all source files
     
     for my $f ( keys %{ $stref->{'IncludeFiles'} } ) {
+    	if ($f=~/\.(\w+)$/) {
+    		my $inc_ext = $1;
+    		if ($inc_ext ne $EXT) {
+#    			say "$inc_ext ne $EXT";
+    			next;
+    		}
+    	}
         if ($I) {
         print "! "."=" x 80,"\n";
         print "! INCLUDE FILE: $f\n";
+        say "! WRITE TO $targetdir";
         print "! "."=" x 80,"\n";
         }
         _emit_refactored_include( $f, $targetdir, $stref );

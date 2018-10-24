@@ -47,7 +47,7 @@ sub add_module_decls {
 	#			set 	$is_existing_module and $existing_module_name
 	#   3. For all code units, get a list of CalledSubs (so in practice this is only for Subroutines)
 	#		- get the sources for these subs, to include in the current module.
-	for my $src ( keys %{ $stref->{'SourceContains'} } ) {
+	for my $src ( keys %{ $stref->{'SourceContains'} } ) {		
 		if (    exists $stref->{'SourceContains'}{$src}{'Path'}
 			and exists $stref->{'SourceContains'}{$src}{'Path'}{'Ext'} )
 		{

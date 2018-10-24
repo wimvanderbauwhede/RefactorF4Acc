@@ -281,7 +281,7 @@ sub _analyse_src_for_iodirs {
 
 			for my $index ( 0 .. scalar( @{$annlines} ) - 1 ) {
 				(my $line,my $info)  = @{ $annlines->[$index] };				 
-								
+#say "$f LINE: $line";								
 				if ( exists $info->{'Blank'} or exists $info->{'Comments'} or exists $info->{'Deleted'}) {
 					next;
 				}
@@ -338,11 +338,41 @@ sub _analyse_src_for_iodirs {
 				if (   exists $info->{'WriteCall'} or exists $info->{'PrintCall'} ) {
 					# All variables are read from, so IODir is read
 					for my $mvar (
-						@{ $info->{'CallArgs'}{'List'} },
-						@{ $info->{'ExprVars'}{'List'} },
+						@{ $info->{'CallArgs'}{'List'} }						 
+					  ) {
+						next if $mvar eq 'write';
+						next if $mvar eq 'print';
+#						say "$line CallArgs $mvar";
+						if ( exists $args->{$mvar}
+							and ref( $args->{$mvar} ) eq 'HASH' )
+						{
+							if ( exists $args->{$mvar}{'IODir'} ) {
+								$args = _set_iodir_ignore( $mvar, $args );
+							}
+						}
+					}
+					for my $mvar (
+						@{ $info->{'ExprVars'}{'List'} }
+					  ) {
+					  	next if $mvar eq 'write';
+						next if $mvar eq 'print';
+					  	
+#						say "$line ExprVars $mvar";
+						if ( exists $args->{$mvar}
+							and ref( $args->{$mvar} ) eq 'HASH' )
+						{
+							if ( exists $args->{$mvar}{'IODir'} ) {
+								$args = _set_iodir_read( $mvar, $args );
+#								say Dumper($args);
+							}
+						}
+					}
+					for my $mvar (						
 						@{ $info->{'CallAttrs'}{'List'} }
-					  )
-					{
+					  ){
+					  	next if $mvar eq 'write';
+						next if $mvar eq 'print';
+#						say "$line CallAttrs $mvar";
 						if ( exists $args->{$mvar}
 							and ref( $args->{$mvar} ) eq 'HASH' )
 						{
@@ -483,12 +513,19 @@ sub _analyse_src_for_iodirs {
 				exists $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}
 				{$arg} )
 			{
-				if ($args->{$arg} != 1) {
+#				say "ARG: $arg ".Dumper($args->{$arg});
+				if ($args->{$arg} != 1
+				and (ref($args->{$arg}) eq 'HASH' and exists $args->{$arg}{'Name'}) 
+				) {
 				$stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$arg} =
 				  { %{ $args->{$arg} } };
 				  
 				} else {
 					my $decl = get_f95_var_decl($stref, $f, $arg);
+					
+					if (exists $args->{$arg}{'IODir'}) {
+						$decl->{'IODir'} = $args->{$arg}{'IODir'};
+					}
 #					say "DECL:".Dumper($decl);
 					$stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$arg} = $decl;
 				}
@@ -1146,9 +1183,13 @@ sub _update_argument_io_direction {
 					in_nested_set( $stref->{'Subroutines'}{$f},'Args',$varname )
 				){
 					
-#					my $decl =  $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$varname};
-					my $decl = get_var_record_from_set( $stref->{'Subroutines'}{$f}{'Args'},$varname);					
-#					croak Dumper($decl) if $f eq 'dyn' and $varname eq 'eta';
+					my $decl = get_var_record_from_set( $stref->{'Subroutines'}{$f}{'Args'},$varname);
+					if (exists $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$varname}) {
+						$decl =  $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$varname};
+					}
+#					
+										
+#					croak Dumper($decl) if $varname eq 'string';
 					if ( exists $decl->{'Parameter'} ) {
 						delete $decl->{'Parameter'};
 						$decl->{'Name'} = $decl->{'Var'};

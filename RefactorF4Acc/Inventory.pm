@@ -35,6 +35,12 @@ use RefactorF4Acc::Utils qw(module_has_only);
 # Uses, Subroutines, Functions, Includes, Parameters, TypeDecls, ImplicitRules, Interfaces (not yet).
 sub find_subroutines_functions_and_includes {	
     my $stref = shift;
+    
+    my $incl='';
+    if (@_) {
+    	($incl)=@_;
+    }
+    	
     my $prefix   = exists $Config{PREFIX} ? $Config{PREFIX} : '.';
     my @srcdirs=exists $Config{SRCDIRS} ?  @{ $Config{SRCDIRS} } : ('.');    
     my @extsrcdirs=exists $Config{EXTSRCDIRS} ? @{ $Config{EXTSRCDIRS} } : (); # External sources, should not be refactored but can be parsed
@@ -59,7 +65,11 @@ sub find_subroutines_functions_and_includes {
     my %src_files = ();
     my $tf_finder = sub { 
         return if !-f;
-        return if (!/\.f(?:9[05])?$/ &&!/\.c$/); # rather ad-hoc for Flexpart + WRF # FIXME: make pattern configurable in rf4a.cfg
+        if ($incl) {
+        	return if (!/$incl$/);
+        } else {
+        	return if (!/\.f(?:9[05])?$/ &&!/\.c$/); # rather ad-hoc for Flexpart + WRF # FIXME: make pattern configurable in rf4a.cfg
+        }
         my $filepath = $File::Find::name;  # i.e. $path+ the name of the file found
         
         my $srcname = $filepath; # e.g. ./admin/aadmn.f
@@ -117,16 +127,16 @@ sub find_subroutines_functions_and_includes {
     		'List'=>[]
     	};
     	
-        $stref=_process_src($src,$stref);
+        $stref=_process_src($src,$stref) if not $incl ;
         
     }
-    
+    if (!$incl) {
     _find_external_modules($stref);
     
     _test_can_be_inlined_all_modules($stref);    
     
     _add_path_to_includes($stref);
-    
+    }
     return $stref;
 }    # END of find_subroutines_functions_and_includes()
 
@@ -423,7 +433,18 @@ sub _process_src {
             
             # Find include statements
             $line =~ /^\s*\#?include\s+[\"\']([\w\.]+)[\"\']/ && do {
-                my $inc = $1;                
+                my $inc = $1;       
+                say "FOUND include $inc in $src" if $V;
+                # What we should do now is go and find this file!       
+                $stref = find_subroutines_functions_and_includes($stref,$inc);
+                my $src_path=$inc;  
+                for my $k (keys %{$stref->{'SourceContains'}} ){
+                if ($k=~/$inc$/) {
+                	$src_path=$k;
+                	last;
+                }
+                }
+#                die "PATH $src_path";
                 if ($in_module) {
                     $stref->{'Modules'}{$mod_name}{'IncludeFiles'}{$inc}={};
                 }
@@ -436,7 +457,8 @@ sub _process_src {
                     	for my $ext_dir (@extsrcdirs) {
                     		if (-e "$prefix/$ext_dir/$inc") { 
                     			$stref->{'IncludeFiles'}{$inc}{'ExtPath'} =  "$prefix/$ext_dir/$inc";
-                    			$stref->{'SourceContains'}{$inc}={
+                    			$stref->{'SourceContains'}{$src_path}={
+                    				'Inc' => $inc,
                     				'Path' => { 'Ext' => "$prefix/$ext_dir/$inc"},                    				
     								'Set'=>{},
     								'List'=>[]

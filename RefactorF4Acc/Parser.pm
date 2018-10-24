@@ -920,6 +920,7 @@ VIRTUAL
 
 					or $line =~
 /^((?:logical|complex|byte|integer|real|double\s*(?:precision|complex)|character)\s*\*(?:\d+|\((?:\*|\w+)\)))\s+(.+)\s*$/
+or $line=~/^character\s*\(\s*len\s*=\s*[\w\*]+\s*\)/
 				)
 				and $line !~ /\s+function\s+\w+/
 				and $line !~/^.+,.+::\s*.+\s*$/ # What we say here is that a declaration such as real(4) :: v(nx+1,ny) is treated as F77 
@@ -3414,7 +3415,6 @@ sub __parse_f77_par_decl {
 	# F77-style parameters
 	#                my $parliststr = $1;
 	( my $Sf, my $stref, my $f,my $indent, my $line, my $info, my $parliststr ) = @_;
-
 	
 	my $type   = 'Unknown';
 	my $attr = '';
@@ -3457,7 +3457,13 @@ croak $parliststr if scalar @test==1;
 				} elsif ( $val =~ /^[\"\'].+[\'\"]$/ ) {
 					my $nchars = length ($val) -2;
 					$attr = "(len=$nchars)";
-					$type = 'character';					
+					$type = 'character';		
+				} elsif ( $val =~ /^(__PH\d+__)$/ ) {
+					my $ph =$1;
+					my $tval = $info->{'PlaceHolders'}{$ph};
+					my $nchars = length ($tval) -2;
+					$attr = "(len=$nchars)";
+					$type = 'character';									
 				} else {
 					for my $mpar ( keys %{$pars_in_val_tmp} ) {
 						my $mpar_rec = get_var_record_from_set( $Sf->{'Parameters'}, $mpar );
@@ -3537,13 +3543,14 @@ my $char_lst=[];
 my $is_char = 0;
 
 if ($line=~/^character/) {
+#	say "LINE: $line";
 	$type = 'character';		
 	$is_char=1;
     $line=~s/\s+\*/*/g;
     $line=~s/\*\s+/*/g;
 	$line=~s/\(\*\)/_PARENS_STAR_/g;
-	
-    if ($line=~/^character\*(\w+)\s+([a-z]\w*.*)$/ ){    	
+    if ($line=~/^character\*(\w+)\s+([a-z]\w*.*)$/ ){    
+#    		say "LINE1: $line";
         # CHARACTER*4 V
 		# CHARACTER*(*) V(2)
 		# But unfortunately also
@@ -3588,6 +3595,7 @@ if ($line=~/^character/) {
          }         
          
     } elsif ( $line=~/^character\s+([a-z]\w*.*)$/ ) {
+#    	say "LINE2: $line";
     	
 		# CHARACTER V*4,W(2)*5
         my $vars_lens_str=$1;
@@ -3626,13 +3634,16 @@ if ($line=~/^character/) {
          
         
     } elsif ( $line=~/^character\*(\w+)\s*\((.+)\)\s+([a-z]\w*.+)$/) {
-    	croak if $line=~/_PARENS_STAR_/;
+#    	say "LINE3: $line";
+    	 if ( $line=~/_PARENS_STAR_/) {
+    		die "Sorry, this syntax for character variable declarations is not supported: $line\nPlease rewrite to e.g. character*(*) ...\n";
+    	};
 		# Non-standard, e.g.
 		# CHARACTER*(*)(3) V, ...
 		# WEAK as I assume no parens inside the parens
         my $len=$1;
         my $dim=$2; # FIXME
-        croak 'FIXME!'; 
+#        croak 'FIXME!'; 
 #        my $ast=parse_expression($var_dim_len, $info, $stref, $f);
         my $vars_str=$3;
         my @vars = _parse_comma_sep_expr_list($vars_str);
@@ -3660,7 +3671,10 @@ if ($line=~/^character/) {
          }        
          
     } elsif ( $line=~/^character\s+/ && $line=~/[a-z]\w*\*\d+\s*\(/ ) {
-    	croak if $line=~/_PARENS_STAR_/;
+#    	say "LINE4: $line";
+    	if ($line=~/_PARENS_STAR_/) {
+    		die "Sorry, this syntax for character variable declarations is not supported: $line\nPlease rewrite to e.g. character*(*) ...\n";
+    	}
 		# Non-standard, e.g.
 		# CHARACTER A*17, B*17(3,4), V*17(9)	
         my $vars_str=$line;
@@ -3694,9 +3708,50 @@ if ($line=~/^character/) {
 #        		say "AST4:".Dumper($ast);
         	};        	
         }
-		croak "TODO!";
+		die "Sorry, this syntax for character variable declarations is not supported: $line\nPlease rewrite to e.g. character*(*) ...\n";
+    } elsif ( $line=~/^character\s*\(\s*len\s*=\s*([\w\*]+)\s*\)\s+([a-z]\w*.*)$/ ) {
+    	# CHARACTER(LEN=5) or CHARACTER(LEN=*) 
+    	my $len = $1;
+        my $vars_dims_str = $2;
+		# split vars on outer commas, we have a function for that
+        my @vars_dims = _parse_comma_sep_expr_list($vars_dims_str);
+#         say "$f CASE1: $line => len=".$len.", rest=".join(';',@vars_dims);
+         
+         for my $var_dim (@vars_dims) {
+         	
+         	my $ast=parse_expression($var_dim, $info, $stref, $f);
+#         	say "AST1:".Dumper($ast);
+         	my $var = _get_var_from_ast( $ast );
+         	my $dim = _get_dim_from_ast( $ast );
+#         	say "DIM: ".Dumper($dim);
+#         	die if $ast->[1] eq 'c2d001';
+         	my $len_override = _get_len_from_ast( $ast );
+         	if ($len eq '_PARENS_STAR_') {
+         		$len='*';
+         	}	
+         	$char_decls->{$var}={
+         		'Type' => 'character',
+         		'Name' => $var,
+         		'Dim' => $dim,
+         		'Attr' => "len=". ($len_override ? $len_override : $len),
+         		'ArrayOrScalar' => scalar @{$dim}==0 ? 'Scalar' : 'Array'
+         	};
+         	
+         	if ($len=~/[a-z]\w*/) {
+         		if (in_nested_set($Sf,'Parameters',$len) ) {
+         			$char_decls->{$var}{'InheritedParams'}{'Set'}{$len}=1;
+         		}
+         	}
+         	push @{$char_lst},$var;
+#         	say "character(len=$len), dimension(".join(',', map { join(':', @{ $_ }) } @{$dim}).") :: $var";
+
+         }             	
+#    	say "LINE5: $line";
+    	
+    } else {
+    	die "Sorry, this syntax for character variable declarations is not supported: $line\nPlease rewrite to e.g. character*(*) ...\n";
     }
-    
+#die Dumper( $char_decls) if $line=~/string/;    
 
 } elsif ($line=~/^\w+\s*\*\s*(1|2|4|8|16)/) {
 	$attr = "kind=$1";
