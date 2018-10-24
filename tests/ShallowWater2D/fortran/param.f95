@@ -1,8 +1,5 @@
 MODULE param
 
-!INTEGER(4), PARAMETER :: nx = 51	
-!INTEGER(4), PARAMETER :: ny = 51	
-
 INTEGER(4), PARAMETER :: nx = 500
 INTEGER(4), PARAMETER :: ny = 500
 

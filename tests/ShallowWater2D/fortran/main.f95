@@ -17,15 +17,11 @@ USE sub
 ! local parameters
 REAL :: hmax,time,dtmax
 REAL :: c,lambda
-INTEGER :: n,ntot,nout, dummy
+INTEGER :: n,ntot,nout
 
 ! set local parameters
-
 ! runtime parameters
 ntot = 10000
-
-! output parameter
-!nout = 5
 
 ! set epsilon for Shapiro filter
 eps = 0.05
@@ -33,7 +29,6 @@ CALL INIT  ! initialisation
 !**********
 !debug
 OPEN(90,file ='debug.dat',form='formatted')
-
 
 ! output of initial eta distribution
 OPEN(10,file ='eta0.dat',form='formatted')
@@ -49,7 +44,6 @@ OPEN(10,file ='h0.dat',form='formatted')
   END DO
 CLOSE(10)
 
-
 ! determine maximum water depth
 hmax = 0.
 
@@ -60,7 +54,6 @@ END DO
 END DO
 
 ! maximum phase speed
-dummy = 0
 c = SQRT(2*g*hmax)
 !
 WRITE(6,*)"c = ",c
@@ -74,13 +67,11 @@ IF(lambda > 1)THEN
   STOP
 END IF
 
-
 ! open files for output
 OPEN(10,file ='eta.dat',form='formatted')
 OPEN(20,file ='h.dat',form='formatted')
 OPEN(30,file ='u.dat',form='formatted')
 OPEN(40,file ='v.dat',form='formatted')
-
 
 DO j = 26,26
 DO k = 26,26
@@ -114,18 +105,6 @@ END DO
 END DO
 !$ACC End Subroutine update
 
-! data output
-! Only write once at the end
-!IF(MOD(n,nout)==0)THEN
-!  DO j = 1,ny
-!    WRITE(10,'(101F12.6)')(eta(j,k),k=1,nx)
-!    WRITE(20,'(101F12.6)')(h(j,k),k=1,nx)
-!    WRITE(30,'(101F12.6)')(u(j,k),k=1,nx)
-!    WRITE(40,'(101F12.6)')(v(j,k),k=1,nx)
-!  END DO
-!  WRITE(6,*)"Data output at time = ",time/60.0," min"
-!ENDIF
-
 END DO ! end of iteration loop
 
 !Write results only once at the end....
@@ -136,7 +115,5 @@ DO j = 0,ny+1
   WRITE(40,'(101F12.6)')(v(j,k)  ,k=0,nx+1)
 END DO
 WRITE(6,*)"Data output at time = ",time/60.0," min"
-
-
 
 END PROGRAM wave2D

@@ -4,12 +4,12 @@
 import os
 
 FC=os.environ.get('FC')
-CC=os.environ.get('CC')
+#CC=os.environ.get('CC')
 #csources =[]
 
 fsources = ['./dyn.f95','./init.f95','./main.f95','./param.f95','./shapiro.f95','./sub.f95','./update.f95']
 
-envC=Environment(CC=CC,CPPPATH=[]); 
+#envC=Environment(CC=CC,CPPPATH=[]); 
 #if csources:
 #    envC.Library('wave2d_c',csources)
 

@@ -2,7 +2,6 @@ MODULE sub
 USE param
 
 CONTAINS
-
 !=======================
 SUBROUTINE init
 
@@ -17,7 +16,6 @@ dt = 0.1
 g = 9.81
 
 ! initial conditions
-
 DO j = 0,ny+1
 DO k = 0,nx+1
   hzero(j,k) = 10.0 
@@ -32,12 +30,6 @@ DO k = 0,nx+1
 ! hzero(ny,k) = -0.0
 END DO
 
-!DO j = 39,41
-!DO k = 39,41
-!hzero(j,k) = 0.0
-!END DO
-!END DO
-
 DO j = 0,ny+1
  hzero(j,0) = -10.0
  hzero(j,nx+1) = -10.0
@@ -50,7 +42,6 @@ DO k = 0,nx+1
 END DO
 END DO
 !XXXXXXXXXXXXXXXXXXX
-
 DO j = 0,ny+1
 DO k = 0,nx+1
   h(j,k) = hzero(j,k)+eta(j,k)
@@ -66,7 +57,6 @@ END DO
 END DO
 
 END SUBROUTINE init
-
 !================
 SUBROUTINE dyn
 
@@ -80,8 +70,6 @@ DO j = 1,ny
 DO k = 1,nx
   du(j,k) = -dt*g*(eta(j,k+1)-eta(j,k))/dx
   dv(j,k) = -dt*g*(eta(j+1,k)-eta(j,k))/dy
-  !DEBUG
-  !WRITE(90,*)"j = ",j," k = ",k," du = ",du(j,k)," dv = ",dv(j,k)
 END DO
 END DO
 
@@ -108,12 +96,8 @@ ELSE
   IF((wet(j+1,k)==1).and.(dvv<0.0)) vn(j,k) = vv+dvv
 END IF
 
-!DEBUG
-!WRITE(90,*)"j=",j," k=",k," un=",un(j,k)," vn=",vn(j,k), "wet(j,k)=", wet(j,k), " wet(j+1,k)=", wet(j+1,k), " uu=", uu, " duu=", duu, " vv=", vv, " dvv=", dvv
-
 END DO
 END DO
-
 
 ! sea level predictor
 DO j = 1,ny
@@ -132,10 +116,6 @@ DO k = 1,nx
   hsn = 0.5*(vn(j-1,k)-abs(vn(j-1,k)))*h(j,k)
   hvs = hsp+hsn
   etan(j,k) = eta(j,k)-dt*(hue-huw)/dx-dt*(hvn-hvs)/dy
-#ifdef DBG
-  !DEBUG
-  WRITE(90,*)"j=",j," k=",k," etan=",etan(j,k)," eta=",eta(j,k)
-#endif
 END DO
 END DO
 
@@ -166,6 +146,4 @@ END DO
 
 END SUBROUTINE shapiro
 
-
 END MODULE sub
-
