@@ -19,7 +19,7 @@ use Fortran::ConstructParser qw(
 #   (c) 2010-2018 Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
 
 use vars qw( $VERSION );
-$VERSION = "1.0.0";
+$VERSION = "1.1.0";
 
 #use warnings::unused;
 use warnings;
@@ -903,9 +903,9 @@ VIRTUAL
 		 		say "WARNING: EQUIVALENCE IS IGNORED!" if $W;
 		 		
 		 		warn "The EQUIVALENCE  statement is not supported, please rewrite your code (or ignore at your peril):\n".
-			 		'SOURCE: '.$stref->{$sub_incl_or_mod}{$f}{'Source'}.' LINE #'. $info->{'LineID'}."\n".
-			 		'CODE UNIT: '.$f."\n".
-			 		'LINE: '."'$line'\n";
+			 		'  SOURCE: '.$stref->{$sub_incl_or_mod}{$f}{'Source'}.' LINE #'. $info->{'LineID'}."\n".
+			 		'  CODE UNIT: '.$f."\n".
+			 		'  LINE: '."'$line'\n";
 		 		
 		 	}		
 # Actual variable declaration line (F77)

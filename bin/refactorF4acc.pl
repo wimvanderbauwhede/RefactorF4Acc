@@ -7,7 +7,16 @@ use 5.010;
 use warnings;
 use strict;
 
-use RefactorF4Acc::Main qw( main );
+use vars qw( $VERSION );
+$VERSION = "1.1.0";
+
+use RefactorF4Acc::Main qw( main usage );
 
 &main();
 
+sub VERSION_MESSAGE {	
+	if (join(' ',@ARGV)=~/--help/) {
+		usage();
+	}
+	die "Version: $VERSION\n";
+}

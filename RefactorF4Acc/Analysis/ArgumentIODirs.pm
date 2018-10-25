@@ -11,7 +11,7 @@ use RefactorF4Acc::Refactoring::Common qw( get_annotated_sourcelines stateful_pa
 #
 
 use vars qw( $VERSION );
-$VERSION = "1.0.0";
+$VERSION = "1.1.0";
 
 #use warnings::unused;
 use warnings;
@@ -1186,8 +1186,21 @@ sub _update_argument_io_direction {
 				){
 					
 					my $decl = get_var_record_from_set( $stref->{'Subroutines'}{$f}{'Args'},$varname);
-					if (exists $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$varname}) {
-						$decl =  $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$varname};
+#					say "DECL FROM ARGS: ".Dumper($decl);
+					if (
+					exists $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$varname}					  
+					) {
+						my $rdecl =  $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$varname};
+						if (exists $rdecl->{'Name'}) {
+							$decl=$rdecl;
+						} else {
+							if (exists $rdecl->{'IODir'}
+							and $rdecl->{'IODir'} ne 'Unknown'
+							) {
+								$decl->{'IODir'} = $rdecl->{'IODir'} ;
+							}
+						}
+#						say  "DECL FROM REFACTOREDARGS: ".Dumper($decl);
 					}
 #					
 										

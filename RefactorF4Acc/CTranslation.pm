@@ -10,7 +10,7 @@ use RefactorF4Acc::Refactoring::Streams qw( _declare_undeclared_variables _remov
 #   
 
 use vars qw( $VERSION );
-$VERSION = "1.0.0";
+$VERSION = "1.1.0";
 
 #use warnings::unused;
 use warnings;

@@ -19,7 +19,7 @@ use RefactorF4Acc::CTranslation qw( translate_module_to_C ); # CUSTOM PASS
 use RefactorF4Acc::Analysis::IdentifyStencils qw( pass_identify_stencils pass_emit_TyTraCL ); # CUSTOM PASS
 
 use vars qw( $VERSION );
-$VERSION = "1.0.0";
+$VERSION = "1.1.0";
 
 #use warnings::unused;
 use warnings;

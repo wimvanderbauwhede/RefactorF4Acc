@@ -5,7 +5,7 @@ package RefactorF4Acc::RestoreStashedLines;
 #   
 	
 use vars qw( $VERSION );
-$VERSION = "1.0.0";
+$VERSION = "1.1.0";
 
 use v5.10;
 use warnings;

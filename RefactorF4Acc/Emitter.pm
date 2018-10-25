@@ -8,7 +8,7 @@ use RefactorF4Acc::Refactoring::Common qw( create_refactored_source );
 #   
 
 use vars qw( $VERSION );
-$VERSION = "1.0.0";
+$VERSION = "1.1.0";
 
 #use warnings::unused;
 use warnings;

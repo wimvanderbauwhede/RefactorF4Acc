@@ -29,15 +29,15 @@ use RefactorF4Acc::Builder qw( create_build_script build_executable );
 use RefactorF4Acc::Analysis::LoopDetect qw( outer_loop_variable_analysis );
 
 use vars qw( $VERSION );
-$VERSION = "1.0.0";
+$VERSION = "1.1.0";
 
 use Exporter;
 
 @RefactorF4Acc::Main::ISA = qw(Exporter);
-@RefactorF4Acc::Main::EXPORT = qw( &main );
+@RefactorF4Acc::Main::EXPORT = qw( &main &usage );
 
 our $usage = "
-    $0 [-hvwicCNg] <toplevel subroutine name> 
+    $0 [-hVvwicCNg] <toplevel subroutine name> 
        [<subroutine name(s) for C translation>]
     Typical use: rf4a -c ./rf4a.cfg -g -v -i main   
     -h: help
@@ -467,4 +467,7 @@ sub test { (my $test_num, my $stref, my $test_subref, my $fail_subref) = @_;
 	}	
 }
 
+sub usage {
+	die $usage;
+}
 1;

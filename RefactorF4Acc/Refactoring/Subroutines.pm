@@ -11,7 +11,7 @@ use RefactorF4Acc::Parser::Expressions qw( emit_expression );
 #   
 
 use vars qw( $VERSION );
-$VERSION = "1.0.0";
+$VERSION = "1.1.0";
 
 #use warnings::unused;
 use warnings;
