@@ -48,7 +48,7 @@ our $usage = "
     -d: show debug messages
     -c <cfg file name>: use this cfg file (default is ~/.rf4a)
     -C: Only generate call tree, don't refactor or emit
-    -g: refactor globals inside toplevel subroutine 
+    -g: refactor globals inside toplevel subroutine (NOTE: in the current version this does nothing, globals will always be refactored) 
     -b: Generate SCons build script
     -B: Build the generated code
     -A: Annotate the refactored lines 
@@ -270,7 +270,7 @@ sub parse_args {
 	$INCLPATHS = (exists $Config{'INCLPATH'} ) ? $Config{'INCLPATH'} :
 		(exists $Config{'F95PATH'} ) ? $Config{'F95PATH'} : $INCLPATHS;
 	$CFG_refactor_toplevel_globals = (exists $Config{'REFACTOR_TOPLEVEL_GLOBALS'}) ? 1 : 0 	;
-	$CFG_refactor_toplevel_globals=( $opts{'g'} ) ? 1 : $CFG_refactor_toplevel_globals; # Global from Config
+	$CFG_refactor_toplevel_globals= 1; # FIXME: refactoring while ignoring globals is broken ( $opts{'g'} ) ? 1 : $CFG_refactor_toplevel_globals; # Global from Config
 # Currently broken	
 	if ( $opts{'G'} ) {
 		print "Generating docs...\n";

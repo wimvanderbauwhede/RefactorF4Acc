@@ -261,8 +261,10 @@ sub _analyse_src_for_iodirs {
 
 	if ( not exists $Sf->{'IODirInfo'} or $Sf->{'IODirInfo'} == 0 ) {
 		if ( not exists $Sf->{'HasRefactoredArgs'} or $Sf->{'HasRefactoredArgs'} == 0 ) {
+			$Sf->{'RefactoredArgs'}{'Set'}={};
 			say "SUB $f DOES NOT HAVE RefactoredArgs";
 			croak 'BOOM! Logic is wrong:  HasRefactoredArgs 0/1 does not indicate presence of RefactoredArgs List/Set' . __LINE__ ;#. ' ' . $f . ' : ' . Dumper($Sf);
+			
 		}
 		my $args = dclone( $Sf->{'RefactoredArgs'}{'Set'} ); 
 
@@ -1177,7 +1179,7 @@ sub _update_argument_io_direction {
 			
 #			say Dumper($annline);
 			my $varname = $info->{'VarDecl'}{'Name'};
-#			carp Dumper($info) if $f eq 'dyn' and $varname eq 'eta';
+#			carp Dumper($info) ;
 			if (
 #					exists $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$varname}
 					in_nested_set( $stref->{'Subroutines'}{$f},'Args',$varname )
@@ -1200,6 +1202,7 @@ sub _update_argument_io_direction {
 #						warn "BLOCK DATA $f";
 						$decl->{'IODir'}='InOut';
 					}
+#					say $varname. ' => '.Dumper($decl);
 					my $rline = emit_f95_var_decl($decl );
 											
                     if (exists $info->{'Skip'}) {
