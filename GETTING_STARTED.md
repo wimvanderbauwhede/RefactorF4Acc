@@ -15,7 +15,6 @@ structure with the files listed below, the following steps should work:
 # Display source directory tree structure
 $ tree .
 .
-├── Makefile
 ├── rf4a.cfg
 └── src
     ├── greet_world.f
@@ -58,19 +57,12 @@ $ cat src/include/error_codes.h
 C implicitly typed global data
       common/error_codes/ isuccess
 ```
-With the above directory tree structure, the following Makefile builds the code:
+
+Compiling and executing the original source can be accomplished by executing as follows
 ```
-$ cat Makefile
-hello: src/main.f
-	gfortran -o hello src/main.f src/greet_world.f -I src/include
-
-.PHONY : clean
-
-clean : 
-	rm hello
+$ gfortran -o hello src/main.f src/greet_world.f -I src/include
+$ ./hello
 ```
-Compiling and executing the original source can be accomplished by executing `make && ./hello`.
-
 RefactorF4Acc can refactor the above code using using the following configure file and command:
 ```
 $ cat rf4a.cfg 
