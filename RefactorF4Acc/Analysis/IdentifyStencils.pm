@@ -260,7 +260,7 @@ sub identify_array_accesses_in_exprs { (my $stref, my $f) = @_;
     if ($f!~/superkernel/) {  # TODO 
 #croak 'DYN';
         # For TyTraCL 
-        push @{ $stref->{'TyTraCL_AST'}{'Lines'} }, {'NodeType' => 'Comment', 'CommentStr' => $f };
+        push @{ $stref->{'TyTraCL_AST'}{'Lines'} }, {'NodeType' => 'Comment', 'CommentStr' => $f };        
 
 		my $pass_identify_array_accesses_in_exprs = sub { (my $annline, my $state)=@_;
 			(my $line,my $info)=@{$annline};
@@ -442,16 +442,18 @@ sub identify_array_accesses_in_exprs { (my $stref, my $f) = @_;
 
 	} # if subkernel not superkernel
 	else {
-		# WV: FIXME: This is TyTraCL specific 
-        $stref->{'TyTraCL_AST'}{'Main'} = $f;
-
-        		say "-- SUPERKERNEL $f: ";
-#		map { say $_ } sort keys %{ $stref->{'Subroutines'}{$f} };
-#		say Dumper $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'};
-		 for my $arg (@{ $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'List'} } ) {
-		 	say $arg. ' => '. $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$arg}{'IODir'};
-         $stref->{'TyTraCL_AST'}{'OrigArgs'}{$arg} =  $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$arg}{'IODir'};
-		 }
+		# WV: FIXME: This is TyTraCL specific
+		        		say "-- SUPERKERNEL $f: ";
+		$stref = _emit_AST_Main($stref, $f);
+#        $stref->{'TyTraCL_AST'}{'Main'} = $f;
+#
+#
+##		map { say $_ } sort keys %{ $stref->{'Subroutines'}{$f} };
+##		say Dumper $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'};
+#		 for my $arg (@{ $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'List'} } ) {
+#		 	say $arg. ' => '. $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$arg}{'IODir'};
+#         $stref->{'TyTraCL_AST'}{'OrigArgs'}{$arg} =  $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$arg}{'IODir'};
+#		 }
 	}
  	return $stref;
 } # END of identify_array_accesses_in_exprs()
@@ -788,8 +790,8 @@ sub _classify_accesses_and_emit_AST { (my $stref, my $f, my $state ) =@_;
 # 	say "SUB $f\n";
     my $block_id=0; # TODO
     my $emit_ast = 0;
-    my $ast_to_emit='';
-	my $ast_emitter = ''; 
+    my $ast_to_emit={};
+	my $ast_emitter = sub {}; 
     if (exists $stref->{'EmitAST'}) {
     	$emit_ast = 1;
     	my $ast_name = $stref->{'EmitAST'};
@@ -1306,6 +1308,20 @@ for my $annline (@{$annlines}) {
 	return $stref;	
 }
 
-
+sub _emit_AST_Main {(my $stref, my $f) =@_;
+	    my $emit_ast = 0;
+    my $ast_to_emit={};
+	my $ast_emitter = ''; 
+    if (exists $stref->{'EmitAST'}) {
+    	$emit_ast = 1;
+    	my $ast_name = $stref->{'EmitAST'};
+    	$ast_to_emit=$stref->{$ast_name};
+    	$ast_emitter = $stref->{$ast_name}{'ASTEmitter'};
+    }
+    
+	$ast_to_emit = $ast_emitter->( $f,  $stref,  $ast_to_emit, 'MAIN',  '',  '',  '') if $emit_ast;
+	
+	return $stref;
+}
 
 1;
