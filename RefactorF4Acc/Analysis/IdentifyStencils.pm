@@ -289,7 +289,7 @@ sub identify_array_accesses_in_exprs { (my $stref, my $f) = @_;
 					my $intent =$arg_decl->{'IODir'};       
 					my $is_scalar = $arg_decl->{'ArrayOrScalar'} eq 'Array' ? 0 : 1;
 					if ($is_scalar and $intent eq 'out' or $intent eq 'inout') {
-						push @{ $state->{'Subroutines'}{$f}{'Args'}{'Acc'} }, $arg;
+						push @{ $state->{'Subroutines'}{$f}{'Args'}{'MaybeAcc'} }, $arg;
 					}
 					if ($intent ne 'out') {
 						push @{ $state->{'Subroutines'}{$f}{'Args'}{'In'} }, $arg;
@@ -347,20 +347,22 @@ sub identify_array_accesses_in_exprs { (my $stref, my $f) = @_;
 					my $expr_str = emit_expression($info->{'Rhs'}{'ExpressionAST'},'');
 					my $loop_range = eval($expr_str);
 					$state->{'Subroutines'}{ $f }{$block_id}{'LoopIters'}{$loop_iter}={'Range' => [1,$loop_range]};
-				} elsif ($info->{'Lhs'}{'ArrayOrScalar'} eq 'Scalar' 
-				) {		
+				} elsif ($info->{'Lhs'}{'ArrayOrScalar'} eq 'Scalar' ) { 		
 					# Test if a scalar arg is an accumulator for a fold
 					# If the arg occurs on LHS and RHS of an assignment and the RHS has an array arg as well			
 					my %maybe_accs = map {$_ => 1} @{$state->{'Subroutines'}{$f}{'Args'}{'MaybeAcc'}};
 					my %in_arrays  = map {$_ => 1} @{$state->{'Subroutines'}{$f}{'Args'}{'In'}};
 					my $acc_var = $info->{'Lhs'}{'VarName'} ;
+#					croak $f . ' ' .$acc_var . Dumper($state->{'Subroutines'}{$f}{'Args'}{'MaybeAcc'}) if $acc_var=~/acc/ and $f=~/reduce/;
 					if (exists $maybe_accs{$acc_var}) { 
+						
 						my $vars = get_vars_from_expression($info->{'Rhs'}{'ExpressionAST'});
 						if (exists $vars->{$acc_var}) {
 							for my $tvar (sort keys %{$vars}) {
 								if ($vars->{$tvar}{'Type'} eq 'Array'
 								and exists $in_arrays{$tvar}
 								) {
+#									die "DETERMINED ACC $acc_var  in $f"; ;
 									push @{$state->{'Subroutines'}{$f}{'Args'}{'Acc'}}, $acc_var;
 									last;
 #							die Dumper($vars) if $info->{'Lhs'}{'VarName'} eq 'acc';

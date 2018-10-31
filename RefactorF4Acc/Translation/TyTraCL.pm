@@ -391,8 +391,10 @@ sub _emit_TyTraCL {  (my $stref) = @_;
 		}
 		elsif ($node->{'NodeType'} eq 'Fold') {
 			my $out_vars = $lhs->{'Vars'};
-			my $map_args = $rhs->{'MapArgs'}{'Vars'};
-			my $non_map_args = $rhs->{'NonMapArgs'}{'Vars'};
+			my $map_args = $rhs->{'FoldArgs'}{'Vars'};
+			my $non_map_args = $rhs->{'NonFoldArgs'}{'Vars'};
+			my $acc_args = $rhs->{'AccArgs'}{'Vars'};
+			
 			my $lhs_str = (scalar @{$out_vars} == 1 )
 				? _mkVarName($out_vars->[0]). ' = '
 				: '('.join(',',map {_mkVarName($_) } @{$out_vars}).') = unzipt $';
@@ -400,12 +402,17 @@ sub _emit_TyTraCL {  (my $stref) = @_;
 			my $non_map_arg_str = (scalar @{$non_map_args} == 0 ) ? '' : (scalar @{$non_map_args} == 1 )
 				? _mkVarName($non_map_args->[0])
 				: '('.join(',',map {_mkVarName($_) } @{$non_map_args}).')';
+				
+			my $acc_arg_str	= (scalar @{$acc_args} == 1 )
+				? _mkVarName($acc_args->[0])
+				: '('.join(',',map {_mkVarName($_) } @{$acc_args}).')';
 			my $map_arg_str = (scalar @{$map_args} == 1 )
 					? _mkVarName($map_args->[0])
 					: '(zipt ('.join(',',map {_mkVarName($_) } @{$map_args}).'))';
+					
             my $f = $rhs->{'Function'};
 			my $f_str = $non_map_arg_str eq '' ? $f : "($f $non_map_arg_str)";
-			my $line = "$lhs_str fold $f_str $map_arg_str";
+			my $line = "$lhs_str fold $f_str $acc_arg_str $map_arg_str";
 			push @{$tytracl_strs},$line;
 		}		
         elsif ($node->{'NodeType'} eq 'Comment') {
@@ -530,15 +537,22 @@ sub _addToMainSig { (my $stref, my $main_rec, my $node, my $lhs, my $rhs, my $fn
                     push @{ $main_rec->{'OutArgs'} }, _mkVarName($out_var_rec);
                 }
             }
-			my $map_arg_recs = $rhs->{'MapArgs'}{'Vars'};
+			my $map_arg_recs = $rhs->{'FoldArgs'}{'Vars'};
             for my $map_var_rec (@{$map_arg_recs}) {
                 if (__isMainInArg($map_var_rec,$stref)) {
                     my $var_name = $map_var_rec->[0];
                     push @{ $main_rec->{'InArgs'} },  _mkVarName($map_var_rec);# $var_name;
                 }
             }
-			my $non_map_arg_recs = $rhs->{'NonMapArgs'}{'Vars'};
+			my $non_map_arg_recs = $rhs->{'NonFoldArgs'}{'Vars'};
             for my $non_map_var_rec (@{$non_map_arg_recs}) {
+                if (__isMainInArg($non_map_var_rec,$stref)) {
+                    my $var_name = $non_map_var_rec->[0];
+                    push @{ $main_rec->{'InArgs'} }, _mkVarName($non_map_var_rec);#$var_name;
+                }
+            }
+            my $accs = $rhs->{'AccArgs'}{'Vars'};
+            for my $non_map_var_rec (@{$accs}) {
                 if (__isMainInArg($non_map_var_rec,$stref)) {
                     my $var_name = $non_map_var_rec->[0];
                     push @{ $main_rec->{'InArgs'} }, _mkVarName($non_map_var_rec);#$var_name;
@@ -681,7 +695,7 @@ sub _addToVarTypes { (my $stref, my $var_types, my $stencils, my $node, my $lhs,
             #            say "RETURN TYPE of $f: ".$var_types->{$f};
             
             # This should always be a tuple and the values can only be scalars
-            my $map_args = $rhs->{'MapArgs'}{'Vars'} ;
+            my $map_args = $rhs->{'FoldArgs'}{'Vars'} ;
             my @map_arg_types_array=();
             for my $map_arg_rec (@{$map_args}) {
                 my $maybe_stencil = _mkVarName($map_arg_rec);
@@ -695,10 +709,11 @@ sub _addToVarTypes { (my $stref, my $var_types, my $stencils, my $node, my $lhs,
                 }
             }
             my $map_arg_type = scalar @{$map_args} == 1 ? $map_arg_types_array[0] :  '('.join(',',@map_arg_types_array).')';
-             $var_types->{$f}{'MapArgType'} = $map_arg_type;
+             $var_types->{$f}{'FoldArgType'} = $map_arg_type;
 
             # This should always be a tuple and the values can actually be arrays
-            my $non_map_args = $rhs->{'NonMapArgs'}{'Vars'} ;
+            my $non_map_args = $rhs->{'NonFoldArgs'}{'Vars'} ;
+            
             my @non_map_arg_types_array=();
             for my $non_map_arg_rec (@{$non_map_args}) {
                     my $var_name = $non_map_arg_rec->[0];
@@ -708,10 +723,26 @@ sub _addToVarTypes { (my $stref, my $var_types, my $stencils, my $node, my $lhs,
             }
             my $non_map_arg_type = scalar @{$non_map_args} == 0 ? '' :
             scalar @{$non_map_args} == 1 ? $non_map_arg_types_array[0] :  '('.join(',',@non_map_arg_types_array).')';
-            $var_types->{$f}{'NonMapArgType'} = $non_map_arg_type;
+            
+            $var_types->{$f}{'NonFoldArgType'} = $non_map_arg_type;
+
+            my $acc_args = $rhs->{'AccArgs'}{'Vars'} ;
+            my @acc_arg_types_array=();
+            for my $acc_arg_rec (@{$acc_args}) {
+                    my $var_name = $acc_arg_rec->[0];
+#                    say "ACC: $f $var_name ";
+                    my $var_rec =  $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$var_name};
+                    my $var_type =  __toTyTraCLType( $var_rec->{'Type'} );
+                    push @acc_arg_types_array, $var_type;
+            }
+            my $acc_arg_type = scalar @{$acc_args} == 0 ? '' :
+            scalar @{$acc_args} == 1 ? $acc_arg_types_array[0] :  '('.join(',',@acc_arg_types_array).')';
+            $var_types->{$f}{'AccArgType'} = $acc_arg_type;
+
 
             my @arg_types= $non_map_arg_type ne '' ? ($non_map_arg_type) : ();
-            push @arg_types, $var_types->{$f}{'MapArgType'};
+            push @arg_types, $var_types->{$f}{'AccArgType'};
+            push @arg_types, $var_types->{$f}{'FoldArgType'};
             push @arg_types, $var_types->{$f}{'ReturnType'};
 
             $var_types->{$f}{'FunctionTypeDecl'} = "$f :: ".join( ' -> ',  @arg_types) ;            
@@ -880,11 +911,13 @@ sub _add_TyTraCL_AST_entry { (my $f, my $state, my $tytracl_ast, my $type, my $b
 		(my $out_tup, my $in_tup_maybe_dummies) = pp_links($state->{'Subroutines'}{$f}{$block_id}{'Links'});
 		 $in_tup_maybe_dummies =$state->{'Subroutines'}{$f}{'Args'}{'In'};
 		  
-		# This is incorrect because it does not return arguments that are used in conditions only 
-		 if (scalar @{$state->{'Subroutines'}{$f}{'Args'}{'Acc'}} > 0) {
+		# This is incorrect because it does not return arguments that are used in conditions only
+		 my @acc_args =  @{$state->{'Subroutines'}{$f}{'Args'}{'Acc'}};
+		 if (scalar @acc_args > 0) {
 		 	say "$f is a reduction ";
-		 	$node_type = 'Fold';
+		 	$node_type = 'Fold';		 	
 		 }
+		 my %accs = map {$_ => $_} @acc_args;
 		# A slightly better way is to look at which arrays are covered entirely by a map operation
 		my $n_dims = scalar keys %{$state->{'Subroutines'}{ $f }{$block_id}{'LoopIters'}};
 
@@ -895,8 +928,11 @@ sub _add_TyTraCL_AST_entry { (my $f, my $state, my $tytracl_ast, my $type, my $b
 		} @in_tup;
 
 		my @in_tup_non_map_args =  grep {
+			# Add ACC condition
+			not exists $accs{$_} and (
 			(not exists $state->{'Subroutines'}{ $f }{ $block_id }{'Arrays'}{$_}) or
 			(scalar @{ $state->{'Subroutines'}{ $f }{ $block_id }{'Arrays'}{$_}{'Dims'} } < $n_dims)
+			)
 		} @in_tup;
 		my $in_tup_ms_ast = [
 			map {
@@ -932,16 +968,26 @@ sub _add_TyTraCL_AST_entry { (my $f, my $state, my $tytracl_ast, my $type, my $b
 				[$_,$unique_var_counters->{$_.'_portion'},'portion'] :
 				[$_,$unique_var_counters->{$_},'']
 			} @in_tup_non_map_args;
-		my @non_map_args_ms = map {
+			
+		my @acc_args_ast = map {
 				if (not exists $unique_var_counters->{$_}) {
 					$unique_var_counters->{$_}=0;
-				}
-				exists $stencils{$_} ?
-				$_.'_s'.$unique_var_counters->{$_.'_s'} :
-				exists $portions{$_} ?
-				$_.'_portion_'.$unique_var_counters->{$_.'_portion'} :
-				$_.'_'. $unique_var_counters->{$_}
-			} @in_tup_non_map_args;
+				}				
+				[$_,$unique_var_counters->{$_},'']
+			} @acc_args;			
+#		my @non_map_args_ms = map {
+#				if (not exists $unique_var_counters->{$_}) {
+#					$unique_var_counters->{$_}=0;
+#				}
+#				exists $stencils{$_} ?
+#				$_.'_s'.$unique_var_counters->{$_.'_s'} :
+#				exists $portions{$_} ?
+#				$_.'_portion_'.$unique_var_counters->{$_.'_portion'} :
+#				$_.'_'. $unique_var_counters->{$_}
+#			} @in_tup_non_map_args;
+			
+			
+			
 		my @out_tup_ast=();
 		for my $var (@{$out_tup}) {
 			if (not exists $unique_var_counters->{$var}) {
@@ -964,6 +1010,7 @@ sub _add_TyTraCL_AST_entry { (my $f, my $state, my $tytracl_ast, my $type, my $b
         #		map { say $_ } @selects; # "${array_var}_portion = select patt $array_var";
 
         #		say $map_expr;# unless $map_expr=~/BOOM/;
+        if ($node_type eq 'Map') {
 		push @{$tytracl_ast->{'Lines'}},
 		{'NodeType' => $node_type,'FunctionName' => $f,
 
@@ -980,6 +1027,27 @@ sub _add_TyTraCL_AST_entry { (my $f, my $state, my $tytracl_ast, my $type, my $b
 				}
 			}
 		};
+        } elsif ($node_type eq 'Fold') {
+		push @{$tytracl_ast->{'Lines'}},
+		{'NodeType' => 'Fold','FunctionName' => $f,
+
+			'Lhs' => {
+				'Vars' =>[@out_tup_ast],
+			},
+			'Rhs' => {
+                'Function' => $f,
+                'AccArgs' => {
+                	'Vars'=>[@acc_args_ast],
+                },
+				'NonFoldArgs' => {
+					'Vars'=>[@non_map_args_ms_ast],
+				},
+				'FoldArgs' =>{
+					'Vars' =>$in_tup_ms_ast,
+				}
+			}
+		};        	
+        }
         #		map { say $_ } @inserts;	
 	} elsif ($type eq 'MAIN') {
 		# TRICK: $state = $stref
