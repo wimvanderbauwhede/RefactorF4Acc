@@ -389,6 +389,25 @@ sub _emit_TyTraCL {  (my $stref) = @_;
 			my $line = "$lhs_str map $f_str $map_arg_str";
 			push @{$tytracl_strs},$line;
 		}
+		elsif ($node->{'NodeType'} eq 'Fold') {
+			my $out_vars = $lhs->{'Vars'};
+			my $map_args = $rhs->{'MapArgs'}{'Vars'};
+			my $non_map_args = $rhs->{'NonMapArgs'}{'Vars'};
+			my $lhs_str = (scalar @{$out_vars} == 1 )
+				? _mkVarName($out_vars->[0]). ' = '
+				: '('.join(',',map {_mkVarName($_) } @{$out_vars}).') = unzipt $';
+
+			my $non_map_arg_str = (scalar @{$non_map_args} == 0 ) ? '' : (scalar @{$non_map_args} == 1 )
+				? _mkVarName($non_map_args->[0])
+				: '('.join(',',map {_mkVarName($_) } @{$non_map_args}).')';
+			my $map_arg_str = (scalar @{$map_args} == 1 )
+					? _mkVarName($map_args->[0])
+					: '(zipt ('.join(',',map {_mkVarName($_) } @{$map_args}).'))';
+            my $f = $rhs->{'Function'};
+			my $f_str = $non_map_arg_str eq '' ? $f : "($f $non_map_arg_str)";
+			my $line = "$lhs_str fold $f_str $map_arg_str";
+			push @{$tytracl_strs},$line;
+		}		
         elsif ($node->{'NodeType'} eq 'Comment') {
             my $line = ' -- ' . $node->{'CommentStr'};
             push @{$tytracl_strs},$line;
@@ -505,7 +524,26 @@ sub _addToMainSig { (my $stref, my $main_rec, my $node, my $lhs, my $rhs, my $fn
             # It can in practice be a constant or scalar variable
             # In general of course it could be just about anything.
             # The question at this point is only if it is a var or list of vars
-            croak('TODO: fold');
+			my $out_var_recs = $lhs->{'Vars'};#croak 'OUTVARS: '.Dumper($lhs);
+            for my $out_var_rec (@{$out_var_recs}) {
+                if (__isMainOutArg($out_var_rec,$stref)) {
+                    push @{ $main_rec->{'OutArgs'} }, _mkVarName($out_var_rec);
+                }
+            }
+			my $map_arg_recs = $rhs->{'MapArgs'}{'Vars'};
+            for my $map_var_rec (@{$map_arg_recs}) {
+                if (__isMainInArg($map_var_rec,$stref)) {
+                    my $var_name = $map_var_rec->[0];
+                    push @{ $main_rec->{'InArgs'} },  _mkVarName($map_var_rec);# $var_name;
+                }
+            }
+			my $non_map_arg_recs = $rhs->{'NonMapArgs'}{'Vars'};
+            for my $non_map_var_rec (@{$non_map_arg_recs}) {
+                if (__isMainInArg($non_map_var_rec,$stref)) {
+                    my $var_name = $non_map_var_rec->[0];
+                    push @{ $main_rec->{'InArgs'} }, _mkVarName($non_map_var_rec);#$var_name;
+                }
+            }
         } elsif ($node->{'NodeType'} ne 'Comment' and $node->{'NodeType'} ne 'StencilDef') {
             croak "NodeType type ".$node->{'NodeType'}.' not yet supported.';
         }
@@ -626,7 +664,59 @@ sub _addToVarTypes { (my $stref, my $var_types, my $stencils, my $node, my $lhs,
             # It can in practice be a constant or scalar variable
             # In general of course it could be just about anything.
             # The question at this point is only if it is a var or list of vars
-            croak('TODO: fold');
+#            croak('TODO: fold');
+            # Output arguments can't be stencil, so only DeclaredOrigArgs
+            my $out_args = $lhs->{'Vars'} ;
+            my $f = $fname;
+            my @out_arg_types_array;
+            for my $out_arg_rec (@{$out_args}) {
+                my $var_name = $out_arg_rec->[0];
+                my $var_rec =  $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$var_name};
+                my $var_type =  __toTyTraCLType( $var_rec->{'Type'} );
+                #my $out_arg = _mkVarName($out_arg_rec);
+                #                $var_types->{$out_arg}=$var_type;
+                push @out_arg_types_array, $var_type;
+            }
+            $var_types->{$f}{'ReturnType'} = scalar @{$out_args} == 1 ? $out_arg_types_array[0] :  '('.join(',',@out_arg_types_array).')';
+            #            say "RETURN TYPE of $f: ".$var_types->{$f};
+            
+            # This should always be a tuple and the values can only be scalars
+            my $map_args = $rhs->{'MapArgs'}{'Vars'} ;
+            my @map_arg_types_array=();
+            for my $map_arg_rec (@{$map_args}) {
+                my $maybe_stencil = _mkVarName($map_arg_rec);
+                if (exists $var_types->{ $maybe_stencil }) {
+                    push @map_arg_types_array,$var_types->{ $maybe_stencil };
+                } else {
+                    my $var_name = $map_arg_rec->[0];
+                    my $var_rec =  $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$var_name};
+                    my $var_type =  __toTyTraCLType( $var_rec->{'Type'} );
+                    push @map_arg_types_array, $var_type;
+                }
+            }
+            my $map_arg_type = scalar @{$map_args} == 1 ? $map_arg_types_array[0] :  '('.join(',',@map_arg_types_array).')';
+             $var_types->{$f}{'MapArgType'} = $map_arg_type;
+
+            # This should always be a tuple and the values can actually be arrays
+            my $non_map_args = $rhs->{'NonMapArgs'}{'Vars'} ;
+            my @non_map_arg_types_array=();
+            for my $non_map_arg_rec (@{$non_map_args}) {
+                    my $var_name = $non_map_arg_rec->[0];
+                    my $var_rec =  $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$var_name};
+                    my $var_type =  __toTyTraCLType( $var_rec->{'Type'} );
+                    push @non_map_arg_types_array, $var_type;
+            }
+            my $non_map_arg_type = scalar @{$non_map_args} == 0 ? '' :
+            scalar @{$non_map_args} == 1 ? $non_map_arg_types_array[0] :  '('.join(',',@non_map_arg_types_array).')';
+            $var_types->{$f}{'NonMapArgType'} = $non_map_arg_type;
+
+            my @arg_types= $non_map_arg_type ne '' ? ($non_map_arg_type) : ();
+            push @arg_types, $var_types->{$f}{'MapArgType'};
+            push @arg_types, $var_types->{$f}{'ReturnType'};
+
+            $var_types->{$f}{'FunctionTypeDecl'} = "$f :: ".join( ' -> ',  @arg_types) ;            
+            
+            
         } elsif ($node->{'NodeType'} ne 'Comment' and $node->{'NodeType'} ) {
             croak "NodeType type ".$node->{'NodeType'}.' not yet supported.';
         }
@@ -782,14 +872,19 @@ sub _add_TyTraCL_AST_entry { (my $f, my $state, my $tytracl_ast, my $type, my $b
 							'Rhs' =>  {'Var' => [$array_var, $ctr_in,''], 'Pattern'=> ['TODO']},
 						};
  	} elsif ($type eq 'MAP') {
+ 		my $node_type = 'Map';
  		my %portions = %{$tytracl_ast->{'Portions'}};
  		my %stencils= %{$tytracl_ast->{'Stencils'}};
  		# so this provides the output and input tuples for a given $f
 	# so for each var in $in_tup we need to get the counter, and for each var in $out_tup after that too.
 		(my $out_tup, my $in_tup_maybe_dummies) = pp_links($state->{'Subroutines'}{$f}{$block_id}{'Links'});
 		 $in_tup_maybe_dummies =$state->{'Subroutines'}{$f}{'Args'}{'In'};
+		  
 		# This is incorrect because it does not return arguments that are used in conditions only 
-		 say Dumper($state->{'Subroutines'}{$f});
+		 if (scalar @{$state->{'Subroutines'}{$f}{'Args'}{'Acc'}} > 0) {
+		 	say "$f is a reduction ";
+		 	$node_type = 'Fold';
+		 }
 		# A slightly better way is to look at which arrays are covered entirely by a map operation
 		my $n_dims = scalar keys %{$state->{'Subroutines'}{ $f }{$block_id}{'LoopIters'}};
 
@@ -870,7 +965,7 @@ sub _add_TyTraCL_AST_entry { (my $f, my $state, my $tytracl_ast, my $type, my $b
 
         #		say $map_expr;# unless $map_expr=~/BOOM/;
 		push @{$tytracl_ast->{'Lines'}},
-		{'NodeType' => 'Map','FunctionName' => $f,
+		{'NodeType' => $node_type,'FunctionName' => $f,
 
 			'Lhs' => {
 				'Vars' =>[@out_tup_ast],

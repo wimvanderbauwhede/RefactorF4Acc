@@ -279,19 +279,25 @@ sub identify_array_accesses_in_exprs { (my $stref, my $f) = @_;
 				$state->{'Subroutines'}{$subname }{$block_id}={};
                 $state->{'Subroutines'}{$f}{'LoopNests'}=[ [0,{}] ];
                 # InOut will be both in In and Out
+                # Any scalar arg that is InOut or Out could be an Acc, put it in MaybeAcc
                 $state->{'Subroutines'}{$f}{'Args'}={
-                	'In'=>[],'Out' =>[]                	                	
+                	'In'=>[],'Out' =>[], 'MaybeAcc'=>[],'Acc'=>[]                	                	
                 };
                 
                 for my $arg ( @{ $info->{'Signature'}{'Args'}{'List'} } ) {
                 	my $arg_decl = get_var_record_from_set($stref->{'Subroutines'}{$f}{'Args'},$arg);		
 					my $intent =$arg_decl->{'IODir'};       
+					my $is_scalar = $arg_decl->{'ArrayOrScalar'} eq 'Array' ? 0 : 1;
+					if ($is_scalar and $intent eq 'out' or $intent eq 'inout') {
+						push @{ $state->{'Subroutines'}{$f}{'Args'}{'Acc'} }, $arg;
+					}
 					if ($intent ne 'out') {
 						push @{ $state->{'Subroutines'}{$f}{'Args'}{'In'} }, $arg;
 					}
 					if ($intent ne 'in') {
 						push @{ $state->{'Subroutines'}{$f}{'Args'}{'Out'} }, $arg;
-					}         	                	
+					}         
+						                	
                 }
 			}
 			# For every VarDecl, identify dimension if it is an array
@@ -341,7 +347,28 @@ sub identify_array_accesses_in_exprs { (my $stref, my $f) = @_;
 					my $expr_str = emit_expression($info->{'Rhs'}{'ExpressionAST'},'');
 					my $loop_range = eval($expr_str);
 					$state->{'Subroutines'}{ $f }{$block_id}{'LoopIters'}{$loop_iter}={'Range' => [1,$loop_range]};
-
+				} elsif ($info->{'Lhs'}{'ArrayOrScalar'} eq 'Scalar' 
+				) {		
+					# Test if a scalar arg is an accumulator for a fold
+					# If the arg occurs on LHS and RHS of an assignment and the RHS has an array arg as well			
+					my %maybe_accs = map {$_ => 1} @{$state->{'Subroutines'}{$f}{'Args'}{'MaybeAcc'}};
+					my %in_arrays  = map {$_ => 1} @{$state->{'Subroutines'}{$f}{'Args'}{'In'}};
+					my $acc_var = $info->{'Lhs'}{'VarName'} ;
+					if (exists $maybe_accs{$acc_var}) { 
+						my $vars = get_vars_from_expression($info->{'Rhs'}{'ExpressionAST'});
+						if (exists $vars->{$acc_var}) {
+							for my $tvar (sort keys %{$vars}) {
+								if ($vars->{$tvar}{'Type'} eq 'Array'
+								and exists $in_arrays{$tvar}
+								) {
+									push @{$state->{'Subroutines'}{$f}{'Args'}{'Acc'}}, $acc_var;
+									last;
+#							die Dumper($vars) if $info->{'Lhs'}{'VarName'} eq 'acc';
+								}
+							}
+						}
+					}
+					
 				} else {
 					# This tests for the case of the same array on LHS and RHS, but maybe with a different access location, so a(...) = a(...)
                     # Not sure why as this is rather unusual and it is unused
@@ -452,6 +479,7 @@ sub identify_array_accesses_in_exprs { (my $stref, my $f) = @_;
 #	 	if ($f=~/vernieuw/) {
 
 		$state = _link_writes_to_reads( $stref, $f, $state);
+#		die Dumper($state) if $f =~/reduce/;
 
 		$stref = _classify_accesses_and_emit_AST($stref, $f, $state);
 
@@ -675,13 +703,24 @@ We put this in the $state as 'Assignments'}, this happened in identify_array_acc
 The links table starts out empty:
 
 	$links = {}
+	
+* FOLDS
+	
+- To be sure it is a fold I will do the following tests:
+- a scalar argument that is Out or InOut
+- used in an assignment on both LHS and RHS
+- I suppose this should also test for an array on the RHS, and all indices used. So I need to do a link analysis until I get to the input args
+To keep this tidy I will use a separate links table for scalar outputs
+
+So we don't allow folds over lower-dimensionality arrays, nor folds hidden in a subroutine call
+Alternatively I could of course rely on the kernel name, they have 'map' or 'reduce' in them	
 
 =cut
 
 sub _link_writes_to_reads {(my $stref, my $f, my $state)=@_;
 
     for my $block_id (sort keys %{ $state->{'Subroutines'}{$f} }) {
-       next if $block_id eq 'LoopNests';
+        next if $block_id eq 'LoopNests';
 		my $links={};
 		my $assignments = $state->{'Subroutines'}{$f}{$block_id}{'Assignments'};
 		# So we have to establish the link for every variable that is a multi-dim (effectively 3-D) array argument
@@ -764,7 +803,7 @@ sub _link_writes_to_reads_rec {(my $stref, my $f, my $block_id, my $some_var, my
 							next if exists $links->{$var}{$rhs_var};
 							$links->{$var}{$rhs_var}= isArg($stref, $f, $rhs_var) ? 2 : 3 unless $rhs_var eq '_OPEN_PAR_';
 #							next if $var eq $rhs_var;
-			 				$links=_link_writes_to_reads_rec($stref, $f, $block_id, $rhs_var,$assignments,$links,$state);
+			 				$links=_link_writes_to_reads_rec($stref, $f, $block_id, $rhs_var,$assignments,$links,$state);			 				
 						}
 					}
 				}
@@ -873,6 +912,11 @@ sub _classify_accesses_and_emit_AST { (my $stref, my $f, my $state ) =@_;
 						push @inserts, $array_var;
 						$ast_to_emit = $ast_emitter->( $f,  $state,  $ast_to_emit, 'INSERT',  $block_id,  $array_var,  $rw) if $emit_ast;
 					}
+				} else {
+					if ($rw eq 'Read') {
+						
+					}
+					
 				}
 			}
 		}
