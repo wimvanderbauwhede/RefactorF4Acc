@@ -31,8 +31,7 @@ use Exporter;
 
 @RefactorF4Acc::Translation::SaC::EXPORT_OK = qw(
     &add_to_SaC_build_sources
-    &translate_module_to_SaC
-	&translate_sub_to_SaC
+    &translate_module_to_SaC	
 );
 
 #### #### #### #### BEGIN OF SaC TRANSLATION CODE #### #### #### ####
@@ -49,7 +48,7 @@ sub translate_module_to_SaC {  (my $stref) = @_;
 	    [\&_determine_intermediate_arrays], 
 #		[\&_declare_undeclared_variables],
 #		[\&add_OpenCL_address_space_qualifiers],
-		[\&translate_sub_to_SaC]
+		[\_translate_sub_to_SaC]
 		],$ocl);
 		
 	$stref = _write_headers($stref,$ocl);
@@ -58,7 +57,7 @@ sub translate_module_to_SaC {  (my $stref) = @_;
 }
 
 
-sub translate_sub_to_SaC {  (my $stref, my $f) = @_;
+sub _translate_sub_to_SaC {  (my $stref, my $f) = @_;
 	
 =info	
 	# First we collect info. What we need to know is:
@@ -224,8 +223,6 @@ sub translate_sub_to_SaC {  (my $stref, my $f) = @_;
 					# This is *very* ad-hoc
 					# We wrap a call to a function with name _map_\d+ to a map-style with loop
 					# and we wrap a call to a function with name _reduce_\d+ to a fold-style with loop.
-					# given $out_args = f($in_args) 
-					# We need to wrap this in
 					
 					my $out_args_str=join(',', @{$sac_args_out});
 					my $out_args_top_str=join(',',map {$_.'_top'} @{$sac_args_out});
@@ -254,7 +251,7 @@ END_WITH_LOOP_MAP
 					
 =pod	
 
-So a folding function in SaC is f :: b -> a -> [a] -> b
+So a folding function in SaC is f :: b -> a -> b -> [a] -> b
 				
 	res  = with {
 		([0] <= [iv] <= [5]) : a[iv];
@@ -273,6 +270,10 @@ and also with indexing:
    
 So what I must do is inspect Gavin's reduce loops
 It should be easy as the fold accumulators have already been identified.
+Using the -plat FPGA flag we only need to check assignment lines with 
+
+/local_(\w+)\s*=\s*(\w+)\s*$/ and !/local_chunk_size/
+my $initial_acc = $2;
 Need to check what it looks like when generated for CPU.   
 =cut					
 					
@@ -366,7 +367,7 @@ Need to check what it looks like when generated for CPU.
 # 	croak Dumper($stref->{'TranslatedCode'});
  	return $stref;
 	
-} # END of translate_sub_to_SaC()
+} # END of _translate_sub_to_SaC()
 
 
 
