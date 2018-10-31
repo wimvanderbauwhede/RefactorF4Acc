@@ -11,7 +11,7 @@ use RefactorF4Acc::Utils;
 #   
 
 use vars qw( $VERSION );
-$VERSION = "1.0.0";
+$VERSION = "1.1.0";
 
 #use warnings::unused;
 use warnings;
@@ -34,6 +34,8 @@ use Exporter;
 # The "root for includes" algorithm intends to find the subroutine where the include should be placed
 sub find_root_for_includes {
     ( my $stref, my $f ) = @_;
+   
+#    local $V=1;
     $stref = _create_include_chains( $stref, 1 );  # assumes we start at node 1 in the tree. Typically that is the main program.
     
     for my $inc ( keys %{ $stref->{'IncludeFiles'} } ) {
@@ -49,7 +51,7 @@ sub find_root_for_includes {
             $stref = _find_root_for_include( $stref, $inc, $f );
             print "ROOT for $inc is "
               . $stref->{'IncludeFiles'}{$inc}{'Root'} . "\n"
-              if $V 
+              if $V; 
         }
     }
     
@@ -72,7 +74,7 @@ The algorithm is as follows:
 =cut
 sub _find_root_for_include {
     ( my $stref, my $inc, my $sub ) = @_;
-    
+     local $V=1;
     my $Ssub = $stref->{'Subroutines'}{$sub};
     
     
@@ -96,8 +98,7 @@ sub _find_root_for_include {
             }
         }
         if ( $nchildren == 0 ) {
-            die
-"_find_root_for_include(): Can't find $inc in parent $sub or any children, something's wrong!\n";
+            die "_find_root_for_include(): Can't find $inc in parent $sub or any children, something's wrong!\n";
         } elsif ( $nchildren == 1 and $Ssub->{'RefactorGlobals'}==0) {
 
             #           print "DESCEND into $singlechild\n";
@@ -119,6 +120,7 @@ sub _find_root_for_include {
 # We also need to add the include to all nodes in the divergent paths
 sub _create_include_chains {
     ( my $stref, my $nid ) = @_;
+    # If a node has children     
     if ( exists $stref->{'Nodes'}{$nid}{'Children'}
         and scalar @{ $stref->{'Nodes'}{$nid}{'Children'} } > 0 )
     {        
@@ -151,39 +153,49 @@ sub _create_include_chains {
 
 sub __merge_includes {
     ( my $stref, my $nid, my $cnid, my $chain ) = @_;
+     
     # If there are includes with common blocks, merge them into CommonIncludes
     my $pnid = $stref->{'Nodes'}{$nid}{'Parent'};   
-    my $sub  = $stref->{'Nodes'}{$nid}{'Subroutine'};      
+    my $sub  = $stref->{'Nodes'}{$nid}{'Subroutine'};
+    # If $sub is really a subroutine      
     if (defined $sub and exists $stref->{'Subroutines'}{$sub}) {
-        my $Ssub = $stref->{'Subroutines'}{$sub};    
+        my $Ssub = $stref->{'Subroutines'}{$sub};
+        # $f is the parent of $sub    
         my $f=$stref->{'Nodes'}{$pnid}{'Subroutine'} ;
-        if ($pnid == 0) {$f = '__TOP__' };    
+        if ($pnid == 0) {$f = '__TOP__' };
+        # I'm not sure about this    
         if ($V) {
             if ($sub ne $f ) {
                 if (defined $Ssub->{'RefactorGlobals'} and $Ssub->{'RefactorGlobals'}>0) {
-               $chain .="$sub -> ";
+               		$chain .="$sub -> ";
                 }
             } else {
                 print "__merge_includes(): $chain\n" if $chain=~/->/;
             }
         } # $V
         
+        # If a sub has Includes but  CommonIncludes has not been created yet
         if ( exists $Ssub->{'Includes'}
             and not exists $Ssub->{'CommonIncludes'}     
             )
         {
             for my $inc ( keys %{ $Ssub->{'Includes'} } ) {
+            	# Be defensive
             	if (not exists $stref->{'IncludeFiles'}{$inc}
             	or not exists $stref->{'IncludeFiles'}{$inc}{'InclType'}
             	) {
             		die "__merge_includes(): INC $inc is not in IncludeFiles\n";
             	}        	
+            	
                 if ( $stref->{'IncludeFiles'}{$inc}{'InclType'} eq 'Common'
                     and not exists $Ssub->{'CommonIncludes'}{$inc} )
                 {
                     say "Adding $inc to CommonIncludes in $sub" if $DBG;
                     $Ssub->{'CommonIncludes'}{$inc} = 1;
+                } else {
+                	say "NOT adding $inc to CommonIncludes in $sub: " . $stref->{'IncludeFiles'}{$inc}{'InclType'} if $DBG;                	
                 }
+ 
             }
         }
 

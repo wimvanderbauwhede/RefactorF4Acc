@@ -7,7 +7,7 @@ use RefactorF4Acc::Utils;
 #   
 
 use vars qw( $VERSION );
-$VERSION = "1.0.0";
+$VERSION = "1.1.0";
 
 #use warnings::unused;
 use warnings;
@@ -41,13 +41,12 @@ sub create_refactored_subroutine_signature {
     my $info = $annline->[1];    
     my $args_ref = [];
     if (not exists $info->{'EntrySig'} ) {
-    	$args_ref = $Sf->{'RefactoredArgs'}{'List'};
+    	$args_ref = $Sf->{'RefactoredArgs'}{'List'};        	
     } else {
     	# ENTRY!
     	my $name = $info->{'Signature'}{'Name'};
     	my $Sname = $Sf->{'Entries'}{'Set'}{$name};
-    	$args_ref = $Sname->{'RefactoredArgs'}{'List'};
-#    	croak Dumper($info).Dumper($args_ref);
+    	$args_ref = $Sname->{'RefactoredArgs'}{'List'};    	
     }
     my $args_str = join( ',', @{$args_ref} );
     my $what_is_block_data = 'subroutine'; #'block data'
@@ -93,11 +92,11 @@ sub create_refactored_subroutine_signature {
 # -----------------------------------------------------------------------------
 
 # -----------------------------------------------------------------------------
-
+# 
 sub refactor_subroutine_signature {
     ( my $stref, my $f ) = @_;
     my $Sf = $stref->{'Subroutines'}{$f};
-    
+#    local $V=1;
     if ($V) {
         if ( exists $Sf->{'OrigArgs'} ) {
             print "SUB $f ORIG ARGS:" . join( ',', @{ $Sf->{'OrigArgs'}{'List'} } ), "\n";
@@ -149,6 +148,7 @@ sub refactor_subroutine_signature {
 #    		say $var;
     		say "INFO VAR: $var" if $I;
 			push @exglobs, $var;
+#			carp "SET HasRefactoredArgs for $f";
 			$Sf->{'HasRefactoredArgs'}=1;                         
     	}             
     	
@@ -171,7 +171,8 @@ sub refactor_subroutine_signature {
     # Now combine the original subroutine arguments with the ex-globals and store in $Sf->{'RefactoredArgs'}{'List'}     
     my $args_ref = (exists $Sf->{'OrigArgs'}) ? ordered_union( $Sf->{'OrigArgs'}{'List'}, \@nexglobs ) : \@nexglobs;
     $Sf->{'RefactoredArgs'}{'List'} = $args_ref;
-    %{ $Sf->{'RefactoredArgs'}{'Set'}} = map {$_ => {'IODir' => 'Unknown'} } @{ $args_ref };    
+    %{ $Sf->{'RefactoredArgs'}{'Set'}} = map {$_ => {'IODir' => 'Unknown'} } @{ $args_ref };
+#    carp "SET HasRefactoredArgs for $f";    
     $Sf->{'HasRefactoredArgs'} = 1;
     
     return $stref;

@@ -10,7 +10,7 @@ use Fortran::F95Normaliser qw( normalise_F95_src );
 #
 
 use vars qw( $VERSION );
-$VERSION = "1.0.0";
+$VERSION = "1.1.0";
 
 #use warnings::unused;
 use warnings;
@@ -105,6 +105,7 @@ sub read_fortran_src {
 			}
             open my $SRC, '<', $fpath or do {
                 say "WARNING: Can't find '$fpath' ($code_unit)\n" if $W;
+                $stref->{$sub_func_incl}{$code_unit}{'Status'} = $FILE_NOT_FOUND;
                 $ok = 0;
             };
 
@@ -118,6 +119,7 @@ sub read_fortran_src {
                 
                 push @lines, "      \n";
                 my $free_form = $stref->{$sub_func_incl}{$code_unit}{'FreeForm'};
+#                die "$sub_func_incl $code_unit FreeForm=$free_form".Dumper($stref->{$sub_func_incl}{$code_unit}) if !$free_form; 
                 my $srctype   = $sub_func_incl;
                 if ($sub_contained_in_module) {
                 	$srctype   = 'Modules';
@@ -155,6 +157,7 @@ Suppose we don't:
 #					map { say $_} @{$norm_lines };
 #					croak ;
                     for my $line ( @{$norm_lines} ) {
+                    	
                         # emit line
                         if ( $line ne '' ) {                        	
                             ( $stref, $code_unit , $srctype ) = _pushAnnLine( $stref, $code_unit , $srctype, $f, $line, $free_form );
@@ -177,14 +180,21 @@ Suppose we don't:
                     my $firstline            = 1;
                     # There is an extension to allow 132 characters. But that is a compiler flag so I can't tell
                     # I can guess based on the max line length. 
-                    # Let's say if it is > 102 characters then we have a 132-line program
+                    # Let's say if it is > 72 characters then we have a 132-line program
+                    # But let's say if it is less than 102 we warn
                     my $max_line_length=0;
                     for my $line (@lines) {
-                    	my $cline= chomp $line;
-                    	my $line_length = length($cline);
-                    	$max_line_length= $line_length > $max_line_length ? $line_length : $max_line_length; 
-                    }
-                    my $ncols = $max_line_length > 102 ? 132 : 72;
+                    	my $cline= $line;
+                    	chomp $cline;
+                    	my $line_length = length($cline);                    	
+                    	$max_line_length = $line_length > $max_line_length ? $line_length : $max_line_length; 
+                    }                    
+                    if ($max_line_length > 72 && $max_line_length  < 102 ) {
+#                    	die "WARNING: The file $f is a fixed-form F77 source file but the max line length is $max_line_length characters, using $MAX_LINE_LENGTH-character lines. To use a different max line length, set MAX_LINE_LENGTH in the config file."; 
+                    	say "WARNING: The file $f is a fixed-form F77 source file but the max line length is $max_line_length characters, using $MAX_LINE_LENGTH-character lines. To use a different max line length, set MAX_LINE_LENGTH in the config file." if $W;  	
+                    };
+                    my $ncols = $MAX_LINE_LENGTH;#$max_line_length > 72 ? 132 : 72;
+#                    die $MAX_LINE_LENGTH;
                     for my $line (@lines) {
                     	$line=substr($line,0,$ncols);
                     	# Here a minor hack: if there is a label in the 6th col and a non-blank in the 7th, I insert a blank
@@ -198,6 +208,7 @@ Suppose we don't:
 #                    		$line = substr($line,0,6).' '.substr($line,6); 
 #                    	} 
                     	}
+                    	$line=~s/\x{d}//;
                     }
                     while (@lines) {
                     	# OK, this is a HACK but I will remove anything after the 72nd character 
@@ -883,7 +894,8 @@ Suppose we don't:
             
 				# Split lines with multiple common block declarations            
 			    for my $sub_or_func ( @{  $stref->{'SourceContains'}{$f}{'List'}   } ) {			    	
-			        my $sub_func_type= $stref->{'SourceContains'}{$f}{'Set'}{$sub_or_func};			        
+			        my $sub_func_type= $stref->{'SourceContains'}{$f}{'Set'}{$sub_or_func};
+			        			        
 			        my $Sf = $stref->{$sub_func_type}{$sub_or_func};			         
 			        next if (exists $Sf->{'Entry'} and $Sf->{'Entry'}==1);
 			         
@@ -958,8 +970,8 @@ sub _pushAnnLine {
     	}
 
 	    if ( exists $pline->[1]{'Module'} and $srctype eq 'Modules' ) {
+	    	
 	        if ( $f ne 'UNKNOWN_SRC' ) {
-
 	            if ( $stref->{$srctype}{$f}{'Status'} < $READ ) {    # FIXME: bit late, can I catch this earlier?
 	                $stref->{$srctype}{$f}{'Status'} = $READ;                
 	            }
@@ -974,7 +986,6 @@ sub _pushAnnLine {
                 if ( $stref->{$srctype}{$f}{'Status'} == $UNREAD )
                 {    # FIXME: bit late, can I catch this earlier?
                     $stref->{$srctype}{$f}{'Status'} = $READ;
-#                    say "\t$srctype $f : READ";
                 }
             }
  			if ( exists $pline->[1]{'SubroutineSig'} ) {
@@ -999,7 +1010,7 @@ sub _pushAnnLine {
 	        my $mod_name = $pline->[1]{'EndModule'};
 	        push @{ $stref->{'Modules'}{$mod_name}{'AnnLines'} }, $pline unless $stref->{'Modules'}{$mod_name}{'Status'} == $PARSED;
 	    } else {
-		    if ($f ne  'UNKNOWN_SRC') { # WV: what should happen is that on exit of a subroutine we push the rest onto the Module annlines.		     
+		    if ($f ne  'UNKNOWN_SRC') { # WV: what should happen is that on exit of a subroutine we push the rest onto the Module annlines.		    
 		    	if (not (exists $stref->{$srctype}{$f}{'Status'} and $stref->{$srctype}{$f}{'Status'} == $PARSED) ) {		    	
 #		    		say "$srctype $f";
 		    		push @{ $stref->{$srctype}{$f}{'AnnLines'} }, $pline;
@@ -1009,8 +1020,9 @@ sub _pushAnnLine {
 		    	say "INFO: Adding <$line> to $src because code unit not yet known" if $I;		    	 
 		    	push @{ $stref->{'SourceFiles'}{$src}{'AnnLines'} }, $pline;
 		    }       
-	    }  
-	}   
+	    }
+	      
+	}  
 
     return ( $stref, $f, $srctype );
 }    # END of  _pushAnnLine()
@@ -1139,8 +1151,8 @@ sub _procLine {
 	} 
     # Detect and standardise comments    
 # A line with a c, C, *, d, D, or! in column one is a comment line. The d, D, and! are nonstandard.     
-    elsif ($free_form==0 and $line=~/^[CD\*\!]/i) {
-    	 
+    elsif ($free_form==0 and $line=~/^[CD\*\!]/i) {    	 
+#    	croak $free_form;
     	$info->{'Comments'} = 1;
     	$line = '! '.substr($line,1);
     } elsif ($line=~/^\s*\!/) {

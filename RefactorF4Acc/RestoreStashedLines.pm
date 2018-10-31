@@ -5,7 +5,11 @@ package RefactorF4Acc::RestoreStashedLines;
 #   
 	
 use vars qw( $VERSION );
+<<<<<<< HEAD
 $VERSION = "1.0.0";
+=======
+$VERSION = "1.1.0";
+>>>>>>> devel
 
 use v5.10;
 use warnings;
@@ -30,7 +34,11 @@ our $VV=1;
 
 sub restore_stashed_lines { my @args = @_;
 	if (!@args) {
+<<<<<<< HEAD
 	    die "$0 path-to-stash-file (probably ../src/stash.pl) optional-output-path (default is ./PostGen\n";
+=======
+	    die "$0 path-to-stash-file/stash.pl (in the sources folder) optional-output-path (default is ./PostGen)\n";
+>>>>>>> devel
 	}
 	
 	my $stash_path = $args[0];

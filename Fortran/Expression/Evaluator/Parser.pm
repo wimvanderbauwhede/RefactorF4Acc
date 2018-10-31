@@ -10,10 +10,10 @@ Fortran::Expression::Evaluator::Parser - Parse mathematical expressions
     my $exp = '2 + a * 4';
     my $ast = Fortran::Expression::Evaluator::Parser::parse($exp, {});
     # $ast is now something like this:
-    # $ast = ['+',
+    # $ast = [{'+',
     #          2,
-    #         ['*',
-    #          ['$', 'a'],
+    #         [{'*',
+    #          [{'$', 'a'],
     #          4
     #         ]
     #        ];
@@ -37,28 +37,28 @@ of the node. The rest of the items in the array is a list of its arguments.
 
 For the mathematical symbols C<+>, C<->, C<*>, C</>, C<^> (exponentation)
 this is straight forward, but C</> and C<-> are always treated as prefix ops,
-so the string '2 - 3' is actually turned into C<['+', 2, ['-', 3]]>.
+so the string '2 - 3' is actually turned into C<[{'+', 2, [{'-', 3]]>.
 
 Other AST nodes are
 
 =over 4
 
-=item '$'
+=item {'$'
 
-C<['$', $var_name]> represents a variable.
+C<[{'$', $var_name]> represents a variable.
 
-=item '{'
+=item [++$nodeId,'{']
 
-C<['{', $expr1, $expr2, ... ]> represents a block, i.e. a list of expressions.
+C<[[++$nodeId,'{'], $expr1, $expr2, ... ]> represents a block, i.e. a list of expressions.
 
-=item '='
+=item {'='
 
-C<['=', $var, $expr]> represents an assignment, where C<$expr> is assigned
+C<[{'=', $var, $expr]> represents an assignment, where C<$expr> is assigned
 to C<$var>.
 
-=item '&'
+=item {'&'
 
-C<['&', $name, @args]> is a function toll to the function called C<$name>.
+C<[{'&', $name, @args]> is a function toll to the function called C<$name>.
 
 =back
 
@@ -80,6 +80,25 @@ C<parse> throws an exception on parse errors.
 
 =cut
 
+=coding
+	{	0
+	&	1
+	$	2
+	+	3
+	-	4
+	*	5
+	/	6
+	%	7
+	^,**	8
+	=	9
+	@	10
+	#	11
+	:	12
+	//	13
+	)(	14
+		15	
+=cut
+
 use strict;
 use warnings;
 
@@ -88,9 +107,12 @@ use Fortran::Expression::Evaluator::Util qw(is_lvalue);
 use Carp qw(confess);
 use Data::Dumper;
 
+our $nodeId=0;
+
+our @sigils = ( '{', '&', '$', '+', '-', '*', '/', '%', '**', '=', '@', '#',':','//',')(' );
 
 my @input_tokens = (
-        ['ExpOp'            => '\^|\*\*'],
+        ['ExpOp'            => '\^|\*\*'], 
         ['MulOp'            =>  qr{[*/%]}],
         ['AddOp'            => '\+|-'],
 # This regex is 'stolen' from Regexp::Common, and a bit simplified
@@ -130,7 +152,7 @@ sub parse {
 }
 
 # checks if the next token is what you expected, for example
-# _is_next_token("AddOp") checks if the next token is a '+' or '-'
+# _is_next_token("AddOp") checks if the next token is a {'+' or {'-'
 sub _is_next_token {
     my $self = shift;
     my $cmp = shift;
@@ -167,10 +189,10 @@ sub _next_token {
 
 # program -> statement*
 # parse a program, e.g. a collection of statements.
-# The corrsponding AST looks like this: ['{', $s1, $s2, $s3, ... ]
+# The corresponding AST looks like this: ['{', $s1, $s2, $s3, ... ]
 sub _program {
     my $self = shift;
-    my @res = ('{');
+    my @res = ( 0x0+( ++$nodeId << 4) );
     while (defined $self->_next_token()){
         push @res, $self->_statement();
     }
@@ -226,10 +248,10 @@ sub _value {
 }
 
 # <function_call> -> <name> '(' [<expression> [',' <expression>]* ]? ')'
-# parses a function call, the AST looks like this: ['&', $name, @args]
+# parses a function call, the AST looks like this: [{'&', $name, @args]
 sub _function_call {
     my $self = shift;
-    my @res = ('&', $self->_match("Name"));
+    my @res = (0x1+(++$nodeId<<4), $self->_match("Name"));
     $self->_match("OpenParen");
     if ($self->_is_next_token("ClosingParen")){
         $self->_proceed();
@@ -250,7 +272,7 @@ sub _function_call {
 sub _get_variable {
     my $self = shift;
     my $var_name = $self->_match("Name");
-    return ['$', $var_name];
+    return [0x2+(++$nodeId<<4), $var_name];
 }
 
 # <statement> -> <_assignment> | <expression>
@@ -285,33 +307,48 @@ sub _assignment {
     $self->_match("AssignmentOp");
     my $val = $self->_expression();
     if (is_lvalue($e)){
-        return ['=', $e, $val];
+        return [0x9+(++$nodeId<<4), $e, $val];
     } else {
         confess("Not an lvalue in _assignment");
     }
 }
 
 
-# <term> ::= <exponential> [('*'|'/') <exponential>]*
+# <term> ::= <exponential> [('*'|'/'|'%') <exponential>]*
 # the AST is a bit weird, a simple product is expressed as
 # ['*', $v1, $v2, ... ]
 # a division is a bit more complex:
 # a / b / c becomes ['*', a, ['/', b], ['/', c]]
+#        } elsif ($op eq '/'){
+#            $self->_proceed();
+#            push @res, ['/',  $self->_exponential()];
+#        } elsif ($op eq '%') {
+#            $self->_proceed();
+#            # XXX not very efficient
+#            @res = ('*', ['%', [@res], $self->_exponential()]);
+#        }
 sub _term {
+#	BOOM!
     my $self = shift;
     my $val = $self->_exponential();
-    my @res = ('*', $val);
+    my @res = (0x5+(++$nodeId<<4), $val);
     while (my $op = $self->_is_next_token("MulOp")){
         if ($op eq '*'){
             $self->_proceed();
             push @res, $self->_exponential();
         } elsif ($op eq '/'){
             $self->_proceed();
-            push @res, ['/',  $self->_exponential()];
+#       		@res = (0x6+(++$nodeId<<4), $val);     
+#            push @res, $self->_exponential();
+            push @res, [ 0x6+(++$nodeId<<4),  $self->_exponential()];
         } elsif ($op eq '%') {
             $self->_proceed();
+            # WV: CHEAP! I assume a % b % c does never occur
+            @res = (0x7+(++$nodeId<<4), $val);
+            push @res, $self->_exponential();
             # XXX not very efficient
-            @res = ('*', ['%', [@res], $self->_exponential()]);
+#            @res = ( 0x5+(++$nodeId<<4), [ 0x7+(++$nodeId<<4), [@res], $self->_exponential()]);
+#            push @res, [ 0x7+(++$nodeId<<4),  $self->_exponential()];
         } else {
             die "Don't know how to handle MulOp $op\n";
         }
@@ -319,18 +356,18 @@ sub _term {
     return _return_simplify(@res);
 }
 
-# <expression> ::= ['+'|'-']? <term> [('+'|'-') term]*
+# <expression> ::= [{'+'|{'-']? <term> [({'+'|{'-') term]*
 sub _expression {
     my $self = shift;
 #   print STDERR "expression...\n";
-    my @res = ('+');
+    my @res = ( 0x3+(++$nodeId<<4) );
     if (my $op = $self->_is_next_token("AddOp")){
         # unary +/-
         $self->_proceed();
         if ($op eq '+'){
             push @res, $self->_term();
         } else {
-            push @res, ['-', $self->_term()];
+            push @res, [ 0x4+(++$nodeId<<4), $self->_term()];
         }
     } else {
         push @res, $self->_term();
@@ -342,7 +379,7 @@ sub _expression {
         } else {
             # a '-'
             $self->_proceed();
-            push @res, ['-', $self->_term()];
+            push @res, [0x4+(++$nodeId<<4), $self->_term()];
         }
     }
     return _return_simplify(@res);
@@ -362,14 +399,14 @@ sub _factor {
     return $val;
 }
 
-# <exponential> ::= <factor> [ '^' <factor>]?
-# note that 2^3^4 is not defined, ie ^ is not associative
+# <exponential> ::= <factor> [ '**' <factor>]?
+# note that 2**3**4 is not defined, ie ** is not associative
 sub _exponential {
     my $self = shift;
     my $val = $self->_factor();
     if ($self->_is_next_token("ExpOp")){
         $self->_match("ExpOp");
-        return ['^', $val, $self->_factor()];
+        return [0x8+(++$nodeId<<4), $val, $self->_factor()];
     } else {
         return $val;
     }

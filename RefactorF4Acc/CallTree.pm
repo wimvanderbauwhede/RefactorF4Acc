@@ -7,7 +7,7 @@ use RefactorF4Acc::Utils;
 #   
 
 use vars qw( $VERSION );
-$VERSION = "1.0.0";
+$VERSION = "1.1.0";
 
 #use warnings::unused;
 use warnings;
@@ -111,6 +111,7 @@ sub _format_call_tree_line {
 	(my $f, my $stref ) = @_;
     my $sub_or_func = sub_func_incl_mod( $f, $stref );
     my $src         = $stref->{$sub_or_func}{$f}{'Source'};
+    my $is_func = exists $stref->{$sub_or_func}{$f}{'Function'} and $stref->{$sub_or_func}{$f}{'Function'} == 1 ? 1 : 0;
     if (not defined $src) {
     	$src='<unknown source>';
     }
@@ -118,7 +119,7 @@ sub _format_call_tree_line {
     my $incls = join( ',', keys %{ $stref->{$sub_or_func}{$f}{'Includes'} } );
     my $padding = ' ' x ( 32 - length($src) );
     my $src_padded = $src . $padding;
-    my $tgt        = uc( substr( $sub_or_func, 0, 3 ) );
+    my $tgt        = $is_func ? 'FUN' : uc( substr( $sub_or_func, 0, 3 ) );
     my @strs       = (
         ' ' x $stref->{'Indents'},
         $f, 

@@ -1,4 +1,5 @@
 package RefactorF4Acc::OpenCLTranslation;
+# OBSOLETE!
 use v5.10;
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
@@ -8,7 +9,7 @@ use RefactorF4Acc::Refactoring::Common qw( get_annotated_sourcelines );
 #
 
 use vars qw( $VERSION );
-$VERSION = "1.0.0";
+$VERSION = "1.1.0";
 
 #use warnings::unused;
 use warnings;

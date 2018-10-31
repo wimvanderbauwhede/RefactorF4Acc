@@ -1,11 +1,11 @@
-package MacroFileToCmdLine;
+package RefactorF4Acc::MacroFileToCmdLine;
 
 # 
 #   (c) 2018- Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
 #   
 	
 use vars qw( $VERSION );
-$VERSION = "1.0.0";
+$VERSION = "1.1.0";
 
 use v5.10;
 use warnings;
@@ -17,9 +17,9 @@ use Cwd qw( cwd );
 
 use Exporter;
 
-@MacroFileToCmdLine::ISA = qw(Exporter);
+@RefactorF4Acc::MacroFileToCmdLine::ISA = qw(Exporter);
 
-@MacroFileToCmdLine::EXPORT_OK = qw(
+@RefactorF4Acc::MacroFileToCmdLine::EXPORT_OK = qw(
     &macro_file_to_cmd_line_str
     &get_macro_defs_from_file
 );
@@ -43,8 +43,8 @@ sub macro_file_to_cmd_line_str { (my $macros_src, my $flag)=@_;
 	(my $defined_macros_ref,my $undef_macros_ref)= get_macro_defs_from_file($macros_src);
 	my @defined_macros=@{ $defined_macros_ref };
 	my @undef_macros= @{ $undef_macros_ref };
-	warn "No #define macros found!\n" unless @defined_macros;
-	warn "No #undef macros found!\n" unless @undef_macros;
+	warn "INFO: No #define macros found in $macros_src\n" unless @defined_macros;
+	warn "INFO: No #undef macros found in $macros_src\n" unless @undef_macros;
 		
 	my $defined_macros_str ='';
 	my $undef_macros_str='';

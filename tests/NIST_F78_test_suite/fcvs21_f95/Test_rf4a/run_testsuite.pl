@@ -357,6 +357,7 @@ NEWSRCPATH = RefactoredSources
 EXCL_SRCS = \w\.DAT
 EXCL_DIRS = RefactoredSources
 SPLIT_LONG_LINES = 0
+MAX_LINE_LENGTH = 72
 
 ENDCFG
 

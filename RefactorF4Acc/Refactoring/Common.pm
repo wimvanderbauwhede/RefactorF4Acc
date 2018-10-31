@@ -8,7 +8,7 @@ use RefactorF4Acc::Utils;
 #
 
 use vars qw( $VERSION );
-$VERSION = "1.0.0";
+$VERSION = "1.1.0";
 
 #use warnings::unused;
 use warnings;
@@ -123,7 +123,7 @@ sub context_free_refactorings {
         if ( exists $info->{'External'} ) {
 #        	warn "EXTERNAL LINE: $line in $f";
         	if (scalar keys %{ $info->{'External'}} >1) {
-        		carp 'Cannot handle EXTERNAL with multiple names, IGNORING!';
+        		say 'WARNING: Cannot handle EXTERNAL with multiple names, IGNORING!' if $W;
         	} else {
         	for my $maybe_ext (keys %{ $info->{'External'} } ) {
         		if (exists $stref->{'Subroutines'}{$maybe_ext}
@@ -603,8 +603,8 @@ sub create_refactored_source {
 						 	$line_without_comment = $line;
 						 }
 				 
- 	           	     	my @split_lines = $SPLIT_LONG_LINES ? split_long_line($line_without_comment) : ( $line );
-    	         		for my $sline (@split_lines) {
+ 	           	     	my @split_lines = $SPLIT_LONG_LINES ? split_long_line($line_without_comment) : ( $line_without_comment );
+    	         		for my $sline (@split_lines) {    	         			
         	            	push @{$refactored_lines}, [ $sline, $info ];
             	    	}
             	    	if ($comment ne '') {
@@ -623,53 +623,6 @@ sub create_refactored_source {
     }
     return $refactored_lines;
 }    # END of create_refactored_source()
-
-# -----------------------------------------------------------------------------
-sub create_refactored_source_OLD { croak "OBSOLETE!";
-    ( my $stref, my $f, ) = @_;
-    print "CREATING FINAL $f CODE\n" if $V;
-    die join( ' ; ', caller ) if $stref !~ /0x/;
-    my $sub_or_func_or_inc = sub_func_incl_mod( $f, $stref );
-    my $Sf                 = $stref->{$sub_or_func_or_inc}{$f};
-    my $annlines           = get_annotated_sourcelines( $stref, $f );
-    $Sf->{'RefactoredCode'} = [];
-    for my $annline ( @{$annlines} ) {
-
-        if ( not defined $annline or not defined $annline->[0] ) {
-            croak
-              "Undefined source code line for $f in create_refactored_source()";
-        }
-        my $line = $annline->[0];
-        my $info = $annline->[1];
-
-        if ( not exists $info->{'Comments'}
-            and ( exists $info->{'InBlock'} or not exists $info->{'Deleted'} ) )
-        {
-            print $line, "\n" if $DBG;
-            if ( $line =~ /;/ && $line !~ /[\'\"]/ ) {
-                my $spaces = $line;
-                $spaces =~ s/\S.*$//;
-                $line   =~ s/^\s+//;
-                my @split_lines = split( /\s*;\s*/, $line );
-                for my $sline (@split_lines) {
-                    push @{ $Sf->{'RefactoredCode'} },
-                      [ $spaces . $sline, $info ];
-                }
-            } else {
-                $line =~ s/\s+\!\!.*$//
-                  ; # FIXME: ad-hoc to remove comments from context-free refactoring
-
-                my @split_lines = split_long_line($line);
-                for my $sline (@split_lines) {
-                    push @{ $Sf->{'RefactoredCode'} }, [ $sline, $info ];
-                }
-            }
-        } else {
-            push @{ $Sf->{'RefactoredCode'} }, [ $line, $info ];
-        }
-    }
-    return $stref;
-}    # END of create_refactored_source_OLD()
 
 # -----------------------------------------------------------------------------
 # A convenience function to split long lines.
@@ -1098,6 +1051,9 @@ sub format_f95_par_decl {
        		my $len = length($val) -2;
        		$type = 'character';
        		$attr="(len=$len)";
+       	} elsif ($val=~/^__PH\d+__/) {       		
+       		$type = 'character';
+       		$attr='len=*';
        	}	
 #       } else {
 #       	#FIXME
@@ -1337,7 +1293,7 @@ sub emit_f95_var_decl {
       	# Contains Type and Kind
       	my $ttype=$type->{'Type'};
       	my $tkind=$type->{'Kind'};
-      	$type= $ttype . (defined $tkind ?  "($tkind)" : '');      	
+      	$type= $ttype . (defined $tkind ?  "($tkind)" : '');       	
       } 
       croak Dumper($var_decl_rec) if $type eq 'character*70';
       my $attr= $var_decl_rec->{'Attr'}; 
@@ -1386,20 +1342,21 @@ sub emit_f95_var_decl {
         	say "INFO: Intent is [] for $var, setting to Unknown" if $I;
         	$intent = 'Unknown';
         }
-        
+        my $trailing_comment='';
         my $intentstr = '';
         
-            if ( $intent ne 'Unknown' and $intent ne 'Ignore' ) {
-                $intentstr ='intent('.$intent.')'; 
-            } 
-#            else {
-#                say "WARNING: Intent is Unknown for $var"                  
-#                  if $W;
-#            }
+        if ( $intent ne 'Unknown' and $intent ne 'Ignore' ) {
+        	$intentstr ='intent('.$intent.')'; 
+		} 
+		elsif ($intent eq 'Ignore') {			
+#			carp("VAR $var with intent Ignore");
+			$trailing_comment=" ! Intent $intent"; 
+		}
+		
         if (not $external) {
-        if ($intentstr) {
-            push @attrs, $intentstr;
-        } 
+	        if ($intentstr) {
+    	        push @attrs, $intentstr;
+        	} 
         } else {
         	    push @attrs, 'external';
         }
@@ -1409,13 +1366,15 @@ sub emit_f95_var_decl {
                 $spaces 
               . $type
               . join( ', ', @attrs ) . ' :: '
-              . $var;
+              . $var
+              . $trailing_comment;
             return $decl_line;
         } else {
             my $decl_line =
                 $spaces
               . join( ', ', ( $type, @attrs ) ) . ' :: '
-              . $var;
+              . $var
+              . $trailing_comment;
             return $decl_line;
         }
         
@@ -1671,6 +1630,7 @@ sub pass_wrapper_subs_in_module { (my $stref,my $pass_sequences, my @rest) = @_;
     my %existing_module_name = ();
 	
 	for my $src (keys %{ $stref->{'SourceContains'} } ) {		
+		
 		if (exists $stref->{'SourceContains'}{$src}{'Path'}
 		and  exists $stref->{'SourceContains'}{$src}{'Path'}{'Ext'} ) {	
 		# External, SKIP!
@@ -1687,9 +1647,11 @@ sub pass_wrapper_subs_in_module { (my $stref,my $pass_sequences, my @rest) = @_;
 		    }
 		}
 		my $has_contains = ( $is_existing_module{$src} and exists $stref->{'Modules'}{$existing_module_name{$src}}{'Contains'}  ) ? 1 : 0;
-		my @subs= $is_existing_module{$src}  ? $has_contains ? @{ $stref->{'Modules'}{$existing_module_name{$src}}{'Contains'} } : ()  :   sort keys %{ $stref->{'Subroutines'} };
+#		say "SRC: $src";
+		my @subs= $is_existing_module{$src}  ? $has_contains ? @{ $stref->{'Modules'}{$existing_module_name{$src}}{'Contains'} } : ()  :  grep {$_ ne 'UNKNOWN_SRC' } sort keys %{ $stref->{'Subroutines'} };
 		for my $pass_sequence (@{$pass_sequences}) {	
 			for my $f ( @subs ) {
+#				say "SUB $f";
 				for my $pass_sub_ref (@{$pass_sequence}) {			
 					$stref=$pass_sub_ref->($stref, $f, @rest);
 				}			

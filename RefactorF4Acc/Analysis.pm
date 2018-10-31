@@ -12,7 +12,7 @@ use RefactorF4Acc::Refactoring::Common qw( get_f95_var_decl stateful_pass statel
 #
 
 use vars qw( $VERSION );
-$VERSION = "1.0.0";
+$VERSION = "1.1.0";
 
 #use warnings::unused;
 use warnings;
@@ -71,25 +71,14 @@ sub analyse_all {
 		$stref = _lift_param_includes( $stref, $f );
 		# ExImplicitArgs, ExInclArgs
 		$stref = _find_argument_declarations( $stref, $f );
-	}
-	
+	}	
 	return $stref if $stage == 2;
-
-#	for my $f ( keys %{ $stref->{'Subroutines'} } ) {
-#		next if $f eq '';
-#
-#		# In this stage, 'ExGlobArgs' is populated
-#		$stref = _populate_exglobs_from_commonvars( $stref, $f );
-#
-#	}
 
 	for my $f ( keys %{ $stref->{'Subroutines'} } ) {
 		next if $f eq '';	
 		if (exists $stref->{'Entries'}{$f}) {
 			next;
 		}
-#		say "SUB $f";
-#		say "$f USES ", keys %{ $stref->{'Subroutines'}{$f}{'Uses'} };
 		$stref = _analyse_variables( $stref, $f );
 	}
 	return $stref if $stage == 3;
@@ -115,12 +104,13 @@ sub analyse_all {
 	}
 	return $stref if $stage == 5;
 
-	for my $f ( keys %{ $stref->{'Subroutines'} } ) {
+	for my $f ( keys %{ $stref->{'Subroutines'} } ) { 
 		next if $f eq '';
 		if (exists $stref->{'Entries'}{$f}) {
 			next;
 		}
 		# RefactoredArgs = OrigArgs ++ ExGlobArgs and at this point any necessary renaming has been done
+		# This sets HasRefactoredArgs = 1
 		$stref = _create_refactored_args( $stref, $f );
 		if (exists $stref->{'Subroutines'}{$f}{'HasEntries'} ) {
 			$stref = _create_refactored_entry_args( $stref, $f );
@@ -146,7 +136,6 @@ sub analyse_all {
 		$stref = _identify_external_proc_args( $stref, $f );
 	}
 	return $stref if $stage == 8;
-	#croak Dumper( $stref->{'Subroutines'}{'gridcheck'}{'UndeclaredOrigLocalVars'} );
 
 #	# This is only for refactoring init out of time loops so very domain specific
 #	for my $kernel_wrapper ( keys %{ $stref->{'KernelWrappers'} } ) {
@@ -159,11 +148,9 @@ sub analyse_all {
 		next if $f eq '';
 		if (exists $stref->{'Entries'}{$f}) {
 			next;
-		}
-		
+		}		
 		$stref = _analyse_var_decls_for_params( $stref, $f );
-	}
-	
+	}	
 	
 	return $stref;
 }    # END of analyse_all()
@@ -292,7 +279,7 @@ sub _analyse_variables {
 #				  	say "$f VAR2 $mvar";
 					my $in_incl = 0;
 					if ( not exists $Sf->{'Commons'}{$mvar} ) {												
-						for my $inc ( keys %{ $Sf->{'Includes'} } ) {
+						for my $inc ( sort keys %{ $Sf->{'Includes'} } ) {
 							say "LOOKING FOR $mvar from $f in $inc" if $DBG;
 
 							# A variable can be declared in an include file or not and can be listed as common or not
@@ -527,7 +514,7 @@ sub _analyse_variables {
 sub identify_vars_on_line {
 		( my $annline ) = @_;
 		( my $line,    my $info )  = @{$annline};
-
+#say $line, Dumper($info);
 		if (   exists $info->{'Assignment'}
 			or exists $info->{'SubroutineCall'}
 			or exists $info->{'If'} # Control
@@ -565,6 +552,7 @@ sub identify_vars_on_line {
 				for my $expr_var ( @{ $info->{'ExprVars'}{'List'} } ) {
 					push @chunks, $expr_var;
 				}
+				
 			} elsif ( exists $info->{'OpenCall'} ) {
 				if ( exists $info->{'Vars'} ) {
 					@chunks = ( @chunks, @{ $info->{'Vars'}{'List'} } );
@@ -656,6 +644,7 @@ sub _create_refactored_args {
 		$Sf->{'RefactoredArgs'}{'List'} = ordered_union( $Sf->{'OrigArgs'}{'List'}, $Sf->{'ExGlobArgs'}{'List'} );
 		$Sf->{'RefactoredArgs'}{'Set'} = { %{ $Sf->{'UndeclaredOrigArgs'}{'Set'} }, %{ $Sf->{'DeclaredOrigArgs'}{'Set'} }, %{ $Sf->{'ExGlobArgs'}{'Set'} } };
 #		croak Dumper($Sf->{'RefactoredArgs'}) if $f=~/update/;
+#carp "SET HasRefactoredArgs for $f";
 		$Sf->{'HasRefactoredArgs'} = 1;
 
 	} elsif ( exists $Sf->{'ExGlobArgs'}{'List'} and  scalar @{$Sf->{'ExGlobArgs'}{'List'}}==0
@@ -666,12 +655,14 @@ sub _create_refactored_args {
 		$Sf->{'RefactoredArgs'}{'Set'}  = $Sf->{'OrigArgs'}{'Set'};
 		$Sf->{'RefactoredArgs'}{'List'} = $Sf->{'OrigArgs'}{'List'};
 		$Sf->{'HasRefactoredArgs'}      = 0;
+#		croak Dumper($Sf) if $f eq 'lowercase';
 	} elsif (  exists $Sf->{'ExGlobArgs'}{'List'} and  scalar @{$Sf->{'ExGlobArgs'}{'List'}}>0
 	and scalar @{ $Sf->{'OrigArgs'}{'List'} } ==0
 	) {
 
 		# No ExGlobArgs, so Refactored = Orig
 		$Sf->{'RefactoredArgs'}    = $Sf->{'ExGlobArgs'};
+#carp "SET HasRefactoredArgs for $f";		
 		$Sf->{'HasRefactoredArgs'} = 1;
 	} else { # No args at all, implies Globals that have not yet been resolved
 #		say "$f 4";
@@ -696,6 +687,7 @@ sub _create_refactored_entry_args {
 			$Sf->{'RefactoredArgs'}{'List'} = ordered_union( $Sf->{'OrigArgs'}{'List'}, $Spf->{'ExGlobArgs'}{'List'} );
 			$Sf->{'RefactoredArgs'}{'Set'} = { %{ $Sf->{'UndeclaredOrigArgs'}{'Set'} }, %{ $Sf->{'DeclaredOrigArgs'}{'Set'} }, %{ $Spf->{'ExGlobArgs'}{'Set'} } };
 #			say "$f 5";
+#carp "SET HasRefactoredArgs for $f";
 			$Sf->{'HasRefactoredArgs'} = 1;
 	
 		} elsif ( not exists $Spf->{'ExGlobArgs'} 
@@ -714,6 +706,7 @@ sub _create_refactored_entry_args {
 			# No ExGlobArgs, so Refactored = Orig
 			$Sf->{'RefactoredArgs'}    = $Spf->{'ExGlobArgs'};
 #			say "$f 7";
+#carp "SET HasRefactoredArgs for $f";
 			$Sf->{'HasRefactoredArgs'} = 1;
 		} else {
 			$Sf->{'RefactoredArgs'} = { 'Set' => {}, 'List' => [] };
@@ -740,13 +733,10 @@ sub _map_call_args_to_sig_args {
 			$info->{'SubroutineCall'}{'ArgMap'} = {};    # A map from the sig arg to the call arg, because there can be duplicate call args but not sig args
 
 			my $call_args = $info->{'SubroutineCall'}{'Args'}{'List'};
-
 			
 			for my $call_arg_expr ( @{ $info->{'CallArgs'}{'List'} } ) {
 
-				#					croak Dumper($info->{'CallArgs'}{'Set'}{$call_arg_expr}) if $call_arg_expr =~/float/;
 				my $call_arg = $call_arg_expr;
-#				croak $f.' => '.$sub."($call_arg_expr)\t".Dumper($info);
 				if ( $info->{'CallArgs'}{'Set'}{$call_arg_expr}{'Type'} eq 'Array' ) {
 					$call_arg = $info->{'CallArgs'}{'Set'}{$call_arg_expr}{'Arg'};
 				}
@@ -763,14 +753,54 @@ sub _map_call_args_to_sig_args {
 					}
 				}
 			}
+			
 			my $i = 0;
 			for my $sig_arg ( @{ $stref->{'Subroutines'}{$sub}{'OrigArgs'}{'List'} } ) {
 				my $call_arg_expr = $call_args->[$i];
-#croak $line.Dumper($call_args) if not defined $call_arg_expr ;
 				$info->{'SubroutineCall'}{'ArgMap'}{$sig_arg} = $call_arg_expr;
 				$i++;
 			}
 		}
+
+		if ( exists $info->{'FunctionCalls'} ) {
+			for my $fcall_rec (@{$info->{'FunctionCalls'}}) {
+
+			my $sub = $fcall_rec->{'Name'};
+
+			$fcall_rec->{'ArgMap'} = {};    # A map from the sig arg to the call arg, because there can be duplicate call args but not sig args
+
+			my $call_args = $fcall_rec->{'Args'}{'List'};
+			
+			for my $call_arg_expr ( @{ $fcall_rec->{'Args'}{'List'} } ) {
+#				say "_map_call_args_to_sig_args( $f ) " . __LINE__ . " FUNC $sub CALL ARG: $call_arg_expr "; 
+
+				my $call_arg = $call_arg_expr;
+				if ( $fcall_rec->{'Args'}{'Set'}{$call_arg_expr}{'Type'} eq 'Array' ) {
+					$call_arg = $fcall_rec->{'Args'}{'Set'}{$call_arg_expr}{'Arg'};
+				}
+				if (   exists $F95_intrinsics{$call_arg}
+					or exists $F95_reserved_words{$call_arg} )
+				{
+					if ( not exists $stref->{'Subroutines'}{$sub}{'MaskedIntrinsics'}{$call_arg} ) {
+
+						# This is an unmasked intrinsic, set to 'Sub'!
+						say "INFO: Unmasked intrinsic $call_arg in $f" if $I;
+						$fcall_rec->{'Args'}{'Set'}{$call_arg_expr}{'Type'} = 'Sub';
+					} else {
+						say "Intrinsic $call_arg is MASKED in $f";
+					}
+				}
+			}
+			
+			my $i = 0;
+			for my $sig_arg ( @{ $stref->{'Subroutines'}{$sub}{'OrigArgs'}{'List'} } ) {
+				my $call_arg_expr = $call_args->[$i];
+				$fcall_rec->{'ArgMap'}{$sig_arg} = $call_arg_expr;
+				$i++;
+			}				
+			}		
+		}
+	 
 		return [$annline];
 	};
 
@@ -794,11 +824,6 @@ sub _identify_external_proc_args {
 			my $sub = $info->{'SubroutineCall'}{'Name'};
 			for my $sig_arg ( @{ $stref->{'Subroutines'}{$sub}{'OrigArgs'}{'List'} } ) {
 				
-#				say "SUB: $sub" ;
-#				say  Dumper($stref->{'Subroutines'}{$sub}).$sub;#{'Source'}; 
-#				say " $sub => $sig_arg"; 
-#				say Dumper($info->{'SubroutineCall'}{'ArgMap'}) if $line=~/xabort/;			
-
 				my $call_arg = $info->{'SubroutineCall'}{'ArgMap'}{$sig_arg};
 				
 				if (defined $call_arg) {									

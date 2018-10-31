@@ -6,7 +6,7 @@ use RefactorF4Acc::Config qw ($V $W $UNREAD);
 #   
 
 use vars qw( $VERSION );
-$VERSION = "1.0.0";
+$VERSION = "1.1.0";
 
 use warnings;
 use strict;
@@ -35,6 +35,12 @@ use RefactorF4Acc::Utils qw(module_has_only);
 # Uses, Subroutines, Functions, Includes, Parameters, TypeDecls, ImplicitRules, Interfaces (not yet).
 sub find_subroutines_functions_and_includes {	
     my $stref = shift;
+    
+    my $incl='';
+    if (@_) {
+    	($incl)=@_;
+    }
+    	
     my $prefix   = exists $Config{PREFIX} ? $Config{PREFIX} : '.';
     my @srcdirs=exists $Config{SRCDIRS} ?  @{ $Config{SRCDIRS} } : ('.');    
     my @extsrcdirs=exists $Config{EXTSRCDIRS} ? @{ $Config{EXTSRCDIRS} } : (); # External sources, should not be refactored but can be parsed
@@ -59,7 +65,11 @@ sub find_subroutines_functions_and_includes {
     my %src_files = ();
     my $tf_finder = sub { 
         return if !-f;
-        return if (!/\.f(?:9[05])?$/ &&!/\.c$/); # rather ad-hoc for Flexpart + WRF # FIXME: make pattern configurable in rf4a.cfg
+        if ($incl) {
+        	return if (!/$incl$/);
+        } else {
+        	return if (!/\.f(?:9[05])?$/ &&!/\.c$/); # rather ad-hoc for Flexpart + WRF # FIXME: make pattern configurable in rf4a.cfg
+        }
         my $filepath = $File::Find::name;  # i.e. $path+ the name of the file found
         
         my $srcname = $filepath; # e.g. ./admin/aadmn.f
@@ -117,16 +127,16 @@ sub find_subroutines_functions_and_includes {
     		'List'=>[]
     	};
     	
-        $stref=_process_src($src,$stref);
+        $stref=_process_src($src,$stref) if not $incl ;
         
     }
-    
+    if (!$incl) {
     _find_external_modules($stref);
     
     _test_can_be_inlined_all_modules($stref);    
     
     _add_path_to_includes($stref);
-    
+    }
     return $stref;
 }    # END of find_subroutines_functions_and_includes()
 
@@ -287,7 +297,7 @@ sub _process_src {
                 
                 $fstyle='F95';                
                 $stref->{'Modules'}{$mod_name}{'FStyle'}=$fstyle;
-            	$stref->{'Modules'}{$mod_name}{'FreeForm'}=$free_form;                  
+            	$stref->{'Modules'}{$mod_name}{'FreeForm'}=1;#$free_form;                  
                 $stref->{'Modules'}{$mod_name}{'TabFormat'}=$tab_format;         
             } 
             if ( $line =~ /^\s*end\s+(?:module|program)/i ) { 
@@ -295,7 +305,14 @@ sub _process_src {
             }
         if ($fstyle eq 'F77') {            
             if ( $line =~ /^\s*(.*)\s*::\s*(.*?)\s*$/ ) {
-                 $fstyle='F95';
+                 $fstyle='F95'; 
+#                 die $srctype . Dumper( $stref->{'SourceContains'}{$src} ) if $src=~/main/;
+                 if (scalar @{ $stref->{'SourceContains'}{$src}{'List'} } == 1) {
+                 	(my $code_unit, $srctype) = each %{ $stref->{'SourceContains'}{$src}{'Set'} };
+	                $stref->{$srctype}{$code_unit}{'FStyle'}='F95';
+    	        	$stref->{$srctype}{$code_unit}{'FreeForm'}=1;                                   	
+                 }
+                 
             }
         } 
         
@@ -314,7 +331,7 @@ sub _process_src {
             	my $full_proc_type=$1;            	
             	my $proc_name=$2;
 
-#				say "PROC NAME: $proc_name PROC TYPE: $full_proc_type" unless $full_proc_type=~/END/;
+#				say "$src PROC NAME: $proc_name PROC TYPE: $full_proc_type" unless $full_proc_type=~/END/;
 				my @proc_type_chunks = split(/\s+/,$full_proc_type);
 				my $proc_type=$proc_type_chunks[-1];
 				my $is_block_data = (lc($proc_type) eq 'block' and lc($proc_name) eq 'data' ) ? 1 : 0;
@@ -407,16 +424,27 @@ sub _process_src {
                 } else {
                 	croak 'TROUBLE!';
                 }
-                    $stref->{'Subroutines'}{$sub}{'FStyle'}=$fstyle;
-            		$stref->{'Subroutines'}{$sub}{'FreeForm'}=$free_form;  
-            		$stref->{'Subroutines'}{$sub}{'TabFormat'}=$tab_format;
-		            $stref->{'Subroutines'}{$sub}{'HasBlocks'}=$has_blocks;
-                	$sub_name=$sub unless $is_entry;
+                $stref->{'Subroutines'}{$sub}{'FStyle'}=$fstyle;
+            	$stref->{'Subroutines'}{$sub}{'FreeForm'}=$free_form;  
+            	$stref->{'Subroutines'}{$sub}{'TabFormat'}=$tab_format;
+		        $stref->{'Subroutines'}{$sub}{'HasBlocks'}=$has_blocks;
+                $sub_name=$sub unless $is_entry;
             };
             
             # Find include statements
             $line =~ /^\s*\#?include\s+[\"\']([\w\.]+)[\"\']/ && do {
-                my $inc = $1;                
+                my $inc = $1;       
+                say "FOUND include $inc in $src" if $V;
+                # What we should do now is go and find this file!       
+                $stref = find_subroutines_functions_and_includes($stref,$inc);
+                my $src_path=$inc;  
+                for my $k (keys %{$stref->{'SourceContains'}} ){
+                if ($k=~/$inc$/) {
+                	$src_path=$k;
+                	last;
+                }
+                }
+#                die "PATH $src_path";
                 if ($in_module) {
                     $stref->{'Modules'}{$mod_name}{'IncludeFiles'}{$inc}={};
                 }
@@ -425,11 +453,12 @@ sub _process_src {
                     $stref->{'IncludeFiles'}{$inc}{'Source'}=$inc;
 					$stref->{'SourceFiles'}{$inc}{'SourceType'}='IncludeFiles';
                     if (not -e $inc) {
-                    	$stref->{'IncludeFiles'}{$inc}{'InclType'} = 'External';
+                    	$stref->{'IncludeFiles'}{$inc}{'InclType'} = 'External';                    	
                     	for my $ext_dir (@extsrcdirs) {
                     		if (-e "$prefix/$ext_dir/$inc") { 
                     			$stref->{'IncludeFiles'}{$inc}{'ExtPath'} =  "$prefix/$ext_dir/$inc";
-                    			$stref->{'SourceContains'}{$inc}={
+                    			$stref->{'SourceContains'}{$src_path}={
+                    				'Inc' => $inc,
                     				'Path' => { 'Ext' => "$prefix/$ext_dir/$inc"},                    				
     								'Set'=>{},
     								'List'=>[]

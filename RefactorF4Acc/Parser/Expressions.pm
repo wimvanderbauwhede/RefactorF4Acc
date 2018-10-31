@@ -1,13 +1,14 @@
 package RefactorF4Acc::Parser::Expressions;
 use v5.10;
 use RefactorF4Acc::Config;
-#use RefactorF4Acc::Utils qw( in_nested_set );
+use RefactorF4Acc::Utils qw( sub_func_incl_mod );
+use RefactorF4Acc::CallTree qw( add_to_call_tree );
 #
 #   (c) 2010-2017 Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
 #
 
 use vars qw( $VERSION );
-$VERSION = "1.0.0";
+$VERSION = "1.1.0";
 
 #use warnings::unused;
 use warnings;
@@ -33,8 +34,10 @@ use Exporter;
 );
 
 my $DBG=0;
-=pod
-[wim@workai RefactorF4Acc]$ perl -e 'use Data::Dumper;use Fortran::Expression::Evaluator::Parser; print Dumper(Fortran::Expression::Evaluator::Parser::parse("f(a,12.3,b(2,2.3e-4+v))",{}))'
+
+=old
+"f(a,12.3,b(2,2.3e-4+v))"
+perl -e 'use Data::Dumper;use Fortran::Expression::Evaluator::Parser; print Dumper(Fortran::Expression::Evaluator::Parser::parse("f(a,12.3,b(2,2.3e-4+v))",{}))'
 $VAR1 = [
           '&',
           'f',
@@ -62,7 +65,8 @@ $VAR1 = [
 # '_dummy_(write(__PH1__,_CONCAT_PRE_,path(numpath+2*_OPEN_PAR_(...', 'HASH(0x7fb906282f70)') called at /Users/wim/Git/RefactorF4Acc/RefactorF4Acc/Parser/Expressions.pm line 144
 # 'write(__PH1__//path(numpath+2*(k-1)+2)(1:len(numpath+2*(k-1)+2))
 #write(*,'(a)') '     '//path(numpath+2*(k-1)+2)(1:len(numpath+2*(k-1)+2))
-
+#                 0    1    2    3    4    5    6    7    8     9   10   11   12   13   14
+our  @sigils = ( '{', '&', '$', '+', '-', '*', '/', '%', '**', '=', '@', '#', ':' ,'//',')(');
 my %F95_ops =(
 	'==' => '.eq.',  
     '/=' => '.ne.',  
@@ -75,6 +79,7 @@ my %F95_ops =(
 );
 # Returns the AST
 sub parse_expression { (my $exp, my $info, my $stref, my $f)=@_;
+	
 	my $preproc_expr = $exp;
 #	say "EXPR: $preproc_expr" if $preproc_expr=~/write.+path.numpath/; 
 	 # To make this robust, what I'll do is replace any '(' with '_OPEN_PAR_(' so that is looks like a function.
@@ -92,7 +97,13 @@ sub parse_expression { (my $exp, my $info, my $stref, my $f)=@_;
 	while ($preproc_expr =~/\*\*\s*(\w+)\s*\*\*\s*(\w+)/) {
 		$preproc_expr =~s/\*\*\s*(\w+)\s*\*\*\s*(\w+)/**($1 * $2)/;
 	}
+	
+#	while ($preproc_expr =~/\*\*/) {
+#		$preproc_expr =~s/\*\*/\^/;
+#	}
+	
 	# EVIL HACK because the Fortran::Expression::Evaluator::Parser does not support <=, ==, =>, /=
+	# I replace this with a sum where the operator is a fake argument variable
 	$preproc_expr =~s/\<\=/.le./g;
 	$preproc_expr =~s/\>\=/.ge./g;
 	$preproc_expr =~s/\=\=/.eq./g;
@@ -108,20 +119,9 @@ sub parse_expression { (my $exp, my $info, my $stref, my $f)=@_;
 	}
 	$preproc_expr =~s/\+\-/-/g;
 	$preproc_expr =~s/\+\+/+/g;
-#	# F77 allows 1D7 or 2Q-5 instead of 1E7 and 2E-5 
-#	while ($preproc_expr=~/\W[\.\d]+[dq][\d\-\+]/) { 
-#		$preproc_expr=~s/(\W[\.\d]+)[dq]([\d\-\+])/${1}e$2/;
-#	}
-#	# More EVIL HACK to "support" complex numbers, WEAK!	
-#	# ( <not ( ) > , <not ( )> )
-#	if ($preproc_expr=~/^\([^\(\)]+,[^\(\)]+\)/) {
-#		$preproc_expr='_complex_'.$preproc_expr;
-#	}
-#	while ($preproc_expr=~/\W\([^\(\)]+,[^\(\)]+\)/) { 
-#		$preproc_expr=~s/(\W)\(/${1}_complex_\(/;
-#	}
+
 	# HACK to support ':'
-	# Remove ':' because again this only occurs for characters strings
+	# Remove ':' because this only occurs for characters strings
 	my $wrap=0;
 	my $has_colons=0;
 	if ($preproc_expr =~ /:/) {
@@ -135,11 +135,11 @@ sub parse_expression { (my $exp, my $info, my $stref, my $f)=@_;
 		$preproc_expr =~ s/_COLON_PRE_,,/_COLON_PRE_,/g;
 	}
 	# HACK to support '//'
+	# replace <//> by <,_CONCAT_PRE_,>
+	# replace <(,_CONCAT_PRE_> by <(_CONCAT_PRE_>
+	# replace <_CONCAT_PRE_,)> by <_CONCAT_PRE_)>
 	my $has_concat=0;
 	if ($preproc_expr =~ /\/\//) {
-		# If this expression contains parens I just remove them!
-		# This is bad, it breaks 	 	#   path(3)(1:len(3))//wfname(ifn)
-#		$preproc_expr =~ s/[\)\(]//g;
 		$preproc_expr =~ s/\/\//,_CONCAT_PRE_,/g;
 		$preproc_expr =~ s/\(,_CONCAT_PRE_/\(_CONCAT_PRE_/g;
 		$preproc_expr =~ s/_CONCAT_PRE_,\)/_CONCAT_PRE_\)/g;
@@ -149,10 +149,16 @@ sub parse_expression { (my $exp, my $info, my $stref, my $f)=@_;
 	my $double_paren=0;
 	# EVIL HACK to get rid of f(x)(y)
 	# Suppose we replace this by f( x,_PAREN_PAIR_,y)
-	# Then we replace this by
+	# Then we replace the AST by
 	# ['&',f,[')(',['$','x'],['$','y']]]
+	# i.e. we treat ')(' as an operator
 	# We emit 
-	# f( x)(y)
+	# f( x)(y )
+	# <) (> => ,_PAREN_PAIR_,
+	# <(,_PAREN_PAIR_> => <(_PAREN_PAIR_>
+	# <_PAREN_PAIR_,)> => <_PAREN_PAIR_)>
+	# <,,_PAREN_PAIR_> => <,_PAREN_PAIR_>
+	# <_PAREN_PAIR_,,> => <_PAREN_PAIR_,>
 	if ($preproc_expr =~ /\)\s*\(/) {
 		$double_paren=1;
 		$preproc_expr =~ s/\)\s*\(/,_PAREN_PAIR_,/g;
@@ -164,28 +170,28 @@ sub parse_expression { (my $exp, my $info, my $stref, my $f)=@_;
 	# We want to wrap if this is a list. But how can I tell without parsing it?
 	my $wrapped_expr = $preproc_expr;
 	if ($wrap) {
-	 $wrapped_expr = '_dummy_('.$preproc_expr.')';
+		$wrapped_expr = '_dummy_('.$preproc_expr.')';
 	}
-
-#	say "WRAPPED EXPR $f: $wrapped_expr" ; 
+# say "PREPROC EXPR: $wrapped_expr";
     my $ast = Fortran::Expression::Evaluator::Parser::parse($wrapped_expr, {});
 
 	if ($wrap) {
-	    $ast->[0]='&';
+	    $ast->[0]= 1 + ($Fortran::Expression::Evaluator::Parser::nodeId++<<4);
 	    $ast->[1]=~s/_/\#/g;
 	}
-	
+#	say Dumper($ast);
     my $ast2 =  _change_func_to_array($stref,$f,$info,$ast, $exp);
     
     my $ast3 = _fix_colons_in_ast($ast2);
     my $ast4 = _fix_string_concat_in_ast($ast3);
     my $ast5 = _fix_double_paren_in_ast($ast4);
-
+#say "f: $exp => ".Dumper(keys %{ $info->{'FunctionCalls'} }) if exists $info->{'FunctionCalls'} and $exp=~/(:?total|soluteIntra)Energy/i;
 	return $ast5;
-}
+} # END of parse_expression()
 
 # This function changes functions to arrays
 sub _change_func_to_array { (my $stref, my $f,  my $info, my $ast, my $exp)=@_;
+	my $code_unit = sub_func_incl_mod( $f, $stref );
 	if (ref($ast) eq 'ARRAY') {
 	for my  $idx (0 .. scalar @{$ast}-1) {		
 		my $entry = $ast->[$idx];
@@ -194,7 +200,8 @@ sub _change_func_to_array { (my $stref, my $f,  my $info, my $ast, my $exp)=@_;
 			my $entry = _change_func_to_array($stref,$f, $info,$entry, $exp);
 			$ast->[$idx] = $entry;
 		} else {
-			if ($entry eq '&') {				
+			if ($idx == 0) {
+			if (($entry & 0xF) == 1) {				
 				my $mvar = $ast->[$idx+1];
 				say 'Found function '.$mvar  if $DBG;
 				
@@ -214,183 +221,222 @@ sub _change_func_to_array { (my $stref, my $f,  my $info, my $ast, my $exp)=@_;
  					(
  				# 1. $mvar is not a function, including intrinsic
  					not(  (
- 					exists $stref->{'Subroutines'}{$mvar} and 
- 					exists $stref->{'Subroutines'}{$mvar}{'Function'} and 
- 					$stref->{'Subroutines'}{$mvar}{'Function'} == 1 ) or (
+ 					exists $stref->{$code_unit}{$mvar} and 
+ 					exists $stref->{$code_unit}{$mvar}{'Function'} and 
+ 					$stref->{$code_unit}{$mvar}{'Function'} == 1 ) or (
  					exists $F95_intrinsics{$mvar}
  					) 
  					
  					)
  				# 2. OR $mvar is a masked intrinsic	 
- 					or exists $stref->{'Subroutines'}{$f}{'MaskedIntrinsics'}{$mvar}
+ 					or exists $stref->{$code_unit}{$f}{'MaskedIntrinsics'}{$mvar}
  					) 
 # 					or (
 #				# 3. OR $mvar is actually an array 					 					  	
 # 					$mvar ne '#dummy#' and $mvar ne $subname 
-# 					and not exists $stref->{'Subroutines'}{$f}{'CalledSubs'}{'Set'}{$mvar}
+# 					and not exists $stref->{$code_unit}{$f}{'CalledSubs'}{'Set'}{$mvar}
 #					and not exists $F95_reserved_words{$mvar}
 ##					and not exists $F95_intrinsics{$mvar} # Dangerous, because some idiot may have overwritten an intrinsic with an array! 					
 #					)							
 				) {
     		# change & to @
-    		croak '<'.(
-    		not( 
- 					exists $stref->{'Subroutines'}{$mvar} and 
- 					exists $stref->{'Subroutines'}{$mvar}{'Function'} and 
- 					$stref->{'Subroutines'}{$mvar}{'Function'} == 1
- 					)
-    		).'><'.( exists $stref->{'Subroutines'}{$f}{'MaskedIntrinsics'}{$mvar} ).'>' if $mvar eq 'aint';
-    				$ast->[$idx]='@';
+#    		croak '<'.(
+#    		not( 
+# 					exists $stref->{$code_unit}{$mvar} and 
+# 					exists $stref->{$code_unit}{$mvar}{'Function'} and 
+# 					$stref->{$code_unit}{$mvar}{'Function'} == 1
+# 					)
+#    		).'><'.( exists $stref->{$code_unit}{$f}{'MaskedIntrinsics'}{$mvar} ).'>' if $mvar eq 'aint';
+
+    				$ast->[$idx]=  10 + (($ast->[$idx]>>4)<<4);#    '@';
     				say "Found array $mvar" if $DBG;
 				} elsif (   	exists $F95_intrinsics{$mvar} ) {
-#					say "Parser::Expressions::parse_expression('$exp') on line" . __LINE__.": WARNING: treating $mvar in $f as an intrinsic! " if $W;
-				} elsif (   	$mvar eq 'fakerange' ) {
-#					say "Parser::Expressions::parse_expression('$exp') on line" . __LINE__.": WARNING: treating $mvar in $f as an intrinsic! " if $W;					  
+					say "parse_expression('$exp')" . __LINE__ if $DBG;
+					say "WARNING: treating $mvar in $f as an intrinsic! " if $W;  
 				} else {
+					# FUNCTION CALL
 					# So, this line contains a function call, so we should say so in $info!
 					# I introduce FunctionCalls for this purpose!
 					if (
-					( exists $stref->{'Subroutines'}{$mvar} and exists $stref->{'Subroutines'}{$mvar}{'Function'} and $stref->{'Subroutines'}{$mvar}{'Function'} == 1) and (
-					$mvar ne '#dummy#' and $mvar ne $subname 
- 					and not exists $stref->{'Subroutines'}{$f}{'CalledSubs'}{'Set'}{$mvar}
-					and not exists $F95_reserved_words{$mvar}
-#					and not exists $F95_intrinsics{$mvar} # Dangerous, because some idiot may have overwritten an intrinsic with an array! 					
-)
+					( exists $stref->{$code_unit}{$mvar} and exists $stref->{$code_unit}{$mvar}{'Function'} 
+					  and $stref->{$code_unit}{$mvar}{'Function'} == 1) # It's def a function! 
+					  and ( # 
+						$mvar ne '#dummy#' and $mvar ne $subname 
+ 						and not exists $stref->{$code_unit}{$f}{'CalledSubs'}{'Set'}{$mvar}
+						and not exists $F95_reserved_words{$mvar} 					
+						)
 					) {
-#						say "TAG FunctionCalls $mvar" ;
-					$info->{'FunctionCalls'}{$mvar}=1;
+						
+
+						( my $expr_args, my $expr_other_vars ) = get_args_vars_from_subcall($ast);
+						for my $expr_arg (@{$expr_args->{'List'}}) {
+							if (substr($expr_arg,0,1) eq '*') {
+								my $label=substr($expr_arg,1);
+								$stref->{$code_unit}{$f}{'ReferencedLabels'}{$label}=$label;		
+							}
+						}
+#die "TAG FunctionCalls $mvar in $f: ".Dumper($expr_args) if $mvar =~/rad2deg/i;
+						push @{ $info->{'FunctionCalls'} },  {
+							'Name' => $mvar,
+							'Args' => $expr_args,
+							'ExprVars' => $expr_other_vars,
+							'ExpressionAST' => $ast,						
+						};	
+						# Add to CalledSubs for $f
+						$stref->{$code_unit}{$f}{'CalledSubs'}{'Set'}{$mvar} = 1;
+						push @{ $stref->{$code_unit}{$f}{'CalledSubs'}{'List'} }, $mvar;
+						# Add $f to Callers for $mvar
+						my $Sname =  $stref->{'Subroutines'}{$mvar};
+						$Sname->{'Called'} = 1;
+						if ( not exists $Sname->{'Callers'}{$f} ) {
+							$Sname->{'Callers'}{$f} = [];
+						}						
+						push @{ $Sname->{'Callers'}{$f} }, $idx; # I know, this is the index in the AST, not the line number!
+						# Add to the call tree
+						$stref = add_to_call_tree( $mvar, $stref, $f );														
 					}
-				}
-			} elsif ($entry eq '$') {
+				} 
+			} elsif ($entry & 0xF == 2) {
 				my $mvar = $ast->[$idx+1];
 				say "Found scalar $mvar" if $DBG;
 				
-			} elsif ($entry eq '@') {
+			} elsif ($entry & 0xF == 10) {
 				my $mvar = $ast->[$idx+1];
 				say "Found array $mvar" if $DBG;
-			} elsif ($entry eq '#') {
+			} elsif ($entry & 0xF == 11) {
 				my $mvar = $ast->[$idx+1];
 				say "Found dummy $mvar" if $DBG;				
 			} else {
+				# This is either an operation or a constant
 #				say $entry;
+			}
 			}
 		}		
 	}
 	}
 	return  $ast;#($stref,$f, $ast);	
 	
-}
+} # END of _change_func_to_array()
 
-# This function changes functions to arrays
-sub _UNUSED_walk_ast { (my $stref, my $f, my $info, my $ast, my $ast_node_action)=@_;
-	for my  $idx (0 .. scalar @{$ast}-1) {		
-		my $entry = $ast->[$idx];
-#		print "IDX: $idx => "; say Dumper ($ast); say $entry;
-		if (ref($entry) eq 'ARRAY') {
-			( $stref,  $f,  $info, my $entry) = _UNUSED_walk_ast($stref,$f,$info, $entry, $ast_node_action);
-			$ast->[$idx] = $entry;
-		} else {
-			if ($entry eq '&') {
-				say 'Found function'  if $DBG;
-				my $mvar = $ast->[$idx+1];
-#				say $mvar;
-#				say Dumper($stref->{'Subroutines'}{$f});
-				if ($mvar ne '#dummy#' and not exists $stref->{'Subroutines'}{$f}{'CalledSubs'}{'Set'}{$mvar}
-				and $mvar ne $info->{'SubroutineCall'}{'Name'}
-				) {
-    		# change & to @
-    				$ast->[$idx]='@';
-    				say "Found array $mvar" if $DBG;
-				}    	
-			} elsif ($entry eq '$') {
-				my $mvar = $ast->[$idx+1];
-				say "Found scalar $mvar" if $DBG;
-				
-			} elsif ($entry eq '@') {
-				my $mvar = $ast->[$idx+1];
-				say "Found array $mvar" if $DBG;
-			} elsif ($entry eq '#') {
-				my $mvar = $ast->[$idx+1];
-				say "Found dummy $mvar" if $DBG;				
-			} else {
-#				say $entry;
-			}
-		}		
-	}
-	return ($stref,$f,$info, $ast);	
-} # _UNUSED_walk_ast
+=coding
+	{	0
+	&	1
+	$	2
+	
+	+	3
+	-	4
+	
+	*	5
+	/	6
+	%	7
+	
+	^	8
+	
+	=	9
+	@	10
+	#	11
+		12
+		13
+		14
+		15	
+=cut
 
 sub emit_expression {(my $ast, my $expr_str)=@_;
 	
 	
 	if (ref($ast) ne 'ARRAY') {return $ast;}
+	
+	if (ref($ast) eq 'ARRAY'
+	and scalar(@{$ast}<2)
+	) {
+		
+		croak Dumper($ast);
+	}
+	
 	croak 'EMPTY AST' unless @{$ast};
 	my @expr_chunks=();
 	my $skip=0;
+	# Go through the list
 	for my  $idx (0 .. scalar @{$ast}-1) {		
 		my $entry = $ast->[$idx];
 		if (ref($entry) eq 'ARRAY') {
 			 my $nest_expr_str = emit_expression( $entry, '');
 #			 say "NEST:$nest_expr_str ";
 			push @expr_chunks, $nest_expr_str;
-		} else {
-			if ($entry =~/#/) {
-				$skip=1;
-			} elsif ($entry eq '&') {
-				my $mvar = $ast->[$idx+1];
-				$expr_str.=$mvar.'(';
-				$skip=1;
-			} elsif ($entry eq '$') {
-				my $mvar = $ast->[$idx+1];
-				push @expr_chunks,$mvar;
-				$skip=1;				
-			} elsif ($entry eq '@') {
-				my $mvar = $ast->[$idx+1];				
-				$expr_str.=$mvar.'(';
-				$skip=1;
-#			} elsif ($entry =~/^\W/) {
-#				my $mvar = $ast->[$idx+1];				
-#				$expr_str.=$mvar.'(';
-#				$skip=1;				
-			} elsif (
-				$ast->[$idx-1]!~/^[\&\@\$]/ 
-			) {
-#				say "ENTRY:$entry SKIP: $skip";
-				push @expr_chunks,$entry;
-				$skip=0;
+		} elsif ($idx == 0) {
+			say Dumper($ast) if $entry=~/\/\//;;
+				if (($entry  & 0xF) == 11) { # #
+					$skip=1;
+				} elsif (($entry & 0xF) == 1) { # &					
+					my $mvar = $ast->[$idx+1];
+					$expr_str.=$mvar.'(';
+					$skip=1;
+				} elsif (($entry & 0xF) == 2) { # $
+					my $mvar = $ast->[$idx+1];
+					push @expr_chunks,$mvar;
+					$skip=1;				
+				} elsif (($entry & 0xF) == 10) { # @
+					my $mvar = $ast->[$idx+1];				
+					$expr_str.=$mvar.'(';
+					$skip=1;
+				} elsif ((($entry & 0xF) >2 ) && (($entry & 0xF) <9)) { # arithmetic operators
+					push @expr_chunks, $sigils[$entry & 0xF];
+					$skip=0;				
+				} else {  
+					# do nothing
+				}
+		} else { # idx > 0
+			if (
+				(($idx == 1) &&
+				(($ast->[$idx-1] & 0xF) != 1) &&
+				(($ast->[$idx-1] & 0xF) != 2) &&
+				(($ast->[$idx-1] & 0xF) != 10)
+				) || ($idx>1)  
+				) { # arithmetic operators
+#					say "ENTRY:$entry SKIP: $skip";
+					push @expr_chunks, $entry;# $sigils[$entry & 0xF];
+					$skip=0;			
 			}
 		}				
 	}
-	if ($ast->[0] eq '&' or $ast->[0] eq '@') {
+	
+	if ((($ast->[0] & 0xF) == 1 ) or (($ast->[0]  & 0xF) == 10)) { # & or @	
 		$expr_str.=join(',',@expr_chunks);
 		$expr_str.=')'; 
-	} elsif ($ast->[0] ne '$' and $ast->[0] =~ /\W/) {
+	} elsif (($ast->[0]  & 0xF) != 2 and $ast->[0] =~ /^\d+$/) { # FIXME
 		my $op = $ast->[0];
 		if (scalar @{$ast} > 2) {
 			my @ts=();
 			for my $elt (1 .. scalar @{$ast} -1 ) {
 				$ts[$elt-1] = (ref($ast->[$elt]) eq 'ARRAY') ? emit_expression( $ast->[$elt], '') : $ast->[$elt];					
-			} 
-			if ($op eq '^') {$op = '**'};
-			$expr_str.=join($op,@ts);
+			}
+			
+			my $op_sig = $sigils[$op & 0xF]; 
+#			if (($op & 0xF) == 8) {$op = '**'}; # FIXME
+			$expr_str.=join($op_sig,@ts);
 		} elsif (defined $ast->[2]) { croak "OBSOLETE!";
 			my $t1 = (ref($ast->[1]) eq 'ARRAY') ? emit_expression( $ast->[1], '') : $ast->[1];
 			my $t2 = (ref($ast->[2]) eq 'ARRAY') ? emit_expression( $ast->[2], '') : $ast->[2];			
 			$expr_str.=$t1.$ast->[0].$t2;
-			if ($ast->[0] ne '=') {
+			if (($ast->[0] & 0xF) != 9) {
 				$expr_str="($expr_str)";
 			}			
 		} else {
 			# FIXME! UGLY!
+#			say Dumper($ast);
 			my $t1 = (ref($ast->[1]) eq 'ARRAY') ? emit_expression( $ast->[1], '') : $ast->[1];
-			$expr_str=$ast->[0].$t1;
-			if ($ast->[0] eq '/') {
-				$expr_str='1.0'.$expr_str; 
+			$expr_str= $sigils[ $ast->[0] & 0xF ].$t1;
+#			say "$t1 => $expr_str"; 
+			if (($ast->[0] & 0xF) == 6) {
+				$expr_str='1'.$expr_str;# was '1.0' 
 			}
 		}
 	} else {
+#		say "ELSE: $expr_str ",$ast->[0] & 0xF,$sigils[ $ast->[0] & 0xF ];
 		$expr_str.=join(';',@expr_chunks);
+#		say "ELSE: $expr_str ",$ast->[0] & 0xF,$sigils[ $ast->[0] & 0xF ];
 	}	
+	
 #	$expr_str=~s/_complex_//g;
 	$expr_str=~s/_OPEN_PAR_//g;
 	if ($expr_str=~/_OPEN_CONST_ARRAY_/ ) {
@@ -436,7 +482,8 @@ sub get_vars_from_expression {(my $ast, my $vars)=@_;
 		if (ref($entry) eq 'ARRAY') {
 			$vars = get_vars_from_expression( $entry, $vars);			
 		} else {
-			if ($entry eq '$' ) {				
+			if ($idx == 0) {
+			if (($entry & 0xF) == 2  ) { # eq '$'				
 				my $mvar = $ast->[$idx+1];
 				next if $mvar=~/__[a-z]+__/;
 				next if $mvar=~/__PH\d+__/;		
@@ -444,7 +491,7 @@ sub get_vars_from_expression {(my $ast, my $vars)=@_;
 				next if $mvar=~/_PAREN_PAIR_/;			
 				next if exists $Config{'Macros'}{uc($mvar)};
 				$vars->{$mvar}={'Type'=>'Scalar'} ;					
-			} elsif ($entry eq '@') {				
+			} elsif (($entry & 0xF) == 10) {#  eq '@'				
 				my $mvar = $ast->[$idx+1];
 				next if $mvar=~/__[a-z]+__/;
 				next if $mvar=~/__PH\d+__/;
@@ -465,7 +512,8 @@ sub get_vars_from_expression {(my $ast, my $vars)=@_;
 					$vars->{$mvar}{'IndexVars'} = $index_vars;
 				}					
 				#['@','eta',['$','j'],['+',['$','k'],'1']]
-			} 
+			}
+			}
 		}				
 	}
 	return $vars;		
@@ -481,7 +529,10 @@ sub get_consts_from_expression {(my $ast, my $vars)=@_;
 			$vars = get_consts_from_expression( $entry, $vars);			
 		} else {
 			my $val = $entry;
-			if ($entry eq '-') {
+			if (
+				($idx == 0) &&
+				(($entry & 0xF)==4)
+			) {  # '-'
 				 $val =$ast->[$idx+1];
 			}
 			if ($val =~/^[\.\d]/ ) {
@@ -502,13 +553,16 @@ sub get_consts_from_expression {(my $ast, my $vars)=@_;
 
 # if the expression is a sub call (or in fact just a comma-sep list), return the arguments and also all variables that are not arguments
 sub get_args_vars_from_expression {(my $ast)=@_;
-	
+#	FIXME!
 	my $all_vars={'List'=>[],'Set'=>{} };
 	my $args={'List'=>[],'Set'=>{}};
 	if (ref($ast) eq 'ARRAY') {
 			
 	for my  $idx (0 .. scalar @{$ast}-1) {
-		if ($ast->[$idx] eq '@') {
+		
+		if ( ($idx == 0) &&
+		 (($ast->[$idx] & 0xF)==10)
+		 ) {# eq '@'
 			my $arg = $ast->[$idx+1];
 			my $vars = get_vars_from_expression($ast,{} );
 			delete $vars->{$arg}; 
@@ -522,14 +576,22 @@ sub get_args_vars_from_expression {(my $ast)=@_;
 			my $arg = $ast->[$idx][1];
 #			say "ARG: $arg";
 	
-			if ( $ast->[$idx][0]  eq '@' 
-			or  $ast->[$idx][0]  eq '$'
-			or  $ast->[$idx][0]  eq '&') {
-				if ($ast->[$idx][0] eq '@' or $ast->[$idx][0] eq '&') {
+			if ( 
+					(($ast->[$idx][0] & 0xF) == 10) # eq '@' 
+				or  (($ast->[$idx][0] & 0xF) == 2) #  eq '$'
+				or  (($ast->[$idx][0] & 0xF) == 1) # eq '&'
+			) {
+#				if ($ast->[$idx][0] eq '@' or $ast->[$idx][0] eq '&') {
+				if (
+				(($ast->[$idx][0] & 0xF) == 10) or 
+				(($ast->[$idx][0] & 0xF) == 1) #eq '&'
+				) {
 					my $vars = get_vars_from_expression($ast->[$idx],{} );
 					delete $vars->{$arg}; 
 					$all_vars->{'Set'}={%{ $all_vars->{'Set'} },%{$vars}};
-					if ($ast->[$idx][0] eq '@') {
+					if (
+						($ast->[$idx][0] & 0xF) == 10 #eq '@'
+					) {
 #						push @{$args->{'List'}},$arg;
 						$args->{'Set'}{$arg}={ 'Type'=>'Array','Vars'=>$vars};
 					} elsif($ast->[$idx][1] eq 'do')	{ 
@@ -551,7 +613,10 @@ sub get_args_vars_from_expression {(my $ast)=@_;
 #						$args->{'Set'}{$arg}={ 'Type'=>'Expr','Vars'=>$vars, 'AST'=>$ast->[$idx]};
 						$all_vars->{'Set'}={%{ $all_vars->{'Set'} },%{$vars}};
 			}
-		} elsif ($ast->[$idx] eq '$') { 
+		} elsif (
+			($idx==0) &&
+			(($ast->[$idx] & 0xF) == 2) #eq '$'
+		) { 
 			my $arg=$ast->[$idx+1];			
 			$args->{'Set'}{$arg}={ 'Type'=>'Scalar'} unless ( $arg=~/__PH\d+__/ or $arg=~/_(?:CONCAT|COLON)_PRE_/ or $arg=~/_PAREN_PAIR_/);
 		}
@@ -568,7 +633,7 @@ sub get_args_vars_from_expression {(my $ast)=@_;
 # So we have Args that can be Scalar, Array, Sub, Expr or Const
 
 sub get_args_vars_from_subcall {(my $ast)=@_;
-	
+
 	my $all_vars={'List'=>[],'Set'=>{} };
 	my $args={'List'=>[],'Set'=>{}};
 	
@@ -584,14 +649,21 @@ sub get_args_vars_from_subcall {(my $ast)=@_;
 				elsif ($arg=~/^__(\w+)__$/) {
 					$arg=~s/__(\w+)__/\.${1}\./;
 				}
-				if ( $ast->[$idx][0]  eq '@' 
-				or  $ast->[$idx][0]  eq '$'
-				or  $ast->[$idx][0]  eq '&') {
-					if ($ast->[$idx][0] eq '@' or $ast->[$idx][0] eq '&') {
+				if ( 
+					(($ast->[$idx][0] & 0xF) == 10) # eq '@' 
+				or  (($ast->[$idx][0] & 0xF) == 2) #  eq '$'
+				or  (($ast->[$idx][0] & 0xF) == 1) #  eq '&'
+				) {
+					if (
+					(($ast->[$idx][0] & 0xF) == 10) #eq '@' 
+					or (($ast->[$idx][0] & 0xF) == 1) #eq '&'
+					) {
 						my $vars = get_vars_from_expression($ast->[$idx],{} );
 						delete $vars->{$arg}; 
 						$all_vars->{'Set'}={%{ $all_vars->{'Set'} },%{$vars}};
-						if ($ast->[$idx][0] eq '@') {
+						if (
+							($ast->[$idx][0] & 0xF) == 10 #eq '@'
+						) {
 							my $array_expr = emit_expression($ast->[$idx]);
 							$args->{'Set'}{$array_expr}={ 'Type'=>'Array','Vars'=>$vars, 'Expr' => $array_expr, 'Arg' => $arg};
 							push @{$args->{'List'}}, $array_expr;#$arg;
@@ -662,21 +734,24 @@ sub _fix_colons_in_expr { (my $ast)=@_;
 	        
 	        if ($i==0 and ref($elt) eq 'ARRAY' and $elt->[1] eq '_COLON_PRE_') {
 	        	if (ref($cloned_ast->[$i+2]) eq 'ARRAY' and $cloned_ast->[$i+2][1] eq '_STAR_') {
-	        	 	$cloned_ast->[$i+2][1]='*';
+	        	 	$cloned_ast->[$i+2][1]= '*';#5+(($cloned_ast->[$i+2][1]>>4)<<4);# '*';
 	        	}
-	            $elt = [':','',$cloned_ast->[$i+2]];
+	        	my $colon_code = 12+($Fortran::Expression::Evaluator::Parser::nodeId++<<4);
+	            $elt = [$colon_code,'',$cloned_ast->[$i+2]];
 	            push @{$new_ast}, $elt;
 	            $cloned_ast->[$i+1]=undef;
 	            next;
 	        }
 	        if (ref($cloned_ast->[$i+1]) eq 'ARRAY' and $cloned_ast->[$i+1][1] eq '_COLON_PRE_') {	            
 	            if (defined $cloned_ast->[$i+2]) {
-	                $elt=[':', $elt,$cloned_ast->[$i+2]];
+	            	my $colon_code = 12+($Fortran::Expression::Evaluator::Parser::nodeId++<<4);
+	                $elt=[$colon_code, $elt,$cloned_ast->[$i+2]];#':'
 	                if (ref($cloned_ast->[$i+2]) eq 'ARRAY' and $cloned_ast->[$i+2][1] eq '_STAR_') {
-	                	$cloned_ast->[$i+2][1]='*';
+	                	$cloned_ast->[$i+2][1]= '*';#5;#+(($cloned_ast->[$i+2][1]>>4)<<4);# '*';
 	                }
 	            } else {
-	            	$elt=[':', $elt,''];	            	
+	            	my $colon_code = 12+($Fortran::Expression::Evaluator::Parser::nodeId++<<4);
+	            	$elt=[$colon_code, $elt,''];	            	
 	            }
 	            push @{$new_ast}, $elt;
 	            $cloned_ast->[$i+1]=undef;
@@ -693,6 +768,12 @@ sub _fix_colons_in_expr { (my $ast)=@_;
 }
 
 sub _fix_string_concat_in_ast { (my $orig_ast)=@_;
+	if (
+	ref($orig_ast) ne 'ARRAY' or
+	scalar(@{$orig_ast}) < 2
+	) {
+		return $orig_ast;
+	}
 	my $ast=_fix_string_concat_in_expr($orig_ast);
 	if ( ref($ast) eq 'ARRAY') {
 	my $new_ast=[];
@@ -705,7 +786,8 @@ sub _fix_string_concat_in_ast { (my $orig_ast)=@_;
 			push @{$new_ast}, $entry;
 		} 		
 	}
-	if ($new_ast->[1] eq '#dummy#' and $new_ast->[2][0] eq '//') {
+#	say 'ORIG AST:'.Dumper($orig_ast);
+	if ($new_ast->[1] eq '#dummy#' and ( ($new_ast->[2][0] & 0xF) == 13) ) {#  '//'
 		$new_ast = $new_ast->[2];
 	} 
 	return $new_ast;			
@@ -723,14 +805,16 @@ sub _fix_string_concat_in_expr { (my $ast)=@_;
 	        next unless defined $elt;
 	        
 	        if ($i==0 and ref($elt) eq 'ARRAY' and $elt->[1] eq '_CONCAT_PRE_') { 
-	            $elt = ['//',$cloned_ast->[$i+2]];
+	        	my $concat_code =  13+($Fortran::Expression::Evaluator::Parser::nodeId++<<4);
+	            $elt = [$concat_code,$cloned_ast->[$i+2]];#'//'
 	            push @{$new_ast}, $elt;
 	            $cloned_ast->[$i+1]=undef;
 #	            $cloned_ast->[$i+2]=undef;
 	            next;
 	        }
 	        if (ref($cloned_ast->[$i+1]) eq 'ARRAY' and $cloned_ast->[$i+1][1] eq '_CONCAT_PRE_') {
-	            $elt=['//', $elt];
+	        	my $concat_code =  13+($Fortran::Expression::Evaluator::Parser::nodeId++<<4);
+	            $elt=[$concat_code, $elt];# '//'
 	            if (defined $cloned_ast->[$i+2]) {
 	                push @{$elt},$cloned_ast->[$i+2];
 	            }
@@ -776,15 +860,17 @@ sub _fix_double_paren_in_expr { (my $ast)=@_;
 	        my $elt=$cloned_ast->[$i];
 	        next unless defined $elt;
 	        
-	        if ($i==0 and ref($elt) eq 'ARRAY' and $elt->[1] eq '_PAREN_PAIR_') { 
-	            $elt = [')(',$cloned_ast->[$i+2]];
+	        if ($i==0 and ref($elt) eq 'ARRAY' and $elt->[1] eq '_PAREN_PAIR_') {
+	        	my $dpar_code =  14+($Fortran::Expression::Evaluator::Parser::nodeId++<<4);
+	            $elt = [$dpar_code,$cloned_ast->[$i+2]];# ')('
 	            push @{$new_ast}, $elt;
 	            $cloned_ast->[$i+1]=undef;
 #	            $cloned_ast->[$i+2]=undef;
 	            next;
 	        }
 	        if (ref($cloned_ast->[$i+1]) eq 'ARRAY' and $cloned_ast->[$i+1][1] eq '_PAREN_PAIR_') {
-	            $elt=[')(', $elt];
+	        	my $dpar_code =  14+($Fortran::Expression::Evaluator::Parser::nodeId++<<4);
+	            $elt=[$dpar_code, $elt];# ')('
 	            if (defined $cloned_ast->[$i+2]) {
 	                push @{$elt},$cloned_ast->[$i+2];
 	            }

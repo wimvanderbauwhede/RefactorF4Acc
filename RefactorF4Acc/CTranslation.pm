@@ -10,7 +10,7 @@ use RefactorF4Acc::Refactoring::Streams qw( _declare_undeclared_variables _remov
 #   
 
 use vars qw( $VERSION );
-$VERSION = "1.0.0";
+$VERSION = "1.1.0";
 
 #use warnings::unused;
 use warnings;
@@ -62,7 +62,7 @@ sub translate_module_to_C {  (my $stref, my $ocl) = @_;
 	$stref = _write_headers($stref,$ocl);
 	$stref = _emit_C_code($stref, $ocl);
 }
-sub add_OpenCL_address_space_qualifiers { (my $stref, my $f, my $ocl) = @_;		
+sub add_OpenCL_address_space_qualifiers { (my $stref, my $f, my $ocl) = @_;
 	
 	if ($ocl==1) {
 		if ($f eq $Config{'KERNEL'} ) {
@@ -84,9 +84,7 @@ sub add_OpenCL_address_space_qualifiers { (my $stref, my $f, my $ocl) = @_;
 #							my $decl = $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$arg};
 							my $decl = get_var_record_from_set($stref->{'Subroutines'}{$f}{'Vars'},$arg);
 #							say $f.Dumper( $stref->{'Subroutines'}{$f}{'Args'} );
-#							say in_nested_set($stref->{'Subroutines'}{$f},'Vars',$arg);
-#							say "$f => $arg:\n".Dumper($decl);
-
+#							say $arg.Dumper($decl);
 							if ($decl->{'ArrayOrScalar'} eq 'Array') {
 								$decl->{'OclAddressSpace'} = '__global';
 							} 
@@ -144,7 +142,6 @@ sub translate_sub_to_C {  (my $stref, my $f, my $ocl) = @_;
 		my $c_line=$line;
 		(my $stref, my $f, my $pass_state)=@{$state};
 #		say Dumper($stref->{'Subroutines'}{$f}{'DeletedArgs'});
-
 		my $skip=0;
 		if (exists $info->{'Signature'} ) {
 			$c_line = _emit_subroutine_sig_C( $stref, $f, $annline);
@@ -163,11 +160,9 @@ sub translate_sub_to_C {  (my $stref, my $f, my $ocl) = @_;
 				} else {
 									
 					$c_line = _emit_var_decl_C($stref,$f,$var);
-					if (exists $info->{'TrailingComment'} and $info->{'TrailingComment'}=~/\$ACC\s+MemSpace\s+(\w+)/) {																		
-						
+					if (exists $info->{'TrailingComment'} and $info->{'TrailingComment'}=~/\$ACC\s+MemSpace\s+(\w+)/) {
 						# This code will basically only work for arrays with dimensions defined by constants and macros
 #						croak Dumper($var);
-
 						my $decl =  get_var_record_from_set($stref->{'Subroutines'}{$f}{'Vars'},$var);
 						my $dim = $decl->{'Dim'};
 						my @sizes = map {  '('.$_->[1].' - '.$_->[0].' +1)'   } @{$dim} ; #[['1','nth']]
@@ -187,7 +182,8 @@ sub translate_sub_to_C {  (my $stref, my $f, my $ocl) = @_;
 				$c_line = _emit_var_decl_C($stref,$f,$var); 		
 		}
 		elsif (exists $info->{'Select'} ) {				
-			my $switch_expr = _emit_expression_C(['$',$info->{'CaseVar'}],'',$stref,$f);
+            #my $switch_expr = _emit_expression_C(['$',$info->{'CaseVar'}],'',$stref,$f);
+			my $switch_expr = _emit_expression_C([2,$info->{'CaseVar'}],'',$stref,$f); # FIXME
 			$c_line ="switch ( $switch_expr ) {";
 		}
 		elsif (exists $info->{'Case'} ) {
@@ -223,7 +219,7 @@ sub translate_sub_to_C {  (my $stref, my $f, my $ocl) = @_;
 		elsif (exists $info->{'SubroutineCall'} ) {
 			# 
 			my $subcall_ast = $info->{'SubroutineCall'}{'ExpressionAST'};
-			$subcall_ast->[0] = '&';
+			$subcall_ast->[0] = 1; # FIXME '&';
 			# There is an issue here:
 			# We actually need to check the type of the called arg against the type of the sig arg
 			# If the called arg is a pointer and the sig arg is a pointer, no '*', else, we need a '*'
@@ -298,7 +294,6 @@ sub translate_sub_to_C {  (my $stref, my $f, my $ocl) = @_;
 		
 		push @{$pass_state->{'TranslatedCode'}},$info->{'Indent'}.$c_line unless $skip;
 		
-		
 		return ([$annline],[$stref,$f,$pass_state]);
 	};
 
@@ -356,9 +351,7 @@ sub _emit_subroutine_sig_C { (my $stref, my $f, my $annline)=@_;
 
 sub _emit_arg_decl_C { (my $stref,my $f,my $arg)=@_;
 #	my $decl =	$stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$arg};
-
 	my $decl = get_var_record_from_set($stref->{'Subroutines'}{$f}{'Vars'},$arg);
-	die Dumper($decl) if $arg eq 'kp' and $f eq 'adam_map_22';
 	my $array = $decl->{'ArrayOrScalar'} eq 'Array' ? 1 : 0;
 	my $const = 1;
 	if (not defined $decl->{'IODir'}) {
@@ -474,13 +467,13 @@ sub _emit_expression_C {(my $ast, my $expr_str, my $stref, my $f)=@_;
 	my @expr_chunks=();
 	my $skip=0;
 	
-	if ($ast->[0] eq '^') {
+	if (($ast->[0] & 0x0F) == 8) { #eq '^'
 		$ast->[0]='pow';
-		unshift @{$ast},'&';		
+		unshift @{$ast},1;# '&' FIXME: nodeId
 	} 
-	elsif ($ast->[0] eq '&' && $ast->[1] eq 'mod') {		
+	elsif (($ast->[0] & 0x0F) == 1  and $ast->[1] eq 'mod') {#eq '&'
 		shift @{$ast};
-		$ast->[0]='%';	
+		$ast->[0]= 7 ;# '%';	FIXME: nodeId
 	}
 	
 	for my  $idx (0 .. scalar @{$ast}-1) {		
@@ -492,7 +485,9 @@ sub _emit_expression_C {(my $ast, my $expr_str, my $stref, my $f)=@_;
 		} else {
 			if ($entry =~/#/) {
 				$skip=1;
-			} elsif ($entry eq '&') {
+            } elsif ($idx==0) {    
+                #} els
+            if (($entry & 0x0F) == 1) { # eq '&'
 				my $mvar = $ast->[$idx+1];
 				# AD-HOC, replacing abs/min/max to fabs/fmin/fmax without any type checking ... FIXME!!!
 				# The (float) cast is necessary because otherwise I get an "ambiguous" error
@@ -504,7 +499,7 @@ sub _emit_expression_C {(my $ast, my $expr_str, my $stref, my $f)=@_;
 				 $stref->{'CalledSub'}= $mvar;
 				 
 				$skip=1;
-			} elsif ($entry eq '$') {
+			} elsif (($entry & 0x0F) == 2) { #eq '$'
 				my $mvar = $ast->[$idx+1];
 #				carp $mvar;
 				my $called_sub_name = $stref->{'CalledSub'} // '';
@@ -535,7 +530,7 @@ sub _emit_expression_C {(my $ast, my $expr_str, my $stref, my $f)=@_;
 					push @expr_chunks,$mvar;
 				}
 				$skip=1;				
-			} elsif ($entry eq '@') {
+			} elsif (($entry & 0x0F) == 10) {#eq '@'
 				
 				my $mvar = $ast->[$idx+1];
 				if ($mvar eq '_OPEN_PAR_') {
@@ -543,48 +538,45 @@ sub _emit_expression_C {(my $ast, my $expr_str, my $stref, my $f)=@_;
 #				} elsif ($mvar eq 'abs' ) { croak;
 #					$expr_str.=$mvar.'(';					
 				} else {
+					# This is e.g. state_ptr(1)
 					if (scalar @{$ast} == 3 and $ast->[2] eq '1') {
 						$expr_str.='(*'.$mvar.')';
 						$ast->[2]='';
-						$ast->[0]='$';
-#						croak Dumper($ast);
+						$ast->[0]= 2 + ((++$Fortran::Expression::Evaluator::Parser::nodeId)<<4);# '$';						
 					}  else {
-					my $decl = get_var_record_from_set($stref->{'Subroutines'}{$f}{'Vars'},$mvar);
-					my $dims =  $decl->{'Dim'};
-					my $dim = scalar @{$dims};
-					my @ranges=();
-					my @lower_bounds=();
-					for my $boundspair (@{$dims}) {
-						(my $lb, my $hb)=@{$boundspair };
-						push @ranges, "(($hb - $lb )+1)";
-						push @lower_bounds, $lb; 
-					} 				
-				# For convenience we define a different function, not FTNREF
-				 # F3D2C(
-#                        unsigned int iz,unsigned int jz, // ranges, i.e. (hb-lb)+1
-#                                int i_lb, int j_lb, int k_lb, // lower bounds
-#                int ix, int jx, int kx)
-# with the same definition as FTN3DREF
-					if ($dim==0) { die Dumper $decl;
-						
-					} elsif ($dim==1) {
-						$expr_str.=$mvar.'[F1D2C('.join(',',@lower_bounds). ' , ';
-					} else {
-						$expr_str.=$mvar.'[F'.$dim.'D2C('.join(',',@ranges[0.. ($dim-2)]).' , '.join(',',@lower_bounds). ' , ';						
-					}
+						my $decl = get_var_record_from_set($stref->{'Subroutines'}{$f}{'Vars'},$mvar);
+						my $dims =  $decl->{'Dim'};
+						my $dim = scalar @{$dims};
+						my @ranges=();
+						my @lower_bounds=();
+						for my $boundspair (@{$dims}) {
+							(my $lb, my $hb)=@{$boundspair };
+							push @ranges, "(($hb - $lb )+1)";
+							push @lower_bounds, $lb; 
+						} 				
+						if ($dim==1) {
+							$expr_str.=$mvar.'[F1D2C('.join(',',@lower_bounds). ' , ';
+						} else {
+							$expr_str.=$mvar.'[F'.$dim.'D2C('.join(',',@ranges[0.. ($dim-2)]).' , '.join(',',@lower_bounds). ' , ';						
+						}
 					}
 				}
 				$skip=1;
 			} elsif (
-				$ast->[$idx-1]!~/^[\&\@\$]/ 
+                #$ast->[$idx-1]!~/^[\&\@\$]/ 
+				($ast->[$idx-1] & 0x0F) != 1 and #!~/^[\&\@\$]/ 
+				($ast->[$idx-1] & 0x0F) != 10 and #!~/^[\&\@\$]/ 
+				($ast->[$idx-1] & 0x0F) != 2 #!~/^[\&\@\$]/ 
 			) {
 #				say "ENTRY:$entry SKIP: $skip";
 				push @expr_chunks,$entry;
 				$skip=0;
 			}
+        }
 		}				
 	} # for
-	if ($ast->[0] eq '&' ) {
+	# Here state_ptr is OK
+	if (($ast->[0] & 0x0F) == 1  ) { # eq '&'
 		my @expr_chunks_stripped = map { $_=~s/^\(([^\(\)]+)\)$/$1/;$_} @expr_chunks;
 		if ($ast->[1] eq 'pow') {
 				$expr_str.=join(',', map { "(float)($_)" } @expr_chunks_stripped);
@@ -598,7 +590,7 @@ sub _emit_expression_C {(my $ast, my $expr_str, my $stref, my $f)=@_;
 			}
 		
 #		say "CLOSE OF &:".$expr_str if $expr_str=~/abs/;
-	} elsif ( $ast->[0] eq '@') {				
+	} elsif ( ($ast->[0] & 0x0F) == 10) {				# eq '@'
 		my @expr_chunks_stripped =   map {  $_=~s/^\(([^\(\)]+)\)$/$1/;$_} @expr_chunks;		
 		if ( not ($expr_str=~/^\*/ and $expr_chunks_stripped[0]==1) ) { 
 			$expr_str.=join(',',@expr_chunks_stripped);
@@ -614,9 +606,13 @@ sub _emit_expression_C {(my $ast, my $expr_str, my $stref, my $f)=@_;
 			} 
 		}
 		
-	} elsif ($ast->[0] ne '$' and $ast->[0] =~ /\W/) {
-		my $op = $ast->[0];		
+	} elsif (($ast->[0] & 0x0F) != 10
+        #        and $ast->[0] =~ /\W/
+    ) {
+        my $opcode = $ast->[0];		
+        my $op = $RefactorF4Acc::Parser::Expressions::sigils[$opcode & 0x0F];
 		if (scalar @{$ast} > 2) {
+			
 			my @ts=();
 			for my $elt (1 .. scalar @{$ast} -1 ) {
 				$ts[$elt-1] = (ref($ast->[$elt]) eq 'ARRAY') ? _emit_expression_C( $ast->[$elt], '',$stref,$f) : $ast->[$elt];					
@@ -626,25 +622,31 @@ sub _emit_expression_C {(my $ast, my $expr_str, my $stref, my $f)=@_;
 				warn "TODO: should be pow()";
 #				croak Dumper($ast);
 			};
-			$expr_str.=join($op,@ts);
+			$expr_str.=join($op,@ts) unless $op eq '$';
+			
 		} elsif (defined $ast->[2]) { croak "OBSOLETE!";
 			my $t1 = (ref($ast->[1]) eq 'ARRAY') ? _emit_expression_C( $ast->[1], '',$stref,$f) : $ast->[1];
 			my $t2 = (ref($ast->[2]) eq 'ARRAY') ? _emit_expression_C( $ast->[2], '',$stref,$f) : $ast->[2];			
 			$expr_str.=$t1.$ast->[0].$t2;
-			if ($ast->[0] ne '=') {
+			if (($ast->[0] & 0x0F) != 9) { # ne '='
 				$expr_str="($expr_str)";
 			}			
+
 		} else {
 			# FIXME! UGLY!
 			my $t1 = (ref($ast->[1]) eq 'ARRAY') ? _emit_expression_C( $ast->[1], '',$stref,$f) : $ast->[1];
-			$expr_str=$ast->[0].$t1;
-			if ($ast->[0] eq '/') {
+            my $op = $RefactorF4Acc::Parser::Expressions::sigils[$ast->[0] & 0x0F];            
+			$expr_str=  $op eq '$' ? $t1 :  $op.$t1;
+			if (($ast->[0] & 0x0F) == 6) { #eq '/'
 				$expr_str='1.0'.$expr_str; 
 			}
+		
 		}
-	} else {
+		 
+	} else {		 		
 		$expr_str.=join(';',grep {$_ ne '' } @expr_chunks);
 	}	
+	 
 #	$expr_str=~s/_complex_//g;
 	$expr_str=~s/_OPEN_PAR_//g;
 	$expr_str=~s/_LABEL_ARG_//g;

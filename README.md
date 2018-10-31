@@ -83,7 +83,7 @@ Furthermore, we tested the compiler on four real-word physics simulation models:
 * The [Linear Baroclinic Model](http://ccsr.aori.u-tokyo.ac.jp/~hiro/sub/lbm.html), an atmospheric climate model (39,336 loc)
 
 
-Each of these models has a different coding style, specifically in terms of the use of common blocks, include files, etc that affect the refactoring process. All of these codes are refactored fully automatically without changes to the original code and build and run correctly. The performance of the original and refactored code is the same in all cases.
+Each of these models has a different coding style, specifically in terms of the use of common blocks, include files, etc. that affect the refactoring process. All of these codes are refactored fully automatically without changes to the original code and build and run correctly. The performance of the original and refactored code is the same in all cases.
 
 ## Known issues
 
@@ -145,6 +145,7 @@ The following keys are defined:
 <dt>RENAME_EXT:</dt><dd>Extension for variables that need to be renamed because of conflicts (usually you don't need this; the default is _GLOB)</dd>
 <dt>NO_ONLY:</dt><dd>Do not use the ONLY qualifier on the USE declaration</dd>
 <dt>SPLIT_LONG_LINES:</dt><dd>Split long lines into chunks of no more than 80 characters</dd>
+<dt>MAX_LINE_LENGTH:</dt><dd>Maximum line length for fixed-format F77 code. The default is 132 characters.</dd>
 <dt>EXT</dt><dd>Extension of generated source files. Default is `.f95`; must include the dot</dd>
 <dt>LIBS</dt><dd>SCons LIBS, comma-separated list</dd>
 <dt>LIBPATH</dt><dd>SCons LIBPATH, comma-separated list</dd>

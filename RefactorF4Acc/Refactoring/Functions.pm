@@ -9,7 +9,7 @@ use RefactorF4Acc::Refactoring::Common qw( context_free_refactorings stateful_pa
 #   
 
 use vars qw( $VERSION );
-$VERSION = "1.0.0";
+$VERSION = "1.1.0";
 
 #use warnings::unused;
 use warnings;
@@ -41,8 +41,9 @@ sub remove_vars_masking_functions { ( my $stref ) = @_;
         (my $annline,  my $state) = @_;
         (my $stref, my $f) =@{$state};
         (my $line, my $info) = @{$annline};
+        
         if (exists $info->{'VarDecl'}) {
-            my $var = $info->{'VarDecl'}{'Name'};
+            my $var = $info->{'VarDecl'}{'Name'};            
             if (exists $stref->{'Subroutines'}{$f}{'CalledSubs'}{'Set'}{$var}) {
                 say "INFO: VAR $var is masking a function/sub in $f, LINE: $line" if $I;
                 my $Sf = $stref->{'Subroutines'}{$f};                                
@@ -72,7 +73,8 @@ sub remove_vars_masking_functions { ( my $stref ) = @_;
 					$line = '! '.$line. '! EXTERNAL SUB';
 				}     
                
-                push @{$info->{'Ann'}}, annotate($f, __LINE__  );             
+                push @{$info->{'Ann'}}, annotate($f, __LINE__  );    
+                         
                 return ([ [$line, $info] ], [$stref, $f]);
             }
         }
@@ -126,7 +128,6 @@ sub _refactor_function {
 	
     if (   not exists $Ff->{'RefactoredCode'}
         or $Ff->{'RefactoredCode'} == []
-#        or exists $stref->{'BuildSources'}{'C'}{ $Ff->{'Source'} } 
         ) {
         $stref = context_free_refactorings( $stref, $f );
     }

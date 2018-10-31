@@ -9,7 +9,7 @@ use RefactorF4Acc::Refactoring::Common qw( get_annotated_sourcelines context_fre
 #
 
 use vars qw( $VERSION );
-$VERSION = "1.0.0";
+$VERSION = "1.1.0";
 
 #use warnings::unused;
 use warnings;
@@ -116,7 +116,7 @@ sub _refactor_include_file {
                 	my $gvar=$stref->{'IncludeFiles'}{$inc_f}{'ConflictingGlobals'}{$var}[0];
                 	$line=~s/\b$var\b/$gvar/;
                 	$info->{'Ref'}++;
-                    $info->{'ParamDecl'}=[$gvar]; # FIXME: This should be a map, surely?
+                    $info->{'ParamDecl'}=[$gvar];    
                     print "WARNING: WEAK! renamed $var to $gvar ($line) refactor_include_file() 121\n" if $W;                 
                 }			
             } elsif (exists $info->{'ParamDecl'}{'Names'}) { #die $line.Dumper($info);

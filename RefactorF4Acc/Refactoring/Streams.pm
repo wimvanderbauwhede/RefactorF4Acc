@@ -23,7 +23,7 @@ use RefactorF4Acc::Parser::Expressions qw(
 #   
 
 use vars qw( $VERSION );
-$VERSION = "1.0.0";
+$VERSION = "1.1.0";
 
 #use warnings::unused;
 use warnings;
@@ -145,6 +145,13 @@ sub pass_rename_array_accesses_to_scalars {(my $stref)=@_;
 						['&','abs',['@','vn',['+',['$','j'],['-','1']],['$','k']]]]]],['@','h',['$','j'],['$','k']]]
 	}
 }
+=cut
+=info_assumptions_array_access_detection
+Assumptions:
+- Array accesses use index expressions that are linear `a*idx+b`, where idx is part of IndexVars
+- For stencils we _only_ support idx+k where k is a positive or negative constant 
+- If an array has a constant index access, that is _not_ part of the stencil
+
 =cut
 # ================================================================================================================================================	
 # This composite pass renames array accesses in the called subroutines in a superkernel to scalar accesses
@@ -811,6 +818,13 @@ sub _add_assignments_for_called_subs { (my $stref, my $f) = @_;
 
 	# This function changes functions to arrays
 
+#['@','vn',
+#						[
+#							'+',['$','j'],['-','1']
+#						],
+#						['$','k']
+#					],
+
 sub _rename_ast_entry { (my $stref, my $f,  my $state, my $ast, my $intent)=@_;
 	if (ref($ast) eq 'ARRAY') {
 		for my  $idx (0 .. scalar @{$ast}-1) {		
@@ -820,10 +834,14 @@ sub _rename_ast_entry { (my $stref, my $f,  my $state, my $ast, my $intent)=@_;
 				(my $entry, $state) = _rename_ast_entry($stref,$f, $state,$entry,$intent);
 				$ast->[$idx] = $entry;
 			} else {
-				if ($entry eq '@') {				
+				if ($idx==0 and (($entry & 0xF) == 10)) {#'@'				
 					my $mvar = $ast->[$idx+1];
 					if ($mvar ne '_OPEN_PAR_') {
-						say 'Found array access '.$mvar  if $DBG;
+						say 'Found array access '.$mvar  if $DBG;			
+#						my $stencil=$state->{'StreamVars'}{$mvar}{'Stencil'};
+#						my $array_acccess = _extract_array_access($ast);
+#						my $array_acccess_str = join(':',@{$array_acccess}); # e.g. [0,-1,2] becomes 0:-1:2 and these are ordered  
+#						$stencil->{$array_acccess_str}=$array_acccess; 																			
 						my $expr_str = emit_expression($ast,'');
 						my $var_str=$expr_str;
 						$var_str=~s/[\(,]/_/g; 
@@ -838,6 +856,7 @@ sub _rename_ast_entry { (my $stref, my $f,  my $state, my $ast, my $intent)=@_;
 							$intent = $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$mvar}{'IODir'};
 						}
 						$state->{'StreamVars'}{$mvar}{'Set'}{$var_str}={'IODir'=>$intent,'ArrayIndexExpr'=>$expr_str} ;
+#						$state->{'StreamVars'}{$mvar}{'Stencil'}=$stencil;
 						$ast=['$',$var_str];
 						last;
 					}
@@ -1153,7 +1172,6 @@ sub _declare_undeclared_variables { (my $stref, my $f)=@_;
 	# If a variable is declared but not used in any LHS, RHS  or SubroutineCall, it is unused.
 	# So start with all declared variables, put in $state->{'DeclaredVars'}
 	# Make a list of all variables anywhere in the code via Lhs, Rhs, Args, put in $state->{'ExprVars'}
-#	die Dumper($stref->{'Subroutines'}{'feedbf_map_48'}{'Args'}{'Subsets'}{'OrigArgs'}{'Subsets'}{'DeclaredOrigArgs'}{'Set'}{'abcd_mask'});
 	my $pass_action_find_all_used_vars = sub { (my $annline, my $state)=@_;		
 		(my $line,my $info)=@{$annline};
 #		say "$f LINE: $line" if $line=~/range/;
@@ -1228,40 +1246,25 @@ sub _declare_undeclared_variables { (my $stref, my $f)=@_;
         # The pass finds ExprVars and AssignedVars
  		($stref,$state) = stateful_pass($stref,$f,$pass_action_find_all_used_vars, $state,'_find_all_unused_variables() ' . __LINE__  ) ;
 
-
-
 	# --------------------------------------------------------------------------------------------------------------------------------
 	# As we are going through the whole code we can also test for undeclared vars 
 	# This is very ad-hoc
 	for my $expr_var (keys %{ $state->{'ExprVars'} } ) {
 		next if exists $Config{'Macros'}{uc($expr_var)};
 		if (not exists $state->{'DeclaredVars'}{$expr_var} ) {
-			# This is weak so I check the decl the proper way first!
-			my $subset = in_nested_set($stref->{'Subroutines'}{$f},'Vars',$expr_var);
-			if ($subset eq '') {
-				if ($expr_var ne '_OPEN_PAR_' and $expr_var!~/^\d/) {				
-					$state->{'UndeclaredVars'}{$expr_var}='real'; # the default
-				}
-			}
-			 
+			if ($expr_var ne '_OPEN_PAR_' and $expr_var!~/^\d/) {				
+				$state->{'UndeclaredVars'}{$expr_var}='real'; # the default
+			} 
 		}
 	}
-	
 	for my $lhs_var (keys %{ $state->{'AssignedVars'} } ) {
 		next if exists $Config{'Macros'}{uc($lhs_var)};
 		if (not exists $state->{'DeclaredVars'}{$lhs_var} ) {
-			# This is weak so I check the decl the proper way first!
-			my $subset = in_nested_set($stref->{'Subroutines'}{$f},'Vars',$lhs_var);
-			if ($subset eq '') {
-			
 #			if ($expr_var ne '_OPEN_PAR_' and $expr_var!~/^\d/) {				
 				$state->{'UndeclaredVars'}{$lhs_var}='real'; # the default
-#			}
-			} 
+#			} 
 		}
 	}	
-	
-	
 	# --------------------------------------------------------------------------------------------------------------------------------	 			
 	my $pass_action_type_undeclared = sub { (my $annline, my $state)=@_;
 		(my $stref, my $f, my $pass_state)=@{$state};
@@ -1572,5 +1575,8 @@ sub _make_dim_vars_scalar_consts_in_sigs { (my $stref, my $f)=@_;
  
 
 # ============================================================================================================
-
+sub _extract_array_access { (my $ast) = @_;
+	my $array_access=[];
+	return $array_access;
+}
 1;
