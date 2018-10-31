@@ -66,6 +66,13 @@ However, the work flow is more complicated and requires an additional compiler, 
 * Loop analysis to transform GOTOs and labeled DO into DO ... END DO
 * IO direction analysis to determine INTENT
 
+## Installation
+
+Please see [INSTALL.md].
+
+## Getting Started
+Please see [GETTING_STARTED.md] for a demonstration of using RefactorF4Acc to refactor a "Hello, world!" program that uses several legacy Fortran features.  To use RefactorF4Acc, try copying the contents of the minimal configure file listed in [GETTING_STARTED.md] into the top directory of your project source directory. Give the configure file the name `rf4a.cfg` and then from the top of our source tree, invoke RefactorF4Acc with the command `refactorF4acc.pl -c rf4a.cfg` as listed in [GETTING_STARTED.md]:
+ 
 ## Status
 
 To assess the correctness and capability of our refactoring compiler, we used the NIST (US National Institute of Standards and Technology) [FORTRAN78 test suite](http://www.itl.nist.gov/div897/ctg/fortran_form.htm), which aims to validate adherence to the ANSI X3.9-1978 (FORTRAN 77) standard. We used [a version with some minor changes from Arnaud Desitter](http://www.fortran-2000.com/ArnaudRecipes/fcvs21_f95.html): All files are properly formed; a non standard conforming FORMAT statement has been fixed in test file `FM110.f`; Hollerith strings in FORMAT statements have been converted to quoted strings. This test suite comprises about three thousand tests organised into 192 files.
@@ -91,35 +98,6 @@ Each of these models has a different coding style, specifically in terms of the 
 - The compiler does not replace C preprocessor macros, so it your code uses these, make sure to run `cpp` in advance.
 - The compiler supports mainly F77. If your code is a mixture of F77 and F90 or later, it may or may not work.
 - Some F77 features are ignored, notably `EQUIVALENCE` and `ASSIGN`.
-
-## Installation
-
-The source code for RefactorF4ACC is written in Perl and requires v5.10 or later. There are no dependencies and no compilation is required. I have tested it on Linux and MacOS.
-
-To install RefactorF4ACC, you need to set some environment variables. Typically, on Linux you would put them in `.bashrc`, on MacOS in `.profile`.
-
-* If you cloned the GitHub repostitory:
-	- Let's assume your local Git repository directory is called `$RF4A_DIR` (e.g. on my machine it is `$HOME/Git/RF4A`)
-* If you downloaded the archive `RefactorF4Acc-master.zip`:
-	- Unzip the archive in a directory $DIR (this could be e.g. your home dir `$HOME`)
-	- Call `$RF4A_DIR=$DIR/RefactorF4Acc-master`
-
-* Add `$RF4A_DIR` to the `$PERL5LIB` environment variable:
-
-		export PERL5LIB="$PERL5LIB:$RF4A_DIR"
-
-* Add `$RF4A_DIR/bin` to your `$PATH` environment variable:
-
-		export PATH="$PATH:$RF4A_DIR/bin"	  
-
-To make the code work with older Perl versions (e.g. v5.8) you will have to replace all occurences of `say` with `print` and add a newline.
-
-
-
-## Usage
-
-First create a configuration file, I usually call it `rf4a.cfg`.
-Once this is done, the compiler is very easy to use, simply run the script with a few optional command line flags.
 
 ### Configuration file format
 
@@ -166,7 +144,7 @@ The following keys are defined:
     -i: show info messages
     -d: show debug messages
 
-### Examples    
+### Tests
 
 * To refactor code as explained above:
 
@@ -317,3 +295,6 @@ You can now build the refactored code for GPU as follows:
 	$ scons -f SConstruct.auto dev=GPU nth=512 nunits=15 	
 
 Running the accelerated code on this GPU results in 14x speedup compared to the original code running on the host (Intel Core i7 CPU @ 3.50GHz).
+
+[INSTALL.md]: https://github.com/wimvanderbauwhede/RefactorF4Acc/blob/master/INSTALL.md
+[GETTING_STARTED.md]: https://github.com/wimvanderbauwhede/RefactorF4Acc/blob/master/GETTING_STARTED.md
