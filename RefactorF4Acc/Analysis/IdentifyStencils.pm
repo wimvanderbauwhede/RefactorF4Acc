@@ -278,6 +278,21 @@ sub identify_array_accesses_in_exprs { (my $stref, my $f) = @_;
 				$state->{'Subroutines'}{$subname }={};
 				$state->{'Subroutines'}{$subname }{$block_id}={};
                 $state->{'Subroutines'}{$f}{'LoopNests'}=[ [0,{}] ];
+                # InOut will be both in In and Out
+                $state->{'Subroutines'}{$f}{'Args'}={
+                	'In'=>[],'Out' =>[]                	                	
+                };
+                
+                for my $arg ( @{ $info->{'Signature'}{'Args'}{'List'} } ) {
+                	my $arg_decl = get_var_record_from_set($stref->{'Subroutines'}{$f}{'Args'},$arg);		
+					my $intent =$arg_decl->{'IODir'};       
+					if ($intent ne 'out') {
+						push @{ $state->{'Subroutines'}{$f}{'Args'}{'In'} }, $arg;
+					}
+					if ($intent ne 'in') {
+						push @{ $state->{'Subroutines'}{$f}{'Args'}{'Out'} }, $arg;
+					}         	                	
+                }
 			}
 			# For every VarDecl, identify dimension if it is an array
 			if (exists $info->{'VarDecl'} and not exists $info->{'ParamDecl'} and __is_array_decl($info)) {
@@ -437,7 +452,7 @@ sub identify_array_accesses_in_exprs { (my $stref, my $f) = @_;
 #	 	if ($f=~/vernieuw/) {
 
 		$state = _link_writes_to_reads( $stref, $f, $state);
-#WV: FIXME: This is TyTraCL specific
+
 		$stref = _classify_accesses_and_emit_AST($stref, $f, $state);
 
 	} # if subkernel not superkernel
@@ -648,8 +663,12 @@ sub _find_iters_in_array_idx_expr { (my $stref, my $f, my $block_id, my $ast, my
 } # END of _find_iters_in_array_idx_expr
 
 =info
+The 'Links' table lists all input args on which an output arg depends.
+This is done by a dependency analysis of the assignments.
+For output args that do not depend on inputs, we add a dummy $var => "!$var!"
+
 So first we need to gather all assignments in the subroutine, i.e. in a separate, trivial pass
-I think I'll put this in the $state as 'Assignments'}
+We put this in the $state as 'Assignments'}, this happened in identify_array_accesses_in_exprs()
 
 	$assignments = { $var => $assign_expr }
 
@@ -663,39 +682,36 @@ sub _link_writes_to_reads {(my $stref, my $f, my $state)=@_;
 
     for my $block_id (sort keys %{ $state->{'Subroutines'}{$f} }) {
        next if $block_id eq 'LoopNests';
-	my $links={};
-	my $assignments = $state->{'Subroutines'}{$f}{$block_id}{'Assignments'};
-	# So we have to establish the link for every variable that is a multi-dim (effectively 3-D) array argument
-	for my $some_var ( sort keys %{ $assignments }  ) {
-
-		next if $some_var=~/_rel|_range/;
-
-		$links = _link_writes_to_reads_rec($stref, $f, $block_id, $some_var,$assignments,$links,$state);
-	}
-
-	$links = _collapse_links($stref,$f,$block_id,$links);
-	# Now remove anything that is not an array arg link
-	for my $var (keys %{$links} ){
-
-		if (not isArg($stref, $f, $var) ) {
-			delete $links->{$var};
+		my $links={};
+		my $assignments = $state->{'Subroutines'}{$f}{$block_id}{'Assignments'};
+		# So we have to establish the link for every variable that is a multi-dim (effectively 3-D) array argument
+		for my $some_var ( sort keys %{ $assignments }  ) {
+			next if $some_var=~/_rel|_range/;
+			$links = _link_writes_to_reads_rec($stref, $f, $block_id, $some_var,$assignments,$links,$state);
 		}
 
-		for my $lvar (keys %{$links->{$var}} ){
-			if ($links->{$var}{$lvar} > 2 or $lvar eq '_OPEN_PAR_') {
-				delete $links->{$var}{$lvar};
+		$links = _collapse_links($stref,$f,$block_id,$links);
+		# Now remove anything that is not an array arg link
+		for my $var (keys %{$links} ){
+
+			if (not isArg($stref, $f, $var) ) {
+				delete $links->{$var};
+			}
+	
+			for my $lvar (keys %{$links->{$var}} ){
+				if ($links->{$var}{$lvar} > 2 or $lvar eq '_OPEN_PAR_') {
+					delete $links->{$var}{$lvar};
+				}
+			}
+			if (
+				scalar keys  %{ $links->{$var}} == 0 or
+				$var eq '_OPEN_PAR_'
+			) {
+					delete $links->{$var};
 			}
 		}
-		if (
-			scalar keys  %{ $links->{$var}} == 0 or
-			$var eq '_OPEN_PAR_'
-		) {
-				delete $links->{$var};
-		}
+		$state->{'Subroutines'}{$f}{$block_id}{'Links'}=$links;
 	}
-
-	$state->{'Subroutines'}{$f}{$block_id}{'Links'}=$links;
-}
 	return $state;
 } # END of _link_writes_to_reads()
 
@@ -759,15 +775,11 @@ sub _link_writes_to_reads_rec {(my $stref, my $f, my $block_id, my $some_var, my
 
 sub isArg { (my $stref, my $f, my $array_var)=@_;
 
-#if (in_nested_set($stref->{'Subroutines'}{$f},'Parameters',$bound_expr_str)) {
-#			  				my $decl = get_var_record_from_set( $stref->{'Subroutines'}{$f}{'Parameters'},$bound_expr_str);
-#			  				$dim_val = $decl->{'Val'};
-#						}
 	if ( in_nested_set($stref->{'Subroutines'}{$f},'Args',$array_var)) {
-			  				return 1;
-			} else {
-				return 0;
-			}
+		return 1;
+	} else {
+		return 0;
+	}
 }
 
 # TODO I should split out the code generation and emitter
@@ -798,15 +810,12 @@ sub _classify_accesses_and_emit_AST { (my $stref, my $f, my $state ) =@_;
     	$ast_to_emit=$stref->{$ast_name};
     	$ast_emitter = $stref->{$ast_name}{'ASTEmitter'};
     }
-	
-
 
 	my @selects=(); # These are portions of an array that are selected, we need an `select` primitive
  	my @inserts=(); # This is when a portion of an array is inserted, we need an `insert` primitive
 	my %stencils=(); # The `stencil` call
 	my %non_map_args=();
 	my %portions=();
-
 
  	for my $array_var (keys %{$state->{'Subroutines'}{ $f }{ $block_id }{'Arrays'}}) {
  		next if $array_var =~/^global_|^local_/;
@@ -945,30 +954,29 @@ sub _collapse_links { (my $stref, my $f, my $block_id, my $links)=@_;
 	for my $var (keys %{$links}) {
 		if (isArg($stref, $f, $var)) {
 #say "ARG $var";
-my $deleted_entries={};
-	my $again=1;
-	do {
-			$again=0;
-			for my $lvar (keys %{ $links->{$var} } ) {
-				next if $lvar eq $var;
-				next if $lvar eq '_OPEN_PAR_';
-#				say "\tLVAR $lvar";
-				if ($links->{$var}{$lvar} > 2) { # Not an argument
-					$again=1;
-#					say "DEL $lvar IN $var: ".$links->{$var}{$lvar};
-					delete $links->{$var}{$lvar};
-					$deleted_entries->{$lvar}=1;
-					for my $nlvar (keys %{ $links->{$lvar} } ) {
-						next if $nlvar eq $var;
-						next if $nlvar eq $lvar;
-						next if $nlvar eq '_OPEN_PAR_';
-						next if exists $deleted_entries->{$nlvar};
-						$links->{$var}{$nlvar} = $links->{$lvar}{$nlvar};
+			my $deleted_entries={};
+			my $again=1;
+			do {
+					$again=0;
+					for my $lvar (keys %{ $links->{$var} } ) {
+						next if $lvar eq $var;
+						next if $lvar eq '_OPEN_PAR_';
+		#				say "\tLVAR $lvar";
+						if ($links->{$var}{$lvar} > 2) { # Not an argument
+							$again=1;
+		#					say "DEL $lvar IN $var: ".$links->{$var}{$lvar};
+							delete $links->{$var}{$lvar};
+							$deleted_entries->{$lvar}=1;
+							for my $nlvar (keys %{ $links->{$lvar} } ) {
+								next if $nlvar eq $var;
+								next if $nlvar eq $lvar;
+								next if $nlvar eq '_OPEN_PAR_';
+								next if exists $deleted_entries->{$nlvar};
+								$links->{$var}{$nlvar} = $links->{$lvar}{$nlvar};
+							}
+						}
 					}
-				}
-			}
-	} until $again == 0;
-
+			} until $again == 0;
 		}
 	}
 	return $links;

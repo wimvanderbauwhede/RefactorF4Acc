@@ -547,7 +547,7 @@ sub _addToVarTypes { (my $stref, my $var_types, my $stencils, my $node, my $lhs,
             # Or rather, use SVec:
             $s_type = "SVec ".$stencils->{$rhs->{'StencilCtr'}}." $var_type";
             $var_types->{$s_var}=$s_type;
-            #            say "STENCIL $s_var $s_type";
+#			say "STENCIL $s_var $s_type";
 
             #_addToVarTypes
 #		{'NodeType' => 'Map',
@@ -578,15 +578,17 @@ sub _addToVarTypes { (my $stref, my $var_types, my $stencils, my $node, my $lhs,
             }
             $var_types->{$f}{'ReturnType'} = scalar @{$out_args} == 1 ? $out_arg_types_array[0] :  '('.join(',',@out_arg_types_array).')';
             #            say "RETURN TYPE of $f: ".$var_types->{$f};
+            
             # This should always be a tuple and the values can only be scalars
             my $map_args = $rhs->{'MapArgs'}{'Vars'} ;
-            #            say Dumper($map_args);
+#            say Dumper($rhs->{'MapArgs'});die if $f=~/44/;
             my @map_arg_types_array=();
             for my $map_arg_rec (@{$map_args}) {
+#            	say Dumper($map_arg_rec);
                 my $maybe_stencil = _mkVarName($map_arg_rec);
-                #say  "MAYBE STENCIL: $maybe_stencil";
+#				say  "MAYBE STENCIL: $maybe_stencil";
                 if (exists $var_types->{ $maybe_stencil }) {
-                    #   say 'STENCIL TYPE: ',$var_types->{ $maybe_stencil };
+#                    say "STENCIL $maybe_stencil TYPE: ",$var_types->{ $maybe_stencil };
                     push @map_arg_types_array,$var_types->{ $maybe_stencil };
                 } else {
                     my $var_name = $map_arg_rec->[0];
@@ -785,6 +787,9 @@ sub _add_TyTraCL_AST_entry { (my $f, my $state, my $tytracl_ast, my $type, my $b
  		# so this provides the output and input tuples for a given $f
 	# so for each var in $in_tup we need to get the counter, and for each var in $out_tup after that too.
 		(my $out_tup, my $in_tup_maybe_dummies) = pp_links($state->{'Subroutines'}{$f}{$block_id}{'Links'});
+		 $in_tup_maybe_dummies =$state->{'Subroutines'}{$f}{'Args'}{'In'};
+		# This is incorrect because it does not return arguments that are used in conditions only 
+		 say Dumper($state->{'Subroutines'}{$f});
 		# A slightly better way is to look at which arrays are covered entirely by a map operation
 		my $n_dims = scalar keys %{$state->{'Subroutines'}{ $f }{$block_id}{'LoopIters'}};
 
@@ -811,7 +816,7 @@ sub _add_TyTraCL_AST_entry { (my $f, my $state, my $tytracl_ast, my $type, my $b
 			} @in_tup_correct_dim
 		];
 		my $in_tup_ms = [
-			map {
+			map {				
 				if (not exists $unique_var_counters->{$_}) {
 					$unique_var_counters->{$_}=0;
 				}
@@ -851,15 +856,15 @@ sub _add_TyTraCL_AST_entry { (my $f, my $state, my $tytracl_ast, my $type, my $b
 			}
 			push @out_tup_ast,[$var,$unique_var_counters->{$var},'']
 		}
-		my $map_expr = scalar @{$out_tup} > 1 ? '('.join(',',map { $_.'_'.$unique_var_counters->{$_} } @{$out_tup}).')' : scalar @{$out_tup} > 0 ? $out_tup->[0].'_'.$unique_var_counters->{$out_tup->[0]} : 'BOOM!!';
-		my $maybe_unzipt =  scalar @{$out_tup} > 1 ? 'unzipt $' : '';
-        #        say " $f non-map args: <".scalar(@non_map_args_ms).'>';
-		$map_expr .= scalar @non_map_args_ms > 0 ?
-    		' = '. $maybe_unzipt . 'map ('.$f.' '.join('>> ',@non_map_args_ms).') <<'
-	    	:
-		    ' = ' .$maybe_unzipt .' map '.$f.' '
-    		;
-		$map_expr .=  scalar @in_tup > 1 ? '(zipt ('.join(',',@{$in_tup_ms}).'))' : scalar @{$in_tup_ms} > 0 ? $in_tup_ms->[0] : 'BOOM!';
+#		my $map_expr = scalar @{$out_tup} > 1 ? '('.join(',',map { $_.'_'.$unique_var_counters->{$_} } @{$out_tup}).')' : scalar @{$out_tup} > 0 ? $out_tup->[0].'_'.$unique_var_counters->{$out_tup->[0]} : 'BOOM!!';
+#		my $maybe_unzipt =  scalar @{$out_tup} > 1 ? 'unzipt $' : '';
+#        #        say " $f non-map args: <".scalar(@non_map_args_ms).'>';
+#		$map_expr .= scalar @non_map_args_ms > 0 ?
+#    		' = '. $maybe_unzipt . 'map ('.$f.' '.join('>> ',@non_map_args_ms).') <<'
+#	    	:
+#		    ' = ' .$maybe_unzipt .' map '.$f.' '
+#    		;
+#		$map_expr .=  scalar @in_tup > 1 ? '(zipt ('.join(',',@{$in_tup_ms}).'))' : scalar @{$in_tup_ms} > 0 ? $in_tup_ms->[0] : 'BOOM!';
 
         #		map { say $_ } @selects; # "${array_var}_portion = select patt $array_var";
 
