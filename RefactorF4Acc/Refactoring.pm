@@ -13,10 +13,11 @@ use RefactorF4Acc::Refactoring::IncludeFiles qw( refactor_include_files );
 use RefactorF4Acc::Analysis::ArgumentIODirs qw( determine_argument_io_direction_rec update_argument_io_direction_all_subs);
 use RefactorF4Acc::Refactoring::Modules qw( add_module_decls );
 use RefactorF4Acc::Refactoring::Streams qw( pass_rename_array_accesses_to_scalars ); # CUSTOM PASS
-use RefactorF4Acc::SaCTranslation qw( translate_module_to_SaC ); # CUSTOM PASS
-use RefactorF4Acc::CTranslation qw( translate_module_to_C ); # CUSTOM PASS
+use RefactorF4Acc::Translation::SaC qw( translate_module_to_SaC ); # CUSTOM PASS
+use RefactorF4Acc::Translation::OpenCLC qw( translate_module_to_C ); # CUSTOM PASS
+use RefactorF4Acc::Translation::TyTraCL qw( pass_emit_TyTraCL ); # CUSTOM PASS
 
-use RefactorF4Acc::Analysis::IdentifyStencils qw( pass_identify_stencils pass_emit_TyTraCL ); # CUSTOM PASS
+use RefactorF4Acc::Analysis::IdentifyStencils qw( pass_identify_stencils ); # CUSTOM PASS
 
 use vars qw( $VERSION );
 $VERSION = "1.1.0";

@@ -1,4 +1,4 @@
-package RefactorF4Acc::SaCTranslation;
+package RefactorF4Acc::Translation::SaC;
 use v5.10;
 
 use RefactorF4Acc::Config;
@@ -27,9 +27,9 @@ use Data::Dumper;
 
 use Exporter;
 
-@RefactorF4Acc::SaCTranslation::ISA = qw(Exporter);
+@RefactorF4Acc::Translation::SaC::ISA = qw(Exporter);
 
-@RefactorF4Acc::SaCTranslation::EXPORT_OK = qw(
+@RefactorF4Acc::Translation::SaC::EXPORT_OK = qw(
     &add_to_SaC_build_sources
     &translate_module_to_SaC
 	&translate_sub_to_SaC

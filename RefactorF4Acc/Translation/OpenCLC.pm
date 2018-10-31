@@ -1,4 +1,4 @@
-package RefactorF4Acc::CTranslation;
+package RefactorF4Acc::Translation::OpenCLC;
 use v5.10;
 
 use RefactorF4Acc::Config;
@@ -21,9 +21,9 @@ use Data::Dumper;
 
 use Exporter;
 
-@RefactorF4Acc::CTranslation::ISA = qw(Exporter);
+@RefactorF4Acc::Translation::OpenCLC::ISA = qw(Exporter);
 
-@RefactorF4Acc::CTranslation::EXPORT_OK = qw(
+@RefactorF4Acc::Translation::OpenCLC::EXPORT_OK = qw(
     &add_to_C_build_sources
     &translate_module_to_C
 	&translate_sub_to_C
