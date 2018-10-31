@@ -1,5 +1,5 @@
 #  Refactoring "Hello, world!"
-The following command-line session transcript demonstrates the use of RefactorF4Acc to 
+ The following command-line session transcript demonstrates the use of RefactorF4Acc to 
 refactor a "Hello, world!" program that starts with the following legacy Fortran features:
 * Fixed-form source as designated by the `.f` file extensions
 * A Fortran 77 parameter statement.
@@ -8,6 +8,9 @@ refactor a "Hello, world!" program that starts with the following legacy Fortran
 * An `include` statement in `main.f`.
 * Dummy arguments with no specified `intent`.
 * An external subroutine with an implicit interface.
+
+After installing RefactorF4Acc as described in [INSTALL.md] and creating the directory 
+structure with the files listed below, the following steps should work:
 ```
 # Display source directory tree structure
 $ tree .
@@ -136,3 +139,4 @@ $ ./hello
  Hello, world!
  All is right with the world.
 ```
+[INSTALL.md]: https://github.com/wimvanderbauwhede/RefactorF4Acc/blob/master/INSTALL.md
