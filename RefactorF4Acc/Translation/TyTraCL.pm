@@ -770,7 +770,7 @@ sub __toTyTraCLType { (my $type)=@_;
 # Maybe I will be lazy and only support 1, 2, 3 and 4 dimension
 
 sub _generate_TyTraCL_stencils { (my $stencil_patt)=@_;
-    my $stencil_ast = $stencil_patt->{'Accesses'};
+    my $stencil_ast = $stencil_patt->{'Accesses'}; 
     my $array_dims = $stencil_patt->{'Dims'};
     my @stencil_pattern = map { [ split(/:/,$_) ] } sort keys %{$stencil_ast};
     #    say Dumper(@stencil_pattern). ' ; '.Dumper($array_dims );

@@ -48,26 +48,30 @@ use Exporter;
 
 
 =info20170903
-What we have now is for every array used in a subroutine, a set of all stencils with an indication if an access is constant or an offset from a given iterator.
-The syntax is
+What we have now is for every array used in a subroutine, a set of all stencils (called 'Accesses', sorry!) with an indication if an access is constant or an offset from a given iterator.
 
-$state->{'Subroutines'}{ $f }{ $block_id }{'Arrays'}{$array_var}{$rw}{'Accesses'}{ join(':', @ast_vals0) }
-{$iters[$idx] => [$mult_val,$offset_val]};
+    $state->{'Subroutines'}{ $f }{ $block_id }{'Arrays'}{$array_var}{$rw}{'Accesses'}{ join(':', @ast_vals0) } = $iter_val_pairs;
 
- '0:-1' => [
-    {
-      'j' => [
-        1,
-        0
-      ]
-    },
-    {
-      'k' => [
-        1,
-        -1
-      ]
-    }
-  ],
+Each iter val pair is of the form (String,(Int,Int)), the string is the iterator variable, the first elt in the tuple is the multiplier, the second the offset.
+
+	{$iters[$idx] => [$mult_val,$offset_val]};
+
+For example, and typical access record entry for a 2-D array looks like this: 
+	
+	 '0:-1' => [
+	    {
+	      'j' => [
+	        1,
+	        0
+	      ]
+	    },
+	    {
+	      'k' => [
+	        1,
+	        -1
+	      ]
+	    }
+	  ],
 
 
 Now we have two use cases, one is OpenCL pipes and the other is TyTraCL
@@ -246,7 +250,7 @@ sub pass_identify_stencils {(my $stref)=@_;
 # Array accesses are stored in
 # $state->{'Subroutines'}{ $f }{ $block_id }{'Arrays'}{$array_var}{$rw}{
 # 'Exprs' => { $expr_str_1 => 1,...},
-# 'Accesses' => { '0:1' =>  'j' => [1,0],'k' => [1,1]},
+# 'Accesses' => { '0:1' =>  {'j' => [1,0],'k' => [1,1]}}, 
 # 'Iterators' => ['i','j']
 # };
 #
@@ -382,7 +386,7 @@ sub identify_array_accesses_in_exprs { (my $stref, my $f) = @_;
 					}
 					}
 					# This tests for the case of the same array on LHS and RHS, but maybe with a different access location, so a(...) = a(...)
-                    # Not sure why as this is rather unusual and it is unused
+                    # This is probably superseded by the new analysis of array assignment expressions
 					if (
 						ref($info->{'Rhs'}{'ExpressionAST'}) eq 'ARRAY'
 					and (($info->{'Rhs'}{'ExpressionAST'}[0] & 0xF) == 10) #eq '@'
@@ -391,29 +395,64 @@ sub identify_array_accesses_in_exprs { (my $stref, my $f) = @_;
 					and $info->{'Lhs'}{'ExpressionAST'}[1] eq $info->{'Rhs'}{'ExpressionAST'}[1]
 					) {
 						my $var_name = $info->{'Rhs'}{'ExpressionAST'}[1];
-						say "IDENTITY OP for $var_name : ",$line;
+						say "IDENTITY OP for $var_name : ",$line . __PACKAGE__ .' '. __LINE__ if $DBG;
 						$state->{'Subroutines'}{ $f }{$block_id}{'Identity'}{$var_name} = 1;
 					}
-
 					
 					# Find all array accesses in the LHS and RHS AST.
 					
 					(my $lhs_ast, $state, my $lhs_accesses) = _find_array_access_in_ast($stref, $f, $block_id, $state, $info->{'Lhs'}{'ExpressionAST'},'Write',{});
 					(my $rhs_ast, $state, my $rhs_accesses) = _find_array_access_in_ast($stref, $f, $block_id, $state, $info->{'Rhs'}{'ExpressionAST'},'Read',{});
+					if (exists $lhs_accesses->{'Arrays'} and exists $rhs_accesses->{'Arrays'} ) {
+						# This is an assignment line with array accesses.
+						# Tie the LHS accesses to the RHS ones  
+						# We simply create a list of these, rather than trying to reuse $state->{'Subroutines'}{ $f }{$block_id}{'Assignments'}
+# 'Arrays' => {
+#    'v' => {
+#      'Write' => {
+#        'Exprs' => {
+#          'v(j,0)' => 1
+#        },
+#        'Accesses' => {
+#          '0:0' => [
+#            {
+#              'j:0' => [
+#                1,
+#                0
+#              ]
+#            },
+#            {
+#              '?1' => [
+#                0,
+#                0
+#              ]
+#            }
+#          ]
+#        }
+#      }
+#    }
+#  }
+						
+#						say $line. "\nTie the LHS accesses to the RHS ones".Dumper($lhs_accesses,$rhs_accesses). "\n".' IdentifyStencils '.__LINE__;
+						if (not exists $state->{'Subroutines'}{ $f }{$block_id}{'ArrayAssignments'}) {
+							$state->{'Subroutines'}{ $f }{$block_id}{'ArrayAssignments'}=[];
+						}
+						push @{ $state->{'Subroutines'}{ $f }{$block_id}{'ArrayAssignments'} }, [$lhs_accesses,$rhs_accesses];
+					}
 					if (exists $lhs_accesses->{'Arrays'} or exists $rhs_accesses->{'Arrays'} ) {
-						# This is a line with array accesses. Check the halos!
-#                    say $line;# .' => '.Dumper([$rhs_accesses,$lhs_accesses]). ' ( ' . __LINE__ . ' ) ';
-					
-                    ($lhs_accesses,$rhs_accesses) = @{ _detect_halo_accesses($line, $lhs_accesses,$rhs_accesses,$state,$block_id,$stref,$f) };
-                    if (exists $rhs_accesses->{'HasHaloAccesses'}) {
-                    $info->{'Rhs'}{'ArrayAccesses'}=$rhs_accesses;
-                    }
-                    if (exists $lhs_accesses->{'HasHaloAccesses'}) {
-                    $info->{'Lhs'}{'ArrayAccesses'}=$lhs_accesses;
-                    }                     
+						# This is an assignment line with array accesses.					  
+						# Check the halos!					
+	                    ($lhs_accesses,$rhs_accesses) = @{ _detect_halo_accesses($line, $lhs_accesses,$rhs_accesses,$state,$block_id,$stref,$f) };
+	                    if (exists $rhs_accesses->{'HasHaloAccesses'}) {
+	                    	$info->{'Rhs'}{'ArrayAccesses'}=$rhs_accesses;
+	                    }
+	                    if (exists $lhs_accesses->{'HasHaloAccesses'}) {
+	                    	$info->{'Lhs'}{'ArrayAccesses'}=$lhs_accesses;
+	                    }                     
                     
 					}
                 }
+                
 				my $var_name = $info->{'Lhs'}{'VarName'};
 				if (not exists $state->{'Subroutines'}{ $f }{$block_id}{'Assignments'}{$var_name}) {
 					$state->{'Subroutines'}{ $f }{$block_id}{'Assignments'}{$var_name}=[];
@@ -486,28 +525,19 @@ sub identify_array_accesses_in_exprs { (my $stref, my $f) = @_;
 	 	($stref,$state) = stateful_pass($stref,$f,$pass_identify_array_accesses_in_exprs, $state,'pass_identify_array_accesses_in_exprs ' . __LINE__  ) ;
 	 	
 	 	$stref = _collect_dependencies_for_halo_access($stref,$f);
-#	 	die Dumper $stref->{'Subroutines'}{$f}{'RefactoredCode'};
-#	 	if ($f=~/vernieuw/) {
 
 		$state = _link_writes_to_reads( $stref, $f, $state);
-#		die Dumper($state) if $f =~/reduce/;
+		
+		# I guess here is where we put the boundary stencil analysis
 
 		$stref = _classify_accesses_and_emit_AST($stref, $f, $state);
+		
+		
 
 	} # if subkernel not superkernel
 	else {
-		# WV: FIXME: This is TyTraCL specific
 		        		say "-- SUPERKERNEL $f: ";
 		$stref = _emit_AST_Main($stref, $f);
-#        $stref->{'TyTraCL_AST'}{'Main'} = $f;
-#
-#
-##		map { say $_ } sort keys %{ $stref->{'Subroutines'}{$f} };
-##		say Dumper $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'};
-#		 for my $arg (@{ $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'List'} } ) {
-#		 	say $arg. ' => '. $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$arg}{'IODir'};
-#         $stref->{'TyTraCL_AST'}{'OrigArgs'}{$arg} =  $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$arg}{'IODir'};
-#		 }
 	}
  	return $stref;
 } # END of identify_array_accesses_in_exprs()
@@ -600,6 +630,7 @@ sub _find_array_access_in_ast { (my $stref, my $f,  my $block_id, my $state, my 
 							my $offset_val=$ast_vals0[$idx];
 							my $mult_val=$ast_vals1[$idx]-$offset_val;
 							push @{$iter_val_pairs}, {$iters[$idx] => [$mult_val,$offset_val]};
+#							say "Boundary access $f $array_var " . __PACKAGE__ . ' '. __LINE__ if substr($iters[$idx],0,1) eq '?';
 						}
 						$state->{'Subroutines'}{ $f }{ $block_id }{'Arrays'}{$array_var}{$rw}{'Exprs'}{$expr_str}=1;
 						$state->{'Subroutines'}{ $f }{ $block_id }{'Arrays'}{$array_var}{$rw}{'Accesses'}{ join(':', @ast_vals0) } = $iter_val_pairs;
@@ -688,16 +719,17 @@ sub _find_iters_in_array_idx_expr { (my $stref, my $f, my $block_id, my $ast, my
 	my $array_var = $ast_a[1];
 	$state->{'Subroutines'}{ $f }{ $block_id }{'Arrays'}{$array_var}{$rw}{'Iterators'}=[];
 	for my $idx (0 .. @args-1) {
-		$state->{'Subroutines'}{ $f }{ $block_id }{'Arrays'}{$array_var}{$rw}{'Iterators'}[$idx]='?';
+		$state->{'Subroutines'}{ $f }{ $block_id }{'Arrays'}{$array_var}{$rw}{'Iterators'}[$idx]='?:' . $idx;
   		my $item = $args[$idx];
   		my $vars = get_vars_from_expression($item, {});
   		for my $var (keys %{$vars}) {
   			if (exists $state->{'Subroutines'}{ $f }{ $block_id }{'LoopIters'}{ $var }) {
   				# OK, I found an iterator in this index expression. I boldly assume there is only one.
-  				$state->{'Subroutines'}{ $f }{ $block_id }{'Arrays'}{$array_var}{$rw}{'Iterators'}[$idx]=$var;
+  				$state->{'Subroutines'}{ $f }{ $block_id }{'Arrays'}{$array_var}{$rw}{'Iterators'}[$idx]=$var.':'.$idx;
   			}
   		}
 	}
+#	say 'ITERS:'.Dumper( $state->{'Subroutines'}{ $f }{ $block_id }{'Arrays'}{$array_var}{$rw}{'Iterators'} ). __PACKAGE__ .' '. __LINE__;
 	return $state;
 } # END of _find_iters_in_array_idx_expr
 
@@ -885,10 +917,10 @@ sub _classify_accesses_and_emit_AST { (my $stref, my $f, my $state ) =@_;
  				my $n_nonzeroffsets = scalar  @non_zero_offsets ;
  				my @qms = grep { /\?/ } @{ $state->{'Subroutines'}{ $f }{ $block_id }{'Arrays'}{$array_var}{$rw}{'Iterators'} };
  				my $all_points = scalar @qms == 0;
-				#* It is a stencil if:
-				if(  $n_accesses > 1
-				#- there is more than one access to an array =>
-					 and
+				#* It is a "true" stencil if:
+				if(
+				#- there is more than one access to an array  
+				$n_accesses > 1 and				 					 
 				#- at least one of these accesses has a non-zero offset
 					$n_nonzeroffsets > 0 and
 				#- all points in the array are processed in order
@@ -1050,7 +1082,7 @@ sub _remove_index_vars { (my $stref, my $f, my $block_id, my $state, my $vars_re
 				exists $state->{'Subroutines'}{ $f }{ $block_id }{'Arrays'}{$var}{$rw}{'Iterators'}
 				) {
 				my @iters = @{$state->{'Subroutines'}{ $f }{ $block_id }{'Arrays'}{$var}{$rw}{'Iterators'}};
-				%idx_vars = (%idx_vars, map { $_ => 1 } @iters);
+				%idx_vars = (%idx_vars, map { $_=~s/:\d//; $_ => 1 } @iters);
 				}
 		}
 	}
@@ -1187,14 +1219,16 @@ sub _detect_halo_accesses {
 			my ($expr_id,$expr_recs ) = each %{ $lhs_accesses->{'Arrays'}{$array_var}{'Write'}{'Accesses'} };
 			my $idx=0;
 			for my $expr_rec (@{$expr_recs}) { # i.e. i,j,k
-			    my ($loop_iter, $offset_t) = each %{$expr_rec};
+#			    my ($loop_iter, $offset_t) = each %{$expr_rec};
+				my ($loop_iter_pos, $offset_t) = each %{$expr_rec};
+			    my ($loop_iter,$pos) = split(/:/,$loop_iter_pos);			    
 			    my $offset=$offset_t->[1];
 			    for my $b (0,1) { # $b is the bound index
 			    	say "LOOP ITER: $loop_iter" if $DBG;
 			    	say Dumper($state->{'Subroutines'}{ $f }{$block_id}{'LoopIters'}) if $DBG;
 					# This is the loop bound
 			        my $loop_bound = $state->{'Subroutines'}{ $f }{$block_id}{'LoopIters'}{$loop_iter}{'Range'}->[$b];
-			        if ($loop_iter eq '?') {$loop_bound=0;}
+			        if (substr($loop_iter,0,1) eq '?') {$loop_bound=0;}
 #			        say "LOOP BOUND: $loop_bound OFFSET: $offset"; 	
 #croak 'FIXME: deal with constant access to array!';		        
 			        my $expr_loop_bound = $loop_bound+$offset;
@@ -1244,14 +1278,15 @@ sub _detect_halo_accesses {
 			my ($expr_id,$expr_recs ) = each %{ $rhs_accesses->{'Arrays'}{$array_var}{'Read'}{'Accesses'} };
 			my $idx=0;
 			for my $expr_rec (@{$expr_recs}) { # i.e. i,j,k
-			    my ($loop_iter, $offset_t) = each %{$expr_rec};
+			    my ($loop_iter_pos, $offset_t) = each %{$expr_rec};
+			    my ($loop_iter,$pos) = split(/:/,$loop_iter_pos);
 			    my $offset=$offset_t->[1];
 			    for my $b (0,1) { # $b is the bound index
 #			    	say "LOOP ITER: $loop_iter";
 #			    	say Dumper($state->{'Subroutines'}{ $f }{$block_id}{'LoopIters'});
 					# This is the loop bound
 			        my $loop_bound = $state->{'Subroutines'}{ $f }{$block_id}{'LoopIters'}{$loop_iter}{'Range'}->[$b];
-			        if ($loop_iter eq '?') {$loop_bound=0;}			        
+			        if (substr($loop_iter,0,1) eq '?') {$loop_bound=0;}			        
 			        my $expr_loop_bound = $loop_bound+$offset;
 #			        say "EXPR: $expr_m ";
 			        my $array_bound = $state->{'Subroutines'}{ $f }{ 0 }{'Arrays'}{$array_var}{'Dims'}[$idx][$b];
@@ -1389,6 +1424,81 @@ sub _emit_AST_Main {(my $stref, my $f) =@_;
 	$ast_to_emit = $ast_emitter->( $f,  $stref,  $ast_to_emit, 'MAIN',  '',  '',  '') if $emit_ast;
 	
 	return $stref;
+}
+
+
+#So, for all entries in ArrayAssignments
+#
+#- Get the information from the LHS, i.e. change the above into [[$m0,$o0],[$m1,$o1]]
+#- For the RHS, first make a list of all arrays being accessed, i.e. keys %{$entry->[1]{'Arrays'}}
+
+# 'Arrays' => {
+#    'v' => {
+#      'Write' => {
+#        'Exprs' => {
+#          'v(j,0)' => 1
+#        },
+#        'Accesses' => {
+#          '0:0' => [
+#            {
+#              'j:0' => [
+#                1,
+#                0
+#              ]
+#            },
+#            {
+#              '?1' => [
+#                0,
+#                0
+#              ]
+#            }
+#          ]
+#        }
+#      }
+#    }
+#  }
+sub _identify_boundary_stencils { my ($state, $f, $block_id ) = @_;
+	my $boundary_stencils={};
+	for my $entry (@{ $state->{'Subroutines'}{ $f }{$block_id}{'ArrayAssignments'} }) {
+		my $lhs = $entry->[0];	
+		my ($lhs_array_var,$lhs_array_var_rec ) = each %{ $lhs->{'Arrays'} }; 
+		my $lhs_access_tuples = __get_access_tuples($lhs_array_var_rec->{'Write'}{'Accesses'});
+		# There can only be one!
+		my $lhs_access_tuple = shift @{$lhs_access_tuples};
+		my $rhs = $entry->[1];
+		my @rhs_array_vars = keys %{$rhs->{'Arrays'}};
+		for my $rhs_array_var (@rhs_array_vars) {
+			if (not exists $boundary_stencils->{$rhs_array_var}) {
+				$boundary_stencils->{$rhs_array_var}=[];
+			}
+			my $rhs_access_tuples = __get_access_tuples($rhs->{'Arrays'}{$rhs_array_var}{'Read'}{'Accesses'});	
+			# Here I can do the maths and create the final stencil for each array var, put them in a table and return them
+			my $current_stencil=[];
+			# As this works on a per-array basis, we need to merge each new stencil into the existing one. The best way I guess is to serialise them
+			$boundary_stencils->{$rhs_array_var}=__build_boundary_stencil($boundary_stencils->{$rhs_array_var}, $current_stencil); 		
+		}		
+	}	
+	
+	return $boundary_stencils;
+}
+
+sub __get_access_tuples { (my $lhs_array_var_rec) = @_;
+	my $ordered_tuples=[];
+	for my $k (keys %{ $lhs_array_var_rec } ) { # e.g. '0:0' above
+		my $pairs = $lhs_array_var_rec->{$k};
+		my $ordered_tuple=[];
+		for my $pair (@{$pairs}) {
+			 (my $iter_pos,my $mult_offset) = each %{$pair}; 
+			 (my $iter, my $pos) = split(/:/,$iter_pos);
+			 $ordered_tuple->[$pos]=$mult_offset;			  
+		}  
+		push @{$ordered_tuples},$ordered_tuple;
+	}
+	return $ordered_tuples;
+}
+
+sub __build_boundary_stencil { (my $boundary_stencil, my $partial_stencil);
+	return $boundary_stencil;
 }
 
 1;
