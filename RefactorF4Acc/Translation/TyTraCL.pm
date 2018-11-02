@@ -45,6 +45,7 @@ use Exporter;
 &pass_emit_TyTraCL
 );
 
+our $FOLD=0;
 
 =info20170903
 What we have now is for every array used in a subroutine, a set of all stencils with an indication if an access is constant or an offset from a given iterator.
@@ -839,20 +840,23 @@ sub F4D2C { (
 }
 
 sub _add_TyTraCL_AST_entry { (my $f, my $state, my $tytracl_ast, my $type, my $block_id, my $array_var, my $rw) = @_;
+	
 	if (not defined $array_var) {
 		$array_var = '#dummy#';
 	}
+	if ($type eq 'INIT_AST') {
 	if (not exists $tytracl_ast->{'UniqueVarCounters'}) {
 		$tytracl_ast->{'UniqueVarCounters'}={'!s' => 0};
 	}
-	
+	}
 	
 	my $unique_var_counters=$tytracl_ast->{'UniqueVarCounters'};
-
+	
+	if ($type eq 'INIT_COUNTERS') {
  	if (not exists $unique_var_counters->{$array_var}) {
  			$unique_var_counters->{$array_var}=0;
  	}	
- 	
+	}
 	if ($type eq 'STENCIL') {
 							my $ctr_st = ++$unique_var_counters->{'!s'};
 						push @{$tytracl_ast->{'Lines'}},
@@ -910,14 +914,18 @@ sub _add_TyTraCL_AST_entry { (my $f, my $state, my $tytracl_ast, my $type, my $b
 	# so for each var in $in_tup we need to get the counter, and for each var in $out_tup after that too.
 		(my $out_tup, my $in_tup_maybe_dummies) = pp_links($state->{'Subroutines'}{$f}{$block_id}{'Links'});
 		 $in_tup_maybe_dummies =$state->{'Subroutines'}{$f}{'Args'}{'In'};
-		  
+#		  say Dumper($in_tup_maybe_dummies);
 		# This is incorrect because it does not return arguments that are used in conditions only
-		 my @acc_args =  @{$state->{'Subroutines'}{$f}{'Args'}{'Acc'}};
+		my %accs =();
+		my @acc_args = ();
+		if ($FOLD) {
+		 @acc_args =  @{$state->{'Subroutines'}{$f}{'Args'}{'Acc'}};
 		 if (scalar @acc_args > 0) {
 		 	say "$f is a reduction ";
 		 	$node_type = 'Fold';		 	
 		 }
-		 my %accs = map {$_ => $_} @acc_args;
+		  %accs = map {$_ => $_} @acc_args;
+		}
 		# A slightly better way is to look at which arrays are covered entirely by a map operation
 		my $n_dims = scalar keys %{$state->{'Subroutines'}{ $f }{$block_id}{'LoopIters'}};
 
@@ -928,12 +936,15 @@ sub _add_TyTraCL_AST_entry { (my $f, my $state, my $tytracl_ast, my $type, my $b
 		} @in_tup;
 
 		my @in_tup_non_map_args =  grep {
-			# Add ACC condition
-			not exists $accs{$_} and (
+			# Add ACC condition			
+			(
 			(not exists $state->{'Subroutines'}{ $f }{ $block_id }{'Arrays'}{$_}) or
 			(scalar @{ $state->{'Subroutines'}{ $f }{ $block_id }{'Arrays'}{$_}{'Dims'} } < $n_dims)
 			)
 		} @in_tup;
+		
+		my @in_tup_non_fold_args = grep { not exists $accs{$_}  } @in_tup_non_map_args; 
+
 		my $in_tup_ms_ast = [
 			map {
 				if (not exists $unique_var_counters->{$_}) {
@@ -946,18 +957,21 @@ sub _add_TyTraCL_AST_entry { (my $f, my $state, my $tytracl_ast, my $type, my $b
 				[$_,$unique_var_counters->{$_},'']
 			} @in_tup_correct_dim
 		];
-		my $in_tup_ms = [
-			map {				
-				if (not exists $unique_var_counters->{$_}) {
-					$unique_var_counters->{$_}=0;
-				}
-				exists $stencils{$_} ?
-				$_.'_s'.$unique_var_counters->{$_.'_s'} : #
-				exists $portions{$_} ?
-				$_.'_portion_'.$unique_var_counters->{$_.'_portion'} :
-				$_.'_'. $unique_var_counters->{$_}
-			} @in_tup_correct_dim
-		];
+		
+		my $map_args_ms_ast = $in_tup_ms_ast;
+		my $fold_args_ms_ast = $in_tup_ms_ast;
+#		my $in_tup_ms = [
+#			map {				
+#				if (not exists $unique_var_counters->{$_}) {
+#					$unique_var_counters->{$_}=0;
+#				}
+#				exists $stencils{$_} ?
+#				$_.'_s'.$unique_var_counters->{$_.'_s'} : #
+#				exists $portions{$_} ?
+#				$_.'_portion_'.$unique_var_counters->{$_.'_portion'} :
+#				$_.'_'. $unique_var_counters->{$_}
+#			} @in_tup_correct_dim
+#		];
 		my @non_map_args_ms_ast = map {
 				if (not exists $unique_var_counters->{$_}) {
 					$unique_var_counters->{$_}=0;
@@ -969,24 +983,23 @@ sub _add_TyTraCL_AST_entry { (my $f, my $state, my $tytracl_ast, my $type, my $b
 				[$_,$unique_var_counters->{$_},'']
 			} @in_tup_non_map_args;
 			
+		my @non_fold_args_ms_ast = map {
+				if (not exists $unique_var_counters->{$_}) {
+					$unique_var_counters->{$_}=0;
+				}
+				exists $stencils{$_} ?
+				[$_,$unique_var_counters->{$_.'_s'},'s'] :
+				exists $portions{$_} ?
+				[$_,$unique_var_counters->{$_.'_portion'},'portion'] :
+				[$_,$unique_var_counters->{$_},'']
+			} @in_tup_non_fold_args;			
+			
 		my @acc_args_ast = map {
 				if (not exists $unique_var_counters->{$_}) {
 					$unique_var_counters->{$_}=0;
 				}				
 				[$_,$unique_var_counters->{$_},'']
 			} @acc_args;			
-#		my @non_map_args_ms = map {
-#				if (not exists $unique_var_counters->{$_}) {
-#					$unique_var_counters->{$_}=0;
-#				}
-#				exists $stencils{$_} ?
-#				$_.'_s'.$unique_var_counters->{$_.'_s'} :
-#				exists $portions{$_} ?
-#				$_.'_portion_'.$unique_var_counters->{$_.'_portion'} :
-#				$_.'_'. $unique_var_counters->{$_}
-#			} @in_tup_non_map_args;
-			
-			
 			
 		my @out_tup_ast=();
 		for my $var (@{$out_tup}) {
@@ -997,19 +1010,7 @@ sub _add_TyTraCL_AST_entry { (my $f, my $state, my $tytracl_ast, my $type, my $b
 			}
 			push @out_tup_ast,[$var,$unique_var_counters->{$var},'']
 		}
-#		my $map_expr = scalar @{$out_tup} > 1 ? '('.join(',',map { $_.'_'.$unique_var_counters->{$_} } @{$out_tup}).')' : scalar @{$out_tup} > 0 ? $out_tup->[0].'_'.$unique_var_counters->{$out_tup->[0]} : 'BOOM!!';
-#		my $maybe_unzipt =  scalar @{$out_tup} > 1 ? 'unzipt $' : '';
-#        #        say " $f non-map args: <".scalar(@non_map_args_ms).'>';
-#		$map_expr .= scalar @non_map_args_ms > 0 ?
-#    		' = '. $maybe_unzipt . 'map ('.$f.' '.join('>> ',@non_map_args_ms).') <<'
-#	    	:
-#		    ' = ' .$maybe_unzipt .' map '.$f.' '
-#    		;
-#		$map_expr .=  scalar @in_tup > 1 ? '(zipt ('.join(',',@{$in_tup_ms}).'))' : scalar @{$in_tup_ms} > 0 ? $in_tup_ms->[0] : 'BOOM!';
 
-        #		map { say $_ } @selects; # "${array_var}_portion = select patt $array_var";
-
-        #		say $map_expr;# unless $map_expr=~/BOOM/;
         if ($node_type eq 'Map') {
 		push @{$tytracl_ast->{'Lines'}},
 		{'NodeType' => $node_type,'FunctionName' => $f,
@@ -1023,11 +1024,11 @@ sub _add_TyTraCL_AST_entry { (my $f, my $state, my $tytracl_ast, my $type, my $b
 					'Vars'=>[@non_map_args_ms_ast],
 				},
 				'MapArgs' =>{
-					'Vars' =>$in_tup_ms_ast,
+					'Vars' =>$map_args_ms_ast,
 				}
 			}
 		};
-        } elsif ($node_type eq 'Fold') {
+        } elsif ($FOLD and $node_type eq 'Fold') { 
 		push @{$tytracl_ast->{'Lines'}},
 		{'NodeType' => 'Fold','FunctionName' => $f,
 
@@ -1040,10 +1041,10 @@ sub _add_TyTraCL_AST_entry { (my $f, my $state, my $tytracl_ast, my $type, my $b
                 	'Vars'=>[@acc_args_ast],
                 },
 				'NonFoldArgs' => {
-					'Vars'=>[@non_map_args_ms_ast],
+					'Vars'=>[@non_fold_args_ms_ast],
 				},
 				'FoldArgs' =>{
-					'Vars' =>$in_tup_ms_ast,
+					'Vars' =>$fold_args_ms_ast,
 				}
 			}
 		};        	
@@ -1058,7 +1059,7 @@ sub _add_TyTraCL_AST_entry { (my $f, my $state, my $tytracl_ast, my $type, my $b
 #		map { say $_ } sort keys %{ $stref->{'Subroutines'}{$f} };
 #		say Dumper $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'};
 		 for my $arg (@{ $state->{'Subroutines'}{$f}{'RefactoredArgs'}{'List'} } ) {
-		 	say $arg. ' => '. $state->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$arg}{'IODir'};
+#		 	say $arg. ' => '. $state->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$arg}{'IODir'};
          $tytracl_ast->{'OrigArgs'}{$arg} =  $state->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$arg}{'IODir'};
 		 }
 		
