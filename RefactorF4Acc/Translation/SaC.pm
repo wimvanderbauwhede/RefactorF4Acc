@@ -48,7 +48,7 @@ sub translate_module_to_SaC {  (my $stref) = @_;
 	    [\&_determine_intermediate_arrays], 
 #		[\&_declare_undeclared_variables],
 #		[\&add_OpenCL_address_space_qualifiers],
-		[\_translate_sub_to_SaC]
+		[\&_translate_sub_to_SaC]
 		],$ocl);
 		
 	$stref = _write_headers($stref,$ocl);
