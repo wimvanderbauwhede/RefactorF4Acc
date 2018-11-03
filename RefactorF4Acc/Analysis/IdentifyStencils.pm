@@ -530,7 +530,7 @@ sub identify_array_accesses_in_exprs { (my $stref, my $f) = @_;
 		$state = _link_writes_to_reads( $stref, $f, $state);
 		
 		# I guess here is where we put the boundary stencil analysis
-        _identify_boundary_stencils($state, $f);
+        _identify_boundary_accesss($state, $f);
 
 		$stref = _classify_accesses_and_emit_AST($stref, $f, $state);
 		
@@ -1479,13 +1479,16 @@ but in TyTraCL we only need the total size of the extracted SVec, i.e. `k`
 =cut
 # In principle $f can contain several blocks (loop nests) with independent array accesses, so I need to iterate over these.
 # For the OpenCL used as starting point for TyTraCL, there is always only one block per function anyway.
-sub _identify_boundary_stencils { my ($state, $f) = @_;
-    my $boundary_stencils={};
+# What we should record is, for a given block in a given function, the name of the array, the set of index_pos, index_offset for that array, and the range for the non-constant indices
+# That means I'd better include the non-constant indices somewhere as well
+sub _identify_boundary_accesss { my ($state, $f) = @_;
+    my $boundary_accesss={};
     #say Dumper(keys %{ $state->{'Subroutines'}{ $f }{'Blocks'}});
 
     for my $block_id (keys %{ $state->{'Subroutines'}{ $f }{'Blocks'} }) {
+        say "Analysing function $f, block $block_id for boundary accesses";# if $V;
         #say Dumper(keys %{ $state->{'Subroutines'}{ $f }{$block_id}});
-        $boundary_stencils->{$block_id}={};
+        $boundary_accesss->{$block_id}={};
 
         for my $entry (@{ $state->{'Subroutines'}{ $f }{'Blocks'}{$block_id}{'ArrayAssignments'} }) {
             my $lhs = $entry->[0];	
@@ -1496,55 +1499,130 @@ sub _identify_boundary_stencils { my ($state, $f) = @_;
             my $lhs_access_tuples = __get_access_tuples($lhs_array_var_rec->{'Write'}{'Accesses'});
             # There can only be one!
             my $lhs_access_tuple = shift @{$lhs_access_tuples};
-            #say "$f ". $entry->[2].Dumper($lhs_access_tuple),__PACKAGE__,__LINE__;
+            #say "$f ". $entry->[2].Dumper($lhs_access_tuple),' ',__PACKAGE__,' ',__LINE__;
             # Now check if this meets the criterion of only one constant index
-            my $const_accesses = __get_const_accesses ($lhs_access_tuple);
-            my $is_boundary_access=0;
-            my $bounday_index = -1; # i.e. there isn't any
-            if (scalar @{$const_accesses} == 1) {
-                $is_boundary_access=1;
-                $bounday_index = $const_accesses->[0];
-                say "$f: LHS has boundary access on LINE ".$entry->[2];
-            }
-            # At this point we know that the LHS is a valid boundary access.
-            # Now look at the RHS. This is an expression which can have multiple accesses for multiple arrays.
-            my $rhs = $entry->[1];        
-            my @rhs_array_vars = keys %{$rhs->{'Arrays'}};
-            # Check for every array
-            for my $rhs_array_var (@rhs_array_vars) {
-                if (not exists $boundary_stencils->{$block_id}{$rhs_array_var}) {
-                    $boundary_stencils->{$block_id}{$rhs_array_var}=[];
-                }
-                my $rhs_access_tuples = __get_access_tuples($rhs->{'Arrays'}{$rhs_array_var}{'Read'}{'Accesses'});	
-                # Now for ever one of these access tuples, I have to do the same check as above but it must match the LHS index position as well
-                for my $rhs_access_tuple (@{ $rhs_access_tuples }) {
-                    my $rhs_const_accesses = __get_const_accesses ($rhs_access_tuple);
-                    my $rhs_is_boundary_access=0;
-                    my $rhs_bounday_index = -1; # i.e. there isn't any
-                    if (scalar @{$rhs_const_accesses} == 1) {
-                        $rhs_is_boundary_access=1;
-                        $rhs_bounday_index = $rhs_const_accesses->[0];
+            my ($lhs_const_accesses,$lhs_non_const_accesses) = @{ __split_out_const_accesses ($lhs_access_tuple) };
+            my $lhs_is_boundary_access=0;
+            my $lhs_bounday_index = -1; # i.e. there isn't any
+            if (scalar @{$lhs_const_accesses} == 1) {
+                $lhs_is_boundary_access=1;
+                my ($lhs_bounday_index_pos, $lhs_bounday_index_offset) = @{$lhs_const_accesses->[0]};
+                #                say "$f: LHS has boundary access for index $lhs_bounday_index_pos with value $lhs_bounday_index_offset on LINE ".$entry->[2];
+
+                # At this point we know that the LHS is a valid boundary access.
+                # Now look at the RHS. This is an expression which can have multiple accesses for multiple arrays.
+                my $rhs = $entry->[1];        
+                my @rhs_array_vars = keys %{$rhs->{'Arrays'}};
+                # Check for every array
+                for my $rhs_array_var (@rhs_array_vars) {
+                   
+                    my $rhs_access_tuples = __get_access_tuples($rhs->{'Arrays'}{$rhs_array_var}{'Read'}{'Accesses'});	
+                    # Now for ever one of these access tuples, I have to do the same check as above but it must match the LHS index position as well
+                    for my $rhs_access_tuple (@{ $rhs_access_tuples }) {
+                        my ($rhs_const_accesses, $rhs_non_const_accesses) = @{ __split_out_const_accesses ($rhs_access_tuple) };
+                        my $rhs_is_boundary_access=0;
+                        my $rhs_bounday_index = -1; # i.e. there isn't any
+                        if (scalar @{$rhs_const_accesses} == 1) {
+                            $rhs_is_boundary_access=1;
+                            my ($rhs_bounday_index_pos,$rhs_bounday_index_offset) = @{$rhs_const_accesses->[0]};
+                            if ($rhs_bounday_index_pos == $lhs_bounday_index_pos) {
+                                if (not exists $boundary_accesss->{$block_id}{$rhs_array_var}) {
+                                    $boundary_accesss->{$block_id}{$rhs_array_var}={};
+                                }
+                                #say "$f: LINE ".$entry->[2]." has ";
+                                print "FOUND boundary access for $rhs_array_var for index pos $rhs_bounday_index_pos with offset $rhs_bounday_index_offset; ";
+                                my $const_id="$rhs_bounday_index_pos:$rhs_bounday_index_offset";
+                                my $const_rec=[$rhs_bounday_index_pos,$rhs_bounday_index_offset];
+                                my $ordered_rec=[];
+                                $ordered_rec->[$rhs_bounday_index_pos]=[$rhs_bounday_index_offset];
+                                #say "The non-constant iterators are:";
+                                my $non_const_id='';
+                                my $non_const_recs=[];
+                               for my $rhs_non_const_access (@{$rhs_non_const_accesses}) {
+                                   my ($pos, $mult_offset_iter_pos) = @{ $rhs_non_const_access};
+                                   my ($mult,$offset, $iter_pos) = @{$mult_offset_iter_pos};
+                                   my ($iter,$pos_) = split(/:/,$iter_pos);
+                                  say "iter $iter at pos $pos with mult $mult and offset $offset";
+                                  #$boundary_accesss->{$block_id}{$rhs_array_var}{'NonConst'}{"$iter_pos:$mult:$offset"}=[$iter,$pos,$mult,$offset];
+                                   $non_const_id .= "$iter_pos:$mult:$offset";
+                                   my $non_const_rec =[$iter,$pos,$mult,$offset];
+                                   $ordered_rec->[$pos]=[$iter,$mult,$offset];
+                                   push @{$non_const_recs},$non_const_rec;
+                               }
+                               $boundary_accesss->{$block_id}{$rhs_array_var}{"$const_id:$non_const_id"}=$ordered_rec;#{'Const' => $const_rec,'NonConst'=>$non_const_recs};
+                                   # Any offsets are of course to be taken into account when calculating the final range
+
+                            }
+                        }
                     }
 
-
-
-                }
-
-                # Here I can do the maths and create the final stencil for each array var, put them in a table and return them
-                #my $current_stencil=[];
-                # As this works on a per-array basis, we need to merge each new stencil into the existing one. The best way I guess is to serialise them
-                #$boundary_stencils->{$block_id}{$rhs_array_var}=__build_boundary_stencil($boundary_stencils->{$block_id}{$rhs_array_var}, $current_stencil); 		
-            }		
+                    # Here I can do the maths and create the final stencil for each array var, put them in a table and return them
+                    #my $current_stencil=[];
+                    # As this works on a per-array basis, we need to merge each new stencil into the existing one. The best way I guess is to serialise them
+                    #$boundary_accesss->{$block_id}{$rhs_array_var}=__build_boundary_access($boundary_accesss->{$block_id}{$rhs_array_var}, $current_stencil); 		
+                }		
+            }
         }	
+        # What remains to be done is merge the constant accesses, e.g. if we have v(0,j) and v(1,j) then the buffer should be 0..1 x range of j
+        # Of course if we don't do this we simply get an individual buffer for each access
+        # Maybe I should already do that as a first step
+        # The next step is to get the actual range for a given iterator. 
+        # However we can alread emit the required TyTraCL buffers: we create a buffer for every const for every array
+        # I wonder if we can't simply do something based on string substitution:
+        #  if k == 0 v = v_jp1_1 
+        #  if k==0 v = v_jp1_0+v_jm1_0
+        #  if j==1 u = u_501_k
+        #  if j==ny u = u_0_k+u_1_k+un_1_k
+        #  it means that for non-0 offset, a non-const pos offset becones p$offset, a neg offset m$offset, consts stay as they are, we join with _
+        #
+        __generate_buffer_varnames( $boundary_accesss, $block_id );
+
+
     }
-    return $boundary_stencils;
-} # END of _identify_boundary_stencils
-# This returns a list of (mult, offset) pairs for each access, i.e. [ [ [m11,o11],[m12,o12] ] , [ [m21,o21],[m22,o22] ] ]
-sub __get_access_tuples { (my $lhs_array_var_rec) = @_;
-    #    say Dumper($lhs_array_var_rec);
+
+    say "DONE Analysing function $f for boundary accesses";# if $V;
+    #    say Dumper($boundary_accesss);
+    
+    return $boundary_accesss;
+} # END of _identify_boundary_accesss
+
+=info
+ '0:0' => [
+    {
+      'j:0' => [
+        1,
+        0
+      ]
+    },
+    {
+      '?:1' => [
+        0,
+        0
+      ]
+    }
+  ]
+
+  '0:0' => [
+    {
+      '?:0' => [
+        0,
+        0
+      ]
+    },
+    {
+      'k:1' => [
+        1,
+        0
+      ]
+    }
+  ]
+=cut
+# This returns a list of (mult, offset) pairs for each access, i.e. [ [ [m11,o11,'i:0'],[m12,o12,'j:1'] ] , [ [m21,o21],[m22,o22] ] ]
+sub __get_access_tuples { (my $array_var_rec) = @_;
+    #    say Dumper($array_var_rec);
 	my $ordered_tuples=[];
-	for my $k (keys %{ $lhs_array_var_rec } ) { # e.g. '0:0' above
-		my $pairs = $lhs_array_var_rec->{$k};
+	for my $k (keys %{ $array_var_rec } ) { # e.g. '0:0' above
+		my $pairs = $array_var_rec->{$k};
 		my $ordered_tuple=[];
         
 		for my $pair (@{$pairs}) {
@@ -1553,25 +1631,65 @@ sub __get_access_tuples { (my $lhs_array_var_rec) = @_;
             #my $mult_offset = $pair->{$iter_pos};
             my ( $iter_pos,$mult_offset) = %{$pair}; 
             #             croak Dumper($iter_pos,$pair, $pairs) if not defined $iter_pos;
+                         
              (my $iter, my $pos) = split(/:/,$iter_pos);
-			 $ordered_tuple->[$pos]=$mult_offset;			  
+             #             say "$iter $pos".' '.$mult_offset->[0].','.$mult_offset->[1],' ',__PACKAGE__,' ',__LINE__;
+			 $ordered_tuple->[$pos]=[@{$mult_offset},$iter_pos];			  
 		}  
 		push @{$ordered_tuples},$ordered_tuple;
 	}
 	return $ordered_tuples;
 }
+# [ [mult_i,offset_i, 'i:0'],[mult_j,offset_j,'j:1'],...]
+# returns a lists of [idx_pos, offset] for const accesses
+sub __split_out_const_accesses { (my $access_tuple ) = @_;
+    my $const_accesses=[];
+    my $non_const_accesses=[];
+    for my $idx_pos (0 .. scalar @{ $access_tuple } - 1) {
+            if ($access_tuple->[$idx_pos][0] == 0) {
+                push @{$const_accesses}, [$idx_pos,$access_tuple->[$idx_pos][1]];
+            } else {
+                push @{$non_const_accesses}, [$idx_pos,$access_tuple->[$idx_pos]];
+            }
+    }
+    return [$const_accesses,$non_const_accesses];# ( scalar @const_accesses  == 1) ? 1 : 0;
 
-sub __get_const_accesses { (my $access_tuple ) = @_;
+} # END of __split_out_const_accesses
 
-    my @const_accesses = grep { $_ == 0 } map { $_->[0] } @{ $access_tuple } ;
-
-    return \@const_accesses;# ( scalar @const_accesses  == 1) ? 1 : 0;
-
+sub __build_boundary_access { (my $boundary_access, my $partial_stencil);
+    # TODO
+	return $boundary_access;
 }
 
-sub __build_boundary_stencil { (my $boundary_stencil, my $partial_stencil);
-    # TODO
-	return $boundary_stencil;
+# If we had access to the type decls and ranges here we could generate the types as well
+sub __generate_buffer_varnames { my ( $boundary_accesss, $block_id ) = @_;
+    
+    for my $array_var (keys %{ $boundary_accesss->{$block_id} } ) {
+        my $buffer_varnames=[];
+        for my $access_id (keys %{ $boundary_accesss->{$block_id}{$array_var} } ) {
+            my $ordered_rec = $boundary_accesss->{$block_id}{$array_var}{$access_id};
+            my @chunks=($array_var);
+            for my $entry ( @{$ordered_rec}) {
+                    if (scalar @{$entry} == 1) {
+                        push @chunks, $entry->[0];
+                    } else {
+                        (my $iter, my $mult, my $offset) = @{$entry};
+                        $iter = $mult == 1 ? $iter : "$mult*$iter";
+                        $iter = $offset == 0 ? $iter : $offset < 0 ? "${iter}m".abs($offset) :  "${iter}p$offset";
+                        push @chunks,$iter;
+                    }
+            }
+            
+           my  $var_name_str = join('_',@chunks);
+            say $var_name_str;
+            my $patt = $var_name_str.'_patt';
+            say " $var_name_str :: Vec PATT_SZ ORIG_ARRAY_TYPE";
+            say " $patt :: SVec PATT_SZ Int";
+            say  "$var_name_str = extract $patt $array_var";
+        }
+
+    }
+    
 }
 
 1;
