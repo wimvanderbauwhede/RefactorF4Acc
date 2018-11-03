@@ -51,7 +51,7 @@ our $FOLD=0;
 What we have now is for every array used in a subroutine, a set of all stencils with an indication if an access is constant or an offset from a given iterator.
 The syntax is
 
-$state->{'Subroutines'}{ $f }{ $block_id }{'Arrays'}{$array_var}{$rw}{'Accesses'}{ join(':', @ast_vals0) }
+$state->{'Subroutines'}{ $f }{'Blocks'}{ $block_id }{'Arrays'}{$array_var}{$rw}{'Accesses'}{ join(':', @ast_vals0) }
 {$iters[$idx] => [$mult_val,$offset_val]};
 
  '0:-1' => [
@@ -269,7 +269,7 @@ sub pp_links { (my $links)=@_;
 # {'Lines' => [
 #		{'NodeType' => 'StencilDef',
 #			'Lhs' => {'Ctr' => $ctr_st},
-#			'Rhs' => {'StencilPattern' => { 'Accesses' => $state->{'Subroutines'}{ $f }{ $block_id }{'Arrays'}{$array_var}{$rw}{'Accesses'}},
+#			'Rhs' => {'StencilPattern' => { 'Accesses' => $state->{'Subroutines'}{ $f }{'Blocks'}{ $block_id }{'Arrays'}{$array_var}{$rw}{'Accesses'}},
 #			'Dims' => ...}
 #		};
 # 		{'NodeType' => 'StencilAppl',
@@ -574,7 +574,7 @@ sub _addToVarTypes { (my $stref, my $var_types, my $stencils, my $node, my $lhs,
     # DeclaredOrigArgs
 #		{'NodeType' => 'StencilDef',
 #			'Lhs' => {'Ctr' => $ctr_st},
-#			'Rhs' => {'StencilPattern' => {'Accesses' => $state->{'Subroutines'}{ $f }{ $block_id }{'Arrays'}{$array_var}{$rw}{'Accesses'}}, 'Dims' => ...}
+#			'Rhs' => {'StencilPattern' => {'Accesses' => $state->{'Subroutines'}{ $f }{'Blocks'}{ $block_id }{'Arrays'}{$array_var}{$rw}{'Accesses'}}, 'Dims' => ...}
 #		};
         if ($node->{'NodeType'} eq 'StencilDef') {
             my $s_var = $lhs->{'Ctr'};
@@ -863,8 +863,8 @@ sub _add_TyTraCL_AST_entry { (my $f, my $state, my $tytracl_ast, my $type, my $b
 						{'NodeType' => 'StencilDef', 'FunctionName' => $f,
 							'Lhs' => {'Ctr' => $ctr_st},
 							'Rhs' => {'StencilPattern' => {
-                                    'Accesses' => $state->{'Subroutines'}{ $f }{ $block_id }{'Arrays'}{$array_var}{$rw}{'Accesses'},
-                                    'Dims' => $state->{'Subroutines'}{ $f }{ $block_id }{'Arrays'}{$array_var}{'Dims'}
+                                    'Accesses' => $state->{'Subroutines'}{ $f }{'Blocks'}{ $block_id }{'Arrays'}{$array_var}{$rw}{'Accesses'},
+                                    'Dims' => $state->{'Subroutines'}{ $f }{'Blocks'}{ $block_id }{'Arrays'}{$array_var}{'Dims'}
                                 }
                             }
 						};
@@ -912,7 +912,7 @@ sub _add_TyTraCL_AST_entry { (my $f, my $state, my $tytracl_ast, my $type, my $b
  		my %stencils= %{$tytracl_ast->{'Stencils'}};
  		# so this provides the output and input tuples for a given $f
 	# so for each var in $in_tup we need to get the counter, and for each var in $out_tup after that too.
-		(my $out_tup, my $in_tup_maybe_dummies) = pp_links($state->{'Subroutines'}{$f}{$block_id}{'Links'});
+		(my $out_tup, my $in_tup_maybe_dummies) = pp_links($state->{'Subroutines'}{$f}{'Blocks'}{$block_id}{'Links'});
 		 $in_tup_maybe_dummies =$state->{'Subroutines'}{$f}{'Args'}{'In'};
 #		  say Dumper($in_tup_maybe_dummies);
 		# This is incorrect because it does not return arguments that are used in conditions only
@@ -927,19 +927,19 @@ sub _add_TyTraCL_AST_entry { (my $f, my $state, my $tytracl_ast, my $type, my $b
 		  %accs = map {$_ => $_} @acc_args;
 		}
 		# A slightly better way is to look at which arrays are covered entirely by a map operation
-		my $n_dims = scalar keys %{$state->{'Subroutines'}{ $f }{$block_id}{'LoopIters'}};
+		my $n_dims = scalar keys %{$state->{'Subroutines'}{ $f }{'Blocks'}{$block_id}{'LoopIters'}};
 
 		my @in_tup = grep { $_!~/^\!/ } @{$in_tup_maybe_dummies};
 		my @in_tup_correct_dim =  grep {
-			exists $state->{'Subroutines'}{ $f }{ $block_id }{'Arrays'}{$_} and
-			scalar @{ $state->{'Subroutines'}{ $f }{ $block_id }{'Arrays'}{$_}{'Dims'} } >= $n_dims
+			exists $state->{'Subroutines'}{ $f }{'Blocks'}{ $block_id }{'Arrays'}{$_} and
+			scalar @{ $state->{'Subroutines'}{ $f }{'Blocks'}{ $block_id }{'Arrays'}{$_}{'Dims'} } >= $n_dims
 		} @in_tup;
 
 		my @in_tup_non_map_args =  grep {
 			# Add ACC condition			
 			(
-			(not exists $state->{'Subroutines'}{ $f }{ $block_id }{'Arrays'}{$_}) or
-			(scalar @{ $state->{'Subroutines'}{ $f }{ $block_id }{'Arrays'}{$_}{'Dims'} } < $n_dims)
+			(not exists $state->{'Subroutines'}{ $f }{'Blocks'}{ $block_id }{'Arrays'}{$_}) or
+			(scalar @{ $state->{'Subroutines'}{ $f }{'Blocks'}{ $block_id }{'Arrays'}{$_}{'Dims'} } < $n_dims)
 			)
 		} @in_tup;
 		

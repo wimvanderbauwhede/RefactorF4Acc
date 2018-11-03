@@ -308,7 +308,7 @@ sub _process_src {
                  $fstyle='F95'; 
 #                 die $srctype . Dumper( $stref->{'SourceContains'}{$src} ) if $src=~/main/;
                  if (scalar @{ $stref->{'SourceContains'}{$src}{'List'} } == 1) {
-                 	(my $code_unit, $srctype) = each %{ $stref->{'SourceContains'}{$src}{'Set'} };
+                 	(my $code_unit, $srctype) = %{ $stref->{'SourceContains'}{$src}{'Set'} };
 	                $stref->{$srctype}{$code_unit}{'FStyle'}='F95';
     	        	$stref->{$srctype}{$code_unit}{'FreeForm'}=1;                                   	
                  }

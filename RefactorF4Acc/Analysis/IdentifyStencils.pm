@@ -50,7 +50,7 @@ use Exporter;
 =info20170903
 What we have now is for every array used in a subroutine, a set of all stencils (called 'Accesses', sorry!) with an indication if an access is constant or an offset from a given iterator.
 
-    $state->{'Subroutines'}{ $f }{ $block_id }{'Arrays'}{$array_var}{$rw}{'Accesses'}{ join(':', @ast_vals0) } = $iter_val_pairs;
+    $state->{'Subroutines'}{ $f }{'Blocks'}{ $block_id }{'Arrays'}{$array_var}{$rw}{'Accesses'}{ join(':', @ast_vals0) } = $iter_val_pairs;
 
 Each iter val pair is of the form (String,(Int,Int)), the string is the iterator variable, the first elt in the tuple is the multiplier, the second the offset.
 
@@ -272,7 +272,7 @@ sub identify_array_accesses_in_exprs { (my $stref, my $f) = @_;
 			(my $line,my $info)=@{$annline};
 
             my $in_block = exists $info->{Block} ? $info->{Block}{LineID} : '-1';
-            my $block_id = __mkLoopId( $state->{'Subroutines'}{$f}{'LoopNests'} );
+            my $block_id = exists $state->{'Subroutines'}{$f}{'LoopNests'} ? __mkLoopId( $state->{'Subroutines'}{$f}{'LoopNests'} ) : 0;
 #			say 'BLOCK '.$info->{LineID}."\t$block_id\t\'$line\'";# => ;#.' '.$info->{Block}{LineID} ;#if ($info->{LineID} == 0);# or $info->{Block}{LineID} == 0);
             #my $block_id = 0;#$info->{'Block'}{'LineID'};
             #
@@ -282,7 +282,8 @@ sub identify_array_accesses_in_exprs { (my $stref, my $f) = @_;
 				$state->{'CurrentSub'}= $subname  ;
 				croak if $subname ne $f;
 				$state->{'Subroutines'}{$subname }={};
-				$state->{'Subroutines'}{$subname }{$block_id}={};
+				$state->{'Subroutines'}{$subname }{'Blocks'}={};
+				$state->{'Subroutines'}{$subname }{'Blocks'}{$block_id}={};
                 $state->{'Subroutines'}{$f}{'LoopNests'}=[ [0,{}] ];
                 # InOut will be both in In and Out
                 # Any scalar arg that is InOut or Out could be an Acc, put it in MaybeAcc
@@ -318,7 +319,7 @@ sub identify_array_accesses_in_exprs { (my $stref, my $f) = @_;
 				 
 				my @dims = @{ $info->{'ParsedVarDecl'}{'Attributes'}{'Dim'} };
 
-				$state->{'Subroutines'}{ $f }{ $block_id }{'Arrays'}{$array_var}{'Dims'}=[];
+				$state->{'Subroutines'}{ $f }{'Blocks'}{ $block_id }{'Arrays'}{$array_var}{'Dims'}=[];
 				for my $dim (@dims) {
 					(my $lo, my $hi)=$dim=~/:/ ? split(/:/,$dim) : (1,$dim);
 					my $dim_vals=[];
@@ -337,18 +338,18 @@ sub identify_array_accesses_in_exprs { (my $stref, my $f) = @_;
 						push @{$dim_vals},$dim_val;
 					}
                     # This is also used to generate the 1-D stencils for TyTraCL
-					push @{ $state->{'Subroutines'}{ $f }{ $block_id }{'Arrays'}{$array_var}{'Dims'} },$dim_vals;					
+					push @{ $state->{'Subroutines'}{ $f }{'Blocks'}{ $block_id }{'Arrays'}{$array_var}{'Dims'} },$dim_vals;					
 				}
 #				say "{ $f }{ $block_id }{'Arrays'}{$array_var}{'Dims'}";
-#				say Dumper($state->{'Subroutines'}{ $f }{ $block_id }{'Arrays'}{$array_var}{'Dims'});
+#				say Dumper($state->{'Subroutines'}{ $f }{'Blocks'}{ $block_id }{'Arrays'}{$array_var}{'Dims'});
 			}
 			if (exists $info->{'Assignment'} ) {
 				# Assignment to scalar *_rel
 				if ($info->{'Lhs'}{'ArrayOrScalar'} eq 'Scalar' and $info->{'Lhs'}{'VarName'} =~/^(\w+)_rel/) {
 					my $loop_iter=$1;
-					if (not exists $state->{'Subroutines'}{ $f }{$block_id}{'LoopIters'}{$loop_iter}{'Range'}) {
+					if (not exists $state->{'Subroutines'}{ $f }{'Blocks'}{$block_id}{'LoopIters'}{$loop_iter}{'Range'}) {
 						croak "This should not happen!";
-						$state->{'Subroutines'}{ $f }{$block_id}{'LoopIters'}{$loop_iter}={'Range' => [0,0]};
+						$state->{'Subroutines'}{ $f }{'Blocks'}{$block_id}{'LoopIters'}{$loop_iter}={'Range' => [0,0]};
 					}
 				}
 				# Assignment to scalar *_range
@@ -357,7 +358,7 @@ sub identify_array_accesses_in_exprs { (my $stref, my $f) = @_;
 
 					my $expr_str = emit_expression($info->{'Rhs'}{'ExpressionAST'},'');
 					my $loop_range = eval($expr_str);
-					$state->{'Subroutines'}{ $f }{$block_id}{'LoopIters'}{$loop_iter}={'Range' => [1,$loop_range]};				
+					$state->{'Subroutines'}{ $f }{'Blocks'}{$block_id}{'LoopIters'}{$loop_iter}={'Range' => [1,$loop_range]};				
 					
 				} else {
 					# First check if this is maybe an accumulator
@@ -396,7 +397,7 @@ sub identify_array_accesses_in_exprs { (my $stref, my $f) = @_;
 					) {
 						my $var_name = $info->{'Rhs'}{'ExpressionAST'}[1];
 						say "IDENTITY OP for $var_name : ",$line . __PACKAGE__ .' '. __LINE__ if $DBG;
-						$state->{'Subroutines'}{ $f }{$block_id}{'Identity'}{$var_name} = 1;
+						$state->{'Subroutines'}{ $f }{'Blocks'}{$block_id}{'Identity'}{$var_name} = 1;
 					}
 					
 					# Find all array accesses in the LHS and RHS AST.
@@ -434,10 +435,10 @@ sub identify_array_accesses_in_exprs { (my $stref, my $f) = @_;
 #  }
 						
 #						say $line. "\nTie the LHS accesses to the RHS ones".Dumper($lhs_accesses,$rhs_accesses). "\n".' IdentifyStencils '.__LINE__;
-						if (not exists $state->{'Subroutines'}{ $f }{$block_id}{'ArrayAssignments'}) {
-							$state->{'Subroutines'}{ $f }{$block_id}{'ArrayAssignments'}=[];
+						if (not exists $state->{'Subroutines'}{ $f }{'Blocks'}{$block_id}{'ArrayAssignments'}) {
+							$state->{'Subroutines'}{ $f }{'Blocks'}{$block_id}{'ArrayAssignments'}=[];
 						}
-						push @{ $state->{'Subroutines'}{ $f }{$block_id}{'ArrayAssignments'} }, [$lhs_accesses,$rhs_accesses];
+						push @{ $state->{'Subroutines'}{ $f }{'Blocks'}{$block_id}{'ArrayAssignments'} }, [$lhs_accesses,$rhs_accesses,$line];
 					}
 					if (exists $lhs_accesses->{'Arrays'} or exists $rhs_accesses->{'Arrays'} ) {
 						# This is an assignment line with array accesses.					  
@@ -454,10 +455,10 @@ sub identify_array_accesses_in_exprs { (my $stref, my $f) = @_;
                 }
                 
 				my $var_name = $info->{'Lhs'}{'VarName'};
-				if (not exists $state->{'Subroutines'}{ $f }{$block_id}{'Assignments'}{$var_name}) {
-					$state->{'Subroutines'}{ $f }{$block_id}{'Assignments'}{$var_name}=[];
+				if (not exists $state->{'Subroutines'}{ $f }{'Blocks'}{$block_id}{'Assignments'}{$var_name}) {
+					$state->{'Subroutines'}{ $f }{'Blocks'}{$block_id}{'Assignments'}{$var_name}=[];
 				}
-				push @{$state->{'Subroutines'}{ $f }{$block_id}{'Assignments'}{$var_name}}, $info->{'Rhs'}{'ExpressionAST'};
+				push @{$state->{'Subroutines'}{ $f }{'Blocks'}{$block_id}{'Assignments'}{$var_name}}, $info->{'Rhs'}{'ExpressionAST'};
 			}
 	 		if (exists $info->{'If'} ) {
                 # FIXME: Surely conditions of if-statements can contain array accesses, so FIX THIS!
@@ -509,7 +510,7 @@ sub identify_array_accesses_in_exprs { (my $stref, my $f) = @_;
                 my $block_id = __mkLoopId( $state->{'Subroutines'}{$f}{'LoopNests'} );
                 for my $loop_iter_rec ( @{ $state->{'Subroutines'}{$f}{'LoopNests'} } ) {
                     (my $loop_id, my $loop_iter, my $range_rec) = @{$loop_iter_rec};
-                    $state->{'Subroutines'}{ $f }{$block_id}{'LoopIters'}{$loop_iter}=$range_rec;
+                    $state->{'Subroutines'}{ $f }{'Blocks'}{$block_id}{'LoopIters'}{$loop_iter}=$range_rec;
                 }
             } else {
                 croak "Sorry, a `do` loop without an iterator is not supported";
@@ -529,6 +530,7 @@ sub identify_array_accesses_in_exprs { (my $stref, my $f) = @_;
 		$state = _link_writes_to_reads( $stref, $f, $state);
 		
 		# I guess here is where we put the boundary stencil analysis
+        _identify_boundary_stencils($state, $f);
 
 		$stref = _classify_accesses_and_emit_AST($stref, $f, $state);
 		
@@ -623,7 +625,7 @@ sub _find_array_access_in_ast { (my $stref, my $f,  my $block_id, my $state, my 
 						my @idx_args1 = @ast_a1[2 .. $#ast_a1];
 						my @ast_exprs1 = map { emit_expression($_,'') } @idx_args1;
 						my @ast_vals1 = map { eval($_) } @ast_exprs1;
-						my @iters = @{$state->{'Subroutines'}{ $f }{ $block_id }{'Arrays'}{$array_var}{$rw}{'Iterators'}};
+						my @iters = @{$state->{'Subroutines'}{ $f }{'Blocks'}{ $block_id }{'Arrays'}{$array_var}{$rw}{'Iterators'}};
 
 						my $iter_val_pairs=[];
 						for my $idx (0 .. @iters-1) {
@@ -632,8 +634,8 @@ sub _find_array_access_in_ast { (my $stref, my $f,  my $block_id, my $state, my 
 							push @{$iter_val_pairs}, {$iters[$idx] => [$mult_val,$offset_val]};
 #							say "Boundary access $f $array_var " . __PACKAGE__ . ' '. __LINE__ if substr($iters[$idx],0,1) eq '?';
 						}
-						$state->{'Subroutines'}{ $f }{ $block_id }{'Arrays'}{$array_var}{$rw}{'Exprs'}{$expr_str}=1;
-						$state->{'Subroutines'}{ $f }{ $block_id }{'Arrays'}{$array_var}{$rw}{'Accesses'}{ join(':', @ast_vals0) } = $iter_val_pairs;
+						$state->{'Subroutines'}{ $f }{'Blocks'}{ $block_id }{'Arrays'}{$array_var}{$rw}{'Exprs'}{$expr_str}=1;
+						$state->{'Subroutines'}{ $f }{'Blocks'}{ $block_id }{'Arrays'}{$array_var}{$rw}{'Accesses'}{ join(':', @ast_vals0) } = $iter_val_pairs;
                         $accesses->{'Arrays'}{$array_var}{$rw}{'Exprs'}{$expr_str}=1;
                         $accesses->{'Arrays'}{$array_var}{$rw}{'Accesses'}{ join(':', @ast_vals0) } = $iter_val_pairs;
 						last;
@@ -687,7 +689,7 @@ sub _replace_consts_in_ast { (my $stref, my $f, my $block_id, my $ast, my $state
 				if ($idx==0 and (($entry & 0xF) == 2)) { #eq '$'
 					my $mvar = $ast->[$idx+1];
 #					say "MVAR: $mvar in $f";
-					if (exists $state->{'Subroutines'}{ $f }{$block_id}{'LoopIters'}{ $mvar }) { 
+					if (exists $state->{'Subroutines'}{ $f }{'Blocks'}{$block_id}{'LoopIters'}{ $mvar }) { 
 						$ast=''.$const.'';
 						return ($ast,$state,1);
 					} elsif (in_nested_set($stref->{'Subroutines'}{$f},'Parameters',$mvar)) {
@@ -717,15 +719,15 @@ sub _find_iters_in_array_idx_expr { (my $stref, my $f, my $block_id, my $ast, my
 	my @ast_a = @{$ast};
 	my @args = @ast_a[2 .. $#ast_a];
 	my $array_var = $ast_a[1];
-	$state->{'Subroutines'}{ $f }{ $block_id }{'Arrays'}{$array_var}{$rw}{'Iterators'}=[];
+	$state->{'Subroutines'}{ $f }{'Blocks'}{ $block_id }{'Arrays'}{$array_var}{$rw}{'Iterators'}=[];
 	for my $idx (0 .. @args-1) {
-		$state->{'Subroutines'}{ $f }{ $block_id }{'Arrays'}{$array_var}{$rw}{'Iterators'}[$idx]='?:' . $idx;
+		$state->{'Subroutines'}{ $f }{'Blocks'}{ $block_id }{'Arrays'}{$array_var}{$rw}{'Iterators'}[$idx]='?:' . $idx;
   		my $item = $args[$idx];
   		my $vars = get_vars_from_expression($item, {});
   		for my $var (keys %{$vars}) {
-  			if (exists $state->{'Subroutines'}{ $f }{ $block_id }{'LoopIters'}{ $var }) {
+  			if (exists $state->{'Subroutines'}{ $f }{'Blocks'}{ $block_id }{'LoopIters'}{ $var }) {
   				# OK, I found an iterator in this index expression. I boldly assume there is only one.
-  				$state->{'Subroutines'}{ $f }{ $block_id }{'Arrays'}{$array_var}{$rw}{'Iterators'}[$idx]=$var.':'.$idx;
+  				$state->{'Subroutines'}{ $f }{'Blocks'}{ $block_id }{'Arrays'}{$array_var}{$rw}{'Iterators'}[$idx]=$var.':'.$idx;
   			}
   		}
 	}
@@ -762,10 +764,10 @@ Alternatively I could of course rely on the kernel name, they have 'map' or 'red
 
 sub _link_writes_to_reads {(my $stref, my $f, my $state)=@_;
 
-    for my $block_id (sort keys %{ $state->{'Subroutines'}{$f} }) {
-        next if $block_id eq 'LoopNests';
+    for my $block_id (sort keys %{ $state->{'Subroutines'}{$f}{'Blocks'} }) {
+        #        next if $block_id eq 'LoopNests';
 		my $links={};
-		my $assignments = $state->{'Subroutines'}{$f}{$block_id}{'Assignments'};
+		my $assignments = $state->{'Subroutines'}{$f}{'Blocks'}{$block_id}{'Assignments'};
 		# So we have to establish the link for every variable that is a multi-dim (effectively 3-D) array argument
 		for my $some_var ( sort keys %{ $assignments }  ) {
 			next if $some_var=~/_rel|_range/;
@@ -792,7 +794,7 @@ sub _link_writes_to_reads {(my $stref, my $f, my $state)=@_;
 					delete $links->{$var};
 			}
 		}
-		$state->{'Subroutines'}{$f}{$block_id}{'Links'}=$links;
+		$state->{'Subroutines'}{$f}{'Blocks'}{$block_id}{'Links'}=$links;
 	}
 	return $state;
 } # END of _link_writes_to_reads()
@@ -870,12 +872,12 @@ sub isArg { (my $stref, my $f, my $array_var)=@_;
 This routine does not modify $state; it modifies $stref by creating $stref->{UniqueVarCounters}
 
 However, it does perform analysis:
-For every $array_var in  $state->{'Subroutines'}{ $f }{ $block_id }{'Arrays'}} it does the following:
+For every $array_var in  $state->{'Subroutines'}{ $f }{'Blocks'}{ $block_id }{'Arrays'}} it does the following:
 - It populates $stref->{'UniqueVarCounters'}. We use this to keep track of accesses to a variable for the purpose of creating unique names for TyTraCL
 - It tests if the access pattern for $array_var is a proper stencil:
-	- There is more than one access to an array, this is determined from $state->{'Subroutines'}{ $f }{ $block_id }{'Arrays'}{$array_var}{$rw}{'Accesses'}, see _find_array_access_in_ast()
-	- At least one of these accesses has a non-zero offset, this is determined from $state->{'Subroutines'}{ $f }{ $block_id }{'Arrays'}{$array_var}{$rw}{'Accesses'}
-	- All points in the array are processed in order, this is determined by checking $state->{'Subroutines'}{ $f }{ $block_id }{'Arrays'}{$array_var}{$rw}{'Iterators'} for '?', see _find_iters_in_array_idx_expr()
+	- There is more than one access to an array, this is determined from $state->{'Subroutines'}{ $f }{'Blocks'}{ $block_id }{'Arrays'}{$array_var}{$rw}{'Accesses'}, see _find_array_access_in_ast()
+	- At least one of these accesses has a non-zero offset, this is determined from $state->{'Subroutines'}{ $f }{'Blocks'}{ $block_id }{'Arrays'}{$array_var}{$rw}{'Accesses'}
+	- All points in the array are processed in order, this is determined by checking $state->{'Subroutines'}{ $f }{'Blocks'}{ $block_id }{'Arrays'}{$array_var}{$rw}{'Iterators'} for '?', see _find_iters_in_array_idx_expr()
 	There outcome is put in %stencils (1 or 0)
 - It tests for partial acccesses, to be used for boundary condition processing. This is incomplete.	
 - I think the TyTraCL specific funcitonality could be handled
@@ -901,21 +903,21 @@ sub _classify_accesses_and_emit_AST { (my $stref, my $f, my $state ) =@_;
 	
 	$ast_to_emit = $ast_emitter->( $f,  $state,  $ast_to_emit, 'INIT_AST') if $emit_ast;
 	
- 	for my $array_var (keys %{$state->{'Subroutines'}{ $f }{ $block_id }{'Arrays'}}) {
+ 	for my $array_var (keys %{$state->{'Subroutines'}{ $f }{'Blocks'}{ $block_id }{'Arrays'}}) {
  		next if $array_var =~/^global_|^local_/;
- 		next if not defined  $state->{'Subroutines'}{ $f }{ $block_id }{'Arrays'}{$array_var}{'Dims'} ;
+ 		next if not defined  $state->{'Subroutines'}{ $f }{'Blocks'}{ $block_id }{'Arrays'}{$array_var}{'Dims'} ;
 
 # 		if (not exists $unique_var_counters->{$array_var}) {
 # 			$unique_var_counters->{$array_var}=0;
 # 		}
 		$ast_to_emit = $ast_emitter->( $f,  $state,  $ast_to_emit, 'INIT_COUNTERS',  $block_id,  $array_var) if $emit_ast;
  		for my $rw ('Read','Write') {
- 			if (exists  $state->{'Subroutines'}{ $f }{ $block_id }{'Arrays'}{$array_var}{$rw} ) {
+ 			if (exists  $state->{'Subroutines'}{ $f }{'Blocks'}{ $block_id }{'Arrays'}{$array_var}{$rw} ) {
  				# because it could be read-only and even write-only: v = u+w
- 				my $n_accesses  =scalar keys %{$state->{'Subroutines'}{ $f }{ $block_id }{'Arrays'}{$array_var}{$rw}{'Accesses'} } ;
- 				my @non_zero_offsets = grep { /[^0]/ } keys %{$state->{'Subroutines'}{ $f }{ $block_id }{'Arrays'}{$array_var}{$rw}{'Accesses'} } ;
+ 				my $n_accesses  =scalar keys %{$state->{'Subroutines'}{ $f }{'Blocks'}{ $block_id }{'Arrays'}{$array_var}{$rw}{'Accesses'} } ;
+ 				my @non_zero_offsets = grep { /[^0]/ } keys %{$state->{'Subroutines'}{ $f }{'Blocks'}{ $block_id }{'Arrays'}{$array_var}{$rw}{'Accesses'} } ;
  				my $n_nonzeroffsets = scalar  @non_zero_offsets ;
- 				my @qms = grep { /\?/ } @{ $state->{'Subroutines'}{ $f }{ $block_id }{'Arrays'}{$array_var}{$rw}{'Iterators'} };
+ 				my @qms = grep { /\?/ } @{ $state->{'Subroutines'}{ $f }{'Blocks'}{ $block_id }{'Arrays'}{$array_var}{$rw}{'Iterators'} };
  				my $all_points = scalar @qms == 0;
 				#* It is a "true" stencil if:
 				if(
@@ -926,7 +928,7 @@ sub _classify_accesses_and_emit_AST { (my $stref, my $f, my $state ) =@_;
 				#- all points in the array are processed in order
 					$all_points
 					) {
-#						say "STENCIL for $rw of $array_var";#.': '.Dumper($state->{'Subroutines'}{ $f }{ $block_id }{'Arrays'}{$array_var}{$rw}{'Accesses'});
+#						say "STENCIL for $rw of $array_var";#.': '.Dumper($state->{'Subroutines'}{ $f }{'Blocks'}{ $block_id }{'Arrays'}{$array_var}{$rw}{'Accesses'});
 			 		
 				 		$ast_to_emit = $ast_emitter->( $f,  $state,  $ast_to_emit, 'STENCIL',  $block_id,  $array_var,  $rw) if $emit_ast;
 						$stencils{$array_var}=1;
@@ -1078,10 +1080,10 @@ sub _remove_index_vars { (my $stref, my $f, my $block_id, my $state, my $vars_re
 	for my $var (keys %vars ) {
 		if ($vars_ref->{$var}{'Type'} eq 'Array') {
 			for my $rw ('Read','Write') {
-				if (exists $state->{'Subroutines'}{ $f }{ $block_id }{'Arrays'}{$var}{$rw} and
-				exists $state->{'Subroutines'}{ $f }{ $block_id }{'Arrays'}{$var}{$rw}{'Iterators'}
+				if (exists $state->{'Subroutines'}{ $f }{'Blocks'}{ $block_id }{'Arrays'}{$var}{$rw} and
+				exists $state->{'Subroutines'}{ $f }{'Blocks'}{ $block_id }{'Arrays'}{$var}{$rw}{'Iterators'}
 				) {
-				my @iters = @{$state->{'Subroutines'}{ $f }{ $block_id }{'Arrays'}{$var}{$rw}{'Iterators'}};
+				my @iters = @{$state->{'Subroutines'}{ $f }{'Blocks'}{ $block_id }{'Arrays'}{$var}{$rw}{'Iterators'}};
 				%idx_vars = (%idx_vars, map { $_=~s/:\d//; $_ => 1 } @iters);
 				}
 		}
@@ -1104,7 +1106,9 @@ sub __is_array_decl { (my $info)=@_;
 }
 
 sub __mkLoopId { (my $loop_nest_stack ) =@_;
-    return join('',map {$_->[0]} @{$loop_nest_stack});
+    my $loop_id = join('',map {$_->[0]} @{$loop_nest_stack});
+    croak if $loop_id eq '';
+    return $loop_id;
 }
 
 sub F3D2C { (
@@ -1161,19 +1165,19 @@ sub _detect_halos {
 	for my $array_var (keys %{ $accesses->{'Arrays'} } ) {
 	
 #			say "SUB $f VAR: $array_var ";
-			my ($expr_id,$expr_recs ) = each %{ $accesses->{'Arrays'}{$array_var}{$rw}{'Accesses'} };
+			my ($expr_id,$expr_recs ) = %{ $accesses->{'Arrays'}{$array_var}{$rw}{'Accesses'} };
 			my $idx=0;
 			for my $expr_rec (@{$expr_recs}) { # i.e. i,j,k
-			    my ($loop_iter, $offset_t) = each %{$expr_rec};
+			    my ($loop_iter, $offset_t) = %{$expr_rec};
 			    my $offset=$offset_t->[1];
 			    for my $b (0,1) { # $b is the bound index
 #			    	say "LOOP ITER: $loop_iter";
-#			    	say Dumper($state->{'Subroutines'}{ $f }{$block_id}{'LoopIters'});
+#			    	say Dumper($state->{'Subroutines'}{ $f }{'Blocks'}{$block_id}{'LoopIters'});
 					# This is the loop bound
-			        my $loop_bound = $state->{'Subroutines'}{ $f }{$block_id}{'LoopIters'}{$loop_iter}{'Range'}->[$b];			        
+			        my $loop_bound = $state->{'Subroutines'}{ $f }{'Blocks'}{$block_id}{'LoopIters'}{$loop_iter}{'Range'}->[$b];			        
 			        my $expr_loop_bound = $loop_bound+$offset;
 #			        say "EXPR: $expr_m ";
-			        my $array_bound = $state->{'Subroutines'}{ $f }{ $block_id }{'Arrays'}{$array_var}{'Dims'}[$idx][$b];
+			        my $array_bound = $state->{'Subroutines'}{ $f }{'Blocks'}{ $block_id }{'Arrays'}{$array_var}{'Dims'}[$idx][$b];
 #			        say  "BOUND: $array_bound" ;
 			        my $decl = get_var_record_from_set( $stref->{'Subroutines'}{$f}{'Vars'},$array_var);
 #			        say Dumper($decl);			        
@@ -1216,25 +1220,25 @@ sub _detect_halo_accesses {
 		for my $array_var (keys %{ $lhs_accesses->{'Arrays'} } ) {
 	
 			say "SUB $f VAR: $array_var " if $DBG;
-			my ($expr_id,$expr_recs ) = each %{ $lhs_accesses->{'Arrays'}{$array_var}{'Write'}{'Accesses'} };
+			my ($expr_id,$expr_recs ) = %{ $lhs_accesses->{'Arrays'}{$array_var}{'Write'}{'Accesses'} };
 			my $idx=0;
 			for my $expr_rec (@{$expr_recs}) { # i.e. i,j,k
-#			    my ($loop_iter, $offset_t) = each %{$expr_rec};
-				my ($loop_iter_pos, $offset_t) = each %{$expr_rec};
+#			    my ($loop_iter, $offset_t) = %{$expr_rec};
+				my ($loop_iter_pos, $offset_t) = %{$expr_rec};
 			    my ($loop_iter,$pos) = split(/:/,$loop_iter_pos);			    
 			    my $offset=$offset_t->[1];
 			    for my $b (0,1) { # $b is the bound index
 			    	say "LOOP ITER: $loop_iter" if $DBG;
-			    	say Dumper($state->{'Subroutines'}{ $f }{$block_id}{'LoopIters'}) if $DBG;
+			    	say Dumper($state->{'Subroutines'}{ $f }{'Blocks'}{$block_id}{'LoopIters'}) if $DBG;
 					# This is the loop bound
-			        my $loop_bound = $state->{'Subroutines'}{ $f }{$block_id}{'LoopIters'}{$loop_iter}{'Range'}->[$b];
+			        my $loop_bound = $state->{'Subroutines'}{ $f }{'Blocks'}{$block_id}{'LoopIters'}{$loop_iter}{'Range'}->[$b];
 			        if (substr($loop_iter,0,1) eq '?') {$loop_bound=0;}
 #			        say "LOOP BOUND: $loop_bound OFFSET: $offset"; 	
 #croak 'FIXME: deal with constant access to array!';		        
 			        my $expr_loop_bound = $loop_bound+$offset;
 #			        say "EXPR: $expr_loop_bound ";
 #say "{ $f }{ $block_id }{'Arrays'}{$array_var}{'Dims'}[$idx][$b]";
-			        my $array_bound = $state->{'Subroutines'}{ $f }{ 0 }{'Arrays'}{$array_var}{'Dims'}[$idx][$b];
+			        my $array_bound = $state->{'Subroutines'}{ $f }{'Blocks'}{ 0 }{'Arrays'}{$array_var}{'Dims'}[$idx][$b];
 #			        say "{ $f }{ $block_id }{'Arrays'}{$array_var}{'Dims'}[$idx][$b]: ".$array_bound ;
 #			        say  "BOUND: $array_bound" ;
 			        my $decl = get_var_record_from_set( $stref->{'Subroutines'}{$f}{'Vars'},$array_var);
@@ -1275,21 +1279,21 @@ sub _detect_halo_accesses {
 		for my $array_var (keys %{ $rhs_accesses->{'Arrays'} } ) {
 	
 #			say "SUB $f VAR: $array_var ";
-			my ($expr_id,$expr_recs ) = each %{ $rhs_accesses->{'Arrays'}{$array_var}{'Read'}{'Accesses'} };
+			my ($expr_id,$expr_recs ) = %{ $rhs_accesses->{'Arrays'}{$array_var}{'Read'}{'Accesses'} };
 			my $idx=0;
 			for my $expr_rec (@{$expr_recs}) { # i.e. i,j,k
-			    my ($loop_iter_pos, $offset_t) = each %{$expr_rec};
+			    my ($loop_iter_pos, $offset_t) = %{$expr_rec};
 			    my ($loop_iter,$pos) = split(/:/,$loop_iter_pos);
 			    my $offset=$offset_t->[1];
 			    for my $b (0,1) { # $b is the bound index
 #			    	say "LOOP ITER: $loop_iter";
 #			    	say Dumper($state->{'Subroutines'}{ $f }{$block_id}{'LoopIters'});
 					# This is the loop bound
-			        my $loop_bound = $state->{'Subroutines'}{ $f }{$block_id}{'LoopIters'}{$loop_iter}{'Range'}->[$b];
+			        my $loop_bound = $state->{'Subroutines'}{ $f }{'Blocks'}{$block_id}{'LoopIters'}{$loop_iter}{'Range'}->[$b];
 			        if (substr($loop_iter,0,1) eq '?') {$loop_bound=0;}			        
 			        my $expr_loop_bound = $loop_bound+$offset;
 #			        say "EXPR: $expr_m ";
-			        my $array_bound = $state->{'Subroutines'}{ $f }{ 0 }{'Arrays'}{$array_var}{'Dims'}[$idx][$b];
+			        my $array_bound = $state->{'Subroutines'}{ $f }{'Blocks'}{ 0 }{'Arrays'}{$array_var}{'Dims'}[$idx][$b];
 #			        say  "BOUND: $array_bound" ;
 			        my $decl = get_var_record_from_set( $stref->{'Subroutines'}{$f}{'Vars'},$array_var);
 #			        say Dumper($decl);			        
@@ -1349,7 +1353,7 @@ for my $annline (@{$annlines}) {
 		# So we must make an inventory of (1) all vars on the RHS (2) all vars that are not the actual array var, on the LHS
 		# For each of these we must see if it is assigned to on the LHS of a preceding line.
 		# If so, must repeat this do this for that line itself; otherwise we can of course ignore it.
-		my ($array_var, $array_var_rec) = each %{$info->{'Lhs'}{'ArrayAccesses'}{'Arrays'}};
+		my ($array_var, $array_var_rec) = %{$info->{'Lhs'}{'ArrayAccesses'}{'Arrays'}};
 		my $rhs_vars = get_vars_from_expression($info->{'Rhs'}{'ExpressionAST'});
 		if (not defined $rhs_vars) {
 			$rhs_vars={};
@@ -1457,39 +1461,99 @@ sub _emit_AST_Main {(my $stref, my $f) =@_;
 #      }
 #    }
 #  }
-sub _identify_boundary_stencils { my ($state, $f, $block_id ) = @_;
-	my $boundary_stencils={};
-	for my $entry (@{ $state->{'Subroutines'}{ $f }{$block_id}{'ArrayAssignments'} }) {
-		my $lhs = $entry->[0];	
-		my ($lhs_array_var,$lhs_array_var_rec ) = each %{ $lhs->{'Arrays'} }; 
-		my $lhs_access_tuples = __get_access_tuples($lhs_array_var_rec->{'Write'}{'Accesses'});
-		# There can only be one!
-		my $lhs_access_tuple = shift @{$lhs_access_tuples};
-		my $rhs = $entry->[1];
-		my @rhs_array_vars = keys %{$rhs->{'Arrays'}};
-		for my $rhs_array_var (@rhs_array_vars) {
-			if (not exists $boundary_stencils->{$rhs_array_var}) {
-				$boundary_stencils->{$rhs_array_var}=[];
-			}
-			my $rhs_access_tuples = __get_access_tuples($rhs->{'Arrays'}{$rhs_array_var}{'Read'}{'Accesses'});	
-			# Here I can do the maths and create the final stencil for each array var, put them in a table and return them
-			my $current_stencil=[];
-			# As this works on a per-array basis, we need to merge each new stencil into the existing one. The best way I guess is to serialise them
-			$boundary_stencils->{$rhs_array_var}=__build_boundary_stencil($boundary_stencils->{$rhs_array_var}, $current_stencil); 		
-		}		
-	}	
-	
-	return $boundary_stencils;
-}
+#
+=info boundary_buffers
+I think I will test `extract` by making it work for all boundary buffers, even the ones that could in principle be stencils.
+So we restrict the array assignments so that
+- one of the indices can be a constant, i.e. coded as '?:x'
+- LHS and all arrays on RHS must have the same value for x
 
+Then we must create a pattern for the buffer to be extracted, i.e. the non-constant imdices are to be replace by their ranges. 
+If the boundary is more than one point, then we must create ranges for the constant points as well.
+What we want ultimately is a list of all indices to be extracted:
+
+extract :: k<n => SVec k Int -> Vec n a -> Vec k a
+
+but in TyTraCL we only need the total size of the extracted SVec, i.e. `k`
+
+=cut
+# In principle $f can contain several blocks (loop nests) with independent array accesses, so I need to iterate over these.
+# For the OpenCL used as starting point for TyTraCL, there is always only one block per function anyway.
+sub _identify_boundary_stencils { my ($state, $f) = @_;
+    my $boundary_stencils={};
+    #say Dumper(keys %{ $state->{'Subroutines'}{ $f }{'Blocks'}});
+
+    for my $block_id (keys %{ $state->{'Subroutines'}{ $f }{'Blocks'} }) {
+        #say Dumper(keys %{ $state->{'Subroutines'}{ $f }{$block_id}});
+        $boundary_stencils->{$block_id}={};
+
+        for my $entry (@{ $state->{'Subroutines'}{ $f }{'Blocks'}{$block_id}{'ArrayAssignments'} }) {
+            my $lhs = $entry->[0];	
+            #my @lhs_array_var_a = keys %{ $lhs->{'Arrays'} };
+            #my $lhs_array_var = shift @lhs_array_var_a;
+            #my $lhs_array_var_rec =$lhs->{'Arrays'}{$lhs_array_var};
+            my ($lhs_array_var,$lhs_array_var_rec ) = %{ $lhs->{'Arrays'} }; 
+            my $lhs_access_tuples = __get_access_tuples($lhs_array_var_rec->{'Write'}{'Accesses'});
+            # There can only be one!
+            my $lhs_access_tuple = shift @{$lhs_access_tuples};
+            #say "$f ". $entry->[2].Dumper($lhs_access_tuple),__PACKAGE__,__LINE__;
+            # Now check if this meets the criterion of only one constant index
+            my $const_accesses = __get_const_accesses ($lhs_access_tuple);
+            my $is_boundary_access=0;
+            my $bounday_index = -1; # i.e. there isn't any
+            if (scalar @{$const_accesses} == 1) {
+                $is_boundary_access=1;
+                $bounday_index = $const_accesses->[0];
+                say "$f: LHS has boundary access on LINE ".$entry->[2];
+            }
+            # At this point we know that the LHS is a valid boundary access.
+            # Now look at the RHS. This is an expression which can have multiple accesses for multiple arrays.
+            my $rhs = $entry->[1];        
+            my @rhs_array_vars = keys %{$rhs->{'Arrays'}};
+            # Check for every array
+            for my $rhs_array_var (@rhs_array_vars) {
+                if (not exists $boundary_stencils->{$block_id}{$rhs_array_var}) {
+                    $boundary_stencils->{$block_id}{$rhs_array_var}=[];
+                }
+                my $rhs_access_tuples = __get_access_tuples($rhs->{'Arrays'}{$rhs_array_var}{'Read'}{'Accesses'});	
+                # Now for ever one of these access tuples, I have to do the same check as above but it must match the LHS index position as well
+                for my $rhs_access_tuple (@{ $rhs_access_tuples }) {
+                    my $rhs_const_accesses = __get_const_accesses ($rhs_access_tuple);
+                    my $rhs_is_boundary_access=0;
+                    my $rhs_bounday_index = -1; # i.e. there isn't any
+                    if (scalar @{$rhs_const_accesses} == 1) {
+                        $rhs_is_boundary_access=1;
+                        $rhs_bounday_index = $rhs_const_accesses->[0];
+                    }
+
+
+
+                }
+
+                # Here I can do the maths and create the final stencil for each array var, put them in a table and return them
+                #my $current_stencil=[];
+                # As this works on a per-array basis, we need to merge each new stencil into the existing one. The best way I guess is to serialise them
+                #$boundary_stencils->{$block_id}{$rhs_array_var}=__build_boundary_stencil($boundary_stencils->{$block_id}{$rhs_array_var}, $current_stencil); 		
+            }		
+        }	
+    }
+    return $boundary_stencils;
+} # END of _identify_boundary_stencils
+# This returns a list of (mult, offset) pairs for each access, i.e. [ [ [m11,o11],[m12,o12] ] , [ [m21,o21],[m22,o22] ] ]
 sub __get_access_tuples { (my $lhs_array_var_rec) = @_;
+    #    say Dumper($lhs_array_var_rec);
 	my $ordered_tuples=[];
 	for my $k (keys %{ $lhs_array_var_rec } ) { # e.g. '0:0' above
 		my $pairs = $lhs_array_var_rec->{$k};
 		my $ordered_tuple=[];
+        
 		for my $pair (@{$pairs}) {
-			 (my $iter_pos,my $mult_offset) = each %{$pair}; 
-			 (my $iter, my $pos) = split(/:/,$iter_pos);
+            #my @iter_pos_array =  keys %{$pair};
+            #my $iter_pos  = shift @iter_pos_array;
+            #my $mult_offset = $pair->{$iter_pos};
+            my ( $iter_pos,$mult_offset) = %{$pair}; 
+            #             croak Dumper($iter_pos,$pair, $pairs) if not defined $iter_pos;
+             (my $iter, my $pos) = split(/:/,$iter_pos);
 			 $ordered_tuple->[$pos]=$mult_offset;			  
 		}  
 		push @{$ordered_tuples},$ordered_tuple;
@@ -1497,7 +1561,16 @@ sub __get_access_tuples { (my $lhs_array_var_rec) = @_;
 	return $ordered_tuples;
 }
 
+sub __get_const_accesses { (my $access_tuple ) = @_;
+
+    my @const_accesses = grep { $_ == 0 } map { $_->[0] } @{ $access_tuple } ;
+
+    return \@const_accesses;# ( scalar @const_accesses  == 1) ? 1 : 0;
+
+}
+
 sub __build_boundary_stencil { (my $boundary_stencil, my $partial_stencil);
+    # TODO
 	return $boundary_stencil;
 }
 
