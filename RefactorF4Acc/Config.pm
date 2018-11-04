@@ -48,7 +48,7 @@ our $noop           = 0;
 our $CFG_refactor_toplevel_globals = 0;
 our $call_tree_only = 0;
 our $main_tree      = 0;
-our $EXT = '.f95'; # TODO: get from rf4a.cfg
+our $EXT = '.f90'; # You can set this in rf4a.cfg, changed from .f95 default to .f90 default on suggestion of @rouson
 
 our $LIBS = []; 
 our $LIBPATHS =  ['/opt/local/lib','/usr/local/lib'];

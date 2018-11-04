@@ -1,5 +1,7 @@
 package RefactorF4Acc::RestoreStashedLines;
 
+use RefactorF4Acc::Config; 
+
 # 
 #   (c) 2018- Wim Vanderbauwhede <Wim.Vanderbauwhede@Glasgow.ac.uk>
 #   
@@ -58,7 +60,7 @@ sub replace_stash { (my $stash_src, my $output_path)=@_;
         my $src_file= $src;
         if (not -e $src_file) {
         	my $ren_src_file = $src_file;
-        	$ren_src_file=~s/\.f95/_host.f95/;
+        	$ren_src_file=~s/$EXT/_host$EXT/;
         	print "Could not find source file $src_file, trying with $ren_src_file ... ";
         	if (not -e $ren_src_file) {
         		die "Could not find renamed source file $ren_src_file either, giving up.\n";

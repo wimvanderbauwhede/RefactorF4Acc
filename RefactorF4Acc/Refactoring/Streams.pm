@@ -60,7 +60,7 @@ sub pass_rename_array_accesses_to_scalars {(my $stref)=@_;
 					\&_removed_unused_variables,
 				],
 				[
-					\&_rename_array_accesses_to_scalars_called_subs
+					\&_rename_array_accesses_to_scalars_in_subcalls
 				],			
 				[
 					\&determine_argument_io_direction_rec
@@ -557,7 +557,7 @@ sub _rename_array_accesses_to_scalars { (my $stref, my $f) = @_;
 } # END of _rename_array_accesses_to_scalars()
 # ================================================================================================================================================
 # After we've renamed all args in the subroutine definitions, we update the calls as well, but ONLY in the kernel 
-sub _rename_array_accesses_to_scalars_called_subs { (my $stref, my $f) = @_;
+sub _rename_array_accesses_to_scalars_in_subcalls { (my $stref, my $f) = @_;
 	if ($f eq $Config{'KERNEL'} ) {
 			
 	my $pass_action = sub { (my $annline, my $state)=@_;		
@@ -857,7 +857,7 @@ sub _rename_ast_entry { (my $stref, my $f,  my $state, my $ast, my $intent)=@_;
 						}
 						$state->{'StreamVars'}{$mvar}{'Set'}{$var_str}={'IODir'=>$intent,'ArrayIndexExpr'=>$expr_str} ;
 #						$state->{'StreamVars'}{$mvar}{'Stencil'}=$stencil;
-						$ast=['$',$var_str];
+						$ast=[0x2+(($entry>>4)<<4),$var_str];#'$'
 						last;
 					}
 				} 

@@ -1,4 +1,4 @@
-package RefactorF4Acc::Analysis::IdentifyStencils;
+package RefactorF4Acc::Analysis::ArrayAccessPatterns;
 use v5.10;
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
@@ -38,9 +38,9 @@ use Storable qw( dclone );
 
 use Exporter;
 
-@RefactorF4Acc::Analysis::IdentifyStencils::ISA = qw(Exporter);
+@RefactorF4Acc::Analysis::ArrayAccessPatterns::ISA = qw(Exporter);
 
-@RefactorF4Acc::Analysis::IdentifyStencils::EXPORT_OK = qw(
+@RefactorF4Acc::Analysis::ArrayAccessPatterns::EXPORT_OK = qw(
 &pass_identify_stencils
 &identify_array_accesses_in_exprs
 &eval_expression_with_parameters
@@ -434,7 +434,7 @@ sub identify_array_accesses_in_exprs { (my $stref, my $f) = @_;
 #    }
 #  }
 						
-#						say $line. "\nTie the LHS accesses to the RHS ones".Dumper($lhs_accesses,$rhs_accesses). "\n".' IdentifyStencils '.__LINE__;
+#						say $line. "\nTie the LHS accesses to the RHS ones".Dumper($lhs_accesses,$rhs_accesses). "\n".' __PACKAGE__ '.__LINE__;
 						if (not exists $state->{'Subroutines'}{ $f }{'Blocks'}{$block_id}{'ArrayAssignments'}) {
 							$state->{'Subroutines'}{ $f }{'Blocks'}{$block_id}{'ArrayAssignments'}=[];
 						}
@@ -1661,7 +1661,13 @@ sub __build_boundary_access { (my $boundary_access, my $partial_stencil);
 	return $boundary_access;
 }
 
-# If we had access to the type decls and ranges here we could generate the types as well
+
+# This code is rather TyTra-specific. Still, for OpenCL with pipes, if we would use constant buffers, we would be using the same names
+# But this is actually already generation, not analysis so maybe in Translation/Common?
+
+# # If we had access to the type decls and ranges here we could generate the types as well
+# 'Dims' => $state->{'Subroutines'}{ $f }{'Blocks'}{ $block_id }{'Arrays'}{$array_var}{'Dims'}
+# The types are via the var decl records
 sub __generate_buffer_varnames { my ( $boundary_accesss, $block_id ) = @_;
     
     for my $array_var (keys %{ $boundary_accesss->{$block_id} } ) {

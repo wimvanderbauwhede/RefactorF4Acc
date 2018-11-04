@@ -18,7 +18,7 @@ use RefactorF4Acc::Parser::Expressions qw(
 	get_vars_from_expression	
 	);
 
-use RefactorF4Acc::Analysis::IdentifyStencils qw( identify_array_accesses_in_exprs );
+use RefactorF4Acc::Analysis::ArrayAccessPatterns qw( identify_array_accesses_in_exprs );
 #
 #   (c) 2016 Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
 #

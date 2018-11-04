@@ -17,7 +17,7 @@ use RefactorF4Acc::Translation::SaC qw( translate_module_to_SaC ); # CUSTOM PASS
 use RefactorF4Acc::Translation::OpenCLC qw( translate_module_to_C ); # CUSTOM PASS
 use RefactorF4Acc::Translation::TyTraCL qw( pass_emit_TyTraCL ); # CUSTOM PASS
 
-use RefactorF4Acc::Analysis::IdentifyStencils qw( pass_identify_stencils ); # CUSTOM PASS
+use RefactorF4Acc::Analysis::ArrayAccessPatterns qw( pass_identify_stencils ); # CUSTOM PASS
 
 use vars qw( $VERSION );
 $VERSION = "1.1.0";

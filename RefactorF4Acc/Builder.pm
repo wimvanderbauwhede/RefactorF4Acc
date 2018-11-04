@@ -33,11 +33,11 @@ sub create_build_script {
     my $exe = $stref->{'Top'}; # FIXME: would make more sense to have $Config{'EXE'}
     my @fsourcelst = sort keys %{ $stref->{'BuildSources'}{'F'} };
     my $fsources = join( ',', map {
-    	# Ad-hoc: names that do not end in .f or $EXT are renamed by substituting . with _ and $EXT is appended
+    	# Ad-hoc: names that do not end in .f\d+ or $EXT are renamed by substituting . with _ and $EXT is appended
     	# This is for includes transformed into modules
     	my $src=$_;
-    	if ($src=~/\.f$/) { 
-    		$src=~s/\.f$/$EXT/;
+    	if ($src=~/\.f\d+$/) { 
+    		$src=~s/\.f\d+$/$EXT/;
     	} elsif ($src!~/$EXT$/) {
     		$src=~s/\./_/g;
     		$src.=$EXT;
@@ -57,6 +57,8 @@ sub create_build_script {
     my $libpaths_str = @{$LIBPATHS} ? ','.join(',',map { "'".$_."'" } @{$LIBPATHS}) : '';#'/opt/local/lib','/usr/local/lib'"; # TODO: get from rf4a.cfg
     my $libs_str = @{$LIBS} ? ','.join(',',map { "'".$_."'" } @{$LIBS}) : ''; # TODO: get from rf4a.cfg
     my $inclpaths_str=@{$INCLPATHS} ? ','.join(',',map { "'".$_."'" } @{$INCLPATHS}) : '';#",'/opt/local/include','/usr/local/include'"; # TODO: get from rf4a.cfg
+    my $maybe_fc = $EXT; $maybe_fc=~s/^\.//;
+    my $fortran_compiler = $maybe_fc=~/f\d+/i ? uc($maybe_fc) : 'FORTRAN';
 
     my $scons = <<ENDSCONS;
 # Generated build script for refactored source code
@@ -71,7 +73,7 @@ envC=Environment(CC='$gcc',CPPPATH=[]);
 #    envC.Library('${exe}_c',csources)
 
 FFLAGS  = ['-cpp','-O3', '-m64', '-ffree-form', '-ffree-line-length-0','-fconvert=little-endian', '-frecord-marker=4']
-envF=Environment(F95='$gfortran',LINK='$gfortran',F95FLAGS=FFLAGS,F95PATH=['.' $inclpaths_str])
+envF=Environment($fortran_compiler='$gfortran',LINK='$gfortran',${fortran_compiler}FLAGS=FFLAGS,${fortran_compiler}PATH=['.' $inclpaths_str])
 #if csources:
 #    envF.Program('$exe',fsources,LIBS=[$libs_str '${exe}_c','m'],LIBPATH=['.' $libpaths_str])   
 #else:
