@@ -72,16 +72,17 @@ sub run_custom_passes {
 	if ($pass ne '') {
 		
 		$stref=_substitute_placeholders($stref);
-		
+        # This is of course useless if the target language is not Fortran
+        # So I should have a way to exclude this!
 		if (top_src_is_module($stref, $code_unit_name)) {
-			$stref=add_module_decls($stref);
+            $stref=add_module_decls($stref);
 		}
 	} else {
         # Should never happen!
         say "No custom pass provided, doing nothing!";
        
     }
-
+    # We also need a mechanism to stop the emitter 
     return $stref;	
 } # END of run_custom_passes()  
 
