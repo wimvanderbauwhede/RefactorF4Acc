@@ -296,7 +296,6 @@ sub _refactor_globals_new {
         (my $line, my $info) = @{ $annline };
         my $skip = 0;
 
-
 		# Create the refactored subroutine signature
         if ( exists $info->{'Signature'} ) { 
 			if (not exists $Sf->{'HasRefactoredArgs'} or $Sf->{'HasRefactoredArgs'} ==0 ) {            	

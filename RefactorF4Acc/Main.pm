@@ -24,6 +24,7 @@ use RefactorF4Acc::Parser qw( parse_fortran_src build_call_graph mark_blocks_bet
 use RefactorF4Acc::CallTree qw( create_call_tree );
 use RefactorF4Acc::Analysis qw( analyse_all );
 use RefactorF4Acc::Refactoring qw( refactor_all );
+use RefactorF4Acc::CustomPasses qw( run_custom_passes );
 use RefactorF4Acc::Emitter qw( emit_all );
 use RefactorF4Acc::Builder qw( create_build_script build_executable );
 use RefactorF4Acc::Analysis::LoopDetect qw( outer_loop_variable_analysis );
@@ -177,13 +178,21 @@ sub main {
     
 	$stref = analyse_all($stref,$subname, $stage);
 
+    # After the analysis we can either do the refactoring of the code, i.e. the main purpose of the compiler
+    # or run one or more custom passes. 
+    #
+    if ($pass) {
+
+    	$stref = run_custom_passes($stref,$subname, $pass);
+        
+    } else {
 			 
     # 4. Refactoring: Refactor the source    
     # - if a pass is given using -P on command line, it is performed instead of the default refactoring
     # - multiple passes can be comma-separated
         
-	$stref = refactor_all($stref,$subname, $pass);
-
+	    $stref = refactor_all($stref,$subname);
+    }
 	# 5. Emitter: Emit the refactored source
 	
 	if ( not $call_tree_only ) {

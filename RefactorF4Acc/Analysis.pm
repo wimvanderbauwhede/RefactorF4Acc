@@ -624,27 +624,17 @@ sub _resolve_conflicts_with_params {
 	return $stref;
 }    # END of _resolve_conflicts_with_params
 
-# Create an entry 'RefactoredArgs'
+# Create 'RefactoredArgs'
 sub _create_refactored_args {
 	( my $stref, my $f ) = @_;
 	my $Sf = $stref->{'Subroutines'}{$f};
-#	say "$f ".Dumper $Sf->{'Source'};
-#    say Dumper($stref);	    
     return $stref unless defined $Sf->{'Source'};
-#	say $f.' ExGlobArgs => '.Dumper $Sf->{'ExGlobArgs'};
-#	say $f.' OrigArgs '.Dumper $Sf->{'OrigArgs'};
-#	say $f.'DeclaredOrigArgs'.Dumper $Sf->{'DeclaredOrigArgs'}{'Set'};
-#	say $f.'UndeclaredOrigArgs'.Dumper $Sf->{'UndeclaredOrigArgs'}{'Set'};
-	
-	 
 	
 	if ( exists $Sf->{'ExGlobArgs'}{'List'} and scalar @{$Sf->{'ExGlobArgs'}{'List'}}>0 and scalar @{ $Sf->{'OrigArgs'}{'List'} } >0
 	) {
 
 		$Sf->{'RefactoredArgs'}{'List'} = ordered_union( $Sf->{'OrigArgs'}{'List'}, $Sf->{'ExGlobArgs'}{'List'} );
 		$Sf->{'RefactoredArgs'}{'Set'} = { %{ $Sf->{'UndeclaredOrigArgs'}{'Set'} }, %{ $Sf->{'DeclaredOrigArgs'}{'Set'} }, %{ $Sf->{'ExGlobArgs'}{'Set'} } };
-#		croak Dumper($Sf->{'RefactoredArgs'}) if $f=~/update/;
-#carp "SET HasRefactoredArgs for $f";
 		$Sf->{'HasRefactoredArgs'} = 1;
 
 	} elsif ( exists $Sf->{'ExGlobArgs'}{'List'} and  scalar @{$Sf->{'ExGlobArgs'}{'List'}}==0
@@ -655,24 +645,20 @@ sub _create_refactored_args {
 		$Sf->{'RefactoredArgs'}{'Set'}  = $Sf->{'OrigArgs'}{'Set'};
 		$Sf->{'RefactoredArgs'}{'List'} = $Sf->{'OrigArgs'}{'List'};
 		$Sf->{'HasRefactoredArgs'}      = 0;
-#		croak Dumper($Sf) if $f eq 'lowercase';
 	} elsif (  exists $Sf->{'ExGlobArgs'}{'List'} and  scalar @{$Sf->{'ExGlobArgs'}{'List'}}>0
 	and scalar @{ $Sf->{'OrigArgs'}{'List'} } ==0
 	) {
-
 		# No ExGlobArgs, so Refactored = Orig
 		$Sf->{'RefactoredArgs'}    = $Sf->{'ExGlobArgs'};
-#carp "SET HasRefactoredArgs for $f";		
 		$Sf->{'HasRefactoredArgs'} = 1;
 	} else { # No args at all, implies Globals that have not yet been resolved
-#		say "$f 4";
 		$Sf->{'RefactoredArgs'} = { 'Set' => {}, 'List' => [] };
 		$Sf->{'HasRefactoredArgs'} = 0;
 	}
 	return $stref;
 } # END of _create_refactored_args
 
-# Create an entry 'RefactoredArgs'
+# Create 'RefactoredArgs' for Entries
 sub _create_refactored_entry_args {
 	( my $stref, my $f ) = @_;
 	my $Spf = $stref->{'Subroutines'}{$f};
@@ -686,31 +672,23 @@ sub _create_refactored_entry_args {
 	
 			$Sf->{'RefactoredArgs'}{'List'} = ordered_union( $Sf->{'OrigArgs'}{'List'}, $Spf->{'ExGlobArgs'}{'List'} );
 			$Sf->{'RefactoredArgs'}{'Set'} = { %{ $Sf->{'UndeclaredOrigArgs'}{'Set'} }, %{ $Sf->{'DeclaredOrigArgs'}{'Set'} }, %{ $Spf->{'ExGlobArgs'}{'Set'} } };
-#			say "$f 5";
-#carp "SET HasRefactoredArgs for $f";
 			$Sf->{'HasRefactoredArgs'} = 1;
 	
 		} elsif ( not exists $Spf->{'ExGlobArgs'} 
 		and exists $Sf->{'OrigArgs'}{'List'}
 		) {
-	
 			# No ExGlobArgs, so Refactored = Orig
 			$Sf->{'RefactoredArgs'}{'Set'}  = $Sf->{'OrigArgs'}{'Set'};
 			$Sf->{'RefactoredArgs'}{'List'} = $Sf->{'OrigArgs'}{'List'};
-#			say "$f 6";
 			$Sf->{'HasRefactoredArgs'}      = 0;
 		} elsif ( not exists $Sf->{'OrigArgs'} 
 		and  exists $Spf->{'ExGlobArgs'}{'List'} 
 		) {
-	
 			# No ExGlobArgs, so Refactored = Orig
 			$Sf->{'RefactoredArgs'}    = $Spf->{'ExGlobArgs'};
-#			say "$f 7";
-#carp "SET HasRefactoredArgs for $f";
 			$Sf->{'HasRefactoredArgs'} = 1;
 		} else {
 			$Sf->{'RefactoredArgs'} = { 'Set' => {}, 'List' => [] };
-#			say "$f 8";
 			$Sf->{'HasRefactoredArgs'} = 0;
 		}	
 	}
