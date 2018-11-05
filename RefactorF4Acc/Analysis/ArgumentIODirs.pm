@@ -57,7 +57,6 @@ sub determine_argument_io_direction_rec { ( my $stref,my $f ) = @_;
 	} 
 		print "\t" x $c, "--------\n" if $V;
 		$stref = _determine_argument_io_direction_core( $stref, $f );
-
 	return $stref;
 }    # determine_argument_io_direction_rec()
 
@@ -148,7 +147,7 @@ sub _set_iodir_read {
 	{
 		$args_ref->{$mvar}{'IODir'} = 'Unknown';
 	}
-	if ( $args_ref->{$mvar}{'IODir'} eq 'Unknown' ) {
+	if ( $args_ref->{$mvar}{'IODir'} eq 'Unknown' ) { 
 		print "FOUND In ARG $mvar\n" if $DBG;
 		$args_ref->{$mvar}{'IODir'} = 'In';
 	}
@@ -209,10 +208,6 @@ sub _set_iodir_vars {
 	( my $vars, my $args_ref, my $subref ) = @_;
 
 	for my $mvar (@{$vars}) {
-#		next if $mvar eq '';
-#		next if $mvar =~ /^\d+$/;
-#		next if $mvar =~ /^(\-?(?:\d+|\d*\.\d*)(?:e[\-\+]?\d+)?)$/;
-#		next if $mvar =~ /\b(?:if|then|do|goto|integer|real|call|\d+)\b/;
 		if ( exists $args_ref->{$mvar} and ref( $args_ref->{$mvar} ) eq 'HASH' ){
 			if ( exists $args_ref->{$mvar}{'IODir'} ) {
 				$args_ref = $subref->( $mvar, $args_ref );
@@ -263,7 +258,7 @@ sub _analyse_src_for_iodirs {
 		if ( not exists $Sf->{'HasRefactoredArgs'} or $Sf->{'HasRefactoredArgs'} == 0 ) {
 			$Sf->{'RefactoredArgs'}{'Set'}={};
 			say "SUB $f DOES NOT HAVE RefactoredArgs";
-#			croak 'BOOM! Logic is wrong:  HasRefactoredArgs 0/1 does not indicate presence of RefactoredArgs List/Set' . __LINE__ ;#. ' ' . $f . ' : ' . Dumper($Sf);
+			croak 'BOOM! Logic is wrong:  HasRefactoredArgs 0/1 does not indicate presence of RefactoredArgs List/Set' . __LINE__ ;#. ' ' . $f . ' : ' . Dumper($Sf);
 			
 		} else {
 		my $args = dclone( $Sf->{'RefactoredArgs'}{'Set'} ); 
@@ -491,9 +486,9 @@ sub _analyse_src_for_iodirs {
 					my $rhs_vars = $info->{'Rhs'}{'VarList'}{'List'};
 					
 					if (scalar @{$rhs_vars}>0) {
-						
 						_set_iodir_vars($rhs_vars,$args, \&_set_iodir_read );
 					}
+                    #carp Dumper($args) if $f=~/shapiro_map/;
 #					carp Dumper($info->{'Lhs'});
 					my $lhs_var = $info->{'Lhs'}{'VarName'};
 					_set_iodir_vars([$lhs_var],$args, \&_set_iodir_write );

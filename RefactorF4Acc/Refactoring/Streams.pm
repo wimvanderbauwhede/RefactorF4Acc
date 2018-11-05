@@ -10,6 +10,8 @@ use RefactorF4Acc::Refactoring::Common qw(
 	emit_f95_var_decl 
 	splice_additional_lines_cond  
 	);
+
+# I'm not sure that this is the best place for this routine as it is only used in this pass    
 use RefactorF4Acc::Refactoring::Subroutines qw( emit_subroutine_sig );
 use RefactorF4Acc::Analysis::ArgumentIODirs qw( determine_argument_io_direction_rec );
 use RefactorF4Acc::Parser::Expressions qw(
@@ -51,7 +53,9 @@ use Exporter;
 sub pass_rename_array_accesses_to_scalars {(my $stref)=@_;
 	$stref = pass_wrapper_subs_in_module($stref,
 			[
-				[ sub { (my $stref, my $f)=@_;  alias_ordered_set($stref,$f,'DeclaredOrigArgs','DeclaredOrigArgs'); } ],
+				[ sub { (my $stref, my $f)=@_;  alias_ordered_set($stref,$f,'RefactoredArgs','DeclaredOrigArgs');
+                       
+                    } ],
 #				[ \&_fix_scalar_ptr_args ],
 #		  		[\&_fix_scalar_ptr_args_subcall],
 		  		[
@@ -63,7 +67,8 @@ sub pass_rename_array_accesses_to_scalars {(my $stref)=@_;
 					\&_rename_array_accesses_to_scalars_in_subcalls
 				],			
 				[
-					\&determine_argument_io_direction_rec
+					\&determine_argument_io_direction_rec,
+                    \&_update_arg_var_decls,
 				],
 				[
 					\&_update_call_args,
@@ -74,7 +79,6 @@ sub pass_rename_array_accesses_to_scalars {(my $stref)=@_;
 				],
 			]
 		);			
-
 	return $stref;
 }
 
@@ -475,7 +479,6 @@ sub _rename_array_accesses_to_scalars { (my $stref, my $f) = @_;
 # --------------------------------------------------------------------------------------------------------		
 	# Now we emit the updated code for the subroutine signature, the variable declarations, assignment expressions and ifthen expressions
 	
-	 	
 	my $pass_emit_updated_code = sub { (my $annline, my $state)=@_;		
 		(my $line,my $info)=@{$annline};
 		(my $stref, my $f) = @{$state};
@@ -483,8 +486,7 @@ sub _rename_array_accesses_to_scalars { (my $stref, my $f) = @_;
 		
 		my $rlines=[];
 		if (exists $info->{'Signature'} ) {
-#			croak Dumper($info->{'Signature'}{'Args'}{'List'}); 
-			($rline, $info) = emit_subroutine_sig( $stref, $f, $annline);
+			($rline, $info) = emit_subroutine_sig( $annline);
 			say $rline if $DBG;
 			push @{$rlines},[$rline,$info];			
 		} elsif (
@@ -507,10 +509,12 @@ sub _rename_array_accesses_to_scalars { (my $stref, my $f) = @_;
 				};
 				$rline = emit_f95_var_decl($rdecl);
 				my $orig_name =$info->{'VarDecl'}{'Name'}; 
-				$info->{'VarDecl'}{'Name'}=$tvar;
-				$info->{'VarDecl'}{'OrigName'}=$orig_name;
+                my $rinfo = dclone($info);
+				$rinfo->{'VarDecl'}{'Name'}=$tvar;
+				$rinfo->{'VarDecl'}{'OrigName'}=$orig_name;
+                #$rinfo->{'VarDecl'}{'StreamVarName'} = $tvar;
 				say $rline if $DBG;
-				my $rannline=[$rline,$info];
+				my $rannline=[$rline,$rinfo];
 				$stref->{'Subroutines'}{$f}{'LiftedStreamVarDecls'}{'Set'}{$tvar}=dclone($annline);
 				
 				if (not exists $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$tvar}) { 					 
@@ -802,6 +806,34 @@ sub _add_assignments_for_called_subs { (my $stref, my $f) = @_;
 	} # IF KERNEL
 	return $stref;
 } # END of _add_assignments_for_called_subs()
+
+# --------------------------------------------------------------------------------------------------------	
+# After detecting the intents we should update them as they are not always correct.
+sub _update_arg_var_decls { (my $stref, my $f)=@_;
+	my $pass_update_arg_var_decls = sub { (my $annline, my $state)=@_;	
+		(my $line,my $info)=@{$annline};
+		(my $stref, my $f) = @{$state};
+		if ( exists $info->{'VarDecl'} ) {
+			my $var = $info->{'VarDecl'}{'Name'}; # May need OrigName?
+			if (exists $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$var} ) {
+                my $decl = $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$var};
+                #say $var.Dumper($decl) if $var=~/wet/;die;
+                my $pvar =$decl->{'Name'};
+                $decl->{'Name'}=$var;
+                #say $var. ' => '.Dumper($decl);
+			    $line = emit_f95_var_decl($decl);
+                
+                $decl->{'Name'}=$pvar;
+
+			}
+		}				
+		return ([[$line,$info]],$state);
+	};
+	
+	my $state=[$stref,$f];
+ 	($stref,$state) = stateful_pass($stref,$f,$pass_update_arg_var_decls, $state,'pass_update_arg_var_decls() ' . __LINE__  ) ;	
+    return $stref;
+} # END of _update_arg_var_decls
 # ================================================================================================================================================
 # Finally, after having updated the calls we can add the missing declarations
 # I am making the assumption that in the superkernel we will assign the variables to the original array accesses
@@ -1569,7 +1601,8 @@ sub _make_dim_vars_scalar_consts_in_sigs { (my $stref, my $f)=@_;
 	
  	($stref,$state) = stateful_pass($stref,$f,$pass_make_dim_vars_scalar_consts_in_sigs, $state,'pass_make_dim_vars_scalar_consts_in_sigs() ' . __LINE__  ) ;
 
- 	
+    #croak Dumper($stref->{'Subroutines'}{$f}) if $f=~/shapiro_map/;
+	
 	return $stref;
 } # END of _make_dim_vars_scalar_consts_in_sigs()
  

@@ -731,17 +731,15 @@ sub emit_subroutine_call { (my $stref, my $f, my $annline)=@_;
         }  	    
 	    $info->{'Ann'}=[annotate($f, __LINE__ ) ];
 		return ( $indent . $maybe_label . $rline, $info );
-}
+} # END of emit_subroutine_call
 
-
-sub emit_subroutine_sig { (my $stref, my $f, my $annline)=@_;
+sub emit_subroutine_sig { #(my $stref, my $f, 
+        (my $annline)=@_;
 	    (my $line, my $info) = @{ $annline };
-	    my $Sf        = $stref->{'Subroutines'}{$f};
+        #my $Sf        = $stref->{'Subroutines'}{$f};
 	    
 	    my $name = $info->{'Signature'}{'Name'};
-	    
 		my $args_ref = $info->{'Signature'}{'Args'}{'List'};
-#		say Dumper($args_ref);	    
 	    my $indent = $info->{'Indent'} // '      ';	    
 	    my $args_str = join( ',', @{$args_ref} );	    
 	    my $rline = "subroutine $name($args_str)\n";
@@ -753,9 +751,9 @@ sub emit_subroutine_sig { (my $stref, my $f, my $annline)=@_;
 			}                                    
             $info->{'Ref'}++;
         }  	    
-	    $info->{'Ann'}=[annotate($f, __LINE__ ) ];
+	    $info->{'Ann'}=[annotate($name, __LINE__ ) ];
 		return ( $indent . $rline, $info );
-}
+} # END of emit_subroutine_sig
 
 # This is for lines that contain function calls, so in practice either assignments or subroutine calls
 sub _create_refactored_function_calls { 

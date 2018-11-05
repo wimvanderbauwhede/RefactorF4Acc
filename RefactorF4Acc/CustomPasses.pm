@@ -42,6 +42,12 @@ use Exporter;
 sub run_custom_passes {
 	( my $stref, my $code_unit_name, my $pass) = @_;
 	my $sub_or_func_or_mod = sub_func_incl_mod( $code_unit_name, $stref );
+    # Some of these passes use functionality that requires RefactoredArgs, so let's make sure it is populated
+    # I assume that the input for a custom pass is essentially the output of the main compiler, so no globals, etc
+    # So all args should be in DeclaredOrigArgs
+    # So it should suffice to say 
+    #croak Dumper($code_unit_name,
+            
 # Custom passes
 	if ($pass =~/emit_TyTraCL/i) {
 		$stref = pass_emit_TyTraCL($stref);				

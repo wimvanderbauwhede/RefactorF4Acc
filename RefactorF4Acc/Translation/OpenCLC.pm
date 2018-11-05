@@ -350,6 +350,7 @@ sub _emit_subroutine_sig_C { (my $stref, my $f, my $annline)=@_;
 }
 
 sub _emit_arg_decl_C { (my $stref,my $f,my $arg)=@_;
+    
 #	my $decl =	$stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$arg};
 	my $decl = get_var_record_from_set($stref->{'Subroutines'}{$f}{'Vars'},$arg);
 	my $array = $decl->{'ArrayOrScalar'} eq 'Array' ? 1 : 0;
@@ -361,6 +362,7 @@ sub _emit_arg_decl_C { (my $stref,my $f,my $arg)=@_;
 	}
 	my $is_ptr =$array || ($const==0);
 	my $ptr = $is_ptr ? '*' : '';
+    #die "$ptr $arg" if $f =~/shapiro_map/ && $arg eq 'eta_j_k';
 	$stref->{'Subroutines'}{$f}{'Pointers'}{$arg}=$ptr;	
 	my $ftype = $decl->{'Type'};
 	my $fkind = $decl->{'Attr'};
@@ -412,6 +414,8 @@ sub _emit_var_decl_C { (my $stref,my $f,my $var)=@_;
 sub _emit_assignment_C { (my $stref, my $f, my $info)=@_;
 	my $lhs_ast =  $info->{'Lhs'}{'ExpressionAST'};
 #	say Dumper($lhs_ast);
+    #	expr_str
+    #croak Dumper($stref->{'Subroutines'}{$f}{'Pointers'}{'eta_j_k'}) if $f=~/shapiro_map/ && $lhs_ast->[1] eq 'eta_j_k';
 	my $lhs = _emit_expression_C($lhs_ast,'',$stref,$f);
 	my $indent='';
 	$lhs=~/^(\s+)/ && do {
@@ -462,7 +466,6 @@ sub _emit_ifthen_C { (my $stref, my $f, my $info)=@_;
 }
 
 sub _emit_expression_C {(my $ast, my $expr_str, my $stref, my $f)=@_;
-#	carp Dumper($ast);
 	if (ref($ast) ne 'ARRAY') {return $ast;}
 	my @expr_chunks=();
 	my $skip=0;
@@ -494,8 +497,8 @@ sub _emit_expression_C {(my $ast, my $expr_str, my $stref, my $f)=@_;
 				$mvar=~s/^(abs|min|max)$/(float)f$1/;
 				$mvar=~s/^am(ax|in)1$/(float)fm$1/;				
 				$mvar=~s/^alog$/(float)log/;				
-				$expr_str.=$mvar.'(';
-				
+				$expr_str.=$mvar.'('; 
+			
 				 $stref->{'CalledSub'}= $mvar;
 				 
 				$skip=1;
@@ -514,7 +517,7 @@ sub _emit_expression_C {(my $ast, my $expr_str, my $stref, my $f)=@_;
 					# Now we need to check if it is also a pointer in $subname
 					my $ptr = $stref->{'Subroutines'}{$f}{'Pointers'}{$mvar};
 					if ($called_sub_name ne '' and exists  $stref->{'Subroutines'}{$called_sub_name} 
-					and exists  $stref->{'Subroutines'}{$called_sub_name}{'Pointers'}{$mvar} ) {
+					and exists $stref->{'Subroutines'}{$called_sub_name}{'Pointers'}{$mvar} ) {
 						my $sig_ptr = $stref->{'Subroutines'}{$called_sub_name}{'Pointers'}{$mvar};
 						if ($sig_ptr eq '' and $ptr eq '*') {
 							$ptr = '*'	
@@ -523,9 +526,12 @@ sub _emit_expression_C {(my $ast, my $expr_str, my $stref, my $f)=@_;
 						} else {
 							$ptr='';
 						}
-					}
-					
-					push @expr_chunks,  $ptr eq '' ? $mvar : '('.$ptr.$mvar.')';
+					} 
+                    if ($ptr eq '') {
+                        push @expr_chunks,  $mvar;
+                    } else {
+                        push @expr_chunks, '('.$ptr.$mvar.')';
+                    }
 				} else {
 					push @expr_chunks,$mvar;
 				}
@@ -576,7 +582,7 @@ sub _emit_expression_C {(my $ast, my $expr_str, my $stref, my $f)=@_;
 		}				
 	} # for
 	# Here state_ptr is OK
-	if (($ast->[0] & 0x0F) == 1  ) { # eq '&'
+	if (($ast->[0] & 0x0F) == 1  ) { # eq '&'       
 		my @expr_chunks_stripped = map { $_=~s/^\(([^\(\)]+)\)$/$1/;$_} @expr_chunks;
 		if ($ast->[1] eq 'pow') {
 				$expr_str.=join(',', map { "(float)($_)" } @expr_chunks_stripped);
@@ -606,6 +612,11 @@ sub _emit_expression_C {(my $ast, my $expr_str, my $stref, my $f)=@_;
 			} 
 		}
 		
+	} elsif (($ast->[0] & 0x0F) == 2 and scalar @{$ast} == 2) {
+        # This means we are dealing with a variable
+        # This is a HACK 
+        croak 'BOOM!' if scalar @expr_chunks > 1;
+        $expr_str = shift @expr_chunks;
 	} elsif (($ast->[0] & 0x0F) != 10
         #        and $ast->[0] =~ /\W/
     ) {
@@ -646,7 +657,7 @@ sub _emit_expression_C {(my $ast, my $expr_str, my $stref, my $f)=@_;
 	} else {		 		
 		$expr_str.=join(';',grep {$_ ne '' } @expr_chunks);
 	}	
-	 
+
 #	$expr_str=~s/_complex_//g;
 	$expr_str=~s/_OPEN_PAR_//g;
 	$expr_str=~s/_LABEL_ARG_//g;
@@ -656,7 +667,7 @@ sub _emit_expression_C {(my $ast, my $expr_str, my $stref, my $f)=@_;
 	$expr_str=~s/\+\-/-/g;
 	$expr_str=~s/\-\-/\- \-/g;
 	# UGLY! HACK to fix boolean operations
-#	 say "BEFORE HACK:".$expr_str if $expr_str=~/abs/;
+    #	 say "BEFORE HACK:".$expr_str if $expr_str=~/eta_j_k/;
 	while ($expr_str=~/__[a-z]+__/ or $expr_str=~/\.\w+\.\+/) {
 		$expr_str =~s/\+\.(\w+)\.\+/\.${1}\./g;
 		$expr_str =~s/\.(\w+)\.\+/\.${1}\./g;
@@ -668,7 +679,7 @@ sub _emit_expression_C {(my $ast, my $expr_str, my $stref, my $f)=@_;
 		$expr_str =~s/__(\w+)__/\.${1}\./g;
 #		  		$expr_str =~s/\.(\w+)\./$F95_ops{$1}/g;
 	}	
-#	say "AFTER HACK:".$expr_str if $expr_str=~/abs/;
+    #	say "AFTER HACK:".$expr_str if $expr_str=~/eta_j_k/;
 	return $expr_str;		
 } # END of _emit_expression_C()
 
