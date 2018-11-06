@@ -140,7 +140,7 @@ sub _emit_TyTraIR {  (my $stref) = @_;
             my $stencil_definition = '['.join(',',@{$stencils_}).']';
 
 			my $line = "s$ctr = $stencil_definition";
-			$state->{$ctr}{'StencilDef'}=$stencil_definition;
+			$state->{$ctr}{'StencilDef'}=$rhs->{'StencilPattern'};
 			push @{$tytracl_strs},'-- '.$line;
 		}
         # The stencil itself should be skipped but the others can be main args
@@ -148,14 +148,25 @@ sub _emit_TyTraIR {  (my $stref) = @_;
         # Because of the way we identify and generate stencils, the stencil arg will always be a var, not a tuple
 		elsif ($node->{'NodeType'} eq 'StencilAppl') {
 			my $lhs_var = _mkVarName($lhs->{'Var'});
+			(my $lhs_var_name, my $lhs_ctr, my $lhs_ext) = @{$lhs->{'Var'}};
 			my $rhs_var = _mkVarName($rhs->{'Var'});
             (my $var_name, my $ctr, my $ext) = @{$rhs->{'Var'}};
             #            if ($ctr == 0 && $ext eq '') {
             #                push @{ $main_rec->{'InArgs'} }, $var_name;
             #            }
-			my $stencil_ctr = $rhs->{'StencilCtr'};
-			my $line = "$lhs_var = stencil s$stencil_ctr $rhs_var".' -- '.$state->{$stencil_ctr}{'StencilDef'};
-			push @{$tytracl_strs},$line;
+            my $stencil_ctr = $rhs->{'StencilCtr'};
+            my $exprs = $stref->{'Subroutines'}{$fname}{'ArrayAccesses'}{0}{'Arrays'}{$var_name}{'Read'}{'Exprs'};
+            my $tmp_str='';
+            for my $expr (keys %{$exprs} ) {
+            	my $k = $exprs->{$expr}; 
+            	  my $stencil =     _generate_TyTraIR_stencil(    	$state->{$stencil_ctr}{'StencilDef'}, $k);
+            	  if ($stencil != 0) {
+            	$tmp_str.= _scalarize_array_expr($expr).'_'.$lhs_ctr .' = stencil '.$stencil. ' '.$rhs_var."\n";#Dumper($state->{$stencil_ctr}{'StencilDef'}{'Accesses'}{$k});
+            	  }
+            }
+			
+#			my $line = "$lhs_var = stencil s$stencil_ctr $rhs_var".' -- ' . $tmp_str;
+			push @{$tytracl_strs},$tmp_str;
 		}
 #			'Lhs' => {
 #				'Vars' =>[@out_tup_ast],
@@ -172,7 +183,7 @@ sub _emit_TyTraIR {  (my $stref) = @_;
         # Arguments of map can be main args in several ways
         # NonMapArgs, which I can make sure are not tuples
         # MapArgs which can be (in fact will usually be) a ZipT of args
-		elsif ($node->{'NodeType'} eq 'Map') {
+		elsif ($node->{'NodeType'} eq 'Map') { 
 			my $out_vars = $lhs->{'Vars'};
 			my $map_args = $rhs->{'MapArgs'}{'Vars'};
 			my $non_map_args = $rhs->{'NonMapArgs'}{'Vars'};
@@ -189,6 +200,35 @@ sub _emit_TyTraIR {  (my $stref) = @_;
             my $f = $rhs->{'Function'};
 			my $f_str = $non_map_arg_str eq '' ? $f : "($f $non_map_arg_str)";
 			my $line = "$lhs_str map $f_str $map_arg_str";
+			# Instead of the above, we need to
+			# 1. get the original argument list 
+			my $orig_args = $stref->{'Subroutines'}{$fname}{'Args'}{'Subsets'}{'OrigArgs'}{'List'};
+			$line = "call $f ";# (".join(',',@{$orig_args}).')';
+			# 2. But for each arg we get the expressions and create the scalarized args
+			my @chunks=();
+			for my $var_name (@{$orig_args} ) {
+				
+				if (exists $stref->{'Subroutines'}{$fname}{'ArrayAccesses'}{0}{'Arrays'}{$var_name}{'Read'}) {					
+					my $exprs = $stref->{'Subroutines'}{$fname}{'ArrayAccesses'}{0}{'Arrays'}{$var_name}{'Read'}{'Exprs'};
+					if (scalar keys %{$exprs} > 0) {
+						my @tchunks = map {_scalarize_array_expr($_)} sort keys %{$exprs};
+						@chunks = (@chunks,@tchunks);
+						
+					} else {
+						push @chunks, $var_name;
+					}
+				} else {
+					my $exprs = $stref->{'Subroutines'}{$fname}{'ArrayAccesses'}{0}{'Arrays'}{$var_name}{'Write'}{'Exprs'};
+					if (scalar keys %{$exprs} > 0) {
+						my @tchunks = map {_scalarize_array_expr($_)} sort keys %{$exprs};
+						@chunks = (@chunks,@tchunks);
+						
+					} else {
+						push @chunks, $var_name;
+					}
+				}
+			}
+			$line.= '('.join(',',@chunks).')';
 			push @{$tytracl_strs},$line;
 		}
 		elsif ($node->{'NodeType'} eq 'Fold') {
@@ -297,6 +337,38 @@ sub _generate_TyTraIR_stencils { (my $stencil_patt)=@_;
 
     return $tytracl_stencils
 }
+
+sub _generate_TyTraIR_stencil { (my $stencil_patt, my $index_tuple_str)=@_;
+    my $stencil_ast = $stencil_patt->{'Accesses'}; 
+    my $array_dims = $stencil_patt->{'Dims'};
+    my $index_tuple = [ split(/:/,$index_tuple_str) ];
+    #    say Dumper(@stencil_pattern). ' ; '.Dumper($array_dims );
+    my $tytracl_stencils=[];
+    
+        my @ranges = ();
+        my @lower_bounds = ();
+        my $n_dims = scalar @{ $array_dims };
+        for my $array_dim (@{ $array_dims } ) {
+            push @ranges, eval( $array_dim->[1].' - '.$array_dim->[0] . ' + 1');
+            push @lower_bounds, $array_dim->[0];
+        }
+        my $tytracl_stencils_str='';
+        if ($n_dims == 1) {
+            $tytracl_stencils_str= F1D2C(@lower_bounds, @{$index_tuple});
+        } elsif ($n_dims == 2) {
+            #            say Dumper( (@ranges[0..1],@lower_bounds, @{$index_tuple}) );
+            $tytracl_stencils_str= F2D2C($ranges[0],@lower_bounds, @{$index_tuple});
+        } elsif ($n_dims == 3) {
+            $tytracl_stencils_str= F3D2C(@ranges[0..1],@lower_bounds, @{$index_tuple});
+        } elsif ($n_dims == 4) {
+            $tytracl_stencils_str= F4D2C(@ranges[0..2],@lower_bounds, @{$index_tuple});
+        } else {
+            croak "Sorry, only up to 4 dimensions supported right now!";
+        }
+    
+    return $tytracl_stencils_str;
+}
+
 
 sub _add_TyTraIR_AST_entry { (my $f, my $state, my $tytracl_ast, my $type, my $block_id, my $array_var, my $rw) = @_;
 	

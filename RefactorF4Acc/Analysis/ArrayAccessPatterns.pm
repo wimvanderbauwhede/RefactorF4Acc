@@ -368,7 +368,7 @@ sub identify_array_accesses_in_exprs { (my $stref, my $f) = @_;
         # die (keys %{$state})  if $f =~/shapiro_map/; 
         # {Arrays}{wet}{Read}{Exprs}}
 #        die Dumper($state->{Subroutines}{shapiro_map_15}{Blocks}{0}) if $f =~/shapiro_map/;	
-#        $stref->{'Subroutines'}{ $f }{'ArrayAccesses'} = $state->{Subroutines}{$f}{Blocks};
+        $stref->{'Subroutines'}{ $f }{'ArrayAccesses'} = $state->{Subroutines}{$f}{Blocks};
 	} # if subkernel not superkernel
 	else {
 		        		say "-- SUPERKERNEL $f: ";
