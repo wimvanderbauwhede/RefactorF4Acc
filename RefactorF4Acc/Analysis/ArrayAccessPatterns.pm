@@ -46,173 +46,6 @@ use Exporter;
 &eval_expression_with_parameters
 );
 
-
-=info20170903
-What we have now is for every array used in a subroutine, a set of all stencils (called 'Accesses', sorry!) with an indication if an access is constant or an offset from a given iterator.
-
-    $state->{'Subroutines'}{ $f }{'Blocks'}{ $block_id }{'Arrays'}{$array_var}{$rw}{'Accesses'}{ join(':', @ast_vals0) } = $iter_val_pairs;
-
-Each iter val pair is of the form (String,(Int,Int)), the string is the iterator variable, the first elt in the tuple is the multiplier, the second the offset.
-
-	{$iters[$idx] => [$mult_val,$offset_val]};
-
-For example, and typical access record entry for a 2-D array looks like this: 
-	
-	 '0:-1' => [
-	    {
-	      'j' => [
-	        1,
-	        0
-	      ]
-	    },
-	    {
-	      'k' => [
-	        1,
-	        -1
-	      ]
-	    }
-	  ],
-
-
-Now we have two use cases, one is OpenCL pipes and the other is TyTraCL
-For the stencils where all accesses use an iterator we have
-
-vs = stencil patt v
-v' = map f vs
-
-There are two other main use cases
-
-1/ LHS and RHS are both partial, i.e. one or more index is constant.
-We can check this by comparing the Read and Write arrays. For TyTraCL I think we want to generate code that will apply the map to the accessed ranges and keep the old values for the rest.
-But I think this still means we have to buffer: if e.g. we have
-
-v(0)=v(10)
-v(1) .. v(8) unchanged
-v(9)=v(1)
-v(10) unchanged
-
-then we need to construct a stream which reorders, so we'll have to buffer the stream until in this example we reach 10. That is not hard.
- Furthermore, we need to write the partial ranges out to this stream in order of access.
- As the stream is characterised by offsets, ranges and constants, this should be possible, but it is not trivial!
-
- For example
-
-              u(ip,j,k) = u(ip,j,k)-dt*uout *(u(ip,j,k)-u(ip-1,j,k))/dxs(ip)
-              v(ip+1,j,k) = v(ip+1,j,k)-dt*uout *(v(ip+1,j,k)-v(ip,j,k))/dxs(ip)
-              w(ip+1,j,k) = w(ip+1,j,k)-dt*uout *(w(ip+1,j,k)-w(ip,j,k))/dxs(ip)
-
-so we have
-u
-Write: [?,j,k] => [ip,0,0]
-Read: [?,j,k] => [ip,0,0],[ip-1,0,0]
-
-and
-i: 0 :(ip + 1)
-j: -1:(jp + 1)
-k: 0 :(kp + 1)
-
-So
-if (i==ip) then
-	! apply the old code, but a stream - scalar value of it
-	u(ip,j,k) = u(ip,j,k)-dt*uout *(u(ip,j,k)-u(ip-1,j,k))/dxs(ip)
-else
-	! keep the old value
-	u(i,j,k) = u(i,j,k)
-end if
-
-So I guess what we do is, we create a tuple:
-
-u_ip_j_k, u_ipm1_j_k, u_i_j_k
-
-To do so, we need to identify the buffer, i.e. points within the range
-i: ip, ip-1 => this is a 2-point stencil
-j: -1:(jp + 1)
-k: 0 :(kp + 1)
-
-Actually, by far the easiest solution would be to create this buffer and access it in non-streaming fashion.
-The key problem however is that the rest of the stream can't be buffered in the meanwhile.
-
-2/ LHS is full and RHS is partial, i.e. one or more index is constant on RHS. This means we need to replicate the accesses. But in fact, random access as in case 1/ is probably best.
-
-In both cases, we need to express this someway in TyTraCL, and I think I will use `select` and `replicate` to do this.
-
-The unsolved question here is: if I do a "select"  I get a smaller 1-D list. So in case 1/ I apply this list to a part of the original list, but the question is: which part?
-To give a simple example on a 4x4 array I select a column
-[0,4,8,12] and I want to apply this to either to the bottom row [12,13,14,15] or the 2nd col [1,5,9,13] of the original list.
-We could do this via an operation `insert`
-
-	insert target_pattern small_list target_list
-
-Question is then where we get the target pattern, but I guess a start/stop/step should do:
-
-for i in [0 .. 3]
-	v1[i+12] = v_small[i]
-	v2[i*4+1] = v_small[i]
-end
-
-This means for the select we had the opposite:
-
-for i in [0 .. 3]
-	v_small[i] = v[i*4+0]
-end
-
-
-So the question is, how do we express this using `select` ?
-
-
-for i in 0 .. im-1
-	for j in 0 .. jm-1
-		for k in 0 .. km-1
-			v(i,j,k) = v(a_i*i+b_i, a_j*j_const+b_j,k)
-
-Well, it is very easy:
-
--- selection can work like this
-select patt v = map (\idx -> v !! idx) patt
-
-v' = select [ i*jm*km+j*km+k_const | i <- [0 .. im-1],  j <- [0 .. jm-1], k <- [0..km-1] ] v
-
-Key questions of course are (1) if we can parallelise this, and (2) what the generated code looks like.
-(1) Translates to: given v :: Vec n a -> v" :: Vec m Vec n/m a
-Then what is the definition for select" such that
-
-v"' = select" patt v"
-
-Is this possible in general? It *should* be possible, because what it means is that we only access the data present in each chunk.
-The problem is that the index pattern is not localised, for example
-
-v_rhs1 = select [ i*jm*km+j*km+k_const | i <- [0 .. im-1],  j <- [0 .. jm-1], k <- [0..km-1] ] v
-v_rhs2 = select [ i*jm*km+j_const*km+k | i <- [0 .. im-1],  j <- [0 .. jm-1], k <- [0..km-1] ] v
-v_rhs3 = select [ i_const*jm*km+j*km+k | i <- [0 .. im-1],  j <- [0 .. jm-1], k <- [0..km-1] ] v
-
-So I guess we need to consider (2), how to generate the most efficient buffer for this.
-
-The most important question to answer is: when is it a stencil, when a select, when both?
-
-#* It is a stencil if:
-#- there is more than one access to an array =>
-#- at least one of these accesses has a non-zero offset
-#- all points in the array are processed in order
-* It is a select if:
-- not all points in the array are covered, let's say this means we have a '?'
-(this ignores the fact that the bounds might not cover the array!)
-
-So if we have a combination, then we can do either
-- create a stencil, then select from it
-- create multiple select expressions
-
-Crucially, a stencil is only really a stencil if the LHS and the RHS parts have the same number of points. I'm not sure if this really matters.
-
-In any case, what we want to know is:
-- is straight scalarisation OK for a given variable in a given subroutine
-- which variables should become local arrays
-- which variables need stencils
-- which variables need select.
-
-
-=cut
-
-
 =info
 Pass to determine stencils in map/reduce subroutines
 Because of their nature we don't even need to analyse loops: the loop variables and bounds have already been determined.
@@ -245,13 +78,12 @@ sub pass_identify_stencils {(my $stref)=@_;
 } # END of pass_identify_stencils()
 
 
-# This was only meant to work for the OpenCL Fortran kernels emitted by this compiler, but should now work for other subroutines as well.
 
 # Array accesses are stored in
 # $state->{'Subroutines'}{ $f }{ $block_id }{'Arrays'}{$array_var}{$rw}{
-# 'Exprs' => { $expr_str_1 => 1,...},
+# 'Exprs' => { $expr_str_1 => '0:1',...},
 # 'Accesses' => { '0:1' =>  {'j' => [1,0],'k' => [1,1]}}, 
-# 'Iterators' => ['i','j']
+# 'Iterators' => ['j','k']
 # };
 #
 # Array dimensions are stored in
@@ -530,17 +362,19 @@ sub identify_array_accesses_in_exprs { (my $stref, my $f) = @_;
 		$state = _link_writes_to_reads( $stref, $f, $state);
 		
 		# I guess here is where we put the boundary stencil analysis
-        _identify_boundary_accesss($state, $f);
+#        _identify_boundary_accesss($state, $f);
 
 		$stref = _classify_accesses_and_emit_AST($stref, $f, $state);
-		
-		
-
+        # die (keys %{$state})  if $f =~/shapiro_map/; 
+        # {Arrays}{wet}{Read}{Exprs}}
+#        die Dumper($state->{Subroutines}{shapiro_map_15}{Blocks}{0}) if $f =~/shapiro_map/;	
+#        $stref->{'Subroutines'}{ $f }{'ArrayAccesses'} = $state->{Subroutines}{$f}{Blocks};
 	} # if subkernel not superkernel
 	else {
 		        		say "-- SUPERKERNEL $f: ";
 		$stref = _emit_AST_Main($stref, $f);
 	}
+   
  	return $stref;
 } # END of identify_array_accesses_in_exprs()
 
@@ -608,14 +442,16 @@ sub _find_array_access_in_ast { (my $stref, my $f,  my $block_id, my $state, my 
 						my $array_var = $ast->[1];
                         # Special case for our OpenCL kernels
 						if ($array_var =~/(?:glob|loc)al_/) { return ($ast,$state); }
-#						# First we compute the offset
+						
+ 						# First we compute the offset
 #						say "OFFSET";
 						my $ast0 = dclone($ast);
 						($ast0,$state, my $retval ) = _replace_consts_in_ast($stref,$f,$block_id,$ast0, $state,0);
 						my @ast_a0 = @{$ast0};
 						my @idx_args0 = @ast_a0[2 .. $#ast_a0];
 						my @ast_exprs0 = map { emit_expression($_,'') } @idx_args0;
-						my @ast_vals0 = map { eval($_) } @ast_exprs0;
+						my @offset_vals = map { eval($_) } @ast_exprs0;
+						
 						# Then we compute the multipliers (for proper stencils these are 1 but for the more general case e.g. copying a plane of a cube it can be different.
 #						say "MULT";
 						my $ast1 = dclone($ast);
@@ -624,20 +460,21 @@ sub _find_array_access_in_ast { (my $stref, my $f,  my $block_id, my $state, my 
 						my $array_var1 = $ast1->[1];
 						my @idx_args1 = @ast_a1[2 .. $#ast_a1];
 						my @ast_exprs1 = map { emit_expression($_,'') } @idx_args1;
-						my @ast_vals1 = map { eval($_) } @ast_exprs1;
+						my @mult_vals = map { eval($_) } @ast_exprs1;
 						my @iters = @{$state->{'Subroutines'}{ $f }{'Blocks'}{ $block_id }{'Arrays'}{$array_var}{$rw}{'Iterators'}};
 
 						my $iter_val_pairs=[];
 						for my $idx (0 .. @iters-1) {
-							my $offset_val=$ast_vals0[$idx];
-							my $mult_val=$ast_vals1[$idx]-$offset_val;
+							my $offset_val=$offset_vals[$idx];
+							my $mult_val=$mult_vals[$idx]-$offset_val;
 							push @{$iter_val_pairs}, {$iters[$idx] => [$mult_val,$offset_val]};
 #							say "Boundary access $f $array_var " . __PACKAGE__ . ' '. __LINE__ if substr($iters[$idx],0,1) eq '?';
 						}
-						$state->{'Subroutines'}{ $f }{'Blocks'}{ $block_id }{'Arrays'}{$array_var}{$rw}{'Exprs'}{$expr_str}=1;
-						$state->{'Subroutines'}{ $f }{'Blocks'}{ $block_id }{'Arrays'}{$array_var}{$rw}{'Accesses'}{ join(':', @ast_vals0) } = $iter_val_pairs;
-                        $accesses->{'Arrays'}{$array_var}{$rw}{'Exprs'}{$expr_str}=1;
-                        $accesses->{'Arrays'}{$array_var}{$rw}{'Accesses'}{ join(':', @ast_vals0) } = $iter_val_pairs;
+						my $offsets_str = join(':', @offset_vals);
+						$state->{'Subroutines'}{ $f }{'Blocks'}{ $block_id }{'Arrays'}{$array_var}{$rw}{'Exprs'}{$expr_str}=$offsets_str;
+						$state->{'Subroutines'}{ $f }{'Blocks'}{ $block_id }{'Arrays'}{$array_var}{$rw}{'Accesses'}{ $offsets_str } = $iter_val_pairs;
+                        $accesses->{'Arrays'}{$array_var}{$rw}{'Exprs'}{$expr_str}=$offsets_str;
+                        $accesses->{'Arrays'}{$array_var}{$rw}{'Accesses'}{ $offsets_str } = $iter_val_pairs;
 						last;
 					}
 				} 
@@ -1440,7 +1277,7 @@ sub _emit_AST_Main {(my $stref, my $f) =@_;
 #    'v' => {
 #      'Write' => {
 #        'Exprs' => {
-#          'v(j,0)' => 1
+#          'v(j,0)' => '0:0'
 #        },
 #        'Accesses' => {
 #          '0:0' => [
@@ -1699,3 +1536,169 @@ sub __generate_buffer_varnames { my ( $boundary_accesss, $block_id ) = @_;
 }
 
 1;
+
+
+=info20170903
+What we have now is for every array used in a subroutine, a set of all stencils (called 'Accesses', sorry!) with an indication if an access is constant or an offset from a given iterator.
+
+    $state->{'Subroutines'}{ $f }{'Blocks'}{ $block_id }{'Arrays'}{$array_var}{$rw}{'Accesses'}{ join(':', @offset_vals) } = $iter_val_pairs;
+
+Each iter val pair is of the form (String,(Int,Int)), the string is the iterator variable, the first elt in the tuple is the multiplier, the second the offset.
+
+	{$iters[$idx] => [$mult_val,$offset_val]};
+
+For example, and typical access record entry for a 2-D array looks like this: 
+	
+	 '0:-1' => [
+	    {
+	      'j' => [
+	        1,
+	        0
+	      ]
+	    },
+	    {
+	      'k' => [
+	        1,
+	        -1
+	      ]
+	    }
+	  ],
+
+
+Now we have two use cases, one is OpenCL pipes and the other is TyTraCL
+For the stencils where all accesses use an iterator we have
+
+vs = stencil patt v
+v' = map f vs
+
+There are two other main use cases
+
+1/ LHS and RHS are both partial, i.e. one or more index is constant.
+We can check this by comparing the Read and Write arrays. For TyTraCL I think we want to generate code that will apply the map to the accessed ranges and keep the old values for the rest.
+But I think this still means we have to buffer: if e.g. we have
+
+v(0)=v(10)
+v(1) .. v(8) unchanged
+v(9)=v(1)
+v(10) unchanged
+
+then we need to construct a stream which reorders, so we'll have to buffer the stream until in this example we reach 10. That is not hard.
+ Furthermore, we need to write the partial ranges out to this stream in order of access.
+ As the stream is characterised by offsets, ranges and constants, this should be possible, but it is not trivial!
+
+ For example
+
+              u(ip,j,k) = u(ip,j,k)-dt*uout *(u(ip,j,k)-u(ip-1,j,k))/dxs(ip)
+              v(ip+1,j,k) = v(ip+1,j,k)-dt*uout *(v(ip+1,j,k)-v(ip,j,k))/dxs(ip)
+              w(ip+1,j,k) = w(ip+1,j,k)-dt*uout *(w(ip+1,j,k)-w(ip,j,k))/dxs(ip)
+
+so we have
+u
+Write: [?,j,k] => [ip,0,0]
+Read: [?,j,k] => [ip,0,0],[ip-1,0,0]
+
+and
+i: 0 :(ip + 1)
+j: -1:(jp + 1)
+k: 0 :(kp + 1)
+
+So
+if (i==ip) then
+	! apply the old code, but a stream - scalar value of it
+	u(ip,j,k) = u(ip,j,k)-dt*uout *(u(ip,j,k)-u(ip-1,j,k))/dxs(ip)
+else
+	! keep the old value
+	u(i,j,k) = u(i,j,k)
+end if
+
+So I guess what we do is, we create a tuple:
+
+u_ip_j_k, u_ipm1_j_k, u_i_j_k
+
+To do so, we need to identify the buffer, i.e. points within the range
+i: ip, ip-1 => this is a 2-point stencil
+j: -1:(jp + 1)
+k: 0 :(kp + 1)
+
+Actually, by far the easiest solution would be to create this buffer and access it in non-streaming fashion.
+The key problem however is that the rest of the stream can't be buffered in the meanwhile.
+
+2/ LHS is full and RHS is partial, i.e. one or more index is constant on RHS. This means we need to replicate the accesses. But in fact, random access as in case 1/ is probably best.
+
+In both cases, we need to express this someway in TyTraCL, and I think I will use `select` and `replicate` to do this.
+
+The unsolved question here is: if I do a "select"  I get a smaller 1-D list. So in case 1/ I apply this list to a part of the original list, but the question is: which part?
+To give a simple example on a 4x4 array I select a column
+[0,4,8,12] and I want to apply this to either to the bottom row [12,13,14,15] or the 2nd col [1,5,9,13] of the original list.
+We could do this via an operation `insert`
+
+	insert target_pattern small_list target_list
+
+Question is then where we get the target pattern, but I guess a start/stop/step should do:
+
+for i in [0 .. 3]
+	v1[i+12] = v_small[i]
+	v2[i*4+1] = v_small[i]
+end
+
+This means for the select we had the opposite:
+
+for i in [0 .. 3]
+	v_small[i] = v[i*4+0]
+end
+
+
+So the question is, how do we express this using `select` ?
+
+
+for i in 0 .. im-1
+	for j in 0 .. jm-1
+		for k in 0 .. km-1
+			v(i,j,k) = v(a_i*i+b_i, a_j*j_const+b_j,k)
+
+Well, it is very easy:
+
+-- selection can work like this
+select patt v = map (\idx -> v !! idx) patt
+
+v' = select [ i*jm*km+j*km+k_const | i <- [0 .. im-1],  j <- [0 .. jm-1], k <- [0..km-1] ] v
+
+Key questions of course are (1) if we can parallelise this, and (2) what the generated code looks like.
+(1) Translates to: given v :: Vec n a -> v" :: Vec m Vec n/m a
+Then what is the definition for select" such that
+
+v"' = select" patt v"
+
+Is this possible in general? It *should* be possible, because what it means is that we only access the data present in each chunk.
+The problem is that the index pattern is not localised, for example
+
+v_rhs1 = select [ i*jm*km+j*km+k_const | i <- [0 .. im-1],  j <- [0 .. jm-1], k <- [0..km-1] ] v
+v_rhs2 = select [ i*jm*km+j_const*km+k | i <- [0 .. im-1],  j <- [0 .. jm-1], k <- [0..km-1] ] v
+v_rhs3 = select [ i_const*jm*km+j*km+k | i <- [0 .. im-1],  j <- [0 .. jm-1], k <- [0..km-1] ] v
+
+So I guess we need to consider (2), how to generate the most efficient buffer for this.
+
+The most important question to answer is: when is it a stencil, when a select, when both?
+
+#* It is a stencil if:
+#- there is more than one access to an array =>
+#- at least one of these accesses has a non-zero offset
+#- all points in the array are processed in order
+* It is a select if:
+- not all points in the array are covered, let's say this means we have a '?'
+(this ignores the fact that the bounds might not cover the array!)
+
+So if we have a combination, then we can do either
+- create a stencil, then select from it
+- create multiple select expressions
+
+Crucially, a stencil is only really a stencil if the LHS and the RHS parts have the same number of points. I'm not sure if this really matters.
+
+In any case, what we want to know is:
+- is straight scalarisation OK for a given variable in a given subroutine
+- which variables should become local arrays
+- which variables need stencils
+- which variables need select.
+
+
+=cut

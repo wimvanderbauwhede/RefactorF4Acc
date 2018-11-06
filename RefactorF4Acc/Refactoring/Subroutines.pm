@@ -599,7 +599,7 @@ sub _create_extra_arg_and_var_decls {
 # AKA refactor_call_args, RefactorCallArgs
 # This subroutine adds additional arguments to a call to $name in $f.
 # What it does NOT do is update the list of variables in scope in $f. 
-# It should update $stref->{'ExGlobArgDecls'} 
+# It should update ExGlobArgs 
 # Furthermore I notice that sometimes these arguments are not passed on to the containing subroutine. That should be an issue in the subroutine refactoring code   
 sub _create_refactored_subroutine_call { 
     ( my $stref, my $f, my $annline, my $rlines ) = @_;

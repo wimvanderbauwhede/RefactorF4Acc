@@ -41,17 +41,17 @@ The main task of this compiler is to analyse and refactor variables. Variables p
 
 The variable declaration record is as follows:
 
-								$decl={
-									'Indent' => $indent,
-									'Type' => $type,
-									'ArrayOrScalar'=>$array_or_scalar,
-									'Attr' => $attr,
-									'Dim'=>[],
-									'Name'=>$varname,
-									'Names'=>[$varname],
-									'IODir' => 'Unknown',
-									'CommonBlockName' => $common_block_name
-								};		
+  $decl={
+  	'Indent' => $indent,
+  	'Type' => $type,
+  	'ArrayOrScalar'=>$array_or_scalar,
+  	'Attr' => $attr,
+  	'Dim'=>[],
+  	'Name'=>$varname,
+  	'Names'=>[$varname],
+  	'IODir' => 'Unknown',
+  	'CommonBlockName' => $common_block_name
+  };		
 
 There are two helper functions to access the nested sets:
 
@@ -821,7 +821,7 @@ Refactoring/Streams.pm
 385:		  			my $args = $info->{'SubroutineCall'}{'Args'}{'Set'};
 393:		elsif (exists $info->{'VarDecl'}) {
 394:			my $decl_var = $info->{'VarDecl'}{'Name'};
-398:				$info->{'Deleted'}=1;	  											  
+398:				$info->{'Deleted'}=1;	    			  
 406:		elsif (exists $info->{'Signature'} ) {
 408:			for my $arg (@{ $info->{'Signature'}{'Args'}{'List'} } ) {				
 418:			$info->{'Signature'}{'Args'}{'List'}=$new_args;

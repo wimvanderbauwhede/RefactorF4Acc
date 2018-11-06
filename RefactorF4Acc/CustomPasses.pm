@@ -14,6 +14,7 @@ use RefactorF4Acc::Refactoring::Streams qw( pass_rename_array_accesses_to_scalar
 use RefactorF4Acc::Translation::SaC qw( translate_module_to_SaC ); # CUSTOM PASS
 use RefactorF4Acc::Translation::OpenCLC qw( translate_module_to_C ); # CUSTOM PASS
 use RefactorF4Acc::Translation::TyTraCL qw( pass_emit_TyTraCL ); # CUSTOM PASS
+use RefactorF4Acc::Translation::TyTraIR qw( pass_emit_TyTraIR ); # CUSTOM PASS
 
 use RefactorF4Acc::Analysis::ArrayAccessPatterns qw( pass_identify_stencils ); # CUSTOM PASS
 
@@ -52,6 +53,9 @@ sub run_custom_passes {
 	if ($pass =~/emit_TyTraCL/i) {
 		$stref = pass_emit_TyTraCL($stref);				
 	}	
+	if ($pass =~/emit_TyTraIR/i) {
+		$stref = pass_emit_TyTraIR($stref);				
+	}	
 	if ($pass =~/identify_stencils/) {
 		$stref = pass_identify_stencils($stref);				
 	}	
@@ -73,7 +77,10 @@ sub run_custom_passes {
 		
 		$stref=_substitute_placeholders($stref);
         # This is of course useless if the target language is not Fortran
-        # So I should have a way to exclude this!
+        # So I should have a way to exclude this
+        # The way to do this is to let the pass make sure that
+        # top_src_is_module() is false
+        # The easiest way is to set $stref->{'SourceContains'} = {}
 		if (top_src_is_module($stref, $code_unit_name)) {
             $stref=add_module_decls($stref);
 		}

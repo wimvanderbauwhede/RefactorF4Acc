@@ -34,7 +34,7 @@ sub _init_emit_all { (my $stref) = @_;
     if ( not -e $targetdir ) {
     	
         mkdir $targetdir;
-        # FIXME: the includes should be taken from $stref->{'Includes'}
+        # FIXME: the includes should be taken from $stref->{'IncludeFiles'}
         # But actually, all includes should have been converted to F95 modules!        
     } elsif ( not -d $targetdir ) {
         die "ERROR: $targetdir exists but is not a directory!\n";        

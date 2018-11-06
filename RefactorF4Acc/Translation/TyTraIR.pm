@@ -1,4 +1,4 @@
-package RefactorF4Acc::Translation::TyTraCL;
+package RefactorF4Acc::Translation::TyTraIR;
 use v5.10;
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
@@ -17,7 +17,6 @@ F2D2C
 F1D2C 
 F4D2C 
 );
-
 use RefactorF4Acc::Analysis::ArrayAccessPatterns qw( identify_array_accesses_in_exprs );
 #
 #   (c) 2016 Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
@@ -39,34 +38,19 @@ use Storable qw( dclone );
 
 use Exporter;
 
-@RefactorF4Acc::Translation::TyTraCL::ISA = qw(Exporter);
+@RefactorF4Acc::Translation::TyTraIR::ISA = qw(Exporter);
 
-@RefactorF4Acc::Translation::TyTraCL::EXPORT_OK = qw(
-&pass_emit_TyTraCL
+@RefactorF4Acc::Translation::TyTraIR::EXPORT_OK = qw(
+&pass_emit_TyTraIR
 );
 
 our $FOLD=0;
 
-=info
-Pass to determine stencils in map/reduce subroutines
-Because of their nature we don't even need to analyse loops: the loop variables and bounds have already been determined.
-So, for every line we check:
-If it is an assignment, a subroutine call or a condition in and If or Case, we go on
-But in the kernels we don't have subroutines at the moment. We also don't have Case I think
-If assignment, we separate LHS and RHS
-If subcall, we separate In/Out/InOut
-If cond, it is a read expression
 
-In each of these we get the AST and hunt for arrays. This is easy but would be easier if we had an 'everywhere' or 'everything' function
-
-We have `get_args_vars_from_expression` and `get_vars_from_expression` and we can grep these for arrays
-
-=cut
-
-sub pass_emit_TyTraCL {(my $stref)=@_;
+sub pass_emit_TyTraIR {(my $stref)=@_;
     # WV: I think Selects and Inserts should be in Lines but I'm not sure
-    $stref->{'EmitAST'} = 'TyTraCL_AST';
-	$stref->{'TyTraCL_AST'} = {'Lines' => [], 'Selects' => [], 'Inserts' => [], 'Stencils'=>{},'Portions'=>{},'ASTEmitter' => \&_add_TyTraCL_AST_entry};
+    $stref->{'EmitAST'} = 'TyTraIR_AST';
+	$stref->{'TyTraIR_AST'} = {'Lines' => [], 'Selects' => [], 'Inserts' => [], 'Stencils'=>{},'Portions'=>{},'ASTEmitter' => \&_add_TyTraIR_AST_entry};
 	$stref = pass_wrapper_subs_in_module($stref,
 			[
 #				[ sub { (my $stref, my $f)=@_;  alias_ordered_set($stref,$f,'DeclaredOrigArgs','DeclaredOrigArgs'); } ],
@@ -74,16 +58,13 @@ sub pass_emit_TyTraCL {(my $stref)=@_;
 			  		\&identify_array_accesses_in_exprs,
 				],
 			]
-		);
-        my $tytracl_str = _emit_TyTraCL($stref);
+		);        
+        my $tytracl_str = _emit_TyTraIR($stref);
         say $tytracl_str;
         exit ;
 
 	return $stref;
-} # END of pass_emit_TyTraCL()
-
-
-
+} # END of pass_emit_TyTraIR()
 
 # {'Lines' => [
 #		{'NodeType' => 'StencilDef',
@@ -123,42 +104,44 @@ sub pass_emit_TyTraCL {(my $stref)=@_;
 #	]
 #};
 
-sub _emit_TyTraCL {  (my $stref) = @_;
+sub _emit_TyTraIR {  (my $stref) = @_;
 	# FIXME: we ignore Selects and Inserts for now.
     # We need the superkernel as the main, and we must identify its input and output arguments
     # Input args have Ctr==0 on the Rhs
     # Output args $arg have Ctr == $tytracl_ast->{'UniqueVarCounters'}{$arg}
-	my $tytracl_ast = $stref->{'TyTraCL_AST'} ;
+	my $tytracl_ast = $stref->{'TyTraIR_AST'} ;
 	my $tytracl_strs = [];
     my $main_rec = {'NodeType' => 'Main', 'InArgs' => [], 'OutArgs' => [],'Main' => $tytracl_ast->{'Main'}};
     my $var_types={};
     my $stencils={};
+    my $state = {};
 	for my $node (@{ $tytracl_ast->{'Lines'} } ) {
         my $fname = $node->{'FunctionName'};
 		my $lhs = $node->{'Lhs'} ;
 		my $rhs = $node->{'Rhs'} ;
         $main_rec = _addToMainSig($stref,$main_rec, $node, $lhs, $rhs, $fname);
-        ($var_types, $stencils) = _addToVarTypes($stref, $var_types, $stencils, $node, $lhs, $rhs, $fname,\&__toTyTraCLType);
+        ($var_types, $stencils) = _addToVarTypes($stref, $var_types, $stencils, $node, $lhs, $rhs, $fname,\&__toTyTraIRType);
         # These are never arguments of the main function
 		if ($node->{'NodeType'} eq 'StencilDef') {
 			my $ctr = $lhs->{'Ctr'};
-#			my $stencil_ast = $rhs->{'StencilPattern'}{'Accesses'};
-#            my $array_dims = $rhs->{'StencilPattern'}{'Dims'};
-#            my @evaled_array_dims = ();
-#            for my $array_dim (@{ $array_dims } ) {
-#                push @evaled_array_dims, eval( $array_dim->[1].' - '.$array_dim->[0] );
-#            }
+			my $stencil_ast = $rhs->{'StencilPattern'}{'Accesses'};
+            my $array_dims = $rhs->{'StencilPattern'}{'Dims'};
+            my @evaled_array_dims = ();
+            for my $array_dim (@{ $array_dims } ) {
+                push @evaled_array_dims, eval( $array_dim->[1].' - '.$array_dim->[0] );
+            }
 
-#			my @stencil_pattern = map { $_=~s/:/,/;"[$_]" } sort keys %{$stencil_ast};
+			my @stencil_pattern = map { $_=~s/:/,/;"[$_]" } sort keys %{$stencil_ast};
             # I should get the linear dimension from somewhere, we could add this information to the stencil detection
             # TODO: this needs to be generic so I should split the above and combine it with the dimensions
-#            my @stencil_pattern_eval = map {my $res=eval("my \$a=$_;my \$b=\$a->[0]*".$evaled_array_dims[0]."+\$a->[1];\$b");$res} @stencil_pattern;# FIXME: HACK!
+            my @stencil_pattern_eval = map {my $res=eval("my \$a=$_;my \$b=\$a->[0]*".$evaled_array_dims[0]."+\$a->[1];\$b");$res} @stencil_pattern;# FIXME: HACK!
             #my $stencil_definition = '['.join(',',@stencil_pattern).']';
-            my $stencils_ = _generate_TyTraCL_stencils( $rhs->{'StencilPattern'} );
+            my $stencils_ = _generate_TyTraIR_stencils( $rhs->{'StencilPattern'} );
             my $stencil_definition = '['.join(',',@{$stencils_}).']';
 
 			my $line = "s$ctr = $stencil_definition";
-			push @{$tytracl_strs},$line;
+			$state->{$ctr}{'StencilDef'}=$stencil_definition;
+			push @{$tytracl_strs},'-- '.$line;
 		}
         # The stencil itself should be skipped but the others can be main args
         # The value returned from a stencil application should never be an output arg
@@ -171,7 +154,7 @@ sub _emit_TyTraCL {  (my $stref) = @_;
             #                push @{ $main_rec->{'InArgs'} }, $var_name;
             #            }
 			my $stencil_ctr = $rhs->{'StencilCtr'};
-			my $line = "$lhs_var = stencil s$stencil_ctr $rhs_var";
+			my $line = "$lhs_var = stencil s$stencil_ctr $rhs_var".' -- '.$state->{$stencil_ctr}{'StencilDef'};
 			push @{$tytracl_strs},$line;
 		}
 #			'Lhs' => {
@@ -267,13 +250,13 @@ sub _emit_TyTraCL {  (my $stref) = @_;
     #    say Dumper($main_rec);
 	my $tytracl_str = join("\n", @tytracl_strs_indent);
 	return $tytracl_str;
-} # END of _emit_TyTraCL()
+} # END of _emit_TyTraIR()
 
 
-sub __toTyTraCLType { (my $type)=@_;
+sub __toTyTraIRType { (my $type)=@_;
 
-    if ($type eq 'real') { return 'Float';
-    } elsif ($type eq 'integer') { return 'Int';
+    if ($type eq 'real') { return 'real';
+    } elsif ($type eq 'integer') { return 'i32';
     } else {
         # ad-hoc!
         return ucfirst($type);
@@ -282,7 +265,7 @@ sub __toTyTraCLType { (my $type)=@_;
 
 # Maybe I will be lazy and only support 1, 2, 3 and 4 dimension
 
-sub _generate_TyTraCL_stencils { (my $stencil_patt)=@_;
+sub _generate_TyTraIR_stencils { (my $stencil_patt)=@_;
     my $stencil_ast = $stencil_patt->{'Accesses'}; 
     my $array_dims = $stencil_patt->{'Dims'};
     my @stencil_pattern = map { [ split(/:/,$_) ] } sort keys %{$stencil_ast};
@@ -315,8 +298,7 @@ sub _generate_TyTraCL_stencils { (my $stencil_patt)=@_;
     return $tytracl_stencils
 }
 
-
-sub _add_TyTraCL_AST_entry { (my $f, my $state, my $tytracl_ast, my $type, my $block_id, my $array_var, my $rw) = @_;
+sub _add_TyTraIR_AST_entry { (my $f, my $state, my $tytracl_ast, my $type, my $block_id, my $array_var, my $rw) = @_;
 	
 	if (not defined $array_var) {
 		$array_var = '#dummy#';
@@ -543,6 +525,21 @@ sub _add_TyTraCL_AST_entry { (my $f, my $state, my $tytracl_ast, my $type, my $b
 	}
 				 		
 	return $tytracl_ast;
-} # END of _add_TyTraCL_AST_entry
+} # END of _add_TyTraIR_AST_entry
+
+sub _scalarize_array_expr { (my $expr_str) = @_;
+    my $var_str=$expr_str;
+    #$var_str=~s/[\(,]/_/g; 
+    #$var_str=~s/\)//g; 
+    #$var_str=~s/\+/p/g;
+    #$var_str=~s/\-/m/g;
+    #$var_str=~s/\*/t/g;
+    $var_str=~tr/(,+\-*)/__pmt /;
+    $var_str=~s/\s+//g;
+    return $var_str;
+
+}
+
+
 
 1;

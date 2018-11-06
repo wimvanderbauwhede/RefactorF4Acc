@@ -1524,7 +1524,7 @@ sub _parse_use {
 					# FIXME should this not be UndeclaredCommonVars ???
 					$Sf->{'UndeclaredCommonVars'} = append_to_set( $Sf->{'UndeclaredCommonVars'}, $stref->{'Modules'}{$name}{'DeclaredCommonVars'} );
 #					if (exists $stref->{'Modules'}{$name}{'IsGlobal'} and $stref->{'Modules'}{$name}{'IsGlobal'}==1) {
-#						$Sf->{'UsedGobalVars'} = append_to_set( $Sf->{'UsedGlobalVars'}, $stref->{'Modules'}{$name}{'LocalVars'} );
+#						$Sf->{'UsedGlobalVars'} = append_to_set( $Sf->{'UsedGlobalVars'}, $stref->{'Modules'}{$name}{'LocalVars'} );
 #					} else {
 #						$stref->{'Modules'}{$name}{'IsGlobal'}=0;
 #						$Sf->{'UsedLocalVars'} = append_to_set( $Sf->{'UsedLocalVars'}, $stref->{'Modules'}{$name}{'LocalVars'} );
@@ -5020,7 +5020,7 @@ sub mark_blocks_between_calls { (my $stref)=@_;
 		$stref->{'KernelSubs'}=$called_subs;		
 	}	
 	return $stref;
-}
+} # END of mark_blocks_between_calls
 
 1;
 
