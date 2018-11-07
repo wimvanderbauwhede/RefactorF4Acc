@@ -6,12 +6,9 @@ use RefactorF4Acc::Refactoring::Common qw(
 	pass_wrapper_subs_in_module					
 	);
 use RefactorF4Acc::Translation::TyTra::Common qw(
-pp_links 
-_mkVarName 
+pp_links  
 __isMainInArg 
-__isMainOutArg 
-_addToMainSig 
-_addToVarTypes 
+__isMainOutArg  
 F3D2C 
 F2D2C 
 F1D2C 
@@ -120,28 +117,11 @@ sub _emit_TyTraIR {  (my $stref) = @_;
 		my $lhs = $node->{'Lhs'} ;
 		my $rhs = $node->{'Rhs'} ;
         $main_rec = _addToMainSig($stref,$main_rec, $node, $lhs, $rhs, $fname);
-        ($var_types, $stencils) = _addToVarTypes($stref, $var_types, $stencils, $node, $lhs, $rhs, $fname,\&__toTyTraIRType);
+        
         # These are never arguments of the main function
 		if ($node->{'NodeType'} eq 'StencilDef') {
 			my $ctr = $lhs->{'Ctr'};
-			my $stencil_ast = $rhs->{'StencilPattern'}{'Accesses'};
-            my $array_dims = $rhs->{'StencilPattern'}{'Dims'};
-            my @evaled_array_dims = ();
-            for my $array_dim (@{ $array_dims } ) {
-                push @evaled_array_dims, eval( $array_dim->[1].' - '.$array_dim->[0] );
-            }
-
-			my @stencil_pattern = map { $_=~s/:/,/;"[$_]" } sort keys %{$stencil_ast};
-            # I should get the linear dimension from somewhere, we could add this information to the stencil detection
-            # TODO: this needs to be generic so I should split the above and combine it with the dimensions
-            my @stencil_pattern_eval = map {my $res=eval("my \$a=$_;my \$b=\$a->[0]*".$evaled_array_dims[0]."+\$a->[1];\$b");$res} @stencil_pattern;# FIXME: HACK!
-            #my $stencil_definition = '['.join(',',@stencil_pattern).']';
-            my $stencils_ = _generate_TyTraIR_stencils( $rhs->{'StencilPattern'} );
-            my $stencil_definition = '['.join(',',@{$stencils_}).']';
-
-			my $line = "s$ctr = $stencil_definition";
-			$state->{$ctr}{'StencilDef'}=$rhs->{'StencilPattern'};
-			push @{$tytracl_strs},'-- '.$line;
+			$state->{$ctr}{'StencilDef'}=$rhs->{'StencilPattern'};			
 		}
         # The stencil itself should be skipped but the others can be main args
         # The value returned from a stencil application should never be an output arg
@@ -150,23 +130,36 @@ sub _emit_TyTraIR {  (my $stref) = @_;
 			my $lhs_var = _mkVarName($lhs->{'Var'});
 			(my $lhs_var_name, my $lhs_ctr, my $lhs_ext) = @{$lhs->{'Var'}};
 			my $rhs_var = _mkVarName($rhs->{'Var'});
+			$state->{'IsStencil'}{$rhs->{'Var'}[0]}=1;
             (my $var_name, my $ctr, my $ext) = @{$rhs->{'Var'}};
-            #            if ($ctr == 0 && $ext eq '') {
-            #                push @{ $main_rec->{'InArgs'} }, $var_name;
-            #            }
             my $stencil_ctr = $rhs->{'StencilCtr'};
             my $exprs = $stref->{'Subroutines'}{$fname}{'ArrayAccesses'}{0}{'Arrays'}{$var_name}{'Read'}{'Exprs'};
-            my $tmp_str='';
+            			
+            my $var_type = _get_TyTraIR_type( $stref,$fname,$var_name);
+            my $ok=0;            
+             for my $expr (keys %{$exprs} ) {
+            	my $k = $exprs->{$expr}; 
+            	  my $stencil =     _generate_TyTraIR_stencil(    	$state->{$stencil_ctr}{'StencilDef'}, $k);
+            	  if ($stencil == 0) {
+            	  	
+            	  	my  ($v,$c,$e,$t,$s) = @{$rhs->{'Var'}};
+            	  	$s = _scalarize_array_expr($expr);
+            	  	$rhs_var = _mkVarName([$v,$c,$e,$t,$s]);
+            	  }
+             }
+             my @offset_streams=("; Offset streams for $rhs_var");	
             for my $expr (keys %{$exprs} ) {
             	my $k = $exprs->{$expr}; 
             	  my $stencil =     _generate_TyTraIR_stencil(    	$state->{$stencil_ctr}{'StencilDef'}, $k);
-            	  if ($stencil != 0) {
-            	$tmp_str.= _scalarize_array_expr($expr).'_'.$lhs_ctr .' = stencil '.$stencil. ' '.$rhs_var."\n";#Dumper($state->{$stencil_ctr}{'StencilDef'}{'Accesses'}{$k});
-            	  }
-            }
-			
-#			my $line = "$lhs_var = stencil s$stencil_ctr $rhs_var".' -- ' . $tmp_str;
-			push @{$tytracl_strs},$tmp_str;
+#            	  if ($stencil != 0) {
+            	  	if ($stencil>0) {
+            	  		$stencil='+'.$stencil;
+            	  	}
+            	  	#  i32 %vin0_p_0    = offstream  %vin0_stream, !tir.stream.offset !+0
+	        		push @offset_streams, $var_type. ' %'._scalarize_array_expr($expr).'_s_'.$lhs_ctr .' = offstream '.$rhs_var.', !tir.stream.offset !'.$stencil;
+#            	  }
+            }			
+			$tytracl_strs=[@{$tytracl_strs},@offset_streams,''];
 		}
 #			'Lhs' => {
 #				'Vars' =>[@out_tup_ast],
@@ -187,78 +180,82 @@ sub _emit_TyTraIR {  (my $stref) = @_;
 			my $out_vars = $lhs->{'Vars'};
 			my $map_args = $rhs->{'MapArgs'}{'Vars'};
 			my $non_map_args = $rhs->{'NonMapArgs'}{'Vars'};
-			my $lhs_str = (scalar @{$out_vars} == 1 )
-				? _mkVarName($out_vars->[0]). ' = '
-				: '('.join(',',map {_mkVarName($_) } @{$out_vars}).') = unzipt $';
-
-			my $non_map_arg_str = (scalar @{$non_map_args} == 0 ) ? '' : (scalar @{$non_map_args} == 1 )
-				? _mkVarName($non_map_args->[0])
-				: '('.join(',',map {_mkVarName($_) } @{$non_map_args}).')';
-			my $map_arg_str = (scalar @{$map_args} == 1 )
-					? _mkVarName($map_args->[0])
-					: '(zipt ('.join(',',map {_mkVarName($_) } @{$map_args}).'))';
             my $f = $rhs->{'Function'};
-			my $f_str = $non_map_arg_str eq '' ? $f : "($f $non_map_arg_str)";
-			my $line = "$lhs_str map $f_str $map_arg_str";
-			# Instead of the above, we need to
+
 			# 1. get the original argument list 
 			my $orig_args = $stref->{'Subroutines'}{$fname}{'Args'}{'Subsets'}{'OrigArgs'}{'List'};
-			$line = "call $f ";# (".join(',',@{$orig_args}).')';
-			# 2. But for each arg we get the expressions and create the scalarized args
-			my @chunks=();
-			for my $var_name (@{$orig_args} ) {
-				
+			my $line = "call \@$f (";
+			my @chunks=('',$line);
+			# 2. But for each arg we get the expressions and create the scalarized args				
+			my %arg_ctrs = map { 
+				(my $var, my $ctr, my $e)=@{$_};
+				($var ,$ctr) 
+			} (@{$out_vars},@{$map_args},@{$non_map_args});
+					
+			for my $var_name (@{$orig_args} ) {		
+				my $ctr = exists $arg_ctrs{$var_name}? $arg_ctrs{$var_name} : 0;
+				my $decl =  $stref->{'Subroutines'}{$fname}{'DeclaredOrigArgs'}{'Set'}{$var_name};
+            	my $var_type =  __toTyTraIRType( $decl->{'Type'} );				
+				my $exprs = {};				 		
 				if (exists $stref->{'Subroutines'}{$fname}{'ArrayAccesses'}{0}{'Arrays'}{$var_name}{'Read'}) {					
-					my $exprs = $stref->{'Subroutines'}{$fname}{'ArrayAccesses'}{0}{'Arrays'}{$var_name}{'Read'}{'Exprs'};
-					if (scalar keys %{$exprs} > 0) {
-						my @tchunks = map {_scalarize_array_expr($_)} sort keys %{$exprs};
-						@chunks = (@chunks,@tchunks);
-						
-					} else {
-						push @chunks, $var_name;
-					}
+					$exprs = $stref->{'Subroutines'}{$fname}{'ArrayAccesses'}{0}{'Arrays'}{$var_name}{'Read'}{'Exprs'};
 				} else {
-					my $exprs = $stref->{'Subroutines'}{$fname}{'ArrayAccesses'}{0}{'Arrays'}{$var_name}{'Write'}{'Exprs'};
-					if (scalar keys %{$exprs} > 0) {
-						my @tchunks = map {_scalarize_array_expr($_)} sort keys %{$exprs};
-						@chunks = (@chunks,@tchunks);
-						
-					} else {
-						push @chunks, $var_name;
-					}
+					$exprs = $stref->{'Subroutines'}{$fname}{'ArrayAccesses'}{0}{'Arrays'}{$var_name}{'Write'}{'Exprs'};
 				}
+				my $maybe_s='';
+				if (exists $state->{'IsStencil'}{$var_name} ) {
+					$maybe_s='s_';
+				}
+				if (scalar keys %{$exprs} > 0) {
+					my @tchunks = map {"\t\t\t".$var_type.' %'._scalarize_array_expr($_).'_'.$maybe_s.$ctr} sort keys %{$exprs};
+					@chunks = (@chunks,@tchunks);						
+				} else {
+					push @chunks, "\t\t\t".$var_type.' %'.$var_name.'_'.$ctr;
+				}				
 			}
-			$line.= '('.join(',',@chunks).')';
-			push @{$tytracl_strs},$line;
+			push @chunks,"\t)";
+			push @chunks,"";
+			$tytracl_strs=[@{$tytracl_strs},@chunks];
 		}
 		elsif ($node->{'NodeType'} eq 'Fold') {
 			my $out_vars = $lhs->{'Vars'};
 			my $map_args = $rhs->{'FoldArgs'}{'Vars'};
 			my $non_map_args = $rhs->{'NonFoldArgs'}{'Vars'};
-			my $acc_args = $rhs->{'AccArgs'}{'Vars'};
-			
-			my $lhs_str = (scalar @{$out_vars} == 1 )
-				? _mkVarName($out_vars->[0]). ' = '
-				: '('.join(',',map {_mkVarName($_) } @{$out_vars}).') = unzipt $';
+			my $acc_args = $rhs->{'AccArgs'}{'Vars'};			
+	        my $f = $rhs->{'Function'};
 
-			my $non_map_arg_str = (scalar @{$non_map_args} == 0 ) ? '' : (scalar @{$non_map_args} == 1 )
-				? _mkVarName($non_map_args->[0])
-				: '('.join(',',map {_mkVarName($_) } @{$non_map_args}).')';
-				
-			my $acc_arg_str	= (scalar @{$acc_args} == 1 )
-				? _mkVarName($acc_args->[0])
-				: '('.join(',',map {_mkVarName($_) } @{$acc_args}).')';
-			my $map_arg_str = (scalar @{$map_args} == 1 )
-					? _mkVarName($map_args->[0])
-					: '(zipt ('.join(',',map {_mkVarName($_) } @{$map_args}).'))';
-					
-            my $f = $rhs->{'Function'};
-			my $f_str = $non_map_arg_str eq '' ? $f : "($f $non_map_arg_str)";
-			my $line = "$lhs_str fold $f_str $acc_arg_str $map_arg_str";
-			push @{$tytracl_strs},$line;
+			# 1. get the original argument list 
+			my $orig_args = $stref->{'Subroutines'}{$fname}{'Args'}{'Subsets'}{'OrigArgs'}{'List'};
+			my $line = "call \@$f (";
+			my @chunks=('',$line);
+			# 2. But for each arg we get the expressions and create the scalarized args				
+			my %arg_ctrs = map { 
+				(my $var, my $ctr, my $e)=@{$_};
+				($var ,$ctr) 
+			} (@{$out_vars},@{$map_args},@{$non_map_args}, @{$acc_args});		
+			for my $var_name (@{$orig_args} ) {		
+				my $ctr = exists $arg_ctrs{$var_name}? $arg_ctrs{$var_name} : 0;
+				my $decl =  $stref->{'Subroutines'}{$fname}{'DeclaredOrigArgs'}{'Set'}{$var_name};
+            	my $var_type =  __toTyTraIRType( $decl->{'Type'} );				
+				my $exprs = {};				 		
+				if (exists $stref->{'Subroutines'}{$fname}{'ArrayAccesses'}{0}{'Arrays'}{$var_name}{'Read'}) {					
+					$exprs = $stref->{'Subroutines'}{$fname}{'ArrayAccesses'}{0}{'Arrays'}{$var_name}{'Read'}{'Exprs'};
+				} else {
+					$exprs = $stref->{'Subroutines'}{$fname}{'ArrayAccesses'}{0}{'Arrays'}{$var_name}{'Write'}{'Exprs'};
+				}
+				if (scalar keys %{$exprs} > 0) {
+					my @tchunks = map {"\t\t\t".$var_type.' %'._scalarize_array_expr($_).'_'.$ctr} sort keys %{$exprs};
+					@chunks = (@chunks,@tchunks);						
+				} else {
+					push @chunks, "\t\t\t".$var_type.' %'.$var_name.'_'.$ctr;
+				}				
+			}
+			push @chunks,"\t)";
+			$tytracl_strs=[@{$tytracl_strs},@chunks];
+
 		}		
         elsif ($node->{'NodeType'} eq 'Comment') {
-            my $line = ' -- ' . $node->{'CommentStr'};
+            my $line = ' ; ' . $node->{'CommentStr'};
             push @{$tytracl_strs},$line;
         }
 		else {
@@ -266,27 +263,37 @@ sub _emit_TyTraIR {  (my $stref) = @_;
 		}
 	}
     # Indent
-     my @tytracl_strs_indent = map {"    $_"} @{$tytracl_strs};
+     my @tytracl_strs_indent = map {"\t$_"} @{$tytracl_strs};
    #
 
     # Wrap into main
     #
-    my $main_in_args_str = scalar @{$main_rec->{'InArgs'}} > 1 ? '('.join(',', @{$main_rec->{'InArgs'}}).')' :  $main_rec->{'InArgs'}->[0];
-    my $main_out_args_str = scalar @{$main_rec->{'OutArgs'}} > 1 ? '('.join(',', @{$main_rec->{'OutArgs'}}).')' :  $main_rec->{'OutArgs'}->[0];
-    unshift @tytracl_strs_indent, '  let';
-    unshift @tytracl_strs_indent, "main $main_in_args_str =";
-    unshift @tytracl_strs_indent, "";
-    push @tytracl_strs_indent,'  in';
-    push @tytracl_strs_indent,"    $main_out_args_str";
-
-    # Add function type decls
-    #
-    for my $f (sort keys %{ $var_types }) {
-        #        say $f;
-        if (exists $var_types->{$f} and ref($var_types->{$f}) eq 'HASH' and exists $var_types->{$f}{'FunctionTypeDecl'}) {
-            unshift @tytracl_strs_indent,$var_types->{$f}{'FunctionTypeDecl'};
-        }
-    }
+#    my $main_in_args_str = scalar @{$main_rec->{'InArgs'}} > 1 ? join(',', @{$main_rec->{'InArgs'}}) :  $main_rec->{'InArgs'}->[0];
+#    my $main_out_args_str = scalar @{$main_rec->{'OutArgs'}} > 1 ? join(',', @{$main_rec->{'OutArgs'}}) :  $main_rec->{'OutArgs'}->[0];
+	my @main_args = (@{$main_rec->{'InArgs'}},@{$main_rec->{'OutArgs'}});
+	my %main_args_hash =map {$_=>1} @main_args;
+	my @uniq_main_args =  sort keys %main_args_hash;
+    my @main_args_indent = map {"\t\t\t$_"} @uniq_main_args;
+    # We must add the types!
+    #unshift @tytracl_strs_indent, '  let';
+    my @top_decl_head=( 'define void @kernelTop (');
+    my @top_decl_tail=( '                       ) pipe','{'); 
+    my @top_close=("\t".'ret void','}');
+    @tytracl_strs_indent = (
+    @top_decl_head,
+    @main_args_indent,
+    @top_decl_tail,
+    @tytracl_strs_indent,
+	@top_close
+	);
+#    # Add function type decls
+#    #
+#    for my $f (sort keys %{ $var_types }) {
+#        #        say $f;
+#        if (exists $var_types->{$f} and ref($var_types->{$f}) eq 'HASH' and exists $var_types->{$f}{'FunctionTypeDecl'}) {
+#            unshift @tytracl_strs_indent,$var_types->{$f}{'FunctionTypeDecl'};
+#        }
+#    }
     #    say Dumper($main_rec);
 	my $tytracl_str = join("\n", @tytracl_strs_indent);
 	return $tytracl_str;
@@ -305,7 +312,7 @@ sub __toTyTraIRType { (my $type)=@_;
 
 # Maybe I will be lazy and only support 1, 2, 3 and 4 dimension
 
-sub _generate_TyTraIR_stencils { (my $stencil_patt)=@_;
+sub _generate_TyTraIR_stencils { (my $stencil_patt)=@_; croak 'OBSOLETE';
     my $stencil_ast = $stencil_patt->{'Accesses'}; 
     my $array_dims = $stencil_patt->{'Dims'};
     my @stencil_pattern = map { [ split(/:/,$_) ] } sort keys %{$stencil_ast};
@@ -367,14 +374,91 @@ sub _generate_TyTraIR_stencil { (my $stencil_patt, my $index_tuple_str)=@_;
         }
     
     return $tytracl_stencils_str;
-}
+} # END of _generate_TyTraIR_stencil
 
+# Add arguments to the signature of the main function
+sub _addToMainSig { (my $stref, my $main_rec, my $node, my $lhs, my $rhs, my $fname) = @_;
+			
+	my $orig_args = $stref->{$stref->{'EmitAST'}}{'OrigArgs'};
+    	
+		if ($node->{'NodeType'} eq 'StencilAppl') {
+            # TODO: refactor!
+            (my $var_name, my $ctr, my $ext) = @{$rhs->{'Var'}};
+            if (exists $orig_args->{$var_name} and
+                ($orig_args->{$var_name} eq 'in'
+                        or $orig_args->{$var_name} eq 'inout' )) {
+	            if ($ctr == 0 && $ext eq '') {
+	            	$rhs->{'Var'} = _add_TyTraIR_type_to_var_rec($stref, $fname, $rhs->{'Var'},'Read');
+	                push @{ $main_rec->{'InArgs'} }, _mkVarName($rhs->{'Var'});#$var_name;
+	            }
+	        }
+        } elsif ($node->{'NodeType'} eq 'Map') {
+			my $out_var_recs = $lhs->{'Vars'};#croak 'OUTVARS: '.Dumper($lhs);
+            for my $out_var_rec (@{$out_var_recs}) {
+                if (__isMainOutArg($out_var_rec,$stref)) {
+                    $out_var_rec = _add_TyTraIR_type_to_var_rec($stref, $fname, $out_var_rec,'Write');
+                    push @{ $main_rec->{'OutArgs'} }, _mkVarName($out_var_rec);
+                }
+            }
+			my $map_arg_recs = $rhs->{'MapArgs'}{'Vars'};
+            for my $map_var_rec (@{$map_arg_recs}) {
+                if (__isMainInArg($map_var_rec,$stref)) {
+                    $map_var_rec = _add_TyTraIR_type_to_var_rec($stref, $fname, $map_var_rec,'Read');
+                    push @{ $main_rec->{'InArgs'} },  _mkVarName($map_var_rec);# $var_name;
+                }
+            }
+			my $non_map_arg_recs = $rhs->{'NonMapArgs'}{'Vars'};
+            for my $non_map_var_rec (@{$non_map_arg_recs}) {
+                if (__isMainInArg($non_map_var_rec,$stref)) {
+                    $non_map_var_rec = _add_TyTraIR_type_to_var_rec($stref, $fname, $non_map_var_rec,'Read');
+                    push @{ $main_rec->{'InArgs'} }, _mkVarName($non_map_var_rec);#$var_name;
+                }
+            }
+        } elsif ($node->{'NodeType'} eq 'Fold') {
+            # Main question is: what is the initial value of the accumulator?
+            # It can in practice be a constant or scalar variable
+            # In general of course it could be just about anything.
+            # The question at this point is only if it is a var or list of vars
+			my $out_var_recs = $lhs->{'Vars'};#croak 'OUTVARS: '.Dumper($lhs);
+            for my $out_var_rec (@{$out_var_recs}) {
+                if (__isMainOutArg($out_var_rec,$stref)) {
+                	$out_var_rec = _add_TyTraIR_type_to_var_rec($stref, $fname, $out_var_rec,'Write');
+                    push @{ $main_rec->{'OutArgs'} }, _mkVarName($out_var_rec);
+                }
+            }
+			my $map_arg_recs = $rhs->{'FoldArgs'}{'Vars'};
+            for my $map_var_rec (@{$map_arg_recs}) {
+                if (__isMainInArg($map_var_rec,$stref)) {
+                    $map_var_rec = _add_TyTraIR_type_to_var_rec($stref, $fname, $map_var_rec,'Read');
+                    push @{ $main_rec->{'InArgs'} },  _mkVarName($map_var_rec);# $var_name;
+                }
+            }
+			my $non_map_arg_recs = $rhs->{'NonFoldArgs'}{'Vars'};
+            for my $non_map_var_rec (@{$non_map_arg_recs}) {
+                if (__isMainInArg($non_map_var_rec,$stref)) {
+                    $non_map_var_rec = _add_TyTraIR_type_to_var_rec($stref, $fname, $non_map_var_rec,'Read');
+                    push @{ $main_rec->{'InArgs'} }, _mkVarName($non_map_var_rec);#$var_name;
+                }
+            }
+            my $accs = $rhs->{'AccArgs'}{'Vars'};
+            for my $non_map_var_rec (@{$accs}) {
+                if (__isMainInArg($non_map_var_rec,$stref)) {
+                    $non_map_var_rec = _add_TyTraIR_type_to_var_rec($stref, $fname, $non_map_var_rec,'Read');
+                    push @{ $main_rec->{'InArgs'} }, _mkVarName($non_map_var_rec);#$var_name;
+                }
+            }
+        } elsif ($node->{'NodeType'} ne 'Comment' and $node->{'NodeType'} ne 'StencilDef') {
+            croak "NodeType type ".$node->{'NodeType'}.' not yet supported.';
+        }
+        return $main_rec;
+} # END of _addToMainSig()
 
 sub _add_TyTraIR_AST_entry { (my $f, my $state, my $tytracl_ast, my $type, my $block_id, my $array_var, my $rw) = @_;
 	
 	if (not defined $array_var) {
 		$array_var = '#dummy#';
 	}
+#	my $var_type = _get_TyTraIR_type($stref
 	if ($type eq 'INIT_AST') {
 	if (not exists $tytracl_ast->{'UniqueVarCounters'}) {
 		$tytracl_ast->{'UniqueVarCounters'}={'!s' => 0};
@@ -610,8 +694,50 @@ sub _scalarize_array_expr { (my $expr_str) = @_;
     $var_str=~s/\s+//g;
     return $var_str;
 
-}
+} # END of _scalarize_array_expr
 
 
+sub _mkVarName { (my $rec) =@_;
+	(my $v, my $c, my $e, my $t, my $s) = @{$rec};
+	if (not defined $t) {$t='';} else {$t="$t ";}
+	if (defined $s) {$v=$s}; 
+	if ($e eq '') {
+		return "$t%${v}_${c}";
+	} else {
+		return "$t%${v}_${e}_${c}";
+	}
+} # END of _mkVarName()
+
+sub _get_TyTraIR_type { (my $stref, my $fname, my $var_name) =@_;
+	my $var_rec =  $stref->{'Subroutines'}{$fname}{'DeclaredOrigArgs'}{'Set'}{$var_name};
+    my $var_type =  __toTyTraIRType( $var_rec->{'Type'} );
+    return $var_type;				
+} # END of _get_TyTraIR_type 
+
+sub _add_TyTraIR_type_to_var_rec { (my $stref, my $fname, my $var_rec, my $rw) =@_;
+	
+	my $var_name = $var_rec->[0];
+	my $scal_var_name = $var_name ;	
+	if (exists $stref->{'Subroutines'}{$fname}{'ArrayAccesses'}{0}{'Arrays'}{$var_name}) {
+		my $exprs = $stref->{'Subroutines'}{$fname}{'ArrayAccesses'}{0}{'Arrays'}{$var_name}{$rw}{'Exprs'};
+		my $stencil_pattern = {'Accesses' =>$stref->{'Subroutines'}{$fname}{'ArrayAccesses'}{0}{'Arrays'}{$var_name}{$rw}{'Accesses'},
+			'Dims' =>$stref->{'Subroutines'}{$fname}{'ArrayAccesses'}{0}{'Arrays'}{$var_name}{'Dims'}
+		};
+		
+    for my $expr (keys %{$exprs} ) {
+		my $k = $exprs->{$expr}; 		
+		my $stencil =     _generate_TyTraIR_stencil(  $stencil_pattern, $k);
+		if ($stencil==0) {
+        	$scal_var_name = _scalarize_array_expr($expr);
+        	last;
+		}
+	}	
+	}
+	
+	my $var_type = _get_TyTraIR_type( $stref,$fname,$var_name);
+	push @{$var_rec}, $var_type;
+	$var_rec->[4]=$scal_var_name;
+	return $var_rec;
+} # END of _add_TyTraIR_type_to_var_rec
 
 1;

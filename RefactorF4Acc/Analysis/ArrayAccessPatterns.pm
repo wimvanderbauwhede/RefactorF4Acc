@@ -371,7 +371,7 @@ sub identify_array_accesses_in_exprs { (my $stref, my $f) = @_;
         $stref->{'Subroutines'}{ $f }{'ArrayAccesses'} = $state->{Subroutines}{$f}{Blocks};
 	} # if subkernel not superkernel
 	else {
-		        		say "-- SUPERKERNEL $f: ";
+#		        		say "-- SUPERKERNEL $f: ";
 		$stref = _emit_AST_Main($stref, $f);
 	}
    
