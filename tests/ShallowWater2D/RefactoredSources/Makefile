@@ -5,10 +5,10 @@ link := $(compile)
 opt := -cpp -Ofast -m64 -Wall -ffree-form -fconvert=big-endian -mcmodel=medium
 
 # Locate required source files
-source_files := $(shell ls *.f95)
+source_files := $(shell ls *.f90)
 
 # Swap .f90 file extensions for .o extensions 
-object_files := $(subst .f95,.o,$(source_files))
+object_files := $(subst .f90,.o,$(source_files))
 
 # Specify dependencies, compile, and link
 $(executable): $(object_files)
@@ -18,7 +18,7 @@ main.o: update.o sub.o
 
 sub.o: init.o dyn.o shapiro.o
 
-%.o: %.f95
+%.o: %.f90
 	$(compile) $(opt) -c $<
 
 .PHONY : clean

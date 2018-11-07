@@ -20,7 +20,7 @@ To build this example you a fortran compiler. You must set the environment varia
 To use the provided build scripts you need [SCons](https://scons.org/). Otherwise, you can build the code as follows:
 
       $ export FFLAGS=" -Ofast -m64 -Wall -ffree-form -fconvert=big-endian -mcmodel=medium"
-      $ gfortran $FFLAGS param.f95 sub.f95 main.f95 -o shallow_water_2D
+      $ gfortran $FFLAGS param.f90 sub.f90 main.f90 -o shallow_water_2D
 
 To build the original code:
 
