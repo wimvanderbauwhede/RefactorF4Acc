@@ -19,7 +19,7 @@ use Fortran::ConstructParser qw(
 #   (c) 2010-2018 Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
 
 use vars qw( $VERSION );
-$VERSION = "1.1.0";
+$VERSION = "1.1.1";
 
 #use warnings::unused;
 use warnings;

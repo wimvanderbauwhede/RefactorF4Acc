@@ -14,7 +14,7 @@ use RefactorF4Acc::Analysis::ArgumentIODirs qw( determine_argument_io_direction_
 use RefactorF4Acc::Refactoring::Modules qw( add_module_decls );
 
 use vars qw( $VERSION );
-$VERSION = "1.1.0";
+$VERSION = "1.1.1";
 
 #use warnings::unused;
 use warnings;

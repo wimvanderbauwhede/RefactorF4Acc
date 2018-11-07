@@ -9,7 +9,7 @@ use RefactorF4Acc::Refactoring::Common qw( context_free_refactorings stateful_pa
 #   
 
 use vars qw( $VERSION );
-$VERSION = "1.1.0";
+$VERSION = "1.1.1";
 
 #use warnings::unused;
 use warnings;

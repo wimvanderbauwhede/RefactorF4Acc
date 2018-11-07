@@ -20,7 +20,7 @@ use RefactorF4Acc::Analysis::ArrayAccessPatterns qw( identify_array_accesses_in_
 #
 
 use vars qw( $VERSION );
-$VERSION = "1.1.0";
+$VERSION = "1.1.1";
 
 #use warnings::unused;
 use warnings;
