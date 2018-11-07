@@ -261,8 +261,7 @@ sub _initialise_decl_var_tables {
 				'UndeclaredOrigLocalVars' =>
 				  $Sf->{'UndeclaredOrigLocalVars'}
 			}
-		};
-		
+		};		
 		
 		if ( not $is_incl and not $is_mod ) {
 

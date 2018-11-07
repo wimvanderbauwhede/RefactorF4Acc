@@ -1,0 +1,253 @@
+
+# Structure of the RefactorF4Acc compiler state 
+
+{BlockData}{$f}
+
+{BuildSources}{C|F|H}
+
+{CallStack}
+
+# Only used to print out a call tree
+{CallTree}{Chain}
+{CallTree}{f}
+
+{CalledSub}
+
+{Commons}
+
+{ConflictingParams} 
+
+# For pretty-printing of debug info
+{Counter}
+{Indents}
+
+{EmitAST}
+
+{Entries}{$f}
+
+{ExternalSubroutines}{$f}
+{ExternalSubroutines}{$f}{Called}
+
+{Functions}{$f}
+
+{Implicits}{$f}
+
+{IncludeFiles}{$f}
+	{AnnLines}
+	{Commons}
+	{ConflictingGlobals}
+	{Deps}
+	{ExtPath}
+	{FStyle}
+	{FreeForm} : Bool
+	{HasBlocks} : Bool
+	{InclType}
+	{Includes}
+	{LocalParameters}
+	{ParamInclude}
+	{Parameters}
+	{RefactorGlobals}
+	{RefactoredCode}
+	{Root}
+	{Source}
+	{Status} : Status
+	{Translate}
+	{Vars} : CompoundOrderedSet VarDecl
+
+# For OpenCL analysis
+{KernelSubs}
+{KernelWrappers}{$kernelwrapper}
+	{BeginKernelWrapper}
+	{LoopVars}
+	{OuterLoopEndPos}
+	{OuterLoopStartPos}
+{KernelWrappers}{KernelSubs}
+{KernelWrappers}{OtherCalls}
+
+# SrcReader
+{Macros}{All} 
+
+{Modules}{$mod} 
+	{AnnLines} : AnnLines
+        {Commons}
+        {Contains}
+        {ExtPath}
+        {FStyle}
+        {FreeForm} : Bool
+        {ImplicitRules}
+        {IncludeFiles}
+        {InlineableSubs}
+        {Inlineable} : Bool
+        {IsGlobal} : Bool
+        {LocalVars}
+        {ModType}
+        {Parameters}
+        {Source}
+        {Status} : Status
+        {Subroutines}
+        {TabFormat} : Bool
+        {Translate}
+        {TypeDecls}
+        {Uses}
+        {Vars} : CompoundOrderedSet VarDecl
+
+
+{NId}
+{Nodes}{$nid}
+	{Children}
+	{Parent}
+	{Subroutine}
+
+# Translation/OpenCLC.pm
+{OpenCL}
+
+{PNIds}
+
+# Pretty-printed call tree
+{PPCallTree}
+
+{ParametersFromContainer}
+
+{ParametersFromModule}
+
+{Prefix}
+
+{Program}
+
+{RefactoredCode}{$src}
+
+{SourceContains}
+{SourceContains}{$src}
+	{List} 
+	{Set}
+	{Path}
+	{Path}{Ext}
+
+{SourceDirs}
+
+{SourceFiles} 
+{SourceFiles}{$src}
+	{AnnLines}
+	{Path}
+	{SourceType}
+
+{Subroutines} : { Name => { ... } }
+{Subroutines}{$f}
+        {AnnLines} : [ (SrcLine, Info) ]
+
+        {Args} : CompoundOrderedSet VarDecl
+
+        {ArrayAccesses} 
+
+        {CalledSubs} : OrderedSet
+
+        {Called} : Bool
+        {Callers} 
+        {Callers}{$caller} : [ Name ]
+
+        {CommonIncludes}
+        {CommonIncs}
+        {Commons}
+        {Container} : Name
+        {Contains}: [ Name ]
+
+        {DeclaredOrigArgs} : OrderedSet VarDecl
+
+        {DeletedArgs} : [ Name ]
+
+        {ExGlobArgs} : OrderedSet VarDecl
+        {ExInclLocalVars} : OrderedSet VarDecl
+
+        {External} : Bool
+        {FStyle} : F77 | F95
+        {FreeForm} : Bool
+        {Function} : Bool
+        {Has.$alias} : Bool
+        {HasBlocks} : Bool
+        {HasEntries} : Bool
+        {HasKernelRegion} : Bool
+        {InModule} : Bool
+
+        {LiftedArrayAssignments}
+        {LiftedIndexCalcLines}
+        {LiftedIndexVarDecls}
+        {LiftedScalarAssignments}
+
+        {LiftedStreamVarDecls}
+        {LiftedStreamVarDecls}{Set}
+        {LiftedStreamVarDecls}{Set}{$var}
+
+        {LiftedVarDecls}
+        {LiftedVarDecls}{Set}
+        {LiftedVarDecls}{Set}{$var}
+
+        {LocalParameters} : OrderedSet VarDecl
+        {LocalParameters}{Set}{$par}
+
+        {LocalVars} : CompoundOrderedSet VarDecl
+
+        {MaskedIntrinsics} : Set Name
+        {OrigArgs} : CompoundOrderedSet VarDecl
+        {Parameters} : CompoundOrderedSet VarDecl
+
+
+        {Program} : Bool
+        {Ranges}
+        {Ranges}{$var}
+
+        {RefactoredArgs} : OrderedSet VarDecl
+        {RefactoredArgs}{List}
+        {RefactoredArgs}{Set}
+        {RefactoredArgs}{Set}{$var}
+
+        {RefactoredCode} : [ AnnLine ]
+
+        {Set}
+        {Set}{$var}{IODir}
+        {Set}{$var}{KernelArg}
+
+        {Source} : Name
+        {Status} 
+
+        {StreamVars}
+        {StreamVars}{$var}
+        {StreamVars}{$var}{List} 
+
+        {TabFormat} : Bool
+
+        {TranslatedCode}
+
+        {Translate}
+        {UndeclaredOrigArgs} : OrderedSet VarDecl
+        {UndeclaredOrigLocalVars} : OrderedSet VarDecl
+        {Uses}
+        {Uses}{$mod}
+        {Vars} : CompoundOrderedSet VarDecl
+
+{SubsToTranslate}
+
+{Top}
+
+{TranslatedCode}
+
+{UndeclaredCommonVars}
+
+{UniqueVarCounters}
+
+{UsedGlobalVars}
+
+{UsedLocalVars}
+
+{UsedModules}{$src} 
+
+{UsedParameters}
+
+
+Translation/OpenCLC     
+{Subroutines}{$f}{Pointers}{$var} 
+
+Translation/TyTraCL
+{TyTraCL_AST}
+{TyTraCL_AST}{Lines}
+{TyTraCL_AST}{OrigArgs}
+
