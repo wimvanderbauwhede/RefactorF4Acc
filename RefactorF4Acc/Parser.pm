@@ -6,7 +6,7 @@ use RefactorF4Acc::CallTree qw( add_to_call_tree );
 use RefactorF4Acc::Refactoring::Common qw( emit_f95_var_decl get_f95_var_decl stateful_pass ); 
 use RefactorF4Acc::Parser::SrcReader qw( read_fortran_src );
 use RefactorF4Acc::Parser::Expressions qw( get_vars_from_expression parse_expression  get_args_vars_from_expression get_args_vars_from_subcall emit_expression get_consts_from_expression);
-use RefactorF4Acc::CTranslation qw( add_to_C_build_sources );    # OBSOLETE
+use RefactorF4Acc::Translation::OpenCLC qw( add_to_C_build_sources );    # OBSOLETE
 use RefactorF4Acc::Analysis::LoopDetect qw( outer_loop_start_detect );
 use RefactorF4Acc::Analysis::ArgumentIODirs qw(  &conditional_assignment_fsm );
 use RefactorF4Acc::Analysis qw( identify_vars_on_line );
@@ -19,7 +19,7 @@ use Fortran::ConstructParser qw(
 #   (c) 2010-2018 Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
 
 use vars qw( $VERSION );
-$VERSION = "1.1.0";
+$VERSION = "1.1.1";
 
 #use warnings::unused;
 use warnings;
@@ -1524,7 +1524,7 @@ sub _parse_use {
 					# FIXME should this not be UndeclaredCommonVars ???
 					$Sf->{'UndeclaredCommonVars'} = append_to_set( $Sf->{'UndeclaredCommonVars'}, $stref->{'Modules'}{$name}{'DeclaredCommonVars'} );
 #					if (exists $stref->{'Modules'}{$name}{'IsGlobal'} and $stref->{'Modules'}{$name}{'IsGlobal'}==1) {
-#						$Sf->{'UsedGobalVars'} = append_to_set( $Sf->{'UsedGlobalVars'}, $stref->{'Modules'}{$name}{'LocalVars'} );
+#						$Sf->{'UsedGlobalVars'} = append_to_set( $Sf->{'UsedGlobalVars'}, $stref->{'Modules'}{$name}{'LocalVars'} );
 #					} else {
 #						$stref->{'Modules'}{$name}{'IsGlobal'}=0;
 #						$Sf->{'UsedLocalVars'} = append_to_set( $Sf->{'UsedLocalVars'}, $stref->{'Modules'}{$name}{'LocalVars'} );
@@ -5020,7 +5020,7 @@ sub mark_blocks_between_calls { (my $stref)=@_;
 		$stref->{'KernelSubs'}=$called_subs;		
 	}	
 	return $stref;
-}
+} # END of mark_blocks_between_calls
 
 1;
 

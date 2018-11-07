@@ -2,16 +2,21 @@
 #   (c) 2010-now Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
 #   
 
-package RefactorF4Acc::Refactoring;
+package RefactorF4Acc::CustomPasses;
 use v5.10;
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
 use RefactorF4Acc::Refactoring::Common qw( top_src_is_module stateful_pass stateless_pass get_annotated_sourcelines );
-use RefactorF4Acc::Refactoring::Subroutines qw( refactor_all_subroutines );
-use RefactorF4Acc::Refactoring::Functions qw( refactor_called_functions remove_vars_masking_functions);
-use RefactorF4Acc::Refactoring::IncludeFiles qw( refactor_include_files );
-use RefactorF4Acc::Analysis::ArgumentIODirs qw( determine_argument_io_direction_rec update_argument_io_direction_all_subs);
 use RefactorF4Acc::Refactoring::Modules qw( add_module_decls );
+
+use RefactorF4Acc::Refactoring::Streams qw( pass_rename_array_accesses_to_scalars ); # CUSTOM PASS
+
+use RefactorF4Acc::Translation::SaC qw( translate_module_to_SaC ); # CUSTOM PASS
+use RefactorF4Acc::Translation::OpenCLC qw( translate_module_to_C ); # CUSTOM PASS
+use RefactorF4Acc::Translation::TyTraCL qw( pass_emit_TyTraCL ); # CUSTOM PASS
+use RefactorF4Acc::Translation::TyTraIR qw( pass_emit_TyTraIR ); # CUSTOM PASS
+
+use RefactorF4Acc::Analysis::ArrayAccessPatterns qw( pass_identify_stencils ); # CUSTOM PASS
 
 use vars qw( $VERSION );
 $VERSION = "1.1.1";
@@ -28,74 +33,67 @@ $Carp::Verbose = 1;
 use Data::Dumper; 
 
 use Exporter;
-@RefactorF4Acc::Refactoring::ISA = qw(Exporter);
-@RefactorF4Acc::Refactoring::EXPORT_OK = qw(
-    &refactor_all
+@RefactorF4Acc::CustomPasses::ISA = qw(Exporter);
+@RefactorF4Acc::CustomPasses::EXPORT_OK = qw(
+    &run_custom_passes
 );
 
 # -----------------------------------------------------------------------------
 
-sub refactor_all {
-	( my $stref, my $code_unit_name) = @_;
+sub run_custom_passes {
+	( my $stref, my $code_unit_name, my $pass) = @_;
 	my $sub_or_func_or_mod = sub_func_incl_mod( $code_unit_name, $stref );
-
-    $stref = refactor_include_files($stref);
-
-    $stref = refactor_called_functions($stref); # Context-free only FIXME: this should be treated just like subs, but of course that requires full parsing of expressions that contain function calls
-    
-    # Refactor the source, but don't split long lines and keep annotations
-    $stref = refactor_all_subroutines($stref);    
-    
-    # This can't go into refactor_all_subroutines() because it is recursive
-    # Also, this is actually analysis
-    # And this is only for Subroutines of course, not for Modules
-    if ($sub_or_func_or_mod eq 'Subroutines') {
-    $stref = determine_argument_io_direction_rec( $stref,$code_unit_name );    
-    say "DONE determine_argument_io_direction_rec()" if $V;
-
-    $stref = update_argument_io_direction_all_subs( $stref );
+    # Some of these passes use functionality that requires RefactoredArgs, so let's make sure it is populated
+    # I assume that the input for a custom pass is essentially the output of the main compiler, so no globals, etc
+    # So all args should be in DeclaredOrigArgs
+    # So it should suffice to say 
+    #croak Dumper($code_unit_name,
+            
+# Custom passes
+	if ($pass =~/emit_TyTraCL/i) {
+		$stref = pass_emit_TyTraCL($stref);				
+	}	
+	if ($pass =~/emit_TyTraIR/i) {
+		$stref = pass_emit_TyTraIR($stref);				
+	}	
+	if ($pass =~/identify_stencils/) {
+		$stref = pass_identify_stencils($stref);				
+	}	
+	if ($pass =~/rename_array_accesses_to_scalars/) {
+		$stref = pass_rename_array_accesses_to_scalars($stref);				
+	}
+	if ($pass =~/translate_to_C/) {
+		$stref = translate_module_to_C($stref,0);
+	} elsif ( $pass =~/translate_to_OpenCL/) {				
+		$stref = translate_module_to_C($stref,1);
+	} elsif ( $pass =~/translate_to_SaC/) {				
+		$stref = translate_module_to_SaC($stref);
+	}
+	if ($pass =~/ifdef_io/i) {
+		$stref = _ifdef_io_all($stref);				
+	}
+# After a custom pass, do some postprocessing and exit	
+	if ($pass ne '') {
+		
+		$stref=_substitute_placeholders($stref);
+        # This is of course useless if the target language is not Fortran
+        # So I should have a way to exclude this
+        # The way to do this is to let the pass make sure that
+        # top_src_is_module() is false
+        # The easiest way is to set $stref->{'SourceContains'} = {}
+		if (top_src_is_module($stref, $code_unit_name)) {
+            $stref=add_module_decls($stref);
+		}
+	} else {
+        # Should never happen!
+        say "No custom pass provided, doing nothing!";
+       
     }
-    
-    # So at this point we know everything there is to know about the argument declarations, we can now update them
-    say "remove_vars_masking_functions" if $V;    
-    $stref = remove_vars_masking_functions($stref);    
-    
-    # Custom refactoring, must be done before creating final modules
-    say "add_module_decls" if $V;
-    $stref=add_module_decls($stref);
-    
+    # We also need a mechanism to stop the emitter 
     return $stref;	
-} # END of refactor_all()  
+} # END of run_custom_passes()  
 
 # Below are general refactortings that really should go somewhere else!
-
-# This just ifdefs any IO statement, really cheap!
-sub _ifdef_io_QD { (my $stref) = @_;
-	
-	my $__ifdef_io = sub {
-		( my $annline ) = @_;
-		( my $line, my $info ) = @{$annline};
-		if ( exists $info->{'IO'}){
-			return [
-				['#ifndef NO_IO',{'Macro' => 1}],
-				$annline,
-				['#else',{'Macro' => 1}],
-				[$info->{'Indent'}.'continue',{'Continue' => 1}],
-				['#endif',{'Macro' => 1}]
-			];
-		} else {
-			return [$annline];
-		}
-	};	
-	
-	for my $f ( keys %{ $stref->{'Subroutines'} } ) {
-		next if exists $stref->{'Entries'}{$f};
-		$stref = stateless_pass( $stref, $f, $__ifdef_io, '__ifdef_io() ' . __LINE__ );
-	}	
-	
-	return $stref;	
-}
-
 
 sub _ifdef_io_all {  # CUSTOM PASS
 	(my $stref) = @_;
@@ -112,7 +110,7 @@ sub _ifdef_io_all {  # CUSTOM PASS
 }
 
 
-sub _ifdef_io_per_source{ (my $stref,my $f) =@_;
+sub _ifdef_io_per_source { (my $stref,my $f) =@_;
 #	show_annlines( $stref->{'Subroutines'}{$f}{'RefactoredCode'});
 	$stref = _ifdef_io_per_source_PASS1($stref,$f); 	
 	$stref = _ifdef_io_per_source_PASS2a($stref,$f);
@@ -296,9 +294,5 @@ sub _substitute_placeholders_per_source { (my $stref,my $f) =@_;
 	
 	
 } 
-
-
-
-
 
 1;

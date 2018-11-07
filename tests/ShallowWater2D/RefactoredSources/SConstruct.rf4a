@@ -1,22 +1,14 @@
 # Generated build script for refactored source code
-# Thu Jun  8 18:19:53 2017
+# Sun Nov  4 11:57:01 2018
 
 import os
 
 FC=os.environ.get('FC')
-#CC=os.environ.get('CC')
-#csources =[]
 
-fsources = ['./dyn.f95','./init.f95','./main.f95','./param.f95','./shapiro.f95','./sub.f95','./update.f95']
+fsources = ['./dyn.f90','./init.f90','./main.f90','./param.f90','./shapiro.f90','./sub.f90','./update.f90']
 
-#envC=Environment(CC=CC,CPPPATH=[]); 
-#if csources:
-#    envC.Library('wave2d_c',csources)
+envC=Environment(CC='/opt/local/bin/gcc-mp-7',CPPPATH=[]); 
 
 FFLAGS  = ['-cpp','-O3', '-m64', '-ffree-form', '-ffree-line-length-0','-fconvert=little-endian', '-frecord-marker=4']
-envF=Environment(F95=FC,LINK=FC,F95FLAGS=FFLAGS,F95PATH=['.' ,'/opt/local/include','/usr/local/include'])
-#if csources:
-#    envF.Program('wave2d',fsources,LIBS=[ 'wave2d_c','m'],LIBPATH=['.' ,'/opt/local/lib','/usr/local/lib'])   
-#else:
-#    envF.Program('wave2d',fsources,LIBS=[ 'm'],LIBPATH=['.' ,'/opt/local/lib','/usr/local/lib'])
+envF=Environment(F90='/opt/local/bin/gfortran-mp-7',LINK='/opt/local/bin/gfortran-mp-7',F90FLAGS=FFLAGS,F90PATH=['.' ,'/opt/local/include','/usr/local/include'])
 envF.Program('wave2d',fsources,LIBS=[ 'm'],LIBPATH=['.' ,'/opt/local/lib','/usr/local/lib'])

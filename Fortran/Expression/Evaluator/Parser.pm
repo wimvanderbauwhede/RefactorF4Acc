@@ -81,6 +81,8 @@ C<parse> throws an exception on parse errors.
 =cut
 
 =coding
+$ast_node_type=
+
 	{	0
 	&	1
 	$	2
@@ -97,6 +99,8 @@ C<parse> throws an exception on parse errors.
 	//	13
 	)(	14
 		15	
+		
+$ast_node_type+(++$nodeId<<4)		
 =cut
 
 use strict;

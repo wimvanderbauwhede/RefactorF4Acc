@@ -34,6 +34,7 @@ Subroutines
 
 # --------------------------------------------------------------------------------
 # This routine creates the actual refactored source text of the sig. 
+# This uses the arguments from $Sf->{'RefactoredArgs'}
 sub create_refactored_subroutine_signature {
     ( my $stref, my $f, my $annline, my $rlines ) = @_;
     my $Sf        = $stref->{'Subroutines'}{$f};
@@ -92,7 +93,7 @@ sub create_refactored_subroutine_signature {
 # -----------------------------------------------------------------------------
 
 # -----------------------------------------------------------------------------
-# 
+# This subroutine populates $Sf->{'RefactoredArgs'}
 sub refactor_subroutine_signature {
     ( my $stref, my $f ) = @_;
     my $Sf = $stref->{'Subroutines'}{$f};
@@ -131,30 +132,15 @@ sub refactor_subroutine_signature {
         }
     }
     
-#            for my $var ( @{ $Sf->{'Globals'}{$inc}{'List'} } ) {
-#                if ( not exists $Sf->{'Vars'}{$var} ) {
-#                    $Sf->{'Vars'}{$var} =
-#                      $stref->{'IncludeFiles'}{$inc}{'Vars'}{$var};
-#                }
-#            }
-#            @exglobs = ( @exglobs, @{ $Sf->{'Globals'}{$inc}{'List'} } );
-#    
-
     print "INFO: UsedGlobalVars in $f\n" if $I;
     
     for my $var ( @{ $Sf->{'UsedGlobalVars'}{'List'} } ) {
     	# Check if this var is used in the subroutine
     	if (exists $Sf->{'UndeclaredOrigLocalVars'}{'Set'}{$var}) {
-#    		say $var;
     		say "INFO VAR: $var" if $I;
 			push @exglobs, $var;
-#			carp "SET HasRefactoredArgs for $f";
-			$Sf->{'HasRefactoredArgs'}=1;                         
     	}             
-    	
     }    # for
-
-
     
     # Loop over @exglobs, rename vars that conflict with parameters
     my @nexglobs           = ();
@@ -172,7 +158,6 @@ sub refactor_subroutine_signature {
     my $args_ref = (exists $Sf->{'OrigArgs'}) ? ordered_union( $Sf->{'OrigArgs'}{'List'}, \@nexglobs ) : \@nexglobs;
     $Sf->{'RefactoredArgs'}{'List'} = $args_ref;
     %{ $Sf->{'RefactoredArgs'}{'Set'}} = map {$_ => {'IODir' => 'Unknown'} } @{ $args_ref };
-#    carp "SET HasRefactoredArgs for $f";    
     $Sf->{'HasRefactoredArgs'} = 1;
     
     return $stref;

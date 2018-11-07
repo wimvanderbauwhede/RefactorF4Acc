@@ -6,7 +6,7 @@ use RefactorF4Acc::Config;
 #   
 
 use vars qw( $VERSION );
-$VERSION = "1.1.0";
+$VERSION = "1.1.1";
 
 #use warnings::unused;
 use warnings;
@@ -58,10 +58,12 @@ use Exporter;
 our $BLANK_LINE = ['',{'Blank'=>1,'Ref'=>1}];
 
 # This is a utility function to create references for one set to another. 
-# now we can say e.g.  alias_ordered_set($stref,$f, 'DeclaredOrigArgs', 'RefactoredArgs')
+# now we can say e.g.  alias_ordered_set($stref,$f, 'RefactoredArgs','DeclaredOrigArgs')
 sub alias_ordered_set { (my $stref,my $f,my $alias,my $orig) = @_;
 	$stref->{'Subroutines'}{$f}{$alias}{'Set'}=$stref->{'Subroutines'}{$f}{$orig}{'Set'};
 	$stref->{'Subroutines'}{$f}{$alias}{'List'}=$stref->{'Subroutines'}{$f}{$orig}{'List'};
+    # This is so far only used for RefactoredArgs
+    $stref->{'Subroutines'}{$f}{'Has'.$alias} = 1;
 	return $stref;
 }
 

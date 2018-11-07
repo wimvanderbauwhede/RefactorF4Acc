@@ -1,15 +1,14 @@
 package RefactorF4Acc::RestoreStashedLines;
 
+use RefactorF4Acc::Config; 
+
 # 
 #   (c) 2018- Wim Vanderbauwhede <Wim.Vanderbauwhede@Glasgow.ac.uk>
 #   
 	
 use vars qw( $VERSION );
-<<<<<<< HEAD
-$VERSION = "1.0.0";
-=======
-$VERSION = "1.1.0";
->>>>>>> devel
+
+$VERSION = "1.1.1";
 
 use v5.10;
 use warnings;
@@ -34,11 +33,7 @@ our $VV=1;
 
 sub restore_stashed_lines { my @args = @_;
 	if (!@args) {
-<<<<<<< HEAD
-	    die "$0 path-to-stash-file (probably ../src/stash.pl) optional-output-path (default is ./PostGen\n";
-=======
 	    die "$0 path-to-stash-file/stash.pl (in the sources folder) optional-output-path (default is ./PostGen)\n";
->>>>>>> devel
 	}
 	
 	my $stash_path = $args[0];
@@ -66,7 +61,7 @@ sub replace_stash { (my $stash_src, my $output_path)=@_;
         my $src_file= $src;
         if (not -e $src_file) {
         	my $ren_src_file = $src_file;
-        	$ren_src_file=~s/\.f95/_host.f95/;
+        	$ren_src_file=~s/$EXT/_host$EXT/;
         	print "Could not find source file $src_file, trying with $ren_src_file ... ";
         	if (not -e $ren_src_file) {
         		die "Could not find renamed source file $ren_src_file either, giving up.\n";
@@ -100,8 +95,5 @@ sub replace_stash { (my $stash_src, my $output_path)=@_;
         close $OUT;
     }
 }
-
-
-#map {say $_ } @{  $ref->{'main.f95'}{7188} };
 
 1;

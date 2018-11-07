@@ -5,11 +5,8 @@ package RefactorF4Acc::RunCpp;
 #   
 	
 use vars qw( $VERSION );
-<<<<<<< HEAD
-$VERSION = "1.0.0";
-=======
-$VERSION = "1.1.0";
->>>>>>> devel
+
+$VERSION = "1.1.1";
 
 use v5.10;
 use warnings;
@@ -18,11 +15,8 @@ use strict;
 use Carp;
 use Data::Dumper;
 use Cwd qw( cwd );
-<<<<<<< HEAD
-=======
 use Getopt::Std;
 
->>>>>>> devel
 use RefactorF4Acc::MacroFileToCmdLine qw( macro_file_to_cmd_line_str get_macro_defs_from_file);
 use Exporter;
 
@@ -32,28 +26,11 @@ use Exporter;
     &run_cpp
 );
 
-##!/usr/bin/env perl
-#use v5.10;
-#use warnings;
-#use strict;
-#use Data::Dumper;
-#use Cwd;
-#
-<<<<<<< HEAD
-our $VV=1;
-our $wd=undef;
-#
-#run_cpp(@ARGV);
-
-sub run_cpp { my @args=@_;  
-	$wd=cwd();
-=======
 our $VV=0;
 our $wd=undef;
 our $strip_comments=1;
 our $output_dir = '../PostCPP';
 
-#run_cpp(@ARGV);
 our $usage = <<'ENDH';
 	This script expects a file `macros.h` in the current folder
 	Without arguments, this script will call `cpp` on all files in the current folder and any subfolders (but only one level)
@@ -73,17 +50,10 @@ ENDH
 sub run_cpp { my @args=@_;  
 	$wd=cwd();
 	parse_args(@args);
->>>>>>> devel
 
 	my $single=0;
 	my $single_src='';
 	if (@args) {
-<<<<<<< HEAD
-=======
-#		if (@args == 1 && ($args[0] eq '-h' || $args[0] eq '--help')) {
-#			die $help; 
-#		} 
->>>>>>> devel
 	    $single=1;
 	    $single_src=$args[0];
 	}
@@ -92,10 +62,7 @@ sub run_cpp { my @args=@_;
 	my @defined_macros=();
 	my @undef_macros=();
 	my $no_macros=0;
-<<<<<<< HEAD
-=======
 	my $no_macros_to_skip=0;
->>>>>>> devel
 	my $macros_str='';
 	my $defined_macros_str='';
 	 my $undef_macros_str=''; 
@@ -114,18 +81,6 @@ sub run_cpp { my @args=@_;
 			(my $defined_macros_ref,my $undef_macros_ref)= get_macro_defs_from_file('./macros_to_skip.h');
 			@macros_to_skip=@{ $defined_macros_ref };
 			my @undef_macros= @{ $undef_macros_ref }; # unused		
-<<<<<<< HEAD
-	} elsif ($no_macros) {
-	    die 'Could not find macros.h or macros_to_skip.h';
-	}
-
-	# Processed files go in PostCPP
-	if (not -d "$wd/../PostCPP") {
-	    mkdir "$wd/../PostCPP";
-	}
-	if (not -d "$wd/../PostCPP/PrePostCPP") {
-	    mkdir "$wd/../PostCPP/PrePostCPP";
-=======
 	} else {
 		$no_macros_to_skip=1;
 		if ($no_macros) {
@@ -139,7 +94,6 @@ sub run_cpp { my @args=@_;
 	}
 	if (not -d "$wd/$output_dir/PrePostCPP") {
 	    mkdir "$wd/$output_dir/PrePostCPP";
->>>>>>> devel
 	}
 	
 	my $stash_ref = {};
@@ -159,21 +113,6 @@ sub run_cpp { my @args=@_;
 
 
 	for my $srcdir (@srcdirs) {
-<<<<<<< HEAD
-	    if (not -d "$wd/../PostCPP/$srcdir") {
-	        system("mkdir -p $wd/../PostCPP/$srcdir");
-	    }
-	    if (not -d "$wd/../PostCPP/PrePostCPP/$srcdir") {
-	        system("mkdir -p $wd/../PostCPP/PrePostCPP/$srcdir");
-	    }    
-	    chdir "$wd/$srcdir";
-	
-	    my @srcs = $single ? ( $single_src ) : glob("*.f95");
-	    for my $src (@srcs) {
-	        my $src_path = "$wd/../PostCPP/PrePostCPP/$srcdir/$src";
-	        $stash_ref = stash_lines_to_skip($src,$stash_ref,\@macros_to_skip,$src_path);
-	        my $out_path = $single ? '' : "$wd/../PostCPP/$srcdir/$src";
-=======
 		# Create the current subdirs in ../PostCPP 
 	    if (not -d "$wd/$output_dir/$srcdir") {
 	        system("mkdir -p $wd/$output_dir/$srcdir");
@@ -199,38 +138,24 @@ sub run_cpp { my @args=@_;
 	        
 	        my $out_path = $single ? '' : "$wd/$output_dir/$srcdir/$src";
 	        
-	        
->>>>>>> devel
 	        run_cpp_and_clean_up( $no_macros, $includestr,  $macros_str, $src_path, $out_path );
 	    }
 	    chdir $wd;
 	}
-<<<<<<< HEAD
-	say Dumper($stash_ref) if $VV;
-	open my $STASH, '>', 'stash.pl';
-	print $STASH Dumper($stash_ref);
-	close $STASH;
-=======
 	if (not $no_macros_to_skip) {	
 		say Dumper($stash_ref) if $VV;
 		open my $STASH, '>', 'stash.pl';
 		print $STASH Dumper($stash_ref);
 		close $STASH;
 	}
->>>>>>> devel
 
 } # END of run_cpp()
 #
 sub run_cpp_and_clean_up { (my $no_macros, my $includestr, my $definestr, my $src_path, my $out_path) = @_;
     my $cmd_cpp =  $no_macros ? "cat $src_path " : "cpp -Wno-invalid-pp-token -P  $includestr $definestr -Wno-extra-tokens $src_path ";
     my $redir = $out_path eq '' ? '' : '>';
-<<<<<<< HEAD
-    my $cmd_clean_up = "| grep -v -E '^\\s*\\!\\s*[a-z\#]|^\\s*\$' | perl -p -e 's/^([^\\!]+)\\s*\\!.+\$/\$1/' $redir $out_path";#$wd/../PostCPP/$src_path";
-=======
-    # The grep removes comment lines  (starting with '!')
     # The perl command removes trailing comments 
     my $cmd_clean_up = $strip_comments ? "| grep -v -E '^(?:\\s*\\!\\s*|[cC]\\s+)[a-z\#]|^\\s*\$' | perl -p -e 's/^([^\\!]+)\\s*\\![^\\N{QUOTATION MARK}\\N{APOSTROPHE}]+\$/\$1/' $redir $out_path" : " $redir $out_path";
->>>>>>> devel
 	my $cmd = $cmd_cpp.$cmd_clean_up;
     say $cmd if $VV;
     system( $cmd );  
@@ -316,8 +241,6 @@ sub stash_lines_to_skip { (my $srcfile, my $stash_ref, my $macros_list, my $outp
     return $stash_ref;
 }
 
-<<<<<<< HEAD
-=======
 sub parse_args { 
  	# Argument parsing. Factor out!
  	@ARGV=@_;
@@ -340,5 +263,4 @@ sub parse_args {
     }     
 }
 
->>>>>>> devel
 1;

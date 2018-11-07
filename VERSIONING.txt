@@ -1,0 +1,12 @@
+# Versioning Conventions
+
+* Versions only apply to the master branch
+
+* All versions have a corresponding tag
+
+* The version number reflects the release date:
+
+- 1.1.0: 1 Nov 2018
+- Major version increments each year
+- Minor version increments each quarter
+- Patch version increments inside a quarter, ad-hoc

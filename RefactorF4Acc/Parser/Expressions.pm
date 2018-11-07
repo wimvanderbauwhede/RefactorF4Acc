@@ -8,7 +8,7 @@ use RefactorF4Acc::CallTree qw( add_to_call_tree );
 #
 
 use vars qw( $VERSION );
-$VERSION = "1.1.0";
+$VERSION = "1.1.1";
 
 #use warnings::unused;
 use warnings;
@@ -65,6 +65,8 @@ $VAR1 = [
 # '_dummy_(write(__PH1__,_CONCAT_PRE_,path(numpath+2*_OPEN_PAR_(...', 'HASH(0x7fb906282f70)') called at /Users/wim/Git/RefactorF4Acc/RefactorF4Acc/Parser/Expressions.pm line 144
 # 'write(__PH1__//path(numpath+2*(k-1)+2)(1:len(numpath+2*(k-1)+2))
 #write(*,'(a)') '     '//path(numpath+2*(k-1)+2)(1:len(numpath+2*(k-1)+2))
+# $entry & 0xF = $num
+# where $num =
 #                 0    1    2    3    4    5    6    7    8     9   10   11   12   13   14
 our  @sigils = ( '{', '&', '$', '+', '-', '*', '/', '%', '**', '=', '@', '#', ':' ,'//',')(');
 my %F95_ops =(

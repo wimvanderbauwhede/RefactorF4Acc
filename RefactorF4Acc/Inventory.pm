@@ -6,7 +6,7 @@ use RefactorF4Acc::Config qw ($V $W $UNREAD);
 #   
 
 use vars qw( $VERSION );
-$VERSION = "1.1.0";
+$VERSION = "1.1.1";
 
 use warnings;
 use strict;
@@ -54,7 +54,7 @@ sub find_subroutines_functions_and_includes {
 	# if there is an entry in $Config{EXCL_SRCS} then it is a regex
     my $has_pattern =  scalar @{ $Config{EXCL_SRCS} } > 0 ? 1 : 0;    
     my $excl_srcs_pattern    = @{ $Config{EXCL_SRCS} }>1? join('|', @{ $Config{EXCL_SRCS} }) : @{ $Config{EXCL_SRCS} }==1 ? $Config{EXCL_SRCS}->[0] : '';
-    say     'Exclude pattern: /'.$excl_srcs_pattern.'/' if $V;
+    say     'Exclude pattern: /'. $excl_srcs_pattern.'/' if $V;
 	my $excl_srcs_regex      = qr/$excl_srcs_pattern/;
 	
 	
@@ -308,7 +308,7 @@ sub _process_src {
                  $fstyle='F95'; 
 #                 die $srctype . Dumper( $stref->{'SourceContains'}{$src} ) if $src=~/main/;
                  if (scalar @{ $stref->{'SourceContains'}{$src}{'List'} } == 1) {
-                 	(my $code_unit, $srctype) = each %{ $stref->{'SourceContains'}{$src}{'Set'} };
+                 	(my $code_unit, $srctype) = %{ $stref->{'SourceContains'}{$src}{'Set'} };
 	                $stref->{$srctype}{$code_unit}{'FStyle'}='F95';
     	        	$stref->{$srctype}{$code_unit}{'FreeForm'}=1;                                   	
                  }
