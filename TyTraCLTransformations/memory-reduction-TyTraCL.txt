@@ -1,0 +1,224 @@
+2018-07-27
+
+I realised that smart caching can be useful on GPUs even though we don't stream the calculations. 
+
+The key point is that in Tytra, we assume that the input data is in memory and that for iterative operations we use a double buffer. 
+
+Currently, the LES uses a large number of intermediate arrays which are stored in the global memory. 
+
+I contend that we only need the actual input arrays and we can recompute all the rest from those. So rather than writing back to memory, we store what we need in a smart buffer.
+
+For the LES we have u,v,w,p as inputs, but we actually use:
+
+p (double)
+u,v,w
+usum,vsum,wsum
+f,g,h
+fold,gold,hold
+sm
+rhs
+
+
+So my contention is that we could go from these 16 arrays to only 4 plus 12 smart buffers which only take 3/kp of the space, so in total:
+
+4+12*3/kp = 4.45 for kp=80 so a reduction in memory of 3.6x, so we could go from the current domain size of 300x300 to 568x568
+
+
+However, this requires staging. For example, take the case of the rhs for the SOR. 
+
+This is calculated from p,u,v,w using a reduction, and then the reduced value is subtracted from the original. 
+
+So what we have to do is always recompute rather than store the intermediates in memory. 
+
+Now, let's look at the following:
+
+map : (a -> b) -> Vect n a -> Vect n b
+mapt : (a -> b) -> Tup k a -> Tup k b
+stencil : Tup k Int -> Vect n a -> Vect n (Tup k a)
+
+
+
+s1 : Tup k Int
+f1 : a -> b
+
+stencil s1 (map f1) = map (mapt f1) (stencil s1)
+
+v0 : Vect n a
+f1 : a -> b
+v1 : Vect n b
+
+v1s : Vect n (Tup k b)
+v1 = map f1 v0
+v1s = stencil s1 v1
+
+v0s : Vect (Tup k a)
+v0s = stencil s1 v0
+
+mapt f1 : Tup k a -> Tup k b
+v1s : Vect n (Tup k b)
+v1s = map (mapt f1) v0s 
+
+or
+
+stencil s1 (map f1 v1) = map (mapt f1) (stencil s1 v1)
+
+
+A few other transforms and names
+
+
+applyt (f1,f2) (e1,e2) =\(e1,e2) -> (f1 e1,f2 e2)
+
+zipt (map f1 v1, map f2 v2) = map (applyt (f1,f2)) (zipt (v1, v2))
+
+
+applyt (g1,g2) $ applyt (f1,f2)  = applyt (g1 . f1, g2 . f2)
+
+----
+
+
+How do we implement `stencil` in GPU OpenCL?
+
+    map (mapt f) (stencil s v)
+
+could maybe be written using a stencilmap primitive:
+
+    stencilmap s f v = map (mapt f) (stencil s v)
+
+
+
+The implementation in OpenCL would be for example like this:
+
+for offset_idx in stencil:
+    f(v[idx+offset_idx) 
+   
+Let's try a concrete example:
+
+
+un_s3 = map (mapt (fst . dyn2) ) (stencil s3 (u,v,wet_s2,du_dv))
+un_s4 = map (mapt (snd . dyn2) ) (stencil s3 (u,v,wet_s2,du_dv))
+
+call dyn_map_44(u,du,wet,duu,v,dv,dvv,un,vn)
+
+First we must entirely scalarize this:
+
+    call dyn_map_44(u_j_k,du_j_k,wet_s2,duu,v_j_k,dv_j_k,dvv,un_j_k,vn_j_k)
+
+This corresponds to (u,v,wet_s2,du_dv)) 
+
+The way this is called is by defining e.g.
+
+do s2_idx = 1,size_s2
+  wet_s2(s_idx) = wet(j+s2(s2_idx,1),k+s2(s2_idx,2)) 
+end do
+
+Now, if this routine is to be called with a stencil, then we have to apply the stencil to these definitions:
+do s3_idx = 1,size_s3
+  do s2_idx = 1,size_s2
+     wet_s2_s3(s2_idx) = wet(j+s2(s2_idx,1)+s3(s3_idx,1),k+s2(s2_idx,2)+s3(s3_idx,2)) 
+  end do
+  u_s3=u(j+s3(s_idx,1),j+s3(s_idx,2))
+  ...
+  call dyn_map_44(u_s3,du_s3, wet_s2_s3,duu,v_s3,dv_s3,dvv,un_s3,vn_s3)
+end do
+
+do s4_idx = 1,size_s4
+  do s2_idx = 1,size_s2
+     wet_s2_s4(s2_idx) = wet(j+s2(s2_idx,1)+s4(s4_idx,1),k+s2(s2_idx,2)+s4(s4_idx,2)) 
+  end do
+  u_s4=u(j+s4(s4_idx,1),j+s4(s4_idx,2))
+  ...    
+  call dyn_map_44(u_s4,du_s4,wet_s2_s4,duu,v_s4,dv_s4,dvv,un_s4,vn_s4)
+end do
+
+Main question is, how does this compose?
+
+Let's look at the start of the program 
+
+wet_etan = zipt (wet,etan)
+wet_etan_s1 = stencil s1 wet_etan
+eta_s2 = map (mapt shapiro) (stencil s2 wet_etan_s1)
+
+  shapiro_map_15(wet,eps,etan,eta)
+
+becomes
+do s1_idx=1,size_s1
+  wet_s1(s1_idx) = wet(j+s1(s1_idx,1),k+s1(s1_idx,2))
+  etan_s1(s1_idx) = etan(j+s1(s1_idx,1),k+s1(s1_idx,2))	
+end do
+  eta_0=eta(j,k)
+  shapiro_map_15(wet_s1,eps,etan_s1,eta_0)
+
+Then, as we have a stencilmap s2 we'll get
+
+do s2_idx=1,size_s2
+  do s1_idx=1,size_s1
+    wet_s1(s1_idx) = wet(j+s1(s1_idx,1)+s2(s2_idx,1),k+s1(s1_idx,2)+s2(s2_idx,2))
+    etan_s1(s1_idx) = etan(j+s1(s1_idx,1)+s2(s2_idx,1),k+s1(s1_idx,2)+s2(s2_idx,2))	
+  end do
+  eta_0_s2=eta(j+s2(s2_idx,1),k+s2(s2_idx,2))
+  shapiro_map_15(wet_s1_s2,eps,etan_s1_s2,eta_0_s2)
+  eta_s2(s2_idx) = eta_0_s2
+end do
+
+The next call is
+
+du_dv = map dyn1 eta_s2
+
+Which means that dyn1 needs the stencil for eta_s2, so the do-loop over the stencil must actuall build this stencil
+  call dyn_map_38(dt,g,eta_s2,dx,dy,du_0,dv_0)
+  ! du(j,k) = du_0
+  ! dv(j,k) = dv_0
+  
+Then we call dyn_map_44 which has a partial stencil of wet_s1, wet_s2. 
+
+There is not need actually extract s2 from s1, instead we just apply s2 to wet
+
+  do s2_idx = 1,size_s2
+    wet_s2(s2_idx) = wet(j+s2(s2_idx,1),k+s2(s2_idx,2)) 
+  end do
+
+But this is a stencilmap over s3 and one over s4, the ones from above
+
+un_s3 = map (mapt (fst . dyn2) ) (stencil s3 (u,v,wet_s2,du_dv))
+un_s4 = map (mapt (snd . dyn2) ) (stencil s3 (u,v,wet_s2,du_dv))
+
+
+do s3_idx = 1,size_s3
+  do s2_idx = 1,size_s2
+     wet_s2_s3(s2_idx) = wet(j+s2(s2_idx,1)+s3(s3_idx,1),k+s2(s2_idx,2)+s3(s3_idx,2)) 
+  end do
+  u_0_s3=u(j+s3(s_idx,1),j+s3(s_idx,2))
+  ...
+  call dyn_map_44(u_0_s3,du_0_s3, wet_s2_s3,duu,v_0_s3,dv_0_s3,dvv,un_0_s3,vn_0_s3)
+  un_s3(s3_idx)=un_0_s3
+end do
+
+do s4_idx = 1,size_s4
+  do s2_idx = 1,size_s2
+     wet_s2_s4(s2_idx) = wet(j+s2(s2_idx,1)+s4(s4_idx,1),k+s2(s2_idx,2)+s4(s4_idx,2)) 
+  end do
+  u_0_s4=u(j+s4(s4_idx,1),j+s4(s4_idx,2))
+  ...    
+  call dyn_map_44(u_0_s4,du_0_s4,wet_s2_s4,duu,v_0_s4,dv_s4,dvv,un_0_s4,vn_0_s4)
+  vn_s4(s4_idx)=vn_0_s4
+end do
+
+Then we need to call dyn_map_64, which has an s1 stencil over h
+
+etan' = map dyn3 (un_s3, vn_s4, h_s1, eta)
+
+  do s1_idx = 1,size_s1
+    h_s1(s1_idx) = wet(j+s1(s1_idx,1),k+s1(s1_idx,2)) 
+  end do
+  dyn_map_64(un_s3,h_s1,vn_s4,eta_0,dt,dx,dy,etan_0)
+  etan(j,k)=etan_0
+
+And finally map over vernieuw_map_23 which has no stencils at all
+
+  vernieuw_map_23(hzero_0,eta_0,h_0,hmin,un_0,vn_0,wet_0,u_0,v_0)
+
+  h(j,k) = h_0
+  wet(j,k) = wet_0
+  u(j,k) = u_0
+  v(j,k) = v_0
+
