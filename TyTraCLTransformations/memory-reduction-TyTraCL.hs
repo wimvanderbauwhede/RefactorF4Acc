@@ -1,8 +1,10 @@
 {-# LANGUAGE DeriveDataTypeable #-}
 module Main where
 
+import Control.Monad.State
+
 --import Data.Generics (mkQ, mkT, gmapQ, gmapT, everything, everywhere)
-import Data.Generics (Data, Typeable, mkQ, mkT, gmapQ, gmapT, everything, everywhere, everywhere')
+import Data.Generics (Data, Typeable, mkQ, mkT, mkM, gmapQ, gmapT, everything, everywhere, everywhere', everywhereM)
 
 main = do
     putStrLn "Original AST"
@@ -13,6 +15,9 @@ main = do
     mapM print ast''
     putStrLn "\nApply rewrite rules"
     mapM print ast'''
+--    mapM print map_checks
+    putStrLn "\nDecompose expressions"
+    mapM (mapM print) ast4
 {-    
     putStrLn "\nTest for Vec in RHS Expr"
     mapM (print . get_vec_subexprs . snd) ast''
@@ -59,28 +64,34 @@ main = do
 
 type Name = String
 data VE = VI  | VO  | VS  | VT deriving (Show, Typeable, Data, Eq)
+    
 type AST = [(Expr,Expr)]                      
 
 data Expr =
         -- Left-hand side:
                       Scalar Name
-                    | Const Int  
-                    | Tuple [Expr]
-                    | Vec VE Name
+                    | Const Int -- bb: IntLit Integer
+                    | Tuple [Expr] --  bb: Tup [Expr]
+                    | Vec VE Name -- bb: Var Name, type via cofree comonad, but VE info is not there
 
         -- Right-hand side:
-                    | SVec Int Name
-                    | ZipT [Expr] 
-                    | UnzipT Expr
-                    | Elt Int Expr
-                    | PElt Int
-                    | Map Expr Expr
-                    | Fold Expr Expr Expr
-                    | Stencil Expr Expr 
-                    | Function Name 
-                    | ApplyT [Expr]  
-                    | MapS Expr
-                    | Comp Expr Expr
+                    | SVec Int Name -- bb: SVec [Expr] -> to get a name, use a Let
+                    | ZipT [Expr] -- bb: App Zip (Tup  [...])
+                    | UnzipT Expr -- bb: App Unzip (vec of tuples)
+                    | Elt Int Expr -- bb: App (Select Integer) Tup
+                    | PElt Int -- bb does not need this
+                    | Map Expr Expr -- bb: App (Map Expr) Expr
+                    | Fold Expr Expr Expr -- bb: App (Fold (App action acc) Expr
+                    | Stencil Expr Expr -- bb uses App : App (Stencil (SVec [IntLit])) vector
+                    | Function Name -- bb: uses Var Name with a function type
+                    | Id -- bb has Id 
+                    | Mu Expr Expr -- \a e -> g a (f e) -- of course bb does not have this, no need
+                    | ApplyT [Expr]  -- bb: App FTup [Expr]
+                    | MapS Expr -- bb does not have this, not needed
+                    | Comp Expr Expr -- bb does not have this, not needed
+                    -- | bb has Let Expr Expr
+                    -- | bb has App Expr Expr to apply and Expr to an Expr
+                    -- bb has Split, Merge and Par which I don't need
                         deriving (Show, Typeable, Data, Eq)
 
         -- Initially, all RHS nodes will be Map, Fold or Stencil.
@@ -92,12 +103,12 @@ ast = [
           ,(Vec VS "eta_s_0", Stencil (SVec 3 "s3") (Vec VO "eta_1"))
           ,((Tuple [Vec VO "du_1", Vec VO "dv_1"]) , UnzipT (Map (Function "dyn_map_38 (dt_0,g_0,dx_0,dy_0)") (Vec VS "eta_s_0") ) )
           ,(Vec VS "wet_s_1", Stencil (SVec 3 "s4") (Vec VI "wet_0"))
-          ,(Tuple [Vec VT "duu_1",Vec VT "dvv_1",Vec VO "un_1",Vec VO "vn_1"] , Map (Function "dyn_map_44 (duu_0,dvv_0)") (ZipT [Vec VI "u_0",Vec VO "du_1",Vec VS "wet_s_1",Vec VI "v_0",Vec VO "dv_1"]))
+          ,(Tuple [Vec VT "duu_1",Vec VT "dvv_1",Vec VO "un_1",Vec VO "vn_1"] , UnzipT (Map (Function "dyn_map_44 (duu_0,dvv_0)") (ZipT [Vec VI "u_0",Vec VO "du_1",Vec VS "wet_s_1",Vec VI "v_0",Vec VO "dv_1"])) )
           ,(Vec VS "vn_s_0" , Stencil (SVec 2 "s5") (Vec VO "vn_1"))
           ,(Vec VS "un_s_0" , Stencil (SVec 2 "s6") (Vec VO "un_1"))
           ,(Vec VS "h_s_0" , Stencil (SVec 5 "s7") (Vec VI "h_0"))
           ,(Vec VO "etan_1" , Map (Function "dyn_map_64 (dt_0,dx_0,dy_0)") (ZipT [Vec VS "un_s_0",Vec VS "h_s_0",Vec VS "vn_s_0",Vec VS "eta_s_0"]))
-          ,(Tuple [Vec VO "h_1",Vec VO "u_1",Vec VO "v_1",Vec VO "wet_1"] , Map (Function "vernieuw_map_23 hmin_0") (ZipT [Vec VI "hzero_0",Vec VS "eta_s_0",Vec VS "h_s_0",Vec VS "un_s_0",Vec VS "vn_s_0"]))
+          ,(Tuple [Vec VO "h_1",Vec VO "u_1",Vec VO "v_1",Vec VO "wet_1"] , UnzipT (Map (Function "vernieuw_map_23 hmin_0") (ZipT [Vec VI "hzero_0",Vec VS "eta_s_0",Vec VS "h_s_0",Vec VS "un_s_0",Vec VS "vn_s_0"])))
        ]
 
 -- 1.  Replace all LHS _Tuple_ occurences with multiple expressions using _Elt_ on the RHS. As a result, the LHS will be purely _Vec_. 
@@ -261,7 +272,7 @@ reduce_subtree expr = case expr of
     
 -- With this preparation I guess we are ready for the actual rewrites:
 --
-rewrite_ast_into_single_map ast = everywhere (mkT rewrite_ast_sub_expr) ast
+rewrite_ast_expr ast = everywhere (mkT rewrite_ast_sub_expr) ast
 
 {-
 Rewrite rules
@@ -274,7 +285,7 @@ Rewrite rules
 4.
     applyt (g_1,g_2) $ applyt (f_1,f_2)  = applyt (g_1 . f_1, g_2 . f_2)
 5.
-    (elt i) . unzipt . (map f (zipt (...,v_i,...))) = map ((elt i) . f) (zipt (...,v_i,...))
+    (elt i) . unzipt . (map f exprs) = map ((elt i) . f) exprs
 6.
     stencil s_1 (map f_1) = map (maps f_1) (stencil s_1)
 -}
@@ -295,10 +306,18 @@ rewrite_ast_sub_expr expr = case expr of
                 then ZipT (map rewriteId es) 
                 else expr
     -- 5.                
-    Elt i_expr (UnzipT (Map f_expr (ZipT es))) -> Map (Comp (PElt i_expr) f_expr) (ZipT es)
+    Elt i_expr (UnzipT (Map f_expr exprs)) -> Map (Comp (PElt i_expr) f_expr) exprs
     _ -> expr
 
-ast''' = map (\(lhs,rhs) -> (lhs,rewrite_ast_into_single_map rhs)) ast''
+{- This needs to be done repeatedly until a fixpoint is reached    
+ Fixpoint is reached when there is only a single Map expression
+
+
+-}
+ast''' = map (\(lhs,rhs) -> (lhs,rewrite_ast_into_single_map 0 rhs)) ast''
+-- ast''' = map (\(lhs,rhs) -> (lhs,rewrite_ast_into_single_map rhs)) ast''
+--
+map_checks = filter (/=0) $ map  (\(lhs,rhs) -> n_map_subexprs rhs) ast''' 
 
 isMap expr = case expr of
     Map _ _ -> True
@@ -312,6 +331,94 @@ rewriteZipTMap es =  let
         Map (ApplyT f_s) (ZipT v_s)
 
 rewriteId expr =  case expr of
-    Vec vt n -> Map (Function "id") expr
+    Vec vt n -> Map Id expr
+    Stencil _ (Vec _ _) -> Map Id expr
     _ -> expr
+
+
+get_map :: Expr -> [Expr]
+get_map m@(Map _ _) = [m]
+get_map _ = []
+
+n_map_subexprs :: Expr -> Int
+n_map_subexprs expr = length (everything (++) (mkQ [] get_map) expr) 
+
+-- This only works if the rules eliminate all maps
+-- I also want to check if the number did not change anymore
+has_map_subexprs :: Expr ->  Int
+has_map_subexprs expr = length (everything (++) (mkQ [] get_map) expr) -- > 1
+
+rewrite_ast_into_single_map :: Int -> Expr -> Expr
+rewrite_ast_into_single_map count exp = 
+    let 
+        count' = count+1
+        map_count = has_map_subexprs exp 
+    in
+        if map_count > 1 -- && count < 100
+            then 
+                let
+                    exp' = rewrite_ast_expr exp
+                in
+                    rewrite_ast_into_single_map count' exp'
+            else
+                exp            
+                -- if map_count == 1 then (Scalar "Done") else exp
+
+
+{-
+The additional complexity is to rewrite the result in such a way that I can emit
+Fortran from it.    
+
+-}    
+
+{-
+First decompose the expressions
+-}
+
+subsitute_expr :: String -> Expr -> State (Int,[(Expr,Expr)]) Expr
+subsitute_expr vec_name exp = do
+            (ct,var_expr_pairs) <- get
+            let ((ct',var_expr_pairs'),exp') = case exp of
+                      Scalar _ -> ((ct,var_expr_pairs),exp)
+                      Const _ -> ((ct,var_expr_pairs),exp)
+                      Tuple _ -> ((ct,var_expr_pairs),exp)
+                      Vec _ _ -> ((ct,var_expr_pairs),exp)
+                      Id -> ((ct,var_expr_pairs),exp)
+                      Function _ -> ((ct,var_expr_pairs),exp)
+                      SVec _ _ -> ((ct,var_expr_pairs),exp)
+                      PElt _ -> ((ct,var_expr_pairs),exp)
+                      Map _ _ -> ((ct,var_expr_pairs),exp)
+                      MapS _ -> let
+                            var = Function ("exp_"++vec_name++"_"++(show ct))
+                        in
+                            ((ct+1,var_expr_pairs++[(var,exp)]),var)
+                      ApplyT _ -> let
+                            var = Function ("exp_"++vec_name++"_"++(show ct))
+                        in
+                            ((ct+1,var_expr_pairs++[(var,exp)]),var)
+                      Comp _ _ -> let
+                            var = Function ("exp_"++vec_name++"_"++(show ct))
+                        in
+                            ((ct+1,var_expr_pairs++[(var,exp)]),var)
+                      Stencil (SVec n _) _ -> let
+                            var = SVec n ("exp_"++vec_name++"_"++(show ct))
+                        in
+                            ((ct+1,var_expr_pairs++[(var,exp)]),var)
+                      _ -> let
+                              var = Vec VT ("exp_"++vec_name++"_"++(show ct))
+                           in
+                             ((ct+1,var_expr_pairs++[(var,exp)]),var)
+            put (ct',var_expr_pairs')
+            return exp'
+
+subsitute_exprs :: Expr -> Expr -> [(Expr,Expr)]
+subsitute_exprs ast vec = let
+        Vec VO vec_name = vec
+        (ast',(ct,var_expr_pairs)) = runState (everywhereM (mkM (subsitute_expr vec_name)) ast) (0,[])
+    in 
+       var_expr_pairs ++ [ (vec,ast') ]
+
+-- This returns the decomposed expressions. Better names are needed!       
+ast4 = map (\(lhs,rhs) -> (subsitute_exprs rhs lhs )) ast'''
+
 
