@@ -1,3 +1,5 @@
+[![DOI](http://joss.theoj.org/papers/10.21105/joss.00865/status.svg)](https://doi.org/10.21105/joss.00865)
+
 # The Glasgow Fortran Source-to-Source Compiler
 
 An Automated Fortran Code Refactoring Tool to Facilitate Acceleration of Numerical Simulations
