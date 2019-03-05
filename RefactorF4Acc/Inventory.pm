@@ -432,7 +432,7 @@ sub _process_src {
             };
             
             # Find include statements
-            $line =~ /^\s*\#?include\s+[\"\']([\w\.]+)[\"\']/ && do {
+            $line =~ /^\s*\#?include\s+[\"\']([\w\.]+)[\"\']/i && do {
                 my $inc = $1;       
                 say "FOUND include $inc in $src" if $V;
                 # What we should do now is go and find this file!       

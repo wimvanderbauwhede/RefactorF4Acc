@@ -586,7 +586,10 @@ sub create_refactored_source {
 					 		my $ph_str = $info->{'PlaceHolders'}{$ph};
 					 		$ph_str=~s/\)/\\\)/g;
 					 		$ph_str=~s/\(/\\\(/g;
+					 		$ph_str=~s/\]/\\\]/g;
+                            $ph_str=~s/\[/\\\[/g;
 					 		$ph_str=~s/\*/\\\*/g;
+#					 		say "s/$ph_str/$ph/";
 					 		$ph_line=~s/$ph_str/$ph/;
 					 	}
 					 	$line_without_comment = $ph_line;

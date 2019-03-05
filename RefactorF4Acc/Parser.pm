@@ -834,7 +834,9 @@ VIRTUAL
 							push @{ $Sf->{'DeclaredCommonVars'}{'List'} }, $var;
 						} else {
 							my $subset = in_nested_set( $Sf, 'Vars', $var );
-							croak "SHOULD BE IMPOSSIBLE!  $var in $subset in $f: $line".Dumper( $Sf->{$subset}{'Set'}{$var} );
+							if ($subset ne 'DeclaredCommonVars') {
+							    croak "SHOULD BE IMPOSSIBLE!  $var in $subset in $f: $line".Dumper( $Sf->{$subset}{'Set'}{$var} );
+							}
 						}						
 					}
 #					croak Dumper($Sf->{'DeclaredCommonVars'}{'Set'}{'alat'}) if $f eq 'atmos' and $var eq 'alat';
@@ -4137,17 +4139,19 @@ sub _parse_read_write_print {
 #	say "TLINE2: <$tline>" ;
 	my @exprs = _parse_comma_sep_expr_list($tline);
 
-	#croak Dumper(@exprs) if $f eq 'plumetraj' and $tline=~/ireleasestart/;
+#	croak Dumper(@exprs) if $tline=~/\(ratom\(/;
 	$info->{'CallArgs'} = { 'List' => [], 'Set' => {} };
 	$info->{'ExprVars'} = { 'List' => [], 'Set' => {} };
 	for my $tline (@exprs) {
 
 		$tline =~ s/\(,/(/g; 
 		$tline =~ s/,\)/)/g;
+		
 		if ( $tline !~ /^\s*$/ ) {
 			if ( $tline =~ /^\(/ ) {
 				# If an argument is ( ... ) it means we only have Vars
-				if ( $tline =~ /=/ ) { # must be an implied do				
+				if ( $tline =~ /=/ ) { # must be an implied do		
+#				croak $tline if $tline=~/\(ratom\(/;		
 					 # If it's an implied do, we should identify the arguments
 					my @args     = ();
 					my @vars     = ();
@@ -4159,29 +4163,38 @@ sub _parse_read_write_print {
 	# (atomname(iprot,sczid(iprot,ires,i)),i=1,nscatoms(iprot,ires)) is fine
 #	say "TLINE:<$tline>";
 					while ( $tline ne '' ) {
-#						say "TLINE (before): '$tline'" if $tline=~/nscatoms.iprot/;
+#						say "TLINE (before): '$tline'";#  if $tline=~/\(ratom\(/;;
 						# If the line matches an opening paren
 						if ($tline =~/^\(/) {
 							# remove it
 							$tline =~ s/^\(//;
 							# test for a closing paren
 							if ($tline =~/\)$/) {
-								# remove it
-								$tline =~ s/\)$//;# This is WEAK!
+								# remove it if there is now an extra one
+                                my $n_open_pars = () = $tline =~ /\(/g;
+                                my $n_close_pars = () = $tline =~ /\)/g;
+                                if ($n_close_pars == $n_open_pars+1) {
+								    $tline =~ s/\)$//;# This is WEAK!
+                                }
 							}
 						}
-#						say "TLINE  (after): '$tline'" if $tline=~/nscatoms.iprot/;
+#						say "TLINE  (after): '$tline'";# if $tline=~/^ratom\(/;
 						last if $tline eq '';
 						( my $arg, my $rest ) = _parse_array_access_or_function_call($tline,0);
-#						say "ARG: $arg REST: $rest" if $tline=~/nscatoms.iprot/;
+#						say "ARG: $arg REST: $rest";# if $tline=~/^ratom\(/;
 						if ( $arg =~ /=/ ) {
 							( my $lhs, my $rhs ) = split( /=/, $arg );
 							push @vars, $lhs;
 							push @vars, $rhs;
 							$in_range = 1;
-						} elsif ($in_range) {							
-							$arg =~ s/\)$//;    # This is WEAK!
-#							say "TLINE: BOOM! $tline => ARG $arg" if $tline=~/nscatoms.iprot/;
+						} elsif ($in_range) {						
+							 my $n_open_pars = () = $arg =~ /\(/g;
+							 my $n_close_pars = () = $arg =~ /\)/g;
+#							 say "$n_open_pars $n_close_pars";	
+							 if ($n_close_pars == $n_open_pars+1) {
+							     $arg =~ s/\)$//;    # This is WEAK! This should only be if the parens are not matched
+							 }
+#							say "TLINE: BOOM! $tline => ARG $arg";# if $tline=~/^ratom\(/;
 							push @vars, $arg;
 						} else {
 							push @args, $arg;
@@ -4189,7 +4202,8 @@ sub _parse_read_write_print {
 						$rest =~ s/,//;
 						$tline = $rest;
 					}
-#					say Dumper(@vars);
+					
+#					say 'VARS:',Dumper(@vars);
 					my $fake_range_expr = 'range(' . join( ',', @vars ) . ')';
 #					say "RANGE:<$fake_range_expr>" ;
 					my $ast = parse_expression( $fake_range_expr, $info, $stref, $f );
@@ -4726,8 +4740,11 @@ sub  _get_var_from_ast { (my  $ast ) = @_;
 			$var= $ast->[1];
 		} elsif ( ($ast->[0] & 0xF) == 10) {
 			$var= $ast->[1];
+        } elsif ( ($ast->[0] & 0xF) == 1) {
+        	warn "Variable $var is masking an intrinsic!";
+            $var= $ast->[1];			
 		} else {
-			croak Dumper($ast);
+			croak ($ast->[0] & 0xF).': '.Dumper($ast);
 		}
 	}
 	return $var;
@@ -4798,7 +4815,7 @@ sub _get_dim_from_ast { (my  $ast ) = @_;
 	} else {
 		if(($ast->[0] & 0xF) == 2) {
 			# no dim
-		} elsif (($ast->[0] & 0xF) ==10) {
+		} elsif (($ast->[0] & 0xF) == 10) {
 			for my $pdim_idx (2 .. @{$ast}-1) {
 				my $pdim = $ast->[$pdim_idx];
 				if (ref($pdim) eq 'ARRAY') {
@@ -4813,6 +4830,22 @@ sub _get_dim_from_ast { (my  $ast ) = @_;
 					push @{$dim}, [$dim_start ,$dim_stop ];					
 				}
 			}
+        } elsif (($ast->[0] & 0xF) == 1) {
+        	warn "Dim for variable masking an intrinsic";
+            for my $pdim_idx (2 .. @{$ast}-1) {
+                my $pdim = $ast->[$pdim_idx];
+                if (ref($pdim) eq 'ARRAY') {
+                    if (($pdim->[0] & 0x0F) == 12) {# eq ':'                        
+                        my $dim_start = emit_expression($pdim->[1],'');
+                        my $dim_stop = emit_expression($pdim->[2],'');
+                        push @{$dim}, [$dim_start ,$dim_stop ]; 
+                    }
+                } else { # must be a scalar
+                    my $dim_start = 1;
+                    my $dim_stop = emit_expression($pdim,'');
+                    push @{$dim}, [$dim_start ,$dim_stop ];                 
+                }
+            }			
 		} else {
 			croak Dumper($ast);
 		}	
