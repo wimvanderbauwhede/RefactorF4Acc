@@ -213,7 +213,7 @@ sub _process_src {
 #             $line =~ /^\s*\*/ && next;
 #             $line =~ /^\s*[CcDd]\W/ && next;
         # Tests for free or fixed form
-        if ($free_form==0) {
+        if ($free_form==0) { 
         	# Get 6 cols
         	my $cols1to6 = substr($line,0,6);
         	# FIXME: HACK: change TAB to 4 spaces
@@ -303,7 +303,7 @@ sub _process_src {
             if ( $line =~ /^\s*end\s+(?:module|program)/i ) { 
             	$in_contains=0;
             }
-        if ($fstyle eq 'F77') {            
+        if ($fstyle eq 'F77') {    
             if ( $line =~ /^\s*(.*)\s*::\s*(.*?)\s*$/ ) {
                  $fstyle='F95'; 
 #                 die $srctype . Dumper( $stref->{'SourceContains'}{$src} ) if $src=~/main/;
@@ -324,7 +324,7 @@ sub _process_src {
             $in_interface_block=0;
         }
         
-        
+        #say "LINE: $line";
             # Find subroutine/function/program signatures
             
            $line =~ /^\s*(\w+\s+\w+\s+(?:function|subroutine|entry)|\w+\s+(?:subroutine|entry)|[\*\(\)\w]+\s+function|function|subroutine|entry|program|block)\s+(\w+)/i && $line!~/\Wend\s+/i && $line!~/^end\s+/i && do {           	
@@ -432,7 +432,7 @@ sub _process_src {
             };
             
             # Find include statements
-            $line =~ /^\s*\#?include\s+[\"\']([\w\.]+)[\"\']/ && do {
+            $line =~ /^\s*\#?include\s+[\"\']([\w\.]+)[\"\']/i && do {
                 my $inc = $1;       
                 say "FOUND include $inc in $src" if $V;
                 # What we should do now is go and find this file!       

@@ -835,7 +835,11 @@ VIRTUAL
 							push @{ $Sf->{'DeclaredCommonVars'}{'List'} }, $var;
 						} else {
 							my $subset = in_nested_set( $Sf, 'Vars', $var );
-							croak "SHOULD BE IMPOSSIBLE!  $var in $subset in $f: $line".Dumper( $Sf->{$subset}{'Set'}{$var} );
+                            # It is possible that the include file was included multiple times, so the variable could already
+                            # have been declared as DeclaredCommonVars. In that case, we do nothing.
+                            if ($subset ne 'DeclaredCommonVars') {
+							    croak "SHOULD BE IMPOSSIBLE!  $var in $subset in $f: $line".Dumper( $Sf->{$subset}{'Set'}{$var} );
+                            } 
 						}						
 					}
 #					croak Dumper($Sf->{'DeclaredCommonVars'}{'Set'}{'alat'}) if $f eq 'atmos' and $var eq 'alat';
@@ -4056,7 +4060,7 @@ sub _identify_loops_breaks {
 # -----------------------------------------------------------------------------
 sub _parse_read_write_print {
 	( my $line, my $info, my $stref, my $f ) = @_;
-	
+	say "_parse_read_write_print( '$line' )" if $V;
 #	die "<$line>" if $line=~/write.printstring.+rmin.+rmax/i;
 	my $sub_or_func = sub_func_incl_mod( $f, $stref );
 	my $Sf          = $stref->{$sub_or_func}{$f};
@@ -4089,7 +4093,9 @@ sub _parse_read_write_print {
 		#
 		$matched_str =~ s/^\w+\(//;
 		$matched_str =~ s/\)$//;
-#		say "$line => <$matched_str><$rest>" if $tline=~/read/;
+#		if ($tline=~/99009.+ratom/) {
+#		say "$line => <$matched_str><$rest>" ;die;
+#		}
 		my @call_attrs = _parse_comma_sep_expr_list($matched_str);
 
 		for my $call_attr (@call_attrs) {
