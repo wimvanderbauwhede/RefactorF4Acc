@@ -36,7 +36,6 @@ sub refactor_include_files {
 			print "\nREFACTORING INCLUDE FILE $inc_f\n" if $V;
 			$stref = _refactor_include_file( $inc_f, $stref );
 	}
-	
 	return $stref;
 } # END of refactor_include_files()
 
@@ -45,7 +44,7 @@ sub refactor_include_files {
 sub _refactor_include_file {
 	( my $inc_f, my $stref ) = @_; 
 
-	print "\n\n", '#' x 80, "\nRefactoring INC $inc_f\n", '#' x 80, "\n" if $V;
+	print "\n\n", '#' x 80, "\nRefactoring INC $inc_f\n", '#' x 80, "\n" if $V; 
 	
 	my $If = $stref->{'IncludeFiles'}{$inc_f};
 	my $inc_ff=$inc_f;
@@ -54,6 +53,7 @@ sub _refactor_include_file {
 	if ($stref->{'IncludeFiles'}{$inc_f}{'InclType'} eq 'Parameter') {
 		$stref->{'BuildSources'}{'F'}{$inc_ff.$EXT}=1;
 	}
+    
     if (   not exists $If->{'RefactoredCode'}
         or $If->{'RefactoredCode'} == []
         or exists $stref->{'BuildSources'}{'C'}{ $If->{'Source'} } ) # FIXME: needed?
@@ -160,9 +160,9 @@ sub _refactor_include_file {
         }
         unshift @{ $refactored_lines },$inc_firstline;
      $stref->{'IncludeFiles'}{$inc_f}{'RefactoredCode'}  = $refactored_lines;
-# 	if ($inc_f=~/^common/)  {
+# 	if ($inc_f=~/params_/)  {
 #	    print Dumper($refactored_lines);
-#	    die;
+#	    croak;
 #	}
                    
 	return $stref;

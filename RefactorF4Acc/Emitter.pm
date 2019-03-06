@@ -47,34 +47,14 @@ sub _init_emit_all { (my $stref) = @_;
         	}
         }        
     	
-    	
-    	
     	# Remove existing Fortran-95 sources
-#        my @oldsrcs = glob("$targetdir/*".$EXT);        
-#        map { unlink $_ } @oldsrcs;
 		__remove_previously_generated_f95_sources($stref);
-        # Check if includes have changed
-        # WV: This is rididiculous because it only works for include files of pattern "include*"
-        # I should instead test all include files in the tree, FIXME!
-#        my @incs = glob('include*');
-#        for my $inc (@incs) {
-#            open( my $OLD, $inc );
-#            binmode($OLD);
-#            open( my $NEW, $inc );
-#            binmode($NEW);
-#            if ( Digest::MD5->new->addfile($OLD)->hexdigest ne
-#                Digest::MD5->new->addfile($NEW)->hexdigest )
-#            {
-#                copy( $inc, "$targetdir/$inc" );
-#            }
-#            close $OLD;
-#            close $NEW;
-#        }
     }    
 }
 # -----------------------------------------------------------------------------
 sub _emit_refactored_include {
     ( my $f, my $dir, my $stref ) = @_;    
+    say "INCLUDE: $f" if $I;
     my $srcref = $stref->{'IncludeFiles'}{$f}{'RefactoredCode'};
     my $incsrc=$stref->{'IncludeFiles'}{$f}{'Source'};
     
@@ -125,22 +105,12 @@ sub emit_all {
         print "INFO: emitting refactored code for $src\n" if $I;
         if (not $DUMMY) {
 	        if ( $src =~ /\w\/\w/ ) {
-#	        	say "SRC in SUBDIR: $src";    
 	            # Source resides in subdirectory, create it if required
 	            my @dirs = split( /\//, $src );
-#	            say Dumper(@dirs);
 	            my @subdirs = grep {$_!~/\./} @dirs;
 	            my $dirpath=join('/',@subdirs);
 	            
-#	            say "MKDIR $targetdir/$dirpath";
-#	            die `pwd`;
 	            system("mkdir -p $targetdir/$dirpath");
-#	            map {
-#	                my $targetdir = $_;
-#	                if ( not -e $targetdir ) {
-#	                    mkdir $targetdir;													                    
-#	                }
-#	            } @dirs;
 	        }
         }
 	   if ($I) {            
@@ -154,8 +124,7 @@ sub emit_all {
                 and not exists $stref->{'BuildSources'}{'F'}{$src} ) {                	
 #                	say "Emitter: ADD $src to BuildSources";
             $stref->{'BuildSources'}{'F'}{$src} = 1;
-        }        
-        
+        }                
 
 		my $nsrc=$src;
 		if (exists $stref->{'BuildSources'}{'F'}{$src} ) {
@@ -166,10 +135,9 @@ sub emit_all {
 			say '! '.('=' x 80);
             say "! FILE: $targetdir/$nsrc ($src)";
             say '! '.('=' x 80);
-#            croak Dumper($stref->{Subroutines}{press}{RefactoredCode}) if $src=~/press/;
         	show_annlines($stref->{'RefactoredCode'}{$src},0);
         } else {
-#        	say "! FILE: $targetdir/$nsrc ($src)";
+
 			open my $TGT, '>', "$targetdir/$nsrc" or die $!.": $targetdir/$nsrc";
 			
 			my $mod_lines = $stref->{'RefactoredCode'}{$src};
@@ -193,14 +161,17 @@ sub emit_all {
         }
 	} # loop over all source files
     
-    for my $f ( keys %{ $stref->{'IncludeFiles'} } ) {
-    	if ($f=~/\.(\w+)$/) {
-    		my $inc_ext = $1;
-    		if ($inc_ext ne $EXT) {
-#    			say "$inc_ext ne $EXT";
-    			next;
-    		}
-    	}
+    
+    for my $f ( keys %{ $stref->{'IncludeFiles'} } ) { 
+#    	if ($f=~/\.(\w+)$/) {
+#    		my $inc_ext = $1;
+#    		if ($inc_ext ne $EXT) {
+##    			say "$inc_ext ne $EXT";die;
+##    			$f=~s/\./_/;
+##    			$f.=$EXT;
+##    			next;
+#    		}
+#    	}
         if ($I) {
         print "! "."=" x 80,"\n";
         print "! INCLUDE FILE: $f\n";
