@@ -2472,6 +2472,7 @@ sub _parse_implicit {
 sub __separate_into_blocks {
 	( my $stref, my $blocksref, my $f ) = @_;
 	my $sub_or_func_or_mod = sub_func_incl_mod( $f, $stref );    # This is not a misnomer as it can also be a module.
+	say "$sub_or_func_or_mod $f";
 	my $Sf       = $stref->{$sub_or_func_or_mod}{$f};
 	my $srcref   = $Sf->{'AnnLines'};
 	my $in_block = 0;
@@ -4160,9 +4161,20 @@ sub _parse_read_write_print {
 	# atomname(iprot,sczid(iprot,ires,i)),i=1,nscatoms(iprot,ires)
 	# (atomname(iprot,sczid(iprot,ires,i)),i=1,nscatoms(iprot,ires)) is fine
 	# (atomname(iprot,sczid(iprot,ires,i)),i=1,nscatoms(iprot,ires)) is fine
-#	say "TLINE:<$tline>";
+#	say "\nSTART: TLINE:<$tline>";
+=info_parser
+The code below does the following:
+- It removes any opening paren, and if the parens are balanced, also the closing one
+- Then it tries to parse something of the form (arg1,arg2,...)rest ans stops as soon as this doesn't match. If the expression is arg1,arg2)rest then it stops at the comma.
+- Because we removed the opening paren, effectively this results in anything up to the first comma.
+- If this contains '=' we split and assume both lhs and rhs are variables and that we are in an implicit do
+- If we are in the implicit do but not the first arg, we remove parens and add this to the variables
+- If it is not an implicit do then it is actually the array that is being iterated, this goes into @args
+- We remove any leading comma from rest and do this again until nothing is left
+- The result is a that @var contains the range expressions for the implicit do, so that we can parse this separately, and @args contains variable expressions parsed in the normal way
+=cut	
 					while ( $tline ne '' ) {
-#						say "TLINE (before): '$tline'";#  if $tline=~/\(ratom\(/;;
+#						say "TLINE (before): '$tline'";
 						# If the line matches an opening paren
 						if ($tline =~/^\(/) {
 							# remove it
@@ -4177,10 +4189,10 @@ sub _parse_read_write_print {
                                 }
 							}
 						}
-#						say "TLINE  (after): '$tline'";# if $tline=~/^ratom\(/;
+#						say "TLINE  (after): '$tline'";
 						last if $tline eq '';
 						( my $arg, my $rest ) = _parse_array_access_or_function_call($tline,0);
-#						say "ARG: $arg REST: $rest";# if $tline=~/^ratom\(/;
+#						say "ARG: <$arg> REST: <$rest>";
 						if ( $arg =~ /=/ ) {
 							( my $lhs, my $rhs ) = split( /=/, $arg );
 							push @vars, $lhs;
@@ -4193,15 +4205,15 @@ sub _parse_read_write_print {
 							 if ($n_close_pars == $n_open_pars+1) {
 							     $arg =~ s/\)$//;    # This is WEAK! This should only be if the parens are not matched
 							 }
-#							say "TLINE: BOOM! $tline => ARG $arg";# if $tline=~/^ratom\(/;
+#							say "TLINE: BOOM! $tline => ARG $arg";
 							push @vars, $arg;
 						} else {
-							push @args, $arg;
+							push @args, $arg unless $arg eq '';
 						}
-						$rest =~ s/,//;
+						$rest =~ s/^,//;
 						$tline = $rest;
 					}
-					
+#					say 'ARGS:',Dumper(@args);
 #					say 'VARS:',Dumper(@vars);
 					my $fake_range_expr = 'range(' . join( ',', @vars ) . ')';
 #					say "RANGE:<$fake_range_expr>" ;
@@ -4213,6 +4225,7 @@ sub _parse_read_write_print {
 					};
 
 					for my $mvar (@args) {
+#						say "MVAR: $mvar";
 						next if $mvar eq '';
 						next if $mvar =~ /^\d+$/;
 						next if $mvar =~ /^(\-?(?:\d+|\d*\.\d*)(?:[edq][\-\+]?\d+)?)$/;
@@ -4263,7 +4276,7 @@ sub _parse_read_write_print {
 		}
 	}
 
-
+#say Dumper($info);
 	return $info;
 }    # END of _parse_read_write_print()
 
