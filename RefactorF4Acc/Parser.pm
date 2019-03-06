@@ -2289,7 +2289,6 @@ sub f77_var_decl_parser {
 sub __split_out_parameters {
 	( my $f, my $stref ) = @_;
 	my $Sf = $stref->{'IncludeFiles'}{$f};
-
 	my $srcref      = $Sf->{'AnnLines'};	
 	my $param_lines = [];
 	my $nsrcref     = [];
@@ -2305,7 +2304,7 @@ sub __split_out_parameters {
 		$nindex = $index + $nidx_offset;
 		my $line = $srcref->[$index][0];
 		my $info = $srcref->[$index][1];
-		if ( exists $info->{'ParamDecl'} ) {
+		if ( exists $info->{'ParamDecl'} ) { 
 	    # split out parameters from 'Common' include file			
 			push @{$param_lines}, [ $line, { 'ParamDecl' => { %{ $info->{'ParamDecl'} } } } ];
 			delete $srcref->[$index][1] {'ParamDecl'};  

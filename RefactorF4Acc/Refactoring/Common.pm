@@ -235,7 +235,7 @@ sub context_free_refactorings {
         }
         
         if ( exists $info->{'PlaceHolders'} ) { 
-
+# Here we put the strings back in place of the placeholders
 			while ($line =~ /(__PH\d+__)/) {
 				my $ph=$1;
 				my $ph_str = $info->{'PlaceHolders'}{$ph};
@@ -553,34 +553,26 @@ sub context_free_refactorings {
 sub create_refactored_source {
     ( my $stref, my $f, my $annlines, ) = @_;
     my $refactored_lines = [];
-#    say "CALL to create_refactored_source($f)";
+
     for my $annline ( @{$annlines} ) {
 
-#        if ( not defined $annline or not defined $annline->[0] ) {
-#            croak "Undefined source code line in create_refactored_source()";
-#        }
        ( my $line , my $info ) = @{ $annline};        
 
         if ( not exists $info->{'Comments'} and ( exists $info->{'InBlock'} or not exists $info->{'Deleted'} ) ) {
             print $line, "\n" if $DBG;
-#            if ( $line =~ /;/ && $line !~ /[\'\"]/ ) { croak;
-#                my $spaces = $line;
-#                $spaces =~ s/\S.*$//;
-#                $line   =~ s/^\s+//;
-#                my @split_lines = split( /\s*;\s*/, $line );
-#                for my $sline (@split_lines) {
-#                    push @{$refactored_lines}, [ $spaces . $sline, $info ];
-#                }
-#            } else {
 				if (not exists $info->{'ReadCall'} and not exists $info->{'WriteCall'} and not exists $info->{'PrintCall'} ) {
-#					if (not exists $info->{'IO'}) {
 					
 					# Problem is of course that strings can contain comments and comments can contain quotes. 
+					# So placeholder strings can in principle occur in comments. That is what we are looking for here, for trailing comments
+					 					
 					# So in principle I must look for the first ! outside any pair of ' or "
 					# say I split a line on ' => pre ' str1 ' sep1 ' str2 ' sep2_maybe_! ' 
 					# So I remove pre; then I remove str then look at sep. If sep has ! => OK, found comment.
+					
+					# WV 2019-03-06 FIXME: this is expensive and not quite right. Find out a case where it is actually needed!
 					my $line_without_comment = $line;  
-					 if (exists $info->{'PlaceHolders'} ) {
+					
+					if (exists $info->{'PlaceHolders'} ) {
 					 	my $ph_line=$line;
 					 	for my $ph (keys %{$info->{'PlaceHolders'}} ) {
 					 		my $ph_str = $info->{'PlaceHolders'}{$ph};
@@ -593,33 +585,29 @@ sub create_refactored_source {
 					 		$ph_line=~s/$ph_str/$ph/;
 					 	}
 					 	$line_without_comment = $ph_line;
-					 }
-				 
-					 
-						 my $comment = '';
-						 
-						 if ($line_without_comment =~/!(.+)$/) {
+					}
+				 					 
+				    my $comment = '';
+					# So after putting the strings back we check for a !	 
+					if ($line_without_comment =~/\!(.+)$/) { 
+						 	# found a comment, remove it from the line with placeholders (?!)
 						 	$comment=$1;  	
+						 	$line_without_comment = $line; # This is the line with placeholders
+						 	$line_without_comment =~s/\!$comment//; # So this should only work if there were no matched quotes in the comment!
+					} else {
 						 	$line_without_comment = $line;
-						 	$line_without_comment =~s/\!$comment//;
-						 } else {
-						 	$line_without_comment = $line;
-						 }
+					}
 				 
- 	           	     	my @split_lines = $SPLIT_LONG_LINES ? split_long_line($line_without_comment) : ( $line_without_comment );
-    	         		for my $sline (@split_lines) {    	         			
+ 	           	    my @split_lines = $SPLIT_LONG_LINES ? split_long_line($line_without_comment) : ( $line_without_comment );
+    	         	for my $sline (@split_lines) {    	         			
         	            	push @{$refactored_lines}, [ $sline, $info ];
-            	    	}
-            	    	if ($comment ne '') {
+            	    }
+            	    if ($comment ne '') {
             	    		$refactored_lines->[-1][0].=' !'.$comment;
-            	    	}            	    
-#					} else {
-#						push @{$refactored_lines}, [ $line, $info ];
-#					}
+            	    }            	    
 				} else {
 					push @{$refactored_lines}, [ $line, $info ];
 				}
-#            }
         } else {
             push @{$refactored_lines}, [ $line, $info ];
         }

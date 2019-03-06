@@ -1,16 +1,16 @@
 # Generated build script for refactored source code
-# Sun Nov  4 11:57:01 2018
+# Tue Mar  5 18:21:57 2019
 
 #csources =[]
 
 fsources = ['./dyn.f90','./init.f90','./main.f90','./param.f90','./shapiro.f90','./sub.f90','./update.f90']
 
-envC=Environment(CC='/opt/local/bin/gcc-mp-7',CPPPATH=[]); 
+envC=Environment(CC='/opt/local/bin/gcc-mp-8',CPPPATH=[]); 
 #if csources:
 #    envC.Library('wave2d_c',csources)
 
 FFLAGS  = ['-cpp','-O3', '-m64', '-ffree-form', '-ffree-line-length-0','-fconvert=little-endian', '-frecord-marker=4']
-envF=Environment(F90='/opt/local/bin/gfortran-mp-7',LINK='/opt/local/bin/gfortran-mp-7',F90FLAGS=FFLAGS,F90PATH=['.' ,'/opt/local/include','/usr/local/include'])
+envF=Environment(F90='/opt/local/bin/gfortran-mp-8',LINK='/opt/local/bin/gfortran-mp-8',F90FLAGS=FFLAGS,F90PATH=['.' ,'/opt/local/include','/usr/local/include'])
 #if csources:
 #    envF.Program('wave2d',fsources,LIBS=[ 'wave2d_c','m'],LIBPATH=['.' ,'/opt/local/lib','/usr/local/lib'])   
 #else:

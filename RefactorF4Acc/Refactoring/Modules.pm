@@ -27,7 +27,7 @@ use Exporter;
 );
 
 =pod
-This subroutine created the module declarations around the original F77 files
+This subroutine creates the module declarations around the original F77 files
 =cut
 
 # -----------------------------------------------------------------------------
