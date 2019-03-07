@@ -54,9 +54,9 @@ sub create_build_script {
         $csources = join( ',', map { s/\.f$/.c/; "'" . $_ . "'" } @csourcelst );
     }
     my $date  = localtime;
-    my $libpaths_str = @{$LIBPATHS} ? ','.join(',',map { "'".$_."'" } @{$LIBPATHS}) : '';#'/opt/local/lib','/usr/local/lib'"; # TODO: get from rf4a.cfg
-    my $libs_str = @{$LIBS} ? ','.join(',',map { "'".$_."'" } @{$LIBS}) : ''; # TODO: get from rf4a.cfg
-    my $inclpaths_str=@{$INCLPATHS} ? ','.join(',',map { "'".$_."'" } @{$INCLPATHS}) : '';#",'/opt/local/include','/usr/local/include'"; # TODO: get from rf4a.cfg
+    my $libpaths_str = @{$LIBPATHS} ? ','.join(',',map { "'".$_."'" } @{$LIBPATHS}) : '';
+    my $libs_str = @{$LIBS} ? ','.join(',',map { "'".$_."'" } @{$LIBS}) : ''; 
+    my $inclpaths_str=@{$INCLPATHS} ? ','.join(',',map { "'".$_."'" } @{$INCLPATHS}) : '';
     my $maybe_fc = $EXT; $maybe_fc=~s/^\.//;
     my $fortran_compiler = $maybe_fc=~/f\d+/i ? uc($maybe_fc) : 'FORTRAN';
 

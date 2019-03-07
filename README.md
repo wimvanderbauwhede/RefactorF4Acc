@@ -126,10 +126,10 @@ The following keys are defined:
 <dt>NO_ONLY:</dt><dd>Do not use the ONLY qualifier on the USE declaration</dd>
 <dt>SPLIT_LONG_LINES:</dt><dd>Split long lines into chunks of no more than 80 characters</dd>
 <dt>MAX_LINE_LENGTH:</dt><dd>Maximum line length for fixed-format F77 code. The default is 132 characters.</dd>
-<dt>EXT</dt><dd>Extension of generated source files. Default is `.f95`; must include the dot</dd>
+<dt>EXT</dt><dd>Extension of generated source files. Default is `.f90`; must include the dot</dd>
 <dt>LIBS</dt><dd>SCons LIBS, comma-separated list</dd>
 <dt>LIBPATH</dt><dd>SCons LIBPATH, comma-separated list</dd>
-<dt>INCLPATH</dt><dd>SCons F95PATH, comma-separated list</dd>
+<dt>INCLPATH</dt><dd>SCons F90PATH or F95PATH (based on EXT), comma-separated list</dd>
 </dl>
 
 ### Command line flags

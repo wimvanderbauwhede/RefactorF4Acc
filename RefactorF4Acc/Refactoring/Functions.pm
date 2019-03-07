@@ -60,7 +60,7 @@ sub remove_vars_masking_functions { ( my $stref ) = @_;
                  		)
 #	                	or ($stref->{'SourceFiles'}{$cs_src}{'SourceType'} eq 'Modules')
     	        	) {
-    	        		$line.= '! decl of func/sub in program';
+    	        		$line.= '! decl of func/sub in program' if $DBG;
     	        	} else {
 						delete $Sf->{'Vars'}{$var};
     	        	    delete $Sf->{'OrigArgs'}{$var};
@@ -70,7 +70,7 @@ sub remove_vars_masking_functions { ( my $stref ) = @_;
          	   		}                
 				} else {
 					# $var is an external subroutine, for now just mark it
-					$line = '! '.$line. '! EXTERNAL SUB';
+					$line = '! '.$line. '! EXTERNAL SUB' if $DBG;
 				}     
                
                 push @{$info->{'Ann'}}, annotate($f, __LINE__  );    
