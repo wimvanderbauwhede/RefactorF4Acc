@@ -30,7 +30,7 @@ use RefactorF4Acc::Builder qw( create_build_script build_executable );
 use RefactorF4Acc::Analysis::LoopDetect qw( outer_loop_variable_analysis );
 
 use vars qw( $VERSION );
-$VERSION = "1.1.1";
+$VERSION = "1.2.0";
 
 use Exporter;
 
