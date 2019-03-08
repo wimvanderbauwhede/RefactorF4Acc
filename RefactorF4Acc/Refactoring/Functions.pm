@@ -9,7 +9,7 @@ use RefactorF4Acc::Refactoring::Common qw( context_free_refactorings stateful_pa
 #   
 
 use vars qw( $VERSION );
-$VERSION = "1.1.1";
+$VERSION = "1.2.0";
 
 #use warnings::unused;
 use warnings;
@@ -32,6 +32,7 @@ Functions
     remove_vars_masking_functions()
     refactor_called_functions()
     _refactor_function()
+    _convert_function_to_subroutine()
 =cut
 
 
@@ -136,3 +137,58 @@ sub _refactor_function {
 
 }    # END of _refactor_function()
 # -----------------------------------------------------------------------------
+=info_convert_function_to_subroutine
+
+A function is either (F77)
+
+Syntax
+[ type ] FUNCTION fun ( [ ar [, ar ] … ] )
+
+ FUNCTION $fname($arg1, ...)
+    $ftype :: $fname
+    $arg1_type :: arg1
+    $fname = ...
+    RETURN
+ END FUNCTION
+
+or (F90)
+
+Syntax
+[PURE][ELEMENTAL][RECURSIVE] [type-spec] FUNCTION function-name
+([dummy-arg-names]) [RESULT (result-name)]
+
+ $ftype_decl function $fname($arg1,...) result($out_arg)
+    $arg1_type, intent(In) :: $arg1 
+    if ($ftype_decl eq '') {
+    $out_arg_type             :: $out_arg
+    } 
+    $out_arg = ...
+ end function $fname
+ 
+ 
+ 
+ The syntax for a subroutine definition is:
+subroutine-stmt
+[use-stmts]
+[specification-part]
+[execution-part]
+[internal-subprogram-part]
+end-subroutine-stmt
+
+The syntax for a function definition is:
+function-stmt
+[use-stmts]
+[specification-part]
+[execution-part]
+[internal-subprogram-part]
+end-function-stmt
+
+In other words, they are the same.
+
+=cut
+
+
+sub _convert_function_to_subroutine {
+	( my $f, my $stref ) = @_;
+	return $stref;
+}

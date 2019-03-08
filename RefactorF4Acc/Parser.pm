@@ -19,7 +19,7 @@ use Fortran::ConstructParser qw(
 #   (c) 2010-2018 Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
 
 use vars qw( $VERSION );
-$VERSION = "1.1.1";
+$VERSION = "1.2.0";
 
 #use warnings::unused;
 use warnings;
@@ -602,64 +602,67 @@ if ($in_excluded_block==0) {
 			# --------------------------------------------------------------------------------
 
 =info non-executable statements
+Statements prefixed with + are specification statements
 Statements with * are currently ignored
-Statements with ** are currently not even recognised
+Statements with ** are currently not even recognised, i.e. they are copied as-is
 
-AUTOMATIC*
-EQUIVALENCE* => WARNING
-EXTERNAL*
-INTRINSIC*
-STATIC*
++AUTOMATIC*
++EQUIVALENCE*+ => WARNING
++EXTERNAL*
++INTRINSIC*
++STATIC*
 MAP/END MAP*
 STRUCTURE/END STRUCTURE*
 UNION/END UNION*
 
-ENTRY** => WARNING
+ENTRY* => WARNING
 FORMAT**
-NAMELIST**
++NAMELIST
 OPTIONS**
-POINTER**
++POINTER**
 PRAGMA**
-RECORD**
-SAVE**
-VOLATILE**
-
-BLOCK DATA
-BYTE
-CHARACTER
-COMMON
-COMPLEX
-DATA
-DIMENSION
-DOUBLE COMPLEX
-DOUBLE PRECISION
++RECORD**
++SAVE**
++VOLATILE*
++BLOCK DATA
++BYTE
++CHARACTER
++COMMON
++COMPLEX
++DATA
++DIMENSION
++DOUBLE COMPLEX
++DOUBLE PRECISION
 FUNCTION
-IMPLICIT
-INCLUDE
-INTEGER
-LOGICAL
-PARAMETER
++IMPLICIT
++INCLUDE
++INTEGER
++LOGICAL
++PARAMETER
 PROGRAM
-REAL
++REAL
 SUBROUTINE
-VIRTUAL
++VIRTUAL
 
 =cut
 						
 						
 			if ( $line =~ /implicit\s+none/ ) {
 				$info->{'ImplicitNone'} = 1;
+				$info->{'SpecificationStatement'} = 1;
 				$Sf->{'ImplicitNone'}   = $index;
 				$srcref->[$index] = [ $line, $info ];
 				next;
 			} elsif ( $line =~ /^use\s+(\w+)/ ) {
 				my $module = $1;
 				$info->{'Use'} = $module;
+				$info->{'SpecificationStatement'} = 1;
 				$srcref->[$index] = [ $line, $info ];
 				next;
 				
 			} elsif ( $line =~ /implicit\s+/ ) {
 				$info->{'Implicit'} = 1;
+				$info->{'SpecificationStatement'} = 1;
 				$stref = _parse_implicit( $line, $f, $stref );
 				$srcref->[$index] = [ $line, $info ];
 				next;	
@@ -685,6 +688,7 @@ VIRTUAL
 		 elsif ( $line =~ /^(?:dimension|virtual)/ ) {			
 # Although a Dimension line is not a declaration, I will use it as such, so the var must be in DeclaredLocalVars/DeclaredCommonVars
 				$info->{'Dimension'}=1;
+				$info->{'SpecificationStatement'} = 1;
 				$type   = 'Unknown';
 				$varlst = $line;
 				$varlst =~s/^(?:dimension|virtual)\s+//;			
@@ -783,7 +787,8 @@ VIRTUAL
 				$commonlst=~s/\/\//,/g;
 				$commonlst=~s/^,//;        
 				$has_commons=1; 				
-#				say "COMMON for $f: $commonlst"; 
+#				say "COMMON for $f: $commonlst";
+                $info->{'SpecificationStatement'} = 1; 
 				( my $parsedvars, my $parsedvars_lst ) = f77_var_decl_parser( $commonlst, 0 );				
 				for my $var ( @{$parsedvars_lst} ) {	
 #					my $subset;
@@ -858,7 +863,8 @@ VIRTUAL
 				my $namelist_varlst         = $2;
 				$namelist_varlst=~s/\/\//,/g;
 				$namelist_varlst=~s/^,//;        
-				$info->{'Namelist'}=$namelist_group_name; 				
+				$info->{'Namelist'}=$namelist_group_name; 	
+				$info->{'SpecificationStatement'} = 1;			
 				 $Sf->{'Namelist'}{$namelist_group_name} = [ split(/\s*,\s*/,$namelist_varlst) ];
 				 
 		 }
@@ -869,7 +875,7 @@ VIRTUAL
 		elsif ($line=~/^data\b/ and $line!~/=/) { 
 		 	# DATA
 		 	$info->{'Data'} = 1;
-		 	
+		 	$info->{'SpecificationStatement'} = 1;
 		 		$line.=' ! Parser line '.__LINE__.' : removed spaces from data' if $DBG;
 			 	my @chunks = split(/\//,$line);
 			 	$chunks[1]=~s/\s+//g;
@@ -887,15 +893,17 @@ VIRTUAL
 		    	# and there is a match on ')/'
 		    	# we can split between the ')' and '/'
 		    	# However, how about we do just nothing?
+		    	$info->{'SpecificationStatement'} = 1;
 		    	say "DATA declaration with IMPLIED DO at $line" if $V;
 		}
-# INTRINSIC, EXTERNAL, STATIC, AUTOMATIC
-		 	elsif ($line=~/^(intrinsic|external|static|automatic)\s+([\w,\s]+)/) {
+# INTRINSIC, EXTERNAL, STATIC, AUTOMATIC, VOLATILE
+		 	elsif ($line=~/^(intrinsic|external|static|automatic|volatile)\s+([\w,\s]+)/) {
 		 		my $qualifier = $1;
 		 		my $external_procs_str = $2;
 		 		my @external_procs = split(/\s*,\s*/,$external_procs_str);
 
 		 		$info->{ucfirst($qualifier)} = { map {$_=>1} @external_procs};
+		 		$info->{'SpecificationStatement'} = 1;
 		 		$Sf->{ucfirst($qualifier)}={ map {$_=>1} @external_procs };
 		 		
 		 			say "WARNING: ".uc($qualifier)." IS IGNORED!" if $qualifier ne 'external' and $W;
@@ -903,6 +911,7 @@ VIRTUAL
 # EQUIVALENCE (IADN14(1), IADN15(1)), (RADN14(2),RADN15(2))		 	 
 		 	elsif ($line=~/^equivalence\s+/) {		 	
 		 		$info->{'Equivalence'} = 1;
+		 		$info->{'SpecificationStatement'} = 1;
 		 		say "WARNING: EQUIVALENCE IS IGNORED!" if $W;
 		 		if (not exists $grouped_warnings->{'EQUIVALENCE'}) {
 		 			$grouped_warnings->{'EQUIVALENCE'}=[ "The EQUIVALENCE  statement is not supported, this could possible break your code, please rewrite:",
@@ -941,6 +950,7 @@ or $line=~/^character\s*\(\s*len\s*=\s*[\w\*]+\s*\)/
 				$varlst = $2;
 				
 				( $Sf, $info ) = __parse_f77_var_decl( $Sf, $stref, $f,$indent, $line, $info, $type, $varlst );
+				$info->{'SpecificationStatement'} = 1;
 				
 		}
 # F95 declaration, no need for refactoring		 	
@@ -949,7 +959,7 @@ or $line=~/^character\s*\(\s*len\s*=\s*[\w\*]+\s*\)/
 				if (exists $info->{'ParamDecl'}) {
 					$has_pars=1;
 				}		
-
+                $info->{'SpecificationStatement'} = 1;
 			} 
 # PARAMETER			
 # F77-style parameters			
@@ -957,6 +967,7 @@ or $line=~/^character\s*\(\s*len\s*=\s*[\w\*]+\s*\)/
 				my $parliststr = $1;
 				( $Sf, $info ) = __parse_f77_par_decl( $Sf, $stref, $f, $indent, $line, $info, $parliststr );				
 				$has_pars=1;
+				$info->{'SpecificationStatement'} = 1;
 			}    # match var decls, parameter statements F77/F95								
 # SIGNATURES SUBROUTINE FUNCTION PROGRAM ENTRY
 			 elsif ( $line =~ /\b(subroutine|function|program|entry|block)[\s\(]/ and $line !~ /^end\s+/) {

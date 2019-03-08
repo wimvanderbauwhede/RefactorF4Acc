@@ -143,7 +143,7 @@ sub f95_var_decl_parser_ORIG {
 
 # where
 sub attribute_parser {     
-    choice(&dim_parser, &intent_parser, &parameter_parser, &allocatable_parser)
+    choice(&dim_parser, &intent_parser, &parameter_parser, &allocatable_parser, &volatile_parser)
 }
 
 sub type_parser {	
@@ -192,6 +192,11 @@ sub intent_parser {
 sub parameter_parser {
     symbol('parameter')
 }
+
+sub volatile_parser {
+    symbol('volatile')
+}
+
 
 sub allocatable_parser {
     {'Allocatable' => symbol('allocatable')}
