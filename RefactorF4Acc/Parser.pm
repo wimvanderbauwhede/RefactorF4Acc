@@ -381,6 +381,8 @@ sub _initialise_decl_var_tables {
 #WV20150305 I've added labels to the lines, as identifiers for e.g. start/end of pragmas. I can do this here because here the lines have been normalised but no refactoring has been done yet.
 sub _analyse_lines {
 	( my $f, my $stref ) = @_;
+	
+	my $grouped_warnings={};
 	my $sub_incl_or_mod = sub_func_incl_mod( $f, $stref );
 	
 	my $is_incl = $sub_incl_or_mod eq 'IncludeFiles' ? 1 : 0;
@@ -868,7 +870,7 @@ VIRTUAL
 		 	# DATA
 		 	$info->{'Data'} = 1;
 		 	
-		 		$line.=' ! Parser line '.__LINE__.' : removed spaces from data';
+		 		$line.=' ! Parser line '.__LINE__.' : removed spaces from data' if $DBG;
 			 	my @chunks = split(/\//,$line);
 			 	$chunks[1]=~s/\s+//g;
 			 	$line=join('/',@chunks);
@@ -902,11 +904,20 @@ VIRTUAL
 		 	elsif ($line=~/^equivalence\s+/) {		 	
 		 		$info->{'Equivalence'} = 1;
 		 		say "WARNING: EQUIVALENCE IS IGNORED!" if $W;
+		 		if (not exists $grouped_warnings->{'EQUIVALENCE'}) {
+		 			$grouped_warnings->{'EQUIVALENCE'}=[ "The EQUIVALENCE  statement is not supported, this could possible break your code, please rewrite:",
+		 			'  SOURCE: '.$stref->{$sub_incl_or_mod}{$f}{'Source'},
+                    '  CODE UNIT: '.$f, 'LINES:'
+		 			
+		 			 ];
+		 		}
 		 		
-		 		warn "The EQUIVALENCE  statement is not supported, please rewrite your code (or ignore at your peril):\n".
-			 		'  SOURCE: '.$stref->{$sub_incl_or_mod}{$f}{'Source'}.' LINE #'. $info->{'LineID'}."\n".
-			 		'  CODE UNIT: '.$f."\n".
-			 		'  LINE: '."'$line'\n";
+		 		my $warn = #"The EQUIVALENCE  statement is not supported, please rewrite your code (or ignore at your peril):\n".
+#			 		'  SOURCE: '.$stref->{$sub_incl_or_mod}{$f}{'Source'}.' LINE #'. $info->{'LineID'}."\n".
+#			 		'  CODE UNIT: '.$f."\n"
+			 	 $info->{'LineID'}.
+			 		': '.$line;
+			 	push @{	$grouped_warnings->{'EQUIVALENCE'} }, $warn;
 		 		
 		 	}		
 # Actual variable declaration line (F77)
@@ -1314,6 +1325,12 @@ END IF
 			
 		}
 	}
+	for my $warning_type (sort keys % {$grouped_warnings} ) {
+		for my $line (@{$grouped_warnings->{$warning_type}}) {
+			say $line;
+		}
+	}
+	
 
 	return $stref;
 }    # END of _analyse_lines()

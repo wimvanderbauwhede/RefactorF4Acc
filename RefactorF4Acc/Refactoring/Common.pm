@@ -228,7 +228,9 @@ sub context_free_refactorings {
             $info->{'Ref'}++;
         }
         if ( exists $info->{'Break'} ) {
-            $line .= '  !Break';
+        	if ($DBG) {
+                $line .= '  !Break';
+        	}
             $info->{'Ref'}++;
 
             # $line=~s/goto\s+(\d+)/call break($1)/;
@@ -563,33 +565,53 @@ sub create_refactored_source {
 				if (not exists $info->{'ReadCall'} and not exists $info->{'WriteCall'} and not exists $info->{'PrintCall'} ) {
 					
 					# Problem is of course that strings can contain comments and comments can contain quotes. 
-					# So placeholder strings can in principle occur in comments. That is what we are looking for here, for trailing comments
-					 					
+					# So placeholder strings can in principle occur in comments. That is what we are looking for here, trailing comments	
+					# So we must exclude the strings that look like comments, hence the PlaceHolders trick.
 					# So in principle I must look for the first ! outside any pair of ' or "
 					# say I split a line on ' => pre ' str1 ' sep1 ' str2 ' sep2_maybe_! ' 
 					# So I remove pre; then I remove str then look at sep. If sep has ! => OK, found comment.
 					
 					# WV 2019-03-06 FIXME: this is expensive and not quite right. Find out a case where it is actually needed!
 					my $line_without_comment = $line;  
-					
-					if (exists $info->{'PlaceHolders'} ) {
+					if ($DBG) {
+					my $replace_PHs = 1;
+					if ($replace_PHs and exists $info->{'PlaceHolders'} ) {
 					 	my $ph_line=$line;
-					 	for my $ph (keys %{$info->{'PlaceHolders'}} ) {
-					 		my $ph_str = $info->{'PlaceHolders'}{$ph};
-					 		$ph_str=~s/\)/\\\)/g;
-					 		$ph_str=~s/\(/\\\(/g;
-					 		$ph_str=~s/\]/\\\]/g;
-                            $ph_str=~s/\[/\\\[/g;
-					 		$ph_str=~s/\*/\\\*/g;
-#					 		say "s/$ph_str/$ph/";
-					 		$ph_line=~s/$ph_str/$ph/;
+#					 	for my $ph (keys %{$info->{'PlaceHolders'}} ) {
+#					 		my $ph_str = $info->{'PlaceHolders'}{$ph};
+#					 		$ph_str=~s/\)/\\\)/g;
+#					 		$ph_str=~s/\(/\\\(/g;
+#					 		$ph_str=~s/\]/\\\]/g;
+#                            $ph_str=~s/\[/\\\[/g;
+#					 		$ph_str=~s/\*/\\\*/g;
+##					 		say "s/$ph_str/$ph/";
+#					 		$ph_line=~s/$ph_str/$ph/;					 							 		
+#					 	}
+					 	my $phs={};
+					 	for my $ph (keys %{$info->{'PlaceHolders'}} ) { 
+                            my $ph_str = $info->{'PlaceHolders'}{$ph};
+                            $phs->{$ph_str}=$ph;
 					 	}
+                            while ( $ph_line =~ /(\'.*?\')/ ) {
+                                my $strconst = $1;
+                                my $ph       = $phs->{$strconst};                               
+                                $ph_line =~ s/\'.*?\'/$ph/;
+                            }
+                            while ( $ph_line =~ /(\".*?\")/ ) {
+                                my $strconst = $1;
+                                my $ph       = $phs->{$strconst};                               
+                                $ph_line =~ s/\".*?\"/$ph/;
+                            }
+					 	
+					 	
 					 	$line_without_comment = $ph_line;
 					}
-				 					 
+					}				 
 				    my $comment = '';
+				    if ($DBG) {
 					# So after putting the strings back we check for a !	 
-					if ($line_without_comment =~/\!(.+)$/) { 
+					if ($line_without_comment =~/\!(.+)$/) { say "<$line>\n<$line_without_comment>";# if $line_without_comment=~/__PH\d+_/ ;
+#					say $info->{'TrailingComment'};
 						 	# found a comment, remove it from the line with placeholders (?!)
 						 	$comment=$1;  	
 						 	$line_without_comment = $line; # This is the line with placeholders
@@ -597,14 +619,16 @@ sub create_refactored_source {
 					} else {
 						 	$line_without_comment = $line;
 					}
-				 
+				    }
  	           	    my @split_lines = $SPLIT_LONG_LINES ? split_long_line($line_without_comment) : ( $line_without_comment );
     	         	for my $sline (@split_lines) {    	         			
         	            	push @{$refactored_lines}, [ $sline, $info ];
             	    }
+            	    if ($DBG) {
             	    if ($comment ne '') {
             	    		$refactored_lines->[-1][0].=' !'.$comment;
-            	    }            	    
+            	    }           
+            	    } 	    
 				} else {
 					push @{$refactored_lines}, [ $line, $info ];
 				}
@@ -1339,7 +1363,7 @@ sub emit_f95_var_decl {
         if ( $intent ne 'Unknown' and $intent ne 'Ignore' ) {
         	$intentstr ='intent('.$intent.')'; 
 		} 
-		elsif ($intent eq 'Ignore') {			
+		elsif ($intent eq 'Ignore' and $DBG) {			
 #			carp("VAR $var with intent Ignore");
 			$trailing_comment=" ! Intent $intent"; 
 		}

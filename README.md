@@ -1,3 +1,5 @@
+[![DOI](http://joss.theoj.org/papers/10.21105/joss.00865/status.svg)](https://doi.org/10.21105/joss.00865)
+
 # The Glasgow Fortran Source-to-Source Compiler
 
 An Automated Fortran Code Refactoring Tool to Facilitate Acceleration of Numerical Simulations
@@ -41,7 +43,7 @@ School of Computing Science, University of Glasgow, UK
   * Preserves comments
 
 * OpenCL/C translation
-  * Once refactored, modules can be translated to C or OpenCL kernel code in a separate pass
+  * Once refactored, modules can be translated to C or OpenCL kernel code in a separate pass (see [Automatic parallelisation using OpenCL](https://github.com/wimvanderbauwhede/RefactorF4Acc/blob/master/README.md#automatic-parallelisation-using-opencl)) 
 
 * Subroutine extraction  
     * simply add an annotation
@@ -55,8 +57,7 @@ School of Computing Science, University of Glasgow, UK
 ### Automatic parallelisation using OpenCL
 
 Automatic parallelisation and offloading of legacy code to accelerators is the ultimate aim of the project, and already works for many cases.
-However, the work flow is more complicated and requires an additional compiler, [AutoParallel-Fortran](https://github.com/wimvanderbauwhede/AutoParallel-Fortran). This compiler is written in Haskell, which is not yet a
-mainstream programming language. Furthermore, the generated OpenCL code relies on the [OclWrapper Fortran OpenCL API](https://github.com/wimvanderbauwhede/OpenCLIntegration), written in C++, and uses [scons](http://scons.org/), a Python-based build system. For these reasons, it is harder to install this autoparallelising compiler. However, if you have installed it, a test case for the full flow is provided in the `tests` folder, see below for more details.           
+However, the work flow is more complicated and requires an additional compiler, [AutoParallel-Fortran](https://github.com/wimvanderbauwhede/AutoParallel-Fortran). This compiler is written in Haskell, which is not yet a mainstream programming language. Furthermore, the generated OpenCL code relies on the [OclWrapper Fortran OpenCL API](https://github.com/wimvanderbauwhede/OpenCLIntegration), written in C++, and uses [scons](http://scons.org/), a Python-based build system. For these reasons, it is harder to install this autoparallelising compiler. However, if you have installed it, a test case for the full flow is provided in the `tests` folder, see below for more details.           
 
 ## How it works
 
@@ -67,6 +68,13 @@ mainstream programming language. Furthermore, the generated OpenCL code relies o
 * Loop analysis to transform GOTOs and labeled DO into DO ... END DO
 * IO direction analysis to determine INTENT
 
+## Installation
+
+Please see [INSTALL.md].
+
+## Getting Started
+Please see [GETTING_STARTED.md] for a demonstration of using RefactorF4Acc to refactor a "Hello, world!" program that uses several legacy Fortran features.  To use RefactorF4Acc, try copying the contents of the minimal configure file listed in [GETTING_STARTED.md] into the top directory of your project source directory. Give the configure file the name `rf4a.cfg` and then from the top of our source tree, invoke RefactorF4Acc with the command `refactorF4acc.pl -c rf4a.cfg` as listed in [GETTING_STARTED.md]:
+ 
 ## Status
 
 To assess the correctness and capability of our refactoring compiler, we used the NIST (US National Institute of Standards and Technology) [FORTRAN78 test suite](http://www.itl.nist.gov/div897/ctg/fortran_form.htm), which aims to validate adherence to the ANSI X3.9-1978 (FORTRAN 77) standard. We used [a version with some minor changes from Arnaud Desitter](http://www.fortran-2000.com/ArnaudRecipes/fcvs21_f95.html): All files are properly formed; a non standard conforming FORMAT statement has been fixed in test file `FM110.f`; Hollerith strings in FORMAT statements have been converted to quoted strings. This test suite comprises about three thousand tests organised into 192 files.
@@ -86,34 +94,12 @@ Furthermore, we tested the compiler on four real-word physics simulation models:
 
 Each of these models has a different coding style, specifically in terms of the use of common blocks, include files, etc. that affect the refactoring process. All of these codes are refactored fully automatically without changes to the original code and build and run correctly. The performance of the original and refactored code is the same in all cases.
 
-## Installation
+## Known issues
 
-The source code for RefactorF4ACC is written in Perl and requires v5.10 or later. There are no dependencies and no compilation is required. I have tested it on Linux and MacOS.
-
-To install RefactorF4ACC, you need to set some environment variables. Typically, on Linux you would put them in `.bashrc`, on MacOS in `.profile`.
-
-* If you cloned the GitHub repostitory:
-	- Let's assume your local Git repository directory is called `$RF4A_DIR` (e.g. on my machine it is `$HOME/Git/RF4A`)
-* If you downloaded the archive `RefactorF4Acc-master.zip`:
-	- Unzip the archive in a directory $DIR (this could be e.g. your home dir `$HOME`)
-	- Call `$RF4A_DIR=$DIR/RefactorF4Acc-master`
-
-* Add `$RF4A_DIR` to the `$PERL5LIB` environment variable:
-
-		export PERL5LIB="$PERL5LIB:$RF4A_DIR"
-
-* Add `$RF4A_DIR/bin` to your `$PATH` environment variable:
-
-		export PATH="$PATH:$RF4A_DIR/bin"	  
-
-To make the code work with older Perl versions (e.g. v5.8) you will have to replace all occurences of `say` with `print` and add a newline.
-
-
-
-## Usage
-
-First create a configuration file, I usually call it `rf4a.cfg`.
-Once this is done, the compiler is very easy to use, simply run the script with a few optional command line flags.
+- The compiler currently assumes that functions are pure, i.e. they do not use global variables. If your code uses impure functions, refactoring should still work but the globals in functions will not be removed.
+- The compiler does not replace C preprocessor macros, so it your code uses these, make sure to run `cpp` in advance.
+- The compiler supports mainly F77. If your code is a mixture of F77 and F90 or later, it may or may not work.
+- Some F77 features are ignored, notably `EQUIVALENCE` and `ASSIGN`.
 
 ### Configuration file format
 
@@ -140,10 +126,10 @@ The following keys are defined:
 <dt>NO_ONLY:</dt><dd>Do not use the ONLY qualifier on the USE declaration</dd>
 <dt>SPLIT_LONG_LINES:</dt><dd>Split long lines into chunks of no more than 80 characters</dd>
 <dt>MAX_LINE_LENGTH:</dt><dd>Maximum line length for fixed-format F77 code. The default is 132 characters.</dd>
-<dt>EXT</dt><dd>Extension of generated source files. Default is `.f95`; must include the dot</dd>
+<dt>EXT</dt><dd>Extension of generated source files. Default is `.f90`; must include the dot</dd>
 <dt>LIBS</dt><dd>SCons LIBS, comma-separated list</dd>
 <dt>LIBPATH</dt><dd>SCons LIBPATH, comma-separated list</dd>
-<dt>INCLPATH</dt><dd>SCons F95PATH, comma-separated list</dd>
+<dt>INCLPATH</dt><dd>SCons F90PATH or F95PATH (based on EXT), comma-separated list</dd>
 </dl>
 
 ### Command line flags
@@ -160,7 +146,7 @@ The following keys are defined:
     -i: show info messages
     -d: show debug messages
 
-### Examples    
+### Tests
 
 * To refactor code as explained above:
 
@@ -273,22 +259,27 @@ The final output should look like:
 
 ### To run the Fortran to parallel OpenCL test
 
+This an example of automatic parallelisation and GPU-acceleration of legacy code.  It is the 2-D Shallow Water example from the book "Ocean Modelling for Beginners: Using Open-Source Software" by Jochen Kämpf. The code is effectively Fortran-77 except that it uses Fortran-90 style modules.
+
 As explained above, to run this test you need to install the [AutoParallel-Fortran](https://github.com/wimvanderbauwhede/AutoParallel-Fortran) compiler and the [OclWrapper Fortran OpenCL API](https://github.com/wimvanderbauwhede/OpenCLIntegration), as well as [scons](http://scons.org/), a Python-based build system.
-We use a simple 2-D shallow simulation for validation. A more detailed explanation is available in the file [tests/ShallowWater2D/Auto-acceleration-README.md](https://github.com/wimvanderbauwhede/RefactorF4Acc/blob/devel/tests/ShallowWater2D/Auto-acceleration-README.md).
+
+A more detailed explanation of the steps is available in the file [tests/ShallowWater2D/Auto-acceleration-README.md](https://github.com/wimvanderbauwhede/RefactorF4Acc/blob/devel/tests/ShallowWater2D/Auto-acceleration-README.md).
 
       $ cd tests/ShallowWater2D/fortran
 
-Please ensure that the environment varianble `$FC` is set to the Fortran compiler you want to use. I have tested the code only with `gfortran 4.9` and `gfortran 7.0`.
-To generate the refactored Fortran-95 code used as starting point for autoparallelisation and OpenCL conversion, run the command `./generate_and_run.sh`:
+Please ensure that the environment variable `$FC` is set to the Fortran compiler you want to use. I have tested the code only with `gfortran 4.9` and `gfortran 7.0`.
 
-      $ ./generate_and_run.sh
+We start from the original code, where the only change is the addition of a `!$ACC Subroutine` pragma to automatically extract a subroutine from the source code. This demonstrates the subroutine extraction feature of the compiler.
+To generate the refactored Fortran-95 code used as starting point for autoparallelisation and OpenCL conversion, run the command `./generate_and_build.sh`:
 
-This will generate refactored, accelerator-ready Fortan 95 code in the directory `tests/RefactoredSources`.	     
+      $ ./generate_and_build.sh
+
+This will generate (and build) the refactored, accelerator-ready Fortran 95 code in the directory `tests/RefactoredSources`. This code produces exactly the same output as the original code, with the same performance. We can now run the auto-parallelising compiler on this refactored code:	     
 
 	$ cd ../RefactoredSources
 	$ ./run_autoparallel_compiler GPU
 
-This will generate OpenCL-ready parallelised code _in Fortran syntax_ in the directory `tests/Autopar`. To generate the actual kernel in OpenCL-C, do:
+This step will generate OpenCL-ready parallelised code. The generated kernel is a single source file (`module_shapiro_dyn_update_superkernel .f95`) _in Fortran syntax_ in the directory `tests/Autopar`. To generate the actual kernel in OpenCL C syntax, do:
 
 	$ cd ../Autopar
 	$ ./generate_OpenCL_kernel.sh module_shapiro_dyn_update_superkernel   	
@@ -306,3 +297,6 @@ You can now build the refactored code for GPU as follows:
 	$ scons -f SConstruct.auto dev=GPU nth=512 nunits=15 	
 
 Running the accelerated code on this GPU results in 14x speedup compared to the original code running on the host (Intel Core i7 CPU @ 3.50GHz).
+
+[INSTALL.md]: https://github.com/wimvanderbauwhede/RefactorF4Acc/blob/master/INSTALL.md
+[GETTING_STARTED.md]: https://github.com/wimvanderbauwhede/RefactorF4Acc/blob/master/GETTING_STARTED.md
