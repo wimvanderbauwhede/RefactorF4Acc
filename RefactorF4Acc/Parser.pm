@@ -1405,6 +1405,7 @@ sub _parse_includes {
 					$stref->{'IncludeFiles'}{$name}{'Root'}      = $f;
 					$stref->{'IncludeFiles'}{$name}{'HasBlocks'} = 0;
 					$stref = parse_fortran_src( $name, $stref );
+#                    (say( Dumper( $stref->{'IncludeFiles'}{$name} )) && croak) if $name eq 'printer.inc';
 				} else {
 					print $line, " already processed\n" if $V;					
 				}
@@ -3098,6 +3099,17 @@ sub __parse_sub_func_prog_decls {
 
 		if ( $line =~ /function/ ) {
 			$info->{'Signature'}{'Function'} = 1;
+			# FIXME: we need the RESULT variable 
+			# We need to check here if the function has an explicit return type
+			# If it is F95 there can be a RESULT attribute as well, 
+			# if there is that will be the name of the result, else it's the function name
+			# The easiest way, but a bit ugly, is to add ResultVar to the set of Vars, nested in OrigArgs
+			# As usual we'd have DeclaredResultVar and UndeclaredResultVar
+			# Or else we could add the result arg to OrigArgs, but have a ResultVar in $Sf that we check against.
+			# And similar for the return type: we have ReturnType in $Sf
+			# So, 
+			# - if there is no ResultVar, $f goes into UndeclaredOrigArgs, else $result_var goes into UndeclaredOrigArgs 
+			# - The type is unknown unless there is ReturnType.			
 		} else {
 			$info->{'Signature'}{'Function'} = 0;
 		}
@@ -3550,6 +3562,7 @@ croak $parliststr if scalar @test==1;
 #	for my $var (@{$pars}) {
 #	say $f,$var,$Sf->{'LocalParameters'}{'Set'}{$var}{'Attr'};
 #	}
+croak Dumper($Sf) if $f eq 'printer.inc' and $line=~/MAXOPENFILES/i;
 	return ( $Sf, $info );
 
 }    # END of __parse_f77_par_decl()

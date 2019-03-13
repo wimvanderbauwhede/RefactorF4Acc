@@ -65,8 +65,8 @@ sub _emit_refactored_include {
             say '! '.('=' x 80);
         show_annlines($srcref,0);
         } else {
-        print "INFO: emitting refactored code for include $f\n" if $V;
-        say "! FILE: $dir/$incsrc";
+        print "INFO: emitting refactored code for include $f in $dir/$incsrc\n" if $V;
+#        say "! FILE: $dir/$incsrc";
         open my $SRC, '>', "$dir/$incsrc" or die "$!: $dir/$incsrc";
         my $prevline='C ';
         $srcref = create_refactored_source($stref,$f,$srcref);

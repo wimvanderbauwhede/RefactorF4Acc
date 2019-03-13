@@ -51,8 +51,20 @@ our $main_tree      = 0;
 our $EXT = '.f90'; # You can set this in rf4a.cfg, changed from .f95 default to .f90 default on suggestion of @rouson
 
 our $LIBS = []; 
-our $LIBPATHS =  ['/opt/local/lib','/usr/local/lib'];
-our $INCLPATHS = ['/opt/local/include','/usr/local/include'];
+my @maybe_lib_paths = ('/opt/local/lib','/usr/local/lib');
+our $LIBPATHS =  [];
+for my $maybe_lib_path ( @maybe_lib_paths ) {
+	if (-d $maybe_lib_path) {
+		push @{$LIBPATHS}, $maybe_lib_path;
+	}
+} 
+my @maybe_inc_paths = ('/opt/local/include','/usr/local/include');
+our $INCLPATHS = [];
+for my $maybe_inc_path ( @maybe_inc_paths ) {
+    if (-d $maybe_inc_path) {
+        push @{$INCLPATHS}, $maybe_inc_path;
+    }
+}
 # Flag used when generating a subroutine from a marked block of code
 our $gen_sub = 0;
 

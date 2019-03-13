@@ -129,10 +129,12 @@ sub analyse_all {
 
 	for my $f ( keys %{ $stref->{'Subroutines'} } ) { # Functions are just special subroutines
 		next if $f eq '';
+		next if not exists $stref->{'Subroutines'}{$f}{'Callers'}; 
+		
 		if (exists $stref->{'Entries'}{$f}) {
 			next;
 		}
-
+        
 		$stref = _identify_external_proc_args( $stref, $f );
 	}
 	return $stref if $stage == 8;
@@ -226,7 +228,7 @@ sub _analyse_variables {
 			or exists $info->{'CloseCall'}# IO
 			or exists $info->{'ParamDecl'} )
 		{
-			( my $stref, my $f, my $identified_vars ) = @{$state};
+			( my $stref, my $f, my $identified_vars, my $grouped_messages ) = @{$state};
 
 			my $Sf     = $stref->{'Subroutines'}{$f};
 		    my $chunks_ref = identify_vars_on_line($annline);	
@@ -290,13 +292,14 @@ sub _analyse_variables {
 
 								if (not exists $stref->{'IncludeFiles'}{$inc}{'ExtPath'} ) {
 									if ( $stref->{'IncludeFiles'}{$inc}{'InclType'} eq 'Parameter' ) {
-										print "WARNING: $mvar in $f is a PARAMETER from $inc!\n" if $W;
+										
+										$grouped_messages->{'W'}{'PARAM_FROM_INC'}{$mvar} = 
+										"WARNING: $mvar in $f is a PARAMETER from $inc!" if $W;
 										$Sf->{'Includes'}{$inc}{'Only'}{$mvar} = 1;
 									} else {
 										if ( $stref->{'IncludeFiles'}{$inc}{'InclType'} eq 'Common' ) {
 											print "FOUND COMMON $mvar in INC $inc in $line\n" if $DBG;
-											croak "COMMON $mvar for $f" . in_nested_set( $stref->{'IncludeFiles'}{$inc}, 'Vars', $mvar )
-											  if $mvar eq 'kp';
+#											croak "COMMON $mvar for $f" . in_nested_set( $stref->{'IncludeFiles'}{$inc}, 'Vars', $mvar ) if $mvar eq 'kp';
 											my $decl;
 											my $subset_for_mvar = in_nested_set( $stref->{'IncludeFiles'}{$inc}, 'Vars', $mvar );
 											say "Found $mvar in $subset_for_mvar "
@@ -358,7 +361,7 @@ sub _analyse_variables {
 								if (not exists $stref->{'Modules'}{$inc}{'ExtPath'} ) {
 									my $var_rec = get_var_record_from_set( $stref->{'Modules'}{$inc}{'Vars'}, $mvar );
 									if (exists $var_rec->{'Parameter'} ) {
-										print "WARNING: $mvar in $f is a PARAMETER from $inc!\n" if $W;
+										$grouped_messages->{'W'}{'PARAM_FROM_INC'}{$mvar} =  "WARNING: $mvar in $f is a PARAMETER from $inc!" if $W;
 										$Sf->{'Uses'}{$inc}{'Only'}{$mvar} = 1;
 									} else {
 #										say "$f VAR7 $mvar";
@@ -467,14 +470,14 @@ sub _analyse_variables {
 							# A variable can be declared in an include file or not and can be listed as common or not
 							if ( in_nested_set( $stref->{'IncludeFiles'}{$inc}, 'Vars', $mvar )) {								
 								if ( $stref->{'IncludeFiles'}{$inc}{'InclType'} eq 'Parameter' ) {
-									print "WARNING: $mvar in $f is a PARAMETER from $inc!\n" if $W;
+									$grouped_messages->{'W'}{'PARAM_FROM_INC'}{$mvar} =  "WARNING: $mvar in $f is a PARAMETER from $inc!" if $W;
 									 $Sf->{'Includes'}{$inc}{'Only'}{$mvar} =1;
 								}
 							}
 					}
 				}
 			}			
-			return ( [$annline], [ $stref, $f, $identified_vars ] );
+			return ( [$annline], [ $stref, $f, $identified_vars, $grouped_messages ] );
 #		} elsif (  exists $info->{'VarDecl'} ) {
 #				croak Dumper($info);
 		} else {
@@ -482,9 +485,27 @@ sub _analyse_variables {
 		}
 	};
 
-	my $state = [ $stref, $f, {} ];
+	my $state = [ $stref, $f, {}, {} ];
 
 	( $stref, $state ) = stateful_pass( $stref, $f, $__analyse_vars_on_line, $state, '_analyse_variables() ' . __LINE__ );
+	my $grouped_messages = $state->[3];
+        if ($W) {
+    for my $warning_type (sort keys % {$grouped_messages->{'W'}} ) {
+        for my $k (sort keys %{$grouped_messages->{'W'}{$warning_type}}) {
+        	my $line = $grouped_messages->{'W'}{$warning_type}{$k};
+            say $line;
+        }
+    }
+    }
+    
+    if ($I) {
+    for my $info_type (sort keys % {$grouped_messages->{'I'}} ) {
+        for my $k (sort keys %{$grouped_messages->{'I'}{$info_type}}) {
+            my $line = $grouped_messages->{'I'}{$info_type}{$k};
+            say $line
+        }
+    }
+    }	
 	
 	my $maybe_ex_globs = $stref->{'Subroutines'}{$f}{'ExGlobArgs'}{'List'};
 	if ( defined $maybe_ex_globs  and scalar @{ $maybe_ex_globs } > 0 ) {
@@ -792,6 +813,8 @@ sub _map_call_args_to_sig_args {
 sub _identify_external_proc_args {
 	( my $stref, my $f ) = @_;
 	say "_identify_external_proc_args($f)\n" if $DBG;
+	# WV: the following only works if the file containing $f was already read. 
+	# If not this is likely because $f is never called. 
 	
 	my $__mark_args_as_external = sub {
 		( my $annline ) = @_;
@@ -818,7 +841,7 @@ sub _identify_external_proc_args {
 	};
 	
 	 $stref = stateless_pass( $stref, $f, $__mark_args_as_external, '__mark_args_as_external() ' . __LINE__ );
-#croak Dumper( $stref->{'Subroutines'}{'sn725'}{'OrigArgs'}
+
 	return $stref;
 }    # END of _identify_external_proc_args()
 

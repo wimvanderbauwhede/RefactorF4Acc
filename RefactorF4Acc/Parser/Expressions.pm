@@ -182,24 +182,38 @@ sub parse_expression { (my $exp, my $info, my $stref, my $f)=@_;
 	    $ast->[1]=~s/_/\#/g;
 	}
 #	say Dumper($ast);
-    my $ast2 =  _change_func_to_array($stref,$f,$info,$ast, $exp);
+    (my $ast2, my $grouped_messages) = _change_func_to_array($stref,$f,$info,$ast, $exp, {}) ;
+        if ($W) {
+    for my $warning_type (sort keys % {$grouped_messages->{'W'}} ) {
+        for my $k (sort keys %{$grouped_messages->{'W'}{$warning_type}}) {
+        	my $line = $grouped_messages->{'W'}{$warning_type}{$k};
+            say $line;
+        }
+    }
+    }
     
+#    if ($I) {
+#    for my $info_type (sort keys % {$grouped_messages->{'I'}} ) {
+#        for my $line (sort keys %{$grouped_messages->{'I'}{$info_type}}) {
+#            say $line;
+#        }
+#    }
+#    }
     my $ast3 = _fix_colons_in_ast($ast2);
     my $ast4 = _fix_string_concat_in_ast($ast3);
     my $ast5 = _fix_double_paren_in_ast($ast4);
-#say "f: $exp => ".Dumper(keys %{ $info->{'FunctionCalls'} }) if exists $info->{'FunctionCalls'} and $exp=~/(:?total|soluteIntra)Energy/i;
 	return $ast5;
 } # END of parse_expression()
 
 # This function changes functions to arrays
-sub _change_func_to_array { (my $stref, my $f,  my $info, my $ast, my $exp)=@_;
+sub _change_func_to_array { (my $stref, my $f,  my $info, my $ast, my $exp, my $grouped_messages)=@_;
 	my $code_unit = sub_func_incl_mod( $f, $stref );
 	if (ref($ast) eq 'ARRAY') {
 	for my  $idx (0 .. scalar @{$ast}-1) {		
 		my $entry = $ast->[$idx];
 
 		if (ref($entry) eq 'ARRAY') {
-			my $entry = _change_func_to_array($stref,$f, $info,$entry, $exp);
+			(my $entry, $grouped_messages) = _change_func_to_array($stref,$f, $info,$entry, $exp,$grouped_messages);
 			$ast->[$idx] = $entry;
 		} else {
 			if ($idx == 0) {
@@ -254,7 +268,7 @@ sub _change_func_to_array { (my $stref, my $f,  my $info, my $ast, my $exp)=@_;
     				say "Found array $mvar" if $DBG;
 				} elsif (   	exists $F95_intrinsics{$mvar} ) {
 					say "parse_expression('$exp')" . __LINE__ if $DBG;
-					say "WARNING: treating $mvar in $f as an intrinsic! " if $W;  
+					$grouped_messages->{'W'}{'VAR_AS_INTRINSIC'}{$mvar} =   "WARNING: treating $mvar in $f as an intrinsic! " if $W;  
 				} else {
 					# FUNCTION CALL
 					# So, this line contains a function call, so we should say so in $info!
@@ -316,7 +330,7 @@ sub _change_func_to_array { (my $stref, my $f,  my $info, my $ast, my $exp)=@_;
 		}		
 	}
 	}
-	return  $ast;#($stref,$f, $ast);	
+	return  ($ast, $grouped_messages);#($stref,$f, $ast);	
 	
 } # END of _change_func_to_array()
 

@@ -14,7 +14,7 @@ $VERSION = "1.2.0";
 use warnings;
 use warnings FATAL => qw(uninitialized);
 use strict;
-use Carp;
+use Carp qw(croak carp longmess shortmess);
 use Data::Dumper;
 #$Data::Dumper::Indent = 0;
 
@@ -805,7 +805,7 @@ if (exists  $Sf->{'Status'} ) {
         }
     } else {    	
         print "WARNING: get_annotated_sourcelines($f) STATUS: "
-          . show_status( $Sf->{'Status'} )
+          . show_status( $Sf->{'Status'} ). shortmess()
           if $W;
         if ( $Sf->{'Status'} > $INVENTORIED )
         {    # Means it was READ, and INVENTORIED but not PARSED
@@ -821,99 +821,6 @@ if (exists  $Sf->{'Status'} ) {
 }    # END of get_annotated_sourcelines()
 
 # -----------------------------------------------------------------------------
-
-# -----------------------------------------------------------------------------
-#sub _OBSOLETE_format_f95_var_decl {
-#	# This sub can be called in different ways, I think it would be better to create different subs that call a common core
-#    my $stref;
-#    my $f;
-#    my $Sf;
-#    my $var;
-#    my $vardecl;
-#    my $var_or_vardecl;
-#    if ( scalar(@_) == 3 ) {
-#        # Sub is called with  $stref, $f, $var_or_vardecl 
-#        ( $stref, $f, $var_or_vardecl ) = @_;
-#        my $code_unit = sub_func_incl_mod( $f, $stref );
-#        $Sf = $stref->{$code_unit}{$f};
-#    } else {
-#        # Sub is called with  $Sf, $var_or_vardecl 
-#        ( $Sf, $var_or_vardecl ) = @_;
-#    }
-#    
-#    if ( ref($var_or_vardecl) eq 'ARRAY') { 
-#        if ( $var->[-1] == 1 ) {
-#            return $var_or_vardecl; # This means it was a formatted vardecl 
-#        } elsif ( ref($var_or_vardecl) eq 'ARRAY' && $var->[-1] == 0 ) {
-#            # This means it is a vardecl but it is not yet formatted correctly. 
-#            $var = $var_or_vardecl->[2][0];
-#        }  else {
-#            die 'format_f95_var_decl: invalid input '.Dumper($var_or_vardecl);
-#        }
-#    } else {
-#        $var = $var_or_vardecl;
-#    }
-#    
-#    my $spaces = '      ';
-#    my $intent = [];
-#    my $shape  = [];
-#    my $attr   = '';
-#    my $type   = 'Unknown';
-#    my $nvar   = $var;
-## --------------------------------------------------------------------------------------------------------------------------------    
-#    # FIXME: we are using different data structures now!
-#    
-#    my $subset = in_nested_set($Sf, 'Vars', $var); # Should tell us exactly where we are
-#    if ($subset ne '') {
-#    my $Sv = $Sf->{ $subset }{'Set'}{$var};    
-#    if ( exists $Sf->{$subset}{'Set'}{$var} ) {
-##        if ( not exists $Sv->{'Decl'} ) {
-##            say "WARNING: VAR $var does not have Decl in $subset in format_f95_var_decl()!" if $W;
-##			croak Dumper($Sv);
-##        }
-#
-#        if ( exists $Sf->{'ConflictingLiftedVars'}{$var} ) {
-#            $nvar = $Sf->{'ConflictingLiftedVars'}{$var};
-#            say "WARNING: CONFLICT for VAR $var in $subset, setting var name to $nvar in format_f95_var_decl()!" if $W;
-#			croak Dumper($Sv);
-#        }
-#        $spaces =$Sv->{'Indent'};
-#           #WV20150707 Decl is a record of 4 entries: [spaces, [type], [varname],formatted(0|1)]
-#        $spaces =~ s/\S.*$//;
-#        $shape = $Sv->{'Dim'};
-#        $type  = $Sv->{'Type'};
-#        $attr  = $Sv->{'Attr'};
-#        $intent = $Sv->{'IODir'};                 
-#
-#    } elsif ( defined $f and defined $stref and defined $var ) {        
-#        ( $type, my $kind, $attr ) = type_via_implicits( $stref, $f, $var );
-#    } else {
-#        croak
-#"Can't type $var, not in Vars and format_f95_var_decl() called the wrong way for implicits";
-#    }
-#    
-## --------------------------------------------------------------------------------------------------------------------------------    
-#    if (not defined $shape) {croak($var) };
-#    my $dim = [];
-#    # FIXME: I think the case dimension(:) is not covered!
-#    if ( @{$shape} >= 1) {
-#        $dim=$shape;
-#    } else {
-#        $dim = [];
-#    }
-#
-#    return {
-#        'Indent' => $spaces,
-#        'Type' => $type,
-#        'Attr' => $attr,
-#        'Dim' => $dim,
-#        'IODir' => $intent,
-#        'Names' => [$nvar],
-#        'Name' => $nvar,
-#        'Status' => 1
-#    };
-#
-#}    # format_f95_var_decl()
 
 # -----------------------------------------------------------------------------
 sub get_f95_var_decl {	
@@ -1191,7 +1098,7 @@ sub _rename_conflicting_global_pars {
         }
     }
     return ( $nk, $rhs_expr );
-}
+} # _rename_conflicting_global_pars() 
 
 sub _rename_conflicting_vars {
     ( my $expr, my $stref, my $f ) = @_;

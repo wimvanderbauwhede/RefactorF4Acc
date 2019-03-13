@@ -355,6 +355,13 @@ sub _refactor_globals_new {
         	# FIXME: I don't like this, because in the case of a program there should simply be no globals etc.
            # Then generate declarations for ex-globals
            say "HOOK for $f: " .$info->{'ExGlobVarDeclHook'} if $V;
+           # Here I think I can insert 'implicit none'
+           if (not exists $Sf->{'ImplicitNone'}) {
+           	say "Adding 'implicit none' at " . __PACKAGE__ . ' '. __LINE__ if $V;
+           $info={};
+           $info->{'ImplicitNone'}=1;
+           push @{$rlines}, ['      implicit none', $info];
+           }
            say "EX-GLOBS for $f" if $V;
             $rlines = _create_extra_arg_and_var_decls( $stref, $f, $annline, $rlines );
         } 
@@ -394,7 +401,8 @@ sub _create_extra_arg_and_var_decls {
             
     for my $par ( @{ $Sf->{'InheritedParameters'}{'List'} } ) {
     	if (not in_nested_set($Sf,'Parameters',$par) ) {
-    	say "INFO PAR in $f: $par ".Dumper($Sf->{'InheritedParameters'}{'Set'}{$par} ) if $I; 
+    	say "INFO PAR in $f: $par ".Dumper($Sf->{'InheritedParameters'}{'Set'}{$par} ) if $I;
+    	croak; 
                     my $rdecl = $Sf->{'InheritedParameters'}{'Set'}{$par}; 
                     my $rline = emit_f95_var_decl($rdecl);
                     my $info={};
@@ -760,7 +768,7 @@ sub _create_refactored_function_calls {
     ( my $stref, my $f, my $annline, my $rlines ) = @_;
     my $Sf        = $stref->{'Subroutines'}{$f};
     (my $line, my $info) = @{ $annline };
-
+    
 		# Get the AST
 		my $ast = [];
 		my $do_not_update=0;
@@ -775,8 +783,9 @@ sub _create_refactored_function_calls {
 		# Update the function calls in the AST
 		# Basically, whenever we meet a function, we query it for ExGlobArgs and tag these onto te argument list.		
 		my $updated_ast = $do_not_update ? $ast : __update_function_calls_in_AST($stref,$Sf,$f,$ast);
+#		say Dumper($ast, $updated_ast);
 		my $updated_line = $do_not_update ? $line : emit_expression($updated_ast);
- 
+         
 		if ( exists $info->{'PlaceHolders'} ) { 
 
 			while ($updated_line =~ /(__PH\d+__)/) {
@@ -816,6 +825,7 @@ sub _create_refactored_function_calls {
 			$line=~s/call.+$//;
 			$line.=	'call '.$updated_line;			
 		}
+#		say "_create_refactored_function_calls($line) at " . __PACKAGE__ . ' '. __LINE__;
     push @{$rlines}, [ $line , $info ];
     
     return $rlines;
@@ -830,7 +840,7 @@ sub __update_function_calls_in_AST { (my $stref, my $Sf,my $f, my $ast) = @_;
 				my $entry = __update_function_calls_in_AST($stref,$Sf,$f,$entry);
 				$ast->[$idx] = $entry;
 			} else {
-				if ($entry eq '&') {				
+				if ($idx==0 and (($entry & 0xF) == 1)) {				
 					my $name = $ast->[$idx+1];
 					
 				    if ($name ne $f and exists $stref->{'Subroutines'}{$name}{'ExGlobArgs'}) {
@@ -853,7 +863,10 @@ sub __update_function_calls_in_AST { (my $stref, my $Sf,my $f, my $ast) = @_;
 				    
 				    	my $j=0;
 					    for my $extra_arg (@maybe_renamed_exglobs) {
-					    	$ast->[$nelts+$j]=['$',$extra_arg];
+					    	$ast->[$nelts+$j]=[
+					    	(++$Fortran::Expression::Evaluator::Parser::nodeId<<4)+2
+#					    	'$'
+					    	,$extra_arg];
 					    	$j++;
 					    }
 				    }						

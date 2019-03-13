@@ -36,8 +36,8 @@ sub create_build_script {
     	# Ad-hoc: names that do not end in .f\d+ or $EXT are renamed by substituting . with _ and $EXT is appended
     	# This is for includes transformed into modules
     	my $src=$_;
-    	if ($src=~/\.f\d+$/) { 
-    		$src=~s/\.f\d+$/$EXT/;
+    	if ($src=~/\.f\d*$/) { 
+    		$src=~s/\.f\d*/$EXT/;
     	} elsif ($src!~/$EXT$/) {
     		$src=~s/\./_/g;
     		$src.=$EXT;

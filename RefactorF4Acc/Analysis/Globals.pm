@@ -197,6 +197,7 @@ sub lift_globals {
         					);
         					for my $par (keys %{ $all_inherited_parameters } ) {
         						my $subset = in_nested_set($Scsub,'Parameters',$par);
+        						croak "$f $csub $subset ".Dumper($Scsub->{$subset}{'Set'}{$par}) if not exists $Scsub->{$subset}{'Set'}{$par}{'Indent'};
         						$Sf->{'InheritedParameters'}{'Set'}{$par}=dclone($Scsub->{$subset}{'Set'}{$par});
         					}	
 	                	}

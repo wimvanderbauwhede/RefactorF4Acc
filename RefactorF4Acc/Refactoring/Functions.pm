@@ -49,7 +49,6 @@ sub remove_vars_masking_functions { ( my $stref ) = @_;
                 say "INFO: VAR $var is masking a function/sub in $f, LINE: $line" if $I;
                 my $Sf = $stref->{'Subroutines'}{$f};                                
 				my $src = $Sf->{'Source'};
-#				croak 'FIXME!'.$src;  
 				if (exists $stref->{'Subroutines'}{$var}{'Source'}) { # otherwise $var must be external
 	           		my $cs_src = $stref->{'Subroutines'}{$var}{'Source'};
 	           		# We comment the line out unless it's a program 
@@ -59,7 +58,6 @@ sub remove_vars_masking_functions { ( my $stref ) = @_;
                  		(exists $stref->{'Subroutines'}{$var}{'Program'} and $stref->{'Subroutines'}{$var}{'Program'}==1)
                  		or ($stref->{'Program'} eq $src)
                  		)
-#	                	or ($stref->{'SourceFiles'}{$cs_src}{'SourceType'} eq 'Modules')
     	        	) {
     	        		$line.= '! decl of func/sub in program' if $DBG;
     	        	} else {
@@ -185,6 +183,15 @@ end-function-stmt
 
 In other words, they are the same.
 
+* To convert a function definition to a subroutine definition:
+- Rename the output arg if it has the same name as the function
+- Add the output arg as the last arg of the function, intent Out
+- delete the Function attribute $stref->{'Subroutines'}{$f}{'Function'}
+* To convert a function call to a subroutine call:
+- Change the function call expression to a variable name by replacing '(', ')' and ',' with '_'
+- Declare this variable in the caller code unit. The type of this variable is the type of the return value, so maybe I should mark this.
+- Add the variable to the arg list of the function call
+- insert a line "CALL ..." before the expression containing the function call
 =cut
 
 

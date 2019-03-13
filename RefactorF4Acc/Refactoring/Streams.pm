@@ -890,7 +890,7 @@ sub _rename_ast_entry { (my $stref, my $f,  my $state, my $ast, my $intent)=@_;
 						$state->{'StreamVars'}{$mvar}{'Set'}{$var_str}={'IODir'=>$intent,'ArrayIndexExpr'=>$expr_str} ;
 #						$state->{'StreamVars'}{$mvar}{'Stencil'}=$stencil;
 						$ast=[0x2+(($entry>>4)<<4),$var_str];#'$'
-						last;
+                        last;
 					}
 				} 
 			}		
