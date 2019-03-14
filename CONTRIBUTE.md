@@ -10,6 +10,7 @@ Here are a few ideas for how you can contribute, even if you are new to compiler
 - Make GitHub issues and contribute to the conversations about how to resolve them.
 - Read issues and pull requests that other people created and contribute to the conversation about how to resolve them. Look for issues tagged with good first issue, easy, or help wanted.
 - Improve the documentation and the unit tests.
+>>>>>>> devel
 - Tell your friends and colleagues about the Glasgow Fortran Source-to-Source Compiler.
 
 ## How to contribute to the code
@@ -25,5 +26,4 @@ Also see GitHub’s Set Up Git and Using Pull Requests.
 
 For developing, you will need Perl v5.10 or later installed. If you want to contribute, please open a pull request, preferably one that addresses a known issue.
 
-You must include documentation and tests for any new or improved code. We can provide help and advice on this after you start the pull request. 
-
+You must include documentation and tests for any new or improved code. We can provide help and advice on this after you start the pull request.
