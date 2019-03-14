@@ -402,7 +402,7 @@ sub _create_extra_arg_and_var_decls {
     for my $par ( @{ $Sf->{'InheritedParameters'}{'List'} } ) {
     	if (not in_nested_set($Sf,'Parameters',$par) ) {
     	say "INFO PAR in $f: $par ".Dumper($Sf->{'InheritedParameters'}{'Set'}{$par} ) if $I;
-    	croak; 
+    	
                     my $rdecl = $Sf->{'InheritedParameters'}{'Set'}{$par}; 
                     my $rline = emit_f95_var_decl($rdecl);
                     my $info={};
