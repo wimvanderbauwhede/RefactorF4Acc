@@ -49,8 +49,6 @@ sub translate_module_to_C {  (my $stref, my $ocl) = @_;
 	$stref = pass_wrapper_subs_in_module($stref,[
 #					[ sub { (my $stref, my $f)=@_;  
 #						alias_ordered_set($stref,$f,'DeclaredOrigArgs','RefactoredArgs'); 
-##						say $f.' => '.Dumper($stref->{Subroutines}{$f}{DeclaredOrigArgs}) if $f eq 'adam_bondv1_feedbf_les_press_v_etc_superkernel';#adam_bondv1_feedbf_les_press_v_etc_superkernel
-##						croak if $f eq 'adam_bondv1_feedbf_les_press_v_etc_superkernel'; 
 #					} ],
 #					[ \&_fix_scalar_ptr_args ],
 #		  		[\&_fix_scalar_ptr_args_subcall],	
@@ -239,7 +237,17 @@ sub translate_sub_to_C {  (my $stref, my $f, my $ocl) = @_;
 			elsif ($subcall_ast->[1]=~/get_(local|global|group)_id/) {
 				my $qual = $1;
 				$c_line = $info->{'Indent'}."${qual}_id = get_${qual}_id(0);";
-			} else {
+			}
+			# TODO PIPES
+			# get_pipe_num_packets()
+			# (write|read)_pipe(ch0, &data)
+			# (read|write)_only pipe int ch0
+#            elsif ($subcall_ast->[1]=~//) {
+#                my $qual = $1;
+#                $c_line = $info->{'Indent'}."";
+#				
+#			} 
+			else {
 				$c_line = $info->{'Indent'}._emit_expression_C($subcall_ast,'',$stref,$f).';';
             }
 		}			 

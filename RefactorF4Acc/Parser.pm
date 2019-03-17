@@ -1303,11 +1303,11 @@ END IF
 			if($has_commons && $has_pars ) {
 				print "INFO: The include file $inc contains both parameters and commons, attempting to split out params_$inc.\n"
 				  if $I;
-				$Sincf->{'InclType'} = 'Both';
+				$Sincf->{'InclType'} = 'Both'; # This is never used
+				# We do this here so that we can set the incltype to one of the three choices
 				$stref = __split_out_parameters( $inc, $stref );
 				$stref = __find_parameter_used_in_inc_and_add_to_Only( $inc, $stref );
 				$has_pars = 0;
-	
 			} elsif ($has_commons) {
 				$Sincf->{'InclType'} = 'Common';
 			} elsif ($has_pars) {
@@ -2303,6 +2303,7 @@ sub f77_var_decl_parser {
 
 # -----------------------------------------------------------------------------
 # TODO: check if this works for F95-style parameters too
+# Also, this is refactoring, why is this done here? Do we need this for Analysis?
 sub __split_out_parameters {
 	( my $f, my $stref ) = @_;
 	my $Sf = $stref->{'IncludeFiles'}{$f};
@@ -4743,7 +4744,7 @@ if ($lhs=~/,/ or $rhs=~/,/) {
 	
 } # END of _parse_data_declaration()
 
-# TODO?
+# TODO? Currently UNUSED!
 sub _expand_repeat_data { (my $line)=@_;
 	return $line;
 }
