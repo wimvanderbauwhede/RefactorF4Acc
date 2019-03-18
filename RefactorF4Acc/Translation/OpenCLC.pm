@@ -67,6 +67,9 @@ sub translate_module_to_C {  (my $stref, my $ocl) = @_;
 sub add_OpenCL_address_space_qualifiers { (my $stref, my $f, my $ocl) = @_;
 	
 	if ($ocl==1) {
+		if (not exists $Config{'KERNEL'}) {
+			$Config{'KERNEL'}=$Config{'TOP'}
+		}
 		if ($f eq $Config{'KERNEL'} ) {
 
 
@@ -146,9 +149,15 @@ sub translate_sub_to_C {  (my $stref, my $f, my $ocl) = @_;
 #		say Dumper($stref->{'Subroutines'}{$f}{'DeletedArgs'});
 		my $skip=0;
 		if (exists $info->{'Signature'} ) {
+			if($ocl==2 and $info->{'Signature'}{'Name'} eq 'pipe_initialisation') {
+			$c_line='';	
+			} elsif($ocl==2 and $info->{'Signature'}{'Name'} eq $Config{'TOP'}) {
+			$c_line='/*';  	
+			} else {
 			$c_line = _emit_subroutine_sig_C( $stref, $f, $annline);
-			if ($ocl==1 and $f eq $Config{'KERNEL'}) {
+			if ($ocl==2 or ($ocl==1 and $f eq $Config{'KERNEL'})) {
 				$c_line = '__kernel '.$c_line;
+			}
 			}
 		}
 		elsif (exists $info->{'VarDecl'} ) {
@@ -156,6 +165,7 @@ sub translate_sub_to_C {  (my $stref, my $f, my $ocl) = @_;
 				my $var = $info->{'VarDecl'}{'Name'};
 #				croak Dumper($stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}) if $var eq 'f';
 				if (exists $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$var}
+				or ($ocl==2 and $var=~/__pipe$/)
 				) {
 					$c_line='//'.$line;
 					$skip=1;
@@ -236,6 +246,15 @@ sub translate_sub_to_C {  (my $stref, my $f, my $ocl) = @_;
 #				push @{$pass_state->{'TranslatedCode'}},'#endif // BARRIER_OK';
 				$skip=1;
 			}
+			elsif ($subcall_ast->[1]=~/ocl_pipe_(real|integer)/) {
+				my $ftype = $1;
+				$c_line = $info->{'Indent'}.'pipe '.toCType($ftype).' '.$subcall_ast->[2][1].';'; 
+			}
+            elsif ($subcall_ast->[1]=~/(read|write)_pipe/) {
+                my $iodir = $1;
+#                croak(Dumper($subcall_ast));
+                $c_line = $info->{'Indent'} . $subcall_ast->[1] .'('.$subcall_ast->[2][1].','.'&'.$subcall_ast->[3][1].');'; 
+            }			
 			elsif ($subcall_ast->[1]=~/get_(local|global|group)_id/) {
 				my $qual = $1;
 				$c_line = $info->{'Indent'}."${qual}_id = get_${qual}_id(0);";
@@ -253,7 +272,13 @@ sub translate_sub_to_C {  (my $stref, my $f, my $ocl) = @_;
 			$c_line = ' } else {';
 		}
 		elsif (exists $info->{'EndDo'} or exists $info->{'EndIf'}  or exists $info->{'EndSubroutine'} ) {
-				 $c_line = '}';
+			if ($ocl==2 and  exists $info->{'EndSubroutine'} and  $info->{'EndSubroutine'}{'Name'} eq 'pipe_initialisation') {
+				     $c_line = '' ;
+			} elsif ($ocl==2 and  exists $info->{'EndSubroutine'} and  $info->{'EndSubroutine'}{'Name'} eq $Config{'TOP'}) {
+				     $c_line = '*/' ;
+			} else {
+				 $c_line = '}' ;
+			}
 		}
 		elsif (exists $info->{'EndSelect'} ) {
 				 $c_line = '    }'."\n".$info->{'Indent'}.'}';
@@ -261,7 +286,12 @@ sub translate_sub_to_C {  (my $stref, my $f, my $ocl) = @_;
 		
 		elsif (exists $info->{'Comments'} ) {
 			$c_line = $line;
+			#!$PRAGMA unroll
+			if ($ocl==2 and $line=~/\$pragma/i) {
+				$c_line=~s/\!\$/#/;
+			} else {
 			$c_line=~s/\!/\/\//;
+			}
 		}
 		elsif (exists $info->{'Use'}) {
 			if ($line=~/$f/) {
@@ -419,10 +449,11 @@ sub _emit_var_decl_C { (my $stref,my $f,my $var)=@_;
 
 sub _emit_assignment_C { (my $stref, my $f, my $info)=@_;
 	my $lhs_ast =  $info->{'Lhs'}{'ExpressionAST'};
-#	say Dumper($lhs_ast);
+	;
     #	expr_str
     #croak Dumper($stref->{'Subroutines'}{$f}{'Pointers'}{'eta_j_k'}) if $f=~/shapiro_map/ && $lhs_ast->[1] eq 'eta_j_k';
 	my $lhs = _emit_expression_C($lhs_ast,'',$stref,$f);
+	   
 	my $indent='';
 	$lhs=~/^(\s+)/ && do {
 		$indent=$1;
@@ -430,10 +461,10 @@ sub _emit_assignment_C { (my $stref, my $f, my $info)=@_;
 	};
 	$lhs=~s/^\(([^\(\)]+)\)/$1/;
 	$lhs=$indent.$lhs;
-#	croak $lhs.Dumper($lhs_ast) if $lhs=~/F1D2C/;
+
 	my $rhs_ast =  $info->{'Rhs'}{'ExpressionAST'};	
 #	carp Dumper($rhs_ast) if $lhs=~/k_range/;
-
+    
 	my $rhs = _emit_expression_C($rhs_ast,'',$stref,$f);
 #	say "RHS:$rhs" if$rhs=~/abs/;
 	my $rhs_stripped = $rhs;
@@ -495,7 +526,7 @@ sub _emit_expression_C {(my $ast, my $expr_str, my $stref, my $f)=@_;
 			if ($entry =~/#/) {
 				$skip=1;
             } elsif ($idx==0) {    
-                #} els
+
             if (($entry & 0x0F) == 1) { # eq '&'
 				my $mvar = $ast->[$idx+1];
 				# AD-HOC, replacing abs/min/max to fabs/fmin/fmax without any type checking ... FIXME!!!
@@ -584,6 +615,12 @@ sub _emit_expression_C {(my $ast, my $expr_str, my $stref, my $f)=@_;
 				push @expr_chunks,$entry;
 				$skip=0;
 			}
+        } else { no warnings 'numeric';
+        	if ($entry eq $entry+0) { # Test if $entry is a numeric constant 
+        #say "ENTRY: $entry";
+        push @expr_chunks,$entry;
+        }
+        
         }
 		}				
 	} # for
