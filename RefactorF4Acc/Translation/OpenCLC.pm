@@ -156,7 +156,7 @@ sub translate_sub_to_C {  (my $stref, my $f, my $ocl) = @_;
 			} else {
 			$c_line = _emit_subroutine_sig_C( $stref, $f, $annline);
 			if ($ocl==2 or ($ocl==1 and $f eq $Config{'KERNEL'})) {
-				$c_line = '__kernel '.$c_line;
+				$c_line = '__kernel __attribute__((reqd_work_group_size(1,1,1))) '.$c_line;
 			}
 			}
 		}
@@ -248,7 +248,7 @@ sub translate_sub_to_C {  (my $stref, my $f, my $ocl) = @_;
 			}
 			elsif ($subcall_ast->[1]=~/ocl_pipe_(real|integer)/) {
 				my $ftype = $1;
-				$c_line = $info->{'Indent'}.'pipe '.toCType($ftype).' '.$subcall_ast->[2][1].';'; 
+				$c_line = $info->{'Indent'}.'pipe '.toCType($ftype).' '.$subcall_ast->[2][1].' __attribute__((xcl_reqd_pipe_depth(32)));'; # TODO: make configurable, this is Xilinx-specific! 
 			}
             elsif ($subcall_ast->[1]=~/(read|write)_pipe/) {
                 my $iodir = $1;
@@ -420,14 +420,17 @@ sub _emit_var_decl_C { (my $stref,my $f,my $var)=@_;
 # {'Var' => 'st_sub_map_124','Status' => 1,'Dim' => [],'Attr' => '','Type' => {'Type' => 'integer'},'Val' => '0','Indent' => '  ','Name' => ['st_sub_map_124','0'],'InheritedParams' => undef,'Parameter' => 'parameter'}		
 	my $array = (exists $decl->{'ArrayOrScalar'} and $decl->{'ArrayOrScalar'} eq 'Array') ? 1 : 0;
 	my $const = '';
-	my $val='';
+	my $val='';	
 	if (defined $decl->{'Parameter'}) {
 		$const = 'const ';
 		$val = ' = '.$decl->{'Val'};
 #		croak Dumper($decl) if $var eq 'alpha';
 		#say "PARAM $var => $val" if $var=~/st_\w+_(map|reduce)_\d+/;
 	}
-	my $ptr = $array  ? '*' : '';
+	my $ocl = $stref->{'OpenCL'};
+	my $ptr = ($array && $ocl<2) ? '*' : '';
+   	
+	my $dim= ($array && $ocl==2 ) ? '['.__C_array_size($decl->{'Dim'}).']' : '';
 	$stref->{'Subroutines'}{$f}{'Pointers'}{$var}=$ptr;
 	my $ftype = $decl->{'Type'};
 	my $fkind = $decl->{'Attr'};
@@ -443,7 +446,7 @@ sub _emit_var_decl_C { (my $stref,my $f,my $var)=@_;
 	if ($fkind eq '') {$fkind=4};
 	
 	my $c_type = toCType($ftype,$fkind);
-	my $c_var_decl = $const.$c_type.' '.$ptr.$var.$val.';';
+	my $c_var_decl = $const.$c_type.' '.$ptr.$var.$dim.$val.';';
 	return ($stref,$c_var_decl);
 }
 
@@ -589,19 +592,24 @@ sub _emit_expression_C {(my $ast, my $expr_str, my $stref, my $f)=@_;
 					}  else {
 						my $decl = get_var_record_from_set($stref->{'Subroutines'}{$f}{'Vars'},$mvar);
 						my $dims =  $decl->{'Dim'};
-						my $dim = scalar @{$dims};
-						my @ranges=();
-						my @lower_bounds=();
-						for my $boundspair (@{$dims}) {
-							(my $lb, my $hb)=@{$boundspair };
-							push @ranges, "(($hb - $lb )+1)";
-							push @lower_bounds, $lb; 
-						} 				
-						if ($dim==1) {
-							$expr_str.=$mvar.'[F1D2C('.join(',',@lower_bounds). ' , ';
-						} else {
-							$expr_str.=$mvar.'[F'.$dim.'D2C('.join(',',@ranges[0.. ($dim-2)]).' , '.join(',',@lower_bounds). ' , ';						
-						}
+#						if (__all_bounds_numeric($dims)) {
+#							$expr_str.=$mvar.'['.__C_array_size($dims).',';
+#						} else {
+							my $ndims = scalar @{$dims};
+							
+							my @ranges=();
+							my @lower_bounds=();
+							for my $boundspair (@{$dims}) {
+								(my $lb, my $hb)=@{$boundspair };
+								push @ranges, "(($hb - $lb )+1)";
+								push @lower_bounds, $lb; 
+							} 				
+							if ($ndims==1) {
+								$expr_str.=$mvar.'[F1D2C('.join(',',@lower_bounds). ' , ';
+							} else {
+								$expr_str.=$mvar.'[F'.$ndims.'D2C('.join(',',@ranges[0.. ($ndims-2)]).' , '.join(',',@lower_bounds). ' , ';						
+							}
+#						}
 					}
 				}
 				$skip=1;
@@ -626,6 +634,7 @@ sub _emit_expression_C {(my $ast, my $expr_str, my $stref, my $f)=@_;
 	} # for
 	# Here state_ptr is OK
 	if (($ast->[0] & 0x0F) == 1  ) { # eq '&'       
+    	# strip enclosing parens
 		my @expr_chunks_stripped = map { $_=~s/^\(([^\(\)]+)\)$/$1/;$_} @expr_chunks;
 		if ($ast->[1] eq 'pow') {
 				$expr_str.=join(',', map { "(float)($_)" } @expr_chunks_stripped);
@@ -640,17 +649,17 @@ sub _emit_expression_C {(my $ast, my $expr_str, my $stref, my $f)=@_;
 		
 #		say "CLOSE OF &:".$expr_str if $expr_str=~/abs/;
 	} elsif ( ($ast->[0] & 0x0F) == 10) {				# eq '@'
+	# strip enclosing parens
 		my @expr_chunks_stripped =   map {  $_=~s/^\(([^\(\)]+)\)$/$1/;$_} @expr_chunks;		
 		if ( not ($expr_str=~/^\*/ and $expr_chunks_stripped[0]==1) ) { 
 			$expr_str.=join(',',@expr_chunks_stripped);
 			# But here we'd need to know what the var is!
-			$expr_str.=')';
+			$expr_str.=')'; 
 			if ($expr_str=~/\[/) {
 				my $count_open_bracket = () =$expr_str=~/\[/;
 				my $count_close_bracket = () =$expr_str=~/\]/; 
-#				warn("FIXME: this is incorrect, I should count the brackets!");
 				if ($count_open_bracket == $count_close_bracket + 1) { 
-					$expr_str.=']'; #FIXME: this is incorrect, I should count the brackets!
+					$expr_str.=']';
 				} 				 
 			} 
 		}
@@ -796,3 +805,25 @@ sub add_to_C_build_sources {
 #    }
     return $stref;
 } # END of add_to_C_build_sources()
+
+sub __C_array_size { (my $dims) = @_;
+	my $array_size=1; 
+	for my $dim (@{$dims}) {
+		my $lb=$dim->[0];
+		my $ub=$dim->[1];
+		my $dim_size = eval("$ub-$lb+1");
+		$array_size*=$dim_size;
+	}
+	return $array_size;
+}
+
+sub __all_bounds_numeric { (my $dims)=@_;
+	my $all_bounds_numeric=0;
+ no warnings 'numeric';
+ for my $dim (@{$dims}) {
+ 	for my $entry (@{$dim}) {
+       $all_bounds_numeric ||=  ($entry eq $entry+0) ? 1 : 0;
+ 	}
+ }	
+	return $all_bounds_numeric;
+}
