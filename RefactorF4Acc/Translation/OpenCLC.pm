@@ -41,7 +41,7 @@ use Exporter;
 
 #### #### #### #### BEGIN OF C TRANSLATION CODE #### #### #### ####
 
-sub translate_module_to_C {  (my $stref, my $ocl) = @_;
+sub translate_module_to_C {  (my $stref, my $module_name, my $ocl) = @_;
 	if (not defined $ocl) {$ocl=0;}
 	$stref->{'OpenCL'}=$ocl;
 	$stref->{'TranslatedCode'}=[];	
@@ -60,15 +60,17 @@ sub translate_module_to_C {  (my $stref, my $ocl) = @_;
 		],$ocl);
 		
 	$stref = _write_headers($stref,$ocl);
-	$stref = _emit_C_code($stref, $ocl);
+	$stref = _emit_C_code($stref, $module_name, $ocl);
     # This makes sure that no fortran is emitted by emit_all()
     $stref->{'SourceContains'}={};
 }
 sub add_OpenCL_address_space_qualifiers { (my $stref, my $f, my $ocl) = @_;
 	
 	if ($ocl==1) {
-		if (not exists $Config{'KERNEL'}) {
+		if (not exists $Config{'KERNEL'} and exists $Config{'TOP'}) {
 			$Config{'KERNEL'}=$Config{'TOP'}
+		} else {
+			$Config{'KERNEL'}='';
 		}
 		if ($f eq $Config{'KERNEL'} ) {
 
@@ -151,8 +153,8 @@ sub translate_sub_to_C {  (my $stref, my $f, my $ocl) = @_;
 		if (exists $info->{'Signature'} ) {
 			if($ocl==2 and $info->{'Signature'}{'Name'} eq 'pipe_initialisation') {
 			$c_line='';	
-			} elsif($ocl==2 and $info->{'Signature'}{'Name'} eq $Config{'TOP'}) {
-			$c_line='/*';  	
+#			} elsif($ocl==2 and $info->{'Signature'}{'Name'} eq $Config{'TOP'}) {
+#			$c_line='/*';  	
 			} else {
 			$c_line = _emit_subroutine_sig_C( $stref, $f, $annline);
 			if ($ocl==2 or ($ocl==1 and $f eq $Config{'KERNEL'})) {
@@ -274,8 +276,8 @@ sub translate_sub_to_C {  (my $stref, my $f, my $ocl) = @_;
 		elsif (exists $info->{'EndDo'} or exists $info->{'EndIf'}  or exists $info->{'EndSubroutine'} ) {
 			if ($ocl==2 and  exists $info->{'EndSubroutine'} and  $info->{'EndSubroutine'}{'Name'} eq 'pipe_initialisation') {
 				     $c_line = '' ;
-			} elsif ($ocl==2 and  exists $info->{'EndSubroutine'} and  $info->{'EndSubroutine'}{'Name'} eq $Config{'TOP'}) {
-				     $c_line = '*/' ;
+#			} elsif ($ocl==2 and  exists $info->{'EndSubroutine'} and  $info->{'EndSubroutine'}{'Name'} eq $Config{'TOP'}) {
+#				     $c_line = '*/' ;
 			} else {
 				 $c_line = '}' ;
 			}
@@ -353,10 +355,12 @@ sub _write_headers { (my $stref, my $ocl)=@_;
 		return $stref;
 } # END of _write_headers()
 
-sub _emit_C_code { (my $stref, my $ocl)=@_;
+sub _emit_C_code { (my $stref, my $module_name, my $ocl)=@_;
  	map {say $_ } @{$stref->{'TranslatedCode'}} if $V;
  	my $ext = $ocl ? 'cl' : 'c';
- 	my $fsrc = $Config{'MODULE_SRC'};
+ 	my $module_src = $stref->{'Modules'}{$module_name}{'Source'};
+ 	my $fsrc = $module_src;#$Config{'MODULE_SRC'}; 
+# 	croak $fsrc;
  	my $csrc = $fsrc;$csrc=~s/\.\w+$//;
     if (not -d $targetdir) {
         mkdir $targetdir;

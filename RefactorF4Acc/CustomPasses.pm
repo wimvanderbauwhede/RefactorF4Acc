@@ -41,8 +41,12 @@ use Exporter;
 # -----------------------------------------------------------------------------
 
 sub run_custom_passes {
-	( my $stref, my $code_unit_name, my $pass) = @_;
+	( my $stref, my $code_unit_name, my $pass, my $is_source_file_path) = @_;
 	my $sub_or_func_or_mod = sub_func_incl_mod( $code_unit_name, $stref );
+	if ($sub_or_func_or_mod eq 'Modules' and $is_source_file_path) {
+       $code_unit_name = get_module_name_from_source($stref,$code_unit_name);
+    }
+	 
     # Some of these passes use functionality that requires RefactoredArgs, so let's make sure it is populated
     # I assume that the input for a custom pass is essentially the output of the main compiler, so no globals, etc
     # So all args should be in DeclaredOrigArgs
@@ -63,13 +67,13 @@ sub run_custom_passes {
 		$stref = pass_rename_array_accesses_to_scalars($stref);				
 	}
 	if ($pass =~/translate_to_C/) {
-		$stref = translate_module_to_C($stref,0);
+		$stref = translate_module_to_C($stref,$code_unit_name,0);
 	} elsif ( $pass =~/translate_to_OpenCL_with_pipes/) {              
-        $stref = translate_module_to_C($stref,2);
+        $stref = translate_module_to_C($stref,$code_unit_name,2);
 	} elsif ( $pass =~/translate_to_OpenCL/) {				
-		$stref = translate_module_to_C($stref,1);
+		$stref = translate_module_to_C($stref,$code_unit_name,1);
 	} elsif ( $pass =~/translate_to_SaC/) {				
-		$stref = translate_module_to_SaC($stref);
+		$stref = translate_module_to_SaC($stref,$code_unit_name);
 	}
 	if ($pass =~/ifdef_io/i) {
 		$stref = _ifdef_io_all($stref);				

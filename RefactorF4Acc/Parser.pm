@@ -44,7 +44,8 @@ use Exporter;
 # parse_fortran_src() parses the source but does perform only limited context-free analysis
 # This routine is recursive
 sub parse_fortran_src {
-	( my $f, my $stref ) = @_;  # NOTE $f is not the name of the source but of the sub/func/incl/module. 
+	( my $f, my $stref, my $is_source_file_path ) = @_;  # NOTE $f is not the name of the source but of the sub/func/incl/module.
+	 
 
 	#    local $V=1;
 	print "parse_fortran_src(): PARSING $f\n" if $V;
@@ -52,13 +53,17 @@ sub parse_fortran_src {
 	#say 'INIT PRE:'.Dumper($stref->{'Subroutines'}{'init'}{'AnnLines'}) ; # OK!
 ## 1. Read the source and do some minimal processsing, unless it's already been done (i.e. for extracted blocks)
 	print "parse_fortran_src(): CALL read_fortran_src( $f )\n" if $V;
-	$stref = read_fortran_src( $f, $stref );    #
+	$stref = read_fortran_src( $f, $stref, $is_source_file_path );    #
 #	die Dumper($stref->{IncludeFiles}{'dimensions.inc'}) if $f=~/dimensions.inc/;
 	print "DONE read_fortran_src( $f )\n" if $V;	
 	
-	my $sub_or_incl_or_mod = sub_func_incl_mod( $f, $stref ); # Maybe call this "code_unit()"
+	my $sub_or_incl_or_mod = sub_func_incl_mod( $f, $stref ); # Maybe call this "code_unit()"	
 	my $is_incl = $sub_or_incl_or_mod eq 'IncludeFiles' ? 1 : 0;
 	my $is_mod = $sub_or_incl_or_mod eq 'Modules' ? 1 : 0;
+	if ($is_mod and $is_source_file_path) {
+		$f = $stref->{'SourceFiles'}{$f}{'ModuleName'};
+#		croak Dumper($stref->{$sub_or_incl_or_mod}{$f});
+	}
 	my $is_external_include =
 	  $is_incl ? ( $stref->{'IncludeFiles'}{$f}{'InclType'} eq 'External' ) : 0;
 
@@ -72,7 +77,7 @@ sub parse_fortran_src {
 	if ( 
 		$sub_or_incl_or_mod ne 'ExternalSubroutines' 
 		and $stref->{$sub_or_incl_or_mod}{$f}{'Status'} != $FILE_NOT_FOUND
-		) {
+		) { 
 		my $Sf = $stref->{$sub_or_incl_or_mod}{$f};		
 		if (not exists $Sf->{'Entry'} or $Sf->{'Entry'} == 0 ) {
 
@@ -389,6 +394,7 @@ sub _analyse_lines {
 	
 #	say "_analyse_lines( $f ) : $sub_incl_or_mod is_include: $is_incl";
 	my $Sf = $stref->{$sub_incl_or_mod}{$f};
+#	croak Dumper( sort keys %{$Sf});
 	$Sf->{'ExGlobVarDeclHook'} = 0;
 	my $srcref = $Sf->{'AnnLines'};
 
@@ -1329,7 +1335,7 @@ END IF
 		}
 		
 	} else {
-		print "WARNING: NO source file found for $f ($sub_incl_or_mod). If this file is in an external directory, please speficy the directory in EXTSRCDIRS in the config file\n";
+		croak "WARNING: NO source file found for $f ($sub_incl_or_mod). If this file is in an external directory, please speficy the directory in EXTSRCDIRS in the config file\n" ;
 		if ($Sf->{'Entry'} ==0) {
 #			croak "SOURCE for $f: " . Dumper($Sf). ' , Source: '.$Sf->{'Source'}.$f.' , Entry: '.$Sf->{'Entry'};
 		# FIXME: if we can't find the source, we should search the include path, but not attempt to create a module for that source!

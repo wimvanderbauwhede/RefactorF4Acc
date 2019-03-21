@@ -36,9 +36,11 @@ use Exporter;
 # -----------------------------------------------------------------------------
 
 sub refactor_all {
-	( my $stref, my $code_unit_name) = @_;
+	( my $stref, my $code_unit_name, my $is_source_file_path) = @_;
 	my $sub_or_func_or_mod = sub_func_incl_mod( $code_unit_name, $stref );
-
+    if ($sub_or_func_or_mod eq 'Modules' and $is_source_file_path) {
+       $code_unit_name = get_module_name_from_source($stref,$code_unit_name);
+    }
     $stref = refactor_include_files($stref);
 
     $stref = refactor_called_functions($stref); # Context-free only FIXME: this should be treated just like subs, but of course that requires full parsing of expressions that contain function calls

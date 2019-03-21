@@ -51,12 +51,20 @@ use Exporter;
     $BLANK_LINE
     &annotate
     &alias_ordered_set
+    &get_module_name_from_source
 );
 
 
 
 our $BLANK_LINE = ['',{'Blank'=>1,'Ref'=>1}];
 
+sub get_module_name_from_source { (my $stref,my $fp) = @_;
+	if (exists $stref->{'SourceFiles'}{$fp}{'SourceType'} and $stref->{'SourceFiles'}{$fp}{'SourceType'} eq 'Modules') {
+	   return $stref->{'SourceFiles'}{$fp}{'ModuleName'};
+	} else {
+		return $fp;
+	}
+}
 # This is a utility function to create references for one set to another. 
 # now we can say e.g.  alias_ordered_set($stref,$f, 'RefactoredArgs','DeclaredOrigArgs')
 sub alias_ordered_set { (my $stref,my $f,my $alias,my $orig) = @_;
@@ -96,6 +104,12 @@ sub sub_func_incl_mod {
         return 'IncludeFiles';
     } elsif ( exists $stref->{'Modules'}{$f} ) { # So we only say it's a module if it is nothing else.
         return 'Modules';        
+    } elsif ( exists $stref->{'SourceFiles'}{$f} ) { # So we only say it's a module if it is nothing else.
+        if (exists $stref->{'SourceFiles'}{$f}{'SourceType'} and $stref->{'SourceFiles'}{$f}{'SourceType'} eq 'Modules') {
+        	return 'Modules';
+        } else {
+            return 'SourceFiles';
+        }        
     } else {
 #        #print Dumper($stref);
 #        #croak "No entry for $f in the state\n";

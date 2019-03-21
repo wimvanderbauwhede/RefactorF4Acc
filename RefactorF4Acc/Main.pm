@@ -138,11 +138,15 @@ This routine analyses the code for goto-based loops and breaks, so that we can r
 
 sub main {
 	(my $unit_test_list)=@_;
-		
+    # $subname is either provided on command line or $Config{'TOP'}
+    # If $subname is blank then we the files in the $SOURCEFILES list are processed one by one
+    # Otherwise a non-blank $SOURCEFILES list will be considered the list of the source files to be inventoried, so includes in them will also be added to the inventory. 	
 	(my $subname, my $subs_to_translate, my $gen_scons, my $build, my $call_tree_only, my $pass) = parse_args();
 	
-	#  Initialise the global state.
+	#  Initialise the global state. $subname could be empty
 	my $stref = init_state($subname);
+	
+	# This is not used at the moment
     $stref->{'SubsToTranslate'}=$subs_to_translate;
     
 	# 1. Inventory: Find all subroutines in the source code tree
@@ -158,7 +162,19 @@ sub main {
     for my $data_block (keys %{ $stref->{'BlockData'} } ) {
     	$stref = parse_fortran_src( $data_block, $stref );
     }
-	$stref = parse_fortran_src( $subname, $stref );
+    # It is possible that the TOP routine was set to the default (PROGRAM) while doing the inventory
+    if ($subname eq '' and exists $Config{'TOP'} and $Config{'TOP'} ne '') {
+    	$subname = $Config{'TOP'};
+    }
+    
+    if ($subname eq '' and exists $Config{'SOURCEFILES'} and scalar @{ $Config{'SOURCEFILES'} }>0) {
+    	# $subname is empty, i.e. no TOP routine. So we go through all sources one by one by file name
+    	for my $fp ( @{ $Config{'SOURCEFILES'} } ) {
+    		parse_fortran_src( $fp, $stref, 1 );
+    	}
+    } else {
+	   $stref = parse_fortran_src( $subname, $stref );
+    }
 	
 	$stref = mark_blocks_between_calls( $stref );
 	
@@ -175,23 +191,38 @@ sub main {
 #	die Dumper($stref->{'Nodes'});
     # 3. Analysis: Analyse the source
     my $stage=0;
-    
-	$stref = analyse_all($stref,$subname, $stage);
-
+    if ($subname eq '' and exists $Config{'SOURCEFILES'} and scalar @{ $Config{'SOURCEFILES'} }>0) {
+    	for my $fp ( @{ $Config{'SOURCEFILES'} } ) {
+            $stref = analyse_all($stref,$fp, $stage, 1);
+        }
+    } else {
+	   $stref = analyse_all($stref,$subname, $stage);
+    }
     # After the analysis we can either do the refactoring of the code, i.e. the main purpose of the compiler
     # or run one or more custom passes. 
     #
     if ($pass) {
-
-    	$stref = run_custom_passes($stref,$subname, $pass);
-        
+        if ($subname eq '' and exists $Config{'SOURCEFILES'} and scalar @{ $Config{'SOURCEFILES'} }>0) {
+        # $subname is empty, i.e. no TOP routine. So we go through all sources one by one by file name
+            for my $fp ( @{ $Config{'SOURCEFILES'} } ) {
+    	       $stref = run_custom_passes($stref,$fp, $pass,1);
+            }
+        } else {
+        	   $stref = run_custom_passes($stref,$subname, $pass);
+        }
     } else {
 			 
     # 4. Refactoring: Refactor the source    
     # - if a pass is given using -P on command line, it is performed instead of the default refactoring
     # - multiple passes can be comma-separated
-        
-	    $stref = refactor_all($stref,$subname);
+   if ($subname eq '' and exists $Config{'SOURCEFILES'} and scalar @{ $Config{'SOURCEFILES'} }>0) {
+        # $subname is empty, i.e. no TOP routine. So we go through all sources one by one by file name
+        for my $fp ( @{ $Config{'SOURCEFILES'} } ) {
+        	$stref = refactor_all($stref,$fp,1);
+        }
+        } else {
+	       $stref = refactor_all($stref,$subname);
+        }        
     }
 	# 5. Emitter: Emit the refactored source
 	
@@ -229,7 +260,7 @@ sub parse_args {
 		die "Please specifiy FORTRAN subroutine or program to refactor\n";
 	}
 	my %opts = ();
-	getopts( 'VvwidhACTNgbBGc:P:', \%opts );
+	getopts( 'VvwidhACTNgbBGc:P:s:', \%opts );
 	
 	if ($opts{'V'}) {
 		die "Version: $VERSION\n";
@@ -248,13 +279,17 @@ sub parse_args {
     } 
 	read_rf4a_config($cfgrc);
 	
+	my $has_subname=0;
 	my $subname = $ARGV[0];
 	if ($subname) {
 		$subname =~ s/\.f(?:90)?$//;
+		$has_subname=1;
 	} elsif (exists $Config{'TOP'}) {
 		$subname = $Config{'TOP'};
+		$has_subname=1;
 	} else {
-		die "No default for toplevel subroutine (TOP) in rf4a.cfg, please specify the toplevel subroutine on command line\n"; 
+        # Make sure subname is empty
+        $subname = '';
 	}
     
     if ( exists $Config{'NEWSRCPATH'}) {
@@ -262,6 +297,18 @@ sub parse_args {
     }   
     
     my $pass =  $opts{'P'} // '';
+    
+    # If -s or $Config{'SOURCEFILES'} is not empty, we can proceed without TOP
+    my $sourcefiles_str = $opts{'s'} // '';
+    if ($sourcefiles_str ne '') {    
+        # OK, source files from command line
+        $SOURCEFILES = split(/\s*\,\s*/,$sourcefiles_str);
+    } elsif (exists $Config{'SOURCEFILES'} and $Config{'SOURCEFILES'} ne '') {
+    	# OK, source files from config file
+        $SOURCEFILES = $Config{'SOURCEFILES'}     
+    } elsif (not $has_subname) {
+    	die "No default for toplevel subroutine (TOP) in rf4a.cfg, please specify the toplevel subroutine on command line\n"; 
+    }
     
     $ANN = ( $opts{'A'} ) ? 1 : 0;
     

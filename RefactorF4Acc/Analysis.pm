@@ -33,11 +33,12 @@ use Exporter;
 
 sub analyse_all {
 
-	( my $stref, my $code_unit_name, my $stage ) = @_;
+	( my $stref, my $code_unit_name, my $stage, my $is_source_file_path  ) = @_;
 	my $sub_or_func_or_mod = sub_func_incl_mod( $code_unit_name, $stref );
-	
-		
-	
+			
+	if ($sub_or_func_or_mod eq 'Modules' and $is_source_file_path) {
+	   $code_unit_name = get_module_name_from_source($stref,$code_unit_name);
+	}
 	if (not defined $stage) {$stage=0}
 	
 	my $annlines =	_add_BLOCK_DATA_call_after_last_VarDecl($code_unit_name,$stref);

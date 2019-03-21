@@ -42,6 +42,14 @@ sub find_subroutines_functions_and_includes {
     }
     	
     my $prefix   = exists $Config{PREFIX} ? $Config{PREFIX} : '.';
+    
+    my %src_files = ();
+    my %excluded_dirs = $Config{EXCL_DIRS} ? map { $_ => 1 } @{ $Config{EXCL_DIRS} } : ();
+    
+    if ($incl eq '' and scalar @{$SOURCEFILES} > 0) {
+    	%src_files = map { $_ => {'Local' => $prefix } } @{$SOURCEFILES};
+    	%excluded_dirs=();     	
+    }  else {
     my @srcdirs=exists $Config{SRCDIRS} ?  @{ $Config{SRCDIRS} } : ('.');    
     my @extsrcdirs=exists $Config{EXTSRCDIRS} ? @{ $Config{EXTSRCDIRS} } : (); # External sources, should not be refactored but can be parsed
     my %ext_src_dirs = map { $prefix.'/'.$_ => 1 } @extsrcdirs; 
@@ -50,7 +58,7 @@ sub find_subroutines_functions_and_includes {
     if (not exists $Config{EXCL_SRCS}) {
     	$Config{EXCL_SRCS} = [];
     }
-    my %excluded_dirs = $Config{EXCL_DIRS} ? map { $_ => 1 } @{ $Config{EXCL_DIRS} } : ();
+    
 	# if there is an entry in $Config{EXCL_SRCS} then it is a regex
     my $has_pattern =  scalar @{ $Config{EXCL_SRCS} } > 0 ? 1 : 0;    
     my $excl_srcs_pattern    = @{ $Config{EXCL_SRCS} }>1? join('|', @{ $Config{EXCL_SRCS} }) : @{ $Config{EXCL_SRCS} }==1 ? $Config{EXCL_SRCS}->[0] : '';
@@ -62,7 +70,7 @@ sub find_subroutines_functions_and_includes {
 	$stref->{'Prefix'} = $prefix;
     # find sources (borrowed from PerlMonks)
     
-    my %src_files = ();
+    
     my $tf_finder = sub { 
         return if !-f;
         if ($incl) {
@@ -96,17 +104,17 @@ sub find_subroutines_functions_and_includes {
 
         find( $tf_finder, $path );
     }
-    
+    }
     for my $src ( sort keys %src_files ) {
 #		say "SRC: $src";
         my $exclude=0;        
         for my $excl_dir (keys %excluded_dirs) {            
-            if ($src=~/$excl_dir\//) { 
+            if ($src=~/$excl_dir\//) {
                 $exclude=1;
                 last;
             }
         }    
-        next if $exclude;
+        next if $exclude; 
  
     	if  ($src=~/\.c$/) { 
     		say "WARNING: IGNORING C SOURCE: $src\n" if $W;
@@ -244,7 +252,7 @@ sub _process_src {
         	# And the whitespace at the start of the line does not contain tabs
             if ( $line!~/^\s*$/ and $line !~ /^[\s\d]{5}.+/ and $line !~ /^\t[\t\s]*\w/ and $line !~/^\s+\t/ and $line!~/^\s*\#/) {
                 $free_form = 1;
-                croak "<$line>" if $src=~/ucaln/;     
+#                croak "<$line>" if $src=~/dyn_shapiro_vernieuw_device_code.f95/;     
             } 
 
             # TAB format
@@ -284,6 +292,7 @@ sub _process_src {
                 $srctype='Modules';
                 $stref->{'SourceFiles'}{$src}{'SourceType'}='Modules';
                 $mod_name = lc($1); #die $line.':'.$mod_name;
+                $stref->{'SourceFiles'}{$src}{'ModuleName'}=$mod_name;
 #                say "SRC $src IS MODULE SRC: $mod_name";
 #                $f=$mod_name;
                 $container=$mod_name;
@@ -347,6 +356,19 @@ sub _process_src {
                 my $sub  = lc($proc_name);                
                 if ( $is_prog == 1 ) {
                     print "Found program $sub in $src\n" if $V;
+                    # If there is no TOP, the PROGRAM is the top
+                    if (not exists $Config{'TOP'} or $Config{'TOP'} eq '') {
+                    	$Config{'TOP'} = $sub;
+                    } elsif (exists $Config{'TOP'} and $Config{'TOP'} eq $sub) {
+                    	say "INFO: Found TOP program $sub" if $I; 
+                    } elsif  (exists $Config{'TOP'} and $Config{'TOP'} ne $sub) {
+                    	# TOP has a different name from the program
+                    	my $topsub = $Config{'TOP'};
+                    	# If this TOP subroutine is also a program, then there are at least two programs with different names, or TOP is wrong
+                    	 if (exists $stref->{'Subroutines'}{$topsub} and exists $stref->{'Subroutines'}{$topsub}{'Program'} and $stref->{'Subroutines'}{$topsub}{'Program'}==1) {
+                    	 	say "WARNING: TOP routine $topsub is a program but $sub is also a program at " . __PACKAGE__ . ' ' . __LINE__ if $W;
+                    	 } 
+                    }
                     $container=$sub;                    
                 }
                 if ( $is_block_data == 1 ) {

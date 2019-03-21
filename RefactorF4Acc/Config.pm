@@ -14,6 +14,7 @@ $VER
 $V $W $I $DBG $DUMMY $ANN
 $NO $YES $GO
 $UNREAD $INVENTORIED $READ $PARSED $FROM_BLOCK $C_SOURCE $FILE_NOT_FOUND
+$SOURCEFILES
 $SPLIT_LONG_LINES
 $NO_ONLY
 $RENAME_EXT
@@ -50,6 +51,7 @@ our $call_tree_only = 0;
 our $main_tree      = 0;
 our $EXT = '.f90'; # You can set this in rf4a.cfg, changed from .f95 default to .f90 default on suggestion of @rouson
 
+our $SOURCEFILES = [];
 our $LIBS = []; 
 my @maybe_lib_paths = ('/opt/local/lib','/usr/local/lib');
 our $LIBPATHS =  [];
