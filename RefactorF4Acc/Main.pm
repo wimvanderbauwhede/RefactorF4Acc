@@ -20,7 +20,8 @@ use RefactorF4Acc::Utils;
 
 use RefactorF4Acc::State qw( init_state );
 use RefactorF4Acc::Inventory qw( find_subroutines_functions_and_includes );
-use RefactorF4Acc::Parser qw( parse_fortran_src build_call_graph mark_blocks_between_calls refactor_marked_blocks_into_subroutines );
+use RefactorF4Acc::Parser qw( parse_fortran_src build_call_graph mark_blocks_between_calls );
+use RefactorF4Acc::Refactoring::Blocks qw( refactor_marked_blocks_into_subroutines ); 
 use RefactorF4Acc::CallTree qw( create_call_tree );
 use RefactorF4Acc::Analysis qw( analyse_all );
 use RefactorF4Acc::Refactoring qw( refactor_all );
@@ -54,6 +55,7 @@ our $usage = "
     -B: Build the generated code
     -A: Annotate the refactored lines 
     -P: Name of pass to be performed
+    -s: Provide a comma-separated list of source files to be refactored. Same as specifying SOURCEFILES in the config file
     \n";
 #    -N: Replace CONTINUE by CALL NOOP    
 
@@ -188,6 +190,9 @@ sub main {
 	}
 
 	$stref = build_call_graph($subname, $stref);
+	
+	# TODO! 
+	$stref = precondition_all($stref);
 #	die Dumper($stref->{'Nodes'});
     # 3. Analysis: Analyse the source
     my $stage=0;
@@ -256,9 +261,9 @@ sub main {
 # -----------------------------------------------------------------------------
 sub parse_args {
  	# Argument parsing. Factor out!
-	if ( not @ARGV ) {
-		die "Please specifiy FORTRAN subroutine or program to refactor\n";
-	}
+#	if ( not @ARGV ) {
+#		die "Please specifiy FORTRAN subroutine or program to refactor\n";
+#	}
 	my %opts = ();
 	getopts( 'VvwidhACTNgbBGc:P:s:', \%opts );
 	
@@ -302,7 +307,7 @@ sub parse_args {
     my $sourcefiles_str = $opts{'s'} // '';
     if ($sourcefiles_str ne '') {    
         # OK, source files from command line
-        $SOURCEFILES = split(/\s*\,\s*/,$sourcefiles_str);
+        $SOURCEFILES = [ split(/\s*\,\s*/,$sourcefiles_str) ];
     } elsif (exists $Config{'SOURCEFILES'} and $Config{'SOURCEFILES'} ne '') {
     	# OK, source files from config file
         $SOURCEFILES = $Config{'SOURCEFILES'}     

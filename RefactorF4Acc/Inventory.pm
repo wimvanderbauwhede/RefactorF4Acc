@@ -106,10 +106,11 @@ sub find_subroutines_functions_and_includes {
     }
     }
     for my $src ( sort keys %src_files ) {
-#		say "SRC: $src";
+		say "SRC: $src" if $V;
         my $exclude=0;        
         for my $excl_dir (keys %excluded_dirs) {            
             if ($src=~/$excl_dir\//) {
+#            	say "EXCLUDING $src" if $V;
                 $exclude=1;
                 last;
             }
@@ -135,8 +136,8 @@ sub find_subroutines_functions_and_includes {
     		'List'=>[]
     	};
     	
-        $stref=_process_src($src,$stref) if not $incl ;
-        
+        $stref=_process_src($src,$stref) ;#if not $incl ;
+        say "Done _process_src($src)" if $V;   
     }
     if (!$incl) {
     _find_external_modules($stref);
@@ -174,8 +175,9 @@ sub _process_src {
     	$stref->{'SourceFiles'}{$src}={};
     	$stref->{'SourceFiles'}{$src}{'AnnLines'}=[];
     	$stref->{'SourceFiles'}{$src}{'Path'} =$stref->{'SourceContains'}{$src}{'Path'} ;  
-    } else {
-    	croak "Already processed $src!";
+    } else {    	
+    	say "INFO: Already processed $src" if $I;
+    	return $stref;
     }
     open my $SRC, '<', $src;
     while ( my $lline = <$SRC> ) {
@@ -191,7 +193,7 @@ sub _process_src {
 		$line=~s/\s+\!.+$//;
 		# Skip blanks
         $line =~ /^\s*$/ && next;
-		 
+#		 print "$src LINE: $line";
         # Detect blocks. FIXME: we need to distinguish between the Subroutine and KernelWrapper pragmas!
             if ( $has_blocks == 0 ) {
                 if ( $line =~ /^(?:[Cc\*]|\s*\!)\s+BEGIN\sSUBROUTINE\s(\w+)/ 
@@ -466,7 +468,6 @@ sub _process_src {
                 	last;
                 }
                 }
-#                die "PATH $src_path";
                 if ($in_module) {
                     $stref->{'Modules'}{$mod_name}{'IncludeFiles'}{$inc}={};
                 }
