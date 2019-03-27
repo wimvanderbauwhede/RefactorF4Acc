@@ -1546,39 +1546,57 @@ sub top_src_is_module {( my $stref, my $s) = @_;
 	return 0;        
 }
 
-# This is a wrapper to get the subroutines out of a module
-sub pass_wrapper_subs_in_module { (my $stref,my $pass_sequences, my @rest) = @_;
-	my %is_existing_module = ();
-    my %existing_module_name = ();
-	
-	for my $src (keys %{ $stref->{'SourceContains'} } ) {		
+# This is a wrapper to get the subroutines out of a module and then call other passes on these subroutines
+# It does this for all sources but in practice it assumes a single source, so it might be better to pass this source name in as an arg instead 
+sub pass_wrapper_subs_in_module { (my $stref,my $module_name, my $module_pass_sequences, my $sub_pass_sequences, my @rest) = @_;
+	if ($module_name eq '') {
+		my %is_existing_module = ();
+	    my %existing_module_name = ();
 		
-		if (exists $stref->{'SourceContains'}{$src}{'Path'}
-		and  exists $stref->{'SourceContains'}{$src}{'Path'}{'Ext'} ) {	
-		# External, SKIP!
-			say "SKIPPING $src";			
-		} else {		
-		# Get the unit name from the list	    		
-		    for my $sub_or_func_or_mod ( @{  $stref->{'SourceContains'}{$src}{'List'}   } ) {
-		    	# Get its type
-		        my $sub_func_type= $stref->{'SourceContains'}{$src}{'Set'}{$sub_or_func_or_mod};
-		        if ($sub_func_type eq 'Modules') {
-		        	$is_existing_module{$src}=1;
-		        	$existing_module_name{$src} = $sub_or_func_or_mod;
-		        }		
-		    }
-		}
-		my $has_contains = ( $is_existing_module{$src} and exists $stref->{'Modules'}{$existing_module_name{$src}}{'Contains'}  ) ? 1 : 0;
-#		say "SRC: $src";
-		my @subs= $is_existing_module{$src}  ? $has_contains ? @{ $stref->{'Modules'}{$existing_module_name{$src}}{'Contains'} } : ()  :  grep {$_ ne 'UNKNOWN_SRC' } sort keys %{ $stref->{'Subroutines'} };
-		for my $pass_sequence (@{$pass_sequences}) {	
-			for my $f ( @subs ) {
-#				say "SUB $f";
-				for my $pass_sub_ref (@{$pass_sequence}) {			
-					$stref=$pass_sub_ref->($stref, $f, @rest);
-				}			
+		for my $src (keys %{ $stref->{'SourceContains'} } ) {		
+			
+			if (exists $stref->{'SourceContains'}{$src}{'Path'}
+			and  exists $stref->{'SourceContains'}{$src}{'Path'}{'Ext'} ) {	
+			  # External, SKIP! 
+				say "SKIPPING $src";			
+			} else {		
+	    		# Get the unit name from the list	    		
+			    for my $sub_or_func_or_mod ( @{  $stref->{'SourceContains'}{$src}{'List'}   } ) {
+			    	# Get its type
+			        my $sub_func_type= $stref->{'SourceContains'}{$src}{'Set'}{$sub_or_func_or_mod};
+			        if ($sub_func_type eq 'Modules') {
+			        	$is_existing_module{$src}=1;
+			        	$existing_module_name{$src} = $sub_or_func_or_mod;
+			        }		
+			    }
+			}
+			my $has_contains = ( $is_existing_module{$src} and exists $stref->{'Modules'}{$existing_module_name{$src}}{'Contains'}  ) ? 1 : 0;
+	
+			my @subs= $is_existing_module{$src}  ? $has_contains ? @{ $stref->{'Modules'}{$existing_module_name{$src}}{'Contains'} } : ()  :  grep {$_ ne 'UNKNOWN_SRC' } sort keys %{ $stref->{'Subroutines'} };
+			for my $pass_sequence (@{$sub_pass_sequences}) {	
+				for my $f ( @subs ) {
+					for my $pass_sub_ref (@{$pass_sequence}) {			
+						$stref=$pass_sub_ref->($stref, $f, @rest);
+					}			
+				}
 			}
 		}
+	} else { 
+		for my $pass_sequence (@{$module_pass_sequences}) {    	
+                for my $pass_sub_ref (@{$pass_sequence}) {                	         
+                    $stref=$pass_sub_ref->($stref, $module_name, @rest);
+                }           
+		}		
+		
+        my $has_contains = exists $stref->{'Modules'}{$module_name}{'Contains'}  ? 1 : 0;
+        my @subs=  $has_contains ? @{ $stref->{'Modules'}{$module_name}{'Contains'} } : ()  ;
+        for my $pass_sequence (@{$sub_pass_sequences}) {    
+            for my $f ( @subs ) {
+                for my $pass_sub_ref (@{$pass_sequence}) {          
+                    $stref=$pass_sub_ref->($stref, $f, @rest);
+                }           
+            }
+        }
 	}
 	return $stref;
 }

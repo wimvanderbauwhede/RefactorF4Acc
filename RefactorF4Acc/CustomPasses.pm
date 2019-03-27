@@ -55,16 +55,16 @@ sub run_custom_passes {
             
 # Custom passes
 	if ($pass =~/emit_TyTraCL/i) {
-		$stref = pass_emit_TyTraCL($stref);				
+		$stref = pass_emit_TyTraCL($stref,$code_unit_name);				
 	}	
 	if ($pass =~/emit_TyTraIR/i) {
-		$stref = pass_emit_TyTraIR($stref);				
+		$stref = pass_emit_TyTraIR($stref,$code_unit_name);				
 	}	
 	if ($pass =~/identify_stencils/) {
-		$stref = pass_identify_stencils($stref);				
+		$stref = pass_identify_stencils($stref,$code_unit_name);				
 	}	
 	if ($pass =~/rename_array_accesses_to_scalars/) {
-		$stref = pass_rename_array_accesses_to_scalars($stref);				
+		$stref = pass_rename_array_accesses_to_scalars($stref,$code_unit_name);				
 	}
 	if ($pass =~/translate_to_C/) {
 		$stref = translate_module_to_C($stref,$code_unit_name,0);

@@ -36,12 +36,17 @@ use Exporter;
 
 #### #### #### #### BEGIN OF SaC TRANSLATION CODE #### #### #### ####
 
-sub translate_module_to_SaC {  (my $stref) = @_;
+sub translate_module_to_SaC {  (my $stref, my $module_name) = @_;
 	my $ocl=1;
 	$stref->{'OpenCL'}=$ocl;
 	$stref->{'TranslatedCode'}=[];	
 	
-	$stref = pass_wrapper_subs_in_module($stref,[
+	$stref = pass_wrapper_subs_in_module($stref,$module_name,
+	           # module-specific passes 
+            [],
+            # subroutine-specific passes 
+	
+	   [
 	    [\&_hack_to_fix_iodirs, 
 	    \&_hack_to_fix_param_decls_in_superkernel, 
 	    \&_hack_to_fix_kernel_sub],

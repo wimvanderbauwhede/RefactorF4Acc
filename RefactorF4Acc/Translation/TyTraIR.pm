@@ -44,11 +44,14 @@ use Exporter;
 our $FOLD=0;
 
 
-sub pass_emit_TyTraIR {(my $stref)=@_;
+sub pass_emit_TyTraIR {(my $stref, my $module_name)=@_;
     # WV: I think Selects and Inserts should be in Lines but I'm not sure
     $stref->{'EmitAST'} = 'TyTraIR_AST';
 	$stref->{'TyTraIR_AST'} = {'Lines' => [], 'Selects' => [], 'Inserts' => [], 'Stencils'=>{},'Portions'=>{},'ASTEmitter' => \&_add_TyTraIR_AST_entry};
-	$stref = pass_wrapper_subs_in_module($stref,
+	$stref = pass_wrapper_subs_in_module($stref,$module_name,
+        	# module-specific passes 
+	        [],
+	        # subroutine-specific passes 
 			[
 #				[ sub { (my $stref, my $f)=@_;  alias_ordered_set($stref,$f,'DeclaredOrigArgs','DeclaredOrigArgs'); } ],
 		  		[

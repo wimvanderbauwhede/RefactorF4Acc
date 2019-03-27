@@ -40,26 +40,26 @@ use Exporter;
 # }
 
 #### #### #### #### BEGIN OF C TRANSLATION CODE #### #### #### ####
-
+# $ocl: 0 = C, 1 = CPU/GPU OpenCL, 2= pipe-based OpenCL for FPGAs 
 sub translate_module_to_C {  (my $stref, my $module_name, my $ocl) = @_;
 	if (not defined $ocl) {$ocl=0;}
 	$stref->{'OpenCL'}=$ocl;
 	$stref->{'TranslatedCode'}=[];	
 	
-	$stref = pass_wrapper_subs_in_module($stref,[
-#					[ sub { (my $stref, my $f)=@_;  
-#						alias_ordered_set($stref,$f,'DeclaredOrigArgs','RefactoredArgs'); 
-##						say $f.' => '.Dumper($stref->{Subroutines}{$f}{DeclaredOrigArgs}) if $f eq 'adam_bondv1_feedbf_les_press_v_etc_superkernel';#adam_bondv1_feedbf_les_press_v_etc_superkernel
-##						croak if $f eq 'adam_bondv1_feedbf_les_press_v_etc_superkernel'; 
-#					} ],
-#					[ \&_fix_scalar_ptr_args ],
-#		  		[\&_fix_scalar_ptr_args_subcall],	
-		[\&_declare_undeclared_variables],#,\&_removed_unused_variables],
-		[\&add_OpenCL_address_space_qualifiers],
-		[\&translate_sub_to_C]
-		],$ocl);
+	$stref = pass_wrapper_subs_in_module($stref,$module_name,
+	   # module-specific passes.  
+       [
+           [\&_emit_OpenCL_pipe_declarations]
+       ],
+       # subroutine-specific passes 	
+	   [
+		  [\&_declare_undeclared_variables],#,\&_removed_unused_variables],
+		  [\&add_OpenCL_address_space_qualifiers],
+		  [\&translate_sub_to_C]
+       ],
+       $ocl);
 		
-	$stref = _write_headers($stref,$ocl);
+	$stref = _write_headers($stref,$ocl);	
 	$stref = _emit_C_code($stref, $module_name, $ocl);
     # This makes sure that no fortran is emitted by emit_all()
     $stref->{'SourceContains'}={};
@@ -758,7 +758,47 @@ while ($cond_expr=~/\.(\w+)\./) {
 	return $cond_expr;
 }
 #### #### #### #### END OF C TRANSLATION CODE #### #### #### ####
- 
+ sub _emit_OpenCL_pipe_declarations {
+ (my $stref, my $f, my $ocl) = @_;
+    
+
+    my $pass_emit_OpenCL_pipe_declarations = sub { (my $annline, my $state)=@_; 
+        (my $line,my $info)=@{$annline};
+        my $c_line=$line;
+        (my $stref, my $f, my $pass_state)=@{$state};
+#       say Dumper($stref->{'Subroutines'}{$f}{'DeletedArgs'});
+        my $skip=1;
+        
+        if (exists $info->{'VarDecl'}) {           
+                my $var = $info->{'VarDecl'}{'Name'};
+#               croak Dumper($stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}) if $var eq 'f';
+                if ($ocl==2 and exists $info->{'TrailingComment'} ) {#and exists $stref->{'Modules'}{$f}{'DeclaredOrigArgs'}{'Set'}{$var}) {
+                	my $decl=get_var_record_from_set($stref->{'Modules'}{$f}{'Vars'},$var);                	
+                	my @pragma_chunks = split(/\s+/,$info->{'TrailingComment'});
+                	
+                	if ($pragma_chunks[0] eq '$OCL' or $pragma_chunks[0] eq '$ACC' or $pragma_chunks[0] eq '$RF4A') {
+                		if ($pragma_chunks[1] eq 'pipe') {
+                            my $ftype = $pragma_chunks[2];
+                            $c_line = $info->{'Indent'}.'pipe '.toCType($ftype).' '.$var.' __attribute__((xcl_reqd_pipe_depth(32)));'; # TODO: make configurable, this is Xilinx-specific!                            
+                		}
+                	}                  
+                    $skip=0;
+                }
+        } 	
+        push @{$pass_state->{'TranslatedCode'}},$info->{'Indent'}.$c_line unless $skip;
+        
+        return ([$annline],[$stref,$f,$pass_state]);
+    };
+
+    my $state = [$stref,$f, {'TranslatedCode'=>[]}];
+    ($stref,$state) = stateful_pass($stref,$f,$pass_emit_OpenCL_pipe_declarations , $state,'emit_OpenCL_pipe_declarations() ' . __LINE__  ) ;
+
+    $stref->{'Modules'}{$f}{'TranslatedCode'}=$state->[2]{'TranslatedCode'};
+    $stref->{'TranslatedCode'}=[@{$stref->{'TranslatedCode'}},@{$state->[2]{'TranslatedCode'}},''];
+
+   
+    return $stref; 	
+ } # _emit_OpenCL_pipe_declarations
 # -----------------------------------------------------------------------------
 
 # -----------------------------------------------------------------------------

@@ -424,8 +424,7 @@ sub _analyse_lines {
 		for my $index ( 0 .. scalar( @{$srcref} ) - 1 ) {
 			my $attr = '';
 			( my $lline, my $info ) = @{ $srcref->[$index] };
-		
-#			say $lline;
+					
 			# Get indent			
 			$lline =~ /^(\s+).*/ && do { $indent = $1; }; # This is not OK for lines with labels of course.
 			$info->{'Indent'}=$indent;						
@@ -440,7 +439,7 @@ sub _analyse_lines {
 				next;
 			} 
 
-			# Handle !$ACC
+			# Handle !$ACC on individual line
 			if ( $lline =~ /^\!\s*\$(?:ACC|RF4A)\s.+$/i ) {				
 				( $stref, $info ) = __handle_acc( $stref, $f, $index, $lline );
 			}
@@ -951,16 +950,18 @@ or $line=~/^character\s*\(\s*len\s*=\s*[\w\*]+\s*\)/
 				)
 				and $line !~ /\s+function\s+\w+/
 				and $line !~/^.+,.+::\s*.+\s*$/ # What we say here is that a declaration such as real(4) :: v(nx+1,ny) is treated as F77 
+				and $line !~/\!\$ACC/
 			  ) {			  	
 				$type   = $1;
 				$varlst = $2;
 				
 				( $Sf, $info ) = __parse_f77_var_decl( $Sf, $stref, $f,$indent, $line, $info, $type, $varlst );
-				$info->{'SpecificationStatement'} = 1;
-				
+				$info->{'SpecificationStatement'} = 1;				
+				croak if $line=~/__pipe\s\!\$ACC/;
 		}
 # F95 declaration, no need for refactoring		 	
-		 elsif ( $line =~ /^(.+)\s*::\s*(.+)\s*$/ ) { 
+		 elsif ( $line =~ /^(.+)\s*::\s*(.+)(?:\s*|\s+\!\$ACC.+)$/ ) { croak if $line=~/__pipe\s\!\$ACC/;
+		 
 				( $Sf, $info ) = __parse_f95_decl( $stref, $f, $Sf, $indent, $line, $info);
 				if (exists $info->{'ParamDecl'}) {
 					$has_pars=1;
@@ -3242,6 +3243,7 @@ sub __parse_f95_decl {
 	
     my $is_module = (exists $stref->{'Modules'}{$f}) ? 1 : 0;
 	my $pt = parse_F95_var_decl($line);
+	
 #croak $line  if $line=~/etan/;	
 #croak $line.Dumper($info) if $line=~/local_aaa/;
 	# But this could be a parameter declaration, with an assignment ...

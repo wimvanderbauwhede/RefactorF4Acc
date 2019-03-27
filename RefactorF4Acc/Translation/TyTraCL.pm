@@ -60,11 +60,15 @@ We have `get_args_vars_from_expression` and `get_vars_from_expression` and we ca
 
 =cut
 
-sub pass_emit_TyTraCL {(my $stref)=@_;
+sub pass_emit_TyTraCL {(my $stref, my $module_name)=@_;
     # WV: I think Selects and Inserts should be in Lines but I'm not sure
     $stref->{'EmitAST'} = 'TyTraCL_AST';
 	$stref->{'TyTraCL_AST'} = {'Lines' => [], 'Selects' => [], 'Inserts' => [], 'Stencils'=>{},'Portions'=>{},'ASTEmitter' => \&_add_TyTraCL_AST_entry};
-	$stref = pass_wrapper_subs_in_module($stref,
+	$stref = pass_wrapper_subs_in_module($stref,$module_name,
+	           # module-specific passes 
+            [],
+            # subroutine-specific passes 
+	
 			[
 #				[ sub { (my $stref, my $f)=@_;  alias_ordered_set($stref,$f,'DeclaredOrigArgs','DeclaredOrigArgs'); } ],
 		  		[
