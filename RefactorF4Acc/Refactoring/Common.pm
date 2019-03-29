@@ -103,25 +103,19 @@ sub context_free_refactorings {
         	$line = '! '.$line;
         	$info->{'Deleted'}=1;
         	$info->{'Ann'}=[ annotate($f, __LINE__ .' Original Implicit statement' ) ];
-#            next;
         }	        
         if ( exists $info->{'Dimension'} and not exists $info->{'VarDecl'} ) {
-#        	say "DIM LINE: <$line> STMT COUNT ".join(' = ',each(%{$info->{'StmtCount'}})); 
         	$line = '! '.$line;
         	$info->{'Deleted'}=1;
         	$info->{'Ann'}=[ annotate($f, __LINE__ .' Original Dimension statement' ) ];
-#            next;
         }	
         if ( exists $info->{'Common'} ) {
-#        	say "COMMON LINE: $line STMT COUNT ".Dumper($info->{'StmtCount'}); 
         	$line = '! '.$line unless exists $Sf->{'BlockData'};
         	$info->{'Deleted'}=1;
         	$info->{'Ann'}=[ annotate($f, __LINE__ .' Original Common statement' ) ];
-#            next;
         }	
         
         if ( exists $info->{'External'} ) {
-#        	warn "EXTERNAL LINE: $line in $f";
         	if (scalar keys %{ $info->{'External'}} >1) {
         		say 'WARNING: Cannot handle EXTERNAL with multiple names, IGNORING!' if $W;
         	} else {
@@ -129,21 +123,17 @@ sub context_free_refactorings {
         		if (exists $stref->{'Subroutines'}{$maybe_ext}
         		and exists $stref->{'Subroutines'}{$maybe_ext}{'Source'}
         		 and $stref->{'Subroutines'}{$maybe_ext}{'Source'} eq $Sf->{'Source'}) {
-#        			croak "NOT EXT $maybe_ext in $f";
         			$line = '! '.$line." ! $maybe_ext is defined in this file";
         			$info->{'Deleted'}=1;        			
         		} else {
         			# Now it is possible that we have identified a source for this func
         			if (exists $stref->{'Subroutines'}{$maybe_ext}) {
-#        				croak "FOUND source for EXTERNAL $maybe_ext"; 
 						$line = '! '.$line." ! $maybe_ext is accessed via 'use'";
 						$info->{'Deleted'}=1;
         			}
         		}
         	}  
         	}
-#        	$line = '! '.$line if 
-        	
         	$info->{'Ann'}=[ annotate($f, __LINE__ .' External statement' ) ];
         }	                
 		if ( exists $info->{'Data'} ) {
@@ -165,7 +155,6 @@ sub context_free_refactorings {
         	my $label = $info->{'BeginDo'}{'Label'};
         	# This should have an extra check
         	
-#        	if ( (not exists $Sf->{'ReferencedLabels'}{$label}) and 
         	if ($Sf->{'DoLabelTarget'}{$label} eq 'Continue' or $Sf->{'DoLabelTarget'}{$label} eq 'EndDo')  {         	
             	$line =~ s/do\s+\d+\s+/do /;
             	$info->{'Ref'}++;
@@ -176,10 +165,8 @@ sub context_free_refactorings {
         # if no continue, remove label & add end do on next line
         if ( exists $info->{'EndDo'} and exists $info->{'EndDo'}{'Label'} ) {
 
-            #warn "$f: END DO $line\n";
             my $is_goto_target = 0;
             if ( $Sf->{'Gotos'}{ $info->{'EndDo'}{'Label'} } ) {
-
                 # this is an end do which serves as a goto target
                 $is_goto_target = 1;
             }
@@ -198,7 +185,6 @@ sub context_free_refactorings {
 					} else {
                     	$line = $info->{'Indent'}.' end do';
 					}
-#					$line = ' end do';
                     $count--;
                 } elsif ($noop) {
                     $line =~ s/continue/call noop/;
@@ -232,8 +218,6 @@ sub context_free_refactorings {
                 $line .= '  !Break';
         	}
             $info->{'Ref'}++;
-
-            # $line=~s/goto\s+(\d+)/call break($1)/;
         }
         
         if ( exists $info->{'PlaceHolders'} ) { 
@@ -243,7 +227,6 @@ sub context_free_refactorings {
 				my $ph_str = $info->{'PlaceHolders'}{$ph};
 				$line=~s/$ph/$ph_str/;
 			}
-#if ( exists $info->{'IO'} and $line=~/open/ and $f=~/adam/) { carp  $f. ' : '.$line."\t=>\t".Dumper($info); }                                    
             $info->{'Ref'}++;
         }
 

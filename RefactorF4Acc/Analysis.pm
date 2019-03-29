@@ -386,9 +386,6 @@ sub _analyse_variables {
 											} else {
 												croak "No Subset for $mvar in $inc $subset_for_mvar";
 											}
-#	
-#											if ( 1 or exists $stref->{'Modules'}{$inc}{'Commons'}{$mvar} ) {
-#												say "$f VAR6 $mvar";
 												say "FOUND argdecl for $mvar via common block in $inc" if $DBG;
 												push @{ $stref->{'Subroutines'}{$f}{'ExGlobArgs'}{'List'} }, $mvar;
 												$decl->{'Inc'}                                          = $inc;    #WV20160406 this is a bit late .

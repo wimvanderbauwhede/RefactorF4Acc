@@ -23,6 +23,7 @@ use RefactorF4Acc::Inventory qw( find_subroutines_functions_and_includes );
 use RefactorF4Acc::Parser qw( parse_fortran_src build_call_graph mark_blocks_between_calls );
 use RefactorF4Acc::Refactoring::Blocks qw( refactor_marked_blocks_into_subroutines ); 
 use RefactorF4Acc::CallTree qw( create_call_tree );
+use RefactorF4Acc::Preconditioning qw( precondition_all );
 use RefactorF4Acc::Analysis qw( analyse_all );
 use RefactorF4Acc::Refactoring qw( refactor_all );
 use RefactorF4Acc::CustomPasses qw( run_custom_passes );

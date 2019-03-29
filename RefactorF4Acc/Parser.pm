@@ -46,15 +46,12 @@ use Exporter;
 sub parse_fortran_src {
 	( my $f, my $stref, my $is_source_file_path ) = @_;  # NOTE $f is not the name of the source but of the sub/func/incl/module.
 	 
-
 	#    local $V=1;
 	print "parse_fortran_src(): PARSING $f\n" if $V;
 
-	#say 'INIT PRE:'.Dumper($stref->{'Subroutines'}{'init'}{'AnnLines'}) ; # OK!
 ## 1. Read the source and do some minimal processsing, unless it's already been done (i.e. for extracted blocks)
 	print "parse_fortran_src(): CALL read_fortran_src( $f )\n" if $V;
 	$stref = read_fortran_src( $f, $stref, $is_source_file_path );    #
-#	die Dumper($stref->{IncludeFiles}{'dimensions.inc'}) if $f=~/dimensions.inc/;
 	print "DONE read_fortran_src( $f )\n" if $V;	
 	
 	my $sub_or_incl_or_mod = sub_func_incl_mod( $f, $stref ); # Maybe call this "code_unit()"	
@@ -62,18 +59,12 @@ sub parse_fortran_src {
 	my $is_mod = $sub_or_incl_or_mod eq 'Modules' ? 1 : 0;
 	if ($is_mod and $is_source_file_path) {
 		$f = $stref->{'SourceFiles'}{$f}{'ModuleName'};
-#		croak Dumper($stref->{$sub_or_incl_or_mod}{$f});
 	}
 	my $is_external_include =
 	  $is_incl ? ( $stref->{'IncludeFiles'}{$f}{'InclType'} eq 'External' ) : 0;
 
 	print "SRC TYPE for $f: $sub_or_incl_or_mod\n" if $V;
 	
-#croak Dumper($stref);
-	#	say 'INIT:'.Dumper($stref->{'Subroutines'}{'init'}{'AnnLines'}) ;
-	#	say 'POST:'.Dumper($stref->{'Subroutines'}{'post'}{'AnnLines'}) ;
-	#	die if $f eq 'post';
-	# and not $is_external_include 
 	if ( 
 		$sub_or_incl_or_mod ne 'ExternalSubroutines' 
 		and $stref->{$sub_or_incl_or_mod}{$f}{'Status'} != $FILE_NOT_FOUND
@@ -92,7 +83,6 @@ sub parse_fortran_src {
 			print "INFO: set RefactorGlobals=1 for $f\n" if $I;
 			$Sf->{'RefactorGlobals'} = 1;
 		}
-#		say "After INIT ( $f ) ".sub_func_incl_mod( $f, $stref ) if $V;
 ## 2. Parse the type declarations in the source, create a per-target table Vars and a per-line VarDecl list and other context-free stuff
 		# NOTE: The Vars set are the *declared* variables, not the *used* ones
 
@@ -152,7 +142,10 @@ sub parse_fortran_src {
 	   	}
 #		croak $f;
 	   }
-	   
+       # WV 2019-03-29 Here I should clean up some keys that are only used during parsing
+       # but only when parse_fortran_src exits, so in fact maybe do this in Preconditioning?
+       #delete  $stref->{$sub_or_incl_or_mod}{$f}{'DeclCount'};
+       #delete  $stref->{$sub_or_incl_or_mod}{$f}{'DoneInitTables'};
 	return $stref;
 
 }    # END of parse_fortran_src()
@@ -189,6 +182,7 @@ sub _initialise_decl_var_tables {
 		say "_initialise_decl_var_tables : INIT TABLES for $code_unit $f" if $V;
 
 		$Sf->{'HasCommons'} = 0;
+		$Sf->{'HasIncludes'} = 0;
 
 		# WV20151021 maybe need to do that for all subsets of Vars too?
 		# WV20151021 the question is if this needs to be hierarchical?
@@ -333,7 +327,7 @@ sub _initialise_decl_var_tables {
 		$Sf->{'DoneInitTables'} = 1;
 	}
 	return $Sf;
-}
+} # END of _initialise_decl_var_tables
 
 # _analyse_lines() parses every line and determines its purpose, the info is added to $info. Furthermore,
 # Create a table of all variables declared in the target, and a list of all the var names occuring on each line.
@@ -663,7 +657,6 @@ SUBROUTINE
 				$type   = 'Unknown';
 				$varlst = $line;
 				$varlst =~s/^(?:dimension|virtual)\s+//;			
-#				my $indent =$line;$indent=~s/\S.*$//;	
 				my @vars_with_dim = _parse_comma_sep_expr_list($varlst);
 # If @vars_with_dim > 1 then we should split this line.
 # We currently do $srcref->[$index], with $index = 0 .. scalar( @{$srcref} ) - 1 ) 				
@@ -679,7 +672,6 @@ SUBROUTINE
 					my $type='Unknown';				
 
 					my $subset;
-#					my $stmt_count=1;
 					my $is_macro = exists $Config{'Macros'}{uc($varname)} ? 1 : 0;
 					if (not $is_macro ) {
 					if (not in_nested_set( $Sf, 'Vars', $varname ) ) {
@@ -693,14 +685,12 @@ SUBROUTINE
 								'Dim'=>[],
 								'Name'=>$varname,
 								'Names'=>[$varname],
-#								'StmtCount' => 1,
 							};		
 							$subset='DeclaredOrigLocalVars';					
 					} else {
 						
 						my $decl = get_var_record_from_set($Sf->{'Vars'},$varname);
 						$subset = in_nested_set( $Sf, 'Vars', $varname );
-#						
 #						if ($subset eq 'ExGlobArgs' ) {
 #							$subset = 'DeclaredCommonVars'; # because in_nested_set() can find either one
 #						}
@@ -718,7 +708,6 @@ SUBROUTINE
 									'Name'=>$varname,
 									'Names'=>[$varname],
 									'IODir' => 'Unknown',
-#									'StmtCount' => 1,
 								};		
 								$Sf->{'UndeclaredOrigArgs'}{'Set'}{$varname}=$decl;																				
 						} else {
@@ -736,9 +725,9 @@ SUBROUTINE
 						$type = $decl->{'Type'};
 					}
 					 my $vline = "$type, $var_dim  :: $varname";
-				( $Sf, my $info ) = __parse_f95_decl( $stref, $f, $Sf, $indent, $vline, {'Dimension' => 1});#, "$type, $var_dim", $varname );
-				$Sf->{'DeclCount'}{$varname}++;
-				$info->{'StmtCount'}{$varname}=$Sf->{'DeclCount'}{$varname};#$stmt_count;#$Sf->{$subset}{'Set'}{$varname}{'StmtCount'};
+                     ( $Sf, my $info ) = __parse_f95_decl( $stref, $f, $Sf, $indent, $vline, {'Dimension' => 1});
+                     $Sf->{'DeclCount'}{$varname}++;
+                     $info->{'StmtCount'}{$varname}=$Sf->{'DeclCount'}{$varname};
 					push @{ $extra_lines{$index} }, [$indent."dimension $dline",$info];
 				} # if it's not a macro
 		 }
@@ -1350,6 +1339,7 @@ sub _parse_includes {
 			}
 			
 			if ( exists $info->{'Includes'} ) { 
+                $Sf->{'HasIncludes'}=1;
 				my $name = $info->{'Includes'};
 				print "FOUND include $name in $f\n" if $V;
 				$Sf->{'Includes'}{$name} = { 'LineID' => $index };
@@ -1381,7 +1371,6 @@ sub _parse_includes {
 					$stref->{'IncludeFiles'}{$name}{'Root'}      = $f;
 					$stref->{'IncludeFiles'}{$name}{'HasBlocks'} = 0;
 					$stref = parse_fortran_src( $name, $stref );
-#                    (say( Dumper( $stref->{'IncludeFiles'}{$name} )) && croak) if $name eq 'printer.inc';
 				} else {
 					print $line, " already processed\n" if $V;					
 				}
@@ -1398,8 +1387,7 @@ sub _parse_includes {
 								$stref->{'Implicits'}{$f}{$k} =
 								  $stref->{'Implicits'}{$name}{$k};
 							} else {
-								die
-"ERROR: $f and $name have different type for $k";
+								die "ERROR: $f and $name have different type for $k";
 							}
 						}
 					}
@@ -1421,7 +1409,6 @@ sub _parse_includes {
 							
 						}
 					}
-#						croak $name.Dumper($Sf->{'IncludedParameters'}) if $f eq 'restax' and $name =~/comm/;
 				}
 			} # If the line contains an 'include' statement
 			$srcref->[$index] = [ $line, $info ];
@@ -1436,7 +1423,7 @@ sub _parse_includes {
 	$last_inc_idx++;
 	$srcref->[$last_inc_idx][1]{'ExtraIncludesHook'} = 1;
 	return $stref;
-}    # END of parse_includes()
+}    # END of _parse_includes()
 
 # -----------------------------------------------------------------------------
 # Parse 'use' declarations 
@@ -3336,10 +3323,8 @@ if ($line=~/^character/) {
 		# The var can be either DeclaredOrigLocalVars or DeclaredCommonVars. 
 		# In both case we simply update the record
 			my $subset = in_nested_set($Sf,'Vars',$tvar);
-#			warn 'HERE:',$subset,$line, Dumper($decl) if $line=~/IADN13/i;
 			if ($subset eq '') { # Var doesn't exist yet so it becomes DeclaredOrigLocalVars 
 				$subset = $is_module ? 'DeclaredCommonVars' : 'DeclaredOrigLocalVars';
-				
 				if ($is_module) { $decl->{'CommonBlockName'} = $f; } # overload CommonBlockName with module name 
 				push @{$Sf->{$subset}{'List'}}, $tvar;
 				$Sf->{$subset}{'Set'}{$tvar} = $decl;
@@ -3362,12 +3347,6 @@ if ($line=~/^character/) {
 	};
 
 	push @{ $info->{'Ann'} }, annotate( $f, __LINE__ );
-#	if ($Sf->{'FStyle'} eq 'F95') {
-#	$info->{'VarDecl'}{'FStyle'} = 'F77';
-#	map {say emit_f95_var_decl( get_var_record_from_set($Sf->{'Vars'},$_)) } @{ $info->{'VarDecl'}{'Names'} };
-#	croak $f.$line.Dumper($info) if $line=~/hzero/; 	   
-#	}
-
 	return ( $Sf, $info );
 }    # END of __parse_f77_var_decl()
 

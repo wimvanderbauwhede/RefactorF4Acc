@@ -6,6 +6,7 @@ package RefactorF4Acc::Preconditioning;
 use v5.10;
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
+use RefactorF4Acc::Parser::Expressions qw( get_vars_from_expression parse_expression );
 
 use vars qw( $VERSION );
 $VERSION = "1.2.0";
@@ -61,10 +62,11 @@ sub precondition_all {
 #            my $inc = $f;
     for my $inc ( keys %{ $stref->{'IncludeFiles'} } ) {
     	next if $stref->{'IncludeFiles'}{$inc}{'InclType'} eq 'External';            
-            my $Sincf = $stref->{'IncludeFiles'}{$inc};
+             my $Sincf =  _inline_includes( $stref, $inc) ;
             my $has_commons = $stref->{'IncludeFiles'}{$inc}{'HasCommons'};
             my $has_pars = $stref->{'IncludeFiles'}{$inc}{'HasParameters'};
             
+            croak $inc if $Sincf->{'HasIncludes'}==1; 
             if($has_commons && $has_pars ) {
                 print "INFO: The include file $inc contains both parameters and commons, attempting to split out params_$inc.\n"
                   if $I;
@@ -83,7 +85,7 @@ sub precondition_all {
     }
     
     return $stref;	
-} # END of refactor_all()  
+} # END of precondition_all()  
 
 # -----------------------------------------------------------------------------
 # TODO: check if this works for F95-style parameters too
@@ -202,5 +204,105 @@ sub __find_parameter_used_in_inc_and_add_to_Only { (my $inc, my $stref ) = @_;
     
     return $stref;
 } # __find_parameter_used_in_inc_and_add_to_Only
+
+# This should return an updated entry for $stref->{'IncludeFiles'}{$inc} if there are any includes to be inlined
+# It is of course recursive
+sub _inline_includes { (my $stref, my $inc)=@_;
+    #    say $inc;
+    my $Sincf = $stref->{'IncludeFiles'}{$inc};
+    if ($Sincf->{'HasIncludes'}==1) {
+        my @n_incs = __get_includes($Sincf);
+        for my $n_inc (@n_incs) {
+            #say $n_inc;
+            my $Snincf = _inline_includes($stref, $n_inc);
+            # Now merge this into $Sincf
+            $Sincf = __merge_include($Sincf,$Snincf);
+        }
+    } 
+    return $Sincf;    
+} # 
+sub __get_includes { (my $Sincf) = @_;
+    my @m_incs = ();
+    map { my $name=$_; my $idx = $Sincf->{'Includes'}{$name}{'LineID'}; $m_incs[$idx]=$name;} keys %{$Sincf->{'Includes'} };
+    my @incs = grep { defined $_ } @m_incs;
+    #map {say $_} @incs ;
+    return @incs;
+} # __get_includes
+
+#AnnLines
+#Vars
+#Parameters
+#OrigLocalVars
+#LocalVars
+#LocalParameters
+
+# This is used when deciding to rename ex-COMMON vars
+# It is populated in _parse_includes() which is recursive but not specific to include files
+# In principle, the toplevel IncludedParameters should be correct
+#IncludedParameters
+
+#DeclaredOrigLocalVars
+#DeclaredCommonVars
+#CommonVars
+
+# Commons is a convenience, a set of all COMMON variables in the code unit. We need to update this either during the merge or afterwards
+#
+# DeclCount is only used to count StmtCount. I now delete it before exiting parse_fortran_src in Parser
+#
+our @irrelevant_keys=qw(
+CalledEntries 
+CalledSubs
+Entries
+Entry
+ParametersFromContainer
+ReferencedLabels
+UsedGlobalVars
+UsedLocalVars
+UsedParameters
+DeclCount
+);
+our @ks=qw(
+Root
+Source
+Status
+Commons
+DeclaredOrigLocalArgs
+DoneInitTables
+ExGlobVarDeclHook
+FStyle
+FreeForm
+HasBlocks
+HasCommons
+HasIncludes
+HasParameters
+InclType
+Includes
+MaskedIntrinsics
+RefactorGlobals
+UndeclaredCommonVars
+UndeclaredOrigArgs
+UndeclaredOrigLocalVars
+);
+
+sub __merge_include { my ($Sincf,$Snincf) = @_;
+    my %hi = map {$_=>1 } sort keys %{$Sincf};
+    my %hni = map {$_=> 1} sort keys %{$Snincf};
+    # all elements that are not in the intersection
+    #for my $k (keys %hi) {
+    #    if (exists $hni{$k}) {
+    #        delete $hni{$k};
+    #        delete $hi{$k};
+    #    }
+    #}
+    #
+    say 'PARENT';
+    map {say $_.' : '.Dumper($Sincf->{$_})} @ks;
+    say '=' x 80;
+    say 'CHILD';
+    map {say $_.' : '.Dumper($Snincf->{$_})} @ks;
+croak;# ;#, %hni);
+    return $Sincf;
+}
+
 
 1;
