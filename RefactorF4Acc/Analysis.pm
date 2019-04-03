@@ -238,6 +238,7 @@ sub _analyse_variables {
 			# -------------------------------------------------------------------------------------------------------------------
 			
 			for my $mvar (@chunks) {
+
                 next if exists $stref->{'Subroutines'}{$f}{'CalledSubs'}{'Set'}{$mvar};    # Means it's a function
 				next if $mvar =~ /^\d+$/;
 				next if not defined $mvar or $mvar eq '';
@@ -296,6 +297,7 @@ sub _analyse_variables {
 										
 										$grouped_messages->{'W'}{'PARAM_FROM_INC'}{$mvar} = 
 										"WARNING: $mvar in $f is a PARAMETER from $inc!" if $W;
+
 										$Sf->{'Includes'}{$inc}{'Only'}{$mvar} = 1;
 									} else {
 										if ( $stref->{'IncludeFiles'}{$inc}{'InclType'} eq 'Common' ) {
@@ -364,6 +366,7 @@ sub _analyse_variables {
 									if (exists $var_rec->{'Parameter'} ) {
 										$grouped_messages->{'W'}{'PARAM_FROM_INC'}{$mvar} =  "WARNING: $mvar in $f is a PARAMETER from $inc!" if $W;
 										$Sf->{'Uses'}{$inc}{'Only'}{$mvar} = 1;
+
 									} else {
 #										say "$f VAR7 $mvar";
 											print "FOUND COMMON $mvar in INC $inc in $line\n" if $DBG;
@@ -470,6 +473,7 @@ sub _analyse_variables {
 								if ( $stref->{'IncludeFiles'}{$inc}{'InclType'} eq 'Parameter' ) {
 									$grouped_messages->{'W'}{'PARAM_FROM_INC'}{$mvar} =  "WARNING: $mvar in $f is a PARAMETER from $inc!" if $W;
 									 $Sf->{'Includes'}{$inc}{'Only'}{$mvar} =1;
+
 								}
 							}
 					}
@@ -558,8 +562,11 @@ sub identify_vars_on_line {
 				or exists $info->{'ReadCall'}
 				or exists $info->{'InquireCall'} 
 				) {
-				@chunks = ( @chunks, @{ $info->{'CallArgs'}{'List'} }, @{ $info->{'ExprVars'}{'List'} }, @{ $info->{'CallAttrs'}{'List'} } );
-				
+					
+				@chunks = ( @chunks, @{ $info->{'CallArgs'}{'List'} }, @{ $info->{'ExprVars'}{'List'} }, @{ $info->{'CallAttrs'}{'List'} });
+				if (exists $info->{'ImpliedDoVars'}) {
+				@chunks = ( @chunks, @{ $info->{'ImpliedDoVars'}{'List'} } );
+				}
 			} elsif ( exists $info->{'SubroutineCall'} ) {
 				for my $var_expr ( @{ $info->{'CallArgs'}{'List'} } ) {
 					if ( exists $info->{'CallArgs'}{'Set'}{$var_expr}{'Arg'} ) {
@@ -902,13 +909,14 @@ sub _analyse_var_decls_for_params {
 
 					#					say "FOUND PAR $par decl in $inc";
 					$Sf->{'Includes'}{$inc}{'Only'}{$par} = 1;
+				
 				}
 			}
 		}
 	}
 
 	return $stref;
-}
+} # END of _analyse_var_decls_for_params
 # This is for param includes inside other includes, and it is not recursive, FIXME!
 sub _lift_param_includes {
 	( my $stref, my $f ) = @_;

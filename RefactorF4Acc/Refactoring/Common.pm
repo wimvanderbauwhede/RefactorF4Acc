@@ -331,15 +331,12 @@ sub context_free_refactorings {
                         }
                     }
                 for my $par_decl (@{ $par_decls }) {
-                	say Dumper($par_decl);
                 	# We must check for string placeholders in parameter decls!
                 	if ($par_decl->{'Name'}[1]=~/(__PH\d+__)/) {
                 		my $ph=$1;
                 		$par_decl->{'Name'}[1]=$info->{'PlaceHolders'}{$ph};
                 	}
 #                	croak Dumper($par_decl) if $line=~/cpn002/;
-                    say "LINE: $line";
-                    say Dumper($info);
 	                my $new_line =emit_f95_var_decl($par_decl) ;
 	                # Here the declaration is complete
 	                push @extra_lines,
@@ -1295,7 +1292,6 @@ sub emit_f95_var_decl {
         
     } else {
         # Parameter        
-#        carp Dumper($var,$val);
         my $var_val = ref($var) eq 'ARRAY' ? $var->[0] . '=' . $var->[1] :  $var.'='.$val;
         my $decl_line =
             $spaces 

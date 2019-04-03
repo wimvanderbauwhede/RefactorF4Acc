@@ -2284,158 +2284,6 @@ sub __find_vars_in_block {
 
 
 
-
-# -----------------------------------------------------------------------------
-# 
-sub _split_multivar_decls {
-	( my $f, my $stref ) = @_;
-#say "_split_multivar_decls($f)" if $W;
-	my $sub_incl_or_mod = sub_func_incl_mod( $f, $stref );
-
-	my $Sf           = $stref->{$sub_incl_or_mod}{$f};
-	my $annlines     = $Sf->{'AnnLines'};
-	my $nextLineID   = scalar @{$annlines} + 1;
-	my $new_annlines = [];
-	for my $annline ( @{$annlines} ) {
-		( my $line, my $info ) = @{$annline};
-
-		if ( exists $info->{'VarDecl'} and exists $info->{'VarDecl'}{'Names'} ) {
-			my @nvars = @{ $info->{'VarDecl'}{'Names'} };
-			push @{ $info->{'Ann'} }, annotate( $f, __LINE__ );
-			for my $var ( @{ $info->{'VarDecl'}{'Names'} } ) {
-				my $rinfo_c = dclone($info);
-				$rinfo_c->{'StmtCount'}={};
-				$rinfo_c->{'StmtCount'}{$var}=$info->{'StmtCount'}{$var};
-
-				my %rinfo   = %{$rinfo_c};
-				$rinfo{'LineID'} = $nextLineID++;
-				my $subset = in_nested_set($Sf,'Vars',$var);
-				my $orig_decl =$Sf->{$subset}{'Set'}{$var}; 
-				$rinfo{'VarDecl'} = {'Name' => $var},#$decl;
-				my $rline = $line;
-				$Sf->{$subset}{'Set'}{$var}{'Name'} = $var;
-				if ( scalar @{ $info->{'VarDecl'}{'Names'} } > 1 ) {
-					for my $nvar (@nvars) {
-						if ( $nvar ne $var ) {
-
-							# FIXME: This should use \b not \W !!!
-							if ( $rline =~ /\s*,\s*$nvar\([^\(]+\)\W?/ ) {
-								$rline =~ s/\s*,\s*$nvar\([^\(]+\)(\W?)/$1/;
-							} elsif ( $rline =~ /(\W)$nvar\([^\(]+\)\s*,\s*/ ) {
-								$rline =~ s/(\W)$nvar\([^\(]+\)\s*,\s*/$1/;
-							} elsif ( $rline =~ /\s*,\s*$nvar\*\d+\W?/ ) {
-								$rline =~ s/\s*,\s*$nvar\*\d+(\W?)/$1/;
-							} elsif ( $rline =~ /(\W)$nvar\*\d+\s*,\s*/ ) {
-								$rline =~ s/(\W)$nvar\*\d+\s*,\s*/$1/;
-							} elsif ( $rline =~ /\W$nvar\s*,\s*/ ) {
-								$rline =~ s/(\W)$nvar\s*,\s*/$1/;
-							} elsif ( $rline =~ /\s*,\s*$nvar\W?/ ) {
-								$rline =~ s/\s*,\s*$nvar(\W?)/$1/;
-							}
-						}
-					}
-				}
-#				say Dumper(%rinfo);
-				push @{$new_annlines}, [ $rline, {%rinfo} ];
-			} # for each $var
-		} else {
-			push @{$new_annlines}, $annline;
-		}
-	}
-	$Sf->{'AnnLines'} = $new_annlines;
-
-	return $stref;
-}    # END of _split_multivar_decls
-
-# -----------------------------------------------------------------------------
-sub _split_multipar_decls_and_set_type {
-	( my $f, my $stref ) = @_;
-
-	my $sub_incl_or_mod = sub_func_incl_mod( $f, $stref );
-
-	my $Sf           = $stref->{$sub_incl_or_mod}{$f};
-	my $annlines     = $Sf->{'AnnLines'};
-	my $nextLineID   = scalar @{$annlines} + 1;
-	my $new_annlines = [];
-	for my $annline ( @{$annlines} ) {
-		( my $line, my $info ) = @{$annline};
-		if ( exists $info->{'ParamDecl'} ) {
-
-			#			say "PARAM INFO:".Dumper( $info->{'ParamDecl'} );
-
-			if ( scalar @{ $info->{'ParamDecl'}{'Names'} } => 1 ) {
-				my @nvars_nvals = @{ $info->{'ParamDecl'}{'Names'} };
-				for my $var_val ( @{ $info->{'ParamDecl'}{'Names'} } ) {
-					my $var = $var_val->[0];
-					my $val = $var_val->[1];
-
-	 #					say "PARAM SET: $var => ".Dumper( $Sf->{'Parameters'}{'Set'}{$var} );
-					my %rinfo = %{$info};
-					$rinfo{'LineID'}    = $nextLineID++;
-					$rinfo{'ParamDecl'} = {};
-
-					my $param_decl = {
-						'Indent' => $info->{'Indent'},
-						'Type' => $Sf->{'LocalParameters'}{'Set'}{$var}{'Type'},
-						'Attr' => $Sf->{'LocalParameters'}{'Set'}{$var}{'Attr'},
-						'Dim'  => [],
-						'Parameter' => 'parameter',
-						'Name'      => [ $var, $val ],
-						'Val'       => $val,             # backwards comp
-						'Var'       => $var,             # backwards comp
-						'Status'    => 1,
-						'InheritedParams' => $Sf->{'LocalParameters'}{'Set'}{$var}{'InheritedParams'},
-					};
-
-					$Sf->{'LocalParameters'}{'Set'}{$var} = $param_decl;
-					$rinfo{'ParamDecl'} = {'Name'      => [ $var, $val ]}; # $Sf->{'LocalParameters'}{'Set'}{$var};# {'Name' => $var};#
-					$rinfo{'VarDecl'}= {'Name' => $var};
-
-					my $rline = $line;
-					if ( scalar @{ $info->{'ParamDecl'}{'Names'} } > 1 ) {
-
-						# This is a line with multiple param decls, split it.
-						for my $nvar_vals (@nvars_nvals) {
-							my $nvar = $nvar_vals->[0];
-							if ( $nvar ne $var ) {
-
- #								say $var, ' <> ',$nvar,'=>',Dumper($Sf->{'Parameters'}{'Set'}{$nvar});
-								my $nval =
-								  $Sf->{'LocalParameters'}{'Set'}{$nvar}{'Val'};
-
-							  #                    say "NPAR: $nvar = $nval";
-							  # TODO: WEAK we only support scalars parnam=parval
-							  # FIXME: This should use \b not \W !!!
-								if ( $rline =~ /\s*,\s*$nvar\s*=\s*$nval\W?/ ) {
-									$rline =~
-									  s/\s*,\s*$nvar\s*=\s*$nval(\W?)/$1/;
-								} elsif (
-									$rline =~ /(\W)$nvar\s*=\s*$nval\s*,\s*/ )
-								{
-									$rline =~
-									  s/(\W)$nvar\s*=\s*$nval\s*,\s*/$1/;
-								}
-							}
-						}
-
-						#                say "\t$rline";
-					}
-
-					#                say Dumper($rinfo{ParamDecl});
-					#                die if $f eq 'f_esl';
-					push @{$new_annlines}, [ $rline, \%rinfo ];
-				}
-			} else {
-				croak "NO Names for parameter in $f: $line";
-			}
-		} else {
-			push @{$new_annlines}, $annline;
-		}
-	}
-	$Sf->{'AnnLines'} = $new_annlines;
-	return $stref;
-}    # END of _split_multipar_decls_and_set_type
-
 # -----------------------------------------------------------------------------
 # So, the problem with VarDecl is that it assumes all vars on a line have the same decl, but this is not true for the shape in F77!
 # A quick fix is to extend the $shape to [$shape]
@@ -3648,6 +3496,7 @@ The code below does the following:
 #					say "RANGE:<$fake_range_expr>" ;
 					my $ast = parse_expression( $fake_range_expr, $info, $stref, $f );
 					( my $call_args, my $other_vars ) = @{ get_args_vars_from_expression($ast) };
+					$info->{'ImpliedDoVars'}=$call_args;
 					$info->{'ExprVars'}{'Set'} = {
 						%{ $info->{'ExprVars'}{'Set'} },
 						%{ $other_vars->{'Set'} }
@@ -3705,7 +3554,6 @@ The code below does the following:
 		}
 	}
 
-#say Dumper($info);
 	return $info;
 }    # END of _parse_read_write_print()
 

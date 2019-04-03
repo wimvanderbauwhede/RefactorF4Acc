@@ -147,6 +147,8 @@ sub _refactor_subroutine_main {
     	$annlines = _add_extra_assignments_in_block_data($stref, $f, $annlines);
     }
  
+    $annlines = _add_implicit_none($stref, $f, $annlines);
+    
     $Sf->{'RefactoredCode'}=$annlines;
         
     $Sf->{'AnnLines'}=$annlines;
@@ -294,6 +296,7 @@ sub _refactor_globals_new {
  	# Loop over all lines in $f
     for my $annline ( @{$annlines} ) {    	
         (my $line, my $info) = @{ $annline };
+        
         my $skip = 0;
 
 		# Create the refactored subroutine signature
@@ -355,13 +358,7 @@ sub _refactor_globals_new {
         	# FIXME: I don't like this, because in the case of a program there should simply be no globals etc.
            # Then generate declarations for ex-globals
            say "HOOK for $f: " .$info->{'ExGlobVarDeclHook'} if $V;
-           # Here I think I can insert 'implicit none'
-           if (not exists $Sf->{'ImplicitNone'}) {
-           	say "Adding 'implicit none' at " . __PACKAGE__ . ' '. __LINE__ if $V;
-           $info={};
-           $info->{'ImplicitNone'}=1;
-           push @{$rlines}, ['      implicit none', $info];
-           }
+
            say "EX-GLOBS for $f" if $V;
             $rlines = _create_extra_arg_and_var_decls( $stref, $f, $annline, $rlines );
         } 
@@ -899,4 +896,29 @@ sub _add_extra_assignments_in_block_data { (my $stref, my $f, my $annlines) = @_
 	 
 	return $merged_annlines;
 } # END of _add_extra_assignments_in_block_data
+
+sub _add_implicit_none { my ($stref, $f, $annlines) = @_;
+	my $Sf = $stref->{'Subroutines'}{$f};
+	my $first_vardecl=1;
+	my $rlines=[];
+    for my $annline ( @{$annlines} ) {      
+        (my $line, my $info) = @{ $annline };
+        
+        if (exists $info->{'VarDecl'} and $first_vardecl) {
+        	$first_vardecl=0;
+                   # Here I think I can insert 'implicit none'
+           if (not exists $Sf->{'ImplicitNone'}) {
+            say "Adding 'implicit none' at " . __PACKAGE__ . ' '. __LINE__ if $V;
+           my $r_info={};
+            $r_info->{'ImplicitNone'}=1;
+           push @{$rlines}, ['      implicit none', $r_info];
+           }
+        	
+        }
+        push @{$rlines},$annline;
+        
+    }	 
+return $rlines;
+}
+
 1;
