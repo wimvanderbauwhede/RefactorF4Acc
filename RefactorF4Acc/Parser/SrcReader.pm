@@ -1256,6 +1256,7 @@ sub _procLine {
 			}
 		} elsif ( $line =~ /^\s+include\s+[\'\"]([\w\.]+)[\'\"]/i ) {			
             $info->{'Includes'} = $1;
+            $info->{'SpecificationStatement'} = 1;
             $line =~ s/\bINCLUDE\b/include/;            
         } elsif ( $line !~ /[\'\"]/	
             && $line !~ /^\s*end/i

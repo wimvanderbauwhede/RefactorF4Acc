@@ -98,11 +98,11 @@ sub parse_fortran_src {
 		$stref = _parse_use( $f, $stref );
 		say  "DONE _parse_use( $f )" if $V;
 
-## 4. Parse includes
-# NOTE: Apart from simply parsing, this routine also causes IMPLICITs from the include file to be inherited by the parent
+	## 4. Parse includes
+	# NOTE: Apart from simply parsing, this routine also causes IMPLICITs from the include file to be inherited by the parent
 		$stref = _parse_includes( $f, $stref );
 
-## 5. Parse subroutine and function calls
+	## 5. Parse subroutine and function calls
 		if ( not $is_incl and not $is_mod) {
 
 			# Recursive descent via subroutine calls
@@ -116,11 +116,11 @@ sub parse_fortran_src {
 			$stref->{'Modules'}{$f}{'Status'} = $PARSED;			
 		}
 
-	   # 7. Split variable declarations with multiple vars into single-var lines
-	   # One could say this is "refactoring" but I say it's "preconditioning"
-		$stref = _split_multivar_decls( $f, $stref );
-		
-		$stref = _split_multipar_decls_and_set_type( $f, $stref );
+#		   # 7. Split variable declarations with multiple vars into single-var lines
+#		   # One could say this is "refactoring" but I say it's "preconditioning"
+#			$stref = _split_multivar_decls( $f, $stref );
+#			
+#			$stref = _split_multipar_decls_and_set_type( $f, $stref );
 		} else {
 			say "INFO: SKIPPING ENTRY $f" if $I;
 		}
@@ -219,8 +219,7 @@ sub _initialise_decl_var_tables {
 		$Sf->{'OrigLocalVars'} = {
 			'Subsets' => {
 				'DeclaredOrigLocalVars' => $Sf->{'DeclaredOrigLocalVars'},
-				'UndeclaredOrigLocalVars' =>
-				  $Sf->{'UndeclaredOrigLocalVars'}
+				'UndeclaredOrigLocalVars' => $Sf->{'UndeclaredOrigLocalVars'}
 			}
 		};		
 		
@@ -612,7 +611,7 @@ SUBROUTINE
 =cut
 						
 						
-			if ( $line =~ /implicit\s+none/ ) {
+			if ( $line =~ /implicit\s+(none|undefined\s*\(\s*a\s*\-\s*z\s*\))/ ) {
 				$info->{'ImplicitNone'} = 1;
 				$info->{'SpecificationStatement'} = 1;
 				$Sf->{'ImplicitNone'}   = $index;
@@ -929,6 +928,7 @@ or $line=~/^character\s*\(\s*len\s*=\s*[\w\*]+\s*\)/
 # F77-style parameters			
 			elsif ( $line =~ /\bparameter\s*\(\s*(.*)\s*\)/ ) {    
 				my $parliststr = $1;
+#				croak $line if $line=~/nstreams/ and $f=~/\.inc/ ;
 				( $Sf, $info ) = __parse_f77_par_decl( $Sf, $stref, $f, $indent, $line, $info, $parliststr );				
 				$has_pars=1;
 				$Sf->{'HasParameters'}=1;
@@ -1364,6 +1364,7 @@ sub _parse_includes {
 
 				$info->{'Include'} = {};
 				$info->{'Include'}{'Name'} = $name;
+				$stref->{'IncludeFiles'}{$name}{'IncludedFrom'}{$f}=1;
 				if ( $stref->{'IncludeFiles'}{$name}{'Status'} == $UNREAD ) {
 					print $line, "\n" if $V;
 
@@ -2848,8 +2849,6 @@ sub __parse_f77_par_decl {
 	my $attr = '';
 	$indent =~ s/\S.*$//;
 	my @partups = _parse_comma_sep_expr_list( $parliststr ); 
-my @test = map { split( /\s*=\s*/, $_ ) } @partups;
-croak $parliststr if scalar @test==1;
 	my %pvars = map { split( /\s*=\s*/, $_ ) } @partups;    # Perl::Critic, EYHO
 	my @var_vals = map { ( my $k, my $v ) = split( /\s*=\s*/, $_ ); [ $k, $v ] } @partups; # Perl::Critic, EYHO
 	my @pvarl = map { s/\s*=.+//; $_ } @partups;
@@ -2903,7 +2902,12 @@ croak $parliststr if scalar @test==1;
 					'Type' => $type,
 					'Var'  => $var,
 					'Val'  => $val,
-					'Attr' => $attr
+					'Attr' => $attr,
+					'DEBUG' => 1,
+					        'Indent'    => $indent,
+        'Dim'       => [],
+        'Parameter' => 'parameter',
+        'Status'    => 0     
 				};
 				say "INFO: LOCAL PARAMETER $var infered type: $type $var = $val" if $I;
 				push @{$pars}, $var;
@@ -2919,7 +2923,12 @@ croak $parliststr if scalar @test==1;
 				'Type' => $type,
 				'Var'  => $var,
 				'Val'  => $pvars{$var},
-				'Attr' => $attr
+				'Attr' => $attr,
+				'DEBUG' => 2,
+        'Indent'    => $indent,
+        'Dim'       => [],
+        'Parameter' => 'parameter',
+        'Status'    => 0        				
 			};
 
 			my $val = $pvars{$var};

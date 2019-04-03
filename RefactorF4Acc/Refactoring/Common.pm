@@ -68,6 +68,7 @@ our %f95ops = (
 
 #* WV20150722: problem is this does too much, should not insert any new code, do that separately! FIXME!
 #* WV20150803: I added another pass to insert a proper ExGlobVarDeclHook after the last parameter, if any.
+# WV20190403: skip lines marked as Deleted or Skip, what's the point in refactoring those?
 sub context_free_refactorings {
     ( my $stref, my $f ) = @_;
     print "CONTEXT-FREE REFACTORINGS for $f CODE\n" if $V ;
@@ -92,8 +93,14 @@ sub context_free_refactorings {
               "Undefined source code line for $f in create_refactored_source()";
         }
         ( my $line, my $info ) = @{$annline};
-        
-        if ( exists $info->{'Deleted'} and $line eq '' ) {
+        if ( exists $info->{'Comments'}  ) {
+            next;
+        }     
+        if ( exists $info->{'Skip'}  ) {
+            next;
+        }        
+        if ( exists $info->{'Deleted'} ) {
+        	# WV20190403: originally the condition included: "and $line eq '' ) {"
             next;
         }
         if ( exists $info->{'ImplicitNone'} ) {
@@ -234,7 +241,7 @@ sub context_free_refactorings {
 # This section refactors variable and parameter declarations
 # ------------------------------------------------------------------------------
 
-        if ( exists $info->{'VarDecl'} ) {        	        	        
+        if ( exists $info->{'VarDecl'} ) {
         	my $var =  $info->{'VarDecl'}{'Name'};
 			my $stmt_count = $info->{'StmtCount'}{$var};
 			if (not defined $stmt_count) {$stmt_count=1; };
@@ -264,7 +271,7 @@ sub context_free_refactorings {
 	                $info->{'Ref'} = 1;                 
 	                push @{$info->{'Ann'}}, annotate($f, __LINE__ .': Ref==0, '.$stmt_count );
 	            } else {
-	                croak 'BOOM! ' . 'context_free_refactoring '. __LINE__ ."; ";
+	                croak 'BOOM! ' . 'context_free_refactoring '. __LINE__ ."; ".$line.'    '.Dumper($info);
 	            }                        
             }
             
@@ -324,12 +331,15 @@ sub context_free_refactorings {
                         }
                     }
                 for my $par_decl (@{ $par_decls }) {
+                	say Dumper($par_decl);
                 	# We must check for string placeholders in parameter decls!
                 	if ($par_decl->{'Name'}[1]=~/(__PH\d+__)/) {
                 		my $ph=$1;
                 		$par_decl->{'Name'}[1]=$info->{'PlaceHolders'}{$ph};
                 	}
 #                	croak Dumper($par_decl) if $line=~/cpn002/;
+                    say "LINE: $line";
+                    say Dumper($info);
 	                my $new_line =emit_f95_var_decl($par_decl) ;
 	                # Here the declaration is complete
 	                push @extra_lines,
@@ -1285,7 +1295,7 @@ sub emit_f95_var_decl {
         
     } else {
         # Parameter        
-        
+#        carp Dumper($var,$val);
         my $var_val = ref($var) eq 'ARRAY' ? $var->[0] . '=' . $var->[1] :  $var.'='.$val;
         my $decl_line =
             $spaces 
@@ -1362,6 +1372,8 @@ sub splice_additional_lines {
 #- Find the hook based on a condition on the $annline (i.e. $insert_cond_subref->($annline) )
 #- splice the new lines before/after the hook depending on $insert_before
 #- if $once is 0, do this whenever the condition is met. Otherwise do it once
+# NOTE that get_annotated_sourcelines will preferentially use RefactoredCode rather than AnnLines 
+# If this is unwanted, pass in $old_annlines explicitly
 sub splice_additional_lines_cond {
     (
         my $stref, 
@@ -1378,6 +1390,7 @@ sub splice_additional_lines_cond {
     my $Sf                 = $stref->{$sub_or_func_or_mod}{$f};
     
     my $annlines           = scalar @{$old_annlines} ? $old_annlines : get_annotated_sourcelines( $stref, $f );
+    croak if scalar @{$annlines}==0;
     my $nextLineID         = scalar @{$annlines} + 1;
     my $merged_annlines    = [];
     $do_once = defined $do_once ? $do_once : 1;
@@ -1388,22 +1401,38 @@ sub splice_additional_lines_cond {
 #        say Dumper($info);
         if ( $insert_cond_subref->($annline) and $once ) {
             $once = 0 unless $do_once==0;
-
-            if ( not $skip_insert_pos_line and not $insert_before ) {
-                say $annline->[0] if $DBG;
-                push @{$merged_annlines}, $annline;
+            if (not $insert_before ) {
+            	say $annline->[0] if $DBG; 
+                if ( not $skip_insert_pos_line ) {                
+                    push @{$merged_annlines}, $annline;
+                } else {
+            	   # Skip; but I comment out instead if $DBG is on
+            	   $info->{'Skip'}=1;
+            	   if ($DBG) {
+            	   	 $info->{'Comments'}=1;
+            		 push @{$merged_annlines}, ['! SKIP ! '.$line, $info];
+            	   }
+                }
             }
             for my $extra_annline ( @{$new_annlines} ) {
                 ( my $nline, my $ninfo ) = @{$extra_annline};
                 $ninfo->{'LineID'} = $nextLineID++;
                 say $nline if $DBG;
                 push @{$merged_annlines}, [ $nline, $ninfo ];
-            }
-            if ( not $skip_insert_pos_line and $insert_before ) {
+            }            
+            if ($insert_before ) {
                 say $annline->[0] if $DBG;
-                push @{$merged_annlines}, $annline;
+                if ( not $skip_insert_pos_line ) {                
+                    push @{$merged_annlines}, $annline;
+                } else {
+                   # Skip; but I comment out instead if $DBG is on
+                   $info->{'Skip'}=1;
+                   if ($DBG) {
+                     $info->{'Comments'}=1;
+                     push @{$merged_annlines}, ['! '.$line, $info];
+                   }
+                }
             }
-
         } else {
             say $annline->[0] if $DBG;
             push @{$merged_annlines}, $annline;

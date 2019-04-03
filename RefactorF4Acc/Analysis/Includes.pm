@@ -34,16 +34,18 @@ use Exporter;
 # The "root for includes" algorithm intends to find the subroutine where the include should be placed
 sub find_root_for_includes {
     ( my $stref, my $f ) = @_;
-   
-#    local $V=1;
+
     $stref = _create_include_chains( $stref, 1 );  # assumes we start at node 1 in the tree. Typically that is the main program.
-    
+
+    # This just goes through all include files. If an include file was inlined and not included on its own anywhere in the source
+    # this would of course mean it has no root.
+    # As we now inline the nested includes, only includes in subs should be processed here
+    # And then even only these that are included in the subs in the SOURCEFILES if that is specified. 
     for my $inc ( keys %{ $stref->{'IncludeFiles'} } ) {
-       
+       say "Finding ROOT for $inc starting from $f" if $V;
         next if $stref->{'IncludeFiles'}{$inc}{'InclType'} eq 'External';
         if ($stref->{'IncludeFiles'}{$inc}{'Status'}==$UNREAD) {
-        	#WV23JUL2012: This is weak, clearly the only good way is to find the includes in rec descent 
-            croak "TROUBLE: $inc (in $f) not yet parsed, how come? (Hint: likely the tree contains refactored sources)";#.Dumper($stref);
+            croak "TROUBLE: $inc (in $f) not yet parsed, how come? (Hint: likely the tree contains refactored sources)";
                 $stref->{'IncludeFiles'}{$inc}{'HasBlocks'} = 0;
                 $stref = parse_fortran_src( $inc, $stref );   
         }
@@ -52,6 +54,8 @@ sub find_root_for_includes {
             print "ROOT for $inc is "
               . $stref->{'IncludeFiles'}{$inc}{'Root'} . "\n"
               if $V; 
+        } elsif ($V) {
+        	say "$inc not COMMON, skipped";
         }
     }
     
@@ -80,9 +84,11 @@ sub _find_root_for_include {
     
     if ( exists $Ssub->{'Includes'}{$inc} ) {
         # Not inherited
+        say "_find_root_for_include: $inc not inherited in $sub" if $DBG;
         $stref->{'IncludeFiles'}{$inc}{'Root'} = $sub;
     } else {
-        # Inherited 
+        # Inherited
+        say "_find_root_for_include: $inc inherited in $sub" if $DBG; 
         # $sub is (currently) not 'Root' for $inc
         my $nchildren   = 0;
         my $singlechild = '';
@@ -98,16 +104,18 @@ sub _find_root_for_include {
             }
         }
         if ( $nchildren == 0 ) {
-            die "_find_root_for_include(): Can't find $inc in parent $sub or any children, something's wrong!\n";
+        	# This just means that $inc is not included in any non-external subroutine.
+        	print  "_find_root_for_include(): $inc included in <" if $DBG;
+        	say join(',',keys %{ $stref->{'IncludeFiles'}{$inc}{'IncludedFrom'}}),'>' if $DBG;
+        	# TODO: check if the include is included in any non-external subroutine.
+#            die "_find_root_for_include(): Can't find $inc in parent $sub or any children, something's wrong!\n";
+            
         } elsif ( $nchildren == 1 and $Ssub->{'RefactorGlobals'}==0) {
-
-            #           print "DESCEND into $singlechild\n";
             delete $Ssub->{'CommonIncludes'}{$inc};
             _find_root_for_include( $stref, $inc, $singlechild );
                     
         } else {            
             # head node is root
-            #           print "Found $nchildren children with $inc\n";
             $stref->{'IncludeFiles'}{$inc}{'Root'} = $sub;
         }
     }
@@ -216,6 +224,7 @@ sub __merge_includes {
             $stref = __merge_includes( $stref, $pnid, $nid,$chain );
         }
     }
+#    say $chain;
     return $stref;
 }    # END of __merge_includes
 
