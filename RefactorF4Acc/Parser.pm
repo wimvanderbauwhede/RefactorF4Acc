@@ -38,6 +38,7 @@ use Exporter;
   &refactor_marked_blocks_into_subroutines
   &mark_blocks_between_calls
   &build_call_graph
+  &_analyse_lines
 );
 
 # -----------------------------------------------------------------------------
@@ -351,7 +352,10 @@ sub _analyse_lines {
 	my $Sf = $stref->{$sub_incl_or_mod}{$f};
 #	croak Dumper( sort keys %{$Sf});
 	$Sf->{'ExGlobVarDeclHook'} = 0;
-	my $srcref = $Sf->{'AnnLines'};
+	
+	my $srcref = (exists $Sf->{'RefactoredCode'} and scalar @{$Sf->{'RefactoredCode'}}>0) 
+	? $Sf->{'RefactoredCode'}  
+	: $Sf->{'AnnLines'};
 
 	if ( defined $srcref ) {
 		
@@ -621,6 +625,13 @@ SUBROUTINE
 			} elsif ( $line =~ /^use\s+(\w+)/ ) {
 				my $module = $1;
 				$info->{'Use'} = $module;
+				if ($line =~ /only\s*:\s*([\w\s\,]+)/) {
+					my $only_list_str = $1;
+					my @only_list = split(/\s*,\s*/,$only_list_str);
+					$info->{'Only'}=\@only_list; 
+				} else {
+					$info->{'Only'}=[];
+				}
 				$info->{'SpecificationStatement'} = 1;
 				$srcref->[$index] = [ $line, $info ];
 				next;
@@ -893,6 +904,7 @@ SUBROUTINE
 #== VARIABLE and PARAMETER DECLARATIONS
 #@ VarDecl =>
 #@     Name => $varname
+#@     Names => $varnames
 #@ ParamDecl =>
 #@        Indent    => $indent
 #@        Type      => $type
@@ -2540,9 +2552,9 @@ sub __parse_f95_decl {
 	(my $stref, my $f,  my $Sf, my $indent, my $line, my $info) = @_;
 	
     my $is_module = (exists $stref->{'Modules'}{$f}) ? 1 : 0;
+    
 	my $pt = parse_F95_var_decl($line);
-	
-#croak $line  if $line=~/etan/;	
+		
 #croak $line.Dumper($info) if $line=~/local_aaa/;
 	# But this could be a parameter declaration, with an assignment ...
 	if ( $line =~ /,\s*parameter\s*.*?::\s*(\w+\s*=\s*.+?)\s*$/ ) {    
@@ -2882,7 +2894,7 @@ sub __parse_f77_par_decl {
 }    # END of __parse_f77_par_decl()
 
 # -----------------------------------------------------------------------------
-
+# TODO: F95 decls should not be parsed by a routine named __parse_f77_var_decl !!! 
 sub __parse_f77_var_decl {
 	( my $Sf, my $stref, my $f,my $indent,  my $line, my $info, my $type, my $varlst ) = @_;
 		
@@ -3273,6 +3285,9 @@ if ($line=~/^character/) {
 		'Status' => 0
 	};
 
+    if (scalar @varnames == 1 ) {
+    	$info->{'VarDecl'}{'Name'} = $varnames[0];
+    }
 	push @{ $info->{'Ann'} }, annotate( $f, __LINE__ );
 	return ( $Sf, $info );
 }    # END of __parse_f77_var_decl()

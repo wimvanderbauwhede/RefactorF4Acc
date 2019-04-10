@@ -12,7 +12,7 @@ use RefactorF4Acc::Refactoring::Functions qw( refactor_called_functions remove_v
 use RefactorF4Acc::Refactoring::IncludeFiles qw( refactor_include_files );
 use RefactorF4Acc::Analysis::ArgumentIODirs qw( determine_argument_io_direction_rec update_argument_io_direction_all_subs);
 use RefactorF4Acc::Refactoring::Modules qw( add_module_decls );
-
+use RefactorF4Acc::Refactoring::InlineSubroutine qw( inline_subroutine );
 use vars qw( $VERSION );
 $VERSION = "1.2.0";
 
@@ -61,6 +61,14 @@ sub refactor_all {
     # So at this point we know everything there is to know about the argument declarations, we can now update them
     say "remove_vars_masking_functions" if $V;    
     $stref = remove_vars_masking_functions($stref);    
+    
+    # Test inlining here
+    # We need to decide what to inline.
+    # I would say any call inside a subroutine marked for offloading.
+    # This needs to be recursive!
+    my $f='les';
+    my $sub='boundsm';
+    $stref = inline_subroutine($stref, $f, $sub) ;
     
     # Custom refactoring, must be done before creating final modules
     say "add_module_decls" if $V;

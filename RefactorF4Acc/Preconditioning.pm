@@ -471,6 +471,7 @@ sub _split_multivar_decls {
             my @nvars = @{ $info->{'VarDecl'}{'Names'} };
             push @{ $info->{'Ann'} }, annotate( $f, __LINE__ );
             for my $var ( @{ $info->{'VarDecl'}{'Names'} } ) {
+            	
                 my $rinfo_c = dclone($info);
                 $rinfo_c->{'StmtCount'}={};
                 $rinfo_c->{'StmtCount'}{$var}=$info->{'StmtCount'}{$var};
@@ -479,7 +480,7 @@ sub _split_multivar_decls {
                 $rinfo{'LineID'} = $nextLineID++;
                 my $subset = in_nested_set($Sf,'Vars',$var);
                 my $orig_decl =$Sf->{$subset}{'Set'}{$var}; 
-                $rinfo{'VarDecl'} = {'Name' => $var},#$decl;
+                $rinfo{'VarDecl'} = {'Name' => $var},
                 my $rline = $line;
                 $Sf->{$subset}{'Set'}{$var}{'Name'} = $var;
                 if ( scalar @{ $info->{'VarDecl'}{'Names'} } > 1 ) {
@@ -503,6 +504,7 @@ sub _split_multivar_decls {
                         }
                     }
                 }
+#                say $var , Dumper(%rinfo) if $f eq 'boundsm';
 #               say Dumper(%rinfo);
                 push @{$new_annlines}, [ $rline, {%rinfo} ];
             } # for each $var

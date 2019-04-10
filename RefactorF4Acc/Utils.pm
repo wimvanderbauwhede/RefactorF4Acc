@@ -82,7 +82,12 @@ sub annotate { (my $f, my $ann)=@_;
 }
 
 sub comment { (my $comment)=@_;
-	return ['! '.$comment, {'Comments'=>1,'Ref'=>1}];
+	if  (ref($comment) eq 'ARRAY') {
+		(my $line, my $info) = @{$comment};
+		return ['! '.$line, {%{$info},'Comments'=>1,'Ref'=>1}];
+	} else {
+	   return ['! '.$comment, {'Comments'=>1,'Ref'=>1}];
+	}
 }
 
 sub sub_func_incl_mod {

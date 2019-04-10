@@ -25,6 +25,7 @@ use Exporter 'import';
   sepByChar
   oneOf
   word
+  mixedCaseWord
   natural
   number
   symbol
@@ -439,7 +440,7 @@ sub sepByChar ($$) {
 }
 
 # This is a lexeme parser, so it skips trailing whitespace
-# Should be called "identifier" I think
+# Should be called "identifier" I think; also, why is this lower-case only?
 sub word {
 	my $gen = sub {
 		( my $str ) = @_;
@@ -458,6 +459,26 @@ sub word {
 		}
 	};
 	return $gen;
+}
+
+sub mixedCaseWord {
+    my $gen = sub {
+        ( my $str ) = @_;
+        say "* word( '$str' )" if $V;
+        if ( $str =~ /^([a-zA-Z_]\w*)/ ) {
+            my $m       = $1;
+            my $matches = $m;
+            $str =~ s/^$m\s*//;
+            say "word: remainder => <$str>"   if $V;
+            say "word: matches => [$matches]" if $V;
+            return ( 1, $str, $matches );
+        } else {
+            say "word: match failed => <$str>" if $V;
+            return ( 0, $str, undef )
+              ;   # assumes $status is 0|1, $str is string, $matches is [string]
+        }
+    };
+    return $gen;	
 }
 
 sub identifier {

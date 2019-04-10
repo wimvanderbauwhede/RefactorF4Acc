@@ -427,6 +427,7 @@ sub _create_extra_arg_and_var_decls {
                     $info->{'LineID'}= $nextLineID++;
                     $info->{'Ref'}=1;
                     $info->{'VarDecl'}={'Name' => $var};#$rdecl;
+                    $info->{'ArgDecl'}=1;
                     push @{$rlines}, [ $rline,  $info ];
     	}                        
     }    # for

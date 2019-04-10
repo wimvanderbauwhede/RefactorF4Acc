@@ -30,6 +30,7 @@ sub parse_F95_var_decl {
 #$str=~s/^\s+//;
 #chomp $str;
 	print $str,"\n" if $VV;
+	
 	my $p =f95_var_decl_parser();
 	(my $st, my $rest, my $matches) =$p->($str);
     print "\n" if $VV;
@@ -185,7 +186,7 @@ sub dim_parser {
 sub intent_parser {
 	 sequence [
         symbol('intent'),
-     {'Intent' => parens word}
+     {'Intent' => parens mixedCaseWord}
 		] 
 }
 
@@ -253,7 +254,9 @@ sub comma_sep_expr_list {
 		if ( scalar @{$matches} > 0  ) {
 			$status = 1;
 #			$str = substr($str,0,length($str)-length($remainder)); # 1234 5678
-			say "comma_sep_expr_list: remainder => <$remainder>"   if $V;		
+			say "comma_sep_expr_list: remainder => <$remainder>"   if $V;
+			# FIXME
+					
 #			say "comma_sep_expr_list: str => <$str>"   if $V;			
 			say "comma_sep_expr_list: matches => [".join(',',@{$matches})."]" if $V;
 			return ( $status, $remainder, $matches );			

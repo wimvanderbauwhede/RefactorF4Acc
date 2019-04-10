@@ -373,6 +373,7 @@ sub context_free_refactorings {
             		my @used_params = keys %{ $Sf->{'Includes'}{$inc}{'Only'} };
                 	$line = "      use $tinc". ($NO_ONLY ?  '!' : '') .', only : '.join(', ', @used_params) ;
                   	push @{ $info->{'Ann'} }, annotate($f, __LINE__. ' Include' );
+                  	
             	} elsif (exists $stref->{'IncludeFiles'}{$inc}{'ParamInclude'}) {
             		my $param_include=$stref->{'IncludeFiles'}{$inc}{'ParamInclude'};
             		my $tinc = $param_include;
@@ -399,6 +400,8 @@ sub context_free_refactorings {
                   	push @{ $info->{'Ann'} }, annotate($f, __LINE__ . ' no pars used'); #croak 'SKIP USE PARAM';
                   	$info->{'Deleted'}=1;            		
             	}
+#            	$info->{'Use'}=$tinc; 
+            	carp 'FIXME: USE/ONLY!';
             } else {
 #            	say 'WARNING: EXTERNAL INCLUDES ARE COMMENTED OUT!' if $W;
                 $line =                
