@@ -156,6 +156,7 @@ sub main {
 	
 	$stref = find_subroutines_functions_and_includes($stref);
 	if ($V) {
+        say "Subroutines that will be analysed:";
 		for my $sub (sort keys %{ $stref->{'Subroutines'} }) {
 			say $sub,"\t=>\t",$stref->{'Subroutines'}{$sub}{'Source'};
 		}
@@ -168,8 +169,9 @@ sub main {
     # It is possible that the TOP routine was set to the default (PROGRAM) while doing the inventory
     if ($subname eq '' and exists $Config{'TOP'} and $Config{'TOP'} ne '') {
     	$subname = $Config{'TOP'};
+        say "Using PROGRAM $subname as TOP" if $V;
     }
-    
+   
     if ($subname eq '' and exists $Config{'SOURCEFILES'} and scalar @{ $Config{'SOURCEFILES'} }>0) {
     	# $subname is empty, i.e. no TOP routine. So we go through all sources one by one by file name
     	for my $fp ( @{ $Config{'SOURCEFILES'} } ) {

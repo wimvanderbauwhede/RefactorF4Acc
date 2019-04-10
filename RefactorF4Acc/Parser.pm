@@ -467,7 +467,7 @@ sub _analyse_lines {
 				push @blocks_stack,$block;
 				say $lline. "\t\tPUSH $block_nest_counter DO (NO LABEL)" if $in_excluded_block and $DBG;
 			};						
-			# SUBROUTINE FUNCTION PROGRAM
+			#= SUBROUTINE FUNCTION PROGRAM
 			# Procedure block identification				
 			$line =~ /^(\w+\s+\w+\s+(?:function|subroutine)|\w+\s+subroutine|[\*\(\)\w]+\s+function|function|subroutine|program|block)\s+(\w+)/ && do {				
 				my $full_proc_type=$1;
@@ -512,7 +512,7 @@ sub _analyse_lines {
 				say $lline. "\t\tPUSH $block_nest_counter" if $in_excluded_block and $DBG;
 			};
 			
-			# END of BLOCK:			
+			#= END of BLOCK:			
 			$line=~/^end/  && do { 
 				my $block = pop @blocks_stack;
 				say $lline. "\t\tPOP $block_nest_counter ".uc($block->{'Type'})  if $in_excluded_block and $DBG;
@@ -527,7 +527,7 @@ sub _analyse_lines {
 				}
 			};
 			
-#    CONTINUE statement. 			
+#= CONTINUE statement. 			
 			$line=~/^continue/ && do {
 				if (exists $info->{'Label'} ) {
 				my $cont_label=$info->{'Label'} ;
@@ -610,20 +610,21 @@ SUBROUTINE
 
 =cut
 						
-						
+#== IMPLICIT NONE						
 			if ( $line =~ /implicit\s+(none|undefined\s*\(\s*a\s*\-\s*z\s*\))/ ) {
 				$info->{'ImplicitNone'} = 1;
 				$info->{'SpecificationStatement'} = 1;
 				$Sf->{'ImplicitNone'}   = $index;
 				$srcref->[$index] = [ $line, $info ];
 				next;
+#== USE				
 			} elsif ( $line =~ /^use\s+(\w+)/ ) {
 				my $module = $1;
 				$info->{'Use'} = $module;
 				$info->{'SpecificationStatement'} = 1;
 				$srcref->[$index] = [ $line, $info ];
 				next;
-				
+#== IMPLICIT (not none)				
 			} elsif ( $line =~ /implicit\s+/ ) {
 				$info->{'Implicit'} = 1;
 				$info->{'SpecificationStatement'} = 1;
@@ -631,7 +632,7 @@ SUBROUTINE
 				$srcref->[$index] = [ $line, $info ];
 				next;	
 			}			
-# END of IF/SELECT/DO						
+#== END of IF/SELECT/DO						
 			elsif ( $line =~ /^end\s*(if|select|do)\s*/ ) {			
 				my $keyword = $1;
 				my $kw      = ucfirst($keyword);
@@ -648,7 +649,7 @@ SUBROUTINE
 					}					
 				}
 			}			
-# DIMENSION (VIRTUAL)		
+#== DIMENSION (VIRTUAL)		
 		 elsif ( $line =~ /^(?:dimension|virtual)/ ) {			
 # Although a Dimension line is not a declaration, I will use it as such, so the var must be in DeclaredLocalVars/DeclaredCommonVars
 				$info->{'Dimension'}=1;
@@ -732,12 +733,17 @@ SUBROUTINE
 		 }
 				next;
 		}
-			# COMMON block processing for common blocks not in an include file
+#== COMMON block processing for common blocks not in an include file
 			# common /name/ x...
 			# However, common/name/x is also valid, and even  common x, damn F77!
 			# And in fact, so is common /name/ x,y, /name2/ w,z
 			# Worse, the spec is COMMON [/[ cb ]/] nlist [[,]/[ cb ] / nlist ]
 			# so  x//y is also OK and //x also ... 
+#@ Common => 
+#@    Name => $common_block_name
+#@    Vars => 
+#@        Set =>$parsedvars
+#@        List => $parsedvars_lst
 		 elsif ( $line =~ /^common\s*\/\s*([\w\d]+)\s*\/\s*(.+)$/ or 
 				$line =~ /^(common)\s+(.+)$/ 
 		 ) {
@@ -816,7 +822,7 @@ SUBROUTINE
 				};
 #				croak Dumper($info);
 			}		
-# NAMELIST
+#== NAMELIST
 		elsif (	$line =~ /^namelist\s*\/\s*([\w\d]+)\s*\/\s*(.+)$/ 				 
 		 ) {
 				my $namelist_group_name = $1;
@@ -828,10 +834,11 @@ SUBROUTINE
 				 $Sf->{'Namelist'}{$namelist_group_name} = [ split(/\s*,\s*/,$namelist_varlst) ];
 				 
 		 }
+#== FORMAT		 
 		elsif ( $line =~/^format/) {
 			$info->{'Format'}=1;
 		}
-# DATA
+#== DATA
 		elsif ($line=~/^data\b/ and $line!~/=/) { 
 		 	# DATA
 		 	$info->{'Data'} = 1;
@@ -840,7 +847,7 @@ SUBROUTINE
 			 	my @chunks = split(/\//,$line);
 			 	$chunks[1]=~s/\s+//g;
 			 	$line=join('/',@chunks);
-#				$line = _expand_repeat_data($line);		
+#				$line = _expand_repeat_data($line); 		
 				say "DATA declaration $line" if $V;
 #				$extra_lines{$index}=_parse_data_declaration($line,$info, $stref, $f);
 #				next;
@@ -856,7 +863,7 @@ SUBROUTINE
 		    	$info->{'SpecificationStatement'} = 1;
 		    	say "DATA declaration with IMPLIED DO at $line" if $V;
 		}
-# INTRINSIC, EXTERNAL, STATIC, AUTOMATIC, VOLATILE
+#== INTRINSIC, EXTERNAL, STATIC, AUTOMATIC, VOLATILE
 		 	elsif ($line=~/^(intrinsic|external|static|automatic|volatile)\s+([\w,\s]+)/) {
 		 		my $qualifier = $1;
 		 		my $external_procs_str = $2;
@@ -868,7 +875,7 @@ SUBROUTINE
 		 		
 		 			say "WARNING: ".uc($qualifier)." IS IGNORED!" if $qualifier ne 'external' and $W;
 		 	}
-# EQUIVALENCE (IADN14(1), IADN15(1)), (RADN14(2),RADN15(2))		 	 
+#== EQUIVALENCE (IADN14(1), IADN15(1)), (RADN14(2),RADN15(2))		 	 
 		 	elsif ($line=~/^equivalence\s+/) {		 	
 		 		$info->{'Equivalence'} = 1;
 		 		$info->{'SpecificationStatement'} = 1;
@@ -876,22 +883,28 @@ SUBROUTINE
 		 		if (not exists $grouped_warnings->{'EQUIVALENCE'}) {
 		 			$grouped_warnings->{'EQUIVALENCE'}=[ "The EQUIVALENCE  statement is not supported, this could possible break your code, please rewrite:",
 		 			'  SOURCE: '.$stref->{$sub_incl_or_mod}{$f}{'Source'},
-                    '  CODE UNIT: '.$f, 'LINES:'
-		 			
+                    '  CODE UNIT: '.$f, 'LINES:'		 			
 		 			 ];
-		 		}
-		 		
-		 		my $warn = #"The EQUIVALENCE  statement is not supported, please rewrite your code (or ignore at your peril):\n".
-#			 		'  SOURCE: '.$stref->{$sub_incl_or_mod}{$f}{'Source'}.' LINE #'. $info->{'LineID'}."\n".
-#			 		'  CODE UNIT: '.$f."\n"
-			 	 $info->{'LineID'}.
-			 		': '.$line;
+		 		}		 		
+		 		my $warn =  $info->{'LineID'}.': '.$line;
 			 	push @{	$grouped_warnings->{'EQUIVALENCE'} }, $warn;
 		 		
 		 	}		
+#== VARIABLE and PARAMETER DECLARATIONS
+#@ VarDecl =>
+#@     Name => $varname
+#@ ParamDecl =>
+#@        Indent    => $indent
+#@        Type      => $type
+#@        Attr      => $attr
+#@        Dim'       => []
+#@        Parameter => 'parameter'
+#@        Names     => [@var_vals]
+#@        Status    => 0         
+	 			 	
 # Actual variable declaration line (F77)
 # In principle every type can be followed by '*<number>' or *(*) or (<number>)
-# F77 VarDecl
+#==F77 VarDecl
 			elsif (
 				(				
 					$line =~
@@ -914,7 +927,7 @@ or $line=~/^character\s*\(\s*len\s*=\s*[\w\*]+\s*\)/
 				$info->{'SpecificationStatement'} = 1;				
 				croak if $line=~/__pipe\s\!\$ACC/;
 		}
-# F95 declaration, no need for refactoring		 	
+#== F95 declaration, no need for refactoring		 	
 		 elsif ( $line =~ /^(.+)\s*::\s*(.+)(?:\s*|\s+\!\$ACC.+)$/ ) { croak if $line=~/__pipe\s\!\$ACC/;
 		 
 				( $Sf, $info ) = __parse_f95_decl( $stref, $f, $Sf, $indent, $line, $info);
@@ -924,8 +937,8 @@ or $line=~/^character\s*\(\s*len\s*=\s*[\w\*]+\s*\)/
 				}		
                 $info->{'SpecificationStatement'} = 1;
 			} 
-# PARAMETER			
-# F77-style parameters			
+#== PARAMETER			
+#== F77-style parameters			
 			elsif ( $line =~ /\bparameter\s*\(\s*(.*)\s*\)/ ) {    
 				my $parliststr = $1;
 #				croak $line if $line=~/nstreams/ and $f=~/\.inc/ ;
@@ -934,21 +947,35 @@ or $line=~/^character\s*\(\s*len\s*=\s*[\w\*]+\s*\)/
 				$Sf->{'HasParameters'}=1;
 				$info->{'SpecificationStatement'} = 1;
 			}    # match var decls, parameter statements F77/F95								
-# SIGNATURES SUBROUTINE FUNCTION PROGRAM ENTRY
+#== SIGNATURES SUBROUTINE FUNCTION PROGRAM ENTRY
+#@ Signature =>
+#@    Args =>
+#@        List => [...]
+#@        Set => {}
+#@    Name => $name;
+#@    Function  => $bool
+#@    Program  => $bool
+#@    Entry  => $bool
+#@    BlockData  => $bool
 			 elsif ( $line =~ /\b(subroutine|function|program|entry|block)[\s\(]/ and $line !~ /^end\s+/) {
 				( $Sf, $line, $info ) =
 				  __parse_sub_func_prog_decls( $Sf, $line, $info );
 			 }
-# END of CODE UNIT
+#== END of CODE UNIT
 			 elsif (
 				$line =~ /^end\s+(subroutine|module|function|block\s+data)\s*(\w+)/ 
 				) {
 				my $kw   = $1;
 				my $name = $2;
 				$info->{ 'End' . ucfirst($kw) } = { 'Name' => $name };
-# DO statement				
+#== DO statement			
+#Do =>
+#@    While => $bool
+#@    ExpressionsAst => $ast
+#@    Range => 
+#@        Vars => [ ... ]
+#@        Expressions' => [ ... ]
 			} elsif ( $line =~ /^do\b/) { 
-
 #WV20150304: We parse the do and store the iterator and the range { 'Iterator' => $i,'Range' =>[$start,$stop]}
 				my $do_stmt = $line;
 				my $label   = $info->{'Label'} // 'LABEL_NOT_DEFINED';
@@ -1016,7 +1043,10 @@ or $line=~/^character\s*\(\s*len\s*=\s*[\w\*]+\s*\)/
 				$info->{ 'Control' } = 1;
 				$do_counter++;
 				push @do_stack, $info;
-# SELECT/CASE 
+#== SELECT/CASE 
+#@ CaseVar => $var
+#@ CaseVals => [...]
+
 			} elsif ($line=~/select\s+case\s*\((\w+)\)/) {
 					$info->{'CaseVar'} = $1;
 					$info->{ 'Control' } = 1;
@@ -1030,7 +1060,7 @@ or $line=~/^character\s*\(\s*len\s*=\s*[\w\*]+\s*\)/
 					$info->{'CaseDefault'} = 1;
 					$info->{ 'Control' } = 1;			
 			}
-# ELSE			 
+#== ELSE			 
 			elsif ( $line =~ /^else\s*$/ ) {			 	
 					$info->{'Else'} = 1;			
 					$info->{ 'Control' } = 1;
@@ -1041,9 +1071,15 @@ or $line=~/^character\s*\(\s*len\s*=\s*[\w\*]+\s*\)/
 				my $mline = $line;    # modifiable copy of $line				
 
 				
-# Block, Arithmetic and logical IF statements		
+#== Block, Arithmetic and logical IF statements		
 # st can be any executable statement, except a DO block, IF, ELSE IF, ELSE,
-# END IF, END, or another logical IF statement.					
+# END IF, END, or another logical IF statement.
+#@ CondExecExpr => $cond
+#@ CondExecExprAST => $ast
+#@ CondVars =>
+#@     Set => {...}
+#@     List => [...]
+					
 			if ( $line =~ /^(if|else\s+if)\s*\(/ ) {			 	
 				my $keyword = $1;				
 				if ( $line =~ /^(else\s+if)/ ) {
@@ -1144,7 +1180,18 @@ END FILE**
 END IF
 =cut 
 
-#    READ, WRITE, and PRINT statements			
+#==    READ, WRITE, and PRINT statements		
+#@ CallAttrs
+#@     List => [...]
+#@     Set => 
+#@         Type => $type
+#@ CallArgs
+#@     List => []
+#@     Set => {}
+#@ ExprVars =>
+#@     List => []
+#@     Set => {}
+#@ ImpliedDoVars => $call_args	
 			if ( $mline =~ /^(read|accept|inquire|write|type|print)(?:\s*\(|\s+)/ ) {				
 				my $keyword = $1;
 				$info->{ ucfirst($keyword) . 'Call' } = 1;
@@ -1153,7 +1200,12 @@ END IF
 				$info = _parse_read_write_print( $mline, $info, $stref, $f );
 				
 			}
-#    REWIND, OPEN, CLOSE statements				
+#==    REWIND, OPEN, CLOSE statements		
+#@ FileName =>
+#@     Var => $var
+#@ Vars
+#@     List => []
+#@     Set => {}		
 			elsif ( $mline =~ /^(open|close|rewind)\s*\(/ ) {				
 				my $keyword = $1;
 				$info->{ ucfirst($keyword) . 'Call' } = 1;
@@ -1163,7 +1215,6 @@ END IF
 					my $ast = parse_Fortran_open_call($mline);
 										
 					$info->{'Ast'} = $ast;
-#carp "MLINE:$mline".Dumper($ast);
 					if ( exists $ast->{'FileName'} ) {						
 						if ( exists $ast->{'FileName'}{'Var'} and $ast->{'FileName'}{'Var'} !~ /__PH/ ) {						
 							$info->{'FileNameVar'} =
@@ -1205,19 +1256,22 @@ END IF
 					}
 					@{ $info->{'Vars'}{'List'} } = keys %{ $info->{'Vars'}{'Set'} };
 				}			
-#    BACKSPACE, ENDFILE statements			
+#==    BACKSPACE, ENDFILE statements			
 			} elsif ($mline=~/(backspace|endfile)/) {
 				my $keyword = $1;
 				$info->{ ucfirst($keyword) } = 1;
 				$info->{'IO'}=1;
 				warn uc($keyword)." is ignored!" if $DBG;
 				say "WARNING: ".uc($keyword)." is ignored!" if $W; 
-#    RETURN, STOP and PAUSE statements		
+#==    RETURN, STOP and PAUSE statements		
 			} elsif ($mline=~/^(return|stop|pause)/) {	
 				my $keyword = $1;
 				$info->{ ucfirst($keyword) } = 1;
 			}
-#    ASSIGN ... TO ...				
+#== ASSIGN ... TO ...			
+#@ Assign
+#@   Label => $label
+#@   Var => $var	
 			 elsif ($mline=~/^assign\s+(\w+)\s+to\s+(\w+)/) {
 			 	my $label=$1;
 			 	my $var = $2;				
@@ -1225,18 +1279,27 @@ END IF
 				$Sf->{'ReferencedLabels'}{$label}=$label;
 				say 'WARNING: ASSIGN IS IGNORED!' if $W;
 			 }													
-#    CONTINUE statement. 			
+#== CONTINUE statement. 			
 			elsif ($line=~/continue/) {				
 				$info->{'Continue'}={};				
 			}
-#    DECODE/ENCODE statement. 			
+#== DECODE/ENCODE statement. 			
 			elsif ($line=~/(decode|encode)/) {		
 				my $keyword = $1;
 				$info->{ ucfirst($keyword) } = 1;
 				$info->{'IO'}=1;
 				say "WARNING: ".uc($keyword).' IS IGNORED!' if $W;					
 			}							
-# This is an ASSIGNMENT and so can come after IF (...)				
+#== ASSIGNMENT
+# This is an ASSIGNMENT and so can come after IF (...)		
+#@ Lhs => 
+#@        VarName       => $lhs_varname
+#@        IndexVars     => $lhs_vars
+#@        ArrayOrScalar => Array | Scalar
+#@        ExpressionAST => $lhs_ast
+#@ Rhs => 
+#@        VarList       => $rhs_all_vars
+#@        ExpressionAST => $rhs_ast		
 			elsif ( $mline =~ /[\w\)]\s*=\s*[^=]/ ) {		
 					$info->{'Assignment'} = 1;
 					my $free_form =  $Sf->{'FreeForm'};							
@@ -1644,8 +1707,15 @@ sub _parse_subroutine_and_function_calls {
 			if ( exists $info->{'Signature'} ) {
 				$current_sub_name = $info->{'Signature'}{'Name'};
 			}
-		# CALL
-	  # Subroutine calls. Surprisingly, these even occur in functions! *shudder*
+#== CALL
+#@ SubroutineCall => 
+#@     Name => $name
+#@     ExpressionAST => $ast
+#@     Args => CallArgs
+#@ CallArgs => $expr_args
+#@ ExprVars => $expr_other_vars
+#@ IsExternal => $bool
+# Subroutine calls. Surprisingly, these even occur in functions! *shudder*
 			if (   $line =~ /call\s+(\w+)\s*\((.*)\)/
 				|| $line =~ /call\s+(\w+)\s*$/ )
 			{

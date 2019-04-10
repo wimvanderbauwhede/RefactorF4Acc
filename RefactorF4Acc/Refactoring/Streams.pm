@@ -44,6 +44,7 @@ use Exporter;
 @RefactorF4Acc::Refactoring::Streams::EXPORT_OK = qw(
 	&pass_rename_array_accesses_to_scalars
 	&_declare_undeclared_variables
+	&_update_arg_var_decls
 	&_removed_unused_variables
 	&_fix_scalar_ptr_args
 	&_fix_scalar_ptr_args_subcall
@@ -817,14 +818,10 @@ sub _update_arg_var_decls { (my $stref, my $f)=@_;
 			my $var = $info->{'VarDecl'}{'Name'}; # May need OrigName?
 			if (exists $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$var} ) {
                 my $decl = $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$var};
-                #say $var.Dumper($decl) if $var=~/wet/;die;
                 my $pvar =$decl->{'Name'};
                 $decl->{'Name'}=$var;
-                #say $var. ' => '.Dumper($decl);
-			    $line = emit_f95_var_decl($decl);
-                
+			    $line = emit_f95_var_decl($decl);                
                 $decl->{'Name'}=$pvar;
-
 			}
 		}				
 		return ([[$line,$info]],$state);

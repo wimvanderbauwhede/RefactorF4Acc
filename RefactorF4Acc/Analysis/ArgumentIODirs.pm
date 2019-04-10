@@ -35,6 +35,7 @@ use Exporter;
 # -----------------------------------------------------------------------------
 # We do a recusive descent for all called subroutines, and for the leaves we do the analysis
 sub determine_argument_io_direction_rec { ( my $stref,my $f ) = @_;
+	
 	my $c;
 	if ($V) {
 		$c = ( defined $stref->{Counter} ) ? $stref->{Counter} : 0;
@@ -534,6 +535,7 @@ sub _analyse_src_for_iodirs {
 		$Sf->{'IODirInfo'} = 1;
 	}
 	}    # if IODirInfo had not been set to 1
+	
 	return $stref;
 }    # END of _analyse_src_for_iodirs()
 

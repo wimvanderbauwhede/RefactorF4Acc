@@ -119,14 +119,11 @@ sub __split_out_parameters {
 	$stref->{'IncludeFiles'}{"params_$f"}{'InclType'} = 'Parameter';
 	$stref->{'IncludeFiles'}{$f}{'InclType'}          = 'Common';
 
-	$stref->{'IncludeFiles'}{"params_$f"}{'LocalParameters'} =
-	  dclone( $stref->{'IncludeFiles'}{$f}{'LocalParameters'} );
-	$stref->{'IncludeFiles'}{$f}{'LocalParameters'} =
-	  { 'Set' => {}, 'List' => [] };
+	$stref->{'IncludeFiles'}{"params_$f"}{'LocalParameters'} = dclone( $stref->{'IncludeFiles'}{$f}{'LocalParameters'} );
+	$stref->{'IncludeFiles'}{$f}{'LocalParameters'} = { 'Set' => {}, 'List' => [] };
 
-	#    die Dumper( $stref->{'IncludeFiles'}{"$f"}{'RefactorGlobals'} );
 	$stref->{'IncludeFiles'}{"params_$f"}{'Root'}            = $f;
-	$stref->{'IncludeFiles'}{"params_$f"}{'Source'}          = 'Virtual';    #"params_$f";
+	$stref->{'IncludeFiles'}{"params_$f"}{'Source'}          = 'Virtual'; 
 	$stref->{'IncludeFiles'}{"params_$f"}{'Status'}          = $PARSED;
 	$stref->{'IncludeFiles'}{"params_$f"}{'RefactorGlobals'} = $NO;
 	$stref->{'IncludeFiles'}{"params_$f"}{'HasBlocks'}       = $NO;
@@ -134,10 +131,8 @@ sub __split_out_parameters {
 	$stref->{'IncludeFiles'}{"params_$f"}{'FreeForm'} = $stref->{'IncludeFiles'}{$f}{'FreeForm'};
     
 	$stref->{'IncludeFiles'}{$f}{'Includes'}{"params_$f"} = { 'Only' => {} };
-	$stref->{'IncludeFiles'}{"params_$f"}{'Parameters'} =
-	  dclone( $stref->{'IncludeFiles'}{$f}{'Parameters'} );
-	$stref->{'IncludeFiles'}{"params_$f"}{'Vars'}{'Subsets'}{'Parameters'} =
-	  $stref->{'IncludeFiles'}{"params_$f"}{'Parameters'};
+	$stref->{'IncludeFiles'}{"params_$f"}{'Parameters'} = dclone( $stref->{'IncludeFiles'}{$f}{'Parameters'} );
+	$stref->{'IncludeFiles'}{"params_$f"}{'Vars'}{'Subsets'}{'Parameters'} = $stref->{'IncludeFiles'}{"params_$f"}{'Parameters'};
 	delete $stref->{'IncludeFiles'}{$f}{'Parameters'};
 	delete $stref->{'IncludeFiles'}{$f}{'Vars'}{'Subsets'}{'Parameters'};
 	return $stref;
@@ -251,13 +246,13 @@ sub __get_includes {
 #
 # DeclCount is only used to count StmtCount. I will delete it after parsing. Same for DoneInitTables, FreeForm, FStyle
 #
-our @keys_not_to_be_changed = qw(
+=info_keys_not_to_be_changed 
   IncludedParameters
   Root
   Source
   Status
   RefactorGlobals
-);
+=cut
 
 =info_irrelevant_keys
 CalledEntries 
@@ -464,7 +459,9 @@ sub _split_multivar_decls {
     my $sub_incl_or_mod = sub_func_incl_mod( $f, $stref );
 #say $sub_incl_or_mod;
     my $Sf           = $stref->{$sub_incl_or_mod}{$f};
+    if (exists $Sf->{'AnnLines'} ) {
     my $annlines     = $Sf->{'AnnLines'};
+    
     my $nextLineID   = scalar @{$annlines} + 1;
     my $new_annlines = [];
     for my $annline ( @{$annlines} ) {
@@ -514,7 +511,7 @@ sub _split_multivar_decls {
         }
     }
     $Sf->{'AnnLines'} = $new_annlines;
-
+    }
     return $stref;
 }    # END of _split_multivar_decls
 
@@ -525,6 +522,7 @@ sub _split_multipar_decls_and_set_type {
     my $sub_incl_or_mod = sub_func_incl_mod( $f, $stref );
 
     my $Sf           = $stref->{$sub_incl_or_mod}{$f};
+    if (exists $Sf->{'AnnLines'} ) {
     my $annlines     = $Sf->{'AnnLines'};
     my $nextLineID   = scalar @{$annlines} + 1;
     my $new_annlines = [];
@@ -604,6 +602,7 @@ sub _split_multipar_decls_and_set_type {
         }
     }
     $Sf->{'AnnLines'} = $new_annlines;
+    }
     return $stref;
 }    # END of _split_multipar_decls_and_set_type
 

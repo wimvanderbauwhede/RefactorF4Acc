@@ -39,7 +39,7 @@ use Exporter;
 sub identify_inherited_exglobs_to_rename {
 	  (my $stref, my $f) = @_;
 #    local $V=1;
-    my $ext = $RENAME_EXT;#'_GLOB' ;
+    my $ext = $RENAME_EXT;
     say '=' x 80, "\nENTER lift_globals( $f )" if $V;
     if (exists $stref->{'Subroutines'}{$f} ) {
     	my $Sf = $stref->{'Subroutines'}{$f};
@@ -81,7 +81,7 @@ sub rename_inherited_exglobs  {
 		  (my $stref, my $f) = @_;
 #    local $V=1;
 if ($RENAME_EXT ne '') {
-    my $ext = $RENAME_EXT;#'_GLOB' ;
+    my $ext = $RENAME_EXT;
     
     say '=' x 80, "\nENTER lift_globals( $f )" if $V;
     if (exists $stref->{'Subroutines'}{$f} ) {
@@ -137,7 +137,7 @@ if ($RENAME_EXT ne '') {
 }
     return $stref;
 	
-} #  END of identify_globals_to_rename()
+} #  END of rename_inherited_exglobs
 
 
 # The renaming detection should be done in identify_inherited_exglobs_to_rename()

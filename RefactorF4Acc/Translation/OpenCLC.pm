@@ -3,8 +3,9 @@ use v5.10;
 
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
+use RefactorF4Acc::Analysis::ArgumentIODirs qw( determine_argument_io_direction_rec );
 use RefactorF4Acc::Refactoring::Common qw( stateful_pass pass_wrapper_subs_in_module );
-use RefactorF4Acc::Refactoring::Streams qw( _declare_undeclared_variables _removed_unused_variables _fix_scalar_ptr_args _fix_scalar_ptr_args_subcall );
+use RefactorF4Acc::Refactoring::Streams qw( _declare_undeclared_variables _update_arg_var_decls _removed_unused_variables _fix_scalar_ptr_args _fix_scalar_ptr_args_subcall );
 # 
 #   (c) 2010-2017 Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
 #   
@@ -53,7 +54,7 @@ sub translate_module_to_C {  (my $stref, my $module_name, my $ocl) = @_;
        ],
        # subroutine-specific passes 	
 	   [
-		  [\&_declare_undeclared_variables],#,\&_removed_unused_variables],
+		  [\&determine_argument_io_direction_rec,\&_update_arg_var_decls,\&_declare_undeclared_variables],#,\&_removed_unused_variables],
 		  [\&add_OpenCL_address_space_qualifiers],
 		  [\&translate_sub_to_C]
        ],
@@ -66,13 +67,13 @@ sub translate_module_to_C {  (my $stref, my $module_name, my $ocl) = @_;
 }
 sub add_OpenCL_address_space_qualifiers { (my $stref, my $f, my $ocl) = @_;
 	
-	if ($ocl==1) {
+	if ($ocl>=1) { 
 		if (not exists $Config{'KERNEL'} and exists $Config{'TOP'}) {
 			$Config{'KERNEL'}=$Config{'TOP'}
 		} else {
 			$Config{'KERNEL'}='';
 		}
-		if ($f eq $Config{'KERNEL'} ) {
+		if ($ocl==2 or $f eq $Config{'KERNEL'} ) {
 
 
 #	The pass is as follows: 
@@ -92,7 +93,7 @@ sub add_OpenCL_address_space_qualifiers { (my $stref, my $f, my $ocl) = @_;
 							my $decl = get_var_record_from_set($stref->{'Subroutines'}{$f}{'Vars'},$arg);
 #							say $f.Dumper( $stref->{'Subroutines'}{$f}{'Args'} );
 #							say $arg.Dumper($decl);
-							if ($decl->{'ArrayOrScalar'} eq 'Array') {
+							if ($decl->{'ArrayOrScalar'} eq 'Array') {								
 								$decl->{'OclAddressSpace'} = '__global';
 							} 
 						}
@@ -255,7 +256,7 @@ sub translate_sub_to_C {  (my $stref, my $f, my $ocl) = @_;
             elsif ($subcall_ast->[1]=~/(read|write)_pipe/) {
                 my $iodir = $1;
 #                croak(Dumper($subcall_ast));
-                $c_line = $info->{'Indent'} . $subcall_ast->[1] .'('.$subcall_ast->[2][1].','.'&'.$subcall_ast->[3][1].');'; 
+                $c_line = $info->{'Indent'} . $subcall_ast->[1] .'_block'.'('.$subcall_ast->[2][1].','.'&'.$subcall_ast->[3][1].');'; # TODO: make configurable, this is Xilinx-specific!
             }			
 			elsif ($subcall_ast->[1]=~/get_(local|global|group)_id/) {
 				my $qual = $1;
@@ -391,14 +392,16 @@ sub _emit_subroutine_sig_C { (my $stref, my $f, my $annline)=@_;
 
 sub _emit_arg_decl_C { (my $stref,my $f,my $arg)=@_;
     
-#	my $decl =	$stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$arg};
-	my $decl = get_var_record_from_set($stref->{'Subroutines'}{$f}{'Vars'},$arg);
+	my $decl_for_iodir =	$stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$arg};
+	my $decl =  get_var_record_from_set($stref->{'Subroutines'}{$f}{'Vars'},$arg) ;
+	    
+#	croak Dumper($decl2) if $f eq 'dyn_0' and $arg eq 'dx';
 	my $array = $decl->{'ArrayOrScalar'} eq 'Array' ? 1 : 0;
 	my $const = 1;
-	if (not defined $decl->{'IODir'}) {
+	if (not defined $decl_for_iodir->{'IODir'}) {
 		$const = 0;
 	} else { 
-		$const =    lc($decl->{'IODir'}) eq 'in' ? 1 : 0;
+		$const =    lc($decl_for_iodir->{'IODir'}) eq 'in' ? 1 : 0;
 	}
 	my $is_ptr =$array || ($const==0);
 	my $ptr = $is_ptr ? '*' : '';
@@ -410,7 +413,7 @@ sub _emit_arg_decl_C { (my $stref,my $f,my $arg)=@_;
 	$fkind=~s/\)//;
 	if ($fkind eq '') {$fkind=4};
 	my $c_type = toCType($ftype,$fkind);
-	my $ocl_address_space = ($stref->{'OpenCL'} ==1 and exists $decl->{'OclAddressSpace'} and $is_ptr ) ? $decl->{'OclAddressSpace'}.' ' : '';
+	my $ocl_address_space = ($stref->{'OpenCL'} >=1 and exists $decl->{'OclAddressSpace'} and $is_ptr ) ? $decl->{'OclAddressSpace'}.' ' : '';
 	my $maybe_const = ($stref->{'OpenCL'} ==1 and $f eq $Config{'KERNEL'} and $ocl_address_space eq '') ? 'const ' : ''; 	
 	my $c_arg_decl = $ocl_address_space . $maybe_const . $c_type.' '.$ptr.$arg;
 	return ($stref,$c_arg_decl);

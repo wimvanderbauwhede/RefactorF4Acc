@@ -107,8 +107,7 @@ sub _find_root_for_include {
         	# This just means that $inc is not included in any non-external subroutine.
         	print  "_find_root_for_include(): $inc included in <" if $DBG;
         	say join(',',keys %{ $stref->{'IncludeFiles'}{$inc}{'IncludedFrom'}}),'>' if $DBG;
-        	# TODO: check if the include is included in any non-external subroutine.
-#            die "_find_root_for_include(): Can't find $inc in parent $sub or any children, something's wrong!\n";
+        	# TODO: maybe check if the include is included in any non-external subroutine.
             
         } elsif ( $nchildren == 1 and $Ssub->{'RefactorGlobals'}==0) {
             delete $Ssub->{'CommonIncludes'}{$inc};

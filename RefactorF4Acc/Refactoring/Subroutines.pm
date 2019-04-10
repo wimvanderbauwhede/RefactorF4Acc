@@ -35,7 +35,6 @@ Subroutines
     refactor_all_subroutines
     _refactor_subroutine_main
     _refactor_globals
-        rename_conflicting_locals #WV: not sure about this        
     _refactor_calls_globals 
 =cut
 
@@ -203,35 +202,6 @@ sub _fix_end_lines {
 } # END of _fix_end_lines()
 
 # -----------------------------------------------------------------------------
-
-
-# --------------------------------------------------------------------------------
-# This routine renames instances of locals that conflict with globals (using names from ConflictingGlobals )
-sub rename_conflicting_locals {
-    ( my $stref, my $f, my $annline, my $rlines ) = @_;
-    my $line               = $annline->[0] || '';
-    my $info          = $annline->[1];
-    my $Sf                 = $stref->{'Subroutines'}{$f};
-    my $rline = $line;
-    my $changed=0;
-    if ( exists $Sf->{'ConflictingGlobals'} ) {    
-        for my $lvar ( keys %{ $Sf->{'ConflictingGlobals'} } ) {
-            if ( $rline =~ /\b$lvar\b/ ) {
-                warn
-    "WARNING: CONFLICT in $f, renaming $lvar with $Sf->{'ConflictingGlobals'}{$lvar}[0]\n"
-                  if $W;
-                $rline =~ s/\b$lvar\b/$Sf->{'ConflictingGlobals'}{$lvar}[0]/g;
-                $changed=1;
-            }
-        }
-    }
-    if ($changed==1) {
-    	$info->{'Ref'}++;
-    }
-    push @{$rlines}, [ $rline, $info ];
-    return $rlines;
-}    # END of rename_conflicting_locals()
-
 #_refactor_globals_new()
 # The problem with this routine is as follows: the refactoring of the signature happens when it is encountered. 
 # But any subsequent call to a subroutine can result in new arguments being added to ExGlobArgDecls
@@ -242,7 +212,6 @@ sub rename_conflicting_locals {
 #- create_new_include_statements, this should be OBSOLETE, except that it takes ParamIncludes out of other Includes and instantiates them, so RENAME
 #- creates ex-glob arg declarations, basically we have to look at ExInclArgs, UndeclaredOrigArgs and ExGlobArgs.  
 #- create_refactored_subroutine_call, I hope we can keep this
-#- rename_conflicting_locals, I hope we can keep this; or maybe we should not do this!
 sub _refactor_globals_new {
     ( my $stref, my $f, my $annlines ) = @_;
     my $Sf = $stref->{'Subroutines'}{$f};
