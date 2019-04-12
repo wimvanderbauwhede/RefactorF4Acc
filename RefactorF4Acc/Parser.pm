@@ -766,6 +766,7 @@ SUBROUTINE
 				$Sf->{'HasCommons'}=1; 				
 #				say "COMMON for $f: $commonlst";
                 $info->{'SpecificationStatement'} = 1; 
+                $info->{'HasVars'} = 1; 
 				( my $parsedvars, my $parsedvars_lst ) = f77_var_decl_parser( $commonlst, 0 );				
 				for my $var ( @{$parsedvars_lst} ) {	
 #					my $subset;
@@ -834,15 +835,19 @@ SUBROUTINE
 #				croak Dumper($info);
 			}		
 #== NAMELIST
+#@ Namelist => 
+#@    namelist_group_name => @namelist_vars
 		elsif (	$line =~ /^namelist\s*\/\s*([\w\d]+)\s*\/\s*(.+)$/ 				 
 		 ) {
 				my $namelist_group_name = $1;
 				my $namelist_varlst         = $2;
 				$namelist_varlst=~s/\/\//,/g;
 				$namelist_varlst=~s/^,//;        
-				$info->{'Namelist'}=$namelist_group_name; 	
 				$info->{'SpecificationStatement'} = 1;			
-				 $Sf->{'Namelist'}{$namelist_group_name} = [ split(/\s*,\s*/,$namelist_varlst) ];
+                $info->{'HasVars'} = 1; 
+                my @namelist_vars = split(/\s*,\s*/,$namelist_varlst);
+				$info->{'Namelist'}={$namelist_group_name => \@namelist_vars}; 	
+				$Sf->{'Namelist'}{$namelist_group_name} = \@namelist_vars;
 				 
 		 }
 #== FORMAT		 
@@ -854,6 +859,7 @@ SUBROUTINE
 		 	# DATA
 		 	$info->{'Data'} = 1;
 		 	$info->{'SpecificationStatement'} = 1;
+                $info->{'HasVars'} = 1; 
 		 		$line.=' ! Parser line '.__LINE__.' : removed spaces from data' if $DBG;
 			 	my @chunks = split(/\//,$line);
 			 	$chunks[1]=~s/\s+//g;
@@ -872,6 +878,7 @@ SUBROUTINE
 		    	# we can split between the ')' and '/'
 		    	# However, how about we do just nothing?
 		    	$info->{'SpecificationStatement'} = 1;
+                $info->{'HasVars'} = 1; 
 		    	say "DATA declaration with IMPLIED DO at $line" if $V;
 		}
 #== INTRINSIC, EXTERNAL, STATIC, AUTOMATIC, VOLATILE
@@ -885,11 +892,15 @@ SUBROUTINE
 		 		$Sf->{ucfirst($qualifier)}={ map {$_=>1} @external_procs };
 		 		
 		 			say "WARNING: ".uc($qualifier)." IS IGNORED!" if $qualifier ne 'external' and $W;
+                if ($qualifier ne 'intrinsic' and $qualifier ne 'external') {
+                $info->{'HasVars'} = 1; 
+                }
 		 	}
 #== EQUIVALENCE (IADN14(1), IADN15(1)), (RADN14(2),RADN15(2))		 	 
 		 	elsif ($line=~/^equivalence\s+/) {		 	
 		 		$info->{'Equivalence'} = 1;
 		 		$info->{'SpecificationStatement'} = 1;
+                $info->{'HasVars'} = 1; 
 		 		say "WARNING: EQUIVALENCE IS IGNORED!" if $W;
 		 		if (not exists $grouped_warnings->{'EQUIVALENCE'}) {
 		 			$grouped_warnings->{'EQUIVALENCE'}=[ "The EQUIVALENCE  statement is not supported, this could possible break your code, please rewrite:",
@@ -948,6 +959,7 @@ or $line=~/^character\s*\(\s*len\s*=\s*[\w\*]+\s*\)/
 					$Sf->{'HasParameters'}=1;
 				}		
                 $info->{'SpecificationStatement'} = 1;
+                $info->{'HasVars'} = 1; 
 			} 
 #== PARAMETER			
 #== F77-style parameters			
@@ -958,6 +970,7 @@ or $line=~/^character\s*\(\s*len\s*=\s*[\w\*]+\s*\)/
 				$has_pars=1;
 				$Sf->{'HasParameters'}=1;
 				$info->{'SpecificationStatement'} = 1;
+                $info->{'HasVars'} = 1; 
 			}    # match var decls, parameter statements F77/F95								
 #== SIGNATURES SUBROUTINE FUNCTION PROGRAM ENTRY
 #@ Signature =>
@@ -1053,6 +1066,7 @@ or $line=~/^character\s*\(\s*len\s*=\s*[\w\*]+\s*\)/
 					};
 				}
 				$info->{ 'Control' } = 1;
+                $info->{'HasVars'} = 1; 
 				$do_counter++;
 				push @do_stack, $info;
 #== SELECT/CASE 
@@ -1062,11 +1076,13 @@ or $line=~/^character\s*\(\s*len\s*=\s*[\w\*]+\s*\)/
 			} elsif ($line=~/select\s+case\s*\((\w+)\)/) {
 					$info->{'CaseVar'} = $1;
 					$info->{ 'Control' } = 1;
+                $info->{'HasVars'} = 1; 
 				} elsif ($line=~/case\s*\((.+)\)\s*$/) {
 					my $case_vals_str = $1;
 					my @case_vals = _parse_comma_sep_expr_list($case_vals_str);
 					$info->{'CaseVals'} = [@case_vals];
 					$info->{ 'Control' } = 1;
+                $info->{'HasVars'} = 1; 
 					$info->{ 'Case' } = ++$case_counter;				
 				} elsif ($line=~/case\s+\default/) {
 					$info->{'CaseDefault'} = 1;
@@ -1134,6 +1150,7 @@ or $line=~/^character\s*\(\s*len\s*=\s*[\w\*]+\s*\)/
 						$info->{ 'Control' } = 1;	
 						$info->{ 'IfThen' } = 1;						
 					}
+                $info->{'HasVars'} = 1; 
 			} 
 
 # So in principle anything after this can come after IF (...) 
@@ -1210,6 +1227,7 @@ END IF
 				$info->{'IO'}=1;
 				
 				$info = _parse_read_write_print( $mline, $info, $stref, $f );
+                $info->{'HasVars'} = 1; 
 				
 			}
 #==    REWIND, OPEN, CLOSE statements		
@@ -1218,10 +1236,11 @@ END IF
 #@ Vars
 #@     List => []
 #@     Set => {}		
-			elsif ( $mline =~ /^(open|close|rewind)\s*\(/ ) {				
+			elsif ( $mline =~ /^(open|close|rewind)\s*\(/ ) {
 				my $keyword = $1;
 				$info->{ ucfirst($keyword) . 'Call' } = 1;
 				$info->{'IO'}=1;
+                $info->{'HasVars'} = 1; 
 				if ( $keyword eq 'open' ) {
 					$mline=~s/\s+$//;
 					my $ast = parse_Fortran_open_call($mline);
@@ -1288,6 +1307,7 @@ END IF
 			 	my $label=$1;
 			 	my $var = $2;				
 				$info->{'Assign'}={'Label' => $label, 'Var' => $var};
+                $info->{'HasVars'} = 1; 
 				$Sf->{'ReferencedLabels'}{$label}=$label;
 				say 'WARNING: ASSIGN IS IGNORED!' if $W;
 			 }													
@@ -1300,6 +1320,7 @@ END IF
 				my $keyword = $1;
 				$info->{ ucfirst($keyword) } = 1;
 				$info->{'IO'}=1;
+                $info->{'HasVars'} = 1; 
 				say "WARNING: ".uc($keyword).' IS IGNORED!' if $W;					
 			}							
 #== ASSIGNMENT
@@ -1312,8 +1333,9 @@ END IF
 #@ Rhs => 
 #@        VarList       => $rhs_all_vars
 #@        ExpressionAST => $rhs_ast		
-			elsif ( $mline =~ /[\w\)]\s*=\s*[^=]/ ) {		
+			elsif ( $mline =~ /[\w\)]\s*=\s*[^=]/ ) {
 					$info->{'Assignment'} = 1;
+                    $info->{'HasVars'} = 1; 
 					my $free_form =  $Sf->{'FreeForm'};							
 					$mline = __remove_blanks($mline,$free_form);
 #					$line = __remove_blanks($line,$free_form);
@@ -1525,7 +1547,7 @@ sub _parse_use {
 			}
 
 			if ( $line =~ /^\s*use\s+(\w+)/ ) { # if exists $info->{'Includes'}
-				my $name = $1;
+				my $name = $1;croak $name;
 				print "FOUND module $name in $f\n" if $V;
 				$Sf->{'Uses'}{$name} = $index;
 
