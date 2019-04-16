@@ -624,13 +624,13 @@ SUBROUTINE
 #== USE				
 			} elsif ( $line =~ /^use\s+(\w+)/ ) {
 				my $module = $1;
-				$info->{'Use'} = $module;
+				$info->{'Use'}{'Name'} = $module;
 				if ($line =~ /only\s*:\s*([\w\s\,]+)/) {
 					my $only_list_str = $1;
 					my @only_list = split(/\s*,\s*/,$only_list_str);
-					$info->{'Only'}=\@only_list; 
+					$info->{'Use'}{'Only'}=\@only_list; 
 				} else {
-					$info->{'Only'}=[];
+					$info->{'Use'}{'Only'}=[];
 				}
 				$info->{'SpecificationStatement'} = 1;
 				$srcref->[$index] = [ $line, $info ];
@@ -2187,9 +2187,7 @@ sub f77_var_decl_parser {
 				$st = $do_nothing;
 			}
 		}
-		print
-" PC: $pc; C:$c; NC: $nest_count; ST: $states[$st]; PST: $states[$pst]\n"
-		  if $T;
+		print " PC: $pc; C:$c; NC: $nest_count; ST: $states[$st]; PST: $states[$pst]\n" if $T;
 
 ##### The actions are:
 		if    ( $st == $read_var ) { $var .= $c }
@@ -4140,7 +4138,7 @@ sub  _get_var_from_ast { (my  $ast ) = @_;
         	warn "Variable $var is masking an intrinsic!";
             $var= $ast->[1];			
 		} else {
-			croak ($ast->[0] & 0xF).': '.Dumper($ast);
+			croak( ($ast->[0] & 0xF).': '.Dumper($ast) ); 
 		}
 	}
 	return $var;

@@ -66,9 +66,9 @@ sub refactor_all {
     # We need to decide what to inline.
     # I would say any call inside a subroutine marked for offloading.
     # This needs to be recursive!
-    my $f='les';
-    my $sub='boundsm';
-    $stref = inline_subroutine($stref, $f, $sub) ;
+    #my $f='les';
+    #my $sub='boundsm';
+    #$stref = inline_subroutine($stref, $f, $sub) ;
     
     # Custom refactoring, must be done before creating final modules
     say "add_module_decls" if $V;

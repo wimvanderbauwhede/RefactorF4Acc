@@ -400,8 +400,10 @@ sub context_free_refactorings {
                   	push @{ $info->{'Ann'} }, annotate($f, __LINE__ . ' no pars used'); #croak 'SKIP USE PARAM';
                   	$info->{'Deleted'}=1;            		
             	}
-#            	$info->{'Use'}=$tinc; 
-            	carp 'FIXME: USE/ONLY!';
+            	$info->{'Use'}{'Name'}=$tinc; 
+            	$info->{'Use'}{'Only'}=[]; 
+            	$info->{'Use'}{'Inlineable'}=1; 
+                #carp 'FIXME: USE/ONLY!';
             } else {
 #            	say 'WARNING: EXTERNAL INCLUDES ARE COMMENTED OUT!' if $W;
                 $line =                
