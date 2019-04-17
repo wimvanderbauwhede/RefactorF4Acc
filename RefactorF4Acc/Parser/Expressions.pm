@@ -359,13 +359,9 @@ sub _change_func_to_array { (my $stref, my $f,  my $info, my $ast, my $exp, my $
 
 sub emit_expression {(my $ast, my $expr_str)=@_;
 	
-	
 	if (ref($ast) ne 'ARRAY') {return $ast;}
 	
-	if (ref($ast) eq 'ARRAY'
-	and scalar(@{$ast}<2)
-	) {
-		
+	if (ref($ast) eq 'ARRAY' and scalar(@{$ast}<2)) {
 		croak Dumper($ast);
 	}
 	
@@ -380,7 +376,7 @@ sub emit_expression {(my $ast, my $expr_str)=@_;
 #			 say "NEST:$nest_expr_str ";
 			push @expr_chunks, $nest_expr_str;
 		} elsif ($idx == 0) {
-			say Dumper($ast) if $entry=~/\/\//;;
+            #say Dumper($ast) if $entry=~/\/\//;;
 				if (($entry  & 0xF) == 11) { # #
 					$skip=1;
 				} elsif (($entry & 0xF) == 1) { # &					
