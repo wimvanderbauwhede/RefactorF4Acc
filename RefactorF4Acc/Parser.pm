@@ -3706,6 +3706,7 @@ sub _parse_assignment {
 
 	#	say 'ARGS: '.Dumper($lhs_args);
 	#	say 'VARS:'.Dumper($lhs_vars)  if $lhs_ast->[1] eq 'len';
+#	say $line . '=>'.$lhs.Dumper($lhs_ast);
 	if (   exists $F95_reserved_words{ $lhs_ast->[1] }
 		or exists $F95_intrinsics{ $lhs_ast->[1] } )
 	{
