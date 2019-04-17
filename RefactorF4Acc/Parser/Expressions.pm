@@ -95,7 +95,7 @@ my %F95_ops =(
 );
 # Returns the AST
 sub parse_expression { (my $exp, my $info, my $stref, my $f)=@_;
-	if (0) {
+	if (1) {
 	my $preproc_expr = $exp;
 #	say "EXPR: $preproc_expr" if $preproc_expr=~/write.+path.numpath/; 
 	 # To make this robust, what I'll do is replace any '(' with '_OPEN_PAR_(' so that is looks like a function.
@@ -218,12 +218,13 @@ sub parse_expression { (my $exp, my $info, my $stref, my $f)=@_;
     my $ast5 = _fix_double_paren_in_ast($ast4);
 	return $ast5;
 	} else {
-		(my $ast, my $rest, my $err)  = parse_expression_faster($exp);
+		(my $ast, my $rest, my $err, my $has_funcs)  = parse_expression_faster($exp);
 		if($err or $rest ne '') {
 			croak "PARSE ERROR in <$exp>, REST: $rest";
 		}
 #		carp $exp.':'.Dumper($ast);
-	    (my $ast2, my $grouped_messages) = _change_func_to_array($stref,$f,$info,$ast, $exp, {}) ;
+#say "HAS NO FUNCS: $exp " if !$has_funcs;
+	    (my $ast2, my $grouped_messages) = $has_funcs ? _change_func_to_array($stref,$f,$info,$ast, $exp, {}) : ($ast,{});
 	    if ($W) {
 	        for my $warning_type (sort keys % {$grouped_messages->{'W'}} ) {
 	            for my $k (sort keys %{$grouped_messages->{'W'}{$warning_type}}) {
@@ -272,7 +273,8 @@ sub _change_func_to_array { (my $stref, my $f,  my $info, my $ast, my $exp, my $
  					exists $stref->{$code_unit}{$mvar} and 
  					exists $stref->{$code_unit}{$mvar}{'Function'} and 
  					$stref->{$code_unit}{$mvar}{'Function'} == 1 ) or (
- 					exists $F95_intrinsics{$mvar}
+ 					exists $F95_intrinsics{$mvar} or
+ 					exists $F95_reserved_words{$mvar} # WV 2019-04-17
  					) 
  					
  					)
@@ -298,6 +300,7 @@ sub _change_func_to_array { (my $stref, my $f,  my $info, my $ast, my $exp, my $
 
     				$ast->[$idx]=  10 + (($ast->[$idx]>>4)<<4);#    '@';
     				say "Found array $mvar" if $DBG;
+#    				croak Dumper($stref->{$code_unit}{$f}{'MaskedIntrinsics'}). (exists $F95_intrinsics{$mvar}) if $mvar eq 'write';
 				} elsif (   	exists $F95_intrinsics{$mvar} ) {
 					say "parse_expression('$exp')" . __LINE__ if $DBG;
 					$grouped_messages->{'W'}{'VAR_AS_INTRINSIC'}{$mvar} =   "WARNING: treating $mvar in $f as an intrinsic! " if $W;  
@@ -941,6 +944,7 @@ sub _fix_double_paren_in_expr { (my $ast)=@_;
 # As we are not using the nodeId I will not waste cycles on it
 # Sadly I need a lot more bits than originally so either I do not mask at all or use 0xFF and make sure the shift is <<8
 
+# I think I should probably return a flag to say that the AST contains function calls. If this is not the case there's no point in calling the _change_func_to_array
 sub parse_expression_faster {(my $str)=@_;
     my $max_lev=11; # levels of precedence
     my $prev_lev=0;
@@ -952,7 +956,8 @@ sub parse_expression_faster {(my $str)=@_;
 
     my $expr_ast=[];
     my $arg_expr_ast=[];
-
+    my $has_funcs=0;
+    
     while (length($str)>0) {
 #    	say "STR: $str";
         if ($str=~/^\s/) {
@@ -965,59 +970,67 @@ sub parse_expression_faster {(my $str)=@_;
                 # array access or function call
                 my $var=$1;
 #                say "ARRAY $var";
+                $has_funcs=1;
                 my $arg_expr_ast;
                 if ($str!~/^\s*\)/) {
-                    ($arg_expr_ast,$str, my $err)=parse_expression_faster($str);
+                    ($arg_expr_ast,$str, my $err, my $has_funcs2)=parse_expression_faster($str);
 #                    say Dumper($arg_expr_ast);
                     if( ref($arg_expr_ast) ne 'ARRAY') {
                         $arg_expr_ast=[$arg_expr_ast];
                     };
+                    $has_funcs||=$has_funcs2;
                 } else {
                     $arg_expr_ast=[];
                 }
 #                $expr_ast=['&',$var,$arg_expr_ast];
                 $expr_ast=[1,$var,$arg_expr_ast];
                 if ($str=~/^\(/) {
-                    (my $arg_expr_ast2,$str, my $err2)=parse_expression_faster($str);
+                    (my $arg_expr_ast2,$str, my $err2,my $has_funcs2)=parse_expression_faster($str);
                     $expr_ast=[1, $var,[14,$arg_expr_ast,$arg_expr_ast2->[1]]];
                     #$expr_ast=['&',$var,[')(',$arg_expr_ast,$arg_expr_ast2->[1]]];
+                    $has_funcs||=$has_funcs2;
                 }
 
             }
-            elsif ($str=~s/^\-([a-zA-Z_]\w*)\s*\(//) {
-                # array access or function call
+            elsif ($str=~s/^\-\s*([a-zA-Z_]\w*)\s*\(//) {
+                # array access or function call with prefix -
                 my $var=$1;
+                $has_funcs=1;
                 my $arg_expr_ast;
                 if ($str!~/^\s*\)/) {
-                    ($arg_expr_ast,$str, my $err)=parse_expression_faster($str);
+                    ($arg_expr_ast,$str, my $err,my $has_funcs2)=parse_expression_faster($str);
                     if( ref($arg_expr_ast) ne 'ARRAY') {
                         $arg_expr_ast=[$arg_expr_ast];
                     };
+                    $has_funcs||=$has_funcs2;
                 } else {
                     $arg_expr_ast=[];
                 }
                 $expr_ast=[4,[1,$var,$arg_expr_ast]];
                 if ($str=~/^\(/) {
-                    (my $arg_expr_ast2,$str, my $err2)=parse_expression_faster($str);
+                    (my $arg_expr_ast2,$str, my $err2,my $has_funcs2)=parse_expression_faster($str);
                     $expr_ast=[4,[1, $var,[14,$arg_expr_ast,$arg_expr_ast2->[1]]]];
+                    $has_funcs||=$has_funcs2;
                 }
             }           
             elsif ($str=~s/^\(//) {
                 # paren expr, I use '{' as it appears not to be used.      
-                ($expr_ast,$str, my $err)=parse_expression_faster($str);
+                ($expr_ast,$str, my $err,my $has_funcs2)=parse_expression_faster($str);
+                $has_funcs||=$has_funcs2;
                 #$expr_ast=['{',$expr_ast];
                 $expr_ast=[0,$expr_ast];
-                if($err) {return ($expr_ast,$str, my $err);}
+                if($err) {return ($expr_ast,$str, 1,0);}
             }
-            elsif ($str=~s/^\-\(//) {
+            elsif ($str=~s/^\-\s*\(//) {
                 # paren expr, I use '{' as it appears not to be used.      
                 # FIXME: a prefix - will break this          
-                ($expr_ast,$str, my $err)=parse_expression_faster($str);
+                ($expr_ast,$str, my $err,my $has_funcs2)=parse_expression_faster($str);
+                $has_funcs||=$has_funcs2;
                 #$expr_ast=['{',$expr_ast];
                 $expr_ast=[4,[0,$expr_ast]];
-                if($err) {return ($expr_ast,$str, my $err);}
+                if($err) {return ($expr_ast,$str,1,0);}
             }            
-            # Apparently Fortran allows '$' as a charater in a variable name but I think I'll ignore that.
+            # Apparently Fortran allows '$' as a character in a variable name but I think I'll ignore that.
             # I allow _ as starting character because of the placeholders
             elsif ( $str=~s/^([a-zA-Z_]\w*)// ) {
                 #variable
@@ -1025,11 +1038,21 @@ sub parse_expression_faster {(my $str)=@_;
                 #$expr_ast=['$',$1];
             }
             # Exec decision: I don't handle prefix +
-            elsif ( $str=~s/^\-([a-zA-Z_]\w*)// ) {
+            elsif ( $str=~s/^\-\s*([a-zA-Z_]\w*)// ) {
                 #variable
                 $expr_ast=[4,[2,$1]];
                 #$expr_ast=['$',$1];
             }            
+            elsif ( $str=~s/^\.(true|false)\.// ) {
+                #boolean constant
+                $expr_ast=[29,'.'.$1.'.'];
+                #$expr_ast='.'.$1.'.';
+            }
+            elsif ( $str=~s/^\.not\.\s*// ) {
+                # logical not
+                # This is just to skip everything and have a second round of term matching
+                $state=8;
+            }
             elsif ($str=~s/^([\-\+]?(?:\d*\.\d*|\d+)(?:[edq][\-\+]?\d+)?)//) {
 #                say "REAL: $1";
                 #reals
@@ -1043,16 +1066,7 @@ sub parse_expression_faster {(my $str)=@_;
                 $expr_ast=[27,$1];
                 #$expr_ast=$1;#['integer',$1];
             }
-            elsif ( $str=~s/^\.(true|false)\.// ) {
-                #boolean constant
-                $expr_ast=[29,'.'.$1.'.'];
-                #$expr_ast='.'.$1.'.';
-            }
-            elsif ( $str=~s/^\.not\.\s*// ) {
-                # logical not
-                # This is just to skip everything and have a second round of term matching
-                $state=8;
-            }
+            
             # Maybe I should handle string constants as well
             # Although we use placeholders so they should not occur
             elsif ( $str=~s/^\'(.+?)\'// ) {
@@ -1063,7 +1077,7 @@ sub parse_expression_faster {(my $str)=@_;
             #            say "parsed term $expr_ast, rest: $str";
             else {          
                 # Here we return with an error value
-                return ($expr_ast, $str, 1);
+                return ($expr_ast, $str, 1,0);
             }
             if ($state==12) {
                  $expr_ast=[21,$expr_ast];
@@ -1275,7 +1289,7 @@ our @sigils = ( '{', '&', '$', '+', '-', '*', '/', '%', '**', '=', '@', '#', ':'
                 } else { # state==7
                     # Now we should return this as the ast
 #                    return ([',',$arg_expr_ast],$str,0);
-                    return ([31,$arg_expr_ast],$str,0);
+                    return ([31,$arg_expr_ast],$str,0,$has_funcs);
                 } 
             }
     } # while
@@ -1291,7 +1305,7 @@ our @sigils = ( '{', '&', '$', '+', '-', '*', '/', '%', '**', '=', '@', '#', ':'
     
     # Now determine the highest level; fold the lower levels into it
     if( scalar @ast == 1) {
-        return ($ast[0],$str,0);
+        return ($ast[0],$str,0,$has_funcs);
     } else {
     my $max_lev=11;
     for my $tlev (1 .. $max_lev) {
@@ -1301,7 +1315,7 @@ our @sigils = ( '{', '&', '$', '+', '-', '*', '/', '%', '**', '=', '@', '#', ':'
             push @{$ast[$tlev+1]}, $ast[$tlev] if defined $ast[$tlev] and scalar @{$ast[$tlev]};
         }
     }
-    return ($ast[$max_lev+1],$str,0);
+    return ($ast[$max_lev+1],$str,0,$has_funcs);
     }
 } # END of parse_expression_faster
 
