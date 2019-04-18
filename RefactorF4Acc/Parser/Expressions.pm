@@ -1079,6 +1079,10 @@ sub parse_expression_faster { (my $str)=@_;
             $expr_ast=[29,$1];
             #$expr_ast=$1;#['integer',$1];
         }
+        elsif ($str=~s/^\*//) {
+            # '*' format for write/print
+            $expr_ast=[32,'*'];
+        }
 
         # Maybe I should handle string constants as well
         # Although we use placeholders so they should not occur
