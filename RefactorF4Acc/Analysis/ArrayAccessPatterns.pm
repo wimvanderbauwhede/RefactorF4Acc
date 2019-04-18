@@ -58,8 +58,6 @@ If cond, it is a read expression
 
 In each of these we get the AST and hunt for arrays. This is easy but would be easier if we had an 'everywhere' or 'everything' function
 
-We have `get_args_vars_from_expression` and `get_vars_from_expression` and we can grep these for arrays
-
 =cut
 
 sub pass_identify_stencils {(my $stref)=@_;

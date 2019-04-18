@@ -3607,11 +3607,12 @@ The code below does the following:
 						%{ $other_vars->{'Set'} }
 					};
 
-					for my $mvar (@args) {
+					for my $mvar (@args) { 
 #						say "MVAR: $mvar";
 						next if $mvar eq '';
 						next if $mvar =~ /^\d+$/;
 						next if $mvar =~ /^(\-?(?:\d+|\d*\.\d*)(?:[edq][\-\+]?\d+)?)$/;
+						# FIXME: if $mvar is an array access expr this does never work
 						next if exists $F95_reserved_words{$mvar};
 						next if exists $Config{'Macros'}{uc($mvar)};
 						my $ast = parse_expression( $mvar, $info, $stref, $f );
@@ -4002,14 +4003,57 @@ sub __remove_blanks { (my $line, my $free_form)=@_;
 	return  $c1to6.$indent.$line;
 }
 
+=info_data_declarations
+data r1,r2,r3 /1.,2.,3./, array1 /1.,2.,3.,4./
+data r4 /1.23456789012345d0/ ! correct initialization
+data r5 /1.23456789012345/ ! loses precision
+data array2 /arrsize*rinit/,q /(0.,0.)/
+data (array3(l),l=1,10) /10*init/
+data b /B'01101000100010111110100001111010'/
+data o /O'15042764172'/
+data z /Z'688be87a'/
+
+DATA nlist / clist / [[,] nlist / clist /] …
+nlist List of variables, arrays, array elements, substrings, and implied DO
+lists separated by commas
+clist List of the form: c [, c ] …
+c One of the forms: c or r*c, and
+c is a constant or the symbolic name of a constant.
+r Nonzero, unsigned integer constant or the symbolic name of such
+constant
+
+Syntax
+DATA data-stmt-set [[,] data-stmt-set] ...
+Where:
+data-stmt-set is object-list / value-list /
+object-list is a comma-separated list of variable names or implied-dos.
+value-list is a comma-separated list of [repeat *] data-constant
+repeat is a scalar INTEGER constant.
+data-constant is a scalar constant (either literal or named)
+or a structure constructor.
+implied-do is (implied-do-object-list , implied-do-var=expr, expr[, expr])
+implied-do-object-list is a comma-separated list of array elements, scalar structure components,
+or implied-dos.
+implied-do-var is a scalar INTEGER variable.
+expr is a scalar INTEGER expression.
+=cut
+
 sub _parse_data_declaration { (my $line,my $info, my $stref, my $f) = @_;
+	croak 'FIXME DATA DECLARATIONS';
 	my $new_annlines=[];
 	my $indent =$line;$indent=~s/data.*$//;
 	my $mline=$line;
-
+    # Remove the DATA keyword
 	$mline=~s/^\s*\d*\s+data\s+//; 
 	$mline=~s/\/\s*$//;
-	
+	# Split on '/', and only keep the first two. This seems rather silly!
+	# At least we should make this an array. 
+	# Then we should strip whitespace off all chunks
+	# Then we should check for chunks starting with a comma. We push the previous chunks on a new list, 
+	# When we find a comma, we push this list onto a new list and clear the chunks list.
+	# Repeat untill all chunks are done. 
+	# Also remove any empty chunks
+	# The result will be a list of (nlist,clist) pairs, we can then parse each of these as ordinary expressions  
 	(my $lhs, my $rhs) = split (/\s*\/\s*/,$mline);
 #croak "$lhs => $rhs" if $mline=~/ivon02/;
 if ($lhs=~/,/ or $rhs=~/,/) {
