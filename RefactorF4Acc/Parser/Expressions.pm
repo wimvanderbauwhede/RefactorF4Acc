@@ -968,7 +968,7 @@ sub _fix_double_paren_in_expr { (my $ast)=@_;
 To support this we need yet another sigil.
 =cut
 
-sub parse_expression_faster {(my $str)=@_;
+sub parse_expression_faster { (my $str)=@_;
     my $max_lev=11; # levels of precedence
     my $prev_lev=0;
     my $lev=0;
@@ -1323,14 +1323,27 @@ our @sigils = ( '{', '&', '$', '+', '-', '*', '/', '%', '**', '=', '@', '#', ':'
     } # while
 
     # So when we fall off the end of the string we need to clean up
-    
     # There is an $expr_ast pending
     if ( not defined $ast[$lev]) {
         $ast[$lev] = $expr_ast;
     } else {
         push @{$ast[$lev]}, $expr_ast;
     }
-
+ if(@{$arg_expr_ast}) {
+            if( scalar @ast == 1) {
+                push @{$arg_expr_ast},$ast[0];
+            } else {
+                for my $tlev (1 .. $max_lev) {
+                    if (not defined $ast[$tlev+1]) {
+                        $ast[$tlev+1] = $ast[$tlev] if defined $ast[$tlev] and scalar @{$ast[$tlev]};
+                    } else {
+                        push @{$ast[$tlev+1]}, $ast[$tlev] if defined $ast[$tlev] and scalar @{$ast[$tlev]};
+                    }
+                }
+                push @{$arg_expr_ast},$ast[$max_lev+1];
+            }
+    return([27,$arg_expr_ast],$str,0,$has_funcs);
+} else {
     # Now determine the highest level; fold the lower levels into it
     if( scalar @ast == 1) {
         return ($ast[0],$str,0,$has_funcs);
@@ -1344,6 +1357,7 @@ our @sigils = ( '{', '&', '$', '+', '-', '*', '/', '%', '**', '=', '@', '#', ':'
         }
         return ($ast[$max_lev+1],$str,0,$has_funcs);
     }
+}
 } # END of parse_expression_faster
 
 sub interpret { (my $ast)=@_;

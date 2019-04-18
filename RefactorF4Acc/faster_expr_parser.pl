@@ -57,7 +57,8 @@ for my $str ('*8','RANK ( N, *8, *9 )','f(x)(y)', 'a**b**3', 'B .and. .not. A .o
     '( 3.14 , 2.7e-3)',
     '(/ 3.14 , 2.7e-3 /)',
     "[ 'A3.14' , 'B2.7e-3' ]",
-    'u(i+1,j+jm)'
+    'u(i+1,j+jm)',
+    'a,b'
 ) {
     say "\nTEST: $str";
     (my $ast, my $rest, my $err) = parse_expression_faster($str);#*p(i+1,j+jm)');
