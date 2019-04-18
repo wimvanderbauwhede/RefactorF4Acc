@@ -2955,7 +2955,7 @@ if ($line=~/^character/) {
          for my $var_dim (@vars_dims) {
          	
          	my $ast=parse_expression($var_dim, $info, $stref, $f);
-#         	say "AST1:".Dumper($ast);
+            #say "EXP: $var_dim AST1:".Dumper($ast);
          	my $var = _get_var_from_ast( $ast );
          	my $dim = _get_dim_from_ast( $ast );
 #         	say "DIM: ".Dumper($dim);
@@ -4119,27 +4119,27 @@ sub  _get_var_from_ast { (my  $ast ) = @_;
 	# The AST is always an array
 	
 	# If there is a length, we need the 2nd elt
-	if (($ast->[0] & 0x0F) == 5) {
+	if (($ast->[0] & 0xFF) == 5) {
 	# That elt can either be a scalar
 	# or an array
-		if (($ast->[1][0] & 0xF) == 2) { # $
+		if (($ast->[1][0] & 0xFF) == 2) { # $
 			$var= $ast->[1][1];
-		} elsif (($ast->[1][0] & 0xF) == 10) { # @
+		} elsif (($ast->[1][0] & 0xFF) == 10) { # @
 			$var= $ast->[1][1];
 		} else {
 			croak Dumper($ast);
 		}
 	  
 	} else {
-		if( ($ast->[0] & 0xF) == 2) {
+		if( ($ast->[0] & 0xFF) == 2) {
 			$var= $ast->[1];
-		} elsif ( ($ast->[0] & 0xF) == 10) {
+		} elsif ( ($ast->[0] & 0xFF) == 10) {
 			$var= $ast->[1];
-        } elsif ( ($ast->[0] & 0xF) == 1) {
+        } elsif ( ($ast->[0] & 0xFF) == 1) {
         	warn "Variable $var is masking an intrinsic!";
             $var= $ast->[1];			
 		} else {
-			croak( ($ast->[0] & 0xF).': '.Dumper($ast) ); 
+			croak( ($ast->[0] & 0xFF).': '.Dumper($ast) ); 
 		}
 	}
 	return $var;
@@ -4177,10 +4177,10 @@ sub _get_dim_from_ast { (my  $ast ) = @_;
 		my $dim=[];
 		
 # If there is a length, we need the 2nd elt
-	if (($ast->[0] & 0xF)==5) { # '*'
+	if (($ast->[0] & 0xFF)==5) { # '*'
 	# That elt can either be a scalar
 	# or an array
-		if(($ast->[1][0] & 0xF)==10) { #'@'
+		if(($ast->[1][0] & 0xFF)==10) { #'@'
 			# It's an array so there is a dim
 			for my $pdim_idx (2 .. @{$ast->[1]}-1) {
 				my $pdim = $ast->[1][$pdim_idx];
@@ -4201,20 +4201,20 @@ sub _get_dim_from_ast { (my  $ast ) = @_;
 					push @{$dim}, [$dim_start ,$dim_stop ];
 				}
 			}
-		} elsif (($ast->[1][0] & 0xF) == 2) { # '$'
+		} elsif (($ast->[1][0] & 0xFF) == 2) { # '$'
 			# no dim			
 		} else {
 			croak Dumper($ast);
 		}
 	  
 	} else {
-		if(($ast->[0] & 0xF) == 2) {
+		if(($ast->[0] & 0xFF) == 2) {
 			# no dim
-		} elsif (($ast->[0] & 0xF) == 10) {
+		} elsif (($ast->[0] & 0xFF) == 10) {
 			for my $pdim_idx (2 .. @{$ast}-1) {
 				my $pdim = $ast->[$pdim_idx];
 				if (ref($pdim) eq 'ARRAY') {
-					if (($pdim->[0] & 0x0F) == 12) {# eq ':'						
+					if (($pdim->[0] & 0xFF) == 12) {# eq ':'						
 						my $dim_start = emit_expression($pdim->[1],'');
 						my $dim_stop = emit_expression($pdim->[2],'');
 						push @{$dim}, [$dim_start ,$dim_stop ]; 
@@ -4225,12 +4225,12 @@ sub _get_dim_from_ast { (my  $ast ) = @_;
 					push @{$dim}, [$dim_start ,$dim_stop ];					
 				}
 			}
-        } elsif (($ast->[0] & 0xF) == 1) {
+        } elsif (($ast->[0] & 0xFF) == 1) {
         	warn "Dim for variable masking an intrinsic";
             for my $pdim_idx (2 .. @{$ast}-1) {
                 my $pdim = $ast->[$pdim_idx];
                 if (ref($pdim) eq 'ARRAY') {
-                    if (($pdim->[0] & 0x0F) == 12) {# eq ':'                        
+                    if (($pdim->[0] & 0xFF) == 12) {# eq ':'                        
                         my $dim_start = emit_expression($pdim->[1],'');
                         my $dim_stop = emit_expression($pdim->[2],'');
                         push @{$dim}, [$dim_start ,$dim_stop ]; 
@@ -4308,7 +4308,7 @@ sub  _get_dim_from_ast_OLD { (my  $ast ) = @_;
 
 sub  _get_len_from_ast { (my  $ast ) = @_;
 	my $len='';
-	if (($ast->[0] & 0xF)==5) {
+	if (($ast->[0] & 0xFF)==5) {
 		# there is a len
 		my $len_expr = $ast->[2];
 		if ($len_expr eq '0') {

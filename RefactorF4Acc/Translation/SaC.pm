@@ -145,7 +145,7 @@ sub _translate_sub_to_SaC {  (my $stref, my $f) = @_;
 			my $lhs_ast =  $info->{'Lhs'}{'ExpressionAST'};	
 			my $mvar = $lhs_ast->[1];
 			
-			if (($lhs_ast->[0] & 0x0F) == 10 and  $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$mvar}{'IODir'} ne 'out') {
+			if (($lhs_ast->[0] & 0xFF) == 10 and  $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$mvar}{'IODir'} ne 'out') {
 #			say "LHS ARRAY $mvar "	
 				$pass_state->{'ArrayAssignments'}{$mvar}=1;	
 			} 
@@ -715,11 +715,11 @@ sub _emit_expression_SaC {(my $ast, my $expr_str, my $stref, my $f)=@_;
 	my @expr_chunks=();
 	my $skip=0;
 	
-	if (($ast->[0] & 0x0F) == 8) { #eq '^'
+	if (($ast->[0] & 0xFF) == 8) { #eq '^'
 		$ast->[0]='pow';
 		unshift @{$ast},1;# '&' FIXME: nodeId
 	} 
-	elsif (($ast->[0] & 0x0F) == 1  and $ast->[1] eq 'mod') {#eq '&'
+	elsif (($ast->[0] & 0xFF) == 1  and $ast->[1] eq 'mod') {#eq '&'
 		shift @{$ast};
 		$ast->[0]= 7 ;# '%';	FIXME: nodeId
 	}
@@ -735,7 +735,7 @@ sub _emit_expression_SaC {(my $ast, my $expr_str, my $stref, my $f)=@_;
 				$skip=1;
             } elsif ($idx==0) {  # Look at the first elt, check the code  
 
-	            if (($entry & 0x0F) == 1) { # eq '&'
+	            if (($entry & 0xFF) == 1) { # eq '&'
 					my $mvar = $ast->[$idx+1];
 					# AD-HOC, replacing abs/min/max to fabs/fmin/fmax without any type checking ... FIXME!!!
 					# The (float) cast is necessary because otherwise I get an "ambiguous" error
@@ -747,7 +747,7 @@ sub _emit_expression_SaC {(my $ast, my $expr_str, my $stref, my $f)=@_;
 					 $stref->{'CalledSub'}= $mvar;
 					 
 					$skip=1;
-				} elsif (($entry & 0x0F) == 2) { #eq '$'
+				} elsif (($entry & 0xFF) == 2) { #eq '$'
 					my $mvar = $ast->[$idx+1];
 	#				carp $mvar;
 					my $called_sub_name = $stref->{'CalledSub'} // '';
@@ -778,7 +778,7 @@ sub _emit_expression_SaC {(my $ast, my $expr_str, my $stref, my $f)=@_;
 						push @expr_chunks,$mvar;
 					}
 					$skip=1;				
-				} elsif (($entry & 0x0F) == 10) {#eq '@'
+				} elsif (($entry & 0xFF) == 10) {#eq '@'
 					
 					my $mvar = $ast->[$idx+1];
 					if ($mvar eq '_OPEN_PAR_') {
@@ -787,8 +787,7 @@ sub _emit_expression_SaC {(my $ast, my $expr_str, my $stref, my $f)=@_;
 						if (scalar @{$ast} == 3 and $ast->[2] eq '1') {
 							$expr_str.='(*'.$mvar.')';
 							$ast->[2]='';
-							$ast->[0]= 2 + ((++$Fortran::Expression::Evaluator::Parser::nodeId)<<4);# '$';
-	#						croak Dumper($ast);
+							$ast->[0]= 2 + ((++$Fortran::Expression::Evaluator::Parser::nodeId)<<8);# '$';
 						}  else {
 #							say Dumper($mvar);
 							my $decl = get_var_record_from_set($stref->{'Subroutines'}{$f}{'Vars'},$mvar);
@@ -838,9 +837,9 @@ sub _emit_expression_SaC {(my $ast, my $expr_str, my $stref, my $f)=@_;
 					$skip=1;
 				} elsif ( # It is not '&', '$' or '@'
 	                #$ast->[$idx-1]!~/^[\&\@\$]/ 
-					($ast->[$idx-1] & 0x0F) != 1 and #!~/^[\&\@\$]/ 
-					($ast->[$idx-1] & 0x0F) != 10 and #!~/^[\&\@\$]/ 
-					($ast->[$idx-1] & 0x0F) != 2 #!~/^[\&\@\$]/ 
+					($ast->[$idx-1] & 0xFF) != 1 and #!~/^[\&\@\$]/ 
+					($ast->[$idx-1] & 0xFF) != 10 and #!~/^[\&\@\$]/ 
+					($ast->[$idx-1] & 0xFF) != 2 #!~/^[\&\@\$]/ 
 				) {
 	#				say "ENTRY:$entry SKIP: $skip";
 					push @expr_chunks,$entry;
@@ -850,7 +849,7 @@ sub _emit_expression_SaC {(my $ast, my $expr_str, my $stref, my $f)=@_;
 		}				
 	} # for
 	
-	if (($ast->[0] & 0x0F) == 1  ) { # eq '&'
+	if (($ast->[0] & 0xFF) == 1  ) { # eq '&'
 	
 		# This removes outer parens if there are no parens in between
 		my @expr_chunks_stripped = map { $_=~s/^\(([^\(\)]+)\)$/$1/;$_} @expr_chunks;
@@ -875,7 +874,7 @@ sub _emit_expression_SaC {(my $ast, my $expr_str, my $stref, my $f)=@_;
 			$stref->{'CalledSub'} ='';
 		}
 		
-	} elsif ( ($ast->[0] & 0x0F) == 10) {				# eq '@'
+	} elsif ( ($ast->[0] & 0xFF) == 10) {				# eq '@'
 		my @expr_chunks_stripped =   map {  $_=~s/^\(([^\(\)]+)\)$/$1/;$_} @expr_chunks;		
 		if ( not ($expr_str=~/^\*/ and $expr_chunks_stripped[0]==1) ) { 
 			$expr_str.=join(',',@expr_chunks_stripped);
@@ -891,11 +890,11 @@ sub _emit_expression_SaC {(my $ast, my $expr_str, my $stref, my $f)=@_;
 			} 
 		}
 		
-	} elsif (($ast->[0] & 0x0F) != 10
+	} elsif (($ast->[0] & 0xFF) != 10
         #        and $ast->[0] =~ /\W/
     ) {
         my $opcode = $ast->[0];		
-        my $op = $RefactorF4Acc::Parser::Expressions::sigils[$opcode & 0x0F];
+        my $op = $RefactorF4Acc::Parser::Expressions::sigils[$opcode & 0xFF];
 		if (scalar @{$ast} > 2) {
 			my @ts=();
 			for my $idx (1 .. scalar @{$ast} -1 ) {				
@@ -925,15 +924,15 @@ sub _emit_expression_SaC {(my $ast, my $expr_str, my $stref, my $f)=@_;
 			my $t1 = (ref($ast->[1]) eq 'ARRAY') ? _emit_expression_SaC( $ast->[1], '',$stref,$f) : $ast->[1];
 			my $t2 = (ref($ast->[2]) eq 'ARRAY') ? _emit_expression_SaC( $ast->[2], '',$stref,$f) : $ast->[2];			
 			$expr_str.=$t1.$ast->[0].$t2;
-			if (($ast->[0] & 0x0F) != 9) { # ne '='
+			if (($ast->[0] & 0xFF) != 9) { # ne '='
 				$expr_str="($expr_str)";
 			}			
 		} else {
 			# FIXME! UGLY!
 			my $t1 = (ref($ast->[1]) eq 'ARRAY') ? _emit_expression_SaC( $ast->[1], '',$stref,$f) : $ast->[1];
-            my $op = $RefactorF4Acc::Parser::Expressions::sigils[$ast->[0] & 0x0F];
+            my $op = $RefactorF4Acc::Parser::Expressions::sigils[$ast->[0] & 0xFF];
 			$expr_str=  $op eq '$' ? $t1 :  $op.$t1;
-			if (($ast->[0] & 0x0F) == 6) { #eq '/'
+			if (($ast->[0] & 0xFF) == 6) { #eq '/'
 #				$expr_str='1'.$expr_str; # I choose float as default. FIXME UGLY SaC HACK!
 				$expr_str='1.0f'.$expr_str; # I choose float as default. FIXME UGLY SaC HACK! 
 			}
@@ -1091,16 +1090,16 @@ sub _add_cast_calls {(my $ast, my $stref, my $f)=@_;
             # we should not descend if this is a subroutine call or an array argument
             # i.e, if we have ['&', 'f' ], don't descend
             # if we have ['@', 'a', [...],...] don't descend
-            if ($idx>1 && (($ast->[0] & 0x0F) == 10) && $ast->[1] ne '_OPEN_PAR_') {
+            if ($idx>1 && (($ast->[0] & 0xFF) == 10) && $ast->[1] ne '_OPEN_PAR_') {
                 # We're in an array, skip
 #                say "Not descending into indices of array ".$ast->[1];
-            } elsif ( ($entry->[0] & 0x0F) == 1 ) {
+            } elsif ( ($entry->[0] & 0xFF) == 1 ) {
                 # This is a subroutine, don't go in there
 #                say "Not descending into function call ".$entry->[1];
             } else {
                 # OK, go in there
                 $entry = _add_cast_calls( $entry, $stref, $f);
-                if( ($entry->[0] & 0xF) == 2 or ($entry->[0] & 0xF) == 10  ) {
+                if( ($entry->[0] & 0xFF) == 2 or ($entry->[0] & 0xFF) == 10  ) {
                 	my $mvar = $entry->[1];
 				 	if (not(
 			    	   $mvar=~/__[a-z]+__/

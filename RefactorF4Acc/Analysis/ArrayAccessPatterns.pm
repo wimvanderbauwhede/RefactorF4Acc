@@ -222,9 +222,9 @@ sub identify_array_accesses_in_exprs { (my $stref, my $f) = @_;
                     # This is probably superseded by the new analysis of array assignment expressions
 					if (
 						ref($info->{'Rhs'}{'ExpressionAST'}) eq 'ARRAY'
-					and (($info->{'Rhs'}{'ExpressionAST'}[0] & 0xF) == 10) #eq '@'
+					and (($info->{'Rhs'}{'ExpressionAST'}[0] & 0xFF) == 10) #eq '@'
 					and ref($info->{'Lhs'}{'ExpressionAST'}) eq 'ARRAY'
-					and (($info->{'Lhs'}{'ExpressionAST'}[0] & 0xF) == 10) #eq '@'
+					and (($info->{'Lhs'}{'ExpressionAST'}[0] & 0xFF) == 10) #eq '@'
 					and $info->{'Lhs'}{'ExpressionAST'}[1] eq $info->{'Rhs'}{'ExpressionAST'}[1]
 					) {
 						my $var_name = $info->{'Rhs'}{'ExpressionAST'}[1];
@@ -430,7 +430,7 @@ sub _find_array_access_in_ast { (my $stref, my $f,  my $block_id, my $state, my 
 				(my $entry, $state) = _find_array_access_in_ast($stref,$f, $block_id, $state,$entry, $rw,$accesses);
 				$ast->[$idx] = $entry;
 			} else {
-				if ($idx==0 and (($entry & 0xF)==10)) { #$entry eq '@'
+				if ($idx==0 and (($entry & 0xFF)==10)) { #$entry eq '@'
 					my $mvar = $ast->[$idx+1];
 					
 					if ($mvar ne '_OPEN_PAR_') {
@@ -523,7 +523,7 @@ sub _replace_consts_in_ast { (my $stref, my $f, my $block_id, my $ast, my $state
 				(my $entry2, $state, $retval) = _replace_consts_in_ast($stref,$f, $block_id,$entry, $state,$const);
 				$ast->[$idx] = $entry2;
 			} else {
-				if ($idx==0 and (($entry & 0xF) == 2)) { #eq '$'
+				if ($idx==0 and (($entry & 0xFF) == 2)) { #eq '$'
 					my $mvar = $ast->[$idx+1];
 #					say "MVAR: $mvar in $f";
 					if (exists $state->{'Subroutines'}{ $f }{'Blocks'}{$block_id}{'LoopIters'}{ $mvar }) { 

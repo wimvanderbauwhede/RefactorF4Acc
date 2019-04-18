@@ -21,6 +21,7 @@ use Exporter;
 
 @RefactorF4Acc::Utils::EXPORT = qw(
     %F95_reserved_words    
+    %F95_function_like_reserved_words
     %F95_intrinsics
     %F95_intrinsic_functions
     %F95_other_intrinsics
@@ -819,6 +820,25 @@ unlink
 
 our %F95_other_intrinsics = map { $_=>1 } @F95_other_intrinsics;
 
+our @F95_function_like_reserved_words_list = qw(
+allocate
+backspace
+close
+deallocate
+decode
+encode
+equivalence
+format
+inquire
+nullify
+open
+print
+read
+rewind
+rewrite
+write
+);
+
 our @F95_reserved_words_list = qw( 
 assign
 backspace
@@ -916,6 +936,8 @@ doublecomplex
 );
 
 our %F95_reserved_words = map { $_=>1 } @F95_reserved_words_list ; 
+our %F95_function_like_reserved_words = map { $_=>1 } @F95_function_like_reserved_words_list;
+
 our %F95_types = map { $_=>1 } @F95_types_list;
 
 

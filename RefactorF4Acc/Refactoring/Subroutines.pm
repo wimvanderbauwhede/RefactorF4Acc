@@ -807,7 +807,7 @@ sub __update_function_calls_in_AST { (my $stref, my $Sf,my $f, my $ast) = @_;
 				my $entry = __update_function_calls_in_AST($stref,$Sf,$f,$entry);
 				$ast->[$idx] = $entry;
 			} else {
-				if ($idx==0 and (($entry & 0xF) == 1)) {				
+				if ($idx==0 and (($entry & 0xFF) == 1)) {				
 					my $name = $ast->[$idx+1];
 					
 				    if ($name ne $f and exists $stref->{'Subroutines'}{$name}{'ExGlobArgs'}) {
@@ -831,7 +831,7 @@ sub __update_function_calls_in_AST { (my $stref, my $Sf,my $f, my $ast) = @_;
 				    	my $j=0;
 					    for my $extra_arg (@maybe_renamed_exglobs) {
 					    	$ast->[$nelts+$j]=[
-					    	(++$Fortran::Expression::Evaluator::Parser::nodeId<<4)+2
+					    	(++$Fortran::Expression::Evaluator::Parser::nodeId<<8)+2
 #					    	'$'
 					    	,$extra_arg];
 					    	$j++;

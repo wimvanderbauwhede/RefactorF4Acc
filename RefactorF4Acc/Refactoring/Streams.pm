@@ -863,7 +863,7 @@ sub _rename_ast_entry { (my $stref, my $f,  my $state, my $ast, my $intent)=@_;
 				(my $entry, $state) = _rename_ast_entry($stref,$f, $state,$entry,$intent);
 				$ast->[$idx] = $entry;
 			} else {
-				if ($idx==0 and (($entry & 0xF) == 10)) {#'@'				
+				if ($idx==0 and (($entry & 0xFF) == 10)) {#'@'				
 					my $mvar = $ast->[$idx+1];
 					if ($mvar ne '_OPEN_PAR_') {
 						say 'Found array access '.$mvar  if $DBG;			
@@ -886,7 +886,7 @@ sub _rename_ast_entry { (my $stref, my $f,  my $state, my $ast, my $intent)=@_;
 						}
 						$state->{'StreamVars'}{$mvar}{'Set'}{$var_str}={'IODir'=>$intent,'ArrayIndexExpr'=>$expr_str} ;
 #						$state->{'StreamVars'}{$mvar}{'Stencil'}=$stencil;
-						$ast=[0x2+(($entry>>4)<<4),$var_str];#'$'
+						$ast=[0x2+(($entry>>8)<<8),$var_str];#'$'
                         last;
 					}
 				} 
