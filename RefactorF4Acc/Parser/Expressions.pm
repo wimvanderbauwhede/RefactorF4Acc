@@ -36,6 +36,8 @@ use Exporter;
   &parse_expression_faster
   &_find_consts_in_ast
   &_find_vars_in_ast
+  &_traverse_ast_with_action
+  @sigils
 );
 
 our $defaultToArrays = 0;
@@ -1321,7 +1323,7 @@ our @sigils = ( '{', '&', '$', '+', '-', '*', '/', '%', '**', '=', '@', '#', ':'
                 $lev=0;
             } else { # state==7
                 # Now we return this as the ast
-                return ([27,$arg_expr_ast],$str,0,$has_funcs);
+                return ([27,@{$arg_expr_ast}],$str,0,$has_funcs);
             } 
         }
     } # while
@@ -1346,7 +1348,7 @@ our @sigils = ( '{', '&', '$', '+', '-', '*', '/', '%', '**', '=', '@', '#', ':'
                 }
                 push @{$arg_expr_ast},$ast[$max_lev+1];
             }
-    return([27,$arg_expr_ast],$str,0,$has_funcs);
+    return([27,@{$arg_expr_ast}],$str,0,$has_funcs);
 } else {
     # Now determine the highest level; fold the lower levels into it
     if( scalar @ast == 1) {
@@ -1417,9 +1419,14 @@ sub emit_expr_from_ast { (my $ast)=@_;
             if ($args->[0] != 14 ) { # ')('
                 my @args_lst=();
                 if($args->[0] == 27) { # ','
-                    for my $arg (@{$args->[1]}) {
-                        push @args_lst, emit_expr_from_ast($arg);
-                    }
+                    for my $idx (1 .. scalar @{$args}-1) {
+                    my $arg = $args->[$idx];
+                    push @args_lst, emit_expr_from_ast($arg);
+                }
+
+                #                    for my $arg (@{$args->[1]}) {
+                #       push @args_lst, emit_expr_from_ast($arg);
+                #    }
                     return "$name(".join(',',@args_lst).')';
                 } else {
                     return "$name(".emit_expr_from_ast($args).')';
@@ -1429,9 +1436,10 @@ sub emit_expr_from_ast { (my $ast)=@_;
                 (my $sigil,my $args1, my $args2) = @{$args};
                 my $args_str1='';
                 my $args_str2='';
-                if($args1->[0] == 27) { #eq ','
+                if($args1->[0] == 27) { #eq ',' 
                 my @args_lst1=();
-                for my $arg (@{$args1->[1]}) {
+                for my $idx (1 .. scalar @{$args1}-1) {
+                    my $arg = $args1->[$idx];
                     push @args_lst1, emit_expr_from_ast($arg);
                 }
                 $args_str1=join(',',@args_lst1);
@@ -1442,9 +1450,14 @@ sub emit_expr_from_ast { (my $ast)=@_;
                 if($args2->[0] == 27) { #eq ','
                     #say Dumper($args2);
                 my @args_lst2=();
-                for my $arg (@{$args2->[1]}) {
+                for my $idx (1 .. scalar @{$args2}-1) {
+                    my $arg = $args2->[$idx];
                     push @args_lst2, emit_expr_from_ast($arg);
                 }
+
+                #                for my $arg (@{$args2->[1]}) {
+                #    push @args_lst2, emit_expr_from_ast($arg);
+                #}
                 $args_str2=join(',',@args_lst2);
             } else {
                 $args_str2=emit_expr_from_ast($args2);
@@ -1470,7 +1483,8 @@ sub emit_expr_from_ast { (my $ast)=@_;
     } elsif ($opcode == 21 or $opcode == 4 or $opcode == 3) {# eq '.not.' '-'
         my $v = (ref($exp) eq 'ARRAY') ? emit_expr_from_ast($exp) : $exp;
             return $sigils[$opcode]. $v;
-    } elsif ($opcode == 27) { # ','
+    } elsif ($opcode == 27) { # ',' 
+        croak  Dumper($ast);
         my @args_lst=();
         for my $arg (@{$exp}) {
             push @args_lst, emit_expr_from_ast($arg);
@@ -1479,7 +1493,20 @@ sub emit_expr_from_ast { (my $ast)=@_;
     } else {
         die 'BOOM! '.Dumper($ast).$opcode;
     }
-} 
+} elsif (scalar @{$ast} > 3) {
+
+                if($ast->[0] == 27) { # ','
+                     my @args_lst=();
+                    for my $idx (1 .. scalar @{$ast}-1) {
+                    my $arg = $ast->[$idx];
+                    push @args_lst, emit_expr_from_ast($arg);
+                }
+                return join(',',@args_lst); 
+                } else {
+                    croak Dumper($ast);
+                }
+
+}
 } else {return $ast;}
 } # END of emit_expr_from_ast
 
@@ -1748,6 +1775,30 @@ sub _find_args_vars_in_ast {(my $ast)=@_;
     return [$args,$all_vars];
 } # END of _find_args_vars_in_ast
 
+sub _traverse_ast_with_action { (my $ast, my $acc, my $f) = @_;
+
+  if ( ($ast->[0] & 0xFF) == 1 or
+       ($ast->[0] & 0xFF) == 10 ) { # array var or function/subroutine call
+		$acc=$f->($ast,$acc);
+		(my $entry, $acc) = _traverse_ast_with_action($ast->[2],$acc, $f);
+		$ast->[2] = $entry;
+
+  } elsif (($ast->[0] & 0xFF) == 2) { # scalar variable
+	$acc=$f->($ast,$acc);	
+  } elsif (($ast->[0] & 0xFF) > 28) { # constants
+	$acc=$f->($ast,$acc);
+  } else { # other operators
+	$acc=$f->($ast,$acc);
+	for my $idx (1 .. scalar @{$ast}-1) {
+        #$acc=$f->($ast->[$idx],$acc);
+		(my $entry, $acc) = _traverse_ast_with_action($ast->[$idx],$acc, $f);
+		$ast->[$idx] = $entry;
+	}
+  }
+
+  return ($ast, $acc);
+
+} # END of _traverse_ast_with_action
 
 1;
             

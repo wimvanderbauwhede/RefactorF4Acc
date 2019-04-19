@@ -4,8 +4,9 @@ use Data::Dumper;
 use RefactorF4Acc::Parser::Expressions qw( parse_expression_faster interpret emit_expr_from_ast 
 _find_consts_in_ast
 _find_vars_in_ast
+_traverse_ast_with_action
+@sigils
 );
-
 $RefactorF4Acc::Parser::Expressions::defaultToArrays=1;
 
 for my $str ('z(j+i,k*km)*p(i+1,j+jm)','i+1','v( i + 1 )','z','z(j,k)','j+k','i-im') {
@@ -72,6 +73,22 @@ for my $str ('*8','RANK ( N, *8, *9 )','f(x)(y)', 'a**b**3', 'B .and. .not. A .o
     say Dumper($consts);
     my $vars = _find_vars_in_ast($ast,{});
     say Dumper($vars);
+    #    say Dumper($ast);
+        say "TRAVERSAL TEST";
+    ($ast, my $acc) = _traverse_ast_with_action($ast,{}, \&ff );
 }
 
-
+sub ff { (my $ast, my $acc) = @_;
+    if (($ast->[0] &0xFF)==2) {
+        say '$'.$ast->[1];
+    }
+    elsif (($ast->[0] &0xFF)>28) {
+        say $sigils[$ast->[0]].' '.$ast->[1];
+    }
+    elsif (($ast->[0] &0xFF)==10) {
+        say '@'.$ast->[1];
+    } else {
+    say $sigils[$ast->[0]];
+    }
+    return $acc;
+}
