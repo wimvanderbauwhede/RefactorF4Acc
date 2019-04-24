@@ -1368,9 +1368,8 @@ END IF
 			$srcref = [@{$srcref}[0..$idx-1],@{ $extra_lines{$idx} },@{$srcref}[($idx+1) .. (scalar(@{$srcref})-1)] ]; 
 		}
 		$Sf->{'AnnLines'}=$srcref;
-#		show_annlines($srcref);croak;
 
-        # This is now (2019=03-27) in Preconditioning.pm, to be run after parsing and before analysis
+        # This is now (2019-03-27) in Preconditioning.pm, to be run after parsing and before analysis
 #		if ( $is_incl ) {
 #			my $inc = $f;
 #			my $Sincf = $Sf;
@@ -4036,119 +4035,142 @@ implied-do-object-list is a comma-separated list of array elements, scalar struc
 or implied-dos.
 implied-do-var is a scalar INTEGER variable.
 expr is a scalar INTEGER expression.
+
+If we ignore a DATA declaration for analysis. I guess nothing much happens. So why bother parsing this at all?
+The answer: we need this if we want to do proper renaming.
+But of course we can in principle do this without parsing, just rename whatever is there rather than looking for the variable names first.
+This is of course slow. It would be better to get the variables.
+
 =cut
 
 sub _parse_data_declaration { (my $line,my $info, my $stref, my $f) = @_;
-	croak 'FIXME DATA DECLARATIONS';
+	
 	my $new_annlines=[];
 	my $indent =$line;$indent=~s/data.*$//;
 	my $mline=$line;
     # Remove the DATA keyword
 	$mline=~s/^\s*\d*\s+data\s+//; 
+	# Remove the trailing '/'
 	$mline=~s/\/\s*$//;
-	# Split on '/', and only keep the first two. This seems rather silly!
-	# At least we should make this an array. 
-	# Then we should strip whitespace off all chunks
-	# Then we should check for chunks starting with a comma. We push the previous chunks on a new list, 
-	# When we find a comma, we push this list onto a new list and clear the chunks list.
-	# Repeat untill all chunks are done. 
-	# Also remove any empty chunks
-	# The result will be a list of (nlist,clist) pairs, we can then parse each of these as ordinary expressions  
-	(my $lhs, my $rhs) = split (/\s*\/\s*/,$mline);
-#croak "$lhs => $rhs" if $mline=~/ivon02/;
-if ($lhs=~/,/ or $rhs=~/,/) {
-	my @lhs_exprs = _parse_comma_sep_expr_list($lhs);
-	# TODO: in principle I must do a full argument and variable analysis here, like in IO calls. Leave that for later.
-	# Question is if an implied do can appear on an lhs
-	
-	for my $lhs_expr (@lhs_exprs) {
-		if ($lhs_expr =~/=/) {
-				say 'WARNING: Sorry, no support for implied-do in data declarations for now' if $W;
-				return [[$line,$info]];			
-		}
+	# Split on '/\s*,', 
+	my @data_decl_ast=[];
+	my @data_decl_pair_strs = split(/\/\s*,/,$mline);
+	for my $data_decl_pair_str (@data_decl_pair_strs ) {
+		(my $nlist_str, my $clist_str) =split(/\s*\/\s*/,$data_decl_pair_str ); 
+		my $nlist_ast = parse_expression($nlist_str);
+		my $clist_ast = parse_expression($clist_str);
+#		push @data_decl_ast, [$nlist_as, $clist_ast];
+	my $info={};
+	$info->{'NList'}{'Ast'} = $nlist_ast;
+	$info->{'CList'}{'Ast'} = $clist_ast;
+	$info->{'Data'}=1;
+	$info->{'SpecificationStatement'} = 1;
+	my $line= "$nlist_str / $clist_str /"; # TODO: this is not quite one var per DATA line but at least it is one pair per DATA line
+	push @{$new_annlines}, [$line, $info];
 	}
-
-#	my @lhs_vars =  split (/\s*,\s*/,$lhs);
-	my $lhs_expr = 'dummy('.$lhs.')';
-	my $lhs_ast = parse_expression($lhs_expr, $info,$stref, $f);		
-	
-#	if ($rhs =~/\d+\s*\*\s*/) {
-#			
+	return $new_annlines;
+#	# At least we should make this an array. 
+#	# Then we should strip whitespace off all chunks
+#	# Then we should check for chunks starting with a comma. We push the previous chunks on a new list, 
+#	# When we find a comma, we push this list onto a new list and clear the chunks list.
+#	# Repeat untill all chunks are done. 
+#	# Also remove any empty chunks
+#	# The result will be a list of (nlist,clist) pairs, we can then parse each of these as ordinary expressions  
+#	(my $lhs, my $rhs) = split (/\s*\/\s*/,$mline);
+##croak "$lhs => $rhs" if $mline=~/ivon02/;
+#if ($lhs=~/,/ or $rhs=~/,/) {
+#	my @lhs_exprs = _parse_comma_sep_expr_list($lhs);
+#	# TODO: in principle I must do a full argument and variable analysis here, like in IO calls. Leave that for later.
+#	# Question is if an implied do can appear on an lhs
+#	
+#	for my $lhs_expr (@lhs_exprs) {
+#		if ($lhs_expr =~/=/) {
+#				say 'WARNING: Sorry, no support for implied-do in data declarations for now' if $W;
+#				return [[$line,$info]];			
+#		}
 #	}
-	my $rhs_expr = 'dummy('.$rhs.')';
-	my $rhs_ast = parse_expression($rhs_expr, $info,$stref, $f);
-	
-#	croak Dumper($ast);
-#	my @rhs_vals =  ();
-	my $rhs_idx=2;
-	for my $idx  (2 .. @{$lhs_ast}-3) {
-		my $lhs_var_ast = $lhs_ast->[$idx];
-		( my $lhs_args, my $lhs_vars ) = @{ get_args_vars_from_expression($lhs_var_ast) };
-		
-		my $lhs_var = ref($lhs_var_ast) eq 'ARRAY' ? emit_expression($lhs_var_ast) : $lhs_var_ast;
-		 
-#		say Dumper($lhs_var_ast);
-		
-	if ( scalar @{ $lhs_args->{'List'} } > 0 ) {
-		my $lhs_varname = $lhs_args->{'List'}[0];
-
-		$info->{'Lhs'} = {
-			'VarName'       => $lhs_varname,
-			'IndexVars'     => $lhs_vars,
-			'ArrayOrScalar' => $lhs_args->{'Set'}{$lhs_varname}{'Type'},
-			'ExpressionAST' => $lhs_ast
-		};
-	} else {
-		$info->{'Lhs'} = {
-			'ArrayOrScalar' => 'Other',
-			'ExpressionAST' => $lhs_ast
-		};
-	}		
-		
-		
-		my $rhs_val_ast = $rhs_ast->[$rhs_idx++];
-		
-		my $rhs_val = ref($rhs_val_ast) eq 'ARRAY' ? emit_expression($rhs_val_ast) : $rhs_val_ast;
-			# I am lazy so I use a regex to substitute the placeholders
-			if (not defined $rhs_val) { 
-				# FIXME: this means we failed to parse this correctly, just warn and keep the old line.
-				say "WARNING: Could not parse this DATA declaration: $line" if $W;
-				return [[$line,$info]];
-			};  
-			while ($rhs_val =~ /(__PH\d+__)/) {
-				my $ph=$1;
-				my $ph_str = $info->{'PlaceHolders'}{$ph};
-				$rhs_val=~s/$ph/$ph_str/;
-			}
-		
-		my $new_line = "$indent$lhs_var = $rhs_val";
-		
-	my $rinfo = dclone($info);
-	$rinfo->{'Assignment'}=1;
-	$rinfo->{'Data'}=1;
-			( my $rhs_args, my $rhs_vars ) =
-	  @{ get_args_vars_from_expression($rhs_val_ast) };
-	my $rhs_all_vars = {
-		'Set'  => { %{ $rhs_args->{'Set'} },  %{ $rhs_vars->{'Set'} } },
-		'List' => [ @{ $rhs_args->{'List'} }, @{ $rhs_vars->{'List'} } ]
-	};
-	$rinfo->{'Rhs'} = {
-		'VarList'       => $rhs_all_vars,
-		'ExpressionAST' => $rhs_val_ast
-	};	
-	push @{ $new_annlines }, [$new_line,$rinfo];
-	}
-} else {
-	# No comma in LHS so it must be a single var, easy:
-		$info->{'Assignment'}=1;
-		$info->{'Data'}=1;
-	# But NO! it can be something absurd like 
-	#  DATA  LADN1D/.TRUE., .FALSE./ 
-	# So let's say, if there is no comma in the RHS either we do that. 
-	# Otherwise we count and if it does not match, we give up!
-#	croak "$indent$lhs = $rhs";
-	return [["$indent$lhs = $rhs",$info]];
-}
+#
+##	my @lhs_vars =  split (/\s*,\s*/,$lhs);
+#	my $lhs_expr = 'dummy('.$lhs.')';
+#	my $lhs_ast = parse_expression($lhs_expr, $info,$stref, $f);		
+#	
+##	if ($rhs =~/\d+\s*\*\s*/) {
+##			
+##	}
+#	my $rhs_expr = 'dummy('.$rhs.')';
+#	my $rhs_ast = parse_expression($rhs_expr, $info,$stref, $f);
+#	
+##	croak Dumper($ast);
+##	my @rhs_vals =  ();
+#	my $rhs_idx=2;
+#	for my $idx  (2 .. @{$lhs_ast}-3) {
+#		my $lhs_var_ast = $lhs_ast->[$idx];
+#		( my $lhs_args, my $lhs_vars ) = @{ get_args_vars_from_expression($lhs_var_ast) };
+#		
+#		my $lhs_var = ref($lhs_var_ast) eq 'ARRAY' ? emit_expression($lhs_var_ast) : $lhs_var_ast;
+#		 
+##		say Dumper($lhs_var_ast);
+#		
+#	if ( scalar @{ $lhs_args->{'List'} } > 0 ) {
+#		my $lhs_varname = $lhs_args->{'List'}[0];
+#
+#		$info->{'Lhs'} = {
+#			'VarName'       => $lhs_varname,
+#			'IndexVars'     => $lhs_vars,
+#			'ArrayOrScalar' => $lhs_args->{'Set'}{$lhs_varname}{'Type'},
+#			'ExpressionAST' => $lhs_ast
+#		};
+#	} else {
+#		$info->{'Lhs'} = {
+#			'ArrayOrScalar' => 'Other',
+#			'ExpressionAST' => $lhs_ast
+#		};
+#	}		
+#		
+#		
+#		my $rhs_val_ast = $rhs_ast->[$rhs_idx++];
+#		
+#		my $rhs_val = ref($rhs_val_ast) eq 'ARRAY' ? emit_expression($rhs_val_ast) : $rhs_val_ast;
+#			# I am lazy so I use a regex to substitute the placeholders
+#			if (not defined $rhs_val) { 
+#				# FIXME: this means we failed to parse this correctly, just warn and keep the old line.
+#				say "WARNING: Could not parse this DATA declaration: $line" if $W;
+#				return [[$line,$info]];
+#			};  
+#			while ($rhs_val =~ /(__PH\d+__)/) {
+#				my $ph=$1;
+#				my $ph_str = $info->{'PlaceHolders'}{$ph};
+#				$rhs_val=~s/$ph/$ph_str/;
+#			}
+#		
+#		my $new_line = "$indent$lhs_var = $rhs_val";
+#		
+#	my $rinfo = dclone($info);
+#	$rinfo->{'Assignment'}=1;
+#	$rinfo->{'Data'}=1;
+#			( my $rhs_args, my $rhs_vars ) =
+#	  @{ get_args_vars_from_expression($rhs_val_ast) };
+#	my $rhs_all_vars = {
+#		'Set'  => { %{ $rhs_args->{'Set'} },  %{ $rhs_vars->{'Set'} } },
+#		'List' => [ @{ $rhs_args->{'List'} }, @{ $rhs_vars->{'List'} } ]
+#	};
+#	$rinfo->{'Rhs'} = {
+#		'VarList'       => $rhs_all_vars,
+#		'ExpressionAST' => $rhs_val_ast
+#	};	
+#	push @{ $new_annlines }, [$new_line,$rinfo];
+#	}
+#} else {
+#	# No comma in LHS so it must be a single var, easy:
+#		$info->{'Assignment'}=1;
+#		$info->{'Data'}=1;
+#	# But NO! it can be something absurd like 
+#	#  DATA  LADN1D/.TRUE., .FALSE./ 
+#	# So let's say, if there is no comma in the RHS either we do that. 
+#	# Otherwise we count and if it does not match, we give up!
+##	croak "$indent$lhs = $rhs";
+#	return [["$indent$lhs = $rhs",$info]];
+#}
 	return $new_annlines;
 	
 } # END of _parse_data_declaration()

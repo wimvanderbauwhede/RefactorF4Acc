@@ -36,6 +36,7 @@ use Exporter;
   &parse_expression_faster
   &_find_consts_in_ast
   &_find_vars_in_ast
+  &_find_args_in_ast
   &_traverse_ast_with_action
   @sigils
 );
@@ -82,8 +83,8 @@ $VAR1 = [
 our @sigils = ('{', '&', '$', '+', '-', '*', '/', '%', '**', '=', '@', '#', ':' ,'//',')('
 #                15   16   17  18  19   20    21      22      23     24      25      26      
                ,'==','!=','<','>','<=','>=','.not.','.and.','.or.','.xor.','.eqv.','.neqv.'
-#                27   28    29        30     31        32           33
-               ,',', '(/', 'integer','real','logical','character', 'PlaceHolder'
+#                27   28    29        30     31        32           33             34
+               ,',', '(/', 'integer','real','logical','character', 'PlaceHolder', 'Label'
               );
 
 
@@ -1075,9 +1076,14 @@ sub parse_expression_faster { (my $str)=@_;
             $expr_ast=[30,$1];
             #$expr_ast=$1;
         }
-        elsif ($str=~s/^(\*?\d+)//) {
+        elsif ($str=~s/^\*(\d+)//) {            
+            # The '*' is for "alternate returns", a bizarre F77 feature.
+            # The integer following the * is a label 
+            $expr_ast=[34,$1];
+            #$expr_ast=$1;#['Label',$1];
+        }        
+        elsif ($str=~s/^(\d+)//) {
             # integers
-            # The '*' is for "alternate returns", a bizarre F77 feature. 
             $expr_ast=[29,$1];
             #$expr_ast=$1;#['integer',$1];
         }
@@ -1571,10 +1577,10 @@ sub _replace_function_calls_in_ast { #(my $ast)=@_;
 						and not exists $F95_reserved_words{$mvar} 					
 						)
 					) {
-						( my $expr_args, my $expr_other_vars ) = get_args_vars_from_subcall($ast);
+						( my $expr_args, my $expr_other_vars ) = _find_args_vars_in_ast($ast->[2]); # look only at the argument list
 						for my $expr_arg (@{$expr_args->{'List'}}) {
-							if (substr($expr_arg,0,1) eq '*') {
-								my $label=substr($expr_arg,1);
+							if ( $expr_args->{'Set'}{$expr_arg}{'Type'} eq 'Label') {
+								my $label=$expr_arg;
 								$stref->{$code_unit}{$f}{'ReferencedLabels'}{$label}=$label;		
 							}
 						}
@@ -1643,48 +1649,48 @@ sub _find_consts_in_ast { (my $ast, my $consts)=@_;
     return $consts;
 } # END of _find_consts_in_ast
 
-sub _find_vars_in_ast { (my $ast, my $vars)=@_;
-    
-    if (ref($ast) eq 'ARRAY' and scalar @{$ast}>0) { 
-        if (ref($ast->[0]) ne 'ARRAY') {
-            if ( ($ast->[0] & 0xFF) == 1 or ($ast->[0] & 0xFF) == 10) { # '&', function call; '@', array                 
-                if (($ast->[0] & 0xFF) == 10) { 
-                my $mvar = $ast->[1];
-                $vars->{$mvar}={'Type'=>'Array'};
-                # Handle IndexVars
-				my $index_vars={};
-                $index_vars =  get_vars_from_expression($ast->[2],$index_vars);
-
-					for my $idx_var (keys %{ $index_vars }) {
-						if ($index_vars->{$idx_var}{'Type'} eq 'Array') {
-							delete $index_vars->{$idx_var};
-						}
-					}					
-					$vars->{$mvar}{'IndexVars'} = $index_vars;
-                } else {                
-                    $vars = _find_vars_in_ast($ast->[2], $vars);
-                }
-            } 
-            elsif ( ($ast->[0] & 0xFF) != 2 and ($ast->[0] & 0xFF) < 29) { # not a var or constant
-                for my $idx (1 .. scalar @{$ast} -1) {
-                    $vars  = _find_vars_in_ast( $ast->[$idx], $vars);
-                }
-            } 
-            elsif (($ast->[0] & 0xFF) == 2) { # a constant
-                # say Dumper($ast);
-                my $mvar = $ast->[1]; 
-                if (not exists $Config{'Macros'}{uc($mvar)} ) {
-				    $vars->{$mvar}={'Type'=>'Scalar'} ;
-                }
-            }
-        } else {
-             for my $idx (0 .. scalar @{$ast} -1) {
-                $vars  = _find_vars_in_ast( $ast->[$idx], $vars);
-            }
-        }
-    }
-    return $vars;
-} # END of _find_vars_in_ast
+#sub _find_vars_in_ast { (my $ast, my $vars)=@_;
+#    
+#    if (ref($ast) eq 'ARRAY' and scalar @{$ast}>0) { 
+#        if (ref($ast->[0]) ne 'ARRAY') {
+#            if ( ($ast->[0] & 0xFF) == 1 or ($ast->[0] & 0xFF) == 10) { # '&', function call; '@', array                 
+#                if (($ast->[0] & 0xFF) == 10) { 
+#                my $mvar = $ast->[1];
+#                $vars->{$mvar}={'Type'=>'Array'};
+#                # Handle IndexVars
+#				my $index_vars={};
+#                $index_vars =  get_vars_from_expression($ast->[2],$index_vars);
+#
+#					for my $idx_var (keys %{ $index_vars }) {
+#						if ($index_vars->{$idx_var}{'Type'} eq 'Array') {
+#							delete $index_vars->{$idx_var};
+#						}
+#					}					
+#					$vars->{$mvar}{'IndexVars'} = $index_vars;
+#                } else {                
+#                    $vars = _find_vars_in_ast($ast->[2], $vars);
+#                }
+#            } 
+#            elsif ( ($ast->[0] & 0xFF) != 2 and ($ast->[0] & 0xFF) < 29) { # not a var or constant
+#                for my $idx (1 .. scalar @{$ast} -1) {
+#                    $vars  = _find_vars_in_ast( $ast->[$idx], $vars);
+#                }
+#            } 
+#            elsif (($ast->[0] & 0xFF) == 2) { # a constant
+#                # say Dumper($ast);
+#                my $mvar = $ast->[1]; 
+#                if (not exists $Config{'Macros'}{uc($mvar)} ) {
+#				    $vars->{$mvar}={'Type'=>'Scalar'} ;
+#                }
+#            }
+#        } else {
+#             for my $idx (0 .. scalar @{$ast} -1) {
+#                $vars  = _find_vars_in_ast( $ast->[$idx], $vars);
+#            }
+#        }
+#    }
+#    return $vars;
+#} # END of _find_vars_in_ast
 
 
 # if the expression is a sub call (or in fact just a comma-sep list), return the arguments and also all variables that are not arguments
@@ -1692,86 +1698,19 @@ sub _find_vars_in_ast { (my $ast, my $vars)=@_;
 sub _find_args_vars_in_ast {(my $ast)=@_;
 
     my $all_vars={'List'=>[],'Set'=>{} };
+    $all_vars->{'Set'}=_find_vars_in_ast($ast,{});
+    
+    
     my $args={'List'=>[],'Set'=>{}};
-    if (ref($ast) eq 'ARRAY' and scalar @{$ast}>0) {
-            
-        if (ref($ast->[0]) ne 'ARRAY') { #                             
-                if (($ast->[0] & 0xFF) == 10) { # a(i,j)     
-                    my $arg = $ast->[1];
-                    my $vars = _find_vars_in_ast($ast,{} );
-                    delete $vars->{$arg}; 
-                    $all_vars->{'Set'}=$vars;
-                    $args->{'Set'}{$arg}={ 'Type'=>'Array','Vars'=>$vars};                	
-                } else {
-                	#TODO
-                }
-        } else { # This means probably a 
-        	#TODO
-        }       
-            
-            
-    for my  $idx (0 .. scalar @{$ast}-1) {
-        
-        if ( ($idx == 0) &&
-         (($ast->[$idx] & 0xFF)==10)
-         ) {# eq '@'
-            my $arg = $ast->[$idx+1];
-            my $vars = get_vars_from_expression($ast,{} );
-            delete $vars->{$arg}; 
-            $all_vars->{'Set'}=$vars;
-            $args->{'Set'}{$arg}={ 'Type'=>'Array','Vars'=>$vars};
-            last;
-        } else {
-            
-        if( ref( $ast->[$idx] ) ne '') {
-            # So it's an array
-            my $arg = $ast->[$idx][1];
-            if ( 
-                    (($ast->[$idx][0] & 0xFF) == 10) # eq '@' 
-                or  (($ast->[$idx][0] & 0xFF) == 2) #  eq '$'
-                or  (($ast->[$idx][0] & 0xFF) == 1) # eq '&'
-            ) {
-                if (
-                (($ast->[$idx][0] & 0xFF) == 10) or  # '@'
-                (($ast->[$idx][0] & 0xFF) == 1)  # '&'
-                ) {
-                    my $vars = get_vars_from_expression($ast->[$idx],{} );
-                    delete $vars->{$arg}; 
-                    $all_vars->{'Set'}={%{ $all_vars->{'Set'} },%{$vars}};
-                    if (
-                        ($ast->[$idx][0] & 0xFF) == 10 #eq '@'
-                    ) {
-                        $args->{'Set'}{$arg}={ 'Type'=>'Array','Vars'=>$vars};
-                    } elsif($ast->[$idx][1] eq 'do')    { 
-                        my $tast=[@{$ast->[$idx]}];
-                        while($tast->[1] eq 'do') {
-                            $tast=$tast->[2]
-                        }
-                        
-                        my $arg_from_implicit_do = $tast->[1];
-                        $args->{'Set'}{$arg_from_implicit_do}={ 'Type'=>'Array'};
-                        delete $all_vars->{'Set'}{$arg_from_implicit_do};
-                    }
-                } elsif($arg!~/__PH\d+__/ and $arg!~/_(?:CONCAT|COLON)_(?:PRE|POST)_/ and $arg!~/_PAREN_PAIR_/) {               
-                    $args->{'Set'}{$arg}={ 'Type'=>'Scalar'};
-                } 
-            } else {
-                # This is an expression in its own right. 
-                my $vars = get_vars_from_expression($ast->[$idx],{} );
-                        $all_vars->{'Set'}={%{ $all_vars->{'Set'} },%{$vars}};
-            }
-        } elsif (
-            ($idx==0) && 
-            (($ast->[$idx] & 0xFF) == 2) #eq '$'
-        ) { 
-            my $arg=$ast->[$idx+1];         
-            $args->{'Set'}{$arg}={ 'Type'=>'Scalar'} unless ( $arg=~/__PH\d+__/ or $arg=~/_(?:CONCAT|COLON)_PRE_/ or $arg=~/_PAREN_PAIR_/);
-        }
-        }
-    }   
+    $args->{'Set'}=_find_args_in_ast($ast,{});
     $args->{'List'} = [keys %{ $args->{'Set'} }]; 
-    $all_vars->{'List'} = [keys %{ $all_vars->{'Set'} }]; 
+    for my $arg(@{ $args->{'List'} } ){
+    	if (exists $all_vars->{'Set'}{$arg} ) {
+    		delete $all_vars->{'Set'}{$arg};
+    	}     	
     }
+     
+    $all_vars->{'List'} = [keys %{ $all_vars->{'Set'} }];
     return [$args,$all_vars];
 } # END of _find_args_vars_in_ast
 
@@ -1799,6 +1738,75 @@ sub _traverse_ast_with_action { (my $ast, my $acc, my $f) = @_;
   return ($ast, $acc);
 
 } # END of _traverse_ast_with_action
+
+sub _find_vars_in_ast { (my $ast, my $vars)=@_;	
+	
+  if ( ($ast->[0] & 0xFF) == 1 or
+       ($ast->[0] & 0xFF) == 10 ) { # array var or function/subroutine call
+       
+                if (($ast->[0] & 0xFF) == 10) { 
+                my $mvar = $ast->[1];
+                $vars->{$mvar}={'Type'=>'Array'};
+                # Handle IndexVars
+                my $index_vars={};
+                $index_vars =  _find_vars_in_ast($ast->[2],$index_vars);
+
+                    for my $idx_var (keys %{ $index_vars }) {
+                        if ($index_vars->{$idx_var}{'Type'} eq 'Array') {
+                            delete $index_vars->{$idx_var};
+                        }
+                    }                   
+                    $vars->{$mvar}{'IndexVars'} = $index_vars;
+                } else {                
+                    $vars = _find_vars_in_ast($ast->[2], $vars);
+                }
+  } elsif (($ast->[0] & 0xFF) == 2) { # scalar variable
+                my $mvar = $ast->[1]; 
+                if (not exists $Config{'Macros'}{uc($mvar)} ) {
+                    $vars->{$mvar}={'Type'=>'Scalar'} ;
+                }      
+  } elsif (($ast->[0] & 0xFF) > 28) { # constants
+    # constants
+    my $mvar = $ast->[1]; 
+    $vars->{$mvar}={'Type'=>$sigils[ ($ast->[0] & 0xFF) ]} ;
+  } else { # other operators    
+    for my $idx (1 .. scalar @{$ast}-1) {
+        $vars = _find_vars_in_ast($ast->[$idx],$vars);        
+    }
+  }	
+
+    return $vars;
+} # END of _find_vars_in_ast
+
+# I'm only looking for arguments, so I don't bother with index vars
+# Funny enough it seems I also need constant args because I look for ReferencedLabels
+# I think only keeping these would be enough; and also maybe I should give them a proper Type and sigil
+sub _find_args_in_ast { (my $ast, my $args) =@_;
+	if ( ($ast->[0] & 0xFF) == 0 ) {	
+	# descend
+	   $args = _find_args_in_ast($ast->[1], $args);
+	} elsif ( ($ast->[0] & 0xFF) == 27 ) {
+		#process the list and collect any scalar or array
+		for my $idx (1 .. scalar @{$ast}-1) {
+			# This is a comma-sep arg list. We test for $ and @
+			$args = _find_args_in_ast($ast->[$idx], $args);
+		}
+	}
+	elsif (($ast->[0] & 0xFF)== 2) {
+	        my $mvar = $ast->[1];
+	        $args->{$mvar}={'Type'=>'Scalar'} ;
+	    }
+	elsif (($ast->[0] & 0xFF)== 10) {
+	        my $mvar = $ast->[1];
+	        $args->{$mvar}={'Type'=>'Array'} ;
+	}  
+    elsif (($ast->[0] & 0xFF) > 28) { # constants
+    # constants
+    my $mvar = $ast->[1]; 
+    $args->{$mvar}={'Type'=>$sigils[ ($ast->[0] & 0xFF) ]} ;
+    }	
+    return $args;
+} # END of _find_args_in_ast
 
 1;
             

@@ -4,49 +4,70 @@ use Data::Dumper;
 use RefactorF4Acc::Parser::Expressions qw( parse_expression_faster interpret emit_expr_from_ast 
 _find_consts_in_ast
 _find_vars_in_ast
+_find_args_in_ast
 _traverse_ast_with_action
 @sigils
 );
 $RefactorF4Acc::Parser::Expressions::defaultToArrays=1;
 
 for my $str ('z(j+i,k*km)*p(i+1,j+jm)','i+1','v( i + 1 )','z','z(j,k)','j+k','i-im') {
-    say "TEST: $str";
+    print "$str\t";
     (my $ast, my $rest, my $err) = parse_expression_faster($str);#*p(i+1,j+jm)');
     if ($err) {say 'ERROR' } else {
         #say "AST: ".Dumper($ast);
-        say 'EMIT: '.emit_expr_from_ast($ast);
-
+        my $estr=emit_expr_from_ast($ast);
+        #say 'EMIT: '.$estr;
+        my $sstr=$str;
+        $sstr=~s/\s*//g;
+        say $sstr eq $estr ? 'OK' : 'NOK: '.$sstr.'<>'.$estr;
     }
 }
-#die;
+
 for my $str ("5+42+ +6/42/44-45*7", '6*7', '44 - -2', '(1+2*3)+3+4/5','4+(22*(33*44+1)+77)/2') {
-    say "\nTEST: $str";
+    print "$str\t";
+    #say "\nTEST: $str";
     (my $ast, my $rest, my $err) = parse_expression_faster($str);
     if ($err) {say 'ERROR' } else {
         #say "AST: ".Dumper($ast);
-        say 'EMIT: '.emit_expr_from_ast($ast);
+        my $estr=emit_expr_from_ast($ast);
+        #say 'EMIT: '.$estr;
 
-    }
+    
     #say Dumper($ast);
-    say eval($str);
-    say interpret($ast);
+    my $r1 = eval($str);
+    my $r2 = interpret($ast);
+    say $r1==$r2 ? 'OK' : 'NOK '.$r1.'<>'.$r2;
+        my $sstr=$str;
+        $sstr=~s/\s*//g;
+        say $sstr eq $estr ? 'OK' : 'NOK: '.$sstr.'<>'.$estr;
+        #say $sstr eq $estr ? 'OK' : 'NOK';
+    }
 }
-
 
 for my $str ('1 .and. .not. 0','1 <= 2', '(3.5 < 4) .or. (1 == 0.0)') {
-    say "\nTEST: $str";
+    print "$str\t";
+
+    #    say "\nTEST: $str";
     (my $ast, my $rest, my $err) = parse_expression_faster($str);
     if ($err) {say 'ERROR' } else {
         #say "AST: ".Dumper($ast);
-        say 'EMIT: '.emit_expr_from_ast($ast);
+        my $estr=emit_expr_from_ast($ast);
+        #say 'EMIT: '.$estr;
 
-    }
     my $str2=$str;
     $str2=~s/\.([a-z]+)\./$1/g;
     $str2=~s/not/!/g;
     #say Dumper($ast);
-    say eval($str2);
-    say interpret($ast);
+    #say eval($str2);
+    #    say interpret($ast);
+    my $r1 = eval($str2);
+    my $r2 = interpret($ast);
+     say $r1==$r2 ? 'OK' : 'NOK '.$r1.'<>'.$r2;
+        my $sstr=$str;
+        $sstr=~s/\s*//g;
+        say $sstr eq $estr ? 'OK' : 'NOK: '.$sstr.'<>'.$estr;
+        #say $sstr eq $estr ? 'OK' : 'NOK';
+    }
 }
 
 
@@ -63,19 +84,36 @@ for my $str ('*8','RANK ( N, *8, *9 )','f(x)(y)', 'a**b**3', 'B .and. .not. A .o
     'WRITE(*,*)',
     '*, I, J, ( VECTOR(I), I = 1, 5 )'
 ) {
-    say "\nTEST: $str";
+	for my $tt (1,2) {
+		if ($tt==1) {
+    #    say "\nTEST: $str";
+    print "$str\t";
+    
     (my $ast, my $rest, my $err) = parse_expression_faster($str);#*p(i+1,j+jm)');
     if ($err or $rest ne '') {say 'ERROR: <'.$rest.'>' } else {
-        #say "AST: ".Dumper($ast);
-        say 'EMIT: '.emit_expr_from_ast($ast);
+        my $estr=emit_expr_from_ast($ast);
+        my $sstr=$str;
+        $sstr=~s/\s*//g;
+        say $sstr eq $estr ? 'OK' : 'NOK: '. $sstr.'<>'.$estr;
     }
-    my $consts = _find_consts_in_ast($ast,{});
-    say Dumper($consts);
-    my $vars = _find_vars_in_ast($ast,{});
-    say Dumper($vars);
-    #    say Dumper($ast);
-        say "TRAVERSAL TEST";
-    ($ast, my $acc) = _traverse_ast_with_action($ast,{}, \&ff );
+		} else {
+			(my $ast, my $rest, my $err) = parse_expression_faster($str);#*p(i+1,j+jm)');
+        #say "AST: ".Dumper($ast);
+			if ($err or $rest ne '') {say 'ERROR: <'.$rest.'>' } else {
+#				say 'CONSTS: ';
+#                my $consts = _find_consts_in_ast($ast,{});
+#                say Dumper($consts);
+#                say 'VARS: ';
+#                my $vars = _find_vars_in_ast($ast,{});
+#                say Dumper($vars);				
+                say 'ARGS: ';
+                my $args = _find_args_in_ast($ast,{});
+                say Dumper($args);              
+    #        say "TRAVERSAL TEST";
+    #    ($ast, my $acc) = _traverse_ast_with_action($ast,{}, \&ff );
+			}
+		}
+	}
 }
 
 sub ff { (my $ast, my $acc) = @_;
