@@ -41,6 +41,7 @@ use Exporter;
   @sigils
 );
 
+our $NEW_PARSER = 1;
 our $defaultToArrays = 0;
 my $DBG=0;
 
@@ -101,7 +102,7 @@ my %F95_ops =(
 );
 # Returns the AST
 sub parse_expression { (my $exp, my $info, my $stref, my $f)=@_;
-	if (0) {
+	if (!$NEW_PARSER) {
 	my $preproc_expr = $exp;
 #	say "EXPR: $preproc_expr" if $preproc_expr=~/write.+path.numpath/; 
 	 # To make this robust, what I'll do is replace any '(' with '_OPEN_PAR_(' so that is looks like a function.
@@ -203,8 +204,6 @@ sub parse_expression { (my $exp, my $info, my $stref, my $f)=@_;
 	}
 #	say Dumper($ast);
     (my $ast2, my $grouped_messages) = _change_func_to_array($stref,$f,$info,$ast, $exp, {}) ;
-        say "TEST NEW ";#say Dumper($ast);        
-    _replace_function_calls_in_ast($ast);
     if ($W) {
         for my $warning_type (sort keys % {$grouped_messages->{'W'}} ) {
             for my $k (sort keys %{$grouped_messages->{'W'}{$warning_type}}) {
@@ -227,19 +226,10 @@ sub parse_expression { (my $exp, my $info, my $stref, my $f)=@_;
 	return $ast5;
 	} else {
 		(my $ast, my $rest, my $err, my $has_funcs)  = parse_expression_faster($exp);
-        #say "in parser: $exp => ".Dumper($ast);
 		if($err or $rest ne '') {
 			croak "PARSE ERROR in <$exp>, REST: $rest";
 		}
-#		carp $exp.':'.Dumper($ast);
-#say "HAS NO FUNCS: $exp " if !$has_funcs;
-        #    (my $ast2, my $grouped_messages) = $has_funcs ? _change_func_to_array($stref,$f,$info,$ast, $exp, {}) : ($ast,{});
-        #     say "TEST NEW ";#
-        #             if ($exp=~/z2/) {
-        #say "$exp: ".Dumper($ast);        
         (my $ast2, my $grouped_messages) = $has_funcs ? _replace_function_calls_in_ast($stref,$f,$info,$ast, $exp, {}) : ($ast,{});
-    #}
-    #say '';
 	    if ($W) {
 	        for my $warning_type (sort keys % {$grouped_messages->{'W'}} ) {
 	            for my $k (sort keys %{$grouped_messages->{'W'}{$warning_type}}) {
@@ -255,7 +245,6 @@ sub parse_expression { (my $exp, my $info, my $stref, my $f)=@_;
 
 # This function changes functions to arrays
 sub _change_func_to_array { (my $stref, my $f,  my $info, my $ast, my $exp, my $grouped_messages)=@_;
-    if (1) {
         #my $DBG=1;
 	my $code_unit = sub_func_incl_mod( $f, $stref );
 	if (ref($ast) eq 'ARRAY') {
@@ -387,10 +376,7 @@ sub _change_func_to_array { (my $stref, my $f,  my $info, my $ast, my $exp, my $
 		}		
 	}
 	}
-    #} else {
-    #    say "TEST NEW ";#say Dumper($ast);
-    #_replace_function_calls_in_ast($ast);
-}
+
 	return  ($ast, $grouped_messages);#($stref,$f, $ast);	
 	
 } # END of _change_func_to_array()
@@ -542,6 +528,8 @@ sub emit_expression {(my $ast, my $expr_str)=@_;
 # All variables in the expression
 # $vars = {} to start
 sub get_vars_from_expression {(my $ast, my $vars)=@_;
+    if ($NEW_PARSER) {
+    } else {
 #	croak Dumper($ast) unless 
 	if (ref($ast) ne 'ARRAY') {
 		if ($ast=~/([a-z]\w*)/) {
@@ -589,6 +577,7 @@ sub get_vars_from_expression {(my $ast, my $vars)=@_;
 			}
 		}				
 	}
+}
 	return $vars;		
 } # END of get_vars_from_expression
 
@@ -1281,6 +1270,9 @@ our @sigils = ( '{', '&', '$', '+', '-', '*', '/', '%', '**', '=', '@', '#', ':'
 
             $state=5;
         }
+        if ($state==5 and not defined $op) {
+        	return ($expr_ast, $str, 1,0);
+        }
         # Append to the AST
         if ($state==5 ) {
             if ($prev_lev==0) { # start
@@ -1484,8 +1476,8 @@ sub emit_expr_from_ast { (my $ast)=@_;
     } elsif ($opcode==28 ) {#eq '(/'
         my $v = (ref($exp) eq 'ARRAY') ? emit_expr_from_ast($exp) : $exp;
         return "(/ $v /)";
-    } elsif ($opcode==2 or $opcode>28) {# eq '$'
-            return $exp;
+    } elsif ($opcode==2 or $opcode>28) {# eq '$' or constants    
+    	return ($opcode == 34) ?  "*$exp" : $exp;            
     } elsif ($opcode == 21 or $opcode == 4 or $opcode == 3) {# eq '.not.' '-'
         my $v = (ref($exp) eq 'ARRAY') ? emit_expr_from_ast($exp) : $exp;
             return $sigils[$opcode]. $v;
@@ -1516,7 +1508,7 @@ sub emit_expr_from_ast { (my $ast)=@_;
 } else {return $ast;}
 } # END of emit_expr_from_ast
 
-# So 
+# 
 sub _replace_function_calls_in_ast { #(my $ast)=@_;
 (my $stref, my $f,  my $info, my $ast, my $exp, my $grouped_messages)=@_;
     
@@ -1729,7 +1721,6 @@ sub _traverse_ast_with_action { (my $ast, my $acc, my $f) = @_;
   } else { # other operators
 	$acc=$f->($ast,$acc);
 	for my $idx (1 .. scalar @{$ast}-1) {
-        #$acc=$f->($ast->[$idx],$acc);
 		(my $entry, $acc) = _traverse_ast_with_action($ast->[$idx],$acc, $f);
 		$ast->[$idx] = $entry;
 	}

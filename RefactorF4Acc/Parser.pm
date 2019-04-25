@@ -3436,7 +3436,155 @@ sub _identify_loops_breaks {
 	return $stref;
 }    # END of _identify_loops_breaks()
 # -----------------------------------------------------------------------------
+
+=info_read_inquire_write_print
+
+READ( [ UNIT=] u [, [ FMT=] f ] [, IOSTAT= ios ] [, REC= rn ] [, END= s ] [, ERR= s ] ) iolist
+READ f [, iolist ]
+READ([UNIT=] u, [NML=] grname [,IOSTAT=ios ] [,END=s ] [,ERR=s ] )
+READ grname
+
+An alternate for the REC=rn form is allowed, as follows:
+READ( u 'rn … ) iolist
+u Unit identifier of the unit connected to the file
+f Format identifier, i.e. * or a label or a variable name
+ios I/O status specifier
+rn Record number to be read
+s Statement label for end of file processing
+iolist List of variables
+grname Name of a namelist group
+
+READ( 1, 2, ERR=8, END=9, IOSTAT=N ) X, Y
+READ( 1, REC=3, IOSTAT=N, ERR=8 ) V
+READ( *, * ) A, V
+READ *, A, V
+READ( CA, 1 ) L, R
+READ( 3, '(5F4.1)') V
+READ( 1, G )
+READ( UNIT=1, NML=G )
+
+
+INQUIRE( [ UNIT=] u, slist )
+INQUIRE( FILE=fn, slist )
+fn Name of the file being queried
+u Unit of the file being queried
+slist Specifier list
+
+The INQUIRE slist can include one or more of the following, in any order:
+• ERR = s
+• EXIST = ex
+• OPENED = od
+• NAMED = nmd
+• ACCESS = acc
+• SEQUENTIAL = seq
+• DIRECT = dir
+• FORM = fm
+• FORMATTED = fmt
+• UNFORMATTED = unf
+• NAME = fn
+• BLANK = blnk
+• IOSTAT = ios
+• NUMBER = num
+• RECL = rcl
+• NEXTREC = nr
+
+PRINT f [, iolist ]
+PRINT grname
+f Format identifier, i.e. * or a label or a variable name
+iolist List of variables, substrings, arrays, records, …
+grname Name of the namelist group
+
+OPEN( KEYWORD1=value1, KEYWORD2=value2, … )
+
+CLOSE( [ UNIT=] u [, STATUS= sta] [, IOSTAT= ios] [, ERR= s ] )
+
+
+WRITE( [ UNIT=] u [, [FMT=] f ] [, IOSTAT=ios ] [, REC=rn ] [, ERR=s ] ) iolist
+WRITE( [ UNIT= ] u, [ NML= ] grname [, IOSTAT= ios ] [, ERR= s ] )
+u Unit identifier of the unit connected to the file
+f Format identifier
+ios I/O status specifier
+rn Record number
+s Error specifier (statement label)
+iolist List of variables
+grname Name of the namelist group
+
+An alternate for the REC=rn form is allowed, as follows:
+WRITE( u ' rn … ) iolist
+
+
+WRITE(*,*) x, f(x)
+WRITE( 1, REC=3, IOSTAT=N, ERR=8 ) V
+WRITE( 1 ' 3, IOSTAT=N, ERR=8 ) V
+
+For READ and WRITE we can have this stupid non-standard syntax:
+
+my $has_a_single_quote = ($tline =~ tr/\'//) % 2;
+
+if ($has_a_single_quote) {
+	$tline=~s/\'/, rec=/;
+}
+
+
+
+We have 3 different cases:
+
+1. operation (arglist) : READ, INQUIRE, OPEN, CLOSE, WRITE
+2. operation (arglist) iolist : READ, WRITE
+3. operation comma_sep_list : READ, PRINT
+
+So what I will do is try to parse. If there is no error we have case 1.
+If there is an error and the  $rest starts with a comma, it is case 3. 
+Otherwise it is case 2.
+ 
+ (my $ast, my $rest, my $err) = parse_expression_faster($tline)
+ if ($err) {
+my $starts_with_comma = $tline =~/^\s*,/; 
+
+if ($starts_with_comma) {
+    # Case 3.
+    #Add parens around the arglist and reparse
+    
+} else {
+	# Case 2.
+	#The $rest string contains the part after the closing parens so just parse that as well
+	
+}
+ } else {
+ 	# No error, Case 1. so just use $ast
+ 	
+ }
+
+
+=cut
+
+
 sub _parse_read_write_print {
+    ( my $line, my $info, my $stref, my $f ) = @_;
+    my $sub_or_func = sub_func_incl_mod( $f, $stref );
+    my $Sf          = $stref->{$sub_or_func}{$f};
+    
+    my $call =
+        exists $info->{'ReadCall'}  ? 'read'
+      : exists $info->{'InquireCall'} ? 'inquire'
+      : exists $info->{'WriteCall'} ? 'write'
+      :                               'print';
+
+    $info->{'CallAttrs'} = { 'Set' => {}, 'List' => [] };
+    my $tline = $line;
+    # Parse
+
+    if ( $call eq 'read' ) {
+        #   For Open, Write and Read
+    } else {
+        # For Print, 
+        $tline =~ s/print[^\,]+\,\s*//;
+    }
+    
+    return $info;
+}    # END of _parse_read_write_print()
+
+sub _parse_read_write_print_OLD {
 	( my $line, my $info, my $stref, my $f ) = @_;
 	
 #	die "<$line>" if $line=~/write.printstring.+rmin.+rmax/i;
@@ -3660,7 +3808,7 @@ The code below does the following:
 	}
 
 	return $info;
-}    # END of _parse_read_write_print()
+}    # END of _parse_read_write_print_OLD
 
 # -----------------------------------------------------------------------------
 sub _parse_assignment {
@@ -3701,9 +3849,22 @@ sub _parse_assignment {
 	#	say "LHS:".$line ;
 	#	say "LHS_AST:".Dumper($lhs_ast) if $lhs_ast->[1] eq 'len';
 	# FIXME: must make sure here that lhs is NOT a reserverd word, dammit!
-	( my $lhs_args, my $lhs_vars ) =
-	  @{ get_args_vars_from_expression($lhs_ast) };
+	# WV 2019-04-24 seems to me I could use get_vars_from_expression() as the LHS is eihter a scalar or an array access
+	# That returns a href and we can just turn that into a list as usual
+	
+#	( my $lhs_args, my $lhs_vars ) =
+#	  @{ get_args_vars_from_expression($lhs_ast) };
 
+    (my $lhs_varname, my $lhs_var_attrs)  = each %{ get_vars_from_expression($lhs_ast) };
+	my $lhs_index_vars={'List'=>[],'Set'=>{}};
+	if (exists $lhs_var_attrs->{'IndexVars'}) {
+		for my $maybe_idx_var (sort keys %{ $lhs_var_attrs->{'IndexVars'} } ) {
+			if ($lhs_var_attrs->{'IndexVars'}{$maybe_idx_var }{'Type'} eq 'Scalar') {
+				push @{$lhs_index_vars->{'List'}},$maybe_idx_var ;
+				$lhs_index_vars->{'Set'}{$maybe_idx_var}= $lhs_var_attrs->{'IndexVars'}{$maybe_idx_var };
+			}
+		}		
+	}
 	#	say 'ARGS: '.Dumper($lhs_args);
 	#	say 'VARS:'.Dumper($lhs_vars)  if $lhs_ast->[1] eq 'len';
 #	say $line . '=>'.$lhs.Dumper($lhs_ast);
@@ -3736,26 +3897,27 @@ sub _parse_assignment {
 	}
 
 	#	say 'RHS_AST:'.Dumper($rhs_ast );
-	( my $rhs_args, my $rhs_vars ) =
-	  @{ get_args_vars_from_expression($rhs_ast) };
-
+	# Same here, why not just use get_vars_from_expression() ?
+#	( my $rhs_args, my $rhs_vars ) =
+#	  @{ get_args_vars_from_expression($rhs_ast) };
+    my $rhs_vars_set  = get_vars_from_expression($rhs_ast) ;
 	#	say 'RHS_ARGS:'.Dumper($rhs_args);
 	my $rhs_all_vars = {
-		'Set'  => { %{ $rhs_args->{'Set'} },  %{ $rhs_vars->{'Set'} } },
-		'List' => [ @{ $rhs_args->{'List'} }, @{ $rhs_vars->{'List'} } ]
+		'Set'  => $rhs_vars_set,
+		'List' => [ sort keys %{ $rhs_vars_set } ]
 	};
 
 	#{Lhs => {VarName, ArrayOrScalar, IndexExpr}, Rhs => {Expr, VarList}}
-	if ( scalar @{ $lhs_args->{'List'} } > 0 ) {
-		my $lhs_varname = $lhs_args->{'List'}[0];
+	if ( defined  $lhs_varname and defined $lhs_var_attrs) {
 
 		$info->{'Lhs'} = {
 			'VarName'       => $lhs_varname,
-			'IndexVars'     => $lhs_vars,
-			'ArrayOrScalar' => $lhs_args->{'Set'}{$lhs_varname}{'Type'},
+			'IndexVars'     => $lhs_index_vars,
+			'ArrayOrScalar' => $lhs_var_attrs->{'Type'},
 			'ExpressionAST' => $lhs_ast
 		};
 	} else {
+		croak 'SHOULD NOT HAPPEN: '.Dumper($lhs_ast);
 		$info->{'Lhs'} = {
 			'ArrayOrScalar' => 'Other',
 			'ExpressionAST' => $lhs_ast

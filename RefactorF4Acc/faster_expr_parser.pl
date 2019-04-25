@@ -82,7 +82,18 @@ for my $str ('*8','RANK ( N, *8, *9 )','f(x)(y)', 'a**b**3', 'B .and. .not. A .o
     'u(i+1,j+jm)',
     'a,b',
     'WRITE(*,*)',
-    '*, I, J, ( VECTOR(I), I = 1, 5 )'
+    '*, I, J, ( VECTOR(I), I = 1, 5 )',
+    'p(i-1,j+jm,0)',
+    'lhs_var',
+    "READ( 3, '(5F4.1)')",
+    'READ( 1, 2, ERR=8, END=9, IOSTAT=N ) X',
+    'READ( 1, 2, ERR=8, END=9, IOSTAT=N ) X, Y',
+    'READ FMT, A, V',
+    'READ *, A, V',
+    'READ *, AV',
+    'READ( *, * )',
+    'READ( *, FMT )',
+    'READ( *)'
 ) {
 	for my $tt (1,2) {
 		if ($tt==1) {
@@ -90,6 +101,7 @@ for my $str ('*8','RANK ( N, *8, *9 )','f(x)(y)', 'a**b**3', 'B .and. .not. A .o
     print "$str\t";
     
     (my $ast, my $rest, my $err) = parse_expression_faster($str);#*p(i+1,j+jm)');
+    say "AST: ".Dumper($ast);
     if ($err or $rest ne '') {say 'ERROR: <'.$rest.'>' } else {
         my $estr=emit_expr_from_ast($ast);
         my $sstr=$str;
@@ -103,12 +115,12 @@ for my $str ('*8','RANK ( N, *8, *9 )','f(x)(y)', 'a**b**3', 'B .and. .not. A .o
 #				say 'CONSTS: ';
 #                my $consts = _find_consts_in_ast($ast,{});
 #                say Dumper($consts);
-#                say 'VARS: ';
-#                my $vars = _find_vars_in_ast($ast,{});
-#                say Dumper($vars);				
-                say 'ARGS: ';
-                my $args = _find_args_in_ast($ast,{});
-                say Dumper($args);              
+                say 'VARS: ';
+                my $vars = _find_vars_in_ast($ast,{});
+                say Dumper(each %{$vars});				
+#                say 'ARGS: ';
+#                my $args = _find_args_in_ast($ast,{});
+#                say Dumper($args);              
     #        say "TRAVERSAL TEST";
     #    ($ast, my $acc) = _traverse_ast_with_action($ast,{}, \&ff );
 			}
