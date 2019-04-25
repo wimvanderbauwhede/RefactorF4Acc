@@ -3568,7 +3568,10 @@ sub _parse_read_write_print {
         exists $info->{'ReadCall'}  ? 'read'
       : exists $info->{'InquireCall'} ? 'inquire'
       : exists $info->{'WriteCall'} ? 'write'
-      :                               'print';
+      : exists $info->{'OpenCall'} ? 'open'
+      : exists $info->{'CloseCall'} ? 'close'
+      : exists $info->{'PrintCall'} ? 'print'
+      : croak "Unknown call: $line";
 
     $info->{'CallAttrs'} = { 'Set' => {}, 'List' => [] };
     my $tline = $line;
