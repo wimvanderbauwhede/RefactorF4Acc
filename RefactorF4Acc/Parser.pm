@@ -5,7 +5,7 @@ use RefactorF4Acc::Utils;
 use RefactorF4Acc::CallTree qw( add_to_call_tree );
 use RefactorF4Acc::Refactoring::Common qw( emit_f95_var_decl get_f95_var_decl stateful_pass ); 
 use RefactorF4Acc::Parser::SrcReader qw( read_fortran_src );
-use RefactorF4Acc::Parser::Expressions qw( get_vars_from_expression parse_expression  get_args_vars_from_expression get_args_vars_from_subcall emit_expression get_consts_from_expression);
+use RefactorF4Acc::Parser::Expressions qw( get_vars_from_expression parse_expression  get_args_vars_from_expression get_args_vars_from_subcall emit_expression emit_expr_from_ast get_consts_from_expression);
 use RefactorF4Acc::Translation::OpenCLC qw( add_to_C_build_sources );    # OBSOLETE
 use RefactorF4Acc::Analysis::LoopDetect qw( outer_loop_start_detect );
 use RefactorF4Acc::Analysis::ArgumentIODirs qw(  &conditional_assignment_fsm );
@@ -1014,7 +1014,7 @@ or $line=~/^character\s*\(\s*len\s*=\s*[\w\*]+\s*\)/
 				if ($do_stmt=~/while/) {
 					$do_stmt=~s/while\s*//;
 					# we can parse this as a normal expression I think						
-					my $ast = parse_expression($do_stmt,  $info,  $stref,  $f);
+					(my $ast, my $rest, my $err) = parse_expression($do_stmt,  $info,  $stref,  $f);
 					my $mvars = get_vars_from_expression($ast,{});
 					my $vars= [ grep {!/_OPEN_PAR_/} keys %{$mvars} ];
 					warn 'FIXME: support for WHILE: '.$line;#.Dumper($vars);
@@ -1138,7 +1138,7 @@ or $line=~/^character\s*\(\s*len\s*=\s*[\w\*]+\s*\)/
 				}
 				if ($cond=~/^\d+$/) { $cond.='+0';}
 #				say "COND:$cond";  
-					my $ast = parse_expression($cond,  $info,  $stref,  $f);
+					(my $ast, my $rest, my $err) = parse_expression($cond,  $info,  $stref,  $f);
 					$info->{'CondExecExprAST'}= $ast;
 					my $vars_in_cond_expr =  get_vars_from_expression( $ast,{});
 					for my $macro (keys %{$Config{'Macros'}} ) {
@@ -1796,7 +1796,7 @@ sub _parse_subroutine_and_function_calls {
 					}
 				}
 				
-				my $ast = parse_expression( "$name($argstr)", $info, $stref, $f );
+				(my $ast, my $rest, my $err) = parse_expression( "$name($argstr)", $info, $stref, $f );
 				( my $expr_args, my $expr_other_vars ) = get_args_vars_from_subcall($ast);
 				for my $expr_arg(@{$expr_args->{'List'}}) {
 					if (substr($expr_arg,0,1) eq '*') {
@@ -2820,7 +2820,7 @@ sub __parse_f77_par_decl {
 				} elsif ( $val =~ /^(\-?(?:\d+|\d*\.\d*)(?:[edq][\-\+]?\d+)?)$/ ) {
 					$type = 'real';
 				} elsif ( $val =~/[\*\+\-\/]/ ) { # an expression 
-						my $ast = parse_expression($val, $info, $stref, $f);
+						(my $ast, my $rest, my $err) = parse_expression($val, $info, $stref, $f);
 						my $consts = get_consts_from_expression($ast,{});
 						for my $const_type (values %{$consts}) {
 							if ($const_type eq 'real') {
@@ -2953,7 +2953,7 @@ if ($line=~/^character/) {
          
          for my $var_dim (@vars_dims) {
          	
-         	my $ast=parse_expression($var_dim, $info, $stref, $f);
+         	(my $ast, my $rest, my $err)=parse_expression($var_dim, $info, $stref, $f);
             #say "EXP: $var_dim AST1:".Dumper($ast);
          	my $var = _get_var_from_ast( $ast );
          	my $dim = _get_dim_from_ast( $ast );
@@ -2994,7 +2994,7 @@ if ($line=~/^character/) {
         
 		for my $var_dim_len (@vars_dims_lens) {
 #			say $var_dim_len;
-         	my $ast=parse_expression($var_dim_len, $info, $stref, $f);
+         	(my $ast, my $rest, my $err)=parse_expression($var_dim_len, $info, $stref, $f);
 #         	say "AST2:".Dumper($ast);
          	my $var = _get_var_from_ast( $ast );#$ast->[1][0] eq '@' ? $ast->[1][1] : $ast->[1];         	         	
 			my $dim=_get_dim_from_ast( $ast );	
@@ -3036,7 +3036,7 @@ if ($line=~/^character/) {
         my @vars = _parse_comma_sep_expr_list($vars_str);
 #        say "$f CASE3: $line => len=".$len.", dim=".$dim.", vars=".join(';',@vars);
          for my $var (@vars) {
-         	my $ast=parse_expression($var, $info, $stref, $f);
+         	(my $ast, my $rest, my $err)=parse_expression($var, $info, $stref, $f);
 #         	say "AST3:".Dumper($ast);
          	my $var = _get_var_from_ast( $ast );
          	if ($len eq '_PARENS_STAR_') {
@@ -3074,7 +3074,7 @@ if ($line=~/^character/) {
         		my $var =$1;
         		my $len = $2;
         		my $dim_str = $3;
-        		my $ast=parse_expression($dim_str, $info, $stref, $f);
+        		(my $ast, my $rest, my $err)=parse_expression($dim_str, $info, $stref, $f);
 				my $dim = _get_dim_from_ast( $ast );
 				if ($len eq '_PARENS_STAR_') {
          		$len='*';
@@ -3106,7 +3106,7 @@ if ($line=~/^character/) {
          
          for my $var_dim (@vars_dims) {
          	
-         	my $ast=parse_expression($var_dim, $info, $stref, $f);
+         	(my $ast, my $rest, my $err)=parse_expression($var_dim, $info, $stref, $f);
 #         	say "AST1:".Dumper($ast);
          	my $var = _get_var_from_ast( $ast );
          	my $dim = _get_dim_from_ast( $ast );
@@ -3438,6 +3438,11 @@ sub _identify_loops_breaks {
 # -----------------------------------------------------------------------------
 
 =info_read_inquire_write_print
+ACCEPT f [, iolist ]
+ACCEPT grname
+f Format identifier
+iolist List of variables, substrings, arrays, and records
+grname Name of the namelist group
 
 READ( [ UNIT=] u [, [ FMT=] f ] [, IOSTAT= ios ] [, REC= rn ] [, END= s ] [, ERR= s ] ) iolist
 READ f [, iolist ]
@@ -3517,44 +3522,12 @@ WRITE(*,*) x, f(x)
 WRITE( 1, REC=3, IOSTAT=N, ERR=8 ) V
 WRITE( 1 ' 3, IOSTAT=N, ERR=8 ) V
 
-For READ and WRITE we can have this stupid non-standard syntax:
-
-my $has_a_single_quote = ($tline =~ tr/\'//) % 2;
-
-if ($has_a_single_quote) {
-	$tline=~s/\'/, rec=/;
-}
-
-
 
 We have 3 different cases:
 
 1. operation (arglist) : READ, INQUIRE, OPEN, CLOSE, WRITE
 2. operation (arglist) iolist : READ, WRITE
 3. operation comma_sep_list : READ, PRINT
-
-So what I will do is try to parse. If there is no error we have case 1.
-If there is an error and the  $rest starts with a comma, it is case 3. 
-Otherwise it is case 2.
- 
- (my $ast, my $rest, my $err) = parse_expression_faster($tline)
- if ($err) {
-my $starts_with_comma = $tline =~/^\s*,/; 
-
-if ($starts_with_comma) {
-    # Case 3.
-    #Add parens around the arglist and reparse
-    
-} else {
-	# Case 2.
-	#The $rest string contains the part after the closing parens so just parse that as well
-	
-}
- } else {
- 	# No error, Case 1. so just use $ast
- 	
- }
-
 
 =cut
 
@@ -3563,27 +3536,49 @@ sub _parse_read_write_print {
     ( my $line, my $info, my $stref, my $f ) = @_;
     my $sub_or_func = sub_func_incl_mod( $f, $stref );
     my $Sf          = $stref->{$sub_or_func}{$f};
-    
-    my $call =
-        exists $info->{'ReadCall'}  ? 'read'
-      : exists $info->{'InquireCall'} ? 'inquire'
-      : exists $info->{'WriteCall'} ? 'write'
-      : exists $info->{'OpenCall'} ? 'open'
-      : exists $info->{'CloseCall'} ? 'close'
-      : exists $info->{'PrintCall'} ? 'print'
-      : croak "Unknown call: $line";
-
-    $info->{'CallAttrs'} = { 'Set' => {}, 'List' => [] };
-    my $tline = $line;
-    # Parse
-
-    if ( $call eq 'read' ) {
-        #   For Open, Write and Read
-    } else {
-        # For Print, 
-        $tline =~ s/print[^\,]+\,\s*//;
+    my $tline=$line;
+    #    For READ and WRITE we can have this stupid non-standard syntax:
+    if (exists $info->{'ReadCall'} or exists $info->{'WriteCall'} ) {
+        my $has_a_single_quote = ($tline =~ tr/\'//) % 2;
+        if ($has_a_single_quote) {
+        	$tline=~s/\'/, rec=/;
+        }
     }
-    
+say "TLINE: $tline";
+    my $attrs_ast=[];
+    my $exprs_ast=[];
+    my $err=0;
+    my $rest='';
+    if ($tline=~/^\w+\s*\(/) {
+        ($attrs_ast, $rest, $err) = parse_expression($tline,$info,$stref,$f);
+        if ($err) {
+            # Case 2.
+            #The $rest string contains the part after the closing parens so just parse that as well
+            ($exprs_ast, $rest, $err) = parse_expression($rest,$info,$stref,$f);
+        } 
+            #        else {
+            # No error, Case 1. so just use $attrs_ast
+            #        }
+    } else {
+        # Case 3.
+        $tline=~s/^(\w+)\s*//;
+        $tline="$1($tline)";
+        say "TLINE3: $tline";
+
+        ($attrs_ast, $rest, $err) = parse_expression($tline,$info,$stref,$f);
+        say Dumper($attrs_ast, $rest, $err);
+        say emit_expr_from_ast($attrs_ast);
+    }
+    if ($err or $rest ne '') {
+        croak "Parse failed: $line";
+    }
+#croak Dumper( emit_expr_from_ast($attrs_ast),emit_expr_from_ast($exprs_ast));
+#    croak Dumper($attrs_ast,$exprs_ast);
+    $info->{'CallAttrs'} = { 'Set' => {}, 'List' => [] };
+    $info->{'CallArgs'} = { 'Set' => {}, 'List' => [] };
+    $info->{'ImpliedDoVars'} = { 'Set' => {}, 'List' => [] };
+    $info->{'ExprVars'} =  { 'Set' => {}, 'List' => [] };
+
     return $info;
 }    # END of _parse_read_write_print()
 
@@ -3749,7 +3744,7 @@ The code below does the following:
 #					say 'VARS:',Dumper(@vars);
 					my $fake_range_expr = 'range(' . join( ',', @vars ) . ')';
 #					say "RANGE:<$fake_range_expr>" ;
-					my $ast = parse_expression( $fake_range_expr, $info, $stref, $f );
+					(my $ast, my $rest, my $err) = parse_expression( $fake_range_expr, $info, $stref, $f );
 					( my $call_args, my $other_vars ) = @{ get_args_vars_from_expression($ast) };
 					$info->{'ImpliedDoVars'}=$call_args;
 					$info->{'ExprVars'}{'Set'} = {
@@ -3765,7 +3760,7 @@ The code below does the following:
 						# FIXME: if $mvar is an array access expr this does never work
 						next if exists $F95_reserved_words{$mvar};
 						next if exists $Config{'Macros'}{uc($mvar)};
-						my $ast = parse_expression( $mvar, $info, $stref, $f );
+						(my $ast, my $rest, my $err) = parse_expression( $mvar, $info, $stref, $f );
 						( my $call_args, my $other_vars ) = @{ get_args_vars_from_expression($ast) };
 						$info->{'CallArgs'}{'Set'} = {
 							%{ $info->{'CallArgs'}{'Set'} },
@@ -3799,7 +3794,7 @@ The code below does the following:
 					};
 				}
 			} else {    # ok, maybe we can parse this
-				my $ast =
+				(my $ast, my $rest, my $err) =
 				  parse_expression( "$call($tline)", $info, $stref, $f );
 				( my $args, my $other_vars ) = @{ get_args_vars_from_expression($ast) };
 				$info->{'CallArgs'} =
@@ -3843,22 +3838,22 @@ sub _parse_assignment {
 #		$tline =~ s/:,/,0,/g; # FIXME: this is WRONG. All it does is fix the parse error!
 #		$tline =~ s/:/,/g; #
 
-	#    say "ALINE: $tline";
+    #    say "ALINE: $tline";
 	( my $lhs, my $rhs ) = split( /\s*=\s*/, $tline );
 
 	#     say "LHS: $lhs, RHS: $rhs";
-	my $lhs_ast = parse_expression( $lhs, $info, $stref, $f );
+	(my $lhs_ast, my $rest, my $err) = parse_expression( $lhs, $info, $stref, $f );
 
-	#	say "LHS:".$line ;
-	#	say "LHS_AST:".Dumper($lhs_ast) if $lhs_ast->[1] eq 'len';
+    #		say "LHS:".$lhs ;
+    #		say "LHS_AST:".Dumper($lhs_ast) ;#if $lhs_ast->[1] eq 'len';
 	# FIXME: must make sure here that lhs is NOT a reserverd word, dammit!
 	# WV 2019-04-24 seems to me I could use get_vars_from_expression() as the LHS is eihter a scalar or an array access
 	# That returns a href and we can just turn that into a list as usual
 	
 #	( my $lhs_args, my $lhs_vars ) =
 #	  @{ get_args_vars_from_expression($lhs_ast) };
-
-    (my $lhs_varname, my $lhs_var_attrs)  = each %{ get_vars_from_expression($lhs_ast) };
+    my $lhs_vars = get_vars_from_expression($lhs_ast);
+    (my $lhs_varname, my $lhs_var_attrs)  =  each %{ $lhs_vars } ;
 	my $lhs_index_vars={'List'=>[],'Set'=>{}};
 	if (exists $lhs_var_attrs->{'IndexVars'}) {
 		for my $maybe_idx_var (sort keys %{ $lhs_var_attrs->{'IndexVars'} } ) {
@@ -3884,7 +3879,7 @@ sub _parse_assignment {
 		  . $stref->{$code_unit}{$f}{'Source'}
 		  . "'\nThis is DANGEROUS, please fix your code!" if $W;
 		$stref->{$code_unit}{$f}{'MaskedIntrinsics'}{ $lhs_ast->[1] } = 1;
-		$lhs_ast = parse_expression( $lhs, $info, $stref, $f );
+		($lhs_ast, $rest, $err) = parse_expression( $lhs, $info, $stref, $f );
 	}
 	my $array_constant=0;
 	if ($rhs=~/\(\/.+\/\)/) {
@@ -3893,7 +3888,7 @@ sub _parse_assignment {
 		$array_constant=1;
 	}
 	
-	my $rhs_ast = parse_expression( $rhs, $info, $stref, $f );
+	(my $rhs_ast, my $rest_rhs, my $err_rhs) = parse_expression( $rhs, $info, $stref, $f );
 	if ($array_constant==1) {
 		$rhs_ast->[1]='_OPEN_CONST_ARRAY_';
 #		croak 'RHS_AST:'.Dumper($rhs_ast ).emit_expression($rhs_ast, '');
@@ -4222,8 +4217,8 @@ sub _parse_data_declaration { (my $line,my $info, my $stref, my $f) = @_;
 	my @data_decl_pair_strs = split(/\/\s*,/,$mline);
 	for my $data_decl_pair_str (@data_decl_pair_strs ) {
 		(my $nlist_str, my $clist_str) =split(/\s*\/\s*/,$data_decl_pair_str ); 
-		my $nlist_ast = parse_expression($nlist_str);
-		my $clist_ast = parse_expression($clist_str);
+		(my $nlist_ast, my $rest, my $err) = parse_expression($nlist_str);
+		(my $clist_ast, $rest, $err) = parse_expression($clist_str);
 #		push @data_decl_ast, [$nlist_as, $clist_ast];
 	my $info={};
 	$info->{'NList'}{'Ast'} = $nlist_ast;

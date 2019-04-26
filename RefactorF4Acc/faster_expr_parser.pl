@@ -93,7 +93,8 @@ for my $str ('*8','RANK ( N, *8, *9 )','f(x)(y)', 'a**b**3', 'B .and. .not. A .o
     'READ *, AV',
     'READ( *, * )',
     'READ( *, FMT )',
-    'READ( *)'
+    'READ( *)',
+    'time'
 ) {
 	for my $tt (1,2) {
 		if ($tt==1) {

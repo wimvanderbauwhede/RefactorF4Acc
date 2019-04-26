@@ -227,9 +227,11 @@ sub parse_expression { (my $exp, my $info, my $stref, my $f)=@_;
 	} else {
 		(my $ast, my $rest, my $err, my $has_funcs)  = parse_expression_faster($exp);
 		if($err or $rest ne '') {
-			croak "PARSE ERROR in <$exp>, REST: $rest";
+            #croak "PARSE ERROR in <$exp>, REST: $rest";
+            return ($ast,$rest,$err);
 		}
         (my $ast2, my $grouped_messages) = $has_funcs ? _replace_function_calls_in_ast($stref,$f,$info,$ast, $exp, {}) : ($ast,{});
+        #        say Dumper($ast2);
 	    if ($W) {
 	        for my $warning_type (sort keys % {$grouped_messages->{'W'}} ) {
 	            for my $k (sort keys %{$grouped_messages->{'W'}{$warning_type}}) {
@@ -238,7 +240,7 @@ sub parse_expression { (my $exp, my $info, my $stref, my $f)=@_;
 	            }
 	        }
 	    }		
-	    return $ast2;
+	    return ($ast2,$rest,$err);
 	}
 	
 } # END of parse_expression()
@@ -528,7 +530,9 @@ sub emit_expression {(my $ast, my $expr_str)=@_;
 # All variables in the expression
 # $vars = {} to start
 sub get_vars_from_expression {(my $ast, my $vars)=@_;
+    croak unless ref($ast) eq 'ARRAY';
     if ($NEW_PARSER) {
+        $vars = _find_vars_in_ast($ast,$vars);
     } else {
 #	croak Dumper($ast) unless 
 	if (ref($ast) ne 'ARRAY') {
@@ -690,10 +694,16 @@ sub get_args_vars_from_expression {(my $ast)=@_;
 # So we have Args that can be Scalar, Array, Sub, Expr or Const
 
 sub get_args_vars_from_subcall {(my $ast)=@_;
-
+    my $args={'List'=>[],'Set'=>{}};
 	my $all_vars={'List'=>[],'Set'=>{} };
-	my $args={'List'=>[],'Set'=>{}};
-	
+
+if ($NEW_PARSER) {
+        my $vars = get_vars_from_expression($ast,{} );
+        $all_vars->{'Set'}=$vars;
+        $args = _parse_subcall_args($ast, $args);
+} else {
+
+		
 	if (scalar @{$ast} > 2 and scalar @{$ast->[2]}>0) {#			croak Dumper($ast);
 		for my  $idx (2 .. scalar @{$ast}-1) { # 0 and 1 are '&" and the subroutine name
 		my $ignore=0;				
@@ -758,7 +768,8 @@ sub get_args_vars_from_subcall {(my $ast)=@_;
 			}		
 		}	
 	}
-	$all_vars->{'List'} = [keys %{ $all_vars->{'Set'} }];
+}
+	$all_vars->{'List'} = [sort keys %{ $all_vars->{'Set'} }];
 	return ($args,$all_vars);
 } # END of get_args_vars_from_subcall
 
@@ -1409,103 +1420,108 @@ sub interpret { (my $ast)=@_;
 # parenthesised expressions unop
 # atomics: vars and constants unop and scalar, or later unop?
 sub emit_expr_from_ast { (my $ast)=@_;
-#   say Dumper($ast);
+
+    say Dumper($ast);
     if (ref($ast) eq 'ARRAY') {
-    if (scalar @{$ast}==3) {
-        if ($ast->[0] ==1 or $ast->[0] ==10) { # '&' array access or function call
-            (my $sigil, my $name, my $args) =@{$ast};
-            if ($args->[0] != 14 ) { # ')('
+        if (scalar @{$ast}==3) {
+            if ($ast->[0] ==1 or $ast->[0] ==10) { # '&' array access or function call
+                (my $sigil, my $name, my $args) =@{$ast};
+                if (@{$args}) {
+                if ($args->[0] != 14 ) { # ')('
+                    my @args_lst=();
+                    if($args->[0] == 27) { # ','
+                        for my $idx (1 .. scalar @{$args}-1) {
+                            my $arg = $args->[$idx];
+                            push @args_lst, emit_expr_from_ast($arg);
+                        }
+
+                        #                    for my $arg (@{$args->[1]}) {
+                        #       push @args_lst, emit_expr_from_ast($arg);
+                        #    }
+                        return "$name(".join(',',@args_lst).')';
+                    } else {
+                        return "$name(".emit_expr_from_ast($args).')';
+                    }
+                } else { # f(x)(y)
+                    #say Dumper($args);
+                    (my $sigil,my $args1, my $args2) = @{$args};
+                    my $args_str1='';
+                    my $args_str2='';
+                    if($args1->[0] == 27) { #eq ',' 
+                        my @args_lst1=();
+                        for my $idx (1 .. scalar @{$args1}-1) {
+                            my $arg = $args1->[$idx];
+                            push @args_lst1, emit_expr_from_ast($arg);
+                        }
+                        $args_str1=join(',',@args_lst1);
+
+                    } else {
+                        $args_str1= emit_expr_from_ast($args1);
+                    }
+                    if($args2->[0] == 27) { #eq ','
+                        #say Dumper($args2);
+                        my @args_lst2=();
+                        for my $idx (1 .. scalar @{$args2}-1) {
+                            my $arg = $args2->[$idx];
+                            push @args_lst2, emit_expr_from_ast($arg);
+                        }
+
+                        #                for my $arg (@{$args2->[1]}) {
+                        #    push @args_lst2, emit_expr_from_ast($arg);
+                        #}
+                        $args_str2=join(',',@args_lst2);
+                    } else {
+                        $args_str2=emit_expr_from_ast($args2);
+                    }
+                    return "$name(".$args_str1.')('.$args_str2.')';
+                }
+            } else {
+                return "$name()";
+            }
+            } else {
+                (my $opcode, my $lexp, my $rexp) =@{$ast};
+                my $lv = (ref($lexp) eq 'ARRAY') ? emit_expr_from_ast($lexp) : $lexp;
+                my $rv = (ref($rexp) eq 'ARRAY') ? emit_expr_from_ast($rexp) : $rexp;
+                return $lv.$sigils[$opcode].$rv;
+            }
+        } elsif (scalar @{$ast}==2) { #  for '{'  and '$'
+            (my $opcode, my $exp) =@{$ast};
+            if ($opcode==0 ) {#eq '('
+                my $v = (ref($exp) eq 'ARRAY') ? emit_expr_from_ast($exp) : $exp;
+                return "($v)";
+            } elsif ($opcode==28 ) {#eq '(/'
+                my $v = (ref($exp) eq 'ARRAY') ? emit_expr_from_ast($exp) : $exp;
+                return "(/ $v /)";
+            } elsif ($opcode==2 or $opcode>28) {# eq '$' or constants    
+                return ($opcode == 34) ?  "*$exp" : $exp;            
+            } elsif ($opcode == 21 or $opcode == 4 or $opcode == 3) {# eq '.not.' '-'
+                my $v = (ref($exp) eq 'ARRAY') ? emit_expr_from_ast($exp) : $exp;
+                return $sigils[$opcode]. $v;
+            } elsif ($opcode == 27) { # ',' 
+                croak  Dumper($ast);
                 my @args_lst=();
-                if($args->[0] == 27) { # ','
-                    for my $idx (1 .. scalar @{$args}-1) {
-                    my $arg = $args->[$idx];
+                for my $arg (@{$exp}) {
                     push @args_lst, emit_expr_from_ast($arg);
                 }
-
-                #                    for my $arg (@{$args->[1]}) {
-                #       push @args_lst, emit_expr_from_ast($arg);
-                #    }
-                    return "$name(".join(',',@args_lst).')';
-                } else {
-                    return "$name(".emit_expr_from_ast($args).')';
-                }
-            } else { # f(x)(y)
-                #say Dumper($args);
-                (my $sigil,my $args1, my $args2) = @{$args};
-                my $args_str1='';
-                my $args_str2='';
-                if($args1->[0] == 27) { #eq ',' 
-                my @args_lst1=();
-                for my $idx (1 .. scalar @{$args1}-1) {
-                    my $arg = $args1->[$idx];
-                    push @args_lst1, emit_expr_from_ast($arg);
-                }
-                $args_str1=join(',',@args_lst1);
-
+                return join(',',@args_lst);        
             } else {
-                $args_str1= emit_expr_from_ast($args1);
+                die 'BOOM! '.Dumper($ast).$opcode;
             }
-                if($args2->[0] == 27) { #eq ','
-                    #say Dumper($args2);
-                my @args_lst2=();
-                for my $idx (1 .. scalar @{$args2}-1) {
-                    my $arg = $args2->[$idx];
-                    push @args_lst2, emit_expr_from_ast($arg);
-                }
+        } elsif (scalar @{$ast} > 3) {
 
-                #                for my $arg (@{$args2->[1]}) {
-                #    push @args_lst2, emit_expr_from_ast($arg);
-                #}
-                $args_str2=join(',',@args_lst2);
-            } else {
-                $args_str2=emit_expr_from_ast($args2);
-            }
-                return "$name(".$args_str1.')('.$args_str2.')';
-            }
-        } else {
-    (my $opcode, my $lexp, my $rexp) =@{$ast};
-    my $lv = (ref($lexp) eq 'ARRAY') ? emit_expr_from_ast($lexp) : $lexp;
-    my $rv = (ref($rexp) eq 'ARRAY') ? emit_expr_from_ast($rexp) : $rexp;
-    return $lv.$sigils[$opcode].$rv;
-    }
-} elsif (scalar @{$ast}==2) { #  for '{'  and '$'
-    (my $opcode, my $exp) =@{$ast};
-    if ($opcode==0 ) {#eq '('
-        my $v = (ref($exp) eq 'ARRAY') ? emit_expr_from_ast($exp) : $exp;
-        return "($v)";
-    } elsif ($opcode==28 ) {#eq '(/'
-        my $v = (ref($exp) eq 'ARRAY') ? emit_expr_from_ast($exp) : $exp;
-        return "(/ $v /)";
-    } elsif ($opcode==2 or $opcode>28) {# eq '$' or constants    
-    	return ($opcode == 34) ?  "*$exp" : $exp;            
-    } elsif ($opcode == 21 or $opcode == 4 or $opcode == 3) {# eq '.not.' '-'
-        my $v = (ref($exp) eq 'ARRAY') ? emit_expr_from_ast($exp) : $exp;
-            return $sigils[$opcode]. $v;
-    } elsif ($opcode == 27) { # ',' 
-        croak  Dumper($ast);
-        my @args_lst=();
-        for my $arg (@{$exp}) {
-            push @args_lst, emit_expr_from_ast($arg);
-        }
-        return join(',',@args_lst);        
-    } else {
-        die 'BOOM! '.Dumper($ast).$opcode;
-    }
-} elsif (scalar @{$ast} > 3) {
-
-                if($ast->[0] == 27) { # ','
-                     my @args_lst=();
-                    for my $idx (1 .. scalar @{$ast}-1) {
+            if($ast->[0] == 27) { # ','
+                my @args_lst=();
+                for my $idx (1 .. scalar @{$ast}-1) {
                     my $arg = $ast->[$idx];
                     push @args_lst, emit_expr_from_ast($arg);
                 }
                 return join(',',@args_lst); 
-                } else {
-                    croak Dumper($ast);
-                }
+            } else {
+                croak Dumper($ast);
+            }
 
-}
-} else {return $ast;}
+        }
+    } else {return $ast;}
 } # END of emit_expr_from_ast
 
 # 
@@ -1731,7 +1747,11 @@ sub _traverse_ast_with_action { (my $ast, my $acc, my $f) = @_;
 } # END of _traverse_ast_with_action
 
 sub _find_vars_in_ast { (my $ast, my $vars)=@_;	
-	
+
+	croak unless ref($ast) eq 'ARRAY';
+  if(scalar @{$ast}==0) {
+      return {};
+  }
   if ( ($ast->[0] & 0xFF) == 1 or
        ($ast->[0] & 0xFF) == 10 ) { # array var or function/subroutine call
        
@@ -1802,23 +1822,25 @@ sub _find_args_in_ast { (my $ast, my $args) =@_;
 # The assumption is that we pass this the 3rd arg of an AST for a subroutine call
 # This can either be a comma-sep list or a single arg
 sub _parse_subcall_args { (my $ast, my $args) =@_;
-	if ( ($ast->[0] & 0xFF) == 0 ) {	'('
+	if ( ($ast->[0] & 0xFF) == 0 ) { #	'('
 	# An expression. 
        my $expr_str = emit_expr_from_ast($ast);
-	   $vars = _find_vars_in_ast($ast, {});
+	   my $vars = _find_vars_in_ast($ast, {});
        $args->{'Set'}{$expr_str}={
            'Type'=>'Expr', 
            'Vars'=>$vars, 
            'Expr' => $expr_str,   
            'AST'=>$ast
        };
+       push @{$args->{'List'}}, $expr_str;
     }
-	elsif (($ast->[0] & 0xFF)== 2) { '$'
+	elsif (($ast->[0] & 0xFF)== 2) { #'$'
 	        my $arg = $ast->[1];
 	        $args->{'Set'}{$arg}={ 	      
                 'Type'=>'Scalar',              
                 'Expr' => $arg
             };
+       push @{$args->{'List'}}, $arg;
     }
     elsif (($ast->[0] & 0xFF) > 28) { # constants
     # constants
@@ -1828,11 +1850,12 @@ sub _parse_subcall_args { (my $ast, my $args) =@_;
         'SubType'=>$sigils[ ($ast->[0] & 0xFF) ],
         'Expr' => $arg
     };
+       push @{$args->{'List'}}, $arg;
 	}     
-	elsif (($ast->[0] & 0xFF)== 10) { '@'
+	elsif (($ast->[0] & 0xFF)== 10) { #'@'
             my $arg = $ast->[1]; 
            my $expr_str = emit_expr_from_ast($ast);
-	       $vars = _find_vars_in_ast($ast, {});
+	       my $vars = _find_vars_in_ast($ast, {});
             $args->{'Set'}{$expr_str}={ 
                 'Type'=>'Array',
                 'Vars'=>$vars, 
@@ -1840,11 +1863,12 @@ sub _parse_subcall_args { (my $ast, my $args) =@_;
                 'Arg' => $arg,
                 'AST' => $ast
             };	
+       push @{$args->{'List'}}, $expr_str;
         }  
-	elsif (($ast->[0] & 0xFF)== 1) { '&'
+	elsif (($ast->[0] & 0xFF)== 1) {# '&'
             my $arg = $ast->[1]; 
            my $expr_str = emit_expr_from_ast($ast);
-	       $vars = _find_vars_in_ast($ast, {});
+	       my $vars = _find_vars_in_ast($ast, {});
 	        $args->{'Set'}{$expr_str}={   
                 'Type'=>'Sub',  
                 'Vars'=>$vars, 
@@ -1852,8 +1876,9 @@ sub _parse_subcall_args { (my $ast, my $args) =@_;
                 'Arg' => $arg,
                 'AST' => $ast
             };	
+       push @{$args->{'List'}}, $arg;
     }  
-    elsif ( ($ast->[0] & 0xFF) == 27 ) { ','
+    elsif ( ($ast->[0] & 0xFF) == 27 ) {# ','
 		#process the list and collect any scalar or array
 		for my $idx (1 .. scalar @{$ast}-1) {
 			# This is a comma-sep arg list. We test for $ and @
