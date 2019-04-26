@@ -1799,5 +1799,70 @@ sub _find_args_in_ast { (my $ast, my $args) =@_;
     return $args;
 } # END of _find_args_in_ast
 
+# The assumption is that we pass this the 3rd arg of an AST for a subroutine call
+# This can either be a comma-sep list or a single arg
+sub _parse_subcall_args { (my $ast, my $args) =@_;
+	if ( ($ast->[0] & 0xFF) == 0 ) {	'('
+	# An expression. 
+       my $expr_str = emit_expr_from_ast($ast);
+	   $vars = _find_vars_in_ast($ast, {});
+       $args->{'Set'}{$expr_str}={
+           'Type'=>'Expr', 
+           'Vars'=>$vars, 
+           'Expr' => $expr_str,   
+           'AST'=>$ast
+       };
+    }
+	elsif (($ast->[0] & 0xFF)== 2) { '$'
+	        my $arg = $ast->[1];
+	        $args->{'Set'}{$arg}={ 	      
+                'Type'=>'Scalar',              
+                'Expr' => $arg
+            };
+    }
+    elsif (($ast->[0] & 0xFF) > 28) { # constants
+    # constants
+    my $arg = $ast->[1]; 
+    $args->{'Set'}{$arg}={        
+        'Type'=>'Const', 
+        'SubType'=>$sigils[ ($ast->[0] & 0xFF) ],
+        'Expr' => $arg
+    };
+	}     
+	elsif (($ast->[0] & 0xFF)== 10) { '@'
+            my $arg = $ast->[1]; 
+           my $expr_str = emit_expr_from_ast($ast);
+	       $vars = _find_vars_in_ast($ast, {});
+            $args->{'Set'}{$expr_str}={ 
+                'Type'=>'Array',
+                'Vars'=>$vars, 
+                'Expr' => $expr_str, 
+                'Arg' => $arg,
+                'AST' => $ast
+            };	
+        }  
+	elsif (($ast->[0] & 0xFF)== 1) { '&'
+            my $arg = $ast->[1]; 
+           my $expr_str = emit_expr_from_ast($ast);
+	       $vars = _find_vars_in_ast($ast, {});
+	        $args->{'Set'}{$expr_str}={   
+                'Type'=>'Sub',  
+                'Vars'=>$vars, 
+                'Expr' => $expr_str,
+                'Arg' => $arg,
+                'AST' => $ast
+            };	
+    }  
+    elsif ( ($ast->[0] & 0xFF) == 27 ) { ','
+		#process the list and collect any scalar or array
+		for my $idx (1 .. scalar @{$ast}-1) {
+			# This is a comma-sep arg list. We test for $ and @
+			$args = _parse_subcall_args($ast->[$idx], $args);
+		}
+	}    
+    return $args;
+} # END of _parse_subcall_args
+
+
 1;
             

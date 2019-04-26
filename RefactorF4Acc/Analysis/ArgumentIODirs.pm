@@ -279,7 +279,6 @@ sub _analyse_src_for_iodirs {
 
 			for my $index ( 0 .. scalar( @{$annlines} ) - 1 ) {
 				(my $line,my $info)  = @{ $annlines->[$index] };				 
-#say "$f LINE: $line";								
 				if ( exists $info->{'Blank'} or exists $info->{'Comments'} or exists $info->{'Deleted'}) {
 					next;
 				}
@@ -311,7 +310,6 @@ sub _analyse_src_for_iodirs {
 						if ( exists $args->{$mvar}{'IODir'} ) {
 							$args = _set_iodir_write( $mvar, $args );
 						}
-#						carp "$f => $mvar => ".Dumper($args->{$mvar});
 					}
 					for my $mvar ( @{ $info->{'Do'}{'Range'}{'Vars'} } ) {
 						if ( exists $args->{$mvar} and ref( $args->{$mvar} ) eq 'HASH' ) {
@@ -340,7 +338,6 @@ sub _analyse_src_for_iodirs {
 					  ) {
 						next if $mvar eq 'write';
 						next if $mvar eq 'print';
-#						say "$line CallArgs $mvar";
 						if ( exists $args->{$mvar}
 							and ref( $args->{$mvar} ) eq 'HASH' )
 						{
@@ -355,13 +352,11 @@ sub _analyse_src_for_iodirs {
 					  	next if $mvar eq 'write';
 						next if $mvar eq 'print';
 					  	
-#						say "$line ExprVars $mvar";
 						if ( exists $args->{$mvar}
 							and ref( $args->{$mvar} ) eq 'HASH' )
 						{
 							if ( exists $args->{$mvar}{'IODir'} ) {
 								$args = _set_iodir_read( $mvar, $args );
-#								say Dumper($args);
 							}
 						}
 					}
@@ -370,7 +365,6 @@ sub _analyse_src_for_iodirs {
 					  ){
 					  	next if $mvar eq 'write';
 						next if $mvar eq 'print';
-#						say "$line CallAttrs $mvar";
 						if ( exists $args->{$mvar}
 							and ref( $args->{$mvar} ) eq 'HASH' )
 						{
@@ -482,15 +476,12 @@ sub _analyse_src_for_iodirs {
 # Encounter Assignment
 				elsif (exists $info->{'Assignment'} ) {
 					# First check the RHS
-
 					
 					my $rhs_vars = $info->{'Rhs'}{'VarList'}{'List'};
 					
 					if (scalar @{$rhs_vars}>0) {
 						_set_iodir_vars($rhs_vars,$args, \&_set_iodir_read );
 					}
-                    #carp Dumper($args) if $f=~/shapiro_map/;
-#					carp Dumper($info->{'Lhs'});
 					my $lhs_var = $info->{'Lhs'}{'VarName'};
 					_set_iodir_vars([$lhs_var],$args, \&_set_iodir_write );
 					my $lhs_index_vars = $info->{'Lhs'}{'IndexVars'}{'List'};
@@ -619,18 +610,10 @@ sub _analyse_src_for_iodirs_OLD {
 
 				# File open statements
 				if ( 
-					exists $info->{'OpenCall'} #   $line =~ /^\s+open\s*\(\s*(.+)$/ or $line =~ /^\d+\s+open\s*\(\s*(.+)$/ 
+					exists $info->{'OpenCall'} 
 				) {
-#					my $str = $1;
-#					$args = _find_vars_w_iodir( $str, $args, \&_set_iodir_read );
-#                  croak $line."\n".Dumper($info)."\nARGS:".Dumper(keys %{$args});
                   for my $var ( @{ $info->{'Vars'}{'List'} } ){
                   	$args = _set_iodir_ignore( $var, $args );
-#                  	if (exists $info->{'Ast'}{'IOStat'} and $info->{'Ast'}{'IOStat'} eq $var) {
-#                  		$args = _set_iodir_write( $var, $args );
-#                  	}  else {
-#                  		$args = _set_iodir_read( $var, $args );
-#                  	}
                   }
 					next;
 				}
@@ -638,7 +621,6 @@ sub _analyse_src_for_iodirs_OLD {
 				if (   exists $info->{'WriteCall'}
 					or exists $info->{'PrintCall'} )
 				{
-#croak Dumper($info) if $line=~/htime/;
 					# All variables are read from, so IODir is read
 					for my $mvar (
 						@{ $info->{'CallArgs'}{'List'} },
