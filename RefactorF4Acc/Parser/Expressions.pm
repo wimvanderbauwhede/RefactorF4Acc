@@ -33,7 +33,7 @@ use Exporter;
   &get_args_vars_from_subcall
   &emit_expr_from_ast
   &interpret
-  &parse_expression_faster
+  &parse_expression_no_context
   &_find_consts_in_ast
   &_find_vars_in_ast
   &_find_args_in_ast
@@ -225,13 +225,14 @@ sub parse_expression { (my $exp, my $info, my $stref, my $f)=@_;
     my $ast5 = _fix_double_paren_in_ast($ast4);
 	return $ast5;
 	} else {
-		(my $ast, my $rest, my $err, my $has_funcs)  = parse_expression_faster($exp);
+		(my $ast, my $rest, my $err, my $has_funcs)  = parse_expression_no_context($exp);
 		if($err or $rest ne '') {
-            #croak "PARSE ERROR in <$exp>, REST: $rest";
-            return ($ast,$rest,$err);
+            croak "PARSE ERROR in <$exp>, REST: $rest";
+#            return ($ast,$rest,$err);
 		}
+        #say 'AST:'.Dumper($ast);
         (my $ast2, my $grouped_messages) = $has_funcs ? _replace_function_calls_in_ast($stref,$f,$info,$ast, $exp, {}) : ($ast,{});
-        #        say Dumper($ast2);
+        #say 'AST2:'.Dumper($ast2);
 	    if ($W) {
 	        for my $warning_type (sort keys % {$grouped_messages->{'W'}} ) {
 	            for my $k (sort keys %{$grouped_messages->{'W'}{$warning_type}}) {
@@ -240,7 +241,7 @@ sub parse_expression { (my $exp, my $info, my $stref, my $f)=@_;
 	            }
 	        }
 	    }		
-	    return ($ast2,$rest,$err);
+	    return $ast2;
 	}
 	
 } # END of parse_expression()
@@ -307,7 +308,7 @@ sub _change_func_to_array { (my $stref, my $f,  my $info, my $ast, my $exp, my $
 #    		).'><'.( exists $stref->{$code_unit}{$f}{'MaskedIntrinsics'}{$mvar} ).'>' if $mvar eq 'aint';
 
     				$ast->[$idx]=  10 + (($ast->[$idx]>>8)<<8);#    '@';
-    				say "\tFound array $mvar";# if $DBG;
+    				say "\tFound array $mvar" if $DBG;
 #    				croak Dumper($stref->{$code_unit}{$f}{'MaskedIntrinsics'}). (exists $F95_intrinsics{$mvar}) if $mvar eq 'write';
 				} elsif (   	exists $F95_intrinsics{$mvar} ) {
 					say "parse_expression('$exp') " . __LINE__ if $DBG;
@@ -606,7 +607,7 @@ sub get_consts_from_expression {(my $ast, my $vars)=@_;
 				if ( $val =~ /^\-?\d+$/ ) {
 					$type = 'integer';
 				}
-				elsif ( $val =~ /^(\-?(?:\d+|\d*\.\d*)(?:[edq][\-\+]?\d+)?)$/ ) {
+				elsif ( $val =~ /^(\-?(?:\d+|\d*\.\d*)(?:[edqEDQ][\-\+]?\d+)?)$/ ) {
 					$type = 'real';
 				} 
 				$vars->{$val}=$type ;					
@@ -971,7 +972,7 @@ sub _fix_double_paren_in_expr { (my $ast)=@_;
 To support this we need yet another sigil.
 =cut
 
-sub parse_expression_faster { (my $str)=@_;
+sub parse_expression_no_context { (my $str)=@_;
     my $max_lev=11; # levels of precedence
     my $prev_lev=0;
     my $lev=0;
@@ -1013,13 +1014,13 @@ sub parse_expression_faster { (my $str)=@_;
             my $var=$1;
             $has_funcs=1;
             my $arg_expr_ast;
-            if ($str!~/^\s*\)/) {
-                ($arg_expr_ast,$str, my $err, my $has_funcs2)=parse_expression_faster($str);
+            if ($str!~/^\s*\)/) { # non-empty arg list
+                ($arg_expr_ast,$str, my $err, my $has_funcs2)=parse_expression_no_context($str);
                 if( ref($arg_expr_ast) ne 'ARRAY') {
                     $arg_expr_ast=[$arg_expr_ast];
                 };
                 $has_funcs||=$has_funcs2;
-            } else {
+            } else { # empty arg list
                 $arg_expr_ast=[];
             }
             if ($defaultToArrays) {
@@ -1029,7 +1030,7 @@ sub parse_expression_faster { (my $str)=@_;
             }
             # f(x)(y)
             if ($str=~/^\(/) {
-                (my $arg_expr_ast2,$str, my $err2,my $has_funcs2)=parse_expression_faster($str);
+                (my $arg_expr_ast2,$str, my $err2,my $has_funcs2)=parse_expression_no_context($str);
                 $expr_ast=[1, $var,[14,$arg_expr_ast,$arg_expr_ast2->[1]]];
                 #$expr_ast=['&',$var,[')(',$arg_expr_ast,$arg_expr_ast2->[1]]];
                 $has_funcs||=$has_funcs2;
@@ -1037,7 +1038,7 @@ sub parse_expression_faster { (my $str)=@_;
         }
         elsif ($str=~s/^\(\s*\/// or $str=~s/^\[//) {
             # constant array constructor expr
-            ($expr_ast,$str, my $err,my $has_funcs2)=parse_expression_faster($str);
+            ($expr_ast,$str, my $err,my $has_funcs2)=parse_expression_no_context($str);
             $has_funcs||=$has_funcs2;
             #$expr_ast=['(/',$expr_ast];
             $expr_ast=[28,$expr_ast];
@@ -1045,7 +1046,7 @@ sub parse_expression_faster { (my $str)=@_;
         }
         elsif ($str=~s/^\(//) {
             # paren expr, I use '{' as it appears not to be used. Would make send to call it '('
-            ($expr_ast,$str, my $err,my $has_funcs2)=parse_expression_faster($str);
+            ($expr_ast,$str, my $err,my $has_funcs2)=parse_expression_no_context($str);
             $has_funcs||=$has_funcs2;
             #$expr_ast=['{',$expr_ast];
             $expr_ast=[0,$expr_ast];
@@ -1068,9 +1069,9 @@ sub parse_expression_faster { (my $str)=@_;
             $expr_ast=[31,'.'.$1.'.'];
             #$expr_ast='.'.$1.'.';
         }
-        elsif ($str=~s/^((?:\d*\.\d*)(?:[edq][\-\+]?\d+)?)//
+        elsif ($str=~s/^((?:\d*\.\d*)(?:[edqEDQ][\-\+]?\d+)?)//
                 or 
-            $str=~s/^(\d*(?:[edq][\-\+]?\d+))//
+            $str=~s/^(\d*(?:[edqEDQ][\-\+]?\d+))//
         ) { 
             # reals
             $expr_ast=[30,$1];
@@ -1373,7 +1374,7 @@ our @sigils = ( '{', '&', '$', '+', '-', '*', '/', '%', '**', '=', '@', '#', ':'
         return ($ast[$max_lev+1],$str,0,$has_funcs);
     }
 }
-} # END of parse_expression_faster
+} # END of parse_expression_no_context
 
 sub interpret { (my $ast)=@_;
     if (scalar @{$ast}==3) {
@@ -1421,7 +1422,7 @@ sub interpret { (my $ast)=@_;
 # atomics: vars and constants unop and scalar, or later unop?
 sub emit_expr_from_ast { (my $ast)=@_;
 
-    say Dumper($ast);
+    #say Dumper($ast);
     if (ref($ast) eq 'ARRAY') {
         if (scalar @{$ast}==3) {
             if ($ast->[0] ==1 or $ast->[0] ==10) { # '&' array access or function call
@@ -1549,7 +1550,7 @@ sub _replace_function_calls_in_ast { #(my $ast)=@_;
                 if (
  					(
  				# 1. $mvar is not a function, including intrinsic
- 					not(  (
+ 					not(  ($mvar eq $subname) or (
  					exists $stref->{$code_unit}{$mvar} and 
  					exists $stref->{$code_unit}{$mvar}{'Function'} and 
  					$stref->{$code_unit}{$mvar}{'Function'} == 1 ) or (
@@ -1573,14 +1574,14 @@ sub _replace_function_calls_in_ast { #(my $ast)=@_;
                     say "Treating $mvar in $f as a function-like reserved word " if $DBG;
 					$grouped_messages->{'W'}{'VAR_AS_INTRINSIC'}{$mvar} =   "Treating $mvar in $f as a function-like reserved word  " if $W;  
 				} else {
-                	# FUNCTION CALL
+                    #say ' FUNCTION CALL';
 					# So, this line contains a function call, so we should say so in $info!
 					# I introduce FunctionCalls for this purpose!
 					if (
 					( exists $stref->{$code_unit}{$mvar} and exists $stref->{$code_unit}{$mvar}{'Function'} 
 					  and $stref->{$code_unit}{$mvar}{'Function'} == 1) # It's def a function! 
 					  and ( # 
-						$mvar ne '#dummy#' and $mvar ne $subname 
+						$mvar ne $subname 
  						and not exists $stref->{$code_unit}{$f}{'CalledSubs'}{'Set'}{$mvar}
 						and not exists $F95_reserved_words{$mvar} 					
 						)
@@ -1612,17 +1613,15 @@ sub _replace_function_calls_in_ast { #(my $ast)=@_;
 						$stref = add_to_call_tree( $mvar, $stref, $f );														
 					}
 				} 
-            } else {
-                say "\t".'ARRAY ACCESS: '.$ast->[1];
-            }
-            #            $ast->[2] = _replace_function_calls_in_ast($ast->[2]);
+            } #else {
+            #  say "\t".'ARRAY ACCESS: '.$ast->[1];
+            #}
                 (my $entry, $grouped_messages) = _replace_function_calls_in_ast($stref, $f,  $info, $ast->[2], $exp, $grouped_messages);
                 $ast->[2]= $entry;
              
         } 
         elsif ( ($ast->[0] & 0xFF) != 2 and ($ast->[0] & 0xFF) < 29) { # not a var or constant
             for my $idx (1 .. scalar @{$ast} -1) {
-                #my $entry = _replace_function_calls_in_ast($ast->[$idx]);
                 (my $entry, $grouped_messages)  = _replace_function_calls_in_ast($stref, $f,  $info, $ast->[$idx], $exp, $grouped_messages);
                 $ast->[$idx]= $entry;
             }
@@ -1724,6 +1723,10 @@ sub _find_args_vars_in_ast {(my $ast)=@_;
 
 sub _traverse_ast_with_action { (my $ast, my $acc, my $f) = @_;
 
+  if(scalar @{$ast}==0) {
+      return $acc;
+  }
+
   if ( ($ast->[0] & 0xFF) == 1 or
        ($ast->[0] & 0xFF) == 10 ) { # array var or function/subroutine call
 		$acc=$f->($ast,$acc);
@@ -1748,7 +1751,7 @@ sub _traverse_ast_with_action { (my $ast, my $acc, my $f) = @_;
 
 sub _find_vars_in_ast { (my $ast, my $vars)=@_;	
 
-	croak unless ref($ast) eq 'ARRAY';
+    #	croak unless ref($ast) eq 'ARRAY';
   if(scalar @{$ast}==0) {
       return {};
   }
@@ -1778,8 +1781,8 @@ sub _find_vars_in_ast { (my $ast, my $vars)=@_;
                 }      
   } elsif (($ast->[0] & 0xFF) > 28) { # constants
     # constants
-    my $mvar = $ast->[1]; 
-    $vars->{$mvar}={'Type'=>$sigils[ ($ast->[0] & 0xFF) ]} ;
+    #    my $mvar = $ast->[1]; 
+    #$vars->{$mvar}={'Type'=>$sigils[ ($ast->[0] & 0xFF) ]} ;
   } else { # other operators    
     for my $idx (1 .. scalar @{$ast}-1) {
         $vars = _find_vars_in_ast($ast->[$idx],$vars);        
@@ -1876,7 +1879,7 @@ sub _parse_subcall_args { (my $ast, my $args) =@_;
                 'Arg' => $arg,
                 'AST' => $ast
             };	
-       push @{$args->{'List'}}, $arg;
+       push @{$args->{'List'}}, $expr_str;
     }  
     elsif ( ($ast->[0] & 0xFF) == 27 ) {# ','
 		#process the list and collect any scalar or array

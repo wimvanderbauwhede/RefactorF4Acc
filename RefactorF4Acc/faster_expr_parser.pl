@@ -1,7 +1,7 @@
 #!/usr/bin/env perl
 use v5.28;
 use Data::Dumper;
-use RefactorF4Acc::Parser::Expressions qw( parse_expression_faster interpret emit_expr_from_ast 
+use RefactorF4Acc::Parser::Expressions qw( parse_expression_no_context interpret emit_expr_from_ast 
 _find_consts_in_ast
 _find_vars_in_ast
 _find_args_in_ast
@@ -12,7 +12,7 @@ $RefactorF4Acc::Parser::Expressions::defaultToArrays=1;
 
 for my $str ('z(j+i,k*km)*p(i+1,j+jm)','i+1','v( i + 1 )','z','z(j,k)','j+k','i-im') {
     print "$str\t";
-    (my $ast, my $rest, my $err) = parse_expression_faster($str);#*p(i+1,j+jm)');
+    (my $ast, my $rest, my $err) = parse_expression_no_context($str);#*p(i+1,j+jm)');
     if ($err) {say 'ERROR' } else {
         #say "AST: ".Dumper($ast);
         my $estr=emit_expr_from_ast($ast);
@@ -26,7 +26,7 @@ for my $str ('z(j+i,k*km)*p(i+1,j+jm)','i+1','v( i + 1 )','z','z(j,k)','j+k','i-
 for my $str ("5+42+ +6/42/44-45*7", '6*7', '44 - -2', '(1+2*3)+3+4/5','4+(22*(33*44+1)+77)/2') {
     print "$str\t";
     #say "\nTEST: $str";
-    (my $ast, my $rest, my $err) = parse_expression_faster($str);
+    (my $ast, my $rest, my $err) = parse_expression_no_context($str);
     if ($err) {say 'ERROR' } else {
         #say "AST: ".Dumper($ast);
         my $estr=emit_expr_from_ast($ast);
@@ -48,7 +48,7 @@ for my $str ('1 .and. .not. 0','1 <= 2', '(3.5 < 4) .or. (1 == 0.0)') {
     print "$str\t";
 
     #    say "\nTEST: $str";
-    (my $ast, my $rest, my $err) = parse_expression_faster($str);
+    (my $ast, my $rest, my $err) = parse_expression_no_context($str);
     if ($err) {say 'ERROR' } else {
         #say "AST: ".Dumper($ast);
         my $estr=emit_expr_from_ast($ast);
@@ -94,14 +94,15 @@ for my $str ('*8','RANK ( N, *8, *9 )','f(x)(y)', 'a**b**3', 'B .and. .not. A .o
     'READ( *, * )',
     'READ( *, FMT )',
     'READ( *)',
-    'time'
+    'time',
+    '2*v+1'
 ) {
 	for my $tt (1,2) {
 		if ($tt==1) {
     #    say "\nTEST: $str";
     print "$str\t";
     
-    (my $ast, my $rest, my $err) = parse_expression_faster($str);#*p(i+1,j+jm)');
+    (my $ast, my $rest, my $err) = parse_expression_no_context($str);#*p(i+1,j+jm)');
     say "AST: ".Dumper($ast);
     if ($err or $rest ne '') {say 'ERROR: <'.$rest.'>' } else {
         my $estr=emit_expr_from_ast($ast);
@@ -110,7 +111,7 @@ for my $str ('*8','RANK ( N, *8, *9 )','f(x)(y)', 'a**b**3', 'B .and. .not. A .o
         say $sstr eq $estr ? 'OK' : 'NOK: '. $sstr.'<>'.$estr;
     }
 		} else {
-			(my $ast, my $rest, my $err) = parse_expression_faster($str);#*p(i+1,j+jm)');
+			(my $ast, my $rest, my $err) = parse_expression_no_context($str);#*p(i+1,j+jm)');
         #say "AST: ".Dumper($ast);
 			if ($err or $rest ne '') {say 'ERROR: <'.$rest.'>' } else {
 #				say 'CONSTS: ';
@@ -123,7 +124,7 @@ for my $str ('*8','RANK ( N, *8, *9 )','f(x)(y)', 'a**b**3', 'B .and. .not. A .o
 #                my $args = _find_args_in_ast($ast,{});
 #                say Dumper($args);              
     #        say "TRAVERSAL TEST";
-    #    ($ast, my $acc) = _traverse_ast_with_action($ast,{}, \&ff );
+    #    ($ast, my $acc) = _traverse_ast_with_action($ast,{}, \&collect_vars );
 			}
 		}
 	}
@@ -143,3 +144,4 @@ sub ff { (my $ast, my $acc) = @_;
     }
     return $acc;
 }
+
