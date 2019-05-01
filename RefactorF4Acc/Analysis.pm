@@ -6,7 +6,7 @@ use RefactorF4Acc::Analysis::Includes qw( find_root_for_includes );
 use RefactorF4Acc::Analysis::Globals qw( identify_inherited_exglobs_to_rename lift_globals rename_inherited_exglobs );
 use RefactorF4Acc::Analysis::LoopDetect qw( outer_loop_end_detect );
 use RefactorF4Acc::Refactoring::Common qw( get_f95_var_decl stateful_pass stateless_pass );
-
+use RefactorF4Acc::Parser::Expressions qw( $NEW_PARSER );
 #
 #   (c) 2010-2017 Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
 #
@@ -562,8 +562,11 @@ sub identify_vars_on_line {
 				or exists $info->{'ReadCall'}
 				or exists $info->{'InquireCall'} 
 				) {
-					
+				if (!$NEW_PARSER) {	
 				@chunks = ( @chunks, @{ $info->{'CallArgs'}{'List'} }, @{ $info->{'ExprVars'}{'List'} }, @{ $info->{'CallAttrs'}{'List'} });
+				} else {
+					@chunks = ( @chunks, @{ $info->{'Vars'}{'Written'}{'List'} }, @{ $info->{'Vars'}{'Read'}{'List'} } );
+				}
 				if (exists $info->{'ImpliedDoVars'}) {
 				@chunks = ( @chunks, @{ $info->{'ImpliedDoVars'}{'List'} } );
 				}

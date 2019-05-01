@@ -13,7 +13,12 @@ use RefactorF4Acc::Parser::Expressions qw(
     get_args_vars_from_subcall 
     emit_expression 
     emit_expr_from_ast 
-    get_consts_from_expression);
+    get_consts_from_expression
+    find_assignments_to_scalars_in_ast
+    find_args_vars_in_ast
+    find_vars_in_ast
+    $NEW_PARSER
+    );
 use RefactorF4Acc::Translation::OpenCLC qw( add_to_C_build_sources );    # OBSOLETE
 use RefactorF4Acc::Analysis::LoopDetect qw( outer_loop_start_detect );
 use RefactorF4Acc::Analysis::ArgumentIODirs qw(  &conditional_assignment_fsm );
@@ -918,6 +923,58 @@ SUBROUTINE
 		 		}		 		
 		 		my $warn =  $info->{'LineID'}.': '.$line;
 			 	push @{	$grouped_warnings->{'EQUIVALENCE'} }, $warn;
+			 	my $tline = $line;
+			 	$tline=~s/^equivalence\s+//;
+#			 	(my $ast, my $rest, my $err, my $has_funcs)
+			 	my $ast = parse_expression($tline, $info,  $stref,  $f);
+			 	say "EQUIVALENCE: $tline"; 
+#			 	say "AST:". Dumper($ast);
+			 	my $vars = find_vars_in_ast($ast,{});
+			 	say "VARS:".Dumper($vars);
+			 	# Now, of a var already exists, we leave it alone;
+			 	my $equiv_type = 'Unknown'; 
+			 	for my $tvar (keys %{$vars}) {
+			 		
+			 			my $subset = in_nested_set($Sf,'Vars',$tvar);
+			 			if ($subset) {
+			 			 my $orig_decl =  $Sf->{$subset}{'Set'}{$tvar} ;
+			 			 $equiv_type=$orig_decl->{'Type'};
+			 			 # we should also use this for Attr I think
+			 			}
+			 		
+			 	}
+			 	if ($equiv_type eq 'Unknown') {
+			 		for my $tvar (keys %{$vars}) {
+			 		  (my $type, my $array_or_scalar, my $attr)=type_via_implicits($stref, $f,$tvar);
+			 		}
+			 	} else {
+			 		for my $tvar (keys %{$vars}) {
+                    
+                        my $subset = in_nested_set($Sf,'Vars',$tvar);
+                        if ($subset eq '') {
+                            # use $equiv_type
+                         
+                        }                    
+                }
+			 	}
+			 	
+			 	# Dim can be taken from the $vars->{$tvar}{'Dim'}
+			 	# ArrayOrScalar can (and should) be taken from the $vars->{$tvar}{'Type'}, not from implicits!
+			 	
+			 	croak "WIP EQUIVALENCE";
+#        my $decl = {
+#            'Indent' => $indent,
+#            'Type'   => $type,
+#            'Attr'   => $attr,
+#            'Dim'    => $dim,
+#            'Name'   => $tvar,
+#            'Status' => 0,
+#            'StmtCount' => 0,
+#            'ArrayOrScalar' => $array_or_scalar
+#        };			 	
+			 	# Otherwise, we try to type it, first via the type of one of the existing ones (if any), otherwise via the implicit rules.
+			 	# If the var does not exists we should add it to UndeclaredOrigLocalVars
+			 	
 		 		
 		 	}		
 #== VARIABLE and PARAMETER DECLARATIONS
@@ -1803,32 +1860,48 @@ sub _parse_subroutine_and_function_calls {
 						$entry_call=0;
 					}
 				}
-				
-                #my $ast = parse_expression( "$name($argstr)", $info, $stref, $f ); OLD PARSER
-                if ($argstr) {
-				my $ast = parse_expression( $argstr, $info, $stref, $f );
-				( my $expr_args, my $expr_other_vars ) = get_args_vars_from_subcall($ast);
-                #croak Dumper($expr_args,$expr_other_vars) if $name=~/boundsm/;
-				for my $expr_arg(@{$expr_args->{'List'}}) {
-					if (substr($expr_arg,0,1) eq '*') {
-						my $label=substr($expr_arg,1);
-						$Sf->{'ReferencedLabels'}{$label}=$label;		
-					}
+				if (!$NEW_PARSER) {
+	                my $ast = parse_expression( "$name($argstr)", $info, $stref, $f );                 
+	                ( my $expr_args, my $expr_other_vars ) = get_args_vars_from_subcall($ast);
+	                #croak Dumper($expr_args,$expr_other_vars) if $name=~/boundsm/;
+	                for my $expr_arg(@{$expr_args->{'List'}}) {
+	                    if (substr($expr_arg,0,1) eq '*') {
+	                        my $label=substr($expr_arg,1);
+	                        $Sf->{'ReferencedLabels'}{$label}=$label;       
+	                    }
+	                }
+	                $info->{'CallArgs'}               = $expr_args;
+	                $info->{'ExprVars'}               = $expr_other_vars;
+	                $info->{'SubroutineCall'}{'Args'} = $info->{'CallArgs'};
+	                
+	                $info->{'SubroutineCall'}{'ExpressionAST'} = $ast;                
+                
+				} else {                
+	                if ($argstr) {
+						my $ast = parse_expression( $argstr, $info, $stref, $f );
+						( my $expr_args, my $expr_other_vars ) = get_args_vars_from_subcall($ast);
+		                #croak Dumper($expr_args,$expr_other_vars) if $name=~/boundsm/;
+						for my $expr_arg(@{$expr_args->{'List'}}) {
+							if (substr($expr_arg,0,1) eq '*') {
+								my $label=substr($expr_arg,1);
+								$Sf->{'ReferencedLabels'}{$label}=$label;		
+							}
+						}
+						$info->{'CallArgs'}               = $expr_args;
+						$info->{'ExprVars'}               = $expr_other_vars;
+						$info->{'SubroutineCall'}{'Args'} = $info->{'CallArgs'};
+						
+						$info->{'SubroutineCall'}{'ExpressionAST'} = $ast;
+	                } else {
+	                    $info->{'CallArgs'}               = {'List'=>[],'Set'=>{}};
+					    $info->{'ExprVars'}               = {'List'=>[],'Set'=>{}};
+	
+	                    $info->{'SubroutineCall'}{'Args'} = $info->{'CallArgs'};
+					
+					    $info->{'SubroutineCall'}{'ExpressionAST'} = [];
+	
+	                }
 				}
-				$info->{'CallArgs'}               = $expr_args;
-				$info->{'ExprVars'}               = $expr_other_vars;
-				$info->{'SubroutineCall'}{'Args'} = $info->{'CallArgs'};
-				
-				$info->{'SubroutineCall'}{'ExpressionAST'} = $ast;
-                } else {
-                    				$info->{'CallArgs'}               = {'List'=>[],'Set'=>{}};
-				$info->{'ExprVars'}               = {'List'=>[],'Set'=>{}};
-
-                $info->{'SubroutineCall'}{'Args'} = $info->{'CallArgs'};
-				
-				$info->{'SubroutineCall'}{'ExpressionAST'} = [];
-
-                }
 				
 				if ( $external_sub == 0 ) {
 					# If this is a call to an ENTRY, I will for the time being treat this separately
@@ -3458,12 +3531,14 @@ sub _identify_loops_breaks {
 # -----------------------------------------------------------------------------
 
 =info_read_inquire_write_print
+#== ACCEPT
 ACCEPT f [, iolist ]
 ACCEPT grname
-f Format identifier
-iolist List of variables, substrings, arrays, and records
-grname Name of the namelist group
+f Format identifier: Label | character expression | integer variable name (Read from) | *
+iolist List of variables, substrings, arrays, and records:, Written to
+grname Name of the namelist group, Read from
 
+#== READ
 READ( [ UNIT=] u [, [ FMT=] f ] [, IOSTAT= ios ] [, REC= rn ] [, END= s ] [, ERR= s ] ) iolist
 READ f [, iolist ]
 READ([UNIT=] u, [NML=] grname [,IOSTAT=ios ] [,END=s ] [,ERR=s ] )
@@ -3471,13 +3546,14 @@ READ grname
 
 An alternate for the REC=rn form is allowed, as follows:
 READ( u 'rn … ) iolist
-u Unit identifier of the unit connected to the file
-f Format identifier, i.e. * or a label or a variable name
-ios I/O status specifier
-rn Record number to be read
-s Statement label for end of file processing
-iolist List of variables
-grname Name of a namelist group
+
+u Unit identifier: integer expression (Read from) | *
+f Format identifier, i.e. * or a label or a variable name, Read from
+ios I/O status specifier: integer variable, Written to
+rn Record number to be read: integer expression, Read from
+s Statement label: Label 
+iolist List of variables, Written to
+grname Name of a namelist group, Read from
 
 READ( 1, 2, ERR=8, END=9, IOSTAT=N ) X, Y
 READ( 1, REC=3, IOSTAT=N, ERR=8 ) V
@@ -3488,7 +3564,7 @@ READ( 3, '(5F4.1)') V
 READ( 1, G )
 READ( UNIT=1, NML=G )
 
-
+#== INQUIRE
 INQUIRE( [ UNIT=] u, slist )
 INQUIRE( FILE=fn, slist )
 fn Name of the file being queried
@@ -3496,34 +3572,56 @@ u Unit of the file being queried
 slist Specifier list
 
 The INQUIRE slist can include one or more of the following, in any order:
-• ERR = s
-• EXIST = ex
-• OPENED = od
-• NAMED = nmd
-• ACCESS = acc
-• SEQUENTIAL = seq
-• DIRECT = dir
-• FORM = fm
-• FORMATTED = fmt
-• UNFORMATTED = unf
-• NAME = fn
-• BLANK = blnk
-• IOSTAT = ios
-• NUMBER = num
-• RECL = rcl
-• NEXTREC = nr
+• ERR = s : Label
+• EXIST = ex : bool Written to
+• OPENED = od  : ool Written to
+• NAMED = nmd : ool Written to
+• ACCESS = acc : character string Written to
+• SEQUENTIAL = seq : character string Written to
+• DIRECT = dir : character string Written to
+• FORM = fm : character string Written to
+• FORMATTED = fmt : character string Written to
+• UNFORMATTED = unf : character string Written to
+• NAME = fn : character string Written to
+• BLANK = blnk : character string Written to
+• IOSTAT = ios : integer variable Written to
+• NUMBER = num : integer variable Written to
+• RECL = rcl : integer variable Written to
+• NEXTREC = nr : integer variable Written to
 
+#== PRINT
 PRINT f [, iolist ]
 PRINT grname
 f Format identifier, i.e. * or a label or a variable name
 iolist List of variables, substrings, arrays, records, …
 grname Name of the namelist group
 
+#== OPEN
 OPEN( KEYWORD1=value1, KEYWORD2=value2, … )
 
+[UNIT=] u
+FILE = fin or NAME = fin : a character expression (Read from) or *
+ACCESS = acc: character expression, Read from
+BLANK = blnk : a character expression ,Read from
+ERR = s : Label
+FORM = fm : a character expression, Read from
+IOSTAT = ios : an integer variable, Written to
+RECL = rl or  RECORDSIZE = rl
+STATUS = sta or TYPE = sta : a character expression, Read from
+FILEOPT = fopt : a character expression, Read from
+READONLY 
+ACTION = act : READ | WRITE | READWRITE
+
+
+#== CLOSE
 CLOSE( [ UNIT=] u [, STATUS= sta] [, IOSTAT= ios] [, ERR= s ] )
 
+u Unit identifier 
+sta is a character expression, Read from
+ios I/O status specifier : an integer variable, Written to
+s Error specifier : Label
 
+#== WRITE
 WRITE( [ UNIT=] u [, [FMT=] f ] [, IOSTAT=ios ] [, REC=rn ] [, ERR=s ] ) iolist
 WRITE( [ UNIT= ] u, [ NML= ] grname [, IOSTAT= ios ] [, ERR= s ] )
 u Unit identifier of the unit connected to the file
@@ -3537,23 +3635,32 @@ grname Name of the namelist group
 An alternate for the REC=rn form is allowed, as follows:
 WRITE( u ' rn … ) iolist
 
-
 WRITE(*,*) x, f(x)
 WRITE( 1, REC=3, IOSTAT=N, ERR=8 ) V
 WRITE( 1 ' 3, IOSTAT=N, ERR=8 ) V
 
+#== REWIND
+REWIND u
+REWIND ( [ UNIT=] u [, IOSTAT=ios ] [, ERR= s ])
+u Unit identifier of an external unit connected to the file
+u must be connected for sequential access, or append access.
+ios I/O specifier, an integer variable or an integer array element, Written to
+s Error specifier: Label 
 
 We have 3 different cases:
 
-1. operation (arglist) : READ, INQUIRE, OPEN, CLOSE, WRITE
+1. operation (arglist) : READ, WRITE, INQUIRE, OPEN, CLOSE,  REWIND
 2. operation (arglist) iolist : READ, WRITE
-3. operation comma_sep_list : READ, PRINT
+3. operation comma_sep_list : READ, PRINT, ACCEPT, REWIND
+
 
 =cut
 
 
 sub _parse_read_write_print {
+	if ($NEW_PARSER) {
     ( my $line, my $info, my $stref, my $f ) = @_;
+    
     my $sub_or_func = sub_func_incl_mod( $f, $stref );
     my $Sf          = $stref->{$sub_or_func}{$f};
     my $tline=$line;
@@ -3564,23 +3671,31 @@ sub _parse_read_write_print {
         	$tline=~s/\'/, rec=/;
         }
     }
-    #    say "TLINE: $tline";
+    if (not (exists $info->{'PrintCall'} or exists $info->{'AcceptCall'}) ) {
+    	# Normalise by removing UNIT, NML and FMT
+    	$tline=~s/(unit|nml|fmt)\s*=\s*//gi;
+    }
+    
+    # Rather than having Attributes, Arguments and Expressions I will simply have WrittenVars and ReadVars
+    
+#    say "TLINE: $tline";
     my $attrs_ast=[];
     my $exprs_ast=[];
     my $err=0;
     my $rest='';
+    my $case=0;
     if ($tline=~/^\w+\s*\(/) {
         ($attrs_ast, $rest, $err) = parse_expression_no_context($tline,$info,$stref,$f);
-        if ($err) {
+        $case=1;
+        if ($err) {        	
             # Case 2.
+            $case=2;
             #The $rest string contains the part after the closing parens so just parse that as well
             $exprs_ast = parse_expression($rest,$info,$stref,$f);
-        } 
-            #        else {
-            # No error, Case 1. so just use $attrs_ast
-            #        }
+        }  
     } else {
         # Case 3.
+        $case=3;
         $tline=~s/^(\w+)\s*//;
         $tline="$1($tline)";
         #say "TLINE3: $tline";
@@ -3589,22 +3704,259 @@ sub _parse_read_write_print {
         #say Dumper($attrs_ast, $rest, $err);
         #say emit_expr_from_ast($attrs_ast);
     }
-#    if ($err or $rest ne '') {
-#        croak "Parse failed: $line";
-#    }
-#croak Dumper( emit_expr_from_ast($attrs_ast),emit_expr_from_ast($exprs_ast));
-    #say Dumper($attrs_ast,$exprs_ast);
-    #    $info->{'CallAttrs'} = { 'Set' => $attrs_ast, 'List' => [ sort keys %{ $attrs_ast } ] };
+    
+    my $attr_pairs = $case == 3 ? {} : find_assignments_to_scalars_in_ast($attrs_ast,{});
+    my $impl_do_pairs = $case<2 ? {} : find_assignments_to_scalars_in_ast($exprs_ast,{});
+#    say "ATTR PAIRS: ".Dumper($attr_pairs);
+#    say "IMPLIED DO PAIRS: ".Dumper($impl_do_pairs);
     $info->{'CallArgs'} = { 'Set' => {}, 'List' => [ ] };
+    $info->{'CallArgs'}{'Ast'}=$attrs_ast;
+    $info->{'IOList'}{'Ast'}=$exprs_ast;
+    
+    #    $info->{'CallAttrs'} = { 'Set' => $attrs_ast, 'List' => [ sort keys %{ $attrs_ast } ] };
+    
     # This is hard as we do not mark an implied do as such
-    #$info->{'ImpliedDoVars'} = { 'Set' => {}, 'List' => [] };
+    # I should look for the pattern ( i = 1, n,v(i) ), i.e. ['(' ,['=',...]]
+    $info->{'ImpliedDoVars'} = { 
+    	'Set' => $impl_do_pairs,
+    	 'List' => [ sort keys %{ $impl_do_pairs } ] 
+    };
     my $attrs_vars = get_vars_from_expression($attrs_ast,{} );
     $info->{'CallAttrs'} = { 'Set' => $attrs_vars, 'List' => [ sort keys %{ $attrs_vars } ] };
     my $exprs_vars = get_vars_from_expression($exprs_ast,{} );
     #my $vars = { %{ $attrs_vars }, %{ $expr_vars } };
-    $info->{'ExprVars'} =  { 'Set' => $exprs_vars, 'List' => [ sort keys %{ $exprs_vars }] };
+    $info->{'ExprVars'} =  { 'Set' => $exprs_vars, 'List' => [ sort keys %{ $exprs_vars }] };    
+    
+    $info->{'Vars'}{'Written'}={'List'=>[],'Set'=>{}};
+    $info->{'Vars'}{'Read'}={'List'=>[],'Set'=>{}};
+    
+    if ( exists $info->{'AcceptCall'} ) {
+#    ACCEPT
+		#- case 3
+		#if grname add all vars to Written
+		if ( ($attrs_ast->[0] & 0xFF) ==2 and exists   $Sf->{'Namelist'}{ $attrs_ast->[1] } ) {
+			$info->{'Vars'}{'Written'}{'List'} = $Sf->{'Namelist'}{$attrs_ast->[1]};
+			$info->{'Vars'}{'Written'}{'Set'} = map {$_=>1} @{ $info->{'Vars'}{'Written'}{'List'} };
+		} else {
+			# This must be the iolist case. First check for implied do; then call args_vars. All args are Written, the rest is Read
+			(my $args, my $other_vars) = @{ find_args_vars_in_ast($exprs_ast)  };
+			if (%{$impl_do_pairs}) {	
+			for my $idv (sort keys %{$impl_do_pairs}) {
+				if (exists $args->{'Set'}{$idv}) {
+					delete $args->{'Set'}{$idv};
+					@{$args->{'List'}} =  sort keys %{$args->{'Set'}}; 
+				}
+			}
+			}
+		    $info->{'Vars'}{'Written'}=$args;
+		    $info->{'Vars'}{'Read'}=$other_vars;	
+		    return $info;
+		}
+#else set all args in iolist to Read from and all vars to Written to
+    } elsif ( exists $info->{'ReadCall'} ) {
+	#READ
+		#- all three cases
+	
+		#If case 1 we need to check the grname (2nd arg) and  add all vars to Read from
+		if ($case==1) {
+			if ( ($attrs_ast->[1][0] & 0xFF) ==2 and exists   $Sf->{'Namelist'}{ $attrs_ast->[1][1] } ) {
+	            $info->{'Vars'}{'Written'}{'List'} = $Sf->{'Namelist'}{$attrs_ast->[1][1]};
+	            $info->{'Vars'}{'Written'}{'Set'} = map {$_=>1} @{ $info->{'Vars'}{'Written'}{'List'} };
+	        } 
+	        if (exists $attr_pairs->{'iostat'}) {
+	        	my $ios = $attr_pairs->{'iostat'}[1];
+	        	$info->{'Vars'}{'Written'}{'Set'}{$ios}=1;
+	        }
+		} elsif ($case==2) {
+			  #If case 2, add REC vars to Read from
+			if (exists $attr_pairs->{'iostat'}) {
+	            my $ios = $attr_pairs->{'iostat'}[1];
+	            $info->{'Vars'}{'Written'}{'Set'}{$ios}=1;
+	        }
+	        if (exists $attr_pairs->{'rec'}) {
+                my $rn = $attr_pairs->{'rec'}[1];
+                $info->{'Vars'}{'Read'}{'Set'}{$rn}=1;
+            }
+	        # This must be the iolist case. First check for implied do; then call args_vars. All args are Written, the rest is Read
+	            (my $args, my $other_vars) = @{ find_args_vars_in_ast($exprs_ast)  };
+	            if (%{$impl_do_pairs}) {   
+	            for my $idv (sort keys %{$impl_do_pairs}) {
+	                if (exists $args->{'Set'}{$idv}) {
+	                    delete $args->{'Set'}{$idv};
+	                    @{$args->{'List'}} =  sort keys %{$args->{'Set'}}; 
+	                }
+	            }
+	            }
+	            $info->{'Vars'}{'Written'}{'Set'}= {%{$args}, %{$info->{'Vars'}{'Written'}{'Set'}}};
+	            $info->{'Vars'}{'Read'}=$other_vars;
+		} else {# $case==3
+	    #If case 3, and more than one arg, process iolist as in ACCEPT		
+	# This must be the iolist case. First check for implied do; then call args_vars. All args are Written, the rest is Read
+	            
+	            (my $args, my $other_vars) = @{ find_args_vars_in_ast($exprs_ast)  };
+	            if (%{$impl_do_pairs}) {      
+	            for my $idv (sort keys %{$impl_do_pairs}) {
+	                if (exists $args->{'Set'}{$idv}) {
+	                    delete $args->{'Set'}{$idv};
+	                    @{$args->{'List'}} =  sort keys %{$args->{'Set'}}; 
+	                }
+	            }
+	            }
+	            $info->{'Vars'}{'Written'}=$args;
+	            $info->{'Vars'}{'Read'}=$other_vars;    
+		}
+
+	} elsif ( exists $info->{'PrintCall'} ) {
+	#PRINT
+	#- case 3
+	#if grname add all vars to Read from
+	
+	#else set all args in iolist to Read from and all vars to Read from
+	# use 
+        if ( ($attrs_ast->[0] & 0xFF) ==2 and exists   $Sf->{'Namelist'}{ $attrs_ast->[1] } ) {
+            $info->{'Vars'}{'Read'}{'List'} = $Sf->{'Namelist'}{$attrs_ast->[1]};
+            $info->{'Vars'}{'Read'}{'Set'} = { map {$_=>1} @{ $info->{'Vars'}{'Read'}{'List'} } };
+        } else {
+            # This must be the iolist case. First check for implied do; then call args_vars. All args are Written, the rest is Read
+            my $vars = find_vars_in_ast($exprs_ast, {}  );
+            if (%{$impl_do_pairs}) {    
+            for my $idv (sort keys %{$impl_do_pairs}) {
+                if (exists $vars->{'Set'}{$idv}) {
+                    delete $vars->{'Set'}{$idv};
+                    @{$vars->{'List'}} =  sort keys %{$vars->{'Set'}}; 
+                }
+            }
+            }
+            $info->{'Vars'}{'Read'}{'Set'}=$vars;
+            $info->{'Vars'}{'Read'}{'List'}= [ sort keys %{ $info->{'Vars'}{'Read'}{'Set'} } ];                       
+        }
+         return $info;
+	
+	} elsif ( exists $info->{'WriteCall'} ) {
+	#WRITE
+	#case 1 and 2 
+	if ($case==1) {
+		#case 1, grname, Read from
+		if ( ($attrs_ast->[0] & 0xFF) ==2 and exists   $Sf->{'Namelist'}{ $attrs_ast->[1] } ) {
+            $info->{'Vars'}{'Read'}{'List'} = $Sf->{'Namelist'}{$attrs_ast->[1]};
+            $info->{'Vars'}{'Read'}{'Set'} = { map {$_=>1} @{ $info->{'Vars'}{'Read'}{'List'} } };
+        }
+	}
+	elsif ($case==2) {
+    #case 2, iolist, Read from
+    #If case 2, add REC vars to Read from
+        if (exists $attr_pairs->{'rec'}) {
+            my $rn = $attr_pairs->{'rec'}[1];
+            $info->{'Vars'}{'Read'}{'Set'}{$rn}=1;
+        }
+		
+            # This must be the iolist case. First check for implied do; then call args_vars. All args are Written, the rest is Read
+            my $vars = find_vars_in_ast($exprs_ast, {}  );
+            if (%{$impl_do_pairs}) {    
+            for my $idv (sort keys %{$impl_do_pairs}) {
+                if (exists $vars->{'Set'}{$idv}) {
+                    delete $vars->{'Set'}{$idv};
+                    @{$vars->{'List'}} =  sort keys %{$vars->{'Set'}}; 
+                }
+            }
+            }
+            $info->{'Vars'}{'Read'}{'Set'}=$vars;
+                                   
+	}	
+	#If case 1 or 2, add IOSTAT var to Written to
+	   if (exists $attr_pairs->{'iostat'}) {
+                my $ios = $attr_pairs->{'iostat'}[1];
+                $info->{'Vars'}{'Written'}{'Set'}{$ios}=1;
+       }
+	} elsif ( exists $info->{'InquireCall'} ) {
+    	#INQUIRE    	
+    	#Other args are all Written to except the ERR Label
+        for my $attr (keys %{ $attr_pairs } ) {
+        	if ($attr ne 'err') {
+        	   my $attr_val = $attr_pairs->{$attr}[1]; # should always be the name of a $ or @
+        	   $info->{'Vars'}{'Written'}{'Set'}{$attr_val}=1;
+        	}
+        }            	
+    	
+	} elsif ( exists $info->{'OpenCall'} ) {
+		carp "TODO: OPEN";
+		#OPEN 
+		#if unit has vars, add to Read from
+		#
+		#Read from:
+		#UNIT
+		#FILE = fn Name of the file being queried : character string
+		#
+		#ACCESS
+		#BLANK
+		#FORM
+		#NAME
+		#RECL
+		#
+		#FILEOPT = fopt : a character expression
+		#READONLY 
+		#ACTION = act : READ | WRITE | READWRITE
+		#STATUS = sta or TYPE = sta : a character expression
+		#
+		#All args are all Read from except the ERR Label and IOSTAT
+		#Add labels to ReferencedLabels
+		#IOSTAT Written to
+		#
+	} elsif ( exists $info->{'CloseCall'} ) {
+		carp "TODO: CLOSE";
+		#CLOSE
+		#if unit has vars, add to Read from
+		#All args are all Read from except the ERR Label and IOSTAT
+		#Add labels to ReferencedLabels
+		#IOSTAT Written to
+	} elsif ( exists $info->{'RewindCall'} ) {
+    #REWIND
+		if ($case==3) {
+		# REWIND u
+			if ($exprs_ast->[0] < 29) {
+				 my $vars = find_vars_in_ast($exprs_ast, {}  );
+	            $info->{'Vars'}{'Read'}{'Set'}=$vars;
+			}
+		} else {
+        # REWIND ( [ UNIT=] u [, IOSTAT=ios ] [, ERR= s ])
+            if (exists $attr_pairs->{'iostat'}) {
+                my $ios = $attr_pairs->{'iostat'}[1];
+                $info->{'Vars'}{'Written'}{'Set'}{$ios}=1;
+            }
+        } 
+	} else {
+		# I dont do TOPEN/TCLOSE/ENCODE/DECODE/TYPE 
+		croak 'Unsupported IO call, probably not part of the FORTRAN 77 standard: '.$tline;
+	}    
+
+    #Add labels to ReferencedLabels, WHY?
+    if (exists $attr_pairs->{'err'}) {
+        my $label= $attr_pairs->{'err'}[1];
+        $Sf->{'ReferencedLabels'}{$label}=$label;
+    }
+    #if unit has vars, add to Read from
+    if ( ($attrs_ast->[0] & 0xFF) <29 ) { # it's not a constant
+    	my %unit_vars=();
+    	if ( ($attrs_ast->[0] & 0xFF) == 27 ) { # a comma-sep list
+    		if ( ($attrs_ast->[1][0] & 0xFF) < 29 ) { # first elt not a constant
+    	       %unit_vars = %{ find_vars_in_ast($attrs_ast->[1],{}) };		
+    		}
+    	} else {
+    		%unit_vars = %{ find_vars_in_ast($attrs_ast,{}) };
+    	}
+    		    	
+    	if ( %unit_vars ) {
+    	   $info->{'Vars'}{'Read'}{'Set'} = { %{ $info->{'Vars'}{'Read'}{'Set'} }, %unit_vars };
+    	}     	
+    }
+# create the lists
+    $info->{'Vars'}{'Read'}{'List'}= [ sort keys %{ $info->{'Vars'}{'Read'}{'Set'} } ];
+    $info->{'Vars'}{'Written'}{'List'}= [ sort keys %{ $info->{'Vars'}{'Read'}{'Set'} } ];
 
     return $info;
+    } else {
+    	return _parse_read_write_print_OLD(@_); 
+    }
 }    # END of _parse_read_write_print()
 
 sub _parse_read_write_print_OLD {

@@ -5,7 +5,7 @@
 #
 
 # Fortran compiler name
-FC='gfortran-mp-4.9 -cpp -ffree-form -ffree-line-length-0  -fsyntax-only'
+FCL="$FC -cpp -ffree-form -ffree-line-length-0  -fsyntax-only"
 # do not run tests that include deleted features in Fortran 95
 AVOID_DELETED_F95=1
 
@@ -46,7 +46,7 @@ do
     skipped=`expr ${skipped} + 1`
   else
     echo "Process ${basename}"
-    eval "${FC}" "${file}"
+    eval "${FCL}" "${file}"
     if [ $? -eq 0 ]; then
       passed=`expr ${passed} + 1`
     else

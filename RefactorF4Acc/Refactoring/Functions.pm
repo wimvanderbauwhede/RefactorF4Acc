@@ -83,6 +83,7 @@ sub remove_vars_masking_functions { ( my $stref ) = @_;
     for my $f ( keys %{ $stref->{'Subroutines'} } ) {   
     	     
         next unless (defined $f and $f ne '');
+        next if exists $F95_intrinsic_functions{$f};
         next if exists $stref->{'Entries'}{$f};
         next if exists $stref->{'ExternalSubroutines'}{$f};
         next if exists $stref->{'Modules'}{$f}; # HACK! FIXME!

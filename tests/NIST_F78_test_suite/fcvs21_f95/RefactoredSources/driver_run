@@ -8,7 +8,7 @@
 cp ../*.DAT .
 
 # Fortran compiler name
-FC='gfortran-mp-4.9 -cpp -ffree-form -ffree-line-length-0 '
+FCL="$FC -cpp -ffree-form -ffree-line-length-0 "
 
 #FC='g77'
 # option to produce executable name
@@ -54,7 +54,7 @@ do
 
     echo "Process ${basename}"
 
-    eval "${FC}" "${file}" "${EXECOPT}" a.out
+    eval "${FCL}" "${file}" "${EXECOPT}" a.out
 
     # FM257 tests PAUSE
     if [ x"${basename}" = xFM257 ]; then

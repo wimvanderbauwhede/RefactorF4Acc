@@ -26,6 +26,7 @@ use Exporter;
     %F95_intrinsic_functions
     %F95_other_intrinsics
     %F95_types
+    %F95_io_keywords
     &sub_func_incl_mod
     &show_annlines
     &pp_annlines
@@ -923,6 +924,35 @@ status
 unit
 );
 
+our @F95_io_keywords_list = qw(
+access
+action
+blank
+direct
+end
+err
+exist
+file
+fileopt
+fmt
+form
+formatted
+iostat
+name
+named
+nextrec
+nml
+number
+opened
+readonly
+rec
+recl
+sequential
+status
+unformatted
+unit
+);
+
 our @F95_types_list = qw(
 real
 integer
@@ -934,7 +964,7 @@ character
 complex
 doublecomplex
 );
-
+our %F95_io_keywords = map { $_=>1 } @F95_io_keywords_list;
 our %F95_reserved_words = map { $_=>1 } @F95_reserved_words_list ; 
 our %F95_function_like_reserved_words = map { $_=>1 } @F95_function_like_reserved_words_list;
 

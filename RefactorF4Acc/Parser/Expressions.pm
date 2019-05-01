@@ -35,10 +35,13 @@ use Exporter;
   &interpret
   &parse_expression_no_context
   &_find_consts_in_ast
-  &_find_vars_in_ast
+  &find_vars_in_ast
   &_find_args_in_ast
+  &find_args_vars_in_ast
+  &find_assignments_to_scalars_in_ast
   &_traverse_ast_with_action
   @sigils
+  $NEW_PARSER
 );
 
 our $NEW_PARSER = 1;
@@ -524,16 +527,17 @@ sub emit_expression {(my $ast, my $expr_str)=@_;
 		
 #		  		$expr_str =~s/\.(\w+)\./$F95_ops{$1}/g;
 	}
-	carp "EMITTED:<$expr_str>";  
+#	carp "EMITTED:<$expr_str>";  
 	return $expr_str;		
 } # END of emit_expression
 
 # All variables in the expression
 # $vars = {} to start
 sub get_vars_from_expression {(my $ast, my $vars)=@_;
-    croak unless ref($ast) eq 'ARRAY';
+
     if ($NEW_PARSER) {
-        $vars = _find_vars_in_ast($ast,$vars);
+    	croak unless ref($ast) eq 'ARRAY';
+        $vars = find_vars_in_ast($ast,$vars);
     } else {
 #	croak Dumper($ast) unless 
 	if (ref($ast) ne 'ARRAY') {
@@ -703,9 +707,10 @@ if ($NEW_PARSER) {
         $all_vars->{'Set'}=$vars;
         $args = _parse_subcall_args($ast, $args);
 } else {
-
 		
-	if (scalar @{$ast} > 2 and scalar @{$ast->[2]}>0) {#			croak Dumper($ast);
+#		if (ref($ast) ne 'ARRAY' or ref($ast->[2]) ne 'ARRAY') {croak Dumper($ast) };
+	if (scalar @{$ast} > 2 and (ref($ast->[2]) ne 'ARRAY' or scalar @{$ast->[2]}>0)) {#			croak Dumper($ast);
+	# we have '&', $subname, [ ... ]
 		for my  $idx (2 .. scalar @{$ast}-1) { # 0 and 1 are '&" and the subroutine name
 		my $ignore=0;				
 			if( ref( $ast->[$idx] ) eq 'ARRAY') { 				 
@@ -1586,7 +1591,7 @@ sub _replace_function_calls_in_ast { #(my $ast)=@_;
 						and not exists $F95_reserved_words{$mvar} 					
 						)
 					) {
-						( my $expr_args, my $expr_other_vars ) = _find_args_vars_in_ast($ast->[2]); # look only at the argument list
+						( my $expr_args, my $expr_other_vars ) = find_args_vars_in_ast($ast->[2]); # look only at the argument list
 						for my $expr_arg (@{$expr_args->{'List'}}) {
 							if ( $expr_args->{'Set'}{$expr_arg}{'Type'} eq 'Label') {
 								my $label=$expr_arg;
@@ -1656,7 +1661,7 @@ sub _find_consts_in_ast { (my $ast, my $consts)=@_;
     return $consts;
 } # END of _find_consts_in_ast
 
-#sub _find_vars_in_ast { (my $ast, my $vars)=@_;
+#sub find_vars_in_ast { (my $ast, my $vars)=@_;
 #    
 #    if (ref($ast) eq 'ARRAY' and scalar @{$ast}>0) { 
 #        if (ref($ast->[0]) ne 'ARRAY') {
@@ -1675,12 +1680,12 @@ sub _find_consts_in_ast { (my $ast, my $consts)=@_;
 #					}					
 #					$vars->{$mvar}{'IndexVars'} = $index_vars;
 #                } else {                
-#                    $vars = _find_vars_in_ast($ast->[2], $vars);
+#                    $vars = find_vars_in_ast($ast->[2], $vars);
 #                }
 #            } 
 #            elsif ( ($ast->[0] & 0xFF) != 2 and ($ast->[0] & 0xFF) < 29) { # not a var or constant
 #                for my $idx (1 .. scalar @{$ast} -1) {
-#                    $vars  = _find_vars_in_ast( $ast->[$idx], $vars);
+#                    $vars  = find_vars_in_ast( $ast->[$idx], $vars);
 #                }
 #            } 
 #            elsif (($ast->[0] & 0xFF) == 2) { # a constant
@@ -1692,20 +1697,20 @@ sub _find_consts_in_ast { (my $ast, my $consts)=@_;
 #            }
 #        } else {
 #             for my $idx (0 .. scalar @{$ast} -1) {
-#                $vars  = _find_vars_in_ast( $ast->[$idx], $vars);
+#                $vars  = find_vars_in_ast( $ast->[$idx], $vars);
 #            }
 #        }
 #    }
 #    return $vars;
-#} # END of _find_vars_in_ast
+#} # END of find_vars_in_ast
 
 
 # if the expression is a sub call (or in fact just a comma-sep list), return the arguments and also all variables that are not arguments
 # range(...) is one use case. I guess we don't even need that anymore
-sub _find_args_vars_in_ast {(my $ast)=@_;
+sub find_args_vars_in_ast {(my $ast)=@_;
 
     my $all_vars={'List'=>[],'Set'=>{} };
-    $all_vars->{'Set'}=_find_vars_in_ast($ast,{});
+    $all_vars->{'Set'}=find_vars_in_ast($ast,{});
     
     
     my $args={'List'=>[],'Set'=>{}};
@@ -1719,7 +1724,7 @@ sub _find_args_vars_in_ast {(my $ast)=@_;
      
     $all_vars->{'List'} = [keys %{ $all_vars->{'Set'} }];
     return [$args,$all_vars];
-} # END of _find_args_vars_in_ast
+} # END of find_args_vars_in_ast
 
 sub _traverse_ast_with_action { (my $ast, my $acc, my $f) = @_;
 
@@ -1749,7 +1754,7 @@ sub _traverse_ast_with_action { (my $ast, my $acc, my $f) = @_;
 
 } # END of _traverse_ast_with_action
 
-sub _find_vars_in_ast { (my $ast, my $vars)=@_;	
+sub find_vars_in_ast { (my $ast, my $vars)=@_;	
 
     #	croak unless ref($ast) eq 'ARRAY';
   if(scalar @{$ast}==0) {
@@ -1761,9 +1766,22 @@ sub _find_vars_in_ast { (my $ast, my $vars)=@_;
                 if (($ast->[0] & 0xFF) == 10) { 
                 my $mvar = $ast->[1];
                 $vars->{$mvar}={'Type'=>'Array'};
+                # Determine the dimension
+                # Either it's 1 because not a comma-sep list or it's the size of the comma-sep list
+                my $dim=0;
+                if(scalar @{$ast->[2]}==0) {
+                	# empty list, this can't be an array
+                	croak "$mvar cannot be an array as the index list is empty!"
+                	
+                } elsif (($ast->[2][0] & 0xFF)==27) {
+                	$dim = scalar @{$ast->[2]}-1;
+                } else {
+                	$dim=1;
+                } 
+                $vars->{$mvar}{'Dim'}=$dim;
                 # Handle IndexVars
                 my $index_vars={};
-                $index_vars =  _find_vars_in_ast($ast->[2],$index_vars);
+                $index_vars =  find_vars_in_ast($ast->[2],$index_vars);
 
                     for my $idx_var (keys %{ $index_vars }) {
                         if ($index_vars->{$idx_var}{'Type'} eq 'Array') {
@@ -1772,7 +1790,7 @@ sub _find_vars_in_ast { (my $ast, my $vars)=@_;
                     }                   
                     $vars->{$mvar}{'IndexVars'} = $index_vars;
                 } else {                
-                    $vars = _find_vars_in_ast($ast->[2], $vars);
+                    $vars = find_vars_in_ast($ast->[2], $vars);
                 }
   } elsif (($ast->[0] & 0xFF) == 2) { # scalar variable
                 my $mvar = $ast->[1]; 
@@ -1785,12 +1803,39 @@ sub _find_vars_in_ast { (my $ast, my $vars)=@_;
     #$vars->{$mvar}={'Type'=>$sigils[ ($ast->[0] & 0xFF) ]} ;
   } else { # other operators    
     for my $idx (1 .. scalar @{$ast}-1) {
-        $vars = _find_vars_in_ast($ast->[$idx],$vars);        
+        $vars = find_vars_in_ast($ast->[$idx],$vars);        
     }
   }	
 
     return $vars;
-} # END of _find_vars_in_ast
+} # END of find_vars_in_ast
+
+sub find_assignments_to_scalars_in_ast { (my $ast, my $vars)=@_; 
+
+
+  if(scalar @{$ast}==0) {
+      return {};
+  }
+  if ( ($ast->[0] & 0xFF) == 1 or
+       ($ast->[0] & 0xFF) == 10 ) { # array var or function/subroutine call       
+    
+        $vars = find_assignments_to_scalars_in_ast($ast->[2],$vars);        
+    
+  } elsif (($ast->[0] & 0xFF) == 9) { # assignment
+  # Now, this can eithe be an assignment to a scalar or to an array. 
+  # I am only interested in assignments to scalars  
+  # [ '=', ['$', $lhs_var], $rhs_ast ]
+  if ( ($ast->[1][0] & 0xFF) == 2 ) {
+    $vars->{$ast->[1][1]}=$ast->[2];
+    }
+  } elsif ( ($ast->[0] & 0xFF)  < 29 and ($ast->[0] & 0xFF)  !=2  ) { # other operators    
+    for my $idx (1 .. scalar @{$ast}-1) {
+        $vars = find_assignments_to_scalars_in_ast($ast->[$idx],$vars);        
+    }
+  } 
+
+    return $vars;
+} # END of find_assignments_to_scalars_in_ast
 
 # I'm only looking for arguments, so I don't bother with index vars
 # Funny enough it seems I also need constant args because I look for ReferencedLabels
@@ -1828,7 +1873,7 @@ sub _parse_subcall_args { (my $ast, my $args) =@_;
 	if ( ($ast->[0] & 0xFF) == 0 ) { #	'('
 	# An expression. 
        my $expr_str = emit_expr_from_ast($ast);
-	   my $vars = _find_vars_in_ast($ast, {});
+	   my $vars = find_vars_in_ast($ast, {});
        $args->{'Set'}{$expr_str}={
            'Type'=>'Expr', 
            'Vars'=>$vars, 
@@ -1858,7 +1903,7 @@ sub _parse_subcall_args { (my $ast, my $args) =@_;
 	elsif (($ast->[0] & 0xFF)== 10) { #'@'
             my $arg = $ast->[1]; 
            my $expr_str = emit_expr_from_ast($ast);
-	       my $vars = _find_vars_in_ast($ast, {});
+	       my $vars = find_vars_in_ast($ast, {});
             $args->{'Set'}{$expr_str}={ 
                 'Type'=>'Array',
                 'Vars'=>$vars, 
@@ -1871,7 +1916,7 @@ sub _parse_subcall_args { (my $ast, my $args) =@_;
 	elsif (($ast->[0] & 0xFF)== 1) {# '&'
             my $arg = $ast->[1]; 
            my $expr_str = emit_expr_from_ast($ast);
-	       my $vars = _find_vars_in_ast($ast, {});
+	       my $vars = find_vars_in_ast($ast, {});
 	        $args->{'Set'}{$expr_str}={   
                 'Type'=>'Sub',  
                 'Vars'=>$vars, 

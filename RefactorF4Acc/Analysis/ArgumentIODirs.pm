@@ -2,7 +2,7 @@ package RefactorF4Acc::Analysis::ArgumentIODirs;
 use v5.10;
 
 use RefactorF4Acc::Config;
-use RefactorF4Acc::Utils qw( get_maybe_args_globs type_via_implicits in_nested_set get_var_record_from_set );
+use RefactorF4Acc::Utils qw( get_maybe_args_globs type_via_implicits in_nested_set get_var_record_from_set %F95_intrinsic_functions);
 use RefactorF4Acc::Refactoring::Common qw( get_annotated_sourcelines stateful_pass emit_f95_var_decl get_f95_var_decl );
 #use RefactorF4Acc::Refactoring::Subroutines::Signatures qw( refactor_subroutine_signature );
 
@@ -1136,7 +1136,9 @@ sub update_argument_io_direction_all_subs {
 	( my $stref ) = @_;
 	for my $f ( keys %{ $stref->{'Subroutines'} } ) {
 		next if $f eq '';
+		next if exists $F95_intrinsic_functions{$f};
 		next if exists $stref->{'Entries'}{$f};
+		next if exists $stref->{'ExternalSubroutines'}{$f};
 		next if exists $stref->{'ExternalSubroutines'}{$f};
 		next if exists $stref->{'Modules'}{$f}; # HACK! FIXME!
 		next if (exists $stref->{'Subroutines'}{$f}{'Program'} and $stref->{'Subroutines'}{$f}{'Program'} == 1);
