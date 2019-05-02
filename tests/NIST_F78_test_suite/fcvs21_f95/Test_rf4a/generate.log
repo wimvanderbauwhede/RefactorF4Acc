@@ -38,7 +38,7 @@ TEST CASE FM021.f
 refactorF4acc.pl -c rf4a_fm021.cfg  -g fm021
 TEST CASE FM022.f
 refactorF4acc.pl -c rf4a_fm022.cfg  -g fm022
-The EQUIVALENCE  statement is not supported, this could possible break your code, please rewrite:
+The EQUIVALENCE  statement is not refactored, this could possible break your code, please rewrite:
   SOURCE: ./FM022.f
   CODE UNIT: fm022
 LINES:
@@ -48,7 +48,7 @@ LINES:
 41: equivalence ( iadn16(3), iadn17(2) )                              
 TEST CASE FM023.f
 refactorF4acc.pl -c rf4a_fm023.cfg  -g fm023
-The EQUIVALENCE  statement is not supported, this could possible break your code, please rewrite:
+The EQUIVALENCE  statement is not refactored, this could possible break your code, please rewrite:
   SOURCE: ./FM023.f
   CODE UNIT: fm023
 LINES:
@@ -57,7 +57,7 @@ LINES:
 32: equivalence (icoe01,icoe02,icoe03,icoe04), (rcoe01,rcoe02,rcoe03) 
 TEST CASE FM024.f
 refactorF4acc.pl -c rf4a_fm024.cfg  -g fm024
-The EQUIVALENCE  statement is not supported, this could possible break your code, please rewrite:
+The EQUIVALENCE  statement is not refactored, this could possible break your code, please rewrite:
   SOURCE: ./FM024.f
   CODE UNIT: fm024
 LINES:
@@ -121,7 +121,7 @@ TEST CASE FM090.f
 refactorF4acc.pl -c rf4a_fm090.cfg  -g fm090
 TEST CASE FM091.f
 refactorF4acc.pl -c rf4a_fm091.cfg  -g fm091
-The EQUIVALENCE  statement is not supported, this could possible break your code, please rewrite:
+The EQUIVALENCE  statement is not refactored, this could possible break your code, please rewrite:
   SOURCE: ./FM091.f
   CODE UNIT: fm091
 LINES:
@@ -193,7 +193,7 @@ TEST CASE FM261.f
 refactorF4acc.pl -c rf4a_fm261.cfg  -g fm261
 TEST CASE FM300.f
 refactorF4acc.pl -c rf4a_fm300.cfg  -g fm300
-The EQUIVALENCE  statement is not supported, this could possible break your code, please rewrite:
+The EQUIVALENCE  statement is not refactored, this could possible break your code, please rewrite:
   SOURCE: ./FM300.f
   CODE UNIT: fm300
 LINES:
@@ -217,24 +217,14 @@ TEST CASE FM301.f
 refactorF4acc.pl -c rf4a_fm301.cfg  -g fm301
 TEST CASE FM302.f
 refactorF4acc.pl -c rf4a_fm302.cfg  -g fm302
-The EQUIVALENCE  statement is not supported, this could possible break your code, please rewrite:
-  SOURCE: ./FM302.f
-  CODE UNIT: fm302
-LINES:
-101: equivalence (ivceh1,ivceh2)                                       
-105: equivalence (ivce09,ivce10)                                       
-110: equivalence (ivcei1,iace1i)                                       
+Generation failed for FM302.f95
 TEST CASE FM306.f
 refactorF4acc.pl -c rf4a_fm306.cfg  -g fm306
 TEST CASE FM307.f
 refactorF4acc.pl -c rf4a_fm307.cfg  -g fm307
 TEST CASE FM308.f
 refactorF4acc.pl -c rf4a_fm308.cfg  -g fm308
-The EQUIVALENCE  statement is not supported, this could possible break your code, please rewrite:
-  SOURCE: ./FM308.f
-  CODE UNIT: fm308
-LINES:
-112: equivalence (ivoe01,ivoe02)                                       
+Generation failed for FM308.f95
 TEST CASE FM311.f
 refactorF4acc.pl -c rf4a_fm311.cfg  -g fm311
 TEST CASE FM317.f
@@ -308,12 +298,14 @@ TEST CASE FM407.f
 refactorF4acc.pl -c rf4a_fm407.cfg  -g fm407
 TEST CASE FM411.f
 refactorF4acc.pl -c rf4a_fm411.cfg  -g fm411
+Generation failed for FM411.f95
 TEST CASE FM413.f
 refactorF4acc.pl -c rf4a_fm413.cfg  -g fm413
+Generation failed for FM413.f95
 SKIPPING FM500.f
 TEST CASE FM503.f
 refactorF4acc.pl -c rf4a_fm503.cfg  -g fm503
-The EQUIVALENCE  statement is not supported, this could possible break your code, please rewrite:
+The EQUIVALENCE  statement is not refactored, this could possible break your code, please rewrite:
   SOURCE: ./FM503.f
   CODE UNIT: sn505
 LINES:
@@ -329,7 +321,7 @@ TEST CASE FM520.f
 refactorF4acc.pl -c rf4a_fm520.cfg  -g fm520
 TEST CASE FM700.f
 refactorF4acc.pl -c rf4a_fm700.cfg  -g fm700
-The EQUIVALENCE  statement is not supported, this could possible break your code, please rewrite:
+The EQUIVALENCE  statement is not refactored, this could possible break your code, please rewrite:
   SOURCE: ./FM700.f
   CODE UNIT: fm700
 LINES:
@@ -338,6 +330,7 @@ TEST CASE FM701.f
 refactorF4acc.pl -c rf4a_fm701.cfg  -g fm701
 TEST CASE FM710.f
 refactorF4acc.pl -c rf4a_fm710.cfg  -g fm710
+Generation failed for FM710.f95
 TEST CASE FM711.f
 refactorF4acc.pl -c rf4a_fm711.cfg  -g fm711
 TEST CASE FM715.f
@@ -348,7 +341,7 @@ TEST CASE FM719.f
 refactorF4acc.pl -c rf4a_fm719.cfg  -g fm719
 TEST CASE FM722.f
 refactorF4acc.pl -c rf4a_fm722.cfg  -g fm722
-The EQUIVALENCE  statement is not supported, this could possible break your code, please rewrite:
+The EQUIVALENCE  statement is not refactored, this could possible break your code, please rewrite:
   SOURCE: ./FM722.f
   CODE UNIT: fm722
 LINES:
@@ -374,7 +367,7 @@ TEST CASE FM808.f
 refactorF4acc.pl -c rf4a_fm808.cfg  -g fm808
 TEST CASE FM809.f
 refactorF4acc.pl -c rf4a_fm809.cfg  -g fm809
-The EQUIVALENCE  statement is not supported, this could possible break your code, please rewrite:
+The EQUIVALENCE  statement is not refactored, this could possible break your code, please rewrite:
   SOURCE: ./FM809.f
   CODE UNIT: fm809
 LINES:
@@ -383,7 +376,7 @@ TEST CASE FM810.f
 refactorF4acc.pl -c rf4a_fm810.cfg  -g fm810
 TEST CASE FM811.f
 refactorF4acc.pl -c rf4a_fm811.cfg  -g fm811
-The EQUIVALENCE  statement is not supported, this could possible break your code, please rewrite:
+The EQUIVALENCE  statement is not refactored, this could possible break your code, please rewrite:
   SOURCE: ./FM811.f
   CODE UNIT: fm811
 LINES:
@@ -392,7 +385,7 @@ TEST CASE FM812.f
 refactorF4acc.pl -c rf4a_fm812.cfg  -g fm812
 TEST CASE FM813.f
 refactorF4acc.pl -c rf4a_fm813.cfg  -g fm813
-The EQUIVALENCE  statement is not supported, this could possible break your code, please rewrite:
+The EQUIVALENCE  statement is not refactored, this could possible break your code, please rewrite:
   SOURCE: ./FM813.f
   CODE UNIT: fm813
 LINES:
@@ -401,7 +394,7 @@ TEST CASE FM814.f
 refactorF4acc.pl -c rf4a_fm814.cfg  -g fm814
 TEST CASE FM815.f
 refactorF4acc.pl -c rf4a_fm815.cfg  -g fm815
-The EQUIVALENCE  statement is not supported, this could possible break your code, please rewrite:
+The EQUIVALENCE  statement is not refactored, this could possible break your code, please rewrite:
   SOURCE: ./FM815.f
   CODE UNIT: fm815
 LINES:
@@ -410,7 +403,7 @@ TEST CASE FM816.f
 refactorF4acc.pl -c rf4a_fm816.cfg  -g fm816
 TEST CASE FM817.f
 refactorF4acc.pl -c rf4a_fm817.cfg  -g fm817
-The EQUIVALENCE  statement is not supported, this could possible break your code, please rewrite:
+The EQUIVALENCE  statement is not refactored, this could possible break your code, please rewrite:
   SOURCE: ./FM817.f
   CODE UNIT: fm817
 LINES:
@@ -421,7 +414,7 @@ TEST CASE FM819.f
 refactorF4acc.pl -c rf4a_fm819.cfg  -g fm819
 TEST CASE FM820.f
 refactorF4acc.pl -c rf4a_fm820.cfg  -g fm820
-The EQUIVALENCE  statement is not supported, this could possible break your code, please rewrite:
+The EQUIVALENCE  statement is not refactored, this could possible break your code, please rewrite:
   SOURCE: ./FM820.f
   CODE UNIT: fm820
 LINES:
@@ -442,28 +435,28 @@ TEST CASE FM827.f
 refactorF4acc.pl -c rf4a_fm827.cfg  -g fm827
 TEST CASE FM828.f
 refactorF4acc.pl -c rf4a_fm828.cfg  -g fm828
-The EQUIVALENCE  statement is not supported, this could possible break your code, please rewrite:
+The EQUIVALENCE  statement is not refactored, this could possible break your code, please rewrite:
   SOURCE: ./FM828.f
   CODE UNIT: fm828
 LINES:
 30: equivalence (avc, r2e)                                          
 TEST CASE FM829.f
 refactorF4acc.pl -c rf4a_fm829.cfg  -g fm829
-The EQUIVALENCE  statement is not supported, this could possible break your code, please rewrite:
+The EQUIVALENCE  statement is not refactored, this could possible break your code, please rewrite:
   SOURCE: ./FM829.f
   CODE UNIT: fm829
 LINES:
 31: equivalence (bvc, r2e)                                          
 TEST CASE FM830.f
 refactorF4acc.pl -c rf4a_fm830.cfg  -g fm830
-The EQUIVALENCE  statement is not supported, this could possible break your code, please rewrite:
+The EQUIVALENCE  statement is not refactored, this could possible break your code, please rewrite:
   SOURCE: ./FM830.f
   CODE UNIT: fm830
 LINES:
 32: equivalence (avc, r2e)                                          
 TEST CASE FM831.f
 refactorF4acc.pl -c rf4a_fm831.cfg  -g fm831
-The EQUIVALENCE  statement is not supported, this could possible break your code, please rewrite:
+The EQUIVALENCE  statement is not refactored, this could possible break your code, please rewrite:
   SOURCE: ./FM831.f
   CODE UNIT: fm831
 LINES:
@@ -472,14 +465,14 @@ TEST CASE FM832.f
 refactorF4acc.pl -c rf4a_fm832.cfg  -g fm832
 TEST CASE FM833.f
 refactorF4acc.pl -c rf4a_fm833.cfg  -g fm833
-The EQUIVALENCE  statement is not supported, this could possible break your code, please rewrite:
+The EQUIVALENCE  statement is not refactored, this could possible break your code, please rewrite:
   SOURCE: ./FM833.f
   CODE UNIT: fm833
 LINES:
 33: equivalence (avc, r2e)                                          
 TEST CASE FM834.f
 refactorF4acc.pl -c rf4a_fm834.cfg  -g fm834
-The EQUIVALENCE  statement is not supported, this could possible break your code, please rewrite:
+The EQUIVALENCE  statement is not refactored, this could possible break your code, please rewrite:
   SOURCE: ./FM834.f
   CODE UNIT: fm834
 LINES:
@@ -488,13 +481,14 @@ TEST CASE FM900.f
 refactorF4acc.pl -c rf4a_fm900.cfg  -g fm900
 TEST CASE FM901.f
 refactorF4acc.pl -c rf4a_fm901.cfg  -g fm901
+Generation failed for FM901.f95
 TEST CASE FM903.f
 refactorF4acc.pl -c rf4a_fm903.cfg  -g fm903
 TEST CASE FM905.f
 refactorF4acc.pl -c rf4a_fm905.cfg  -g fm905
 TEST CASE FM906.f
 refactorF4acc.pl -c rf4a_fm906.cfg  -g fm906
-The EQUIVALENCE  statement is not supported, this could possible break your code, please rewrite:
+The EQUIVALENCE  statement is not refactored, this could possible break your code, please rewrite:
   SOURCE: ./FM906.f
   CODE UNIT: fm906
 LINES:
@@ -503,14 +497,14 @@ TEST CASE FM907.f
 refactorF4acc.pl -c rf4a_fm907.cfg  -g fm907
 TEST CASE FM908.f
 refactorF4acc.pl -c rf4a_fm908.cfg  -g fm908
-The EQUIVALENCE  statement is not supported, this could possible break your code, please rewrite:
+The EQUIVALENCE  statement is not refactored, this could possible break your code, please rewrite:
   SOURCE: ./FM908.f
   CODE UNIT: fm908
 LINES:
 37: equivalence (r2e(1),avc),(r2e(3),bvc),(r2e(5),cvc),(r2e(7),dvc) 
 TEST CASE FM909.f
 refactorF4acc.pl -c rf4a_fm909.cfg  -g fm909
-The EQUIVALENCE  statement is not supported, this could possible break your code, please rewrite:
+The EQUIVALENCE  statement is not refactored, this could possible break your code, please rewrite:
   SOURCE: ./FM909.f
   CODE UNIT: fm909
 LINES:

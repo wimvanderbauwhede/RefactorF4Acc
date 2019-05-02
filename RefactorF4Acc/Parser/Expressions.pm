@@ -1064,10 +1064,11 @@ sub parse_expression_no_context { (my $str)=@_;
             $expr_ast=[2,$1];
             #$expr_ast=['$',$1];
         }
-        elsif ( $str=~s/^(__PH\d+__)// ) {
+        elsif ( $str=~s/^((?:__PH\d+__)+)// ) {
             #variable
             $expr_ast=[33,$1];
             #$expr_ast=['$',$1];
+            # Now it is possible that there are several of these in a row!
         }
         elsif ( $str=~s/^\.(true|false)\.// ) {
             # boolean constants
@@ -1224,57 +1225,57 @@ our @sigils = ( '{', '&', '$', '+', '-', '*', '/', '%', '**', '=', '@', '#', ':'
                 #$op='/';
                 $op=6;
             } 
-            elsif ($str=~s/^>=// || $str=~s/^\.ge\.//) {
+            elsif ($str=~s/^>=// || $str=~s/^\.ge\.// || $str=~s/^\.\s*ge\s*\.//) {
                 $lev=6;
                 #$op='>=';
                 $op=20;
             } 
-            elsif ($str=~s/^<=// || $str=~s/^\.le\.//) {
+            elsif ($str=~s/^<=// || $str=~s/^\.le\.// || $str=~s/^\.\s*le\s*\.//) {
                 $lev=6;
                 #$op='<=';
                 $op=19;
             } 
-            elsif ($str=~s/^<// || $str=~s/^\.lt\.//) {
+            elsif ($str=~s/^<// || $str=~s/^\.lt\.// || $str=~s/^\.\s*lt\s*\.//) {
                 $lev=6;
                 #$op='<';
                 $op=17;
             } 
-            elsif ($str=~s/^>// || $str=~s/^\.gt\.//) {
+            elsif ($str=~s/^>// || $str=~s/^\.gt\.// || $str=~s/^\.\s*gt\s*\.//) {
                 $lev=6;
                 #$op='>';
                 $op=18;
             } 
-            elsif ($str=~s/^==// || $str=~s/^\.eq\.//) {
+            elsif ($str=~s/^==// || $str=~s/^\.eq\.// || $str=~s/^\.\s*eq\s*\.//) {
                 $lev=7;
                 #$op='==';
                 $op=15;
             } 
-            elsif ($str=~s/^\!=// || $str=~s/^\.ne\.//) {
+            elsif ($str=~s/^\!=// || $str=~s/^\.ne\.// || $str=~s/^\.\s*ne\s*\.//) {
                 $lev=7;
                 #$op='!=';
                 $op=16;
             } 
-            elsif ($str=~s/^\.and.//) {
+            elsif ($str=~s/^\.and.// || $str=~s/^\.\s*and\s*\.//) {
                 $lev=9;
                 #$op='.and.';
                 $op=22;
             } 
-            elsif ($str=~s/^\.or.//) {
+            elsif ($str=~s/^\.or.// || $str=~s/^\.\s*or\s*\.//) {
                 $lev=10;
                 #$op='.or.';
                 $op=23;
             } 
-            elsif ($str=~s/^\.xor.//) {
+            elsif ($str=~s/^\.xor.// || $str=~s/^\.\s*xor\s*\.//) {
                 $lev=11;
                 #$op='.xor.';
                 $op=24;
             } 
-            elsif ($str=~s/^\.eqv.//) {
+            elsif ($str=~s/^\.eqv.// || $str=~s/^\.\s*eqv\s*\.//) {
                 $lev=11;
                 #$op='.eqv.';
                 $op=25;
             } 
-            elsif ($str=~s/^\.neqv.//) {
+            elsif ($str=~s/^\.neqv.// || $str=~s/^\.\s*neqv\s*\.//) {
                 $lev=11;
                 #$op='.neqv.';
                 $op=26;
@@ -1591,7 +1592,8 @@ sub _replace_function_calls_in_ast { #(my $ast)=@_;
 						and not exists $F95_reserved_words{$mvar} 					
 						)
 					) {
-						( my $expr_args, my $expr_other_vars ) = find_args_vars_in_ast($ast->[2]); # look only at the argument list
+						( my $expr_args, my $expr_other_vars ) = @{find_args_vars_in_ast($ast->[2])}; # look only at the argument list
+                        #say Dumper($expr_args);
 						for my $expr_arg (@{$expr_args->{'List'}}) {
 							if ( $expr_args->{'Set'}{$expr_arg}{'Type'} eq 'Label') {
 								my $label=$expr_arg;
@@ -1756,7 +1758,7 @@ sub _traverse_ast_with_action { (my $ast, my $acc, my $f) = @_;
 
 sub find_vars_in_ast { (my $ast, my $vars)=@_;	
 
-    #	croak unless ref($ast) eq 'ARRAY';
+  return {} unless ref($ast) eq 'ARRAY';
   if(scalar @{$ast}==0) {
       return {};
   }
@@ -1768,17 +1770,17 @@ sub find_vars_in_ast { (my $ast, my $vars)=@_;
                 $vars->{$mvar}={'Type'=>'Array'};
                 # Determine the dimension
                 # Either it's 1 because not a comma-sep list or it's the size of the comma-sep list
-                my $dim=0;
-                if(scalar @{$ast->[2]}==0) {
-                	# empty list, this can't be an array
-                	croak "$mvar cannot be an array as the index list is empty!"
-                	
-                } elsif (($ast->[2][0] & 0xFF)==27) {
-                	$dim = scalar @{$ast->[2]}-1;
-                } else {
-                	$dim=1;
-                } 
-                $vars->{$mvar}{'Dim'}=$dim;
+                #my $dim=0;
+                #if(scalar @{$ast->[2]}==0) {
+                #	# empty list, this can't be an array
+                #	croak "$mvar cannot be an array as the index list is empty!"
+                #	
+                #} elsif (($ast->[2][0] & 0xFF)==27) {
+                #	$dim = scalar @{$ast->[2]}-1;
+                #} else {
+                #	$dim=1;
+                #} 
+                #$vars->{$mvar}{'Dim'}=$dim;
                 # Handle IndexVars
                 my $index_vars={};
                 $index_vars =  find_vars_in_ast($ast->[2],$index_vars);
@@ -1841,6 +1843,8 @@ sub find_assignments_to_scalars_in_ast { (my $ast, my $vars)=@_;
 # Funny enough it seems I also need constant args because I look for ReferencedLabels
 # I think only keeping these would be enough; and also maybe I should give them a proper Type and sigil
 sub _find_args_in_ast { (my $ast, my $args) =@_;
+	if (! @{$ast} ){ return $args; }
+#	carp Dumper($ast);
 	if ( ($ast->[0] & 0xFF) == 0 ) {	
 	# descend
 	   $args = _find_args_in_ast($ast->[1], $args);

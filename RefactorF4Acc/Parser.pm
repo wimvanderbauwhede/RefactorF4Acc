@@ -914,9 +914,10 @@ SUBROUTINE
 		 		$info->{'Equivalence'} = 1;
 		 		$info->{'SpecificationStatement'} = 1;
                 $info->{'HasVars'} = 1; 
+                my $indent = $info->{'Indent'};
 		 		say "WARNING: EQUIVALENCE IS IGNORED!" if $W;
 		 		if (not exists $grouped_warnings->{'EQUIVALENCE'}) {
-		 			$grouped_warnings->{'EQUIVALENCE'}=[ "The EQUIVALENCE  statement is not supported, this could possible break your code, please rewrite:",
+		 			$grouped_warnings->{'EQUIVALENCE'}=[ "The EQUIVALENCE  statement is not refactored, this could possible break your code, please rewrite:",
 		 			'  SOURCE: '.$stref->{$sub_incl_or_mod}{$f}{'Source'},
                     '  CODE UNIT: '.$f, 'LINES:'		 			
 		 			 ];
@@ -927,55 +928,57 @@ SUBROUTINE
 			 	$tline=~s/^equivalence\s+//;
 #			 	(my $ast, my $rest, my $err, my $has_funcs)
 			 	my $ast = parse_expression($tline, $info,  $stref,  $f);
-			 	say "EQUIVALENCE: $tline"; 
+                #say "EQUIVALENCE: $tline"; 
 #			 	say "AST:". Dumper($ast);
 			 	my $vars = find_vars_in_ast($ast,{});
-			 	say "VARS:".Dumper($vars);
+                #say "VARS:".Dumper($vars);
 			 	# Now, of a var already exists, we leave it alone;
+                
 			 	my $equiv_type = 'Unknown'; 
-			 	for my $tvar (keys %{$vars}) {
-			 		
-			 			my $subset = in_nested_set($Sf,'Vars',$tvar);
-			 			if ($subset) {
-			 			 my $orig_decl =  $Sf->{$subset}{'Set'}{$tvar} ;
-			 			 $equiv_type=$orig_decl->{'Type'};
-			 			 # we should also use this for Attr I think
-			 			}
-			 		
-			 	}
-			 	if ($equiv_type eq 'Unknown') {
-			 		for my $tvar (keys %{$vars}) {
-			 		  (my $type, my $array_or_scalar, my $attr)=type_via_implicits($stref, $f,$tvar);
-			 		}
-			 	} else {
-			 		for my $tvar (keys %{$vars}) {
-                    
+			 	my $equiv_attr = ''; 
+                for my $tvar (keys %{$vars}) {
+                    my $subset = in_nested_set($Sf,'Vars',$tvar);
+                    if ($subset) {
+                        my $orig_decl =  $Sf->{$subset}{'Set'}{$tvar} ;
+                        $equiv_type=$orig_decl->{'Type'};
+                        $equiv_attr=$orig_decl->{'Attr'};
+                        last; # because I assume they all must have the same type.
+                    }
+                }
+                if ($equiv_type eq 'Unknown') { # none of the vars is already declared
+                    for my $tvar (keys %{$vars}) {
+                        ($equiv_type, my $array_or_scalar, $equiv_attr)=type_via_implicits($stref, $f,$tvar);
+                        my $decl = {
+                            'Indent' => $indent,
+                            'Type'   => $equiv_type,
+                            'Attr'   => $equiv_attr,
+                            'Name'   => $tvar,
+                            'Status' => 0,
+                            'StmtCount' => 0,
+                            'ArrayOrScalar' => $vars->{$tvar}{'Type'}
+                        };		
+                        $Sf->{'DeclaredOrigLocalVars'}{'Set'}{$tvar} = $decl;
+                        push @{$Sf->{'DeclaredOrigLocalVars'}{'List'}},$tvar;
+                    }
+                } else { # type all undeclared ones same as the known one
+                    for my $tvar (keys %{$vars}) {
                         my $subset = in_nested_set($Sf,'Vars',$tvar);
                         if ($subset eq '') {
                             # use $equiv_type
-                         
+                            my $decl = {
+                                'Indent' => $indent,
+                                'Type'   => $equiv_type,
+                                'Attr'   => $equiv_attr,
+                                'Name'   => $tvar,
+                                'Status' => 0,
+                                'StmtCount' => 0,
+                                'ArrayOrScalar' => $vars->{$tvar}{'Type'}
+                            };		
+                            $Sf->{'DeclaredOrigLocalVars'}{'Set'}{$tvar} = $decl;
+                            push @{$Sf->{'DeclaredOrigLocalVars'}{'List'}},$tvar;
                         }                    
+                    }
                 }
-			 	}
-			 	
-			 	# Dim can be taken from the $vars->{$tvar}{'Dim'}
-			 	# ArrayOrScalar can (and should) be taken from the $vars->{$tvar}{'Type'}, not from implicits!
-			 	
-			 	croak "WIP EQUIVALENCE";
-#        my $decl = {
-#            'Indent' => $indent,
-#            'Type'   => $type,
-#            'Attr'   => $attr,
-#            'Dim'    => $dim,
-#            'Name'   => $tvar,
-#            'Status' => 0,
-#            'StmtCount' => 0,
-#            'ArrayOrScalar' => $array_or_scalar
-#        };			 	
-			 	# Otherwise, we try to type it, first via the type of one of the existing ones (if any), otherwise via the implicit rules.
-			 	# If the var does not exists we should add it to UndeclaredOrigLocalVars
-			 	
-		 		
 		 	}		
 #== VARIABLE and PARAMETER DECLARATIONS
 #@ VarDecl =>

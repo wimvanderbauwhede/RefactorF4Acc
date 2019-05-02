@@ -5,7 +5,7 @@ use RefactorF4Acc::Utils;
 use RefactorF4Acc::Refactoring::Common qw( get_annotated_sourcelines context_free_refactorings emit_f95_var_decl splice_additional_lines_cond);
 use RefactorF4Acc::Refactoring::Subroutines::Signatures qw( create_refactored_subroutine_signature refactor_subroutine_signature ); 
 use RefactorF4Acc::Refactoring::Subroutines::IncludeStatements qw( skip_common_include_statement create_new_include_statements create_additional_include_statements );
-use RefactorF4Acc::Parser::Expressions qw( emit_expression );
+use RefactorF4Acc::Parser::Expressions qw( emit_expression emit_expr_from_ast $NEW_PARSER);
 # 
 #   (c) 2010-2017 Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
 #   
@@ -751,7 +751,7 @@ sub _create_refactored_function_calls {
 		# Basically, whenever we meet a function, we query it for ExGlobArgs and tag these onto te argument list.		
 		my $updated_ast = $do_not_update ? $ast : __update_function_calls_in_AST($stref,$Sf,$f,$ast);
 #		say Dumper($ast, $updated_ast);
-		my $updated_line = $do_not_update ? $line : emit_expression($updated_ast);
+		my $updated_line = $do_not_update ? $line : $NEW_PARSER ? emit_expr_from_ast($updated_ast) : emit_expression($updated_ast);
          
 		if ( exists $info->{'PlaceHolders'} ) { 
 
@@ -799,6 +799,7 @@ sub _create_refactored_function_calls {
 }    # END of _create_refactored_function_calls()
 
 sub __update_function_calls_in_AST { (my $stref, my $Sf,my $f, my $ast) = @_;
+	croak "NEEDS TO BE UPDATED FOR NEW PARSER!";
 	if (ref($ast) eq 'ARRAY') {
 		my $nelts = scalar @{$ast};
 		for my  $idx (0 .. $nelts-1) {		

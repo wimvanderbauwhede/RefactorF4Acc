@@ -369,7 +369,11 @@ ENDCFG
     if ($batch==1) {
     system("rm -f $src");
     system("rm -f rf4a_$prog.cfg");
-    system("cp RefactoredSources/${src}95 ../RefactoredSources");
+    if (-e "RefactoredSources/${src}95" ) {
+        system("cp RefactoredSources/${src}95 ../RefactoredSources");
+    } else {
+        say "Generation failed for ${src}95";
+    }
     }
     
 }

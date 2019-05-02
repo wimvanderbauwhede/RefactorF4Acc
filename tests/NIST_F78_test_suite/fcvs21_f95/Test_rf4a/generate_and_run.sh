@@ -5,7 +5,7 @@ grep TOTAL generate.log
 grep RUN generate.log
 grep SKIPPED generate.log
 echo 'Generation Failed:'
-grep -c cp generate.log 
+grep -c failed generate.log 
 echo 'Generation Succeeded:'
 ls -1 ../RefactoredSources/ | grep -c f95
 cd ../RefactoredSources
