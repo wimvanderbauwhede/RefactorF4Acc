@@ -924,6 +924,7 @@ SUBROUTINE
 		 		}		 		
 		 		my $warn =  $info->{'LineID'}.': '.$line;
 			 	push @{	$grouped_warnings->{'EQUIVALENCE'} }, $warn;
+                if ($NEW_PARSER) {
 			 	my $tline = $line;
 			 	$tline=~s/^equivalence\s+//;
 #			 	(my $ast, my $rest, my $err, my $has_funcs)
@@ -979,6 +980,7 @@ SUBROUTINE
                         }                    
                     }
                 }
+            } # NEW_PARSER
 		 	}		
 #== VARIABLE and PARAMETER DECLARATIONS
 #@ VarDecl =>

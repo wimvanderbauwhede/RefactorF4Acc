@@ -799,8 +799,64 @@ sub _create_refactored_function_calls {
 }    # END of _create_refactored_function_calls()
 
 sub __update_function_calls_in_AST { (my $stref, my $Sf,my $f, my $ast) = @_;
-	croak "NEEDS TO BE UPDATED FOR NEW PARSER!";
-	if (ref($ast) eq 'ARRAY') {
+	carp "NEEDS TO BE TESTED FOR NEW PARSER!";
+    if ($NEW_PARSER) {
+	    if (!@{$ast}) { return $ast; } # an empty AST
+        # use the new walker
+         if ( ($ast->[0] & 0xFF) == 1 or
+       ($ast->[0] & 0xFF) == 10 ) { # array var or function/subroutine call
+        # it it's a function call, update the call args
+        if ( ($ast->[0] & 0xFF) == 1 ) {
+					my $name = $ast->[1];
+					
+				    if ($name ne $f and exists $stref->{'Subroutines'}{$name}{'ExGlobArgs'}) {
+				    	     
+				        my @globals = exists  $stref->{'Subroutines'}{$name}{'ExGlobArgs'}{'List'} ? @{ $stref->{'Subroutines'}{$name}{'ExGlobArgs'}{'List'} } : ();        
+				        my @maybe_renamed_exglobs=();
+				        for my $ex_glob (@globals) {
+				        	# $ex_glob may be renamed or not. I test this using OrigName. 
+				        	# This way I am sure I get only original names
+				        	if (exists $stref->{'Subroutines'}{$name}{'ExGlobArgs'}{'Set'}{$ex_glob}{'OrigName'}) {
+								$ex_glob = $stref->{'Subroutines'}{$name}{'ExGlobArgs'}{'Set'}{$ex_glob}{'OrigName'};		
+				        	}        	
+				        	if (exists $Sf->{'RenamedInheritedExGLobs'}{'Set'}{$ex_glob}) {
+				        		say "INFO: RENAMED $ex_glob => ".$Sf->{'RenamedInheritedExGLobs'}{'Set'}{$ex_glob} . ' in call to ' . $name . ' in '. $f if $I;
+				        		push @maybe_renamed_exglobs, $Sf->{'RenamedInheritedExGLobs'}{'Set'}{$ex_glob};
+				        	} else {
+				        		push @maybe_renamed_exglobs,$ex_glob;
+				        	}
+				        }
+				    
+					    if (@maybe_renamed_exglobs) {
+                            # Still wrong: we need to check $ast->[2]. If it is empty, create a ',' ; elsif it is not ',', create a ','; else append to the ',' list
+                            if (not @{$ast->[2]} ) { # empty list. create [',' ]
+                                push @{$ast->[2]}, 27;
+                            }
+                            elsif ( ($ast->[2][0] && 0xFF) != 27) { # not a list. Wrap in [',', ... ]
+                                my $entry = $ast->[2];
+                                $ast->[2]=[ 27, $entry ];
+
+                            } #else { # It is already ',' so do nothing
+                            #}
+                            for my $extra_arg (@maybe_renamed_exglobs) {
+    					    	push @{$ast->[2]},[ 2 ,$extra_arg]; #'$'
+                            }
+					    }
+				    }	            
+        }
+        # but in any case we need to traverse again for the old call args
+
+		(my $entry, $acc) = __update_function_calls_in_AST($stref,$Sf,$f,$ast->[2]);
+		$ast->[2] = $entry;
+
+  } elsif ( ($ast->[0] & 0xFF) < 29 and ($ast->[0] & 0xFF) !=2 ) { # other operators
+	for my $idx (1 .. scalar @{$ast}-1) {
+		(my $entry, $acc) = __update_function_calls_in_AST($stref,$Sf,$f,$ast->[$idx]);
+	}
+  } 
+
+    } else {
+	if (ref($ast) eq 'ARRAY') { 
 		my $nelts = scalar @{$ast};
 		for my  $idx (0 .. $nelts-1) {		
 			my $entry = $ast->[$idx];
@@ -842,6 +898,7 @@ sub __update_function_calls_in_AST { (my $stref, my $Sf,my $f, my $ast) = @_;
 			}		
 		}
 	}
+    } # NEW_PARSER
 	return  $ast;#($stref,$f, $ast);
 	
 } # END of __update_function_calls_in_AST()
