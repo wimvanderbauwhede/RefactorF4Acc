@@ -106,23 +106,23 @@ sub context_free_refactorings {
         if ( exists $info->{'ImplicitNone'} ) {
             next;
         }	
-        if ( exists $info->{'Implicit'} ) { 
+        elsif ( exists $info->{'Implicit'} ) { 
         	$line = '! '.$line;
         	$info->{'Deleted'}=1;
         	$info->{'Ann'}=[ annotate($f, __LINE__ .' Original Implicit statement' ) ];
         }	        
-        if ( exists $info->{'Dimension'} and not exists $info->{'VarDecl'} ) {
+        elsif ( exists $info->{'Dimension'} and not exists $info->{'VarDecl'} ) {
         	$line = '! '.$line;
         	$info->{'Deleted'}=1;
         	$info->{'Ann'}=[ annotate($f, __LINE__ .' Original Dimension statement' ) ];
         }	
-        if ( exists $info->{'Common'} ) {
+        elsif ( exists $info->{'Common'} ) {
         	$line = '! '.$line unless exists $Sf->{'BlockData'};
         	$info->{'Deleted'}=1;
         	$info->{'Ann'}=[ annotate($f, __LINE__ .' Original Common statement' ) ];
         }	
         
-        if ( exists $info->{'External'} ) {
+        elsif ( exists $info->{'External'} ) {
         	if (scalar keys %{ $info->{'External'}} >1) {
         		say 'WARNING: Cannot handle EXTERNAL with multiple names, IGNORING!' if $W;
         	} else {
@@ -143,7 +143,7 @@ sub context_free_refactorings {
         	}
         	$info->{'Ann'}=[ annotate($f, __LINE__ .' External statement' ) ];
         }	                
-		if ( exists $info->{'Data'} ) {
+		elsif ( exists $info->{'Data'} ) {
 			my @chunks=split(/data\s+/,$line);
 			croak if scalar @chunks > 2;
 			my $str = $chunks[1];
@@ -152,13 +152,13 @@ sub context_free_refactorings {
 			$line = $chunks[0].'data '.$str;
 		}
 			
-        if ( exists $info->{'Goto'} ) {
+        elsif ( exists $info->{'Goto'} ) {
             $line =~ s/\bgo\sto\b/goto/;
             $info->{'Ref'}++;
         }
 
         # BeginDo: just remove the label
-        if ( exists $info->{'BeginDo'} ) {
+        elsif ( exists $info->{'BeginDo'} ) {
         	my $label = $info->{'BeginDo'}{'Label'};
         	# This should have an extra check
         	

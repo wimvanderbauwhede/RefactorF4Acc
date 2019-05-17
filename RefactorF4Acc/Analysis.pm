@@ -82,6 +82,13 @@ sub analyse_all {
 		}
 		$stref = _analyse_variables( $stref, $f );
 	}
+    for my $f ( keys %{ $stref->{'Subroutines'} } ) {
+        next if $f eq '';   
+        if (exists $stref->{'Entries'}{$f}) {
+            next;
+        }	
+	    $stref = _add_function_var_decls_from_calls( $stref, $f );
+    }
 	return $stref if $stage == 3;
 
 
@@ -350,10 +357,8 @@ sub _analyse_variables {
 								}
 							}
 						}						
-#						say "$f USES: ".Dumper($Sf->{'Uses'});
 						for my $inc (  keys %{ $Sf->{'Uses'} } ) {
 							say "LOOKING FOR $mvar from $f in $inc" if $DBG;
-#say "$f USES $inc";
 							# A variable can be declared in an include file or not and can be listed as common or not
 							if ( in_nested_set( $stref->{'Modules'}{$inc}, 'Vars', $mvar )
 								or exists $stref->{'Modules'}{$inc}{'Commons'}{$mvar} )
@@ -395,17 +400,7 @@ sub _analyse_variables {
 												$stref->{'Subroutines'}{$f}{'CommonIncs'}{$inc}         = $inc;
 												$stref->{'Subroutines'}{$f}{'ExGlobArgs'}{'Set'}{$mvar} = $decl;
 												$stref->{'Subroutines'}{$f}{'MaskedIntrinsics'}{$mvar}  = 1;
-#											} elsif ( in_nested_set($stref->{'Subroutines'}{$f},'CommonVars',$mvar) ) { 
-#												say "FOUND argdecl for $mvar via common block in $f" if $DBG;
-#												push @{ $stref->{'Subroutines'}{$f}{'ExGlobArgs'}{'List'} }, $mvar;
-#												$stref->{'Subroutines'}{$f}{'ExGlobArgs'}{'Set'}{$mvar} = $decl;
-#												$stref->{'Subroutines'}{$f}{'MaskedIntrinsics'}{$mvar}  = 1;											
-#											} else {
-#												say "INFO: LOCAL VAR FROM $inc, NOT COMMON! " . '_analyse_variables() ' . __LINE__ if $I;
-#												push @{ $stref->{'Subroutines'}{$f}{'ExInclLocalVars'}{'List'} }, $mvar;
-#												$stref->{'Subroutines'}{$f}{'ExInclLocalVars'}{'Set'}{$mvar} = $decl;
-#												croak "INFO: LOCAL VAR FROM $inc, NOT COMMON! " if $mvar eq 'len';
-#											}
+
 											$identified_vars->{$mvar} = 1;
 											last;
 										
@@ -480,8 +475,6 @@ sub _analyse_variables {
 				}
 			}			
 			return ( [$annline], [ $stref, $f, $identified_vars, $grouped_messages ] );
-#		} elsif (  exists $info->{'VarDecl'} ) {
-#				croak Dumper($info);
 		} else {
 			return ( [$annline], $state );
 		}
@@ -528,6 +521,29 @@ sub _analyse_variables {
 				my $decl = get_f95_var_decl( $stref, $f, $var );
 				$Sf->{$subset}{'Set'}{$var} = $decl;
 			}
+		}
+	}
+	
+	# Here test function return type
+	if (exists $Sf->{'Signature'}{'Function'} and $Sf->{'Signature'}{'Function'}==1) {
+		
+		if (not exists $Sf->{'Signature'}{'ReturnType'} ) { # The function does not have an explicit return type
+#		carp Dumper $Sf->{'Signature'} ;
+		  my $retvar=$f;
+		  if (exists $Sf->{'Signature'}{'ResultVar'} ) { # The function uses RESULT
+			 $retvar=$Sf->{'Signature'}{'ResultVar'};
+		  }
+	       my $subset = in_nested_set($Sf,'Vars',$retvar); 
+           if ($subset) { # The function variable is declared somewhere in the function. Use this for the return type. If this is the function name we should probably delete it, but I do this later during refactoring
+                my $decl =  $Sf->{$subset}{'Set'}{$retvar} ;
+                $Sf->{'Signature'}{'ReturnType'}=$decl->{'Type'};
+                $Sf->{'Signature'}{'ReturnTypeAttr'}=$decl->{'Attr'};
+            } else {
+                # The function does not contain a declaration for $retvar. Use implicits to type it
+                my ($type, $array_or_scalar, $attr) =type_via_implicits( $stref,  $f, $retvar);
+                $Sf->{'Signature'}{'ReturnType'}=$type;
+                $Sf->{'Signature'}{'ReturnTypeAttr'}=$attr;
+            }
 		}
 	}
 	
@@ -1150,5 +1166,63 @@ sub _add_BLOCK_DATA_call_after_last_VarDecl {
 	return $stref;
 } # END of _add_BLOCK_DATA_call_after_last_VarDecl
 
+#== VARIABLE and PARAMETER DECLARATIONS
+#@ VarDecl =>
+#@     Name => $varname
+#@     Names => $varnames
+#@     ParamDecl =>
+#@     Indent    => $indent
+#@     Type      => $type
+#@     Attr      => $attr
+#@     Dim       => []
+#@     Parameter => 'parameter'
+#@     Names     => [@var_vals]
+#@     Status    => 0    
+
+sub _add_function_var_decls_from_calls {
+    ( my $stref, my $f ) = @_;
+    
+    my $Sf = $stref->{'Subroutines'}{$f};
+
+    #   local $DBG= ;
+    say "_add_function_var_decls_from_calls($f)" if $DBG;
+
+    my $__add_function_var_decls_from_calls = sub {
+        ( my $annline, my $state ) = @_;
+        ( my $line, my $info )  = @{$annline};        
+        ( my $stref, my $f) = @{$state};
+        my $Sf     = $stref->{'Subroutines'}{$f};
+        
+        if ( exists $info->{'FunctionCalls'} ) {
+        	for my $fcall ( @{ $info->{'FunctionCalls'} } ) {
+        	   my $fname = $fcall->{'Name'};
+#                croak 	 Dumper $stref->{'Subroutines'}{$fname}{'Signature'};
+                if (not exists $Sf->{'UndeclaredOrigLocalVars'}{'Set'}{$fname}) {                	
+                	my $decl = {
+                		'Name' => $fname,
+                		'Indent' => '      ', # no idea, best would be to inherit
+                		'Attr' => $stref->{'Subroutines'}{$fname}{'Signature'}{'ReturnTypeAttr'}, # TODO, in principle the type-spec could be something like integer(size=4) or maybe even an array or character string
+                		'Type' => $stref->{'Subroutines'}{$fname}{'Signature'}{'ReturnType'}, 
+                		'Dim' =>[],
+                		 'ArrayOrScalar' => 'Scalar'
+                	};
+                	$Sf->{'UndeclaredOrigLocalVars'}{'Set'}{$fname}=$decl;
+                	@{ $Sf->{'UndeclaredOrigLocalVars'}{'List'} } = sort keys %{ $Sf->{'UndeclaredOrigLocalVars'}{'Set'} }; 
+                } 
+            }
+        }
+        
+	    $state = [ $stref, $f];
+        return ( [$annline], $state );
+        
+    };
+
+    my $state = [ $stref, $f];
+
+    ( $stref, $state ) = stateful_pass( $stref, $f, $__add_function_var_decls_from_calls, $state, '_add_function_var_decls_from_calls() ' . __LINE__ );
+    $stref = $state->[0];
+    return $stref;
+	
+} # END of _add_function_var_decls_from_calls
 
 1;

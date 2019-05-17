@@ -147,7 +147,7 @@ sub _refactor_subroutine_main {
     }
  
     $annlines = _add_implicit_none($stref, $f, $annlines);
-    
+    $annlines = _emit_refactored_signatures($stref, $f, $annlines);
     $Sf->{'RefactoredCode'}=$annlines;
         
     $Sf->{'AnnLines'}=$annlines;
@@ -156,7 +156,7 @@ sub _refactor_subroutine_main {
 
 # -----------------------------------------------------------------------------
 # The code below fixes the end lines of the code by adding 'program $f' or 'subroutine $f' or 'function $f'
-# For some reason this is BROKEN elsewhere
+# For some reason this is BROKEN elsewhere so FIXME!
 sub _fix_end_lines {	
     (my $stref, my $f, my $rlines) = @_;
 #    croak "FIXME" if $f eq 'vertical';
@@ -512,17 +512,27 @@ sub _create_extra_arg_and_var_decls {
         
     print "INFO: UndeclaredOrigLocalVars in $f\n" if $I;
     for my $var ( @{ $Sf->{'UndeclaredOrigLocalVars'}{'List'} } ) {
+    	
     	if (not exists $Sf->{'UsedGlobalVars'}{'Set'}{$var}) {
+    		
     	say "INFO VAR: $var" if $I;    	
     	if (exists $Sf->{'CalledSubs'} and exists $Sf->{'CalledSubs'}{$var}) {
     		next;
     	} 
-    	if ( exists $stref->{'Subroutines'}{$var}) {
+    	
+    	if ( exists $stref->{'Subroutines'}{$var} and not exists $stref->{'Subroutines'}{$f}{'Program'}) {
     		next;
     	}
+    	
   		if ( exists $stref->{'ExternalSubroutines'}{$var}) {
     		next;
+    	}
+    	if (in_nested_set($Sf, 'DeclaredOrigLocalVars', $var)) {
+    		next;
     	}    	
+    	if ($f eq $var) {
+    		next;
+    	}
     	# Check if it is not a parameter
     	my $is_param=0;
     	if ( in_nested_set($Sf, 'Parameters', $var)
@@ -537,8 +547,9 @@ sub _create_extra_arg_and_var_decls {
     		and not $is_param
     		and $var!~/__PH\d+__/ # FIXME! TOO LATE HERE!
     		and $var=~/^[a-z][a-z0-9_]*$/ # FIXME: rather check if Expr or Sub
-    		) {    			
-#    			croak if $var eq 'ivd001';
+    		) {    		
+    				
+#    			croak Dumper($Sf->{'UndeclaredOrigLocalVars'}{'Set'}{$var}) if $var eq 'ff083';
                     my $rdecl = $Sf->{'UndeclaredOrigLocalVars'}{'Set'}{$var}; 
                     my $rline = emit_f95_var_decl($rdecl);                                         
                     my $info={};
@@ -708,16 +719,43 @@ sub emit_subroutine_call { (my $stref, my $f, my $annline)=@_;
 		return ( $indent . $maybe_label . $rline, $info );
 } # END of emit_subroutine_call
 
+#@ Signature =>
+#@    Args =>
+#@        List => [...]
+#@        Set => {}
+#@    Name => $name;
+#@    Function  => $bool
+#@    Program  => $bool
+#@    Entry  => $bool
+#@    BlockData  => $bool
+#@    ReturnType => integer | real | ...
+#@    ResultVar => $result_var
+#@    Characteristic => pure | elemental | recursive 
+
 sub emit_subroutine_sig { #(my $stref, my $f, 
         (my $annline)=@_;
 	    (my $line, my $info) = @{ $annline };
         #my $Sf        = $stref->{'Subroutines'}{$f};
 	    
 	    my $name = $info->{'Signature'}{'Name'};
-		my $args_ref = $info->{'Signature'}{'Args'}{'List'};
-	    my $indent = $info->{'Indent'} // '      ';	    
-	    my $args_str = join( ',', @{$args_ref} );	    
-	    my $rline = "subroutine $name($args_str)\n";
+		my $args_ref = $info->{'Signature'}{'Args'}{'List'};	    	    
+	    my $args_str = join( ',', @{$args_ref} );	 
+	    my $indent = $info->{'Indent'} // '      ';   
+	    
+	    my $code_unit = (exists $info->{'Signature'}{'Function'} and $info->{'Signature'}{'Function'}==1) ? 'function' 
+	    : exists $info->{'Signature'}{'Program'} ? 'program'
+	    : exists $info->{'Signature'}{'BlockData'} ? 'block data'
+	    : exists $info->{'Signature'}{'Entry'} ? 'entry'
+	    : 'subroutine';
+	    my $maybe_characteristic = exists $info->{'Signature'}{'Characteristic'} ? $info->{'Signature'}{'Characteristic'}.' ' : '';
+	     my $maybe_returntype = exists $info->{'Signature'}{'ReturnType'} ? $info->{'Signature'}{'ReturnType'}.' ' : '';
+	     my $maybe_resultvar = exists $info->{'Signature'}{'ResultVar'} ? ' result '.$info->{'Signature'}{'ResultVar'} : '';
+	     
+#	     my $rline = "subroutine $name($args_str)\n";
+	    my $rline =  (exists $info->{'Signature'}{'BlockData'} or exists $info->{'Signature'}{'Program'} ) ?
+	     "$code_unit $name"
+	    : "$maybe_characteristic$maybe_returntype$code_unit $name($args_str)$maybe_resultvar\n";
+	    
 		if ( exists $info->{'PlaceHolders'} ) { 
 			while ($rline =~ /(__PH\d+__)/) {
 				my $ph=$1;
@@ -799,7 +837,7 @@ sub _create_refactored_function_calls {
 }    # END of _create_refactored_function_calls()
 
 sub __update_function_calls_in_AST { (my $stref, my $Sf,my $f, my $ast) = @_;
-	carp "NEEDS TO BE TESTED FOR NEW PARSER!";
+#	carp "NEEDS TO BE TESTED FOR NEW PARSER!";
     if ($NEW_PARSER) {
 	    if (!@{$ast}) { return $ast; } # an empty AST
         # use the new walker
@@ -846,12 +884,13 @@ sub __update_function_calls_in_AST { (my $stref, my $Sf,my $f, my $ast) = @_;
         }
         # but in any case we need to traverse again for the old call args
 
-		(my $entry, $acc) = __update_function_calls_in_AST($stref,$Sf,$f,$ast->[2]);
+		my $entry= __update_function_calls_in_AST($stref,$Sf,$f,$ast->[2]);
 		$ast->[2] = $entry;
 
   } elsif ( ($ast->[0] & 0xFF) < 29 and ($ast->[0] & 0xFF) !=2 ) { # other operators
 	for my $idx (1 .. scalar @{$ast}-1) {
-		(my $entry, $acc) = __update_function_calls_in_AST($stref,$Sf,$f,$ast->[$idx]);
+		my $entry  = __update_function_calls_in_AST($stref,$Sf,$f,$ast->[$idx]);
+		$ast->[$idx] = $entry;
 	}
   } 
 
@@ -947,6 +986,21 @@ sub _add_implicit_none { my ($stref, $f, $annlines) = @_;
         
     }	 
 return $rlines;
-}
+} # END of _add_implicit_none
+
+sub _emit_refactored_signatures { my ($stref, $f, $annlines) = @_;
+#    my $Sf = $stref->{'Subroutines'}{$f};
+    
+    my $rlines=[];
+    for my $annline ( @{$annlines} ) {      
+    	 (my $line, my $info) = @{ $annline };        
+        if (exists $info->{'Signature'} ) {
+            @{$annline} = emit_subroutine_sig($annline);
+#            say Dumper($annline);             
+        }
+        push @{$rlines},$annline;        
+    }    
+    return $rlines;
+} # END of _emit_refactored_signatures
 
 1;

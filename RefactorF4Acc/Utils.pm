@@ -216,10 +216,12 @@ if (not defined $var or $var eq '') {croak "VAR not defined!"}
     } 
     if ($type eq 'Unknown') {
         print "INFO: Common <", $var, "> has no rule in {'Implicits'}{$f}, typing via Fortran defaults\n" if $I;
-        if ($var=~/^[i-nI-N]/) {
-    return ('integer', 'Scalar',  '');        
+        # In the absence of an implicit statement, a program unit is treated as if it had a host with the declaration
+        #  implicit integer (i-n), real (a-h, o-z)
+        if ($var=~/^[i-nI-N]/) { # 
+            return ('integer', 'Scalar',  '');        
         } else {
-    return ('real', 'Scalar',  '');
+            return ('real', 'Scalar',  '');
         }
 #        $type.='_IMPLICIT'; 
     }

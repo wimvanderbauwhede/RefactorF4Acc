@@ -87,8 +87,8 @@ $VAR1 = [
 our @sigils = ('{', '&', '$', '+', '-', '*', '/', '%', '**', '=', '@', '#', ':' ,'//',')('
 #                15   16   17  18  19   20    21      22      23     24      25      26      
                ,'==','!=','<','>','<=','>=','.not.','.and.','.or.','.xor.','.eqv.','.neqv.'
-#                27   28    29        30     31        32           33             34
-               ,',', '(/', 'integer','real','logical','character', 'PlaceHolder', 'Label'
+#                27   28    29        30     31        32           33             34       35
+               ,',', '(/', 'integer','real','logical','character', 'PlaceHolder', 'Label', 'BLANK'
               );
 
 
@@ -410,7 +410,7 @@ sub _change_func_to_array { (my $stref, my $f,  my $info, my $ast, my $exp, my $
 		15	
 =cut
 
-sub emit_expression {(my $ast, my $expr_str)=@_;
+sub emit_expression { (my $ast, my $expr_str)=@_;
 	
 	if (ref($ast) ne 'ARRAY') {return $ast;}
 	
@@ -1107,7 +1107,13 @@ sub parse_expression_no_context { (my $str)=@_;
         }
         else {          
             # Here we return with an error value
-            return ($expr_ast, $str, 1,0);
+            # What I could do is say:
+            # if the next token is ':' or the pending op is ':'
+            if($str=~/^\s*:/ or $op == 12) {
+                $expr_ast=[35,'']
+            } else {
+                return ($expr_ast, $str, 1,0);
+            }
         }
         # If state is not 0 there is a prefix
         if ($state) {
@@ -1584,11 +1590,11 @@ sub _replace_function_calls_in_ast { #(my $ast)=@_;
 					# So, this line contains a function call, so we should say so in $info!
 					# I introduce FunctionCalls for this purpose!
 					if (
-					( exists $stref->{$code_unit}{$mvar} and exists $stref->{$code_unit}{$mvar}{'Function'} 
-					  and $stref->{$code_unit}{$mvar}{'Function'} == 1) # It's def a function! 
+					( exists $stref->{$code_unit}{$mvar} and exists $stref->{$code_unit}{$mvar}{'Function'}  
+					  and $stref->{$code_unit}{$mvar}{'Function'} == 1) # $mvar is def a function! 
 					  and ( # 
 						$mvar ne $subname 
- 						and not exists $stref->{$code_unit}{$f}{'CalledSubs'}{'Set'}{$mvar}
+# 						and not exists $stref->{$code_unit}{$f}{'CalledSubs'}{'Set'}{$mvar}
 						and not exists $F95_reserved_words{$mvar} 					
 						)
 					) {
@@ -1607,8 +1613,11 @@ sub _replace_function_calls_in_ast { #(my $ast)=@_;
 							'ExpressionAST' => $ast,						
 						};	
 						# Add to CalledSubs for $f
-						$stref->{$code_unit}{$f}{'CalledSubs'}{'Set'}{$mvar} = 1;
+						if (not exists $stref->{$code_unit}{$f}{'CalledSubs'}{'Set'}{$mvar}) {
 						push @{ $stref->{$code_unit}{$f}{'CalledSubs'}{'List'} }, $mvar;
+						$stref->{$code_unit}{$f}{'CalledSubs'}{'Set'}{$mvar} = 1;
+						}
+						
 						# Add $f to Callers for $mvar
 						my $Sname =  $stref->{'Subroutines'}{$mvar};
 						$Sname->{'Called'} = 1;
