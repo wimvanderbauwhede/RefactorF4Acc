@@ -332,14 +332,17 @@ sub _refactor_globals_new {
             $rlines = _create_extra_arg_and_var_decls( $stref, $f, $annline, $rlines );
         } 
 
-        if ( exists $info->{'SubroutineCall'} ) {         	
+        if ( exists $info->{'SubroutineCall'} ) {   # croak 'BLOCK DATA'.Dumper($info) if $line=~/an507/;     	
             # simply tag the common vars onto the arguments                        
             $rlines = _create_refactored_subroutine_call( $stref, $f, $annline, $rlines );            
             $skip = 1;
         }
         
-        if ( exists $info->{'FunctionCalls'} ) {        	        	
-            # Assignment and Subroutine call lines can contain function calls that also need exglob refactoring!            
+        if ( exists $info->{'FunctionCalls'} ) { #say $line, Dumper($info);        	        	
+            # Assignment and Subroutine call lines can contain function calls that also need exglob refactoring!
+     
+            # If the line is a subroutine call which has function calls, we need to operate on that line 
+            $annline = pop @{$rlines} if exists $info->{'SubroutineCall'};       
             $rlines = _create_refactored_function_calls( $stref, $f, $annline, $rlines );        
             $skip = 1;
         }        
@@ -601,15 +604,37 @@ sub _create_refactored_subroutine_call {
     	return $rlines;
     }
     # Collect original args
-    my @orig_args =();    
-    for my $call_arg (@{ $info->{'SubroutineCall'}{'Args'}{'List'} }) {
-        if (exists $info->{'SubroutineCall'}{'Args'}{'Set'}{$call_arg}{'Expr'} ) {
-        	push @orig_args , $info->{'SubroutineCall'}{'Args'}{'Set'}{$call_arg}{'Expr'};
-        } else {
-			push @orig_args , $call_arg; # WV20170515: is this correct? Do nothing?
-        }
+    my @orig_args =(); 
+    # Expressions are missing!
+    if ($NEW_PARSER) {   
+    	# a shallow copy
+    my $expr_ast=[@{$info->{'SubroutineCall'}{'ExpressionAST'}}];
+    
+    if ( @{$expr_ast} and ( $expr_ast->[0] & 0xFF) != 27) {
+    	$expr_ast=[$expr_ast];
+    } else {
+    	shift @{$expr_ast};
     }
     
+    for my $call_arg_expr (@{ $expr_ast }) {
+        my $call_arg =emit_expr_from_ast($call_arg_expr);
+#        say "ARG: $call_arg";
+#        if (exists $info->{'SubroutineCall'}{'Args'}{'Set'}{$call_arg}{'Expr'} ) { 
+#            push @orig_args , $info->{'SubroutineCall'}{'Args'}{'Set'}{$call_arg}{'Expr'};
+#        } else {
+            push @orig_args , $call_arg; # WV20170515: is this correct? Do nothing?
+#        }
+    }
+    } else {
+	    for my $call_arg (@{ $info->{'SubroutineCall'}{'Args'}{'List'} }) {
+	    	say $call_arg ;
+	        if (exists $info->{'SubroutineCall'}{'Args'}{'Set'}{$call_arg}{'Expr'} ) { 
+	        	push @orig_args , $info->{'SubroutineCall'}{'Args'}{'Set'}{$call_arg}{'Expr'};
+	        } else {
+				push @orig_args , $call_arg; # WV20170515: is this correct? Do nothing?
+	        }
+	    }
+    }
     my $args_ref = [@orig_args]; # NOT ordered union, if they repeat that should be OK
     
     my $parent_sub_name =  exists $stref->{'Entries'}{$name} ? $stref->{'Entries'}{$name} : $name;
@@ -640,6 +665,15 @@ sub _create_refactored_subroutine_call {
         }
         # Then we concatenate these arg lists
         $args_ref = [@orig_args, @maybe_renamed_exglobs ]; # NOT ordered union, if they repeat that should be OK
+        if ($NEW_PARSER) {
+        my $expr_ast = $info->{'SubroutineCall'}{'ExpressionAST'};
+        if (@maybe_renamed_exglobs and @{$expr_ast} and ($expr_ast->[0] & 0xFF) != 27) {
+        	$expr_ast=[27,$expr_ast];
+        }
+        $expr_ast=[@{$expr_ast}, map { ['2',$_] } @maybe_renamed_exglobs ];
+        $info->{'SubroutineCall'}{'ExpressionAST'}=$expr_ast;
+        }
+        
         $info->{'SubroutineCall'}{'Args'}{'List'}= $args_ref;
         
         # WV20180522 I added this to have an ArgMap for the refactored subroutine signatures, not sure it is actually helpful
@@ -678,7 +712,7 @@ sub _create_refactored_subroutine_call {
 	    my $indent = $info->{'Indent'} // '      ';
 	    my $maybe_label= ( exists $info->{'Label'} and exists $Sf->{'ReferencedLabels'}{$info->{'Label'}} ) ?  $info->{'Label'}.' ' : '';
 	    my $rline = "call $name($args_str)\n";
-	    
+#	    say "$line => $rline" if $rline=~/fs329/;
 		if ( exists $info->{'PlaceHolders'} ) { 
 			while ($rline =~ /(__PH\d+__)/) {
 				my $ph=$1;
@@ -688,6 +722,7 @@ sub _create_refactored_subroutine_call {
             $info->{'Ref'}++;
         }  	    
 	    $info->{'Ann'}=[annotate($f, __LINE__ ) ];
+	    
 	    push @{$rlines}, [ $indent . $maybe_label . $rline, $info ];
     } else {
         push @{$rlines}, [ $line , $info ];
@@ -707,6 +742,7 @@ sub emit_subroutine_call { (my $stref, my $f, my $annline)=@_;
 	    my $maybe_label= ( exists $info->{'Label'} and exists $Sf->{'ReferencedLabels'}{$info->{'Label'}} ) ?  $info->{'Label'}.' ' : '';
 	    my $args_str = join( ',', @{$args_ref} );	    
 	    my $rline = "call $name($args_str)\n";
+	    
 		if ( exists $info->{'PlaceHolders'} ) { 
 			while ($rline =~ /(__PH\d+__)/) {
 				my $ph=$1;
@@ -744,7 +780,7 @@ sub emit_subroutine_sig { #(my $stref, my $f,
 	    
 	    my $code_unit = (exists $info->{'Signature'}{'Function'} and $info->{'Signature'}{'Function'}==1) ? 'function' 
 	    : exists $info->{'Signature'}{'Program'} ? 'program'
-	    : exists $info->{'Signature'}{'BlockData'} ? 'block data'
+	    : exists $info->{'Signature'}{'BlockData'} ? 'subroutine' #block data'
 	    : exists $info->{'Signature'}{'Entry'} ? 'entry'
 	    : 'subroutine';
 	    my $maybe_characteristic = exists $info->{'Signature'}{'Characteristic'} ? $info->{'Signature'}{'Characteristic'}.' ' : '';
@@ -773,7 +809,7 @@ sub _create_refactored_function_calls {
     ( my $stref, my $f, my $annline, my $rlines ) = @_;
     my $Sf        = $stref->{'Subroutines'}{$f};
     (my $line, my $info) = @{ $annline };
-    
+#    say "LINE: $line";
 		# Get the AST
 		my $ast = [];
 		my $do_not_update=0;
@@ -785,12 +821,13 @@ sub _create_refactored_function_calls {
 			carp "UNSUPPORTED STATEMENT FOR FUNCTION CALL: $line ( _create_refactored_function_calls ) ".Dumper($info);
 			$do_not_update=1;
 		} 	
+		
 		# Update the function calls in the AST
 		# Basically, whenever we meet a function, we query it for ExGlobArgs and tag these onto te argument list.		
 		my $updated_ast = $do_not_update ? $ast : __update_function_calls_in_AST($stref,$Sf,$f,$ast);
 #		say Dumper($ast, $updated_ast);
+# with NEW_PARSER, these are only the arguments, not the rest of the call.
 		my $updated_line = $do_not_update ? $line : $NEW_PARSER ? emit_expr_from_ast($updated_ast) : emit_expression($updated_ast);
-         
 		if ( exists $info->{'PlaceHolders'} ) { 
 
 			while ($updated_line =~ /(__PH\d+__)/) {
@@ -827,8 +864,14 @@ sub _create_refactored_function_calls {
 			}			
 			$line.=	' = '.$updated_line;
 		} elsif (exists $info->{'SubroutineCall'}) {
+			if ($NEW_PARSER) {
+				my $subname = $info->{'SubroutineCall'}{'Name'};
+                $line=$info->{'Indent'}."call $subname($updated_line)";  				
+			} else {
 			$line=~s/call.+$//;
-			$line.=	'call '.$updated_line;			
+			$line.=	'call '.$updated_line;
+			}
+#			croak $line;		
 		}
 #		say "_create_refactored_function_calls($line) at " . __PACKAGE__ . ' '. __LINE__;
     push @{$rlines}, [ $line , $info ];
@@ -971,7 +1014,7 @@ sub _add_implicit_none { my ($stref, $f, $annlines) = @_;
     for my $annline ( @{$annlines} ) {      
         (my $line, my $info) = @{ $annline };
         
-        if (exists $info->{'VarDecl'} and $first_vardecl) {
+        if ((exists $info->{'VarDecl'} or  exists $info->{'Equivalence'}) and $first_vardecl) {
         	$first_vardecl=0;
                    # Here I think I can insert 'implicit none'
            if (not exists $Sf->{'ImplicitNone'}) {

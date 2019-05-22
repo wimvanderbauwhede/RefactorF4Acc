@@ -813,9 +813,9 @@ SUBROUTINE
 							my $decl = $Sf->{'DeclaredOrigLocalVars'}{'Set'}{$var};
 #							say Dumper($decl).'<>'.Dumper($parsedvars->{$var});
 							if (
-							(not exists $decl->{'ArrayOrScalar'} or
-								$decl->{'ArrayOrScalar'} eq 'Scalar') and 
-								$parsedvars->{$var}{'ArrayOrScalar'} eq 'Array'
+							     (not exists $decl->{'ArrayOrScalar'} or
+								 $decl->{'ArrayOrScalar'} eq 'Scalar') and 
+								 $parsedvars->{$var}{'ArrayOrScalar'} eq 'Array'
 							) {								
 								$decl->{'Dim'} =  [ @{ $parsedvars->{$var}{'Dim'} } ];	
 							} elsif (
@@ -834,6 +834,7 @@ SUBROUTINE
 						} else {
 							my $subset = in_nested_set( $Sf, 'Vars', $var );
 							if ($subset ne 'DeclaredCommonVars') {
+								# It could be UndeclaredOrigLocalVars via EQUIVALENCE
 							    croak "SHOULD BE IMPOSSIBLE!  $var in $subset in $f: $line".Dumper( $Sf->{$subset}{'Set'}{$var} );
 							}
 						}						
@@ -1905,9 +1906,10 @@ sub _parse_subroutine_and_function_calls {
                 
 				} else {                
 	                if ($argstr) {
-						my $ast = parse_expression( $argstr, $info, $stref, $f );
+						my $ast = parse_expression( $argstr, $info, $stref, $f ); 
 						( my $expr_args, my $expr_other_vars ) = get_args_vars_from_subcall($ast);
-		                #croak Dumper($expr_args,$expr_other_vars) if $name=~/boundsm/;
+						
+#		                croak Dumper($expr_args,$expr_other_vars) if $argstr=~/ivon03/;
 						for my $expr_arg(@{$expr_args->{'List'}}) {
 							if (substr($expr_arg,0,1) eq '*') {
 								my $label=substr($expr_arg,1);
@@ -5321,7 +5323,7 @@ for my $vpt (@vpts) {
     my $decl={
         'Name'=>$var_name,
         'Type'=>$type,
-        'Attr'=>$attr_name.'='.$attr,
+        'Attr'=> $attr ? $attr_name.'='.$attr : '',
         'Dim'=>$dims,
         'ArrayOrScalar' => $array_or_scalar
     };

@@ -87,7 +87,7 @@ $VAR1 = [
 #               0    1    2    3    4    5    6    7    8     9    10   11   12   13   14
 our @sigils = ('{', '&', '$', '+', '-', '*', '/', '%', '**', '=', '@', '#', ':' ,'//',')('
 #                15   16   17  18  19   20    21      22      23     24      25      26      
-               ,'==','!=','<','>','<=','>=','.not.','.and.','.or.','.xor.','.eqv.','.neqv.'
+               ,'==','/=','<','>','<=','>=','.not.','.and.','.or.','.xor.','.eqv.','.neqv.'
 #                27   28    29        30     31        32           33             34       35
                ,',', '(/', 'integer','real','logical','character', 'PlaceHolder', 'Label', 'BLANK'
               );
@@ -1203,7 +1203,7 @@ So it looks like I need at least 6 bits, so we'll need <<8 and 0xFF
                  0    1    2    3    4    5    6    7    8     9    10   11   12   13   14 
 our @sigils = ( '{', '&', '$', '+', '-', '*', '/', '%', '**', '=', '@', '#', ':' ,'//',')('
                  15   16  17  18  19   20    21      22      23     24      25      26      
-               ,'==','!=',<','>','<=','>=','.not.','.and.','.or.','.xor.','.eqv.','.neqv.'
+               ,'==','/=',<','>','<=','>=','.not.','.and.','.or.','.xor.','.eqv.','.neqv.'
                  27  28        29     30        31
                ,',','integer','real','logical','character'
               );
@@ -1273,7 +1273,7 @@ our @sigils = ( '{', '&', '$', '+', '-', '*', '/', '%', '**', '=', '@', '#', ':'
             } 
             elsif ($str=~s/^\!=// || $str=~s/^\.ne\.// || $str=~s/^\.\s*ne\s*\.//) {
                 $lev=7;
-                #$op='!=';
+                #$op='/=';
                 $op=16;
             } 
             elsif ($str=~s/^\.and.// || $str=~s/^\.\s*and\s*\.//) {
@@ -1518,6 +1518,7 @@ sub emit_expr_from_ast { (my $ast)=@_;
                 return "$name()";
             }
             } else {
+#            	say Dumper($ast);
                 (my $opcode, my $lexp, my $rexp) =@{$ast};
                 my $lv = (ref($lexp) eq 'ARRAY') ? emit_expr_from_ast($lexp) : $lexp;
                 my $rv = (ref($rexp) eq 'ARRAY') ? emit_expr_from_ast($rexp) : $rexp;

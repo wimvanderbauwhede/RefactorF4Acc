@@ -330,9 +330,27 @@ FM923.f);
 my $batch=1;
 my $flags='';
 if (@ARGV) {
+    if (@ARGV == 1 and $ARGV[0] eq '-h' or $ARGV[0] eq '--help' ) {
+    die "
+    * If you want to generate, compile and run the tests, please run `generate_and_run.sh`
+    
+    * To run a single test, 
+
+        $0 [name of test to run] [flags for refactorF4acc.pl]
+    e.g.
+        $0 FM330 -A
+
+    * Valid flags for `refactorF4acc.pl`:
+
+    " .`refactorF4acc.pl -h 2>&1`;
+    }
     my $src = shift @ARGV;
+    $src=~s/^\.\.\///;
+    if ($src!~/\.f$/) {
+        $src.='.f';
+    }
     @sources=( $src );
-    $flags = join(' ',@ARGV);
+    $flags = join(' ',@ARGV);    
     $batch=0;
 }
 my $skipped=0;

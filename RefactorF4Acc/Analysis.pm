@@ -1145,8 +1145,8 @@ sub _add_BLOCK_DATA_call_after_last_VarDecl {
 					'SubroutineCall'=> {
 						'Name' => $block_data,
 						'Args' => {'List'=>[],'Set'=>{} },
-						'ExpressionAST' => [
-          					'&',$block_data
+						'ExpressionAST' => $NEW_PARSER? [] : [
+          					1,$block_data 
         				],
 					},
 					'ExprVars' => {

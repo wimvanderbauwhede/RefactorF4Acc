@@ -38,8 +38,6 @@ TEST CASE FM021.f
 refactorF4acc.pl -c rf4a_fm021.cfg  -g fm021
 TEST CASE FM022.f
 refactorF4acc.pl -c rf4a_fm022.cfg  -g fm022
-create DECL for icon02
-create DECL for rcon01
 The EQUIVALENCE  statement is not refactored, this could possible break your code, please rewrite:
   SOURCE: ./FM022.f
   CODE UNIT: fm022
@@ -50,11 +48,6 @@ LINES:
 41: equivalence ( iadn16(3), iadn17(2) )                              
 TEST CASE FM023.f
 refactorF4acc.pl -c rf4a_fm023.cfg  -g fm023
-create DECL for icoe04
-create DECL for icoe02
-create DECL for icoe03
-create DECL for rcoe02
-create DECL for rcoe03
 The EQUIVALENCE  statement is not refactored, this could possible break your code, please rewrite:
   SOURCE: ./FM023.f
   CODE UNIT: fm023
@@ -64,8 +57,6 @@ LINES:
 32: equivalence (icoe01,icoe02,icoe03,icoe04), (rcoe01,rcoe02,rcoe03) 
 TEST CASE FM024.f
 refactorF4acc.pl -c rf4a_fm024.cfg  -g fm024
-create DECL for icoe02
-create DECL for icoe03
 The EQUIVALENCE  statement is not refactored, this could possible break your code, please rewrite:
   SOURCE: ./FM024.f
   CODE UNIT: fm024
@@ -202,9 +193,6 @@ TEST CASE FM261.f
 refactorF4acc.pl -c rf4a_fm261.cfg  -g fm261
 TEST CASE FM300.f
 refactorF4acc.pl -c rf4a_fm300.cfg  -g fm300
-create DECL for ivoe14
-create DECL for ivoe17
-create DECL for ivoe18
 The EQUIVALENCE  statement is not refactored, this could possible break your code, please rewrite:
   SOURCE: ./FM300.f
   CODE UNIT: fm300
@@ -354,7 +342,6 @@ TEST CASE FM719.f
 refactorF4acc.pl -c rf4a_fm719.cfg  -g fm719
 TEST CASE FM722.f
 refactorF4acc.pl -c rf4a_fm722.cfg  -g fm722
-create DECL for zvcomp
 The EQUIVALENCE  statement is not refactored, this could possible break your code, please rewrite:
   SOURCE: ./FM722.f
   CODE UNIT: fm722
