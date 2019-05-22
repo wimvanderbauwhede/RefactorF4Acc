@@ -15,6 +15,7 @@ use RefactorF4Acc::Parser::Expressions qw(
     emit_expr_from_ast 
     get_consts_from_expression
     find_assignments_to_scalars_in_ast
+    find_implied_do_in_ast
     find_args_vars_in_ast
     find_vars_in_ast
     $NEW_PARSER
@@ -3065,7 +3066,7 @@ if ($NEW_PARSER) {
         $line = 'complex(8) '.$varlst;
     }
 	( $pvars, $pvars_lst ) = _parse_F77_decl_NEW( $line );
-	croak Dumper($pvars) if $line=~/character/;
+#	croak Dumper($pvars) if $line=~/character/;
     # For backward compat, remove later. TODO
     $type = $pvars->{$pvars_lst->[0]}{'Type'}
 } else {
@@ -3739,7 +3740,7 @@ sub _parse_read_write_print {
     	$tline=~s/(unit|nml|fmt)\s*=\s*//gi;
     }
     
-    # Rather than having Attributes, Arguments and Expressions I will simply have WrittenVars and ReadVars
+    # Rather than having Attributes, Arguments and Expressions I will simply have Vars.Written and Vars.Read
     
 #    say "TLINE: $tline";
     my $attrs_ast=[];
@@ -3769,7 +3770,11 @@ sub _parse_read_write_print {
     }
     #say Dumper($attrs_ast, $rest, $err);
     my $attr_pairs = $case == 3 ? {} : find_assignments_to_scalars_in_ast($attrs_ast,{});
-    my $impl_do_pairs = $case<2 ? {} : find_assignments_to_scalars_in_ast($exprs_ast,{});
+    # This is not good enough because implied do is (v(i),i=i_start,i_stop)
+    # So what I should so is say: if we have ',' and elt 1 is '=' then also consider elt 2 
+    my $impl_do_pairs = $case<2 ? {} : find_implied_do_in_ast($exprs_ast,{});
+#    say "LINE:$tline";
+#    say Dumper($exprs_ast);
 #    say "ATTR PAIRS: ".Dumper($attr_pairs);
 #    say "IMPLIED DO PAIRS: ".Dumper($impl_do_pairs);
     $info->{'CallArgs'} = { 'Set' => {}, 'List' => [ ] };
@@ -3777,12 +3782,23 @@ sub _parse_read_write_print {
     $info->{'IOList'}{'Ast'}=$exprs_ast;
     
     #    $info->{'CallAttrs'} = { 'Set' => $attrs_ast, 'List' => [ sort keys %{ $attrs_ast } ] };
+    my $impl_do_vars_list = [ sort keys %{ $impl_do_pairs } ];
     
-    # This is hard as we do not mark an implied do as such
-    # I should look for the pattern ( i = 1, n,v(i) ), i.e. ['(' ,['=',...]]
+    # We must identify any parameters or vars in the start_loop and 
+    my %impl_do_range_vars=();
+        for my $impl_do_var ( @{ $impl_do_vars_list } ) {
+        	my ($loop_start, $loop_end) = @{ $impl_do_pairs->{$impl_do_var} };
+        my $loop_start_vars = find_vars_in_ast($loop_start,{});        
+        my $loop_end_vars = find_vars_in_ast($loop_end,{});
+        %impl_do_range_vars = ( %impl_do_range_vars, %{$loop_start_vars},%{$loop_end_vars} );        
+    }
     $info->{'ImpliedDoVars'} = { 
-    	'Set' => $impl_do_pairs,
-    	 'List' => [ sort keys %{ $impl_do_pairs } ] 
+        'Set' => $impl_do_pairs,
+         'List' => $impl_do_vars_list 
+    };
+     $info->{'ImpliedDoRangeVars'} = { 
+        'Set' => \%impl_do_range_vars,
+         'List' => [sort keys %impl_do_range_vars] 
     };
     my $attrs_vars = get_vars_from_expression($attrs_ast,{} );
     $info->{'CallAttrs'} = { 'Set' => $attrs_vars, 'List' => [ sort keys %{ $attrs_vars } ] };
@@ -3844,18 +3860,19 @@ sub _parse_read_write_print {
 	        # This must be the iolist case. First check for implied do; then call args_vars. All args are Written, the rest is Read
 	            (my $args, my $other_vars) = @{ find_args_vars_in_ast($exprs_ast)  };
 	            if (%{$impl_do_pairs}) {   
-	            for my $idv (sort keys %{$impl_do_pairs}) {
-	                if (exists $args->{'Set'}{$idv}) {
-	                    delete $args->{'Set'}{$idv};
-	                    @{$args->{'List'}} =  sort keys %{$args->{'Set'}}; 
-	                }
+		            for my $idv (sort keys %{$impl_do_pairs}) {
+		                if (exists $args->{'Set'}{$idv}) {
+		                    delete $args->{'Set'}{$idv};
+#		                    @{$args->{'List'}} =  sort keys %{$args->{'Set'}}; 
+		                }
+		            }
 	            }
-	            }
-	            $info->{'Vars'}{'Written'}{'Set'}= {%{$args}, %{$info->{'Vars'}{'Written'}{'Set'}}};
+	            $info->{'Vars'}{'Written'}{'Set'}= {%{$args->{'Set'} }, %{$info->{'Vars'}{'Written'}{'Set'}}};
+	            $info->{'Vars'}{'Written'}{'List'}= [sort keys %{ $info->{'Vars'}{'Written'}{'Set'} } ];
 	            $info->{'Vars'}{'Read'}=$other_vars;
 		} else {# $case==3
 	    #If case 3, and more than one arg, process iolist as in ACCEPT		
-	# This must be the iolist case. First check for implied do; then call args_vars. All args are Written, the rest is Read
+  	# This must be the iolist case. First check for implied do; then call args_vars. All args are Written, the rest is Read
 	            
 	            (my $args, my $other_vars) = @{ find_args_vars_in_ast($exprs_ast)  };
 	            if (%{$impl_do_pairs}) {      
@@ -3869,7 +3886,8 @@ sub _parse_read_write_print {
 	            $info->{'Vars'}{'Written'}=$args;
 	            $info->{'Vars'}{'Read'}=$other_vars;    
 		}
-
+#        croak $case.Dumper($info->{'Vars'}) if $line=~/read.*time/;
+#carp Dumper($info->{'Vars'}) if $f eq 'ifdata' and $line=~/time/;
 	} elsif ( exists $info->{'PrintCall'} ) {
 	#PRINT
 	#- case 3
@@ -3892,7 +3910,8 @@ sub _parse_read_write_print {
             }
             }
             $info->{'Vars'}{'Read'}{'Set'}=$vars;
-            $info->{'Vars'}{'Read'}{'List'}= [ sort keys %{ $info->{'Vars'}{'Read'}{'Set'} } ];                       
+            # we do this later
+#            $info->{'Vars'}{'Read'}{'List'}= [ sort keys %{ $info->{'Vars'}{'Read'}{'Set'} } ];                       
         }
          return $info;
 	
@@ -4015,8 +4034,8 @@ sub _parse_read_write_print {
     }
 # create the lists
     $info->{'Vars'}{'Read'}{'List'}= [ sort keys %{ $info->{'Vars'}{'Read'}{'Set'} } ];
-    $info->{'Vars'}{'Written'}{'List'}= [ sort keys %{ $info->{'Vars'}{'Read'}{'Set'} } ];
-
+    $info->{'Vars'}{'Written'}{'List'}= [ sort keys %{ $info->{'Vars'}{'Written'}{'Set'} } ];
+#    carp Dumper($info->{'Vars'}) if $f eq 'ifdata' and $line=~/time/;
     return $info;
     } else {
     	return _parse_read_write_print_OLD(@_); 
@@ -5196,6 +5215,7 @@ sub mark_blocks_between_calls { (my $stref)=@_;
 sub _get_var_recs_from_parse_tree { (my $tpt, my $vspt)=@_;
 my $type;
 my $attr='';
+my $attr_name='kind';
 my $dims=[];
 my @decls=();
 my $var_name;
@@ -5234,6 +5254,7 @@ if ($tpt->[0] == 5) { # '*'
       
 }
 
+if ($type eq 'character') {$attr_name='len'};
 # vars part
 my @vpts=();
 ## first transform into a plain list
@@ -5300,7 +5321,7 @@ for my $vpt (@vpts) {
     my $decl={
         'Name'=>$var_name,
         'Type'=>$type,
-        'Attr'=>$attr,
+        'Attr'=>$attr_name.'='.$attr,
         'Dim'=>$dims,
         'ArrayOrScalar' => $array_or_scalar
     };

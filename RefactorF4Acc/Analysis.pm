@@ -245,7 +245,8 @@ sub _analyse_variables {
 			# -------------------------------------------------------------------------------------------------------------------
 			
 			for my $mvar (@chunks) {
-
+#				croak $f if $mvar eq 'time' and $f eq 'ifdata';
+#            say "$f VAR0 $mvar";
                 next if exists $stref->{'Subroutines'}{$f}{'CalledSubs'}{'Set'}{$mvar};    # Means it's a function
 				next if $mvar =~ /^\d+$/;
 				next if not defined $mvar or $mvar eq '';
@@ -287,7 +288,7 @@ sub _analyse_variables {
 						or ( $in_vars_subset and $Sf->{$in_vars_subset}{'Set'}{$mvar} eq '1' ) 
 						)
 				  ) {
-#				  	say "$f VAR2 $mvar";
+#				  	say "$f VAR2 $mvar" ;
 					my $in_incl = 0;
 					if ( not exists $Sf->{'Commons'}{$mvar} ) {												
 						for my $inc ( sort keys %{ $Sf->{'Includes'} } ) {
@@ -579,13 +580,17 @@ sub identify_vars_on_line {
 				or exists $info->{'InquireCall'} 
 				) {
 				if (!$NEW_PARSER) {	
-				@chunks = ( @chunks, @{ $info->{'CallArgs'}{'List'} }, @{ $info->{'ExprVars'}{'List'} }, @{ $info->{'CallAttrs'}{'List'} });
+				    @chunks = ( @chunks, @{ $info->{'CallArgs'}{'List'} }, @{ $info->{'ExprVars'}{'List'} }, @{ $info->{'CallAttrs'}{'List'} });
 				} else {
 					@chunks = ( @chunks, @{ $info->{'Vars'}{'Written'}{'List'} }, @{ $info->{'Vars'}{'Read'}{'List'} } );
 				}
 				if (exists $info->{'ImpliedDoVars'}) {
-				@chunks = ( @chunks, @{ $info->{'ImpliedDoVars'}{'List'} } );
+				    @chunks = ( @chunks, @{ $info->{'ImpliedDoVars'}{'List'} } );
 				}
+                if (exists $info->{'ImpliedDoRangeVars'}) {
+                    @chunks = ( @chunks, @{ $info->{'ImpliedDoRangeVars'}{'List'} } );
+                }
+#                croak Dumper(@chunks,$info->{'Vars'}) if $line=~/read.*time/;
 			} elsif ( exists $info->{'SubroutineCall'} ) {
 				for my $var_expr ( @{ $info->{'CallArgs'}{'List'} } ) {
 					if ( exists $info->{'CallArgs'}{'Set'}{$var_expr}{'Arg'} ) {

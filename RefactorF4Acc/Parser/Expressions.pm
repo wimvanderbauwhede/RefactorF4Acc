@@ -39,6 +39,7 @@ use Exporter;
   &_find_args_in_ast
   &find_args_vars_in_ast
   &find_assignments_to_scalars_in_ast
+  &find_implied_do_in_ast
   &_traverse_ast_with_action
   @sigils
   $NEW_PARSER
@@ -1857,14 +1858,15 @@ sub find_assignments_to_scalars_in_ast { (my $ast, my $vars)=@_;
     
         $vars = find_assignments_to_scalars_in_ast($ast->[2],$vars);        
     
-  } elsif (($ast->[0] & 0xFF) == 9) { # assignment
+  } elsif (($ast->[0] & 0xFF) == 9) { # '=' assignment
   # Now, this can eithe be an assignment to a scalar or to an array. 
   # I am only interested in assignments to scalars  
   # [ '=', ['$', $lhs_var], $rhs_ast ]
-  if ( ($ast->[1][0] & 0xFF) == 2 ) {
-    $vars->{$ast->[1][1]}=$ast->[2];
+    if ( ($ast->[1][0] & 0xFF) == 2 ) {
+        $vars->{$ast->[1][1]}=$ast->[2];
     }
-  } elsif ( ($ast->[0] & 0xFF)  < 29 and ($ast->[0] & 0xFF)  !=2  ) { # other operators    
+  } elsif ( ($ast->[0] & 0xFF)  < 29 and ($ast->[0] & 0xFF)  !=2  ) { # other operators
+      
     for my $idx (1 .. scalar @{$ast}-1) {
         $vars = find_assignments_to_scalars_in_ast($ast->[$idx],$vars);        
     }
@@ -1873,6 +1875,35 @@ sub find_assignments_to_scalars_in_ast { (my $ast, my $vars)=@_;
     return $vars;
 } # END of find_assignments_to_scalars_in_ast
 
+
+# Look for [',',loop_expr,['=',loop_iter,loop_start],loop_end] and store this as loop_iter =>[loop_start, loop_end]
+
+sub find_implied_do_in_ast { (my $ast, my $vars)=@_; 
+
+
+  if(scalar @{$ast}==0) {
+      return {};
+  }
+  if ( ($ast->[0] & 0xFF) == 1 or
+       ($ast->[0] & 0xFF) == 10 ) { # array var or function/subroutine call       
+    
+        $vars = find_implied_do_in_ast($ast->[2],$vars);        
+    
+  } elsif ( ($ast->[0] & 0xFF)  < 29 and ($ast->[0] & 0xFF)  !=2  ) { # other operators
+    if ( ($ast->[0] & 0xFF)  == 27 and ($ast->[2][0] & 0xFF)  == 9  ) {
+#       croak 'IMPLIED DO:'. Dumper($ast, $vars);
+    if ( ($ast->[2][1][0] & 0xFF) == 2 ) {
+        $vars->{$ast->[2][1][1]}=[$ast->[2][2],$ast->[3]];
+    }       
+    }
+      
+    for my $idx (1 .. scalar @{$ast}-1) {
+        $vars = find_implied_do_in_ast($ast->[$idx],$vars);        
+    }
+  } 
+
+    return $vars;
+} # END of find_implied_do_in_ast
 # I'm only looking for arguments, so I don't bother with index vars
 # Funny enough it seems I also need constant args because I look for ReferencedLabels
 # I think only keeping these would be enough; and also maybe I should give them a proper Type and sigil
