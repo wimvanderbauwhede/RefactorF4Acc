@@ -3053,16 +3053,33 @@ sub __parse_f77_var_decl {
 				my $is_module = (exists $stref->{'Modules'}{$f}) ? 1 : 0;
 # Half-baked F95/F77 declarations are threated as F77, so remove the :: here
 my $half_baked = ($line=~s/\:://);
-	
+
+my $attr='';
+my $pvars;
+my $pvars_lst;
+if ($NEW_PARSER) {
+    if ($type eq 'double precision') {
+        $line = 'real(8) '.$varlst;
+    }
+    elsif ($type eq 'double complex') {
+        $line = 'complex(8) '.$varlst;
+    }
+	( $pvars, $pvars_lst ) = _parse_F77_decl_NEW( $line );
+	croak Dumper($pvars) if $line=~/character/;
+    # For backward compat, remove later. TODO
+    $type = $pvars->{$pvars_lst->[0]}{'Type'}
+} else {
 # Now an ad hoc fix for spaces between the type and the asterisk. FIXME! I should just write a better FSM!
 #
 # This is ad-hoc character declaration parsing
-my $attr='';
+#my $attr='';
 my $char_decls={};
 my $char_lst=[];
 my $is_char = 0;
 
 if ($line=~/^character/) {
+
+
 #	say "LINE: $line";
 	$type = 'character';		
 	$is_char=1;
@@ -3088,12 +3105,12 @@ if ($line=~/^character/) {
          for my $var_dim (@vars_dims) {
          	
          	my $ast=parse_expression($var_dim, $info, $stref, $f);
-            say "EXP: $var_dim AST1:".Dumper($ast);
+            #say "EXP: $var_dim AST1:".Dumper($ast);
          	my $var = _get_var_from_ast( $ast );
          	my $dim = _get_dim_from_ast( $ast );
-         	say "DIM: ".Dumper($dim);
+            #say "DIM: ".Dumper($dim);
 #         	die if $ast->[1] eq 'c2d001';
-croak if $line=~/catn11/;
+            #croak if $line=~/catn11/;
          	my $len_override = _get_len_from_ast( $ast );
          	if ($len eq '_PARENS_STAR_') {
          		$len='*';
@@ -3287,10 +3304,11 @@ croak if $line=~/catn11/;
 # If the line had a pattern like integer*4, we set $attr 
 
 	my $T = 0;
-	( my $pvars, my $pvars_lst ) = $is_char ? ($char_decls, $char_lst) : f77_var_decl_parser( $varlst, $T );
+	( $pvars, $pvars_lst ) = $is_char ? ($char_decls, $char_lst) : f77_var_decl_parser( $varlst, $T );
 	if ($is_char) {
 		$type='character';
 	}
+} # NEW_PARSER
 	my @varnames = ();
 	# Add type information to Vars
 	for my $tvar ( @{$pvars_lst} ) {
@@ -3749,7 +3767,7 @@ sub _parse_read_write_print {
         #say Dumper($attrs_ast, $rest, $err);
         #say emit_expr_from_ast($attrs_ast);
     }
-    
+    #say Dumper($attrs_ast, $rest, $err);
     my $attr_pairs = $case == 3 ? {} : find_assignments_to_scalars_in_ast($attrs_ast,{});
     my $impl_do_pairs = $case<2 ? {} : find_assignments_to_scalars_in_ast($exprs_ast,{});
 #    say "ATTR PAIRS: ".Dumper($attr_pairs);
@@ -5174,6 +5192,139 @@ sub mark_blocks_between_calls { (my $stref)=@_;
 	return $stref;
 } # END of mark_blocks_between_calls
 
+
+sub _get_var_recs_from_parse_tree { (my $tpt, my $vspt)=@_;
+my $type;
+my $attr='';
+my $dims=[];
+my @decls=();
+my $var_name;
+my $array_or_scalar='Scalar';
+
+my $var_decls={};
+my $var_lst=[];
+
+# type part
+if ($tpt->[0] == 5) { # '*'
+    # set the type 
+    if ($tpt->[1][0] == 2 ) { # '$'
+    # set the type
+        $type = $tpt->[1][1];
+    }
+    # set the attribute
+    if ($tpt->[2][0] == 0) { # ( ... )
+        # Emit this and use as attr
+        $attr = emit_expr_from_ast($tpt->[2]);
+    } 
+    elsif  ($tpt->[2][0] == 29) {
+        # take the value
+        $attr = $tpt->[2][1];
+    }
+
+} elsif ($tpt->[0] == 1 ) { # i.e. character(len=...)
+    $type = $tpt->[1];
+    if ($tpt->[2][0] == 9) {
+        $attr =  emit_expr_from_ast($tpt->[2][2]);
+    } else {
+        $attr =  emit_expr_from_ast($tpt->[2]);
+    }
+} elsif ($tpt->[0] == 2 ) { # '$', so no attribute. Means attributes are per-var
+    # set the type
+    $type = $tpt->[1];  
+      
+}
+
+# vars part
+my @vpts=();
+## first transform into a plain list
+if ($vspt->[0] ==27) { # comma-sep list
+    #    say Dumper($vspt);
+    shift @{$vspt};
+    @vpts=@{ $vspt };#->[1 .. (scalar( @{$vspt}) -1)] };
+} else { # single elt
+    @vpts = ( $vspt );
+}
+## then
+
+for my $vpt (@vpts) {
+    # it can be either a scalar, an array, or an expression with '*' and a scalar or array
+    my $tvpt=$vpt;
+    
+    if ($vpt->[0] == 5) {
+        # means there is a '*', so get both parts
+        # one of the parts again can be a scalar or an array
+        if ($vpt->[1][0] == 29) {
+            $tvpt=$vpt->[2];
+            # get the attr
+            $attr = $vpt->[1][1];
+        } elsif ($vpt->[2][0] == 29) {
+            $tvpt=$vpt->[1];
+            # get the attr
+            $attr = $vpt->[2][1];
+        }
+    } 
+    if ($tvpt->[0] == 2) {
+        # get the name and create the decl
+        $var_name = $tvpt->[1];
+    }
+    elsif ($tvpt->[0] == 1) { # The array will be '&' so 1
+        # it's an array, get the dim.
+        $array_or_scalar='Array';
+        # dim part
+        my @dpts=();
+        # first transform into a plain list
+        if ($tvpt->[2][0] ==27) { # comma-sep list
+            shift @{ $tvpt->[2] };
+            @dpts=@{ $tvpt->[2] } ;#[1.. scalar @{$tvpt->[2][0]} -1]};
+        } else { # single elt
+            @dpts = ( $tvpt->[2] );
+        }
+        ## then for each of these, check if it is a ':'
+        for my $dpt (@dpts) {
+            my $tdim=[];
+            if ($dpt->[0] == 12) { #':'
+                # take both parts, use directly if integer or variable
+                # emit of expression
+                $tdim=[emit_expr_from_ast($dpt->[1]), emit_expr_from_ast($dpt->[2])];
+
+            } else {
+                # part 1 is a 1, only use part 2
+                $tdim=[1, emit_expr_from_ast($dpt)];
+            }
+            push @{$dims},$tdim;
+        }
+
+        # then get the name and create the decl
+        $var_name = $tvpt->[1];
+    }
+    my $decl={
+        'Name'=>$var_name,
+        'Type'=>$type,
+        'Attr'=>$attr,
+        'Dim'=>$dims,
+        'ArrayOrScalar' => $array_or_scalar
+    };
+    
+    push @{$var_lst}, $var_name;#decls, $decl;
+    $var_decls->{$var_name}=$decl;
+    $dims=[];
+}
+
+return ($var_decls, $var_lst);
+} # END of _get_var_recs_from_parse_tree 
+
+
+sub _parse_F77_decl_NEW { (my $decl_str)=@_;
+
+        my ($parse_tree_type, $rest, $err) = parse_expression_no_context($decl_str);
+        (my $parse_tree_vars, $rest, $err) = parse_expression_no_context($rest);
+        
+        (my $var_recs, my $var_lst) = _get_var_recs_from_parse_tree($parse_tree_type, $parse_tree_vars);
+        return ($var_recs, $var_lst);
+    
+
+} # END of _parse_F77_decl_NEW
+
 1;
 
 
@@ -5243,3 +5394,5 @@ if (not in_nested_set( $Sf, 'Vars', $varname ) ) {
 }
 
 =cut
+
+

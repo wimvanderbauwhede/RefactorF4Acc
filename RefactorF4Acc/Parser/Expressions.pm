@@ -985,6 +985,7 @@ sub parse_expression_no_context { (my $str)=@_;
     my @ast=();
     my $op;
     my $state=0; # I will use state=8/9/10 as "has prefix .not. - + "
+    my $error=0;
     # I will not treat * as a proper prefix
 
 
@@ -993,6 +994,7 @@ sub parse_expression_no_context { (my $str)=@_;
     my $has_funcs=0;
     
     while (length($str)>0) {
+        $error=0;
         #say "STR before prefix: $str";
         # Remove whitespace
         if ($str=~/^\s/) {
@@ -1047,7 +1049,10 @@ sub parse_expression_no_context { (my $str)=@_;
             $has_funcs||=$has_funcs2;
             #$expr_ast=['(/',$expr_ast];
             $expr_ast=[28,$expr_ast];
-            if($err) {return ($expr_ast,$str, 1,0);}
+            if($err) {
+            	#say "ERR 1";
+            	return ($expr_ast,$str, $err,0);
+            }
         }
         elsif ($str=~s/^\(//) {
             # paren expr, I use '{' as it appears not to be used. Would make send to call it '('
@@ -1055,7 +1060,9 @@ sub parse_expression_no_context { (my $str)=@_;
             $has_funcs||=$has_funcs2;
             #$expr_ast=['{',$expr_ast];
             $expr_ast=[0,$expr_ast];
-            if($err) {return ($expr_ast,$str, 1,0);}
+            if($err) {#say "ERR 2";
+            return ($expr_ast,$str, $err,0);
+            }
         }
         # Apparently Fortran allows '$' as a character in a variable name but I think I'll ignore that.
         # I allow _ as starting character because of the placeholders
@@ -1075,7 +1082,10 @@ sub parse_expression_no_context { (my $str)=@_;
             $expr_ast=[31,'.'.$1.'.'];
             #$expr_ast='.'.$1.'.';
         }
-        elsif ($str=~s/^((?:\d*\.\d*)(?:[edqEDQ][\-\+]?\d+)?)//
+        elsif ((
+        $str!~/\d+\.[aox]/ and  
+        $str=~s/^((?:\d*\.\d*)(?:[edqEDQ][\-\+]?\d+)?)//        
+        )
                 or 
             $str=~s/^(\d*(?:[edqEDQ][\-\+]?\d+))//
         ) { 
@@ -1111,8 +1121,10 @@ sub parse_expression_no_context { (my $str)=@_;
             # if the next token is ':' or the pending op is ':'
             if($str=~/^\s*:/ or $op == 12) {
                 $expr_ast=[35,'']
-            } else {
-                return ($expr_ast, $str, 1,0);
+            } else { # error
+            #say "ERR 3";
+                $error=1;
+                return ($expr_ast, $str, $error,0);
             }
         }
         # If state is not 0 there is a prefix
@@ -1126,7 +1138,7 @@ sub parse_expression_no_context { (my $str)=@_;
             $str=~s/^\s+//;
         }
 
-        if (length($str)==0) {
+        if (length($str)==0) {        	
             last;
         }
        
@@ -1144,6 +1156,7 @@ sub parse_expression_no_context { (my $str)=@_;
             }
             # otherwise it is quite the same as the end of the string
             else {
+            	#say "LEAVE WHILE: closing paren";
                 last;
             }
         }        
@@ -1157,6 +1170,7 @@ sub parse_expression_no_context { (my $str)=@_;
             }
             # otherwise it is quite the same as the end of the string
             else {
+            	#say "LEAVE WHILE: closing paren";
                 last;
             }
         } 
@@ -1290,12 +1304,20 @@ our @sigils = ( '{', '&', '$', '+', '-', '*', '/', '%', '**', '=', '@', '#', ':'
                 $lev=5;
                 #$op='=';
                 $op=9;
-            } 
+            } else {
+                #                carp 'NO OP, ERROR '.$str;
+                #say "LEAVE WHILE: ERROR, str $str does not match any op";
+                $error=1;
+                last;
+                #return ($expr_ast, $str, 1,0);
+            }
 
             $state=5;
         }
         if ($state==5 and not defined $op) {
-        	return ($expr_ast, $str, 1,0);
+        	#say "ERR 5";
+            $error=1;
+        	return ($expr_ast, $str, $error,0);
         }
         # Append to the AST
         if ($state==5 ) {
@@ -1345,7 +1367,8 @@ our @sigils = ( '{', '&', '$', '+', '-', '*', '/', '%', '**', '=', '@', '#', ':'
                 $lev=0;
             } else { # state==7
                 # Now we return this as the ast
-                return ([27,@{$arg_expr_ast}],$str,0,$has_funcs);
+                #say "ERR 6 $error";
+                return ([27,@{$arg_expr_ast}],$str,$error,$has_funcs);
             } 
         }
     } # while
@@ -1357,35 +1380,37 @@ our @sigils = ( '{', '&', '$', '+', '-', '*', '/', '%', '**', '=', '@', '#', ':'
     } else {
         push @{$ast[$lev]}, $expr_ast;
     }
- if(@{$arg_expr_ast}) {
-            if( scalar @ast == 1) {
-                push @{$arg_expr_ast},$ast[0];
-            } else {
-                for my $tlev (1 .. $max_lev) {
-                    if (not defined $ast[$tlev+1]) {
-                        $ast[$tlev+1] = $ast[$tlev] if defined $ast[$tlev] and scalar @{$ast[$tlev]};
-                    } else {
-                        push @{$ast[$tlev+1]}, $ast[$tlev] if defined $ast[$tlev] and scalar @{$ast[$tlev]};
-                    }
+    if(@{$arg_expr_ast}) {
+        if( scalar @ast == 1) {
+            push @{$arg_expr_ast},$ast[0];
+        } else {
+            for my $tlev (1 .. $max_lev) {
+                if (not defined $ast[$tlev+1]) {
+                    $ast[$tlev+1] = $ast[$tlev] if defined $ast[$tlev] and scalar @{$ast[$tlev]};
+                } else {
+                    push @{$ast[$tlev+1]}, $ast[$tlev] if defined $ast[$tlev] and scalar @{$ast[$tlev]};
                 }
-                push @{$arg_expr_ast},$ast[$max_lev+1];
             }
-    return([27,@{$arg_expr_ast}],$str,0,$has_funcs);
-} else {
-    # Now determine the highest level; fold the lower levels into it
-    if( scalar @ast == 1) {
-        return ($ast[0],$str,0,$has_funcs);
-    } else {
-        for my $tlev (1 .. $max_lev) {
-            if (not defined $ast[$tlev+1]) {
-                $ast[$tlev+1] = $ast[$tlev] if defined $ast[$tlev] and scalar @{$ast[$tlev]};
-            } else {
-                push @{$ast[$tlev+1]}, $ast[$tlev] if defined $ast[$tlev] and scalar @{$ast[$tlev]};
-            }
+            push @{$arg_expr_ast},$ast[$max_lev+1];
         }
-        return ($ast[$max_lev+1],$str,0,$has_funcs);
+        #say "ERR 7 $error";
+        return([27,@{$arg_expr_ast}],$str,$error,$has_funcs);
+    } else {
+        # Now determine the highest level; fold the lower levels into it
+        if( scalar @ast == 1) {
+            return ($ast[0],$str,$error,$has_funcs);
+        } else {
+            for my $tlev (1 .. $max_lev) {
+                if (not defined $ast[$tlev+1]) {
+                    $ast[$tlev+1] = $ast[$tlev] if defined $ast[$tlev] and scalar @{$ast[$tlev]};
+                } else {
+                    push @{$ast[$tlev+1]}, $ast[$tlev] if defined $ast[$tlev] and scalar @{$ast[$tlev]};
+                }
+            }
+            #say "ERR 8 $error";
+            return ($ast[$max_lev+1],$str,$error,$has_funcs);
+        }
     }
-}
 } # END of parse_expression_no_context
 
 sub interpret { (my $ast)=@_;
@@ -1397,7 +1422,7 @@ sub interpret { (my $ast)=@_;
         if ($op=~/\./) {
             $op=~s/\.//g;
         }
-        say Dumper($lexp) if not defined $lv;
+        croak Dumper($lexp) if not defined $lv;
         return eval("$lv $op $rv");
     } elsif (scalar @{$ast}==2) { 
         (my $op, my $exp) =@{$ast};
