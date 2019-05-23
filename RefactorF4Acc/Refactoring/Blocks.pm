@@ -2,7 +2,10 @@ package RefactorF4Acc::Refactoring::Blocks;
 use v5.10;
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
-#use RefactorF4Acc::Refactoring::Common qw( get_annotated_sourcelines create_refactored_source splice_additional_lines_cond emit_f95_var_decl );
+
+use RefactorF4Acc::Parser qw( _initialise_decl_var_tables parse_fortran_src );
+use RefactorF4Acc::Analysis qw( identify_vars_on_line );
+use RefactorF4Acc::Refactoring::Common qw( get_f95_var_decl emit_f95_var_decl);#get_annotated_sourcelines create_refactored_source splice_additional_lines_cond  );
 
 #
 #   (c) 2010-2019 Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
@@ -15,6 +18,9 @@ $VERSION = "1.2.0";
 use warnings;
 use warnings FATAL => qw(uninitialized);
 use strict;
+
+use Storable qw( dclone );
+
 use Carp;
 use Data::Dumper;
 
@@ -194,7 +200,7 @@ sub __find_called_subs_in_OUTER {
 sub __separate_into_blocks {
     ( my $stref, my $blocksref, my $f ) = @_;
     my $sub_or_func_or_mod = sub_func_incl_mod( $f, $stref );    # This is not a misnomer as it can also be a module.
-    say "$sub_or_func_or_mod $f";
+#    say "$sub_or_func_or_mod $f";
     my $Sf       = $stref->{$sub_or_func_or_mod}{$f};
     my $srcref   = $Sf->{'AnnLines'};
     my $in_block = 0;
@@ -482,6 +488,8 @@ sub __construct_new_subroutine_signatures {
                 $srcref->[$tindex][0] = $sig;
                 
                 $srcref->[$tindex][1]{'SubroutineCall'} = $sigrec;
+                $srcref->[$tindex][1]{'SubroutineCall'}{'ExpressionAST'} = [];#1,$sigrec->{'Name'},[]
+#croak Dumper( $srcref->[$tindex][1]{'SubroutineCall'},$sigrec->{'Args'});
                 $srcref->[$tindex][1]{'CallArgs'}=dclone($sigrec->{'Args'});
                 $srcref->[$tindex][1]{'LineID'} = $Sblock->{'Callers'}{$f}[0];
                 
@@ -544,4 +552,54 @@ sub __update_caller_datastructures {
     $stref->{'CallTree'}{$f}=[@{$stref->{'Subroutines'}{$f}{'CalledSubs'}{'List'}}];
     return $stref;
 }    # END of __update_caller_datastructures()
+
+# -----------------------------------------------------------------------------
+#
+# So what this does is find occurences of existing variables and also of iterator variables
+# The iter variables are declared locally inside the new subroutine, all others are args.
+# Of course it should be only the vars that occur outside the block
+# The "Iter" approach is incomplete because we should really identify any variable used as a local variable
+# If we find a variable in the outer blocks, it could still be a local
+#
+sub __find_vars_in_block {
+    #warn "This should use the same code as RefactorF4Acc::Analysis:: _analyse_variables";
+	( my $blocksref, my $varsref, my $occsref ) = @_;
+	my $itersref = {};
+	for my $block_rec ( @{$blocksref} ) {
+		my $block = $block_rec->{'Name'};		
+		$itersref->{$block} = [];
+		my @annlines = @{ $block_rec->{'AnnLines'} };
+		my %tvars = %{$varsref};    # Hurray for pass-by-value!
+
+		print "\nVARS in $block:\n\n" if $V;
+		for my $annline (@annlines) {
+            ( my $tline, my $info ) = @{$annline};
+			if ( exists $info->{'Do'} ) {
+				my $iter = $info->{'Do'}{'Iterator'};
+				push @{ $itersref->{$block} }, $iter;
+				delete $tvars{$iter};
+
+				for my $var_in_do ( @{ $info->{'Do'}{'Range'}{'Vars'} } ) {
+					if ( exists $tvars{$var_in_do} ) {
+						print "FOUND $var_in_do\n" if $V;
+						$occsref->{$block}{$var_in_do} = $var_in_do;
+						delete $tvars{$var_in_do};
+					}
+				}
+            } else {
+                my $vars_on_line_ref=identify_vars_on_line($annline);
+                for my $var_on_line (@{$vars_on_line_ref}) {
+                    if  ( exists $tvars{$var_on_line} ) {
+                        delete $tvars{$var_on_line};
+                        $occsref->{$block}{$var_on_line}=$var_on_line;
+                    }
+                }
+            }
+        }
+	} # for each block
+	
+	return [ $occsref, $itersref ];
+}    # END of __find_vars_in_block()
+
+
 1;

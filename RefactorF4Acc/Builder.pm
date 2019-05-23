@@ -39,7 +39,8 @@ sub create_build_script {
     	if ($src=~/\.f\d*$/) { 
     		$src=~s/\.f\d*/$EXT/;
     	} elsif ($src!~/$EXT$/) {
-    		$src=~s/\./_/g;
+    		
+    		$src=~s/(?!\w)\./_/g;
     		$src.=$EXT;
     	}
     	"'" . $src . "'"; 

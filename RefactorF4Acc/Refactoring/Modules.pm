@@ -205,6 +205,7 @@ sub _create_module_src { (my $stref, my $src, my $subname, my $no_modules ) = @_
 
 	# Means "do not wrap in module statements"
 	my $no_module = $is_program;                    # if it's a program
+	my $skip_because_empty = 0;
 	$no_module = exists $no_modules->{$src} ? 1 : $no_module;    # if it occurs in %no_modules
 
 	print "INFO: adding module decls to $src\n" if $I;
@@ -260,6 +261,7 @@ sub _create_module_src { (my $stref, my $src, my $subname, my $no_modules ) = @_
 				}
 			}
 			my $annlines       = get_annotated_sourcelines( $stref, $prog_name );
+			croak Dumper($annlines) if $src eq 'common.sn';
 			my $before         = 1;
 			my @prog_p1        = ();
 			my @prog_p2        = ();
@@ -311,19 +313,25 @@ sub _create_module_src { (my $stref, my $src, my $subname, my $no_modules ) = @_
 		}
 	} else {
 		# It's a module. We just get the refactored sources here, do the rest in the next step
+		if (!@{ $stref->{'SourceContains'}{$src}{'List'} }) {
+			$skip_because_empty = 1; 
+			$stref->{'BuildSources'}{'F'}{$src} = 0;
+		} else {
 		for my $f ( @{ $stref->{'SourceContains'}{$src}{'List'} } ) {
 			if ($subname ne '') {
 				next unless $f eq $subname;
 			}
 			my $annlines = get_annotated_sourcelines( $stref, $f );
+			
 			if ( not exists $refactored_sources->{$f} ) {    # FIXME: This is a HACK because we need to make sure this is caught higher up
 				$annlines = create_refactored_source( $stref, $f, $annlines );
 				$refactored_sources->{$f} = 1;
 			}
 			@refactored_source_lines = ( @refactored_source_lines, @{$annlines} );
 		}
+		}
 	}
-
+    if (!$skip_because_empty) {
 	# Step 2
 #	say "SRC $src";
 	my $nsrc = $subname ne '' ? $Config{'SRCDIRS'}->[0]."/$subname$EXT" : $src;
@@ -367,6 +375,8 @@ sub _create_module_src { (my $stref, my $src, my $subname, my $no_modules ) = @_
 		 $stref->{'SourceContains'}{$nsrc} = {'List' =>[$subname]   };
 		$stref->{'BuildSources'}{'F'}{$nsrc}=1;
 	}
+    }
+    
 	return $stref;
 }    # END of _create_module_src
 

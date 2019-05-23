@@ -371,6 +371,9 @@ sub parse_args {
 	return (lc($subname),\%subs_to_translate,$gen_scons,$build,$call_tree_only, $pass);
 } # END of parse_args()
 
+
+# Sorry, this POD is wildly out of date, please see the repo docs!
+
 =head1 SYNOPSIS
 
 This is a source-to-source compiler for Fortran 77 and Fortran 90/95, for the purpose of automatically refactoring legacy code to work with OpenCL.
@@ -426,7 +429,7 @@ What is needed is not just a merge for scalars, but also for arrays
   
 =begin markdown
 
-# FORTRAN Refactoring Tool |$VER|
+# FORTRAN Refactoring Tool |$VERSION|
 
 \copyright  Wim Vanderbauwhede, 2010-2012 
 

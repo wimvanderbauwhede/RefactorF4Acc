@@ -18,7 +18,6 @@ use RefactorF4Acc::Parser::Expressions qw(
     find_implied_do_in_ast
     find_args_vars_in_ast
     find_vars_in_ast
-    $NEW_PARSER
     );
 use RefactorF4Acc::Translation::OpenCLC qw( add_to_C_build_sources );    # OBSOLETE
 use RefactorF4Acc::Analysis::LoopDetect qw( outer_loop_start_detect );
@@ -53,6 +52,7 @@ use Exporter;
   &mark_blocks_between_calls
   &build_call_graph
   &_analyse_lines
+  &_initialise_decl_var_tables
 );
 
 # -----------------------------------------------------------------------------
@@ -1638,7 +1638,7 @@ sub _parse_use {
 			}
 
 			if ( $line =~ /^\s*use\s+(\w+)/ ) { # if exists $info->{'Includes'}
-				my $name = $1;croak $name;
+				my $name = $1;
 				print "FOUND module $name in $f\n" if $V;
 				$Sf->{'Uses'}{$name} = $index;
 
@@ -2456,53 +2456,6 @@ sub _parse_implicit {
 }    # END of _parse_implicit()
 
 
-# -----------------------------------------------------------------------------
-#
-# So what this does is find occurences of existing variables and also of iterator variables
-# The iter variables are declared locally inside the new subroutine, all others are args.
-# Of course it should be only the vars that occur outside the block
-# The "Iter" approach is incomplete because we should really identify any variable used as a local variable
-# If we find a variable in the outer blocks, it could still be a local
-#
-sub __find_vars_in_block {
-    #warn "This should use the same code as RefactorF4Acc::Analysis:: _analyse_variables";
-	( my $blocksref, my $varsref, my $occsref ) = @_;
-	my $itersref = {};
-	for my $block_rec ( @{$blocksref} ) {
-		my $block = $block_rec->{'Name'};		
-		$itersref->{$block} = [];
-		my @annlines = @{ $block_rec->{'AnnLines'} };
-		my %tvars = %{$varsref};    # Hurray for pass-by-value!
-
-		print "\nVARS in $block:\n\n" if $V;
-		for my $annline (@annlines) {
-            ( my $tline, my $info ) = @{$annline};
-			if ( exists $info->{'Do'} ) {
-				my $iter = $info->{'Do'}{'Iterator'};
-				push @{ $itersref->{$block} }, $iter;
-				delete $tvars{$iter};
-
-				for my $var_in_do ( @{ $info->{'Do'}{'Range'}{'Vars'} } ) {
-					if ( exists $tvars{$var_in_do} ) {
-						print "FOUND $var_in_do\n" if $V;
-						$occsref->{$block}{$var_in_do} = $var_in_do;
-						delete $tvars{$var_in_do};
-					}
-				}
-            } else {
-                my $vars_on_line_ref=identify_vars_on_line($annline);
-                for my $var_on_line (@{$vars_on_line_ref}) {
-                    if  ( exists $tvars{$var_on_line} ) {
-                        delete $tvars{$var_on_line};
-                        $occsref->{$block}{$var_on_line}=$var_on_line;
-                    }
-                }
-            }
-        }
-	} # for each block
-	
-	return [ $occsref, $itersref ];
-}    # END of __find_vars_in_block()
 
 
 
@@ -2710,7 +2663,7 @@ sub __parse_f95_decl {
     
 	my $pt = parse_F95_var_decl($line);
 		
-#croak $line.Dumper($info) if $line=~/local_aaa/;
+#croak $line.Dumper($info).Dumper($pt) if $line=~/nx/;
 	# But this could be a parameter declaration, with an assignment ...
 	if ( $line =~ /,\s*parameter\s*.*?::\s*(\w+\s*=\s*.+?)\s*$/ ) {    
 		# F95-style parameters
@@ -2730,6 +2683,8 @@ sub __parse_f95_decl {
 			'Dim'       => [],
 			'Parameter' => 'parameter',
 			'Names'     => [ [ $var, $val ] ],
+			'Name' => $var,
+			'Val' => $val,
 			'Status'    => 0
 		};    # F95-style
 		$info->{'ParamDecl'} = $param_decl;

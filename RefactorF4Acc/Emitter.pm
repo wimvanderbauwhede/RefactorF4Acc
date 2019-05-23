@@ -122,9 +122,12 @@ sub emit_all {
 	   
         if (    not exists $stref->{'BuildSources'}{'C'}{$src}
                 and not exists $stref->{'BuildSources'}{'F'}{$src} ) {                	
-#                	say "Emitter: ADD $src to BuildSources";
+                	say "INFO: Emitter: ADD $src to BuildSources" if $I;
             $stref->{'BuildSources'}{'F'}{$src} = 1;
-        }                
+        } elsif ( exists $stref->{'BuildSources'}{'F'}{$src} and $stref->{'BuildSources'}{'F'}{$src}==0) {
+        	say "INFO: Emitter: REMOVE $src from BuildSources" if $I;
+        	delete $stref->{'BuildSources'}{'F'}{$src};
+        }               
 
 		my $nsrc=$src;
 		if (exists $stref->{'BuildSources'}{'F'}{$src} ) {

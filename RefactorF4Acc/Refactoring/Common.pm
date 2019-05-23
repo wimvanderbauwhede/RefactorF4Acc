@@ -1157,6 +1157,7 @@ sub emit_f95_var_decl {
         
     } else {
         # Parameter        
+        croak Dumper($var_decl_rec) if not defined $val;
         my $var_val = ref($var) eq 'ARRAY' ? $var->[0] . '=' . $var->[1] :  $var.'='.$val;
         my $decl_line =
             $spaces 

@@ -41,11 +41,10 @@ use Exporter;
   &find_assignments_to_scalars_in_ast
   &find_implied_do_in_ast
   &_traverse_ast_with_action
-  @sigils
-  $NEW_PARSER
+  @sigils  
 );
 
-our $NEW_PARSER = 1;
+
 our $defaultToArrays = 0;
 my $DBG=0;
 

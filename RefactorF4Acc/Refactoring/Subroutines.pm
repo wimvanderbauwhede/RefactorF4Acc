@@ -5,7 +5,7 @@ use RefactorF4Acc::Utils;
 use RefactorF4Acc::Refactoring::Common qw( get_annotated_sourcelines context_free_refactorings emit_f95_var_decl splice_additional_lines_cond);
 use RefactorF4Acc::Refactoring::Subroutines::Signatures qw( create_refactored_subroutine_signature refactor_subroutine_signature ); 
 use RefactorF4Acc::Refactoring::Subroutines::IncludeStatements qw( skip_common_include_statement create_new_include_statements create_additional_include_statements );
-use RefactorF4Acc::Parser::Expressions qw( emit_expression emit_expr_from_ast $NEW_PARSER);
+use RefactorF4Acc::Parser::Expressions qw( emit_expression emit_expr_from_ast );
 # 
 #   (c) 2010-2017 Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
 #   
@@ -124,8 +124,10 @@ sub _refactor_subroutine_main {
     scalar @{$Sf->{'Contains'}}>0)) { 
         print "REFACTORING COMMONS for SUBROUTINE $f\n" if $V;
         
-        if ( $Sf->{'RefactorGlobals'} == 1 ) {         	
+        if ( $Sf->{'RefactorGlobals'} == 1 ) {   
+        	   	
           $annlines = _refactor_globals_new( $stref, $f, $annlines );
+          
         } elsif ( $Sf->{'RefactorGlobals'} == 2 ) { 
             croak 'SHOULD BE OBSOLETE!';
         }
@@ -244,7 +246,7 @@ sub _refactor_globals_new {
 			my $all_pars_in_module = get_vars_from_set( $stref->{'Modules'}{$mod}{'Parameters'} );
 			for my $par ( keys %{$all_pars_in_module} ) {				 
 				my $par_decl = $all_pars_in_module->{$par};
-				my $par_decl_line=[ '      '.emit_f95_var_decl($par_decl), {'ParamDecl' => $par_decl,'Ref'=>1}];
+				my $par_decl_line=[ '      '.emit_f95_var_decl($par_decl), {'ParamDecl' => $par_decl,'Ref'=>1, 'Ann' =>[  annotate($f, __LINE__) ]} ];
 				push @par_decl_lines_from_module,$par_decl_line; 
 			}			
 		}
@@ -594,7 +596,7 @@ sub _create_refactored_subroutine_call {
     ( my $stref, my $f, my $annline, my $rlines ) = @_;
     
     (my $line, my $info) = @{ $annline };
-
+say "_create_refactored_subroutine_call($f): $line";
     # simply tag the common vars onto the arguments
     my $name = $info->{'SubroutineCall'}{'Name'};
     
@@ -605,8 +607,9 @@ sub _create_refactored_subroutine_call {
     }
     # Collect original args
     my @orig_args =(); 
-    # Expressions are missing!
+    
     if ($NEW_PARSER) {   
+#    	say $line."\n".Dumper($info->{'SubroutineCall'});
     	# a shallow copy
     my $expr_ast=[@{$info->{'SubroutineCall'}{'ExpressionAST'}}];
     
@@ -626,8 +629,9 @@ sub _create_refactored_subroutine_call {
 #        }
     }
     } else {
+    	# OLD PARSER
 	    for my $call_arg (@{ $info->{'SubroutineCall'}{'Args'}{'List'} }) {
-	    	say $call_arg ;
+#	    	say $call_arg ;
 	        if (exists $info->{'SubroutineCall'}{'Args'}{'Set'}{$call_arg}{'Expr'} ) { 
 	        	push @orig_args , $info->{'SubroutineCall'}{'Args'}{'Set'}{$call_arg}{'Expr'};
 	        } else {
@@ -640,31 +644,36 @@ sub _create_refactored_subroutine_call {
     my $parent_sub_name =  exists $stref->{'Entries'}{$name} ? $stref->{'Entries'}{$name} : $name;
 
 	# If there are any ex-global args, collect them
+	
     if (exists $stref->{'Subroutines'}{$parent_sub_name}{'ExGlobArgs'}) {		    	       
         my @globals = @{ $stref->{'Subroutines'}{$parent_sub_name}{'ExGlobArgs'}{'List'} };
         
         # Problem is that in $f globals from $name may have been renamed. I store the renamed ones in $Sf->{'RenamedInheritedExGLobs'}
         # So we check and create @maybe_renamed_exglobs
         my @maybe_renamed_exglobs=();
+        say Dumper(@globals) if $name eq 'update';
         for my $ex_glob (@globals) {
         	# WV 20170606 I need to check if maybe the ex-globs have already been added to the args
         	# Because if the Args of the actual Call are the same as ex-globs then they must be ex-globs
         	if (not exists  $info->{'SubroutineCall'}{'Args'}{'Set'}{$ex_glob} ) {
         	# $ex_glob may be renamed or not. I test this using OrigName. 
         	# This way I am sure I get only original names
-        	if (exists $stref->{'Subroutines'}{$parent_sub_name}{'ExGlobArgs'}{'Set'}{$ex_glob}{'OrigName'}) {
-				$ex_glob = $stref->{'Subroutines'}{$parent_sub_name}{'ExGlobArgs'}{'Set'}{$ex_glob}{'OrigName'};		
-        	}        	
-        	if (exists $Sf->{'RenamedInheritedExGLobs'}{'Set'}{$ex_glob} and not exists $Sf->{'UsedLocalVars'}{'Set'}{$ex_glob} and not exists $Sf->{'IncludedParameters'}{'Set'}{$ex_glob}) {
-        		say "INFO: RENAMED $ex_glob => ".$Sf->{'RenamedInheritedExGLobs'}{'Set'}{$ex_glob} . ' in call to ' . $parent_sub_name . ' in '. $f if $I;
-        		push @maybe_renamed_exglobs, $Sf->{'RenamedInheritedExGLobs'}{'Set'}{$ex_glob};
+	        	if (exists $stref->{'Subroutines'}{$parent_sub_name}{'ExGlobArgs'}{'Set'}{$ex_glob}{'OrigName'}) {
+					$ex_glob = $stref->{'Subroutines'}{$parent_sub_name}{'ExGlobArgs'}{'Set'}{$ex_glob}{'OrigName'};		
+	        	}        	
+	        	if (exists $Sf->{'RenamedInheritedExGLobs'}{'Set'}{$ex_glob} and not exists $Sf->{'UsedLocalVars'}{'Set'}{$ex_glob} and not exists $Sf->{'IncludedParameters'}{'Set'}{$ex_glob}) {
+	        		say "INFO: RENAMED $ex_glob => ".$Sf->{'RenamedInheritedExGLobs'}{'Set'}{$ex_glob} . ' in call to ' . $parent_sub_name . ' in '. $f if $I;
+	        		push @maybe_renamed_exglobs, $Sf->{'RenamedInheritedExGLobs'}{'Set'}{$ex_glob};
+	        	} else {
+	        		push @maybe_renamed_exglobs,$ex_glob;
+	        	}
         	} else {
-        		push @maybe_renamed_exglobs,$ex_glob;
-        	}
+        		say "VAR $ex_glob is in Args for SubroutineCall $name";
         	}
         }
         # Then we concatenate these arg lists
         $args_ref = [@orig_args, @maybe_renamed_exglobs ]; # NOT ordered union, if they repeat that should be OK
+        say Dumper($args_ref)  if $name eq 'update';
         if ($NEW_PARSER) {
         my $expr_ast = $info->{'SubroutineCall'}{'ExpressionAST'};
         if (@maybe_renamed_exglobs and @{$expr_ast} and ($expr_ast->[0] & 0xFF) != 27) {
@@ -712,7 +721,7 @@ sub _create_refactored_subroutine_call {
 	    my $indent = $info->{'Indent'} // '      ';
 	    my $maybe_label= ( exists $info->{'Label'} and exists $Sf->{'ReferencedLabels'}{$info->{'Label'}} ) ?  $info->{'Label'}.' ' : '';
 	    my $rline = "call $name($args_str)\n";
-#	    say "$line => $rline" if $rline=~/fs329/;
+	    say "$line => $rline" if $rline=~/update/;
 		if ( exists $info->{'PlaceHolders'} ) { 
 			while ($rline =~ /(__PH\d+__)/) {
 				my $ph=$1;
@@ -732,6 +741,7 @@ sub _create_refactored_subroutine_call {
 }    # END of _create_refactored_subroutine_call()
 
 sub emit_subroutine_call { (my $stref, my $f, my $annline)=@_;
+	croak "OBSOLETE!";
 	    (my $line, my $info) = @{ $annline };
 	    my $Sf        = $stref->{'Subroutines'}{$f};
 	    my $name = $info->{'SubroutineCall'}{'Name'};
@@ -1014,13 +1024,14 @@ sub _add_implicit_none { my ($stref, $f, $annlines) = @_;
     for my $annline ( @{$annlines} ) {      
         (my $line, my $info) = @{ $annline };
         
-        if ((exists $info->{'VarDecl'} or  exists $info->{'Equivalence'}) and $first_vardecl) {
+        if ((exists $info->{'VarDecl'} or  exists $info->{'ParamDecl'} or exists $info->{'Equivalence'}) and $first_vardecl) {
         	$first_vardecl=0;
                    # Here I think I can insert 'implicit none'
            if (not exists $Sf->{'ImplicitNone'}) {
             say "Adding 'implicit none' at " . __PACKAGE__ . ' '. __LINE__ if $V;
            my $r_info={};
             $r_info->{'ImplicitNone'}=1;
+            $r_info->{'Ann'}=[  annotate($f, __LINE__) ];
            push @{$rlines}, ['      implicit none', $r_info];
            }
         	

@@ -6,7 +6,7 @@ use RefactorF4Acc::Analysis::Includes qw( find_root_for_includes );
 use RefactorF4Acc::Analysis::Globals qw( identify_inherited_exglobs_to_rename lift_globals rename_inherited_exglobs );
 use RefactorF4Acc::Analysis::LoopDetect qw( outer_loop_end_detect );
 use RefactorF4Acc::Refactoring::Common qw( get_f95_var_decl stateful_pass stateless_pass );
-use RefactorF4Acc::Parser::Expressions qw( $NEW_PARSER );
+
 #
 #   (c) 2010-2017 Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
 #
@@ -245,7 +245,7 @@ sub _analyse_variables {
 			# -------------------------------------------------------------------------------------------------------------------
 			
 			for my $mvar (@chunks) {
-#				croak $f if $mvar eq 'time' and $f eq 'ifdata';
+#				croak "$f: $line => $mvar" if $mvar eq 'nx' and $f eq 'init';
 #            say "$f VAR0 $mvar";
                 next if exists $stref->{'Subroutines'}{$f}{'CalledSubs'}{'Set'}{$mvar};    # Means it's a function
 				next if $mvar =~ /^\d+$/;
@@ -420,6 +420,7 @@ sub _analyse_variables {
 						# Now check if this variable might be accessed via the containing program or module
 						$identified_vars->{$mvar} = 0;
 						if ( exists $stref->{'Subroutines'}{$f}{'Container'} ) { 
+							
 							my $container = $stref->{'Subroutines'}{$f}{'Container'};
 							my $is_module = exists $stref->{'Modules'}{$container} ? 1 : 0;
 							my $srctype = $is_module  ? 'Modules' : 'Subroutines';
@@ -433,10 +434,10 @@ sub _analyse_variables {
 								
 								my $decl = $stref->{$srctype}{$container}{$subset}{'Set'}{$mvar};
 								if (not exists $decl->{'Parameter'} ) {
-								$decl->{'Container'}                                    = $container;
-								$decl->{'Indent'}                                       = '      ';     # ad hoc!
-								$stref->{'Subroutines'}{$f}{'ExGlobArgs'}{'Set'}{$mvar} = $decl;
-								push @{ $stref->{'Subroutines'}{$f}{'ExGlobArgs'}{'List'} }, $mvar;
+									$decl->{'Container'}                                    = $container;
+									$decl->{'Indent'}                                       = '      ';     # ad hoc!
+									$stref->{'Subroutines'}{$f}{'ExGlobArgs'}{'Set'}{$mvar} = $decl;
+									push @{ $stref->{'Subroutines'}{$f}{'ExGlobArgs'}{'List'} }, $mvar;
 								} else {
 									say "INFO: VAR $mvar in $f from container $container is PARAMETER" if $I ;
 								}

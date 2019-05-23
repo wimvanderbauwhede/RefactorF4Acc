@@ -141,6 +141,9 @@ if ($RENAME_EXT ne '') {
 
 
 # The renaming detection should be done in identify_inherited_exglobs_to_rename()
+# What this routine does is:
+#
+
 sub lift_globals { 
     (my $stref, my $f) = @_;
     local $V=0;
@@ -151,17 +154,15 @@ sub lift_globals {
     	if ( exists $Sf->{'CalledSubs'}{'List'}
         and scalar @{ $Sf->{'CalledSubs'}{'List'} }>0 )
         # FIXME: This is also true for called ENTRYs
-	    {
-	    	
-	    	# This sub is calling other subs	    	
-	        # Clearly this should be done elsewhere
-#	        $Sf->{'RenamedInheritedExGLobs'}  = { 'List' => [], 'Set' => {}} unless exists $Sf->{'RenamedInheritedExGLobs'};
+	    {	    	
+	    	# This sub is calling other subs. Go through all called subs in turn	    		     
 	        for my $csub ( @{ $Sf->{'CalledSubs'}{'List'} }) {       
 	       		say "CALL TO  $csub from $f" if $V;   
 	       		# Check if it is an entry
 	       		if (exists $stref->{'Entries'}{$csub}) {
 	       			$csub = $stref->{'Entries'}{$csub};
 	       		}  
+	       		# This is recursive descent but we do nothing in the leaf node, it's just a way to get to them
 	            $stref = lift_globals($stref, $csub );
 	            say "RETURN TO $f from CALL to $csub" if $V;
 	            my $Scsub = $stref->{'Subroutines'}{$csub};
@@ -197,8 +198,13 @@ sub lift_globals {
         					);
         					for my $par (keys %{ $all_inherited_parameters } ) {
         						my $subset = in_nested_set($Scsub,'Parameters',$par);
-        						croak "$f $csub $subset ".Dumper($Scsub->{$subset}{'Set'}{$par}) if not exists $Scsub->{$subset}{'Set'}{$par}{'Indent'};
-        						$Sf->{'InheritedParameters'}{'Set'}{$par}=dclone($Scsub->{$subset}{'Set'}{$par});
+        						# The problem is that a sub from a module can have module globals via that module
+        						# So these would have to be shared with the caller I think
+        						if (not exists $Scsub->{$subset}{'Set'}{$par}{'Indent'}) {
+#        							carp "$par: $f <$csub> <$subset> ".Dumper($Scsub->{$subset}{'Set'}{$par}) ;
+        						} else {
+        							$Sf->{'InheritedParameters'}{'Set'}{$par}=dclone($Scsub->{$subset}{'Set'}{$par});
+        						}
         					}	
 	                	}
 	                }     
@@ -207,7 +213,7 @@ sub lift_globals {
 	            # ------------------	                             
 	        } 
 	    } else {
-	        # Leaf node, find globals
+	        # Leaf node, do nothing ( used to be find globals)
 	        say "SUB $f is LEAF" if $V; 
 #	        $stref = _identify_globals_used_in_subroutine( $f, $stref );
 	    }    

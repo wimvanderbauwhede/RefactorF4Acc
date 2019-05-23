@@ -1,8 +1,11 @@
 package RefactorF4Acc::Config;
 use v5.10;
 # 
-#   (c) 2010-2017 Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
+#   (c) 2010-2019 Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
 #   
+
+use vars qw( $VERSION );
+$VERSION = "1.2.0";
 
 use warnings;
 use strict;
@@ -10,7 +13,7 @@ use Exporter;
 
 @RefactorF4Acc::Config::ISA = qw(Exporter);
 @RefactorF4Acc::Config::EXPORT = qw(
-$VER
+$NEW_PARSER
 $V $W $I $DBG $DUMMY $ANN
 $NO $YES $GO
 $UNREAD $INVENTORIED $READ $PARSED $FROM_BLOCK $C_SOURCE $FILE_NOT_FOUND
@@ -32,7 +35,7 @@ $targetdir
 &read_rf4a_config    
 );
 
-our $VER = '0.3';
+our $NEW_PARSER = 1;
 
 our $V = 0;    # Verbose
 our $W = 0;    # Warnings
