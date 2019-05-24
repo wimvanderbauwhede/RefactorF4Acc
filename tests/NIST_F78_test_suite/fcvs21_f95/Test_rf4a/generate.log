@@ -242,6 +242,7 @@ refactorF4acc.pl -c rf4a_fm317.cfg  -g fm317
 TEST CASE FM328.f
 refactorF4acc.pl -c rf4a_fm328.cfg  -g fm328
 In proc fm328, in call to sub fs333, arg ff330 is EXTERNAL so setting nint attr External in set UndeclaredOrigArgs
+In proc fm328, in call to sub fs334, arg fs335 is EXTERNAL so setting idon06 attr External in set UndeclaredOrigArgs
 TEST CASE FM351.f
 refactorF4acc.pl -c rf4a_fm351.cfg  -g fm351
 TEST CASE FM352.f

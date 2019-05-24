@@ -351,7 +351,7 @@ sub _change_func_to_array { (my $stref, my $f,  my $info, my $ast, my $exp, my $
 							'ExpressionAST' => $ast,						
 						};	
 						# Add to CalledSubs for $f
-						$stref->{$code_unit}{$f}{'CalledSubs'}{'Set'}{$mvar} = 1;
+						$stref->{$code_unit}{$f}{'CalledSubs'}{'Set'}{$mvar} = 2;
 						push @{ $stref->{$code_unit}{$f}{'CalledSubs'}{'List'} }, $mvar;
 						# Add $f to Callers for $mvar
 						my $Sname =  $stref->{'Subroutines'}{$mvar};
@@ -1642,7 +1642,7 @@ sub _replace_function_calls_in_ast { #(my $ast)=@_;
 						# Add to CalledSubs for $f
 						if (not exists $stref->{$code_unit}{$f}{'CalledSubs'}{'Set'}{$mvar}) {
 						push @{ $stref->{$code_unit}{$f}{'CalledSubs'}{'List'} }, $mvar;
-						$stref->{$code_unit}{$f}{'CalledSubs'}{'Set'}{$mvar} = 1;
+						$stref->{$code_unit}{$f}{'CalledSubs'}{'Set'}{$mvar} = 2;
 						}
 						
 						# Add $f to Callers for $mvar

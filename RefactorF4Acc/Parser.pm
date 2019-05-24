@@ -936,12 +936,13 @@ SUBROUTINE
 		 	elsif ($line=~/^(intrinsic|external|static|automatic|volatile)\s+([\w,\s]+)/) {
 		 		my $qualifier = $1;
 		 		my $external_procs_str = $2;
+		 		$external_procs_str=~s/\s//g;
 		 		my @external_procs = split(/\s*,\s*/,$external_procs_str);
 
 		 		$info->{ucfirst($qualifier)} = { map {$_=>1} @external_procs};
 		 		$info->{'SpecificationStatement'} = 1;
 		 		$Sf->{ucfirst($qualifier)}={ map {$_=>1} @external_procs };
-		 		
+#		 		say Dumper($Sf->{ucfirst($qualifier)});
 		 			say "WARNING: ".uc($qualifier)." IS IGNORED!" if $qualifier ne 'external' and $W;
                 if ($qualifier ne 'intrinsic' and $qualifier ne 'external') {
                 $info->{'HasVars'} = 1; 
@@ -1426,6 +1427,18 @@ END IF
 			} elsif ($mline=~/^(return|stop|pause)/) {	
 				my $keyword = $1;
 				$info->{ ucfirst($keyword) } = 1;
+                my $return_expr = $mline;
+                $return_expr =~s/$keyword\s*//;
+                $info->{'Vars'}{'Written'}={'List'=>[],'Set'=>{}};
+                $info->{'Vars'}{'Read'}={'List'=>[],'Set'=>{}}; 
+                if ($return_expr) {
+                    my $expr_ast = parse_expression($return_expr);
+                    my $vars = get_vars_from_expression($expr_ast,{});
+    				$info->{'Vars'}{'Read'}{'Set'}=$vars;
+                    $info->{'Vars'}{'Read'}{'List'} = [sort keys %{$vars}];
+                } else {
+                    $info->{'Vars'}{'Read'}=
+                }
 			}
 #== ASSIGN ... TO ...			
 #@ Assign
@@ -5233,7 +5246,11 @@ if ($tpt->[0] == 5) { # '*'
     # set the attribute
     if ($tpt->[2][0] == 0) { # ( ... )
         # Emit this and use as attr
+        if ($tpt->[2][1][0] == 32 and $tpt->[2][1][1] eq '*') {
+        	$attr = '*';
+        } else {
         $attr = emit_expr_from_ast($tpt->[2]);
+        }
     } 
     elsif  ($tpt->[2][0] == 29) {
         # take the value

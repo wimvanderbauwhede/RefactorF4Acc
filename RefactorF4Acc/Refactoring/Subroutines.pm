@@ -474,7 +474,9 @@ sub _create_extra_arg_and_var_decls {
     print "INFO: UndeclaredOrigArgs in $f\n" if $I;
     my %unique_ex_impl=();
     for my $var ( @{ $Sf->{'UndeclaredOrigArgs'}{'List'} } ) {
-    	if (not exists $Sf->{'UsedGlobalVars'}{'Set'}{$var}) {
+    	if (not exists $Sf->{'UsedGlobalVars'}{'Set'}{$var}
+    	and not exists $Sf->{'CalledSubs'}{'Set'}{$var}
+    	) {
     	say "INFO VAR: $var" if $I;
     	next if $var eq '*';
     	if (exists $Sf->{'CalledSubs'} and exists $Sf->{'CalledSubs'}{$var} and not exists $Sf->{'UndeclaredOrigArgs'}{'Set'}{$var}) {    		
@@ -487,7 +489,7 @@ sub _create_extra_arg_and_var_decls {
     			$unique_ex_impl{$var}=$var;
 				my $rdecl = $Sf->{'UndeclaredOrigArgs'}{'Set'}{$var};                    
                 if (not exists $rdecl->{'External'}
-                    or (exists $rdecl->{'External'} and exists $Sf->{'UndeclaredOrigArgs'}{'Set'}{$var})
+                    or (exists $rdecl->{'External'} and exists $Sf->{'UndeclaredOrigArgs'}{'Set'}{$var})                    
                 ) {
                     	  
 	                    my $rline = emit_f95_var_decl($rdecl);                                         
@@ -546,14 +548,35 @@ sub _create_extra_arg_and_var_decls {
     		$is_param=1;
     	}
     	# I don't explicitly declare variables that conflict with reserved words or intrinsics.
+    	my $var_is_sub = 0;
+#    	say $var.' : '. (exists $Sf->{'External'}{$var}).','.().','.(exists $stref->{'Subroutines'}{$var});
+    	if (exists $Sf->{'CalledSubs'}{'Set'}{$var}
+    	and $Sf->{'CalledSubs'}{'Set'}{$var} == 1) {
+    		$var_is_sub=1;
+    	}
+    	if (exists $stref->{'Subroutines'}{$var} and
+    	 not exists $stref->{'Subroutines'}{$var}{'Function'}) {
+    	 	$var_is_sub=1;
+    	}
+    	
+    	# Skip if the variable is a subroutine
     		if (not exists $F95_reserved_words{$var}
     		and not exists $F95_intrinsics{$var}
-    		and not exists  $Sf->{'Namelist'}{$var}   		
+    		and not exists  $Sf->{'Namelist'}{$var}   	
+#    		and not ( # an internal subroutine
+#    			exists $Sf->{'CalledSubs'}{'Set'}{$var} and
+#    			not exists $Sf->{'External'}{$var} and
+#    			not exists $stref->{'Subroutines'}{$var}{'Function'}
+#    			) 
+#    		and not ( # an external subroutine
+#    			exists $Sf->{'External'}{$var} and 
+#    			exists $Sf->{'CalledSubs'}{'Set'}{$var} and
+#    			$Sf->{'CalledSubs'}{'Set'}{$var} == 1)
+			and not $var_is_sub
     		and not $is_param
     		and $var!~/__PH\d+__/ # FIXME! TOO LATE HERE!
     		and $var=~/^[a-z][a-z0-9_]*$/ # FIXME: rather check if Expr or Sub
-    		) {    		
-    				
+    		) {    		    				
 #    			croak Dumper($Sf->{'UndeclaredOrigLocalVars'}{'Set'}{$var}) if $var eq 'ff083';
                     my $rdecl = $Sf->{'UndeclaredOrigLocalVars'}{'Set'}{$var}; 
                     my $rline = emit_f95_var_decl($rdecl);                                         

@@ -228,6 +228,7 @@ sub _analyse_variables {
 			or exists $info->{'If'} # Control
 			or exists $info->{'ElseIf'} # Control
 			or exists $info->{'Do'} # Control
+			or exists $info->{'Return'}# Control
 			or exists $info->{'WriteCall'}# IO
 			or exists $info->{'PrintCall'}# IO
 			or exists $info->{'ReadCall'}# IO
@@ -561,6 +562,7 @@ sub identify_vars_on_line {
 			or exists $info->{'If'} # Control
 			or exists $info->{'ElseIf'} # Control
 			or exists $info->{'Do'} # Control
+			or exists $info->{'Return'} # Control
 			or exists $info->{'WriteCall'}# IO
 			or exists $info->{'PrintCall'}# IO
 			or exists $info->{'ReadCall'}# IO
@@ -579,6 +581,7 @@ sub identify_vars_on_line {
 				or exists $info->{'WriteCall'}
 				or exists $info->{'ReadCall'}
 				or exists $info->{'InquireCall'} 
+				or exists $info->{'Return'} 
 				) {
 				if (!$NEW_PARSER) {	
 				    @chunks = ( @chunks, @{ $info->{'CallArgs'}{'List'} }, @{ $info->{'ExprVars'}{'List'} }, @{ $info->{'CallAttrs'}{'List'} });
