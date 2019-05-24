@@ -217,7 +217,13 @@ TEST CASE FM301.f
 refactorF4acc.pl -c rf4a_fm301.cfg  -g fm301
 TEST CASE FM302.f
 refactorF4acc.pl -c rf4a_fm302.cfg  -g fm302
-Generation failed for FM302.f95
+The EQUIVALENCE  statement is not refactored, this could possible break your code, please rewrite:
+  SOURCE: ./FM302.f
+  CODE UNIT: fm302
+LINES:
+101: equivalence (ivceh1,ivceh2)                                       
+105: equivalence (ivce09,ivce10)                                       
+110: equivalence (ivcei1,iace1i)                                       
 TEST CASE FM306.f
 refactorF4acc.pl -c rf4a_fm306.cfg  -g fm306
 TEST CASE FM307.f

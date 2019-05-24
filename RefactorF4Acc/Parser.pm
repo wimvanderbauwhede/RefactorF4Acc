@@ -716,6 +716,7 @@ SUBROUTINE
 						
 						my $decl = get_var_record_from_set($Sf->{'Vars'},$varname);
 						$subset = in_nested_set( $Sf, 'Vars', $varname );
+						 
 #						if ($subset eq 'ExGlobArgs' ) {
 #							$subset = 'DeclaredCommonVars'; # because in_nested_set() can find either one
 #						}
@@ -734,8 +735,17 @@ SUBROUTINE
 									'Names'=>[$varname],
 									'IODir' => 'Unknown',
 								};		
-								$Sf->{'UndeclaredOrigArgs'}{'Set'}{$varname}=$decl;																				
-						} else {
+								$Sf->{'UndeclaredOrigArgs'}{'Set'}{$varname}=$decl;		
+						} 
+						elsif ($subset eq 'UndeclaredOrigLocalVars') {
+							# Change to DeclaredOrigLocalVars
+							
+							$Sf->{'DeclaredOrigLocalVars'}{'Set'}{$varname}=dclone($decl);
+							delete $Sf->{'UndeclaredOrigLocalVars'}{'Set'}{$varname};
+							@{ $Sf->{'UndeclaredOrigLocalVars'}{'List'} } = grep { $_ ne $varname } @{ $Sf->{'UndeclaredOrigLocalVars'}{'List'} };
+#							push @{ $Sf->{'DeclaredOrigLocalVars'}{'List'} }, $varname;							
+						} 
+						else {
 							
 							# Means that the variable is either declared via T or undeclared via C. 	
 							if ($subset eq 'UndeclaredCommonVars') {
@@ -831,7 +841,33 @@ SUBROUTINE
 							delete $Sf->{'DeclaredOrigLocalVars'}{'Set'}{$var};
 							@{ $Sf->{'DeclaredOrigLocalVars'}{'List'} } = grep { $_ ne $var } @{ $Sf->{'DeclaredOrigLocalVars'}{'List'} };
 							push @{ $Sf->{'DeclaredCommonVars'}{'List'} }, $var;
-						} else {
+						}
+						elsif (exists $Sf->{'UndeclaredOrigLocalVars'}{'Set'}{$var} ){
+							my $decl = $Sf->{'UndeclaredOrigLocalVars'}{'Set'}{$var};
+#							say Dumper($decl).'<>'.Dumper($parsedvars->{$var});
+							if (
+							     (not exists $decl->{'ArrayOrScalar'} or
+								 $decl->{'ArrayOrScalar'} eq 'Scalar') and 
+								 $parsedvars->{$var}{'ArrayOrScalar'} eq 'Array'
+							) {								
+								$decl->{'Dim'} =  [ @{ $parsedvars->{$var}{'Dim'} } ];	
+							} elsif (
+							exists $decl->{'ArrayOrScalar'} and
+								$decl->{'ArrayOrScalar'} eq 'Array' and 
+								$parsedvars->{$var}{'ArrayOrScalar'} eq 'Array'							
+							) {
+								croak "This should be an error: dimension of $var speficied both in VarDecl and Common";
+							}
+							
+							$Sf->{'DeclaredCommonVars'}{'Set'}{$var} = exists $Sf->{'Program'} ? $decl : dclone($decl);
+							$Sf->{'DeclaredCommonVars'}{'Set'}{$var}{'CommonBlockName'} = $common_block_name;
+							if (not exists $Sf->{'Program'} ) {
+							delete $Sf->{'UndeclaredOrigLocalVars'}{'Set'}{$var};
+							@{ $Sf->{'UndeclaredOrigLocalVars'}{'List'} } = grep { $_ ne $var } @{ $Sf->{'UndeclaredOrigLocalVars'}{'List'} };
+							}
+							push @{ $Sf->{'DeclaredCommonVars'}{'List'} }, $var;
+						}
+						else {
 							my $subset = in_nested_set( $Sf, 'Vars', $var );
 							if ($subset ne 'DeclaredCommonVars') {
 								# It could be UndeclaredOrigLocalVars via EQUIVALENCE
@@ -2908,7 +2944,7 @@ sub __parse_f77_par_decl {
 				$attr='';
 				if ( $val =~ /^\-?\d+$/ ) {
 					$type = 'integer';
-				} elsif ( $val =~ /^(\-?(?:\d+|\d*\.\d*)(?:[edq][\-\+]?\d+)?)$/ ) {
+				} elsif ( $val =~ /^(\-?(?:\d+|\d*\.\d*)(?:[edq][\-\+]?\d+)?)$/ ) {					
 					$type = 'real';
 				} elsif ( $val =~/[\*\+\-\/]/ ) { # an expression 
 						my $ast = parse_expression($val, $info, $stref, $f);
@@ -3323,8 +3359,12 @@ if ($line=~/^character/) {
 				$tvar_rec->{'Attr'} = '';
 			}
 		} else {
-			if ( $type !~ /character/ ) {
+			if ( $type !~ /character/) {
+				if ( $pvars->{$tvar}{'Attr'}!~/kind=/) {
 				$tvar_rec->{'Attr'} = '(kind=' . $pvars->{$tvar}{'Attr'} . ')';
+				} else {
+					$tvar_rec->{'Attr'} = '' . $pvars->{$tvar}{'Attr'} . '';
+				}
 			}
 		}
 

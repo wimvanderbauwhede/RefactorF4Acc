@@ -794,9 +794,9 @@ sub emit_subroutine_sig { #(my $stref, my $f,
 	     my $maybe_returntype = exists $info->{'Signature'}{'ReturnType'} ? $info->{'Signature'}{'ReturnType'}.' ' : '';
 	     my $maybe_resultvar = exists $info->{'Signature'}{'ResultVar'} ? ' result '.$info->{'Signature'}{'ResultVar'} : '';
 	     
-#	     my $rline = "subroutine $name($args_str)\n";
-	    my $rline =  (exists $info->{'Signature'}{'BlockData'} or exists $info->{'Signature'}{'Program'} ) ?
-	     "$code_unit $name"
+#		say "subroutine $name($args_str)\n";
+	    my $rline =   exists $info->{'Signature'}{'Program'}  ? "$code_unit $name" 
+	    : exists $info->{'Signature'}{'BlockData'} ? "$code_unit $name($args_str)" 
 	    : "$maybe_characteristic$maybe_returntype$code_unit $name($args_str)$maybe_resultvar\n";
 	    
 		if ( exists $info->{'PlaceHolders'} ) { 

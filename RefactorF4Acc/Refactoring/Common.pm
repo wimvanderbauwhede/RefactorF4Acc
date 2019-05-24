@@ -810,7 +810,7 @@ if (exists  $Sf->{'Status'} ) {
         }
     }
 } else {
-	carp "$sub_or_func_or_inc ".Dumper($f)." has no Status";
+	carp "$sub_or_func_or_inc $f ".Dumper($f)." has no Status";
 }
     return $annlines;
 }    # END of get_annotated_sourcelines()
@@ -869,6 +869,7 @@ sub get_f95_var_decl {
 
 sub format_f95_par_decl {
     ( my $stref, my $f, my $var_rec ) = @_;
+    
     if ( ref($var_rec) eq 'HASH' && $var_rec->{'Status'} == 1 ) {
         return $var_rec;
     }
@@ -883,6 +884,7 @@ sub format_f95_par_decl {
     my $sub_or_func_or_inc = sub_func_incl_mod( $f, $stref );
     my $Sf = $stref->{$sub_or_func_or_inc}{$f};
     my $par_rec = get_var_record_from_set( $Sf->{'Parameters'},$var);
+    
     my $val = $par_rec->{'Val'};
 
 	my $type = defined $par_rec->{'Type'} ? $par_rec->{'Type'} : 'Unknown'; 
@@ -957,6 +959,7 @@ sub format_f95_par_decl {
 #     if ($type eq 'Unknown') {
 #     	$final_par_rec->{'Type'} = 'real';
 #     } 
+
     return $final_par_rec; 
 }    # format_f95_par_decl()
 
@@ -1113,7 +1116,7 @@ sub emit_f95_var_decl {
     	} elsif ($attr=~/kind/ ) {
     		$type=~s/\*\d+$//;
     		if ($attr!~/\(.+\)/) {
-    			$type.='('.$attr.')';
+    			$type.='('.$attr.')';$attr='';
     		}
     	} else {
         push @attrs, $attr;
@@ -1177,6 +1180,7 @@ sub emit_f95_var_decl {
         
     } else {
         # Parameter        
+#        say Dumper($var_decl_rec);
         croak Dumper($var_decl_rec) if not defined $val;
         my $var_val = ref($var) eq 'ARRAY' ? $var->[0] . '=' . $var->[1] :  $var.'='.$val;
         my $decl_line =

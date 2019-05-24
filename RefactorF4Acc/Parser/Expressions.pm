@@ -1082,11 +1082,12 @@ sub parse_expression_no_context { (my $str)=@_;
             $expr_ast=[31,'.'.$1.'.'];
             #$expr_ast='.'.$1.'.';
         }
-        elsif ((
-        $str!~/\d+\.[aox]/ and  
-        $str=~s/^((?:\d*\.\d*)(?:[edqEDQ][\-\+]?\d+)?)//        
-        )
-                or 
+        elsif (
+        	(
+        		$str!~/^\d+\.[aox]/ and  
+        		$str=~s/^((?:\d*\.\d*)(?:[edqEDQ][\-\+]?\d+)?)//        
+        	)
+            or 
             $str=~s/^(\d*(?:[edqEDQ][\-\+]?\d+))//
         ) { 
             # reals
