@@ -2938,16 +2938,17 @@ sub __parse_f77_par_decl {
 					}
 				}
 				$pars_in_val_for_var = { %{$pars_in_val_for_var}, %{$pars_in_val_tmp} };
+				
 				$Sf->{'LocalParameters'}{'Set'}{$var} = {
 					'Type' => $type,
 					'Var'  => $var,
 					'Val'  => $val,
 					'Attr' => $attr,
 					'DEBUG' => 1,
-					        'Indent'    => $indent,
-        'Dim'       => [],
-        'Parameter' => 'parameter',
-        'Status'    => 0     
+			        'Indent'    => $indent,
+        			'Dim'       => [],
+        			'Parameter' => 'parameter',
+        			'Status'    => 0     
 				};
 				say "INFO: LOCAL PARAMETER $var infered type: $type $var = $val" if $I;
 				push @{$pars}, $var;
@@ -2965,10 +2966,10 @@ sub __parse_f77_par_decl {
 				'Val'  => $pvars{$var},
 				'Attr' => $attr,
 				'DEBUG' => 2,
-        'Indent'    => $indent,
-        'Dim'       => [],
-        'Parameter' => 'parameter',
-        'Status'    => 0        				
+        		'Indent'    => $indent,
+        		'Dim'       => [],
+        		'Parameter' => 'parameter',
+        		'Status'    => 0        				
 			};
 
 			my $val = $pvars{$var};
@@ -2991,7 +2992,8 @@ sub __parse_f77_par_decl {
 		'Dim'       => [],
 		'Parameter' => 'parameter',
 		'Names'     => [@var_vals],
-		'Status'    => 0		 
+		'Status'    => 0,
+		'DEBUG' => 4,		 
 	};
 	
 	@{ $Sf->{'LocalParameters'}{'List'} } =  ( @{ $Sf->{'LocalParameters'}{'List'} }, @{$pars} );
@@ -5067,7 +5069,7 @@ sub  _get_len_from_ast_OLD { (my  $ast ) = @_;
 # This code runs on any sub that has a Kernel region
 # I could of course use this pass to enumerate all the subroutines, put them in KernelSubs 
 # Or I can do a separate pass later to do just that task 
-# 
+# WV20190523 Maybe this should go somewhere else, this is not parsing. Analysis::Blocks maybe
 sub mark_blocks_between_calls { (my $stref)=@_;
 	my $n_kernel_regions=0;
 	for my $f ( keys %{ $stref->{'Subroutines'} } ) {

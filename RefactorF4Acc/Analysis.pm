@@ -162,6 +162,7 @@ sub analyse_all {
 		$stref = _analyse_var_decls_for_params( $stref, $f );
 	}	
 	
+	
 	return $stref;
 }    # END of analyse_all()
 # -----------------------------------------------------------------------------
@@ -222,7 +223,6 @@ sub _analyse_variables {
 		( my $annline, my $state ) = @_;
 		( my $line,    my $info )  = @{$annline};
         
-
 		if (   exists $info->{'Assignment'}
 			or exists $info->{'SubroutineCall'}
 			or exists $info->{'If'} # Control

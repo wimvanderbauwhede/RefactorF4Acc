@@ -44,10 +44,22 @@ sub refactor_all {
     $stref = refactor_include_files($stref);
 
     $stref = refactor_called_functions($stref); # Context-free only FIXME: this should be treated just like subs, but of course that requires full parsing of expressions that contain function calls
-    
+#    say "IN refactor_all NAME: $code_unit_name";
+#	for my $annline (@{ $stref->{'Subroutines'}{$code_unit_name}{'AnnLines'} }) {
+#		my ($line, $info) =@{ $annline };
+#		
+#		if (exists $info->{SubroutineCall} and $info->{SubroutineCall}{Name} eq 'update') {
+#			say $line;
+#			say Dumper($info->{SubroutineCall});
+#			
+#		}
+#	}
+#	say "BEFORE refactor_all_subroutines";    
     # Refactor the source, but don't split long lines and keep annotations
     $stref = refactor_all_subroutines($stref);    
-    
+#    say "AFTER refactor_all_subroutines";
+#
+#	die;
     # This can't go into refactor_all_subroutines() because it is recursive
     # Also, this is actually analysis
     # And this is only for Subroutines of course, not for Modules

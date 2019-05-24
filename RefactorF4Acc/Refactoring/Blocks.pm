@@ -50,7 +50,7 @@ sub refactor_marked_blocks_into_subroutines {
     for my $f ( keys %{ $stref->{'Subroutines'} } ) {
         next if exists $stref->{'Entries'}{$f}; 
         if ( exists $stref->{'Subroutines'}{$f}{'HasBlocks'}
-            and $stref->{'Subroutines'}{$f}{'HasBlocks'} == 1 ) {
+            and $stref->{'Subroutines'}{$f}{'HasBlocks'} == 1 ) { # TODO: this check should be redundant
 
             say "refactor_marked_blocks_into_subroutines(): PARSING $f" if $V;
 
@@ -112,36 +112,17 @@ sub _separate_blocks {
     my $itersref = {};
 
     # A map of every block in the parent
-    # WV20170515 This BEFORE/AFTER is no good: works only for a single subroutine
-    # If there are more than 1, there can be many such portions. 
-    # So maybe we need an array of OUTER or something
-#   my $blocksref_OLD =
-#     { 
-#          'OUTER' =>
-#         { 'AnnLines' => [], 
-#           'CalledSubs' => { 'List' => [], 'Set' => {} } 
-#         },
-#          'BEFORE' =>
-#         { 'AnnLines' => [], 
-#           'CalledSubs' => { 'List' => [], 'Set' => {} } 
-#         },
-#          'AFTER' =>
-#         { 'AnnLines' => [], 
-#           'CalledSubs' => { 'List' => [], 'Set' => {} } 
-#         },
-#     };
-    # The records in this array are {'Name' => 'OUTER' or actual name, 'CalledSubs', 'AnnLines'
     my $blocksref = []; # Just an array 
 
 
 # 1. Process every line in $f, scan for blocks marked with pragmas.
-# What this does is to separate the code into blocks (%blocks) and keep track of the line numbers
+# What this does is to separate the code into blocks ($blocksref) and keep track of the line numbers
 # The lines with the pragmas occur both in OUTER and the block
 
     $blocksref  = __separate_into_blocks( $stref, $blocksref, $f );
 
 # 2. For all non-OUTER blocks, create an entry for the new subroutine in 'Subroutines'
-# Based on the content of %blocks
+# Based on the content of $blocksref
 
     $stref = __create_new_subroutine_entries( $stref, $blocksref, $f );
 
@@ -332,7 +313,7 @@ sub __construct_new_subroutine_signatures {
     ( my $stref, my $blocksref, my $occsref, my $itersref, my $varsref, my $f )
       = @_;
 
-    #    local $V = 1;
+      #    local $V = 1;
     my $sub_or_func_or_mod = sub_func_incl_mod( $f, $stref );    # This is not a misnomer as it can also be a module.
     my $Sf     = $stref->{$sub_or_func_or_mod}{$f};
     
@@ -348,28 +329,12 @@ sub __construct_new_subroutine_signatures {
 
         $Sblock = _initialise_decl_var_tables( $Sblock, $stref, $block, 0 );
 
-#       if ( not exists $Sblock->{'OrigArgs'} ) {
-#           croak 'BOOM!' . Dumper( $Sblock->{Args} );
-#           $Sblock->{'OrigArgs'} = { 'Set' => {}, 'List' => [] };
-#       }
-#       if ( not exists $Sblock->{'DeclaredOrigArgs'} ) {
-#           croak 'BOOM!';
-#           $Sblock->{'DeclaredOrigArgs'} = { 'Set' => {}, 'List' => [] };
-#       }
-#       if ( not exists $Sblock->{'LocalVars'} ) {
-#           croak 'BOOM!';
-#           $Sblock->{'LocalVars'} = { 'Set' => {}, 'List' => [] };
-#       }
-#       if ( not exists $Sblock->{'DeclaredOrigLocalVars'} ) {
-#           croak 'BOOM!';
-#           $Sblock->{'DeclaredOrigLocalVars'} = { 'Set' => {}, 'List' => [] };
-#       }
         print "\nARGS for BLOCK $block:\n" if $V;
         $args{$block} = [];
 
         # Collect args for new subroutine
         # At this stage, if a var is global, it should not become an argument.
-        for my $var ( sort keys %{ $occsref->{$block} } ) { ;
+        for my $var ( sort keys %{ $occsref->{$block} } ) { 
             if ( exists $occsref->{'OUTER'}{$var} ) {
                 print "$var\n" if $V;
                 # Only if this $var is not COMMON!
@@ -380,9 +345,6 @@ sub __construct_new_subroutine_signatures {
                      carp "$f: $var is NOT COMMON!";
                 push @{ $args{$block} }, $var;
                 } 
-#               else { 
-#                   carp "$f: $var is COMMON or PARAM!";
-#               }
             }
             $Sblock->{'Vars'}{$var} = $varsref->{ $var }; # FIXME: this is "inheritance, but in principle a re-parse is better?"
         }
@@ -413,7 +375,7 @@ sub __construct_new_subroutine_signatures {
         } else {
             $sig .= ')';
         }       
-
+#        carp $sig;
         # Add variable declarations and info to line
         # Here we know the vardecls have been formatted.
         my $sigline = shift @{ $Sblock->{'AnnLines'} }; # This is the line that says "! === Original code from $f starts here ==="
@@ -464,8 +426,6 @@ sub __construct_new_subroutine_signatures {
             unshift @{ $Sblock->{'AnnLines'} },
               [ "      include '$inc'", { 'Include' => { 'Name' => $inc } } ];              
         }
-#       unshift @{ $Sblock->{'AnnLines'} }, [ $sig, { 'Signature' => $sigrec } ];
-        
         
         for my $mod ( keys %{ $Sf->{'Uses'} } ) {
             
@@ -485,11 +445,11 @@ sub __construct_new_subroutine_signatures {
         for my $tindex ( 0 .. scalar( @{$srcref} ) - 1 ) {
             if ( $tindex == $block_rec->{'BeginBlockIdx'} ) {
                 $sig =~ s/subroutine/call/;
+                $sig =~ s/\(\)//;
                 $srcref->[$tindex][0] = $sig;
-                
-                $srcref->[$tindex][1]{'SubroutineCall'} = $sigrec;
+                #croak $sig;        
+                $srcref->[$tindex][1]{'SubroutineCall'} = { %{$sigrec} };
                 $srcref->[$tindex][1]{'SubroutineCall'}{'ExpressionAST'} = [];#1,$sigrec->{'Name'},[]
-#croak Dumper( $srcref->[$tindex][1]{'SubroutineCall'},$sigrec->{'Args'});
                 $srcref->[$tindex][1]{'CallArgs'}=dclone($sigrec->{'Args'});
                 $srcref->[$tindex][1]{'LineID'} = $Sblock->{'Callers'}{$f}[0];
                 

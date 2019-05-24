@@ -949,7 +949,7 @@ sub format_f95_par_decl {
         'Attr' => $attr, 
         'Dim' => $dimrec, 
         'Parameter' => 'parameter',
-        'Name' => [ $var, $val ] ,
+        'Name' => [ $var, $val ] ,        
         'Status' => 1
     };
     
@@ -1078,8 +1078,27 @@ sub emit_f95_var_decl {
       my $dim= $var_decl_rec->{'Dim'}; 
       
       my $is_par = exists $var_decl_rec->{'Parameter'} ? 1 : 0;
-      my $var = $var_decl_rec->{'Name'};
-      my $val = $var_decl_rec->{'Val'};
+      # We seem to have three ways of encoding the (var,val) pairs
+      my ($var,$val);
+      if ($is_par) {
+      if (exists $var_decl_rec->{'Name'}) {
+      	if (ref(  $var_decl_rec->{'Name'} ) eq 'ARRAY'  and scalar @{ $var_decl_rec->{'Name'} } == 2 ) {
+      	($var,$val) = @{	$var_decl_rec->{'Name'} };
+      	} elsif (ref(  $var_decl_rec->{'Name'} ) ne 'ARRAY'  and exists $var_decl_rec->{'Val'} ) { 
+      $var = $var_decl_rec->{'Name'};
+      $val = $var_decl_rec->{'Val'};
+      	}
+      } elsif(exists $var_decl_rec->{'Names'}) {
+      	if (scalar @{ $var_decl_rec->{'Names'} } == 1 and ref($var_decl_rec->{'Names'}[0]) eq 'ARRAY') {
+      		($var,$val) = @{ $var_decl_rec->{'Names'}[0] };
+      	} else {
+      		croak 'Parameter declaration record is incorrect: '.Dumper($var_decl_rec);
+      	}
+      	
+      }
+      } else {
+      	$var = $var_decl_rec->{'Name'};
+      }
       
     my $dimstr = '';
     if ( ref($dim) eq 'ARRAY' and scalar @{$dim}>0) {
@@ -1147,6 +1166,7 @@ sub emit_f95_var_decl {
               . $trailing_comment;
             return $decl_line;
         } else {
+        	
             my $decl_line =
                 $spaces
               . join( ', ', ( $type, @attrs ) ) . ' :: '
@@ -1167,7 +1187,7 @@ sub emit_f95_var_decl {
           . 'parameter' . ' :: '
           . $var_val;
 
-        #  	say 'emit_f95_var_decl PARAM: '.$decl_line ;
+#        say 'emit_f95_var_decl PARAM: '.$decl_line ;
         
         return $decl_line;
     }

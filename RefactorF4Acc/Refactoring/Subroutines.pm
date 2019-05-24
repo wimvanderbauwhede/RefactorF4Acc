@@ -112,13 +112,12 @@ sub _refactor_subroutine_main {
         print "#" x 80, "\n";
         say "context_free_refactorings($f)" ;
     }
- 
+
     $stref = context_free_refactorings( $stref, $f ); # FIXME maybe do this later
     say "get_annotated_sourcelines($f)" if $V;
     my $annlines = $Sf->{'RefactoredCode'};
     # At this point, call line from annlines for extracted sub has too many args
     
-     
     if (1 or $Sf->{'HasCommons'} or ( # FIXME
     exists $Sf->{'Contains'} and
     scalar @{$Sf->{'Contains'}}>0)) { 
@@ -275,6 +274,7 @@ sub _refactor_globals_new {
 			if (not exists $Sf->{'HasRefactoredArgs'} or $Sf->{'HasRefactoredArgs'} ==0 ) {            	
                 # This probably means the subroutine has no arguments at all.
                  # Do this before the analysis for RefactoredArgs!
+                 
                  $stref = refactor_subroutine_signature( $stref, $f );
             }
             
@@ -596,7 +596,7 @@ sub _create_refactored_subroutine_call {
     ( my $stref, my $f, my $annline, my $rlines ) = @_;
     
     (my $line, my $info) = @{ $annline };
-say "_create_refactored_subroutine_call($f): $line";
+
     # simply tag the common vars onto the arguments
     my $name = $info->{'SubroutineCall'}{'Name'};
     
@@ -651,7 +651,6 @@ say "_create_refactored_subroutine_call($f): $line";
         # Problem is that in $f globals from $name may have been renamed. I store the renamed ones in $Sf->{'RenamedInheritedExGLobs'}
         # So we check and create @maybe_renamed_exglobs
         my @maybe_renamed_exglobs=();
-        say Dumper(@globals) if $name eq 'update';
         for my $ex_glob (@globals) {
         	# WV 20170606 I need to check if maybe the ex-globs have already been added to the args
         	# Because if the Args of the actual Call are the same as ex-globs then they must be ex-globs
@@ -668,12 +667,11 @@ say "_create_refactored_subroutine_call($f): $line";
 	        		push @maybe_renamed_exglobs,$ex_glob;
 	        	}
         	} else {
-        		say "VAR $ex_glob is in Args for SubroutineCall $name";
+#        		say "VAR $ex_glob is in Args for SubroutineCall $name";
         	}
         }
         # Then we concatenate these arg lists
         $args_ref = [@orig_args, @maybe_renamed_exglobs ]; # NOT ordered union, if they repeat that should be OK
-        say Dumper($args_ref)  if $name eq 'update';
         if ($NEW_PARSER) {
         my $expr_ast = $info->{'SubroutineCall'}{'ExpressionAST'};
         if (@maybe_renamed_exglobs and @{$expr_ast} and ($expr_ast->[0] & 0xFF) != 27) {
@@ -721,7 +719,6 @@ say "_create_refactored_subroutine_call($f): $line";
 	    my $indent = $info->{'Indent'} // '      ';
 	    my $maybe_label= ( exists $info->{'Label'} and exists $Sf->{'ReferencedLabels'}{$info->{'Label'}} ) ?  $info->{'Label'}.' ' : '';
 	    my $rline = "call $name($args_str)\n";
-	    say "$line => $rline" if $rline=~/update/;
 		if ( exists $info->{'PlaceHolders'} ) { 
 			while ($rline =~ /(__PH\d+__)/) {
 				my $ph=$1;
