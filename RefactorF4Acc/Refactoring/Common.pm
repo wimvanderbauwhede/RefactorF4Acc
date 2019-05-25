@@ -1052,20 +1052,16 @@ sub _rename_conflicting_global_pars {
 
 sub emit_f95_var_decl {
     ( my $var_decl_rec ) = @_;
- 
 	if (not defined $var_decl_rec) {
 		confess('Argument to emit_f95_var_decl is not defined!');
 	}
     if ( ref($var_decl_rec) ne 'HASH' ) {
         croak "NOT a HASH in emit_f95_var_decl(".$var_decl_rec.")";
     }
-#    croak Dumper($var_decl_rec) if $var_decl_rec->{'Name'} eq 'dtint';
     my $external = exists $var_decl_rec->{'External'} ? 1 : 0;
-    my $spaces = $var_decl_rec->{'Indent'};# [0];
+    my $spaces = $var_decl_rec->{'Indent'};
     croak Dumper($var_decl_rec) if not defined $spaces;
     
-#    ( my $type, my $attr, my $dim, my $intent_or_par ) =
-#      @{ $var_decl_rec->[1] };
       my $type = $var_decl_rec->{'Type'}; 
       if (not defined $type) {
       	croak Dumper($var_decl_rec);
@@ -1075,9 +1071,7 @@ sub emit_f95_var_decl {
       	my $tkind=$type->{'Kind'};
       	$type= $ttype . (defined $tkind ?  "($tkind)" : '');       	
       } 
-      croak Dumper($var_decl_rec) if $type eq 'character*70';
       my $attr= $var_decl_rec->{'Attr'}; 
-      
       my $dim= $var_decl_rec->{'Dim'}; 
       
       my $is_par = exists $var_decl_rec->{'Parameter'} ? 1 : 0;
@@ -1110,16 +1104,27 @@ sub emit_f95_var_decl {
     }
     my @attrs = ();
     if ($attr) {    	
-    	if ($attr=~/len/ && $type eq 'character') {
+    	if ( $type eq 'character') {
+    	if ($attr=~/len/) {
     		$type.='('.$attr.')';
+        } else {
+                if ($attr=~/\((.+)\)/) {
+                    $attr=$1;
+                }
+    		$type.='(len='.$attr.')';
+        }
     		$attr='';
     	} elsif ($attr=~/kind/ ) {
-    		$type=~s/\*\d+$//;
-    		if ($attr!~/\(.+\)/) {
-    			$type.='('.$attr.')';$attr='';
-    		}
+            if ($attr=~/kind=\d+/ ) {
+                $type=~s/\*\d+$//;
+                if ($attr!~/\(.+\)/) {
+                    $type.='('.$attr.')';$attr='';
+                }
+            } else {
+                $attr='';
+            }
     	} else {
-        push @attrs, $attr;
+            push @attrs, $attr;
     	}
     }
     if (exists $var_decl_rec->{'Allocatable'} ) {
@@ -1148,7 +1153,6 @@ sub emit_f95_var_decl {
         	$intentstr ='intent('.$intent.')'; 
 		} 
 		elsif ($intent eq 'Ignore' and $DBG) {			
-#			carp("VAR $var with intent Ignore");
 			$trailing_comment=" ! Intent $intent"; 
 		}
 		
@@ -1175,6 +1179,7 @@ sub emit_f95_var_decl {
               . join( ', ', ( $type, @attrs ) ) . ' :: '
               . $var
               . $trailing_comment;
+              #say 'emit_f95_var_decl 2'.$decl_line ;
             return $decl_line;
         }
         
@@ -1191,7 +1196,7 @@ sub emit_f95_var_decl {
           . 'parameter' . ' :: '
           . $var_val;
 
-#        say 'emit_f95_var_decl PARAM: '.$decl_line ;
+          #say 'emit_f95_var_decl PARAM: '.$decl_line ;
         
         return $decl_line;
     }
