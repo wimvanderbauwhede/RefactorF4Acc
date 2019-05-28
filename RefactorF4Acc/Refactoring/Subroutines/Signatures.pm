@@ -82,9 +82,22 @@ sub create_refactored_subroutine_signature {
     }
     $info->{'Refactored'} = 1;
     $info->{'Ref'} = 1;
+    
+    
+    if (not exists $info->{'EntrySig'} ) {
     $info->{'Signature'}{'Args'}=$Sf->{'RefactoredArgs'};
     $info->{'Signature'}{'RefactoredArgs'}=$Sf->{'RefactoredArgs'}; # not sure if this is needed
     $Sf->{'HasRefactoredArgs'} = 1;
+        	
+    } else {
+    	# ENTRY!
+    	my $name = $info->{'Signature'}{'Name'};
+    	my $Sname = $Sf->{'Entries'}{'Set'}{$name};
+    $info->{'Signature'}{'Args'}=$Sname->{'RefactoredArgs'};
+    $info->{'Signature'}{'RefactoredArgs'}=$Sname->{'RefactoredArgs'}; # not sure if this is needed
+    $Sname->{'HasRefactoredArgs'} = 1;
+    	    	
+    }    
     
     push @{$rlines}, [ $rline, $info ];
     

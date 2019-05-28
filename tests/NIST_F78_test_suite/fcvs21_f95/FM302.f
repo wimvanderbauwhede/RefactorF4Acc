@@ -797,7 +797,8 @@ C          FF305 IS AN EXTERNAL FUNCTION WHICH IS USED IN TEST 014 AND  00030305
 C     015 OF PROGRAM FM302. THIS SUBPROGRAM IS REFERENCED FROM EXTERNAL 00040305
 C     FUNCTION FF304.                                                   00050305
 C                                                                       00060305
-      COMMON IACN11(15)                                                 00070305
+C WV  COMMON IACN11(15)                                                 00070305
+      COMMON IACN11(4)                                                  00070305
       COMMON IVCN12, IVCN13, IVCN14                                     00080305
       COMMON /BLK10/IVCNJ1, /BLK11/IVCNK1                               00090305
 C     TEST 014                                                          00100305

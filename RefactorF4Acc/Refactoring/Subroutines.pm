@@ -801,6 +801,7 @@ sub emit_subroutine_call { (my $stref, my $f, my $annline)=@_;
 sub emit_subroutine_sig { #(my $stref, my $f, 
         (my $annline)=@_;
 	    (my $line, my $info) = @{ $annline };
+	    
         #my $Sf        = $stref->{'Subroutines'}{$f};
 	    
 	    my $name = $info->{'Signature'}{'Name'};
@@ -817,10 +818,9 @@ sub emit_subroutine_sig { #(my $stref, my $f,
 	     my $maybe_returntype = exists $info->{'Signature'}{'ReturnType'} ? $info->{'Signature'}{'ReturnType'}.' ' : '';
 	     my $maybe_resultvar = exists $info->{'Signature'}{'ResultVar'} ? ' result '.$info->{'Signature'}{'ResultVar'} : '';
 	     
-#		say "subroutine $name($args_str)\n";
 	    my $rline =   exists $info->{'Signature'}{'Program'}  ? "$code_unit $name" 
 	    : exists $info->{'Signature'}{'BlockData'} ? "$code_unit $name($args_str)" 
-	    : "$maybe_characteristic$maybe_returntype$code_unit $name($args_str)$maybe_resultvar\n";
+	    : "$maybe_characteristic$maybe_returntype$code_unit $name($args_str)$maybe_resultvar";
 	    
 		if ( exists $info->{'PlaceHolders'} ) { 
 			while ($rline =~ /(__PH\d+__)/) {

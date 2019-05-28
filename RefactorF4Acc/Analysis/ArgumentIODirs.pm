@@ -58,6 +58,7 @@ sub determine_argument_io_direction_rec { ( my $stref,my $f ) = @_;
 	} 
 		print "\t" x $c, "--------\n" if $V;
 		$stref = _determine_argument_io_direction_core( $stref, $f );
+		
 	return $stref;
 }    # determine_argument_io_direction_rec()
 
@@ -278,7 +279,9 @@ sub _analyse_src_for_iodirs {
 			my $annlines = get_annotated_sourcelines( $stref, $f );
 
 			for my $index ( 0 .. scalar( @{$annlines} ) - 1 ) {
-				(my $line,my $info)  = @{ $annlines->[$index] };				 
+				
+				(my $line,my $info)  = @{ $annlines->[$index] };
+								 
 				if ( exists $info->{'Blank'} or exists $info->{'Comments'} or exists $info->{'Deleted'}) {
 					next;
 				}
@@ -408,6 +411,7 @@ sub _analyse_src_for_iodirs {
 				# Subroutine call
 				if (   exists $info->{'SubroutineCall'} && exists $info->{'SubroutineCall'}{'Name'} ) {
 					my $name = $info->{'SubroutineCall'}{'Name'};
+#					carp "SUBCALL $name in $f: ".Dumper($stref->{'Subroutines'}{$name}{RefactoredArgs}{Set}{ivd005}) if $name eq 'sn705';
 # So we get the IODir for every arg in the call to the subroutine
 # We need both the original args from the call and the ex-glob args
 # It might be convenient to have both in $info; otoh we can get ExGlobArgs from the main table
@@ -421,9 +425,10 @@ sub _analyse_src_for_iodirs {
 								}
 						}
 					}
-					
+#carp "BEFORE _get_iodirs_from_subcall: SUBCALL $name in $f: ".Dumper($stref->{'Subroutines'}{$name}{RefactoredArgs}{Set}{ivd005}) if $name eq 'sn705';					
 					my $iodirs_from_call = _get_iodirs_from_subcall( $stref, $f, $info );
-
+#say "HERE $f $name" .Dumper($iodirs_from_call );
+#croak "AFTER _get_iodirs_from_subcall: SUBCALL $name in $f: ".Dumper($stref->{'Subroutines'}{$name}{RefactoredArgs}{Set}{ivd005}) if $name eq 'sn705';
 					for my $var ( keys %{$iodirs_from_call} ) {
 # Damn Perl! exists $args->{$var}{'IODir'} creates the entry for $var if it did not exist!
 						if ( exists $args->{$var} and ref( $args->{$var} ) eq 'HASH' ) {
@@ -476,7 +481,7 @@ sub _analyse_src_for_iodirs {
 # Encounter Assignment
 				elsif (exists $info->{'Assignment'} ) {
 					# First check the RHS
-					
+#					
 					my $rhs_vars = $info->{'Rhs'}{'VarList'}{'List'};
 					
 					if (scalar @{$rhs_vars}>0) {
@@ -484,6 +489,7 @@ sub _analyse_src_for_iodirs {
 					}
 					my $lhs_var = $info->{'Lhs'}{'VarName'};
 					_set_iodir_vars([$lhs_var],$args, \&_set_iodir_write );
+					
 					my $lhs_index_vars = $info->{'Lhs'}{'IndexVars'}{'List'};
 					if (scalar @{$lhs_index_vars}>0) {
 						_set_iodir_vars($lhs_index_vars,$args, \&_set_iodir_read );
@@ -496,26 +502,28 @@ sub _analyse_src_for_iodirs {
 				}
 			}
 		}
+		
 		for my $arg ( keys %{$args} ) {
-			
+#		 say $arg if $f eq 'sn705';	
 			if (
 				exists $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}
 				{$arg} )
 			{
-#				say "ARG: $arg ".Dumper($args->{$arg});
-				if ($args->{$arg} != 1
-				and (ref($args->{$arg}) eq 'HASH' and exists $args->{$arg}{'Name'}) 
-				) {
-				$stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$arg} =
-				  { %{ $args->{$arg} } };
-				  
-				} else {
+				
+#				say "ARG: $arg ".Dumper($args->{$arg}) if $f eq 'sn705';
+				
+				if (	 $args->{$arg} != 1
+					and (ref($args->{$arg}) eq 'HASH' 
+					and exists $args->{$arg}{'Name'}) 
+				) { # If this is a full declaration record
+					$stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$arg} = { %{ $args->{$arg} } };				  
+				} else { # Otherwise, get thre record and updated the IODir
 					my $decl = get_f95_var_decl($stref, $f, $arg);
 					
 					if (exists $args->{$arg}{'IODir'}) {
 						$decl->{'IODir'} = $args->{$arg}{'IODir'};
 					}
-#					say "DECL:".Dumper($decl);
+#					say "DECL:".Dumper($decl)  if $f eq 'sn705';
 					$stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$arg} = $decl;
 				}
 
@@ -526,7 +534,7 @@ sub _analyse_src_for_iodirs {
 		$Sf->{'IODirInfo'} = 1;
 	}
 	}    # if IODirInfo had not been set to 1
-	
+
 	return $stref;
 }    # END of _analyse_src_for_iodirs()
 
@@ -663,13 +671,14 @@ sub _get_iodirs_from_subcall {
 		
 # See if there is a corresponding argument in the called args of the called subroutine
 			my $call_arg = $argmap->{$sig_arg};
+			
 				if (defined $call_arg ) { 
 # The $call_arg can be Array, Scalar, Sub, Expr or Const
 # Only if it is Array or Scalar  does it need to be considered for writing to by the subroutine
 # We need to check the other variables in Array, Sub and Expr but they cannot be anything else than read-only
 #				croak $f.' => '.$name."($call_arg => $sig_arg)\t".Dumper($info);
 				my $call_arg_type = $info->{'CallArgs'}{'Set'}{$call_arg}{'Type'};
-#carp "CALL ARG: $call_arg";	
+#carp "CALL ARG: $sig_arg => $call_arg  ".Dumper($call_arg_type);	
 				if ( $call_arg_type eq 'Scalar' or $call_arg_type eq 'Array' ) {
 	
 					# This means that $call_arg is an argument of the caller $f
@@ -735,7 +744,11 @@ sub _get_iodirs_from_subcall {
 	
 				}
 			} else {
+				# WHY?
+				carp "MODIFYING RefactoredArgs ad hoc!" if $DBG;
+				if (not defined $Sname->{'RefactoredArgs'}{'Set'}{$sig_arg}{'IODir'} or $Sname->{'RefactoredArgs'}{'Set'}{$sig_arg}{'IODir'} eq 'Unknown') {
 				$Sname->{'RefactoredArgs'}{'Set'}{$sig_arg}{'IODir'} = 'In';
+				}
 			}
 		} # for loop		
 
@@ -775,7 +788,6 @@ sub _get_iodirs_from_subcall {
 		for my $arg ( @{ $info->{'SubroutineCall'}{'Args'}{'List'} } ) {			
 			$called_arg_iodirs->{$arg} = 'Ignore';
 		}
-		croak "$name in $f" if $name eq 'dsetvh';
 	}
 	return $called_arg_iodirs;
 }    # END of _get_iodirs_from_subcall()
@@ -799,12 +811,14 @@ sub update_argument_io_direction_all_subs {
 
 sub _update_argument_io_direction {
 	( my $stref, my $f ) = @_;
+	
+my $Sf = $stref->{'Subroutines'}{$f};
 
 	my $__update_decl = sub {
 		( my $annline, my $state ) = @_;
 		( my $line,    my $info )  = @{$annline};
 		( my $stref, my $f, my $rest ) = @{$state};
-		
+		my $Sf = $stref->{'Subroutines'}{$f};
 		if ( exists $info->{'VarDecl'} ) {
 			
 #			say Dumper($annline);
@@ -816,11 +830,13 @@ sub _update_argument_io_direction {
 				){
 					
 					my $decl = get_var_record_from_set( $stref->{'Subroutines'}{$f}{'Args'},$varname);
+#					say 'Args:'.Dumper($decl->{'Name'},$decl->{'IODir'}) if $varname eq 'ivd005' and $f eq 'sn705';
 #					say "DECL FROM ARGS: ".Dumper($decl);
 					if (
 					exists $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$varname}					  
 					) {
 						my $rdecl =  $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$varname};
+#						say 'RefactoredArgs: '.Dumper($rdecl) if $varname eq 'ivd005' and $f eq 'sn705';
 						if (exists $rdecl->{'Name'}) {
 							$decl=$rdecl;
 						} else {
@@ -853,6 +869,7 @@ sub _update_argument_io_direction {
                     	push @{$info->{'Ann'}},'SKIP';
                     }                    
 				$annline = [ $rline, $info ];
+#				say Dumper($decl->{'Name'},$decl->{'IODir'}) if $varname eq 'ivd005' and $f eq 'sn705';
 			} else {
 #				say "$line";
 			}
@@ -861,7 +878,8 @@ sub _update_argument_io_direction {
 	};
 	my $state = [ $stref, $f, {} ];
 	( $stref, $state ) = stateful_pass( $stref, $f, $__update_decl, $state,'_update_argument_io_direction() ' . __LINE__ );
-
+#	say "SUB: $f"  if $f eq 'sn705';
+#croak Dumper($Sf->{'RefactoredArgs'}{'Set'}{'ivd005'}) if $f eq 'sn705';
 	return $stref;
-}
+} # _update_argument_io_direction
 1;

@@ -1473,6 +1473,7 @@ END IF
 #@        VarList       => $rhs_all_vars
 #@        ExpressionAST => $rhs_ast		
 			elsif ( $mline =~ /[\w\)]\s*=\s*[^=]/ ) {
+				
 					$info->{'Assignment'} = 1;
                     $info->{'HasVars'} = 1; 
 					my $free_form =  $Sf->{'FreeForm'};							
@@ -3075,11 +3076,14 @@ my $attr='';
 my $pvars;
 my $pvars_lst;
 if ($NEW_PARSER) {
-    if ($type eq 'double precision') {
+	
+    if (defined $type) {
+    	if ( $type eq 'double precision') {
         $line = 'real(8) '.$varlst;
     }
     elsif ($type eq 'double complex') {
         $line = 'complex(8) '.$varlst;
+    }
     }
 	( $pvars, $pvars_lst ) = _parse_F77_decl_NEW( $line );
 #	croak Dumper($pvars) if $line=~/character/;
@@ -4291,6 +4295,7 @@ The code below does the following:
 # -----------------------------------------------------------------------------
 sub _parse_assignment {
 	( my $line, my $info, my $stref, my $f ) = @_;
+	
 	my $code_unit = sub_func_incl_mod( $f, $stref );
 	my $tline = $line;
 
@@ -5365,6 +5370,8 @@ sub _parse_F77_decl_NEW { (my $decl_str)=@_;
         (my $parse_tree_vars, $rest, $err) = parse_expression_no_context($rest);
         
         (my $var_recs, my $var_lst) = _get_var_recs_from_parse_tree($parse_tree_type, $parse_tree_vars);
+        
+#        say Dumper($var_recs->{cf717}) if $decl_str=~/cf717/;
         return ($var_recs, $var_lst);
     
 
