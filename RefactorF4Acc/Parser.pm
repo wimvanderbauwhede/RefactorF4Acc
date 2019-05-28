@@ -782,6 +782,10 @@ SUBROUTINE
 		 elsif ( $line =~ /^common\s*\/\s*([\w\d]+)\s*\/\s*(.+)$/ or 
 				$line =~ /^(common)\s+(.+)$/ 
 		 ) {
+             # WV this is weak/incorrect because we can have              
+             # COMMON [/[ cb ]/] nlist [[,]/[ cb ] / nlist ]
+             # So the good way is to split on '/' first, like in the DATA statement
+             #
 				my $common_block_name = $1; # means it will be 'common' for a blank block
 				my $commonlst         = $2;
 				$commonlst=~s/\/\//,/g;
