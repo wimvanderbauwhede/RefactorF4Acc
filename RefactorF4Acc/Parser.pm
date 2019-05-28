@@ -1879,7 +1879,7 @@ sub _parse_subroutine_and_function_calls {
 			if ( exists $info->{'Signature'} ) {
 				$current_sub_name = $info->{'Signature'}{'Name'};
 			}
-#== CALL
+#== CALL, SUBROUTINE CALL
 #@ SubroutineCall => 
 #@     Name => $name
 #@     ExpressionAST => $ast
@@ -2092,7 +2092,17 @@ sub _parse_subroutine_and_function_calls {
 					
 				}
 #				$stref = _check_used_modules_for_globals($stref, $f, $name);
-				
+# Add labels used as arguments to ReferencedLabels
+				for my $arg (keys %{ $info->{'SubroutineCall'}{'Args'}{'Set'} }) {
+#					say $arg;
+					if (exists $info->{'SubroutineCall'}{'Args'}{'Set'}{$arg}{'SubType'} and 
+						$info->{'SubroutineCall'}{'Args'}{'Set'}{$arg}{'SubType'} eq 'Label') {
+							
+								$Sf->{'ReferencedLabels'}{$arg}=$arg;
+					}  
+				}
+#				croak Dumper($info->{'SubroutineCall'}{'Args'}) if $name eq 'en722';
+#				croak Dumper(sort keys %{$Sf->{ReferencedLabels}} ) if $name eq 'en722';
 				
 			}
 

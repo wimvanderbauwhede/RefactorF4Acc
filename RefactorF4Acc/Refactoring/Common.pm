@@ -187,7 +187,7 @@ sub context_free_refactorings {
                 	} elsif (exists $info->{'Continue'}{'Label'}) {
                 		$label = $info->{'Continue'}{'Label'}
                 	}
-                	if ($label ne '' and exists  $Sf->{'ReferencedLabels'}{$label}) {                		
+	                	if ($label ne '' and exists  $Sf->{'ReferencedLabels'}{$label}) {                		
                     	$line = $info->{'Indent'}. $label.    ' end do'; # END DO can't be a label target I think
 					} else {
                     	$line = $info->{'Indent'}.' end do';
@@ -420,10 +420,6 @@ sub context_free_refactorings {
             next;
         } # exists $info->{'Include'} )
          
-#		my $indent=$info->{'Indent'} // '';
-#		my $maybe_label= ( exists $info->{'Label'} and exists $Sf->{'ReferencedLabels'}{$info->{'Label'}} ) ?  $info->{'Label'}.' ' : '';
-#        push @{ $Sf->{'RefactoredCode'} }, [ "$indent$maybe_label".$line, $info ];   # if $line ne '';
-#if ( exists $info->{'IO'} and $line=~/open/ and $f=~/adam/) { croak  $f. ' : '.$line."\t=>\t".Dumper($info); }
         push @{ $Sf->{'RefactoredCode'} }, [ $line, $info ];   # if $line ne '';
         if (@extra_lines) {
             for my $extra_line (@extra_lines) {
