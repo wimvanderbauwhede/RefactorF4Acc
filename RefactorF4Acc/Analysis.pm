@@ -6,7 +6,7 @@ use RefactorF4Acc::Analysis::Includes qw( find_root_for_includes );
 use RefactorF4Acc::Analysis::Globals qw( identify_inherited_exglobs_to_rename lift_globals rename_inherited_exglobs );
 use RefactorF4Acc::Analysis::LoopDetect qw( outer_loop_end_detect );
 use RefactorF4Acc::Refactoring::Common qw( get_f95_var_decl stateful_pass stateless_pass );
-use RefactorF4Acc::Analysis::CommonBlocks qw( identify_common_var_mismatch );
+use RefactorF4Acc::Analysis::CommonBlocks qw( identify_common_var_mismatch create_common_var_size_tuples match_up_common_vars );
 #
 #   (c) 2010-2017 Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
 #
@@ -164,12 +164,27 @@ sub analyse_all {
 	for my $f ( keys %{ $stref->{'Subroutines'} } ) {
 		next if $f eq '';			
 		next  if $f eq 'UNKNOWN_SRC';
+		next unless exists $stref->{'Subroutines'}{$f}{'HasLocalCommons'};
 		next if  exists $stref->{'Subroutines'}{$f}{'Program'} and $stref->{'Subroutines'}{$f}{'Program'}==1;
-	 say "\nCOMMON BLOCK MISMATCHES in $f:\n";
+		
+#	 say "\nCOMMON BLOCK MISMATCHES in $f:\n";
 #    say Dumper($stref->{'Subroutines'}{$f}{'CommonBlocks'});
     $stref = identify_common_var_mismatch($stref,$f);
-    say Dumper($stref->{'Subroutines'}{$f}{'CommonVarMismatch'});
+#    say Dumper($stref->{'Subroutines'}{$f}{'CommonVarMismatch'});
 	}
+	for my $f ( keys %{ $stref->{'Subroutines'} } ) {
+		next if $f eq '';			
+		next  if $f eq 'UNKNOWN_SRC';
+		next unless exists $stref->{'Subroutines'}{$f}{'HasLocalCommons'};
+		create_common_var_size_tuples( $stref, $f );
+	}
+	for my $f ( keys %{ $stref->{'Subroutines'} } ) {		
+		next if $f eq '';			
+		next  if $f eq 'UNKNOWN_SRC';
+		next unless exists $stref->{'Subroutines'}{$f}{'HasLocalCommons'};
+		match_up_common_vars( $stref, $f );
+	}
+	
 	
 	return $stref;
 }    # END of analyse_all()

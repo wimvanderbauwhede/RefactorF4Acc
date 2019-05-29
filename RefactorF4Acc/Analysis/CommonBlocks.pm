@@ -26,29 +26,10 @@ use Exporter;
 @RefactorF4Acc::Analysis::CommonBlocks::EXPORT_OK = qw(
 	&collect_common_vars_per_block
 	&identify_common_var_mismatch
+	&create_common_var_size_tuples
+	&match_up_common_vars
 );
 
-# To go in Parser.pm
-#$stref->{'Subroutines'}{$f}{'CommonBlocks'} = {};
-
-#if ( $stref->{'Subroutines'}{$f}{'HasLocalCommons'}) {
-#    if ($stref->{'Subroutines'}{$f}{'CommonVarMismatch'}) {
-#        _match_up_common_vars($stref,$f);
-#    }
-#}
-
-
-
-
-sub _match_up_common_vars { my ($stref,$f) = @_;
-    # Assuming per code unit CommonBlocks has per block a list of pairs  
-    # and top-level CommonBlocks has per block a max size
-#	my $max_sz=0; #TODO
-#    $stref->{'CommonBlocks'}{$common_block_name}=$max_sz;
-#    $stref->{'Subroutines'}{$f}{'CommonBlocks'}{$common_block_name}=[[$var,$sz],...];
-
-   return $stref;
-}
 
 # This is for Parser, so the result should a list of var names
 #
@@ -135,6 +116,17 @@ sub identify_common_var_mismatch {
 		    }
 		}
     }
+    for my $block (sort keys %{ $stref->{'Subroutines'}{$f}{'CommonBlocks'} }) {
+    	
+    	if (defined $stref->{'Subroutines'}{$f}{'CommonVarMismatch'}{$block}) {
+    	if (scalar keys %{ $stref->{'Subroutines'}{$f}{'CommonVarMismatch'}{$block} } > 1 ) {
+    		croak "The subroutine $f is called from two differnt callers with mismatched COMMON blocks. Sorry, we're not handling this at the moment.";
+    	} else {    	
+    		my ( $caller, $one) = each( %{ $stref->{'Subroutines'}{$f}{'CommonVarMismatch'}{$block} });
+    		$stref->{'Subroutines'}{$f}{'CommonVarMismatch'}{$block} = $caller;
+    	}
+    	}
+    }
     return $stref;
 } # END of identify_common_var_mismatch
 
@@ -172,5 +164,93 @@ sub __calc_sz {my ($stref, $f, $dim) = @_;
 #	say $size;
 	return $size;
 } # END of __calc_sz
+
+# Annotate the var with most of the declaration, mostly for type checking while lining up
+sub create_common_var_size_tuples {
+
+    my ($stref, $f) = @_;
+
+	for my $block (sort keys %{ $stref->{'Subroutines'}{$f}{'CommonBlocks'} } ) {
+#		if (exists $stref->{'Subroutines'}{$f}{'CommonVarMismatch'}{$block}) {
+#			say "MISMATCHED BLOCK $block in $f";
+			my @called_sub_common_vars =  @{ $stref->{'Subroutines'}{$f}{'CommonBlocks'}{$block} };
+			my @common_var_size_tuples = map {
+			# This means we will have to match them up, so create the tuples
+				my $called_sub_common_var=$_;
+				my $called_set = in_nested_set($stref->{'Subroutines'}{$f},'CommonVars',$called_sub_common_var);
+				my $called_sub_common_var_decl = $stref->{'Subroutines'}{$f}{$called_set}{'Set'}{$called_sub_common_var};
+				my $dim_sz=0;
+				my $dim=[];
+				if ($called_sub_common_var_decl->{'ArrayOrScalar'} eq 'Array') {
+					$dim = $called_sub_common_var_decl->{'Dim'};
+					$dim_sz=__calc_sz($stref,$f,$dim), 
+				}
+				 
+				[
+					$called_sub_common_var, 
+					$called_sub_common_var_decl->{'Type'},
+					$called_sub_common_var_decl->{'Attr'},
+					$called_sub_common_var_decl->{'ArrayOrScalar'} eq 'Scalar' ? 0 : 1,
+					$dim,
+					$dim_sz # This is a hack. I should really compare each individual dimension
+				];
+			} @called_sub_common_vars;
+			$stref->{'Subroutines'}{$f}{'CommonBlockSequences'}{$block} = [@common_var_size_tuples];
+#		}		
+	}
+
+	return $stref;
+} # END of create_common_var_size_tuples
+
+sub match_up_common_vars { my ($stref,$f) = @_;
+	for my $block (sort keys %{ $stref->{'Subroutines'}{$f}{'CommonVarMismatch'} }) {
+		my $caller = $stref->{'Subroutines'}{$f}{'CommonVarMismatch'}{$block};
+		say "MATCHING UP vars in $f and $caller for COMMON block $block"; 
+		my @common_var_size_tuples_f = $stref->{'Subroutines'}{$f}{'CommonBlockSequences'}{$block};
+		my @common_var_size_tuples_caller = $stref->{'Subroutines'}{$caller}{'CommonBlockSequences'}{$block};
+#		say Dumper(@common_var_size_tuples_f,@common_var_size_tuples_caller);
+		
+
+	}
+	return $stref;
+} # END of match_up_common_vars
+
+
+sub _match_up_common_var_sequences { my ($seq1,$seq2) = @_;
+	my @equivalence_pairs=();
+	my @common_seq1=@{$seq1};
+	my @common_seq2=@{$seq2};
+	while (scalar @common_seq1 > 0 and scalar @common_seq2 > 0) { # keep going until one of them is consumed
+		my $elt1 = shift  @common_seq1;
+		my $elt2 = shift  @common_seq2;
+	
+			if ($elt1->[1] eq $elt2->[1] and $elt1->[2] eq $elt2->[2]) { # Type and Attr match
+					if ($elt1->[0] eq $elt2->[0])  { # same name
+						if ($elt1->[3] == $elt2->[3])  { # both array or scalar
+							if ($elt1->[3] # both scalars 
+							or # arrays with same dims
+							$elt1->[5] == $elt2->[5]
+							)  {
+								# We don't need to create an equivalence for these
+							} 
+							elsif (!$elt1->[3] and $elt1->[5] != $elt2->[5]) { # arrays of different size
+								# we need equivalence but also need to rename the arg one
+							}
+						}						
+					} else { # different names, the easy case. 
+						
+					}
+			} else {
+				croak "Type mismatch for ".$elt1->[0].' and '. $elt2->[0];
+			}
+			# A particular problem arises if the names are the same but the dims are not. I should rename the argument to _ARG
+			# It might in fact be better to do this anyway
+		
+	}
+	# Now we need to look at the remainder. If this is in the called sub then it means the common block in the caller must be extended with the size of the remainder.
+	# It is not quite clear to me how that could actually be used, but I guess if two subs are called, one extends the common block, then the next one can use this extended common block
+
+	return \@equivalence_pairs;
+}
 
 1;

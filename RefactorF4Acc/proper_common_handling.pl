@@ -33,5 +33,5 @@ $stref = collect_common_vars_per_block($stref, $f, $common_decl_str_);
      say "\nCOMMON BLOCKS:\n";
     say Dumper($stref->{'Subroutines'}{$f}{'CommonBlocks'});
 
-# Now we can create the pairs with dimensions in Analysis
+
 

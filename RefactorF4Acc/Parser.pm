@@ -794,11 +794,13 @@ SUBROUTINE
 				$commonlst=~s/\/\//,/g;
 				$commonlst=~s/^,//;        
 				$has_commons=1;
-				$Sf->{'HasCommons'}=1; 				
+				$Sf->{'HasCommons'}=1; 		
+						
 #				say "COMMON for $f: $commonlst";
                 $info->{'SpecificationStatement'} = 1; 
                 $info->{'HasVars'} = 1; 
-				( my $parsedvars, my $parsedvars_lst ) = f77_var_decl_parser( $commonlst, 0 );				
+				( my $parsedvars, my $parsedvars_lst ) = f77_var_decl_parser( $commonlst, 0 );
+#				croak $line.':'.Dumper($parsedvars) if $line=~/iacn11/ and $f eq 'ff305';				
 				for my $var ( @{$parsedvars_lst} ) {	
 #					my $subset;
 					$Sf->{'Commons'}{$var} = $var;
@@ -890,6 +892,7 @@ SUBROUTINE
 						'Set' =>$parsedvars, 'List' => $parsedvars_lst
 					}
 				};
+				$Sf->{'HasLocalCommons'}=1 unless $is_incl;
 				$stref = collect_common_vars_per_block($stref, $f, $line) unless $is_incl;    
 #				croak Dumper($info);
 			}		
