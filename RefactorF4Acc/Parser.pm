@@ -23,7 +23,7 @@ use RefactorF4Acc::Translation::OpenCLC qw( add_to_C_build_sources );    # OBSOL
 use RefactorF4Acc::Analysis::LoopDetect qw( outer_loop_start_detect );
 use RefactorF4Acc::Analysis::ArgumentIODirs qw(  &conditional_assignment_fsm );
 use RefactorF4Acc::Analysis qw( identify_vars_on_line );
-
+use RefactorF4Acc::Analysis::CommonBlocks qw( collect_common_vars_per_block );
 use Fortran::F95VarDeclParser qw( parse_F95_var_decl );
 use Fortran::ConstructParser qw(
   parse_Fortran_open_call
@@ -176,6 +176,9 @@ sub _initialise_decl_var_tables {
 	my $code_unit = $is_incl ? 'include' : $is_mod ? 'module' : 'subroutine';
 	say "_initialise_decl_var_tables for $code_unit $f" if $V;	
 	
+	if ( not exists $Sf->{'CommonBlocks'}) {
+		$Sf->{'CommonBlocks'} = {};
+	}
 	if ( not exists $Sf->{'ReferencedLabels'}) {
 		$Sf->{'ReferencedLabels'}={};
 	}
@@ -887,6 +890,7 @@ SUBROUTINE
 						'Set' =>$parsedvars, 'List' => $parsedvars_lst
 					}
 				};
+				$stref = collect_common_vars_per_block($stref, $f, $line) unless $is_incl;    
 #				croak Dumper($info);
 			}		
 #== NAMELIST

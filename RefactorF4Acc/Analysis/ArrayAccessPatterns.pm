@@ -15,6 +15,7 @@ use RefactorF4Acc::Analysis::ArgumentIODirs qw( determine_argument_io_direction_
 use RefactorF4Acc::Parser::Expressions qw(
 	parse_expression
 	emit_expression
+	emit_expr_from_ast
 	get_vars_from_expression	
 	);
 
@@ -829,25 +830,21 @@ sub _classify_accesses_and_emit_AST { (my $stref, my $f, my $state ) =@_;
 #	return ($out_tup, $in_tup);
 #} # END of pp_links()
 
+# Constant folding
 sub _replace_param_by_val { (my $stref, my $f, my $block_id, my $ast, my $state)=@_;
   		# - see if $val contains vars
   		my $vars=get_vars_from_expression($ast,{}) ;
-#  		say 'VARS:'.Dumper($vars);
   		# - if so, substitute them using _replace_consts_in_ast
-        #my $state =  {'CurrentSub' =>$f};
   		while (
   		(exists $vars->{'_OPEN_PAR_'} and scalar keys %{$vars} > 1)
   		or (not exists $vars->{'_OPEN_PAR_'} and scalar keys %{$vars} > 0)
   		) {
-#  			say 'VARS:'.Dumper($vars);
 			($ast, $state, my $retval) = _replace_consts_in_ast($stref, $f, $block_id, $ast, $state, 0);
 			last if $retval == 0;
-#			say 'VARS-AFTER:'.Dumper($ast);
 			# - check if the result is var-free, else repeat
 			$vars=get_vars_from_expression($ast,{}) ;
   		}
   		# - return to be eval'ed
-#  		say 'DONE WHILE in _replace_param_by_val()';
 	return $ast;
 } # END of _replace_param_by_val()
 
@@ -865,11 +862,11 @@ sub _eval_expression_w_params { (my $expr_str,my $info, my $stref, my $f, my $bl
 sub eval_expression_with_parameters { (my $expr_str,my $info, my $stref, my $f) = @_;
 
     my $expr_ast=parse_expression($expr_str,$info, $stref,$f);
-#    say 'AST1: "'.$expr_str.'" => '.Dumper($expr_ast);
+#    say Dumper($expr_ast);
     my $expr_ast2 = _replace_param_by_val($stref, $f, 0,$expr_ast, {});
-#    say 'AST2:'.Dumper($expr_ast2);
-    my $evaled_expr_str=emit_expression($expr_ast2,'');
-#    say "EVAL $evaled_expr_str";
+#    say Dumper($expr_ast2);
+    my $evaled_expr_str=$NEW_PARSER ? emit_expr_from_ast($expr_ast2) : emit_expression($expr_ast2,'');
+#    say $evaled_expr_str;
     my $expr_val=eval($evaled_expr_str);
 	return $expr_val;
 
