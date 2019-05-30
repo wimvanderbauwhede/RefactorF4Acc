@@ -2493,7 +2493,7 @@ sub _parse_implicit {
 		$patt =~ s/,/|/g;
 		$patt =~ s/(\w\-\w)/[$1]/g;
 	} elsif ( $line =~ /implicit\s+(\w.+)\((.+?)\)/ ) {
-		$type = $1;
+		$type = $1;		
 		$patt = $2;
 		if ( $type =~ /\*/ ) {
 			( $type, $attr ) = split( /\*/, $type );    # WEAK!
@@ -2510,11 +2510,11 @@ sub _parse_implicit {
 		$patt =~ s/,/|/g;
 		$patt =~ s/(\w\-\w)/[$1]/g;
 	}
-	
+	$type=~s/\s*$//;
 	# 3. Generate the lookup table
 	for my $c ( 'a' .. 'z' ) {
 		if ( $c =~ /($patt)/ ) {
-			$implicit_type_lookup{$c} = [ $type, $array_or_scalar, $attr ];
+			$implicit_type_lookup{$c} = [ $type, $array_or_scalar, $attr];
 		}
 	}
 	
@@ -3097,7 +3097,7 @@ if ($NEW_PARSER) {
     }
     }
 	( $pvars, $pvars_lst ) = _parse_F77_decl_NEW( $line );
-#	croak Dumper($pvars) if $line=~/character/;
+#	croak Dumper($pvars) if $line=~/logical/i;
     # For backward compat, remove later. TODO
     $type = $pvars->{$pvars_lst->[0]}{'Type'}
 } else {

@@ -185,11 +185,17 @@ sub create_common_var_size_tuples {
 					$dim = $called_sub_common_var_decl->{'Dim'};
 					$dim_sz=__calc_sz($stref,$f,$dim), 
 				}
-				 
+				my $type = $called_sub_common_var_decl->{'Type'};
+				my $kind_or_len= $type eq 'character' ? 1 : 4; # default
+				if ($called_sub_common_var_decl->{'Attr'} =~/\*/) { croak "MUST HAVE ACTUAL SIZE!"; }				 
+				if ($called_sub_common_var_decl->{'Attr'} ne '') {
+					$kind_or_len = $called_sub_common_var_decl->{'Attr'};
+					$kind_or_len =~s/\w+\s*=\s*//;
+				}  
 				[
 					$called_sub_common_var, 
-					$called_sub_common_var_decl->{'Type'},
-					$called_sub_common_var_decl->{'Attr'},
+					$type,
+					$kind_or_len ,
 					$called_sub_common_var_decl->{'ArrayOrScalar'} eq 'Scalar' ? 0 : 1,
 					$dim,
 					$dim_sz # This is a hack. I should really compare each individual dimension
@@ -203,54 +209,203 @@ sub create_common_var_size_tuples {
 } # END of create_common_var_size_tuples
 
 sub match_up_common_vars { my ($stref,$f) = @_;
+	$stref->{'Subroutines'}{$f}{'ExMismatchedCommonArgs'}={'Set'=>{},'List'=>[]};
 	for my $block (sort keys %{ $stref->{'Subroutines'}{$f}{'CommonVarMismatch'} }) {
 		my $caller = $stref->{'Subroutines'}{$f}{'CommonVarMismatch'}{$block};
 		say "MATCHING UP vars in $f and $caller for COMMON block $block"; 
-		my @common_var_size_tuples_f = $stref->{'Subroutines'}{$f}{'CommonBlockSequences'}{$block};
-		my @common_var_size_tuples_caller = $stref->{'Subroutines'}{$caller}{'CommonBlockSequences'}{$block};
-#		say Dumper(@common_var_size_tuples_f,@common_var_size_tuples_caller);
-		
-
+		$stref->{'Subroutines'}{$f}{'ExMismatchedCommonArgs'}{'List'} =[ @{$stref->{'Subroutines'}{$f}{'ExMismatchedCommonArgs'}{'List'}},
+		  _determine_ex_common_args($stref,  $f, $caller, $block)  ];
+		  _match_up_common_var_sequences ($stref,  $f, $caller, $block);
 	}
+	say "ExMismatchedCommonArgs $f : ".join(',',@{ $stref->{'Subroutines'}{$f}{'ExMismatchedCommonArgs'}{'List'} });	
 	return $stref;
 } # END of match_up_common_vars
 
 
-sub _match_up_common_var_sequences { my ($seq1,$seq2) = @_;
-	my @equivalence_pairs=();
-	my @common_seq1=@{$seq1};
-	my @common_seq2=@{$seq2};
-	while (scalar @common_seq1 > 0 and scalar @common_seq2 > 0) { # keep going until one of them is consumed
-		my $elt1 = shift  @common_seq1;
-		my $elt2 = shift  @common_seq2;
+sub _determine_ex_common_args { my ($stref,  $f, $caller, $block) = @_;
 	
-			if ($elt1->[1] eq $elt2->[1] and $elt1->[2] eq $elt2->[2]) { # Type and Attr match
-					if ($elt1->[0] eq $elt2->[0])  { # same name
-						if ($elt1->[3] == $elt2->[3])  { # both array or scalar
-							if ($elt1->[3] # both scalars 
-							or # arrays with same dims
-							$elt1->[5] == $elt2->[5]
-							)  {
-								# We don't need to create an equivalence for these
-							} 
-							elsif (!$elt1->[3] and $elt1->[5] != $elt2->[5]) { # arrays of different size
-								# we need equivalence but also need to rename the arg one
-							}
-						}						
-					} else { # different names, the easy case. 
+	my @ex_common_args=();
+	my @common_local_seq = @{ $stref->{'Subroutines'}{$f}{'CommonBlockSequences'}{$block} };
+	my @common_caller_seq = @{ $stref->{'Subroutines'}{$caller}{'CommonBlockSequences'}{$block} };
+	# We have to consider this from the view of the called sub, which I call "local"
+	# We iterate until that is consumed, and if the caller seq is consumed earlier, it means the additional local vars
+	# need to be added to the ex-common arguments list
+	
+	# First we get the total sizes
+	my $local_total_sz=__get_total_size(@common_local_seq);
+	my $caller_total_sz=__get_total_size(@common_caller_seq);
+	
+	# Now build the ex-common argument list
+	my $blockn = $block eq 'BLANK' ? '' : $block;
+	my $caller_running_sz = 0;
+	for my $elt (@common_caller_seq) {
+		if ($caller_running_sz < $local_total_sz) {
+			push @ex_common_args, $caller.'_'.$blockn.'_'.$elt->[0]; 
+			$caller_running_sz +=$elt->[2]*$elt->[5];
+		} else {
+			last;
+		}
+	}
+	# If the local list is longer than the caller list, we need to add the remaining local args
+	if ($caller_running_sz < $local_total_sz) {
+		my $local_running_sz=0;
+		for my $elt (@common_local_seq) {
+			$local_running_sz +=$elt->[2]*$elt->[5];
+			if ($local_running_sz > $caller_running_sz) {			
+				push @ex_common_args, $f.'_'.$blockn.'_'.$elt->[0]; 			
+			}
+		}		
+	}
+#	say "$f $block: ",join(',',@ex_common_args);
+	# Now for each block we should join these together and use them as ExGlobArgs, which I will call ExMismatchedCommonArgs
+	return @ex_common_args;
+} 	# END of _determine_ex_common_args
+
+
+# I want all pairs to be of the form ([localvar,0|1,maybe_offset],[callervar,maybe_offset]];
+#  
+
+sub _match_up_common_var_sequences { my ($stref,  $f, $caller, $block) = @_;	
+#	say "MATCHING UP BLOCK $block for $f and $caller";
+	my @common_local_seq = @{ $stref->{'Subroutines'}{$f}{'CommonBlockSequences'}{$block} };
+	my @common_caller_seq = @{ $stref->{'Subroutines'}{$caller}{'CommonBlockSequences'}{$block} };
+	
+	my @equivalence_pairs=();	
+	while (scalar @common_local_seq > 0 ) { # keep going until the local sequence is consumed
+		my $elt_local = shift  @common_local_seq;
+		if (@common_caller_seq) {
+			
+			my $elt_caller = shift  @common_caller_seq;
+#			say Dumper( $elt_local,$elt_caller);
+			if ( $elt_local->[1] ne $elt_caller->[1] 
+			 or $elt_local->[2] ne $elt_caller->[2]
+			) { # Type / Attr mismatch 
+				carp "Type mismatch: \n".
+				$elt_local->[0]  . ' :: '. $elt_local->[1]   . ($elt_local->[2] ? '('. $elt_local->[2]  .')' : '' )."\n". 
+				$elt_caller->[0] . ' :: '. $elt_caller->[1]  . ( $elt_caller->[2] ? '('. $elt_caller->[2] .')' : '' )."\n";
+			}
+			# FIXME: if the attribute, i.e. the kind or length, is mismatched, we MUST take this into account
+			# The way to do this is by multiplying the length of each variable in the sequence with KIND or LEN
+			# And also use this when calculating the mismatch below
+				if ($elt_local->[3] == 0 and $elt_caller->[3] == 0)  { # both scalar
+					if ($elt_local->[2] ==  $elt_caller->[2]) {
+						push @equivalence_pairs, [[$elt_local->[0],0,[]],[$elt_caller->[0],0,[]]];
+					} else {
+						croak "Can't match scalars with different kinds!";
+					}
+					# otherwise I guess it is just plain impossible, how can I possibly  
+				}
+				elsif ($elt_local->[3] == 1 and $elt_caller->[3] == 1)  { # both arrays
+					if ($elt_local->[2]*$elt_local->[5] == $elt_caller->[2]*$elt_caller->[5]) { # arrays of identical size
+						my $dim_local = dclone($elt_local->[4]);
+						my $dim_caller = dclone($elt_caller->[4]); 
+						push @equivalence_pairs, [[$elt_local->[0],1,$dim_local],[$elt_caller->[0],1,$dim_caller]];
+					} else { # arrays of different size
+						# which one is the shortest?
+						if ($elt_local->[2]*$elt_local->[5] > $elt_caller->[2]*$elt_caller->[5]) { 
+							# let's say we have (0:7) and (1:4) so 8 and 4
+							# then local becomes 4, should be 4:7, in other words we simply add 4 to 0
+#							$elt_local->[4][-1][0]+=$elt_caller->[5];
+							# and I suppose I need to reduce the actual size as well
+#							$elt_local->[5] -= $elt_caller->[5];
+							# now let's say we have (1:5) * 8 and (0:7) * 4 and 5*8 and 8*4 
+							# So I should add 8*4 bytes to the first array, i.e. 8*4/8 = 4 words, i.e. we go from 1:5 to 5:5  
+							# 1:4 should become 4:4, so 1+3 where 3 = 
+							$elt_local->[4][-1][0]+=$elt_caller->[2]*$elt_caller->[5]/$elt_local->[2];
+							# then local becomes 1, i.e.  (40-32)/8 							
+							$elt_local->[5] = ($elt_local->[2]*$elt_local->[5] - $elt_caller->[2]*$elt_caller->[5])/$elt_local->[2];
+							# So what happens if we have (1:10) * 4 and (0:3) * 8 so 40 and 32
+							# Again the size is just (40 - 32)/4 = 2 
+							# The start index should become 9, so 1+ (4*8)/4
+							
+							# means we need to modify $elt_local and unshift it, and create the equivalence
+							my $dim_local = dclone($elt_local->[4]);
+							my $dim_caller = dclone($elt_caller->[4]); 
+							push @equivalence_pairs, [[$elt_local->[0],1,$dim_local],[$elt_caller->[0],1,$dim_caller]];
+							 	
+							unshift @common_caller_seq,$elt_caller;
+														
+						} else {
+							# means we need to modify $elt_local and unshift it, and create the equivalence
+							$elt_caller->[4][-1][0]+=$elt_local->[5];
+							# and I suppose I need to reduce the actual size as well
+							$elt_caller->[5] -= $elt_local->[5];
+							$elt_caller->[4][-1][0]+=$elt_local->[2]*$elt_local->[5]/$elt_caller->[2];
+							# then local becomes 1, i.e.  (40-32)/8 							
+							$elt_caller->[5] = ($elt_caller->[2]*$elt_caller->[5] - $elt_local->[2]*$elt_local->[5])/$elt_caller->[2];
+							
+							# means we need to modify $elt_local and unshift it, and create the equivalence
+							my $dim_local = dclone($elt_local->[4]);
+							my $dim_caller = dclone($elt_caller->[4]); 
+							push @equivalence_pairs, [[$elt_local->[0],1,$dim_local],[$elt_caller->[0],1,$dim_caller]];
+							
+							unshift @common_local_seq,$elt_local;
+						}
 						
 					}
-			} else {
-				croak "Type mismatch for ".$elt1->[0].' and '. $elt2->[0];
-			}
-			# A particular problem arises if the names are the same but the dims are not. I should rename the argument to _ARG
-			# It might in fact be better to do this anyway
+				} 
+				elsif ($elt_local->[3] ==  0 and $elt_caller->[3] == 1) { # local is scalar, caller is array
+					if ($elt_local->[2] ==  $elt_caller->[2]) {				
+					my $dim_caller = dclone($elt_caller->[4]); 
+					push @equivalence_pairs, [[$elt_local->[0],0,[]],[$elt_caller->[0],1,$dim_caller]];
+					# increment dim
+					++$elt_caller->[4][-1][0]; # FIXME: weak: this only works as long as the first dimension is not exceeded
+					unshift @common_caller_seq,$elt_caller; 
+					} else {
+						croak "Can't match a scalar to an array with different kinds!";
+					}
+				}
+				elsif ($elt_local->[3] ==  1 and $elt_caller->[3] == 0) { # local is array, caller is scalar
+					if ($elt_local->[2] ==  $elt_caller->[2]) {		
+					my $dim_local = dclone($elt_local->[4]); 
+					push @equivalence_pairs, [[$elt_local->[0],1,$dim_local],[$elt_caller->[0],0,[]]];
+					# increment dim
+					++$elt_local->[4][-1][0]; # FIXME: weak: this only works as long as the first dimension is not exceeded
+					unshift @common_local_seq,$elt_local;
+										} else {
+						croak "Can't match a scalar to an array with different kinds!";
+					}
+					 
+				}						
+		} else { # The local seq is longer than the caller seq
+		# It can be that the local seq contains an elt that was already partially matched to the last caller elt. But I guess this will work out just fine.
+				my $dim_local = dclone($elt_local->[4]);							
+				push @equivalence_pairs, [[$elt_local->[0],scalar @{$dim_local} ? 1 : 0,$dim_local],[$elt_local->[0],scalar @{$dim_local} ? 1 : 0,$dim_local]];			
+		}
 		
 	}
-	# Now we need to look at the remainder. If this is in the called sub then it means the common block in the caller must be extended with the size of the remainder.
-	# It is not quite clear to me how that could actually be used, but I guess if two subs are called, one extends the common block, then the next one can use this extended common block
+	if( scalar @equivalence_pairs > 0) {
+#		say Dumper(	@equivalence_pairs );
+		map { say _emit_equivalence_statement($_) } @equivalence_pairs;
+	}
+	return $stref;
+} # END of _match_up_common_var_sequences
 
-	return \@equivalence_pairs;
+sub __get_total_size { my @common_seq = @_;
+	my $total_sz=0;
+	for my $elt (@common_seq) {
+		$total_sz+=$elt->[2]*$elt->[5];
+	}
+	return $total_sz;
+}
+
+sub _emit_equivalence_statement { (my $equiv_pair) = @_; 
+#	say '<'.Dumper($equiv_pair).'>';
+	my $l=$equiv_pair->[0];
+	my $l_str = __emit_equiv_var_str($l);
+	my $r=$equiv_pair->[1];
+	my $r_str = __emit_equiv_var_str($r);
+	return "equivalence ($l_str,$r_str)";
+}
+
+sub __emit_equiv_var_str {  (my $tup) = @_;
+#	say Dumper($tup);
+	(my $var, my $s_or_a, my $m_dim)=@{$tup};
+	if ($s_or_a) {
+		return $var.'('.join(',', map { $_->[0] } @{$m_dim}).')';	
+	} else {
+		return $var;
+	}
 }
 
 1;
