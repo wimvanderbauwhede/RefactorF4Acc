@@ -161,10 +161,15 @@ sub analyse_all {
 		}		
 		$stref = _analyse_var_decls_for_params( $stref, $f );
 	}	
+	
 	for my $f ( keys %{ $stref->{'Subroutines'} } ) {
 		next if $f eq '';			
 		next  if $f eq 'UNKNOWN_SRC';
 		next unless exists $stref->{'Subroutines'}{$f}{'HasLocalCommons'};
+
+#	 say "\nCOMMON BLOCK VARS in $f:\n";
+#    say Dumper($stref->{'Subroutines'}{$f}{'CommonBlocks'});
+#	die if $f eq 'fm302';
 		next if  exists $stref->{'Subroutines'}{$f}{'Program'} and $stref->{'Subroutines'}{$f}{'Program'}==1;
 		
 #	 say "\nCOMMON BLOCK MISMATCHES in $f:\n";
@@ -172,6 +177,7 @@ sub analyse_all {
     $stref = identify_common_var_mismatch($stref,$f);
 #    say Dumper($stref->{'Subroutines'}{$f}{'CommonVarMismatch'});
 	}
+	
 	for my $f ( keys %{ $stref->{'Subroutines'} } ) {
 		next if $f eq '';			
 		next  if $f eq 'UNKNOWN_SRC';

@@ -785,6 +785,7 @@ SUBROUTINE
 		 elsif ( $line =~ /^common\s*\/\s*([\w\d]+)\s*\/\s*(.+)$/ or 
 				$line =~ /^(common)\s+(.+)$/ 
 		 ) {
+#		 	say "LINE $line";
              # WV this is weak/incorrect because we can have              
              # COMMON [/[ cb ]/] nlist [[,]/[ cb ] / nlist ]
              # So the good way is to split on '/' first, like in the DATA statement

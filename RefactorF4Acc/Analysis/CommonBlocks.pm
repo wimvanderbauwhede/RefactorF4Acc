@@ -34,23 +34,28 @@ use Exporter;
 # This is for Parser, so the result should a list of var names
 #
 sub collect_common_vars_per_block { my ($stref, $f, $common_decl_str_) = @_;	
-	
+#	say  "LINE2 $f: $common_decl_str_" if $f eq 'fm302';
+#	die if $common_decl_str_=~/ivcn06/ and $f eq 'fm302';
     my %common_blocks = %{ $stref->{'Subroutines'}{$f}{'CommonBlocks'} };
     my $common_decl_str = $common_decl_str_;
     $common_decl_str=~s/common\s*//;
     $common_decl_str=~s/\s+$//;
-#    say $common_decl_str;
+    
     if ($common_decl_str!~/^\//) {
         $common_decl_str='BLANK/'.$common_decl_str;
     } else {
         $common_decl_str=~s/^\/\s*//;
+        if($common_decl_str=~/^\s*\//) {
+        	$common_decl_str='BLANK'.$common_decl_str;
+        }
     }
+    
     my  @common_chunks = split(/\s*\/\s*/,$common_decl_str);
-
+#say  "\t => ".join(',',@common_chunks) if $f eq 'fm302';
     while (@common_chunks) {
 
         my $common_block_name = shift @common_chunks;
-        if ( $common_block_name eq '' or $common_block_name=~/^\s+$/) {  $common_block_name = 'BLANK';}
+#        if ( $common_block_name eq '' or $common_block_name=~/^\s+$/) {  $common_block_name = 'BLANK';}
 
         if (not exists $common_blocks{$common_block_name}) {
             $common_blocks{$common_block_name}=[];
@@ -63,6 +68,8 @@ sub collect_common_vars_per_block { my ($stref, $f, $common_decl_str_) = @_;
         my @common_vars = grep {!/\)$/ } map { s/\(.+$// ;$_} @common_vars_strs ;
 		$common_blocks{$common_block_name} =[ @{$common_blocks{$common_block_name}} ,@common_vars ];
     }
+#    say Dumper(  %common_blocks  ) if $f eq 'fm302';
+#    die if $common_decl_str_=~/ivcn06/ and $f eq 'fm302';
     $stref->{'Subroutines'}{$f}{'CommonBlocks'}={  %common_blocks };
     return $stref;
 } # END of collect_common_vars_per_block
@@ -182,7 +189,7 @@ sub create_common_var_size_tuples {
 				my $dim_sz=0;
 				my $dim=[];
 				if ($called_sub_common_var_decl->{'ArrayOrScalar'} eq 'Array') {
-					$dim = $called_sub_common_var_decl->{'Dim'};
+					$dim = dclone($called_sub_common_var_decl->{'Dim'});
 					$dim_sz=__calc_sz($stref,$f,$dim), 
 				}
 				my $type = $called_sub_common_var_decl->{'Type'};
@@ -192,6 +199,9 @@ sub create_common_var_size_tuples {
 					$kind_or_len = $called_sub_common_var_decl->{'Attr'};
 					$kind_or_len =~s/\w+\s*=\s*//;
 				}  
+				# I need a field to indicate the first time an element is accessed. 
+				# I can either make this 0|1 or put the $dim_sz in it
+				# Let's start with 0|1
 				[
 					$called_sub_common_var, 
 					$type,
@@ -220,8 +230,7 @@ sub match_up_common_vars { my ($stref,$f) = @_;
 	say "ExMismatchedCommonArgs $f : ".join(',',@{ $stref->{'Subroutines'}{$f}{'ExMismatchedCommonArgs'}{'List'} });	
 	return $stref;
 } # END of match_up_common_vars
-
-
+# This is no good. Use the _match_up_common_var_sequences(), by extending the caller record in @equivalence_pairs 
 sub _determine_ex_common_args { my ($stref,  $f, $caller, $block) = @_;
 	
 	my @ex_common_args=();
@@ -388,7 +397,7 @@ sub __get_total_size { my @common_seq = @_;
 	}
 	return $total_sz;
 }
-
+# annotate with prefix
 sub _emit_equivalence_statement { (my $equiv_pair) = @_; 
 #	say '<'.Dumper($equiv_pair).'>';
 	my $l=$equiv_pair->[0];

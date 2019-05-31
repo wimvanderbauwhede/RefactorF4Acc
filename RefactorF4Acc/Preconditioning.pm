@@ -468,7 +468,7 @@ sub _split_multivar_decls {
     for my $annline ( @{$annlines} ) {
         ( my $line, my $info ) = @{$annline};
 
-        if ( exists $info->{'VarDecl'} and exists $info->{'VarDecl'}{'Names'} ) {
+        if ( exists $info->{'VarDecl'} and exists $info->{'VarDecl'}{'Names'} ) {        	
             my @nvars = @{ $info->{'VarDecl'}{'Names'} };
             push @{ $info->{'Ann'} }, annotate( $f, __LINE__ );
             for my $var ( @{ $info->{'VarDecl'}{'Names'} } ) {

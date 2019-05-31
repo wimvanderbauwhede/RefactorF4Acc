@@ -917,6 +917,7 @@ Suppose we don't:
 							# common x//y 
 							# common x/name/y 
 							# common //x 
+							# common ivcn06/blk5/rvcnd1,lvcnd1//ivcn07,ivcn08/blk6/rvcne1
 							# If we split on '/' we want to know: how many '/' are there? i.e. scalar @chunks -1
 							# But we need to cater for the bare common as a first occurence, so test /common\s+[a-z]/
 							my $tline = $line;
@@ -926,6 +927,9 @@ Suppose we don't:
 							my $first_block_bare=0;						 						 
 	                        if (scalar @chunks > 3) {
 	                        	$multiple_common_blocks=1;
+	                        	if ($chunks[0]=~/common\s+[a-z]/) {
+	                        		$first_block_bare=1;
+	                        	}
 	                        } elsif (scalar @chunks == 3 and $chunks[0]=~/common\s+[a-z]/) {
 	                        	$multiple_common_blocks=1;
 	                        	$first_block_bare=1;	
@@ -936,7 +940,7 @@ Suppose we don't:
 	                        		$rest=~s/\s*,\s*$//;
 	                        		my $common = $indent.'common ';
 	                        	if ($first_block_bare==1) {
-	#                        		say 'BARE!';
+#	                        		say 'BARE!' . $line;
 	                        		# so we have 'common l1 ','[n2]',l2,...		                        		
 	                        		my $nline = $common.'// '.$rest;
 	                        		 push @{$new_annlines},[$nline, $info];
