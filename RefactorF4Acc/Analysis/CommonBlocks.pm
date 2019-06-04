@@ -325,12 +325,7 @@ sub _match_up_common_var_sequences { my ($stref,  $f, $caller, $block) = @_;
                 push @{ $stref->{'Subroutines'}{$f}{'ExMismatchedCommonArgs'}{'List'} }, $name_caller;
                 $stref->{'Subroutines'}{$f}{'ExMismatchedCommonArgs'}{'Set'}{$caller}{ $name_caller } = [];
             }
-			if ( 
-			
-			not _compare_decls($stref, $f, $caller, $decl_local,$decl_caller) 
-#			$decl_local ne $decl_caller 
-#			 or $kind_local ne $elt_caller->[2]
-			) { # Type / Attr mismatch 
+			if (not _compare_decls($stref, $f, $caller, $decl_local,$decl_caller) ) { # Type / Attr mismatch 
 				say "Type mismatch: \n".
 				$name_local  . ' :: '. $decl_local->{'Type'}   . ($decl_local->{'Attr'} ? '('. $decl_local->{'Attr'}  .')' : '' )."\n". 
 				$name_caller . ' :: '. $decl_caller->{'Type'}  . ( $decl_caller->{'Attr'} ? '('. $decl_caller->{'Attr'} .')' : '' )."\n";
@@ -383,7 +378,7 @@ sub _match_up_common_var_sequences { my ($stref,  $f, $caller, $block) = @_;
 							my $dim_local_copy = dclone($dim_local);
 							my $dim_caller_copy = dclone($dim_caller); 
 							push @equivalence_pairs, [[$name_local,1,$dim_local_copy,[]],[$name_caller,1,$dim_caller_copy,$prefix]];
-							 	
+							$elt_caller=[$name_caller, $decl_caller, $kind_caller, $dim_caller, $dimsz_caller, $used_caller]; 	
 							unshift @common_caller_seq,$elt_caller;
 														
 						} else {
@@ -396,7 +391,7 @@ sub _match_up_common_var_sequences { my ($stref,  $f, $caller, $block) = @_;
 							my $dim_local_copy = dclone($dim_local);
 							my $dim_caller_copy = dclone($dim_caller); 
 							push @equivalence_pairs, [[$name_local,1,$dim_local_copy,[]],[$name_caller,1,$dim_caller_copy,$prefix]];
-							
+							$elt_local = [$name_local, $decl_local, $kind_local, $dim_local, $dimsz_local, $used_local];
 							unshift @common_local_seq,$elt_local;
 						}
 						
@@ -407,20 +402,16 @@ sub _match_up_common_var_sequences { my ($stref,  $f, $caller, $block) = @_;
 						my $dim_caller_copy = dclone($dim_caller); 
 						push @equivalence_pairs, [[$name_local,0,[],[]],[$name_caller,1,$dim_caller_copy,$prefix]];
 						# increment dim
-						++$dim_caller->[-1][0]; # FIXME: weak: this only works as long as the first dimension is not exceeded
-						if ($dim_caller->[-1][0]>$dim_caller->[-1][1]) {
-							# first dimension is exceeded
-							# must reset the first dimension and increment the second dime
-							
-							# e.g. remainin 531, and it was 1600, and that was (5,20,16)
-							# So what is the coordinate ? I guess it is really 1600-531 = 1069 
-							# So, 1069/(16*20)=3 full planes used; then in the 4th plan, how many rows used?
-							#  1069 % (16*20) = 109/20 = 5; in the 6th col, how many elts?
-							# 109 % 20 = 9
-							#so we have 9 + 20*5 + 16*20*3
-							# (tot_sz-current_sz)/prod(1 .. -1)
-							
+#						++$dim_caller->[-1][0]; # FIXME: weak: this only works as long as the first dimension is not exceeded
+						# instead:
+						my $total_dimsz_caller = __calc_sz($stref,$caller, $dim_caller); 
+						my $lin_idx = $total_dimsz_caller - $dimsz_caller + 1;
+						my $coords = _calc_coords($stref, $caller, $dim_caller, $lin_idx);
+						# these coords should become the updated dim_caller values
+						for my $idx (0 .. scalar @{$coords} - 1) {
+							$dim_caller->[$idx][0]=$coords->[0];
 						}
+						$elt_caller=[$name_caller, $decl_caller, $kind_caller, $dim_caller, $dimsz_caller, $used_caller];
 						unshift @common_caller_seq,$elt_caller; 
 					} else {
 						croak "Can't match a scalar to an array with different kinds!";
@@ -430,14 +421,22 @@ sub _match_up_common_var_sequences { my ($stref,  $f, $caller, $block) = @_;
 					if ($kind_local ==  $kind_caller) {		
 					my $dim_local_copy = dclone($dim_local); 
 					push @equivalence_pairs, [[$name_local,1,$dim_local_copy,[]],[$name_caller,0,[],$prefix]];
-					# increment dim
-					++$dim_local->[-1][0]; # FIXME: weak: this only works as long as the first dimension is not exceeded
-					unshift @common_local_seq,$elt_local;
+#					# increment dim
+#					++$dim_local->[-1][0]; # FIXME: weak: this only works as long as the first dimension is not exceeded
+						# instead:
+						my $total_dimsz_local = __calc_sz($stref,$f, $dim_local); 
+						my $lin_idx = $total_dimsz_local - $dimsz_local + 1;
+						my $coords = _calc_coords($stref, $f, $dim_local, $lin_idx);
+						# these coords should become the updated dim_caller values
+						for my $idx (0 .. scalar @{$coords} - 1) {
+							$dim_local->[$idx][0]=$coords->[0];
+						}
+						$elt_local = [$name_local, $decl_local, $kind_local, $dim_local, $dimsz_local, $used_local];
+						unshift @common_local_seq,$elt_local;
 										} else {
 						croak "Can't match a scalar to an array with different kinds!";
-					}
-					 
-				}						
+					}					 
+				}
 		} else { # The local seq is longer than the caller seq
 		# It can be that the local seq contains an elt that was already partially matched to the last caller elt. But I guess this will work out just fine.
 				my $dim_local_copy = dclone($dim_local);							
@@ -563,18 +562,23 @@ sub __cast_real_to_integer_annlines { (my $v_real, my $v_integer) = @_;
 	return [["$v_integer = int($v_real)",{'Assignment'=>1,'Indent'=>6}]];
 }
 
-
-sub calc_coords { my ($lin_sz,$n_dims,$dims,$offsets) = @_;
+# Given the linear index (starting at 1) in an array
+# and its dimensions and offsets
+# return the n-dim coordinate for that index
+sub _calc_coords { my ($stref, $f, $dim_rec, $lin_sz) = @_;
 #            integer, intent(In) :: lin_sz, n_dims
 #            integer, dimension(n_dims),intent(In) :: dims, offsets
 #            integer, dimension(n_dims), intent(Out) :: coords
 #            integer, dimension(n_dims-1) :: mm
 #            integer :: ii, jj, p_dims, sz
+ (my $dims,my $offsets) = __calc_dims_offsets($stref, $f, $dim_rec) ;
 	my $coords=[];            
     my $sz = $lin_sz;
-    my @tmp_dims = @{$dims}; 
+    my @tmp_dims = @{$dims};
+    my $n_dims = scalar @tmp_dims;  
     my $p_dims = 1;
     map { $p_dims*=$_} @tmp_dims ;
+    
     for my $ii (1 .. $n_dims-1) {
     	my $div_dim = shift @tmp_dims;
 		$p_dims/= $div_dim;
@@ -586,7 +590,21 @@ sub calc_coords { my ($lin_sz,$n_dims,$dims,$offsets) = @_;
 } # end subroutine calc_coords
 
 
-
+# $dims is an array of the sizes of each dimension
+# $offsets is an array of the offsets each dimension
+sub __calc_dims_offsets {my ($stref, $f, $dim_rec) = @_;
+	my $offsets=[];
+	my $dims=[];
+	my @sz_strs=();
+	for my $entry ( @{$dim_rec} ) {
+		my $offset_val = eval_expression_with_parameters($entry->[0],{},$stref,$f);
+		push @{$offsets}, $offset_val;
+		my $dim_str = '('.$entry->[1].'-'.$entry->[0].'+1)';
+		my $dim_val = eval_expression_with_parameters($dim_str,{},$stref,$f);
+		push @{$dims}, $dim_val;				
+	}
+	return ($dims,$offsets);
+} # END of __calc_dims_offsets
 
 1;
 
