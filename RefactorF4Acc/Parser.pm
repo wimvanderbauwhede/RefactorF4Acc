@@ -1432,14 +1432,14 @@ END IF
 					}
 					@{ $info->{'Vars'}{'List'} } = keys %{ $info->{'Vars'}{'Set'} };
 				}			
-#==    BACKSPACE, ENDFILE statements			
+#== BACKSPACE, ENDFILE statements			
 			} elsif ($mline=~/(backspace|endfile)/) {
 				my $keyword = $1;
 				$info->{ ucfirst($keyword) } = 1;
 				$info->{'IO'}=1;
 				warn uc($keyword)." is ignored!" if $DBG;
 				say "WARNING: ".uc($keyword)." is ignored!" if $W; 
-#==    RETURN, STOP and PAUSE statements		
+#== RETURN, STOP and PAUSE statements		
 			} elsif ($mline=~/^(return|stop|pause)/) {	
 				my $keyword = $1;
 				$info->{ ucfirst($keyword) } = 1;

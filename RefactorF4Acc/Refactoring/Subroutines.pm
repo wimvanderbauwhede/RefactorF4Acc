@@ -616,14 +616,11 @@ sub _create_extra_arg_and_var_decls {
 # It should update ExGlobArgs 
 # Furthermore I notice that sometimes these arguments are not passed on to the containing subroutine. That should be an issue in the subroutine refactoring code   
 sub _create_refactored_subroutine_call { 
-    ( my $stref, my $f, my $annline, my $rlines ) = @_;
-    
-    (my $line, my $info) = @{ $annline };
-
-    # simply tag the common vars onto the arguments
-    my $name = $info->{'SubroutineCall'}{'Name'};
-    
+    ( my $stref, my $f, my $annline, my $rlines ) = @_;    
+    ( my $line, my $info) = @{ $annline };
+    my $name = $info->{'SubroutineCall'}{'Name'};    
     my $Sf        = $stref->{'Subroutines'}{$f};
+    
     if (exists $stref->{'ExternalSubroutines'}{$name} ) { 
     	push @{$rlines}, [ $line , $info ];
     	return $rlines;
@@ -632,7 +629,6 @@ sub _create_refactored_subroutine_call {
     my @orig_args =(); 
     
     if ($NEW_PARSER) {   
-#    	say $line."\n".Dumper($info->{'SubroutineCall'});
     	# a shallow copy
     my $expr_ast=[@{$info->{'SubroutineCall'}{'ExpressionAST'}}];
     
@@ -644,12 +640,7 @@ sub _create_refactored_subroutine_call {
     
     for my $call_arg_expr (@{ $expr_ast }) {
         my $call_arg =emit_expr_from_ast($call_arg_expr);
-#        say "ARG: $call_arg";
-#        if (exists $info->{'SubroutineCall'}{'Args'}{'Set'}{$call_arg}{'Expr'} ) { 
-#            push @orig_args , $info->{'SubroutineCall'}{'Args'}{'Set'}{$call_arg}{'Expr'};
-#        } else {
-            push @orig_args , $call_arg; # WV20170515: is this correct? Do nothing?
-#        }
+		push @orig_args , $call_arg; 
     }
     } else {
     	# OLD PARSER
@@ -667,11 +658,13 @@ sub _create_refactored_subroutine_call {
     my $parent_sub_name =  exists $stref->{'Entries'}{$name} ? $stref->{'Entries'}{$name} : $name;
 
 	# If there are any ex-global args, collect them
-	
+	# WV2019-06-03 Here we should check. 
+	#if (not exists $stref->{'Subroutines'}{$f}{'HasCommonVarMismatch'}{$parent_sub_name}) { # old approach is fine
+		# } else { # Use new approach }
     if (exists $stref->{'Subroutines'}{$parent_sub_name}{'ExGlobArgs'}) {		    	       
         my @globals = @{ $stref->{'Subroutines'}{$parent_sub_name}{'ExGlobArgs'}{'List'} };
         
-        # Problem is that in $f globals from $name may have been renamed. I store the renamed ones in $Sf->{'RenamedInheritedExGLobs'}
+        # Problem is that in $f, globals from $name may have been renamed. I store the renamed ones in $Sf->{'RenamedInheritedExGLobs'}
         # So we check and create @maybe_renamed_exglobs
         my @maybe_renamed_exglobs=();
         for my $ex_glob (@globals) {
@@ -693,6 +686,7 @@ sub _create_refactored_subroutine_call {
 #        		say "VAR $ex_glob is in Args for SubroutineCall $name";
         	}
         }
+        
         # Then we concatenate these arg lists
         $args_ref = [@orig_args, @maybe_renamed_exglobs ]; # NOT ordered union, if they repeat that should be OK
         if ($NEW_PARSER) {
@@ -759,31 +753,6 @@ sub _create_refactored_subroutine_call {
 
     return $rlines;
 }    # END of _create_refactored_subroutine_call()
-
-sub emit_subroutine_call { (my $stref, my $f, my $annline)=@_;
-	croak "OBSOLETE!";
-	    (my $line, my $info) = @{ $annline };
-	    my $Sf        = $stref->{'Subroutines'}{$f};
-	    my $name = $info->{'SubroutineCall'}{'Name'};
-	    
-		my $args_ref = $info->{'SubroutineCall'}{'Args'}{'List'};
-			    
-	    my $indent = $info->{'Indent'} // '      ';
-	    my $maybe_label= ( exists $info->{'Label'} and exists $Sf->{'ReferencedLabels'}{$info->{'Label'}} ) ?  $info->{'Label'}.' ' : '';
-	    my $args_str = join( ',', @{$args_ref} );	    
-	    my $rline = "call $name($args_str)\n";
-	    
-		if ( exists $info->{'PlaceHolders'} ) { 
-			while ($rline =~ /(__PH\d+__)/) {
-				my $ph=$1;
-				my $ph_str = $info->{'PlaceHolders'}{$ph};
-				$rline=~s/$ph/$ph_str/;
-			}                                    
-            $info->{'Ref'}++;
-        }  	    
-	    $info->{'Ann'}=[annotate($f, __LINE__ ) ];
-		return ( $indent . $maybe_label . $rline, $info );
-} # END of emit_subroutine_call
 
 #@ Signature =>
 #@    Args =>
