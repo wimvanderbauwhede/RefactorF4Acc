@@ -85,52 +85,57 @@ If it's the other way round, CallerSub strict subset of CalledSub, then we need 
 # For every subroutine, see if there is a mismatch with any of the callers.
 sub identify_common_var_mismatch {
     my ($stref, $f) = @_;
-#    say "CALLED SUB $f";
+    say "CALLED SUB $f";
     if (exists  $stref->{'Subroutines'}{$f}{'Callers'}) {
 		my $callers = $stref->{'Subroutines'}{$f}{'Callers'};
 		# If there is more than one caller, we must do this for every caller
+		$stref->{'Subroutines'}{$f}{'ExMismatchedCommonArgs'}={'SigArgs'=>[],'CallArgs'=>{}};			
 		for my $caller (sort keys %{ $stref->{'Subroutines'}{$f}{'Callers'} } ) {
-#			say "CALLER $caller";	
+			say "CALLER $caller";
+			$stref->{'Subroutines'}{$f}{'ExMismatchedCommonArgs'}{'CallArgs'}{$caller}={};	
 		    for my $block (sort keys %{ $stref->{'Subroutines'}{$f}{'CommonBlocks'} }) {
 #		    	say "BLOCK $block";
 		    	if (exists $stref->{'Subroutines'}{$caller}{'CommonBlocks'}{$block} ) {
-		        my $called_sub_common_vars = $stref->{'Subroutines'}{$f}{'CommonBlocks'}{$block};
-		        my $caller_sub_common_vars = $stref->{'Subroutines'}{$caller}{'CommonBlocks'}{$block};
-		        if (scalar @{$called_sub_common_vars} <= scalar @{$caller_sub_common_vars}) {
-		            for my $idx (0 .. scalar @{$called_sub_common_vars} - 1) {
-		                my $called_sub_common_var = $called_sub_common_vars->[$idx];
-		                my $caller_sub_common_var = $caller_sub_common_vars->[$idx];
-#		                say "VARS: $called_sub_common_var $caller_sub_common_var"; 
-		                if ($called_sub_common_var eq $caller_sub_common_var) {
-		                    my $called_set = in_nested_set($stref->{'Subroutines'}{$f},'CommonVars',$called_sub_common_var);
-		                    my $caller_set = in_nested_set($stref->{'Subroutines'}{$caller},'CommonVars',$caller_sub_common_var);
-		                    my $called_sub_common_var_decl = $stref->{'Subroutines'}{$f}{$called_set}{'Set'}{$called_sub_common_var};
-		                    my $caller_sub_common_var_decl = $stref->{'Subroutines'}{$caller}{$caller_set}{'Set'}{$caller_sub_common_var};
-							if (not _compare_decls($stref, $f, $caller, $called_sub_common_var_decl,$caller_sub_common_var_decl) ) {
-								$stref->{'Subroutines'}{$f}{'CommonVarMismatch'}{$caller}{$block}=1;
-								last;
-							}
-		                } else {
-		                    $stref->{'Subroutines'}{$f}{'CommonVarMismatch'}{$caller}{$block}=1;
-		                    last;
-		                }
-		            }
-		        } else {
-		            $stref->{'Subroutines'}{$f}{'CommonVarMismatch'}{$caller}{$block}=1;
-		        }
+			        my $called_sub_common_vars = $stref->{'Subroutines'}{$f}{'CommonBlocks'}{$block};
+			        my $caller_sub_common_vars = $stref->{'Subroutines'}{$caller}{'CommonBlocks'}{$block};
+			        if (scalar @{$called_sub_common_vars} <= scalar @{$caller_sub_common_vars}) {
+			            for my $idx (0 .. scalar @{$called_sub_common_vars} - 1) {
+			                my $called_sub_common_var = $called_sub_common_vars->[$idx];
+			                my $caller_sub_common_var = $caller_sub_common_vars->[$idx];
+	#		                say "VARS: $called_sub_common_var $caller_sub_common_var"; 
+			                if ($called_sub_common_var eq $caller_sub_common_var) {
+			                    my $called_set = in_nested_set($stref->{'Subroutines'}{$f},'CommonVars',$called_sub_common_var);
+			                    my $caller_set = in_nested_set($stref->{'Subroutines'}{$caller},'CommonVars',$caller_sub_common_var);
+			                    my $called_sub_common_var_decl = $stref->{'Subroutines'}{$f}{$called_set}{'Set'}{$called_sub_common_var};
+			                    my $caller_sub_common_var_decl = $stref->{'Subroutines'}{$caller}{$caller_set}{'Set'}{$caller_sub_common_var};
+								if (not _compare_decls($stref, $f, $caller, $called_sub_common_var_decl,$caller_sub_common_var_decl,1) ) {
+									$stref->{'Subroutines'}{$f}{'CommonVarMismatch'}{$caller}{$block}=1;
+									last;
+								}
+			                } else {
+			                    $stref->{'Subroutines'}{$f}{'CommonVarMismatch'}{$caller}{$block}=1;
+			                    last;
+			                }
+			            }
+			        } else {
+			            $stref->{'Subroutines'}{$f}{'CommonVarMismatch'}{$caller}{$block}=1;
+			        }
 		    	}
 		    	if (exists $stref->{'Subroutines'}{$f}{'CommonVarMismatch'}{$caller}
 			    	 and exists $stref->{'Subroutines'}{$f}{'CommonVarMismatch'}{$caller}{$block}) {
 			    		say "BLOCK $block in $f has CommonVarMismatch with $caller";
 			    } else { 
 			    		say "BLOCK $block in $f is matched with $caller: ".join(',',@{ $stref->{'Subroutines'}{$f}{'CommonBlocks'}{$block} });
+			    		$stref->{'Subroutines'}{$f}{'ExMismatchedCommonArgs'}{'SigArgs'} = [@{$stref->{'Subroutines'}{$f}{'ExMismatchedCommonArgs'}{'SigArgs'}},@{$stref->{'Subroutines'}{$f}{'CommonBlocks'}{$block}}];
+			    		map { $stref->{'Subroutines'}{$f}{'ExMismatchedCommonArgs'}{'CallArgs'}{$caller}{$_}=$block; } @{ $stref->{'Subroutines'}{$f}{'CommonBlocks'}{$block} };			    		
 			    }
 		    	
 		    } # block
 		    if (scalar keys %{ $stref->{'Subroutines'}{$f}{'CommonVarMismatch'}{$caller} } == 0) { 
 		    		say "All blocks in $f match with $caller, OK to use old approach";		    		
-		    }
+		    }		    
 		} # caller
+		say Dumper($stref->{'Subroutines'}{$f}{'ExMismatchedCommonArgs'});
     }
 #    for my $block (sort keys %{ $stref->{'Subroutines'}{$f}{'CommonBlocks'} }) {
 #    	
@@ -146,10 +151,10 @@ sub identify_common_var_mismatch {
     return $stref;
 } # END of identify_common_var_mismatch
 
-sub _compare_decls { my ($stref, $f1, $f2, $decl1,$decl2,$report) = @_;
-#	say Dumper($decl1, $decl2);
+sub _compare_decls { my ($stref, $f1, $f2, $decl1,$decl2,$compare_names) = @_;
+
 	my $names_match = $decl1->{'Name'} eq $decl2->{'Name'};
-	return 0 unless $names_match;
+	return 0 unless (!$compare_names or $names_match);
 	my $types_match = $decl1->{'Type'} eq $decl2->{'Type'};
 	return 0 unless $types_match; 
 	if (	$decl1->{'Attr'} =~/=/ and  $decl2->{'Attr'}!~/=/ or $decl1->{'Attr'} !~/=/ and  $decl2->{'Attr'}=~/=/) {
@@ -174,7 +179,7 @@ sub _compare_decls { my ($stref, $f1, $f2, $decl1,$decl2,$report) = @_;
 sub __calc_sz {my ($stref, $f, $dim) = @_;
 	my @sz_strs=();
 	for my $entry ( @{$dim} ) {
-		 my $sz_str = '('.$entry->[1].'-'.$entry->[0].'+1)';
+		 my $sz_str = '(('.$entry->[1].') - ('.$entry->[0].')+1)';
 		push @sz_strs,$sz_str;		
 	}
 	my $tot_sz_str = join('*',@sz_strs);
@@ -233,22 +238,26 @@ sub create_common_var_size_tuples {
 
 sub match_up_common_vars { my ($stref,$f) = @_;
 #	$stref->{'Subroutines'}{$f}{'ExMismatchedCommonArgs'}={'Set'=>{},'List'=>[]};
-	say "\nMATCHING UP vars in $f";
+#	say "\nMATCHING UP vars in $f";
+	$stref->{'Subroutines'}{$f}{'ExMismatchedCommonArgs'}={'SigArgs'=>[],'CallArgs'=>{}};
 	for my $caller (sort keys %{ $stref->{'Subroutines'}{$f}{'CommonVarMismatch'} }) {
-	for my $block (sort keys %{ $stref->{'Subroutines'}{$f}{'CommonVarMismatch'}{$caller } }) {
-		my $caller = $stref->{'Subroutines'}{$f}{'CommonVarMismatch'}{$block};
-		say "\nMATCHING UP vars in $f and $caller for COMMON block $block"; 
-#		$stref->{'Subroutines'}{$f}{'ExMismatchedCommonArgs'}{'List'} =[ @{$stref->{'Subroutines'}{$f}{'ExMismatchedCommonArgs'}{'List'}},
-#		  _determine_ex_common_args($stref,  $f, $caller, $block)  ];
+		$stref->{'Subroutines'}{$f}{'ExMismatchedCommonArgs'}{'CallArgs'}{$caller}={};
+#		say "\nMATCHING UP vars in $f with $caller";
+		for my $block (sort keys %{ $stref->{'Subroutines'}{$f}{'CommonVarMismatch'}{$caller } }) {
+			say "\nMATCHING UP vars in $f and caller $caller for COMMON block $block"; 
 		  _match_up_common_var_sequences ($stref,  $f, $caller, $block);
-	}
-	say "ExMismatchedCommonArgs for $f called from $caller: ".join(',',
-		map { 
-			join('_',(@{ $stref->{'Subroutines'}{$f}{'ExMismatchedCommonArgs'}{'Set'}{$_} }, $_ ) ) 				
-		} 
-		@{ $stref->{'Subroutines'}{$f}{'ExMismatchedCommonArgs'}{'List'} }
-	);
+		}
+#		say "ExMismatchedCommonArgs for $f called from $caller: ";
+#		say Dumper( $stref->{'Subroutines'}{$f}{'ExMismatchedCommonArgs'}{'CallArgs'}{$caller} );
+#	say join(',',
+#		map { 
+#			join('_',(@{ $stref->{'Subroutines'}{$f}{'ExMismatchedCommonArgs'}{'Set'}{$caller}{$_} }, $_ ) ) 				
+#		} 
+#		@{ $stref->{'Subroutines'}{$f}{'ExMismatchedCommonArgs'}{'List'} }
+#	);
 	}	
+	say "SigArgs for $f: ".join(',',@{ $stref->{'Subroutines'}{$f}{'ExMismatchedCommonArgs'}{'SigArgs'} });
+	
 	return $stref;
 } # END of match_up_common_vars
 # This is no good. Use the _match_up_common_var_sequences(), by extending the caller record in @equivalence_pairs 
@@ -322,26 +331,37 @@ sub _match_up_common_var_sequences { my ($stref,  $f, $caller, $block) = @_;
             my $prefix = $block eq 'BLANK' ? [$caller] : [$caller,$block];
             if ($used_caller==0) {
                 $used_caller=1;
-                push @{ $stref->{'Subroutines'}{$f}{'ExMismatchedCommonArgs'}{'List'} }, $name_caller;
-                $stref->{'Subroutines'}{$f}{'ExMismatchedCommonArgs'}{'Set'}{$caller}{ $name_caller } = [];
+                push @{ $stref->{'Subroutines'}{$f}{'ExMismatchedCommonArgs'}{'SigArgs'} }, $name_caller;
+                $stref->{'Subroutines'}{$f}{'ExMismatchedCommonArgs'}{'CallArgs'}{$caller}{ $name_caller } = [$caller,$block];
             }
-			if (not _compare_decls($stref, $f, $caller, $decl_local,$decl_caller) ) { # Type / Attr mismatch 
-				say "Type mismatch: \n".
-				$name_local  . ' :: '. $decl_local->{'Type'}   . ($decl_local->{'Attr'} ? '('. $decl_local->{'Attr'}  .')' : '' )."\n". 
-				$name_caller . ' :: '. $decl_caller->{'Type'}  . ( $decl_caller->{'Attr'} ? '('. $decl_caller->{'Attr'} .')' : '' )."\n";
+            my $htype_local =  $decl_local->{'Type'};
+            my $htype_caller =  $decl_caller->{'Type'};
+#			if (not _compare_decls($stref, $f, $caller, $decl_local,$decl_caller,0) ) { # Type / Attr mismatch
+				if (not ($htype_local eq $htype_caller and $kind_local eq $kind_caller)) {# Type / Attr mismatch
+				if ( $decl_local->{'ArrayOrScalar'} eq 'Array') {
+					 $htype_local .= ', dimension('.__dim_to_str($decl_local->{'Dim'}).')';
+				}
+				
+				if ($decl_caller->{'ArrayOrScalar'} eq 'Array') {					
+					 $htype_caller .= ', dimension('.__dim_to_str($decl_caller->{'Dim'}).')';
+				}  
+				say "Type mismatch:";
+				say $name_local  . ' :: '. $htype_local . ($decl_local->{'Attr'} ? '('. $decl_local->{'Attr'}  .')' : '' );
+#				. Dumper($decl_local).
+				say $name_caller . ' :: '. $htype_caller  . ( $decl_caller->{'Attr'} ? '('. $decl_caller->{'Attr'} .')' : '' );
+#				."\n".Dumper($decl_caller)."\n";
 			}
 			# FIXME: if the attribute, i.e. the kind or length, is mismatched, we MUST take this into account
 			# The way to do this is by multiplying the length of each variable in the sequence with KIND or LEN
 			# And also use this when calculating the mismatch below
 				if ($decl_local->{'ArrayOrScalar'} eq 'Scalar' and $decl_caller->{'ArrayOrScalar'} eq 'Scalar')  { # both scalar
-					if ($dim_local == $elt_caller->[3]) {
-						if ($name_local  eq $name_caller) {
-							# No need to create an equivalence pair, just use the orginal arg name in the subroutine.														
-						} else {
+					if ($kind_local == $kind_caller) {
+						if ($name_local  ne $name_caller) {
+							# Else no need to create an equivalence pair, just use the orginal arg name in the subroutine.														
 							push @equivalence_pairs, [[$name_local,0,[],[]],[$name_caller,0,[],[]]];
 						}
 					} else {
-						croak "Can't match scalars with different kinds!";
+						croak "Can't match scalars with different kinds: ";
 					}
 					# otherwise I guess it is just plain impossible, how can I possibly  
 				}
@@ -351,8 +371,8 @@ sub _match_up_common_var_sequences { my ($stref,  $f, $caller, $block) = @_;
 						my $dim_caller_copy = dclone($dim_caller); 
 						
 						if ($name_local  eq $name_caller) {
-							# No need to create an equivalence pair, just use the orginal arg name in the subroutine.
-							$stref->{'Subroutines'}{$f}{'ExMismatchedCommonArgs'}{'Set'}{ $name_caller} =[];
+							# No need to create an equivalence pair.
+#							$stref->{'Subroutines'}{$f}{'ExMismatchedCommonArgs'}{'CallArgs'}{$caller}{ $name_caller} =[];
 						} else {
 							push @equivalence_pairs, [[$name_local,1,$dim_local_copy,[]],[$name_caller,1,$dim_caller_copy,$prefix]];
 						}
@@ -367,16 +387,21 @@ sub _match_up_common_var_sequences { my ($stref,  $f, $caller, $block) = @_;
 							# now let's say we have (1:5) * 8 and (0:7) * 4 and 5*8 and 8*4 
 							# So I should add 8*4 bytes to the first array, i.e. 8*4/8 = 4 words, i.e. we go from 1:5 to 5:5  
 							# 1:4 should become 4:4, so 1+3 where 3 = 
-							$dimsz_local->[-1][0]+=$kind_caller*$dimsz_caller/$kind_local;
+							$dim_local->[-1][0]+=$kind_caller*$dimsz_caller/$kind_local;
 							# then local becomes 1, i.e.  (40-32)/8 							
-							$used_local = $used_local - $kind_caller*$dimsz_caller/$kind_local;
+							$dimsz_local -= $kind_caller*$dimsz_caller/$kind_local;
 							# So what happens if we have (1:10) * 4 and (0:3) * 8 so 40 and 32
 							# Again the size is just (40 - 32)/4 = 2 
 							# The start index should become 9, so 1+ (4*8)/4
 							
 							# means we need to modify $elt_local and unshift it, and create the equivalence
 							my $dim_local_copy = dclone($dim_local);
-							my $dim_caller_copy = dclone($dim_caller); 
+							my $dim_caller_copy = dclone($dim_caller);
+							# If the local is larger, we need the full caller and as much of the local as the size of the caller
+							# So no need to change the caller end index
+							# But the local end index must become the local start index + the size of the caller - 1
+							$dim_local_copy->[-1][1]= $dim_local_copy->[-1][0] + $kind_caller*$dimsz_caller/$kind_local - 1;
+							 
 							push @equivalence_pairs, [[$name_local,1,$dim_local_copy,[]],[$name_caller,1,$dim_caller_copy,$prefix]];
 							$elt_caller=[$name_caller, $decl_caller, $kind_caller, $dim_caller, $dimsz_caller, $used_caller]; 	
 							unshift @common_caller_seq,$elt_caller;
@@ -385,11 +410,12 @@ sub _match_up_common_var_sequences { my ($stref,  $f, $caller, $block) = @_;
 							# means we need to modify $elt_local and unshift it, and create the equivalence
 							$dim_caller->[-1][0]+=$kind_local*$used_local/$kind_caller;
 							# then local becomes 1, i.e.  (40-32)/8 							
-							$dimsz_caller = $dimsz_caller - $kind_local*$dimsz_local/$kind_caller;
+							$dimsz_caller -=  $kind_local*$dimsz_local/$kind_caller;
 							
 							# means we need to modify $elt_local and unshift it, and create the equivalence
 							my $dim_local_copy = dclone($dim_local);
 							my $dim_caller_copy = dclone($dim_caller); 
+							$dim_caller_copy->[-1][1]= $dim_caller_copy->[-1][0] + $kind_local*$dimsz_local/$kind_caller - 1;
 							push @equivalence_pairs, [[$name_local,1,$dim_local_copy,[]],[$name_caller,1,$dim_caller_copy,$prefix]];
 							$elt_local = [$name_local, $decl_local, $kind_local, $dim_local, $dimsz_local, $used_local];
 							unshift @common_local_seq,$elt_local;
@@ -404,8 +430,10 @@ sub _match_up_common_var_sequences { my ($stref,  $f, $caller, $block) = @_;
 						# increment dim
 #						++$dim_caller->[-1][0]; # FIXME: weak: this only works as long as the first dimension is not exceeded
 						# instead:
+						++$dimsz_caller;
 						my $total_dimsz_caller = __calc_sz($stref,$caller, $dim_caller); 
 						my $lin_idx = $total_dimsz_caller - $dimsz_caller + 1;
+						say "$name_local: LIN_IDX $name_caller: $lin_idx ($total_dimsz_caller,$dimsz_caller)";
 						my $coords = _calc_coords($stref, $caller, $dim_caller, $lin_idx);
 						# these coords should become the updated dim_caller values
 						for my $idx (0 .. scalar @{$coords} - 1) {
@@ -438,10 +466,18 @@ sub _match_up_common_var_sequences { my ($stref,  $f, $caller, $block) = @_;
 					}					 
 				}
 		} else { # The local seq is longer than the caller seq
+		
 		# It can be that the local seq contains an elt that was already partially matched to the last caller elt. But I guess this will work out just fine.
 				my $dim_local_copy = dclone($dim_local);							
 				my $t_prefix = $block eq 'BLANK' ? [$f] :  [$f,$block];
-				push @equivalence_pairs, [[$name_local,scalar @{$dim_local} ? 1 : 0,$dim_local,[]],[$name_local,scalar @{$dim_local} ? 1 : 0,$dim_local_copy,$t_prefix]];			
+				push @equivalence_pairs, [[$name_local,scalar @{$dim_local} ? 1 : 0,$dim_local,[]],[$name_local,scalar @{$dim_local} ? 1 : 0,$dim_local_copy,$t_prefix]];		
+				
+				if ($used_local==0) {
+                $used_local=1;
+                push @{ $stref->{'Subroutines'}{$f}{'ExMismatchedCommonArgs'}{'SigArgs'} }, $name_local;
+                $stref->{'Subroutines'}{$f}{'ExMismatchedCommonArgs'}{'CallArgs'}{$caller}{ $name_local } = [$f,$block];
+            }
+					
 		}
 		
 	}
@@ -466,17 +502,16 @@ sub _emit_equivalence_statement { (my $equiv_pair) = @_;
 	my $l_str = __emit_equiv_var_str($l);
 	my $r=$equiv_pair->[1];
 	my $r_str = __emit_equiv_var_str($r);
-	return "equivalence ($l_str,$r_str)";
+	return "$l_str = $r_str";
 }
 
 sub __emit_equiv_var_str {  (my $tup) = @_;
-#	say Dumper($tup);
 	(my $var, my $s_or_a, my $m_dim, my $m_prefix)=@{$tup};
 	my $prefix_str = scalar @{$m_prefix} ? join('_',@{$m_prefix}).'_' : '';
 	if ($s_or_a) { # 0 means scalar, 1 means array
-		return $prefix_str.$var.'('.join(',', map { $_->[0] } @{$m_dim}).')';	
+		return $var.'('.join(',', map { $_->[0].':'. $_->[1]} @{$m_dim}).')';	
 	} else {
-		return $prefix_str.$var;
+		return $var;
 	}
 }
 
@@ -599,13 +634,16 @@ sub __calc_dims_offsets {my ($stref, $f, $dim_rec) = @_;
 	for my $entry ( @{$dim_rec} ) {
 		my $offset_val = eval_expression_with_parameters($entry->[0],{},$stref,$f);
 		push @{$offsets}, $offset_val;
-		my $dim_str = '('.$entry->[1].'-'.$entry->[0].'+1)';
+		my $dim_str = '(('.$entry->[1].') - ('.$entry->[0].')+1)';
 		my $dim_val = eval_expression_with_parameters($dim_str,{},$stref,$f);
 		push @{$dims}, $dim_val;				
 	}
 	return ($dims,$offsets);
 } # END of __calc_dims_offsets
 
+sub __dim_to_str {(my $dim) = @_;
+	return join(',',map {$_->[0].':'.$_->[1]} @{$dim}); 
+}
 1;
 
 

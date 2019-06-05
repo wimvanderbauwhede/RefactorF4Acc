@@ -179,10 +179,10 @@ sub _initialise_decl_var_tables {
 	if ( not exists $Sf->{'CommonBlocks'}) {
 		$Sf->{'CommonBlocks'} = {};
 	}
- 	if ( not exists $Sf->{'ExMismatchedCommonArgs'} ) {
- 		# List gets orig names. Set gets prefixes as values
- 		$Sf->{'ExMismatchedCommonArgs'} = { 'List' => [], 'Set' => {} };
- 	}	
+# 	if ( not exists $Sf->{'ExMismatchedCommonArgs'} ) {
+# 		# List gets orig names. Set gets prefixes as values
+# 		$Sf->{'ExMismatchedCommonArgs'} = { 'List' => [], 'Set' => {} };
+# 	}	
 	if ( not exists $Sf->{'ReferencedLabels'}) {
 		$Sf->{'ReferencedLabels'}={};
 	}
