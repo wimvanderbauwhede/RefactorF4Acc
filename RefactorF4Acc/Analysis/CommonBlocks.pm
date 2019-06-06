@@ -399,15 +399,17 @@ sub _match_up_common_var_sequences { my ($stref,  $f, $caller, $block) = @_;
 						}
 					} else { # arrays of different size
 						if ($kind_local*($dimsz_local - $lin_idx_local+1) > $kind_caller*($dimsz_caller-$lin_idx_caller+1)) { # local is larger
+						# so caller will be shifted entirely, local will have to be put back
 							 # say caller is size 4 and has local idx 1, so 4
 							 # local is size 10 and has local idx 3, so 8
 							 # then I need the points 3,4,5,6 to overlap with 1,2,3,4
 							 # 3+4-1
 							 # This is regardless of the kind differences
 							my $lin_idx_local_end = $lin_idx_local + $kind_caller*($dimsz_caller-$lin_idx_caller+1)/$kind_local - 1;
+							
 							my $lin_idx_local_start = $lin_idx_local;
 							# Now increment the index   
-							$lin_idx_local += $kind_caller*($dimsz_caller-$lin_idx_caller+1)/$kind_local;
+							
 
 							my $dim_local_copy = dclone($dim_local);
 							my $dim_caller_copy = dclone($dim_caller);
@@ -431,15 +433,19 @@ sub _match_up_common_var_sequences { my ($stref,  $f, $caller, $block) = @_;
 							}							
 							 
 							push @equivalence_pairs, [[$name_local,1,$dim_local_copy,[]],[$name_caller,1,$dim_caller_copy,$prefix]];
-							$elt_caller=[$name_caller, $decl_caller, $kind_caller, $dim_caller, $dimsz_caller, $used_caller]; 	
-							unshift @common_caller_seq,$elt_caller;
+							# if the local lin index has not entirely consumed the array, we need to unshift
+							$lin_idx_local += $kind_caller*($dimsz_caller-$lin_idx_caller+1)/$kind_local;
+							if ($dimsz_local - $lin_idx_local >= $kind_caller/$kind_local-1) { 							
+								$elt_local = [$name_local, $decl_local, $kind_local, $dim_local, $dimsz_local, $lin_idx_local, $used_local];
+								unshift @common_local_seq,$elt_local;
+							}
 														
 						} else {
 							
 							my $lin_idx_caller_end = $lin_idx_caller + $kind_local*($dimsz_local-$lin_idx_local+1)/$kind_caller - 1;
 							my $lin_idx_caller_start = $lin_idx_caller;
 							# Now increment the index   
-							$lin_idx_caller += $kind_local*($dimsz_local-$lin_idx_local+1)/$kind_caller;
+							
 
 							my $dim_local_copy = dclone($dim_local);
 							my $dim_caller_copy = dclone($dim_caller);
@@ -460,72 +466,74 @@ sub _match_up_common_var_sequences { my ($stref,  $f, $caller, $block) = @_;
 								for my $idx (0 .. scalar @{$coords_caller} - 1) {
 									$dim_caller_copy->[$idx][0]=$coords_caller->[$idx];
 								}																
-							}								
-							
+							}
 							push @equivalence_pairs, [[$name_local,1,$dim_local_copy,[]],[$name_caller,1,$dim_caller_copy,$prefix]];
-							$elt_local = [$name_local, $decl_local, $kind_local, $dim_local, $dimsz_local, $used_local];
-							unshift @common_local_seq,$elt_local;
+							# e.g. local was 4, caller idx was 3 -> new caller idx is 7 unless the caller array is only 6 long
+							# if the caller was 6 long, we get 6-7 >= 1-1 => -1 >= 0 ? FALSE!
+							# if the caller was 7 long, we get 7-7 >= 1-1 => 0 >= 0 ? TRUE!
+							# if the caller was 8 long, we get 7-7 >= 1-1 => 1 >= 0 ? TRUE!								
+							$lin_idx_caller += $kind_local*($dimsz_local-$lin_idx_local+1)/$kind_caller;
+							if ($dimsz_caller - $lin_idx_caller >= $kind_local/$kind_caller-1) {							
+								$elt_caller=[$name_caller, $decl_caller, $kind_caller, $dim_caller, $dimsz_caller, $lin_idx_caller, $used_caller]; 	
+								unshift @common_caller_seq,$elt_caller;
+							}
 						}
 						
 					}
 				} 
 				elsif ($decl_local->{'ArrayOrScalar'} eq 'Scalar' and $decl_caller->{'ArrayOrScalar'} eq 'Array') { # local is scalar, caller is array				
 					if ($kind_local ==  $kind_caller) {				
-						croak "TODO";
-						my $dim_caller_copy = dclone($dim_caller); 
-						push @equivalence_pairs, [[$name_local,0,[],[]],[$name_caller,1,$dim_caller_copy,$prefix]];
 						# increment dim
-#						++$dim_caller->[-1][0]; # FIXME: weak: this only works as long as the first dimension is not exceeded
-						# instead:
-						++$dimsz_caller;
-						my $total_dimsz_caller = __calc_sz($stref,$caller, $dim_caller); 
-						my $lin_idx = $total_dimsz_caller - $dimsz_caller + 1;
-						say "$name_local: LIN_IDX $name_caller: $lin_idx ($total_dimsz_caller,$dimsz_caller)";
-						my $coords = _calc_coords($stref, $caller, $dim_caller, $lin_idx);
-						# these coords should become the updated dim_caller values
+						# We support a scalar with a larger kind, simply by having
+						
+						my $coords = _calc_coords($stref, $caller, $dim_caller, $lin_idx_caller);
+						my $dim_caller_copy = dclone($dim_caller); 			
 						for my $idx (0 .. scalar @{$coords} - 1) {
-							$dim_caller->[$idx][0]=$coords->[0];
+							$dim_caller_copy->[$idx][0]=$coords->[0];
 						}
-						$elt_caller=[$name_caller, $decl_caller, $kind_caller, $dim_caller, $dimsz_caller, $used_caller];
-						unshift @common_caller_seq,$elt_caller; 
+						push @equivalence_pairs, [[$name_local,0,[],[]],[$name_caller,1,$dim_caller_copy,$prefix]];
+						# increment lin idx. But if the lin idx is already the dimsz, we should not do this, as it means we're at the last element.
+						# e.g. if the caller idx is 3 and the caller array is 4, then 4-3 = 1 > 0 
+						if ($dimsz_caller - $lin_idx_caller > $kind_local/$kind_caller - 1) {
+							$lin_idx_caller += $kind_local/$kind_caller; # currently this of course just means +=1							
+							$elt_caller=[$name_caller, $decl_caller, $kind_caller, $dim_caller, $dimsz_caller,$lin_idx_caller, $used_caller];
+							unshift @common_caller_seq,$elt_caller; 
+						}
 					} else {
 						croak "Can't match a scalar to an array with different kinds!";
 					}
 				}
 				elsif ($decl_local->{'ArrayOrScalar'} eq 'Array' and $decl_caller->{'ArrayOrScalar'} eq 'Scalar') { # local is array, caller is scalar
 					if ($kind_local ==  $kind_caller) {		
-						croak "TODO";
-					my $dim_local_copy = dclone($dim_local); 
-					push @equivalence_pairs, [[$name_local,1,$dim_local_copy,[]],[$name_caller,0,[],$prefix]];
-#					# increment dim
-#					++$dim_local->[-1][0]; # FIXME: weak: this only works as long as the first dimension is not exceeded
-						# instead:
-						my $total_dimsz_local = __calc_sz($stref,$f, $dim_local); 
-						my $lin_idx = $total_dimsz_local - $dimsz_local + 1;
-						my $coords = _calc_coords($stref, $f, $dim_local, $lin_idx);
-						# these coords should become the updated dim_caller values
+												
+						my $coords = _calc_coords($stref, $f, $dim_local, $lin_idx_local);
+						my $dim_local_copy = dclone($dim_local);	
 						for my $idx (0 .. scalar @{$coords} - 1) {
-							$dim_local->[$idx][0]=$coords->[0];
+							$dim_local_copy->[$idx][0]=$coords->[0];
 						}
-						$elt_local = [$name_local, $decl_local, $kind_local, $dim_local, $dimsz_local, $used_local];
-						unshift @common_local_seq,$elt_local;
-										} else {
+						push @equivalence_pairs, [[$name_local,1,$dim_local_copy,[]],[$name_caller,0,[],$prefix]];
+						# increment lin idx. But if the lin idx is already the dimsz, we should not do this, as it means we're at the last element.
+						 
+						if ( $dimsz_local - $lin_idx_local > $kind_caller/$kind_local - 1) {
+							my $lin_idx_local += $kind_caller/$kind_local; # works if the are dividable 							
+							$elt_local = [$name_local, $decl_local, $kind_local, $dim_local, $dimsz_local, $lin_idx_local, $used_local];
+							unshift @common_local_seq,$elt_local;
+						}
+					} else {
 						croak "Can't match a scalar to an array with different kinds!";
 					}					 
 				}
 		} else { # The local seq is longer than the caller seq
 		
-		# It can be that the local seq contains an elt that was already partially matched to the last caller elt. But I guess this will work out just fine.
-				my $dim_local_copy = dclone($dim_local);							
-				my $t_prefix = $block eq 'BLANK' ? [$f] :  [$f,$block];
-				push @equivalence_pairs, [[$name_local,scalar @{$dim_local} ? 1 : 0,$dim_local,[]],[$name_local,scalar @{$dim_local} ? 1 : 0,$dim_local_copy,$t_prefix]];		
-				
+				# It can be that the local seq contains an elt that was already partially matched to the last caller elt.
+				# this means that $name_local is already matched;  but we still need to add it to call args 				
 				if ($used_local==0) {
-                $used_local=1;
-                push @{ $stref->{'Subroutines'}{$f}{'ExMismatchedCommonArgs'}{'SigArgs'} }, $name_local;
+                	$used_local=1;
+                	push @{ $stref->{'Subroutines'}{$f}{'ExMismatchedCommonArgs'}{'SigArgs'} }, $name_local;
+				}
+				# but in any case, the name must be added to the call args
                 $stref->{'Subroutines'}{$f}{'ExMismatchedCommonArgs'}{'CallArgs'}{$caller}{ $name_local } = [$f,$block];
-            }
-					
+                # Either way, the local will have been consumed and there is no caller, so no unshifting					
 		}
 		
 	}
