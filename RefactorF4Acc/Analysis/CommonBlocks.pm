@@ -203,11 +203,11 @@ sub create_common_var_size_tuples {
 				my $called_sub_common_var=$_;
 				my $called_set = in_nested_set($stref->{'Subroutines'}{$f},'CommonVars',$called_sub_common_var);
 				my $called_sub_common_var_decl = $stref->{'Subroutines'}{$f}{$called_set}{'Set'}{$called_sub_common_var};
-				my $dim_sz=0;
+				my $dimsz=0;
 				my $dim=[];
 				if ($called_sub_common_var_decl->{'ArrayOrScalar'} eq 'Array') {
 					$dim = dclone($called_sub_common_var_decl->{'Dim'});
-					$dim_sz=__calc_sz($stref,$f,$dim), 
+					$dimsz=__calc_sz($stref,$f,$dim), 
 				}
 				my $type = $called_sub_common_var_decl->{'Type'};
 				my $kind_or_len= $type eq 'character' ? 1 : 4; # default
@@ -225,7 +225,8 @@ sub create_common_var_size_tuples {
 					$called_sub_common_var_decl, # VarDeclRec
 					$kind_or_len, # :: AttrVal
 					$dim, # :: Dim
-					$dim_sz, # FIXME I should really compare each individual dimension
+					$dimsz, # linear size
+					1,	# linear index, starting at 1			
                     0 # :: UsedBefore
 				];
 			} @called_sub_common_vars;
@@ -322,11 +323,11 @@ sub _match_up_common_var_sequences { my ($stref,  $f, $caller, $block) = @_;
 	my @equivalence_pairs=();	
 	while (scalar @common_local_seq > 0 ) { # keep going until the local sequence is consumed
 		my $elt_local = shift  @common_local_seq;
-		my ($name_local, $decl_local, $kind_local, $dim_local, $dimsz_local, $used_local) = @{$elt_local};
+		my ($name_local, $decl_local, $kind_local, $dim_local, $dimsz_local, $lin_idx_local, $used_local) = @{$elt_local};
 		if (@common_caller_seq) {
 			
 			my $elt_caller = shift  @common_caller_seq;
-			my ($name_caller, $decl_caller, $kind_caller, $dim_caller, $dimsz_caller, $used_caller) = @{$elt_caller};
+			my ($name_caller, $decl_caller, $kind_caller, $dim_caller, $dimsz_caller, $lin_idx_caller, $used_caller) = @{$elt_caller};
             # add this caller to ExMismatchedCommonArgs
             my $prefix = $block eq 'BLANK' ? [$caller] : [$caller,$block];
             if ($used_caller==0) {
@@ -366,56 +367,101 @@ sub _match_up_common_var_sequences { my ($stref,  $f, $caller, $block) = @_;
 					# otherwise I guess it is just plain impossible, how can I possibly  
 				}
 				elsif ($decl_local->{'ArrayOrScalar'} eq 'Array' and $decl_caller->{'ArrayOrScalar'} eq 'Array')  { # both arrays
-					if ($kind_local*$dimsz_local == $kind_caller*$dimsz_caller) { # arrays of identical size
-						my $dim_local_copy = dclone($dim_local);
-						my $dim_caller_copy = dclone($dim_caller); 
+						# which one is the shortest? This refers the overlapping portions
+						# one of them will have a lin_idx of 1, the other can be >=1
+						# We compare the total remaining linear size, e.g. if 
+						# local: lin_idx = 3, dim_sz = 8 then the total remaining linear size is (8-3+1)*kind 			
+						# For the assignment, we must use the coords corresponding to lin_idx for start indices 
+					if ($kind_local*($dimsz_local - $lin_idx_local+1) == $kind_caller*($dimsz_caller-$lin_idx_caller+1)) { # arrays of identical size
 						
-						if ($name_local  eq $name_caller) {
+						if ($name_local  eq $name_caller
+						and $lin_idx_local == $lin_idx_caller
+						) { # This is only the case if the lin_indices also match!
+							# Note that this implies they are both 1
 							# No need to create an equivalence pair.
 #							$stref->{'Subroutines'}{$f}{'ExMismatchedCommonArgs'}{'CallArgs'}{$caller}{ $name_caller} =[];
 						} else {
+							my $dim_local_copy = dclone($dim_local);
+							my $dim_caller_copy = dclone($dim_caller);
+							if ($lin_idx_local!=1) {
+								my $coords_local = _calc_coords($stref, $f, $dim_local, $lin_idx_local);
+								for my $idx (0 .. scalar @{$coords_local} - 1) {
+									$dim_local_copy->[$idx][0]=$coords_local->[$idx];
+								}
+							} 
+							if ($lin_idx_caller != 1) {
+								my $coords_caller = _calc_coords($stref, $caller, $dim_caller, $lin_idx_caller);
+								for my $idx (0 .. scalar @{$coords_caller} - 1) {
+									$dim_caller_copy->[$idx][0]=$coords_caller->[$idx];
+								}																
+							}												
 							push @equivalence_pairs, [[$name_local,1,$dim_local_copy,[]],[$name_caller,1,$dim_caller_copy,$prefix]];
 						}
 					} else { # arrays of different size
-						# which one is the shortest?
-						if ($kind_local*$dimsz_local > $kind_caller*$dimsz_caller) { 
-							# let's say we have (0:7) and (1:4) so 8 and 4
-							# then local becomes 4, should be 4:7, in other words we simply add 4 to 0
-#							$dimsz_local[-1][0]+=$elt_caller->[5];
-							# and I suppose I need to reduce the actual size as well
-#							$used_local -= $elt_caller->[5];
-							# now let's say we have (1:5) * 8 and (0:7) * 4 and 5*8 and 8*4 
-							# So I should add 8*4 bytes to the first array, i.e. 8*4/8 = 4 words, i.e. we go from 1:5 to 5:5  
-							# 1:4 should become 4:4, so 1+3 where 3 = 
-							$dim_local->[-1][0]+=$kind_caller*$dimsz_caller/$kind_local;
-							# then local becomes 1, i.e.  (40-32)/8 							
-							$dimsz_local -= $kind_caller*$dimsz_caller/$kind_local;
-							# So what happens if we have (1:10) * 4 and (0:3) * 8 so 40 and 32
-							# Again the size is just (40 - 32)/4 = 2 
-							# The start index should become 9, so 1+ (4*8)/4
-							
-							# means we need to modify $elt_local and unshift it, and create the equivalence
+						if ($kind_local*($dimsz_local - $lin_idx_local+1) > $kind_caller*($dimsz_caller-$lin_idx_caller+1)) { # local is larger
+							 # say caller is size 4 and has local idx 1, so 4
+							 # local is size 10 and has local idx 3, so 8
+							 # then I need the points 3,4,5,6 to overlap with 1,2,3,4
+							 # 3+4-1
+							 # This is regardless of the kind differences
+							my $lin_idx_local_end = $lin_idx_local + $kind_caller*($dimsz_caller-$lin_idx_caller+1)/$kind_local - 1;
+							my $lin_idx_local_start = $lin_idx_local;
+							# Now increment the index   
+							$lin_idx_local += $kind_caller*($dimsz_caller-$lin_idx_caller+1)/$kind_local;
+
 							my $dim_local_copy = dclone($dim_local);
 							my $dim_caller_copy = dclone($dim_caller);
-							# If the local is larger, we need the full caller and as much of the local as the size of the caller
-							# So no need to change the caller end index
-							# But the local end index must become the local start index + the size of the caller - 1
-							$dim_local_copy->[-1][1]= $dim_local_copy->[-1][0] + $kind_caller*$dimsz_caller/$kind_local - 1;
+							
+							my $coords_local_end = _calc_coords($stref, $f, $dim_local_copy, $lin_idx_local_end);
+							for my $idx (0 .. scalar @{$coords_local_end} - 1) {
+								$dim_local_copy->[$idx][1]=$coords_local_end->[$idx];
+							}
+
+							if ($lin_idx_local_start!=1) {
+								my $coords_local = _calc_coords($stref, $f, $dim_local_copy, $lin_idx_local_start);
+								for my $idx (0 .. scalar @{$coords_local} - 1) {
+									$dim_local_copy->[$idx][0]=$coords_local->[$idx];
+								}
+							} 
+							if ($lin_idx_caller != 1) {
+								my $coords_caller = _calc_coords($stref, $caller, $dim_caller_copy, $lin_idx_caller);
+								for my $idx (0 .. scalar @{$coords_caller} - 1) {
+									$dim_caller_copy->[$idx][0]=$coords_caller->[$idx];
+								}																
+							}							
 							 
 							push @equivalence_pairs, [[$name_local,1,$dim_local_copy,[]],[$name_caller,1,$dim_caller_copy,$prefix]];
 							$elt_caller=[$name_caller, $decl_caller, $kind_caller, $dim_caller, $dimsz_caller, $used_caller]; 	
 							unshift @common_caller_seq,$elt_caller;
 														
 						} else {
-							# means we need to modify $elt_local and unshift it, and create the equivalence
-							$dim_caller->[-1][0]+=$kind_local*$used_local/$kind_caller;
-							# then local becomes 1, i.e.  (40-32)/8 							
-							$dimsz_caller -=  $kind_local*$dimsz_local/$kind_caller;
 							
-							# means we need to modify $elt_local and unshift it, and create the equivalence
+							my $lin_idx_caller_end = $lin_idx_caller + $kind_local*($dimsz_local-$lin_idx_local+1)/$kind_caller - 1;
+							my $lin_idx_caller_start = $lin_idx_caller;
+							# Now increment the index   
+							$lin_idx_caller += $kind_local*($dimsz_local-$lin_idx_local+1)/$kind_caller;
+
 							my $dim_local_copy = dclone($dim_local);
-							my $dim_caller_copy = dclone($dim_caller); 
-							$dim_caller_copy->[-1][1]= $dim_caller_copy->[-1][0] + $kind_local*$dimsz_local/$kind_caller - 1;
+							my $dim_caller_copy = dclone($dim_caller);
+							
+							my $coords_caller_end = _calc_coords($stref, $f, $dim_caller_copy, $lin_idx_caller_end);
+							for my $idx (0 .. scalar @{$coords_caller_end} - 1) {
+								$dim_caller_copy->[$idx][1]=$coords_caller_end->[$idx];
+							}
+
+							if ($lin_idx_local!=1) {
+								my $coords_local = _calc_coords($stref, $f, $dim_local_copy, $lin_idx_local);
+								for my $idx (0 .. scalar @{$coords_local} - 1) {
+									$dim_local_copy->[$idx][0]=$coords_local->[$idx];
+								}
+							} 
+							if ($lin_idx_caller_start != 1) {
+								my $coords_caller = _calc_coords($stref, $caller, $dim_caller_copy, $lin_idx_caller_start);
+								for my $idx (0 .. scalar @{$coords_caller} - 1) {
+									$dim_caller_copy->[$idx][0]=$coords_caller->[$idx];
+								}																
+							}								
+							
 							push @equivalence_pairs, [[$name_local,1,$dim_local_copy,[]],[$name_caller,1,$dim_caller_copy,$prefix]];
 							$elt_local = [$name_local, $decl_local, $kind_local, $dim_local, $dimsz_local, $used_local];
 							unshift @common_local_seq,$elt_local;
@@ -425,6 +471,7 @@ sub _match_up_common_var_sequences { my ($stref,  $f, $caller, $block) = @_;
 				} 
 				elsif ($decl_local->{'ArrayOrScalar'} eq 'Scalar' and $decl_caller->{'ArrayOrScalar'} eq 'Array') { # local is scalar, caller is array				
 					if ($kind_local ==  $kind_caller) {				
+						croak "TODO";
 						my $dim_caller_copy = dclone($dim_caller); 
 						push @equivalence_pairs, [[$name_local,0,[],[]],[$name_caller,1,$dim_caller_copy,$prefix]];
 						# increment dim
@@ -447,6 +494,7 @@ sub _match_up_common_var_sequences { my ($stref,  $f, $caller, $block) = @_;
 				}
 				elsif ($decl_local->{'ArrayOrScalar'} eq 'Array' and $decl_caller->{'ArrayOrScalar'} eq 'Scalar') { # local is array, caller is scalar
 					if ($kind_local ==  $kind_caller) {		
+						croak "TODO";
 					my $dim_local_copy = dclone($dim_local); 
 					push @equivalence_pairs, [[$name_local,1,$dim_local_copy,[]],[$name_caller,0,[],$prefix]];
 #					# increment dim
@@ -488,13 +536,13 @@ sub _match_up_common_var_sequences { my ($stref,  $f, $caller, $block) = @_;
 	return $stref;
 } # END of _match_up_common_var_sequences
 
-sub __get_total_size { my @common_seq = @_;
-	my $total_sz=0;
-	for my $elt (@common_seq) {
-		$total_sz+=$elt->[2]*$elt->[5];
-	}
-	return $total_sz;
-}
+#sub __get_total_size { my @common_seq = @_;
+#	my $total_sz=0;
+#	for my $elt (@common_seq) {
+#		$total_sz+=$elt->[2]*$elt->[5];
+#	}
+#	return $total_sz;
+#}
 # annotate with prefix
 sub _emit_equivalence_statement { (my $equiv_pair) = @_; 
 #	say '<'.Dumper($equiv_pair).'>';
