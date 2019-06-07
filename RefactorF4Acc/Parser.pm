@@ -2,6 +2,7 @@ package RefactorF4Acc::Parser;
 use v5.10;
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
+use RefactorF4Acc::State qw( initialise_per_code_unit_tables );
 use RefactorF4Acc::CallTree qw( add_to_call_tree );
 use RefactorF4Acc::Refactoring::Common qw( emit_f95_var_decl get_f95_var_decl stateful_pass ); 
 use RefactorF4Acc::Parser::SrcReader qw( read_fortran_src );
@@ -22,7 +23,7 @@ use RefactorF4Acc::Parser::Expressions qw(
 use RefactorF4Acc::Translation::OpenCLC qw( add_to_C_build_sources );    # OBSOLETE
 use RefactorF4Acc::Analysis::LoopDetect qw( outer_loop_start_detect );
 use RefactorF4Acc::Analysis::ArgumentIODirs qw(  &conditional_assignment_fsm );
-use RefactorF4Acc::Analysis qw( identify_vars_on_line );
+use RefactorF4Acc::Analysis::Variables qw( identify_vars_on_line );
 use RefactorF4Acc::Analysis::CommonBlocks qw( collect_common_vars_per_block );
 use Fortran::F95VarDeclParser qw( parse_F95_var_decl );
 use Fortran::ConstructParser qw(
@@ -44,15 +45,15 @@ use Storable qw( dclone );
 
 use Exporter;
 
-@RefactorF4Acc::Parser::ISA = qw(Exporter);
+our @ISA = qw(Exporter);
 
-@RefactorF4Acc::Parser::EXPORT_OK = qw(
-  &parse_fortran_src
-  &refactor_marked_blocks_into_subroutines
-  &mark_blocks_between_calls
-  &build_call_graph
-  &_analyse_lines
-  &_initialise_decl_var_tables
+our @EXPORT_OK = qw(
+  parse_fortran_src
+  refactor_marked_blocks_into_subroutines
+  mark_blocks_between_calls
+  build_call_graph
+  analyse_lines
+  initialise_per_code_unit_tables
 );
 
 # -----------------------------------------------------------------------------
@@ -88,7 +89,7 @@ sub parse_fortran_src {
 		if (not exists $Sf->{'Entry'} or $Sf->{'Entry'} == 0 ) {
 
 		# OK, time to declare all the variable sets and declaration sets		
-		$Sf = _initialise_decl_var_tables( $Sf, $stref, $f, $is_incl,$is_mod );
+		$Sf = initialise_per_code_unit_tables( $Sf, $stref, $f, $is_incl,$is_mod );
 		
 # Set 'RefactorGlobals' to 0, we only refactor the globals for subs that are kernel targets and their dependencies
 		if ( not exists $Sf->{'RefactorGlobals'} ) {
@@ -102,8 +103,8 @@ sub parse_fortran_src {
 		# NOTE: The Vars set are the *declared* variables, not the *used* ones
 
 		print "ANALYSE LINES of $f\n" if $V;
-		$stref = _analyse_lines( $f, $stref );
-		say "DONE _analyse_lines( $f )" if $V;
+		$stref = analyse_lines( $f, $stref );
+		say "DONE analyse_lines( $f )" if $V;
 
 		say "ANALYSE LOOPS/BREAKS in $f\n" if $V;
 		$stref = _identify_loops_breaks( $f, $stref );
@@ -169,188 +170,7 @@ sub parse_fortran_src {
 
 
 
-# -----------------------------------------------------------------------------
-# Here I initialise tables for Variables and Declarations and a few other Subroutine-specific data structures
-sub _initialise_decl_var_tables {
-	( my $Sf, my $stref, my $f, my $is_incl, my $is_mod ) = @_;
-	my $code_unit = $is_incl ? 'include' : $is_mod ? 'module' : 'subroutine';
-	say "_initialise_decl_var_tables for $code_unit $f" if $V;	
-	
-	if ( not exists $Sf->{'CommonBlocks'}) {
-		$Sf->{'CommonBlocks'} = {};
-	}
-# 	if ( not exists $Sf->{'ExMismatchedCommonArgs'} ) {
-# 		# List gets orig names. Set gets prefixes as values
-# 		$Sf->{'ExMismatchedCommonArgs'} = { 'List' => [], 'Set' => {} };
-# 	}	
-	if ( not exists $Sf->{'ReferencedLabels'}) {
-		$Sf->{'ReferencedLabels'}={};
-	}
-	if ( not exists $Sf->{'MaskedIntrinsics'} ) {
-		$Sf->{'MaskedIntrinsics'}={};
-	}
-	if ( not exists $Sf->{'CalledSubs'} ) {
-		$Sf->{'CalledSubs'} = { 'List' => [], 'Set' => {} };
-	}
-	if ( not exists $Sf->{'CalledEntries'} ) {
-		$Sf->{'CalledEntries'} = { 'List' => [], 'Set' => {} };
-	}
-	if ( not exists $Sf->{'Entries'} ) {
-		$Sf->{'Entries'} = { 'List' => [], 'Set' => {} };
-		$Sf->{'Entry'}=0;
-	}
-# WV20151021 what we need here is a check that this function has not been called before for this $Sf
-	if ( not exists $Sf->{'DoneInitTables'} ) {
-		say "_initialise_decl_var_tables : INIT TABLES for $code_unit $f" if $V;
-
-		$Sf->{'HasCommons'} = 0;
-		$Sf->{'HasIncludes'} = 0;
-
-		# WV20151021 maybe need to do that for all subsets of Vars too?
-		# WV20151021 the question is if this needs to be hierarchical?
-		# Also, I think I wil use 'Subsets'
-		$Sf->{'DeclaredOrigLocalVars'}   = { 'Set' => {}, 'List' => [] };
-		$Sf->{'UndeclaredOrigLocalVars'} = { 'Set' => {}, 'List' => [] };
-
-		#		$Sf->{'Parameters'} = {};
-		$Sf->{'LocalParameters'}    = { 'Set' => {}, 'List' => [] };
-		$Sf->{'IncludedParameters'} = { 'Set' => {}, 'List' => [] };
-		$Sf->{'UsedParameters'} = { 'Set' => {}, 'List' => [] }; # 
-		$Sf->{'InheritedParameters'} = { 'Set' => {}, 'List' => [] }; 
-		$Sf->{'ParametersFromContainer'} = { 'Set' => {}, 'List' => [] };
-
-		# Var decls via a 'use' declaration
-		$Sf->{'UsedLocalVars'} = { 'Set' => {}, 'List' => [] };
-		$Sf->{'UsedGlobalVars'} = { 'Set' => {}, 'List' => [] };		
-
-		# This is only for testing which vars are commons, nothing else.
-		$Sf->{'Commons'} = {}; 
-
-# FIXME At the moment we assume automatically that CommonVars become ExGlobArgs 
-# WV20170607 I now also assume that any var declared in a USEd module is a global, so will become ExGlobArg   
-		$Sf->{'DeclaredCommonVars'}   = { 'Set' => {}, 'List' => [] };						
-		$Sf->{'UndeclaredCommonVars'} = { 'Set' => {}, 'List' => [] };
-		
-		$Sf->{'CommonVars'}           = {
-			'Subsets' => {
-				'DeclaredCommonVars'   => $Sf->{'DeclaredCommonVars'}, # I overload this to contain UsedGlobalVars
-				'UndeclaredCommonVars' => $Sf->{'UndeclaredCommonVars'},
-			}
-		};
-
-		$Sf->{'OrigLocalVars'} = {
-			'Subsets' => {
-				'DeclaredOrigLocalVars' => $Sf->{'DeclaredOrigLocalVars'},
-				'UndeclaredOrigLocalVars' => $Sf->{'UndeclaredOrigLocalVars'}
-			}
-		};		
-		
-		if ( not $is_incl and not $is_mod ) {
-
- # WV: Maybe I should have an additional record 'FromInclude' in the set record!
- # This seemed like a good idea but it requires so many changes. Instead I think I'll just populate ExGlobArgs on the fly
-# 			$Sf->{'ExInclGlobArgs'} = { 
-#				'Set' => {}, 'List' => [] 
-#			};
-# 			$Sf->{'ExContainerGlobArgs'} = { 
-#				'Set' => {}, 'List' => [] 
-#			};
- 
-			$Sf->{'RenamedInheritedExGlobs'}  = { 'List' => [], 'Set' => {}};
-			
-			$Sf->{'ExGlobArgs'} = { 
-				'Set' => {}, 'List' => [] 
-			};
-    
-			$Sf->{'ExInclArgs'}         = { 'Set' => {}, 'List' => [] };
-			$Sf->{'DeclaredOrigArgs'}   = { 'Set' => {}, 'List' => [] };
-			$Sf->{'UndeclaredOrigArgs'} = { 'Set' => {}, 'List' => [] };
-
-			$Sf->{'ExInclLocalVars'} = { 'Set' => {}, 'List' => [] };
-
-			$Sf->{'LocalVars'} = {
-				'Subsets' => {
-					'OrigLocalVars'   => $Sf->{'OrigLocalVars'},
-					'ExInclLocalVars' => $Sf->{'ExInclLocalVars'},
-					'UsedLocalVars' => $Sf->{'UsedLocalVars'}, # presumably this is always empty					
-				}
-			};
-			
-			$Sf->{'OrigArgs'} = {
-				'Subsets' => {
-					'UndeclaredOrigArgs' => $Sf->{'UndeclaredOrigArgs'},
-					'DeclaredOrigArgs'   => $Sf->{'DeclaredOrigArgs'}
-				},
-				'List' => [],
-			};
-			
-			$Sf->{'Args'} = {
-				'Subsets' => {
-					'OrigArgs'   => $Sf->{'OrigArgs'},
-					'ExGlobArgs' => $Sf->{'ExGlobArgs'},
-					'ExInclArgs' => $Sf->{'ExInclArgs'}
-				}
-			};
-
-			$Sf->{'Parameters'} = {
-				'Subsets' => {
-					'LocalParameters'    => $Sf->{'LocalParameters'},
-					'IncludedParameters' => $Sf->{'IncludedParameters'},
-					'UsedParameters' => $Sf->{'UsedParameters'},
-					'ParametersFromContainer' =>
-					  $Sf->{'ParametersFromContainer'}
-				}
-			};
-			$Sf->{'Vars'} = {
-				'Subsets' => {
-					'Args'       => $Sf->{'Args'},
-					'CommonVars' => $Sf->{'CommonVars'},
-					'LocalVars'  => $Sf->{'LocalVars'},
-					'Parameters' => $Sf->{'Parameters'}
-				}
-			};
-
-		} else {    # For includes and modules
- 
-# 			say "MOD $f";
- 			if ($is_mod) { 				
- 				for my $sub (sort keys %{ $Sf->{Subroutines} }) {
- 					$stref->{'Subroutines'}{$sub} =_initialise_decl_var_tables( $stref->{'Subroutines'}{$sub}, $stref, $sub,0,0);
- 				}		
- 			}
-			# Includes can contain LocalVars, CommonVars or Parameters
-			# Commons can't be Args so they will go in ExInclLocalVars?
-			# I guess includes can contain other includes that contain all this as well, how do I deal with that?			
-
-			$Sf->{'LocalVars'} =
-			  { 'Subsets' => { 
-			  	'OrigLocalVars' => $Sf->{'OrigLocalVars'},
-			  	'UsedLocalVars' => $Sf->{'UsedLocalVars'} 
-			  } 
-			  };
-
-			$Sf->{'Parameters'} = {
-				'Subsets' => {
-					'LocalParameters'    => $Sf->{'LocalParameters'},
-					'IncludedParameters' => $Sf->{'IncludedParameters'},
-					'UsedParameters' => $Sf->{'UsedParameters'}
-				}
-			};
-			$Sf->{'Vars'} = {
-				'Subsets' => {
-					'LocalVars'  => $Sf->{'LocalVars'},
-					'CommonVars' => $Sf->{'CommonVars'}, # I will overload this to include UsedGlobalVars
-					'Parameters' => $Sf->{'Parameters'}
-				}
-			};
-		}
-
-		$Sf->{'DoneInitTables'} = 1;
-	}
-	return $Sf;
-} # END of _initialise_decl_var_tables
-
-# _analyse_lines() parses every line and determines its purpose, the info is added to $info. Furthermore,
+# analyse_lines() parses every line and determines its purpose, the info is added to $info. Furthermore,
 # Create a table of all variables declared in the target, and a list of all the var names occuring on each line.
 # $Sf->{'Parameters'}
 # $Sf->{'Vars'} = \%vars;
@@ -361,7 +181,7 @@ sub _initialise_decl_var_tables {
 # In order to get proper hooks for the ex-globals, I think we need to check signatures, includes and variable declarations here.
 
 #WV20150305 I've added labels to the lines, as identifiers for e.g. start/end of pragmas. I can do this here because here the lines have been normalised but no refactoring has been done yet.
-sub _analyse_lines {
+sub analyse_lines {
 	( my $f, my $stref ) = @_;
 	
 	my $grouped_warnings={};
@@ -369,7 +189,7 @@ sub _analyse_lines {
 	
 	my $is_incl = $sub_incl_or_mod eq 'IncludeFiles' ? 1 : 0;
 	
-#	say "_analyse_lines( $f ) : $sub_incl_or_mod is_include: $is_incl";
+#	say "analyse_lines( $f ) : $sub_incl_or_mod is_include: $is_incl";
 	my $Sf = $stref->{$sub_incl_or_mod}{$f};
 #	croak Dumper( sort keys %{$Sf});
 	$Sf->{'ExGlobVarDeclHook'} = 0;
@@ -1562,7 +1382,7 @@ END IF
 	
 
 	return $stref;
-}    # END of _analyse_lines()
+}    # END of analyse_lines()
 
 # -----------------------------------------------------------------------------
 # For every 'include' statement in a subroutine

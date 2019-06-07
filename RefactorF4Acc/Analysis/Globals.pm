@@ -21,7 +21,7 @@ use Exporter;
 
 @RefactorF4Acc::Analysis::Globals::ISA = qw(Exporter);
 
-@RefactorF4Acc::Analysis::Globals::EXPORT = qw(    
+@RefactorF4Acc::Analysis::Globals::EXPORT_OK = qw(    
     &identify_inherited_exglobs_to_rename
     &lift_globals
     &rename_inherited_exglobs

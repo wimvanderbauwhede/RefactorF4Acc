@@ -21,7 +21,7 @@ use Exporter;
 
 @RefactorF4Acc::Analysis::KernelArgs::ISA = qw(Exporter);
 
-@RefactorF4Acc::Analysis::KernelArgs::EXPORT = qw(
+@RefactorF4Acc::Analysis::KernelArgs::EXPORT_OK = qw(
     &determine_kernel_args
     &determine_kernel_wrapper_args    
 );

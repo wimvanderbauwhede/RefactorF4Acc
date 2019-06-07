@@ -485,16 +485,19 @@ sub _match_up_common_var_sequences { my ($stref,  $f, $caller, $block) = @_;
 					if ($kind_local ==  $kind_caller) {				
 						# increment dim
 						# We support a scalar with a larger kind, simply by having
-						
-						my $coords = _calc_coords($stref, $caller, $dim_caller, $lin_idx_caller);
+						my $lin_idx_caller_start = $lin_idx_caller;  
+						my $lin_idx_caller_end = $lin_idx_caller_start +  $kind_caller/$kind_local - 1; # so, usually this is 0
+						my $coords_start = _calc_coords($stref, $caller, $dim_caller, $lin_idx_caller_start);
+						my $coords_end = _calc_coords($stref, $caller, $dim_caller, $lin_idx_caller_end);
 						my $dim_caller_copy = dclone($dim_caller); 			
-						for my $idx (0 .. scalar @{$coords} - 1) {
-							$dim_caller_copy->[$idx][0]=$coords->[0];
+						for my $idx (0 .. scalar @{$coords_start} - 1) {
+							$dim_caller_copy->[$idx][0]=$coords_start->[0];
+							$dim_caller_copy->[$idx][1]=$coords_end->[0];
 						}
 						push @equivalence_pairs, [[$name_local,0,[],[]],[$name_caller,1,$dim_caller_copy,$prefix]];
 						# increment lin idx. But if the lin idx is already the dimsz, we should not do this, as it means we're at the last element.
 						# e.g. if the caller idx is 3 and the caller array is 4, then 4-3 = 1 > 0 
-						if ($dimsz_caller - $lin_idx_caller > $kind_local/$kind_caller - 1) {
+						if ($dimsz_caller - $lin_idx_caller > $kind_caller/$kind_local - 1) {
 							$lin_idx_caller += $kind_local/$kind_caller; # currently this of course just means +=1							
 							$elt_caller=[$name_caller, $decl_caller, $kind_caller, $dim_caller, $dimsz_caller,$lin_idx_caller, $used_caller];
 							unshift @common_caller_seq,$elt_caller; 

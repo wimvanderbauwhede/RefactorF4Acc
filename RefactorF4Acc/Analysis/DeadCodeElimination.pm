@@ -19,7 +19,7 @@ use Exporter;
 
 @RefactorF4Acc::Analysis::DeadCodeElimination::ISA = qw(Exporter);
 
-@RefactorF4Acc::Analysis::DeadCodeElimination::EXPORT = qw(
+@RefactorF4Acc::Analysis::DeadCodeElimination::EXPORT_OK = qw(
     &analyse_for_dead_code
 );
 

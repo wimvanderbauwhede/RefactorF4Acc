@@ -20,11 +20,12 @@ use Data::Dumper;
 
 use Exporter;
 
-@RefactorF4Acc::Refactoring::Functions::ISA = qw(Exporter);
+our @ISA = qw(Exporter);
 
-@RefactorF4Acc::Refactoring::Functions::EXPORT_OK = qw(
-    &refactor_called_functions
-    &remove_vars_masking_functions
+our @EXPORT_OK = qw(
+	add_function_var_decls_from_calls
+    refactor_called_functions
+    remove_vars_masking_functions
 );
 
 =pod
@@ -200,3 +201,65 @@ sub _convert_function_to_subroutine {
 	( my $f, my $stref ) = @_;
 	return $stref;
 }
+
+
+#== VARIABLE and PARAMETER DECLARATIONS
+#@ VarDecl =>
+#@     Name => $varname
+#@     Names => $varnames
+#@     ParamDecl =>
+#@     Indent    => $indent
+#@     Type      => $type
+#@     Attr      => $attr
+#@     Dim       => []
+#@     Parameter => 'parameter'
+#@     Names     => [@var_vals]
+#@     Status    => 0    
+
+sub add_function_var_decls_from_calls {
+    ( my $stref, my $f ) = @_;
+    
+    my $Sf = $stref->{'Subroutines'}{$f};
+
+    #   local $DBG= ;
+    say "_add_function_var_decls_from_calls($f)" if $DBG;
+
+    my $__add_function_var_decls_from_calls = sub {
+        ( my $annline, my $state ) = @_;
+        ( my $line, my $info )  = @{$annline};        
+        ( my $stref, my $f) = @{$state};
+        my $Sf     = $stref->{'Subroutines'}{$f};
+        
+        if ( exists $info->{'FunctionCalls'} ) {
+        	for my $fcall ( @{ $info->{'FunctionCalls'} } ) {
+        	   my $fname = $fcall->{'Name'};
+#                croak 	 Dumper $stref->{'Subroutines'}{$fname}{'Signature'};
+                if (not exists $Sf->{'UndeclaredOrigLocalVars'}{'Set'}{$fname}) {                	
+                	my $decl = {
+                		'Name' => $fname,
+                		'Indent' => '      ', # no idea, best would be to inherit
+                		'Attr' => $stref->{'Subroutines'}{$fname}{'Signature'}{'ReturnTypeAttr'}, # TODO, in principle the type-spec could be something like integer(size=4) or maybe even an array or character string
+                		'Type' => $stref->{'Subroutines'}{$fname}{'Signature'}{'ReturnType'}, 
+                		'Dim' =>[],
+                		 'ArrayOrScalar' => 'Scalar'
+                	};
+                	$Sf->{'UndeclaredOrigLocalVars'}{'Set'}{$fname}=$decl;
+                	@{ $Sf->{'UndeclaredOrigLocalVars'}{'List'} } = sort keys %{ $Sf->{'UndeclaredOrigLocalVars'}{'Set'} }; 
+                } 
+            }
+        }
+        
+	    $state = [ $stref, $f];
+        return ( [$annline], $state );
+        
+    };
+
+    my $state = [ $stref, $f];
+
+    ( $stref, $state ) = stateful_pass( $stref, $f, $__add_function_var_decls_from_calls, $state, '_add_function_var_decls_from_calls() ' . __LINE__ );
+    $stref = $state->[0];
+    return $stref;
+	
+} # END of add_function_var_decls_from_calls
+
+1;

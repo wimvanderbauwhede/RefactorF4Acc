@@ -2,6 +2,7 @@ package RefactorF4Acc::Parser::SrcReader;
 use v5.10;
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils qw( sub_func_incl_mod show_status show_annlines %F95_reserved_words %F95_types);
+use RefactorF4Acc::Preconditioning qw( split_multiblock_common_lines );
 use RefactorF4Acc::Refactoring::Common;
 use Fortran::F95Normaliser qw( normalise_F95_src );
 
@@ -900,64 +901,10 @@ Suppose we don't:
                     }
                 }    # free or fixed form
             
-				# Split lines with multiple common block declarations            
-			    for my $sub_or_func ( @{  $stref->{'SourceContains'}{$f}{'List'}   } ) {			    	
-			        my $sub_func_type= $stref->{'SourceContains'}{$f}{'Set'}{$sub_or_func};
-			        			        
-			        my $Sf = $stref->{$sub_func_type}{$sub_or_func};			         
-			        next if (exists $Sf->{'Entry'} and $Sf->{'Entry'}==1);
-			         
-		            my @annlines = @{  $Sf->{'AnnLines'} };
-		            my $new_annlines=[];
-		            for my $annline (@annlines) {
-		            	(my $line, my $info)=@{$annline};            	
-	                    if ($line=~/^\s*\d*\s+common/) {                    	
-							# 'Normal' is common /name/ x
-							# But also  
-							# common x//y 
-							# common x/name/y 
-							# common //x 
-							# common ivcn06/blk5/rvcnd1,lvcnd1//ivcn07,ivcn08/blk6/rvcne1
-							# If we split on '/' we want to know: how many '/' are there? i.e. scalar @chunks -1
-							# But we need to cater for the bare common as a first occurence, so test /common\s+[a-z]/
-							my $tline = $line;
-							my @chunks = split(/\s*\/\s*/,$tline);
-							
-							my $multiple_common_blocks=0;
-							my $first_block_bare=0;						 						 
-	                        if (scalar @chunks > 3) {
-	                        	$multiple_common_blocks=1;
-	                        	if ($chunks[0]=~/common\s+[a-z]/) {
-	                        		$first_block_bare=1;
-	                        	}
-	                        } elsif (scalar @chunks == 3 and $chunks[0]=~/common\s+[a-z]/) {
-	                        	$multiple_common_blocks=1;
-	                        	$first_block_bare=1;	
-	                        }
-	                        if ($multiple_common_blocks==1) {		                        	
-	                        		my $fst = shift @chunks;
-	                        		(my $indent, my $rest) = split(/common/, $fst);
-	                        		$rest=~s/\s*,\s*$//;
-	                        		my $common = $indent.'common ';
-	                        	if ($first_block_bare==1) {
-#	                        		say 'BARE!' . $line;
-	                        		# so we have 'common l1 ','[n2]',l2,...		                        		
-	                        		my $nline = $common.'// '.$rest;
-	                        		 push @{$new_annlines},[$nline, $info];
-	                        	} else {
-	#                        		say "MULTIPLE COMMON: $line";
-	                        	}
-	                        	for my $i (0 .. (scalar @chunks)/2-1) {
-	                        		my $nline = $common. '/'.$chunks[2*$i].'/ '.$chunks[2*$i+1];
-	                        		push @{$new_annlines},[$nline, $info];
-								}
-	                        	next;                        	                               
-	                        }
-	                    } 
-	            		push @{$new_annlines}, [$line,$info];
-		            }
-					$Sf->{'AnnLines'} = $new_annlines;
-			    }	                        
+				# Split lines with multiple common block declarations    
+				# TODO this should no longer be necessary with a better parser!
+				$stref = split_multiblock_common_lines($stref, $f);        
+			                     
             }    #ok
         } else {
             print "NO NEED TO READ $code_unit_name\n" if $I;

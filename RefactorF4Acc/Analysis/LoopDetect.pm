@@ -21,7 +21,7 @@ use Exporter;
 
 @RefactorF4Acc::Analysis::LoopDetect::ISA = qw(Exporter);
 
-@RefactorF4Acc::Analysis::LoopDetect::EXPORT = qw(
+@RefactorF4Acc::Analysis::LoopDetect::EXPORT_OK = qw(
   &outer_loop_start_detect
   &outer_loop_end_detect
   &outer_loop_variable_analysis

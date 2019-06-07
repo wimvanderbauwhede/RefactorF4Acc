@@ -27,7 +27,8 @@ use Exporter;
 @RefactorF4Acc::Analysis::Includes::ISA = qw(Exporter);
 
 @RefactorF4Acc::Analysis::Includes::EXPORT_OK = qw(
-    &find_root_for_includes    
+    find_root_for_includes    
+    lift_param_includes
 );
 
 # This routine is called after the subroutines have been parsed, and the call graph has been created.
@@ -226,6 +227,20 @@ sub __merge_includes {
 #    say $chain;
     return $stref;
 }    # END of __merge_includes
+# -----------------------------------------------------------------------------
 
+# This is for param includes inside other includes, and it is not recursive, FIXME!
+sub lift_param_includes {
+	( my $stref, my $f ) = @_;
+	my $sub_or_func_or_mod = sub_func_incl_mod( $f, $stref );
+	my $Sf = $stref->{$sub_or_func_or_mod}{$f};
+	for my $inc ( keys %{ $Sf->{'Includes'} } ) {		
+		if ( exists $stref->{'IncludeFiles'}{$inc}{'ParamInclude'} ) {
+			my $param_include = $stref->{'IncludeFiles'}{$inc}{'ParamInclude'};
+			$Sf->{'Includes'}{$param_include} = { 'Only' => {} };
+		}
+	}
+	return $stref;
+}
 # -----------------------------------------------------------------------------
 1;

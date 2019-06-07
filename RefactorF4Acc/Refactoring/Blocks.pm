@@ -2,9 +2,9 @@ package RefactorF4Acc::Refactoring::Blocks;
 use v5.10;
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
-
-use RefactorF4Acc::Parser qw( _initialise_decl_var_tables parse_fortran_src );
-use RefactorF4Acc::Analysis qw( identify_vars_on_line );
+use RefactorF4Acc::State qw( initialise_per_code_unit_tables );
+use RefactorF4Acc::Parser qw( parse_fortran_src );
+use RefactorF4Acc::Analysis::Variables qw( identify_vars_on_line );
 use RefactorF4Acc::Refactoring::Common qw( get_f95_var_decl emit_f95_var_decl);#get_annotated_sourcelines create_refactored_source splice_additional_lines_cond  );
 
 #
@@ -327,7 +327,7 @@ sub __construct_new_subroutine_signatures {
 
         my $Sblock = $stref->{'Subroutines'}{$block};
 
-        $Sblock = _initialise_decl_var_tables( $Sblock, $stref, $block, 0 );
+        $Sblock = initialise_per_code_unit_tables( $Sblock, $stref, $block, 0 );
 
         print "\nARGS for BLOCK $block:\n" if $V;
         $args{$block} = [];
