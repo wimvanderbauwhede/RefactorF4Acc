@@ -1,33 +1,36 @@
 package RefactorF4Acc::Analysis::CommonBlocks;
-use v5.10;
-
-use RefactorF4Acc::Config;
-use RefactorF4Acc::Analysis::ArrayAccessPatterns qw( eval_expression_with_parameters );
-use RefactorF4Acc::Utils qw( in_nested_set );
-#
-#   (c) 2010-2017 Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
-#
-
-use vars qw( $VERSION );
-$VERSION = "1.2.0";
+# 
+#   (c) 2010-now Wim Vanderbauwhede <Wim.Vanderbauwhede@Glasgow.ac.uk>
+#   
 
 #use warnings::unused;
 use warnings;
 use warnings FATAL => qw(uninitialized);
 use strict;
+
+use v5.10;
+
+use RefactorF4Acc::Config;
+use RefactorF4Acc::Analysis::ArrayAccessPatterns qw( eval_expression_with_parameters );
+use RefactorF4Acc::Utils qw( in_nested_set );
+
+use vars qw( $VERSION );
+$VERSION = "1.2.0";
+
+
 use Carp;
 use Data::Dumper;
 use Storable qw( dclone );
 
 use Exporter;
 
-@RefactorF4Acc::Analysis::CommonBlocks::ISA = qw(Exporter);
+our @ISA = qw(Exporter);
 
-@RefactorF4Acc::Analysis::CommonBlocks::EXPORT_OK = qw(
-	&collect_common_vars_per_block
-	&identify_common_var_mismatch
-	&create_common_var_size_tuples
-	&match_up_common_vars
+our @EXPORT_OK = qw(
+	collect_common_vars_per_block
+	identify_common_var_mismatch
+	create_common_var_size_tuples
+	match_up_common_vars
 );
 
 
@@ -65,7 +68,7 @@ sub collect_common_vars_per_block { my ($stref, $f, $common_decl_str_) = @_;
         $common_vars_str=~s/,\s*$//;
         my @common_vars_strs = split(/\s*,\s*/,$common_vars_str);
         
-        my @common_vars = grep {!/\)$/ } map { s/\(.+$// ;$_} @common_vars_strs ;
+        my @common_vars = grep {!/\)$/ } map { my $str=$_;$str=~s/\(.+$// ;$str } @common_vars_strs ;
 		$common_blocks{$common_block_name} =[ @{$common_blocks{$common_block_name}} ,@common_vars ];
     }
 #    say Dumper(  %common_blocks  ) if $f eq 'fm302';
@@ -405,8 +408,7 @@ sub _match_up_common_var_sequences { my ($stref,  $f, $caller, $block) = @_;
 							 # then I need the points 3,4,5,6 to overlap with 1,2,3,4
 							 # 3+4-1
 							 # This is regardless of the kind differences
-							my $lin_idx_local_end = $lin_idx_local + $kind_caller*($dimsz_caller-$lin_idx_caller+1)/$kind_local - 1;
-							
+							my $lin_idx_local_end = $lin_idx_local + $kind_caller*($dimsz_caller-$lin_idx_caller+1)/$kind_local - 1;							
 							my $lin_idx_local_start = $lin_idx_local;
 							# Now increment the index   
 							
@@ -508,7 +510,7 @@ sub _match_up_common_var_sequences { my ($stref,  $f, $caller, $block) = @_;
 				}
 				elsif ($decl_local->{'ArrayOrScalar'} eq 'Array' and $decl_caller->{'ArrayOrScalar'} eq 'Scalar') { # local is array, caller is scalar
 					if ($kind_local ==  $kind_caller) {		
-												
+												criak "Do same as above!";
 						my $coords = _calc_coords($stref, $f, $dim_local, $lin_idx_local);
 						my $dim_local_copy = dclone($dim_local);	
 						for my $idx (0 .. scalar @{$coords} - 1) {

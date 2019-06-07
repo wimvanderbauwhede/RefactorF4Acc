@@ -1,5 +1,15 @@
 package RefactorF4Acc::Parser;
+# 
+#   (c) 2010-now Wim Vanderbauwhede <Wim.Vanderbauwhede@Glasgow.ac.uk>
+#   
+
+#use warnings::unused;
+use warnings;
+use warnings FATAL => qw(uninitialized);
+use strict;
+
 use v5.10;
+
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
 use RefactorF4Acc::State qw( initialise_per_code_unit_tables );
@@ -30,15 +40,9 @@ use Fortran::ConstructParser qw(
   parse_Fortran_open_call
 );  
 
-#   (c) 2010-2018 Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
-
 use vars qw( $VERSION );
 $VERSION = "1.2.0";
 
-#use warnings::unused;
-use warnings;
-use warnings FATAL => qw(uninitialized);
-use strict;
 use Carp;
 use Data::Dumper;
 use Storable qw( dclone );
@@ -2785,7 +2789,7 @@ sub __parse_f77_par_decl {
 	my @partups = _parse_comma_sep_expr_list( $parliststr ); 
 	my %pvars = map { split( /\s*=\s*/, $_ ) } @partups;    # Perl::Critic, EYHO
 	my @var_vals = map { ( my $k, my $v ) = split( /\s*=\s*/, $_ ); [ $k, $v ] } @partups; # Perl::Critic, EYHO
-	my @pvarl = map { s/\s*=.+//; $_ } @partups;
+	my @pvarl = map { my $str=$_; $str=~s/\s*=.+//; $str } @partups;
 	my $pars = [];
 
 	my $pars_in_val = {};
