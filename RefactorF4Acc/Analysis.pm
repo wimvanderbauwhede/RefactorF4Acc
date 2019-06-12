@@ -204,6 +204,8 @@ sub analyse_all {
 		next  if $f eq 'UNKNOWN_SRC';
 		next unless exists $stref->{'Subroutines'}{$f}{'HasLocalCommons'};
 		match_up_common_vars( $stref, $f );
+		next unless exists $stref->{'Subroutines'}{$f}{'HasCommonVarMismatch'};
+		$stref = create_RefactoredArgs( $stref, $f );
 	}
 	
 	

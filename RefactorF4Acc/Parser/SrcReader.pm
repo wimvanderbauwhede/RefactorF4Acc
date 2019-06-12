@@ -48,6 +48,9 @@ sub read_fortran_src {
     if ( not exists $stref->{$sub_func_incl}{$code_unit_name}{'HasBlocks'} ) {
         $stref->{$sub_func_incl}{$code_unit_name}{'HasBlocks'} = 0;
     }
+    
+    # If RefactoredCode exists, it means we are re-parsing a refactored code unit
+    # So just return RefactoredCode as AnnLines    
 	my $Sf = $stref->{$sub_func_incl}{$code_unit_name};
 	if (exists     $Sf->{'RefactoredCode'}) {
     	$Sf->{'AnnLines'}=$Sf->{'RefactoredCode'};

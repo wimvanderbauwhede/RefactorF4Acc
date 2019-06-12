@@ -463,9 +463,11 @@ SUBROUTINE
 #== IMPLICIT NONE						
 			if ( $line =~ /implicit\s+(none|undefined\s*\(\s*a\s*\-\s*z\s*\))/ ) {
 				$info->{'ImplicitNone'} = 1;
+				$info->{'Indent'} = $indent;
 				$info->{'SpecificationStatement'} = 1;
 				$Sf->{'ImplicitNone'}   = $index;
-				$srcref->[$index] = [ $line, $info ];
+				
+				$srcref->[$index] = [ $indent . $line, $info ];
 				next;
 #== USE				
 			} elsif ( $line =~ /^use\s+(\w+)/ ) {

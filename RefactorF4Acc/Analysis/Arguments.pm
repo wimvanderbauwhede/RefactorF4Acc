@@ -120,6 +120,10 @@ sub create_RefactoredArgs {
 	my $Sf = $stref->{'Subroutines'}{$f};
     return $stref unless defined $Sf->{'Source'};
 	
+	# So for the Mismatched
+	if (not exists $stref->{'Subroutines'}{$f}{'HasCommonVarMismatch'}) {
+	
+	
 	if ( exists $Sf->{'ExGlobArgs'}{'List'} and scalar @{$Sf->{'ExGlobArgs'}{'List'}}>0 and scalar @{ $Sf->{'OrigArgs'}{'List'} } >0
 	) {
 
@@ -145,10 +149,41 @@ sub create_RefactoredArgs {
 		$Sf->{'RefactoredArgs'} = { 'Set' => {}, 'List' => [] };
 		$Sf->{'HasRefactoredArgs'} = 0;
 	}
+	
+	} else {
+
+	if ( exists $Sf->{'ExMismatchedCommonArgs'}{'SigArgs'}{'List'} and scalar @{$Sf->{'ExMismatchedCommonArgs'}{'SigArgs'}{'List'}}>0 and scalar @{ $Sf->{'OrigArgs'}{'List'} } >0
+	) {
+
+		$Sf->{'RefactoredArgs'}{'List'} = ordered_union( $Sf->{'OrigArgs'}{'List'}, $Sf->{'ExMismatchedCommonArgs'}{'SigArgs'}{'List'} );
+		$Sf->{'RefactoredArgs'}{'Set'} = { %{ $Sf->{'UndeclaredOrigArgs'}{'Set'} }, %{ $Sf->{'DeclaredOrigArgs'}{'Set'} }, %{ $Sf->{'ExMismatchedCommonArgs'}{'SigArgs'}{'Set'} } };
+		$Sf->{'HasRefactoredArgs'} = 1;
+
+	} elsif ( exists $Sf->{'ExMismatchedCommonArgs'}{'SigArgs'}{'List'} and  scalar @{$Sf->{'ExMismatchedCommonArgs'}{'SigArgs'}{'List'}}==0
+	and scalar @{ $Sf->{'OrigArgs'}{'List'} } >0
+	) {
+
+		# No ExMismatchedCommonArgs, so Refactored = Orig
+		$Sf->{'RefactoredArgs'}{'Set'}  = $Sf->{'OrigArgs'}{'Set'};
+		$Sf->{'RefactoredArgs'}{'List'} = $Sf->{'OrigArgs'}{'List'};
+		$Sf->{'HasRefactoredArgs'}      = 0;
+	} elsif (  exists $Sf->{'ExMismatchedCommonArgs'}{'SigArgs'}{'List'} and  scalar @{$Sf->{'ExMismatchedCommonArgs'}{'SigArgs'}{'List'}}>0
+	and scalar @{ $Sf->{'OrigArgs'}{'List'} } ==0
+	) {
+		# No OrigArgs, so Refactored = ExMismatchedCommonArgs
+		$Sf->{'RefactoredArgs'}    = $Sf->{'ExMismatchedCommonArgs'}{'SigArgs'};
+		$Sf->{'HasRefactoredArgs'} = 1;
+	} else { # No args at all, implies Globals that have not yet been resolved
+		$Sf->{'RefactoredArgs'} = { 'Set' => {}, 'List' => [] };
+		$Sf->{'HasRefactoredArgs'} = 0;
+	}		
+				
+	}
 	return $stref;
 } # END of create_RefactoredArgs
 
 # Create 'RefactoredArgs' for Entries
+# TODO: make this work with mismatched COMMON vars
 sub create_RefactoredArgs_for_ENTRY {
 	( my $stref, my $f ) = @_;
 	my $Spf = $stref->{'Subroutines'}{$f};
@@ -384,6 +419,10 @@ sub analyse_var_decls_for_params {
 	
 # We do a recusive descent for all called subroutines, and for the leaves we do the analysis.
 # TODO: in principle this should also work for called functions ...
+# TODO: the new approach for mismatched COMMON vars only works with direct callers, so if f calls g and g calls h then f is not considered a caller
+# TODO: So if f has COMMON blocks and it calls h via g, and g does not have COMMON blocks, then we have the situation where g should get the args to be passed on to h
+# Currently this will not work: the CallArgs are based on the direct caller
+# To make it work correctly, the direct caller must inherit the COMMON vars from the caller, as-is.
 sub determine_ExGlobArgs {
 	( my $f, my $stref ) = @_;
 	my $c;
@@ -391,6 +430,8 @@ sub determine_ExGlobArgs {
 		$c = ( defined $stref->{Counter} ) ? $stref->{Counter} : 0;
 		say "\t" x $c, $f;
 	}
+	
+	# For the Mismatched COMMON vars, we use SigArgs instead of ExGlobArgs
 	
     push @{ $stref->{'CallStack'} }, $f;
     my %subs = map {$_=>1} @{ $stref->{'CallStack'} }; 
@@ -424,6 +465,8 @@ sub determine_ExGlobArgs {
 		$stref = __determine_exglobargs_core( $stref, $f );
 	}
 	pop  @{ $stref->{'CallStack'} };
+	
+	
 	return $stref;
 }    # determine_ExGlobArgs()
 
@@ -438,7 +481,7 @@ sub __determine_exglobargs_core { ( my $stref, my $f ) = @_;
 	my $is_block_data = exists $Sf->{'BlockData'} ? 1 : 0;
 	
 	# Get declarations from CommonVars	
-	my $common_decls_current=__get_common_decls($stref,$f);	
+	my $common_decls_current = __get_common_decls($stref,$f);	
 	# Determine if this $var occurs in  $common_block_name anywhere up the stack
 	# So either I go for every var through all callers or for every caller through all vars
 	# Or better: create an intermediate datastructure $var => { $block => {$f =>1, ...} }

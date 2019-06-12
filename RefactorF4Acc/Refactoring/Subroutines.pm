@@ -134,14 +134,6 @@ sub _refactor_subroutine_main {
             croak 'SHOULD BE OBSOLETE!';
         }
     }
-# here RefactoredArgs has been doubled!    
-#    if ($f eq 'wave2d') {
-#    say Dumper($stref); croak;
-#    }
-    
-#    if ($f eq 'wave2d') {
-#		show_annlines($annlines);croak ;
-#    }
 	 
     $annlines = _fix_end_lines($stref, $f, $annlines); # FIXME maybe do this later
 
@@ -155,14 +147,12 @@ sub _refactor_subroutine_main {
  # The assignment lines for the mismatched ex-COMMON vars can go here
  # probably before the first line that is not a SpecificationStatement and not a Comment and not a Blank and not Skip or Deleted      
     $annlines = _add_ExMismatchedCommonArg_assignment_lines($stref, $f, $annlines);
-#    say Dumper(pp_annlines($annlines,1));
+
     $Sf->{'RefactoredCode'}=$annlines;
-#    say Dumper(pp_annlines($stref->{'Subroutines'}{$f}{'RefactoredCode'},1));
+    # Re-parsing to get the Info for the emitted lines
     $stref = parse_fortran_src($f, $stref);
     $annlines=$Sf->{'AnnLines'};
-#    say Dumper(pp_annlines($annlines,1));
-#    say Dumper(pp_annlines($stref->{'Subroutines'}{$f}{'AnnLines'},1));
-#    die if $f eq 'ff305';	    
+    
     $annlines = _emit_refactored_signatures($stref, $f, $annlines);
     $Sf->{'RefactoredCode'}=$annlines;
         
@@ -287,11 +277,11 @@ sub _refactor_globals_new {
         if ( exists $info->{'Signature'} ) { 
 			if (not exists $Sf->{'HasRefactoredArgs'} or $Sf->{'HasRefactoredArgs'} ==0 ) {            	
                 # This probably means the subroutine has no arguments at all.
-                 # Do this before the analysis for RefactoredArgs!
-                 
-                 $stref = refactor_subroutine_signature( $stref, $f );
+                # Do this before the analysis for RefactoredArgs!
+            	# NOTE: refactor_subroutine_signature() only adds ex-globals that where declared as COMMON in Includes     
+                $stref = refactor_subroutine_signature( $stref, $f );
             }
-            
+            # create_refactored_subroutine_signature() emits the new signature using RefactoredArgs as the args
             $rlines = create_refactored_subroutine_signature( $stref, $f, $annline, $rlines );            
 			$rlines = [@{$rlines},@par_decl_lines_from_container,@par_decl_lines_from_module];     
             $skip = 1;
@@ -348,7 +338,8 @@ sub _refactor_globals_new {
             $rlines = _create_extra_arg_and_var_decls( $stref, $f, $annline, $rlines );
         } 
 
-        if ( exists $info->{'SubroutineCall'} ) {   # croak 'BLOCK DATA'.Dumper($info) if $line=~/an507/;     	
+        if ( exists $info->{'SubroutineCall'} ) {
+        	      	
             # simply tag the common vars onto the arguments                        
             $rlines = _create_refactored_subroutine_call( $stref, $f, $annline, $rlines );            
             $skip = 1;
@@ -401,19 +392,15 @@ sub _create_extra_arg_and_var_decls {
     push @{$rlines},$BLANK_LINE;
     }
     
-#croak "NEED TO HANDLE THE CASE OF MODULE WITH PARAMETERS";
     if (exists $Sf->{'UsedParameters'}{'List'} and
     scalar  @{ $Sf->{'UsedParameters'}{'List'} } > 0) { 
     print "INFO: UsedParameters in $f\n" if $I;
             
     for my $par ( @{ $Sf->{'UsedParameters'}{'List'} } ) {
-    	
     	my $test_par = in_nested_set($Sf,'Parameters',$par);
-#    	say "$f PAR $par $test_par "; 
     	if (not $test_par or $test_par eq 'UsedParameters') {
     	say "INFO PAR in $f: $par ".Dumper($Sf->{'UsedParameters'}{'Set'}{$par} ) if $I; 
                     my $rdecl = $Sf->{'UsedParameters'}{'Set'}{$par};
-#                    say Dumper($rdecl); 
                     my $rline = emit_f95_var_decl($rdecl);
                     my $info={};
                     $info->{'Ann'}=[ annotate($f, __LINE__ .' : INCLUDED PARAM ' . $annline->[1]{'ExGlobVarDeclHook'} ) ];                                               
@@ -438,7 +425,7 @@ sub _create_extra_arg_and_var_decls {
 #    	and not exists $Sf->{'UndeclaredCommonVars'}{'Set'}{$var}
     	) {
 		
-    	say "INFO VAR in $f: IODir for $var: ".$Sf->{'ExGlobArgs'}{'Set'}{$var}{'IODir'}  if $I and not $Sf->{'Program'}; 
+    	say "INFO VAR in $f: IODir for $var: ".$Sf->{'ExGlobArgs'}{'Set'}{$var}{'IODir'} if $I and not $Sf->{'Program'}; 
                     my $rdecl = $Sf->{'ExGlobArgs'}{'Set'}{$var}; 
                     my $rline = emit_f95_var_decl($rdecl);
                     my $info={};
@@ -464,27 +451,6 @@ sub _create_extra_arg_and_var_decls {
                     push @{$rlines}, [ $rline,  $info ];                        
     }    # for
 
-#    print "INFO: UsedGlobalVars in $f\n" if $I;
-#    for my $var ( @{ $Sf->{'UsedGlobalVars'}{'List'} } ) {
-#    	# Check if this var is used in the subroutine, right?
-#    	if (exists $Sf->{'UndeclaredOrigLocalVars'}{'Set'}{$var}) {
-#    	say "INFO VAR: $var" if $I;
-#                    my $rdecl = $Sf->{'UsedGlobalVars'}{'Set'}{$var}; 
-#                    my $rline = emit_f95_var_decl($rdecl);                                                                   
-#                    my $info={};                    
-#                    $info->{'Ann'}=[annotate($f, __LINE__ .' : EX-MODULE-GLOBAL' ) ];
-#                    $info->{'LineID'}= $nextLineID++;
-#                    $info->{'Ref'}=1;
-#                    $info->{'VarDecl'}={'Name' => $var};#$rdecl;
-#                    push @{$rlines}, [ $rline,  $info ];      
-#                    # So now for convenience I will just add these to ExGlobArgs                    
-##                    $Sf->{'ExGlobArgs'}{'Set'}{$var}=$rdecl;
-##                    $Sf->{'RefactoredArgs'}{'Set'}{$var}=$rdecl;
-##                   push @{$Sf->{'ExGlobArgs'}{'List'}}, $var;    
-##                   push @{$Sf->{'RefactoredArgs'}{'List'}}, $var;  
-#    	}             
-#    }    # for
-
     print "INFO: UndeclaredOrigArgs in $f\n" if $I;
     my %unique_ex_impl=();
     for my $var ( @{ $Sf->{'UndeclaredOrigArgs'}{'List'} } ) {
@@ -504,14 +470,13 @@ sub _create_extra_arg_and_var_decls {
 				my $rdecl = $Sf->{'UndeclaredOrigArgs'}{'Set'}{$var};                    
                 if (not exists $rdecl->{'External'}
                     or (exists $rdecl->{'External'} and exists $Sf->{'UndeclaredOrigArgs'}{'Set'}{$var})                    
-                ) {
-                    	  
+                ) {                    	  
 	                    my $rline = emit_f95_var_decl($rdecl);                                         
 	                    my $info={};
 	                    $info->{'Ann'}=[annotate($f, __LINE__ .' : EX-IMPLICIT')  ];
 	                    $info->{'LineID'}= $nextLineID++;
 	                    $info->{'Ref'}=1;
-	                    $info->{'VarDecl'}={'Name' => $var};#$rdecl;
+	                    $info->{'VarDecl'}={'Name' => $var};
 	                    push @{$rlines}, [ $rline,  $info ];
                 }
     	}               
@@ -630,7 +595,8 @@ sub _create_extra_arg_and_var_decls {
 # It should update ExGlobArgs 
 # Furthermore I notice that sometimes these arguments are not passed on to the containing subroutine. That should be an issue in the subroutine refactoring code   
 sub _create_refactored_subroutine_call { 
-    ( my $stref, my $f, my $annline, my $rlines ) = @_;    
+    ( my $stref, my $f, my $annline, my $rlines ) = @_;
+        
     ( my $line, my $info) = @{ $annline };
     my $name = $info->{'SubroutineCall'}{'Name'};    
     my $Sf        = $stref->{'Subroutines'}{$f};
@@ -673,11 +639,13 @@ sub _create_refactored_subroutine_call {
 
 	# If there are any ex-global args, collect them
 	# WV2019-06-03 Here we should check. 
-	#if (not exists $stref->{'Subroutines'}{$f}{'HasCommonVarMismatch'}{$parent_sub_name}) { # old approach is fine
-		# } else { # Use new approach }
-    if (exists $stref->{'Subroutines'}{$parent_sub_name}{'ExGlobArgs'}) {		    	       
+	
+	if (not exists $stref->{'Subroutines'}{$f}{'HasCommonVarMismatch'}) { # old approach is fine
+		
+    if (exists $stref->{'Subroutines'}{$parent_sub_name}{'ExGlobArgs'}) {
+    			    	       
         my @globals = @{ $stref->{'Subroutines'}{$parent_sub_name}{'ExGlobArgs'}{'List'} };
-        
+    
         # Problem is that in $f, globals from $name may have been renamed. I store the renamed ones in $Sf->{'RenamedInheritedExGLobs'}
         # So we check and create @maybe_renamed_exglobs
         my @maybe_renamed_exglobs=();
@@ -764,6 +732,9 @@ sub _create_refactored_subroutine_call {
     } else {
         push @{$rlines}, [ $line , $info ];
     }
+    } else { # Use new approach
+    	croak "TODO: $f Mismatched COMMONs"; 
+	}
 
     return $rlines;
 }    # END of _create_refactored_subroutine_call()
@@ -774,7 +745,7 @@ sub _create_refactored_function_calls {
     ( my $stref, my $f, my $annline, my $rlines ) = @_;
     my $Sf        = $stref->{'Subroutines'}{$f};
     (my $line, my $info) = @{ $annline };
-#    say "LINE: $line";
+#    say "$f LINE: $line".Dumper($info) ;
 		# Get the AST
 		my $ast = [];
 		my $do_not_update=0;
@@ -788,9 +759,9 @@ sub _create_refactored_function_calls {
 		} 	
 		
 		# Update the function calls in the AST
-		# Basically, whenever we meet a function, we query it for ExGlobArgs and tag these onto te argument list.		
-		my $updated_ast = $do_not_update ? $ast : __update_function_calls_in_AST($stref,$Sf,$f,$ast);
-#		say Dumper($ast, $updated_ast);
+		# Basically, whenever we meet a function, we query it for ExGlobArgs and tag these onto te argument list.
+		my $updated_ast = $do_not_update ? $ast : __update_function_calls_in_AST($stref,$Sf,$f,$ast); # FIXME: $ast gets modified.
+
 # with NEW_PARSER, these are only the arguments, not the rest of the call.
 		my $updated_line = $do_not_update ? $line : $NEW_PARSER ? emit_expr_from_ast($updated_ast) : emit_expression($updated_ast);
 		if ( exists $info->{'PlaceHolders'} ) { 
@@ -893,16 +864,9 @@ sub __update_function_calls_in_AST { (my $stref, my $Sf,my $f, my $ast) = @_;
 				    }
 			    }
 			} else {
-						# For mismatched COMMON blocks we need to append the call args with 
-#						 'CallArgs' => {
-#    'ff304' => {
-#      'ivcn01' => [
-#        'ivcn01',
-#        'ff304',
-#        'BLANK'
-#      ],
+						# For mismatched COMMON blocks we need to append the call args with 'CallArgs' 
 					my @maybe_renamed_exglobs=();
-					for my $sig_arg ( @{ $stref->{'Subroutines'}{$name}{'ExMismatchedCommonArgs'}{'SigArgs'} } ) {
+					for my $sig_arg ( @{ $stref->{'Subroutines'}{$name}{'ExMismatchedCommonArgs'}{'SigArgs'}{'List'} } ) {						
 						my $call_arg = $stref->{'Subroutines'}{$name}{'ExMismatchedCommonArgs'}{'CallArgs'}{$f}{$sig_arg}[0];
 						push @maybe_renamed_exglobs,$call_arg; 
 					}
@@ -918,15 +882,7 @@ sub __update_function_calls_in_AST { (my $stref, my $Sf,my $f, my $ast) = @_;
     						push @{$ast->[2]},[ 2 ,$extra_arg]; #'$'
 						}
 				    }
-
-# 'SigArgs' => [
-#    'ivcn01',
-#		...
-#	]
-						
-						
-#						croak "SUB $f CALLING $name:".Dumper($stref->{'Subroutines'}{$name}{'ExMismatchedCommonArgs'}); 
-					}	            
+			}	            
         }
         # but in any case we need to traverse again for the old call args
 
@@ -940,7 +896,8 @@ sub __update_function_calls_in_AST { (my $stref, my $Sf,my $f, my $ast) = @_;
 	}
   } 
 
-    } else {
+    } else { # OLD PARSER 
+    croak "HOPEFULLY OBSOLETE!";
 	if (ref($ast) eq 'ARRAY') { 
 		my $nelts = scalar @{$ast};
 		for my  $idx (0 .. $nelts-1) {		
@@ -1018,21 +975,20 @@ sub _add_implicit_none { my ($stref, $f, $annlines) = @_;
         (my $line, my $info) = @{ $annline };
         
         if ((exists $info->{'VarDecl'} or  exists $info->{'ParamDecl'} or exists $info->{'Equivalence'}) and $first_vardecl) {
-        	$first_vardecl=0;
+			$first_vardecl=0;
                    # Here I think I can insert 'implicit none'
-           if (not exists $Sf->{'ImplicitNone'}) {
-            say "Adding 'implicit none' at " . __PACKAGE__ . ' '. __LINE__ if $V;
-           my $r_info={};
-            $r_info->{'ImplicitNone'}=1;
-            $r_info->{'Ann'}=[  annotate($f, __LINE__) ];
-           push @{$rlines}, ['      implicit none', $r_info];
-           }
-        	
+           	if (not exists $Sf->{'ImplicitNone'}) {
+				say "Adding 'implicit none' at " . __PACKAGE__ . ' '. __LINE__ if $V;
+           		my $r_info={};
+	            $r_info->{'Indent'}= ' ' x 6;
+	            $r_info->{'ImplicitNone'}=1;
+	            $r_info->{'Ann'}=[  annotate($f, __LINE__) ];
+				push @{$rlines}, ['implicit none', $r_info];
+			}
         }
-        push @{$rlines},$annline;
-        
+        push @{$rlines},$annline;        
     }	 
-return $rlines;
+	return $rlines;
 } # END of _add_implicit_none
 
  # The assignment lines for the mismatched ex-COMMON vars should come
@@ -1060,7 +1016,7 @@ sub _add_ExMismatchedCommonArg_assignment_lines { my ($stref, $f, $annlines) = @
         	$first_vardecl=0;
         	for my $rline (@{ $stref->{'Subroutines'}{$f}{'ExMismatchedCommonArgs'}{'ArgAssignmentLines'} }) {
         		
-        		say "ADDING LINE ".$rline->[0]." to $f "; 
+#        		say "ADDING LINE ".$rline->[0]." to $f "; 
            		push @{$rlines}, $rline;
            }        	
         }

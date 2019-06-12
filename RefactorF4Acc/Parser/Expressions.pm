@@ -1460,7 +1460,7 @@ sub interpret { (my $ast)=@_;
 # atomics: vars and constants unop and scalar, or later unop?
 sub emit_expr_from_ast { (my $ast)=@_;
 
-    #say Dumper($ast);
+#	say Dumper($ast);
     if (ref($ast) eq 'ARRAY') {
         if (scalar @{$ast}==3) {
             if ($ast->[0] ==1 or $ast->[0] ==10) { # '&' array access or function call
@@ -1477,6 +1477,7 @@ sub emit_expr_from_ast { (my $ast)=@_;
                         #                    for my $arg (@{$args->[1]}) {
                         #       push @args_lst, emit_expr_from_ast($arg);
                         #    }
+                        
                         return "$name(".join(',',@args_lst).')';
                     } else {
                         return "$name(".emit_expr_from_ast($args).')';

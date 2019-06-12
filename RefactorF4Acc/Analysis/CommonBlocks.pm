@@ -92,7 +92,7 @@ sub identify_common_var_mismatch {
     if (exists  $stref->{'Subroutines'}{$f}{'Callers'}) {
 		my $callers = $stref->{'Subroutines'}{$f}{'Callers'};
 		# If there is more than one caller, we must do this for every caller
-		$stref->{'Subroutines'}{$f}{'ExMismatchedCommonArgs'}={'SigArgs'=>[],'CallArgs'=>{}};			
+		$stref->{'Subroutines'}{$f}{'ExMismatchedCommonArgs'}={'SigArgs'=>{'List' =>[],'Set'=>{}},'CallArgs'=>{}};			
 		for my $caller (sort keys %{ $stref->{'Subroutines'}{$f}{'Callers'} } ) {
 			say "CALLER $caller" if $DBG;
 			$stref->{'Subroutines'}{$f}{'ExMismatchedCommonArgs'}{'CallArgs'}{$caller}={};	
@@ -130,7 +130,11 @@ sub identify_common_var_mismatch {
 			    		$stref->{'Subroutines'}{$f}{'HasCommonVarMismatch'}=1;
 			    } else { 
 			    		say "BLOCK $block in $f is matched with $caller: ".join(',',@{ $stref->{'Subroutines'}{$f}{'CommonBlocks'}{$block} }) if $DBG;
-			    		$stref->{'Subroutines'}{$f}{'ExMismatchedCommonArgs'}{'SigArgs'} = [@{$stref->{'Subroutines'}{$f}{'ExMismatchedCommonArgs'}{'SigArgs'}},@{$stref->{'Subroutines'}{$f}{'CommonBlocks'}{$block}}];
+			    		$stref->{'Subroutines'}{$f}{'ExMismatchedCommonArgs'}{'SigArgs'}{'List'} = [
+			    		@{$stref->{'Subroutines'}{$f}{'ExMismatchedCommonArgs'}{'SigArgs'}{'List'}},
+			    		@{$stref->{'Subroutines'}{$f}{'CommonBlocks'}{$block}}
+			    		];
+			    		
 			    		map { 
 			    			$stref->{'Subroutines'}{$f}{'ExMismatchedCommonArgs'}{'CallArgs'}{$caller}{$_}=[$_,$caller,$block]; 
 			    		} @{ $stref->{'Subroutines'}{$f}{'CommonBlocks'}{$block} };			    		
@@ -142,6 +146,14 @@ sub identify_common_var_mismatch {
 		    }		    
 		} # caller
 #		say Dumper($stref->{'Subroutines'}{$f}{'ExMismatchedCommonArgs'});
+		# Add the declarations to the SigArgs Set
+		map {
+			my $sig_arg = $_;
+			my $set = in_nested_set($stref->{'Subroutines'}{$f},'CommonVars',$sig_arg);
+			my $decl = $stref->{'Subroutines'}{$f}{$set}{'Set'}{$sig_arg};
+			$stref->{'Subroutines'}{$f}{'ExMismatchedCommonArgs'}{'SigArgs'}{'Set'}{$sig_arg }= $decl;
+		} @{$stref->{'Subroutines'}{$f}{'ExMismatchedCommonArgs'}{'SigArgs'}{'List'}};
+		
     }
 #    for my $block (sort keys %{ $stref->{'Subroutines'}{$f}{'CommonBlocks'} }) {
 #    	
@@ -246,9 +258,11 @@ sub create_common_var_size_tuples {
 sub match_up_common_vars { my ($stref,$f) = @_;
 #	$stref->{'Subroutines'}{$f}{'ExMismatchedCommonArgs'}={'Set'=>{},'List'=>[]};
 #	say "\nMATCHING UP vars in $f";
-	$stref->{'Subroutines'}{$f}{'ExMismatchedCommonArgs'}={'SigArgs'=>[],'CallArgs'=>{}};
+	if (not exists $stref->{'Subroutines'}{$f}{'ExMismatchedCommonArgs'} ) {
+		$stref->{'Subroutines'}{$f}{'ExMismatchedCommonArgs'}={'SigArgs'=>{'List' =>[],'Set'=>{}},'CallArgs'=>{}};
+	}
 	for my $caller (sort keys %{ $stref->{'Subroutines'}{$f}{'CommonVarMismatch'} }) {
-		$stref->{'Subroutines'}{$f}{'ExMismatchedCommonArgs'}{'CallArgs'}{$caller}={};
+#		$stref->{'Subroutines'}{$f}{'ExMismatchedCommonArgs'}{'CallArgs'}{$caller}={};
 #		say "\nMATCHING UP vars in $f with $caller";
 		for my $block (sort keys %{ $stref->{'Subroutines'}{$f}{'CommonVarMismatch'}{$caller } }) {
 			say "\nMATCHING UP vars in $f and caller $caller for COMMON block $block" if $DBG; 
@@ -343,7 +357,8 @@ sub _match_up_common_var_sequences { my ($stref,  $f, $caller, $block) = @_;
             my $prefix = $block eq 'BLANK' ? [$caller] : [$caller,$block];
             if ($used_caller==0) {
                 $used_caller=1;
-                push @{ $stref->{'Subroutines'}{$f}{'ExMismatchedCommonArgs'}{'SigArgs'} }, $name_caller;
+                push @{ $stref->{'Subroutines'}{$f}{'ExMismatchedCommonArgs'}{'SigArgs'}{'List'} }, $name_caller;
+                $stref->{'Subroutines'}{$f}{'ExMismatchedCommonArgs'}{'SigArgs'}{'Set'}{$name_caller}=$decl_caller;
                 $stref->{'Subroutines'}{$f}{'ExMismatchedCommonArgs'}{'CallArgs'}{$caller}{ $name_caller } = [$name_caller, $caller,$block];
             }
             my $htype_local =  $decl_local->{'Type'};
@@ -464,8 +479,15 @@ sub _match_up_common_var_sequences { my ($stref,  $f, $caller, $block) = @_;
 							
 							# In that case the SigArg should get the prefix as well
 							my $prefixed_name_caller = join('_',(@{$prefix},$name_caller));
-								$stref->{'Subroutines'}{$f}{'ExMismatchedCommonArgs'}{'SigArgs'}[-1]=$prefixed_name_caller ;
+								$stref->{'Subroutines'}{$f}{'ExMismatchedCommonArgs'}{'SigArgs'}{'List'}[-1]=$prefixed_name_caller ;
+								my $prefixed_name_caller_decl = dclone($decl_caller);
+								$prefixed_name_caller_decl->{'Name'}=$prefixed_name_caller;
+								$prefixed_name_caller_decl->{'OrigName'}=$name_caller;
+								$stref->{'Subroutines'}{$f}{'ExMismatchedCommonArgs'}{'SigArgs'}{'Set'}{$prefixed_name_caller}=$prefixed_name_caller_decl ;
+								push @{$stref->{'Subroutines'}{$f}{'ExGlobArgs'}{'List'}}, $prefixed_name_caller;
+								$stref->{'Subroutines'}{$f}{'ExGlobArgs'}{'Set'}{$prefixed_name_caller}=$prefixed_name_caller_decl;
 								$stref->{'Subroutines'}{$f}{'ExMismatchedCommonArgs'}{'CallArgs'}{$caller}{ $prefixed_name_caller  } = [$name_caller,$caller,$block];
+								
 							} else {
 								$prefix = [];
 							}
@@ -579,7 +601,8 @@ sub _match_up_common_var_sequences { my ($stref,  $f, $caller, $block) = @_;
 				if ($used_local==0) {
                 	$used_local=1;
 #                	say "USING LOCAL AS CALLER";
-                	push @{ $stref->{'Subroutines'}{$f}{'ExMismatchedCommonArgs'}{'SigArgs'} }, $name_local;
+                	push @{ $stref->{'Subroutines'}{$f}{'ExMismatchedCommonArgs'}{'SigArgs'}{'List'} }, $name_local;
+                	$stref->{'Subroutines'}{$f}{'ExMismatchedCommonArgs'}{'SigArgs'}{'Set'}{ $name_local } = $decl_local;
 				}
 				# but in any case, the name must be added to the call args
                 $stref->{'Subroutines'}{$f}{'ExMismatchedCommonArgs'}{'CallArgs'}{$caller}{ $name_local } = [$name_local,$f,$block];
