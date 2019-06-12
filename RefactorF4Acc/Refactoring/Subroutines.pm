@@ -151,12 +151,13 @@ sub _refactor_subroutine_main {
 	    $Sf->{'RefactoredCode'}=$annlines;
 	    # Re-parsing to get the Info for the emitted lines
 	    # FIXME: at this stage the PlaceHolders have already been put back! This breaks the parser in some places!
+	    
 	    $stref = parse_fortran_src($f, $stref);
 	    $annlines=$Sf->{'AnnLines'};
  	}
     $annlines = _emit_refactored_signatures($stref, $f, $annlines);
     $Sf->{'RefactoredCode'}=$annlines;
-        
+#say Dumper(pp_annlines($annlines));        
     $Sf->{'AnnLines'}=$annlines;
     return $stref;
 }    # END of _refactor_subroutine_main()

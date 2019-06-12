@@ -153,7 +153,7 @@ sub emit_all {
 				) {
 					next;
 				}
-#				say $mod_line->[0];
+				say $mod_line->[0];
 				print $TGT	$mod_line->[0];
 				if ($ANN and exists $mod_line->[1]->{'Ann'}) {
 					say $TGT ' ! '.join('; ',@{ $mod_line->[1]{'Ann'} });

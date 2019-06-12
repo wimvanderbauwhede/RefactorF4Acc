@@ -150,7 +150,7 @@ sub identify_common_var_mismatch {
 		map {
 			my $sig_arg = $_;
 			my $set = in_nested_set($stref->{'Subroutines'}{$f},'CommonVars',$sig_arg);
-			my $decl = $stref->{'Subroutines'}{$f}{$set}{'Set'}{$sig_arg};
+			my $decl = $stref->{'Subroutines'}{$f}{$set}{'Set'}{$sig_arg};			
 			$stref->{'Subroutines'}{$f}{'ExMismatchedCommonArgs'}{'SigArgs'}{'Set'}{$sig_arg }= $decl;
 		} @{$stref->{'Subroutines'}{$f}{'ExMismatchedCommonArgs'}{'SigArgs'}{'List'}};
 		
@@ -359,6 +359,7 @@ sub _match_up_common_var_sequences { my ($stref,  $f, $caller, $block) = @_;
                 $used_caller=1;
                 push @{ $stref->{'Subroutines'}{$f}{'ExMismatchedCommonArgs'}{'SigArgs'}{'List'} }, $name_caller;
                 $stref->{'Subroutines'}{$f}{'ExMismatchedCommonArgs'}{'SigArgs'}{'Set'}{$name_caller}=$decl_caller;
+                 if (not exists $decl_caller->{'IODir'}) { $decl_caller->{'IODir'}='Unknown';}
                 $stref->{'Subroutines'}{$f}{'ExMismatchedCommonArgs'}{'CallArgs'}{$caller}{ $name_caller } = [$name_caller, $caller,$block];
             }
             my $htype_local =  $decl_local->{'Type'};
@@ -602,7 +603,9 @@ sub _match_up_common_var_sequences { my ($stref,  $f, $caller, $block) = @_;
                 	$used_local=1;
 #                	say "USING LOCAL AS CALLER";
                 	push @{ $stref->{'Subroutines'}{$f}{'ExMismatchedCommonArgs'}{'SigArgs'}{'List'} }, $name_local;
+                	if (not exists $decl_local->{'IODir'}) { $decl_local->{'IODir'}='Unknown';}
                 	$stref->{'Subroutines'}{$f}{'ExMismatchedCommonArgs'}{'SigArgs'}{'Set'}{ $name_local } = $decl_local;
+                	
 				}
 				# but in any case, the name must be added to the call args
                 $stref->{'Subroutines'}{$f}{'ExMismatchedCommonArgs'}{'CallArgs'}{$caller}{ $name_local } = [$name_local,$f,$block];

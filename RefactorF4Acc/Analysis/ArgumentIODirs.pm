@@ -264,10 +264,10 @@ sub _analyse_src_for_iodirs {
 			
 		} else {
 		my $args = dclone( $Sf->{'RefactoredArgs'}{'Set'} ); 
-
+		my $args_list =  $Sf->{'RefactoredArgs'}{'List'} ; 
 		if ( exists $Sf->{'HasEntries'}  ) {
 			say "INFO: Setting IODir to Ignore for all args in subroutine $f because of ENTRIES" if $I;
-			for my $arg (keys %{$args}) {
+			for my $arg ($args_list) {
 				$args->{$arg}{'IODir'} = 'Ignore';
 			}
 		} elsif ( exists $Sf->{'Function'} and $Sf->{'Function'} == 1 ) {			
@@ -503,7 +503,7 @@ sub _analyse_src_for_iodirs {
 			}
 		}
 		
-		for my $arg ( keys %{$args} ) {
+		for my $arg ( $args_list ) {
 #		 say $arg if $f eq 'sn705';	
 			if (
 				exists $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}
@@ -755,7 +755,8 @@ sub _get_iodirs_from_subcall {
 # For the refactored args that were not original args, we just copy the IODir
 # So we take all refactored args but exclude the args in the argmap
 # Somehow we also get the sig args when we do that, so I should exclude these as well I guess
-		for my $ref_arg ( keys %{ $Sname->{'RefactoredArgs'}{'Set'} } ) {
+#		for my $ref_arg ( keys %{ $Sname->{'RefactoredArgs'}{'Set'} } ) {
+		for my $ref_arg ( @{ $Sname->{'RefactoredArgs'}{'List'} } ) {	
 			if ( exists $called_arg_iodirs->{$ref_arg} ) {
 				say "INFO: SKIPPING $ref_arg in $f, already DONE: "
 				  . $called_arg_iodirs->{$ref_arg}
@@ -769,6 +770,7 @@ sub _get_iodirs_from_subcall {
 					$I; # if $called_arg_iodirs->{$ref_arg} eq 'Unknown' and $I;
 				next;
 			}
+			
 			$called_arg_iodirs->{$ref_arg} = $Sname->{'RefactoredArgs'}{'Set'}{$ref_arg}{'IODir'};
 #			  say "REF ARG: $ref_arg RECORD: ".Dumper($Sname->{'RefactoredArgs'}{'Set'}{$ref_arg});
 			  if (exists $called_arg_iodirs->{$ref_arg} and defined $called_arg_iodirs->{$ref_arg}) {
