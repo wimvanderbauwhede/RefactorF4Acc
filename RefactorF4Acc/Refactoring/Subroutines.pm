@@ -145,14 +145,15 @@ sub _refactor_subroutine_main {
     $annlines = _add_implicit_none($stref, $f, $annlines);
 
  # The assignment lines for the mismatched ex-COMMON vars can go here
- # probably before the first line that is not a SpecificationStatement and not a Comment and not a Blank and not Skip or Deleted      
-    $annlines = _add_ExMismatchedCommonArg_assignment_lines($stref, $f, $annlines);
-
-    $Sf->{'RefactoredCode'}=$annlines;
-    # Re-parsing to get the Info for the emitted lines
-    $stref = parse_fortran_src($f, $stref);
-    $annlines=$Sf->{'AnnLines'};
-    
+ # probably before the first line that is not a SpecificationStatement and not a Comment and not a Blank and not Skip or Deleted
+ 	if (exists $stref->{'Subroutines'}{$f}{'HasCommonVarMismatch'}) {     
+	    $annlines = _add_ExMismatchedCommonArg_assignment_lines($stref, $f, $annlines);		
+	    $Sf->{'RefactoredCode'}=$annlines;
+	    # Re-parsing to get the Info for the emitted lines
+	    # FIXME: at this stage the PlaceHolders have already been put back! This breaks the parser in some places!
+	    $stref = parse_fortran_src($f, $stref);
+	    $annlines=$Sf->{'AnnLines'};
+ 	}
     $annlines = _emit_refactored_signatures($stref, $f, $annlines);
     $Sf->{'RefactoredCode'}=$annlines;
         
