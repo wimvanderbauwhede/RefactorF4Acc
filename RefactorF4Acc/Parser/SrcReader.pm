@@ -1,7 +1,7 @@
 package RefactorF4Acc::Parser::SrcReader;
 use v5.10;
 use RefactorF4Acc::Config;
-use RefactorF4Acc::Utils qw( sub_func_incl_mod show_status show_annlines %F95_reserved_words %F95_types);
+use RefactorF4Acc::Utils qw( sub_func_incl_mod show_status show_annlines %F95_reserved_words %F95_types pp_annlines);
 use RefactorF4Acc::Preconditioning qw( split_multiblock_common_lines );
 use RefactorF4Acc::Refactoring::Common;
 use Fortran::F95Normaliser qw( normalise_F95_src );
@@ -32,6 +32,7 @@ use Exporter;
 sub read_fortran_src {
     ( my $code_unit_name, my $stref, my $is_source_file_path) = @_;
 
+
 #	 local $V=1;
 
     
@@ -47,6 +48,12 @@ sub read_fortran_src {
     if ( not exists $stref->{$sub_func_incl}{$code_unit_name}{'HasBlocks'} ) {
         $stref->{$sub_func_incl}{$code_unit_name}{'HasBlocks'} = 0;
     }
+	my $Sf = $stref->{$sub_func_incl}{$code_unit_name};
+	if (exists     $Sf->{'RefactoredCode'}) {
+    	$Sf->{'AnnLines'}=$Sf->{'RefactoredCode'};
+		return $stref;
+	}
+
 
     # We want $f to be the source file name
     my $f = ($is_source_file_path or  $is_incl) ? $code_unit_name : $stref->{$sub_func_incl}{$code_unit_name}{'Source'};

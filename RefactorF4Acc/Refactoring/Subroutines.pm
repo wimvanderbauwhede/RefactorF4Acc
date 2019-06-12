@@ -1,33 +1,36 @@
 package RefactorF4Acc::Refactoring::Subroutines;
-use v5.10;
-use RefactorF4Acc::Config;
-use RefactorF4Acc::Utils;
-use RefactorF4Acc::Refactoring::Common qw( get_annotated_sourcelines context_free_refactorings emit_f95_var_decl splice_additional_lines_cond);
-use RefactorF4Acc::Refactoring::Subroutines::Signatures qw( create_refactored_subroutine_signature refactor_subroutine_signature ); 
-use RefactorF4Acc::Refactoring::Subroutines::IncludeStatements qw( skip_common_include_statement create_new_include_statements create_additional_include_statements );
-use RefactorF4Acc::Parser::Expressions qw( emit_expression emit_expr_from_ast );
 # 
 #   (c) 2010-2017 Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
 #   
 
-use vars qw( $VERSION );
-$VERSION = "1.2.0";
-
 #use warnings::unused;
 use warnings;
 use warnings FATAL => qw(uninitialized);
-use strict;
+use strict;	
+
+use v5.10;
+
+use RefactorF4Acc::Config;
+use RefactorF4Acc::Utils;
+use RefactorF4Acc::Parser qw( parse_fortran_src );
+use RefactorF4Acc::Refactoring::Common qw( get_annotated_sourcelines context_free_refactorings emit_f95_var_decl splice_additional_lines_cond);
+use RefactorF4Acc::Refactoring::Subroutines::Signatures qw( create_refactored_subroutine_signature refactor_subroutine_signature ); 
+use RefactorF4Acc::Refactoring::Subroutines::IncludeStatements qw( skip_common_include_statement create_new_include_statements create_additional_include_statements );
+use RefactorF4Acc::Parser::Expressions qw( emit_expression emit_expr_from_ast );
+use RefactorF4Acc::Refactoring::Subroutines::Emitters qw( emit_subroutine_sig );
+
+use vars qw( $VERSION );
+$VERSION = "1.2.0";
+
 use Carp;
 use Data::Dumper;
 
 use Exporter;
 
-@RefactorF4Acc::Refactoring::Subroutines::ISA = qw(Exporter);
+our @ISA = qw(Exporter);
 
-@RefactorF4Acc::Refactoring::Subroutines::EXPORT_OK = qw(
-    &refactor_all_subroutines    
-    &emit_subroutine_call
-    &emit_subroutine_sig
+our @EXPORT_OK = qw(
+    refactor_all_subroutines            
 );
 
 =pod
@@ -148,6 +151,18 @@ sub _refactor_subroutine_main {
     }
  
     $annlines = _add_implicit_none($stref, $f, $annlines);
+
+ # The assignment lines for the mismatched ex-COMMON vars can go here
+ # probably before the first line that is not a SpecificationStatement and not a Comment and not a Blank and not Skip or Deleted      
+    $annlines = _add_ExMismatchedCommonArg_assignment_lines($stref, $f, $annlines);
+#    say Dumper(pp_annlines($annlines,1));
+    $Sf->{'RefactoredCode'}=$annlines;
+#    say Dumper(pp_annlines($stref->{'Subroutines'}{$f}{'RefactoredCode'},1));
+    $stref = parse_fortran_src($f, $stref);
+    $annlines=$Sf->{'AnnLines'};
+#    say Dumper(pp_annlines($annlines,1));
+#    say Dumper(pp_annlines($stref->{'Subroutines'}{$f}{'AnnLines'},1));
+#    die if $f eq 'ff305';	    
     $annlines = _emit_refactored_signatures($stref, $f, $annlines);
     $Sf->{'RefactoredCode'}=$annlines;
         
@@ -158,8 +173,7 @@ sub _refactor_subroutine_main {
 # -----------------------------------------------------------------------------
 # The code below fixes the end lines of the code by adding 'program $f' or 'subroutine $f' or 'function $f'
 # For some reason this is BROKEN elsewhere so FIXME!
-sub _fix_end_lines {	
-    (my $stref, my $f, my $rlines) = @_;
+sub _fix_end_lines { my ($stref,$f,$rlines) = @_;
 #    croak "FIXME" if $f eq 'vertical';
     my $Sf=$stref->{'Subroutines'}{$f}; 
 	my $is_block_data = (exists $Sf->{'BlockData'} and $Sf->{'BlockData'} == 1 ) ? 1 : 0;    
@@ -754,54 +768,6 @@ sub _create_refactored_subroutine_call {
     return $rlines;
 }    # END of _create_refactored_subroutine_call()
 
-#@ Signature =>
-#@    Args =>
-#@        List => [...]
-#@        Set => {}
-#@    Name => $name;
-#@    Function  => $bool
-#@    Program  => $bool
-#@    Entry  => $bool
-#@    BlockData  => $bool
-#@    ReturnType => integer | real | ...
-#@    ResultVar => $result_var
-#@    Characteristic => pure | elemental | recursive 
-
-sub emit_subroutine_sig { #(my $stref, my $f, 
-        (my $annline)=@_;
-	    (my $line, my $info) = @{ $annline };
-	    
-        #my $Sf        = $stref->{'Subroutines'}{$f};
-	    
-	    my $name = $info->{'Signature'}{'Name'};
-		my $args_ref = $info->{'Signature'}{'Args'}{'List'};	    	    
-	    my $args_str = join( ',', @{$args_ref} );	 
-	    my $indent = $info->{'Indent'} // '      ';   
-	    
-	    my $code_unit = (exists $info->{'Signature'}{'Function'} and $info->{'Signature'}{'Function'}==1) ? 'function' 
-	    : exists $info->{'Signature'}{'Program'} ? 'program'
-	    : exists $info->{'Signature'}{'BlockData'} ? 'subroutine' #block data'
-	    : exists $info->{'Signature'}{'Entry'} ? 'entry'
-	    : 'subroutine';
-	    my $maybe_characteristic = exists $info->{'Signature'}{'Characteristic'} ? $info->{'Signature'}{'Characteristic'}.' ' : '';
-	     my $maybe_returntype = exists $info->{'Signature'}{'ReturnType'} ? $info->{'Signature'}{'ReturnType'}.' ' : '';
-	     my $maybe_resultvar = exists $info->{'Signature'}{'ResultVar'} ? ' result '.$info->{'Signature'}{'ResultVar'} : '';
-	     
-	    my $rline =   exists $info->{'Signature'}{'Program'}  ? "$code_unit $name" 
-	    : exists $info->{'Signature'}{'BlockData'} ? "$code_unit $name($args_str)" 
-	    : "$maybe_characteristic$maybe_returntype$code_unit $name($args_str)$maybe_resultvar";
-	    
-		if ( exists $info->{'PlaceHolders'} ) { 
-			while ($rline =~ /(__PH\d+__)/) {
-				my $ph=$1;
-				my $ph_str = $info->{'PlaceHolders'}{$ph};
-				$rline=~s/$ph/$ph_str/;
-			}                                    
-            $info->{'Ref'}++;
-        }  	    
-	    $info->{'Ann'}=[annotate($name, __LINE__ ) ];
-		return ( $indent . $rline, $info );
-} # END of emit_subroutine_sig
 
 # This is for lines that contain function calls, so in practice either assignments or subroutine calls
 sub _create_refactored_function_calls { 
@@ -887,42 +853,80 @@ sub __update_function_calls_in_AST { (my $stref, my $Sf,my $f, my $ast) = @_;
        ($ast->[0] & 0xFF) == 10 ) { # array var or function/subroutine call
         # it it's a function call, update the call args
         if ( ($ast->[0] & 0xFF) == 1 ) {
-					my $name = $ast->[1];
-					
-				    if ($name ne $f and exists $stref->{'Subroutines'}{$name}{'ExGlobArgs'}) {
-				    	     
-				        my @globals = exists  $stref->{'Subroutines'}{$name}{'ExGlobArgs'}{'List'} ? @{ $stref->{'Subroutines'}{$name}{'ExGlobArgs'}{'List'} } : ();        
-				        my @maybe_renamed_exglobs=();
-				        for my $ex_glob (@globals) {
-				        	# $ex_glob may be renamed or not. I test this using OrigName. 
-				        	# This way I am sure I get only original names
-				        	if (exists $stref->{'Subroutines'}{$name}{'ExGlobArgs'}{'Set'}{$ex_glob}{'OrigName'}) {
-								$ex_glob = $stref->{'Subroutines'}{$name}{'ExGlobArgs'}{'Set'}{$ex_glob}{'OrigName'};		
-				        	}        	
-				        	if (exists $Sf->{'RenamedInheritedExGLobs'}{'Set'}{$ex_glob}) {
-				        		say "INFO: RENAMED $ex_glob => ".$Sf->{'RenamedInheritedExGLobs'}{'Set'}{$ex_glob} . ' in call to ' . $name . ' in '. $f if $I;
-				        		push @maybe_renamed_exglobs, $Sf->{'RenamedInheritedExGLobs'}{'Set'}{$ex_glob};
-				        	} else {
-				        		push @maybe_renamed_exglobs,$ex_glob;
-				        	}
-				        }
-				    
-					    if (@maybe_renamed_exglobs) {
-                            # Still wrong: we need to check $ast->[2]. If it is empty, create a ',' ; elsif it is not ',', create a ','; else append to the ',' list
-                            if (not @{$ast->[2]} ) { # empty list. create [',' ]
-                                push @{$ast->[2]}, 27;
-                            }
-                            elsif ( ($ast->[2][0] && 0xFF) != 27) { # not a list. Wrap in [',', ... ]
-                                my $entry = $ast->[2];
-                                $ast->[2]=[ 27, $entry ];
+			my $name = $ast->[1];
+			if (not exists $stref->{'Subroutines'}{$f}{'HasCommonVarMismatch'}) {
+				
+			    if ($name ne $f and exists $stref->{'Subroutines'}{$name}{'ExGlobArgs'}) {
+#				say "SUB $f CALLING $name:".Dumper($stref->{'Subroutines'}{$name}{'ExGlobArgs'});    	     
+			        my @globals = exists  $stref->{'Subroutines'}{$name}{'ExGlobArgs'}{'List'} ? @{ $stref->{'Subroutines'}{$name}{'ExGlobArgs'}{'List'} } : ();        
+			        my @maybe_renamed_exglobs=();
+			        for my $ex_glob (@globals) {
+			        	# $ex_glob may be renamed or not. I test this using OrigName. 
+			        	# This way I am sure I get only original names
+			        	if (
+			        	exists $stref->{'Subroutines'}{$name}{'ExGlobArgs'}{'Set'}{$ex_glob}
+			        	and
+			        	ref($stref->{'Subroutines'}{$name}{'ExGlobArgs'}{'Set'}{$ex_glob}) eq 'HASH'
+			        	and
+			        	exists $stref->{'Subroutines'}{$name}{'ExGlobArgs'}{'Set'}{$ex_glob}{'OrigName'}) {
+							$ex_glob = $stref->{'Subroutines'}{$name}{'ExGlobArgs'}{'Set'}{$ex_glob}{'OrigName'};		
+			        	}        	
+			        	if (exists $Sf->{'RenamedInheritedExGLobs'}{'Set'}{$ex_glob}) {
+			        		say "INFO: RENAMED $ex_glob => ".$Sf->{'RenamedInheritedExGLobs'}{'Set'}{$ex_glob} . ' in call to ' . $name . ' in '. $f if $I;
+			        		push @maybe_renamed_exglobs, $Sf->{'RenamedInheritedExGLobs'}{'Set'}{$ex_glob};
+			        	} else {
+			        		push @maybe_renamed_exglobs,$ex_glob;
+			        	}
+			        }
+		    
+				    if (@maybe_renamed_exglobs) {
+						if (not @{$ast->[2]} ) { # empty list. create [',' ]
+                        	push @{$ast->[2]}, 27;
+						}
+                        elsif ( ($ast->[2][0] && 0xFF) != 27) { # not a list. Wrap in [',', ... ]
+                        	my $entry = $ast->[2];
+                            $ast->[2]=[ 27, $entry ];
+                        }
+						for my $extra_arg (@maybe_renamed_exglobs) {
+    						push @{$ast->[2]},[ 2 ,$extra_arg]; #'$'
+						}
+				    }
+			    }
+			} else {
+						# For mismatched COMMON blocks we need to append the call args with 
+#						 'CallArgs' => {
+#    'ff304' => {
+#      'ivcn01' => [
+#        'ivcn01',
+#        'ff304',
+#        'BLANK'
+#      ],
+					my @maybe_renamed_exglobs=();
+					for my $sig_arg ( @{ $stref->{'Subroutines'}{$name}{'ExMismatchedCommonArgs'}{'SigArgs'} } ) {
+						my $call_arg = $stref->{'Subroutines'}{$name}{'ExMismatchedCommonArgs'}{'CallArgs'}{$f}{$sig_arg}[0];
+						push @maybe_renamed_exglobs,$call_arg; 
+					}
+				    if (@maybe_renamed_exglobs) {
+						if (not @{$ast->[2]} ) { # empty list. create [',' ]
+                        	push @{$ast->[2]}, 27;
+						}
+                        elsif ( ($ast->[2][0] && 0xFF) != 27) { # not a list. Wrap in [',', ... ]
+                        	my $entry = $ast->[2];
+                            $ast->[2]=[ 27, $entry ];
+                        }
+						for my $extra_arg (@maybe_renamed_exglobs) {
+    						push @{$ast->[2]},[ 2 ,$extra_arg]; #'$'
+						}
+				    }
 
-                            } #else { # It is already ',' so do nothing
-                            #}
-                            for my $extra_arg (@maybe_renamed_exglobs) {
-    					    	push @{$ast->[2]},[ 2 ,$extra_arg]; #'$'
-                            }
-					    }
-				    }	            
+# 'SigArgs' => [
+#    'ivcn01',
+#		...
+#	]
+						
+						
+#						croak "SUB $f CALLING $name:".Dumper($stref->{'Subroutines'}{$name}{'ExMismatchedCommonArgs'}); 
+					}	            
         }
         # but in any case we need to traverse again for the old call args
 
@@ -1030,6 +1034,43 @@ sub _add_implicit_none { my ($stref, $f, $annlines) = @_;
     }	 
 return $rlines;
 } # END of _add_implicit_none
+
+ # The assignment lines for the mismatched ex-COMMON vars should come
+ # before the first line that is not a SpecificationStatement and not a Comment and not a Blank and not Skip or Deleted      
+
+sub _add_ExMismatchedCommonArg_assignment_lines { my ($stref, $f, $annlines) = @_;
+	my $Sf = $stref->{'Subroutines'}{$f};
+	my $first_vardecl=1;
+	my $rlines=[];
+#	say Dumper($Sf->{'ExMismatchedCommonArgs'}{'ArgAssignmentLines'});
+    for my $annline ( @{$annlines} ) {      
+        (my $line, my $info) = @{ $annline };
+        
+        if (
+        not exists $info->{'Signature'}
+        and not exists $info->{'VarDecl'}
+        and not exists $info->{'ImplicitNone'}
+        and not exists $info->{'SpecificationStatement'}   
+        and not exists $info->{'Comment'} 
+        and not exists $info->{'Blank'} 
+        and not exists $info->{'Skip'}
+        and not exists $info->{'Deleted'}
+        and $first_vardecl==1
+        ) {
+        	$first_vardecl=0;
+        	for my $rline (@{ $stref->{'Subroutines'}{$f}{'ExMismatchedCommonArgs'}{'ArgAssignmentLines'} }) {
+        		
+        		say "ADDING LINE ".$rline->[0]." to $f "; 
+           		push @{$rlines}, $rline;
+           }        	
+        }
+        push @{$rlines},$annline;        
+    }	 
+	return $rlines;
+} # END of _add_ExMismatchedCommonArg_assignment_lines
+
+
+
 
 sub _emit_refactored_signatures { my ($stref, $f, $annlines) = @_;
 #    my $Sf = $stref->{'Subroutines'}{$f};

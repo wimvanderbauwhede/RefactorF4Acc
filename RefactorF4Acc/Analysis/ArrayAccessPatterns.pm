@@ -10,8 +10,13 @@ use RefactorF4Acc::Refactoring::Common qw(
 	emit_f95_var_decl
 	splice_additional_lines_cond
 	);
-use RefactorF4Acc::Refactoring::Subroutines qw( emit_subroutine_sig );
+use RefactorF4Acc::Refactoring::Subroutines::Emitters qw( emit_subroutine_sig );
 use RefactorF4Acc::Analysis::ArgumentIODirs qw( determine_argument_io_direction_rec );
+use RefactorF4Acc::ExpressionAST::Evaluate qw(
+eval_expression_with_parameters
+replace_param_by_val
+replace_consts_in_ast
+);
 use RefactorF4Acc::Parser::Expressions qw(
 	parse_expression
 	emit_expression
@@ -44,7 +49,6 @@ use Exporter;
 @RefactorF4Acc::Analysis::ArrayAccessPatterns::EXPORT_OK = qw(
 &pass_identify_stencils
 &identify_array_accesses_in_exprs
-&eval_expression_with_parameters
 );
 
 =info
@@ -445,7 +449,7 @@ sub _find_array_access_in_ast { (my $stref, my $f,  my $block_id, my $state, my 
  						# First we compute the offset
 #						say "OFFSET";
 						my $ast0 = dclone($ast);
-						($ast0,$state, my $retval ) = _replace_consts_in_ast($stref,$f,$block_id,$ast0, $state,0);
+						($ast0,$state, my $retval ) = replace_consts_in_ast($stref,$f,$block_id,$ast0, $state,0);
 						my @ast_a0 = @{$ast0};
 						my @idx_args0 = @ast_a0[2 .. $#ast_a0];
 						my @ast_exprs0 = map { emit_expression($_,'') } @idx_args0;
@@ -454,7 +458,7 @@ sub _find_array_access_in_ast { (my $stref, my $f,  my $block_id, my $state, my 
 						# Then we compute the multipliers (for proper stencils these are 1 but for the more general case e.g. copying a plane of a cube it can be different.
 #						say "MULT";
 						my $ast1 = dclone($ast);
-						($ast1,$state, $retval ) = _replace_consts_in_ast($stref,$f,$block_id,$ast1, $state,1);
+						($ast1,$state, $retval ) = replace_consts_in_ast($stref,$f,$block_id,$ast1, $state,1);
 						my @ast_a1 = @{$ast1};
 						my $array_var1 = $ast1->[1];
 						my @idx_args1 = @ast_a1[2 .. $#ast_a1];
@@ -509,46 +513,6 @@ So in short: per index:
 
 =cut
 
-# We replace LoopIters with $const and Parameters with their values.
-# Apply to RHS of assignments
-sub _replace_consts_in_ast { (my $stref, my $f, my $block_id, my $ast, my $state, my $const)=@_;
-	my $retval=0;
-	if (ref($ast) eq 'ARRAY') {
-		for my  $idx (0 .. scalar @{$ast}-1) {
-			
-			my $entry = $ast->[$idx];
-
-			if (ref($entry) eq 'ARRAY') {
-				(my $entry2, $state, $retval) = _replace_consts_in_ast($stref,$f, $block_id,$entry, $state,$const);
-				$ast->[$idx] = $entry2;
-			} else {
-				if ($idx==0 and (($entry & 0xFF) == 2)) { #eq '$'
-					my $mvar = $ast->[$idx+1];
-#					say "MVAR: $mvar in $f";
-					if (exists $state->{'Subroutines'}{ $f }{'Blocks'}{$block_id}{'LoopIters'}{ $mvar }) { 
-						$ast=''.$const.'';
-						return ($ast,$state,1);
-					} elsif (in_nested_set($stref->{'Subroutines'}{$f},'Parameters',$mvar)) {
-						my $param_set = in_nested_set($stref->{'Subroutines'}{$f},'Parameters',$mvar);
-						
-		  				my $decl = get_var_record_from_set( $stref->{'Subroutines'}{$f}{'Parameters'},$mvar);
-#		  				say 'DECL: '. Dumper($decl);
-		  				#FIXME: the value could be an expression in terms of other parameters!
-		  				my $val = $decl->{'Val'};
-#		  				say "MVAL: $val";	
-		  				$ast = parse_expression($val, {},$stref,$f);
-		  				return ($ast,$state,1);
-					} else {
-						my $param_set = in_nested_set($stref->{'Subroutines'}{$f},'Parameters',$mvar);
-						carp "Can\'t replace $mvar, no parameter record found for in $f";#: <$param_set> = " . Dumper( $stref->{'Subroutines'}{$f}{'Parameters'} );
-						return ($ast, $state,0);
-					}
-				}
-			}
-		}
-	}
-	return  ($ast, $state, $retval);
-} # END of _replace_consts_in_ast()
 
 # When we find an iterator access in an array we must check in which loop this array is being accessed
 sub _find_iters_in_array_idx_expr { (my $stref, my $f, my $block_id, my $ast, my $state, my $rw)=@_;
@@ -830,47 +794,17 @@ sub _classify_accesses_and_emit_AST { (my $stref, my $f, my $state ) =@_;
 #	return ($out_tup, $in_tup);
 #} # END of pp_links()
 
-# Constant folding
-sub _replace_param_by_val { (my $stref, my $f, my $block_id, my $ast, my $state)=@_;
-  		# - see if $val contains vars
-  		my $vars=get_vars_from_expression($ast,{}) ;
-  		# - if so, substitute them using _replace_consts_in_ast
-  		while (
-  		(exists $vars->{'_OPEN_PAR_'} and scalar keys %{$vars} > 1)
-  		or (not exists $vars->{'_OPEN_PAR_'} and scalar keys %{$vars} > 0)
-  		) {
-			($ast, $state, my $retval) = _replace_consts_in_ast($stref, $f, $block_id, $ast, $state, 0);
-			last if $retval == 0;
-			# - check if the result is var-free, else repeat
-			$vars=get_vars_from_expression($ast,{}) ;
-  		}
-  		# - return to be eval'ed
-	return $ast;
-} # END of _replace_param_by_val()
 
 sub _eval_expression_w_params { (my $expr_str,my $info, my $stref, my $f, my $block_id, my $state) = @_;
 
     my $expr_ast=parse_expression($expr_str,$info, $stref,$f);
-    my $expr_ast2 = _replace_param_by_val($stref, $f, $block_id,$expr_ast, $state);
+    my $expr_ast2 = replace_param_by_val($stref, $f, $block_id,$expr_ast, $state);
     my $evaled_expr_str=emit_expression($expr_ast2,'');
     my $expr_val=eval($evaled_expr_str);
 	return $expr_val;
 
 } # END of _eval_expression_w_params()
 
-
-sub eval_expression_with_parameters { (my $expr_str,my $info, my $stref, my $f) = @_;
-
-    my $expr_ast=parse_expression($expr_str,$info, $stref,$f);
-#    say Dumper($expr_ast);
-    my $expr_ast2 = _replace_param_by_val($stref, $f, 0,$expr_ast, {});
-#    say Dumper($expr_ast2);
-    my $evaled_expr_str=$NEW_PARSER ? emit_expr_from_ast($expr_ast2) : emit_expression($expr_ast2,'');
-#    say "TO EVAL:$evaled_expr_str";
-    my $expr_val=eval($evaled_expr_str);
-	return $expr_val;
-
-} # END of eval_expression_with_parameters()
 
 sub _collapse_links { (my $stref, my $f, my $block_id, my $links)=@_;
 

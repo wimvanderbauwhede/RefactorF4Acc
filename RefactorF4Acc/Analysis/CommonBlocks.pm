@@ -11,11 +11,11 @@ use strict;
 use v5.10;
 
 use RefactorF4Acc::Config;
-use RefactorF4Acc::Analysis::ArrayAccessPatterns qw( eval_expression_with_parameters );
-use RefactorF4Acc::Utils qw( in_nested_set );
+use RefactorF4Acc::ExpressionAST::Evaluate qw( eval_expression_with_parameters );
+use RefactorF4Acc::Utils qw( in_nested_set pp_annlines );
 
-use vars qw( $VERSION );
-$VERSION = "1.2.0";
+use vars qw( $DBGERSION );
+$DBGERSION = "1.2.0";
 
 
 use Carp;
@@ -88,13 +88,13 @@ If it's the other way round, CallerSub strict subset of CalledSub, then we need 
 # For every subroutine, see if there is a mismatch with any of the callers.
 sub identify_common_var_mismatch {
     my ($stref, $f) = @_;
-    say "CALLED SUB $f";
+    say "CALLED SUB $f" if $DBG;
     if (exists  $stref->{'Subroutines'}{$f}{'Callers'}) {
 		my $callers = $stref->{'Subroutines'}{$f}{'Callers'};
 		# If there is more than one caller, we must do this for every caller
 		$stref->{'Subroutines'}{$f}{'ExMismatchedCommonArgs'}={'SigArgs'=>[],'CallArgs'=>{}};			
 		for my $caller (sort keys %{ $stref->{'Subroutines'}{$f}{'Callers'} } ) {
-			say "CALLER $caller";
+			say "CALLER $caller" if $DBG;
 			$stref->{'Subroutines'}{$f}{'ExMismatchedCommonArgs'}{'CallArgs'}{$caller}={};	
 		    for my $block (sort keys %{ $stref->{'Subroutines'}{$f}{'CommonBlocks'} }) {
 #		    	say "BLOCK $block";
@@ -126,11 +126,14 @@ sub identify_common_var_mismatch {
 		    	}
 		    	if (exists $stref->{'Subroutines'}{$f}{'CommonVarMismatch'}{$caller}
 			    	 and exists $stref->{'Subroutines'}{$f}{'CommonVarMismatch'}{$caller}{$block}) {
-			    		say "BLOCK $block in $f has CommonVarMismatch with $caller";
+			    		say "BLOCK $block in $f has CommonVarMismatch with $caller" if $DBG;
+			    		$stref->{'Subroutines'}{$f}{'HasCommonVarMismatch'}=1;
 			    } else { 
-			    		say "BLOCK $block in $f is matched with $caller: ".join(',',@{ $stref->{'Subroutines'}{$f}{'CommonBlocks'}{$block} });
+			    		say "BLOCK $block in $f is matched with $caller: ".join(',',@{ $stref->{'Subroutines'}{$f}{'CommonBlocks'}{$block} }) if $DBG;
 			    		$stref->{'Subroutines'}{$f}{'ExMismatchedCommonArgs'}{'SigArgs'} = [@{$stref->{'Subroutines'}{$f}{'ExMismatchedCommonArgs'}{'SigArgs'}},@{$stref->{'Subroutines'}{$f}{'CommonBlocks'}{$block}}];
-			    		map { $stref->{'Subroutines'}{$f}{'ExMismatchedCommonArgs'}{'CallArgs'}{$caller}{$_}=$block; } @{ $stref->{'Subroutines'}{$f}{'CommonBlocks'}{$block} };			    		
+			    		map { 
+			    			$stref->{'Subroutines'}{$f}{'ExMismatchedCommonArgs'}{'CallArgs'}{$caller}{$_}=[$_,$caller,$block]; 
+			    		} @{ $stref->{'Subroutines'}{$f}{'CommonBlocks'}{$block} };			    		
 			    }
 		    	
 		    } # block
@@ -138,7 +141,7 @@ sub identify_common_var_mismatch {
 		    		say "All blocks in $f match with $caller, OK to use old approach";		    		
 		    }		    
 		} # caller
-		say Dumper($stref->{'Subroutines'}{$f}{'ExMismatchedCommonArgs'});
+#		say Dumper($stref->{'Subroutines'}{$f}{'ExMismatchedCommonArgs'});
     }
 #    for my $block (sort keys %{ $stref->{'Subroutines'}{$f}{'CommonBlocks'} }) {
 #    	
@@ -248,7 +251,7 @@ sub match_up_common_vars { my ($stref,$f) = @_;
 		$stref->{'Subroutines'}{$f}{'ExMismatchedCommonArgs'}{'CallArgs'}{$caller}={};
 #		say "\nMATCHING UP vars in $f with $caller";
 		for my $block (sort keys %{ $stref->{'Subroutines'}{$f}{'CommonVarMismatch'}{$caller } }) {
-			say "\nMATCHING UP vars in $f and caller $caller for COMMON block $block"; 
+			say "\nMATCHING UP vars in $f and caller $caller for COMMON block $block" if $DBG; 
 		  _match_up_common_var_sequences ($stref,  $f, $caller, $block);
 		}
 #		say "ExMismatchedCommonArgs for $f called from $caller: ";
@@ -260,7 +263,7 @@ sub match_up_common_vars { my ($stref,$f) = @_;
 #		@{ $stref->{'Subroutines'}{$f}{'ExMismatchedCommonArgs'}{'List'} }
 #	);
 	}	
-	say "SigArgs for $f: ".join(',',@{ $stref->{'Subroutines'}{$f}{'ExMismatchedCommonArgs'}{'SigArgs'} });
+#	say "SigArgs for $f: ".join(',',@{ $stref->{'Subroutines'}{$f}{'ExMismatchedCommonArgs'}{'SigArgs'} });
 	
 	return $stref;
 } # END of match_up_common_vars
@@ -341,24 +344,24 @@ sub _match_up_common_var_sequences { my ($stref,  $f, $caller, $block) = @_;
             if ($used_caller==0) {
                 $used_caller=1;
                 push @{ $stref->{'Subroutines'}{$f}{'ExMismatchedCommonArgs'}{'SigArgs'} }, $name_caller;
-                $stref->{'Subroutines'}{$f}{'ExMismatchedCommonArgs'}{'CallArgs'}{$caller}{ $name_caller } = [$caller,$block];
+                $stref->{'Subroutines'}{$f}{'ExMismatchedCommonArgs'}{'CallArgs'}{$caller}{ $name_caller } = [$name_caller, $caller,$block];
             }
             my $htype_local =  $decl_local->{'Type'};
             my $htype_caller =  $decl_caller->{'Type'};
 #			if (not _compare_decls($stref, $f, $caller, $decl_local,$decl_caller,0) ) { # Type / Attr mismatch
 				if (not ($htype_local eq $htype_caller and $kind_local eq $kind_caller)) {# Type / Attr mismatch
-				if ( $decl_local->{'ArrayOrScalar'} eq 'Array') {
-					 $htype_local .= ', dimension('.__dim_to_str($decl_local->{'Dim'}).')';
-				}
+					if ( $decl_local->{'ArrayOrScalar'} eq 'Array') {
+						 $htype_local .= ', dimension('.__dim_to_str($decl_local->{'Dim'}).')';
+					}
 				
-				if ($decl_caller->{'ArrayOrScalar'} eq 'Array') {					
-					 $htype_caller .= ', dimension('.__dim_to_str($decl_caller->{'Dim'}).')';
-				}  
-				say "Type mismatch:";
-				say $name_local  . ' :: '. $htype_local . ($decl_local->{'Attr'} ? '('. $decl_local->{'Attr'}  .')' : '' );
-#				. Dumper($decl_local).
-				say $name_caller . ' :: '. $htype_caller  . ( $decl_caller->{'Attr'} ? '('. $decl_caller->{'Attr'} .')' : '' );
-#				."\n".Dumper($decl_caller)."\n";
+					if ($decl_caller->{'ArrayOrScalar'} eq 'Array') {					
+						 $htype_caller .= ', dimension('.__dim_to_str($decl_caller->{'Dim'}).')';
+					}  
+					if ($DBG) {
+					say "Type mismatch:";
+					say $name_local  . ' :: '. $htype_local . ($decl_local->{'Attr'} ? '('. $decl_local->{'Attr'}  .')' : '' );
+					say $name_caller . ' :: '. $htype_caller  . ( $decl_caller->{'Attr'} ? '('. $decl_caller->{'Attr'} .')' : '' );
+					}
 			}
 			# FIXME: if the attribute, i.e. the kind or length, is mismatched, we MUST take this into account
 			# The way to do this is by multiplying the length of each variable in the sequence with KIND or LEN
@@ -384,7 +387,7 @@ sub _match_up_common_var_sequences { my ($stref,  $f, $caller, $block) = @_;
 					if ($kind_local*($dimsz_local - $lin_idx_local+1) == $kind_caller*($dimsz_caller-$lin_idx_caller+1)) { # arrays of identical size
 						
 						if ($name_local eq $name_caller) {
-							if ($lin_idx_local != $lin_idx_caller) { # This is only the case if the lin_indices also match!
+							if ($lin_idx_local != $lin_idx_caller) { 
 							# If the indices don't match, but same names, so caller needs a prefix, and we need an equiv pair
 							my $dim_local_copy = dclone($dim_local);
 							my $dim_caller_copy = dclone($dim_caller);
@@ -402,7 +405,9 @@ sub _match_up_common_var_sequences { my ($stref,  $f, $caller, $block) = @_;
 							}			
 #							say "A A eq ".Dumper([[$name_local,1,$dim_local_copy,[]],[$name_caller,1,$dim_caller_copy,$prefix]]);								
 							push @equivalence_pairs, [[$name_local,$type_local,1,$dim_local_copy,[]],[$name_caller,$type_caller,1,$dim_caller_copy,$prefix]];
-							}							
+							}
+							# else {
+							# same names, same size and same indices which therefore must be 1, so we can assign by name 							
 						} else {
 							my $dim_local_copy = dclone($dim_local);
 							my $dim_caller_copy = dclone($dim_caller);
@@ -454,8 +459,16 @@ sub _match_up_common_var_sequences { my ($stref,  $f, $caller, $block) = @_;
 									$dim_caller_copy->[$idx][0]=$coords_caller->[$idx];
 								}																
 							}							
-#							say "A A ne ".Dumper( [[$name_local,1,$dim_local_copy,[]],[$name_caller,1,$dim_caller_copy,$prefix]]); 
-							$prefix = $name_local eq $name_caller ? $prefix : [];
+#							say "A A ne ".Dumper( [[$name_local,1,$dim_local_copy,[]],[$name_caller,1,$dim_caller_copy,$prefix]]);
+							if ($name_local eq $name_caller ) { 
+							
+							# In that case the SigArg should get the prefix as well
+							my $prefixed_name_caller = join('_',(@{$prefix},$name_caller));
+								$stref->{'Subroutines'}{$f}{'ExMismatchedCommonArgs'}{'SigArgs'}[-1]=$prefixed_name_caller ;
+								$stref->{'Subroutines'}{$f}{'ExMismatchedCommonArgs'}{'CallArgs'}{$caller}{ $prefixed_name_caller  } = [$name_caller,$caller,$block];
+							} else {
+								$prefix = [];
+							}
 							push @equivalence_pairs, [[$name_local,$type_local,1,$dim_local_copy,[]],[$name_caller,$type_caller,1,$dim_caller_copy,$prefix]];
 							# if the local lin index has not entirely consumed the array, we need to unshift
 							$lin_idx_local += $kind_caller*($dimsz_caller-$lin_idx_caller+1)/$kind_local;
@@ -569,18 +582,23 @@ sub _match_up_common_var_sequences { my ($stref,  $f, $caller, $block) = @_;
                 	push @{ $stref->{'Subroutines'}{$f}{'ExMismatchedCommonArgs'}{'SigArgs'} }, $name_local;
 				}
 				# but in any case, the name must be added to the call args
-                $stref->{'Subroutines'}{$f}{'ExMismatchedCommonArgs'}{'CallArgs'}{$caller}{ $name_local } = [$f,$block];
+                $stref->{'Subroutines'}{$f}{'ExMismatchedCommonArgs'}{'CallArgs'}{$caller}{ $name_local } = [$name_local,$f,$block];
                 # Either way, the local will have been consumed and there is no caller, so no unshifting
 		}
 
 	}
+	
 	if( scalar @equivalence_pairs > 0) {
 #		say Dumper(	@equivalence_pairs );
-		map { 
+		my @arg_assignment_lines = map { 
 			 my $pair = $_;
-			 map { say $_->[0] } @{ _caller_to_local_assignment_annlines($pair) } 
+			 @{ _caller_to_local_assignment_annlines($pair) }; 
 		} @equivalence_pairs;
+#		say Dumper(	pp_annlines(	\@arg_assignment_lines,0)  );
+		$stref->{'Subroutines'}{$f}{'ExMismatchedCommonArgs'}{'ArgAssignmentLines'}=\@arg_assignment_lines;
 	}
+	
+	
 	return $stref;
 } # END of _match_up_common_var_sequences
 
@@ -621,7 +639,11 @@ sub _caller_to_local_assignment_annlines { (my $equiv_pair) = @_;
 	my $l_str = __emit_equiv_var_str($l);
 	my $r=$equiv_pair->[1];
 	my $r_str = __emit_equiv_var_str($r);
-	return _cast_annlines($l->[1],$l_str,$r->[1],$r_str);
+	my $annlines =  _cast_annlines($l->[1],$l_str,$r->[1],$r_str);
+	# Adding the Indent
+	my $indent = ' 'x 6;
+	$annlines = [ map { [$indent.$_,{}] } @{ $annlines } ] ; 
+	return $annlines;
 #	return ["$l_str = $r_str",{}];
 }
 
@@ -629,9 +651,9 @@ sub _caller_to_local_assignment_annlines { (my $equiv_pair) = @_;
 
 
 # Casting between types but this does assume essentially kind=4
-sub _cast_annlines { my ($from_type, $from_var, $to_type, $to_var) = @_;
+sub _cast_annlines { my ( $to_type, $to_var, $from_type, $from_var) = @_;
 	if ($from_type eq $to_type) {
-		return [ ["$to_var = $from_var",{"Assignment"=>1,'Indent'=>6}]];
+		return ["$to_var = $from_var"];#,{"Assignment"=>1,'Indent'=>' ' x 6}]];
 	}
 	elsif ($from_type eq 'integer') {
 		if ($to_type eq 'logical') {
@@ -663,39 +685,39 @@ sub _cast_annlines { my ($from_type, $from_var, $to_type, $to_var) = @_;
 sub __cast_logical_to_integer_annlines { (my $v_logical, my $v_integer) = @_;
 
     return [
-        [  "if ($v_logical) then",{'If'=>1}, 'Indent'=>6 ],
-        [  "    $v_integer=1", {'Assignment' => 1}, 'Indent'=>6],
-        [  'else',{'Else'=>1}, 'Indent'=>6],
-        [  "    $v_integer=0",{'Assignment' => 1}, 'Indent'=>6],
-        [  'end if',{'EndIf'=>1}, 'Indent'=>6]
+          "if ($v_logical) then",
+          "    $v_integer=1",
+          'else',#{'Else'=>1, 'Indent'=>' ' x 6}],
+          "    $v_integer=0",#{'Assignment' => 1, 'Indent'=>' ' x 6}],
+          'end if'#,{'EndIf'=>1, 'Indent'=>' ' x 6}]
     ];
 }
 
 sub __cast_logical_to_real_annlines { (my $v_logical, my $v_real) = @_;
 
     return [
-        [  "if ($v_logical) then",{'If'=>1}, 'Indent'=>6 ],
-        [  "    $v_real=1.0", {'Assignment' => 1}, 'Indent'=>6],
-        [  'else',{'Else'=>1}, 'Indent'=>6],
-        [  "    $v_real=0.0",{'Assignment' => 1}, 'Indent'=>6],
-        [  'end if',{'EndIf'=>1}, 'Indent'=>6]
+          "if ($v_logical) then",#{'If'=>1, 'Indent'=>' ' x 6 }],
+          "    $v_real=1.0",# {'Assignment' => 1, 'Indent'=>' ' x 6}],
+          'else',#{'Else'=>1, 'Indent'=>' ' x 6}],
+          "    $v_real=0.0",#{'Assignment' => 1, 'Indent'=>' ' x 6}],
+          'end if'#,{'EndIf'=>1, 'Indent'=>' ' x 6}]
     ];
 }
 
 sub __cast_integer_to_logical_annlines { ( my $v_integer,my $v_logical) = @_;
-	return [[ "$v_logical = ($v_integer /= 0)",{"Assignment"=>1,'Indent'=>6}]];
+	return [ "$v_logical = ($v_integer /= 0)"];#,{"Assignment"=>1,'Indent'=>' ' x 6}]];
 }
 
 sub __cast_integer_to_real_annlines { (my $v_real, my $v_integer) = @_;
-	return [["$v_real = real($v_integer)",{'Assignment'=>1,'Indent'=>6}]];
+	return ["$v_real = real($v_integer)"];#,{'Assignment'=>1,'Indent'=>' ' x 6}]];
 }
 
 sub __cast_real_to_logical_annlines { ( my $v_real,my $v_logical) = @_;
-	return [[ "$v_logical = ($v_real /= 0.0)",{"Assignment"=>1,'Indent'=>6}]];
+	return [ "$v_logical = ($v_real /= 0.0)"];#,{"Assignment"=>1,'Indent'=>' ' x 6}]];
 }
 
 sub __cast_real_to_integer_annlines { (my $v_real, my $v_integer) = @_;
-	return [["$v_integer = int($v_real)",{'Assignment'=>1,'Indent'=>6}]];
+	return ["$v_integer = int($v_real)"];#,{'Assignment'=>1,'Indent'=>' ' x 6}]];
 }
 
 # Given the linear index (starting at 1) in an array
@@ -745,6 +767,10 @@ sub __calc_dims_offsets {my ($stref, $f, $dim_rec) = @_;
 sub __dim_to_str {(my $dim) = @_;
 	return join(',',map {$_->[0].':'.$_->[1]} @{$dim}); 
 }
+
+
+
+
 1;
 
 

@@ -510,7 +510,7 @@ sub _analyse_src_for_iodirs {
 				{$arg} )
 			{
 				
-#				say "ARG: $arg ".Dumper($args->{$arg}) if $f eq 'sn705';
+#				say "$f ARG: $arg ".Dumper($args->{$arg}) ;
 				
 				if (	 $args->{$arg} != 1
 					and (ref($args->{$arg}) eq 'HASH' 
@@ -519,8 +519,8 @@ sub _analyse_src_for_iodirs {
 					$stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$arg} = { %{ $args->{$arg} } };				  
 				} else { # Otherwise, get thre record and updated the IODir
 					my $decl = get_f95_var_decl($stref, $f, $arg);
-					
-					if (exists $args->{$arg}{'IODir'}) {
+#					say Dumper($decl);
+					if ($args->{$arg} != 1 and exists $args->{$arg}{'IODir'}) {
 						$decl->{'IODir'} = $args->{$arg}{'IODir'};
 					}
 #					say "DECL:".Dumper($decl)  if $f eq 'sn705';

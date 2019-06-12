@@ -12,7 +12,7 @@ use RefactorF4Acc::Refactoring::Common qw(
 	);
 
 # I'm not sure that this is the best place for this routine as it is only used in this pass    
-use RefactorF4Acc::Refactoring::Subroutines qw( emit_subroutine_sig );
+use RefactorF4Acc::Refactoring::Subroutines::Emitters qw( emit_subroutine_sig );
 use RefactorF4Acc::Analysis::ArgumentIODirs qw( determine_argument_io_direction_rec );
 use RefactorF4Acc::Parser::Expressions qw(
 	parse_expression

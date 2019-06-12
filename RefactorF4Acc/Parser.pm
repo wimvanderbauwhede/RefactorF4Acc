@@ -31,8 +31,9 @@ use RefactorF4Acc::Parser::Expressions qw(
     find_vars_in_ast
     );
 use RefactorF4Acc::Translation::OpenCLC qw( add_to_C_build_sources );    # OBSOLETE
+
 use RefactorF4Acc::Analysis::LoopDetect qw( outer_loop_start_detect );
-use RefactorF4Acc::Analysis::ArgumentIODirs qw(  &conditional_assignment_fsm );
+#use RefactorF4Acc::Analysis::ArgumentIODirs qw(  conditional_assignment_fsm );
 use RefactorF4Acc::Analysis::Variables qw( identify_vars_on_line );
 use RefactorF4Acc::Analysis::CommonBlocks qw( collect_common_vars_per_block );
 use Fortran::F95VarDeclParser qw( parse_F95_var_decl );
@@ -49,17 +50,17 @@ use Storable qw( dclone );
 
 use Exporter;
 
-our @ISA = qw(Exporter);
+@RefactorF4Acc::Parser::ISA = qw(Exporter);
 
-our @EXPORT_OK = qw(
+@RefactorF4Acc::Parser::EXPORT_OK = qw(
   parse_fortran_src
   refactor_marked_blocks_into_subroutines
   mark_blocks_between_calls
   build_call_graph
   analyse_lines
-  initialise_per_code_unit_tables
+  initialise_per_code_unit_tables  
 );
-
+#_parse_assignment
 # -----------------------------------------------------------------------------
 # parse_fortran_src() parses the source but does perform only limited context-free analysis
 # This routine is recursive
@@ -1077,7 +1078,7 @@ or $line=~/^character\s*\(\s*len\s*=\s*[\w\*]+\s*\)/
 #@     Set => {...}
 #@     List => [...]
 					
-			if ( $line =~ /^(if|else\s+if)\s*\(/ ) {			 	
+			if ( $line =~ /^(if|else\s+if)\s*\(/ ) {			  	
 				my $keyword = $1;				
 				if ( $line =~ /^(else\s+if)/ ) {
 					$info->{'ElseIf'} = 1;					
@@ -3182,26 +3183,25 @@ if ($line=~/^character/) {
 		my $dim = $pvars->{$tvar}{'Dim'};		
 		# In all the cases below, we get the dimension from the record
 		# Because I think it only happens for DIMENSION and COMMON lines.
-		if (exists $Sf->{'DeclaredOrigLocalVars'}{'Set'}{$tvar} ) {		
-			
-			my $tdim =dclone($Sf->{'DeclaredOrigLocalVars'}{'Set'}{$tvar}{'Dim'});
+		if (exists $Sf->{'DeclaredOrigLocalVars'}{'Set'}{$tvar} ) {					
+			my $tdim = exists $Sf->{'DeclaredOrigLocalVars'}{'Set'}{$tvar}{'Dim'} ? dclone($Sf->{'DeclaredOrigLocalVars'}{'Set'}{$tvar}{'Dim'}) : [];
 			if (scalar @{$tdim}>0) {
 				$dim=$tdim;
 			}			
 		} elsif (exists $Sf->{'DeclaredOrigLocalArgs'}{'Set'}{$tvar} ) {
-			my $tdim =dclone($Sf->{'DeclaredOrigLocalArgs'}{'Set'}{$tvar}{'Dim'});
-						if (scalar @{$tdim}>0) {
+			my $tdim =exists $Sf->{'DeclaredOrigLocalArgs'}{'Set'}{$tvar}{'Dim'} ? dclone($Sf->{'DeclaredOrigLocalArgs'}{'Set'}{$tvar}{'Dim'}) : [];
+			if (scalar @{$tdim}>0) {
 				$dim=$tdim;
 			}
-		} elsif (exists $Sf->{'DeclaredCommonVars'}{'Set'}{$tvar} ) { 
-			my $tdim =dclone($Sf->{'DeclaredCommonVars'}{'Set'}{$tvar}{'Dim'});
-						if (scalar @{$tdim}>0) {
+		} elsif (exists $Sf->{'DeclaredCommonVars'}{'Set'}{$tvar} ) {
+			my $tdim =exists $Sf->{'DeclaredCommonVars'}{'Set'}{$tvar}{'Dim'} ? dclone($Sf->{'DeclaredCommonVars'}{'Set'}{$tvar}{'Dim'}) : [];
+			if (scalar @{$tdim}>0) {
 				$dim=$tdim;
 			}
 			$common_block_name = $Sf->{'DeclaredCommonVars'}{'Set'}{$tvar}{'CommonBlockName'};
 		} elsif (exists $Sf->{'UndeclaredCommonVars'}{'Set'}{$tvar} ) { 
-			my $tdim =dclone($Sf->{'UndeclaredCommonVars'}{'Set'}{$tvar}{'Dim'});
-						if (scalar @{$tdim}>0) {
+			my $tdim = exists $Sf->{'UndeclaredCommonVars'}{'Set'}{$tvar}{'Dim'} ? dclone($Sf->{'UndeclaredCommonVars'}{'Set'}{$tvar}{'Dim'}) : [];
+			if (scalar @{$tdim}>0) {
 				$dim=$tdim;
 			}
 			$common_block_name = $Sf->{'UndeclaredCommonVars'}{'Set'}{$tvar}{'CommonBlockName'};
