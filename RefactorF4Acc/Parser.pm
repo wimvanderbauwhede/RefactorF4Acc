@@ -554,7 +554,7 @@ SUBROUTINE
 #						if ($subset eq 'ExGlobArgs' ) {
 #							$subset = 'DeclaredCommonVars'; # because in_nested_set() can find either one
 #						}
-						if ($decl eq '1' and $subset eq 'UndeclaredOrigArgs') {			
+						if (ref($decl) ne 'HASH' and $subset eq 'UndeclaredOrigArgs') {			
 							# This is for so far undeclared arguments: they already have an entry
 							# We call __parse_f95_decl on them and that will make them DeclaredOrigArgs
 							
@@ -2332,10 +2332,10 @@ sub _parse_implicit {
 			if ( $attr eq '(' ) { $attr = '(*)' }
 			else {
 				if ($type ne 'character') {
-					$attr = "(kind=$attr)";
+					$attr = $attr eq '' ? '' : "(kind=$attr)";
 					
 				} else {
-					$attr = "($attr)";
+					$attr = $attr eq '' ? '' : "($attr)";
 				}
 			}
 		}
@@ -2404,7 +2404,7 @@ sub __parse_sub_func_prog_decls {
 		$info->{'Signature'}{'Args'}{'Set'}  = { map { $_ => '$info '. __PACKAGE__ . ' ' . __LINE__ } @args };
 		$info->{'Signature'}{'Name'}         = $name;
 		$Sf->{'UndeclaredOrigArgs'}{'List'}  = [@args];
-		$Sf->{'UndeclaredOrigArgs'}{'Set'} = { map { $_ => 'UndeclaredOrigArgs' . __PACKAGE__ . ' ' . __LINE__ } @args };   # UGH!
+		$Sf->{'UndeclaredOrigArgs'}{'Set'} = { map { $_ => 'UndeclaredOrigArgs: ' .$_.' @ '. __PACKAGE__ . ' ' . __LINE__ } @args };   # UGH!
 
 		$Sf->{'OrigArgs'}{'List'} = [@args];
 
@@ -3227,12 +3227,16 @@ if ($line=~/^character/) {
 				$tvar_rec->{'Attr'} = '';
 			}
 		} else {
+			if ($pvars->{$tvar}{'Attr'} ne '') {
 			if ( $type !~ /character/) {
 				if ( $pvars->{$tvar}{'Attr'}!~/kind=/) {
-				$tvar_rec->{'Attr'} = '(kind=' . $pvars->{$tvar}{'Attr'} . ')';
+					$tvar_rec->{'Attr'} = '(kind=' . $pvars->{$tvar}{'Attr'} . ')';
 				} else {
 					$tvar_rec->{'Attr'} = '' . $pvars->{$tvar}{'Attr'} . '';
 				}
+			}
+			} else {
+				$tvar_rec->{'Attr'} = ''
 			}
 		}
 

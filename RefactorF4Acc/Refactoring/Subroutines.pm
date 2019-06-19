@@ -566,12 +566,13 @@ sub _create_extra_arg_and_var_decls {
 			if ( not exists $unique_ex_impl{$var} ) {
 				$unique_ex_impl{$var} = $var;
 				my $rdecl = $Sf->{'UndeclaredOrigArgs'}{'Set'}{$var};
+				
+				my $external = exists $rdecl->{'External'};
+				my $undeclared = exists $Sf->{'UndeclaredOrigArgs'}{'Set'}{$var}; 
 				if (
-					not exists $rdecl->{'External'}
-					or (    exists $rdecl->{'External'}
-						and exists $Sf->{'UndeclaredOrigArgs'}{'Set'}{$var} )
-				  )
-				{
+					not $external
+					or ( $external and  $undeclared ) 
+					) {
 					my $rline = emit_f95_var_decl($rdecl);
 					my $info  = {};
 					$info->{'Ann'} =
@@ -1117,7 +1118,7 @@ sub __update_function_calls_in_AST {
 			if ( ( $ast->[0] & 0xFF ) == 1 ) {
 				my $name = $ast->[1];
 				if ( not exists $stref->{'Subroutines'}{$name}{'HasCommonVarMismatch'} ) {
-croak $name;
+
 
 					if ( $name ne $f and exists $stref->{'Subroutines'}{$name}{'ExGlobArgs'} ) {
 #				say "SUB $f CALLING $name:".Dumper($stref->{'Subroutines'}{$name}{'ExGlobArgs'});

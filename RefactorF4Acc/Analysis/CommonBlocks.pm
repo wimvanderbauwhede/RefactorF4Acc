@@ -14,6 +14,11 @@ use RefactorF4Acc::Config;
 use RefactorF4Acc::ExpressionAST::Evaluate qw( eval_expression_with_parameters );
 use RefactorF4Acc::Utils qw( in_nested_set add_var_decl_to_set remove_var_decl_from_set pp_annlines );
 
+use RefactorF4Acc::Parser::Expressions qw( 
+    parse_expression_no_context
+    );
+
+
 use vars qw( $VERSION );
 $VERSION = "1.2.0";
 
@@ -29,7 +34,7 @@ our @EXPORT_OK = qw(
   collect_common_vars_per_block
   identify_common_var_mismatch
   create_common_var_size_tuples
-  match_up_common_vars
+  match_up_common_vars  
 );
 
 # This is for Parser, so the result should a list of var names
@@ -57,18 +62,32 @@ sub collect_common_vars_per_block {
 
 		my $common_block_name = shift @common_chunks;
 
-		#        if ( $common_block_name eq '' or $common_block_name=~/^\s+$/) {  $common_block_name = 'BLANK';}
-
 		if ( not exists $common_blocks{$common_block_name} ) {
 			$common_blocks{$common_block_name} = [];
 		}
 		my $common_vars_str = shift @common_chunks;
-
-		$common_vars_str =~ s/,\s*$//;
-		my @common_vars_strs = split( /\s*,\s*/, $common_vars_str );
-
-		my @common_vars = grep { !/\)$/ }
-		  map { my $str = $_; $str =~ s/\(.+$//; $str } @common_vars_strs;
+		
+		my ($ast, $rest, $err, $has_funcs) = parse_expression_no_context($common_vars_str);
+		
+		my @common_vars=();
+		if ($ast->[0] == 27) {
+			for my $idx (1 .. scalar @{$ast}-1) {
+				if ($ast->[$idx][0] == 1 or $ast->[$idx][0] == 2 or $ast->[$idx][0] == 10) {
+					push @common_vars, $ast->[$idx][1];
+				}
+			}
+		} else {
+			if ($ast->[0] == 1 or $ast->[0] == 2 or $ast->[0] == 10) {
+				push @common_vars, $ast->[1];
+			}
+		}
+#		my $args_vars = find_vars_in_ast($ast);
+		
+#		$common_vars_str =~ s/,\s*$//;
+#		my @common_vars_strs = split( /\s*,\s*/, $common_vars_str );
+#
+#		 my @common_vars_OLD = grep { !/\)$/ }
+#		  map { my $str = $_; $str =~ s/\(.+$//; $str } @common_vars_strs;
 		$common_blocks{$common_block_name} =
 		  [ @{ $common_blocks{$common_block_name} }, @common_vars ];
 	}
@@ -173,7 +192,7 @@ sub _compare_decls {
 	if (   $decl1->{'Attr'} =~ /=/ and $decl2->{'Attr'} !~ /=/
 		or $decl1->{'Attr'} !~ /=/ and $decl2->{'Attr'} =~ /=/ )
 	{
-		carp "Attributes have different structure:" . $decl1->{'Attr'} . '<>' . $decl2->{'Attr'};
+		carp "Attributes have different structure: $f1 " . $decl1->{'Attr'} . Dumper($decl1).'<>' . $f2.' '.$decl2->{'Attr'}.Dumper($decl2);
 	}
 	my $attrs_match = $decl1->{'Attr'} eq $decl2->{'Attr'};
 	return 0 unless $attrs_match;
@@ -216,16 +235,18 @@ sub create_common_var_size_tuples {
 	for my $block ( sort keys %{ $Sf->{'CommonBlocks'} } ) {
 
 		#			say "MISMATCHED BLOCK $block in $f";
+#		croak Dumper($Sf->{'CommonBlocks'}{$block}) if $f eq 'fm024';
 		my @called_sub_common_vars = @{ $Sf->{'CommonBlocks'}{$block} };
 		my @common_var_size_tuples = map {
 
 			# This means we will have to match them up, so create the tuples
 			my $called_sub_common_var = $_;
 			my $called_set            = in_nested_set( $Sf, 'CommonVars', $called_sub_common_var );
-			my $called_sub_common_var_decl =
-			  $Sf->{$called_set}{'Set'}{$called_sub_common_var};
+			
+			my $called_sub_common_var_decl = $Sf->{$called_set}{'Set'}{$called_sub_common_var};
 			my $dimsz = 0;
 			my $dim   = [];
+			
 			if ( $called_sub_common_var_decl->{'ArrayOrScalar'} eq 'Array' ) {
 				$dim   = dclone( $called_sub_common_var_decl->{'Dim'} );
 				$dimsz = __calc_sz( $stref, $f, $dim ),;

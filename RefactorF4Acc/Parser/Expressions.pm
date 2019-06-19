@@ -42,6 +42,7 @@ use Exporter;
   &find_implied_do_in_ast
   &_traverse_ast_with_action
   @sigils  
+  $defaultToArrays
 );
 
 
@@ -977,6 +978,7 @@ sub _fix_double_paren_in_expr { (my $ast)=@_;
 To support this we need yet another sigil.
 =cut
 
+# parse_expression_no_context :: String -> (AST,String,Error,HasFuncs)
 sub parse_expression_no_context { (my $str)=@_;
     my $max_lev=11; # levels of precedence
     my $prev_lev=0;
@@ -1828,7 +1830,8 @@ sub find_vars_in_ast { (my $ast, my $vars)=@_;
                         }
                     }                   
                     $vars->{$mvar}{'IndexVars'} = $index_vars;
-                } else {                
+                } else {      
+#                	say "skipping functions: ".$ast->[1];          
                     $vars = find_vars_in_ast($ast->[2], $vars);
                 }
   } elsif (($ast->[0] & 0xFF) == 2) { # scalar variable

@@ -111,7 +111,7 @@ sub analyse_variables {
 					not exists $identified_vars->{$mvar} # mvar not yet identified
 					and ( 
 						not $in_vars_subset
-						or ( $in_vars_subset and $Sf->{$in_vars_subset}{'Set'}{$mvar} eq '1' ) 
+						or ( $in_vars_subset and ref($Sf->{$in_vars_subset}{'Set'}{$mvar}) ne 'HASH' ) 
 						)
 				  ) {
 #				  	say "$f VAR2 $mvar" ;
@@ -344,7 +344,7 @@ sub analyse_variables {
 	# Or we could of course just wait and catch them at the point of use. But that is not so neat
 	for my $subset (qw(	UndeclaredOrigArgs UndeclaredCommonVars UndeclaredOrigLocalVars )) {
 		for my $var ( sort keys %{ $Sf->{$subset}{'Set'} } ) {
-			if ( $Sf->{$subset}{'Set'}{$var} eq '1' ) {
+			if ( ref($Sf->{$subset}{'Set'}{$var}) ne 'HASH' ) {
 				say "WARNING: VAR $var from $subset in $f not yet declared, this means the variable was not detected properly!" if $W;
 				my $decl = get_f95_var_decl( $stref, $f, $var );
 				$Sf->{$subset}{'Set'}{$var} = $decl;
