@@ -47,6 +47,8 @@ use Exporter;
     &in_nested_set
     &get_vars_from_set
     &get_var_record_from_set
+    &add_var_decl_to_set
+    &remove_var_decl_from_set
     &get_kv_for_all_elts_in_set
     &append_to_set
     &comment
@@ -518,6 +520,26 @@ sub get_vars_from_set { (my $set)=@_;
     } 
         return $vars;
 }
+
+# set is by name here
+sub add_var_decl_to_set { (my $Sf, my $set, my $var, my $decl)=@_;
+	if (not exists 	$Sf->{$set}{'Set'}{$var}) {
+		push @{$Sf->{$set}{'List'}}, $var;
+    	$Sf->{$set}{'Set'}{$var}=$decl;
+	}
+	return $Sf;
+} # END of add_var_decl_to_set
+
+# set is by name here
+sub remove_var_decl_from_set { (my $Sf, my $set, my $var)=@_;
+	my @var_list=();
+	if (exists 	$Sf->{$set}{'Set'}{$var}) {
+		delete $Sf->{$set}{'Set'}{$var};
+		@var_list = grep {$_ ne $var} @{$Sf->{$set}{'List'}};
+		$Sf->{$set}{'List'}=[@var_list];    	
+	}
+	return $Sf;
+} # END of add_var_decl_to_set
 
 
 sub get_var_record_from_set { (my $set, my $var)=@_;

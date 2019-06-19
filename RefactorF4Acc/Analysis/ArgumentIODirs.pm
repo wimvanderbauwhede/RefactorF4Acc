@@ -505,25 +505,22 @@ sub _analyse_src_for_iodirs {
 		
 		for my $arg ( $args_list ) {
 #		 say $arg if $f eq 'sn705';	
-			if (
-				exists $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}
-				{$arg} )
-			{
+			if (exists $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$arg} ) {
 				
 #				say "$f ARG: $arg ".Dumper($args->{$arg}) ;
 				
-				if (	 $args->{$arg} != 1
+				if (	$args->{$arg} != 1
 					and (ref($args->{$arg}) eq 'HASH' 
 					and exists $args->{$arg}{'Name'}) 
 				) { # If this is a full declaration record
 					$stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$arg} = { %{ $args->{$arg} } };				  
-				} else { # Otherwise, get thre record and updated the IODir
+				} else { # Otherwise, get the record and update the IODir
 					my $decl = get_f95_var_decl($stref, $f, $arg);
 #					say Dumper($decl);
 					if ($args->{$arg} != 1 and exists $args->{$arg}{'IODir'}) {
 						$decl->{'IODir'} = $args->{$arg}{'IODir'};
 					}
-#					say "DECL:".Dumper($decl)  if $f eq 'sn705';
+					say "DECL:".Dumper($decl)  if $f eq 'ff305';
 					$stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$arg} = $decl;
 				}
 
@@ -652,7 +649,7 @@ sub conditional_assignment_fsm {
 sub _get_iodirs_from_subcall {
 	( my $stref, my $f, my $info ) = @_;
 
-	my $name              = $info->{'SubroutineCall'}{'Name'};
+	my $name  = $info->{'SubroutineCall'}{'Name'};
 	my $called_arg_iodirs = {};
 	if ( not (exists $stref->{'ExternalSubroutines'}{$name}	
 		or (exists $stref->{'Subroutines'}{$name}{'Entry'}  and $stref->{'Subroutines'}{$name}{'Entry'}==1)
@@ -770,7 +767,9 @@ sub _get_iodirs_from_subcall {
 					$I; # if $called_arg_iodirs->{$ref_arg} eq 'Unknown' and $I;
 				next;
 			}
-			
+			if (ref($Sname->{'RefactoredArgs'}{'Set'}{$ref_arg}) ne 'HASH' or not exists $Sname->{'RefactoredArgs'}{'Set'}{$ref_arg}{'IODir'}) {
+				carp "ARG $ref_arg SUB $name called from $f has no IODir ".Dumper($Sname->{'RefactoredArgs'}{'Set'}{$ref_arg});
+			}
 			$called_arg_iodirs->{$ref_arg} = $Sname->{'RefactoredArgs'}{'Set'}{$ref_arg}{'IODir'};
 #			  say "REF ARG: $ref_arg RECORD: ".Dumper($Sname->{'RefactoredArgs'}{'Set'}{$ref_arg});
 			  if (exists $called_arg_iodirs->{$ref_arg} and defined $called_arg_iodirs->{$ref_arg}) {

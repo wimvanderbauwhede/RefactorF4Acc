@@ -65,9 +65,8 @@ sub refactor_all {
     # And this is only for Subroutines of course, not for Modules
     if ($sub_or_func_or_mod eq 'Subroutines') {
     $stref = determine_argument_io_direction_rec( $stref,$code_unit_name );    
-    say "DONE determine_argument_io_direction_rec()" if $V;
-
-    $stref = update_argument_io_direction_all_subs( $stref );
+    	say "DONE determine_argument_io_direction_rec()" if $V;
+    	$stref = update_argument_io_direction_all_subs( $stref );
     }
     
     # So at this point we know everything there is to know about the argument declarations, we can now update them

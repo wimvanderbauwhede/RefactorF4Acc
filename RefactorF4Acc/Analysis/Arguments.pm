@@ -115,6 +115,7 @@ sub resolve_conflicts_with_params {
 }    # END of resolve_conflicts_with_params
 
 # Create 'RefactoredArgs'
+# These are sig args, not call args
 sub create_RefactoredArgs {
 	( my $stref, my $f ) = @_;
 	my $Sf = $stref->{'Subroutines'}{$f};

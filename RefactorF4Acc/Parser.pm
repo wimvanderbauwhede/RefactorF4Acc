@@ -2399,11 +2399,12 @@ sub __parse_sub_func_prog_decls {
 		$argstr =~ s/^\s+//;
 		$argstr =~ s/\s+$//;
 		my @args = split( /\s*,\s*/, $argstr );
+
 		$info->{'Signature'}{'Args'}{'List'} = [@args];
-		$info->{'Signature'}{'Args'}{'Set'}  = { map { $_ => 1 } @args };
+		$info->{'Signature'}{'Args'}{'Set'}  = { map { $_ => '$info '. __PACKAGE__ . ' ' . __LINE__ } @args };
 		$info->{'Signature'}{'Name'}         = $name;
 		$Sf->{'UndeclaredOrigArgs'}{'List'}  = [@args];
-		$Sf->{'UndeclaredOrigArgs'}{'Set'} = { map { $_ => 1 } @args };   # UGH!
+		$Sf->{'UndeclaredOrigArgs'}{'Set'} = { map { $_ => 'UndeclaredOrigArgs' . __PACKAGE__ . ' ' . __LINE__ } @args };   # UGH!
 
 		$Sf->{'OrigArgs'}{'List'} = [@args];
 
@@ -2476,7 +2477,7 @@ sub __parse_sub_func_prog_decls {
 		$argstr =~ s/\s+$//;
 		my @args = split( /\s*,\s*/, $argstr );
 		$info->{'Signature'}{'Args'}{'List'} = [@args];
-		$info->{'Signature'}{'Args'}{'Set'}  = { map { $_ => 1 } @args };
+		$info->{'Signature'}{'Args'}{'Set'}  = { map { $_ => __PACKAGE__ . ' ' . __LINE__ } @args };
 		$info->{'Signature'}{'Name'}         = $name;
 		$info->{'Signature'}{'Entry'} = 1;
 		$info->{'Entry'}=1; # FIXME
@@ -2495,7 +2496,7 @@ sub __parse_sub_func_prog_decls {
 		# all args are declared. That way I'm sure not extra declarations will be added 
 		
 		$Sname->{'DeclaredOrigArgs'}{'List'}  = [@args];
-		$Sname->{'DeclaredOrigArgs'}{'Set'} = { map { $_ => 1 } @args };   # UGH! 		
+		$Sname->{'DeclaredOrigArgs'}{'Set'} = { map { $_ => __PACKAGE__ . ' ' . __LINE__ } @args };   # UGH! 		
 		$Sname->{'UndeclaredOrigArgs'}{'List'}  = [];
 		$Sname->{'UndeclaredOrigArgs'}{'Set'} = { };
 		$Sname-> {'OrigArgs'} = { 			
