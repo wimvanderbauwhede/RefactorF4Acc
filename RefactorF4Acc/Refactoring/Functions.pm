@@ -45,6 +45,7 @@ sub remove_vars_masking_functions { ( my $stref ) = @_;
         (my $line, my $info) = @{$annline};
         
         if (exists $info->{'VarDecl'}) {
+        	
             my $var = $info->{'VarDecl'}{'Name'};            
             if (exists $stref->{'Subroutines'}{$f}{'CalledSubs'}{'Set'}{$var}) {
                 say "INFO: VAR $var is masking a function/sub in $f, LINE: $line" if $I;
@@ -60,7 +61,9 @@ sub remove_vars_masking_functions { ( my $stref ) = @_;
                  		or ($stref->{'Program'} eq $src)
                  		)
     	        	) {
+    	        		
     	        		$line.= '! decl of func/sub in program' if $DBG;
+    	        		
     	        	} else {
 						delete $Sf->{'Vars'}{$var};
     	        	    delete $Sf->{'OrigArgs'}{$var};
@@ -234,7 +237,10 @@ sub add_function_var_decls_from_calls {
         	for my $fcall ( @{ $info->{'FunctionCalls'} } ) {
         	   my $fname = $fcall->{'Name'};
 #                croak 	 Dumper $stref->{'Subroutines'}{$fname}{'Signature'};
-                if (not exists $Sf->{'UndeclaredOrigLocalVars'}{'Set'}{$fname}) {                	
+#								carp $fname  . Dumper($Sf->{'DeclaredOrigLocalVars'}{'Set'}{$fname}) if exists $Sf->{'DeclaredOrigLocalVars'}{'Set'}{$fname} ;
+                if (
+                not exists $Sf->{'DeclaredOrigLocalVars'}{'Set'}{$fname}
+                and not exists $Sf->{'UndeclaredOrigLocalVars'}{'Set'}{$fname}) {                	
                 	my $decl = {
                 		'Name' => $fname,
                 		'Indent' => '      ', # no idea, best would be to inherit

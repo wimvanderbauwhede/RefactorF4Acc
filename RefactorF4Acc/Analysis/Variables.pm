@@ -353,10 +353,8 @@ sub analyse_variables {
 	}
 	
 	# Here test function return type
-	if (exists $Sf->{'Signature'}{'Function'} and $Sf->{'Signature'}{'Function'}==1) {
-		
-		if (not exists $Sf->{'Signature'}{'ReturnType'} ) { # The function does not have an explicit return type
-#		carp Dumper $Sf->{'Signature'} ;
+	if (exists $Sf->{'Signature'}{'Function'} and $Sf->{'Signature'}{'Function'}==1) {		
+		if (not exists $Sf->{'Signature'}{'ReturnType'} ) { # The function does not have an explicit return type		
 		  my $retvar=$f;
 		  if (exists $Sf->{'Signature'}{'ResultVar'} ) { # The function uses RESULT
 			 $retvar=$Sf->{'Signature'}{'ResultVar'};
@@ -381,7 +379,7 @@ sub analyse_variables {
 sub identify_vars_on_line {
 		( my $annline ) = @_;
 		( my $line,    my $info )  = @{$annline};
-#say $line, Dumper($info);
+
 		if (   exists $info->{'Assignment'}
 			or exists $info->{'SubroutineCall'}
 			or exists $info->{'If'} # Control

@@ -1964,6 +1964,18 @@ sub _parse_subcall_args { (my $ast, my $args) =@_;
             };
        push @{$args->{'List'}}, $arg;
     }
+    elsif (($ast->[0] & 0xFF) == 4
+    and ($ast->[1][0] & 0xFF) > 28
+    ) { #'-' then const
+    my $arg = '-'.$ast->[1][1]; 
+    $args->{'Set'}{$arg}={        
+        'Type'=>'Const', 
+        'SubType'=>$sigils[ ($ast->[1][0] & 0xFF) ],
+        'Expr' => '-'.$arg
+    };
+       push @{$args->{'List'}}, $arg;
+    
+    }
     elsif (($ast->[0] & 0xFF) > 28) { # constants
     # constants
     my $arg = $ast->[1]; 

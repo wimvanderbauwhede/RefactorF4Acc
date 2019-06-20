@@ -20,7 +20,7 @@ use RefactorF4Acc::Refactoring::Common qw( get_f95_var_decl stateless_pass );
 use RefactorF4Acc::Refactoring::BlockData qw( add_BLOCK_DATA_call_after_last_VarDecl );
 use RefactorF4Acc::Refactoring::Functions qw(add_function_var_decls_from_calls );
 # WORK IN PROGRESS
-use RefactorF4Acc::Analysis::CommonBlocks qw( identify_common_var_mismatch create_common_var_size_tuples match_up_common_vars );
+use RefactorF4Acc::Analysis::CommonBlocks qw( analyse_common_blocks );
 
 #
 #   (c) 2010-2017 Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
@@ -176,38 +176,39 @@ sub analyse_all {
 		}		
 		$stref = analyse_var_decls_for_params( $stref, $f );
 	}	
-# ================================================================================================================================	
-	for my $f ( keys %{ $stref->{'Subroutines'} } ) {
-		next if $f eq '';			
-		next  if $f eq 'UNKNOWN_SRC';
-		next unless exists $stref->{'Subroutines'}{$f}{'HasLocalCommons'};
-
-#	 say "\nCOMMON BLOCK VARS in $f:\n";
-#    say Dumper($stref->{'Subroutines'}{$f}{'CommonBlocks'});
-#	die if $f eq 'fm302';
-		next if  exists $stref->{'Subroutines'}{$f}{'Program'} and $stref->{'Subroutines'}{$f}{'Program'}==1;
-		
-#	 say "\nCOMMON BLOCK MISMATCHES in $f:\n";
-#    say Dumper($stref->{'Subroutines'}{$f}{'CommonBlocks'});
-    $stref = identify_common_var_mismatch($stref,$f);
-#    say Dumper($stref->{'Subroutines'}{$f}{'CommonVarMismatch'});
-	}
-	
-	for my $f ( keys %{ $stref->{'Subroutines'} } ) {
-		next if $f eq '';			
-		next  if $f eq 'UNKNOWN_SRC';
-		next unless exists $stref->{'Subroutines'}{$f}{'HasLocalCommons'};
-		create_common_var_size_tuples( $stref, $f );
-	}
-	for my $f ( keys %{ $stref->{'Subroutines'} } ) {		
-		next if $f eq '';			
-		next  if $f eq 'UNKNOWN_SRC';
-		next unless exists $stref->{'Subroutines'}{$f}{'HasLocalCommons'};
-		match_up_common_vars( $stref, $f );
-		next unless exists $stref->{'Subroutines'}{$f}{'HasCommonVarMismatch'};
-		$stref = create_RefactoredArgs( $stref, $f );
-	}
-	
+# ================================================================================================================================
+$stref = analyse_common_blocks($stref);	
+#	for my $f ( keys %{ $stref->{'Subroutines'} } ) {
+#		next if $f eq '';			
+#		next  if $f eq 'UNKNOWN_SRC';
+#		next unless exists $stref->{'Subroutines'}{$f}{'HasLocalCommons'};
+#
+##	 say "\nCOMMON BLOCK VARS in $f:\n";
+##    say Dumper($stref->{'Subroutines'}{$f}{'CommonBlocks'});
+##	die if $f eq 'fm302';
+#		next if  exists $stref->{'Subroutines'}{$f}{'Program'} and $stref->{'Subroutines'}{$f}{'Program'}==1;
+#		
+##	 say "\nCOMMON BLOCK MISMATCHES in $f:\n";
+##    say Dumper($stref->{'Subroutines'}{$f}{'CommonBlocks'});
+#    $stref = identify_common_var_mismatch($stref,$f);
+##    say Dumper($stref->{'Subroutines'}{$f}{'CommonVarMismatch'});
+#	}
+#	
+#	for my $f ( keys %{ $stref->{'Subroutines'} } ) {
+#		next if $f eq '';			
+#		next  if $f eq 'UNKNOWN_SRC';
+#		next unless exists $stref->{'Subroutines'}{$f}{'HasLocalCommons'};
+#		create_common_var_size_tuples( $stref, $f );
+#	}
+#	for my $f ( keys %{ $stref->{'Subroutines'} } ) {		
+#		next if $f eq '';			
+#		next  if $f eq 'UNKNOWN_SRC';
+#		next unless exists $stref->{'Subroutines'}{$f}{'HasLocalCommons'};
+#		match_up_common_vars( $stref, $f );
+#		next unless exists $stref->{'Subroutines'}{$f}{'HasCommonVarMismatch'};
+#		$stref = create_RefactoredArgs( $stref, $f );
+#	}
+#	
 	
 	return $stref;
 }    # END of analyse_all()

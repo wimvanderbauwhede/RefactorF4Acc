@@ -1,4 +1,4 @@
-! gfortran-mp-8 -Wall test_common_equivalence.f90  -o test_common_equivalence
+! gfortran-mp-8 -Wall test_common_equivalence.f  -o test_common_equivalence
       program test_common_equivalence
         implicit integer (i,v)
         integer i, ivb3

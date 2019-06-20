@@ -857,26 +857,26 @@ SUBROUTINE
                         $Sf->{'UndeclaredOrigLocalVars'}{'Set'}{$tvar} = $decl;
                         push @{$Sf->{'UndeclaredOrigLocalVars'}{'List'}},$tvar;
                     }
-                } else { # type all undeclared ones same as the known one
-                    for my $tvar (keys %{$vars}) {
-                        my $subset = in_nested_set($Sf,'Vars',$tvar);
-                        if ($subset eq '') {
-#                            say "create DECL for $tvar";
-                            # use $equiv_type
-                            my $decl = {
-                                'Indent' => $indent,
-                                'Type'   => $equiv_type,
-                                'Attr'   => $equiv_attr,
-                                'Name'   => $tvar,
-                                'Status' => 0,
-                                'StmtCount' => 0,
-                                'ArrayOrScalar' => $vars->{$tvar}{'Type'}
-                            };		
-                            $Sf->{'UndeclaredOrigLocalVars'}{'Set'}{$tvar} = $decl;
-                            push @{$Sf->{'UndeclaredOrigLocalVars'}{'List'}},$tvar;
-                        }                    
-                    }
-                }
+                } 
+#				else { # type all undeclared ones same as the known one
+#                    for my $tvar (keys %{$vars}) {
+#                        my $subset = in_nested_set($Sf,'Vars',$tvar);
+#                        if ($subset eq '') {
+#                            # use $equiv_type
+#                            my $decl = {
+#                                'Indent' => $indent,
+#                                'Type'   => $equiv_type,
+#                                'Attr'   => $equiv_attr,
+#                                'Name'   => $tvar,
+#                                'Status' => 0,
+#                                'StmtCount' => 0,
+#                                'ArrayOrScalar' => $vars->{$tvar}{'Type'}
+#                            };		
+#                            $Sf->{'UndeclaredOrigLocalVars'}{'Set'}{$tvar} = $decl;
+#                            push @{$Sf->{'UndeclaredOrigLocalVars'}{'List'}},$tvar;
+#                        }                    
+#                    }
+#                }
             }
             } # NEW_PARSER
 		 	}		
@@ -1797,10 +1797,11 @@ sub _parse_subroutine_and_function_calls {
                 
 				} else {                
 	                if ($argstr) {
+	                	
 						my $ast = parse_expression( $argstr, $info, $stref, $f ); 
 						( my $expr_args, my $expr_other_vars ) = get_args_vars_from_subcall($ast);
 						
-#		                croak Dumper($expr_args,$expr_other_vars) if $argstr=~/ivon03/;
+#		                croak $line."\n".Dumper($ast)."\n".Dumper($expr_args,$expr_other_vars) if $argstr=~/ivcomp/ and $line=~/sn705/;
 						for my $expr_arg(@{$expr_args->{'List'}}) {
 							if (substr($expr_arg,0,1) eq '*') {
 								my $label=substr($expr_arg,1);
@@ -2419,7 +2420,7 @@ sub __parse_sub_func_prog_decls {
 				my $maybe_attr=$2;
 				if ($maybe_type !~/pure|elemental|recursive/) {
 					$info->{'Signature'}{'ReturnType'} = $maybe_type;
-					$info->{'Signature'}{'ReturnTypeAttr'} = defined $maybe_attr ? $maybe_attr : '';
+					$info->{'Signature'}{'ReturnTypeAttr'} = defined $maybe_attr ? $maybe_attr : '';					
 				}
 			}
 			# FIXME: we need the RESULT variable
@@ -2439,7 +2440,6 @@ sub __parse_sub_func_prog_decls {
 		} else {
 			$info->{'Signature'}{'Function'} = 0;
 		}
-#croak $line.Dumper($info) if $line=~/ff029/;
 	} elsif ( $line =~ /^\s*subroutine\s+(\w+)[^\(]*$/
 		or $line =~ /^\s*(?:pure|elemental|recursive)\s+subroutine\s+(\w+)[^\(]*$/ )
 	{
@@ -2930,7 +2930,7 @@ if ($NEW_PARSER) {
     }
     }
 	( $pvars, $pvars_lst ) = _parse_F77_decl_NEW( $line );
-#	croak Dumper($pvars) if $line=~/logical/i;
+	
     # For backward compat, remove later. TODO
     $type = $pvars->{$pvars_lst->[0]}{'Type'}
 } else {

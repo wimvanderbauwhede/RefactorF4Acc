@@ -14,10 +14,8 @@ use RefactorF4Acc::Config;
 use RefactorF4Acc::ExpressionAST::Evaluate qw( eval_expression_with_parameters );
 use RefactorF4Acc::Utils qw( in_nested_set add_var_decl_to_set remove_var_decl_from_set pp_annlines );
 
-use RefactorF4Acc::Parser::Expressions qw( 
-    parse_expression_no_context
-    );
-
+use RefactorF4Acc::Parser::Expressions qw( parse_expression_no_context );
+use RefactorF4Acc::Analysis::Arguments qw( create_RefactoredArgs );
 
 use vars qw( $VERSION );
 $VERSION = "1.2.0";
@@ -31,11 +29,45 @@ use Exporter;
 our @ISA = qw(Exporter);
 
 our @EXPORT_OK = qw(
+  analyse_common_blocks
   collect_common_vars_per_block
-  identify_common_var_mismatch
-  create_common_var_size_tuples
-  match_up_common_vars  
 );
+
+sub analyse_common_blocks { (my $stref) =@_;
+	for my $f ( keys %{ $stref->{'Subroutines'} } ) {
+		next if $f eq '';			
+		next  if $f eq 'UNKNOWN_SRC';
+		next unless exists $stref->{'Subroutines'}{$f}{'HasLocalCommons'};
+
+#	 say "\nCOMMON BLOCK VARS in $f:\n";
+#    say Dumper($stref->{'Subroutines'}{$f}{'CommonBlocks'});
+#	die if $f eq 'fm302';
+		next if  exists $stref->{'Subroutines'}{$f}{'Program'} and $stref->{'Subroutines'}{$f}{'Program'}==1;
+		
+#	 say "\nCOMMON BLOCK MISMATCHES in $f:\n";
+#    say Dumper($stref->{'Subroutines'}{$f}{'CommonBlocks'});
+    $stref = identify_common_var_mismatch($stref,$f);
+#    say Dumper($stref->{'Subroutines'}{$f}{'CommonVarMismatch'});
+	}
+	
+	for my $f ( keys %{ $stref->{'Subroutines'} } ) {
+		next if $f eq '';			
+		next  if $f eq 'UNKNOWN_SRC';
+		next unless exists $stref->{'Subroutines'}{$f}{'HasLocalCommons'};
+		create_common_var_size_tuples( $stref, $f );
+	}
+	for my $f ( keys %{ $stref->{'Subroutines'} } ) {		
+		next if $f eq '';			
+		next  if $f eq 'UNKNOWN_SRC';
+		next unless exists $stref->{'Subroutines'}{$f}{'HasLocalCommons'};
+		match_up_common_vars( $stref, $f );
+		next unless exists $stref->{'Subroutines'}{$f}{'HasCommonVarMismatch'};
+		$stref = create_RefactoredArgs( $stref, $f );
+	}
+		
+	return $stref;
+	} # END of analyse_common_blocks
+
 
 # This is for Parser, so the result should a list of var names
 #
@@ -66,6 +98,7 @@ sub collect_common_vars_per_block {
 			$common_blocks{$common_block_name} = [];
 		}
 		my $common_vars_str = shift @common_chunks;
+		$common_vars_str =~ s/,\s*$//;
 		
 		my ($ast, $rest, $err, $has_funcs) = parse_expression_no_context($common_vars_str);
 		
@@ -76,11 +109,10 @@ sub collect_common_vars_per_block {
 					push @common_vars, $ast->[$idx][1];
 				}
 			}
-		} else {
-			if ($ast->[0] == 1 or $ast->[0] == 2 or $ast->[0] == 10) {
-				push @common_vars, $ast->[1];
-			}
+		} elsif ($ast->[0] == 1 or $ast->[0] == 2 or $ast->[0] == 10) {
+				push @common_vars, $ast->[1];			
 		}
+		 
 #		my $args_vars = find_vars_in_ast($ast);
 		
 #		$common_vars_str =~ s/,\s*$//;
@@ -132,11 +164,9 @@ sub identify_common_var_mismatch {
 							#			                say "VARS: $called_sub_common_var $caller_sub_common_var";
 							if ( $called_sub_common_var eq $caller_sub_common_var ) {
 								my $called_set = in_nested_set( $Sf, 'CommonVars', $called_sub_common_var );
-								my $caller_set =
-								  in_nested_set( $stref->{'Subroutines'}{$caller}, 'CommonVars', $caller_sub_common_var );
+								my $caller_set = in_nested_set( $stref->{'Subroutines'}{$caller}, 'CommonVars', $caller_sub_common_var );
 								my $called_sub_common_var_decl = $Sf->{$called_set}{'Set'}{$called_sub_common_var};
-								my $caller_sub_common_var_decl =
-								  $stref->{'Subroutines'}{$caller}{$caller_set}{'Set'}{$caller_sub_common_var};
+								my $caller_sub_common_var_decl = $stref->{'Subroutines'}{$caller}{$caller_set}{'Set'}{$caller_sub_common_var};
 								if ( not _compare_decls( $stref, $f, $caller, $called_sub_common_var_decl, $caller_sub_common_var_decl, 1 ) ) {
 									$Sf->{'CommonVarMismatch'}{$caller}{$block} = 1;
 									last;
@@ -157,8 +187,7 @@ sub identify_common_var_mismatch {
 					  if $DBG;
 					$Sf->{'HasCommonVarMismatch'} = 1;
 				} else {
-					say "BLOCK $block in $f is matched with $caller: " . join( ',', @{ $Sf->{'CommonBlocks'}{$block} } )
-					  if $DBG;
+					say "BLOCK $block in $f is matched with $caller: " . join( ',', @{ $Sf->{'CommonBlocks'}{$block} } ) if $DBG;
 					$Sf->{'ExMismatchedCommonArgs'}{'SigArgs'}{'List'} =
 					  [ @{ $Sf->{'ExMismatchedCommonArgs'}{'SigArgs'}{'List'} }, @{ $Sf->{'CommonBlocks'}{$block} } ];
 
@@ -192,7 +221,7 @@ sub _compare_decls {
 	if (   $decl1->{'Attr'} =~ /=/ and $decl2->{'Attr'} !~ /=/
 		or $decl1->{'Attr'} !~ /=/ and $decl2->{'Attr'} =~ /=/ )
 	{
-		carp "Attributes have different structure: $f1 " . $decl1->{'Attr'} . Dumper($decl1).'<>' . $f2.' '.$decl2->{'Attr'}.Dumper($decl2);
+		carp "Attributes have different structure: $f1 " . $decl1->{'Attr'} . Dumper($decl1).'<>' . $f2.' '.$decl2->{'Attr'}.Dumper($decl2);		
 	}
 	my $attrs_match = $decl1->{'Attr'} eq $decl2->{'Attr'};
 	return 0 unless $attrs_match;
@@ -375,6 +404,7 @@ sub _match_up_common_var_sequences {
 			# If the attribute, i.e. the kind or length, is mismatched, we must take this into account
 			# The way to do this is by multiplying the length of each variable in the sequence with KIND or LEN
 			if ( $decl_local->{'ArrayOrScalar'} eq 'Scalar' and $decl_caller->{'ArrayOrScalar'} eq 'Scalar' ) {    # both Scalar
+			
 				if ( $kind_local == $kind_caller ) {                                                               # Same kind
 					if ( $name_local ne $name_caller ) {                                                           # Different names
 							# Else no need to create an equivalence pair, just use the orginal arg name in the subroutine.

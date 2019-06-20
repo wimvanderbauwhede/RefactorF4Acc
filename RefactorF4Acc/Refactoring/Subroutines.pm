@@ -1017,9 +1017,10 @@ sub _create_refactored_subroutine_call {
 }    # END of _create_refactored_subroutine_call()
 
 # This is for lines that contain function calls, so in practice either assignments or subroutine calls
-sub _create_refactored_function_calls {
+sub _create_refactored_function_calls { 
 	( my $stref, my $f, my $annline, my $rlines ) = @_;
 	my $Sf = $stref->{'Subroutines'}{$f};
+	
 	( my $line, my $info ) = @{$annline};
 
 	#    say "$f LINE: $line".Dumper($info) ;

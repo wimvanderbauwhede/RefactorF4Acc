@@ -488,8 +488,8 @@ sub _analyse_src_for_iodirs {
 						_set_iodir_vars($rhs_vars,$args, \&_set_iodir_read );
 					}
 					my $lhs_var = $info->{'Lhs'}{'VarName'};
-					_set_iodir_vars([$lhs_var],$args, \&_set_iodir_write );
 					
+					_set_iodir_vars([$lhs_var],$args, \&_set_iodir_write );					 
 					my $lhs_index_vars = $info->{'Lhs'}{'IndexVars'}{'List'};
 					if (scalar @{$lhs_index_vars}>0) {
 						_set_iodir_vars($lhs_index_vars,$args, \&_set_iodir_read );
@@ -509,18 +509,17 @@ sub _analyse_src_for_iodirs {
 				
 #				say "$f ARG: $arg ".Dumper($args->{$arg}) ;
 				
-				if (	$args->{$arg} != 1
-					and (ref($args->{$arg}) eq 'HASH' 
-					and exists $args->{$arg}{'Name'}) 
+				if (	
+					ref($args->{$arg}) eq 'HASH' 
+					and exists $args->{$arg}{'Name'} 
 				) { # If this is a full declaration record
 					$stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$arg} = { %{ $args->{$arg} } };				  
 				} else { # Otherwise, get the record and update the IODir
 					my $decl = get_f95_var_decl($stref, $f, $arg);
 #					say Dumper($decl);
-					if ($args->{$arg} != 1 and exists $args->{$arg}{'IODir'}) {
+					if (ref($args->{$arg}) eq 'HASH' and exists $args->{$arg}{'IODir'}) {
 						$decl->{'IODir'} = $args->{$arg}{'IODir'};
-					}
-					say "DECL:".Dumper($decl)  if $f eq 'ff305';
+					}					
 					$stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$arg} = $decl;
 				}
 
@@ -717,8 +716,7 @@ sub _get_iodirs_from_subcall {
 						if ( in_nested_set( $Sf, 'Parameters', $call_arg ) ) {
 							say "CALLER ARG <$call_arg> for call to $name in $f IS A PARAMETER." if $DBG;
 	say "WARNING: Setting intent(In) for argument $sig_arg of $name because the called argument is a parameter!" if $W;
-								print
-	"INFO: $name in $f is called only once; $sig_arg is a parameter, setting IODir to 'In'\n"
+								print "INFO: $name in $f is called only once; $sig_arg is a parameter, setting IODir to 'In'\n"
 								  if $I;
 								$Sname->{'RefactoredArgs'}{'Set'}{$sig_arg}{'IODir'} = 'In';
 						} else {
@@ -741,9 +739,11 @@ sub _get_iodirs_from_subcall {
 	
 				}
 			} else {
+#				say "$name in $f: $sig_arg".':'.Dumper($argmap);
 				# WHY?
 				carp "MODIFYING RefactoredArgs ad hoc!" if $DBG;
-				if (not defined $Sname->{'RefactoredArgs'}{'Set'}{$sig_arg}{'IODir'} or $Sname->{'RefactoredArgs'}{'Set'}{$sig_arg}{'IODir'} eq 'Unknown') {
+				if (not defined $Sname->{'RefactoredArgs'}{'Set'}{$sig_arg}{'IODir'} 
+				or $Sname->{'RefactoredArgs'}{'Set'}{$sig_arg}{'IODir'} eq 'Unknown') {
 				$Sname->{'RefactoredArgs'}{'Set'}{$sig_arg}{'IODir'} = 'In';
 				}
 			}
@@ -826,23 +826,17 @@ my $Sf = $stref->{'Subroutines'}{$f};
 			my $varname = $info->{'VarDecl'}{'Name'};
 #			carp Dumper($info) ;
 			if (
-#					exists $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$varname}
 					in_nested_set( $stref->{'Subroutines'}{$f},'Args',$varname )
 				){
 					
 					my $decl = get_var_record_from_set( $stref->{'Subroutines'}{$f}{'Args'},$varname);
-#					say 'Args:'.Dumper($decl->{'Name'},$decl->{'IODir'}) if $varname eq 'ivd005' and $f eq 'sn705';
-#					say "DECL FROM ARGS: ".Dumper($decl);
-					if (
-					exists $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$varname}					  
-					) {
+					if ( exists $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$varname} ) {
 						my $rdecl =  $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$varname};
 #						say 'RefactoredArgs: '.Dumper($rdecl) if $varname eq 'ivd005' and $f eq 'sn705';
 						if (exists $rdecl->{'Name'}) {
 							$decl=$rdecl;
 						} else {
-							if (exists $rdecl->{'IODir'}
-							and $rdecl->{'IODir'} ne 'Unknown'
+							if (exists $rdecl->{'IODir'} and $rdecl->{'IODir'} ne 'Unknown'
 							) {
 								$decl->{'IODir'} = $rdecl->{'IODir'} ;
 							}
