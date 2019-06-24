@@ -107,13 +107,13 @@ TEST CASE FM046.f
 refactorF4acc.pl -c rf4a_fm046.cfg  -g fm046
 TEST CASE FM050.f
 refactorF4acc.pl -c rf4a_fm050.cfg  -g fm050
-All blocks in fs055 match with fm050, OK to use old approach
 All blocks in fs051 match with fm050, OK to use old approach
+All blocks in fs055 match with fm050, OK to use old approach
 TEST CASE FM056.f
 refactorF4acc.pl -c rf4a_fm056.cfg  -g fm056
 All blocks in fs058 match with fs057, OK to use old approach
-All blocks in ff059 match with fs058, OK to use old approach
 All blocks in fs057 match with fm056, OK to use old approach
+All blocks in ff059 match with fs058, OK to use old approach
 TEST CASE FM060.f
 refactorF4acc.pl -c rf4a_fm060.cfg  -g fm060
 TEST CASE FM061.f
@@ -249,11 +249,11 @@ TEST CASE FM328.f
 refactorF4acc.pl -c rf4a_fm328.cfg  -g fm328
 In proc fm328, in call to sub fs333, arg ff330 is EXTERNAL so setting nint attr External in set UndeclaredOrigArgs
 In proc fm328, in call to sub fs334, arg fs335 is EXTERNAL so setting idon06 attr External in set UndeclaredOrigArgs
-All blocks in fs329 match with fm328, OK to use old approach
-All blocks in fs332 match with fm328, OK to use old approach
-All blocks in fs333 match with fm328, OK to use old approach
-All blocks in fs331 match with fm328, OK to use old approach
 All blocks in fs334 match with fm328, OK to use old approach
+All blocks in fs333 match with fm328, OK to use old approach
+All blocks in fs332 match with fm328, OK to use old approach
+All blocks in fs331 match with fm328, OK to use old approach
+All blocks in fs329 match with fm328, OK to use old approach
 TEST CASE FM351.f
 refactorF4acc.pl -c rf4a_fm351.cfg  -g fm351
 TEST CASE FM352.f

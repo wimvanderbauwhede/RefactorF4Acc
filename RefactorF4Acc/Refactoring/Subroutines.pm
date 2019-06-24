@@ -354,7 +354,7 @@ sub _refactor_globals_new {
 				my $mod_param_inc = $param_inc;
 				$mod_param_inc =~ s/\./_/g;
 				delete $info->{'Includes'};
-				$info->{'Ann'} = [ annotate( $f, __LINE__ ) ];
+				push @{$info->{'Ann'}},  annotate( $f, __LINE__ ) ;
 				$annline = [ $line, $info ];
 				push @{$rlines}, $annline;
 				$skip = 1;

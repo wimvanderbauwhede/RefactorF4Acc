@@ -1,5 +1,5 @@
 ./clean_up.sh
-time perl run_testsuite.pl | tee generate.log 2>&1
+time perl run_testsuite_generation.pl | tee generate.log 2>&1
 echo "# Generation of the refactored test suite code:"
 grep TOTAL generate.log
 grep RUN generate.log

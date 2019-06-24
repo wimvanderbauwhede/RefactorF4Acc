@@ -87,12 +87,16 @@ sub context_free_refactorings {
     $Sf->{'RefactoredCode'} = [];
     my @include_use_stack = ();
     # FIXME: This is way too long and quite unclear
+#    my $line_ct=0;
+
     for my $annline ( @{$annlines} ) {
+#    	++$line_ct;
         if ( not defined $annline or not defined $annline->[0] ) {
             croak
               "Undefined source code line for $f in create_refactored_source()";
         }
         ( my $line, my $info ) = @{$annline};
+        
         if ( exists $info->{'Comments'}  ) {
             next;
         }     
@@ -369,24 +373,25 @@ sub context_free_refactorings {
             my $tinc = $inc;
             $tinc =~ s/\./_/g;
             if ( not exists $stref->{'IncludeFiles'}{$inc}{'ExtPath'} ) { # FIXME: this is because 'InclType' => 'External' gets overwritten by 'Parameter' 
-            	if (exists $Sf->{'Includes'}{$inc}{'Only'} and scalar keys %{ $Sf->{'Includes'}{$inc}{'Only'} }>0) {            		            		            	
+            	if (exists $Sf->{'Includes'}{$inc}{'Only'} and scalar keys %{ $Sf->{'Includes'}{$inc}{'Only'} }>0) {
+            		            		            		            	
             		my @used_params = keys %{ $Sf->{'Includes'}{$inc}{'Only'} };
                 	$line = "      use $tinc". ($NO_ONLY ?  '!' : '') .', only : '.join(', ', @used_params) ;
                   	push @{ $info->{'Ann'} }, annotate($f, __LINE__. ' Include' );
                   	
             	} elsif (exists $stref->{'IncludeFiles'}{$inc}{'ParamInclude'}) {
+            		
             		my $param_include=$stref->{'IncludeFiles'}{$inc}{'ParamInclude'};
             		my $tinc = $param_include;
             		$tinc =~ s/\./_/g;            		
-            		  	if (exists $Sf->{'Includes'}{$param_include}{'Only'} and scalar keys %{ $Sf->{'Includes'}{$param_include}{'Only'} }>0) {            		            	
-            		my @used_params = keys %{ $Sf->{'Includes'}{$param_include}{'Only'} };
-                	$line = "      use $tinc". ($NO_ONLY ?  '!' : '') .", only : ".join(', ', @used_params);
-                  	push @{ $info->{'Ann'} }, annotate($f, __LINE__. ' Include' );
-            		  	} else {
-                	$line = "!!      use $tinc ! ONLY LIST EMPTY";
-                  	push @{ $info->{'Ann'} }, annotate($f, __LINE__ . ' no pars used'); #croak 'SKIP USE PARAM';            		
-            		  		
-            		  	}
+            		if (exists $Sf->{'Includes'}{$param_include}{'Only'} and scalar keys %{ $Sf->{'Includes'}{$param_include}{'Only'} }>0) {            		            	
+            			my @used_params = keys %{ $Sf->{'Includes'}{$param_include}{'Only'} };
+                		$line = "      use $tinc". ($NO_ONLY ?  '!' : '') .", only : ".join(', ', @used_params);
+                  		push @{ $info->{'Ann'} }, annotate($f, __LINE__. ' Include' );
+					} else {
+                		$line = "!!      use $tinc ! ONLY LIST EMPTY";
+                  		push @{ $info->{'Ann'} }, annotate($f, __LINE__ . ' no pars used'); #croak 'SKIP USE PARAM';            		            		  		
+            		}
 				} elsif (exists $stref->{'IncludeFiles'}{$tinc}{'InclType'}
 					and $stref->{'IncludeFiles'}{$tinc}{'InclType'} eq 'Parameter'
 				) {

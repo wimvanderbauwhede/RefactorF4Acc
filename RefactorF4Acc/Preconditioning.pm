@@ -98,7 +98,9 @@ sub __split_out_parameters {
 	push @{$nsrcref},
 	  [
 		"      include 'params_$f'",
-		{ 'Include' => { 'Name' => "params_$f", 'InclType' => 'Parameter' } }
+		{ 'Include' => { 'Name' => "params_$f", 'InclType' => 'Parameter' },
+			'Ann' => [  annotate( $f, __LINE__ ) ] 
+			 }
 	  ];
 
 	for my $index ( 0 .. scalar( @{$srcref} ) - 1 ) {
@@ -180,10 +182,12 @@ sub __find_parameter_used_in_inc_and_add_to_Only {
 					my %dim_tmpstr = map { ( $_->[0] => 1, $_->[1] => 1 ) }
 					  @{ $decl->{'Dim'} };
 					my @maybe_parstrs  = grep { !/^\-?\d+$/ } keys %dim_tmpstr;
+					
+					if (@maybe_parstrs) {					
 					my $maybe_pars_str = '('
 					  . join( ',', @maybe_parstrs )
 					  . ')';    #Dumper($decl->{'Dim'});#
-								# So now parse this
+								# So now parse this if it's not empty					
 					my $ast =
 					  parse_expression( $maybe_pars_str, {}, $stref, $inc );
 					my $pars = get_vars_from_expression( $ast, {} );
@@ -192,6 +196,7 @@ sub __find_parameter_used_in_inc_and_add_to_Only {
 					delete $pars->{'_OPEN_PAR_'};
 					for my $par ( keys %{$pars} ) {
 						$Sinc->{'Includes'}{"params_$inc"}{'Only'}{$par} = 1;
+					}
 					}
 				}
 			}
@@ -205,6 +210,7 @@ sub __find_parameter_used_in_inc_and_add_to_Only {
 					my %dim_tmpstr = map { ( $_->[0] => 1, $_->[1] => 1 ) }
 					  @{ $decl->{'Dim'} };
 					my @maybe_parstrs  = grep { !/^\-?\d+$/ } keys %dim_tmpstr;
+					if (@maybe_parstrs) {
 					my $maybe_pars_str = '('
 					  . join( ',', @maybe_parstrs )
 					  . ')';    #Dumper($decl->{'Dim'});#
@@ -215,6 +221,7 @@ sub __find_parameter_used_in_inc_and_add_to_Only {
 					delete $pars->{'_OPEN_PAR_'};
 					for my $par ( keys %{$pars} ) {
 						$Sinc->{'Includes'}{"params_$inc"}{'Only'}{$par} = 1;
+					}
 					}
 				}
 			}

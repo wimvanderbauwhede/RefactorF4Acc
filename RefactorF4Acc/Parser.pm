@@ -798,6 +798,7 @@ SUBROUTINE
                 $info->{'HasVars'} = 1; 
                 my $indent = $info->{'Indent'};
 		 		say "WARNING: EQUIVALENCE IS IGNORED!" if $W and not $NEW_PARSER;
+		 		# WE DO NOT SUPPORT THE FOLLOWING: "An EQUIVALENCE statement can extend a COMMON block on the right-hand side"
 		 		if (not exists $grouped_warnings->{'EQUIVALENCE'}) {
 		 			$grouped_warnings->{'EQUIVALENCE'}=[ "The EQUIVALENCE  statement is not refactored, this could possible break your code, please rewrite:",
 		 			'  SOURCE: '.$stref->{$sub_incl_or_mod}{$f}{'Source'},
@@ -833,17 +834,15 @@ SUBROUTINE
                 for my $tvar (keys %{$vars}) {
                     my $subset = in_nested_set($Sf,'Vars',$tvar);
                     if ($subset) {
-                        #say "VAR $tvar found in SUBSET $subset";
+#						say "VAR $tvar found in SUBSET $subset";
+						
                         my $orig_decl =  $Sf->{$subset}{'Set'}{$tvar} ;
+#                        say Dumper($orig_decl );
                         $equiv_type=$orig_decl->{'Type'};
                         $equiv_attr=$orig_decl->{'Attr'};
-                        last; # because I assume they all must have the same type.
-                    } #else {
-                    # say "VAR $tvar not yet declared";
-                    #}
-                }
-                if ($equiv_type eq 'Unknown') { # none of the vars is already declared
-                    for my $tvar (keys %{$vars}) {
+#                        last; # because I assume they all must have the same type.
+                    } else {
+#                     say "VAR $tvar not yet declared";
                         ($equiv_type, my $array_or_scalar, $equiv_attr)=type_via_implicits($stref, $f,$tvar);
                         my $decl = {
                             'Indent' => $indent,
@@ -856,8 +855,24 @@ SUBROUTINE
                         };		
                         $Sf->{'UndeclaredOrigLocalVars'}{'Set'}{$tvar} = $decl;
                         push @{$Sf->{'UndeclaredOrigLocalVars'}{'List'}},$tvar;
-                    }
-                } 
+                    }                                        
+                }
+#                if ($equiv_type eq 'Unknown') { # none of the vars is already declared
+#                    for my $tvar (keys %{$vars}) {
+#                        ($equiv_type, my $array_or_scalar, $equiv_attr)=type_via_implicits($stref, $f,$tvar);
+#                        my $decl = {
+#                            'Indent' => $indent,
+#                            'Type'   => $equiv_type,
+#                            'Attr'   => $equiv_attr,
+#                            'Name'   => $tvar,
+#                            'Status' => 0,
+#                            'StmtCount' => 0,
+#                            'ArrayOrScalar' => $vars->{$tvar}{'Type'}
+#                        };		
+#                        $Sf->{'UndeclaredOrigLocalVars'}{'Set'}{$tvar} = $decl;
+#                        push @{$Sf->{'UndeclaredOrigLocalVars'}{'List'}},$tvar;
+#                    }
+#                } 
 #				else { # type all undeclared ones same as the known one
 #                    for my $tvar (keys %{$vars}) {
 #                        my $subset = in_nested_set($Sf,'Vars',$tvar);
@@ -1071,7 +1086,7 @@ or $line=~/^character\s*\(\s*len\s*=\s*[\w\*]+\s*\)/
 				my $mline = $line;    # modifiable copy of $line				
 
 				
-#== Block, Arithmetic and logical IF statements		
+#== IF -- Block, Arithmetic and logical IF statements		
 # st can be any executable statement, except a DO block, IF, ELSE IF, ELSE,
 # END IF, END, or another logical IF statement.
 #@ CondExecExpr => $cond
@@ -1327,6 +1342,21 @@ END IF
 
 					$info = _parse_assignment( $mline, $info, $stref, $f );
 			}
+			# GOTO is handled separately in _identify_loops_breaks 
+#			elsif ($mline=~/go\s*to\s+(\w+)/) {
+#							carp "GOTO: $mline ".Dumper($info);
+#			} 
+			elsif ($mline=~/(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/) {
+#				say "ARITHMETIC IF: $mline";
+				my $label_lt=$1;
+				my $label_eq=$2;
+				my $label_gt=$3;
+				$info->{'ArithmeticIf'}=[$label_lt, $label_eq, $label_gt];
+#				say Dumper($info);
+			}
+			else {
+				carp "UNDETERMINED LINE: <$mline> ".Dumper($info) if $DBG;
+			}
 			}
 			
 			if (not exists $info->{'Block'}) {
@@ -1339,7 +1369,7 @@ END IF
 	if ($in_excluded_block==2) {
 		$in_excluded_block=0;
 	}
-}
+} # in excluded block
 			if ($in_excluded_block==1 and not exists $info->{'Block'}) {
 				say $lline if $DBG;
 			}
@@ -3385,6 +3415,7 @@ sub _identify_loops_breaks {
 				$Sf->{'ReferencedLabels'}{$label}=$label;
 				$Sf->{'Gotos'}{$label} = 1;				
 				push @{ $gotos{$label} }, [ $index, $nest ];
+#				say "UNCONDITIONAL GOTO: $line";
 				next;
 			};
 #    CONTINUE statement

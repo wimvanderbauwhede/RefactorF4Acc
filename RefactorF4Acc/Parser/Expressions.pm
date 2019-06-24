@@ -980,6 +980,7 @@ To support this we need yet another sigil.
 
 # parse_expression_no_context :: String -> (AST,String,Error,HasFuncs)
 sub parse_expression_no_context { (my $str)=@_;
+	
     my $max_lev=11; # levels of precedence
     my $prev_lev=0;
     my $lev=0;
@@ -994,10 +995,10 @@ sub parse_expression_no_context { (my $str)=@_;
     my $expr_ast=[];
     my $arg_expr_ast=[];
     my $has_funcs=0;
-    
+#    carp "ORIG STR: $str";
     while (length($str)>0) {
         $error=0;
-        #say "STR before prefix: $str";
+#		say "STR before prefix: $str";
         # Remove whitespace
         if ($str=~/^\s/) {
             $str=~s/^\s+//;
@@ -1121,7 +1122,7 @@ sub parse_expression_no_context { (my $str)=@_;
         else {          
             # Here we return with an error value
             # What I could do is say:
-            # if the next token is ':' or the pending op is ':'
+            # if the next token is ':' or the pending op is ':'            
             if($str=~/^\s*:/ or $op == 12) {
                 $expr_ast=[35,'']
             } else { # error
@@ -1795,6 +1796,7 @@ sub _traverse_ast_with_action { (my $ast, my $acc, my $f) = @_;
 
 } # END of _traverse_ast_with_action
 
+# returns a hash of the var names
 sub find_vars_in_ast { (my $ast, my $vars)=@_;	
 
   return {} unless ref($ast) eq 'ARRAY';
