@@ -73,6 +73,7 @@ sub parse_fortran_src {
 ## 1. Read the source and do some minimal processsing, unless it's already been done (i.e. for extracted blocks)
 	print "parse_fortran_src(): CALL read_fortran_src( $f )\n" if $V;
 	$stref = read_fortran_src( $f, $stref, $is_source_file_path );    #
+#	croak Dumper(pp_annlines($stref->{Subroutines}{$f}{AnnLines})) if $f eq 'block_data';
 	say "DONE read_fortran_src( $f )" if $V;	
 	
 	my $sub_or_incl_or_mod = sub_func_incl_mod( $f, $stref ); # Maybe call this "code_unit()"	
@@ -748,6 +749,27 @@ SUBROUTINE
 		elsif ( $line =~/^format/) {
 			$info->{'Format'}=1;
 		}
+#== SAVE
+#The SAVE statement prevents items in a subprogram from becoming undefined
+#after the RETURN or END statements are executed.
+#Syntax
+#Description
+#All variables to be saved are placed in an internal static area. All common
+#blocks are saved by allocating a static area. Therefore, common block names
+#specified in SAVE statements are just ignored.
+#A SAVE statement is optional in the main program and has no effect.
+#A SAVE with no list saves everything that can be saved.
+#Restrictions
+#The following constructs must not appear in a SAVE statement:
+#• Variables or arrays in a common block
+#• Dummy argument names
+#• Record names
+#• Procedure names
+#• Automatic variables or arrays			 
+		elsif ( $line =~/^save/) {
+			$info->{'Save'}=1;
+			$info->{'SpecificationStatement'} = 1;
+		}		
 #== DATA
 		elsif ($line=~/^data\b/ and $line!~/=/) { 
 		 	# DATA

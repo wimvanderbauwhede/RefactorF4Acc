@@ -55,7 +55,8 @@ sub add_BLOCK_DATA_call_after_last_VarDecl {
 		exists $info->{'Dimension'} or 
 		exists $info->{'External'} or
 		exists $info->{'Equivalence'} or
-		exists $info->{'ImplicitNone'} 
+		exists $info->{'ImplicitNone'} or
+		exists $info->{'Save'} 
 		 # I guess there might be others ...
 		) {
 			$decl=1;

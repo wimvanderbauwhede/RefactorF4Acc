@@ -196,7 +196,7 @@ sub identify_common_var_mismatch {
 
 			}    # block
 			if ( scalar keys %{ $Sf->{'CommonVarMismatch'}{$caller} } == 0 ) {
-				say "All blocks in $f match with $caller, OK to use old approach";
+				say "All blocks in $f match with $caller, OK to use old approach" if $V;
 			}
 		}    # caller
 

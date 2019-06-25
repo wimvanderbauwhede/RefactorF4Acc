@@ -175,7 +175,7 @@ Suppose we don't:
                     	
                         # emit line
                         if ( $line ne '' ) {                        	
-                            ( $stref, $code_unit_name , $srctype ) = _pushAnnLine( $stref, $code_unit_name , $srctype, $f, $line, $free_form );
+                            ( $stref, $code_unit_name , $srctype ) = _pushAnnLine( $stref, $code_unit_name , $srctype, $f, $line, $free_form, __LINE__ );
                         }
                     }
           
@@ -242,7 +242,7 @@ Suppose we don't:
                         }
                         my $remove_spaces_ok = $joinedline=~/\w\s*$/ ? 1 : 0;
 #                        print "LINE: $line";
-#                        print DBG "NEXTLINE: $nextline";
+#                        print "NEXTLINE: $nextline";
 #######################################################################
                         if ($in_cont) {
                             if ( _isCont( $line, $free_form ) ) {
@@ -275,11 +275,10 @@ Suppose we don't:
                              #  n
                              #=> join l, emit joined, set l=n, set maybe_in_cont
                                     $joinedline .=
-                                      _removeCont( $line, $free_form, $remove_spaces_ok );
-
+                                      _removeCont( $line, $free_form, $remove_spaces_ok );										
                                     ( $stref, $code_unit_name , $srctype ) =
                                       _pushAnnLine( $stref, $code_unit_name , $srctype, $f,
-                                        $joinedline, $free_form );
+                                        $joinedline, $free_form, __LINE__ );
                                     $joinedline           = '';
                                     $line                 = $nextline;
                                     $next2                = 0;
@@ -313,14 +312,14 @@ Suppose we don't:
                                     if ( $joinedline ne '' ) {
                                         ( $stref, $code_unit_name , $srctype ) =
                                           _pushAnnLine( $stref, $code_unit_name , $srctype, $f,
-                                            $joinedline, $free_form );
+                                            $joinedline, $free_form, __LINE__ );
                                         $joinedline = '';
                                     }
 
                                     # emit the comment
                                     ( $stref, $code_unit_name , $srctype ) =
                                       _pushAnnLine( $stref, $code_unit_name , $srctype, $f, $line,
-                                        $free_form );
+                                        $free_form, __LINE__ );
 
                                     #l=n, maybe_in_cont
                                     $line                 = $nextline;
@@ -338,7 +337,7 @@ Suppose we don't:
                                     if ( $joinedline ne '' ) {
                                         ( $stref, $code_unit_name , $srctype ) =
                                           _pushAnnLine( $stref, $code_unit_name , $srctype, $f,
-                                            $joinedline, $free_form );
+                                            $joinedline, $free_form, __LINE__ );
                                         $joinedline = '';
                                     }
 
@@ -357,7 +356,7 @@ Suppose we don't:
                                     if ( $joinedline ne '' ) {
                                         ( $stref, $code_unit_name , $srctype ) =
                                           _pushAnnLine( $stref, $code_unit_name , $srctype, $f,
-                                            $joinedline, $free_form );
+                                            $joinedline, $free_form, __LINE__ );
                                         $joinedline = '';
                                     }
                                     $in_cont = 0;
@@ -374,12 +373,12 @@ Suppose we don't:
                                     if ( $joinedline ne '' ) {
                                         ( $stref, $code_unit_name , $srctype ) =
                                           _pushAnnLine( $stref, $code_unit_name , $srctype, $f,
-                                            $joinedline, $free_form );
+                                            $joinedline, $free_form, __LINE__ );
                                         $joinedline = '';
                                     }
                                     ( $stref, $code_unit_name , $srctype ) =
                                       _pushAnnLine( $stref, $code_unit_name , $srctype, $f, $line,
-                                        $free_form );
+                                        $free_form, __LINE__ );
                                     $line                 = $nextline;
                                     $next2                = 0;
                                     $in_cont              = 0;
@@ -425,7 +424,7 @@ Suppose we don't:
                                       _removeCont( $line, $free_form, $remove_spaces_ok );
                                     ( $stref, $code_unit_name , $srctype ) =
                                       _pushAnnLine( $stref, $code_unit_name , $srctype, $f,
-                                        $joinedline, $free_form );
+                                        $joinedline, $free_form, __LINE__ );
                                     $joinedline           = '';
                                     $line                 = $nextline;
                                     $next2                = 0;
@@ -459,16 +458,16 @@ Suppose we don't:
                                     if ( $joinedline ne '' ) {
                                         ( $stref, $code_unit_name , $srctype ) =
                                           _pushAnnLine( $stref, $code_unit_name , $srctype, $f,
-                                            $joinedline, $free_form );
+                                            $joinedline, $free_form, __LINE__ );
                                         $joinedline = '';
                                     }
                                     for my $commentline (@comments_stack) {
                                         ( $stref, $code_unit_name , $srctype ) =
                                           _pushAnnLine( $stref, $code_unit_name , $srctype, $f,
-                                            $commentline, $free_form );
+                                            $commentline, $free_form, __LINE__ );
                                     }
                                     _pushAnnLine( $stref, $code_unit_name , $srctype, $f, $line,
-                                        $free_form );
+                                        $free_form, __LINE__ );
                                     @comments_stack       = ();
                                     $line                 = $nextline;
                                     $next2                = 0;
@@ -485,13 +484,13 @@ Suppose we don't:
                                     if ( $joinedline ne '' ) {
                                         ( $stref, $code_unit_name , $srctype ) =
                                           _pushAnnLine( $stref, $code_unit_name , $srctype, $f,
-                                            $joinedline, $free_form );
+                                            $joinedline, $free_form, __LINE__ );
                                         $joinedline = '';
                                     }
                                     for my $commentline (@comments_stack) {
                                         ( $stref, $code_unit_name , $srctype ) =
                                           _pushAnnLine( $stref, $code_unit_name , $srctype, $f,
-                                            $commentline, $free_form );
+                                            $commentline, $free_form, __LINE__ );
                                     }
                                     @comments_stack = ();
                                     $in_cont        = 1;
@@ -510,13 +509,13 @@ Suppose we don't:
                                     if ( $joinedline ne '' ) {
                                         ( $stref, $code_unit_name , $srctype ) =
                                           _pushAnnLine( $stref, $code_unit_name , $srctype, $f,
-                                            $joinedline, $free_form );
+                                            $joinedline, $free_form, __LINE__ );
                                         $joinedline = '';
                                     }
                                     for my $commentline (@comments_stack) {
                                         ( $stref, $code_unit_name , $srctype ) =
                                           _pushAnnLine( $stref, $code_unit_name , $srctype, $f,
-                                            $commentline, $free_form );
+                                            $commentline, $free_form, __LINE__ );
                                     }
                                     @comments_stack = ();
                                     $joinedline .=
@@ -534,7 +533,7 @@ Suppose we don't:
                                     if ( $joinedline ne '' ) {
                                         ( $stref, $code_unit_name , $srctype ) =
                                           _pushAnnLine( $stref, $code_unit_name , $srctype, $f,
-                                            $joinedline, $free_form );
+                                            $joinedline, $free_form, __LINE__ );
                                         $joinedline = '';
 #                                        print DBG "---\n";
                                     }
@@ -544,13 +543,13 @@ Suppose we don't:
                                     for my $commentline (@comments_stack) {
                                         ( $stref, $code_unit_name , $srctype ) =
                                           _pushAnnLine( $stref, $code_unit_name , $srctype, $f,
-                                            $commentline, $free_form );
+                                            $commentline, $free_form, __LINE__ );
                                     }
                                     @comments_stack = ();
 #                                    print DBG "----\n";
                                     ( $stref, $code_unit_name , $srctype ) =
                                       _pushAnnLine( $stref, $code_unit_name , $srctype, $f, $line,
-                                        $free_form );
+                                        $free_form, __LINE__ );
                                     $line                 = $nextline;
                                     $next2                = 0;
                                     $line_set_to_nextline = 1;
@@ -558,8 +557,14 @@ Suppose we don't:
                             }
                         }
                     }    # loop over source lines
+                                        
 					my $remove_spaces_ok = $joinedline=~/\w\s*$/ ? 1 : 0;
-                    if ($in_cont) {
+#					say "$f L:<$line>";
+#					say "$f N:<$nextline>";
+#					say "$f J:<$joinedline>";
+					
+					# This part is to handle the final line
+                    if ($in_cont) { 
                         if ( _isCont( $line, $free_form ) ) {
                             if ( _isCont( $nextline, $free_form ) ) {
 #                                print DBG "C++\n";
@@ -572,7 +577,7 @@ Suppose we don't:
                                   _removeCont( $nextline, $free_form, $remove_spaces_ok2 );
                                 ( $stref, $code_unit_name , $srctype ) =
                                   _pushAnnLine( $stref, $code_unit_name , $srctype, $f,
-                                    $joinedline, $free_form );
+                                    $joinedline, $free_form, __LINE__ );
                             } elsif ( _isCommentOrBlank($nextline) ) {
 #                                print DBG "C+!\n";
 
@@ -581,11 +586,11 @@ Suppose we don't:
                                 $joinedline .= _removeCont( $line, $free_form, $remove_spaces_ok );
                                 ( $stref, $code_unit_name , $srctype ) =
                                   _pushAnnLine( $stref, $code_unit_name , $srctype, $f,
-                                    $joinedline, $free_form );
+                                    $joinedline, $free_form, __LINE__ );
                                 $joinedline = '';
                                 ( $stref, $code_unit_name , $srctype ) =
                                   _pushAnnLine( $stref, $code_unit_name , $srctype, $f, $nextline,
-                                    $free_form );
+                                    $free_form, __LINE__ );
                             } else {    # isPlain
 #                                print DBG "C+ \n";
 
@@ -595,10 +600,10 @@ Suppose we don't:
                                 $joinedline .= _removeCont( $line, $free_form, $remove_spaces_ok );
                                 ( $stref, $code_unit_name , $srctype ) =
                                   _pushAnnLine( $stref, $code_unit_name , $srctype, $f,
-                                    $joinedline, $free_form );
+                                    $joinedline, $free_form, __LINE__ );
                                 ( $stref, $code_unit_name , $srctype ) =
                                   _pushAnnLine( $stref, $code_unit_name , $srctype, $f, $nextline,
-                                    $free_form );
+                                    $free_form, __LINE__ );
                             }
                         } elsif ( _isCommentOrBlank($line) ) {
                             if ( _isCont( $nextline, $free_form ) ) {
@@ -611,7 +616,7 @@ Suppose we don't:
                                   _removeCont( $nextline, $free_form, $remove_spaces_ok );
                                 ( $stref, $code_unit_name , $srctype ) =
                                   _pushAnnLine( $stref, $code_unit_name , $srctype, $f,
-                                    $joinedline, $free_form );
+                                    $joinedline, $free_form, __LINE__ );
 
                             } elsif ( _isCommentOrBlank($nextline) ) {
 #                                print DBG "C!!\n";
@@ -620,13 +625,13 @@ Suppose we don't:
                                 #! n
                                 ( $stref, $code_unit_name , $srctype ) =
                                   _pushAnnLine( $stref, $code_unit_name , $srctype, $f,
-                                    $joinedline, $free_form );
+                                    $joinedline, $free_form, __LINE__ );
                                 ( $stref, $code_unit_name , $srctype ) =
                                   _pushAnnLine( $stref, $code_unit_name , $srctype, $f, $line,
-                                    $free_form );
+                                    $free_form, __LINE__ );
                                 ( $stref, $code_unit_name , $srctype ) =
                                   _pushAnnLine( $stref, $code_unit_name , $srctype, $f, $nextline,
-                                    $free_form );
+                                    $free_form, __LINE__ );
 
                             } else {    # isPlain
 #                                print DBG "C! \n";
@@ -635,13 +640,13 @@ Suppose we don't:
                                 #  n
                                 ( $stref, $code_unit_name , $srctype ) =
                                   _pushAnnLine( $stref, $code_unit_name , $srctype, $f,
-                                    $joinedline, $free_form );
+                                    $joinedline, $free_form, __LINE__ );
                                 ( $stref, $code_unit_name , $srctype ) =
                                   _pushAnnLine( $stref, $code_unit_name , $srctype, $f, $line,
-                                    $free_form );
+                                    $free_form, __LINE__ );
                                 ( $stref, $code_unit_name , $srctype ) =
                                   _pushAnnLine( $stref, $code_unit_name , $srctype, $f, $nextline,
-                                    $free_form );
+                                    $free_form, __LINE__ );
                             }
                         } else {    # isPlain
                             if ( _isCont( $nextline, $free_form ) ) {
@@ -653,7 +658,7 @@ Suppose we don't:
                                 if ( $joinedline ne '' ) {
                                     ( $stref, $code_unit_name , $srctype ) =
                                       _pushAnnLine( $stref, $code_unit_name , $srctype, $f,
-                                        $joinedline, $free_form );
+                                        $joinedline, $free_form, __LINE__ );
                                     $joinedline = '';
                                 }
 
@@ -664,7 +669,7 @@ Suppose we don't:
                                   _removeCont( $nextline, $free_form, $remove_spaces_ok2 );
                                 ( $stref, $code_unit_name , $srctype ) =
                                   _pushAnnLine( $stref, $code_unit_name , $srctype, $f,
-                                    $joinedline, $free_form );
+                                    $joinedline, $free_form, __LINE__ );
 
                             } elsif ( _isCommentOrBlank($nextline) ) {
 #                                print DBG "C !\n";
@@ -675,15 +680,15 @@ Suppose we don't:
                                 if ( $joinedline ne '' ) {
                                     ( $stref, $code_unit_name , $srctype ) =
                                       _pushAnnLine( $stref, $code_unit_name , $srctype, $f,
-                                        $joinedline, $free_form );
+                                        $joinedline, $free_form, __LINE__ );
                                     $joinedline = '';
                                 }
                                 ( $stref, $code_unit_name , $srctype ) =
                                   _pushAnnLine( $stref, $code_unit_name , $srctype, $f, $line,
-                                    $free_form );
+                                    $free_form, __LINE__ );
                                 ( $stref, $code_unit_name , $srctype ) =
                                   _pushAnnLine( $stref, $code_unit_name , $srctype, $f, $nextline,
-                                    $free_form );
+                                    $free_form, __LINE__ );
 
                             } else {    # isPlain
 #                                print DBG "C  \n";
@@ -695,18 +700,18 @@ Suppose we don't:
                                 if ( $joinedline ne '' ) {
                                     ( $stref, $code_unit_name , $srctype ) =
                                       _pushAnnLine( $stref, $code_unit_name , $srctype, $f,
-                                        $joinedline, $free_form );
+                                        $joinedline, $free_form, __LINE__ );
                                     $joinedline = '';
                                 }
                                 ( $stref, $code_unit_name , $srctype ) =
                                   _pushAnnLine( $stref, $code_unit_name , $srctype, $f, $line,
-                                    $free_form );
+                                    $free_form, __LINE__ );
                                 ( $stref, $code_unit_name , $srctype ) =
                                   _pushAnnLine( $stref, $code_unit_name , $srctype, $f, $nextline,
-                                    $free_form );
+                                    $free_form, __LINE__ );
                             }
                         }
-                    } else {    # not $in_cont
+                    } else {    # not $in_cont                    
                         if ( _isCont( $line, $free_form ) ) {
                             if ( _isCont( $nextline, $free_form ) ) {
 #                                print DBG "M++\n";
@@ -721,7 +726,7 @@ Suppose we don't:
                                   _removeCont( $nextline, $free_form , $remove_spaces_ok2);
                                 ( $stref, $code_unit_name , $srctype ) =
                                   _pushAnnLine( $stref, $code_unit_name , $srctype, $f,
-                                    $joinedline, $free_form );
+                                    $joinedline, $free_form, __LINE__ );
 
                             } elsif ( _isCommentOrBlank($nextline) ) {
 #                                print DBG "M+!\n";
@@ -733,10 +738,10 @@ Suppose we don't:
                                 $joinedline .= _removeCont( $line, $free_form, $remove_spaces_ok );
                                 ( $stref, $code_unit_name , $srctype ) =
                                   _pushAnnLine( $stref, $code_unit_name , $srctype, $f,
-                                    $joinedline, $free_form );
+                                    $joinedline, $free_form, __LINE__ );
                                 ( $stref, $code_unit_name , $srctype ) =
                                   _pushAnnLine( $stref, $code_unit_name , $srctype, $f, $nextline,
-                                    $free_form );
+                                    $free_form, __LINE__ );
                             } else {    # isPlain
 #                                print DBG "M+ \n";
 
@@ -747,13 +752,13 @@ Suppose we don't:
                                 $joinedline .= _removeCont( $line, $free_form, $remove_spaces_ok );
                                 ( $stref, $code_unit_name , $srctype ) =
                                   _pushAnnLine( $stref, $code_unit_name , $srctype, $f,
-                                    $joinedline, $free_form );
+                                    $joinedline, $free_form, __LINE__ );
                                 ( $stref, $code_unit_name , $srctype ) =
                                   _pushAnnLine( $stref, $code_unit_name , $srctype, $f,
-                                    $joinedline, $free_form );
+                                    $joinedline, $free_form, __LINE__ );
                                 ( $stref, $code_unit_name , $srctype ) =
                                   _pushAnnLine( $stref, $code_unit_name , $srctype, $f, $nextline,
-                                    $free_form );
+                                    $free_form, __LINE__ );
                             }
                         } elsif ( _isCommentOrBlank($line) ) {
                             if ( _isCont( $nextline, $free_form ) ) {
@@ -767,7 +772,7 @@ Suppose we don't:
                                   _removeCont( $nextline, $free_form );
                                 ( $stref, $code_unit_name , $srctype ) =
                                   _pushAnnLine( $stref, $code_unit_name , $srctype, $f,
-                                    $joinedline, $free_form );
+                                    $joinedline, $free_form, __LINE__ );
 
                             } elsif ( _isCommentOrBlank($nextline) ) {
 #                                print DBG "M!!\n";
@@ -778,21 +783,21 @@ Suppose we don't:
                                 if ( $joinedline ne '' ) {
                                     ( $stref, $code_unit_name , $srctype ) =
                                       _pushAnnLine( $stref, $code_unit_name , $srctype, $f,
-                                        $joinedline, $free_form );
+                                        $joinedline, $free_form, __LINE__ );
                                     $joinedline = '';
                                 }
                                 for my $commentline (@comments_stack) {
                                     ( $stref, $code_unit_name , $srctype ) =
                                       _pushAnnLine( $stref, $code_unit_name , $srctype, $f,
-                                        $commentline, $free_form );
+                                        $commentline, $free_form, __LINE__ );
                                 }
 
                                 ( $stref, $code_unit_name , $srctype ) =
                                   _pushAnnLine( $stref, $code_unit_name , $srctype, $f, $line,
-                                    $free_form );
+                                    $free_form, __LINE__ );
                                 ( $stref, $code_unit_name , $srctype ) =
                                   _pushAnnLine( $stref, $code_unit_name , $srctype, $f, $nextline,
-                                    $free_form );
+                                    $free_form, __LINE__ );
 
                             } else {    # isPlain
 #                                print DBG "M! \n";
@@ -803,20 +808,20 @@ Suppose we don't:
                                 if ( $joinedline ne '' ) {
                                     ( $stref, $code_unit_name , $srctype ) =
                                       _pushAnnLine( $stref, $code_unit_name , $srctype, $f,
-                                        $joinedline, $free_form );
+                                        $joinedline, $free_form, __LINE__ );
                                     $joinedline = '';
                                 }
                                 for my $commentline (@comments_stack) {
                                     ( $stref, $code_unit_name , $srctype ) =
                                       _pushAnnLine( $stref, $code_unit_name , $srctype, $f,
-                                        $commentline, $free_form );
+                                        $commentline, $free_form, __LINE__ );
                                 }
                                 ( $stref, $code_unit_name , $srctype ) =
                                   _pushAnnLine( $stref, $code_unit_name , $srctype, $f, $line,
-                                    $free_form );
+                                    $free_form, __LINE__ );
                                 ( $stref, $code_unit_name , $srctype ) =
                                   _pushAnnLine( $stref, $code_unit_name , $srctype, $f, $nextline,
-                                    $free_form );
+                                    $free_form, __LINE__ );
                             }
                         } else {    # isPlain
                             if ( _isCont( $nextline, $free_form ) ) {
@@ -829,13 +834,13 @@ Suppose we don't:
                                 if ( $joinedline ne '' ) {
                                     ( $stref, $code_unit_name , $srctype ) =
                                       _pushAnnLine( $stref, $code_unit_name , $srctype, $f,
-                                        $joinedline, $free_form );
+                                        $joinedline, $free_form, __LINE__ );
                                     $joinedline = '';
                                 }
                                 for my $commentline (@comments_stack) {
                                     ( $stref, $code_unit_name , $srctype ) =
                                       _pushAnnLine( $stref, $code_unit_name , $srctype, $f,
-                                        $commentline, $free_form );
+                                        $commentline, $free_form, __LINE__ );
                                 }
                                 $joinedline .= _removeCont( $line, $free_form, $remove_spaces_ok );
                                 my $remove_spaces_ok2 = $joinedline=~/\w\s*$/ ? 1 : 0;
@@ -843,32 +848,32 @@ Suppose we don't:
                                   _removeCont( $nextline, $free_form, $remove_spaces_ok2 );
                                 ( $stref, $code_unit_name , $srctype ) =
                                   _pushAnnLine( $stref, $code_unit_name , $srctype, $f,
-                                    $joinedline, $free_form );
+                                    $joinedline, $free_form, __LINE__ );
 
                             } elsif ( _isCommentOrBlank($nextline) ) {
 #                                print DBG "M !\n";
 
 #  l
 #! n
+# WV20190625 this comment makes no sense
 #=> emit $joinedline; emit the comments, push l onto joinedline, push comment onto stack (set maybe_in_cont)
                                 if ( $joinedline ne '' ) {
                                     ( $stref, $code_unit_name , $srctype ) =
                                       _pushAnnLine( $stref, $code_unit_name , $srctype, $f,
-                                        $joinedline, $free_form );
-
-                          #                                    $joinedline = '';
+                                        $joinedline, $free_form, __LINE__ );
                                 }
                                 for my $commentline (@comments_stack) {
                                     ( $stref, $code_unit_name , $srctype ) =
                                       _pushAnnLine( $stref, $code_unit_name , $srctype, $f,
-                                        $commentline, $free_form );
+                                        $commentline, $free_form, __LINE__ );
                                 }
-                                ( $stref, $code_unit_name , $srctype ) =
-                                  _pushAnnLine( $stref, $code_unit_name , $srctype, $f, $line,
-                                    $free_form );
-                                ( $stref, $code_unit_name , $srctype ) =
-                                  _pushAnnLine( $stref, $code_unit_name , $srctype, $f, $nextline,
-                                    $free_form );
+# WV20190625 Seems to me this is not right, there should be no need for this                                
+#                                ( $stref, $code_unit_name , $srctype ) =
+#                                  _pushAnnLine( $stref, $code_unit_name , $srctype, $f, $line,
+#                                    $free_form, __LINE__ );
+#                                ( $stref, $code_unit_name , $srctype ) =
+#                                  _pushAnnLine( $stref, $code_unit_name , $srctype, $f, $nextline,
+#                                    $free_form, __LINE__ );
                             } else {    # isPlain
 #                                print DBG "M  \n";
 
@@ -880,21 +885,21 @@ Suppose we don't:
                                 if ( $joinedline ne '' ) {
                                     ( $stref, $code_unit_name , $srctype ) =
                                       _pushAnnLine( $stref, $code_unit_name , $srctype, $f,
-                                        $joinedline, $free_form );
+                                        $joinedline, $free_form, __LINE__ );
                                     $joinedline = '';
 #                                    print DBG "---\n";
                                 }
                                 for my $commentline (@comments_stack) {
                                     ( $stref, $code_unit_name , $srctype ) =
                                       _pushAnnLine( $stref, $code_unit_name , $srctype, $f,
-                                        $commentline, $free_form );
+                                        $commentline, $free_form , __LINE__);
                                 }
                                 ( $stref, $code_unit_name , $srctype ) =
                                   _pushAnnLine( $stref, $code_unit_name , $srctype, $f, $line,
-                                    $free_form );
+                                    $free_form , __LINE__);
                                 ( $stref, $code_unit_name , $srctype ) =
                                   _pushAnnLine( $stref, $code_unit_name , $srctype, $f, $nextline,
-                                    $free_form );
+                                    $free_form, __LINE__ );
                             }
                         }
                     }
@@ -926,7 +931,7 @@ Suppose we don't:
 # To skip the funcs/subs that have been read/parsed already?
 # I'm assuming that $srctype can only be Subroutines or Modules
 sub _pushAnnLine {
-    ( my $stref, my $f, my $srctype, my $src, my $line, my $free_form ) = @_;
+    ( my $stref, my $f, my $srctype, my $src, my $line, my $free_form, my $ann ) = @_;
     
 	if ($f eq 'UNKNOWN_SRC' or  not exists $stref->{$srctype}{$f}{'Status'} or $stref->{$srctype}{$f}{'Status'}<$PARSED ) {
 		
@@ -988,9 +993,9 @@ sub _pushAnnLine {
 		    	push @{ $stref->{'SourceFiles'}{$src}{'AnnLines'} }, $pline;
 		    }       
 	    }
-	      
+#	      say $ann. ' : '.Dumper($pline);
 	}  
-
+	
     return ( $stref, $f, $srctype );
 }    # END of  _pushAnnLine()
 

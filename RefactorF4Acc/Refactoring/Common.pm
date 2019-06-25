@@ -109,6 +109,14 @@ sub context_free_refactorings {
         }
         if ( exists $info->{'ImplicitNone'} ) {
             next;
+        }
+        elsif ( exists $info->{'Save'} ) {
+        	if ( exists  $Sf->{'Program'}) {
+        	$line = '! '.$line;
+#        	$info->{'Deleted'}=1;
+        	$info->{'Ann'}=[ annotate($f, __LINE__ .' SAVE statement in Program' ) ];
+        		
+        	}
         }	
         elsif ( exists $info->{'Implicit'} ) { 
         	$line = '! '.$line;

@@ -198,12 +198,13 @@ sub _fix_end_lines {
 	  : 'subroutine';
 	say 'fix end ' . $f if $V;
 	my $done_fix_end = 0;
+	
 	while ( !$done_fix_end and @{$rlines} ) {
 		my $annline = pop @{$rlines};
 
 		( my $line, my $info ) = @{$annline};
 
-		#        say "LINE: $line";
+		
 		next if ( $line =~ /^\s*$/ );    # Skip comments
 		if ( $line =~ /^\s*end\s+$sub_or_prog/ ) {
 			push @{$rlines}, $annline;
@@ -211,11 +212,12 @@ sub _fix_end_lines {
 			last;
 		}
 
-		if ( $line =~ /^\s*end\s*$/ ) {
+		if ( $line =~ /^\s*end\s*$/ ) { 
 			$line =~ s/\s+$//;
 			if ($is_block_data) {
 				$info->{'EndBlockData'} = 1;
 			}
+			
 			push @{$rlines}, [ $line . " $sub_or_prog $f", $info ];
 			$done_fix_end = 1;
 		}
@@ -227,11 +229,12 @@ sub _fix_end_lines {
 			$done_fix_end = 1;
 		}
 	}
+	
 	return $rlines;
 }    # END of _fix_end_lines()
 
 # -----------------------------------------------------------------------------
-#_refactor_globals_new()
+
 # The problem with this routine is as follows: the refactoring of the signature happens when it is encountered.
 # But any subsequent call to a subroutine can result in new arguments being added to ExGlobArgDecls
 # In principle this should have been dealt with by the inheritance algorithm, what goes wrong here?
@@ -1313,6 +1316,7 @@ sub _add_extra_assignments_in_block_data {
 	( my $stref, my $f, my $annlines ) = @_;
 	my $Sf           = $stref->{'Subroutines'}{$f};
 	my $new_annlines = [];
+	my $extra_arg_decl_lines = [];
 	for my $arg ( @{ $Sf->{'ExGlobArgs'}{'List'} } ) {
 		my $maybe_renamed_arg = $arg;
 		my $decl = $Sf->{'ExGlobArgs'}{'Set'}{$maybe_renamed_arg};
@@ -1325,11 +1329,46 @@ sub _add_extra_assignments_in_block_data {
 				$Sf->{'ExGlobArgs'}{'Set'}{$arg.'_ARG'}=$mod_decl ;
 				delete 	$Sf->{'ExGlobArgs'}{'Set'}{$arg};
 				@{$Sf->{'ExGlobArgs'}{'List'}} = map {$_ eq $arg ? $maybe_renamed_arg : $_} @{$Sf->{'ExGlobArgs'}{'List'}};   
-		};
+						
+# Need to check if these were not already declared
+		if (
+				not exists $Sf->{'DeclaredOrigLocalVars'}{'Set'}{$maybe_renamed_arg}
+			and not exists $Sf->{'DeclaredOrigArgs'}{'Set'}{$maybe_renamed_arg}
+			and not exists $Sf->{'DeclaredCommonVars'}{'Set'}{$maybe_renamed_arg}
+
+			#    	and not exists $Sf->{'UndeclaredCommonVars'}{'Set'}{$var}
+		  )
+		{
+
+			say "INFO VAR in $f: IODir for $maybe_renamed_arg: "
+			  . $Sf->{'ExGlobArgs'}{'Set'}{$maybe_renamed_arg}{'IODir'}
+			  if $I and not $Sf->{'Program'};
+			my $rdecl = $Sf->{'ExGlobArgs'}{'Set'}{$maybe_renamed_arg};
+			my $rline = emit_f95_var_decl($rdecl);
+			my $info  = {};
+			$info->{'Ann'} = [
+				annotate( $f,__LINE__ . ' : EX-GLOB ')
+			];
+			$info->{'LineID'}  = 0;#$nextLineID++;
+			$info->{'Ref'}     = 1;
+			$info->{'VarDecl'} = { 'Name' => $maybe_renamed_arg };    #$rdecl;
+			$info->{'ArgDecl'} = 1;
+			push @{$extra_arg_decl_lines}, [ $rline, $info ];
+		}
+		}
 		my $orig_arg_name = $Sf->{'ExGlobArgs'}{'Set'}{$maybe_renamed_arg}{'OrigName'};
 		push @{$new_annlines}, [ "        $maybe_renamed_arg = $orig_arg_name", { 'Extra' => 1 } ];
+		
 	}
-
+#       my $stref, 
+#        my $f,
+#        my $insert_cond_subref,
+#        my $old_annlines,
+#        my $new_annlines,
+#        my $insert_before,
+#        my $skip_insert_pos_line,
+#        my $do_once
+#croak Dumper($annlines);
 	my $merged_annlines = splice_additional_lines_cond(
 		$stref, $f,
 		sub {
@@ -1342,8 +1381,21 @@ sub _add_extra_assignments_in_block_data {
 		0,
 		1
 	);
-
-	return $merged_annlines;
+##croak Dumper($extra_arg_decl_lines);
+	 my $merged_annlines_w_args = splice_additional_lines_cond(
+		$stref, $f,
+		sub {
+			( my $annline ) = @_;
+			return exists $annline->[1]{'Data'} ? 1 : 0;
+		},
+		$merged_annlines,
+		$extra_arg_decl_lines,
+		1,
+		0,
+		1
+	);
+#croak Dumper(pp_annlines($merged_annlines_w_args));
+	return $merged_annlines_w_args;
 }    # END of _add_extra_assignments_in_block_data
 
 sub _add_implicit_none {

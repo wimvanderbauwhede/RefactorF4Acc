@@ -36,24 +36,12 @@ TEST CASE FM020.f
 refactorF4acc.pl -c rf4a_fm020.cfg  -g fm020
 TEST CASE FM021.f
 refactorF4acc.pl -c rf4a_fm021.cfg  -g fm021
-Generation failed for FM021.f95
 TEST CASE FM022.f
 refactorF4acc.pl -c rf4a_fm022.cfg  -g fm022
-Generation failed for FM022.f95
 TEST CASE FM023.f
 refactorF4acc.pl -c rf4a_fm023.cfg  -g fm023
-Generation failed for FM023.f95
 TEST CASE FM024.f
 refactorF4acc.pl -c rf4a_fm024.cfg  -g fm024
-The EQUIVALENCE  statement is not refactored, this could possible break your code, please rewrite:
-  SOURCE: ./FM024.f
-  CODE UNIT: fm024
-LINES:
-35: equivalence (iade31(1,1,1), iade32(1,1,1) )                       
-36: equivalence ( rade31(1,1,1), rade32(1,1,1) )                      
-37: equivalence ( lade31(1,1,1), lade32(1,1,1) )                      
-38: equivalence ( iade31(1,1,1), iade21(1,1), iade11(1) )             
-39: equivalence ( icoe01, icoe02, icoe03 )                            
 TEST CASE FM025.f
 refactorF4acc.pl -c rf4a_fm025.cfg  -g fm025
 TEST CASE FM026.f
@@ -95,13 +83,8 @@ TEST CASE FM046.f
 refactorF4acc.pl -c rf4a_fm046.cfg  -g fm046
 TEST CASE FM050.f
 refactorF4acc.pl -c rf4a_fm050.cfg  -g fm050
-All blocks in fs051 match with fm050, OK to use old approach
-All blocks in fs055 match with fm050, OK to use old approach
 TEST CASE FM056.f
 refactorF4acc.pl -c rf4a_fm056.cfg  -g fm056
-All blocks in fs057 match with fm056, OK to use old approach
-All blocks in ff059 match with fs058, OK to use old approach
-All blocks in fs058 match with fs057, OK to use old approach
 TEST CASE FM060.f
 refactorF4acc.pl -c rf4a_fm060.cfg  -g fm060
 TEST CASE FM061.f
@@ -114,11 +97,6 @@ TEST CASE FM090.f
 refactorF4acc.pl -c rf4a_fm090.cfg  -g fm090
 TEST CASE FM091.f
 refactorF4acc.pl -c rf4a_fm091.cfg  -g fm091
-The EQUIVALENCE  statement is not refactored, this could possible break your code, please rewrite:
-  SOURCE: ./FM091.f
-  CODE UNIT: fm091
-LINES:
-19: equivalence  (iace11(1),iadn11(1))                                
 TEST CASE FM097.f
 refactorF4acc.pl -c rf4a_fm097.cfg  -g fm097
 TEST CASE FM098.f
@@ -160,7 +138,6 @@ TEST CASE FM203.f
 refactorF4acc.pl -c rf4a_fm203.cfg  -g fm203
 TEST CASE FM204.f
 refactorF4acc.pl -c rf4a_fm204.cfg  -g fm204
-Generation failed for FM204.f95
 TEST CASE FM205.f
 refactorF4acc.pl -c rf4a_fm205.cfg  -g fm205
 TEST CASE FM251.f
@@ -187,62 +164,22 @@ TEST CASE FM261.f
 refactorF4acc.pl -c rf4a_fm261.cfg  -g fm261
 TEST CASE FM300.f
 refactorF4acc.pl -c rf4a_fm300.cfg  -g fm300
-The EQUIVALENCE  statement is not refactored, this could possible break your code, please rewrite:
-  SOURCE: ./FM300.f
-  CODE UNIT: fm300
-LINES:
-45: equivalence (ivoe01, ivoe02)                                      
-49: equivalence (rvoe01, rvoe02)                                      
-53: equivalence (lvoe01, lvoe02)                                      
-58: equivalence (cvte01, cvte02)                                      
-62: equivalence (ivoe03, ivoe04, ivoe05)                              
-66: equivalence (ivoe06, ivoe07, rvoe03)                              
-70: equivalence (ivoe08, ivoe09), (ivoe10, ivoe11)                    
-74: equivalence (ivoe12, ivoe13), (ivoe13, ivoe14)                    
-78: equivalence (ivoe15, ivoe16)                                      
-79: equivalence (ivoe16, ivoe17)                                      
-84: equivalence (iade11, iade12)                                      
-89: equivalence (rade11(4), rade12(2))                                
-94: equivalence (iade13, iade14(3))                                   
-99: equivalence (iade15(2), ivoe18)                                   
-104: equivalence (iade21, iade16)                                      
-108: equivalence (ivoe19, ivoe20)                                      
 TEST CASE FM301.f
 refactorF4acc.pl -c rf4a_fm301.cfg  -g fm301
 TEST CASE FM302.f
 refactorF4acc.pl -c rf4a_fm302.cfg  -g fm302
-The EQUIVALENCE  statement is not refactored, this could possible break your code, please rewrite:
-  SOURCE: ./FM302.f
-  CODE UNIT: fm302
-LINES:
-102: equivalence (ivceh1,ivceh2)                                       
-106: equivalence (ivce09,ivce10)                                       
-111: equivalence (ivcei1,iace1i)                                       
 TEST CASE FM306.f
 refactorF4acc.pl -c rf4a_fm306.cfg  -g fm306
 TEST CASE FM307.f
 refactorF4acc.pl -c rf4a_fm307.cfg  -g fm307
 TEST CASE FM308.f
 refactorF4acc.pl -c rf4a_fm308.cfg  -g fm308
-The EQUIVALENCE  statement is not refactored, this could possible break your code, please rewrite:
-  SOURCE: ./FM308.f
-  CODE UNIT: fm308
-LINES:
-112: equivalence (ivoe01,ivoe02)                                       
-All blocks in ff310 match with fm308, OK to use old approach
 TEST CASE FM311.f
 refactorF4acc.pl -c rf4a_fm311.cfg  -g fm311
 TEST CASE FM317.f
 refactorF4acc.pl -c rf4a_fm317.cfg  -g fm317
 TEST CASE FM328.f
 refactorF4acc.pl -c rf4a_fm328.cfg  -g fm328
-In proc fm328, in call to sub fs333, arg ff330 is EXTERNAL so setting nint attr External in set UndeclaredOrigArgs
-In proc fm328, in call to sub fs334, arg fs335 is EXTERNAL so setting idon06 attr External in set UndeclaredOrigArgs
-All blocks in fs329 match with fm328, OK to use old approach
-All blocks in fs332 match with fm328, OK to use old approach
-All blocks in fs331 match with fm328, OK to use old approach
-All blocks in fs334 match with fm328, OK to use old approach
-All blocks in fs333 match with fm328, OK to use old approach
 TEST CASE FM351.f
 refactorF4acc.pl -c rf4a_fm351.cfg  -g fm351
 TEST CASE FM352.f
@@ -314,15 +251,8 @@ refactorF4acc.pl -c rf4a_fm413.cfg  -g fm413
 SKIPPING FM500.f
 TEST CASE FM503.f
 refactorF4acc.pl -c rf4a_fm503.cfg  -g fm503
-The EQUIVALENCE  statement is not refactored, this could possible break your code, please rewrite:
-  SOURCE: ./FM503.f
-  CODE UNIT: sn505
-LINES:
-15: equivalence (avc, r2e)                                          
-All blocks in sn505 match with fm503, OK to use old approach
 TEST CASE FM506.f
 refactorF4acc.pl -c rf4a_fm506.cfg  -g fm506
-All blocks in sn508 match with fm506, OK to use old approach
 SKIPPING FM509.f
 TEST CASE FM514.f
 refactorF4acc.pl -c rf4a_fm514.cfg  -g fm514
@@ -332,14 +262,12 @@ TEST CASE FM520.f
 refactorF4acc.pl -c rf4a_fm520.cfg  -g fm520
 TEST CASE FM700.f
 refactorF4acc.pl -c rf4a_fm700.cfg  -g fm700
-Generation failed for FM700.f95
 TEST CASE FM701.f
 refactorF4acc.pl -c rf4a_fm701.cfg  -g fm701
 TEST CASE FM710.f
 refactorF4acc.pl -c rf4a_fm710.cfg  -g fm710
 TEST CASE FM711.f
 refactorF4acc.pl -c rf4a_fm711.cfg  -g fm711
-All blocks in sn713 match with fm711, OK to use old approach
 TEST CASE FM715.f
 refactorF4acc.pl -c rf4a_fm715.cfg  -g fm715
 TEST CASE FM718.f
@@ -348,7 +276,6 @@ TEST CASE FM719.f
 refactorF4acc.pl -c rf4a_fm719.cfg  -g fm719
 TEST CASE FM722.f
 refactorF4acc.pl -c rf4a_fm722.cfg  -g fm722
-Generation failed for FM722.f95
 TEST CASE FM800.f
 refactorF4acc.pl -c rf4a_fm800.cfg  -g fm800
 TEST CASE FM801.f
@@ -369,58 +296,28 @@ TEST CASE FM808.f
 refactorF4acc.pl -c rf4a_fm808.cfg  -g fm808
 TEST CASE FM809.f
 refactorF4acc.pl -c rf4a_fm809.cfg  -g fm809
-The EQUIVALENCE  statement is not refactored, this could possible break your code, please rewrite:
-  SOURCE: ./FM809.f
-  CODE UNIT: fm809
-LINES:
-30: equivalence (cwavc,r2e)                                         
 TEST CASE FM810.f
 refactorF4acc.pl -c rf4a_fm810.cfg  -g fm810
 TEST CASE FM811.f
 refactorF4acc.pl -c rf4a_fm811.cfg  -g fm811
-The EQUIVALENCE  statement is not refactored, this could possible break your code, please rewrite:
-  SOURCE: ./FM811.f
-  CODE UNIT: fm811
-LINES:
-38: equivalence (cyavc,r2e)                                         
 TEST CASE FM812.f
 refactorF4acc.pl -c rf4a_fm812.cfg  -g fm812
 TEST CASE FM813.f
 refactorF4acc.pl -c rf4a_fm813.cfg  -g fm813
-The EQUIVALENCE  statement is not refactored, this could possible break your code, please rewrite:
-  SOURCE: ./FM813.f
-  CODE UNIT: fm813
-LINES:
-31: equivalence (avc, r2e)                                          
 TEST CASE FM814.f
 refactorF4acc.pl -c rf4a_fm814.cfg  -g fm814
 TEST CASE FM815.f
 refactorF4acc.pl -c rf4a_fm815.cfg  -g fm815
-The EQUIVALENCE  statement is not refactored, this could possible break your code, please rewrite:
-  SOURCE: ./FM815.f
-  CODE UNIT: fm815
-LINES:
-31: equivalence (avc, r2e)                                          
 TEST CASE FM816.f
 refactorF4acc.pl -c rf4a_fm816.cfg  -g fm816
 TEST CASE FM817.f
 refactorF4acc.pl -c rf4a_fm817.cfg  -g fm817
-The EQUIVALENCE  statement is not refactored, this could possible break your code, please rewrite:
-  SOURCE: ./FM817.f
-  CODE UNIT: fm817
-LINES:
-31: equivalence (avc, r2e)                                          
 TEST CASE FM818.f
 refactorF4acc.pl -c rf4a_fm818.cfg  -g fm818
 TEST CASE FM819.f
 refactorF4acc.pl -c rf4a_fm819.cfg  -g fm819
 TEST CASE FM820.f
 refactorF4acc.pl -c rf4a_fm820.cfg  -g fm820
-The EQUIVALENCE  statement is not refactored, this could possible break your code, please rewrite:
-  SOURCE: ./FM820.f
-  CODE UNIT: fm820
-LINES:
-31: equivalence (avc, r2e)                                          
 TEST CASE FM821.f
 refactorF4acc.pl -c rf4a_fm821.cfg  -g fm821
 TEST CASE FM822.f
@@ -437,48 +334,18 @@ TEST CASE FM827.f
 refactorF4acc.pl -c rf4a_fm827.cfg  -g fm827
 TEST CASE FM828.f
 refactorF4acc.pl -c rf4a_fm828.cfg  -g fm828
-The EQUIVALENCE  statement is not refactored, this could possible break your code, please rewrite:
-  SOURCE: ./FM828.f
-  CODE UNIT: fm828
-LINES:
-30: equivalence (avc, r2e)                                          
 TEST CASE FM829.f
 refactorF4acc.pl -c rf4a_fm829.cfg  -g fm829
-The EQUIVALENCE  statement is not refactored, this could possible break your code, please rewrite:
-  SOURCE: ./FM829.f
-  CODE UNIT: fm829
-LINES:
-31: equivalence (bvc, r2e)                                          
 TEST CASE FM830.f
 refactorF4acc.pl -c rf4a_fm830.cfg  -g fm830
-The EQUIVALENCE  statement is not refactored, this could possible break your code, please rewrite:
-  SOURCE: ./FM830.f
-  CODE UNIT: fm830
-LINES:
-32: equivalence (avc, r2e)                                          
 TEST CASE FM831.f
 refactorF4acc.pl -c rf4a_fm831.cfg  -g fm831
-The EQUIVALENCE  statement is not refactored, this could possible break your code, please rewrite:
-  SOURCE: ./FM831.f
-  CODE UNIT: fm831
-LINES:
-32: equivalence (avc, r2e)                                          
 TEST CASE FM832.f
 refactorF4acc.pl -c rf4a_fm832.cfg  -g fm832
 TEST CASE FM833.f
 refactorF4acc.pl -c rf4a_fm833.cfg  -g fm833
-The EQUIVALENCE  statement is not refactored, this could possible break your code, please rewrite:
-  SOURCE: ./FM833.f
-  CODE UNIT: fm833
-LINES:
-33: equivalence (avc, r2e)                                          
 TEST CASE FM834.f
 refactorF4acc.pl -c rf4a_fm834.cfg  -g fm834
-The EQUIVALENCE  statement is not refactored, this could possible break your code, please rewrite:
-  SOURCE: ./FM834.f
-  CODE UNIT: fm834
-LINES:
-33: equivalence (avc, r2e)                                          
 TEST CASE FM900.f
 refactorF4acc.pl -c rf4a_fm900.cfg  -g fm900
 TEST CASE FM901.f
@@ -489,28 +356,12 @@ TEST CASE FM905.f
 refactorF4acc.pl -c rf4a_fm905.cfg  -g fm905
 TEST CASE FM906.f
 refactorF4acc.pl -c rf4a_fm906.cfg  -g fm906
-The EQUIVALENCE  statement is not refactored, this could possible break your code, please rewrite:
-  SOURCE: ./FM906.f
-  CODE UNIT: fm906
-LINES:
-50: equivalence (avc,r2e(1)),(bvc,r2e(3)),(cvc,r2e(5))              
 TEST CASE FM907.f
 refactorF4acc.pl -c rf4a_fm907.cfg  -g fm907
 TEST CASE FM908.f
 refactorF4acc.pl -c rf4a_fm908.cfg  -g fm908
-The EQUIVALENCE  statement is not refactored, this could possible break your code, please rewrite:
-  SOURCE: ./FM908.f
-  CODE UNIT: fm908
-LINES:
-37: equivalence (r2e(1),avc),(r2e(3),bvc),(r2e(5),cvc),(r2e(7),dvc) 
 TEST CASE FM909.f
 refactorF4acc.pl -c rf4a_fm909.cfg  -g fm909
-The EQUIVALENCE  statement is not refactored, this could possible break your code, please rewrite:
-  SOURCE: ./FM909.f
-  CODE UNIT: fm909
-LINES:
-37: equivalence (a97vk, a97e1), (a431k, a97e1)                      
-38: equivalence (cvcorr, a97e2)                                     
 TEST CASE FM910.f
 refactorF4acc.pl -c rf4a_fm910.cfg  -g fm910
 TEST CASE FM912.f
