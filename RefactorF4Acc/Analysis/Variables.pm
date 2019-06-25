@@ -60,8 +60,9 @@ sub analyse_variables {
 			or exists $info->{'InquireCall'}# IO
 			or exists $info->{'OpenCall'}# IO
 			or exists $info->{'CloseCall'}# IO
-			or exists $info->{'ParamDecl'} )
-		{
+			or exists $info->{'ParamDecl'} 
+			or (exists $info->{'Data'} and ( exists $Sf->{'BlockData'} and $Sf->{'BlockData'} == 1 ))  
+			) {
 			( my $stref, my $f, my $identified_vars, my $grouped_messages ) = @{$state};
 
 			my $Sf     = $stref->{'Subroutines'}{$f};
@@ -80,7 +81,7 @@ sub analyse_variables {
 				#				my $maybe_orig_arg = in_nested_set( $Sf, 'OrigArgs', $mvar );
 				# Means arg was declared
 				my $in_vars_subset = in_nested_set( $Sf, 'Vars', $mvar );
-#				say "$mvar SUBSET: $in_vars_subset" if $f eq 'read_ncwrfout_gridinfo';
+				
 				my $decl_orig_arg = exists $Sf->{'DeclaredOrigArgs'}{'Set'}{$mvar} ? 1 : 0;
 
 				# Means arg has been declared via Implicits
@@ -135,7 +136,7 @@ sub analyse_variables {
 										$Sf->{'Includes'}{$inc}{'Only'}{$mvar} = 1;
 									} else {
 										if ( $stref->{'IncludeFiles'}{$inc}{'InclType'} eq 'Common' ) {
-											print "FOUND COMMON $mvar in INC $inc in $line\n" if $DBG;
+											say "FOUND COMMON $mvar in INC $inc in $line" if $DBG;
 #											croak "COMMON $mvar for $f" . in_nested_set( $stref->{'IncludeFiles'}{$inc}, 'Vars', $mvar ) if $mvar eq 'kp';
 											my $decl;
 											my $subset_for_mvar = in_nested_set( $stref->{'IncludeFiles'}{$inc}, 'Vars', $mvar );
@@ -303,7 +304,8 @@ sub analyse_variables {
 				}
 			}			
 			return ( [$annline], [ $stref, $f, $identified_vars, $grouped_messages ] );
-		} else {
+		} 	
+		else {
 			return ( [$annline], $state );
 		}
 	};
@@ -345,7 +347,7 @@ sub analyse_variables {
 	for my $subset (qw(	UndeclaredOrigArgs UndeclaredCommonVars UndeclaredOrigLocalVars )) {
 		for my $var ( sort keys %{ $Sf->{$subset}{'Set'} } ) {
 			if ( ref($Sf->{$subset}{'Set'}{$var}) ne 'HASH' ) {
-				say "WARNING: VAR $var from $subset in $f not yet declared, this means the variable was not detected properly!" if $W;
+				say "WARNING: VAR $var from $subset in $f not yet declared, this means the variable was not detected properly!" if $DBG;
 				my $decl = get_f95_var_decl( $stref, $f, $var );
 				$Sf->{$subset}{'Set'}{$var} = $decl;
 			}
@@ -372,7 +374,8 @@ sub analyse_variables {
             }
 		}
 	}
-	
+#	croak Dumper($Sf->{CommonVars}) if $f eq 'block_data';
+#	croak Dumper($Sf->{ExGlobArgs}) if $f eq 'block_data';
 	return $stref;
 }    # END of analyse_variables()
 
@@ -392,8 +395,9 @@ sub identify_vars_on_line {
 			or exists $info->{'InquireCall'}# IO
 			or exists $info->{'OpenCall'}# IO
 			or exists $info->{'CloseCall'}# IO
-			or exists $info->{'ParamDecl'} )
-		{
+			or exists $info->{'ParamDecl'} 
+			or exists $info->{'Data'} 
+			) {
 			
 			my @chunks = ();
 			if ( exists $info->{'If'} or exists $info->{'ElseIf'} ) {
@@ -440,6 +444,8 @@ sub identify_vars_on_line {
 				@chunks = ( @chunks, $info->{'Lhs'}{'VarName'}, @{ $info->{'Lhs'}{'IndexVars'}{'List'} }, @{ $info->{'Rhs'}{'VarList'}{'List'} } );
 			} elsif ( exists $info->{'ParamDecl'} ) {
 				@chunks = ( @chunks, keys %{ $info->{'UsedParameters'} } );
+			}	 elsif ( exists $info->{'Data'} ) {
+				@chunks = ( @chunks, @{ $info->{'Vars'}{'List'} } );
 			} else {
 				my @mchunks = split( /\W+/, $line );
 				for my $mvar (@mchunks) {
@@ -452,7 +458,7 @@ sub identify_vars_on_line {
 					push @chunks, $mvar;
 				}
 			}
-            return [@chunks];
+            return [@chunks];		            
 		} else {
             return [];
         }

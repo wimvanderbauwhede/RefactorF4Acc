@@ -1,0 +1,102 @@
+#== ACCEPT
+ACCEPT f [, iolist ]
+ACCEPT grname
+
+f Format identifier: Label | character expression | integer variable name (Read from) | *
+iolist List of variables, substrings, arrays, and records:, Written to
+grname : Name of the namelist group, Read from; but the vars in this list are Written to
+
+#== READ
+READ( [ UNIT=] u [, [ FMT=] f ] [, IOSTAT= ios ] [, REC= rn ] [, END= s ] [, ERR= s ] ) iolist
+READ f [, iolist ]
+READ([UNIT=] u, [NML=] grname [,IOSTAT=ios ] [,END=s ] [,ERR=s ] )
+READ grname
+
+
+u or UNIT = u: Unit identifier: integer expression (Read from) | *
+IOSTAT = ios I/O status specifier: integer variable, Written to
+REC = rn Record number to be read: integer expression, Read from
+END = s Statement label: Label 
+ERR = s Statement label: Label 
+f or FMT = f : Format identifier: Label | character expression | integer variable name (Read from) | *
+grname or NML = grname : Name of the namelist group, Read from; but the vars in this list are Written to
+
+
+#== INQUIRE
+INQUIRE( [ UNIT=] u, slist )
+INQUIRE( FILE=fn, slist )
+
+u or UNIT = u: Unit identifier: integer expression (Read from) | *    
+FILE = fn Name of the file being queried : character string, Read from
+slist Specifier list
+
+The INQUIRE slist can include one or more of the following, in any order:
+ERR = s : Label
+EXIST = ex : bool Written to
+OPENED = od  : ool Written to
+NAMED = nmd : ool Written to
+ACCESS = acc : character string Written to
+SEQUENTIAL = seq : character string Written to
+DIRECT = dir : character string Written to
+FORM = fm : character string Written to
+FORMATTED = fmt : character string Written to
+UNFORMATTED = unf : character string Written to
+NAME = fn : character string Written to
+BLANK = blnk : character string Written to
+IOSTAT = ios : integer variable Written to
+NUMBER = num : integer variable Written to
+RECL = rcl : integer variable Written to
+NEXTREC = nr : integer variable Written to
+
+#== OPEN
+OPEN( KEYWORD1=value1, KEYWORD2=value2, … )
+
+[UNIT=] u : Unit identifier: integer expression (Read from) | *
+FILE = fin or NAME = fin : a character expression (Read from) or *
+ACCESS = acc: character expression, Read from
+BLANK = blnk : a character expression ,Read from
+ERR = s : Label
+FORM = fm : a character expression, Read from
+IOSTAT = ios : an integer variable, Written to
+RECL = rl or  RECORDSIZE = rl: integer expression, Read from
+STATUS = sta or TYPE = sta : a character expression, Read from
+FILEOPT = fopt : a character expression, Read from
+READONLY 
+ACTION = act : READ | WRITE | READWRITE
+
+
+#== CLOSE
+CLOSE( [ UNIT=] u [, STATUS= sta] [, IOSTAT= ios] [, ERR= s ] )
+
+u or UNIT = u : Unit identifier : Unit identifier: integer expression (Read from) | *
+STATUS = sta : a character expression, Read from
+IOSTAT = ios: I/O status specifier : an integer variable, Written to
+ERR = s : Error specifier : Label
+
+#== WRITE
+WRITE( [ UNIT=] u [, [FMT=] f ] [, IOSTAT=ios ] [, REC=rn ] [, ERR=s ] ) iolist
+WRITE( [ UNIT= ] u, [ NML= ] grname [, IOSTAT= ios ] [, ERR= s ] )
+u  or UNIT = u : Unit identifier: integer expression (Read from) | *
+f or FMT = f : Format identifier
+IOSTAT = ios : I/O status specifier : an integer variable, Written to
+REC = rn : Record number: integer expression, Read from
+ERR = s : Error specifier (statement label)
+iolist : List of variables
+grname or NML = grname : Name of the namelist group, Read from; but the vars in this list are Written to
+
+#== REWIND
+REWIND u
+REWIND ( [ UNIT=] u [, IOSTAT=ios ] [, ERR= s ])
+u or UNIT = u : Unit identifier : integer expression (Read from) | *
+IOSTAT = ios : I/O specifier: an integer variable or an integer array element, Written to
+ERR = s : Error specifier: Label 
+
+
+
+#== PRINT
+PRINT f [, iolist ]
+PRINT grname
+f Format identifier, i.e. * or a label or a variable name
+iolist List of variables, substrings, arrays, records, …
+grname : Name of the namelist group, Read from; but the vars in this list are Written to
+

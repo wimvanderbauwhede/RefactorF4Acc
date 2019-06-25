@@ -338,7 +338,10 @@ sub _process_src {
         
             # Find subroutine/function/program signatures
             
-           $line =~ /^\s*(\w+\s+\w+\s+(?:function|subroutine|entry)|\w+\s+(?:subroutine|entry)|[\*\(\)\w]+\s+function|function|subroutine|entry|program|block)\s+(\w+)/i && $line!~/\Wend\s+/i && $line!~/^end\s+/i && do {           	
+           (
+           $line =~ /^\s*(\w+\s+\w+\s+(?:function|subroutine|entry)|\w+\s+(?:subroutine|entry)|[\*\(\)\w]+\s+function|function|subroutine|entry|program|block)\s+(\w+)/i
+           || $line =~ /^\s*(block)(data)/i
+           ) && $line!~/\Wend\s+/i && $line!~/^end\s+/i && do {           	
             	my $full_proc_type=$1;            	
             	my $proc_name=$2;
 
@@ -373,7 +376,7 @@ sub _process_src {
                     }
                     $container=$sub;                    
                 }
-                if ( $is_block_data == 1 ) {
+                if ( $is_block_data == 1 ) { 
                 	if (lc($sub) eq 'data') {
                 		$sub = 'block_data';
                 		$line=~/block\s+data\s{1,4}(\w+)/i && do { $sub=lc($1) };
@@ -402,7 +405,7 @@ sub _process_src {
 	                if ($is_function) {
 	                	$Ssub->{'Function'} = 1;     
 	                }
-	                if ( $is_block_data == 1 ) {
+	                if ( $is_block_data == 1 ) { 
 	                		$Ssub->{'BlockData'} = 1;
 	                		$stref->{'BlockData'}{$sub}=1;
 	                }

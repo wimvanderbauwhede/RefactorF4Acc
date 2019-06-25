@@ -335,11 +335,11 @@ sub identify_external_proc_args {
 				if (defined $call_arg) {									
 					if (exists $stref->{'Subroutines'}{$f}{'External'}{$call_arg}) {
 						my $set = in_nested_set($stref->{'Subroutines'}{$sub},'Vars',$sig_arg);
-						say "In proc $f, in call to sub $sub, arg $call_arg is EXTERNAL so setting $sig_arg attr External in set $set";
-						
+						say "WARNING: In proc $f, in call to sub $sub, arg $call_arg is EXTERNAL for signature arg $sig_arg" if $W;
+						say "WARNING: In proc $f, in call to sub $sub, arg $call_arg is EXTERNAL so setting signature $sig_arg attr External in set $set" if $DBG;
 						$stref->{'Subroutines'}{$sub}{$set}{'Set'}{$sig_arg}{'External'}=1;
 					}
-				}
+				} 
 			}							
 		}
 		return [$annline];
@@ -439,7 +439,7 @@ sub determine_ExGlobArgs {
 	
 	my $Sf = $stref->{'Subroutines'}{$f};
 	if ( exists $Sf->{'CalledSubs'}{'List'}
-		and scalar @{ $Sf->{'CalledSubs'}{'List'} } > 0 ) {
+		and scalar @{ $Sf->{'CalledSubs'}{'List'} } > 0 ) { 
 
 		# First we must look up the call stack for the 'current' exglobargs, this is quite the same as in the leaf node
 		$stref = __determine_exglobargs_core( $stref, $f );
@@ -447,6 +447,7 @@ sub determine_ExGlobArgs {
 		# There is a possible complication that f1 can have v1 from b1 and f2 v1 from b2
 		# But I am going to ignore that and blindly merge all exglobargs	
 		for my $called_sub_or_entry ( @{ $Sf->{'CalledSubs'}{'List'} } ) {
+			
 			my $calledsub = $called_sub_or_entry; 
 			if (exists  $stref->{'Entries'}{$called_sub_or_entry} ) {
 				$calledsub = $stref->{'Entries'}{$called_sub_or_entry};
@@ -462,7 +463,7 @@ sub determine_ExGlobArgs {
 		$Sf->{'ExGlobArgs'}{'List'} =[ sort keys %{ $Sf->{'ExGlobArgs'}{'Set'} } ];  
 		# When do we come here? 
 	 		
-	} else {
+	} else {		
 		$stref = __determine_exglobargs_core( $stref, $f );
 	}
 	pop  @{ $stref->{'CallStack'} };
@@ -479,11 +480,13 @@ sub determine_ExGlobArgs {
 sub __determine_exglobargs_core { ( my $stref, my $f ) = @_;
 	
 	my $Sf = $stref->{'Subroutines'}{$f};
-	my $is_block_data = exists $Sf->{'BlockData'} ? 1 : 0;
 	
+	my $is_block_data = exists $Sf->{'BlockData'} ? 1 : 0;
+	 
 	# Get declarations from CommonVars	
 	my $common_decls_current = __get_common_decls($stref,$f);	
-	# Determine if this $var occurs in  $common_block_name anywhere up the stack
+	 
+	# Determine if this $var occurs in $common_block_name anywhere up the stack
 	# So either I go for every var through all callers or for every caller through all vars
 	# Or better: create an intermediate datastructure $var => { $block => {$f =>1, ...} }
 	my $common_decls_callers ={};
@@ -506,7 +509,7 @@ sub __determine_exglobargs_core { ( my $stref, my $f ) = @_;
 #			say Dumper( $common_decls_callers->{$var}{$common_block_name} );
 			if (not $is_block_data) {
 				$Sf->{'ExGlobArgs'}{'Set'}{$var}=$decl;
-			} else {
+			} else { 
 				# BLOCK DATA
 				say "INFO: RENAMING ARGS FOR BLOCK DATA" if $I;
 				my $mod_decl = dclone($decl);
@@ -524,10 +527,17 @@ sub __determine_exglobargs_core { ( my $stref, my $f ) = @_;
 sub __get_common_decls { ( my $stref, my $f ) = @_;
 	my $sub_or_func_or_mod = sub_func_incl_mod( $f, $stref );
 	my $Sf = $stref->{$sub_or_func_or_mod}{$f};	
-	my $common_decls = get_vars_from_set($Sf->{'CommonVars'});
+	my $common_decls = get_vars_from_set($Sf->{'CommonVars'});	
 	return $common_decls;	
 } # END of __get_common_decls()
 
+# This returns a hash $varname => $common_block_name 
+sub __get_exglobarg_decls { ( my $stref, my $f ) = @_;
+	my $sub_or_func_or_mod = sub_func_incl_mod( $f, $stref );
+	my $Sf = $stref->{$sub_or_func_or_mod}{$f};	
+	my $exglobarg_decls = get_vars_from_set($Sf->{'ExGlobArgs'});
+	return $exglobarg_decls;	
+} # END of __get_exglobarg_decls()
 
 
 1;

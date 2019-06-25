@@ -27,16 +27,8 @@ our @EXPORT_OK = qw(
 );
 
 
-=pod
-- start from the top
-- recursive descent to leave (no callers), push the path onto a stack
-- For every Common in a leave node:
-	- go through the stack in order check if this Common var is declared in any of the callers 
-if (my $subset=in_nested_sets($Sf,'CommonVars',$var) and $Sf->{$subset}{'Set'}{$var}{'CommonBlockName'} eq $common_block_name) {
-# add this $var to ExGlobArgs
-}
-
-=cut
+# This adds a call without arguments, the arguments are in COMMON blocks and will be refactored later
+# TODO: this should work with 'SpecificationStatement'
 
 sub add_BLOCK_DATA_call_after_last_VarDecl { 
 	( my $f, my $stref ) = @_;
@@ -62,7 +54,9 @@ sub add_BLOCK_DATA_call_after_last_VarDecl {
 		exists $info->{'Common'} or
 		exists $info->{'Dimension'} or 
 		exists $info->{'External'} or
-		exists $info->{'Equivalence'} # I guess there might be others ...
+		exists $info->{'Equivalence'} or
+		exists $info->{'ImplicitNone'} 
+		 # I guess there might be others ...
 		) {
 			$decl=1;
 		} else {
@@ -75,7 +69,7 @@ sub add_BLOCK_DATA_call_after_last_VarDecl {
 			$found_hook=1;
 			# So here we should put in the additional calls to BLOCK DATA
 			for my $block_data (keys %{ $stref->{'BlockData'} } ) { 
-				my $call_block_data_line = "        call $block_data"; 
+				my $call_block_data_line = "        call $block_data"; #croak $line;
 				push @{$new_annlines}, [
 				$call_block_data_line, 
 				{

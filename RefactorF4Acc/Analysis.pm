@@ -56,6 +56,7 @@ sub analyse_all {
 	}
 	if (not defined $stage) {$stage=0}
 	
+	# Insert BLOCK DATA calls in the main program	
 	my $annlines =	add_BLOCK_DATA_call_after_last_VarDecl($code_unit_name,$stref); 
 	
 	if ($sub_or_func_or_mod eq 'Subroutines') {
@@ -65,14 +66,19 @@ sub analyse_all {
 	}
 	return $stref if $stage == 1;
 
-	# Insert BLOCK DATA calls in the main program
-	# if (exists $Sf->{'Program'} and $Sf->{'Program'} == 1)
-	# Find the last declaration. Just use a statefull pass or even a conditional splice.
-	# Problem is of course comments. The condition is "line is a Decl and next line that is not a comment is not a decl
-	# Also, if it's a COMMON or DIMENSION it is effectively a decl
-
+	# I think I need a special case here to find the ExGlobArgs for BLOCK DATA
+	for my $f ( keys %{ $stref->{'Subroutines'} } ) {
+		next if $f eq '';	
+		if (exists $stref->{'Entries'}{$f}) {
+			next;
+		}
+		my $Sf = $stref->{'Subroutines'}{$f};
+		if (exists $Sf->{'BlockData'} and $Sf->{'BlockData'} == 1 ) {
+			$stref = analyse_variables( $stref, $f );
+		}
+	}
 	# In this stage, 'ExGlobArgs' is populated from CommonVars by looking at the common blocks that occur in the call chain
-	# Note that this does not cover common blocks in includes so hopefully ExGlobArgs will not be affected for the case with includes.
+	# Note that this does *not* cover common blocks in includes so hopefully ExGlobArgs will not be affected for the case with includes.
 	if ($sub_or_func_or_mod eq 'Subroutines') {
 		determine_ExGlobArgs($code_unit_name, $stref);
 	}
@@ -95,7 +101,10 @@ sub analyse_all {
 		if (exists $stref->{'Entries'}{$f}) {
 			next;
 		}
-		$stref = analyse_variables( $stref, $f );
+		my $Sf = $stref->{'Subroutines'}{$f};
+		if (not exists $Sf->{'BlockData'} or $Sf->{'BlockData'} == 0 ) {		
+			$stref = analyse_variables( $stref, $f );
+		}
 	}
     for my $f ( keys %{ $stref->{'Subroutines'} } ) {
         next if $f eq '';   

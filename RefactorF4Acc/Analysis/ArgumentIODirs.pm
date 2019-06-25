@@ -461,7 +461,7 @@ sub _analyse_src_for_iodirs {
 										$args->{$var}{'IODir'} = 'InOut';
 									} # if it's already InOut or Out, stays like it is.
 								} else {
-									say "WARNING: IO direction for $var in call to $name in $f is Unknown" if $W;
+									say "WARNING: Intent for $var in call to $name in $f is unknown" if $W;
 								}
 							} else {
 								say "WARNING: $f: NO IODir info for $var" if $W;

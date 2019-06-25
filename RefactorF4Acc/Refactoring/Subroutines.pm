@@ -27,6 +27,7 @@ $VERSION = "1.2.0";
 
 use Carp;
 use Data::Dumper;
+use Storable qw( dclone );
 
 use Exporter;
 
@@ -677,6 +678,7 @@ sub _create_extra_arg_and_var_decls {
 			{
 #    			croak Dumper($Sf->{'UndeclaredOrigLocalVars'}{'Set'}{$var}) if $var eq 'ff083';
 				my $rdecl = $Sf->{'UndeclaredOrigLocalVars'}{'Set'}{$var};
+				$rdecl->{'Ann'}=  "in $f (implicit declaration)" ;
 				my $rline = emit_f95_var_decl($rdecl);
 				my $info  = {};
 				$info->{'Ann'} =
@@ -894,7 +896,7 @@ sub _create_refactored_subroutine_call {
 				  and exists $Sf->{'ReferencedLabels'}{ $info->{'Label'} } )
 			  ? $info->{'Label'} . ' '
 			  : '';
-			my $rline = "call $name($args_str)\n";
+			my $rline = "call $name($args_str)";
 			if ( exists $info->{'PlaceHolders'} ) {
 				while ( $rline =~ /(__PH\d+__)/ ) {
 					my $ph     = $1;
@@ -1306,15 +1308,26 @@ sub __update_function_calls_in_AST {
 
 }    # END of __update_function_calls_in_AST()
 
+# For every $var in BlockData we need ${var}_ARG = $var
 sub _add_extra_assignments_in_block_data {
 	( my $stref, my $f, my $annlines ) = @_;
 	my $Sf           = $stref->{'Subroutines'}{$f};
 	my $new_annlines = [];
 	for my $arg ( @{ $Sf->{'ExGlobArgs'}{'List'} } ) {
-
-		#		say $arg;
-		my $arg_name = $Sf->{'ExGlobArgs'}{'Set'}{$arg}{'OrigName'};
-		push @{$new_annlines}, [ "        $arg = $arg_name", { 'Extra' => 1 } ];
+		my $maybe_renamed_arg = $arg;
+		my $decl = $Sf->{'ExGlobArgs'}{'Set'}{$maybe_renamed_arg};
+		if (not exists 	$decl->{'OrigName'}) {
+			# This means the ExGlobArgs are the original ones, not the renamed ones
+			$maybe_renamed_arg = $arg.'_ARG';
+				my $mod_decl = dclone($decl);
+				$mod_decl->{'Name'}=$maybe_renamed_arg;
+				$mod_decl->{'OrigName'}=$arg;
+				$Sf->{'ExGlobArgs'}{'Set'}{$arg.'_ARG'}=$mod_decl ;
+				delete 	$Sf->{'ExGlobArgs'}{'Set'}{$arg};
+				@{$Sf->{'ExGlobArgs'}{'List'}} = map {$_ eq $arg ? $maybe_renamed_arg : $_} @{$Sf->{'ExGlobArgs'}{'List'}};   
+		};
+		my $orig_arg_name = $Sf->{'ExGlobArgs'}{'Set'}{$maybe_renamed_arg}{'OrigName'};
+		push @{$new_annlines}, [ "        $maybe_renamed_arg = $orig_arg_name", { 'Extra' => 1 } ];
 	}
 
 	my $merged_annlines = splice_additional_lines_cond(

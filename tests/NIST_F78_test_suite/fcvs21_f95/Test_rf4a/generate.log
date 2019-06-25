@@ -36,25 +36,13 @@ TEST CASE FM020.f
 refactorF4acc.pl -c rf4a_fm020.cfg  -g fm020
 TEST CASE FM021.f
 refactorF4acc.pl -c rf4a_fm021.cfg  -g fm021
+Generation failed for FM021.f95
 TEST CASE FM022.f
 refactorF4acc.pl -c rf4a_fm022.cfg  -g fm022
-The EQUIVALENCE  statement is not refactored, this could possible break your code, please rewrite:
-  SOURCE: ./FM022.f
-  CODE UNIT: fm022
-LINES:
-38: equivalence (iadn14(1), iadn15(1)), (radn14(2),radn15(2))         
-39: equivalence (ladn13(1),lctn01),  (iadn14(5), icon02)              
-40: equivalence (radn14(5), rcon01)                                   
-41: equivalence ( iadn16(3), iadn17(2) )                              
+Generation failed for FM022.f95
 TEST CASE FM023.f
 refactorF4acc.pl -c rf4a_fm023.cfg  -g fm023
-The EQUIVALENCE  statement is not refactored, this could possible break your code, please rewrite:
-  SOURCE: ./FM023.f
-  CODE UNIT: fm023
-LINES:
-30: equivalence (iade23(2,2),iadn22(2,2),iade24(2,2))                 
-31: equivalence (rade23(2,2),radn22(2,2),rade24(2,2))                 
-32: equivalence (icoe01,icoe02,icoe03,icoe04), (rcoe01,rcoe02,rcoe03) 
+Generation failed for FM023.f95
 TEST CASE FM024.f
 refactorF4acc.pl -c rf4a_fm024.cfg  -g fm024
 The EQUIVALENCE  statement is not refactored, this could possible break your code, please rewrite:
@@ -111,9 +99,9 @@ All blocks in fs051 match with fm050, OK to use old approach
 All blocks in fs055 match with fm050, OK to use old approach
 TEST CASE FM056.f
 refactorF4acc.pl -c rf4a_fm056.cfg  -g fm056
-All blocks in fs058 match with fs057, OK to use old approach
 All blocks in fs057 match with fm056, OK to use old approach
 All blocks in ff059 match with fs058, OK to use old approach
+All blocks in fs058 match with fs057, OK to use old approach
 TEST CASE FM060.f
 refactorF4acc.pl -c rf4a_fm060.cfg  -g fm060
 TEST CASE FM061.f
@@ -172,6 +160,7 @@ TEST CASE FM203.f
 refactorF4acc.pl -c rf4a_fm203.cfg  -g fm203
 TEST CASE FM204.f
 refactorF4acc.pl -c rf4a_fm204.cfg  -g fm204
+Generation failed for FM204.f95
 TEST CASE FM205.f
 refactorF4acc.pl -c rf4a_fm205.cfg  -g fm205
 TEST CASE FM251.f
@@ -249,11 +238,11 @@ TEST CASE FM328.f
 refactorF4acc.pl -c rf4a_fm328.cfg  -g fm328
 In proc fm328, in call to sub fs333, arg ff330 is EXTERNAL so setting nint attr External in set UndeclaredOrigArgs
 In proc fm328, in call to sub fs334, arg fs335 is EXTERNAL so setting idon06 attr External in set UndeclaredOrigArgs
-All blocks in fs334 match with fm328, OK to use old approach
-All blocks in fs333 match with fm328, OK to use old approach
+All blocks in fs329 match with fm328, OK to use old approach
 All blocks in fs332 match with fm328, OK to use old approach
 All blocks in fs331 match with fm328, OK to use old approach
-All blocks in fs329 match with fm328, OK to use old approach
+All blocks in fs334 match with fm328, OK to use old approach
+All blocks in fs333 match with fm328, OK to use old approach
 TEST CASE FM351.f
 refactorF4acc.pl -c rf4a_fm351.cfg  -g fm351
 TEST CASE FM352.f
@@ -343,11 +332,7 @@ TEST CASE FM520.f
 refactorF4acc.pl -c rf4a_fm520.cfg  -g fm520
 TEST CASE FM700.f
 refactorF4acc.pl -c rf4a_fm700.cfg  -g fm700
-The EQUIVALENCE  statement is not refactored, this could possible break your code, please rewrite:
-  SOURCE: ./FM700.f
-  CODE UNIT: fm700
-LINES:
-45: equivalence (zvcomp, r2e001)                                      
+Generation failed for FM700.f95
 TEST CASE FM701.f
 refactorF4acc.pl -c rf4a_fm701.cfg  -g fm701
 TEST CASE FM710.f
@@ -363,12 +348,7 @@ TEST CASE FM719.f
 refactorF4acc.pl -c rf4a_fm719.cfg  -g fm719
 TEST CASE FM722.f
 refactorF4acc.pl -c rf4a_fm722.cfg  -g fm722
-The EQUIVALENCE  statement is not refactored, this could possible break your code, please rewrite:
-  SOURCE: ./FM722.f
-  CODE UNIT: fm722
-LINES:
-60: equivalence (zvcomp,r2nn02)                                       
-In proc fm722, in call to sub sn725, arg df723 is EXTERNAL so setting dtint attr External in set UndeclaredOrigArgs
+Generation failed for FM722.f95
 TEST CASE FM800.f
 refactorF4acc.pl -c rf4a_fm800.cfg  -g fm800
 TEST CASE FM801.f

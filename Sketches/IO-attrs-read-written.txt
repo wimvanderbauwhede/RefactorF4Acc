@@ -1,0 +1,129 @@
+- Maybe normalise by removing UNIT= and NML= and FMT=
+- then have a _get_assignments_from_ast()_get_assignments_from_ast
+
+ACCEPT
+- case 3
+if grname add all vars to Read from 
+else set all args in iolist to Read from and all vars to Written to
+
+READ
+- all three cases
+If case 1 we need to check the grname (2nd arg) and  add all vars to Read from
+If case 3, and more than one arg, process iolist as in ACCEPT
+If case 2, process iolist as in ACCEPT
+If case 2 or 3, add IOSTAT var to Written to
+If case 2, add REC vars to Read from
+Add labels to ReferencedLabels
+if unit has vars, add to Read from
+
+PRINT
+- case 3
+if grname add all vars to Read from
+else set all args in iolist to Read from and all vars to Read from
+
+WRITE
+case 1 and 2 
+case 1, grname, Written to
+case 2, iolist, Written to
+If case 2, add REC vars to Read from
+If case 1 or 2, add IOSTAT var to Written to
+Add labels to ReferencedLabels
+if unit has vars, add to Read from
+
+INQUIRE
+if unit/file has vars, add to Read from. So just the first arg
+Other args are all Written to except the ERR Label
+Add labels to ReferencedLabels
+
+OPEN 
+if unit has vars, add to Read from
+
+Read from:
+UNIT
+FILE = fn Name of the file being queried : character string
+
+ACCESS
+BLANK
+FORM
+NAME
+RECL
+
+FILEOPT = fopt : a character expression
+READONLY 
+ACTION = act : READ | WRITE | READWRITE
+STATUS = sta or TYPE = sta : a character expression
+
+All args are all Read from except the ERR Label and IOSTAT
+Add labels to ReferencedLabels
+IOSTAT Written to
+
+
+CLOSE
+if unit has vars, add to Read from
+All args are all Read from except the ERR Label and IOSTAT
+Add labels to ReferencedLabels
+IOSTAT Written to
+
+REWIND
+if unit has vars, add to Read from
+Add ERR Label to ReferencedLabels
+IOSTAT Written to
+
+
+So clearly, 
+INQUIRE must be separate
+OPEN had also be better separate
+
+Read from OR Written to
+
+ACCESS = acc : character string Written to (INQUIRE)
+ACCESS = acc: character expression, Read from (OPEN)
+
+BLANK = blnk : a character expression ,Read from (OPEN)
+BLANK = blnk : character string Written to (INQUIRE)
+
+FORM = fm : a character expression, Read from (OPEN)
+FORM = fm : character string Written to (INQUIRE)
+
+NAME = fin : a character expression (Read from) or * (OPEN)
+NAME = fn : character string Written to (INQUIRE)
+
+RECL = rcl : integer variable Written to (INQUIRE)
+RECL = rl or  RECORDSIZE = rl, Read from (OPEN)
+
+----
+Written to
+
+DIRECT = dir : character string Written to (INQUIRE)
+FORMATTED = fmt : character string Written to (INQUIRE)
+NEXTREC = nr : integer variable Written to (INQUIRE)
+NUMBER = num : integer variable Written to (INQUIRE)
+NAMED = nmd : bool Written to (INQUIRE)
+OPENED = od  : bool Written to (INQUIRE)
+UNFORMATTED = unf : character string Written to (INQUIRE)
+SEQUENTIAL = seq : character string Written to (INQUIRE)
+EXIST = ex : bool Written to (INQUIRE)
+
+IOSTAT = ios : I/O specifier: an integer variable or an integer array element, Written to
+----
+Read from
+
+u or UNIT = u : Unit identifier : Unit identifier: integer expression (Read from) | *
+f Format identifier: Label | character expression | integer variable name (Read from) | *
+
+FILE = fn Name of the file being queried : character string, Read from (OPEN)
+FILEOPT = fopt : a character expression, Read from (OPEN)
+READONLY  (OPEN)
+ACTION = act : READ | WRITE | READWRITE (OPEN)
+STATUS = sta or TYPE = sta : a character expression, Read from (OPEN)
+
+REC = rn Record number to be read: integer expression, Read from (READ, WRITE)
+
+Label, i.e. Read from but also of course add to ReferencedLabels
+
+END = s Statement label: Label (READ)
+ERR = s : Error specifier : Label (READ,INQUIRE,OPEN,CLOSE,WRITE,REWIND)
+
+grname or NML = grname : Name of the namelist group, Read from; but the vars in this list are Written to (ACCEPT,READ) or Read from (PRINT,WRITE)
+
+iolist : List of variables, substrings, arrays, and records:, Written to (ACCEPT,READ) or Read from (PRINT,WRITE) for the arguments, Read from for the index variables and implied do variables. So we should use _find_args_vars_in_ast()

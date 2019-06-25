@@ -60,7 +60,7 @@ use Exporter;
   analyse_lines
   initialise_per_code_unit_tables  
 );
-#_parse_assignment
+
 # -----------------------------------------------------------------------------
 # parse_fortran_src() parses the source but does perform only limited context-free analysis
 # This routine is recursive
@@ -68,12 +68,12 @@ sub parse_fortran_src {
 	( my $f, my $stref, my $is_source_file_path ) = @_;  # NOTE $f is not the name of the source but of the sub/func/incl/module.
 	 
 	#    local $V=1;
-	print "parse_fortran_src(): PARSING $f\n" if $V;
+	say "parse_fortran_src(): PARSING $f" if $V;
 
 ## 1. Read the source and do some minimal processsing, unless it's already been done (i.e. for extracted blocks)
 	print "parse_fortran_src(): CALL read_fortran_src( $f )\n" if $V;
 	$stref = read_fortran_src( $f, $stref, $is_source_file_path );    #
-	print "DONE read_fortran_src( $f )\n" if $V;	
+	say "DONE read_fortran_src( $f )" if $V;	
 	
 	my $sub_or_incl_or_mod = sub_func_incl_mod( $f, $stref ); # Maybe call this "code_unit()"	
 	my $is_incl = $sub_or_incl_or_mod eq 'IncludeFiles' ? 1 : 0;
@@ -84,7 +84,7 @@ sub parse_fortran_src {
 	my $is_external_include =
 	  $is_incl ? ( $stref->{'IncludeFiles'}{$f}{'InclType'} eq 'External' ) : 0;
 
-	print "SRC TYPE for $f: $sub_or_incl_or_mod\n" if $V;
+	say "SRC TYPE for $f: $sub_or_incl_or_mod" if $V;
 	
 	if ( 
 		$sub_or_incl_or_mod ne 'ExternalSubroutines' 
@@ -205,7 +205,7 @@ sub analyse_lines {
 
 	if ( defined $srcref ) {
 		
-		print "\nINFO: VAR DECLS in $f:\n" if $I;
+		say "\nINFO: VAR DECLS in $f:" if $I;
 		my %vars = ();
 
 		my $in_excluded_block	   = 0; # for printing a given block for debug
@@ -330,7 +330,7 @@ sub analyse_lines {
 				if ($proc_type eq 'block data') {
 					$full_proc_type = 'block data';
 					$proc_name = 'block_data';
-                	$line=~/block\s+data\s+(\w+)/i && do { $proc_name=$1 };
+                	$line=~/block\s*data\s+(\w+)/i && do { $proc_name=$1 };
 				}
 				# If it's a function, create a record for the return value
 				if ($proc_type eq 'function') {
@@ -760,7 +760,8 @@ SUBROUTINE
 			 	$line=join('/',@chunks);
 #				$line = _expand_repeat_data($line); 		
 				say "DATA declaration $line" if $V;
-#				$extra_lines{$index}=_parse_data_declaration($line,$info, $stref, $f);
+#				$extra_lines{$index}=
+				$info = _parse_data_declaration($line,$info, $stref, $f);
 #				next;
 		} 
 		elsif  ($line=~/^data\b/ and $line=~/=/ and $line=~/\/\s*$/ ) {
@@ -802,10 +803,10 @@ SUBROUTINE
 		 		if (not exists $grouped_warnings->{'EQUIVALENCE'}) {
 		 			$grouped_warnings->{'EQUIVALENCE'}=[ "The EQUIVALENCE  statement is not refactored, this could possible break your code, please rewrite:",
 		 			'  SOURCE: '.$stref->{$sub_incl_or_mod}{$f}{'Source'},
-                    '  CODE UNIT: '.$f, 'LINES:'		 			
+                    '  CODE UNIT: '.$f, '  LINES:'		 			
 		 			 ];
 		 		}		 		
-		 		my $warn =  $info->{'LineID'}.': '.$line;
+		 		my $warn =  '    '.$info->{'LineID'}.': '.$line;
 			 	push @{	$grouped_warnings->{'EQUIVALENCE'} }, $warn;
                 if ($NEW_PARSER) {
 			 	my $tline = $line;
@@ -969,13 +970,16 @@ or $line=~/^character\s*\(\s*len\s*=\s*[\w\*]+\s*\)/
 #@    ReturnTypeAttr => number or '(*)'
 #@    ResultVar => $result_var
 #@    Characteristic => pure | elemental | recursive 
-			 elsif ( $line =~ /\b(subroutine|function|program|entry|block)[\s\(]/ and $line !~ /^end\s+/) {
+			 elsif ( 
+			 ($line =~ /\b(subroutine|function|program|entry|block)[\s\(]/
+			 or $line =~ /\b(blockdata)/
+			 ) and $line !~ /^end\s+/) {
 				( $Sf, $line, $info ) =
 				  __parse_sub_func_prog_decls( $Sf, $line, $info );
 			 }
 #== END of CODE UNIT
 			 elsif (
-				$line =~ /^end\s+(subroutine|module|function|block\s+data)\s*(\w+)/ 
+				$line =~ /^end\s+(subroutine|module|function|block\s*data)\s*(\w+)/ 
 				) {
 				my $kw   = $1;
 				my $name = $2;
@@ -1354,9 +1358,9 @@ END IF
 				$info->{'ArithmeticIf'}=[$label_lt, $label_eq, $label_gt];
 #				say Dumper($info);
 			}
-			else {
-				carp "UNDETERMINED LINE: <$mline> ".Dumper($info) if $DBG;
-			}
+#			else {
+#				carp "UNDETERMINED LINE: <$mline> ".Dumper($info) ;
+#			}
 			}
 			
 			if (not exists $info->{'Block'}) {
@@ -1381,42 +1385,21 @@ END IF
 			$srcref = [@{$srcref}[0..$idx-1],@{ $extra_lines{$idx} },@{$srcref}[($idx+1) .. (scalar(@{$srcref})-1)] ]; 
 		}
 		$Sf->{'AnnLines'}=$srcref;
-
-        # This is now (2019-03-27) in Preconditioning.pm, to be run after parsing and before analysis
-#		if ( $is_incl ) {
-#			my $inc = $f;
-#			my $Sincf = $Sf;
-#			if($has_commons && $has_pars ) {
-#				print "INFO: The include file $inc contains both parameters and commons, attempting to split out params_$inc.\n"
-#				  if $I;
-#				$Sincf->{'InclType'} = 'Both';
-#				$stref = __split_out_parameters( $inc, $stref );
-#				$stref = __find_parameter_used_in_inc_and_add_to_Only( $inc, $stref );
-#				$has_pars = 0;
-#	
-#			} elsif ($has_commons) {
-#				$Sincf->{'InclType'} = 'Common';
-#			} elsif ($has_pars) {
-#				$Sincf->{'InclType'} = 'Parameter';
-#			} else {
-#				$Sincf->{'InclType'} = 'None';
-#			}
-#		}
 		
 	} else {
 		croak "WARNING: NO source file found for $f ($sub_incl_or_mod). If this file is in an external directory, please speficy the directory in EXTSRCDIRS in the config file\n" ;
 		if ($Sf->{'Entry'} ==0) {
-#			croak "SOURCE for $f: " . Dumper($Sf). ' , Source: '.$Sf->{'Source'}.$f.' , Entry: '.$Sf->{'Entry'};
-		# FIXME: if we can't find the source, we should search the include path, but not attempt to create a module for that source!
-			
+		# FIXME: if we can't find the source, we should search the include path, but not attempt to create a module for that source!			
 		}
 	}
+	if ($W) {
+		say "WARNING:" if scalar keys % {$grouped_warnings};
 	for my $warning_type (sort keys % {$grouped_warnings} ) {
 		for my $line (@{$grouped_warnings->{$warning_type}}) {
 			say $line;
 		}
 	}
-	
+	}
 
 	return $stref;
 }    # END of analyse_lines()
@@ -2487,9 +2470,9 @@ sub __parse_sub_func_prog_decls {
 		$info->{'Signature'}{'Args'}{'List'} = [];
 		$info->{'Signature'}{'Name'}         = $name;
 		$info->{'Signature'}{'Program'}      = 1;
-	} elsif ( $line =~ /^\s*block\s+data/ ) { 
+	} elsif ( $line =~ /^\s*block\s*data/ ) {  
 		 $name = 'block_data';
-		if ( $line =~ /^\s*block\s+data\s+(\w+)\s*/ ) {
+		if ( $line =~ /^\s*block\s*data\s+(\w+)\s*/ ) {
 			$name=$1;
 		}
 		$info->{'Signature'}{'Args'}{'List'} = [];
@@ -4572,26 +4555,35 @@ sub _parse_data_declaration { (my $line,my $info, my $stref, my $f) = @_;
 	my $indent =$line;$indent=~s/data.*$//;
 	my $mline=$line;
     # Remove the DATA keyword
-	$mline=~s/^\s*\d*\s+data\s+//; 
+#    say "<$mline>";
+#	$mline=~s/^\s*\d*\s+data\s+//;
+	$mline=~s/^data\s+//; 
 	# Remove the trailing '/'
 	$mline=~s/\/\s*$//;
 	# Split on '/\s*,', 
 	my @data_decl_ast=[];
 	my @data_decl_pair_strs = split(/\/\s*,/,$mline);
+	my $data_vars ={};
 	for my $data_decl_pair_str (@data_decl_pair_strs ) {
-		(my $nlist_str, my $clist_str) =split(/\s*\/\s*/,$data_decl_pair_str ); 
-		my $nlist_ast = parse_expression($nlist_str);
-		my $clist_ast = parse_expression($clist_str);
+		(my $nlist_str, my $clist_str) =split(/\s*\/\s*/,$data_decl_pair_str );
+#		say  $nlist_str;
+		my $nlist_ast = parse_expression($nlist_str,$info,$stref,$f);
+		my $nlist_vars = find_vars_in_ast($nlist_ast);
+		$data_vars = { %{$data_vars},%{$nlist_vars}};
+		my $clist_ast = parse_expression($clist_str,$info,$stref,$f);
 #		push @data_decl_ast, [$nlist_as, $clist_ast];
-	my $info={};
-	$info->{'NList'}{'Ast'} = $nlist_ast;
-	$info->{'CList'}{'Ast'} = $clist_ast;
-	$info->{'Data'}=1;
-	$info->{'SpecificationStatement'} = 1;
-	my $line= "$nlist_str / $clist_str /"; # TODO: this is not quite one var per DATA line but at least it is one pair per DATA line
-	push @{$new_annlines}, [$line, $info];
+		my $info={};
+		$info->{'NList'}{'Ast'} = $nlist_ast;
+		$info->{'CList'}{'Ast'} = $clist_ast;
+		$info->{'Data'}=1;
+		$info->{'SpecificationStatement'} = 1;
+		my $line= "$nlist_str / $clist_str /"; # TODO: this is not quite one var per DATA line but at least it is one pair per DATA line
+		push @{$new_annlines}, [$line, $info];
 	}
-	return $new_annlines;
+	my $data_vars_list = [sort keys %{$data_vars}];
+	$info->{'Vars'}={'Set' =>$data_vars, 'List' => $data_vars_list};
+	return $info;
+#	return $new_annlines;
 #	# At least we should make this an array. 
 #	# Then we should strip whitespace off all chunks
 #	# Then we should check for chunks starting with a comma. We push the previous chunks on a new list, 

@@ -78,8 +78,9 @@ sub precondition_includes {
 			$Sincf->{'InclType'} = 'Parameter';
 		}
 		else {
+			croak 'HOW?';
 			$Sincf->{'InclType'} = 'None';
-		}
+		}		
 	}
 
 	return $stref;
@@ -95,6 +96,7 @@ sub __split_out_parameters {
 	my $nsrcref     = [];
 	my $nindex      = 0;
 	my $nidx_offset = 0;
+	
 	push @{$nsrcref},
 	  [
 		"      include 'params_$f'",
@@ -110,8 +112,6 @@ sub __split_out_parameters {
 		if ( exists $info->{'ParamDecl'} ) {
 
 # split out parameters from 'Common' include file
-#			say Dumper($info); die if $line=~/__PH/;
-#			push @{$param_lines}, [ $line, $info ];#{ 'ParamDecl' => { %{ $info->{'ParamDecl'} } } } ];
 			my $n_info = {};
 			$n_info->{'ParamDecl'} = { %{ $info->{'ParamDecl'} } };
 			if ( exists $info->{'PlaceHolders'} ) {

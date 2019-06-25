@@ -32,9 +32,7 @@ use Exporter;
 sub read_fortran_src {
     ( my $code_unit_name, my $stref, my $is_source_file_path) = @_;
 
-
 #	 local $V=1;
-
     
     # Determine the type of file (Include or not)
     my $is_incl = exists $stref->{'IncludeFiles'}{$code_unit_name} ? 1 : 0;
@@ -97,10 +95,8 @@ sub read_fortran_src {
 						$containing_module=$item;								
 					}
 					}
-				}		
-                
+				}		                
             }
-#            croak Dumper($stref->{'SourceContains'}{$f} ) if $code_unit_name=~/sub/;#;#$stref->{$sub_func_incl}{$code_unit_name})
         }
         my $need_to_read = 1 - $no_need_to_read;
 
@@ -210,7 +206,7 @@ Suppose we don't:
                     }                    
                     if ($max_line_length > 72 && $max_line_length  < 102 ) {
 #                    	die "WARNING: The file $f is a fixed-form F77 source file but the max line length is $max_line_length characters, using $MAX_LINE_LENGTH-character lines. To use a different max line length, set MAX_LINE_LENGTH in the config file."; 
-                    	say "WARNING: The file $f is a fixed-form F77 source file but the max line length is $max_line_length characters, using $MAX_LINE_LENGTH-character lines. To use a different max line length, set MAX_LINE_LENGTH in the config file." if $W;  	
+                    	say "WARNING: The file $f is a fixed-form F77 source file but the max line length is $max_line_length characters, using $MAX_LINE_LENGTH-character lines.\nTo use a different max line length, set MAX_LINE_LENGTH in the config file." if $W;  	
                     };
                     my $ncols = $MAX_LINE_LENGTH;#$max_line_length > 72 ? 132 : 72;
 #                    die $MAX_LINE_LENGTH;
@@ -933,6 +929,7 @@ sub _pushAnnLine {
     ( my $stref, my $f, my $srctype, my $src, my $line, my $free_form ) = @_;
     
 	if ($f eq 'UNKNOWN_SRC' or  not exists $stref->{$srctype}{$f}{'Status'} or $stref->{$srctype}{$f}{'Status'}<$PARSED ) {
+		
     	my $pline = _procLine( $line, $free_form );
     	if (exists $stref->{'Macros'} ) {
         	$pline->[0] = _restore_case_of_macros($stref,$pline->[0]);        
@@ -948,6 +945,7 @@ sub _pushAnnLine {
 	    }
     
         if ( exists $pline->[1]{'SubroutineSig'} or exists $pline->[1]{'FunctionSig'}) {
+    
         	if ( not defined $stref->{$srctype}{$f}{'Status'} ) {
  				$stref->{$srctype}{$f}{'Status'} = $UNREAD;
  			}
@@ -1221,22 +1219,30 @@ sub _procLine {
             $line =~ s/\bINCLUDE\b/include/;            
         } elsif ( $line !~ /[\'\"]/	
             && $line !~ /^\s*end/i
-            && $line =~ /\b(module|program|recursive\s+subroutine|subroutine|entry|[\*\(\)\w]+\s+function|function|block)\s+(\w+)/i
+            && ($line =~ /\b(module|program|recursive\s+subroutine|subroutine|entry|[\*\(\)\w]+\s+function|function|block)\s+(\w+)/i
+            || $line =~ /\b(blockdata)/i)
           )
         {            
             my $keyword = lc($1);
-            my $name    = lc($2);
+            my $name    = defined $2 ? lc($2) : 'NO_NAME';
             if ($keyword  eq 'block' and $name eq 'data') {
             	$keyword = 'block data';
             	$name = 'block_data';
             	$line=~/block\s+data\s+(\w+)/i && do {
             		$name = lc($1);
             	};
+            } elsif ($keyword  eq 'blockdata') {
+            	
+            	$keyword = 'block data';
+            	$name = 'block_data';
+            	$line=~/blockdata\s+(\w+)/i && do {
+            		$name = lc($1);
+            	};            	            	
             }
 
             die "_procLine(): No $keyword name " if $name eq '';
             my $spaces = ' ' x 6;
-# This is  only used inside _procLine!             
+# This is only used inside _procLine!             
             if ( $keyword =~/function/) {
                 $info->{'FunctionSig'} = [ $spaces, $name, [] ];
             } elsif ( $keyword eq 'module' ) {
@@ -1244,6 +1250,7 @@ sub _procLine {
             } elsif ( $keyword eq 'entry' ) {
                 $info->{'EntrySig'} = $name;                
             } else {
+            	
                 $info->{'SubroutineSig'} = [ $spaces, $name, [] ];
             }
             $line = lc($line);

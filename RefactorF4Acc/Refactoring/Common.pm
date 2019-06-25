@@ -481,7 +481,7 @@ sub context_free_refactorings {
     for my $annline ( @{$Sf->{'RefactoredCode'}} ) {
         if ( not defined $annline or not defined $annline->[0] ) {
             croak
-              "Undefined source code line for $f in create_refactored_source()";
+              "Undefined source code line for $f in create_refactored_source()" . Dumper($annlines) ;
         }
         ( my $line, my $info ) = @{$annline};
         
@@ -802,12 +802,12 @@ if (exists  $Sf->{'Status'} ) {
     } else {    	
         print "WARNING: get_annotated_sourcelines($f) STATUS: "
           . show_status( $Sf->{'Status'} ). shortmess()
-          if $W;
+          if $DBG;
         if ( $Sf->{'Status'} > $INVENTORIED )
         {    # Means it was READ, and INVENTORIED but not PARSED
-            print ", NOT PARSED\n" if $W;
+            print ", NOT PARSED\n" if $DBG;
         } else {
-            print "\n" if $W;
+            print "\n" if $DBG;
         }
     }
 } else {
@@ -1140,7 +1140,8 @@ sub emit_f95_var_decl {
         my $intent    =  $var_decl_rec->{'IODir'};
         
         if (not defined $intent or $intent eq '') {
-        	carp 'Intent not defined for '.Dumper($var_decl_rec) if $W;
+#        	carp 'Intent not defined for '.Dumper($var_decl_rec) if $W;
+        	say 'WARNING: Intent not known for declaration of '.$var.' '.$var_decl_rec->{'Ann'} if $W;
         	$intent='Unknown'; 
         }
         if (ref($intent) eq 'ARRAY' and scalar @{$intent}==0) {
