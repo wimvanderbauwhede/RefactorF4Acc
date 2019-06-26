@@ -41,6 +41,8 @@ sub refactor_all {
     if ($sub_or_func_or_mod eq 'Modules' and $is_source_file_path) {
        $code_unit_name = get_module_name_from_source($stref,$code_unit_name);
     }
+    
+    
     $stref = refactor_include_files($stref);
 
     $stref = refactor_called_functions($stref); # Context-free only FIXME: this should be treated just like subs, but of course that requires full parsing of expressions that contain function calls
@@ -54,11 +56,14 @@ sub refactor_all {
 #			
 #		}
 #	}
+
+
+
 #	say "BEFORE refactor_all_subroutines";    
     # Refactor the source, but don't split long lines and keep annotations
     $stref = refactor_all_subroutines($stref);    
 #    say "AFTER refactor_all_subroutines";
-#
+
 #	die;
     # This can't go into refactor_all_subroutines() because it is recursive
     # Also, this is actually analysis

@@ -37,10 +37,10 @@ our @EXPORT_OK = qw(
 #				ELSE => UndeclaredOrigLocalVars, LocalVars
 # Then merge the Args and ExGlobArgs
 sub analyse_variables {
-	( my $stref, my $f ) = @_;
+	( my $stref, my $f, my $annline ) = @_;
 	
 	my $Sf = $stref->{'Subroutines'}{$f};
-
+	
 	#	local $DBG= ;
 	say "analyse_variables($f)" if $DBG;
 
@@ -60,7 +60,9 @@ sub analyse_variables {
 			or exists $info->{'InquireCall'}# IO
 			or exists $info->{'OpenCall'}# IO
 			or exists $info->{'CloseCall'}# IO
-			or exists $info->{'ParamDecl'} 
+			or exists $info->{'RewindCall'}# IO
+			or exists $info->{'ParamDecl'}
+			or exists $info->{'Equivalence'}  
 			or (exists $info->{'Data'} and ( exists $Sf->{'BlockData'} and $Sf->{'BlockData'} == 1 ))  
 			) {
 			( my $stref, my $f, my $identified_vars, my $grouped_messages ) = @{$state};
@@ -177,7 +179,7 @@ sub analyse_variables {
 											$identified_vars->{$mvar} = 1;
 											last;
 										} else {
-											croak $mvar ,$inc;
+											croak $mvar ,' : ' ,$inc,' ',$stref->{'IncludeFiles'}{$inc}{'InclType'};
 										}
 									}
 								} else {
@@ -309,10 +311,13 @@ sub analyse_variables {
 			return ( [$annline], $state );
 		}
 	};
-
+	
 	my $state = [ $stref, $f, {}, {} ];
-
-	( $stref, $state ) = stateful_pass( $stref, $f, $__analyse_vars_on_line, $state, 'analyse_variables() ' . __LINE__ );
+	if (not defined $annline) {
+		( $stref, $state ) = stateful_pass( $stref, $f, $__analyse_vars_on_line, $state, 'analyse_variables() ' . __LINE__ );
+	} else {
+			 ( my $list_w_annline, $state ) = $__analyse_vars_on_line->($annline, $state );
+	}
 	my $grouped_messages = $state->[3];
         if ($W) {
     for my $warning_type (sort keys % {$grouped_messages->{'W'}} ) {
@@ -395,8 +400,10 @@ sub identify_vars_on_line {
 			or exists $info->{'InquireCall'}# IO
 			or exists $info->{'OpenCall'}# IO
 			or exists $info->{'CloseCall'}# IO
+			or exists $info->{'RewindCall'}# IO
 			or exists $info->{'ParamDecl'} 
 			or exists $info->{'Data'} 
+			or exists $info->{'Equivalence'}
 			) {
 			
 			my @chunks = ();
@@ -407,7 +414,8 @@ sub identify_vars_on_line {
 			if (   exists $info->{'PrintCall'}
 				or exists $info->{'WriteCall'}
 				or exists $info->{'ReadCall'}
-				or exists $info->{'InquireCall'} 
+				or exists $info->{'InquireCall'}
+				or exists $info->{'RewindCall'} 
 				or exists $info->{'Return'} 
 				) {
 				if (!$NEW_PARSER) {	
@@ -444,7 +452,8 @@ sub identify_vars_on_line {
 				@chunks = ( @chunks, $info->{'Lhs'}{'VarName'}, @{ $info->{'Lhs'}{'IndexVars'}{'List'} }, @{ $info->{'Rhs'}{'VarList'}{'List'} } );
 			} elsif ( exists $info->{'ParamDecl'} ) {
 				@chunks = ( @chunks, keys %{ $info->{'UsedParameters'} } );
-			}	 elsif ( exists $info->{'Data'} ) {
+			}	 elsif ( exists $info->{'Data'} 
+			or exists $info->{'Equivalence'} ) {
 				@chunks = ( @chunks, @{ $info->{'Vars'}{'List'} } );
 			} else {
 				my @mchunks = split( /\W+/, $line );

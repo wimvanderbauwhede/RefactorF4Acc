@@ -46,8 +46,6 @@ sub identify_inherited_exglobs_to_rename {
     	if ( exists $Sf->{'CalledSubs'}{'List'}
         and scalar @{ $Sf->{'CalledSubs'}{'List'} }>0 )
 	    {	    	
-	        # FIXME: do this in the Parser
-	        
 	        for my $csub ( @{ $Sf->{'CalledSubs'}{'List'} }) {       
 	       		say "CALL TO  $csub from $f" if $V;     
 	            $stref = identify_inherited_exglobs_to_rename($stref, $csub );
@@ -80,6 +78,7 @@ sub identify_inherited_exglobs_to_rename {
 sub rename_inherited_exglobs  {
 		  (my $stref, my $f) = @_;
 #    local $V=1;
+
 if ($RENAME_EXT ne '') {
     my $ext = $RENAME_EXT;
     

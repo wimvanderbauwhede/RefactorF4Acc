@@ -67,7 +67,10 @@ sub refactor_all_subroutines {
 		next if $Sf->{'Status'} == $READ;
 		next if $Sf->{'Status'} == $FROM_BLOCK;
 
+
+
 		$stref = _refactor_subroutine_main( $stref, $f );
+		
 	}
 
 	return $stref;
@@ -147,9 +150,12 @@ sub _refactor_subroutine_main {
 			croak 'SHOULD BE OBSOLETE!';
 		}
 	}
-
+# This eats CPHS entirely!
 	$annlines =
 	  _fix_end_lines( $stref, $f, $annlines );    # FIXME maybe do this later
+
+
+
 
 	if ($is_block_data) {
 		$annlines =
@@ -171,6 +177,12 @@ sub _refactor_subroutine_main {
 		#	    $stref = parse_fortran_src($f, $stref);
 		#	    $annlines=$Sf->{'AnnLines'};
 	}
+
+	$annlines =_change_EQUIVALENCE_to_assignment_lines_for_ExCommonArgs( $stref, $f, $annlines );
+	
+#	$Sf->{'AnnLines'} = $annlines;
+#	$Sf->{'RefactoredCode'} = $annlines; # cargo cult
+	
 	$annlines = _emit_refactored_signatures( $stref, $f, $annlines );
 	$Sf->{'RefactoredCode'} = $annlines;
 
@@ -185,10 +197,8 @@ sub _refactor_subroutine_main {
 sub _fix_end_lines {
 	my ( $stref, $f, $rlines ) = @_;
 
-	#    croak "FIXME" if $f eq 'vertical';
 	my $Sf = $stref->{'Subroutines'}{$f};
-	my $is_block_data =
-	  ( exists $Sf->{'BlockData'} and $Sf->{'BlockData'} == 1 ) ? 1 : 0;
+	my $is_block_data = ( exists $Sf->{'BlockData'} and $Sf->{'BlockData'} == 1 ) ? 1 : 0;
 	my $what_is_block_data = 'subroutine';    #'block data'
 	my $sub_or_prog =
 		( exists $Sf->{'Program'}  and $Sf->{'Program'} == 1 )  ? 'program'
@@ -204,15 +214,19 @@ sub _fix_end_lines {
 
 		( my $line, my $info ) = @{$annline};
 
-		
+#		say "$f REV LINE: $line" if $f eq 'cphs';
 		next if ( $line =~ /^\s*$/ );    # Skip comments
-		if ( $line =~ /^\s*end\s+$sub_or_prog/ ) {
+		if ( $line =~ /^\s*end\s+$sub_or_prog/ 
+		or $line =~ /^\s*\d+\s+end\s+$sub_or_prog/
+		) {
 			push @{$rlines}, $annline;
 			$done_fix_end = 1;
 			last;
 		}
 
-		if ( $line =~ /^\s*end\s*$/ ) { 
+		if ( $line =~ /^\s*end\s*$/ or 
+		$line =~ /^\s*\d+\s+end\s*$/ 
+		) { 
 			$line =~ s/\s+$//;
 			if ($is_block_data) {
 				$info->{'EndBlockData'} = 1;
@@ -306,9 +320,9 @@ sub _refactor_globals_new {
 	my $hook_after_last_incl = 0;
 	if ( $Sf->{'ExGlobVarDeclHook'} == 0 ) {
 
-# If ExGlobVarDeclHook was not defined, we define it on the line *after* the last include.
+# If ExGlobVarDeclHook was not defined, we define it on the line *after* the last include or 'implicit none' 
 		$hook_after_last_incl = 1;
-	}
+	} 
 	my $inc_counter = scalar keys %{ $Sf->{'Includes'} };
 
 	# Loop over all lines in $f
@@ -381,18 +395,23 @@ sub _refactor_globals_new {
 				  if $W;
 			}
 		}
-
 		if (    $inc_counter == 0
 			and not exists $info->{'Include'}
+			and not exists $info->{'ImplicitNone'}
 			and $hook_after_last_incl == 1 )
 		{
+			
 			$info->{'ExGlobVarDeclHook'} =
 			  'AFTER LAST Include via _refactor_globals_new() line ' . __LINE__;
 			$hook_after_last_incl = 0;
 		}
-
+		if (exists $info->{'ImplicitNone'} and $info->{'ExGlobVarDeclHook'} eq 'ImplicitNone') {
+		
+						push @{$rlines}, $annline;
+				$skip = 1;
+		}
+		
 		if ( exists $info->{'ExGlobVarDeclHook'} ) {
-
 # FIXME: I don't like this, because in the case of a program there should simply be no globals etc.
 # Then generate declarations for ex-globals
 			say "HOOK for $f: " . $info->{'ExGlobVarDeclHook'} if $V;
@@ -1497,6 +1516,95 @@ sub _add_ExMismatchedCommonArg_assignment_lines {
 	}
 	return $rlines;
 }    # END of _add_ExMismatchedCommonArg_assignment_lines
+
+
+sub _change_EQUIVALENCE_to_assignment_lines_for_ExCommonArgs {
+	my ( $stref, $f, $annlines ) = @_;
+	my $Sf            = $stref->{'Subroutines'}{$f};
+		my $last_statement = 0;
+	my $rlines        = [];
+	my $revAssignmentLines=[];
+	for my $annline ( @{$annlines} ) {
+		( my $line, my $info ) = @{$annline};
+		my $skip=0;
+		if (     exists $info->{'Equivalence'} ) {
+				my $rline = $annline;
+#				say $line;
+#				carp Dumper($info->{'Ast'}) if $f eq 'thermp';
+#				my $equiv_pairs={};
+				my $ast=dclone($info->{'Ast'});
+				# Two cases: either a list of pairs, or a single pair
+				if (($ast->[0] & 0xFF) == 0) {
+					# a single pair
+					($rline, $revAssignmentLines) = __refactor_equivalence_line($Sf,$ast, $revAssignmentLines, $annline);
+					push @{$rlines}, $rline;						
+				} 
+				elsif ((($ast->[0] & 0xFF) == 27) &&
+					(($ast->[1][0] & 0xFF) == 0) 
+				) {
+					# a list of pairs
+					shift @{$ast};
+					for my $pair_ast (@{$ast}) {						
+						($rline, $revAssignmentLines) = __refactor_equivalence_line($Sf,$pair_ast, $revAssignmentLines, $annline);
+						push @{$rlines}, $rline;
+					}					
+				} else {
+					croak "INVALID AST : ".Dumper($ast).($ast->[0] & 0xFF) .($ast->[1][0] & 0xFF) ;
+				}
+				
+				if ($line ne $rline->[0]) {
+#				say "CHANGING LINE $line TO ".$rline->[0]." in $f ";
+				}
+				$skip=1;		
+		}
+		# For the reverse assignments:
+		# In a subroutine they should come before a RETURN or before the END
+		#  In a function they should come before the assignment to the function name, a RETURN or the END, whichever is first
+		if ((exists  $info->{'Return'} 
+		or exists  $info->{'EndSubroutine'}
+		or ( exists  $info->{'Assignment'} and $info->{'Lhs'}{'VarName'} eq $f))
+		and $last_statement==0 
+		) {
+			$last_statement=1;
+			for my $rline (@{$revAssignmentLines} ) {
+#		        		say "ADDING LINE ".$rline->[0]." in $f ";
+				push @{$rlines}, $rline;
+			}			
+		}
+		push @{$rlines}, $annline unless $skip;
+	}
+	return $rlines;
+}    # END of _change_EQUIVALENCE_to_assignment_lines_for_ExCommonArgs
+
+sub __refactor_equivalence_line { (my $Sf, my $ast, my $revAssignmentLines, my $annline)=@_;
+	
+	my $rline=$annline;
+	my ($line, $info)=@{$annline};
+	my $var1=$ast->[1][1][1];
+	my $var2=$ast->[1][2][1];
+	my $v1=emit_expr_from_ast($ast->[1][1]);
+	my $v2=emit_expr_from_ast($ast->[1][2]);
+	my $v1_is_arg=0;
+	my $v2_is_arg=0;
+	my $indent = $info->{'Indent'};
+	if (exists $Sf->{'ExGlobArgs'}{'Set'}{$var1}) {
+		$v1_is_arg=1;
+#		say "VAR1 $v1 is EX-GLOB";
+		$rline = [$indent . "$v2 = $v1",{}];
+		push @{$revAssignmentLines}, [$indent . "$v1 = $v2",{}]
+	}
+	if (exists $Sf->{'ExGlobArgs'}{'Set'}{$var2} and not my $v1_is_arg==1) {
+		$v2_is_arg=1;
+#		say "VAR2 $v2 is EX-GLOB";
+		$rline = [$indent . "$v1 = $v2",{}];
+		push @{$revAssignmentLines}, [$indent . "$v1 = $v2",{}]
+	}
+	if ( $v1_is_arg==1 and $v2_is_arg==1) {
+		# equivalence must go, can't do this
+		$rline = ['',{'Blank' => 1}];
+	}  
+	return ($rline, $revAssignmentLines);
+} # END of __refactor_equivalence_line
 
 sub _emit_refactored_signatures {
 	my ( $stref, $f, $annlines ) = @_;

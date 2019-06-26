@@ -34,7 +34,7 @@ use RefactorF4Acc::Translation::OpenCLC qw( add_to_C_build_sources );    # OBSOL
 
 use RefactorF4Acc::Analysis::LoopDetect qw( outer_loop_start_detect );
 #use RefactorF4Acc::Analysis::ArgumentIODirs qw(  conditional_assignment_fsm );
-use RefactorF4Acc::Analysis::Variables qw( identify_vars_on_line );
+use RefactorF4Acc::Analysis::Variables qw( identify_vars_on_line analyse_variables );
 use RefactorF4Acc::Analysis::CommonBlocks qw( collect_common_vars_per_block );
 use Fortran::F95VarDeclParser qw( parse_F95_var_decl );
 use Fortran::ConstructParser qw(
@@ -73,7 +73,7 @@ sub parse_fortran_src {
 ## 1. Read the source and do some minimal processsing, unless it's already been done (i.e. for extracted blocks)
 	print "parse_fortran_src(): CALL read_fortran_src( $f )\n" if $V;
 	$stref = read_fortran_src( $f, $stref, $is_source_file_path );    #
-#	croak Dumper(pp_annlines($stref->{Subroutines}{$f}{AnnLines})) if $f eq 'block_data';
+	
 	say "DONE read_fortran_src( $f )" if $V;	
 	
 	my $sub_or_incl_or_mod = sub_func_incl_mod( $f, $stref ); # Maybe call this "code_unit()"	
@@ -470,7 +470,14 @@ SUBROUTINE
 				
 				$srcref->[$index] = [ $indent . $line, $info ];
 				next;
+#== INCLUDE				
+			} elsif ( exists $info->{'Includes'} ) {
+				$info = __parse_include_statement($stref, $f, $Sf, $line, $info, $index);
+				$info->{'SpecificationStatement'} = 1;
+				$srcref->[$index] = [ $line, $info ];
+				next;				
 #== USE				
+# WV20190626 I'm not sure why 'include' is handled in SrcReader and 'use' here ...
 			} elsif ( $line =~ /^use\s+(\w+)/ ) {
 				my $module = $1;
 				$info->{'Use'}{'Name'} = $module;
@@ -814,7 +821,11 @@ SUBROUTINE
                 $info->{'HasVars'} = 1; 
                 }
 		 	}
-#== EQUIVALENCE (IADN14(1), IADN15(1)), (RADN14(2),RADN15(2))		 	 
+#== EQUIVALENCE 		 	 
+#EQUIVALENCE ( nlist ) [, ( nlist ) ] …
+#nlist List of variable names, array element names,array names, and character
+#substring names separated by commas
+#e.g. (IADN14(1), IADN15(1)), (RADN14(2),RADN15(2))
 		 	elsif ($line=~/^equivalence\s+/) {		 	
 		 		$info->{'Equivalence'} = 1;
 		 		$info->{'SpecificationStatement'} = 1;
@@ -835,6 +846,7 @@ SUBROUTINE
 			 	$tline=~s/^equivalence\s+//;
 #			 	(my $ast, my $rest, my $err, my $has_funcs)
 			 	my $ast = parse_expression($tline, $info,  $stref,  $f);
+				$info->{'Ast'}=$ast;
                 #croak "FIXME: must split expression if it is a list of parenthised statements";
                 # We must to the procedure below for every element in that list
                 my @asts=();
@@ -845,43 +857,35 @@ SUBROUTINE
                 } else {
                     push @asts, $ast;
                 }
+                $info->{'Vars'}{'Set'}= {};
+                
                 for my $ast (@asts) {
                 #say "EQUIVALENCE: $tline"; 
                 #say "AST:". Dumper($ast);
 			 	my $vars = find_vars_in_ast($ast,{});
                 #say "VARS:".Dumper($vars);
 			 	# Now, of a var already exists, we leave it alone;
-                
-			 	my $equiv_type = 'Unknown'; 
-			 	my $equiv_attr = ''; 
-                for my $tvar (keys %{$vars}) {
-                    my $subset = in_nested_set($Sf,'Vars',$tvar);
-                    if ($subset) {
-#						say "VAR $tvar found in SUBSET $subset";
-						
-                        my $orig_decl =  $Sf->{$subset}{'Set'}{$tvar} ;
-#                        say Dumper($orig_decl );
-                        $equiv_type=$orig_decl->{'Type'};
-                        $equiv_attr=$orig_decl->{'Attr'};
-#                        last; # because I assume they all must have the same type.
-                    } else {
-#                     say "VAR $tvar not yet declared";
-                        ($equiv_type, my $array_or_scalar, $equiv_attr)=type_via_implicits($stref, $f,$tvar);
-                        my $decl = {
-                            'Indent' => $indent,
-                            'Type'   => $equiv_type,
-                            'Attr'   => $equiv_attr,
-                            'Name'   => $tvar,
-                            'Status' => 0,
-                            'StmtCount' => 0,
-                            'ArrayOrScalar' => $vars->{$tvar}{'Type'}
-                        };		
-                        $Sf->{'UndeclaredOrigLocalVars'}{'Set'}{$tvar} = $decl;
-                        push @{$Sf->{'UndeclaredOrigLocalVars'}{'List'}},$tvar;
-                    }                                        
-                }
-#                if ($equiv_type eq 'Unknown') { # none of the vars is already declared
-#                    for my $tvar (keys %{$vars}) {
+
+			 	$info->{'Vars'}{'Set'}= {%{$info->{'Vars'}{'Set'}},%{ $vars } } ;
+#                $info->{'Vars'}{'List'}= [sort keys %{$vars}];
+#			 	my $equiv_type = 'Unknown'; 
+#			 	my $equiv_attr = ''; 
+#                for my $tvar (keys %{$vars}) {
+#                    my $subset = in_nested_set($Sf,'Vars',$tvar);
+#                    if ($subset) {
+##						say "VAR $tvar found in SUBSET $subset";
+#						
+#                        my $orig_decl =  $Sf->{$subset}{'Set'}{$tvar} ;
+##                        say Dumper($orig_decl );
+#                        $equiv_type=$orig_decl->{'Type'};
+#                        $equiv_attr=$orig_decl->{'Attr'};
+##                        last; # because I assume they all must have the same type.
+#                    } else {
+#                    	# check if this is maybe declared via an include
+#                    	
+#                    	
+#                    	
+##                     say "VAR $tvar not yet declared";
 #                        ($equiv_type, my $array_or_scalar, $equiv_attr)=type_via_implicits($stref, $f,$tvar);
 #                        my $decl = {
 #                            'Indent' => $indent,
@@ -894,28 +898,11 @@ SUBROUTINE
 #                        };		
 #                        $Sf->{'UndeclaredOrigLocalVars'}{'Set'}{$tvar} = $decl;
 #                        push @{$Sf->{'UndeclaredOrigLocalVars'}{'List'}},$tvar;
-#                    }
-#                } 
-#				else { # type all undeclared ones same as the known one
-#                    for my $tvar (keys %{$vars}) {
-#                        my $subset = in_nested_set($Sf,'Vars',$tvar);
-#                        if ($subset eq '') {
-#                            # use $equiv_type
-#                            my $decl = {
-#                                'Indent' => $indent,
-#                                'Type'   => $equiv_type,
-#                                'Attr'   => $equiv_attr,
-#                                'Name'   => $tvar,
-#                                'Status' => 0,
-#                                'StmtCount' => 0,
-#                                'ArrayOrScalar' => $vars->{$tvar}{'Type'}
-#                            };		
-#                            $Sf->{'UndeclaredOrigLocalVars'}{'Set'}{$tvar} = $decl;
-#                            push @{$Sf->{'UndeclaredOrigLocalVars'}{'List'}},$tvar;
-#                        }                    
-#                    }
+#                    }                                        
 #                }
+
             }
+            $info->{'Vars'}{'List'}= [sort keys %{$info->{'Vars'}{'Set'}}];
             } # NEW_PARSER
 		 	}		
 #== VARIABLE and PARAMETER DECLARATIONS
@@ -1121,9 +1108,9 @@ or $line=~/^character\s*\(\s*len\s*=\s*[\w\*]+\s*\)/
 #@     Set => {...}
 #@     List => [...]
 					
-			if ( $line =~ /^(if|else\s+if)\s*\(/ ) {			  	
+			if ( $line =~ /^(if|else\s*if)\s*\(/ ) {			  	
 				my $keyword = $1;				
-				if ( $line =~ /^(else\s+if)/ ) {
+				if ( $line =~ /^(else\s*if)/ ) {
 					$info->{'ElseIf'} = 1;					
 					$info->{ 'EndControl' } = 1;
 				} else {
@@ -1152,13 +1139,26 @@ or $line=~/^character\s*\(\s*len\s*=\s*[\w\*]+\s*\)/
 				if ($cond=~/^\d+$/) { $cond.='+0';}
 #				say "COND:$cond";  
 					my $ast = parse_expression($cond,  $info,  $stref,  $f);
+					
 					$info->{'CondExecExprAST'}= $ast;
 					my $vars_in_cond_expr =  get_vars_from_expression( $ast,{});
-					for my $macro (keys %{$Config{'Macros'}} ) {
-						delete $vars_in_cond_expr->{ lc($macro) };
+					my $vars_and_index_vars_in_cond_expr={};
+					for my $var (sort keys %{$vars_in_cond_expr}) {
+						if ($vars_in_cond_expr->{$var}{'Type'} eq 'Array'
+						and scalar keys %{$vars_in_cond_expr->{$var}{'IndexVars'}}>0) {
+							for my $indexvar (sort keys %{$vars_in_cond_expr->{$var}{'IndexVars'}}) {
+							$vars_and_index_vars_in_cond_expr->{$indexvar} = 'Scalar';
+							}														
+						} 
+							$vars_and_index_vars_in_cond_expr->{$var} = $vars_in_cond_expr->{$var}{'Type'}; 
+						
 					}
-					$info->{'CondVars'}{'Set'} = $vars_in_cond_expr;
-					$info->{'CondVars'}{'List'} = [ keys %{$vars_in_cond_expr} ];
+#					carp($line,Dumper($vars_and_index_vars_in_cond_expr)) if $line=~/ttt/;
+					for my $macro (keys %{$Config{'Macros'}} ) {
+						delete $vars_and_index_vars_in_cond_expr->{ lc($macro) };
+					}
+					$info->{'CondVars'}{'Set'} = $vars_and_index_vars_in_cond_expr;
+					$info->{'CondVars'}{'List'} = [ sort keys %{$vars_and_index_vars_in_cond_expr} ];
 					if ($mline eq 'then') {
 						$info->{ 'Control' } = 1;	
 						$info->{ 'IfThen' } = 1;						
@@ -1243,21 +1243,24 @@ END IF
                 $info->{'HasVars'} = 1; 
 				
 			}
-#==    REWIND, OPEN, CLOSE statements		
+#== OPEN,
+#== REWIND,  
+#== CLOSE statements		
 #@ FileName =>
 #@     Var => $var
 #@ Vars
 #@     List => []
 #@     Set => {}		
-			elsif ( $mline =~ /^(open|close|rewind)\s*\(/ ) {
+			elsif ( $mline =~ /^(open|close|rewind)\s*\(/
+			or  $mline =~ /^(rewind)\s+\w+/
+			) {
 				my $keyword = $1;
 				$info->{ ucfirst($keyword) . 'Call' } = 1;
 				$info->{'IO'}=1;
                 $info->{'HasVars'} = 1; 
 				if ( $keyword eq 'open' ) {
 					$mline=~s/\s+$//;
-					my $ast = parse_Fortran_open_call($mline);
-										
+					my $ast = parse_Fortran_open_call($mline);										
 					$info->{'Ast'} = $ast;
 					if ( exists $ast->{'FileName'} ) {						
 						if ( exists $ast->{'FileName'}{'Var'} and $ast->{'FileName'}{'Var'} !~ /__PH/ ) {						
@@ -1299,6 +1302,19 @@ END IF
                         }
 					}
 					@{ $info->{'Vars'}{'List'} } = keys %{ $info->{'Vars'}{'Set'} };
+				}
+#REWIND u
+#REWIND ( [ UNIT=] u [, IOSTAT=ios ] [, ERR= s ])
+#u Unit identifier of an external unit connected to the file
+#u must be connected for sequential access, or append access.
+#ios I/O specifier, an integer variable or an integer array element
+#s Error specifier: s must be the label of an executable statement in the same
+#program in which this REWIND statement occurs. The program control is
+#transferred to this label in case of an error during the execution of the
+#REWIND statement.				
+				elsif ( $keyword eq 'rewind' ) {					
+						$info = _parse_read_write_print( $mline, $info, $stref, $f );
+#						croak Dumper($info->{'Vars'});
 				}			
 #== BACKSPACE, ENDFILE statements			
 			} elsif ($mline=~/(backspace|endfile)/) {
@@ -1453,80 +1469,80 @@ sub _parse_includes {
 			}
 			
 			if ( exists $info->{'Includes'} ) { 
-                $Sf->{'HasIncludes'}=1;
-				my $name = $info->{'Includes'};
-				print "FOUND include $name in $f\n" if $V;
-				$Sf->{'Includes'}{$name} = { 'LineID' => $index };
-
-				if (    exists $Sf->{'Translate'}
-					and exists $stref->{'IncludeFiles'}{$name}
-					and not
-					exists $stref->{'IncludeFiles'}{$name}{'Translate'} )
-				{
-					$stref->{'IncludeFiles'}{$name}{'Translate'} =
-					  $Sf->{'Translate'};
-					if ( $Sf->{'Translate'} eq 'C' ) {
-						$stref = add_to_C_build_sources( $name, $stref );
-					} else {
-						croak '!$acc translate (' 
-						  . $f . ') '
-						  . $Sf->{'Translate'}
-						  . ": Only C translation through F2C_ACC is currently supported.\n";
-					}
-				}
+#                $Sf->{'HasIncludes'}=1;
+#				my $name = $info->{'Includes'};
+#				print "FOUND include $name in $f\n" if $V;
+#				$Sf->{'Includes'}{$name} = { 'LineID' => $index };
+#
+#				if (    exists $Sf->{'Translate'}
+#					and exists $stref->{'IncludeFiles'}{$name}
+#					and not
+#					exists $stref->{'IncludeFiles'}{$name}{'Translate'} )
+#				{
+#					$stref->{'IncludeFiles'}{$name}{'Translate'} =
+#					  $Sf->{'Translate'};
+#					if ( $Sf->{'Translate'} eq 'C' ) {
+#						$stref = add_to_C_build_sources( $name, $stref );
+#					} else {
+#						croak '!$acc translate (' 
+#						  . $f . ') '
+#						  . $Sf->{'Translate'}
+#						  . ": Only C translation through F2C_ACC is currently supported.\n";
+#					}
+#				}
 				$last_inc_idx = $index;
 
-				$info->{'Include'} = {};
-				$info->{'Include'}{'Name'} = $name;
-				$stref->{'IncludeFiles'}{$name}{'IncludedFrom'}{$f}=1;
-				if ( $stref->{'IncludeFiles'}{$name}{'Status'} == $UNREAD ) {
-					print $line, "\n" if $V;
-
-					# Initial guess for Root. OK? FIXME?
-					$stref->{'IncludeFiles'}{$name}{'Root'}      = $f;
-					$stref->{'IncludeFiles'}{$name}{'HasBlocks'} = 0;
-					$stref = parse_fortran_src( $name, $stref );
-				} else {
-					print $line, " already processed\n" if $V;					
-				}
-				if (    exists $stref->{'Implicits'}
-					and exists $stref->{'Implicits'}{$name} )
-				{
-					print "INFO: inheriting IMPLICITS from $name in $f\n" if $I;
-					if ( not exists $stref->{'Implicits'}{$f} ) {
-						$stref->{'Implicits'}{$f} =
-						  $stref->{'Implicits'}{$name};
-					} else {
-						for my $k ( keys %{ $stref->{'Implicits'}{$name} } ) {
-							if ( not exists $stref->{'Implicits'}{$f}{$k} ) {
-								$stref->{'Implicits'}{$f}{$k} =
-								  $stref->{'Implicits'}{$name}{$k};
-							} else {
-								die "ERROR: $f and $name have different type for $k";
-							}
-						}
-					}
-				}
-
-				# The include has been parsed.
-				if ( exists $stref->{'IncludeFiles'}{$name} )
-				{    # Otherwise it means it is an external include
-					 # 'Parameters' here is OK because the include might contain other includes
-					$Sf->{'IncludedParameters'} =
-					  &append_to_set( $Sf->{'IncludedParameters'},
-						$stref->{'IncludeFiles'}{$name}{'Parameters'} );
-						
-					if (exists $stref->{'IncludeFiles'}{$name}{'Includes'}) {
-						for my $param_inc (keys %{ $stref->{'IncludeFiles'}{$name}{'Includes'} } ) {
-					$Sf->{'IncludedParameters'} =
-					  &append_to_set( $Sf->{'IncludedParameters'},
-						$stref->{'IncludeFiles'}{$param_inc}{'Parameters'} );
-							
-						}
-					}
-				}
+#				$info->{'Include'} = {};
+#				$info->{'Include'}{'Name'} = $name;
+#				$stref->{'IncludeFiles'}{$name}{'IncludedFrom'}{$f}=1;
+#				if ( $stref->{'IncludeFiles'}{$name}{'Status'} == $UNREAD ) {
+#					print $line, "\n" if $V;
+#
+#					# Initial guess for Root. OK? FIXME?
+#					$stref->{'IncludeFiles'}{$name}{'Root'}      = $f;
+#					$stref->{'IncludeFiles'}{$name}{'HasBlocks'} = 0;
+#					$stref = parse_fortran_src( $name, $stref );
+#				} else {
+#					print $line, " already processed\n" if $V;					
+#				}
+#				if (    exists $stref->{'Implicits'}
+#					and exists $stref->{'Implicits'}{$name} )
+#				{
+#					print "INFO: inheriting IMPLICITS from $name in $f\n" if $I;
+#					if ( not exists $stref->{'Implicits'}{$f} ) {
+#						$stref->{'Implicits'}{$f} =
+#						  $stref->{'Implicits'}{$name};
+#					} else {
+#						for my $k ( keys %{ $stref->{'Implicits'}{$name} } ) {
+#							if ( not exists $stref->{'Implicits'}{$f}{$k} ) {
+#								$stref->{'Implicits'}{$f}{$k} =
+#								  $stref->{'Implicits'}{$name}{$k};
+#							} else {
+#								die "ERROR: $f and $name have different type for $k";
+#							}
+#						}
+#					}
+#				}
+#
+#				# The include has been parsed.
+#				if ( exists $stref->{'IncludeFiles'}{$name} )
+#				{    # Otherwise it means it is an external include
+#					 # 'Parameters' here is OK because the include might contain other includes
+#					$Sf->{'IncludedParameters'} =
+#					  &append_to_set( $Sf->{'IncludedParameters'},
+#						$stref->{'IncludeFiles'}{$name}{'Parameters'} );
+#						
+#					if (exists $stref->{'IncludeFiles'}{$name}{'Includes'}) {
+#						for my $param_inc (keys %{ $stref->{'IncludeFiles'}{$name}{'Includes'} } ) {
+#					$Sf->{'IncludedParameters'} =
+#					  &append_to_set( $Sf->{'IncludedParameters'},
+#						$stref->{'IncludeFiles'}{$param_inc}{'Parameters'} );
+#							
+#						}
+#					}
+#				}
 			} # If the line contains an 'include' statement
-			$srcref->[$index] = [ $line, $info ];
+#			$srcref->[$index] = [ $line, $info ];
 		} # loop over all lines
 	} else {
 		print "WARNING: NO LOCAL SOURCE for $f\n";
@@ -3620,10 +3636,9 @@ s Error specifier: Label
 
 We have 3 different cases:
 
-1. operation (arglist) : READ, WRITE, INQUIRE, OPEN, CLOSE,  REWIND
-2. operation (arglist) iolist : READ, WRITE
-3. operation comma_sep_list : READ, PRINT, ACCEPT, REWIND
-
+1. operation (arglist) : READ, WRITE, INQUIRE, OPEN, CLOSE,  REWIND => $attrs_ast
+2. operation (arglist) iolist : READ, WRITE => $attrs_ast, $exprs_ast
+3. operation comma_sep_list : READ, PRINT, ACCEPT, REWIND => $attr_ast
 
 =cut
 
@@ -3669,10 +3684,11 @@ sub _parse_read_write_print {
         $case=3;
         $tline=~s/^(\w+)\s*//;
         $tline="$1($tline)";
-        #say "TLINE3: $tline";
+#		say "TLINE3: $tline";
 
         $attrs_ast = parse_expression($tline,$info,$stref,$f);
-        #say Dumper($attrs_ast, $rest, $err);
+#		say Dumper($attrs_ast);
+#		say "REST: $rest, ERR: $err";
         #say emit_expr_from_ast($attrs_ast);
     }
     #say Dumper($attrs_ast, $rest, $err);
@@ -3901,9 +3917,10 @@ sub _parse_read_write_print {
 		#IOSTAT Written to
 	} elsif ( exists $info->{'RewindCall'} ) {
     #REWIND
+#    say $case,Dumper($attrs_ast);
 		if ($case==3) {
 		# REWIND u
-			if ($exprs_ast->[0] < 29) {
+			if ($attrs_ast->[0] < 29) {
 				 my $vars = find_vars_in_ast($exprs_ast, {}  );
 	            $info->{'Vars'}{'Read'}{'Set'}=$vars;
 			}
@@ -5268,6 +5285,67 @@ sub _parse_F77_decl_NEW { (my $decl_str)=@_;
     
 
 } # END of _parse_F77_decl_NEW
+
+# We have to parse the include files to get the COMMON variables because of EQUIVALENCE 
+sub __parse_include_statement { my ($stref, $f, $Sf, $line, $info, $index) = @_;
+	
+	$Sf->{'HasIncludes'}=1;
+	my $name = $info->{'Includes'};
+	print "FOUND include $name in $f\n" if $V;
+	$Sf->{'Includes'}{$name} = { 'LineID' => $index };
+
+
+
+	$info->{'Include'} = {};
+	$info->{'Include'}{'Name'} = $name;
+	$stref->{'IncludeFiles'}{$name}{'IncludedFrom'}{$f}=1;
+	if ( $stref->{'IncludeFiles'}{$name}{'Status'} == $UNREAD ) {
+		say $line if $V;
+		# Initial guess for Root. OK? FIXME?
+		$stref->{'IncludeFiles'}{$name}{'Root'}      = $f;
+		$stref->{'IncludeFiles'}{$name}{'HasBlocks'} = 0;
+		$stref = parse_fortran_src( $name, $stref );
+	} else {
+		say $line, " already processed" if $V;					
+	}
+	if (    exists $stref->{'Implicits'}
+		and exists $stref->{'Implicits'}{$name} )
+	{
+		print "INFO: inheriting IMPLICITS from $name in $f\n" if $I;
+		if ( not exists $stref->{'Implicits'}{$f} ) {
+			$stref->{'Implicits'}{$f} =
+			  $stref->{'Implicits'}{$name};
+		} else {
+			for my $k ( keys %{ $stref->{'Implicits'}{$name} } ) {
+				if ( not exists $stref->{'Implicits'}{$f}{$k} ) {
+					$stref->{'Implicits'}{$f}{$k} =
+					  $stref->{'Implicits'}{$name}{$k};
+				} else {
+					die "ERROR: $f and $name have different type for $k";
+				}
+			}
+		}
+	}
+
+	# The include has been parsed.
+	if ( exists $stref->{'IncludeFiles'}{$name} )
+	{    # Otherwise it means it is an external include
+		 # 'Parameters' here is OK because the include might contain other includes
+		$Sf->{'IncludedParameters'} =
+		  append_to_set( $Sf->{'IncludedParameters'},
+			$stref->{'IncludeFiles'}{$name}{'Parameters'} );
+			
+		if (exists $stref->{'IncludeFiles'}{$name}{'Includes'}) {
+			for my $param_inc (keys %{ $stref->{'IncludeFiles'}{$name}{'Includes'} } ) {
+		$Sf->{'IncludedParameters'} =
+		  append_to_set( $Sf->{'IncludedParameters'},
+			$stref->{'IncludeFiles'}{$param_inc}{'Parameters'} );
+				
+			}
+		}
+	}
+	return $info;
+} # END of __parse_include_statement
 
 1;
 

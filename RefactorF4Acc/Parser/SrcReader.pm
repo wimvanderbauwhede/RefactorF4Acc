@@ -1255,7 +1255,7 @@ sub _procLine {
             } elsif ( $keyword eq 'entry' ) {
                 $info->{'EntrySig'} = $name;                
             } else {
-            	
+#            	croak if uc($name )eq 'CPHS';
                 $info->{'SubroutineSig'} = [ $spaces, $name, [] ];
             }
             $line = lc($line);

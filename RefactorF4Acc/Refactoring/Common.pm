@@ -108,12 +108,12 @@ sub context_free_refactorings {
             next;
         }
         if ( exists $info->{'ImplicitNone'} ) {
-            next;
+#            next;
         }
-        elsif ( exists $info->{'Save'} ) {
-        	if ( exists  $Sf->{'Program'}) {
+        if ( exists $info->{'Save'} ) {
+        	if ( exists  $Sf->{'Program'} and $Sf->{'Program'} == 1  ) { 
         	$line = '! '.$line;
-#        	$info->{'Deleted'}=1;
+        	$info->{'Deleted'}=1;
         	$info->{'Ann'}=[ annotate($f, __LINE__ .' SAVE statement in Program' ) ];
         		
         	}
@@ -486,6 +486,7 @@ sub context_free_refactorings {
     my $has_vardecl=0;
     my $has_pars = 0;    
     my $has_includes=0;
+    my $has_implicit_none = 0;
     for my $annline ( @{$Sf->{'RefactoredCode'}} ) {
         if ( not defined $annline or not defined $annline->[0] ) {
             croak
@@ -502,6 +503,12 @@ sub context_free_refactorings {
         if (exists $info->{'Include'} ) {
             $has_includes++;
         }
+        if (exists $info->{'ImplicitNone'}) {
+        	$info->{'ExGlobVarDeclHook'}='ImplicitNone';
+        	$Sf->{'ExGlobVarDeclHook'}=1;
+        	$has_implicit_none=1;
+        	last;
+        }
         if (exists $info->{'VarDecl'}) {
             $info->{'ExGlobVarDeclHook'}='VarDecl';
             $Sf->{'ExGlobVarDeclHook'}=1;
@@ -510,7 +517,7 @@ sub context_free_refactorings {
         }        
     }    
     
-    if ($has_vardecl==0) {
+    if ($has_vardecl==0 and $has_implicit_none==0) {
         my $parlinecount=$has_pars;
         my $incllinecount=$has_includes;
         
