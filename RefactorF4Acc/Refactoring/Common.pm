@@ -582,22 +582,11 @@ sub create_refactored_source {
 					# say I split a line on ' => pre ' str1 ' sep1 ' str2 ' sep2_maybe_! ' 
 					# So I remove pre; then I remove str then look at sep. If sep has ! => OK, found comment.
 					
-					# WV 2019-03-06 FIXME: this is expensive and not quite right. Find out a case where it is actually needed!
 					my $line_without_comment = $line;  
 					if ($DBG) {
 					my $replace_PHs = 1;
 					if ($replace_PHs and exists $info->{'PlaceHolders'} ) {
 					 	my $ph_line=$line;
-#					 	for my $ph (keys %{$info->{'PlaceHolders'}} ) {
-#					 		my $ph_str = $info->{'PlaceHolders'}{$ph};
-#					 		$ph_str=~s/\)/\\\)/g;
-#					 		$ph_str=~s/\(/\\\(/g;
-#					 		$ph_str=~s/\]/\\\]/g;
-#                            $ph_str=~s/\[/\\\[/g;
-#					 		$ph_str=~s/\*/\\\*/g;
-##					 		say "s/$ph_str/$ph/";
-#					 		$ph_line=~s/$ph_str/$ph/;					 							 		
-#					 	}
 					 	my $phs={};
 					 	for my $ph (keys %{$info->{'PlaceHolders'}} ) { 
                             my $ph_str = $info->{'PlaceHolders'}{$ph};
@@ -613,8 +602,6 @@ sub create_refactored_source {
                                 my $ph       = $phs->{$strconst};                               
                                 $ph_line =~ s/\".*?\"/$ph/;
                             }
-					 	
-					 	
 					 	$line_without_comment = $ph_line;
 					}
 					}				 

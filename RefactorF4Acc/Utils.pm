@@ -581,6 +581,7 @@ sub append_to_set { (my $set1, my $set2) = @_;
 	$set1->{'List'} = [ sort keys %{ $set1->{'Set'} } ]; # WV: this destroys the order, but does it matter? 
 	return $set1;
 }
+
 # From the gfortran manual
 our @F95_intrinsic_functions_list = qw(
 abort

@@ -16,6 +16,12 @@ use RefactorF4Acc::Utils qw( in_nested_set add_var_decl_to_set remove_var_decl_f
 
 use RefactorF4Acc::Parser::Expressions qw( parse_expression_no_context );
 use RefactorF4Acc::Analysis::Arguments qw( create_RefactoredArgs );
+use RefactorF4Acc::Analysis::Arrays qw(  
+calc_array_size
+calculate_multidim_indices_from_linear
+dim_to_str
+);
+use RefactorF4Acc::Refactoring::Casts qw( _cast_annlines );
 
 use vars qw( $VERSION );
 $VERSION = "1.2.0";
@@ -232,29 +238,15 @@ sub _compare_decls {
 		my $dim2 = $decl2->{'Dim'};
 
 		#		say Dumper($dim1,$dim2);
-		my $size1 = __calc_sz( $stref, $f1, $dim1 );
-		my $size2 = __calc_sz( $stref, $f2, $dim2 );
+		my $size1 = calculate_array_size( $stref, $f1, $dim1 );
+		my $size2 = calculate_array_size( $stref, $f2, $dim2 );
 		my $dims_match = $size1 == $size2;
 		return 0 unless $dims_match;
 	}
 	return 1;
 }    # END of _compare_decls
 
-sub __calc_sz {
-	my ( $stref, $f, $dim ) = @_;
-	my @sz_strs = ();
-	for my $entry ( @{$dim} ) {
-		my $sz_str = '((' . $entry->[1] . ') - (' . $entry->[0] . ')+1)';
-		push @sz_strs, $sz_str;
-	}
-	my $tot_sz_str = join( '*', @sz_strs );
 
-	#	say $tot_sz_str ;
-	my $size = eval_expression_with_parameters( $tot_sz_str, {}, $stref, $f );
-
-	#	say $size;
-	return $size;
-}    # END of __calc_sz
 
 # Annotate the var with most of the declaration, mostly for type checking while lining up
 sub create_common_var_size_tuples {
@@ -278,7 +270,7 @@ sub create_common_var_size_tuples {
 			
 			if ( $called_sub_common_var_decl->{'ArrayOrScalar'} eq 'Array' ) {
 				$dim   = dclone( $called_sub_common_var_decl->{'Dim'} );
-				$dimsz = __calc_sz( $stref, $f, $dim ),;
+				$dimsz = calculate_array_size( $stref, $f, $dim ),;
 			}
 			my $type        = $called_sub_common_var_decl->{'Type'};
 			my $kind_or_len = $type eq 'character' ? 1 : 4;            # default
@@ -377,10 +369,10 @@ sub _match_up_common_var_sequences {
 			if ($DBG) {
 				if ( not( $htype_local eq $htype_caller and $kind_local eq $kind_caller ) ) {    # Type / Attr mismatch
 					if ( $decl_local->{'ArrayOrScalar'} eq 'Array' ) {
-						$htype_local .= ', dimension(' . __dim_to_str( $decl_local->{'Dim'} ) . ')';
+						$htype_local .= ', dimension(' . dim_to_str( $decl_local->{'Dim'} ) . ')';
 					}
 					if ( $decl_caller->{'ArrayOrScalar'} eq 'Array' ) {
-						$htype_caller .= ', dimension(' . __dim_to_str( $decl_caller->{'Dim'} ) . ')';
+						$htype_caller .= ', dimension(' . dim_to_str( $decl_caller->{'Dim'} ) . ')';
 					}
 
 					say "Type mismatch:";
@@ -431,13 +423,13 @@ sub _match_up_common_var_sequences {
 					my $dim_local_copy  = dclone($dim_local);
 					my $dim_caller_copy = dclone($dim_caller);
 					if ( $lin_idx_local != 1 ) {
-						my $coords_local = _calc_coords( $stref, $f, $dim_local, $lin_idx_local );
+						my $coords_local = calculate_multidim_indices_from_linear( $stref, $f, $dim_local, $lin_idx_local );
 						for my $idx ( 0 .. scalar @{$coords_local} - 1 ) {
 							$dim_local_copy->[$idx][0] = $coords_local->[$idx];
 						}
 					}
 					if ( $lin_idx_caller != 1 ) {
-						my $coords_caller = _calc_coords( $stref, $caller, $dim_caller, $lin_idx_caller );
+						my $coords_caller = calculate_multidim_indices_from_linear( $stref, $caller, $dim_caller, $lin_idx_caller );
 						for my $idx ( 0 .. scalar @{$coords_caller} - 1 ) {
 							$dim_caller_copy->[$idx][0] =
 							  $coords_caller->[$idx];
@@ -474,21 +466,21 @@ sub _match_up_common_var_sequences {
 
 						my $dim_local_copy   = dclone($dim_local);
 						my $dim_caller_copy  = dclone($dim_caller);
-						my $coords_local_end = _calc_coords( $stref, $f, $dim_local_copy, $lin_idx_local_end );
+						my $coords_local_end = calculate_multidim_indices_from_linear( $stref, $f, $dim_local_copy, $lin_idx_local_end );
 						for my $idx ( 0 .. scalar @{$coords_local_end} - 1 ) {
 							$dim_local_copy->[$idx][1] =
 							  $coords_local_end->[$idx];
 						}
 
 						if ( $lin_idx_local_start != 1 ) {
-							my $coords_local = _calc_coords( $stref, $f, $dim_local_copy, $lin_idx_local_start );
+							my $coords_local = calculate_multidim_indices_from_linear( $stref, $f, $dim_local_copy, $lin_idx_local_start );
 							for my $idx ( 0 .. scalar @{$coords_local} - 1 ) {
 								$dim_local_copy->[$idx][0] =
 								  $coords_local->[$idx];
 							}
 						}
 						if ( $lin_idx_caller != 1 ) {
-							my $coords_caller = _calc_coords( $stref, $caller, $dim_caller_copy, $lin_idx_caller );
+							my $coords_caller = calculate_multidim_indices_from_linear( $stref, $caller, $dim_caller_copy, $lin_idx_caller );
 							for my $idx ( 0 .. scalar @{$coords_caller} - 1 ) {
 								$dim_caller_copy->[$idx][0] =
 								  $coords_caller->[$idx];
@@ -519,20 +511,20 @@ sub _match_up_common_var_sequences {
 						# Now increment the index
 						my $dim_local_copy    = dclone($dim_local);
 						my $dim_caller_copy   = dclone($dim_caller);
-						my $coords_caller_end = _calc_coords( $stref, $f, $dim_caller_copy, $lin_idx_caller_end );
+						my $coords_caller_end = calculate_multidim_indices_from_linear( $stref, $f, $dim_caller_copy, $lin_idx_caller_end );
 						for my $idx ( 0 .. scalar @{$coords_caller_end} - 1 ) {
 							$dim_caller_copy->[$idx][1] =
 							  $coords_caller_end->[$idx];
 						}
 						if ( $lin_idx_local != 1 ) {
-							my $coords_local = _calc_coords( $stref, $f, $dim_local_copy, $lin_idx_local );
+							my $coords_local = calculate_multidim_indices_from_linear( $stref, $f, $dim_local_copy, $lin_idx_local );
 							for my $idx ( 0 .. scalar @{$coords_local} - 1 ) {
 								$dim_local_copy->[$idx][0] =
 								  $coords_local->[$idx];
 							}
 						}
 						if ( $lin_idx_caller_start != 1 ) {
-							my $coords_caller = _calc_coords( $stref, $caller, $dim_caller_copy, $lin_idx_caller_start );
+							my $coords_caller = calculate_multidim_indices_from_linear( $stref, $caller, $dim_caller_copy, $lin_idx_caller_start );
 							for my $idx ( 0 .. scalar @{$coords_caller} - 1 ) {
 								$dim_caller_copy->[$idx][0] =
 								  $coords_caller->[$idx];
@@ -569,8 +561,8 @@ sub _match_up_common_var_sequences {
 					# We support a scalar with a larger kind, simply by having
 					my $lin_idx_caller_start = $lin_idx_caller;
 					my $lin_idx_caller_end   = $lin_idx_caller_start + $kind_caller / $kind_local - 1;                # so, usually this is 0
-					my $coords_start         = _calc_coords( $stref, $caller, $dim_caller, $lin_idx_caller_start );
-					my $coords_end           = _calc_coords( $stref, $caller, $dim_caller, $lin_idx_caller_end );
+					my $coords_start         = calculate_multidim_indices_from_linear( $stref, $caller, $dim_caller, $lin_idx_caller_start );
+					my $coords_end           = calculate_multidim_indices_from_linear( $stref, $caller, $dim_caller, $lin_idx_caller_end );
 					my $dim_caller_copy      = dclone($dim_caller);
 					for my $idx ( 0 .. scalar @{$coords_start} - 1 ) {
 						$dim_caller_copy->[$idx][0] = $coords_start->[0];
@@ -603,8 +595,8 @@ sub _match_up_common_var_sequences {
 				if ( $kind_local == $kind_caller ) {
 					my $lin_idx_local_start = $lin_idx_local;
 					my $lin_idx_local_end   = $lin_idx_local_start + $kind_local / $kind_caller - 1;          # so, usually this is 0
-					my $coords_start        = _calc_coords( $stref, $f, $dim_local, $lin_idx_local_start );
-					my $coords_end          = _calc_coords( $stref, $f, $dim_local, $lin_idx_local_end );
+					my $coords_start        = calculate_multidim_indices_from_linear( $stref, $f, $dim_local, $lin_idx_local_start );
+					my $coords_end          = calculate_multidim_indices_from_linear( $stref, $f, $dim_local, $lin_idx_local_end );
 					my $dim_local_copy      = dclone($dim_local);
 					for my $idx ( 0 .. scalar @{$coords_start} - 1 ) {
 						$dim_local_copy->[$idx][0] = $coords_start->[0];
@@ -688,15 +680,6 @@ sub _match_up_common_var_sequences {
 	return $stref;
 }    # END of _match_up_common_var_sequences
 
-#sub __get_total_size { my @common_seq = @_;
-#	my $total_sz=0;
-#	for my $elt (@common_seq) {
-#		$total_sz+=$elt->[2]*$elt->[5];
-#	}
-#	return $total_sz;
-#}
-# annotate with prefix
-
 sub __emit_equiv_var_str {
 	( my $tup ) = @_;
 	( my $var, my $type, my $is_array, my $m_dim, my $m_prefix ) = @{$tup};
@@ -715,7 +698,7 @@ sub _caller_to_local_assignment_annlines {
 	my $l_str    = __emit_equiv_var_str($l);
 	my $r        = $equiv_pair->[1];
 	my $r_str    = __emit_equiv_var_str($r);
-	my $annlines = _cast_annlines( $l->[1], $l_str, $r->[1], $r_str );
+	my $annlines = __cast_annlines( $l->[1], $l_str, $r->[1], $r_str );
 
 	# Adding the Indent
 	my $indent = ' ' x 6;
@@ -731,7 +714,7 @@ sub _caller_to_rev_local_assignment_annlines {
 	my $l_str    = __emit_equiv_var_str($l);
 	my $r        = $equiv_pair->[1];
 	my $r_str    = __emit_equiv_var_str($r);
-	my $annlines = _cast_annlines(  $r->[1], $r_str, $l->[1], $l_str );
+	my $annlines = __cast_annlines(  $r->[1], $r_str, $l->[1], $l_str );
 
 	# Adding the Indent
 	my $indent = ' ' x 6;
@@ -739,127 +722,6 @@ sub _caller_to_rev_local_assignment_annlines {
 	return $annlines;
 } # END of _caller_to_rev_local_assignment_annlines
 
-# Casting between types but this does assume essentially kind=4
-sub _cast_annlines {
-	my ( $to_type, $to_var, $from_type, $from_var ) = @_;
-	if ( $from_type eq $to_type ) {
-		return ["$to_var = $from_var"];    #,{"Assignment"=>1,'Indent'=>' ' x 6}]];
-	} elsif ( $from_type eq 'integer' ) {
-		if ( $to_type eq 'logical' ) {
-			return __cast_integer_to_logical_annlines( $from_var, $to_var );
-		} elsif ( $to_type eq 'real' ) {
-			return __cast_integer_to_real_annlines( $from_var, $to_var );
-		}
-	} elsif ( $from_type eq 'real' ) {
-		if ( $to_type eq 'logical' ) {
-			return __cast_real_to_logical_annlines( $from_var, $to_var );
-		} elsif ( $to_type eq 'integer' ) {
-			return __cast_real_to_integer_annlines( $from_var, $to_var );
-		}
-	} elsif ( $from_type eq 'logical' ) {
-		if ( $to_type eq 'real' ) {
-			return __cast_logical_to_real_annlines( $from_var, $to_var );
-		} elsif ( $to_type eq 'integer' ) {
-			return __cast_logical_to_integer_annlines( $from_var, $to_var );
-		}
-	}
-} # END of _cast_annlines
-
-sub __cast_logical_to_integer_annlines {
-	( my $v_logical, my $v_integer ) = @_;
-
-	return [
-		"if ($v_logical) then",
-		"    $v_integer=1",
-		'else',                #{'Else'=>1, 'Indent'=>' ' x 6}],
-		"    $v_integer=0",    #{'Assignment' => 1, 'Indent'=>' ' x 6}],
-		'end if'               #,{'EndIf'=>1, 'Indent'=>' ' x 6}]
-	];
-} # END of __cast_logical_to_integer_annlines
-
-sub __cast_logical_to_real_annlines {
-	( my $v_logical, my $v_real ) = @_;
-
-	return [
-		"if ($v_logical) then",    #{'If'=>1, 'Indent'=>' ' x 6 }],
-		"    $v_real=1.0",         # {'Assignment' => 1, 'Indent'=>' ' x 6}],
-		'else',                    #{'Else'=>1, 'Indent'=>' ' x 6}],
-		"    $v_real=0.0",         #{'Assignment' => 1, 'Indent'=>' ' x 6}],
-		'end if'                   #,{'EndIf'=>1, 'Indent'=>' ' x 6}]
-	];
-}
-
-sub __cast_integer_to_logical_annlines {
-	( my $v_integer, my $v_logical ) = @_;
-	return ["$v_logical = ($v_integer /= 0)"];    #,{"Assignment"=>1,'Indent'=>' ' x 6}]];
-}
-
-sub __cast_integer_to_real_annlines {
-	( my $v_real, my $v_integer ) = @_;
-	return ["$v_real = real($v_integer)"];        #,{'Assignment'=>1,'Indent'=>' ' x 6}]];
-}
-
-sub __cast_real_to_logical_annlines {
-	( my $v_real, my $v_logical ) = @_;
-	return ["$v_logical = ($v_real /= 0.0)"];     #,{"Assignment"=>1,'Indent'=>' ' x 6}]];
-}
-
-sub __cast_real_to_integer_annlines {
-	( my $v_real, my $v_integer ) = @_;
-	return ["$v_integer = int($v_real)"];         #,{'Assignment'=>1,'Indent'=>' ' x 6}]];
-}
-
-# Given the linear index (starting at 1) in an array
-# and its dimensions and offsets
-# return the n-dim coordinate for that index
-sub _calc_coords {
-	my ( $stref, $f, $dim_rec, $lin_sz ) = @_;
-
-	#            integer, intent(In) :: lin_sz, n_dims
-	#            integer, dimension(n_dims),intent(In) :: dims, offsets
-	#            integer, dimension(n_dims), intent(Out) :: coords
-	#            integer, dimension(n_dims-1) :: mm
-	#            integer :: ii, jj, p_dims, sz
-	( my $dims, my $offsets ) = __calc_dims_offsets( $stref, $f, $dim_rec );
-	my $coords   = [];
-	my $sz       = $lin_sz;
-	my @tmp_dims = @{$dims};
-	my $n_dims   = scalar @tmp_dims;
-	my $p_dims   = 1;
-	map { $p_dims *= $_ } @tmp_dims;
-
-	for my $ii ( 1 .. $n_dims - 1 ) {
-		my $div_dim = shift @tmp_dims;
-		$p_dims /= $div_dim;
-		$coords->[ $ii - 1 ] = int( $sz / $p_dims ) + $offsets->[ $ii - 1 ];
-		$sz %= $p_dims;
-	}
-	$coords->[ $n_dims - 1 ] = $sz + $offsets->[ $n_dims - 1 ] - 1;    # The "-1" is because $lin_sz starts at 1 for the first element, not 0
-	return $coords;
-}    # END of _calc_coords
-
-# $dims is an array of the sizes of each dimension
-# $offsets is an array of the offsets each dimension
-sub __calc_dims_offsets {
-	my ( $stref, $f, $dim_rec ) = @_;
-	my $offsets = [];
-	my $dims    = [];
-	my @sz_strs = ();
-	for my $entry ( @{$dim_rec} ) {
-		my $offset_val =
-		  eval_expression_with_parameters( $entry->[0], {}, $stref, $f );
-		push @{$offsets}, $offset_val;
-		my $dim_str = '((' . $entry->[1] . ') - (' . $entry->[0] . ')+1)';
-		my $dim_val = eval_expression_with_parameters( $dim_str, {}, $stref, $f );
-		push @{$dims}, $dim_val;
-	}
-	return ( $dims, $offsets );
-}    # END of __calc_dims_offsets
-
-sub __dim_to_str {
-	( my $dim ) = @_;
-	return join( ',', map { $_->[0] . ':' . $_->[1] } @{$dim} );
-}
 
 sub __add_prefixed_arg {
 	( my $Sf, my $name_caller, my $decl_caller, my $caller, my $block ) = @_;

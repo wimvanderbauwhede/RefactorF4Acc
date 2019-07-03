@@ -138,11 +138,6 @@ sub parse_fortran_src {
 			$stref->{'Modules'}{$f}{'Status'} = $PARSED;			
 		}
 
-#		   # 7. Split variable declarations with multiple vars into single-var lines
-#		   # One could say this is "refactoring" but I say it's "preconditioning"
-#			$stref = _split_multivar_decls( $f, $stref );
-#			
-#			$stref = _split_multipar_decls_and_set_type( $f, $stref );
 		} else {
 			say "INFO: SKIPPING ENTRY $f" if $I;
 		}
@@ -530,9 +525,9 @@ SUBROUTINE
 # So in order to splice in lines, what I guess I should do is create these new lines and store them at some index, then
 # use that index to break up $annlines and splice them in: [@{$annlines}[0..$index], $extra_lines,@{$annlines}[$index.. $end_index] ]
 					
-					$extra_lines{$index}=[];
-					for my $var_dim (@vars_with_dim ) {
-						my $dline = $var_dim;
+				$extra_lines{$index}=[];
+				for my $var_dim (@vars_with_dim ) {
+					my $dline = $var_dim;
 					my $varname = $var_dim;
 					$varname=~s/\s*\(.+//;
 					$var_dim=~s/^\w+/dimension/;
@@ -541,9 +536,9 @@ SUBROUTINE
 					my $subset;
 					my $is_macro = exists $Config{'Macros'}{uc($varname)} ? 1 : 0;
 					if (not $is_macro ) {
-					if (not in_nested_set( $Sf, 'Vars', $varname ) ) {
+						if (not in_nested_set( $Sf, 'Vars', $varname ) ) {
 						# So this var was not declared before. Declare it and type it, then get the dimension 
-						($type, my $array_or_scalar, my $attr)= type_via_implicits($stref, $f,$varname);
+							($type, my $array_or_scalar, my $attr)= type_via_implicits($stref, $f,$varname);
 							$Sf->{'DeclaredOrigLocalVars'}{'Set'}{$varname}={
 								'Indent' => $indent,
 								'Type' => $type,
@@ -554,15 +549,12 @@ SUBROUTINE
 								'Names'=>[$varname],
 							};		
 							$subset='DeclaredOrigLocalVars';					
-					} else {
+						} else {
 						
-						my $decl = get_var_record_from_set($Sf->{'Vars'},$varname);
-						$subset = in_nested_set( $Sf, 'Vars', $varname );
+							my $decl = get_var_record_from_set($Sf->{'Vars'},$varname);
+							$subset = in_nested_set( $Sf, 'Vars', $varname );
 						 
-#						if ($subset eq 'ExGlobArgs' ) {
-#							$subset = 'DeclaredCommonVars'; # because in_nested_set() can find either one
-#						}
-						if (ref($decl) ne 'HASH' and $subset eq 'UndeclaredOrigArgs') {			
+							if (ref($decl) ne 'HASH' and $subset eq 'UndeclaredOrigArgs') {			
 							# This is for so far undeclared arguments: they already have an entry
 							# We call __parse_f95_decl on them and that will make them DeclaredOrigArgs
 							
@@ -578,26 +570,24 @@ SUBROUTINE
 									'IODir' => 'Unknown',
 								};		
 								$Sf->{'UndeclaredOrigArgs'}{'Set'}{$varname}=$decl;		
-						} 
-						elsif ($subset eq 'UndeclaredOrigLocalVars') {
+							} 
+							elsif ($subset eq 'UndeclaredOrigLocalVars') {
 							# Change to DeclaredOrigLocalVars
 							
-							$Sf->{'DeclaredOrigLocalVars'}{'Set'}{$varname}=dclone($decl);
-							delete $Sf->{'UndeclaredOrigLocalVars'}{'Set'}{$varname};
-							@{ $Sf->{'UndeclaredOrigLocalVars'}{'List'} } = grep { $_ ne $varname } @{ $Sf->{'UndeclaredOrigLocalVars'}{'List'} };
-#							push @{ $Sf->{'DeclaredOrigLocalVars'}{'List'} }, $varname;							
-						} 
-						else {
+								$Sf->{'DeclaredOrigLocalVars'}{'Set'}{$varname}=dclone($decl);
+								delete $Sf->{'UndeclaredOrigLocalVars'}{'Set'}{$varname};
+								@{ $Sf->{'UndeclaredOrigLocalVars'}{'List'} } = grep { $_ ne $varname } @{ $Sf->{'UndeclaredOrigLocalVars'}{'List'} };
+							} 
+							else {
 							
 							# Means that the variable is either declared via T or undeclared via C. 	
-							if ($subset eq 'UndeclaredCommonVars') {
-								my $decl = dclone( $Sf->{'UndeclaredCommonVars'}{'Set'}{$varname} );
-								$Sf->{'DeclaredCommonVars'}{'Set'}{$varname} = $decl;
-								delete $Sf->{'UndeclaredCommonVars'}{'Set'}{$varname};
-								@{ $Sf->{'UndeclaredCommonVars'}{'List'} } =  grep { $_ ne $varname } @{ $Sf->{'UndeclaredCommonVars'}{'List'} };
-								$Sf->{'DeclaredCommonVars'}{'List'} = ordered_union( $Sf->{'DeclaredCommonVars'}{'List'}, [$varname] );
-								
-							}  						
+								if ($subset eq 'UndeclaredCommonVars') {
+									my $decl = dclone( $Sf->{'UndeclaredCommonVars'}{'Set'}{$varname} );
+									$Sf->{'DeclaredCommonVars'}{'Set'}{$varname} = $decl;
+									delete $Sf->{'UndeclaredCommonVars'}{'Set'}{$varname};
+									@{ $Sf->{'UndeclaredCommonVars'}{'List'} } =  grep { $_ ne $varname } @{ $Sf->{'UndeclaredCommonVars'}{'List'} };
+									$Sf->{'DeclaredCommonVars'}{'List'} = ordered_union( $Sf->{'DeclaredCommonVars'}{'List'}, [$varname] );									
+								}  						
 						}
 						$type = $decl->{'Type'};
 					}
@@ -787,11 +777,8 @@ SUBROUTINE
 			 	my @chunks = split(/\//,$line);
 			 	$chunks[1]=~s/\s+//g;
 			 	$line=join('/',@chunks);
-#				$line = _expand_repeat_data($line); 		
 				say "DATA declaration $line" if $V;
-#				$extra_lines{$index}=
 				$info = _parse_data_declaration($line,$info, $stref, $f);
-#				next;
 		} 
 		elsif  ($line=~/^data\b/ and $line=~/=/ and $line=~/\/\s*$/ ) {
 		    	# This is either a DATA declaration with an implicit DO, or else an assignment to the variable data
@@ -831,7 +818,7 @@ SUBROUTINE
 		 		$info->{'SpecificationStatement'} = 1;
                 $info->{'HasVars'} = 1; 
                 my $indent = $info->{'Indent'};
-		 		say "WARNING: EQUIVALENCE IS IGNORED!" if $W and not $NEW_PARSER;
+		 		
 		 		# WE DO NOT SUPPORT THE FOLLOWING: "An EQUIVALENCE statement can extend a COMMON block on the right-hand side"
 		 		if (not exists $grouped_warnings->{'EQUIVALENCE'}) {
 		 			$grouped_warnings->{'EQUIVALENCE'}=[ "The EQUIVALENCE  statement is not refactored, this could possible break your code, please rewrite:",
@@ -841,15 +828,14 @@ SUBROUTINE
 		 		}		 		
 		 		my $warn =  '    '.$info->{'LineID'}.': '.$line;
 			 	push @{	$grouped_warnings->{'EQUIVALENCE'} }, $warn;
-                if ($NEW_PARSER) {
+
 			 	my $tline = $line;
 			 	$tline=~s/^equivalence\s+//;
 #			 	(my $ast, my $rest, my $err, my $has_funcs)
 			 	my $ast = parse_expression($tline, $info,  $stref,  $f);
 				$info->{'Ast'}=$ast;
-                #croak "FIXME: must split expression if it is a list of parenthised statements";
-                # We must to the procedure below for every element in that list
-                my @asts=();
+                # We must do the procedure below for every element in that list
+                my @asts=(); # an AST for each tuple
                 if (($ast->[0] & 0xFF) == 27) {
                     for my $idx (1 .. scalar @{$ast}-1) {
                         push @asts, $ast->[$idx];
@@ -860,50 +846,11 @@ SUBROUTINE
                 $info->{'Vars'}{'Set'}= {};
                 
                 for my $ast (@asts) {
-                #say "EQUIVALENCE: $tline"; 
-                #say "AST:". Dumper($ast);
-			 	my $vars = find_vars_in_ast($ast,{});
-                #say "VARS:".Dumper($vars);
-			 	# Now, of a var already exists, we leave it alone;
+				 	my $vars = find_vars_in_ast($ast,{});
+				 	$info->{'Vars'}{'Set'}= {%{$info->{'Vars'}{'Set'}},%{ $vars } } ;
+            	}
+            	$info->{'Vars'}{'List'}= [sort keys %{$info->{'Vars'}{'Set'}}];
 
-			 	$info->{'Vars'}{'Set'}= {%{$info->{'Vars'}{'Set'}},%{ $vars } } ;
-#                $info->{'Vars'}{'List'}= [sort keys %{$vars}];
-#			 	my $equiv_type = 'Unknown'; 
-#			 	my $equiv_attr = ''; 
-#                for my $tvar (keys %{$vars}) {
-#                    my $subset = in_nested_set($Sf,'Vars',$tvar);
-#                    if ($subset) {
-##						say "VAR $tvar found in SUBSET $subset";
-#						
-#                        my $orig_decl =  $Sf->{$subset}{'Set'}{$tvar} ;
-##                        say Dumper($orig_decl );
-#                        $equiv_type=$orig_decl->{'Type'};
-#                        $equiv_attr=$orig_decl->{'Attr'};
-##                        last; # because I assume they all must have the same type.
-#                    } else {
-#                    	# check if this is maybe declared via an include
-#                    	
-#                    	
-#                    	
-##                     say "VAR $tvar not yet declared";
-#                        ($equiv_type, my $array_or_scalar, $equiv_attr)=type_via_implicits($stref, $f,$tvar);
-#                        my $decl = {
-#                            'Indent' => $indent,
-#                            'Type'   => $equiv_type,
-#                            'Attr'   => $equiv_attr,
-#                            'Name'   => $tvar,
-#                            'Status' => 0,
-#                            'StmtCount' => 0,
-#                            'ArrayOrScalar' => $vars->{$tvar}{'Type'}
-#                        };		
-#                        $Sf->{'UndeclaredOrigLocalVars'}{'Set'}{$tvar} = $decl;
-#                        push @{$Sf->{'UndeclaredOrigLocalVars'}{'List'}},$tvar;
-#                    }                                        
-#                }
-
-            }
-            $info->{'Vars'}{'List'}= [sort keys %{$info->{'Vars'}{'Set'}}];
-            } # NEW_PARSER
 		 	}		
 #== VARIABLE and PARAMETER DECLARATIONS
 #@ VarDecl =>
@@ -1017,17 +964,17 @@ or $line=~/^character\s*\(\s*len\s*=\s*[\w\*]+\s*\)/
 					my $ast = parse_expression($do_stmt,  $info,  $stref,  $f);
 					my $mvars = get_vars_from_expression($ast,{});
 					my $vars= [ grep {!/_OPEN_PAR_/} keys %{$mvars} ];
-					warn 'FIXME: support for WHILE: '.$line;#.Dumper($vars);
-					$info->{'Do'} = {
-						'While' =>1,
-						'Iterator' => '',
-						'Label'    => $label,
-						'ExpressionsAst' => $ast,
-						'Range'    => {	
-							'Vars'        => $vars,
-							},
-						'LineID' => $info->{'LineID'}
-					};
+#					warn 'Support for WHILE: '.$line;#.Dumper($vars);
+#					$info->{'Do'} = {
+#						'While' =>1,
+#						'Iterator' => '',
+#						'Label'    => $label,
+#						'ExpressionsAst' => $ast,
+#						'Range'    => {	
+#							'Vars'        => $vars,
+#							},
+#						'LineID' => $info->{'LineID'}
+#					};
 				} else {
 					( my $iter, my $range ) = split( /\s*=\s*/, $do_stmt );
 					( my $range_start, my $range_stop, my $range_step ) = split( /s*,\s*/, $range );
@@ -1427,7 +1374,7 @@ END IF
 	} else {
 		croak "WARNING: NO source file found for $f ($sub_incl_or_mod). If this file is in an external directory, please speficy the directory in EXTSRCDIRS in the config file\n" ;
 		if ($Sf->{'Entry'} ==0) {
-		# FIXME: if we can't find the source, we should search the include path, but not attempt to create a module for that source!			
+		# TODO: if we can't find the source, we should search the include path, but not attempt to create a module for that source!			
 		}
 	}
 	if ($W) {
@@ -1498,7 +1445,7 @@ sub _parse_includes {
 #				if ( $stref->{'IncludeFiles'}{$name}{'Status'} == $UNREAD ) {
 #					print $line, "\n" if $V;
 #
-#					# Initial guess for Root. OK? FIXME?
+#					# Initial guess for Root. 
 #					$stref->{'IncludeFiles'}{$name}{'Root'}      = $f;
 #					$stref->{'IncludeFiles'}{$name}{'HasBlocks'} = 0;
 #					$stref = parse_fortran_src( $name, $stref );
@@ -1546,7 +1493,7 @@ sub _parse_includes {
 		} # loop over all lines
 	} else {
 		print "WARNING: NO LOCAL SOURCE for $f\n";
-		# FIXME: if we can't find the source, we should search the include path, but
+		# TODO: if we can't find the source, we should search the include path, but
 		# not attempt to create a module for that source!
 	}
 
@@ -1560,7 +1507,7 @@ sub _parse_includes {
 # Parse 'use' declarations 
 # the module can contain module-scoped variables etc.
 # So we need to parse all the stuff in a module except the subroutines, as that is done elsewhere
-# WV20170607 I simply assme that any variable declaration is a global
+# WV20170607I simply assume that any variable declaration is a global
 sub _parse_use {
 	( my $f, my $stref ) = @_;
 
@@ -1632,8 +1579,7 @@ sub _parse_use {
 								$stref->{'Implicits'}{$f}{$k} =
 								  $stref->{'Implicits'}{$name}{$k};
 							} else {
-								die
-"ERROR: $f and $name have different type for $k";
+								die "ERROR: $f and $name have different type for $k";
 							}
 						}
 					}
@@ -1641,18 +1587,10 @@ sub _parse_use {
 				
 				# the used module has been parsed
 				if ( exists $stref->{'Modules'}{$name} ) {    # Otherwise it means it is an external module
-				
 					 # 'Parameters' here is OK because the include might contain other includes
 					$Sf->{'UsedParameters'} = &append_to_set( $Sf->{'UsedParameters'}, $stref->{'Modules'}{$name}{'Parameters'} );
 					# I think here I should 'inherit' UsedLocalVars from this module, i.e. any LocalVars in $name
-					# FIXME should this not be UndeclaredCommonVars ???
 					$Sf->{'UndeclaredCommonVars'} = append_to_set( $Sf->{'UndeclaredCommonVars'}, $stref->{'Modules'}{$name}{'DeclaredCommonVars'} );
-#					if (exists $stref->{'Modules'}{$name}{'IsGlobal'} and $stref->{'Modules'}{$name}{'IsGlobal'}==1) {
-#						$Sf->{'UsedGlobalVars'} = append_to_set( $Sf->{'UsedGlobalVars'}, $stref->{'Modules'}{$name}{'LocalVars'} );
-#					} else {
-#						$stref->{'Modules'}{$name}{'IsGlobal'}=0;
-#						$Sf->{'UsedLocalVars'} = append_to_set( $Sf->{'UsedLocalVars'}, $stref->{'Modules'}{$name}{'LocalVars'} );
-#					} 											
 				}
 				} else {
 					say "WARNING: module $name is EXTERNAL" if $W;
@@ -1663,7 +1601,7 @@ sub _parse_use {
 	} else {
 		print "WARNING: NO LOCAL SOURCE for $f\n";
 
-	# FIXME: if we can't find the source, we should search the include path, but
+	# TODO: if we can't find the source, we should search the include path, but
 	# not attempt to create a module for that source!
 	}
 
@@ -1725,29 +1663,13 @@ sub _parse_subroutine_and_function_calls {
 	my $external_sub       = 0;
 	my $entry_call = 0;
 
-	# For C translation and call tree generation
-	# TODO: $translate is obsolete!
-	if ( $translate == $GO
-		|| ( $call_tree_only && ( $gen_sub || $main_tree ) ) )
-	{
-		if ( $translate == $GO ) {
-			$stref = add_to_C_build_sources( $f, $stref );
-		}
-	}
-	if ( exists $Sf->{'Translate'} ) {
-		if ( $Sf->{'Translate'} eq 'C' ) {
-			$stref = add_to_C_build_sources( $f, $stref );
-		} else {
-			croak '!$acc translate (' 
-			  . $f . ') '
-			  . $Sf->{'Translate'}
-			  . ": Only C translation through F2C_ACC is currently supported.\n";
-		}
-	}
 	my $srcref = $Sf->{'AnnLines'};
 
 	if ( defined $srcref ) {
+		# Subroutine calls to be offloaded must be enclosed in a KernelWrapper region 
+		# TODO: We currently only allow ONE KernelWrapper region in a code unit (or in fact in a program).
 		my $in_kernel_wrapper_region = 0;
+		# Each subroutine in that region should be enclodsed in a KernelSub region		
 		my $in_kernel_sub_region     = 0;
 		my $kernel_wrapper_name      = '';
 		my $current_sub_name         = '';
@@ -1755,15 +1677,14 @@ sub _parse_subroutine_and_function_calls {
 		for my $index ( 0 .. scalar( @{$srcref} ) - 1 ) {
 			(my $line, my $info) = @{$srcref->[$index]};
 			
-			next if ( $line =~ /^\!\s/ and $line !~ /^\!\s*\$(?:ACC|RF4A)\s/i );
+			next if ( $line =~ /^\!\s/ and $line !~ /^\!\s*\$(?:ACC|RF4A)\s/i ); # TODO: use $info
 			if ( exists $info->{'AccPragma'} ) {
 				if ( exists $info->{'AccPragma'}{'BeginKernelWrapper'} ) {
 					$in_kernel_wrapper_region = 1;
 					$kernel_wrapper_name =
 					  $info->{'AccPragma'}{'BeginKernelWrapper'}[0];
 				} elsif ( exists $info->{'AccPragma'}{'EndKernelWrapper'} ) {
-					$in_kernel_wrapper_region = 0
-					  ; #2; # FIXME: A bit weak, what if there are more than one?
+					$in_kernel_wrapper_region = 0; 
 				} elsif ( exists $info->{'AccPragma'}{'BeginKernelSub'} ) {
 					$in_kernel_sub_region = 1;
 				} elsif ( exists $info->{'AccPragma'}{'EndKernelSub'} ) {
@@ -1830,23 +1751,6 @@ sub _parse_subroutine_and_function_calls {
 						$entry_call=0;
 					}
 				}
-				if (!$NEW_PARSER) {
-	                my $ast = parse_expression( "$name($argstr)", $info, $stref, $f );                 
-	                ( my $expr_args, my $expr_other_vars ) = get_args_vars_from_subcall($ast);
-	                #croak Dumper($expr_args,$expr_other_vars) if $name=~/boundsm/;
-	                for my $expr_arg(@{$expr_args->{'List'}}) {
-	                    if (substr($expr_arg,0,1) eq '*') {
-	                        my $label=substr($expr_arg,1);
-	                        $Sf->{'ReferencedLabels'}{$label}=$label;       
-	                    }
-	                }
-	                $info->{'CallArgs'}               = $expr_args;
-	                $info->{'ExprVars'}               = $expr_other_vars;
-	                $info->{'SubroutineCall'}{'Args'} = $info->{'CallArgs'};
-	                
-	                $info->{'SubroutineCall'}{'ExpressionAST'} = $ast;                
-                
-				} else {                
 	                if ($argstr) {
 	                	
 						my $ast = parse_expression( $argstr, $info, $stref, $f ); 
@@ -1873,7 +1777,6 @@ sub _parse_subroutine_and_function_calls {
 					    $info->{'SubroutineCall'}{'ExpressionAST'} = [];
 	
 	                }
-				}
 				
 				if ( $external_sub == 0 ) {
 					# If this is a call to an ENTRY, I will for the time being treat this separately
@@ -2059,8 +1962,7 @@ sub _parse_subroutine_and_function_calls {
 					for my $mvar (@lchunks) {
 						next if $mvar eq '';
 						next if $mvar =~ /^\d+$/;
-						next
-						  if $mvar =~ /^(\-?(?:\d+|\d*\.\d*)(?:[edq][\-\+]?\d+)?)$/;
+						next if $mvar =~ /^(\-?(?:\d+|\d*\.\d*)(?:[edq][\-\+]?\d+)?)$/;
 						next if exists $F95_reserved_words{$mvar};
 						next if exists $Config{'Macros'}{uc($mvar)};
 						if (exists $stref->{'Subroutines'}{$mvar}) {
@@ -2474,7 +2376,6 @@ sub __parse_sub_func_prog_decls {
 					$info->{'Signature'}{'ReturnTypeAttr'} = defined $maybe_attr ? $maybe_attr : '';					
 				}
 			}
-			# FIXME: we need the RESULT variable
 			if ($line =~ /function\s+\w+\s*\(.*\)\s+result\s+(\w+)/ ) {
                 my $result_var=$1;                
                 $info->{'Signature'}{'ResultVar'} = $result_var;                
@@ -2531,20 +2432,20 @@ sub __parse_sub_func_prog_decls {
 		$info->{'Signature'}{'Args'}{'Set'}  = { map { $_ => __PACKAGE__ . ' ' . __LINE__ } @args };
 		$info->{'Signature'}{'Name'}         = $name;
 		$info->{'Signature'}{'Entry'} = 1;
-		$info->{'Entry'}=1; # FIXME
+		$info->{'Entry'}=1;
 		$info->{'Signature'}{'Function'} = 0;
 		
 		$Sf->{'HasEntries'} =1;
 # The entry arg list is different from the parent sub arg list. 
 # Also we already parsed the parent, so there should be no undeclared args in principle
 # Anyway, what I need is to have OrigArgs for the ENTRY, not the parent.
-# So maybe I can do $Sf->{'Entry'}{$name}, call this $Sname, and take it from there
+# So I define $Sname = $Sf->{'Entry'}{$name} and take it from there
 		$Sf->{'Entries'}{'Set'}{$name} = {};
 		push @{ $Sf->{'Entries'}{'List'} },$name;
 		my $Sname = $Sf->{'Entries'}{'Set'}{$name};
-		# FIXME
+
 		# As all vars are declared (or not) *before* ENTRY, I think we should pretend that 
-		# all args are declared. That way I'm sure not extra declarations will be added 
+		# all args are declared. That way I'm sure no extra declarations will be added 
 		
 		$Sname->{'DeclaredOrigArgs'}{'List'}  = [@args];
 		$Sname->{'DeclaredOrigArgs'}{'Set'} = { map { $_ => __PACKAGE__ . ' ' . __LINE__ } @args };   # UGH! 		
@@ -2559,7 +2460,7 @@ sub __parse_sub_func_prog_decls {
 			};				
 		
 	} else { 
-		croak 'BOOM: '.$line;
+		croak 'UNRECOGNISED SUBROUTINE DECLARATION: '.$line;
 	}
 #	croak Dumper $info if $name eq 'gzwrit';
     $Sf->{'Signature'}=$info->{'Signature'};
@@ -2645,20 +2546,10 @@ sub __parse_f95_decl {
 		
 		$info->{'UsedParameters'} = $pars_in_val;
 
-		if ( not exists $Sf->{'LocalParameters'}{'List'} ) {
-			croak 'BOOM!';
-			$Sf->{'LocalParameters'}{'List'} = [];
-		}
-		if ( not exists $Sf->{'LocalParameters'}{'Set'} ) {
-			croak 'BOOM!';
-			$Sf->{'LocalParameters'}{'Set'} = {};
-		}
 		$Sf->{'LocalParameters'}{'Set'}{$var} = $param_decl;
 
 		# List is only used in Parser, find out what it does
-		@{ $Sf->{'LocalParameters'}{'List'} } =
-		  ( @{ $Sf->{'LocalParameters'}{'List'} }, $var )
-		  ;    # FIXME: use ordered_union()
+		$Sf->{'LocalParameters'}{'List'}  = [ @{ $Sf->{'LocalParameters'}{'List'} }, $var ];
 
 	} else {
 		# F95 VarDecl, continued
@@ -2963,268 +2854,27 @@ sub __parse_f77_par_decl {
 sub __parse_f77_var_decl {
 	( my $Sf, my $stref, my $f,my $indent,  my $line, my $info, my $type, my $varlst ) = @_;
 		
-				my $is_module = (exists $stref->{'Modules'}{$f}) ? 1 : 0;
-# Half-baked F95/F77 declarations are threated as F77, so remove the :: here
-my $half_baked = ($line=~s/\:://);
+    my $is_module = (exists $stref->{'Modules'}{$f}) ? 1 : 0;
+    # Half-baked F95/F77 declarations are threated as F77, so remove the :: here
+    my $half_baked = ($line=~s/\:://);
 
-my $attr='';
-my $pvars;
-my $pvars_lst;
-if ($NEW_PARSER) {
+    my $attr='';
+    my $pvars;
+    my $pvars_lst;
 	
     if (defined $type) {
     	if ( $type eq 'double precision') {
-        $line = 'real(8) '.$varlst;
-    }
-    elsif ($type eq 'double complex') {
-        $line = 'complex(8) '.$varlst;
-    }
+            $line = 'real(8) '.$varlst;
+        }
+        elsif ($type eq 'double complex') {
+            $line = 'complex(8) '.$varlst;
+        }
     }
 	( $pvars, $pvars_lst ) = _parse_F77_decl_NEW( $line );
 	
     # For backward compat, remove later. TODO
-    $type = $pvars->{$pvars_lst->[0]}{'Type'}
-} else {
-# Now an ad hoc fix for spaces between the type and the asterisk. FIXME! I should just write a better FSM!
-#
-# This is ad-hoc character declaration parsing
-#my $attr='';
-my $char_decls={};
-my $char_lst=[];
-my $is_char = 0;
+    $type = $pvars->{$pvars_lst->[0]}{'Type'};
 
-if ($line=~/^character/) {
-
-
-#	say "LINE: $line";
-	$type = 'character';		
-	$is_char=1;
-    $line=~s/\s+\*/*/g;
-    $line=~s/\*\s+/*/g;
-	$line=~s/\(\*\)/_PARENS_STAR_/g;
-    if ($line=~/^character\*(\w+)\s+([a-z]\w*.*)$/ ){
-    	# With $NEW_PARSER we can parse this as a comma-sep list, and handle the '*' as an expression. 
-#    		say "LINE1: $line";
-        # CHARACTER*4 V
-		# CHARACTER*(*) V(2)
-		# But unfortunately also
-		# CHARACTER*10 B10VK, C10VK, E11VK*11, G10VK
-		# And even
-		# CHARACTER*4 C2N001(0:5,1:6), C2D002(2,1:3), C2N003(-2:1,3:10),
-		
-        my $len = $1; 
-        my $vars_dims_str = $2;
-		# split vars on outer commas, we have a function for that
-        my @vars_dims = _parse_comma_sep_expr_list($vars_dims_str);
-#         say "$f CASE1: $line => len=".$len.", rest=".join(';',@vars_dims);
-         
-         for my $var_dim (@vars_dims) {
-         	
-         	my $ast=parse_expression($var_dim, $info, $stref, $f);
-            #say "EXP: $var_dim AST1:".Dumper($ast);
-         	my $var = _get_var_from_ast( $ast );
-         	my $dim = _get_dim_from_ast( $ast );
-            #say "DIM: ".Dumper($dim);
-#         	die if $ast->[1] eq 'c2d001';
-            #croak if $line=~/catn11/;
-         	my $len_override = _get_len_from_ast( $ast );
-         	if ($len eq '_PARENS_STAR_') {
-         		$len='*';
-         	}	
-         	$char_decls->{$var}={
-         		'Type' => 'character',
-         		'Name' => $var,
-         		'Dim' => $dim,
-         		'Attr' => "len=". ($len_override ? $len_override : $len),
-         		'ArrayOrScalar' => scalar @{$dim}==0 ? 'Scalar' : 'Array'
-         	};
-         	
-         	if ($len=~/[a-z]\w*/) {
-         		if (in_nested_set($Sf,'Parameters',$len) ) {
-         			$char_decls->{$var}{'InheritedParams'}{'Set'}{$len}=1;
-         		}
-         	}
-         	push @{$char_lst},$var;
-#         	say "character(len=$len), dimension(".join(',', map { join(':', @{ $_ }) } @{$dim}).") :: $var";
-
-         }         
-         
-    } elsif ( $line=~/^character\s+([a-z]\w*.*)$/ ) {
-    	# With $NEW_PARSER we can parse this as a comma-sep list, much easier!
-#    	say "LINE2: $line";
-    	
-		# CHARACTER V*4,W(2)*5
-        my $vars_lens_str=$1;
-# split $vars_lens on outer commas, we have a function for that
-        my @vars_dims_lens = _parse_comma_sep_expr_list($vars_lens_str);
-# Then split each of them on the first \*
-# as a trick we could do s/\(\*\)/_STAR_/;
-#        say "$f CASE2: $line => rest=".join(';',@vars_dims_lens);
-        
-		for my $var_dim_len (@vars_dims_lens) {
-#			say $var_dim_len;
-         	my $ast=parse_expression($var_dim_len, $info, $stref, $f);
-#         	say "AST2:".Dumper($ast);
-         	my $var = _get_var_from_ast( $ast );#$ast->[1][0] eq '@' ? $ast->[1][1] : $ast->[1];         	         	
-			my $dim = _get_dim_from_ast( $ast );	
-         	my $len = _get_len_from_ast( $ast );
-         	if ($len eq '_PARENS_STAR_') {
-         		$len='*';
-         	}
-         	$char_decls->{$var}={
-         		'Type' => 'character',
-         		'Name' => $var,
-         		'Dim' => $dim,
-         		'Attr' => $len eq '' ? '' : "len=$len",
-         		'ArrayOrScalar' => scalar @{$dim}==0 ? 'Scalar' : 'Array'
-         	};
-         	if ($len=~/[a-z]\w*/) {
-         		if (in_nested_set($Sf,'Parameters',$len) ) {          			
-         			$char_decls->{$var}{'InheritedParams'}{'Set'}{$len}=1;
-         		}
-         	}         	
-         	push @{$char_lst},$var;
-#         	say "character(len=$len), dimension(".join(',', map { join(':', @{ $_ }) } @{$dim}).") :: $var";
-         	         	
-         }
-         
-        
-    } elsif ( $line=~/^character\*(\w+)\s*\((.+)\)\s+([a-z]\w*.+)$/) {
-    	# Maybe this passes with the NEW_PARSER too?
-#    	say "LINE3: $line";
-    	 if ( $line=~/_PARENS_STAR_/) {
-    		die "Sorry, this syntax for character variable declarations is not supported: $line\nPlease rewrite to e.g. character*(*) ...\n";
-    	};
-		# Non-standard, e.g.
-		# CHARACTER*(*)(3) V, ...
-		# WEAK as I assume no parens inside the parens
-        my $len=$1;
-        my $dim=$2; # FIXME
-#        croak 'FIXME!'; 
-#        my $ast=parse_expression($var_dim_len, $info, $stref, $f);
-        my $vars_str=$3;
-        my @vars = _parse_comma_sep_expr_list($vars_str);
-#        say "$f CASE3: $line => len=".$len.", dim=".$dim.", vars=".join(';',@vars);
-         for my $var (@vars) {
-         	my $ast=parse_expression($var, $info, $stref, $f);
-#         	say "AST3:".Dumper($ast);
-         	my $var = _get_var_from_ast( $ast );
-         	if ($len eq '_PARENS_STAR_') {
-         		$len='*';
-         	}
-			$char_decls->{$var}={
-         		'Type' => 'character',
-         		'Name' => $var,
-         		'Dim' => $dim,
-         		'Attr' => "len=$len",
-         		'ArrayOrScalar' => scalar @{$dim}==0 ? 'Scalar' : 'Array'
-         	};
-			if ($len=~/[a-z]\w*/) {
-         		if (in_nested_set($Sf,'Parameters',$len) ) {
-         			$char_decls->{$var}{'InheritedParams'}{'Set'}{$len}=1;
-         		}
-         	}
-         	push @{$char_lst},$var;
-         }        
-         
-    } elsif ( $line=~/^character\s+/ && $line=~/[a-z]\w*\*\d+\s*\(/ ) {
-#    	say "LINE4: $line";
-    	if ($line=~/_PARENS_STAR_/) {
-    		die "Sorry, this syntax for character variable declarations is not supported: $line\nPlease rewrite to e.g. character*(*) ...\n";
-    	}
-		# Non-standard, e.g.
-		# CHARACTER A*17, B*17(3,4), V*17(9)	
-        my $vars_str=$line;
-        $vars_str=~s/character\s+//;
-        #split $vars_lens on outer commas, we have a function for that
-        my @vars_lens_dims = _parse_comma_sep_expr_list($vars_str);
-#        say "$f CASE4: $line => rest=".join(';',@vars_lens_dims);
-        for my $var_len_dim (@vars_lens_dims) {
-        	$var_len_dim=~/(\w+)\*(\w+)(.+)$/ && do {
-        		my $var =$1;
-        		my $len = $2;
-        		my $dim_str = $3;
-        		my $ast=parse_expression($dim_str, $info, $stref, $f);
-				my $dim = _get_dim_from_ast( $ast );
-				if ($len eq '_PARENS_STAR_') {
-         		$len='*';
-         		}
-         	    $char_decls->{$var}={
-         		'Type' => 'character',
-         		'Name' => $var,
-         		'Dim' => $dim,
-         		'Attr' => "len=$len",
-         		'ArrayOrScalar' => scalar @{$dim}==0 ? 'Scalar' : 'Array'
-         	    };
-				if ($len=~/[a-z]\w*/) {
-	         		if (in_nested_set($Sf,'Parameters',$len) ) {
-	         			$char_decls->{$var}{'InheritedParams'}{'Set'}{$len}=1;
-	         		}
-	         	}         	
-	         	push @{$char_lst},$var;         	
-#        		say "AST4:".Dumper($ast);
-        	};        	
-        }
-		die "Sorry, this syntax for character variable declarations is not supported: $line\nPlease rewrite to e.g. character*(*) ...\n";
-    } elsif ( $line=~/^character\s*\(\s*len\s*=\s*([\w\*]+)\s*\)\s+([a-z]\w*.*)$/ ) {
-#    	say "LINE5: $line";
-    	# CHARACTER(LEN=5) or CHARACTER(LEN=*) 
-    	my $len = $1;
-        my $vars_dims_str = $2;
-		# split vars on outer commas, we have a function for that
-        my @vars_dims = _parse_comma_sep_expr_list($vars_dims_str);
-#         say "$f CASE1: $line => len=".$len.", rest=".join(';',@vars_dims);
-         
-         for my $var_dim (@vars_dims) {
-         	
-         	my $ast=parse_expression($var_dim, $info, $stref, $f);
-#         	say "AST1:".Dumper($ast);
-         	my $var = _get_var_from_ast( $ast );
-         	my $dim = _get_dim_from_ast( $ast );
-#         	say "DIM: ".Dumper($dim);
-#         	die if $ast->[1] eq 'c2d001';
-         	my $len_override = _get_len_from_ast( $ast );
-         	if ($len eq '_PARENS_STAR_') {
-         		$len='*';
-         	}	
-         	$char_decls->{$var}={
-         		'Type' => 'character',
-         		'Name' => $var,
-         		'Dim' => $dim,
-         		'Attr' => "len=". ($len_override ? $len_override : $len),
-         		'ArrayOrScalar' => scalar @{$dim}==0 ? 'Scalar' : 'Array'
-         	};
-         	
-         	if ($len=~/[a-z]\w*/) {
-         		if (in_nested_set($Sf,'Parameters',$len) ) {
-         			$char_decls->{$var}{'InheritedParams'}{'Set'}{$len}=1;
-         		}
-         	}
-         	push @{$char_lst},$var;
-#         	say "character(len=$len), dimension(".join(',', map { join(':', @{ $_ }) } @{$dim}).") :: $var";
-
-         }             	
-#    	say "LINE5: $line";
-    	
-    } else {
-    	die "Sorry, this syntax for character variable declarations is not supported: $line\nPlease rewrite to e.g. character*(*) ...\n";
-    }
-#die Dumper( $char_decls) if $line=~/string/;    
-#croak if $line=~/zvers/;
-} elsif ($line=~/^\w+\s*\*\s*(1|2|4|8|16)/) {
-	$attr = "kind=$1";
-}
-
-# If it was a character, we set $pvars to $char_decls and $pvars_lst to $char_lst
-# Otherwise we get these from f77_var_decl_parser
-# If the line had a pattern like integer*4, we set $attr 
-
-	my $T = 0;
-	( $pvars, $pvars_lst ) = $is_char ? ($char_decls, $char_lst) : f77_var_decl_parser( $varlst, $T );
-	if ($is_char) {
-		$type='character';
-	}
-} # NEW_PARSER
 	my @varnames = ();
 	# Add type information to Vars
 	for my $tvar ( @{$pvars_lst} ) {
@@ -3644,7 +3294,7 @@ We have 3 different cases:
 
 
 sub _parse_read_write_print {
-	if ($NEW_PARSER) {
+	
     ( my $line, my $info, my $stref, my $f ) = @_;
     
     my $sub_or_func = sub_func_incl_mod( $f, $stref );
@@ -3885,7 +3535,7 @@ sub _parse_read_write_print {
         }            	
     	
 	} elsif ( exists $info->{'OpenCall'} ) {
-		carp "TODO: OPEN";
+		carp "TODO: parse OPEN call using new parser";
 		#OPEN 
 		#if unit has vars, add to Read from
 		#
@@ -3909,7 +3559,7 @@ sub _parse_read_write_print {
 		#IOSTAT Written to
 		#
 	} elsif ( exists $info->{'CloseCall'} ) {
-		carp "TODO: CLOSE";
+		carp "TODO: parse CLOSE call using new parser";
 		#CLOSE
 		#if unit has vars, add to Read from
 		#All args are all Read from except the ERR Label and IOSTAT
@@ -3961,236 +3611,8 @@ sub _parse_read_write_print {
     $info->{'Vars'}{'Written'}{'List'}= [ sort keys %{ $info->{'Vars'}{'Written'}{'Set'} } ];
 #    carp Dumper($info->{'Vars'}) if $f eq 'ifdata' and $line=~/time/;
     return $info;
-    } else {
-    	return _parse_read_write_print_OLD(@_); 
-    }
+
 }    # END of _parse_read_write_print()
-
-sub _parse_read_write_print_OLD {
-	( my $line, my $info, my $stref, my $f ) = @_;
-	
-#	die "<$line>" if $line=~/write.printstring.+rmin.+rmax/i;
-	my $sub_or_func = sub_func_incl_mod( $f, $stref );
-	my $Sf          = $stref->{$sub_or_func}{$f};
-	
-	my $call =
-	    exists $info->{'ReadCall'}  ? 'read'
-	  : exists $info->{'InquireCall'} ? 'inquire'
-	  : exists $info->{'WriteCall'} ? 'write'
-	  :                               'print';
-
-	$info->{'CallAttrs'} = { 'Set' => {}, 'List' => [] };
-	my $tline = $line;
-#say "TLINE: $line" if $f eq 'createconnectivitymap';
-#	# Remove any labels
-#	if ( exists $info->{'Label'} ) {
-#		my $label = $info->{'Label'};
-#		$tline =~ s/^\s*$label\s+//;
-#	} elsif ( $tline =~ s/^(\s*)(\d+)(\s+)/$1$3/ ) {
-#		$info->{'Label'} = $2;
-#	}
-
-	# Parse
-
-	if ( $tline !~ /^\s*print/ ) {
-
-		#	For Open, Write and Read
-		( my $matched_str, my $rest ) = _parse_IO_sub_call($tline);
-
-		# Parse the actual call args to see if there are any variables.
-		#
-		$matched_str =~ s/^\w+\(//;
-		$matched_str =~ s/\)$//;
-#		say "$line => <$matched_str><$rest>" if $tline=~/read/;
-		my @call_attrs = _parse_comma_sep_expr_list($matched_str);
-
-		for my $call_attr (@call_attrs) {
-			if ( $call_attr =~ /=/ ) {
-				( my $attr_name, $call_attr ) = split( /\s*=\s*/, $call_attr );
-			}
-
-			next if $call_attr eq '*';
-			next if $call_attr =~ /^\d+$/;
-			next if $call_attr =~ /^(?:__PH\d+__)+$/;
-			if ( $call_attr !~ /^[a-z][a-z0-9_]*/  and $call_attr !~ /^__PH\d+__/) {
-				carp "UNKNOWN CALL ATTR VAL <$call_attr> on LINE <$line>";
-			} else {
-				my $type = $call_attr =~ /\(/ ? 'Array' : 'Scalar';
-				$info->{'CallAttrs'}{'Set'}{$call_attr} = { 'Type' => $type };
-				if ( $call_attr =~ /\(/ ) {
-					$call_attr =~s/\)//g;
-					my @call_attr_chunks=split(/\(/,$call_attr);
-					for my $call_attr ( @call_attr_chunks ) {
-						push @{ $info->{'CallAttrs'}{'List'} }, $call_attr;
-					}
-				} else {
-				
-				push @{ $info->{'CallAttrs'}{'List'} }, $call_attr;
-				}
-			}
-		}
-		$tline = $rest;
-	} else {
-
-		# For Print, HACK!
-		$tline =~ s/print[^\,]+\,\s*//;
-	}
-
-	# Parse the rest of the statement
-
-#say "TLINE1: <$tline>" ;
-	while ( $tline =~ /[\"\'][^\"\']+[\"\']/ ) {
-		croak "STRING CONST $tline";
-		$tline =~ s/[\"\'][^\"\']+[\"\']//; # so at this point we could have e.g. var1,\s*,var2 or ^\*,var1 or var1,\s*$
-		$tline =~ s/,\s*,//;
-		$tline =~ s/^\s*,\s*//;
-		$tline =~ s/\s*,\s*$//;
-	}
-
-#	say "TLINE2: <$tline>" ;
-	my @exprs = _parse_comma_sep_expr_list($tline);
-
-#	croak Dumper(@exprs) if $tline=~/\(ratom\(/;
-	$info->{'CallArgs'} = { 'List' => [], 'Set' => {} };
-	$info->{'ExprVars'} = { 'List' => [], 'Set' => {} };
-	for my $tline (@exprs) {
-
-		$tline =~ s/\(,/(/g; 
-		$tline =~ s/,\)/)/g;
-		
-		if ( $tline !~ /^\s*$/ ) {
-			if ( $tline =~ /^\(/ ) {
-				# If an argument is ( ... ) it means we only have Vars
-				if ( $tline =~ /=/ ) { # must be an implied do		
-#				croak $tline if $tline=~/\(ratom\(/;		
-					 # If it's an implied do, we should identify the arguments
-					my @args     = ();
-					my @vars     = ();
-					my $in_range = 0;
-					
-	# (atomname(iprot,sczid(iprot,ires,i)),i=1,nscatoms(iprot,ires)) is fine
-	# atomname(iprot,sczid(iprot,ires,i)),i=1,nscatoms(iprot,ires)
-	# (atomname(iprot,sczid(iprot,ires,i)),i=1,nscatoms(iprot,ires)) is fine
-	# (atomname(iprot,sczid(iprot,ires,i)),i=1,nscatoms(iprot,ires)) is fine
-#	say "\nSTART: TLINE:<$tline>";
-=info_parser
-The code below does the following:
-- It removes any opening paren, and if the parens are balanced, also the closing one
-- Then it tries to parse something of the form (arg1,arg2,...)rest ans stops as soon as this doesn't match. If the expression is arg1,arg2)rest then it stops at the comma.
-- Because we removed the opening paren, effectively this results in anything up to the first comma.
-- If this contains '=' we split and assume both lhs and rhs are variables and that we are in an implicit do
-- If we are in the implicit do but not the first arg, we remove parens and add this to the variables
-- If it is not an implicit do then it is actually the array that is being iterated, this goes into @args
-- We remove any leading comma from rest and do this again until nothing is left
-- The result is a that @var contains the range expressions for the implicit do, so that we can parse this separately, and @args contains variable expressions parsed in the normal way
-=cut	
-					while ( $tline ne '' ) {
-#						say "TLINE (before): '$tline'";
-						# If the line matches an opening paren
-						if ($tline =~/^\(/) {
-							# remove it
-							$tline =~ s/^\(//;
-							# test for a closing paren
-							if ($tline =~/\)$/) {
-								# remove it if there is now an extra one
-                                my $n_open_pars = () = $tline =~ /\(/g;
-                                my $n_close_pars = () = $tline =~ /\)/g;
-                                if ($n_close_pars == $n_open_pars+1) {
-								    $tline =~ s/\)$//;# This is WEAK!
-                                }
-							}
-						}
-#						say "TLINE  (after): '$tline'";
-						last if $tline eq '';
-						( my $arg, my $rest ) = _parse_array_access_or_function_call($tline,0);
-#						say "ARG: <$arg> REST: <$rest>";
-						if ( $arg =~ /=/ ) {
-							( my $lhs, my $rhs ) = split( /=/, $arg );
-							push @vars, $lhs;
-							push @vars, $rhs;
-							$in_range = 1;
-						} elsif ($in_range) {						
-							 my $n_open_pars = () = $arg =~ /\(/g;
-							 my $n_close_pars = () = $arg =~ /\)/g;
-#							 say "$n_open_pars $n_close_pars";	
-							 if ($n_close_pars == $n_open_pars+1) {
-							     $arg =~ s/\)$//;    # This is WEAK! This should only be if the parens are not matched
-							 }
-#							say "TLINE: BOOM! $tline => ARG $arg";
-							push @vars, $arg;
-						} else {
-							push @args, $arg unless $arg eq '';
-						}
-						$rest =~ s/^,//;
-						$tline = $rest;
-					}
-#					say 'ARGS:',Dumper(@args);
-#					say 'VARS:',Dumper(@vars);
-					my $fake_range_expr = 'range(' . join( ',', @vars ) . ')';
-#					say "RANGE:<$fake_range_expr>" ;
-					my $ast = parse_expression( $fake_range_expr, $info, $stref, $f );
-					( my $call_args, my $other_vars ) = @{ get_args_vars_from_expression($ast) };
-					$info->{'ImpliedDoVars'}=$call_args;
-					$info->{'ExprVars'}{'Set'} = {
-						%{ $info->{'ExprVars'}{'Set'} },
-						%{ $other_vars->{'Set'} }
-					};
-
-					for my $mvar (@args) { 
-#						say "MVAR: $mvar";
-						next if $mvar eq '';
-						next if $mvar =~ /^\d+$/;
-						next if $mvar =~ /^(\-?(?:\d+|\d*\.\d*)(?:[edq][\-\+]?\d+)?)$/;
-						# FIXME: if $mvar is an array access expr this does never work
-						next if exists $F95_reserved_words{$mvar};
-						next if exists $Config{'Macros'}{uc($mvar)};
-						my $ast = parse_expression( $mvar, $info, $stref, $f );
-						( my $call_args, my $other_vars ) = @{ get_args_vars_from_expression($ast) };
-						$info->{'CallArgs'}{'Set'} = {
-							%{ $info->{'CallArgs'}{'Set'} },
-							%{ $call_args->{'Set'} }
-						};
-						$info->{'ExprVars'}{'Set'} = {
-							%{ $info->{'ExprVars'}{'Set'} },
-							%{ $other_vars->{'Set'} }
-						};
-					}
-					$info->{'CallArgs'}{'List'} =
-					  [ keys %{ $info->{'CallArgs'}{'Set'} } ];
-					$info->{'ExprVars'}{'List'} =
-					  [ keys %{ $info->{'ExprVars'}{'Set'} } ];
-				} else {
-	  # This is an expression in parentheses, so it must be treated as Vars-only
-					my @chunks = split( /\W+/, $tline );
-					my %vars_in_expr = ();
-					for my $mvar (@chunks) {
-						next if $mvar eq '';
-						next if $mvar =~ /^\d+$/;
-						next
-						  if $mvar =~ /^(\-?(?:\d+|\d*\.\d*)(?:[edq][\-\+]?\d+)?)$/;
-						next if exists $F95_reserved_words{$mvar};
-						next if exists $Config{'Macros'}{uc($mvar)};
-						$vars_in_expr{$mvar} = { 'Type' => 'Unknown' };
-					}
-					$info->{'ExprVars'} = {
-						'List' => [ keys %vars_in_expr ],
-						'Set'  => {%vars_in_expr}
-					};
-				}
-			} else {    # ok, maybe we can parse this
-				my $ast =
-				  parse_expression( "$call($tline)", $info, $stref, $f );
-				( my $args, my $other_vars ) = @{ get_args_vars_from_expression($ast) };
-				$info->{'CallArgs'} =
-				  append_to_set( $info->{'CallArgs'}, $args );
-				$info->{'ExprVars'} =
-				  append_to_set( $info->{'ExprVars'}, $other_vars );
-			}
-		}
-	}
-
-	return $info;
-}    # END of _parse_read_write_print_OLD
 
 # -----------------------------------------------------------------------------
 sub _parse_assignment {
@@ -4199,44 +3621,18 @@ sub _parse_assignment {
 	my $code_unit = sub_func_incl_mod( $f, $stref );
 	my $tline = $line;
 
-
 	$tline =~ s/^\s*\d+//;    # remove labels
 	$tline =~ s/^\s+//;       # remove blanks
 	$tline =~ s/\s+$//;       # remove blanks
 
-	# TODO: proper Fortran expression parser.
-	# For now we sanitise the lines as follows:
-#	# Replace '//' by '+' because the parser does not know '//'
-#	while ( $tline =~ /\/\// ) {
-#		$tline =~ s/\/\//+/;
-#	}
-
-#	# Remove ')(', this I think only occurs for characters strings
-#	while ( $tline =~ /\)\s*\(/ ) {
-#		$tline =~ s/\)\s*\(/,/;
-#	}
-
-#	# Remove ':' because again this only occurs for characters strings
-#		$tline =~ s/\(:/(1,/g;
-#		$tline =~ s/,:/,1,/g;
-#		$tline =~ s/:\)/,0)/g ; # FIXME: this is WRONG. All it does is fix the parse error! What we really need is the end of the array!
-#		$tline =~ s/:,/,0,/g; # FIXME: this is WRONG. All it does is fix the parse error!
-#		$tline =~ s/:/,/g; #
-
-    #    say "ALINE: $tline";
 	( my $lhs, my $rhs ) = split( /\s*=\s*/, $tline );
 
 	#     say "LHS: $lhs, RHS: $rhs";
 	my $lhs_ast = parse_expression( $lhs, $info, $stref, $f );
 
-    #		say "LHS:".$lhs ;
-    #		say "LHS_AST:".Dumper($lhs_ast) ;#if $lhs_ast->[1] eq 'len';
-	# FIXME: must make sure here that lhs is NOT a reserverd word, dammit!
-	# WV 2019-04-24 seems to me I could use get_vars_from_expression() as the LHS is eihter a scalar or an array access
+	# WV 2019-04-24 seems to me I could use get_vars_from_expression() as the LHS is either a scalar or an array access
 	# That returns a href and we can just turn that into a list as usual
 	
-#	( my $lhs_args, my $lhs_vars ) =
-#	  @{ get_args_vars_from_expression($lhs_ast) };
     my $lhs_vars = get_vars_from_expression($lhs_ast);
     (my $lhs_varname, my $lhs_var_attrs)  =  each %{ $lhs_vars } ;
 	my $lhs_index_vars={'List'=>[],'Set'=>{}};
@@ -4422,40 +3818,7 @@ sub _parse_if_cond {
 	$rest=~s/\s*$//;
 	return ($cond,$rest); 
 } # END _parse_if_cond()
-# --------------------------------------------------------------------------------
-sub _parse_if_cond_OLD {
-	( my $str ) = @_;
 
-	my $parens_count = 0;
-	my $found_parens = 0;
-	my @chars        = split( '', $str );
-	my $nchars       = scalar @chars;
-
-	my $matched_str = '';
-	for my $ch_idx ( 0 .. $nchars - 1 ) {
-		my $ch = shift @chars;
-		# skip blanks
-		if ( $ch eq ' ' or $ch eq "\t" ) { 
-			next;
-		} elsif ( $ch eq '(' ) { 
-			if ( $ch_idx < 2 ) { # if the paren occurs in pos 0 or 1, give up, it's not an 'if'
-				unshift @chars, $ch;
-				last;
-			}
-			$found_parens = 1;
-			++$parens_count;
-		} elsif ( $ch eq ')' ) {
-			--$parens_count;
-		}
-		if ( $found_parens == 1 and $parens_count == 0 ) {
-			$matched_str .= $ch;
-			last;
-		}
-		$matched_str .= $ch;
-	}
-	my $rest = join( '', @chars );
-	return ( $matched_str, $rest );
-} # END of _parse_if_cond_OLD()
 # --------------------------------------------------------------------------------
 # Takes a string which contains a comma-separated list of expressions, returns a list of the expressions
 sub _parse_comma_sep_expr_list {
@@ -4594,8 +3957,6 @@ sub _parse_data_declaration { (my $line,my $info, my $stref, my $f) = @_;
 	my $indent =$line;$indent=~s/data.*$//;
 	my $mline=$line;
     # Remove the DATA keyword
-#    say "<$mline>";
-#	$mline=~s/^\s*\d*\s+data\s+//;
 	$mline=~s/^data\s+//; 
 	# Remove the trailing '/'
 	$mline=~s/\/\s*$//;
@@ -4605,12 +3966,10 @@ sub _parse_data_declaration { (my $line,my $info, my $stref, my $f) = @_;
 	my $data_vars ={};
 	for my $data_decl_pair_str (@data_decl_pair_strs ) {
 		(my $nlist_str, my $clist_str) =split(/\s*\/\s*/,$data_decl_pair_str );
-#		say  $nlist_str;
 		my $nlist_ast = parse_expression($nlist_str,$info,$stref,$f);
 		my $nlist_vars = find_vars_in_ast($nlist_ast);
 		$data_vars = { %{$data_vars},%{$nlist_vars}};
 		my $clist_ast = parse_expression($clist_str,$info,$stref,$f);
-#		push @data_decl_ast, [$nlist_as, $clist_ast];
 		my $info={};
 		$info->{'NList'}{'Ast'} = $nlist_ast;
 		$info->{'CList'}{'Ast'} = $clist_ast;
@@ -4622,117 +3981,9 @@ sub _parse_data_declaration { (my $line,my $info, my $stref, my $f) = @_;
 	my $data_vars_list = [sort keys %{$data_vars}];
 	$info->{'Vars'}={'Set' =>$data_vars, 'List' => $data_vars_list};
 	return $info;
-#	return $new_annlines;
-#	# At least we should make this an array. 
-#	# Then we should strip whitespace off all chunks
-#	# Then we should check for chunks starting with a comma. We push the previous chunks on a new list, 
-#	# When we find a comma, we push this list onto a new list and clear the chunks list.
-#	# Repeat untill all chunks are done. 
-#	# Also remove any empty chunks
-#	# The result will be a list of (nlist,clist) pairs, we can then parse each of these as ordinary expressions  
-#	(my $lhs, my $rhs) = split (/\s*\/\s*/,$mline);
-##croak "$lhs => $rhs" if $mline=~/ivon02/;
-#if ($lhs=~/,/ or $rhs=~/,/) {
-#	my @lhs_exprs = _parse_comma_sep_expr_list($lhs);
-#	# TODO: in principle I must do a full argument and variable analysis here, like in IO calls. Leave that for later.
-#	# Question is if an implied do can appear on an lhs
-#	
-#	for my $lhs_expr (@lhs_exprs) {
-#		if ($lhs_expr =~/=/) {
-#				say 'WARNING: Sorry, no support for implied-do in data declarations for now' if $W;
-#				return [[$line,$info]];			
-#		}
-#	}
-#
-##	my @lhs_vars =  split (/\s*,\s*/,$lhs);
-#	my $lhs_expr = 'dummy('.$lhs.')';
-#	my $lhs_ast = parse_expression($lhs_expr, $info,$stref, $f);		
-#	
-##	if ($rhs =~/\d+\s*\*\s*/) {
-##			
-##	}
-#	my $rhs_expr = 'dummy('.$rhs.')';
-#	my $rhs_ast = parse_expression($rhs_expr, $info,$stref, $f);
-#	
-##	croak Dumper($ast);
-##	my @rhs_vals =  ();
-#	my $rhs_idx=2;
-#	for my $idx  (2 .. @{$lhs_ast}-3) {
-#		my $lhs_var_ast = $lhs_ast->[$idx];
-#		( my $lhs_args, my $lhs_vars ) = @{ get_args_vars_from_expression($lhs_var_ast) };
-#		
-#		my $lhs_var = ref($lhs_var_ast) eq 'ARRAY' ? emit_expression($lhs_var_ast) : $lhs_var_ast;
-#		 
-##		say Dumper($lhs_var_ast);
-#		
-#	if ( scalar @{ $lhs_args->{'List'} } > 0 ) {
-#		my $lhs_varname = $lhs_args->{'List'}[0];
-#
-#		$info->{'Lhs'} = {
-#			'VarName'       => $lhs_varname,
-#			'IndexVars'     => $lhs_vars,
-#			'ArrayOrScalar' => $lhs_args->{'Set'}{$lhs_varname}{'Type'},
-#			'ExpressionAST' => $lhs_ast
-#		};
-#	} else {
-#		$info->{'Lhs'} = {
-#			'ArrayOrScalar' => 'Other',
-#			'ExpressionAST' => $lhs_ast
-#		};
-#	}		
-#		
-#		
-#		my $rhs_val_ast = $rhs_ast->[$rhs_idx++];
-#		
-#		my $rhs_val = ref($rhs_val_ast) eq 'ARRAY' ? emit_expression($rhs_val_ast) : $rhs_val_ast;
-#			# I am lazy so I use a regex to substitute the placeholders
-#			if (not defined $rhs_val) { 
-#				# FIXME: this means we failed to parse this correctly, just warn and keep the old line.
-#				say "WARNING: Could not parse this DATA declaration: $line" if $W;
-#				return [[$line,$info]];
-#			};  
-#			while ($rhs_val =~ /(__PH\d+__)/) {
-#				my $ph=$1;
-#				my $ph_str = $info->{'PlaceHolders'}{$ph};
-#				$rhs_val=~s/$ph/$ph_str/;
-#			}
-#		
-#		my $new_line = "$indent$lhs_var = $rhs_val";
-#		
-#	my $rinfo = dclone($info);
-#	$rinfo->{'Assignment'}=1;
-#	$rinfo->{'Data'}=1;
-#			( my $rhs_args, my $rhs_vars ) =
-#	  @{ get_args_vars_from_expression($rhs_val_ast) };
-#	my $rhs_all_vars = {
-#		'Set'  => { %{ $rhs_args->{'Set'} },  %{ $rhs_vars->{'Set'} } },
-#		'List' => [ @{ $rhs_args->{'List'} }, @{ $rhs_vars->{'List'} } ]
-#	};
-#	$rinfo->{'Rhs'} = {
-#		'VarList'       => $rhs_all_vars,
-#		'ExpressionAST' => $rhs_val_ast
-#	};	
-#	push @{ $new_annlines }, [$new_line,$rinfo];
-#	}
-#} else {
-#	# No comma in LHS so it must be a single var, easy:
-#		$info->{'Assignment'}=1;
-#		$info->{'Data'}=1;
-#	# But NO! it can be something absurd like 
-#	#  DATA  LADN1D/.TRUE., .FALSE./ 
-#	# So let's say, if there is no comma in the RHS either we do that. 
-#	# Otherwise we count and if it does not match, we give up!
-##	croak "$indent$lhs = $rhs";
-#	return [["$indent$lhs = $rhs",$info]];
-#}
-	return $new_annlines;
-	
+		
 } # END of _parse_data_declaration()
 
-# TODO?
-sub _expand_repeat_data { (my $line)=@_;
-	return $line;
-}
 
 sub  _get_var_from_ast { (my  $ast ) = @_;
 	my $var='';
@@ -4793,254 +4044,19 @@ sub  _get_var_from_ast_OLD { (my  $ast ) = @_;
 	return $var;
 }
 
-sub _get_dim_from_ast { (my  $ast ) = @_;
-		my $dim=[];
-if ($NEW_PARSER) {
-	# If there is a length, we need the 2nd elt
-    if (($ast->[0] & 0xFF)==5) { # '*'
-    # That elt can either be a scalar
-    # or an array
-        if(($ast->[1][0] & 0xFF)==10) { #'@'
-            # It's an array so there is a dim
-            for my $pdim_idx (2 .. @{$ast->[1]}-1) {
-                my $pdim = $ast->[1][$pdim_idx];
-                if (ref($pdim) eq 'ARRAY') {
-                    if ($pdim->[0] eq ':') {
-                        croak 'FIXME!';
-                        my $dim_start = emit_expr_from_ast($pdim->[1],'');
-                        my $dim_stop = emit_expr_from_ast($pdim->[2],'');
-                        push @{$dim}, [$dim_start ,$dim_stop ]; 
-                    } else {
-                        my $dim_start = 1;
-                        my $dim_stop = emit_expr_from_ast($pdim,'');
-                        push @{$dim}, [$dim_start ,$dim_stop ];                     
-                    }
-                } else { # must be scalar
-                    my $dim_start = 1;
-                    my $dim_stop = emit_expr_from_ast($pdim,'');
-                    push @{$dim}, [$dim_start ,$dim_stop ];
-                }
-            }
-        } elsif (($ast->[1][0] & 0xFF) == 2) { # '$'
-            # no dim            
-        } else {
-            croak Dumper($ast);
-        }     
-    } else {
-        if(($ast->[0] & 0xFF) == 2) { # '$'
-            # no dim
-        } elsif (($ast->[0] & 0xFF) == 10) { # '@'
-            for my $pdim_idx (2 .. @{$ast}-1) {
-                my $pdim = $ast->[$pdim_idx];
-                if (ref($pdim) eq 'ARRAY') {
-                    if (($pdim->[0] & 0xFF) == 12) {#  ':'                      
-                        my $dim_start = emit_expr_from_ast($pdim->[1],'');
-                        my $dim_stop = emit_expr_from_ast($pdim->[2],'');
-                        push @{$dim}, [$dim_start ,$dim_stop ]; 
-                    }
-                } else { # must be a scalar
-                    my $dim_start = 1;
-                    my $dim_stop = emit_expr_from_ast($pdim,'');
-                    push @{$dim}, [$dim_start ,$dim_stop ];                 
-                }
-            }
-        } elsif (($ast->[0] & 0xFF) == 1) { # '&'
-            warn "Dim for variable masking an intrinsic";
-            for my $pdim_idx (2 .. @{$ast}-1) {
-                my $pdim = $ast->[$pdim_idx];
-                if (ref($pdim) eq 'ARRAY') {
-                    if (($pdim->[0] & 0xFF) == 12) {# ':'                        
-                        my $dim_start = emit_expr_from_ast($pdim->[1],'');
-                        my $dim_stop = emit_expr_from_ast($pdim->[2],'');
-                        push @{$dim}, [$dim_start ,$dim_stop ]; 
-                    }
-                } else { # must be a scalar
-                    my $dim_start = 1;
-                    my $dim_stop = emit_expr_from_ast($pdim,'');
-                    push @{$dim}, [$dim_start ,$dim_stop ];                 
-                }
-            }           
-        } else {
-            croak Dumper($ast);
-        }   
-    }   
-	
-} else {		
-# If there is a length, we need the 2nd elt
-	if (($ast->[0] & 0xFF)==5) { # '*'
-	# That elt can either be a scalar
-	# or an array
-		if(($ast->[1][0] & 0xFF)==10) { #'@'
-			# It's an array so there is a dim
-			for my $pdim_idx (2 .. @{$ast->[1]}-1) {
-				my $pdim = $ast->[1][$pdim_idx];
-				if (ref($pdim) eq 'ARRAY') {
-					if ($pdim->[0] eq ':') {
-						croak 'FIXME!';
-						my $dim_start = emit_expression($pdim->[1],'');
-						my $dim_stop = emit_expression($pdim->[2],'');
-						push @{$dim}, [$dim_start ,$dim_stop ]; 
-					} else {
-						my $dim_start = 1;
-						my $dim_stop = emit_expression($pdim,'');
-						push @{$dim}, [$dim_start ,$dim_stop ]; 					
-					}
-				} else { # must be scalar
-					my $dim_start = 1;
-					my $dim_stop = emit_expression($pdim,'');
-					push @{$dim}, [$dim_start ,$dim_stop ];
-				}
-			}
-		} elsif (($ast->[1][0] & 0xFF) == 2) { # '$'
-			# no dim			
-		} else {
-			croak Dumper($ast);
-		}	  
-	} else {
-		if(($ast->[0] & 0xFF) == 2) { # '$'
-			# no dim
-		} elsif (($ast->[0] & 0xFF) == 10) { # '@'
-			for my $pdim_idx (2 .. @{$ast}-1) {
-				my $pdim = $ast->[$pdim_idx];
-				if (ref($pdim) eq 'ARRAY') {
-					if (($pdim->[0] & 0xFF) == 12) {#  ':'						
-						my $dim_start = emit_expression($pdim->[1],'');
-						my $dim_stop = emit_expression($pdim->[2],'');
-						push @{$dim}, [$dim_start ,$dim_stop ]; 
-					}
-				} else { # must be a scalar
-					my $dim_start = 1;
-					my $dim_stop = emit_expression($pdim,'');
-					push @{$dim}, [$dim_start ,$dim_stop ];					
-				}
-			}
-        } elsif (($ast->[0] & 0xFF) == 1) { # '&'
-        	warn "Dim for variable masking an intrinsic";
-            for my $pdim_idx (2 .. @{$ast}-1) {
-                my $pdim = $ast->[$pdim_idx];
-                if (ref($pdim) eq 'ARRAY') {
-                    if (($pdim->[0] & 0xFF) == 12) {# ':'                        
-                        my $dim_start = emit_expression($pdim->[1],'');
-                        my $dim_stop = emit_expression($pdim->[2],'');
-                        push @{$dim}, [$dim_start ,$dim_stop ]; 
-                    }
-                } else { # must be a scalar
-                    my $dim_start = 1;
-                    my $dim_stop = emit_expression($pdim,'');
-                    push @{$dim}, [$dim_start ,$dim_stop ];                 
-                }
-            }			
-		} else {
-			croak Dumper($ast);
-		}	
-	}	
-}
-	return $dim;	
-} # END of _get_dim_from_ast()
-
-sub  _get_dim_from_ast_OLD { (my  $ast ) = @_;
-		my $dim=[];
-		
-# If there is a length, we need the 2nd elt
-	if ($ast->[0] eq '*') {
-	# That elt can either be a scalar
-	# or an array
-		if($ast->[1][0] eq '@') {
-			# It's an array so there is a dim
-			for my $pdim_idx (2 .. @{$ast->[1]}-1) {
-				my $pdim = $ast->[1][$pdim_idx];
-				if (ref($pdim) eq 'ARRAY') {
-					if ($pdim->[0] eq ':') {
-						my $dim_start = emit_expression($pdim->[1],'');
-						my $dim_stop = emit_expression($pdim->[2],'');
-						push @{$dim}, [$dim_start ,$dim_stop ]; 
-					} else {
-						my $dim_start = 1;
-						my $dim_stop = emit_expression($pdim,'');
-						push @{$dim}, [$dim_start ,$dim_stop ]; 					
-					}
-				} else { # must be scalar
-					my $dim_start = 1;
-					my $dim_stop = emit_expression($pdim,'');
-					push @{$dim}, [$dim_start ,$dim_stop ];
-				}
-			}
-		} elsif ($ast->[1][0] eq '$') {
-			# no dim			
-		} else {
-			croak Dumper($ast);
-		}
-	  
-	} else {
-		if($ast->[0] eq '$') {
-			# no dim
-		} elsif ($ast->[0] eq '@') {
-			for my $pdim_idx (2 .. @{$ast}-1) {
-				my $pdim = $ast->[$pdim_idx];
-				if (ref($pdim) eq 'ARRAY') {
-					if ($pdim->[0] eq ':') {
-						my $dim_start = emit_expression($pdim->[1],'');
-						my $dim_stop = emit_expression($pdim->[2],'');
-						push @{$dim}, [$dim_start ,$dim_stop ]; 
-					}
-				} else { # must be a scalar
-					my $dim_start = 1;
-					my $dim_stop = emit_expression($pdim,'');
-					push @{$dim}, [$dim_start ,$dim_stop ];					
-				}
-			}
-		} else {
-			croak Dumper($ast);
-		}	
-	}	
-	return $dim;	
-}
-
 sub  _get_len_from_ast { (my  $ast ) = @_;
 	my $len='';
 	if (($ast->[0] & 0xFF)==5) {
 		# there is a len
 		my $len_expr = $ast->[2];
-		if ($NEW_PARSER) { # Worth a try, but not sure about '*' 
-		
-			$len = emit_expr_from_ast($len_expr);
-#			croak Dumper($len_expr).$len;
-			return $len;
-		}
-		if ($len_expr eq '0') {
-			$len = '*';	
-		} elsif ($len_expr=~/^\d+/) {
-			$len = $len_expr;
-		} else {
-			# could be that we have to strip parens here
-			$len = emit_expression($len_expr);
-			if ($len=~/\(([a-z]\w+)\)/) {
-				$len=$1;				
-			}		
-		}
+	 # Worth a try, but not sure about '*' 		
+		$len = emit_expr_from_ast($len_expr);
+		return $len;
+
 	} 
 	return $len;	
 }
 
-sub  _get_len_from_ast_OLD { (my  $ast ) = @_;
-	my $len='';
-	if ($ast->[0] eq '*') {
-		# there is a len
-		my $len_expr = $ast->[2];
-		if ($len_expr eq '0') {
-			$len = '*';	
-		} elsif ($len_expr=~/^\d+/) {
-			$len = $len_expr;
-		} else {
-			# could be thart we have to strip parens here
-			$len = emit_expression($len_expr);
-			if ($len=~/\(([a-z]\w+)\)/) {
-				$len=$1;				
-			}		
-		}
-	} 
-	return $len;	
-}
 # This code runs on any sub that has a Kernel region
 # I could of course use this pass to enumerate all the subroutines, put them in KernelSubs 
 # Or I can do a separate pass later to do just that task 
@@ -5301,7 +4317,7 @@ sub __parse_include_statement { my ($stref, $f, $Sf, $line, $info, $index) = @_;
 	$stref->{'IncludeFiles'}{$name}{'IncludedFrom'}{$f}=1;
 	if ( $stref->{'IncludeFiles'}{$name}{'Status'} == $UNREAD ) {
 		say $line if $V;
-		# Initial guess for Root. OK? FIXME?
+		# Initial guess for Root. 
 		$stref->{'IncludeFiles'}{$name}{'Root'}      = $f;
 		$stref->{'IncludeFiles'}{$name}{'HasBlocks'} = 0;
 		$stref = parse_fortran_src( $name, $stref );

@@ -44,20 +44,8 @@ sub refactor_all {
     
     
     $stref = refactor_include_files($stref);
-
-    $stref = refactor_called_functions($stref); # Context-free only FIXME: this should be treated just like subs, but of course that requires full parsing of expressions that contain function calls
-#    say "IN refactor_all NAME: $code_unit_name";
-#	for my $annline (@{ $stref->{'Subroutines'}{$code_unit_name}{'AnnLines'} }) {
-#		my ($line, $info) =@{ $annline };
-#		
-#		if (exists $info->{SubroutineCall} and $info->{SubroutineCall}{Name} eq 'update') {
-#			say $line;
-#			say Dumper($info->{SubroutineCall});
-#			
-#		}
-#	}
-
-
+# FIXME: this should be treated just like subs, but of course that requires full parsing of expressions that contain function calls
+    $stref = refactor_called_functions($stref); # Context-free only 
 
 #	say "BEFORE refactor_all_subroutines";    
     # Refactor the source, but don't split long lines and keep annotations

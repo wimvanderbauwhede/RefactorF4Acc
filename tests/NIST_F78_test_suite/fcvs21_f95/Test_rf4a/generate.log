@@ -38,10 +38,22 @@ TEST CASE FM021.f
 refactorF4acc.pl -c rf4a_fm021.cfg  -g fm021
 TEST CASE FM022.f
 refactorF4acc.pl -c rf4a_fm022.cfg  -g fm022
+      equivalence (iadn14(1), iadn15(1)), (radn14(2),radn15(2))         
+      equivalence (ladn13(1),lctn01),  (iadn14(5), icon02)              
+      equivalence (radn14(5), rcon01)                                   
+      equivalence ( iadn16(3), iadn17(2) )                              
 TEST CASE FM023.f
 refactorF4acc.pl -c rf4a_fm023.cfg  -g fm023
+      equivalence (iade23(2,2),iadn22(2,2),iade24(2,2))                 
+      equivalence (rade23(2,2),radn22(2,2),rade24(2,2))                 
+      equivalence (icoe01,icoe02,icoe03,icoe04), (rcoe01,rcoe02,rcoe03) 
 TEST CASE FM024.f
 refactorF4acc.pl -c rf4a_fm024.cfg  -g fm024
+      equivalence (iade31(1,1,1), iade32(1,1,1) )                       
+      equivalence ( rade31(1,1,1), rade32(1,1,1) )                      
+      equivalence ( lade31(1,1,1), lade32(1,1,1) )                      
+      equivalence ( iade31(1,1,1), iade21(1,1), iade11(1) )             
+      equivalence ( icoe01, icoe02, icoe03 )                            
 TEST CASE FM025.f
 refactorF4acc.pl -c rf4a_fm025.cfg  -g fm025
 TEST CASE FM026.f
@@ -97,6 +109,7 @@ TEST CASE FM090.f
 refactorF4acc.pl -c rf4a_fm090.cfg  -g fm090
 TEST CASE FM091.f
 refactorF4acc.pl -c rf4a_fm091.cfg  -g fm091
+      equivalence  (iace11(1),iadn11(1))                                
 TEST CASE FM097.f
 refactorF4acc.pl -c rf4a_fm097.cfg  -g fm097
 TEST CASE FM098.f
@@ -164,16 +177,36 @@ TEST CASE FM261.f
 refactorF4acc.pl -c rf4a_fm261.cfg  -g fm261
 TEST CASE FM300.f
 refactorF4acc.pl -c rf4a_fm300.cfg  -g fm300
+      equivalence (ivoe01, ivoe02)                                      
+      equivalence (rvoe01, rvoe02)                                      
+      equivalence (lvoe01, lvoe02)                                      
+      equivalence (cvte01, cvte02)                                      
+      equivalence (ivoe03, ivoe04, ivoe05)                              
+      equivalence (ivoe06, ivoe07, rvoe03)                              
+      equivalence (ivoe08, ivoe09), (ivoe10, ivoe11)                    
+      equivalence (ivoe12, ivoe13), (ivoe13, ivoe14)                    
+      equivalence (ivoe15, ivoe16)                                      
+      equivalence (ivoe16, ivoe17)                                      
+      equivalence (iade11, iade12)                                      
+      equivalence (rade11(4), rade12(2))                                
+      equivalence (iade13, iade14(3))                                   
+      equivalence (iade15(2), ivoe18)                                   
+      equivalence (iade21, iade16)                                      
+      equivalence (ivoe19, ivoe20)                                      
 TEST CASE FM301.f
 refactorF4acc.pl -c rf4a_fm301.cfg  -g fm301
 TEST CASE FM302.f
 refactorF4acc.pl -c rf4a_fm302.cfg  -g fm302
+      equivalence (ivceh1,ivceh2)                                       
+      equivalence (ivce09,ivce10)                                       
+      equivalence (ivcei1,iace1i)                                       
 TEST CASE FM306.f
 refactorF4acc.pl -c rf4a_fm306.cfg  -g fm306
 TEST CASE FM307.f
 refactorF4acc.pl -c rf4a_fm307.cfg  -g fm307
 TEST CASE FM308.f
 refactorF4acc.pl -c rf4a_fm308.cfg  -g fm308
+      equivalence (ivoe01,ivoe02)                                       
 TEST CASE FM311.f
 refactorF4acc.pl -c rf4a_fm311.cfg  -g fm311
 TEST CASE FM317.f
@@ -251,6 +284,7 @@ refactorF4acc.pl -c rf4a_fm413.cfg  -g fm413
 SKIPPING FM500.f
 TEST CASE FM503.f
 refactorF4acc.pl -c rf4a_fm503.cfg  -g fm503
+        equivalence (avc, r2e)                                          
 TEST CASE FM506.f
 refactorF4acc.pl -c rf4a_fm506.cfg  -g fm506
 SKIPPING FM509.f
@@ -262,6 +296,7 @@ TEST CASE FM520.f
 refactorF4acc.pl -c rf4a_fm520.cfg  -g fm520
 TEST CASE FM700.f
 refactorF4acc.pl -c rf4a_fm700.cfg  -g fm700
+      equivalence (zvcomp, r2e001)                                      
 TEST CASE FM701.f
 refactorF4acc.pl -c rf4a_fm701.cfg  -g fm701
 TEST CASE FM710.f
@@ -276,6 +311,7 @@ TEST CASE FM719.f
 refactorF4acc.pl -c rf4a_fm719.cfg  -g fm719
 TEST CASE FM722.f
 refactorF4acc.pl -c rf4a_fm722.cfg  -g fm722
+      equivalence (zvcomp,r2nn02)                                       
 TEST CASE FM800.f
 refactorF4acc.pl -c rf4a_fm800.cfg  -g fm800
 TEST CASE FM801.f
@@ -296,28 +332,34 @@ TEST CASE FM808.f
 refactorF4acc.pl -c rf4a_fm808.cfg  -g fm808
 TEST CASE FM809.f
 refactorF4acc.pl -c rf4a_fm809.cfg  -g fm809
+        equivalence (cwavc,r2e)                                         
 TEST CASE FM810.f
 refactorF4acc.pl -c rf4a_fm810.cfg  -g fm810
 TEST CASE FM811.f
 refactorF4acc.pl -c rf4a_fm811.cfg  -g fm811
+        equivalence (cyavc,r2e)                                         
 TEST CASE FM812.f
 refactorF4acc.pl -c rf4a_fm812.cfg  -g fm812
 TEST CASE FM813.f
 refactorF4acc.pl -c rf4a_fm813.cfg  -g fm813
+        equivalence (avc, r2e)                                          
 TEST CASE FM814.f
 refactorF4acc.pl -c rf4a_fm814.cfg  -g fm814
 TEST CASE FM815.f
 refactorF4acc.pl -c rf4a_fm815.cfg  -g fm815
+        equivalence (avc, r2e)                                          
 TEST CASE FM816.f
 refactorF4acc.pl -c rf4a_fm816.cfg  -g fm816
 TEST CASE FM817.f
 refactorF4acc.pl -c rf4a_fm817.cfg  -g fm817
+        equivalence (avc, r2e)                                          
 TEST CASE FM818.f
 refactorF4acc.pl -c rf4a_fm818.cfg  -g fm818
 TEST CASE FM819.f
 refactorF4acc.pl -c rf4a_fm819.cfg  -g fm819
 TEST CASE FM820.f
 refactorF4acc.pl -c rf4a_fm820.cfg  -g fm820
+        equivalence (avc, r2e)                                          
 TEST CASE FM821.f
 refactorF4acc.pl -c rf4a_fm821.cfg  -g fm821
 TEST CASE FM822.f
@@ -334,18 +376,24 @@ TEST CASE FM827.f
 refactorF4acc.pl -c rf4a_fm827.cfg  -g fm827
 TEST CASE FM828.f
 refactorF4acc.pl -c rf4a_fm828.cfg  -g fm828
+        equivalence (avc, r2e)                                          
 TEST CASE FM829.f
 refactorF4acc.pl -c rf4a_fm829.cfg  -g fm829
+        equivalence (bvc, r2e)                                          
 TEST CASE FM830.f
 refactorF4acc.pl -c rf4a_fm830.cfg  -g fm830
+        equivalence (avc, r2e)                                          
 TEST CASE FM831.f
 refactorF4acc.pl -c rf4a_fm831.cfg  -g fm831
+        equivalence (avc, r2e)                                          
 TEST CASE FM832.f
 refactorF4acc.pl -c rf4a_fm832.cfg  -g fm832
 TEST CASE FM833.f
 refactorF4acc.pl -c rf4a_fm833.cfg  -g fm833
+        equivalence (avc, r2e)                                          
 TEST CASE FM834.f
 refactorF4acc.pl -c rf4a_fm834.cfg  -g fm834
+        equivalence (avc, r2e)                                          
 TEST CASE FM900.f
 refactorF4acc.pl -c rf4a_fm900.cfg  -g fm900
 TEST CASE FM901.f
@@ -356,12 +404,16 @@ TEST CASE FM905.f
 refactorF4acc.pl -c rf4a_fm905.cfg  -g fm905
 TEST CASE FM906.f
 refactorF4acc.pl -c rf4a_fm906.cfg  -g fm906
+        equivalence (avc,r2e(1)),(bvc,r2e(3)),(cvc,r2e(5))              
 TEST CASE FM907.f
 refactorF4acc.pl -c rf4a_fm907.cfg  -g fm907
 TEST CASE FM908.f
 refactorF4acc.pl -c rf4a_fm908.cfg  -g fm908
+        equivalence (r2e(1),avc),(r2e(3),bvc),(r2e(5),cvc),(r2e(7),dvc) 
 TEST CASE FM909.f
 refactorF4acc.pl -c rf4a_fm909.cfg  -g fm909
+        equivalence (a97vk, a97e1), (a431k, a97e1)                      
+        equivalence (cvcorr, a97e2)                                     
 TEST CASE FM910.f
 refactorF4acc.pl -c rf4a_fm910.cfg  -g fm910
 TEST CASE FM912.f
