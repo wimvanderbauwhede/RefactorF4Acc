@@ -203,7 +203,8 @@ sub analyse_lines {
 		
 		say "\nINFO: VAR DECLS in $f:" if $I;
 		my %vars = ();
-
+		
+		my $prev_stmt_was_spec=0;
 		my $in_excluded_block	   = 0; # for printing a given block for debug
 		my $excluded_block   = -1;
 		my $first          = 1;		
@@ -911,7 +912,22 @@ or $line=~/^character\s*\(\s*len\s*=\s*[\w\*]+\s*\)/
 				$Sf->{'HasParameters'}=1;
 				$info->{'SpecificationStatement'} = 1;
                 $info->{'HasVars'} = 1; 
-			}    # match var decls, parameter statements F77/F95								
+			}    # match var decls, parameter statements F77/F95	
+#== Statement Function
+# fun ( [ d [, d ] … ] ) = e
+# fun Name of statement function being defined
+# d Statement function dummy argument
+# e Expression. e can be any of the types arithmetic, logical, or character.
+# I make the assumption that the first argument MUST be used on the definition
+# Otherwise it is impossible to distinguish from an array assignment				
+			elsif ( $line =~ /(\w+)\s*\(\s*(\w+)[,\w]*\)\s*=\s*.*\2/ ) {
+				$info->{'StatementFunction'} = 1;
+				$info->{'HasVars'} = 1; 
+				$info->{'SpecificationStatement'} = 1;    
+				$info = _parse_assignment( $line, $info, $stref, $f );
+#				croak Dumper(keys %{$info});
+			}
+									
 #== SIGNATURES SUBROUTINE FUNCTION PROGRAM ENTRY
 #@ Signature =>
 #@    Args =>
@@ -1325,9 +1341,8 @@ END IF
                     $info->{'HasVars'} = 1; 
 					my $free_form =  $Sf->{'FreeForm'};							
 					$mline = __remove_blanks($mline,$free_form);
-#					$line = __remove_blanks($line,$free_form);
 #WV20150303: We parse this assignment and return {Lhs => {Varname, ArrayOrScalar, IndexExpr}, Rhs => {Expr, VarList}}
-#croak "$f <$mline>" if $mline=~/^\s*\d*\s*write/ ;
+croak "$f <$mline>" if $mline=~/^rfos01/ ;
 
 					$info = _parse_assignment( $mline, $info, $stref, $f );
 			}
