@@ -919,8 +919,9 @@ or $line=~/^character\s*\(\s*len\s*=\s*[\w\*]+\s*\)/
 # d Statement function dummy argument
 # e Expression. e can be any of the types arithmetic, logical, or character.
 # I make the assumption that the first argument MUST be used on the definition
-# Otherwise it is impossible to distinguish from an array assignment				
-			elsif ( $line =~ /(\w+)\s*\(\s*(\w+)[,\w]*\)\s*=\s*.*\2/ ) {
+# Otherwise it is impossible to distinguish from an array assignment
+# An alternative way would be to check if this statement comes immediately after another SpecificationStatement 
+			elsif ( $line =~ /([a-z]\w*)\s*\(\s*([a-z]\w*)[,\w]*\)\s*=\s*.*\2/ ) {
 				$info->{'StatementFunction'} = 1;
 				$info->{'HasVars'} = 1; 
 				$info->{'SpecificationStatement'} = 1;    
@@ -1342,7 +1343,7 @@ END IF
 					my $free_form =  $Sf->{'FreeForm'};							
 					$mline = __remove_blanks($mline,$free_form);
 #WV20150303: We parse this assignment and return {Lhs => {Varname, ArrayOrScalar, IndexExpr}, Rhs => {Expr, VarList}}
-croak "$f <$mline>" if $mline=~/^rfos01/ ;
+#croak "$f <$mline>" if $mline=~/^rfos01/ ;
 
 					$info = _parse_assignment( $mline, $info, $stref, $f );
 			}
@@ -2976,7 +2977,7 @@ sub __parse_f77_var_decl {
 			'IODir'  => $tvar_rec->{'IODir'},
 			'Status' => 0,
 			'StmtCount'	=> $tvar_rec->{'StmtCount'},
-			'ArrayOrScalar' => $pvars->{$tvar}{'ArrayOrScalar'},
+			'ArrayOrScalar' => scalar @{$dim} > 0 ? 'Array' : 'Scalar' #$pvars->{$tvar}{'ArrayOrScalar'},
 		};
 		# Here $decl->{'Type'} is OK
 		

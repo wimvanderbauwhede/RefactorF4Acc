@@ -17,7 +17,7 @@ use RefactorF4Acc::Utils qw( in_nested_set add_var_decl_to_set remove_var_decl_f
 use RefactorF4Acc::Parser::Expressions qw( parse_expression_no_context );
 use RefactorF4Acc::Analysis::Arguments qw( create_RefactoredArgs );
 use RefactorF4Acc::Analysis::Arrays qw(  
-calc_array_size
+calculate_array_size
 calculate_multidim_indices_from_linear
 dim_to_str
 );
@@ -698,7 +698,7 @@ sub _caller_to_local_assignment_annlines {
 	my $l_str    = __emit_equiv_var_str($l);
 	my $r        = $equiv_pair->[1];
 	my $r_str    = __emit_equiv_var_str($r);
-	my $annlines = __cast_annlines( $l->[1], $l_str, $r->[1], $r_str );
+	my $annlines = _cast_annlines( $l->[1], $l_str, $r->[1], $r_str );
 
 	# Adding the Indent
 	my $indent = ' ' x 6;
@@ -714,7 +714,7 @@ sub _caller_to_rev_local_assignment_annlines {
 	my $l_str    = __emit_equiv_var_str($l);
 	my $r        = $equiv_pair->[1];
 	my $r_str    = __emit_equiv_var_str($r);
-	my $annlines = __cast_annlines(  $r->[1], $r_str, $l->[1], $l_str );
+	my $annlines = _cast_annlines(  $r->[1], $r_str, $l->[1], $l_str );
 
 	# Adding the Indent
 	my $indent = ' ' x 6;

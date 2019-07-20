@@ -29,14 +29,14 @@ use Exporter;
 our @ISA = qw(Exporter);
 
 our @EXPORT_OK = qw(
-calc_array_size
+calculate_array_size
 get_array_rank
 calculate_multidim_indices_from_linear
 dim_to_str
 );
 
 
-sub calc_array_size {
+sub calculate_array_size {
 	my ( $stref, $f, $dim ) = @_;
 	my @sz_strs = ();
 	for my $entry ( @{$dim} ) {
@@ -48,7 +48,7 @@ sub calc_array_size {
 	my $size = eval_expression_with_parameters( $tot_sz_str, {}, $stref, $f );
 
 	return $size;
-}    # END of calc_array_size
+}    # END of calculate_array_size
 
 sub get_array_rank { (my $dim)=@_;
 	return scalar @{$dim};

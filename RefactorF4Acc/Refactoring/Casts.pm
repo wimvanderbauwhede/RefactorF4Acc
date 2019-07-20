@@ -40,12 +40,16 @@ sub _cast_annlines {
 			return __cast_integer_to_logical_annlines( $from_var, $to_var );
 		} elsif ( $to_type eq 'real' ) {
 			return __cast_integer_to_real_annlines( $from_var, $to_var );
+		} elsif ( $to_type eq 'complex' ) {
+			return __cast_integer_to_complex_annlines( $from_var, $to_var );
 		}
 	} elsif ( $from_type eq 'real' ) {
 		if ( $to_type eq 'logical' ) {
 			return __cast_real_to_logical_annlines( $from_var, $to_var );
 		} elsif ( $to_type eq 'integer' ) {
 			return __cast_real_to_integer_annlines( $from_var, $to_var );
+		} elsif ( $to_type eq 'complex' ) {
+			return __cast_real_to_complex_annlines( $from_var, $to_var );
 		}
 	} elsif ( $from_type eq 'logical' ) {
 		if ( $to_type eq 'real' ) {
@@ -53,13 +57,21 @@ sub _cast_annlines {
 		} elsif ( $to_type eq 'integer' ) {
 			return __cast_logical_to_integer_annlines( $from_var, $to_var );
 		}
+	} elsif ( $from_type eq 'complex' ) {
+		if ( $to_type eq 'logical' ) {
+			return __cast_complex_to_logical_annlines( $from_var, $to_var );
+		} elsif ( $to_type eq 'integer' ) {
+			return __cast_complex_to_integer_annlines( $from_var, $to_var );
+		} elsif ( $to_type eq 'real' ) {
+			return __cast_complex_to_real_annlines( $from_var, $to_var );
+		}
 	}
 } # END of _cast_annlines
 
 sub create_cast_annlines {
 	my ( $to_type_decl, $to_var, $from_type_decl, $from_var ) = @_;
 	my $to_type=$to_type_decl->{'Type'};
-	my $from_type=$from_type_decl->{'Type'};
+	my $from_type=$from_type_decl->{'Type'};	
 	 my $annlines = [ map { ['      '.$_,{}] } @{_cast_annlines( $to_type, $to_var, $from_type, $from_var )} ];
 	 return $annlines
 } # END of create_cast_annlines
@@ -108,6 +120,46 @@ sub __cast_real_to_integer_annlines {
 	return ["$v_integer = int($v_real)"];         #,{'Assignment'=>1,'Indent'=>' ' x 6}]];
 }
 
+sub __cast_integer_to_complex_annlines { my ( $from_integer, $to_complex ) = @_;
+	return ["$to_complex = cmplx($from_integer)"];
+}
+
+sub __cast_real_to_complex_annlines { my ( $from_real, $to_complex ) = @_;
+	# This is dodgy because it only works if that real is a 2-element array
+	if ($from_real!~/\(/) {
+		return ["$to_complex = cmplx($from_real(1),$from_real(2))"];
+	} else {
+		my $imag_part = $from_real;
+		$imag_part =~s/\)$/+1)/;
+		return ["$to_complex = cmplx($from_real,$imag_part)"];
+	}
+}
+
+sub __cast_complex_to_logical_annlines { my ( $from_complex, $to_logical ) = @_;	
+	return ["$to_logical = ($from_complex /= (0,0))"];    #,{"Assignment"=>1,'Indent'=>' ' x 6}]];
+}
+		
+sub __cast_complex_to_integer_annlines { my ( $from_complex, $to_integer ) = @_;
+	return ["$to_integer = int($from_complex)"];
+	
+	if ($to_integer!~/\(/) {
+		return ["$to_integer(1) = int($from_complex)","$to_integer(2) = int(aimag($from_complex))"];
+	} else {
+		my $imag_part = $to_integer;
+		$imag_part =~s/\)$/+1)/;
+		return ["$to_integer = int($from_complex)","$imag_part = int(aimag($from_complex))"];
+	}	
+	
+}
+sub __cast_complex_to_real_annlines { my ( $from_complex, $to_real ) = @_;
+	if ($to_real!~/\(/) {
+		return ["$to_real(1) = real($from_complex)","$to_real(2) = aimag($from_complex)"];
+	} else {
+		my $imag_part = $to_real;
+		$imag_part =~s/\)$/+1)/;		
+		return ["$to_real = real($from_complex)","$imag_part = aimag($from_complex)"];
+	}
+}
 
 1;
 

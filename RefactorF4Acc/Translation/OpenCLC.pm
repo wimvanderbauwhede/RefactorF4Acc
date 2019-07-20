@@ -761,6 +761,28 @@ while ($cond_expr=~/\.(\w+)\./) {
 	return $cond_expr;
 }
 #### #### #### #### END OF C TRANSLATION CODE #### #### #### ####
+
+=info_emit_OpenCL_pipe_declarations 
+The original proposed syntax was
+
+      integer :: velnw_0_velnw_1_smart_cache_u_i_j_k_pipe
+
+and then further on
+
+subroutine pipe_initialisation
+
+    call ocl_pipe_real(velnw_0_velnw_1_smart_cache_u_i_j_k_pipe)
+	! ...
+end subroutine pipe_initialisation
+
+But I want to replace this with
+
+      integer :: velnw_0_velnw_1_smart_cache_u_i_j_k_pipe !$OCL pipe real
+
+
+
+=cut
+
  sub _emit_OpenCL_pipe_declarations {
  (my $stref, my $f, my $ocl) = @_;
     

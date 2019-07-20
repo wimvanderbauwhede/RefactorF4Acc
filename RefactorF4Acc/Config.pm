@@ -33,6 +33,7 @@ $translate
 $targetdir
 %Config
 &read_rf4a_config    
+&interactive_create_rf4a_cfg
 );
 
 our $NEW_PARSER = 1;
@@ -129,22 +130,32 @@ sub read_rf4a_config {
 close $CFG;
 }
 =pod
-TOP: 			The name of the toplevel code unit for the analysis. Typically this is the main program name.
-PREFIX:			The path to the directory  where the script will run. Typically this is '.'
-KERNEL:			For OpenCL translatation, the name of the subroutine to become the OpenCL kernel (actually same as TOP) 
-MODULE_SRC:		For OpenCL translatation, the name of the source file containing a module which contains the kernel subroutine
-SRCDIRS: 		A comma-separated list of directories (relative to PREFIX) to be searched for source files. 
-EXTSRCDIRS:		A comma-separated list of directories (relative to PREFIX) to be searched for source files.
-EXCL_SRCS:		A regular expression matching the source files to be excluded from the analysis.		
-EXCL_DIRS:		A comma-separated list of directories (relative to PREFIX) NOT to be searched for source files.
-NO_MODULE
-MACRO_SRC:		If the sources use the C preprocessor, you can provide a file containing C preprocessor macro definitions 
-NEWSRCPATH:		Path to the directory that will contain the refactored sources
-MODULE:
-RENAME_EXT:		Extension for variables that need to be renamed because of conflicts (usually you don't need this)
-NO_ONLY:		Do not use the ONLY qualifier on the USE declaration
+TOP: The name of the toplevel code unit for the analysis. Typically this is the main program name.
+PREFIX: The path to the directory  where the script will run. Typically this is '.'.
+
+SRCDIRS: A comma-separated list of directories (relative to PREFIX) to be searched for source files.
+EXTSRCDIRS: A comma-separated list of directories (relative to PREFIX) to be searched for source files.
+EXCL_SRCS: A regular expression matching the source files to be excluded from the analysis.
+EXCL_DIRS: A comma-separated list of directories (relative to PREFIX) NOT to be searched for source files.
+MACRO_SRC: If the sources use the C preprocessor, you can provide a file containing C preprocessor macro definitions
+NEWSRCPATH: Path to the directory that will contain the refactored sources
+
+KERNEL: For OpenCL translatation, the name of the subroutine to become the OpenCL kernel (actually same as TOP).
+MODULE_SRC: For OpenCL translatation, the name of the source file containing a module which contains the kernel subroutine.
+MODULE: For OpenCL translatation, the name of the module which contains the kernel subroutine
+
+NO_MODULE: List of source files that should not be changed to modules
+RENAME_EXT: Extension for variables that need to be renamed because of conflicts (usually you don't need this; the default is _GLOB)
+NO_ONLY: Do not use the ONLY qualifier on the USE declaration
 SPLIT_LONG_LINES: Split long lines into chunks of no more than 80 characters
+MAX_LINE_LENGTH: Maximum line length for fixed-format F77 code. The default is 132 characters.
+EXT Extension of generated source files. Default is `.f90`; must include the dot
+LIBS SCons LIBS, comma-separated list
+LIBPATH SCons LIBPATH, comma-separated list
+INCLPATH SCons F90PATH or F95PATH (based on EXT), comma-separated list
+
 REFACTOR_TOPLEVEL_GLOBALS: like -g
+
 Examples:
 
 TOP = main
@@ -169,6 +180,114 @@ EXCL_DIRS = ./PostCPP,./Temp
 MACRO_SRC = macros.h
 RENAME_EXT = _G
 =cut
+
+our $config_menu= {
+    'BASIC' => [
+        ['SRCDIRS','Relative path to the original Fortran source code','.'],
+        ['NEWSRCPATH','Relative path to the refactored Fortran source code','../RefactoredSources'],
+        ['TOP', 'Name of the program','main'],
+        ['CONFIG:ADVANCED', 'Advanced configuration? y/n','n'],
+    ],
+    'ADVANCED' => [
+        ['PREFIX','Prefix for all relative paths','.'],
+        ['EXT','Extension of refactored source files','.f90'],
+        ['EXCL_SRCS', 'Source files to be excluded (comma-separated list)',''],
+        ['EXCL_DIRS', 'Source folders to be excluded (comma-separated list)',''],
+        ['SPLIT_LONG_LINES', 'Split long lines into chunks of no more than 80 characters? 0/1','1'],
+        ['MAX_LINE_LENGTH','Maximum line length for fixed-format F77 code', '132'],
+        ['CONFIG:SCONS', 'SCons-specific configuration? y/n','n'],
+        ['CONFIG:OCL', 'OpenCL-specific configuration? y/n','n'],
+        ['CONFIG:SUPER_ADVANCED', 'Super-dvanced configuration? y/n','n'],
+    ],
+
+    'SCONS' => [
+        ['LIBS','SCons LIBS, comma-separated list',''],
+        ['LIBPATH','SCons LIBPATH, comma-separated list',''],
+        ['INCLPATH','SCons F90PATH or F95PATH (based on EXT), comma-separated list','']
+    ],
+
+    'OCL' => [
+        ['KERNEL','For OpenCL translatation, the name of the subroutine to become the OpenCL kernel (actually same as TOP)',''],
+        ['MODULE_SRC','For OpenCL translatation, the name of the source file containing a module which contains the kernel subroutine',''],
+        ['MODULE','For OpenCL translatation, the name of the module which contains the kernel subroutine','']
+    ],
+
+    'SUPER_ADVANCED' => [
+        ['NO_ONLY','Generate USE without ONLY? 0/1','0'],
+        ['RENAME_EXT', 'Suffix for renaming clashing variables ','_GLOB'],
+        ['NO_MODULE','Comma-separated list of source files that should not be changed to modules',''],
+        ['MACRO_SRC','Relative path to C-style header file with macro definitions','macros.h']
+    ]
+};
+
+sub interactive_create_rf4a_cfg { #(my $config) = @_;
+    my $lines = process_config($config_menu,'BASIC',[]);
+    write_config($lines);
+}
+
+sub write_config { (my $lines) = @_;
+    my $cfg='rf4a.cfg';
+    if (-e $cfg) {
+        say "Config file $cfg already exists. Overwrite it? y/n [n] ";
+        my $value = <STDIN>;
+        chomp $value;
+        if ($value ne 'y') {
+            say "New config file name? ";
+            $cfg = <STDIN>;
+            chomp $cfg;
+        }
+   } 
+    
+   say "Writing configuration to $cfg";
+   open my $CFG, '>', $cfg or die $!;
+    for my $line (@{$lines}) {
+        say $line;
+        say $CFG $line;
+    }
+    close $CFG;
+}
+
+sub process_config {
+    (my $config, my $class, my $lines) = @_;
+    for my $entry (@{$config->{$class}}) {
+         (my $key, my $desc, my $default) = @{$entry};
+         my $value = get_entry_value($desc, $default);
+        if ($key=~/CONFIG:(\w+)/) {  
+            my $class=$1;
+            if ( $value eq 'y') {
+                $lines = process_config($config, $class, $lines);
+            }
+        } else {
+            if ($class eq 'BASIC') {               
+                $default = '#'; # so that basic defaults will be entered in the cfg file
+            }
+            push @{$lines}, write_key($key, $value, $default);
+        }
+    }
+    return $lines;
+}
+    
+sub get_entry_value { (my $desc, my $default) = @_;
+    print "$desc: [$default] ";
+    my $value = <STDIN>;
+    chomp $value;
+    if ($value eq '') {
+        $value = $default;
+    }
+    return $value;
+}
+
+sub  write_key { my ($key, $value, $default) = @_;
+    if ($value eq $default or $value eq '') {
+        # just print the commented-out key name
+        return "# $key = ";
+    } else {
+        return "$key = $value";
+    }
+}
+
+#interactive_create_rf4a_cfg($config);
+
 
 
 1;

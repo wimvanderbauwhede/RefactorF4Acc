@@ -359,6 +359,7 @@ sub context_free_refactorings {
 	                        'ParamDecl' => $par_decl,
 	                        'Ref'       => $info_ref + 1,
 	                        'LineID'    => $nextLineID++,
+	                        'SpecificationStatement' => 1,
 	                        'Ann' => [annotate($f, __LINE__, ' : ParamDecl') ]                        
 	                    }
 	                  ]

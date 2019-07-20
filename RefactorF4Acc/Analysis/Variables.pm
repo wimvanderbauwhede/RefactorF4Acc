@@ -420,11 +420,8 @@ sub identify_vars_on_line {
 				or exists $info->{'RewindCall'} 
 				or exists $info->{'Return'} 
 				) {
-				if (!$NEW_PARSER) {	
-				    @chunks = ( @chunks, @{ $info->{'CallArgs'}{'List'} }, @{ $info->{'ExprVars'}{'List'} }, @{ $info->{'CallAttrs'}{'List'} });
-				} else {
-					@chunks = ( @chunks, @{ $info->{'Vars'}{'Written'}{'List'} }, @{ $info->{'Vars'}{'Read'}{'List'} } );
-				}
+				@chunks = ( @chunks, @{ $info->{'Vars'}{'Written'}{'List'} }, @{ $info->{'Vars'}{'Read'}{'List'} } );
+
 				if (exists $info->{'ImpliedDoVars'}) {
 				    @chunks = ( @chunks, @{ $info->{'ImpliedDoVars'}{'List'} } );
 				}

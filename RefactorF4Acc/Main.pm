@@ -293,8 +293,12 @@ sub parse_args {
     if ($opts{'c'}) {
          $cfgrc= $opts{'c'} ;
     } 
-	read_rf4a_config($cfgrc);
-	
+    if (not -e $cfgrc) {
+        say "There is not configuration file, let's create one.";
+        interactive_create_rf4a_cfg();
+    } else {
+	    read_rf4a_config($cfgrc);
+	}
 	my $has_subname=0;
 	my $subname = $ARGV[0];
 	if ($subname) {
