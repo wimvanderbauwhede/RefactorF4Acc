@@ -1425,7 +1425,7 @@ sub _emit_f95_parsed_var_decl { (my $pvd) =@_;
             push @attrs, 'allocatable';
         }
         if (exists $pvd->{'Attributes'}{'Dim'} ) {
-        	croak Dumper($pvd);
+        	# croak Dumper($pvd);
             push @attrs,'dimension('.join(', ',@{ $pvd->{'Attributes'}{'Dim'} }).')';
         }
         if (exists $pvd->{'Attributes'}{'Intent'} ) {

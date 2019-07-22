@@ -363,6 +363,7 @@ sub _process_src {
                     print "Found program $sub in $src\n" if $V;
                     # If there is no TOP, the PROGRAM is the top
                     if (not exists $Config{'TOP'} or $Config{'TOP'} eq '') {
+                        # print "Found program $sub in $src\n" ;
                     	$Config{'TOP'} = $sub;
                     } elsif (exists $Config{'TOP'} and $Config{'TOP'} eq $sub) {
                     	say "INFO: Found TOP program $sub" if $I; 

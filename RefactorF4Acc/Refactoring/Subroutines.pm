@@ -400,7 +400,9 @@ sub _refactor_globals_new {
 			$rlines = _create_extra_arg_and_var_decls( $stref, $f, $annline, $rlines );
 		}
 
-		if ( exists $info->{'SubroutineCall'} ) {
+		if ( exists $info->{'SubroutineCall'} 
+		and not exists $info->{'ExtractedSubroutine'}
+		) {
 
 			# simply tag the common vars onto the arguments
 			$rlines = _create_refactored_subroutine_call( $stref, $f, $annline, $rlines );
@@ -521,6 +523,7 @@ sub _create_extra_arg_and_var_decls {
 	}    # for
 
 	print "INFO: UndeclaredOrigArgs in $f\n" if $I;
+	
 	my %unique_ex_impl = ();
 	for my $var ( @{ $Sf->{'UndeclaredOrigArgs'}{'List'} } ) {
 		if (    not exists $Sf->{'UsedGlobalVars'}{'Set'}{$var}

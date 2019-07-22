@@ -2,7 +2,7 @@ package RefactorF4Acc::Analysis::ArgumentIODirs;
 use v5.10;
 
 use RefactorF4Acc::Config;
-use RefactorF4Acc::Utils qw( get_maybe_args_globs type_via_implicits in_nested_set get_var_record_from_set %F95_intrinsic_functions);
+use RefactorF4Acc::Utils qw( pp_annlines get_maybe_args_globs type_via_implicits in_nested_set get_var_record_from_set %F95_intrinsic_functions);
 use RefactorF4Acc::Refactoring::Common qw( get_annotated_sourcelines stateful_pass emit_f95_var_decl get_f95_var_decl );
 #use RefactorF4Acc::Refactoring::Subroutines::Signatures qw( refactor_subroutine_signature );
 
@@ -257,14 +257,16 @@ sub _analyse_src_for_iodirs {
 	my $Sf = $stref->{'Subroutines'}{$f};
 
 	if ( not exists $Sf->{'IODirInfo'} or $Sf->{'IODirInfo'} == 0 ) {
+		
 		if ( not exists $Sf->{'HasRefactoredArgs'} or $Sf->{'HasRefactoredArgs'} == 0 ) {
 			$Sf->{'RefactoredArgs'}{'Set'}={};
 			say "SUB $f DOES NOT HAVE RefactoredArgs";
-			croak 'BOOM! Logic is wrong:  HasRefactoredArgs 0/1 does not indicate presence of RefactoredArgs List/Set' . __LINE__ ;#. ' ' . $f . ' : ' . Dumper($Sf);
-			
+			croak 'BOOM! Logic is wrong:  HasRefactoredArgs 0/1 does not indicate presence of RefactoredArgs List/Set' . __LINE__ ;#. ' ' . $f . ' : ' . Dumper($Sf);			
 		} else {
+			
 		my $args = dclone( $Sf->{'RefactoredArgs'}{'Set'} ); 
 		my $args_list =  $Sf->{'RefactoredArgs'}{'List'} ; 
+		
 		if ( exists $Sf->{'HasEntries'}  ) {
 			say "INFO: Setting IODir to Ignore for all args in subroutine $f because of ENTRIES" if $I;
 			for my $arg ($args_list) {
@@ -276,12 +278,13 @@ sub _analyse_src_for_iodirs {
 			# FIXME!
 			say "INFO: SKIPPING IODir analysis for FUNCTION $f" if $I;
 		} else {
+			
 			my $annlines = get_annotated_sourcelines( $stref, $f );
 
 			for my $index ( 0 .. scalar( @{$annlines} ) - 1 ) {
 				
 				(my $line,my $info)  = @{ $annlines->[$index] };
-								 
+
 				if ( exists $info->{'Blank'} or exists $info->{'Comments'} or exists $info->{'Deleted'}) {
 					next;
 				}
@@ -502,7 +505,7 @@ sub _analyse_src_for_iodirs {
 				}
 			}
 		}
-		
+
 		for my $arg ( $args_list ) {
 #		 say $arg if $f eq 'sn705';	
 			if (exists $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$arg} ) {

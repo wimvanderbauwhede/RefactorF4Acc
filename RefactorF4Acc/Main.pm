@@ -294,7 +294,7 @@ sub parse_args {
          $cfgrc= $opts{'c'} ;
     } 
     if (not -e $cfgrc) {
-        say "There is not configuration file, let's create one.";
+        say "There is not configuration file, let's create one.\n";
         interactive_create_rf4a_cfg();
     } else {
 	    read_rf4a_config($cfgrc);
@@ -327,7 +327,8 @@ sub parse_args {
     	# OK, source files from config file
         $SOURCEFILES = $Config{'SOURCEFILES'}     
     } elsif (not $has_subname) {
-    	die "No default for toplevel subroutine (TOP) in rf4a.cfg, please specify the toplevel subroutine on command line\n"; 
+    	# die "No default for toplevel subroutine (TOP) in rf4a.cfg, please specify the toplevel subroutine on command line\n"; 
+        say "No default for toplevel subroutine (TOP) in rf4a.cfg, I will use the program name" if $V; 
     }
     
     $ANN = ( $opts{'A'} ) ? 1 : 0;

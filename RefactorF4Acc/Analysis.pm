@@ -65,7 +65,7 @@ sub analyse_all {
 		$stref = find_root_for_includes( $stref, $code_unit_name );
 	}
 	return $stref if $stage == 1;
-
+	# croak Dumper($stref->{'Subroutines'}{'predict_loc'});
 	# I think I need a special case here to find the ExGlobArgs for BLOCK DATA
 	for my $f ( keys %{ $stref->{'Subroutines'} } ) {
 		next if $f eq '';	

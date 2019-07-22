@@ -105,7 +105,7 @@ sub _separate_blocks {
     $Data::Dumper::Indent = 2;
 
     # All variables in the parent subroutine
-    my $varsref = get_vars_from_set( $Sf->{'Vars'} );
+    my $varsref = get_vars_from_set( $Sf->{'Vars'} );    
 
     # Occurence
     my $occsref  = {};
@@ -120,6 +120,7 @@ sub _separate_blocks {
 # The lines with the pragmas occur both in OUTER and the block
 
     $blocksref  = __separate_into_blocks( $stref, $blocksref, $f );
+    
 
 # 2. For all non-OUTER blocks, create an entry for the new subroutine in 'Subroutines'
 # Based on the content of $blocksref
@@ -259,10 +260,14 @@ sub __separate_into_blocks {
 # -----------------------------------------------------------------------------
 sub __create_new_subroutine_entries {
     ( my $stref, my $blocksref, my $f ) = @_;
-
+# croak Dumper($stref->{'Subroutines'}{$f}{Source});
     my $sub_or_func_or_mod = sub_func_incl_mod( $f, $stref );
     my $Sf = $stref->{$sub_or_func_or_mod}{$f};
-
+# Each extracted subroutine should be put in the same folder as the source of $f
+# A bit ugly, but should be ok:
+    my $srcdir = $stref->{'Subroutines'}{$f}{'Source'};
+    $srcdir=~s/\w+\.\w+$//;
+    $srcdir=~s/\/$//;    
     for my $block_rec ( @{$blocksref} ) {
         
         my $block = $block_rec->{'Name'};
@@ -272,7 +277,8 @@ sub __create_new_subroutine_entries {
         if ( not exists $stref->{'Subroutines'}{$block} ) {
             $stref->{'Subroutines'}{$block} = {};
             $stref->{'Subroutines'}{$block}{'Source'} =
-              "./$block.f95";    #$Sf->{'Source'};
+              "$srcdir/$block$EXT";    #$Sf->{'Source'};
+            #   croak $stref->{'Subroutines'}{$block}{'Source'} ;
         }
 
         my $Sblock = $stref->{'Subroutines'}{$block};
@@ -281,7 +287,8 @@ sub __create_new_subroutine_entries {
         for my $annline ( @{ $Sblock->{'AnnLines'} } ) {
             $annline->[1]{'LineID'} = $line_id++;
         }
-        my $src = "./$block.f95";
+        
+        my $src = "$srcdir/$block$EXT";
 
         $stref->{'SourceContains'}{$src}{'Set'}{$block} = 'Subroutines';
         push @{ $stref->{'SourceContains'}{$src}{'List'} }, $block;       
@@ -313,7 +320,7 @@ sub __construct_new_subroutine_signatures {
     ( my $stref, my $blocksref, my $occsref, my $itersref, my $varsref, my $f )
       = @_;
 
-      #    local $V = 1;
+    #   local $V = 1;
     my $sub_or_func_or_mod = sub_func_incl_mod( $f, $stref );    # This is not a misnomer as it can also be a module.
     my $Sf     = $stref->{$sub_or_func_or_mod}{$f};
     
@@ -334,17 +341,47 @@ sub __construct_new_subroutine_signatures {
 
         # Collect args for new subroutine
         # At this stage, if a var is global, it should not become an argument.
+        my $pushed_var=0;
         for my $var ( sort keys %{ $occsref->{$block} } ) { 
+
             if ( exists $occsref->{'OUTER'}{$var} ) {
-                print "$var\n" if $V;
+                # print "MAYBE ARG: $var\n" if $V;
                 # Only if this $var is not COMMON!
                 if ( not exists $Sf->{'UsedParameters'}{'Set'}{$var}
                 and not exists $Sf->{'DeclaredCommonVars'}{'Set'}{$var} # FIXME: UndeclaredCommonVars as well?
                 and not exists $Sf->{'UndeclaredCommonVars'}{'Set'}{$var}        
                 ) {
-                     carp "$f: $var is NOT COMMON!";
-                push @{ $args{$block} }, $var;
+                    #  carp "$f: $var is NOT COMMON!";
+                    # print "ARG: $var\n" if $V;
+                    push @{ $args{$block} }, $var;                    
                 } 
+                # else {
+                #     say "NOT an ARG: $var ". __FILE__. ' ' . __LINE__;
+                # }
+            } else {
+                # say "VAR $var not used in OUTER ". __FILE__. ' ' . __LINE__;
+                # WV20190722 We must check if the var is not used by any of the other subs!
+                for my $other_block (sort keys %{ $occsref }) {
+                    next if $other_block eq 'OUTER';
+                    next if $other_block eq $block;
+                    if ( exists $occsref->{$other_block}{$var} ) {
+                        # say "BUT VAR $var is used in $other_block ". __FILE__. ' ' . __LINE__;
+                                        # Only if this $var is not COMMON!
+                if ( not exists $Sf->{'UsedParameters'}{'Set'}{$var}
+                and not exists $Sf->{'DeclaredCommonVars'}{'Set'}{$var} # FIXME: UndeclaredCommonVars as well?
+                and not exists $Sf->{'UndeclaredCommonVars'}{'Set'}{$var}        
+                ) {
+                    #  carp "$f: $var is NOT COMMON!";
+                    # print "ARG (2): $var\n" if $V;
+                    push @{ $args{$block} }, $var;
+                    last;
+                }
+                #  else {
+                #     say "NOT an ARG (2): $var ". __FILE__. ' ' . __LINE__;
+                # }
+
+                    }
+                }
             }
             $Sblock->{'Vars'}{$var} = $varsref->{ $var }; # FIXME: this is "inheritance, but in principle a re-parse is better?"
         }
@@ -365,7 +402,7 @@ sub __construct_new_subroutine_signatures {
         $sigrec->{'Function'}     = 0;
         for my $argv ( @{ $args{$block} } ) {
             $sig .= "$argv,";
-            my $decl = get_f95_var_decl( $stref, $f, $argv );
+            my $decl = get_f95_var_decl( $stref, $f, $argv );            
             $decl->{'Indent'} .= $sixspaces;
 
             $Sblock->{'DeclaredOrigArgs'}{'Set'}{$argv} = $decl;
@@ -400,12 +437,15 @@ sub __construct_new_subroutine_signatures {
         }
 
         for my $argv ( @{ $args{$block} } ) {
+            # say "ARGV: $argv";
+            my $set = in_nested_set($Sblock,'OrigArgs',$argv);
+            # croak Dumper($Sblock->{'OrigArgs'});
             my $decl = get_var_record_from_set( $Sblock->{'OrigArgs'}, $argv );
-            if ( not defined $decl ) {
-                croak;
-                $decl = $Sblock->{'DeclaredOrigArgs'}{'Set'}{$argv};
-            }
-            
+            # if ( not defined $decl ) {
+            #     croak;
+            #     $decl = $Sblock->{'DeclaredOrigArgs'}{'Set'}{$argv};
+            # }
+            # say "$argv: ".Dumper($decl->{IODir}). '=>'.emit_f95_var_decl($decl);
             unshift @{ $Sblock->{'AnnLines'} },
               [
                 emit_f95_var_decl($decl),
@@ -444,14 +484,16 @@ sub __construct_new_subroutine_signatures {
         #        print "\n-----\n".Dumper($srcref)."\n-----";
         for my $tindex ( 0 .. scalar( @{$srcref} ) - 1 ) {
             if ( $tindex == $block_rec->{'BeginBlockIdx'} ) {
-                $sig =~ s/subroutine/call/;
-                $sig =~ s/\(\)//;
-                $srcref->[$tindex][0] = $sig;
-                #croak $sig;        
+                my $call_line = $sig;
+                $call_line =~ s/subroutine/call/;
+                $call_line =~ s/\(\)//;
+                $srcref->[$tindex][0] = $call_line;
+                # croak $call_line;
                 $srcref->[$tindex][1]{'SubroutineCall'} = { %{$sigrec} };
                 $srcref->[$tindex][1]{'SubroutineCall'}{'ExpressionAST'} = [];#1,$sigrec->{'Name'},[]
                 $srcref->[$tindex][1]{'CallArgs'}=dclone($sigrec->{'Args'});
                 $srcref->[$tindex][1]{'LineID'} = $Sblock->{'Callers'}{$f}[0];
+                $srcref->[$tindex][1]{'ExtractedSubroutine'}=1;
                 
             } elsif ( $tindex > $block_rec->{'BeginBlockIdx'}
                 and $tindex <= $block_rec->{'EndBlockIdx'} ) 
@@ -467,6 +509,8 @@ sub __construct_new_subroutine_signatures {
             #           print join( "\n", @{$decls} ), "\n";
         }
         $Sblock->{'Status'} = $READ;
+        # WV20190722 I added this to stop the refactoring of the call line
+        $Sblock->{'ExtractedSubroutine'}=1;
         $stref->{'Subroutines'}{$block} = $Sblock ;
         
     }
@@ -483,7 +527,7 @@ sub __reparse_extracted_subroutines {
         my $block = $block_rec->{'Name'};
         next if $block eq 'OUTER';      
         say "REPARSING $block" if $V;
-        $stref = parse_fortran_src( $block, $stref );
+        $stref = parse_fortran_src( $block, $stref );        
     }
     return $stref;
 }
@@ -532,8 +576,9 @@ sub __find_vars_in_block {
 		my %tvars = %{$varsref};    # Hurray for pass-by-value!
 
 		print "\nVARS in $block:\n\n" if $V;
-		for my $annline (@annlines) {
+		for my $annline (@annlines) {            
             ( my $tline, my $info ) = @{$annline};
+            # say "$block => $tline".Dumper($info);
 			if ( exists $info->{'Do'} ) {
 				my $iter = $info->{'Do'}{'Iterator'};
 				push @{ $itersref->{$block} }, $iter;
@@ -548,9 +593,12 @@ sub __find_vars_in_block {
 				}
             } else {
                 my $vars_on_line_ref=identify_vars_on_line($annline);
+                
                 for my $var_on_line (@{$vars_on_line_ref}) {
-                    if  ( exists $tvars{$var_on_line} ) {
-                        delete $tvars{$var_on_line};
+                    # say "$var_on_line";
+                    if  ( exists $tvars{$var_on_line} ) {                        
+                        delete $tvars{$var_on_line};                  
+                        # say "Adding $var_on_line to occsref->{$block} ". __FILE__.' '.__LINE__ ;
                         $occsref->{$block}{$var_on_line}=$var_on_line;
                     }
                 }

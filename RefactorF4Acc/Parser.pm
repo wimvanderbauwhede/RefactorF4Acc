@@ -67,7 +67,7 @@ use Exporter;
 sub parse_fortran_src {
 	( my $f, my $stref, my $is_source_file_path ) = @_;  # NOTE $f is not the name of the source but of the sub/func/incl/module.
 	 
-	#    local $V=1;
+	# local $V=1;
 	say "parse_fortran_src(): PARSING $f" if $V;
 
 ## 1. Read the source and do some minimal processsing, unless it's already been done (i.e. for extracted blocks)
@@ -204,7 +204,7 @@ sub analyse_lines {
 		say "\nINFO: VAR DECLS in $f:" if $I;
 		my %vars = ();
 		
-		my $prev_stmt_was_spec=0;
+		my $prev_stmt_was_spec=1;
 		my $in_excluded_block	   = 0; # for printing a given block for debug
 		my $excluded_block   = -1;
 		my $first          = 1;		
@@ -263,7 +263,7 @@ sub analyse_lines {
 				# remove any leading spaces
 				$line=~s/^\s+//;
 			}
-			
+			# say "LINE: $line" if $f eq 'predict_loc';
 			# --------------------------------------------------------------------------------
 			# BLOCK identification code
 			# --------------------------------------------------------------------------------
@@ -511,6 +511,7 @@ SUBROUTINE
 						$Sf->{'DoLabelTarget'}{$do_label}='EndDo';
 					}					
 				}
+				$prev_stmt_was_spec=0;
 			}			
 #== DIMENSION (VIRTUAL)		
 		 elsif ( $line =~ /^(?:dimension|virtual)/ ) {			
@@ -746,6 +747,7 @@ SUBROUTINE
 #== FORMAT		 
 		elsif ( $line =~/^format/) {
 			$info->{'Format'}=1;
+			$prev_stmt_was_spec=0;
 		}
 #== SAVE
 #The SAVE statement prevents items in a subprogram from becoming undefined
@@ -918,14 +920,20 @@ or $line=~/^character\s*\(\s*len\s*=\s*[\w\*]+\s*\)/
 # fun Name of statement function being defined
 # d Statement function dummy argument
 # e Expression. e can be any of the types arithmetic, logical, or character.
-# I make the assumption that the first argument MUST be used on the definition
+# I make the assumption that the first argument MUST be used in the definition
 # Otherwise it is impossible to distinguish from an array assignment
 # An alternative way would be to check if this statement comes immediately after another SpecificationStatement 
-			elsif ( $line =~ /([a-z]\w*)\s*\(\s*([a-z]\w*)[,\w]*\)\s*=\s*.*\2/ ) {
+			elsif ( $prev_stmt_was_spec and
+				$line =~ /([a-z]\w*)\s*\(\s*([a-z]\w*)[,\w]*\)\s*=\s*.*\2\W/ ) {
+				
+				my $maybe_function = $1;
+				my $set = in_nested_set($Sf,'Vars',$maybe_function);				
+				carp "$maybe_function is a StatementFunction in $f?!?! ($set)";
 				$info->{'StatementFunction'} = 1;
 				$info->{'HasVars'} = 1; 
 				$info->{'SpecificationStatement'} = 1;    
 				$info = _parse_assignment( $line, $info, $stref, $f );
+			
 #				croak Dumper(keys %{$info});
 			}
 									
@@ -1033,6 +1041,7 @@ or $line=~/^character\s*\(\s*len\s*=\s*[\w\*]+\s*\)/
                 $info->{'HasVars'} = 1; 
 				$do_counter++;
 				push @do_stack, $info;
+				
 #== SELECT/CASE 
 #@ CaseVar => $var
 #@ CaseVals => [...]
@@ -1050,8 +1059,8 @@ or $line=~/^character\s*\(\s*len\s*=\s*[\w\*]+\s*\)/
 					$info->{ 'Case' } = ++$case_counter;				
 				} elsif ($line=~/case\s+\default/) {
 					$info->{'CaseDefault'} = 1;
-					$info->{ 'Control' } = 1;			
-			}
+					$info->{ 'Control' } = 1;								
+			}			
 #== ELSE			 
 			elsif ( $line =~ /^else\s*$/ ) {			 	
 					$info->{'Else'} = 1;			
@@ -1369,16 +1378,32 @@ END IF
 			}
 			$srcref->[$index] = [ $lline, $info ];
 } else {
-	# Comment out the code shielded with if (0) then ... endif 
+	# Comment out the code shielded with if (0) then ... endif 	
 	$srcref->[$index] = [ '!0 '.$lline, {'Blank'=>1}];
 	if ($in_excluded_block==2) {
 		$in_excluded_block=0;
 	}
 } # in excluded block
 			if ($in_excluded_block==1 and not exists $info->{'Block'}) {
+				
 				say $lline if $DBG;
 			}
-			
+			# say $line if (not exists $info->{'HasVars'}
+			# and not exists $info->{'Control'}
+			# and not exists $info->{'SpecificationStatement'}
+			# and not exists $info->{'Comments'}
+			# and not exists $info->{'Blank'}
+			# and not exists $info->{'EndDo'}
+			# and not exists $info->{'EndSubroutine'}
+			# and not exists $info->{'EndProgram'}
+			# );
+			if ( exists $info->{'HasVars'}
+			or exists $info->{'Control'}			
+			or exists $info->{'EndControl'}
+			) {
+				$prev_stmt_was_spec=0;
+			}
+
 		}    # Loop over lines
 
 		# We sort the indices from high to low so that the insertions are at the correct index 
@@ -2373,9 +2398,12 @@ sub __parse_sub_func_prog_decls {
 		$info->{'Signature'}{'Args'}{'List'} = [@args];
 		$info->{'Signature'}{'Args'}{'Set'}  = { map { $_ => '$info '. __PACKAGE__ . ' ' . __LINE__ } @args };
 		$info->{'Signature'}{'Name'}         = $name;
+		if (not exists  $Sf->{'DeclaredOrigArgs'}{'List'}
+			or scalar  @{ $Sf->{'DeclaredOrigArgs'}{'List'} } == 0
+		) {
 		$Sf->{'UndeclaredOrigArgs'}{'List'}  = [@args];
 		$Sf->{'UndeclaredOrigArgs'}{'Set'} = { map { $_ => 'UndeclaredOrigArgs: ' .$_.' @ '. __PACKAGE__ . ' ' . __LINE__ } @args };   # UGH!
-
+		}
 		$Sf->{'OrigArgs'}{'List'} = [@args];
 
 		#		$Sf->{'OrigArgs'}{'Set'} = { map { $_ => 1 } @args };

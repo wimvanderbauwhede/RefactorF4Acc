@@ -183,9 +183,9 @@ RENAME_EXT = _G
 
 our $config_menu= {
     'BASIC' => [
-        ['SRCDIRS','Relative path to the original Fortran source code','.'],
-        ['NEWSRCPATH','Relative path to the refactored Fortran source code','../RefactoredSources'],
-        ['TOP', 'Name of the program','main'],
+        ['SRCDIRS','Relative path to the original Fortran source code','src'],
+        ['NEWSRCPATH','Relative path to the refactored Fortran source code','refactored-src'],
+        ['TOP', 'Name of the subroutine to start from. If this is the main program, leave blank.',''],
         ['CONFIG:ADVANCED', 'Advanced configuration? y/n','n'],
     ],
     'ADVANCED' => [
@@ -261,7 +261,7 @@ sub process_config {
             if ($class eq 'BASIC') {               
                 $default = '#'; # so that basic defaults will be entered in the cfg file
             }
-            push @{$lines}, write_key($key, $value, $default);
+            push @{$lines}, write_key($key, $desc, $value, $default);
         }
     }
     return $lines;
@@ -277,12 +277,12 @@ sub get_entry_value { (my $desc, my $default) = @_;
     return $value;
 }
 
-sub  write_key { my ($key, $value, $default) = @_;
+sub  write_key { my ($key, $desc, $value, $default) = @_;
     if ($value eq $default or $value eq '') {
         # just print the commented-out key name
-        return "# $key = ";
+        return '# '.$desc."\n"."# $key = ";
     } else {
-        return "$key = $value";
+        return '# '.$desc."\n"."$key = $value";
     }
 }
 

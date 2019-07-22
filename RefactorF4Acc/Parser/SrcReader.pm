@@ -49,12 +49,16 @@ sub read_fortran_src {
     
     # If RefactoredCode exists, it means we are re-parsing a refactored code unit
     # So just return RefactoredCode as AnnLines    
+    
 	my $Sf = $stref->{$sub_func_incl}{$code_unit_name};
+  
 	if (exists     $Sf->{'RefactoredCode'}) {
     	$Sf->{'AnnLines'}=$Sf->{'RefactoredCode'};
 		return $stref;
+	} elsif (exists $Sf->{'AnnLines'}) {
+    # It is not clear how this could ever work without this
+		return $stref;
 	}
-
 
     # We want $f to be the source file name
     my $f = ($is_source_file_path or  $is_incl) ? $code_unit_name : $stref->{$sub_func_incl}{$code_unit_name}{'Source'};
