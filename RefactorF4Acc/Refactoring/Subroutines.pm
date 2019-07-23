@@ -1391,29 +1391,36 @@ sub __insert_assignment_for_ex_EQUIVALENCE_vars {
 		my $lhs_var = $info->{'Lhs'}{'VarName'};
 #		say "FOUND $lhs_var in $line"; 
 
-#		my $lhs_ast = $info->{'Lhs'}{'ExpressionAST'};
-#		my $lhs_v_str = emit_expr_from_ast($lhs_ast);
-		if ( exists $equiv_pairs->{$lhs_var} ) {
+		my $lhs_ast = $info->{'Lhs'}{'ExpressionAST'};
+		my $lhs_v_str = emit_expr_from_ast($lhs_ast);
+		if ( exists $equiv_pairs->{$lhs_v_str} ) {
 			# insert the extra line
 			push @{$rlines}, $annline;
-			say 'INSERTING ' . join( "\n", pp_annlines( $equiv_pairs->{$lhs_var} ) ) . ' after ' . $line if $DBG;
-
-			#			push @{$rlines}, $equiv_pairs->{$lhs_var};
-			$rlines = [ @{$rlines}, @{ $equiv_pairs->{$lhs_var} } ];
+			say 'INSERTING ' . join( "\n", pp_annlines( $equiv_pairs->{$lhs_v_str} ) ) . ' after ' . $line if $DBG;
+			$rlines = [ @{$rlines}, @{ $equiv_pairs->{$lhs_v_str} } ];
 			$skip   = 1;
 		}
 		if (exists  $info->{'FunctionCalls'}) {
 			for my $fcall ( @{ $info->{'FunctionCalls'} } ) {
         	   my $fname = $fcall->{'Name'};
 				my $ast = $fcall->{'ExpressionAST'};
+				# This is the AST of the function call, so f(...) ['&','f',[',',@fargs]]
+				# So what I need is @fargs, i.e. $ast->[2][1]
 				my $args_vars = find_args_vars_in_ast($ast);
 				my $args = $args_vars->[1]{'List'};
+				my $arg_asts = $ast->[2][1];
 				if (scalar @{$args} > 0 ) {
 					if ($skip==0) {
 						push @{$rlines}, $annline;
 						$skip   = 1;
 					}		
-					for my $arg (@{$args}) {
+					# for my $arg (@{$args}) {
+					# 	if ( exists $equiv_pairs->{$arg} ) {
+					# 		$rlines = [ @{$rlines}, @{ $equiv_pairs->{$arg} } ];
+					# 	}
+					# }
+					for my $arg_ast (@{$arg_asts}) {
+						my $arg=emit_expr_from_ast($arg_ast);
 						if ( exists $equiv_pairs->{$arg} ) {
 							$rlines = [ @{$rlines}, @{ $equiv_pairs->{$arg} } ];
 						}
@@ -1423,6 +1430,8 @@ sub __insert_assignment_for_ex_EQUIVALENCE_vars {
 #		carp 'TODO: process Function calls on RHS! ';#.Dumper($info->{'FunctionCalls'}) ;
 		}
 	} elsif ( exists $info->{'ReadCall'} ) {	
+		# FIXME: I don't know how to get array accesses from a READ call, so I pretend they're always scalar
+		# So in the case of a transitive EQUIVALENCE between real and complex this will go wrong ...
 		my @vars =  @{ $info->{'Vars'}{'Written'}{'List'} } ;
 #		croak Dumper(@vars);
 		if (scalar @vars>0) {
@@ -1439,16 +1448,12 @@ sub __insert_assignment_for_ex_EQUIVALENCE_vars {
 
 		# Unfortunately at this point we do not yet know the intent
 		# So I will assume any call is an update
-		#		say "SUBCALL LINE: $line";
 		for my $call_arg ( @{ $info->{'SubroutineCall'}{'Args'}{'List'} } ) {
 			my $call_arg_name = $call_arg;
-			$call_arg_name =~ s/\(.+$//;
+			# $call_arg_name =~ s/\(.+$//;
 			if ( exists $equiv_pairs->{$call_arg_name} ) {
-
 				# Means the arg is getting modified
 				push @{$rlines}, $annline if $skip == 0;
-
-				#				push @{$rlines}, $equiv_pairs->{$call_arg_name};
 				$rlines = [ @{$rlines}, @{ $equiv_pairs->{$call_arg_name} } ];
 				say 'INSERTING ' . join( "\n", pp_annlines( $equiv_pairs->{$call_arg_name} ) ) . ' after ' . $line if $DBG;
 				$skip = 1;
@@ -1474,16 +1479,12 @@ sub _change_EQUIVALENCE_to_assignment_lines_for_ExCommonArgs {
 		my $skip = 0;
 		if ( exists $info->{'Equivalence'} ) {
 			my $rline = $annline;
-			say $line;
-
-			#				carp Dumper($info->{'Ast'}) if $f eq 'thermp';
-			#				my $equiv_pairs={};
 			my $ast = dclone( $info->{'Ast'} );
 
-			# Two cases: either a list of pairs, or a single pair
+			# Two cases: either a list of tuples, or a single tuples
 			if ( ( $ast->[0] & 0xFF ) == 0 ) {
 
-				# a single pair
+				# a single tuple, ['(',[',',@vs]]
 				( $rline, $exEquivAssignmentLines, $postUpdateAssignmentLines, $equiv_pairs ) =
 				  __refactor_EQUIVALENCE_line( $stref, $f, $ast, 
 				  $exEquivAssignmentLines, $postUpdateAssignmentLines, $annline, $equiv_pairs );
@@ -1492,7 +1493,7 @@ sub _change_EQUIVALENCE_to_assignment_lines_for_ExCommonArgs {
 			} elsif ( ( ( $ast->[0] & 0xFF ) == 27 )
 				&& ( ( $ast->[1][0] & 0xFF ) == 0 ) )
 			{
-				# a list of pairs
+				# a list of tuples
 				shift @{$ast};
 				for my $pair_ast ( @{$ast} ) {
 					( $rline, $exEquivAssignmentLines, $postUpdateAssignmentLines, $equiv_pairs ) =
@@ -1550,10 +1551,10 @@ sub __refactor_EQUIVALENCE_line {
 	
 	my $ann=annotate( $f, __LINE__  );
 	#EQUIVALENCE can be general tuple, not just two elts. I need to take this apart into pairs!
-	#
-	my @asts = @{ $ast->[1] };
-	shift @asts;
-	my @equiv_tuple = map { $_->[1] } @asts;
+	# $ast : ['(',[',',@vs]]
+	my @asts = @{ $ast->[1] }; # @asts : (',',@vs)
+	shift @asts; # @asts : @vs; 
+	my @equiv_tuple = map { $_->[1] } @asts; # just the names
 
 	my @pairs = ();
 
@@ -1580,12 +1581,23 @@ sub __refactor_EQUIVALENCE_line {
 	my $transitive = 0;
 	my $trans_var;
 
-	for my $ast (@asts) {
-		my $var = $ast->[1];
+	for my $ast (@asts) { # $ast : ['$',v] | ['@',v,@idxs]
+		my $var_name = $ast->[1]; # the name
 		my $indexed_array_expr = $ast->[0] == 10 ? 1 : 0;
-		my $v_str = $indexed_array_expr ? emit_expr_from_ast($ast) : $var; 
+		my $var = $indexed_array_expr ? emit_expr_from_ast($ast) : $var_name; 
 		if ( exists $equiv_pairs->{$var} ) {
 			# must check if that one was indexed with the same index
+# For proper transitivity, the array expressions must be the same 
+# i.e. (v1,v2,v3(1)),(v3(2),v4) is not transitive
+# Now, $equiv_pairs contains all pairs that are connected. 
+# so v1 =>[v2,v3]
+# v3 => [v1,v2,v4]
+# I thought I could solve this by adding v3 to this list, but what I really need is
+# v3(1) => [v1,v2] and v3(2)=> [v4]
+# So I guess I should use the full expression string as key, and then I can use the name as secondary key with the ast
+# so  'v3(1)' => {v1 => ast1, v2=>ast2, 'v3(1) => ast31 }
+# and 'v3(2)' => {v4 => ast4,  'v3' => ast32, }
+# Then a test $equiv_pairs->{$var_expr_str} works I can still get the var name only form $ast->[1]
 			croak if $indexed_array_expr;
 			$transitive = 1;
 			$trans_var  = $var;
@@ -1596,8 +1608,7 @@ sub __refactor_EQUIVALENCE_line {
 	if ($transitive) {
 #		say "TRANSITIVE!";
 		for my $ast1 (@asts) {
-			my $var1 = $ast1->[1];
-			my $v1_str =  emit_expr_from_ast($ast1); 
+			my $var1 = emit_expr_from_ast($ast1);
 			if ( $var1 ne $trans_var ) {
 				for my $var2 ( keys %{ $equiv_pairs->{$trans_var} } ) {
 					my $ast2 = $equiv_pairs->{$trans_var}{$var2};
@@ -1667,17 +1678,17 @@ sub __refactor_EQUIVALENCE_line {
 		my $v1          = $v1_is_array ? emit_expr_from_ast($ast1) : $var1;
 		my $v2          = $v2_is_array ? emit_expr_from_ast($ast2) : $var2;
 		
-		if ( not exists $equiv_pairs->{$var1} ) {
-			$equiv_pairs->{$var1} = { $var2 => $ast2 };
+		if ( not exists $equiv_pairs->{$v1} ) {
+			$equiv_pairs->{$v1} = { $v2 => $ast2, $v1 => $ast1  };
 		} else {
-			$equiv_pairs->{$var1}{$var2} = $ast2;
+			$equiv_pairs->{$v1}{$v2} = $ast2;
 		}
 
 		# And the reverse as well
-		if ( not exists $equiv_pairs->{$var2} ) {
-			$equiv_pairs->{$var2} = { $var1 => $ast1 };
+		if ( not exists $equiv_pairs->{$v2} ) {
+			$equiv_pairs->{$v2} = { $v1 => $ast1, $v2 => $ast2 };
 		} else {
-			$equiv_pairs->{$var2}{$var1} = $ast1;
+			$equiv_pairs->{$v2}{$v1} = $ast1;
 		}
 
 		my $v2_v1_pair = [ $v2, $v1 ];		

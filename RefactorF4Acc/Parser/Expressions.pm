@@ -1568,8 +1568,8 @@ sub emit_expr_from_ast { (my $ast)=@_;
     } else {return $ast;}
 } # END of emit_expr_from_ast
 
-# 
-sub _replace_function_calls_in_ast { #(my $ast)=@_;
+# This replaces _change_func_to_array
+sub _replace_function_calls_in_ast { 
 (my $stref, my $f,  my $info, my $ast, my $exp, my $grouped_messages)=@_;
     
     #say Dumper($ast);

@@ -3455,8 +3455,7 @@ sub _parse_read_write_print {
 	
 		#If case 1 we need to check the grname (2nd arg) and  add all vars to Read from
 		if ($case==1) { # this means read ( ... ) so the AST is [1,'read',[ ...]]
-            #            say Dumper($tline,$attrs_ast);
-			if ( ($attrs_ast->[2][0] & 0xFF) ==2 and exists  $Sf->{'Namelist'}{ $attrs_ast->[2][1] } ) {
+			if ( ($attrs_ast->[2][0] & 0xFF)==2 and exists  $Sf->{'Namelist'}{ $attrs_ast->[2][1] } ) {
 	            $info->{'Vars'}{'Written'}{'List'} = $Sf->{'Namelist'}{$attrs_ast->[2][1]};
 	            $info->{'Vars'}{'Written'}{'Set'} = map {$_=>1} @{ $info->{'Vars'}{'Written'}{'List'} };
 	        } 
