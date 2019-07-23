@@ -430,7 +430,11 @@ sub _analyse_src_for_iodirs {
 					}
 #carp "BEFORE _get_iodirs_from_subcall: SUBCALL $name in $f: ".Dumper($stref->{'Subroutines'}{$name}{RefactoredArgs}{Set}{ivd005}) if $name eq 'sn705';					
 					my $iodirs_from_call = _get_iodirs_from_subcall( $stref, $f, $info );
-#say "HERE $f $name" .Dumper($iodirs_from_call );
+# say "HERE $f $name" .Dumper($iodirs_from_call ) if $name eq 'predict_loc';
+# say Dumper($info) if $name eq 'predict_loc';
+# carp Dumper($stref->{'Subroutines'}{$name}{'RefactoredArgs'}{Set}{xn}) if $name eq 'predict_loc';
+
+# die if $name eq 'predict_loc';	
 #croak "AFTER _get_iodirs_from_subcall: SUBCALL $name in $f: ".Dumper($stref->{'Subroutines'}{$name}{RefactoredArgs}{Set}{ivd005}) if $name eq 'sn705';
 					for my $var ( keys %{$iodirs_from_call} ) {
 # Damn Perl! exists $args->{$var}{'IODir'} creates the entry for $var if it did not exist!
@@ -483,15 +487,15 @@ sub _analyse_src_for_iodirs {
 
 # Encounter Assignment
 				elsif (exists $info->{'Assignment'} ) {
+					# say $line;
 					# First check the RHS
-#					
 					my $rhs_vars = $info->{'Rhs'}{'VarList'}{'List'};
-					
+					# say "RHS: ".Dumper($rhs_vars);
 					if (scalar @{$rhs_vars}>0) {
 						_set_iodir_vars($rhs_vars,$args, \&_set_iodir_read );
 					}
 					my $lhs_var = $info->{'Lhs'}{'VarName'};
-					
+					# say "LHS: $lhs_var";
 					_set_iodir_vars([$lhs_var],$args, \&_set_iodir_write );					 
 					my $lhs_index_vars = $info->{'Lhs'}{'IndexVars'}{'List'};
 					if (scalar @{$lhs_index_vars}>0) {
@@ -506,23 +510,22 @@ sub _analyse_src_for_iodirs {
 			}
 		}
 
-		for my $arg ( $args_list ) {
-#		 say $arg if $f eq 'sn705';	
+		for my $arg ( @{$args_list} ) {
+			# say "$arg => ".$args->{$arg}{'IODir'};
 			if (exists $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$arg} ) {
-				
-#				say "$f ARG: $arg ".Dumper($args->{$arg}) ;
 				
 				if (	
 					ref($args->{$arg}) eq 'HASH' 
 					and exists $args->{$arg}{'Name'} 
 				) { # If this is a full declaration record
+				# say Dumper($args->{$arg});
 					$stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$arg} = { %{ $args->{$arg} } };				  
 				} else { # Otherwise, get the record and update the IODir
 					my $decl = get_f95_var_decl($stref, $f, $arg);
-#					say Dumper($decl);
 					if (ref($args->{$arg}) eq 'HASH' and exists $args->{$arg}{'IODir'}) {
 						$decl->{'IODir'} = $args->{$arg}{'IODir'};
 					}					
+					# say Dumper($decl);
 					$stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$arg} = $decl;
 				}
 
@@ -650,9 +653,10 @@ sub conditional_assignment_fsm {
 # 3. We can of course have both, the originals followed by the refactored ones.
 sub _get_iodirs_from_subcall {
 	( my $stref, my $f, my $info ) = @_;
-
-	my $name  = $info->{'SubroutineCall'}{'Name'};
 	my $called_arg_iodirs = {};
+	if (not exists $info->{'ExtractedSubroutine'}) {
+	my $name  = $info->{'SubroutineCall'}{'Name'};
+	
 	if ( not (exists $stref->{'ExternalSubroutines'}{$name}	
 		or (exists $stref->{'Subroutines'}{$name}{'Entry'}  and $stref->{'Subroutines'}{$name}{'Entry'}==1)
 		or exists $stref->{'Subroutines'}{$name}{'HasEntries'} ) 
@@ -677,7 +681,7 @@ sub _get_iodirs_from_subcall {
 # We need to check the other variables in Array, Sub and Expr but they cannot be anything else than read-only
 #				croak $f.' => '.$name."($call_arg => $sig_arg)\t".Dumper($info);
 				my $call_arg_type = $info->{'CallArgs'}{'Set'}{$call_arg}{'Type'};
-#carp "CALL ARG: $sig_arg => $call_arg  ".Dumper($call_arg_type);	
+carp "CALL ARG: $sig_arg => $call_arg  ".Dumper($call_arg_type);	
 				if ( $call_arg_type eq 'Scalar' or $call_arg_type eq 'Array' ) {
 	
 					# This means that $call_arg is an argument of the caller $f
@@ -791,6 +795,16 @@ sub _get_iodirs_from_subcall {
 			} 
 		for my $arg ( @{ $info->{'SubroutineCall'}{'Args'}{'List'} } ) {			
 			$called_arg_iodirs->{$arg} = 'Ignore';
+		}
+	}
+	} else {
+		my $name  = $info->{'SubroutineCall'}{'Name'};
+	# my $called_arg_iodirs = {};
+		my $Sname = $stref->{'Subroutines'}{$name};
+
+		for my $sig_arg ( @{ $Sname->{'RefactoredArgs'}{'List'} } ) {
+			my $sig_iodir = $Sname->{'RefactoredArgs'}{'Set'}{$sig_arg}{'IODir'};						
+			$called_arg_iodirs->{$sig_arg} = $sig_iodir;
 		}
 	}
 	return $called_arg_iodirs;

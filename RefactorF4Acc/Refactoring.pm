@@ -57,8 +57,9 @@ sub refactor_all {
     # Also, this is actually analysis
     # And this is only for Subroutines of course, not for Modules
     if ($sub_or_func_or_mod eq 'Subroutines') {
-    $stref = determine_argument_io_direction_rec( $stref,$code_unit_name );    
+    $stref = determine_argument_io_direction_rec( $stref,$code_unit_name );    	
     	say "DONE determine_argument_io_direction_rec()" if $V;
+		
     	$stref = update_argument_io_direction_all_subs( $stref );
     }
     

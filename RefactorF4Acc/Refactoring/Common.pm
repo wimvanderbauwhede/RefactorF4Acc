@@ -1144,7 +1144,7 @@ sub emit_f95_var_decl {
         
         if (not defined $intent or $intent eq '') {
 #        	carp 'Intent not defined for '.Dumper($var_decl_rec) if $W;
-        	say 'WARNING: Intent not known for declaration of '.$var.' '.$var_decl_rec->{'Ann'} if $W;
+        	say 'WARNING: Intent not known for declaration of '.$var if $W;#.' '.$var_decl_rec->{'Ann'} if $W;
         	$intent='Unknown'; 
         }
         if (ref($intent) eq 'ARRAY' and scalar @{$intent}==0) {
