@@ -1363,6 +1363,8 @@ sub stateless_pass {
     return $stref;
 } # END of stateless_pass() 
 
+# original  annlines are taken from $Sf->{'AnnLines'} or $Sf->{'RefactoredCode'} 
+# updated annlines are stored in $Sf->{'RefactoredCode'} 
 sub stateful_pass {
     (my $stref, my $f, my $pass_actions, my $state, my $pass_info ) = @_;
 #    local $Data::Dumper::Indent =0;

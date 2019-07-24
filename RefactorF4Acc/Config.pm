@@ -201,6 +201,7 @@ our $config_menu= {
     ],
 
     'SCONS' => [
+        ['EXE','Name of executable to be build (default is program name)',''],
         ['LIBS','SCons LIBS, comma-separated list',''],
         ['LIBPATH','SCons LIBPATH, comma-separated list',''],
         ['INCLPATH','SCons F90PATH or F95PATH (based on EXT), comma-separated list','']

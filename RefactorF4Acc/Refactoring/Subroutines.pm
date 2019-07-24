@@ -13,7 +13,13 @@ use v5.10;
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
 use RefactorF4Acc::Parser qw( parse_fortran_src );
-use RefactorF4Acc::Refactoring::Common qw( get_annotated_sourcelines context_free_refactorings emit_f95_var_decl splice_additional_lines_cond);
+use RefactorF4Acc::Refactoring::Common qw( 
+	get_annotated_sourcelines 
+	context_free_refactorings 
+	emit_f95_var_decl 
+	stateful_pass
+	splice_additional_lines_cond
+	);
 use RefactorF4Acc::Refactoring::Subroutines::Signatures qw( create_refactored_subroutine_signature refactor_subroutine_signature );
 use RefactorF4Acc::Refactoring::Subroutines::IncludeStatements qw( skip_common_include_statement create_new_include_statements create_additional_include_statements );
 use RefactorF4Acc::Parser::Expressions qw( emit_expression emit_expr_from_ast find_args_vars_in_ast );
@@ -178,6 +184,7 @@ sub _refactor_subroutine_main {
 
 	#	$Sf->{'AnnLines'} = $annlines;
 	#	$Sf->{'RefactoredCode'} = $annlines; # cargo cult
+	$annlines = _move_StatementFunctions_after_SpecificationStatements( $stref, $f, $annlines );
 
 	$annlines = _emit_refactored_signatures( $stref, $f, $annlines );
 	$Sf->{'RefactoredCode'} = $annlines;
@@ -401,7 +408,7 @@ sub _refactor_globals_new {
 		}
 
 		if ( exists $info->{'SubroutineCall'} 
-		and not exists $info->{'ExtractedSubroutine'}
+		# and not exists $info->{'ExtractedSubroutine'}
 		) {
 
 			# simply tag the common vars onto the arguments
@@ -690,7 +697,8 @@ sub _create_extra_arg_and_var_decls {
 # This subroutine adds additional arguments to a call to $name in $f.
 # What it does NOT do is update the list of variables in scope in $f.
 # It should update ExGlobArgs
-# Furthermore I notice that sometimes these arguments are not passed on to the containing subroutine. That should be an issue in the subroutine refactoring code
+# Furthermore I notice that sometimes these arguments are not passed on to the containing subroutine. 
+# That should be an issue in the subroutine refactoring code
 sub _create_refactored_subroutine_call {
 	( my $stref, my $f, my $annline, my $rlines ) = @_;
 
@@ -706,7 +714,7 @@ sub _create_refactored_subroutine_call {
 	# Collect original args
 	my @orig_args = ();
 
-	if ($NEW_PARSER) {
+	# if ($NEW_PARSER) {
 
 		# a shallow copy
 		my $expr_ast = [ @{ $info->{'SubroutineCall'}{'ExpressionAST'} } ];
@@ -721,19 +729,19 @@ sub _create_refactored_subroutine_call {
 			my $call_arg = emit_expr_from_ast($call_arg_expr);
 			push @orig_args, $call_arg;
 		}
-	} else {
+	# } else {
 
-		# OLD PARSER
-		for my $call_arg ( @{ $info->{'SubroutineCall'}{'Args'}{'List'} } ) {
+	# 	# OLD PARSER
+	# 	for my $call_arg ( @{ $info->{'SubroutineCall'}{'Args'}{'List'} } ) {
 
-			#	    	say $call_arg ;
-			if ( exists $info->{'SubroutineCall'}{'Args'}{'Set'}{$call_arg}{'Expr'} ) {
-				push @orig_args, $info->{'SubroutineCall'}{'Args'}{'Set'}{$call_arg}{'Expr'};
-			} else {
-				push @orig_args, $call_arg;    # WV20170515: is this correct? Do nothing?
-			}
-		}
-	}
+	# 		#	    	say $call_arg ;
+	# 		if ( exists $info->{'SubroutineCall'}{'Args'}{'Set'}{$call_arg}{'Expr'} ) {
+	# 			push @orig_args, $info->{'SubroutineCall'}{'Args'}{'Set'}{$call_arg}{'Expr'};
+	# 		} else {
+	# 			push @orig_args, $call_arg;    # WV20170515: is this correct? Do nothing?
+	# 		}
+	# 	}
+	# }
 	my $args_ref = [@orig_args];               # NOT ordered union, if they repeat that should be OK
 											   # This is for the case of ENTRYs. The "parent" is the actual sub which contains the ENTRY statements
 	my $parent_sub_name =
@@ -741,6 +749,42 @@ sub _create_refactored_subroutine_call {
 
 	# If there are any ex-global args, collect them
 	# WV2019-06-03 Here we should check.
+	if ( exists $stref->{'Subroutines'}{$name}{'RefactoredArgs'} 
+	and exists $info->{'ExtractedSubroutine'}
+	) { # If we have this, surely we can just use them?
+		
+		my $args_ref = $stref->{'Subroutines'}{$name}{'RefactoredArgs'}{'List'};
+		$info->{'SubroutineCall'}{'Args'}{'List'} = $args_ref;
+		# croak Dumper($args_ref);
+ 	if (scalar @{ $args_ref } > 0 ) {
+		 say "INFO: Using 'RefactoredArgs' as call args for call to $name in $f" if $I;
+ 			# This is the emitter, maybe that should not be done here but later on? TODO!
+			my $args_str = join( ',', @{$args_ref} );
+			my $indent   = $info->{'Indent'} // '      ';
+			my $maybe_label =
+			  ( exists $info->{'Label'} and exists $Sf->{'ReferencedLabels'}{ $info->{'Label'} } )
+			  ? $info->{'Label'} . ' '
+			  : '';
+			my $rline = "call $name($args_str)\n";
+			if ( exists $info->{'PlaceHolders'} ) {
+				while ( $rline =~ /(__PH\d+__)/ ) {
+					my $ph     = $1;
+					my $ph_str = $info->{'PlaceHolders'}{$ph};
+					$rline =~ s/$ph/$ph_str/;
+				}
+				$info->{'Ref'}++;
+			}
+			$info->{'Ann'} = [ annotate( $f, __LINE__ ) ];
+
+			push @{$rlines}, [ $indent . $maybe_label . $rline, $info ];
+
+		} else { # no change to original call line
+			push @{$rlines}, [ $line, $info ];
+		}
+
+	} else {
+
+	
 
 	if ( not exists $stref->{'Subroutines'}{$name}{'HasCommonVarMismatch'} ) {    # old approach is fine
 
@@ -796,42 +840,42 @@ sub _create_refactored_subroutine_call {
 			$info->{'SubroutineCall'}{'Args'}{'List'} = $args_ref;
 
 			# WV20180522 I added this to have an ArgMap for the refactored subroutine signatures, not sure it is actually helpful
-			if (0) {
-				if ( not exists $info->{'SubroutineCall'}{'ArgMap'} ) {
-					$info->{'SubroutineCall'}{'ArgMap'} = {};
-				}
-				if ( not exists $info->{'CallArgs'} ) {
-					$info->{'CallArgs'} = { 'Set' => {} };
-				} elsif ( exists $info->{'CallArgs'}
-					and not exists $info->{'CallArgs'}{'Set'} )
-				{
-					$info->{'CallArgs'}{'Set'} = {};
-				}
+			# if (0) {
+			# 	if ( not exists $info->{'SubroutineCall'}{'ArgMap'} ) {
+			# 		$info->{'SubroutineCall'}{'ArgMap'} = {};
+			# 	}
+			# 	if ( not exists $info->{'CallArgs'} ) {
+			# 		$info->{'CallArgs'} = { 'Set' => {} };
+			# 	} elsif ( exists $info->{'CallArgs'}
+			# 		and not exists $info->{'CallArgs'}{'Set'} )
+			# 	{
+			# 		$info->{'CallArgs'}{'Set'} = {};
+			# 	}
 
-				# for every arg in the signature, map the call arg
-				# Now, in  principle they should be identical. I overwrite whatever was present in the original ArgMap
+			# 	# for every arg in the signature, map the call arg
+			# 	# Now, in  principle they should be identical. I overwrite whatever was present in the original ArgMap
 
-				my $i = 0;
-				for my $sig_arg ( @{ $stref->{'Subroutines'}{$name}{'RefactoredArgs'}{'List'} } ) {
+			# 	my $i = 0;
+			# 	for my $sig_arg ( @{ $stref->{'Subroutines'}{$name}{'RefactoredArgs'}{'List'} } ) {
 
-					my $call_arg =
-					  $info->{'SubroutineCall'}{'Args'}{'List'}[$i];
-					$info->{'SubroutineCall'}{'ArgMap'}{$sig_arg} = $call_arg;
-					if ( $sig_arg eq $call_arg ) {
-						if ( not exists $info->{'CallArgs'}{'Set'}{$sig_arg} ) {
-							my $var_rec  = get_var_record_from_set( $Sf->{'Vars'}, $sig_arg );
-							my $var_type = $var_rec->{'ArrayOrScalar'};
-							$info->{'CallArgs'}{'Set'}{$sig_arg}{'Type'} =
-							  $var_type;
-							if ( $var_type eq 'Array' ) {
-								$info->{'CallArgs'}{'Set'}{$sig_arg}{'Arg'} =
-								  $sig_arg;
-							}
-						}
-					}
-					$i++;
-				}
-			}
+			# 		my $call_arg =
+			# 		  $info->{'SubroutineCall'}{'Args'}{'List'}[$i];
+			# 		$info->{'SubroutineCall'}{'ArgMap'}{$sig_arg} = $call_arg;
+			# 		if ( $sig_arg eq $call_arg ) {
+			# 			if ( not exists $info->{'CallArgs'}{'Set'}{$sig_arg} ) {
+			# 				my $var_rec  = get_var_record_from_set( $Sf->{'Vars'}, $sig_arg );
+			# 				my $var_type = $var_rec->{'ArrayOrScalar'};
+			# 				$info->{'CallArgs'}{'Set'}{$sig_arg}{'Type'} =
+			# 				  $var_type;
+			# 				if ( $var_type eq 'Array' ) {
+			# 					$info->{'CallArgs'}{'Set'}{$sig_arg}{'Arg'} =
+			# 					  $sig_arg;
+			# 				}
+			# 			}
+			# 		}
+			# 		$i++;
+			# 	}
+			# }
 
 			#        say $name.' : '.Dumper( $args_ref );
 			# This is the emitter, maybe that should not be done here but later on? TODO!
@@ -853,7 +897,7 @@ sub _create_refactored_subroutine_call {
 			$info->{'Ann'} = [ annotate( $f, __LINE__ ) ];
 
 			push @{$rlines}, [ $indent . $maybe_label . $rline, $info ];
-		} else {
+		} else { # no change to original call line
 			push @{$rlines}, [ $line, $info ];
 		}
 	} else {    # Use new approach
@@ -872,7 +916,7 @@ sub _create_refactored_subroutine_call {
 
 			# Then we concatenate these arg lists
 			$args_ref = [ @orig_args, @maybe_renamed_exglobs ];    # NOT ordered union, if they repeat that should be OK
-			if ($NEW_PARSER) {
+			# if ($NEW_PARSER) {
 				my $expr_ast = $info->{'SubroutineCall'}{'ExpressionAST'};
 				if (    @maybe_renamed_exglobs
 					and @{$expr_ast}
@@ -883,47 +927,47 @@ sub _create_refactored_subroutine_call {
 				$expr_ast =
 				  [ @{$expr_ast}, map { [ '2', $_ ] } @maybe_renamed_exglobs ];
 				$info->{'SubroutineCall'}{'ExpressionAST'} = $expr_ast;
-			}
+			# }
 
 			$info->{'SubroutineCall'}{'Args'}{'List'} = $args_ref;
 
 			# WV20180522 I added this to have an ArgMap for the refactored subroutine signatures, not sure it is actually helpful
-			if (0) {
-				if ( not exists $info->{'SubroutineCall'}{'ArgMap'} ) {
-					$info->{'SubroutineCall'}{'ArgMap'} = {};
-				}
-				if ( not exists $info->{'CallArgs'} ) {
-					$info->{'CallArgs'} = { 'Set' => {} };
-				} elsif ( exists $info->{'CallArgs'}
-					and not exists $info->{'CallArgs'}{'Set'} )
-				{
-					$info->{'CallArgs'}{'Set'} = {};
-				}
+			# if (0) {
+			# 	if ( not exists $info->{'SubroutineCall'}{'ArgMap'} ) {
+			# 		$info->{'SubroutineCall'}{'ArgMap'} = {};
+			# 	}
+			# 	if ( not exists $info->{'CallArgs'} ) {
+			# 		$info->{'CallArgs'} = { 'Set' => {} };
+			# 	} elsif ( exists $info->{'CallArgs'}
+			# 		and not exists $info->{'CallArgs'}{'Set'} )
+			# 	{
+			# 		$info->{'CallArgs'}{'Set'} = {};
+			# 	}
 
-				# for every arg in the signature, map the call arg
-				# Now, in  principle they should be identical. I overwrite whatever was present in the original ArgMap
+			# 	# for every arg in the signature, map the call arg
+			# 	# Now, in  principle they should be identical. I overwrite whatever was present in the original ArgMap
 
-				my $i = 0;
-				for my $sig_arg ( @{ $stref->{'Subroutines'}{$name}{'RefactoredArgs'}{'List'} } ) {
+			# 	my $i = 0;
+			# 	for my $sig_arg ( @{ $stref->{'Subroutines'}{$name}{'RefactoredArgs'}{'List'} } ) {
 
-					my $call_arg =
-					  $info->{'SubroutineCall'}{'Args'}{'List'}[$i];
-					$info->{'SubroutineCall'}{'ArgMap'}{$sig_arg} = $call_arg;
-					if ( $sig_arg eq $call_arg ) {
-						if ( not exists $info->{'CallArgs'}{'Set'}{$sig_arg} ) {
-							my $var_rec  = get_var_record_from_set( $Sf->{'Vars'}, $sig_arg );
-							my $var_type = $var_rec->{'ArrayOrScalar'};
-							$info->{'CallArgs'}{'Set'}{$sig_arg}{'Type'} =
-							  $var_type;
-							if ( $var_type eq 'Array' ) {
-								$info->{'CallArgs'}{'Set'}{$sig_arg}{'Arg'} =
-								  $sig_arg;
-							}
-						}
-					}
-					$i++;
-				}
-			}
+			# 		my $call_arg =
+			# 		  $info->{'SubroutineCall'}{'Args'}{'List'}[$i];
+			# 		$info->{'SubroutineCall'}{'ArgMap'}{$sig_arg} = $call_arg;
+			# 		if ( $sig_arg eq $call_arg ) {
+			# 			if ( not exists $info->{'CallArgs'}{'Set'}{$sig_arg} ) {
+			# 				my $var_rec  = get_var_record_from_set( $Sf->{'Vars'}, $sig_arg );
+			# 				my $var_type = $var_rec->{'ArrayOrScalar'};
+			# 				$info->{'CallArgs'}{'Set'}{$sig_arg}{'Type'} =
+			# 				  $var_type;
+			# 				if ( $var_type eq 'Array' ) {
+			# 					$info->{'CallArgs'}{'Set'}{$sig_arg}{'Arg'} =
+			# 					  $sig_arg;
+			# 				}
+			# 			}
+			# 		}
+			# 		$i++;
+			# 	}
+			# }
 
 			# This is the emitter, maybe that should not be done here but later on? TODO!
 			my $args_str = join( ',', @{$args_ref} );
@@ -944,12 +988,11 @@ sub _create_refactored_subroutine_call {
 			$info->{'Ann'} = [ annotate( $f, __LINE__ ) ];
 
 			push @{$rlines}, [ $indent . $maybe_label . $rline, $info ];
-		} else {
+		} else { # no change to original call line
 			push @{$rlines}, [ $line, $info ];
 		}
-
 	}
-
+	}
 	return $rlines;
 }    # END of _create_refactored_subroutine_call()
 
@@ -1387,12 +1430,20 @@ sub __insert_assignment_for_ex_EQUIVALENCE_vars {
 	my ( $stref, $f, $annline, $rlines, $equiv_pairs ) = @_;
 	( my $line, my $info ) = @{$annline};
 	my $skip = 0;
-	if ( exists $info->{'Assignment'} ) {
+	if ( exists $info->{'Assignment'} and not exists $info->{'ExCommonOrEquivalence'}) {
 		my $lhs_var = $info->{'Lhs'}{'VarName'};
 #		say "FOUND $lhs_var in $line"; 
 
+# But this is not right because we need the variable only I think
+# There is no way to infer the array index if it's an array
+# Problem is of course that we now can't search by key in equiv_pairs
+# because the key is the expression used in the EQUIVALENCE statement
+# 
+
 		my $lhs_ast = $info->{'Lhs'}{'ExpressionAST'};
 		my $lhs_v_str = emit_expr_from_ast($lhs_ast);
+# croak $lhs_v_str . Dumper(keys %{$equiv_pairs}) if $lhs_var eq 'iade11';	
+		$lhs_v_str = $lhs_var	; # Ugly HACK! FIXME!
 		if ( exists $equiv_pairs->{$lhs_v_str} ) {
 			# insert the extra line
 			push @{$rlines}, $annline;
@@ -1408,8 +1459,9 @@ sub __insert_assignment_for_ex_EQUIVALENCE_vars {
 				# So what I need is @fargs, i.e. $ast->[2][1]
 				my $args_vars = find_args_vars_in_ast($ast);
 				my $args = $args_vars->[1]{'List'};
-				my $arg_asts = $ast->[2][1];
-				if (scalar @{$args} > 0 ) {
+				my $arg_asts = $ast->[2][0] == 27 ? $ast->[2][1] : [ $ast->[2]  ]; 
+				# say Dumper($args) .'=>'. Dumper($arg_asts);
+				if (scalar @{$args} > 0 ) { # should be same number as $arg_asts
 					if ($skip==0) {
 						push @{$rlines}, $annline;
 						$skip   = 1;
@@ -1529,9 +1581,7 @@ sub _change_EQUIVALENCE_to_assignment_lines_for_ExCommonArgs {
 			$first_occ = 0;
 #			say "AFTER LINE $line";
 			for my $rline ( @{$exEquivAssignmentLines} ) {
-
-				#				say 'RLINE: '.Dumper($rline);
-				say 'REPLACED EQUIVALENCE BY ' . Dumper($rline) if $DBG;
+				say 'REPLACED EQUIVALENCE BY ' . Dumper($rline) if $DBG;				
 				push @{$rlines}, $rline;
 			}
 		} else {
@@ -1598,7 +1648,7 @@ sub __refactor_EQUIVALENCE_line {
 # so  'v3(1)' => {v1 => ast1, v2=>ast2, 'v3(1) => ast31 }
 # and 'v3(2)' => {v4 => ast4,  'v3' => ast32, }
 # Then a test $equiv_pairs->{$var_expr_str} works I can still get the var name only form $ast->[1]
-			croak if $indexed_array_expr;
+			# croak if $indexed_array_expr;
 			$transitive = 1;
 			$trans_var  = $var;
 			last;
@@ -1659,10 +1709,6 @@ sub __refactor_EQUIVALENCE_line {
 	# 1 2 3 4 5 6 7 8
 	# } else reverse the whole thing
 	
-	
-	
-	#say 'tuple:'.Dumper(@equiv_tuple);
-	#say 'pairs:'.Dumper(@pairs);
 	for my $pair (@pairs) {
 		my $ast1 = $pair->[0];
 		my $ast2 = $pair->[1];
@@ -1698,32 +1744,32 @@ sub __refactor_EQUIVALENCE_line {
 
 		if ( $v1_is_array and not $v2_is_array ) {
 
-if ( $v2_type ne 'complex') {
-			# v1 is an array, v2 is a scalar. So if v1 is not indexed, we have a mismatch
-			if ( $v1 eq $var1 ) {
-				my $start_idx1 = join( ',', map { $_->[0] } @{ $var1_decl->{'Dim'} } );
-				$v2_v1_pair = [ $v2, "$v1($start_idx1)" ];    #
-				$v1_v2_pair = ["$v1($start_idx1)",$v2 ];
-				$ann=annotate( $f, __LINE__  );
-			} else {
-				$ann=annotate( $f, __LINE__  );
+			if ( $v2_type ne 'complex') {
+				# v1 is an array, v2 is a scalar. So if v1 is not indexed, we have a mismatch
+				if ( $v1 eq $var1 ) {
+					my $start_idx1 = join( ',', map { $_->[0] } @{ $var1_decl->{'Dim'} } );
+					$v2_v1_pair = [ $v2, "$v1($start_idx1)" ];    #
+					$v1_v2_pair = ["$v1($start_idx1)",$v2 ];
+					$ann=annotate( $f, __LINE__  );
+				} else {
+					$ann=annotate( $f, __LINE__  );
+				}
 			}
-}
 			# else it means v1 was already indexed
 		} elsif ( not $v1_is_array and $v2_is_array ) {
 			
-if( $v1_type ne 'complex') {
+			if ( $v1_type ne 'complex') {
 	
-			# v2 is an array, v1 is a scalar. So if v2 is not indexed, we have a mismatch
-			if ( $v2 eq $var2 ) {
-				my $start_idx2 = join( ',', map { $_->[0] } @{ $var2_decl->{'Dim'} } );
-				$v1_v2_pair = [ $v1, "$v2($start_idx2)" ];    #
-				$v2_v1_pair = ["$v2($start_idx2)", $v1];
-				$ann=annotate( $f, __LINE__  );
-			} else {
-				$ann=annotate( $f, __LINE__  );
-			}
-} 			# else it means v2 was already indexed
+				# v2 is an array, v1 is a scalar. So if v2 is not indexed, we have a mismatch
+				if ( $v2 eq $var2 ) {
+					my $start_idx2 = join( ',', map { $_->[0] } @{ $var2_decl->{'Dim'} } );
+					$v1_v2_pair = [ $v1, "$v2($start_idx2)" ];    #
+					$v2_v1_pair = ["$v2($start_idx2)", $v1];
+					$ann=annotate( $f, __LINE__  );
+				} else {
+					$ann=annotate( $f, __LINE__  );
+				}
+			} 			# else it means v2 was already indexed
 		} elsif ( $v1_is_array and $v2_is_array ) {
 			
 			my $overlapping=0;
@@ -1750,67 +1796,67 @@ if( $v1_type ne 'complex') {
 				$v1_v2_pair = [ "$var1($offset1:$range1:1)", "$var2($offset2:$range2:1)" ];
 				$ann=annotate( $f, __LINE__  );
 			} else {
-			$ann=annotate( $f, __LINE__  );
-			if ( $v1 eq $var1 and $v2 eq $var2 ) {
+				$ann=annotate( $f, __LINE__  );
+				if ( $v1 eq $var1 and $v2 eq $var2 ) {
 
-				# and also assignment is array to array
-				my $dim1  = $var1_decl->{'Dim'};
-				my $dim2  = $var2_decl->{'Dim'};
-				my $size1 = calculate_array_size( $stref, $f, $dim1 );
-				my $size2 = calculate_array_size( $stref, $f, $dim2 );
+					# and also assignment is array to array
+					my $dim1  = $var1_decl->{'Dim'};
+					my $dim2  = $var2_decl->{'Dim'};
+					my $size1 = calculate_array_size( $stref, $f, $dim1 );
+					my $size2 = calculate_array_size( $stref, $f, $dim2 );
 
-				# but the rank we need is the rank of the expression
-				# FIXME: I will assume that if the array is indexed, all indices are used, i.e. rank is 0
-				my $rank1 = $v1 eq $var1 ? get_array_rank($dim1) : 0;
-				my $rank2 = $v2 eq $var2 ? get_array_rank($dim2) : 0;
+					# but the rank we need is the rank of the expression
+					# FIXME: I will assume that if the array is indexed, all indices are used, i.e. rank is 0
+					my $rank1 = $v1 eq $var1 ? get_array_rank($dim1) : 0;
+					my $rank2 = $v2 eq $var2 ? get_array_rank($dim2) : 0;
 
-				# if the same rank and different size
-				if ( $size1 == $size2 and $rank1 != $rank2 ) {
+					# if the same rank and different size
+					if ( $size1 == $size2 and $rank1 != $rank2 ) {
 
-					# if different rank and same size
-					# reshape
-					$v2_v1_pair = [ $var2, "reshape($var1,shape($var2))" ];
-					$v1_v2_pair = [ $var1, "reshape($var2,shape($var1))" ];
-					$ann=annotate( $f, __LINE__  );
-				} elsif ( $size1 != $size2 and $rank1 == $rank2 ) {
-					if ( $rank1 == 1 ) {
-
-						# 1:size, 0:size-1, -1:size-2 => $size-1+$offset
-						# If the rank is the same, take the overlap, i.e. the smallest dim
-						my $size    = $size1 < $size2 ? $size1 : $size2;
-						my $offset1 = $var1_decl->{'Dim'}[0][0];
-						my $offset2 = $var2_decl->{'Dim'}[0][0];
-						my $range1  = $size - 1 + $offset1;
-						my $range2  = $size - 1 + $offset2;
-						$v2_v1_pair = [ "$var2($offset2:$range2:1)", "$var1($offset1:$range1:1)" ];
-						$v1_v2_pair = [ "$var1($offset1:$range1:1)", "$var2($offset2:$range2:1)" ];
+						# if different rank and same size
+						# reshape
+						$v2_v1_pair = [ $var2, "reshape($var1,shape($var2))" ];
+						$v1_v2_pair = [ $var1, "reshape($var2,shape($var1))" ];
 						$ann=annotate( $f, __LINE__  );
+					} elsif ( $size1 != $size2 and $rank1 == $rank2 ) {
+						if ( $rank1 == 1 ) {
+
+							# 1:size, 0:size-1, -1:size-2 => $size-1+$offset
+							# If the rank is the same, take the overlap, i.e. the smallest dim
+							my $size    = $size1 < $size2 ? $size1 : $size2;
+							my $offset1 = $var1_decl->{'Dim'}[0][0];
+							my $offset2 = $var2_decl->{'Dim'}[0][0];
+							my $range1  = $size - 1 + $offset1;
+							my $range2  = $size - 1 + $offset2;
+							$v2_v1_pair = [ "$var2($offset2:$range2:1)", "$var1($offset1:$range1:1)" ];
+							$v1_v2_pair = [ "$var1($offset1:$range1:1)", "$var2($offset2:$range2:1)" ];
+							$ann=annotate( $f, __LINE__  );
+						} else {
+							warn 'EQUIVALENCE statement not refactored because it is between two arrays of rank > 1 and different size';
+							$remove_equiv_stmt = 0;
+						}
 					} else {
-						warn 'EQUIVALENCE statement not refactored because it is between two arrays of rank > 1 and different size';
+
+						# else give up, warn and keep the original line
+
+						warn 'EQUIVALENCE statement not refactored because it is between two arrays of different rank and size';
 						$remove_equiv_stmt = 0;
 					}
-				} else {
+				} elsif ( $v1 eq $var1 and $v2 ne $var2 ) {
 
-					# else give up, warn and keep the original line
+					# v1 is array, v2 is indexed => need to use start index for v1
+					my $start_idx1 = join( ',', map { $_->[0] } @{ $var1_decl->{'Dim'} } );
+					$v2_v1_pair = [ $v2, "$v1($start_idx1   )" ];    #
+					$v1_v2_pair = [ "$v1($start_idx1   )", $v2 ];
+					$ann=annotate( $f, __LINE__  );
+				} elsif ( $v1 ne $var1 and $v2 eq $var2 ) {
 
-					warn 'EQUIVALENCE statement not refactored because it is between two arrays of different rank and size';
-					$remove_equiv_stmt = 0;
+					# v1 is indexed, v2 is array => need to use start index for v2
+					my $start_idx2 = join( ',', map { $_->[0] } @{ $var2_decl->{'Dim'} } );
+					$v1_v2_pair = [ $v1, "$v2($start_idx2   )" ];    #
+					$v2_v1_pair = [ "$v2($start_idx2   )", $v1 ];
+					$ann=annotate( $f, __LINE__  );
 				}
-			} elsif ( $v1 eq $var1 and $v2 ne $var2 ) {
-
-				# v1 is array, v2 is indexed => need to use start index for v1
-				my $start_idx1 = join( ',', map { $_->[0] } @{ $var1_decl->{'Dim'} } );
-				$v2_v1_pair = [ $v2, "$v1($start_idx1   )" ];    #
-				$v1_v2_pair = [ "$v1($start_idx1   )", $v2 ];
-				$ann=annotate( $f, __LINE__  );
-			} elsif ( $v1 ne $var1 and $v2 eq $var2 ) {
-
-				# v1 is indexed, v2 is array => need to use start index for v2
-				my $start_idx2 = join( ',', map { $_->[0] } @{ $var2_decl->{'Dim'} } );
-				$v1_v2_pair = [ $v1, "$v2($start_idx2   )" ];    #
-				$v2_v1_pair = [ "$v2($start_idx2   )", $v1 ];
-				$ann=annotate( $f, __LINE__  );
-			}
 			}
 		}
 
@@ -1823,8 +1869,10 @@ if( $v1_type ne 'complex') {
 		}
 		my $assign_v2_to_v1 = create_cast_annlines( $var1_decl, $v1_v2_pair->[0], $var2_decl, $v1_v2_pair->[1] );
 		my $assign_v1_to_v2 = create_cast_annlines( $var2_decl, $v2_v1_pair->[0], $var1_decl, $v2_v1_pair->[1] );
+		# add an annotation to the first line
 		$assign_v2_to_v1->[0][1]{'Ann'}=[$ann];
 		$assign_v1_to_v2->[0][1]{'Ann'}=[$ann];
+		
 		if ( not exists $postUpdateAssignmentLines->{$var1} ) {
 			$postUpdateAssignmentLines->{$var1} = $assign_v1_to_v2;    #[$indent . "$v2 = $v1",{}];
 		} else {
@@ -1909,4 +1957,56 @@ sub __equate_overlapping_ranges {
 	}
 	return [ $array1, $array2 ];
 }    # END of __equate_overlapping_ranges
+
+# TODO: Clearly this is Refactoring and should be put in Refactoring/StatementFunctions.pm 
+sub _move_StatementFunctions_after_SpecificationStatements { my ( $stref, $f, $annlines ) = @_;
+	my $Sf = $stref->{'Subroutines'}{$f};
+	$Sf->{'RefactoredCode'}=$annlines;
+# first cut out the StatementFunction lines
+	my $pass_cut_out_StatementFunction_lines= sub {
+		(my $annline, my $state)=@_;
+		(my $line,my $info)=@{$annline};
+		#  say "LINE:$line ".Dumper(sort keys %{$info});
+		my $new_annlines = [$annline];
+		if (exists $info->{'StatementFunction'}) {	
+			
+					$new_annlines =[ 
+					["! Removed statement function ".$info->{'StatementFunction'},{'Comments' => 1}],					
+					];
+					push @{$state},$annline;
+		}		
+		
+		return ($new_annlines,$state);
+	};
+	
+	my $statement_function_annlines = [['! Moved statement functions',{'Comments' => 1}]];
+ 	($stref,$statement_function_annlines) = stateful_pass($stref,$f,$pass_cut_out_StatementFunction_lines, $statement_function_annlines,'_cut_out_StatementFunctions §' . __LINE__  ) ;	
+	#  carp Dumper(pp_annlines($statement_function_annlines));
+	 if (scalar @{ $statement_function_annlines } > 1) {
+	my $merged_annlines = splice_additional_lines_cond(
+		$stref, $f,
+		sub {
+			( my $annline ) = @_;
+			(my $line,my $info)=@{$annline};
+			return (
+				exists $info->{'HasVars'}
+			or exists $info->{'Control'}			
+			or exists $info->{'EndControl'}
+			) ? 1 : 0;
+		},
+		[],
+		$statement_function_annlines,
+		1, # insert before
+		0, # skip insertion condition line
+		1 # do this only once
+	);
+	# croak Dumper(pp_annlines($merged_annlines));
+	return $merged_annlines;
+	 } else {
+	return $Sf->{'RefactoredCode'};
+	 }
+	
+}
+
+
 1;

@@ -361,7 +361,7 @@ for my $src (@sources) {
         $skipped++;
         next;
     }
-    say "TEST CASE $src";
+    say "TEST CASE $run: $src";
     $run++;
     my $prog =$src;
     $prog=~s/\.f//;

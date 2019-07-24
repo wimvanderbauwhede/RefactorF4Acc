@@ -1,4 +1,5 @@
 package RefactorF4Acc::Builder;
+use v5.10;
 
 use RefactorF4Acc::Config; 
 
@@ -30,7 +31,11 @@ sub create_build_script {
 
     my $gfortran = $ENV{'FC'};
     my $gcc = $ENV{'CC'};
-    my $exe = $stref->{'Top'}; # FIXME: would make more sense to have $Config{'EXE'}
+    
+    my $exe = (exists $Config{'EXE'} and $Config{'EXE'} ne '')
+    ? $Config{'EXE'}
+    : $stref->{'Top'}; 
+    
     my @fsourcelst = sort keys %{ $stref->{'BuildSources'}{'F'} };
     my $fsources = join( ',', map {
     	# Ad-hoc: names that do not end in .f\d+ or $EXT are renamed by substituting . with _ and $EXT is appended

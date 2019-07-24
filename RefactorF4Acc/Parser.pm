@@ -923,18 +923,16 @@ or $line=~/^character\s*\(\s*len\s*=\s*[\w\*]+\s*\)/
 # I make the assumption that the first argument MUST be used in the definition
 # Otherwise it is impossible to distinguish from an array assignment
 # An alternative way would be to check if this statement comes immediately after another SpecificationStatement 
-			elsif ( $prev_stmt_was_spec and
-				$line =~ /([a-z]\w*)\s*\(\s*([a-z]\w*)[,\w]*\)\s*=\s*.*\2\W/ ) {
-				
-				my $maybe_function = $1;
-				my $set = in_nested_set($Sf,'Vars',$maybe_function);				
-				carp "$maybe_function is a StatementFunction in $f?!?! ($set)";
-				$info->{'StatementFunction'} = 1;
+			elsif ( 
+				$prev_stmt_was_spec and
+			 $line =~ /([a-z]\w*)\s*\(\s*([a-z]\w*)[,\w]*\)\s*=\s*.*\2\W/ 			
+			) {				
+				my $maybe_function = $1;				
+				say  "INFO: I'm pretty sure $maybe_function is a StatementFunction in $f" if $I;
+				$info->{'StatementFunction'} = $maybe_function;
 				$info->{'HasVars'} = 1; 
 				$info->{'SpecificationStatement'} = 1;    
 				$info = _parse_assignment( $line, $info, $stref, $f );
-			
-#				croak Dumper(keys %{$info});
 			}
 									
 #== SIGNATURES SUBROUTINE FUNCTION PROGRAM ENTRY
@@ -1397,7 +1395,9 @@ END IF
 			# and not exists $info->{'EndSubroutine'}
 			# and not exists $info->{'EndProgram'}
 			# );
-			if ( exists $info->{'HasVars'}
+			if ( 
+				(not exists $info->{'SpecificationStatement'} and
+				exists $info->{'HasVars'})
 			or exists $info->{'Control'}			
 			or exists $info->{'EndControl'}
 			) {

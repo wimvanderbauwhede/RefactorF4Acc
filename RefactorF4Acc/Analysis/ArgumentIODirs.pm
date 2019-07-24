@@ -294,7 +294,7 @@ sub _analyse_src_for_iodirs {
             else {
 
                 my $annlines = get_annotated_sourcelines($stref, $f);
-
+# croak Dumper(pp_annlines($annlines,1)) if $f eq 'fs052';
                 for my $index (0 .. scalar(@{$annlines}) - 1) {
 
                     (my $line, my $info) = @{$annlines->[$index]};
@@ -545,7 +545,7 @@ sub _analyse_src_for_iodirs {
 
             for my $arg (@{$args_list}) {
 
-                # say "$arg => ".$args->{$arg}{'IODir'};
+                # say "$f: $arg => ".$args->{$arg}{'IODir'};
                 if (exists $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$arg}) {
 
                     if (ref($args->{$arg}) eq 'HASH'
@@ -729,7 +729,7 @@ sub _get_iodirs_from_subcall {
 # We need to check the other variables in Array, Sub and Expr but they cannot be anything else than read-only
 #				croak $f.' => '.$name."($call_arg => $sig_arg)\t".Dumper($info);
                     my $call_arg_type = $info->{'CallArgs'}{'Set'}{$call_arg}{'Type'};
-                    carp "CALL ARG: $sig_arg => $call_arg  " . Dumper($call_arg_type);
+                    # carp "CALL ARG: $sig_arg => $call_arg  " . Dumper($call_arg_type);
                     if ($call_arg_type eq 'Scalar' or $call_arg_type eq 'Array') {
 
                         # This means that $call_arg is an argument of the caller $f

@@ -494,7 +494,7 @@ sub __construct_new_subroutine_signatures {
                 $srcref->[$tindex][1]{'CallArgs'}=dclone($sigrec->{'Args'});
                 $srcref->[$tindex][1]{'LineID'} = $Sblock->{'Callers'}{$f}[0];
                 $srcref->[$tindex][1]{'ExtractedSubroutine'}=1;
-                
+                $srcref->[$tindex][1]{'Ann'}= [__FILE__.' '.__LINE__];
             } elsif ( $tindex > $block_rec->{'BeginBlockIdx'}
                 and $tindex <= $block_rec->{'EndBlockIdx'} ) 
             {

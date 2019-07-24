@@ -702,7 +702,7 @@ sub _caller_to_local_assignment_annlines {
 
 	# Adding the Indent
 	my $indent = ' ' x 6;
-	$annlines = [ map { [ $indent . $_, {} ] } @{$annlines} ];
+	$annlines = [ map { [ $indent . $_->[0], $_->[1] ] } @{$annlines} ];
 	return $annlines;
 } # END of _caller_to_local_assignment_annlines
 
@@ -718,7 +718,7 @@ sub _caller_to_rev_local_assignment_annlines {
 
 	# Adding the Indent
 	my $indent = ' ' x 6;
-	$annlines = [ map { [ $indent . $_, {} ] } @{$annlines} ];
+	$annlines = [ map { [ $indent . $_->[0], $_->[1] ] } @{$annlines} ];
 	return $annlines;
 } # END of _caller_to_rev_local_assignment_annlines
 

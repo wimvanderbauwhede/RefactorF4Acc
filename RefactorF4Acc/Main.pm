@@ -144,8 +144,7 @@ sub main {
     # $subname is either provided on command line or $Config{'TOP'}
     # If $subname is blank then we the files in the $SOURCEFILES list are processed one by one
     # Otherwise a non-blank $SOURCEFILES list will be considered the list of the source files to be inventoried, so includes in them will also be added to the inventory. 	
-	(my $subname, my $subs_to_translate, my $gen_scons, my $build, my $call_tree_only, my $pass) = parse_args();
-	
+	(my $subname, my $subs_to_translate, my $gen_scons, my $build, my $call_tree_only, my $pass) = parse_args();	
 	#  Initialise the global state. $subname could be empty
 	my $stref = init_state($subname);
 	
@@ -169,6 +168,7 @@ sub main {
     # It is possible that the TOP routine was set to the default (PROGRAM) while doing the inventory
     if ($subname eq '' and exists $Config{'TOP'} and $Config{'TOP'} ne '') {
     	$subname = $Config{'TOP'};
+        $stref->{'Top'}=$subname;
         say "Using PROGRAM $subname as TOP" if $V;
     }
    
