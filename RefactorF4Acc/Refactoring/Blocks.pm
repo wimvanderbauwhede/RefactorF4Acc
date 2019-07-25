@@ -5,7 +5,7 @@ use RefactorF4Acc::Utils;
 use RefactorF4Acc::State qw( initialise_per_code_unit_tables );
 use RefactorF4Acc::Parser qw( parse_fortran_src );
 use RefactorF4Acc::Analysis::Variables qw( identify_vars_on_line );
-use RefactorF4Acc::Refactoring::Common qw( get_f95_var_decl emit_f95_var_decl);#get_annotated_sourcelines create_refactored_source splice_additional_lines_cond  );
+use RefactorF4Acc::Refactoring::Common qw( get_f95_var_decl get_f95_par_decl emit_f95_var_decl);#get_annotated_sourcelines create_refactored_source splice_additional_lines_cond  );
 
 #
 #   (c) 2010-2019 Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
@@ -104,12 +104,15 @@ sub _separate_blocks {
 
     $Data::Dumper::Indent = 2;
 
-    # All variables in the parent subroutine
+    # All variables in the parent subroutine with their declaration records
     my $varsref = get_vars_from_set( $Sf->{'Vars'} );    
 
-    # Occurence
+    # Occurence of variables per block
     my $occsref  = {};
+    # Iterators for DO-loops are separate to turn them into locals
     my $itersref = {};
+    # TODO: Parameters should be separate to declare them locally
+    my $paramsref = {};
 
     # A map of every block in the parent
     my $blocksref = []; # Just an array 
@@ -134,12 +137,12 @@ sub _separate_blocks {
 #
 # Find all vars used in each block, starting with the outer block
 # It is best to loop over all vars per line per block, because we can remove the encountered vars
-
-    ( $occsref, $itersref ) = @{ __find_vars_in_block( $blocksref, $varsref, $occsref ) };
+# TODO: no need to declare $occsref and $paramsref at this level as they are empty!
+( $occsref, $itersref, $paramsref ) = @{ __find_vars_in_block( $blocksref, $varsref, $occsref, $paramsref ) };
 
 # 4. Construct the subroutine signatures
 # This happens before reparsing so the data structures for the Decls and Args are emtpty! So need to call the init here!
-    $stref = __construct_new_subroutine_signatures( $stref, $blocksref, $occsref, $itersref, $varsref, $f );
+    $stref = __construct_new_subroutine_signatures( $stref, $blocksref, $occsref, $itersref, $paramsref, $varsref, $f );
 
     $stref = __reparse_extracted_subroutines( $stref, $blocksref );
 
@@ -317,8 +320,7 @@ sub __create_new_subroutine_entries {
 # So I need to check if vars used in the new sub are commons
 # As this belongs with _separate_blocks, I see no reason to keep declarations in $info 
 sub __construct_new_subroutine_signatures {
-    ( my $stref, my $blocksref, my $occsref, my $itersref, my $varsref, my $f )
-      = @_;
+    ( my $stref, my $blocksref, my $occsref, my $itersref, my $paramsref, my $varsref, my $f ) = @_;
 
     #   local $V = 1;
     my $sub_or_func_or_mod = sub_func_incl_mod( $f, $stref );    # This is not a misnomer as it can also be a module.
@@ -455,6 +457,34 @@ sub __construct_new_subroutine_signatures {
                 }
               ];
         }
+
+
+         my %params = %{$paramsref->{$block} };
+
+        my $param_annlines = __emit_param_lines($Sblock, $varsref, \%params, {}, []);         
+        # croak Dumper(pp_annlines($param_annlines));
+        $Sblock->{'AnnLines'} = [ @{$param_annlines},  @{ $Sblock->{'AnnLines'} }];
+
+            # my %param_decl_generated=();
+            # for my $param ( sort keys %params ) {
+                
+            #     # my $decl = get_f95_par_decl( $stref, $f, $param ); # Cleary BROKEN! FIXME
+            #     my $decl = $varsref->{$param};                
+            #     $Sblock->{'LocalParameters'}{'Set'}{$param}             = $decl;    #
+            #     push @{ $Sblock->{'LocalParameters'}{'List'} }, $param;
+
+            #     unshift @{ $Sblock->{'AnnLines'} },
+            #       [
+            #         emit_f95_var_decl($decl),
+            #         {
+            #             'ParamDecl' => {'Name' => $decl->{'Var'}},  
+            #             'Ann'     => ['__construct_new_subroutine_signatures '
+            #               . __LINE__]
+            #         }
+            #       ];
+            # }
+        
+
         unshift @{ $Sblock->{'AnnLines'} }, $sigline;
 
         # Now also add include statements and the actual sig to the line
@@ -565,9 +595,8 @@ sub __update_caller_datastructures {
 # The "Iter" approach is incomplete because we should really identify any variable used as a local variable
 # If we find a variable in the outer blocks, it could still be a local
 #
-sub __find_vars_in_block {
-    #warn "This should use the same code as RefactorF4Acc::Analysis:: _analyse_variables";
-	( my $blocksref, my $varsref, my $occsref ) = @_;
+sub __find_vars_in_block {# warn "This should use he $block,same() code as RefactorF4A::Analysis:: _analyse_variables"cc;
+	( my $blocksref, my $varsref, my $occsref, my $paramsref ) = @_;
 	my $itersref = {};
 	for my $block_rec ( @{$blocksref} ) {
 		my $block = $block_rec->{'Name'};		
@@ -587,7 +616,12 @@ sub __find_vars_in_block {
 				for my $var_in_do ( @{ $info->{'Do'}{'Range'}{'Vars'} } ) {
 					if ( exists $tvars{$var_in_do} ) {
 						print "FOUND $var_in_do\n" if $V;
-						$occsref->{$block}{$var_in_do} = $var_in_do;
+						# $occsref->{$block}{$var_in_do} = $var_in_do;
+                        if (exists $varsref->{$var_in_do}{'Parameter'}) {                             
+                            $paramsref->{$block}{$var_in_do}=$var_in_do;
+                        } else {
+                            $occsref->{$block}{$var_in_do}=$var_in_do;
+                        }                        
 						delete $tvars{$var_in_do};
 					}
 				}
@@ -596,18 +630,141 @@ sub __find_vars_in_block {
                 
                 for my $var_on_line (@{$vars_on_line_ref}) {
                     # say "$var_on_line";
-                    if  ( exists $tvars{$var_on_line} ) {                        
+                    if  ( exists $tvars{$var_on_line} ) {          
+                        if (exists $varsref->{$var_on_line}{'Parameter'}) {                            
+                            $paramsref->{$block}{$var_on_line}=$var_on_line;
+                        } else {
+                            $occsref->{$block}{$var_on_line}=$var_on_line;
+                        }                                      
                         delete $tvars{$var_on_line};                  
                         # say "Adding $var_on_line to occsref->{$block} ". __FILE__.' '.__LINE__ ;
-                        $occsref->{$block}{$var_on_line}=$var_on_line;
+
                     }
                 }
             }
         }
 	} # for each block
 	
-	return [ $occsref, $itersref ];
+	return [ $occsref, $itersref, $paramsref ];
 }    # END of __find_vars_in_block()
+
+# I should detect, $paramsref, $paramsref constants and create declarations for them instead of passing them as arguments. 
+# - detect that an arg is in the Parameters set, find its toplevel declarations 
+# - which could be in an include, if so get them out of there
+# - put them in the code right before the first declaration
+# I need some extra info here: I should have a tag 'Extracted' in $Sf
+# Then if a sub is extracted, and only then, shall I remove the params from RefactoredArgs
+# and add extra decls.
+# I think in this module here we determine the arguments. So we need to integrate the code below
+# with the exisiting code, can't just run it afterwards.
+# If I remove the params on detection, can I then also here already create the extra decls?
+
+
+sub _inline_param_decls {  my  ($stref, $f, $args) = @_;
+    my $sub_or_func_or_mod = sub_func_incl_mod( $f, $stref );
+    my $Sf                 = $stref->{$sub_or_func_or_mod}{$f};
+    
+
+# Find all args that are params, 
+    my $parameter_args={};
+    for my $arg (@{$args}) {
+        if ( in_nested_set($Sf, 'Parameters', $arg) ) {
+            my $params_set = in_nested_set($Sf, 'Parameters', $arg);
+            $parameter_args->{$arg}=$params_set;
+        }
+    }    
+# Based on the name of the set, we know if the params are
+# LocalParameters
+# UsedParameters
+# IncludedParameters
+# For local parameters, I just take the AnnLines from the caller.
+my $param_decl_annlines=[];
+my $annlines=[];
+for my $par (sort keys %{$parameter_args}) {
+    my $params_set = $parameter_args->{$par};
+    if ($params_set eq 'LocalParameters') {
+        # Get declaration lines from in $f AnnLines 
+        $annlines  = $Sf->{'AnnLines'};
+        # This is a simple stateful_pass()
+    }
+    elsif ($params_set eq 'IncludedParameters') {
+        # Find the include file that contains them
+        for my $incl (sort keys %{ $Sf->{'Includes' } }) {
+            my $incl_params =  $stref->{'IncludeFiles'}{$incl}{'Parameters'} ;
+            if (exists $incl_params->{'Set'}{$par})  {
+                # OK, found the include for $par
+                $annlines = $stref->{'IncludeFiles'}{$incl}{'AnnLines'} ;
+            }
+        } 
+    }
+    elsif ($params_set eq 'UsedParameters') {
+           # Find the module that contains them
+        for my $mod (sort keys %{ $Sf->{'Uses' } }) {
+            my $mod_params =  $stref->{'Modules'}{$mod}{'Parameters'} ;
+            if (exists $mod_params->{'Set'}{$par})  {
+                # OK, found the module for $par
+                $annlines = $stref->{'Modules'}{$mod}{'AnnLines'} ;
+            }
+        }
+
+    }
+# Now that we have found the AnnLines, find the declarations. Again, very simple
+# Add them to $param_decl_annlines
+
+    for my $annline (@{$annlines}) {
+        (my $line, my $info) = @{$annline};
+        if (exists $info->{'ParamDecl'}) {
+            my $param_name = $info->{'ParamDecl'}{'Name'}[0];
+            if ($param_name eq $par ) {
+                push @{$param_decl_annlines}, $annline;
+            }
+        }
+    }
+
+# We must also update the $Sf records with new LocalParameters    
+
+}
+
+}
+
+sub __emit_param_lines { my ($Sblock, $varsref, $params, $param_decl_generated, $param_annlines)=@_;
+    for my $param ( sort keys %{$params} ) {    
+        # say "PAR $param";
+        if (not exists $param_decl_generated->{$param}) {
+                # my $decl = get_f95_par_decl( $stref, $f, $param ); # Cleary BROKEN! FIXME
+            my $decl = $varsref->{$param};
+            if (exists $decl->{'InheritedParams'} and exists $decl->{'InheritedParams'}{'Set'}) {                
+                # say "has InheritedParams:";
+                # say Dumper $decl;
+                for my $ip (sort keys %{$decl->{'InheritedParams'}{'Set'}}) {
+                    # say "INHERITED PAR <$ip>";
+                    $param_annlines = __emit_param_lines($Sblock, $varsref, {$ip=>$ip},  $param_decl_generated, $param_annlines);
+                }
+            } #else {
+                # say "EMIT!";
+                $Sblock->{'LocalParameters'}{'Set'}{$param}  = $decl;
+                push @{ $Sblock->{'LocalParameters'}{'List'} }, $param;
+
+                my $param_annline = [
+                        emit_f95_var_decl($decl),
+                        {
+                            'ParamDecl' => {'Name' => $decl->{'Var'}},  
+                            'Ann'     => ['__construct_new_subroutine_signatures '
+                            . __LINE__]
+                        }
+                ];
+                $param_decl_generated->{$param}=1;
+                push @{$param_annlines}, $param_annline;
+           # }
+        } 
+        # else {
+        #     say " already done";
+        # }
+    }
+    return $param_annlines;
+} # END of __emit_param_lines
+
+
 
 
 1;

@@ -1084,11 +1084,20 @@ sub emit_f95_var_decl {
       if ($is_par) {
       if (exists $var_decl_rec->{'Name'}) {
       	if (ref(  $var_decl_rec->{'Name'} ) eq 'ARRAY'  and scalar @{ $var_decl_rec->{'Name'} } == 2 ) {
-      	($var,$val) = @{	$var_decl_rec->{'Name'} };
+      	    ($var,$val) = @{	$var_decl_rec->{'Name'} };
       	} elsif (ref(  $var_decl_rec->{'Name'} ) ne 'ARRAY'  and exists $var_decl_rec->{'Val'} ) { 
-      $var = $var_decl_rec->{'Name'};
-      $val = $var_decl_rec->{'Val'};
+            $var = $var_decl_rec->{'Name'};
+            $val = $var_decl_rec->{'Val'};
       	}
+      }
+      elsif (exists $var_decl_rec->{'Var'}) {
+      	if (ref(  $var_decl_rec->{'Var'} ) eq 'ARRAY'  and scalar @{ $var_decl_rec->{'Var'} } == 2 ) {
+      	    ($var,$val) = @{	$var_decl_rec->{'Var'} };
+              croak 'SHOULD NEVER HAPPEN!';
+      	} elsif (ref(  $var_decl_rec->{'Var'} ) ne 'ARRAY'  and exists $var_decl_rec->{'Val'} ) { 
+            $var = $var_decl_rec->{'Var'};
+            $val = $var_decl_rec->{'Val'};
+      	}          
       } elsif(exists $var_decl_rec->{'Names'}) {
       	if (scalar @{ $var_decl_rec->{'Names'} } == 1 and ref($var_decl_rec->{'Names'}[0]) eq 'ARRAY') {
       		($var,$val) = @{ $var_decl_rec->{'Names'}[0] };

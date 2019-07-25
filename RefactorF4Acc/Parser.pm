@@ -2866,6 +2866,8 @@ sub __parse_f77_par_decl {
 			push @{$pars}, $var;
 		}				
 		for my $mpar ( keys %{$pars_in_val_for_var} ) {
+			next if $mpar eq '';
+			next if exists $F95_intrinsic_functions{$mpar}; 
 			my $mpar_rec = get_var_record_from_set( $Sf->{'Parameters'}, $mpar );												
 			$Sf->{'LocalParameters'}{'Set'}{$var}{'InheritedParams'}{'Set'}{$mpar}=1;
 		}

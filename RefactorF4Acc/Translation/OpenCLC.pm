@@ -423,16 +423,12 @@ sub _emit_arg_decl_C { (my $stref,my $f,my $arg)=@_;
 
 sub _emit_var_decl_C { (my $stref,my $f,my $var)=@_;
 	my $decl =  get_var_record_from_set($stref->{'Subroutines'}{$f}{'Vars'},$var);
-#croak "SUB $f => VAR $var =>".Dumper($decl) if $var=~/local_aaa/;
-# {'Var' => 'st_sub_map_124','Status' => 1,'Dim' => [],'Attr' => '','Type' => {'Type' => 'integer'},'Val' => '0','Indent' => '  ','Name' => ['st_sub_map_124','0'],'InheritedParams' => undef,'Parameter' => 'parameter'}		
 	my $array = (exists $decl->{'ArrayOrScalar'} and $decl->{'ArrayOrScalar'} eq 'Array') ? 1 : 0;
 	my $const = '';
 	my $val='';	
 	if (defined $decl->{'Parameter'}) {
 		$const = 'const ';
 		$val = ' = '.$decl->{'Val'};
-#		croak Dumper($decl) if $var eq 'alpha';
-		#say "PARAM $var => $val" if $var=~/st_\w+_(map|reduce)_\d+/;
 	}
 	my $ocl = $stref->{'OpenCL'};
 	my $ptr = ($array && $ocl<2) ? '*' : '';
