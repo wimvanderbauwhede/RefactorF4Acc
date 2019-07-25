@@ -1629,6 +1629,7 @@ sub _parse_use {
 				# the used module has been parsed
 				if ( exists $stref->{'Modules'}{$name} ) {    # Otherwise it means it is an external module
 					 # 'Parameters' here is OK because the include might contain other includes
+					say "Adding UsedParameters to $f from $name ". __FILE__. ' ' . __LINE__;
 					$Sf->{'UsedParameters'} = &append_to_set( $Sf->{'UsedParameters'}, $stref->{'Modules'}{$name}{'Parameters'} );
 					# I think here I should 'inherit' UsedLocalVars from this module, i.e. any LocalVars in $name
 					$Sf->{'UndeclaredCommonVars'} = append_to_set( $Sf->{'UndeclaredCommonVars'}, $stref->{'Modules'}{$name}{'DeclaredCommonVars'} );

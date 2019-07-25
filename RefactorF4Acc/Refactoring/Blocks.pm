@@ -384,7 +384,7 @@ sub __construct_new_subroutine_signatures {
 
                     }
                 }
-            }
+            }            
             $Sblock->{'Vars'}{$var} = $varsref->{ $var }; # FIXME: this is "inheritance, but in principle a re-parse is better?"
         }
         
@@ -459,10 +459,11 @@ sub __construct_new_subroutine_signatures {
         }
 
 
-         my %params = %{$paramsref->{$block} };
-
+        my %params = %{ $paramsref->{$block} };
+        say 'emitting local param lines in '.$block;
+        carp "Only do this if the params are not declared via USE!";
         my $param_annlines = __emit_param_lines($Sblock, $varsref, \%params, {}, []);         
-        # croak Dumper(pp_annlines($param_annlines));
+        # croak $block.Dumper($Sblock->{UsedParameters});
         $Sblock->{'AnnLines'} = [ @{$param_annlines},  @{ $Sblock->{'AnnLines'} }];
 
             # my %param_decl_generated=();
@@ -648,84 +649,6 @@ sub __find_vars_in_block {# warn "This should use he $block,same() code as Refac
 	return [ $occsref, $itersref, $paramsref ];
 }    # END of __find_vars_in_block()
 
-# I should detect, $paramsref, $paramsref constants and create declarations for them instead of passing them as arguments. 
-# - detect that an arg is in the Parameters set, find its toplevel declarations 
-# - which could be in an include, if so get them out of there
-# - put them in the code right before the first declaration
-# I need some extra info here: I should have a tag 'Extracted' in $Sf
-# Then if a sub is extracted, and only then, shall I remove the params from RefactoredArgs
-# and add extra decls.
-# I think in this module here we determine the arguments. So we need to integrate the code below
-# with the exisiting code, can't just run it afterwards.
-# If I remove the params on detection, can I then also here already create the extra decls?
-
-
-sub _inline_param_decls {  my  ($stref, $f, $args) = @_;
-    my $sub_or_func_or_mod = sub_func_incl_mod( $f, $stref );
-    my $Sf                 = $stref->{$sub_or_func_or_mod}{$f};
-    
-
-# Find all args that are params, 
-    my $parameter_args={};
-    for my $arg (@{$args}) {
-        if ( in_nested_set($Sf, 'Parameters', $arg) ) {
-            my $params_set = in_nested_set($Sf, 'Parameters', $arg);
-            $parameter_args->{$arg}=$params_set;
-        }
-    }    
-# Based on the name of the set, we know if the params are
-# LocalParameters
-# UsedParameters
-# IncludedParameters
-# For local parameters, I just take the AnnLines from the caller.
-my $param_decl_annlines=[];
-my $annlines=[];
-for my $par (sort keys %{$parameter_args}) {
-    my $params_set = $parameter_args->{$par};
-    if ($params_set eq 'LocalParameters') {
-        # Get declaration lines from in $f AnnLines 
-        $annlines  = $Sf->{'AnnLines'};
-        # This is a simple stateful_pass()
-    }
-    elsif ($params_set eq 'IncludedParameters') {
-        # Find the include file that contains them
-        for my $incl (sort keys %{ $Sf->{'Includes' } }) {
-            my $incl_params =  $stref->{'IncludeFiles'}{$incl}{'Parameters'} ;
-            if (exists $incl_params->{'Set'}{$par})  {
-                # OK, found the include for $par
-                $annlines = $stref->{'IncludeFiles'}{$incl}{'AnnLines'} ;
-            }
-        } 
-    }
-    elsif ($params_set eq 'UsedParameters') {
-           # Find the module that contains them
-        for my $mod (sort keys %{ $Sf->{'Uses' } }) {
-            my $mod_params =  $stref->{'Modules'}{$mod}{'Parameters'} ;
-            if (exists $mod_params->{'Set'}{$par})  {
-                # OK, found the module for $par
-                $annlines = $stref->{'Modules'}{$mod}{'AnnLines'} ;
-            }
-        }
-
-    }
-# Now that we have found the AnnLines, find the declarations. Again, very simple
-# Add them to $param_decl_annlines
-
-    for my $annline (@{$annlines}) {
-        (my $line, my $info) = @{$annline};
-        if (exists $info->{'ParamDecl'}) {
-            my $param_name = $info->{'ParamDecl'}{'Name'}[0];
-            if ($param_name eq $par ) {
-                push @{$param_decl_annlines}, $annline;
-            }
-        }
-    }
-
-# We must also update the $Sf records with new LocalParameters    
-
-}
-
-}
 
 sub __emit_param_lines { my ($Sblock, $varsref, $params, $param_decl_generated, $param_annlines)=@_;
     for my $param ( sort keys %{$params} ) {    
@@ -735,9 +658,10 @@ sub __emit_param_lines { my ($Sblock, $varsref, $params, $param_decl_generated, 
             my $decl = $varsref->{$param};
             if (exists $decl->{'InheritedParams'} and exists $decl->{'InheritedParams'}{'Set'}) {                
                 # say "has InheritedParams:";
-                # say Dumper $decl;
+                
                 for my $ip (sort keys %{$decl->{'InheritedParams'}{'Set'}}) {
-                    # say "INHERITED PAR <$ip>";
+                    # say "INHERITED P      say 'emitting local param lines in '.$block;AR <$ip>";
+                    carp "Only do this if the params are not declared via USE!";
                     $param_annlines = __emit_param_lines($Sblock, $varsref, {$ip=>$ip},  $param_decl_generated, $param_annlines);
                 }
             } #else {
@@ -759,9 +683,10 @@ sub __emit_param_lines { my ($Sblock, $varsref, $params, $param_decl_generated, 
         } 
         # else {
         #     say " already done";
-        # }
+        
     }
     return $param_annlines;
+    carp "Only do this if the params are not declared via USE!";
 } # END of __emit_param_lines
 
 
