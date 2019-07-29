@@ -29,6 +29,7 @@ use RefactorF4Acc::Parser::Expressions qw(
     find_implied_do_in_ast
     find_args_vars_in_ast
     find_vars_in_ast
+	_find_consts_in_ast
     );
 use RefactorF4Acc::Translation::OpenCLC qw( add_to_C_build_sources );    # OBSOLETE
 
@@ -906,7 +907,7 @@ or $line=~/^character\s*\(\s*len\s*=\s*[\w\*]+\s*\)/
 			} 
 #== PARAMETER			
 #== F77-style parameters			
-			elsif ( $line =~ /\bparameter\s*\(\s*(.*)\s*\)/ ) {    
+			elsif ( $line =~ /\bparameter\s*\(\s*(.+)\s*\)/ ) {    
 				my $parliststr = $1;
 #				croak $line if $line=~/nstreams/ and $f=~/\.inc/ ;
 				( $Sf, $info ) = __parse_f77_par_decl( $Sf, $stref, $f, $indent, $line, $info, $parliststr );				
@@ -1629,7 +1630,8 @@ sub _parse_use {
 				# the used module has been parsed
 				if ( exists $stref->{'Modules'}{$name} ) {    # Otherwise it means it is an external module
 					 # 'Parameters' here is OK because the include might contain other includes
-					say "Adding UsedParameters to $f from $name ". __FILE__. ' ' . __LINE__;
+					
+					# say "Adding UsedParameters to $sub_or_func_or_mod_or_inc_or_mod $f from module $name ". __FILE__. ' ' . __LINE__;
 					$Sf->{'UsedParameters'} = &append_to_set( $Sf->{'UsedParameters'}, $stref->{'Modules'}{$name}{'Parameters'} );
 					# I think here I should 'inherit' UsedLocalVars from this module, i.e. any LocalVars in $name
 					$Sf->{'UndeclaredCommonVars'} = append_to_set( $Sf->{'UndeclaredCommonVars'}, $stref->{'Modules'}{$name}{'DeclaredCommonVars'} );
@@ -2687,7 +2689,7 @@ sub __parse_f95_decl {
 					$orig_decl  = {};
 				}
 				if ($decl->{'Type'} eq 'character'  
-					and exists $decl->{'Attr'}
+					and exists $decl->{'Att(r)'}
 					and exists $orig_decl->{'Attr'}
 					) {
 						$decl->{'Attr'}=$orig_decl->{'Attr'};
@@ -2771,12 +2773,84 @@ sub __parse_f95_decl {
 
 sub __parse_f77_par_decl {
 	# F77-style parameters
-	#                my $parliststr = $1;
 	( my $Sf, my $stref, my $f,my $indent, my $line, my $info, my $parliststr ) = @_;
 	
 	my $type   = 'Unknown';
+	my $typed=0;
 	my $attr = '';
 	$indent =~ s/\S.*$//;
+
+	my $ast =  parse_expression($parliststr, $info, $stref, $f);
+	# This returns be a {($var,{Epxr => $exp, Ast=>$ast})} Set + [$var] List
+	my $var_val_pairs = _get_var_val_pairs($ast);
+
+	my @param_names=@{ $var_val_pairs->{'List'} };
+	$info->{'ParamDecl'}{'Names'}=\@param_names;
+	for my $var (@param_names) {		
+		my $val = $var_val_pairs->{'Set'}{$var}{'Expr'};
+		my $val_ast = $var_val_pairs->{'Set'}{$var}{'Ast'};
+		if (  in_nested_set $Sf, 'LocalVars', $var ) { 
+			my $var_rec = get_var_record_from_set( $Sf->{'LocalVars'}, $var );
+			$type=$var_rec->{'Type'};
+			$attr=$var_rec->{'Attr'};
+			$typed=1;
+		} 
+		# else {
+			# type via constants and inherited params
+			# Basically, we start with integer, and any other type overrides this
+			# But in principle also an integer*8 should override this
+			# So we should in principle look at the Attr as well
+
+			# if the val_ast contains pars
+			# get vars from the AST			
+			my $pars_in_val_for_var=find_vars_in_ast($val_ast,{});
+			my $inherited_params={};
+			for my $mpar ( keys %{$pars_in_val_for_var} ) {
+				next if $mpar eq '';
+				next if exists $F95_intrinsic_functions{$mpar}; 
+				# carp "$f $mpar for $var";
+				my $mpar_rec = get_var_record_from_set( $Sf->{'LocalParameters'}, $mpar );
+				# say Dumper($f, $mpar, $mpar_rec);
+				my $mtype=$mpar_rec->{'Type'};
+				my $mattr=$mpar_rec->{'Attr'};
+				if ($mtype ne 'integer' and not $typed) {
+					$type = $mtype;
+					$typed=1;
+				}				
+				$inherited_params->{'Set'}{$mpar}=1;
+			}
+			# the pars could be integers, see if the consts in the val_ast might be reals or PlaceHolder
+			# get const types from the AST
+			my $const_types = _find_consts_in_ast( $val_ast, {});
+			# $type = 'integer';
+			for my $const (keys %{$const_types}) {
+				my $ctype = $const_types->{$const};
+				if ($ctype eq 'PlaceHolder') {
+					$type = 'character';
+					$attr = '(*)';
+				}
+				if ($ctype ne 'integer' and not $typed) {
+					$type = $ctype;
+					last;
+				}
+			}
+		# }
+		my $param_decl = {
+						'Type' => $type,
+						'Var'  => $var,
+						'Val'  => $val,
+						'Ast' => $val_ast,
+						'Attr' => $attr,
+						'DEBUG' => __FILE__.' '.__LINE__,
+						'Indent'    => $indent,
+						'Dim'       => [],
+						'Parameter' => 'parameter',
+						'InheritedParams' => $inherited_params,
+						'Status'    => 0     
+					};
+		$Sf->{'LocalParameters'}{'Set'}{$var}=$param_decl;		
+	}
+if (0) {
 	my @partups = _parse_comma_sep_expr_list( $parliststr ); 
 	my %pvars = map { split( /\s*=\s*/, $_ ) } @partups;    # Perl::Critic, EYHO
 	my @var_vals = map { ( my $k, my $v ) = split( /\s*=\s*/, $_ ); [ $k, $v ] } @partups; # Perl::Critic, EYHO
@@ -2892,6 +2966,8 @@ sub __parse_f77_par_decl {
 #	say $f,$var,$Sf->{'LocalParameters'}{'Set'}{$var}{'Attr'};
 #	}
 #croak Dumper($Sf) if $f eq 'printer.inc' and $line=~/MAXOPENFILES/i;
+
+}
 	return ( $Sf, $info );
 
 }    # END of __parse_f77_par_decl()
@@ -4408,6 +4484,29 @@ sub __parse_include_statement { my ($stref, $f, $Sf, $line, $info, $index) = @_;
 	}
 	return $info;
 } # END of __parse_include_statement
+
+# This should be a Set + List
+sub _get_var_val_pairs { my ($ast) = @_;
+
+	my $var_val_pairs = {'List'=>[], 'Set'=>{}};
+	# So either this is a comma-sep list [',', ['=',k1,v1],...]
+	# or it is a single assignment ['=',k1,v1]
+	if ($ast->[0] == 27) {
+		shift @{$ast};
+	} else {
+		$ast = [$ast];
+	}
+	for my $var_val_ast (@{$ast}) {
+		# say Dumper($var_val_ast);
+		my $var = $var_val_ast->[1][1]; # because k1 is ['$', var1]
+		my $val_ast = $var_val_ast->[2]; # the ast
+		push @{ $var_val_pairs->{'List'}}, $var ;
+		$var_val_pairs->{'Set'}{ $var}  = { 'Ast' =>$val_ast, 'Expr' => emit_expr_from_ast($val_ast) };
+	}
+
+	
+	return $var_val_pairs;
+}
 
 1;
 

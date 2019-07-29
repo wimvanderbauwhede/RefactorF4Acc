@@ -1374,8 +1374,8 @@ sub stateless_pass {
 
 # original  annlines are taken from $Sf->{'AnnLines'} or $Sf->{'RefactoredCode'} 
 # updated annlines are stored in $Sf->{'RefactoredCode'} 
-sub stateful_pass {
-    (my $stref, my $f, my $pass_actions, my $state, my $pass_info ) = @_;
+sub stateful_pass { my ( $stref, $f, $pass_actions, $state, $pass_info ) = @_;
+    # return ($stref,$state);
 #    local $Data::Dumper::Indent =0;
 #    local $Data::Dumper::Terse=1;
     say "STATEFUL PASS ".Dumper($pass_info)." for $f" if $DBG; 

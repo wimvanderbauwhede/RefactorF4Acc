@@ -116,20 +116,19 @@ sub _refactor_include_file {
                 	my $gvar=$stref->{'IncludeFiles'}{$inc_f}{'ConflictingGlobals'}{$var}[0];
                 	$line=~s/\b$var\b/$gvar/;
                 	$info->{'Ref'}++;
-                    $info->{'ParamDecl'}=[$gvar];    
+                    $info->{'ParamDecl'}{'Name'}=[$gvar,$val];    
                     print "WARNING: WEAK! renamed $var to $gvar ($line) refactor_include_file() 121\n" if $W;                 
                 }			
-            } elsif (exists $info->{'ParamDecl'}{'Names'}) { #die $line.Dumper($info);
+            } elsif (exists $info->{'ParamDecl'}{'Names'}) { 
                 for my $var_val (@{ $info->{'ParamDecl'}{'Names'} }) {
-			(my $var,my $val)=@{$var_val};
-#				print "PAR: $var ($line)\n";
+                    (my $var,my $val)=@{$var_val};
                 if ( exists $stref->{'IncludeFiles'}{$inc_f}{'ConflictingGlobals'} {$var} )
                 {
-                    die 'BOOM!';
+                    croak 'BOOM!';
                 	my $gvar=$stref->{'IncludeFiles'}{$inc_f}{'ConflictingGlobals'}{$var}[0];
                 	$line=~s/\b$var\b/$gvar/;
                 	$info->{'Ref'}++;
-                    $info->{'ParamDecl'}=[$gvar];    
+                    $info->{'ParamDecl'}{'Name'}=[$gvar,$val];    
                     print "WARNING: WEAK! renamed $var to $gvar ($line) refactor_include_file() 121\n" if $W;                 
                 }			
                 }
