@@ -723,4 +723,9 @@ sub split_multiblock_common_lines {
     return $stref;
 }    # END of split_multiblock_common_lines
 
+
+sub _remove_var_decls_for_param_decls { my ($stref,$f)=@_;
+
+} # END of _remove_var_decls_for_param_decls 
+
 1;

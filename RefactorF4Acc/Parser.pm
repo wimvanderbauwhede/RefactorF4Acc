@@ -2789,11 +2789,15 @@ sub __parse_f77_par_decl {
 	for my $var (@param_names) {		
 		my $val = $var_val_pairs->{'Set'}{$var}{'Expr'};
 		my $val_ast = $var_val_pairs->{'Set'}{$var}{'Ast'};
-		if (  in_nested_set $Sf, 'LocalVars', $var ) { 
+		my $maybe_var = in_nested_set( $Sf, 'LocalVars', $var);
+		# say "$f $maybe_var $var";
+		if ( $maybe_var ) { 
 			my $var_rec = get_var_record_from_set( $Sf->{'LocalVars'}, $var );
 			$type=$var_rec->{'Type'};
 			$attr=$var_rec->{'Attr'};
 			$typed=1;
+			delete $Sf->{'DeclaredOrigLocalVars'}{'Set'}{$var}; 
+			@{ $Sf->{'DeclaredOrigLocalVars'}{'List'} } = grep { $_ ne $var } @{ $Sf->{'DeclaredOrigLocalVars'}{'List'} };
 		} 
 		# else {
 			# type via constants and inherited params
@@ -2813,7 +2817,7 @@ sub __parse_f77_par_decl {
 				# say Dumper($f, $mpar, $mpar_rec);
 				my $mtype=$mpar_rec->{'Type'};
 				my $mattr=$mpar_rec->{'Attr'};
-				if ($mtype ne 'integer' and not $typed) {
+				if ($mtype ne 'integer' or not $typed) {
 					$type = $mtype;
 					$typed=1;
 				}				
@@ -2829,9 +2833,9 @@ sub __parse_f77_par_decl {
 					$type = 'character';
 					$attr = '(*)';
 				}
-				if ($ctype ne 'integer' and not $typed) {
+				if ($ctype ne 'integer' or not $typed) {
 					$type = $ctype;
-					last;
+					$typed=1;
 				}
 			}
 		# }
