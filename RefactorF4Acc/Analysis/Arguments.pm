@@ -124,10 +124,8 @@ sub create_RefactoredArgs {
 	# So for the Mismatched
 	if (not exists $stref->{'Subroutines'}{$f}{'HasCommonVarMismatch'}) {
 	
-	
 	if ( exists $Sf->{'ExGlobArgs'}{'List'} and scalar @{$Sf->{'ExGlobArgs'}{'List'}}>0 and scalar @{ $Sf->{'OrigArgs'}{'List'} } >0
 	) {
-
 		$Sf->{'RefactoredArgs'}{'List'} = ordered_union( $Sf->{'OrigArgs'}{'List'}, $Sf->{'ExGlobArgs'}{'List'} );
 		$Sf->{'RefactoredArgs'}{'Set'} = { %{ $Sf->{'UndeclaredOrigArgs'}{'Set'} }, %{ $Sf->{'DeclaredOrigArgs'}{'Set'} }, %{ $Sf->{'ExGlobArgs'}{'Set'} } };
 		$Sf->{'HasRefactoredArgs'} = 1;
@@ -137,7 +135,10 @@ sub create_RefactoredArgs {
 	) {
 
 		# No ExGlobArgs, so Refactored = Orig
-		$Sf->{'RefactoredArgs'}{'Set'}  = $Sf->{'OrigArgs'}{'Set'};
+		for my $arg (  @{$Sf->{'OrigArgs'}{'List'}} ) {
+			my $set = in_nested_set($Sf,'OrigArgs',$arg);
+			$Sf->{'RefactoredArgs'}{'Set'}{$arg}  = $Sf->{$set}{'Set'}{$arg};
+		}
 		$Sf->{'RefactoredArgs'}{'List'} = $Sf->{'OrigArgs'}{'List'};
 		$Sf->{'HasRefactoredArgs'}      = 0;
 	} elsif (  exists $Sf->{'ExGlobArgs'}{'List'} and  scalar @{$Sf->{'ExGlobArgs'}{'List'}}>0

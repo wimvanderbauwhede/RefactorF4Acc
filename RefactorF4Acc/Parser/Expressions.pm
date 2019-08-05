@@ -1469,58 +1469,58 @@ sub emit_expr_from_ast { (my $ast)=@_;
             if ($ast->[0] ==1 or $ast->[0] ==10) { # '&' array access or function call
                 (my $sigil, my $name, my $args) =@{$ast};
                 if (@{$args}) {
-                if ($args->[0] != 14 ) { # ')('
-                    my @args_lst=();
-                    if($args->[0] == 27) { # ','
-                        for my $idx (1 .. scalar @{$args}-1) {
-                            my $arg = $args->[$idx];
-                            push @args_lst, emit_expr_from_ast($arg);
-                        }
+					if ($args->[0] != 14 ) { # ')('
+						my @args_lst=();
+						if($args->[0] == 27) { # ','
+							for my $idx (1 .. scalar @{$args}-1) {
+								my $arg = $args->[$idx];
+								push @args_lst, emit_expr_from_ast($arg);
+							}
 
-                        #                    for my $arg (@{$args->[1]}) {
-                        #       push @args_lst, emit_expr_from_ast($arg);
-                        #    }
-                        
-                        return "$name(".join(',',@args_lst).')';
-                    } else {
-                        return "$name(".emit_expr_from_ast($args).')';
-                    }
-                } else { # f(x)(y)
-                    #say Dumper($args);
-                    (my $sigil,my $args1, my $args2) = @{$args};
-                    my $args_str1='';
-                    my $args_str2='';
-                    if($args1->[0] == 27) { #eq ',' 
-                        my @args_lst1=();
-                        for my $idx (1 .. scalar @{$args1}-1) {
-                            my $arg = $args1->[$idx];
-                            push @args_lst1, emit_expr_from_ast($arg);
-                        }
-                        $args_str1=join(',',@args_lst1);
+							#                    for my $arg (@{$args->[1]}) {
+							#       push @args_lst, emit_expr_from_ast($arg);
+							#    }
+							
+							return "$name(".join(',',@args_lst).')';
+						} else {
+							return "$name(".emit_expr_from_ast($args).')';
+						}
+					} else { # f(x)(y)
+						#say Dumper($args);
+						(my $sigil,my $args1, my $args2) = @{$args};
+						my $args_str1='';
+						my $args_str2='';
+						if($args1->[0] == 27) { #eq ',' 
+							my @args_lst1=();
+							for my $idx (1 .. scalar @{$args1}-1) {
+								my $arg = $args1->[$idx];
+								push @args_lst1, emit_expr_from_ast($arg);
+							}
+							$args_str1=join(',',@args_lst1);
 
-                    } else {
-                        $args_str1= emit_expr_from_ast($args1);
-                    }
-                    if($args2->[0] == 27) { #eq ','
-                        #say Dumper($args2);
-                        my @args_lst2=();
-                        for my $idx (1 .. scalar @{$args2}-1) {
-                            my $arg = $args2->[$idx];
-                            push @args_lst2, emit_expr_from_ast($arg);
-                        }
+						} else {
+							$args_str1= emit_expr_from_ast($args1);
+						}
+						if($args2->[0] == 27) { #eq ','
+							#say Dumper($args2);
+							my @args_lst2=();
+							for my $idx (1 .. scalar @{$args2}-1) {
+								my $arg = $args2->[$idx];
+								push @args_lst2, emit_expr_from_ast($arg);
+							}
 
-                        #                for my $arg (@{$args2->[1]}) {
-                        #    push @args_lst2, emit_expr_from_ast($arg);
-                        #}
-                        $args_str2=join(',',@args_lst2);
-                    } else {
-                        $args_str2=emit_expr_from_ast($args2);
-                    }
-                    return "$name(".$args_str1.')('.$args_str2.')';
-                }
-            } else {
-                return "$name()";
-            }
+							#                for my $arg (@{$args2->[1]}) {
+							#    push @args_lst2, emit_expr_from_ast($arg);
+							#}
+							$args_str2=join(',',@args_lst2);
+						} else {
+							$args_str2=emit_expr_from_ast($args2);
+						}
+						return "$name(".$args_str1.')('.$args_str2.')';
+					}
+				} else {
+					return "$name()";
+				}
             } else {
 #            	say Dumper($ast);
                 (my $opcode, my $lexp, my $rexp) =@{$ast};
@@ -1563,7 +1563,6 @@ sub emit_expr_from_ast { (my $ast)=@_;
             } else {
                 croak Dumper($ast);
             }
-
         }
     } else {return $ast;}
 } # END of emit_expr_from_ast
@@ -1677,8 +1676,8 @@ sub _replace_function_calls_in_ast {
     return ($ast,$grouped_messages);
 } # END of _replace_function_calls_in_ast
 
-
-sub _find_consts_in_ast { (my $ast, my $consts)=@_;
+# returns a hash const => sigil
+sub _find_consts_in_ast { my ( $ast, $consts)=@_;
     
     if (ref($ast) eq 'ARRAY' and scalar @{$ast}>0) { 
         if (ref($ast->[0]) ne 'ARRAY') {
@@ -1797,7 +1796,7 @@ sub _traverse_ast_with_action { (my $ast, my $acc, my $f) = @_;
 } # END of _traverse_ast_with_action
 
 # returns a hash of the var names
-sub find_vars_in_ast { (my $ast, my $vars)=@_;	
+sub find_vars_in_ast { my ( $ast, $vars)=@_;	
 
   return {} unless ref($ast) eq 'ARRAY';
   if(scalar @{$ast}==0) {

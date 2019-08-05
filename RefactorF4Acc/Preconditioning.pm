@@ -581,13 +581,17 @@ sub _split_multipar_decls_and_set_type {
 					scalar @{$info->{'ParamDecl'}{'Names'}} => 1) {
                     my @nvars = @{ $info->{'ParamDecl'}{'Names'} };
                     for my $var (@nvars) {
-                        # say "PAR: ".Dumper($var);
+                        #  say "PAR: ".Dumper($var);
+                         if (ref($var) eq 'ARRAY') {
+                             ($var,my $val) = @{$var};
+                         }
                         my $param_decl = $Sf->{'LocalParameters'}{'Set'}{$var};
+                        # say "PAR: ".Dumper($param_decl);
                         my %rinfo = %{$info};
                         $rinfo{'LineID'}    = $nextLineID++;
                         $rinfo{'ParamDecl'} = {'Name'=>$var}; # WV20190729 New approach. I don't see why anything but the name is needed
                         $rinfo{'VarDecl'} = {'Name' => $var};                        
-                        my $val = emit_expr_from_ast($param_decl->{'Ast'});
+                        my $val =  exists $param_decl->{'Ast'} ? emit_expr_from_ast($param_decl->{'Ast'}) : $param_decl->{'Val'};
                         my $rline = $param_decl->{'Indent'}."parameter($var=$val)"; # F77 syntax, this should not be used anyway
                         push @{$new_annlines}, [$rline, \%rinfo];
                     }

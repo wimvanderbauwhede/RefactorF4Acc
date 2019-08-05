@@ -152,7 +152,11 @@ sub main {
     $stref->{'SubsToTranslate'}=$subs_to_translate;
     
 	# 1. Inventory: Find all subroutines in the source code tree
-	
+	if ($V) {
+        say "--------------". ('-' x length($subname)) ;
+        say "INVENTORY for $subname";
+        say "--------------". ('-' x length($subname)) ;
+        }    
 	$stref = find_subroutines_functions_and_includes($stref);
 	if ($V) {
         say "Subroutines that will be analysed:";
@@ -162,6 +166,11 @@ sub main {
 	}
 
     # 2. Parser: Parse the source
+    if ($V) {
+        say "--------------". ('-' x length($subname)) ;
+        say "PARSE ALL for $subname";
+        say "--------------". ('-' x length($subname)) ;
+        }    
     for my $data_block (keys %{ $stref->{'BlockData'} } ) {
     	$stref = parse_fortran_src( $data_block, $stref );
     }
@@ -207,6 +216,11 @@ sub main {
 	
     # 3. Analysis: Analyse the source
     my $stage=0;
+    if ($V) {
+        say "----------------". ('-' x length($subname)) ;
+        say "ANALYSE ALL for $subname";
+        say "----------------". ('-' x length($subname)) ;
+        }
     if ($subname eq '' and exists $Config{'SOURCEFILES'} and scalar @{ $Config{'SOURCEFILES'} }>0) {
     	for my $fp ( @{ $Config{'SOURCEFILES'} } ) {
             $stref = analyse_all($stref,$fp, $stage, 1);
@@ -218,6 +232,12 @@ sub main {
     # or run one or more custom passes. 
     #
     if ($pass) {
+        if ($V)
+        {
+            say "--------------------". ('-' x length($pass)) ;
+            say "RUNNING CUSTOM PASS $pass";
+            say "--------------------". ('-' x length($pass)) ;
+        }
         if ($subname eq '' and exists $Config{'SOURCEFILES'} and scalar @{ $Config{'SOURCEFILES'} }>0) {
         # $subname is empty, i.e. no TOP routine. So we go through all sources one by one by file name
             for my $fp ( @{ $Config{'SOURCEFILES'} } ) {
@@ -301,8 +321,9 @@ sub parse_args {
 	}
 	my $has_subname=0;
 	my $subname = $ARGV[0];
+    # die  "ARG: $subname";
 	if ($subname) {
-		$subname =~ s/\.f(?:90)?$//;
+		$subname =~ s/\.f(?:9[05])?$//;
 		$has_subname=1;
 	} elsif (exists $Config{'TOP'}) {
 		$subname = $Config{'TOP'};

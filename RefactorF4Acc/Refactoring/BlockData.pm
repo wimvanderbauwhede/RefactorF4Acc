@@ -32,7 +32,13 @@ our @EXPORT_OK = qw(
 
 sub add_BLOCK_DATA_call_after_last_VarDecl { 
 	( my $f, my $stref ) = @_;
+
+	if (scalar keys %{ $stref->{'BlockData'} } > 0) { 
+say "** analyse_all() => add_BLOCK_DATA_call_after_last_VarDecl()" if $V;
 	my $Sf = $stref->{'Subroutines'}{$f};	
+
+
+
 	my $annlines=$Sf->{'AnnLines'};
 	
 	my $in_decls=0;
@@ -99,7 +105,7 @@ sub add_BLOCK_DATA_call_after_last_VarDecl {
 		push @{$new_annlines}, $annline;
 	}
 	$stref->{'Subroutines'}{$f}{'AnnLines'}=$new_annlines;
-	
+	}
 	return $stref;
 } # END of add_BLOCK_DATA_call_after_last_VarDecl
 

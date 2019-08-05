@@ -106,19 +106,23 @@ sub pass_emit_TyTraIR {(my $stref, my $module_name)=@_;
 
 sub _emit_TyTraIR {  (my $stref) = @_;
 	# FIXME: we ignore Selects and Inserts for now.
-    # We need the superkernel as the main, and we must identify its input and output arguments
+    
+	# We need the superkernel as the main, and we must identify its input and output arguments
     # Input args have Ctr==0 on the Rhs
     # Output args $arg have Ctr == $tytracl_ast->{'UniqueVarCounters'}{$arg}
+	
 	my $tytracl_ast = $stref->{'TyTraIR_AST'} ;
 	my $tytracl_strs = [];
     my $main_rec = {'NodeType' => 'Main', 'InArgs' => [], 'OutArgs' => [],'Main' => $tytracl_ast->{'Main'}};
     my $var_types={};
     my $stencils={};
     my $state = {};
+
 	for my $node (@{ $tytracl_ast->{'Lines'} } ) {
         my $fname = $node->{'FunctionName'};
 		my $lhs = $node->{'Lhs'} ;
 		my $rhs = $node->{'Rhs'} ;
+		# WV20190801 FIXME: make this either $node on its own or $nodeid instead of $node
         $main_rec = _addToMainSig($stref,$main_rec, $node, $lhs, $rhs, $fname);
         
         # These are never arguments of the main function
@@ -727,14 +731,14 @@ sub _add_TyTraIR_type_to_var_rec { (my $stref, my $fname, my $var_rec, my $rw) =
 			'Dims' =>$stref->{'Subroutines'}{$fname}{'ArrayAccesses'}{0}{'Arrays'}{$var_name}{'Dims'}
 		};
 		
-    for my $expr (keys %{$exprs} ) {
-		my $k = $exprs->{$expr}; 		
-		my $stencil =     _generate_TyTraIR_stencil(  $stencil_pattern, $k);
-		if ($stencil==0) {
-        	$scal_var_name = _scalarize_array_expr($expr);
-        	last;
-		}
-	}	
+		for my $expr (keys %{$exprs} ) {
+			my $k = $exprs->{$expr}; 		
+			my $stencil =     _generate_TyTraIR_stencil(  $stencil_pattern, $k);
+			if ($stencil==0) {
+				$scal_var_name = _scalarize_array_expr($expr);
+				last;
+			}
+		}	
 	}
 	
 	my $var_type = _get_TyTraIR_type( $stref,$fname,$var_name);

@@ -111,9 +111,10 @@ sub _separate_blocks {
     my $occsref  = {};
     # Iterators for DO-loops are separate to turn them into locals
     my $itersref = {};
-    # TODO: Parameters should be separate to declare them locally
+    
     my $paramsref = {};
-
+    # TODO: Local vars should be separate to declare them locally
+    my $localvarsref = {};
     # A map of every block in the parent
     my $blocksref = []; # Just an array 
 
@@ -329,6 +330,7 @@ sub __construct_new_subroutine_signatures {
     my $srcref = $Sf->{'AnnLines'};
 
     my %args = ();
+    my %localvars = ();
 
     for my $block_rec ( @{$blocksref} ) {
         my $block =$block_rec->{'Name'};
@@ -340,7 +342,7 @@ sub __construct_new_subroutine_signatures {
 
         print "\nARGS for BLOCK $block:\n" if $V;
         $args{$block} = [];
-
+        $localvars{$block} = [];
         # Collect args for new subroutine
         # At this stage, if a var is global, it should not become an argument.
         my $pushed_var=0;
@@ -362,33 +364,37 @@ sub __construct_new_subroutine_signatures {
                 # }
             } else {
                 # say "VAR $var not used in OUTER ". __FILE__. ' ' . __LINE__;
+                # croak "HERE we need $localvars{$block}";
                 # WV20190722 We must check if the var is not used by any of the other subs!
+                my $var_used_in_other_block=0;
                 for my $other_block (sort keys %{ $occsref }) {
                     next if $other_block eq 'OUTER';
                     next if $other_block eq $block;
                     if ( exists $occsref->{$other_block}{$var} ) {
+                        $var_used_in_other_block=1;
                         # say "BUT VAR $var is used in $other_block ". __FILE__. ' ' . __LINE__;
-                                        # Only if this $var is not COMMON!
-                if ( not exists $Sf->{'UsedParameters'}{'Set'}{$var}
-                and not exists $Sf->{'DeclaredCommonVars'}{'Set'}{$var} # FIXME: UndeclaredCommonVars as well?
-                and not exists $Sf->{'UndeclaredCommonVars'}{'Set'}{$var}        
-                ) {
-                    #  carp "$f: $var is NOT COMMON!";
-                    # print "ARG (2): $var\n" if $V;
-                    push @{ $args{$block} }, $var;
-                    last;
-                }
-                #  else {
-                #     say "NOT an ARG (2): $var ". __FILE__. ' ' . __LINE__;
-                # }
-
+                        # Only if this $var is not COMMON!
+                        if ( not exists $Sf->{'UsedParameters'}{'Set'}{$var}
+                        and not exists $Sf->{'DeclaredCommonVars'}{'Set'}{$var} # FIXME: UndeclaredCommonVars as well?
+                        and not exists $Sf->{'UndeclaredCommonVars'}{'Set'}{$var}        
+                        ) {
+                            #  carp "$f: $var is NOT COMMON!";
+                            # print "ARG (2): $var\n" if $V;
+                            push @{ $args{$block} }, $var;
+                            last;                            
+                        }
+                        #  else {
+                        #     say "NOT an ARG (2): $var ". __FILE__. ' ' . __LINE__;
+                        # }
                     }
+                }
+                if (not $var_used_in_other_block) { # It's a local var
+                    push @{ $localvars{$block} }, $var;
                 }
             }            
             $Sblock->{'Vars'}{$var} = $varsref->{ $var }; # FIXME: this is "inheritance, but in principle a re-parse is better?"
         }
         
-
         # We declare them right away
         $Sblock->{'DeclaredOrigArgs'}{'List'} = $args{$block};
 
@@ -438,6 +444,29 @@ sub __construct_new_subroutine_signatures {
             }
         }
 
+        for my $var ( @{ $localvars{$block} } ) {
+            
+            my $set = in_nested_set($Sf,'Vars',$var);
+            # say "LOCAL VAR: $var from SET $set";
+            # croak Dumper($Sblock->{'OrigArgs'});
+            my $decl = get_var_record_from_set( $Sf->{$set}, $var );
+            # say Dumper $decl;
+            $Sblock->{'LocalVars'}{'Set'}{$var}             = $decl;    #
+            $Sblock->{'DeclaredOrigLocalVars'}{'Set'}{$var} = $decl;
+            push @{ $Sblock->{'DeclaredOrigLocalVars'}{'List'} }, $var;
+
+            unshift @{ $Sblock->{'AnnLines'} },
+              [
+                emit_f95_var_decl($decl),
+                {
+                    'VarDecl' => {'Name' => $decl->{'Name'}}, 
+                    'Ann' => [ '__construct_new_subroutine_signatures ' . __LINE__ ]
+                }
+              ];
+        }
+
+
+
         for my $argv ( @{ $args{$block} } ) {
             # say "ARGV: $argv";
             my $set = in_nested_set($Sblock,'OrigArgs',$argv);
@@ -482,8 +511,7 @@ sub __construct_new_subroutine_signatures {
             #               . __LINE__]
             #         }
             #       ];
-            # }
-        
+            # }        
 
         unshift @{ $Sblock->{'AnnLines'} }, $sigline;
 
@@ -596,7 +624,7 @@ sub __update_caller_datastructures {
 # If we find a variable in the outer blocks, it could still be a local
 #
 sub __find_vars_in_block {# warn "This should use he $block,same() code as RefactorF4A::Analysis:: _analyse_variables"cc
-	( my $stref, my $f, my $blocksref, my $varsref, my $occsref, my $paramsref ) = @_;
+	my ( $stref, $f, $blocksref, $varsref, $occsref, $paramsref ) = @_;
     my $sub_or_func_or_mod = sub_func_incl_mod( $f, $stref );
     my $Sf = $stref->{$sub_or_func_or_mod}{$f};
 

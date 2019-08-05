@@ -65,7 +65,7 @@ sub analyse_all {
 		$stref = find_root_for_includes( $stref, $code_unit_name );
 	}
 	return $stref if $stage == 1;
-	# croak Dumper($stref->{'Subroutines'}{'predict_loc'});
+	
 	# I think I need a special case here to find the ExGlobArgs for BLOCK DATA
 	for my $f ( keys %{ $stref->{'Subroutines'} } ) {
 		next if $f eq '';	
@@ -74,6 +74,7 @@ sub analyse_all {
 		}
 		my $Sf = $stref->{'Subroutines'}{$f};
 		if (exists $Sf->{'BlockData'} and $Sf->{'BlockData'} == 1 ) {
+			print "\t** BLOCK DATA: analyse_variables($f) **\n" if $V;
 			$stref = analyse_variables( $stref, $f );
 		}
 	}
@@ -102,7 +103,8 @@ sub analyse_all {
 			next;
 		}
 		my $Sf = $stref->{'Subroutines'}{$f};
-		if (not exists $Sf->{'BlockData'} or $Sf->{'BlockData'} == 0 ) {		
+		if (not exists $Sf->{'BlockData'} or $Sf->{'BlockData'} == 0 ) {	
+			print "\t** analyse_variables($f) **\n" if $V;	
 			$stref = analyse_variables( $stref, $f );
 		}
 	}
@@ -135,7 +137,7 @@ sub analyse_all {
 	$stref = rename_inherited_exglobs( $stref, $code_unit_name );
 	}
 	return $stref if $stage == 5;
-
+# croak Dumper keys % {$stref->{'Subroutines'}};
 	for my $f ( keys %{ $stref->{'Subroutines'} } ) { 
 		next if $f eq '';
 		if (exists $stref->{'Entries'}{$f}) {

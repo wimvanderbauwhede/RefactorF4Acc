@@ -6,6 +6,7 @@ use RefactorF4Acc::Utils;
 use RefactorF4Acc::Analysis::ArgumentIODirs qw( determine_argument_io_direction_rec );
 use RefactorF4Acc::Refactoring::Common qw( stateful_pass pass_wrapper_subs_in_module );
 use RefactorF4Acc::Refactoring::Streams qw( _declare_undeclared_variables _update_arg_var_decls _removed_unused_variables _fix_scalar_ptr_args _fix_scalar_ptr_args_subcall );
+use RefactorF4Acc::Parser::Expressions qw( @sigils );
 # 
 #   (c) 2010-2017 Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
 #   
@@ -233,8 +234,13 @@ sub translate_sub_to_C {  (my $stref, my $f, my $ocl) = @_;
 		}
 		elsif (exists $info->{'SubroutineCall'} ) {
 			# 
-			my $subcall_ast = $info->{'SubroutineCall'}{'ExpressionAST'};
-			$subcall_ast->[0] = 1; # FIXME '&';
+			my $subcall_ast = 
+			
+			[ 1,$info->{'SubroutineCall'}{'Name'},
+			$info->{'SubroutineCall'}{'ExpressionAST'}];
+			say Dumper($subcall_ast);
+			# $subcall_ast->[0] = 1; # FIXME '&';
+
 			# There is an issue here:
 			# We actually need to check the type of the called arg against the type of the sig arg
 			# If the called arg is a pointer and the sig arg is a pointer, no '*', else, we need a '*'
@@ -262,6 +268,7 @@ sub translate_sub_to_C {  (my $stref, my $f, my $ocl) = @_;
 				my $qual = $1;
 				$c_line = $info->{'Indent'}."${qual}_id = get_${qual}_id(0);";
 			} else {
+				
 				$c_line = $info->{'Indent'}._emit_expression_C($subcall_ast,'',$stref,$f).';';
             }
 		}			 
@@ -360,6 +367,9 @@ sub _emit_C_code { (my $stref, my $module_name, my $ocl)=@_;
  	map {say $_ } @{$stref->{'TranslatedCode'}} if $V;
  	my $ext = $ocl ? 'cl' : 'c';
  	my $module_src = $stref->{'Modules'}{$module_name}{'Source'};
+	if (not defined $module_src) {
+		$module_src=$Config{'MODULE_SRC'};
+	} 
  	my $fsrc = $module_src;#$Config{'MODULE_SRC'}; 
 # 	croak $fsrc;
  	my $csrc = $fsrc;$csrc=~s/\.\w+$//;
@@ -508,7 +518,8 @@ sub _emit_ifthen_C { (my $stref, my $f, my $info)=@_;
 	return $rline;
 }
 
-sub _emit_expression_C {(my $ast, my $expr_str, my $stref, my $f)=@_;
+sub _emit_expression_C_OLD {
+	(my $ast, my $expr_str, my $stref, my $f)=@_;
 	if (ref($ast) ne 'ARRAY') {return $ast;}
 	my @expr_chunks=();
 	my $skip=0;
@@ -526,10 +537,9 @@ sub _emit_expression_C {(my $ast, my $expr_str, my $stref, my $f)=@_;
 		my $entry = $ast->[$idx];
 		if (ref($entry) eq 'ARRAY') {
 			 my $nest_expr_str = _emit_expression_C( $entry, '',$stref,$f);
-#			 say "NEST:$nest_expr_str ";
 			push @expr_chunks, $nest_expr_str;
 		} else {
-			if ($entry =~/#/) {
+			if ($entry =~/#/) { croak 'SHOULD NEVER HAPPEN!';
 				$skip=1;
             } elsif ($idx==0) {    
 
@@ -547,7 +557,6 @@ sub _emit_expression_C {(my $ast, my $expr_str, my $stref, my $f)=@_;
 				$skip=1;
 			} elsif (($entry & 0xFF) == 2) { #eq '$'
 				my $mvar = $ast->[$idx+1];
-#				carp $mvar;
 				my $called_sub_name = $stref->{'CalledSub'} // '';
                 #WV20170515
 #    			for my $macro (keys %{ $Config{'Macros'} } ) {
@@ -736,7 +745,115 @@ sub _emit_expression_C {(my $ast, my $expr_str, my $stref, my $f)=@_;
 	}	
     #	say "AFTER HACK:".$expr_str if $expr_str=~/eta_j_k/;
 	return $expr_str;		
-} # END of _emit_expression_C()
+} # END of _emit_expression_C_OLD()
+
+
+sub _emit_expression_C { 
+	# (my $ast)=@_;
+(my $ast, my $expr_str, my $stref, my $f)=@_;
+#	say Dumper($ast);
+    if (ref($ast) eq 'ARRAY') {
+        if (scalar @{$ast}==3) {
+            if ($ast->[0] ==1 or $ast->[0] ==10) { # '&' array access or function call
+                (my $sigil, my $name, my $args) =@{$ast};
+                if (@{$args}) {
+					if ($args->[0] != 14 ) { # ')('
+						my @args_lst=();
+						if($args->[0] == 27) { # ','
+							for my $idx (1 .. scalar @{$args}-1) {
+								my $arg = $args->[$idx];
+								push @args_lst, _emit_expression_C($arg);
+							}
+
+							#                    for my $arg (@{$args->[1]}) {
+							#       push @args_lst, _emit_expression_C($arg);
+							#    }
+							
+							return "$name(".join(',',@args_lst).')';
+						} else {
+							return "$name("._emit_expression_C($args).')';
+						}
+					} else { # f(x)(y)
+						#say Dumper($args);
+						(my $sigil,my $args1, my $args2) = @{$args};
+						my $args_str1='';
+						my $args_str2='';
+						if($args1->[0] == 27) { #eq ',' 
+							my @args_lst1=();
+							for my $idx (1 .. scalar @{$args1}-1) {
+								my $arg = $args1->[$idx];
+								push @args_lst1, _emit_expression_C($arg);
+							}
+							$args_str1=join(',',@args_lst1);
+
+						} else {
+							$args_str1= _emit_expression_C($args1);
+						}
+						if($args2->[0] == 27) { #eq ','
+							#say Dumper($args2);
+							my @args_lst2=();
+							for my $idx (1 .. scalar @{$args2}-1) {
+								my $arg = $args2->[$idx];
+								push @args_lst2, _emit_expression_C($arg);
+							}
+
+							#                for my $arg (@{$args2->[1]}) {
+							#    push @args_lst2, _emit_expression_C($arg);
+							#}
+							$args_str2=join(',',@args_lst2);
+						} else {
+							$args_str2=_emit_expression_C($args2);
+						}
+						return "$name(".$args_str1.')('.$args_str2.')';
+					}
+				} else {
+					return "$name()";
+				}
+            } else {
+#            	say Dumper($ast);
+                (my $opcode, my $lexp, my $rexp) =@{$ast};
+                my $lv = (ref($lexp) eq 'ARRAY') ? _emit_expression_C($lexp) : $lexp;
+                my $rv = (ref($rexp) eq 'ARRAY') ? _emit_expression_C($rexp) : $rexp;
+                return $lv.$sigils[$opcode].$rv;
+            }
+        } elsif (scalar @{$ast}==2) { #  for '{'  and '$'
+            (my $opcode, my $exp) =@{$ast};
+            if ($opcode==0 ) {#eq '('
+                my $v = (ref($exp) eq 'ARRAY') ? _emit_expression_C($exp) : $exp;
+                return "($v)";
+            } elsif ($opcode==28 ) {#eq '(/'
+                my $v = (ref($exp) eq 'ARRAY') ? _emit_expression_C($exp) : $exp;
+                return "(/ $v /)";
+            } elsif ($opcode==2 or $opcode>28) {# eq '$' or constants    
+                return ($opcode == 34) ?  "*$exp" : $exp;            
+            } elsif ($opcode == 21 or $opcode == 4 or $opcode == 3) {# eq '.not.' '-'
+                my $v = (ref($exp) eq 'ARRAY') ? _emit_expression_C($exp) : $exp;
+                return $sigils[$opcode]. $v;
+            } elsif ($opcode == 27) { # ',' 
+                croak  Dumper($ast);
+                my @args_lst=();
+                for my $arg (@{$exp}) {
+                    push @args_lst, _emit_expression_C($arg);
+                }
+                return join(',',@args_lst);        
+            } else {
+                die 'BOOM! '.Dumper($ast).$opcode;
+            }
+        } elsif (scalar @{$ast} > 3) {
+
+            if($ast->[0] == 27) { # ','
+                my @args_lst=();
+                for my $idx (1 .. scalar @{$ast}-1) {
+                    my $arg = $ast->[$idx];
+                    push @args_lst, _emit_expression_C($arg);
+                }
+                return join(',',@args_lst); 
+            } else {
+                croak Dumper($ast);
+            }
+        }
+    } else {return $ast;}
+} # END of _emit_expression_C
 
 sub _change_operators_to_C { (my $cond_expr) = @_;
 	
