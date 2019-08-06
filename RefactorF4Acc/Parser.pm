@@ -21,8 +21,7 @@ use RefactorF4Acc::Parser::Expressions qw(
     parse_expression
     parse_expression_no_context  
     get_args_vars_from_expression 
-    get_args_vars_from_subcall 
-    emit_expression 
+    get_args_vars_from_subcall      
     emit_expr_from_ast 
     get_consts_from_expression
     find_assignments_to_scalars_in_ast
@@ -80,7 +79,7 @@ sub parse_fortran_src {
 	my $sub_or_incl_or_mod = sub_func_incl_mod( $f, $stref ); # Maybe call this "code_unit()"	
 	my $is_incl = $sub_or_incl_or_mod eq 'IncludeFiles' ? 1 : 0;
 	my $is_mod = $sub_or_incl_or_mod eq 'Modules' ? 1 : 0;
-	if ($is_mod and $is_source_file_path) {
+	if ($is_mod and $is_source_file_path) {		
 		$f = $stref->{'SourceFiles'}{$f}{'ModuleName'};
 	}
 	my $is_external_include =
@@ -3798,7 +3797,6 @@ sub _parse_assignment {
 	my $rhs_ast = parse_expression( $rhs, $info, $stref, $f );
 	if ($array_constant==1) {
 		$rhs_ast->[1]='_OPEN_CONST_ARRAY_';
-#		croak 'RHS_AST:'.Dumper($rhs_ast ).emit_expression($rhs_ast, '');
 	}
 
 	#	say 'RHS_AST:'.Dumper($rhs_ast );

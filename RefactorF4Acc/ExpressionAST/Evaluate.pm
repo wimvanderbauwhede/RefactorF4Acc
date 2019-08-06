@@ -13,8 +13,7 @@ use RefactorF4Acc::Refactoring::Common qw(
 
 use RefactorF4Acc::Analysis::ArgumentIODirs qw( determine_argument_io_direction_rec );
 use RefactorF4Acc::Parser::Expressions qw(
-	parse_expression
-	emit_expression
+	parse_expression	
 	emit_expr_from_ast
 	get_vars_from_expression	
 	);
@@ -116,7 +115,7 @@ sub eval_expression_with_parameters { (my $expr_str,my $info, my $stref, my $f) 
 #    say Dumper($expr_ast);
     my $expr_ast2 = replace_param_by_val($stref, $f, 0,$expr_ast, {});
 #    say Dumper($expr_ast2);
-    my $evaled_expr_str=$NEW_PARSER ? emit_expr_from_ast($expr_ast2) : emit_expression($expr_ast2,'');
+    my $evaled_expr_str= emit_expr_from_ast($expr_ast2);
 #    say "TO EVAL:$evaled_expr_str";
     my $expr_val=eval($evaled_expr_str);
 	return $expr_val;

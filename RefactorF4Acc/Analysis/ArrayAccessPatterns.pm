@@ -19,7 +19,6 @@ replace_consts_in_ast
 );
 use RefactorF4Acc::Parser::Expressions qw(
 	parse_expression
-	emit_expression
 	emit_expr_from_ast
 	get_vars_from_expression	
 	);
@@ -191,7 +190,7 @@ sub identify_array_accesses_in_exprs { (my $stref, my $f) = @_;
 				elsif ($info->{'Lhs'}{'ArrayOrScalar'} eq 'Scalar' and $info->{'Lhs'}{'VarName'} =~/^(\w+)_range/) {
 					my $loop_iter=$1;
 
-					my $expr_str = emit_expression($info->{'Rhs'}{'ExpressionAST'},'');
+					my $expr_str = emit_expr_from_ast($info->{'Rhs'}{'ExpressionAST'});
 					my $loop_range = eval($expr_str);
 					$state->{'Subroutines'}{ $f }{'Blocks'}{$block_id}{'LoopIters'}{$loop_iter}={'Range' => [1,$loop_range]};				
 					
@@ -438,7 +437,7 @@ sub _find_array_access_in_ast { (my $stref, my $f,  my $block_id, my $state, my 
 					
 					if ($mvar ne '_OPEN_PAR_') {
 
-						my $expr_str = emit_expression($ast,'');
+						my $expr_str = emit_expr_from_ast($ast);
 						$state = _find_iters_in_array_idx_expr($stref,$f,$block_id,$ast, $state,$rw);
 #						say Dumper($ast);
 #						say Dumper($state);
@@ -452,7 +451,7 @@ sub _find_array_access_in_ast { (my $stref, my $f,  my $block_id, my $state, my 
 						($ast0,$state, my $retval ) = replace_consts_in_ast($stref,$f,$block_id,$ast0, $state,0);
 						my @ast_a0 = @{$ast0};
 						my @idx_args0 = @ast_a0[2 .. $#ast_a0];
-						my @ast_exprs0 = map { emit_expression($_,'') } @idx_args0;
+						my @ast_exprs0 = map { emit_expr_from_ast($_) } @idx_args0;
 						my @offset_vals = map { eval($_) } @ast_exprs0;
 						
 						# Then we compute the multipliers (for proper stencils these are 1 but for the more general case e.g. copying a plane of a cube it can be different.
@@ -462,7 +461,7 @@ sub _find_array_access_in_ast { (my $stref, my $f,  my $block_id, my $state, my 
 						my @ast_a1 = @{$ast1};
 						my $array_var1 = $ast1->[1];
 						my @idx_args1 = @ast_a1[2 .. $#ast_a1];
-						my @ast_exprs1 = map { emit_expression($_,'') } @idx_args1;
+						my @ast_exprs1 = map { emit_expr_from_ast($_) } @idx_args1;
 						my @mult_vals = map { eval($_) } @ast_exprs1;
 						my @iters = @{$state->{'Subroutines'}{ $f }{'Blocks'}{ $block_id }{'Arrays'}{$array_var}{$rw}{'Iterators'}};
 
@@ -799,7 +798,7 @@ sub _eval_expression_w_params { (my $expr_str,my $info, my $stref, my $f, my $bl
 
     my $expr_ast=parse_expression($expr_str,$info, $stref,$f);
     my $expr_ast2 = replace_param_by_val($stref, $f, $block_id,$expr_ast, $state);
-    my $evaled_expr_str=emit_expression($expr_ast2,'');
+    my $evaled_expr_str=emit_expr_from_ast($expr_ast2);
     my $expr_val=eval($evaled_expr_str);
 	return $expr_val;
 

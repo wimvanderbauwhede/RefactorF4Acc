@@ -22,7 +22,7 @@ use RefactorF4Acc::Refactoring::Common qw(
 	);
 use RefactorF4Acc::Refactoring::Subroutines::Signatures qw( create_refactored_subroutine_signature refactor_subroutine_signature );
 use RefactorF4Acc::Refactoring::Subroutines::IncludeStatements qw( skip_common_include_statement create_new_include_statements create_additional_include_statements );
-use RefactorF4Acc::Parser::Expressions qw( emit_expression emit_expr_from_ast find_args_vars_in_ast );
+use RefactorF4Acc::Parser::Expressions qw( emit_expr_from_ast find_args_vars_in_ast );
 use RefactorF4Acc::Refactoring::Subroutines::Emitters qw( emit_subroutine_sig );
 use RefactorF4Acc::Analysis::Arrays qw(
   calculate_array_size
@@ -1027,8 +1027,8 @@ sub _create_refactored_function_calls {
 	# with NEW_PARSER, these are only the arguments, not the rest of the call.
 	my $updated_line =
 		$do_not_update ? $line
-	  : $NEW_PARSER    ? emit_expr_from_ast($updated_ast)
-	  :                  emit_expression($updated_ast);
+	  : emit_expr_from_ast($updated_ast);
+	  
 	if ( exists $info->{'PlaceHolders'} ) {
 
 		while ( $updated_line =~ /(__PH\d+__)/ ) {

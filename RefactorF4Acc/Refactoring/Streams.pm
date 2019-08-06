@@ -16,7 +16,7 @@ use RefactorF4Acc::Refactoring::Subroutines::Emitters qw( emit_subroutine_sig );
 use RefactorF4Acc::Analysis::ArgumentIODirs qw( determine_argument_io_direction_rec );
 use RefactorF4Acc::Parser::Expressions qw(
 	parse_expression
-	emit_expression
+	emit_expr_from_ast
 	get_vars_from_expression
 	);
 
@@ -871,7 +871,7 @@ sub _rename_ast_entry { (my $stref, my $f,  my $state, my $ast, my $intent)=@_;
 #						my $array_acccess = _extract_array_access($ast);
 #						my $array_acccess_str = join(':',@{$array_acccess}); # e.g. [0,-1,2] becomes 0:-1:2 and these are ordered  
 #						$stencil->{$array_acccess_str}=$array_acccess; 																			
-						my $expr_str = emit_expression($ast,'');
+						my $expr_str = emit_expr_from_ast($ast);
 						my $var_str=$expr_str;
 						$var_str=~s/[\(,]/_/g; 
 						$var_str=~s/\)//g; 
@@ -900,9 +900,9 @@ sub _rename_ast_entry { (my $stref, my $f,  my $state, my $ast, my $intent)=@_;
 sub _emit_assignment { (my $annline)=@_;
 	( my $line, my $info ) = @{$annline};
 	my $lhs_ast =  $info->{'Lhs'}{'ExpressionAST'};
-	my $lhs = emit_expression($lhs_ast,'');
+	my $lhs = emit_expr_from_ast($lhs_ast);
 	my $rhs_ast =  $info->{'Rhs'}{'ExpressionAST'};
-	my $rhs = emit_expression($rhs_ast,'');
+	my $rhs = emit_expr_from_ast($rhs_ast);
 	my $rline = $info->{'Indent'}.$lhs.' = '.$rhs;
 	if (exists $info->{'If'}) {
 		(my $if_str, my $if_info) = _emit_ifthen($annline);
@@ -914,7 +914,7 @@ sub _emit_assignment { (my $annline)=@_;
 sub _emit_ifthen { (my $annline)=@_;
 	( my $line, my $info ) = @{$annline};
 	my $cond_expr_ast=$info->{'CondExecExpr'};
-	my $cond_expr = emit_expression($cond_expr_ast);
+	my $cond_expr = emit_expr_from_ast($cond_expr_ast);
 	my $rline = $info->{'Indent'}.'if ('.$cond_expr.') '. (exists $info->{'IfThen'} ? 'then' : '');	
 	return ($rline, $info);
 }
@@ -1251,14 +1251,16 @@ sub _declare_undeclared_variables { (my $stref, my $f)=@_;
 		elsif ( exists $info->{'SubroutineCall'} ) {
 			$state->{'ExprVars'} ={%{$state->{'ExprVars'}},%{$info->{'SubroutineCall'}{'Args'}{'Set'} } };
 		}		
-		if (exists $info->{'If'} ) {						
-				my $cond_expr_ast=$info->{'CondExecExprAST'};#= $ast;parse_expression($info->{'CondExecExpr'}, $info,$stref, $f);
+		if (exists $info->{'If'} ) {					
+			
+				my $cond_expr_ast=$info->{'CondExecExprAST'};
 				$state->{'ExprVars'} ={%{$state->{'ExprVars'}},%{ $info->{'CondVars'}{'Set'} } }; 
 				for my $var ( @{ $info->{'CondVars'}{'List'} } ) {
 					next if $var eq '_OPEN_PAR_';					
-					if (exists  $info->{'CondVars'}{'Set'}{$var}{'IndexVars'} ) {								
-						$state->{'ExprVars'} ={%{$state->{'ExprVars'}},%{ $info->{'CondVars'}{'Set'}{$var}{'IndexVars'} } };
-					}				
+					# We now put the IndexVars in the Set directly so the code below is no longer needed					
+					# if (exists  $info->{'CondVars'}{'Set'}{$var}{'IndexVars'} ) {
+					# 	$state->{'ExprVars'} ={%{$state->{'ExprVars'}},%{ $info->{'CondVars'}{'Set'}{$var}{'IndexVars'} } };
+					# }				
 				}
 		}
 		

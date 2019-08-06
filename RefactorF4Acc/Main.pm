@@ -141,21 +141,21 @@ This routine analyses the code for goto-based loops and breaks, so that we can r
 
 sub main {
 	(my $unit_test_list)=@_;
-    # $subname is either provided on command line or $Config{'TOP'}
-    # If $subname is blank then we the files in the $SOURCEFILES list are processed one by one
+    # $code_unit_name is either provided on command line or $Config{'TOP'} or, if it's a module, $Config{'MODULE'} 
+    # If $code_unit_name is blank then we the files in the $SOURCEFILES list are processed one by one
     # Otherwise a non-blank $SOURCEFILES list will be considered the list of the source files to be inventoried, so includes in them will also be added to the inventory. 	
-	(my $subname, my $subs_to_translate, my $gen_scons, my $build, my $call_tree_only, my $pass) = parse_args();	
-	#  Initialise the global state. $subname could be empty
-	my $stref = init_state($subname);
+	(my $code_unit_name, my $subs_to_translate, my $gen_scons, my $build, my $call_tree_only, my $pass) = parse_args();	
+	#  Initialise the global state. $code_unit_name could be empty
+	my $stref = init_state($code_unit_name);
 	
 	# This is not used at the moment
     $stref->{'SubsToTranslate'}=$subs_to_translate;
     
 	# 1. Inventory: Find all subroutines in the source code tree
 	if ($V) {
-        say "--------------". ('-' x length($subname)) ;
-        say "INVENTORY for $subname";
-        say "--------------". ('-' x length($subname)) ;
+        say "--------------". ('-' x length($code_unit_name)) ;
+        say "INVENTORY for $code_unit_name";
+        say "--------------". ('-' x length($code_unit_name)) ;
         }    
 	$stref = find_subroutines_functions_and_includes($stref);
 	if ($V) {
@@ -167,27 +167,27 @@ sub main {
 
     # 2. Parser: Parse the source
     if ($V) {
-        say "--------------". ('-' x length($subname)) ;
-        say "PARSE ALL for $subname";
-        say "--------------". ('-' x length($subname)) ;
+        say "--------------". ('-' x length($code_unit_name)) ;
+        say "PARSE ALL for $code_unit_name";
+        say "--------------". ('-' x length($code_unit_name)) ;
         }    
     for my $data_block (keys %{ $stref->{'BlockData'} } ) {
     	$stref = parse_fortran_src( $data_block, $stref );
     }
     # It is possible that the TOP routine was set to the default (PROGRAM) while doing the inventory
-    if ($subname eq '' and exists $Config{'TOP'} and $Config{'TOP'} ne '') {
-    	$subname = $Config{'TOP'};
-        $stref->{'Top'}=$subname;
-        say "Using PROGRAM $subname as TOP" if $V;
+    if ($code_unit_name eq '' and exists $Config{'TOP'} and $Config{'TOP'} ne '') {
+    	$code_unit_name = $Config{'TOP'};
+        $stref->{'Top'}=$code_unit_name;
+        say "Using PROGRAM $code_unit_name as TOP" if $V;
     }
    
-    if ($subname eq '' and exists $Config{'SOURCEFILES'} and scalar @{ $Config{'SOURCEFILES'} }>0) {
-    	# $subname is empty, i.e. no TOP routine. So we go through all sources one by one by file name
+    if ($code_unit_name eq '' and exists $Config{'SOURCEFILES'} and scalar @{ $Config{'SOURCEFILES'} }>0) {
+    	# $code_unit_name is empty, i.e. no TOP routine. So we go through all sources one by one by file name
     	for my $fp ( @{ $Config{'SOURCEFILES'} } ) {
     		parse_fortran_src( $fp, $stref, 1 );
     	}
     } else {
-	   $stref = parse_fortran_src( $subname, $stref );
+	   $stref = parse_fortran_src( $code_unit_name, $stref );
     }
 	
 	$stref = mark_blocks_between_calls( $stref );
@@ -196,37 +196,37 @@ sub main {
 	
     $stref = precondition_includes($stref);        
 
-    if ($subname eq '' and exists $Config{'SOURCEFILES'} and scalar @{ $Config{'SOURCEFILES'} }>0) {
-        # $subname is empty, i.e. no TOP routine. So we go through all sources one by one by file name
+    if ($code_unit_name eq '' and exists $Config{'SOURCEFILES'} and scalar @{ $Config{'SOURCEFILES'} }>0) {
+        # $code_unit_name is empty, i.e. no TOP routine. So we go through all sources one by one by file name
         for my $fp ( @{ $Config{'SOURCEFILES'} } ) {
             precondition_all( $fp, $stref, 1 );
         }
     } else {
-       $stref = precondition_all( $subname, $stref );
+       $stref = precondition_all( $code_unit_name, $stref );
     }
     
 	if ( $call_tree_only  ) {
 		$stref->{'PPCallTree'}=[];
-		$stref=create_call_tree($stref,$subname);
+		$stref=create_call_tree($stref,$code_unit_name);
 		map {print $_}  @{ $stref->{'PPCallTree'} };
 		exit(0);
 	}
 
-	$stref = build_call_graph($subname, $stref);
+	$stref = build_call_graph($code_unit_name, $stref);
 	
     # 3. Analysis: Analyse the source
     my $stage=0;
     if ($V) {
-        say "----------------". ('-' x length($subname)) ;
-        say "ANALYSE ALL for $subname";
-        say "----------------". ('-' x length($subname)) ;
+        say "----------------". ('-' x length($code_unit_name)) ;
+        say "ANALYSE ALL for $code_unit_name";
+        say "----------------". ('-' x length($code_unit_name)) ;
         }
-    if ($subname eq '' and exists $Config{'SOURCEFILES'} and scalar @{ $Config{'SOURCEFILES'} }>0) {
+    if ($code_unit_name eq '' and exists $Config{'SOURCEFILES'} and scalar @{ $Config{'SOURCEFILES'} }>0) {
     	for my $fp ( @{ $Config{'SOURCEFILES'} } ) {
             $stref = analyse_all($stref,$fp, $stage, 1);
         }
     } else {
-	   $stref = analyse_all($stref,$subname, $stage);
+	   $stref = analyse_all($stref,$code_unit_name, $stage);
     }
     # After the analysis we can either do the refactoring of the code, i.e. the main purpose of the compiler
     # or run one or more custom passes. 
@@ -238,26 +238,26 @@ sub main {
             say "RUNNING CUSTOM PASS $pass";
             say "--------------------". ('-' x length($pass)) ;
         }
-        if ($subname eq '' and exists $Config{'SOURCEFILES'} and scalar @{ $Config{'SOURCEFILES'} }>0) {
-        # $subname is empty, i.e. no TOP routine. So we go through all sources one by one by file name
+        if ($code_unit_name eq '' and exists $Config{'SOURCEFILES'} and scalar @{ $Config{'SOURCEFILES'} }>0) {
+        # $code_unit_name is empty, i.e. no TOP routine. So we go through all sources one by one by file name
             for my $fp ( @{ $Config{'SOURCEFILES'} } ) {
     	       $stref = run_custom_passes($stref,$fp, $pass,1);
             }
         } else {
-        	   $stref = run_custom_passes($stref,$subname, $pass);
+        	   $stref = run_custom_passes($stref,$code_unit_name, $pass);
         }
     } else {
 			 
     # 4. Refactoring: Refactor the source    
     # - if a pass is given using -P on command line, it is performed instead of the default refactoring
     # - multiple passes can be comma-separated
-   if ($subname eq '' and exists $Config{'SOURCEFILES'} and scalar @{ $Config{'SOURCEFILES'} }>0) {
-        # $subname is empty, i.e. no TOP routine. So we go through all sources one by one by file name
+   if ($code_unit_name eq '' and exists $Config{'SOURCEFILES'} and scalar @{ $Config{'SOURCEFILES'} }>0) {
+        # $code_unit_name is empty, i.e. no TOP routine. So we go through all sources one by one by file name
         for my $fp ( @{ $Config{'SOURCEFILES'} } ) {
         	$stref = refactor_all($stref,$fp,1);
         }
         } else {
-	       $stref = refactor_all($stref,$subname);
+	       $stref = refactor_all($stref,$code_unit_name);
         }        
     }
 	# 5. Emitter: Emit the refactored source
@@ -270,8 +270,8 @@ sub main {
 	    # Here we could actually call the genOclKernelFromF95Src script
 
 		$translate = $GO;
-		for my $subname ( keys %{ $stref->{'SubsToTranslate'} }) {
-			print "\nTranslating $subname to OpenCL C\n";
+		for my $code_unit_name ( keys %{ $stref->{'SubsToTranslate'} }) {
+			print "\nTranslating $code_unit_name to OpenCL C\n";
 			$gen_sub  = 1;
 		}
 	}
@@ -319,18 +319,21 @@ sub parse_args {
     } else {
 	    read_rf4a_config($cfgrc);
 	}
-	my $has_subname=0;
-	my $subname = $ARGV[0];
-    # die  "ARG: $subname";
-	if ($subname) {
-		$subname =~ s/\.f(?:9[05])?$//;
-		$has_subname=1;
+	my $has_code_unit_name=0;
+	my $code_unit_name = $ARGV[0]; 
+    # die  "ARG: $code_unit_name";
+	if ($code_unit_name) {
+		$code_unit_name =~ s/\.f(?:9[05])?$//;
+		$has_code_unit_name=1;
+	} elsif (exists $Config{'MODULE'}) {
+		$code_unit_name = $Config{'MODULE'};
+		$has_code_unit_name=1;        
 	} elsif (exists $Config{'TOP'}) {
-		$subname = $Config{'TOP'};
-		$has_subname=1;
+		$code_unit_name = $Config{'TOP'};
+		$has_code_unit_name=1;
 	} else {
-        # Make sure subname is empty
-        $subname = '';
+        # Make sure code_unit_name is empty
+        $code_unit_name = '';
 	}
     
     if ( exists $Config{'NEWSRCPATH'}) {
@@ -347,7 +350,7 @@ sub parse_args {
     } elsif (exists $Config{'SOURCEFILES'} and $Config{'SOURCEFILES'} ne '') {
     	# OK, source files from config file
         $SOURCEFILES = $Config{'SOURCEFILES'}     
-    } elsif (not $has_subname) {
+    } elsif (not $has_code_unit_name) {
     	# die "No default for toplevel subroutine (TOP) in rf4a.cfg, please specify the toplevel subroutine on command line\n"; 
         say "No default for toplevel subroutine (TOP) in rf4a.cfg, I will use the program name" if $V; 
     }
@@ -394,7 +397,7 @@ sub parse_args {
     if ($build) { 
         $gen_scons = 1;
     }
-	return (lc($subname),\%subs_to_translate,$gen_scons,$build,$call_tree_only, $pass);
+	return (lc($code_unit_name),\%subs_to_translate,$gen_scons,$build,$call_tree_only, $pass);
 } # END of parse_args()
 
 

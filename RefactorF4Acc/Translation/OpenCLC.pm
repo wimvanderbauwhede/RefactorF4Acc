@@ -512,236 +512,6 @@ sub _emit_ifthen_C { (my $stref, my $f, my $info)=@_;
 	return $rline;
 }
 
-sub _emit_expression_C_OLD {
-	(my $ast, my $expr_str, my $stref, my $f)=@_;
-	if (ref($ast) ne 'ARRAY') {return $ast;}
-	my @expr_chunks=();
-	my $skip=0;
-	
-	if (($ast->[0] & 0xFF) == 8) { #eq '^'
-		$ast->[0]='pow';
-		unshift @{$ast},1;# '&' FIXME: nodeId
-	} 
-	elsif (($ast->[0] & 0xFF) == 1  and $ast->[1] eq 'mod') {#eq '&'
-		shift @{$ast};
-		$ast->[0]= 7 ;# '%';	FIXME: nodeId
-	}
-	
-	for my  $idx (0 .. scalar @{$ast}-1) {		
-		my $entry = $ast->[$idx];
-		if (ref($entry) eq 'ARRAY') {
-			 my $nest_expr_str = _emit_expression_C( $entry, '',$stref,$f);
-			push @expr_chunks, $nest_expr_str;
-		} else {
-			if ($entry =~/#/) { croak 'SHOULD NEVER HAPPEN!';
-				$skip=1;
-            } elsif ($idx==0) {    
-
-            if (($entry & 0xFF) == 1) { # eq '&'
-				my $mvar = $ast->[$idx+1];
-				# AD-HOC, replacing abs/min/max to fabs/fmin/fmax without any type checking ... FIXME!!!
-				# The (float) cast is necessary because otherwise I get an "ambiguous" error
-				$mvar=~s/^(abs|min|max)$/(float)f$1/;
-				$mvar=~s/^am(ax|in)1$/(float)fm$1/;				
-				$mvar=~s/^alog$/(float)log/;				
-				$expr_str.=$mvar.'('; 
-			
-				 $stref->{'CalledSub'}= $mvar;
-				 
-				$skip=1;
-			} elsif (($entry & 0xFF) == 2) { #eq '$'
-				my $mvar = $ast->[$idx+1];
-				my $called_sub_name = $stref->{'CalledSub'} // '';
-                #WV20170515
-#    			for my $macro (keys %{ $Config{'Macros'} } ) {
-#	    			my $lc_macro=lc($macro);
-#					$mvar=~s/\b$lc_macro\b/$macro/g;
-#		    	}
-
-				if (exists $stref->{'Subroutines'}{$f}{'Pointers'}{$mvar} ) {
-					# Meaning that $mvar is a pointer in $f
-					# Now we need to check if it is also a pointer in $subname
-					my $ptr = $stref->{'Subroutines'}{$f}{'Pointers'}{$mvar};
-					if ($called_sub_name ne '' and exists  $stref->{'Subroutines'}{$called_sub_name} 
-					and exists $stref->{'Subroutines'}{$called_sub_name}{'Pointers'}{$mvar} ) {
-						my $sig_ptr = $stref->{'Subroutines'}{$called_sub_name}{'Pointers'}{$mvar};
-						if ($sig_ptr eq '' and $ptr eq '*') {
-							$ptr = '*'	
-						} elsif ($sig_ptr eq '*' and $ptr eq '') {
-							$ptr = '&'
-						} else {
-							$ptr='';
-						}
-					} 
-                    if ($ptr eq '') {
-                        push @expr_chunks,  $mvar;
-                    } else {
-                        push @expr_chunks, '('.$ptr.$mvar.')';
-                    }
-				} else {
-					push @expr_chunks,$mvar;
-				}
-				$skip=1;				
-			} elsif (($entry & 0xFF) == 10) {#eq '@'
-				
-				my $mvar = $ast->[$idx+1];
-				if ($mvar eq '_OPEN_PAR_') {
-					$expr_str.=$mvar.'(';
-#				} elsif ($mvar eq 'abs' ) { croak;
-#					$expr_str.=$mvar.'(';					
-				} else {
-					# This is e.g. state_ptr(1)
-					if (scalar @{$ast} == 3 and $ast->[2] eq '1') {
-						$expr_str.='(*'.$mvar.')';
-						$ast->[2]='';
-						$ast->[0]= 2 + ((++$Fortran::Expression::Evaluator::Parser::nodeId)<<8);# '$';
-					}  else {
-						my $decl = get_var_record_from_set($stref->{'Subroutines'}{$f}{'Vars'},$mvar);
-						my $dims =  $decl->{'Dim'};
-#						if (__all_bounds_numeric($dims)) {
-#							$expr_str.=$mvar.'['.__C_array_size($dims).',';
-#						} else {
-							my $ndims = scalar @{$dims};
-							
-							my @ranges=();
-							my @lower_bounds=();
-							for my $boundspair (@{$dims}) {
-								(my $lb, my $hb)=@{$boundspair };
-								push @ranges, "(($hb - $lb )+1)";
-								push @lower_bounds, $lb; 
-							} 				
-							if ($ndims==1) {
-								$expr_str.=$mvar.'[F1D2C('.join(',',@lower_bounds). ' , ';
-							} else {
-								$expr_str.=$mvar.'[F'.$ndims.'D2C('.join(',',@ranges[0.. ($ndims-2)]).' , '.join(',',@lower_bounds). ' , ';						
-							}
-#						}
-					}
-				}
-				$skip=1;
-			} elsif (
-                #$ast->[$idx-1]!~/^[\&\@\$]/ 
-				($ast->[$idx-1] & 0xFF) != 1 and #!~/^[\&\@\$]/ 
-				($ast->[$idx-1] & 0xFF) != 10 and #!~/^[\&\@\$]/ 
-				($ast->[$idx-1] & 0xFF) != 2 #!~/^[\&\@\$]/ 
-			) {
-#				say "ENTRY:$entry SKIP: $skip";
-				push @expr_chunks,$entry;
-				$skip=0;
-			}
-        } else { no warnings 'numeric';
-        	if ($entry eq $entry+0) { # Test if $entry is a numeric constant 
-        #say "ENTRY: $entry";
-        push @expr_chunks,$entry;
-        }
-        
-        }
-		}				
-	} # for
-	# Here state_ptr is OK
-	if (($ast->[0] & 0xFF) == 1  ) { # eq '&'       
-    	# strip enclosing parens
-		my @expr_chunks_stripped = map { $_=~s/^\(([^\(\)]+)\)$/$1/;$_} @expr_chunks;
-		if ($ast->[1] eq 'pow') {
-				$expr_str.=join(',', map { "(float)($_)" } @expr_chunks_stripped);
-		} else {
-			$expr_str.=join(',',@expr_chunks_stripped);
-		}
-			$expr_str.=')'; 
-		
-			if ($ast->[1]  eq $stref->{'CalledSub'} ) {
-				$stref->{'CalledSub'} ='';
-			}
-		
-#		say "CLOSE OF &:".$expr_str if $expr_str=~/abs/;
-	} elsif ( ($ast->[0] & 0xFF) == 10) {				# eq '@'
-	# strip enclosing parens
-		my @expr_chunks_stripped =   map {  $_=~s/^\(([^\(\)]+)\)$/$1/;$_} @expr_chunks;		
-		if ( not ($expr_str=~/^\*/ and $expr_chunks_stripped[0]==1) ) { 
-			$expr_str.=join(',',@expr_chunks_stripped);
-			# But here we'd need to know what the var is!
-			$expr_str.=')'; 
-			if ($expr_str=~/\[/) {
-				my $count_open_bracket = () =$expr_str=~/\[/;
-				my $count_close_bracket = () =$expr_str=~/\]/; 
-				if ($count_open_bracket == $count_close_bracket + 1) { 
-					$expr_str.=']';
-				} 				 
-			} 
-		}
-		
-	} elsif (($ast->[0] & 0xFF) == 2 and scalar @{$ast} == 2) {
-        # This means we are dealing with a variable
-        # This is a HACK 
-        croak 'BOOM!' if scalar @expr_chunks > 1;
-        $expr_str = shift @expr_chunks;
-	} elsif (($ast->[0] & 0xFF) != 10
-        #        and $ast->[0] =~ /\W/
-    ) {
-        my $opcode = $ast->[0];		
-        my $op = $RefactorF4Acc::Parser::Expressions::sigils[$opcode & 0xFF];
-		if (scalar @{$ast} > 2) {
-			
-			my @ts=();
-			for my $elt (1 .. scalar @{$ast} -1 ) {
-				$ts[$elt-1] = (ref($ast->[$elt]) eq 'ARRAY') ? _emit_expression_C( $ast->[$elt], '',$stref,$f) : $ast->[$elt];					
-			} 
-			if ($op eq '^') { croak "OBSOLETE!";
-				$op = '**';
-				warn "TODO: should be pow()";
-#				croak Dumper($ast);
-			};
-			$expr_str.=join($op,@ts) unless $op eq '$';
-			
-		} elsif (defined $ast->[2]) { croak "OBSOLETE!";
-			my $t1 = (ref($ast->[1]) eq 'ARRAY') ? _emit_expression_C( $ast->[1], '',$stref,$f) : $ast->[1];
-			my $t2 = (ref($ast->[2]) eq 'ARRAY') ? _emit_expression_C( $ast->[2], '',$stref,$f) : $ast->[2];			
-			$expr_str.=$t1.$ast->[0].$t2;
-			if (($ast->[0] & 0xFF) != 9) { # ne '='
-				$expr_str="($expr_str)";
-			}			
-
-		} else {
-			# FIXME! UGLY!
-			my $t1 = (ref($ast->[1]) eq 'ARRAY') ? _emit_expression_C( $ast->[1], '',$stref,$f) : $ast->[1];
-            my $op = $RefactorF4Acc::Parser::Expressions::sigils[$ast->[0] & 0xFF];            
-			$expr_str=  $op eq '$' ? $t1 :  $op.$t1;
-			if (($ast->[0] & 0xFF) == 6) { #eq '/'
-				$expr_str='1.0'.$expr_str; 
-			}
-		
-		}
-		 
-	} else {		 		
-		$expr_str.=join(';',grep {$_ ne '' } @expr_chunks);
-	}	
-
-#	$expr_str=~s/_complex_//g;
-	$expr_str=~s/_OPEN_PAR_//g;
-	$expr_str=~s/_LABEL_ARG_//g;
-	if ($expr_str=~s/^\#dummy\#\(//) {
-		$expr_str=~s/\)$//;
-	}
-	$expr_str=~s/\+\-/-/g;
-	$expr_str=~s/\-\-/\- \-/g;
-	# UGLY! HACK to fix boolean operations
-    #	 say "BEFORE HACK:".$expr_str if $expr_str=~/eta_j_k/;
-	while ($expr_str=~/__[a-z]+__/ or $expr_str=~/\.\w+\.\+/) {
-		$expr_str =~s/\+\.(\w+)\.\+/\.${1}\./g;
-		$expr_str =~s/\.(\w+)\.\+/\.${1}\./g;
-		$expr_str =~s/__not__\+/\.not\./g; 
-		$expr_str =~s/__not__/\.not\./g; 		
-		$expr_str =~s/__false__/\.false\./g;
-		$expr_str =~s/__true__/\.true\./g;
-		$expr_str =~s/\+__(\w+)__\+/\.${1}\./g;		
-		$expr_str =~s/__(\w+)__/\.${1}\./g;
-#		  		$expr_str =~s/\.(\w+)\./$F95_ops{$1}/g;
-	}	
-    #	say "AFTER HACK:".$expr_str if $expr_str=~/eta_j_k/;
-	return $expr_str;		
-} # END of _emit_expression_C_OLD()
-
-# Because apparently the ASTs for the F95 code don't say if something is a function or an array, I will have to look in Vars first!
 sub _emit_expression_C { my ($ast, $stref, $f)=@_;
 	my $Sf = $stref->{'Subroutines'}{$f};
 # croak 'FIXME: port differences from _emit_expression_C_OLD(), LINE 588';
@@ -826,12 +596,8 @@ sub _emit_expression_C { my ($ast, $stref, $f)=@_;
 						} else {							
 							return "$name(".join(',',@args_lst).')';
 						}
-
-
-
-
 					} else { #  ')(', e.g. f(x)(y)
-						#say Dumper($args);
+					croak 'f()() is not supported, sorry!';
 						(my $sigil,my $args1, my $args2) = @{$args};
 						my $args_str1='';
 						my $args_str2='';
@@ -847,7 +613,6 @@ sub _emit_expression_C { my ($ast, $stref, $f)=@_;
 							$args_str1= _emit_expression_C($args1, $stref, $f);
 						}
 						if($args2->[0] == 27) { #eq ','
-							#say Dumper($args2);
 							my @args_lst2=();
 							for my $idx (1 .. scalar @{$args2}-1) {
 								my $arg = $args2->[$idx];
@@ -865,10 +630,8 @@ sub _emit_expression_C { my ($ast, $stref, $f)=@_;
 					}
 				} else {
 					return "$name()";
-				}
-			
+				}			
             } else { # not '&' or '@'
-#            	say Dumper($ast);
                 (my $opcode, my $lexp, my $rexp) =@{$ast};
                 my $lv = (ref($lexp) eq 'ARRAY') ? _emit_expression_C($lexp, $stref, $f) : $lexp;
                 my $rv = (ref($rexp) eq 'ARRAY') ? _emit_expression_C($rexp, $stref, $f) : $rexp;
@@ -884,10 +647,12 @@ sub _emit_expression_C { my ($ast, $stref, $f)=@_;
                 my $v = (ref($exp) eq 'ARRAY') ? _emit_expression_C($exp, $stref, $f) : $exp;
                 return "{ $v }";
             } elsif ($opcode==2 or $opcode>28) {# eq '$' or constants
-			
+				if ($opcode == 34) {
+					croak 'Fortran LABEL as arg is not supported, sorry!'; #  "*$exp" : $exp;   # Fortran LABEL, does not exist in C
+				}
 				my $mvar = $ast->[1];
 				my $called_sub_name = $stref->{'CalledSub'} // '';
-if (exists $stref->{'Subroutines'}{$f}{'Pointers'}{$mvar} ) {
+				if (exists $stref->{'Subroutines'}{$f}{'Pointers'}{$mvar} ) {
 					# Meaning that $mvar is a pointer in $f
 					# Now we need to check if it is also a pointer in $subname
 					my $ptr = $stref->{'Subroutines'}{$f}{'Pointers'}{$mvar};

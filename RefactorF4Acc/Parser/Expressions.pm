@@ -26,7 +26,6 @@ use Exporter;
 
 @RefactorF4Acc::Parser::Expressions::EXPORT_OK = qw(
   &parse_expression
-  &emit_expression
   &get_vars_from_expression
   &get_args_vars_from_expression
   &get_consts_from_expression
@@ -81,10 +80,10 @@ $VAR1 = [
 #write(*,'(a)') '     '//path(numpath+2*(k-1)+2)(1:len(numpath+2*(k-1)+2))
 # $entry & 0xFF = $num
 # where $num =
-#                 0    1    2    3    4    5    6    7    8     9   10   11   12   13    14
+#                  0    1    2    3    4    5    6    7    8     9   10   11   12   13    14
 #our  @sigils = ( '{', '&', '$', '+', '-', '*', '/', '%', '**', '=', '@', '#', ':' ,'//', ')(');
 
-#               0    1    2    3    4    5    6    7    8     9    10   11   12   13    14
+#               0    1    2    3    4    5    6    7    8    9    10   11   12   13    14
 our @sigils = ('{', '&', '$', '+', '-', '*', '/', '%', '**', '=', '@', '#', ':' ,'//', ')('
 #                15    16    17  18   19    20     21       22       23      24       25       26      
                ,'==', '/=', '<', '>', '<=', '>=', '.not.', '.and.', '.or.', '.xor.', '.eqv.', '.neqv.'
@@ -411,127 +410,6 @@ sub _change_func_to_array { (my $stref, my $f,  my $info, my $ast, my $exp, my $
 		15	
 =cut
 
-sub emit_expression { (my $ast, my $expr_str)=@_;
-	
-	if (ref($ast) ne 'ARRAY') {return $ast;}
-	
-	if (ref($ast) eq 'ARRAY' and scalar(@{$ast}<2)) {
-		croak Dumper($ast);
-	}
-	
-	croak 'EMPTY AST' unless @{$ast};
-	my @expr_chunks=();
-	my $skip=0;
-	# Go through the list
-	for my  $idx (0 .. scalar @{$ast}-1) {		
-		my $entry = $ast->[$idx];
-		if (ref($entry) eq 'ARRAY') {
-			 my $nest_expr_str = emit_expression( $entry, '');
-#			 say "NEST:$nest_expr_str ";
-			push @expr_chunks, $nest_expr_str;
-		} elsif ($idx == 0) {
-            #say Dumper($ast) if $entry=~/\/\//;;
-				if (($entry  & 0xFF) == 11) { # #
-					$skip=1;
-				} elsif (($entry & 0xFF) == 1) { # &					
-					my $mvar = $ast->[$idx+1];
-					$expr_str.=$mvar.'(';
-					$skip=1;
-				} elsif (($entry & 0xFF) == 2) { # $
-					my $mvar = $ast->[$idx+1];
-					push @expr_chunks,$mvar;
-					$skip=1;				
-				} elsif (($entry & 0xFF) == 10) { # @
-					my $mvar = $ast->[$idx+1];				
-					$expr_str.=$mvar.'(';
-					$skip=1;
-				} elsif ((($entry & 0xFF) >2 ) && (($entry & 0xFF) <9)) { # arithmetic operators
-					push @expr_chunks, $sigils[$entry & 0xFF];
-					$skip=0;				
-				} else {  
-					# do nothing
-				}
-		} else { # idx > 0
-			if (
-				(($idx == 1) &&
-				(($ast->[$idx-1] & 0xFF) != 1) &&
-				(($ast->[$idx-1] & 0xFF) != 2) &&
-				(($ast->[$idx-1] & 0xFF) != 10)
-				) || ($idx>1)  
-				) { # arithmetic operators
-#					say "ENTRY:$entry SKIP: $skip";
-					push @expr_chunks, $entry;# $sigils[$entry & 0xFF];
-					$skip=0;			
-			}
-		}				
-	}
-	
-	if ((($ast->[0] & 0xFF) == 1 ) or (($ast->[0]  & 0xFF) == 10)) { # & or @	
-		$expr_str.=join(',',@expr_chunks);
-		$expr_str.=')'; 
-	} elsif (($ast->[0]  & 0xFF) != 2 and $ast->[0] =~ /^\d+$/) { # FIXME
-		my $op = $ast->[0];
-		if (scalar @{$ast} > 2) {
-			my @ts=();
-			for my $elt (1 .. scalar @{$ast} -1 ) {
-				$ts[$elt-1] = (ref($ast->[$elt]) eq 'ARRAY') ? emit_expression( $ast->[$elt], '') : $ast->[$elt];					
-			}
-			
-			my $op_sig = $sigils[$op & 0xFF]; 
-#			if (($op & 0xFF) == 8) {$op = '**'}; # FIXME
-			$expr_str.=join($op_sig,@ts);
-		} elsif (defined $ast->[2]) { croak "OBSOLETE!";
-			my $t1 = (ref($ast->[1]) eq 'ARRAY') ? emit_expression( $ast->[1], '') : $ast->[1];
-			my $t2 = (ref($ast->[2]) eq 'ARRAY') ? emit_expression( $ast->[2], '') : $ast->[2];			
-			$expr_str.=$t1.$ast->[0].$t2;
-			if (($ast->[0] & 0xFF) != 9) {
-				$expr_str="($expr_str)";
-			}			
-		} else {
-			# FIXME! UGLY!
-#			say Dumper($ast);
-			my $t1 = (ref($ast->[1]) eq 'ARRAY') ? emit_expression( $ast->[1], '') : $ast->[1];
-			$expr_str= $sigils[ $ast->[0] & 0xFF ].$t1;
-#			say "$t1 => $expr_str"; 
-			if (($ast->[0] & 0xFF) == 6) {
-				$expr_str='1'.$expr_str;# was '1.0' 
-			}
-		}
-	} else {
-#		say "ELSE: $expr_str ",$ast->[0] & 0xFF,$sigils[ $ast->[0] & 0xFF ];
-		$expr_str.=join(';',@expr_chunks);
-#		say "ELSE: $expr_str ",$ast->[0] & 0xFF,$sigils[ $ast->[0] & 0xFF ];
-	}	
-	
-#	$expr_str=~s/_complex_//g;
-	$expr_str=~s/_OPEN_PAR_//g;
-	if ($expr_str=~/_OPEN_CONST_ARRAY_/ ) {
-		$expr_str=~s/_OPEN_CONST_ARRAY_//;
-		$expr_str=~s/^\(/\(\//;
-		$expr_str=~s/\)/\/\)/;
-	};
-	$expr_str=~s/_LABEL_ARG_//g;
-	if ($expr_str=~s/^\#dummy\#\(//) {
-		$expr_str=~s/\)$//;
-	}
-	$expr_str=~s/\+\-/-/g;
-	# UGLY! HACK to fix boolean operations
-	while ($expr_str=~/__[a-z]+__/ or $expr_str=~/\.\w+\.\+/) {
-		$expr_str =~s/\+\.(\w+)\.\+/\.${1}\./g;
-		$expr_str =~s/\.(\w+)\.\+/\.${1}\./g;
-		$expr_str =~s/__not__\+/\.not\./g; 
-		$expr_str =~s/__not__/\.not\./g; 		
-		$expr_str =~s/__false__/\.false\./g;
-		$expr_str =~s/__true__/\.true\./g;
-		$expr_str =~s/\+__(\w+)__\+/\.${1}\./g;		
-		$expr_str =~s/__(\w+)__/\.${1}\./g;
-		
-#		  		$expr_str =~s/\.(\w+)\./$F95_ops{$1}/g;
-	}
-#	carp "EMITTED:<$expr_str>";  
-	return $expr_str;		
-} # END of emit_expression
-
 # All variables in the expression
 # $vars = {} to start
 sub get_vars_from_expression {(my $ast, my $vars)=@_;
@@ -703,79 +581,10 @@ sub get_args_vars_from_subcall {(my $ast)=@_;
     my $args={'List'=>[],'Set'=>{}};
 	my $all_vars={'List'=>[],'Set'=>{} };
 
-if ($NEW_PARSER) {
-        my $vars = get_vars_from_expression($ast,{} );
-        $all_vars->{'Set'}=$vars;
-        $args = _parse_subcall_args($ast, $args);
-} else {
-		
-#		if (ref($ast) ne 'ARRAY' or ref($ast->[2]) ne 'ARRAY') {croak Dumper($ast) };
-	if (scalar @{$ast} > 2 and (ref($ast->[2]) ne 'ARRAY' or scalar @{$ast->[2]}>0)) {#			croak Dumper($ast);
-	# we have '&', $subname, [ ... ]
-		for my  $idx (2 .. scalar @{$ast}-1) { # 0 and 1 are '&" and the subroutine name
-		my $ignore=0;				
-			if( ref( $ast->[$idx] ) eq 'ARRAY') { 				 
-				my $arg = $ast->[$idx][1];
-				
-				if ($arg=~/__PH\d+__/ or $arg=~/_(?:CONCAT|COLON)_(?:PRE|POST)_/ or $arg=~/_PAREN_PAIR_/) {
-					$ignore=1;																
-				} 			
-				elsif ($arg=~/^__(\w+)__$/) {
-					$arg=~s/__(\w+)__/\.${1}\./;
-				}
-				if ( 
-					(($ast->[$idx][0] & 0xFF) == 10) # eq '@' 
-				or  (($ast->[$idx][0] & 0xFF) == 2) #  eq '$'
-				or  (($ast->[$idx][0] & 0xFF) == 1) #  eq '&'
-				) {
-					if (
-					(($ast->[$idx][0] & 0xFF) == 10) #eq '@' 
-					or (($ast->[$idx][0] & 0xFF) == 1) #eq '&'
-					) {
-						my $vars = get_vars_from_expression($ast->[$idx],{} );
-						delete $vars->{$arg}; 
-						$all_vars->{'Set'}={%{ $all_vars->{'Set'} },%{$vars}};
-						if (
-							($ast->[$idx][0] & 0xFF) == 10 #eq '@'
-						) {
-							my $array_expr = emit_expression($ast->[$idx]);
-							$args->{'Set'}{$array_expr}={ 'Type'=>'Array','Vars'=>$vars, 'Expr' => $array_expr, 'Arg' => $arg};
-							push @{$args->{'List'}}, $array_expr;#$arg;
-						} else {							
-							my $arg_expr=emit_expression($ast->[$idx]);
-							$args->{'Set'}{$arg_expr}={ 'Type'=>'Sub','Vars'=>$vars, 'Expr' => $arg_expr};
-							push @{$args->{'List'}}, $arg_expr;
-						}
-					} else { # A scalar			
-						if ("$arg" ne '0' ) { # FIXME! UGLY!
-							$args->{'Set'}{$arg}={ 'Type'=>'Scalar',  'Expr' => $arg};
-						} else {							
-							$args->{'Set'}{$arg}={ 'Type'=>'Const',  'Expr' => $arg};
-						}
-						push @{$args->{'List'}}, $arg;
-					} 
-					
-				} else {
-					# This is an expression in its own right. 
-					# In that case, $arg will be an array ref.
-					my $arg_expr = emit_expression($ast->[$idx]);
-					push @{$args->{'List'}}, $arg_expr;
-					my $vars = get_vars_from_expression($ast->[$idx],{} );
-					$args->{'Set'}{$arg_expr}={ 'Type'=>'Expr','Vars'=>$vars, 'AST'=>$ast->[$idx], 'Expr' => $arg_expr};
-					$all_vars->{'Set'}={%{ $all_vars->{'Set'} },%{$vars}};
-				}
-			} else  { # It must be a constant 
-				my $arg=$ast->[$idx];			
-				if ($arg=~/__PH\d+__/ or $arg=~/_(?:CONCAT|COLON)_(?:PRE|POST)_/ or $arg=~/_PAREN_PAIR_/) {
-					$ignore=1;
-#					$arg=0;
-				}
-				$args->{'Set'}{$arg}={ 'Type'=>'Const', 'Expr' => $arg};
-				push @{$args->{'List'}}, $arg; 
-			}		
-		}	
-	}
-}
+	my $vars = get_vars_from_expression($ast,{} );
+	$all_vars->{'Set'}=$vars;
+	$args = _parse_subcall_args($ast, $args);
+
 	$all_vars->{'List'} = [sort keys %{ $all_vars->{'Set'} }];
 	return ($args,$all_vars);
 } # END of get_args_vars_from_subcall
