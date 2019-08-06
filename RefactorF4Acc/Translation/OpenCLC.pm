@@ -199,7 +199,7 @@ sub translate_sub_to_C {  (my $stref, my $f, my $ocl) = @_;
 		}
 		elsif (exists $info->{'Select'} ) {				
             #my $switch_expr = _emit_expression_C(['$',$info->{'CaseVar'}],'',$stref,$f);
-			my $switch_expr = _emit_expression_C([2,$info->{'CaseVar'}],'',$stref,$f); # FIXME
+			my $switch_expr = _emit_expression_C([2,$info->{'CaseVar'}],$stref,$f); # FIXME
 			$c_line ="switch ( $switch_expr ) {";
 		}
 		elsif (exists $info->{'Case'} ) {
@@ -234,11 +234,8 @@ sub translate_sub_to_C {  (my $stref, my $f, my $ocl) = @_;
 		}
 		elsif (exists $info->{'SubroutineCall'} ) {
 			# 
-			my $subcall_ast = 
-			
-			[ 1,$info->{'SubroutineCall'}{'Name'},
-			$info->{'SubroutineCall'}{'ExpressionAST'}];
-			say Dumper($subcall_ast);
+			my $subcall_ast = [ 1, $info->{'SubroutineCall'}{'Name'},$info->{'SubroutineCall'}{'ExpressionAST'} ];
+			# say Dumper($subcall_ast);
 			# $subcall_ast->[0] = 1; # FIXME '&';
 
 			# There is an issue here:
@@ -250,7 +247,7 @@ sub translate_sub_to_C {  (my $stref, my $f, my $ocl) = @_;
 			if ($subcall_ast->[1] eq 'barrier') {
 				$subcall_ast->[2][1]=uc($subcall_ast->[2][1]);
 #				push @{$pass_state->{'TranslatedCode'}},'#ifdef BARRIER_OK';
-				$c_line = $info->{'Indent'}._emit_expression_C($subcall_ast,'',$stref,$f).';';
+				$c_line = $info->{'Indent'}._emit_expression_C($subcall_ast,$stref,$f).';';
 				push @{$pass_state->{'TranslatedCode'}},$c_line ;
 #				push @{$pass_state->{'TranslatedCode'}},'#endif // BARRIER_OK';
 				$skip=1;
@@ -269,7 +266,7 @@ sub translate_sub_to_C {  (my $stref, my $f, my $ocl) = @_;
 				$c_line = $info->{'Indent'}."${qual}_id = get_${qual}_id(0);";
 			} else {
 				
-				$c_line = $info->{'Indent'}._emit_expression_C($subcall_ast,'',$stref,$f).';';
+				$c_line = $info->{'Indent'}._emit_expression_C($subcall_ast,$stref,$f).';';
             }
 		}			 
 		elsif (exists $info->{'If'} ) {				
@@ -465,10 +462,7 @@ sub _emit_var_decl_C { (my $stref,my $f,my $var)=@_;
 
 sub _emit_assignment_C { (my $stref, my $f, my $info)=@_;
 	my $lhs_ast =  $info->{'Lhs'}{'ExpressionAST'};
-	;
-    #	expr_str
-    #croak Dumper($stref->{'Subroutines'}{$f}{'Pointers'}{'eta_j_k'}) if $f=~/shapiro_map/ && $lhs_ast->[1] eq 'eta_j_k';
-	my $lhs = _emit_expression_C($lhs_ast,'',$stref,$f);
+	my $lhs = _emit_expression_C($lhs_ast,$stref,$f);
 	   
 	my $indent='';
 	$lhs=~/^(\s+)/ && do {
@@ -481,7 +475,7 @@ sub _emit_assignment_C { (my $stref, my $f, my $info)=@_;
 	my $rhs_ast =  $info->{'Rhs'}{'ExpressionAST'};	
 #	carp Dumper($rhs_ast) if $lhs=~/k_range/;
     
-	my $rhs = _emit_expression_C($rhs_ast,'',$stref,$f);
+	my $rhs = _emit_expression_C($rhs_ast,$stref,$f);
 #	say "RHS:$rhs" if$rhs=~/abs/;
 	my $rhs_stripped = $rhs;
 	$rhs_stripped=~s/^\(([^\(\)]+)\)$/$1/;
@@ -510,7 +504,7 @@ sub _emit_assignment_C { (my $stref, my $f, my $info)=@_;
 
 sub _emit_ifthen_C { (my $stref, my $f, my $info)=@_;	
 	my $cond_expr_ast=$info->{'CondExecExprAST'};	
-	my $cond_expr = _emit_expression_C($cond_expr_ast,'',$stref,$f);
+	my $cond_expr = _emit_expression_C($cond_expr_ast,$stref,$f);
 	$cond_expr=_change_operators_to_C($cond_expr);
 	# FIXME! fix for stray '+'
 	$cond_expr=~s/\+\>/>/g;
@@ -747,33 +741,96 @@ sub _emit_expression_C_OLD {
 	return $expr_str;		
 } # END of _emit_expression_C_OLD()
 
-
-sub _emit_expression_C { 
-	# (my $ast)=@_;
-(my $ast, my $expr_str, my $stref, my $f)=@_;
+# Because apparently the ASTs for the F95 code don't say if something is a function or an array, I will have to look in Vars first!
+sub _emit_expression_C { my ($ast, $stref, $f)=@_;
+	my $Sf = $stref->{'Subroutines'}{$f};
+# croak 'FIXME: port differences from _emit_expression_C_OLD(), LINE 588';
 #	say Dumper($ast);
     if (ref($ast) eq 'ARRAY') {
         if (scalar @{$ast}==3) {
+			if ($ast->[0] == 8) { #eq '^'
+				$ast->[0]='pow';
+				unshift @{$ast},1;# '&' 
+			} 
+			elsif ($ast->[0] == 1  and $ast->[1] eq 'mod') {#eq '&'
+					shift @{$ast};
+					$ast->[0]= 7 ;# '%';					
+			}
+
             if ($ast->[0] ==1 or $ast->[0] ==10) { # '&' array access or function call
                 (my $sigil, my $name, my $args) =@{$ast};
+				# if (in_nested_set($Sf,'Vars',$name)) {
+				# 	say "NAME $name is an ARRAY (".$ast->[0].')';
+				# 	$ast->[0]=10;
+				# } else {
+				# 	say "NAME $name is a FUNCTION (".$ast->[0].')';
+				# }
+				if ($ast->[0] ==1) {
+					my $mvar = $name;
+					# AD-HOC, replacing abs/min/max to fabs/fmin/fmax without any type checking ... FIXME!!!
+					# The (float) cast is necessary because otherwise I get an "ambiguous" error
+					$mvar=~s/^(abs|min|max)$/(float)f$1/;
+					$mvar=~s/^am(ax|in)1$/(float)fm$1/;				
+					$mvar=~s/^alog$/(float)log/;				
+					$name = $mvar;			
+				 	$stref->{'CalledSub'}= $mvar;
+				}
+
                 if (@{$args}) {
-					if ($args->[0] != 14 ) { # ')('
+					if ($args->[0] != 14 ) { # NOT ')('
 						my @args_lst=();
+
 						if($args->[0] == 27) { # ','
+						# more than one arg
 							for my $idx (1 .. scalar @{$args}-1) {
 								my $arg = $args->[$idx];
-								push @args_lst, _emit_expression_C($arg);
+								push @args_lst, _emit_expression_C($arg, $stref, $f);
 							}
 
 							#                    for my $arg (@{$args->[1]}) {
-							#       push @args_lst, _emit_expression_C($arg);
+							#       push @args_lst, _emit_expression_C($arg, $stref, $f;
 							#    }
 							
-							return "$name(".join(',',@args_lst).')';
+							# return "$name(".join(',',@args_lst).')';
 						} else {
-							return "$name("._emit_expression_C($args).')';
+							# only one arg
+							$args_lst[0] = _emit_expression_C($args, $stref, $f);
+							# return "$name("._emit_expression_C($args, $stref, $f).')';
 						}
-					} else { # f(x)(y)
+
+						if ($ast->[0]==10) { 
+							if( $args->[0]==29 and $args->[1] eq '1') {
+								return '(*'.$name.')';
+							} else {
+									my $decl = get_var_record_from_set($stref->{'Subroutines'}{$f}{'Vars'},$name);
+									my $dims =  $decl->{'Dim'};
+			#						if (__all_bounds_numeric($dims)) {
+			#							$expr_str.=$name.'['.__C_array_size($dims).',';
+			#						} else {
+										my $ndims = scalar @{$dims};
+										
+										my @ranges=();
+										my @lower_bounds=();
+										for my $boundspair (@{$dims}) {
+											(my $lb, my $hb)=@{$boundspair };
+											push @ranges, "(($hb - $lb )+1)";
+											push @lower_bounds, $lb; 
+										} 				
+										if ($ndims==1) {
+											return $name.'[F1D2C('.join(',',@lower_bounds). ' , '.join(',',@args_lst).')]';
+										} else {
+											return $name.'[F'.$ndims.'D2C('.join(',',@ranges[0.. ($ndims-2)]).' , '.join(',',@lower_bounds). ' , '.join(',',@args_lst).')]';
+										}
+			#						}
+							}
+						} else {							
+							return "$name(".join(',',@args_lst).')';
+						}
+
+
+
+
+					} else { #  ')(', e.g. f(x)(y)
 						#say Dumper($args);
 						(my $sigil,my $args1, my $args2) = @{$args};
 						my $args_str1='';
@@ -782,58 +839,86 @@ sub _emit_expression_C {
 							my @args_lst1=();
 							for my $idx (1 .. scalar @{$args1}-1) {
 								my $arg = $args1->[$idx];
-								push @args_lst1, _emit_expression_C($arg);
+								push @args_lst1, _emit_expression_C($arg, $stref, $f);
 							}
 							$args_str1=join(',',@args_lst1);
 
 						} else {
-							$args_str1= _emit_expression_C($args1);
+							$args_str1= _emit_expression_C($args1, $stref, $f);
 						}
 						if($args2->[0] == 27) { #eq ','
 							#say Dumper($args2);
 							my @args_lst2=();
 							for my $idx (1 .. scalar @{$args2}-1) {
 								my $arg = $args2->[$idx];
-								push @args_lst2, _emit_expression_C($arg);
+								push @args_lst2, _emit_expression_C($arg, $stref, $f);
 							}
 
 							#                for my $arg (@{$args2->[1]}) {
-							#    push @args_lst2, _emit_expression_C($arg);
+							#    push @args_lst2, _emit_expression_C($arg, $stref, $f);
 							#}
 							$args_str2=join(',',@args_lst2);
 						} else {
-							$args_str2=_emit_expression_C($args2);
+							$args_str2=_emit_expression_C($args2, $stref, $f);
 						}
 						return "$name(".$args_str1.')('.$args_str2.')';
 					}
 				} else {
 					return "$name()";
 				}
-            } else {
+			
+            } else { # not '&' or '@'
 #            	say Dumper($ast);
                 (my $opcode, my $lexp, my $rexp) =@{$ast};
-                my $lv = (ref($lexp) eq 'ARRAY') ? _emit_expression_C($lexp) : $lexp;
-                my $rv = (ref($rexp) eq 'ARRAY') ? _emit_expression_C($rexp) : $rexp;
+                my $lv = (ref($lexp) eq 'ARRAY') ? _emit_expression_C($lexp, $stref, $f) : $lexp;
+                my $rv = (ref($rexp) eq 'ARRAY') ? _emit_expression_C($rexp, $stref, $f) : $rexp;
                 return $lv.$sigils[$opcode].$rv;
             }
         } elsif (scalar @{$ast}==2) { #  for '{'  and '$'
+		
             (my $opcode, my $exp) =@{$ast};
             if ($opcode==0 ) {#eq '('
-                my $v = (ref($exp) eq 'ARRAY') ? _emit_expression_C($exp) : $exp;
+                my $v = (ref($exp) eq 'ARRAY') ? _emit_expression_C($exp, $stref, $f) : $exp;
                 return "($v)";
             } elsif ($opcode==28 ) {#eq '(/'
-                my $v = (ref($exp) eq 'ARRAY') ? _emit_expression_C($exp) : $exp;
-                return "(/ $v /)";
-            } elsif ($opcode==2 or $opcode>28) {# eq '$' or constants    
-                return ($opcode == 34) ?  "*$exp" : $exp;            
+                my $v = (ref($exp) eq 'ARRAY') ? _emit_expression_C($exp, $stref, $f) : $exp;
+                return "{ $v }";
+            } elsif ($opcode==2 or $opcode>28) {# eq '$' or constants
+			
+				my $mvar = $ast->[1];
+				my $called_sub_name = $stref->{'CalledSub'} // '';
+if (exists $stref->{'Subroutines'}{$f}{'Pointers'}{$mvar} ) {
+					# Meaning that $mvar is a pointer in $f
+					# Now we need to check if it is also a pointer in $subname
+					my $ptr = $stref->{'Subroutines'}{$f}{'Pointers'}{$mvar};
+					if ($called_sub_name ne '' and exists  $stref->{'Subroutines'}{$called_sub_name} 
+					and exists $stref->{'Subroutines'}{$called_sub_name}{'Pointers'}{$mvar} ) {
+						my $sig_ptr = $stref->{'Subroutines'}{$called_sub_name}{'Pointers'}{$mvar};
+						if ($sig_ptr eq '' and $ptr eq '*') {
+							$ptr = '*'	
+						} elsif ($sig_ptr eq '*' and $ptr eq '') {
+							$ptr = '&'
+						} else {
+							$ptr='';
+						}
+					} 
+                    if ($ptr eq '') {
+                        return $exp;
+                    } else {
+						return '('.$ptr.$exp.')';                        
+                    }
+				} else {
+					return $exp;
+				}
+                # return ($opcode == 34) ?  "*$exp" : $exp;   # Fortran LABEL, does not exist in C         
             } elsif ($opcode == 21 or $opcode == 4 or $opcode == 3) {# eq '.not.' '-'
-                my $v = (ref($exp) eq 'ARRAY') ? _emit_expression_C($exp) : $exp;
+                my $v = (ref($exp) eq 'ARRAY') ? _emit_expression_C($exp, $stref, $f) : $exp;
                 return $sigils[$opcode]. $v;
             } elsif ($opcode == 27) { # ',' 
-                croak  Dumper($ast);
+                croak Dumper($ast); # WHY is this here?
                 my @args_lst=();
                 for my $arg (@{$exp}) {
-                    push @args_lst, _emit_expression_C($arg);
+                    push @args_lst, _emit_expression_C($arg, $stref, $f);
                 }
                 return join(',',@args_lst);        
             } else {
@@ -845,14 +930,17 @@ sub _emit_expression_C {
                 my @args_lst=();
                 for my $idx (1 .. scalar @{$ast}-1) {
                     my $arg = $ast->[$idx];
-                    push @args_lst, _emit_expression_C($arg);
+                    push @args_lst, _emit_expression_C($arg, $stref, $f);
                 }
                 return join(',',@args_lst); 
             } else {
                 croak Dumper($ast);
             }
         }
-    } else {return $ast;}
+    } else {
+		# Should not happen?
+		return $ast;
+	}
 } # END of _emit_expression_C
 
 sub _change_operators_to_C { (my $cond_expr) = @_;
