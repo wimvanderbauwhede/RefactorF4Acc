@@ -98,7 +98,7 @@ $ast->{'Nets'}{$net} = {
         {
             'Name'=>$f,
             'EntryID'=>$entry_id,
-            'NodeType'=> Map | Fold | StencilAppl
+            'NodeType'=> Map | Fold | StencilAppl | Input | Output
         },
         ...
     ],
@@ -108,7 +108,7 @@ $ast->{'Nets'}{$net} = {
 $ast->{'Nodes'} = {
           
         $map_name => {
-            NodeType => Map | Fold | StencilAppl
+            NodeType => Map | Fold | StencilAppl | Input | Output
             EntryID => $entry_id,
             Inputs => [@input_nets],
             Outputs => [@output_nets]            
@@ -1102,18 +1102,21 @@ sub remove_stencil_nodes_from_connectivity_graph { my ($ast) = @_;
 } # END of remove_stencil_nodes_from_connectivity_graph
 
 
-# For every kernel, we look at its inputs and make a list of the kernels that provide those inputs, noting if they are vec or scalar and if the kernels are map or fold. We also note non-kernel inputs 
+# For every kernel, we look at its inputs and make a list of the kernels that provide those inputs, 
+# noting if they are vec or scalar and if the kernels are map or fold. We also note non-kernel inputs 
+# Considering the purpose, all we need is the non-fold dependencies
+# I am using a flag for this
 sub find_dataflow_dependencies { my ($ast)=@_;
-    
+    my $non_fold_only=1;
     for my $node (sort keys %{ $ast->{'Nodes'} }) {
         $ast->{'Nodes'}{$node}{'Dependencies'}={};
-        $ast = _find_deps_rec($ast,$node,$node);
-        say "NODE: $node DEPS: ".Dumper($ast->{'Nodes'}{$node}{'Dependencies'});
+        $ast = _find_deps_rec($ast,$node,$node,$non_fold_only);
+        say "NODE: $node DEPS: ".Dumper($ast->{'Nodes'}{$node}{'Dependencies'}) unless $ast->{'Nodes'}{$node}{'NodeType'} eq 'Input';
     }
     return $ast;
 } # END of find_dataflow_dependencies
 
-sub _find_deps_rec { my ($ast,$f_curr, $f_target) = @_;
+sub _find_deps_rec { my ($ast,$f_curr, $f_target,$non_fold_only) = @_;
 # say $f_curr.':'. Dumper($ast->{'Nodes'}{$f_curr}{'Inputs'});
     for my $input_net_name ( @{ $ast->{'Nodes'}{$f_curr}{'Inputs'} } ) {
         # In the 'Nets' part of the AST we look up the 'From' field
@@ -1121,13 +1124,15 @@ sub _find_deps_rec { my ($ast,$f_curr, $f_target) = @_;
         # say "$f_curr $input_net_name".':'.Dumper($ast->{'Nets'}{$input_net_name}) ;
         my $dep_node_type=$ast->{'Nets'}{$input_net_name}{'From'}[0]{'NodeType'};
         
-        if ($dep_node_type ne 'Input') {
+        if ($dep_node_type ne 'Input' and
+             (not $non_fold_only or $dep_node_type ne 'Fold')
+        ) {
             my $dep_entry_id = $ast->{'Nets'}{$input_net_name}{'From'}[0]{'EntryID'};
             my $dep_entry = $ast->{'Lines'}[$dep_entry_id];
 
             my $g = $dep_entry->{'Rhs'}{'Function'};
             $ast->{'Nodes'}{$f_target}{'Dependencies'}{$g}=$dep_node_type;            
-            $ast = _find_deps_rec($ast,$g,$f_target);
+            $ast = _find_deps_rec($ast,$g,$f_target,$non_fold_only);
         } 
         # else {
         #     say "LEAF: $input_net_name in $f_curr for $f_target";
