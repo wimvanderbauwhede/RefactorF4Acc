@@ -85,12 +85,52 @@ data Expr =
                     | MapS Expr -- bb does not have this, not needed
                     | Comp Expr Expr -- bb does not have this, not needed
 
-$ast->{Nets}{$net} = {
-    From = $from_node,
-    To = $to_node,
-}                    
+EntryID is the line number in 'Lines'
 
-$ast->{Nodes}{$node} = {
+$ast->{'Nets'}{$net} = {
+    From => {
+            'Name'=>$f,
+            'EntryID'=>$entry_id,
+            'NodeType'=> Map | Fold | StencilAppl
+        },
+
+    To => [
+        {
+            'Name'=>$f,
+            'EntryID'=>$entry_id,
+            'NodeType'=> Map | Fold | StencilAppl
+        },
+        ...
+    ],
+    NetType => Vec | Scalar
+}      
+
+$ast->{'Nodes'} = {
+        
+        $stencil_name}= {
+            NodeType => 'StencilAppl',
+            EntryID => $entry_id,
+            In => $input_net,
+            Out => $output_net
+        },
+    
+    
+        $map_name => {
+            NodeType => 'Map'
+            EntryID => $entry_id,
+            Dependencies => {
+                $dep_name => NodeType,
+            }
+        },
+    
+    
+        $fold_name => {
+            NodeType => 'Fold',
+            EntryID => $entry_id,
+            Dependencies => {
+                $dep_name => NodeType,
+            }
+        },
     
 }
 
@@ -122,7 +162,8 @@ sub pass_emit_TyTraCL {(my $stref, my $module_name)=@_;
         $ast = add_io_nodes_to_connectivity_graph($ast);
         $ast = remove_stencil_nodes_from_connectivity_graph($ast);
         # say Dumper($ast->{'Nets'});
-        emitDotGraph($ast->{'Nets'});
+        $ast = find_dataflow_dependencies($ast);
+        # emitDotGraph($ast->{'Nets'});
         exit ;
 
 	return $stref;
@@ -891,6 +932,11 @@ sub _add_TyTraCL_AST_entry { (my $f, my $state, my $tytracl_ast, my $type, my $b
 	return $tytracl_ast;
 } # END of _add_TyTraCL_AST_entry
 
+
+# ==============================================================================================================================
+# GRAPH ANALYSIS AND TRANSFORMATION FOR STAGING
+# ==============================================================================================================================
+
 # We need to know the nodes connected to every net. 
 # We are only interested in the map/fold nodes, so we should skip any other node
 # For stencils this is trivial and it looks like we don't have zipt/unzipt in the AST
@@ -899,35 +945,40 @@ sub _add_TyTraCL_AST_entry { (my $f, my $state, my $tytracl_ast, my $type, my $b
 
 sub build_connectivity_graph { my ($ast) = @_;
     $ast->{'Nets'}={};
-    $ast->{'StencilAppls'}={};
+    $ast->{'Nodes'}={
+    };
     my $entry_id=0;
     for my $entry ( @{ $ast->{'Lines'} } ) {
         my $node_type=$entry->{'NodeType'};
+        my $f;
         if ($node_type eq 'Map') {            
         # Inputs are Rhs NonMapArgs and Rhs MapArgs
-            my $f = $entry->{'Rhs'}{'Function'};
+             $f = $entry->{'Rhs'}{'Function'};            
             my @outputs = map { _mkVarName($_)  } @{ $entry->{'Lhs'}{'Vars'} };
             my @map_inputs = map { _mkVarName($_)  } @{ $entry->{'Rhs'}{'MapArgs'}{'Vars'} };
             my @nonmap_inputs = map { _mkVarName($_)  } @{ $entry->{'Rhs'}{'NonMapArgs'}{'Vars'}};
             for my $output (@outputs) {
                 say "$node_type $f OUT: $output";     
-                $ast->{'Nets'}{$output}{'From'}={'Name'=>$f,'EntryID'=>$entry_id,'NodeType'=>$node_type};                
+                push @{$ast->{'Nets'}{$output}{'From'}},{'Name'=>$f,'EntryID'=>$entry_id,'NodeType'=>$node_type};                
                 $ast->{'Nets'}{$output}{'NetType'}='Vec';
+                push @{$ast->{'Nodes'}{$f}{'Outputs'}}, $output;
             }
             for my $input (@map_inputs) {
                 say "$node_type $f IN: $input";     
                 push @{$ast->{'Nets'}{$input}{'To'}},{'Name'=>$f,'EntryID'=>$entry_id,'NodeType'=>$node_type};
                 $ast->{'Nets'}{$input}{'NetType'}='Vec';
+                push @{$ast->{'Nodes'}{$f}{'Inputs'}}, $input;
             }
             for my $input (@nonmap_inputs) {
                 say "$node_type $f IN: $input";     
                 push @{$ast->{'Nets'}{$input}{'To'}},{'Name'=>$f,'EntryID'=>$entry_id,'NodeType'=>$node_type};
                 $ast->{'Nets'}{$input}{'NetType'}='Scalar';
+                push @{$ast->{'Nodes'}{$f}{'Inputs'}}, $input;
             }
         }
         elsif ($node_type eq 'Fold') {
         # Inputs are Rhs NonFoldArgs and Rhs FoldArgs and presumably Rhs AccArgs   
-            my $f = $entry->{'Rhs'}{'Function'};
+             $f = $entry->{'Rhs'}{'Function'};
             my @outputs = map { _mkVarName($_)  } @{ $entry->{'Lhs'}{'Vars'} };
             my @fold_inputs = map { _mkVarName($_)  } @{ $entry->{'Rhs'}{'FoldArgs'}{'Vars'} };
             my @nonfold_inputs = map { _mkVarName($_)  } @{ $entry->{'Rhs'}{'NonFoldArgs'}{'Vars'} };
@@ -935,18 +986,21 @@ sub build_connectivity_graph { my ($ast) = @_;
 
             for my $output (@outputs) {
                 say "$f OUT: $node_type: $output";     
-                $ast->{'Nets'}{$output}{'From'}={'Name'=>$f,'EntryID'=>$entry_id,'NodeType'=>$node_type};
+                push @{$ast->{'Nets'}{$output}{'From'}},{'Name'=>$f,'EntryID'=>$entry_id,'NodeType'=>$node_type};
                 $ast->{'Nets'}{$output}{'NetType'}='Vec';
+                push @{$ast->{'Nodes'}{$f}{'Outputs'}}, $output;
             }
             for my $input (@fold_inputs) {
                 say "$f IN: $node_type: $input";     
                 push @{$ast->{'Nets'}{$input}{'To'}},{'Name'=>$f,'EntryID'=>$entry_id,'NodeType'=>$node_type};
                 $ast->{'Nets'}{$input}{'NetType'}='Vec';
+                push @{$ast->{'Nodes'}{$f}{'Inputs'}}, $input;
             }
             for my $input (@nonfold_inputs, @acc_inputs) {
                 say "$f IN: $node_type: $input";     
                 push @{$ast->{'Nets'}{$input}{'To'}},{'Name'=>$f,'EntryID'=>$entry_id,'NodeType'=>$node_type};
                 $ast->{'Nets'}{$input}{'NetType'}='Scalar';
+                push @{$ast->{'Nodes'}{$f}{'Inputs'}}, $input;
             }
 
         }
@@ -957,20 +1011,26 @@ sub build_connectivity_graph { my ($ast) = @_;
 # 			'Rhs' => {'StencilCtr' => $ctr_st,'Var' => [$array_var, $ctr_in,''] }
 # 		};            
         # Inputs are Rhs NonFoldArgs and Rhs FoldArgs and presumably Rhs AccArgs   
-            my $f = $entry->{'Rhs'}{'StencilCtr'};
-            
+             $f = $entry->{'Rhs'}{'StencilCtr'};
+            $entry->{'Rhs'}{'Function'}=$f; # for convenience so all nodes have the same structure
             my $output = _mkVarName( $entry->{'Lhs'}{'Var'} );       
             say "$node_type $f OUT: $output";     
             my $input = _mkVarName( $entry->{'Rhs'}{'Var'} );            
             say "$node_type $f IN: $input";     
-            $ast->{'Nets'}{$output}{'From'}={'Name'=>$f,'EntryID'=>$entry_id,'NodeType'=>$node_type};
+            push @{$ast->{'Nets'}{$output}{'From'}},{'Name'=>$f,'EntryID'=>$entry_id,'NodeType'=>$node_type};
             $ast->{'Nets'}{$output}{'NetType'}='Vec';
         
             push @{$ast->{'Nets'}{$input}{'To'}},{'Name'=>$f,'EntryID'=>$entry_id,'NodeType'=>$node_type};
             $ast->{'Nets'}{$input}{'NetType'}='Vec';
             say "Stencil $f : $input => $output";
-            $ast->{'StencilAppls'}{$f}={'In'=>$input,'Out'=>$output};
-            
+            $ast->{'Nodes'}{$f}={'NodeType'=>$node_type,'Inputs'=>[$input],'Outputs'=>[$output],'EntryID'=>$entry_id};            
+        }
+        if (defined $f and not exists $ast->{'Nodes'}{$f}) {
+            $ast->{'Nodes'}{$f}={
+                'NodeType' => $node_type,
+                'EntryId' => $entry_id,
+                'Dependencies' =>{}
+            };
         }
         # StencilDefs are skipped, we don't need them
         $entry_id++;
@@ -986,7 +1046,9 @@ sub add_io_nodes_to_connectivity_graph { my ($ast) = @_;
         #  say "NET: $net";
         #  say Dumper($ast->{'Nets'}{$net});
         if (not exists $ast->{'Nets'}{$net}{'To'}) {
-            say "Net $net is an output for ".$ast->{'Nets'}{$net}{'From'}{'Name'};
+            say "Net $net is an output for " #.$ast->{'Nets'}{$net}{'From'}{'Name'};
+            .join (' and ', map { $_->{'Name'} } @{ $ast->{'Nets'}{$net}{'From'} } );
+
                 $ast->{'Nets'}{$net}{'To'}=[{
                     'Name'=>$net,
                     'NodeType'=>'Output'
@@ -995,10 +1057,12 @@ sub add_io_nodes_to_connectivity_graph { my ($ast) = @_;
         elsif (not exists $ast->{'Nets'}{$net}{'From'}) {
             # say Dumper($ast->{'Nets'}{$net}{'To'});
             say "Net $net is an input for ".join (' and ', map { $_->{'Name'} } @{ $ast->{'Nets'}{$net}{'To'} } );
-                $ast->{'Nets'}{$net}{'From'}={
+                $ast->{'Nets'}{$net}{'From'}=[
+                    {
                     'Name'=>$net,
                     'NodeType'=>'Input'
-                };                
+                }
+                ];                
         }
     }
 
@@ -1011,32 +1075,69 @@ sub remove_stencil_nodes_from_connectivity_graph { my ($ast) = @_;
     # find all nets that have a 'To' stencil; find the 
     for my $net (sort keys %{ $ast->{'Nets'} }) {
         for my $to (@{$ast->{'Nets'}{$net}{'To'}})   {
-        if ($to->{'NodeType'} eq 'StencilAppl') {
+            if ($to->{'NodeType'} eq 'StencilAppl') {
             
                 my $stencil_node = $to->{'Name'};
                 say "Net $net input for stencil $stencil_node ";
-                # say Dumper($ast->{'StencilAppls'}{$stencil_node});
-                my $stencil_out = $ast->{'StencilAppls'}{$stencil_node}{'Out'};
+                # say Dumper($ast->{'Nodes'}{'StencilAppl'}{$stencil_node});
+                my $stencil_out = $ast->{'Nodes'}{$stencil_node}{'Outputs'}[0];
                 # this $stencil_out is an input for a non-stencil node:
                 my $target_node = $ast->{'Nets'}{$stencil_out}{'To'}[0]; # there can only be one
                 $ast->{'Nets'}{$net}{'To'}=[$target_node];
+            }
         }
-        }
-        if ($ast->{'Nets'}{$net}{'From'}{'NodeType'} eq 'StencilAppl') {
-            
-                my $stencil_node = $ast->{'Nets'}{$net}{'From'}{'Name'};
+        for my $from (@{$ast->{'Nets'}{$net}{'From'}})   {
+            if ($from->{'NodeType'} eq 'StencilAppl') {        
+                my $stencil_node = $from->{'Name'};
                 say "Net $net output from stencil $stencil_node ";
-                # say Dumper($ast->{'StencilAppls'}{$stencil_node});
-                my $stencil_in = $ast->{'StencilAppls'}{$stencil_node}{'In'};
+                # say Dumper($ast->{'Nodes'}{'StencilAppl'}{$stencil_node});
+                my $stencil_in = $ast->{'Nodes'}{$stencil_node}{'Inputs'}[0];
                 # this $stencil_out is an input for a non-stencil node:
-                my $target_node = $ast->{'Nets'}{$stencil_in}{'From'};
-                $ast->{'Nets'}{$net}{'From'}=$target_node;
-        }        
-        
+                my $target_node = $ast->{'Nets'}{$stencil_in}{'From'}[0]; # there can only be one
+                $ast->{'Nets'}{$net}{'From'}=[$target_node];
+            }        
+        }
     }
 
     return $ast;
 } # END of remove_stencil_nodes_from_connectivity_graph
+
+
+# For every kernel, we look at its inputs and make a list of the kernels that provide those inputs, noting if they are vec or scalar and if the kernels are map or fold. We also note non-kernel inputs 
+sub find_dataflow_dependencies { my ($ast)=@_;
+    
+    for my $node (sort keys %{ $ast->{'Nodes'} }) {
+        $ast->{'Nodes'}{$node}{'Dependencies'}={};
+        $ast = _find_deps_rec($ast,$node,$node);
+        say "NODE: $node DEPS: ".Dumper($ast->{'Nodes'}{$node}{'Dependencies'});
+    }
+    return $ast;
+} # END of find_dataflow_dependencies
+
+sub _find_deps_rec { my ($ast,$f_curr, $f_target) = @_;
+# say $f_curr.':'. Dumper($ast->{'Nodes'}{$f_curr}{'Inputs'});
+    for my $input_net_name ( @{ $ast->{'Nodes'}{$f_curr}{'Inputs'} } ) {
+        # In the 'Nets' part of the AST we look up the 'From' field
+        # I guess the best way is to make this the index into Lines
+        # say "$f_curr $input_net_name".':'.Dumper($ast->{'Nets'}{$input_net_name}) ;
+        my $dep_node_type=$ast->{'Nets'}{$input_net_name}{'From'}[0]{'NodeType'};
+        
+        if ($dep_node_type ne 'Input') {
+            my $dep_entry_id = $ast->{'Nets'}{$input_net_name}{'From'}[0]{'EntryID'};
+            my $dep_entry = $ast->{'Lines'}[$dep_entry_id];
+
+            my $g = $dep_entry->{'Rhs'}{'Function'};
+            $ast->{'Nodes'}{$f_target}{'Dependencies'}{$g}=$dep_node_type;            
+            $ast = _find_deps_rec($ast,$g,$f_target);
+        } 
+        # else {
+        #     say "LEAF: $input_net_name in $f_curr for $f_target";
+        # }
+    }
+    # carp "SHOULD NEVER COME HERE!";
+    return $ast;
+    
+} # END of _find_deps_rec
 
 sub emitDotGraph { (my $nets)=@_;
     # a -> b [ label="a to b" ];
@@ -1045,11 +1146,13 @@ sub emitDotGraph { (my $nets)=@_;
     for my $net (sort keys %{$nets}) {
         my $entry = $nets->{$net};
         # carp Dumper $entry;
-        my $a = $entry->{'From'}{'NodeType'}.':'.$entry->{'From'}{'Name'};
+        for my $from (@{$entry->{'From'}}) {
+        my $a = $from->{'NodeType'}.':'.$from->{'Name'};
         for my $to (@{$entry->{'To'}}) {
         my $b = $to->{'NodeType'}.':'.$to->{'Name'};
         my $edge_label = $entry->{'NetType'}.':'.$net;
         say $DOT "\"$a\" -> \"$b\" [ label=\"$edge_label\" ];";
+        }
         }
 
     }

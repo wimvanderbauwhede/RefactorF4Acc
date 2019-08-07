@@ -26,10 +26,10 @@ use Exporter;
 &pp_links  
 &__isMainInArg 
 &__isMainOutArg  
-&F3D2C 
-&F2D2C 
 &F1D2C 
-&F4D2C 
+&F2D2C 
+&F3D2C 
+&F4D2C
 );
 
 # What we need is the in and out tuples
