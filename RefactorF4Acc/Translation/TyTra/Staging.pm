@@ -56,7 +56,23 @@ Then prune everything leading up to each of these, so the fold outputs will be t
 
 Then repeat the algorithm, and do this until there are no folds left.
 
-The result is the stages: each stage is a set of folds. Their dependencies are already known from the first stage. When we run such a stage, we need to store the outputs of the folds and use them as inputs for the next stage. So the pruned graphs are the stages.
+The result is the stages: each stage is a set of folds. 
+Their dependencies are already known from the first stage. 
+When we run such a stage, we need to store the outputs of the folds and use them as inputs for the next stage. 
+So the pruned graphs are the stages.
+
+----
+
+When we've finally collected all kernels for all stages, what we need to do is 
+annotate the inputs and outputs with the stages in which they should resp. read and write.
+I think this only really matters for the outputs
+So for every output we need to check if it is connected to a mode in the set for a given stage.
+I fnot, it should not be written to. 
+The annotation is simply the set of stages where it is OK to write.
+
+----
+I realise I alos need the StencilDef nodes in Nodes, just so that at the end we can include them via EntryID
+
 
 =cut
 
