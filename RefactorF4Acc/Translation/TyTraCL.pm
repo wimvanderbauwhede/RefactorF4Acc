@@ -91,7 +91,7 @@ $ast->{'Nets'}{$net} = {
     From => {
             'Name'=>$f,
             'EntryID'=>$entry_id,
-            'NodeType'=> Map | Fold | StencilAppl
+            'NodeType'=> Map | Fold | StencilAppl | Input | Output
         },
 
     To => [
@@ -106,32 +106,17 @@ $ast->{'Nets'}{$net} = {
 }      
 
 $ast->{'Nodes'} = {
-        
-        $stencil_name}= {
-            NodeType => 'StencilAppl',
-            EntryID => $entry_id,
-            In => $input_net,
-            Out => $output_net
-        },
-    
-    
+          
         $map_name => {
-            NodeType => 'Map'
+            NodeType => Map | Fold | StencilAppl
             EntryID => $entry_id,
+            Inputs => [@input_nets],
+            Outputs => [@output_nets]            
             Dependencies => {
                 $dep_name => NodeType,
             }
         },
-    
-    
-        $fold_name => {
-            NodeType => 'Fold',
-            EntryID => $entry_id,
-            Dependencies => {
-                $dep_name => NodeType,
-            }
-        },
-    
+        
 }
 
 =cut
@@ -1014,15 +999,15 @@ sub build_connectivity_graph { my ($ast) = @_;
              $f = $entry->{'Rhs'}{'StencilCtr'};
             $entry->{'Rhs'}{'Function'}=$f; # for convenience so all nodes have the same structure
             my $output = _mkVarName( $entry->{'Lhs'}{'Var'} );       
-            say "$node_type $f OUT: $output";     
+            say "$node_type $f OUT: $output" if $DBG;     
             my $input = _mkVarName( $entry->{'Rhs'}{'Var'} );            
-            say "$node_type $f IN: $input";     
+            say "$node_type $f IN: $input" if $DBG;     
             push @{$ast->{'Nets'}{$output}{'From'}},{'Name'=>$f,'EntryID'=>$entry_id,'NodeType'=>$node_type};
             $ast->{'Nets'}{$output}{'NetType'}='Vec';
         
             push @{$ast->{'Nets'}{$input}{'To'}},{'Name'=>$f,'EntryID'=>$entry_id,'NodeType'=>$node_type};
             $ast->{'Nets'}{$input}{'NetType'}='Vec';
-            say "Stencil $f : $input => $output";
+            say "Stencil $f : $input => $output" if $DBG;
             $ast->{'Nodes'}{$f}={'NodeType'=>$node_type,'Inputs'=>[$input],'Outputs'=>[$output],'EntryID'=>$entry_id};            
         }
         if (defined $f and not exists $ast->{'Nodes'}{$f}) {
@@ -1046,23 +1031,37 @@ sub add_io_nodes_to_connectivity_graph { my ($ast) = @_;
         #  say "NET: $net";
         #  say Dumper($ast->{'Nets'}{$net});
         if (not exists $ast->{'Nets'}{$net}{'To'}) {
-            say "Net $net is an output for " #.$ast->{'Nets'}{$net}{'From'}{'Name'};
-            .join (' and ', map { $_->{'Name'} } @{ $ast->{'Nets'}{$net}{'From'} } );
+            say "Net $net is an output for " 
+            .join (' and ', map { $_->{'Name'} } @{ $ast->{'Nets'}{$net}{'From'} } ) if $DBG;
 
                 $ast->{'Nets'}{$net}{'To'}=[{
                     'Name'=>$net,
                     'NodeType'=>'Output'
                 }];
+                $ast->{'Nodes'}{$net}={
+                    'NodeType' => 'Output',
+                    'EntryID' => -1,
+                    'Inputs' => [$net],
+                    'Outputs' => [],
+                    'Dependencies' => {}
+                };
         }
         elsif (not exists $ast->{'Nets'}{$net}{'From'}) {
             # say Dumper($ast->{'Nets'}{$net}{'To'});
-            say "Net $net is an input for ".join (' and ', map { $_->{'Name'} } @{ $ast->{'Nets'}{$net}{'To'} } );
+            say "Net $net is an input for ".join (' and ', map { $_->{'Name'} } @{ $ast->{'Nets'}{$net}{'To'} } ) if $DBG;
                 $ast->{'Nets'}{$net}{'From'}=[
                     {
                     'Name'=>$net,
                     'NodeType'=>'Input'
                 }
-                ];                
+                ];        
+                $ast->{'Nodes'}{$net}={
+                    'NodeType' => 'Input',
+                    'EntryID' => -1,
+                    'Inputs' => [],
+                    'Outputs' => [$net],
+                    'Dependencies' => {}
+                };        
         }
     }
 

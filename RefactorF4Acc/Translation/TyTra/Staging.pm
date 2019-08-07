@@ -40,54 +40,86 @@ use Exporter;
 &find_dataflow_dependencies
 );
 
+=info
+Then we look at all fold kernels. For these, we make another dependency list. 
+What we want to do is find the folds that do not depend on folds; then the folds that depend on these; etc.
 
-# For every kernel, we look at its inputs and make a list of the kernels that provide those inputs, noting if they are vec or scalar and if the kernels are map or fold. We also note non-kernel inputs 
-sub find_dataflow_dependencies { my ($stref)=@_;
-    my $ast = $stref->{'TyTraCL_AST'};
-    $ast->{'Dependencies'}={};
-    my $entry_id=0;
-    # We use the $ast->{''} AST with StencilAppl 
-    for my $entry (@{ $ast->{'Lines'} }) {
+I can do this elegantly, or brute force, it does not really matter I think.
 
-        if ($entry->{'NodeType'} eq 'Map'
-        or $entry->{'NodeType'} eq 'Fold'
-        ) {
-            $ast = _find_deps_rec($ast,$entry_id,$entry->{'Rhs'}{'Function'});
+"elegantly" is probably:
+
+* Find an input node (or edge)
+* for every input, follow it (rec descent) until you hit the first fold but not further. 
+Store that fold (and the paths?)
+
+Then prune everything leading up to each of these, so the fold outputs will be the new inputs. 
+
+Then repeat the algorithm, and do this until there are no folds left.
+
+The result is the stages: each stage is a set of folds. Their dependencies are already known from the first stage. When we run such a stage, we need to store the outputs of the folds and use them as inputs for the next stage. So the pruned graphs are the stages.
+
+=cut
+
+
+# * Find an input node (or edge)
+# * for every input, follow it (rec descent) until you hit the first fold but not further. 
+# Store that fold (and the paths?)
+sub find_stages { my ($ast) = @_;
+    my $graph_has_folds = () = grep { $_->{'NodeType'} eq 'Fold'} sort keys %{$ast->{'Nodes'}};
+    my $nodes =dclone($ast->{'Nodes'});
+    my $stage=0;
+    while($graph_has_folds) {
+        my $folds_in_stage={};
+        for my $node (sort keys %{$nodes}) {
+            my $entry = $nodes->{$node};
+            if ($entry->{'NodeType'} eq 'Input') {
+                $folds_in_stage = _find_folds_for_stage_rec($folds_in_stage, $ast, $node);
+                # I think I should now delete this Input node
+                delete $nodes->{$node};
+            }            
         }
-        $entry_id++;
-    }
-    return $stref;
-}
-sub _find_deps_rec { my ($ast,$entry_id, $f) = @_;
-    my @inputs=();
-    my $entry = $ast->{'Lines'}[$entry_id];
-    my $node_type=$entry->{'NodeType'};
-    if ($node_type eq 'Map') {
-        
-    # Inputs are Rhs NonMapArgs and Rhs MapArgs
-    }
-    elsif ($node_type eq 'Fold') {
-    # Inputs are Rhs NonFoldArgs and Rhs FoldArgs and presumably Rhs AccArgs   
-    }
-    if (@inputs) {
-        for my $input_net_name (@inputs) {
-        # In the 'Nets' part of the AST we look up the 'From' field
-        # I guess the best way is to make this the index into Lines
-            my $dep_entry_id = $ast->{'Nets'}{$input_net_name}{'From'}{'EntryID'};
-            my $dep_entry = $ast->{'Lines'}[$dep_entry_id];
-            my $dep_node_type=$dep_entry->{'NodeType'};
-            my $g = $dep_entry->{'Rhs'}{'Function'};
-            $ast->{'Dependencies'}{$f}{$g}=$dep_node_type;
-            if ($entry_id>=0) {
-                $ast = _find_deps_rec($ast,$entry_id,$f);
-            } else {
-                return $ast;
+        $ast->{'Stages'}{$stage}=$folds_in_stage;
+        # Now prune the graph
+        # What this means is that for every fold in the stage, the output should become an Input edge
+        # In this way, the next iteration will start from those inputs
+        # So 
+        for my $fold (sort keys %{$folds_in_stage}) {
+            for my $fold_out_net (@{ $nodes->{$fold}{'Outputs'} } ) {
+                $nodes->{$fold_out_net}={
+                        'NodeType' => 'Input',
+                        'EntryID' => -1,
+                        'Inputs' => [],
+                        'Outputs' => [$fold_out_net],
+                        'Dependencies' => {}
+                    };        
             }
         }
+
+        $stage++;
     }
+    return $ast;
 }
 
 
-
+            # We know the node is an edge as well, so we look up its 'To' in 'Nets'
+            # There can be more than one
+            # This must become a recursive function
+sub _find_folds_for_stage_rec { my ($folds_in_stage, $ast, $node) = @_;                        
+    for my $entry ( @{ $ast->{'Nets'}{$node}{'To'} }) {
+        # {'Name'=>$f,'EntryID'=>$entry_id,'NodeType'=>$node_type};
+        my $f = $entry->{'Name'};
+        if ($entry->{'NodeType'} eq 'Fold') {                    
+            # found a fold, store it
+            $folds_in_stage->{$f}={};
+        } else {
+            # This is either a Map, StencilAppl or Output
+            if ($entry->{'NodeType'} ne 'Output') {
+                # rec descent
+                $folds_in_stage = _find_folds_for_stage_rec($folds_in_stage,$ast, $f);
+            }                    
+        }
+    }
+    return $folds_in_stage;
+}
 
 1;
