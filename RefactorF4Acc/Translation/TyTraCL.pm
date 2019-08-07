@@ -56,6 +56,44 @@ If cond, it is a read expression
 
 In each of these we get the AST and hunt for arrays. This is easy but would be easier if we had an 'everywhere' or 'everything' function
 
+
+type Name = String
+data VE = VI  | VO  | VS  | VT deriving (Show, Typeable, Data, Eq)
+    
+type AST = [(Expr,Expr)]                      
+
+data Expr =
+        -- Left-hand side:
+                      Scalar Name
+                    | Const Int -- bb: IntLit Integer
+                    | Tuple [Expr] --  bb: Tup [Expr]
+                    | Vec VE Name -- bb: Var Name, type via cofree comonad, but VE info is not there
+
+        -- Right-hand side:
+                    | SVec Int Name -- bb: SVec [Expr] -> to get a name, use a Let
+                    | ZipT [Expr] -- bb: App Zip (Tup  [...])
+                    | UnzipT Expr -- bb: App Unzip (vec of tuples)
+                    | Elt Int Expr -- bb: App (Select Integer) Tup
+                    | PElt Int -- bb does not need this
+                    | Map Expr Expr -- bb: App (Map Expr) Expr
+                    | Fold Expr Expr Expr -- bb: App (Fold (App action acc) Expr
+                    | Stencil Expr Expr -- bb uses App : App (Stencil (SVec [IntLit])) vector
+                    | Function Name -- bb: uses Var Name with a function type
+                    | Id -- bb has Id 
+                    | Mu Expr Expr -- \a e -> g a (f e) -- of course bb does not have this, no need
+                    | ApplyT [Expr]  -- bb: App FTup [Expr]
+                    | MapS Expr -- bb does not have this, not needed
+                    | Comp Expr Expr -- bb does not have this, not needed
+
+$ast->{Nets}{$net} = {
+    From = $from_node,
+    To = $to_node,
+}                    
+
+$ast->{Nodes}{$node} = {
+    
+}
+
 =cut
 
 sub pass_emit_TyTraCL {(my $stref, my $module_name)=@_;
@@ -76,6 +114,15 @@ sub pass_emit_TyTraCL {(my $stref, my $module_name)=@_;
 		);
         my $tytracl_str = _emit_TyTraCL($stref);
         say $tytracl_str;
+        say '=' x 80;
+        say '=' x 10, ' Connectivity graoh ';
+        say '=' x 80;
+        my $ast = $stref->{'TyTraCL_AST'} ;
+        $ast = build_connectivity_graph($ast);
+        $ast = add_io_nodes_to_connectivity_graph($ast);
+        $ast = remove_stencil_nodes_from_connectivity_graph($ast);
+        # say Dumper($ast->{'Nets'});
+        emitDotGraph($ast->{'Nets'});
         exit ;
 
 	return $stref;
@@ -83,23 +130,51 @@ sub pass_emit_TyTraCL {(my $stref, my $module_name)=@_;
 
 # {'Lines' => [
 #		{'NodeType' => 'StencilDef',
+#			'FunctionName' => $f,
 #			'Lhs' => {'Ctr' => $ctr_st},
-#			'Rhs' => {'StencilPattern' => { 'Accesses' => $state->{'Subroutines'}{ $f }{'Blocks'}{ $block_id }{'Arrays'}{$array_var}{$rw}{'Accesses'}},
-#			'Dims' => ...}
+#			'Rhs' => {'StencilPattern' => { 
+#                'Accesses' => { 
+#                    join(':', @offset_vals) => {
+#                        $iters[$idx] => [$mult_val,$offset_val],
+#                      }
+#                 }
+#    			'Dims' => [[$i_start,$i_end],[$j_start,$j_end],...]
+#           }
 #		};
 # 		{'NodeType' => 'StencilAppl',
+#           'FunctionName' => $f,
 # 			'Lhs' => {'Var' => [$array_var,$ctr_sv,'s'] },
 # 			'Rhs' => {'StencilCtr' => $ctr_st,'Var' => [$array_var, $ctr_in,''] }
 # 		};
 #		{'NodeType' => 'Map',
+#           'FunctionName' => $f,
 #			'Lhs' => {
 #				'Vars' =>[@out_tup_ast],
 #			},
 #			'Rhs' => {
+#				'Function' => $f,        
 #				'NonMapArgs' => {
 #					'Vars'=>[@non_map_args_ms_ast],
 #				},
 #				'MapArgs' =>{
+#					'Vars' =>$in_tup_ms_ast,
+#				}
+#			}
+#		};
+#		{'NodeType' => 'Fold',
+#           'FunctionName' => $f,
+#			'Lhs' => {
+#				'Vars' =>[@out_tup_ast],
+#			},
+#			'Rhs' => {
+#				'Function' => $f,    
+#				'NonFoldArgs' => {
+#					'Vars'=>[@non_map_args_ms_ast],
+#				},
+#				'FoldArgs' =>{
+#					'Vars' =>$in_tup_ms_ast,
+#				}
+#				'AccArgs' =>{
 #					'Vars' =>$in_tup_ms_ast,
 #				}
 #			}
@@ -116,6 +191,9 @@ sub pass_emit_TyTraCL {(my $stref, my $module_name)=@_;
 #							'Lhs' => {'Var' => [$array_var,$ctr_out,''] },
 #							'Rhs' =>  {'Var' => [$array_var, $ctr_in,''], 'Pattern'=> ['TODO']},
 #						};
+#   'Portions' => {
+#                      $array_var => 1, 
+#                 }
 #	]
 #};
 
@@ -267,7 +345,7 @@ sub _emit_TyTraCL {  (my $stref) = @_;
 
 
 sub _mkVarName { (my $rec) =@_;
-    #carp(Dumper($rec));
+    # carp(Dumper($rec));
 	(my $v, my $c, my $e) = @{$rec};
 	if ($e eq '') {
 		return "${v}_${c}";
@@ -594,67 +672,66 @@ sub _add_TyTraCL_AST_entry { (my $f, my $state, my $tytracl_ast, my $type, my $b
 		$array_var = '#dummy#';
 	}
 	if ($type eq 'INIT_AST') {
-	if (not exists $tytracl_ast->{'UniqueVarCounters'}) {
-		$tytracl_ast->{'UniqueVarCounters'}={'!s' => 0};
-	}
+        if (not exists $tytracl_ast->{'UniqueVarCounters'}) {
+            $tytracl_ast->{'UniqueVarCounters'}={'!s' => 0};
+        }
 	}
 	
 	my $unique_var_counters=$tytracl_ast->{'UniqueVarCounters'};
 	
 	if ($type eq 'INIT_COUNTERS') {
- 	if (not exists $unique_var_counters->{$array_var}) {
- 			$unique_var_counters->{$array_var}=0;
- 	}	
+        if (not exists $unique_var_counters->{$array_var}) {
+                $unique_var_counters->{$array_var}=0;
+        }	
 	}
 	if ($type eq 'STENCIL') {
-							my $ctr_st = ++$unique_var_counters->{'!s'};
-						push @{$tytracl_ast->{'Lines'}},
-						{'NodeType' => 'StencilDef', 'FunctionName' => $f,
-							'Lhs' => {'Ctr' => $ctr_st},
-							'Rhs' => {'StencilPattern' => {
-                                    'Accesses' => $state->{'Subroutines'}{ $f }{'Blocks'}{ $block_id }{'Arrays'}{$array_var}{$rw}{'Accesses'},
-                                    'Dims' => $state->{'Subroutines'}{ $f }{'Blocks'}{ $block_id }{'Arrays'}{$array_var}{'Dims'}
-                                }
-                            }
-						};
-						my $ctr_in = $unique_var_counters->{$array_var};
+        my $ctr_st = ++$unique_var_counters->{'!s'};
+        push @{$tytracl_ast->{'Lines'}},
+        {'NodeType' => 'StencilDef', 'FunctionName' => $f,
+            'Lhs' => {'Ctr' => $ctr_st},
+            'Rhs' => {'StencilPattern' => {
+                    'Accesses' => $state->{'Subroutines'}{ $f }{'Blocks'}{ $block_id }{'Arrays'}{$array_var}{$rw}{'Accesses'},
+                    'Dims' => $state->{'Subroutines'}{ $f }{'Blocks'}{ $block_id }{'Arrays'}{$array_var}{'Dims'}
+                }
+            }
+        };
+        my $ctr_in = $unique_var_counters->{$array_var};
 
-				 		if (not exists $unique_var_counters->{"${array_var}_s"}) {
-				 			$unique_var_counters->{"${array_var}_s"}=0;
-				 		} else {
-				 			$unique_var_counters->{"${array_var}_s"}++;
-				 		}
-				 		my $ctr_sv = $unique_var_counters->{"${array_var}_s"};
-                        #say "${array_var}_s$ctr_sv = stencil s$ctr_st ${array_var}_${ctr_in}";
-				 		push @{ $tytracl_ast->{'Lines'} },
-				 		{'NodeType' => 'StencilAppl', 'FunctionName' => $f,
-				 			'Lhs' => {'Var' => [$array_var,$ctr_sv,'s'] },
-				 			'Rhs' => {'StencilCtr' => $ctr_st,'Var' => [$array_var, $ctr_in,''] }
-				 		};
-				 		$tytracl_ast->{'Stencils'}{$array_var}=1,
+        if (not exists $unique_var_counters->{"${array_var}_s"}) {
+            $unique_var_counters->{"${array_var}_s"}=0;
+        } else {
+            $unique_var_counters->{"${array_var}_s"}++;
+        }
+        my $ctr_sv = $unique_var_counters->{"${array_var}_s"};        
+        push @{ $tytracl_ast->{'Lines'} },
+        {'NodeType' => 'StencilAppl', 'FunctionName' => $f,
+            'Lhs' => {'Var' => [$array_var,$ctr_sv,'s'] },
+            'Rhs' => {'StencilCtr' => $ctr_st,'Var' => [$array_var, $ctr_in,''] }
+        };
+        $tytracl_ast->{'Stencils'}{$array_var}=1,
 	} elsif ($type eq 'SELECT') {
-				 								my $ctr_in = $unique_var_counters->{$array_var};
+        my $ctr_in = $unique_var_counters->{$array_var};
 #						push @selects,"${array_var}_portion = select patt ${array_var}_${ctr_in} -- TODO";
-						push @{ $tytracl_ast->{'Selects'} },
-						{
-							'Lhs' => {'Var' => [$array_var, 'TODO','portion']},
-							'Rhs' =>  {'Var' => [$array_var, $ctr_in,''], 'Pattern' =>['TODO']}
-						};
-				 		if (not exists $unique_var_counters->{"${array_var}_portion"}) {
-				 			$unique_var_counters->{"${array_var}_portion"}=0;
-				 		} else {
-				 			$unique_var_counters->{"${array_var}_portion"}++;
-				 		}
-				 		$tytracl_ast->{'Portions'}{$array_var}=1,
+        push @{ $tytracl_ast->{'Selects'} },
+        {
+            'Lhs' => {'Var' => [$array_var, 'TODO','portion']},
+            'Rhs' =>  {'Var' => [$array_var, $ctr_in,''], 'Pattern' =>['TODO']}
+        };
+        if (not exists $unique_var_counters->{"${array_var}_portion"}) {
+            $unique_var_counters->{"${array_var}_portion"}=0;
+        } else {
+            $unique_var_counters->{"${array_var}_portion"}++;
+        }
+        $tytracl_ast->{'Portions'}{$array_var}=1,
  	} elsif ($type eq 'INSERT') {
-						my $ctr_in = $unique_var_counters->{$array_var};
-						my $ctr_out = ++$ctr_in;
-						$unique_var_counters->{$array_var}=$ctr_out;
+        my $ctr_in = $unique_var_counters->{$array_var};
+        my $ctr_out = ++$ctr_in;
+        $unique_var_counters->{$array_var}=$ctr_out;
 #						push @inserts, "${array_var}_${ctr_out} = insert patt buf_to_insert ${array_var}_${ctr_in} -- TODO";						
-						push @{$tytracl_ast->{'Inserts'}},{
-							'Lhs' => {'Var' => [$array_var,$ctr_out,''] },
-							'Rhs' =>  {'Var' => [$array_var, $ctr_in,''], 'Pattern'=> ['TODO']},
-						};
+        push @{$tytracl_ast->{'Inserts'}},{
+            'Lhs' => {'Var' => [$array_var,$ctr_out,''] },
+            'Rhs' =>  {'Var' => [$array_var, $ctr_in,''], 'Pattern'=> ['TODO']},
+        };
  	} elsif ($type eq 'MAP') {
  		my $node_type = 'Map';
  		my %portions = %{$tytracl_ast->{'Portions'}};
@@ -663,7 +740,6 @@ sub _add_TyTraCL_AST_entry { (my $f, my $state, my $tytracl_ast, my $type, my $b
 	# so for each var in $in_tup we need to get the counter, and for each var in $out_tup after that too.
 		(my $out_tup, my $in_tup_maybe_dummies) = pp_links($state->{'Subroutines'}{$f}{'Blocks'}{$block_id}{'Links'});
 		 $in_tup_maybe_dummies =$state->{'Subroutines'}{$f}{'Args'}{'In'};
-#		  say Dumper($in_tup_maybe_dummies);
 		# This is incorrect because it does not return arguments that are used in conditions only
 		my %accs =();
 		my @acc_args = ();
@@ -798,12 +874,10 @@ sub _add_TyTraCL_AST_entry { (my $f, my $state, my $tytracl_ast, my $type, my $b
 			}
 		};        	
         }
-        #		map { say $_ } @inserts;	
 	} elsif ($type eq 'MAIN') {
 		# TRICK: $state = $stref
 #				$ast_to_emit = $ast_emitter->( $f,  $stref,  $ast_to_emit, 'SELECT',  $block_id,  $array_var,  $rw) if $emit_ast; 
         $tytracl_ast->{'Main'} = $f;
-
         		
 #		map { say $_ } sort keys %{ $stref->{'Subroutines'}{$f} };
 #		say Dumper $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'};
@@ -816,5 +890,171 @@ sub _add_TyTraCL_AST_entry { (my $f, my $state, my $tytracl_ast, my $type, my $b
 				 		
 	return $tytracl_ast;
 } # END of _add_TyTraCL_AST_entry
+
+# We need to know the nodes connected to every net. 
+# We are only interested in the map/fold nodes, so we should skip any other node
+# For stencils this is trivial and it looks like we don't have zipt/unzipt in the AST
+# So for a stencil node, we replace the out net by the in net and continue.
+# So to build 'Nets', I think it is actually very simple:
+
+sub build_connectivity_graph { my ($ast) = @_;
+    $ast->{'Nets'}={};
+    $ast->{'StencilAppls'}={};
+    my $entry_id=0;
+    for my $entry ( @{ $ast->{'Lines'} } ) {
+        my $node_type=$entry->{'NodeType'};
+        if ($node_type eq 'Map') {            
+        # Inputs are Rhs NonMapArgs and Rhs MapArgs
+            my $f = $entry->{'Rhs'}{'Function'};
+            my @outputs = map { _mkVarName($_)  } @{ $entry->{'Lhs'}{'Vars'} };
+            my @map_inputs = map { _mkVarName($_)  } @{ $entry->{'Rhs'}{'MapArgs'}{'Vars'} };
+            my @nonmap_inputs = map { _mkVarName($_)  } @{ $entry->{'Rhs'}{'NonMapArgs'}{'Vars'}};
+            for my $output (@outputs) {
+                say "$node_type $f OUT: $output";     
+                $ast->{'Nets'}{$output}{'From'}={'Name'=>$f,'EntryID'=>$entry_id,'NodeType'=>$node_type};                
+                $ast->{'Nets'}{$output}{'NetType'}='Vec';
+            }
+            for my $input (@map_inputs) {
+                say "$node_type $f IN: $input";     
+                push @{$ast->{'Nets'}{$input}{'To'}},{'Name'=>$f,'EntryID'=>$entry_id,'NodeType'=>$node_type};
+                $ast->{'Nets'}{$input}{'NetType'}='Vec';
+            }
+            for my $input (@nonmap_inputs) {
+                say "$node_type $f IN: $input";     
+                push @{$ast->{'Nets'}{$input}{'To'}},{'Name'=>$f,'EntryID'=>$entry_id,'NodeType'=>$node_type};
+                $ast->{'Nets'}{$input}{'NetType'}='Scalar';
+            }
+        }
+        elsif ($node_type eq 'Fold') {
+        # Inputs are Rhs NonFoldArgs and Rhs FoldArgs and presumably Rhs AccArgs   
+            my $f = $entry->{'Rhs'}{'Function'};
+            my @outputs = map { _mkVarName($_)  } @{ $entry->{'Lhs'}{'Vars'} };
+            my @fold_inputs = map { _mkVarName($_)  } @{ $entry->{'Rhs'}{'FoldArgs'}{'Vars'} };
+            my @nonfold_inputs = map { _mkVarName($_)  } @{ $entry->{'Rhs'}{'NonFoldArgs'}{'Vars'} };
+            my @acc_inputs = map { _mkVarName($_)  } @{ $entry->{'Rhs'}{'AccArgs'}{'Vars'} };
+
+            for my $output (@outputs) {
+                say "$f OUT: $node_type: $output";     
+                $ast->{'Nets'}{$output}{'From'}={'Name'=>$f,'EntryID'=>$entry_id,'NodeType'=>$node_type};
+                $ast->{'Nets'}{$output}{'NetType'}='Vec';
+            }
+            for my $input (@fold_inputs) {
+                say "$f IN: $node_type: $input";     
+                push @{$ast->{'Nets'}{$input}{'To'}},{'Name'=>$f,'EntryID'=>$entry_id,'NodeType'=>$node_type};
+                $ast->{'Nets'}{$input}{'NetType'}='Vec';
+            }
+            for my $input (@nonfold_inputs, @acc_inputs) {
+                say "$f IN: $node_type: $input";     
+                push @{$ast->{'Nets'}{$input}{'To'}},{'Name'=>$f,'EntryID'=>$entry_id,'NodeType'=>$node_type};
+                $ast->{'Nets'}{$input}{'NetType'}='Scalar';
+            }
+
+        }
+        elsif ($node_type eq 'StencilAppl') {
+# 		{'NodeType' => 'StencilAppl',
+#           'FunctionName' => $f,
+# 			'Lhs' => {'Var' => [$array_var,$ctr_sv,'s'] },
+# 			'Rhs' => {'StencilCtr' => $ctr_st,'Var' => [$array_var, $ctr_in,''] }
+# 		};            
+        # Inputs are Rhs NonFoldArgs and Rhs FoldArgs and presumably Rhs AccArgs   
+            my $f = $entry->{'Rhs'}{'StencilCtr'};
+            
+            my $output = _mkVarName( $entry->{'Lhs'}{'Var'} );       
+            say "$node_type $f OUT: $output";     
+            my $input = _mkVarName( $entry->{'Rhs'}{'Var'} );            
+            say "$node_type $f IN: $input";     
+            $ast->{'Nets'}{$output}{'From'}={'Name'=>$f,'EntryID'=>$entry_id,'NodeType'=>$node_type};
+            $ast->{'Nets'}{$output}{'NetType'}='Vec';
+        
+            push @{$ast->{'Nets'}{$input}{'To'}},{'Name'=>$f,'EntryID'=>$entry_id,'NodeType'=>$node_type};
+            $ast->{'Nets'}{$input}{'NetType'}='Vec';
+            say "Stencil $f : $input => $output";
+            $ast->{'StencilAppls'}{$f}={'In'=>$input,'Out'=>$output};
+            
+        }
+        # StencilDefs are skipped, we don't need them
+        $entry_id++;
+    }
+    
+    return $ast;
+
+} # END of build_connectivity_graph
+
+sub add_io_nodes_to_connectivity_graph { my ($ast) = @_;
+    
+    for my $net (sort keys %{ $ast->{'Nets'} }) {
+        #  say "NET: $net";
+        #  say Dumper($ast->{'Nets'}{$net});
+        if (not exists $ast->{'Nets'}{$net}{'To'}) {
+            say "Net $net is an output for ".$ast->{'Nets'}{$net}{'From'}{'Name'};
+                $ast->{'Nets'}{$net}{'To'}=[{
+                    'Name'=>$net,
+                    'NodeType'=>'Output'
+                }];
+        }
+        elsif (not exists $ast->{'Nets'}{$net}{'From'}) {
+            # say Dumper($ast->{'Nets'}{$net}{'To'});
+            say "Net $net is an input for ".join (' and ', map { $_->{'Name'} } @{ $ast->{'Nets'}{$net}{'To'} } );
+                $ast->{'Nets'}{$net}{'From'}={
+                    'Name'=>$net,
+                    'NodeType'=>'Input'
+                };                
+        }
+    }
+
+    return $ast;
+} # END of add_io_nodes_to_connectivity_graph
+
+
+
+sub remove_stencil_nodes_from_connectivity_graph { my ($ast) = @_;
+    # find all nets that have a 'To' stencil; find the 
+    for my $net (sort keys %{ $ast->{'Nets'} }) {
+        for my $to (@{$ast->{'Nets'}{$net}{'To'}})   {
+        if ($to->{'NodeType'} eq 'StencilAppl') {
+            
+                my $stencil_node = $to->{'Name'};
+                say "Net $net input for stencil $stencil_node ";
+                # say Dumper($ast->{'StencilAppls'}{$stencil_node});
+                my $stencil_out = $ast->{'StencilAppls'}{$stencil_node}{'Out'};
+                # this $stencil_out is an input for a non-stencil node:
+                my $target_node = $ast->{'Nets'}{$stencil_out}{'To'}[0]; # there can only be one
+                $ast->{'Nets'}{$net}{'To'}=[$target_node];
+        }
+        }
+        if ($ast->{'Nets'}{$net}{'From'}{'NodeType'} eq 'StencilAppl') {
+            
+                my $stencil_node = $ast->{'Nets'}{$net}{'From'}{'Name'};
+                say "Net $net output from stencil $stencil_node ";
+                # say Dumper($ast->{'StencilAppls'}{$stencil_node});
+                my $stencil_in = $ast->{'StencilAppls'}{$stencil_node}{'In'};
+                # this $stencil_out is an input for a non-stencil node:
+                my $target_node = $ast->{'Nets'}{$stencil_in}{'From'};
+                $ast->{'Nets'}{$net}{'From'}=$target_node;
+        }        
+        
+    }
+
+    return $ast;
+} # END of remove_stencil_nodes_from_connectivity_graph
+
+sub emitDotGraph { (my $nets)=@_;
+    # a -> b [ label="a to b" ];
+    open my $DOT, '>', 'test_graph.dot' or die $!;
+    say $DOT 'digraph G {';
+    for my $net (sort keys %{$nets}) {
+        my $entry = $nets->{$net};
+        # carp Dumper $entry;
+        my $a = $entry->{'From'}{'NodeType'}.':'.$entry->{'From'}{'Name'};
+        for my $to (@{$entry->{'To'}}) {
+        my $b = $to->{'NodeType'}.':'.$to->{'Name'};
+        my $edge_label = $entry->{'NetType'}.':'.$net;
+        say $DOT "\"$a\" -> \"$b\" [ label=\"$edge_label\" ];";
+        }
+
+    }
+    say $DOT '}';
+    close $DOT ;
+}
 
 1;
