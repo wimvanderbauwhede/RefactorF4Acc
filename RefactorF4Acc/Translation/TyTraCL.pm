@@ -139,14 +139,26 @@ sub pass_emit_TyTraCL {(my $stref, my $module_name)=@_;
 		);
         my $tytracl_str = _emit_TyTraCL($stref);
         say $tytracl_str;
-        say '=' x 80;
-        say '=' x 10, ' Connectivity graoh ';
-        say '=' x 80;
         my $ast = $stref->{'TyTraCL_AST'} ;
+        say '=' x 80;
+        say '=' x 10, ' Build Connectivity Graph ';
+        say '=' x 80;
+        
         $ast = build_connectivity_graph($ast);
+        say '=' x 80;
+        say '=' x 10, ' Add IO Nodes to Connectivity Graph ';
+        say '=' x 80;
+
         $ast = add_io_nodes_to_connectivity_graph($ast);
+        say '=' x 80;
+        say '=' x 10, ' Remove Stencil Nodes from Connectivity Graph ';
+        say '=' x 80;
+
         $ast = remove_stencil_nodes_from_connectivity_graph($ast);
         # say Dumper($ast->{'Nets'});
+        say '=' x 80;
+        say '=' x 10, ' Find Dataflow Dependencies ';
+        say '=' x 80;        
         $ast = find_dataflow_dependencies($ast);
         # emitDotGraph($ast->{'Nets'});
         exit ;
@@ -158,7 +170,7 @@ sub pass_emit_TyTraCL {(my $stref, my $module_name)=@_;
 #		{'NodeType' => 'StencilDef',
 #			'FunctionName' => $f,
 #			'Lhs' => {'Ctr' => $ctr_st},
-#			'Rhs' => {'StencilPattern' => { 
+#			'Rhs' => {'StencilPattern' => { # This is $stencil_patt
 #                'Accesses' => { 
 #                    join(':', @offset_vals) => {
 #                        $iters[$idx] => [$mult_val,$offset_val],
@@ -380,7 +392,7 @@ sub _mkVarName { (my $rec) =@_;
 	}
 } # END of _mkVarName()
 
-sub __toTyTraCLType { (my $type)=@_;
+sub __toTyTraCLScalarType { (my $type)=@_;
 
     if ($type eq 'real') { return 'Float';
     } elsif ($type eq 'integer') { return 'Int';
@@ -389,6 +401,38 @@ sub __toTyTraCLType { (my $type)=@_;
         return ucfirst($type);
     }
 }
+
+sub __toTyTraCLType { (my $type, my $array_dims)=@_;
+if (not defined $array_dims or scalar @{$array_dims} == 0) { # Scalar
+    if ($type eq 'real') { 
+        return 'Float';
+    } elsif ($type eq 'integer') { 
+        return 'Int';
+    } else {
+        # ad-hoc!
+        return ucfirst($type);
+    }
+ } else { # Vector
+ say Dumper($array_dims);
+    my @ranges=();
+    for my $array_dim (@{ $array_dims } ) {
+        push @ranges, '('.$array_dim->[1].'-'.$array_dim->[0] . '+1)';            
+    }
+    my $vec_sz = '('.join('*',@ranges).')'; # FIXME: needs proper constant folding here!
+    my $scalar_type = ucfirst($type);
+    if ($type eq 'real') { 
+        $scalar_type = 'Float';
+    } elsif ($type eq 'integer') { 
+        $scalar_type = 'Int';
+    }
+
+    my $tycl_type= "Vec $vec_sz $scalar_type"; 
+    # say $tycl_type;
+    return $tycl_type;
+ }
+} # END of __toTyTraCLType
+
+
 
 # Maybe I will be lazy and only support 1, 2, 3 and 4 dimension
 
@@ -621,7 +665,7 @@ sub _addToVarTypes { (my $stref, my $var_types, my $stencils, my $node, my $lhs,
 
 # Add arguments to the signature of the main function
 sub _addToMainSig { (my $stref, my $main_rec, my $node, my $lhs, my $rhs, my $fname) = @_;
-    my $orig_args = $stref->{$stref->{'EmitAST'}}{'OrigArgs'};
+        my $orig_args = $stref->{$stref->{'EmitAST'}}{'OrigArgs'};
 		if ($node->{'NodeType'} eq 'StencilAppl') {
             # TODO: refactor!
             (my $var_name, my $ctr, my $ext) = @{$rhs->{'Var'}};
@@ -630,6 +674,12 @@ sub _addToMainSig { (my $stref, my $main_rec, my $node, my $lhs, my $rhs, my $fn
                         or $orig_args->{$var_name} eq 'inout' )) {
             if ($ctr == 0 && $ext eq '') {
                 push @{ $main_rec->{'InArgs'} }, _mkVarName($rhs->{'Var'});#$var_name;
+                my $var_name = $rhs->{'Var'}[0];#_mkVarName($rhs->{'Var'});
+                my $var_rec =  $stref->{'Subroutines'}{$fname}{'DeclaredOrigArgs'}{'Set'}{$var_name};                
+                my $dim = $var_rec->{'Dim'};
+                my $type = $var_rec->{'Type'};
+                $main_rec->{'InArgTypes'}{$var_name}=__toTyTraCLType($type,$dim);
+                say Dumper($main_rec->{'InArgTypes'}{$var_name});
             }
         }
         } elsif ($node->{'NodeType'} eq 'Map') {
@@ -922,6 +972,69 @@ sub _add_TyTraCL_AST_entry { (my $f, my $state, my $tytracl_ast, my $type, my $b
 # GRAPH ANALYSIS AND TRANSFORMATION FOR STAGING
 # ==============================================================================================================================
 
+=pod AST
+
+2019-08-08
+
+annotate each edge with the latency
+latencies are only non-0 for stencil caches
+
+if a node has incoming edges with different latencies:
+- the largest is propagated
+- the paths from inputs to this node must be separate
+I think we can follow each edge to its From, and get the non-fold deps for that node. Then see if the cross-section is empty, if so, no problem. If not, then the nodes in the cross section must be split.
+
+# Step 0
+
+- All nodes and edges must have a latency annotation, initially set at 0 except for Fold nodes (set at the vector size) an StencilAppl nodes (set at the stencil reach based on the StencilDef)
+- For all Input nodes, find the edges; for all edges, find the endpoint nodes. 
+- Set the endpoint node latency to the max of the latencies. This should be a different entry, 'AccumulatedLatency'. We should add the Latency of the node to this.
+Set all outgoing edges to that value. Do this in rec descent fashion. 
+
+EntryID is the line number in 'Lines'
+
+$ast->{'Nets'} = {
+    $net => {
+        From => {
+                'Name'=>$f,
+                'EntryID'=>$entry_id,
+                'NodeType'=> Map | Fold | StencilAppl | Input | Output
+            },
+
+        To => [
+            {
+                'Name'=>$f,
+                'EntryID'=>$entry_id,
+                'NodeType'=> Map | Fold | StencilAppl | Input | Output
+            },
+            ...
+        ],
+        NetType => Vec | Scalar
+        Latency => Integer
+
+    },
+};      
+
+$ast->{'Nodes'} = {          
+        $node_name => {
+            NodeType => Map | Fold | StencilAppl | StencilDef | Input | Output
+            Latency => Integer
+            EntryID => $entry_id,
+            Inputs => [@input_nets],
+            Outputs => [@output_nets]            
+            Dependencies => {
+                $dep_name => NodeType,
+            }
+        },        
+};
+
+$ast->{'NodeTypes'}{$node_type}= 
+{   $node_name => $ast->{'Nodes'}{$node_name},
+};
+
+=cut
+
+
 # We need to know the nodes connected to every net. 
 # We are only interested in the map/fold nodes, so we should skip any other node
 # For stencils this is trivial and it looks like we don't have zipt/unzipt in the AST
@@ -929,6 +1042,10 @@ sub _add_TyTraCL_AST_entry { (my $f, my $state, my $tytracl_ast, my $type, my $b
 # So to build 'Nets', I think it is actually very simple:
 
 sub build_connectivity_graph { my ($ast) = @_;
+# For stencils this is trivial and it looks like we don't have zipt/unzipt in the AST
+# So for a stencil node, we replace the out net by the in net and continue.
+# So to build 'Nets', I think it is actually very simple:
+
     $ast->{'Nets'}={};
     $ast->{'Nodes'}={
     };
@@ -936,6 +1053,7 @@ sub build_connectivity_graph { my ($ast) = @_;
     for my $entry ( @{ $ast->{'Lines'} } ) {
         my $node_type=$entry->{'NodeType'};
         my $f;
+        my $latency=0;
         if ($node_type eq 'Map') {            
         # Inputs are Rhs NonMapArgs and Rhs MapArgs
              $f = $entry->{'Rhs'}{'Function'};            
@@ -963,6 +1081,7 @@ sub build_connectivity_graph { my ($ast) = @_;
         }
         elsif ($node_type eq 'Fold') {
         # Inputs are Rhs NonFoldArgs and Rhs FoldArgs and presumably Rhs AccArgs   
+        # So how do I get the Latency for the fold? I think we should actually explicitly type all input vectors!
              $f = $entry->{'Rhs'}{'Function'};
             my @outputs = map { _mkVarName($_)  } @{ $entry->{'Lhs'}{'Vars'} };
             my @fold_inputs = map { _mkVarName($_)  } @{ $entry->{'Rhs'}{'FoldArgs'}{'Vars'} };
@@ -996,8 +1115,13 @@ sub build_connectivity_graph { my ($ast) = @_;
 # 			'Rhs' => {'StencilCtr' => $ctr_st,'Var' => [$array_var, $ctr_in,''] }
 # 		};            
         # Inputs are Rhs NonFoldArgs and Rhs FoldArgs and presumably Rhs AccArgs   
-             $f = $entry->{'Rhs'}{'StencilCtr'};
+            my $ctr = $entry->{'Rhs'}{'StencilCtr'};
+            $f = 'sa_'.$ctr;
             $entry->{'Rhs'}{'Function'}=$f; # for convenience so all nodes have the same structure
+            my $st_def='sd_'.$ctr;
+            $latency = $ast->{'Nodes'}{$st_def}{'Latency'};
+
+
             my $output = _mkVarName( $entry->{'Lhs'}{'Var'} );       
             say "$node_type $f OUT: $output" if $DBG;     
             my $input = _mkVarName( $entry->{'Rhs'}{'Var'} );            
@@ -1010,14 +1134,34 @@ sub build_connectivity_graph { my ($ast) = @_;
             say "Stencil $f : $input => $output" if $DBG;
             $ast->{'Nodes'}{$f}={'NodeType'=>$node_type,'Inputs'=>[$input],'Outputs'=>[$output],'EntryID'=>$entry_id};            
         }
-        if (defined $f and not exists $ast->{'Nodes'}{$f}) {
+        elsif ($node_type eq 'StencilDef') {
+            # The StencilDef always comes before the StencilAppl
+            # We need to set the latency here and then take it from here
+            
+            my $ctr = $entry->{'Lhs'}{'Ctr'};
+            my $stencil_patt = $entry->{'Rhs'}{'StencilPattern'};
+            my $stencil_values = _generate_TyTraCL_stencils($stencil_patt);
+            say Dumper($stencil_values);
+            my ($min,$max)=__get_min_max_from_array($stencil_values);
+            $latency = $max-$min;
+            $f = 'sd_'.$ctr; # because otherwise StencilDef and StencilAppl will clash
+            $ast->{'Nodes'}{$f}={'NodeType'=>$node_type,'Inputs'=>[],'Outputs'=>[$ctr],'EntryID'=>$entry_id};
+        }
+
+        if (defined $f) {
+            # say "F: $f";
+            if ( not exists $ast->{'Nodes'}{$f}{'NodeType'}) {
             $ast->{'Nodes'}{$f}={
                 'NodeType' => $node_type,
                 'EntryId' => $entry_id,
+                'Latency' => $latency,
                 'Dependencies' =>{}
             };
+            } 
+            # else {
+            #     say "Node for $f already exists: ".Dumper($ast->{'Nodes'}{$f});
+            # }
         }
-        # StencilDefs are skipped, we don't need them
         $entry_id++;
     }
     
@@ -1043,6 +1187,7 @@ sub add_io_nodes_to_connectivity_graph { my ($ast) = @_;
                     'EntryID' => -1,
                     'Inputs' => [$net],
                     'Outputs' => [],
+                    'Latency' => 0,
                     'Dependencies' => {}
                 };
         }
@@ -1060,6 +1205,7 @@ sub add_io_nodes_to_connectivity_graph { my ($ast) = @_;
                     'EntryID' => -1,
                     'Inputs' => [],
                     'Outputs' => [$net],
+                    'Latency' => 0,
                     'Dependencies' => {}
                 };        
         }
@@ -1067,8 +1213,6 @@ sub add_io_nodes_to_connectivity_graph { my ($ast) = @_;
 
     return $ast;
 } # END of add_io_nodes_to_connectivity_graph
-
-
 
 sub remove_stencil_nodes_from_connectivity_graph { my ($ast) = @_;
     # find all nets that have a 'To' stencil; find the 
@@ -1109,9 +1253,11 @@ sub remove_stencil_nodes_from_connectivity_graph { my ($ast) = @_;
 sub find_dataflow_dependencies { my ($ast)=@_;
     my $non_fold_only=1;
     for my $node (sort keys %{ $ast->{'Nodes'} }) {
+        # say $node,Dumper $ast->{'Nodes'}{$node};
+        # say $ast->{'Nodes'}{$node}{NodeType}," NODE: $node";
         $ast->{'Nodes'}{$node}{'Dependencies'}={};
         $ast = _find_deps_rec($ast,$node,$node,$non_fold_only);
-        say "NODE: $node DEPS: ".Dumper($ast->{'Nodes'}{$node}{'Dependencies'}) unless $ast->{'Nodes'}{$node}{'NodeType'} eq 'Input';
+        say $ast->{'Nodes'}{$node}{NodeType}," NODE: $node DEPS: ".Dumper($ast->{'Nodes'}{$node}{'Dependencies'}) unless $ast->{'Nodes'}{$node}{'NodeType'} eq 'Input' or $ast->{'Nodes'}{$node}{'NodeType'} eq 'StencilDef';
     }
     return $ast;
 } # END of find_dataflow_dependencies
@@ -1125,6 +1271,7 @@ sub _find_deps_rec { my ($ast,$f_curr, $f_target,$non_fold_only) = @_;
         my $dep_node_type=$ast->{'Nets'}{$input_net_name}{'From'}[0]{'NodeType'};
         
         if ($dep_node_type ne 'Input' and
+        $dep_node_type ne 'StencilDef' and
              (not $non_fold_only or $dep_node_type ne 'Fold')
         ) {
             my $dep_entry_id = $ast->{'Nets'}{$input_net_name}{'From'}[0]{'EntryID'};
@@ -1163,5 +1310,17 @@ sub emitDotGraph { (my $nets)=@_;
     say $DOT '}';
     close $DOT ;
 }
+
+sub __get_min_max_from_array { my ($values) = @_;
+
+    my $max = shift @{$values};
+    my $min = $max;
+
+    for my $val (@{$values}) {
+        $max = $val > $max ? $val : $max;
+        $min = $val < $min ? $val : $min;
+    }
+    return ($min, $max);
+} # END of __get_min_max_from_array_from_array
 
 1;
