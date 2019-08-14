@@ -174,7 +174,12 @@ sub pass_emit_TyTraCL {(my $stref, my $module_name)=@_;
 
         $ast = propagate_net_types($ast);
         # die;
-croak Dumper $ast->{Nodes};
+        say '=' x 80;
+        say '=' x 10, 'Propagate Latency';
+        say '=' x 80;
+
+        $ast = propagate_latency($ast);
+# croak Dumper $ast->{Nets};
         # say '=' x 80;
         # say '=' x 10, ' Remove Stencil Nodes from Connectivity Graph ';
         # say '=' x 80;
@@ -1219,22 +1224,6 @@ sub _add_TyTraCL_AST_entry { (my $f, my $state, my $tytracl_ast, my $type, my $b
 
 =pod AST
 
-2019-08-08
-
-annotate each edge with the latency
-latencies are only non-0 for stencil caches
-
-if a node has incoming edges with different latencies:
-- the largest is propagated
-- the paths from inputs to this node must be separate
-I think we can follow each edge to its From, and get the non-fold deps for that node. Then see if the cross-section is empty, if so, no problem. If not, then the nodes in the cross section must be split.
-
-# Step 0
-
-- All nodes and edges must have a latency annotation, initially set at 0 except for Fold nodes (set at the vector size) an StencilAppl nodes (set at the stencil reach based on the StencilDef)
-- For all Input nodes, find the edges; for all edges, find the endpoint nodes. 
-- Set the endpoint node latency to the max of the latencies. This should be a different entry, 'AccumulatedLatency'. We should add the Latency of the node to this.
-Set all outgoing edges to that value. Do this in rec descent fashion. 
 
 EntryID is the line number in 'Lines'
 
@@ -1318,12 +1307,14 @@ sub build_connectivity_graph { my ($ast) = @_;
                 say "$node_type $f OUT: $output";     
                 push @{$ast->{'Nets'}{$output}{'From'}},{'Name'=>$f,'EntryID'=>$entry_id,'NodeType'=>$node_type};                
                 $ast->{'Nets'}{$output}{'NetType'}='Stream';
+                $ast->{'Nets'}{$output}{'Latency'}=0;
                 # push @{$ast->{'Nodes'}{$f}{'Outputs'}}, $output;
             }
             for my $input (@map_inputs) {
                 say "$node_type $f IN: $input";     
                 push @{$ast->{'Nets'}{$input}{'To'}},{'Name'=>$f,'EntryID'=>$entry_id,'NodeType'=>$node_type};
                 $ast->{'Nets'}{$input}{'NetType'}='Stream';
+                $ast->{'Nets'}{$input}{'Latency'}=0;
                 # push @{$ast->{'Nodes'}{$f}{'Inputs'}}, $input;
             }
             for my $input (@nonmap_inputs) {
@@ -1362,6 +1353,7 @@ sub build_connectivity_graph { my ($ast) = @_;
                 say "$f IN: $node_type: $input";     
                 push @{$ast->{'Nets'}{$input}{'To'}},{'Name'=>$f,'EntryID'=>$entry_id,'NodeType'=>$node_type};
                 $ast->{'Nets'}{$input}{'NetType'}='Stream';
+                $ast->{'Nets'}{$input}{'Latency'}=0;
                 push @{$ast->{'Nodes'}{$f}{'Inputs'}}, $input;
             }
             for my $input (@nonfold_inputs, @acc_inputs) {
@@ -1452,7 +1444,7 @@ sub add_io_nodes_to_connectivity_graph { my ($ast) = @_;
 
                 $ast->{'Nets'}{$net}{'To'}=[{
                     'Name'=>$net,
-                    'NodeType'=>'Output'
+                    'NodeType'=>'Output'                    
                 }];
                 $ast->{'Nodes'}{$net}={
                     'NodeType' => 'Output',
@@ -1480,6 +1472,9 @@ sub add_io_nodes_to_connectivity_graph { my ($ast) = @_;
                     'Latency' => 0,
                     'Dependencies' => {}
                 };        
+        }
+        if (not exists $ast->{'Nets'}{$net}{'Latency'}) {
+            $ast->{'Nets'}{$net}{'Latency'} =0;
         }
     }
 
@@ -1518,10 +1513,8 @@ We find their To, look it up in Nodes
 - If it's a Fold or a StencilDef or an Output, we do nothing (We stop on Fold and Output, ignore StencilDef)
 
  - Then we call the function again with each of the output nets, etc.
- 
-
-
 =cut
+
 sub propagate_net_types { my ($ast) = @_;
     for my $node (sort keys %{ $ast->{'Nodes'} }) {
         if ($ast->{'Nodes'}{$node}{'NodeType'} eq 'Input') {
@@ -1563,6 +1556,67 @@ sub _prop_net_types_rec { my ($ast, $nets) = @_;
     }
     return $ast;
 } # END of _prop_net_types_rec
+
+=pod latency
+
+2019-08-08
+
+annotate each edge with the latency
+latencies are only non-0 for stencil caches
+
+if a node has incoming edges with different latencies:
+- the largest is propagated
+- the paths from inputs to this node must be separate
+I think we can follow each edge to its From, and get the non-fold deps for that node. Then see if the cross-section is empty, if so, no problem. If not, then the nodes in the cross section must be split.
+
+# Step 0
+
+- All nodes and edges must have a latency annotation, initially set at 0 except for Fold nodes (set at the vector size) an StencilAppl nodes (set at the stencil reach based on the StencilDef)
+- For all Input nodes, find the edges; for all edges, find the endpoint nodes. 
+- Set the endpoint node latency to the max of the latencies. This should be a different entry, 'AccumulatedLatency'. We should add the Latency of the node to this.
+Set all outgoing edges to that value. Do this in rec descent fashion. 
+=cut
+
+sub propagate_latency { my ($ast) = @_;
+    for my $node (sort keys %{ $ast->{'Nodes'} }) {
+        if ($ast->{'Nodes'}{$node}{'NodeType'} eq 'Input') {
+            my $input_nets = $ast->{'Nodes'}{$node}{'Outputs'};            
+            $ast = _prop_latency_rec($ast,$input_nets);                        
+        }
+    }
+    return $ast;
+} # END of propagate_net_types
+
+sub _prop_latency_rec { my ($ast, $nets) = @_;
+    for my $net (@{$nets}) {        
+        # say "NET: $net ".$ast->{'Nets'}{$net}{'Latency'};
+            for my $to_rec (@{$ast->{'Nets'}{$net}{'To'}}) {
+                my $to = $to_rec->{'Name'};
+                # say "TO ".$to->{'NodeType'}. ' ' . $to->{'Name'};
+                if ($to_rec->{'NodeType'} ne 'Output' ) {                    
+
+                    my $in_nets = $ast->{'Nodes'}{$to}{'Inputs'};
+                    my $max_in_net_latency=0;
+                    for my $in_net (@{$in_nets}) {                        
+                        $max_in_net_latency = $ast->{'Nets'}{$in_net}{'Latency'} > $max_in_net_latency ?  $ast->{'Nets'}{$in_net}{'Latency'} : $max_in_net_latency;
+                    }
+                    my $node_latency = $ast->{'Nodes'}{$to}{'Latency'};
+                    my $out_net_latency = $max_in_net_latency + $node_latency;
+                    # say "TO ".$to_rec->{'NodeType'}. ' ' . $to; 
+                    # The outputs of this map must get the type from input                    
+                    # say Dumper($ast->{'Nodes'}{$to});
+                    my $out_nets = $ast->{'Nodes'}{$to}{'Outputs'};
+                    for my $out_net (@{$out_nets}) {
+                        # say "TO $to has OUT $out_net";
+                        $ast->{'Nets'}{$out_net}{'Latency'} = $out_net_latency;
+                    }
+                    # then we recurse with these output as the new inputs
+                    $ast = _prop_latency_rec($ast,$out_nets);
+                } 
+            }
+    }
+    return $ast;
+} # END of _prop_latency_rec
 
 
 sub remove_stencil_nodes_from_connectivity_graph { my ($ast) = @_;

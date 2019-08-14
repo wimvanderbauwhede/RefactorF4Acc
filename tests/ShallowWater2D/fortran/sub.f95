@@ -145,9 +145,11 @@ END SUBROUTINE dyn
 SUBROUTINE shapiro
 
 !local parameters
+REAL alpha
+PARAMETER (alpha=1e-9)
 REAL :: term1,term2,term3
 
-! 1-order Shapiro filter
+! Average value of eta, this is an invention to test reductions
 REAL :: etan_avg
 etan_avg = 0
 DO j = 1,ny
@@ -156,6 +158,7 @@ etan_avg = etan_avg + etan(j,k)/(nx*ny)
 END DO
 END DO
 
+! 1-order Shapiro filter
 
 DO j = 1,ny
 DO k = 1,nx
@@ -168,7 +171,7 @@ IF(wet(j,k)==1)THEN
 ELSE
   eta(j,k) = etan(j,k)
 END IF
-eta(j,k) = (3.0*eta(j,k) + etan_avg)/4.0
+eta(j,k) = (1-alpha)*eta(j,k) + alpha*etan_avg
 END DO
 END DO
 
