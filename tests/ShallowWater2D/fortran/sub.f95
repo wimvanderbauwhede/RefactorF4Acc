@@ -148,6 +148,14 @@ SUBROUTINE shapiro
 REAL :: term1,term2,term3
 
 ! 1-order Shapiro filter
+REAL :: etan_avg
+etan_avg = 0
+DO j = 1,ny
+DO k = 1,nx
+etan_avg = etan_avg + etan(j,k)/(nx*ny)
+END DO
+END DO
+
 
 DO j = 1,ny
 DO k = 1,nx
@@ -160,7 +168,7 @@ IF(wet(j,k)==1)THEN
 ELSE
   eta(j,k) = etan(j,k)
 END IF
-
+eta(j,k) = (3.0*eta(j,k) + etan_avg)/4.0
 END DO
 END DO
 

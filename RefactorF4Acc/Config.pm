@@ -216,6 +216,7 @@ our $config_menu= {
     'SUPER_ADVANCED' => [
         ['NO_ONLY','Generate USE without ONLY? 0/1','0'],
         ['RENAME_EXT', 'Suffix for renaming clashing variables ','_GLOB'],
+        ['EVAL_PARAM_EXPRS','Evaluate RHS expression of parameter declarations? 0/1','0'],
         ['NO_MODULE','Comma-separated list of source files that should not be changed to modules',''],
         ['MACRO_SRC','Relative path to C-style header file with macro definitions','macros.h']
     ]
