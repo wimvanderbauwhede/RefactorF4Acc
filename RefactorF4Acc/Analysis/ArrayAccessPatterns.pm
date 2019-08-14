@@ -107,8 +107,6 @@ sub identify_array_accesses_in_exprs { (my $stref, my $f) = @_;
 
             my $in_block = exists $info->{Block} ? $info->{Block}{LineID} : '-1';
             my $block_id = exists $state->{'Subroutines'}{$f}{'LoopNests'} ? __mkLoopId( $state->{'Subroutines'}{$f}{'LoopNests'} ) : 0;
-#			say 'BLOCK '.$info->{LineID}."\t$block_id\t\'$line\'";# => ;#.' '.$info->{Block}{LineID} ;#if ($info->{LineID} == 0);# or $info->{Block}{LineID} == 0);
-            #my $block_id = 0;#$info->{'Block'}{'LineID'};
             #
 			# Identify the subroutine
 			if ( exists $info->{'Signature'} ) {
@@ -129,22 +127,17 @@ sub identify_array_accesses_in_exprs { (my $stref, my $f) = @_;
                 for my $arg ( @{ $info->{'Signature'}{'Args'}{'List'} } ) {
                 	my $arg_decl = get_var_record_from_set($stref->{'Subroutines'}{$f}{'Args'},$arg);		
 					my $intent =$arg_decl->{'IODir'};
-#					if ($FOLD) {       
-						my $is_scalar = $arg_decl->{'ArrayOrScalar'} eq 'Array' ? 0 : 1;
-						if ($is_scalar and $intent eq 'out' or $intent eq 'inout') {
-#							say "MAYBE ACC in $f: $arg"; 
-							push @{ $state->{'Subroutines'}{$f}{'Args'}{'MaybeAcc'} }, $arg;
-						}
-#					}
+					my $is_scalar = $arg_decl->{'ArrayOrScalar'} eq 'Array' ? 0 : 1;
+					if ($is_scalar and $intent eq 'out' or $intent eq 'inout') {
+						push @{ $state->{'Subroutines'}{$f}{'Args'}{'MaybeAcc'} }, $arg;
+					}
 					if ($intent ne 'out') {
 						push @{ $state->{'Subroutines'}{$f}{'Args'}{'In'} }, $arg;
 					}
 					if ($intent ne 'in') {
 						push @{ $state->{'Subroutines'}{$f}{'Args'}{'Out'} }, $arg;
 					}         
-						                	
                 }
-                
 			}
 			# For every VarDecl, identify dimension if it is an array
 			if (exists $info->{'VarDecl'} and not exists $info->{'ParamDecl'} and __is_array_decl($info)) {
@@ -172,7 +165,7 @@ sub identify_array_accesses_in_exprs { (my $stref, my $f) = @_;
 						push @{$dim_vals},$dim_val;
 					}
                     # This is also used to generate the 1-D stencils for TyTraCL
-					push @{ $state->{'Subroutines'}{ $f }{'Blocks'}{ $block_id }{'Arrays'}{$array_var}{'Dims'} },$dim_vals;					
+					push @{ $state->{'Subroutines'}{ $f }{'Blocks'}{ $block_id }{'Arrays'}{$array_var}{'Dims'} },$dim_vals;
 				}
 #				say "{ $f }{ $block_id }{'Arrays'}{$array_var}{'Dims'}";
 #				say Dumper($state->{'Subroutines'}{ $f }{'Blocks'}{ $block_id }{'Arrays'}{$array_var}{'Dims'});
@@ -370,7 +363,7 @@ sub identify_array_accesses_in_exprs { (my $stref, my $f) = @_;
         # die (keys %{$state})  if $f =~/shapiro_map/; 
         # {Arrays}{wet}{Read}{Exprs}}
 #        die Dumper($state->{Subroutines}{shapiro_map_15}{Blocks}{0}) if $f =~/shapiro_map/;	
-        $stref->{'Subroutines'}{ $f }{'ArrayAccesses'} = $state->{Subroutines}{$f}{Blocks};
+        $stref->{'Subroutines'}{ $f }{'ArrayAccesses'} = $state->{'Subroutines'}{$f}{'Blocks'};
 	} # if subkernel not superkernel
 	else {
 #		        		say "-- SUPERKERNEL $f: ";
@@ -1013,7 +1006,7 @@ sub _detect_halo_accesses {
 					if (exists $decl->{'Halos'}) {
 			        	$array_halo = $decl->{'Halos'}[$idx][$b];
 					} else {
-						say "WARNING: NO halo attribute for $array_var";
+						say "WARNING: NO halo attribute for $array_var" if $W;
 					}
 #			        say "HALO: $array_halo"; 
 			        my $in_halo = $b ? 
@@ -1068,7 +1061,7 @@ sub _detect_halo_accesses {
 					if (exists $decl->{'Halos'}) {
 			        	$array_halo = $decl->{'Halos'}[$idx][$b];
 					} else {
-						say "WARNING: NO halo attribute for $array_var";
+						say "WARNING: NO halo attribute for $array_var" if $W;
 					}
 			        
 #			        say "HALO: $array_halo"; 

@@ -42,6 +42,9 @@ use Exporter;
 &pass_emit_TyTraCL
 );
 
+# If set to 0, Folds are identified as Maps (for dev/debug)
+# The NodeType is set in _add_TyTraCL_AST_entry which is called in ArrayAccessPatterns
+# The way a Fold is detected is by detecting an accumulation operation ('Acc')
 our $FOLD=0;
 
 =info
@@ -124,7 +127,12 @@ $ast->{'Nodes'} = {
 sub pass_emit_TyTraCL {(my $stref, my $module_name)=@_;
     # WV: I think Selects and Inserts should be in Lines but I'm not sure
     $stref->{'EmitAST'} = 'TyTraCL_AST';
-	$stref->{'TyTraCL_AST'} = {'Lines' => [], 'Selects' => [], 'Inserts' => [], 'Stencils'=>{},'Portions'=>{},'ASTEmitter' => \&_add_TyTraCL_AST_entry};
+	$stref->{'TyTraCL_AST'} = {
+        'Lines' => [], 
+        'Selects'=>[], 'Inserts'=>[], 'Stencils'=>{},'Portions'=>{},
+        'Main' => {},
+        'ASTEmitter' => \&_add_TyTraCL_AST_entry
+        };
 	$stref = pass_wrapper_subs_in_module($stref,$module_name,
 	           # module-specific passes 
             [],
@@ -137,9 +145,11 @@ sub pass_emit_TyTraCL {(my $stref, my $module_name)=@_;
 				],
 			]
 		);
-        my $tytracl_str = _emit_TyTraCL($stref);
-        say $tytracl_str;
-        my $ast = $stref->{'TyTraCL_AST'} ;
+        $stref = _construct_TyTraCL_AST_Main_node($stref);
+        $stref = _emit_TyTraCL($stref);
+        my $tytracl_str = $stref->{'TyTraCL_Code'} ;
+        say $tytracl_str; # Maybe store in stref as TyTraCL_Code and return $stref
+        my $ast = $stref->{'TyTraCL_AST'} ; # The MainRec node has info about VarTypes and Stencils
         say '=' x 80;
         say '=' x 10, ' Build Connectivity Graph ';
         say '=' x 80;
@@ -235,6 +245,41 @@ sub pass_emit_TyTraCL {(my $stref, my $module_name)=@_;
 #	]
 #};
 
+sub _construct_TyTraCL_AST_Main_node {  (my $stref) = @_;
+	# FIXME: we ignore Selects and Inserts for now.
+    # We need the superkernel as the main, and we must identify its input and output arguments
+    # Input args have Ctr==0 on the Rhs
+    # Output args $arg have Ctr == $tytracl_ast->{'UniqueVarCounters'}{$arg}
+	my $tytracl_ast = $stref->{'TyTraCL_AST'} ;
+	
+    my $main_rec = {
+        'NodeType' => 'Main', 
+        'InArgs' => [], 
+        'OutArgs' => [],
+        'InArgsTypes' => {},
+        'OutArgsTypes' => {},
+        'Main' => $tytracl_ast->{'Main'},
+        'Stencils'=>{},
+        'VarTypes' => {}
+        };
+    my $var_types={};
+    my $stencils={};
+	for my $node (@{ $tytracl_ast->{'Lines'} } ) {
+        my $fname = $node->{'FunctionName'};
+		my $lhs = $node->{'Lhs'} ;
+		my $rhs = $node->{'Rhs'} ;
+        # This is not an Emitter step
+        $main_rec = _addToMainSig($stref,$main_rec, $node, $lhs, $rhs, $fname);
+        ($var_types, $stencils) = _addToVarTypesAndStencils($stref, $var_types, $stencils, $node, $lhs, $rhs, $fname,\&__toTyTraCLType);        
+    }
+    $main_rec->{'Stencils'}=$stencils;
+    $main_rec->{'VarTypes'}=$var_types;
+    # say Dumper($main_rec);
+    $stref->{'TyTraCL_AST'}{'MainRec'} = $main_rec;
+
+    return $stref;
+}
+
 sub _emit_TyTraCL {  (my $stref) = @_;
 	# FIXME: we ignore Selects and Inserts for now.
     # We need the superkernel as the main, and we must identify its input and output arguments
@@ -242,15 +287,13 @@ sub _emit_TyTraCL {  (my $stref) = @_;
     # Output args $arg have Ctr == $tytracl_ast->{'UniqueVarCounters'}{$arg}
 	my $tytracl_ast = $stref->{'TyTraCL_AST'} ;
 	my $tytracl_strs = [];
-    my $main_rec = {'NodeType' => 'Main', 'InArgs' => [], 'OutArgs' => [],'Main' => $tytracl_ast->{'Main'}};
-    my $var_types={};
-    my $stencils={};
+    
+
 	for my $node (@{ $tytracl_ast->{'Lines'} } ) {
         my $fname = $node->{'FunctionName'};
 		my $lhs = $node->{'Lhs'} ;
 		my $rhs = $node->{'Rhs'} ;
-        $main_rec = _addToMainSig($stref,$main_rec, $node, $lhs, $rhs, $fname);
-        ($var_types, $stencils) = _addToVarTypes($stref, $var_types, $stencils, $node, $lhs, $rhs, $fname,\&__toTyTraCLType);
+
         # These are never arguments of the main function
 		if ($node->{'NodeType'} eq 'StencilDef') {
 			my $ctr = $lhs->{'Ctr'};
@@ -279,9 +322,6 @@ sub _emit_TyTraCL {  (my $stref) = @_;
 			my $lhs_var = _mkVarName($lhs->{'Var'});
 			my $rhs_var = _mkVarName($rhs->{'Var'});
             (my $var_name, my $ctr, my $ext) = @{$rhs->{'Var'}};
-            #            if ($ctr == 0 && $ext eq '') {
-            #                push @{ $main_rec->{'InArgs'} }, $var_name;
-            #            }
 			my $stencil_ctr = $rhs->{'StencilCtr'};
 			my $line = "$lhs_var = stencil s$stencil_ctr $rhs_var";
 			push @{$tytracl_strs},$line;
@@ -354,12 +394,25 @@ sub _emit_TyTraCL {  (my $stref) = @_;
 			croak;
 		}
 	}
+
     # Indent
      my @tytracl_strs_indent = map {"    $_"} @{$tytracl_strs};
    #
 
     # Wrap into main
     #
+    my $main_rec = $tytracl_ast->{'MainRec'};
+    my $in_args_types = $main_rec->{'InArgsTypes'};
+    my @in_arg_type_decls=();
+    for my  $in_arg (sort keys %{$in_args_types}){
+        push @in_arg_type_decls, "$in_arg :: ". _emit_TyTraCLType($in_args_types->{$in_arg});
+    }
+    my $out_args_types = $main_rec->{'OutArgsTypes'};
+    my @out_arg_type_decls=();
+    for my  $out_arg (sort keys %{$out_args_types}){
+        push @out_arg_type_decls, "$out_arg :: ". _emit_TyTraCLType($out_args_types->{$out_arg});
+    }
+
     my $main_in_args_str = scalar @{$main_rec->{'InArgs'}} > 1 ? '('.join(',', @{$main_rec->{'InArgs'}}).')' :  $main_rec->{'InArgs'}->[0];
     my $main_out_args_str = scalar @{$main_rec->{'OutArgs'}} > 1 ? '('.join(',', @{$main_rec->{'OutArgs'}}).')' :  $main_rec->{'OutArgs'}->[0];
     unshift @tytracl_strs_indent, '  let';
@@ -369,18 +422,43 @@ sub _emit_TyTraCL {  (my $stref) = @_;
     push @tytracl_strs_indent,"    $main_out_args_str";
 
     # Add function type decls
-    #
+    my $var_types=$main_rec->{'VarTypes'};
     for my $f (sort keys %{ $var_types }) {
-        #        say $f;
+               
         if (exists $var_types->{$f} and ref($var_types->{$f}) eq 'HASH' and exists $var_types->{$f}{'FunctionTypeDecl'}) {
-            unshift @tytracl_strs_indent,$var_types->{$f}{'FunctionTypeDecl'};
+            unshift @tytracl_strs_indent,_emit_FunctionTypeDecl($var_types->{$f}{'FunctionTypeDecl'});
         }
     }
-    #    say Dumper($main_rec);
+    @tytracl_strs_indent=(@in_arg_type_decls,'', @out_arg_type_decls,'',@tytracl_strs_indent);
 	my $tytracl_str = join("\n", @tytracl_strs_indent);
-	return $tytracl_str;
+    
+    $stref->{'TyTraCL_Code'} = $tytracl_str;
+
+	return  $stref;
 } # END of _emit_TyTraCL()
 
+sub _emit_TyTraCLType {my ($decl)=@_;
+    return join(' ',@{$decl});
+} # END of _emit_TyTraCLType
+
+sub _emit_FunctionTypeDecl{my ($fdecl)=@_;
+    # say Dumper $fdecl;
+    my $f = shift @{$fdecl};
+    my @argdecls=();
+    for my $argdecl (@{$fdecl}){
+        if ( scalar @{$argdecl} == 1 ) {
+                push @argdecls, _emit_TyTraCLType(
+                    ref($argdecl->[0]) eq 'ARRAY' ? $argdecl->[0] : [ $argdecl->[0] ]
+                    );
+        } elsif (scalar @{$argdecl} > 1 ) {
+            my $tup_decl = '('.join(',', map {_emit_TyTraCLType(ref($_) eq 'ARRAY' ? $_ : [$_])} @{$argdecl}).')';
+        push @argdecls, $tup_decl;
+         }; #unless scalar @{$argdecl} == 0;
+    }
+    my $f_type_decl =  "$f :: ".join(' -> ',@argdecls);
+    # say $f_type_decl;
+    return $f_type_decl;
+} # END of _emit_FunctionTypeDecl
 
 sub _mkVarName { (my $rec) =@_;
     # carp(Dumper($rec));
@@ -402,23 +480,25 @@ sub __toTyTraCLScalarType { (my $type)=@_;
     }
 }
 
+# Maybe this should return the type as a datastructure and use _emit_TyTraCLType
 sub __toTyTraCLType { (my $type, my $array_dims)=@_;
+
 if (not defined $array_dims or scalar @{$array_dims} == 0) { # Scalar
     if ($type eq 'real') { 
-        return 'Float';
+        return ['Float'];
     } elsif ($type eq 'integer') { 
-        return 'Int';
+        return ['Int'];
     } else {
         # ad-hoc!
-        return ucfirst($type);
+        return [ucfirst($type)];
     }
  } else { # Vector
- say Dumper($array_dims);
+#  say Dumper($array_dims);
     my @ranges=();
     for my $array_dim (@{ $array_dims } ) {
         push @ranges, '('.$array_dim->[1].'-'.$array_dim->[0] . '+1)';            
     }
-    my $vec_sz = '('.join('*',@ranges).')'; # FIXME: needs proper constant folding here!
+    my $vec_sz = eval(join('*',@ranges)); # FIXME: needs proper constant folding here!
     my $scalar_type = ucfirst($type);
     if ($type eq 'real') { 
         $scalar_type = 'Float';
@@ -426,10 +506,12 @@ if (not defined $array_dims or scalar @{$array_dims} == 0) { # Scalar
         $scalar_type = 'Int';
     }
 
-    my $tycl_type= "Vec $vec_sz $scalar_type"; 
+    my $tycl_type= ['Vec' ,$vec_sz, $scalar_type]; 
+    # WV 2019-08-12 the '0' below feels hacky
     # say $tycl_type;
     return $tycl_type;
  }
+ croak "The RHS should be an array ['Vec',\$vec_size,\$tytracl_type]";
 } # END of __toTyTraCLType
 
 
@@ -469,13 +551,163 @@ sub _generate_TyTraCL_stencils { (my $stencil_patt)=@_;
     return $tytracl_stencils
 } # END of _generate_TyTraCL_stencils
 
+    # WV20190813 It would be better to return a datastructure with the original info and to the emit via a separate function
+sub _addToVarTypesAndStencils { (my $stref, my $var_types, my $stencils, my $node, my $lhs, my $rhs, my $fname, my $type_formatter) = @_;
+        if ($node->{'NodeType'} eq 'StencilDef') {
+            my $s_var = $lhs->{'Ctr'};
+            my $s_size = scalar keys %{$rhs->{'StencilPattern'}{'Accesses'}};
+            $stencils->{$s_var}=$s_size;
+        } elsif ($node->{'NodeType'} eq 'StencilAppl') {
+            # Here we enter the stencil from the Lhs in the table
+            my $s_var = _mkVarName($lhs->{'Var'});
+            # A little problem: we don't quite know $f at this point, or do we? I'll need a 'FunctionName' node
+            my $f = $fname;
+            my $var_name = $rhs->{'Var'}[0];
+            my $var_rec =  $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$var_name};
+            my $var_type =  $type_formatter->( $var_rec->{'Type'} );
+            my @s_type_array = ();
+            for (1 .. $stencils->{$rhs->{'StencilCtr'}}) {
+                push @s_type_array, $var_type;
+            }
+            my $s_type =  '('.join(',',@s_type_array).')';
+            # Or rather, use SVec:
+            $s_type = ['SVec',$stencils->{$rhs->{'StencilCtr'}},$var_type->[0]];
+            # This is odd compared to the other nodes
+            $var_types->{$s_var}=$s_type;
+        } elsif ($node->{'NodeType'} eq 'Map') {
+            # Output arguments can't be stencil, so only DeclaredOrigArgs
+            my $out_args = $lhs->{'Vars'} ;
+            my $f = $fname;
+            my @out_arg_types_array;
+            for my $out_arg_rec (@{$out_args}) {
+                my $var_name = $out_arg_rec->[0];
+                my $var_rec =  $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$var_name};
+                my $var_type =  $type_formatter->( $var_rec->{'Type'} );
+                push @out_arg_types_array, $var_type;
+            }
+            $var_types->{$f}{'ReturnType'} = [@out_arg_types_array];
+            
+            # This should always be a tuple and the values can only be scalars
+            my $map_args = $rhs->{'MapArgs'}{'Vars'} ;
+            my @map_arg_types_array=();
+            my %map_arg_types=();
+            for my $map_arg_rec (@{$map_args}) {
+                my $var_name = $map_arg_rec->[0];
+                my $maybe_stencil = _mkVarName($map_arg_rec);
+                if (exists $var_types->{ $maybe_stencil }) {
+                    push @map_arg_types_array,$var_types->{ $maybe_stencil };
+                    $map_arg_types{$var_name}=$var_types->{ $maybe_stencil };
+                } else {                
+                    my $var_rec =  $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$var_name};
+                    my $var_type =  $type_formatter->( $var_rec->{'Type'} );
+                    # say 'DECL: '. $var_name.' :: '._emit_TyTraCLType( $var_type);
+                    push @map_arg_types_array, $var_type;
+                    $map_arg_types{$var_name}=$var_type;
+                }
+            }
+            # \%map_arg_types;
+             $var_types->{$f}{'MapArgType'} = [@map_arg_types_array];
+            $var_types->{$f}{'MapArgTypeMap'} = \%map_arg_types;
+            # This should always be a tuple and the values can actually be arrays
+            my $non_map_args = $rhs->{'NonMapArgs'}{'Vars'} ;
+            my @non_map_arg_types_array=();
+            for my $non_map_arg_rec (@{$non_map_args}) {
+                    my $var_name = $non_map_arg_rec->[0];
+                    my $var_rec =  $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$var_name};
+                    my $var_type =  $type_formatter->( $var_rec->{'Type'} );
+                    push @non_map_arg_types_array, $var_type;
+            }
+            $var_types->{$f}{'NonMapArgType'} = [@non_map_arg_types_array];
+            my @arg_types= ();
+            push @arg_types, $var_types->{$f}{'NonMapArgType'};
+            push @arg_types, $var_types->{$f}{'MapArgType'};
+            push @arg_types, $var_types->{$f}{'ReturnType'};
 
+            $var_types->{$f}{'FunctionTypeDecl'} = [$f,@arg_types] ;
+
+		} elsif ($node->{'NodeType'} eq 'Fold') {
+            # Main question is: what is the initial value of the accumulator?
+            # It can in practice be a constant or scalar variable
+            # In general of course it could be just about anything.
+            # The question at this point is only if it is a var or list of vars
+#            croak('TODO: fold');
+            # Output arguments can't be stencil, so only DeclaredOrigArgs
+            my $out_args = $lhs->{'Vars'} ;
+            my $f = $fname;
+            my @out_arg_types_array;
+            for my $out_arg_rec (@{$out_args}) {
+                my $var_name = $out_arg_rec->[0];
+                my $var_rec =  $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$var_name};
+                my $var_type =  $type_formatter->( $var_rec->{'Type'} );
+                push @out_arg_types_array, $var_type;
+            }
+            $var_types->{$f}{'ReturnType'} = [@out_arg_types_array];
+            
+            # This should always be a tuple and the values can only be scalars
+            my $map_args = $rhs->{'FoldArgs'}{'Vars'} ;
+            my @map_arg_types_array=();
+            for my $map_arg_rec (@{$map_args}) {
+                my $maybe_stencil = _mkVarName($map_arg_rec);
+                if (exists $var_types->{ $maybe_stencil }) {
+                    push @map_arg_types_array,$var_types->{ $maybe_stencil };
+                } else {
+                    my $var_name = $map_arg_rec->[0];
+                    my $var_rec =  $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$var_name};
+                    my $var_type =  $type_formatter->( $var_rec->{'Type'} );
+                    push @map_arg_types_array, $var_type;
+                }
+            }
+            
+            $var_types->{$f}{'FoldArgType'} = [@map_arg_types_array];
+
+            # This should always be a tuple and the values can actually be arrays
+            my $non_map_args = $rhs->{'NonFoldArgs'}{'Vars'} ;
+            
+            my @non_map_arg_types_array=();
+            for my $non_map_arg_rec (@{$non_map_args}) {
+                    my $var_name = $non_map_arg_rec->[0];
+                    my $var_rec =  $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$var_name};
+                    my $var_type =  $type_formatter->( $var_rec->{'Type'} );
+                    push @non_map_arg_types_array, $var_type;
+            }
+
+            
+            $var_types->{$f}{'NonFoldArgType'} = [@non_map_arg_types_array];
+
+            my $acc_args = $rhs->{'AccArgs'}{'Vars'} ;
+            my @acc_arg_types_array=();
+            for my $acc_arg_rec (@{$acc_args}) {
+                    my $var_name = $acc_arg_rec->[0];
+                    my $var_rec =  $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$var_name};
+                    my $var_type =  $type_formatter->( $var_rec->{'Type'} );
+                    push @acc_arg_types_array, $var_type;
+            }
+            
+            $var_types->{$f}{'AccArgType'} = [@acc_arg_types_array];
+
+            my @arg_types = ();
+            push @arg_types, $var_types->{$f}{'NonFoldArgType'};
+            push @arg_types, $var_types->{$f}{'AccArgType'};
+            push @arg_types, $var_types->{$f}{'FoldArgType'};
+            push @arg_types, $var_types->{$f}{'ReturnType'};
+
+            $var_types->{$f}{'FunctionTypeDecl'} = "$f :: ".join( ' -> ',  @arg_types) ;            
+            
+            
+        } elsif ($node->{'NodeType'} ne 'Comment' and $node->{'NodeType'} ) {
+            croak "NodeType type ".$node->{'NodeType'}.' not yet supported.';
+        }
+
+
+    return ($var_types, $stencils) ;
+} # END of _addToVarTypesAndStencils()
 
     # Add function type declarations. This is a bit complicated, but we have following steps:
     # If it is a stencil, then I have to find the stencil pattern. We do this in the handling of the StencilDef node.
     # The actual type and the size of the array we should get via $stref->{'Subroutines'}{$f}
     # The non-map args can be arrays, so in that case in principle we'd need the type.
     # So, for every Map and Fold nodes we look a the vars, and we build up a table. If they are stencils we do this in the StencilDef node.
+    # WV20190813 It would be better to return a datastructure with the original info and to the emit via a separate function
 sub _addToVarTypes { (my $stref, my $var_types, my $stencils, my $node, my $lhs, my $rhs, my $fname, my $type_formatter) = @_;
     # DeclaredOrigArgs
 #		{'NodeType' => 'StencilDef',
@@ -558,7 +790,7 @@ sub _addToVarTypes { (my $stref, my $var_types, my $stencils, my $node, my $lhs,
             }
             my $map_arg_type = scalar @{$map_args} == 1 ? $map_arg_types_array[0] :  '('.join(',',@map_arg_types_array).')';
             #            say "MAP ARG TYPE of $f: ".$map_arg_type;
-             $var_types->{$f}{'MapArgType'} = $map_arg_type;
+             $var_types->{$f}{'MapArgTypeMap'} = $map_arg_type;
 
             # This should always be a tuple and the values can actually be arrays
             my $non_map_args = $rhs->{'NonMapArgs'}{'Vars'} ;
@@ -575,7 +807,7 @@ sub _addToVarTypes { (my $stref, my $var_types, my $stencils, my $node, my $lhs,
             $var_types->{$f}{'NonMapArgType'} = $non_map_arg_type;
 
             my @arg_types= $non_map_arg_type ne '' ? ($non_map_arg_type) : ();
-            push @arg_types, $var_types->{$f}{'MapArgType'};
+            push @arg_types, $var_types->{$f}{'MapArgTypeMap'};
             push @arg_types, $var_types->{$f}{'ReturnType'};
 
             $var_types->{$f}{'FunctionTypeDecl'} = "$f :: ".join( ' -> ',  @arg_types) ;
@@ -673,35 +905,32 @@ sub _addToMainSig { (my $stref, my $main_rec, my $node, my $lhs, my $rhs, my $fn
                 ($orig_args->{$var_name} eq 'in'
                         or $orig_args->{$var_name} eq 'inout' )) {
             if ($ctr == 0 && $ext eq '') {
-                push @{ $main_rec->{'InArgs'} }, _mkVarName($rhs->{'Var'});#$var_name;
-                my $var_name = $rhs->{'Var'}[0];#_mkVarName($rhs->{'Var'});
-                my $var_rec =  $stref->{'Subroutines'}{$fname}{'DeclaredOrigArgs'}{'Set'}{$var_name};                
-                my $dim = $var_rec->{'Dim'};
-                my $type = $var_rec->{'Type'};
-                $main_rec->{'InArgTypes'}{$var_name}=__toTyTraCLType($type,$dim);
-                say Dumper($main_rec->{'InArgTypes'}{$var_name});
+                push @{ $main_rec->{'InArgs'} }, _mkVarName($rhs->{'Var'});
+                $main_rec =  __add_to_MainArgTypes('InArgs',$stref,$fname,$rhs->{'Var'},$main_rec);
             }
         }
         } elsif ($node->{'NodeType'} eq 'Map') {
-			my $out_var_recs = $lhs->{'Vars'};#croak 'OUTVARS: '.Dumper($lhs);
+			my $out_var_recs = $lhs->{'Vars'};
             for my $out_var_rec (@{$out_var_recs}) {
                 if (__isMainOutArg($out_var_rec,$stref)) {
-                    #                    my $var_name = $out_var_rec->[0];
                     push @{ $main_rec->{'OutArgs'} }, _mkVarName($out_var_rec);
+                    $main_rec =  __add_to_MainArgTypes('OutArgs',$stref,$fname,$out_var_rec,$main_rec);
                 }
             }
 			my $map_arg_recs = $rhs->{'MapArgs'}{'Vars'};
             for my $map_var_rec (@{$map_arg_recs}) {
                 if (__isMainInArg($map_var_rec,$stref)) {
                     my $var_name = $map_var_rec->[0];
-                    push @{ $main_rec->{'InArgs'} },  _mkVarName($map_var_rec);# $var_name;
+                    push @{ $main_rec->{'InArgs'} },  _mkVarName($map_var_rec);
+                    $main_rec =  __add_to_MainArgTypes('InArgs',$stref,$fname,$map_var_rec,$main_rec);
                 }
             }
 			my $non_map_arg_recs = $rhs->{'NonMapArgs'}{'Vars'};
             for my $non_map_var_rec (@{$non_map_arg_recs}) {
                 if (__isMainInArg($non_map_var_rec,$stref)) {
                     my $var_name = $non_map_var_rec->[0];
-                    push @{ $main_rec->{'InArgs'} }, _mkVarName($non_map_var_rec);#$var_name;
+                    push @{ $main_rec->{'InArgs'} }, _mkVarName($non_map_var_rec);
+                    $main_rec =  __add_to_MainArgTypes('InArgs',$stref,$fname,$non_map_var_rec,$main_rec);
                 }
             }
         } elsif ($node->{'NodeType'} eq 'Fold') {
@@ -713,32 +942,37 @@ sub _addToMainSig { (my $stref, my $main_rec, my $node, my $lhs, my $rhs, my $fn
             for my $out_var_rec (@{$out_var_recs}) {
                 if (__isMainOutArg($out_var_rec,$stref)) {
                     push @{ $main_rec->{'OutArgs'} }, _mkVarName($out_var_rec);
+                    $main_rec =  __add_to_MainArgTypes('OutArgs',$stref,$fname,$out_var_rec,$main_rec);
                 }
             }
 			my $map_arg_recs = $rhs->{'FoldArgs'}{'Vars'};
             for my $map_var_rec (@{$map_arg_recs}) {
                 if (__isMainInArg($map_var_rec,$stref)) {
                     my $var_name = $map_var_rec->[0];
-                    push @{ $main_rec->{'InArgs'} },  _mkVarName($map_var_rec);# $var_name;
+                    push @{ $main_rec->{'InArgs'} },  _mkVarName($map_var_rec);
+                    $main_rec =  __add_to_MainArgTypes('InArgs',$stref,$fname,$map_var_rec,$main_rec);
                 }
             }
 			my $non_map_arg_recs = $rhs->{'NonFoldArgs'}{'Vars'};
             for my $non_map_var_rec (@{$non_map_arg_recs}) {
                 if (__isMainInArg($non_map_var_rec,$stref)) {
                     my $var_name = $non_map_var_rec->[0];
-                    push @{ $main_rec->{'InArgs'} }, _mkVarName($non_map_var_rec);#$var_name;
+                    push @{ $main_rec->{'InArgs'} }, _mkVarName($non_map_var_rec);#$'InArgTypes' => {},var_name;
+                    $main_rec =  __add_to_MainArgTypes('InArgs',$stref,$fname,$non_map_var_rec,$main_rec);
                 }
             }
             my $accs = $rhs->{'AccArgs'}{'Vars'};
             for my $non_map_var_rec (@{$accs}) {
                 if (__isMainInArg($non_map_var_rec,$stref)) {
                     my $var_name = $non_map_var_rec->[0];
-                    push @{ $main_rec->{'InArgs'} }, _mkVarName($non_map_var_rec);#$var_name;
+                    push @{ $main_rec->{'InArgs'} }, _mkVarName($non_map_var_rec);#$'InArgTypes' => {},var_name;
+                    $main_rec =  __add_to_MainArgTypes('InArgs',$stref,$fname,$non_map_var_rec,$main_rec);
                 }
             }
         } elsif ($node->{'NodeType'} ne 'Comment' and $node->{'NodeType'} ne 'StencilDef') {
             croak "NodeType type ".$node->{'NodeType'}.' not yet supported.';
         }
+
         return $main_rec;
 } # END of _addToMainSig()
 
@@ -760,6 +994,7 @@ sub _add_TyTraCL_AST_entry { (my $f, my $state, my $tytracl_ast, my $type, my $b
                 $unique_var_counters->{$array_var}=0;
         }	
 	}
+
 	if ($type eq 'STENCIL') {
         my $ctr_st = ++$unique_var_counters->{'!s'};
         push @{$tytracl_ast->{'Lines'}},
@@ -813,7 +1048,7 @@ sub _add_TyTraCL_AST_entry { (my $f, my $state, my $tytracl_ast, my $type, my $b
  		my %portions = %{$tytracl_ast->{'Portions'}};
  		my %stencils= %{$tytracl_ast->{'Stencils'}};
  		# so this provides the output and input tuples for a given $f
-	# so for each var in $in_tup we need to get the counter, and for each var in $out_tup after that too.
+	    # so for each var in $in_tup we need to get the counter, and for each var in $out_tup after that too.
 		(my $out_tup, my $in_tup_maybe_dummies) = pp_links($state->{'Subroutines'}{$f}{'Blocks'}{$block_id}{'Links'});
 		 $in_tup_maybe_dummies =$state->{'Subroutines'}{$f}{'Args'}{'In'};
 		# This is incorrect because it does not return arguments that are used in conditions only
@@ -951,17 +1186,10 @@ sub _add_TyTraCL_AST_entry { (my $f, my $state, my $tytracl_ast, my $type, my $b
 		};        	
         }
 	} elsif ($type eq 'MAIN') {
-		# TRICK: $state = $stref
-#				$ast_to_emit = $ast_emitter->( $f,  $stref,  $ast_to_emit, 'SELECT',  $block_id,  $array_var,  $rw) if $emit_ast; 
-        $tytracl_ast->{'Main'} = $f;
-        		
-#		map { say $_ } sort keys %{ $stref->{'Subroutines'}{$f} };
-#		say Dumper $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'};
+         $tytracl_ast->{'Main'} = $f;
 		 for my $arg (@{ $state->{'Subroutines'}{$f}{'RefactoredArgs'}{'List'} } ) {
-#		 	say $arg. ' => '. $state->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$arg}{'IODir'};
-         $tytracl_ast->{'OrigArgs'}{$arg} =  $state->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$arg}{'IODir'};
-		 }
-		
+            $tytracl_ast->{'OrigArgs'}{$arg} =  $state->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$arg}{'IODir'};
+		 }		
 	}
 				 		
 	return $tytracl_ast;
@@ -1078,6 +1306,14 @@ sub build_connectivity_graph { my ($ast) = @_;
                 $ast->{'Nets'}{$input}{'NetType'}='Scalar';
                 push @{$ast->{'Nodes'}{$f}{'Inputs'}}, $input;
             }
+# NOT OK: These are the types for the opaque, not for the Vector!
+        #  for my $fold_arg (@{$entry->{'Rhs'}{'MapArgs'}{'Vars'}}) {
+        #         my $var_name = $fold_arg->[0];
+        #         say 'VARTYPES:'.Dumper( $ast->{'MainRec'}{'VarTypes'}{$f});
+        #         my $var_type = $ast->{'MainRec'}{'VarTypes'}{$f}{'MapArgTypeMap'}{$var_name};
+        #         say "VAR TYPE: ".Dumper($var_type);
+        #     }
+
         }
         elsif ($node_type eq 'Fold') {
         # Inputs are Rhs NonFoldArgs and Rhs FoldArgs and presumably Rhs AccArgs   
@@ -1106,6 +1342,9 @@ sub build_connectivity_graph { my ($ast) = @_;
                 $ast->{'Nets'}{$input}{'NetType'}='Scalar';
                 push @{$ast->{'Nodes'}{$f}{'Inputs'}}, $input;
             }
+            
+          
+            # $latency=
 
         }
         elsif ($node_type eq 'StencilAppl') {
@@ -1120,7 +1359,6 @@ sub build_connectivity_graph { my ($ast) = @_;
             $entry->{'Rhs'}{'Function'}=$f; # for convenience so all nodes have the same structure
             my $st_def='sd_'.$ctr;
             $latency = $ast->{'Nodes'}{$st_def}{'Latency'};
-
 
             my $output = _mkVarName( $entry->{'Lhs'}{'Var'} );       
             say "$node_type $f OUT: $output" if $DBG;     
@@ -1141,7 +1379,7 @@ sub build_connectivity_graph { my ($ast) = @_;
             my $ctr = $entry->{'Lhs'}{'Ctr'};
             my $stencil_patt = $entry->{'Rhs'}{'StencilPattern'};
             my $stencil_values = _generate_TyTraCL_stencils($stencil_patt);
-            say Dumper($stencil_values);
+            # say Dumper($stencil_values);
             my ($min,$max)=__get_min_max_from_array($stencil_values);
             $latency = $max-$min;
             $f = 'sd_'.$ctr; # because otherwise StencilDef and StencilAppl will clash
@@ -1322,5 +1560,18 @@ sub __get_min_max_from_array { my ($values) = @_;
     }
     return ($min, $max);
 } # END of __get_min_max_from_array_from_array
+
+
+sub __add_to_MainArgTypes { my ($inoutargs,$stref,$fname,$var_name_rec,$main_rec) = @_;                
+    my $orig_var_name= $var_name_rec->[0];
+    my $var_name = _mkVarName($var_name_rec);
+    my $var_rec =  $stref->{'Subroutines'}{$fname}{'DeclaredOrigArgs'}{'Set'}{$orig_var_name};
+    # WV 2019-08-12 the '0' below feels hacky
+    my $dim = $stref->{'Subroutines'}{ $fname }{'ArrayAccesses'}{0}{'Arrays'}{$orig_var_name}{'Dims'} ;
+    # my $dim = $var_rec->{'Dim'};
+    my $type = $var_rec->{'Type'};
+    $main_rec->{$inoutargs.'Types'}{$var_name}=__toTyTraCLType($type,$dim);  
+    return $main_rec;
+} # END of __add_to_MainArgTypes
 
 1;
