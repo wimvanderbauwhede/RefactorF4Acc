@@ -1558,17 +1558,6 @@ sub _prop_net_types_rec { my ($ast, $nets) = @_;
 } # END of _prop_net_types_rec
 
 =pod latency
-
-2019-08-08
-
-annotate each edge with the latency
-latencies are only non-0 for stencil caches
-
-if a node has incoming edges with different latencies:
-- the largest is propagated
-- the paths from inputs to this node must be separate
-I think we can follow each edge to its From, and get the non-fold deps for that node. Then see if the cross-section is empty, if so, no problem. If not, then the nodes in the cross section must be split.
-
 # Step 0
 
 - All nodes and edges must have a latency annotation, initially set at 0 except for Fold nodes (set at the vector size) an StencilAppl nodes (set at the stencil reach based on the StencilDef)
@@ -1694,6 +1683,32 @@ sub _find_deps_rec { my ($ast,$f_curr, $f_target,$non_fold_only) = @_;
     return $ast;
     
 } # END of _find_deps_rec
+
+=pod latency
+
+2019-08-08
+
+annotate each edge with the latency
+latencies are only non-0 for stencil caches
+
+if a node has incoming edges with different latencies:
+- the largest is propagated
+- the paths from inputs to this node must be separated
+
+I think we can follow each edge to its From, and get the (non-fold?) deps for that node. Then see if the cross-section is empty between all these paths, if so, no problem. If not, then the nodes in the cross section must be split.
+
+So, 
+- given a node
+- with two or more inputs with different latency
+- get the From nodes for each input
+- get the dependencies for these nodes. 
+
+
+=cut
+
+
+
+
 
 sub emitDotGraph { (my $nets)=@_;
     # a -> b [ label="a to b" ];
