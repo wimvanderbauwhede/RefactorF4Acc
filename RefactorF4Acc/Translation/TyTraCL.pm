@@ -117,8 +117,10 @@ data Expr =
 
 {'CommentStr' => 'shapiro_map_23','NodeType' => 'Comment'}
 {'NodeType' => 'StencilDef','Lhs' => {'Ctr' => 1},'FunctionName' => 'shapiro_map_23','Rhs' => {'StencilPattern' => {'Dims' => [['0',501],['0',501]],'Accesses' => {'0:-1' => [{'j:0' => [1,0]}],'0:0' => [{'k:0' => [1,0]}],'1:0' => [{'k:0' => [1,1]}],'0:1' => [{'j:0' => [1,0]}],'-1:0' => [{'k:0' => [1,-1]}]}}}}
+
 {'Rhs' => {'Var' => ['wet',0,''],'StencilCtr' => 1},'FunctionName' => 'shapiro_map_23','NodeType' => 'StencilAppl','Lhs' => {'Var' => ['wet',0,'s']}}
 {'NodeType' => 'StencilDef','Lhs' => {'Ctr' => 2},'Rhs' => {'StencilPattern' => {'Dims' => [['0',501],['0',501]],'Accesses' => {'0:1' => [{'k:0' => [1,0]}],'-1:0' => [{'j:0' => [1,-1]}],'0:-1' => [{'j:0' => [1,0]}],'1:0' => [{'j:0' => [1,1]}],'0:0' => [{'j:0' => [1,0]}]}}},'FunctionName' => 'shapiro_map_23'}
+
 {'Lhs' => {'Var' => ['etan',0,'s']},'NodeType' => 'StencilAppl','FunctionName' => 'shapiro_map_23','Rhs' => {'StencilCtr' => 2,'Var' => ['etan',0,'']}}
 {'Lhs' => {'Vars' => [['eta',1,'']]},'NodeType' => 'Map','FunctionName' => 'shapiro_map_23','Rhs' => {'Function' => 'shapiro_map_23','MapArgs' => {'Vars' => [['wet',0,'s'],['etan',0,'s'],['eta',0,'']]},'NonMapArgs' => {'Vars' => [['eps',0,''],['etan_avg',1,'']]}}}
 
@@ -273,6 +275,25 @@ sub pass_emit_TyTraCL {(my $stref, my $module_name)=@_;
 				],
 			]
 		);
+
+        # Proof of concept of constructing an AST using a small API
+        # I'm sure I can refine this a bit
+
+        for my $f (qw(f1 f2 f3 sa1)) {
+            $stref = addTypeDecl( $stref, $f, 'v', 'integer', [[1,500]]);
+        }
+       $stref->{'TyTraCL_AST'} = {
+        'OrigArgs' => {'v' => 'inout'},
+        'UniqueVarCounters'=>{'v' => 3},
+        'Lines' => [
+            mkMap('f1'=>[]=>[['v',0,'']],[['v',1,'']]),
+            mkStencilDef(1,[-1,0,1]),
+            mkStencilAppl(1,['v',1,'']=>['v',1,'s']),
+            mkMap('f2'=>[]=>[['v',1,'']],[['v',2,'']]),
+            mkMap('f3'=>[]=>[['v',2,''],['v',1,'s']]=>[['v',3,'']]),
+        ], 
+        };
+
         $stref = _construct_TyTraCL_AST_Main_node($stref);
         $stref = _emit_TyTraCL($stref);
         my $tytracl_str = $stref->{'TyTraCL_Code'} ;
@@ -340,7 +361,7 @@ sub _construct_TyTraCL_AST_Main_node {  (my $stref) = @_;
         'InArgsTypes' => {},
         'OutArgsTypes' => {},
         'Main' => $tytracl_ast->{'Main'},
-        'Stencils'=>{},
+        # 'Stencils'=>{},
         'VarTypes' => {}
         };
     my $var_types={};
@@ -353,7 +374,7 @@ sub _construct_TyTraCL_AST_Main_node {  (my $stref) = @_;
         $main_rec = _addToMainSig($stref,$main_rec, $node, $lhs, $rhs, $fname);
         ($var_types, $stencils) = _addToVarTypesAndStencils($stref, $var_types, $stencils, $node, $lhs, $rhs, $fname,\&__toTyTraCLType);        
     }
-    $main_rec->{'Stencils'}=$stencils;
+    # $main_rec->{'Stencils'}=$stencils;
     $main_rec->{'VarTypes'}=$var_types;
     # say Dumper($main_rec);
     $stref->{'TyTraCL_AST'}{'MainRec'} = $main_rec;
@@ -423,6 +444,7 @@ sub _emit_TyTraCL {  (my $stref) = @_;
         # NonMapArgs, which I can make sure are not tuples
         # MapArgs which can be (in fact will usually be) a ZipT of args
 		elsif ($node->{'NodeType'} eq 'Map') {
+            
 			my $out_vars = $lhs->{'Vars'};
 			my $map_args = $rhs->{'MapArgs'}{'Vars'};
 			my $non_map_args = $rhs->{'NonMapArgs'}{'Vars'};
@@ -637,6 +659,7 @@ sub _generate_TyTraCL_stencils { (my $stencil_patt)=@_;
 
     # WV20190813 It would be better to return a datastructure with the original info and to the emit via a separate function
 sub _addToVarTypesAndStencils { (my $stref, my $var_types, my $stencils, my $node, my $lhs, my $rhs, my $fname, my $type_formatter) = @_;
+# say "<$fname>";
         if ($node->{'NodeType'} eq 'StencilDef') {
             my $s_var = $lhs->{'Ctr'};
             my $s_size = exists $rhs->{'StencilPattern'}{'Pattern'} 
@@ -1886,6 +1909,7 @@ sub __get_min_max_from_array { my ($values) = @_;
 
 
 sub __add_to_MainArgTypes { my ($inoutargs,$stref,$fname,$var_name_rec,$main_rec) = @_;                
+
     my $orig_var_name= $var_name_rec->[0];
     my $var_name = _mkVarName($var_name_rec);
     my $var_rec =  $stref->{'Subroutines'}{$fname}{'DeclaredOrigArgs'}{'Set'}{$orig_var_name};
@@ -1915,7 +1939,7 @@ sub mkFold { my ($fname,$non_fold_args, $acc_args, $fold_args, $ret_vars)=@_;
 }
 
 # mkMap( shapiro_map_23 => [['eps',0,''],['etan_avg',1,'']] => [['wet',0,'s'],['etan',0,'s'],['eta',0,'']] => [['eta',1,'']] );
-sub mkMap { my ($fname,$non_map_args, $acc_args, $map_args, $ret_vars)=@_;
+sub mkMap { my ($fname,$non_map_args, $map_args, $ret_vars)=@_;
     return {
         'Rhs' => {
             'MapArgs' => {'Vars' => $map_args},
@@ -1930,9 +1954,9 @@ sub mkMap { my ($fname,$non_map_args, $acc_args, $map_args, $ret_vars)=@_;
     };
 }
 
-# mkStencilAppl('shapiro_map_23' => ['wet',0,''] => 1 => ['wet',0,'s']);
-sub mkStencilAppl { my ($fname,$arg, $ctr,$ret_var)=@_;
-    return {'Rhs' => {'Var' => $arg,'StencilCtr' => $ctr},'FunctionName' => $fname,'NodeType' => 'StencilAppl','Lhs' => {'Var' => $ret_var}};    
+# mkStencilAppl( 1 => ['wet',0,''] => ['wet',0,'s']);
+sub mkStencilAppl { my ($ctr,$arg, $ret_var)=@_;
+    return {'Rhs' => {'Var' => $arg,'StencilCtr' => $ctr},'FunctionName' => "sa$ctr",'NodeType' => 'StencilAppl','Lhs' => {'Var' => $ret_var}};    
 }
 
 # mkStencilDef(2, [-1,-502,0,502,1]);
@@ -1940,13 +1964,20 @@ sub mkStencilDef { my ($ctr, $pattern) = @_;
     return {
         'NodeType' => 'StencilDef',
         'Lhs' => {'Ctr' => 1},
-        'FunctionName' => 'shapiro_map_23',
+        'FunctionName' => "s$ctr",
         'Rhs' => {
             'StencilPattern' => {
                 'Pattern' => $pattern,
             }
         }
     };
+}
+
+sub addTypeDecl { my ($stref,$f,$var_name, $var_type, $dim)=@_;
+
+    $stref->{'Subroutines'}{$f}{'ArrayAccesses'}{0}{'Arrays'}{$var_name} = {'Dims' => $dim} ;
+    $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$var_name}={'Type' => $var_type};
+    return $stref;
 }
 
 1;
