@@ -310,6 +310,25 @@ sub ordered_intersection {
     }
 }    # END of ordered_intersection()
 # -----------------------------------------------------------------------------
+# This is the set of all members of $bref that also occur in $aref (or vice-versa of course)
+sub intersection {
+    ( my $aref, my $bref ) = @_;
+    croak("intersection()") unless (defined $aref and defined $bref);   
+    if (not defined $aref) {
+    	return {};
+    } elsif (not defined $bref) {
+        return {};
+    } else {    
+	    my $is = {};	    
+	    for my $elt (keys %{$bref} ) {
+	        if ( exists $aref->{$elt} ) {
+	            $is->{$elt}=$aref->{$elt}; # assuming that a and be have the same value for a given key
+	        }
+	    }
+	    return $is;
+    }
+}    # END of intersection()
+# -----------------------------------------------------------------------------
 sub find_duplicates_in_list { (my $lst) =@_;
 	my %uniques=();
 	my $dups={};

@@ -88,6 +88,134 @@ data Expr =
                     | MapS Expr -- bb does not have this, not needed
                     | Comp Expr Expr -- bb does not have this, not needed
 
+     -- shapiro_reduce_18
+    etan_avg_1 =  fold shapiro_reduce_18 etan_avg_0 etan_0
+     -- shapiro_map_23
+    s1 = [-1,-502,0,502,1]
+    wet_s_0 = stencil s1 wet_0
+    s2 = [-1,-502,0,502,1]
+    etan_s_0 = stencil s2 etan_0
+    eta_1 =  map (shapiro_map_23 (eps_0,etan_avg_1)) (zipt (wet_s_0,etan_s_0,eta_0))
+     -- dyn_map_39
+    s3 = [-502,0]
+    un_s_0 = stencil s3 un_0
+    s4 = [-1,0]
+    vn_s_0 = stencil s4 vn_0
+    s5 = [0,502,1]
+    wet_s_1 = stencil s5 wet_0
+    s6 = [-1,-502,0,502,1]
+    h_s_0 = stencil s6 h_0
+    s7 = [0,502,1]
+    eta_s_0 = stencil s7 eta_1
+    (du_1,duu_1,dv_1,dvv_1,etan_1,un_1,vn_1) = unzipt $ map (dyn_map_39 (dt_0,g_0,dx_0,dy_0,duu_0,dvv_0)) (zipt (eta_s_0,u_0,du_0,wet_s_1,v_0,dv_0,un_s_0,h_s_0,vn_s_0))
+     -- update_map_24
+    (h_1,u_1,v_1,wet_1) = unzipt $ map (update_map_24 hmin_0) (zipt (hzero_0,eta_s_0,h_s_0,un_s_0,vn_s_0))
+
+
+{'NodeType' => 'Comment','CommentStr' => 'shapiro_reduce_18'}
+{'Rhs' => {'FoldArgs' => {'Vars' => [['etan',0,'']]},'NonFoldArgs' => {'Vars' => []},'Function' => 'shapiro_reduce_18','AccArgs' => {'Vars' => [['etan_avg',0,'']]}},'FunctionName' => 'shapiro_reduce_18','NodeType' => 'Fold','Lhs' => {'Vars' => [['etan_avg',1,'']]}}
+
+{'CommentStr' => 'shapiro_map_23','NodeType' => 'Comment'}
+{'NodeType' => 'StencilDef','Lhs' => {'Ctr' => 1},'FunctionName' => 'shapiro_map_23','Rhs' => {'StencilPattern' => {'Dims' => [['0',501],['0',501]],'Accesses' => {'0:-1' => [{'j:0' => [1,0]}],'0:0' => [{'k:0' => [1,0]}],'1:0' => [{'k:0' => [1,1]}],'0:1' => [{'j:0' => [1,0]}],'-1:0' => [{'k:0' => [1,-1]}]}}}}
+{'Rhs' => {'Var' => ['wet',0,''],'StencilCtr' => 1},'FunctionName' => 'shapiro_map_23','NodeType' => 'StencilAppl','Lhs' => {'Var' => ['wet',0,'s']}}
+{'NodeType' => 'StencilDef','Lhs' => {'Ctr' => 2},'Rhs' => {'StencilPattern' => {'Dims' => [['0',501],['0',501]],'Accesses' => {'0:1' => [{'k:0' => [1,0]}],'-1:0' => [{'j:0' => [1,-1]}],'0:-1' => [{'j:0' => [1,0]}],'1:0' => [{'j:0' => [1,1]}],'0:0' => [{'j:0' => [1,0]}]}}},'FunctionName' => 'shapiro_map_23'}
+{'Lhs' => {'Var' => ['etan',0,'s']},'NodeType' => 'StencilAppl','FunctionName' => 'shapiro_map_23','Rhs' => {'StencilCtr' => 2,'Var' => ['etan',0,'']}}
+{'Lhs' => {'Vars' => [['eta',1,'']]},'NodeType' => 'Map','FunctionName' => 'shapiro_map_23','Rhs' => {'Function' => 'shapiro_map_23','MapArgs' => {'Vars' => [['wet',0,'s'],['etan',0,'s'],['eta',0,'']]},'NonMapArgs' => {'Vars' => [['eps',0,''],['etan_avg',1,'']]}}}
+
+{'NodeType' => 'Comment','CommentStr' => 'dyn_map_39'}
+{'NodeType' => 'StencilDef','Lhs' => {'Ctr' => 3},'Rhs' => {'StencilPattern' => {'Accesses' => {'0:0' => [{'j:0' => [1,0]}],'0:-1' => [{'k:0' => [1,0]}]},'Dims' => [['0',501],['0',501]]}},'FunctionName' => 'dyn_map_39'}
+{'NodeType' => 'StencilAppl','Lhs' => {'Var' => ['un',0,'s']},'Rhs' => {'Var' => ['un',0,''],'StencilCtr' => 3},'FunctionName' => 'dyn_map_39'}
+{'Rhs' => {'StencilPattern' => {'Accesses' => {'-1:0' => [{'j:0' => [1,-1]}],'0:0' => [{'k:0' => [1,0]}]},'Dims' => [['0',501],['0',501]]}},'FunctionName' => 'dyn_map_39','NodeType' => 'StencilDef','Lhs' => {'Ctr' => 4}}
+{'Lhs' => {'Var' => ['vn',0,'s']},'NodeType' => 'StencilAppl','FunctionName' => 'dyn_map_39','Rhs' => {'StencilCtr' => 4,'Var' => ['vn',0,'']}}
+{'NodeType' => 'StencilDef','Lhs' => {'Ctr' => 5},'FunctionName' => 'dyn_map_39','Rhs' => {'StencilPattern' => {'Dims' => [['0',501],['0',501]],'Accesses' => {'0:1' => [{'k:0' => [1,0]}],'1:0' => [{'k:0' => [1,1]}],'0:0' => [{'j:0' => [1,0]}]}}}}
+{'Lhs' => {'Var' => ['wet',1,'s']},'NodeType' => 'StencilAppl','FunctionName' => 'dyn_map_39','Rhs' => {'Var' => ['wet',0,''],'StencilCtr' => 5}}
+{'Lhs' => {'Ctr' => 6},'NodeType' => 'StencilDef','FunctionName' => 'dyn_map_39','Rhs' => {'StencilPattern' => {'Dims' => [['0',501],['0',501]],'Accesses' => {'0:0' => [{'k:0' => [1,0]}],'1:0' => [{'k:0' => [1,1]}],'0:-1' => [{'j:0' => [1,0]}],'-1:0' => [{'j:0' => [1,-1]}],'0:1' => [{'j:0' => [1,0]}]}}}}
+{'Rhs' => {'StencilCtr' => 6,'Var' => ['h',0,'']},'FunctionName' => 'dyn_map_39','NodeType' => 'StencilAppl','Lhs' => {'Var' => ['h',0,'s']}}
+{'Rhs' => {'StencilPattern' => {'Accesses' => {'1:0' => [{'j:0' => [1,1]}],'0:0' => [{'k:0' => [1,0]}],'0:1' => [{'k:0' => [1,0]}]},'Dims' => [['0',501],['0',501]]}},'FunctionName' => 'dyn_map_39','NodeType' => 'StencilDef','Lhs' => {'Ctr' => 7}}
+{'Rhs' => {'Var' => ['eta',1,''],'StencilCtr' => 7},'FunctionName' => 'dyn_map_39','NodeType' => 'StencilAppl','Lhs' => {'Var' => ['eta',0,'s']}}
+{'FunctionName' => 'dyn_map_39','Rhs' => {'NonMapArgs' => {'Vars' => [['dt',0,''],['g',0,''],['dx',0,''],['dy',0,''],['duu',0,''],['dvv',0,'']]},'Function' => 'dyn_map_39','MapArgs' => {'Vars' => [['eta',0,'s'],['u',0,''],['du',0,''],['wet',1,'s'],['v',0,''],['dv',0,''],['un',0,'s'],['h',0,'s'],['vn',0,'s']]}},'NodeType' => 'Map','Lhs' => {'Vars' => [['du',1,''],['duu',1,''],['dv',1,''],['dvv',1,''],['etan',1,''],['un',1,''],['vn',1,'']]}}
+
+{'NodeType' => 'Comment','CommentStr' => 'update_map_24'}
+{'Lhs' => {'Vars' => [['h',1,''],['u',1,''],['v',1,''],['wet',1,'']]},'NodeType' => 'Map','FunctionName' => 'update_map_24','Rhs' => {'NonMapArgs' => {'Vars' => [['hmin',0,'']]},'MapArgs' => {'Vars' => [['hzero',0,''],['eta',0,'s'],['h',0,'s'],['un',0,'s'],['vn',0,'s']]},'Function' => 'update_map_24'}}
+
+
+$ast->{'Lines'} = [
+		{'NodeType' => 'StencilDef',
+			'FunctionName' => $f,
+            # s2 = [-1,-502,0,502,1]
+			'Lhs' => {'Ctr' => $ctr_st},
+			'Rhs' => {'StencilPattern' => { # This is $stencil_patt
+            # 'Accesses' => { '0:1' =>  {'j' => [1,0],'k' => [1,1]}}, 
+               'Accesses' => { 
+                   join(':', @offset_vals) => {
+                       $iters[$idx] => [$mult_val,$offset_val],
+                     }
+                }
+            # 'Dims' => [[0,501],[1,500],...]
+   			'Dims' => [[$i_start,$i_end],[$j_start,$j_end],...]
+          }
+		};
+		{'NodeType' => 'StencilAppl',
+          'FunctionName' => $f,    
+            # wet_s_0 = stencil s2 wet_0
+			'Lhs' => {'Var' => [$array_var,$ctr_sv,'s'] },
+			'Rhs' => {'StencilCtr' => $ctr_st,'Var' => [$array_var, $ctr_in,''] }
+		};
+		{'NodeType' => 'Map',
+          'FunctionName' => $f,
+			'Lhs' => {
+				'Vars' =>[@out_tup_ast],
+			},
+			'Rhs' => {
+				'Function' => $f,        
+				'NonMapArgs' => {
+					'Vars'=>[@non_map_args_ms_ast],
+				},
+				'MapArgs' =>{
+					'Vars' =>$in_tup_ms_ast,
+				}
+			}
+		};
+		{'NodeType' => 'Fold',
+          'FunctionName' => $f,
+			'Lhs' => {
+				'Vars' =>[@out_tup_ast],
+			},
+			'Rhs' => {
+				'Function' => $f,    
+				'NonFoldArgs' => {
+					'Vars'=>[@non_map_args_ms_ast],
+				},
+				'FoldArgs' =>{
+					'Vars' =>$in_tup_ms_ast,
+				}
+				'AccArgs' =>{
+					'Vars' =>$in_tup_ms_ast,
+				}
+			}
+		};
+	];
+
+	$ast->{'Selects'} = [
+        {
+            'Lhs' => {'Var' => [$array_var, 'TODO','portion']},
+            'Rhs' =>  {'Var' => [$array_var, $ctr_in,''], 'Pattern' =>['TODO']}
+        };
+	];
+
+	$ast->{'Inserts'} = [
+        {
+            'Lhs' => {'Var' => [$array_var,$ctr_out,''] },
+            'Rhs' =>  {'Var' => [$array_var, $ctr_in,''], 'Pattern'=> ['TODO']},
+        },
+    ];
+
+    $ast->{'Portions'} = [
+        {
+            $array_var => 1, 
+        }
+	];
+
 EntryID is the line number in 'Lines'
 
 $ast->{'Nets'}{$net} = {
@@ -110,7 +238,7 @@ $ast->{'Nets'}{$net} = {
 
 $ast->{'Nodes'} = {
           
-        $map_name => {
+        $node_name => {
             NodeType => Map | Fold | StencilAppl | Input | Output
             EntryID => $entry_id,
             Inputs => [@input_nets],
@@ -197,75 +325,6 @@ sub pass_emit_TyTraCL {(my $stref, my $module_name)=@_;
 
 	return $stref;
 } # END of pass_emit_TyTraCL()
-
-# {'Lines' => [
-#		{'NodeType' => 'StencilDef',
-#			'FunctionName' => $f,
-#			'Lhs' => {'Ctr' => $ctr_st},
-#			'Rhs' => {'StencilPattern' => { # This is $stencil_patt
-#                'Accesses' => { 
-#                    join(':', @offset_vals) => {
-#                        $iters[$idx] => [$mult_val,$offset_val],
-#                      }
-#                 }
-#    			'Dims' => [[$i_start,$i_end],[$j_start,$j_end],...]
-#           }
-#		};
-# 		{'NodeType' => 'StencilAppl',
-#           'FunctionName' => $f,
-# 			'Lhs' => {'Var' => [$array_var,$ctr_sv,'s'] },
-# 			'Rhs' => {'StencilCtr' => $ctr_st,'Var' => [$array_var, $ctr_in,''] }
-# 		};
-#		{'NodeType' => 'Map',
-#           'FunctionName' => $f,
-#			'Lhs' => {
-#				'Vars' =>[@out_tup_ast],
-#			},
-#			'Rhs' => {
-#				'Function' => $f,        
-#				'NonMapArgs' => {
-#					'Vars'=>[@non_map_args_ms_ast],
-#				},
-#				'MapArgs' =>{
-#					'Vars' =>$in_tup_ms_ast,
-#				}
-#			}
-#		};
-#		{'NodeType' => 'Fold',
-#           'FunctionName' => $f,
-#			'Lhs' => {
-#				'Vars' =>[@out_tup_ast],
-#			},
-#			'Rhs' => {
-#				'Function' => $f,    
-#				'NonFoldArgs' => {
-#					'Vars'=>[@non_map_args_ms_ast],
-#				},
-#				'FoldArgs' =>{
-#					'Vars' =>$in_tup_ms_ast,
-#				}
-#				'AccArgs' =>{
-#					'Vars' =>$in_tup_ms_ast,
-#				}
-#			}
-#		};
-#	],
-#	'Selects' => [
-#						{
-#							'Lhs' => {'Var' => [$array_var, 'TODO','portion']},
-#							'Rhs' =>  {'Var' => [$array_var, $ctr_in,''], 'Pattern' =>['TODO']}
-#						};
-#	],
-#	'Inserts' => [
-#						{
-#							'Lhs' => {'Var' => [$array_var,$ctr_out,''] },
-#							'Rhs' =>  {'Var' => [$array_var, $ctr_in,''], 'Pattern'=> ['TODO']},
-#						};
-#   'Portions' => {
-#                      $array_var => 1, 
-#                 }
-#	]
-#};
 
 sub _construct_TyTraCL_AST_Main_node {  (my $stref) = @_;
 	# FIXME: we ignore Selects and Inserts for now.
@@ -541,6 +600,11 @@ if (not defined $array_dims or scalar @{$array_dims} == 0) { # Scalar
 # Maybe I will be lazy and only support 1, 2, 3 and 4 dimension
 
 sub _generate_TyTraCL_stencils { (my $stencil_patt)=@_;
+# I added this mainly to make it easy to create ASTs using the mk* functions
+    if (exists $stencil_patt->{'Pattern'}) {
+        return $stencil_patt->{'Pattern'};
+    }
+
     my $stencil_ast = $stencil_patt->{'Accesses'}; 
     my $array_dims = $stencil_patt->{'Dims'};
     my @stencil_pattern = map { [ split(/:/,$_) ] } sort keys %{$stencil_ast};
@@ -568,8 +632,6 @@ sub _generate_TyTraCL_stencils { (my $stencil_patt)=@_;
         }
     }
 
-    my $tytracl_stencils_str;
-
     return $tytracl_stencils
 } # END of _generate_TyTraCL_stencils
 
@@ -577,7 +639,9 @@ sub _generate_TyTraCL_stencils { (my $stencil_patt)=@_;
 sub _addToVarTypesAndStencils { (my $stref, my $var_types, my $stencils, my $node, my $lhs, my $rhs, my $fname, my $type_formatter) = @_;
         if ($node->{'NodeType'} eq 'StencilDef') {
             my $s_var = $lhs->{'Ctr'};
-            my $s_size = scalar keys %{$rhs->{'StencilPattern'}{'Accesses'}};
+            my $s_size = exists $rhs->{'StencilPattern'}{'Pattern'} 
+            ? scalar @{$rhs->{'StencilPattern'}{'Pattern'}}
+            : scalar keys %{$rhs->{'StencilPattern'}{'Accesses'}};
             $stencils->{$s_var}=$s_size;
         } elsif ($node->{'NodeType'} eq 'StencilAppl') {
             # Here we enter the stencil from the Lhs in the table
@@ -738,7 +802,10 @@ sub _addToVarTypes { (my $stref, my $var_types, my $stencils, my $node, my $lhs,
 #		};
         if ($node->{'NodeType'} eq 'StencilDef') {
             my $s_var = $lhs->{'Ctr'};
-            my $s_size = scalar keys %{$rhs->{'StencilPattern'}{'Accesses'}};
+            # my $s_size = scalar keys %{$rhs->{'StencilPattern'}{'Accesses'}};
+            my $s_size = exists $rhs->{'StencilPattern'}{'Pattern'} 
+            ? scalar @{$rhs->{'StencilPattern'}{'Pattern'}}
+            : scalar keys %{$rhs->{'StencilPattern'}{'Accesses'}};            
             $stencils->{$s_var}=$s_size;
 # 		{'NodeType' => 'StencilAppl',
 # 			'Lhs' => {'Var' => [$array_var,$ctr_sv,'s'] },
@@ -1217,9 +1284,8 @@ sub _add_TyTraCL_AST_entry { (my $f, my $state, my $tytracl_ast, my $type, my $b
 	return $tytracl_ast;
 } # END of _add_TyTraCL_AST_entry
 
-
 # ==============================================================================================================================
-# GRAPH ANALYSIS AND TRANSFORMATION FOR STAGING
+# GRAPH ANALYSIS AND TRANSFORMATION FOR SPLITTING AND STAGING
 # ==============================================================================================================================
 
 =pod AST
@@ -1275,6 +1341,7 @@ $ast->{'NodeTypes'}{$node_type}=
 # So for a stencil node, we replace the out net by the in net and continue.
 # So to build 'Nets', I think it is actually very simple:
 
+# This routine builds up the 'Nets' and 'Nodes' tables based on the 'Lines' in the AST 
 sub build_connectivity_graph { my ($ast) = @_;
 # For stencils this is trivial and it looks like we don't have zipt/unzipt in the AST
 # So for a stencil node, we replace the out net by the in net and continue.
@@ -1283,7 +1350,10 @@ sub build_connectivity_graph { my ($ast) = @_;
     $ast->{'Nets'}={};
     $ast->{'Nodes'}={};
     my $entry_id=0;
+    local $Data::Dumper::Indent =0;
+    local $Data::Dumper::Terse=1;
     for my $entry ( @{ $ast->{'Lines'} } ) {
+        say Dumper $entry;
         my $node_type=$entry->{'NodeType'};
         my $f;
         my $latency=0;
@@ -1698,14 +1768,85 @@ if a node has incoming edges with different latencies:
 I think we can follow each edge to its From, and get the (non-fold?) deps for that node. Then see if the cross-section is empty between all these paths, if so, no problem. If not, then the nodes in the cross section must be split.
 
 So, 
-- given a node
-- with two or more inputs with different latency
-- get the From nodes for each input
-- get the dependencies for these nodes. 
-
-
+- Given a node with two or more inputs with different latency:
+    - Group and sort by latency. The highest-latency net is what we preserve, the others will now lead *eventually* to a split-out subgraph
+    - I think we need do all-to-all here at group level    
+    - Get the From nodes for each input
+        - A key question to sort out is, given a From node, which net needs to be rewired? Essentially I think it is any net that leads to a node in the split-out graph. If there is no such net, we need to follow upstream until we find one.
+    - Get the dependencies for these nodes, include the node itself
+    - Get the subgraph of all nodes in the intersection of the dependencies
+    - Wire up that subgraph: all nodes, and any net that leads to a node within the subgraph, need to be renamed
+        - Note that the subgraph still part of the original graph will keep all its connections except those that lead to the input net we started from
+    - Then actually repeat the whole procedure within this subgraph, because there can be subgraphs that need splitting in there. This is recursive
+    - Wire the subgraph into the graph
+    - Repeat the procedure on the whole graph.
 =cut
 
+sub split_paths {  my ($ast) = @_;
+    # loop over all Map and Fold nodes. No other node, I think, should have more than one input.
+    my $node_name; # TODO
+
+    my @in_nets = @{ $ast->{'Nodes'}{$node_name}{'Inputs'} };
+    if (scalar @in_nets > 1) {
+
+    my $split_paths=0;
+    my %latency_group_hash=(); # Do this even if it turns out we don't have a case
+
+    my $net_1 = shift @in_nets;#
+    my $lat_1 = $ast->{'Nets'}{$net_1}{'Latency'};
+    if (not exists $latency_group_hash{$lat_1} ) {
+        $latency_group_hash{$lat_1}=[$net_1];
+    } else {
+        push @{$latency_group_hash{$lat_1}}, $net_1;     
+    }
+    for my $net_2 (@in_nets) {
+        my $lat_2 = $ast->{'Nets'}{$net_2}{'Latency'};
+        if (not exists $latency_group_hash{$lat_2} ) {
+            $latency_group_hash{$lat_2}=[$net_2];
+        } else {
+            push @{$latency_group_hash{$lat_2}}, $net_2;     
+        }
+        if ($lat_1 != $lat_2) {
+            $split_paths=1;                
+        }
+    }
+
+    if ($split_paths) {
+        my @sorted_latencies = reverse sort keys %latency_group_hash;
+        my @latency_groups= map {  $latency_group_hash{$_}  } @sorted_latencies;
+
+        for my $g_idx_1 (0 .. scalar( @latency_groups ) - 1 ) {
+            # For every net in the latency group
+            my $latency_group_1 = $latency_groups[$g_idx_1];
+            my %deps_1=();
+            for my $net_1 (@{$latency_group_1}) {
+                # Find From-node 1             
+                my $from_node_1 = $ast->{'Nets'}{$net_1}{'From'}[0];
+                 my $deps_from_node_1 = $ast->{'Nodes'}{$from_node_1->{'Name'}}{'Dependencies'};    
+                # Get the dependencies for this node, include the node itself
+                %deps_1 = (%deps_1,%{$deps_from_node_1});
+            }    
+            for my $g_idx_2 ($g_idx_1+1 .. scalar( @latency_groups ) - 1 ) {
+                # Find From-node 2
+                # Get the dependencies for this node, include the node itself
+                my $latency_group_2 = $latency_groups[$g_idx_2];
+                my %deps_2=();
+                for my $net_2 (@{$latency_group_2}) {
+                    # Find From-node 1             
+                    my $from_node_2 = $ast->{'Nets'}{$net_2}{'From'}[0];
+                    my $deps_from_node_2 = $ast->{'Nodes'}{$from_node_2->{'Name'}}{'Dependencies'};    
+                    # Get the dependencies for this node, include the node itself
+                    %deps_2 = (%deps_2,%{$deps_from_node_2});
+                }                    
+                # Compute the intersection
+                my $subgraph_nodes = intersection(\%deps_1,\%deps_2);
+                # Create the subgraph
+            }
+        }
+    }
+    }
+    return $ast;
+} # END of split_paths
 
 
 
@@ -1755,5 +1896,57 @@ sub __add_to_MainArgTypes { my ($inoutargs,$stref,$fname,$var_name_rec,$main_rec
     $main_rec->{$inoutargs.'Types'}{$var_name}=__toTyTraCLType($type,$dim);  
     return $main_rec;
 } # END of __add_to_MainArgTypes
+
+# mkFold(shapiro_reduce_18 => [] , [['etan_avg',0,'']] => [['etan',0,'']] => [['etan_avg',1,'']]);
+sub mkFold { my ($fname,$non_fold_args, $acc_args, $fold_args, $ret_vars)=@_;
+    return {
+        'Rhs' => {
+            'FoldArgs' => {'Vars' => $fold_args},
+            'NonFoldArgs' => {'Vars' => $non_fold_args},
+            'Function' => $fname,
+            'AccArgs' => {'Vars' => $acc_args}
+        },
+        'FunctionName' => $fname,
+        'NodeType' => 'Fold',
+        'Lhs' => {
+            'Vars' => $ret_vars
+        }
+    };
+}
+
+# mkMap( shapiro_map_23 => [['eps',0,''],['etan_avg',1,'']] => [['wet',0,'s'],['etan',0,'s'],['eta',0,'']] => [['eta',1,'']] );
+sub mkMap { my ($fname,$non_map_args, $acc_args, $map_args, $ret_vars)=@_;
+    return {
+        'Rhs' => {
+            'MapArgs' => {'Vars' => $map_args},
+            'NonMapArgs' => {'Vars' => $non_map_args},
+            'Function' => $fname,
+        },
+        'FunctionName' => $fname,
+        'NodeType' => 'Map',
+        'Lhs' => {
+            'Vars' => $ret_vars
+        }
+    };
+}
+
+# mkStencilAppl('shapiro_map_23' => ['wet',0,''] => 1 => ['wet',0,'s']);
+sub mkStencilAppl { my ($fname,$arg, $ctr,$ret_var)=@_;
+    return {'Rhs' => {'Var' => $arg,'StencilCtr' => $ctr},'FunctionName' => $fname,'NodeType' => 'StencilAppl','Lhs' => {'Var' => $ret_var}};    
+}
+
+# mkStencilDef(2, [-1,-502,0,502,1]);
+sub mkStencilDef { my ($ctr, $pattern) = @_;
+    return {
+        'NodeType' => 'StencilDef',
+        'Lhs' => {'Ctr' => 1},
+        'FunctionName' => 'shapiro_map_23',
+        'Rhs' => {
+            'StencilPattern' => {
+                'Pattern' => $pattern,
+            }
+        }
+    };
+}
 
 1;
