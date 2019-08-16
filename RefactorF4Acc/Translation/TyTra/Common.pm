@@ -26,6 +26,7 @@ use Exporter;
 &pp_links  
 &__isMainInArg 
 &__isMainOutArg  
+&_mkVarName
 &F1D2C 
 &F2D2C 
 &F3D2C 
@@ -52,6 +53,15 @@ sub pp_links { (my $links)=@_;
 } # END of pp_links()
 
 
+sub _mkVarName { (my $rec) =@_;
+    # carp(Dumper($rec));
+	(my $v, my $c, my $e) = @{$rec};
+	if ($e eq '') {
+		return "${v}_${c}";
+	} else {
+		return "${v}_${e}_${c}";
+	}
+} # END of _mkVarName()
 
 
 sub __isMainInArg { (my $var_rec, my $stref) = @_;
