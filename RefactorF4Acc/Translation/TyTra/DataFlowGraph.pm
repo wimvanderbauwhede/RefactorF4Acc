@@ -259,18 +259,22 @@ sub main {
         # Proof of concept of constructing an AST using a small API
         # I'm sure I can refine this a bit¡
 
-        for my $f (qw(f1 f2 f3 sa1)) {
+        for my $f (qw(f1 f2 f3 f4  f5 sa1)) {
             $stref = addTypeDecl( $stref, $f, 'v', 'integer', [[1,500]]);
+            $stref = addTypeDecl( $stref, $f, 'acc', 'integer', []);
         }
+        
        $stref->{'TyTraCL_AST'} = {
-        'OrigArgs' => {'v' => 'inout'},
-        'UniqueVarCounters'=>{'v' => 3},
+        'OrigArgs' => {'v' => 'inout','acc'=>'local'},
+        'UniqueVarCounters'=>{'v' => 4,'acc'=>1},
         'Lines' => [
             mkMap('f1'=>[]=>[['v',0,'']],[['v',1,'']]),
             mkStencilDef(1,[-1,0,1]),
             mkStencilAppl(1,['v',1,'']=>['v',1,'s']),
             mkMap('f2'=>[]=>[['v',1,'']],[['v',2,'']]),
             mkMap('f3'=>[]=>[['v',2,''],['v',1,'s']]=>[['v',3,'']]),
+            mkFold('f4'=>[]=>[['',0,'']]=>[['v',3,'']]=>[['acc',1,'']]),
+            mkMap('f5'=>[['acc',1,'']]=>[['v',3,'']]=>[['v',4,'']]),
         ], 
         };
 
@@ -441,30 +445,30 @@ sub build_connectivity_graph { my ($ast) = @_;
             $node_inputs=[@map_inputs,@nonmap_inputs];
             $node_outputs = \@outputs;
         }
-        elsif ($node_type eq 'Fold') {
+        elsif ($node_type eq 'Fold') { 
         # Inputs are Rhs NonFoldArgs and Rhs FoldArgs and presumably Rhs AccArgs   
         # So how do I get the Latency for the fold? I think we should actually explicitly type all input vectors!
              $f = $entry->{'Rhs'}{'Function'};
             my @outputs = map { _mkVarName($_)  } @{ $entry->{'Lhs'}{'Vars'} };
             my @fold_inputs = map { _mkVarName($_)  } @{ $entry->{'Rhs'}{'FoldArgs'}{'Vars'} };
             my @nonfold_inputs = map { _mkVarName($_)  } @{ $entry->{'Rhs'}{'NonFoldArgs'}{'Vars'} };
-            my @acc_inputs = map { _mkVarName($_)  } @{ $entry->{'Rhs'}{'AccArgs'}{'Vars'} };
+            my @acc_inputs = map { _mkVarName($_)  } grep {$_->[0] ne '' } @{ $entry->{'Rhs'}{'AccArgs'}{'Vars'} };
 
             for my $output (@outputs) {
-                say "$f OUT: $node_type: $output";     
+                say "$node_type $f OUT: $output";     
                 push @{$ast->{'Nets'}{$output}{'From'}},{'Name'=>$f,'EntryID'=>$entry_id,'NodeType'=>$node_type};
                 $ast->{'Nets'}{$output}{'NetType'}=['Scalar'];
                 push @{$ast->{'Nodes'}{$f}{'Outputs'}}, $output;
             }
             for my $input (@fold_inputs) {
-                say "$f IN: $node_type: $input";     
+                say "$node_type $f IN: $input";     
                 push @{$ast->{'Nets'}{$input}{'To'}},{'Name'=>$f,'EntryID'=>$entry_id,'NodeType'=>$node_type};
                 $ast->{'Nets'}{$input}{'NetType'}='Stream';
                 $ast->{'Nets'}{$input}{'Latency'}=0;
                 push @{$ast->{'Nodes'}{$f}{'Inputs'}}, $input;
             }
             for my $input (@nonfold_inputs, @acc_inputs) {
-                say "$f IN: $node_type: $input";     
+                say "$node_type $f IN: $input";     
                 push @{$ast->{'Nets'}{$input}{'To'}},{'Name'=>$f,'EntryID'=>$entry_id,'NodeType'=>$node_type};
                 $ast->{'Nets'}{$input}{'NetType'}=['Scalar'];
                 push @{$ast->{'Nodes'}{$f}{'Inputs'}}, $input;
@@ -542,8 +546,7 @@ sub build_connectivity_graph { my ($ast) = @_;
 
 sub add_io_nodes_to_connectivity_graph { my ($ast) = @_;
     
-    for my $net (sort keys %{ $ast->{'Nets'} }) {
-        #  say "NET: $net";
+    for my $net (sort keys %{ $ast->{'Nets'} }) {                
         #  say Dumper($ast->{'Nets'}{$net});
         if (not exists $ast->{'Nets'}{$net}{'To'}) {
             say "Net $net is an output for " 
@@ -892,8 +895,6 @@ sub generate_breadth_first_ordering { my ($ast)=@_;
         if ($ast->{'Nodes'}{$node}{'NodeType'} eq 'Input') {
             $ast->{'Nodes'}{$node}{'Dist'}=0;
             push @{$ast->{'ByDist'}[0]},$node;
-            
-                                 
         }
     }
     $ast = _gen_breadth_first_ord_rec(0, $ast);
@@ -912,7 +913,6 @@ sub _gen_breadth_first_ord_rec { my ($dist, $ast) = @_;
             my $out_nets = $ast->{'Nodes'}{$node}{'Outputs'};
             # from there get the dests 
             my @dests = map { @{ $ast->{'Nets'}{$_}{'To'} } } @{$out_nets}; # so this is a flat array;
-            
 
             for my $dest (@dests) {
                 my $node_name = $dest->{'Name'};

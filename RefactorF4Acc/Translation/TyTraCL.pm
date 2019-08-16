@@ -316,6 +316,7 @@ sub construct_TyTraCL_AST_Main_node {  (my $stref) = @_;
 		my $rhs = $node->{'Rhs'} ;
         # This is not an Emitter step
         $main_rec = _addToMainSig($stref,$main_rec, $node, $lhs, $rhs, $fname);
+        
         ($var_types, $stencils) = _addToVarTypesAndStencils($stref, $var_types, $stencils, $node, $lhs, $rhs, $fname,\&__toTyTraCLType);        
     }
     # $main_rec->{'Stencils'}=$stencils;
@@ -520,7 +521,7 @@ sub __toTyTraCLScalarType { (my $type)=@_;
 
 # Maybe this should return the type as a datastructure and use emit_TyTraCLType
 sub __toTyTraCLType { (my $type, my $array_dims)=@_;
-
+croak 'HERE' if not defined $type;
 if (not defined $array_dims or scalar @{$array_dims} == 0) { # Scalar
     if ($type eq 'real') { 
         return ['Float'];
@@ -721,10 +722,13 @@ sub _addToVarTypesAndStencils { (my $stref, my $var_types, my $stencils, my $nod
             my $acc_args = $rhs->{'AccArgs'}{'Vars'} ;
             my @acc_arg_types_array=();
             for my $acc_arg_rec (@{$acc_args}) {
+                
                     my $var_name = $acc_arg_rec->[0];
+                    if ($var_name ne '') {
                     my $var_rec =  $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$var_name};
                     my $var_type =  $type_formatter->( $var_rec->{'Type'} );
                     push @acc_arg_types_array, $var_type;
+                    }
             }
             
             $var_types->{$f}{'AccArgType'} = [@acc_arg_types_array];
@@ -1009,11 +1013,14 @@ sub _addToMainSig { (my $stref, my $main_rec, my $node, my $lhs, my $rhs, my $fn
                 }
             }
             my $accs = $rhs->{'AccArgs'}{'Vars'};
-            for my $non_map_var_rec (@{$accs}) {
-                if (__isMainInArg($non_map_var_rec,$stref)) {
-                    my $var_name = $non_map_var_rec->[0];
-                    push @{ $main_rec->{'InArgs'} }, _mkVarName($non_map_var_rec);#$'InArgTypes' => {},var_name;
-                    $main_rec =  __add_to_MainArgTypes('InArgs',$stref,$fname,$non_map_var_rec,$main_rec);
+            for my $acc_var_rec (@{$accs}) {
+                
+                if (__isMainInArg($acc_var_rec,$stref)) {
+                    my $var_name = $acc_var_rec->[0];
+                    if ( $var_name ne '' ) {
+                    push @{ $main_rec->{'InArgs'} }, _mkVarName($acc_var_rec) ;
+                    $main_rec =  __add_to_MainArgTypes('InArgs',$stref,$fname,$acc_var_rec,$main_rec);
+                    }
                 }
             }
         } elsif ($node->{'NodeType'} ne 'Comment' and $node->{'NodeType'} ne 'StencilDef') {
