@@ -294,7 +294,7 @@ sub main {
         say '=' x 80;
         say '=' x 10, 'Add IO Net Types';
         say '=' x 80;
-
+$ast = generate_breadth_first_ordering($ast);
         $ast = add_io_net_types($ast);
 
         say '=' x 80;
@@ -886,7 +886,55 @@ sub split_paths {  my ($ast) = @_;
 } # END of split_paths
 
 
+sub generate_breadth_first_ordering { my ($ast)=@_;
+    $ast->{'ByDist'}=[];
+    for my $node (sort keys %{ $ast->{'Nodes'} }) {
+        if ($ast->{'Nodes'}{$node}{'NodeType'} eq 'Input') {
+            $ast->{'Nodes'}{$node}{'Dist'}=0;
+            push @{$ast->{'ByDist'}[0]},$node;
+            
+                                 
+        }
+    }
+    $ast = _gen_breadth_first_ord_rec(0, $ast);
+    croak Dumper $ast->{'ByDist'};
+    return $ast;
 
+} # END of generate_breadth_first_ordering
+
+sub _gen_breadth_first_ord_rec { my ($dist, $ast) = @_;
+    my $nodes = $ast->{'ByDist'}[$dist];
+    # say Dumper $nodes;
+    for my $node (@{$nodes}){
+        # get the output edges
+        if ($ast->{'Nodes'}{$node}{'NodeType'} ne 'Output' and
+            exists $ast->{'Nodes'}{$node}{'Outputs'} ) {
+            my $out_nets = $ast->{'Nodes'}{$node}{'Outputs'};
+            # from there get the dests 
+            my @dests = map { @{ $ast->{'Nets'}{$_}{'To'} } } @{$out_nets}; # so this is a flat array;
+            
+
+            for my $dest (@dests) {
+                my $node_name = $dest->{'Name'};
+                if (not exists $ast->{'Nodes'}{$node_name}{'Dist'} ) {
+                    $ast->{'Nodes'}{$node_name}{'Dist'} = $dist+1;
+                    push @{$ast->{'ByDist'}[$dist+1]},$node_name;
+                }
+                
+            }
+        }
+    }
+    # die;
+    if (defined $ast->{'ByDist'}[$dist+1] and scalar @{$ast->{'ByDist'}[$dist+1]}>0) {
+        # say $dist+1,Dumper($ast->{'ByDist'}[$dist+1]);
+        $ast = _gen_breadth_first_ord_rec($dist+1, $ast);
+    }
+    return $ast;
+} # END of _gen_breadth_first_ord_rec
+
+# ==============================================================================================================================
+# AUX
+# ==============================================================================================================================
 
 sub emitDotGraph { (my $nets)=@_;
     # a -> b [ label="a to b" ];
