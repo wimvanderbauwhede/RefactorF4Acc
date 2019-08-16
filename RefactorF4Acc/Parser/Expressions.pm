@@ -1640,6 +1640,7 @@ sub find_vars_in_ast { my ( $ast, $vars)=@_;
                         }
                     }                   
                     $vars->{$mvar}{'IndexVars'} = $index_vars;
+                    # croak  Dumper($vars->{$mvar}{'IndexVars'});
                 } else {      
 #                	say "skipping functions: ".$ast->[1];          
                     $vars = find_vars_in_ast($ast->[2], $vars);

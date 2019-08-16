@@ -204,7 +204,7 @@ sub identify_array_accesses_in_exprs { (my $stref, my $f) = @_;
 								if ($vars->{$tvar}{'Type'} eq 'Array'
 								and exists $in_arrays{$tvar}
 								) {
-									say "DETERMINED ACC $acc_var in $f"; 
+									# say "DETERMINED ACC $acc_var in $f"; 
 									push @{$state->{'Subroutines'}{$f}{'Args'}{'Acc'}}, $acc_var;
 									last;
 #							die Dumper($vars) if $info->{'Lhs'}{'VarName'} eq 'acc';

@@ -1113,17 +1113,18 @@ or $line=~/^character\s*\(\s*len\s*=\s*[\w\*]+\s*\)/
 					
 					$info->{'CondExecExprAST'}= $ast;
 					my $vars_in_cond_expr =  get_vars_from_expression( $ast,{});
+					
 					my $vars_and_index_vars_in_cond_expr={};
 					for my $var (sort keys %{$vars_in_cond_expr}) {
 						if ($vars_in_cond_expr->{$var}{'Type'} eq 'Array'
 						and scalar keys %{$vars_in_cond_expr->{$var}{'IndexVars'}}>0) {
 							for my $indexvar (sort keys %{$vars_in_cond_expr->{$var}{'IndexVars'}}) {
-							$vars_and_index_vars_in_cond_expr->{$indexvar} = 'Scalar';
+								$vars_and_index_vars_in_cond_expr->{$indexvar} = {'Type' =>'Scalar'};
 							}														
 						} 
-							$vars_and_index_vars_in_cond_expr->{$var} = $vars_in_cond_expr->{$var}{'Type'}; 
-						
+						$vars_and_index_vars_in_cond_expr->{$var} = $vars_in_cond_expr->{$var};#{'Type'}; 						
 					}
+					# croak Dumper $vars_and_index_vars_in_cond_expr;
 #					carp($line,Dumper($vars_and_index_vars_in_cond_expr)) if $line=~/ttt/;
 					for my $macro (keys %{$Config{'Macros'}} ) {
 						delete $vars_and_index_vars_in_cond_expr->{ lc($macro) };

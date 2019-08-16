@@ -31,7 +31,7 @@ This subroutine creates the module declarations around the original F77 files
 =cut
 
 # -----------------------------------------------------------------------------
-sub add_module_decls {
+sub add_module_decls { 
 	( my $stref ) = @_;
 
 	#    my $no_module=0;

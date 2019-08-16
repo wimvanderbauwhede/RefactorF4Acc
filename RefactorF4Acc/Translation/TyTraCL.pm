@@ -452,19 +452,27 @@ sub emit_TyTraCL {  (my $stref) = @_;
     my $main_rec = $tytracl_ast->{'Main'};
     my $in_args_types = $main_rec->{'InArgsTypes'};
     my @in_arg_type_decls=();
-    for my  $in_arg (sort keys %{$in_args_types}){
+    my @in_arg_ftypes=();
+    for my  $in_arg ( @{$main_rec->{'InArgs'}} ) {#sort keys %{$in_args_types}){
         push @in_arg_type_decls, "$in_arg :: ". emit_TyTraCLType($in_args_types->{$in_arg});
+        push @in_arg_ftypes, emit_TyTraCLType($in_args_types->{$in_arg});
     }
+    my $in_arg_ftypes_str = '('.join(',',@in_arg_ftypes).')';
+
     my $out_args_types = $main_rec->{'OutArgsTypes'};
     my @out_arg_type_decls=();
-    for my  $out_arg (sort keys %{$out_args_types}){
+    my @out_arg_ftypes=();
+    for my  $out_arg (@{$main_rec->{'OutArgs'}}){#sort keys %{$out_args_types}){
         push @out_arg_type_decls, "$out_arg :: ". emit_TyTraCLType($out_args_types->{$out_arg});
+        push @out_arg_ftypes,  emit_TyTraCLType($out_args_types->{$out_arg});
     }
+    my $out_arg_ftypes_str = '('.join(',',@out_arg_ftypes).')';
 
     my $main_in_args_str = scalar @{$main_rec->{'InArgs'}} > 1 ? '('.join(',', @{$main_rec->{'InArgs'}}).')' :  $main_rec->{'InArgs'}->[0];
     my $main_out_args_str = scalar @{$main_rec->{'OutArgs'}} > 1 ? '('.join(',', @{$main_rec->{'OutArgs'}}).')' :  $main_rec->{'OutArgs'}->[0];
     unshift @tytracl_strs_indent, '  let';
     unshift @tytracl_strs_indent, "main $main_in_args_str =";
+    unshift @tytracl_strs_indent, "main :: $in_arg_ftypes_str -> $out_arg_ftypes_str";
     unshift @tytracl_strs_indent, "";
     push @tytracl_strs_indent,'  in';
     push @tytracl_strs_indent,"    $main_out_args_str";

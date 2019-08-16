@@ -266,7 +266,7 @@ sub _analyse_src_for_iodirs {
     my $Sf = $stref->{'Subroutines'}{$f};
 
     if (not exists $Sf->{'IODirInfo'} or $Sf->{'IODirInfo'} == 0) {
-
+        # croak Dumper $Sf if not defined $Sf->{'RefactoredArgs'}{List};
         if (not exists $Sf->{'RefactoredArgs'}{'List'} or scalar @{$Sf->{'RefactoredArgs'}{'List'}} == 0) {
             # say Dumper($Sf->{'RefactoredArgs'});
             # $Sf->{'RefactoredArgs'}{'Set'} = {};
@@ -461,7 +461,7 @@ sub _analyse_src_for_iodirs {
                                 if (exists $args->{$var}{'IODir'}) {
                                     if (not defined $args->{$var}{'IODir'}) {
                                         $args->{$var}{'IODir'} = 'Unknown';
-                                    }
+                                    }                                    
                                     if ($iodirs_from_call->{$var} eq 'In') {
                                         if (not defined $args->{$var}{'IODir'}
                                             or $args->{$var}{'IODir'} eq 'Unknown')
@@ -836,7 +836,7 @@ sub _get_iodirs_from_subcall {
                     or not exists $Sname->{'RefactoredArgs'}{'Set'}{$ref_arg}{'IODir'})
                 {
                     carp "ARG $ref_arg SUB $name called from $f has no IODir "
-                      . Dumper($Sname->{'RefactoredArgs'}{'Set'}{$ref_arg});
+                      . Dumper($Sname->{'RefactoredArgs'});#{'Set'}{$ref_arg});
                 }
                 $called_arg_iodirs->{$ref_arg} = $Sname->{'RefactoredArgs'}{'Set'}{$ref_arg}{'IODir'};
 

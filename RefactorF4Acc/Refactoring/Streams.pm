@@ -51,10 +51,15 @@ use Exporter;
 	&_make_dim_vars_scalar_consts_in_sigs
 );
 
-sub pass_rename_array_accesses_to_scalars {(my $stref)=@_;
+sub pass_rename_array_accesses_to_scalars {(my $stref, my $code_unit_name)=@_;
+# croak $code_unit_name;
 	$stref = pass_wrapper_subs_in_module($stref,
+	'',[],
+	# $code_unit_name,
 			[
-				[ sub { (my $stref, my $f)=@_;  alias_ordered_set($stref,$f,'RefactoredArgs','DeclaredOrigArgs');
+				[ sub { (my $stref, my $f)=@_; 
+				
+				 alias_ordered_set($stref,$f,'RefactoredArgs','DeclaredOrigArgs');
                        
                     } ],
 #				[ \&_fix_scalar_ptr_args ],
@@ -79,7 +84,9 @@ sub pass_rename_array_accesses_to_scalars {(my $stref)=@_;
 					\&_make_dim_vars_scalar_consts_in_sigs
 				],
 			]
-		);			
+		);		
+		
+		#  die Dumper pp_annlines($stref->{Subroutines}{shapiro_map_23}{RefactoredCode});
 	return $stref;
 }
 
@@ -161,8 +168,9 @@ Assumptions:
 # ================================================================================================================================================	
 # This composite pass renames array accesses in the called subroutines in a superkernel to scalar accesses
 sub _rename_array_accesses_to_scalars { (my $stref, my $f) = @_;
+
 	if ($f ne $Config{'KERNEL'} ) {
-		
+
 	# This pass performs renaming in assignments and conditional expressions of IFs
 	# TODO: It does _not_ rename
 	# * subroutine call arguments (because there should not be any)
@@ -207,13 +215,17 @@ sub _rename_array_accesses_to_scalars { (my $stref, my $f) = @_;
 			}				
 		} 
 		if (exists $info->{'If'} ) {					
+			# carp Dumper $info;
 			my $cond_expr_ast = $info->{'CondExecExprAST'};
 			# Rename all array accesses in the AST. This updates $state->{'StreamVars'}			
 			(my $ast, $state) = _rename_ast_entry($stref, $f,  $state, $cond_expr_ast, 'In');			
+			
 			$info->{'CondExecExpr'}=$ast;
 			for my $var ( @{ $info->{'CondVars'}{'List'} } ) {
 				next if $var eq '_OPEN_PAR_';
-				if ($info->{'CondVars'}{'Set'}{$var}{'Type'} eq 'Array' and exists $info->{'CondVars'}{'Set'}{$var}{'IndexVars'}) {					
+				if (
+					$info->{'CondVars'}{'Set'}{$var}{'Type'} eq 'Array' 					
+				and exists $info->{'CondVars'}{'Set'}{$var}{'IndexVars'}) {					
 					$state->{'IndexVars'}={ %{ $state->{'IndexVars'} }, %{ $info->{'CondVars'}{'Set'}{$var}{'IndexVars'} } }
 				}
 			}
@@ -347,6 +359,7 @@ sub _rename_array_accesses_to_scalars { (my $stref, my $f) = @_;
  	
  	my @updated_args_list=();		
 	for my $orig_arg ( @{ $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'List'} } ) {		
+		
 		if (exists $state->{'StreamVars'}{$orig_arg}) {
 			my $new_decl = dclone( $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$orig_arg} );
 			for my $new_arg (@{ $state->{'StreamVars'}{$orig_arg}{'List'} }) {
@@ -429,8 +442,7 @@ sub _rename_array_accesses_to_scalars { (my $stref, my $f) = @_;
 			}
 			$info->{'Signature'}{'Args'}{'List'}=$new_args;
 			$state->{'RemainingArgs'}=$new_args;
-			$info->{'Signature'}{'Args'}{'Set'} = { map {$_=>1} @{$new_args} };
-			
+			$info->{'Signature'}{'Args'}{'Set'} = { map {$_=>1} @{$new_args} };			
 		}
 		
 		return ([[$line,$info]],$state);
@@ -556,7 +568,7 @@ sub _rename_array_accesses_to_scalars { (my $stref, my $f) = @_;
  	($stref,$global_state_access) = stateful_pass($stref,$f,$pass_emit_updated_code , $global_state_access,'_rename_array_accesses_to_scalars_PASS3() ' . __LINE__  ) ;
 # 	say $f;	
 #	show_annlines($stref->{'Subroutines'}{$f}{'LiftedIndexCalcLines'});
-
+	$stref->{'Subroutines'}{$f}{'RefactoredArgs'}= $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'};
 	} # IF NOT A KERNEL
 	return $stref;
 } # END of _rename_array_accesses_to_scalars()
@@ -574,6 +586,7 @@ sub _rename_array_accesses_to_scalars_in_subcalls { (my $stref, my $f) = @_;
 			not exists $stref->{'ExternalSubroutines'}{ $info->{'SubroutineCall'}{'Name'} }
 			){
 				my $subname = $info->{'SubroutineCall'}{'Name'};
+				# croak $subname;
 				# Collect stream and index var declarations for all called subs 
 				$stref->{'Subroutines'}{$f}{'LiftedVarDecls'}{'Set'} = {
 					%{ $stref->{'Subroutines'}{$f}{'LiftedVarDecls'}{'Set'} },
@@ -634,7 +647,7 @@ sub _rename_array_accesses_to_scalars_in_subcalls { (my $stref, my $f) = @_;
 # --------------------------------------------------------------------------------------------------------
 		 	    
 	} # IF KERNEL
-	
+
 	return $stref;
 } # END of _rename_array_accesses_to_scalars_called_subs()
 # ================================================================================================================================================

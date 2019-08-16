@@ -87,6 +87,7 @@ sub run_custom_passes {
         # The way to do this is to let the pass make sure that
         # top_src_is_module() is false
         # The easiest way is to set $stref->{'SourceContains'} = {}
+
 		if (top_src_is_module($stref, $code_unit_name)) {
             $stref=add_module_decls($stref);
 		}

@@ -1449,6 +1449,7 @@ sub _emit_f95_parsed_var_decl { (my $pvd) =@_;
 
 sub top_src_is_module {( my $stref, my $s) = @_;
     my $sub_func_incl = sub_func_incl_mod( $s, $stref ); 
+    if ($sub_func_incl eq 'Modules') { return 1};
 	my $is_incl = exists $stref->{'IncludeFiles'}{$s} ? 1 : 0;
     my $f = $is_incl ? $s : $stref->{$sub_func_incl}{$s}{'Source'};
     if ( defined $f ) {     	
@@ -1469,6 +1470,7 @@ sub top_src_is_module {( my $stref, my $s) = @_;
 # It does this for all sources but in practice it assumes a single source, so it might be better to pass this source name in as an arg instead 
 sub pass_wrapper_subs_in_module { (my $stref,my $module_name, my $module_pass_sequences, my $sub_pass_sequences, my @rest) = @_;
 	if ($module_name eq '') {
+        
 		my %is_existing_module = ();
 	    my %existing_module_name = ();
 		
@@ -1492,6 +1494,7 @@ sub pass_wrapper_subs_in_module { (my $stref,my $module_name, my $module_pass_se
 			my $has_contains = ( $is_existing_module{$src} and exists $stref->{'Modules'}{$existing_module_name{$src}}{'Contains'}  ) ? 1 : 0;
 	
 			my @subs= $is_existing_module{$src}  ? $has_contains ? @{ $stref->{'Modules'}{$existing_module_name{$src}}{'Contains'} } : ()  :  grep {$_ ne 'UNKNOWN_SRC' } sort keys %{ $stref->{'Subroutines'} };
+            # carp $src . Dumper @subs;
 			for my $pass_sequence (@{$sub_pass_sequences}) {	
 				for my $f ( @subs ) {
 					for my $pass_sub_ref (@{$pass_sequence}) {			
@@ -1501,6 +1504,7 @@ sub pass_wrapper_subs_in_module { (my $stref,my $module_name, my $module_pass_se
 			}
 		}
 	} else { 
+        
 		for my $pass_sequence (@{$module_pass_sequences}) {    	
                 for my $pass_sub_ref (@{$pass_sequence}) {                	         
                     $stref=$pass_sub_ref->($stref, $module_name, @rest);
