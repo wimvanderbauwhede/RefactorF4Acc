@@ -93,9 +93,9 @@ un(j,k) = 0.0
 uu = u(j,k)
 duu = du(j,k)
 IF(wet(j,k)==1) THEN
-  IF((wet(j,k+1)==1).or.(duu>0.0)) un(j,k) = uu+duu
+  IF((wet(j,k+1)==1).or.(du(j,k)>0.0)) un(j,k) = uu+duu
 ELSE
-  IF((wet(j,k+1)==1).and.(duu<0.0)) un(j,k) = uu+duu
+  IF((wet(j,k+1)==1).and.(du(j,k)<0.0)) un(j,k) = uu+duu
 END IF
 
 ! prediction for v
@@ -103,9 +103,9 @@ vv = v(j,k)
 dvv = dv(j,k)
 vn(j,k) = 0.0
 IF(wet(j,k)==1) THEN
-  IF((wet(j+1,k)==1).or.(dvv>0.0)) vn(j,k) = vv+dvv
+  IF((wet(j+1,k)==1).or.(dv(j,k)>0.0)) vn(j,k) = vv+dvv
 ELSE
-  IF((wet(j+1,k)==1).and.(dvv<0.0)) vn(j,k) = vv+dvv
+  IF((wet(j+1,k)==1).and.(dv(j,k)<0.0)) vn(j,k) = vv+dvv
 END IF
 
 !DEBUG

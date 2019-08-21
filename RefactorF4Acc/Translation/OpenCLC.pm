@@ -74,7 +74,7 @@ sub add_OpenCL_address_space_qualifiers { (my $stref, my $f, my $ocl) = @_;
 		} else {
 			$Config{'KERNEL'}='';
 		}
-		if ($ocl==2 or $f eq $Config{'KERNEL'} ) {
+		if ($ocl==3 or $f eq $Config{'KERNEL'} ) {
 
 
 #	The pass is as follows: 
@@ -153,13 +153,13 @@ sub translate_sub_to_C {  (my $stref, my $f, my $ocl) = @_;
 #		say Dumper($stref->{'Subroutines'}{$f}{'DeletedArgs'});
 		my $skip=0;
 		if (exists $info->{'Signature'} ) {
-			if($ocl==2 and $info->{'Signature'}{'Name'} eq 'pipe_initialisation') {
+			if($ocl==3 and $info->{'Signature'}{'Name'} eq 'pipe_initialisation') {
 			$c_line='';	
 #			} elsif($ocl==2 and $info->{'Signature'}{'Name'} eq $Config{'TOP'}) {
 #			$c_line='/*';  	
 			} else {
 			$c_line = _emit_subroutine_sig_C( $stref, $f, $annline);
-			if ($ocl==2 or ($ocl==1 and $f eq $Config{'KERNEL'})) {
+			if ($ocl==3 or ($ocl==1 and $f eq $Config{'KERNEL'})) {
 				$c_line = '__kernel __attribute__((reqd_work_group_size(1,1,1))) '.$c_line;
 			}
 			}
@@ -169,7 +169,7 @@ sub translate_sub_to_C {  (my $stref, my $f, my $ocl) = @_;
 				my $var = $info->{'VarDecl'}{'Name'};
 #				croak Dumper($stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}) if $var eq 'f';
 				if (exists $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$var}
-				or ($ocl==2 and $var=~/__pipe$/)
+				or ($ocl==3 and $var=~/__pipe$/)
 				) {
 					$c_line='//'.$line;
 					$skip=1;
@@ -279,7 +279,7 @@ sub translate_sub_to_C {  (my $stref, my $f, my $ocl) = @_;
 			$c_line = ' } else {';
 		}
 		elsif (exists $info->{'EndDo'} or exists $info->{'EndIf'}  or exists $info->{'EndSubroutine'} ) {
-			if ($ocl==2 and  exists $info->{'EndSubroutine'} and  $info->{'EndSubroutine'}{'Name'} eq 'pipe_initialisation') {
+			if ($ocl==3 and  exists $info->{'EndSubroutine'} and  $info->{'EndSubroutine'}{'Name'} eq 'pipe_initialisation') {
 				     $c_line = '' ;
 #			} elsif ($ocl==2 and  exists $info->{'EndSubroutine'} and  $info->{'EndSubroutine'}{'Name'} eq $Config{'TOP'}) {
 #				     $c_line = '*/' ;
@@ -294,7 +294,7 @@ sub translate_sub_to_C {  (my $stref, my $f, my $ocl) = @_;
 		elsif (exists $info->{'Comments'} ) {
 			$c_line = $line;
 			#!$PRAGMA unroll
-			if ($ocl==2 and $line=~/\$pragma/i) {
+			if ($ocl==3 and $line=~/\$pragma/i) {
 				$c_line=~s/\!\$/#/;
 			} else {
 			$c_line=~s/\!/\/\//;
@@ -349,11 +349,12 @@ sub translate_sub_to_C {  (my $stref, my $f, my $ocl) = @_;
 # FIXME: only include if they are actually used in the code!
 sub _write_headers { (my $stref, my $ocl)=@_;
 	
-	my @headers=(
-		($ocl ? '' : '#include <stdlib.h>'),
-		($ocl ? '' : '#include <math.h>'),
-		($ocl ? '' : 'inline unsigned int get_global_id(unsigned int n) { return 0; }'),
-		'#include "array_index_f2c1d.h"',
+	my @headers= grep { $_ ne '' } (
+		# 0 means C, needs the header; 
+		( $ocl>0 ? '' : '#include <stdlib.h>'),
+		( $ocl>0 ? '' : '#include <math.h>'),
+		( $ocl>0 ? '' : 'inline unsigned int get_global_id(unsigned int n) { return 0; }'),
+		($ocl != 2 ? '#include "array_index_f2c1d.h"' : ''),
 		''
 		);
 		$stref->{'TranslatedCode'}=[@headers,@{$stref->{'TranslatedCode'}}];
@@ -362,7 +363,7 @@ sub _write_headers { (my $stref, my $ocl)=@_;
 
 sub _emit_C_code { (my $stref, my $module_name, my $ocl)=@_;
  	map {say $_ } @{$stref->{'TranslatedCode'}} if $V;
- 	my $ext = $ocl ? 'cl' : 'c';
+ 	my $ext = ($ocl and $ocl!=2) ? 'cl' : 'c';
  	my $module_src = $stref->{'Modules'}{$module_name}{'Source'};
 	if (not defined $module_src) {
 		$module_src=$Config{'MODULE_SRC'};
@@ -438,9 +439,9 @@ sub _emit_var_decl_C { (my $stref,my $f,my $var)=@_;
 		$val = ' = '.$decl->{'Val'};
 	}
 	my $ocl = $stref->{'OpenCL'};
-	my $ptr = ($array && $ocl<2) ? '*' : '';
+	my $ptr = ($array && $ocl<3) ? '*' : '';
    	
-	my $dim= ($array && $ocl==2 ) ? '['.__C_array_size($decl->{'Dim'}).']' : '';
+	my $dim= ($array && $ocl==3 ) ? '['.__C_array_size($decl->{'Dim'}).']' : '';
 	$stref->{'Subroutines'}{$f}{'Pointers'}{$var}=$ptr;
 	my $ftype = $decl->{'Type'};
 	my $fkind = $decl->{'Attr'};
@@ -763,7 +764,7 @@ But I want to replace this with
         if (exists $info->{'VarDecl'}) {           
                 my $var = $info->{'VarDecl'}{'Name'};
 #               croak Dumper($stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}) if $var eq 'f';
-                if ($ocl==2 and exists $info->{'TrailingComment'} ) {#and exists $stref->{'Modules'}{$f}{'DeclaredOrigArgs'}{'Set'}{$var}) {
+                if ($ocl==3 and exists $info->{'TrailingComment'} ) {#and exists $stref->{'Modules'}{$f}{'DeclaredOrigArgs'}{'Set'}{$var}) {
                 	my $decl=get_var_record_from_set($stref->{'Modules'}{$f}{'Vars'},$var);                	
                 	my @pragma_chunks = split(/\s+/,$info->{'TrailingComment'});
                 	

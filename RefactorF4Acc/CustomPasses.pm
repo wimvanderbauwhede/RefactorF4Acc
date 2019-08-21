@@ -68,8 +68,10 @@ sub run_custom_passes {
 	}
 	if ($pass =~/translate_to_C/) {
 		$stref = translate_module_to_C($stref,$code_unit_name,0);
-	} elsif ( $pass =~/translate_to_OpenCL_with_pipes/) {              
+	} elsif ( $pass =~/translate_to_TyTraC/) {              
         $stref = translate_module_to_C($stref,$code_unit_name,2);
+	} elsif ( $pass =~/translate_to_OpenCL_with_pipes/) {              
+        $stref = translate_module_to_C($stref,$code_unit_name,3);
 	} elsif ( $pass =~/translate_to_OpenCL/) {				
 		$stref = translate_module_to_C($stref,$code_unit_name,1);
 	} elsif ( $pass =~/translate_to_SaC/) {				
