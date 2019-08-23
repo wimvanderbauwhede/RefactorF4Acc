@@ -93,9 +93,11 @@ un(j,k) = 0.0
 uu = u(j,k)
 duu = du(j,k)
 IF(wet(j,k)==1) THEN
-  IF((wet(j,k+1)==1).or.(du(j,k)>0.0)) un(j,k) = uu+duu
+!  IF((wet(j,k+1)==1).or.(du(j,k)>0.0)) un(j,k) = uu+duu
+  IF((wet(j,k+1)==1).or.(duu>0.0)) un(j,k) = uu+duu
 ELSE
-  IF((wet(j,k+1)==1).and.(du(j,k)<0.0)) un(j,k) = uu+duu
+!  IF((wet(j,k+1)==1).and.(du(j,k)<0.0)) un(j,k) = uu+duu
+  IF((wet(j,k+1)==1).and.(duu<0.0)) un(j,k) = uu+duu
 END IF
 
 ! prediction for v

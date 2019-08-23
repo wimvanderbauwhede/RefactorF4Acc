@@ -42,7 +42,7 @@ use Exporter;
 # }
 
 #### #### #### #### BEGIN OF C TRANSLATION CODE #### #### #### ####
-# $ocl: 0 = C, 1 = CPU/GPU OpenCL, 2= pipe-based OpenCL for FPGAs 
+# $ocl: 0 = C, 1 = CPU/GPU OpenCL, 2 = C for TyTraIR, 3 = pipe-based OpenCL for FPGAs 
 sub translate_module_to_C {  (my $stref, my $module_name, my $ocl) = @_;
 	if (not defined $ocl) {$ocl=0;}
 	$stref->{'OpenCL'}=$ocl;
@@ -153,10 +153,10 @@ sub translate_sub_to_C {  (my $stref, my $f, my $ocl) = @_;
 #		say Dumper($stref->{'Subroutines'}{$f}{'DeletedArgs'});
 		my $skip=0;
 		if (exists $info->{'Signature'} ) {
+			$pass_state->{'Args'}=$info->{'Signature'}{'Args'}{'List'};
+			# WV20190823 I think this is OBSOLETE			
 			if($ocl==3 and $info->{'Signature'}{'Name'} eq 'pipe_initialisation') {
-			$c_line='';	
-#			} elsif($ocl==2 and $info->{'Signature'}{'Name'} eq $Config{'TOP'}) {
-#			$c_line='/*';  	
+				$c_line='';	
 			} else {
 			$c_line = _emit_subroutine_sig_C( $stref, $f, $annline);
 			if ($ocl==3 or ($ocl==1 and $f eq $Config{'KERNEL'})) {
@@ -336,12 +336,13 @@ sub translate_sub_to_C {  (my $stref, my $f, my $ocl) = @_;
 		return ([$annline],[$stref,$f,$pass_state]);
 	};
 
-	my $state = [$stref,$f, {'TranslatedCode'=>[]}];
+	my $state = [$stref,$f, {'TranslatedCode'=>[], 'Args'=>[]}];
  	($stref,$state) = stateful_pass($stref,$f,$pass_translate_to_C, $state,'C_translation_collect_info() ' . __LINE__  ) ;
 
  	$stref->{'Subroutines'}{$f}{'TranslatedCode'}=$state->[2]{'TranslatedCode'};
- 	$stref->{'TranslatedCode'}=[@{$stref->{'TranslatedCode'}},@{$state->[2]{'TranslatedCode'}}];
-# 	croak Dumper($stref->{'TranslatedCode'});
+ 	$stref->{'TranslatedCode'}=[@{$stref->{'TranslatedCode'}},@{$state->[2]{'TranslatedCode'}}];	
+	# For fixing LLVM IR
+	$stref->{'SubroutineArgs'}=$state->[2]{'Args'};
  	return $stref;
 	
 } # END of translate_sub_to_C()
@@ -753,7 +754,7 @@ But I want to replace this with
  sub _emit_OpenCL_pipe_declarations {
  (my $stref, my $f, my $ocl) = @_;
     
-
+if ($stref->{'OpenCL'}==3) {
     my $pass_emit_OpenCL_pipe_declarations = sub { (my $annline, my $state)=@_; 
         (my $line,my $info)=@{$annline};
         my $c_line=$line;
@@ -787,7 +788,7 @@ But I want to replace this with
 
     $stref->{'Modules'}{$f}{'TranslatedCode'}=$state->[2]{'TranslatedCode'};
     $stref->{'TranslatedCode'}=[@{$stref->{'TranslatedCode'}},@{$state->[2]{'TranslatedCode'}},''];
-
+}
    
     return $stref; 	
  } # _emit_OpenCL_pipe_declarations
@@ -863,3 +864,32 @@ sub __all_bounds_numeric { (my $dims)=@_;
  }	
 	return $all_bounds_numeric;
 }
+
+sub _generate_llvm_ir { (my $stref, my $module_name, my $ocl)=@_;
+ 	
+ 	my $ext =  'c';
+ 	my $module_src = $stref->{'Modules'}{$module_name}{'Source'};
+	if (not defined $module_src) {
+		$module_src=$Config{'MODULE_SRC'};
+	} 
+ 	my $fsrc = $module_src;
+ 	my $csrc = $fsrc;
+	$csrc=~s/\.\w+$//;
+ 	my $tytra_c_input = "$targetdir/$csrc.$ext";
+ 	my $tytra_ir="$targetdir/$csrc";
+
+	my $clang = 'clang-mp-8.0';
+	my $opt = 'opt-mp-8.0';
+	system("$clang -emit-llvm -c $tytra_c_input -o ${tytra_ir}_tmp.bc");
+	system("$opt  -mem2reg ${tytra_ir}_tmp.bc -o $tytra_ir.bc");
+	system("$clang -O0 -S -emit-llvm $tytra_ir.bc -o $tytra_ir.ll");
+
+ 	open my $LL_IN, '>', "$targetdir/$csrc.$ext";
+	 my @ll_lines=();
+ 	while (my $line=<$LL_IN>) {
+
+	 }
+ 	close $LL_IN;
+	return $stref;
+
+} # END of _generate_llvm_ir

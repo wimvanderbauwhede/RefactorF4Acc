@@ -49,6 +49,7 @@ use Exporter;
 	&_fix_scalar_ptr_args
 	&_fix_scalar_ptr_args_subcall
 	&_make_dim_vars_scalar_consts_in_sigs
+	&_remove_redundant_arguments
 );
 
 sub pass_rename_array_accesses_to_scalars {(my $stref, my $code_unit_name)=@_;
@@ -1624,4 +1625,200 @@ sub _extract_array_access { (my $ast) = @_;
 	my $array_access=[];
 	return $array_access;
 }
+
+
+ # I'll put this here but we should move all passes that fix the broken output of Gavin's and James's compilers in a separate module, maybe "Translation::Preconditioning"
+# WV20190821
+
+# A bug to solve in Gavin's compiler is that it promotes some locals to args. 
+# What we need is the definitive algorithm to decide that something is a local. 
+# Because we start from nested loops, in principle nothing is local. 
+# So we have a pass which checks if an argument is used for write before a given kernel or for read after a given kernel. 
+# As all the arguments have their original names this should be easy.
+
+# Sadly this will not work because we can't tell if an argument was added in Gavin's compiler, unless we start parsing the original sources as well.
+# So maybe I need to do this in  Gavin's compiler after all. 
+# I think actually the main issue is that variables used in IF conditions are not considered.
+
+=pod Redundant args
+So, given an arg like duu, with intent In
+If I can prove that it was never read before being written to, I can remove it.
+
+So I go through all AnnLines looking for duu. If I find a read before I found a write, I give up. If I find a write (i.e. if duu is in the LHS of an Assignment before that, I can remove it!
+So I have a flag $access_status which can be Unknown, Read or Written. Starts out as Unknown in the Signature. 
+It can be Read before Written if it is used in an If condition which guards the Assign, or in the bounds of a Do loop
+
+In other words, 
+- start from the KERNEL, as before
+- get all In args because for an Out arg it is impossible to tell if the user wanted this
+- go through all kernel calls in order. If a call has the arg, then check the "read before write" logic
+
+=cut
+
+sub _remove_redundant_arguments_OFF { (my $stref, my $f)=@_;
+say "Removing redundant args in $f";
+# For every $f, check the argumemts. 
+# For every 
+my $pass_remove_unused_args_from_sig_and_decls = sub { (my $annline, my $state)=@_;
+		(my $line,my $info)=@{$annline};
+		if (exists $info->{'Signature'} ) { 			
+			# What we do is replace the array args with the "tuple" of scalar args from StreamVars
+			my $remaining_args=[];
+			my $unused_ct=0;
+			for my $arg (@{ $info->{'Signature'}{'Args'}{'List'} } ) {
+				if (__arg_is_unused($stref,$f,$arg)) {
+					$state->{$f}{$arg}=$arg;
+					++$unused_ct;
+					# TODO: We should move this arg here to localvars as well
+				} else {
+					push @{$remaining_args}	, $arg
+				}
+			}
+			if ($unused_ct>0) {
+				$info->{'Signature'}{'Args'}{'List'}=$remaining_args;
+				$info->{'Signature'}{'Args'}{'Set'} = { map {$_=>1} @{$remaining_args} };
+			}
+		} elsif (exists $info->{'VarDecl'} ) {
+			my $var = $info->{'VarDecl'}{'Name'};
+			say "$f $var";
+			if (exists $state->{$f}{$var}) {
+				# Must become a local
+				if (exists $info->{'ParsedVarDecl'}) {
+					# INTENT is deleted, we will run ArgumentIODirs later
+					if (exists $info->{'ParsedVarDecl'}{'Attributes'}{'Intent'} ) {
+						delete $info->{'ParsedVarDecl'}{'Attributes'}{'Intent'};
+					}
+				} else {
+					croak "TROUBLE: ".Dumper($annline); 
+				}
+			}
+		}
+		return ([[$line,$info]],$state);
+	};
+	my $state={$f=>{}};
+ 	($stref,$state) = stateful_pass($stref,$f,$pass_remove_unused_args_from_sig_and_decls, $state,'pass_remove_unused_args_from_sig_and_decls' . __LINE__  ) ;
+	 return $stref;
+} # END of _remove_redundant_arguments
+ 
+
+# sub __arg_is_unused { my ($stref,$f,$arg)=@_;
+sub _remove_redundant_arguments { (my $stref, my $f)=@_;
+	my @in_args = grep { 
+		$stref->{'Subroutines'}{ $Config{'KERNEL'} }{'DeclaredOrigArgs'}{'Set'}{$_}{'IODir'} eq 'in'
+  	}  @{$stref->{'Subroutines'}{ $Config{'KERNEL'} }{'DeclaredOrigArgs'}{'List'}};
+
+	my @call_sequence=();
+	my $f_idx=0;
+	my $idx=0;
+	for my $annline (
+		@{$stref->{'Subroutines'}{ $Config{'KERNEL'} }{'RefactoredCode'}}
+	) {
+			(my $line,my $info)=@{$annline};
+		
+			if (exists $info->{'SubroutineCall'} ) { 
+				my $csub = $info->{'SubroutineCall'}{'Name'};
+				push @call_sequence, $csub;
+				if ($csub eq $f) {
+					$f_idx=$idx;
+				}
+				++$idx;
+			}
+	}
+	my $in_args_to_keep={};
+	for my $in_arg (@in_args) {
+		for my $csub (@call_sequence) {
+			my $csub_args = $stref->{'Subroutines'}{ $csub }{'DeclaredOrigArgs'}{'Set'};
+			if (exists $csub_args->{$in_arg}) {
+				# See if it was written to before it was read. 
+				# If it was read first, we need to keep it, else we don't need it for this subroutine
+				my $written_before_read = __check_written_before_read($in_arg, $stref, $csub);
+				if (not $written_before_read) {
+					$in_args_to_keep->{$in_arg}=1;
+					last;
+				}
+				# As soon as we need to keep it for one subroutine, we can stop as we can't remove it.
+				# However, if the csub arg is inout, and we have a write-before-read, then any subsequent sub call can be ignored
+				# This is not the case if the csub arg is just in -- but I think we can't write to an in argument
+			} 
+		}
+	}
+	# so at this point we should know which input args to keep.
+	my $in_args_to_remove={};
+	for my $arg (@in_args) {
+		if (not exists $in_args_to_keep->{$arg}) {
+			$in_args_to_remove->{$arg}=1;
+		}
+	}
+	croak Dumper $in_args_to_remove;
+
+
+
+	# my @subs =  grep {$_ ne 'UNKNOWN_SRC' } sort keys %{ $stref->{'Subroutines'} };
+	# for my $idx (0 .. @call_sequence-1) {
+	# 	my $csub = shift @call_sequence;
+	# 	if ($idx<$f_idx) {
+	# 		say "$csub called before $f";
+	# 		# So, if csub has an arg Out or InOut used by 
+	# 	} 
+	# 	elsif ($idx > $f_idx) {
+	# 		say "$csub called after $f";
+	# 	}
+
+	# }
+	return 0;
+} # END of _remove_redundant_arguments
+
+sub __check_written_before_read { my ($in_arg, $stref, $f)=@_;
+
+# In practice we will not have IO calls in the kernels
+# Nor will we have subroutines calls
+# Function calls on RHS are OK 
+# So all we need to check is Assignments, If, Do and Case
+# I am going to lazily assume that CaseVals are constants
+my $pass_check_written_before_read = sub { (my $annline, my $reads_writes)=@_;
+		(my $line,my $info)=@{$annline};
+		if (exists $info->{'Assignment'} ) { 			
+				 if (exists $info->{'Rhs'}{'VarList'}{'Set'}{$in_arg}) {
+					 # $in_arg is Read 
+					 push @{$reads_writes},'r';
+				 }
+				if ($info->{'Lhs'}{'VarName'} eq $in_arg) {
+					 # $in_arg is Written 
+					 push @{$reads_writes},'w';
+				 }
+		}	
+		elsif (exists $info->{'If'} ) { 			
+				 if (exists $info->{'CondVars'}{'Set'}{$in_arg}) {
+					 # $in_arg is Read  
+					 push @{$reads_writes},'r';
+				 }
+		}			
+		elsif (exists $info->{'CaseVar'} ) { 			
+				 if ($info->{'CaseVar'} eq $in_arg) {					 
+					 # $in_arg is Read  
+					 push @{$reads_writes},'r';
+				 }
+		}			
+		elsif (exists $info->{'Do'} ) { 			
+				 if (exists $info->{'Do'}{'Range'}{'Vars'}{$in_arg}) {					 
+					 # $in_arg is Read  
+					 push @{$reads_writes},'r';
+				 }
+		}			
+
+		return ([$annline],$reads_writes);
+	};
+	
+	my $reads_writes=[]; # sequence of 'r' and 'w'. And yes, I could use 0/1
+ 	($stref,$reads_writes) = stateful_pass($stref,$f,$pass_check_written_before_read, $reads_writes,'pass_check_written_before_read' . __LINE__  ) ;
+	my $written_before_read = 0;
+	for my $rw (@{$reads_writes}) {
+		if ($rw eq 'w') {
+			$written_before_read=1;
+		}
+		last;
+	}
+	return $written_before_read;
+}
+
 1;

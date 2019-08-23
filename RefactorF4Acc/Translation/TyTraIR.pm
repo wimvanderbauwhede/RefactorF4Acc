@@ -309,7 +309,7 @@ sub _emit_TyTraIR {  (my $stref) = @_;
 
 sub __toTyTraIRType { (my $type)=@_;
 
-    if ($type eq 'real') { return 'real';
+    if ($type eq 'real') { return 'float32';
     } elsif ($type eq 'integer') { return 'i32';
     } else {
         # ad-hoc!

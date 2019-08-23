@@ -5,6 +5,9 @@ use RefactorF4Acc::Utils;
 use RefactorF4Acc::Refactoring::Common qw(
 	pass_wrapper_subs_in_module					
 	);
+use RefactorF4Acc::Refactoring::Streams qw(    
+    _remove_redundant_arguments
+    );
 use RefactorF4Acc::Translation::TyTra::Common qw(
 pp_links  
 __isMainInArg 
@@ -51,212 +54,6 @@ use Exporter;
 # The way a Fold is detected is by detecting an accumulation operation ('Acc')
 our $FOLD=1;
 
-=info
-Pass to determine stencils in map/reduce subroutines
-Because of their nature we don't even need to analyse loops: the loop variables and bounds have already been determined.
-So, for every line we check:
-If it is an assignment, a subroutine call or a condition in and If or Case, we go on
-But in the kernels we don't have subroutines at the moment. We also don't have Case I think
-If assignment, we separate LHS and RHS
-If subcall, we separate In/Out/InOut
-If cond, it is a read expression
-
-In each of these we get the AST and hunt for arrays. This is easy but would be easier if we had an 'everywhere' or 'everything' function
-
-
-type Name = String
-data VE = VI  | VO  | VS  | VT deriving (Show, Typeable, Data, Eq)
-    
-type AST = [(Expr,Expr)]                      
-
-data Expr =
-        -- Left-hand side:
-                      Scalar Name
-                    | Const Int -- bb: IntLit Integer
-                    | Tuple [Expr] --  bb: Tup [Expr]
-                    | Vec VE Name -- bb: Var Name, type via cofree comonad, but VE info is not there
-
-        -- Right-hand side:
-                    | SVec Int Name -- bb: SVec [Expr] -> to get a name, use a Let
-                    | ZipT [Expr] -- bb: App Zip (Tup  [...])
-                    | UnzipT Expr -- bb: App Unzip (vec of tuples)
-                    | Elt Int Expr -- bb: App (Select Integer) Tup
-                    | PElt Int -- bb does not need this
-                    | Map Expr Expr -- bb: App (Map Expr) Expr
-                    | Fold Expr Expr Expr -- bb: App (Fold (App action acc) Expr
-                    | Stencil Expr Expr -- bb uses App : App (Stencil (SVec [IntLit])) vector
-                    | Function Name -- bb: uses Var Name with a function type
-                    | Id -- bb has Id 
-                    | Mu Expr Expr -- \a e -> g a (f e) -- of course bb does not have this, no need
-                    | ApplyT [Expr]  -- bb: App FTup [Expr]
-                    | MapS Expr -- bb does not have this, not needed
-                    | Comp Expr Expr -- bb does not have this, not needed
-
-     -- shapiro_reduce_18
-    etan_avg_1 =  fold shapiro_reduce_18 etan_avg_0 etan_0
-     -- shapiro_map_23
-    s1 = [-1,-502,0,502,1]
-    wet_s_0 = stencil s1 wet_0
-    s2 = [-1,-502,0,502,1]
-    etan_s_0 = stencil s2 etan_0
-    eta_1 =  map (shapiro_map_23 (eps_0,etan_avg_1)) (zipt (wet_s_0,etan_s_0,eta_0))
-     -- dyn_map_39
-    s3 = [-502,0]
-    un_s_0 = stencil s3 un_0
-    s4 = [-1,0]
-    vn_s_0 = stencil s4 vn_0
-    s5 = [0,502,1]
-    wet_s_1 = stencil s5 wet_0
-    s6 = [-1,-502,0,502,1]
-    h_s_0 = stencil s6 h_0
-    s7 = [0,502,1]
-    eta_s_0 = stencil s7 eta_1
-    (du_1,duu_1,dv_1,dvv_1,etan_1,un_1,vn_1) = unzipt $ map (dyn_map_39 (dt_0,g_0,dx_0,dy_0,duu_0,dvv_0)) (zipt (eta_s_0,u_0,du_0,wet_s_1,v_0,dv_0,un_s_0,h_s_0,vn_s_0))
-     -- update_map_24
-    (h_1,u_1,v_1,wet_1) = unzipt $ map (update_map_24 hmin_0) (zipt (hzero_0,eta_s_0,h_s_0,un_s_0,vn_s_0))
-
-
-{'NodeType' => 'Comment','CommentStr' => 'shapiro_reduce_18'}
-{'Rhs' => {'FoldArgs' => {'Vars' => [['etan',0,'']]},'NonFoldArgs' => {'Vars' => []},'Function' => 'shapiro_reduce_18','AccArgs' => {'Vars' => [['etan_avg',0,'']]}},'FunctionName' => 'shapiro_reduce_18','NodeType' => 'Fold','Lhs' => {'Vars' => [['etan_avg',1,'']]}}
-
-{'CommentStr' => 'shapiro_map_23','NodeType' => 'Comment'}
-{'NodeType' => 'StencilDef','Lhs' => {'Ctr' => 1},'FunctionName' => 'shapiro_map_23','Rhs' => {'StencilPattern' => {'Dims' => [['0',501],['0',501]],'Accesses' => {'0:-1' => [{'j:0' => [1,0]}],'0:0' => [{'k:0' => [1,0]}],'1:0' => [{'k:0' => [1,1]}],'0:1' => [{'j:0' => [1,0]}],'-1:0' => [{'k:0' => [1,-1]}]}}}}
-
-{'Rhs' => {'Var' => ['wet',0,''],'StencilCtr' => 1},'FunctionName' => 'shapiro_map_23','NodeType' => 'StencilAppl','Lhs' => {'Var' => ['wet',0,'s']}}
-{'NodeType' => 'StencilDef','Lhs' => {'Ctr' => 2},'Rhs' => {'StencilPattern' => {'Dims' => [['0',501],['0',501]],'Accesses' => {'0:1' => [{'k:0' => [1,0]}],'-1:0' => [{'j:0' => [1,-1]}],'0:-1' => [{'j:0' => [1,0]}],'1:0' => [{'j:0' => [1,1]}],'0:0' => [{'j:0' => [1,0]}]}}},'FunctionName' => 'shapiro_map_23'}
-
-{'Lhs' => {'Var' => ['etan',0,'s']},'NodeType' => 'StencilAppl','FunctionName' => 'shapiro_map_23','Rhs' => {'StencilCtr' => 2,'Var' => ['etan',0,'']}}
-{'Lhs' => {'Vars' => [['eta',1,'']]},'NodeType' => 'Map','FunctionName' => 'shapiro_map_23','Rhs' => {'Function' => 'shapiro_map_23','MapArgs' => {'Vars' => [['wet',0,'s'],['etan',0,'s'],['eta',0,'']]},'NonMapArgs' => {'Vars' => [['eps',0,''],['etan_avg',1,'']]}}}
-
-{'NodeType' => 'Comment','CommentStr' => 'dyn_map_39'}
-{'NodeType' => 'StencilDef','Lhs' => {'Ctr' => 3},'Rhs' => {'StencilPattern' => {'Accesses' => {'0:0' => [{'j:0' => [1,0]}],'0:-1' => [{'k:0' => [1,0]}]},'Dims' => [['0',501],['0',501]]}},'FunctionName' => 'dyn_map_39'}
-{'NodeType' => 'StencilAppl','Lhs' => {'Var' => ['un',0,'s']},'Rhs' => {'Var' => ['un',0,''],'StencilCtr' => 3},'FunctionName' => 'dyn_map_39'}
-{'Rhs' => {'StencilPattern' => {'Accesses' => {'-1:0' => [{'j:0' => [1,-1]}],'0:0' => [{'k:0' => [1,0]}]},'Dims' => [['0',501],['0',501]]}},'FunctionName' => 'dyn_map_39','NodeType' => 'StencilDef','Lhs' => {'Ctr' => 4}}
-{'Lhs' => {'Var' => ['vn',0,'s']},'NodeType' => 'StencilAppl','FunctionName' => 'dyn_map_39','Rhs' => {'StencilCtr' => 4,'Var' => ['vn',0,'']}}
-{'NodeType' => 'StencilDef','Lhs' => {'Ctr' => 5},'FunctionName' => 'dyn_map_39','Rhs' => {'StencilPattern' => {'Dims' => [['0',501],['0',501]],'Accesses' => {'0:1' => [{'k:0' => [1,0]}],'1:0' => [{'k:0' => [1,1]}],'0:0' => [{'j:0' => [1,0]}]}}}}
-{'Lhs' => {'Var' => ['wet',1,'s']},'NodeType' => 'StencilAppl','FunctionName' => 'dyn_map_39','Rhs' => {'Var' => ['wet',0,''],'StencilCtr' => 5}}
-{'Lhs' => {'Ctr' => 6},'NodeType' => 'StencilDef','FunctionName' => 'dyn_map_39','Rhs' => {'StencilPattern' => {'Dims' => [['0',501],['0',501]],'Accesses' => {'0:0' => [{'k:0' => [1,0]}],'1:0' => [{'k:0' => [1,1]}],'0:-1' => [{'j:0' => [1,0]}],'-1:0' => [{'j:0' => [1,-1]}],'0:1' => [{'j:0' => [1,0]}]}}}}
-{'Rhs' => {'StencilCtr' => 6,'Var' => ['h',0,'']},'FunctionName' => 'dyn_map_39','NodeType' => 'StencilAppl','Lhs' => {'Var' => ['h',0,'s']}}
-{'Rhs' => {'StencilPattern' => {'Accesses' => {'1:0' => [{'j:0' => [1,1]}],'0:0' => [{'k:0' => [1,0]}],'0:1' => [{'k:0' => [1,0]}]},'Dims' => [['0',501],['0',501]]}},'FunctionName' => 'dyn_map_39','NodeType' => 'StencilDef','Lhs' => {'Ctr' => 7}}
-{'Rhs' => {'Var' => ['eta',1,''],'StencilCtr' => 7},'FunctionName' => 'dyn_map_39','NodeType' => 'StencilAppl','Lhs' => {'Var' => ['eta',0,'s']}}
-{'FunctionName' => 'dyn_map_39','Rhs' => {'NonMapArgs' => {'Vars' => [['dt',0,''],['g',0,''],['dx',0,''],['dy',0,''],['duu',0,''],['dvv',0,'']]},'Function' => 'dyn_map_39','MapArgs' => {'Vars' => [['eta',0,'s'],['u',0,''],['du',0,''],['wet',1,'s'],['v',0,''],['dv',0,''],['un',0,'s'],['h',0,'s'],['vn',0,'s']]}},'NodeType' => 'Map','Lhs' => {'Vars' => [['du',1,''],['duu',1,''],['dv',1,''],['dvv',1,''],['etan',1,''],['un',1,''],['vn',1,'']]}}
-
-{'NodeType' => 'Comment','CommentStr' => 'update_map_24'}
-{'Lhs' => {'Vars' => [['h',1,''],['u',1,''],['v',1,''],['wet',1,'']]},'NodeType' => 'Map','FunctionName' => 'update_map_24','Rhs' => {'NonMapArgs' => {'Vars' => [['hmin',0,'']]},'MapArgs' => {'Vars' => [['hzero',0,''],['eta',0,'s'],['h',0,'s'],['un',0,'s'],['vn',0,'s']]},'Function' => 'update_map_24'}}
-
-
-$ast->{'Lines'} = [
-		{'NodeType' => 'StencilDef',
-			'FunctionName' => $f,
-            # s2 = [-1,-502,0,502,1]
-			'Lhs' => {'Ctr' => $ctr_st},
-			'Rhs' => {'StencilPattern' => { # This is $stencil_patt
-            # 'Accesses' => { '0:1' =>  {'j' => [1,0],'k' => [1,1]}}, 
-               'Accesses' => { 
-                   join(':', @offset_vals) => {
-                       $iters[$idx] => [$mult_val,$offset_val],
-                     }
-                }
-            # 'Dims' => [[0,501],[1,500],...]
-   			'Dims' => [[$i_start,$i_end],[$j_start,$j_end],...]
-          }
-		};
-		{'NodeType' => 'StencilAppl',
-          'FunctionName' => $f,    
-            # wet_s_0 = stencil s2 wet_0
-			'Lhs' => {'Var' => [$array_var,$ctr_sv,'s'] },
-			'Rhs' => {'StencilCtr' => $ctr_st,'Var' => [$array_var, $ctr_in,''] }
-		};
-		{'NodeType' => 'Map',
-          'FunctionName' => $f,
-			'Lhs' => {
-				'Vars' =>[@out_tup_ast],
-			},
-			'Rhs' => {
-				'Function' => $f,        
-				'NonMapArgs' => {
-					'Vars'=>[@non_map_args_ms_ast],
-				},
-				'MapArgs' =>{
-					'Vars' =>$in_tup_ms_ast,
-				}
-			}
-		};
-		{'NodeType' => 'Fold',
-          'FunctionName' => $f,
-			'Lhs' => {
-				'Vars' =>[@out_tup_ast],
-			},
-			'Rhs' => {
-				'Function' => $f,    
-				'NonFoldArgs' => {
-					'Vars'=>[@non_map_args_ms_ast],
-				},
-				'FoldArgs' =>{
-					'Vars' =>$in_tup_ms_ast,
-				}
-				'AccArgs' =>{
-					'Vars' =>$in_tup_ms_ast,
-				}
-			}
-		};
-	];
-
-	$ast->{'Selects'} = [
-        {
-            'Lhs' => {'Var' => [$array_var, 'TODO','portion']},
-            'Rhs' =>  {'Var' => [$array_var, $ctr_in,''], 'Pattern' =>['TODO']}
-        };
-	];
-
-	$ast->{'Inserts'} = [
-        {
-            'Lhs' => {'Var' => [$array_var,$ctr_out,''] },
-            'Rhs' =>  {'Var' => [$array_var, $ctr_in,''], 'Pattern'=> ['TODO']},
-        },
-    ];
-
-    $ast->{'Portions'} = [
-        {
-            $array_var => 1, 
-        }
-	];
-
-EntryID is the line number in 'Lines'
-
-$ast->{'Nets'}{$net} = {
-    From => {
-            'Name'=>$f,
-            'EntryID'=>$entry_id,
-            'NodeType'=> Map | Fold | StencilAppl | Input | Output
-        },
-
-    To => [
-        {
-            'Name'=>$f,
-            'EntryID'=>$entry_id,
-            'NodeType'=> Map | Fold | StencilAppl | Input | Output
-        },
-        ...
-    ],
-    NetType => Vec | Scalar
-}      
-
-$ast->{'Nodes'} = {
-          
-        $node_name => {
-            NodeType => Map | Fold | StencilAppl | Input | Output
-            EntryID => $entry_id,
-            Inputs => [@input_nets],
-            Outputs => [@output_nets]            
-            Dependencies => {
-                $dep_name => NodeType,
-            }
-        },
-        
-}
-
-=cut
 
 sub pass_emit_TyTraCL {(my $stref, my $module_name)=@_;
     # WV: I think Selects and Inserts should be in Lines but I'm not sure
@@ -271,10 +68,10 @@ sub pass_emit_TyTraCL {(my $stref, my $module_name)=@_;
 	$stref = pass_wrapper_subs_in_module($stref,$module_name,
 	           # module-specific passes 
             [],
-            # subroutine-specific passes 
-	
+            # subroutine-specific passes 	
 			[
 #				[ sub { (my $stref, my $f)=@_;  alias_ordered_set($stref,$f,'DeclaredOrigArgs','DeclaredOrigArgs'); } ],
+                # [\&_remove_redundant_arguments],
 		  		[
 			  		\&identify_array_accesses_in_exprs,
 				],
@@ -1272,3 +1069,211 @@ sub __add_to_MainArgTypes { my ($inoutargs,$stref,$fname,$var_name_rec,$main_rec
 
 
 1;
+
+
+=info
+Pass to determine stencils in map/reduce subroutines
+Because of their nature we don't even need to analyse loops: the loop variables and bounds have already been determined.
+So, for every line we check:
+If it is an assignment, a subroutine call or a condition in and If or Case, we go on
+But in the kernels we don't have subroutines at the moment. We also don't have Case I think
+If assignment, we separate LHS and RHS
+If subcall, we separate In/Out/InOut
+If cond, it is a read expression
+
+In each of these we get the AST and hunt for arrays. This is easy but would be easier if we had an 'everywhere' or 'everything' function
+
+
+type Name = String
+data VE = VI  | VO  | VS  | VT deriving (Show, Typeable, Data, Eq)
+    
+type AST = [(Expr,Expr)]                      
+
+data Expr =
+        -- Left-hand side:
+                      Scalar Name
+                    | Const Int -- bb: IntLit Integer
+                    | Tuple [Expr] --  bb: Tup [Expr]
+                    | Vec VE Name -- bb: Var Name, type via cofree comonad, but VE info is not there
+
+        -- Right-hand side:
+                    | SVec Int Name -- bb: SVec [Expr] -> to get a name, use a Let
+                    | ZipT [Expr] -- bb: App Zip (Tup  [...])
+                    | UnzipT Expr -- bb: App Unzip (vec of tuples)
+                    | Elt Int Expr -- bb: App (Select Integer) Tup
+                    | PElt Int -- bb does not need this
+                    | Map Expr Expr -- bb: App (Map Expr) Expr
+                    | Fold Expr Expr Expr -- bb: App (Fold (App action acc) Expr
+                    | Stencil Expr Expr -- bb uses App : App (Stencil (SVec [IntLit])) vector
+                    | Function Name -- bb: uses Var Name with a function type
+                    | Id -- bb has Id 
+                    | Mu Expr Expr -- \a e -> g a (f e) -- of course bb does not have this, no need
+                    | ApplyT [Expr]  -- bb: App FTup [Expr]
+                    | MapS Expr -- bb does not have this, not needed
+                    | Comp Expr Expr -- bb does not have this, not needed
+
+     -- shapiro_reduce_18
+    etan_avg_1 =  fold shapiro_reduce_18 etan_avg_0 etan_0
+     -- shapiro_map_23
+    s1 = [-1,-502,0,502,1]
+    wet_s_0 = stencil s1 wet_0
+    s2 = [-1,-502,0,502,1]
+    etan_s_0 = stencil s2 etan_0
+    eta_1 =  map (shapiro_map_23 (eps_0,etan_avg_1)) (zipt (wet_s_0,etan_s_0,eta_0))
+     -- dyn_map_39
+    s3 = [-502,0]
+    un_s_0 = stencil s3 un_0
+    s4 = [-1,0]
+    vn_s_0 = stencil s4 vn_0
+    s5 = [0,502,1]
+    wet_s_1 = stencil s5 wet_0
+    s6 = [-1,-502,0,502,1]
+    h_s_0 = stencil s6 h_0
+    s7 = [0,502,1]
+    eta_s_0 = stencil s7 eta_1
+    (du_1,duu_1,dv_1,dvv_1,etan_1,un_1,vn_1) = unzipt $ map (dyn_map_39 (dt_0,g_0,dx_0,dy_0,duu_0,dvv_0)) (zipt (eta_s_0,u_0,du_0,wet_s_1,v_0,dv_0,un_s_0,h_s_0,vn_s_0))
+     -- update_map_24
+    (h_1,u_1,v_1,wet_1) = unzipt $ map (update_map_24 hmin_0) (zipt (hzero_0,eta_s_0,h_s_0,un_s_0,vn_s_0))
+
+
+{'NodeType' => 'Comment','CommentStr' => 'shapiro_reduce_18'}
+{'Rhs' => {'FoldArgs' => {'Vars' => [['etan',0,'']]},'NonFoldArgs' => {'Vars' => []},'Function' => 'shapiro_reduce_18','AccArgs' => {'Vars' => [['etan_avg',0,'']]}},'FunctionName' => 'shapiro_reduce_18','NodeType' => 'Fold','Lhs' => {'Vars' => [['etan_avg',1,'']]}}
+
+{'CommentStr' => 'shapiro_map_23','NodeType' => 'Comment'}
+{'NodeType' => 'StencilDef','Lhs' => {'Ctr' => 1},'FunctionName' => 'shapiro_map_23','Rhs' => {'StencilPattern' => {'Dims' => [['0',501],['0',501]],'Accesses' => {'0:-1' => [{'j:0' => [1,0]}],'0:0' => [{'k:0' => [1,0]}],'1:0' => [{'k:0' => [1,1]}],'0:1' => [{'j:0' => [1,0]}],'-1:0' => [{'k:0' => [1,-1]}]}}}}
+
+{'Rhs' => {'Var' => ['wet',0,''],'StencilCtr' => 1},'FunctionName' => 'shapiro_map_23','NodeType' => 'StencilAppl','Lhs' => {'Var' => ['wet',0,'s']}}
+{'NodeType' => 'StencilDef','Lhs' => {'Ctr' => 2},'Rhs' => {'StencilPattern' => {'Dims' => [['0',501],['0',501]],'Accesses' => {'0:1' => [{'k:0' => [1,0]}],'-1:0' => [{'j:0' => [1,-1]}],'0:-1' => [{'j:0' => [1,0]}],'1:0' => [{'j:0' => [1,1]}],'0:0' => [{'j:0' => [1,0]}]}}},'FunctionName' => 'shapiro_map_23'}
+
+{'Lhs' => {'Var' => ['etan',0,'s']},'NodeType' => 'StencilAppl','FunctionName' => 'shapiro_map_23','Rhs' => {'StencilCtr' => 2,'Var' => ['etan',0,'']}}
+{'Lhs' => {'Vars' => [['eta',1,'']]},'NodeType' => 'Map','FunctionName' => 'shapiro_map_23','Rhs' => {'Function' => 'shapiro_map_23','MapArgs' => {'Vars' => [['wet',0,'s'],['etan',0,'s'],['eta',0,'']]},'NonMapArgs' => {'Vars' => [['eps',0,''],['etan_avg',1,'']]}}}
+
+{'NodeType' => 'Comment','CommentStr' => 'dyn_map_39'}
+{'NodeType' => 'StencilDef','Lhs' => {'Ctr' => 3},'Rhs' => {'StencilPattern' => {'Accesses' => {'0:0' => [{'j:0' => [1,0]}],'0:-1' => [{'k:0' => [1,0]}]},'Dims' => [['0',501],['0',501]]}},'FunctionName' => 'dyn_map_39'}
+{'NodeType' => 'StencilAppl','Lhs' => {'Var' => ['un',0,'s']},'Rhs' => {'Var' => ['un',0,''],'StencilCtr' => 3},'FunctionName' => 'dyn_map_39'}
+{'Rhs' => {'StencilPattern' => {'Accesses' => {'-1:0' => [{'j:0' => [1,-1]}],'0:0' => [{'k:0' => [1,0]}]},'Dims' => [['0',501],['0',501]]}},'FunctionName' => 'dyn_map_39','NodeType' => 'StencilDef','Lhs' => {'Ctr' => 4}}
+{'Lhs' => {'Var' => ['vn',0,'s']},'NodeType' => 'StencilAppl','FunctionName' => 'dyn_map_39','Rhs' => {'StencilCtr' => 4,'Var' => ['vn',0,'']}}
+{'NodeType' => 'StencilDef','Lhs' => {'Ctr' => 5},'FunctionName' => 'dyn_map_39','Rhs' => {'StencilPattern' => {'Dims' => [['0',501],['0',501]],'Accesses' => {'0:1' => [{'k:0' => [1,0]}],'1:0' => [{'k:0' => [1,1]}],'0:0' => [{'j:0' => [1,0]}]}}}}
+{'Lhs' => {'Var' => ['wet',1,'s']},'NodeType' => 'StencilAppl','FunctionName' => 'dyn_map_39','Rhs' => {'Var' => ['wet',0,''],'StencilCtr' => 5}}
+{'Lhs' => {'Ctr' => 6},'NodeType' => 'StencilDef','FunctionName' => 'dyn_map_39','Rhs' => {'StencilPattern' => {'Dims' => [['0',501],['0',501]],'Accesses' => {'0:0' => [{'k:0' => [1,0]}],'1:0' => [{'k:0' => [1,1]}],'0:-1' => [{'j:0' => [1,0]}],'-1:0' => [{'j:0' => [1,-1]}],'0:1' => [{'j:0' => [1,0]}]}}}}
+{'Rhs' => {'StencilCtr' => 6,'Var' => ['h',0,'']},'FunctionName' => 'dyn_map_39','NodeType' => 'StencilAppl','Lhs' => {'Var' => ['h',0,'s']}}
+{'Rhs' => {'StencilPattern' => {'Accesses' => {'1:0' => [{'j:0' => [1,1]}],'0:0' => [{'k:0' => [1,0]}],'0:1' => [{'k:0' => [1,0]}]},'Dims' => [['0',501],['0',501]]}},'FunctionName' => 'dyn_map_39','NodeType' => 'StencilDef','Lhs' => {'Ctr' => 7}}
+{'Rhs' => {'Var' => ['eta',1,''],'StencilCtr' => 7},'FunctionName' => 'dyn_map_39','NodeType' => 'StencilAppl','Lhs' => {'Var' => ['eta',0,'s']}}
+{'FunctionName' => 'dyn_map_39','Rhs' => {'NonMapArgs' => {'Vars' => [['dt',0,''],['g',0,''],['dx',0,''],['dy',0,''],['duu',0,''],['dvv',0,'']]},'Function' => 'dyn_map_39','MapArgs' => {'Vars' => [['eta',0,'s'],['u',0,''],['du',0,''],['wet',1,'s'],['v',0,''],['dv',0,''],['un',0,'s'],['h',0,'s'],['vn',0,'s']]}},'NodeType' => 'Map','Lhs' => {'Vars' => [['du',1,''],['duu',1,''],['dv',1,''],['dvv',1,''],['etan',1,''],['un',1,''],['vn',1,'']]}}
+
+{'NodeType' => 'Comment','CommentStr' => 'update_map_24'}
+{'Lhs' => {'Vars' => [['h',1,''],['u',1,''],['v',1,''],['wet',1,'']]},'NodeType' => 'Map','FunctionName' => 'update_map_24','Rhs' => {'NonMapArgs' => {'Vars' => [['hmin',0,'']]},'MapArgs' => {'Vars' => [['hzero',0,''],['eta',0,'s'],['h',0,'s'],['un',0,'s'],['vn',0,'s']]},'Function' => 'update_map_24'}}
+
+
+$ast->{'Lines'} = [
+		{'NodeType' => 'StencilDef',
+			'FunctionName' => $f,
+            # s2 = [-1,-502,0,502,1]
+			'Lhs' => {'Ctr' => $ctr_st},
+			'Rhs' => {'StencilPattern' => { # This is $stencil_patt
+            # 'Accesses' => { '0:1' =>  {'j' => [1,0],'k' => [1,1]}}, 
+               'Accesses' => { 
+                   join(':', @offset_vals) => {
+                       $iters[$idx] => [$mult_val,$offset_val],
+                     }
+                }
+            # 'Dims' => [[0,501],[1,500],...]
+   			'Dims' => [[$i_start,$i_end],[$j_start,$j_end],...]
+          }
+		};
+		{'NodeType' => 'StencilAppl',
+          'FunctionName' => $f,    
+            # wet_s_0 = stencil s2 wet_0
+			'Lhs' => {'Var' => [$array_var,$ctr_sv,'s'] },
+			'Rhs' => {'StencilCtr' => $ctr_st,'Var' => [$array_var, $ctr_in,''] }
+		};
+		{'NodeType' => 'Map',
+          'FunctionName' => $f,
+			'Lhs' => {
+				'Vars' =>[@out_tup_ast],
+			},
+			'Rhs' => {
+				'Function' => $f,        
+				'NonMapArgs' => {
+					'Vars'=>[@non_map_args_ms_ast],
+				},
+				'MapArgs' =>{
+					'Vars' =>$in_tup_ms_ast,
+				}
+			}
+		};
+		{'NodeType' => 'Fold',
+          'FunctionName' => $f,
+			'Lhs' => {
+				'Vars' =>[@out_tup_ast],
+			},
+			'Rhs' => {
+				'Function' => $f,    
+				'NonFoldArgs' => {
+					'Vars'=>[@non_map_args_ms_ast],
+				},
+				'FoldArgs' =>{
+					'Vars' =>$in_tup_ms_ast,
+				}
+				'AccArgs' =>{
+					'Vars' =>$in_tup_ms_ast,
+				}
+			}
+		};
+	];
+
+	$ast->{'Selects'} = [
+        {
+            'Lhs' => {'Var' => [$array_var, 'TODO','portion']},
+            'Rhs' =>  {'Var' => [$array_var, $ctr_in,''], 'Pattern' =>['TODO']}
+        };
+	];
+
+	$ast->{'Inserts'} = [
+        {
+            'Lhs' => {'Var' => [$array_var,$ctr_out,''] },
+            'Rhs' =>  {'Var' => [$array_var, $ctr_in,''], 'Pattern'=> ['TODO']},
+        },
+    ];
+
+    $ast->{'Portions'} = [
+        {
+            $array_var => 1, 
+        }
+	];
+
+EntryID is the line number in 'Lines'
+
+$ast->{'Nets'}{$net} = {
+    From => {
+            'Name'=>$f,
+            'EntryID'=>$entry_id,
+            'NodeType'=> Map | Fold | StencilAppl | Input | Output
+        },
+
+    To => [
+        {
+            'Name'=>$f,
+            'EntryID'=>$entry_id,
+            'NodeType'=> Map | Fold | StencilAppl | Input | Output
+        },
+        ...
+    ],
+    NetType => Vec | Scalar
+}      
+
+$ast->{'Nodes'} = {
+          
+        $node_name => {
+            NodeType => Map | Fold | StencilAppl | Input | Output
+            EntryID => $entry_id,
+            Inputs => [@input_nets],
+            Outputs => [@output_nets]            
+            Dependencies => {
+                $dep_name => NodeType,
+            }
+        },
+        
+}
+
+=cut
