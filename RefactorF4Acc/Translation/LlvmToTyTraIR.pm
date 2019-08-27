@@ -47,11 +47,12 @@ sub generate_llvm_ir_for_TyTra {
 	my $f=$csrc;
     # WV: I think Selects and Inserts should be in Lines but I'm not sure
 
-	my $ll_lines =    _generate_llvm_ir($targetdir, $f);
+	my $ll_lines = _generate_llvm_ir($targetdir, $f);
 	my $ast_nodes =  _parse_llvm_ir($ll_lines);
 	# Now do the renaming 
 	my $new_ast_nodes = _rename_regs_to_args( $stref, $f,  $ast_nodes);
-	_emit_llvm_ir($targetdir, $f, 'tirl', $new_ast_nodes);
+	_emit_llvm_ir($targetdir, $f, 'll', $new_ast_nodes);
+	__sanity_check($targetdir, $f);
 	exit;
     return $stref;
 }    # END of pass_generate_llvm_ir_for_TyTra
@@ -98,17 +99,6 @@ sub _rename_regs_to_args { (my $stref, my $f, my $ast_nodes)=@_;
 
 sub _generate_llvm_ir { my ($target_dir, $csrc) =@_;
 
-    # (my $stref, my $module_name)=@_;
-
-    # my $ext =  'c';
-    # my $module_src = $stref->{'Modules'}{$module_name}{'Source'};
-    # if (not defined $module_src) {
-    # 	$module_src=$Config{'MODULE_SRC'};
-    # }
-    # my $fsrc = $module_src;
-    # my $csrc = $fsrc;
-    # $csrc=~s/\.\w+$//;
-
     my $tytra_c_input = "$target_dir/$csrc.c";
     my $tytra_ir      = "$target_dir/$csrc";
 
@@ -116,9 +106,9 @@ sub _generate_llvm_ir { my ($target_dir, $csrc) =@_;
     my $opt   = 'opt-mp-8.0';
 
     system("$clang -O0 -Xclang -disable-O0-optnone -emit-llvm -c $tytra_c_input -o ${tytra_ir}_tmp.bc");
-    system("$opt -S -mem2reg ${tytra_ir}_tmp.bc -o $tytra_ir.ll");
+    system("$opt -S -mem2reg ${tytra_ir}_tmp.bc -o $tytra_ir-raw.ll");
 
-    open my $LL_IN, '<', "$tytra_ir.ll" or die $!;
+    open my $LL_IN, '<', "$tytra_ir-raw.ll" or die $!;
     my $ll_lines = [];
     while (my $line = <$LL_IN>) {
         chomp $line;
@@ -238,7 +228,7 @@ sub _parse_llvm_ir {
 					push @ast_nodes, $ast_node;
 					
 					$called_funcs{$fname} = ['Declaration', ['FName', $fname], ['Type',$type_str],['ArgTypes',$arg_types]];
-					# declare double @llvm.fabs.f64(double) #0
+					# declare double @llvm.fabs.f64(double)
 
 				# %reg = op type [type] rest
                 } elsif ($line =~ /\%(\w+)\s+=\s+(\w+)\s+(\w+(?:\s+\w+)?)\s+(.+)\s*$/) {
@@ -372,11 +362,11 @@ sub _emit_llvm_ir {
             my $f         = $ast_node->[1];
 			if ($ast_node->[2][0] eq 'ArgTypes') {
             my $arg_types = $ast_node->[2][1];
-            my $sig_str   = 'define void @' . $f . '(' . join(', ', @{$arg_types}) . ') #0 {';
+            my $sig_str   = 'define void @' . $f . '(' . join(', ', @{$arg_types}) . ') {';
             say $OUT $sig_str;
 			} elsif ($ast_node->[2][0] eq 'TypedArgs') {
             my $typed_args = $ast_node->[2][1];
-            my $sig_str   = 'define void @' . $f . '(' . join(', ', map { __emit_reg_or_const($_)  } @{$typed_args}) . ') #0 {';
+            my $sig_str   = 'define void @' . $f . '(' . join(', ', map { __emit_reg_or_const($_)  } @{$typed_args}) . ') {';
 			say $OUT $sig_str;
 			}
         };
@@ -444,7 +434,7 @@ sub _emit_llvm_ir {
 			my $ftype = $ast_node->[2][1];
 			my $arg_types = $ast_node->[3][1];
 			my $arg_type_str = join(', ',@{$arg_types});
-			say $OUT "declare $ftype \@$fname($arg_type_str) #0";
+			say $OUT "declare $ftype \@$fname($arg_type_str)";
 		}; 
 	}
 
@@ -453,68 +443,7 @@ sub _emit_llvm_ir {
 sub _pp_llvm_ast {
     (my $ast_nodes) = @_;
 
-    for my $ast_node (@{$ast_nodes}) {
-        $ast_node->[0] eq 'Comment'         && say ';' . $ast_node->[1];
-        $ast_node->[0] eq 'Blank'           && say '';
-        $ast_node->[0] eq 'NonRegStatement' && say $ast_node->[1];
-        $ast_node->[0] eq 'EndDefinition'   && say '}';
-
-        $ast_node->[0] eq 'Signature' && do {
-            my $f         = $ast_node->[1];
-			if ($ast_node->[2][0] eq 'ArgTypes') {
-            my $arg_types = $ast_node->[2][1];
-            my $sig_str   = 'define void @' . $f . '(' . join(', ', @{$arg_types}) . ') #0 {';
-            say $sig_str;
-			} elsif ($ast_node->[2][0] eq 'TypedArgs') {
-            my $typed_args = $ast_node->[2][1];
-            my $sig_str   = 'define void @' . $f . '(' . join(', ', map { __emit_reg_or_const($_)  } @{$typed_args}) . ') #0 {';
-			say $sig_str;
-			}
-        };
-
-        #my $ast_node=['Assignment',['Reg',$reg], ['TypedOp',['Type',$type_str],['Op',$op]], [\@reg_or_const]];
-        $ast_node->[0] eq 'Assignment' && do {
-            my $reg      = __emit_reg_or_const($ast_node->[1]);
-            my $typed_op = __emit_typed_op($ast_node->[2]);
-
-            my $args_str = join(', ', map { __emit_reg_or_const($_) } @{$ast_node->[3]});
-            say "  $reg = $typed_op $args_str";
-        };
-        $ast_node->[0] eq 'Operation' && do {
-
-            # ,['Op',$op], ['Args',[@args_ast]]];
-            my $op       = __emit_typed_op($ast_node->[1]);
-            my $args_str = join(', ', map { __emit_reg_or_const($_) } @{$ast_node->[2][1]});
-            say "  $op $args_str";
-        };
-
-        $ast_node->[0] eq 'Branch' && do {
-
-            # ,['Cond',['TypedReg',['Type',$type_str], ['Reg',$reg]]],
-            if ($ast_node->[1][0] eq 'Cond') {
-                my $cond   = __emit_reg_or_const($ast_node->[1][1]);
-                my $label1 = __emit_reg_or_const($ast_node->[2]);
-                my $label2 = __emit_reg_or_const($ast_node->[3]);
-                say "  br $cond, label $label1, label $label2";
-            }
-            else {
-                my $label = __emit_reg_or_const($ast_node->[1]);
-                say "  br label $label";
-            }
-        };
-        $ast_node->[0] eq 'Label' && do {
-
-            #  ['Label', $label,[@preds]];
-            my $label     = $ast_node->[1];
-            my $preds_str = '';
-            if (scalar @{$ast_node->[2]} > 0) {
-
-                #  croak Dumper $ast_node;
-                $preds_str = join(', ', map { __emit_reg_or_const($_) } @{$ast_node->[2]});
-            }
-            say "; <label>:$label:" . ($preds_str ? '                                     ; preds = ' . $preds_str : '');
-        };
-    }
+   croak 'EMPTY';
 }    # END of _pp_llvm_ast
 
 sub __emit_reg_or_const {
@@ -585,6 +514,10 @@ sub __rename_arg_regs { my ($ast_node, $regs_to_args, $reg_offset)=@_;
 	}
 } # END of __rename_arg_regs
 
+sub __sanity_check { my ($target_dir, $f) =@_;
+	system("opt-mp-8.0 -S $target_dir/$f.ll  | diff -u -w -  $target_dir/$f.ll"); 
+}
+
 =pod LLVM IR sample
   %14 = icmp eq i32 %0, 1
   br i1 %14, label %15, label %49
@@ -647,4 +580,8 @@ what we want is
 
 %wet_j_k = select i1 %cond, t1 i32 0,  i32 1
 
+
+translate_kernels_to_C.pl should become translate_kernels_to_LLVM_IR.pl
+
+opt-mp-8.0 -S TyTraC/dyn_map_39.tirl  | diff -u -w -  TyTraC/dyn_map_39.tirl 
 =cut
