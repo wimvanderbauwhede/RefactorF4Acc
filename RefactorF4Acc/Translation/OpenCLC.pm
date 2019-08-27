@@ -7,6 +7,8 @@ use RefactorF4Acc::Analysis::ArgumentIODirs qw( determine_argument_io_direction_
 use RefactorF4Acc::Refactoring::Common qw( stateful_pass pass_wrapper_subs_in_module );
 use RefactorF4Acc::Refactoring::Streams qw( _declare_undeclared_variables _update_arg_var_decls _removed_unused_variables _fix_scalar_ptr_args _fix_scalar_ptr_args_subcall );
 use RefactorF4Acc::Parser::Expressions qw( @sigils );
+use RefactorF4Acc::Translation::LlvmToTyTraIR qw( generate_llvm_ir_for_TyTra );
+
 # 
 #   (c) 2010-2017 Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
 #   
@@ -42,7 +44,7 @@ use Exporter;
 # }
 
 #### #### #### #### BEGIN OF C TRANSLATION CODE #### #### #### ####
-# $ocl: 0 = C, 1 = CPU/GPU OpenCL, 2 = C for TyTraIR, 3 = pipe-based OpenCL for FPGAs 
+# $ocl: 0 = C, 1 = CPU/GPU OpenCL, 2 = C for TyTraIR aka TyTraC, 3 = pipe-based OpenCL for FPGAs 
 sub translate_module_to_C {  (my $stref, my $module_name, my $ocl) = @_;
 	if (not defined $ocl) {$ocl=0;}
 	$stref->{'OpenCL'}=$ocl;
@@ -63,6 +65,9 @@ sub translate_module_to_C {  (my $stref, my $module_name, my $ocl) = @_;
 		
 	$stref = _write_headers($stref,$ocl);	
 	$stref = _emit_C_code($stref, $module_name, $ocl);
+	if ($ocl==2 and $module_name !~/superkernel/) {
+		$stref = generate_llvm_ir_for_TyTra($stref, $module_name);
+	}
     # This makes sure that no fortran is emitted by emit_all()
     $stref->{'SourceContains'}={};
 }
@@ -354,7 +359,7 @@ sub _write_headers { (my $stref, my $ocl)=@_;
 	my @headers= grep { $_ ne '' } (
 		# 0 means C, needs the header; 
 		( $ocl>0 ? '' : '#include <stdlib.h>'),
-		( $ocl>0 ? '' : '#include <math.h>'),
+		( $ocl>0 and $ocl!=2 ? '' : '#include <math.h>'),
 		( $ocl>0 ? '' : 'inline unsigned int get_global_id(unsigned int n) { return 0; }'),
 		($ocl != 2 ? '#include "array_index_f2c1d.h"' : ''),
 		''
@@ -865,138 +870,3 @@ sub __all_bounds_numeric { (my $dims)=@_;
  }	
 	return $all_bounds_numeric;
 }
-
-sub _generate_llvm_ir { (my $stref, my $module_name, my $ocl)=@_;
- 	
- 	my $ext =  'c';
- 	my $module_src = $stref->{'Modules'}{$module_name}{'Source'};
-	if (not defined $module_src) {
-		$module_src=$Config{'MODULE_SRC'};
-	} 
- 	my $fsrc = $module_src;
- 	my $csrc = $fsrc;
-	$csrc=~s/\.\w+$//;
- 	my $tytra_c_input = "$targetdir/$csrc.$ext";
- 	my $tytra_ir="$targetdir/$csrc";
-
-	my $clang = 'clang-mp-8.0';
-	my $opt = 'opt-mp-8.0';
-
-	system("$clang -O0 -Xclang -disable-O0-optnone -emit-llvm -c $tytra_c_input -o ${tytra_ir}_tmp.bc");
-	system("$opt -S -mem2reg ${tytra_ir}_tmp.bc -o $tytra_ir.ll");
-
- 	open my $LL_IN, '<', "$tytra_ir.ll" or die $!;
-	my @ll_lines=();
- 	while (my $line=<$LL_IN>) {
-		chomp $line;
-		push @ll_lines, $line;
-	}
-	my %regs_to_args=();
-	my %args_to_regs=();
-=pod LLVM IR sample
-  %14 = icmp eq i32 %0, 1
-  br i1 %14, label %15, label %49
-; <label>:15:                                     ; preds = %13
-  %16 = fpext float %5 to double
-  %17 = fmul double 2.500000e-01, %16
-  %18 = add nsw i32 %2, %1
-  %21 = sitofp i32 %20 to double
-  %22 = fmul double %17, %21
-  %23 = fsub double 1.000000e+00, %22
-  %48 = fadd float %47, %46
-  store float %48, float* %11, align 4
-  br label %50
-
-; <label>:49:                                     ; preds = %13
-  store float %6, float* %11, align 4
-  ret void  
-  %84 = load float, float* %30, align 4
-
-so we have
-['Assignment',$reg, ['TypedOp',$type,$op], [$reg_or_$const]]]]  
-['Operation',['TypedOp',$type,$op], ['Args',[' ',]]]  Const or Reg
-[' ',]  eg. [' ','ret','void']
-[';',$comment] 
-['Label',$label,[$preds]] => custom emitter
-['Branch',['Cond',['TypedReg',$type, $reg]],$label1, $label2]
-
-
-=cut
-
-	for my $line (@ll_lines) {
-		$line=~/define\s+void\s+(\w+)\((.+)\)/ && do {
-				my $f=$1;
-				my $arg_types_str=$2;
-				my @arg_types=split(/\s*,\s*/,$arg_types_str);
-				my $ast_node = ['Signature',$f,['ArgTypes',@arg_types]];
-				if ($f eq $stref->{'SubroutineName'}) {
-					my @args = $stref->{'SubroutineArgs'};
-				}	
-				next;			
-		};
-		$line=~/\%/ && do {
-				$line=~/=/ && do {
-					$line=~/\%(\w+)\s+=\s+(\w+)\s+(\w+(?:\s+\w+)?)\s+(.+)\s*$/;
-					my $reg=$1;
-					my $op=$2;
-					my $type_str=$3;
-					my $args_str=$4;
-					my @args = split(/\s*,\s*/,$args_str);
-					my @reg_or_const = map  { /\%(\w+)/ ? ['Reg',$1] : ['Const',$_] } @args;
-					my $ast_node=['Assignment',$reg, ['TypedOp',$type_str,$op], [@reg_or_const]];
-					next;
-				};
-				$line=~/^\s*br/ && do {
-					$line=~/br\s+(\w+)\s+\%(\w+)\s*,\s*label\s+\%(\w+)\s*,\s*label\s+\%(\w+)/;
-					my $type_str=$1;
-					my $reg=$2;
-					my $label1=$3;
-					my $label2=$4;
-					my $ast_node=['Branch',['Cond',['TypedReg',$type_str, ['Reg',$reg]]],$label1, $label2];
-					next;
-				};
-				# store float %48, float* %11, align 4
-				$line=~/^\s*(\w+)\s+(.+?)\s*$/ && do {
-					my $op=$1;
-					my $args_str = $2;
-					my @args = split(/\s*,\s*/,$args_str);
-					my @args_ast = map  { my $arg=$_;
-					my $type_str='';
-					my $reg='';
-					my $other='';
-						# try parse as typed args 						
-						if ($arg=~/(\w+)\s+\%(\w+)/) {
-							$type_str=$1;
-							$reg=$2;
-						}
-						# then as plain regs
-						elsif ($arg=~/\%(\w+)/) {
-							$reg=$1;
-						}
-						# then as anything else
-						elsif ($arg=~/(.+)/) {
-							$other=$1;
-						}
-						['TypedReg',$type_str,['Reg', $reg]	];
-					} @args;
-					# $line=~/^\s*(\w+)\s+(.+?)\s+\%(\w+)\s*,\s*(.+?)\s+\%(\w+)\s*,\s*(.+)\s*$/ && do {
-					my $ast_node=['Operation',['Op',$op], ['Args',[' ',]]];				
-					next;
-				};
-				
-		};
-		$line=~/<label>:(\d+):/ && do {
-			my $label=$1;
-			my $preds_str='';
-			$line=~/preds\s+=\s+(.+)/ && do {
-				$preds_str=$1;
-			};
-			my @preds =  ($preds_str ne '') ? split(/\s*,\s*/,$preds_str) : ();
-			my $ast_node = ['Label', $label,@preds];
-			next;
-		};
-	}
- 	close $LL_IN;
-	return $stref;
-
-} # END of _generate_llvm_ir

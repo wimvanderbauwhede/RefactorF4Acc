@@ -1,6 +1,8 @@
 #!/usr/bin/env perl
 use v5.28;
 
+our $V=0;
+
 my $kernels_dir = 'Scalarized';
 if (not -d 'Scalarized') {
     if (!@ARGV) {
@@ -58,9 +60,9 @@ sub get_kernel_and_module_names {
     my @src_lines = <$SRC>;
     close $SRC;
     my ($kernel_sub_name)    = map {/^\s*subroutine\s+(\w+)/; $1} grep { /^\s*subroutine\s+\w+/ } @src_lines;
-    say "KERNEL SUB NAME: <$kernel_sub_name>";
+    say "KERNEL SUB NAME: <$kernel_sub_name>" if $V;
     my ($kernel_module_name) = map { /^\s*module\s+(\w+)/; $1 } grep {/^\s*module\s+\w+/} @src_lines;
-    say "KERNEL MODULE NAME: <$kernel_module_name>";
+    say "KERNEL MODULE NAME: <$kernel_module_name>" if $V;
     return ($kernel_sub_name, $kernel_module_name);
 }
 
