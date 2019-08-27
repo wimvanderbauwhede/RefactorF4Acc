@@ -63,3 +63,4 @@ sub get_kernel_and_module_names {
     say "KERNEL MODULE NAME: <$kernel_module_name>";
     return ($kernel_sub_name, $kernel_module_name);
 }
+
