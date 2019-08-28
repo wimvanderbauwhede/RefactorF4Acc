@@ -727,3 +727,47 @@ sub __pp_ast_tree { my ($ast_tree)=@_;
         say "}";
     }
 }
+
+sub __simplify_ast_tree { my ($ast_tree)=@_;
+    my %simplified_ast_tree=();
+    for my $label (sort keys %{$ast_tree}) {
+        my @preds=();
+        if (exists $ast_tree->{$label}{Preds} ) {
+             @preds = map { $_->[1] } @{ $ast_tree->{$label}{Preds} };
+        }
+        $simplified_ast_tree{$label}{Preds}=\@preds;
+       
+       my @regs=grep {$_ ne ''} map {
+           __get_assigned_reg_from_ast_node($_);            
+       } @{ $ast_tree->{$label}{Block} };       
+       $simplified_ast_tree{$label}{Block}=\@regs;
+    
+        if (exists $ast_tree->{$label}{IfThenElse} ) {            
+            $simplified_ast_tree{$label}{IfThenElse} =[
+                $ast_tree->{$label}{IfThenElse}[1][1][2][1],
+                $ast_tree->{$label}{IfThenElse}[2][1] ,
+                $ast_tree->{$label}{IfThenElse}[3][1] 
+             ] ;            
+        }
+        if (exists $ast_tree->{$label}{Goto} ) {            
+            $simplified_ast_tree{$label}{Goto} = $ast_tree->{$label}{Goto}[1][1];            
+        }
+        if (exists $ast_tree->{$label}{Return} ) {            
+            $simplified_ast_tree{$label}{Return}=1;            
+        }        
+    }
+    return \%simplified_ast_tree;
+} # END of __simplify_ast_tree
+
+sub __identify_regs_w_multiple_occs { my ($ast_tree) = @_;
+    my %labels_for_reg=();
+    for my $label (sort keys %{$ast_tree}) {
+        map { $labels_for_reg{$_}{$label}=$_ } @{$ast_tree->{$label}{Block}};
+    }  
+    for my $reg (keys %labels_for_reg) {
+        if (scalar keys %{$labels_for_reg{$reg}} < 2 ) {
+            delete $labels_for_reg{$reg};
+        }
+    }
+    return \%labels_for_reg;
+} # END of __identify_regs_w_multiple_occs
