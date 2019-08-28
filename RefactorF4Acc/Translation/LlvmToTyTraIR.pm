@@ -52,6 +52,7 @@ sub generate_llvm_ir_for_TyTra {
 	# Now do the renaming 
 	my $new_ast_nodes = _rename_regs_to_args( $stref, $f,  $ast_nodes);
     my $ast_tree = _build_ast_tree($new_ast_nodes);
+    say "\n$f\n";
     __pp_ast_tree($ast_tree);
 	my $new_ll_lines = _emit_llvm_ir($new_ast_nodes);
     _create_llvm_ir_src($targetdir, $f, 'll', $new_ll_lines);
@@ -332,7 +333,9 @@ sub _parse_llvm_ir {
                 } @args;
 
                 # $line=~/^\s*(\w+)\s+(.+?)\s+\%(\w+)\s*,\s*(.+?)\s+\%(\w+)\s*,\s*(.+)\s*$/ && do {
-                my $ast_node = ['Operation', ['Op', $op], ['Args', [@args_ast]]];
+                my $ast_node = $op eq 'store' 
+                    ? ['Store', ['Args', [@args_ast]]]
+                    : ['Operation', ['Op', $op], ['Args', [@args_ast]]];
 				# croak $line.Dumper $ast_node if $line=~/store/;
 				# if ($args_ast[-1][0] eq 'Attribute') {
 				# 	croak "ATTR: $line";
@@ -340,7 +343,12 @@ sub _parse_llvm_ir {
                 push @ast_nodes, $ast_node;
                 next;
             };
+        };
 
+        $line =~ /ret\s+void/ && do {
+            my $ast_node = ['Return'];
+            push @ast_nodes, $ast_node;
+            next;
         };
 
         my $ast_node = ['NonRegStatement', $line];
@@ -369,6 +377,7 @@ sub _emit_llvm_ir {
         $ast_node->[0] eq 'Comment'         && push @ll_lines, ';' . $ast_node->[1];
         $ast_node->[0] eq 'Blank'           && push @ll_lines, '';
         $ast_node->[0] eq 'NonRegStatement' && push @ll_lines, $ast_node->[1];
+        $ast_node->[0] eq 'Return' && push @ll_lines, '  ret void';
         $ast_node->[0] eq 'EndDefinition'   && push @ll_lines, '}';
 
         $ast_node->[0] eq 'Signature' && do {
@@ -410,7 +419,11 @@ sub _emit_llvm_ir {
             my $args_str = join(', ', map { __emit_reg_or_const($_) } @{$ast_node->[2][1]});
             push @ll_lines, "  $op $args_str";
         };
-
+        $ast_node->[0] eq 'Store' && do {
+            # ['Store', ['Args',[@args_ast]]];            
+            my $args_str = join(', ', map { __emit_reg_or_const($_) } @{$ast_node->[1][1]});
+            push @ll_lines, "  store $args_str";
+        };
         $ast_node->[0] eq 'IfThenElse' && do {
             # ,['Cond',['TypedReg',['Type',$type_str], ['Reg',$reg]]],
             my $cond   = __emit_reg_or_const($ast_node->[1][1]);
@@ -495,8 +508,18 @@ sub __ast_node_has_reg { my ($ast_node)=@_;
 	}
 } # END of __ast_node_has_reg
 
+sub __get_assigned_reg_from_ast_node { my ($ast_node)=@_;
+    if ($ast_node->[0] eq 'Assignment') {
+        return $ast_node->[1][1];    
+    } elsif ($ast_node->[0] eq 'Store') {	        
+        return $ast_node->[1][1][1][2][1];    
+    } else {
+        return '';
+    }
+} # END of __get_assigned_reg_from_ast_node
+
+
 # start with an empty $regs array []
-# TO BE TESTED!
 sub __get_regs_from_ast_node { my ($ast_node, $regs)=@_;
 	if (ref($ast_node) eq 'ARRAY') {
 		if ($ast_node->[0] eq 'Reg') {
@@ -661,6 +684,9 @@ sub _build_ast_tree { my ($ast_nodes)=@_;
         elsif ($ast_node->[0] eq 'Goto') {
             $ast_tree{$label}{Goto} =  $ast_node;
         }
+        elsif ($ast_node->[0] eq 'Return') {
+            $ast_tree{$label}{Return} =  [];
+        }
         elsif ($ast_node->[0] eq 'EndDefinition') {
             last;
         }
@@ -677,13 +703,27 @@ sub __pp_ast_tree { my ($ast_tree)=@_;
         if (exists $ast_tree->{$label}{Preds} ) {
             say "\t".'Preds => '.join(', ', map { $_->[1] } @{ $ast_tree->{$label}{Preds} });
         }
-        say "\t".'Block => '.join("\n\t\t",@{ _emit_llvm_ir($ast_tree->{$label}{Block}) });
+        say "\t".'Block => '
+        # .join("\n\t\t",
+       .join(', ', grep {$_ ne ''} map {
+           __get_assigned_reg_from_ast_node($_);            
+       } @{ $ast_tree->{$label}{Block} }
+       );
+    
         if (exists $ast_tree->{$label}{IfThenElse} ) {            
-            say "\t".'IfThenElse => '.join("\n",@{ _emit_llvm_ir([$ast_tree->{$label}{IfThenElse}])});
+            say "\t".'IfThenElse => '.$ast_tree->{$label}{IfThenElse}[1][1][2][1]. ' ? '
+            .$ast_tree->{$label}{IfThenElse}[2][1] . ' : '
+            .$ast_tree->{$label}{IfThenElse}[3][1] 
+             ;
+            #join("\n",@{ _emit_llvm_ir([$ast_tree->{$label}{IfThenElse}])});
         }
         if (exists $ast_tree->{$label}{Goto} ) {            
-            say "\t".'Goto => '.join("\n",@{ _emit_llvm_ir([$ast_tree->{$label}{Goto}]) });
+            say "\t".'Goto => '.$ast_tree->{$label}{Goto}[1][1];
+            # join("\n",@{ _emit_llvm_ir([$ast_tree->{$label}{Goto}]) });
         }
-        say "\t}";
+        if (exists $ast_tree->{$label}{Return} ) {            
+            say "\t".'Return';            
+        }
+        say "}";
     }
 }

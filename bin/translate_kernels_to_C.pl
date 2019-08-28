@@ -22,7 +22,7 @@ if (@kernel_srcs) {
         system ('rm -f ../TyTraC/*.c');
     }
     for my $kernel_src (@kernel_srcs) {
-        say "KERNEL SRC: $kernel_src";
+        say "KERNEL SRC: $kernel_src" if $V;
         my ($kernel_sub_name, $kernel_module_name) = get_kernel_and_module_names($kernel_src);
         if ($kernel_sub_name ne '') {
             my $rf4a_cfg = create_rf4a_cfg($kernel_src,$kernel_sub_name, $kernel_module_name);
