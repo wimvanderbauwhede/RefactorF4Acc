@@ -51,8 +51,11 @@ sub generate_llvm_ir_for_TyTra {
 	my $ast_nodes =  _parse_llvm_ir($ll_lines);
 	# Now do the renaming 
 	my $new_ast_nodes = _rename_regs_to_args( $stref, $f,  $ast_nodes);
-	_emit_llvm_ir($targetdir, $f, 'll', $new_ast_nodes);
-	__sanity_check($targetdir, $f);
+    my $ast_tree = _build_ast_tree($new_ast_nodes);
+    __pp_ast_tree($ast_tree);
+	my $new_ll_lines = _emit_llvm_ir($new_ast_nodes);
+    _create_llvm_ir_src($targetdir, $f, 'll', $new_ll_lines);
+	# __sanity_check($targetdir, $f);
 	exit;
     return $stref;
 }    # END of pass_generate_llvm_ir_for_TyTra
@@ -85,6 +88,7 @@ sub _rename_regs_to_args { (my $stref, my $f, my $ast_nodes)=@_;
 			}
 			
         } elsif (__ast_node_has_reg($ast_node)!=-1) {
+            my $regs = __get_regs_from_ast_node($ast_node,[]);            
 				my $new_ast_node = __rename_arg_regs($ast_node,\%regs_to_args,$reg_offset);
 				push @{$new_ast_nodes},$new_ast_node;	
 		} else {
@@ -278,7 +282,7 @@ sub _parse_llvm_ir {
                     my $label1   = $3;
                     my $label2   = $4;
                     my $ast_node = [
-                        'Branch',
+                        'IfThenElse',
                         ['Cond', ['TypedReg', ['Type', $type_str], ['Reg', $reg]]],
                         ['Reg', $label1],
                         ['Reg', $label2]
@@ -288,7 +292,7 @@ sub _parse_llvm_ir {
                 }
                 elsif ($line =~ /br\s+label\s+\%(\w+)/) {
                     my $label    = $1;
-                    my $ast_node = ['Branch', ['Reg', $label]];
+                    my $ast_node = ['Goto', ['Reg', $label]];
                     push @ast_nodes, $ast_node;
                 }
                 next;
@@ -348,26 +352,35 @@ sub _parse_llvm_ir {
 }    # END of _parse_llvm_ir
 
 # We write directly to a file
-sub _emit_llvm_ir {
-    my ( $target_dir, $f, $ext, $ast_nodes) = @_;
+sub _create_llvm_ir_src {
+    my ( $target_dir, $f, $ext, $ll_lines) = @_;
 	open my $OUT, '>', "$target_dir/$f.$ext" or die $!;
+    for my $ll_line (@{$ll_lines}) {
+        say $OUT $ll_line;
+    }
+    close $OUT;
+} # END of _create_llvm_ir_src
+# We should write to a list of strings and then to a file!
+sub _emit_llvm_ir {
+    my ( $ast_nodes) = @_;
+    my @ll_lines=();
 
     for my $ast_node (@{$ast_nodes}) {
-        $ast_node->[0] eq 'Comment'         && say $OUT ';' . $ast_node->[1];
-        $ast_node->[0] eq 'Blank'           && say $OUT '';
-        $ast_node->[0] eq 'NonRegStatement' && say $OUT $ast_node->[1];
-        $ast_node->[0] eq 'EndDefinition'   && say $OUT '}';
+        $ast_node->[0] eq 'Comment'         && push @ll_lines, ';' . $ast_node->[1];
+        $ast_node->[0] eq 'Blank'           && push @ll_lines, '';
+        $ast_node->[0] eq 'NonRegStatement' && push @ll_lines, $ast_node->[1];
+        $ast_node->[0] eq 'EndDefinition'   && push @ll_lines, '}';
 
         $ast_node->[0] eq 'Signature' && do {
             my $f         = $ast_node->[1];
 			if ($ast_node->[2][0] eq 'ArgTypes') {
             my $arg_types = $ast_node->[2][1];
             my $sig_str   = 'define void @' . $f . '(' . join(', ', @{$arg_types}) . ') {';
-            say $OUT $sig_str;
+            push @ll_lines, $sig_str;
 			} elsif ($ast_node->[2][0] eq 'TypedArgs') {
             my $typed_args = $ast_node->[2][1];
             my $sig_str   = 'define void @' . $f . '(' . join(', ', map { __emit_reg_or_const($_)  } @{$typed_args}) . ') {';
-			say $OUT $sig_str;
+			push @ll_lines, $sig_str;
 			}
         };
 
@@ -376,57 +389,49 @@ sub _emit_llvm_ir {
             my $reg      = __emit_reg_or_const($ast_node->[1]);
 			# ['Assignment', ['Reg', $reg], ['Call', ['Type', $type_str]], ['FName', $fname],['Args',[@reg_or_const]]];
 			if ($ast_node->[2][0] eq 'Call') {
-				# croak 'HERE';
-
 				my $type = $ast_node->[2][1][1];
 				my $fname = $ast_node->[3][1];
             	my $args_str = join(', ', map { __emit_reg_or_const($_) } @{$ast_node->[4][1]});
-            	say $OUT "  $reg = call $type \@$fname($args_str)";
-
-			} else {
-			
-            my $typed_op = __emit_typed_op($ast_node->[2]);
-			my $attr='';
-			if ($ast_node->[-1][0] eq 'Attribute') {
-				$attr = $ast_node->[-1][1];
-			}
-            my $args_str = join(', ', map { __emit_reg_or_const($_) } @{$ast_node->[3]});
-            say $OUT "  $reg = $typed_op $args_str $attr";
+            	push @ll_lines, "  $reg = call $type \@$fname($args_str)";
+			} else {			
+                my $typed_op = __emit_typed_op($ast_node->[2]);
+                my $attr='';
+                if ($ast_node->[-1][0] eq 'Attribute') {
+                    $attr = $ast_node->[-1][1];
+                }
+                my $args_str = join(', ', map { __emit_reg_or_const($_) } @{$ast_node->[3]});
+                push @ll_lines, "  $reg = $typed_op $args_str $attr";
 			}
         };
-        $ast_node->[0] eq 'Operation' && do {
 
+        $ast_node->[0] eq 'Operation' && do {
             # ,['Op',$op], ['Args',[@args_ast]]];
             my $op       = __emit_typed_op($ast_node->[1]);
             my $args_str = join(', ', map { __emit_reg_or_const($_) } @{$ast_node->[2][1]});
-            say $OUT "  $op $args_str";
+            push @ll_lines, "  $op $args_str";
         };
 
-        $ast_node->[0] eq 'Branch' && do {
-
+        $ast_node->[0] eq 'IfThenElse' && do {
             # ,['Cond',['TypedReg',['Type',$type_str], ['Reg',$reg]]],
-            if ($ast_node->[1][0] eq 'Cond') {
-                my $cond   = __emit_reg_or_const($ast_node->[1][1]);
-                my $label1 = __emit_reg_or_const($ast_node->[2]);
-                my $label2 = __emit_reg_or_const($ast_node->[3]);
-                say $OUT "  br $cond, label $label1, label $label2";
-            }
-            else {
-                my $label = __emit_reg_or_const($ast_node->[1]);
-                say $OUT "  br label $label";
-            }
+            my $cond   = __emit_reg_or_const($ast_node->[1][1]);
+            my $label1 = __emit_reg_or_const($ast_node->[2]);
+            my $label2 = __emit_reg_or_const($ast_node->[3]);
+            push @ll_lines, "  br $cond, label $label1, label $label2";
         };
-        $ast_node->[0] eq 'Label' && do {
 
+        $ast_node->[0] eq 'Goto' && do {                
+            my $label = __emit_reg_or_const($ast_node->[1]);
+            push @ll_lines, "  br label $label";
+        };
+
+        $ast_node->[0] eq 'Label' && do {
             #  ['Label', $label,[@preds]];
             my $label     = $ast_node->[1][1]; # because wrapped in Reg
             my $preds_str = '';
             if (scalar @{$ast_node->[2]} > 0) {
-
-                #  croak Dumper $ast_node;
                 $preds_str = join(', ', map { __emit_reg_or_const($_) } @{$ast_node->[2]});
             }
-            say $OUT "; <label>:$label:" . ($preds_str ? '                                     ; preds = ' . $preds_str : '');
+            push @ll_lines, "; <label>:$label:" . ($preds_str ? (' ' x 37) .'; preds = ' . $preds_str : '');
         };
 
 		$ast_node->[0] eq 'Declaration' && do {
@@ -434,16 +439,16 @@ sub _emit_llvm_ir {
 			my $ftype = $ast_node->[2][1];
 			my $arg_types = $ast_node->[3][1];
 			my $arg_type_str = join(', ',@{$arg_types});
-			say $OUT "declare $ftype \@$fname($arg_type_str)";
+			push @ll_lines, "declare $ftype \@$fname($arg_type_str)";
 		}; 
 	}
 
-	close $OUT;
+	return \@ll_lines;
 } # END of _emit_llvm_ir
 sub _pp_llvm_ast {
     (my $ast_nodes) = @_;
-
-   croak 'EMPTY';
+    my $ll_lines = _emit_llvm_ir($ast_nodes);
+    map { say $_ } @{$ll_lines};
 }    # END of _pp_llvm_ast
 
 sub __emit_reg_or_const {
@@ -490,6 +495,24 @@ sub __ast_node_has_reg { my ($ast_node)=@_;
 	}
 } # END of __ast_node_has_reg
 
+# start with an empty $regs array []
+# TO BE TESTED!
+sub __get_regs_from_ast_node { my ($ast_node, $regs)=@_;
+	if (ref($ast_node) eq 'ARRAY') {
+		if ($ast_node->[0] eq 'Reg') {
+			push @{$regs}, $ast_node->[1];
+            return $regs;
+		} else {
+			for my $elt (@{$ast_node}) {
+				$regs = __get_regs_from_ast_node($elt, $regs);
+				# return $maybe_reg unless $maybe_reg == -1;
+			}
+            return $regs;
+		}
+	} else {
+		return $regs;
+	}
+} # END of __get_regs_from_ast_node
 
 sub __rename_arg_regs { my ($ast_node, $regs_to_args, $reg_offset)=@_;
 	if (ref($ast_node) eq 'ARRAY') {
@@ -580,8 +603,87 @@ what we want is
 
 %wet_j_k = select i1 %cond, t1 i32 0,  i32 1
 
+I think in the end we can simply look at which regs get assigned to in more than one labeled block.
+This is OK as the labels are generated purely for the branches and jumps.
 
-translate_kernels_to_C.pl should become translate_kernels_to_LLVM_IR.pl
+Then all we need to do is work out which conditions govern the choice between these blocks and
+then we can use select. If there are more than 2 occurences we'll need several select operations.
 
-opt-mp-8.0 -S TyTraC/dyn_map_39.tirl  | diff -u -w -  TyTraC/dyn_map_39.tirl 
+The datastructure needed is essentially a binary tree, although not quite because the Goto labels can of course be shared.
+my $ast_tree = {
+    $label => { 
+        Block => [@ast_nodes],
+        IfThenElse =>{  # can just use the current AST node
+            Cond => $ast_node,
+            BrTrue => $label_true, 
+            BrFalse => $label_false,
+        },
+        Goto => $label_goto # can just use the current AST node
+    },
+    ...
+};
+
+A node has either an IfThenElse, in which case it is a binary node, or a Goto, in which case it is a leaf node.
+In this strucure, we look at the leaf nodes and we look for common occurences. 
+The main question is if we need to push the blocks down to leaves for nodes that are binary?
+Maybe not: either the assignment will be in the Block or in a block in of the binary branches.
+
+I need to rename the registers to which the shared variables are assigned, e.g. by suffixing them with the label of the node.
+But is this still valid LLVM?
+
+It might be convenient to change the AST so that every line is annotated with the registers on it, so we don't have to search every time
+
 =cut
+
+sub _build_ast_tree { my ($ast_nodes)=@_;
+    my $label=0;
+    my %ast_tree=(
+        $label => { 
+            Block => [],
+        },
+    );
+    
+    for my $ast_node (@{$ast_nodes}) {
+        next if $ast_node->[0] eq 'Signature';
+        if ($ast_node->[0] eq 'Label') {
+            $label = $ast_node->[1][1];
+            $ast_tree{$label}={                
+                Preds=>[],
+                Block => [],                
+            };
+            if (scalar @{$ast_node->[2]} > 0) {
+                $ast_tree{$label}{Preds} =  $ast_node->[2];
+            }
+        }
+        elsif ($ast_node->[0] eq 'IfThenElse') {
+            $ast_tree{$label}{IfThenElse} =  $ast_node;
+        }
+        elsif ($ast_node->[0] eq 'Goto') {
+            $ast_tree{$label}{Goto} =  $ast_node;
+        }
+        elsif ($ast_node->[0] eq 'EndDefinition') {
+            last;
+        }
+        else { # any other node goes onto the current block
+            push @{$ast_tree{$label}{Block}}, $ast_node;
+        }
+    }
+    return \%ast_tree;
+} # END of _build_ast_tree
+
+sub __pp_ast_tree { my ($ast_tree)=@_;
+    for my $label (sort keys %{$ast_tree}) {
+        say "$label => {";
+        if (exists $ast_tree->{$label}{Preds} ) {
+            say "\t".'Preds => '.join(', ', map { $_->[1] } @{ $ast_tree->{$label}{Preds} });
+        }
+        say "\t".'Block => '.join("\n\t\t",@{ _emit_llvm_ir($ast_tree->{$label}{Block}) });
+        if (exists $ast_tree->{$label}{IfThenElse} ) {            
+            say "\t".'IfThenElse => '.join("\n",@{ _emit_llvm_ir([$ast_tree->{$label}{IfThenElse}])});
+        }
+        if (exists $ast_tree->{$label}{Goto} ) {            
+            say "\t".'Goto => '.join("\n",@{ _emit_llvm_ir([$ast_tree->{$label}{Goto}]) });
+        }
+        say "\t}";
+    }
+}
