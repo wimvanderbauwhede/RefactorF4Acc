@@ -54,6 +54,12 @@ sub generate_llvm_ir_for_TyTra {
     my $ast_tree = _build_ast_tree($new_ast_nodes);
     say "\n$f\n";
     __pp_ast_tree($ast_tree);
+    my $simplified_ast_tree =  __simplify_ast_tree($ast_tree->{Tree});
+    my $regs_w_multiple_occs = __identify_regs_w_multiple_occs($simplified_ast_tree);
+    say Dumper $regs_w_multiple_occs;
+    my $regs_w_multiple_occs_no_uncond = __remove_uncond_jmp_labels($regs_w_multiple_occs, $simplified_ast_tree);
+    
+    say Dumper $regs_w_multiple_occs_no_uncond;
 	my $new_ll_lines = _emit_llvm_ir($new_ast_nodes);
     _create_llvm_ir_src($targetdir, $f, 'll', $new_ll_lines);
 	# __sanity_check($targetdir, $f);
@@ -657,71 +663,78 @@ But is this still valid LLVM?
 It might be convenient to change the AST so that every line is annotated with the registers on it, so we don't have to search every time
 
 =cut
-
+# Because I need to keep the ordering of the labels, this is a List =>[], Tree=>{} combo
 sub _build_ast_tree { my ($ast_nodes)=@_;
     my $label=0;
     my %ast_tree=(
+        Signature => [],
+        List =>[$label],
+        Tree =>{
         $label => { 
             Block => [],
-        },
+        },}
     );
     
     for my $ast_node (@{$ast_nodes}) {
-        next if $ast_node->[0] eq 'Signature';
+        if ($ast_node->[0] eq 'Signature') {
+            $ast_tree{Signature}=$ast_node;
+        };
         if ($ast_node->[0] eq 'Label') {
             $label = $ast_node->[1][1];
-            $ast_tree{$label}={                
+            push @{$ast_tree{List}}, $label;
+            $ast_tree{Tree}{$label}={                
                 Preds=>[],
                 Block => [],                
             };
             if (scalar @{$ast_node->[2]} > 0) {
-                $ast_tree{$label}{Preds} =  $ast_node->[2];
+                $ast_tree{Tree}{$label}{Preds} =  $ast_node->[2];
             }
         }
         elsif ($ast_node->[0] eq 'IfThenElse') {
-            $ast_tree{$label}{IfThenElse} =  $ast_node;
+            $ast_tree{Tree}{$label}{IfThenElse} =  $ast_node;
         }
         elsif ($ast_node->[0] eq 'Goto') {
-            $ast_tree{$label}{Goto} =  $ast_node;
+            $ast_tree{Tree}{$label}{Goto} =  $ast_node;
         }
         elsif ($ast_node->[0] eq 'Return') {
-            $ast_tree{$label}{Return} =  [];
+            $ast_tree{Tree}{$label}{Return} =  [];
         }
         elsif ($ast_node->[0] eq 'EndDefinition') {
             last;
         }
         else { # any other node goes onto the current block
-            push @{$ast_tree{$label}{Block}}, $ast_node;
+            push @{$ast_tree{Tree}{$label}{Block}}, $ast_node;
         }
     }
     return \%ast_tree;
 } # END of _build_ast_tree
 
 sub __pp_ast_tree { my ($ast_tree)=@_;
-    for my $label (sort keys %{$ast_tree}) {
+    say $ast_tree->{Signature}[1];
+    for my $label (@{$ast_tree->{List}}) {
         say "$label => {";
-        if (exists $ast_tree->{$label}{Preds} ) {
-            say "\t".'Preds => '.join(', ', map { $_->[1] } @{ $ast_tree->{$label}{Preds} });
+        if (exists $ast_tree->{Tree}{$label}{Preds} ) {
+            say "\t".'Preds => '.join(', ', map { $_->[1] } @{ $ast_tree->{Tree}{$label}{Preds} });
         }
         say "\t".'Block => '
         # .join("\n\t\t",
        .join(', ', grep {$_ ne ''} map {
            __get_assigned_reg_from_ast_node($_);            
-       } @{ $ast_tree->{$label}{Block} }
+       } @{ $ast_tree->{Tree}{$label}{Block} }
        );
     
-        if (exists $ast_tree->{$label}{IfThenElse} ) {            
-            say "\t".'IfThenElse => '.$ast_tree->{$label}{IfThenElse}[1][1][2][1]. ' ? '
-            .$ast_tree->{$label}{IfThenElse}[2][1] . ' : '
-            .$ast_tree->{$label}{IfThenElse}[3][1] 
+        if (exists $ast_tree->{Tree}{$label}{IfThenElse} ) {            
+            say "\t".'IfThenElse => '.$ast_tree->{Tree}{$label}{IfThenElse}[1][1][2][1]. ' ? '
+            .$ast_tree->{Tree}{$label}{IfThenElse}[2][1] . ' : '
+            .$ast_tree->{Tree}{$label}{IfThenElse}[3][1] 
              ;
             #join("\n",@{ _emit_llvm_ir([$ast_tree->{$label}{IfThenElse}])});
         }
-        if (exists $ast_tree->{$label}{Goto} ) {            
-            say "\t".'Goto => '.$ast_tree->{$label}{Goto}[1][1];
+        if (exists $ast_tree->{Tree}{$label}{Goto} ) {            
+            say "\t".'Goto => '.$ast_tree->{Tree}{$label}{Goto}[1][1];
             # join("\n",@{ _emit_llvm_ir([$ast_tree->{$label}{Goto}]) });
         }
-        if (exists $ast_tree->{$label}{Return} ) {            
+        if (exists $ast_tree->{Tree}{$label}{Return} ) {            
             say "\t".'Return';            
         }
         say "}";
@@ -736,10 +749,14 @@ sub __simplify_ast_tree { my ($ast_tree)=@_;
              @preds = map { $_->[1] } @{ $ast_tree->{$label}{Preds} };
         }
         $simplified_ast_tree{$label}{Preds}=\@preds;
-       
-       my @regs=grep {$_ ne ''} map {
-           __get_assigned_reg_from_ast_node($_);            
-       } @{ $ast_tree->{$label}{Block} };       
+       # I think it is better if we make this pairs with the idx in Block
+    #    my @regs=grep {$_ ne ''} map {
+    #        __get_assigned_reg_from_ast_node($_);            
+    #    } @{ $ast_tree->{$label}{Block} };       
+        my $idx=0;
+        my @regs=grep {$_->[0] ne ''} map {
+           [__get_assigned_reg_from_ast_node($_),$idx++];            
+       } @{ $ast_tree->{$label}{Block} };        
        $simplified_ast_tree{$label}{Block}=\@regs;
     
         if (exists $ast_tree->{$label}{IfThenElse} ) {            
@@ -759,11 +776,13 @@ sub __simplify_ast_tree { my ($ast_tree)=@_;
     return \%simplified_ast_tree;
 } # END of __simplify_ast_tree
 
-sub __identify_regs_w_multiple_occs { my ($ast_tree) = @_;
+
+sub __identify_regs_w_multiple_occs { my ($s_ast_tree) = @_;
     my %labels_for_reg=();
-    for my $label (sort keys %{$ast_tree}) {
-        map { $labels_for_reg{$_}{$label}=$_ } @{$ast_tree->{$label}{Block}};
+    for my $label (sort keys %{$s_ast_tree}) {
+        map { $labels_for_reg{$_->[0]}{$label}=$_ } @{$s_ast_tree->{$label}{Block}};
     }  
+    
     for my $reg (keys %labels_for_reg) {
         if (scalar keys %{$labels_for_reg{$reg}} < 2 ) {
             delete $labels_for_reg{$reg};
@@ -771,3 +790,75 @@ sub __identify_regs_w_multiple_occs { my ($ast_tree) = @_;
     }
     return \%labels_for_reg;
 } # END of __identify_regs_w_multiple_occs
+
+# We must consider only labels that occur in Preds!
+
+sub __remove_uncond_jmp_labels { my ($labels_for_reg, $s_ast_tree)=@_;
+    my %label_in_preds=();
+    for my $label (sort keys %{$s_ast_tree}) {
+        if (exists $s_ast_tree->{$label}{Preds}) {
+            for my $pred_label (@{$s_ast_tree->{$label}{Preds}}) {
+                $label_in_preds{$pred_label}=$label;
+            }
+        }
+    }
+
+    for my $reg (sort keys %{$labels_for_reg}) {
+        my @labels = sort keys %{$labels_for_reg->{$reg}} ;
+        my @labels_not_in_preds = grep { not exists $label_in_preds{$_} } @labels;
+        for my $non_pred_label (@labels_not_in_preds) {
+            delete $labels_for_reg->{$reg}{$non_pred_label};
+        }        
+    }
+    return $labels_for_reg;
+} # END of __remove_uncond_jmp_labels
+
+=pod IfThenElse Replacement Algo
+So now we can compare the ordered list of these labels per reg with the Preds in each block.
+e.g. by sorting and joining the keys and comparing the strings
+The select() goes into the block that matches
+
+There are two cases: 
+1. either the reg is on the LHS of an assignment:
+- In the blocks that have the assignment, we change the reg in the LHS to ${reg}_${block_label}, and we get its type $t
+- In the block that is the pred of these blocks (should be one only), we find the IfThenElse and from that the condition register $cond
+- We delete that line
+- In the block that has the matching preds, right after the label, we insert the select line:
+
+    %$reg = select i1 %$cond, $t %${reg}_${block_label_t}, %$t ${reg}_${block_label_f}
+
+2. or it is the 2nd argument of a store
+- In the blocks that have the stores (I assume it has to be both), we get the first arg of the store instruction $reg_or_cond and its type $t, as well as the type and reg of the 2nd arg ($reg and $t*), and of the third arg, $arg3
+- We delete the `store` lines
+- In the block that is the pred of these blocks (should be one only), we find the IfThenElse and from that the condition register $cond
+- We delete that line
+- In the block that has the matching preds, right after the label, we insert the select line:
+
+    %${reg}_{$block_label} = select i1 %$cond, $t %${reg_or_cond_t}, %$t ${reg_or_cond_f}
+
+And below that, we insert a new store: 
+
+    store $t %${reg}_{$block_label}, $t* %$reg, $arg3
+
+
+define void @update_map_24(float %hzero_j_k, float %eta_j_k, float* %h_j_k, float %hmin, float %un_j_k, float %vn_j_k, i32* %wet_j_k, float* %u_j_k, float* %v_j_k) {
+  %1 = fadd float %hzero_j_k, %eta_j_k
+  store float %1, float* %h_j_k, align 4
+;;  store i32 1, i32* %wet_j_k, align 4
+  %2 = load float, float* %h_j_k, align 4
+  %3 = fcmp olt float %2, %hmin
+;;  br i1 %3, label %4, label %5
+
+; <label>:4:                                     ; preds = %0
+;;  store i32 0, i32* %wet_j_k, align 4
+;;  br label %5
+
+; <label>:5:                                     ; preds = %4, %0
+  %wet_j_k_5 = select i1 %3, i32 0, i32 1
+  store i32 %wet_j_k_5, i32* %wet_j_k, align 4
+  store float %un_j_k, float* %u_j_k, align 4
+  store float %vn_j_k, float* %v_j_k, align 4
+  ret void
+}
+
+=cut
