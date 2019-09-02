@@ -1163,19 +1163,23 @@ sub __pp_select_exprs { my ($conds_for_paths)=@_;
             my $ct=0;
         for my $label (@labels) {
             # say Dumper $conds_per_label->{$label};
-            my $conds_expr_str = __pp_cond_expr($conds_per_label->{$label});            
-             $cond_reg = 'cond_'.$label;
+            my ($cond_expr_lines, $cond_reg) = __emit_cond_expr($conds_per_label->{$label});
+            # my $conds_expr_str = __pp_cond_expr($conds_per_label->{$label});            
+            #  $cond_reg = 'cond_'.$label;
             if ($ct == scalar @labels - 1) {
                 # $select_expr_str =   "$select_chain_reg =  ${reg}_${label}";
-                $select_expr_str =   "$select_chain_reg = select $cond_reg , ${reg}_${label}, ${reg}_${last_label}";
+                $select_expr_str =   "\%$select_chain_reg = select i1 \%$cond_reg , \%${reg}_${label}, \%${reg}_${last_label}";
             } else {
-                $select_expr_str =   "$select_chain_reg = select $cond_reg , ${reg}_${label}, $prev_select_chain_reg";
+                $select_expr_str =   "\%$select_chain_reg = select i1 \%$cond_reg , \%${reg}_${label}, \%$prev_select_chain_reg";
             }
             
             
             push @select_cond_lines, $select_expr_str;
             if ($ct <= scalar @labels - 1) {
-            push @select_cond_lines, "$cond_reg = $conds_expr_str";
+                for my $cond_line (reverse @{$cond_expr_lines}) {
+                    push @select_cond_lines, $cond_line;
+                }
+            # push @select_cond_lines, $cond_line; #"$cond_reg = $conds_expr_str";
             }
             $select_chain_reg=$prev_select_chain_reg;
             $ct++;
@@ -1198,6 +1202,65 @@ sub __pp_cond_expr { my ($conds)=@_;
     my $cond_expr_str = join(' or ',  @cond_expr_substrs);
     return scalar @cond_expr_substrs > 1 ? "($cond_expr_str)" : $cond_expr_str;
 }
+
+# Almost there but another catch: LLVM does not have a not (!) so instead of A ^ !B , so I need to generate xor i1 %reg, 1
+
+# for every op we rename with the name of the reg and the op, so not_$reg; and_$reg1_$reg2; and we chain these names
+sub __emit_cond_expr { my ($conds)=@_;
+my @orig_conds=@{$conds};
+my @cond_expr_lines=();
+
+    my @cond_expr_substrs=();
+    for my $cond (@orig_conds) {
+        # my @sub_conds = @{$cond};
+        for my $sub_cond (@{$cond}) {
+            if ($sub_cond < 0 ) {
+                my $reg = -1*$sub_cond;
+                $sub_cond = 'not_'.$reg;
+                push @cond_expr_lines, "\%$sub_cond = not \%$reg";
+            }
+        }
+        if (@{$cond}>1) {
+            my $arg1=shift @{$cond};
+            my $arg2= $cond->[0];
+            my $and_reg='and_'.$arg1.'_'.$arg2; 
+            $cond->[0]=$and_reg;
+            push @cond_expr_lines, "\%$and_reg = and i1 \%$arg1 \%$arg2";
+            while (@{$cond}>1) {
+                my $arg1=shift @{$cond};
+                my $arg2= $cond->[0];
+                my $and_reg='and_'.$arg1.'_'.$arg2;
+                $cond->[0]=$and_reg;
+                push @cond_expr_lines, "\%$and_reg = and i1 \%$arg1 \%$arg2";
+            }
+        }
+        # push @cond_expr_substrs , scalar @{$cond}>1 ? '('.join(' and ', map { $_< 0 ?  "(not b".(-1*$_).')' : 'b'.$_ } @{$cond}).')' : map { $_< 0 ?  "(not b".(-1*$_).')' : 'b'.$_ } @{$cond};        
+    }
+    # croak Dumper @orig_conds;
+    my @orig_conds_f = map {$_->[0]} @orig_conds;
+    if (@orig_conds_f>1) {
+        
+        my $arg1=shift @orig_conds_f;
+        my $arg2= $orig_conds_f[0];
+        my $or_reg='or_'.$arg1.'_'.$arg2; 
+        $orig_conds_f[0]=$or_reg;
+        push @cond_expr_lines, "\%$or_reg = or i1 \%$arg1 \%$arg2";
+        while (@orig_conds_f>1) {
+            my $arg1=shift @orig_conds_f;
+            my $arg2= $orig_conds_f[0];
+            my $or_reg='or_'.$arg1.'_'.$arg2;
+            $orig_conds_f[0]=$or_reg;
+            push @cond_expr_lines, "\%$or_reg = or i1 \%$arg1 \%$arg2";
+        }
+    }
+    return ( \@cond_expr_lines, $orig_conds_f[0]);
+
+    # my $cond_expr_str = join(' or ',  @cond_expr_substrs);
+    # return scalar @cond_expr_substrs > 1 ? "($cond_expr_str)" : $cond_expr_str;
+} # END of __emit_cond_expr
+
+
+
 =pod IfThenElse Replacement Algo
 So now we can compare the ordered list of these labels per reg with the Preds in each block.
 e.g. by sorting and joining the keys and comparing the strings
