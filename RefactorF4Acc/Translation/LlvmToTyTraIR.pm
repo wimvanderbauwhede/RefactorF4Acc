@@ -85,8 +85,9 @@ sub generate_llvm_ir_for_TyTra {
     say Dumper $origins_terminals_reg;
 
     # Now we do all paths between origin and terminal and collect the condition regs. 
-    my $conds_for_paths = _collect_select_conditions ($origins_terminals_reg, $simplified_ast_tree);
-    say Dumper $conds_for_paths;
+    my $conds_for_paths = _collect_select_conditions ($origins_terminals_reg, $regs_w_multiple_occs_no_uncond, $simplified_ast_tree);
+    # $Data::Dumper::Deepcopy=1;
+    say __pp_select_exprs($conds_for_paths); 
     
 
 
@@ -1073,53 +1074,6 @@ if (exists $s_ast_tree->{$label}{Preds} and scalar @{$s_ast_tree->{$label}{Preds
 # Once that is done we can follow all paths between these two common nodes and build the conditional expression for each path
 # 
 
-
-
-sub _collect_select_conditions {
-    my ($origins_terminals_reg, $s_ast_tree) = @_;
-    my %conds_for_paths = ();
-    for my $reg (sort keys %{$origins_terminals_reg}) {
-        my ($origin,$terminal) = @{ $origins_terminals_reg->{$reg} };
-        say "$origin,$terminal";
-        $conds_for_paths{$reg} = __collect_conds_for_path($s_ast_tree, $origin, $terminal, [], []);
-    }
-    return \%conds_for_paths;
-}    # END of _collect_select_conditions
-
-# This is naturally a tree, so how do I turn this into separate paths?
-sub __collect_conds_for_path {
-    my ($s_ast_tree, $label, $terminal, $conds_for_path, $conds_for_paths) = @_;
-    say 'done? '.$label.'<>'.$terminal.' <'.($label==$terminal).'>';
-    if ($label==$terminal) {
-        $label.': Done!';
-        push @{$conds_for_paths}, $conds_for_path;
-        return $conds_for_paths;
-    } else {
-        if (exists $s_ast_tree->{$label}{Goto}) {
-            
-            my $next_label = $s_ast_tree->{$label}{Goto};        
-            say $label.': Goto '.$next_label;
-            $conds_for_paths = __collect_conds_for_path($s_ast_tree, $next_label, $terminal, $conds_for_path, $conds_for_paths);
-        }
-        elsif (exists $s_ast_tree->{$label}{IfThenElse}) {
-            
-            # say Dumper $s_ast_tree->{$label}{IfThenElse};
-            my $cond = $s_ast_tree->{$label}{IfThenElse}[0];
-            my $next_label_t      = $s_ast_tree->{$label}{IfThenElse}[1];
-            my $next_label_f      = $s_ast_tree->{$label}{IfThenElse}[2];
-            my @path_from_block_t = @{$conds_for_path};
-            my @path_from_block_f = @{$conds_for_path};
-
-            push @path_from_block_t, $cond;
-            push @path_from_block_f, -1*$cond;
-            say $label.': IfThenElse '.$next_label_t;
-            $conds_for_paths = __collect_conds_for_path($s_ast_tree, $next_label_t, $terminal,[@path_from_block_t], $conds_for_paths);
-            say $label.': IfThenElse '.$next_label_f;
-            $conds_for_paths = __collect_conds_for_path($s_ast_tree, $next_label_f, $terminal,[@path_from_block_f], $conds_for_paths);
-        }
-    }    
-}    # END of __collect_conds_for_path
-
 sub _collect_origins_terminals_reg { my ($common_nodes_all_labels_up_reg, $common_nodes_all_labels_down_reg)=@_; 
     my $origins_terminals_reg = {};
     for my $reg (sort keys %{ $common_nodes_all_labels_down_reg }) {
@@ -1133,6 +1087,117 @@ sub _collect_origins_terminals_reg { my ($common_nodes_all_labels_up_reg, $commo
     return $origins_terminals_reg;
 } # END of _collect_origins_terminals_reg
 
+sub _collect_select_conditions {
+    my ($origins_terminals_reg, $labels_for_reg, $s_ast_tree) = @_;
+    my %conds_for_paths = ();
+    for my $reg (sort keys %{$origins_terminals_reg}) {
+        my ($origin,$terminal) = @{ $origins_terminals_reg->{$reg} };
+        # say "$origin,$terminal";
+        my $assignment_node_for_path = exists $labels_for_reg->{$reg}{$origin} ? [$origin] : [''];
+        $conds_for_paths{$reg} = __collect_conds_for_path($s_ast_tree, $reg, $labels_for_reg, $origin, $terminal, [$assignment_node_for_path], []);
+    }
+    return \%conds_for_paths;
+}    # END of _collect_select_conditions
+
+# This is naturally a tree, so how do I turn this into separate paths?
+sub __collect_conds_for_path {
+    my ($s_ast_tree, $reg, $labels_for_reg, $label, $terminal, $conds_for_path, $conds_for_paths) = @_;
+    if (exists $labels_for_reg->{$reg}{$label}) {
+        $conds_for_path->[0]=["$label"];
+    }
+    # say 'done? '.$label.'<>'.$terminal.' <'.($label==$terminal).'>';
+    if ($label==$terminal) {
+        # $label.': Done!';
+        push @{$conds_for_paths}, $conds_for_path;
+        return $conds_for_paths;
+    } else {
+        if (exists $s_ast_tree->{$label}{Goto}) {
+            
+            my $next_label = $s_ast_tree->{$label}{Goto};        
+            # say $label.': Goto '.$next_label;
+            $conds_for_paths = __collect_conds_for_path($s_ast_tree, $reg, $labels_for_reg, $next_label, $terminal, $conds_for_path, $conds_for_paths);
+        }
+        elsif (exists $s_ast_tree->{$label}{IfThenElse}) {
+            
+            # say Dumper $s_ast_tree->{$label}{IfThenElse};
+            my $cond = $s_ast_tree->{$label}{IfThenElse}[0];
+            my $next_label_t      = $s_ast_tree->{$label}{IfThenElse}[1];
+            my $next_label_f      = $s_ast_tree->{$label}{IfThenElse}[2];
+            my @path_from_block_t = @{$conds_for_path};
+            my @path_from_block_f = @{$conds_for_path};
+
+            push @path_from_block_t, $cond;
+            push @path_from_block_f, -1*$cond;
+            # say $label.': IfThenElse '.$next_label_t;
+            $conds_for_paths = __collect_conds_for_path($s_ast_tree, $reg, $labels_for_reg, $next_label_t, $terminal,[@path_from_block_t], $conds_for_paths);
+            # say $label.': IfThenElse '.$next_label_f;
+            $conds_for_paths = __collect_conds_for_path($s_ast_tree, $reg, $labels_for_reg, $next_label_f, $terminal,[@path_from_block_f], $conds_for_paths);
+        }
+    }    
+}    # END of __collect_conds_for_path
+
+
+
+# OK, I now have all composite conditions for all paths, as well as the reg assigned via that path
+# Let's first do a simple pretty-printer
+
+sub __pp_select_exprs { my ($conds_for_paths)=@_;
+
+    for my $reg (sort keys %{ $conds_for_paths }) {
+        my $conds_per_label={};
+        for my $path (  @{ $conds_for_paths->{$reg} } ) {
+            my ($label) = @{ shift @{$path} };
+            if (not exists $conds_per_label->{$label}) {
+                $conds_per_label->{$label}=[$path];
+            } else {
+                push @{$conds_per_label->{$label}}, $path;
+            }
+        }
+        my @select_cond_lines=();
+        my $select_expr_str = "$reg = ";
+        my @labels = sort keys %{$conds_per_label};
+        my $last_label = pop @labels;     
+            my $cond_reg = '';
+            my $select_chain_reg = $reg;
+            my $prev_select_chain_reg = 'prev_0';
+            my $ct=0;
+        for my $label (@labels) {
+            # say Dumper $conds_per_label->{$label};
+            my $conds_expr_str = __pp_cond_expr($conds_per_label->{$label});            
+             $cond_reg = 'cond_'.$label;
+            if ($ct == scalar @labels - 1) {
+                # $select_expr_str =   "$select_chain_reg =  ${reg}_${label}";
+                $select_expr_str =   "$select_chain_reg = select $cond_reg , ${reg}_${label}, ${reg}_${last_label}";
+            } else {
+                $select_expr_str =   "$select_chain_reg = select $cond_reg , ${reg}_${label}, $prev_select_chain_reg";
+            }
+            
+            
+            push @select_cond_lines, $select_expr_str;
+            if ($ct <= scalar @labels - 1) {
+            push @select_cond_lines, "$cond_reg = $conds_expr_str";
+            }
+            $select_chain_reg=$prev_select_chain_reg;
+            $ct++;
+            $prev_select_chain_reg = 'prev_'.$ct;
+                                      
+        }
+        # $select_expr_str.=  "${reg}_${last_label}";
+        map { say $_ } reverse  @select_cond_lines;
+        # say $select_expr_str
+        say  '';
+    }
+
+} # END of __pp_select_exprs
+
+sub __pp_cond_expr { my ($conds)=@_;
+    my @cond_expr_substrs=();
+    for my $cond (@{ $conds }) {
+        push @cond_expr_substrs , scalar @{$cond}>1 ? '('.join(' and ', map { $_< 0 ?  "(not b".(-1*$_).')' : 'b'.$_ } @{$cond}).')' : map { $_< 0 ?  "(not b".(-1*$_).')' : 'b'.$_ } @{$cond};        
+    }
+    my $cond_expr_str = join(' or ',  @cond_expr_substrs);
+    return scalar @cond_expr_substrs > 1 ? "($cond_expr_str)" : $cond_expr_str;
+}
 =pod IfThenElse Replacement Algo
 So now we can compare the ordered list of these labels per reg with the Preds in each block.
 e.g. by sorting and joining the keys and comparing the strings
