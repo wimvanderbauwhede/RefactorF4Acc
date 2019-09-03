@@ -50,29 +50,29 @@ sub generate_llvm_ir_for_TyTra {
     say "\n$f\n";
     # __pp_ast_tree($ast_tree);
 
-    my $simplified_ast_tree  = __simplify_ast_tree($ast_tree->{Tree});
-    my $regs_w_multiple_occs = __identify_regs_w_multiple_occs($simplified_ast_tree);
+    my $simplified_ast_tree  = _simplify_ast_tree($ast_tree->{Tree});
+    my $regs_w_multiple_occs = _identify_regs_w_multiple_occs($simplified_ast_tree);
 
     # say 'REGS:',Dumper $regs_w_multiple_occs;
-    my $regs_w_multiple_occs_no_uncond = __remove_non_pred_labels($regs_w_multiple_occs, $simplified_ast_tree);
+    my $regs_w_multiple_occs_no_uncond = _remove_non_pred_labels($regs_w_multiple_occs, $simplified_ast_tree);
 
     # say Dumper $regs_w_multiple_occs_no_uncond;
     my $paths_down_from_block = _find_terminating_block($regs_w_multiple_occs_no_uncond, $simplified_ast_tree);
     # say Dumper $paths_down_from_block;
-    my $common_nodes_all_paths_down_label = __get_common_nodes_all_paths_label($paths_down_from_block);
+    my $common_nodes_all_paths_down_label = _get_common_nodes_all_paths_label($paths_down_from_block);
     # say Dumper $common_nodes_all_paths_down_label;
 
     #  And now the common node(s) for all labels for a reg!
-    my $common_nodes_all_labels_down_reg = __get_common_nodes_all_labels_reg($common_nodes_all_paths_down_label);
+    my $common_nodes_all_labels_down_reg = _get_common_nodes_all_labels_reg($common_nodes_all_paths_down_label);
     # say 'terminal: ',Dumper $common_nodes_all_labels_down_reg;
 
     my $paths_up_from_block = _find_originating_block($regs_w_multiple_occs_no_uncond, $simplified_ast_tree);
     
-    my $common_nodes_all_paths_up_label = __get_common_nodes_all_paths_label($paths_up_from_block);
+    my $common_nodes_all_paths_up_label = _get_common_nodes_all_paths_label($paths_up_from_block);
     # say Dumper $common_nodes_all_paths_up_label;
 
     #  And now the common node(s) for all labels for a reg!
-    my $common_nodes_all_labels_up_reg = __get_common_nodes_all_labels_reg($common_nodes_all_paths_up_label);
+    my $common_nodes_all_labels_up_reg = _get_common_nodes_all_labels_reg($common_nodes_all_paths_up_label);
     # say 'origin: ',Dumper $common_nodes_all_labels_up_reg;
 
     my $origins_terminals_reg = _collect_origins_terminals_reg($common_nodes_all_labels_up_reg, $common_nodes_all_labels_down_reg);
@@ -84,6 +84,9 @@ sub generate_llvm_ir_for_TyTra {
     # say __pp_select_exprs($conds_for_paths); 
     my $select_exprs = __emit_select_exprs($conds_for_paths, $simplified_ast_tree); 
     say Dumper $select_exprs;
+# Now we should insert these into the original AST 
+    my $new_ast_tree = _insert_select_exprs_into_ast_tree($select_exprs,$ast_tree);
+    __pp_ast_tree($new_ast_tree);
 
     # my $new_ll_lines = _emit_llvm_ir($new_ast_nodes);
     # _create_llvm_ir_src($targetdir, $f, 'll', $new_ll_lines);
@@ -842,7 +845,7 @@ $simplified_ast_tree{$label} = {
     Store => {$reg => $new_reg,...}
 };
 =cut
-sub __simplify_ast_tree {
+sub _simplify_ast_tree {
     my ($ast_tree) = @_;
     my %simplified_ast_tree = ();
     for my $label (sort keys %{$ast_tree}) {
@@ -877,10 +880,10 @@ sub __simplify_ast_tree {
         }
     }
     return \%simplified_ast_tree;
-}    # END of __simplify_ast_tree
+}    # END of _simplify_ast_tree
 
 
-sub __identify_regs_w_multiple_occs {
+sub _identify_regs_w_multiple_occs {
     my ($s_ast_tree) = @_;
     my %labels_for_reg = ();
     for my $label (sort keys %{$s_ast_tree}) {
@@ -893,10 +896,10 @@ sub __identify_regs_w_multiple_occs {
         }
     }
     return \%labels_for_reg;
-}    # END of __identify_regs_w_multiple_occs
+}    # END of _identify_regs_w_multiple_occs
 
 # We must consider only labels that occur in Preds!
-sub __remove_non_pred_labels {
+sub _remove_non_pred_labels {
     my ($labels_for_reg, $s_ast_tree) = @_;
     my %label_in_preds = ();
     for my $label (sort keys %{$s_ast_tree}) {
@@ -915,7 +918,7 @@ sub __remove_non_pred_labels {
         }
     }
     return $labels_for_reg;
-}    # END of __remove_non_pred_labels
+}    # END of _remove_non_pred_labels
 
 =pod Terminal block
 To find the terminating block for all branches.
@@ -968,7 +971,7 @@ sub __collect_paths_down_from_block {
 
 # so now that I have all these paths, I must find the nodes that are common
 # First, we get the common nodes for all paths, per label
-sub __get_common_nodes_all_paths_label {
+sub _get_common_nodes_all_paths_label {
     my ($paths_down_from_block) = @_;
     my $common_nodes_all_paths_label = {};
     for my $reg (sort keys %{$paths_down_from_block}) {
@@ -1006,11 +1009,11 @@ sub __get_common_nodes_all_paths_label {
         }
     }
     return $common_nodes_all_paths_label;
-}    # END of __get_common_nodes_all_paths_label
+}    # END of _get_common_nodes_all_paths_label
 
 # It is possible that there are multiple nodes common to all paths, and we need to keep the closest one.
 # Which means I need to keep the ordering.
-sub __get_common_nodes_all_labels_reg {
+sub _get_common_nodes_all_labels_reg {
     my ($common_nodes_all_paths_label) = @_;
     my $common_nodes_all_labels_reg = {};
     for my $reg (sort keys %{$common_nodes_all_paths_label}) {
@@ -1052,7 +1055,7 @@ sub __get_common_nodes_all_labels_reg {
         $common_nodes_all_labels_reg->{$reg} = {$first_common_node => 1};
     }
     return $common_nodes_all_labels_reg;
-}    # END of __get_common_nodes_all_labels_reg
+}    # END of _get_common_nodes_all_labels_reg
 
 # Now we have to do the same thing upwards from the nodes with assignments
 sub _find_originating_block { my ($labels_for_reg, $s_ast_tree)=@_;
@@ -1316,8 +1319,10 @@ my @cond_expr_lines=();
     return ( \@cond_expr_lines, $orig_conds_f[0]);
 } # END of __emit_cond_expr
 
-
-
+sub _insert_select_exprs_into_ast_tree { my ($select_exprs,$ast_tree)=@_;
+my $new_ast_tree = {};
+return $new_ast_tree;
+}
 =pod IfThenElse Replacement Algo
 So now we can compare the ordered list of these labels per reg with the Preds in each block.
 e.g. by sorting and joining the keys and comparing the strings
