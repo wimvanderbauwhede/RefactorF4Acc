@@ -3,11 +3,6 @@ use v5.10;
 
 use RefactorF4Acc::Config;
 
-# use RefactorF4Acc::Utils;
-# use RefactorF4Acc::Analysis::ArgumentIODirs qw( determine_argument_io_direction_rec );
-# use RefactorF4Acc::Refactoring::Common qw( stateful_pass pass_wrapper_subs_in_module );
-# use RefactorF4Acc::Refactoring::Streams qw( _declare_undeclared_variables _update_arg_var_decls _removed_unused_variables _fix_scalar_ptr_args _fix_scalar_ptr_args_subcall );
-# use RefactorF4Acc::Parser::Expressions qw( @sigils );
 #
 #   (c) 2019 Wim Vanderbauwhede <Wim.Vanderbauwhede@Glasgow.ac.uk>
 #
@@ -15,7 +10,6 @@ use RefactorF4Acc::Config;
 use vars qw( $VERSION );
 $VERSION = "1.2.0";
 
-#use warnings::unused;
 use warnings;
 use warnings FATAL => qw(uninitialized);
 use strict;
@@ -87,9 +81,9 @@ sub generate_llvm_ir_for_TyTra {
     # Now we do all paths between origin and terminal and collect the condition regs. 
     my $conds_for_paths = _collect_select_conditions ($origins_terminals_reg, $regs_w_multiple_occs_no_uncond, $simplified_ast_tree);
     # $Data::Dumper::Deepcopy=1;
-    say __pp_select_exprs($conds_for_paths); 
-    
-
+    # say __pp_select_exprs($conds_for_paths); 
+    my $select_exprs = __emit_select_exprs($conds_for_paths, $simplified_ast_tree); 
+    say Dumper $select_exprs;
 
     # my $new_ll_lines = _emit_llvm_ir($new_ast_nodes);
     # _create_llvm_ir_src($targetdir, $f, 'll', $new_ll_lines);
@@ -104,8 +98,8 @@ sub _rename_regs_to_args {
     my %args_to_regs  = ();
     my $new_ast_nodes = [];
     my $reg_offset    = 0;
-    for my $ast_node (@{$ast_nodes}) {
 
+    for my $ast_node (@{$ast_nodes}) {
         if ($ast_node->[0] eq 'Signature') {
             my $f         = $ast_node->[1];
             my $arg_types = $ast_node->[2][1];
@@ -126,7 +120,6 @@ sub _rename_regs_to_args {
                 }
                 push @{$new_ast_nodes}, ['Signature', $f, ['TypedArgs', [@typed_args]]];
             }
-
         }
         elsif (__ast_node_has_reg($ast_node) != -1) {
             my $regs         = __get_regs_from_ast_node($ast_node, []);
@@ -137,9 +130,7 @@ sub _rename_regs_to_args {
             # just copy
             push @{$new_ast_nodes}, $ast_node;
         }
-
     }
-
     return $new_ast_nodes;
 }    # END of _rename_regs_to_args
 
@@ -164,7 +155,6 @@ sub _generate_llvm_ir {
     close $LL_IN;
     return $ll_lines;
 }    # END of _generate_llvm_ir
-
 
 sub _parse_llvm_ir {
     my ($ll_lines) = @_;
@@ -395,7 +385,7 @@ sub _parse_llvm_ir {
                 # $line=~/^\s*(\w+)\s+(.+?)\s+\%(\w+)\s*,\s*(.+?)\s+\%(\w+)\s*,\s*(.+)\s*$/ && do {
                 my $ast_node =
                   $op eq 'store'
-                  ? ['Store', ['Args', [@args_ast]]]
+                  ? ['Store', ['Args', [@args_ast]]] #  $arg_ast_node = ['TypedReg', ['Type', $type_str], ['Reg', $reg]];
                   : ['Operation', ['Op', $op], ['Args', [@args_ast]]];
 
                 # croak $line.Dumper $ast_node if $line=~/store/;
@@ -595,6 +585,22 @@ sub __get_assigned_reg_from_ast_node {
         return '';
     }
 }    # END of __get_assigned_reg_from_ast_node
+
+sub __get_store_from_ast_node {
+    my ($ast_node) = @_;
+    if ($ast_node->[0] eq 'Store') {
+#  ['Store', ['Args', [ ['TypedReg', ['Type', $type_str], ['Reg', $reg]], ... ]]] ;
+#               the target reg              the reg with the new value   the type of that reg
+        my $target_reg = $ast_node->[1][1][1][2][1];
+        my $target_reg_type = $ast_node->[1][1][1][1][1];
+        my $update_val = __emit_reg_or_const($ast_node->[1][1][0]) ;
+        # say "$target_reg => $update_val";
+        return [ $target_reg , [$update_val, $target_reg_type] ];
+    }
+    else {
+        return undef;
+    }
+}    # END of __get_store_from_ast_node
 
 
 # start with an empty $regs array []
@@ -825,6 +831,17 @@ sub __pp_ast_tree {
     }
 }
 
+=pod Simplified AST
+The simplified AST tree does not have the source, only the label/reg info
+$simplified_ast_tree{$label} = {
+    Preds => [$pred_label_1,...],
+    Block => [ [$reg_1, $line_idx_1], ... ],
+    IfThenElse => [$cond_reg, $label_true, $label_false],
+    Goto => $label,
+    Return => 1
+    Store => {$reg => $new_reg,...}
+};
+=cut
 sub __simplify_ast_tree {
     my ($ast_tree) = @_;
     my %simplified_ast_tree = ();
@@ -835,14 +852,16 @@ sub __simplify_ast_tree {
         }
         $simplified_ast_tree{$label}{Preds} = \@preds;
 
-        # I think it is better if we make this pairs with the idx in Block
-        #    my @regs=grep {$_ ne ''} map {
-        #        __get_assigned_reg_from_ast_node($_);
-        #    } @{ $ast_tree->{$label}{Block} };
+        # Regs are paired with the line idx in Block
         my $idx = 0;
         my @regs =
           grep { $_->[0] ne '' } map { [__get_assigned_reg_from_ast_node($_), $idx++]; } @{$ast_tree->{$label}{Block}};
         $simplified_ast_tree{$label}{Block} = \@regs;
+        my @stores =  grep { defined $_ } map { __get_store_from_ast_node($_) } @{$ast_tree->{$label}{Block}};  
+        
+        my $store_table = { map { $_->[0] => $_->[1] } @stores };
+        
+        $simplified_ast_tree{$label}{Store} = $store_table;
 
         if (exists $ast_tree->{$label}{IfThenElse}) {
             $simplified_ast_tree{$label}{IfThenElse} = [
@@ -877,7 +896,6 @@ sub __identify_regs_w_multiple_occs {
 }    # END of __identify_regs_w_multiple_occs
 
 # We must consider only labels that occur in Preds!
-
 sub __remove_non_pred_labels {
     my ($labels_for_reg, $s_ast_tree) = @_;
     my %label_in_preds = ();
@@ -899,14 +917,16 @@ sub __remove_non_pred_labels {
     return $labels_for_reg;
 }    # END of __remove_non_pred_labels
 
-# To find the terminating block for all branches.
-# So, starting from a block with a condition, this is the common block where all paths via conditions lead to.
-# Maybe like this:
-# - Given a node with an assignment, i.e. $labels_for_reg;
-# - Follow all paths that do not have another assignment => either IfThenElse or Goto
-# - Create an (ordered) list of the nodes
-# - Go right to the end
-# Then, for all these paths, check the first common node. That is the one.
+=pod Terminal block
+To find the terminating block for all branches.
+So, starting from a block with a condition, this is the common block where all paths via conditions lead to.
+Maybe like this:
+- Given a node with an assignment, i.e. $labels_for_reg;
+- Follow all paths that do not have another assignment => either IfThenElse or Goto
+- Create an (ordered) list of the nodes
+- Go right to the end
+Then, for all these paths, check the first common node. That is the one.
+=cut
 sub _find_terminating_block {
     my ($labels_for_reg, $s_ast_tree) = @_;
     my %paths_down_from_block = ();
@@ -920,6 +940,7 @@ sub _find_terminating_block {
 }    # END of _find_terminating_block
 
 # This is naturally a tree, so how do I turn this into separate paths?
+# Non-tail recursion 
 sub __collect_paths_down_from_block {
     my ($s_ast_tree, $label, $path_from_block, $paths_from_block) = @_;
     if (exists $s_ast_tree->{$label}{Goto}) {
@@ -987,7 +1008,7 @@ sub __get_common_nodes_all_paths_label {
     return $common_nodes_all_paths_label;
 }    # END of __get_common_nodes_all_paths_label
 
-# The problem is that it is possible, I think, that there are multiple nodes, and we need to keep the closest one
+# It is possible that there are multiple nodes common to all paths, and we need to keep the closest one.
 # Which means I need to keep the ordering.
 sub __get_common_nodes_all_labels_reg {
     my ($common_nodes_all_paths_label) = @_;
@@ -1000,13 +1021,11 @@ sub __get_common_nodes_all_labels_reg {
         for my $label (sort keys %{$common_nodes_all_paths_label->{$reg}}) {
             %union_of_all_labels = (%union_of_all_labels, %{$common_nodes_all_paths_label->{$reg}{$label}[0]});
         }
-        my $a_label;
+        my $a_label; # because it does not matter which label
         for my $node (sort keys %union_of_all_labels) {
             my $is_common = 1;
             for my $label (sort keys %{$common_nodes_all_paths_label->{$reg}}) {
                 $a_label = $label;
-
-# say "REG: $reg LABEL: $label => NODE $node PATH:".Dumper( $path). ' '.Dumper($common_nodes_all_paths_label->{$reg}{$label}[0]);
                 if (not exists $common_nodes_all_paths_label->{$reg}{$label}[0]{$node}) {
                     $is_common = 0;
                     last;
@@ -1017,7 +1036,7 @@ sub __get_common_nodes_all_labels_reg {
             }
         }
 
-   # basically, if there is a common "tail", it will be common to all.
+   # If there is a common "tail", it will be common to all.
    # So I can pick any path, and then simply test for the first node encountered which occurs in $common_nodes_all_labels_reg
         my $path = $common_nodes_all_paths_label->{$reg}{$a_label}[1];
         # say "REG: $reg PATH:" . Dumper($path) . ' ' . Dumper($common_nodes_all_labels_reg->{$reg});
@@ -1037,15 +1056,11 @@ sub __get_common_nodes_all_labels_reg {
 
 # Now we have to do the same thing upwards from the nodes with assignments
 sub _find_originating_block { my ($labels_for_reg, $s_ast_tree)=@_;
-# say "AST TREE: ".Dumper  $s_ast_tree;
-    my %paths_up_from_block = ();    
-    # say 'LABELS FOR ALL REGS ',Dumper $labels_for_reg;
+    my %paths_up_from_block = ();
+
     for my $reg (sort keys %{$labels_for_reg}) {
         $paths_up_from_block{$reg} = {};
-        # say  'LABELS FOR REG ',Dumper [sort keys %{$labels_for_reg->{$reg}}];
         for my $label (sort keys %{$labels_for_reg->{$reg}}) {
-            # say "LABEL: "; 
-            # say $label;
             my $paths = __collect_paths_up_from_block($s_ast_tree, $label, [$label]);
             $paths_up_from_block{$reg}{$label} = $paths;
         }
@@ -1141,6 +1156,9 @@ sub __collect_conds_for_path {
 # OK, I now have all composite conditions for all paths, as well as the reg assigned via that path
 # Let's first do a simple pretty-printer
 
+# We need to distinguish between assigned regs and regs written to in a store
+# So we need that information here
+# Which means it should be at least present in the simplified AST as well
 sub __pp_select_exprs { my ($conds_for_paths)=@_;
 
     for my $reg (sort keys %{ $conds_for_paths }) {
@@ -1157,38 +1175,14 @@ sub __pp_select_exprs { my ($conds_for_paths)=@_;
         my $select_expr_str = "$reg = ";
         my @labels = sort keys %{$conds_per_label};
         my $last_label = pop @labels;     
-            my $cond_reg = '';
-            my $select_chain_reg = $reg;
-            my $prev_select_chain_reg = 'prev_0';
-            my $ct=0;
-        for my $label (@labels) {
-            # say Dumper $conds_per_label->{$label};
-            my ($cond_expr_lines, $cond_reg) = __emit_cond_expr($conds_per_label->{$label});
-            # my $conds_expr_str = __pp_cond_expr($conds_per_label->{$label});            
-            #  $cond_reg = 'cond_'.$label;
-            if ($ct == scalar @labels - 1) {
-                # $select_expr_str =   "$select_chain_reg =  ${reg}_${label}";
-                $select_expr_str =   "\%$select_chain_reg = select i1 \%$cond_reg , \%${reg}_${label}, \%${reg}_${last_label}";
-            } else {
-                $select_expr_str =   "\%$select_chain_reg = select i1 \%$cond_reg , \%${reg}_${label}, \%$prev_select_chain_reg";
-            }
             
-            
-            push @select_cond_lines, $select_expr_str;
-            if ($ct <= scalar @labels - 1) {
-                for my $cond_line (reverse @{$cond_expr_lines}) {
-                    push @select_cond_lines, $cond_line;
-                }
-            # push @select_cond_lines, $cond_line; #"$cond_reg = $conds_expr_str";
-            }
-            $select_chain_reg=$prev_select_chain_reg;
-            $ct++;
-            $prev_select_chain_reg = 'prev_'.$ct;
-                                      
+        for my $label (@labels) {            
+            my $conds_expr_str = __pp_cond_expr($conds_per_label->{$label});            
+            $select_expr_str .= "$conds_expr_str ? ${reg}_${label} : ";                                      
         }
-        # $select_expr_str.=  "${reg}_${last_label}";
-        map { say $_ } reverse  @select_cond_lines;
-        # say $select_expr_str
+        $select_expr_str.=  "${reg}_${last_label}";
+        
+        say $select_expr_str;
         say  '';
     }
 
@@ -1201,9 +1195,76 @@ sub __pp_cond_expr { my ($conds)=@_;
     }
     my $cond_expr_str = join(' or ',  @cond_expr_substrs);
     return scalar @cond_expr_substrs > 1 ? "($cond_expr_str)" : $cond_expr_str;
-}
+} # END of __pp_cond_expr
 
-# Almost there but another catch: LLVM does not have a not (!) so instead of A ^ !B , so I need to generate xor i1 %reg, 1
+# To make this a proper emitter, we need the type info for all regs.
+sub __emit_select_exprs { my ($conds_for_paths, $s_ast_tree)=@_;
+    
+    my %select_exprs=();
+    for my $reg (sort keys %{ $conds_for_paths }) {
+        
+        my $conds_per_label={};
+        for my $path (  @{ $conds_for_paths->{$reg} } ) {
+            my ($label) = @{ shift @{$path} };
+            if (not exists $conds_per_label->{$label}) {
+                $conds_per_label->{$label}=[$path];
+            } else {
+                push @{$conds_per_label->{$label}}, $path;
+            }
+        }
+        my @select_cond_lines=();
+        my $select_expr_str = "$reg = ";
+        my @labels = sort keys %{$conds_per_label};
+        my $last_label = pop @labels;     
+        # I assume that if one of the exprs is a store, all of them must be store
+        my $is_store =  exists $s_ast_tree->{$last_label}{Store} and exists  $s_ast_tree->{$last_label}{Store}{$reg} ? 1 : 0;        
+        my $cond_reg = '';
+        my $select_chain_reg = $is_store ? $reg.'_store' : $reg;        
+        
+        my $target_reg = $reg;
+        my  $reg_type =  $s_ast_tree->{$last_label}{Store}{$reg}->[1];
+        my $prev_select_chain_reg = 'prev_0';
+        my $ct=0;
+        for my $label (@labels) {
+            # my $is_store =  exists $s_ast_tree->{$label}{Store} and exists  $s_ast_tree->{$label}{Store}{$reg} ? 1 : 0;
+            my ($cond_expr_lines, $cond_reg) = __emit_cond_expr($conds_per_label->{$label});
+            if ($ct == scalar @labels - 1) {                
+                if ($is_store ) {
+                    my ($update_reg_expr, $reg_type) = @{ $s_ast_tree->{$label}{Store}{$reg} };
+                    my ($last_update_reg_expr, $last_reg_type) = @{$s_ast_tree->{$last_label}{Store}{$reg}};
+                    $select_expr_str =   "\%$select_chain_reg = select i1 \%$cond_reg , $update_reg_expr, \%$last_update_reg_expr";
+                 } else {
+                    $select_expr_str =   "\%$select_chain_reg = select i1 \%$cond_reg , \%${reg}_${label}, \%${reg}_${last_label}";
+                }
+            } else {
+                if ($is_store ) {                    
+                    my ($update_reg_expr, $reg_type) = @{ $s_ast_tree->{$label}{Store}{$reg} };
+                    $select_expr_str =   "\%$select_chain_reg = select i1 \%$cond_reg , $update_reg_expr, \%$prev_select_chain_reg";
+                } else {
+                    $select_expr_str =   "\%$select_chain_reg = select i1 \%$cond_reg , \%${reg}_${label}, \%$prev_select_chain_reg";
+                }
+            }
+
+            if ($is_store) {
+                push @select_cond_lines, "store \%$select_chain_reg, $reg_type \%$target_reg";
+            }
+                      
+            push @select_cond_lines, $select_expr_str;
+            if ($ct <= scalar @labels - 1) {
+                for my $cond_line (reverse @{$cond_expr_lines}) {
+                    push @select_cond_lines, $cond_line;
+                }
+            }
+            $select_chain_reg=$prev_select_chain_reg;
+            $ct++;
+            $prev_select_chain_reg = 'prev_'.$ct;
+                                      
+        }
+        $select_exprs{$reg}= [reverse  @select_cond_lines] ;
+    }
+    return \%select_exprs;
+} # END of __emit_select_exprs
+
 
 # for every op we rename with the name of the reg and the op, so not_$reg; and_$reg1_$reg2; and we chain these names
 sub __emit_cond_expr { my ($conds)=@_;
@@ -1212,12 +1273,13 @@ my @cond_expr_lines=();
 
     my @cond_expr_substrs=();
     for my $cond (@orig_conds) {
-        # my @sub_conds = @{$cond};
         for my $sub_cond (@{$cond}) {
             if ($sub_cond < 0 ) {
                 my $reg = -1*$sub_cond;
                 $sub_cond = 'not_'.$reg;
-                push @cond_expr_lines, "\%$sub_cond = not \%$reg";
+            # Another catch: LLVM does not have a not (!) 
+            # So I generate xor i1 %reg, ¡1                
+                push @cond_expr_lines, "\%$sub_cond = xor i1 \%$reg, i1 1";
             }
         }
         if (@{$cond}>1) {
@@ -1234,12 +1296,10 @@ my @cond_expr_lines=();
                 push @cond_expr_lines, "\%$and_reg = and i1 \%$arg1 \%$arg2";
             }
         }
-        # push @cond_expr_substrs , scalar @{$cond}>1 ? '('.join(' and ', map { $_< 0 ?  "(not b".(-1*$_).')' : 'b'.$_ } @{$cond}).')' : map { $_< 0 ?  "(not b".(-1*$_).')' : 'b'.$_ } @{$cond};        
     }
-    # croak Dumper @orig_conds;
+
     my @orig_conds_f = map {$_->[0]} @orig_conds;
-    if (@orig_conds_f>1) {
-        
+    if (@orig_conds_f>1) {        
         my $arg1=shift @orig_conds_f;
         my $arg2= $orig_conds_f[0];
         my $or_reg='or_'.$arg1.'_'.$arg2; 
@@ -1254,9 +1314,6 @@ my @cond_expr_lines=();
         }
     }
     return ( \@cond_expr_lines, $orig_conds_f[0]);
-
-    # my $cond_expr_str = join(' or ',  @cond_expr_substrs);
-    # return scalar @cond_expr_substrs > 1 ? "($cond_expr_str)" : $cond_expr_str;
 } # END of __emit_cond_expr
 
 
@@ -1297,11 +1354,6 @@ Maybe like this:
 - Create an (ordered) list of the nodes
 - Go right to the end
 Then, for all these paths, check the first common node. That is the one.
-
-for my $reg (sort keys %{$labels_for_reg}) {}
-
-
-
 
 define void @update_map_24(float %hzero_j_k, float %eta_j_k, float* %h_j_k, float %hmin, float %un_j_k, float %vn_j_k, i32* %wet_j_k, float* %u_j_k, float* %v_j_k) {
   %1 = fadd float %hzero_j_k, %eta_j_k
