@@ -47,6 +47,12 @@ use Exporter;
 # $ocl: 0 = C, 1 = CPU/GPU OpenCL, 2 = C for TyTraIR aka TyTraC, 3 = pipe-based OpenCL for FPGAs 
 sub translate_module_to_C {  (my $stref, my $module_name, my $ocl) = @_;
 	if (not defined $ocl) {$ocl=0;}
+	my $generate_TyTraLlvmIR = 0;
+	# So if $ocl is 4, we change it to 2 and set the extra flag
+	if ($ocl == 4) {
+		$generate_TyTraLlvmIR = 1;
+		$ocl=2;
+	}
 	$stref->{'OpenCL'}=$ocl;
 	$stref->{'TranslatedCode'}=[];	
 	
@@ -65,7 +71,7 @@ sub translate_module_to_C {  (my $stref, my $module_name, my $ocl) = @_;
 		
 	$stref = _write_headers($stref,$ocl);	
 	$stref = _emit_C_code($stref, $module_name, $ocl);
-	if ($ocl==2 and $module_name !~/superkernel/) {
+	if ($generate_TyTraLlvmIR and $module_name !~/superkernel/) {
 		$stref = generate_llvm_ir_for_TyTra($stref, $module_name);
 	}
     # This makes sure that no fortran is emitted by emit_all()

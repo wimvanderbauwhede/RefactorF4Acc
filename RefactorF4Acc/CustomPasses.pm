@@ -70,6 +70,8 @@ sub run_custom_passes {
 		$stref = translate_module_to_C($stref,$code_unit_name,0);
 	} elsif ( $pass =~/translate_to_TyTraC/) {              
         $stref = translate_module_to_C($stref,$code_unit_name,2);
+	} elsif ( $pass =~/translate_to_TyTraLlvmIR/) {              
+        $stref = translate_module_to_C($stref,$code_unit_name,4);		
 	} elsif ( $pass =~/translate_to_OpenCL_with_pipes/) {              
         $stref = translate_module_to_C($stref,$code_unit_name,3);
 	} elsif ( $pass =~/translate_to_OpenCL/) {				

@@ -6,7 +6,7 @@ our $V=0;
 my $kernels_dir = 'Scalarized';
 if (not -d 'Scalarized') {
     if (!@ARGV) {
-        die "Provide the directory with the scalarised kernel modules as argument";
+        die "Provide the directory with the scalarised Fortran-syntax kernel modules as argument";
     }
     else {
         $kernels_dir = $ARGV[0];
