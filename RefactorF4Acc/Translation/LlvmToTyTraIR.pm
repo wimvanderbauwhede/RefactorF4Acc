@@ -13,6 +13,9 @@ $VERSION = "1.2.0";
 use warnings;
 use warnings FATAL => qw(uninitialized);
 use strict;
+
+use Storable qw( dclone );
+
 use Carp;
 use Data::Dumper;
 
@@ -46,11 +49,15 @@ sub generate_llvm_ir_for_TyTra {
     # Now do the renaming
     my $new_ast_nodes = _rename_regs_to_args($stref, $f, $ast_nodes);
     my $ast_tree      = _build_ast_tree($new_ast_nodes);
+    # my $ll_lines_rec = _emit_llvm_ir_from_ast_tree($ast_tree);
+    # map {say$_} @{$ll_lines_rec};
+    my $regs_types = __get_regs_types_from_ast($new_ast_nodes);
 
     say "\n$f\n";
     # __pp_ast_tree($ast_tree);
 
     my $simplified_ast_tree  = _simplify_ast_tree($ast_tree->{Tree});
+    $simplified_ast_tree->{'Types'}=$regs_types;
     my $regs_w_multiple_occs = _identify_regs_w_multiple_occs($simplified_ast_tree);
 
     # say 'REGS:',Dumper $regs_w_multiple_occs;
@@ -76,21 +83,27 @@ sub generate_llvm_ir_for_TyTra {
     # say 'origin: ',Dumper $common_nodes_all_labels_up_reg;
 
     my $origins_terminals_reg = _collect_origins_terminals_reg($common_nodes_all_labels_up_reg, $common_nodes_all_labels_down_reg);
-    say Dumper $origins_terminals_reg;
+    # say Dumper $origins_terminals_reg;
 
     # Now we do all paths between origin and terminal and collect the condition regs. 
     my $conds_for_paths = _collect_select_conditions ($origins_terminals_reg, $regs_w_multiple_occs_no_uncond, $simplified_ast_tree);
     # $Data::Dumper::Deepcopy=1;
     # say __pp_select_exprs($conds_for_paths); 
     my $select_exprs = __emit_select_exprs($conds_for_paths, $simplified_ast_tree); 
-    say Dumper $select_exprs;
-# Now we should insert these into the original AST 
-    my $new_ast_tree = _insert_select_exprs_into_ast_tree($select_exprs,$ast_tree);
-    __pp_ast_tree($new_ast_tree);
+    # say Dumper $select_exprs;
+    # Now we modify the AST to remove the branches and stores and rename the register assignments
+    my $new_ast_tree = _remove_br_and_update_assignments_in_ast_tree($ast_tree, $regs_w_multiple_occs_no_uncond);
+    $new_ast_tree = _insert_select_exprs_into_ast_tree($select_exprs,$new_ast_tree,$origins_terminals_reg);
+    $new_ast_tree = _rename_temp_regs($new_ast_tree) ;
+    # croak Dumper $new_ast_tree;
+    # Now we should insert the select lines into the modified AST 
+    my $new_ll_lines = _emit_llvm_ir_from_ast_tree($new_ast_tree);
+    # map {say $_} @{$new_ll_lines};
 
-    # my $new_ll_lines = _emit_llvm_ir($new_ast_nodes);
-    # _create_llvm_ir_src($targetdir, $f, 'll', $new_ll_lines);
-    # __sanity_check($targetdir, $f);
+    _create_llvm_ir_src($new_ll_lines, $targetdir, $f, 'll', '_tf' );
+    my $no_diff=1;
+    # __sanity_check($targetdir, $f.'_tf', $no_diff);
+    __sanity_check($targetdir, $f.'_tf');
     exit;
     return $stref;
 }    # END of pass_generate_llvm_ir_for_TyTra
@@ -124,7 +137,7 @@ sub _rename_regs_to_args {
                 push @{$new_ast_nodes}, ['Signature', $f, ['TypedArgs', [@typed_args]]];
             }
         }
-        elsif (__ast_node_has_reg($ast_node) != -1) {
+        elsif (defined __ast_node_has_reg($ast_node) ) {
             my $regs         = __get_regs_from_ast_node($ast_node, []);
             my $new_ast_node = __rename_arg_regs($ast_node, \%regs_to_args, $reg_offset);
             push @{$new_ast_nodes}, $new_ast_node;
@@ -242,7 +255,7 @@ sub _parse_llvm_ir {
 
                 }
 
-                #  %83 = call double @llvm.fabs.f64(double %82)
+                #  call
                 elsif ($line =~ /\%(\w+)\s+=\s+call\s+([\w\*]+)\s+\@(.+?)\((.+?)\)\s*$/) {
                     my $reg          = $1;
                     my $type_str     = $2;
@@ -416,7 +429,13 @@ sub _parse_llvm_ir {
 
 # We write directly to a file
 sub _create_llvm_ir_src {
-    my ($target_dir, $f, $ext, $ll_lines) = @_;
+    my ($ll_lines, $target_dir, $f, $ext, $suffix, $prefix) = @_;
+    if (defined $suffix) {
+        $f.=$suffix;
+    }
+    if (defined $prefix) {
+        $f="$prefix$f";
+    }
     open my $OUT, '>', "$target_dir/$f.$ext" or die $!;
     for my $ll_line (@{$ll_lines}) {
         say $OUT $ll_line;
@@ -430,6 +449,8 @@ sub _emit_llvm_ir {
     my @ll_lines = ();
 
     for my $ast_node (@{$ast_nodes}) {
+        # say Dumper $ast_node;
+        $ast_node->[0] eq 'Lit'         && push @ll_lines, $ast_node->[1];
         $ast_node->[0] eq 'Comment'         && push @ll_lines, ';' . $ast_node->[1];
         $ast_node->[0] eq 'Blank'           && push @ll_lines, '';
         $ast_node->[0] eq 'NonRegStatement' && push @ll_lines, $ast_node->[1];
@@ -523,6 +544,134 @@ sub _emit_llvm_ir {
     return \@ll_lines;
 }    # END of _emit_llvm_ir
 
+
+sub __emit_llvm_ir_single_ast_node {
+    my ($ast_node) = @_;
+    my $ll_line = '';
+
+    
+        # say Dumper $ast_node;
+        $ast_node->[0] eq 'Lit'             && do {$ll_line = $ast_node->[1]};
+        $ast_node->[0] eq 'Comment'         && do {$ll_line = ';' . $ast_node->[1]};
+        $ast_node->[0] eq 'Blank'           && do {$ll_line = ''};
+        $ast_node->[0] eq 'NonRegStatement' && do {$ll_line = $ast_node->[1]};
+        $ast_node->[0] eq 'Return'          && do {$ll_line = '  ret void'};
+        $ast_node->[0] eq 'EndDefinition'   && do {$ll_line = '}'};
+
+        $ast_node->[0] eq 'Signature' && do {
+            my $f = $ast_node->[1];
+            if ($ast_node->[2][0] eq 'ArgTypes') {
+                my $arg_types = $ast_node->[2][1];
+                my $sig_str   = 'define void @' . $f . '(' . join(', ', @{$arg_types}) . ') {';
+                $ll_line = $sig_str;
+            }
+            elsif ($ast_node->[2][0] eq 'TypedArgs') {
+                my $typed_args = $ast_node->[2][1];
+                my $sig_str =
+                  'define void @' . $f . '(' . join(', ', map { __emit_reg_or_const($_) } @{$typed_args}) . ') {';
+                $ll_line = $sig_str;
+            }
+        };
+
+        #my $ast_node=['Assignment',['Reg',$reg], ['TypedOp',['Type',$type_str],['Op',$op]], [\@reg_or_const]];
+        $ast_node->[0] eq 'Assignment' && do {
+            my $reg = __emit_reg_or_const($ast_node->[1]);
+
+            # ['Assignment', ['Reg', $reg], ['Call', ['Type', $type_str]], ['FName', $fname],['Args',[@reg_or_const]]];
+            if ($ast_node->[2][0] eq 'Call') {
+                my $type     = $ast_node->[2][1][1];
+                my $fname    = $ast_node->[3][1];
+                my $args_str = join(', ', map { __emit_reg_or_const($_) } @{$ast_node->[4][1]});
+                $ll_line = "  $reg = call $type \@$fname($args_str)";
+            }
+            else {
+                my $typed_op = __emit_typed_op($ast_node->[2]);
+                my $attr     = '';
+                if ($ast_node->[-1][0] eq 'Attribute') {
+                    $attr = $ast_node->[-1][1];
+                }
+                my $args_str = join(', ', map { __emit_reg_or_const($_) } @{$ast_node->[3]});
+                $ll_line = "  $reg = $typed_op $args_str $attr";
+            }
+        };
+
+        $ast_node->[0] eq 'Operation' && do {
+
+            # ,['Op',$op], ['Args',[@args_ast]]];
+            my $op       = __emit_typed_op($ast_node->[1]);
+            my $args_str = join(', ', map { __emit_reg_or_const($_) } @{$ast_node->[2][1]});
+            $ll_line = "  $op $args_str";
+        };
+        $ast_node->[0] eq 'Store' && do {
+
+            # ['Store', ['Args',[@args_ast]]];
+            my $args_str = join(', ', map { __emit_reg_or_const($_) } @{$ast_node->[1][1]});
+            $ll_line = "  store $args_str";
+        };
+        $ast_node->[0] eq 'IfThenElse' && do {
+
+            # ,['Cond',['TypedReg',['Type',$type_str], ['Reg',$reg]]],
+            my $cond   = __emit_reg_or_const($ast_node->[1][1]);
+            my $label1 = __emit_reg_or_const($ast_node->[2]);
+            my $label2 = __emit_reg_or_const($ast_node->[3]);
+            $ll_line = "  br $cond, label $label1, label $label2";
+        };
+
+        $ast_node->[0] eq 'Goto' && do {
+            my $label = __emit_reg_or_const($ast_node->[1]);
+            $ll_line = "  br label $label";
+        };
+
+        $ast_node->[0] eq 'Label' && do {
+
+            #  ['Label', $label,[@preds]];
+            my $label     = $ast_node->[1][1];    # because wrapped in Reg
+            my $preds_str = '';
+            if (scalar @{$ast_node->[2]} > 0) {
+                $preds_str = join(', ', map { __emit_reg_or_const($_) } @{$ast_node->[2]});
+            }
+            $ll_line = "; <label>:$label:" . ($preds_str ? (' ' x 37) . '; preds = ' . $preds_str : '');
+        };
+
+        $ast_node->[0] eq 'Declaration' && do {
+            my $fname        = $ast_node->[1][1];
+            my $ftype        = $ast_node->[2][1];
+            my $arg_types    = $ast_node->[3][1];
+            my $arg_type_str = join(', ', @{$arg_types});
+            $ll_line = "declare $ftype \@$fname($arg_type_str)";
+        };
+    
+    return $ll_line;
+}    # END of __emit_llvm_ir_single_ast_node
+
+sub _emit_llvm_ir_from_ast_tree {(my $ast_tree) = @_;
+
+    my @ast_nodes =();
+    # push @ast_nodes,  $ast_tree->{Signature};     
+
+    for my $label ( @{$ast_tree->{List}} ) {
+        # say Dumper $ast_tree->{Tree}{$label};
+        push @ast_nodes, $ast_tree->{Tree}{$label}{LabelNode} if exists $ast_tree->{Tree}{$label}{LabelNode};
+        @ast_nodes=(@ast_nodes, @{ $ast_tree->{Tree}{$label}{Block} });
+        if (exists $ast_tree->{Tree}{$label}{IfThenElse}) {   
+            push @ast_nodes, $ast_tree->{Tree}{$label}{IfThenElse};
+        }
+        elsif (exists $ast_tree->{Tree}{$label}{Goto}) {   
+            push @ast_nodes, $ast_tree->{Tree}{$label}{Goto};
+        }
+        elsif (exists $ast_tree->{Tree}{$label}{Return}) {   
+            push @ast_nodes, $ast_tree->{Tree}{$label}{Return};
+        }
+    }
+
+    @ast_nodes=(@ast_nodes, @{ $ast_tree->{PostAmble} });
+# say Dumper @ast_nodes;
+    my $ll_lines = _emit_llvm_ir(\@ast_nodes);
+    return $ll_lines;
+
+} # END of _emit_llvm_ir_from_ast_tree
+
+
 sub _pp_llvm_ast {
     (my $ast_nodes) = @_;
     my $ll_lines = _emit_llvm_ir($ast_nodes);
@@ -567,12 +716,12 @@ sub __ast_node_has_reg {
         else {
             for my $elt (@{$ast_node}) {
                 my $maybe_reg = __ast_node_has_reg($elt);
-                return $maybe_reg unless $maybe_reg == -1;
+                return $maybe_reg if defined $maybe_reg;
             }
         }
     }
     else {
-        return -1;
+        return undef;
     }
 }    # END of __ast_node_has_reg
 
@@ -596,7 +745,8 @@ sub __get_store_from_ast_node {
 #               the target reg              the reg with the new value   the type of that reg
         my $target_reg = $ast_node->[1][1][1][2][1];
         my $target_reg_type = $ast_node->[1][1][1][1][1];
-        my $update_val = __emit_reg_or_const($ast_node->[1][1][0]) ;
+        # my $update_val = __emit_reg_or_const($ast_node->[1][1][0]) ;
+        my $update_val = $ast_node->[1][1][0] ;
         # say "$target_reg => $update_val";
         return [ $target_reg , [$update_val, $target_reg_type] ];
     }
@@ -613,12 +763,9 @@ sub __get_regs_from_ast_node {
         if ($ast_node->[0] eq 'Reg') {
             push @{$regs}, $ast_node->[1];
             return $regs;
-        }
-        else {
+        } else {
             for my $elt (@{$ast_node}) {
                 $regs = __get_regs_from_ast_node($elt, $regs);
-
-                # return $maybe_reg unless $maybe_reg == -1;
             }
             return $regs;
         }
@@ -627,6 +774,63 @@ sub __get_regs_from_ast_node {
         return $regs;
     }
 }    # END of __get_regs_from_ast_node
+
+
+# start with empty {}
+sub __get_reg_types_from_ast_node {
+    my ($exp, $regs_types) = @_;
+# If I want to get the types for as many regs as possible, I should look at:
+    if ($exp->[0] eq 'Signature'
+    and $exp->[2][0] eq 'TypedArgs'
+    ) {
+        #  ['Signature', $f, ['TypedArgs', [@typed_args]]];
+        for my $typed_arg (@{$exp->[2][1]}) {
+            #  ['TypedReg', ['Type', $arg_type], ['Reg', $arg]];
+            my $reg = $typed_arg->[2][1];
+            my $type = $typed_arg->[1][1];
+            $regs_types->{$reg} = $type;
+        }                
+    }
+    elsif ($exp->[0] eq 'TypedReg') {
+    # ['TypedReg', ['Type', $type], ['Reg', $reg]]; 
+        my $reg = $exp->[2][1];
+        my $type = $exp->[1][1];
+        $regs_types->{$reg} = $type;
+    }
+    elsif ($exp->[0] eq 'Assignment') {
+        if ($exp->[2][0] eq 'Op') {
+    # ['Assignment', ['Reg', $reg], ['Op', $op], [['Type', $type_str], @reg_or_const]];
+            my $reg = $exp->[1][1];
+            my $type = $exp->[3][0][1];
+            $regs_types->{$reg} = $type;
+        }
+        elsif ($exp->[2][0] eq 'TypedOp') {
+    # ['Assignment', ['Reg', $reg], ['TypedOp', ['Type', $type_str], ['Op', $op]], [@reg_or_const]];
+            my $reg = $exp->[1][1];
+            my $type = $exp->[2][1][1];
+            $regs_types->{$reg} = $type;
+        }
+        elsif ($exp->[2][0] eq 'Call') {
+            my $reg = $exp->[1][1];
+            my $type = $exp->[2][1][1];
+            $regs_types->{$reg} = $type;
+    # ['Assignment', ['Reg', $reg], ['Call', ['Type', $type_str]], ['FName', $fname], ['Args', [@reg_or_const]] ];
+        }
+    }
+    return $regs_types;
+
+} # END of __get_reg_types_from_ast_node
+
+
+sub __get_regs_types_from_ast {
+    my ($ast_nodes) = @_;
+    my $regs_types = {};
+
+    for my $ast_node (@{$ast_nodes}) {
+        $regs_types = __get_reg_types_from_ast_node($ast_node,$regs_types);
+    }
+    return $regs_types;
+} # END of __get_regs_types_from_ast
 
 sub __rename_arg_regs {
     my ($ast_node, $regs_to_args, $reg_offset) = @_;
@@ -657,9 +861,37 @@ sub __rename_arg_regs {
     }
 }    # END of __rename_arg_regs
 
+# FIXME: not sure about the handling of the state. I assume if it is a ref it will be OK
+sub __rename_regs_in_ast_node { (my $ast_node, my $renamer, my $renamer_state)=@_;
+
+    if (ref($ast_node) eq 'ARRAY') {
+        if ($ast_node->[0] eq 'Reg') {
+            return $renamer->($ast_node,$renamer_state);
+        }
+        else {
+            my $new_node = [];
+            for my $elt (@{$ast_node}) {
+                push @{$new_node}, __rename_regs_in_ast_node($elt, $renamer, $renamer_state);
+            }
+            return $new_node;
+        }
+    }
+    else {
+        return $ast_node;
+    }
+}
+
+
+
 sub __sanity_check {
-    my ($target_dir, $f) = @_;
-    system("opt-mp-8.0 -S $target_dir/$f.ll  | diff -u -w -  $target_dir/$f.ll");
+    my ($target_dir, $f, $no_diff) = @_;
+    if (not defined $no_diff ) {
+        # system("opt-mp-8.0 -S $target_dir/$f.ll  | diff -u -w - $target_dir/$f.ll");
+        # system("/opt/local/bin/bash","-c"," cat $target_dir/$f.ll");
+        system("/opt/local/bin/bash",'-c',"diff -u -w <(opt-mp-8.0 -O0 -S $target_dir/$f.ll | grep -v -E \'^;|^\\s*\$|source_filename|attributes\') <(grep -v -E \'^\\;\\s+(?:br|store|.label)\|^\\s*\$' $target_dir/$f.ll)");
+    } else {
+        system("opt-mp-8.0 -S $target_dir/$f.ll ");
+    }
 }
 
 =pod LLVM IR sample
@@ -763,9 +995,10 @@ sub _build_ast_tree {
     my %ast_tree    = (
         Signature => [],
         List      => [$label],
-        Tree      => {$label => {Block => [],},}
+        Tree      => {$label => {Block => [],},},
+        PostAmble => []
     );
-
+    my $idx=0;
     for my $ast_node (@{$ast_nodes}) {
         if ($ast_node->[0] eq 'Signature') {
             $ast_tree{Signature} = $ast_node;
@@ -776,6 +1009,7 @@ sub _build_ast_tree {
             $ast_tree{Tree}{$label} = {
                 Preds => [],
                 Block => [],
+                LabelNode => $ast_node
             };
             if (scalar @{$ast_node->[2]} > 0) {
                 $ast_tree{Tree}{$label}{Preds} = $ast_node->[2];
@@ -788,15 +1022,23 @@ sub _build_ast_tree {
             $ast_tree{Tree}{$label}{Goto} = $ast_node;
         }
         elsif ($ast_node->[0] eq 'Return') {
-            $ast_tree{Tree}{$label}{Return} = [];
+            $ast_tree{Tree}{$label}{Return} = $ast_node;
         }
-        elsif ($ast_node->[0] eq 'EndDefinition') {
+        elsif ($ast_node->[0] eq 'EndDefinition') { 
             last;
         }
         else {    # any other node goes onto the current block
             push @{$ast_tree{Tree}{$label}{Block}}, $ast_node;
         }
+        ++$idx;
     }
+    my $end_idx = scalar @{$ast_nodes}-1;
+    # push @{$ast_tree{PostAmble}},['Comment',"POSTAMBLE: $idx .. $end_idx"];
+    
+    for my $ast_node_idx ($idx .. $end_idx ) {
+        push @{$ast_tree{PostAmble}}, $ast_nodes->[$ast_node_idx];
+    }
+
     return \%ast_tree;
 }    # END of _build_ast_tree
 
@@ -882,9 +1124,11 @@ sub _simplify_ast_tree {
     return \%simplified_ast_tree;
 }    # END of _simplify_ast_tree
 
-
-sub _identify_regs_w_multiple_occs {
-    my ($s_ast_tree) = @_;
+# returns a hash with $reg as keys and as values a hash of the labels
+# %labels_for_reg =(
+#    $reg => {$label =>[$reg, $idx]}
+# )
+sub _identify_regs_w_multiple_occs { my ($s_ast_tree) = @_;
     my %labels_for_reg = ();
     for my $label (sort keys %{$s_ast_tree}) {
         map { $labels_for_reg{$_->[0]}{$label} = $_ } @{$s_ast_tree->{$label}{Block}};
@@ -899,8 +1143,7 @@ sub _identify_regs_w_multiple_occs {
 }    # END of _identify_regs_w_multiple_occs
 
 # We must consider only labels that occur in Preds!
-sub _remove_non_pred_labels {
-    my ($labels_for_reg, $s_ast_tree) = @_;
+sub _remove_non_pred_labels { my ($labels_for_reg, $s_ast_tree) = @_;
     my %label_in_preds = ();
     for my $label (sort keys %{$s_ast_tree}) {
         if (exists $s_ast_tree->{$label}{Preds}) {
@@ -1204,8 +1447,14 @@ sub __pp_cond_expr { my ($conds)=@_;
 sub __emit_select_exprs { my ($conds_for_paths, $s_ast_tree)=@_;
     
     my %select_exprs=();
+    my $unique_regs={};
     for my $reg (sort keys %{ $conds_for_paths }) {
-        
+        my $type = exists $s_ast_tree->{'Types'}{$reg} ? $s_ast_tree->{Types}{$reg} : '';
+        # if ($type eq '') {
+        #     say "WARNING: no type for register $reg!";
+        # } else {
+        #     say "REG type for register $reg :: $type";
+        # }
         my $conds_per_label={};
         for my $path (  @{ $conds_for_paths->{$reg} } ) {
             my ($label) = @{ shift @{$path} };
@@ -1226,30 +1475,85 @@ sub __emit_select_exprs { my ($conds_for_paths, $s_ast_tree)=@_;
         
         my $target_reg = $reg;
         my  $reg_type =  $s_ast_tree->{$last_label}{Store}{$reg}->[1];
-        my $prev_select_chain_reg = 'prev_0';
+        my $prev_select_chain_reg = 'prev_'.$target_reg.'_0';
         my $ct=0;
         for my $label (@labels) {
             # my $is_store =  exists $s_ast_tree->{$label}{Store} and exists  $s_ast_tree->{$label}{Store}{$reg} ? 1 : 0;
-            my ($cond_expr_lines, $cond_reg) = __emit_cond_expr($conds_per_label->{$label});
+            my ($cond_expr_lines, $cond_reg, $unique_regs) = __emit_cond_expr($conds_per_label->{$label}, $unique_regs, $reg);
             if ($ct == scalar @labels - 1) {                
                 if ($is_store ) {
                     my ($update_reg_expr, $reg_type) = @{ $s_ast_tree->{$label}{Store}{$reg} };
                     my ($last_update_reg_expr, $last_reg_type) = @{$s_ast_tree->{$last_label}{Store}{$reg}};
-                    $select_expr_str =   "\%$select_chain_reg = select i1 \%$cond_reg , $update_reg_expr, \%$last_update_reg_expr";
+                    # $select_expr_str =   "\%$select_chain_reg = select i1 \%$cond_reg , $update_reg_expr, $last_update_reg_expr";
+                    $select_expr_str =  [
+                        'Assignment', 
+                        ['Reg', $select_chain_reg], 
+                        ['TypedOp', ['Type', 'i1'], ['Op', 'select']], 
+                        [
+                            ['Reg',$cond_reg],
+                            $update_reg_expr,
+                            $last_update_reg_expr
+                        ]
+                    ];
                  } else {
-                    $select_expr_str =   "\%$select_chain_reg = select i1 \%$cond_reg , \%${reg}_${label}, \%${reg}_${last_label}";
+                    
+                    # $select_expr_str =   "\%$select_chain_reg = select i1 \%$cond_reg , $type \%${reg}_${label}, $type \%${reg}_${last_label}";
+                    $select_expr_str =  [
+                        'Assignment', 
+                        ['Reg', $select_chain_reg], 
+                        ['TypedOp', ['Type', 'i1'], ['Op', 'select']], 
+                        [
+                                ['Reg',$cond_reg],
+                                ['TypedReg',['Type',$type],['Reg',"${reg}_${label}"]],
+                                ['TypedReg',['Type',$type],['Reg',"${reg}_${last_label}"]]
+                        ]
+                    ];
                 }
             } else {
                 if ($is_store ) {                    
                     my ($update_reg_expr, $reg_type) = @{ $s_ast_tree->{$label}{Store}{$reg} };
-                    $select_expr_str =   "\%$select_chain_reg = select i1 \%$cond_reg , $update_reg_expr, \%$prev_select_chain_reg";
+                    my $store_reg_type = $type;        
+                    $store_reg_type=~s/\*$//;
+
+                    # $select_expr_str =   "\%$select_chain_reg = select i1 \%$cond_reg , $update_reg_expr, $type \%$prev_select_chain_reg";
+                    $select_expr_str =  [
+                        'Assignment', 
+                        ['Reg', $select_chain_reg], 
+                        ['TypedOp', ['Type', 'i1'], ['Op', 'select']], 
+                        [
+                                ['Reg',$cond_reg],
+                                $update_reg_expr,
+                                ['TypedReg',['Type',$store_reg_type],['Reg',$prev_select_chain_reg]]
+                        ]
+                    ];
+
                 } else {
-                    $select_expr_str =   "\%$select_chain_reg = select i1 \%$cond_reg , \%${reg}_${label}, \%$prev_select_chain_reg";
+                    # $select_expr_str =   "\%$select_chain_reg = select i1 \%$cond_reg , $type \%${reg}_${label}, $type \%$prev_select_chain_reg";
+                    $select_expr_str =  [
+                        'Assignment', 
+                        ['Reg', $select_chain_reg], 
+                        ['TypedOp', ['Type', 'i1'], ['Op', 'select']], 
+                        [
+                                ['Reg',$cond_reg],
+                                ['TypedReg',['Type',$type],['Reg',"${reg}_${label}"]],
+                                ['TypedReg',['Type',$type],['Reg',$prev_select_chain_reg]]
+                        ]
+                    ];                    
                 }
             }
 
             if ($is_store) {
-                push @select_cond_lines, "store \%$select_chain_reg, $reg_type \%$target_reg";
+                my $store_reg_type = $type;        
+                $store_reg_type=~s/\*$//;
+                # push @select_cond_lines, "store $store_reg_type \%$select_chain_reg, $reg_type \%$target_reg";
+                push @select_cond_lines, ['Store', 
+                    ['Args', 
+                        [
+                            ['TypedReg',['Type',$store_reg_type], ['Reg',$select_chain_reg]],
+                            ['TypedReg',['Type',$reg_type],  ['Reg',$target_reg]]
+                        ]
+                    ]
+                ];
             }
                       
             push @select_cond_lines, $select_expr_str;
@@ -1260,7 +1564,7 @@ sub __emit_select_exprs { my ($conds_for_paths, $s_ast_tree)=@_;
             }
             $select_chain_reg=$prev_select_chain_reg;
             $ct++;
-            $prev_select_chain_reg = 'prev_'.$ct;
+            $prev_select_chain_reg = 'prev_'.$target_reg.'_'.$ct;
                                       
         }
         $select_exprs{$reg}= [reverse  @select_cond_lines] ;
@@ -1270,33 +1574,51 @@ sub __emit_select_exprs { my ($conds_for_paths, $s_ast_tree)=@_;
 
 
 # for every op we rename with the name of the reg and the op, so not_$reg; and_$reg1_$reg2; and we chain these names
-sub __emit_cond_expr { my ($conds)=@_;
+sub __emit_cond_expr { my ($conds, $unique_cond_regs, $target_reg)=@_;
 my @orig_conds=@{$conds};
 my @cond_expr_lines=();
-
+$unique_cond_regs={}; # temp hack!
     my @cond_expr_substrs=();
+    my $ct=0;
     for my $cond (@orig_conds) {
+        ++$ct;
         for my $sub_cond (@{$cond}) {
             if ($sub_cond < 0 ) {
                 my $reg = -1*$sub_cond;
-                $sub_cond = 'not_'.$reg;
+                $sub_cond= 'not_'.$reg.'_'.$ct;
+                my $sub_cond_reg = $sub_cond;
+                if (not exists $unique_cond_regs->{$sub_cond_reg}) {
+                    $unique_cond_regs->{$sub_cond_reg}=1;
             # Another catch: LLVM does not have a not (!) 
             # So I generate xor i1 %reg, ¡1                
-                push @cond_expr_lines, "\%$sub_cond = xor i1 \%$reg, i1 1";
+                # push @cond_expr_lines, "\%$sub_cond = xor i1 \%$reg, 1"; 
+                push @cond_expr_lines, ['Assignment', ['Reg', $sub_cond_reg], ['TypedOp', ['Type', 'i1'], ['Op', 'xor']], [['Reg',$reg],['Const','true']]];
+                } 
+                # else {
+                #     say "REG $sub_cond_reg already defined!";
+                # }
             }
         }
         if (@{$cond}>1) {
             my $arg1=shift @{$cond};
             my $arg2= $cond->[0];
-            my $and_reg='and_'.$arg1.'_'.$arg2; 
+            my $and_reg='and_'.$arg1.'_'.$arg2.'_'.$ct;; 
             $cond->[0]=$and_reg;
-            push @cond_expr_lines, "\%$and_reg = and i1 \%$arg1 \%$arg2";
+            # push @cond_expr_lines, "\%$and_reg = and i1 \%$arg1 \%$arg2";
+            if (not exists $unique_cond_regs->{$and_reg}) {
+                    $unique_cond_regs->{$and_reg}=1;
+            push @cond_expr_lines,['Assignment', ['Reg', $and_reg], ['TypedOp', ['Type', 'i1'], ['Op', 'and']], [['Reg',$arg1],['Reg',$arg2]]];
+            }
             while (@{$cond}>1) {
                 my $arg1=shift @{$cond};
                 my $arg2= $cond->[0];
-                my $and_reg='and_'.$arg1.'_'.$arg2;
+                my $and_reg='and_'.$arg1.'_'.$arg2.'_'.$ct;;
                 $cond->[0]=$and_reg;
-                push @cond_expr_lines, "\%$and_reg = and i1 \%$arg1 \%$arg2";
+                if (not exists $unique_cond_regs->{$and_reg}) {
+                    $unique_cond_regs->{$and_reg}=1;
+                # push @cond_expr_lines, "\%$and_reg = and i1 \%$arg1 \%$arg2";
+                    push @cond_expr_lines,['Assignment', ['Reg', $and_reg], ['TypedOp', ['Type', 'i1'], ['Op', 'and']], [['Reg',$arg1],['Reg',$arg2]]];
+                }
             }
         }
     }
@@ -1305,24 +1627,152 @@ my @cond_expr_lines=();
     if (@orig_conds_f>1) {        
         my $arg1=shift @orig_conds_f;
         my $arg2= $orig_conds_f[0];
-        my $or_reg='or_'.$arg1.'_'.$arg2; 
+        my $or_reg='or_'.$arg1.'_'.$arg2.'_'.$ct;;         
         $orig_conds_f[0]=$or_reg;
-        push @cond_expr_lines, "\%$or_reg = or i1 \%$arg1 \%$arg2";
+        # push @cond_expr_lines, "\%$or_reg = or i1 \%$arg1 \%$arg2";
+        if (not exists $unique_cond_regs->{$or_reg}) {
+                    $unique_cond_regs->{$or_reg}=1;
+        push @cond_expr_lines,['Assignment', ['Reg', $or_reg], ['TypedOp', ['Type', 'i1'], ['Op', 'or']], [['Reg',$arg1],['Reg',$arg2]]];
+        }
         while (@orig_conds_f>1) {
             my $arg1=shift @orig_conds_f;
             my $arg2= $orig_conds_f[0];
-            my $or_reg='or_'.$arg1.'_'.$arg2;
+            my $or_reg='or_'.$arg1.'_'.$arg2.'_'.$ct;;
             $orig_conds_f[0]=$or_reg;
-            push @cond_expr_lines, "\%$or_reg = or i1 \%$arg1 \%$arg2";
+        if (not exists $unique_cond_regs->{$or_reg}) {
+                    $unique_cond_regs->{$or_reg}=1;
+
+            # push @cond_expr_lines, "\%$or_reg = or i1 \%$arg1 \%$arg2";
+            push @cond_expr_lines,['Assignment', ['Reg', $or_reg], ['TypedOp', ['Type', 'i1'], ['Op', 'or']], [['Reg',$arg1],['Reg',$arg2]]];
+        }
         }
     }
-    return ( \@cond_expr_lines, $orig_conds_f[0]);
+    return ( \@cond_expr_lines, $orig_conds_f[0], $unique_cond_regs);
 } # END of __emit_cond_expr
 
-sub _insert_select_exprs_into_ast_tree { my ($select_exprs,$ast_tree)=@_;
-my $new_ast_tree = {};
-return $new_ast_tree;
-}
+sub _insert_select_exprs_into_ast_tree { my ($select_exprs,$new_ast_tree,$origins_terminals_reg)=@_;
+    # %select_exprs is per $reg
+    # For each reg, find the terminal node from  %origins_terminals_reg
+    for my $reg (sort keys %{$select_exprs}) {
+        my $terminal = $origins_terminals_reg->{$reg}[1];
+        # say "INSERT SELECT for $reg in $terminal";
+         @{$new_ast_tree->{Tree}{$terminal}{Block}} = ( (map { ref($_) ne 'ARRAY' ? ['Lit',$_ ] : $_ }   @{$select_exprs->{$reg}}), @{$new_ast_tree->{Tree}{$terminal}{Block}});
+    }
+    
+    return $new_ast_tree;
+} # END of _insert_select_exprs_into_ast_tree
+
+# What we need is the labels of blocks for all regs
+sub _remove_br_and_update_assignments_in_ast_tree { my ($ast_tree,$labels_for_regs)=@_;
+    my $new_ast_tree = dclone($ast_tree);
+    
+    for my $label (@{$ast_tree->{List}}) {
+        # say "REG: $reg";
+        # for my $label (sort keys %{$labels_for_regs->{$reg}}) {
+            # say "LABEL: $label";
+            
+            for my $reg (sort keys %{$labels_for_regs}) { # all the regs that are subject to conditions
+               if (exists $labels_for_regs->{$reg}{$label}) { 
+                   # there is a reg in this block
+                    my $reg_idx = $labels_for_regs->{$reg}{$label}[1];
+                    my $node = $new_ast_tree->{Tree}{$label}{Block}[$reg_idx];
+                    if ($node->[0] eq 'Store') {
+                        my $orig_code_str=__emit_llvm_ir_single_ast_node($node);
+                        # say ';'.$orig_code_str;
+                        $new_ast_tree->{Tree}{$label}{Block}[$reg_idx] = ['Comment', $orig_code_str];
+                    } else {# It's an assignment, rename the reg
+                        $node->[1][1].='_'.$label;
+                        my $updated_code_str=__emit_llvm_ir_single_ast_node($node);
+                        # say $updated_code_str;
+                        $new_ast_tree->{Tree}{$label}{Block}[$reg_idx] = $node;
+                    }
+               }
+            }
+            if (exists $new_ast_tree->{Tree}{$label}{IfThenElse}) {
+                my $node = $new_ast_tree->{Tree}{$label}{IfThenElse};
+            my $orig_code_str=__emit_llvm_ir_single_ast_node($node);
+            # say ';'.$orig_code_str;
+            $new_ast_tree->{Tree}{$label}{IfThenElse} = ['Comment', $orig_code_str];
+            }
+            if (exists $new_ast_tree->{Tree}{$label}{Goto}) {
+                my $node = $new_ast_tree->{Tree}{$label}{Goto};
+                my $orig_code_str=__emit_llvm_ir_single_ast_node($node);
+                # say ';'.$orig_code_str;
+                $new_ast_tree->{Tree}{$label}{Goto} = ['Comment', $orig_code_str];
+            }
+            # my $idx=0;
+
+            # for my $node (@{ $ast_tree->{Tree}{$label}{Block} }) {
+            #     say "NODE TYPE: ".$node->[0];
+            #     if ($node->[0] eq 'Goto' or $node->[0] eq 'IfThenElse' ) {                    
+            #         my $orig_code_str=__emit_llvm_ir_single_ast_node($node);
+            #         $node=['Comment', $orig_code_str];
+            #         say "$reg $label => $orig_code_str";
+            #     }
+            #     push @{ $new_ast_tree->{Tree}{$label}{Block} }, $node;
+            #     ++$idx;
+            # }
+        
+    }
+    
+    return $new_ast_tree;
+} # END of _remove_br_and_update_assignments_in_ast_tree
+
+# Finally (hopefully!) we need to renumber the temporary registers. It looks like I can keep the named regs 
+# I could also just maked them named I supposes, by prefixing them with 'r'. That is easier, so try that first
+sub _rename_temp_regs { my ($ast_tree) = @_;
+    for my $label ( @{$ast_tree->{List}} ) {
+     # say Dumper $ast_tree->{Tree}{$label};
+     my @nodes=();
+         if (exists $ast_tree->{Tree}{$label}{LabelNode}) {
+            my $node = $ast_tree->{Tree}{$label}{LabelNode};
+            push @nodes, ['LabelNode', $node];
+        }
+        for my $node (@{ $ast_tree->{Tree}{$label}{Block} }) {
+            push @nodes, ['Block',$node];
+        }        
+        $ast_tree->{Tree}{$label}{Block}=[];
+        if (exists $ast_tree->{Tree}{$label}{IfThenElse}) {   
+            my $node = $ast_tree->{Tree}{$label}{IfThenElse};
+            push @nodes, ['IfThenElse',$node];
+        }
+        elsif (exists $ast_tree->{Tree}{$label}{Goto}) {   
+            my $node = $ast_tree->{Tree}{$label}{Goto};
+            push @nodes, ['Goto',$node];
+        }
+        elsif (exists $ast_tree->{Tree}{$label}{Return}) {   
+            my $node = $ast_tree->{Tree}{$label}{Return};
+            push @nodes, ['Return',$node];
+        }
+
+        for my $node_pair (@nodes) {
+            my ($node_type, $node)=@{$node_pair};
+
+            if (defined __ast_node_has_reg($node)) {
+                    $node = __rename_regs_in_ast_node($node, sub { 
+                        (my $reg_node)=@_;    
+                        my $reg_name = $reg_node->[1];
+                        if ($reg_name=~/^\d+$/) {
+                            $reg_name="r$reg_name";
+                        }
+                        return ['Reg',$reg_name];
+                    }
+                );
+            }
+            if ($node_type eq 'Block') {
+                push @{ $ast_tree->{Tree}{$label}{Block} }, $node;
+            } else {
+                $ast_tree->{Tree}{$label}{$node_type}=$node;
+            }
+
+        }
+        
+    }
+    # croak Dumper $ast_tree;
+    return $ast_tree;
+} # END of _rename_temp_regs 
+
+
 =pod IfThenElse Replacement Algo
 So now we can compare the ordered list of these labels per reg with the Preds in each block.
 e.g. by sorting and joining the keys and comparing the strings
