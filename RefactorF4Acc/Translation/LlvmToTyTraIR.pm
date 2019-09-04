@@ -25,12 +25,92 @@ use Exporter;
 
 @RefactorF4Acc::Translation::LlvmToTyTraIR::EXPORT_OK = qw(
   generate_llvm_ir_for_TyTra
-  _generate_llvm_ir
-  _parse_llvm_ir
-  _pp_llvm_ast
-  _emit_llvm_ir
 );
 
+=pod
+
+TODO: integrate the scalarization pass into the translate_kernels_to_TyTraLlvmIR.pl script!
+
+[wim@HackBookPro Autopar]$ cat rename_array_accesses_to_scalars.sh 
+refactorF4acc.pl -P rename_array_accesses_to_scalars -c rf4a_scalarize.cfg 
+
+[wim@HackBookPro Autopar]$cat rf4a_scalarize.cfg 
+
+currently:
+MODULE = module_shapiro_dyn_update_superkernel
+MODULE_SRC = module_shapiro_dyn_update_superkernel.f95
+TOP = shapiro_dyn_update_superkernel
+KERNEL = shapiro_dyn_update_superkernel
+PREFIX = .
+SRCDIRS = .
+NEWSRCPATH = ./Scalarized
+EXCL_SRCS = (sub|init|param|module_\w+_superkernel_init|_host|\.[^f])
+EXCL_DIRS = ./PostCPP,./Scalarized,./TyTraC
+MACRO_SRC = macros.h
+EXT = .f95
+
+
+
+# Generating LLVM IR for TyTra
+
+- The current compiler chain first generates accelerator-ready Fortran 95 using this compiler. 
+- This is passed on to a second compiler which performs essentially a map/fold/stencil analysis and emits code in the form of kernels, intended for GPU acceleration using OpenCL, but in Fortran syntax.
+- This compiler then translates that code into C for OpenCL or for the TyTra flow (TyTraC). To generate TyTraC, it first scalarises all kernels (`-P rename_array_accesses_to_scalars`) and then translates them to C (`-P translate_to_TyTraC`).
+- Then we can generate LLVM IR from that C code, and transform it so that it can be converted finally to TyTraIR by the TyBEC backend compiler
+
+## Generating LLVM IR from TyTraC
+
+We do this in `_generate_llvm_ir` using `clang` and `opt`. 
+
+## Transforming the LLVM IR for TyTra
+
+First we need to have named arguments. This used to be the default in older LLVM and TyBEC requires it. Then we need to replace branches by `select` statements. Rather using the LLVM framework, I wrote a parser and emitter for our subset of LLVM IR.
+
+_parse_llvm_ir parses the LLVM code for a single subroutine into a list of AST nodes.
+
+### Named arguments
+
+_rename_regs_to_args
+
+### Branches to select
+
+#### Better AST
+
+_build_ast_tree
+_simplify_ast_tree
+
+#### Identify the registers subject to conditions
+_identify_regs_w_multiple_occs
+#### Identify origin and terminal nodes for these registers
+
+_find_terminating_block
+_find_originating_block
+
+#### Find the conditions governing each path between origin and terminal nodes
+
+_collect_select_conditions
+
+#### Create the select and condition statements
+
+    __emit_select_exprs($conds_for_paths, $simplified_ast_tree); 
+    
+#### Remove the branches and stores and rename the register assignments
+    _remove_br_and_update_assignments_in_ast_tree
+
+#### Insert the select code into the AST
+    _insert_select_exprs_into_ast_tree
+
+#### Rename temporary registers to keep LLVM happy    
+    _rename_temp_regs
+
+#### Emit the new LLVM IR 
+
+    _emit_llvm_ir_from_ast_tree
+    _create_llvm_ir_src
+    __sanity_check
+
+=end markdown
+=cut
 
 sub generate_llvm_ir_for_TyTra {
     (my $stref, my $module_name) = @_;
@@ -48,6 +128,10 @@ sub generate_llvm_ir_for_TyTra {
 
     # Now do the renaming
     my $new_ast_nodes = _rename_regs_to_args($stref, $f, $ast_nodes);
+
+    # Now get ready for the big job
+    # Build an AST tree and simplify it for analysis
+
     my $ast_tree      = _build_ast_tree($new_ast_nodes);
     # my $ll_lines_rec = _emit_llvm_ir_from_ast_tree($ast_tree);
     # map {say$_} @{$ll_lines_rec};
@@ -58,6 +142,8 @@ sub generate_llvm_ir_for_TyTra {
 
     my $simplified_ast_tree  = _simplify_ast_tree($ast_tree->{Tree});
     $simplified_ast_tree->{'Types'}=$regs_types;
+
+
     my $regs_w_multiple_occs = _identify_regs_w_multiple_occs($simplified_ast_tree);
 
     # say 'REGS:',Dumper $regs_w_multiple_occs;
@@ -921,71 +1007,6 @@ so we have
 ['Label',$label,[$preds]] => custom emitter
 ['Branch',['Cond',['TypedReg',$type, $reg]],$label1, $label2]
 
-
-
-So, to change br by select:
-
-%res = select i1 %cond, t1 %res_t,  t1 %res_f
-
-We look for a conditional branch
-assign the condition to a reg
-- in each branch, we find an assignment to an output arg. Or in general we need to build the dependency graph from every output arg to all regs
-- then we can take these instructions out of the branch and put them in a select instead.
-
-The complication is nested branches, of course. The proper way should be to find the innermost nest and replace that with the select, then work our way up.
-
-Which means we should first build up a nested datastructure for the branches.
-
-  %h_j_k = fadd float %hzero_j_k, %eta_j_k
-
-
-  %wet_j_k=1
-  %cond = fcmp olt float %h_j_k, %hmin
-  br i1 %cond, label %13, label %14
-
-; <label>:13:                                     ; preds = %9
-  %wet_j_k=0
-  br label %14
-
-; <label>:14:                                     ; preds = %13, %9
-
-
-what we want is
-
-%cond = fcmp olt float %h_j_k, %hmin
-
-%wet_j_k = select i1 %cond, t1 i32 0,  i32 1
-
-I think in the end we can simply look at which regs get assigned to in more than one labeled block.
-This is OK as the labels are generated purely for the branches and jumps.
-
-Then all we need to do is work out which conditions govern the choice between these blocks and
-then we can use select. If there are more than 2 occurences we'll need several select operations.
-
-The datastructure needed is essentially a binary tree, although not quite because the Goto labels can of course be shared.
-my $ast_tree = {
-    $label => { 
-        Block => [@ast_nodes],
-        IfThenElse =>{  # can just use the current AST node
-            Cond => $ast_node,
-            BrTrue => $label_true, 
-            BrFalse => $label_false,
-        },
-        Goto => $label_goto # can just use the current AST node
-    },
-    ...
-};
-
-A node has either an IfThenElse, in which case it is a binary node, or a Goto, in which case it is a leaf node.
-In this strucure, we look at the leaf nodes and we look for common occurences. 
-The main question is if we need to push the blocks down to leaves for nodes that are binary?
-Maybe not: either the assignment will be in the Block or in a block in of the binary branches.
-
-I need to rename the registers to which the shared variables are assigned, e.g. by suffixing them with the label of the node.
-But is this still valid LLVM?
-
-It might be convenient to change the AST so that every line is annotated with the registers on it, so we don't have to search every time
-
 =cut
 
 # Because I need to keep the ordering of the labels, this is a List =>[], Tree=>{} combo
@@ -1773,7 +1794,71 @@ sub _rename_temp_regs { my ($ast_tree) = @_;
 } # END of _rename_temp_regs 
 
 
-=pod IfThenElse Replacement Algo
+=pod 
+So, to change br by select:
+
+%res = select i1 %cond, t1 %res_t,  t1 %res_f
+
+We look for a conditional branch
+- assign the condition to a reg
+- in each branch, we find an assignment to an output arg. Or in general we need to build the dependency graph from every output arg to all regs
+- then we can take these instructions out of the branch and put them in a select instead.
+
+The complication is nested branches, of course. The proper way should be to find the innermost nest and replace that with the select, then work our way up.
+
+Which means we should first build up a nested datastructure for the branches.
+
+  %h_j_k = fadd float %hzero_j_k, %eta_j_k
+
+
+  %wet_j_k=1
+  %cond = fcmp olt float %h_j_k, %hmin
+  br i1 %cond, label %13, label %14
+
+; <label>:13:                                     ; preds = %9
+  %wet_j_k=0
+  br label %14
+
+; <label>:14:                                     ; preds = %13, %9
+
+
+what we want is
+
+%cond = fcmp olt float %h_j_k, %hmin
+
+%wet_j_k = select i1 %cond, t1 i32 0,  i32 1
+
+I think in the end we can simply look at which regs get assigned to in more than one labeled block.
+This is OK as the labels are generated purely for the branches and jumps.
+
+Then all we need to do is work out which conditions govern the choice between these blocks and
+then we can use select. If there are more than 2 occurences we'll need several select operations.
+
+The datastructure needed is essentially a binary tree, although not quite because the Goto labels can of course be shared.
+my $ast_tree = {
+    $label => { 
+        Block => [@ast_nodes],
+        IfThenElse =>{  # can just use the current AST node
+            Cond => $ast_node,
+            BrTrue => $label_true, 
+            BrFalse => $label_false,
+        },
+        Goto => $label_goto # can just use the current AST node
+    },
+    ...
+};
+
+A node has either an IfThenElse, in which case it is a binary node, or a Goto, in which case it is a leaf node.
+In this strucure, we look at the leaf nodes and we look for common occurences. 
+The main question is if we need to push the blocks down to leaves for nodes that are binary?
+Maybe not: either the assignment will be in the Block or in a block in of the binary branches.
+
+I need to rename the registers to which the shared variables are assigned, e.g. by suffixing them with the label of the node.
+But is this still valid LLVM?
+
+It might be convenient to change the AST so that every line is annotated with the registers on it, so we don't have to search every time
+=head1 IfThenElse Replacement Algorithm
+
 So now we can compare the ordered list of these labels per reg with the Preds in each block.
 e.g. by sorting and joining the keys and comparing the strings
 The select() goes into the block that matches
