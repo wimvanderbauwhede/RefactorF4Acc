@@ -1698,7 +1698,7 @@ my $pass_remove_unused_args_from_sig_and_decls = sub { (my $annline, my $state)=
 	my $state={$f=>{}};
  	($stref,$state) = stateful_pass($stref,$f,$pass_remove_unused_args_from_sig_and_decls, $state,'pass_remove_unused_args_from_sig_and_decls' . __LINE__  ) ;
 	 return $stref;
-} # END of _remove_redundant_arguments
+} # END of _remove_redundant_arguments_OFF
  
 
 # sub __arg_is_unused { my ($stref,$f,$arg)=@_;
