@@ -1701,7 +1701,7 @@ my $pass_remove_unused_args_from_sig_and_decls = sub { (my $annline, my $state)=
 } # END of _remove_redundant_arguments_OFF
  
 
-# sub __arg_is_unused { my ($stref,$f,$arg)=@_;
+
 sub _remove_redundant_arguments { (my $stref, my $f)=@_;
 	my @in_args = grep { 
 		$stref->{'Subroutines'}{ $Config{'KERNEL'} }{'DeclaredOrigArgs'}{'Set'}{$_}{'IODir'} eq 'in'
@@ -1749,9 +1749,24 @@ sub _remove_redundant_arguments { (my $stref, my $f)=@_;
 			$in_args_to_remove->{$arg}=1;
 		}
 	}
+	
 	croak Dumper $in_args_to_remove;
 
+=pod	
+	 Now we should remove these arguments:
+	 - in the superkernel:
+	 	- from the argument list : $annlines, but also Args 	
+	 	- from the call arguments of each kernel : $annlines, but also the ArgMap
+		- remove all declarations for these args :  $annlines
+	 - In every called sub for my $csub (@call_sequence) {}
+	 	- from the  argument list of each kernel : $annlines, but also from Args to DeclaredOrigLocalVars
+	 	- remove the intents from the declarations : $annlines, but also from DeclaredOrigLocalVars
 
+This analysis uses the superkernel sub, not every subroutine in the module. So we need a condition on $f 
+
+
+
+=cut
 
 	# my @subs =  grep {$_ ne 'UNKNOWN_SRC' } sort keys %{ $stref->{'Subroutines'} };
 	# for my $idx (0 .. @call_sequence-1) {

@@ -174,7 +174,7 @@ sub generate_llvm_ir_for_TyTra {
     # Now we do all paths between origin and terminal and collect the condition regs. 
     my $conds_for_paths = _collect_select_conditions ($origins_terminals_reg, $regs_w_multiple_occs_no_uncond, $simplified_ast_tree);
     # $Data::Dumper::Deepcopy=1;
-    # say __pp_select_exprs($conds_for_paths); 
+    say __pp_select_exprs($conds_for_paths,'haskell'); 
     my $select_exprs = __emit_select_exprs($conds_for_paths, $simplified_ast_tree); 
     # say Dumper $select_exprs;
     # Now we modify the AST to remove the branches and stores and rename the register assignments
@@ -1426,8 +1426,8 @@ sub __collect_conds_for_path {
 # We need to distinguish between assigned regs and regs written to in a store
 # So we need that information here
 # Which means it should be at least present in the simplified AST as well
-sub __pp_select_exprs { my ($conds_for_paths)=@_;
-
+sub __pp_select_exprs { my ($conds_for_paths_, $hs)=@_;
+    my $conds_for_paths = dclone($conds_for_paths_);
     for my $reg (sort keys %{ $conds_for_paths }) {
         my $conds_per_label={};
         for my $path (  @{ $conds_for_paths->{$reg} } ) {
@@ -1444,8 +1444,13 @@ sub __pp_select_exprs { my ($conds_for_paths)=@_;
         my $last_label = pop @labels;     
             
         for my $label (@labels) {            
-            my $conds_expr_str = __pp_cond_expr($conds_per_label->{$label});            
-            $select_expr_str .= "$conds_expr_str ? ${reg}_${label} : ";                                      
+            my $conds_expr_str = __pp_cond_expr($conds_per_label->{$label},$hs);            
+            if (defined $hs) {
+                $select_expr_str .= "if $conds_expr_str then ${reg}_${label} else ";
+            } else {
+                $select_expr_str .= "$conds_expr_str ? ${reg}_${label} : ";
+            }
+            
         }
         $select_expr_str.=  "${reg}_${last_label}";
         
@@ -1455,12 +1460,16 @@ sub __pp_select_exprs { my ($conds_for_paths)=@_;
 
 } # END of __pp_select_exprs
 
-sub __pp_cond_expr { my ($conds)=@_;
+sub __pp_cond_expr { my ($conds,$hs)=@_;
     my @cond_expr_substrs=();
     for my $cond (@{ $conds }) {
-        push @cond_expr_substrs , scalar @{$cond}>1 ? '('.join(' and ', map { $_< 0 ?  "(not b".(-1*$_).')' : 'b'.$_ } @{$cond}).')' : map { $_< 0 ?  "(not b".(-1*$_).')' : 'b'.$_ } @{$cond};        
+        if (defined $hs) {
+            push @cond_expr_substrs , scalar @{$cond}>1 ? '('.join(' && ', map { $_< 0 ?  "(!b".(-1*$_).')' : 'b'.$_ } @{$cond}).')' : map { $_< 0 ?  "(! b".(-1*$_).')' : 'b'.$_ } @{$cond};
+        } else {
+            push @cond_expr_substrs , scalar @{$cond}>1 ? '('.join(' and ', map { $_< 0 ?  "(not b".(-1*$_).')' : 'b'.$_ } @{$cond}).')' : map { $_< 0 ?  "(not b".(-1*$_).')' : 'b'.$_ } @{$cond};            
+        }
     }
-    my $cond_expr_str = join(' or ',  @cond_expr_substrs);
+    my $cond_expr_str = join(defined $hs ? ' || ' : ' or ',  @cond_expr_substrs);
     return scalar @cond_expr_substrs > 1 ? "($cond_expr_str)" : $cond_expr_str;
 } # END of __pp_cond_expr
 

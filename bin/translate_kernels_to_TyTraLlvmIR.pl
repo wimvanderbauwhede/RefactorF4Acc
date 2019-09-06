@@ -4,13 +4,14 @@ use v5.28;
 use Getopt::Std;
 
 my %opts = ();
-getopts( 'hvste:', \%opts );
+getopts( 'hvmste:', \%opts );
 
 if ($opts{'h'}){
     die "
     $0 -[hvste] 
 
     -v : verbose
+    -m : generate TyTraIR main routine
     -s : scalarise only
     -t : translate only
     -e : Fortran source file extension (default is .f95, needs the dot)
@@ -19,6 +20,10 @@ if ($opts{'h'}){
 our $V=0;
 if ($opts{'v'}) {
     $V=1;
+}
+my $gen_tytra_ir_main=0;
+if ($opts{'m'}) {
+    $gen_tytra_ir_main=1;
 }
 my $scalarise=1;
 my $translate=1;
@@ -37,8 +42,32 @@ if ($opts{'e'}) {
     $ext = $opts{'e'};
 }
 
+# Generate TyTraIR main routine
+if ($gen_tytra_ir_main) {
+    say "GENERATING TyTraIR main routine" if $V;
+    my @kernel_srcs = glob("module_*_superkernel.f95"); 
 
-
+    if (scalar @kernel_srcs == 1) {
+        if (-d './TyTraC' ) {
+               if (-e './TyTraC/kernelTop.ll')  {
+                    unlink('./TyTraC/kernelTop.ll');
+               }
+        } else {
+            mkdir './TyTraC';
+        }
+        my $kernel_src = shift @kernel_srcs;
+        say "KERNEL MODULE SRC: $kernel_src" if $V;
+        my ($kernel_sub_name, $kernel_module_name) = get_kernel_and_module_names($kernel_src,'superkernel');
+        if ($kernel_sub_name ne '') {
+            my $rf4a_tytra_ir_cfg =  create_rf4a_cfg_tytra_ir($kernel_src,$kernel_sub_name, $kernel_module_name);  
+            say "CFG: $rf4a_tytra_ir_cfg" if $V;
+            system("refactorF4acc.pl -P emit_TyTraIR -c $rf4a_tytra_ir_cfg > ./TyTraC/kernelTop.ll"); 
+        }
+    } else {
+        die "No kernel sources found";
+    }
+}
+die;
 # First scalarise
 if ($scalarise) {
     say "SCALARISE" if $V;
@@ -139,6 +168,31 @@ ENDCFG
 
     return "rf4a_${kernel_sub_name}_scalarise.cfg";
 } # END of create_rf4a_cfg_scalarise
+
+
+sub create_rf4a_cfg_tytra_ir {
+    my ($kernel_src,$kernel_sub_name, $kernel_module_name) = @_;    
+
+    my $rf4a_cfg = <<"ENDCFG";
+MODULE = $kernel_module_name
+MODULE_SRC = $kernel_src
+TOP = $kernel_sub_name
+KERNEL = $kernel_sub_name
+PREFIX = .
+SRCDIRS = .
+NEWSRCPATH = ./Temp
+EXCL_SRCS = (module_\\w+_superkernel_init|_host|\\.[^f])
+EXCL_DIRS = ./PostCPP,./Temp,./TempC,./Scalarized,./TyTraC
+MACRO_SRC = macros.h
+EXT = .f95
+ENDCFG
+
+    open my $RF4A, '>', "rf4a_${kernel_sub_name}_tytra_ir.cfg" or die $!;
+    print $RF4A $rf4a_cfg;
+    close $RF4A;
+
+    return "rf4a_${kernel_sub_name}_tytra_ir.cfg";
+} # END of create_rf4a_cfg_tytra_ir
 
 
 sub get_kernel_and_module_names {
