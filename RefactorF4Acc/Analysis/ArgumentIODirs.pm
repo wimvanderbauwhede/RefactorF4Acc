@@ -358,7 +358,7 @@ sub _analyse_src_for_iodirs {
                     if (exists $info->{'WriteCall'} or exists $info->{'PrintCall'}) {
 
                         # All variables are read from, so IODir is read
-                        for my $mvar (@{$info->{'CallArgs'}{'List'}}) {
+                        for my $mvar (@{$info->{'SubroutineCall'}{'Args'}{'List'}}) {
                             next if $mvar eq 'write';
                             next if $mvar eq 'print';
                             if (exists $args->{$mvar}
@@ -399,7 +399,7 @@ sub _analyse_src_for_iodirs {
                     if (exists $info->{'ReadCall'} or exists $info->{'InquireCall'}) {
 
                         # Arguments are written to, so IODir is write; others are read
-                        for my $mvar (@{$info->{'CallArgs'}{'List'}}) {
+                        for my $mvar (@{$info->{'SubroutineCall'}{'Args'}{'List'}}) {
                             if (exists $args->{$mvar} and ref($args->{$mvar}) eq 'HASH') {
                                 if (exists $args->{$mvar}{'IODir'}) {
                                     $args = _set_iodir_ignore($mvar, $args);
@@ -730,7 +730,7 @@ sub _get_iodirs_from_subcall {
 # Only if it is Array or Scalar  does it need to be considered for writing to by the subroutine
 # We need to check the other variables in Array, Sub and Expr but they cannot be anything else than read-only
 #				croak $f.' => '.$name."($call_arg => $sig_arg)\t".Dumper($info);
-                    my $call_arg_type = $info->{'CallArgs'}{'Set'}{$call_arg}{'Type'};
+                    my $call_arg_type = $info->{'SubroutineCall'}{'Args'}{'Set'}{$call_arg}{'Type'};
                     # carp "CALL ARG: $sig_arg => $call_arg  " . Dumper($call_arg_type);
                     if ($call_arg_type eq 'Scalar' or $call_arg_type eq 'Array') {
 
@@ -738,7 +738,7 @@ sub _get_iodirs_from_subcall {
                         # That is what interests us as we want the IODir in that case
 
                         if ($call_arg_type eq 'Array') {
-                            $call_arg = $info->{'CallArgs'}{'Set'}{$call_arg}{'Arg'};
+                            $call_arg = $info->{'SubroutineCall'}{'Args'}{'Set'}{$call_arg}{'Arg'};
                         }
 
                         if (    exists $args->{$call_arg}

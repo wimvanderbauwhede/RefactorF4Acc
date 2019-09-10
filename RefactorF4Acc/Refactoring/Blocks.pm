@@ -546,13 +546,16 @@ sub __construct_new_subroutine_signatures {
                 $call_line =~ s/subroutine/call/;
                 $call_line =~ s/\(\)//;
                 $srcref->[$tindex][0] = $call_line;
+                my $line = $srcref->[$tindex][0];
+                my $info = $srcref->[$tindex][1];
                 # croak $call_line;
-                $srcref->[$tindex][1]{'SubroutineCall'} = { %{$sigrec} };
-                $srcref->[$tindex][1]{'SubroutineCall'}{'ExpressionAST'} = [];#1,$sigrec->{'Name'},[]
-                $srcref->[$tindex][1]{'CallArgs'}=dclone($sigrec->{'Args'});
-                $srcref->[$tindex][1]{'LineID'} = $Sblock->{'Callers'}{$f}[0];
-                $srcref->[$tindex][1]{'ExtractedSubroutine'}=1;
-                $srcref->[$tindex][1]{'Ann'}= [__FILE__.' '.__LINE__];
+                $info->{'SubroutineCall'} = { %{$sigrec} };
+                $info->{'SubroutineCall'}{'ExpressionAST'} = [];#1,$sigrec->{'Name'},[]
+                $info->{'SubroutineCall'}{'Args'}=dclone($sigrec->{'Args'});
+                $info->{'LineID'} = $Sblock->{'Callers'}{$f}[0];
+                $info->{'ExtractedSubroutine'}=1;
+                $info->{'Ann'}= [__FILE__.' '.__LINE__];
+                $srcref->[$tindex]=[$line, $info];
             } elsif ( $tindex > $block_rec->{'BeginBlockIdx'}
                 and $tindex <= $block_rec->{'EndBlockIdx'} ) 
             {

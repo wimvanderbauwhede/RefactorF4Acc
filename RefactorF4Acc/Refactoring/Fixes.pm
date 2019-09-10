@@ -12,7 +12,7 @@ use RefactorF4Acc::Refactoring::Common qw(
 	);
 
 # I'm not sure that this is the best place for this routine as it is only used in this pass    
-use RefactorF4Acc::Refactoring::Subroutines::Emitters qw( emit_subroutine_sig );
+use RefactorF4Acc::Refactoring::Subroutines::Emitters qw( emit_subroutine_sig emit_subroutine_call );
 use RefactorF4Acc::Analysis::ArgumentIODirs qw( determine_argument_io_direction_rec );
 use RefactorF4Acc::Parser::Expressions qw(
 	parse_expression
@@ -43,7 +43,6 @@ use Exporter;
 
 @RefactorF4Acc::Translation::Fixes::EXPORT_OK = qw(
 	&_declare_undeclared_variables
-	&_update_arg_var_decls
 	&_removed_unused_variables
 	&_fix_scalar_ptr_args
 	&_fix_scalar_ptr_args_subcall
@@ -51,960 +50,6 @@ use Exporter;
 	&_remove_redundant_arguments
 );
 
-# sub pass_rename_array_accesses_to_scalars { (my $stref, my $code_unit_name)=@_;
-# # croak $code_unit_name;
-# 	$stref = pass_wrapper_subs_in_module($stref,
-# 	'',[],
-# 	# $code_unit_name,
-# 			[
-# 				[ sub { (my $stref, my $f)=@_; 
-				
-# 				 alias_ordered_set($stref,$f,'RefactoredArgs','DeclaredOrigArgs');
-                       
-#                     } ],
-# #				[ \&_fix_scalar_ptr_args ],
-# #		  		[\&_fix_scalar_ptr_args_subcall],
-# 		  		[
-# 			  		\&_declare_undeclared_variables, # FIX
-# 					\&_rename_array_accesses_to_scalars, # FIX
-# 					\&_removed_unused_variables, # FIX
-# 				],
-# 				[
-# 					\&_rename_array_accesses_to_scalars_in_subcalls
-# 				],			
-# 				[
-# 					\&determine_argument_io_direction_rec,
-#                     \&_update_arg_var_decls, # FIX
-# 				],
-# 				[
-# 					\&_update_call_args,
-# 					\&_add_assignments_for_called_subs
-# 				],				
-# 				[
-# 					\&_make_dim_vars_scalar_consts_in_sigs
-# 				],
-# 			]
-# 		);		
-		
-# 		#  die Dumper pp_annlines($stref->{Subroutines}{shapiro_map_23}{RefactoredCode});
-# 	return $stref;
-# }
-
-# Rename every array access and keep track
-=info_AST
-{
-	'Assignment' => 1,
-	'Indent' => '    ',
-	'Lhs' => {
-		'ArrayOrScalar' => 'Scalar',
-		'ExpressionAST' => ['$','g'],
-		'VarName' => 'g',
-		'IndexVars' => {
-			'Set' => {},
-			'List' => []
-		}
-	},
-	'Rhs' => {
-		'ExpressionAST' => ['@','g_ptr','1'],
-		'VarList' => {
-			'List' => ['g_ptr'],
-			'Set' => {
-				'g_ptr' => {'Type' => 'Array','Vars' => {}}				
-			}
-		}
-	},
-	'LineID' => 32,
-	'Ref' => 0
-}
-
-
-# hsn = 0.5*(vn(j-1,k)-abs(vn(j-1,k)))*h(j,k)
-{
-	'Assignment' => 1,
-	'Indent' => '  ',
-	'Lhs' => {'ArrayOrScalar' => 'Scalar','IndexVars' => {'List' => [],'Set' => {}},'ExpressionAST' => ['$','hsn'],'VarName' => 'hsn'},'Ref' => 0,'LineID' => 76,
-	'Rhs' => {
-	'VarList' => {
-		'List' => ['h','_OPEN_PAR_','j','k','vn'],
-		'Set' => {
-			'h' => {
-				'Type' => 'Array',
-				'Vars' => {'k' => {'Type' => 'Scalar'},'j' => {'Type' => 'Scalar'}}
-			},
-			'k' => {'Type' => 'Scalar'},
-			'vn' => {'Type' => 'Array'},
-			'_OPEN_PAR_' => {
-				'Vars' => {
-					'j' => {'Type' => 'Scalar'},
-					'vn' => {'Type' => 'Array'},
-					'k' => {'Type' => 'Scalar'}
-				},
-				'Type' => 'Array'
-			},
-			'j' => {'Type' => 'Scalar'}
-		}
-	},
-	'ExpressionAST' => [
-		'*','0.5',[
-			'@','_OPEN_PAR_',[
-				'+',['@','vn',
-						[
-							'+',['$','j'],['-','1']
-						],
-						['$','k']
-					],
-					['-',
-						['&','abs',['@','vn',['+',['$','j'],['-','1']],['$','k']]]]]],['@','h',['$','j'],['$','k']]]
-	}
-}
-=cut
-=info_assumptions_array_access_detection
-Assumptions:
-- Array accesses use index expressions that are linear `a*idx+b`, where idx is part of IndexVars
-- For stencils we _only_ support idx+k where k is a positive or negative constant 
-- If an array has a constant index access, that is _not_ part of the stencil
-
-=cut
-# ================================================================================================================================================	
-# # This composite pass renames array accesses in the called subroutines in a superkernel to scalar accesses
-# sub _rename_array_accesses_to_scalars { (my $stref, my $f) = @_;
-
-# 	if ($f ne $Config{'KERNEL'} ) {
-
-# 	# This pass performs renaming in assignments and conditional expressions of IFs
-# 	# TODO: It does _not_ rename
-# 	# * subroutine call arguments (because there should not be any)
-# 	# * SELECT CASE arguments
-# 	# * DO index range expressions  
-# 	my $pass_rename_array_accesses_in_exprs = sub { (my $annline, my $state)=@_;
-# 		(my $line,my $info)=@{$annline};
-# 		if (exists $info->{'Assignment'} ) {
-# #			carp $line;
-# 			if (scalar @{ $info->{'Rhs'}{'VarList'}{'List'} } == 1 and $info->{'Rhs'}{'VarList'}{'List'}[0]=~/_ptr/) {
-# 				croak 'FIXME: What we want is that only array variables with IndexVars are renamed. So constant indices should stay as they are';
-# 				# IGNORE, this is not a true array access: this is an assignment of the shape
-# 				# v = v_ptr(1)
-# 				# and we will remove these later on
-# 			} else {				
-# 				# Rename all array accesses in the RHS AST. This updates $state->{'StreamVars'}
-# 				(my $ast, $state) = _rename_ast_entry($stref, $f,  $state, $info->{'Rhs'}{'ExpressionAST'},'In');
-# 				 $info->{'Rhs'}{'ExpressionAST'}=$ast;
-# 				 if (ref($ast) ne '') {
-# 				my $vars=get_vars_from_expression($ast,{}) ;
-# #				croak "CARP:".Dumper($vars);
-# 				$info->{'Rhs'}{'VarList'}{'Set'}=$vars;
-# 				$info->{'Rhs'}{'VarList'}{'List'}= [ grep {$_ ne 'IndexVars' and $_ ne '_OPEN_PAR_' } sort keys %{$vars} ];
-# 				 } else {
-# 				 	$info->{'Rhs'}{'VarList'}={'List'=>[],'Set'=>{}};
-# 				 }
-# 			}
-# 			if ($info->{'Lhs'}{'ArrayOrScalar'} eq 'Array') {
-# 				# Rename all array accesses in the LHS AST. This updates $state->{'StreamVars'}
-# 				(my $ast, $state) = _rename_ast_entry($stref, $f,  $state, $info->{'Lhs'}{'ExpressionAST'}, 'Out');
-# 				$info->{'Lhs'}{'ExpressionAST'}=$ast;
-# 				my $stream_var = $ast->[1];		
-# 				$info->{'Lhs'}{'VarName'} = $stream_var;
-# 				$info->{'Lhs'}{'ArrayOrScalar'} = 'Scalar';
-# 			}
-# 			$state->{'IndexVars'}={ %{$state->{'IndexVars'} }, %{ $info->{'Lhs'}{'IndexVars'}{'Set'} } };
-# 			for my $var ( @{ $info->{'Rhs'}{'VarList'}{'List'} } ) {
-# 				next if $var eq '_OPEN_PAR_';
-# 				if ($info->{'Rhs'}{'VarList'}{'Set'}{$var}{'Type'} eq 'Array' and exists $info->{'Rhs'}{'VarList'}{'Set'}{$var}{'IndexVars'}) {					
-# 					$state->{'IndexVars'}={ %{ $state->{'IndexVars'} }, %{ $info->{'Rhs'}{'VarList'}{'Set'}{$var}{'IndexVars'} } }
-# 				}
-# 			}				
-# 		} 
-# 		if (exists $info->{'If'} ) {					
-# 			# carp Dumper $info;
-# 			my $cond_expr_ast = $info->{'CondExecExprAST'};
-# 			# Rename all array accesses in the AST. This updates $state->{'StreamVars'}			
-# 			(my $ast, $state) = _rename_ast_entry($stref, $f,  $state, $cond_expr_ast, 'In');			
-			
-# 			$info->{'CondExecExpr'}=$ast;
-# 			for my $var ( @{ $info->{'CondVars'}{'List'} } ) {
-# 				next if $var eq '_OPEN_PAR_';
-# 				if (
-# 					$info->{'CondVars'}{'Set'}{$var}{'Type'} eq 'Array' 					
-# 				and exists $info->{'CondVars'}{'Set'}{$var}{'IndexVars'}) {					
-# 					$state->{'IndexVars'}={ %{ $state->{'IndexVars'} }, %{ $info->{'CondVars'}{'Set'}{$var}{'IndexVars'} } }
-# 				}
-# 			}
-# 				 if (ref($ast) ne '') {
-# 				my $vars=get_vars_from_expression($ast,{}) ;
-
-# 				$info->{'CondVars'}{'Set'}=$vars;
-# 				$info->{'CondVars'}{'List'}= [ grep {$_ ne 'IndexVars' and $_ ne '_OPEN_PAR_' } sort keys %{$vars} ];
-# 				 } else {
-# 				 	$info->{'CondVars'}={'List'=>[],'Set'=>{}};
-# 				 }
-			
-						
-# 		}
-# 		return ([[$line,$info]],$state);
-# 	};
-
-# 	my $state = {'IndexVars'=>{}, 'StreamVars'=>{}};
-#  	($stref,$state) = stateful_pass($stref,$f,$pass_rename_array_accesses_in_exprs, $state,'pass_rename_array_accesses_in_exprs ' . __LINE__  ) ;
- 	
-# # 	carp Dumper($state) if $f eq 'sub_map_124';
-# # -------------------------------------------------------------------------------------------------------- 	
-#  	# Now we create new assignment lines, these go into LiftedScalarAssignments 
-#  	# v_i_j = v(i,j)
-# 	# The reverse go into LiftedArrayAssignments 
-#  	# v(i,j) = v_i_j
-#  	# In principle, we should check the IODir. If it is In or InOut, it needs scalar assignment; if it is Out or InOut, it needs array assignment
-#  	$stref->{'Subroutines'}{$f}{'LiftedScalarAssignments'}=[];
-#  	$stref->{'Subroutines'}{$f}{'LiftedArrayAssignments'}=[];
-#  	# StreamVars has the original array var as key, a list of entries for the renamed scalars as value
-#  	# Each of these entries has a field ArrayIndexExpr
-# 	for my $var (sort keys %{ $state->{'StreamVars'} } ){
-# 		$state->{'StreamVars'}{$var}{'List'}=[];
-# 		for my $stream_var (sort keys %{ $state->{'StreamVars'}{$var}{'Set'} } ){
-# 			push @{$state->{'StreamVars'}{$var}{'List'}},$stream_var;		
-# 			my $scalar_assignment_line= '      '.$stream_var.' = '.$state->{'StreamVars'}{$var}{'Set'}{$stream_var}{'ArrayIndexExpr'};
-# 			my $array_assignment_line= '      '.$state->{'StreamVars'}{$var}{'Set'}{$stream_var}{'ArrayIndexExpr'}.' = '.$stream_var;
-# 			my $scalar_assignment_rhs_ast = parse_expression($state->{'StreamVars'}{$var}{'Set'}{$stream_var}{'ArrayIndexExpr'}, {},$stref, $f);
-# 			my $array_assignment_lhs_ast = $scalar_assignment_rhs_ast; 
-# 			my $scalar_assignment_rhs_vars = get_vars_from_expression($scalar_assignment_rhs_ast ,{});
-# 			my $array_assignment_lhs_vars =$scalar_assignment_rhs_vars; 
-# 			my $scalar_assignment_rhs_vars_list = [ sort keys %{$scalar_assignment_rhs_vars} ];
-# 			my $array_assignment_lhs_vars_list = $scalar_assignment_rhs_vars_list;
-# 			push @{ $stref->{'Subroutines'}{$f}{'LiftedScalarAssignments'} }, 
-# 			[$scalar_assignment_line,
-# 				{
-# 					'Indent' => '      ',
-# 					'Assignment'=> 1,
-# 						'Lhs'=> {   
-# 							'ArrayOrScalar' => 'Scalar','IndexVars' => {'List' => [],'Set' => {}},'ExpressionAST' => ['$',$stream_var],'VarName' => $stream_var
-# 						  },
-# 						'Rhs' => {
-# 							'ExpressionAST' => $scalar_assignment_rhs_ast,
-# 							'VarList' => {'List' => $scalar_assignment_rhs_vars_list,'Set' =>$scalar_assignment_rhs_vars},
-# 						}
-					
-# 				}
-# 			];
-			
-# 			push @{ $stref->{'Subroutines'}{$f}{'LiftedArrayAssignments'} }, 			
-# 			[$array_assignment_line,
-# 				{
-# 					'Indent' => '      ',
-# 					'Assignment'=> 1,
-# 						'Lhs' => {
-# 							'ArrayOrScalar' => 'Array',
-# 							'ExpressionAST' => $array_assignment_lhs_ast,
-# 							'VarName' => $var,
-# 							'IndexVars' => {
-# 								'List' => [$array_assignment_lhs_vars_list],
-# 								'Set' => $array_assignment_lhs_vars
-# 							}
-# 						},
-# 						'Rhs'=> {   
-# 							'ArrayOrScalar' => 'Scalar',
-# 							'ExpressionAST' => ['$',$stream_var],
-# 							'VarList' => {
-# 								'List' => [$stream_var], 
-# 								'Set' => {$stream_var  => {'Type' => 'Scalar'} }, 									
-# 								}
-# 						  },					
-# 				}
-# 			]; 
-# 		}		
-# 	}
-# 	$stref->{'Subroutines'}{$f}{'StreamVars'}=$state->{'StreamVars'};
-
-# # --------------------------------------------------------------------------------------------------------
-# 	# So now we have identified all stream vars. In the next pass, update the subroutine Signature and VarDecl declarations in $info
-# 	# We update DeclaredOrigArgs record of $f in a separate pass below
-# 	my $pass_update_sig_and_decls = sub { (my $annline, my $state)=@_;
-# 		(my $line,my $info)=@{$annline};
-# 		if (exists $info->{'Signature'} ) { 			
-# 			# What we do is replace the array args with the "tuple" of scalar args from StreamVars
-# 			my $new_args=[];
-# 			for my $arg (@{ $info->{'Signature'}{'Args'}{'List'} } ) {
-# 				if (exists $state->{'StreamVars'}{$arg} ) {
-# 					$new_args=[@{$new_args},  @{ $state->{'StreamVars'}{$arg}{'List'} }  ];										
-# 				} else {
-# 					push @{$new_args}, $arg;
-# 				} 
-# 			}
-# 			$info->{'Signature'}{'Args'}{'List'}=$new_args;
-# 			$info->{'Signature'}{'Args'}{'Set'} = { map {$_=>1} @{$new_args} };
-			
-# 		} elsif (exists $info->{'VarDecl'} ) {
-# 			my $var = $info->{'VarDecl'}{'Name'};
-# 			if (exists $state->{'StreamVars'}{$var}) {
-# 				my $vars =  $state->{'StreamVars'}{$var}{'List'};
-# 				if (exists $info->{'ParsedVarDecl'}) {
-# 					$info->{'ParsedVarDecl'}{'StreamVars'}=$state->{'StreamVars'}{$var}{'Set'}; # Every streamvar derived from var has the same type
-# 					$info->{'ParsedVarDecl'}{'Vars'}=$vars;
-# 					delete $info->{'ParsedVarDecl'}{'Attributes'}{'Dim'};
-# 					# INTENT is deleted, we will run ArgumentIODirs later
-# 					if (exists $info->{'ParsedVarDecl'}{'Attributes'}{'Intent'} ) {
-# 						delete $info->{'ParsedVarDecl'}{'Attributes'}{'Intent'};
-# 					}
-# 				} else {
-# 					croak "TROUBLE: ".Dumper($annline); 
-# 				}
-# 			}
-# 		}
-# 		return ([[$line,$info]],$state);
-# 	};
-
-#  	($stref,$state) = stateful_pass($stref,$f,$pass_update_sig_and_decls, $state,'pass_update_sig_and_decls' . __LINE__  ) ;
- 	
-# # --------------------------------------------------------------------------------------------------------	
-# 	# Here we update DeclaredOrigArgs and DeclaredOrigArgs
-#  	# At this point the argument list already has the stream vars as args
- 	
-#  	my @updated_args_list=();		
-# 	for my $orig_arg ( @{ $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'List'} } ) {		
-		
-# 		if (exists $state->{'StreamVars'}{$orig_arg}) {
-# 			my $new_decl = dclone( $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$orig_arg} );
-# 			for my $new_arg (@{ $state->{'StreamVars'}{$orig_arg}{'List'} }) {
-# 				push @updated_args_list,$new_arg;
-# 				$new_decl->{'ArrayOrScalar'}='Scalar';
-# 				$new_decl->{'Dim'}=[];
-# 				$new_decl->{'IODir'}=$state->{'StreamVars'}{$orig_arg}{'Set'}{$new_arg}{'IODir'};
-# 				$new_decl->{'ArrayIndexExpr'}=$state->{'StreamVars'}{$orig_arg}{'Set'}{$new_arg}{'ArrayIndexExpr'};
-# 				$stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$new_arg}=$new_decl;
-# 				delete $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$orig_arg};				
-# 			}			
-# 		} else {
-# 			if (exists $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$orig_arg} ) {
-# 				push @updated_args_list, $orig_arg;	
-# 			}
-# 		}
-# 	}
-	
-# 	$stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'List'}=[@updated_args_list]; 	
-	
-# # --------------------------------------------------------------------------------------------------------	 	
-#  	# So at this point we should do the lifting of everything to do with indexing
- 	
-# # Finally, after having updated the calls we can add the missing declarations
-# # In the superkernel we will assign the variables to the original array accesses
-# # However, the array indices are computed from the global id on a per-sub basis so i,j,k are different for each sub.
-# # So  we need to extract the calculations of i,j,k out of the sub
-
-# 	my  $pass_lift_array_index_calculations = sub {(my $annline, my $state)=@_;
-# 		(my $line,my $info)=@{$annline};
-# 	# Every Assignment line that has one of these on the LHS gets removed from AnnLines and stored in LiftedIndexCalcLines, and we take list of all vars on the RHS {'Rhs'}{'VarList'}{'List'} and add these to $index_vars
-# 	# We do this until we have all of them. Basically, if we start from the back and push in reverse, we can do this in a single pass
-		
-# 		if (exists $info->{'Assignment'} ) {
-# 			my $lhs_var = $info->{'Lhs'}{'VarName'};
-# 			if (exists $state->{'IndexVars'}{$lhs_var}) {				
-# 				unshift @{ $state->{'LiftedIndexCalcLines'} }, dclone($annline);
-# 				$info->{'Deleted'}=1;
-# 	  			my $rhs_vars = $info->{'Rhs'}{'VarList'}{'Set'};
-# 				$state->{'IndexVars'}={ %{ $state->{'IndexVars'} }, %{ $rhs_vars } };				  
-# 				return ([["! $line",$info]],$state);
-# 			}
-# 		} elsif (exists $info->{'SubroutineCall'} ) {
-# 			for my $arg ( @{ $info->{'SubroutineCall'}{'Args'}{'List'} } ){
-# 				if (exists $state->{'IndexVars'}{$arg} ) {					
-# 					unshift @{ $state->{'LiftedIndexCalcLines'} }, dclone($annline);
-# 					$info->{'Deleted'}=1;
-# 		  			my $args = $info->{'SubroutineCall'}{'Args'}{'Set'};
-# 		  			# TODO: of course this ignores any indices or function call args
-# 					$state->{'IndexVars'}={ %{ $state->{'IndexVars'} }, %{ $args } };				  
-# 					return ([["! $line",$info]],$state);
-# 				}
-# 			}
-# 		}
-# 		 	# Then we can remove the declarations as well, and store these in LiftedIndexVarDecls
-# 		elsif (exists $info->{'VarDecl'}) {
-# 			my $decl_var = $info->{'VarDecl'}{'Name'};
-# 			if (exists $state->{'IndexVars'}{$decl_var}) {				
-# 				unshift @{ $state->{'LiftedIndexVarDecls'}{'List'} }, dclone($annline);
-# 				$state->{'LiftedIndexVarDecls'}{'Set'}{$decl_var}=dclone($annline);
-# 				$info->{'Deleted'}=1;	  											  
-# 				return ([["! $line",$info]],$state);
-# 			}			
-# #			if (exists $state->{'StreamVars'}{$decl_var}) {
-# #				croak $decl_var.Dumper($annline);
-# #			}
-# 		}
-# 		# Finally we remove the $index_vars from the Args in the Signature
-# 		elsif (exists $info->{'Signature'} ) {
-# 			my $new_args=[];
-# 			for my $arg (@{ $info->{'Signature'}{'Args'}{'List'} } ) {				
-# 				if (not exists $state->{'IndexVars'}{$arg} ) {
-# 					push @{$new_args}, $arg;
-# 				} else {
-# 					push @{ $state->{'DeletedArgs'} }, $arg;
-# 					delete $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$arg};
-# 					my @updated_args_list = grep {$_ ne $arg } @{ $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'List'} };
-# 					$stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'List'} = [@updated_args_list];				
-# 				}
-# 			}
-# 			$info->{'Signature'}{'Args'}{'List'}=$new_args;
-# 			$state->{'RemainingArgs'}=$new_args;
-# 			$info->{'Signature'}{'Args'}{'Set'} = { map {$_=>1} @{$new_args} };			
-# 		}
-		
-# 		return ([[$line,$info]],$state);
-# 	};
-# 	$state->{'RemainingArgs'}=[];
-# 	$state->{'DeletedArgs'}=[];
-# 	$state->{'LiftedIndexCalcLines'}=[];
-# 	$state->{'LiftedIndexVarDecls'}={'List'=>[],'Set'=>{}};
-# 	$state->{'LiftedStreamVarDecls'}={'List'=>[],'Set'=>{}};
-#  	($stref,$state) = stateful_pass_reverse($stref,$f,$pass_lift_array_index_calculations, $state,'_rename_array_accesses_to_scalars_lift() ' . __LINE__  ) ;
-
-# 	# And then we can update $stref->{$Subroutines}{$f} and add LiftedIndexCalcLines and LiftedIndexVarDecls so that when we find a call we can splice in these lines
-# 	$stref->{'Subroutines'}{$f}{'LiftedIndexCalcLines'}=dclone($state->{'LiftedIndexCalcLines'});
-# 	$stref->{'Subroutines'}{$f}{'LiftedIndexVarDecls'}=dclone($state->{'LiftedIndexVarDecls'});
-	
-# ## --------------------------------------------------------------------------------------------------------	
-# #	# Here we update DeclaredOrigArgs and DeclaredOrigArgs
-# # 	# At this point the argument list already has the stream vars as args
-# # 	
-# # 	my @updated_args_list=();		
-# #	for my $orig_arg ( @{ $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'List'} } ) {
-# #		
-# #		if (exists $state->{'StreamVars'}{$orig_arg}) {
-# #			my $new_decl = dclone( $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$orig_arg} );
-# #			for my $new_arg (@{ $state->{'StreamVars'}{$orig_arg}{'List'} }) {
-# #				push @updated_args_list,$new_arg;
-# #				$new_decl->{'ArrayOrScalar'}='Scalar';
-# #				$new_decl->{'Dim'}=[];
-# #				$new_decl->{'IODir'}=$state->{'StreamVars'}{$orig_arg}{'Set'}{$new_arg}{'IODir'};
-# #				$new_decl->{'ArrayIndexExpr'}=$state->{'StreamVars'}{$orig_arg}{'Set'}{$new_arg}{'ArrayIndexExpr'};
-# #				$stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$new_arg}=$new_decl;
-# #				delete $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$orig_arg};				
-# #			}			
-# #		} else {
-# #			if (exists $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$orig_arg} ) {
-# #				push @updated_args_list, $orig_arg;	
-# #			}
-# #		}
-# #	}
-# #	
-# #	$stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'List'}=[@updated_args_list];
-# #	croak Dumper($stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'List'}) if $f eq 	'sub_map_124';
-	
-
-# #	$stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}=$stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'};
-# #	$stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'List'}=$stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'List'};		
-# # --------------------------------------------------------------------------------------------------------		
-# 	# Now we emit the updated code for the subroutine signature, the variable declarations, assignment expressions and ifthen expressions
-	
-# 	my $pass_emit_updated_code = sub { (my $annline, my $state)=@_;		
-# 		(my $line,my $info)=@{$annline};
-# 		(my $stref, my $f) = @{$state};
-# 		my $rline=$line;
-		
-# 		my $rlines=[];
-# 		if (exists $info->{'Signature'} ) {
-# 			($rline, $info) = emit_subroutine_sig( $annline);
-# 			say $rline if $DBG;
-# 			push @{$rlines},[$rline,$info];			
-# 		} elsif (
-# 			exists $info->{'VarDecl'} and exists $info->{'ParsedVarDecl'}{'StreamVars'}
-# 		) {
-		
-# 			my $tvar_rec = $info->{'ParsedVarDecl'};
-# 			for my $tvar (sort keys %{  $tvar_rec->{'StreamVars'} }) {
-# 				my $type = $tvar_rec->{'TypeTup'}{'Type'};
-# 				my $kind = exists $tvar_rec->{'TypeTup'}{'Kind'} ? '(kind='.$tvar_rec->{'TypeTup'}{'Kind'} .')' : '';
-# 				my $intent = $tvar_rec->{'StreamVars'}{$tvar}{'IODir'};
-# 				my $rdecl = {
-# 				'Indent' => $info->{'Indent'},
-# 				'Type'   => $type.$kind,
-# 				'Attr'   => '',
-# 				'Dim'    => [],
-# 				'Name'   => $tvar,
-# 				'IODir'  => $intent,
-# 				'ArrayOrScalar'=>'Scalar'
-# 				};
-# 				$rline = emit_f95_var_decl($rdecl);
-# 				my $orig_name =$info->{'VarDecl'}{'Name'}; 
-#                 my $rinfo = dclone($info);
-# 				$rinfo->{'VarDecl'}{'Name'}=$tvar;
-# 				$rinfo->{'VarDecl'}{'OrigName'}=$orig_name;
-#                 #$rinfo->{'VarDecl'}{'StreamVarName'} = $tvar;
-# 				say $rline if $DBG;
-# 				my $rannline=[$rline,$rinfo];
-# 				$stref->{'Subroutines'}{$f}{'LiftedStreamVarDecls'}{'Set'}{$tvar}=dclone($annline);
-				
-# 				if (not exists $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$tvar}) { 					 
-# 					$stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$tvar}=$rdecl;
-# 				} 
-				
-# #				if (not exists $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$tvar}) { 
-# #					$stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$tvar}=$rdecl;
-# #				}
-# 				push @{$rlines},$rannline;			
-# 			}	
-# 		} elsif (exists $info->{'Assignment'} ) {
-# 			($rline, $info)=_emit_assignment($annline);
-# 			say $rline if $DBG;
-# 			push @{$rlines},[$rline,$info];
-# 		} elsif (exists $info->{'If'} ) {
-# 			($rline, $info)=_emit_ifthen($annline);
-# 			say $rline if $DBG;
-# 			push @{$rlines},[$rline,$info];			
-# 		} else {
-# 			if ( exists $info->{'PlaceHolders'} ) { 
-# 				while ($rline =~ /(__PH\d+__)/) {
-# 					my $ph=$1;
-# 					my $ph_str = $info->{'PlaceHolders'}{$ph};
-# 					$rline=~s/$ph/$ph_str/;
-# 				}
-# 			}                                    
-#             $info->{'Ref'}++;
-# 			say $rline if $DBG;
-# 			push @{$rlines},[$rline,$info];
-# 		}
-# #		croak Dumper($rlines) if $line=~/if.+wet/;
-# 		return ($rlines,[$stref,$f]);
-# 	};
-	
-# 	$stref->{'Subroutines'}{$f}{'LiftedStreamVarDecls'}={'Set'=>{},'List'=>[]};
-# 	my $global_state_access=[$stref,$f];
-#  	($stref,$global_state_access) = stateful_pass($stref,$f,$pass_emit_updated_code , $global_state_access,'_rename_array_accesses_to_scalars_PASS3() ' . __LINE__  ) ;
-# # 	say $f;	
-# #	show_annlines($stref->{'Subroutines'}{$f}{'LiftedIndexCalcLines'});
-# 	$stref->{'Subroutines'}{$f}{'RefactoredArgs'}= $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'};
-# 	} # IF NOT A KERNEL
-# 	return $stref;
-# } # END of _rename_array_accesses_to_scalars()
-# ================================================================================================================================================
-# After we've renamed all args in the subroutine definitions, we update the calls as well, but ONLY in the kernel 
-# sub _rename_array_accesses_to_scalars_in_subcalls { (my $stref, my $f) = @_;
-# 	if ($f eq $Config{'KERNEL'} ) {
-			
-# 	my $pass_action = sub { (my $annline, my $state)=@_;		
-# 		(my $line,my $info)=@{$annline};
-# 		(my $stref, my $f) = @{$state};
-# 		my $rline=$line;
-# 		my $rlines=[];
-# 		if ( exists $info->{'SubroutineCall'} and 
-# 			not exists $stref->{'ExternalSubroutines'}{ $info->{'SubroutineCall'}{'Name'} }
-# 			){
-# 				my $subname = $info->{'SubroutineCall'}{'Name'};
-# 				# croak $subname;
-# 				# Collect stream and index var declarations for all called subs 
-# 				$stref->{'Subroutines'}{$f}{'LiftedVarDecls'}{'Set'} = {
-# 					%{ $stref->{'Subroutines'}{$f}{'LiftedVarDecls'}{'Set'} },
-# 					%{ $stref->{'Subroutines'}{$subname}{'LiftedIndexVarDecls'}{'Set'} },
-# 					%{ $stref->{'Subroutines'}{$subname}{'LiftedStreamVarDecls'}{'Set'} },
-# 				};	
-# 				for my $lifted_var ( sort keys %{ $stref->{'Subroutines'}{$f}{'LiftedVarDecls'}{'Set'} } ) {		
-# #					carp 		"$f =>	$subname => $lifted_var "; 
-# 					if (not exists $stref->{'Subroutines'}{$f}{'DeclaredOrigLocalVars'}{'Set'}{$lifted_var}
-# 					and not exists $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$lifted_var}
-# 					) {						
-# 						$stref->{'Subroutines'}{$f}{'DeclaredOrigLocalVars'}{'Set'}{$lifted_var}= dclone( get_var_record_from_set( $stref->{'Subroutines'}{$subname}{'Vars'},$lifted_var ) );
-# 					}
-# 				}
-				
-# 				($rline, $info) = _emit_subroutine_call( $stref, $f, $annline);
-# 				say $rline if $DBG;
-# 				push @{$rlines},[$rline,$info];
-				
-				
-# 		} else {
-# 			say $rline if $DBG;
-# 			push @{$rlines},[$rline,$info];
-# 		}		
-# 		return ($rlines,[$stref,$f]);
-# 	};
-	
-# 	$stref->{'Subroutines'}{$f}{'LiftedVarDecls'}={'Set'=>{},'List'=>{}};
-# 	my $state=[$stref,$f];
-#  	($stref,$state) = stateful_pass($stref,$f,$pass_action, $state,'_rename_array_accesses_to_scalars_called_subs() ' . __LINE__  ) ;	
-# 	@{ $stref->{'Subroutines'}{$f}{'LocalVars'}{'List'} } = sort keys %{ $stref->{'Subroutines'}{$f}{'LocalVars'}{'Set'}};
-	
-# # --------------------------------------------------------------------------------------------------------			
-# #	# Here we add the variable declarations for variables used in the lifted assignments	
-# #	my $pass_add_decls_lifted_vars = sub { (my $annline, my $state)=@_;	
-# #		(my $line,my $info)=@{$annline};
-# #		(my $stref, my $f) = @{$state};
-# #		
-# #		if ( exists $info->{'VarDecl'} ) {
-# #			my $var = $info->{'VarDecl'}{'Name'};
-# #			if (exists $stref->{'Subroutines'}{$f}{'LiftedVarDecls'}{'Set'}{$var} ) {
-# #			say "VAR $var from LiftedVarDecls already declared in $f"  if $DBG;
-# #			 delete $stref->{'Subroutines'}{$f}{'LiftedVarDecls'}{'Set'}{$var};
-# #			}
-# #		}				
-# #		return ([$annline],$state);
-# #	};
-# #	
-# ##	my $state=[$stref,$f];
-# # 	($stref,$state) = stateful_pass($stref,$f,$pass_add_decls_lifted_vars, $state,'pass_add_decls_lifted_vars() ' . __LINE__  ) ;	
-# #
-# #	my @lifted_var_decls = map { $stref->{'Subroutines'}{$f}{'LiftedVarDecls'}{'Set'}{$_} } sort keys %{ $stref->{'Subroutines'}{$f}{'LiftedVarDecls'}{'Set'} };
-# ##	say "\nSUB: $f\n";say Dumper(\@lifted_var_decls);
-# #	
-# #	# Now we want to splice these after the last var decl 
-# #    my $merged_annlines = splice_additional_lines_cond( $stref, $f, sub {(my $al)=@_;exists $al->[1]{'VarDecl'} ? 1 : 0 }, $stref->{'Subroutines'}{$f}{'RefactoredCode'}, \@lifted_var_decls,1, 0,1);
-# #    $stref->{'Subroutines'}{$f}{'RefactoredCode'}=$merged_annlines;
-# # --------------------------------------------------------------------------------------------------------
-		 	    
-# 	} # IF KERNEL
-
-# 	return $stref;
-# } # END of _rename_array_accesses_to_scalars_called_subs()
-# ================================================================================================================================================
-
-# sub _update_call_args { (my $stref, my $f) = @_;
-	 
-# 	if ($f eq $Config{'KERNEL'} ) {
-			
-# 	my $pass_update_call_args = sub { (my $annline, my $state)=@_;		
-# 		(my $line,my $info)=@{$annline};
-# 		(my $stref, my $f) = @{$state};
-# 		my $Sf        = $stref->{'Subroutines'}{$f};
-# 		my $rline=$line;
-# 		my $rlines=[];
-# 		if ( exists $info->{'SubroutineCall'} and 
-# 			not exists $stref->{'ExternalSubroutines'}{ $info->{'SubroutineCall'}{'Name'} }
-# 			){
-# 				my $subname = $info->{'SubroutineCall'}{'Name'};
-				
-# 			# First update the ArgMap 
-# 			# This is to account for the renamed pointers
-			
-# 			for my $sig_arg (keys %{$info->{'SubroutineCall'}{'ArgMap'} }) {
-# 				my $call_arg = $info->{'SubroutineCall'}{'ArgMap'}{$sig_arg};
-# 					# This is only correct if the signature arg is a scalar. 
-# 				my $sig_iodir = $stref->{'Subroutines'}{$subname}{'DeclaredOrigArgs'}{'Set'}{$sig_arg}{'IODir'};
-# 				if ($sig_iodir ne 'in') { # means the sig arg is a pointer anyway
-# 					if ($info->{'CallArgs'}{'Set'}{$call_arg}{'Expr'} eq $call_arg.'(1)') {
-# 						$info->{'CallArgs'}{'Set'}{$call_arg}{'Expr'} = $call_arg;
-# 					}
-# 				}
-# 			}
-# #		# Then update CallArgs and again the ArgMap
-# #	      my $orig_call_args = $info->{'CallArgs'}{'List'};
-# #	      my $new_call_args = [];
-# #	      for my $call_arg (@{ $orig_call_args } ) {
-# #	      	# get the sig_arg
-# #	      	my $current_sig_arg = $call_arg;
-# #			if (exists $stref->{'Subroutines'}{$subname}{'DeclaredOrigArgs'}{'Set'}{$current_sig_arg}) {
-# #	      		push @{$new_call_args}, $call_arg;
-# #	      	} else {
-# #	      		# This argument was deleted
-# #	      		delete $info->{'CallArgs'}{'Set'}{$call_arg};
-# #	      		delete $info->{'SubroutineCall'}{'ArgMap'}{$call_arg};
-# #	      	}     	    
-# #	      }
-# #	      $info->{'CallArgs'}{'List'}=$new_call_args;
-	      
-# 	      	    my $indent = $info->{'Indent'} // '      ';
-# 		    my $maybe_label= ( exists $info->{'Label'} and exists $Sf->{'ReferencedLabels'}{$info->{'Label'}} ) ?  $info->{'Label'}.' ' : '';
-# 		    my @new_call_exprs = map  { $info->{'CallArgs'}{'Set'}{$_}{'Expr'} } @{$info->{'CallArgs'}{'List'}};  
-# 		    my $args_str = join( ',', @new_call_exprs );	    
-# 		    my $rline = "call $subname($args_str)\n";
-# 		    my $updated_expr_ast = parse_expression("$subname($args_str)",$info, $stref,$f);
-# 		    $info->{'SubroutineCall'}{'ExpressionAST'}=$updated_expr_ast;
-	
-# 	      $rlines=[[$rline, $info]];
-# 		} else {
-# 			say $rline if $DBG;
-# 			push @{$rlines},[$rline,$info];
-# 		}
-				
-# 		return ($rlines,[$stref,$f]);
-# 	};
-	
-
-# 	my $state=[$stref,$f];
-#  	($stref,$state) = stateful_pass($stref,$f,$pass_update_call_args, $state,'pass_update_call_args() ' . __LINE__  ) ;	
-	
-	 	    
-# 	} # IF KERNEL	
-# 	return $stref;
-# } # END of _update_call_args()
-# ================================================================================================================================================
-# After we've renamed all args in the subroutine definitions, we update the calls as well, but ONLY in the kernel 
-# sub _add_assignments_for_called_subs { (my $stref, my $f) = @_;
-# 	if ($f eq $Config{'KERNEL'} ) {
-			
-# 	my $pass_action = sub { (my $annline, my $state)=@_;		
-# 		(my $line,my $info)=@{$annline};
-# 		(my $stref, my $f) = @{$state};
-# 		my $rline=$line;
-# 		my $rlines=[];
-# 		if ( exists $info->{'SubroutineCall'} and 
-# 			not exists $stref->{'ExternalSubroutines'}{ $info->{'SubroutineCall'}{'Name'} }
-# 			){
-# 				my $subname = $info->{'SubroutineCall'}{'Name'};
-# 				if ( exists  $stref->{'Subroutines'}{$subname}{'LiftedIndexCalcLines'} ) {				
-# 					$rlines = [@{$rlines},@{ $stref->{'Subroutines'}{$subname}{'LiftedIndexCalcLines'} }];
-# 				}								
-# 				if ( exists  $stref->{'Subroutines'}{$subname}{'LiftedScalarAssignments'} ) {
-# 					for my $lifted_annline ( @{ $stref->{'Subroutines'}{$subname}{'LiftedScalarAssignments'} } ) {
-
-# 						my $var = $lifted_annline->[1]{'Lhs'}{'VarName'};
-# 						if (exists $stref->{'Subroutines'}{$subname}{'DeclaredOrigArgs'}{'Set'}{$var}) {
-# 						my $iodir =  $stref->{'Subroutines'}{$subname}{'DeclaredOrigArgs'}{'Set'}{$var}{'IODir'};
-# 						if ($iodir eq 'in' or $iodir eq 'inout') {
-# 							push @{$rlines}, $lifted_annline;
-# 						} 
-# 						}
-# 					}				
-# #					croak;
-# #					$rlines = [@{$rlines},@{ $stref->{'Subroutines'}{$subname}{'LiftedScalarAssignments'} }];
-# 				}								
-# #				$stref->{'Subroutines'}{$f}{'LiftedVarDecls'}{'Set'} = {
-# #					%{ $stref->{'Subroutines'}{$f}{'LiftedVarDecls'}{'Set'} },
-# #					%{ $stref->{'Subroutines'}{$subname}{'LiftedIndexVarDecls'}{'Set'} },
-# #					%{ $stref->{'Subroutines'}{$subname}{'LiftedStreamVarDecls'}{'Set'} },
-# #				};	
-# #				for my $lifted_var ( keys %{ $stref->{'Subroutines'}{$f}{'LiftedVarDecls'}{'Set'} } ) {					 
-# #					if (not exists $stref->{'Subroutines'}{$f}{'DeclaredOrigLocalVars'}{'Set'}{$lifted_var}
-# #					and not exists $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$lifted_var}
-# #					) {						
-# #						$stref->{'Subroutines'}{$f}{'DeclaredOrigLocalVars'}{'Set'}{$lifted_var}= dclone( get_var_record_from_set( $stref->{'Subroutines'}{$subname}{'Vars'},$lifted_var ) );
-# #					}
-# #				}
-# 				# The actual subroutine call line				
-# 				push @{$rlines},$annline;
-				
-# 				if ( exists  $stref->{'Subroutines'}{$subname}{'LiftedArrayAssignments'} ) {				
-# 					for my $lifted_annline ( @{ $stref->{'Subroutines'}{$subname}{'LiftedArrayAssignments'} } ) {
-# 						my $var = $lifted_annline->[1]{'Rhs'}{'VarList'}{'List'}[0];
-# 						if (exists $stref->{'Subroutines'}{$subname}{'DeclaredOrigArgs'}{'Set'}{$var}) {
-# 						my $iodir =  $stref->{'Subroutines'}{$subname}{'DeclaredOrigArgs'}{'Set'}{$var}{'IODir'};						
-# 						if ($iodir eq 'out' or $iodir eq 'inout') {
-# 							push @{$rlines}, $lifted_annline;
-# 						} 
-# 						}
-# 					}						
-# #					$rlines = [@{$rlines},@{ $stref->{'Subroutines'}{$subname}{'LiftedArrayAssignments'} }];
-# 				}						
-# #				croak Dumper($stref->{'Subroutines'}{$subname}{'DeclaredOrigArgs'}{'Set'}{'duu'});
-# 		} else {
-# 			say $rline if $DBG;
-# 			push @{$rlines},[$rline,$info];
-# 		}		
-# 		return ($rlines,[$stref,$f]);
-# 	};
-	
-# #	$stref->{'Subroutines'}{$f}{'LiftedVarDecls'}={'Set'=>{},'List'=>{}};
-# 	my $state=[$stref,$f];
-#  	($stref,$state) = stateful_pass($stref,$f,$pass_action, $state,'_rename_array_accesses_to_scalars_called_subs() ' . __LINE__  ) ;	
-# 	@{ $stref->{'Subroutines'}{$f}{'LocalVars'}{'List'} } = sort keys %{ $stref->{'Subroutines'}{$f}{'LocalVars'}{'Set'}};
-# # --------------------------------------------------------------------------------------------------------			
-# 	# Here we add the variable declarations for variables used in the lifted assignments	
-# 	my $pass_add_decls_lifted_vars = sub { (my $annline, my $state)=@_;	
-# 		(my $line,my $info)=@{$annline};
-# 		(my $stref, my $f) = @{$state};
-		
-# 		if ( exists $info->{'VarDecl'} ) {
-# 			my $var = $info->{'VarDecl'}{'Name'};
-# 			if (exists $stref->{'Subroutines'}{$f}{'LiftedVarDecls'}{'Set'}{$var} ) {
-# 			say "VAR $var from LiftedVarDecls already declared in $f"  if $DBG;
-# 			 delete $stref->{'Subroutines'}{$f}{'LiftedVarDecls'}{'Set'}{$var};
-# 			}
-# 		}				
-# 		return ([$annline],$state);
-# 	};
-	
-# #	my $state=[$stref,$f];
-#  	($stref,$state) = stateful_pass($stref,$f,$pass_add_decls_lifted_vars, $state,'pass_add_decls_lifted_vars() ' . __LINE__  ) ;	
-
-# 	my @lifted_var_decls = map { $stref->{'Subroutines'}{$f}{'LiftedVarDecls'}{'Set'}{$_} } sort keys %{ $stref->{'Subroutines'}{$f}{'LiftedVarDecls'}{'Set'} };
-# #	say "\nSUB: $f\n";say Dumper(\@lifted_var_decls);
-	
-# 	# Now we want to splice these after the last var decl 
-#     my $merged_annlines = splice_additional_lines_cond( $stref, $f, sub {(my $al)=@_;exists $al->[1]{'VarDecl'} ? 1 : 0 }, $stref->{'Subroutines'}{$f}{'RefactoredCode'}, \@lifted_var_decls,1, 0,1);
-#     $stref->{'Subroutines'}{$f}{'RefactoredCode'}=$merged_annlines;
-# # --------------------------------------------------------------------------------------------------------		 	    
-# 	} # IF KERNEL
-# 	return $stref;
-# } # END of _add_assignments_for_called_subs()
-
-# --------------------------------------------------------------------------------------------------------	
-# After detecting the intents we should update them as they are not always correct.
-# So this is a FIX
-sub _update_arg_var_decls { (my $stref, my $f)=@_;
-	my $pass_update_arg_var_decls = sub { (my $annline, my $state)=@_;	
-		(my $line,my $info)=@{$annline};
-		(my $stref, my $f) = @{$state};
-		if ( exists $info->{'VarDecl'} ) {
-			my $var = $info->{'VarDecl'}{'Name'}; # May need OrigName?
-			if (exists $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$var} ) {
-                my $decl = $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$var};
-                my $pvar =$decl->{'Name'};
-                $decl->{'Name'}=$var;
-			    $line = emit_f95_var_decl($decl);                
-                $decl->{'Name'}=$pvar;
-			}
-		}				
-		return ([[$line,$info]],$state);
-	};
-	
-	my $state=[$stref,$f];
- 	($stref,$state) = stateful_pass($stref,$f,$pass_update_arg_var_decls, $state,'pass_update_arg_var_decls() ' . __LINE__  ) ;	
-    return $stref;
-} # END of _update_arg_var_decls
-# ================================================================================================================================================
-# Finally, after having updated the calls we can add the missing declarations
-# I am making the assumption that in the superkernel we will assign the variables to the original array accesses
-# However, the array indices are computed from the global id on a per-sub basis.
-# Meaning that i,j,k are different for each sub.
-# So  we need to extract the calculations of i,j,k out of the sub
-# We can do this by analysing which vars are used in the array accesses
-# Then for each of these, which vars they use, I guess the best way is to go through the annlines in reverse 
-# Then all the expressions and declarations can be removed from the sub and the args from the sig
-# Then when we find a call we need to insert the expressions before the call, and then the array assignments
-# Then we need to add the missing declarations.
-# Clearly, this is a lot of work
-
-
-	# This function changes functions to arrays
-
-#['@','vn',
-#						[
-#							'+',['$','j'],['-','1']
-#						],
-#						['$','k']
-#					],
-
-# sub _rename_ast_entry { (my $stref, my $f,  my $state, my $ast, my $intent)=@_;
-# 	if (ref($ast) eq 'ARRAY') {
-# 		for my  $idx (0 .. scalar @{$ast}-1) {		
-# 			my $entry = $ast->[$idx];
-	
-# 			if (ref($entry) eq 'ARRAY') {
-# 				(my $entry, $state) = _rename_ast_entry($stref,$f, $state,$entry,$intent);
-# 				$ast->[$idx] = $entry;
-# 			} else {
-# 				if ($idx==0 and (($entry & 0xFF) == 10)) {#'@'				
-# 					my $mvar = $ast->[$idx+1];
-# 					if ($mvar ne '_OPEN_PAR_') {
-# 						say 'Found array access '.$mvar  if $DBG;			
-# #						my $stencil=$state->{'StreamVars'}{$mvar}{'Stencil'};
-# #						my $array_acccess = _extract_array_access($ast);
-# #						my $array_acccess_str = join(':',@{$array_acccess}); # e.g. [0,-1,2] becomes 0:-1:2 and these are ordered  
-# #						$stencil->{$array_acccess_str}=$array_acccess; 																			
-# 						my $expr_str = emit_expr_from_ast($ast);
-# 						my $var_str=$expr_str;
-# 						$var_str=~s/[\(,]/_/g; 
-# 						$var_str=~s/\)//g; 
-# 						$var_str=~s/\+/p/g;
-# 						$var_str=~s/\-/m/g;
-# 						$var_str=~s/\*/t/g;
-# #						say 'Found array access '.$mvar.' => '.$expr_str ;
-# 						# Taking the IODir from the orig var is not optimal: it leads to many InOut that actually are Out
-# 						# Ideally I should re-run the analysis for the stream vars
-# 						if (exists $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$mvar}) { # DAMN PERL! It creates the entry unless I guard!
-# 							$intent = $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$mvar}{'IODir'};
-# 						}
-# 						$state->{'StreamVars'}{$mvar}{'Set'}{$var_str}={'IODir'=>$intent,'ArrayIndexExpr'=>$expr_str} ;
-# #						$state->{'StreamVars'}{$mvar}{'Stencil'}=$stencil;
-# 						$ast=[0x2+(($entry>>8)<<8),$var_str];#'$'
-#                         last;
-# 					}
-# 				} 
-# 			}		
-# 		}
-# 	}
-# 	return  ($ast, $state);	
-	
-# }
-# # ================================================================================================================================================
-# sub _emit_assignment { (my $annline)=@_;
-# 	( my $line, my $info ) = @{$annline};
-# 	my $lhs_ast =  $info->{'Lhs'}{'ExpressionAST'};
-# 	my $lhs = emit_expr_from_ast($lhs_ast);
-# 	my $rhs_ast =  $info->{'Rhs'}{'ExpressionAST'};
-# 	my $rhs = emit_expr_from_ast($rhs_ast);
-# 	my $rline = $info->{'Indent'}.$lhs.' = '.$rhs;
-# 	if (exists $info->{'If'}) {
-# 		(my $if_str, my $if_info) = _emit_ifthen($annline);
-# 		$rline =$if_str.' '.$rline; 
-# 	}	
-# 	return ($rline, $info);
-# }
-# # ================================================================================================================================================
-# sub _emit_ifthen { (my $annline)=@_;
-# 	( my $line, my $info ) = @{$annline};
-# 	my $cond_expr_ast=$info->{'CondExecExpr'};
-# 	my $cond_expr = emit_expr_from_ast($cond_expr_ast);
-# 	my $rline = $info->{'Indent'}.'if ('.$cond_expr.') '. (exists $info->{'IfThen'} ? 'then' : '');	
-# 	return ($rline, $info);
-# }
-# # ================================================================================================================================================
-# # This is fairly generic and assumes the updated call args are DeclaredOrigArgs
-
-# sub _emit_subroutine_call { (my $stref, my $f, my $annline)=@_;
-# 	    (my $line, my $info) = @{ $annline };
-# #	    croak Dumper($info);
-# 	    my $Sf        = $stref->{'Subroutines'}{$f};
-# 	    my $name = $info->{'SubroutineCall'}{'Name'};
-
-# 	my $new_arg_map = $info->{'SubroutineCall'}{'ArgMap'} ;
-	
-# 	# Then update CallArgs and again the ArgMap
-#       my $orig_call_args = $info->{'CallArgs'}{'List'};
-#       my $new_call_args = [];
-#       for my $call_arg (@{ $orig_call_args } ) {
-#       	# get the sig_arg
-#       	my $current_sig_arg = $call_arg;
-#       	for my $sig_arg (keys %{$new_arg_map}) {
-#       		if ($new_arg_map->{$sig_arg} eq $call_arg) {
-#       			$current_sig_arg=$sig_arg ;
-#       			last;
-#       		}
-#       	}
-      	
-#       	if (exists $stref->{'Subroutines'}{$name}{'StreamVars'}{$current_sig_arg}) {
-#       		$new_call_args=[@{$new_call_args},@{$stref->{'Subroutines'}{$name}{'StreamVars'}{$current_sig_arg}{'List'} }];
-#       			delete $info->{'CallArgs'}{'Set'}{$call_arg};
-#       			map { $info->{'CallArgs'}{'Set'}{$_} = {'Expr' => $_,'Type'=>'Scalar'} } @{$stref->{'Subroutines'}{$name}{'StreamVars'}{$current_sig_arg}{'List'} };
-#       			delete $info->{'SubroutineCall'}{'ArgMap'}{$call_arg};      	
-#       			for my $stream_arg ( @{$stref->{'Subroutines'}{$name}{'StreamVars'}{$current_sig_arg}{'List'} } ) {
-#       				$info->{'SubroutineCall'}{'ArgMap'}{$stream_arg}=$stream_arg;
-#       			}      				
-#       	} elsif (exists $stref->{'Subroutines'}{$name}{'DeclaredOrigArgs'}{'Set'}{$current_sig_arg}) {
-# #      		carp "$f => $name => SIG ARG: $current_sig_arg ".Dumper($stref->{'Subroutines'}{$name}{'DeclaredOrigArgs'}{'Set'}{$current_sig_arg});
-#       		push @{$new_call_args}, $call_arg;
-#       	} else {
-#       		# This argument was deleted
-# #      		carp "$f => $name => DELETED SIG ARG: $current_sig_arg";
-#       		delete $info->{'CallArgs'}{'Set'}{$call_arg};
-#       		delete $info->{'SubroutineCall'}{'ArgMap'}{$call_arg};
-#       	}     	    
-#       }
-#       $info->{'CallArgs'}{'List'}=$new_call_args;      
-# 	  my $args_ref = $stref->{'Subroutines'}{$name}{'DeclaredOrigArgs'}{'List'};
-# #		for my $arg (@{$args_ref}) {
-# #			say $arg . ' => '.Dumper($stref->{'Subroutines'}{$name}{'DeclaredOrigArgs'}{'Set'}{$arg});
-# #			
-# #		}
-			    
-# 	    my $indent = $info->{'Indent'} // '      ';
-# 	    my $maybe_label= ( exists $info->{'Label'} and exists $Sf->{'ReferencedLabels'}{$info->{'Label'}} ) ?  $info->{'Label'}.' ' : '';
-# 	    my @new_call_exprs = map  { $info->{'CallArgs'}{'Set'}{$_}{'Expr'} } @{$new_call_args};  
-# 	    my $args_str = join( ',', @new_call_exprs );	    
-# 	    my $rline = "call $name($args_str)\n";
-# 	    my $updated_expr_ast = parse_expression("$name($args_str)",$info, $stref,$f);
-# 	    $info->{'SubroutineCall'}{'ExpressionAST'}=$updated_expr_ast;
-# #	    $info->{'SubroutineCall'}{'Args'}{'List'}= $args_ref;
-# #	    $info->{'SubroutineCall'}{'Args'}{'Set'}=  $stref->{'Subroutines'}{$name}{'DeclaredOrigArgs'}{'Set'};
-# #	    $info->{'CallArgs'}{'Set'}=$info->{'SubroutineCall'}{'Args'}{'Set'};
-# #	    $info->{'CallArgs'}{'List'}=$info->{'SubroutineCall'}{'Args'}{'List'};
-# #	    %{ $info->{'SubroutineCall'}{'ArgMap'} } = map {$_ => $_} @{ $info->{'SubroutineCall'}{'Args'}{'List'} }; 
-# #	    croak Dumper($info);
-# 		if ( exists $info->{'PlaceHolders'} ) { 
-# 			while ($rline =~ /(__PH\d+__)/) {
-# 				my $ph=$1;
-# 				my $ph_str = $info->{'PlaceHolders'}{$ph};
-# 				$rline=~s/$ph/$ph_str/;
-# 			}                                    
-#             $info->{'Ref'}++;
-#         }  	    
-# 	    $info->{'Ann'}=[annotate($f, __LINE__ ) ];
-# 		return ( $indent . $maybe_label . $rline, $info );
-# } # END of 
 # ================================================================================================================================================
 # This is a FIX
 sub _removed_unused_variables { (my $stref, my $f)=@_;
@@ -1401,14 +446,11 @@ sub _fix_scalar_ptr_args { (my $stref, my $f)=@_;
 			my $new_args=[];
 			for my $arg (@{ $info->{'Signature'}{'Args'}{'List'} } ) {
 				if ($arg=~/_ptr/) {
-#					carp "$f ARG: $arg" if $f eq 'sub_map_124';
 					my $new_arg=$arg;
 					$new_arg=~s/_ptr$//;
 					$pass_state->{'ExPtrArgs'}{$arg}=$new_arg;
 					push @{$new_args}, $new_arg;
 					my $orig_decl = dclone($stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$arg} );
-#					$orig_decl->{'ArrayOrScalar'} = 'Scalar';
-#					$orig_decl->{'Dim'} = [];
 					$stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$new_arg} = $orig_decl ; 
 					delete $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$arg} ;					
 				} else {
@@ -1418,7 +460,6 @@ sub _fix_scalar_ptr_args { (my $stref, my $f)=@_;
 			$info->{'Signature'}{'Args'}{'List'}=$new_args;
 			$info->{'Signature'}{'Args'}{'Set'} = { map {$_=>1} @{$new_args} };
 			$stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'List'}=$new_args ;
-#			$stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}= $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'};
 			
 			my $sig_str = $line;
 			$sig_str=~s/_ptr//g;
@@ -1505,9 +546,9 @@ sub _fix_scalar_ptr_args_subcall { (my $stref, my $f)=@_;
 #						croak $f.Dumper($sig_arg).Dumper($stref->{'Subroutines'}{$name}{'DeclaredOrigArgs'}{'Set'}{$call_arg});
 #					} 					
 					if ($stref->{'Subroutines'}{$name}{'DeclaredOrigArgs'}{'Set'}{$ren_sig_arg}{'ArrayOrScalar'} eq 'Scalar') {
-						$info->{'CallArgs'}{'Set'}{$call_arg} = {'Expr' => $call_arg.'(1)','Type'=>'Scalar'};
+						$info->{'SubroutineCall'}{'Args'}{'Set'}{$call_arg} = {'Expr' => $call_arg.'(1)','Type'=>'Scalar'};
 					} else {
-						$info->{'CallArgs'}{'Set'}{$call_arg} = {'Expr' => $call_arg,'Type'=>'Array'};
+						$info->{'SubroutineCall'}{'Args'}{'Set'}{$call_arg} = {'Expr' => $call_arg,'Type'=>'Array'};
 					}
 				} else {
 					$new_arg_map->{$sig_arg}=$call_arg;
@@ -1516,7 +557,7 @@ sub _fix_scalar_ptr_args_subcall { (my $stref, my $f)=@_;
 			$info->{'SubroutineCall'}{'ArgMap'} = $new_arg_map;	
 		
 		# Then update CallArgs and again the ArgMap
-	      my $orig_call_args = $info->{'CallArgs'}{'List'};
+	      my $orig_call_args = $info->{'SubroutineCall'}{'Args'}{'List'};
 	      my $new_call_args = [];
 	      for my $call_arg (@{ $orig_call_args } ) {
 	      	# get the sig_arg
@@ -1532,15 +573,15 @@ sub _fix_scalar_ptr_args_subcall { (my $stref, my $f)=@_;
 	      		push @{$new_call_args}, $call_arg;
 	      	} else {
 	      		# This argument was deleted
-	      		delete $info->{'CallArgs'}{'Set'}{$call_arg};
+	      		delete $info->{'SubroutineCall'}{'Args'}{'Set'}{$call_arg};
 	      		delete $info->{'SubroutineCall'}{'ArgMap'}{$call_arg};
 	      	}     	    
 	      }
-	      $info->{'CallArgs'}{'List'}=$new_call_args;
+	      $info->{'SubroutineCall'}{'Args'}{'List'}=$new_call_args;
 	      
 	      	    my $indent = $info->{'Indent'} // '      ';
 		    my $maybe_label= ( exists $info->{'Label'} and exists $Sf->{'ReferencedLabels'}{$info->{'Label'}} ) ?  $info->{'Label'}.' ' : '';
-		    my @new_call_exprs = map  { $info->{'CallArgs'}{'Set'}{$_}{'Expr'} } @{$new_call_args};  
+		    my @new_call_exprs = map  { $info->{'SubroutineCall'}{'Args'}{'Set'}{$_}{'Expr'} } @{$new_call_args};  
 		    my $args_str = join( ',', @new_call_exprs );	    
 		    my $rline = "call $name($args_str)\n";
 		    my $updated_expr_ast = parse_expression("$name($args_str)",$info, $stref,$f);
@@ -1651,55 +692,90 @@ In other words,
 # Called in TyTraCL.pm, so should therefore also be called in TyTraIR, and also in OpenCLC
 # Clearly, we should have a common "patch_up_output_from_other_compilers" pass.
 sub _remove_redundant_arguments { (my $stref, my $f)=@_;
-	my @in_args = grep { 
-		$stref->{'Subroutines'}{ $Config{'KERNEL'} }{'DeclaredOrigArgs'}{'Set'}{$_}{'IODir'} eq 'in'
-  	}  @{$stref->{'Subroutines'}{ $Config{'KERNEL'} }{'DeclaredOrigArgs'}{'List'}};
 
-	my @call_sequence=();
-	my $f_idx=0;
-	my $idx=0;
-	for my $annline (
-		@{$stref->{'Subroutines'}{ $Config{'KERNEL'} }{'RefactoredCode'}}
-	) {
-			(my $line,my $info)=@{$annline};
-		
-			if (exists $info->{'SubroutineCall'} ) { 
-				my $csub = $info->{'SubroutineCall'}{'Name'};
-				push @call_sequence, $csub;
-				if ($csub eq $f) {
-					$f_idx=$idx;
+	if ($f eq $Config{'KERNEL'}) {
+		my @in_args = grep { 
+			$stref->{'Subroutines'}{ $f }{'DeclaredOrigArgs'}{'Set'}{$_}{'IODir'} eq 'in'
+		}  @{$stref->{'Subroutines'}{ $f }{'DeclaredOrigArgs'}{'List'}};
+
+		my @call_sequence=();
+		my $f_idx=0;
+		my $idx=0;
+		for my $annline (
+			@{$stref->{'Subroutines'}{ $f }{'RefactoredCode'}}
+		) {
+				(my $line,my $info)=@{$annline};
+			
+				if (exists $info->{'SubroutineCall'} ) { 
+					my $csub = $info->{'SubroutineCall'}{'Name'};
+					push @call_sequence, $csub;
+					if ($csub eq $f) {
+						$f_idx=$idx;
+					}
+					++$idx;
 				}
-				++$idx;
+		}
+		my $in_args_to_keep={};
+		for my $in_arg (@in_args) {
+			for my $csub (@call_sequence) {
+				my $csub_args = $stref->{'Subroutines'}{ $csub }{'DeclaredOrigArgs'}{'Set'};
+				if (exists $csub_args->{$in_arg}) {
+					# See if it was written to before it was read. 
+					# If it was read first, we need to keep it, else we don't need it for this subroutine
+					my $written_before_read = __check_written_before_read($in_arg, $stref, $csub);
+					if (not $written_before_read) {
+						$in_args_to_keep->{$in_arg}=1;
+						last;
+					}
+					# As soon as we need to keep it for one subroutine, we can stop as we can't remove it.
+					# However, if the csub arg is inout, and we have a write-before-read, then any subsequent sub call can be ignored
+					# This is not the case if the csub arg is just in -- but I think we can't write to an in argument
+				} 
 			}
-	}
-	my $in_args_to_keep={};
-	for my $in_arg (@in_args) {
-		for my $csub (@call_sequence) {
-			my $csub_args = $stref->{'Subroutines'}{ $csub }{'DeclaredOrigArgs'}{'Set'};
-			if (exists $csub_args->{$in_arg}) {
-				# See if it was written to before it was read. 
-				# If it was read first, we need to keep it, else we don't need it for this subroutine
-				my $written_before_read = __check_written_before_read($in_arg, $stref, $csub);
-				if (not $written_before_read) {
-					$in_args_to_keep->{$in_arg}=1;
-					last;
-				}
-				# As soon as we need to keep it for one subroutine, we can stop as we can't remove it.
-				# However, if the csub arg is inout, and we have a write-before-read, then any subsequent sub call can be ignored
-				# This is not the case if the csub arg is just in -- but I think we can't write to an in argument
-			} 
 		}
-	}
-	# so at this point we should know which input args to keep.
-	my $in_args_to_remove={};
-	for my $arg (@in_args) {
-		if (not exists $in_args_to_keep->{$arg}) {
-			$in_args_to_remove->{$arg}=1;
+		# so at this point we should know which input args to keep.
+		my $in_args_to_remove={'Set'=>{},'List'=>[]};
+		for my $arg (@in_args) {
+			if (not exists $in_args_to_keep->{$arg}) {
+				$in_args_to_remove->{'Set'}{$arg}=1;
+				push @{$in_args_to_remove->{'List'}}, $arg;
+			}
 		}
-	}
-	
-	croak Dumper $in_args_to_remove;
+		
+		# croak Dumper $in_args_to_remove;
+		$stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}  = remove_vars_from_ordered_set($stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}, $in_args_to_remove->{'List'});
 
+
+		my $pass_remove_redundant_args = sub { (my $annline)=@_;
+			(my $line,my $info)=@{$annline};
+			if (exists $info->{'Signature'} ) {
+				$info->{'Signature'}{'Args'} = remove_vars_from_ordered_set($info->{'Signature'}{'Args'}, $in_args_to_remove->{'List'});
+				(my $rline, $info) = emit_subroutine_sig( [$line, $info]);
+				$annline = [$rline, $info];
+			}			
+			elsif (exists $info->{'VarDecl'} ) {
+				my $var = $info->{'VarDecl'}{'Name'};
+				if (exists $in_args_to_remove->{'Set'}{$var}) {
+					$info->{'Deleted'} = 1;
+					$annline = ["! $line", $info];
+				}
+			}
+			elsif (exists $info->{'SubroutineCall'} ) {
+					$info->{'SubroutineCall'}{'Args'} = remove_vars_from_ordered_set($info->{'SubroutineCall'}{'Args'}, $in_args_to_remove->{'List'});
+					(my $rline, $info) = emit_subroutine_call($stref, $f, [$line, $info]);
+					$annline = [$rline, $info];
+			}
+			return ([$annline]);
+		};
+	
+	
+ 	$stref = stateless_pass($stref,$f,$pass_remove_redundant_args, $in_args_to_remove,'pass_remove_redundant_args' . __LINE__  ) ;
+
+
+
+	} else {
+
+	}
 =pod	
 	 Now we should remove these arguments:
 	 - in the superkernel:
@@ -1716,19 +792,7 @@ This analysis uses the superkernel sub, not every subroutine in the module. So w
 
 =cut
 
-	# my @subs =  grep {$_ ne 'UNKNOWN_SRC' } sort keys %{ $stref->{'Subroutines'} };
-	# for my $idx (0 .. @call_sequence-1) {
-	# 	my $csub = shift @call_sequence;
-	# 	if ($idx<$f_idx) {
-	# 		say "$csub called before $f";
-	# 		# So, if csub has an arg Out or InOut used by 
-	# 	} 
-	# 	elsif ($idx > $f_idx) {
-	# 		say "$csub called after $f";
-	# 	}
-
-	# }
-	return 0;
+	return $stref;
 } # END of _remove_redundant_arguments
 
 sub __check_written_before_read { my ($in_arg, $stref, $f)=@_;
@@ -1785,3 +849,4 @@ my $pass_check_written_before_read = sub { (my $annline, my $reads_writes)=@_;
 }
 
 1;
+

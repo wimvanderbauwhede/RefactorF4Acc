@@ -4,8 +4,8 @@ use v5.10;
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
 use RefactorF4Acc::Analysis::ArgumentIODirs qw( determine_argument_io_direction_rec );
-use RefactorF4Acc::Refactoring::Common qw( stateful_pass pass_wrapper_subs_in_module );
-use RefactorF4Acc::Refactoring::Streams qw( _declare_undeclared_variables _update_arg_var_decls _removed_unused_variables _fix_scalar_ptr_args _fix_scalar_ptr_args_subcall );
+use RefactorF4Acc::Refactoring::Common qw( stateful_pass pass_wrapper_subs_in_module update_arg_var_decl_sourcelines);
+use RefactorF4Acc::Refactoring::Fixes qw( _declare_undeclared_variables _removed_unused_variables _fix_scalar_ptr_args _fix_scalar_ptr_args_subcall );
 use RefactorF4Acc::Parser::Expressions qw( @sigils );
 use RefactorF4Acc::Translation::LlvmToTyTraIR qw( generate_llvm_ir_for_TyTra );
 
@@ -119,7 +119,7 @@ sub add_OpenCL_address_space_qualifiers { (my $stref, my $f, my $ocl) = @_;
 					# This is to account for the renamed pointers
 					for my $sig_arg (keys %{$info->{'SubroutineCall'}{'ArgMap'} }) {
 						my $call_arg = $info->{'SubroutineCall'}{'ArgMap'}{$sig_arg};
-						my $call_arg_expr =  $info->{'CallArgs'}{'Set'}{$call_arg}{'Expr'};
+						my $call_arg_expr =  $info->{'SubroutineCall'}{'Args'}{'Set'}{$call_arg}{'Expr'};
 						if (exists $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$call_arg_expr} and 
 						exists $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$call_arg_expr}{'OclAddressSpace'} ) {
 							my $ocl_address_space = $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$call_arg_expr}{'OclAddressSpace'};

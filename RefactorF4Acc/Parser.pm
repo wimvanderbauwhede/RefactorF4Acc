@@ -1807,16 +1807,16 @@ sub _parse_subroutine_and_function_calls {
 								$Sf->{'ReferencedLabels'}{$label}=$label;		
 							}
 						}
-						$info->{'CallArgs'}               = $expr_args;
+						$info->{'SubroutineCall'}{'Args'}               = $expr_args;
 						$info->{'ExprVars'}               = $expr_other_vars;
-						$info->{'SubroutineCall'}{'Args'} = $info->{'CallArgs'};
+						$info->{'SubroutineCall'}{'Args'} = $info->{'SubroutineCall'}{'Args'};
 						
 						$info->{'SubroutineCall'}{'ExpressionAST'} = $ast;
 	                } else {
-	                    $info->{'CallArgs'}               = {'List'=>[],'Set'=>{}};
+	                    $info->{'SubroutineCall'}{'Args'}               = {'List'=>[],'Set'=>{}};
 					    $info->{'ExprVars'}               = {'List'=>[],'Set'=>{}};
 	
-	                    $info->{'SubroutineCall'}{'Args'} = $info->{'CallArgs'};
+	                    $info->{'SubroutineCall'}{'Args'} = $info->{'SubroutineCall'}{'Args'};
 					
 					    $info->{'SubroutineCall'}{'ExpressionAST'} = [];
 	
@@ -3477,8 +3477,8 @@ sub _parse_read_write_print {
 #    say Dumper($exprs_ast);
 #    say "ATTR PAIRS: ".Dumper($attr_pairs);
 #    say "IMPLIED DO PAIRS: ".Dumper($impl_do_pairs);
-    $info->{'CallArgs'} = { 'Set' => {}, 'List' => [ ] };
-    $info->{'CallArgs'}{'Ast'}=$attrs_ast;
+    $info->{'SubroutineCall'}{'Args'} = { 'Set' => {}, 'List' => [ ] };
+    $info->{'SubroutineCall'}{'Args'}{'Ast'}=$attrs_ast;
     $info->{'IOList'}{'Ast'}=$exprs_ast;
     
     #    $info->{'CallAttrs'} = { 'Set' => $attrs_ast, 'List' => [ sort keys %{ $attrs_ast } ] };

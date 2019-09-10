@@ -38,6 +38,7 @@ use Exporter;
   &stateful_pass_reverse
   &top_src_is_module
   &pass_wrapper_subs_in_module
+  &update_arg_var_decl_sourcelines
 );
 
 our %f95ops = (
@@ -1523,5 +1524,34 @@ sub pass_wrapper_subs_in_module { (my $stref,my $module_name, my $module_pass_se
 	}
 	return $stref;
 }
+
+# Emit a new source line based on the variable name in $info and the $decl record in RefactoredArgs
+# I might have a flag here to say "use the name from the record"
+sub update_arg_var_decl_sourcelines { (my $stref, my $f)=@_;
+	my $pass_update_arg_var_decls = sub { (my $annline, my $state)=@_;	
+		(my $line,my $info)=@{$annline};
+		(my $stref, my $f) = @{$state};
+		if ( exists $info->{'VarDecl'} ) {
+			my $var = $info->{'VarDecl'}{'Name'}; # May need OrigName?
+			if (exists $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$var} ) {
+                my $decl = $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$var};
+				# We store the var name from $decl in $pvar, then replace it temporarily with $var, in case a var had been renamed in $info (for example for scalarisation)
+				# to emit the actual F95 code
+				# Then we put $pvar back into the $decl, which will put it back into $stref
+                my $pvar =$decl->{'Name'};
+                $decl->{'Name'}=$var;
+			    $line = emit_f95_var_decl($decl);                
+                $decl->{'Name'}=$pvar;
+			}
+		}				
+		return ([[$line,$info]],$state);
+	};
+	
+	my $state=[$stref,$f];
+ 	($stref,$state) = stateful_pass($stref,$f,$pass_update_arg_var_decls, $state,'pass_update_arg_var_decls() ' . __LINE__  ) ;	
+    return $stref;
+} # END of update_arg_var_decl_sourcelines
+
+
 
 1;

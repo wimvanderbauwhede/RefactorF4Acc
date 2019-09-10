@@ -5,7 +5,12 @@ use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
 use RefactorF4Acc::ExpressionAST::Evaluate qw( eval_expression_with_parameters );
 use RefactorF4Acc::Refactoring::Common qw( stateful_pass pass_wrapper_subs_in_module ); # emit_f95_var_decl);
-use RefactorF4Acc::Refactoring::Streams qw( _declare_undeclared_variables _removed_unused_variables _fix_scalar_ptr_args _fix_scalar_ptr_args_subcall );
+use RefactorF4Acc::Refactoring::Fixes qw( 
+	_declare_undeclared_variables
+	_removed_unused_variables
+	_fix_scalar_ptr_args
+	_fix_scalar_ptr_args_subcall
+	);
 use RefactorF4Acc::Parser::Expressions qw(
 	parse_expression
 	get_vars_from_expression	

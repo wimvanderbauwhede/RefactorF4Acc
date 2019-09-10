@@ -239,11 +239,11 @@ sub map_call_args_to_sig_args {
 
 			my $call_args = $info->{'SubroutineCall'}{'Args'}{'List'};
 			
-			for my $call_arg_expr ( @{ $info->{'CallArgs'}{'List'} } ) {
+			for my $call_arg_expr ( @{ $info->{'SubroutineCall'}{'Args'}{'List'} } ) {
 
 				my $call_arg = $call_arg_expr;
-				if ( $info->{'CallArgs'}{'Set'}{$call_arg_expr}{'Type'} eq 'Array' ) {
-					$call_arg = $info->{'CallArgs'}{'Set'}{$call_arg_expr}{'Arg'};
+				if ( $info->{'SubroutineCall'}{'Args'}{'Set'}{$call_arg_expr}{'Type'} eq 'Array' ) {
+					$call_arg = $info->{'SubroutineCall'}{'Args'}{'Set'}{$call_arg_expr}{'Arg'};
 				}
 				if (   exists $F95_intrinsics{$call_arg}
 					or exists $F95_reserved_words{$call_arg} )
@@ -252,7 +252,7 @@ sub map_call_args_to_sig_args {
 
 						# This is an unmasked intrinsic, set to 'Sub'!
 						say "INFO: Unmasked intrinsic $call_arg in $f" if $I;
-						$info->{'CallArgs'}{'Set'}{$call_arg_expr}{'Type'} = 'Sub';
+						$info->{'SubroutineCall'}{'Args'}{'Set'}{$call_arg_expr}{'Type'} = 'Sub';
 					} else {
 						say "Intrinsic $call_arg is MASKED in $f";
 					}

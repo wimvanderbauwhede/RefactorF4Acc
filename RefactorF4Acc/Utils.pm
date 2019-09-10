@@ -55,6 +55,7 @@ use Exporter;
     $BLANK_LINE
     &annotate
     &alias_ordered_set
+    &remove_vars_from_ordered_set
     &get_module_name_from_source
 );
 
@@ -78,6 +79,15 @@ sub alias_ordered_set { (my $stref,my $f,my $alias,my $orig) = @_;
     $stref->{'Subroutines'}{$f}{'Has'.$alias} = 1;
 	return $stref;
 }
+# $vars_to_remove is an array ref; $ordered_set a ref to a Set,List combo
+sub remove_vars_from_ordered_set { (my $ordered_set, my $vars_to_remove)=@_;
+
+	for my $var (@{$vars_to_remove}) {
+		delete $ordered_set->{'Set'}{$var};
+	}
+	$ordered_set->{'List'}  = [ grep {exists $ordered_set->{'Set'}{$_}} @{ $ordered_set->{'List'} } ];
+	return $ordered_set;
+} # END of remove_var_from_ordered_set
 
 sub annotate { (my $f, my $ann)=@_;	
     (my $package, my $filename, my $line, my $subroutine, my @rest) = caller(1);

@@ -839,45 +839,6 @@ sub _create_refactored_subroutine_call {
 
 			$info->{'SubroutineCall'}{'Args'}{'List'} = $args_ref;
 
-			# WV20180522 I added this to have an ArgMap for the refactored subroutine signatures, not sure it is actually helpful
-			# if (0) {
-			# 	if ( not exists $info->{'SubroutineCall'}{'ArgMap'} ) {
-			# 		$info->{'SubroutineCall'}{'ArgMap'} = {};
-			# 	}
-			# 	if ( not exists $info->{'CallArgs'} ) {
-			# 		$info->{'CallArgs'} = { 'Set' => {} };
-			# 	} elsif ( exists $info->{'CallArgs'}
-			# 		and not exists $info->{'CallArgs'}{'Set'} )
-			# 	{
-			# 		$info->{'CallArgs'}{'Set'} = {};
-			# 	}
-
-			# 	# for every arg in the signature, map the call arg
-			# 	# Now, in  principle they should be identical. I overwrite whatever was present in the original ArgMap
-
-			# 	my $i = 0;
-			# 	for my $sig_arg ( @{ $stref->{'Subroutines'}{$name}{'RefactoredArgs'}{'List'} } ) {
-
-			# 		my $call_arg =
-			# 		  $info->{'SubroutineCall'}{'Args'}{'List'}[$i];
-			# 		$info->{'SubroutineCall'}{'ArgMap'}{$sig_arg} = $call_arg;
-			# 		if ( $sig_arg eq $call_arg ) {
-			# 			if ( not exists $info->{'CallArgs'}{'Set'}{$sig_arg} ) {
-			# 				my $var_rec  = get_var_record_from_set( $Sf->{'Vars'}, $sig_arg );
-			# 				my $var_type = $var_rec->{'ArrayOrScalar'};
-			# 				$info->{'CallArgs'}{'Set'}{$sig_arg}{'Type'} =
-			# 				  $var_type;
-			# 				if ( $var_type eq 'Array' ) {
-			# 					$info->{'CallArgs'}{'Set'}{$sig_arg}{'Arg'} =
-			# 					  $sig_arg;
-			# 				}
-			# 			}
-			# 		}
-			# 		$i++;
-			# 	}
-			# }
-
-			#        say $name.' : '.Dumper( $args_ref );
 			# This is the emitter, maybe that should not be done here but later on? TODO!
 			my $args_str = join( ',', @{$args_ref} );
 			my $indent   = $info->{'Indent'} // '      ';
@@ -930,44 +891,6 @@ sub _create_refactored_subroutine_call {
 			# }
 
 			$info->{'SubroutineCall'}{'Args'}{'List'} = $args_ref;
-
-			# WV20180522 I added this to have an ArgMap for the refactored subroutine signatures, not sure it is actually helpful
-			# if (0) {
-			# 	if ( not exists $info->{'SubroutineCall'}{'ArgMap'} ) {
-			# 		$info->{'SubroutineCall'}{'ArgMap'} = {};
-			# 	}
-			# 	if ( not exists $info->{'CallArgs'} ) {
-			# 		$info->{'CallArgs'} = { 'Set' => {} };
-			# 	} elsif ( exists $info->{'CallArgs'}
-			# 		and not exists $info->{'CallArgs'}{'Set'} )
-			# 	{
-			# 		$info->{'CallArgs'}{'Set'} = {};
-			# 	}
-
-			# 	# for every arg in the signature, map the call arg
-			# 	# Now, in  principle they should be identical. I overwrite whatever was present in the original ArgMap
-
-			# 	my $i = 0;
-			# 	for my $sig_arg ( @{ $stref->{'Subroutines'}{$name}{'RefactoredArgs'}{'List'} } ) {
-
-			# 		my $call_arg =
-			# 		  $info->{'SubroutineCall'}{'Args'}{'List'}[$i];
-			# 		$info->{'SubroutineCall'}{'ArgMap'}{$sig_arg} = $call_arg;
-			# 		if ( $sig_arg eq $call_arg ) {
-			# 			if ( not exists $info->{'CallArgs'}{'Set'}{$sig_arg} ) {
-			# 				my $var_rec  = get_var_record_from_set( $Sf->{'Vars'}, $sig_arg );
-			# 				my $var_type = $var_rec->{'ArrayOrScalar'};
-			# 				$info->{'CallArgs'}{'Set'}{$sig_arg}{'Type'} =
-			# 				  $var_type;
-			# 				if ( $var_type eq 'Array' ) {
-			# 					$info->{'CallArgs'}{'Set'}{$sig_arg}{'Arg'} =
-			# 					  $sig_arg;
-			# 				}
-			# 			}
-			# 		}
-			# 		$i++;
-			# 	}
-			# }
 
 			# This is the emitter, maybe that should not be done here but later on? TODO!
 			my $args_str = join( ',', @{$args_ref} );

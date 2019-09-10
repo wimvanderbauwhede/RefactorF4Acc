@@ -34,7 +34,7 @@ sub add_BLOCK_DATA_call_after_last_VarDecl {
 	( my $f, my $stref ) = @_;
 
 	if (scalar keys %{ $stref->{'BlockData'} } > 0) { 
-say "** analyse_all() => add_BLOCK_DATA_call_after_last_VarDecl()" if $V;
+		say "** analyse_all() => add_BLOCK_DATA_call_after_last_VarDecl()" if $V;
 	my $Sf = $stref->{'Subroutines'}{$f};	
 
 
@@ -90,10 +90,6 @@ say "** analyse_all() => add_BLOCK_DATA_call_after_last_VarDecl()" if $V;
 					'ExprVars' => {
         				'List' => [],
         				'Set' => {}
-      				},
-					'CallArgs' => {
-        				'Set' => {},
-        				'List' => []
       				},
       				'LineID' => ++$annlines->[-1][1]{'LineID'}
 				}

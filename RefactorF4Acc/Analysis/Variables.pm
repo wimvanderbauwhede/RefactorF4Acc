@@ -430,9 +430,9 @@ sub identify_vars_on_line {
                 }
 #                croak Dumper(@chunks,$info->{'Vars'}) if $line=~/read.*time/;
 			} elsif ( exists $info->{'SubroutineCall'} ) {
-				for my $var_expr ( @{ $info->{'CallArgs'}{'List'} } ) {
-					if ( exists $info->{'CallArgs'}{'Set'}{$var_expr}{'Arg'} ) {
-						push @chunks, $info->{'CallArgs'}{'Set'}{$var_expr}{'Arg'};
+				for my $var_expr ( @{ $info->{'SubroutineCall'}{'Args'}{'List'} } ) {
+					if ( exists $info->{'SubroutineCall'}{'Args'}{'Set'}{$var_expr}{'Arg'} ) {
+						push @chunks, $info->{'SubroutineCall'}{'Args'}{'Set'}{$var_expr}{'Arg'};
 					} else {
 						push @chunks, $var_expr;
 					}
