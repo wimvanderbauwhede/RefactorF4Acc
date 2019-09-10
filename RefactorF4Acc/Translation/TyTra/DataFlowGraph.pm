@@ -34,23 +34,10 @@ use Exporter;
 &main
 );
 
-# If set to 0, Folds are identified as Maps (for dev/debug)
-# The NodeType is set in _add_TyTraCL_AST_entry which is called in ArrayAccessPatterns
-# The way a Fold is detected is by detecting an accumulation operation ('Acc')
-our $FOLD=1;
 
 =info
-Pass to determine stencils in map/reduce subroutines
-Because of their nature we don't even need to analyse loops: the loop variables and bounds have already been determined.
-So, for every line we check:
-If it is an assignment, a subroutine call or a condition in and If or Case, we go on
-But in the kernels we don't have subroutines at the moment. We also don't have Case I think
-If assignment, we separate LHS and RHS
-If subcall, we separate In/Out/InOut
-If cond, it is a read expression
 
-In each of these we get the AST and hunt for arrays. This is easy but would be easier if we had an 'everywhere' or 'everything' function
-
+The AST
 
 type Name = String
 data VE = VI  | VO  | VS  | VT deriving (Show, Typeable, Data, Eq)
@@ -464,7 +451,7 @@ sub build_connectivity_graph { my ($ast) = @_;
                 say "$node_type $f IN: $input";     
                 push @{$ast->{'Nets'}{$input}{'To'}},{'Name'=>$f,'EntryID'=>$entry_id,'NodeType'=>$node_type};
                 $ast->{'Nets'}{$input}{'NetType'}='Stream';
-                $ast->{'Nets'}{$input}{'Latency'}=0;
+                $ast->{'Nets'}{$input}{'Latency'}=0; 
                 push @{$ast->{'Nodes'}{$f}{'Inputs'}}, $input;
             }
             for my $input (@nonfold_inputs, @acc_inputs) {
@@ -475,7 +462,8 @@ sub build_connectivity_graph { my ($ast) = @_;
             }
             $node_inputs=[@fold_inputs,@nonfold_inputs,@acc_inputs];
             $node_outputs = \@outputs;
-          
+            # TODO! 
+            # The latency for a fold node is the size of the vector to fold 
             # $latency=
 
         }
@@ -544,6 +532,7 @@ sub build_connectivity_graph { my ($ast) = @_;
 
 } # END of build_connectivity_graph
 
+# The graph resulting from build_connectivity_graph() does not have actual nodes for inputs and outputs. We add them here.
 sub add_io_nodes_to_connectivity_graph { my ($ast) = @_;
     
     for my $net (sort keys %{ $ast->{'Nets'} }) {                
@@ -591,12 +580,16 @@ sub add_io_nodes_to_connectivity_graph { my ($ast) = @_;
     return $ast;
 } # END of add_io_nodes_to_connectivity_graph
 
+# This adds info from $main_rec->{'InArgsTypes'} to $ast->{'Nets'}{$arg}{'NetType'} and same for Out
+# The type info is 
+# $scalar_type = Int | Float
+# $tycl_type=' ['Vec' ,$vec_sz, $scalar_type]; 
+
 sub add_io_net_types { my ($ast) = @_;
     my $main_rec = $ast->{'Main'};
     my $in_args_types = $main_rec->{'InArgsTypes'};
     for my  $arg (sort keys %{$in_args_types}){
         if (exists $ast->{'Nets'}{$arg}) {
-            # say "$arg :: "._emit_TyTraCLType($in_args_types->{$arg});
             $ast->{'Nets'}{$arg}{'NetType'} = [$ast->{'Nets'}{$arg}{'NetType'},$in_args_types->{$arg}];
         } else {
             carp "PROBLEM: Main IO arg $arg does not have an entry in Nets!"
@@ -717,7 +710,7 @@ sub _prop_latency_rec { my ($ast, $nets) = @_;
     return $ast;
 } # END of _prop_latency_rec
 
-
+# A utility to simplify the graph, currently unused
 sub remove_stencil_nodes_from_connectivity_graph { my ($ast) = @_;
     # find all nets that have a 'To' stencil; find the 
     for my $net (sort keys %{ $ast->{'Nets'} }) {
@@ -753,6 +746,7 @@ sub remove_stencil_nodes_from_connectivity_graph { my ($ast) = @_;
 # For every kernel, we look at its inputs and make a list of the kernels that provide those inputs, 
 # noting if they are vec or scalar and if the kernels are map or fold. We also note non-kernel inputs 
 # Considering the purpose, all we need is the non-fold dependencies
+# $ast->{'Nodes'}{$node}{'Dependencies'}{$fname}=$ftype;
 # I am using a flag for this
 sub find_dataflow_dependencies { my ($ast)=@_;
     my $non_fold_only=1;
@@ -798,14 +792,13 @@ sub _find_deps_rec { my ($ast,$f_curr, $f_target,$non_fold_only) = @_;
 
 2019-08-08
 
-annotate each edge with the latency
-latencies are only non-0 for stencil caches
-
-if a node has incoming edges with different latencies:
+If a node has incoming edges with different latencies:
 - the largest is propagated
 - the paths from inputs to this node must be separated
 
-I think we can follow each edge to its From, and get the (non-fold?) deps for that node. Then see if the cross-section is empty between all these paths, if so, no problem. If not, then the nodes in the cross section must be split.
+I think we can follow each edge to its From, and get the (non-fold?) deps for that node. Then see if the cross-section is empty between all these paths,
+- If so, no problem. 
+- If not, then the nodes in the cross section must be split.
 
 So, 
 - Given a node with two or more inputs with different latency:

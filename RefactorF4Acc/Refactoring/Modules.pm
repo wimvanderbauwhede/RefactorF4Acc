@@ -106,21 +106,24 @@ sub add_module_decls {
 			# This means that they need new names, i.e. the names of the subs, like above.
 			# And then I need to figure out how to adapt the USE declarations in other subroutines.
 			# Unless there is a way to re-export modules
-			my $split_out_modules_per_subroutine=1;
+			
+			my $only_one_sub_in_module = scalar  @{ $stref->{'Modules'}{ $existing_module_name{$src} }{'Contains'} } == 1 ? 1 : 0;
+			my $split_out_modules_per_subroutine= $only_one_sub_in_module ? 0 : 1;
 			if ($split_out_modules_per_subroutine==1 and $stref->{'Modules'}{  $existing_module_name{$src} }{'Inlineable'}==0) {
-				_split_module_per_subroutine( $stref,  \%existing_module_name, $src, \%no_modules );
+				$stref = _split_module_per_subroutine( $stref,  \%existing_module_name, $src, \%no_modules );
 			} else {
 			
 				my $new_annlines = [];
+				
 				for my $sub ( @{ $stref->{'Modules'}{ $existing_module_name{$src} }{'Contains'} } ) {
 					say '=' x 80 if $V;
 					say 'SUB: ' . $sub if $V;
-					$stref = _create_module_src(  $stref, $src, $sub, \%no_modules );
+					$stref = _create_module_src(  $stref, $src, $sub, \%no_modules ) unless $only_one_sub_in_module;
 					
 					$new_annlines = [ @{$new_annlines}, @{ $stref->{'Subroutines'}{$sub}{'RefactoredCode'} } ];
 					say '=' x 80 if $V;
 				}
-	#			croak;
+	
 				my $old_annlines                          = $stref->{'Modules'}{ $existing_module_name{$src} }{'AnnLines'};
 				my $old_annlines_with_refactored_vardecls = [
 					map {
@@ -165,34 +168,36 @@ sub _split_module_per_subroutine {
 
 	# Plan:
 	# 1/ create a module per subroutine
-	# 2/ create an grouping module
+	# 2/ create a grouping module
 
 	# 1/ create a module per subroutine
-	my @subs=();
-	for my $sub ( @{ $stref->{'Modules'}{ $module_to_split }{'Contains'} } ) {
-		$stref = _create_module_src(  $stref, $src, $sub, $no_modules );
-		push @subs, $sub;
-	}
+	my @subs=@{ $stref->{'Modules'}{ $module_to_split }{'Contains'} };
+	# As this already is a module, we should not do this if there is only a single subroutine
 	
+		for my $sub ( @subs ) {
+			$stref = _create_module_src(  $stref, $src, $sub, $no_modules );
+			# push @subs, $sub;
+		}
+
+		# my %module_sub_names	= map { 'module_'.$_ => $_  } @subs;
+		# my $module_to_split_name = $module_to_split;
+		# if (exists $module_sub_names{$module_to_split}) {
+		# 	$module_to_split_name = 
+		# }
+		# Now we have to create the wrapper module source which replaces the original module source
+		my @wrapper_module_annlines=( ["module $module_to_split",{'Module' => $module_to_split }]);
+		for my $sub (@subs) {
+			push @wrapper_module_annlines,[ "     use singleton_module_$sub", {'Use' =>{'Name' => "module_$sub", 'Inlineable' => 0 } } ];
+		}
+		for my $sub (@subs) {
+			push @wrapper_module_annlines,["     interface $sub",{'Interface'=> $sub }];
+			push @wrapper_module_annlines,["       module procedure $sub",{ 'ModuleProcDecl' => $sub }];
+			push @wrapper_module_annlines,["     end interface $sub",{ 'EndInterface'=> $sub}]; 
+		}
+		push @wrapper_module_annlines,["end module $module_to_split",{ 'EndModule' => $module_to_split }];
+		
+		$stref->{'RefactoredCode'}{$src}=\@wrapper_module_annlines;
 	
-	# Now we have to create the wrapper module source which replaces the original module source
-
-
-	my @wrapper_module_annlines=( ["module $module_to_split",{'Module' => $module_to_split }]);
-	for my $sub (@subs) {
-		push @wrapper_module_annlines,[ "     use module_$sub", {'Use' =>{'Name' => "module_$sub", 'Inlineable' => 0 } } ];
-	}
-	for my $sub (@subs) {
-		push @wrapper_module_annlines,["     interface $sub",{'Interface'=> $sub }];
-		push @wrapper_module_annlines,["       module procedure $sub",{ 'ModuleProcDecl' => $sub }];
-		push @wrapper_module_annlines,["     end interface $sub",{ 'EndInterface'=> $sub}]; 
-	}
-	push @wrapper_module_annlines,["end module $module_to_split",{ 'EndModule' => $module_to_split }];
-	
-	$stref->{'RefactoredCode'}{$src}=\@wrapper_module_annlines;
-
-#	show_annlines(\@wrapper_module_annlines);
-#croak;
 	return $stref;
 }    # END of _split_module_per_subroutine
 
@@ -214,7 +219,7 @@ sub _create_module_src { (my $stref, my $src, my $subname, my $no_modules ) = @_
 	$mod_name =~ s/\..*$//;
 	$mod_name =~ s/[\.\/\-]/_/g;
 
-	$mod_name = "module_$mod_name";
+	$mod_name = "singleton_module_$mod_name";
 	my $mod_header = [ "module $mod_name\n",       { 'Ref' => 1 } ];
 	my $mod_footer = [ "\nend module $mod_name\n", { 'Ref' => 1 } ];
 

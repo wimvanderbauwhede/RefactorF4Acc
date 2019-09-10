@@ -659,7 +659,7 @@ sub isArg { (my $stref, my $f, my $array_var)=@_;
 }
 
 # TODO I should split out the code generation and emitter
-=info_classify_accesses_and_generate_TyTraCL
+=pod _classify_accesses_and_emit_AST
 
 This routine does not modify $state; it modifies $stref by creating $stref->{UniqueVarCounters}
 
@@ -672,7 +672,9 @@ For every $array_var in  $state->{'Subroutines'}{ $f }{'Blocks'}{ $block_id }{'A
 	- All points in the array are processed in order, this is determined by checking $state->{'Subroutines'}{ $f }{'Blocks'}{ $block_id }{'Arrays'}{$array_var}{$rw}{'Iterators'} for '?', see _find_iters_in_array_idx_expr()
 	There outcome is put in %stencils (1 or 0)
 - It tests for partial acccesses, to be used for boundary condition processing. This is incomplete.	
-- I think the TyTraCL specific funcitonality could be handled
+
+The routine uses a custom emitter (in practice either for TyTraCL or TyTraIR) passed in via $stref->{$stref->{'EmitAST'}}
+This "emitter" creates the AST used for the target
 =cut
 sub _classify_accesses_and_emit_AST { (my $stref, my $f, my $state ) =@_;
 # 	say "SUB $f\n";
@@ -699,9 +701,6 @@ sub _classify_accesses_and_emit_AST { (my $stref, my $f, my $state ) =@_;
  		next if $array_var =~/^global_|^local_/;
  		next if not defined  $state->{'Subroutines'}{ $f }{'Blocks'}{ $block_id }{'Arrays'}{$array_var}{'Dims'} ;
 
-# 		if (not exists $unique_var_counters->{$array_var}) {
-# 			$unique_var_counters->{$array_var}=0;
-# 		}
 		$ast_to_emit = $ast_emitter->( $f,  $state,  $ast_to_emit, 'INIT_COUNTERS',  $block_id,  $array_var) if $emit_ast;
  		for my $rw ('Read','Write') {
  			if (exists  $state->{'Subroutines'}{ $f }{'Blocks'}{ $block_id }{'Arrays'}{$array_var}{$rw} ) {
@@ -740,14 +739,12 @@ sub _classify_accesses_and_emit_AST { (my $stref, my $f, my $state ) =@_;
 				if (not $all_points) {
 					if ($rw eq 'Read') {
 #						say "SELECT for $rw of $array_var";
-#						say "${array_var}_portion = select patt $array_var";
 						push @selects,$array_var;
 						$ast_to_emit = $ast_emitter->( $f,  $state,  $ast_to_emit, 'SELECT',  $block_id,  $array_var,  $rw) if $emit_ast;
 
 						$portions{$array_var}=1;
 					} else {
 #						say "INSERT for $rw of $array_var";
-#						say "${array_var}_out = insert patt buf_to_insert $array_var";
 						push @inserts, $array_var;
 						$ast_to_emit = $ast_emitter->( $f,  $state,  $ast_to_emit, 'INSERT',  $block_id,  $array_var,  $rw) if $emit_ast;
 					}

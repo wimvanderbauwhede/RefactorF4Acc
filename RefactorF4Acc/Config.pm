@@ -118,8 +118,8 @@ sub read_rf4a_config {
 	if ($v=~/,/) {
 		my @vs=split(/\s*,\s*/,$v);
 		$Config{$k}=[@vs];
-	} elsif ($k !~/TOP\w*|NEWSRCPATH|PREFIX|KERNEL|MODULE|MODULE_\w*|MACRO_SRC/) { # FIXME: Check this
-		# These are key that take a list but it has only one element
+	} elsif ($k !~/TOP\w*|NEWSRCPATH|PREFIX|KERNEL|^MODULE|MODULE_\w*|MACRO_SRC/) { # FIXME: Check this
+		# These are keys that take a list but it has only one element
 		$Config{$k}=[$v];
 	} elsif ($k eq 'TOP') {
 		$Config{$k}=lc($v);
@@ -210,7 +210,8 @@ our $config_menu= {
     'OCL' => [
         ['KERNEL','For OpenCL translatation, the name of the subroutine to become the OpenCL kernel (actually same as TOP)',''],
         ['MODULE_SRC','For OpenCL translatation, the name of the source file containing a module which contains the kernel subroutine',''],
-        ['MODULE','For OpenCL translatation, the name of the module which contains the kernel subroutine','']
+        ['MODULE','For OpenCL translatation, the name of the module which contains the kernel subroutine',''],
+        ['NO_MODULE','Comma-separated list of source files that should not be changed to modules','']
     ],
 
     'SUPER_ADVANCED' => [

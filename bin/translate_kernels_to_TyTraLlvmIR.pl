@@ -67,7 +67,7 @@ if ($gen_tytra_ir_main) {
         die "No kernel sources found";
     }
 }
-die;
+
 # First scalarise
 if ($scalarise) {
     say "SCALARISE" if $V;
@@ -213,4 +213,7 @@ sub get_kernel_and_module_names {
     say "KERNEL MODULE NAME: <$kernel_module_name>" if $V;
     return ($kernel_sub_name, $kernel_module_name);
 } # END of get_kernel_and_module_names
+
+
+
 

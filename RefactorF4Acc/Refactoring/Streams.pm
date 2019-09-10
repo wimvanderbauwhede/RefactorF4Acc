@@ -824,6 +824,7 @@ sub _add_assignments_for_called_subs { (my $stref, my $f) = @_;
 
 # --------------------------------------------------------------------------------------------------------	
 # After detecting the intents we should update them as they are not always correct.
+# So this is a FIX
 sub _update_arg_var_decls { (my $stref, my $f)=@_;
 	my $pass_update_arg_var_decls = sub { (my $annline, my $state)=@_;	
 		(my $line,my $info)=@{$annline};
@@ -1006,6 +1007,7 @@ sub _emit_subroutine_call { (my $stref, my $f, my $annline)=@_;
 		return ( $indent . $maybe_label . $rline, $info );
 } # END of 
 # ================================================================================================================================================
+# This is a FIX
 sub _removed_unused_variables { (my $stref, my $f)=@_;
 	# If a variable is assigned but is not and arg and does not occur in any RHS or SubroutineCall, it is unused. 
 	# If a variable is declared but not used in any LHS, RHS  or SubroutineCall, it is unused.
@@ -1210,6 +1212,7 @@ sub _removed_unused_variables { (my $stref, my $f)=@_;
 } # END of _removed_unused_variables()
 # ================================================================================================================================================
 
+# This is a FIX
 sub _declare_undeclared_variables { (my $stref, my $f)=@_;
 	# If a variable is assigned but is not and arg and does not occur in any RHS or SubroutineCall, it is unused. 
 	# If a variable is declared but not used in any LHS, RHS  or SubroutineCall, it is unused.
@@ -1701,7 +1704,10 @@ my $pass_remove_unused_args_from_sig_and_decls = sub { (my $annline, my $state)=
 } # END of _remove_redundant_arguments_OFF
  
 
-
+# This is a FIX
+# This routine should also be run on every subroutine as there are quite a few args labeled as inout which are actually out 
+# Called in TyTraCL.pm, so should therefore also be called in TyTraIR, and also in OpenCLC
+# Clearly, we should have a common "patch_up_output_from_other_compilers" pass.
 sub _remove_redundant_arguments { (my $stref, my $f)=@_;
 	my @in_args = grep { 
 		$stref->{'Subroutines'}{ $Config{'KERNEL'} }{'DeclaredOrigArgs'}{'Set'}{$_}{'IODir'} eq 'in'

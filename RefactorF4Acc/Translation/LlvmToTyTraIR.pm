@@ -630,11 +630,9 @@ sub _emit_llvm_ir {
     return \@ll_lines;
 }    # END of _emit_llvm_ir
 
-
 sub __emit_llvm_ir_single_ast_node {
     my ($ast_node) = @_;
     my $ll_line = '';
-
     
         # say Dumper $ast_node;
         $ast_node->[0] eq 'Lit'             && do {$ll_line = $ast_node->[1]};
@@ -1925,3 +1923,31 @@ define void @update_map_24(float %hzero_j_k, float %eta_j_k, float* %h_j_k, floa
 }
 
 =cut
+
+=pod
+=head1 Emitting Haskell
+
+The main challenge is how to handle non-map arguments to a function, in fact how do we know which arguments are non-map? The answer to that is that we know this in the TyTraCL step. 
+
+Related, if an arg is inout, we need to split this into in and out.
+
+This is only the case if we have:
+
+v1 = f arg  -- a read
+arg_out = g v2 -- a write
+
+In LLVM this will be 
+
+%r1 = load t, t* %arg
+; some operation on %r1
+store t %r2, t* arg
+
+So we need to rename the store arg to arg_out and emit 
+
+arg_out = r2
+
+
+
+=cut
+
+

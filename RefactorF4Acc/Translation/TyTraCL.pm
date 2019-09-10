@@ -2,12 +2,8 @@ package RefactorF4Acc::Translation::TyTraCL;
 use v5.10;
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
-use RefactorF4Acc::Refactoring::Common qw(
-	pass_wrapper_subs_in_module					
-	);
-use RefactorF4Acc::Refactoring::Streams qw(    
-    _remove_redundant_arguments
-    );
+use RefactorF4Acc::Refactoring::Common qw( pass_wrapper_subs_in_module );
+use RefactorF4Acc::Refactoring::Streams qw( _remove_redundant_arguments );
 use RefactorF4Acc::Translation::TyTra::Common qw(
 pp_links  
 __isMainInArg 
@@ -50,8 +46,15 @@ use Exporter;
 );
 
 # If set to 0, Folds are identified as Maps (for dev/debug)
-# The NodeType is set in _add_TyTraCL_AST_entry which is called in ArrayAccessPatterns
 # The way a Fold is detected is by detecting an accumulation operation ('Acc')
+
+# The NodeType is set in _add_TyTraCL_AST_entry() which is called in Analysis::ArrayAccessPatterns
+# In Analysis::ArrayAccessPatterns, there is a routine _classify_accesses_and_emit_AST which runs this routine via  
+#	$ast_emitter = $stref->{$stref->{'EmitAST'}}{'ASTEmitter'}
+#   $ast_to_emit = $ast_emitter->( $f,  $state,  $ast_to_emit, 'INIT_AST')
+#
+# This routine is called at the end of identify_array_accesses_in_exprs()
+
 our $FOLD=1;
 
 
@@ -929,15 +932,19 @@ sub _add_TyTraCL_AST_entry { (my $f, my $state, my $tytracl_ast, my $type, my $b
 			exists $state->{'Subroutines'}{ $f }{'Blocks'}{ $block_id }{'Arrays'}{$_} and
 			scalar @{ $state->{'Subroutines'}{ $f }{'Blocks'}{ $block_id }{'Arrays'}{$_}{'Dims'} } >= $n_dims
 		} @in_tup;
-
-		my @in_tup_non_map_args =  grep {
-			# Add ACC condition			
+        # So a non-map arg is an arg that is either a scalar or an array with a lower dimensionality than the mapped arrays
+        # TODO: I guess we could be more strict and extend this to arrays with the same dimension but (much) smaller size
+        # But this would require us to calculate and compare the sizes.
+        # Taking into account that mappable args might have slightly different sizes because of the halos, in fact the mapped range should be the maximum
+        # I could put an ad-hoc limit on the size of a halo, say 5 points. 
+		my @in_tup_non_map_args =  grep {					
 			(
 			(not exists $state->{'Subroutines'}{ $f }{'Blocks'}{ $block_id }{'Arrays'}{$_}) or
 			(scalar @{ $state->{'Subroutines'}{ $f }{'Blocks'}{ $block_id }{'Arrays'}{$_}{'Dims'} } < $n_dims)
 			)
 		} @in_tup;
 		
+        # non-fold args are non-map args that are not acc args
 		my @in_tup_non_fold_args = grep { not exists $accs{$_}  } @in_tup_non_map_args; 
 
 		my $in_tup_ms_ast = [
