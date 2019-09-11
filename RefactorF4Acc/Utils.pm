@@ -83,6 +83,7 @@ sub alias_ordered_set { (my $stref,my $f,my $alias,my $orig) = @_;
 sub remove_vars_from_ordered_set { (my $ordered_set, my $vars_to_remove)=@_;
 
 	for my $var (@{$vars_to_remove}) {
+        # say "DBG: Deleting $var from ordered set ";# if $DBG;
 		delete $ordered_set->{'Set'}{$var};
 	}
 	$ordered_set->{'List'}  = [ grep {exists $ordered_set->{'Set'}{$_}} @{ $ordered_set->{'List'} } ];

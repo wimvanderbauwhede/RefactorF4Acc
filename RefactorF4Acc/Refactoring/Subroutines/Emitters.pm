@@ -91,12 +91,13 @@ sub emit_subroutine_call {
 	my $Sf   = $stref->{'Subroutines'}{$f};
 
     (my $line, my $info) = @{$annline};    
+	
     my $name = $info->{'SubroutineCall'}{'Name'};
 
     my $indent = $info->{'Indent'} // '      ';
     my $maybe_label =
       (exists $info->{'Label'} and exists $Sf->{'ReferencedLabels'}{$info->{'Label'}}) ? $info->{'Label'} . ' ' : '';
-	my @call_args = $info->{'SubroutineCall'}{'Args'}{'List'};
+	my @call_args = @{$info->{'SubroutineCall'}{'Args'}{'List'}};
     my @call_exprs   = map { $info->{'SubroutineCall'}{'Args'}{'Set'}{$_}{'Expr'} } @call_args;
     my $args_str         = join(',', @call_exprs);
     my $rline            = "call $name($args_str)\n";

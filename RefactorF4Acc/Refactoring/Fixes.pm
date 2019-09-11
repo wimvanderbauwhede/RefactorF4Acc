@@ -1,4 +1,4 @@
-package RefactorF4Acc::Translation::Fixes;
+package RefactorF4Acc::Refactoring::Fixes;
 use v5.10;
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
@@ -39,9 +39,9 @@ use Data::Dumper;
 
 use Exporter;
 
-@RefactorF4Acc::Translation::Fixes::ISA = qw(Exporter);
+our @ISA = qw(Exporter);
 
-@RefactorF4Acc::Translation::Fixes::EXPORT_OK = qw(
+our @EXPORT_OK = qw(
 	&_declare_undeclared_variables
 	&_removed_unused_variables
 	&_fix_scalar_ptr_args
@@ -691,9 +691,16 @@ In other words,
 # This routine should also be run on every subroutine as there are quite a few args labeled as inout which are actually out 
 # Called in TyTraCL.pm, so should therefore also be called in TyTraIR, and also in OpenCLC
 # Clearly, we should have a common "patch_up_output_from_other_compilers" pass.
+# A potential problem here is that I think the toplevel kernel routine should be called first, and then all the others.
+# Because otherwise $in_args_to_remove will not be known yet.
+# So it might actually be better to only run this on the toplevel kernel routine and then process CalledSubs
+
+# There are two changes we want to make. 
+# 1. We want to remove redundant arguments
+# 2. Some of the called subroutines have arguments that are InOut but should really be Out (or maybe even In?)
 sub _remove_redundant_arguments { (my $stref, my $f)=@_;
 
-	if ($f eq $Config{'KERNEL'}) {
+	if ($f eq $Config{'KERNEL'}) { 
 		my @in_args = grep { 
 			$stref->{'Subroutines'}{ $f }{'DeclaredOrigArgs'}{'Set'}{$_}{'IODir'} eq 'in'
 		}  @{$stref->{'Subroutines'}{ $f }{'DeclaredOrigArgs'}{'List'}};
@@ -715,6 +722,10 @@ sub _remove_redundant_arguments { (my $stref, my $f)=@_;
 					++$idx;
 				}
 		}
+
+		# If an argument of a called subroutine is an input argument of the kernel, we can check if it is actually used as an input
+		# If it was written to before it was read, then it is not an input arg and should become a local. 
+		my $inout_args_to_change_to_out={};
 		my $in_args_to_keep={};
 		for my $in_arg (@in_args) {
 			for my $csub (@call_sequence) {
@@ -741,12 +752,22 @@ sub _remove_redundant_arguments { (my $stref, my $f)=@_;
 				push @{$in_args_to_remove->{'List'}}, $arg;
 			}
 		}
-		
-		# croak Dumper $in_args_to_remove;
+
+	#  Now we should remove these arguments:
+	#  - in the superkernel:
+	#  	- from the argument list : $annlines, but also Args 	
+	#  	- from the call arguments of each kernel : $annlines, but also the ArgMap
+	# 	- remove all declarations for these args :  $annlines
+
+
+		say Dumper $in_args_to_remove;
 		$stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}  = remove_vars_from_ordered_set($stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}, $in_args_to_remove->{'List'});
 
 
-		my $pass_remove_redundant_args = sub { (my $annline)=@_;
+say "SUB: $f";
+# Because this lambda is defined in the scope of the current sub, $stref and $in_args_to_remove are in scope
+# All of these are used read-only 
+		my $pass_remove_redundant_args_in_superkernel = sub { (my $annline)=@_;
 			(my $line,my $info)=@{$annline};
 			if (exists $info->{'Signature'} ) {
 				$info->{'Signature'}{'Args'} = remove_vars_from_ordered_set($info->{'Signature'}{'Args'}, $in_args_to_remove->{'List'});
@@ -761,37 +782,74 @@ sub _remove_redundant_arguments { (my $stref, my $f)=@_;
 				}
 			}
 			elsif (exists $info->{'SubroutineCall'} ) {
+				my $csub = $info->{'SubroutineCall'}{'Name'};
+				
 					$info->{'SubroutineCall'}{'Args'} = remove_vars_from_ordered_set($info->{'SubroutineCall'}{'Args'}, $in_args_to_remove->{'List'});
-					(my $rline, $info) = emit_subroutine_call($stref, $f, [$line, $info]);
+				
+					(my $rline, $info) = emit_subroutine_call($stref, $csub, [$line, $info]);
+					for my $call_arg (@{$in_args_to_remove->{'List'}}) {
+						delete $info->{'SubroutineCall'}{'ArgMap'}{$call_arg};
+					}					
 					$annline = [$rline, $info];
 			}
 			return ([$annline]);
 		};
+		
+ 		$stref = stateless_pass($stref,$f,$pass_remove_redundant_args_in_superkernel, $in_args_to_remove,'pass_remove_redundant_args_in_superkernel' . __LINE__  ) ;
+
+# say "Removed redundant args from superkernel";
+
+		# To remove the redundant args from the called subroutines, all we need to do is
+	#  - In every called sub for my $csub (@call_sequence) {}
+	#  	- from the  argument list of each kernel : $annlines, but also from Args to DeclaredOrigLocalVars
+	#  	- remove the intents from the declarations : $annlines, but also from DeclaredOrigLocalVars
+		for my $csub (@call_sequence) {
+			# The DeclaredOrigArgs need to be DeclaredOrigLocalVars
+			for my $arg (@{$in_args_to_remove->{'List'}}) {
+				if (exists $stref->{'Subroutines'}{$csub}{'DeclaredOrigArgs'}{'Set'}{$arg}) {
+					# say "$csub $arg becomes local";
+					$stref->{'Subroutines'}{$csub}{'DeclaredOrigLocalVars'}{'Set'}{$arg} = dclone($stref->{'Subroutines'}{$csub}{'DeclaredOrigArgs'}{'Set'}{$arg});
+					delete $stref->{'Subroutines'}{$csub}{'DeclaredOrigLocalVars'}{'Set'}{$arg}{'IODir'};
+				}
+			}
+			$stref->{'Subroutines'}{$csub}{'DeclaredOrigLocalVars'}{'List'} = [sort keys %{ $stref->{'Subroutines'}{$csub}{'DeclaredOrigLocalVars'}{'Set'} }];
+			$stref->{'Subroutines'}{$csub}{'DeclaredOrigArgs'}  = remove_vars_from_ordered_set($stref->{'Subroutines'}{$csub}{'DeclaredOrigArgs'}, $in_args_to_remove->{'List'});
+			
+			# This is a bit inefficient because we redefine the lambda for every $csub, but this way it will capture $csub
+			my $pass_remove_redundant_args_in_called_subs = sub { (my $annline)=@_;
+				(my $line,my $info)=@{$annline};
+				if (exists $info->{'Signature'} ) {
+					$info->{'Signature'}{'Args'} = remove_vars_from_ordered_set($info->{'Signature'}{'Args'}, $in_args_to_remove->{'List'});
+					(my $rline, $info) = emit_subroutine_sig( [$line, $info]);
+					# say "$csub: $rline";
+					$annline = [$rline, $info];
+				}			
+				elsif (exists $info->{'VarDecl'} ) {
+					my $var = $info->{'VarDecl'}{'Name'};
+					if (exists $in_args_to_remove->{'Set'}{$var}) {
+						my $decl=$stref->{'Subroutines'}{$csub}{'DeclaredOrigLocalVars'}{'Set'}{$var};
+						my $rline = emit_f95_var_decl($decl);
+						# say "$csub: $rline";
+						$annline = [$rline, $info];
+					}
+				}
+				return ([$annline]);
+			};
+				
+			$stref = stateless_pass($stref,$csub,$pass_remove_redundant_args_in_called_subs, $in_args_to_remove,'pass_remove_redundant_args_in_called_subs' . __LINE__  ) ;				
+		}
+
+		# So at this point we should have removed all redundant args.
+
+		# croak Dumper pp_annlines()
+
+		# If an argument of a called subroutine is an output argument of the kernel, we can check if it is used as an output or as an inout
+		# If it was written to before it was read, then it is an Out
+		# If it was read from before it was written to, then it is an InOut
+		# If it was read from but never written to, then it is an In
+		croak;
+	} # if $f is the superkernel
 	
-	
- 	$stref = stateless_pass($stref,$f,$pass_remove_redundant_args, $in_args_to_remove,'pass_remove_redundant_args' . __LINE__  ) ;
-
-
-
-	} else {
-
-	}
-=pod	
-	 Now we should remove these arguments:
-	 - in the superkernel:
-	 	- from the argument list : $annlines, but also Args 	
-	 	- from the call arguments of each kernel : $annlines, but also the ArgMap
-		- remove all declarations for these args :  $annlines
-	 - In every called sub for my $csub (@call_sequence) {}
-	 	- from the  argument list of each kernel : $annlines, but also from Args to DeclaredOrigLocalVars
-	 	- remove the intents from the declarations : $annlines, but also from DeclaredOrigLocalVars
-
-This analysis uses the superkernel sub, not every subroutine in the module. So we need a condition on $f 
-
-
-
-=cut
-
 	return $stref;
 } # END of _remove_redundant_arguments
 

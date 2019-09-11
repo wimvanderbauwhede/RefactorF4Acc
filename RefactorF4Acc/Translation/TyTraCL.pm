@@ -74,7 +74,7 @@ sub pass_emit_TyTraCL {(my $stref, my $module_name)=@_;
             # subroutine-specific passes 	
 			[
 #				[ sub { (my $stref, my $f)=@_;  alias_ordered_set($stref,$f,'DeclaredOrigArgs','DeclaredOrigArgs'); } ],
-                # [\&_remove_redundant_arguments],
+                [\&_remove_redundant_arguments],
 		  		[
 			  		\&identify_array_accesses_in_exprs,
 				],
