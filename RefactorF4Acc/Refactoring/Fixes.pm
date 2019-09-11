@@ -839,14 +839,46 @@ say "SUB: $f";
 			$stref = stateless_pass($stref,$csub,$pass_remove_redundant_args_in_called_subs, $in_args_to_remove,'pass_remove_redundant_args_in_called_subs' . __LINE__  ) ;				
 		}
 
-		# So at this point we should have removed all redundant args.
+		# So at this point we have removed all redundant args.
+		# On to fixing IODir 		
+		# If an argument of a called subroutine is an In arg of the kernel, it could be used as an InOut in a called sub
+		#	If the current sub modifies it (NOT read_only; otherwise it must be In)
+		#	AND a later sub uses it as an In or InOut (i.e. read_only OR read_before_written)		
 
-		# croak Dumper pp_annlines()
+		# If an argument of a called subroutine is an Out argument of the kernel, we can check if it is used as an Out or as an InOut. It could be InOut if a previous sub modified it
+		# 	If written_before_read => Out, regardless of what the kernel arg IODir is
+		# 	If read_before_written => InOut 
+		# 	If read_only => In. If it would be an Out at toplevel, that would be an error, toplevel should then be InOut
 
-		# If an argument of a called subroutine is an output argument of the kernel, we can check if it is used as an output or as an inout
-		# If it was written to before it was read, then it is an Out
-		# If it was read from before it was written to, then it is an InOut
-		# If it was read from but never written to, then it is an In
+		# If an argument of a called subroutine is an InOut argument of the kernel, we can still check if it is used as an Out or as an InOut in a called sub
+		# If it would turn out no called sub uses it as an In, we should make it an Out => In means read_only
+		# If it would turn out no called sub uses it as an Out, we should make it an In => Out means written_before_read
+
+# For every argument and every called subroutine, let's see what we can learn
+		my $iodir_for_arg_in_called_sub={};
+		# First determine the context-free IODir for all arguments in every called subroutine
+		for my $csub (@call_sequence) {
+			for my $arg ( $stref->{'Subroutines'}{ $csub }{'DeclaredOrigArgs'}{'List'}) {
+				$iodir_for_arg_in_called_sub->{$csub}{$arg} = __determine_called_sub_arg_iodir_no_context($arg, $stref, $csub);
+			}
+		}
+		# Now that we have the context-free IODir for all args  in every called sub we can refine
+		my $top_iodir={};
+		for my $arg ( @{$stref->{'Subroutines'}{ $f }{'DeclaredOrigArgs'}{'List'}} ) {
+			$top_iodir->{$arg} = $stref->{'Subroutines'}{ $f }{'DeclaredOrigArgs'}{'Set'}{$arg}{'IODir'};
+			# First determine the context-free IODir for all arguments in every called subroutine
+			my $ix=0;
+			for my $csub (@call_sequence) {
+				if (exists $stref->{'Subroutines'}{ $csub }{'DeclaredOrigArgs'}{'Set'}{$arg}) {
+					($iodir_for_arg_in_called_sub->{$csub}{$arg}, $top_iodir->{$arg}) = __determine_called_sub_arg_iodir_w_context($arg, $stref, $csub, $top_iodir, \@call_sequence, $idx);
+				}
+				++$idx;
+			}
+		}
+
+		# Now we should fix all these IODirs in $stref->{'Subroutines'}{ $csub }{'DeclaredOrigArgs'}{'Set'}{$arg}) {
+		# So we do the toplevel first, then the call sequence
+
 		croak;
 	} # if $f is the superkernel
 	
@@ -855,47 +887,8 @@ say "SUB: $f";
 
 sub __check_written_before_read { my ($in_arg, $stref, $f)=@_;
 
-# In practice we will not have IO calls in the kernels
-# Nor will we have subroutines calls
-# Function calls on RHS are OK 
-# So all we need to check is Assignments, If, Do and Case
-# I am going to lazily assume that CaseVals are constants
-my $pass_check_written_before_read = sub { (my $annline, my $reads_writes)=@_;
-		(my $line,my $info)=@{$annline};
-		if (exists $info->{'Assignment'} ) { 			
-				 if (exists $info->{'Rhs'}{'VarList'}{'Set'}{$in_arg}) {
-					 # $in_arg is Read 
-					 push @{$reads_writes},'r';
-				 }
-				if ($info->{'Lhs'}{'VarName'} eq $in_arg) {
-					 # $in_arg is Written 
-					 push @{$reads_writes},'w';
-				 }
-		}	
-		elsif (exists $info->{'If'} ) { 			
-				 if (exists $info->{'CondVars'}{'Set'}{$in_arg}) {
-					 # $in_arg is Read  
-					 push @{$reads_writes},'r';
-				 }
-		}			
-		elsif (exists $info->{'CaseVar'} ) { 			
-				 if ($info->{'CaseVar'} eq $in_arg) {					 
-					 # $in_arg is Read  
-					 push @{$reads_writes},'r';
-				 }
-		}			
-		elsif (exists $info->{'Do'} ) { 			
-				 if (exists $info->{'Do'}{'Range'}{'Vars'}{$in_arg}) {					 
-					 # $in_arg is Read  
-					 push @{$reads_writes},'r';
-				 }
-		}			
+	my $reads_writes=__check_reads_writes($in_arg, $stref, $f);
 
-		return ([$annline],$reads_writes);
-	};
-	
-	my $reads_writes=[]; # sequence of 'r' and 'w'. And yes, I could use 0/1
- 	($stref,$reads_writes) = stateful_pass($stref,$f,$pass_check_written_before_read, $reads_writes,'pass_check_written_before_read' . __LINE__  ) ;
 	my $written_before_read = 0;
 	for my $rw (@{$reads_writes}) {
 		if ($rw eq 'w') {
@@ -904,7 +897,201 @@ my $pass_check_written_before_read = sub { (my $annline, my $reads_writes)=@_;
 		last;
 	}
 	return $written_before_read;
-}
+} # END of __check_written_before_read
+
+
+sub __check_read_before_written { my ($in_arg, $stref, $f)=@_;
+
+	my $reads_writes=__check_reads_writes($in_arg, $stref, $f);
+ 	
+	my $read_before_written = 0;
+	for my $rw (@{$reads_writes}) {
+		if ($rw eq 'r') {
+			$read_before_written=1;
+		}
+		last;
+	}
+	return $read_before_written;
+} # END of __check_read_before_written
+
+sub __check_read_only { my ($in_arg, $stref, $f)=@_;
+
+	my $reads_writes=__check_reads_writes($in_arg, $stref, $f);
+
+	my $read_only = 1;
+	for my $rw (@{$reads_writes}) {
+		if ($rw eq 'w') {
+			$read_only=0;
+		}
+		last;
+	}
+	return $read_only;
+} # END of __check_read_only
+
+
+sub __check_reads_writes {  my ($arg, $stref, $f)=@_;
+	# In practice we will not have IO calls in the kernels
+# Nor will we have subroutines calls
+# Function calls on RHS are OK 
+# So all we need to check is Assignments, If, Do and Case
+# I am going to lazily assume that CaseVals are constants
+my $pass_check_reads_writes = sub { (my $annline, my $reads_writes)=@_;
+		(my $line,my $info)=@{$annline};
+		if (exists $info->{'Assignment'} ) { 			
+				 if (exists $info->{'Rhs'}{'VarList'}{'Set'}{$arg
+				}) {
+					 # $arg
+					 is Read 
+					 push @{$reads_writes},'r';
+				 }
+				if ($info->{'Lhs'}{'VarName'} eq $arg
+			) {
+					 # $arg
+					 is Written 
+					 push @{$reads_writes},'w';
+				 }
+		}	
+		elsif (exists $info->{'If'} ) { 			
+				 if (exists $info->{'CondVars'}{'Set'}{$arg
+				}) {
+					 # $arg
+					 is Read  
+					 push @{$reads_writes},'r';
+				 }
+		}			
+		elsif (exists $info->{'CaseVar'} ) { 			
+				 if ($info->{'CaseVar'} eq $arg
+				) {					 
+					 # $arg
+					 is Read  
+					 push @{$reads_writes},'r';
+				 }
+		}			
+		elsif (exists $info->{'Do'} ) { 			
+				 if (exists $info->{'Do'}{'Range'}{'Vars'}{$arg
+				}) {					 
+					 # $arg
+					 is Read  
+					 push @{$reads_writes},'r';
+				 }
+		}			
+
+		return ([$annline],$reads_writes);
+	};
+	
+	my $reads_writes=[]; # sequence of 'r' and 'w'. And yes, I could use 0/1
+ 	($stref,$reads_writes) = stateful_pass($stref,$f,$pass_check_reads_writes, $reads_writes,'pass_check_reads_writes' . __LINE__  ) ;
+	 return $reads_writes;
+} # END of __check_reads_writes
+
+
+
+
+# This is the context-free IODir. We store this in	$iodir_for_arg_in_called_sub
+# Then we can look at the context (top_iodir and iodirs of other called subs) to refine.
+sub __determine_called_sub_arg_iodir_no_context { my ($arg, $stref, $csub)=@_;
+
+	if (__check_written_before_read($arg, $stref, $csub)) {
+		return 'out';
+	}
+	elsif (__check_read_before_written($arg, $stref, $csub)) {
+		return 'inout';
+	}
+	elsif ( __check_read_only($arg, $stref, $csub)) {		
+		return 'in';
+	}
+
+} # END of __determine_called_sub_arg_iodir_no_context
+
+sub __determine_called_sub_arg_iodir_w_context { my ($arg, $stref, $csub, $iodir_for_top_arg,$iodir_for_arg_in_called_sub,$call_sequence, $cs_idx)=@_;
+	my $iodir=$iodir_for_arg_in_called_sub->{$csub}{$arg};
+	my $top_iodir=$iodir_for_top_arg->{$arg};
+	# If an argument of a called subroutine is an In arg of the kernel, it could be used as an InOut in a called sub
+	#	If the current sub modifies it (not In; it could be Out)
+	#	AND a later sub uses it as an In or InOut (i.e. read_only OR read_before_written)	
+	# 	otherwise  (i.e. this is a toplevel In only used in this sub)
+	#		if  InOut => In : the modified result is unused (I guess this means we should remove this assignment!)
+	#		if  written_before_read => It should be a local, will not happen as that was done in the previous pass
+
+	if ($top_iodir eq 'in') {
+		if ($iodir ne 'in' ) {
+			# Check if this arg is 'in' or 'inout' in any of the later called subs
+			my $arg_is_read_later=0;
+			for my $idx ($cs_idx+1 .. scalar @{$call_sequence} - 1) {
+				my $lcsub = $call_sequence->{$idx};
+				if (
+					exists $iodir_for_arg_in_called_sub->{$lcsub}{$arg} and
+					$iodir_for_arg_in_called_sub->{$lcsub}{$arg} ne 'out'
+				) {
+					$arg_is_read_later=1;
+					last;
+				}
+			}
+			if ($arg_is_read_later) {
+				$iodir = 'inout';
+			} elsif ($iodir eq 'inout') {
+				$iodir = 'in';
+			}
+		} 
+	}
+	# If an argument of a called subroutine is an Out argument of the kernel, we can check if it is used as an Out or as an InOut. It could be InOut if a previous sub modified it
+	# 	If Out, stays Out
+	# 	If InOut , stays InOut
+	# 	If In => either it was Out or InOut for a previous called sub, else toplevel IODir should then be InOut 
+	elsif ($top_iodir eq 'out') {
+		if ($iodir eq 'in') {
+			my $arg_was_written_earlier=0;
+			for my $idx (0 .. $cs_idx-1 ) {
+				my $pcsub = $call_sequence->{$idx};
+				if (
+					exists $iodir_for_arg_in_called_sub->{$pcsub}{$arg} and
+					$iodir_for_arg_in_called_sub->{$pcsub}{$arg} ne 'in'
+				) {
+					$arg_was_written_earlier=1;
+					last;
+				}
+			}
+			if (not $arg_was_written_earlier) {
+				warn "Toplevel INTENT for $arg changed from OUT to INOUT because of use as IN in $csub!";
+				$top_iodir = 'inout';
+			}
+		}
+	}
+	# If an argument of a called subroutine is an InOut argument of the kernel, we can still check if it is used as an Out or as an InOut in a called sub
+	# 	If it would turn out no called sub uses it as an In, we should make it an Out => In means read_only
+	# 	If it would turn out no called sub uses it as an Out, we should make it an In => Out means written_before_read	
+	elsif ($top_iodir eq 'inout') {
+		my $used_as_in = 0;
+		my $used_as_out = 0;
+		for my $ccsub (@{$call_sequence}) {
+			if (
+					exists $iodir_for_arg_in_called_sub->{$ccsub}{$arg} 
+			) {
+				if ($iodir_for_arg_in_called_sub->{$ccsub}{$arg} eq 'in'
+				or $iodir_for_arg_in_called_sub->{$ccsub}{$arg} eq 'inout'
+				) {
+					$used_as_in=1;
+				}
+				elsif ($iodir_for_arg_in_called_sub->{$ccsub}{$arg} eq 'out'
+				or $iodir_for_arg_in_called_sub->{$ccsub}{$arg} eq 'inout'
+				) {
+					$used_as_out=1;
+				}					
+			}								
+		}
+		if (not $used_as_in) {
+			warn "Toplevel INTENT for $arg changed from INOUT to OUT because never used as IN!";
+			$top_iodir = 'out';
+		}
+		elsif (not $used_as_out) {
+			warn "Toplevel INTENT for $arg changed from INOUT to IN because never used as OUT!";
+			$top_iodir = 'in';
+		}
+	}
+
+	return ($iodir, $top_iodir);
+} # END of __determine_called_sub_arg_iodir_w_context
+
 
 1;
 
