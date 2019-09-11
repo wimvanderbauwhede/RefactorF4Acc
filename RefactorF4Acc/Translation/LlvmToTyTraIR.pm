@@ -190,9 +190,9 @@ sub generate_llvm_ir_for_TyTra {
     my $no_diff=1;
     # __sanity_check($targetdir, $f.'_tf', $no_diff);
     __sanity_check($targetdir, $f.'_tf');
-    exit;
+    # exit;
     return $stref;
-}    # END of pass_generate_llvm_ir_for_TyTra
+}    # END of generate_llvm_ir_for_TyTra
 
 sub _rename_regs_to_args {
     (my $stref, my $f, my $ast_nodes) = @_;
@@ -1928,6 +1928,7 @@ define void @update_map_24(float %hzero_j_k, float %eta_j_k, float* %h_j_k, floa
 =head1 Emitting Haskell
 
 The main challenge is how to handle non-map arguments to a function, in fact how do we know which arguments are non-map? The answer to that is that we know this in the TyTraCL step. 
+There are some more complications: TyTraCL passes stencil vector tuples, which I would need to unpack; and the LLVM pass has the scalarised variables, which I need to relate to the original ones.
 
 Related, if an arg is inout, we need to split this into in and out.
 

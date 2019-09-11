@@ -47,7 +47,7 @@ our @EXPORT_OK = qw(
 	&_fix_scalar_ptr_args
 	&_fix_scalar_ptr_args_subcall
 	&_make_dim_vars_scalar_consts_in_sigs
-	&_remove_redundant_arguments
+	&remove_redundant_arguments_and_fix_intents
 );
 
 # ================================================================================================================================================
@@ -698,7 +698,7 @@ In other words,
 # There are two changes we want to make. 
 # 1. We want to remove redundant arguments
 # 2. Some of the called subroutines have arguments that are InOut but should really be Out (or maybe even In?)
-sub _remove_redundant_arguments { (my $stref, my $f)=@_;
+sub remove_redundant_arguments_and_fix_intents { (my $stref, my $f)=@_;
 
 	if ($f eq $Config{'KERNEL'}) { 
 		my @in_args = grep { 
@@ -760,11 +760,11 @@ sub _remove_redundant_arguments { (my $stref, my $f)=@_;
 	# 	- remove all declarations for these args :  $annlines
 
 
-		say Dumper $in_args_to_remove;
+		say 'In args to remove: ',Dumper $in_args_to_remove if $DBG;
 		$stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}  = remove_vars_from_ordered_set($stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}, $in_args_to_remove->{'List'});
 
 
-say "SUB: $f";
+		say "\nSUB: $f" if $DBG;
 # Because this lambda is defined in the scope of the current sub, $stref and $in_args_to_remove are in scope
 # All of these are used read-only 
 		my $pass_remove_redundant_args_in_superkernel = sub { (my $annline)=@_;
@@ -795,7 +795,7 @@ say "SUB: $f";
 			return ([$annline]);
 		};
 		
- 		$stref = stateless_pass($stref,$f,$pass_remove_redundant_args_in_superkernel, $in_args_to_remove,'pass_remove_redundant_args_in_superkernel' . __LINE__  ) ;
+ 		$stref = stateless_pass($stref,$f,$pass_remove_redundant_args_in_superkernel,'pass_remove_redundant_args_in_superkernel' . __LINE__  ) ;
 
 # say "Removed redundant args from superkernel";
 
@@ -836,7 +836,7 @@ say "SUB: $f";
 				return ([$annline]);
 			};
 				
-			$stref = stateless_pass($stref,$csub,$pass_remove_redundant_args_in_called_subs, $in_args_to_remove,'pass_remove_redundant_args_in_called_subs' . __LINE__  ) ;				
+			$stref = stateless_pass($stref,$csub,$pass_remove_redundant_args_in_called_subs,'pass_remove_redundant_args_in_called_subs' . __LINE__  ) ;				
 		}
 
 		# So at this point we have removed all redundant args.
@@ -858,32 +858,67 @@ say "SUB: $f";
 		my $iodir_for_arg_in_called_sub={};
 		# First determine the context-free IODir for all arguments in every called subroutine
 		for my $csub (@call_sequence) {
-			for my $arg ( $stref->{'Subroutines'}{ $csub }{'DeclaredOrigArgs'}{'List'}) {
+			for my $arg ( @{$stref->{'Subroutines'}{ $csub }{'DeclaredOrigArgs'}{'List'}}) {
 				$iodir_for_arg_in_called_sub->{$csub}{$arg} = __determine_called_sub_arg_iodir_no_context($arg, $stref, $csub);
 			}
 		}
 		# Now that we have the context-free IODir for all args  in every called sub we can refine
-		my $top_iodir={};
+		my $top_iodir={};		
+		my $changed_iodirs={};
 		for my $arg ( @{$stref->{'Subroutines'}{ $f }{'DeclaredOrigArgs'}{'List'}} ) {
 			$top_iodir->{$arg} = $stref->{'Subroutines'}{ $f }{'DeclaredOrigArgs'}{'Set'}{$arg}{'IODir'};
 			# First determine the context-free IODir for all arguments in every called subroutine
 			my $ix=0;
 			for my $csub (@call_sequence) {
+				$changed_iodirs->{$csub}={} unless exists $changed_iodirs->{$csub};
 				if (exists $stref->{'Subroutines'}{ $csub }{'DeclaredOrigArgs'}{'Set'}{$arg}) {
-					($iodir_for_arg_in_called_sub->{$csub}{$arg}, $top_iodir->{$arg}) = __determine_called_sub_arg_iodir_w_context($arg, $stref, $csub, $top_iodir, \@call_sequence, $idx);
+					($iodir_for_arg_in_called_sub->{$csub}{$arg}, $top_iodir->{$arg}) = __determine_called_sub_arg_iodir_w_context($arg, $stref, $csub, $top_iodir, $iodir_for_arg_in_called_sub,\@call_sequence, $idx);
+					if (
+						$stref->{'Subroutines'}{ $csub }{'DeclaredOrigArgs'}{'Set'}{$arg}{'IODir'} ne $iodir_for_arg_in_called_sub->{$csub}{$arg}
+					) {
+						say "$csub: CHANGED INTENT for $arg: ",$stref->{'Subroutines'}{ $csub }{'DeclaredOrigArgs'}{'Set'}{$arg}{'IODir'},' to ', $iodir_for_arg_in_called_sub->{$csub}{$arg} if $DBG;
+						$changed_iodirs->{$csub}{$arg} = $iodir_for_arg_in_called_sub->{$csub}{$arg};
+						$stref->{'Subroutines'}{ $csub }{'DeclaredOrigArgs'}{'Set'}{$arg}{'IODir'} = $iodir_for_arg_in_called_sub->{$csub}{$arg};
+					}
 				}
 				++$idx;
+			}			
+			if (
+				$stref->{'Subroutines'}{ $f }{'DeclaredOrigArgs'}{'Set'}{$arg}{'IODir'} ne $top_iodir->{$arg}	
+			){
+				$changed_iodirs->{$f}{$arg} = $top_iodir->{$arg};
+				say "TOP $f: CHANGED INTENT for $arg: ", $stref->{'Subroutines'}{ $f }{'DeclaredOrigArgs'}{'Set'}{$arg}{'IODir'},' to ', $top_iodir->{$arg} if $DBG;
+				$stref->{'Subroutines'}{ $f }{'DeclaredOrigArgs'}{'Set'}{$arg}{'IODir'} = $top_iodir->{$arg};
 			}
 		}
 
-		# Now we should fix all these IODirs in $stref->{'Subroutines'}{ $csub }{'DeclaredOrigArgs'}{'Set'}{$arg}) {
-		# So we do the toplevel first, then the call sequence
+		# We don't really need to re-emit the annlines but I guess I'd better?
 
-		croak;
+		for my $csub ($f,@call_sequence) {
+			say "SUB: $csub" if $DBG;
+			say 'Changed IODirs: ',Dumper $changed_iodirs->{$csub} if $DBG;
+			# This is a bit inefficient because we redefine the lambda for every $csub, but this way it will capture $csub
+			my $pass_update_iodirs_in_called_subs = sub { (my $annline)=@_;
+				(my $line,my $info)=@{$annline};
+				if (exists $info->{'VarDecl'} ) {
+					my $var = $info->{'VarDecl'}{'Name'};
+					if (exists $changed_iodirs->{$csub}{$var}) {
+						my $decl=$stref->{'Subroutines'}{$csub}{'DeclaredOrigArgs'}{'Set'}{$var};
+						my $rline = emit_f95_var_decl($decl);
+						say "$csub: $rline"  if $DBG;
+						$annline = [$rline, $info];
+					}
+				}
+				return ([$annline]);
+			};
+				
+			$stref = stateless_pass($stref,$csub,$pass_update_iodirs_in_called_subs,'pass_update_iodirs_in_called_subs' . __LINE__  ) ;				
+		}
+
 	} # if $f is the superkernel
 	
 	return $stref;
-} # END of _remove_redundant_arguments
+} # END of remove_redundant_arguments_and_fix_intents
 
 sub __check_written_before_read { my ($in_arg, $stref, $f)=@_;
 
@@ -940,38 +975,33 @@ my $pass_check_reads_writes = sub { (my $annline, my $reads_writes)=@_;
 		if (exists $info->{'Assignment'} ) { 			
 				 if (exists $info->{'Rhs'}{'VarList'}{'Set'}{$arg
 				}) {
-					 # $arg
-					 is Read 
+					 # $arg is Read 
 					 push @{$reads_writes},'r';
 				 }
 				if ($info->{'Lhs'}{'VarName'} eq $arg
 			) {
-					 # $arg
-					 is Written 
+					 # $arg is Written 
 					 push @{$reads_writes},'w';
 				 }
 		}	
 		elsif (exists $info->{'If'} ) { 			
 				 if (exists $info->{'CondVars'}{'Set'}{$arg
 				}) {
-					 # $arg
-					 is Read  
+					 # $arg is Read  
 					 push @{$reads_writes},'r';
 				 }
 		}			
 		elsif (exists $info->{'CaseVar'} ) { 			
 				 if ($info->{'CaseVar'} eq $arg
 				) {					 
-					 # $arg
-					 is Read  
+					 # $arg is Read  
 					 push @{$reads_writes},'r';
 				 }
 		}			
 		elsif (exists $info->{'Do'} ) { 			
 				 if (exists $info->{'Do'}{'Range'}{'Vars'}{$arg
 				}) {					 
-					 # $arg
-					 is Read  
+					 # $arg is Read  
 					 push @{$reads_writes},'r';
 				 }
 		}			
@@ -990,16 +1020,18 @@ my $pass_check_reads_writes = sub { (my $annline, my $reads_writes)=@_;
 # This is the context-free IODir. We store this in	$iodir_for_arg_in_called_sub
 # Then we can look at the context (top_iodir and iodirs of other called subs) to refine.
 sub __determine_called_sub_arg_iodir_no_context { my ($arg, $stref, $csub)=@_;
-
+	my $iodir='UNKNOWN';
 	if (__check_written_before_read($arg, $stref, $csub)) {
-		return 'out';
-	}
-	elsif (__check_read_before_written($arg, $stref, $csub)) {
-		return 'inout';
+		$iodir = 'out';
 	}
 	elsif ( __check_read_only($arg, $stref, $csub)) {		
-		return 'in';
+		$iodir = 'in';
 	}
+	elsif (__check_read_before_written($arg, $stref, $csub)) {
+		$iodir = 'inout';
+	}	
+	# say "$csub: IODir for $arg: $iodir";
+	return $iodir;
 
 } # END of __determine_called_sub_arg_iodir_no_context
 
@@ -1052,7 +1084,7 @@ sub __determine_called_sub_arg_iodir_w_context { my ($arg, $stref, $csub, $iodir
 				}
 			}
 			if (not $arg_was_written_earlier) {
-				warn "Toplevel INTENT for $arg changed from OUT to INOUT because of use as IN in $csub!";
+				# warn "Toplevel INTENT for $arg changed from OUT to INOUT because of use as IN in $csub!";
 				$top_iodir = 'inout';
 			}
 		}
@@ -1080,11 +1112,11 @@ sub __determine_called_sub_arg_iodir_w_context { my ($arg, $stref, $csub, $iodir
 			}								
 		}
 		if (not $used_as_in) {
-			warn "Toplevel INTENT for $arg changed from INOUT to OUT because never used as IN!";
+			# warn "Toplevel INTENT for $arg changed from INOUT to OUT because never used as IN!";
 			$top_iodir = 'out';
 		}
 		elsif (not $used_as_out) {
-			warn "Toplevel INTENT for $arg changed from INOUT to IN because never used as OUT!";
+			# warn "Toplevel INTENT for $arg changed from INOUT to IN because never used as OUT!";
 			$top_iodir = 'in';
 		}
 	}

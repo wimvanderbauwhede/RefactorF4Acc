@@ -30,6 +30,7 @@ use Exporter;
     &sub_func_incl_mod
     &show_annlines
     &pp_annlines
+    &write_out
     &get_maybe_args_globs
     &type_via_implicits
     &union
@@ -138,7 +139,24 @@ sub sub_func_incl_mod {
         return 'ExternalSubroutines';
     }
 }
-
+# -----------------------------------------------------------------------------
+sub write_out { my ($src_str, $out_path)=@_;
+    my $out_path_=$out_path;
+    if (not defined $out_path ) {
+        if ( not exists $Config{'CUSTOM_PASS_OUTPUT_PATH'}) {
+            die "Either provide the output path as 2nd arg, or via CUSTOM_PASS_OUTPUT_PATH";
+        } else {
+            $out_path_= $Config{'CUSTOM_PASS_OUTPUT_PATH'};
+        }
+    }
+    if ($out_path_ eq 'STDOUT') {
+        say $src_str;
+    } else {
+        open my $OUT, '>', $out_path_ or die $!;
+        print $OUT $src_str;
+        close $OUT; 
+    }
+}
 # -----------------------------------------------------------------------------
 sub show_annlines {
     (my $annlines, my $with_info)=@_;

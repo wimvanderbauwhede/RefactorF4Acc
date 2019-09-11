@@ -16,8 +16,7 @@ use RefactorF4Acc::Refactoring::Fixes qw(
 	_removed_unused_variables
 	_fix_scalar_ptr_args
 	_fix_scalar_ptr_args_subcall
-	_make_dim_vars_scalar_consts_in_sigs
-	_remove_redundant_arguments
+	_make_dim_vars_scalar_consts_in_sigs	
 );
 # I'm not sure that this is the best place for this routine as it is only used in this pass    
 use RefactorF4Acc::Refactoring::Subroutines::Emitters qw( 
@@ -79,7 +78,7 @@ sub pass_rename_array_accesses_to_scalars {(my $stref, my $code_unit_name)=@_;
 				],			
 				[
 					\&determine_argument_io_direction_rec,
-                    \&_update_arg_var_decls,
+                    \&update_arg_var_decl_sourcelines,
 				],
 				[
 					\&_update_call_args,
@@ -90,6 +89,8 @@ sub pass_rename_array_accesses_to_scalars {(my $stref, my $code_unit_name)=@_;
 				],
 			]
 		);		
+	# This enables the postprocessing for custom passes
+	$stref->{'CustomPassPostProcessing'}=1;
 		
 		#  die Dumper pp_annlines($stref->{Subroutines}{shapiro_map_23}{RefactoredCode});
 	return $stref;

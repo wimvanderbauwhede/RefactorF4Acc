@@ -97,7 +97,7 @@ sub identify_array_accesses_in_exprs { (my $stref, my $f) = @_;
 	}
     #	die $f.' : '.Dumper($stref->{'Subroutines'}{$f}{Source});
 #    if ($stref->{'Subroutines'}{$f}{'Source'}=~/(?:dyn.f95|module_\w+_superkernel.f95)/ && $f!~/superkernel/)   
-    if ($f!~/superkernel/) {  # TODO 
+    if ($f ne $Config{'KERNEL'}) {  
 #croak 'DYN';
         # For TyTraCL 
         push @{ $stref->{'TyTraCL_AST'}{'Lines'} }, {'NodeType' => 'Comment', 'CommentStr' => $f };        
@@ -126,9 +126,10 @@ sub identify_array_accesses_in_exprs { (my $stref, my $f) = @_;
                 
                 for my $arg ( @{ $info->{'Signature'}{'Args'}{'List'} } ) {
                 	my $arg_decl = get_var_record_from_set($stref->{'Subroutines'}{$f}{'Args'},$arg);		
-					my $intent =$arg_decl->{'IODir'};
+					my $intent =$arg_decl->{'IODir'}; # can be Unknown
+					
 					my $is_scalar = $arg_decl->{'ArrayOrScalar'} eq 'Array' ? 0 : 1;
-					if ($is_scalar and $intent eq 'out' or $intent eq 'inout') {
+					if ($is_scalar and $intent eq 'out' or $intent eq 'inout' or $intent eq 'Unknown') {
 						push @{ $state->{'Subroutines'}{$f}{'Args'}{'MaybeAcc'} }, $arg;
 					}
 					if ($intent ne 'out') {

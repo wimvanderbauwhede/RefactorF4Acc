@@ -140,14 +140,19 @@ This routine analyses the code for goto-based loops and breaks, so that we can r
 =cut
 
 sub main {
-	(my $unit_test_list)=@_;
+    # $args is a hash with the same structure as %opts for getopts
+    # $stref_init is the initial state, usually carried over from a previous pass
+    # $stref_merger is a subroutine reference containing the logic to merge $stref and $stref_init
+	(my $args, my $stref_init, my $stref_merger)=@_;
     # $code_unit_name is either provided on command line or $Config{'TOP'} or, if it's a module, $Config{'MODULE'} 
     # If $code_unit_name is blank then we the files in the $SOURCEFILES list are processed one by one
     # Otherwise a non-blank $SOURCEFILES list will be considered the list of the source files to be inventoried, so includes in them will also be added to the inventory. 	
-	(my $code_unit_name, my $subs_to_translate, my $gen_scons, my $build, my $call_tree_only, my $pass) = parse_args();	
+	(my $code_unit_name, my $subs_to_translate, my $gen_scons, my $build, my $call_tree_only, my $pass) = parse_args($args);	
 	#  Initialise the global state. $code_unit_name could be empty
 	my $stref = init_state($code_unit_name);
-	
+	if (defined $stref_init and defined $stref_merger) {        
+            $stref=$stref_merger->($stref, $stref_init);
+    }
 	# This is not used at the moment
     $stref->{'SubsToTranslate'}=$subs_to_translate;
     
@@ -285,19 +290,24 @@ sub main {
 	if ($build) {
 		build_executable();
 	}
-    
-	exit(0);
+    if (defined $args) {
+        return $stref;
+    } else {
+	    exit(0);
+    }
 
 }    # END of main()
 # -----------------------------------------------------------------------------
-sub parse_args {
- 	# Argument parsing. Factor out!
-#	if ( not @ARGV ) {
-#		die "Please specifiy FORTRAN subroutine or program to refactor\n";
-#	}
+# To facilitate integration of passes, I want to support passing in of a hash with structure {$flag => $flag_value | 1}
+# So for example my $args={'P' => '', 'c' => 'rf4a.cfg', 'v'=>1}
+sub parse_args { (my $args)=@_;
+    
 	my %opts = ();
-	getopts( 'VvwidhACTNgbBGc:P:s:', \%opts );
-	
+    if (defined $args) {
+        %opts = %{$args};
+    } else {
+	    getopts( 'VvwidhACTNgbBGc:P:s:o:', \%opts );
+    }
 	if ($opts{'V'}) {
 		die "Version: $VERSION\n";
 	}
@@ -341,6 +351,15 @@ sub parse_args {
     }   
     
     my $pass =  $opts{'P'} // '';
+    # WV: need to document this in Config.
+    # I introduce this for passes that currently use a redirect.
+    my $custom_pass_output_path = $opts{'o'} // '';
+    if ($custom_pass_output_path) {
+        $Config{'CUSTOM_PASS_OUTPUT_PATH'}=$custom_pass_output_path;
+    }
+    # if ($pass and not $output_path) {
+    #     warn "No output path for custom pass $pass, if needed specify with -o "
+    # }
     
     # If -s or $Config{'SOURCEFILES'} is not empty, we can proceed without TOP
     my $sourcefiles_str = $opts{'s'} // '';
@@ -397,6 +416,9 @@ sub parse_args {
     if ($build) { 
         $gen_scons = 1;
     }
+
+
+
 	return (lc($code_unit_name),\%subs_to_translate,$gen_scons,$build,$call_tree_only, $pass);
 } # END of parse_args()
 

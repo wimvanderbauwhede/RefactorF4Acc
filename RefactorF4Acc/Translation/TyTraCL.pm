@@ -3,7 +3,7 @@ use v5.10;
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
 use RefactorF4Acc::Refactoring::Common qw( pass_wrapper_subs_in_module );
-use RefactorF4Acc::Refactoring::Fixes qw( _remove_redundant_arguments );
+use RefactorF4Acc::Refactoring::Fixes qw( remove_redundant_arguments_and_fix_intents );
 use RefactorF4Acc::Translation::TyTra::Common qw(
 pp_links  
 __isMainInArg 
@@ -57,7 +57,6 @@ use Exporter;
 
 our $FOLD=1;
 
-
 sub pass_emit_TyTraCL {(my $stref, my $module_name)=@_;
     # WV: I think Selects and Inserts should be in Lines but I'm not sure
     $stref->{'EmitAST'} = 'TyTraCL_AST';
@@ -74,7 +73,7 @@ sub pass_emit_TyTraCL {(my $stref, my $module_name)=@_;
             # subroutine-specific passes 	
 			[
 #				[ sub { (my $stref, my $f)=@_;  alias_ordered_set($stref,$f,'DeclaredOrigArgs','DeclaredOrigArgs'); } ],
-                [\&_remove_redundant_arguments],
+                [\&remove_redundant_arguments_and_fix_intents],
 		  		[
 			  		\&identify_array_accesses_in_exprs,
 				],

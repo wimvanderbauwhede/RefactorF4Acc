@@ -63,7 +63,7 @@ sub translate_module_to_C {  (my $stref, my $module_name, my $ocl) = @_;
        ],
        # subroutine-specific passes 	
 	   [
-		  [\&determine_argument_io_direction_rec,\&_update_arg_var_decls,\&_declare_undeclared_variables],#,\&_removed_unused_variables],
+		  [\&determine_argument_io_direction_rec,\&update_arg_var_decl_sourcelines,\&_declare_undeclared_variables],#,\&_removed_unused_variables],
 		  [\&add_OpenCL_address_space_qualifiers],
 		  [\&translate_sub_to_C]
        ],
@@ -74,7 +74,9 @@ sub translate_module_to_C {  (my $stref, my $module_name, my $ocl) = @_;
 	if ($generate_TyTraLlvmIR and $module_name !~/superkernel/) {
 		$stref = generate_llvm_ir_for_TyTra($stref, $module_name);
 	}
-    # This makes sure that no fortran is emitted by emit_all()
+	# This enables the postprocessing for custom passes
+	$stref->{'CustomPassPostProcessing'}=1;
+    # This makes sure that no fortran is emitted by emit_all()	
     $stref->{'SourceContains'}={};
 }
 sub add_OpenCL_address_space_qualifiers { (my $stref, my $f, my $ocl) = @_;

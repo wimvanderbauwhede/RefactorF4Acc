@@ -59,9 +59,12 @@ sub pass_emit_TyTraIR {(my $stref, my $module_name)=@_;
 				],
 			]
 		);        
-        my $tytracl_str = _emit_TyTraIR($stref);
-        say $tytracl_str;
-        exit ;
+        my $tytra_ir_str = _emit_TyTraIR($stref);
+        write_out( $tytra_ir_str );
+		
+    # This makes sure that no fortran is emitted by emit_all()	
+    $stref->{'SourceContains'}={};
+
 
 	return $stref;
 } # END of pass_emit_TyTraIR()
