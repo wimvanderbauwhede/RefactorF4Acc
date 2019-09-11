@@ -322,13 +322,18 @@ sub parse_args { (my $args)=@_;
     }
     if ($opts{'c'}) {
          $cfgrc= $opts{'c'} ;
-    } 
-    if (not -e $cfgrc) {
-        say "There is not configuration file, let's create one.\n";
-        interactive_create_rf4a_cfg();
+    }
+    # I think I could overload  $cfgrc to be a hash, so that I would simply say
+    if (ref($cfgrc) eq 'HASH') {        
+        %Config = %{$cfgrc};
     } else {
-	    read_rf4a_config($cfgrc);
-	}
+        if (not -e $cfgrc) {
+            say "There is not configuration file, let's create one.\n";
+            interactive_create_rf4a_cfg();
+        } else {
+            read_rf4a_config($cfgrc);
+        }
+    }
 	my $has_code_unit_name=0;
 	my $code_unit_name = $ARGV[0]; 
     # die  "ARG: $code_unit_name";
