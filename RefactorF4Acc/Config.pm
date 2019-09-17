@@ -118,7 +118,7 @@ sub read_rf4a_config {
 	if ($v=~/,/) {
 		my @vs=split(/\s*,\s*/,$v);
 		$Config{$k}=[@vs];
-	} elsif ($k !~/TOP\w*|NEWSRCPATH|PREFIX|KERNEL|^MODULE|MODULE_\w*|MACRO_SRC/) { # FIXME: Check this
+	} elsif ($k !~/TOP\w*|NEWSRCPATH|CUSTOM_*|PREFIX|KERNEL|^MODULE|MODULE_\w*|MACRO_SRC/) { # FIXME: Check this
 		# These are keys that take a list but it has only one element
 		$Config{$k}=[$v];
 	} elsif ($k eq 'TOP') {

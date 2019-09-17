@@ -58,8 +58,10 @@ use Exporter;
 sub pass_rename_array_accesses_to_scalars {(my $stref, my $code_unit_name)=@_;
 # croak $code_unit_name;
 	$stref = pass_wrapper_subs_in_module($stref,
-	'',[],
-	# $code_unit_name,
+	'',
+	# module-specific passes
+	[],
+	# subroutine-specific passes
 			[
 				[ sub { (my $stref, my $f)=@_; 
 				
@@ -92,7 +94,6 @@ sub pass_rename_array_accesses_to_scalars {(my $stref, my $code_unit_name)=@_;
 	# This enables the postprocessing for custom passes
 	$stref->{'CustomPassPostProcessing'}=1;
 		
-		#  die Dumper pp_annlines($stref->{Subroutines}{shapiro_map_23}{RefactoredCode});
 	return $stref;
 }
 
@@ -172,18 +173,34 @@ Assumptions:
 
 =cut
 # ================================================================================================================================================	
-# This composite pass renames array accesses in the called subroutines in a superkernel to scalar accesses
+=pod  Scalarising array accesses
+This composite pass renames array accesses in the called subroutines in a superkernel to scalar accesses
+
+It consists of following sub-passes:
+	1. Scalarise array accesses in assignments and conditional expressions of IFs
+		$pass_rename_array_accesses_in_exprs 
+	2. Create new assignment lines, these go into LiftedScalarAssignments 
+	3. Update the subroutine Signature and VarDecl declarations in $info	
+		$pass_update_sig_and_decls
+	4. Update DeclaredOrigArgs and DeclaredOrigArgs	
+	5. Add the missing declarations: in the superkernel we assign the variables to the original array accesses
+		$pass_lift_array_index_calculations 
+	6. Emit the updated code for the subroutine signature, the variable declarations, assignment expressions and ifthen expressions	
+		$pass_emit_updated_code 
+=cut
+
 sub _rename_array_accesses_to_scalars { (my $stref, my $f) = @_;
 
 	if ($f ne $Config{'KERNEL'} ) {
 
-	# This pass performs renaming in assignments and conditional expressions of IFs
+	# 1. This pass performs renaming in assignments and conditional expressions of IFs
 	# TODO: It does _not_ rename
 	# 	* subroutine call arguments (because there should not be any)
-	# 	* SELECT CASE arguments
-	# 	* DO index range expressions  
+	# 	* SELECT CASE arguments (I'm lazy, FIXME!)
+	# 	* DO index range expressions (I'm lazy, FIXME!) 
 	my $pass_rename_array_accesses_in_exprs = sub { (my $annline, my $state)=@_;
 		(my $line,my $info)=@{$annline};
+
 		if (exists $info->{'Assignment'} ) {
 			if (scalar @{ $info->{'Rhs'}{'VarList'}{'List'} } == 1 and $info->{'Rhs'}{'VarList'}{'List'}[0]=~/_ptr/) {
 				croak 'FIXME: What we want is that only array variables with IndexVars are renamed. So constant indices should stay as they are';
@@ -219,7 +236,7 @@ sub _rename_array_accesses_to_scalars { (my $stref, my $f) = @_;
 				}
 			}				
 		} 
-		if (exists $info->{'If'} ) {					
+		if (exists $info->{'If'} ) {
 			# carp Dumper $info;
 			my $cond_expr_ast = $info->{'CondExecExprAST'};
 			# Rename all array accesses in the AST. This updates $state->{'StreamVars'}			
@@ -250,7 +267,7 @@ sub _rename_array_accesses_to_scalars { (my $stref, my $f) = @_;
  	($stref,$state) = stateful_pass($stref,$f,$pass_rename_array_accesses_in_exprs, $state,'pass_rename_array_accesses_in_exprs ' . __LINE__  ) ;
  	
 # -------------------------------------------------------------------------------------------------------- 	
- 	# Now we create new assignment lines, these go into LiftedScalarAssignments 
+ 	# 2. Now we create new assignment lines, these go into LiftedScalarAssignments 
  	# v_i_j = v(i,j)
 	# The reverse go into LiftedArrayAssignments 
  	# v(i,j) = v_i_j
@@ -258,7 +275,13 @@ sub _rename_array_accesses_to_scalars { (my $stref, my $f) = @_;
  	$stref->{'Subroutines'}{$f}{'LiftedScalarAssignments'}=[];
  	$stref->{'Subroutines'}{$f}{'LiftedArrayAssignments'}=[];
  	# StreamVars has the original array var as key, a list of entries for the renamed scalars as value
- 	# Each of these entries has a field ArrayIndexExpr
+ 	# Each of these entries has a field ArrayIndexExpr	
+	# FIXME the sort below means that the tuple is in lexical order of the var names, which makes no sense. 
+	# The only sensible ordering is linear numerically ascending
+	# So I need the info to obtain that ordering
+	# So I need to put it in StreamVars. 
+	# I think that I need to run the analysis from ArrayAccessPatterns and link this to StreamVars.
+	# That should not be too hard I suppose.
 	for my $var (sort keys %{ $state->{'StreamVars'} } ){
 		$state->{'StreamVars'}{$var}{'List'}=[];
 		for my $stream_var (sort keys %{ $state->{'StreamVars'}{$var}{'Set'} } ){
@@ -316,7 +339,8 @@ sub _rename_array_accesses_to_scalars { (my $stref, my $f) = @_;
 	$stref->{'Subroutines'}{$f}{'StreamVars'}=$state->{'StreamVars'};
 
 # --------------------------------------------------------------------------------------------------------
-	# So now we have identified all stream vars. In the next pass, update the subroutine Signature and VarDecl declarations in $info
+	# So now we have identified all stream vars ( $state->{'StreamVars'}{$arg}{'List'} ) 
+	# 3. In the next pass, update the subroutine Signature and VarDecl declarations in $info
 	# We update DeclaredOrigArgs record of $f in a separate pass below
 	my $pass_update_sig_and_decls = sub { (my $annline, my $state)=@_;
 		(my $line,my $info)=@{$annline};
@@ -356,7 +380,7 @@ sub _rename_array_accesses_to_scalars { (my $stref, my $f) = @_;
  	($stref,$state) = stateful_pass($stref,$f,$pass_update_sig_and_decls, $state,'pass_update_sig_and_decls' . __LINE__  ) ;
  	
 # --------------------------------------------------------------------------------------------------------	
-	# Here we update DeclaredOrigArgs and DeclaredOrigArgs
+	# 4. Here we update DeclaredOrigArgs
  	# At this point the argument list already has the stream vars as args
  	
  	my @updated_args_list=();		
@@ -385,12 +409,12 @@ sub _rename_array_accesses_to_scalars { (my $stref, my $f) = @_;
 # --------------------------------------------------------------------------------------------------------	 	
  	# So at this point we should do the lifting of everything to do with indexing
  	
-# Finally, after having updated the calls we can add the missing declarations
+# 5. Finally, after having updated the calls we can add the missing declarations
 # In the superkernel we will assign the variables to the original array accesses
 # However, the array indices are computed from the global id on a per-sub basis so i,j,k are different for each sub.
 # So  we need to extract the calculations of i,j,k out of the sub
 
-	my  $pass_lift_array_index_calculations = sub {(my $annline, my $state)=@_;
+	my  $pass_lift_array_index_calculations = sub { (my $annline, my $state)=@_;
 		(my $line,my $info)=@{$annline};
 	# Every Assignment line that has one of these on the LHS gets removed from AnnLines and stored in LiftedIndexCalcLines, and we take list of all vars on the RHS {'Rhs'}{'VarList'}{'List'} and add these to $index_vars
 	# We do this until we have all of them. Basically, if we start from the back and push in reverse, we can do this in a single pass
@@ -458,7 +482,7 @@ sub _rename_array_accesses_to_scalars { (my $stref, my $f) = @_;
 	$stref->{'Subroutines'}{$f}{'LiftedIndexVarDecls'}=dclone($state->{'LiftedIndexVarDecls'});
 	
 # --------------------------------------------------------------------------------------------------------		
-	# Now we emit the updated code for the subroutine signature, the variable declarations, assignment expressions and ifthen expressions
+	# 6. Now we emit the updated code for the subroutine signature, the variable declarations, assignment expressions and ifthen expressions
 	
 	my $pass_emit_updated_code = sub { (my $annline, my $state)=@_;		
 		(my $line,my $info)=@{$annline};
@@ -745,6 +769,14 @@ sub _add_assignments_for_called_subs { (my $stref, my $f) = @_;
 #						['$','k']
 #					],
 
+# $state->{'StreamVars'}{$mvar}{'Set'} = {
+# 	$var_str => {
+# 		'IODir'=>$intent,
+# 		'ArrayIndexExpr'=>$expr_str
+# 		},
+# 	};
+# It would be best, I guess, if we simply had Accesses and Dims in here
+# This should be called "_scalarise_array_accesses_in_ast"
 sub _rename_ast_entry { (my $stref, my $f,  my $state, my $ast, my $intent)=@_;
 	if (ref($ast) eq 'ARRAY') {
 		for my  $idx (0 .. scalar @{$ast}-1) {		
@@ -760,6 +792,7 @@ sub _rename_ast_entry { (my $stref, my $f,  my $state, my $ast, my $intent)=@_;
 						say 'Found array access '.$mvar  if $DBG;			
 						my $expr_str = emit_expr_from_ast($ast);
 						my $var_str=$expr_str;
+						# TODO: I should use tr// here
 						$var_str=~s/[\(,]/_/g; 
 						$var_str=~s/\)//g; 
 						$var_str=~s/\+/p/g;

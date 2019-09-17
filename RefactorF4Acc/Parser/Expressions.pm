@@ -105,129 +105,7 @@ my %F95_ops =(
 );
 # Returns the AST
 sub parse_expression { my ($exp, $info, $stref, $f)=@_;
-	if (!$NEW_PARSER) {
-	my $preproc_expr = $exp;
-#	say "EXPR: $preproc_expr" if $preproc_expr=~/write.+path.numpath/; 
-	 # To make this robust, what I'll do is replace any '(' with '_OPEN_PAR_(' so that is looks like a function.
-	 $preproc_expr=~s/^\(/_OPEN_PAR_\(/;
-	while($preproc_expr=~/[\+\-\*\/,:\(]\s*\(/) { # basically, it can be: ,+-*/ 
-			$preproc_expr=~s/([\+\-\*\/,:\(])\s*\(/${1}_OPEN_PAR_\(/;
-	}	 
-	$preproc_expr =~s/\s+//g;
 	
-	# EVIL HACK to 'support' Alternate Returns
-	 $preproc_expr =~s/,\s*\*/,_LABEL_ARG_\*/g;
-	 $preproc_expr =~s/\(\s*\*/\(_LABEL_ARG_\*/;
-
-	# EVIL HACK because the Fortran::Expression::Evaluator::Parser does not support things like a ** b ** c
-	while ($preproc_expr =~/\*\*\s*(\w+)\s*\*\*\s*(\w+)/) {
-		$preproc_expr =~s/\*\*\s*(\w+)\s*\*\*\s*(\w+)/**($1 * $2)/;
-	}
-	
-#	while ($preproc_expr =~/\*\*/) {
-#		$preproc_expr =~s/\*\*/\^/;
-#	}
-	
-	# EVIL HACK because the Fortran::Expression::Evaluator::Parser does not support <=, ==, =>, /=
-	# I replace this with a sum where the operator is a fake argument variable
-	$preproc_expr =~s/\<\=/.le./g;
-	$preproc_expr =~s/\>\=/.ge./g;
-	$preproc_expr =~s/\=\=/.eq./g;
-	$preproc_expr =~s/\/\=/.ne./g;
-	$preproc_expr =~s/\>/.gt./g;
-	$preproc_expr =~s/\</.lt./g;
-	while ($preproc_expr=~/\.[a-z]+\./) {
-		$preproc_expr =~s/\.not\./__not__\+/g; # b .and. .not. a => b +_AND_+_NOT_+a		
-		$preproc_expr =~s/\.false\./__false__/g;
-		$preproc_expr =~s/\.true\./__true__/g;
-		$preproc_expr =~s/\.([a-z]+)\./\+__${1}__\+/g;
-		
-	}
-	$preproc_expr =~s/\+\-/-/g;
-	$preproc_expr =~s/\+\+/+/g;
-
-	# HACK to support ':'
-	# Remove ':' because this only occurs for characters strings
-	my $wrap=0;
-	my $has_colons=0;
-	if ($preproc_expr =~ /:/) {
-#		say "EXPR $exp";
-		$has_colons=1;
-		$preproc_expr =~ s/:\s*\*/,_COLON_PRE_,_STAR_/g;
-		$preproc_expr =~ s/:/,_COLON_PRE_,/g;
-		$preproc_expr =~ s/\(,_COLON_PRE_/\(_COLON_PRE_/g;
-		$preproc_expr =~ s/_COLON_PRE_,\)/_COLON_PRE_\)/g;
-		$preproc_expr =~ s/,,_COLON_PRE_/,_COLON_PRE_/g;
-		$preproc_expr =~ s/_COLON_PRE_,,/_COLON_PRE_,/g;
-	}
-	# HACK to support '//'
-	# replace <//> by <,_CONCAT_PRE_,>
-	# replace <(,_CONCAT_PRE_> by <(_CONCAT_PRE_>
-	# replace <_CONCAT_PRE_,)> by <_CONCAT_PRE_)>
-	my $has_concat=0;
-	if ($preproc_expr =~ /\/\//) {
-		$preproc_expr =~ s/\/\//,_CONCAT_PRE_,/g;
-		$preproc_expr =~ s/\(,_CONCAT_PRE_/\(_CONCAT_PRE_/g;
-		$preproc_expr =~ s/_CONCAT_PRE_,\)/_CONCAT_PRE_\)/g;
-		$wrap=1;
-	}	  
-	
-	my $double_paren=0;
-	# EVIL HACK to get rid of f(x)(y)
-	# Suppose we replace this by f( x,_PAREN_PAIR_,y)
-	# Then we replace the AST by
-	# ['&',f,[')(',['$','x'],['$','y']]]
-	# i.e. we treat ')(' as an operator
-	# We emit 
-	# f( x)(y )
-	# <) (> => ,_PAREN_PAIR_,
-	# <(,_PAREN_PAIR_> => <(_PAREN_PAIR_>
-	# <_PAREN_PAIR_,)> => <_PAREN_PAIR_)>
-	# <,,_PAREN_PAIR_> => <,_PAREN_PAIR_>
-	# <_PAREN_PAIR_,,> => <_PAREN_PAIR_,>
-	if ($preproc_expr =~ /\)\s*\(/) {
-		$double_paren=1;
-		$preproc_expr =~ s/\)\s*\(/,_PAREN_PAIR_,/g;
-		$preproc_expr =~ s/\(,_PAREN_PAIR_/\(_PAREN_PAIR_/g;
-		$preproc_expr =~ s/_PAREN_PAIR_,\)/_PAREN_PAIR_\)/g;
-		$preproc_expr =~ s/,,_PAREN_PAIR_/,_PAREN_PAIR_/g;
-		$preproc_expr =~ s/_PAREN_PAIR_,,/_PAREN_PAIR_,/g;		
-	}	  	
-	# We want to wrap if this is a list. But how can I tell without parsing it?
-	my $wrapped_expr = $preproc_expr;
-	if ($wrap) {
-		$wrapped_expr = '_dummy_('.$preproc_expr.')';
-	}
-# say "PREPROC EXPR: $wrapped_expr";
-    my $ast = Fortran::Expression::Evaluator::Parser::parse($wrapped_expr, {});
-
-	if ($wrap) {
-	    $ast->[0]= 1 + ($Fortran::Expression::Evaluator::Parser::nodeId++<<8);
-	    $ast->[1]=~s/_/\#/g;
-	}
-#	say Dumper($ast);
-    (my $ast2, my $grouped_messages) = _change_func_to_array($stref,$f,$info,$ast, $exp, {}) ;
-    if ($W) {
-        for my $warning_type (sort keys % {$grouped_messages->{'W'}} ) {
-            for my $k (sort keys %{$grouped_messages->{'W'}{$warning_type}}) {
-            	my $line = $grouped_messages->{'W'}{$warning_type}{$k};
-                say $line;
-            }
-        }
-    }
-    
-#    if ($I) {
-#    for my $info_type (sort keys % {$grouped_messages->{'I'}} ) {
-#        for my $line (sort keys %{$grouped_messages->{'I'}{$info_type}}) {
-#            say $line;
-#        }
-#    }
-#    }
-    my $ast3 = _fix_colons_in_ast($ast2);
-    my $ast4 = _fix_string_concat_in_ast($ast3);
-    my $ast5 = _fix_double_paren_in_ast($ast4);
-	return $ast5;
-	} else {
 		(my $ast, my $rest, my $err, my $has_funcs)  = parse_expression_no_context($exp);
 		if($err or $rest ne '') {
             croak "PARSE ERROR in <$exp>, REST: $rest";
@@ -245,7 +123,6 @@ sub parse_expression { my ($exp, $info, $stref, $f)=@_;
 	        }
 	    }		
 	    return $ast2;
-	}
 	
 } # END of parse_expression()
 
@@ -413,59 +290,8 @@ sub _change_func_to_array { (my $stref, my $f,  my $info, my $ast, my $exp, my $
 # All variables in the expression
 # $vars = {} to start
 sub get_vars_from_expression {(my $ast, my $vars)=@_;
-
-    if ($NEW_PARSER) {
-    	croak unless ref($ast) eq 'ARRAY';
-        $vars = find_vars_in_ast($ast,$vars);
-    } else {
-#	croak Dumper($ast) unless 
-	if (ref($ast) ne 'ARRAY') {
-		if ($ast=~/([a-z]\w*)/) {
-			my $mvar = $1;
-			$vars->{$mvar}={'Type'=>'Scalar'} ;
-		}
-			return $vars;
-	}
-	for my  $idx (0 .. scalar @{$ast}-1) {		
-		my $entry = $ast->[$idx];
-		if (ref($entry) eq 'ARRAY') {
-			$vars = get_vars_from_expression( $entry, $vars);			
-		} else {
-			if ($idx == 0) {
-			if (($entry & 0xFF) == 2  ) { # eq '$'				
-				my $mvar = $ast->[$idx+1];
-				next if $mvar=~/__[a-z]+__/;
-				next if $mvar=~/__PH\d+__/;		
-				next if $mvar=~/_(?:CONCAT|COLON)_PRE_/;
-				next if $mvar=~/_PAREN_PAIR_/;			
-				next if exists $Config{'Macros'}{uc($mvar)};
-				$vars->{$mvar}={'Type'=>'Scalar'} ;					
-			} elsif (($entry & 0xFF) == 10) {#  eq '@'				
-				my $mvar = $ast->[$idx+1];
-				next if $mvar=~/__[a-z]+__/;
-				next if $mvar=~/__PH\d+__/;
-				next if $mvar=~/_(?:CONCAT|COLON)_PRE_/;
-				next if $mvar=~/_PAREN_PAIR_/;						
-				$vars->{$mvar}={'Type' =>'Array'};
-				my $index_vars={};
-				for my $elt_idx (2 ..  scalar @{$ast}-1) {
-					if (ref($ast->[$idx+$elt_idx]) eq 'ARRAY') {
-						$index_vars =  get_vars_from_expression($ast->[$idx+$elt_idx],$index_vars);
-					}
-					
-					for my $idx_var (keys %{ $index_vars }) {
-						if ($index_vars->{$idx_var}{'Type'} eq 'Array') {
-							delete $index_vars->{$idx_var};
-						}
-					}					
-					$vars->{$mvar}{'IndexVars'} = $index_vars;
-				}					
-				#['@','eta',['$','j'],['+',['$','k'],'1']]
-			}
-			}
-		}				
-	}
-}
+    croak unless ref($ast) eq 'ARRAY';
+    $vars = find_vars_in_ast($ast,$vars);
 	return $vars;		
 } # END of get_vars_from_expression
 

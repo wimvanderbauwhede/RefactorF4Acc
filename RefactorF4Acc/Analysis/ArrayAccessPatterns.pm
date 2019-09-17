@@ -64,10 +64,11 @@ In each of these we get the AST and hunt for arrays. This is easy but would be e
 
 =cut
 
-sub pass_identify_stencils {(my $stref)=@_;
-    # WV: I think Selects and Inserts should be in Lines but I'm not sure    
-	$stref->{'TyTraCL_AST'} = {'Lines' => [], 'Selects' => [], 'Inserts' => []};
-	$stref = pass_wrapper_subs_in_module($stref,
+sub pass_identify_stencils {(my $stref, my $code_unit_name)=@_;
+	$stref = pass_wrapper_subs_in_module($stref,$code_unit_name,
+			# module-specific passes
+			[],
+			# subroutine-specific passes
 			[
 #				[ sub { (my $stref, my $f)=@_;  alias_ordered_set($stref,$f,'DeclaredOrigArgs','DeclaredOrigArgs'); } ],
 		  		[
@@ -83,9 +84,9 @@ sub pass_identify_stencils {(my $stref)=@_;
 
 # Array accesses are stored in
 # $state->{'Subroutines'}{ $f }{ $block_id }{'Arrays'}{$array_var}{$rw}{
-# 'Exprs' => { $expr_str_1 => '0:1',...},
-# 'Accesses' => { '0:1' =>  {'j' => [1,0],'k' => [1,1]}}, 
-# 'Iterators' => ['j','k']
+# 	'Exprs' => { $expr_str_1 => '0:1',...},
+# 	'Accesses' => { '0:1' =>  {'j:0' => [1,0],'k:1' => [1,1]}}, 
+# 	'Iterators' => ['j:0','k:1']
 # };
 #
 # Array dimensions are stored in
@@ -98,9 +99,14 @@ sub identify_array_accesses_in_exprs { (my $stref, my $f) = @_;
     #	die $f.' : '.Dumper($stref->{'Subroutines'}{$f}{Source});
 #    if ($stref->{'Subroutines'}{$f}{'Source'}=~/(?:dyn.f95|module_\w+_superkernel.f95)/ && $f!~/superkernel/)   
     if ($f ne $Config{'KERNEL'}) {  
-#croak 'DYN';
-        # For TyTraCL 
-        push @{ $stref->{'TyTraCL_AST'}{'Lines'} }, {'NodeType' => 'Comment', 'CommentStr' => $f };        
+
+# This of course assumes that we have Lines and that each elt has this structure.        
+		if (exists $stref->{'EmitAST'} and
+		exists $stref->{$stref->{'EmitAST'}} and
+		exists $stref->{$stref->{'EmitAST'}}{'Lines'}
+		) {
+        	push @{ $stref->{$stref->{'EmitAST'}}{'Lines'} }, {'NodeType' => 'Comment', 'CommentStr' => $f };
+		}
 
 		my $pass_identify_array_accesses_in_exprs = sub { (my $annline, my $state)=@_;
 			(my $line,my $info)=@{$annline};
@@ -361,13 +367,9 @@ sub identify_array_accesses_in_exprs { (my $stref, my $f) = @_;
 #        _identify_boundary_accesss($state, $f);
 
 		$stref = _classify_accesses_and_emit_AST($stref, $f, $state);
-        # die (keys %{$state})  if $f =~/shapiro_map/; 
-        # {Arrays}{wet}{Read}{Exprs}}
-#        die Dumper($state->{Subroutines}{shapiro_map_15}{Blocks}{0}) if $f =~/shapiro_map/;	
         $stref->{'Subroutines'}{ $f }{'ArrayAccesses'} = $state->{'Subroutines'}{$f}{'Blocks'};
 	} # if subkernel not superkernel
 	else {
-#		        		say "-- SUPERKERNEL $f: ";
 		$stref = _emit_AST_Main($stref, $f);
 	}
    
@@ -467,6 +469,7 @@ sub _find_array_access_in_ast { (my $stref, my $f,  my $block_id, my $state, my 
 #							say "Boundary access $f $array_var " . __PACKAGE__ . ' '. __LINE__ if substr($iters[$idx],0,1) eq '?';
 						}
 						my $offsets_str = join(':', @offset_vals);
+						# say 'OFFSET STR => ITER-VAL PAIRS: ',Dumper( {$offsets_str =>  $iter_val_pairs } );
 						$state->{'Subroutines'}{ $f }{'Blocks'}{ $block_id }{'Arrays'}{$array_var}{$rw}{'Exprs'}{$expr_str}=$offsets_str;
 						$state->{'Subroutines'}{ $f }{'Blocks'}{ $block_id }{'Arrays'}{$array_var}{$rw}{'Accesses'}{ $offsets_str } = $iter_val_pairs;
                         $accesses->{'Arrays'}{$array_var}{$rw}{'Exprs'}{$expr_str}=$offsets_str;
@@ -509,13 +512,41 @@ So in short: per index:
 
 # When we find an iterator access in an array we must check in which loop this array is being accessed
 sub _find_iters_in_array_idx_expr { (my $stref, my $f, my $block_id, my $ast, my $state, my $rw)=@_;
-	my @ast_a = @{$ast};
-	my @args = @ast_a[2 .. $#ast_a];
-	my $array_var = $ast_a[1];
+
+
+# AST: $VAR1 = [
+#   10,
+#   'vn',
+#   [
+#     27,
+#     [
+#       2,
+#       'j'
+#     ],
+#     [
+#       2,
+#       'k'
+#     ]
+#   ]
+# ];
+
+	# my @ast_a = @{$ast};	
+	my @args = ();
+	# NOT OK: IF this is a 1-D array then we don't have this structure I think
+	# So we must check if 
+	if ($ast->[2][0] == 27) {
+	for my $arg_idx (1 .. scalar @{$ast->[2]} -1 ) {
+		my $arg = $ast->[2][$arg_idx];
+		push @args, $arg;
+	}
+	} else {
+		push @args, $ast->[2];
+	}
+	my $array_var = $ast->[1]; # OK
 	$state->{'Subroutines'}{ $f }{'Blocks'}{ $block_id }{'Arrays'}{$array_var}{$rw}{'Iterators'}=[];
 	for my $idx (0 .. @args-1) {
 		$state->{'Subroutines'}{ $f }{'Blocks'}{ $block_id }{'Arrays'}{$array_var}{$rw}{'Iterators'}[$idx]='?:' . $idx;
-  		my $item = $args[$idx];
+  		my $item = $args[$idx]; # This is an AST!
   		my $vars = get_vars_from_expression($item, {});
   		for my $var (keys %{$vars}) {
   			if (exists $state->{'Subroutines'}{ $f }{'Blocks'}{ $block_id }{'LoopIters'}{ $var }) {
@@ -524,7 +555,6 @@ sub _find_iters_in_array_idx_expr { (my $stref, my $f, my $block_id, my $ast, my
   			}
   		}
 	}
-#	say 'ITERS:'.Dumper( $state->{'Subroutines'}{ $f }{ $block_id }{'Arrays'}{$array_var}{$rw}{'Iterators'} ). __PACKAGE__ .' '. __LINE__;
 	return $state;
 } # END of _find_iters_in_array_idx_expr
 
@@ -761,7 +791,6 @@ sub _classify_accesses_and_emit_AST { (my $stref, my $f, my $state ) =@_;
 	
 	$ast_to_emit = $ast_emitter->( $f,  $state, $ast_to_emit, 'MAP', $block_id) if $emit_ast;
 	
-#	$stref->{'TyTraCL_AST'} =$tytracl_ast;
 	return $stref ;
 } # END of _classify_accesses_and_emit_AST()
 
@@ -1162,11 +1191,6 @@ for my $annline (@{$annlines}) {
 	$annline_ctr++;
 	 
 }	
-#	$stref->{'Subroutines'}{$f}{'RefactoredCode'}=$annlines;
-#	for my $annline (@{$stref->{'Subroutines'}{$f}{'RefactoredCode'}}) {
-#		say 'LINE: '."\t".( exists $annline->[1]{'HaloDep'} ? 'DEP' : exists $annline->[1]{'HaloAccess'} ? 'HALO' : '')."\t" .$annline->[0];
-#	}
-#	die if $f=~/verniew/;
 	return $stref;	
 }
 
@@ -1451,7 +1475,7 @@ sub __generate_buffer_varnames { my ( $boundary_accesss, $block_id ) = @_;
         }
 
     }
-    
+         
 }
 
 1;
@@ -1618,6 +1642,5 @@ In any case, what we want to know is:
 - which variables should become local arrays
 - which variables need stencils
 - which variables need select.
-
 
 =cut

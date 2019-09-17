@@ -1947,8 +1947,139 @@ So we need to rename the store arg to arg_out and emit
 
 arg_out = r2
 
+# Array accesses are stored in
+# $state->{'Subroutines'}{ $f }{ $block_id }{'Arrays'}{$array_var}{$rw}{
+# 	'Exprs' => { $expr_str_1 => '0:1',...},
+# 	'Accesses' => { '0:1' =>  {'j:0' => [1,0],'k:1' => [1,1]}}, 
+# 	'Iterators' => ['j:0','k:1']
+# };
+#
+# Array dimensions are stored in
+# 	$state->{'Subroutines'}{ $f }{ $block_id }{'Arrays'}{$array_var}{'Dims'} = [[0,501],[1,500],...]
+#
 
+The Haskel generation chain is:
+- Fortran -> Scalarised Fortran -> LLVM -> TyTraLLVM -> Haskell
+
+So in the scalarise pass I need first of all to change the order to linear numerically ascending
+To do so, I need to create a mapping between the scalar name and the order, in practice I need to have to offset for the scalar name.
+
+RefactorF4Acc::Translation::TyTraCL::generate_TyTraCL_stencils() takes $stencil_pattern which is
+    $stencil_pattern = {
+        'Accesses' => $state->{'Subroutines'}{$f}{'Blocks'}{$block_id}{'Arrays'}{$array_var}{$rw}{'Accesses'},
+        'Dims'     => $state->{'Subroutines'}{$f}{'Blocks'}{$block_id}{'Arrays'}{$array_var}{'Dims'}
+    }
+
+And
+RefactorF4Acc::Analysis::ArrayAccessPatterns::identify_array_accesses_in_exprs() returns these in 
+
+$stref->{'Subroutines'}{ $f }{'ArrayAccesses'} = $state->{'Subroutines'}{$f}{'Blocks'};
+
+$block_id is 0 for accelerator code, because there is only every one block per subroutine.
+
+So we need to add functionality to Streams to have the correct ordering; 
+and then we need to pass around some map with this ordering so that we can link the tuples in TyTraCL to the ones in the LLVM IR.
+
+So if we call the scalarise pass and the TyTraCL pass, from the scalarise we need this map and from the TyTraCL pass we get the signatures for the functions
+So, TODO:
+
+- get the correct order in the scalarise pass => this means effectively running a modified version of
+
+RefactorF4Acc::Translation::TyTraCL::generate_TyTraCL_stencils()
+
+- return a map which for every arg has the textual tuple as well as the stencil tuple
+- emit signatures from the TyTraCL pass => This ought to be quite easy
+
+
+# The function signature is:
+
+$f $non_map_arg_str $map_arg_str = let 
+-- unpack args
+-- functionality from IR
+in
+    $lhs_str
+
+So what we need is just these strings
+And it is neater if we put this in a separate function
+which writes this into 
+
+$stref->{'TyTraCL_FunctionSigs'} ;    
+
+This is _emit_TyTraCL_FunctionSigs
 
 =cut
 
 
+
+sub link_scalarised_vars_to_linear_offsets { (my $var, my $accesses, my $array_dims)=@_;
+    my $offsets_for_scalarised_vars = {};
+    my $scalarised_vars_for_offsets = {};
+    my $ordered_stencil_var_tuple = [];
+# { '0:1' =>  {'j:0' => [1,0],'k:1' => [1,1]}}, 
+# [[0,501],[1,500],...]
+
+    for my $offset_str (sort keys %{$accesses}) {
+        my $offset_tuple=split(/:/,$offset_str);
+        my $lin_offset = _calc_linear_offset($offset_tuple,$array_dims );
+        # Calculate the linear offset
+        my $access_map = $accesses->{$offset_str};
+        # Generate the scalarised var names
+        my @ordered_iter_seq=($var);
+        for my $iter_str (sort keys %{$accesses->{$offset_str}}) {
+            my ($iter, $iter_idx) = split(/:/,$iter_str);
+            my ($mult, $offset) = @{$accesses->{$offset_str}{$iter_str}};
+            $ordered_iter_seq[$iter_idx]=__iter_rec_to_scal_str($iter, $mult, $offset);
+        }
+        my $scalarised_var_name = join('_',@ordered_iter_seq);
+        $offsets_for_scalarised_vars->{$scalarised_var_name}=$lin_offset;
+        $scalarised_vars_for_offsets->{$lin_offset}=$scalarised_var_name;
+    }
+    my @stencil_order =  sort numeric keys %{$scalarised_vars_for_offsets};
+    $ordered_stencil_var_tuple = map { $scalarised_vars_for_offsets->{$_} } @stencil_order;
+    return ($offsets_for_scalarised_vars,$ordered_stencil_var_tuple);
+} # END of link_scalarised_vars_to_linear_offsets
+
+# This is a little bit more general than the regex used to scalarise:
+# - if the mult is 0, I emit a '0'
+# - if the mult is <0, I emit "n$mult"
+# For example,  
+#    v[-2*j+3] => n2tjp3
+#    v[0*j-3] => 0m3
+# The most common cases are of course
+#   v[j+1] => jp1
+#   v[k-1] => km1
+sub __iter_rec_to_scal_str {
+    my ($iter, $mult, $offset) = @_;
+
+    my $mult_str = $mult <0 ? 'n'.(-1*$mult) : $mult;
+    my $offset_str = $offset ==0 ? '' : $offset <0 ? 'm'.(-1*$mult) : 'p'.$mult;
+    my $mult_prefix = $mult != 1 ? $mult_str.'t' : '';
+    my $scal_iter_str = $mult == 0 ? '0'.$offset_str : $mult_prefix. $iter . $offset_str;
+    return $scal_iter_str;
+} # END of __iter_rec_to_scal_str
+
+
+sub _calc_linear_offset {    my ($index_tuple,$array_dims ) =@_;
+        my @ranges       = ();
+        my @lower_bounds = ();
+        my $n_dims       = scalar @{$array_dims};
+        for my $array_dim (@{$array_dims}) {
+            push @ranges,       eval($array_dim->[1] . ' - ' . $array_dim->[0] . ' + 1');
+            push @lower_bounds, $array_dim->[0];
+        }
+        if ($n_dims == 1) {
+            return F1D2C(@lower_bounds, @{$index_tuple});
+        }
+        elsif ($n_dims == 2) {
+            return F2D2C($ranges[0], @lower_bounds, @{$index_tuple});
+        }
+        elsif ($n_dims == 3) {
+            return F3D2C(@ranges[0 .. 1], @lower_bounds, @{$index_tuple});
+        }
+        elsif ($n_dims == 4) {
+            return F4D2C(@ranges[0 .. 2], @lower_bounds, @{$index_tuple});
+        }
+        else {
+            croak "Sorry, only up to 4 dimensions supported right now!";
+        }
+}

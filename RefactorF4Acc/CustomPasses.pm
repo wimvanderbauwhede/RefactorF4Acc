@@ -63,7 +63,7 @@ sub run_custom_passes {
 	if ($pass =~/identify_stencils/) {
 		$stref = pass_identify_stencils($stref,$code_unit_name);				
 	}	
-	if ($pass =~/rename_array_accesses_to_scalars/) {
+	if ($pass =~/rename_array_accesses_to_scalars|scalarize/) {
 		$stref = pass_rename_array_accesses_to_scalars($stref,$code_unit_name);				
 	}
 	if ($pass =~/translate_to_C/) {

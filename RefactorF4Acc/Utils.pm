@@ -53,6 +53,7 @@ use Exporter;
     &get_kv_for_all_elts_in_set
     &append_to_set
     &comment
+    &numeric
     $BLANK_LINE
     &annotate
     &alias_ordered_set
@@ -105,6 +106,8 @@ sub comment { (my $comment)=@_;
 	   return ['! '.$comment, {'Comments'=>1,'Ref'=>1}];
 	}
 }
+
+sub numeric  ($$) { $_[0] <=> $_[1]; } 
 
 sub sub_func_incl_mod {
     ( my $f, my $stref ) = @_;

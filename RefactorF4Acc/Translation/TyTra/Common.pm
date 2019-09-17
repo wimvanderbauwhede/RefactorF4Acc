@@ -27,6 +27,7 @@ use Exporter;
 &__isMainInArg 
 &__isMainOutArg  
 &_mkVarName
+&_mkSigArgName
 &F1D2C 
 &F2D2C 
 &F3D2C 
@@ -52,7 +53,10 @@ sub pp_links { (my $links)=@_;
 	return ($out_tup, $in_tup);
 } # END of pp_links()
 
-
+# The variable record is a tuple of
+# - original var name
+# - counter for uniqueness
+# - an additional suffix, in particular used for the stencil tuples
 sub _mkVarName { (my $rec) =@_;
     # carp(Dumper($rec));
 	(my $v, my $c, my $e) = @{$rec};
@@ -67,6 +71,19 @@ sub _mkVarName { (my $rec) =@_;
     }
 } # END of _mkVarName()
 
+# The only difference with _mkVarName() is that we don't use the counter info
+sub _mkSigArgName { (my $rec) =@_;    
+	(my $v, my $c, my $e) = @{$rec};
+    if ($v eq '') {
+        croak 'Function signature arguments must be named!';
+    } else {
+	if ($e eq '') {
+		return $v;
+	} else {
+		return "${v}_${e}";
+	}
+    }
+} # END of _mkSigArgName()
 
 sub __isMainInArg { (my $var_rec, my $stref) = @_;
     (my $var_name, my $ctr, my $ext) = @{$var_rec};
