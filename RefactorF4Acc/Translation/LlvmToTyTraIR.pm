@@ -1987,8 +1987,14 @@ So, TODO:
 
 RefactorF4Acc::Translation::TyTraCL::generate_TyTraCL_stencils()
 
-- return a map which for every arg has the textual tuple as well as the stencil tuple
-- emit signatures from the TyTraCL pass => This ought to be quite easy
+- return a map which for every arg has the textual tuple as well as the stencil tuple =>link_scalarised_vars_to_linear_offsets
+- emit signatures from the TyTraCL pass => _emit_TyTraCL_FunctionSigs
+
+So then all we need is to pattern match the arg tup to the scalarised vars:
+
+(v_im1_k,v_i_j,v_i_jp1) = v_s
+
+
 
 
 # The function signature is:
@@ -2007,10 +2013,20 @@ $stref->{'TyTraCL_FunctionSigs'} ;
 
 This is _emit_TyTraCL_FunctionSigs
 
+The next step is to put all this together, and pass the right things around.
+First of all, let's get the right order in Streams. -> OK, done! Yay!
+Now, when we have the LLVM IR, we need to get the lookup table so we can do the packing/unpacking
+We also need the function signatures from TyTraCL
+
+So we need to run the TyTraCL pass first -> From that we need $stref->{'TyTraCL_FunctionSigs'} 
+and then the Streams pass pass_rename_array_accesses_to_scalars -> From that we need the $stref->{'TyTraLlvmArgTuples'} 
+
+
+
+
 =cut
 
-
-
+# This function returns a map linking the names to the linear offsets and also the scalarised args in the correct order
 sub link_scalarised_vars_to_linear_offsets { (my $var, my $accesses, my $array_dims)=@_;
     my $offsets_for_scalarised_vars = {};
     my $scalarised_vars_for_offsets = {};
@@ -2039,26 +2055,25 @@ sub link_scalarised_vars_to_linear_offsets { (my $var, my $accesses, my $array_d
     return ($offsets_for_scalarised_vars,$ordered_stencil_var_tuple);
 } # END of link_scalarised_vars_to_linear_offsets
 
-# This is a little bit more general than the regex used to scalarise:
-# - if the mult is 0, I emit a '0'
-# - if the mult is <0, I emit "n$mult"
+# This is the same as the regex used to scalarise:
+# - if the mult is <0, I emit "m$mult"
 # For example,  
-#    v[-2*j+3] => n2tjp3
-#    v[0*j-3] => 0m3
+#    v[-2*j+3] => m2tjp3
+#    v[0*j-3] => m3
 # The most common cases are of course
 #   v[j+1] => jp1
 #   v[k-1] => km1
 sub __iter_rec_to_scal_str {
     my ($iter, $mult, $offset) = @_;
 
-    my $mult_str = $mult <0 ? 'n'.(-1*$mult) : $mult;
+    my $mult_str = $mult <0 ? 'm'.(-1*$mult) : $mult;
     my $offset_str = $offset ==0 ? '' : $offset <0 ? 'm'.(-1*$mult) : 'p'.$mult;
     my $mult_prefix = $mult != 1 ? $mult_str.'t' : '';
-    my $scal_iter_str = $mult == 0 ? '0'.$offset_str : $mult_prefix. $iter . $offset_str;
+    my $scal_iter_str = $mult == 0 ? $offset_str : $mult_prefix. $iter . $offset_str;
     return $scal_iter_str;
 } # END of __iter_rec_to_scal_str
 
-
+# Maybe this is for TyTra Common
 sub _calc_linear_offset {    my ($index_tuple,$array_dims ) =@_;
         my @ranges       = ();
         my @lower_bounds = ();
@@ -2083,3 +2098,5 @@ sub _calc_linear_offset {    my ($index_tuple,$array_dims ) =@_;
             croak "Sorry, only up to 4 dimensions supported right now!";
         }
 }
+
+

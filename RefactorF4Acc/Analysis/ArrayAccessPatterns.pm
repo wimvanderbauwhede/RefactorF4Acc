@@ -300,28 +300,6 @@ sub identify_array_accesses_in_exprs { (my $stref, my $f) = @_;
                 my $cond_expr_ast = $info->{'CondExecExprAST'};
                 ($cond_expr_ast, $state, my $cond_accesses) = _find_array_access_in_ast($stref, $f, $block_id, $state, $cond_expr_ast,'Read',{});
             }
-	#		if (exists $info->{'If'} ) {
-	#			my $cond_expr_ast = $info->{'CondExecExprAST'};
-	#			# Rename all array accesses in the AST. This updates $state->{'StreamVars'}
-	#			(my $ast, $state) = _rename_ast_entry($stref, $f,  $state, $cond_expr_ast, 'In');
-	#			$info->{'CondExecExpr'}=$ast;
-	#			for my $var ( @{ $info->{'CondVars'}{'List'} } ) {
-	#				next if $var eq '_OPEN_PAR_';
-	#				if ($info->{'CondVars'}{'Set'}{$var}{'Type'} eq 'Array' and exists $info->{'CondVars'}{'Set'}{$var}{'IndexVars'}) {
-	#					$state->{'IndexVars'}={ %{ $state->{'IndexVars'} }, %{ $info->{'CondVars'}{'Set'}{$var}{'IndexVars'} } }
-	#				}
-	#			}
-	#				 if (ref($ast) ne '') {
-	#				my $vars=get_vars_from_expression($ast,{}) ;
-	#
-	#				$info->{'CondVars'}{'Set'}=$vars;
-	#				$info->{'CondVars'}{'List'}= [ grep {$_ ne 'IndexVars' and $_ ne '_OPEN_PAR_' } sort keys %{$vars} ];
-	#				 } else {
-	#				 	$info->{'CondVars'}={'List'=>[],'Set'=>{}};
-	#				 }
-	#
-	#
-	#		}
             elsif ( exists $info->{'Do'} ) {
                     if (exists $info->{'Do'}{'Iterator'} ) {
 
@@ -431,51 +409,46 @@ sub _find_array_access_in_ast { (my $stref, my $f,  my $block_id, my $state, my 
 				if ($idx==0 and (($entry & 0xFF)==10)) { #$entry eq '@'
 					my $mvar = $ast->[$idx+1];
 					
-					if ($mvar ne '_OPEN_PAR_') {
-
-						my $expr_str = emit_expr_from_ast($ast);
-						$state = _find_iters_in_array_idx_expr($stref,$f,$block_id,$ast, $state,$rw);
-#						say Dumper($ast);
-#						say Dumper($state);
-						my $array_var = $ast->[1];
-                        # Special case for our OpenCL kernels
-						if ($array_var =~/(?:glob|loc)al_/) { return ($ast,$state); }
-						
- 						# First we compute the offset
+					my $expr_str = emit_expr_from_ast($ast);
+					$state = _find_iters_in_array_idx_expr($stref,$f,$block_id,$ast, $state,$rw);
+					my $array_var = $ast->[1];
+					# Special case for our OpenCL kernels
+					if ($array_var =~/(?:glob|loc)al_/) { return ($ast,$state); }
+					
+					# First we compute the offset
 #						say "OFFSET";
-						my $ast0 = dclone($ast);
-						($ast0,$state, my $retval ) = replace_consts_in_ast($stref,$f,$block_id,$ast0, $state,0);
-						my @ast_a0 = @{$ast0};
-						my @idx_args0 = @ast_a0[2 .. $#ast_a0];
-						my @ast_exprs0 = map { emit_expr_from_ast($_) } @idx_args0;
-						my @offset_vals = map { eval($_) } @ast_exprs0;
-						
-						# Then we compute the multipliers (for proper stencils these are 1 but for the more general case e.g. copying a plane of a cube it can be different.
+					my $ast0 = dclone($ast);
+					($ast0,$state, my $retval ) = replace_consts_in_ast($stref,$f,$block_id,$ast0, $state,0);
+					my @ast_a0 = @{$ast0};
+					my @idx_args0 = @ast_a0[2 .. $#ast_a0];
+					my @ast_exprs0 = map { emit_expr_from_ast($_) } @idx_args0;
+					my @offset_vals = map { eval($_) } @ast_exprs0;
+					
+					# Then we compute the multipliers (for proper stencils these are 1 but for the more general case e.g. copying a plane of a cube it can be different.
 #						say "MULT";
-						my $ast1 = dclone($ast);
-						($ast1,$state, $retval ) = replace_consts_in_ast($stref,$f,$block_id,$ast1, $state,1);
-						my @ast_a1 = @{$ast1};
-						my $array_var1 = $ast1->[1];
-						my @idx_args1 = @ast_a1[2 .. $#ast_a1];
-						my @ast_exprs1 = map { emit_expr_from_ast($_) } @idx_args1;
-						my @mult_vals = map { eval($_) } @ast_exprs1;
-						my @iters = @{$state->{'Subroutines'}{ $f }{'Blocks'}{ $block_id }{'Arrays'}{$array_var}{$rw}{'Iterators'}};
+					my $ast1 = dclone($ast);
+					($ast1,$state, $retval ) = replace_consts_in_ast($stref,$f,$block_id,$ast1, $state,1);
+					my @ast_a1 = @{$ast1};
+					my $array_var1 = $ast1->[1];
+					my @idx_args1 = @ast_a1[2 .. $#ast_a1];
+					my @ast_exprs1 = map { emit_expr_from_ast($_) } @idx_args1;
+					my @mult_vals = map { eval($_) } @ast_exprs1;
+					my @iters = @{$state->{'Subroutines'}{ $f }{'Blocks'}{ $block_id }{'Arrays'}{$array_var}{$rw}{'Iterators'}};
 
-						my $iter_val_pairs=[];
-						for my $idx (0 .. @iters-1) {
-							my $offset_val=$offset_vals[$idx];
-							my $mult_val=$mult_vals[$idx]-$offset_val;
-							push @{$iter_val_pairs}, {$iters[$idx] => [$mult_val,$offset_val]};
+					my $iter_val_pairs=[];
+					for my $idx (0 .. @iters-1) {
+						my $offset_val=$offset_vals[$idx];
+						my $mult_val=$mult_vals[$idx]-$offset_val;
+						push @{$iter_val_pairs}, {$iters[$idx] => [$mult_val,$offset_val]};
 #							say "Boundary access $f $array_var " . __PACKAGE__ . ' '. __LINE__ if substr($iters[$idx],0,1) eq '?';
-						}
-						my $offsets_str = join(':', @offset_vals);
-						# say 'OFFSET STR => ITER-VAL PAIRS: ',Dumper( {$offsets_str =>  $iter_val_pairs } );
-						$state->{'Subroutines'}{ $f }{'Blocks'}{ $block_id }{'Arrays'}{$array_var}{$rw}{'Exprs'}{$expr_str}=$offsets_str;
-						$state->{'Subroutines'}{ $f }{'Blocks'}{ $block_id }{'Arrays'}{$array_var}{$rw}{'Accesses'}{ $offsets_str } = $iter_val_pairs;
-                        $accesses->{'Arrays'}{$array_var}{$rw}{'Exprs'}{$expr_str}=$offsets_str;
-                        $accesses->{'Arrays'}{$array_var}{$rw}{'Accesses'}{ $offsets_str } = $iter_val_pairs;
-						last;
 					}
+					my $offsets_str = join(':', @offset_vals);
+					# say 'OFFSET STR => ITER-VAL PAIRS: ',Dumper( {$offsets_str =>  $iter_val_pairs } );
+					$state->{'Subroutines'}{ $f }{'Blocks'}{ $block_id }{'Arrays'}{$array_var}{$rw}{'Exprs'}{$expr_str}=$offsets_str;
+					$state->{'Subroutines'}{ $f }{'Blocks'}{ $block_id }{'Arrays'}{$array_var}{$rw}{'Accesses'}{ $offsets_str } = $iter_val_pairs;
+					$accesses->{'Arrays'}{$array_var}{$rw}{'Exprs'}{$expr_str}=$offsets_str;
+					$accesses->{'Arrays'}{$array_var}{$rw}{'Accesses'}{ $offsets_str } = $iter_val_pairs;
+					last;					
 				} 
 			}
 		}
@@ -606,13 +579,12 @@ sub _link_writes_to_reads {(my $stref, my $f, my $state)=@_;
 			}
 	
 			for my $lvar (keys %{$links->{$var}} ){
-				if ($links->{$var}{$lvar} > 2 or $lvar eq '_OPEN_PAR_') {
+				if ($links->{$var}{$lvar} > 2 ) {
 					delete $links->{$var}{$lvar};
 				}
 			}
 			if (
-				scalar keys  %{ $links->{$var}} == 0 or
-				$var eq '_OPEN_PAR_'
+				scalar keys  %{ $links->{$var}} == 0 
 			) {
 					delete $links->{$var};
 			}
@@ -655,7 +627,7 @@ sub _link_writes_to_reads_rec {(my $stref, my $f, my $block_id, my $some_var, my
 					}
 				} else { # var not arg
 #					say "VAR $var IS NOT ARG";
-					$links->{$some_var}{$var}=4 unless $var eq '_OPEN_PAR_';
+					$links->{$some_var}{$var}=4 ;
 					if (exists $assignments->{$var} ) {
 						my $non_arg_rhs_array = $assignments->{$var};
 						my $rhs_vars = {};
@@ -669,7 +641,7 @@ sub _link_writes_to_reads_rec {(my $stref, my $f, my $block_id, my $some_var, my
 						for my $rhs_var (keys %{$rhs_vars}) {
 #							say "VAR in RHS of NON-ARG assignment for $var: $rhs_var";
 							next if exists $links->{$var}{$rhs_var};
-							$links->{$var}{$rhs_var}= isArg($stref, $f, $rhs_var) ? 2 : 3 unless $rhs_var eq '_OPEN_PAR_';
+							$links->{$var}{$rhs_var}= isArg($stref, $f, $rhs_var) ? 2 : 3 ;
 #							next if $var eq $rhs_var;
 			 				$links=_link_writes_to_reads_rec($stref, $f, $block_id, $rhs_var,$assignments,$links,$state);			 				
 						}
@@ -836,7 +808,6 @@ sub _collapse_links { (my $stref, my $f, my $block_id, my $links)=@_;
 					$again=0;
 					for my $lvar (keys %{ $links->{$var} } ) {
 						next if $lvar eq $var;
-						next if $lvar eq '_OPEN_PAR_';
 		#				say "\tLVAR $lvar";
 						if ($links->{$var}{$lvar} > 2) { # Not an argument
 							$again=1;
@@ -846,7 +817,6 @@ sub _collapse_links { (my $stref, my $f, my $block_id, my $links)=@_;
 							for my $nlvar (keys %{ $links->{$lvar} } ) {
 								next if $nlvar eq $var;
 								next if $nlvar eq $lvar;
-								next if $nlvar eq '_OPEN_PAR_';
 								next if exists $deleted_entries->{$nlvar};
 								$links->{$var}{$nlvar} = $links->{$lvar}{$nlvar};
 							}
@@ -1174,16 +1144,13 @@ for my $annline (@{$annlines}) {
 						$rhs_vars={};
 					}
 					
-					if (exists  $rhs_vars->{'_OPEN_PAR_'}) {
-						delete $rhs_vars->{'_OPEN_PAR_'};
-					};
 					say "RHS VARS: ". join(', ',keys %{$rhs_vars}) if $DBG;
 					%halo_deps=( %halo_deps, %{$rhs_vars}, %{$lhs_vars} );
 				}
 				
 			} # TODO: later we must extend this to subroutine calls as well
-	$prec_annline=[$prec_line,$prec_info];
-	$annlines->[$rev_annline_idx]=$prec_annline;	
+			$prec_annline=[$prec_line,$prec_info];
+			$annlines->[$rev_annline_idx]=$prec_annline;	
 		}  
 		
 	}

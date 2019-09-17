@@ -183,7 +183,6 @@ sub __find_parameter_used_in_inc_and_add_to_Only {
                         # So now parse this if it's not empty
                         my $ast  = parse_expression($maybe_pars_str, {}, $stref, $inc);
                         my $pars = get_vars_from_expression($ast,    {});
-                        delete $pars->{'_OPEN_PAR_'};
                         for my $par (keys %{$pars}) {
                             $Sinc->{'Includes'}{"params_$inc"}{'Only'}{$par} = 1;
                         }
@@ -203,7 +202,6 @@ sub __find_parameter_used_in_inc_and_add_to_Only {
                         # So now parse this
                         my $ast  = parse_expression($maybe_pars_str, {}, $stref, $inc);
                         my $pars = get_vars_from_expression($ast,    {});
-                        delete $pars->{'_OPEN_PAR_'};
                         for my $par (keys %{$pars}) {
                             $Sinc->{'Includes'}{"params_$inc"}{'Only'}{$par} = 1;
                         }

@@ -82,8 +82,7 @@ sub pass_emit_TyTraCL {
         [
 #				[ sub { (my $stref, my $f)=@_;  alias_ordered_set($stref,$f,'DeclaredOrigArgs','DeclaredOrigArgs'); } ],
             [\&remove_redundant_arguments_and_fix_intents],
-            [   \&identify_array_accesses_in_exprs,
-            ],
+            [\&identify_array_accesses_in_exprs ],
         ]
     );
 # say Dumper $stref->{'TyTraCL_AST'}{'Lines'};

@@ -156,8 +156,7 @@ sub _removed_unused_variables { (my $stref, my $f)=@_;
  				$state->{'ExprVars'}{$var}++;
  					
 			}						
-				for my $var ( @{ $info->{'CondVars'}{'List'} } ) {
-					next if $var eq '_OPEN_PAR_';					
+				for my $var ( @{ $info->{'CondVars'}{'List'} } ) {					
 					if (exists  $info->{'CondVars'}{'Set'}{$var}{'IndexVars'} ) {								
 #						$state->{'ExprVars'} ={%{$state->{'ExprVars'}},%{  } };
 						for my $var (keys %{ $info->{'CondVars'}{'Set'}{$var}{'IndexVars'} }) {
@@ -316,13 +315,6 @@ sub _declare_undeclared_variables { (my $stref, my $f)=@_;
 			
 				my $cond_expr_ast=$info->{'CondExecExprAST'};
 				$state->{'ExprVars'} ={%{$state->{'ExprVars'}},%{ $info->{'CondVars'}{'Set'} } }; 
-				for my $var ( @{ $info->{'CondVars'}{'List'} } ) {
-					next if $var eq '_OPEN_PAR_';					
-					# We now put the IndexVars in the Set directly so the code below is no longer needed					
-					# if (exists  $info->{'CondVars'}{'Set'}{$var}{'IndexVars'} ) {
-					# 	$state->{'ExprVars'} ={%{$state->{'ExprVars'}},%{ $info->{'CondVars'}{'Set'}{$var}{'IndexVars'} } };
-					# }				
-				}
 		}
 		
 		return ([$annline],$state);
@@ -344,7 +336,7 @@ sub _declare_undeclared_variables { (my $stref, my $f)=@_;
 	for my $expr_var (keys %{ $state->{'ExprVars'} } ) {
 		next if exists $Config{'Macros'}{uc($expr_var)};
 		if (not exists $state->{'DeclaredVars'}{$expr_var} ) {
-			if ($expr_var ne '_OPEN_PAR_' and $expr_var!~/^\d/) {				
+			if ( $expr_var!~/^\d/) {				
 				$state->{'UndeclaredVars'}{$expr_var}='real'; # the default
 			} 
 		}
@@ -352,9 +344,7 @@ sub _declare_undeclared_variables { (my $stref, my $f)=@_;
 	for my $lhs_var (keys %{ $state->{'AssignedVars'} } ) {
 		next if exists $Config{'Macros'}{uc($lhs_var)};
 		if (not exists $state->{'DeclaredVars'}{$lhs_var} ) {
-#			if ($expr_var ne '_OPEN_PAR_' and $expr_var!~/^\d/) {				
-				$state->{'UndeclaredVars'}{$lhs_var}='real'; # the default
-#			} 
+			$state->{'UndeclaredVars'}{$lhs_var}='real'; # the default
 		}
 	}	
 	# --------------------------------------------------------------------------------------------------------------------------------	 			
@@ -371,7 +361,6 @@ sub _declare_undeclared_variables { (my $stref, my $f)=@_;
 				my $var_type = 'integer';
 				for my $rhs_var (@{ $info->{'Rhs'}{'VarList'}{'List'} } ) {
 					next if exists $Config{'Macros'}{uc($rhs_var)};
-					next if $rhs_var  eq '_OPEN_PAR_';
 					my $decl = get_var_record_from_set($stref->{'Subroutines'}{$f}{'Vars'},$rhs_var) ;
 					if ($decl->{'Type'} eq 'real') {
 						$var_type = 'real';last;

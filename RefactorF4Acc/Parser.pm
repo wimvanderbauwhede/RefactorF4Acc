@@ -986,7 +986,7 @@ or $line=~/^character\s*\(\s*len\s*=\s*[\w\*]+\s*\)/
 					# we can parse this as a normal expression I think						
 					my $ast = parse_expression($do_stmt,  $info,  $stref,  $f);
 					my $mvars = get_vars_from_expression($ast,{});
-					my $vars= [ grep {!/_OPEN_PAR_/} keys %{$mvars} ];
+					my $vars= [ sort keys %{$mvars} ];
 #					warn 'Support for WHILE: '.$line;#.Dumper($vars);
 #					$info->{'Do'} = {
 #						'While' =>1,

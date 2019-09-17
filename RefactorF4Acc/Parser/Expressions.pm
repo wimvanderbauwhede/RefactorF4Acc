@@ -48,40 +48,9 @@ use Exporter;
 our $defaultToArrays = 0;
 my $DBG=0;
 
-=old
-"f(a,12.3,b(2,2.3e-4+v))"
-perl -e 'use Data::Dumper;use Fortran::Expression::Evaluator::Parser; print Dumper(Fortran::Expression::Evaluator::Parser::parse("f(a,12.3,b(2,2.3e-4+v))",{}))'
-$VAR1 = [
-          '&',
-          'f',
-          [
-            '$',
-            'a'
-          ],
-          '12.3',
-          [
-            '&',
-            'b',
-            '2',
-            [
-              '+',
-              '2.3e-4',
-              [
-                '$',
-                'v'
-              ]
-            ]
-          ]
-        ];
-=cut         
 
-# '_dummy_(write(__PH1__,_CONCAT_PRE_,path(numpath+2*_OPEN_PAR_(...', 'HASH(0x7fb906282f70)') called at /Users/wim/Git/RefactorF4Acc/RefactorF4Acc/Parser/Expressions.pm line 144
-# 'write(__PH1__//path(numpath+2*(k-1)+2)(1:len(numpath+2*(k-1)+2))
-#write(*,'(a)') '     '//path(numpath+2*(k-1)+2)(1:len(numpath+2*(k-1)+2))
 # $entry & 0xFF = $num
 # where $num =
-#                  0    1    2    3    4    5    6    7    8     9   10   11   12   13    14
-#our  @sigils = ( '{', '&', '$', '+', '-', '*', '/', '%', '**', '=', '@', '#', ':' ,'//', ')(');
 
 #               0    1    2    3    4    5    6    7    8    9    10   11   12   13    14
 our @sigils = ('{', '&', '$', '+', '-', '*', '/', '%', '**', '=', '@', '#', ':' ,'//', ')('

@@ -11,13 +11,22 @@ use RefactorF4Acc::Refactoring::Common qw(
 	splice_additional_lines_cond  
 	update_arg_var_decl_sourcelines
 	);
+use RefactorF4Acc::Translation::TyTra::Common qw(
+  F3D2C
+  F2D2C
+  F1D2C
+  F4D2C
+);	
 use RefactorF4Acc::Refactoring::Fixes qw( 
 	_declare_undeclared_variables	
 	_removed_unused_variables
 	_fix_scalar_ptr_args
 	_fix_scalar_ptr_args_subcall
-	_make_dim_vars_scalar_consts_in_sigs	
+	_make_dim_vars_scalar_consts_in_sigs
+	remove_redundant_arguments_and_fix_intents	
 );
+use RefactorF4Acc::Analysis::ArrayAccessPatterns qw( identify_array_accesses_in_exprs );
+
 # I'm not sure that this is the best place for this routine as it is only used in this pass    
 use RefactorF4Acc::Refactoring::Subroutines::Emitters qw( 
 	emit_subroutine_sig 
@@ -70,6 +79,8 @@ sub pass_rename_array_accesses_to_scalars {(my $stref, my $code_unit_name)=@_;
                     } ],
 #				[ \&_fix_scalar_ptr_args ],
 #		  		[\&_fix_scalar_ptr_args_subcall],
+	            [\&remove_redundant_arguments_and_fix_intents],
+    	        [\&identify_array_accesses_in_exprs ],
 		  		[
 			  		\&_declare_undeclared_variables,
 					\&_rename_array_accesses_to_scalars,
@@ -125,45 +136,7 @@ sub pass_rename_array_accesses_to_scalars {(my $stref, my $code_unit_name)=@_;
 }
 
 
-# hsn = 0.5*(vn(j-1,k)-abs(vn(j-1,k)))*h(j,k)
-{
-	'Assignment' => 1,
-	'Indent' => '  ',
-	'Lhs' => {'ArrayOrScalar' => 'Scalar','IndexVars' => {'List' => [],'Set' => {}},'ExpressionAST' => ['$','hsn'],'VarName' => 'hsn'},'Ref' => 0,'LineID' => 76,
-	'Rhs' => {
-	'VarList' => {
-		'List' => ['h','_OPEN_PAR_','j','k','vn'],
-		'Set' => {
-			'h' => {
-				'Type' => 'Array',
-				'Vars' => {'k' => {'Type' => 'Scalar'},'j' => {'Type' => 'Scalar'}}
-			},
-			'k' => {'Type' => 'Scalar'},
-			'vn' => {'Type' => 'Array'},
-			'_OPEN_PAR_' => {
-				'Vars' => {
-					'j' => {'Type' => 'Scalar'},
-					'vn' => {'Type' => 'Array'},
-					'k' => {'Type' => 'Scalar'}
-				},
-				'Type' => 'Array'
-			},
-			'j' => {'Type' => 'Scalar'}
-		}
-	},
-	'ExpressionAST' => [
-		'*','0.5',[
-			'@','_OPEN_PAR_',[
-				'+',['@','vn',
-						[
-							'+',['$','j'],['-','1']
-						],
-						['$','k']
-					],
-					['-',
-						['&','abs',['@','vn',['+',['$','j'],['-','1']],['$','k']]]]]],['@','h',['$','j'],['$','k']]]
-	}
-}
+
 =cut
 =info_assumptions_array_access_detection
 Assumptions:
@@ -192,7 +165,7 @@ It consists of following sub-passes:
 sub _rename_array_accesses_to_scalars { (my $stref, my $f) = @_;
 
 	if ($f ne $Config{'KERNEL'} ) {
-
+		$stref->{'TyTraLlvmArgTuples'}={};
 	# 1. This pass performs renaming in assignments and conditional expressions of IFs
 	# TODO: It does _not_ rename
 	# 	* subroutine call arguments (because there should not be any)
@@ -215,7 +188,7 @@ sub _rename_array_accesses_to_scalars { (my $stref, my $f) = @_;
 				my $vars=get_vars_from_expression($ast,{}) ;
 #				croak "CARP:".Dumper($vars);
 				$info->{'Rhs'}{'VarList'}{'Set'}=$vars;
-				$info->{'Rhs'}{'VarList'}{'List'}= [ grep {$_ ne 'IndexVars' and $_ ne '_OPEN_PAR_' } sort keys %{$vars} ];
+				$info->{'Rhs'}{'VarList'}{'List'}= [ grep {$_ ne 'IndexVars' } sort keys %{$vars} ];
 				 } else {
 				 	$info->{'Rhs'}{'VarList'}={'List'=>[],'Set'=>{}};
 				 }
@@ -230,7 +203,6 @@ sub _rename_array_accesses_to_scalars { (my $stref, my $f) = @_;
 			}
 			$state->{'IndexVars'}={ %{$state->{'IndexVars'} }, %{ $info->{'Lhs'}{'IndexVars'}{'Set'} } };
 			for my $var ( @{ $info->{'Rhs'}{'VarList'}{'List'} } ) {
-				next if $var eq '_OPEN_PAR_';
 				if ($info->{'Rhs'}{'VarList'}{'Set'}{$var}{'Type'} eq 'Array' and exists $info->{'Rhs'}{'VarList'}{'Set'}{$var}{'IndexVars'}) {					
 					$state->{'IndexVars'}={ %{ $state->{'IndexVars'} }, %{ $info->{'Rhs'}{'VarList'}{'Set'}{$var}{'IndexVars'} } }
 				}
@@ -244,7 +216,6 @@ sub _rename_array_accesses_to_scalars { (my $stref, my $f) = @_;
 			
 			$info->{'CondExecExpr'}=$ast;
 			for my $var ( @{ $info->{'CondVars'}{'List'} } ) {
-				next if $var eq '_OPEN_PAR_';
 				if (
 					$info->{'CondVars'}{'Set'}{$var}{'Type'} eq 'Array' 					
 				and exists $info->{'CondVars'}{'Set'}{$var}{'IndexVars'}) {					
@@ -255,7 +226,7 @@ sub _rename_array_accesses_to_scalars { (my $stref, my $f) = @_;
 				my $vars=get_vars_from_expression($ast,{}) ;
 
 				$info->{'CondVars'}{'Set'}=$vars;
-				$info->{'CondVars'}{'List'}= [ grep {$_ ne 'IndexVars' and $_ ne '_OPEN_PAR_' } sort keys %{$vars} ];
+				$info->{'CondVars'}{'List'}= [ grep {$_ ne 'IndexVars' } sort keys %{$vars} ];
 				 } else {
 				 	$info->{'CondVars'}={'List'=>[],'Set'=>{}};
 				 }
@@ -282,9 +253,30 @@ sub _rename_array_accesses_to_scalars { (my $stref, my $f) = @_;
 	# So I need to put it in StreamVars. 
 	# I think that I need to run the analysis from ArrayAccessPatterns and link this to StreamVars.
 	# That should not be too hard I suppose.
+	$stref->{'TyTraLlvmArgTuples'}{$f}={};
 	for my $var (sort keys %{ $state->{'StreamVars'} } ){
 		$state->{'StreamVars'}{$var}{'List'}=[];
-		for my $stream_var (sort keys %{ $state->{'StreamVars'}{$var}{'Set'} } ){
+		# Here is where we have the wrong order
+		# carp Dumper $state->{'StreamVars'};
+		# So what we need instead of that is the order defined by link_scalarised_vars_to_linear_offsets()
+
+		my $accesses = 
+		exists $stref->{'Subroutines'}{ $f }{'ArrayAccesses'}{0}{'Arrays'}{$var}{'Read'} ?
+		 $stref->{'Subroutines'}{ $f }{'ArrayAccesses'}{0}{'Arrays'}{$var}{'Read'}{'Accesses'} :
+		$stref->{'Subroutines'}{ $f }{'ArrayAccesses'}{0}{'Arrays'}{$var}{'Write'}{'Accesses'} ;
+		
+		my $array_dims = $stref->{'Subroutines'}{ $f }{'ArrayAccesses'}{0}{'Arrays'}{$var}{'Dims'};
+		my ($offsets_for_scalarised_vars,$ordered_stencil_var_tuple) = link_scalarised_vars_to_linear_offsets($var, $accesses, $array_dims);
+		$stref->{'TyTraLlvmArgTuples'}{$f}{$var}=$ordered_stencil_var_tuple;
+		# if (scalar @{$ordered_stencil_var_tuple}==0) {
+		# say $f;
+		# say Dumper(
+		# 	[sort keys %{ $state->{'StreamVars'}{$var}{'Set'} }],
+		# 	$ordered_stencil_var_tuple
+		# );
+		# }
+		# for my $stream_var (sort keys %{ $state->{'StreamVars'}{$var}{'Set'} } ){
+			for my $stream_var (@{$ordered_stencil_var_tuple} ) {
 			push @{$state->{'StreamVars'}{$var}{'List'}},$stream_var;		
 			my $scalar_assignment_line= '      '.$stream_var.' = '.$state->{'StreamVars'}{$var}{'Set'}{$stream_var}{'ArrayIndexExpr'};
 			my $array_assignment_line= '      '.$state->{'StreamVars'}{$var}{'Set'}{$stream_var}{'ArrayIndexExpr'}.' = '.$stream_var;
@@ -788,25 +780,23 @@ sub _rename_ast_entry { (my $stref, my $f,  my $state, my $ast, my $intent)=@_;
 			} else {
 				if ($idx==0 and (($entry & 0xFF) == 10)) {#'@'				
 					my $mvar = $ast->[$idx+1];
-					if ($mvar ne '_OPEN_PAR_') {
-						say 'Found array access '.$mvar  if $DBG;			
-						my $expr_str = emit_expr_from_ast($ast);
-						my $var_str=$expr_str;
-						# TODO: I should use tr// here
-						$var_str=~s/[\(,]/_/g; 
-						$var_str=~s/\)//g; 
-						$var_str=~s/\+/p/g;
-						$var_str=~s/\-/m/g;
-						$var_str=~s/\*/t/g;
-						# Taking the IODir from the orig var is not optimal: it leads to many InOut that actually are Out
-						# Ideally I should re-run the analysis for the stream vars
-						if (exists $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$mvar}) { # DAMN PERL! It creates the entry unless I guard!
-							$intent = $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$mvar}{'IODir'};
-						}
-						$state->{'StreamVars'}{$mvar}{'Set'}{$var_str}={'IODir'=>$intent,'ArrayIndexExpr'=>$expr_str} ;
-						$ast=[0x2+(($entry>>8)<<8),$var_str];#'$'
-                        last;
+					say 'Found array access '.$mvar  if $DBG;			
+					my $expr_str = emit_expr_from_ast($ast);
+					my $var_str=$expr_str;
+					# TODO: I should use tr// here
+					$var_str=~s/[\(,]/_/g; 
+					$var_str=~s/\)//g; 
+					$var_str=~s/\+/p/g;
+					$var_str=~s/\-/m/g;
+					$var_str=~s/\*/t/g;
+					# Taking the IODir from the orig var is not optimal: it leads to many InOut that actually are Out
+					# Ideally I should re-run the analysis for the stream vars
+					if (exists $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$mvar}) { # DAMN PERL! It creates the entry unless I guard!
+						$intent = $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$mvar}{'IODir'};
 					}
+					$state->{'StreamVars'}{$mvar}{'Set'}{$var_str}={'IODir'=>$intent,'ArrayIndexExpr'=>$expr_str} ;
+					$ast=[0x2+(($entry>>8)<<8),$var_str];#'$'
+					last;					
 				} 
 			}		
 		}
@@ -901,6 +891,85 @@ sub _emit_subroutine_call_w_streams {
     # return ($indent . $maybe_label . $rline, $info);
 	return ( $rline, $rinfo)
 }    # END of _emit_subroutine_call_w_streams
+
+
+# This function returns a map linking the names to the linear offsets and also the scalarised args in the correct order
+sub link_scalarised_vars_to_linear_offsets { (my $var, my $accesses, my $array_dims)=@_;
+
+    my $offsets_for_scalarised_vars = {};
+    my $scalarised_vars_for_offsets = {};
+    my $ordered_stencil_var_tuple = [];
+# { '0:1' =>  {'j:0' => [1,0],'k:1' => [1,1]}}, 
+# [[0,501],[1,500],...]
+
+    for my $offset_str (sort keys %{$accesses}) {
+        my $offset_tuple=[split(/:/,$offset_str)];
+		# say Dumper($offset_str);
+        my $lin_offset = _calc_linear_offset($offset_tuple,$array_dims );
+        # Calculate the linear offset
+        my $access_map = $accesses->{$offset_str};
+        # Generate the scalarised var names
+        my @ordered_iter_seq=();
+		# say Dumper($offset_str,$accesses->{$offset_str});
+        for my $iter_pair (  @{ $accesses->{$offset_str} } ) {
+			my ($iter_str,$iter_mult_offset) = each %{$iter_pair};
+			
+            my ($iter, $iter_idx) = split(/:/,$iter_str);
+            my ($mult, $offset) = @{$iter_mult_offset};# @{$accesses->{$offset_str}{$iter_str}};
+            $ordered_iter_seq[$iter_idx]=__iter_rec_to_scal_str($iter, $mult, $offset);
+        }
+        my $scalarised_var_name = join('_',($var,@ordered_iter_seq));
+        $offsets_for_scalarised_vars->{$scalarised_var_name}=$lin_offset;
+        $scalarised_vars_for_offsets->{$lin_offset}=$scalarised_var_name;
+    }
+    my @stencil_order =  sort numeric keys %{$scalarised_vars_for_offsets};
+    $ordered_stencil_var_tuple = [map { $scalarised_vars_for_offsets->{$_} } @stencil_order];
+    return ($offsets_for_scalarised_vars,$ordered_stencil_var_tuple);
+} # END of link_scalarised_vars_to_linear_offsets
+
+# This is the same as the regex used to scalarise:
+# - if the mult is <0, I emit "m$mult"
+# For example,  
+#    v[-2*j+3] => m2tjp3
+#    v[0*j-3] => m3
+# The most common cases are of course
+#   v[j+1] => jp1
+#   v[k-1] => km1
+sub __iter_rec_to_scal_str {
+    my ($iter, $mult, $offset) = @_;
+
+    my $mult_str = $mult <0 ? 'm'.(-1*$mult) : $mult;
+    my $offset_str = $offset ==0 ? '' : $offset <0 ? 'm'.(-1*$offset) : 'p'.$offset;
+    my $mult_prefix = $mult != 1 ? $mult_str.'t' : '';
+    my $scal_iter_str = $mult == 0 ? $offset_str : $mult_prefix. $iter . $offset_str;
+    return $scal_iter_str;
+} # END of __iter_rec_to_scal_str
+
+# Maybe this is for TyTra Common
+sub _calc_linear_offset {    my ($index_tuple,$array_dims ) =@_;
+        my @ranges       = ();
+        my @lower_bounds = ();
+        my $n_dims       = scalar @{$array_dims};
+        for my $array_dim (@{$array_dims}) {
+            push @ranges,       eval($array_dim->[1] . ' - ' . $array_dim->[0] . ' + 1');
+            push @lower_bounds, $array_dim->[0];
+        }
+        if ($n_dims == 1) {
+            return F1D2C(@lower_bounds, @{$index_tuple});
+        }
+        elsif ($n_dims == 2) {
+            return F2D2C($ranges[0], @lower_bounds, @{$index_tuple});
+        }
+        elsif ($n_dims == 3) {
+            return F3D2C(@ranges[0 .. 1], @lower_bounds, @{$index_tuple});
+        }
+        elsif ($n_dims == 4) {
+            return F4D2C(@ranges[0 .. 2], @lower_bounds, @{$index_tuple});
+        }
+        else {
+            croak "Sorry, only up to 4 dimensions supported right now!";
+        }
+}
 
 
 

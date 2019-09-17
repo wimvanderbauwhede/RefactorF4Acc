@@ -95,8 +95,7 @@ sub replace_param_by_val { (my $stref, my $f, my $block_id, my $ast, my $state)=
   		my $vars=get_vars_from_expression($ast,{}) ;
   		# - if so, substitute them using replace_consts_in_ast
   		while (
-  		(exists $vars->{'_OPEN_PAR_'} and scalar keys %{$vars} > 1)
-  		or (not exists $vars->{'_OPEN_PAR_'} and scalar keys %{$vars} > 0)
+  		scalar keys %{$vars} > 0
   		) {
 			($ast, $state, my $retval) = replace_consts_in_ast($stref, $f, $block_id, $ast, $state, 0);
 			last if $retval == 0;
