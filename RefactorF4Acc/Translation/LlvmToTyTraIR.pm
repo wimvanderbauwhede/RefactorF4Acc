@@ -2026,77 +2026,77 @@ and then the Streams pass pass_rename_array_accesses_to_scalars -> From that we 
 
 =cut
 
-# This function returns a map linking the names to the linear offsets and also the scalarised args in the correct order
-sub link_scalarised_vars_to_linear_offsets { (my $var, my $accesses, my $array_dims)=@_;
-    my $offsets_for_scalarised_vars = {};
-    my $scalarised_vars_for_offsets = {};
-    my $ordered_stencil_var_tuple = [];
-# { '0:1' =>  {'j:0' => [1,0],'k:1' => [1,1]}}, 
-# [[0,501],[1,500],...]
+# # This function returns a map linking the names to the linear offsets and also the scalarised args in the correct order
+# sub link_scalarised_vars_to_linear_offsets { (my $var, my $accesses, my $array_dims)=@_;
+#     my $offsets_for_scalarised_vars = {};
+#     my $scalarised_vars_for_offsets = {};
+#     my $ordered_stencil_var_tuple = [];
+# # { '0:1' =>  {'j:0' => [1,0],'k:1' => [1,1]}}, 
+# # [[0,501],[1,500],...]
 
-    for my $offset_str (sort keys %{$accesses}) {
-        my $offset_tuple=split(/:/,$offset_str);
-        my $lin_offset = _calc_linear_offset($offset_tuple,$array_dims );
-        # Calculate the linear offset
-        my $access_map = $accesses->{$offset_str};
-        # Generate the scalarised var names
-        my @ordered_iter_seq=($var);
-        for my $iter_str (sort keys %{$accesses->{$offset_str}}) {
-            my ($iter, $iter_idx) = split(/:/,$iter_str);
-            my ($mult, $offset) = @{$accesses->{$offset_str}{$iter_str}};
-            $ordered_iter_seq[$iter_idx]=__iter_rec_to_scal_str($iter, $mult, $offset);
-        }
-        my $scalarised_var_name = join('_',@ordered_iter_seq);
-        $offsets_for_scalarised_vars->{$scalarised_var_name}=$lin_offset;
-        $scalarised_vars_for_offsets->{$lin_offset}=$scalarised_var_name;
-    }
-    my @stencil_order =  sort numeric keys %{$scalarised_vars_for_offsets};
-    $ordered_stencil_var_tuple = map { $scalarised_vars_for_offsets->{$_} } @stencil_order;
-    return ($offsets_for_scalarised_vars,$ordered_stencil_var_tuple);
-} # END of link_scalarised_vars_to_linear_offsets
+#     for my $offset_str (sort keys %{$accesses}) {
+#         my $offset_tuple=split(/:/,$offset_str);
+#         my $lin_offset = _calc_linear_offset($offset_tuple,$array_dims );
+#         # Calculate the linear offset
+#         my $access_map = $accesses->{$offset_str};
+#         # Generate the scalarised var names
+#         my @ordered_iter_seq=($var);
+#         for my $iter_str (sort keys %{$accesses->{$offset_str}}) {
+#             my ($iter, $iter_idx) = split(/:/,$iter_str);
+#             my ($mult, $offset) = @{$accesses->{$offset_str}{$iter_str}};
+#             $ordered_iter_seq[$iter_idx]=__iter_rec_to_scal_str($iter, $mult, $offset);
+#         }
+#         my $scalarised_var_name = join('_',@ordered_iter_seq);
+#         $offsets_for_scalarised_vars->{$scalarised_var_name}=$lin_offset;
+#         $scalarised_vars_for_offsets->{$lin_offset}=$scalarised_var_name;
+#     }
+#     my @stencil_order =  sort numeric keys %{$scalarised_vars_for_offsets};
+#     $ordered_stencil_var_tuple = map { $scalarised_vars_for_offsets->{$_} } @stencil_order;
+#     return ($offsets_for_scalarised_vars,$ordered_stencil_var_tuple);
+# } # END of link_scalarised_vars_to_linear_offsets
 
-# This is the same as the regex used to scalarise:
-# - if the mult is <0, I emit "m$mult"
-# For example,  
-#    v[-2*j+3] => m2tjp3
-#    v[0*j-3] => m3
-# The most common cases are of course
-#   v[j+1] => jp1
-#   v[k-1] => km1
-sub __iter_rec_to_scal_str {
-    my ($iter, $mult, $offset) = @_;
+# # This is the same as the regex used to scalarise:
+# # - if the mult is <0, I emit "m$mult"
+# # For example,  
+# #    v[-2*j+3] => m2tjp3
+# #    v[0*j-3] => m3
+# # The most common cases are of course
+# #   v[j+1] => jp1
+# #   v[k-1] => km1
+# sub __iter_rec_to_scal_str {
+#     my ($iter, $mult, $offset) = @_;
 
-    my $mult_str = $mult <0 ? 'm'.(-1*$mult) : $mult;
-    my $offset_str = $offset ==0 ? '' : $offset <0 ? 'm'.(-1*$mult) : 'p'.$mult;
-    my $mult_prefix = $mult != 1 ? $mult_str.'t' : '';
-    my $scal_iter_str = $mult == 0 ? $offset_str : $mult_prefix. $iter . $offset_str;
-    return $scal_iter_str;
-} # END of __iter_rec_to_scal_str
+#     my $mult_str = $mult <0 ? 'm'.(-1*$mult) : $mult;
+#     my $offset_str = $offset ==0 ? '' : $offset <0 ? 'm'.(-1*$mult) : 'p'.$mult;
+#     my $mult_prefix = $mult != 1 ? $mult_str.'t' : '';
+#     my $scal_iter_str = $mult == 0 ? $offset_str : $mult_prefix. $iter . $offset_str;
+#     return $scal_iter_str;
+# } # END of __iter_rec_to_scal_str
 
-# Maybe this is for TyTra Common
-sub _calc_linear_offset {    my ($index_tuple,$array_dims ) =@_;
-        my @ranges       = ();
-        my @lower_bounds = ();
-        my $n_dims       = scalar @{$array_dims};
-        for my $array_dim (@{$array_dims}) {
-            push @ranges,       eval($array_dim->[1] . ' - ' . $array_dim->[0] . ' + 1');
-            push @lower_bounds, $array_dim->[0];
-        }
-        if ($n_dims == 1) {
-            return F1D2C(@lower_bounds, @{$index_tuple});
-        }
-        elsif ($n_dims == 2) {
-            return F2D2C($ranges[0], @lower_bounds, @{$index_tuple});
-        }
-        elsif ($n_dims == 3) {
-            return F3D2C(@ranges[0 .. 1], @lower_bounds, @{$index_tuple});
-        }
-        elsif ($n_dims == 4) {
-            return F4D2C(@ranges[0 .. 2], @lower_bounds, @{$index_tuple});
-        }
-        else {
-            croak "Sorry, only up to 4 dimensions supported right now!";
-        }
-}
+# # Maybe this is for TyTra Common
+# sub _calc_linear_offset {    my ($index_tuple,$array_dims ) =@_;
+#         my @ranges       = ();
+#         my @lower_bounds = ();
+#         my $n_dims       = scalar @{$array_dims};
+#         for my $array_dim (@{$array_dims}) {
+#             push @ranges,       eval($array_dim->[1] . ' - ' . $array_dim->[0] . ' + 1');
+#             push @lower_bounds, $array_dim->[0];
+#         }
+#         if ($n_dims == 1) {
+#             return F1D2C(@lower_bounds, @{$index_tuple});
+#         }
+#         elsif ($n_dims == 2) {
+#             return F2D2C($ranges[0], @lower_bounds, @{$index_tuple});
+#         }
+#         elsif ($n_dims == 3) {
+#             return F3D2C(@ranges[0 .. 1], @lower_bounds, @{$index_tuple});
+#         }
+#         elsif ($n_dims == 4) {
+#             return F4D2C(@ranges[0 .. 2], @lower_bounds, @{$index_tuple});
+#         }
+#         else {
+#             croak "Sorry, only up to 4 dimensions supported right now!";
+#         }
+# }
 
 
