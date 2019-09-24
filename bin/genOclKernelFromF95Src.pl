@@ -159,7 +159,7 @@ sub parse_args {
 	$V = ( $opts{'v'} ) ? 1 : 0;
 	$I = ( $opts{'i'} or $V ) ? 1 : 0;
 	$W = ( $opts{'w'} or $V ) ? 1 : 0;
-	$refactor_toplevel_globals=( $opts{'g'} ) ? 1 : 0;
+	$CFG_refactor_toplevel_globals=( $opts{'g'} ) ? 1 : 0;
 	if ( $opts{'C'} ) {
 		$call_tree_only = 1;
 	}

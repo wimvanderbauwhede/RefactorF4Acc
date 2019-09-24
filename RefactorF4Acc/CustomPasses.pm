@@ -15,6 +15,7 @@ use RefactorF4Acc::Translation::SaC qw( translate_module_to_SaC ); # CUSTOM PASS
 use RefactorF4Acc::Translation::OpenCLC qw( translate_module_to_C ); # CUSTOM PASS
 use RefactorF4Acc::Translation::TyTraCL qw( pass_emit_TyTraCL ); # CUSTOM PASS
 use RefactorF4Acc::Translation::TyTraIR qw( pass_emit_TyTraIR ); # CUSTOM PASS
+use RefactorF4Acc::Translation::TyTra::MemoryReduction qw( pass_memory_reduction ); # CUSTOM PASS
 
 use RefactorF4Acc::Analysis::ArrayAccessPatterns qw( pass_identify_stencils ); # CUSTOM PASS
 
@@ -55,16 +56,19 @@ sub run_custom_passes {
             
 # Custom passes
 	if ($pass =~/emit_TyTraCL/i) {
-		$stref = pass_emit_TyTraCL($stref,$code_unit_name);				
-	}	
+		$stref = pass_emit_TyTraCL($stref,$code_unit_name);
+	}		
 	if ($pass =~/emit_TyTraIR/i) {
-		$stref = pass_emit_TyTraIR($stref,$code_unit_name);				
+		$stref = pass_emit_TyTraIR($stref,$code_unit_name);		
 	}	
 	if ($pass =~/identify_stencils/) {
-		$stref = pass_identify_stencils($stref,$code_unit_name);				
+		$stref = pass_identify_stencils($stref,$code_unit_name);
 	}	
 	if ($pass =~/rename_array_accesses_to_scalars|scalarize/) {
 		$stref = pass_rename_array_accesses_to_scalars($stref,$code_unit_name);				
+	}
+	if ($pass =~/memory_reduction/) {
+		$stref = pass_memory_reduction($stref,$code_unit_name);
 	}
 	if ($pass =~/translate_to_C/) {
 		$stref = translate_module_to_C($stref,$code_unit_name,0);

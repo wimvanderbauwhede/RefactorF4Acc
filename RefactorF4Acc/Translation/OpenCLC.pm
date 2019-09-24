@@ -270,9 +270,8 @@ sub translate_sub_to_C {  (my $stref, my $f, my $ocl) = @_;
 				$c_line = $info->{'Indent'}.'pipe '.toCType($ftype).' '.$subcall_ast->[2][1].' __attribute__((xcl_reqd_pipe_depth(32)));'; # TODO: make configurable, this is Xilinx-specific! 
 			}
             elsif ($subcall_ast->[1]=~/(read|write)_pipe/) {
-                my $iodir = $1;
-#                croak(Dumper($subcall_ast));
-                $c_line = $info->{'Indent'} . $subcall_ast->[1] .'_block'.'('.$subcall_ast->[2][1].','.'&'.$subcall_ast->[3][1].');'; # TODO: make configurable, this is Xilinx-specific!
+                my $iodir = $1;               
+                $c_line = $info->{'Indent'} . $subcall_ast->[1] .'_block'.'('.$subcall_ast->[2][1][1].','.'&'.$subcall_ast->[2][2][1].');'; # TODO: make configurable, this is Xilinx-specific!
             }			
 			elsif ($subcall_ast->[1]=~/get_(local|global|group)_id/) {
 				my $qual = $1;
@@ -540,7 +539,11 @@ sub _emit_expression_C { my ($ast, $stref, $f)=@_;
 			} 
 			elsif ($ast->[0] == 1  and $ast->[1] eq 'mod') {#eq '&'
 					shift @{$ast};
-					$ast->[0]= 7 ;# '%';					
+					# $ast->[0]= 7 ;# '%';
+					my $arg1 = $ast->[1][1];
+					my $arg2 = $ast->[1][2];
+					$ast = [7,$arg1,$arg2];# '%';
+					# croak Dumper $ast;
 			}
 
             if ($ast->[0] ==1 or $ast->[0] ==10) { # '&' array access or function call
@@ -648,9 +651,12 @@ sub _emit_expression_C { my ($ast, $stref, $f)=@_;
 					return "$name()";
 				}			
             } else { # not '&' or '@'
+				
                 (my $opcode, my $lexp, my $rexp) =@{$ast};
+				
                 my $lv = (ref($lexp) eq 'ARRAY') ? _emit_expression_C($lexp, $stref, $f) : $lexp;
                 my $rv = (ref($rexp) eq 'ARRAY') ? _emit_expression_C($rexp, $stref, $f) : $rexp;
+				
                 return $lv.$sigils[$opcode].$rv;
             }
         } elsif (scalar @{$ast}==2) { #  for '{'  and '$'
@@ -813,6 +819,8 @@ sub toCType {
     ( my $ftype, my $kind ) = @_;
     
     if (not defined $kind) {$kind=4};
+	if ($kind=~/kind/) {$kind=~s/kind\s*=\s*//;}; # FIXME, this should have been sorted in the Parser
+
     my %corr = (
         'logical'          => 'int', # C has no bool
         'integer'          => ($ftype eq 'integer' and $kind == 8 ? 'long' : 'int'),

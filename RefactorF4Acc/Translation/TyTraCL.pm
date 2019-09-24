@@ -886,7 +886,6 @@ sub _addToMainSig {
     (my $stref, my $main_rec, my $node, my $lhs, my $rhs, my $fname) = @_;
     my $orig_args = $stref->{$stref->{'EmitAST'}}{'OrigArgs'};
     if ($node->{'NodeType'} eq 'StencilAppl') {
-
         # TODO: refactor!
         (my $var_name, my $ctr, my $ext) = @{$rhs->{'Var'}};
         if (exists $orig_args->{$var_name}
@@ -1006,6 +1005,7 @@ sub _add_TyTraCL_AST_entry {
                 }
             }
           };
+        my $s_sz = scalar @{$state->{'Subroutines'}{$f}{'Blocks'}{$block_id}{'Arrays'}{$array_var}{'Dims'}};
         my $ctr_in = $unique_var_counters->{$array_var};
 
         if (not exists $unique_var_counters->{"${array_var}_s"}) {
@@ -1020,7 +1020,10 @@ sub _add_TyTraCL_AST_entry {
           { 'NodeType'     => 'StencilAppl',
             'FunctionName' => $f,
             'Lhs'          => {'Var' => [$array_var, $ctr_sv, 's']},
-            'Rhs'          => {'StencilCtr' => $ctr_st, 'Var' => [$array_var, $ctr_in, '']}
+            'Rhs'          => {
+                'StencilCtr' => $ctr_st, 
+                'StencilSz' => $s_sz, 
+                'Var' => [$array_var, $ctr_in, '']}
           };
         $tytracl_ast->{'Stencils'}{$array_var} = 1;
     }
@@ -1207,11 +1210,12 @@ sub __add_to_MainArgTypes {
 
     # my $dim = $var_rec->{'Dim'};
     my $type = $var_rec->{'Type'};
+    # add to InArgsTypes or OutArgsTypes
     $main_rec->{$inoutargs . 'Types'}{$var_name} = __toTyTraCLType($type, $dim);
     return $main_rec;
 }    # END of __add_to_MainArgTypes
 
-
+# This is to emit Haskell later
 sub _emit_TyTraCL_FunctionSigs { (my $stref) = @_;
 
     # FIXME: we ignore Selects and Inserts for now.
