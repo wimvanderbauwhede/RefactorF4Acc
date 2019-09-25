@@ -2,11 +2,12 @@ package RefactorF4Acc::Translation::TyTra::MemoryReduction;
 use v5.10;
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
-use RefactorF4Acc::Refactoring::Common qw(
-	pass_wrapper_subs_in_module					
-	);
+use RefactorF4Acc::Refactoring::Common qw( pass_wrapper_subs_in_module );
+use RefactorF4Acc::Refactoring::Fixes qw( remove_redundant_arguments_and_fix_intents );
 use RefactorF4Acc::Translation::TyTra::Common qw( _mkVarName );
-use RefactorF4Acc::Translation::TyTraCL qw( emit_TyTraCL construct_TyTraCL_AST_Main_node generate_TyTraCL_stencils );
+
+use RefactorF4Acc::Analysis::ArrayAccessPatterns qw( identify_array_accesses_in_exprs );
+use RefactorF4Acc::Translation::TyTraCL qw( emit_TyTraCL construct_TyTraCL_AST_Main_node generate_TyTraCL_stencils _add_TyTraCL_AST_entry );
 
 #
 #   (c) 2016 Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
@@ -31,7 +32,7 @@ use Exporter;
 @RefactorF4Acc::Translation::TyTra::MemoryReduction::ISA = qw(Exporter);
 
 @RefactorF4Acc::Translation::TyTra::MemoryReduction::EXPORT_OK = qw(
-&pass_memory_reduction
+  &pass_memory_reduction
 );
 
 
@@ -60,18 +61,19 @@ sub pass_memory_reduction {
         [
 #				[ sub { (my $stref, my $f)=@_;  alias_ordered_set($stref,$f,'DeclaredOrigArgs','DeclaredOrigArgs'); } ],
             [\&remove_redundant_arguments_and_fix_intents],
-            [\&identify_array_accesses_in_exprs ],
+            [\&identify_array_accesses_in_exprs],
         ]
     );
+
 # say Dumper $stref->{'TyTraCL_AST'}{'Lines'};
-    $stref = construct_TyTraCL_AST_Main_node($stref);
-    $stref = _emit_TyTraCL_FunctionSigs($stref);
-    $stref = emit_TyTraCL($stref);
+    $stref = construct_TyTraCL_AST_Main_node($stref);    
+    $stref = _add_VE_to_AST($stref);
+    $stref = _emit_TyTraCL_Haskell_AST_Code($stref);
 
     # What this does is emitting the Haskell AST to a Haskell module file
-    # my $tytracl_str = $stref->{'TyTraCL_Code'};
-    # say $tytracl_str;
-    # write_out($tytracl_str, 'STDOUT');
+    my $tytracl_hs_str = $stref->{'TyTraCL_Haskell_AST_Code'};
+    
+    write_out($tytracl_hs_str);
 
     # This makes sure that no fortran is emitted by emit_all()
     $stref->{'SourceContains'} = {};
@@ -295,122 +297,237 @@ $ast->{'Nodes'} = {
 
 =cut
 
+=info_VE
+VE is the Haskell datatype 
+
+        data VE = VI  | VO  | VS  | VT 
+
+The VI | VO information is available by testing against
+
+        $stref->{'TyTraCL_AST'}{'Main'}{InArgsTypes}
+        $stref->{'TyTraCL_AST'}{'Main'}{OutArgsTypes}
+
+The VS information is in the var name tuple: an 's' means VS
+So we start by setting the value to VT.
+
+I will simply extend the var tuple with this additional attribute, as a string.
+=cut
+sub _emit_TyTraCL_Haskell_AST_Code {
+    (my $stref) = @_;
+
+    my $tytracl_ast  = $stref->{'TyTraCL_AST'};
+    
+
+    my $tytracl_hs_ast_strs = [];
+    for my $node (@{$tytracl_ast->{'Lines'}}) {
+
+        if ($node->{'NodeType'} eq 'StencilDef') {
+            # do nothing
+        }
+        elsif ($node->{'NodeType'} eq 'StencilAppl') {
+
+            my $line = mkStencilApplAST($node);
+            push @{$tytracl_hs_ast_strs}, $line;
+        }
+
+        elsif ($node->{'NodeType'} eq 'Map') {
+            my $line = mkMapAST($node);
+            push @{$tytracl_hs_ast_strs}, $line;
+        }
+        elsif ($node->{'NodeType'} eq 'Fold') { 
+            my $line = mkFoldAST($node);
+           push @{$tytracl_hs_ast_strs}, $line;
+        }
+        elsif ($node->{'NodeType'} eq 'Comment') {
+            my $line = ' -- ' . $node->{'CommentStr'};
+         push @{$tytracl_hs_ast_strs}, $line;
+        }
+        else {
+            croak;
+        }
+    }
+
+my $header =
+'module ASTInstance where 
+import TyTraCLAST
+
+ast :: TyTraCLAST
+ast = [
+';              
+
+    my @indented_tytracl_hs_ast_strs=();
+    my $idx=0;
+    for my $tytracl_hs_ast_str ( @{$tytracl_hs_ast_strs}) {
+        my $indented_tytracl_hs_ast_str = $tytracl_hs_ast_str;
+            if ($idx>0 and $tytracl_hs_ast_str!~/^\s*\-\-/) {
+                $tytracl_hs_ast_str=','.$tytracl_hs_ast_str;
+            }
+            $indented_tytracl_hs_ast_str='        '.$indented_tytracl_hs_ast_str;
+            ++$idx;
+            push @indented_tytracl_hs_ast_strs, $indented_tytracl_hs_ast_str;
+    }
+
+    my $tytracl_hs_ast_code_str=join("\n", @indented_tytracl_hs_ast_strs);
+    $tytracl_hs_ast_code_str=$header.$tytracl_hs_ast_code_str."\n        ]\n";
+
+    $stref->{'TyTraCL_Haskell_AST_Code'} = $tytracl_hs_ast_code_str ;
+
+    return $stref;
+}    # END of _emit_TyTraCL_Haskell_AST_Code
+
+
+sub _add_VE_to_AST {
+    (my $stref) = @_;
+
+    my $tytracl_ast  = $stref->{'TyTraCL_AST'};
+    
+
+    for my $node (@{$tytracl_ast->{'Lines'}}) {
+
+        if ($node->{'NodeType'} eq 'StencilDef') {
+            # do nothing
+        }
+        elsif ($node->{'NodeType'} eq 'StencilAppl') {
+
+            push @{$node->{'Lhs'}{'Var'}}, 'VS';
+            my $rhs_var_rec = $node->{'Rhs'}{'Var'};
+            
+            my $ve= __determine_VE($stref, $rhs_var_rec);
+                        
+            push @{$node->{'Rhs'}{'Var'}}, $ve;
+        }
+
+        elsif ($node->{'NodeType'} eq 'Map') {
+            $node->{'Lhs'}{'Vars'}=[
+                map {
+                    my $var_rec=$_;
+                    my $ve = __determine_VE($stref, $var_rec);
+                    push @{$var_rec},$ve;
+                    $var_rec;
+                } @{ $node->{'Lhs'}{'Vars'} }
+            ];
+
+            $node->{'Rhs'}{'MapArgs'}{'Vars'}=[
+                map {
+                    my $var_rec=$_;
+                    my $ve = __determine_VE($stref, $var_rec);
+                    push @{$var_rec},$ve;
+                    $var_rec;
+                } @{ $node->{'Rhs'}{'MapArgs'}{'Vars'} }
+            ];
+        }
+        elsif ($node->{'NodeType'} eq 'Fold') { 
+
+            $node->{'Rhs'}{'FoldArgs'}{'Vars'}=[
+                map {
+                    my $var_rec=$_;
+                    my $ve = __determine_VE($stref, $var_rec);
+                    push @{$var_rec},$ve;
+                    $var_rec;
+                } @{ $node->{'Rhs'}{'FoldArgs'}{'Vars'} }
+            ];
+
+        }
+        elsif ($node->{'NodeType'} eq 'Comment') {
+            # do nothing
+        }
+        else {
+            croak;
+        }
+    }
+
+    return $stref;
+}    # END of _add_VE_to_AST()
+
 
 # ==============================================================================================================================
 # AUX
 # ==============================================================================================================================
 
-sub emitDotGraph { (my $nets)=@_;
-    # a -> b [ label="a to b" ];
-    open my $DOT, '>', 'test_graph.dot' or die $!;
-    say $DOT 'digraph G {';
-    for my $net (sort keys %{$nets}) {
-        my $entry = $nets->{$net};
-        # carp Dumper $entry;
-        for my $from (@{$entry->{'From'}}) {
-        my $a = $from->{'NodeType'}.':'.$from->{'Name'};
-        for my $to (@{$entry->{'To'}}) {
-        my $b = $to->{'NodeType'}.':'.$to->{'Name'};
-        my $edge_label = $entry->{'NetType'}.':'.$net;
-        say $DOT "\"$a\" -> \"$b\" [ label=\"$edge_label\" ];";
-        }
-        }
-
-    }
-    say $DOT '}';
-    close $DOT ;
-}
-
-sub __get_min_max_from_array { my ($values) = @_;
-
-    my $max = shift @{$values};
-    my $min = $max;
-
-    for my $val (@{$values}) {
-        $max = $val > $max ? $val : $max;
-        $min = $val < $min ? $val : $min;
-    }
-    return ($min, $max);
-} # END of __get_min_max_from_array_from_array
 
 # mkFold(shapiro_reduce_18 => [] , [['etan_avg',0,'']] => [['etan',0,'']] => [['etan_avg',1,'']]);
-sub mkFold { my ($fname,$non_fold_args, $acc_args, $fold_args, $ret_vars)=@_;
+sub mkFold {
+    my ($fname, $non_fold_args, $acc_args, $fold_args, $ret_vars) = @_;
     return {
         'Rhs' => {
-            'FoldArgs' => {'Vars' => $fold_args},
+            'FoldArgs'    => {'Vars' => $fold_args},
             'NonFoldArgs' => {'Vars' => $non_fold_args},
-            'Function' => $fname,
-            'AccArgs' => {'Vars' => $acc_args}
+            'Function'    => $fname,
+            'AccArgs'     => {'Vars' => $acc_args}
         },
         'FunctionName' => $fname,
-        'NodeType' => 'Fold',
-        'Lhs' => {
-            'Vars' => $ret_vars
-        }
+        'NodeType'     => 'Fold',
+        'Lhs'          => {'Vars' => $ret_vars}
     };
 }
 
 # mkMap( shapiro_map_23 => [['eps',0,''],['etan_avg',1,'']] => [['wet',0,'s'],['etan',0,'s'],['eta',0,'']] => [['eta',1,'']] );
-sub mkMap { my ($fname,$non_map_args, $map_args, $ret_vars)=@_;
+sub mkMap {
+    my ($fname, $non_map_args, $map_args, $ret_vars) = @_;
     return {
         'Rhs' => {
-            'MapArgs' => {'Vars' => $map_args},
+            'MapArgs'    => {'Vars' => $map_args},
             'NonMapArgs' => {'Vars' => $non_map_args},
-            'Function' => $fname,
+            'Function'   => $fname,
         },
         'FunctionName' => $fname,
-        'NodeType' => 'Map',
-        'Lhs' => {
-            'Vars' => $ret_vars
-        }
+        'NodeType'     => 'Map',
+        'Lhs'          => {'Vars' => $ret_vars}
     };
 }
 
 # mkStencilAppl( 1 => ['wet',0,''] => ['wet',0,'s']);
-sub mkStencilAppl { my ($ctr,$arg, $ret_var)=@_;
-    return {'Rhs' => {'Var' => $arg,'StencilCtr' => $ctr},'FunctionName' => "sa$ctr",'NodeType' => 'StencilAppl','Lhs' => {'Var' => $ret_var}};    
-}
-
-# mkStencilDef(2, [-1,-502,0,502,1]);
-sub mkStencilDef { my ($ctr, $pattern) = @_;
+sub mkStencilAppl {
+    my ($ctr, $arg, $ret_var) = @_;
     return {
-        'NodeType' => 'StencilDef',
-        'Lhs' => {'Ctr' => 1},
-        'FunctionName' => "s$ctr",
-        'Rhs' => {
-            'StencilPattern' => {
-                'Pattern' => $pattern,
-            }
-        }
+        'Rhs'          => {'Var' => $arg, 'StencilCtr' => $ctr},
+        'FunctionName' => "sa$ctr",
+        'NodeType'     => 'StencilAppl',
+        'Lhs'          => {'Var' => $ret_var}
     };
 }
 
-sub addTypeDecl { my ($stref,$f,$var_name, $var_type, $dim)=@_;
+# mkStencilDef(2, [-1,-502,0,502,1]);
+sub mkStencilDef {
+    my ($ctr, $pattern) = @_;
+    return {
+        'NodeType'     => 'StencilDef',
+        'Lhs'          => {'Ctr' => 1},
+        'FunctionName' => "s$ctr",
+        'Rhs'          => {'StencilPattern' => {'Pattern' => $pattern,}}
+    };
+}
 
-    $stref->{'Subroutines'}{$f}{'ArrayAccesses'}{0}{'Arrays'}{$var_name} = {'Dims' => $dim} ;
-    $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$var_name}={'Type' => $var_type};
+sub addTypeDecl {
+    my ($stref, $f, $var_name, $var_type, $dim) = @_;
+
+    $stref->{'Subroutines'}{$f}{'ArrayAccesses'}{0}{'Arrays'}{$var_name} = {'Dims' => $dim};
+    $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$var_name} = {'Type' => $var_type};
     return $stref;
 }
 
 
 #========================================================================================================================
 
-# The code below is for the memory reduction pass 
+# The code below is for the memory reduction pass
 # This should of course go into a separate module MemoryReduction.pm
-# I  emit the Haskell AST, then the work is done in Haskell. 
+# I  emit the Haskell AST, then the work is done in Haskell.
 # I could then re-emit the Perl AST and go from there to Fortran, or emit Fortran straight from Haskell
 
-sub mkStencilApplAST { (my $stencilApplNode)=@_;
+sub mkStencilApplAST {
+    (my $stencilApplNode) = @_;
+
     # $stencilApplNode = {
     #     'Lhs' => {'Var' => ['etan',0,'s']},
     #     'NodeType' => 'StencilAppl',
     #     'FunctionName' => 'shapiro_map_23',
     #     'Rhs' => {'StencilCtr' => 2,'Var' => ['etan',0,'']}};
-    my $s_var = _mkVarName($stencilApplNode->{'Lhs'}{'Var'});
-    my $var = _mkVarName($stencilApplNode->{'Rhs'}{'Var'});
-    my $s = 's'.$stencilApplNode->{'Rhs'}{'StencilCtr'};
-    my $s_sz = $stencilApplNode->{'Rhs'}{'StencilSz'};
-    my $ast_line = '(Vec VS "'. $s_var. '" , Stencil (SVec '. $s_sz . ' "'. $s . '") (Vec VI "' . $var. '"))';
+    my $s_var    = _mkVarName($stencilApplNode->{'Lhs'}{'Var'});
+    my $var      = _mkVarName($stencilApplNode->{'Rhs'}{'Var'});
+    my $ve       = $stencilApplNode->{'Rhs'}{'Var'}[3];
+    my $s        = 's' . $stencilApplNode->{'Rhs'}{'StencilCtr'};
+    my $s_sz     = $stencilApplNode->{'Rhs'}{'StencilSz'};
+    my $ast_line = '(Vec VS "' . $s_var . '" , Stencil (SVec ' . $s_sz . ' "' . $s . '") (Vec ' . $ve . ' "' . $var . '"))';
 
     return $ast_line;
 }
@@ -433,33 +550,110 @@ So really the only issue is the I/O/S/T type
 
 
 # This will need context, unless I already add the I/O/T/S types when creating the AST
-sub mkMapAST { (my $mapNode)=@_;
-
-$mapNode = {
-    'Lhs' => {'Vars' => [['h',1,''],['u',1,''],['v',1,''],['wet',1,'']]},
-    'NodeType' => 'Map',
-    'FunctionName' => 'update_map_24',
-    'Rhs' => {
-        'NonMapArgs' => {'Vars' => [['hmin',0,'']]},
-        'MapArgs' => {'Vars' => [['hzero',0,''],['eta',0,'s'],['h',0,'s'],['un',0,'s'],['vn',0,'s']]},
-        'Function' => 'update_map_24'}
-        };
+sub mkMapAST {
+    (my $mapNode) = @_;
 
 # I need to determine if a vector is VO, VI, VS or VS
 # VS is for stencil
 # I should know the inputs and outputs
 # anything else is VT
-# more than one
-my $lhs = scalar @{ $mapNode->{'Lhs'}{'Vars'} } > 1 ? '(Tuple ['. join(',' , 'Vec VO "du_1", Vec VO "dv_1"')  .'])' 
-# otherwise 
-:  'Vec VO "du_1"';
 
-my $rhs='';
-    
+# more than one
+    my $lhs = scalar @{$mapNode->{'Lhs'}{'Vars'}} > 1
+      ? '(Tuple [' . join(',', map { __mkVec($_) } @{$mapNode->{'Lhs'}{'Vars'}}) . '])'
+
+# otherwise
+      : __mkVec($mapNode->{'Lhs'}{'Vars'}[0]);
+    my $map_args =
+      scalar @{$mapNode->{'Rhs'}{'MapArgs'}{'Vars'}} > 1
+      ? '(ZipT [' . join(',', map { __mkVec($_) } @{$mapNode->{'Rhs'}{'MapArgs'}{'Vars'}}) . '])'
+      : '(' . __mkVec($mapNode->{'Rhs'}{'MapArgs'}{'Vars'}[0]) . ')';
+    my $f_exp = $mapNode->{'Rhs'}{'Function'};
+    if (exists $mapNode->{'Rhs'}{'NonMapArgs'}
+        and scalar @{$mapNode->{'Rhs'}{'NonMapArgs'}{'Vars'}} > 0)
+    {
+# FIXME: I guess a single arg should not be a tuple ...
+        my $non_map_arg_str = ' (' . join(',', map { _mkVarName($_) } @{$mapNode->{'Rhs'}{'NonMapArgs'}{'Vars'}}) . ')';
+        $f_exp .= $non_map_arg_str;
+    }
+    my $rhs_core = 'Map (Function "' . $f_exp . '") ' . $map_args . ')';
+
+
+    my $rhs = scalar @{$mapNode->{'Lhs'}{'Vars'}} > 1 ? "UnzipT ( $rhs_core )" : $rhs_core;
+
     my $ast_line = "( $lhs, $rhs )";
 
     return $ast_line;
 }
 
+sub mkFoldAST {
+    (my $foldNode) = @_;
+
+# {'Rhs' => {'FoldArgs' => {'Vars' => [['etan',0,'']]},'NonFoldArgs' => {'Vars' => []},'Function' => 'shapiro_reduce_18','AccArgs' => {'Vars' => [['etan_avg',0,'']]}},
+# 'Lhs' => {'Vars' => [['etan_avg',1,'']]}}
+# I need to determine if a vector is VO, VI, VS or VS
+# VS is for stencil
+# I should know the inputs and outputs
+# anything else is VT
+
+# more than one
+    my $lhs =  
+    
+     scalar @{$foldNode->{'Lhs'}{'Vars'}} > 1
+      ? '(Tuple [' . join(',', map { __mkScalar($_) } @{$foldNode->{'Lhs'}{'Vars'}}) . '])'
+# otherwise
+    : __mkScalar($foldNode->{'Lhs'}{'Vars'}[0]);
+    my $fold_args =
+      scalar @{$foldNode->{'Rhs'}{'FoldArgs'}{'Vars'}} > 1
+      ? '(ZipT [' . join(',', map { __mkVec($_) } @{$foldNode->{'Rhs'}{'FoldArgs'}{'Vars'}}) . '])'
+      : '(' . __mkVec($foldNode->{'Rhs'}{'FoldArgs'}{'Vars'}[0]) . ')';
+    my $acc_args =   scalar @{$foldNode->{'Rhs'}{'AccArgs'}{'Vars'}} > 1
+      ? '(' . join(',', map { __mkScalar($_) } @{$foldNode->{'Rhs'}{'AccArgs'}{'Vars'}}) . ')'
+      : '(' . __mkScalar($foldNode->{'Rhs'}{'AccArgs'}{'Vars'}[0]) . ')';
+    my $f_exp = $foldNode->{'Rhs'}{'Function'};
+    if (exists $foldNode->{'Rhs'}{'NonFoldArgs'}
+        and scalar @{$foldNode->{'Rhs'}{'NonFoldArgs'}{'Vars'}} > 0)
+    {
+# FIXME: I guess a single arg should not be a tuple ...
+        my $non_fold_arg_str = ' (' . join(',', map { _mkVarName($_) } @{$foldNode->{'Rhs'}{'NonFoldArgs'}{'Vars'}}) . ')';
+        $f_exp .= $non_fold_arg_str;
+    }
+    my $rhs = 'Fold (Function "' . $f_exp . '") ' . $acc_args.' '.$fold_args . ')';
+
+    my $ast_line = "( $lhs, $rhs )";
+
+    return $ast_line;
+}
+
+
+sub __mkVec {
+    my ($v_rec) = @_;
+    my $v_name  = _mkVarName($v_rec);
+    my $ve      = $v_rec->[3];
+    return 'Vec ' . $ve . ' "' . $v_name . '"';
+}
+
+sub __mkScalar {
+    my ($v_rec) = @_;
+    my $v_name  = _mkVarName($v_rec);
+    return 'Scalar "' . $v_name . '"';
+}
+
+
+sub __determine_VE { (my $stref, my $var_rec)=@_;
+    if ($var_rec->[2] eq 's') {
+        return 'VS'
+    } else {
+        my $var_name = _mkVarName($var_rec);
+        my $ve='VT';
+        if (exists $stref->{'TyTraCL_AST'}{'Main'}{'InArgsTypes'}{$var_name}) {
+            $ve='VI';
+        }
+        elsif (exists $stref->{'TyTraCL_AST'}{'Main'}{'OutArgsTypes'}{$var_name}) {
+            $ve='VO';       
+        }
+        return $ve;
+    }
+} # END of __determine_VE
 
 1;

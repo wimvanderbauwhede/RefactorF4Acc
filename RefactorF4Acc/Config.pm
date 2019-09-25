@@ -130,31 +130,31 @@ sub read_rf4a_config {
 close $CFG;
 }
 =pod
-TOP: The name of the toplevel code unit for the analysis. Typically this is the main program name.
-PREFIX: The path to the directory  where the script will run. Typically this is '.'.
+TOP :: String: The name of the toplevel code unit for the analysis. Typically this is the main program name. 
+PREFIX :: String: The path to the directory  where the script will run. Typically this is '.'.
 
-SRCDIRS: A comma-separated list of directories (relative to PREFIX) to be searched for source files.
-EXTSRCDIRS: A comma-separated list of directories (relative to PREFIX) to be searched for source files.
-EXCL_SRCS: A regular expression matching the source files to be excluded from the analysis.
-EXCL_DIRS: A comma-separated list of directories (relative to PREFIX) NOT to be searched for source files.
-MACRO_SRC: If the sources use the C preprocessor, you can provide a file containing C preprocessor macro definitions
-NEWSRCPATH: Path to the directory that will contain the refactored sources
+SRCDIRS :: [String]: A comma-separated list of directories (relative to PREFIX) to be searched for source files.
+EXTSRCDIRS :: [String]: A comma-separated list of directories (relative to PREFIX) to be searched for source files.
+EXCL_SRCS :: Regex: A regular expression matching the source files to be excluded from the analysis.
+EXCL_DIRS :: [String]: A comma-separated list of directories (relative to PREFIX) NOT to be searched for source files.
+MACRO_SRC :: String: If the sources use the C preprocessor, you can provide a file containing C preprocessor macro definitions
+NEWSRCPATH :: String: Path to the directory that will contain the refactored sources
 
-KERNEL: For OpenCL translatation, the name of the subroutine to become the OpenCL kernel (actually same as TOP).
-MODULE_SRC: For OpenCL translatation, the name of the source file containing a module which contains the kernel subroutine.
-MODULE: For OpenCL translatation, the name of the module which contains the kernel subroutine
+KERNEL :: String: For OpenCL translatation, the name of the subroutine to become the OpenCL kernel (actually same as TOP).
+MODULE_SRC :: String: For OpenCL translatation, the name of the source file containing a module which contains the kernel subroutine.
+MODULE :: String: For OpenCL translatation, the name of the module which contains the kernel subroutine
 
-NO_MODULE: List of source files that should not be changed to modules
-RENAME_EXT: Extension for variables that need to be renamed because of conflicts (usually you don't need this; the default is _GLOB)
-NO_ONLY: Do not use the ONLY qualifier on the USE declaration
-SPLIT_LONG_LINES: Split long lines into chunks of no more than 80 characters
-MAX_LINE_LENGTH: Maximum line length for fixed-format F77 code. The default is 132 characters.
-EXT Extension of generated source files. Default is `.f90`; must include the dot
-LIBS SCons LIBS, comma-separated list
-LIBPATH SCons LIBPATH, comma-separated list
-INCLPATH SCons F90PATH or F95PATH (based on EXT), comma-separated list
+NO_MODULE :: [String]: List of source files that should not be changed to modules
+RENAME_EXT  :: String: Extension for variables that need to be renamed because of conflicts (usually you don't need this; the default is _GLOB)
+NO_ONLY :: 0 | 1: Do not use the ONLY qualifier on the USE declaration
+SPLIT_LONG_LINES :: 0 | 1: Split long lines into chunks of no more than 80 characters
+MAX_LINE_LENGTH :: Int: Maximum line length for fixed-format F77 code. The default is 132 characters.
+EXT :: String: Extension of generated source files. Default is `.f90`; must include the dot
+LIBS :: [String]: SCons LIBS, comma-separated list
+LIBPATH :: [String]: SCons LIBPATH, comma-separated list
+INCLPATH :: [String]: SCons F90PATH or F95PATH (based on EXT), comma-separated list
 
-REFACTOR_TOPLEVEL_GLOBALS: like -g
+REFACTOR_TOPLEVEL_GLOBALS :: 0 | 1:: like -g
 
 Examples:
 

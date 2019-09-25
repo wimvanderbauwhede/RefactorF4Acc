@@ -44,6 +44,7 @@ use Exporter;
   &emit_TyTraCL
   &construct_TyTraCL_AST_Main_node
   &generate_TyTraCL_stencils
+  &_add_TyTraCL_AST_entry
 );
 
 # If set to 0, Folds are identified as Maps (for dev/debug)
@@ -88,12 +89,13 @@ sub pass_emit_TyTraCL {
     );
 # say Dumper $stref->{'TyTraCL_AST'}{'Lines'};
     $stref = construct_TyTraCL_AST_Main_node($stref);
-    $stref = _emit_TyTraCL_FunctionSigs($stref);
+    # This is to emit Haskell later, could maybe go in a separate pass
+    # $stref = _emit_TyTraCL_FunctionSigs($stref);
     $stref = _add_VE_to_AST($stref);
     $stref = emit_TyTraCL($stref);
     my $tytracl_str = $stref->{'TyTraCL_Code'};
     # say $tytracl_str;
-    carp Dumper($stref->{'TyTraCL_AST'}{'Lines'});
+    # carp Dumper($stref->{'TyTraCL_AST'}{'Lines'});
     write_out($tytracl_str, 'STDOUT');
 
 
@@ -146,84 +148,7 @@ sub construct_TyTraCL_AST_Main_node {
     return $stref;
 } # END of construct_TyTraCL_AST_Main_node
 
-=info_VE
-VE is the Haskell datatype 
 
-        data VE = VI  | VO  | VS  | VT 
-
-The VI | VO information is available by testing against
-
-        $stref->{'TyTraCL_AST'}{'Main'}{InArgsTypes}
-        $stref->{'TyTraCL_AST'}{'Main'}{OutArgsTypes}
-
-The VS information is in the var name tuple: an 's' means VS
-So we start by setting the value to VT.
-
-I will simply extend the var tuple with this additional attribute, as a string.
-=cut
-sub _add_VE_to_AST {
-    (my $stref) = @_;
-
-    my $tytracl_ast  = $stref->{'TyTraCL_AST'};
-    
-
-    for my $node (@{$tytracl_ast->{'Lines'}}) {
-
-        if ($node->{'NodeType'} eq 'StencilDef') {
-            # do nothing
-        }
-        elsif ($node->{'NodeType'} eq 'StencilAppl') {
-
-            push @{$node->{'Lhs'}{'Var'}}, 'VS';
-            my $rhs_var_rec = $node->{'Rhs'}{'Var'};
-            
-            my $ve= __determine_VE($stref, $rhs_var_rec);
-                        
-            push @{$node->{'Rhs'}{'Var'}}, $ve;
-        }
-
-        elsif ($node->{'NodeType'} eq 'Map') {
-            $node->{'Lhs'}{'Vars'}=[
-                map {
-                    my $var_rec=$_;
-                    my $ve = __determine_VE($stref, $var_rec);
-                    push @{$var_rec},$ve;
-                    $var_rec;
-                } @{ $node->{'Lhs'}{'Vars'} }
-            ];
-
-            $node->{'Rhs'}{'MapArgs'}{'Vars'}=[
-                map {
-                    my $var_rec=$_;
-                    my $ve = __determine_VE($stref, $var_rec);
-                    push @{$var_rec},$ve;
-                    $var_rec;
-                } @{ $node->{'Rhs'}{'MapArgs'}{'Vars'} }
-            ];
-        }
-        elsif ($node->{'NodeType'} eq 'Fold') { 
-
-            $node->{'Rhs'}{'FoldArgs'}{'Vars'}=[
-                map {
-                    my $var_rec=$_;
-                    my $ve = __determine_VE($stref, $var_rec);
-                    push @{$var_rec},$ve;
-                    $var_rec;
-                } @{ $node->{'Rhs'}{'FoldArgs'}{'Vars'} }
-            ];
-
-        }
-        elsif ($node->{'NodeType'} eq 'Comment') {
-            # do nothing
-        }
-        else {
-            croak;
-        }
-    }
-
-
-    return $stref;
-}    # END of _add_VE_to_AST()
 
 
 sub emit_TyTraCL {
@@ -1544,19 +1469,3 @@ $ast->{'Nodes'} = {
 }
 
 =cut
-
-sub __determine_VE { (my $stref, my $var_rec)=@_;
-    if ($var_rec->[2] eq 's') {
-        return 'VS'
-    } else {
-        my $var_name = _mkVarName($var_rec);
-        my $ve='VT';
-        if (exists $stref->{'TyTraCL_AST'}{'Main'}{'InArgsTypes'}{$var_name}) {
-            $ve='VI';
-        }
-        elsif (exists $stref->{'TyTraCL_AST'}{'Main'}{'OutArgsTypes'}{$var_name}) {
-            $ve='VO';       
-        }
-        return $ve;
-    }
-} # END of __determine_VE

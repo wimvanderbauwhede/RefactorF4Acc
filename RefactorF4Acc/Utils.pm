@@ -59,11 +59,33 @@ use Exporter;
     &alias_ordered_set
     &remove_vars_from_ordered_set
     &get_module_name_from_source
+    &get_kernel_and_module_names
 );
 
 
 
 our $BLANK_LINE = ['',{'Blank'=>1,'Ref'=>1}];
+
+sub get_kernel_and_module_names {
+    my ($kernel_src, $superkernel) = @_;
+    
+    open my $SRC, '<', $kernel_src or die $!;
+    my @src_lines = <$SRC>;
+    close $SRC;
+    # say 'NAMES:',Dumper grep {/subroutine/} @src_lines;
+    my @kernel_sub_names    = map {/^\s*subroutine\s+(\w+)/; $1} grep { /^\s*subroutine\s+\w+/ } @src_lines;
+    my $kernel_sub_name='NO_NAME';
+    if (defined $superkernel) {
+            ($kernel_sub_name) = grep {/superkernel/} @kernel_sub_names;
+    } else {
+            ($kernel_sub_name) = grep {!/superkernel/} @kernel_sub_names;
+    }
+    say "KERNEL SUB NAME: <$kernel_sub_name>" if $V;
+    my ($kernel_module_name) = map { /^\s*module\s+(\w+)/; $1 } grep {/^\s*module\s+\w+/} @src_lines;
+    say "KERNEL MODULE NAME: <$kernel_module_name>" if $V;
+    return ($kernel_sub_name, $kernel_module_name);
+} # END of get_kernel_and_module_names
+
 
 sub get_module_name_from_source { (my $stref,my $fp) = @_;
 	if (exists $stref->{'SourceFiles'}{$fp}{'SourceType'} and $stref->{'SourceFiles'}{$fp}{'SourceType'} eq 'Modules') {
