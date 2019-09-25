@@ -131,12 +131,15 @@ sub identify_array_accesses_in_exprs { (my $stref, my $f) = @_;
                 };
                 
                 for my $arg ( @{ $info->{'Signature'}{'Args'}{'List'} } ) {
-                	my $arg_decl = get_var_record_from_set($stref->{'Subroutines'}{$f}{'Args'},$arg);		
+					# carp "ARG: $arg" if $f=~/reduce/;
+                	my $arg_decl = get_var_record_from_set($stref->{'Subroutines'}{$f}{'Args'},$arg);
 					my $intent =$arg_decl->{'IODir'}; # can be Unknown
-					
+					# carp Dumper($stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$arg});
+					# croak "AFTER: $arg $intent" if $f=~/reduce/;
 					my $is_scalar = $arg_decl->{'ArrayOrScalar'} eq 'Array' ? 0 : 1;
 					if ($is_scalar and $intent eq 'out' or $intent eq 'inout' or $intent eq 'Unknown') {
 						push @{ $state->{'Subroutines'}{$f}{'Args'}{'MaybeAcc'} }, $arg;
+						# carp "MAYBE ACC: $arg" if $f=~/reduce/;
 					}
 					if ($intent ne 'out') {
 						push @{ $state->{'Subroutines'}{$f}{'Args'}{'In'} }, $arg;
@@ -202,7 +205,7 @@ sub identify_array_accesses_in_exprs { (my $stref, my $f) = @_;
 					my %maybe_accs = map {$_ => 1} @{$state->{'Subroutines'}{$f}{'Args'}{'MaybeAcc'}};
 					my %in_arrays  = map {$_ => 1} @{$state->{'Subroutines'}{$f}{'Args'}{'In'}};
 					my $acc_var = $info->{'Lhs'}{'VarName'} ;
-#					croak $f . ' ' .$acc_var . Dumper($state->{'Subroutines'}{$f}{'Args'}{'MaybeAcc'}) if $acc_var=~/acc/ and $f=~/reduce/;
+					# croak $f . ' ' .$acc_var . Dumper($state->{'Subroutines'}{$f}{'Args'}{'MaybeAcc'}) if $acc_var=~/avg/ and $f=~/reduce/;
 					if (exists $maybe_accs{$acc_var}) { 
 						
 						my $vars = get_vars_from_expression($info->{'Rhs'}{'ExpressionAST'});
@@ -211,7 +214,7 @@ sub identify_array_accesses_in_exprs { (my $stref, my $f) = @_;
 								if ($vars->{$tvar}{'Type'} eq 'Array'
 								and exists $in_arrays{$tvar}
 								) {
-									# say "DETERMINED ACC $acc_var in $f"; 
+									# croak "DETERMINED ACC $acc_var in $f"; 
 									push @{$state->{'Subroutines'}{$f}{'Args'}{'Acc'}}, $acc_var;
 									last;
 #							die Dumper($vars) if $info->{'Lhs'}{'VarName'} eq 'acc';

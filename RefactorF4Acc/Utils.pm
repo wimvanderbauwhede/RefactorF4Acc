@@ -559,6 +559,7 @@ sub get_vars_from_set { (my $set)=@_;
         for my $subset (keys %{  $set->{'Subsets'} } ) {
 #        	say "  " x $indent,$subset;
 #$indent++;
+# carp $subset;
             my $vars_ref= get_vars_from_set($set->{'Subsets'}{$subset});
 #            $indent--;
 #if (defined $vars_ref) {
@@ -597,7 +598,7 @@ sub get_var_record_from_set { (my $set, my $var)=@_;
 # carp $var.Dumper($set);
     my %vars=();
      if (exists $set->{'Subsets'} ) {
-        for my $subset (keys %{  $set->{'Subsets'} } ) {
+        for my $subset (keys %{  $set->{'Subsets'} } ) {            
             my $vars_ref= get_vars_from_set($set->{'Subsets'}{$subset});
 #            say '<'.Dumper($vars_ref).'>';
 #			if (defined $vars_ref) {
@@ -605,6 +606,7 @@ sub get_var_record_from_set { (my $set, my $var)=@_;
 #			}
         }
     } elsif (exists $set->{'Set'}) {
+        
         return $set->{'Set'}{$var} ;        
     } 
         return $vars{$var};

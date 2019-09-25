@@ -9,15 +9,17 @@ use RefactorF4Acc::Utils;
 use RefactorF4Acc::Refactoring::Common qw( top_src_is_module stateful_pass stateless_pass get_annotated_sourcelines );
 use RefactorF4Acc::Refactoring::Modules qw( add_module_decls );
 
-use RefactorF4Acc::Refactoring::Streams qw( pass_rename_array_accesses_to_scalars ); # CUSTOM PASS
+#### CUSTOM PASSES ####
 
-use RefactorF4Acc::Translation::SaC qw( translate_module_to_SaC ); # CUSTOM PASS
-use RefactorF4Acc::Translation::OpenCLC qw( translate_module_to_C ); # CUSTOM PASS
-use RefactorF4Acc::Translation::TyTraCL qw( pass_emit_TyTraCL ); # CUSTOM PASS
-use RefactorF4Acc::Translation::TyTraIR qw( pass_emit_TyTraIR ); # CUSTOM PASS
-use RefactorF4Acc::Translation::TyTra::MemoryReduction qw( pass_memory_reduction ); # CUSTOM PASS
+use RefactorF4Acc::Refactoring::Streams qw( pass_rename_array_accesses_to_scalars );
 
-use RefactorF4Acc::Analysis::ArrayAccessPatterns qw( pass_identify_stencils ); # CUSTOM PASS
+use RefactorF4Acc::Translation::SaC qw( translate_module_to_SaC );
+use RefactorF4Acc::Translation::OpenCLC qw( translate_module_to_C );
+use RefactorF4Acc::Translation::TyTraCL qw( pass_emit_TyTraCL );
+use RefactorF4Acc::Translation::TyTraIR qw( pass_emit_TyTraIR );
+use RefactorF4Acc::Translation::TyTra::MemoryReduction qw( pass_memory_reduction );
+
+use RefactorF4Acc::Analysis::ArrayAccessPatterns qw( pass_identify_stencils );
 
 use vars qw( $VERSION );
 $VERSION = "1.2.0";

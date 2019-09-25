@@ -849,6 +849,7 @@ sub remove_redundant_arguments_and_fix_intents { (my $stref, my $f)=@_;
 		for my $csub (@call_sequence) {
 			for my $arg ( @{$stref->{'Subroutines'}{ $csub }{'DeclaredOrigArgs'}{'List'}}) {
 				$iodir_for_arg_in_called_sub->{$csub}{$arg} = __determine_called_sub_arg_iodir_no_context($arg, $stref, $csub);
+				# carp "FIXED 1: $csub $arg ". $iodir_for_arg_in_called_sub->{$csub}{$arg} if $csub=~/reduce/;
 			}
 		}
 		# Now that we have the context-free IODir for all args  in every called sub we can refine
@@ -857,8 +858,9 @@ sub remove_redundant_arguments_and_fix_intents { (my $stref, my $f)=@_;
 		for my $arg ( @{$stref->{'Subroutines'}{ $f }{'DeclaredOrigArgs'}{'List'}} ) {
 			$top_iodir->{$arg} = $stref->{'Subroutines'}{ $f }{'DeclaredOrigArgs'}{'Set'}{$arg}{'IODir'};
 			# First determine the context-free IODir for all arguments in every called subroutine
-			my $ix=0;
+			my $idx=0;
 			for my $csub (@call_sequence) {
+				
 				$changed_iodirs->{$csub}={} unless exists $changed_iodirs->{$csub};
 				if (exists $stref->{'Subroutines'}{ $csub }{'DeclaredOrigArgs'}{'Set'}{$arg}) {
 					($iodir_for_arg_in_called_sub->{$csub}{$arg}, $top_iodir->{$arg}) = __determine_called_sub_arg_iodir_w_context($arg, $stref, $csub, $top_iodir, $iodir_for_arg_in_called_sub,\@call_sequence, $idx);
@@ -867,6 +869,7 @@ sub remove_redundant_arguments_and_fix_intents { (my $stref, my $f)=@_;
 					) {
 						say "$csub: CHANGED INTENT for $arg: ",$stref->{'Subroutines'}{ $csub }{'DeclaredOrigArgs'}{'Set'}{$arg}{'IODir'},' to ', $iodir_for_arg_in_called_sub->{$csub}{$arg} if $DBG;
 						$changed_iodirs->{$csub}{$arg} = $iodir_for_arg_in_called_sub->{$csub}{$arg};
+						# carp "FIXED 2: $csub $arg ". $iodir_for_arg_in_called_sub->{$csub}{$arg} if $csub=~/reduce/;
 						$stref->{'Subroutines'}{ $csub }{'DeclaredOrigArgs'}{'Set'}{$arg}{'IODir'} = $iodir_for_arg_in_called_sub->{$csub}{$arg};
 					}
 				}
@@ -946,8 +949,8 @@ sub __check_read_only { my ($in_arg, $stref, $f)=@_;
 	for my $rw (@{$reads_writes}) {
 		if ($rw eq 'w') {
 			$read_only=0;
-		}
-		last;
+			last;
+		}		
 	}
 	return $read_only;
 } # END of __check_read_only
@@ -961,17 +964,19 @@ sub __check_reads_writes {  my ($arg, $stref, $f)=@_;
 # I am going to lazily assume that CaseVals are constants
 my $pass_check_reads_writes = sub { (my $annline, my $reads_writes)=@_;
 		(my $line,my $info)=@{$annline};
+		
 		if (exists $info->{'Assignment'} ) { 			
-				 if (exists $info->{'Rhs'}{'VarList'}{'Set'}{$arg
+			
+			if (exists $info->{'Rhs'}{'VarList'}{'Set'}{$arg
 				}) {
 					 # $arg is Read 
 					 push @{$reads_writes},'r';
 				 }
-				if ($info->{'Lhs'}{'VarName'} eq $arg
+			if ($info->{'Lhs'}{'VarName'} eq $arg
 			) {
 					 # $arg is Written 
 					 push @{$reads_writes},'w';
-				 }
+			}
 		}	
 		elsif (exists $info->{'If'} ) { 			
 				 if (exists $info->{'CondVars'}{'Set'}{$arg
@@ -1009,6 +1014,7 @@ my $pass_check_reads_writes = sub { (my $annline, my $reads_writes)=@_;
 # This is the context-free IODir. We store this in	$iodir_for_arg_in_called_sub
 # Then we can look at the context (top_iodir and iodirs of other called subs) to refine.
 sub __determine_called_sub_arg_iodir_no_context { my ($arg, $stref, $csub)=@_;
+
 	my $iodir='UNKNOWN';
 	if (__check_written_before_read($arg, $stref, $csub)) {
 		$iodir = 'out';
@@ -1018,8 +1024,7 @@ sub __determine_called_sub_arg_iodir_no_context { my ($arg, $stref, $csub)=@_;
 	}
 	elsif (__check_read_before_written($arg, $stref, $csub)) {
 		$iodir = 'inout';
-	}	
-	# say "$csub: IODir for $arg: $iodir";
+	}		
 	return $iodir;
 
 } # END of __determine_called_sub_arg_iodir_no_context
@@ -1033,17 +1038,21 @@ sub __determine_called_sub_arg_iodir_w_context { my ($arg, $stref, $csub, $iodir
 	# 	otherwise  (i.e. this is a toplevel In only used in this sub)
 	#		if  InOut => In : the modified result is unused (I guess this means we should remove this assignment!)
 	#		if  written_before_read => It should be a local, will not happen as that was done in the previous pass
-
+# warn "FIXES CONTEXT TOP $top_iodir : $csub $arg $iodir ". $iodir_for_arg_in_called_sub->{$csub}{$arg} if $arg=~/avg/;
 	if ($top_iodir eq 'in') {
 		if ($iodir ne 'in' ) {
 			# Check if this arg is 'in' or 'inout' in any of the later called subs
 			my $arg_is_read_later=0;
+			# warn $cs_idx+1 ,'..', scalar @{$call_sequence} - 1;
 			for my $idx ($cs_idx+1 .. scalar @{$call_sequence} - 1) {
-				my $lcsub = $call_sequence->{$idx};
+				
+				my $lcsub = $call_sequence->[$idx];
+				
 				if (
 					exists $iodir_for_arg_in_called_sub->{$lcsub}{$arg} and
 					$iodir_for_arg_in_called_sub->{$lcsub}{$arg} ne 'out'
 				) {
+					# carp "ARG IS READ IN $lcsub";
 					$arg_is_read_later=1;
 					last;
 				}
@@ -1101,15 +1110,15 @@ sub __determine_called_sub_arg_iodir_w_context { my ($arg, $stref, $csub, $iodir
 			}								
 		}
 		if (not $used_as_in) {
-			# warn "Toplevel INTENT for $arg changed from INOUT to OUT because never used as IN!";
+			say "WARNING: Toplevel INTENT for $arg changed from INOUT to OUT because never used as IN!" if $W;
 			$top_iodir = 'out';
 		}
 		elsif (not $used_as_out) {
-			# warn "Toplevel INTENT for $arg changed from INOUT to IN because never used as OUT!";
+			say "WARNING: Toplevel INTENT for $arg changed from INOUT to IN because never used as OUT!" if $W;
 			$top_iodir = 'in';
 		}
 	}
-
+# warn "FIXES CONTEXT $csub $arg $iodir ". $iodir_for_arg_in_called_sub->{$csub}{$arg} if $arg=~/avg/;
 	return ($iodir, $top_iodir);
 } # END of __determine_called_sub_arg_iodir_w_context
 

@@ -59,7 +59,7 @@ sub pp_links { (my $links)=@_;
 # - an additional suffix, in particular used for the stencil tuples
 sub _mkVarName { (my $rec) =@_;
     # carp(Dumper($rec));
-	(my $v, my $c, my $e) = @{$rec};
+	(my $v, my $c, my $e, my $ve) = @{$rec};
     if ($v eq '') {
         return $c;
     } else {
@@ -73,7 +73,7 @@ sub _mkVarName { (my $rec) =@_;
 
 # The only difference with _mkVarName() is that we don't use the counter info
 sub _mkSigArgName { (my $rec) =@_;    
-	(my $v, my $c, my $e) = @{$rec};
+	(my $v, my $c, my $e, my $ve) = @{$rec};
     if ($v eq '') {
         croak 'Function signature arguments must be named!';
     } else {
