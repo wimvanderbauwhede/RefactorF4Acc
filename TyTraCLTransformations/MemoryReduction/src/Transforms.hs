@@ -2,10 +2,10 @@ module Transforms (splitLhsTuples, substituteVectors, applyRewriteRules, decompo
 
 import Data.Generics (Data, Typeable, mkQ, mkT, mkM, gmapQ, gmapT, everything, everywhere, everywhere', everywhereM)
 import Control.Monad.State
-import AST
+import TyTraCLAST
 -- ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 -- 1. Replace all LHS Tuple occurrences with multiple expressions using Elt on the RHS. As a result, the LHS will be purely Vec.
-splitLhsTuples :: AST -> AST
+splitLhsTuples :: TyTraCLAST -> TyTraCLAST
 splitLhsTuples = foldl split_lhs_tuples []
 
 split_lhs_tuples acc t@(lhs,rhs) = let
@@ -26,7 +26,7 @@ split_tuple vecs rhs = let
 -- 2.2 Look up and substitute these _Vec_s with their RHS expression
 -- I think the easiest way is to use Generics: with `everywhere` we can update all nodes in place
 
-find_in_ast :: AST -> Expr -> Expr
+find_in_ast :: TyTraCLAST -> Expr -> Expr
 find_in_ast ast v@(Vec _ _)  = let
     maybe_v = filter (\(lhs,rhs) -> lhs == v) ast
     in
@@ -164,7 +164,7 @@ rewrite_ast_sub_expr expr = case expr of
     -- 1. Map composition
     Map f1_expr (Map f2_expr v_expr) -> Map (Comp f1_expr f2_expr) v_expr
     -- 2. The key rule: Stencil of Map becomes Map of MapS of Stencil
-    Stencil s_1 (Map f_1 v_expr) -> Map (MapS f_1) (Stencil s_1 v_expr)   
+    Stencil s_1 (Map f_1 v_expr) -> Map (MapS s_1 f_1) (Stencil s_1 v_expr)   
     ZipT es -> 
         -- If all args of ZipT are Map
         if (length ( filter isMap es ) == length es) 
@@ -186,7 +186,7 @@ Fixpoint is reached when there is only a single Map expression
 applyRewriteRules  = map (\(lhs,rhs) -> (lhs,rewrite_ast_into_single_map 0 rhs)) 
 -- ast''' = map (\(lhs,rhs) -> (lhs,rewrite_ast_into_single_map rhs)) ast''
 --
-map_checks :: AST -> [Int]
+map_checks :: TyTraCLAST -> [Int]
 map_checks ast = filter (/=0) $ map  (\(lhs,rhs) -> n_map_subexprs rhs) ast
 
 isMap expr = case expr of
@@ -241,7 +241,8 @@ Fortran from it.
 -}    
 
 {-
-4. First decompose the expressions. This is some kind of ANF/SSA style: every vector and function gets a name
+4. First decompose the expressions. This is some kind of ANF/SSA style: every vector, stencil and function gets a name.
+
 -}
 
 subsitute_expr :: String -> Expr -> State (Int,[(Expr,Expr)]) Expr
@@ -258,7 +259,7 @@ subsitute_expr vec_name exp = do
                       PElt _ -> ((ct,var_expr_pairs),exp)
                       Map _ _ -> ((ct,var_expr_pairs),exp)
                       Fold _ _ _ -> ((ct,var_expr_pairs),exp)
-                      MapS _ -> let
+                      MapS _ _ -> let
                             var = Function ("exp_"++vec_name++"_"++(show ct))
                         in
                             ((ct+1,var_expr_pairs++[(var,exp)]),var)

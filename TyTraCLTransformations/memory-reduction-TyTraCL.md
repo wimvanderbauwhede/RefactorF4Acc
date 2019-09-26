@@ -121,6 +121,8 @@ In principle this maybe have to be done recursively until we hit an actual Vecto
 
 ## Fortran-OpenCL implementation
 
+The actual stencils
+
     ! stencil
     integer, dimension(size_s,2) :: s
     real, dimension(size_s) :: v_s    
@@ -128,14 +130,18 @@ In principle this maybe have to be done recursively until we hit an actual Vecto
       v_s(s_idx) = v(j+s(s_idx,1),k+s(s_idx,2))
     end do
 
-    ! maps
-    real :: u_0
+    ! maps -- I think we'll need to add in the stencil as arg after all, to get the size
+    real :: u_0, v_s
     real, dimension(size_s) :: u_s    
     do s_idx = 1,size_s
-      v_s(s_idx) = v(j+s(s_idx,1),k+s(s_idx,2))
+      v_s = v(j+s(s_idx,1),k+s(s_idx,2))
       call f(u_0,v_s)
       u_s(s_idx)=u_0
     end do
+
+    ! applyt
+
+    
 
 ### Reduction
 

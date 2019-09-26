@@ -66,13 +66,13 @@ sub pass_memory_reduction {
     );
 
 # say Dumper $stref->{'TyTraCL_AST'}{'Lines'};
-    $stref = construct_TyTraCL_AST_Main_node($stref);    
+    $stref = construct_TyTraCL_AST_Main_node($stref);
     $stref = _add_VE_to_AST($stref);
     $stref = _emit_TyTraCL_Haskell_AST_Code($stref);
 
     # What this does is emitting the Haskell AST to a Haskell module file
     my $tytracl_hs_str = $stref->{'TyTraCL_Haskell_AST_Code'};
-    
+
     write_out($tytracl_hs_str);
 
     # This makes sure that no fortran is emitted by emit_all()
@@ -89,8 +89,8 @@ The AST
 
 type Name = String
 data VE = VI  | VO  | VS  | VT deriving (Show, Typeable, Data, Eq)
-    
-type AST = [(Expr,Expr)]                      
+
+type AST = [(Expr,Expr)]
 
 data Expr =
         -- Left-hand side:
@@ -109,7 +109,7 @@ data Expr =
                     | Fold Expr Expr Expr -- bb: App (Fold (App action acc) Expr
                     | Stencil Expr Expr -- bb uses App : App (Stencil (SVec [IntLit])) vector
                     | Function Name -- bb: uses Var Name with a function type
-                    | Id -- bb has Id 
+                    | Id -- bb has Id
                     | Mu Expr Expr -- \a e -> g a (f e) -- of course bb does not have this, no need
                     | ApplyT [Expr]  -- bb: App FTup [Expr]
                     | MapS Expr -- bb does not have this, not needed
@@ -190,8 +190,8 @@ $ast->{'Lines'} = [
             # s2 = [-1,-502,0,502,1]
 			'Lhs' => {'Ctr' => $ctr_st},
 			'Rhs' => {'StencilPattern' => { # This is $stencil_patt
-            # 'Accesses' => { '0:1' =>  {'j' => [1,0],'k' => [1,1]}}, 
-               'Accesses' => { 
+            # 'Accesses' => { '0:1' =>  {'j' => [1,0],'k' => [1,1]}},
+               'Accesses' => {
                    join(':', @offset_vals) => {
                        $iters[$idx] => [$mult_val,$offset_val],
                      }
@@ -201,7 +201,7 @@ $ast->{'Lines'} = [
           }
 		};
 		{'NodeType' => 'StencilAppl',
-          'FunctionName' => $f,    
+          'FunctionName' => $f,
             # wet_s_0 = stencil s2 wet_0
 			'Lhs' => {'Var' => [$array_var,$ctr_sv,'s'] },
 			'Rhs' => {'StencilCtr' => $ctr_st,'Var' => [$array_var, $ctr_in,''] }
@@ -212,7 +212,7 @@ $ast->{'Lines'} = [
 				'Vars' =>[@out_tup_ast],
 			},
 			'Rhs' => {
-				'Function' => $f,        
+				'Function' => $f,
 				'NonMapArgs' => {
 					'Vars'=>[@non_map_args_ms_ast],
 				},
@@ -227,7 +227,7 @@ $ast->{'Lines'} = [
 				'Vars' =>[@out_tup_ast],
 			},
 			'Rhs' => {
-				'Function' => $f,    
+				'Function' => $f,
 				'NonFoldArgs' => {
 					'Vars'=>[@non_map_args_ms_ast],
 				},
@@ -257,7 +257,7 @@ $ast->{'Lines'} = [
 
     $ast->{'Portions'} = [
         {
-            $array_var => 1, 
+            $array_var => 1,
         }
 	];
 
@@ -279,28 +279,28 @@ $ast->{'Nets'}{$net} = {
         ...
     ],
     NetType => Vec | Scalar
-}      
+}
 
 $ast->{'Nodes'} = {
-          
+
         $node_name => {
             NodeType => Map | Fold | StencilAppl | Input | Output
             EntryID => $entry_id,
             Inputs => [@input_nets],
-            Outputs => [@output_nets]            
+            Outputs => [@output_nets]
             Dependencies => {
                 $dep_name => NodeType,
             }
         },
-        
+
 }
 
 =cut
 
 =info_VE
-VE is the Haskell datatype 
+VE is the Haskell datatype
 
-        data VE = VI  | VO  | VS  | VT 
+        data VE = VI  | VO  | VS  | VT
 
 The VI | VO information is available by testing against
 
@@ -316,7 +316,7 @@ sub _emit_TyTraCL_Haskell_AST_Code {
     (my $stref) = @_;
 
     my $tytracl_ast  = $stref->{'TyTraCL_AST'};
-    
+
 
     my $tytracl_hs_ast_strs = [];
     for my $node (@{$tytracl_ast->{'Lines'}}) {
@@ -334,7 +334,7 @@ sub _emit_TyTraCL_Haskell_AST_Code {
             my $line = mkMapAST($node);
             push @{$tytracl_hs_ast_strs}, $line;
         }
-        elsif ($node->{'NodeType'} eq 'Fold') { 
+        elsif ($node->{'NodeType'} eq 'Fold') {
             my $line = mkFoldAST($node);
            push @{$tytracl_hs_ast_strs}, $line;
         }
@@ -348,12 +348,12 @@ sub _emit_TyTraCL_Haskell_AST_Code {
     }
 
 my $header =
-'module ASTInstance where 
+'module ASTInstance where
 import TyTraCLAST
 
 ast :: TyTraCLAST
 ast = [
-';              
+';
 
     my @indented_tytracl_hs_ast_strs=();
     my $idx=0;
@@ -380,7 +380,7 @@ sub _add_VE_to_AST {
     (my $stref) = @_;
 
     my $tytracl_ast  = $stref->{'TyTraCL_AST'};
-    
+
 
     for my $node (@{$tytracl_ast->{'Lines'}}) {
 
@@ -391,9 +391,9 @@ sub _add_VE_to_AST {
 
             push @{$node->{'Lhs'}{'Var'}}, 'VS';
             my $rhs_var_rec = $node->{'Rhs'}{'Var'};
-            
+
             my $ve= __determine_VE($stref, $rhs_var_rec);
-                        
+
             push @{$node->{'Rhs'}{'Var'}}, $ve;
         }
 
@@ -416,7 +416,7 @@ sub _add_VE_to_AST {
                 } @{ $node->{'Rhs'}{'MapArgs'}{'Vars'} }
             ];
         }
-        elsif ($node->{'NodeType'} eq 'Fold') { 
+        elsif ($node->{'NodeType'} eq 'Fold') {
 
             $node->{'Rhs'}{'FoldArgs'}{'Vars'}=[
                 map {
@@ -597,8 +597,8 @@ sub mkFoldAST {
 # anything else is VT
 
 # more than one
-    my $lhs =  
-    
+    my $lhs =
+
      scalar @{$foldNode->{'Lhs'}{'Vars'}} > 1
       ? '(Tuple [' . join(',', map { __mkScalar($_) } @{$foldNode->{'Lhs'}{'Vars'}}) . '])'
 # otherwise
@@ -650,7 +650,7 @@ sub __determine_VE { (my $stref, my $var_rec)=@_;
             $ve='VI';
         }
         elsif (exists $stref->{'TyTraCL_AST'}{'Main'}{'OutArgsTypes'}{$var_name}) {
-            $ve='VO';       
+            $ve='VO';
         }
         return $ve;
     }

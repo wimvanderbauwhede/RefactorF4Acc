@@ -1,9 +1,9 @@
-module ASTInstance where
+module ASTInstance ( ast ) where
 
-import AST
+import TyTraCLAST
 
 
-ast :: AST
+ast :: TyTraCLAST
 ast = [
           (Vec VS "etan_s_0" , Stencil (SVec 5 "s1") (Vec VI "etan_0"))
           ,(Vec VS "wet_s_0" , Stencil (SVec 5 "s2") (Vec VI "wet_0"))

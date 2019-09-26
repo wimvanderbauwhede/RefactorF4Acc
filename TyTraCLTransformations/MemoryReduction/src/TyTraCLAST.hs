@@ -1,5 +1,5 @@
 {-# LANGUAGE DeriveDataTypeable #-}
-module AST where
+module TyTraCLAST where
 
 
 import Data.Generics (Data, Typeable)
@@ -8,7 +8,7 @@ import Data.Generics (Data, Typeable)
 type Name = String
 data VE = VI  | VO  | VS  | VT deriving (Show, Typeable, Data, Eq)
     
-type AST = [(Expr,Expr)]                      
+type TyTraCLAST = [(Expr,Expr)]                      
 
 data Expr =
         -- Left-hand side:
@@ -30,7 +30,7 @@ data Expr =
                     | Id -- bb has Id 
                     | Mu Expr Expr -- \a e -> g a (f e) -- of course bb does not have this, no need
                     | ApplyT [Expr]  -- bb: App FTup [Expr]
-                    | MapS Expr -- bb does not have this, not needed
+                    | MapS Expr Expr -- bb does not have this, not needed
                     | Comp Expr Expr -- bb does not have this, not needed
                     -- | bb has Let Expr Expr
                     -- | bb has App Expr Expr to apply and Expr to an Expr

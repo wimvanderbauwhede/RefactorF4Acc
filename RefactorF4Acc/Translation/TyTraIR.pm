@@ -670,7 +670,7 @@ sub _add_TyTraIR_AST_entry {
         if ($FOLD) {
             @acc_args = @{$state->{'Subroutines'}{$f}{'Args'}{'Acc'}};
             if (scalar @acc_args > 0) {
-                say "$f is a reduction ";
+                say "$f is a reduction " if $V;
                 $node_type = 'Fold';
             }
             %accs = map { $_ => $_ } @acc_args;
