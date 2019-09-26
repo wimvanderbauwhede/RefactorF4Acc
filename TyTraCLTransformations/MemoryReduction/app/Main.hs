@@ -5,7 +5,7 @@ import Transforms (splitLhsTuples, substituteVectors, applyRewriteRules, decompo
 ast1 = splitLhsTuples ast
 ast2 = substituteVectors ast1
 ast3 = applyRewriteRules ast2
-ast4 = splitLhsTuples ast3
+ast4 = decomposeExpressions ast3
 main = do
     putStrLn "Original AST"
     mapM print ast

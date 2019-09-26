@@ -3,7 +3,8 @@ module Transforms (splitLhsTuples, substituteVectors, applyRewriteRules, decompo
 import Data.Generics (Data, Typeable, mkQ, mkT, mkM, gmapQ, gmapT, everything, everywhere, everywhere', everywhereM)
 import Control.Monad.State
 import AST
-
+-- ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+-- 1. Replace all LHS Tuple occurrences with multiple expressions using Elt on the RHS. As a result, the LHS will be purely Vec.
 splitLhsTuples :: AST -> AST
 splitLhsTuples = foldl split_lhs_tuples []
 
@@ -18,7 +19,7 @@ split_tuple vecs rhs = let
         vecs_idxs = zip vecs [0 .. length vecs - 1]
     in
         foldl (\acc (vec,idx) ->  acc++[(vec, Elt idx rhs)]) [] vecs_idxs
-
+-- ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 -- 2. Substitute all _Vec VT_ and _Vec VS_ recursively until no _Vec VT_ and _Vec VS_ remain in the AST. We start from the last expression in the list. We must also substitute _Vec VO_ on the RHS but tuples with _Vec VO_ on the LHS can't be removed. Clearly, _Vec VI_ should never occur on the LHS.
 -- There are two subtasks here: 
 -- 2.1 Find occurences of _Vec_ in the RHS expression of any tuple with a _Vec VO_ on the LHS
@@ -36,30 +37,7 @@ find_in_ast ast v@(Vec _ _)  = let
             v
 find_in_ast ast e  = e
             
---substitute_vec :: AST -> Expr ->  Expr
---substitute_vec ast v@(Vec _ _)  = find_in_ast ast v 
---substitute_vec ast e = e
-{-
-get_vec_type :: Expr -> [VE]
-get_vec_type v@(Vec vt _) = [vt]
-get_vec_type _ = []
-
-get_vec_subexpr_types :: Expr -> [VE]
-get_vec_subexpr_types expr = everything (++) (mkQ [] get_vec_type) expr
-
-expr_has_non_input_vecs :: Expr -> Bool
-expr_has_non_input_vecs expr = let
-    vec_subexprs = get_vec_subexpr_types expr
-    non_input_vecs =  filter (
-            \v -> case v of 
-                VI -> False
-                _ -> True
-            ) vec_subexprs
-    in
-        length non_input_vecs > 0  
--}
-
-expr_has_non_input_vecs expr = length (non_input_vecs expr) > 0
+-- expr_has_non_input_vecs expr = length (non_input_vecs expr) > 0
 
 get_vec :: Expr -> [Expr]
 get_vec v@(Vec vt _) = [v]
@@ -79,28 +57,20 @@ non_input_vecs expr = let
             ) vec_subexprs
 
 -- The actual substitution should of course use `everywhere`
---
---
 substitute_vec_by_expr svec sexpr expr = everywhere (mkT (substitute_vec_by_expr' svec sexpr)) expr
 
 substitute_vec_by_expr' svec sexpr  vec
     | vec == svec = sexpr
     |  otherwise = vec
     
-{-
-Finally, we go trough all lines of the ast and do a recursive substitution: 
--}    
+
+-- Finally, we go trough all lines of the ast and do a recursive substitution:     
 substituteVectors ast' =  map (substitute_vec_rec ast') (filter lhs_is_output_vec ast')
 
 {-
 The AST is now reduced to a list of tuples where the first elt (LHS) is an output vector and the second element is an expression which only contains input vectors.     
 Now we should start applying the rewrite rules to reduce each of these expressions to a single Map.
 -}
-
-
-
-
-
 
 lhs_is_output_vec (lhs_vec,expr) = case lhs_vec of
     Vec VO _ -> True
@@ -130,6 +100,8 @@ substitute_vec_rec ast expr_tup@(lhs_vec,expr) = let
         else -- we're dome, return the result 
             expr_tup
 
+-- ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+-- Examples
 -- A linked list
 ll = Tuple [ Const 11, Tuple [ Const 22, Tuple [ Const 33, Tuple [ Const 44, Tuple [   Const 55, Const 66 ] ] ] ] ]
 
@@ -161,8 +133,8 @@ reduce_subtree expr = case expr of
     Tuple [ Const n, Const m, Const k] -> Const (n+m+k)
     _ -> expr
 
-    
--- With this preparation I guess we are ready for the actual rewrites:
+-- ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------    
+-- 3. With this preparation I guess we are ready for the actual rewrites:
 --
 rewrite_ast_expr ast = everywhere (mkT rewrite_ast_sub_expr) ast
 
@@ -170,41 +142,46 @@ rewrite_ast_expr ast = everywhere (mkT rewrite_ast_sub_expr) ast
 Rewrite rules
 1.
     map f_2 (map f_1 v) = map (f_2 . f_1) v    
+
 2.
-    v = map id v -- but only if this v appears in a ZipT where at least one of the other expressions is a map
+    stencil s_1 (map f_1) = map (maps f_1) (stencil s_1)
+    
 3.
     zipt (map f_1 v_1, map f_2 v_2) = map (applyt (f_1,f_2)) (zipt (v_1, v_2)) -- if all exprs in ZipT are maps
+
 4.
-    applyt (g_1,g_2) $ applyt (f_1,f_2)  = applyt (g_1 . f_1, g_2 . f_2)
+    v = map id v -- but only if this v appears in a ZipT where at least one of the other expressions is a map
+
 5.
     (elt i) . unzipt . (map f exprs) = map ((elt i) . f) exprs
+
+-- I don't think we can ever arrive at this with the given rewrite rules, because ApplyT is never used outside a Map
 6.
-    stencil s_1 (map f_1) = map (maps f_1) (stencil s_1)
+    applyt (g_1,g_2) $ applyt (f_1,f_2)  = applyt (g_1 . f_1, g_2 . f_2) 
 -}
 
 rewrite_ast_sub_expr expr = case expr of 
-    -- 1.
+    -- 1. Map composition
     Map f1_expr (Map f2_expr v_expr) -> Map (Comp f1_expr f2_expr) v_expr
-    -- 6.
+    -- 2. The key rule: Stencil of Map becomes Map of MapS of Stencil
     Stencil s_1 (Map f_1 v_expr) -> Map (MapS f_1) (Stencil s_1 v_expr)   
     ZipT es -> 
         -- If all args of ZipT are Map
         if (length ( filter isMap es ) == length es) 
-            -- 4.
+            -- 3. ZipT of tuple of Map becomes Map of ApplyT of the functions to ZipT of the vectors
             then rewriteZipTMap es
-            -- Otherwise, check if at least one of them is a map, if so, rewrite Vec to Id
+            -- Otherwise, check if at least one of them is a Map, if so, rewrite Vec to Id
             else if (length ( filter isMap es ) > 0) 
-                -- 3.
+                -- 4. Rewrite Vec and Stencil as Map of Id 
                 then ZipT (map rewriteId es) 
                 else expr
-    -- 5.                
+    -- 5.  Tuple select (Elt) after UnzipT of Map becomes Map of the composition of Elt and the mapped function
     Elt i_expr (UnzipT (Map f_expr exprs)) -> Map (Comp (PElt i_expr) f_expr) exprs
     _ -> expr
 
-{- This needs to be done repeatedly until a fixpoint is reached    
- Fixpoint is reached when there is only a single Map expression
-
-
+{- 
+This needs to be done repeatedly until a fixpoint is reached.    
+Fixpoint is reached when there is only a single Map expression
 -}
 applyRewriteRules  = map (\(lhs,rhs) -> (lhs,rewrite_ast_into_single_map 0 rhs)) 
 -- ast''' = map (\(lhs,rhs) -> (lhs,rewrite_ast_into_single_map rhs)) ast''
@@ -227,7 +204,6 @@ rewriteId expr =  case expr of
     Vec vt n -> Map Id expr
     Stencil _ (Vec _ _) -> Map Id expr
     _ -> expr
-
 
 get_map :: Expr -> [Expr]
 get_map m@(Map _ _) = [m]
@@ -257,7 +233,7 @@ rewrite_ast_into_single_map count exp =
                 exp            
                 -- if map_count == 1 then (Scalar "Done") else exp
 
-
+-- ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------    
 {-
 The additional complexity is to rewrite the result in such a way that I can emit
 Fortran from it.    
@@ -265,7 +241,7 @@ Fortran from it.
 -}    
 
 {-
-First decompose the expressions
+4. First decompose the expressions. This is some kind of ANF/SSA style: every vector and function gets a name
 -}
 
 subsitute_expr :: String -> Expr -> State (Int,[(Expr,Expr)]) Expr
@@ -281,6 +257,7 @@ subsitute_expr vec_name exp = do
                       SVec _ _ -> ((ct,var_expr_pairs),exp)
                       PElt _ -> ((ct,var_expr_pairs),exp)
                       Map _ _ -> ((ct,var_expr_pairs),exp)
+                      Fold _ _ _ -> ((ct,var_expr_pairs),exp)
                       MapS _ -> let
                             var = Function ("exp_"++vec_name++"_"++(show ct))
                         in
@@ -313,5 +290,4 @@ subsitute_exprs ast vec = let
 
 -- This returns the decomposed expressions. Better names are needed!       
 decomposeExpressions = map (\(lhs,rhs) -> (subsitute_exprs rhs lhs )) 
-
 

@@ -82,7 +82,7 @@ The TyTraCL language is syntactically a subset of Haskell, with the addition of 
 
     replicate :: Int k => k -> a -> Vec k a
 
-#### Rewrite rules
+#### Rewrite rules SEE CODE!
 
     map f_2 (map f_1 v) = map (f_2 . f_1) v    
 
@@ -152,6 +152,8 @@ In principle this maybe have to be done recursively until we hit an actual Vecto
 
 ## Proofs
 
+### Proof for the Stencil-Map rewrite rule
+
     s1 : SVec k Int
     f1 : a -> b
 
@@ -177,10 +179,49 @@ In principle this maybe have to be done recursively until we hit an actual Vecto
     stencil s1 (map f1 v1) = map (maps f1) (stencil s1 v1)
 
 
+### Proof that the rewrite rules terminate into the correct expressions
+
+...
+
+### What about `fold`
+
+The purpose of the exercise is to eliminate intermediate arrays. These occur because of the need for stencils; or they might be present in the original code.
+
+- If an intermediate array is present in the original code, we have something like
+
+    v1 = map f1 v0
+    v2 = map f2 v1
+
+This means that the intermediate array will automatically disappear because of the `substituteVectors` pass.
+
+- If there is a stencil, it can either occur between a `map` and a `map` or between a `map` and a `fold`. E.g.
+
+    v1 = map f1 v0
+    v1_s = stencil s1 v1
+    v2 = map f2 v1_s
+
+or
+
+    v1 = map f1 v0
+    v1_s = stencil s1 v1
+    acc2 = fold f2 acc0 v1_s
+
+Now, after the 2nd pass this will be
+
+    acc2 = fold f2 acc0 (stencil s1 (map f1 v0))
+
+This will then be rewritten into     
+
+    acc2 = fold f2 acc0 (map (maps f1) (stencil s1 v0))
+
+The `fold` does not even come into this.
+
+So all I need to do is ensure that the fold expressions are not ignored.
+
 ## Example code and refining of AST
 
 ### Example: TyTrCL for 2-D Shallow Water Model
-    
+
     main (etan_0,wet_0,eps_0,dt_0,g_0,dx_0,dy_0,wet_0,u_0,v_0,duu_0,dvv_0,h_0,dt_0,dx_0,dy_0,hzero_0,hmin_0) =
       let
          -- shapiro_map_15
@@ -218,20 +259,20 @@ type AST = [(Expr,Expr)]
 
 data Expr =
         -- Left-hand side:
-                      Scalar 
+                      Scalar
                     | Tuple [Expr]
                     | Vec VE Name
 
         -- Right-hand side:
                     | SVec Int Name
-                    | ZipT [Expr] 
+                    | ZipT [Expr]
                     | UnzipT Expr
                     | Elt Integer Expr -- I also need this partially-applied
                     | PElt Integer
                     | Map Expr Expr
                     | Fold Expr Expr Expr
-                    | Stencil Expr Expr 
-                    | Function Name 
+                    | Stencil Expr Expr
+                    | Function Name
                     | ApplyT [Name]  
                     | MapS Name
                     | Comp Expr Expr
@@ -261,7 +302,7 @@ main = do
 
 ### Applying the rewrite rules
 
-1.  Replace all LHS _Tuple_ occurences with multiple expressions using _Elt_ on the RHS. As a result, the LHS will be purely _Vec_. 
+1.  Replace all LHS _Tuple_ occurrences with multiple expressions using _Elt_ on the RHS. As a result, the LHS will be purely _Vec_.
 
       ast' = foldl split_lhs_tuples [] ast
       split_lhs_tuples acc t@(lhs,rhs) = let
@@ -270,16 +311,13 @@ main = do
               _ -> [t]
           in
               acc++ts
-              
+
       split_tuple vecs rhs = let
               vecs_idxs = zip vecs [0 .. length vecs - 1]
           in
               foldl (\acc (vec,idx) ->  acc++[(vec, Elt idx rhs)]) [] vecs_idxs
 
 2. Substitute all _Vec VT_ and _Vec VS_ recursively until no _Vec V_ and _Vec VS_ remain in the AST. We start from the last expression in the list. We must also substitute _Vec VO_ on the RHS but tuples with _Vec VO_ on the LHS can't be removed. Clearly, _Vec VI_ should never occur on the LHS.
-3. In this for we can start applying the rewrite rules. 
+3. In this AST we can start applying the rewrite rules.
 
-The key question is which rules to apply, does the order matter? We need to look for patterns. As the principal aim is to replace stencils of maps, looking for stencils is a good first step. 
-
-  
-        
+The key question is which rules to apply, does the order matter? We need to look for patterns. As the principal aim is to replace stencils of maps, looking for stencils is a good first step.
