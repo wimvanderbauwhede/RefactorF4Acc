@@ -348,7 +348,7 @@ sub _emit_TyTraCL_Haskell_AST_Code {
     }
 
 my $header =
-'module ASTInstance where
+'module ASTInstance ( ast ) where
 import TyTraCLAST
 
 ast :: TyTraCLAST
@@ -359,12 +359,15 @@ ast = [
     my $idx=0;
     for my $tytracl_hs_ast_str ( @{$tytracl_hs_ast_strs}) {
         my $indented_tytracl_hs_ast_str = $tytracl_hs_ast_str;
-            if ($idx>0 and $tytracl_hs_ast_str!~/^\s*\-\-/) {
-                $tytracl_hs_ast_str=','.$tytracl_hs_ast_str;
+            if ($tytracl_hs_ast_str!~/^\s*\-\-/) {
+                if ($idx>0) {                
+                    $indented_tytracl_hs_ast_str=','.$indented_tytracl_hs_ast_str;
+                }
+                ++$idx;
             }
-            $indented_tytracl_hs_ast_str='        '.$indented_tytracl_hs_ast_str;
-            ++$idx;
+            $indented_tytracl_hs_ast_str='        '.$indented_tytracl_hs_ast_str;            
             push @indented_tytracl_hs_ast_strs, $indented_tytracl_hs_ast_str;
+            
     }
 
     my $tytracl_hs_ast_code_str=join("\n", @indented_tytracl_hs_ast_strs);
@@ -440,77 +443,8 @@ sub _add_VE_to_AST {
 }    # END of _add_VE_to_AST()
 
 
-# ==============================================================================================================================
-# AUX
-# ==============================================================================================================================
-
-
-# mkFold(shapiro_reduce_18 => [] , [['etan_avg',0,'']] => [['etan',0,'']] => [['etan_avg',1,'']]);
-sub mkFold {
-    my ($fname, $non_fold_args, $acc_args, $fold_args, $ret_vars) = @_;
-    return {
-        'Rhs' => {
-            'FoldArgs'    => {'Vars' => $fold_args},
-            'NonFoldArgs' => {'Vars' => $non_fold_args},
-            'Function'    => $fname,
-            'AccArgs'     => {'Vars' => $acc_args}
-        },
-        'FunctionName' => $fname,
-        'NodeType'     => 'Fold',
-        'Lhs'          => {'Vars' => $ret_vars}
-    };
-}
-
-# mkMap( shapiro_map_23 => [['eps',0,''],['etan_avg',1,'']] => [['wet',0,'s'],['etan',0,'s'],['eta',0,'']] => [['eta',1,'']] );
-sub mkMap {
-    my ($fname, $non_map_args, $map_args, $ret_vars) = @_;
-    return {
-        'Rhs' => {
-            'MapArgs'    => {'Vars' => $map_args},
-            'NonMapArgs' => {'Vars' => $non_map_args},
-            'Function'   => $fname,
-        },
-        'FunctionName' => $fname,
-        'NodeType'     => 'Map',
-        'Lhs'          => {'Vars' => $ret_vars}
-    };
-}
-
-# mkStencilAppl( 1 => ['wet',0,''] => ['wet',0,'s']);
-sub mkStencilAppl {
-    my ($ctr, $arg, $ret_var) = @_;
-    return {
-        'Rhs'          => {'Var' => $arg, 'StencilCtr' => $ctr},
-        'FunctionName' => "sa$ctr",
-        'NodeType'     => 'StencilAppl',
-        'Lhs'          => {'Var' => $ret_var}
-    };
-}
-
-# mkStencilDef(2, [-1,-502,0,502,1]);
-sub mkStencilDef {
-    my ($ctr, $pattern) = @_;
-    return {
-        'NodeType'     => 'StencilDef',
-        'Lhs'          => {'Ctr' => 1},
-        'FunctionName' => "s$ctr",
-        'Rhs'          => {'StencilPattern' => {'Pattern' => $pattern,}}
-    };
-}
-
-sub addTypeDecl {
-    my ($stref, $f, $var_name, $var_type, $dim) = @_;
-
-    $stref->{'Subroutines'}{$f}{'ArrayAccesses'}{0}{'Arrays'}{$var_name} = {'Dims' => $dim};
-    $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$var_name} = {'Type' => $var_type};
-    return $stref;
-}
-
-
 #========================================================================================================================
 
-# The code below is for the memory reduction pass
-# This should of course go into a separate module MemoryReduction.pm
 # I  emit the Haskell AST, then the work is done in Haskell.
 # I could then re-emit the Perl AST and go from there to Fortran, or emit Fortran straight from Haskell
 
@@ -576,7 +510,7 @@ sub mkMapAST {
         my $non_map_arg_str = ' (' . join(',', map { _mkVarName($_) } @{$mapNode->{'Rhs'}{'NonMapArgs'}{'Vars'}}) . ')';
         $f_exp .= $non_map_arg_str;
     }
-    my $rhs_core = 'Map (Function "' . $f_exp . '") ' . $map_args . ')';
+    my $rhs_core = 'Map (Function "' . $f_exp . '") ' . $map_args ;
 
 
     my $rhs = scalar @{$mapNode->{'Lhs'}{'Vars'}} > 1 ? "UnzipT ( $rhs_core )" : $rhs_core;
@@ -618,7 +552,7 @@ sub mkFoldAST {
         my $non_fold_arg_str = ' (' . join(',', map { _mkVarName($_) } @{$foldNode->{'Rhs'}{'NonFoldArgs'}{'Vars'}}) . ')';
         $f_exp .= $non_fold_arg_str;
     }
-    my $rhs = 'Fold (Function "' . $f_exp . '") ' . $acc_args.' '.$fold_args . ')';
+    my $rhs = 'Fold (Function "' . $f_exp . '") ' . $acc_args.' '.$fold_args ;
 
     my $ast_line = "( $lhs, $rhs )";
 

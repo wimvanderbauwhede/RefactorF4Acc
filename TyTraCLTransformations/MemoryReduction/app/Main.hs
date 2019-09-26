@@ -7,16 +7,16 @@ ast2 = substituteVectors ast1
 ast3 = applyRewriteRules ast2
 ast4 = decomposeExpressions ast3
 main = do
-    putStrLn "Original AST"
+    putStrLn "-- Original AST"
     mapM print ast
-    putStrLn "\nSplit LHS tuples"
+    putStrLn "\n-- Split LHS tuples"
     mapM print ast1
-    putStrLn "\nSubstitute vectors (recursive)"
+    putStrLn "\n-- Substitute vectors (recursive)"
     mapM print ast2
-    putStrLn "\nApply rewrite rules"
+    putStrLn "\n-- Apply rewrite rules"
     mapM print ast3
 --    mapM print map_checks
-    putStrLn "\nDecompose expressions"
+    putStrLn "\n-- Decompose expressions"
     mapM (mapM print) ast4
 {-    
     putStrLn "\nTest for Vec in RHS Expr"

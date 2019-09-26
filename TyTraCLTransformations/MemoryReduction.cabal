@@ -27,7 +27,7 @@ source-repository head
 
 library
   exposed-modules:
-      AST
+      TyTraCLAST
       ASTInstance
       Transforms
   other-modules:
