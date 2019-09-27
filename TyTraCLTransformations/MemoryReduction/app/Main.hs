@@ -1,11 +1,12 @@
 module Main where
 import ASTInstance (ast)
-import Transforms (splitLhsTuples, substituteVectors, applyRewriteRules, decomposeExpressions)
+import Transforms (splitLhsTuples, substituteVectors, applyRewriteRules, fuseStencils, decomposeExpressions)
 
 ast1 = splitLhsTuples ast
 ast2 = substituteVectors ast1
 ast3 = applyRewriteRules ast2
-ast4 = decomposeExpressions ast3
+ast3' = fuseStencils ast3
+ast4 = decomposeExpressions ast3'
 main = do
     putStrLn "-- Original AST"
     mapM_ print ast
@@ -15,7 +16,9 @@ main = do
     mapM_ print ast2
     putStrLn "\n-- Apply rewrite rules"
     mapM_ print ast3
---    mapM print map_checks
+    putStrLn "\n-- Fuse stencils"
+    mapM_ print ast3'    
+-- --    mapM print map_checks
     putStrLn "\n-- Decompose expressions"
     mapM_ (mapM print) ast4
 {-    

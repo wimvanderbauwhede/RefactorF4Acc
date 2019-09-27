@@ -26,12 +26,13 @@ data Expr =
                     | Map Expr Expr -- bb: App (Map Expr) Expr
                     | Fold Expr Expr Expr -- bb: App (Fold (App action acc) Expr
                     | Stencil Expr Expr -- bb uses App : App (Stencil (SVec [IntLit])) vector
-                    | Function Name -- bb: uses Var Name with a function type
+                    | Function Name [Name] -- 2nd arg is list of non-map/fold args-- bb: uses Var Name with a function type
                     | Id -- bb has Id 
                     | Mu Expr Expr -- \a e -> g a (f e) -- of course bb does not have this, no need
                     | ApplyT [Expr]  -- bb: App FTup [Expr]
                     | MapS Expr Expr -- bb does not have this, not needed
                     | Comp Expr Expr -- bb does not have this, not needed
+                    | SComb Expr Expr
                     -- | bb has Let Expr Expr
                     -- | bb has App Expr Expr to apply and Expr to an Expr
                     -- bb has Split, Merge and Par which I don't need

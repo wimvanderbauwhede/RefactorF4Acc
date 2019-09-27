@@ -4,7 +4,16 @@ use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
 use RefactorF4Acc::Refactoring::Common qw( pass_wrapper_subs_in_module );
 use RefactorF4Acc::Refactoring::Fixes qw( remove_redundant_arguments_and_fix_intents );
-use RefactorF4Acc::Translation::TyTra::Common qw( _mkVarName );
+use RefactorF4Acc::Translation::TyTra::Common qw( 
+    _mkVarName
+    mkMap
+    mkFold
+    mkStencilDef
+    mkStencilAppl
+    mkComment
+    addTypeDecl    
+    mkAST
+);
 
 use RefactorF4Acc::Analysis::ArrayAccessPatterns qw( identify_array_accesses_in_exprs );
 use RefactorF4Acc::Translation::TyTraCL qw( emit_TyTraCL construct_TyTraCL_AST_Main_node generate_TyTraCL_stencils _add_TyTraCL_AST_entry );
@@ -65,7 +74,21 @@ sub pass_memory_reduction {
         ]
     );
 
-# say Dumper $stref->{'TyTraCL_AST'}{'Lines'};
+    $stref = mkAST(
+        [
+            mkMap('f1'=>[]=>[['v',0,'']],[['v',1,'']]),
+            mkStencilDef(1,[-1,0,1]),
+            mkStencilAppl(1,3,['v',1,'']=>['v',1,'s']),
+            mkMap('f2'=>[]=>[['v',1,'s']],[['v',2,'']]),
+            mkStencilDef(2,[-1,0,1]),
+            mkStencilAppl(2,3,['v',2,'']=>['v',2,'s']),
+            mkMap('f3'=>[]=>[['v',2,'s']]=>[['v',3,'']]),            
+        ],
+        {'v' =>[ 'integer', [1,500], 'inout'] }
+    );            
+        
+
+    say Dumper $stref->{'TyTraCL_AST'}{'Lines'};
     $stref = construct_TyTraCL_AST_Main_node($stref);
     $stref = _add_VE_to_AST($stref);
     $stref = _emit_TyTraCL_Haskell_AST_Code($stref);
@@ -503,14 +526,15 @@ sub mkMapAST {
       ? '(ZipT [' . join(',', map { __mkVec($_) } @{$mapNode->{'Rhs'}{'MapArgs'}{'Vars'}}) . '])'
       : '(' . __mkVec($mapNode->{'Rhs'}{'MapArgs'}{'Vars'}[0]) . ')';
     my $f_exp = $mapNode->{'Rhs'}{'Function'};
+    my $non_map_arg_str='[]';
     if (exists $mapNode->{'Rhs'}{'NonMapArgs'}
         and scalar @{$mapNode->{'Rhs'}{'NonMapArgs'}{'Vars'}} > 0)
     {
 # FIXME: I guess a single arg should not be a tuple ...
-        my $non_map_arg_str = ' (' . join(',', map { _mkVarName($_) } @{$mapNode->{'Rhs'}{'NonMapArgs'}{'Vars'}}) . ')';
-        $f_exp .= $non_map_arg_str;
+        $non_map_arg_str = ' [' . join(',', map { '"'._mkVarName($_).'"' } @{$mapNode->{'Rhs'}{'NonMapArgs'}{'Vars'}}) . ']';
+        # $f_exp .= $non_map_arg_str;
     }
-    my $rhs_core = 'Map (Function "' . $f_exp . '") ' . $map_args ;
+    my $rhs_core = 'Map (Function "' . $f_exp . '" '.$non_map_arg_str. ') ' . $map_args ;
 
 
     my $rhs = scalar @{$mapNode->{'Lhs'}{'Vars'}} > 1 ? "UnzipT ( $rhs_core )" : $rhs_core;
@@ -545,14 +569,15 @@ sub mkFoldAST {
       ? '(' . join(',', map { __mkScalar($_) } @{$foldNode->{'Rhs'}{'AccArgs'}{'Vars'}}) . ')'
       : '(' . __mkScalar($foldNode->{'Rhs'}{'AccArgs'}{'Vars'}[0]) . ')';
     my $f_exp = $foldNode->{'Rhs'}{'Function'};
+    my $non_fold_arg_str = '[]';
     if (exists $foldNode->{'Rhs'}{'NonFoldArgs'}
         and scalar @{$foldNode->{'Rhs'}{'NonFoldArgs'}{'Vars'}} > 0)
     {
 # FIXME: I guess a single arg should not be a tuple ...
-        my $non_fold_arg_str = ' (' . join(',', map { _mkVarName($_) } @{$foldNode->{'Rhs'}{'NonFoldArgs'}{'Vars'}}) . ')';
-        $f_exp .= $non_fold_arg_str;
+        $non_fold_arg_str = ' [' . join(',', map { '"'. _mkVarName($_).'"' } @{$foldNode->{'Rhs'}{'NonFoldArgs'}{'Vars'}}) . ']';
+        # $f_exp .= $non_fold_arg_str;
     }
-    my $rhs = 'Fold (Function "' . $f_exp . '") ' . $acc_args.' '.$fold_args ;
+    my $rhs = 'Fold (Function "' . $f_exp . '" '. $non_fold_arg_str.      ') ' . $acc_args.' '.$fold_args ;
 
     my $ast_line = "( $lhs, $rhs )";
 

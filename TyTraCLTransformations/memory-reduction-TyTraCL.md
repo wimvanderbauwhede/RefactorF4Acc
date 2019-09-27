@@ -121,40 +121,89 @@ In principle this maybe have to be done recursively until we hit an actual Vecto
 
 ## Fortran-OpenCL implementation
 
-The actual stencils
+To recreate the Fortran code from the AST, I need the signatures for the original scalarised Fortran subroutines as well as the signatures for the TyTraCL functions. And I also need signatures for the generated functions. I will then need to generate wrapper functions to go between the TyTraCL functions and the Fortran routines. Essentially, packing/unpacking of stencil tuples. A lot of this has been done in `RefactorF4Acc::Translation::LlvmToTyTraIR`
+
+### SVec encoding
+
+The stencil `SVec s_i_ sz "s_i"` is encoded as an array which contain the index offset tuple for each stencil point. For a paper I think making this work for 2-D arrays is fine. For every global index value, we derive `j` and `k` as usual. Then we populate the array `v_s` with the values at the points in `v` references by the stencil around `(j,k)`.
+
+We can emit all of these from the stencil pattern info, see e.g. `RefactorF4Acc::Translation::TyTraCL::generate_TyTraCL_stencils()`.
+
+### Stencil
+
+Given the stencil information, we can generate the stencil as a constant array.
+
+Example: `(SVec 2 "exp_h_1_4",Stencil (SVec 2 "s1") (Vec VI "wet_0"))`
 
     ! stencil
-    integer, dimension(size_s,2) :: s
-    real, dimension(size_s) :: v_s    
-    do s_idx = 1,size_s
-      v_s(s_idx) = v(j+s(s_idx,1),k+s(s_idx,2))
+    integer, parameter, dimension(2*2) :: s1 = [...]
+    real, dimension(2) :: exp_h_1_4    
+    do s_idx = 0,1
+      exp_h_1_4(s_idx) = v(j+s1(s_idx*2),k+s_i(s_idx*2+1))
     end do
 
-    ! maps -- I think we'll need to add in the stencil as arg after all, to get the size
-    real :: u_0, v_s
-    real, dimension(size_s) :: u_s    
-    do s_idx = 1,size_s
-      v_s = v(j+s(s_idx,1),k+s(s_idx,2))
-      call f(u_0,v_s)
-      u_s(s_idx)=u_0
-    end do
+
+### MapS
+
+For any new function, I need to create the signature. I think I'd better keep the non-map/fold args separate from the function name
+
+Example: `(Function "exp_h_1_1",MapS (SVec 2 "s5") (Function "shapiro_map_24 (eps_0,etan_avg_1)"))`
+
+    ! maps 
+    subroutine exp_h_1_1(eps_0,etan_avg_1, v_i, j,k, v_o)
+        real, parameter :: s_i_sz 
+        real, dimension(2*s_i_sz), parameter :: s_i = [ ...]         
+        real, dimension(jm,km), intent(in) :: v_i
+        real, dimension(s_i_sz), intent(out) :: v_o
+        real :: u_o
+        do s_idx = 0,v_s_i-1
+            v_s = v_i(j+s_i(s_idx*2),k+s_i(s_idx*2+1))
+            call shapiro_map_24(eps_0,etan_avg_1, v_s,u_o)
+            v_o(s_idx)=u_o
+        end do
+    end subroutine exp_h_1_1
+
+### ApplyT
+
+Example: `(Function "exp_h_1_2",ApplyT [Id,Function "exp_h_1_1",Id,Id])`
+
+ApplyT applies a tuple of functions to a tuple of values. So 
 
     ! applyt
+    subroutine exp_h_1_2(t_i, t_o)
+        real, dimension(4) :: t_i, t_o
+        real :: t_o_3
+        t_o(1)=t_i(1)
+        t_o(2)=t_i(2)
+        call exp_h_1_1(t_i(3),t_o_3)
+        t_o(3)=t_o_3
+        t_o(3)=t_i(4)
+    end subroutine exp_h_1_2
 
-    
+### Comp
 
-### Reduction
+Example: `(Function "exp_h_1_0",Comp (PElt 0) (Function "update_map_24 (hmin_0)"))`
 
-- Pair up `applyt` with `zipt` and `maps` with `stencil`
-- Reduce via SSA
+    ! comp
+    subroutine exp_h_1_0(hzero_j_k,eta_j_k,h_j_k,hmin,un_j_k,vn_j_k, wet_j_k)        
+        real, intent(in) :: hzero_j_k,eta_j_k,h_j_k,hmin,un_j_k
+        real, intent(out) :: wet_j_k
+        real :: u_j_k,v_j_k
+        call update_map_24(hzero_j_k,eta_j_k,h_j_k,hmin,un_j_k,vn_j_k,wet_j_k,u_j_k,v_j_k)        
+    end subroutine exp_h_1_2
 
-## Staging
+Example: `(Function "exp_h_1_3",Comp (Function "exp_h_1_0") (Function "exp_h_1_2"))`
 
-  However, this requires staging. For example, take the case of the rhs for the SOR.
+    ! comp
+    subroutine exp_h_1_3(t_i,t_o)        
+        real, intent(in) :: t_i
+        real, intent(out) :: t_o
+        real :: t_int        
+        call exp_h_1_0(t_i, t_int)
+        call exp_h_1_2(t_int,t_o)
+    end subroutine exp_h_1_3
 
-  This is calculated from p,u,v,w using a reduction, and then the reduced value is subtracted from the original.
 
-  So what we have to do is always recompute rather than store the intermediates in memory.
 
 ## Proofs
 
@@ -163,7 +212,7 @@ The actual stencils
     s1 : SVec k Int
     f1 : a -> b
 
-    stencil s1 (map f1) = map (maps f1) (stencil s1)
+    stencil s1 (map f1) = map (maps s1 f1) (stencil s1)
 
     v0 : Vec n a
     f1 : a -> b
@@ -176,13 +225,13 @@ The actual stencils
     v0s : Vec (SVec k a)
     v0s = stencil s1 v0
 
-    maps f1 : SVec k a -> SVec k b
+    maps s1 f1 : SVec k a -> SVec k b
     v1s : Vec n (SVec k b)
-    v1s = map (maps f1) v0s
+    v1s = map (maps s1 f1) v0s
 
     or
 
-    stencil s1 (map f1 v1) = map (maps f1) (stencil s1 v1)
+    stencil s1 (map f1 v1) = map (maps s1 f1) (stencil s1 v1)
 
 
 ### Proof that the rewrite rules terminate into the correct expressions
@@ -328,3 +377,58 @@ main = do
 4. After this we decompose the expressions in SSA/ANF style
 
 The key question is which rules to apply, does the order matter? We need to look for patterns. As the principal aim is to replace stencils of maps, looking for stencils is a good first step.
+
+# BROL
+
+### Reduction
+
+- Pair up `applyt` with `zipt` and `maps` with `stencil`
+- Reduce via SSA
+
+## Staging
+
+  However, this requires staging. For example, take the case of the rhs for the SOR.
+
+  This is calculated from p,u,v,w using a reduction, and then the reduced value is subtracted from the original.
+
+  So what we have to do is always recompute rather than store the intermediates in memory.
+
+
+### Repeated application of stencils
+
+
+s1 = [...]
+s2 = [...]
+
+v3 = map f2 (stencil s2 (map f1 (stencil s1 v1)))
+
+
+stencil s2 (map f1 (stencil s1 v1)) = map (maps s2 f1) (stencil s2 (stencil s1 v1))
+
+
+
+v3 = map (f2 . (maps s2 f1)) (stencil s2 (stencil s1 v1))
+
+(Stencil (SVec 3 "s2") (Stencil (SVec 3 "s1") (Vec VI "v_0"))))
+
+stencil ::  SVec n1 -> Vec a -> Vec (SVec n1 a)
+
+stencil ::  SVec n1 -> Vec (SVec n2 a) -> Vec (SVec n1 (SVec n2 a))
+
+
+(Stencil (SVec 3 "s2") (Stencil (SVec 3 "s1") (Vec VI "v_0"))))
+
+(Stencil (SComb (SVec 3 "s2") (SVec 3 "s1")) (Vec VI "v_0"))))
+
+the first stencil generates [v@off1, v@off2, v@off3, ...]
+
+the second stencil generates [[], []]
+
+
+
+    ! stencil
+    integer, parameter, dimension(2*2) :: s1 = [...]
+    real, dimension(2) :: exp_h_1_4    
+    do s_idx = 0,1
+      exp_h_1_4(s_idx) = v(j+s1(s_idx*2),k+s_i(s_idx*2+1))
+    end do

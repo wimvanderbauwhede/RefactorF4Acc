@@ -4,7 +4,7 @@ use v5.28;
 use Getopt::Std;
 
 my %opts = ();
-getopts( 'hvmste:', \%opts );
+getopts( 'hve:', \%opts );
 
 if ($opts{'h'}){
     die "
@@ -14,30 +14,13 @@ if ($opts{'h'}){
     -e : Fortran source file extension (default is .f95, needs the dot)
     \n";
 }
-    # -m : generate TyTraCL main routine (default)
-    # -s : scalarise only
-    # -t : translate only
 
 our $V=0;
 if ($opts{'v'}) {
     $V=1;
 }
 my $gen_tytra_cl_main=1;
-if ($opts{'m'}) {
-    $gen_tytra_cl_main=1;
-}
-# my $scalarise=1;
-# my $translate=1;
-# if ($opts{'s'}) {
-#     $translate=0;
-# }
-# if ($opts{'t'}) {
-#     $scalarise=0;
-# }
-# if ($opts{'s'} and $opts{'t'}) {
-#     $scalarise=1;
-#     $translate=1;
-# }
+
 my $ext = '.f95';
 if ($opts{'e'}) {
     $ext = $opts{'e'};

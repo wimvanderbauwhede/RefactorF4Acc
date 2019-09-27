@@ -1,4 +1,4 @@
-module Transforms (splitLhsTuples, substituteVectors, applyRewriteRules, decomposeExpressions) where
+module Transforms (splitLhsTuples, substituteVectors, applyRewriteRules, fuseStencils, decomposeExpressions) where
 
 import Data.Generics (Data, Typeable, mkQ, mkT, mkM, gmapQ, gmapT, everything, everywhere, everywhere', everywhereM)
 import Control.Monad.State
@@ -136,6 +136,7 @@ reduce_subtree expr = case expr of
 -- ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------    
 -- 3. With this preparation I guess we are ready for the actual rewrites:
 --
+rewrite_ast_expr :: Expr -> Expr
 rewrite_ast_expr ast = everywhere (mkT rewrite_ast_sub_expr) ast
 
 {-
@@ -158,8 +159,12 @@ Rewrite rules
 -- I don't think we can ever arrive at this with the given rewrite rules, because ApplyT is never used outside a Map
 6.
     applyt (g_1,g_2) $ applyt (f_1,f_2)  = applyt (g_1 . f_1, g_2 . f_2) 
+
+7.  stencil s1 $ stencil s2 $ v = stencil (scomb s1 s2)  v
 -}
 
+-- (Stencil (SVec 3 "s2") (Stencil (SVec 3 "s1") (Vec VI "v_0"))))
+-- (Stencil (SComb (SVec 3 "s2") (SVec 3 "s1")) (Vec VI "v_0"))))
 rewrite_ast_sub_expr expr = case expr of 
     -- 1. Map composition
     Map f1_expr (Map f2_expr v_expr) -> Map (Comp f1_expr f2_expr) v_expr
@@ -177,13 +182,21 @@ rewrite_ast_sub_expr expr = case expr of
                 else expr
     -- 5.  Tuple select (Elt) after UnzipT of Map becomes Map of the composition of Elt and the mapped function
     Elt i_expr (UnzipT (Map f_expr exprs)) -> Map (Comp (PElt i_expr) f_expr) exprs
+    -- This gets ignored?
+    -- Stencil s_1 (Stencil s_2 v_expr) -> Stencil (SComb s_1 s_2) v_expr
     _ -> expr
 
+rewrite_ast_expr' expr = case expr of   
+    Map f_expr (Stencil s_1 (Stencil s_2 v_expr)) -> Map f_expr (Stencil (SComb s_1 s_2) v_expr)
+    Fold f_expr acc_expr (Stencil s_1 (Stencil s_2 v_expr)) -> Fold f_expr acc_expr (Stencil (SComb s_1 s_2) v_expr)
+    _ -> expr    
 {- 
 This needs to be done repeatedly until a fixpoint is reached.    
 Fixpoint is reached when there is only a single Map expression
 -}
-applyRewriteRules  = map (\(lhs,rhs) -> (lhs,rewrite_ast_into_single_map 0 rhs)) 
+applyRewriteRules  = map (\(lhs,rhs) -> (lhs,rewrite_ast_into_single_map 0 rhs))
+      
+fuseStencils = map (\(lhs,rhs) -> (lhs,rewrite_ast_expr' rhs)) 
 -- ast''' = map (\(lhs,rhs) -> (lhs,rewrite_ast_into_single_map rhs)) ast''
 --
 map_checks :: TyTraCLAST -> [Int]
@@ -223,7 +236,7 @@ rewrite_ast_into_single_map count exp =
         count' = count+1
         map_count = has_map_subexprs exp 
     in
-        if map_count > 1 -- && count < 100
+        if map_count > 1
             then 
                 let
                     exp' = rewrite_ast_expr exp
@@ -254,29 +267,31 @@ subsitute_expr vec_name exp = do
                       Tuple _ -> ((ct,var_expr_pairs),exp)
                       Vec _ _ -> ((ct,var_expr_pairs),exp)
                       Id -> ((ct,var_expr_pairs),exp)
-                      Function _ -> ((ct,var_expr_pairs),exp)
+                      Function _ _ -> ((ct,var_expr_pairs),exp)
                       SVec _ _ -> ((ct,var_expr_pairs),exp)
+                      SComb _ _ -> ((ct,var_expr_pairs),exp)
                       PElt _ -> ((ct,var_expr_pairs),exp)
                       Map _ _ -> ((ct,var_expr_pairs),exp)
                       Fold _ _ _ -> ((ct,var_expr_pairs),exp)
                       MapS _ _ -> let
-                            var = Function ("exp_"++vec_name++"_"++(show ct))
+                            var = Function ("f_maps_"++vec_name++"_"++(show ct)) []
                         in
                             ((ct+1,var_expr_pairs++[(var,exp)]),var)
                       ApplyT _ -> let
-                            var = Function ("exp_"++vec_name++"_"++(show ct))
+                            var = Function ("f_applyt_"++vec_name++"_"++(show ct)) []
                         in
                             ((ct+1,var_expr_pairs++[(var,exp)]),var)
                       Comp _ _ -> let
-                            var = Function ("exp_"++vec_name++"_"++(show ct))
+                            var = Function ("f_comp_"++vec_name++"_"++(show ct)) []
                         in
                             ((ct+1,var_expr_pairs++[(var,exp)]),var)
                       Stencil (SVec n _) _ -> let
-                            var = SVec n ("exp_"++vec_name++"_"++(show ct))
+                            -- var = SVec n ("svec_"++vec_name++"_"++(show ct))
+                            var = Vec VS ("svec_"++vec_name++"_"++(show ct))
                         in
                             ((ct+1,var_expr_pairs++[(var,exp)]),var)
                       _ -> let
-                              var = Vec VT ("exp_"++vec_name++"_"++(show ct))
+                              var = Vec VT ("vec_"++vec_name++"_"++(show ct))
                            in
                              ((ct+1,var_expr_pairs++[(var,exp)]),var)
             put (ct',var_expr_pairs')

@@ -5,8 +5,20 @@ use RefactorF4Acc::Utils;
 use RefactorF4Acc::Refactoring::Common qw(
 	pass_wrapper_subs_in_module					
 	);
-use RefactorF4Acc::Translation::TyTra::Common qw( _mkVarName );
-use RefactorF4Acc::Translation::TyTraCL qw( emit_TyTraCL construct_TyTraCL_AST_Main_node generate_TyTraCL_stencils );
+use RefactorF4Acc::Translation::TyTra::Common qw( 
+    _mkVarName 
+    addTypeDecl
+    mkMap
+    mkFold
+    mkStencilDef
+    mkStencilAppl
+    mkComment
+    );
+use RefactorF4Acc::Translation::TyTraCL qw( 
+    emit_TyTraCL 
+    construct_TyTraCL_AST_Main_node 
+    generate_TyTraCL_stencils
+    );
 
 #
 #   (c) 2016 Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
@@ -273,7 +285,7 @@ sub main {
         'Lines' => [
             mkMap('f1'=>[]=>[['v',0,'']],[['v',1,'']]),
             mkStencilDef(1,[-1,0,1]),
-            mkStencilAppl(1,['v',1,'']=>['v',1,'s']),
+            mkStencilAppl(1,3,['v',1,'']=>['v',1,'s']),
             mkMap('f2'=>[]=>[['v',1,'']],[['v',2,'']]),
             mkMap('f3'=>[]=>[['v',2,''],['v',1,'s']]=>[['v',3,'']]),
             mkFold('f4'=>[]=>[['',0,'']]=>[['v',3,'']]=>[['acc',1,'']]),
@@ -978,63 +990,5 @@ sub __get_min_max_from_array { my ($values) = @_;
     return ($min, $max);
 } # END of __get_min_max_from_array_from_array
 
-# mkFold(shapiro_reduce_18 => [] , [['etan_avg',0,'']] => [['etan',0,'']] => [['etan_avg',1,'']]);
-sub mkFold { my ($fname,$non_fold_args, $acc_args, $fold_args, $ret_vars)=@_;
-    return {
-        'Rhs' => {
-            'FoldArgs' => {'Vars' => $fold_args},
-            'NonFoldArgs' => {'Vars' => $non_fold_args},
-            'Function' => $fname,
-            'AccArgs' => {'Vars' => $acc_args}
-        },
-        'FunctionName' => $fname,
-        'NodeType' => 'Fold',
-        'Lhs' => {
-            'Vars' => $ret_vars
-        }
-    };
-}
-
-# mkMap( shapiro_map_23 => [['eps',0,''],['etan_avg',1,'']] => [['wet',0,'s'],['etan',0,'s'],['eta',0,'']] => [['eta',1,'']] );
-sub mkMap { my ($fname,$non_map_args, $map_args, $ret_vars)=@_;
-    return {
-        'Rhs' => {
-            'MapArgs' => {'Vars' => $map_args},
-            'NonMapArgs' => {'Vars' => $non_map_args},
-            'Function' => $fname,
-        },
-        'FunctionName' => $fname,
-        'NodeType' => 'Map',
-        'Lhs' => {
-            'Vars' => $ret_vars
-        }
-    };
-}
-
-# mkStencilAppl( 1 => ['wet',0,''] => ['wet',0,'s']);
-sub mkStencilAppl { my ($ctr,$arg, $ret_var)=@_;
-    return {'Rhs' => {'Var' => $arg,'StencilCtr' => $ctr},'FunctionName' => "sa$ctr",'NodeType' => 'StencilAppl','Lhs' => {'Var' => $ret_var}};    
-}
-
-# mkStencilDef(2, [-1,-502,0,502,1]);
-sub mkStencilDef { my ($ctr, $pattern) = @_;
-    return {
-        'NodeType' => 'StencilDef',
-        'Lhs' => {'Ctr' => 1},
-        'FunctionName' => "s$ctr",
-        'Rhs' => {
-            'StencilPattern' => {
-                'Pattern' => $pattern,
-            }
-        }
-    };
-}
-
-sub addTypeDecl { my ($stref,$f,$var_name, $var_type, $dim)=@_;
-
-    $stref->{'Subroutines'}{$f}{'ArrayAccesses'}{0}{'Arrays'}{$var_name} = {'Dims' => $dim} ;
-    $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$var_name}={'Type' => $var_type};
-    return $stref;
-}
 
 1;

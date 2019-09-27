@@ -10,6 +10,12 @@ use RefactorF4Acc::Translation::TyTra::Common qw(
   __isMainOutArg
   _mkVarName
   _mkSigArgName
+    mkMap
+    mkFold
+    mkStencilDef
+    mkStencilAppl
+    mkComment
+    addTypeDecl   
   F3D2C
   F2D2C
   F1D2C
@@ -87,11 +93,13 @@ sub pass_emit_TyTraCL {
             [\&identify_array_accesses_in_exprs ],
         ]
     );
+
 # say Dumper $stref->{'TyTraCL_AST'}{'Lines'};
     $stref = construct_TyTraCL_AST_Main_node($stref);
     # This is to emit Haskell later, could maybe go in a separate pass
-    # $stref = _emit_TyTraCL_FunctionSigs($stref);
-    $stref = _add_VE_to_AST($stref);
+    $stref = _emit_TyTraCL_FunctionSigs($stref);    
+    carp Dumper($stref->{'TyTraCL_FunctionSigs'});#{$f}=[$non_map_arg_str,$acc_arg_str,$map_arg_str, $lhs_str];
+    # $stref = _add_VE_to_AST($stref);
     $stref = emit_TyTraCL($stref);
     my $tytracl_str = $stref->{'TyTraCL_Code'};
     # say $tytracl_str;
@@ -504,6 +512,11 @@ sub _addToVarTypesAndStencils {
         my $var_rec      = $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$var_name};
         my $var_type     = $type_formatter->($var_rec->{'Type'});
         my @s_type_array = ();
+        
+        if (not exists $stencils->{$rhs->{'StencilCtr'}}) {
+            carp $rhs->{'StencilCtr'};
+        croak Dumper $stencils;
+        }
         for (1 .. $stencils->{$rhs->{'StencilCtr'}}) {
             push @s_type_array, $var_type;
         }
@@ -1245,7 +1258,7 @@ sub _emit_TyTraCL_FunctionSigs { (my $stref) = @_;
             my $non_map_args = $rhs->{'NonMapArgs'}{'Vars'};
             my $lhs_str =
               (scalar @{$out_vars} == 1)
-              ? _mkSigArgName($out_vars->[0]) . ' = '
+              ? _mkSigArgName($out_vars->[0]) 
               : '(' . join(',', map { _mkSigArgName($_) } @{$out_vars}) . ')';
 
             my $non_map_arg_str =
@@ -1267,7 +1280,7 @@ sub _emit_TyTraCL_FunctionSigs { (my $stref) = @_;
 
             my $lhs_str =
               (scalar @{$out_vars} == 1)
-              ? _mkSigArgName($out_vars->[0]) . ' = '
+              ? _mkSigArgName($out_vars->[0]) 
               : '(' . join(',', map { _mkSigArgName($_) } @{$out_vars}) . ')';
 
             my $non_map_arg_str =
@@ -1284,7 +1297,7 @@ sub _emit_TyTraCL_FunctionSigs { (my $stref) = @_;
               ? _mkSigArgName($map_args->[0])
               : '(' . join(',', map { _mkSigArgName($_) } @{$map_args}) . ')';
 
-            $stref->{'TyTraCL_FunctionSigs'}{$f}=[$non_map_arg_str,$acc_arg_str,$map_arg_str, $lhs_str];                        
+            $stref->{'TyTraCL_FunctionSigs'}{$f}=[$non_map_arg_str,$acc_arg_str,$map_arg_str, $lhs_str];
         }
     }
     return $stref;
