@@ -78,7 +78,7 @@ sub translate_module_to_C {  (my $stref, my $module_name, my $ocl) = @_;
 	$stref->{'CustomPassPostProcessing'}=1;
     # This makes sure that no fortran is emitted by emit_all()	
     $stref->{'SourceContains'}={};
-}
+} # END of translate_module_to_C
 sub add_OpenCL_address_space_qualifiers { (my $stref, my $f, my $ocl) = @_;
 	
 	if ($ocl>=1) { 

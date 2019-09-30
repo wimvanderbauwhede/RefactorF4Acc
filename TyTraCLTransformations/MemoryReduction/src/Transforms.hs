@@ -20,32 +20,40 @@ split_tuple vecs rhs = let
     in
         foldl (\acc (vec,idx) ->  acc++[(vec, Elt idx rhs)]) [] vecs_idxs
 -- ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
--- 2. Substitute all _Vec VT_ and _Vec VS_ recursively until no _Vec VT_ and _Vec VS_ remain in the AST. We start from the last expression in the list. We must also substitute _Vec VO_ on the RHS but tuples with _Vec VO_ on the LHS can't be removed. Clearly, _Vec VI_ should never occur on the LHS.
--- There are two subtasks here: 
--- 2.1 Find occurences of _Vec_ in the RHS expression of any tuple with a _Vec VO_ on the LHS
--- 2.2 Look up and substitute these _Vec_s with their RHS expression
--- I think the easiest way is to use Generics: with `everywhere` we can update all nodes in place
+{-
+2. Substitute all _Vec VT_ and _Vec VS_ recursively until no _Vec VT_ and _Vec VS_ remain in the AST. 
+We start from the last expression in the list. 
+We must also substitute _Vec VO_ on the RHS but tuples with _Vec VO_ on the LHS can't be removed. 
+Clearly, _Vec VI_ should never occur on the LHS.
+There are two subtasks here: 
+2.1 Find occurences of _Vec_ in the RHS expression of any tuple with a _Vec VO_ on the LHS
+2.2 Look up and substitute these _Vec_s with their RHS expression
+I think the easiest way is to use Generics: with `everywhere` we can update all nodes in place
+-}
 
+-- 
 find_in_ast :: TyTraCLAST -> Expr -> Expr
 find_in_ast ast v@(Vec _ _)  = let
     maybe_v = filter (\(lhs,rhs) -> lhs == v) ast
     in
         if length maybe_v == 1 
         then
-            snd $ head maybe_v
+            snd $ head maybe_v -- return the rhs
         else
             v
 find_in_ast ast e  = e
             
 -- expr_has_non_input_vecs expr = length (non_input_vecs expr) > 0
 
+-- If an expression is a vector, return it in a list, else return an empty list
 get_vec :: Expr -> [Expr]
 get_vec v@(Vec vt _) = [v]
 get_vec _ = []
 
 get_vec_subexprs :: Expr -> [Expr]
-get_vec_subexprs expr = everything (++) (mkQ [] get_vec) expr
+get_vec_subexprs = everything (++) (mkQ [] get_vec) 
 
+-- returns all non-input vectors in an expression
 non_input_vecs :: Expr -> [Expr]
 non_input_vecs expr = let
     vec_subexprs = get_vec_subexprs expr
@@ -159,7 +167,7 @@ Rewrite rules
 -- I don't think we can ever arrive at this with the given rewrite rules, because ApplyT is never used outside a Map
 6.
     applyt (g_1,g_2) $ applyt (f_1,f_2)  = applyt (g_1 . f_1, g_2 . f_2) 
-
+-- This is a separate pass
 7.  stencil s1 $ stencil s2 $ v = stencil (scomb s1 s2)  v
 -}
 

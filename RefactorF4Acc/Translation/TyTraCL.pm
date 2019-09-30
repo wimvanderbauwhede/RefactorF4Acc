@@ -78,6 +78,7 @@ sub pass_emit_TyTraCL {
         'Portions'     => {},
         'Main'         => {},
         'MainFunction' => 'main',
+        'FunctionArgsMappings' =>{}, # This is very simply for every $f a map of every arg to its location in the original args list
         'ASTEmitter'   => \&_add_TyTraCL_AST_entry
     };
     $stref = pass_wrapper_subs_in_module(
@@ -1209,9 +1210,13 @@ sub _add_TyTraCL_AST_entry {
         }
     }
     elsif ($type eq 'MAIN') {
+        # Here, $state is $stref
         $tytracl_ast->{'MainFunction'} = $f;
+        my $arg_pos=0;
         for my $arg (@{$state->{'Subroutines'}{$f}{'RefactoredArgs'}{'List'}}) {
             $tytracl_ast->{'OrigArgs'}{$arg} = $state->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$arg}{'IODir'};
+            $tytracl_ast->{'FunctionArgsMappings'}{$f}{$arg}=$arg_pos;
+            ++$arg_pos;
         }
     }
 

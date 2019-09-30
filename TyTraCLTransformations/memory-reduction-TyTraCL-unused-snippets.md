@@ -70,6 +70,35 @@ TyTraCL is a composition language, its aim is to express dataflow graphs. The ac
     elt :: i:: Int -> (...,a_i,...) -> a_i
     elt i (...,e_i,...) = e_i
 
+#### Other TyTraCL primitives    
+
+    split :: k -> Vec n a -> Vec k (Vec n/k a)
+    merge :: Vec k (Vec n/k a) -> Vec n a
+
+    select :: SVec k Int -> Vec n a -> Vec k a
+    select patt v = maps (\idx -> v !! idx) patt
+    -- Example:
+    v' = select [ i*jm*km+j*km+k_const | i <- [0 .. im-1],  j <- [0 .. jm-1], k <- [0..km-1] ] v
+
+    insert :: SVec k Int -> Vec k a -> Vec n a -> Vec n a
+    insert target_pattern small_list target_list    
+
+    replicate :: Int k => k -> a -> Vec k a
+
+#### Rewrite rules SEE CODE!
+
+    map f_2 (map f_1 v) = map (f_2 . f_1) v    
+
+    v = map id v -- but only if this v appears in a ZipT where at least one of the other expressions is a map
+
+    zipt (map f_1 v_1, map f_2 v_2) = map (applyt (f_1,f_2)) (zipt (v_1, v_2)) -- if all exprs in ZipT are maps
+
+    applyt (g_1,g_2) $ applyt (f_1,f_2)  = applyt (g_1 . f_1, g_2 . f_2)
+
+    (elt i) . unzipt . (map f (zipt (...,v_i,...))) = map ((elt i) . f) (zipt (...,v_i,...))
+
+    stencil s_1 (map f_1) = map (maps f_1) (stencil s_1)
+
 ## Aim
 
 The aim is to rewrite the program so that it is a single `map` call.

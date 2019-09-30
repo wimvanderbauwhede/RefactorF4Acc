@@ -28,35 +28,24 @@ use Exporter;
 );
 
 =pod
-
-TODO: integrate the scalarization pass into the translate_kernels_to_TyTraLlvmIR.pl script!
-
-[wim@HackBookPro Autopar]$ cat rename_array_accesses_to_scalars.sh 
-refactorF4acc.pl -P rename_array_accesses_to_scalars -c rf4a_scalarize.cfg 
-
-[wim@HackBookPro Autopar]$cat rf4a_scalarize.cfg 
-
-currently:
-MODULE = module_shapiro_dyn_update_superkernel
-MODULE_SRC = module_shapiro_dyn_update_superkernel.f95
-TOP = shapiro_dyn_update_superkernel
-KERNEL = shapiro_dyn_update_superkernel
-PREFIX = .
-SRCDIRS = .
-NEWSRCPATH = ./Scalarized
-EXCL_SRCS = (sub|init|param|module_\w+_superkernel_init|_host|\.[^f])
-EXCL_DIRS = ./PostCPP,./Scalarized,./TyTraC
-MACRO_SRC = macros.h
-EXT = .f95
-
-
-
 # Generating LLVM IR for TyTra
 
 - The current compiler chain first generates accelerator-ready Fortran 95 using this compiler. 
 - This is passed on to a second compiler which performs essentially a map/fold/stencil analysis and emits code in the form of kernels, intended for GPU acceleration using OpenCL, but in Fortran syntax.
 - This compiler then translates that code into C for OpenCL or for the TyTra flow (TyTraC). To generate TyTraC, it first scalarises all kernels (`-P rename_array_accesses_to_scalars`) and then translates them to C (`-P translate_to_TyTraC`).
 - Then we can generate LLVM IR from that C code, and transform it so that it can be converted finally to TyTraIR by the TyBEC backend compiler
+
+## Overall structure
+
+The complete translation is done using the script `bin/translate_kernels_to_TyTraLlvmIR_via_API.pl `. 
+This script runs a number of passes:
+
+- 'emit_TyTraIR' to create the main TyTraIR program source
+- 'rename_array_accesses_to_scalars' to scalarise the kernel functions
+- 'translate_to_TyTraLlvmIR' which does all the rest
+
+The routine `generate_llvm_ir_for_TyTra` is called from inside `OpenCLC::translate_module_to_C`, which is called when the pass 
+'translate_to_TyTraLlvmIR' is run. 
 
 ## Generating LLVM IR from TyTraC
 
@@ -728,27 +717,27 @@ sub __emit_llvm_ir_single_ast_node {
     return $ll_line;
 }    # END of __emit_llvm_ir_single_ast_node
 
-sub _emit_llvm_ir_from_ast_tree {(my $ast_tree) = @_;
+sub _emit_llvm_ir_from_ast_tree { (my $ast_tree) = @_;
 
     my @ast_nodes =();
     # push @ast_nodes,  $ast_tree->{Signature};     
 
     for my $label ( @{$ast_tree->{List}} ) {
-        # say Dumper $ast_tree->{Tree}{$label};
-        push @ast_nodes, $ast_tree->{Tree}{$label}{LabelNode} if exists $ast_tree->{Tree}{$label}{LabelNode};
-        @ast_nodes=(@ast_nodes, @{ $ast_tree->{Tree}{$label}{Block} });
-        if (exists $ast_tree->{Tree}{$label}{IfThenElse}) {   
-            push @ast_nodes, $ast_tree->{Tree}{$label}{IfThenElse};
+        # say Dumper $ast_tree->{`Tree`}{$label};
+        push @ast_nodes, $ast_tree->{`Tree`}{$label}{`LabelNode`} if exists $ast_tree->{`Tree`}{$label}{LabelNode};
+        @ast_nodes=(@ast_nodes, @{ $ast_tree->{`Tree`}{$label}{`Block`} });
+        if (exists $ast_tree->{`Tree`}{$label}{`IfThenElse`}) {   
+            push @ast_nodes, $ast_tree->{`Tree`}{$label}{`IfThenElse`};
         }
-        elsif (exists $ast_tree->{Tree}{$label}{Goto}) {   
-            push @ast_nodes, $ast_tree->{Tree}{$label}{Goto};
+        elsif (exists $ast_tree->{`Tree`}{$label}{`Goto`}) {   
+            push @ast_nodes, $ast_tree->{`Tree`}{$label}{`Goto`};
         }
-        elsif (exists $ast_tree->{Tree}{$label}{Return}) {   
-            push @ast_nodes, $ast_tree->{Tree}{$label}{Return};
+        elsif (exists $ast_tree->{`Tree`}{$label}{`Return`}) {   
+            push @ast_nodes, $ast_tree->{`Tree`}{$label}{`Return`};
         }
     }
 
-    @ast_nodes=(@ast_nodes, @{ $ast_tree->{PostAmble} });
+    @ast_nodes=(@ast_nodes, @{ $ast_tree->{`PostAmble`} });
 # say Dumper @ast_nodes;
     my $ll_lines = _emit_llvm_ir(\@ast_nodes);
     return $ll_lines;

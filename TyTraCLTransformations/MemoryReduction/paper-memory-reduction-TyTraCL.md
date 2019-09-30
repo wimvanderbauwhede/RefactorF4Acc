@@ -1,14 +1,15 @@
-# Memory Reduction for Scientific Computing on GPUs
+# Reducing memory utilisation of stencil-based legacy scientific code through automatic program transformation
+
 
 ## Background
 
-Currently, the LES uses a large number of intermediate arrays which are stored in the global memory.
+This work is part of our efforts to automatically transform and compile legacy scientific code (in particular weather simulations and similar) in FORTAN 77 to heterogeneous platforms. The focus of this paper is on a novel program transformation to reduce the memory utilisation of stencil-based scientific code.
+For scientific computations, memory requirements are often the bottleneck, both in terms of the storage and of performance. Specifically the performance of stencil codes is often limited by memory bandwidth. Reducing memory utilisation allows simulations of larger domains or with higher resolution. 
+Our main observation from real-life scientific code is that many of the arrays used in typical simulation code are intermediate arrays, especially in the case of stencil computations. As anexample, consider the Large Eddy Simulator for Urban Flows \cite{}
 
-I contend that we only need the actual input arrays and we can recompute all the rest from those. So rather than writing back to memory, we store what we need in a smart buffer.
+This is a hurricane wind similator, so it simulates pressure and wind speed. Its actual inputs are the wind velocity in 3 dimensions (_u,v,w_) and the pressure (_p_), i.e. four arrays for every domain. However, the code but we actually uses 15 arrays:
 
-For the LES we have u,v,w,p as inputs, but we actually use:
-
-    p (double)
+    p
     u,v,w
     usum,vsum,wsum
     f,g,h
@@ -16,10 +17,32 @@ For the LES we have u,v,w,p as inputs, but we actually use:
     sm
     rhs
 
+In this particular case, 11 arrays are intermediate and can actually be replaced by scalar computations. If we could achieve this, the simulation could run on a 4 times larger domain with the same memory utilisation. In this paper we present a novel approach to aggressively reduce memory utilisation of stencil-based legacy scientific code through automatic program transformation.
 
-So my contention is that we could go from these 16 arrays to only 4 plus 12 smart buffers which only take 3/kp of the space, so in total:
+## Related Work
+- The idea is to find some similar things but be able to say that nobody has done what we have done
 
-4+12*3/kp = 4.45 for kp=80 so a reduction in memory of 3.6x, so we could go from the current domain size of 300x300 to 568x568
+## Relationship to our existing work and Contribution of this work
+
+We have developed a compilation chain which can automatically transform legacy scientific code into GPU- and FPGA- accelerated variants \cite{}. In this work we make use of this compilation chain to transform the original code into a form that can be analysed for memory reduction. In particular, the code is refactored to remove global variables (`COMMON` in Fortran) and the loops are analysed in terms of _map_ and _fold_ higher-order functions. We have shown how to transform the code into map/fold based code for GPU acceleration  \cite{}. 
+Furthermore, motivated by the goal of accelerating code on FPGAs, we have developed a functional dataflow language, TyTraCL \cite{} and a source-to-source compiler which can transform the map/fold based code into this language. In this paper we start from the program in the TyTraCL language.
+
+The contributions of the current work are 
+- Additional analysis to detect stencils
+- An algorithm to scalarise the kernels
+- An algorithm to identify intermediate array
+- A series of program transformations to remove intermediate arrays
+
+
+<!--
+- Refactor
+- map/fold/stencil analysis -> refer to my paper with Gavin? It is not very detailed though. Esp. the stencil analysis is new
+- scalarisation, also new
+- functional language, HOFs -> TyTraCL, ref some of our papers
+- AST rewrite rules -> reference Bird-Meertens
+- emitting Fortran
+
+
 
 ## Current status
 
@@ -31,10 +54,13 @@ TyTraIR -> FPGA
 
 ## Removing intermediate arrays
 
+-->
 
-### TyTraCL
+## The TyTraCL language 
 
-The TyTraCL language is syntactically a subset of Haskell, with the addition of two types of vectors of fixed size. 
+### TyTraCL concrete syntax
+
+The TyTraCL language is syntactically a subset of Haskell, with the addition of two types of vectors of fixed size, similar to the vector type in Idris. Purely for convenience we also assume that `zipt`, `unzipt`, `applyt` and `elt` work on tuples of arbitrary size, as opposed to Haskell where an instance is needed for every tuple size.
 
 #### Types
 
@@ -45,6 +71,8 @@ The TyTraCL language is syntactically a subset of Haskell, with the addition of 
 TyTraCL is a composition language, its aim is to express dataflow graphs. The actual input values and computations do not  need to be defined, so instances of the above types are ony declared.
 
 #### Primitives 
+
+The language has a small number of primitives, shown in Listing XXX.
 
     -- As in Haskell but on Vec rather than []
     map : (a -> b) -> Vec n a -> Vec n b
@@ -59,20 +87,80 @@ TyTraCL is a composition language, its aim is to express dataflow graphs. The ac
     stencil : SVec k Int -> Vec n a -> Vec n (SVec k a)
 
     -- Like Haskell's zip/unzip but takes a tuple as argument and works on Vec
-    zipt :: (...,Vec n a_i,...)  -> Vec n (...,a_i,...)]
-    unzipt :: Vec n (...,a_i,...) -> (...,Vec n a_i,...)
+    zipt :: Tup k (...,Vec n a_i,...)  -> Vec n $ Tup k (...,a_i,...)
+    unzipt :: Vec n Tup k (...,a_i,...) -> Tup k (...,Vec n a_i,...)
 
     -- Apply a tuple of functions to a tuple of values
-    applyt :: (...,a_i -> b_i,...) (...,a_i,...) -> (...,b_i,...)
+    applyt :: Tup k (...,a_i -> b_i,...) Tup k (...,a_i,...) -> Tup k (...,b_i,...)
     applyt (...,f_i,...) (...,e_i,...) =\(...,e_i,...) -> (...,f_i e_i,...)
 
     -- Generalisation of Haskell's fst/snd
     elt :: i:: Int -> (...,a_i,...) -> a_i
     elt i (...,e_i,...) = e_i
 
-## Aim
+### TyTraCL Abstract Syntax
 
-The aim is to rewrite the program so that it is a single `map` call.
+The abstract syntax for the TyTraCL language, expressed as a Haskell type, is shown in Listing XXX
+
+        type Name = String
+        data VE = VI  | VO  | VS  | VT 
+            deriving (Show, Typeable, Data, Eq)            
+        type TyTraCLAST = [(Expr,Expr)]                      
+
+        data Expr =
+                -- Left-hand side:
+                            Scalar Name
+                            | Const Int 
+                            | Tuple [Expr] 
+                            | Vec VE Name
+
+                -- Right-hand side:
+                            | SVec Int Name -- Stencil vector
+                            | ZipT [Expr] -- generalised zip
+                            | UnzipT Expr -- generalised unzip
+                            | Elt Int Expr -- generalised tuple access
+                            | Map Expr Expr
+                            | Fold Expr Expr Expr
+                            | Stencil Expr Expr
+                            | Function Name [Name] -- 2nd arg is list of non-map/fold args
+                            | Id
+                            | ApplyT [Expr]
+                            | MapS Expr Expr 
+                            | Comp Expr Expr
+                            | SComb Expr Expr
+                                deriving (Show, Typeable, Data, Eq)
+
+### Relationship with the original Fortan code
+
+The typical pattern of stencil code is a sequential application of nested loops.
+
+### Stencil detection
+
+Array accesses are divided into read and write access.  Stencils are defined as patterns of read accesses with fixed offsets around the loop iterators. An array access pattern is a stencil if:
+	- There is more than one read access to the array
+	- At least one of these accesses has a non-zero offset
+	- All points in the array are processed in order, i.e. the loop iterators loop over a contiguous range
+Furthermore, there can only be a single write access to any array in the loop nest.
+
+The analysis extracts the stencil pattern and transforms any stencil computation into a combination of a `stencil` call and a `map` or `fold` call. For example, 
+
+...
+
+becomes
+
+        v_s = stencil s v
+        v_o = map f v_s
+
+### Scalarisation
+
+
+
+
+### Intermediate array identification
+### Intermediate array removal
+
+
+
 
 ## AST
 
@@ -85,8 +173,6 @@ Starting from the OpenCL Fortran code:
 Then we transform the resulting AST into a simpler AST for rewriting, see below.
 
 ## Rewrite algorithm
-
-### Without `fold`
 
 For every call, we look at the V_like argument first.
 If it is not a vector then it must be a ZipT or a Stencil.
@@ -181,7 +267,25 @@ Example: `(Function "exp_h_1_3",Comp (Function "exp_h_1_0") (Function "exp_h_1_2
 
 ## Proofs
 
-### Proof for the Stencil-Map rewrite rule
+
+### Normalisation
+
+- First we normalise so the LHS is either Vec or Scalar
+- Then we remove all intermediate vectors VS VT by substitution, and also VO on the RHS
+
+Given the AST in this form and following rules:
+
+        map f_2 (map f_1 v) = map (f_2 . f_1) v    
+        stencil s_1 (map f_1) = map (maps f_1) (stencil s_1)
+        zipt (map f_1 v_1, map f_2 v_2) = map (applyt (f_1,f_2)) (zipt (v_1, v_2)) -- if all exprs in ZipT are maps
+        v = map id v -- if an expr in a ZipT tuple can't be rewritten to a map expression, turn it into map using this rule
+        (elt i) . unzipt . (map f v) = map ((elt i) . f) v
+
+### Lemmas
+
+First we prove that the rewrite rules themselves are correct. The first rule is well-known; the fourth rule is trivial. 
+
+#### Proof for the Stencil-Map rewrite rule
 
     s1 : SVec k Int
     f1 : a -> b
@@ -207,14 +311,109 @@ Example: `(Function "exp_h_1_3",Comp (Function "exp_h_1_0") (Function "exp_h_1_2
 
     stencil s1 (map f1 v1) = map (maps s1 f1) (stencil s1 v1)
 
+#### Proof for the ZipT-Map rewrite rule
 
-### Proof that the rewrite rules terminate into the correct expressions
+- Given that all exprs in the tuple are map expressions
+- Express the vectors in terms of their elements:
 
-...
+        v_i = [e_i_0, ...]
+        (zipt (v_1, v_2) = [(e_1_0,e_2_0),...]
+
+- Substitute in the LHS of the rule:
+
+        zipt (map f_1 v_1, map f_2 v_2) = zipt ([f_1 e_1_0, f_1 e_1_1, ...], [f_2 e_2_0, f_2 e_2_1, ...])
+
+- Apply the `map` and `zipt` definitions
+        = [(f_1 e_1_0,f_2 e_2_0),(f_1 e_1_1,f_2 e_2_1),...]
+- Apply the `apply` definition        
+        = [
+            applyt (f1,f_2) (e_1_0,e_2_0),applyt (f1,f_2) (e_1_1,e_2_1),...
+        ]
+- Apply the `map` definition
+        = map (applyt (f1,f_2)) [(e_1_0,e_2_0),(e_1_1,e_2_1),...]
+- Apply the `zipt` definition
+        = map (applyt (f1,f_2)) (zipt (v_1, v_2))
+
+#### Proof for the Elt-UnzipT-Map rewrite rule
+
+- Given 
+
+        f :: a -> (a_1,a_2)
+        
+- On the LHS, writing out with elements and applying the definition of `map`:
+
+    map f v = [f e_0, f e_1, ...]
+    = [(e_1_0, e_2_0),(e_1_1, e_2_1),...]
+
+- Applying the definition of `unzipt`
+
+    unzipt (map f v)
+    = unzipt [(e_1_0, e_2_0),(e_1_1, e_2_1),...]
+    = ([e_1_0, e_1_1,...],[e_2_0,e_2-1,...])
+
+- Applying `elt i`, e.g. for i = 0
+
+    (elt i) (unzipt (map f v))
+    = [e_1_0, e_1_1,...]
+    = v_1
+
+- On the RHS, write the vector `v` in terms of its elements:
+
+    v = [e_0, e_1, ... e_j, ...]
+
+- Apply `f`:
+
+    f e_j = (e_1_j, e_2_j)
+
+- Apply `elt i`, e.g. for i = 0
+
+    elt 0 (f e_l) 
+    = elt 0 (e_1_j, e_2_j)
+    = e_1_j
+
+- Do this for all _j_ by applying `map`
+     = [e_1_0, e_1_1, ..., e_1_j, ...]
+     = v_1
+   
+### Theorem
+
+Applying the rewrite rules on the normalised AST, starting from the leaf nodes, always terminates with an expression with a single map as first function.
+
+### Proof
+
+The proof is as follows: 
+
+- The primitives in the language that return a `Vec` type are the vector type constructor and the functions
+
+        map
+        stencil
+        zipt
+
+- Apart from that, only the composite expression 
+
+        (elt i) . unzipt
+
+also returns a vector. Because of the earlier normalisation, `unzipt` will always be preceded by `(elt i)` so from the perspective of the rewrite rule this is a primitive.
+
+Therefore, if any of these acts on a `map` expression, one of the rules will fire and result in an expression with a single map as the outer function.
+
+- The `zipt` rule entails an extra condition that all elements of the tuple must be `map` expressions, so any elements that can't be rewritten into a `map` expressions using the other rules are turned into `map` expressions by applying a `map` over the identity function.
+
+- If the an expression is of the form 
+
+        map (expression without map) 
+        
+then none of the rules fires, so this is a fixedpoint for the rewrite system.
+
+
+
+
+
+
 
 ### What about `fold`
 
-The purpose of the exercise is to eliminate intermediate arrays. These occur because of the need for stencils; or they might be present in the original code.
+The purpose of the program transformations is to eliminate intermediate arrays. These occur because of the need for stencils; or they might be present in the original code.
 
 - If an intermediate array is present in the original code, we have something like
 
@@ -243,9 +442,7 @@ This will then be rewritten into
 
     acc2 = fold f2 acc0 (map (maps f1) (stencil s1 v0))
 
-The `fold` does not even come into this.
 
-So all I need to do is ensure that the fold expressions are not ignored.
 
 ## Example code and refining of AST
 
@@ -280,34 +477,7 @@ So all I need to do is ensure that the fold expressions are not ignored.
       in
         (eta_1,du_1,dv_1,un_1,vn_1,etan_1,h_1,u_1,v_1,wet_1)
 
-### The AST type    
 
-type Name = String
-data VE = VI  | VO  | VS  | VT deriving (Show)
-type AST = [(Expr,Expr)]                      
-
-data Expr =
-        -- Left-hand side:
-                      Scalar
-                    | Tuple [Expr]
-                    | Vec VE Name
-
-        -- Right-hand side:
-                    | SVec Int Name
-                    | ZipT [Expr]
-                    | UnzipT Expr
-                    | Elt Integer Expr -- I also need this partially-applied
-                    | PElt Integer
-                    | Map Expr Expr
-                    | Fold Expr Expr Expr
-                    | Stencil Expr Expr
-                    | Function Name
-                    | ApplyT [Name]  
-                    | MapS Name
-                    | Comp Expr Expr
-                        deriving (Show)
-
-        -- Initially, all RHS nodes will be Map, Fold or Stencil.
 
 ### AST of the example        
 ast :: AST
@@ -329,7 +499,7 @@ ast = [
 main = do
     print ast      
 
-### Applying the rewrite rules
+### Normalisation
 
 1.  Replace all LHS _Tuple_ occurrences with multiple expressions using _Elt_ on the RHS. As a result, the LHS will be purely _Vec_.
 
@@ -354,18 +524,6 @@ The key question is which rules to apply, does the order matter? We need to look
 
 # BROL
 
-### Reduction
-
-- Pair up `applyt` with `zipt` and `maps` with `stencil`
-- Reduce via SSA
-
-## Staging
-
-  However, this requires staging. For example, take the case of the rhs for the SOR.
-
-  This is calculated from p,u,v,w using a reduction, and then the reduced value is subtracted from the original.
-
-  So what we have to do is always recompute rather than store the intermediates in memory.
 
 
 ### Repeated application of stencils
@@ -410,54 +568,5 @@ the second stencil generates [[], []]
 
 
     -----------
-
-
-### Normalisation
-
-- First we normalise so the LHS is either Vec or Scalar
-- Then we remove all intermediate vectors VS VT by substitution, and also VO on the RHS
-
-Given the AST in this form and following rules:
-
-        map f_2 (map f_1 v) = map (f_2 . f_1) v    
-        stencil s_1 (map f_1) = map (maps f_1) (stencil s_1)
-        zipt (map f_1 v_1, map f_2 v_2) = map (applyt (f_1,f_2)) (zipt (v_1, v_2)) -- if all exprs in ZipT are maps        
-        v = map id v -- if an expr in a ZipT tuple can't be rewritten to a map expression, turn it into map using this rule
-        (elt i) . unzipt . (map f exprs) = map ((elt i) . f) exprs
-
-         
-
-### Theorem
-
-Applying these rules on the normalised AST, starting from the leaf nodes, always terminates with an expression with a single map as first function.
-
-### Proof
-
-The proof is as follows: 
-
-- The primitives in the language that return a `Vec` type are the vector type constructor and the functions
-
-        map
-        stencil
-        zipt
-
-- Apart from that, only the composite expression 
-
-        (elt i) . unzipt
-
-also returns a vector. Because of the earlier normalisation, `unzipt` will always be preceded by `(elt i)` so from the perspective of the rewrite rule this is a primitive.
-
-Therefore, if any of these acts on a `map` expression, one of the rules will fire and result in an expression with a single map as the outer function.
-
-- The `zipt` rule entails an extra condition that all elements of the tuple must be `map` expressions, so any elements that can't be rewritten into a `map` expressions using the other rules are turned into `map` expressions by applying a `map` over the identity function.
-
-- If the an expression is of the form 
-
-        map (expression without map) 
-        
-then none of the rules fires, so this is a fixedpoint for the rewrite system.
-
-
-
 
 

@@ -1165,7 +1165,7 @@ for my $annline (@{$annlines}) {
 }
 
 sub _emit_AST_Main {(my $stref, my $f) =@_;
-	    my $emit_ast = 0;
+	my $emit_ast = 0;
     my $ast_to_emit={};
 	my $ast_emitter = ''; 
     if (exists $stref->{'EmitAST'}) {
