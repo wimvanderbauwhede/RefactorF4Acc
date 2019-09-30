@@ -19,11 +19,11 @@ getopts( 'hvmste:', \%opts );
 
 if ($opts{'h'}){
     die "
-    $0 -[hvste] 
+    $0 -[hvte] 
 
     -v : verbose
-    -c : generate TyTraCL Haskell AST code
     -e : Fortran source file extension (default is .f95, needs the dot)
+    -t : Testing, no sources needed
     \n";
 }
 our $V=0;
@@ -35,7 +35,10 @@ my $ext = '.f95';
 if ($opts{'e'}) {
     $ext = $opts{'e'};
 }
-
+my $test = 0;
+if ($opts{'t'}) {
+    $test=1;
+}
 my $stref={};
 
 
@@ -44,7 +47,8 @@ if ($gen_tytra_hs_main) {
     say "GENERATING TyTraIR main routine" if $V;
     my @kernel_srcs = glob("module_*_superkernel.f95"); 
 
-    if (scalar @kernel_srcs == 1) {
+    if (scalar @kernel_srcs == 1 or $test) {
+        if (!$test) {
         if (-d './TyTraC' ) {
                if (-e './TyTraC/kernelTop.ll')  {
                     unlink('./TyTraC/kernelTop.ll');
@@ -58,9 +62,10 @@ if ($gen_tytra_hs_main) {
         if ($kernel_sub_name ne '') {
             my $rf4a_tytra_hs_cfg =  create_rf4a_cfg_tytra_cl($kernel_src,$kernel_sub_name, $kernel_module_name);  
              say "CFG: ".Dumper($rf4a_tytra_hs_cfg) if $V;
-            #            system("refactorF4acc.pl -P emit_TyTraIR -c $rf4a_tytra_hs_cfg > ./TyTraC/kernelTop.ll"); 
             $stref = main({'P' => 'memory_reduction', 'c' => $rf4a_tytra_hs_cfg, 'o'  => './ASTInstance.hs'});
-
+        }
+    } else {
+            $stref = main({'P' => 'memory_reduction', 'c' => {}, 'o'  => './ASTInstance.hs'});
         }
     } else {
         die "No kernel sources found";

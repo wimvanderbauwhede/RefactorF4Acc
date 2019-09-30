@@ -557,7 +557,7 @@ The links table starts out empty:
 To keep this tidy I will use a separate links table for scalar outputs
 
 So we don't allow folds over lower-dimensionality arrays, nor folds hidden in a subroutine call
-Alternatively I could of course rely on the kernel name, they have 'map' or 'reduce' in them	
+Alternatively I could of course rely on the kernel name, they have 'map' or 'reduce' in them ^_^	
 
 =cut
 

@@ -3,9 +3,7 @@ import TyTraCLAST
 
 ast :: TyTraCLAST
 ast = [
-        ( Vec VT "v_1", Map (Function "f1" []) (Vec VI "v_0") )
-        ,(Vec VS "v_s_1" , Stencil (SVec 3 "s1") (Vec VT "v_1"))
-        ,( Vec VT "v_2", Map (Function "f2" []) (Vec VS "v_s_1") )
-        ,(Vec VS "v_s_2" , Stencil (SVec 3 "s2") (Vec VT "v_2"))
-        ,( Vec VO "v_3", Map (Function "f3" []) (Vec VS "v_s_2") )
+        ( Vec VT "v3_0", Map (Function "f1" []) (ZipT [Vec VI "v1_0",Vec VI "v2_0"]) )
+        ,(Vec VS "v3_s_0" , Stencil (SVec 3 "s1") (Vec VT "v3_0"))
+        ,( Vec VO "v4_0", Map (Function "f2" []) (Vec VS "v3_s_0") )
         ]

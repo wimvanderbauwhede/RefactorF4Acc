@@ -73,18 +73,32 @@ sub pass_memory_reduction {
             [\&identify_array_accesses_in_exprs],
         ]
     );
+ 
 
+ 
     $stref = mkAST(
         [
-            mkMap('f1'=>[]=>[['v',0,'']],[['v',1,'']]),
+            mkMap('f1'=>[]=>[['v1',0,''],['v2',0,'']],[['v3',0,'']]),
             mkStencilDef(1,[-1,0,1]),
-            mkStencilAppl(1,3,['v',1,'']=>['v',1,'s']),
-            mkMap('f2'=>[]=>[['v',1,'s']],[['v',2,'']]),
-            mkStencilDef(2,[-1,0,1]),
-            mkStencilAppl(2,3,['v',2,'']=>['v',2,'s']),
-            mkMap('f3'=>[]=>[['v',2,'s']]=>[['v',3,'']]),            
+            mkStencilAppl(1,3,['v3',0,'']=>['v3',0,'s']),
+            mkMap('f2'=>[]=>[['v3',0,'s']],[['v4',0,'']]),
+
+            # mkMap('f1'=>[]=>[['v',0,'']],[['v',1,'']]),
+            # mkStencilDef(1,[-1,0,1]),
+            # mkStencilAppl(1,3,['v',1,'']=>['v',1,'s']),
+            # mkMap('f2'=>[]=>[['v',1,'s']],[['v',2,'']]),
+            # mkStencilDef(2,[-1,0,1]),
+            # mkStencilAppl(2,3,['v',2,'']=>['v',2,'s']),
+            # mkMap('f3'=>[]=>[['v',2,'s']]=>[['v',3,'']]),            
         ],
-        {'v' =>[ 'integer', [1,500], 'inout'] }
+        # {'v' =>[ 'integer', [1,500], 'inout'] }
+{
+    'v1' =>[ 'integer', [1,500], 'in'],
+    'v2' =>[ 'integer', [1,500], 'in'],
+    'v3' =>[ 'integer', [1,500], 'local'],
+    'v4' =>[ 'integer', [1,500], 'out']   
+}
+
     );            
         
 

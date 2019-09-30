@@ -786,3 +786,7 @@ stencil s1 (zipt (stencil s2 v1,stencil s2 v2))
 = stencil s1 $ stencil s2 (zipt (v1,v2))
 = stencil (scomb s1 s2) (zipt (v1,v2))
 = zipt (stencil (scomb s1 s2) v1,stencil (scomb s1 s2) v2)
+
+An example
+
+stencil s map f (zipt (v1,v2))
