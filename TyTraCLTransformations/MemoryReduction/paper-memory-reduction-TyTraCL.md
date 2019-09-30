@@ -17,7 +17,7 @@ This is a hurricane wind similator, so it simulates pressure and wind speed. Its
     sm
     rhs
 
-In this particular case, 11 arrays are intermediate and can actually be replaced by scalar computations. If we could achieve this, the simulation could run on a 4 times larger domain with the same memory utilisation. In this paper we present a novel approach to aggressively reduce memory utilisation of stencil-based legacy scientific code through automatic program transformation.
+In this particular case, 11 arrays are intermediate and can actually be replaced by scalar computations. If we could achieve this, the simulation could run on a 4 times larger domain with the same memory utilisation. In this paper we present a novel approach to aggressively reduce memory utilisation of stencil-based legacy scientific code through automatic program transformation. 
 
 ## Related Work
 - The idea is to find some similar things but be able to say that nobody has done what we have done
@@ -25,38 +25,28 @@ In this particular case, 11 arrays are intermediate and can actually be replaced
 ## Relationship to our existing work and Contribution of this work
 
 We have developed a compilation chain which can automatically transform legacy scientific code into GPU- and FPGA- accelerated variants \cite{}. In this work we make use of this compilation chain to transform the original code into a form that can be analysed for memory reduction. In particular, the code is refactored to remove global variables (`COMMON` in Fortran) and the loops are analysed in terms of _map_ and _fold_ higher-order functions. We have shown how to transform the code into map/fold based code for GPU acceleration  \cite{}. 
-Furthermore, motivated by the goal of accelerating code on FPGAs, we have developed a functional dataflow language, TyTraCL \cite{} and a source-to-source compiler which can transform the map/fold based code into this language. In this paper we start from the program in the TyTraCL language.
+Furthermore, motivated by the goal of accelerating code on FPGAs, we have developed a functional dataflow language, TyTraCL \cite{} and a source-to-source compiler which can transform the map/fold based code into this language. 
+
+The actual memory reduction transformation which is the focus of this paper starts from the program in the TyTraCL language.
 
 The contributions of the current work are 
 - Additional analysis to detect stencils
 - An algorithm to scalarise the kernels
-- An algorithm to identify intermediate array
+- An algorithm to identify intermediate arrays
 - A series of program transformations to remove intermediate arrays
 
+The key idea underpinning the current work is that we can trade memory storage for computation by recomputing values rather than reading them from memory. In particular our goal is to access only the actual input arrays and compute all intermediate values from these accesses. This reduces the memory requirements at the expense of additional computation. 
 
-<!--
-- Refactor
-- map/fold/stencil analysis -> refer to my paper with Gavin? It is not very detailed though. Esp. the stencil analysis is new
-- scalarisation, also new
-- functional language, HOFs -> TyTraCL, ref some of our papers
-- AST rewrite rules -> reference Bird-Meertens
-- emitting Fortran
+XXX Experiments will have to show if this is slower and by how much XXX
 
 
+### From the original Fortan code to auto-parallelised code
 
-## Current status
+The typical pattern of stencil code is a sequential application of nested loops. Slightly simplified, the auto-parallelising compiler analyses the loop dependencies and refactors the code into separate subroutines for every loop nest, called _kernels_. At this stage, these subroutines still perform indexed array accesses, i.e. they are not yet pure functions a -> b or a -> b -> a, but we already have the guarantee that they can be transformed into such pure functions. This is sufficient for e.g. parallelisation on CPU or GPU using OpenCL. 
 
-F77 -> F95 without globals<br>
-F95 without globals -> OpenCL with maps and folds<br>
-OpenCL with maps and folds -> TyTraCL & TyTraIR -> FPGA<br>
-TyTraCL -> TyTraIR<br>
-TyTraIR -> FPGA
+## The TyTraCL language
 
-## Removing intermediate arrays
-
--->
-
-## The TyTraCL language 
+Before we can discuss the contributions of the current work in detail, we first must introduce the TyTraCL language. Although TyTraCL is in practice an intermediate representation, the language has a concrete syntax to facilitate reasoning and proofs.
 
 ### TyTraCL concrete syntax
 
@@ -75,16 +65,16 @@ TyTraCL is a composition language, its aim is to express dataflow graphs. The ac
 The language has a small number of primitives, shown in Listing XXX.
 
     -- As in Haskell but on Vec rather than []
-    map : (a -> b) -> Vec n a -> Vec n b
+    map :: (a -> b) -> Vec n a -> Vec n b
 
     -- Haskell's foldl but on Vec rather than []
     fold :: (a -> b -> a) -> a -> Vec n b -> a
 
     -- Ordinary map but only works on SVec
-    maps : (a -> b) -> SVec k a -> SVec k b
+    maps :: (a -> b) -> SVec k a -> SVec k b
 
     -- Every element of the vector is replaced by the stencil defined by the first argument
-    stencil : SVec k Int -> Vec n a -> Vec n (SVec k a)
+    stencil :: SVec k Int -> Vec n a -> Vec n (SVec k a)
 
     -- Like Haskell's zip/unzip but takes a tuple as argument and works on Vec
     zipt :: Tup k (...,Vec n a_i,...)  -> Vec n $ Tup k (...,a_i,...)
@@ -98,12 +88,16 @@ The language has a small number of primitives, shown in Listing XXX.
     elt :: i:: Int -> (...,a_i,...) -> a_i
     elt i (...,e_i,...) = e_i
 
+    -- Stencils can be combined using scomb
+    scomb :: (SVec k_1 Int) -> (SVec k_2 Int) -> SVec (k_1*k_2) Int
+    stencil s2 (stencil s1 v1) = stencil (scomb s2 s1) v1
+
 ### TyTraCL Abstract Syntax
 
-The abstract syntax for the TyTraCL language, expressed as a Haskell type, is shown in Listing XXX
+In practice, the TyTraCL program transformations are implemented in Haskell. The abstract syntax for the TyTraCL language, expressed as a Haskell type, is shown in Listing XXX
 
         type Name = String
-        data VE = VI  | VO  | VS  | VT 
+        data VE = VI  | VO  | VS  | VT | VU
             deriving (Show, Typeable, Data, Eq)            
         type TyTraCLAST = [(Expr,Expr)]                      
 
@@ -124,15 +118,27 @@ The abstract syntax for the TyTraCL language, expressed as a Haskell type, is sh
                             | Stencil Expr Expr
                             | Function Name [Name] -- 2nd arg is list of non-map/fold args
                             | Id
-                            | ApplyT [Expr]
-                            | MapS Expr Expr 
-                            | Comp Expr Expr
+                            | ApplyT [Expr] 
+                            | MapS Expr Expr
+                            | Comp Expr Expr -- funtion composition
                             | SComb Expr Expr
                                 deriving (Show, Typeable, Data, Eq)
 
-### Relationship with the original Fortan code
+The property `VE` encodes if a vector is an input `VI`, output `VO`, a vector of stencil vectors `VS`, or any other temporary `VT`. Initially this value is set to `VU`, "Unknown".
 
-The typical pattern of stencil code is a sequential application of nested loops.
+### TyTraCL semantics
+
+TyTraCL can be viewed as a subset of Haskell with strict execution. This means that every `map` call can be considered to return a new list, and therefore memory for this list will need to allocated. In this view, a `stencil` of _k_ points will require _k_ times the memory allocation of the original vector.
+
+However, it is also possible to view TyTraCl as a streaming language where a `map` call consumes the elements of the input vector as a stream and the result is immediately passed on to the next call. In this view, the `stencil` call creates a new stream of stencils around every given point in the original stream. To do so it buffers the stream until all elements of the stencil are in the buffer. A crucial observation here is that there is no need for additional buffering if we create a stencil from an input vector, as they are stored in the main memory. 
+
+It is clear that implementation of the stream-based view will require considerably less memory than the strict vector-based view. 
+
+## Preparatory transformations 
+
+In this section we describe the Fortran program transformations which transform the code as generated by our auto-parallelising compiler into the TyTraCL code that will serve as our starting point.
+
+To transform the kernels into the final scalar functions required by TyTraCL, we apply three additional transformations: stencil detection, scalarisation and argument grouping.
 
 ### Stencil detection
 
@@ -142,7 +148,34 @@ Array accesses are divided into read and write access.  Stencils are defined as 
 	- All points in the array are processed in order, i.e. the loop iterators loop over a contiguous range
 Furthermore, there can only be a single write access to any array in the loop nest.
 
-The analysis extracts the stencil pattern and transforms any stencil computation into a combination of a `stencil` call and a `map` or `fold` call. For example, 
+### Scalarisation
+
+Scalarisation refers to transforming the kernel functions into pure functions that can be mapped or folded. The algorithm is surprisingly simple:
+
+- Transliterate every array access into a scalar variable name as follows
+
+        scalar_var_str = filter (/= ' ') (
+            map \c -> case c of 
+                '(' -> '_'
+                ',' -> '_'
+                '+' -> p
+                '-' -> m
+                '*' -> t
+                ')' -> ' '
+            ) array_access_string
+
+- Replace the array arguments of the kernel subroutine with the scalarised names. In the case of a stencil, the array argument is replaced by the sequence of scalar variables in the stencil, ordered by the numeric offset of the stencil access.
+
+### Argument grouping  
+
+A Fortran subroutine takesn and returns values via its argurment list. To obtain the final TyTraCL function signature, we must group the scalarised arguments to get the required type for mappable and foldable functions. In the most general case, a mappable kernel subroutine can take vector arguments to mapped and any other read-only scalar arguments, and return vector arguments;
+ a foldable kernel subroutine can take vector arguments to folded, accumulator arguments which ar typically readabe and writeable, and any other read-only scalar arguments. Our previous analysis has already resolved if an argument is used for input, output or both, and of course we know which arguments originally were arrays and which of these have stencil accesses. With this information, it is straightforward to transform the scalarised Fortan kernel signature into the correct signature for the TyTraCL by first grouping the stencil arguments into stencil vectors and then grouping the arguments into tuples.
+
+XXX Give an example here XXX
+
+### Key transformation of stencil-based nested loops
+
+The above analysis allows to extract the stencil pattern and transform any stencil computation into a combination of a `stencil` call and a `map` or `fold` call. For example, 
 
 ...
 
@@ -151,33 +184,212 @@ becomes
         v_s = stencil s v
         v_o = map f v_s
 
-### Scalarisation
+## Intermediate vector removal, Part I: the easy part
+
+The purpose of the program transformations that follow is to eliminate intermediate vectors. These may occur because of the need for stencils; or they might be present in the original code.
+
+- If an intermediate vector is present in the original code, we have something like
+
+        v1 = map f1 v0
+        v2 = map f2 v1
+
+    with its definition (beta reduction).
+
+        v2 = map f2 $ map f1 v0
+
+- If there is a stencil, it can either occur between a `map` and a `map` or between a `map` and a `fold` but nowhere else, because stencils are only introduced before the operation that requires them, and that is always a `map` or a `fold`. And the preceding computation can only be a map. Note also that a stencil call only ever operates on a vector of scalars or stencils, not on a vector of tuples
+E.g.
+
+        v1 = map f1 v0
+        v1_s = stencil s1 v1
+        v2 = map f2 v1_s
+
+    or
+
+        v1 = map f1 v0
+        v1_s = stencil s1 v1
+        acc2 = fold f2 acc0 v1_s
+
+    Now, after the second pass this will become
+
+        acc2 = fold f2 acc0 (stencil s1 (map f1 v0))
+
+    This will then be rewritten into     
+
+        acc2 = fold f2 acc0 (map (maps f1) (stencil s1 v0))
+
+    Thus we can always remove the intermediate vectors of stencils.
 
 
+With the program expressed in TyTraCL we perform first a normalisation transformation and then the actual intermediate vector removal. The intermediate vector identification is trivial: we know the input and output arrays as well as any vector resulting from a stencil application. Any remaining vector is an intermediate. 
+
+### Normalisation
+
+First we normalise so the LHS of any element in the TyTraCLAST list is either Vec or Scalar. We do this by replacing all LHS _Tuple_ occurrences with multiple expressions that apply  _Elt_ to the RHS. As a result, the LHS will be purely _Vec_.
+
+      ast' = foldl split_lhs_tuples [] ast
+
+      split_lhs_tuples acc t@(lhs,rhs) = let
+          ts = case lhs of
+              Tuple vecs -> split_tuple vecs rhs
+              _ -> [t]
+          in
+              acc++ts
+
+      split_tuple vecs rhs = let
+              vecs_idxs = zip vecs [0 .. length vecs - 1]
+          in
+              foldl (\acc (vec,idx) ->  acc++[(vec, Elt idx rhs)]) [] vecs_idxs
 
 
-### Intermediate array identification
-### Intermediate array removal
+## Intermediate vector removal algorithm
+
+After this normalisation we remove all vectors _Vec VT_ and _Vec VS_, and also _Vec VO_ on the RHS, by recursive substitution, starting from the last expression in the list. 
 
 
+## Intermediate vector removal, Part II: the hard part
+
+Although it may seem as if the job is done, as all intermediate vectors have been removed, this is actually not the case: the removal so far is purely in terms of the occurrences in the AST. Were we to run the program, it would require memory for implicit temporary vectors. This is because an intermediate stencils will require additional memory. 
+
+We have developed a system of rewrite rules that transforms the program in such a way that there is only a single map operation and that all stencils operate on input vectors only. This system of rewrite rules is the key contribution of this paper. 
+
+### Rewrite rules theorem
+
+Given the AST in normalised form and following rewrite rules:
+
+        map f_2 (map f_1 v) = map (f_2 . f_1) v    
+        stencil s_1 (map f_1) = map (maps f_1) (stencil s_1)
+        zipt (map f_1 v_1, map f_2 v_2) = map (applyt (f_1,f_2)) (zipt (v_1, v_2)) -- if all exprs in ZipT are maps
+        v = map id v -- if an expr in a ZipT tuple can't be rewritten to a map expression, turn it into map using this rule
+        (elt i) . unzipt . (map f v) = map ((elt i) . f) v
+
+Applying the rewrite rules on the normalised AST, starting from the leaf nodes, always terminates with an expression with a single map as first function.
+
+### Lemmas
+
+First we prove that the rewrite rules themselves are correct. The first rule is well-known; the fourth rule is trivial. 
+
+#### Proof for the Stencil-Map rewrite rule
+
+    s1 : SVec k Int
+    f1 : a -> b
+
+    stencil s1 (map f1) = map (maps s1 f1) (stencil s1)
+
+    v0 : Vec n a
+    f1 : a -> b
+    v1 : Vec n b
+
+    v1s : Vec n (SVec k b)
+    v1 = map f1 v0
+    v1s = stencil s1 v1
+
+    v0s : Vec (SVec k a)
+    v0s = stencil s1 v0
+
+    maps s1 f1 : SVec k a -> SVec k b
+    v1s : Vec n (SVec k b)
+    v1s = map (maps s1 f1) v0s
+
+    or
+
+    stencil s1 (map f1 v1) = map (maps s1 f1) (stencil s1 v1)
+
+#### Proof for the ZipT-Map rewrite rule
+
+- Given that all exprs in the tuple are map expressions
+- Express the vectors in terms of their elements:
+
+        v_i = [e_i_0, ...]
+        (zipt (v_1, v_2) = [(e_1_0,e_2_0),...]
+
+- Substitute in the LHS of the rule:
+
+        zipt (map f_1 v_1, map f_2 v_2) = zipt ([f_1 e_1_0, f_1 e_1_1, ...], [f_2 e_2_0, f_2 e_2_1, ...])
+
+- Apply the `map` and `zipt` definitions
+        = [(f_1 e_1_0,f_2 e_2_0),(f_1 e_1_1,f_2 e_2_1),...]
+- Apply the `apply` definition        
+        = [
+            applyt (f1,f_2) (e_1_0,e_2_0),applyt (f1,f_2) (e_1_1,e_2_1),...
+        ]
+- Apply the `map` definition
+        = map (applyt (f1,f_2)) [(e_1_0,e_2_0),(e_1_1,e_2_1),...]
+- Apply the `zipt` definition
+        = map (applyt (f1,f_2)) (zipt (v_1, v_2))
+
+#### Proof for the Elt-UnzipT-Map rewrite rule
+
+- Given 
+
+        f :: a -> (a_1,a_2)
+        
+- On the LHS, writing out with elements and applying the definition of `map`:
+
+    map f v = [f e_0, f e_1, ...]
+    = [(e_1_0, e_2_0),(e_1_1, e_2_1),...]
+
+- Applying the definition of `unzipt`
+
+    unzipt (map f v)
+    = unzipt [(e_1_0, e_2_0),(e_1_1, e_2_1),...]
+    = ([e_1_0, e_1_1,...],[e_2_0,e_2-1,...])
+
+- Applying `elt i`, e.g. for i = 0
+
+    (elt i) (unzipt (map f v))
+    = [e_1_0, e_1_1,...]
+    = v_1
+
+- On the RHS, write the vector `v` in terms of its elements:
+
+    v = [e_0, e_1, ... e_j, ...]
+
+- Apply `f`:
+
+    f e_j = (e_1_j, e_2_j)
+
+- Apply `elt i`, e.g. for i = 0
+
+    elt 0 (f e_l) 
+    = elt 0 (e_1_j, e_2_j)
+    = e_1_j
+
+- Do this for all _j_ by applying `map`
+     = [e_1_0, e_1_1, ..., e_1_j, ...]
+     = v_1
+   
 
 
-## AST
+### Proof of the Rewrite Rule Theorem
 
-Starting from the OpenCL Fortran code:
+The proof is as follows: 
 
-1. Scalarize all functions
-2. Insert `stencil` calls as required
-3. If a call requires a stencil of a previous call, insert a `maps` as required
+- The primitives in the language that return a `Vec` type are the vector type constructor and the functions
 
-Then we transform the resulting AST into a simpler AST for rewriting, see below.
+        map
+        stencil
+        zipt
 
-## Rewrite algorithm
+- Apart from that, only the composite expression 
 
-For every call, we look at the V_like argument first.
-If it is not a vector then it must be a ZipT or a Stencil.
-For a ZipT we do each arg in turn.
-In principle this maybe have to be done recursively until we hit an actual Vector. For that Vector we find the assignment where it is on the LHS. Then we check the type of the RHS and the type of the parent node. As our aim is to reduce the maps, we always apply rules that aim to transform a nest call into a single map.
+        (elt i) . unzipt
+
+also returns a vector. Because of the earlier normalisation, `unzipt` will always be preceded by `(elt i)` so from the perspective of the rewrite rule this is a primitive.
+
+Therefore, if any of these acts on a `map` expression, one of the rules will fire and result in an expression with a single map as the outer function.
+
+- The `zipt` rule entails an extra condition that all elements of the tuple must be `map` expressions, so any elements that can't be rewritten into a `map` expressions using the other rules are turned into `map` expressions by applying a `map` over the identity function.
+
+- If the an expression is of the form 
+
+        map (expression without map) 
+        
+then none of the rules fires, so this is a fixedpoint for the rewrite system.
+
+### Corrolary regarding the stencils
+
+We note that 'all stencils operate on input vectors only' follows from the fact that stencils only operate on vectors; vectors can result from any of the expressions in the LHS or RHS of the above rules. But given that the system terminates, any LHS expression will have been rewritten into an RHS one, and there will ony be a single map application in this expression. The only cases in which a stencil would not operate on an input vector would therefore be if operates on another stencil or on a tuple. The tuple will be a tuple of input vectors or stencils.  
 
 ## Fortran-OpenCL implementation
 
@@ -267,13 +479,7 @@ Example: `(Function "exp_h_1_3",Comp (Function "exp_h_1_0") (Function "exp_h_1_2
 
 ## Proofs
 
-
-### Normalisation
-
-- First we normalise so the LHS is either Vec or Scalar
-- Then we remove all intermediate vectors VS VT by substitution, and also VO on the RHS
-
-Given the AST in this form and following rules:
+Given the AST in normalised form and following rewrite rules:
 
         map f_2 (map f_1 v) = map (f_2 . f_1) v    
         stencil s_1 (map f_1) = map (maps f_1) (stencil s_1)
@@ -569,4 +775,14 @@ the second stencil generates [[], []]
 
     -----------
 
+stencil s2 (stencil s1 v1) = stencil (scomb s2 s1) v1
 
+
+Note also that a stencil call only ever operates on a vector of scalars or stencils, not on a vector of tuples
+
+stencil s2 (zipt (v1,v2)) = zipt (stencil s2 v1,stencil s2 v2)
+
+stencil s1 (zipt (stencil s2 v1,stencil s2 v2))
+= stencil s1 $ stencil s2 (zipt (v1,v2))
+= stencil (scomb s1 s2) (zipt (v1,v2))
+= zipt (stencil (scomb s1 s2) v1,stencil (scomb s1 s2) v2)
