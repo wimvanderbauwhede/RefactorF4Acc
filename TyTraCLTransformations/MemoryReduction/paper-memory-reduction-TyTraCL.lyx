@@ -2648,8 +2648,8 @@ then none of the rules fires, so this is a fixed point for the rewrite system.
 \end_layout
 
 \end_deeper
-\begin_layout Subsubsection
-Corrolary regarding the stencils
+\begin_layout Subsection
+Fusing stencils
 \begin_inset CommandInset label
 LatexCommand label
 name "corrolary-regarding-the-stencils"
@@ -2761,6 +2761,144 @@ stencil s1 (zipt (stencil s2 v1,stencil s2 v2))
 \end_layout
 
 \begin_layout Subsection
+Decomposing the expressions
+\end_layout
+
+\begin_layout Standard
+At this stage the TyTraCL program has been transformed to meet our objective:
+ stencils operate only on input vectors, and there is only a single map
+ operation.
+ Conceptually, this means that the map operation consumes a stream of input
+ vectors, creating stencils as required, an applies to this composite stream
+ a composite scalar function which performs the actual computations.
+ 
+\end_layout
+
+\begin_layout Standard
+The next step is to transform the program into a form suitable for emitting
+ code in an imperative language such as Fortran or C.
+ A suitable representation for this purpose is Administrative Normal Form
+ REF; we use a variant where rather than nested let-expressions there is
+ a single let with all bindings in order of dependency.
+ The algorithm is quite straightforward.
+ We create new names to bind all sub expressions in an expression (i.e.
+ the RHS element in the TyTraCL AST)  using a running counter, the type
+ of the sub expression and the name of the output vector to which the expression
+ is bound.
+\end_layout
+
+\begin_layout Itemize
+
+\family typewriter
+MapS
+\family default
+, 
+\family typewriter
+ApplyT
+\family default
+, 
+\family typewriter
+Comp
+\family default
+ are replaced by named functions:
+\end_layout
+
+\begin_deeper
+\begin_layout Standard
+\begin_inset listings
+lstparams "mathescape=true,escapeinside={~~},language=Haskell"
+inline false
+status open
+
+\begin_layout Plain Layout
+
+MapS _ _ -> let f_expr = Function ("f_maps_"++vec_name++"_"++(show ct))
+ [] in ...
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\end_deeper
+\begin_layout Itemize
+
+\family typewriter
+Stencil
+\family default
+ expressions replaced by a new 
+\family typewriter
+VS
+\family default
+ vector 
+\end_layout
+
+\begin_deeper
+\begin_layout Standard
+\begin_inset listings
+lstparams "mathescape=true,escapeinside={~~},language=Haskell"
+inline false
+status open
+
+\begin_layout Plain Layout
+
+Stencil (SVec n _) _ -> let var = Vec VS ("svec_"++vec_name++"_"++(show
+ ct)) in ...
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\end_deeper
+\begin_layout Itemize
+
+\family typewriter
+ZipT
+\family default
+ and 
+\family typewriter
+Elt .
+ UnzipT
+\family default
+ are replaced by a new 
+\family typewriter
+VT
+\family default
+ vector
+\end_layout
+
+\begin_deeper
+\begin_layout Standard
+\begin_inset listings
+lstparams "mathescape=true,escapeinside={~~},language=Haskell"
+inline false
+status open
+
+\begin_layout Plain Layout
+
+_ -> let var = Vec VT ("vec_"++vec_name++"_"++(show ct))
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\end_deeper
+\begin_layout Itemize
+All other sub-expressions are left unchanged
+\end_layout
+
+\begin_layout Standard
+The algorithm traverses the AST in bottom-up fashion and effectively replaces
+ every node with a list of let bindings for its sub-expressions.
+ In this way, the final list has the correct order for imperative computation.
+\end_layout
+
+\begin_layout Section
 Fortran-OpenCL implementation
 \begin_inset CommandInset label
 LatexCommand label
@@ -3652,7 +3790,6 @@ If you'd like to thank anyone, place your comments here.
 \end_layout
 
 \begin_layout Standard
- 
 \begin_inset CommandInset bibtex
 LatexCommand bibtex
 bibfiles "xampl"

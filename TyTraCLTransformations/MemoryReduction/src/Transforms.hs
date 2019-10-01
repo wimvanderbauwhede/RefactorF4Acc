@@ -302,19 +302,18 @@ subsitute_expr vec_name exp = do
                       Map _ _ -> ((ct,var_expr_pairs),exp)
                       Fold _ _ _ -> ((ct,var_expr_pairs),exp)
                       MapS _ _ -> let
-                            var = Function ("f_maps_"++vec_name++"_"++(show ct)) []
+                            f_expr = Function ("f_maps_"++vec_name++"_"++(show ct)) []
                         in
-                            ((ct+1,var_expr_pairs++[(var,exp)]),var)
+                            ((ct+1,var_expr_pairs++[(f_expr,exp)]),f_expr)
                       ApplyT _ -> let
-                            var = Function ("f_applyt_"++vec_name++"_"++(show ct)) []
+                            f_expr = Function ("f_applyt_"++vec_name++"_"++(show ct)) []
                         in
-                            ((ct+1,var_expr_pairs++[(var,exp)]),var)
+                            ((ct+1,var_expr_pairs++[(f_expr,exp)]),f_expr)
                       Comp _ _ -> let
-                            var = Function ("f_comp_"++vec_name++"_"++(show ct)) []
+                            f_expr = Function ("f_comp_"++vec_name++"_"++(show ct)) []
                         in
-                            ((ct+1,var_expr_pairs++[(var,exp)]),var)
-                      Stencil (SVec n _) _ -> let
-                            -- var = SVec n ("svec_"++vec_name++"_"++(show ct))
+                            ((ct+1,var_expr_pairs++[(f_expr,exp)]),f_expr)
+                      Stencil (SVec n _) _ -> let                            
                             var = Vec VS ("svec_"++vec_name++"_"++(show ct))
                         in
                             ((ct+1,var_expr_pairs++[(var,exp)]),var)
