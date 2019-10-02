@@ -12,7 +12,7 @@ type TyTraCLAST = [(Expr,Expr)]
 
 data Expr =
         -- Left-hand side:
-                      Scalar Name
+                      Scalar VE Name
                     | Const Int -- bb: IntLit Integer
                     | Tuple [Expr] --  bb: Tup [Expr]
                     | Vec VE Name -- bb: Var Name, type via cofree comonad, but VE info is not there

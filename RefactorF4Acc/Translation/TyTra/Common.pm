@@ -180,6 +180,7 @@ sub F4D2C {
 # mkFold(shapiro_reduce_18 => [] , [['etan_avg',0,'']] => [['etan',0,'']] => [['etan_avg',1,'']]);
 sub mkFold {
     my ($fname, $non_fold_args, $acc_args, $fold_args, $ret_vars) = @_;
+    # croak Dumper $acc_args;
     return {
         'Rhs' => {
             'FoldArgs'    => {'Vars' => $fold_args},
@@ -297,7 +298,9 @@ sub mkAST {
     my @funcs = ();
     my %vecs  = ();
     my %accs  = ();
+    
     for my $node (@{$lines}) {
+        
         push @funcs, $node->{'FunctionName'};
         if (   $node->{'NodeType'} eq 'Map'
             or $node->{'NodeType'} eq 'Fold')
@@ -317,7 +320,8 @@ sub mkAST {
             }
         }
         if ($node->{'NodeType'} eq 'Fold') {
-            my $as = $node->{'Rhs'}{'AccArgs'}{'Vars'};
+            my $as = $node->{'Rhs'}{'AccArgs'}{'Vars'};          
+            
             for my $a_rec (@{$as}) {
                 (my $a, my $ct, my $s, my $ve) = @{$a_rec};
                 if (not exists $accs{$a}) {
@@ -325,8 +329,11 @@ sub mkAST {
                 }
                 elsif ($ct > $accs{$a}) {
                     $accs{$a} = $ct;
+                } else {
+                    croak 'TROUBLE!';
                 }
-            }
+            }            
+            # carp Dumper %accs;
         }
     }
 
@@ -342,9 +349,12 @@ sub mkAST {
     for my $v (sort keys %vecs) {
         $args->{$v} = $decls->{$v}[2];
     }
+    # carp Dumper %accs;
     for my $a (sort keys %accs) {
+        # carp Dumper $decls;
         $args->{$a} = $decls->{$a}[1];
     }
+    # croak Dumper $args;  
     $stref->{'TyTraCL_AST'}             = {};
     $stref->{'TyTraCL_AST'}{'Lines'}    = $lines;
     $stref->{'TyTraCL_AST'}{'OrigArgs'} = $args;

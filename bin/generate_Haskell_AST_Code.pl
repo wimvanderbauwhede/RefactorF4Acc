@@ -62,10 +62,10 @@ if ($gen_tytra_hs_main) {
         if ($kernel_sub_name ne '') {
             my $rf4a_tytra_hs_cfg =  create_rf4a_cfg_tytra_cl($kernel_src,$kernel_sub_name, $kernel_module_name);  
              say "CFG: ".Dumper($rf4a_tytra_hs_cfg) if $V;
-            $stref = main({'P' => 'memory_reduction', 'c' => $rf4a_tytra_hs_cfg, 'o'  => './ASTInstance.hs'});
+            $stref = main({'P' => 'memory_reduction', 'c' => $rf4a_tytra_hs_cfg, 'o'  => './src/ASTInstance.hs'});
         }
     } else {
-            $stref = main({'P' => 'memory_reduction', 'c' => {}, 'o'  => './ASTInstance.hs'});
+            $stref = main({'P' => 'memory_reduction', 'c' => {}, 'o'  => './src/ASTInstance.hs'});
         }
     } else {
         die "No kernel sources found";

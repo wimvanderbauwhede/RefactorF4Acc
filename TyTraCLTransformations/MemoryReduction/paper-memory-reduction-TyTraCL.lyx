@@ -2922,7 +2922,7 @@ To recreate the Fortran code from the AST, I need the signatures for the
 RefactorF4Acc::Translation::LlvmToTyTraIR
 \end_layout
 
-\begin_layout Subsubsection
+\begin_layout Subsection
 SVec encoding
 \end_layout
 
@@ -3014,7 +3014,7 @@ RefactorF4Acc::Translation::TyTraCL::generate_TyTraCL_stencils()
 .
 \end_layout
 
-\begin_layout Subsubsection
+\begin_layout Subsection
 Stencil
 \end_layout
 
@@ -3177,7 +3177,7 @@ end do
 
 \end_layout
 
-\begin_layout Subsubsection
+\begin_layout Subsection
 MapS
 \end_layout
 
@@ -3372,7 +3372,7 @@ end subroutine exp_h_1_1
 
 \end_layout
 
-\begin_layout Subsubsection
+\begin_layout Subsection
 ApplyT
 \end_layout
 
@@ -3511,7 +3511,7 @@ end subroutine exp_h_1_2
 
 \end_layout
 
-\begin_layout Subsubsection
+\begin_layout Subsection
 Comp
 \end_layout
 

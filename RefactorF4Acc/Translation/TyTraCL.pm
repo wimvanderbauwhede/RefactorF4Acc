@@ -612,10 +612,11 @@ sub _addToVarTypesAndStencils {
             my $maybe_stencil = _mkVarName($map_arg_rec);
             if (exists $var_types->{$maybe_stencil}) {
                 push @map_arg_types_array, $var_types->{$maybe_stencil};
-            }
-            else {
+            } else {
                 my $var_name = $map_arg_rec->[0];
+                
                 my $var_rec  = $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$var_name};
+                
                 my $var_type = $type_formatter->($var_rec->{'Type'});
                 push @map_arg_types_array, $var_type;
             }

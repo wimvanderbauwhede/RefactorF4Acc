@@ -43,7 +43,7 @@ use Exporter;
 @RefactorF4Acc::Translation::TyTra::MemoryReduction::EXPORT_OK = qw(
   &pass_memory_reduction
 );
-
+our $TEST = 5;
 
 sub pass_memory_reduction {
     (my $stref, my $module_name) = @_;
@@ -74,37 +74,84 @@ sub pass_memory_reduction {
         ]
     );
  
-
+if ($TEST==1) {
  
+    $stref = mkAST(
+        [
+            mkMap('f1'=>[]=>[['v',0,'']],[['v',1,'']]),
+            mkStencilDef(1,[-1,0,1]),
+            mkStencilAppl(1,3,['v',1,'']=>['v',1,'s']),
+            mkMap('f2'=>[]=>[['v',1,'s']],[['v',2,'']]),
+            mkStencilDef(2,[-1,0,1]),
+            mkStencilAppl(2,3,['v',2,'']=>['v',2,'s']),
+            mkMap('f3'=>[]=>[['v',2,'s']]=>[['v',3,'']]),            
+        ],
+        {'v' =>[ 'integer', [1,500], 'inout'] }
+    );            
+}
+elsif ($TEST==2) {        
     $stref = mkAST(
         [
             mkMap('f1'=>[]=>[['v1',0,''],['v2',0,'']],[['v3',0,'']]),
             mkStencilDef(1,[-1,0,1]),
             mkStencilAppl(1,3,['v3',0,'']=>['v3',0,'s']),
             mkMap('f2'=>[]=>[['v3',0,'s']],[['v4',0,'']]),
-
-            # mkMap('f1'=>[]=>[['v',0,'']],[['v',1,'']]),
-            # mkStencilDef(1,[-1,0,1]),
-            # mkStencilAppl(1,3,['v',1,'']=>['v',1,'s']),
-            # mkMap('f2'=>[]=>[['v',1,'s']],[['v',2,'']]),
-            # mkStencilDef(2,[-1,0,1]),
-            # mkStencilAppl(2,3,['v',2,'']=>['v',2,'s']),
-            # mkMap('f3'=>[]=>[['v',2,'s']]=>[['v',3,'']]),            
         ],
-        # {'v' =>[ 'integer', [1,500], 'inout'] }
-{
+        {
     'v1' =>[ 'integer', [1,500], 'in'],
     'v2' =>[ 'integer', [1,500], 'in'],
     'v3' =>[ 'integer', [1,500], 'local'],
     'v4' =>[ 'integer', [1,500], 'out']   
 }
-
-    );            
-        
-
-    say Dumper $stref->{'TyTraCL_AST'}{'Lines'};
+    );  
+}
+elsif ($TEST==3) {
+    $stref = mkAST(
+        [
+            mkFold('f1'=>[]=>[['acc',0,'']]=>[['v',0,'']],[['acc',1,'']]),
+            mkStencilDef(1,[-1,0,1]),
+            mkStencilAppl(1,3,['v',0,'']=>['v',0,'s']),
+            mkMap('f2'=>[['acc',1,'']]=>[['v',0,'s']],[['v',1,'']]),
+        ],
+        {
+        'v' =>[ 'integer', [1,500], 'inout'],
+        'acc' =>[ 'integer',  'in'],
+        }
+    );  
+}    
+elsif ($TEST==4) {
+    $stref = mkAST(
+        [
+            
+            mkStencilDef(1,[-1,0,1]),
+            mkStencilAppl(1,3,['v',0,'']=>['v',0,'s']),
+            mkFold('f1'=>[]=>[['acc',0,'']]=>[['v',0,'s']],[['acc',1,'']]),
+            mkMap('f2'=>[['acc',1,'']]=>[['v',0,'s']],[['v',1,'']]),
+        ],
+        {
+        'v' =>[ 'integer', [1,500], 'inout'],
+        'acc' =>[ 'integer',  'in'],
+        }
+    );  
+}  
+elsif ($TEST==5) {
+    $stref = mkAST(
+        [            
+            mkStencilDef(1,[-1,0,1]),
+            mkStencilAppl(1,3,['v',0,'']=>['v',0,'s']),
+            mkMap('f1'=>[]=>[['v',0,'s']],[['v',1,'']]),
+            mkFold('f2'=>[]=>[['acc',0,'']]=>[['v',1,'']],[['acc',1,'']]),
+            mkMap('f3'=>[['acc',1,'']]=>[['v',1,'']],[['v',2,'']]),
+        ],
+        {
+        'v' =>[ 'integer', [1,500], 'inout'],
+        'acc' =>[ 'integer',  'in'],
+        }
+    );  
+}  
     $stref = construct_TyTraCL_AST_Main_node($stref);
     $stref = _add_VE_to_AST($stref);
+    # warn( Dumper $stref->{'TyTraCL_AST'}{'Lines'});
     $stref = _emit_TyTraCL_Haskell_AST_Code($stref);
 
     # What this does is emitting the Haskell AST to a Haskell module file
@@ -429,7 +476,7 @@ sub _add_VE_to_AST {
         }
         elsif ($node->{'NodeType'} eq 'StencilAppl') {
 
-            push @{$node->{'Lhs'}{'Var'}}, 'VS';
+            push @{$node->{'Lhs'}{'Var'}}, 'VS'; # because this is a var name rec []
             my $rhs_var_rec = $node->{'Rhs'}{'Var'};
 
             my $ve= __determine_VE($stref, $rhs_var_rec);
@@ -455,18 +502,56 @@ sub _add_VE_to_AST {
                     $var_rec;
                 } @{ $node->{'Rhs'}{'MapArgs'}{'Vars'} }
             ];
-        }
-        elsif ($node->{'NodeType'} eq 'Fold') {
 
-            $node->{'Rhs'}{'FoldArgs'}{'Vars'}=[
+            $node->{'Rhs'}{'NonMapArgs'}{'Vars'}=[
                 map {
                     my $var_rec=$_;
                     my $ve = __determine_VE($stref, $var_rec);
                     push @{$var_rec},$ve;
                     $var_rec;
-                } @{ $node->{'Rhs'}{'FoldArgs'}{'Vars'} }
+                } @{ $node->{'Rhs'}{'NonMapArgs'}{'Vars'} }
+            ];            
+        }
+        elsif ($node->{'NodeType'} eq 'Fold') {
+
+            $node->{'Lhs'}{'Vars'}=[
+                map {
+                    my $var_rec=$_;
+                    my $ve = __determine_VE($stref, $var_rec);
+                    # warn( "FOLD LHS VE: $ve\n");
+                    push @{$var_rec},$ve;
+                    $var_rec;
+                } @{ $node->{'Lhs'}{'Vars'} }
             ];
 
+            $node->{'Rhs'}{'FoldArgs'}{'Vars'}=[
+                map {
+                    my $var_rec=$_;
+                    my $ve = __determine_VE($stref, $var_rec);
+                    # warn( "FOLD VE: $ve\n");
+                    push @{$var_rec},$ve;
+                    $var_rec;
+                } @{ $node->{'Rhs'}{'FoldArgs'}{'Vars'} }
+            ];
+            $node->{'Rhs'}{'NonFoldArgs'}{'Vars'}=[
+                map {
+                    my $var_rec=$_;
+                    my $ve = __determine_VE($stref, $var_rec);
+                    # warn( "NON-FOLD VE: $ve\n");
+                    push @{$var_rec},$ve;
+                    $var_rec;
+                } @{ $node->{'Rhs'}{'NonFoldArgs'}{'Vars'} }
+            ];            
+
+        $node->{'Rhs'}{'AccArgs'}{'Vars'}=[
+                map {
+                    my $var_rec=$_;
+                    my $ve = __determine_VE($stref, $var_rec);
+                    # warn( "FOLD ACC VE: $ve\n");
+                    push @{$var_rec},$ve;
+                    $var_rec;
+                } @{ $node->{'Rhs'}{'AccArgs'}{'Vars'} }
+            ];
         }
         elsif ($node->{'NodeType'} eq 'Comment') {
             # do nothing
@@ -609,7 +694,8 @@ sub __mkVec {
 sub __mkScalar {
     my ($v_rec) = @_;
     my $v_name  = _mkVarName($v_rec);
-    return 'Scalar "' . $v_name . '"';
+    my $ve      = $v_rec->[3];    
+    return 'Scalar '.$ve.' "' . $v_name . '"';
 }
 
 

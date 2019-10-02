@@ -82,6 +82,7 @@ Now we should start applying the rewrite rules to reduce each of these expressio
 
 lhs_is_output_vec (lhs_vec,expr) = case lhs_vec of
     Vec VO _ -> True
+    Scalar VT _ -> True
     _ -> False
 
 -- Create a list of all Vecs in the expr
@@ -272,7 +273,6 @@ rewrite_ast_into_single_map count exp =
                     rewrite_ast_into_single_map count' exp'
             else
                 exp            
-                -- if map_count == 1 then (Scalar "Done") else exp
 
 -- ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------    
 {-
@@ -286,11 +286,15 @@ Fortran from it.
 
 -}
 
-subsitute_expr :: String -> Expr -> State (Int,[(Expr,Expr)]) Expr
-subsitute_expr vec_name exp = do
+subsitute_expr :: Expr -> Expr -> State (Int,[(Expr,Expr)]) Expr
+subsitute_expr lhs exp = do
+            let 
+                (vec_name, decomposeMap) = case lhs of
+                    Vec VO vname -> (vname, False)
+                    Scalar _ sname -> (sname, True)
             (ct,var_expr_pairs) <- get
             let ((ct',var_expr_pairs'),exp') = case exp of
-                      Scalar _ -> ((ct,var_expr_pairs),exp)
+                      Scalar _ _ -> ((ct,var_expr_pairs),exp)
                       Const _ -> ((ct,var_expr_pairs),exp)
                       Tuple _ -> ((ct,var_expr_pairs),exp)
                       Vec _ _ -> ((ct,var_expr_pairs),exp)
@@ -299,7 +303,14 @@ subsitute_expr vec_name exp = do
                       SVec _ _ -> ((ct,var_expr_pairs),exp)
                       SComb _ _ -> ((ct,var_expr_pairs),exp)
                       PElt _ -> ((ct,var_expr_pairs),exp)
-                      Map _ _ -> ((ct,var_expr_pairs),exp)
+                      Map _ _ -> if decomposeMap 
+                        then
+                            let -- ((ct,var_expr_pairs),exp)
+                                var = Vec VT ("var_"++vec_name++"_"++(show ct)) 
+                            in
+                            ((ct+1,var_expr_pairs++[(var,exp)]),var)
+                        else
+                            ((ct,var_expr_pairs),exp)
                       Fold _ _ _ -> ((ct,var_expr_pairs),exp)
                       MapS _ _ -> let
                             f_expr = Function ("f_maps_"++vec_name++"_"++(show ct)) []
@@ -325,12 +336,18 @@ subsitute_expr vec_name exp = do
             return exp'
 
 subsitute_exprs :: Expr -> Expr -> [(Expr,Expr)]
-subsitute_exprs ast vec = let
-        Vec VO vec_name = vec
-        (ast',(ct,var_expr_pairs)) = runState (everywhereM (mkM (subsitute_expr vec_name)) ast) (0,[])
+subsitute_exprs lhs ast = let
+        -- Vec VO vec_name = vec
+        (ast',(ct,var_expr_pairs)) = runState (everywhereM (mkM (subsitute_expr lhs)) ast) (0,[])
     in 
-       var_expr_pairs ++ [ (vec,ast') ]
+       var_expr_pairs ++ [ (lhs,ast') ]
+-- subsitute_exprs scal@(Scalar _ _) ast = let
+--         -- Scalar _ scal_name = scal
+--         (ast',(ct,var_expr_pairs)) = runState (everywhereM (mkM (subsitute_expr scal)) ast) (0,[])
+--     in 
+--        var_expr_pairs ++ [ (scal,ast') ]
 
 -- This returns the decomposed expressions. Better names are needed!       
-decomposeExpressions = map (\(lhs,rhs) -> (subsitute_exprs rhs lhs )) 
+decomposeExpressions = map (\(lhs,rhs) -> (subsitute_exprs lhs rhs )) 
 
+-- I think I need to separate out the folds and anything leading up to it
