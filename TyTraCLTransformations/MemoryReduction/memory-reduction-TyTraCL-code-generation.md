@@ -490,6 +490,7 @@ then none of the rules fires, so this is a fixedpoint for the rewrite system.
 v :: Vec Int 500
 acc1 :: Int = 0
 acc3 :: Int = 0
+-- I have {'Rhs'}{'NonMapArgs'}->{'Rhs'}{'MapArgs'}->{'Lhs'}
 f0 :: acc1_T -> v_T -> acc1_T
 f1 :: acc1_T -> SVec 3 v_T -> v_T
 f2 :: acc3_T -> v_T -> acc3_T 
