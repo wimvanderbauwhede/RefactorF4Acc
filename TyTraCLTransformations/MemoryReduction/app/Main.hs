@@ -1,4 +1,5 @@
 module Main where
+import TyTraCLAST 
 import ASTInstance (ast)
 import Transforms (splitLhsTuples, substituteVectors, applyRewriteRules, fuseStencils, decomposeExpressions)
 
@@ -20,7 +21,7 @@ main = do
     mapM_ print ast3'    
 -- --    mapM print map_checks
     putStrLn "\n-- Decompose expressions"
-    mapM_ (mapM print) ast4
+    mapM_ ( \x -> (putStrLn ("-- " ++ ((show . LHSPrint . fst . head) x)) >> mapM print x )  ) ast4
 {-    
     putStrLn "\nTest for Vec in RHS Expr"
     mapM (print . get_vec_subexprs . snd) ast''

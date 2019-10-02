@@ -404,12 +404,22 @@ p
 \end_inset
 
 four arrays for every domain.
- However, the code but we actually uses 15 arrays: 
+ However, the code actually uses 15 arrays (Listing 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "lis:Arrays-used-in"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+): 
 \end_layout
 
 \begin_layout Standard
 \begin_inset listings
-lstparams "language=Fortran,mathescape=true,escapeinside={~~}"
+lstparams "language=Fortran,float,mathescape=true,escapeinside={~~}"
 inline false
 status open
 
@@ -446,6 +456,22 @@ real, dimension(im,jm,km) :: sm
 \begin_layout Plain Layout
 
 real, dimension(im,jm,km) :: rhs
+\begin_inset Caption Standard
+
+\begin_layout Plain Layout
+Arrays used in the Fortran code of the  Large Eddy Simulator for Urban Flows
+\begin_inset CommandInset label
+LatexCommand label
+name "lis:Arrays-used-in"
+
+\end_inset
+
+
+\end_layout
+
+\end_inset
+
+
 \end_layout
 
 \end_inset
@@ -739,7 +765,17 @@ name "subsec:Primitives"
 \end_layout
 
 \begin_layout Standard
-The language has a small number of primitives, shown in Listing XXX.
+The language has a small number of primitives, shown in Listing 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "lis:TyTraCL-primitives"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+.
  
 \begin_inset listings
 lstparams "mathescape=true,escapeinside={~~},language=Haskell"
@@ -875,6 +911,23 @@ scomb :: (SVec k_1 Int) -> (SVec k_2 Int) -> SVec (k_1*k_2) Int
 \begin_layout Plain Layout
 
 stencil s2 (stencil s1 v1) = stencil (scomb s2 s1) v1
+\begin_inset Caption Standard
+
+\begin_layout Plain Layout
+
+TyTraCL primitives
+\begin_inset CommandInset label
+LatexCommand label
+name "lis:TyTraCL-primitives"
+
+\end_inset
+
+
+\end_layout
+
+\end_inset
+
+
 \end_layout
 
 \end_inset
@@ -899,7 +952,17 @@ name "tytracl-abstract-syntax"
 \begin_layout Standard
 In practice, the TyTraCL program transformations are implemented in Haskell.
  The abstract syntax for the TyTraCL language, expressed as a Haskell type,
- is shown in Listing XXX 
+ is shown in Listing 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "lis:TyTraCL-AST-data"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+ .
 \end_layout
 
 \begin_layout Standard
@@ -1008,8 +1071,7 @@ type Name = String
 
 \begin_layout Plain Layout
 
-                        | Function Name [Name] -- 2nd arg is list of non-map/fol
-d args
+                        | Function Name [Name]
 \end_layout
 
 \begin_layout Plain Layout
@@ -1029,7 +1091,7 @@ d args
 
 \begin_layout Plain Layout
 
-                        | Comp Expr Expr -- funtion composition
+                        | Comp Expr Expr -- function composition
 \end_layout
 
 \begin_layout Plain Layout
@@ -1040,6 +1102,23 @@ d args
 \begin_layout Plain Layout
 
                             deriving (Show, Typeable, Data, Eq)
+\begin_inset Caption Standard
+
+\begin_layout Plain Layout
+
+TyTraCL AST data type in Haskell
+\begin_inset CommandInset label
+LatexCommand label
+name "lis:TyTraCL-AST-data"
+
+\end_inset
+
+
+\end_layout
+
+\end_inset
+
+
 \end_layout
 
 \end_inset
@@ -1082,6 +1161,106 @@ Unknown
 \end_inset
 
 .
+ 
+\end_layout
+
+\begin_layout Standard
+For the 
+\family typewriter
+Function
+\family default
+ constructor, 
+\family typewriter
+[Name]
+\family default
+ is a list of non-map/non-fold args, i.e.
+ 
+\end_layout
+
+\begin_layout Standard
+\begin_inset listings
+lstparams "mathescape=true,escapeinside={~~},language=Haskell"
+inline false
+status open
+
+\begin_layout Plain Layout
+
+v_out = map (f x_1 ..
+ x_m) v_in
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+is represented as
+\end_layout
+
+\begin_layout Standard
+\begin_inset listings
+lstparams "mathescape=true,escapeinside={~~},language=Haskell"
+inline false
+status open
+
+\begin_layout Plain Layout
+
+(Vec VO 
+\begin_inset Quotes eld
+\end_inset
+
+v_out
+\begin_inset Quotes erd
+\end_inset
+
+,Map (Function 
+\begin_inset Quotes eld
+\end_inset
+
+f
+\begin_inset Quotes erd
+\end_inset
+
+ [
+\begin_inset Quotes eld
+\end_inset
+
+x_1
+\begin_inset Quotes erd
+\end_inset
+
+,...,
+\begin_inset Quotes erd
+\end_inset
+
+x_m
+\begin_inset Quotes erd
+\end_inset
+
+]) (Vec VI 
+\begin_inset Quotes eld
+\end_inset
+
+v
+\begin_inset Quotes erd
+\end_inset
+
+))
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+The typical use case is to pass constant arguments and scalars returned
+ by 
+\family typewriter
+Fold
+\family default
+ operations.
 \end_layout
 
 \begin_layout Subsection
@@ -1606,13 +1785,10 @@ Tuple
 \emph on
 Elt
 \emph default
- to the RHS.
- As a result, the LHS will be purely 
-\emph on
-Vec
-\emph default
-.
- 
+ to the RHS:
+\end_layout
+
+\begin_layout Standard
 \begin_inset listings
 lstparams "mathescape=true,escapeinside={~~},language=Haskell"
 inline false
@@ -1620,73 +1796,78 @@ status open
 
 \begin_layout Plain Layout
 
-ast' = foldl split_lhs_tuples [] ast
-\end_layout
+(Tuple [Vec ve1 
+\begin_inset Quotes eld
+\end_inset
 
-\begin_layout Plain Layout
+v1
+\begin_inset Quotes erd
+\end_inset
 
-\end_layout
+, Vec ve2 
+\begin_inset Quotes eld
+\end_inset
 
-\begin_layout Plain Layout
+v2
+\begin_inset Quotes erd
+\end_inset
 
-  split_lhs_tuples acc t@(lhs,rhs) = let
-\end_layout
-
-\begin_layout Plain Layout
-
-      ts = case lhs of
-\end_layout
-
-\begin_layout Plain Layout
-
-          Tuple vecs -> split_tuple vecs rhs
-\end_layout
-
-\begin_layout Plain Layout
-
-          _ -> [t]
-\end_layout
-
-\begin_layout Plain Layout
-
-      in
-\end_layout
-
-\begin_layout Plain Layout
-
-          acc++ts
-\end_layout
-
-\begin_layout Plain Layout
-
-\end_layout
-
-\begin_layout Plain Layout
-
-  split_tuple vecs rhs = let
-\end_layout
-
-\begin_layout Plain Layout
-
-          vecs_idxs = zip vecs [0 ..
- length vecs - 1]
-\end_layout
-
-\begin_layout Plain Layout
-
-      in
-\end_layout
-
-\begin_layout Plain Layout
-
-          foldl (
-\backslash
-acc (vec,idx) ->  acc++[(vec, Elt idx rhs)]) [] vecs_idxs
+], UnzipT expr)
 \end_layout
 
 \end_inset
 
 
+\end_layout
+
+\begin_layout Standard
+becomes
+\end_layout
+
+\begin_layout Standard
+\begin_inset listings
+lstparams "mathescape=true,escapeinside={~~},language=Haskell"
+inline false
+status open
+
+\begin_layout Plain Layout
+
+(Vec ve1 
+\begin_inset Quotes eld
+\end_inset
+
+v1
+\begin_inset Quotes erd
+\end_inset
+
+, (Elt 0 (UnzipT expr )))
+\end_layout
+
+\begin_layout Plain Layout
+
+(Vec ve2 
+\begin_inset Quotes eld
+\end_inset
+
+v2
+\begin_inset Quotes erd
+\end_inset
+
+, (Elt 1 (UnzipT expr )))
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+As a result, the LHS will be purely 
+\emph on
+Vec
+\emph default
+.
+ 
 \end_layout
 
 \begin_layout Subsection
@@ -1756,7 +1937,18 @@ name "rewrite-rules-theorem"
 \end_layout
 
 \begin_layout Standard
-Given the AST in normalised form and following rewrite rules: 
+Given the AST in normalised form and the rewrite rules shown in Listing
+ 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "lis:Rewrite-rules-to"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+: 
 \begin_inset listings
 lstparams "mathescape=true,escapeinside={~~},language=Haskell"
 inline false
@@ -1795,6 +1987,25 @@ v = map id v -- Map-Id
  unzipt .
  (map f v) = map ((elt i) .
  f) v -- Elt-UnzipT-Map
+\begin_inset Caption Standard
+
+\begin_layout Plain Layout
+
+Rewrite rules to obtain an expression with a single 
+\emph on
+map
+\begin_inset CommandInset label
+LatexCommand label
+name "lis:Rewrite-rules-to"
+
+\end_inset
+
+
+\end_layout
+
+\end_inset
+
+
 \end_layout
 
 \end_inset
@@ -2771,7 +2982,12 @@ At this stage the TyTraCL program has been transformed to meet our objective:
  Conceptually, this means that the map operation consumes a stream of input
  vectors, creating stencils as required, an applies to this composite stream
  a composite scalar function which performs the actual computations.
- 
+ The program is now an ordered list of expressions which each represent
+ a self-contained loop nest, and which in principle can depend upon any
+ of the previous expressions.
+ In practice, Map and Fold nodes can depend on results from earlier Fold
+ nodes In the final imperative code, the entries in this list are executed
+ in order to ensure that the dependencies are met.
 \end_layout
 
 \begin_layout Standard
@@ -2895,7 +3111,9 @@ All other sub-expressions are left unchanged
 \begin_layout Standard
 The algorithm traverses the AST in bottom-up fashion and effectively replaces
  every node with a list of let bindings for its sub-expressions.
- In this way, the final list has the correct order for imperative computation.
+ The result is a lists of lists which has the correct order for imperative
+ computation.
+ 
 \end_layout
 
 \begin_layout Section

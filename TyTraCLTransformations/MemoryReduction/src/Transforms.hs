@@ -177,6 +177,8 @@ Rewrite rules
 rewrite_ast_sub_expr expr = case expr of 
     -- 1. Map composition
     Map f1_expr (Map f2_expr v_expr) -> Map (Comp f1_expr f2_expr) v_expr
+    -- 1b. Fold-Map composition
+    Fold f1_expr acc_expr (Map f2_expr v_expr) -> Fold (FComp f1_expr f2_expr) acc_expr v_expr
     -- 2. The key rule: Stencil of Map becomes Map of MapS of Stencil
     Stencil s_1 (Map f_1 v_expr) -> Map (MapS s_1 f_1) (Stencil s_1 v_expr)   
     ZipT es -> 
@@ -324,6 +326,10 @@ subsitute_expr lhs exp = do
                             f_expr = Function ("f_comp_"++vec_name++"_"++(show ct)) []
                         in
                             ((ct+1,var_expr_pairs++[(f_expr,exp)]),f_expr)
+                      FComp _ _ -> let
+                            f_expr = Function ("f_fcomp_"++vec_name++"_"++(show ct)) []
+                        in
+                            ((ct+1,var_expr_pairs++[(f_expr,exp)]),f_expr)
                       Stencil (SVec n _) _ -> let                            
                             var = Vec VS ("svec_"++vec_name++"_"++(show ct))
                         in
@@ -347,7 +353,7 @@ subsitute_exprs lhs ast = let
 --     in 
 --        var_expr_pairs ++ [ (scal,ast') ]
 
--- This returns the decomposed expressions. Better names are needed!       
+-- This returns the decomposed expressions as a lists of lists
+-- Because of the original code, this is guaranteed to be in dependency order.
 decomposeExpressions = map (\(lhs,rhs) -> (subsitute_exprs lhs rhs )) 
 
--- I think I need to separate out the folds and anything leading up to it

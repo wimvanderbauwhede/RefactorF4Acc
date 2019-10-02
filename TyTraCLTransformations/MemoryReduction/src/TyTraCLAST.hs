@@ -32,9 +32,17 @@ data Expr =
                     | ApplyT [Expr]  -- bb: App FTup [Expr]
                     | MapS Expr Expr -- bb does not have this, not needed
                     | Comp Expr Expr -- bb does not have this, not needed
+                    | FComp  Expr Expr --  to combine a fold and a map, quite a-hoc!
                     | SComb Expr Expr
                     -- | bb has Let Expr Expr
                     -- | bb has App Expr Expr to apply and Expr to an Expr
                     -- bb has Split, Merge and Par which I don't need
                         deriving (Show, Typeable, Data, Eq)
 
+newtype LHSPrint = LHSPrint Expr
+
+instance Show LHSPrint where
+    show (LHSPrint (Scalar _ x)) = show x
+    show (LHSPrint (Vec _ x)) = show x
+    show (LHSPrint (Function x _)) = show x
+    show (LHSPrint x) = show x

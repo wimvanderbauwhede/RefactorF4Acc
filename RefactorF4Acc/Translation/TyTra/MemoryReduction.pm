@@ -43,7 +43,8 @@ use Exporter;
 @RefactorF4Acc::Translation::TyTra::MemoryReduction::EXPORT_OK = qw(
   &pass_memory_reduction
 );
-our $TEST = 5;
+
+our $TEST = 6;
 
 sub pass_memory_reduction {
     (my $stref, my $module_name) = @_;
@@ -149,6 +150,28 @@ elsif ($TEST==5) {
         }
     );  
 }  
+elsif ($TEST==6) {
+    $stref = mkAST(
+        [            
+            mkStencilDef(1,[-1,0,1]),
+            mkStencilAppl(1,3,['v',0,'']=>['v',0,'s']),
+            mkFold('f0'=>[]=>[['acc1',0,'']]=>[['v',0,'']],[['acc1',1,'']]),
+            mkMap('f1'=>[['acc1',1,'']]=>[['v',0,'s']],[['v',1,'']]),
+            # stencil
+            mkStencilDef(2,[-1,0,1]),
+            mkStencilAppl(2,3,['v',1,'']=>['v',1,'s']),
+            # map
+            mkMap('f4'=>[]=>[['v',1,'s']],[['v',2,'']]),
+            mkFold('f2'=>[]=>[['acc3',0,'']]=>[['v',2,'']],[['acc3',1,'']]),
+            mkMap('f3'=>[['acc3',1,'']]=>[['v',2,'']],[['v',3,'']]),
+        ],
+        {
+        'v' =>[ 'integer', [1,500], 'inout'],
+        'acc1' =>[ 'integer',  'in'],
+        'acc3' =>[ 'integer',  'in'],
+        }
+    );  
+} 
     $stref = construct_TyTraCL_AST_Main_node($stref);
     $stref = _add_VE_to_AST($stref);
     # warn( Dumper $stref->{'TyTraCL_AST'}{'Lines'});
