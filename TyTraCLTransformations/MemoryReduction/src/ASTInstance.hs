@@ -4,7 +4,7 @@ import TyTraCLAST
 ast :: TyTraCLAST
 ast = [
         (Vec VS (DSVec 3 DInt) "v_s_0" , Stencil (SVec 3 DInt "s1") (Vec VI DInt "v_0"))
-        ,( Scalar VT DInt  "acc1_1", Fold (Function "f0" []) (Scalar VI DInt  "acc1_0") (Vec VI DInt "v_0") )
+        ,( Scalar VT DInt  "acc1_1", Fold (Function "f0"  ["t1_0","t2_0"]) (Scalar VI DInt  "acc1_0") (Vec VI DInt "v_0") )
         ,( Vec VT DInt "v_1", Map (Function "f1"  ["acc1_1"]) (Vec VS (DSVec 3 DInt) "v_s_0") )
         ,(Vec VS (DSVec 3 DInt) "v_s_1" , Stencil (SVec 3 DInt "s2") (Vec VT DInt "v_1"))
         ,( Vec VT DInt "v_2", Map (Function "f4" []) (Vec VS (DSVec 3 DInt) "v_s_1") )
@@ -13,7 +13,7 @@ ast = [
         ]
 
 functionSignaturesList = [
-        ("f0", FoldFSig (Tuple [],Scalar VDC DInt "acc1",Scalar VDC DInt "v",Scalar VDC DInt "acc1")),
+        ("f0", FoldFSig (Tuple [Scalar VDC DInt "t1",Scalar VDC DInt "t2"],Scalar VDC DInt "acc1",Scalar VDC DInt "v",Scalar VDC DInt "acc1")),
         ("f1", MapFSig (Scalar VDC DInt "acc1",SVec 3 DInt "v_s",Scalar VDC DInt "v")),
         ("f2", FoldFSig (Tuple [],Scalar VDC DInt "acc3",Scalar VDC DInt "v",Scalar VDC DInt "acc3")),
         ("f3", MapFSig (Scalar VDC DInt "acc3",Scalar VDC DInt "v",Scalar VDC DInt "v")),

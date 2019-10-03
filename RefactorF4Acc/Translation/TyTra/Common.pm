@@ -298,6 +298,7 @@ sub mkAST {
     my @funcs = ();
     my %vecs  = ();
     my %accs  = ();
+    my %nons = ();
     
     for my $node (@{$lines}) {
         
@@ -305,7 +306,8 @@ sub mkAST {
         if (   $node->{'NodeType'} eq 'Map'
             or $node->{'NodeType'} eq 'Fold')
         {
-            my $vs = $node->{'Rhs'}{'MapArgs'}{'Vars'};
+            
+            my $vs = $node->{'Rhs'}{$node->{'NodeType'}.'Args'}{'Vars'};
             if ($node->{'NodeType'} eq 'Map') {
                 $vs = [@{$vs}, @{$node->{'Lhs'}{'Vars'}}]
             }
@@ -318,6 +320,16 @@ sub mkAST {
                     $vecs{$v} = $ct;
                 }
             }
+            my $ns = $node->{'Rhs'}{'Non'.$node->{'NodeType'}.'Args'}{'Vars'};
+            for my $v_rec (@{$ns}) {
+                (my $v, my $ct, my $s, my $ve) = @{$v_rec};
+                if (not exists $nons{$v}) {
+                    $nons{$v} = $ct;
+                }
+                elsif ($ct > $nons{$v}) {
+                    $nons{$v} = $ct;
+                }
+            }            
         }
         if ($node->{'NodeType'} eq 'Fold') {
             my $as = $node->{'Rhs'}{'AccArgs'}{'Vars'};          
@@ -342,6 +354,9 @@ sub mkAST {
             $stref = addTypeDecl($stref, $f, $v, $decls->{$v}[0], [$decls->{$v}[1]]);
         }
         for my $a (sort keys %accs) {
+            $stref = addTypeDecl($stref, $f, $a, $decls->{$a}[0], []);
+        }
+        for my $a (sort keys %nons) {
             $stref = addTypeDecl($stref, $f, $a, $decls->{$a}[0], []);
         }
     }

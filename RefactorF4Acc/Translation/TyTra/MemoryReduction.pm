@@ -160,7 +160,7 @@ elsif ($TEST==6) {
         [            
             mkStencilDef(1,[-1,0,1]),
             mkStencilAppl(1,3,['v',0,'']=>['v',0,'s']),
-            mkFold('f0'=>[]=>[['acc1',0,'']]=>[['v',0,'']],[['acc1',1,'']]),
+            mkFold('f0'=>[['t1',0,''],['t2',0,'']]=>[['acc1',0,'']]=>[['v',0,'']],[['acc1',1,'']]),
             mkMap('f1'=>[['acc1',1,'']]=>[['v',0,'s']],[['v',1,'']]),
             # stencil
             mkStencilDef(2,[-1,0,1]),
@@ -172,6 +172,8 @@ elsif ($TEST==6) {
         ],
         {
         'v' =>[ 'integer', [1,500], 'inout'],
+        't1' =>[ 'integer',  'in'],
+        't2' =>[ 'integer',  'in'],
         'acc1' =>[ 'integer',  'in'],
         'acc3' =>[ 'integer',  'in'],
         }

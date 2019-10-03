@@ -5,6 +5,7 @@ import Control.Monad.State
 import TyTraCLAST
 import ASTInstance (ast, functionSignaturesList)
 import qualified Data.Map.Strict as Map
+import Data.List
 
 {-
 f1 :: acc1_T -> SVec 3 v_T -> v_T
@@ -35,7 +36,7 @@ functionSignatures =  Map.fromList functionSignaturesList
 
 -- We must update this map with the new signatures, so probably use the state monad
 -- let's be old-school contrarian and use fold
-inferSignatures ast = Map.toList (foldl inferSignature functionSignatures ast)
+inferSignatures ast = map functionSigStr (Map.toList (foldl inferSignature functionSignatures ast))
 
 inferSignature ::  (Map.Map Name FSig) -> (Expr,Expr) -> Map.Map Name FSig
 inferSignature functionSignatures ast_tup =
@@ -136,3 +137,20 @@ deriveSigFComp fname1 fname2 functionSignatures =
 --     in
 --         (vec, VecSig vec)
 
+t = ("f_maps_acc3_1_0",MapFSig (Scalar VDC DInt "acc1",SVec 3 (DSVec 3 DInt) "sv_f1_in",SVec 3 DInt "sv_f1_out"))
+functionSigStr t = let
+        (fname,ftype) = t
+        args = argList ftype 
+    in
+        fname++"("++(intercalate ", " args)++")"
+
+varName :: Expr -> [Name]
+varName (Scalar _ _ vn) = [vn]
+varName (SVec _ _  vn) = [vn]
+varName (Tuple ts) = concat $ map varName ts
+
+
+
+
+argList (MapFSig (nms,ms,os)) =  (varName nms) ++ (varName ms) ++ (varName os)
+argList (FoldFSig (nms,as,ms,os)) = (varName nms) ++ (varName as) ++ (varName ms) ++ (varName os)

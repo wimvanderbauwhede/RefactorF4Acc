@@ -144,7 +144,6 @@ sub construct_TyTraCL_AST_Main_node {
 
         # This is not an Emitter step
         $main_rec = _addToMainSig($stref, $main_rec, $node, $lhs, $rhs, $fname);
-
         ($var_types, $stencils) =
           _addToVarTypesAndStencils($stref, $var_types, $stencils, $node, $lhs, $rhs, $fname, \&__toTyTraCLType);
     }
@@ -628,7 +627,7 @@ sub _addToVarTypesAndStencils {
         my $non_map_args = $rhs->{'NonFoldArgs'}{'Vars'};
 
         my @non_map_arg_types_array = ();
-        for my $non_map_arg_rec (@{$non_map_args}) {
+        for my $non_map_arg_rec (@{$non_map_args}) {            
             my $var_name = $non_map_arg_rec->[0];
             my $var_rec  = $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$var_name};
             my $var_type = $type_formatter->($var_rec->{'Type'});
