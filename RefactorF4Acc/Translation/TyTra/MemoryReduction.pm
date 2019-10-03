@@ -16,7 +16,12 @@ use RefactorF4Acc::Translation::TyTra::Common qw(
 );
 
 use RefactorF4Acc::Analysis::ArrayAccessPatterns qw( identify_array_accesses_in_exprs );
-use RefactorF4Acc::Translation::TyTraCL qw( emit_TyTraCL construct_TyTraCL_AST_Main_node generate_TyTraCL_stencils _add_TyTraCL_AST_entry );
+use RefactorF4Acc::Translation::TyTraCL qw( 
+    emit_TyTraCL construct_TyTraCL_AST_Main_node 
+    generate_TyTraCL_stencils 
+    _add_TyTraCL_AST_entry
+    _emit_TyTraCL_FunctionSigs
+     );
 
 #
 #   (c) 2016 Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
@@ -173,6 +178,9 @@ elsif ($TEST==6) {
     );  
 } 
     $stref = construct_TyTraCL_AST_Main_node($stref);
+
+    $stref = _emit_TyTraCL_FunctionSigs($stref);    
+
     $stref = _add_VE_to_AST($stref);
     # warn( Dumper $stref->{'TyTraCL_AST'}{'Lines'});
     $stref = _emit_TyTraCL_Haskell_AST_Code($stref);
@@ -421,7 +429,7 @@ I will simply extend the var tuple with this additional attribute, as a string.
 =cut
 sub _emit_TyTraCL_Haskell_AST_Code {
     (my $stref) = @_;
-
+_create_TyTraCL_Haskell_signatures($stref);
     my $tytracl_ast  = $stref->{'TyTraCL_AST'};
 
 
@@ -478,6 +486,10 @@ ast = [
     }
 
     my $tytracl_hs_ast_code_str=join("\n", @indented_tytracl_hs_ast_strs);
+
+
+
+
     $tytracl_hs_ast_code_str=$header.$tytracl_hs_ast_code_str."\n        ]\n";
 
     $stref->{'TyTraCL_Haskell_AST_Code'} = $tytracl_hs_ast_code_str ;
@@ -737,5 +749,18 @@ sub __determine_VE { (my $stref, my $var_rec)=@_;
         return $ve;
     }
 } # END of __determine_VE
+=pod sigs_and_types
+What we need is a mechanism to create signatures for the intermediate functions
+In principle, having the types for all vars and functions should be enough
+In practice, I'd like to get the names right. 
+=cut
+sub _create_TyTraCL_Haskell_signatures { (my $stref) = @_;
+my $sig_lines=[];
+$Data::Dumper::Deepcopy=1;
+    carp Dumper $stref->{'TyTraCL_AST'}{'Main'}{'VarTypes'};
+    croak Dumper($stref->{'TyTraCL_FunctionSigs'});
+
+return $sig_lines;
+} # END of _create_TyTraCL_Haskell_signatures
 
 1;

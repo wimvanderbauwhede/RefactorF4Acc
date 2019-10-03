@@ -12,13 +12,13 @@ type TyTraCLAST = [(Expr,Expr)]
 
 data Expr =
         -- Left-hand side:
-                      Scalar VE Name
-                    | Const Int -- bb: IntLit Integer
+                      Scalar VE DType Name
+                    | Const DType -- bb: IntLit Integer
                     | Tuple [Expr] --  bb: Tup [Expr]
-                    | Vec VE Name -- bb: Var Name, type via cofree comonad, but VE info is not there
+                    | Vec VE Int DType Name -- bb: Var Name, type via cofree comonad, but VE info is not there
 
         -- Right-hand side:
-                    | SVec Int Name -- bb: SVec [Expr] -> to get a name, use a Let
+                    | SVec Int DType Name -- bb: SVec [Expr] -> to get a name, use a Let
                     | ZipT [Expr] -- bb: App Zip (Tup  [...])
                     | UnzipT Expr -- bb: App Unzip (vec of tuples)
                     | Elt Int Expr -- bb: App (Select Integer) Tup
@@ -54,14 +54,15 @@ instance Show LHSPrint where
 -- MapS sv f
 -- I think maybe we define the type as 
 
-data ExprType = A | B | SVec Int ExprType | Vec Int ExprType | FType [ExprType] | Idx
+data ExprType = A | B | SVec Int ExprType  | Vec Int ExprType | FType [ExprType] | Idx
 
-f_type = FType [A,B]
-maps_type = FType [SVec k Idx, FType [A,B], SVec k A, SVec k B]
-s_type = SVec k Idx
-map_type = FType [FType [A,B], Vec n A, Vec n B]
-maps_s_f_type = FType [ SVec k A, SVec k B]
-vec_svec_type = Vec n (SVec k A)
-map_maps_f_type_vec_svec_type
--- need to build this from the rules
-map_type = FType [FType [ SVec k A, SVec k B], Vec n (SVec k A), Vec n (SVec k B)]
+-- f_type = FType [A,B]
+-- maps_type = FType [SVec k Idx, FType [A,B], SVec k A, SVec k B]
+-- s_type = SVec k Idx
+-- map_type = FType [FType [A,B], Vec n A, Vec n B]
+-- maps_s_f_type = FType [ SVec k A, SVec k B]
+-- vec_svec_type = Vec n (SVec k A)
+-- map_maps_f_type_vec_svec_type
+-- -- need to build this from the rules
+-- map_type = FType [FType [ SVec k A, SVec k B], Vec n (SVec k A), Vec n (SVec k B)]
+

@@ -81,8 +81,8 @@ Now we should start applying the rewrite rules to reduce each of these expressio
 -}
 
 lhs_is_output_vec (lhs_vec,expr) = case lhs_vec of
-    Vec VO _ -> True
-    Scalar VT _ -> True
+    Vec VO _ _ _ -> True
+    Scalar VT _ _ -> True
     _ -> False
 
 -- Create a list of all Vecs in the expr
