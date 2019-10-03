@@ -1,4 +1,4 @@
-module ASTInstance ( ast ) where
+module ASTInstance ( ast, functionSignaturesList ) where
 import TyTraCLAST
 
 ast :: TyTraCLAST

@@ -474,7 +474,7 @@ sub _emit_TyTraCL_Haskell_AST_Code {
     }
 
 my $header =
-'module ASTInstance ( ast ) where
+'module ASTInstance ( ast, functionSignaturesList ) where
 import TyTraCLAST
 
 ast :: TyTraCLAST

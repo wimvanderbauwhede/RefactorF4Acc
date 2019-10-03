@@ -330,10 +330,14 @@ subsitute_expr lhs exp = do
                             f_expr = Function ("f_fcomp_"++vec_name++"_"++(show ct)) []
                         in
                             ((ct+1,var_expr_pairs++[(f_expr,exp)]),f_expr)
-                      Stencil (SVec _ _ _) _ -> let                            
+                      Stencil (SVec _ _ _) _ -> let
                             var = Vec VS DDC ("svec_"++vec_name++"_"++(show ct))
                         in
                             ((ct+1,var_expr_pairs++[(var,exp)]),var)
+                      Stencil (SComb _ _) _ -> let
+                            var = Vec VS DDC ("svec_"++vec_name++"_"++(show ct))
+                        in
+                            ((ct+1,var_expr_pairs++[(var,exp)]),var)                            
                       _ -> let
                               var = Vec VT DDC ("vec_"++vec_name++"_"++(show ct))
                            in

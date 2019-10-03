@@ -1,7 +1,6 @@
 {-# LANGUAGE DeriveDataTypeable #-}
 module TyTraCLAST where
 
-
 import Data.Generics (Data, Typeable)
 
 
@@ -12,11 +11,13 @@ data DType =
     DInt | DInteger 
   | DReal | DFloat 
   | DSVec Int DType --  to encode SVecs
+  | DTuple [DType] -- to encode Tuple
   | DDC -- Don't Care ; Int and Integer, Real and Float as I can't make up my mind
     deriving (Show, Typeable, Data, Eq)
 data FSig = 
     MapFSig (Expr,Expr,Expr)
   | FoldFSig (Expr,Expr,Expr,Expr)
+  | VecSig Expr
   deriving (Show, Typeable, Data, Eq)
 
 type TyTraCLAST = [(Expr,Expr)]                      
@@ -77,3 +78,7 @@ instance Show LHSPrint where
 -- -- need to build this from the rules
 -- map_type = FType [FType [ SVec k A, SVec k B], Vec n (SVec k A), Vec n (SVec k B)]
 
+toDType :: Expr -> DType
+toDType (Scalar _ dt _) = dt
+toDType (Tuple es) = DTuple (map toDType es)
+toDType (SVec sz dt _) = DSVec sz dt
