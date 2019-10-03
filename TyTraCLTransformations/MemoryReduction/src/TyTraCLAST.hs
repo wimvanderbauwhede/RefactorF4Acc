@@ -6,23 +6,34 @@ import Data.Generics (Data, Typeable)
 
 
 type Name = String
-data VE = VI  | VO  | VS  | VT deriving (Show, Typeable, Data, Eq)
-    
+type Size = Int
+data VE = VI  | VO  | VS  | VT | VDC deriving (Show, Typeable, Data, Eq)
+data DType = 
+    DInt | DInteger 
+  | DReal | DFloat 
+  | DSVec Int DType --  to encode SVecs
+  | DDC -- Don't Care ; Int and Integer, Real and Float as I can't make up my mind
+    deriving (Show, Typeable, Data, Eq)
+data FSig a = 
+    MapFSig ([a],[a],[a])
+  | FoldFSig ([a],[a],[a],[a])
+  deriving (Show, Typeable, Data, Eq)
+
 type TyTraCLAST = [(Expr,Expr)]                      
 
 data Expr =
         -- Left-hand side:
                       Scalar VE DType Name
-                    | Const DType -- bb: IntLit Integer
+                    | Const Int -- bb: IntLit Integer
                     | Tuple [Expr] --  bb: Tup [Expr]
-                    | Vec VE Int DType Name -- bb: Var Name, type via cofree comonad, but VE info is not there
+                    | Vec VE DType Name -- bb: Var Name, type via cofree comonad, but VE info is not there
 
         -- Right-hand side:
-                    | SVec Int DType Name -- bb: SVec [Expr] -> to get a name, use a Let
+                    | SVec Size DType Name -- bb: SVec [Expr] -> to get a name, use a Let
                     | ZipT [Expr] -- bb: App Zip (Tup  [...])
                     | UnzipT Expr -- bb: App Unzip (vec of tuples)
                     | Elt Int Expr -- bb: App (Select Integer) Tup
-                    -- | PElt Int -- bb does not need this
+                    | PElt Int -- partially applied Elt
                     | Map Expr Expr -- map f v
                     | Fold Expr Expr Expr -- fold f acc v
                     | Stencil Expr Expr -- stencil s v
@@ -42,8 +53,8 @@ data Expr =
 newtype LHSPrint = LHSPrint Expr
 
 instance Show LHSPrint where
-    show (LHSPrint (Scalar _ x)) = show x
-    show (LHSPrint (Vec _ x)) = show x
+    show (LHSPrint (Scalar _ _ x)) = show x
+    show (LHSPrint (Vec _ _ x)) = show x
     show (LHSPrint (Function x _)) = show x
     show (LHSPrint x) = show x
 
@@ -54,7 +65,7 @@ instance Show LHSPrint where
 -- MapS sv f
 -- I think maybe we define the type as 
 
-data ExprType = A | B | SVec Int ExprType  | Vec Int ExprType | FType [ExprType] | Idx
+-- data ExprType = A | B | SVec Int ExprType  | Vec Int ExprType | FType [ExprType] | Idx
 
 -- f_type = FType [A,B]
 -- maps_type = FType [SVec k Idx, FType [A,B], SVec k A, SVec k B]

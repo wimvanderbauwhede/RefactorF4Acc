@@ -429,7 +429,7 @@ I will simply extend the var tuple with this additional attribute, as a string.
 =cut
 sub _emit_TyTraCL_Haskell_AST_Code {
     (my $stref) = @_;
-_create_TyTraCL_Haskell_signatures($stref);
+    
     my $tytracl_ast  = $stref->{'TyTraCL_AST'};
 
 
@@ -440,16 +440,27 @@ _create_TyTraCL_Haskell_signatures($stref);
             # do nothing
         }
         elsif ($node->{'NodeType'} eq 'StencilAppl') {
+            my $svec_rec = $node->{'Lhs'}{'Var'};
+            my $svec_var = _mkVarName($svec_rec);
 
+            my $svec_type = $tytracl_ast->{'Main'}{'VarTypes'}{$svec_var};
+            $node->{'VecType'}= $svec_type->[2];
             my $line = mkStencilApplAST($node);
             push @{$tytracl_hs_ast_strs}, $line;
         }
 
         elsif ($node->{'NodeType'} eq 'Map') {
+            my $fname = $node->{'FunctionName'};
+            $node->{'VecType'}= $tytracl_ast->{'Main'}{'VarTypes'}{$fname}{'MapArgType'};
+            $node->{'ReturnType'}= $tytracl_ast->{'Main'}{'VarTypes'}{$fname}{'ReturnType'};
             my $line = mkMapAST($node);
             push @{$tytracl_hs_ast_strs}, $line;
         }
         elsif ($node->{'NodeType'} eq 'Fold') {
+            my $fname = $node->{'FunctionName'};
+            $node->{'VecType'}= $tytracl_ast->{'Main'}{'VarTypes'}{$fname}{'FoldArgType'};
+            $node->{'AccType'}= $tytracl_ast->{'Main'}{'VarTypes'}{$fname}{'AccArgType'};
+            $node->{'ReturnType'}= $tytracl_ast->{'Main'}{'VarTypes'}{$fname}{'ReturnType'};# Which should of course be the same
             my $line = mkFoldAST($node);
            push @{$tytracl_hs_ast_strs}, $line;
         }
@@ -492,6 +503,8 @@ ast = [
 
     $tytracl_hs_ast_code_str=$header.$tytracl_hs_ast_code_str."\n        ]\n";
 
+    my $fsigs_str = _create_TyTraCL_Haskell_signatures($stref);
+    $tytracl_hs_ast_code_str.= "\n".$fsigs_str;
     $stref->{'TyTraCL_Haskell_AST_Code'} = $tytracl_hs_ast_code_str ;
 
     return $stref;
@@ -599,6 +612,106 @@ sub _add_VE_to_AST {
     return $stref;
 }    # END of _add_VE_to_AST()
 
+sub _add_DType_to_AST {
+    (my $stref) = @_;
+
+    my $tytracl_ast  = $stref->{'TyTraCL_AST'};
+
+
+    for my $node (@{$tytracl_ast->{'Lines'}}) {
+
+        if ($node->{'NodeType'} eq 'StencilDef') {
+            # do nothing
+        }
+        elsif ($node->{'NodeType'} eq 'StencilAppl') {
+
+            push @{$node->{'Lhs'}{'Var'}}, 'VS'; # because this is a var name rec []
+            my $rhs_var_rec = $node->{'Rhs'}{'Var'};
+
+            my $ve= __determine_VE($stref, $rhs_var_rec);
+
+            push @{$node->{'Rhs'}{'Var'}}, $ve;
+        }
+
+        elsif ($node->{'NodeType'} eq 'Map') {
+            $node->{'Lhs'}{'Vars'}=[
+                map {
+                    my $var_rec=$_;
+                    my $ve = __determine_VE($stref, $var_rec);
+                    push @{$var_rec},$ve;
+                    $var_rec;
+                } @{ $node->{'Lhs'}{'Vars'} }
+            ];
+
+            $node->{'Rhs'}{'MapArgs'}{'Vars'}=[
+                map {
+                    my $var_rec=$_;
+                    my $ve = __determine_VE($stref, $var_rec);
+                    push @{$var_rec},$ve;
+                    $var_rec;
+                } @{ $node->{'Rhs'}{'MapArgs'}{'Vars'} }
+            ];
+
+            $node->{'Rhs'}{'NonMapArgs'}{'Vars'}=[
+                map {
+                    my $var_rec=$_;
+                    my $ve = __determine_VE($stref, $var_rec);
+                    push @{$var_rec},$ve;
+                    $var_rec;
+                } @{ $node->{'Rhs'}{'NonMapArgs'}{'Vars'} }
+            ];            
+        }
+        elsif ($node->{'NodeType'} eq 'Fold') {
+
+            $node->{'Lhs'}{'Vars'}=[
+                map {
+                    my $var_rec=$_;
+                    my $ve = __determine_VE($stref, $var_rec);
+                    # warn( "FOLD LHS VE: $ve\n");
+                    push @{$var_rec},$ve;
+                    $var_rec;
+                } @{ $node->{'Lhs'}{'Vars'} }
+            ];
+
+            $node->{'Rhs'}{'FoldArgs'}{'Vars'}=[
+                map {
+                    my $var_rec=$_;
+                    my $ve = __determine_VE($stref, $var_rec);
+                    # warn( "FOLD VE: $ve\n");
+                    push @{$var_rec},$ve;
+                    $var_rec;
+                } @{ $node->{'Rhs'}{'FoldArgs'}{'Vars'} }
+            ];
+            $node->{'Rhs'}{'NonFoldArgs'}{'Vars'}=[
+                map {
+                    my $var_rec=$_;
+                    my $ve = __determine_VE($stref, $var_rec);
+                    # warn( "NON-FOLD VE: $ve\n");
+                    push @{$var_rec},$ve;
+                    $var_rec;
+                } @{ $node->{'Rhs'}{'NonFoldArgs'}{'Vars'} }
+            ];            
+
+        $node->{'Rhs'}{'AccArgs'}{'Vars'}=[
+                map {
+                    my $var_rec=$_;
+                    my $ve = __determine_VE($stref, $var_rec);
+                    # warn( "FOLD ACC VE: $ve\n");
+                    push @{$var_rec},$ve;
+                    $var_rec;
+                } @{ $node->{'Rhs'}{'AccArgs'}{'Vars'} }
+            ];
+        }
+        elsif ($node->{'NodeType'} eq 'Comment') {
+            # do nothing
+        }
+        else {
+            croak;
+        }
+    }
+
+    return $stref;
+} # END of _add_DType_to_AST()
 
 #========================================================================================================================
 
@@ -613,12 +726,15 @@ sub mkStencilApplAST {
     #     'NodeType' => 'StencilAppl',
     #     'FunctionName' => 'shapiro_map_23',
     #     'Rhs' => {'StencilCtr' => 2,'Var' => ['etan',0,'']}};
+    my $vec_type = $stencilApplNode->{'VecType'};
     my $s_var    = _mkVarName($stencilApplNode->{'Lhs'}{'Var'});
     my $var      = _mkVarName($stencilApplNode->{'Rhs'}{'Var'});
     my $ve       = $stencilApplNode->{'Rhs'}{'Var'}[3];
     my $s        = 's' . $stencilApplNode->{'Rhs'}{'StencilCtr'};
     my $s_sz     = $stencilApplNode->{'Rhs'}{'StencilSz'};
-    my $ast_line = '(Vec VS "' . $s_var . '" , Stencil (SVec ' . $s_sz . ' "' . $s . '") (Vec ' . $ve . ' "' . $var . '"))';
+    my $ast_line = '(Vec VS (DSVec '.$s_sz.' D'.$vec_type.') "' . $s_var . '" ,'
+    . ' Stencil (SVec ' . $s_sz . ' DInt "' . $s . '") '
+    . '(Vec ' . $ve . ' D' .$vec_type. ' "' . $var . '"))';
 
     return $ast_line;
 }
@@ -643,22 +759,37 @@ So really the only issue is the I/O/S/T type
 # This will need context, unless I already add the I/O/T/S types when creating the AST
 sub mkMapAST {
     (my $mapNode) = @_;
-
+    my $vec_type = $mapNode->{'VecType'}; # This is a list as it could be a tuple; can be SVecs as well
+    my $ret_type = $mapNode->{'ReturnType'};
 # I need to determine if a vector is VO, VI, VS or VS
 # VS is for stencil
 # I should know the inputs and outputs
 # anything else is VT
-
+    my $lhs_vars_types = zip( $mapNode->{'Lhs'}{'Vars'}, $ret_type );
+    
 # more than one
     my $lhs = scalar @{$mapNode->{'Lhs'}{'Vars'}} > 1
-      ? '(Tuple [' . join(',', map { __mkVec($_) } @{$mapNode->{'Lhs'}{'Vars'}}) . '])'
+      ? '(Tuple [' . join(',', map { __mkVec($_) } @{$lhs_vars_types}) . '])'
 
 # otherwise
-      : __mkVec($mapNode->{'Lhs'}{'Vars'}[0]);
+      : __mkVec($lhs_vars_types->[0]);
+
+
+# # more than one
+#     my $lhs = scalar @{$mapNode->{'Lhs'}{'Vars'}} > 1
+#       ? '(Tuple [' . join(',', map { __mkVec($_) } @{$mapNode->{'Lhs'}{'Vars'}}) . '])'
+
+# # otherwise
+#       : __mkVec($mapNode->{'Lhs'}{'Vars'}[0]);
+    my $map_vars_types=zip($mapNode->{'Rhs'}{'MapArgs'}{'Vars'}, $vec_type);
     my $map_args =
       scalar @{$mapNode->{'Rhs'}{'MapArgs'}{'Vars'}} > 1
-      ? '(ZipT [' . join(',', map { __mkVec($_) } @{$mapNode->{'Rhs'}{'MapArgs'}{'Vars'}}) . '])'
-      : '(' . __mkVec($mapNode->{'Rhs'}{'MapArgs'}{'Vars'}[0]) . ')';
+      ? '(ZipT [' . join(',', map { __mkVec($_) } @{$map_vars_types}) . '])'
+      : '(' . __mkVec($map_vars_types->[0]) . ')';
+    # my $map_args =
+    #   scalar @{$mapNode->{'Rhs'}{'MapArgs'}{'Vars'}} > 1
+    #   ? '(ZipT [' . join(',', map { __mkUntypedVec($_) } @{$mapNode->{'Rhs'}{'MapArgs'}{'Vars'}}) . '])'
+    #   : '(' . __mkUntypedVec($mapNode->{'Rhs'}{'MapArgs'}{'Vars'}[0]) . ')';
     my $f_exp = $mapNode->{'Rhs'}{'Function'};
     my $non_map_arg_str='[]';
     if (exists $mapNode->{'Rhs'}{'NonMapArgs'}
@@ -687,21 +818,33 @@ sub mkFoldAST {
 # VS is for stencil
 # I should know the inputs and outputs
 # anything else is VT
-
+    my $acc_type = $foldNode->{'AccType'}; # This is a list as it could be a tuple
+    my $vec_type = $foldNode->{'VecType'}; # This is a list as it could be a tuple
+    my $ret_type = $foldNode->{'ReturnType'}; # This is a list as it could be a tuple
+    my $lhs_vars_types = zip($foldNode->{'Lhs'}{'Vars'},$ret_type);
 # more than one
     my $lhs =
-
      scalar @{$foldNode->{'Lhs'}{'Vars'}} > 1
-      ? '(Tuple [' . join(',', map { __mkScalar($_) } @{$foldNode->{'Lhs'}{'Vars'}}) . '])'
+      ? '(Tuple [' . join(',', map { __mkScalar($_) } @{$lhs_vars_types}) . '])'
 # otherwise
-    : __mkScalar($foldNode->{'Lhs'}{'Vars'}[0]);
+    : __mkScalar($lhs_vars_types->[0]);    
+# # more than one
+#     my $lhs =
+#      scalar @{$foldNode->{'Lhs'}{'Vars'}} > 1
+#       ? '(Tuple [' . join(',', map { __mkScalar($_) } @{$foldNode->{'Lhs'}{'Vars'}}) . '])'
+# # otherwise
+#     : __mkScalar($foldNode->{'Lhs'}{'Vars'}[0]);
+    my $fold_vars_types = zip($foldNode->{'Rhs'}{'FoldArgs'}{'Vars'},$vec_type);
     my $fold_args =
       scalar @{$foldNode->{'Rhs'}{'FoldArgs'}{'Vars'}} > 1
-      ? '(ZipT [' . join(',', map { __mkVec($_) } @{$foldNode->{'Rhs'}{'FoldArgs'}{'Vars'}}) . '])'
-      : '(' . __mkVec($foldNode->{'Rhs'}{'FoldArgs'}{'Vars'}[0]) . ')';
+      ? '(ZipT [' . join(',', map { __mkVec($_) } @{$fold_vars_types}) . '])'
+      : '(' . __mkVec($fold_vars_types->[0]) . ')';
+
+    my $acc_vars_types = zip($foldNode->{'Rhs'}{'AccArgs'}{'Vars'}, $acc_type);
     my $acc_args =   scalar @{$foldNode->{'Rhs'}{'AccArgs'}{'Vars'}} > 1
-      ? '(' . join(',', map { __mkScalar($_) } @{$foldNode->{'Rhs'}{'AccArgs'}{'Vars'}}) . ')'
-      : '(' . __mkScalar($foldNode->{'Rhs'}{'AccArgs'}{'Vars'}[0]) . ')';
+      ? '(' . join(',', map { __mkScalar($_) } @{$acc_vars_types}) . ')'
+      : '(' . __mkScalar($acc_vars_types->[0]) . ')';
+
     my $f_exp = $foldNode->{'Rhs'}{'Function'};
     my $non_fold_arg_str = '[]';
     if (exists $foldNode->{'Rhs'}{'NonFoldArgs'}
@@ -718,22 +861,47 @@ sub mkFoldAST {
     return $ast_line;
 }
 
-
+# In principle the SVec type can contain another SVec but not while generating the code
+sub __mkType { (my $t_rec)=@_;
+    if ($t_rec->[0] ne 'SVec') {
+        return 'D'.$t_rec->[0];
+    } else {
+        return '(DSVec '.$t_rec->[1]. ' D'.$t_rec->[2].')';
+    }
+}
 sub __mkVec {
-    my ($v_rec) = @_;
+    my ($var_type_rec) = @_;
+    my ($v_rec, $t_rec) = @{$var_type_rec};
+    # t_rec is either [Int] or [SVec,3,Int]
     my $v_name  = _mkVarName($v_rec);
     my $ve      = $v_rec->[3];
-    return 'Vec ' . $ve . ' "' . $v_name . '"';
+    return 'Vec ' . $ve . ' '.__mkType($t_rec).' "' . $v_name . '"';
 }
 
+sub __mkUntypedVec {
+    my ($v_rec) = @_;
+    
+    # t_rec is either [Int] or [SVec,3,Int]
+    my $v_name  = _mkVarName($v_rec);
+    my $ve      = $v_rec->[3];
+    return 'Vec ' . $ve . ' DDC "' . $v_name . '"';
+}
 sub __mkScalar {
+    my ($var_type_rec) = @_;
+
+    my ($v_rec, $t_rec) = @{$var_type_rec};
+
+    my $v_name  = _mkVarName($v_rec);
+    my $ve      = $v_rec->[3];    
+    return 'Scalar '.$ve.' '.__mkType($t_rec).'  "' . $v_name . '"';
+}
+
+sub __mkUntypedScalar {
     my ($v_rec) = @_;
     my $v_name  = _mkVarName($v_rec);
     my $ve      = $v_rec->[3];    
-    return 'Scalar '.$ve.' "' . $v_name . '"';
+    return 'Scalar '.$ve.' DDC  "' . $v_name . '"';
 }
-
-
 sub __determine_VE { (my $stref, my $var_rec)=@_;
     if ($var_rec->[2] eq 's') {
         return 'VS'
@@ -753,14 +921,85 @@ sub __determine_VE { (my $stref, my $var_rec)=@_;
 What we need is a mechanism to create signatures for the intermediate functions
 In principle, having the types for all vars and functions should be enough
 In practice, I'd like to get the names right. 
+
+
+# How to derive the signatures?
+
+        (Function "f_comp_acc3_1_1" [],Comp (Function "f4" []) (Function "f_maps_acc3_1_0" []))
+
+        If I look up "f4" I get
+
+    
+ [ 'f4', [], [ [ 'SVec', 3, 'Int' ] ], [ [ 'Int' ] ] ],
+$stref->{'TyTraCL_FunctionSigs'}{'f4'} =
+
+ [ '', 'v_s', 'v' ]
+
+So I think I should have a Map fromList
+
+("f4", MapFSig [[],[SVec 3 (Scalar Int "v_s")],[Scalar Int "v"]])
+
+    [ 'f3', [ [ 'Int' ] ], [ [ 'Int' ] ], [ [ 'Int' ] ] ],
+    [ ['acc3'], ['v'], ['v'] ],
+
+    [ 'f0', [], [ [ 'Int' ] ], [ [ 'Int' ] ], [ [ 'Int' ] ] ],
+    [ [], ['acc1'], ['v'], ['acc1'] ],
+
+     [ 'f1', [ [ 'Int' ] ], [ [ 'SVec', 3, 'Int' ] ], [ [ 'Int' ] ] ],
+    [ 'acc1', 'v_s', 'v' ],
 =cut
 sub _create_TyTraCL_Haskell_signatures { (my $stref) = @_;
 my $sig_lines=[];
 $Data::Dumper::Deepcopy=1;
-    carp Dumper $stref->{'TyTraCL_AST'}{'Main'}{'VarTypes'};
-    croak Dumper($stref->{'TyTraCL_FunctionSigs'});
+    # croak Dumper keys %{$stref->{'TyTraCL_AST'}{'Main'}{'VarTypes'}};
+    # croak Dumper($stref->{'TyTraCL_FunctionSigs'});
 
-return $sig_lines;
+    my $map_list_entries=[];
+    for my $f (sort keys %{$stref->{'TyTraCL_FunctionSigs'}}) {
+        my $FSig_ctor =  exists $stref->{'TyTraCL_AST'}{'Main'}{'VarTypes'}{$f}{'FoldArgType'} ? 'FoldFSig'
+        : exists $stref->{'TyTraCL_AST'}{'Main'}{'VarTypes'}{$f}{'MapArgType'} ? 'MapFSig' : croak "NOT Map or Fold : $f";
+        
+        my $ftypedecl = $stref->{'TyTraCL_AST'}{'Main'}{'VarTypes'}{$f}{'FunctionTypeDecl'} ;
+        my $fsig =$stref->{'TyTraCL_FunctionSigs'}{$f};
+        
+        my $fname = $ftypedecl->[0] ;
+        croak unless $fname eq $f;
+        # For every argument tuple, i.e. Non-{Map,Fold} [,Acc], {Map,Fold}, Out
+        my $typed_arg_tups=[];
+        for my $idx (1 .. scalar @{$ftypedecl} - 1) {
+            my $typetup = $ftypedecl->[$idx] ;#[ [], [ [ 'Int' ] ], [ [ 'Int' ] ], [ [ 'Int' ] ] ],
+            my $argtup = $fsig->[$idx-1]; # [ [], ['v_s'],[ 'v'] ]
+            my $typed_arg_tup=[];
+            if (scalar @{$typetup}) {
+                for my $type (@{$typetup}) {
+                    my $arg = shift @{$argtup};
+                    if ($type->[0] ne 'SVec') { # It's a scalar 
+                        push @{$typed_arg_tup}, 'Scalar VDC D'.$type->[0].' "'.$arg.'"';
+                    } else {
+                        push @{$typed_arg_tup}, 'SVec '.$type->[1].' D'.$type->[2].' "'.$arg.'"';
+                    }                    
+                }
+            } 
+            push @{$typed_arg_tups}, $typed_arg_tup;
+        }                    
+        my $map_list_entry = [$fname, [$FSig_ctor, $typed_arg_tups]];
+        push @{$map_list_entries}, $map_list_entry;
+    }
+
+    my @map_list_strs = map {__pp_MapListEntry($_)} @{$map_list_entries};
+
+    return 'functionSignaturesList = ['."\n        ".join(",\n        ",@map_list_strs)."\n    ".']';
 } # END of _create_TyTraCL_Haskell_signatures
+
+
+sub __pp_MapListEntry { (my $map_list_entry) = @_;
+    my ($fname, $fsig) = @{$map_list_entry};
+    my ($FSig_ctor, $typed_arg_tups) = @{$fsig};
+    my $map_list_entry_str = 
+    '("'.$fname.'", '
+     . $FSig_ctor . ' (' . join(',', map { '['.join(',',@{$_}).']' } @{$typed_arg_tups})
+     . '))';
+    return $map_list_entry_str;
+}
 
 1;

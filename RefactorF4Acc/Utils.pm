@@ -33,6 +33,7 @@ use Exporter;
     &write_out
     &get_maybe_args_globs
     &type_via_implicits
+    &zip
     &union
     &difference
     &intersection
@@ -283,7 +284,17 @@ if (not defined $var or $var eq '') {croak "VAR not defined!"}
     }
     return ($type, $array_or_scalar, $attr);
 } # END of type_via_implicits()
-
+# -----------------------------------------------------------------------------
+sub zip { ( my $aref, my $bref ) = @_;
+    my @zip_ab=();
+    my $a_sz = scalar @{$aref};
+    my $b_sz = scalar @{$bref};
+    my $max_sz = $a_sz > $b_sz ? $a_sz : $b_sz;
+    for my $idx (0 .. $max_sz-1) {
+        push @zip_ab, [$aref->[$idx],$bref->[$idx]];
+    }
+    return \@zip_ab;
+} # END of zip
 # -----------------------------------------------------------------------------
 sub union {
     ( my $aref, my $bref ) = @_;

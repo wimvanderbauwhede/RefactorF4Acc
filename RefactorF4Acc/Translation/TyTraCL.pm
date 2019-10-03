@@ -716,7 +716,7 @@ sub _addToVarTypes {
         my $s_type = '(' . join(',', @s_type_array) . ')';
 
         # Or rather, use SVec:
-        $s_type = "SVec " . $stencils->{$rhs->{'StencilCtr'}} . " $var_type";
+        $s_type = "SVec " . $stencils->{$rhs->{'StencilCtr'}} . " DInt $var_type";
         $var_types->{$s_var} = $s_type;
 
 #			say "STENCIL $s_var $s_type";

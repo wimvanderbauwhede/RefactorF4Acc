@@ -33,7 +33,7 @@ I think the easiest way is to use Generics: with `everywhere` we can update all 
 
 -- 
 find_in_ast :: TyTraCLAST -> Expr -> Expr
-find_in_ast ast v@(Vec _ _)  = let
+find_in_ast ast v@(Vec _ _ _)  = let
     maybe_v = filter (\(lhs,rhs) -> lhs == v) ast
     in
         if length maybe_v == 1 
@@ -47,7 +47,7 @@ find_in_ast ast e  = e
 
 -- If an expression is a vector, return it in a list, else return an empty list
 get_vec :: Expr -> [Expr]
-get_vec v@(Vec vt _) = [v]
+get_vec v@(Vec vt _ _) = [v]
 get_vec _ = []
 
 get_vec_subexprs :: Expr -> [Expr]
@@ -60,7 +60,7 @@ non_input_vecs expr = let
     in
         filter (
             \v -> case v of 
-                Vec VI _ -> False
+                Vec VI _ _ -> False
                 _ -> True
             ) vec_subexprs
 
@@ -81,7 +81,7 @@ Now we should start applying the rewrite rules to reduce each of these expressio
 -}
 
 lhs_is_output_vec (lhs_vec,expr) = case lhs_vec of
-    Vec VO _ _ _ -> True
+    Vec VO _ _ -> True
     Scalar VT _ _ -> True
     _ -> False
 
@@ -106,7 +106,7 @@ substitute_vec_rec ast expr_tup@(lhs_vec,expr) = let
                 expr_tup' = substitute_vec ast expr_tup
             in
                 substitute_vec_rec ast expr_tup'
-        else -- we're dome, return the result 
+        else -- we're done, return the result 
             expr_tup
 
 -- ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -245,8 +245,8 @@ rewriteZipTMap es =  let
         Map (ApplyT f_s) (ZipT v_s)
 
 rewriteId expr =  case expr of
-    Vec vt n -> Map Id expr
-    Stencil _ (Vec _ _) -> Map Id expr
+    Vec _ _ _  -> Map Id expr
+    Stencil _ (Vec _ _ _) -> Map Id expr
     _ -> expr
 
 get_map :: Expr -> [Expr]
@@ -292,23 +292,23 @@ subsitute_expr :: Expr -> Expr -> State (Int,[(Expr,Expr)]) Expr
 subsitute_expr lhs exp = do
             let 
                 (vec_name, decomposeMap) = case lhs of
-                    Vec VO vname -> (vname, False)
-                    Scalar _ sname -> (sname, True)
+                    Vec VO _ vname -> (vname, False)
+                    Scalar _ _ sname -> (sname, True)
             (ct,var_expr_pairs) <- get
             let ((ct',var_expr_pairs'),exp') = case exp of
-                      Scalar _ _ -> ((ct,var_expr_pairs),exp)
+                      Scalar _ _ _ -> ((ct,var_expr_pairs),exp)
                       Const _ -> ((ct,var_expr_pairs),exp)
                       Tuple _ -> ((ct,var_expr_pairs),exp)
-                      Vec _ _ -> ((ct,var_expr_pairs),exp)
+                      Vec _ _ _ -> ((ct,var_expr_pairs),exp)
                       Id -> ((ct,var_expr_pairs),exp)
                       Function _ _ -> ((ct,var_expr_pairs),exp)
-                      SVec _ _ -> ((ct,var_expr_pairs),exp)
+                      SVec _ _ _ -> ((ct,var_expr_pairs),exp)
                       SComb _ _ -> ((ct,var_expr_pairs),exp)
                       PElt _ -> ((ct,var_expr_pairs),exp)
                       Map _ _ -> if decomposeMap 
                         then
                             let -- ((ct,var_expr_pairs),exp)
-                                var = Vec VT ("var_"++vec_name++"_"++(show ct)) 
+                                var = Vec VT DDC ("var_"++vec_name++"_"++(show ct)) 
                             in
                             ((ct+1,var_expr_pairs++[(var,exp)]),var)
                         else
@@ -330,12 +330,12 @@ subsitute_expr lhs exp = do
                             f_expr = Function ("f_fcomp_"++vec_name++"_"++(show ct)) []
                         in
                             ((ct+1,var_expr_pairs++[(f_expr,exp)]),f_expr)
-                      Stencil (SVec n _) _ -> let                            
-                            var = Vec VS ("svec_"++vec_name++"_"++(show ct))
+                      Stencil (SVec _ _ _) _ -> let                            
+                            var = Vec VS DDC ("svec_"++vec_name++"_"++(show ct))
                         in
                             ((ct+1,var_expr_pairs++[(var,exp)]),var)
                       _ -> let
-                              var = Vec VT ("vec_"++vec_name++"_"++(show ct))
+                              var = Vec VT DDC ("vec_"++vec_name++"_"++(show ct))
                            in
                              ((ct+1,var_expr_pairs++[(var,exp)]),var)
             put (ct',var_expr_pairs')
