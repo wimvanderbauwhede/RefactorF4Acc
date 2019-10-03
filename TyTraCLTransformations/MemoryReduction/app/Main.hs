@@ -25,7 +25,8 @@ main = do
     putStrLn "\n-- Decompose expressions"
     mapM_ ( \x -> (putStrLn ("-- " ++ ((show . LHSPrint . fst . head) x)) >> mapM print x )  ) ast4
     putStrLn "\n-- Infer intermediate function signatures"
-    mapM_ ( mapM print) inferSignatures' 
+    mapM_ ( \x -> (putStrLn "-- "  >> mapM print x )  ) inferSignatures' 
+    -- mapM_ ( mapM print) inferSignatures' 
 {-    
     putStrLn "\nTest for Vec in RHS Expr"
     mapM (print . get_vec_subexprs . snd) ast''
