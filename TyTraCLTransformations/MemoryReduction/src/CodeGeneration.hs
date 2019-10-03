@@ -45,6 +45,8 @@ getFunctionSignature rhs =
     case rhs of
         MapS (SVec sv_sz _) (Function fname _) -> deriveSigMaps sv_sz fname 
         Comp (Function f1 nms1) (Function f2 nms2) -> deriveSigComp f1 f2
+        FComp (Function f1 nms1) (Function f2 nms2) -> deriveSigFComp f1 f2
+
 deriveSigMaps sv_sz fname = 
     let
         fsig = case Map.lookup functionSignatures fname of
@@ -80,6 +82,29 @@ deriveSigComp fname1 fname2
         os' = os2
     in
         MapFSig (nms,ms',os')
+
+
+
+deriveSigFComp fname1 fname2                
+    let
+        fsig1 = case Map.lookup functionSignatures fname1 of
+            Just sig1 -> sig1
+            Nothing -> error "Impossible"
+        fsig2 = case Map.lookup functionSignatures fname2 of
+            Just sig2 -> sig2
+            Nothing -> error "Impossible"
+        FoldFSig (nms1,as,ms1,os1) = fsig1
+        MapFSig (nms2,ms2,os2) = fsig2
+    -- the output of f1 is used as the input for f2
+    -- the nms1 and nms2 should probably a tuple of tuples
+        nms = Tuple [nms1,nms2]
+        ms' = ms1
+        os' = os2
+    in
+        FoldFSig (nms,as,ms',os')        
+
+-- (Function "f_fcomp_acc3_1_2" [],FComp (Function "f2" []) (Function "f_comp_acc3_1_1" []))        
+
 {-
     MapS means that
 - the NonMapArgs are kept 
