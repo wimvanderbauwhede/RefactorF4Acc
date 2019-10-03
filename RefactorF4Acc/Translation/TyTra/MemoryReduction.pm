@@ -997,7 +997,15 @@ sub __pp_MapListEntry { (my $map_list_entry) = @_;
     my ($FSig_ctor, $typed_arg_tups) = @{$fsig};
     my $map_list_entry_str = 
     '("'.$fname.'", '
-     . $FSig_ctor . ' (' . join(',', map { '['.join(',',@{$_}).']' } @{$typed_arg_tups})
+     . $FSig_ctor . ' (' . join(',', map {
+         warn( Dumper $_); 
+         my $t = scalar @{$_} == 0 
+         ? 'Tuple []'
+         : scalar @{$_} > 1 ?
+         'Tuple ['.join(',',@{$_}).']' 
+         : $_->[0];
+         $t;
+         } @{$typed_arg_tups})
      . '))';
     return $map_list_entry_str;
 }

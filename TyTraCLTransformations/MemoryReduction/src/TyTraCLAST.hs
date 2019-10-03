@@ -14,9 +14,9 @@ data DType =
   | DSVec Int DType --  to encode SVecs
   | DDC -- Don't Care ; Int and Integer, Real and Float as I can't make up my mind
     deriving (Show, Typeable, Data, Eq)
-data FSig a = 
-    MapFSig ([a],[a],[a])
-  | FoldFSig ([a],[a],[a],[a])
+data FSig = 
+    MapFSig (Expr,Expr,Expr)
+  | FoldFSig (Expr,Expr,Expr,Expr)
   deriving (Show, Typeable, Data, Eq)
 
 type TyTraCLAST = [(Expr,Expr)]                      

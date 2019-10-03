@@ -13,9 +13,9 @@ ast = [
         ]
 
 functionSignaturesList = [
-        ("f0", FoldFSig ([],[Scalar VDC DInt "acc1"],[Scalar VDC DInt "v"],[Scalar VDC DInt "acc1"])),
-        ("f1", MapFSig ([Scalar VDC DInt "acc1"],[SVec 3 DInt "v_s"],[Scalar VDC DInt "v"])),
-        ("f2", FoldFSig ([],[Scalar VDC DInt "acc3"],[Scalar VDC DInt "v"],[Scalar VDC DInt "acc3"])),
-        ("f3", MapFSig ([Scalar VDC DInt "acc3"],[Scalar VDC DInt "v"],[Scalar VDC DInt "v"])),
-        ("f4", MapFSig ([],[SVec 3 DInt "v_s"],[Scalar VDC DInt "v"]))
+        ("f0", FoldFSig (Tuple [],Scalar VDC DInt "acc1",Scalar VDC DInt "v",Scalar VDC DInt "acc1")),
+        ("f1", MapFSig (Scalar VDC DInt "acc1",SVec 3 DInt "v_s",Scalar VDC DInt "v")),
+        ("f2", FoldFSig (Tuple [],Scalar VDC DInt "acc3",Scalar VDC DInt "v",Scalar VDC DInt "acc3")),
+        ("f3", MapFSig (Scalar VDC DInt "acc3",Scalar VDC DInt "v",Scalar VDC DInt "v")),
+        ("f4", MapFSig (Tuple [],SVec 3 DInt "v_s",Scalar VDC DInt "v"))
     ]
