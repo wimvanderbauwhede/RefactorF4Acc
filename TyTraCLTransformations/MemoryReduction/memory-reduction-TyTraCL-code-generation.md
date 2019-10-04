@@ -530,12 +530,15 @@ v_3 = map (f3 acc3_1) v_2
 !-- "acc1_1"
 !(Scalar VT "acc1_1",Fold (Function "f0" []) (Scalar VI "acc1_0") (Vec VI "v_0"))
 
-! extract all variables, easy
+! extract all variables, easy: an everything with Scalar and Vec
 real :: acc1_0, acc1_1, v_0
-! get dim, also easy, is a given
+
+! get dim, also easy, is a given => But I need additional generated lists for this, generated from InArgsTypes/OutArgsTypes
 real, dimension(v_sz) v
+
 ! get inital accumulator. I wonder, do I have this somewhere?
 acc1_0 = ... 
+
 do idx = 1, v_sz
     v_0 = v(idx)
     call f0(acc1_0, v_0 acc1_1) ! Most practical might be that this is a wrapper around the original subroutine, to match the args
@@ -586,3 +589,51 @@ integer, dimension(3,3) :: vec_acc3_1_3
 
 (Scalar VT "acc3_1",Fold (Function "f_fcomp_acc3_1_2" []) (Scalar VI "acc3_0") (Vec VT "vec_acc3_1_3"))
 
+------
+
+-- "f_maps_acc3_1_0"
+(Function "f_maps_acc3_1_0" [],MapS (SVec 3 DInt "s2") (Function "f1" ["acc1_1"]))
+(Function "f_comp_acc3_1_1" [],Comp (Function "f4" []) (Function "f_maps_acc3_1_0" []))
+(Function "f_fcomp_acc3_1_2" [],FComp (Function "f2" []) (Function "f_comp_acc3_1_1" []))
+(Vec VS DDC "svec_acc3_1_3",Stencil (SComb (SVec 3 DInt "s2") (SVec 3 DInt "s1")) (Vec VI DInt "v_0"))
+(Scalar VT DInt "acc3_1",Fold (Function "f_fcomp_acc3_1_2" []) (Scalar VI DInt "acc3_0") (Vec VS DDC "svec_acc3_1_3"))
+("f0",FoldFSig (Tuple [Scalar VDC DInt "t1_0",Scalar VDC DInt "t2_0"],Scalar VDC DInt "acc1_0",Scalar VDC DInt "v_0",Scalar VDC DInt "acc1_1"))
+("f1",MapFSig (Scalar VDC DInt "acc1_1",SVec 3 DInt "v_s_0",Scalar VDC DInt "v_1"))
+("f2",FoldFSig (Tuple [],Scalar VDC DInt "acc3_0",Scalar VDC DInt "v_2",Scalar VDC DInt "acc3_1"))
+("f3",MapFSig (Scalar VDC DInt "acc3_1",Scalar VDC DInt "v_2",Scalar VDC DInt "v_3"))
+("f4",MapFSig (Tuple [],SVec 3 DInt "v_s_1",Scalar VDC DInt "v_2"))
+("f_comp_acc3_1_1",MapFSig (Tuple [Tuple [],Scalar VDC DInt "acc1_1"],SVec 3 DInt "v_s_1",SVec 3 DInt "sv_f1_out"))
+("f_fcomp_acc3_1_2",FoldFSig (Tuple [Tuple [],Tuple [Tuple [],Scalar VDC DInt "acc1_1"]],Scalar VDC DInt "acc3_0",Scalar VDC DInt "v_2",SVec 3 DInt "sv_f1_out"))
+("f_maps_acc3_1_0",MapFSig (Scalar VDC DInt "acc1_1",SVec 3 (DSVec 3 DInt) "sv_f1_in",SVec 3 DInt "sv_f1_out"))
+
+
+t = (Function "f_maps_acc3_1_0" [],MapS (SVec 3 DInt "s2") (Function "f1" ["acc1_1"]))
+(lhs,rhs) = t
+Function maps_fname = lhs
+MapS sv f  = rhs
+SVec sv_sz sv_t _ = sv
+Function fname _ = f
+
+maps_fsig = case Map.lookup ...
+MapFSig (nms,in_arg,SVec 3 DInt "sv_f1_out")) = maps_fsig
+@non_map_arg_decls = createDecls nms -- tuple becomes list of decls
+$sv_in_decl = createDecl in_arg
+$dsv_out_decl = 
+-- SVec 3 (DSVec 3 DInt) "sv_f1_in" => integer, dimension(3,3) :: sv_f1_in 
+-- SVec 3 DInt "sv_f1_in" => integer, dimension(3) :: sv_f1_in 
+
+-- Scalar VDC DInt "acc1_1"  => integer :: acc1_1
+
+("f_maps_acc3_1_0",MapFSig (Scalar VDC DInt "acc1_1",SVec 3 (DSVec 3 DInt) "sv_f1_in",SVec 3 DInt "sv_f1_out"))
+("f1",MapFSig (Scalar VDC DInt "acc1_1",SVec 3 DInt "v_s_0",Scalar VDC DInt "v_1"))
+
+subroutine $maps_fname($non_map_args, $sv_in, $sv_out)
+@non_map_arg_decls 
+$sv_in_decl
+$sv_out_decl
+
+! sv_in must be an array of arrays here!
+    do i=1,$sv_sz 
+        call $fname($acc_args,sv_in(i),sv_out(i))
+    end do
+end subroutine f_maps_acc3_1_0   

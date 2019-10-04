@@ -49,11 +49,12 @@ use Exporter;
   &pass_memory_reduction
 );
 
-our $TEST = 6;
+our $TEST = 0; 
 
 sub pass_memory_reduction {
     (my $stref, my $module_name) = @_;
-
+    $TEST =  $Config{'TEST'};
+    
     # WV: I think Selects and Inserts should be in Lines but I'm not sure
     $stref->{'EmitAST'}     = 'TyTraCL_AST';
     $stref->{'TyTraCL_AST'} = {
@@ -179,12 +180,34 @@ elsif ($TEST==6) {
         }
     );  
 } 
+elsif ($TEST==7) {
+ 
+    $stref = mkAST(
+        [
+            mkMap('f1a'=>[]=>[['va',0,'']],[['va',1,'']]),
+            mkMap('f1b'=>[]=>[['vb',0,'']],[['vb',1,'']]),
+            mkMap('f1c' =>[]=>[['va',1,''],['vb',1,'']]=>[['v',0,'']]),
+            mkStencilDef(1,[-1,0,1]),
+            mkStencilAppl(1,3,['v',0,'']=>['v',1,'s']),
+            mkMap('f2'=>[]=>[['v',1,'s']],[['v',2,'']]),
+            mkStencilDef(2,[-1,0,1]),
+            mkStencilAppl(2,3,['v',2,'']=>['v',2,'s']),
+            mkMap('f3'=>[]=>[['v',2,'s']]=>[['v',3,'']]),            
+        ],
+        {
+            'va' =>[ 'integer', [1,500], 'in'] ,
+            'vb' =>[ 'integer', [1,500], 'in'] ,
+            'vab' =>[ 'integer', [1,500], 'local'] ,
+            'v' =>[ 'integer', [1,500], 'out'] ,
+            }
+    );            
+}
     $stref = construct_TyTraCL_AST_Main_node($stref);
 
     $stref = _emit_TyTraCL_FunctionSigs($stref);    
 
     $stref = _add_VE_to_AST($stref);
-    # warn( Dumper $stref->{'TyTraCL_AST'}{'Lines'});
+    
     $stref = _emit_TyTraCL_Haskell_AST_Code($stref);
 
     # What this does is emitting the Haskell AST to a Haskell module file
@@ -951,8 +974,8 @@ So I think I should have a Map fromList
     [ 'acc1', 'v_s', 'v' ],
 =cut
 sub _create_TyTraCL_Haskell_signatures { (my $stref) = @_;
-my $sig_lines=[];
-$Data::Dumper::Deepcopy=1;
+    my $sig_lines=[];
+    $Data::Dumper::Deepcopy=1;
     # croak Dumper keys %{$stref->{'TyTraCL_AST'}{'Main'}{'VarTypes'}};
     # croak Dumper($stref->{'TyTraCL_FunctionSigs'});
 
@@ -1000,7 +1023,7 @@ sub __pp_MapListEntry { (my $map_list_entry) = @_;
     my $map_list_entry_str = 
     '("'.$fname.'", '
      . $FSig_ctor . ' (' . join(',', map {
-         warn( Dumper $_); 
+        #  warn( Dumper $_); 
          my $t = scalar @{$_} == 0 
          ? 'Tuple []'
          : scalar @{$_} > 1 ?

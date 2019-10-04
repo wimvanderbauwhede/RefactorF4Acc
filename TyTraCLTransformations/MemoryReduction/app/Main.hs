@@ -1,15 +1,18 @@
 module Main where
 import TyTraCLAST 
-import ASTInstance (ast)
+import ASTInstance (ast,functionSignaturesList)
 import Transforms (splitLhsTuples, substituteVectors, applyRewriteRules, fuseStencils, decomposeExpressions)
-import CodeGeneration (inferSignatures)
+import CodeGeneration (inferSignatures, generateSignatures, generateDefs)
 
 ast1 = splitLhsTuples ast
 ast2 = substituteVectors ast1
 ast3 = applyRewriteRules ast2
 ast3' = fuseStencils ast3
 ast4 = decomposeExpressions ast3'
-inferSignatures' = map  inferSignatures ast4
+generatedSignatures = map generateSignatures ast4
+inferedSignatures :: [[(Name,FSig)]]
+inferedSignatures = map inferSignatures ast4
+generatedDefs = map generateDefs ast4
 main = do
     putStrLn "-- Original AST"
     mapM_ print ast
@@ -22,11 +25,18 @@ main = do
     putStrLn "\n-- Fuse stencils"
     mapM_ print ast3'    
 -- --    mapM print map_checks
-    putStrLn "\n-- Decompose expressions"
-    mapM_ ( \x -> (putStrLn ("-- " ++ ((show . LHSPrint . fst . head) x)) >> mapM print x )  ) ast4
-    putStrLn "\n-- Infer intermediate function signatures"
-    mapM_ ( \x -> (putStrLn "-- "  >> mapM print x )  ) inferSignatures' 
-    -- mapM_ ( mapM print) inferSignatures' 
+    -- putStrLn "\n-- Decompose expressions"
+    -- mapM_ ( \x -> (putStrLn ("-- " ++ ((show . LHSPrint . fst . head) x)) >> mapM print x )  ) ast4
+    -- putStrLn "\n-- Infer intermediate function signatures"
+    -- mapM_ ( \x -> (putStrLn "-- "  >> mapM print x )  ) inferedSignatures 
+    putStrLn "\n-- Decompose expressions and Infer intermediate function signatures"
+    mapM_ print functionSignaturesList
+    mapM_ ( \(x1,x2) -> do
+        putStrLn ("-- " ++ ((show . LHSPrint . fst . head) x1))
+        mapM print x1   
+        mapM print x2
+        ) (zip ast4 inferedSignatures)
+    mapM_ putStrLn (map unlines generatedDefs)        
 {-    
     putStrLn "\nTest for Vec in RHS Expr"
     mapM (print . get_vec_subexprs . snd) ast''

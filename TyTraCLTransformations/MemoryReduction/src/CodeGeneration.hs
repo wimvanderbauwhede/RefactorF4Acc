@@ -1,4 +1,4 @@
-module CodeGeneration (inferSignatures) where
+module CodeGeneration (inferSignatures, generateSignatures, generateDefs) where
 
 import Data.Generics (Data, Typeable, mkQ, mkT, mkM, gmapQ, gmapT, everything, everywhere, everywhere', everywhereM)
 import Control.Monad.State
@@ -36,21 +36,28 @@ functionSignatures =  Map.fromList functionSignaturesList
 
 -- We must update this map with the new signatures, so probably use the state monad
 -- let's be old-school contrarian and use fold
-inferSignatures ast = map functionSigStr (Map.toList (foldl inferSignature functionSignatures ast))
+inferSignaturesMap :: TyTraCLAST -> Map.Map Name FSig
+inferSignaturesMap = foldl inferSignature functionSignatures
+
+inferSignatures :: TyTraCLAST -> [(Name,FSig)]
+inferSignatures ast = Map.toList (inferSignaturesMap ast)
+
+generateSignatures :: TyTraCLAST -> [String]
+generateSignatures ast =  map functionSigStr (inferSignatures ast)
+
+generateDefs :: TyTraCLAST -> [String]
+generateDefs ast = let 
+        functionSignatures = inferSignaturesMap ast
+    in
+        map (generateSubDef functionSignatures) ast 
 
 inferSignature ::  (Map.Map Name FSig) -> (Expr,Expr) -> Map.Map Name FSig
 inferSignature functionSignatures ast_tup =
     let
--- ast_tup = (Function "f_maps_acc3_1_0" [],MapS (SVec 3 "s2") (Function "f1" ["acc1_1"]))
         (lhs,rhs) = ast_tup
-        -- if LHS is a Function we need to add the type info, or not?
-       -- maybe not, just updating the map should be enough, we can use that when generating code     
         (fname,mfsig) = case lhs of
             Function fname _ -> (fname,Just $ getFunctionSignature rhs functionSignatures)
             _ -> ("",Nothing)
-            -- (Vec VT DDC "vec_acc3_1_3",Stencil (SComb (SVec 3 DInt "s2") (SVec 3 DInt "s1")) (Vec VI DInt "v_0"))            
-            -- Vec ve DDC vname -> typeVec rhs ve vname
-            -- Scalar 
     in 
         case mfsig of
             Just fsig -> Map.insert fname fsig functionSignatures 
@@ -63,6 +70,33 @@ getFunctionSignature rhs functionSignatures =
         MapS (SVec sv_sz _ _) (Function fname _) -> deriveSigMaps sv_sz fname functionSignatures
         Comp (Function f1 nms1) (Function f2 nms2) -> deriveSigComp f1 f2 functionSignatures
         FComp (Function f1 nms1) (Function f2 nms2) -> deriveSigFComp f1 f2 functionSignatures
+        ApplyT fs -> deriveSigApplyT fs functionSignatures
+
+-- ApplyT can only arise because of Map, so it can't be Fold.         
+deriveSigApplyT :: [Expr] -> (Map.Map Name FSig) -> FSig      
+deriveSigApplyT fs functionSignatures =
+    let
+        fnames = map (\(Function fn _) -> fn) fs
+        fsigs = map (\fname -> case Map.lookup fname functionSignatures  of
+                Just sig -> sig
+                Nothing -> error "Impossible"
+            ) fnames
+        -- ApplyT simply applies a number of functions to a number of elements in a tuple
+        -- So the signature is the combination of all signatures
+        (nsl,msl,osl) = foldl (
+            \(nsl,msl,osl) fsig -> case fsig of
+                MapFSig (nms,ms,os) -> ( nsl++[nms],msl++[ms],osl++[os] )
+                _ -> (nsl,msl,osl)
+            ) ([],[],[]) fsigs
+        nsl' = filter(/= (Tuple [])) nsl
+        ns = if length nsl' == 1 then head nsl' else Tuple nsl'
+        msl' =  filter(/= (Tuple [])) msl
+        ms = if length msl' == 1 then head msl' else Tuple msl'
+        osl' =  filter(/= (Tuple [])) osl
+        os = if length osl' == 1 then head osl' else Tuple osl'
+    in
+        MapFSig (ns,ms,os)
+            
 
 deriveSigMaps :: Int -> Name -> (Map.Map Name FSig) -> FSig
 deriveSigMaps sv_sz fname functionSignatures = 
@@ -137,7 +171,8 @@ deriveSigFComp fname1 fname2 functionSignatures =
 --     in
 --         (vec, VecSig vec)
 
-t = ("f_maps_acc3_1_0",MapFSig (Scalar VDC DInt "acc1",SVec 3 (DSVec 3 DInt) "sv_f1_in",SVec 3 DInt "sv_f1_out"))
+-- t = ("f_maps_acc3_1_0",MapFSig (Scalar VDC DInt "acc1",SVec 3 (DSVec 3 DInt) "sv_f1_in",SVec 3 DInt "sv_f1_out"))
+functionSigStr :: (Name, FSig) -> String
 functionSigStr t = let
         (fname,ftype) = t
         args = argList ftype 
@@ -149,8 +184,88 @@ varName (Scalar _ _ vn) = [vn]
 varName (SVec _ _  vn) = [vn]
 varName (Tuple ts) = concat $ map varName ts
 
-
-
-
 argList (MapFSig (nms,ms,os)) =  (varName nms) ++ (varName ms) ++ (varName os)
 argList (FoldFSig (nms,as,ms,os)) = (varName nms) ++ (varName as) ++ (varName ms) ++ (varName os)
+
+getVarNames :: Expr -> [String]
+getVarNames (SVec sz dt vn) = [vn]
+getVarNames (Scalar _ dt vn) = [vn]
+getVarNames (Tuple es) = concat $ map getVarNames es 
+
+createDecls :: Expr -> [String]
+createDecls (SVec sz dt vn) = case dt of
+    DSVec sz2 dt ->  [fortranType(dt)++", dimension("++(show sz)++", "++(show sz2)++") :: "++ vn]
+    DTuple dts -> error "SVec of tuples!"
+    DDC -> error "SVec DDC!"
+    dt -> [fortranType(dt)++", dimension("++(show sz)++") :: "++ vn]
+createDecls (Scalar _ dt vn) = if dt == DDC then error "DDC!" else [(fortranType dt)++" :: "++vn]
+createDecls (Tuple es) = concat $ map createDecls es 
+
+createDecl = head . createDecls
+
+fortranType DInt = "integer"
+fortranType DInteger = "integer" 
+fortranType DReal = "real"
+fortranType DFloat = "real"       
+
+generateSubDef :: (Map.Map Name FSig) -> (Expr, Expr) -> String
+generateSubDef functionSignatures t  =
+    let
+        (lhs,rhs) = t
+        Function ho_fname _ = lhs
+    in
+        case rhs of 
+            MapS sv_exp f_exp -> generateSubDefMapS sv_exp f_exp ho_fname functionSignatures
+            ApplyT f_exps -> generateSubDefApplyT f_exps ho_fname functionSignatures
+            _ -> show rhs
+
+
+--         t = (Function "f_maps_acc3_1_0" [],MapS (SVec 3 DInt "s2") (Function "f1" ["acc1_1"]))
+-- (lhs,rhs) = t
+-- Function maps_fname = lhs
+generateSubDefMapS :: Expr -> Expr -> Name -> (Map.Map Name FSig) -> String
+generateSubDefMapS sv_exp f_exp maps_fname functionSignatures =
+    let
+-- MapS sv f  = rhs
+        SVec sv_sz sv_t _ = sv_exp
+        Function fname _ = f_exp
+        maps_fsig = case Map.lookup maps_fname functionSignatures of
+            Just fs -> fs
+            Nothing -> error "BOOM!"
+        MapFSig (nms,in_arg,out_arg) = maps_fsig
+        non_map_arg_decls = createDecls nms -- tuple becomes list of decls
+        sv_in_decl = createDecls in_arg
+        sv_out_decl = createDecls out_arg
+        non_map_args = getVarNames nms
+        sv_in = getVarNames in_arg
+        sv_out = getVarNames out_arg
+    in
+        "subroutine "++maps_fname++"("  ++(intercalate ", " (non_map_args++sv_in++sv_out))++")\n"
+        ++ (unlines (non_map_arg_decls++sv_in_decl++sv_out_decl))++"\n"
+        ++"    do i=1,"++ (show sv_sz )++"\n"
+        ++"        call "++fname++"("++(intercalate ", " non_map_args)++", "++(head sv_in)++"(i), "++(head sv_out)++"(i))\n"
+        ++"    end do\n"
+        ++"end subroutine "++maps_fname
+
+generateSubDefApplyT :: [Expr]  -> Name -> (Map.Map Name FSig) -> String
+generateSubDefApplyT f_exps applyt_fname functionSignatures = ""
+
+-- Comp (Function "f4" []) (Function "f_maps_v_3_0" []))
+generateSubDefComp :: Expr -> Expr -> Name -> (Map.Map Name FSig) -> String
+generateSubDefComp f1_exp f2_exp comp_fname functionSignatures = ""
+
+-- (Function "f_fcomp_acc3_1_2" [],FComp (Function "f2" []) (Function "f_comp_acc3_1_1" []))
+generateSubDefFComp :: Expr -> Expr -> Name -> (Map.Map Name FSig) -> String
+generateSubDefFComp f1_exp f2_exp fcomp_fname functionSignatures = ""
+
+-- fsig = case Map.lookup fname functionSignatures of
+--     Just fs -> fs
+--     Nothing -> error "BOOM!"
+-- MapFSig (Scalar VDC DInt "acc1_1",SVec 3 DInt "v_s_0",Scalar VDC DInt "v_1")) = fsig
+-- -- SVec 3 (DSVec 3 DInt) "sv_f1_in" => integer, dimension(3,3) :: sv_f1_in 
+-- -- SVec 3 DInt "sv_f1_in" => integer, dimension(3) :: sv_f1_in 
+
+-- -- Scalar VDC DInt "acc1_1"  => integer :: acc1_1
+
+-- ("f_maps_acc3_1_0",MapFSig (Scalar VDC DInt "acc1_1",SVec 3 (DSVec 3 DInt) "sv_f1_in",SVec 3 DInt "sv_f1_out"))
+-- ("f1",MapFSig (Scalar VDC DInt "acc1_1",SVec 3 DInt "v_s_0",Scalar VDC DInt "v_1"))

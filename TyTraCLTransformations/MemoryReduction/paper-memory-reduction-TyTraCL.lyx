@@ -102,8 +102,8 @@
 \begin_body
 
 \begin_layout Title
-Reducing memory utilisation of stencil-based legacy scientific code through
- automatic program transformation
+Reducing the memory utilisation of automatically parallelised stencil-based
+ legacy scientific code through program transformation
 \begin_inset Foot
 status collapsed
 
@@ -354,31 +354,20 @@ name "sec:Introduction"
 \end_layout
 
 \begin_layout Standard
-\begin_inset space ~
-\end_inset
-
-
-\end_layout
-
-\begin_layout Section
-Background
-\end_layout
-
-\begin_layout Standard
-This work is part of our efforts to automatically transform and compile
- legacy scientific code (in particular weather simulations and similar)
- in FORTRAN 77 to heterogeneous platforms.
+This work is part of our efforts to automatically parallelise legacy scientific
+ code in FORTRAN 77 and and compile it to heterogeneous platforms.
  The focus of this paper is on a novel program transformation to reduce
- the memory utilisation of stencil-based scientific code.
+ the memory utilisation of stencil-based scientific code after auto-parallelisat
+ion.
  For scientific computations, memory requirements are often the bottleneck,
  both in terms of the storage and of performance.
  Specifically the performance of stencil codes is often limited by memory
  bandwidth.
  Reducing memory utilisation allows simulations of larger problems or with
  higher resolution.
- Our main observation from real-life scientific code is that many of the
- arrays used in typical simulation code are intermediate arrays, especially
- in the case of stencil computations.
+ Our main observation from real-life scientific code (in particular weather
+ simulations and similar) is that many of the arrays used in typical simulation
+ code are intermediate arrays, especially in the case of stencil computations.
  As an example, consider the Large Eddy Simulator for Urban Flows 
 \begin_inset CommandInset citation
 LatexCommand cite
@@ -505,7 +494,8 @@ name "related-work"
 
 \begin_layout Itemize
 The idea is to find some similar things but be able to say that nobody has
- done what we have done 
+ done what we have done .
+ Mainly because we do this on top of auto-parallelised code targetting GPUs
 \end_layout
 
 \begin_layout Section
@@ -865,12 +855,12 @@ unzipt :: Vec n Tup k (...,a_i,...) -> Tup k (...,Vec n a_i,...)
 
 \begin_layout Plain Layout
 
-applyt :: Tup k (...,a_i -> b_i,...) Tup k (...,a_i,...) -> Tup k (...,b_i,...)
+applyt :: Tup k (...,a_i -> b_i,...) -> Tup k (...,a_i,...) -> Tup k (...,b_i,...)
 \end_layout
 
 \begin_layout Plain Layout
 
-applyt (...,f_i,...) (...,e_i,...) =
+applyt (...,f_i,...) (...,e_i,...) = 
 \backslash
 (...,e_i,...) -> (...,f_i e_i,...)
 \end_layout
@@ -1096,6 +1086,11 @@ type Name = String
 
 \begin_layout Plain Layout
 
+                        | FComp Expr Expr -- fold-map function composition
+\end_layout
+
+\begin_layout Plain Layout
+
                         | SComb Expr Expr
 \end_layout
 
@@ -1261,6 +1256,43 @@ The typical use case is to pass constant arguments and scalars returned
 Fold
 \family default
  operations.
+ Furthermore, 
+\family typewriter
+Comp
+\family default
+ in the AST is function composition 
+\begin_inset Formula $g\,\circ\,f$
+\end_inset
+
+, and 
+\family typewriter
+FComp
+\family default
+ is a convenience primitive which allows to rewrite a 
+\emph on
+fold
+\emph default
+ operating on a 
+\emph on
+map
+\emph default
+:
+\end_layout
+
+\begin_layout Standard
+\begin_inset listings
+lstparams "mathescape=true,escapeinside={~~},language=Haskell"
+inline false
+status open
+
+\begin_layout Plain Layout
+
+fold g acc (map f v) = fold (g `fcomp` f) acc v
+\end_layout
+
+\end_inset
+
+
 \end_layout
 
 \begin_layout Subsection
@@ -3016,7 +3048,12 @@ ApplyT
 \family typewriter
 Comp
 \family default
- are replaced by named functions:
+ are replaced by named functions, e.g.
+ for 
+\family typewriter
+MapS
+\family default
+:
 \end_layout
 
 \begin_deeper
@@ -3116,6 +3153,101 @@ The algorithm traverses the AST in bottom-up fashion and effectively replaces
  
 \end_layout
 
+\begin_layout Subsection
+Generating the intermediate function definitions
+\end_layout
+
+\begin_layout Standard
+To generate imperative code from this representation, the final challenge
+ is to generate the definitions for the intermediate functions.
+ Given the signatures of the original functions and the expressions representing
+ the abstract syntax of the intermediate functions, what we need is a set
+ of rules to infer the signatures and logic.
+ 
+\end_layout
+
+\begin_layout Subsubsection
+Stencils
+\end_layout
+
+\begin_layout Standard
+Generation of stencil vector expressions is straightforward, the stencil
+ definition contains the offsets at which each of the values in the returned
+ tuple are read from the original array.
+ The case of stencils of stencils (i.e.
+ 
+\family typewriter
+SComb
+\family default
+) does not pose any problems as stencils are effectively composable: a stencil
+ 
+\begin_inset Formula $s_{1}$
+\end_inset
+
+ of size 
+\begin_inset Formula $k_{1}$
+\end_inset
+
+ of a stencil 
+\begin_inset Formula $s_{2}$
+\end_inset
+
+ of size 
+\begin_inset Formula $k_{2}$
+\end_inset
+
+ becomes a new stencil 
+\begin_inset Formula $s_{12}$
+\end_inset
+
+ of size 
+\begin_inset Formula $k_{1}*k_{2}$
+\end_inset
+
+ consisting of the ordered sums of the offsets in 
+\begin_inset Formula $s_{1}$
+\end_inset
+
+ and 
+\begin_inset Formula $s_{2}$
+\end_inset
+
+.
+\end_layout
+
+\begin_layout Subsubsection
+Intermediate functions
+\end_layout
+
+\begin_layout Standard
+The first step in generation of the intermediate functions is infering the
+ signature based on the signatures of the original functions and the higher-orde
+r functions that operate on them.
+ The types of these higher order functions are:
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\begin{align*}
+\mathsf{maps} & ::(a\rightarrow b)\rightarrow\mbox{SVec}\,k\,a\rightarrow\mbox{SVec}\,k\,a\\
+\mathsf{applyt} & ::\mbox{Tup}\,k\,(\dots,a_{i}\rightarrow b_{i},\dots)\rightarrow\mbox{Tup}\,k\,(\dots,a_{i},\dots)\rightarrow\mbox{Tup}\,k\,(\dots,b_{i},\dots)\\
+\mathsf{comb} & ::(b\rightarrow c)\rightarrow(a\rightarrow b)\rightarrow(a\rightarrow c)\\
+\mathsf{fcomb} & ::(c\rightarrow b\rightarrow c)\rightarrow(a\rightarrow b)\rightarrow(c\rightarrow a\rightarrow c)
+\end{align*}
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+It is thus again straightforward to derive the types for the intermediate
+ functions.
+ The actual function definitions are of course the trivial applications
+ of these higher-order functions, the only complexity is in converting this
+ code into Fortran or C.
+\end_layout
+
 \begin_layout Section
 Fortran-OpenCL implementation
 \begin_inset CommandInset label
@@ -3195,7 +3327,12 @@ status collapsed
 \family default
  is encoded as an array which contain the index offset tuple for each stencil
  point.
- For a paper I think making this work for 2-D arrays is fine.
+ 
+\begin_inset Note Note
+status open
+
+\begin_layout Plain Layout
+For a paper I think making this work for 2-D arrays is fine.
  For every global index value, we derive 
 \family typewriter
 j
@@ -3220,7 +3357,7 @@ v
 .
 \end_layout
 
-\begin_layout Standard
+\begin_layout Plain Layout
 We can emit all of these from the stencil pattern info, see e.g.
 \begin_inset space ~
 \end_inset
@@ -3230,6 +3367,11 @@ We can emit all of these from the stencil pattern info, see e.g.
 RefactorF4Acc::Translation::TyTraCL::generate_TyTraCL_stencils()
 \family default
 .
+\end_layout
+
+\end_inset
+
+
 \end_layout
 
 \begin_layout Subsection

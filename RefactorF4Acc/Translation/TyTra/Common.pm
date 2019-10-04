@@ -110,7 +110,6 @@ sub __isMainInArg {
     my $tytracl_ast = $stref->{$stref->{'EmitAST'}};
     my $orig_args   = $tytracl_ast->{'OrigArgs'};
 
-    #   say "TEST IN: $var_name $ctr <> 0 <$ext> <".(exists $orig_args->{$var_name} ) .">";
     return (
              $ctr == 0
           && $ext eq ''
@@ -234,6 +233,20 @@ sub mkStencilDef {
         'Rhs'          => {'StencilPattern' => {'Pattern' => $pattern,}}
     };
 }
+
+# mkZipT {
+#      my ( $zip_args, $ret_vars) = @_;
+#     return {
+#         'Rhs' => {
+#             'MapArgs'    => {'Vars' => $map_args},
+#             'NonMapArgs' => {'Vars' => $non_map_args},
+#             'Function'   => $fname,
+#         },
+#         'FunctionName' => $fname,
+#         'NodeType'     => 'Map',
+#         'Lhs'          => {'Vars' => $ret_vars}
+#     };   
+# }
 
 sub mkComment {
     (my $comment) = @_;
@@ -364,12 +377,15 @@ sub mkAST {
     for my $v (sort keys %vecs) {
         $args->{$v} = $decls->{$v}[2];
     }
-    # carp Dumper %accs;
-    for my $a (sort keys %accs) {
-        # carp Dumper $decls;
-        $args->{$a} = $decls->{$a}[1];
+    
+    for my $a (sort keys %accs) {    
+        $args->{$a} = $decls->{$a}[2];
     }
-    # croak Dumper $args;  
+
+    for my $n (sort keys %nons) {        
+        $args->{$n} = $decls->{$n}[-1];
+    }
+    
     $stref->{'TyTraCL_AST'}             = {};
     $stref->{'TyTraCL_AST'}{'Lines'}    = $lines;
     $stref->{'TyTraCL_AST'}{'OrigArgs'} = $args;

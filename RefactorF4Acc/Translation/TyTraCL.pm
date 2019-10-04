@@ -1214,7 +1214,12 @@ sub _add_TyTraCL_AST_entry {
         $tytracl_ast->{'MainFunction'} = $f;
         my $arg_pos=0;
         for my $arg (@{$state->{'Subroutines'}{$f}{'RefactoredArgs'}{'List'}}) {
-            $tytracl_ast->{'OrigArgs'}{$arg} = $state->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$arg}{'IODir'};
+            $tytracl_ast->{'OrigArgs'}{$arg} = 
+            [
+                lc($state->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$arg}{'Type'}),
+
+                $state->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$arg}{'IODir'}
+            ];
             $tytracl_ast->{'FunctionArgsMappings'}{$f}{$arg}=$arg_pos;
             ++$arg_pos;
         }
@@ -1261,25 +1266,10 @@ sub _emit_TyTraCL_FunctionSigs { (my $stref) = @_;
             my $out_vars     = $lhs->{'Vars'};
             my $map_args     = $rhs->{'MapArgs'}{'Vars'};
             my $non_map_args = $rhs->{'NonMapArgs'}{'Vars'};
-            # my $lhs_str =
-            #   (scalar @{$out_vars} == 1)
-            #   ? _mkSigArgName($out_vars->[0]) 
-            #   : '(' . join(',', map { _mkSigArgName($_) } @{$out_vars}) . ')';
 
-            # my $non_map_arg_str =
-            #     (scalar @{$non_map_args} == 0) ? ''
-            #   : (scalar @{$non_map_args} == 1) ? _mkSigArgName($non_map_args->[0])
-            #   :                                  '(' . join(',', map { _mkSigArgName($_) } @{$non_map_args}) . ')';
-            # my $map_arg_str =
-            #   (scalar @{$map_args} == 1)
-            #   ? _mkSigArgName($map_args->[0])
-            #   : '(' . join(',', map { _mkSigArgName($_) } @{$map_args}) . ')';
-                                
-            # $stref->{'TyTraCL_FunctionSigs'}{$f}=[$non_map_arg_str,$map_arg_str, $lhs_str];
-
-            my $lhs_rec = [map { _mkSigArgName($_) } @{$out_vars}];
-            my $non_map_arg_rec = (scalar @{$non_map_args} == 0) ? []  : [map { _mkSigArgName($_) } @{$non_map_args}];            
-            my $map_arg_rec = [map { _mkSigArgName($_) } @{$map_args}];              
+            my $lhs_rec = [map { _mkVarName($_) } @{$out_vars}];
+            my $non_map_arg_rec = (scalar @{$non_map_args} == 0) ? []  : [map { _mkVarName($_) } @{$non_map_args}];            
+            my $map_arg_rec = [map { _mkVarName($_) } @{$map_args}];              
 
             $stref->{'TyTraCL_FunctionSigs'}{$f}=[$non_map_arg_rec,$map_arg_rec, $lhs_rec];
 
@@ -1290,31 +1280,10 @@ sub _emit_TyTraCL_FunctionSigs { (my $stref) = @_;
             my $non_map_args = $rhs->{'NonFoldArgs'}{'Vars'};
             my $acc_args     = $rhs->{'AccArgs'}{'Vars'};
 
-            # my $lhs_str =
-            #   (scalar @{$out_vars} == 1)
-            #   ? _mkSigArgName($out_vars->[0]) 
-            #   : '(' . join(',', map { _mkSigArgName($_) } @{$out_vars}) . ')';
-
-            # my $non_map_arg_str =
-            #     (scalar @{$non_map_args} == 0) ? ''
-            #   : (scalar @{$non_map_args} == 1) ? _mkSigArgName($non_map_args->[0])
-            #   :                                  '(' . join(',', map { _mkSigArgName($_) } @{$non_map_args}) . ')';
-
-            # my $acc_arg_str =
-            #   (scalar @{$acc_args} == 1)
-            #   ? _mkSigArgName($acc_args->[0])
-            #   : '(' . join(',', map { _mkSigArgName($_) } @{$acc_args}) . ')';
-            # my $map_arg_str =
-            #   (scalar @{$map_args} == 1)
-            #   ? _mkSigArgName($map_args->[0])
-            #   : '(' . join(',', map { _mkSigArgName($_) } @{$map_args}) . ')';
-
-            # $stref->{'TyTraCL_FunctionSigs'}{$f}=[$non_map_arg_str,$acc_arg_str,$map_arg_str, $lhs_str];
-
-            my $lhs_rec = [map { _mkSigArgName($_) } @{$out_vars}];
-            my $non_map_arg_rec = (scalar @{$non_map_args} == 0) ? []  : [map { _mkSigArgName($_) } @{$non_map_args}];
-            my $acc_arg_rec = [map { _mkSigArgName($_) } @{$acc_args}];
-            my $map_arg_rec = [map { _mkSigArgName($_) } @{$map_args}];              
+            my $lhs_rec = [map { _mkVarName($_) } @{$out_vars}];
+            my $non_map_arg_rec = (scalar @{$non_map_args} == 0) ? []  : [map { _mkVarName($_) } @{$non_map_args}];
+            my $acc_arg_rec = [map { _mkVarName($_) } @{$acc_args}];
+            my $map_arg_rec = [map { _mkVarName($_) } @{$map_args}];              
 
             $stref->{'TyTraCL_FunctionSigs'}{$f}=[$non_map_arg_rec,$acc_arg_rec,$map_arg_rec, $lhs_rec];
 

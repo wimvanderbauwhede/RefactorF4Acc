@@ -15,7 +15,7 @@ use RefactorF4Acc::Utils qw( get_kernel_and_module_names );
 use Data::Dumper;
 
 my %opts = ();
-getopts( 'hvmste:', \%opts );
+getopts( 'hvmst:e:', \%opts );
 
 if ($opts{'h'}){
     die "
@@ -37,7 +37,7 @@ if ($opts{'e'}) {
 }
 my $test = 0;
 if ($opts{'t'}) {
-    $test=1;
+    $test=$opts{'t'};
 }
 my $stref={};
 
@@ -49,23 +49,23 @@ if ($gen_tytra_hs_main) {
 
     if (scalar @kernel_srcs == 1 or $test) {
         if (!$test) {
-        if (-d './TyTraC' ) {
-               if (-e './TyTraC/kernelTop.ll')  {
-                    unlink('./TyTraC/kernelTop.ll');
-               }
+            if (-d './TyTraC' ) {
+                if (-e './TyTraC/kernelTop.ll')  {
+                        unlink('./TyTraC/kernelTop.ll');
+                }
+            } else {
+                mkdir './TyTraC';
+            }
+            my $kernel_src = shift @kernel_srcs;
+            say "KERNEL MODULE SRC: $kernel_src" if $V;
+            my ($kernel_sub_name, $kernel_module_name) = get_kernel_and_module_names($kernel_src,'superkernel');
+            if ($kernel_sub_name ne '') {
+                my $rf4a_tytra_hs_cfg =  create_rf4a_cfg_tytra_cl($kernel_src,$kernel_sub_name, $kernel_module_name);  
+                say "CFG: ".Dumper($rf4a_tytra_hs_cfg) if $V;
+                $stref = main({'P' => 'memory_reduction', 'c' => $rf4a_tytra_hs_cfg, 'o'  => './src/ASTInstance.hs'});
+            }
         } else {
-            mkdir './TyTraC';
-        }
-        my $kernel_src = shift @kernel_srcs;
-        say "KERNEL MODULE SRC: $kernel_src" if $V;
-        my ($kernel_sub_name, $kernel_module_name) = get_kernel_and_module_names($kernel_src,'superkernel');
-        if ($kernel_sub_name ne '') {
-            my $rf4a_tytra_hs_cfg =  create_rf4a_cfg_tytra_cl($kernel_src,$kernel_sub_name, $kernel_module_name);  
-             say "CFG: ".Dumper($rf4a_tytra_hs_cfg) if $V;
-            $stref = main({'P' => 'memory_reduction', 'c' => $rf4a_tytra_hs_cfg, 'o'  => './src/ASTInstance.hs'});
-        }
-    } else {
-            $stref = main({'P' => 'memory_reduction', 'c' => {}, 'o'  => './src/ASTInstance.hs'});
+            $stref = main({'P' => 'memory_reduction', 'c' => {'TEST'=>$test}, 'o'  => './src/ASTInstance.hs'});
         }
     } else {
         die "No kernel sources found";
