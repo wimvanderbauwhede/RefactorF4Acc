@@ -225,8 +225,8 @@ generateSubDef functionSignatures t st =
             Comp f1_exp f2_exp -> generateSubDefComp f1_exp f2_exp ho_fname functionSignatures
             FComp f1_exp f2_exp -> generateSubDefFComp f1_exp f2_exp ho_fname functionSignatures     
             Stencil s_exp v_exp -> generateStencilAppl s_exp v_exp sv_name stencilDefinitions
-            Map f_exp v_exp -> show rhs
-            Fold f_exp acc_exp v_exp -> show rhs
+            Map f_exp v_exp -> generateMap f_exp v_exp ov_name 
+            Fold f_exp acc_exp v_exp -> generateFold f_exp acc_exp v_exp sc_name 
             _ -> show rhs
             ,[])
 
@@ -512,5 +512,26 @@ pairUpZipCode lsts acc
                 in
                     pairUpZipCode rest (acc++[l1])
 
-
+-- Map (Function "f2" ["acc_1"]) (Vec VS DDC "svec_v_1_0")
 -- map (generateSubDef functionSignatures) ast                     
+generateMap f_exp v_exp ov_name =
+    let
+        Function fname nms = f_exp
+        Vec _ _ v_in = v_exp
+    in
+        "call "++fname++"("
+        ++(intercalate ", " (nms ++[v_in] ++[ov_name]))
+        ++")"
+        
+generateFold f_exp acc_exp v_exp sc_name =
+    let
+        Function fname nms = f_exp
+        Vec _ _ v_in = v_exp
+        Scalar _ _ acc_name = acc_exp
+    in
+        "call "++fname++"("
+        ++(intercalate ", " (nms ++[acc_name] ++[v_in] ++[sc_name]))
+        ++")"
+        ++"\n"
+        ++acc_name++" = "++sc_name
+        
