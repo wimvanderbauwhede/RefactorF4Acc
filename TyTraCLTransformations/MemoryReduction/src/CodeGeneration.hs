@@ -85,7 +85,11 @@ deriveSigApplyT fs functionSignatures =
         -- So the signature is the combination of all signatures
         (nsl,msl,osl) = foldl (
             \(nsl,msl,osl) fsig -> case fsig of
-                MapFSig (nms,ms,os) -> ( nsl++[nms],msl++[ms],osl++[os] )
+                MapFSig (nms,ms,os) -> if nms /= Tuple [] 
+                    then
+                        ( nsl++[nms],msl++[ms],osl++[os] )
+                    else
+                        ( nsl,msl++[ms],osl++[os] )    
                 _ -> (nsl,msl,osl)
             ) ([],[],[]) fsigs
         nsl' = filter(/= (Tuple [])) nsl
@@ -134,7 +138,11 @@ deriveSigComp fname1 fname2 functionSignatures =
         MapFSig (nms2,ms2,os2) = fsig2
 -- the output of f1 is used as the input for f2
 -- the nms1 and nms2 should probably a tuple of tuples
-        nms = Tuple [nms1,nms2]
+        nms 
+            | (nms1 == Tuple []) && (nms2 == Tuple []) = Tuple []
+            | nms1 == Tuple [] = Tuple [nms2]
+            | nms2 == Tuple [] = Tuple [nms1]            
+            | otherwise = Tuple [nms1,nms2]
         ms' = ms1
         os' = os2
     in
@@ -162,14 +170,6 @@ deriveSigFComp fname1 fname2 functionSignatures =
         FoldFSig (nms,as,ms',os')        
 
 
--- typeVec rhs ve vname =
---     let        
---         vec = case rhs of
---             Stencil (SComb (SVec sv_sz1 _ _) (SVec sv_sz2 _ _)) (Vec _ dt _) -> Vec VS (SVec sv_sz1 (DSVec sv_sz2 dt) vname)
---             Stencil (SVec sv_sz _ _) (Vec _ dt _) -> Vec VS (SVec sv_sz dt vname)
---             _ -> Vec ve DDC vname
---     in
---         (vec, VecSig vec)
 
 -- t = ("f_maps_acc3_1_0",MapFSig (Scalar VDC DInt "acc1",SVec 3 (DSVec 3 DInt) "sv_f1_in",SVec 3 DInt "sv_f1_out"))
 functionSigStr :: (Name, FSig) -> String
@@ -182,24 +182,24 @@ functionSigStr t = let
 varName :: Expr -> [Name]
 varName (Scalar _ _ vn) = [vn]
 varName (SVec _ _  vn) = [vn]
-varName (Tuple ts) = concat $ map varName ts
+varName (Tuple ts) = concatMap varName ts
 
 argList (MapFSig (nms,ms,os)) =  (varName nms) ++ (varName ms) ++ (varName os)
 argList (FoldFSig (nms,as,ms,os)) = (varName nms) ++ (varName as) ++ (varName ms) ++ (varName os)
 
-getVarNames :: Expr -> [String]
-getVarNames (SVec sz dt vn) = [vn]
-getVarNames (Scalar _ dt vn) = [vn]
-getVarNames (Tuple es) = concat $ map getVarNames es 
+-- getVarNames :: Expr -> [String]
+-- getVarNames (SVec sz dt vn) = [vn]
+-- getVarNames (Scalar _ dt vn) = [vn]
+-- getVarNames (Tuple es) = concatMap getVarNames es 
 
-createDecls :: Expr -> [String]
-createDecls (SVec sz dt vn) = case dt of
-    DSVec sz2 dt ->  [fortranType(dt)++", dimension("++(show sz)++", "++(show sz2)++") :: "++ vn]
-    DTuple dts -> error "SVec of tuples!"
-    DDC -> error "SVec DDC!"
-    dt -> [fortranType(dt)++", dimension("++(show sz)++") :: "++ vn]
-createDecls (Scalar _ dt vn) = if dt == DDC then error "DDC!" else [(fortranType dt)++" :: "++vn]
-createDecls (Tuple es) = concat $ map createDecls es 
+-- createDecls :: Expr -> [String]
+-- createDecls (SVec sz dt vn) = case dt of
+--     DSVec sz2 dt ->  [fortranType(dt)++", dimension("++(show sz)++", "++(show sz2)++") :: "++ vn]
+--     DTuple dts -> error "SVec of tuples!" 
+--     DDC -> error "SVec DDC!"
+--     dt -> [fortranType(dt)++", dimension("++(show sz)++") :: "++ vn]
+-- createDecls (Scalar _ dt vn) = if dt == DDC then error "DDC!" else [(fortranType dt)++" :: "++vn]
+-- createDecls (Tuple es) = concatMap createDecls es 
 
 createDecl = head . createDecls
 
@@ -207,6 +207,7 @@ fortranType DInt = "integer"
 fortranType DInteger = "integer" 
 fortranType DReal = "real"
 fortranType DFloat = "real"       
+fortranType dt = "BOOM! "++(show dt)       
 
 generateSubDef :: (Map.Map Name FSig) -> (Expr, Expr) -> String
 generateSubDef functionSignatures t  =
@@ -239,14 +240,18 @@ generateSubDefMapS sv_exp f_exp maps_fname functionSignatures =
         non_map_args = getVarNames nms
         sv_in = getVarNames in_arg
         sv_out = getVarNames out_arg
-    in
-        "subroutine "++maps_fname++"("  ++(intercalate ", " (non_map_args++sv_in++sv_out))++")\n"
-        ++ (unlines (non_map_arg_decls++sv_in_decl++sv_out_decl))++"\n"
-        ++"    do i=1,"++ (show sv_sz )++"\n"
-        ++"        call "++fname++"("++(intercalate ", " non_map_args)++", "++(head sv_in)++"(i), "++(head sv_out)++"(i))\n"
-        ++"    end do\n"
-        ++"end subroutine "++maps_fname
-
+    in unlines [
+        "subroutine "++maps_fname++"("  ++(intercalate ", " (non_map_args++sv_in++sv_out))++")"
+        , (unlines (map ("    "++) (non_map_arg_decls++sv_in_decl++sv_out_decl)))
+        ,"    do i=1,"++ (show sv_sz )
+        ,"        call "++fname++"("
+            ++(intercalate ", " non_map_args)++", "
+            ++(intercalate ", " (map (++"(i)") sv_in))++", "
+            ++(intercalate ", " (map (++"(i)") sv_out))
+            ++")"
+        ,"    end do"
+        ,"end subroutine "++maps_fname
+    ]
 generateSubDefApplyT :: [Expr]  -> Name -> (Map.Map Name FSig) -> String
 generateSubDefApplyT f_exps applyt_fname functionSignatures = ""
 
@@ -258,14 +263,65 @@ generateSubDefComp f1_exp f2_exp comp_fname functionSignatures = ""
 generateSubDefFComp :: Expr -> Expr -> Name -> (Map.Map Name FSig) -> String
 generateSubDefFComp f1_exp f2_exp fcomp_fname functionSignatures = ""
 
--- fsig = case Map.lookup fname functionSignatures of
---     Just fs -> fs
---     Nothing -> error "BOOM!"
--- MapFSig (Scalar VDC DInt "acc1_1",SVec 3 DInt "v_s_0",Scalar VDC DInt "v_1")) = fsig
--- -- SVec 3 (DSVec 3 DInt) "sv_f1_in" => integer, dimension(3,3) :: sv_f1_in 
--- -- SVec 3 DInt "sv_f1_in" => integer, dimension(3) :: sv_f1_in 
-
 -- -- Scalar VDC DInt "acc1_1"  => integer :: acc1_1
 
 -- ("f_maps_acc3_1_0",MapFSig (Scalar VDC DInt "acc1_1",SVec 3 (DSVec 3 DInt) "sv_f1_in",SVec 3 DInt "sv_f1_out"))
 -- ("f1",MapFSig (Scalar VDC DInt "acc1_1",SVec 3 DInt "v_s_0",Scalar VDC DInt "v_1"))
+
+
+
+createDecls :: Expr -> [String]
+createDecls (SVec sz dt' vn) = let
+        dt = rewriteDT dt'
+    in
+        case dt of
+            -- we know this can only be either nested DSVec or terminal
+            DSVec _ _  ->  let
+                    (szs,dt') = getSzFromDSVec dt []
+                in
+                    [fortranType(dt')++", dimension("++(intercalate "," (map show szs))++") :: "++ vn]  
+            -- we know this has no tuples inside it    
+            DTuple dts -> createDecls (
+                Tuple (
+                    snd $ foldl (\(ct,tl) dt -> (ct+1,tl++[SVec sz dt (vn++(show ct))] ) )  (0,[]) dts 
+                    )
+                )
+            DDC -> error "SVec DDC!"
+            dt -> [fortranType(dt)++", dimension("++(show sz)++") :: "++ vn]
+createDecls (Scalar _ DDC vn) =  error "DDC!"
+createDecls (Scalar _ dt vn) = [(fortranType dt)++" :: "++vn]
+createDecls (Tuple es) = concatMap createDecls es
+
+
+getVarNames :: Expr -> [String]
+getVarNames (SVec sz dt' vn) = let
+        dt = rewriteDT dt'
+    in
+        case dt of
+            -- we know this can only be either nested DSVec or terminal
+            DSVec _ _  ->  [vn]
+            -- we know this has no tuples inside it    
+            DTuple dts -> getVarNames (
+                Tuple (
+                    snd $ foldl (\(ct,tl) dt -> (ct+1,tl++[SVec sz dt (vn++(show ct))] ) )  (0,[]) dts 
+                    )
+                )
+            DDC -> error "SVec DDC!"
+            dt -> [vn]
+getVarNames (Scalar _ dt vn) = [vn]
+getVarNames (Tuple es) = concatMap getVarNames es 
+
+
+
+-- The result is that DTuple is always on the outside and DSVec is nested 
+rewriteDT dt = case dt of
+    DSVec sz (DTuple dts) ->  DTuple (map (\dt -> DSVec sz (rewriteDT dt)) dts)
+    DTuple dts -> DTuple (foldl (
+            \dtl dt -> case dt of 
+                DTuple dts -> dtl++dts
+                _ -> dtl++[dt]
+        ) [] dts)
+    _ -> dt
+
+getSzFromDSVec (DSVec sz dt) szs = getSzFromDSVec dt (szs++[sz])  
+getSzFromDSVec dt szs = (szs,dt)
