@@ -207,6 +207,9 @@ fortranType DReal = "real"
 fortranType DFloat = "real"       
 fortranType dt = "BOOM! "++(show dt)       
 
+
+-- (Scalar VT DInt "acc_1",Fold (Function "f1" []) (Scalar VI DInt "acc_0") (Vec VS DDC "svec_acc_1_0"))
+-- (Vec VO DInt "v_1",Map (Function "f2" ["acc_1"]) (Vec VS DDC "svec_v_1_0"))
 generateSubDef :: (Map.Map Name FSig) -> (Expr, Expr) -> [String] -> (String,[String])
 generateSubDef functionSignatures t st =
     let
@@ -214,6 +217,7 @@ generateSubDef functionSignatures t st =
         Function ho_fname _ = lhs
         Vec VS _ sv_name  = lhs
         Vec VO _ ov_name  = lhs
+        Scalar _ _ sc_name = lhs
     in
         (case rhs of 
             MapS sv_exp f_exp -> generateSubDefMapS sv_exp f_exp ho_fname functionSignatures
@@ -221,6 +225,8 @@ generateSubDef functionSignatures t st =
             Comp f1_exp f2_exp -> generateSubDefComp f1_exp f2_exp ho_fname functionSignatures
             FComp f1_exp f2_exp -> generateSubDefFComp f1_exp f2_exp ho_fname functionSignatures     
             Stencil s_exp v_exp -> generateStencilAppl s_exp v_exp sv_name stencilDefinitions
+            Map f_exp v_exp -> show rhs
+            Fold f_exp acc_exp v_exp -> show rhs
             _ -> show rhs
             ,[])
 
@@ -456,7 +462,7 @@ generateStencilAppl s_exp (Vec VI dt v_name) sv_name stencilDefinitions =
         sv_sz = length s_def
     in
         unlines [
-            show s_exp,
+            -- show s_exp,
         "! stencil"
         ,"integer, parameter, dimension("++(show sv_sz)++") :: "++s_name++" = "++(show s_def)++" ! the 1-D case"
         -- if the $sv_type is DDC, it means we need to lookup the type from the definition, which will likely be a zip
