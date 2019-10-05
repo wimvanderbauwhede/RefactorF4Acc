@@ -305,6 +305,7 @@ subsitute_expr lhs exp = do
                       SVec _ _ _ -> ((ct,var_expr_pairs),exp)
                       SComb _ _ -> ((ct,var_expr_pairs),exp)
                       PElt _ -> ((ct,var_expr_pairs),exp)
+                      ZipT _ -> ((ct,var_expr_pairs),exp)
                       Map _ _ -> if decomposeMap 
                         then
                             let -- ((ct,var_expr_pairs),exp)

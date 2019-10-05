@@ -103,7 +103,7 @@
 
 \begin_layout Title
 Reducing the memory utilisation of automatically parallelised stencil-based
- legacy scientific code through program transformation
+ legacy scientific code
 \begin_inset Foot
 status collapsed
 

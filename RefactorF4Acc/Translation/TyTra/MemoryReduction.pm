@@ -184,7 +184,7 @@ elsif ($TEST==7) {
  
     $stref = mkAST(
         [
-            mkMap('f1a'=>[]=>[['va',0,'']],[['va',1,'']]),
+            mkMap('f1a'=>[]=>[['va',0,''],['vc',0,'']],[['va',1,'']]),
             mkMap('f1b'=>[]=>[['vb',0,'']],[['vb',1,'']]),
             mkMap('f1c' =>[]=>[['va',1,''],['vb',1,'']]=>[['v',0,'']]),
             mkStencilDef(1,[-1,0,1]),
@@ -195,10 +195,11 @@ elsif ($TEST==7) {
             mkMap('f3'=>[]=>[['v',2,'s']]=>[['v',3,'']]),            
         ],
         {
-            'va' =>[ 'integer', [1,500], 'in'] ,
-            'vb' =>[ 'integer', [1,500], 'in'] ,
-            'vab' =>[ 'integer', [1,500], 'local'] ,
-            'v' =>[ 'integer', [1,500], 'out'] ,
+            'va' =>[ 'real', [1,500], 'in'] ,
+            'vc' =>[ 'real', [1,500], 'in'] ,
+            'vb' =>[ 'real', [1,500], 'in'] ,
+            'vab' =>[ 'real', [1,500], 'local'] ,
+            'v' =>[ 'real', [1,500], 'out'] ,
             }
     );            
 }
@@ -457,12 +458,20 @@ sub _emit_TyTraCL_Haskell_AST_Code {
     
     my $tytracl_ast  = $stref->{'TyTraCL_AST'};
 
+    my @stencil_defs=();
 
     my $tytracl_hs_ast_strs = [];
     for my $node (@{$tytracl_ast->{'Lines'}}) {
 
         if ($node->{'NodeType'} eq 'StencilDef') {
-            # do nothing
+            my $lhs   = $node->{'Lhs'};
+            my $rhs   = $node->{'Rhs'};
+            my $ctr = $lhs->{'Ctr'};
+            my $stencils_          = generate_TyTraCL_stencils($rhs->{'StencilPattern'});
+            my $stencil_definition = '[' . join(',', @{$stencils_}) . ']';
+
+            push @stencil_defs, [ "s$ctr", $stencil_definition];
+            
         }
         elsif ($node->{'NodeType'} eq 'StencilAppl') {
             my $svec_rec = $node->{'Lhs'}{'Var'};
@@ -499,7 +508,7 @@ sub _emit_TyTraCL_Haskell_AST_Code {
     }
 
 my $header =
-'module ASTInstance ( ast, functionSignaturesList ) where
+'module ASTInstance ( ast, functionSignaturesList, stencilDefinitionsList ) where
 import TyTraCLAST
 
 ast :: TyTraCLAST
@@ -529,7 +538,10 @@ ast = [
     $tytracl_hs_ast_code_str=$header.$tytracl_hs_ast_code_str."\n        ]\n";
 
     my $fsigs_str = _create_TyTraCL_Haskell_signatures($stref);
+    my $stencil_defs_str = _create_TyTraCL_Haskell_stencilDefs(\@stencil_defs);
+
     $tytracl_hs_ast_code_str.= "\n".$fsigs_str;
+    $tytracl_hs_ast_code_str.= "\n".$stencil_defs_str;
     $stref->{'TyTraCL_Haskell_AST_Code'} = $tytracl_hs_ast_code_str ;
 
     return $stref;
@@ -1034,5 +1046,16 @@ sub __pp_MapListEntry { (my $map_list_entry) = @_;
      . '))';
     return $map_list_entry_str;
 }
+
+sub _create_TyTraCL_Haskell_stencilDefs { (my $stencil_defs)=@_;
+return 
+    'stencilDefinitionsList = ['.
+    join(', ', map { 
+        '("'.$_->[0].'" , '.  $_->[1] .' )' 
+        } @{$stencil_defs}
+    )
+    .']';
+
+} # END _create_TyTraCL_Haskell_stencilDefs
 
 1;

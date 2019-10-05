@@ -13,6 +13,7 @@ generatedSignatures = map generateSignatures ast4
 inferedSignatures :: [[(Name,FSig)]]
 inferedSignatures = map inferSignatures ast4
 generatedDefs = map generateDefs ast4
+
 main = do
     putStrLn "-- Original AST"
     mapM_ print ast
@@ -30,13 +31,18 @@ main = do
     -- putStrLn "\n-- Infer intermediate function signatures"
     -- mapM_ ( \x -> (putStrLn "-- "  >> mapM print x )  ) inferedSignatures 
     putStrLn "\n-- Decompose expressions and Infer intermediate function signatures"
+    putStrLn "-- Original function signatures"
     mapM_ print functionSignaturesList
+    putStrLn "-- Decompose expressions and infered function signatures"
     mapM_ ( \(x1,x2) -> do
         putStrLn ("-- " ++ ((show . LHSPrint . fst . head) x1))
+        putStrLn "-- Decomposed expressions"
         mapM print x1   
+        putStrLn "-- Infered function signatures"
         mapM print x2
         ) (zip ast4 inferedSignatures)
-    mapM_ putStrLn (map unlines generatedDefs)        
+    putStrLn "\n-- Generate subroutine definitions"
+    mapM_ putStrLn (map unlines generatedDefs)
 {-    
     putStrLn "\nTest for Vec in RHS Expr"
     mapM (print . get_vec_subexprs . snd) ast''
