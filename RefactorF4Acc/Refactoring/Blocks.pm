@@ -163,7 +163,9 @@ sub __find_called_subs_in_OUTER {
         if ($block eq 'OUTER') {
             for my $annline ( @{ $block_rec->{'AnnLines'} } ) {
                 ( my $line, my $info ) = @{$annline};
-                if ( exists $info->{'SubroutineCall'} ) {
+                if ( exists $info->{'SubroutineCall'} 
+                and $info->{'SubroutineCall'}{'Name'}
+                ) {                    
                     push @{ $block_rec->{'CalledSubs'}{'List'} }, $info->{'SubroutineCall'}{'Name'};
                     $block_rec->{'CalledSubs'}{'Set'}{ $info->{'SubroutineCall'}{'Name'} } = 1;
                     # Now test if this is maybe an ENTRY -- UGH! TODO!

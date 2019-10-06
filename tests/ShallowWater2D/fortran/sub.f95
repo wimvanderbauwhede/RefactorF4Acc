@@ -146,11 +146,15 @@ END SUBROUTINE dyn
 !======================
 SUBROUTINE shapiro
 
+#ifdef HAS_FOLD    
 !local parameters
 REAL alpha
 PARAMETER (alpha=1e-9)
+#endif
 REAL :: term1,term2,term3
 
+
+#ifdef HAS_FOLD    
 ! Average value of eta, this is an invention to test reductions
 REAL :: etan_avg
 etan_avg = 0
@@ -159,6 +163,7 @@ DO k = 1,nx
 etan_avg = etan_avg + etan(j,k)/(nx*ny)
 END DO
 END DO
+#endif
 
 ! 1-order Shapiro filter
 
@@ -173,7 +178,9 @@ IF(wet(j,k)==1)THEN
 ELSE
   eta(j,k) = etan(j,k)
 END IF
+#ifdef HAS_FOLD    
 eta(j,k) = (1-alpha)*eta(j,k) + alpha*etan_avg
+#endif
 END DO
 END DO
 

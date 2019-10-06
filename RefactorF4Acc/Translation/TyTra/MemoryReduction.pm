@@ -49,11 +49,11 @@ use Exporter;
   &pass_memory_reduction
 );
 
-our $TEST = 0; 
+ 
 
 sub pass_memory_reduction {
     (my $stref, my $module_name) = @_;
-    $TEST =  $Config{'TEST'};
+    my $TEST =  exists $Config{'TEST'} ? $Config{'TEST'} : 0;
     
     # WV: I think Selects and Inserts should be in Lines but I'm not sure
     $stref->{'EmitAST'}     = 'TyTraCL_AST';

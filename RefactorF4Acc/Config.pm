@@ -58,7 +58,7 @@ our $EXT = '.f90'; # You can set this in rf4a.cfg, changed from .f95 default to 
 
 our $SOURCEFILES = [];
 our $LIBS = []; 
-my @maybe_lib_paths = ('/opt/local/lib','/usr/local/lib');
+my @maybe_lib_paths = ('/usr/lib','/opt/local/lib','/usr/local/lib');
 our $LIBPATHS =  [];
 for my $maybe_lib_path ( @maybe_lib_paths ) {
 	if (-d $maybe_lib_path) {

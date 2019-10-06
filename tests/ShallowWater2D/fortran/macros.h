@@ -1,2 +1,3 @@
 NO_IO = 0
+HAS_FOLD = 1
 

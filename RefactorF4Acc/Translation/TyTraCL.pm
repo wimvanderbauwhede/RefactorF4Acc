@@ -1215,11 +1215,10 @@ sub _add_TyTraCL_AST_entry {
         my $arg_pos=0;
         for my $arg (@{$state->{'Subroutines'}{$f}{'RefactoredArgs'}{'List'}}) {
             $tytracl_ast->{'OrigArgs'}{$arg} = 
-            [
-                lc($state->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$arg}{'Type'}),
-
-                $state->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$arg}{'IODir'}
-            ];
+            # [
+                # lc($state->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$arg}{'Type'}),
+                $state->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$arg}{'IODir'};
+            # ];
             $tytracl_ast->{'FunctionArgsMappings'}{$f}{$arg}=$arg_pos;
             ++$arg_pos;
         }

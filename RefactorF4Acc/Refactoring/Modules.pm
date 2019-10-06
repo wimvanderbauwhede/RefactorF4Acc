@@ -236,7 +236,7 @@ sub _create_module_src { (my $stref, my $src, my $subname, my $no_modules ) = @_
 		$used_mod_name =~ s/[\.\/\-]/_/g;
 
 		next if $used_mod_name eq $mod_name;    # FIXME: ad-hoc!
-		$used_mod_name = "module_$used_mod_name";
+		$used_mod_name = "singleton_module_$used_mod_name";
 		my $use_mod_line = "      use $used_mod_name";
 
 		# NOT OK: must check if the sub is actually used!

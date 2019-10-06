@@ -358,7 +358,7 @@ sub _analyse_src_for_iodirs {
                     if (exists $info->{'WriteCall'} or exists $info->{'PrintCall'}) {
 
                         # All variables are read from, so IODir is read
-                        for my $mvar (@{$info->{'SubroutineCall'}{'Args'}{'List'}}) {
+                        for my $mvar (@{$info->{'IOCall'}{'Args'}{'List'}}) {
                             next if $mvar eq 'write';
                             next if $mvar eq 'print';
                             if (exists $args->{$mvar}

@@ -2078,7 +2078,8 @@ sub build_call_graph {
 				  ) { 
                       next;
 				}
-				if ( exists $info->{'SubroutineCall'} ) {
+				if ( exists $info->{'SubroutineCall'} 
+				) {
 					$called_sub_name = $info->{'SubroutineCall'}{'Name'};
 					push @{ $stref->{'PNIds'} }, $nid;
 					$stref = build_call_graph( $called_sub_name, $stref );
@@ -3477,8 +3478,8 @@ sub _parse_read_write_print {
 #    say Dumper($exprs_ast);
 #    say "ATTR PAIRS: ".Dumper($attr_pairs);
 #    say "IMPLIED DO PAIRS: ".Dumper($impl_do_pairs);
-    $info->{'SubroutineCall'}{'Args'} = { 'Set' => {}, 'List' => [ ] };
-    $info->{'SubroutineCall'}{'Args'}{'Ast'}=$attrs_ast;
+    $info->{'IOCall'}{'Args'} = { 'Set' => {}, 'List' => [ ] };
+    $info->{'IOCall'}{'Args'}{'Ast'}=$attrs_ast;
     $info->{'IOList'}{'Ast'}=$exprs_ast;
     
     #    $info->{'CallAttrs'} = { 'Set' => $attrs_ast, 'List' => [ sort keys %{ $attrs_ast } ] };
