@@ -207,16 +207,13 @@ fortranType DReal = "real"
 fortranType DFloat = "real"       
 fortranType dt = "BOOM! "++(show dt)       
 
-
--- (Scalar VT DInt "acc_1",Fold (Function "f1" []) (Scalar VI DInt "acc_0") (Vec VS DDC "svec_acc_1_0"))
--- (Vec VO DInt "v_1",Map (Function "f2" ["acc_1"]) (Vec VS DDC "svec_v_1_0"))
 generateSubDef :: (Map.Map Name FSig) -> (Expr, Expr) -> [String] -> (String,[String])
 generateSubDef functionSignatures t st =
     let
         (lhs,rhs) = t
         Function ho_fname _ = lhs
         Vec VS _ sv_name  = lhs
-        Vec VO _ ov_name  = lhs
+        Vec _ _ ov_name  = lhs
         Scalar _ _ sc_name = lhs
     in
         (case rhs of 
@@ -402,7 +399,8 @@ getVarNames (SVec sz dt' vn) = let
             dt -> [vn]
 getVarNames (Scalar _ dt vn) = [vn]
 getVarNames (Tuple es) = concatMap getVarNames es 
-
+getVarNames (ZipT es) = concatMap getVarNames es 
+getVarNames (Vec _ _ vn) = [vn]
 
 -- getVarNames' :: Expr -> [String]
 -- getVarNames' (SVec sz dt' vn) = let
@@ -455,8 +453,6 @@ mkArgList  = (intercalate ", ") . concat
 -- I suppose to do this right I'd need to actually define the combined stencil and name it
 generateStencilAppl s_exp (Vec VI dt v_name) sv_name stencilDefinitions = 
     let
-         -- INGNORING ZipT
-        -- Vec VI dt v_name = v_exp
         sv_type = fortranType dt         
         (s_name,s_def) = generateStencilDef s_exp stencilDefinitions
         sv_sz = length s_def
@@ -517,20 +513,20 @@ pairUpZipCode lsts acc
 generateMap f_exp v_exp ov_name =
     let
         Function fname nms = f_exp
-        Vec _ _ v_in = v_exp
+        vs_in = getVarNames v_exp
     in
         "call "++fname++"("
-        ++(intercalate ", " (nms ++[v_in] ++[ov_name]))
+        ++(intercalate ", " (nms ++vs_in ++[ov_name]))
         ++")"
         
 generateFold f_exp acc_exp v_exp sc_name =
     let
         Function fname nms = f_exp
-        Vec _ _ v_in = v_exp
+        vs_in = getVarNames v_exp
         Scalar _ _ acc_name = acc_exp
     in
         "call "++fname++"("
-        ++(intercalate ", " (nms ++[acc_name] ++[v_in] ++[sc_name]))
+        ++(intercalate ", " (nms ++[acc_name] ++vs_in ++[sc_name]))
         ++")"
         ++"\n"
         ++acc_name++" = "++sc_name
