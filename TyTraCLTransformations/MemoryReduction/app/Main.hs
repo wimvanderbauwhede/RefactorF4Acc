@@ -2,7 +2,7 @@ module Main where
 import TyTraCLAST 
 import ASTInstance (ast,functionSignaturesList)
 import Transforms (splitLhsTuples, substituteVectors, applyRewriteRules, fuseStencils, decomposeExpressions)
-import CodeGeneration (inferSignatures, generateSignatures, generateDefs)
+import CodeGeneration (inferSignatures, generateSignatures, generateDefs, generateStageKernel)
 
 ast1 = splitLhsTuples ast
 ast2 = substituteVectors ast1
@@ -13,6 +13,7 @@ generatedSignatures = map generateSignatures ast4
 inferedSignatures :: [[(Name,FSig)]]
 inferedSignatures = map inferSignatures ast4
 generatedDefs = map generateDefs ast4
+generatedStageKernels = map (\(ast,ct) -> generateStageKernel ct ast) (zip ast4 [1..])
 
 main = do
     putStrLn "-- Original AST"
@@ -43,6 +44,8 @@ main = do
         ) (zip ast4 inferedSignatures)
     putStrLn "\n-- Generate subroutine definitions"
     mapM_ putStrLn (map unlines generatedDefs)
+    putStrLn "\n-- Generated stage kernels"
+    mapM_ (putStrLn . unlines) generatedStageKernels
 {-    
     putStrLn "\nTest for Vec in RHS Expr"
     mapM (print . get_vec_subexprs . snd) ast''

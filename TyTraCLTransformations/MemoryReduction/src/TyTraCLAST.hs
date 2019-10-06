@@ -38,7 +38,7 @@ data Expr =
                     | Map Expr Expr -- map f v
                     | Fold Expr Expr Expr -- fold f acc v
                     | Stencil Expr Expr -- stencil s v
-                    | Function Name [Name] -- 2nd arg is list of non-map/fold args
+                    | Function Name [Expr] -- 2nd arg is list of non-map/fold args
                     | Id -- id
                     -- | Mu Expr Expr -- \a e -> g a (f e) -- of course bb does not have this, no need
                     | ApplyT [Expr]  -- applyt (f1,f2)

@@ -251,6 +251,7 @@ rewriteId expr =  case expr of
 
 get_map :: Expr -> [Expr]
 get_map m@(Map _ _) = [m]
+get_map m@(Fold _ _ _) = [m] -- cheating
 get_map _ = []
 
 n_map_subexprs :: Expr -> Int
@@ -315,20 +316,21 @@ subsitute_expr lhs exp = do
                         else
                             ((ct,var_expr_pairs),exp)
                       Fold _ _ _ -> ((ct,var_expr_pairs),exp)
-                      MapS _ _ -> let
-                            f_expr = Function ("f_maps_"++vec_name++"_"++(show ct)) []
+                      MapS _ (Function _ nms) -> let
+                            f_expr = Function ("f_maps_"++vec_name++"_"++(show ct)) nms
                         in
                             ((ct+1,var_expr_pairs++[(f_expr,exp)]),f_expr)
-                      ApplyT _ -> let
-                            f_expr = Function ("f_applyt_"++vec_name++"_"++(show ct)) []
+                      ApplyT fs -> let
+                            nmss = concat $ map (\(Function _ nms) -> nms) fs
+                            f_expr = Function ("f_applyt_"++vec_name++"_"++(show ct)) nmss
                         in
                             ((ct+1,var_expr_pairs++[(f_expr,exp)]),f_expr)
-                      Comp _ _ -> let
-                            f_expr = Function ("f_comp_"++vec_name++"_"++(show ct)) []
+                      Comp (Function _ nms1) (Function _ nms2) -> let
+                            f_expr = Function ("f_comp_"++vec_name++"_"++(show ct)) (nms1++nms2)
                         in
                             ((ct+1,var_expr_pairs++[(f_expr,exp)]),f_expr)
-                      FComp _ _ -> let
-                            f_expr = Function ("f_fcomp_"++vec_name++"_"++(show ct)) []
+                      FComp (Function _ nms1) (Function _ nms2) -> let
+                            f_expr = Function ("f_fcomp_"++vec_name++"_"++(show ct)) (nms1++nms2)
                         in
                             ((ct+1,var_expr_pairs++[(f_expr,exp)]),f_expr)
                       Stencil (SVec _ _ _) _ -> let

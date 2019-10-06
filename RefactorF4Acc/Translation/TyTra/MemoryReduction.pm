@@ -99,12 +99,13 @@ if ($TEST==1) {
 elsif ($TEST==2) {        
     $stref = mkAST(
         [
-            mkMap('f1'=>[]=>[['v1',0,''],['v2',0,'']],[['v3',0,'']]),
+            mkMap('f1'=>[['nm',0,'']]=>[['v1',0,''],['v2',0,'']],[['v3',0,'']]),
             mkStencilDef(1,[-1,0,1]),
             mkStencilAppl(1,3,['v3',0,'']=>['v3',0,'s']),
             mkMap('f2'=>[]=>[['v3',0,'s']],[['v4',0,'']]),
         ],
         {
+            'nm' =>[ 'integer', 'in'],
     'v1' =>[ 'integer', [1,500], 'in'],
     'v2' =>[ 'integer', [1,500], 'in'],
     'v3' =>[ 'integer', [1,500], 'local'],
@@ -485,6 +486,7 @@ sub _emit_TyTraCL_Haskell_AST_Code {
 
         elsif ($node->{'NodeType'} eq 'Map') {
             my $fname = $node->{'FunctionName'};
+            $node->{'NonMapType'}= $tytracl_ast->{'Main'}{'VarTypes'}{$fname}{'NonMapArgType'};
             $node->{'VecType'}= $tytracl_ast->{'Main'}{'VarTypes'}{$fname}{'MapArgType'};
             $node->{'ReturnType'}= $tytracl_ast->{'Main'}{'VarTypes'}{$fname}{'ReturnType'};
             my $line = mkMapAST($node);
@@ -492,9 +494,11 @@ sub _emit_TyTraCL_Haskell_AST_Code {
         }
         elsif ($node->{'NodeType'} eq 'Fold') {
             my $fname = $node->{'FunctionName'};
+            $node->{'NonFoldType'}= $tytracl_ast->{'Main'}{'VarTypes'}{$fname}{'NonFoldArgType'};
             $node->{'VecType'}= $tytracl_ast->{'Main'}{'VarTypes'}{$fname}{'FoldArgType'};
             $node->{'AccType'}= $tytracl_ast->{'Main'}{'VarTypes'}{$fname}{'AccArgType'};
             $node->{'ReturnType'}= $tytracl_ast->{'Main'}{'VarTypes'}{$fname}{'ReturnType'};# Which should of course be the same
+
             my $line = mkFoldAST($node);
            push @{$tytracl_hs_ast_strs}, $line;
         }
@@ -796,6 +800,7 @@ So really the only issue is the I/O/S/T type
 # This will need context, unless I already add the I/O/T/S types when creating the AST
 sub mkMapAST {
     (my $mapNode) = @_;
+    my $non_map_type = $mapNode->{'NonMapType'};
     my $vec_type = $mapNode->{'VecType'}; # This is a list as it could be a tuple; can be SVecs as well
     my $ret_type = $mapNode->{'ReturnType'};
 # I need to determine if a vector is VO, VI, VS or VS
@@ -807,34 +812,24 @@ sub mkMapAST {
 # more than one
     my $lhs = scalar @{$mapNode->{'Lhs'}{'Vars'}} > 1
       ? '(Tuple [' . join(',', map { __mkVec($_) } @{$lhs_vars_types}) . '])'
-
 # otherwise
       : __mkVec($lhs_vars_types->[0]);
 
+    my $non_map_vars_types = zip( $mapNode->{'Rhs'}{'NonMapArgs'}{'Vars'}, $non_map_type);
 
-# # more than one
-#     my $lhs = scalar @{$mapNode->{'Lhs'}{'Vars'}} > 1
-#       ? '(Tuple [' . join(',', map { __mkVec($_) } @{$mapNode->{'Lhs'}{'Vars'}}) . '])'
-
-# # otherwise
-#       : __mkVec($mapNode->{'Lhs'}{'Vars'}[0]);
     my $map_vars_types=zip($mapNode->{'Rhs'}{'MapArgs'}{'Vars'}, $vec_type);
     my $map_args =
       scalar @{$mapNode->{'Rhs'}{'MapArgs'}{'Vars'}} > 1
       ? '(ZipT [' . join(',', map { __mkVec($_) } @{$map_vars_types}) . '])'
       : '(' . __mkVec($map_vars_types->[0]) . ')';
-    # my $map_args =
-    #   scalar @{$mapNode->{'Rhs'}{'MapArgs'}{'Vars'}} > 1
-    #   ? '(ZipT [' . join(',', map { __mkUntypedVec($_) } @{$mapNode->{'Rhs'}{'MapArgs'}{'Vars'}}) . '])'
-    #   : '(' . __mkUntypedVec($mapNode->{'Rhs'}{'MapArgs'}{'Vars'}[0]) . ')';
     my $f_exp = $mapNode->{'Rhs'}{'Function'};
     my $non_map_arg_str='[]';
     if (exists $mapNode->{'Rhs'}{'NonMapArgs'}
         and scalar @{$mapNode->{'Rhs'}{'NonMapArgs'}{'Vars'}} > 0)
     {
 # FIXME: I guess a single arg should not be a tuple ...
-        $non_map_arg_str = ' [' . join(',', map { '"'._mkVarName($_).'"' } @{$mapNode->{'Rhs'}{'NonMapArgs'}{'Vars'}}) . ']';
-        # $f_exp .= $non_map_arg_str;
+        $non_map_arg_str = ' [' . join(',', map { __mkScalar($_) } @{$non_map_vars_types}) . ']';        
+        # $non_map_arg_str = ' [' . join(',', map { '"'._mkVarName($_).'"' } @{$mapNode->{'Rhs'}{'NonMapArgs'}{'Vars'}}) . ']';
     }
     my $rhs_core = 'Map (Function "' . $f_exp . '" '.$non_map_arg_str. ') ' . $map_args ;
 
@@ -856,6 +851,7 @@ sub mkFoldAST {
 # I should know the inputs and outputs
 # anything else is VT
     my $acc_type = $foldNode->{'AccType'}; # This is a list as it could be a tuple
+    my $non_fold_type = $foldNode->{'NonFoldType'};
     my $vec_type = $foldNode->{'VecType'}; # This is a list as it could be a tuple
     my $ret_type = $foldNode->{'ReturnType'}; # This is a list as it could be a tuple
     my $lhs_vars_types = zip($foldNode->{'Lhs'}{'Vars'},$ret_type);
@@ -871,6 +867,8 @@ sub mkFoldAST {
 #       ? '(Tuple [' . join(',', map { __mkScalar($_) } @{$foldNode->{'Lhs'}{'Vars'}}) . '])'
 # # otherwise
 #     : __mkScalar($foldNode->{'Lhs'}{'Vars'}[0]);
+
+    my $non_fold_vars_types = zip( $foldNode->{'Rhs'}{'NonFoldArgs'}{'Vars'}, $non_fold_type);
     my $fold_vars_types = zip($foldNode->{'Rhs'}{'FoldArgs'}{'Vars'},$vec_type);
     my $fold_args =
       scalar @{$foldNode->{'Rhs'}{'FoldArgs'}{'Vars'}} > 1
@@ -888,7 +886,9 @@ sub mkFoldAST {
         and scalar @{$foldNode->{'Rhs'}{'NonFoldArgs'}{'Vars'}} > 0)
     {
 # FIXME: I guess a single arg should not be a tuple ...
-        $non_fold_arg_str = ' [' . join(',', map { '"'. _mkVarName($_).'"' } @{$foldNode->{'Rhs'}{'NonFoldArgs'}{'Vars'}}) . ']';
+
+        $non_fold_arg_str = ' [' . join(',', map { __mkScalar($_) } @{$non_fold_vars_types}) . ']';
+        # $non_fold_arg_str = ' [' . join(',', map { '"'. _mkVarName($_).'"' } @{$foldNode->{'Rhs'}{'NonFoldArgs'}{'Vars'}}) . ']';
         # $f_exp .= $non_fold_arg_str;
     }
     my $rhs = 'Fold (Function "' . $f_exp . '" '. $non_fold_arg_str.      ') ' . $acc_args.' '.$fold_args ;

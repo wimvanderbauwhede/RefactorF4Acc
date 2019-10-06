@@ -640,3 +640,39 @@ end subroutine f_maps_acc3_1_0
 
 
 
+- I need to either create a kernel routine around the generated code. And this must also have signature
+- The information for the signature is obtained from the ast by filtering for non-functions, and then getting VI from the rhs and VO from the lhs
+
+-- for every stage:
+
+generateStageKernel stage_ast ct =
+    let
+        non_func_exprs = filter (\(lhs, rhs) -> case lhs of
+                                    Function _ _ -> False
+                                    _ -> True
+                                ) stage_ast
+        -- now I need to extract all VI and VO from non_func_exprs
+        -- best way to do that is with `everything` I think
+        in_args = concat $ map (\(lhs,rhs) -> getInputArgs rhs) non_func_exprs
+        out_args = concat $ map (\(lhs,rhs) -> getOutputArgs lhs) non_func_exprs
+    in
+        show (in_args, out_args)        
+
+import Data.Generics (mkQ, everything)        
+
+
+getInputArgs rhs = everything (++) (mkQ [] (getInputArgs')) rhs
+
+getInputArgs' :: Exp -> [Name]
+getInputArgs' node = case node of
+                            Vec VI _ vn -> [vn] 
+                            Scalar VI _ sn -> [sn]
+                            _ -> []
+
+getOutputArgs lhs = everything (++) (mkQ [] (getOutputArgs')) rhs
+
+getOutputArgs' :: Exp -> [Name]
+getOutputArgs' node = case node of
+                            Vec VO _ vn -> [vn] 
+                            Scalar VO _ sn -> [sn]
+                            _ -> []                            

@@ -1,7 +1,8 @@
-module CodeGeneration (inferSignatures, generateSignatures, generateDefs) where
+module CodeGeneration (inferSignatures, generateSignatures, generateDefs, generateStageKernel) where
 
-import Data.Generics (Data, Typeable, mkQ, mkT, mkM, gmapQ, gmapT, everything, everywhere, everywhere', everywhereM)
-import Control.Monad.State
+-- import Data.Generics (Data, Typeable, mkQ, mkT, mkM, gmapQ, gmapT, everything, everywhere, everywhere', everywhereM)
+import Data.Generics (mkQ, everything)  
+-- import Control.Monad.State
 import TyTraCLAST
 import ASTInstance (ast, functionSignaturesList, stencilDefinitionsList)
 import qualified Data.Map.Strict as Map
@@ -77,8 +78,8 @@ getFunctionSignature :: Expr ->  (Map.Map Name FSig) -> FSig
 getFunctionSignature rhs functionSignatures =
     case rhs of
         MapS (SVec sv_sz _ _) (Function fname _) -> deriveSigMaps sv_sz fname functionSignatures
-        Comp (Function f1 nms1) (Function f2 nms2) -> deriveSigComp f1 f2 functionSignatures
-        FComp (Function f1 nms1) (Function f2 nms2) -> deriveSigFComp f1 f2 functionSignatures
+        Comp (Function f1 _) (Function f2 _) -> deriveSigComp f1 f2 functionSignatures
+        FComp (Function f1 _) (Function f2 _) -> deriveSigFComp f1 f2 functionSignatures
         ApplyT fs -> deriveSigApplyT fs functionSignatures
 
 -- ApplyT can only arise because of Map, so it can't be Fold.         
@@ -227,10 +228,6 @@ generateSubDef functionSignatures t st =
             _ -> show rhs
             ,[])
 
-
---         t = (Function "f_maps_acc3_1_0" [],MapS (SVec 3 DInt "s2") (Function "f1" ["acc1_1"]))
--- (lhs,rhs) = t
--- Function maps_fname = lhs
 generateSubDefMapS :: Expr -> Expr -> Name -> (Map.Map Name FSig) -> String
 generateSubDefMapS sv_exp f_exp maps_fname functionSignatures =
     let
@@ -350,13 +347,53 @@ generateSubDefComp f1_exp f2_exp comp_fname functionSignatures =
 
 -- (Function "f_fcomp_acc3_1_2" [],FComp (Function "f2" []) (Function "f_comp_acc3_1_1" []))
 generateSubDefFComp :: Expr -> Expr -> Name -> (Map.Map Name FSig) -> String
-generateSubDefFComp f1_exp f2_exp fcomp_fname functionSignatures = ""
+generateSubDefFComp f1_exp f2_exp fcomp_fname functionSignatures = 
+    let
+        Function fname1 _ = f1_exp
+        Function fname2 _ = f2_exp
+        fsig1 = case Map.lookup fname1 functionSignatures of
+            Just fs -> fs
+            Nothing -> error "BOOM!"
+        fsig2 = case Map.lookup fname2 functionSignatures of
+            Just fs -> fs
+            Nothing -> error "BOOM!"
+        -- fnames = [fname1,fname2]            
+        -- fsigs = [fsig1,fsig2]
+        fcomp_fsig = case Map.lookup fcomp_fname functionSignatures of
+            Just fs -> fs
+            Nothing -> error "BOOM!"
 
--- -- Scalar VDC DInt "acc1_1"  => integer :: acc1_1
+        FoldFSig (nms,acc_arg,in_arg,out_arg) = fcomp_fsig
 
--- ("f_maps_acc3_1_0",MapFSig (Scalar VDC DInt "acc1_1",SVec 3 (DSVec 3 DInt) "sv_f1_in",SVec 3 DInt "sv_f1_out"))
--- ("f1",MapFSig (Scalar VDC DInt "acc1_1",SVec 3 DInt "v_s_0",Scalar VDC DInt "v_1"))
+        in_args = getVarNames in_arg
+        out_args = getVarNames out_arg
+        acc_args = getVarNames acc_arg
+        non_map_args = getVarNames nms
 
+        in_args_decl = createDecls in_arg
+        out_args_decl = createDecls out_arg
+        acc_arg_decl = createDecls acc_arg
+        non_map_arg_decls = createDecls nms -- tuple becomes list of decls
+
+        FoldFSig (ns1,as1, ms1,os1) = fsig1 -- Expr
+        MapFSig (ns2,ms2,os2) = fsig2
+        nm_arg_counts1 = countNArgs ns1
+        nm_arg_counts2 = countNArgs ns2
+        non_map_args1 = take nm_arg_counts1 non_map_args
+        non_map_args2 = drop nm_arg_counts1 non_map_args
+        local_vars_decl = createDecls ms1
+        tmp_args = getVarNames ms1
+
+    in 
+        unlines [
+            -- show fnames,
+            -- show fsigs,
+            "subroutine "++fcomp_fname++"("  ++(intercalate ", " (non_map_args++acc_args++in_args++out_args))++")"            
+            , (unlines (map ("    "++) (non_map_arg_decls++acc_arg_decl++in_args_decl++out_args_decl++local_vars_decl)))
+            , "    call "++fname2++"(" ++(mkArgList [non_map_args2,in_args,tmp_args]) ++")"
+            , "    call "++fname1++"(" ++(mkArgList [non_map_args1,acc_args,tmp_args,out_args]) ++")"            
+            ,"end subroutine "++fcomp_fname
+        ]
 
 
 createDecls :: Expr -> [String]
@@ -512,7 +549,8 @@ pairUpZipCode lsts acc
 -- map (generateSubDef functionSignatures) ast                     
 generateMap f_exp v_exp ov_name =
     let
-        Function fname nms = f_exp
+        Function fname nms_exps = f_exp
+        nms = getVarNames (Tuple nms_exps)
         vs_in = getVarNames v_exp
     in
         "call "++fname++"("
@@ -521,7 +559,8 @@ generateMap f_exp v_exp ov_name =
         
 generateFold f_exp acc_exp v_exp sc_name =
     let
-        Function fname nms = f_exp
+        Function fname nms_exps = f_exp
+        nms = getVarNames (Tuple nms_exps)
         vs_in = getVarNames v_exp
         Scalar _ _ acc_name = acc_exp
     in
@@ -530,4 +569,44 @@ generateFold f_exp acc_exp v_exp sc_name =
         ++")"
         ++"\n"
         ++acc_name++" = "++sc_name
-        
+
+-- for every stage:
+-- Maybe I'd better generate a new superkernel, so every stage is an ordinary function
+generateStageKernel :: Int -> TyTraCLAST -> [String]
+generateStageKernel ct stage_ast  =
+    let
+        non_func_exprs = filter (\(lhs, rhs) -> case lhs of
+                                    Function _ _ -> False
+                                    _ -> True
+                                ) stage_ast
+        -- now I need to extract all VI and VO from non_func_exprs
+        -- best way to do that is with `everything` I think
+        in_args = concat $ map (\(lhs,rhs) -> getInputArgs rhs) non_func_exprs
+        out_args = concat $ map (\(lhs,rhs) -> getOutputArgs lhs) non_func_exprs
+        -- and I need the declarations for these, so I guess I need to get the Exprs and then the names and decls from there
+        -- also I need a mechanism to detect the accs that are passed between the stages
+
+    in
+        [
+            "subroutine stage_kernel_"++(show ct)++"("++(intercalate ", " (in_args++ out_args))++")"
+            ,"end subroutine stage_kernel_"++(show ct)
+        ]
+
+
+
+
+getInputArgs rhs = everything (++) (mkQ [] (getInputArgs')) rhs
+
+getInputArgs' :: Expr -> [Name]
+getInputArgs' node = case node of
+                            Vec VI _ vn -> [vn] 
+                            Scalar VI _ sn -> [sn]
+                            _ -> []
+
+getOutputArgs lhs = everything (++) (mkQ [] (getOutputArgs')) lhs
+
+getOutputArgs' :: Expr -> [Name]
+getOutputArgs' node = case node of
+                            Vec VO _ vn -> [vn] 
+                            Scalar VO _ sn -> [sn]
+                            _ -> []                                    
