@@ -79,6 +79,7 @@ getFunctionSignature rhs functionSignatures =
     case rhs of
         MapS (SVec sv_sz _ _) (Function fname _) -> deriveSigMaps sv_sz fname functionSignatures
         Comp (Function f1 _) (Function f2 _) -> deriveSigComp f1 f2 functionSignatures
+        Comp (PElt idx) (Function f _) -> deriveSigPELt idx f functionSignatures
         FComp (Function f1 _) (Function f2 _) -> deriveSigFComp f1 f2 functionSignatures
         ApplyT fs -> deriveSigApplyT fs functionSignatures
 
@@ -86,7 +87,7 @@ getFunctionSignature rhs functionSignatures =
 deriveSigApplyT :: [Expr] -> (Map.Map Name FSig) -> FSig      
 deriveSigApplyT fs functionSignatures =
     let
-        fnames = map (\(Function fn _) -> fn) fs
+        fnames = concatMap getFNames fs -- map (\(Function fn _) -> fn) fs
         fsigs = map (\fname -> case Map.lookup fname functionSignatures  of
                 Just sig -> sig
                 Nothing -> error "Impossible"
@@ -182,7 +183,7 @@ deriveSigFComp fname1 fname2 functionSignatures =
     in
         FoldFSig (nms,as,ms',os')        
 
-
+deriveSigPELt idx f functionSignatures = MapFSig (Tuple [],Tuple [],Tuple [])
 
 -- t = ("f_maps_acc3_1_0",MapFSig (Scalar VDC DInt "acc1",SVec 3 (DSVec 3 DInt) "sv_f1_in",SVec 3 DInt "sv_f1_out"))
 functionSigStr :: (Name, FSig) -> String
@@ -206,24 +207,28 @@ fortranType DInt = "integer"
 fortranType DInteger = "integer" 
 fortranType DReal = "real"
 fortranType DFloat = "real"       
-fortranType dt = "BOOM! "++(show dt)       
+fortranType dt = "BOOM! "++(show dt)
 
+
+-- (Vec VT DDC "vec_wet_1_0",Comp (PElt 3) (Function "update_map_24" [Scalar VI DFloat "hmin_0"]))
 generateSubDef :: (Map.Map Name FSig) -> (Expr, Expr) -> [String] -> (String,[String])
 generateSubDef functionSignatures t st =
     let
         (lhs,rhs) = t
         Function ho_fname _ = lhs
-        Vec VS _ sv_name  = lhs
-        Vec _ _ ov_name  = lhs
+        Vec _ _ v_name  = lhs
+        -- Vec VS _ sv_name  = lhs
+        -- Vec _ _ ov_name  = lhs
         Scalar _ _ sc_name = lhs
     in
         (case rhs of 
             MapS sv_exp f_exp -> generateSubDefMapS sv_exp f_exp ho_fname functionSignatures
             ApplyT f_exps -> generateSubDefApplyT f_exps ho_fname functionSignatures
+            Comp (PElt idx) f_exp -> generateSubDefElt idx f_exp ho_fname functionSignatures
             Comp f1_exp f2_exp -> generateSubDefComp f1_exp f2_exp ho_fname functionSignatures
             FComp f1_exp f2_exp -> generateSubDefFComp f1_exp f2_exp ho_fname functionSignatures     
-            Stencil s_exp v_exp -> generateStencilAppl s_exp v_exp sv_name stencilDefinitions
-            Map f_exp v_exp -> generateMap f_exp v_exp ov_name 
+            Stencil s_exp v_exp -> generateStencilAppl s_exp v_exp v_name stencilDefinitions
+            Map f_exp v_exp -> generateMap f_exp v_exp v_name 
             Fold f_exp acc_exp v_exp -> generateFold f_exp acc_exp v_exp sc_name 
             _ -> show rhs
             ,[])
@@ -259,7 +264,7 @@ generateSubDefMapS sv_exp f_exp maps_fname functionSignatures =
 generateSubDefApplyT :: [Expr]  -> Name -> (Map.Map Name FSig) -> String
 generateSubDefApplyT f_exps applyt_fname functionSignatures = 
     let
-            fnames = map (\(Function fname _) -> fname) f_exps
+            fnames = concatMap getFNames f_exps -- map (\(Function fname _) -> fname) f_exps
             fsigs = map (\fname -> case Map.lookup fname functionSignatures of
                         Just fs -> fs
                         Nothing -> error "BOOM!"
@@ -394,7 +399,13 @@ generateSubDefFComp f1_exp f2_exp fcomp_fname functionSignatures =
             , "    call "++fname1++"(" ++(mkArgList [non_map_args1,acc_args,tmp_args,out_args]) ++")"            
             ,"end subroutine "++fcomp_fname
         ]
-
+-- essentially, select the idx of the tuple as the output of this sub
+-- so the signature is
+generateSubDefElt idx f_exp v_name functionSignatures =
+    let
+        msg = "TODO: generateSubDefElt"
+    in
+        msg
 
 createDecls :: Expr -> [String]
 createDecls (SVec sz dt' vn) = let
@@ -488,7 +499,7 @@ mkArgList  = (intercalate ", ") . concat
 
 -- (Vec VS DDC "svec_v_3_6",Stencil (SVec 3 DInt "s2") (ZipT [Vec VI DFloat "va_0",Vec VI DFloat "vc_0"]))
 -- I suppose to do this right I'd need to actually define the combined stencil and name it
-generateStencilAppl s_exp (Vec VI dt v_name) sv_name stencilDefinitions = 
+generateStencilAppl s_exp (Vec _ dt v_name) sv_name stencilDefinitions = 
     let
         sv_type = fortranType dt         
         (s_name,s_def) = generateStencilDef s_exp stencilDefinitions
@@ -610,3 +621,11 @@ getOutputArgs' node = case node of
                             Vec VO _ vn -> [vn] 
                             Scalar VO _ sn -> [sn]
                             _ -> []                                    
+
+
+getFNames :: Expr -> [Name]
+getFNames exp = everything (++) (mkQ [] (getFNames')) exp
+
+getFNames' :: Expr -> [Name]
+getFNames' (Function fname _) = [fname]
+getFNames' _ = []                            

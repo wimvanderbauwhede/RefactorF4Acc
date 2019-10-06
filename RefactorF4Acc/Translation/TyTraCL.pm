@@ -1026,7 +1026,9 @@ sub _add_TyTraCL_AST_entry {
                 }
             }
           };
-        my $s_sz = scalar @{$state->{'Subroutines'}{$f}{'Blocks'}{$block_id}{'Arrays'}{$array_var}{'Dims'}};
+        my $s_sz = scalar keys %{$state->{'Subroutines'}{$f}{'Blocks'}{$block_id}{'Arrays'}{$array_var}{$rw}{'Accesses'}};
+        # my $s_sz = scalar @{$state->{'Subroutines'}{$f}{'Blocks'}{$block_id}{'Arrays'}{$array_var}{'Dims'}};
+        # say "STENCIL $array_var : $s_sz ".Dumper($state->{'Subroutines'}{$f}{'Blocks'}{$block_id}{'Arrays'}{$array_var}{'Dims'});
         my $ctr_in = $unique_var_counters->{$array_var};
 
         if (not exists $unique_var_counters->{"${array_var}_s"}) {

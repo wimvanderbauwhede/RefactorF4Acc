@@ -321,7 +321,7 @@ subsitute_expr lhs exp = do
                         in
                             ((ct+1,var_expr_pairs++[(f_expr,exp)]),f_expr)
                       ApplyT fs -> let
-                            nmss = concat $ map (\(Function _ nms) -> nms) fs
+                            nmss = concatMap getNonMapFoldArgs fs
                             f_expr = Function ("f_applyt_"++vec_name++"_"++(show ct)) nmss
                         in
                             ((ct+1,var_expr_pairs++[(f_expr,exp)]),f_expr)
@@ -329,18 +329,24 @@ subsitute_expr lhs exp = do
                             f_expr = Function ("f_comp_"++vec_name++"_"++(show ct)) (nms1++nms2)
                         in
                             ((ct+1,var_expr_pairs++[(f_expr,exp)]),f_expr)
+                      Comp (PElt idx) (Function _ nms2) -> let
+                            f_expr = Function ("f_pelt_"++vec_name++"_"++(show ct)) nms2
+                        in
+                            ((ct+1,var_expr_pairs++[(f_expr,exp)]),f_expr)
                       FComp (Function _ nms1) (Function _ nms2) -> let
                             f_expr = Function ("f_fcomp_"++vec_name++"_"++(show ct)) (nms1++nms2)
                         in
                             ((ct+1,var_expr_pairs++[(f_expr,exp)]),f_expr)
-                      Stencil (SVec _ _ _) _ -> let
-                            var = Vec VS DDC ("svec_"++vec_name++"_"++(show ct))
+                      Stencil (SVec _ _ _) v_exp -> let
+                            dt = getDType v_exp
+                            var = Vec VS dt ("svec_"++vec_name++"_"++(show ct))
                         in
                             ((ct+1,var_expr_pairs++[(var,exp)]),var)
-                      Stencil (SComb _ _) _ -> let
-                            var = Vec VS DDC ("svec_"++vec_name++"_"++(show ct))
+                      Stencil (SComb _ _) v_exp -> let
+                            dt = getDType v_exp
+                            var = Vec VS dt ("svec_"++vec_name++"_"++(show ct))
                         in
-                            ((ct+1,var_expr_pairs++[(var,exp)]),var)                            
+                            ((ct+1,var_expr_pairs++[(var,exp)]),var)
                       _ -> let
                               var = Vec VT DDC ("vec_"++vec_name++"_"++(show ct))
                            in
@@ -364,5 +370,12 @@ subsitute_exprs lhs ast = let
 -- Because of the original code, this is guaranteed to be in dependency order.
 decomposeExpressions = map (\(lhs,rhs) -> (subsitute_exprs lhs rhs )) 
 
+getNonMapFoldArgs :: Expr -> [Expr]
+getNonMapFoldArgs exp = everything (++) (mkQ [] (getNonMapFoldArgs')) exp
 
+getNonMapFoldArgs' :: Expr -> [Expr]
+getNonMapFoldArgs' (Function _ nms) = nms
+getNonMapFoldArgs' _ = []
 
+getDType (Vec _ dt _ ) = dt
+getDType (ZipT es) = DTuple (map getDType es)

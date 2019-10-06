@@ -44,7 +44,7 @@ data Expr =
                     | ApplyT [Expr]  -- applyt (f1,f2)
                     | MapS Expr Expr -- maps s f
                     | Comp Expr Expr -- comp f2 f1
-                    | FComp  Expr Expr -- like comp but to combine a fold and a map, quite a-hoc!
+                    | FComp Expr Expr -- like comp but to combine a fold and a map, quite a-hoc!
                     | SComb Expr Expr -- scomb s1 s2
                     -- | bb has Let Expr Expr
                     -- | bb has App Expr Expr to apply and Expr to an Expr
