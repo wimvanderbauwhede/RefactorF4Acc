@@ -231,7 +231,9 @@ Received: date / Accepted: date
 Insert your abstract here.
  Include keywords, PACS and mathematical subject classification numbers
  as needed.
- 
+\end_layout
+
+\begin_layout Abstract
 \begin_inset Flex Keywords
 status collapsed
 
@@ -268,6 +270,9 @@ and
 \end_inset
 
  
+\end_layout
+
+\begin_layout Abstract
 \begin_inset Flex PACS
 status collapsed
 
@@ -304,6 +309,9 @@ and
 \end_inset
 
  
+\end_layout
+
+\begin_layout Abstract
 \begin_inset Flex Subclass
 status collapsed
 
@@ -356,9 +364,28 @@ name "sec:Introduction"
 \begin_layout Standard
 This work is part of our efforts to automatically parallelise legacy scientific
  code in FORTRAN 77 and and compile it to heterogeneous platforms.
- The focus of this paper is on a novel program transformation to reduce
- the memory utilisation of stencil-based scientific code after auto-parallelisat
-ion.
+ The term 
+\begin_inset Quotes eld
+\end_inset
+
+legacy code
+\begin_inset Quotes erd
+\end_inset
+
+ is rather loose because a lot of scientific code is still being developed
+ in Fortran, and even though Fortran 90 syntax is more prevalent, in terms
+ of features most of this code is actually FORTRAN 77.
+ The considerable effort required for manual porting of such code to parallel
+ platforms and –even more– accelerators such as GPUs means that it is often
+ beyond the grasp of scientists.
+ Out work aims to entirely automate this porting effort, so that more scientists
+ can benefit from access to accelerators and parallel systems for their
+ research.
+\end_layout
+
+\begin_layout Standard
+The focus of this paper is on a novel program transformation to reduce the
+ memory utilisation of stencil-based scientific code after auto-parallelisation.
  For scientific computations, memory requirements are often the bottleneck,
  both in terms of the storage and of performance.
  Specifically the performance of stencil codes is often limited by memory
@@ -393,7 +420,17 @@ p
 \end_inset
 
 four arrays for every domain.
- However, the code actually uses 15 arrays (Listing 
+ However, the code
+\begin_inset Foot
+status open
+
+\begin_layout Plain Layout
+https://github.com/wimvanderbauwhede/LES
+\end_layout
+
+\end_inset
+
+ actually uses 15 arrays (Listing 
 \begin_inset CommandInset ref
 LatexCommand ref
 reference "lis:Arrays-used-in"
@@ -499,10 +536,7 @@ The idea is to find some similar things but be able to say that nobody has
 \end_layout
 
 \begin_layout Section
-Relationship to our existing work and Contribution of this work
-\end_layout
-
-\begin_layout Standard
+Relationship to our existing work
 \begin_inset CommandInset label
 LatexCommand label
 name "relationship-to-our-existing-work-and-contribution-of-this-work"
@@ -564,16 +598,26 @@ literal "false"
 \end_layout
 
 \begin_layout Standard
-The actual memory reduction transformation which is the focus of this paper
- starts from the program in the TyTraCL language.
+The program transformation which is the focus of this paper starts from
+ the program in the TyTraCL language.
+\end_layout
+
+\begin_layout Section
+Contribution of this work
 \end_layout
 
 \begin_layout Standard
-The contributions of the current work are
+The key contribution of this work is a program transformation on the parallelise
+d code which reduces memory utilisation by removal of intermediate arrays.
+ 
+\end_layout
+
+\begin_layout Standard
+Specifically, the contributions of the current work are:
 \end_layout
 
 \begin_layout Itemize
-Additional analysis to detect stencils
+An algorithm to detect stencils
 \end_layout
 
 \begin_layout Itemize
@@ -585,7 +629,8 @@ An algorithm to identify intermediate arrays
 \end_layout
 
 \begin_layout Itemize
-A series of program transformations to remove intermediate arrays
+A series of rewrite-rule-based program transformations to remove intermediate
+ arrays
 \end_layout
 
 \begin_layout Standard
@@ -607,49 +652,6 @@ XXX Experiments will have to show if this is slower and by how much XXX
 \end_inset
 
 
-\end_layout
-
-\begin_layout Subsection
-From the original Fortran code to auto-parallelised code
-\begin_inset CommandInset label
-LatexCommand label
-name "from-the-original-fortan-code-to-auto-parallelised-code"
-
-\end_inset
-
-
-\end_layout
-
-\begin_layout Standard
-The typical pattern of stencil code is a sequential application of nested
- loops.
- Slightly simplified, the auto-parallelising compiler analyses the loop
- dependencies and refactors the code into separate subroutines for every
- loop nest, called 
-\emph on
-kernels
-\emph default
-.
- At this stage, these subroutines still perform indexed array accesses,
- i.e.
-\begin_inset space ~
-\end_inset
-
-they are not yet pure functions 
-\begin_inset Formula $a\rightarrow b$
-\end_inset
-
- or 
-\begin_inset Formula $a\rightarrow b\rightarrow a$
-\end_inset
-
-, but we already have the guarantee that they can be transformed into such
- pure functions.
- This is sufficient for e.g.
-\begin_inset space ~
-\end_inset
-
-parallelisation on CPU or GPU using OpenCL.
 \end_layout
 
 \begin_layout Section
@@ -682,9 +684,10 @@ name "tytracl-concrete-syntax"
 \end_layout
 
 \begin_layout Standard
-The TyTraCL language is syntactically a subset of Haskell, with the addition
- of two types of vectors of fixed size, similar to the vector type in Idris.
- Purely for convenience we also assume that 
+The TyTraCL language is syntactically a subset of Haskell REF, with the
+ addition of two types of vectors of fixed size, similar to the vector type
+ in Idris REF.
+ Purely for convenience we also define 
 \family typewriter
 zipt
 \family default
@@ -700,8 +703,8 @@ applyt
 \family typewriter
 elt
 \family default
- work on tuples of arbitrary size, as opposed to Haskell where an instance
- is needed for every tuple size.
+ which work on tuples of arbitrary size, as opposed to Haskell where an
+ instance is needed for every tuple size.
 \end_layout
 
 \begin_layout Subsubsection
@@ -831,6 +834,10 @@ stencil :: SVec k Int -> Vec n a -> Vec n (SVec k a)
 
 \begin_layout Plain Layout
 
+\end_layout
+
+\begin_layout Plain Layout
+
 -- Like Haskell's zip/unzip but takes a tuple as argument and works on Vec
 \end_layout
 
@@ -925,6 +932,56 @@ name "lis:TyTraCL-primitives"
 
 \end_layout
 
+\begin_layout Standard
+To formalise the definition of the 
+\family typewriter
+stencil
+\family default
+ primitive we present a possible Haskell implementation:
+\end_layout
+
+\begin_layout Standard
+\begin_inset listings
+lstparams "mathescape=true,escapeinside={~~},language=Haskell"
+inline false
+status open
+
+\begin_layout Plain Layout
+
+stencil s v = map (
+\backslash
+idx -> map (
+\backslash
+delta ->(v !! (idx - 1 + delta)) s)) [1 ..
+ length v]
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+For every element at position 
+\emph on
+idx
+\emph default
+ in the vector, this function returns a list of points at offsets 
+\emph on
+delta
+\emph default
+ from 
+\emph on
+idx
+\emph default
+, defined in the list 
+\emph on
+s
+\emph default
+.
+ 
+\end_layout
+
 \begin_layout Subsection
 TyTraCL Abstract Syntax
 \end_layout
@@ -941,8 +998,8 @@ name "tytracl-abstract-syntax"
 
 \begin_layout Standard
 In practice, the TyTraCL program transformations are implemented in Haskell.
- The abstract syntax for the TyTraCL language, expressed as a Haskell type,
- is shown in Listing 
+ The abstract syntax for the untyped TyTraCL language, expressed as a Haskell
+ type, is shown in Listing 
 \begin_inset CommandInset ref
 LatexCommand ref
 reference "lis:TyTraCL-AST-data"
@@ -953,6 +1010,16 @@ noprefix "false"
 \end_inset
 
  .
+ 
+\begin_inset Quotes eld
+\end_inset
+
+Untyped
+\begin_inset Quotes erd
+\end_inset
+
+ means that we are at this stage not concerned with the concrete types of
+ the values contained in the input vectors or scalars.
 \end_layout
 
 \begin_layout Standard
@@ -997,12 +1064,7 @@ type Name = String
 
 \begin_layout Plain Layout
 
-                        Scalar Name
-\end_layout
-
-\begin_layout Plain Layout
-
-                        | Const Int 
+                          Scalar Name
 \end_layout
 
 \begin_layout Plain Layout
@@ -1061,7 +1123,8 @@ type Name = String
 
 \begin_layout Plain Layout
 
-                        | Function Name [Name]
+                        | Function Name Expr -- Expr contains args that
+ are partially applied
 \end_layout
 
 \begin_layout Plain Layout
@@ -1166,9 +1229,9 @@ Function
 \family default
  constructor, 
 \family typewriter
-[Name]
+[Expr]
 \family default
- is a list of non-map/non-fold args, i.e.
+ is a list of non-map/non-fold argument expressions, i.e.
  
 \end_layout
 
@@ -1217,23 +1280,7 @@ f
 \begin_inset Quotes erd
 \end_inset
 
- [
-\begin_inset Quotes eld
-\end_inset
-
-x_1
-\begin_inset Quotes erd
-\end_inset
-
-,...,
-\begin_inset Quotes erd
-\end_inset
-
-x_m
-\begin_inset Quotes erd
-\end_inset
-
-]) (Vec VI 
+ [xe_1,...,xe_m]) (Vec VI 
 \begin_inset Quotes eld
 \end_inset
 
@@ -1247,6 +1294,18 @@ v
 \end_inset
 
 
+\end_layout
+
+\begin_layout Standard
+where 
+\begin_inset Formula $xe_{i}$
+\end_inset
+
+ is the expression corresponding to 
+\begin_inset Formula $x_{i}$
+\end_inset
+
+.
 \end_layout
 
 \begin_layout Standard
@@ -1356,6 +1415,60 @@ ly less memory than the strict vector-based view.
 \end_layout
 
 \begin_layout Section
+From the original sequential code to auto-parallelised code
+\begin_inset CommandInset label
+LatexCommand label
+name "from-the-original-fortan-code-to-auto-parallelised-code"
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+The typical pattern of stencil code is a sequential application of nested
+ loops.
+ Slightly simplified, our auto-parallelising compiler analyses the loop
+ dependencies in terms of 
+\emph on
+map
+\emph default
+ (dependency-free loops) and 
+\emph on
+fold
+\emph default
+ (reductions) and refactors the code into separate subroutines for every
+ loop nest, called 
+\emph on
+kernels
+\emph default
+.
+ At this stage, these subroutines still perform indexed array accesses,
+ i.e.
+\begin_inset space ~
+\end_inset
+
+they are not yet pure functions 
+\begin_inset Formula $a\rightarrow b$
+\end_inset
+
+ or 
+\begin_inset Formula $a\rightarrow b\rightarrow a$
+\end_inset
+
+, but we already have the guarantee that they can be transformed into such
+ pure functions.
+ In other words, the program is semantically similar to programs in a functional
+ array language such as Single-Assignment C (SaC, REF).
+ This form is suitable for e.g.
+\begin_inset space ~
+\end_inset
+
+parallelisation on CPU or GPU using OpenCL, as shown in REF.
+ 
+\end_layout
+
+\begin_layout Section
 Preparatory transformations
 \begin_inset CommandInset label
 LatexCommand label
@@ -1367,7 +1480,7 @@ name "preparatory-transformations"
 \end_layout
 
 \begin_layout Standard
-In this section we describe the Fortran program transformations which transform
+In this section we describe the program transformations which transform
  the code as generated by our auto-parallelising compiler into the TyTraCL
  code that will serve as our starting point.
 \end_layout
@@ -1393,14 +1506,58 @@ name "stencil-detection"
 Array accesses are divided into read and write access.
  Stencils are defined as patterns of read accesses with fixed offsets around
  the loop iterators.
- An array access pattern is a stencil if: - There is more than one read
- access to the array - At least one of these accesses has a non-zero offset
- - All points in the array are processed in order, i.e.
+ An array access pattern is a stencil if: 
+\end_layout
+
+\begin_layout Itemize
+There is more than one read access to the array 
+\end_layout
+
+\begin_layout Itemize
+At least one of these accesses has a non-zero offset
+\end_layout
+
+\begin_layout Itemize
+The set of offsets is fixed for all iterations of the loop
+\end_layout
+
+\begin_layout Itemize
+All points in the array are processed in order, i.e.
 \begin_inset space ~
 \end_inset
 
-the loop iterators loop over a contiguous range Furthermore, there can only
- be a single write access to any array in the loop nest.
+the loop iterators loop over a contiguous range 
+\end_layout
+
+\begin_layout Itemize
+There can be no write access to the array.
+\end_layout
+
+\begin_layout Standard
+We can express these requirements also using the TyTraCL primitives, specificall
+y the 
+\emph on
+stencil
+\emph default
+ primitive defined above.
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\begin{align*}
+s & ::\mbox{SVec}\,k\,\mbox{Int}\\
+s & =[\Delta_{1},\dots,\Delta_{k}]\\
+v_{in} & ::\mbox{Vec}\,n\,a\\
+v_{s} & ::\mbox{Vec}\,n\,\mbox{SVec}\,k\,a\\
+v_{s} & =\mbox{stencil}\,s\,v_{in}\\
+f & ::\mbox{SVec}\,k\,a\rightarrow b\\
+v_{out} & ::\mbox{Vec}\,n\,b\\
+v_{out} & =\mbox{map}\,f\,v_{s}
+\end{align*}
+
+\end_inset
+
+
 \end_layout
 
 \begin_layout Subsection
@@ -1417,6 +1574,7 @@ name "scalarisation"
 \begin_layout Standard
 Scalarisation refers to transforming the kernel functions into pure functions
  that can be mapped or folded.
+ This is done by replacing all array accesses with scalars.
  The algorithm is surprisingly simple: 
 \end_layout
 
@@ -1494,6 +1652,11 @@ Replace the array arguments of the kernel subroutine with the scalarised
  
 \end_layout
 
+\begin_layout Itemize
+Needless to say, this operation is preceded by a constant propagation and
+ folding pass to ensure that all index variables in the array are loop iterators.
+\end_layout
+
 \begin_layout Subsection
 Argument grouping
 \begin_inset CommandInset label
@@ -1506,7 +1669,7 @@ name "argument-grouping"
 \end_layout
 
 \begin_layout Standard
-A Fortran subroutine takesn and returns values via its argurment list.
+A Fortran subroutine takes and returns values via its argurment list.
  To obtain the final TyTraCL function signature, we must group the scalarised
  arguments to get the required type for mappable and foldable functions.
  In the most general case, a mappable kernel subroutine can take vector
@@ -1515,8 +1678,9 @@ A Fortran subroutine takesn and returns values via its argurment list.
  to folded, accumulator arguments which ar typically readabe and writeable,
  and any other read-only scalar arguments.
  Our previous analysis has already resolved if an argument is used for input,
- output or both, and of course we know which arguments originally were arrays
- and which of these have stencil accesses.
+ output or both (i.e.
+ we infer the Fortran INTENT attribute), and of course we know which arguments
+ originally were arrays, and which of these have stencil accesses.
  With this information, it is straightforward to transform the scalarised
  Fortran kernel signature into the correct signature for the TyTraCL by
  first grouping the stencil arguments into stencil vectors and then grouping
@@ -1524,11 +1688,133 @@ A Fortran subroutine takesn and returns values via its argurment list.
 \end_layout
 
 \begin_layout Standard
-\begin_inset Note Note
+\begin_inset listings
+lstparams "language=Fortran,mathescape=true,escapeinside={~~}"
+inline false
 status open
 
 \begin_layout Plain Layout
-XXX Give an example here XXX
+
+! original code
+\end_layout
+
+\begin_layout Plain Layout
+
+subroutine f(a, v_in, v_out)
+\end_layout
+
+\begin_layout Plain Layout
+
+	real, intent(in) :: a
+\end_layout
+
+\begin_layout Plain Layout
+
+    real, dimension(im), intent(in) :: v_in
+\end_layout
+
+\begin_layout Plain Layout
+
+    real, dimension(im), intent(out) :: v_out
+\end_layout
+
+\begin_layout Plain Layout
+
+    integer :: i
+\end_layout
+
+\begin_layout Plain Layout
+
+    do i=1,im
+\end_layout
+
+\begin_layout Plain Layout
+
+    v_out(i)=a*(v_in(i-1)+v_in(i+1))/2
+\end_layout
+
+\begin_layout Plain Layout
+
+    end do
+\end_layout
+
+\begin_layout Plain Layout
+
+end subroutine f
+\end_layout
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\begin_layout Plain Layout
+
+! scalarised code
+\end_layout
+
+\begin_layout Plain Layout
+
+subroutine f(a, v_in_im1, v_in_ip1, v_out)
+\end_layout
+
+\begin_layout Plain Layout
+
+    real, intent(in) :: a,v_in_im1, v_in_ip1
+\end_layout
+
+\begin_layout Plain Layout
+
+    real :: v_out
+\end_layout
+
+\begin_layout Plain Layout
+
+    v_out=a*(v_in_im1+v_in_ip1)/2
+\end_layout
+
+\begin_layout Plain Layout
+
+end subroutine f
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+In TyTraCL the types and signature become:
+\end_layout
+
+\begin_layout Standard
+\begin_inset listings
+lstparams "mathescape=true,escapeinside={~~},language=Haskell"
+inline false
+status open
+
+\begin_layout Plain Layout
+
+a :: Float
+\end_layout
+
+\begin_layout Plain Layout
+
+sv_in :: SVec 2 Float
+\end_layout
+
+\begin_layout Plain Layout
+
+v_out :: Float
+\end_layout
+
+\begin_layout Plain Layout
+
+f :: Float -> SVec 2 Float -> Float
+\end_layout
+
+\begin_layout Plain Layout
+
+v_out = f a sv_in
 \end_layout
 
 \end_inset
@@ -1562,25 +1848,7 @@ map
 fold
 \family default
  call.
- For example,
-\end_layout
-
-\begin_layout Standard
-\begin_inset Note Note
-status open
-
-\begin_layout Plain Layout
-\SpecialChar ldots
-EXAMPLE!
-\end_layout
-
-\end_inset
-
-
-\end_layout
-
-\begin_layout Standard
-becomes 
+ For example, the above code becomes 
 \begin_inset listings
 lstparams "mathescape=true,escapeinside={~~},language=Haskell"
 inline false
@@ -1588,12 +1856,17 @@ status open
 
 \begin_layout Plain Layout
 
-v_s = stencil s v
+s = [-1,1]
 \end_layout
 
 \begin_layout Plain Layout
 
-v_o = map f v_s
+sv_in = stencil s v
+\end_layout
+
+\begin_layout Plain Layout
+
+v_out = map (f a) sv_in 
 \end_layout
 
 \end_inset
@@ -1639,7 +1912,7 @@ v1 = map f1 v0
 
 \begin_layout Plain Layout
 
-  v2 = map f2 v1
+v2 = map f2 v1
 \end_layout
 
 \end_inset
@@ -1648,7 +1921,15 @@ v1 = map f1 v0
 \end_layout
 
 \begin_layout Standard
-with its definition (beta reduction).
+and we can replace 
+\family typewriter
+v1
+\family default
+ with its definition (
+\begin_inset Formula $\beta$
+\end_inset
+
+ reduction).
 \end_layout
 
 \begin_layout Standard
@@ -1663,7 +1944,7 @@ status open
 
 \begin_layout Plain Layout
 
-  v2 = map f2 $ map f1 v0
+v2 = map f2 $ map f1 v0
 \end_layout
 
 \end_inset
@@ -1807,6 +2088,19 @@ name "normalisation"
 \end_layout
 
 \begin_layout Standard
+Recall that the TyTraCL AST is a list of tuples 
+\emph on
+[(Expr,Expr)]
+\emph default
+ where the elements of the tuple are the LHS and RHS of an assignment in
+ a 
+\emph on
+let
+\emph default
+-binding.
+\end_layout
+
+\begin_layout Standard
 First we normalise so the LHS of any element in the TyTraCLAST list is either
  Vec or Scalar.
  We do this by replacing all LHS 
@@ -1894,11 +2188,17 @@ v2
 \end_layout
 
 \begin_layout Standard
-As a result, the LHS will be purely 
+As a result, after this normalisation any LHS expression will be either
+ 
 \emph on
 Vec
 \emph default
-.
+ or 
+\emph on
+Scalar
+\emph default
+, i.e.
+ atomic expressions.
  
 \end_layout
 
@@ -1928,6 +2228,19 @@ Vec VO
 \emph default
  on the RHS, by recursive substitution, starting from the last expression
  in the list.
+ The resulting AST has only 
+\emph on
+Vec VO
+\emph default
+ (or 
+\emph on
+Scalar
+\emph default
+) in the LHS, and the RHS expressions only contain 
+\emph on
+Vec VI
+\emph default
+.
 \end_layout
 
 \begin_layout Section
@@ -1942,19 +2255,34 @@ name "intermediate-vector-removal-part-ii-the-hard-part"
 \end_layout
 
 \begin_layout Standard
-Although it may seem as if the job is done, as all intermediate vectors
- have been removed, this is actually not the case: the removal so far is
- purely in terms of the occurrences in the AST.
+Although all intermediate vectors have been removed, this removal so far
+ is purely in terms of the occurrences in the AST.
  Were we to run the program, it would require memory for implicit temporary
  vectors.
- This is because an intermediate stencils will require additional memory.
+ This is because an intermediate stencil will require additional memory.
 \end_layout
 
 \begin_layout Standard
 We have developed a system of rewrite rules that transforms the program
- in such a way that there is only a single map operation and that all stencils
- operate on input vectors only.
- This system of rewrite rules is the key contribution of this paper.
+ into a sequence of dependent 
+\emph on
+fold
+\emph default
+ operations with no more than a single 
+\emph on
+map
+\emph default
+ operation.
+ All stencils operate on input vectors only.
+ Thus, the entire computation in the program is a chain of scalar functions,
+ and does therefore not need any memory allocation for intermediate arrays;
+ any stencils in the input vectors are constructed directly from the arrays
+ in main memory, so that they again do not require any additional memory
+ allocation.
+\end_layout
+
+\begin_layout Standard
+This system of rewrite rules is the key contribution of this paper.
 \end_layout
 
 \begin_layout Subsection
@@ -1990,6 +2318,11 @@ status open
 
 map f_2 (map f_1 v) = map (f_2 .
  f_1) v -- Map-Map
+\end_layout
+
+\begin_layout Plain Layout
+
+fold f_1 acc (map f_2 v) = Fold (f1 `fcomp` f2) acc v -- Fold-Map
 \end_layout
 
 \begin_layout Plain Layout
@@ -2045,24 +2378,20 @@ name "lis:Rewrite-rules-to"
 
 \end_layout
 
-\begin_layout Standard
-Applying the rewrite rules on the normalised AST, starting from the leaf
- nodes, always terminates with an expression which contains only a single
- map, as the outer function.
-\end_layout
-
-\begin_layout Standard
-\begin_inset Note Note
-status open
-
-\begin_layout Plain Layout
-if an expr in a ZipT tuple can't be rewritten to a map expression, turn
- it into map using this rule
-\end_layout
+\begin_layout Theorem
+Applying the rewrite rules in Listing 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "lis:Rewrite-rules-to"
+plural "false"
+caps "false"
+noprefix "false"
 
 \end_inset
 
-
+ to the normalised AST, starting from the leaf nodes, always terminates
+ with an expression which contains only a single map, as the outer function.
+ 
 \end_layout
 
 \begin_layout Subsubsection
@@ -2078,7 +2407,24 @@ name "lemmas"
 
 \begin_layout Standard
 First we prove that the rewrite rules themselves are correct.
- The Map-Map rule is well-known; the Map-Id rule is trivial.
+ The 
+\emph on
+Map-Map
+\emph default
+ rule is well-known; the 
+\emph on
+Map-Fold
+\emph default
+ rule is a trivial extension of the 
+\emph on
+Map-Map
+\emph default
+ rule; the 
+\emph on
+Map-Id
+\emph default
+ rule is trivial.
+ 
 \end_layout
 
 \begin_layout Proof
@@ -3009,17 +3355,30 @@ Decomposing the expressions
 
 \begin_layout Standard
 At this stage the TyTraCL program has been transformed to meet our objective:
- stencils operate only on input vectors, and there is only a single map
- operation.
+ stencils operate only on input vectors, and there is a sequence of dependent
+ folds with at most a single map operation.
  Conceptually, this means that the map operation consumes a stream of input
  vectors, creating stencils as required, an applies to this composite stream
  a composite scalar function which performs the actual computations.
  The program is now an ordered list of expressions which each represent
  a self-contained loop nest, and which in principle can depend upon any
  of the previous expressions.
- In practice, Map and Fold nodes can depend on results from earlier Fold
- nodes In the final imperative code, the entries in this list are executed
- in order to ensure that the dependencies are met.
+ As 
+\emph on
+Map
+\emph default
+ and 
+\emph on
+Fold
+\emph default
+ nodes can depend on results from earlier 
+\emph on
+Fold
+\emph default
+ nodes, and folds always cosnume the entire vector, the folds are executed
+ in dependency order.
+ In the final imperative code, the entries in this list are ordered to ensure
+ that executing them sequentially satisfies the dependencies.
 \end_layout
 
 \begin_layout Standard
@@ -3260,6 +3619,122 @@ name "fortran-opencl-implementation"
 \end_layout
 
 \begin_layout Standard
+To generate imperative code (in our case Fortran 90) from the TyTraCL AST,
+ the main challenge is the generation of the intermediate functions.
+ For this we need the actual concrete type information for the input and
+ output vectors and scalars and the signatures of the original functions.
+ This requires extending the following Expr type variants with a type field:
+\end_layout
+
+\begin_layout Standard
+\begin_inset listings
+lstparams "mathescape=true,escapeinside={~~},language=Haskell"
+inline false
+status open
+
+\begin_layout Plain Layout
+
+data DType = 
+\end_layout
+
+\begin_layout Plain Layout
+
+    DInt 
+\end_layout
+
+\begin_layout Plain Layout
+
+  | DFloat 
+\end_layout
+
+\begin_layout Plain Layout
+
+  | DSVec Int DType 
+\end_layout
+
+\begin_layout Plain Layout
+
+  | DTuple [DType]
+\end_layout
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\begin_layout Plain Layout
+
+data Expr =
+\end_layout
+
+\begin_layout Plain Layout
+
+-- Left-hand side:
+\end_layout
+
+\begin_layout Plain Layout
+
+              Scalar VE DType Name
+\end_layout
+
+\begin_layout Plain Layout
+
+            | Vec VE DType Name
+\end_layout
+
+\begin_layout Plain Layout
+
+			...
+\end_layout
+
+\begin_layout Plain Layout
+
+-- Right-hand side:           
+\end_layout
+
+\begin_layout Plain Layout
+
+            | Function Name [Expr] 
+\end_layout
+
+\begin_layout Plain Layout
+
+            | Id DType
+\end_layout
+
+\begin_layout Plain Layout
+
+			...
+\begin_inset Caption Standard
+
+\begin_layout Plain Layout
+
+Extending the TyTraCL AST with concrete type information
+\begin_inset CommandInset label
+LatexCommand label
+name "lis:Extending-the-TyTraCL"
+
+\end_inset
+
+
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+
+\family typewriter
+\begin_inset Note Note
+status open
+
+\begin_layout Plain Layout
 To recreate the Fortran code from the AST, I need the signatures for the
  original scalarised Fortran subroutines as well as the signatures for the
  TyTraCL functions.
@@ -3272,11 +3747,13 @@ To recreate the Fortran code from the AST, I need the signatures for the
 RefactorF4Acc::Translation::LlvmToTyTraIR
 \end_layout
 
-\begin_layout Subsection
-SVec encoding
+\end_inset
+
+
 \end_layout
 
-\begin_layout Standard
+\begin_layout Subsection
+SVec encoding
 \begin_inset CommandInset label
 LatexCommand label
 name "svec-encoding"
@@ -3325,8 +3802,8 @@ status collapsed
 
 
 \family default
- is encoded as an array which contain the index offset tuple for each stencil
- point.
+ is encoded as a 1-D array which contains the index offset tuple for each
+ stencil point.
  
 \begin_inset Note Note
 status open
@@ -3376,9 +3853,6 @@ RefactorF4Acc::Translation::TyTraCL::generate_TyTraCL_stencils()
 
 \begin_layout Subsection
 Stencil
-\end_layout
-
-\begin_layout Standard
 \begin_inset CommandInset label
 LatexCommand label
 name "stencil"
@@ -3394,109 +3868,47 @@ Given the stencil information, we can generate the stencil as a constant
 \end_layout
 
 \begin_layout Standard
-Example: 
-\family typewriter
-(SVec
-\begin_inset space \space{}
-\end_inset
-
-2
-\begin_inset space \space{}
-\end_inset
-
-
-\begin_inset ERT
-status collapsed
+\begin_inset listings
+lstparams "mathescape=true,escapeinside={~~},language=Haskell"
+inline false
+status open
 
 \begin_layout Plain Layout
 
-"
+stencilDefs = [("s1" , [-502,-1,0,1,502] ), ...]
+\end_layout
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\begin_layout Plain Layout
+
+stencilAppl = (
+\end_layout
+
+\begin_layout Plain Layout
+
+	Vec VS DFloat "svec_du_1_5",
+\end_layout
+
+\begin_layout Plain Layout
+
+	Stencil (SVec 5 DInt "s2") (Vec VI DFloat "etan_0")
+\end_layout
+
+\begin_layout Plain Layout
+
+	)
 \end_layout
 
 \end_inset
 
-exp_h_1_4
-\begin_inset ERT
-status collapsed
 
-\begin_layout Plain Layout
-
-"
 \end_layout
 
-\end_inset
-
-,Stencil
-\begin_inset space \space{}
-\end_inset
-
-(SVec
-\begin_inset space \space{}
-\end_inset
-
-2
-\begin_inset space \space{}
-\end_inset
-
-
-\begin_inset ERT
-status collapsed
-
-\begin_layout Plain Layout
-
-"
-\end_layout
-
-\end_inset
-
-s1
-\begin_inset ERT
-status collapsed
-
-\begin_layout Plain Layout
-
-"
-\end_layout
-
-\end_inset
-
-)
-\begin_inset space \space{}
-\end_inset
-
-(Vec
-\begin_inset space \space{}
-\end_inset
-
-VI
-\begin_inset space \space{}
-\end_inset
-
-
-\begin_inset ERT
-status collapsed
-
-\begin_layout Plain Layout
-
-"
-\end_layout
-
-\end_inset
-
-wet_0
-\begin_inset ERT
-status collapsed
-
-\begin_layout Plain Layout
-
-"
-\end_layout
-
-\end_inset
-
-))
-\family default
- 
+\begin_layout Standard
+Example:
 \begin_inset listings
 lstparams "language=Fortran"
 inline false
@@ -3504,27 +3916,22 @@ status open
 
 \begin_layout Plain Layout
 
-! stencil
+integer, parameter, dimension(5) :: s1 = [-502,-1,0,1,502]
 \end_layout
 
 \begin_layout Plain Layout
 
-integer, parameter, dimension(2*2) :: s1 = [...]
+integer, dimension(5) :: svec_du_1_4
 \end_layout
 
 \begin_layout Plain Layout
 
-real, dimension(2) :: exp_h_1_4    
+do s_idx = 1,5
 \end_layout
 
 \begin_layout Plain Layout
 
-do s_idx = 0,1
-\end_layout
-
-\begin_layout Plain Layout
-
-  exp_h_1_4(s_idx) = v(j+s1(s_idx*2),k+s_i(s_idx*2+1))
+    svec_du_1_4(s_idx) = wet_0(idx+s1(s_idx))
 \end_layout
 
 \begin_layout Plain Layout
@@ -3539,9 +3946,6 @@ end do
 
 \begin_layout Subsection
 MapS
-\end_layout
-
-\begin_layout Standard
 \begin_inset CommandInset label
 LatexCommand label
 name "maps"
@@ -3552,111 +3956,81 @@ name "maps"
 \end_layout
 
 \begin_layout Standard
-For any new function, I need to create the signature.
- I think I'd better keep the non-map/fold args separate from the function
- name
+\begin_inset listings
+lstparams "mathescape=true,escapeinside={~~},language=Haskell"
+inline false
+status open
+
+\begin_layout Plain Layout
+
+shapiro_Sig = [
+\end_layout
+
+\begin_layout Plain Layout
+
+	Scalar VDC DFloat "eps_0",
+\end_layout
+
+\begin_layout Plain Layout
+
+	Tuple [SVec 5 DInt "wet_s_0",
+\end_layout
+
+\begin_layout Plain Layout
+
+	SVec 5 DFloat "etan_s_0"],Scalar VDC DFloat "eta_1")
+\end_layout
+
+\begin_layout Plain Layout
+
+	]
+\end_layout
+
+\begin_layout Plain Layout
+
+f_maps_du_1_1_Sig = [
+\end_layout
+
+\begin_layout Plain Layout
+
+	Scalar VDC DFloat "eps_0",
+\end_layout
+
+\begin_layout Plain Layout
+
+	SVec 3 (DTuple [DSVec 5 DInt,DSVec 5 DFloat]) "sv_shapiro_map_16_in",
+\end_layout
+
+\begin_layout Plain Layout
+
+	SVec 3 DFloat "sv_shapiro_map_16_out")
+\end_layout
+
+\begin_layout Plain Layout
+
+	]
+\end_layout
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\begin_layout Plain Layout
+
+mapS = (Function "f_maps_du_1_1" f_maps_du_1_1_Sig, 
+\end_layout
+
+\begin_layout Plain Layout
+
+	MapS (SVec 3 DInt "s4") (Function "shapiro_map_16" shapiro_Sig))
+\end_layout
+
+\end_inset
+
+
 \end_layout
 
 \begin_layout Standard
-Example: 
-\family typewriter
-(Function
-\begin_inset space \space{}
-\end_inset
-
-
-\begin_inset ERT
-status collapsed
-
-\begin_layout Plain Layout
-
-"
-\end_layout
-
-\end_inset
-
-exp_h_1_1
-\begin_inset ERT
-status collapsed
-
-\begin_layout Plain Layout
-
-"
-\end_layout
-
-\end_inset
-
-,MapS
-\begin_inset space \space{}
-\end_inset
-
-(SVec
-\begin_inset space \space{}
-\end_inset
-
-2
-\begin_inset space \space{}
-\end_inset
-
-
-\begin_inset ERT
-status collapsed
-
-\begin_layout Plain Layout
-
-"
-\end_layout
-
-\end_inset
-
-s5
-\begin_inset ERT
-status collapsed
-
-\begin_layout Plain Layout
-
-"
-\end_layout
-
-\end_inset
-
-)
-\begin_inset space \space{}
-\end_inset
-
-(Function
-\begin_inset space \space{}
-\end_inset
-
-
-\begin_inset ERT
-status collapsed
-
-\begin_layout Plain Layout
-
-"
-\end_layout
-
-\end_inset
-
-shapiro_map_24
-\begin_inset space \space{}
-\end_inset
-
-(eps_0,etan_avg_1)
-\begin_inset ERT
-status collapsed
-
-\begin_layout Plain Layout
-
-"
-\end_layout
-
-\end_inset
-
-))
-\family default
- 
 \begin_inset listings
 lstparams "language=Fortran"
 inline false
@@ -3669,52 +4043,43 @@ status open
 
 \begin_layout Plain Layout
 
-subroutine exp_h_1_1(eps_0,etan_avg_1, v_i, j,k, v_o)
+subroutine f_maps_du_1_1(eps_0, sv_shapiro_map_16_in0, sv_shapiro_map_16_in1,
+ sv_shapiro_map_16_out)
 \end_layout
 
 \begin_layout Plain Layout
 
-    real, parameter :: s_i_sz 
+    real :: eps_0
 \end_layout
 
 \begin_layout Plain Layout
 
-    real, dimension(2*s_i_sz), parameter :: s_i = [ ...]         
+    integer, dimension(3,5) :: sv_shapiro_map_16_in0
 \end_layout
 
 \begin_layout Plain Layout
 
-    real, dimension(jm,km), intent(in) :: v_i
+    real, dimension(3,5) :: sv_shapiro_map_16_in1
 \end_layout
 
 \begin_layout Plain Layout
 
-    real, dimension(s_i_sz), intent(out) :: v_o
+    real, dimension(3) :: sv_shapiro_map_16_out
 \end_layout
 
 \begin_layout Plain Layout
 
-    real :: u_o
 \end_layout
 
 \begin_layout Plain Layout
 
-    do s_idx = 0,v_s_i-1
+    do i=1,3
 \end_layout
 
 \begin_layout Plain Layout
 
-        v_s = v_i(j+s_i(s_idx*2),k+s_i(s_idx*2+1))
-\end_layout
-
-\begin_layout Plain Layout
-
-        call shapiro_map_24(eps_0,etan_avg_1, v_s,u_o)
-\end_layout
-
-\begin_layout Plain Layout
-
-        v_o(s_idx)=u_o
+        call shapiro_map_16(eps_0, sv_shapiro_map_16_in0(i), sv_shapiro_map_16_i
+n1(i), sv_shapiro_map_16_out(i))
 \end_layout
 
 \begin_layout Plain Layout
@@ -3724,7 +4089,7 @@ subroutine exp_h_1_1(eps_0,etan_avg_1, v_i, j,k, v_o)
 
 \begin_layout Plain Layout
 
-end subroutine exp_h_1_1
+end subroutine f_maps_du_1_1
 \end_layout
 
 \end_inset
@@ -3734,9 +4099,6 @@ end subroutine exp_h_1_1
 
 \begin_layout Subsection
 ApplyT
-\end_layout
-
-\begin_layout Standard
 \begin_inset CommandInset label
 LatexCommand label
 name "applyt"
@@ -3873,9 +4235,6 @@ end subroutine exp_h_1_2
 
 \begin_layout Subsection
 Comp
-\end_layout
-
-\begin_layout Standard
 \begin_inset CommandInset label
 LatexCommand label
 name "comp"

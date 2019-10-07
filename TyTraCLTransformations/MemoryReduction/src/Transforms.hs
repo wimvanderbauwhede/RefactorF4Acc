@@ -64,13 +64,7 @@ non_input_vecs expr = let
                 _ -> True
             ) vec_subexprs
 
--- The actual substitution should of course use `everywhere`
-substitute_vec_by_expr svec sexpr expr = everywhere (mkT (substitute_vec_by_expr' svec sexpr)) expr
-
-substitute_vec_by_expr' svec sexpr  vec
-    | vec == svec = sexpr
-    |  otherwise = vec
-    
+  
 
 -- Finally, we go trough all lines of the ast and do a recursive substitution:     
 substituteVectors ast' =  map (substitute_vec_rec ast') (filter lhs_is_output_vec ast')
@@ -88,14 +82,7 @@ lhs_is_output_vec (lhs_vec,expr) = case lhs_vec of
 -- Create a list of all Vecs in the expr
 -- Find the corresponding RHS expressions
 -- Substitute all of them in the given expression
-substitute_vec ast expr_tup@(lhs_vec,expr) = let
-        vecs = non_input_vecs expr
-        exprs = map (find_in_ast ast) vecs
-        tups = zip vecs exprs
-        expr' = foldl (\expr' (svec,sexpr) -> substitute_vec_by_expr svec sexpr expr') expr tups
-    in 
-        (lhs_vec,expr')
-        
+
 -- To do this recursively, we must test if there are still non_input_vecs, and if so, repeat substitute_vec until there are non left
  
 substitute_vec_rec ast expr_tup@(lhs_vec,expr) = let
@@ -109,7 +96,23 @@ substitute_vec_rec ast expr_tup@(lhs_vec,expr) = let
         else -- we're done, return the result 
             expr_tup
 
+substitute_vec ast expr_tup@(lhs_vec,expr) = let
+        vecs = non_input_vecs expr
+        exprs = map (find_in_ast ast) vecs
+        tups = zip vecs exprs
+        expr' = foldl (\expr' (svec,sexpr) -> substitute_vec_by_expr svec sexpr expr') expr tups
+    in 
+        (lhs_vec,expr')
+        
+-- The actual substitution should of course use `everywhere`
+substitute_vec_by_expr svec sexpr  = everywhere (mkT (substitute_vec_by_expr' svec sexpr)) 
+
+substitute_vec_by_expr' svec sexpr  vec
+    | vec == svec = sexpr
+    |  otherwise = vec
+
 -- ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+{-
 -- Examples
 -- A linked list
 ll = Tuple [ Const 11, Tuple [ Const 22, Tuple [ Const 33, Tuple [ Const 44, Tuple [   Const 55, Const 66 ] ] ] ] ]
@@ -123,7 +126,7 @@ reduce_ll_chain expr = case expr of
     _ -> expr
 
 
-{-
+
  A binary tree
                     11
                 /       \
@@ -132,7 +135,7 @@ reduce_ll_chain expr = case expr of
           33    0      55      66
          / \          /  \    /  \
         0   0        0    0  0    0  
--}
+
 tree = Tuple [ Const 11, Tuple [ Const 22, Tuple [ Const 33, Const 0, Const 0], Const 0], Tuple [ Const 44, Tuple [   Const 55, Const 0, Const 0], Tuple [Const 66, Const 0, Const 0 ] ] ] 
 
 -- Sum all nodes in the binary tree
@@ -141,7 +144,7 @@ reduce_tree tree = everywhere (mkT reduce_subtree) tree
 reduce_subtree expr = case expr of
     Tuple [ Const n, Const m, Const k] -> Const (n+m+k)
     _ -> expr
-
+-}
 -- ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------    
 -- 3. With this preparation I guess we are ready for the actual rewrites:
 --

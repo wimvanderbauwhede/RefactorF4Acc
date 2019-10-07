@@ -50,16 +50,22 @@ inferSignatures ast = Map.toList (inferSignaturesMap ast)
 generateSignatures :: TyTraCLAST -> [String]
 generateSignatures ast =  map functionSigStr (inferSignatures ast)
 
+opaqueFunctionExprs = map (\(fname, _) -> (Function fname [], Id DDC) ) functionSignaturesList
+
+
+
+
 generateDefs :: TyTraCLAST -> [String]
 generateDefs ast = let 
         functionSignatures = inferSignaturesMap ast
+        -- opaqueFunctionExprs = mkOpaqueFunctionExprs
     in
         fst $ foldl (
             \(lst,st) elt ->  let
                 (elt',st') = generateSubDef functionSignatures elt st
             in
                 (lst++[elt'],st')
-                ) ([],[]) ast
+                ) ([],[]) (opaqueFunctionExprs++ast)
 
 inferSignature ::  (Map.Map Name FSig) -> (Expr,Expr) -> Map.Map Name FSig
 inferSignature functionSignatures ast_tup =
@@ -252,8 +258,49 @@ generateSubDef functionSignatures t st =
             Stencil s_exp v_exp -> generateStencilAppl s_exp v_exp v_name stencilDefinitions
             Map f_exp v_exp -> generateMap f_exp v_exp v_name 
             Fold f_exp acc_exp v_exp -> generateFold f_exp acc_exp v_exp sc_name 
+            Id _ -> generateSubDefOpaque ho_fname functionSignatures
             _ -> show rhs
             ,[])
+
+generateSubDefOpaque fname functionSignatures =
+    let
+        fsig = case Map.lookup fname functionSignatures of
+            Just fs -> fs
+            Nothing -> error "BOOM!"  
+        in                      
+            case fsig of 
+                MapFSig (nms,ms,os) -> 
+                    let                
+                        non_map_arg_decls = createDecls nms -- tuple becomes list of decls
+                        in_arg_decls = createDecls ms
+                        out_arg_decls = createDecls os
+                        non_map_args = getVarNames nms
+                        in_args = getVarNames ms
+                        out_args = getVarNames os           
+                    in
+                        unlines [
+                            "subroutine "++fname++"("  ++(mkArgList [non_map_args,in_args,out_args])++")"
+                            , mkDeclLines [non_map_arg_decls,in_arg_decls,out_arg_decls]
+                            ,"!!!"
+                            ,"end subroutine "++fname
+                        ]
+                FoldFSig (nms,as,ms,os) ->
+                    let                
+                        non_map_arg_decls = createDecls nms -- tuple becomes list of decls
+                        acc_arg_decls = createDecls as
+                        in_arg_decls = createDecls ms
+                        out_arg_decls = createDecls os
+                        non_map_args = getVarNames nms
+                        acc_args  = getVarNames as
+                        in_args = getVarNames ms
+                        out_args = getVarNames os           
+                    in
+                        unlines [
+                            "subroutine "++fname++"("  ++(mkArgList [non_map_args,acc_args,in_args,out_args])++")"
+                            , mkDeclLines [non_map_arg_decls,acc_arg_decls,in_arg_decls,out_arg_decls]
+                            ,"!!!"
+                            ,"end subroutine "++fname
+                        ]
 
 generateSubDefMapS :: Expr -> Expr -> Name -> (Map.Map Name FSig) -> String
 generateSubDefMapS sv_exp f_exp maps_fname functionSignatures =
@@ -705,7 +752,7 @@ getFSigs fs functionSignatures = map (\(f_expr, idx) -> case f_expr of
     ) (zip fs [1..])
 
 
-createStages :: [TyTraCLAST] -> ([TyTraCLAST],[TyTraCLAST])
+createStages :: [TyTraCLAST] -> ([TyTraCLAST],[TyTraCLAST],[TyTraCLAST])
 createStages asts =
     let
         (asts_function_defs, asts_no_function_defs) = unzip $ map (partition isFunctionDef) asts
@@ -713,7 +760,7 @@ createStages asts =
         ast_without_fold = concat asts_without_fold
 
     in 
-        (asts_function_defs,asts_with_fold++[ast_without_fold])
+        (asts_function_defs,asts_no_function_defs,asts_with_fold++[ast_without_fold])
 
 hasFold ast = let
         fold_exprs = filter (\(lhs, rhs) -> case rhs of

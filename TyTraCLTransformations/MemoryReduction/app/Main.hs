@@ -14,8 +14,9 @@ inferedSignatures :: [[(Name,FSig)]]
 inferedSignatures = map inferSignatures ast4
 -- generatedDefs = map generateDefs ast4
 
-(asts_function_defs,ast_stages) = createStages ast4
-generatedDefs = map generateDefs asts_function_defs
+(asts_function_defs,asts_no_function_defs,ast_stages) = createStages ast4
+generatedFunctionDefs = map generateDefs asts_function_defs
+generatedNonFunctionDefs = map generateDefs asts_no_function_defs
 generatedStageKernels = map (\(ast,ct) -> generateStageKernel ct ast) (zip ast_stages [1..])
 
 main = do
@@ -46,7 +47,9 @@ main = do
         mapM print x2
         ) (zip ast4 inferedSignatures)
     putStrLn "\n-- Generate subroutine definitions"
-    mapM_ putStrLn (map (\(ls,ct) -> unlines (["! Stage "++(show ct)]++ls)) (zip generatedDefs [1..]))
+    mapM_ putStrLn (map (\(ls,ct) -> unlines (["! Stage "++(show ct)]++ls)) (zip generatedFunctionDefs [1..]))
+    putStrLn "\n-- Generate other definitions"
+    mapM_ putStrLn (map (\(ls,ct) -> unlines (["! Stage "++(show ct)]++ls)) (zip generatedNonFunctionDefs [1..]))
     putStrLn "\n-- Generated stage kernels"
     mapM_ (putStrLn . unlines) generatedStageKernels
 {-    
