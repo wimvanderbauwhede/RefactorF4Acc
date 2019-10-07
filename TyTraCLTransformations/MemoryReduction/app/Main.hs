@@ -2,7 +2,7 @@ module Main where
 import TyTraCLAST 
 import ASTInstance (ast,functionSignaturesList)
 import Transforms (splitLhsTuples, substituteVectors, applyRewriteRules, fuseStencils, decomposeExpressions)
-import CodeGeneration (inferSignatures, generateSignatures, createStages, generateDefs, generateStageKernel)
+import CodeGeneration (inferSignatures, generateSignatures, createStages, generatedOpaqueFunctionDefs, generateDefs, generateStageKernel)
 
 ast1 = splitLhsTuples ast
 ast2 = substituteVectors ast1
@@ -12,11 +12,10 @@ ast4 = decomposeExpressions ast3'
 generatedSignatures = map generateSignatures ast4
 inferedSignatures :: [[(Name,FSig)]]
 inferedSignatures = map inferSignatures ast4
--- generatedDefs = map generateDefs ast4
 
 (asts_function_defs,asts_no_function_defs,ast_stages) = createStages ast4
 generatedFunctionDefs = map generateDefs asts_function_defs
-generatedNonFunctionDefs = map generateDefs asts_no_function_defs
+generatedNonFunctionDefs = map generateDefs asts_no_function_defs 
 generatedStageKernels = map (\(ast,ct) -> generateStageKernel ct ast) (zip ast_stages [1..])
 
 main = do
@@ -46,11 +45,13 @@ main = do
         putStrLn "-- Infered function signatures"
         mapM print x2
         ) (zip ast4 inferedSignatures)
-    putStrLn "\n-- Generate subroutine definitions"
+    putStrLn "\n! Generate opaque subroutine definitions"    
+    mapM_ putStrLn generatedOpaqueFunctionDefs
+    putStrLn "\n! Generate subroutine definitions"
     mapM_ putStrLn (map (\(ls,ct) -> unlines (["! Stage "++(show ct)]++ls)) (zip generatedFunctionDefs [1..]))
-    putStrLn "\n-- Generate other definitions"
+    putStrLn "\n! Generate other definitions"
     mapM_ putStrLn (map (\(ls,ct) -> unlines (["! Stage "++(show ct)]++ls)) (zip generatedNonFunctionDefs [1..]))
-    putStrLn "\n-- Generated stage kernels"
+    putStrLn "\n! Generated stage kernels"
     mapM_ (putStrLn . unlines) generatedStageKernels
 {-    
     putStrLn "\nTest for Vec in RHS Expr"

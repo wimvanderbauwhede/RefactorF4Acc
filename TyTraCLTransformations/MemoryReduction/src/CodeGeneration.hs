@@ -1,10 +1,10 @@
-module CodeGeneration (inferSignatures, generateSignatures, createStages, generateDefs, generateStageKernel) where
+module CodeGeneration (inferSignatures, generateSignatures, generatedOpaqueFunctionDefs, createStages, generateDefs, generateStageKernel) where
 
 -- import Data.Generics (Data, Typeable, mkQ, mkT, mkM, gmapQ, gmapT, everything, everywhere, everywhere', everywhereM)
 import Data.Generics (mkQ, everything)  
 -- import Control.Monad.State
 import TyTraCLAST
-import ASTInstance (ast, functionSignaturesList, stencilDefinitionsList)
+import ASTInstance (functionSignaturesList, stencilDefinitionsList)--ast, 
 import qualified Data.Map.Strict as Map
 import Data.List
 
@@ -51,21 +51,20 @@ generateSignatures :: TyTraCLAST -> [String]
 generateSignatures ast =  map functionSigStr (inferSignatures ast)
 
 opaqueFunctionExprs = map (\(fname, _) -> (Function fname [], Id DDC) ) functionSignaturesList
-
+generatedOpaqueFunctionDefs = map (\elt -> fst $ generateSubDef functionSignatures elt []) opaqueFunctionExprs
 
 
 
 generateDefs :: TyTraCLAST -> [String]
 generateDefs ast = let 
         functionSignatures = inferSignaturesMap ast
-        -- opaqueFunctionExprs = mkOpaqueFunctionExprs
     in
         fst $ foldl (
             \(lst,st) elt ->  let
                 (elt',st') = generateSubDef functionSignatures elt st
             in
                 (lst++[elt'],st')
-                ) ([],[]) (opaqueFunctionExprs++ast)
+                ) ([],[]) ast
 
 inferSignature ::  (Map.Map Name FSig) -> (Expr,Expr) -> Map.Map Name FSig
 inferSignature functionSignatures ast_tup =
@@ -237,8 +236,9 @@ fortranType DReal = "real"
 fortranType DFloat = "real"       
 fortranType dt = "BOOM! "++(show dt)
 
-
--- (Vec VT DDC "vec_wet_1_0",Comp (PElt 3) (Function "update_map_24" [Scalar VI DFloat "hmin_0"]))
+TODO
+-- TODO: the non-sub defs must be split between declarations and other statements
+-- So having generateNonSubDef might be better, it will return a string with the statement and a list of decl strings
 generateSubDef :: (Map.Map Name FSig) -> (Expr, Expr) -> [String] -> (String,[String])
 generateSubDef functionSignatures t st =
     let
