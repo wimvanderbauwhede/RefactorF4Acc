@@ -17,7 +17,6 @@ data DType =
 data FSig = 
     MapFSig (Expr,Expr,Expr)
   | FoldFSig (Expr,Expr,Expr,Expr)
-  | VecSig Expr
   deriving (Show, Typeable, Data, Eq)
 
 type TyTraCLAST = [(Expr,Expr)]                      
@@ -39,7 +38,7 @@ data Expr =
                     | Fold Expr Expr Expr -- fold f acc v
                     | Stencil Expr Expr -- stencil s v
                     | Function Name [Expr] -- 2nd arg is list of non-map/fold args
-                    | Id -- id
+                    | Id DType -- id
                     -- | Mu Expr Expr -- \a e -> g a (f e) -- of course bb does not have this, no need
                     | ApplyT [Expr]  -- applyt (f1,f2)
                     | MapS Expr Expr -- maps s f

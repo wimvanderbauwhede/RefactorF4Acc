@@ -245,8 +245,8 @@ rewriteZipTMap es =  let
         Map (ApplyT f_s) (ZipT v_s)
 
 rewriteId expr =  case expr of
-    Vec _ _ _  -> Map Id expr
-    Stencil _ (Vec _ _ _) -> Map Id expr
+    Vec _ dt _  -> Map (Id dt) expr
+    Stencil _ (Vec _ dt _) -> Map (Id dt) expr
     _ -> expr
 
 get_map :: Expr -> [Expr]
@@ -301,7 +301,7 @@ subsitute_expr lhs exp = do
                       Const _ -> ((ct,var_expr_pairs),exp)
                       Tuple _ -> ((ct,var_expr_pairs),exp)
                       Vec _ _ _ -> ((ct,var_expr_pairs),exp)
-                      Id -> ((ct,var_expr_pairs),exp)
+                      Id _ -> ((ct,var_expr_pairs),exp)
                       Function _ _ -> ((ct,var_expr_pairs),exp)
                       SVec _ _ _ -> ((ct,var_expr_pairs),exp)
                       SComb _ _ -> ((ct,var_expr_pairs),exp)
@@ -330,7 +330,8 @@ subsitute_expr lhs exp = do
                         in
                             ((ct+1,var_expr_pairs++[(f_expr,exp)]),f_expr)
                       Comp (PElt idx) (Function _ nms2) -> let
-                            f_expr = Function ("f_pelt_"++vec_name++"_"++(show ct)) nms2
+                        -- I think the vec_name here is unique so no need for ++"_"++(show idx)
+                            f_expr = Function ("f_pelt_"++vec_name) nms2
                         in
                             ((ct+1,var_expr_pairs++[(f_expr,exp)]),f_expr)
                       FComp (Function _ nms1) (Function _ nms2) -> let

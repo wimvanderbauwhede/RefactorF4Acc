@@ -643,8 +643,9 @@ end subroutine f_maps_acc3_1_0
 - I need to either create a kernel routine around the generated code. And this must also have signature
 - The information for the signature is obtained from the ast by filtering for non-functions, and then getting VI from the rhs and VO from the lhs
 
+import Data.Generics (mkQ, everything)        
 -- for every stage:
-
+-- Maybe I'd better generate a new superkernel, so every stage is an ordinary function
 generateStageKernel stage_ast ct =
     let
         non_func_exprs = filter (\(lhs, rhs) -> case lhs of
@@ -658,7 +659,7 @@ generateStageKernel stage_ast ct =
     in
         show (in_args, out_args)        
 
-import Data.Generics (mkQ, everything)        
+
 
 
 getInputArgs rhs = everything (++) (mkQ [] (getInputArgs')) rhs
