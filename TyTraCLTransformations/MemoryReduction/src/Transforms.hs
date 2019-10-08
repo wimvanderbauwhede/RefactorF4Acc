@@ -204,35 +204,56 @@ fuseStencils ast
     | nmatches==0 = ast'
     | otherwise = fuseStencils ast'
     where
-        -- ast' = map (\(lhs,rhs) -> (lhs,rewrite_ast_expr' rhs)) ast
         (nmatches, ast') = foldl (\(nm,ast_acc) (lhs,rhs) -> 
             let 
-                (m, rhs') = rewrite_ast_expr' rhs
+                (m, rhs') = rewrite_ast_expr_fuse rhs
             in    
                 (nm+m, ast_acc++[(lhs,rhs')])
             ) (0,[]) ast
 
 -- What we do is fuse stencils and make sure stencils are applied to input vectors, not zips
-rewrite_ast_expr' expr = case expr of   
-    Map f_expr (Stencil s_1 (Stencil s_2 v_expr)) -> (1,Map f_expr (Stencil (SComb s_1 s_2) v_expr))
-    Fold f_expr acc_expr (Stencil s_1 (Stencil s_2 v_expr)) -> (1,Fold f_expr acc_expr (Stencil (SComb s_1 s_2) v_expr))
-    Map f_expr (Stencil s (ZipT vs)) -> (1,Map f_expr (ZipT (map (Stencil s) vs)))
-    Fold f_expr acc_expr (Stencil s (ZipT vs)) -> (1,Fold f_expr acc_expr (ZipT (map (Stencil s) vs)))
+-- This is not good because it fails on a ZipT arg   
+
+-- rewrite_ast_expr_fuse expr = case expr of   
+--     Map f_expr (Stencil s_1 (Stencil s_2 v_expr)) -> (1,Map f_expr (Stencil (SComb s_1 s_2) v_expr))
+--     Fold f_expr acc_expr (Stencil s_1 (Stencil s_2 v_expr)) -> (1,Fold f_expr acc_expr (Stencil (SComb s_1 s_2) v_expr))
+--     Map f_expr (Stencil s (ZipT vs)) -> (1,Map f_expr (ZipT (map (Stencil s) vs)))
+--     Fold f_expr acc_expr (Stencil s (ZipT vs)) -> (1,Fold f_expr acc_expr (ZipT (map (Stencil s) vs)))
+--     Map f_expr (ZipT v_exprs) -> (1,)
+--     _ -> (0,expr)
+
+
+rewrite_ast_expr_fuse expr = case expr of   
+    Map f_expr v_expr -> let
+                (m,v_expr') = fuse_stencils v_expr
+            in 
+                (m, Map f_expr v_expr')
+    Fold f_expr acc_expr v_expr -> let
+                (m,v_expr') = fuse_stencils v_expr
+            in 
+                (m, Fold acc_expr f_expr v_expr')                
+        -- Fold f_expr acc_expr (Stencil s_1 (Stencil s_2 v_expr)) -> (1,Fold f_expr acc_expr (Stencil (SComb s_1 s_2) v_expr))
+        -- Map f_expr (Stencil s (ZipT vs)) -> (1,Map f_expr (ZipT (map (Stencil s) vs)))
+        -- Fold f_expr acc_expr (Stencil s (ZipT vs)) -> (1,Fold f_expr acc_expr (ZipT (map (Stencil s) vs)))
+        -- Map f_expr (ZipT v_exprs) -> (1,)
     _ -> (0,expr)
-{- 
+
+fuse_stencils (Stencil s_1 (Stencil s_2 v_expr)) = (1,Stencil (SComb s_1 s_2) v_expr)
+fuse_stencils (Stencil s (ZipT vs)) = (1,ZipT (map (Stencil s) vs))
+fuse_stencils (ZipT v_exprs) = 
+    let
+        (ms,v_exprs') = unzip $ map fuse_stencils v_exprs
+    in 
+        (if sum ms > 0 then 1 else 0, ZipT v_exprs' )
+fuse_stencils v_expr = (0,v_expr)
+
+{-      
 This needs to be done repeatedly until a fixpoint is reached.    
 Fixpoint is reached when there is only a single Map expression
 -}
 applyRewriteRules  = map (\(lhs,rhs) -> (lhs,rewrite_ast_into_single_map 0 rhs))
       
--- fuseStencils ast = let
---         ast' = map (\(lhs,rhs) -> (lhs,rewrite_ast_expr' rhs)) ast
---         ast'' = map (\(lhs,rhs) -> (lhs,rewrite_ast_expr' rhs)) ast'
---     in
---         ast''
 
--- ast''' = map (\(lhs,rhs) -> (lhs,rewrite_ast_into_single_map rhs)) ast''
---
 map_checks :: TyTraCLAST -> [Int]
 map_checks ast = filter (/=0) $ map  (\(lhs,rhs) -> n_map_subexprs rhs) ast
 

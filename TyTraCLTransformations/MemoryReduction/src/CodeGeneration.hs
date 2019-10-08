@@ -588,7 +588,6 @@ createDecls (Scalar _ DDC vn) =  error "DDC!"
 createDecls (Scalar _ dt vn) = [(fortranType dt)++" :: "++vn]
 createDecls (Tuple es) = concatMap createDecls es
 
-
 getVarNames :: Expr -> [String]
 getVarNames (SVec sz dt' vn) = let
         dt = rewriteDT dt'
@@ -607,7 +606,9 @@ getVarNames (SVec sz dt' vn) = let
 getVarNames (Scalar _ dt vn) = [vn]
 getVarNames (Tuple es) = concatMap getVarNames es 
 getVarNames (ZipT es) = concatMap getVarNames es 
-getVarNames (Vec _ _ vn) = [vn]
+getVarNames (Vec _ dt vn) = case dt of
+                DTuple dts -> map (\ct -> vn++"_"++(show ct)) [0 .. length dts - 1]
+                _ -> [vn]
 
 getSzFromDSVec :: DType -> [Int] -> ([Int],DType)
 getSzFromDSVec (DSVec sz dt) szs = getSzFromDSVec dt (szs++[sz])  
@@ -646,7 +647,7 @@ generateStencilAppl s_exp (Vec _ dt v_name) sv_name stencilDefinitions =
             ]
     in
         (
-        unlines [
+        unlines [            
              "    do s_idx = 1,"++(show sv_sz)
             ,"        "++sv_name++"(s_idx) = "++v_name++"(idx+"++s_name++"(s_idx))"
             ,"    end do"
@@ -697,12 +698,14 @@ generateStencilDef s_exp stencilDefinitions =
 generateMap f_exp v_exp ov_name =
     let
         Function fname nms_exps = f_exp
-        nms = getVarNames (Tuple nms_exps)
+        nms = getVarNames (Tuple nms_exps)        
         vs_in = getVarNames v_exp
+        vs_in' = map (\vn -> if Map.member vn mainArgDecls then vn++"(idx)" else vn) vs_in
+        ov_name' = if Map.member ov_name mainArgDecls then ov_name++"(idx)" else ov_name
     in
         (
         "    call "++fname++"("
-        ++(intercalate ", " (nms ++vs_in ++[ov_name]))
+        ++(intercalate ", " (nms ++vs_in' ++[ov_name']))
         ++")"
         ,[])
 
