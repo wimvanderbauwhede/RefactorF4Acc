@@ -3729,6 +3729,11 @@ name "lis:Extending-the-TyTraCL"
 \end_layout
 
 \begin_layout Standard
+We now present the code generation for each of the TyTraCL primitives, using
+ examples from the 2-D shallow water simulation REF.
+\end_layout
+
+\begin_layout Standard
 
 \family typewriter
 \begin_inset Note Note

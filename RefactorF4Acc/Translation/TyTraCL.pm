@@ -52,6 +52,7 @@ use Exporter;
   &generate_TyTraCL_stencils
   &_add_TyTraCL_AST_entry
   &_emit_TyTraCL_FunctionSigs
+  &__toTyTraCLType
 );
 
 # If set to 0, Folds are identified as Maps (for dev/debug)
@@ -179,19 +180,6 @@ sub emit_TyTraCL {
         # These are never arguments of the main function
         if ($node->{'NodeType'} eq 'StencilDef') {
             my $ctr = $lhs->{'Ctr'};
-
-#			my $stencil_ast = $rhs->{'StencilPattern'}{'Accesses'};
-#            my $array_dims = $rhs->{'StencilPattern'}{'Dims'};
-#            my @evaled_array_dims = ();
-#            for my $array_dim (@{ $array_dims } ) {
-#                push @evaled_array_dims, eval( $array_dim->[1].' - '.$array_dim->[0] );
-#            }
-
-#			my @stencil_pattern = map { $_=~s/:/,/;"[$_]" } sort keys %{$stencil_ast};
-            # I should get the linear dimension from somewhere, we could add this information to the stencil detection
-            # TODO: this needs to be generic so I should split the above and combine it with the dimensions
-#            my @stencil_pattern_eval = map {my $res=eval("my \$a=$_;my \$b=\$a->[0]*".$evaled_array_dims[0]."+\$a->[1];\$b");$res} @stencil_pattern;# FIXME: HACK!
-            #my $stencil_definition = '['.join(',',@stencil_pattern).']';
             my $stencils_          = generate_TyTraCL_stencils($rhs->{'StencilPattern'});
             my $stencil_definition = '[' . join(',', @{$stencils_}) . ']';
 
@@ -398,8 +386,6 @@ sub __toTyTraCLType {
         }
     }
     else {                                                          # Vector
-
-#  say Dumper($array_dims);
         my @ranges = ();
         for my $array_dim (@{$array_dims}) {
             push @ranges, '(' . $array_dim->[1] . '-' . $array_dim->[0] . '+1)';

@@ -260,7 +260,10 @@ sub addTypeDecl {
     my ($stref, $f, $var_name, $var_type, $dim) = @_;
 
     $stref->{'Subroutines'}{$f}{'ArrayAccesses'}{0}{'Arrays'}{$var_name} = {'Dims' => $dim};
-    $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$var_name} = {'Type' => $var_type};
+    $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$var_name} = {
+        'Type' => $var_type,
+        'Dim' => $dim
+        };
     return $stref;
 }
 

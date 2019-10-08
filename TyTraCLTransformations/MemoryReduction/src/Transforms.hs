@@ -249,7 +249,7 @@ rewriteZipTMap es =  let
 
 rewriteId expr =  case expr of
     Vec _ dt _  -> Map (Id dt) expr
-    Stencil _ (Vec _ dt _) -> Map (Id dt) expr
+    Stencil (SVec sz _ _)  (Vec _ dt _) -> Map (Id (DSVec sz dt)) expr
     _ -> expr
 
 get_map :: Expr -> [Expr]

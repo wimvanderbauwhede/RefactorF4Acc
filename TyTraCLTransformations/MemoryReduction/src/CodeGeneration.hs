@@ -1,10 +1,10 @@
-module CodeGeneration (inferSignatures, generateSignatures, generatedOpaqueFunctionDefs, createStages, generateDefs, generateStageKernel) where
+module CodeGeneration (inferSignatures, generateSignatures, generatedOpaqueFunctionDefs, createStages, generateDefs, generateNonSubDefs, generateStageKernel) where
 
 -- import Data.Generics (Data, Typeable, mkQ, mkT, mkM, gmapQ, gmapT, everything, everywhere, everywhere', everywhereM)
 import Data.Generics (mkQ, everything)  
 -- import Control.Monad.State
 import TyTraCLAST
-import ASTInstance (functionSignaturesList, stencilDefinitionsList)--ast, 
+import ASTInstance (functionSignaturesList, stencilDefinitionsList, mainArgDeclsList)
 import qualified Data.Map.Strict as Map
 import Data.List
 
@@ -35,6 +35,8 @@ accArgs (FoldFSig (nfs,as,fs,os)) = as
 functionSignatures :: Map.Map Name FSig 
 functionSignatures =  Map.fromList functionSignaturesList
 
+mainArgDecls :: Map.Map Name String
+mainArgDecls =  Map.fromList mainArgDeclsList
 
 stencilDefinitions :: Map.Map Name [Integer]
 stencilDefinitions  =  Map.fromList stencilDefinitionsList
@@ -53,8 +55,19 @@ generateSignatures ast =  map functionSigStr (inferSignatures ast)
 opaqueFunctionExprs = map (\(fname, _) -> (Function fname [], Id DDC) ) functionSignaturesList
 generatedOpaqueFunctionDefs = map (\elt -> fst $ generateSubDef functionSignatures elt []) opaqueFunctionExprs
 
-
-
+generateNonSubDefs :: TyTraCLAST -> ([String],[String])
+generateNonSubDefs ast = 
+    let
+        (stmts, decls) = foldl (
+            \(lst,st) elt ->  let
+                (elt',st') = generateNonSubDef elt
+            in
+                (lst++[elt'],st++st')
+                ) ([],[]) ast
+        unique_decls = nub decls                
+    in
+        (unique_decls, stmts)
+        
 generateDefs :: TyTraCLAST -> [String]
 generateDefs ast = let 
         functionSignatures = inferSignaturesMap ast
@@ -234,11 +247,25 @@ fortranType DInt = "integer"
 fortranType DInteger = "integer" 
 fortranType DReal = "real"
 fortranType DFloat = "real"       
-fortranType dt = "BOOM! "++(show dt)
+fortranType (DSVec sz dt) = (fortranType dt)++", dimension("++(show sz)++")"
+fortranType dt = "No equivalent Fortran type for "++(show dt)
 
-TODO
 -- TODO: the non-sub defs must be split between declarations and other statements
 -- So having generateNonSubDef might be better, it will return a string with the statement and a list of decl strings
+generateNonSubDef :: (Expr, Expr) -> (String,[String])
+generateNonSubDef t =
+    let
+        (lhs,rhs) = t
+        Vec _ _ v_name  = lhs
+        Scalar _ _ sc_name = lhs
+    in
+        case rhs of 
+            Stencil s_exp v_exp -> generateStencilAppl s_exp v_exp v_name stencilDefinitions
+            Map f_exp v_exp -> generateMap f_exp v_exp v_name 
+            Fold f_exp acc_exp v_exp -> generateFold f_exp acc_exp v_exp sc_name 
+            _ -> (show rhs, ["TODO"])
+        
+
 generateSubDef :: (Map.Map Name FSig) -> (Expr, Expr) -> [String] -> (String,[String])
 generateSubDef functionSignatures t st =
     let
@@ -255,9 +282,9 @@ generateSubDef functionSignatures t st =
             Comp (PElt idx) f_exp -> generateSubDefElt idx f_exp ho_fname functionSignatures
             Comp f1_exp f2_exp -> generateSubDefComp f1_exp f2_exp ho_fname functionSignatures
             FComp f1_exp f2_exp -> generateSubDefFComp f1_exp f2_exp ho_fname functionSignatures     
-            Stencil s_exp v_exp -> generateStencilAppl s_exp v_exp v_name stencilDefinitions
-            Map f_exp v_exp -> generateMap f_exp v_exp v_name 
-            Fold f_exp acc_exp v_exp -> generateFold f_exp acc_exp v_exp sc_name 
+            -- Stencil s_exp v_exp -> generateStencilAppl s_exp v_exp v_name stencilDefinitions
+            -- Map f_exp v_exp -> generateMap f_exp v_exp v_name 
+            -- Fold f_exp acc_exp v_exp -> generateFold f_exp acc_exp v_exp sc_name 
             Id _ -> generateSubDefOpaque ho_fname functionSignatures
             _ -> show rhs
             ,[])
@@ -281,7 +308,7 @@ generateSubDefOpaque fname functionSignatures =
                         unlines [
                             "subroutine "++fname++"("  ++(mkArgList [non_map_args,in_args,out_args])++")"
                             , mkDeclLines [non_map_arg_decls,in_arg_decls,out_arg_decls]
-                            ,"!!!"
+                            ,"    !!! <insert the call to the original scalarised subroutine>"
                             ,"end subroutine "++fname
                         ]
                 FoldFSig (nms,as,ms,os) ->
@@ -319,17 +346,20 @@ generateSubDefMapS sv_exp f_exp maps_fname functionSignatures =
         sv_in_decl = createDecls in_arg
         sv_out_decl = createDecls out_arg
         non_map_args = getVarNames nms
+        sv_in_iters = createIter in_arg
+        sv_out_iters = createIter out_arg
+        sv_in_accesses = map (\(x,y)-> x++y) $ zip sv_in sv_in_iters
+        sv_out_accesses = map (\(x,y)-> x++y) $ zip sv_out sv_out_iters
         sv_in = getVarNames in_arg
-        sv_out = getVarNames out_arg        
-    in unlines [
+        sv_out = getVarNames out_arg                
+    in unlines [        
         "subroutine "++maps_fname++"("  ++(mkArgList [non_map_args,sv_in,sv_out])++")"
         , mkDeclLines [non_map_arg_decls,sv_in_decl,sv_out_decl]
+        ,"    integer :: i"
         ,"    do i=1,"++ (show sv_sz )
         ,"        call "++fname++"("++
-        (mkArgList [non_map_args,map (++"(i)") sv_in,map (++"(i)") sv_out])
-            -- ++(intercalate ", " non_map_args)++", "
-            -- ++(intercalate ", " (map (++"(i)") sv_in))++", "
-            -- ++(intercalate ", " (map (++"(i)") sv_out))
+        (mkArgList [non_map_args,sv_in_accesses,sv_out_accesses])
+        -- (mkArgList [non_map_args,map (++"(i)") sv_in,map (++"(i)") sv_out])
         ++")"
         ,"    end do"
         ,"end subroutine "++maps_fname
@@ -337,11 +367,6 @@ generateSubDefMapS sv_exp f_exp maps_fname functionSignatures =
 generateSubDefApplyT :: [Expr]  -> Name -> (Map.Map Name FSig) -> String
 generateSubDefApplyT f_exps applyt_fname functionSignatures = 
     let
-            -- fnames = concatMap getFNames f_exps -- map (\(Function fname _) -> fname) f_exps
-            -- fsigs = map (\fname -> case Map.lookup fname functionSignatures of
-            --             Just fs -> fs
-            --             Nothing -> error "BOOM!"
-            --         ) fnames         
             fsigs = getFSigs f_exps functionSignatures
             fnames = map (
                         \f_expr -> case f_expr of
@@ -517,6 +542,30 @@ rewriteDT dt = case dt of
         ) [] dts)
     _ -> dt
 
+createIter :: Expr -> [String]
+createIter (SVec sz dt' vn) = let
+        dt = rewriteDT dt'
+    in
+        case dt of
+            -- we know this can only be either nested DSVec or terminal
+            DSVec _ _  ->  let
+                    (szs,dt') = getSzFromDSVec dt []
+                    colons = map (\_->":") szs
+                in                    
+                    ["("++(intercalate "," ("i":colons)) ++")"]
+            -- we know this has no tuples inside it                
+            DTuple dts -> createIter (
+                Tuple (
+                    snd $ foldl (\(ct,tl) dt -> (ct+1,tl++[SVec sz dt (vn++(show ct))] ) )  (0,[]) dts 
+                    )
+                )
+            -- DDC -> error "SVec DDC!"
+            dt -> ["(i)"]
+-- createIter (Scalar _ DDC vn) =  error "DDC!"
+-- createIter (Scalar _ dt vn) = [(fortranType dt)++" :: "++vn]
+createIter (Tuple es) = concatMap createIter es
+
+
 createDecls :: Expr -> [String]
 createDecls (SVec sz dt' vn) = let
         dt = rewriteDT dt'
@@ -560,11 +609,15 @@ getVarNames (Tuple es) = concatMap getVarNames es
 getVarNames (ZipT es) = concatMap getVarNames es 
 getVarNames (Vec _ _ vn) = [vn]
 
+getSzFromDSVec :: DType -> [Int] -> ([Int],DType)
 getSzFromDSVec (DSVec sz dt) szs = getSzFromDSVec dt (szs++[sz])  
 getSzFromDSVec dt szs = (szs,dt)
 
 countNArgs :: Expr -> Int
 countNArgs (Tuple ls) = length ls
+countNArgs (SVec _ dt _ ) = case rewriteDT dt of
+    DTuple ls -> length ls
+    _ -> 1
 countNArgs _ = 1
 
 groupArgs args f_arg_counts = 
@@ -585,21 +638,24 @@ generateStencilAppl s_exp (Vec _ dt v_name) sv_name stencilDefinitions =
         sv_type = fortranType dt         
         (s_name,s_def) = generateStencilDef s_exp stencilDefinitions
         sv_sz = length s_def
+        decl_lines = [
+                "integer, parameter, dimension("++(show sv_sz)++") :: "++s_name++" = "++(show s_def)
+            -- if the $sv_type is DDC, it means we need to lookup the type from the definition, which will likely be a zip            
+                ,sv_type++", dimension("++(show sv_sz)++") :: "++sv_name
+                ,"integer :: s_idx"
+            ]
     in
+        (
         unlines [
-            -- show s_exp,
-        "! stencil"
-        ,"integer, parameter, dimension("++(show sv_sz)++") :: "++s_name++" = "++(show s_def)++" ! the 1-D case"
-        -- if the $sv_type is DDC, it means we need to lookup the type from the definition, which will likely be a zip
-        -- it might be easier not to decompose the ZipT    
-        ,sv_type++", dimension("++(show sv_sz)++") :: "++sv_name
-        ,"do s_idx = 1,"++(show sv_sz)
-        ,"    "++sv_name++"(s_idx) = "++v_name++"(idx+"++s_name++"(s_idx))"
-        ,"end do"
-        ]
+             "    do s_idx = 1,"++(show sv_sz)
+            ,"        "++sv_name++"(s_idx) = "++v_name++"(idx+"++s_name++"(s_idx))"
+            ,"    end do"
+            ]
+        ,decl_lines)
 generateStencilAppl s_exp (ZipT vs_exps) sv_name stencilDefinitions = let
         gen_stencils :: [String]
-        gen_stencils = map (\(v_exp,ct) -> generateStencilAppl s_exp v_exp (sv_name++"_"++(show ct)) stencilDefinitions) (zip vs_exps [0..])
+        -- [(String,[String])] -> ([String], [[String]])
+        (gen_stencils,decls) = unzip $ map (\(v_exp,ct) -> generateStencilAppl s_exp v_exp (sv_name++"_"++(show ct)) stencilDefinitions) (zip vs_exps [0..])
         -- I want to "zip" them but it's a list of lists, so I need to round-robin over it
         gen_stencils_lines :: [[String]]
         gen_stencils_lines = map lines gen_stencils
@@ -611,7 +667,18 @@ generateStencilAppl s_exp (ZipT vs_exps) sv_name stencilDefinitions = let
         all_lines :: [String]
         all_lines = concat unique_grouped_lines
     in
-        unlines all_lines
+        -- (unlines non_decl_lines, decl_lines)
+        (unlines all_lines, concat decls)
+
+-- some kind of a fold where the result is, if I start from n lists, with each list k lines, then I will have k lists of n lines
+-- so for each of these n lists I take the head , that gets me n lines
+pairUpZipCode lsts acc
+            | null (head lsts) = acc
+            | otherwise =
+                let
+                    (l1,rest) = unzip  $ map (\(x:xs) -> (x,xs)) lsts -- which is a list of tuples                    
+                in
+                    pairUpZipCode rest (acc++[l1])
 
 generateStencilDef s_exp stencilDefinitions = 
      case s_exp of
@@ -625,18 +692,6 @@ generateStencilDef s_exp stencilDefinitions =
             in
                 (scomb_name, scomb_def)
 
-
-
--- some kind of a fold where the result is, if I start from n lists, with each list k lines, then I will have k lists of n lines
--- so for each of these n lists I take the head , that gets me n lines
-pairUpZipCode lsts acc
-            | null (head lsts) = acc
-            | otherwise =
-                let
-                    (l1,rest) = unzip  $ map (\(x:xs) -> (x,xs)) lsts -- which is a list of tuples                    
-                in
-                    pairUpZipCode rest (acc++[l1])
-
 -- Map (Function "f2" ["acc_1"]) (Vec VS DDC "svec_v_1_0")
 -- map (generateSubDef functionSignatures) ast                     
 generateMap f_exp v_exp ov_name =
@@ -645,89 +700,67 @@ generateMap f_exp v_exp ov_name =
         nms = getVarNames (Tuple nms_exps)
         vs_in = getVarNames v_exp
     in
-        "call "++fname++"("
+        (
+        "    call "++fname++"("
         ++(intercalate ", " (nms ++vs_in ++[ov_name]))
         ++")"
-        
+        ,[])
+
 generateFold f_exp acc_exp v_exp sc_name =
     let
         Function fname nms_exps = f_exp
         nms = getVarNames (Tuple nms_exps)
         vs_in = getVarNames v_exp
         Scalar _ _ acc_name = acc_exp
-    in
-        "call "++fname++"("
+    in  
+        (
+        "    call "++fname++"("
         ++(intercalate ", " (nms ++[acc_name] ++vs_in ++[sc_name]))
         ++")"
         ++"\n"
         ++acc_name++" = "++sc_name
-
-{-
-The problem with the stages is that not every "stage" is really a stage. Basically it is about dependencies.
-And in fact, staging is only needed for folds. 
-We have now already set it up such that any maps preceding a fold are part of the fold.
-So any "stage" with a fold AND the last stage are real stages. The other should be combined with the last stage
-
-So basically, split out all Fold entries 
-And we should split out all function definitions and put them up front
-we have [[(Expr,Expr)]]
-
-createStages asts =
-        let
-            (asts_function_defs, asts_no_function_defs) = unzip $ map (partition isFunctionDef) asts
-            (asts_with_fold,asts_without_fold) = partition hasFold asts_no_function_defs
-            ast_without_fold = concat asts_without_fold
-
-        in 
-            (asts_function_defs,asts_with_fold++[ast_without_fold])
-
-hasFold ast = let
-        fold_exprs = filter (\(lhs, rhs) -> case rhs of
-            Fold _ _ _ -> True
-            _ -> False
-            ) ast
-    in
-        length fold_exprs > 0     
-
-isFunctionDef (Function _ _) = True
-isFunctionDef _ = False
--}
+        ,[])
 
 -- for every stage:
--- Maybe I'd better generate a new superkernel, so every stage is an ordinary function
+-- stage_ast is the AST with only non-function-defs
 generateStageKernel :: Int -> TyTraCLAST -> [String]
 generateStageKernel ct stage_ast  =
     let
-        non_func_exprs = filter (\(lhs, rhs) -> case lhs of
-                                    Function _ _ -> False
-                                    _ -> True
-                                ) stage_ast
+        (generatedDecls,generatedStmts) = generateNonSubDefs stage_ast
+        uniqueGeneratedDecls = nub generatedDecls
+
         -- now I need to extract all VI and VO from non_func_exprs
         -- best way to do that is with `everything` I think
-        in_args = nub $ concatMap (\(lhs,rhs) -> getInputArgs rhs) non_func_exprs
-        out_args = nub $ concatMap (\(lhs,rhs) -> getOutputArgs lhs) non_func_exprs
+        in_args = nub $ concatMap (\(lhs,rhs) -> getInputArgs rhs) stage_ast
+        out_args = nub $ concatMap (\(lhs,rhs) -> getOutputArgs lhs) stage_ast
         -- and I need the declarations for these, so I guess I need to get the Exprs and then the names and decls from there
         -- also I need a mechanism to detect the accs that are passed between the stages
+        arg_decl_lines = map (\arg_name -> case Map.lookup arg_name mainArgDecls of
+                                    Just decl -> decl
+                                    Nothing -> error $ "No declaration for "++arg_name++ " in mainArgDecls"
+                            ) (in_args++out_args)
 
     in
         [
             "subroutine stage_kernel_"++(show ct)++"("++(mkArgList [in_args, out_args])++")"
-            -- ,mkDeclLines ()
-            ,"end subroutine stage_kernel_"++(show ct)
+        ]
+        ++(map ("  "++) arg_decl_lines)
+        ++(map ("    "++) uniqueGeneratedDecls)
+        ++generatedStmts
+        ++[            
+            "end subroutine stage_kernel_"++(show ct)
         ]
 
 
-
-
-getInputArgs rhs = everything (++) (mkQ [] (getInputArgs')) rhs
+getInputArgs = everything (++) (mkQ [] (getInputArgs')) 
 
 getInputArgs' :: Expr -> [Name]
 getInputArgs' node = case node of
-                            Vec VI _ vn -> [vn] 
-                            Scalar VI _ sn -> [sn]
+                            Vec VI dt vn -> [vn] 
+                            Scalar VI dt sn -> [sn]
                             _ -> []
 
-getOutputArgs lhs = everything (++) (mkQ [] (getOutputArgs')) lhs
+getOutputArgs = everything (++) (mkQ [] (getOutputArgs')) 
 
 getOutputArgs' :: Expr -> [Name]
 getOutputArgs' node = case node of
@@ -737,7 +770,7 @@ getOutputArgs' node = case node of
 
 
 getFNames :: Expr -> [Name]
-getFNames exp = everything (++) (mkQ [] (getFNames')) exp
+getFNames = everything (++) (mkQ [] (getFNames')) 
 
 getFNames' :: Expr -> [Name]
 getFNames' (Function fname _) = [fname]
@@ -751,8 +784,21 @@ getFSigs fs functionSignatures = map (\(f_expr, idx) -> case f_expr of
         Id dt -> MapFSig (Tuple [], Scalar VDC dt ("id_in_"++(show idx)), Scalar VDC dt ("id_out_"++(show idx)) )
     ) (zip fs [1..])
 
+{-
+The problem with the stages is that not every "stage" is really a stage. Basically it is about dependencies.
+And in fact, staging is only needed for folds. 
+We have now already set it up such that any maps preceding a fold are part of the fold.
+So any "stage" with a fold AND the last stage are real stages. The other should be combined with the last stage
 
-createStages :: [TyTraCLAST] -> ([TyTraCLAST],[TyTraCLAST],[TyTraCLAST])
+So basically, split out all Fold entries 
+And we should split out all function definitions and put them up front
+
+So what this returns is
+- A list of ASTs of the function definitions
+- A list of ASTs of the non-function-definition code for each stage
+-}
+
+createStages :: [TyTraCLAST] -> ([TyTraCLAST],[TyTraCLAST])
 createStages asts =
     let
         (asts_function_defs, asts_no_function_defs) = unzip $ map (partition isFunctionDef) asts
@@ -760,7 +806,7 @@ createStages asts =
         ast_without_fold = concat asts_without_fold
 
     in 
-        (asts_function_defs,asts_no_function_defs,asts_with_fold++[ast_without_fold])
+        (asts_function_defs,asts_with_fold++[ast_without_fold])
 
 hasFold ast = let
         fold_exprs = filter (\(lhs, rhs) -> case rhs of

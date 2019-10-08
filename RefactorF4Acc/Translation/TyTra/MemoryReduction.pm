@@ -2,10 +2,10 @@ package RefactorF4Acc::Translation::TyTra::MemoryReduction;
 use v5.10;
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
-use RefactorF4Acc::Refactoring::Common qw( pass_wrapper_subs_in_module );
+use RefactorF4Acc::Refactoring::Common qw( pass_wrapper_subs_in_module emit_f95_var_decl);
 use RefactorF4Acc::Refactoring::Fixes qw( remove_redundant_arguments_and_fix_intents );
 use RefactorF4Acc::Translation::TyTra::Common qw( 
-    _mkVarName
+    _mkVarName    
     mkMap
     mkFold
     mkStencilDef
@@ -21,6 +21,7 @@ use RefactorF4Acc::Translation::TyTraCL qw(
     generate_TyTraCL_stencils 
     _add_TyTraCL_AST_entry
     _emit_TyTraCL_FunctionSigs
+    __toTyTraCLType
      );
 
 #
@@ -53,6 +54,7 @@ use Exporter;
 
 sub pass_memory_reduction {
     (my $stref, my $module_name) = @_;
+    
     my $TEST =  exists $Config{'TEST'} ? $Config{'TEST'} : 0;
     
     # WV: I think Selects and Inserts should be in Lines but I'm not sure
@@ -530,7 +532,7 @@ sub _emit_TyTraCL_Haskell_AST_Code {
     }
 
 my $header =
-'module ASTInstance ( ast, functionSignaturesList, stencilDefinitionsList ) where
+'module ASTInstance ( ast, functionSignaturesList, stencilDefinitionsList, mainArgDeclsList ) where
 import TyTraCLAST
 
 ast :: TyTraCLAST
@@ -561,14 +563,16 @@ ast = [
 
     my $fsigs_str = _create_TyTraCL_Haskell_signatures($stref);
     my $stencil_defs_str = _create_TyTraCL_Haskell_stencilDefs(\@stencil_defs);
-
+    my $main_arg_decls_str = _create_TyTraCL_Haskell_MainArgDecls($stref,$tytracl_ast->{'MainFunction'});
     $tytracl_hs_ast_code_str.= "\n".$fsigs_str;
     $tytracl_hs_ast_code_str.= "\n".$stencil_defs_str;
+    $tytracl_hs_ast_code_str.= "\n".$main_arg_decls_str;
     $stref->{'TyTraCL_Haskell_AST_Code'} = $tytracl_hs_ast_code_str ;
 
     return $stref;
 }    # END of _emit_TyTraCL_Haskell_AST_Code
 
+#========================================================================================================================
 
 sub _add_VE_to_AST {
     (my $stref) = @_;
@@ -1076,4 +1080,46 @@ return
 
 } # END _create_TyTraCL_Haskell_stencilDefs
 
+
+sub _create_TyTraCL_Haskell_MainArgDecls { (my $stref, my $f) = @_;
+        
+    my $arg_decl_str_pairs=[];
+for my $in_arg_name (keys %{$stref->{'TyTraCL_AST'}{'Main'}{'InArgsTypes'}}) {
+    my $tytracl_var_rec =  $stref->{'TyTraCL_AST'}{'Main'}{'InArgsTypes'}{$in_arg_name};
+    my $in_arg_decl = __toFortranDecl($in_arg_name,$tytracl_var_rec,'in');
+    push @{$arg_decl_str_pairs}, [$in_arg_name,$in_arg_decl];
+}
+for my $out_arg_name (keys %{$stref->{'TyTraCL_AST'}{'Main'}{'OutArgsTypes'}}) {
+    my $tytracl_var_rec =  $stref->{'TyTraCL_AST'}{'Main'}{'OutArgsTypes'}{$out_arg_name};
+    my $out_arg_decl = __toFortranDecl($out_arg_name,$tytracl_var_rec,'out');
+    push @{$arg_decl_str_pairs}, [$out_arg_name,$out_arg_decl];
+}
+
+
+    return 
+        'mainArgDeclsList = ['."\n".'      '.
+        join ("\n".'    , ', map {
+            '("'.$_->[0].'" , "'.  $_->[1] .'" )' 
+            } @{$arg_decl_str_pairs}
+        )
+        ."\n".'  ]';
+} # END of _create_TyTraCL_Haskell_MainArgDecls
+
+sub __toFortranDecl {(my $arg_name, my $tytracl_var_rec, my $intent) =@_;
+
+    my %fortran_type = (
+    'Float' => 'real',
+    'Int' => 'integer'
+    );
+
+    my $vt  = shift @{$tytracl_var_rec };
+    if ($vt eq 'Vec') {
+        my $dim = shift @{$tytracl_var_rec };
+        my $vt = shift @{$tytracl_var_rec};
+        return $fortran_type{$vt}.', dimension(1:'.$dim.'), intent('.$intent.') :: '. $arg_name;
+    } else {
+        return $fortran_type{$vt}.', intent('.$intent.') :: '. $arg_name;
+    }
+
+} # END of __toFortranDecl
 1;
