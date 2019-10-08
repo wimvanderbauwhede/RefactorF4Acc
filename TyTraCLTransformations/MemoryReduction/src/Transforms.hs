@@ -232,10 +232,6 @@ rewrite_ast_expr_fuse expr = case expr of
                 (m,v_expr') = fuse_stencils v_expr
             in 
                 (m, Fold acc_expr f_expr v_expr')                
-        -- Fold f_expr acc_expr (Stencil s_1 (Stencil s_2 v_expr)) -> (1,Fold f_expr acc_expr (Stencil (SComb s_1 s_2) v_expr))
-        -- Map f_expr (Stencil s (ZipT vs)) -> (1,Map f_expr (ZipT (map (Stencil s) vs)))
-        -- Fold f_expr acc_expr (Stencil s (ZipT vs)) -> (1,Fold f_expr acc_expr (ZipT (map (Stencil s) vs)))
-        -- Map f_expr (ZipT v_exprs) -> (1,)
     _ -> (0,expr)
 
 fuse_stencils (Stencil s_1 (Stencil s_2 v_expr)) = (1,Stencil (SComb s_1 s_2) v_expr)
@@ -246,6 +242,12 @@ fuse_stencils (ZipT v_exprs) =
     in 
         (if sum ms > 0 then 1 else 0, ZipT v_exprs' )
 fuse_stencils v_expr = (0,v_expr)
+
+
+-- fuseStencils (Stencil s_1 (Stencil s_2 v_expr)) = Stencil (SComb s_1 s_2) v_expr
+-- fuseStencils (Stencil s (ZipT v_exprs)) = ZipT (map (Stencil s) v_exprs)
+-- fuseStencils (ZipT v_exprs) = ZipT (map fuseStencils v_exprs)
+-- fuseStencils v_expr = v_expr
 
 {-      
 This needs to be done repeatedly until a fixpoint is reached.    

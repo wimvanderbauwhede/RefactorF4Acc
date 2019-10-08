@@ -231,7 +231,7 @@ functionSigStr t = let
         (fname,ftype) = t
         args = argList ftype 
     in
-        fname++"("++(intercalate ", " args)++")"
+        fname++"("++(commaSepList args)++")"
 
 varName :: Expr -> [Name]
 varName (Scalar _ _ vn) = [vn]
@@ -395,14 +395,16 @@ generateSubDefApplyT f_exps applyt_fname functionSignatures =
             non_map_args = getVarNames nms
 
     in 
-        unlines [
+        unlines $ concat [
+            [
             "subroutine "++applyt_fname++"("  ++(mkArgList [non_map_args,in_args,out_args])++")"            
             , mkDeclLines [non_map_arg_decls,in_arg_decls,out_arg_decls]
-            , unlines $ map (\(f_expr,nms,ms,os) -> case f_expr of
+            ]
+            , map (\(f_expr,nms,ms,os) -> case f_expr of
                     (Function fname _) -> "    call "++fname++"(" ++(mkArgList [nms,ms,os]) ++")"
                     Id dt -> unlines $ map (\(o,m) -> "    "++o++" = "++m) (zip os ms)
                     ) fsig_names_tups
-            ,"end subroutine "++applyt_fname
+            ,["end subroutine "++applyt_fname]
         ]
 
 -- Comp (Function "f4" []) (Function "f_maps_v_3_0" []))
@@ -493,14 +495,13 @@ generateSubDefFComp f1_exp f2_exp fcomp_fname functionSignatures =
         tmp_args = getVarNames ms1
 
     in 
-        unlines [
-            -- show fnames,
-            -- show fsigs,
-            "subroutine "++fcomp_fname++"("  ++(mkArgList [non_map_args,acc_args,in_args,out_args])++")"            
-            , (unlines (map ("    "++) (non_map_arg_decls++acc_arg_decl++in_args_decl++out_args_decl++local_vars_decl)))
-            , "    call "++fname2++"(" ++(mkArgList [non_map_args2,in_args,tmp_args]) ++")"
+        unlines $ concat [
+            
+            ["subroutine "++fcomp_fname++"("  ++(mkArgList [non_map_args,acc_args,in_args,out_args])++")"]            
+            , map ("    "++) (non_map_arg_decls++acc_arg_decl++in_args_decl++out_args_decl++local_vars_decl)
+            , ["    call "++fname2++"(" ++(mkArgList [non_map_args2,in_args,tmp_args]) ++")"
             , "    call "++fname1++"(" ++(mkArgList [non_map_args1,acc_args,tmp_args,out_args]) ++")"            
-            ,"end subroutine "++fcomp_fname
+            ,"end subroutine "++fcomp_fname]
         ]
 
 -- essentially, select the idx of the tuple as the output of this sub
@@ -552,7 +553,7 @@ createIter (SVec sz dt' vn) = let
                     (szs,dt') = getSzFromDSVec dt []
                     colons = map (\_->":") szs
                 in                    
-                    ["("++(intercalate "," ("i":colons)) ++")"]
+                    ["("++(commaSepList ("i":colons)) ++")"]
             -- we know this has no tuples inside it                
             DTuple dts -> createIter (
                 Tuple (
@@ -575,7 +576,7 @@ createDecls (SVec sz dt' vn) = let
             DSVec _ _  ->  let
                     (szs,dt') = getSzFromDSVec dt []
                 in
-                    [(fortranType dt')++", dimension("++(intercalate "," (map show (sz:szs)))++") :: "++ vn]  
+                    [(fortranType dt')++", dimension("++(commaSepList (map show (sz:szs)))++") :: "++ vn]  
             -- we know this has no tuples inside it                
             DTuple dts -> createDecls (
                 Tuple (
@@ -627,7 +628,10 @@ groupArgs args f_arg_counts =
      ) ([],args) f_arg_counts
 
 mkArgList :: [[String]] -> String
-mkArgList  = (intercalate ", ") . concat 
+mkArgList  = commaSepList . concat 
+
+commaSepList :: [String] -> String
+commaSepList = intercalate ", "
 
 mkDeclLines :: [[String]] -> String
 mkDeclLines  = unlines . (map ("    "++)) . concat 
@@ -637,21 +641,26 @@ mkDeclLines  = unlines . (map ("    "++)) . concat
 generateStencilAppl s_exp (Vec _ dt v_name) sv_name stencilDefinitions = 
     let
         sv_type = fortranType dt         
-        (s_name,s_def) = generateStencilDef s_exp stencilDefinitions
+        (s_name,s_def,sv_szs) = generateStencilDef s_exp stencilDefinitions
         sv_sz = length s_def
+        rhs_idx_str = "        "++(createLinearIdxExprFromNDim sv_szs "s_idx")
+        lhs_idx_str =  commaSepList  $ map (\ct -> "s_idx_"++(show ct)) [1 .. length sv_szs]
         decl_lines = [
                 "integer, parameter, dimension("++(show sv_sz)++") :: "++s_name++" = "++(show s_def)
             -- if the $sv_type is DDC, it means we need to lookup the type from the definition, which will likely be a zip            
-                ,sv_type++", dimension("++(show sv_sz)++") :: "++sv_name
-                ,"integer :: s_idx"
-            ]
+                ,sv_type++", dimension("++(commaSepList $ map show sv_szs)++") :: "++sv_name
+                ,"integer :: s_idx"           
+            ]++(map (\ct -> "integer :: s_idx_"++(show ct) ) [1 .. length sv_szs]   )
     in
         (
-        unlines [            
-             "    do s_idx = 1,"++(show sv_sz)
-            ,"        "++sv_name++"(s_idx) = "++v_name++"(idx+"++s_name++"(s_idx))"
-            ,"    end do"
-            ]
+        unlines $ concat [
+            [""],
+            map (\(sv_sz,ct) -> "    do s_idx_"++(show ct)++" = 1,"++(show sv_sz)) (zip sv_szs [1..]),
+            [  rhs_idx_str
+             ,"        "++sv_name++"("++lhs_idx_str++") = "++v_name++"(idx+"++s_name++"(s_idx))"
+             ],
+            replicate (length sv_szs) "    end do"
+          ]
         ,decl_lines)
 generateStencilAppl s_exp (ZipT vs_exps) sv_name stencilDefinitions = let
         gen_stencils :: [String]
@@ -668,9 +677,14 @@ generateStencilAppl s_exp (ZipT vs_exps) sv_name stencilDefinitions = let
         all_lines :: [String]
         all_lines = concat unique_grouped_lines
     in
-        -- (unlines non_decl_lines, decl_lines)
         (unlines all_lines, concat decls)
 
+createLinearIdxExprFromNDim sv_szs s_idx = create_iter_expr (tail sv_szs) 1 (s_idx++" = "++s_idx++"_"++(show (length sv_szs)))
+create_iter_expr sv_szs i expr_str 
+    | length sv_szs == 0 = expr_str
+    | otherwise =
+        create_iter_expr (tail sv_szs) (i+1) 
+            (expr_str ++ "+(s_idx_"++(show i)++"-1)*"++(intercalate "*" (map show sv_szs)))        
 -- some kind of a fold where the result is, if I start from n lists, with each list k lines, then I will have k lists of n lines
 -- so for each of these n lists I take the head , that gets me n lines
 pairUpZipCode lsts acc
@@ -684,14 +698,14 @@ pairUpZipCode lsts acc
 generateStencilDef s_exp stencilDefinitions = 
      case s_exp of
         SVec sv_sz DInt s_name -> case Map.lookup s_name stencilDefinitions of
-            Just s_def -> (s_name,s_def)
+            Just s_def -> (s_name,s_def, [length s_def])
         SComb s1 s2 -> let
-                (s1_name,s1_def) = generateStencilDef s1 stencilDefinitions 
-                (s2_name,s2_def) = generateStencilDef s2 stencilDefinitions 
+                (s1_name,s1_def, _) = generateStencilDef s1 stencilDefinitions 
+                (s2_name,s2_def, _) = generateStencilDef s2 stencilDefinitions 
                 scomb_name = s1_name++"_"++s2_name
-                scomb_def =  sort [ x*y | x <- s1_def, y <- s2_def]
+                scomb_def = [ x*y | x <- s1_def, y <- s2_def]
             in
-                (scomb_name, scomb_def)
+                (scomb_name, scomb_def,[length s1_def, length s2_def])
 
 -- Map (Function "f2" ["acc_1"]) (Vec VS DDC "svec_v_1_0")
 -- map (generateSubDef functionSignatures) ast                     
@@ -705,7 +719,7 @@ generateMap f_exp v_exp ov_name =
     in
         (
         "    call "++fname++"("
-        ++(intercalate ", " (nms ++vs_in' ++[ov_name']))
+        ++(commaSepList (nms ++vs_in' ++[ov_name']))
         ++")"
         ,[])
 
@@ -718,7 +732,7 @@ generateFold f_exp acc_exp v_exp sc_name =
     in  
         (
         "    call "++fname++"("
-        ++(intercalate ", " (nms ++[acc_name] ++vs_in ++[sc_name]))
+        ++(commaSepList (nms ++[acc_name] ++vs_in ++[sc_name]))
         ++")"
         ++"\n"
         ++acc_name++" = "++sc_name

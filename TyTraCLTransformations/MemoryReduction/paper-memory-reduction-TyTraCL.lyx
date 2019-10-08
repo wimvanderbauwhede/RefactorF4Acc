@@ -911,7 +911,6 @@ stencil s2 (stencil s1 v1) = stencil (scomb s2 s1) v1
 \begin_inset Caption Standard
 
 \begin_layout Plain Layout
-
 TyTraCL primitives
 \begin_inset CommandInset label
 LatexCommand label
@@ -1163,7 +1162,6 @@ type Name = String
 \begin_inset Caption Standard
 
 \begin_layout Plain Layout
-
 TyTraCL AST data type in Haskell
 \begin_inset CommandInset label
 LatexCommand label
@@ -2355,7 +2353,6 @@ v = map id v -- Map-Id
 \begin_inset Caption Standard
 
 \begin_layout Plain Layout
-
 Rewrite rules to obtain an expression with a single 
 \emph on
 map
@@ -3265,12 +3262,19 @@ zipt
 stencil
 \family default
 .
- A stencil operating on a 
+ A 
 \family typewriter
 stencil
 \family default
- expression can per definition be rewritten as a single stencil using of
- 
+ operating on a 
+\family typewriter
+stencil
+\family default
+ expression can 
+\emph on
+per definition
+\emph default
+ be rewritten as a single stencil using of 
 \family typewriter
 scomb
 \family default
@@ -3282,12 +3286,16 @@ status open
 
 \begin_layout Plain Layout
 
-stencil s2 (stencil s1 v1) = stencil (scomb s2 s1) v1
+stencil s2 (stencil s1 v1) = stencil (scomb s2 s1) v1 -- SComb 
 \end_layout
 
 \end_inset
 
-A stencil operating on a 
+A 
+\family typewriter
+stencil
+\family default
+ operating on a 
 \family typewriter
 zipt
 \family default
@@ -3303,7 +3311,7 @@ status open
 
 \begin_layout Plain Layout
 
-stencil s2 (zipt (v1,v2)) = zipt (stencil s2 v1,stencil s2 v2)
+stencil s2 (zipt (v1,v2)) = zipt (stencil s2 v1,stencil s2 v2) -- Stencil-ZipT
 \end_layout
 
 \end_inset
@@ -3312,10 +3320,7 @@ stencil s2 (zipt (v1,v2)) = zipt (stencil s2 v1,stencil s2 v2)
 \end_layout
 
 \begin_layout Proof(QED)
-\begin_inset space ~
-\end_inset
-
-
+for Stencil-ZipT
 \end_layout
 
 \begin_layout Proof(QED)
@@ -3342,6 +3347,47 @@ stencil s1 (zipt (stencil s2 v1,stencil s2 v2))
 \begin_layout Plain Layout
 
     = zipt (stencil (scomb s1 s2) v1,stencil (scomb s1 s2) v2)
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+Finally, if the initial vector expression is a 
+\family typewriter
+zipt
+\family default
+, we recursively apply the above rules on each element.
+ The Haskell code for the algorithm is:
+\end_layout
+
+\begin_layout Standard
+\begin_inset listings
+lstparams "mathescape=true,escapeinside={~~},language=Haskell"
+inline false
+status open
+
+\begin_layout Plain Layout
+
+fuseStencils (Stencil s_1 (Stencil s_2 v_expr)) = Stencil (SComb s_1 s_2)
+ v_expr
+\end_layout
+
+\begin_layout Plain Layout
+
+fuseStencils (Stencil s (ZipT v_exprs)) = ZipT (map (Stencil s) v_exprs)
+\end_layout
+
+\begin_layout Plain Layout
+
+fuseStencils (ZipT v_exprs) = ZipT (map fuseStencils v_exprs)
+\end_layout
+
+\begin_layout Plain Layout
+
+fuseStencils v_expr = v_expr
 \end_layout
 
 \end_inset
@@ -3563,7 +3609,7 @@ SComb
 \begin_inset Formula $k_{1}*k_{2}$
 \end_inset
 
- consisting of the ordered sums of the offsets in 
+ consisting of the sums of the offsets in 
 \begin_inset Formula $s_{1}$
 \end_inset
 
@@ -3707,7 +3753,6 @@ data Expr =
 \begin_inset Caption Standard
 
 \begin_layout Plain Layout
-
 Extending the TyTraCL AST with concrete type information
 \begin_inset CommandInset label
 LatexCommand label
