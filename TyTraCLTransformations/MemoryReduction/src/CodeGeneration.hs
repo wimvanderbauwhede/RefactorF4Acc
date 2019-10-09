@@ -641,23 +641,28 @@ mkDeclLines  = unlines . (map ("    "++)) . concat
 generateStencilAppl s_exp (Vec _ dt v_name) sv_name stencilDefinitions = 
     let
         sv_type = fortranType dt         
-        (s_name,s_def,sv_szs) = generateStencilDef s_exp stencilDefinitions
+        -- (s_name,s_def,sv_szs) = generateStencilDef s_exp stencilDefinitions
+        (s_names,s_def,sv_szs) = generateStencilDef' s_exp stencilDefinitions
+        -- instead of generating new stencils we can also recompute, simply
+        stencil_accesses = intercalate "+" (map (\(s_name,ct)-> s_name++"(s_idx_"++(show ct)++")") $ zip s_names [1..])
         sv_sz = length s_def
         rhs_idx_str = "        "++(createLinearIdxExprFromNDim sv_szs "s_idx")
         lhs_idx_str =  commaSepList  $ map (\ct -> "s_idx_"++(show ct)) [1 .. length sv_szs]
         decl_lines = [
-                "integer, parameter, dimension("++(show sv_sz)++") :: "++s_name++" = "++(show s_def)
+                -- "integer, parameter, dimension("++(show sv_sz)++") :: "++s_name++" = "++(show s_def),
             -- if the $sv_type is DDC, it means we need to lookup the type from the definition, which will likely be a zip            
-                ,sv_type++", dimension("++(commaSepList $ map show sv_szs)++") :: "++sv_name
-                ,"integer :: s_idx"           
+                sv_type++", dimension("++(commaSepList $ map show sv_szs)++") :: "++sv_name
+                -- ,"integer :: s_idx"           
             ]++(map (\ct -> "integer :: s_idx_"++(show ct) ) [1 .. length sv_szs]   )
     in
         (
         unlines $ concat [
             [""],
             map (\(sv_sz,ct) -> "    do s_idx_"++(show ct)++" = 1,"++(show sv_sz)) (zip sv_szs [1..]),
-            [  rhs_idx_str
-             ,"        "++sv_name++"("++lhs_idx_str++") = "++v_name++"(idx+"++s_name++"(s_idx))"
+            [
+                --   rhs_idx_str,
+             "        "++sv_name++"("++lhs_idx_str++") = "++v_name++"(idx+"++stencil_accesses++")"
+            --  ,"        "++sv_name++"("++lhs_idx_str++") = "++v_name++"(idx+"++s_name++"(s_idx))"
              ],
             replicate (length sv_szs) "    end do"
           ]
@@ -684,7 +689,7 @@ create_iter_expr sv_szs i expr_str
     | length sv_szs == 0 = expr_str
     | otherwise =
         create_iter_expr (tail sv_szs) (i+1) 
-            (expr_str ++ "+(s_idx_"++(show i)++"-1)*"++(intercalate "*" (map show sv_szs)))        
+            (expr_str ++ "+(s_idx_"++(show i)++"-1)*"++(show $ product sv_szs)) -- (intercalate "*" (map show sv_szs)))        
 -- some kind of a fold where the result is, if I start from n lists, with each list k lines, then I will have k lists of n lines
 -- so for each of these n lists I take the head , that gets me n lines
 pairUpZipCode lsts acc
@@ -707,6 +712,18 @@ generateStencilDef s_exp stencilDefinitions =
                 scomb_def = [ x+y | x <- s1_def, y <- s2_def]
             in
                 (scomb_name, scomb_def,len_s1++len_s2) -- [length s1_def, length s2_def])
+
+generateStencilDef' s_exp stencilDefinitions = 
+     case s_exp of
+        SVec sv_sz DInt s_name -> case Map.lookup s_name stencilDefinitions of
+            Just s_def -> ([s_name],s_def, [length s_def])
+        SComb s1 s2 -> let
+                (s1_name,s1_def, len_s1) = generateStencilDef' s1 stencilDefinitions 
+                (s2_name,s2_def, len_s2) = generateStencilDef' s2 stencilDefinitions 
+                scomb_name = s1_name++s2_name
+                scomb_def = [ x+y | x <- s1_def, y <- s2_def]
+            in
+                (scomb_name, scomb_def,len_s1++len_s2) -- [length s1_def, length s2_def])                
 
 -- Map (Function "f2" ["acc_1"]) (Vec VS DDC "svec_v_1_0")
 -- map (generateSubDef functionSignatures) ast                     

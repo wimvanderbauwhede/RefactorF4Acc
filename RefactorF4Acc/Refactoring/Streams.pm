@@ -339,15 +339,23 @@ sub _rename_array_accesses_to_scalars { (my $stref, my $f) = @_;
 		if (exists $info->{'Signature'} ) { 			
 			# What we do is replace the array args with the "tuple" of scalar args from StreamVars
 			my $new_args=[];
+			my %orig_arg_names=();
 			for my $arg (@{ $info->{'Signature'}{'Args'}{'List'} } ) {
 				if (exists $state->{'StreamVars'}{$arg} ) {
-					$new_args=[@{$new_args},  @{ $state->{'StreamVars'}{$arg}{'List'} }  ];										
+					$new_args=[@{$new_args},  @{ $state->{'StreamVars'}{$arg}{'List'} }  ];
+					my $idx=0;
+					# Here we store the stencil index BASE 1 for Fortran
+					map { $orig_arg_names{$_}=[$arg, ++$idx] } @{ $state->{'StreamVars'}{$arg}{'List'} };
 				} else {
 					push @{$new_args}, $arg;
+					# Stencil index 0 means it is not a stencil!
+					$orig_arg_names{$arg}=[$arg, 0];
 				} 
 			}
 			$info->{'Signature'}{'Args'}{'List'}=$new_args;
-			$info->{'Signature'}{'Args'}{'Set'} = { map {$_=>1} @{$new_args} };
+			# carp 'SCALARISED ARGS: ', Dumper $new_args;
+
+			$info->{'Signature'}{'Args'}{'Set'} = { map {$_=>$orig_arg_names{$_}  } @{$new_args} };
 			
 		} elsif (exists $info->{'VarDecl'} ) {
 			my $var = $info->{'VarDecl'}{'Name'};
@@ -379,16 +387,21 @@ sub _rename_array_accesses_to_scalars { (my $stref, my $f) = @_;
 	for my $orig_arg ( @{ $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'List'} } ) {		
 		
 		if (exists $state->{'StreamVars'}{$orig_arg}) {
-			my $new_decl = dclone( $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$orig_arg} );
-			for my $new_arg (@{ $state->{'StreamVars'}{$orig_arg}{'List'} }) {
+						my $idx=0;
+			for my $new_arg (@{ $state->{'StreamVars'}{$orig_arg}{'List'} }) {				
+				my $new_decl = dclone( $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$orig_arg} );
 				push @updated_args_list,$new_arg;
 				$new_decl->{'ArrayOrScalar'}='Scalar';
 				$new_decl->{'Dim'}=[];
 				$new_decl->{'IODir'}=$state->{'StreamVars'}{$orig_arg}{'Set'}{$new_arg}{'IODir'};
+				# my $new_arg_index_expr = $state->{'StreamVars'}{$orig_arg}{'Set'}{$new_arg}{'ArrayIndexExpr'};
+				# $new_decl->{'ArrayIndexExpr'}=++$iii;#$new_arg_index_expr;
 				$new_decl->{'ArrayIndexExpr'}=$state->{'StreamVars'}{$orig_arg}{'Set'}{$new_arg}{'ArrayIndexExpr'};
+				$new_decl->{'StencilIndex'}=++$idx;
 				$stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$new_arg}=$new_decl;
-				delete $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$orig_arg};				
-			}			
+					
+			}	
+			delete $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$orig_arg};					
 		} else {
 			if (exists $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$orig_arg} ) {
 				push @updated_args_list, $orig_arg;	
@@ -397,7 +410,7 @@ sub _rename_array_accesses_to_scalars { (my $stref, my $f) = @_;
 	}
 	
 	$stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'List'}=[@updated_args_list]; 	
-	
+	croak Dumper $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'};
 # --------------------------------------------------------------------------------------------------------	 	
  	# So at this point we should do the lifting of everything to do with indexing
  	

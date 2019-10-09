@@ -979,6 +979,13 @@ sub _addToMainSig {
     return $main_rec;
 }    # END of _addToMainSig()
 
+# The NodeType is set in _add_TyTraCL_AST_entry() which is called in Analysis::ArrayAccessPatterns
+# In Analysis::ArrayAccessPatterns, there is a routine _classify_accesses_and_emit_AST which runs this routine via
+#	$ast_emitter = $stref->{$stref->{'EmitAST'}}{'ASTEmitter'}
+#   $ast_to_emit = $ast_emitter->( $f,  $state,  $ast_to_emit, 'INIT_AST')
+#
+# This routine is called at the end of identify_array_accesses_in_exprs()
+
 sub _add_TyTraCL_AST_entry {
     (my $f, my $state, my $tytracl_ast, my $type, my $block_id, my $array_var, my $rw) = @_;
 
@@ -1108,10 +1115,11 @@ sub _add_TyTraCL_AST_entry {
 
         my $in_tup_ms_ast = [
             map {
+                my $stencil_access = scalar keys %{ $state->{'Subroutines'}{$f}{'Blocks'}{0}{'Arrays'}{$_}{'Read'}{'Accesses'}} > 1 ? 1 : 0;
                 if (not exists $unique_var_counters->{$_}) {
                     $unique_var_counters->{$_} = 0;
                 }
-                exists $stencils{$_} ? [$_, $unique_var_counters->{$_ . '_s'}, 's'] :    #
+                ($stencil_access and exists $stencils{$_}) ? [$_, $unique_var_counters->{$_ . '_s'}, 's'] :    #
                   exists $portions{$_}
                   ? [$_, $unique_var_counters->{$_ . '_portion'}, 'portion']
                   : [$_, $unique_var_counters->{$_}, '']
@@ -1134,19 +1142,21 @@ sub _add_TyTraCL_AST_entry {
 #			} @in_tup_correct_dim
 #		];
         my @non_map_args_ms_ast = map {
+            my $stencil_access = scalar keys %{ $state->{'Subroutines'}{$f}{'Blocks'}{0}{'Arrays'}{$_}{'Read'}{'Accesses'}} > 1 ? 1 : 0;
             if (not exists $unique_var_counters->{$_}) {
                 $unique_var_counters->{$_} = 0;
             }
-                exists $stencils{$_} ? [$_, $unique_var_counters->{$_ . '_s'},       's']
+              ($stencil_access and  exists $stencils{$_}) ? [$_, $unique_var_counters->{$_ . '_s'},       's']
               : exists $portions{$_} ? [$_, $unique_var_counters->{$_ . '_portion'}, 'portion']
               : [$_, $unique_var_counters->{$_}, '']
         } @in_tup_non_map_args;
 
         my @non_fold_args_ms_ast = map {
+            my $stencil_access = scalar keys %{ $state->{'Subroutines'}{$f}{'Blocks'}{0}{'Arrays'}{$_}{'Read'}{'Accesses'}} > 1 ? 1 : 0;
             if (not exists $unique_var_counters->{$_}) {
                 $unique_var_counters->{$_} = 0;
             }
-                exists $stencils{$_} ? [$_, $unique_var_counters->{$_ . '_s'},       's']
+                ($stencil_access and exists $stencils{$_}) ? [$_, $unique_var_counters->{$_ . '_s'},       's']
               : exists $portions{$_} ? [$_, $unique_var_counters->{$_ . '_portion'}, 'portion']
               : [$_, $unique_var_counters->{$_}, '']
         } @in_tup_non_fold_args;
