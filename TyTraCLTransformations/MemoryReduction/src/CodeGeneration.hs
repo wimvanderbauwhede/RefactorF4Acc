@@ -695,17 +695,18 @@ pairUpZipCode lsts acc
                 in
                     pairUpZipCode rest (acc++[l1])
 
+-- -> (Name,[Int],[Int])
 generateStencilDef s_exp stencilDefinitions = 
      case s_exp of
         SVec sv_sz DInt s_name -> case Map.lookup s_name stencilDefinitions of
             Just s_def -> (s_name,s_def, [length s_def])
         SComb s1 s2 -> let
-                (s1_name,s1_def, _) = generateStencilDef s1 stencilDefinitions 
-                (s2_name,s2_def, _) = generateStencilDef s2 stencilDefinitions 
+                (s1_name,s1_def, len_s1) = generateStencilDef s1 stencilDefinitions 
+                (s2_name,s2_def, len_s2) = generateStencilDef s2 stencilDefinitions 
                 scomb_name = s1_name++"_"++s2_name
-                scomb_def = [ x*y | x <- s1_def, y <- s2_def]
+                scomb_def = [ x+y | x <- s1_def, y <- s2_def]
             in
-                (scomb_name, scomb_def,[length s1_def, length s2_def])
+                (scomb_name, scomb_def,len_s1++len_s2) -- [length s1_def, length s2_def])
 
 -- Map (Function "f2" ["acc_1"]) (Vec VS DDC "svec_v_1_0")
 -- map (generateSubDef functionSignatures) ast                     

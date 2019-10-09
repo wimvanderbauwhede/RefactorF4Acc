@@ -69,6 +69,7 @@ sub pass_memory_reduction {
         'MainFunction' => 'main',
         'ASTEmitter'   => \&_add_TyTraCL_AST_entry
     };
+if ($TEST==0) {
     $stref = pass_wrapper_subs_in_module(
         $stref, $module_name,
 
@@ -82,15 +83,15 @@ sub pass_memory_reduction {
             [\&identify_array_accesses_in_exprs],
         ]
     );
- 
-if ($TEST==1) {
- 
+}
+elsif ($TEST==1) { 
+ # 3 maps with 2 stencils in between.
     $stref = mkAST(
         [
-            mkMap('f1'=>[]=>[['v',0,'']],[['v',1,'']]),
+            mkMap('f1'=>[]=>[['v',0,'']]=>[['v',1,'']]),
             mkStencilDef(1,[-1,0,1]),
-            mkStencilAppl(1,3,['v',1,'']=>['v',1,'s']),
-            mkMap('f2'=>[]=>[['v',1,'s']],[['v',2,'']]),
+            mkStencilAppl(1,3,['v',1,'']=>['v',1,'s']),            
+            mkMap('f2'=>[]=>[['v',1,'s']]=>[['v',2,'']]),
             mkStencilDef(2,[-1,0,1]),
             mkStencilAppl(2,3,['v',2,'']=>['v',2,'s']),
             mkMap('f3'=>[]=>[['v',2,'s']]=>[['v',3,'']]),            
@@ -98,10 +99,11 @@ if ($TEST==1) {
         {'v' =>[ 'integer', [1,500], 'inout'] }
     );            
 }
-elsif ($TEST==2) {        
+elsif ($TEST==2) {      
+# two maps, one stencil, but two input vectors      
     $stref = mkAST(
         [
-            mkMap('f1'=>[['nm',0,'']]=>[['v1',0,''],['v2',0,'']],[['v3',0,'']]),
+            mkMap('f1'=>[['nm',0,'']]=>[['v1',0,''],['v2',0,'']]=>[['v3',0,'']]),
             mkStencilDef(1,[-1,0,1]),
             mkStencilAppl(1,3,['v3',0,'']=>['v3',0,'s']),
             mkMap('f2'=>[]=>[['v3',0,'s']],[['v4',0,'']]),
@@ -116,6 +118,7 @@ elsif ($TEST==2) {
     );  
 }
 elsif ($TEST==3) {
+# fold-stencil-map    
     $stref = mkAST(
         [
             mkFold('f1'=>[]=>[['acc',0,'']]=>[['v',0,'']],[['acc',1,'']]),
@@ -130,6 +133,7 @@ elsif ($TEST==3) {
     );  
 }    
 elsif ($TEST==4) {
+# stencil-fold-map    
     $stref = mkAST(
         [
             
@@ -145,6 +149,7 @@ elsif ($TEST==4) {
     );  
 }  
 elsif ($TEST==5) {
+# stencil-map-fold-map    
     $stref = mkAST(
         [            
             mkStencilDef(1,[-1,0,1]),
@@ -160,11 +165,12 @@ elsif ($TEST==5) {
     );  
 }  
 elsif ($TEST==6) {
+# stencil-fold-map-stencil-map-fold-map    
     $stref = mkAST(
         [            
             mkStencilDef(1,[-1,0,1]),
             mkStencilAppl(1,3,['v',0,'']=>['v',0,'s']),
-            mkFold('f0'=>[['t1',0,''],['t2',0,'']]=>[['acc1',0,'']]=>[['v',0,'']],[['acc1',1,'']]),
+            mkFold('f0'=>[['t1',0,''],['t2',0,'']]=>[['acc1',0,'']]=>[['v',0,'']]=>[['acc1',1,'']]),
             mkMap('f1'=>[['acc1',1,'']]=>[['v',0,'s']],[['v',1,'']]),
             # stencil
             mkStencilDef(2,[-1,0,1]),
@@ -184,15 +190,15 @@ elsif ($TEST==6) {
     );  
 } 
 elsif ($TEST==7) {
- 
+ # map map map stencil map stencil map
     $stref = mkAST(
         [
-            mkMap('f1a'=>[]=>[['va',0,''],['vc',0,'']],[['va',1,'']]),
-            mkMap('f1b'=>[]=>[['vb',0,'']],[['vb',1,'']]),
+            mkMap('f1a'=>[]=>[['va',0,''],['vc',0,'']]=>[['va',1,'']]),
+            mkMap('f1b'=>[]=>[['vb',0,'']]=>[['vb',1,'']]),
             mkMap('f1c' =>[]=>[['va',1,''],['vb',1,'']]=>[['v',0,'']]),
             mkStencilDef(1,[-1,0,1]),
             mkStencilAppl(1,3,['v',0,'']=>['v',1,'s']),
-            mkMap('f2'=>[]=>[['v',1,'s']],[['v',2,'']]),
+            mkMap('f2'=>[]=>[['v',1,'s']]=>[['v',2,'']]),
             mkStencilDef(2,[-1,0,1]),
             mkStencilAppl(2,3,['v',2,'']=>['v',2,'s']),
             mkMap('f3'=>[]=>[['v',2,'s']]=>[['v',3,'']]),            
@@ -207,6 +213,7 @@ elsif ($TEST==7) {
     );            
 }
 elsif ($TEST==8) {
+    # stencil map map 
 $stref = mkAST(
         [
             mkStencilDef(1,[-1,0,1]),
@@ -224,6 +231,28 @@ $stref = mkAST(
         }
 );
 }
+elsif ($TEST==9) {
+    # iterative stencil-map 
+$stref = mkAST(
+        [
+mkStencilDef(1,[-1,0,1]),
+mkStencilAppl(1,3,['p','0',''],['p','1','s']),
+mkMap('sor',[],[['p','1','s']],[['p','1','']]),
+mkStencilAppl(1,3,['p','1',''],['p','2','s']),
+mkMap('sor',[],[['p','2','s']],[['p','2','']]),
+mkStencilAppl(1,3,['p','2',''],['p','3','s']),
+mkMap('sor',[],[['p','3','s']],[['p','3','']]),
+mkStencilAppl(1,3,['p','3',''],['p','4','s']),
+mkMap('sor',[],[['p','4','s']],[['p','4','']]),
+      ],
+        {
+            'p' => ['real',[1,500], 'inout'] ,
+        }
+);
+}
+
+
+
     $stref = construct_TyTraCL_AST_Main_node($stref);
 
     $stref = _emit_TyTraCL_FunctionSigs($stref);    

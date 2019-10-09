@@ -688,7 +688,7 @@ In other words,
 # 1. We want to remove redundant arguments
 # 2. Some of the called subroutines have arguments that are InOut but should really be Out (or maybe even In?)
 sub remove_redundant_arguments_and_fix_intents { (my $stref, my $f)=@_;
-
+carp $f ;
 	if ($f eq $Config{'KERNEL'}) { 
 		my @in_args = grep { 
 			$stref->{'Subroutines'}{ $f }{'DeclaredOrigArgs'}{'Set'}{$_}{'IODir'} eq 'in'

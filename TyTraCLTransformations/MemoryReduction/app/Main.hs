@@ -24,7 +24,7 @@ generatedFunctionDefs = map generateDefs asts_function_defs
 -- uniqueGeneratedDecls = sort $ nub $ concat generatedDecls
 generatedStageKernels = map (\(ast,ct) -> generateStageKernel ct ast) (zip ast_stages [1..])
 
-info = False
+info = True
 main = if info 
     then
         do
