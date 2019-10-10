@@ -121,6 +121,7 @@ sub read_rf4a_config {
 		$Config{$k}=[@vs];
 	} elsif ($k !~/TOP\w*|NEWSRCPATH|CUSTOM_*|PREFIX|KERNEL|^MODULE|MODULE_\w*|MACRO_SRC/) { # FIXME: Check this
 		# These are keys that take a list but it has only one element
+        # But why?!
 		$Config{$k}=[$v];
 	} elsif ($k eq 'TOP') {
 		$Config{$k}=lc($v);
@@ -154,7 +155,7 @@ EXT :: String: Extension of generated source files. Default is `.f90`; must incl
 LIBS :: [String]: SCons LIBS, comma-separated list
 LIBPATH :: [String]: SCons LIBPATH, comma-separated list
 INCLPATH :: [String]: SCons F90PATH or F95PATH (based on EXT), comma-separated list
-
+SUB_SUFFIX :: [String]: a suffix for all subroutine names. Default is of course blank.
 REFACTOR_TOPLEVEL_GLOBALS :: 0 | 1:: like -g
 
 Examples:

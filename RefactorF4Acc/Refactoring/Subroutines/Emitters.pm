@@ -50,6 +50,9 @@ sub emit_subroutine_sig { #(my $stref, my $f,
         #my $Sf        = $stref->{'Subroutines'}{$f};
 	    
 	    my $name = $info->{'Signature'}{'Name'};
+		if (exists $Config{'SUB_SUFFIX'} ) {
+			$name.=$Config{'SUB_SUFFIX'};
+		}
 		my $args_ref = $info->{'Signature'}{'Args'}{'List'};	    	    
 	    my $args_str = join( ',', @{$args_ref} );	 
 	    my $indent = $info->{'Indent'} // ' ' x 6;   

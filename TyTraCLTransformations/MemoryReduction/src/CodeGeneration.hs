@@ -325,7 +325,7 @@ generateSubDefOpaque fname functionSignatures =
                             "subroutine "++fname++"("  ++(mkArgList [non_map_args,in_args,out_args])++")"
                             , mkDeclLines [non_map_arg_decls,in_arg_decls,out_arg_decls]
                             ,"    !!! Call to the original scalarised subroutine"
-                            ,"    call "++fname++"_orig("++mappedArgsListStr++")"
+                            ,"    call "++fname++"_scal("++mappedArgsListStr++")"
                             ,"end subroutine "++fname
                         ]
                 FoldFSig (nms,as,ms,os) ->

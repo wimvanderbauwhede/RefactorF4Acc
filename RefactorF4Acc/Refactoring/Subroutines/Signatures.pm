@@ -76,7 +76,7 @@ sub create_refactored_subroutine_signature {
     	$rline = $annline->[0];
     	$rline =~s/entry.*$//;	
         $rline .= 'entry ' . $name . '(' . $args_str . ')';    	                	        
-    } else {    
+    } else {            
     	$rline = $annline->[0];
     	$rline =~s/subroutine.*$//;	
         $rline .= 'subroutine ' . $f . '(' . $args_str . ')';
