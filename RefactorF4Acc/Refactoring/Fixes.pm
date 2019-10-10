@@ -752,7 +752,6 @@ sub remove_redundant_arguments_and_fix_intents { (my $stref, my $f)=@_;
 		say 'In args to remove: ',Dumper $in_args_to_remove if $DBG;
 		$stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}  = remove_vars_from_ordered_set($stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}, $in_args_to_remove->{'List'});
 
-
 		say "\nSUB: $f" if $DBG;
 # Because this lambda is defined in the scope of the current sub, $stref and $in_args_to_remove are in scope
 # All of these are used read-only 
@@ -839,17 +838,18 @@ sub remove_redundant_arguments_and_fix_intents { (my $stref, my $f)=@_;
 		# 	If read_before_written => InOut 
 		# 	If read_only => In. If it would be an Out at toplevel, that would be an error, toplevel should then be InOut
 
-		# If an argument of a called subroutine is an InOut argument of the kernel, we can still check if it is used as an Out or as an InOut in a called sub
-		# If it would turn out no called sub uses it as an In, we should make it an Out => In means read_only
-		# If it would turn out no called sub uses it as an Out, we should make it an In => Out means written_before_read
-
+		# If an argument of a called subroutine is an InOut argument of the kernel, we can still check: 
+		# if it is used as an Out or as an InOut in a called sub (i.e. written to):
+		# 	- If it would turn out no called sub uses it as an In, we should make it an Out
+		# 	- If it is used as an Out in a called subroutine before being used as an In, then should make it an Out
+		#	- If it would turn out no called sub uses it as an Out, we should make it an In
+		
 # For every argument and every called subroutine, let's see what we can learn
 		my $iodir_for_arg_in_called_sub={};
 		# First determine the context-free IODir for all arguments in every called subroutine
 		for my $csub (@call_sequence) {
 			for my $arg ( @{$stref->{'Subroutines'}{ $csub }{'DeclaredOrigArgs'}{'List'}}) {
 				$iodir_for_arg_in_called_sub->{$csub}{$arg} = __determine_called_sub_arg_iodir_no_context($arg, $stref, $csub);
-				# carp "FIXED 1: $csub $arg ". $iodir_for_arg_in_called_sub->{$csub}{$arg} if $csub=~/reduce/;
 			}
 		}
 		# Now that we have the context-free IODir for all args  in every called sub we can refine
@@ -859,8 +859,7 @@ sub remove_redundant_arguments_and_fix_intents { (my $stref, my $f)=@_;
 			$top_iodir->{$arg} = $stref->{'Subroutines'}{ $f }{'DeclaredOrigArgs'}{'Set'}{$arg}{'IODir'};
 			# First determine the context-free IODir for all arguments in every called subroutine
 			my $idx=0;
-			for my $csub (@call_sequence) {
-				
+			for my $csub (@call_sequence) {				
 				$changed_iodirs->{$csub}={} unless exists $changed_iodirs->{$csub};
 				if (exists $stref->{'Subroutines'}{ $csub }{'DeclaredOrigArgs'}{'Set'}{$arg}) {
 					($iodir_for_arg_in_called_sub->{$csub}{$arg}, $top_iodir->{$arg}) = __determine_called_sub_arg_iodir_w_context($arg, $stref, $csub, $top_iodir, $iodir_for_arg_in_called_sub,\@call_sequence, $idx);
@@ -957,6 +956,7 @@ sub __check_read_only { my ($in_arg, $stref, $f)=@_;
 
 
 sub __check_reads_writes {  my ($arg, $stref, $f)=@_;
+
 	# In practice we will not have IO calls in the kernels
 # Nor will we have subroutines calls
 # Function calls on RHS are OK 
@@ -1032,13 +1032,14 @@ sub __determine_called_sub_arg_iodir_no_context { my ($arg, $stref, $csub)=@_;
 sub __determine_called_sub_arg_iodir_w_context { my ($arg, $stref, $csub, $iodir_for_top_arg,$iodir_for_arg_in_called_sub,$call_sequence, $cs_idx)=@_;
 	my $iodir=$iodir_for_arg_in_called_sub->{$csub}{$arg};
 	my $top_iodir=$iodir_for_top_arg->{$arg};
+	local $W=1;
 	# If an argument of a called subroutine is an In arg of the kernel, it could be used as an InOut in a called sub
 	#	If the current sub modifies it (not In; it could be Out)
 	#	AND a later sub uses it as an In or InOut (i.e. read_only OR read_before_written)	
 	# 	otherwise  (i.e. this is a toplevel In only used in this sub)
 	#		if  InOut => In : the modified result is unused (I guess this means we should remove this assignment!)
 	#		if  written_before_read => It should be a local, will not happen as that was done in the previous pass
-# warn "FIXES CONTEXT TOP $top_iodir : $csub $arg $iodir ". $iodir_for_arg_in_called_sub->{$csub}{$arg} if $arg=~/avg/;
+
 	if ($top_iodir eq 'in') {
 		if ($iodir ne 'in' ) {
 			# Check if this arg is 'in' or 'inout' in any of the later called subs
@@ -1072,7 +1073,7 @@ sub __determine_called_sub_arg_iodir_w_context { my ($arg, $stref, $csub, $iodir
 		if ($iodir eq 'in') {
 			my $arg_was_written_earlier=0;
 			for my $idx (0 .. $cs_idx-1 ) {
-				my $pcsub = $call_sequence->{$idx};
+				my $pcsub = $call_sequence->[$idx];
 				if (
 					exists $iodir_for_arg_in_called_sub->{$pcsub}{$arg} and
 					$iodir_for_arg_in_called_sub->{$pcsub}{$arg} ne 'in'
@@ -1082,14 +1083,19 @@ sub __determine_called_sub_arg_iodir_w_context { my ($arg, $stref, $csub, $iodir
 				}
 			}
 			if (not $arg_was_written_earlier) {
-				# warn "Toplevel INTENT for $arg changed from OUT to INOUT because of use as IN in $csub!";
+				say "Toplevel INTENT for $arg changed from OUT to INOUT because of use as IN in $csub!" if $W;
 				$top_iodir = 'inout';
 			}
 		}
 	}
 	# If an argument of a called subroutine is an InOut argument of the kernel, we can still check if it is used as an Out or as an InOut in a called sub
+	# 	If it would turn out a called sub uses it as an Out and after that none as In, we should make it an Out => In means read_only
 	# 	If it would turn out no called sub uses it as an In, we should make it an Out => In means read_only
 	# 	If it would turn out no called sub uses it as an Out, we should make it an In => Out means written_before_read	
+	# in in in ... in => In
+	# out out out ... out  => Out
+	# out ... whatever ... => Out
+	# in out ... => InOut
 	elsif ($top_iodir eq 'inout') {
 		my $used_as_in = 0;
 		my $used_as_out = 0;
@@ -1097,6 +1103,7 @@ sub __determine_called_sub_arg_iodir_w_context { my ($arg, $stref, $csub, $iodir
 			if (
 					exists $iodir_for_arg_in_called_sub->{$ccsub}{$arg} 
 			) {
+				# warn "ARG: $arg ".$top_iodir ."; $csub: $iodir ; $ccsub: ".$iodir_for_arg_in_called_sub->{$ccsub}{$arg}."\n";
 				if ($iodir_for_arg_in_called_sub->{$ccsub}{$arg} eq 'in'
 				or $iodir_for_arg_in_called_sub->{$ccsub}{$arg} eq 'inout'
 				) {
@@ -1107,7 +1114,8 @@ sub __determine_called_sub_arg_iodir_w_context { my ($arg, $stref, $csub, $iodir
 				) {
 					$used_as_out=1;
 				}					
-			}								
+			}	
+
 		}
 		if (not $used_as_in) {
 			say "WARNING: Toplevel INTENT for $arg changed from INOUT to OUT because never used as IN!" if $W;
@@ -1117,6 +1125,21 @@ sub __determine_called_sub_arg_iodir_w_context { my ($arg, $stref, $csub, $iodir
 			say "WARNING: Toplevel INTENT for $arg changed from INOUT to IN because never used as OUT!" if $W;
 			$top_iodir = 'in';
 		}
+		for my $ccsub (@{$call_sequence}) {
+			# warn $ccsub
+			if (
+					exists $iodir_for_arg_in_called_sub->{$ccsub}{$arg} 
+			){
+				# warn "$ccsub $arg ".$iodir_for_arg_in_called_sub->{$ccsub}{$arg}."\n" if $arg eq 'un';
+				if (			
+				$iodir_for_arg_in_called_sub->{$ccsub}{$arg}  eq 'out') {
+					# warn "WARNING: Toplevel INTENT for $arg changed from INOUT to OUT because first use is OUT!\n" ;
+				say "WARNING: Toplevel INTENT for $arg changed from INOUT to OUT because first use is OUT!" if $W;
+				$top_iodir = 'out';
+				last;				
+			}}
+		}
+
 	}
 # warn "FIXES CONTEXT $csub $arg $iodir ". $iodir_for_arg_in_called_sub->{$csub}{$arg} if $arg=~/avg/;
 	return ($iodir, $top_iodir);
