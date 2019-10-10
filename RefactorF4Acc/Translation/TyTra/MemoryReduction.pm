@@ -269,8 +269,6 @@ mkMap('sor',[],[['p','4','s']],[['p','4','']]),
     # This makes sure that no fortran is emitted by emit_all()
     $stref->{'SourceContains'} = {};
 
-    exit;
-
     return $stref;
 }    # END of pass_memory_reduction()
 
@@ -509,6 +507,8 @@ sub _emit_TyTraCL_Haskell_AST_Code {
     my $tytracl_ast  = $stref->{'TyTraCL_AST'};
 
     my @stencil_defs=();
+    # [($f, [($orig_name, $tytracl_name)])]
+    my @origNamesList=();
 
     my $tytracl_hs_ast_strs = [];
     for my $node (@{$tytracl_ast->{'Lines'}}) {
@@ -539,6 +539,7 @@ sub _emit_TyTraCL_Haskell_AST_Code {
             $node->{'VecType'}= $tytracl_ast->{'Main'}{'VarTypes'}{$fname}{'MapArgType'};
             $node->{'ReturnType'}= $tytracl_ast->{'Main'}{'VarTypes'}{$fname}{'ReturnType'};
             my $line = mkMapAST($node);
+            push @origNamesList, __origNamesListEntry($node);
             push @{$tytracl_hs_ast_strs}, $line;
         }
         elsif ($node->{'NodeType'} eq 'Fold') {
@@ -549,6 +550,7 @@ sub _emit_TyTraCL_Haskell_AST_Code {
             $node->{'ReturnType'}= $tytracl_ast->{'Main'}{'VarTypes'}{$fname}{'ReturnType'};# Which should of course be the same
 
             my $line = mkFoldAST($node);
+            push @origNamesList, __origNamesListEntry($node);
            push @{$tytracl_hs_ast_strs}, $line;
         }
         elsif ($node->{'NodeType'} eq 'Comment') {
@@ -559,14 +561,6 @@ sub _emit_TyTraCL_Haskell_AST_Code {
             croak;
         }
     }
-
-my $header =
-'module ASTInstance ( ast, functionSignaturesList, stencilDefinitionsList, mainArgDeclsList ) where
-import TyTraCLAST
-
-ast :: TyTraCLAST
-ast = [
-';
 
     my @indented_tytracl_hs_ast_strs=();
     my $idx=0;
@@ -586,16 +580,37 @@ ast = [
     my $tytracl_hs_ast_code_str=join("\n", @indented_tytracl_hs_ast_strs);
 
 
+    my $header =
+'module ASTInstance ( ast
+        , functionSignaturesList
+        , stencilDefinitionsList
+        , mainArgDeclsList 
+        , scalarisedArgsList
+        , origNamesList
+        ) where
+import TyTraCLAST
 
+ast :: TyTraCLAST
+ast = [
+    ';
 
     $tytracl_hs_ast_code_str=$header.$tytracl_hs_ast_code_str."\n        ]\n";
 
     my $fsigs_str = _create_TyTraCL_Haskell_signatures($stref);
     my $stencil_defs_str = _create_TyTraCL_Haskell_stencilDefs(\@stencil_defs);
     my $main_arg_decls_str = _create_TyTraCL_Haskell_MainArgDecls($stref,$tytracl_ast->{'MainFunction'});
+
     $tytracl_hs_ast_code_str.= "\n".$fsigs_str;
     $tytracl_hs_ast_code_str.= "\n".$stencil_defs_str;
     $tytracl_hs_ast_code_str.= "\n".$main_arg_decls_str;
+
+if (exists $stref->{'ScalarisedArgs'} and defined $stref->{'ScalarisedArgs'}) {
+    my $scalarised_args_lst_str = _create_TyTraCL_Haskell_scalarisedArgsList($stref);
+    my $orig_names_lst_str = _create_TyTraCL_Haskell_origNamesList(\@origNamesList);
+
+    $tytracl_hs_ast_code_str.= "\n".$scalarised_args_lst_str;
+    $tytracl_hs_ast_code_str.= "\n".$orig_names_lst_str;
+}
     $stref->{'TyTraCL_Haskell_AST_Code'} = $tytracl_hs_ast_code_str ;
 
     return $stref;
@@ -1125,7 +1140,7 @@ for my $out_arg_name (keys %{$stref->{'TyTraCL_AST'}{'Main'}{'OutArgsTypes'}}) {
 }
 
 
-    return 
+    return "\n".
         'mainArgDeclsList = ['."\n".'      '.
         join ("\n".'    , ', map {
             '("'.$_->[0].'" , "'.  $_->[1] .'" )' 
@@ -1151,4 +1166,95 @@ sub __toFortranDecl {(my $arg_name, my $tytracl_var_rec, my $intent) =@_;
     }
 
 } # END of __toFortranDecl
+
+=pod
+I put this info in `$stref->{'ScalarisedArgs'}`. Now, how to use it? We need the link between the TyTraCL names and the original names, 
+and from there to the scalarised names. Using Name and StencilIndex from the var rec. 
+
+So I think I need a table 
+
+            origNamesList = [($f, [($orig_name, $tytracl_name)])]
+            $f => { $orig_name => $tytracl_name}
+
+and a list $f => [($orig_name, $stencil_index)] with the order for the scalarised sig.
+
+            scalarisedArgsList = [($f , [($orig_name, $stencil_index)])]
+
+Then for every f we map (orig_name, stencil_index) -> ((origNames ! f) ! orig_name)++(if stencil_index==0 then "" else "("++(show stencil_index++")")))
+=cut
+
+sub _create_TyTraCL_Haskell_scalarisedArgsList { (my $stref)=@_;
+
+    my $sig_mappings={};
+    my @origNamesList = ();
+    my @scalarisedArgsList = ();
+
+    for my $f (sort keys %{ $stref->{'ScalarisedArgs'} }) {
+        my @arg_idx_lst=();
+        for my $arg (@{ $stref->{'ScalarisedArgs'}{$f}{'List'} }) {
+            my $var_rec = $stref->{'ScalarisedArgs'}{$f}{'Set'}{$arg};
+            my $orig_name = $var_rec->{'Name'};
+            my $stencil_index = exists $var_rec->{'StencilIndex'} ?  $var_rec->{'StencilIndex'} : 0;
+            push @arg_idx_lst, [$orig_name,$stencil_index];            
+        }
+            push @scalarisedArgsList,[$f,\@arg_idx_lst]
+    }
+    return "\nscalarisedArgsList = [\n     ".
+     join("\n".'    ,',map { 
+                (my $f, my $lst) = @{$_}; 
+                my $lst_str = join(', ', map {
+                        (my $on, my $idx) = @{$_}; 
+                        '("'.$on.'",'.$idx.')'
+                    } @{$lst}
+                );
+                '( "'.$f.'",['.$lst_str.'])'
+        } @scalarisedArgsList
+    )
+    ."\n  ]";       
+} # END of _create_TyTraCL_Haskell_scalarisedArgsList
+
+sub _create_TyTraCL_Haskell_origNamesList { (my $orig_names_list)=@_;
+    return "\norigNamesList = [\n     ".
+     join("\n".'    ,',map { 
+                (my $f, my $lst) = @{$_}; 
+                my $lst_str = join(', ', map {
+                        (my $on, my $nn) = @{$_}; 
+                        '("'.$on.'","'.$nn.'")'
+                    } @{$lst}
+                );
+                '( "'.$f.'",['.$lst_str.'])'
+        } @{$orig_names_list}
+    )
+    ."\n  ]";    
+}# END of _create_TyTraCL_Haskell_origNamesList
+
+sub __origNamesListEntry { my ($node) = @_;
+    my $arg_name_pairs = [];
+    my $fname = $node->{'FunctionName'};
+
+        if ($node->{'NodeType'} eq 'Map') {
+            for my $arg_rec (
+                @{$node->{'Rhs'}{'NonMapArgs'}{'Vars'}},
+                @{$node->{'Rhs'}{'MapArgs'}{'Vars'}},
+                @{$node->{'Lhs'}{'Vars'}}
+            ) {
+                push @{$arg_name_pairs},[$arg_rec->[0],_mkVarName($arg_rec)];
+            }
+        }
+        elsif ($node->{'NodeType'} eq 'Fold') {
+            for my $arg_rec (
+                @{$node->{'Lhs'}{'Vars'}}
+               ,@{$node->{'Rhs'}{'FoldArgs'}{'Vars'}}
+               ,@{$node->{'Rhs'}{'NonFoldArgs'}{'Vars'}}
+            ,@{$node->{'Rhs'}{'AccArgs'}{'Vars'}}
+            ) {
+                push @{$arg_name_pairs},[$arg_rec->[0],_mkVarName($arg_rec)];
+            }
+        }
+        
+    return [$fname,$arg_name_pairs];
+        
+} # END of __origNamesListEntry
+
+
 1;

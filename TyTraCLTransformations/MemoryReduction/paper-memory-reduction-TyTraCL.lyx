@@ -3619,11 +3619,15 @@ Generation of stencil vector expressions is straightforward, the stencil
 \end_inset
 
 .
- The 
+ We can implement the 
 \family typewriter
 SComb
 \family default
- operation is implemented as 
+ operation either by calculation the combined offset 
+\emph on
+in situ
+\emph default
+ or by creating a new stencil definition as 
 \begin_inset Formula $[d_{1}+d_{2}\,|\,d_{1}\leftarrow s_{1}\,,\,d_{2}\leftarrow s_{2}]$
 \end_inset
 
@@ -4059,21 +4063,13 @@ stencilAppl = (
 \end_layout
 
 \begin_layout Standard
-We combine the two stencils definitions in a new 1-D array rather than construct
-ing a 2-D stencil matrix.
- This is purely for convenience, Fortran does not allow multi-dimensional
- array constants.
+We add the two stencils offsets directly rather than constructing a new
+ stencil definition.
  The actual value vector (svec_du_1_4 in the example) is a 2-D vector.
 \begin_inset listings
 lstparams "language=Fortran"
 inline false
 status open
-
-\begin_layout Plain Layout
-
-integer, parameter, dimension(15) :: s5_s1 = [-502,-1,0,1,502,-501,0,1,2,503,0,5
-01,502,503,1004]
-\end_layout
 
 \begin_layout Plain Layout
 
@@ -4092,12 +4088,7 @@ do s_idx_2 = 1,5
 
 \begin_layout Plain Layout
 
-    s_idx = s_idx_2+(s_idx_1-1)*5
-\end_layout
-
-\begin_layout Plain Layout
-
-    svec_du_1_4(s_idx_1, s_idx_2) = wet_0(idx+s5_s1(s_idx))
+    svec_du_1_4(s_idx_1, s_idx_2) = wet_0(idx+s5(s_idx1)+s1(s_idx2))
 \end_layout
 
 \begin_layout Plain Layout

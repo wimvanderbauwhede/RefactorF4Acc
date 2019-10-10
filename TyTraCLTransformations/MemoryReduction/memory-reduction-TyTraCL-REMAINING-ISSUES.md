@@ -32,6 +32,21 @@ I added `$new_decl->{'StencilIndex'}`, again base 1.
 So now we can access the scalarised signature via `DeclaredOrigArgs`, but it means we need
 to pass this info on to the MemoryReduction pass using the API.
 
+I put this info in `$stref->{'ScalarisedArgs'}`. Now, how to use it? We need the link between the TyTraCL names and the original names, 
+and from there to the scalarised names. Using Name and StencilIndex from the var rec. 
+
+So I think I need a table 
+
+            origNamesList = [($f, [($orig_name, $tytracl_name)])]
+            $f => { $orig_name => $tytracl_name}
+
+and a list $f => [($orig_name, $stencil_index)] with the order for the scalarised sig.
+
+            scalarisedArgsList = [($f , [($orig_name, $stencil_index)])]
+
+Then for every f we map (orig_name, stencil_index) -> ((origNames ! f) ! orig_name)++(if stencil_index==0 then "" else "("++(show stencil_index++")")))
+
+
 
 
 ## OpenCLC: Passing array slices and returning scalars into array elements

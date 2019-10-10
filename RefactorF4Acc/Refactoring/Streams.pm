@@ -397,9 +397,13 @@ sub _rename_array_accesses_to_scalars { (my $stref, my $f) = @_;
 				# my $new_arg_index_expr = $state->{'StreamVars'}{$orig_arg}{'Set'}{$new_arg}{'ArrayIndexExpr'};
 				# $new_decl->{'ArrayIndexExpr'}=++$iii;#$new_arg_index_expr;
 				$new_decl->{'ArrayIndexExpr'}=$state->{'StreamVars'}{$orig_arg}{'Set'}{$new_arg}{'ArrayIndexExpr'};
-				$new_decl->{'StencilIndex'}=++$idx;
-				$stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$new_arg}=$new_decl;
-					
+				if (scalar @{ $state->{'StreamVars'}{$orig_arg}{'List'} } > 1) {
+				# 	# Only one access, not a stencil!
+				# 	# carp "NOT A STENCIL $f $orig_arg $new_arg ";
+				# } else {
+					$new_decl->{'StencilIndex'}=++$idx;
+				}
+				$stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$new_arg}=$new_decl;					
 			}	
 			delete $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$orig_arg};					
 		} else {
@@ -410,7 +414,7 @@ sub _rename_array_accesses_to_scalars { (my $stref, my $f) = @_;
 	}
 	
 	$stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'List'}=[@updated_args_list]; 	
-	croak Dumper $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'};
+	# croak Dumper $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'};
 # --------------------------------------------------------------------------------------------------------	 	
  	# So at this point we should do the lifting of everything to do with indexing
  	

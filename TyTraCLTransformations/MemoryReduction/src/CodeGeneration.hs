@@ -4,10 +4,11 @@ module CodeGeneration (inferSignatures, generateSignatures, generatedOpaqueFunct
 import Data.Generics (mkQ, everything)  
 -- import Control.Monad.State
 import TyTraCLAST
-import ASTInstance (functionSignaturesList, stencilDefinitionsList, mainArgDeclsList)
+import ASTInstance (functionSignaturesList, stencilDefinitionsList, mainArgDeclsList, origNamesList, scalarisedArgsList)
 import qualified Data.Map.Strict as Map
 import Data.List
 
+(!) = (Map.!)
 {-
 f1 :: acc1_T -> SVec 3 v_T -> v_T
 f1 acc1_T ::  SVec 3 v_T -> v_T
@@ -40,6 +41,14 @@ mainArgDecls =  Map.fromList mainArgDeclsList
 
 stencilDefinitions :: Map.Map Name [Integer]
 stencilDefinitions  =  Map.fromList stencilDefinitionsList
+
+origNames :: Map.Map Name (Map.Map Name Name)
+origNames = Map.fromList $ map (\(k,v)-> (k, Map.fromList v)) origNamesList
+
+scalarisedArgs :: Map.Map Name [(Name,Integer)]
+scalarisedArgs = Map.fromList scalarisedArgsList 
+
+
 
 -- We must update this map with the new signatures, so probably use the state monad
 -- let's be old-school contrarian and use fold
@@ -294,6 +303,13 @@ generateSubDefOpaque fname functionSignatures =
         fsig = case Map.lookup fname functionSignatures of
             Just fs -> fs
             Nothing -> error "BOOM!"  
+-- Then for every f we do:
+        argsList = scalarisedArgs ! fname
+        mappedArgsList =  map (
+                \(orig_name, stencil_index) -> 
+                    ((origNames ! fname) ! orig_name)++(if stencil_index==0 then "" else "("++(show stencil_index++")"))
+            ) argsList   
+        mappedArgsListStr = commaSepList mappedArgsList
         in                      
             case fsig of 
                 MapFSig (nms,ms,os) -> 
@@ -308,7 +324,8 @@ generateSubDefOpaque fname functionSignatures =
                         unlines [
                             "subroutine "++fname++"("  ++(mkArgList [non_map_args,in_args,out_args])++")"
                             , mkDeclLines [non_map_arg_decls,in_arg_decls,out_arg_decls]
-                            ,"    !!! <insert the call to the original scalarised subroutine>"
+                            ,"    !!! Call to the original scalarised subroutine"
+                            ,"    call "++fname++"_orig("++mappedArgsListStr++")"
                             ,"end subroutine "++fname
                         ]
                 FoldFSig (nms,as,ms,os) ->
@@ -853,5 +870,4 @@ hasFold ast = let
 
 isFunctionDef ((Function _ _),_) = True
 isFunctionDef _ = False
-
 

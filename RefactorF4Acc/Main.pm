@@ -153,6 +153,7 @@ sub main {
 	if (defined $stref_init and defined $stref_merger) {        
             $stref=$stref_merger->($stref, $stref_init);
     }
+    
 	# This is not used at the moment
     $stref->{'SubsToTranslate'}=$subs_to_translate;
     
@@ -295,6 +296,7 @@ sub main {
     } else {
 	    exit(0);
     }
+
 
 }    # END of main()
 # -----------------------------------------------------------------------------

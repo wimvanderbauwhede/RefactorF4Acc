@@ -1116,6 +1116,7 @@ sub _add_TyTraCL_AST_entry {
         my $in_tup_ms_ast = [
             map {
                 my $stencil_access = scalar keys %{ $state->{'Subroutines'}{$f}{'Blocks'}{0}{'Arrays'}{$_}{'Read'}{'Accesses'}} > 1 ? 1 : 0;
+                # say "$f $_ " .Dumper($state->{'Subroutines'}{$f}{'Blocks'}{0}{'Arrays'}{$_});
                 if (not exists $unique_var_counters->{$_}) {
                     $unique_var_counters->{$_} = 0;
                 }
