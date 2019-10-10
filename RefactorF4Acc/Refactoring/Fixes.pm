@@ -690,6 +690,7 @@ In other words,
 sub remove_redundant_arguments_and_fix_intents { (my $stref, my $f)=@_;
 
 	if ($f eq $Config{'KERNEL'}) { 
+		
 		my @in_args = grep { 
 			$stref->{'Subroutines'}{ $f }{'DeclaredOrigArgs'}{'Set'}{$_}{'IODir'} eq 'in'
 		}  @{$stref->{'Subroutines'}{ $f }{'DeclaredOrigArgs'}{'List'}};
@@ -854,14 +855,31 @@ sub remove_redundant_arguments_and_fix_intents { (my $stref, my $f)=@_;
 		}
 		# Now that we have the context-free IODir for all args  in every called sub we can refine
 		my $top_iodir={};		
-		my $changed_iodirs={};
+		my $changed_iodirs={};		
+		
 		for my $arg ( @{$stref->{'Subroutines'}{ $f }{'DeclaredOrigArgs'}{'List'}} ) {
 			$top_iodir->{$arg} = $stref->{'Subroutines'}{ $f }{'DeclaredOrigArgs'}{'Set'}{$arg}{'IODir'};
 			# First determine the context-free IODir for all arguments in every called subroutine
 			my $idx=0;
+			my $first_use=0;
 			for my $csub (@call_sequence) {				
 				$changed_iodirs->{$csub}={} unless exists $changed_iodirs->{$csub};
 				if (exists $stref->{'Subroutines'}{ $csub }{'DeclaredOrigArgs'}{'Set'}{$arg}) {
+					if ($first_use ==0 ) {
+						$first_use=1;
+						if ($iodir_for_arg_in_called_sub->{$csub}{$arg}  eq 'out' ) {
+					# warn "WARNING: Toplevel INTENT for $arg changed from INOUT to OUT because first use is OUT!\n" ;
+					say "WARNING: Toplevel INTENT for $arg changed from INOUT to OUT because first use ($csub) is OUT!";# if $W;
+					$top_iodir->{$arg} = 'out';						
+					
+					last;
+					} 		
+					
+				}
+		
+
+
+
 					($iodir_for_arg_in_called_sub->{$csub}{$arg}, $top_iodir->{$arg}) = __determine_called_sub_arg_iodir_w_context($arg, $stref, $csub, $top_iodir, $iodir_for_arg_in_called_sub,\@call_sequence, $idx);
 					if (
 						$stref->{'Subroutines'}{ $csub }{'DeclaredOrigArgs'}{'Set'}{$arg}{'IODir'} ne $iodir_for_arg_in_called_sub->{$csub}{$arg}
@@ -1083,7 +1101,7 @@ sub __determine_called_sub_arg_iodir_w_context { my ($arg, $stref, $csub, $iodir
 				}
 			}
 			if (not $arg_was_written_earlier) {
-				say "Toplevel INTENT for $arg changed from OUT to INOUT because of use as IN in $csub!" if $W;
+				say "WARNING: Toplevel INTENT for $arg changed from OUT to INOUT because of use as IN in $csub!" if $W;
 				$top_iodir = 'inout';
 			}
 		}
@@ -1125,25 +1143,11 @@ sub __determine_called_sub_arg_iodir_w_context { my ($arg, $stref, $csub, $iodir
 			say "WARNING: Toplevel INTENT for $arg changed from INOUT to IN because never used as OUT!" if $W;
 			$top_iodir = 'in';
 		}
-		for my $ccsub (@{$call_sequence}) {
-			# warn $ccsub
-			if (
-					exists $iodir_for_arg_in_called_sub->{$ccsub}{$arg} 
-			){
-				# warn "$ccsub $arg ".$iodir_for_arg_in_called_sub->{$ccsub}{$arg}."\n" if $arg eq 'un';
-				if (			
-				$iodir_for_arg_in_called_sub->{$ccsub}{$arg}  eq 'out') {
-					# warn "WARNING: Toplevel INTENT for $arg changed from INOUT to OUT because first use is OUT!\n" ;
-				say "WARNING: Toplevel INTENT for $arg changed from INOUT to OUT because first use is OUT!" if $W;
-				$top_iodir = 'out';
-				last;				
-			}}
-		}
-
 	}
 # warn "FIXES CONTEXT $csub $arg $iodir ". $iodir_for_arg_in_called_sub->{$csub}{$arg} if $arg=~/avg/;
 	return ($iodir, $top_iodir);
 } # END of __determine_called_sub_arg_iodir_w_context
+
 
 
 1;
