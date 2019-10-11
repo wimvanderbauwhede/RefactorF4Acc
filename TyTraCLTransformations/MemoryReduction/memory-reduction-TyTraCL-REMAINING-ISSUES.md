@@ -1,13 +1,50 @@
 # REMAINING ISSUES : Memory Reduction for Scientific Computing on GPUs
 
+## Duplicate arguments
+
+I can either make them unique in the subroutine definition, but not in the calls. That means I add a counter and use this throughout. The trivial way is to add a running counter even to the unique ones, i.e. a zip.
+Then the question is how to ensure that the counters match.
+
 ## Integration of the scalarised code
 
-This is now done except that I need to modularise it and create a main program 
+!!! There is a bug in the scalarisation: the signatures are wrong!
+
+This is now done except that I need to modularise it and create a main program
+Essentially, the generated code should become OpenCL code so I need to generate the call get_global_id(idx)
+The host-side code will have to be manual for now.
+
+A trick to have `get_global_id()` to work is to put idx in a COMMON block. Then we define
+
+            subroutine get_global_id(idx)
+              integer, intent(out) :: idx
+              integer :: global_id
+              common /ocl/ global_id
+              idx = global_id
+            end subroutine get_global_id  
+
+and we define the main program as
+
+            program main
+              integer :: global_id
+              common /ocl/ global_id
+              ! and then all decls used in the kernels but without intent
+
+              do global_id=1,VSZ
+                call stage_kernel(<same>)
+              end do
+            end program main  
+
+
+
+## Testing and Examples
+
+### Map-only
 
 I think I should test this with an example where I calculate a derivative of the normalised value of a property.
 
-so v-mean(v) stenciled at -1 and +1; for the edge points we have halo. First I do this 1-D, then 2-D, then I do it again in actual Fortran
+So v-mean(v) stenciled at -1 and +1; for the edge points we have a condition check. First I do this 1-D, then 2-D, then I do it again in actual Fortran
 
+What I expect here is that the intermediate array v_norm will disappear
 
             subroutine calc_mean(acc_in,v_in,acc_out)
                   acc_out = acc_in+v_in/v_sz
@@ -21,12 +58,15 @@ so v-mean(v) stenciled at -1 and +1; for the edge points we have halo. First I d
                   v_out = (v_in_2 - v_in_1)/2
             end subroutine calc_deriv
 
+In TyTraCL we have
 
             v_mean = fold calc_mean 0 v
             v_norm = map (calc_norm v_mean) v
             s = [-1,1]
             v_norm_s = stencil s v_norm
             v_norm_deriv = map calc_deriv v_norm_s
+
+In Fortran this becomes            
 
             subroutine calc_norm_deriv(v, v_norm_deriv)
                   implicit none
@@ -68,19 +108,25 @@ program main
       real, dimension(VSZ) :: v_norm_deriv            
       integer :: idx
 
-      ! populate v 
+      ! populate v
       do idx=1,VSZ
             v(i) = 1+2*idx+idx*idx
       end do
 
       ! run the calculation
       do idx=1,VSZ
-            call stage_kernel_1()
+            call stage_kernel_1(...)
       end do
 end program main
 
 
-## Avoiding double-buffering 
+### Fold and staging
+
+This is high priority: I need to make sure that the stages pass on the accumulators.
+
+## Avoiding double-buffering
+
+### The problem and some analysis
 
 The current approach creates an in and out array for every inout array. The typical problem is that a stencil would use the updated value rather than the old value. But the actual problem is that even if the program used double buffering, then both buffers are turned into two buffers. So I think I should go through the code and identify the following pattern:
 
@@ -103,10 +149,20 @@ How do we find this out? we do per function a deps list for all output vars. Thi
             call g(un1, u1)
       end            
 
-un1 is out for f and in for g, so to un1's deps in g I add un1's deps from f, i.e. u. 
-u in g depends on un which depends on u in f, so that we have u1 dependingon u1. In short, I think the solution is to say that un must be a local array. I think that should automatically lead to its being eliminated.
+un1 is out for f and in for g, so to un1's deps in g I add un1's deps from f, i.e. u.
+u in g depends on un which depends on u in f, so that we have u1 depending on u1. In short, I think the solution is to say that un must be a local array. I think that should automatically lead to its being eliminated.
 
-That is the key problem: intermediate arrays should not be in, out or inout, but local. But only the scientist can tell which are real ins and outs.
+### The key insight: local arrays
+
+Intermediate arrays should not be in, out or inout, but _local_.  I verified this and indeed, any array that I make a local disappears. So what I should do is this:
+
+- Combine all subroutines in a time loop (assuming no I/O) into a single subroutine which has no subroutine calls => write that inliner!
+- For that subroutine, do the aggressive new IODir analysis
+- Then check if the Out and InOut arguments are needed: if they are not used in any code downstream from the kernel subroutine, they are not needed so Out should become local and InOut should become In.
+
+
+
+
 
 ## OpenCLC: Passing array slices and returning scalars into array elements
 
@@ -114,13 +170,18 @@ That is the key problem: intermediate arrays should not be in, out or inout, but
 
       {test_return_to_array_elt,test_pass_array_slice},{f90,c}
 
-for the conversions, need to add this to
+for the conversions.
+
+We need to add this to
 
       RefactorF4Acc::Translation::OpenCLC
 
-## The stencil currently is defined for non-constant accesses only, I could generalise this using the algorithm in
 
-      /Users/wim/Desktop/FortranRefactoring/2018-10-30-stencil-algo.txt
+## More general case for stencils
+
+The stencil currently is defined for non-constant accesses only, I could generalise this using the algorithm in
+
+See `/Users/wim/Desktop/FortranRefactoring/2018-10-30-stencil-algo.txt`      
 
 ## How to deal with iteration?
 
@@ -128,7 +189,7 @@ for the conversions, need to add this to
       iter_vs' = iterate test calc_iter read_only_vs iter_vs
       v_out = map f (read_only_vs, iter_vs')
 
-It seems clear that the `iterate`  call must become one or more stages; there is no reason to do this on the device, so we can probably keep the original code.
+It seems clear that the `iterate` call must become one or more stages; there is no reason to do this on the device, so we can probably keep the original code.
 
 Essentially, for the SOR we have
 

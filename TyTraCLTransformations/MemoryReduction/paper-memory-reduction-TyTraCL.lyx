@@ -381,6 +381,8 @@ legacy code
  Out work aims to entirely automate this porting effort, so that more scientists
  can benefit from access to accelerators and parallel systems for their
  research.
+ We have already reported our work on auto-parallelisation of FORTRAN 77
+ code for GPUs in REF.
 \end_layout
 
 \begin_layout Standard
@@ -511,8 +513,31 @@ In this particular case, 11 arrays are intermediate and can actually be
  If we could achieve this, the simulation could run on a 4 times larger
  domain with the same memory utilisation.
  In this paper we present a novel approach to aggressively reduce memory
- utilisation of stencil-based legacy scientific code through automatic program
- transformation.
+ utilisation of stencil-based legacy scientific code that has been auto-parallel
+ised for GPUs, through automatic program transformation.
+ The problem with accelerators such as GPUs and FPGAs is that they use static
+ memory allocation.
+ Therefore, memory for intermediate arrays has to be allocated before a
+ kernel runs and for the lifetime of all kernels that need access to this
+ memory.
+ This is quite different from e.g.
+ temporary arrays in a subroutine call, where the compiler can allocate
+ the memory at need using the dynamic allocation facility of the operating
+ system.
+\end_layout
+
+\begin_layout Standard
+\begin_inset Note Note
+status open
+
+\begin_layout Plain Layout
+As a result of the staging, I am sure rhs cannot be removed.
+ 
+\end_layout
+
+\end_inset
+
+
 \end_layout
 
 \begin_layout Section
@@ -533,6 +558,10 @@ name "related-work"
 The idea is to find some similar things but be able to say that nobody has
  done what we have done .
  Mainly because we do this on top of auto-parallelised code targetting GPUs
+\end_layout
+
+\begin_layout Itemize
+Def cite the polyhaedral model
 \end_layout
 
 \begin_layout Section
@@ -607,8 +636,9 @@ Contribution of this work
 \end_layout
 
 \begin_layout Standard
-The key contribution of this work is a program transformation on the parallelise
-d code which reduces memory utilisation by removal of intermediate arrays.
+The key contribution of this work is a program transformation on parallelised
+ code targeted at GPUs which reduces memory utilisation by removal of intermedia
+te arrays.
  
 \end_layout
 
@@ -5382,7 +5412,8 @@ If you'd like to thank anyone, place your comments here.
 \begin_layout Standard
 \begin_inset CommandInset bibtex
 LatexCommand bibtex
-bibfiles "xampl"
+btprint "btPrintCited"
+bibfiles "IEEEabrv,paper-memory-reduction-TyTraCL"
 options "bibtotoc,spbasic"
 
 \end_inset
