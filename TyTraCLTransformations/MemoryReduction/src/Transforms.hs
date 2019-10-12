@@ -2,7 +2,6 @@ module Transforms (splitLhsTuples, substituteVectors, applyRewriteRules, fuseSte
 
 import Data.Generics (Data, Typeable, mkQ, mkT, mkM, gmapQ, gmapT, everything, everywhere, everywhere', everywhereM)
 import Control.Monad.State
-import Data.List (nub)
 
 import TyTraCLAST
 -- ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -357,12 +356,12 @@ subsitute_expr lhs exp = do
                         in
                             ((ct+1,var_expr_pairs++[(f_expr,exp)]),f_expr)
                       ApplyT fs -> let
-                            nmss = nub $ concatMap getNonMapFoldArgs fs
+                            nmss = concatMap getNonMapFoldArgs fs
                             f_expr = Function ("f_applyt_"++vec_name++"_"++(show ct)) nmss
                         in
                             ((ct+1,var_expr_pairs++[(f_expr,exp)]),f_expr)
                       Comp (Function _ nms1) (Function _ nms2) -> let
-                            f_expr = Function ("f_comp_"++vec_name++"_"++(show ct)) (nub (nms1++nms2))
+                            f_expr = Function ("f_comp_"++vec_name++"_"++(show ct)) (nms1++nms2)
                         in
                             ((ct+1,var_expr_pairs++[(f_expr,exp)]),f_expr)
                       Comp (PElt idx) (Function _ nms2) -> let
@@ -371,7 +370,7 @@ subsitute_expr lhs exp = do
                         in
                             ((ct+1,var_expr_pairs++[(f_expr,exp)]),f_expr)
                       FComp (Function _ nms1) (Function _ nms2) -> let
-                            f_expr = Function ("f_fcomp_"++vec_name++"_"++(show ct)) (nub (nms1++nms2))
+                            f_expr = Function ("f_fcomp_"++vec_name++"_"++(show ct)) (nms1++nms2)
                         in
                             ((ct+1,var_expr_pairs++[(f_expr,exp)]),f_expr)
                       Stencil (SVec _ _ ) v_exp -> let

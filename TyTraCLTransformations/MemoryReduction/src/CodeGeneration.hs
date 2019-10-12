@@ -20,6 +20,13 @@ import ASTInstance (functionSignaturesList, stencilDefinitionsList, mainArgDecls
 (!) = (Map.!)
 
 {-
+About the duplicated arguments: it's actually very simple. 
+I keep them all until the very last moment of code generation, and only then do I remove the duplicates
+
+-}
+
+
+{-
 f1 :: acc1_T -> SVec 3 v_T -> v_T
 f1 acc1_T ::  SVec 3 v_T -> v_T
 maps : (a -> b) -> SVec k a -> SVec k b
@@ -83,13 +90,9 @@ getFunctionSignature rhs functionSignatures =
             FComp (Function f1 _) (Function f2 _) -> deriveSigFComp f1 f2 functionSignatures
             ApplyT fs -> deriveSigApplyT fs functionSignatures
         flattened_fsig = map flattenSigExpr fsig -- this is [Expr]
-        -- flattened_fsig_unique_args = map makeUnique flattened_fsig
     in
         flattened_fsig            
-        -- flattened_fsig_unique_args
 
-makeUnique (Tuple exps) = Tuple $ nub exps
-makeUnique exp = exp
 -- ApplyT can only arise because of Map, so it can't be Fold.       
 -- Arguments to ApplyT can be Function, Id, what else? Let's assume that is all
 -- The signature of the derived function should be grouped   
@@ -274,7 +277,7 @@ deriveSigPELt idx fname functionSignatures =
                     [nms,as,ms,os']
 -- ----------------------------------------------------------------------------------------
 -- ----------------------------------------------------------------------------------------        
-removeDuplicateArgs = nub       
+removeDuplicateArgs = id -- nub       
 removeDuplicateArgNames = id -- nub
 
 -- Question here is suppose we have SVec DTup, SVec DTup, then that should become Tuple SVec
@@ -300,6 +303,8 @@ opaqueFunctionExprs = map (\(fname, _) -> (Function fname [], Id (Tuple []) )) f
 generatedOpaqueFunctionDefs = map (\elt -> fst $ generateSubDef functionSignatures elt []) opaqueFunctionExprs
 -- ----------------------------------------------------------------------------------------
 -- ----------------------------------------------------------------------------------------
+-- A tuple, fst elt is a list of declarations, snd elt is a list of statements
+-- The statements can only be Stencil, Map or Fold
 generateNonSubDefs :: (Map.Map Name FSig) -> TyTraCLAST -> ([String],[String])
 generateNonSubDefs functionSignatures ast = 
     let
@@ -677,7 +682,7 @@ createIter (Tuple es) = concatMap createIter es
 
 
 makeDeclsUnique :: Expr -> Expr
-makeDeclsUnique expr = evalState (everywhereM (mkM makeDeclsUnique'') expr) 0
+makeDeclsUnique expr = expr -- evalState (everywhereM (mkM makeDeclsUnique'') expr) 0
 
 makeDeclsUnique' :: Expr -> Int -> Expr
 makeDeclsUnique' (SVec sz dt) ct = 
@@ -866,10 +871,10 @@ generateStencilDef' s_exp stencilDefinitions =
 generateMap functionSignatures f_exp v_exp ov_name =
     let
         Function fname nms_exps = f_exp
-        fsig = case Map.lookup fname functionSignatures of
-            Just fs -> fs
-            Nothing -> error $ "generateMap: BOOM! "++fname                 
-        [nms_exps',v_exp',ov_exp] = fsig
+        -- fsig = case Map.lookup fname functionSignatures of
+        --     Just fs -> fs
+        --     Nothing -> error $ "generateMap: BOOM! "++fname                 
+        -- [nms_exps',v_exp',ov_exp] = fsig
         nms = getVarNames (Tuple nms_exps)        
         vs_in = getVarNames v_exp
         -- nms = getVarNames nms_exps'
@@ -1069,8 +1074,6 @@ generateMainProgram functionSignatures ast_stages  =
         "end subroutine get_global_id"
         ]
        
-
-
 generateFortranCode decomposed_ast =
     let
         (asts_function_defs,ast_stages) = createStages decomposed_ast
