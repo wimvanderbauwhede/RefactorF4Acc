@@ -838,9 +838,9 @@ sub mkStencilApplAST {
     my $ve       = $stencilApplNode->{'Rhs'}{'Var'}[3];
     my $s        = 's' . $stencilApplNode->{'Rhs'}{'StencilCtr'};
     my $s_sz     = $stencilApplNode->{'Rhs'}{'StencilSz'};
-    my $ast_line = '(Vec VS (DSVec '.$s_sz.' D'.$vec_type.') "' . $s_var . '" ,'
-    . ' Stencil (SVec ' . $s_sz . ' DInt "' . $s . '") '
-    . '(Vec ' . $ve . ' D' .$vec_type. ' "' . $var . '"))';
+    my $ast_line = '(Vec VS (SVec '.$s_sz.' (Scalar VDC D'.$vec_type.' "' . $s_var . '" )) ,'
+    . ' Stencil (SVec ' . $s_sz . ' (Scalar VDC DInt "' . $s . '")) '
+    . '(Vec ' . $ve . ' (Scalar VDC D' .$vec_type. ' "' . $var . '")))';
 
     return $ast_line;
 }
@@ -964,20 +964,33 @@ sub mkFoldAST {
 }
 
 # In principle the SVec type can contain another SVec but not while generating the code
-sub __mkType { (my $t_rec)=@_;
+# sub __mkType { (my $t_rec)=@_;
+#     if ($t_rec->[0] ne 'SVec') {
+#         return 'D'.$t_rec->[0];
+#     } else {
+#         return '(DSVec '.$t_rec->[1]. ' D'.$t_rec->[2].')';
+#     }
+# }
+
+# (Vec VI (Tuple [Scalar Float "eta_0", Scalar DInt "wet_0"] ) )
+# (Vec VI (Scalar Float "eta_0") )
+# (Vec VS (SVec 5 (Scalar DFloat "eta_s_0") ) )
+# ['SVec',3,'DFloat']
+sub __mkType { (my $t_rec, my $v_name)=@_;
     if ($t_rec->[0] ne 'SVec') {
-        return 'D'.$t_rec->[0];
+        return 'Scalar VDC D'.$t_rec->[0].' "'.$v_name.'"';
     } else {
-        return '(DSVec '.$t_rec->[1]. ' D'.$t_rec->[2].')';
+        return 'SVec '.$t_rec->[1]. '(Scalar VDC D'.$t_rec->[2].' "'.$v_name.'")';
     }
 }
+
 sub __mkVec {
     my ($var_type_rec) = @_;
     my ($v_rec, $t_rec) = @{$var_type_rec};
     # t_rec is either [Int] or [SVec,3,Int]
     my $v_name  = _mkVarName($v_rec);
     my $ve      = $v_rec->[3];
-    return 'Vec ' . $ve . ' '.__mkType($t_rec).' "' . $v_name . '"';
+    return 'Vec ' . $ve . ' ('.__mkType($t_rec, $v_name).')'; #.' "' . $v_name . '"';
 }
 
 sub __mkUntypedVec {
@@ -995,7 +1008,11 @@ sub __mkScalar {
 
     my $v_name  = _mkVarName($v_rec);
     my $ve      = $v_rec->[3];    
-    return 'Scalar '.$ve.' '.__mkType($t_rec).'  "' . $v_name . '"';
+    if (scalar @{$t_rec} == 1) {
+        return __mkType($t_rec,$v_name);#.'  "' . $v_name . '"';
+    } else {
+    return 'Scalar '.$ve.' '.__mkType($t_rec,$v_name);#.'  "' . $v_name . '"';
+    }
 }
 
 sub __mkUntypedScalar {
@@ -1078,7 +1095,7 @@ sub _create_TyTraCL_Haskell_signatures { (my $stref) = @_;
                     if ($type->[0] ne 'SVec') { # It's a scalar 
                         push @{$typed_arg_tup}, 'Scalar VDC D'.$type->[0].' "'.$arg.'"';
                     } else {
-                        push @{$typed_arg_tup}, 'SVec '.$type->[1].' D'.$type->[2].' "'.$arg.'"';
+                        push @{$typed_arg_tup}, 'SVec '.$type->[1].' (Scalar VDC D'.$type->[2].' "'.$arg.'")';
                     }                    
                 }
             } 
@@ -1099,7 +1116,7 @@ sub __pp_MapListEntry { (my $map_list_entry) = @_;
     my ($FSig_ctor, $typed_arg_tups) = @{$fsig};
     my $map_list_entry_str = 
     '("'.$fname.'", '
-     . $FSig_ctor . ' (' . join(',', map {
+     . ' [' . join(',', map {
         #  warn( Dumper $_); 
          my $t = scalar @{$_} == 0 
          ? 'Tuple []'
@@ -1108,7 +1125,7 @@ sub __pp_MapListEntry { (my $map_list_entry) = @_;
          : $_->[0];
          $t;
          } @{$typed_arg_tups})
-     . '))';
+     . '])';
     return $map_list_entry_str;
 }
 

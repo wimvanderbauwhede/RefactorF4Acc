@@ -1,5 +1,52 @@
 # REMAINING ISSUES : Memory Reduction for Scientific Computing on GPUs
 
+## Better AST
+
+I need to get rid of DType and also flatten the arguments when I derive them rather than later on.
+
+      data DType =
+          DInteger | DInt
+        | DReal | DFloat
+        | DDC -- Don't Care ; Int and Integer, Real and Float as I can't make up my mind
+          deriving (Show, Typeable, Data, Eq)
+
+      -- I wonder if     data FSig = FSig [Expr] would not be a better approach, or even type FSig = [Expr]
+      data FSig =
+          MapFSig (Expr,Expr,Expr)
+        | FoldFSig (Expr,Expr,Expr,Expr)
+        deriving (Show, Typeable, Data, Eq)
+
+      type TyTraCLAST = [(Expr,Expr)]                      
+
+      data Expr =
+              -- Left-hand side:
+                            Scalar VE DType Name
+                          | Const Int
+                          | Tuple [Expr]
+                          | Vec VE Expr
+
+              -- Right-hand side:
+                          | SVec Size Expr
+                          | ZipT [Expr]
+                          | UnzipT Expr
+                          | Elt Int Expr
+                          | PElt Int -- partially applied Elt
+                          | Map Expr Expr -- map f v
+                          | Fold Expr Expr Expr -- fold f acc v
+                          | Stencil Expr Expr -- stencil s v
+                          | Function Name [Expr] -- 2nd arg is list of non-map/fold args
+                          | Id DType -- id
+                          | ApplyT [Expr]  -- applyt (f1,f2)
+                          | MapS Expr Expr -- maps s f
+                          | Comp Expr Expr -- comp f2 f1
+                          | FComp Expr Expr -- like comp but to combine a fold and a map, quite a-hoc!
+                          | SComb Expr Expr -- scomb s1 s2
+                              deriving (Show, Typeable, Data, Eq)
+
+While I'm at it, let's just make
+
+          type FSig = [Expr]                              
+
 ## Duplicate arguments
 
 I can either make them unique in the subroutine definition, but not in the calls. That means I add a counter and use this throughout. The trivial way is to add a running counter even to the unique ones, i.e. a zip.

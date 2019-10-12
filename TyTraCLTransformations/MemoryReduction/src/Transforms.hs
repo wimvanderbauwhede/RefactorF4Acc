@@ -2,6 +2,8 @@ module Transforms (splitLhsTuples, substituteVectors, applyRewriteRules, fuseSte
 
 import Data.Generics (Data, Typeable, mkQ, mkT, mkM, gmapQ, gmapT, everything, everywhere, everywhere', everywhereM)
 import Control.Monad.State
+import Data.List (nub)
+
 import TyTraCLAST
 -- ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 -- 1. Replace all LHS Tuple occurrences with multiple expressions using Elt on the RHS. As a result, the LHS will be purely Vec.
@@ -33,7 +35,7 @@ I think the easiest way is to use Generics: with `everywhere` we can update all 
 
 -- 
 find_in_ast :: TyTraCLAST -> Expr -> Expr
-find_in_ast ast v@(Vec _ _ _)  = let
+find_in_ast ast v@(Vec _ _ )  = let
     maybe_v = filter (\(lhs,rhs) -> lhs == v) ast
     in
         if length maybe_v == 1 
@@ -47,7 +49,7 @@ find_in_ast ast e  = e
 
 -- If an expression is a vector, return it in a list, else return an empty list
 get_vec :: Expr -> [Expr]
-get_vec v@(Vec vt _ _) = [v]
+get_vec v@(Vec vt _ ) = [v]
 get_vec _ = []
 
 get_vec_subexprs :: Expr -> [Expr]
@@ -60,7 +62,7 @@ non_input_vecs expr = let
     in
         filter (
             \v -> case v of 
-                Vec VI _ _ -> False
+                Vec VI _  -> False
                 _ -> True
             ) vec_subexprs
 
@@ -75,7 +77,7 @@ Now we should start applying the rewrite rules to reduce each of these expressio
 -}
 
 lhs_is_output_vec (lhs_vec,expr) = case lhs_vec of
-    Vec VO _ _ -> True
+    Vec VO _ -> True
     Scalar VT _ _ -> True
     _ -> False
 
@@ -271,8 +273,8 @@ rewriteZipTMap es =  let
         Map (ApplyT f_s) (ZipT v_s)
 
 rewriteId expr =  case expr of
-    Vec _ dt _  -> Map (Id dt) expr
-    Stencil (SVec sz _ _)  (Vec _ dt _) -> Map (Id (DSVec sz dt)) expr
+    Vec _ dt   -> Map (Id dt) expr
+    Stencil (SVec sz _ )  (Vec _ dt ) -> Map (Id (SVec sz dt)) expr
     _ -> expr
 
 get_map :: Expr -> [Expr]
@@ -313,30 +315,38 @@ Fortran from it.
 {-
 4. First decompose the expressions. This is some kind of ANF/SSA style: every vector, stencil and function gets a name.
 
+
+( Vec VT (Scalar VDC DFloat "eta_2"), 
+Map (Function "dyn_map_65"  [
+    Scalar VDC DFloat "dt_0",
+    Scalar VDC DFloat "dx_0",
+    Scalar VDC DFloat "dy_0"]) 
+    
+    (ZipT [Vec VS (SVec 2(Scalar DFloat "un_s_0")),Vec VS (SVec 5(Scalar DFloat "h_s_0")),Vec VS (SVec 2(Scalar DFloat "vn_s_0")),Vec VT (Scalar VDC DFloat "eta_1")]) )
 -}
 
 subsitute_expr :: Expr -> Expr -> State (Int,[(Expr,Expr)]) Expr
 subsitute_expr lhs exp = do
             let 
                 (vec_name, decomposeMap) = case lhs of
-                    Vec VO _ vname -> (vname, False)
+                    Vec VO  (Scalar _ _ vname) -> (vname, False)
                     Scalar _ _ sname -> (sname, True)
             (ct,var_expr_pairs) <- get
             let ((ct',var_expr_pairs'),exp') = case exp of
                       Scalar _ _ _ -> ((ct,var_expr_pairs),exp)
                       Const _ -> ((ct,var_expr_pairs),exp)
                       Tuple _ -> ((ct,var_expr_pairs),exp)
-                      Vec _ _ _ -> ((ct,var_expr_pairs),exp)
+                      Vec _ _  -> ((ct,var_expr_pairs),exp)
                       Id _ -> ((ct,var_expr_pairs),exp)
                       Function _ _ -> ((ct,var_expr_pairs),exp)
-                      SVec _ _ _ -> ((ct,var_expr_pairs),exp)
+                      SVec _ _ -> ((ct,var_expr_pairs),exp)
                       SComb _ _ -> ((ct,var_expr_pairs),exp)
                       PElt _ -> ((ct,var_expr_pairs),exp)
                       ZipT _ -> ((ct,var_expr_pairs),exp)
                       Map _ _ -> if decomposeMap 
                         then
                             let -- ((ct,var_expr_pairs),exp)
-                                var = Vec VT DDC ("var_"++vec_name++"_"++(show ct)) 
+                                var = Vec VT (Scalar VT DDC ("var_"++vec_name++"_"++(show ct))) 
                             in
                             ((ct+1,var_expr_pairs++[(var,exp)]),var)
                         else
@@ -347,12 +357,12 @@ subsitute_expr lhs exp = do
                         in
                             ((ct+1,var_expr_pairs++[(f_expr,exp)]),f_expr)
                       ApplyT fs -> let
-                            nmss = concatMap getNonMapFoldArgs fs
+                            nmss = nub $ concatMap getNonMapFoldArgs fs
                             f_expr = Function ("f_applyt_"++vec_name++"_"++(show ct)) nmss
                         in
                             ((ct+1,var_expr_pairs++[(f_expr,exp)]),f_expr)
                       Comp (Function _ nms1) (Function _ nms2) -> let
-                            f_expr = Function ("f_comp_"++vec_name++"_"++(show ct)) (nms1++nms2)
+                            f_expr = Function ("f_comp_"++vec_name++"_"++(show ct)) (nub (nms1++nms2))
                         in
                             ((ct+1,var_expr_pairs++[(f_expr,exp)]),f_expr)
                       Comp (PElt idx) (Function _ nms2) -> let
@@ -361,21 +371,21 @@ subsitute_expr lhs exp = do
                         in
                             ((ct+1,var_expr_pairs++[(f_expr,exp)]),f_expr)
                       FComp (Function _ nms1) (Function _ nms2) -> let
-                            f_expr = Function ("f_fcomp_"++vec_name++"_"++(show ct)) (nms1++nms2)
+                            f_expr = Function ("f_fcomp_"++vec_name++"_"++(show ct)) (nub (nms1++nms2))
                         in
                             ((ct+1,var_expr_pairs++[(f_expr,exp)]),f_expr)
-                      Stencil (SVec _ _ _) v_exp -> let
-                            dt = getDType v_exp
-                            var = Vec VS dt ("svec_"++vec_name++"_"++(show ct))
+                      Stencil (SVec _ _ ) v_exp -> let
+                            dt_exp = getDType v_exp
+                            var = Vec VS (setName ("svec_"++vec_name++"_"++(show ct)) dt_exp)
                         in
                             ((ct+1,var_expr_pairs++[(var,exp)]),var)
                       Stencil (SComb _ _) v_exp -> let
-                            dt = getDType v_exp
-                            var = Vec VS dt ("svec_"++vec_name++"_"++(show ct))
+                            dt_exp = getDType v_exp
+                            var = Vec VS (setName  ("svec_"++vec_name++"_"++(show ct)) dt_exp)
                         in
                             ((ct+1,var_expr_pairs++[(var,exp)]),var)
                       _ -> let
-                              var = Vec VT DDC ("vec_"++vec_name++"_"++(show ct))
+                              var = Vec VT (Scalar VT DDC ("vec_"++vec_name++"_"++(show ct)))
                            in
                              ((ct+1,var_expr_pairs++[(var,exp)]),var)
             put (ct',var_expr_pairs')
@@ -404,5 +414,3 @@ getNonMapFoldArgs' :: Expr -> [Expr]
 getNonMapFoldArgs' (Function _ nms) = nms
 getNonMapFoldArgs' _ = []
 
-getDType (Vec _ dt _ ) = dt
-getDType (ZipT es) = DTuple (map getDType es)

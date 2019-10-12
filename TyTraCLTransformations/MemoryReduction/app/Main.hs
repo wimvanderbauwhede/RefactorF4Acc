@@ -6,12 +6,13 @@ import Transforms (splitLhsTuples, substituteVectors, applyRewriteRules, fuseSte
 import CodeGeneration (
     inferSignatures, 
     -- generateSignatures, 
-    createStages, 
-    generatedOpaqueFunctionDefs, 
-    generateDefs, 
-    generateNonSubDefs, 
-    generateStageKernel,
-    generateMainProgram
+    -- createStages, 
+    -- generatedOpaqueFunctionDefs, 
+    -- generateDefs, 
+    -- generateNonSubDefs, 
+    -- generateStageKernel,
+    -- generateMainProgram
+    generateFortranCode
     )
 
 ast1 = splitLhsTuples ast
@@ -23,17 +24,18 @@ ast4 = decomposeExpressions ast3'
 inferedSignatures :: [[(Name,FSig)]]
 inferedSignatures = map inferSignatures ast4
 
-(asts_function_defs,ast_stages) = createStages ast4
-generatedFunctionDefs = map generateDefs asts_function_defs
+-- (asts_function_defs,ast_stages) = createStages ast4
+-- generatedFunctionDefs = map generateDefs asts_function_defs
 -- generatedNonFunctionDefs = map generateDefs asts_no_function_defs 
 -- For every stage ([String],[String]) so [([String],[String])]
 -- (generatedDecls,generatedStmts) = unzip $ map generateNonSubDefs ast_stages
 -- generatedDeclsStmts_per_stage = map generateNonSubDefs ast_stages
 -- uniqueGeneratedDeclsStmts_per_stage = map (\(decls,stmts) -> (nub decls, stmts)) generatedDeclsStmts_per_stage
 -- uniqueGeneratedDecls = sort $ nub $ concat generatedDecls
-generatedStageKernels = map (\(ast,ct) -> generateStageKernel ct ast) (zip ast_stages [1..])
-mainProgramStr = generateMainProgram ast_stages
+-- generatedStageKernels = map (\(ast,ct) -> generateStageKernel ct ast) (zip ast_stages [1..])
+-- mainProgramStr = generateMainProgram ast_stages
 
+generatedFortranCode = generateFortranCode ast4
 info = False
 main = do
     if info 
@@ -75,11 +77,12 @@ main = do
         --     mapM_ (putStrLn . unlines) generatedStageKernels 
         else return ()        
     -- do
-    putStrLn "\n! Main Program"             
-    putStrLn mainProgramStr            
-    putStrLn "\n! Generate opaque subroutine definitions"    
-    mapM_ putStrLn generatedOpaqueFunctionDefs
-    putStrLn "\n! Generate subroutine definitions"
-    mapM_ putStrLn (map (\(ls,ct) -> unlines (["! Stage "++(show ct)]++ls)) (zip generatedFunctionDefs [1..]))
-    putStrLn "\n! Generated stage kernels"
-    mapM_ (putStrLn . unlines) generatedStageKernels 
+    putStr generatedFortranCode
+    -- putStrLn "\n! Main Program"             
+    -- putStrLn mainProgramStr            
+    -- putStrLn "\n! Generate opaque subroutine definitions"    
+    -- mapM_ putStrLn generatedOpaqueFunctionDefs
+    -- putStrLn "\n! Generate subroutine definitions"
+    -- mapM_ putStrLn (map (\(ls,ct) -> unlines (["! Stage "++(show ct)]++ls)) (zip generatedFunctionDefs [1..]))
+    -- putStrLn "\n! Generated stage kernels"
+    -- mapM_ (putStrLn . unlines) generatedStageKernels 
