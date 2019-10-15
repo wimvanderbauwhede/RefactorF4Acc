@@ -38,24 +38,24 @@ functionSignaturesList = [
 stencilDefinitionsList = [("s1" , [-502,-1,0,1,502] ), ("s2" , [-502,-1,0,1,502] ), ("s3" , [0,1,502] ), ("s4" , [0,1,502] ), ("s5" , [-502,-1,0,1,502] ), ("s6" , [-1,0] ), ("s7" , [-502,0] )]
 
 mainArgDeclsList = [
-      ("dx_0" , "real, intent(in) :: dx_0" )
-    , ("h_0" , "real, dimension(1:252004), intent(in) :: h_0" )
-    , ("v_0" , "real, dimension(1:252004), intent(in) :: v_0" )
-    , ("hmin_0" , "real, intent(in) :: hmin_0" )
+      ("eps_0" , "real, intent(in) :: eps_0" )
     , ("hzero_0" , "real, dimension(1:252004), intent(in) :: hzero_0" )
-    , ("wet_0" , "integer, dimension(1:252004), intent(in) :: wet_0" )
-    , ("eta_0" , "real, dimension(1:252004), intent(in) :: eta_0" )
+    , ("v_0" , "real, dimension(1:252004), intent(in) :: v_0" )
+    , ("dx_0" , "real, intent(in) :: dx_0" )
     , ("g_0" , "real, intent(in) :: g_0" )
-    , ("eps_0" , "real, intent(in) :: eps_0" )
-    , ("dy_0" , "real, intent(in) :: dy_0" )
     , ("dt_0" , "real, intent(in) :: dt_0" )
+    , ("hmin_0" , "real, intent(in) :: hmin_0" )
+    , ("wet_0" , "integer, dimension(1:252004), intent(in) :: wet_0" )
+    , ("h_0" , "real, dimension(1:252004), intent(in) :: h_0" )
+    , ("eta_0" , "real, dimension(1:252004), intent(in) :: eta_0" )
+    , ("dy_0" , "real, intent(in) :: dy_0" )
     , ("u_0" , "real, dimension(1:252004), intent(in) :: u_0" )
     , ("v_1" , "real, dimension(1:252004), intent(out) :: v_1" )
-    , ("dv_1" , "real, dimension(1:252004), intent(out) :: dv_1" )
     , ("h_1" , "real, dimension(1:252004), intent(out) :: h_1" )
-    , ("u_1" , "real, dimension(1:252004), intent(out) :: u_1" )
-    , ("wet_1" , "integer, dimension(1:252004), intent(out) :: wet_1" )
     , ("du_1" , "real, dimension(1:252004), intent(out) :: du_1" )
+    , ("wet_1" , "integer, dimension(1:252004), intent(out) :: wet_1" )
+    , ("u_1" , "real, dimension(1:252004), intent(out) :: u_1" )
+    , ("dv_1" , "real, dimension(1:252004), intent(out) :: dv_1" )
   ]
 
 scalarisedArgsList = [

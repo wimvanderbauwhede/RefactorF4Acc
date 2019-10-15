@@ -23,6 +23,13 @@ import ASTInstance (functionSignaturesList, stencilDefinitionsList, mainArgDecls
 About the duplicated arguments: it's actually very simple. 
 I keep them all until the very last moment of code generation, and only then do I remove the duplicates
 
+But also I should make sure there are no duplicates after the decomposeExpressions pass
+So I should keep a table of the named expressions and only make a new one if it's not already there
+
+Furthermore I should _not_ flatten the expressions in the signatures until I do code generation
+
+And I must throw out the counting-based approach
+
 -}
 
 
@@ -323,13 +330,14 @@ generateNonSubDef :: (Map.Map Name FSig) -> (Expr, Expr) -> (String,[String])
 generateNonSubDef functionSignatures t  =
     let
         (lhs,rhs) = t
-        Vec _ (Scalar _ _ v_name)  = lhs
-        Scalar _ _ sc_name = lhs
+        v_name = getName lhs
+        -- Vec _ (Scalar _ _ v_name)  = lhs
+        -- Scalar _ _ sc_name = lhs
     in
         case rhs of 
             Stencil s_exp v_exp -> generateStencilAppl s_exp v_exp v_name stencilDefinitions
             Map f_exp v_exp -> generateMap functionSignatures f_exp v_exp v_name 
-            Fold f_exp acc_exp v_exp -> generateFold functionSignatures f_exp acc_exp v_exp sc_name 
+            Fold f_exp acc_exp v_exp -> generateFold functionSignatures f_exp acc_exp v_exp v_name 
             _ -> (show rhs, ["generateNonSubDef: TODO: "++(show t)])        
 -- ----------------------------------------------------------------------------------------
 -- ----------------------------------------------------------------------------------------        

@@ -6,14 +6,14 @@ import Data.Generics (Data, Typeable)
 
 type Name = String
 type Size = Int
-data VE = VI  | VO  | VS  | VT | VDC deriving (Show, Typeable, Data, Eq)
+data VE = VI  | VO  | VS  | VT | VDC deriving (Show, Ord, Typeable, Data, Eq)
 data DType = 
     DInteger | DInt 
   | DReal | DFloat 
   | DSVec Int DType --  to encode SVecs
   | DTuple [DType] -- to encode Tuple
   | DDC -- Don't Care ; Int and Integer, Real and Float as I can't make up my mind
-    deriving (Show, Typeable, Data, Eq)
+    deriving (Show, Ord, Typeable, Data, Eq)
 
 -- I wonder if     data FSig = FSig [Expr] would not be a better approach, or even 
 type FSig = [Expr]
@@ -47,7 +47,7 @@ data Expr =
                     | Comp Expr Expr -- comp f2 f1
                     | FComp Expr Expr -- like comp but to combine a fold and a map, quite a-hoc!
                     | SComb Expr Expr -- scomb s1 s2
-                        deriving (Show, Typeable, Data, Eq)
+                        deriving (Show, Ord, Typeable, Data, Eq)
 
 newtype LHSPrint = LHSPrint Expr
 

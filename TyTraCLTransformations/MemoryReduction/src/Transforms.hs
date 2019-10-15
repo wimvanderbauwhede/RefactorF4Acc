@@ -2,8 +2,12 @@ module Transforms (splitLhsTuples, substituteVectors, applyRewriteRules, fuseSte
 
 import Data.Generics (Data, Typeable, mkQ, mkT, mkM, gmapQ, gmapT, everything, everywhere, everywhere', everywhereM)
 import Control.Monad.State
+import qualified Data.Map.Strict as Map
 
 import TyTraCLAST
+import Warning ( warning )
+
+(!) = (Map.!)
 -- ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 -- 1. Replace all LHS Tuple occurrences with multiple expressions using Elt on the RHS. As a result, the LHS will be purely Vec.
 splitLhsTuples :: TyTraCLAST -> TyTraCLAST
@@ -324,78 +328,120 @@ Map (Function "dyn_map_65"  [
     (ZipT [Vec VS (SVec 2(Scalar DFloat "un_s_0")),Vec VS (SVec 5(Scalar DFloat "h_s_0")),Vec VS (SVec 2(Scalar DFloat "vn_s_0")),Vec VT (Scalar VDC DFloat "eta_1")]) )
 -}
 
-subsitute_expr :: Expr -> Expr -> State (Int,[(Expr,Expr)]) Expr
+subsitute_expr :: Expr -> Expr -> State (Int,Map.Map Expr Expr,Map.Map Expr Expr,[(Expr,Expr)]) Expr
 subsitute_expr lhs exp = do
             let 
                 (vec_name, decomposeMap) = case lhs of
                     Vec VO  (Scalar _ _ vname) -> (vname, False)
                     Scalar _ _ sname -> (sname, True)
-            (ct,var_expr_pairs) <- get
-            let ((ct',var_expr_pairs'),exp') = case exp of
-                      Scalar _ _ _ -> ((ct,var_expr_pairs),exp)
-                      Const _ -> ((ct,var_expr_pairs),exp)
-                      Tuple _ -> ((ct,var_expr_pairs),exp)
-                      Vec _ _  -> ((ct,var_expr_pairs),exp)
-                      Id _ -> ((ct,var_expr_pairs),exp)
-                      Function _ _ -> ((ct,var_expr_pairs),exp)
-                      SVec _ _ -> ((ct,var_expr_pairs),exp)
-                      SComb _ _ -> ((ct,var_expr_pairs),exp)
-                      PElt _ -> ((ct,var_expr_pairs),exp)
-                      ZipT _ -> ((ct,var_expr_pairs),exp)
+            (ct,orig_bindings,added_bindings,var_expr_pairs) <- get
+            let ((ct',orig_bindings', added_bindings',var_expr_pairs'),exp') = case exp of
+                      Scalar _ _ _ -> ((ct,orig_bindings,added_bindings,var_expr_pairs),exp)
+                      Const _ -> ((ct,orig_bindings,added_bindings,var_expr_pairs),exp)
+                      Tuple _ -> ((ct,orig_bindings,added_bindings,var_expr_pairs),exp)
+                      Vec _ _  -> ((ct,orig_bindings,added_bindings,var_expr_pairs),exp)
+                      Id _ -> ((ct,orig_bindings,added_bindings,var_expr_pairs),exp)
+                      Function _ _ -> ((ct,orig_bindings,added_bindings,var_expr_pairs),exp)
+                      SVec _ _ -> ((ct,orig_bindings,added_bindings,var_expr_pairs),exp)
+                      SComb _ _ -> ((ct,orig_bindings,added_bindings,var_expr_pairs),exp)
+                      PElt _ -> ((ct,orig_bindings,added_bindings,var_expr_pairs),exp)
+                      ZipT _ -> ((ct,orig_bindings,added_bindings,var_expr_pairs),exp)
                       Map _ _ -> if decomposeMap 
                         then
-                            let -- ((ct,var_expr_pairs),exp)
+                            let -- ((ct,orig_bindings,added_bindings,var_expr_pairs),exp)
                                 var = Vec VT (Scalar VT DDC ("var_"++vec_name++"_"++(show ct))) 
                             in
-                            ((ct+1,var_expr_pairs++[(var,exp)]),var)
+                                maybeAddBinding var exp (ct,orig_bindings, added_bindings, var_expr_pairs)
                         else
-                            ((ct,var_expr_pairs),exp)
-                      Fold _ _ _ -> ((ct,var_expr_pairs),exp)
+                            ((ct,orig_bindings, added_bindings,var_expr_pairs),exp)
+                      Fold _ _ _ -> ((ct,orig_bindings,added_bindings,var_expr_pairs),exp)
                       MapS _ (Function _ nms) -> let
                             f_expr = Function ("f_maps_"++vec_name++"_"++(show ct)) nms
                         in
-                            ((ct+1,var_expr_pairs++[(f_expr,exp)]),f_expr)
+                            -- ((ct+1,var_expr_pairs++[(f_expr,exp)]),f_expr)
+                            maybeAddBinding f_expr exp (ct,orig_bindings, added_bindings, var_expr_pairs)
                       ApplyT fs -> let
                             nmss = concatMap getNonMapFoldArgs fs
                             f_expr = Function ("f_applyt_"++vec_name++"_"++(show ct)) nmss
                         in
-                            ((ct+1,var_expr_pairs++[(f_expr,exp)]),f_expr)
+                            -- ((ct+1,var_expr_pairs++[(f_expr,exp)]),f_expr)
+                            maybeAddBinding f_expr exp (ct,orig_bindings, added_bindings, var_expr_pairs)
                       Comp (Function _ nms1) (Function _ nms2) -> let
                             f_expr = Function ("f_comp_"++vec_name++"_"++(show ct)) (nms1++nms2)
                         in
-                            ((ct+1,var_expr_pairs++[(f_expr,exp)]),f_expr)
+                            -- ((ct+1,var_expr_pairs++[(f_expr,exp)]),f_expr)
+                            maybeAddBinding f_expr exp (ct,orig_bindings, added_bindings, var_expr_pairs)
                       Comp (PElt idx) (Function _ nms2) -> let
                         -- I think the vec_name here is unique so no need for ++"_"++(show idx)
                             f_expr = Function ("f_pelt_"++vec_name++"_"++(show ct)) nms2
                         in
-                            ((ct+1,var_expr_pairs++[(f_expr,exp)]),f_expr)
+                            -- ((ct+1,var_expr_pairs++[(f_expr,exp)]),f_expr)
+                            maybeAddBinding f_expr exp (ct,orig_bindings, added_bindings, var_expr_pairs)
                       FComp (Function _ nms1) (Function _ nms2) -> let
                             f_expr = Function ("f_fcomp_"++vec_name++"_"++(show ct)) (nms1++nms2)
                         in
-                            ((ct+1,var_expr_pairs++[(f_expr,exp)]),f_expr)
+                            -- ((ct+1,var_expr_pairs++[(f_expr,exp)]),f_expr)
+                            maybeAddBinding f_expr exp (ct,orig_bindings, added_bindings, var_expr_pairs)
                       Stencil (SVec _ _ ) v_exp -> let
                             dt_exp = getDType v_exp
                             var = Vec VS (setName ("svec_"++vec_name++"_"++(show ct)) dt_exp)
                         in
-                            ((ct+1,var_expr_pairs++[(var,exp)]),var)
+                            -- ((ct+1,var_expr_pairs++[(var,exp)]),var)
+                            maybeAddBinding var exp (ct,orig_bindings, added_bindings, var_expr_pairs)
                       Stencil (SComb _ _) v_exp -> let
                             dt_exp = getDType v_exp
                             var = Vec VS (setName  ("svec_"++vec_name++"_"++(show ct)) dt_exp)
                         in
-                            ((ct+1,var_expr_pairs++[(var,exp)]),var)
+                            -- ((ct+1,var_expr_pairs++[(var,exp)]),var)
+                            maybeAddBinding var exp (ct,orig_bindings, added_bindings, var_expr_pairs)
                       _ -> let
                               var = Vec VT (Scalar VT DDC ("vec_"++vec_name++"_"++(show ct)))
                            in
-                             ((ct+1,var_expr_pairs++[(var,exp)]),var)
-            put (ct',var_expr_pairs')
+                            --  ((ct+1,var_expr_pairs++[(var,exp)]),var)
+                             maybeAddBinding var exp (ct,orig_bindings, added_bindings, var_expr_pairs)
+            put (ct',orig_bindings',added_bindings',var_expr_pairs')
             return exp'
 
-subsitute_exprs :: Expr -> Expr -> [(Expr,Expr)]
-subsitute_exprs lhs ast = let
-        -- Vec VO vec_name = vec
-        (ast',(ct,var_expr_pairs)) = runState (everywhereM (mkM (subsitute_expr lhs)) ast) (0,[])
+
+{-
+So we test if an expression is in added_bindings.
+If it is, do nothing,
+If it is not, we check if it is on orig_bindings.
+	if yes, we remove it from orig_bindings, add it to added_bindings, and add the new binding to the AST
+	if not, then it's a new binding, add it to added_bindings , and add the new binding to the AST
+
+
+-}
+-- (ct',orig_bindings', added_bindings', var_expr_pairs') =
+maybeAddBinding :: Expr -> Expr -> (Int,Map.Map Expr Expr,Map.Map Expr Expr,[(Expr,Expr)]) -> ((Int,Map.Map Expr Expr,Map.Map Expr Expr,[(Expr,Expr)]), Expr)
+maybeAddBinding var exp (ct,orig_bindings, added_bindings, var_expr_pairs) =
+    if Map.member exp added_bindings 
+        then
+        -- We already have this, so do nothing
+        -- But this means we should definitely add this pair to the final AST 
+        let
+            added_name = added_bindings ! exp                    
+        in
+            ((ct,orig_bindings, added_bindings, var_expr_pairs),(warning added_name ("Already added binding "++(show var)++"<>"++(show added_name)++" for "++(show exp))))
+        else 
+            if Map.member exp orig_bindings 
+                then
+                    let
+                        orig_name = orig_bindings ! exp                    
+                    in
+                        ((ct,Map.delete exp orig_bindings, Map.insert exp var added_bindings, var_expr_pairs++[(orig_name,exp)]),(warning orig_name ("Binding "++(show orig_name)++" for "++(show exp)++" is original")))            
+                else                    
+                    ((ct+1,orig_bindings, Map.insert exp var added_bindings, var_expr_pairs++[(var,exp)]),(warning var ("Adding binding "++(show var)++" for "++(show exp))))            
+
+
+subsitute_exprs ::  (Map.Map Expr Expr) -> Expr -> Expr -> [(Expr,Expr)]
+subsitute_exprs orig_bindings lhs ast = let
+        -- ast' is the original expression into which lhs has been substituted
+        -- var_expr_pairs are the new intermediate bindings that have been created as a result
+        (ast',(ct,orig_bindings',added_bindings',var_expr_pairs)) = runState (everywhereM (mkM (subsitute_expr lhs)) ast) (0,orig_bindings,Map.empty,[])
     in 
        var_expr_pairs ++ [ (lhs,ast') ]
+
 -- subsitute_exprs scal@(Scalar _ _) ast = let
 --         -- Scalar _ scal_name = scal
 --         (ast',(ct,var_expr_pairs)) = runState (everywhereM (mkM (subsitute_expr scal)) ast) (0,[])
@@ -404,7 +450,12 @@ subsitute_exprs lhs ast = let
 
 -- This returns the decomposed expressions as a lists of lists
 -- Because of the original code, this is guaranteed to be in dependency order.
-decomposeExpressions = map (\(lhs,rhs) -> (subsitute_exprs lhs rhs )) 
+decomposeExpressions :: TyTraCLAST -> TyTraCLAST -> [TyTraCLAST] 
+decomposeExpressions orig_ast ast = 
+    let
+        bindings = Map.fromList $ map (\(f,s)->(s,f)) orig_ast
+    in
+        map (\(lhs,rhs) -> (subsitute_exprs bindings lhs rhs )) ast
 
 getNonMapFoldArgs :: Expr -> [Expr]
 getNonMapFoldArgs exp = everything (++) (mkQ [] (getNonMapFoldArgs')) exp
