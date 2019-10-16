@@ -96,9 +96,10 @@ getFunctionSignature rhs functionSignatures =
             Comp (PElt idx) (Function fname _) -> deriveSigPELt idx fname functionSignatures
             FComp (Function f1 _) (Function f2 _) -> deriveSigFComp f1 f2 functionSignatures
             ApplyT fs -> deriveSigApplyT fs functionSignatures
-        flattened_fsig = map flattenSigExpr fsig -- this is [Expr]
+        -- flattened_fsig = map flattenSigExpr fsig -- this is [Expr]
     in
-        flattened_fsig            
+        -- flattened_fsig            
+        fsig
 
 -- ApplyT can only arise because of Map, so it can't be Fold.       
 -- Arguments to ApplyT can be Function, Id, what else? Let's assume that is all
@@ -114,29 +115,31 @@ deriveSigApplyT fs functionSignatures =
         -- So we gave for every function a list [Expr, Expr, Expr]
         -- I need to combine this into a single list. To do so, I have to remove the Tuple and then concat. Easy:
         (nsl, msl, osl) = unzip3 $ map (\[nm,m,o] -> (nm,m,o)) fsigs
-        fnsl = removeDuplicateArgs $ concat $ map (\nm -> case nm of
-                    Tuple es -> es
-                    _ -> [nm]
-                    ) nsl
-        ns 
-            | length fnsl == 1 = head fnsl    
-            | otherwise = Tuple fnsl
+        (ns, ms, os) = (Tuple nsl,Tuple msl,Tuple osl)
+        -- fnsl = removeDuplicateArgs $ concat $ map (\nm -> case nm of
+        --             Tuple es -> es
+        --             _ -> [nm]
+        --             ) nsl
+        -- ns 
+        --     | length fnsl == 1 = head fnsl    
+        --     | otherwise = Tuple fnsl
 
-        fmsl = concat $ map (\nm -> case nm of
-                Tuple es -> es
-                _ -> [nm]
-                ) msl
-        ms
-            | length fmsl == 1 = head fmsl    
-            | otherwise = Tuple fmsl   
+        -- fmsl = concat $ map (\nm -> case nm of
+        --         Tuple es -> es
+        --         _ -> [nm]
+        --         ) msl
+        -- ms
+        --     | length fmsl == 1 = head fmsl    
+        --     | otherwise = Tuple fmsl   
             
-        fosl = concat $ map (\nm -> case nm of
-                Tuple es -> es
-                _ -> [nm]
-                ) osl
-        os
-            | length fosl == 1 = head fosl    
-            | otherwise = Tuple fosl          
+        -- fosl = concat $ map (\nm -> case nm of
+        --         Tuple es -> es
+        --         _ -> [nm]
+        --         ) osl
+        -- os
+        --     | length fosl == 1 = head fosl    
+        --     | otherwise = Tuple fosl    
+              
         -- (nsl,msl,osl) = foldl (
         --     \(nsl,msl,osl) fsig -> case fsig of
         --         [nms,ms,os] -> if nms /= Tuple [] 
@@ -155,36 +158,6 @@ deriveSigApplyT fs functionSignatures =
     in
         [ns,ms,os] 
 
-
-
-combineSigArgs (nsl, msl, osl) =
-    let
-        fnsl = removeDuplicateArgs $ concat $ map (\nm -> case nm of
-                    Tuple es -> es
-                    _ -> [nm]
-                    ) nsl
-        ns 
-            | length fnsl == 1 = head fnsl    
-            | otherwise = Tuple fnsl
-
-        fmsl = concat $ map (\nm -> case nm of
-                Tuple es -> es
-                _ -> [nm]
-                ) msl
-        ms
-            | length fmsl == 1 = head fmsl    
-            | otherwise = Tuple fmsl   
-            
-        fosl = concat $ map (\nm -> case nm of
-                Tuple es -> es
-                _ -> [nm]
-                ) osl
-        os
-            | length fosl == 1 = head fosl    
-            | otherwise = Tuple fosl          
-    in
-        (ns,ms,os)
-
 deriveSigMaps :: Int -> Name -> (Map.Map Name FSig) -> FSig
 deriveSigMaps sv_sz fname functionSignatures =
     let
@@ -195,16 +168,17 @@ deriveSigMaps sv_sz fname functionSignatures =
         case fsig of
             [nms,ms,os] -> let
 {-
-How do we do this?
-The type is SVec Int DType, so I must map Expr to DType!
+maps :: SVec sz a -> c->a->b -> c->SVec sz a -> SVec sz b
+I wonder, why not keep the name from the original expression?
+Let's try that
 -}                
-                    ms' = SVec sv_sz (setName ("sv_"++fname++"_in") ms)
-                    os' = SVec sv_sz (setName ("sv_"++fname++"_out") os)
+                    ms' = SVec sv_sz ms -- (setName ("sv_"++fname++"_in") ms)
+                    os' = SVec sv_sz os -- (setName ("sv_"++fname++"_out") os)
                 in
                     [nms,ms',os']
             [nms,as,ms,os] -> let
-                    ms' = SVec sv_sz (setName  ("sv_"++fname++"_in") ms)
-                    os' = SVec sv_sz (setName ("sv_"++fname++"_out") os)
+                    ms' = SVec sv_sz ms -- (setName  ("sv_"++fname++"_in") ms)
+                    os' = SVec sv_sz os -- (setName ("sv_"++fname++"_out") os)
                 in
                     [nms,as,ms',os']
 
@@ -217,10 +191,11 @@ deriveSigComp fname1 fname2 functionSignatures =
         fsig2 = case Map.lookup fname2 functionSignatures  of
             Just sig2 -> sig2
             Nothing -> error $ "deriveSigComp: no entry for "++fname2
-        [nms1,ms1,os1] =  fsig1
+        [nms1,ms1,os1] = fsig1
         [nms2,ms2,os2] = fsig2
 -- the output of f2 is used as the input for f1
-        (nms,ms',os') = combineSigArgs ([nms1,nms2], [ms2], [os1])
+        (nms,ms',os') = (Tuple [nms1,nms2], ms2, os1)
+            -- combineSigArgs ([nms1,nms2], [ms2], [os1])
         -- nms 
         --     | (nms1 == Tuple []) && (nms2 == Tuple []) = Tuple []
         --     | nms1 == Tuple [] = nms2
@@ -246,7 +221,8 @@ deriveSigFComp fname1 fname2 functionSignatures =
         [nms2,ms2,os2] = fsig2
     -- the output of f2 is used as the input for f1
     -- the nms1 and nms2 should probably a tuple of tuples
-        (nms,ms',os') = combineSigArgs ([nms1,nms2], [ms2], [os1])
+        (nms,ms',os') = (Tuple [nms1,nms2], ms2, os1)
+            -- combineSigArgs ([nms1,nms2], [ms2], [os1])
         -- nms 
         --     | (nms1 == Tuple []) && (nms2 == Tuple []) = Tuple []
         --     | nms1 == Tuple [] = nms2 -- which could be a Tuple
@@ -284,6 +260,36 @@ deriveSigPELt idx fname functionSignatures =
                     [nms,as,ms,os']
 -- ----------------------------------------------------------------------------------------
 -- ----------------------------------------------------------------------------------------        
+
+
+combineSigArgs (nsl, msl, osl) =
+    let
+        fnsl = removeDuplicateArgs $ concat $ map (\nm -> case nm of
+                    Tuple es -> es
+                    _ -> [nm]
+                    ) nsl
+        ns 
+            | length fnsl == 1 = head fnsl    
+            | otherwise = Tuple fnsl
+
+        fmsl = concat $ map (\nm -> case nm of
+                Tuple es -> es
+                _ -> [nm]
+                ) msl
+        ms
+            | length fmsl == 1 = head fmsl    
+            | otherwise = Tuple fmsl   
+            
+        fosl = concat $ map (\nm -> case nm of
+                Tuple es -> es
+                _ -> [nm]
+                ) osl
+        os
+            | length fosl == 1 = head fosl    
+            | otherwise = Tuple fosl          
+    in
+        (ns,ms,os)
+
 removeDuplicateArgs = id -- nub       
 removeDuplicateArgNames = id -- nub
 
@@ -462,20 +468,67 @@ generateSubDefMapS sv_exp f_exp maps_fname functionSignatures =
         ,"end subroutine "++maps_fname
     ]
 
+{-
+New and hopefully better approach: Because we have simply tupled the args for all elts in the apply,
+we can simply untuple them. So from applyt_fsig, we unpack the tuples \(Tuple es) -> es
+
+-}
+
 generateSubDefApplyT :: [Expr]  -> Name -> (Map.Map Name FSig) -> String
 generateSubDefApplyT f_exps applyt_fname functionSignatures = 
+    let
+            fsigs = getFSigs f_exps functionSignatures
+
+            applyt_fsig = case Map.lookup applyt_fname functionSignatures of
+                Just fs -> fs
+                Nothing -> error "BOOM!"
+            [Tuple nmst,Tuple in_argt, Tuple out_argt] = applyt_fsig
+            -- so nmst etc are lists, one per function in f_exps
+            non_map_args = map getVarNames nmst
+            in_args = map getVarNames in_argt
+            out_args = map getVarNames out_argt
+
+            non_map_args' = concat non_map_args
+            in_args' = concat in_args
+            out_args' = concat out_args 
+            fsig_names_tups = zip4 f_exps non_map_args in_args out_args
+            
+            non_map_arg_decls = concat $ map createDecls nmst -- tuple becomes list of decls
+            in_arg_decls = concat $ map createDecls in_argt
+            out_arg_decls = concat $ map createDecls out_argt
+            
+
+    in 
+        unlines $ concat [
+            [            
+            "subroutine "++applyt_fname++"("  ++(mkArgList [non_map_args',in_args',out_args'])++")"            
+            , mkDeclLines [non_map_arg_decls,in_arg_decls,out_arg_decls]
+            ]
+            -- , [show applyt_fsig]
+            ,(map show fsig_names_tups)
+            , map (\(f_expr,nms,ms,os) -> case f_expr of
+                    (Function fname _) -> "    call "++fname++"(" ++(mkArgList [nms,ms,os]) ++")"
+                    Id dt -> unlines $ map (\(o,m) -> "    "++o++" = "++m) (zip os ms)
+                    ) fsig_names_tups
+            ,["end subroutine "++applyt_fname]
+        ]
+
+generateSubDefApplyT_OLD :: [Expr]  -> Name -> (Map.Map Name FSig) -> String
+generateSubDefApplyT_OLD f_exps applyt_fname functionSignatures = 
     let
             fsigs = getFSigs f_exps functionSignatures
             -- FIXME: The counts are not correct because we've removed the duplicates.
             -- 
             arg_counts = map (\[ns,ms,os]-> (countNArgs ns,countNArgs ms, countNArgs os) ) fsigs
             (nm_arg_counts,m_arg_counts,o_arg_counts) = unzip3 arg_counts
+
             applyt_fsig = case Map.lookup applyt_fname functionSignatures of
                 Just fs -> fs
                 Nothing -> error "BOOM!"
             [nms',in_arg',out_arg] = applyt_fsig
             nms = makeDeclsUnique nms'
             in_arg = makeDeclsUnique in_arg'
+
             non_map_args = getVarNames nms
             in_args = getVarNames in_arg
             out_args = getVarNames out_arg

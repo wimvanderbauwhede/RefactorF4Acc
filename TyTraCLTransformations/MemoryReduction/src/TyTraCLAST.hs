@@ -2,7 +2,7 @@
 module TyTraCLAST where
 
 import Data.Generics (Data, Typeable)
-
+import Data.List (intercalate)
 
 type Name = String
 type Size = Int
@@ -95,5 +95,5 @@ getName (Scalar ve dt name) = name
 getName (Vec ve exp) = getName exp
 getName (SVec sz exp) = getName exp
 -- WV: I want to know if this happens
-getName (Tuple exps) = error $ "No unique name to get for "++(show exps)
--- getName (Tuple exps) = intercalate "_" (map getName exps)
+-- getName (Tuple exps) = error $ "No unique name to get for "++(show exps)
+getName (Tuple exps) = intercalate "_" (map getName exps)
