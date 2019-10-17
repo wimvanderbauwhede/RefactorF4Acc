@@ -322,11 +322,15 @@ rewriteIdToFunc expr = do
     (ct, fsigs) <- get
     let 
         id_name = ("id_"++(show ct))
-        (rexp,in_exp) = case expr of
-            Vec _ dt   -> (Map (Function id_name []) expr, dt)
-            Stencil (SVec sz _ )  (Vec _ dt ) -> (Map (Function id_name []) expr, SVec sz dt)
-            _ -> error $ show expr
-    put (ct+1, Map.insert ("id_"++(show ct)) [Tuple [], in_exp, in_exp] fsigs)
+        (rexp,in_exp, isId) = case expr of
+            Vec _ dt   -> (Map (Function id_name []) expr, dt, True)
+            Stencil (SVec sz _ )  (Vec _ dt ) -> (Map (Function id_name []) expr, SVec sz dt, True)
+            _ -> (expr, expr, False)
+    if isId 
+        then
+            put (ct+1, Map.insert ("id_"++(show ct)) [Tuple [], in_exp, in_exp] fsigs)
+        else
+            put (ct, fsigs)            
     return rexp
 
 
@@ -345,19 +349,19 @@ has_map_subexprs :: Expr ->  Int
 has_map_subexprs expr = length (everything (++) (mkQ [] get_map) expr) -- > 1
 
 rewrite_ast_into_single_map :: Int -> Expr -> State (Int,Map.Map Name [Expr]) Expr
-rewrite_ast_into_single_map count exp = 
+rewrite_ast_into_single_map count exp = do
     let 
         count' = count+1
         map_count = has_map_subexprs exp 
-    in
-        if map_count > 1
-            then 
-                let
-                    exp' = rewrite_ast_expr exp
-                in
-                    rewrite_ast_into_single_map count' exp'
-            else
-                exp            
+    -- in
+    if map_count > 1
+        then do 
+            -- let
+            exp' <- rewrite_ast_expr exp
+            -- in
+            rewrite_ast_into_single_map count' exp'
+        else
+            return exp            
 
 -- ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------    
 {-
