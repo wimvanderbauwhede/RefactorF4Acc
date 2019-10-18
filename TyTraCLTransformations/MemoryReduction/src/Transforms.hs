@@ -160,7 +160,7 @@ reduce_subtree expr = case expr of
 -- rewrite_ast_expr :: Expr -> Expr
 -- rewrite_ast_expr ast = everywhere (mkT rewrite_ast_sub_expr) ast
 
-rewrite_ast_expr :: Expr -> State (Int,Map.Map Name [Expr]) Expr
+rewrite_ast_expr :: Expr -> State (Int, [(Name, [Expr])]) Expr
 rewrite_ast_expr ast = everywhereM (mkM rewrite_ast_sub_expr) ast
 
 {-
@@ -189,7 +189,7 @@ Rewrite rules
 
 -- (Stencil (SVec 3 "s2") (Stencil (SVec 3 "s1") (Vec VI "v_0"))))
 -- (Stencil (SComb (SVec 3 "s2") (SVec 3 "s1")) (Vec VI "v_0"))))
-rewrite_ast_sub_expr expr = do
+rewrite_ast_sub_expr expr = 
         case expr of 
             -- 1. Map composition
             Map f1_expr (Map f2_expr v_expr) -> return $ Map (Comp f1_expr f2_expr) v_expr
@@ -197,7 +197,7 @@ rewrite_ast_sub_expr expr = do
             Fold f1_expr acc_expr (Map f2_expr v_expr) -> return $ Fold (FComp f1_expr f2_expr) acc_expr v_expr
             -- 2. The key rule: Stencil of Map becomes Map of MapS of Stencil
             Stencil s_1 (Map f_1 v_expr) -> return $ Map (MapS s_1 f_1) (Stencil s_1 v_expr)   
-            ZipT es -> do
+            ZipT es -> 
                 -- If all args of ZipT are Map
                 if (length ( filter isMap es ) == length es) 
                     -- 3. ZipT of tuple of Map becomes Map of ApplyT of the functions to ZipT of the vectors
@@ -284,7 +284,7 @@ applyRewriteRules ast = foldl (\(lst,(ct,mp)) (lhs,rhs) ->
         let
             (rhs',(ct',mp')) = runState (rewrite_ast_into_single_map 0 rhs) (ct,mp)
         in (lst++[(lhs,rhs')],(ct',mp'))
-    ) ([], (0,Map.empty)) ast
+    ) ([], (0,[])) ast
     
 --     runState (rewriteWithState ast) (0,Map.empty)
 
@@ -311,27 +311,35 @@ rewriteZipTMap es =  let
 -- and put that function in the functionSignaturesList
 -- the dt or (SVec sz dt) is the Expr to be put in the function signature
 
-rewriteId expr =  case expr of
-    Vec _ dt   -> Map (Id dt) expr
-    Stencil (SVec sz _ )  (Vec _ dt ) -> Map (Id (SVec sz dt)) expr
-    _ -> expr
+-- rewriteId expr =  case expr of
+--     Vec _ dt   -> Map (Id dt) expr
+--     Stencil (SVec sz _ )  (Vec _ dt ) -> Map (Id (SVec sz dt)) expr
+--     _ -> expr
 
 -- TODO PUT THIS IN PLACE AND MAKE THIS MONADIC EVERYWHERE    
-rewriteIdToFunc :: Expr -> State (Int, Map.Map Name [Expr]) Expr
+rewriteIdToFunc :: Expr -> State (Int, [(Name, [Expr])]) Expr
 rewriteIdToFunc expr = do
     (ct, fsigs) <- get
     let 
         id_name = ("id_"++(show ct))
         (rexp,in_exp, isId) = case expr of
             Vec _ dt   -> (Map (Function id_name []) expr, dt, True)
-            Stencil (SVec sz _ )  (Vec _ dt ) -> (Map (Function id_name []) expr, SVec sz dt, True)
+            Stencil (SVec sz _ )  (Vec _ dt ) -> (Map (Id id_name []) expr, SVec sz dt, True)
+            -- I think this could also be ZipT
             _ -> (expr, expr, False)
     if isId 
         then
-            put (ct+1, Map.insert ("id_"++(show ct)) [Tuple [], in_exp, in_exp] fsigs)
+            put (ct+1, fsigs++[( "id_"++(show ct), [Tuple [], in_exp, in_exp])] )
         else
             put (ct, fsigs)            
     return rexp
+
+scalarFromVec expr =
+    case expr of
+        Vec _ dt   -> dt
+        Stencil (SVec sz _ )  (Vec _ dt ) -> SVec sz dt
+        ZipT es -> Tuple $ map scalarFromVec es
+        _ -> error $ show expr
 
 
 
@@ -348,7 +356,7 @@ n_map_subexprs expr = length (everything (++) (mkQ [] get_map) expr)
 has_map_subexprs :: Expr ->  Int
 has_map_subexprs expr = length (everything (++) (mkQ [] get_map) expr) -- > 1
 
-rewrite_ast_into_single_map :: Int -> Expr -> State (Int,Map.Map Name [Expr]) Expr
+rewrite_ast_into_single_map :: Int -> Expr -> State (Int,[(Name, [Expr])]) Expr
 rewrite_ast_into_single_map count exp = do
     let 
         count' = count+1
@@ -395,7 +403,7 @@ subsitute_expr lhs exp = do
                       Const _ -> ((ct,orig_bindings,added_bindings,var_expr_pairs),exp)
                       Tuple _ -> ((ct,orig_bindings,added_bindings,var_expr_pairs),exp)
                       Vec _ _  -> ((ct,orig_bindings,added_bindings,var_expr_pairs),exp)
-                      Id _ -> ((ct,orig_bindings,added_bindings,var_expr_pairs),exp)
+                      Id _ _ -> ((ct,orig_bindings,added_bindings,var_expr_pairs),exp)
                       Function _ _ -> ((ct,orig_bindings,added_bindings,var_expr_pairs),exp)
                       SVec _ _ -> ((ct,orig_bindings,added_bindings,var_expr_pairs),exp)
                       SComb _ _ -> ((ct,orig_bindings,added_bindings,var_expr_pairs),exp)

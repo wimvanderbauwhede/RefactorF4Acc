@@ -17,7 +17,7 @@ import CodeGeneration (
 
 ast1 = splitLhsTuples ast
 ast2 = substituteVectors ast1
-(ast3, idSigTable) = applyRewriteRules ast2
+(ast3, (_,idSigList)) = applyRewriteRules ast2
 ast3' = fuseStencils ast3
 ast4 = decomposeExpressions ast1 ast3'
 -- generatedSignatures = map generateSignatures ast4

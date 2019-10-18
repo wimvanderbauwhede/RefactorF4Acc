@@ -41,7 +41,7 @@ data Expr =
                     | Fold Expr Expr Expr -- fold f acc v
                     | Stencil Expr Expr -- stencil s v
                     | Function Name [Expr] -- 2nd arg is list of non-map/fold args
-                    | Id Expr -- id
+                    | Id Name [Expr] -- id, but it's treated as a named function for ease of code generation
                     | ApplyT [Expr]  -- applyt (f1,f2)
                     | MapS Expr Expr -- maps s f
                     | Comp Expr Expr -- comp f2 f1

@@ -312,7 +312,7 @@ fortranType (Scalar _ DFloat _) = "real"
 fortranType (SVec sz dt) = (fortranType dt)++", dimension("++(show sz)++")"
 fortranType dt = "No equivalent Fortran type for "++(show dt)
 
-opaqueFunctionExprs = map (\(fname, _) -> (Function fname [], Id (Tuple []) )) functionSignaturesList
+opaqueFunctionExprs = map (\(fname, _) -> (Function fname [], Id fname [] )) functionSignaturesList
 generatedOpaqueFunctionDefs = map (\elt -> fst $ generateSubDef functionSignatures elt []) opaqueFunctionExprs
 -- ----------------------------------------------------------------------------------------
 -- ----------------------------------------------------------------------------------------
@@ -377,7 +377,7 @@ generateSubDef functionSignatures t st =
             -- Stencil s_exp v_exp -> generateStencilAppl s_exp v_exp v_name stencilDefinitions
             -- Map f_exp v_exp -> generateMap f_exp v_exp v_name 
             -- Fold f_exp acc_exp v_exp -> generateFold f_exp acc_exp v_exp sc_name 
-            Id _ -> generateSubDefOpaque ho_fname functionSignatures
+            Id _ _ -> generateSubDefOpaque ho_fname functionSignatures
             _ -> show rhs
             ,[])
 
@@ -520,8 +520,8 @@ generateSubDefApplyT f_exps applyt_fname functionSignatures =
             , mkDeclLines [non_map_arg_decls,in_arg_decls,out_arg_decls]
             ]
             , map (\(f_expr,nms,ms,os) -> case f_expr of
-                    (Function fname _) -> "    call "++fname++"(" ++(mkArgList [nms,ms,os]) ++")"
-                    Id dt -> unlines $ map (\(o,m) -> "    "++o++" = "++m) (zip os ms)
+                    Function fname _ -> "    call "++fname++"(" ++(mkArgList [nms,ms,os]) ++")"
+                    Id fname dt -> unlines $ map (\(o,m) -> "    "++o++" = "++m) (zip os ms)
                     ) fsig_names_tups
             ,["end subroutine "++applyt_fname]
         ]
@@ -572,7 +572,7 @@ generateSubDefApplyT_OLD f_exps applyt_fname functionSignatures =
             ]
             , map (\(f_expr,nms,ms,os) -> case f_expr of
                     (Function fname _) -> "    call "++fname++"(" ++(mkArgList [nms,ms,os]) ++")"
-                    Id dt -> unlines $ map (\(o,m) -> "    "++o++" = "++m) (zip os ms)
+                    Id fname dt -> unlines $ map (\(o,m) -> "    "++o++" = "++m) (zip os ms)
                     ) fsig_names_tups
             ,["end subroutine "++applyt_fname]
         ]
@@ -1076,7 +1076,10 @@ getFSigs fs functionSignatures = map (\(f_expr, idx) -> case f_expr of
         (Function fname _) -> case Map.lookup fname functionSignatures  of
             Just sig -> sig
             Nothing -> error $ "getFSigs: no entry for "++fname
-        Id dt -> [Tuple [], setName ("id_in_"++(show idx)) dt, setName ("id_out_"++(show idx)) dt ]
+        (Id fname dt) ->  case Map.lookup fname functionSignatures  of
+            Just sig -> sig
+            Nothing -> error $ "getFSigs: no entry for Id "++fname            
+            -- [Tuple [], setName ("id_in_"++(show idx)) dt, setName ("id_out_"++(show idx)) dt ]
     ) (zip fs [1..])
 
 {-
