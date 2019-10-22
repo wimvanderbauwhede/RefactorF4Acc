@@ -66,14 +66,14 @@ scalarisedArgs = Map.fromList scalarisedArgsList
 
 
 
--- For info only
+-- For info only, not called except in Main
 inferSignatures :: TyTraCLAST -> [(Name,FSig)]
-inferSignatures ast = Map.toList (inferSignaturesMap ast)
+inferSignatures ast = Map.toList (inferSignaturesMap functionSignatures ast)
 
 -- We must update this map with the new signatures, so probably use the state monad
 -- let's be old-school contrarian and use fold
-inferSignaturesMap :: TyTraCLAST -> Map.Map Name FSig
-inferSignaturesMap = foldl inferSignature functionSignatures
+inferSignaturesMap :: Map.Map Name FSig -> TyTraCLAST -> Map.Map Name FSig
+inferSignaturesMap functionSignatures ast = foldl inferSignature functionSignatures ast
 
 inferSignature ::  (Map.Map Name FSig) -> (Expr,Expr) -> Map.Map Name FSig
 inferSignature functionSignatures ast_tup =
@@ -312,6 +312,7 @@ fortranType (Scalar _ DFloat _) = "real"
 fortranType (SVec sz dt) = (fortranType dt)++", dimension("++(show sz)++")"
 fortranType dt = "No equivalent Fortran type for "++(show dt)
 
+-- This is fine as we don't need opaques for the Ids
 opaqueFunctionExprs = map (\(fname, _) -> (Function fname [], Id fname [] )) functionSignaturesList
 generatedOpaqueFunctionDefs = map (\elt -> fst $ generateSubDef functionSignatures elt []) opaqueFunctionExprs
 -- ----------------------------------------------------------------------------------------
@@ -1184,10 +1185,11 @@ generateMainProgram functionSignatures ast_stages  =
         "end subroutine get_global_id"
         ]
        
-generateFortranCode decomposed_ast =
+generateFortranCode decomposed_ast functionSignaturesList idSigList =
     let
+        functionSignatures' =  Map.fromList functionSignaturesList
         (asts_function_defs,ast_stages) = createStages decomposed_ast
-        functionSignatures = inferSignaturesMap asts_function_defs
+        functionSignatures = inferSignaturesMap functionSignatures' asts_function_defs
         generatedFunctionDefs = generateDefs functionSignatures asts_function_defs
         generatedStageKernels = map (\(ast,ct) -> (generateStageKernel functionSignatures) ct ast) (zip ast_stages [1..])
         mainProgramStr = generateMainProgram functionSignatures ast_stages        

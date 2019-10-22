@@ -19,7 +19,7 @@ ast1 = splitLhsTuples ast
 ast2 = substituteVectors ast1
 (ast3, (_,idSigList)) = applyRewriteRules ast2
 ast3' = fuseStencils ast3
-ast4 = decomposeExpressions ast1 ast3'
+ast4 = decomposeExpressions ast1 ast3' 
 -- generatedSignatures = map generateSignatures ast4
 inferedSignatures :: [[(Name,FSig)]]
 inferedSignatures = map inferSignatures ast4
@@ -35,7 +35,7 @@ inferedSignatures = map inferSignatures ast4
 -- generatedStageKernels = map (\(ast,ct) -> generateStageKernel ct ast) (zip ast_stages [1..])
 -- mainProgramStr = generateMainProgram ast_stages
 
-generatedFortranCode = generateFortranCode ast4
+generatedFortranCode = generateFortranCode ast4 functionSignaturesList idSigList 
 info = True -- False
 main = do
     if info 
