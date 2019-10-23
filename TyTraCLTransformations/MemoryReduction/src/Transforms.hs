@@ -5,7 +5,7 @@ import Control.Monad.State
 import qualified Data.Map.Strict as Map
 
 import TyTraCLAST
-import Warning ( warning )
+-- import Warning ( warning )
 
 (!) = (Map.!)
 -- ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -323,13 +323,19 @@ rewriteIdToFunc expr = do
     let 
         id_name = ("id_"++(show ct))
         (rexp,in_exp, isId) = case expr of
-            Vec _ dt   -> (Map (Function id_name []) expr, dt, True)
+            Vec _ dt   -> (Map (Id id_name []) expr, dt, True)
             Stencil (SVec sz _ )  (Vec _ dt ) -> (Map (Id id_name []) expr, SVec sz dt, True)
             -- I think this could also be ZipT
             _ -> (expr, expr, False)
     if isId 
         then
-            put (ct+1, fsigs++[( "id_"++(show ct), [Tuple [], in_exp, in_exp])] )
+            put (ct+1, fsigs++[( "id_"++(show ct), [Tuple [], 
+            updateName "" "_in" in_exp, 
+            updateName "" "_out" in_exp
+            -- setName ((getName in_exp)++"_in") in_exp, 
+            -- setName ((getName in_exp)++"_out") in_exp
+            -- in_exp
+            ])] )
         else
             put (ct, fsigs)            
     return rexp
@@ -447,13 +453,13 @@ subsitute_expr lhs exp = do
                             maybeAddBinding f_expr exp (ct,orig_bindings, added_bindings, var_expr_pairs)
                       Stencil (SVec _ _ ) v_exp -> let
                             dt_exp = getDType v_exp
-                            var = Vec VS (setName ("svec_"++vec_name++"_"++(show ct)) dt_exp)
+                            var = Vec VS (setName (Single ("svec_"++vec_name++"_"++(show ct))) dt_exp)
                         in
                             -- ((ct+1,var_expr_pairs++[(var,exp)]),var)
                             maybeAddBinding var exp (ct,orig_bindings, added_bindings, var_expr_pairs)
                       Stencil (SComb _ _) v_exp -> let
                             dt_exp = getDType v_exp
-                            var = Vec VS (setName  ("svec_"++vec_name++"_"++(show ct)) dt_exp)
+                            var = Vec VS (setName  (Single ("svec_"++vec_name++"_"++(show ct))) dt_exp)
                         in
                             -- ((ct+1,var_expr_pairs++[(var,exp)]),var)
                             maybeAddBinding var exp (ct,orig_bindings, added_bindings, var_expr_pairs)
@@ -485,16 +491,25 @@ maybeAddBinding var exp (ct,orig_bindings, added_bindings, var_expr_pairs) =
         let
             added_name = added_bindings ! exp                    
         in
-            ((ct,orig_bindings, added_bindings, var_expr_pairs),(warning added_name ("Already added binding "++(show var)++"<>"++(show added_name)++" for "++(show exp))))
+            ((ct,orig_bindings, added_bindings, var_expr_pairs),
+            -- (warning added_name ("Already added binding "++(show var)++"<>"++(show added_name)++" for "++(show exp)))
+            added_name
+            )
         else 
             if Map.member exp orig_bindings 
                 then
                     let
                         orig_name = orig_bindings ! exp                    
                     in
-                        ((ct,Map.delete exp orig_bindings, Map.insert exp var added_bindings, var_expr_pairs++[(orig_name,exp)]),(warning orig_name ("Binding "++(show orig_name)++" for "++(show exp)++" is original")))            
+                        ((ct,Map.delete exp orig_bindings, Map.insert exp var added_bindings, var_expr_pairs++[(orig_name,exp)]),
+                        -- (warning orig_name ("Binding "++(show orig_name)++" for "++(show exp)++" is original"))
+                        orig_name
+                        )
                 else                    
-                    ((ct+1,orig_bindings, Map.insert exp var added_bindings, var_expr_pairs++[(var,exp)]),(warning var ("Adding binding "++(show var)++" for "++(show exp))))            
+                    ((ct+1,orig_bindings, Map.insert exp var added_bindings, var_expr_pairs++[(var,exp)]),
+                    -- (warning var ("Adding binding "++(show var)++" for "++(show exp)))
+                    var
+                    )            
 
 
 subsitute_exprs ::  (Map.Map Expr Expr) -> Expr -> Expr -> [(Expr,Expr)]

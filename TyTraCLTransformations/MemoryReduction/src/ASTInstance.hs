@@ -12,10 +12,10 @@ ast = [
              -- shapiro_map_16
         (Vec VS (SVec 5 (Scalar VDC DInt "wet_s_0" )) , Stencil (SVec 5 (Scalar VDC DInt "s1")) (Vec VI (Scalar VDC DInt "wet_0")))
         ,(Vec VS (SVec 5 (Scalar VDC DFloat "eta_s_0" )) , Stencil (SVec 5 (Scalar VDC DInt "s2")) (Vec VI (Scalar VDC DFloat "eta_0")))
-        ,( Vec VT (Scalar VDC DFloat "eta_1"), Map (Function "shapiro_map_16"  [Scalar VDC DFloat "eps_0"]) (ZipT [Vec VS (SVec 5(Scalar VDC DInt "wet_s_0")),Vec VS (SVec 5(Scalar VDC DFloat "eta_s_0"))]) )
+        ,( Vec VT (Scalar VDC DFloat "eta_1"), Map (Function "shapiro_map_16"  []) (ZipT [Vec VS (SVec 5(Scalar VDC DInt "wet_s_0")),Vec VS (SVec 5(Scalar VDC DFloat "eta_s_0"))]) )
          -- dyn_map_39
         ,(Vec VS (SVec 3 (Scalar VDC DFloat "eta_s_1" )) , Stencil (SVec 3 (Scalar VDC DInt "s3")) (Vec VT (Scalar VDC DFloat "eta_1")))
-        ,( (Tuple [Vec VO (Scalar VDC DFloat "du_1"),Vec VO (Scalar VDC DFloat "dv_1")]), UnzipT ( Map (Function "dyn_map_39"  [Scalar VDC DFloat "dt_0",Scalar VDC DFloat "g_0",Scalar VDC DFloat "dx_0",Scalar VDC DFloat "dy_0"]) (Vec VS (SVec 3(Scalar VDC DFloat "eta_s_1"))) ) )
+        ,( (Tuple [Vec VO (Scalar VDC DFloat "du_1"),Vec VO (Scalar VDC DFloat "dv_1")]), UnzipT ( Map (Function "dyn_map_39"  []) (Vec VS (SVec 3(Scalar VDC DFloat "eta_s_1"))) ) )
          -- dyn_map_45
         ,(Vec VS (SVec 3 (Scalar VDC DInt "wet_s_1" )) , Stencil (SVec 3 (Scalar VDC DInt "s4")) (Vec VI (Scalar VDC DInt "wet_0")))
         ,( (Tuple [Vec VT (Scalar VDC DFloat "un_1"),Vec VT (Scalar VDC DFloat "vn_1")]), UnzipT ( Map (Function "dyn_map_45" []) (ZipT [Vec VI (Scalar VDC DFloat "u_0"),Vec VO (Scalar VDC DFloat "du_1"),Vec VS (SVec 3(Scalar VDC DInt "wet_s_1")),Vec VI (Scalar VDC DFloat "v_0"),Vec VO (Scalar VDC DFloat "dv_1")]) ) )
@@ -23,18 +23,69 @@ ast = [
         ,(Vec VS (SVec 5 (Scalar VDC DFloat "h_s_0" )) , Stencil (SVec 5 (Scalar VDC DInt "s5")) (Vec VI (Scalar VDC DFloat "h_0")))
         ,(Vec VS (SVec 2 (Scalar VDC DFloat "vn_s_0" )) , Stencil (SVec 2 (Scalar VDC DInt "s6")) (Vec VT (Scalar VDC DFloat "vn_1")))
         ,(Vec VS (SVec 2 (Scalar VDC DFloat "un_s_0" )) , Stencil (SVec 2 (Scalar VDC DInt "s7")) (Vec VT (Scalar VDC DFloat "un_1")))
-        ,( Vec VT (Scalar VDC DFloat "eta_2"), Map (Function "dyn_map_65"  [Scalar VDC DFloat "dt_0",Scalar VDC DFloat "dx_0",Scalar VDC DFloat "dy_0"]) (ZipT [Vec VS (SVec 2(Scalar VDC DFloat "un_s_0")),Vec VS (SVec 5(Scalar VDC DFloat "h_s_0")),Vec VS (SVec 2(Scalar VDC DFloat "vn_s_0")),Vec VT (Scalar VDC DFloat "eta_1")]) )
+        -- dyn_map_65
+        -- Scalar VDC DFloat "dt_0",Scalar VDC DFloat "dx_0",Scalar VDC DFloat "dy_0"
+        ,( Vec VT (Scalar VDC DFloat "eta_2"), Map (Function "dyn_map_65"  []) (ZipT [Vec VS (SVec 2(Scalar VDC DFloat "un_s_0")),Vec VS (SVec 5(Scalar VDC DFloat "h_s_0")),Vec VS (SVec 2(Scalar VDC DFloat "vn_s_0")),Vec VT (Scalar VDC DFloat "eta_1")]) )
          -- update_map_24
-        ,( (Tuple [Vec VO (Scalar VDC DFloat "h_1"),Vec VO (Scalar VDC DFloat "u_1"),Vec VO (Scalar VDC DFloat "v_1"),Vec VO (Scalar VDC DInt "wet_1")]), UnzipT ( Map (Function "update_map_24"  [Scalar VDC DFloat "hmin_0"]) (ZipT [Vec VI (Scalar VDC DFloat "hzero_0"),Vec VT (Scalar VDC DFloat "eta_2"),Vec VT (Scalar VDC DFloat "un_1"),Vec VT (Scalar VDC DFloat "vn_1")]) ) )
+        ,( 
+          -- (
+          --   Tuple [Vec VO (Scalar VDC DFloat "h_1"),Vec VO (Scalar VDC DFloat "u_1"),Vec VO (Scalar VDC DFloat "v_1"),Vec VO (Scalar VDC DInt "wet_1")]
+          -- )
+          Vec VO (Scalar VDC DFloat "u_1")
+          , UnzipT ( Map (Function "update_map_24"  []) (ZipT [Vec VI (Scalar VDC DFloat "hzero_0"),Vec VT (Scalar VDC DFloat "eta_2"),Vec VT (Scalar VDC DFloat "un_1"),Vec VT (Scalar VDC DFloat "vn_1")]) ) 
+          )
         ]
 
 functionSignaturesList = [
-        ("dyn_map_39",  [Tuple [Scalar VDC DFloat "dt_0",Scalar VDC DFloat "g_0",Scalar VDC DFloat "dx_0",Scalar VDC DFloat "dy_0"],SVec 3 (Scalar VDC DFloat "eta_s_1"),Tuple [Scalar VDC DFloat "du_1",Scalar VDC DFloat "dv_1"]]),
+        ("dyn_map_39",  [Tuple [],SVec 3 (Scalar VDC DFloat "eta_s_1"),Tuple [Scalar VDC DFloat "du_1",Scalar VDC DFloat "dv_1"]]),
         ("dyn_map_45",  [Tuple [],Tuple [Scalar VDC DFloat "u_0",Scalar VDC DFloat "du_1",SVec 3 (Scalar VDC DInt "wet_s_1"),Scalar VDC DFloat "v_0",Scalar VDC DFloat "dv_1"],Tuple [Scalar VDC DFloat "un_1",Scalar VDC DFloat "vn_1"]]),
-        ("dyn_map_65",  [Tuple [Scalar VDC DFloat "dt_0",Scalar VDC DFloat "dx_0",Scalar VDC DFloat "dy_0"],Tuple [SVec 2 (Scalar VDC DFloat "un_s_0"),SVec 5 (Scalar VDC DFloat "h_s_0"),SVec 2 (Scalar VDC DFloat "vn_s_0"),Scalar VDC DFloat "eta_1"],Scalar VDC DFloat "eta_2"]),
-        ("shapiro_map_16",  [Scalar VDC DFloat "eps_0",Tuple [SVec 5 (Scalar VDC DInt "wet_s_0"),SVec 5 (Scalar VDC DFloat "eta_s_0")],Scalar VDC DFloat "eta_1"]),
-        ("update_map_24",  [Scalar VDC DFloat "hmin_0",Tuple [Scalar VDC DFloat "hzero_0",Scalar VDC DFloat "eta_2",Scalar VDC DFloat "un_1",Scalar VDC DFloat "vn_1"],Tuple [Scalar VDC DFloat "h_1",Scalar VDC DFloat "u_1",Scalar VDC DFloat "v_1",Scalar VDC DInt "wet_1"]])
-    ]
+        ("dyn_map_65",  [Tuple [],Tuple [SVec 2 (Scalar VDC DFloat "un_s_0"),SVec 5 (Scalar VDC DFloat "h_s_0"),SVec 2 (Scalar VDC DFloat "vn_s_0"),Scalar VDC DFloat "eta_1"],Scalar VDC DFloat "eta_2"]),
+        ("shapiro_map_16",  [Tuple [],Tuple [SVec 5 (Scalar VDC DInt "wet_s_0"),SVec 5 (Scalar VDC DFloat "eta_s_0")],Scalar VDC DFloat "eta_1"]),
+        ("update_map_24",  [Tuple [],Tuple [Scalar VDC DFloat "hzero_0",Scalar VDC DFloat "eta_2",Scalar VDC DFloat "un_1",Scalar VDC DFloat "vn_1"],
+          -- Tuple [Scalar VDC DFloat "h_1",Scalar VDC DFloat "u_1",Scalar VDC DFloat "v_1",Scalar VDC DInt "wet_1"]
+          Scalar VDC DFloat "u_1"
+          ])
+    ]        
+
+
+-- ast = [
+--              -- shapiro_map_16
+--         (Vec VS (SVec 5 (Scalar VDC DInt "wet_s_0" )) , Stencil (SVec 5 (Scalar VDC DInt "s1")) (Vec VI (Scalar VDC DInt "wet_0")))
+--         ,(Vec VS (SVec 5 (Scalar VDC DFloat "eta_s_0" )) , Stencil (SVec 5 (Scalar VDC DInt "s2")) (Vec VI (Scalar VDC DFloat "eta_0")))
+--         ,( Vec VT (Scalar VDC DFloat "eta_1"), Map (Function "shapiro_map_16"  [Scalar VDC DFloat "eps_0"]) (ZipT [Vec VS (SVec 5(Scalar VDC DInt "wet_s_0")),Vec VS (SVec 5(Scalar VDC DFloat "eta_s_0"))]) )
+--          -- dyn_map_39
+--         ,(Vec VS (SVec 3 (Scalar VDC DFloat "eta_s_1" )) , Stencil (SVec 3 (Scalar VDC DInt "s3")) (Vec VT (Scalar VDC DFloat "eta_1")))
+--         ,( (Tuple [Vec VO (Scalar VDC DFloat "du_1"),Vec VO (Scalar VDC DFloat "dv_1")]), UnzipT ( Map (Function "dyn_map_39"  [Scalar VDC DFloat "dt_0",Scalar VDC DFloat "g_0",Scalar VDC DFloat "dx_0",Scalar VDC DFloat "dy_0"]) (Vec VS (SVec 3(Scalar VDC DFloat "eta_s_1"))) ) )
+--          -- dyn_map_45
+--         ,(Vec VS (SVec 3 (Scalar VDC DInt "wet_s_1" )) , Stencil (SVec 3 (Scalar VDC DInt "s4")) (Vec VI (Scalar VDC DInt "wet_0")))
+--         ,( (Tuple [Vec VT (Scalar VDC DFloat "un_1"),Vec VT (Scalar VDC DFloat "vn_1")]), UnzipT ( Map (Function "dyn_map_45" []) (ZipT [Vec VI (Scalar VDC DFloat "u_0"),Vec VO (Scalar VDC DFloat "du_1"),Vec VS (SVec 3(Scalar VDC DInt "wet_s_1")),Vec VI (Scalar VDC DFloat "v_0"),Vec VO (Scalar VDC DFloat "dv_1")]) ) )
+--          -- dyn_map_65
+--         ,(Vec VS (SVec 5 (Scalar VDC DFloat "h_s_0" )) , Stencil (SVec 5 (Scalar VDC DInt "s5")) (Vec VI (Scalar VDC DFloat "h_0")))
+--         ,(Vec VS (SVec 2 (Scalar VDC DFloat "vn_s_0" )) , Stencil (SVec 2 (Scalar VDC DInt "s6")) (Vec VT (Scalar VDC DFloat "vn_1")))
+--         ,(Vec VS (SVec 2 (Scalar VDC DFloat "un_s_0" )) , Stencil (SVec 2 (Scalar VDC DInt "s7")) (Vec VT (Scalar VDC DFloat "un_1")))
+--         -- dyn_map_65
+--         -- Scalar VDC DFloat "dt_0",Scalar VDC DFloat "dx_0",Scalar VDC DFloat "dy_0"
+--         ,( Vec VT (Scalar VDC DFloat "eta_2"), Map (Function "dyn_map_65"  []) (ZipT [Vec VS (SVec 2(Scalar VDC DFloat "un_s_0")),Vec VS (SVec 5(Scalar VDC DFloat "h_s_0")),Vec VS (SVec 2(Scalar VDC DFloat "vn_s_0")),Vec VT (Scalar VDC DFloat "eta_1")]) )
+--          -- update_map_24
+--         ,( 
+--           -- (
+--           --   Tuple [Vec VO (Scalar VDC DFloat "h_1"),Vec VO (Scalar VDC DFloat "u_1"),Vec VO (Scalar VDC DFloat "v_1"),Vec VO (Scalar VDC DInt "wet_1")]
+--           -- )
+--           Vec VO (Scalar VDC DFloat "u_1")
+--           , UnzipT ( Map (Function "update_map_24"  [Scalar VDC DFloat "hmin_0"]) (ZipT [Vec VI (Scalar VDC DFloat "hzero_0"),Vec VT (Scalar VDC DFloat "eta_2"),Vec VT (Scalar VDC DFloat "un_1"),Vec VT (Scalar VDC DFloat "vn_1")]) ) 
+--           )
+--         ]
+
+-- functionSignaturesList = [
+--         ("dyn_map_39",  [Tuple [Scalar VDC DFloat "dt_0",Scalar VDC DFloat "g_0",Scalar VDC DFloat "dx_0",Scalar VDC DFloat "dy_0"],SVec 3 (Scalar VDC DFloat "eta_s_1"),Tuple [Scalar VDC DFloat "du_1",Scalar VDC DFloat "dv_1"]]),
+--         ("dyn_map_45",  [Tuple [],Tuple [Scalar VDC DFloat "u_0",Scalar VDC DFloat "du_1",SVec 3 (Scalar VDC DInt "wet_s_1"),Scalar VDC DFloat "v_0",Scalar VDC DFloat "dv_1"],Tuple [Scalar VDC DFloat "un_1",Scalar VDC DFloat "vn_1"]]),
+--         ("dyn_map_65",  [Tuple [],Tuple [SVec 2 (Scalar VDC DFloat "un_s_0"),SVec 5 (Scalar VDC DFloat "h_s_0"),SVec 2 (Scalar VDC DFloat "vn_s_0"),Scalar VDC DFloat "eta_1"],Scalar VDC DFloat "eta_2"]),
+--         ("shapiro_map_16",  [Scalar VDC DFloat "eps_0",Tuple [SVec 5 (Scalar VDC DInt "wet_s_0"),SVec 5 (Scalar VDC DFloat "eta_s_0")],Scalar VDC DFloat "eta_1"]),
+--         ("update_map_24",  [Scalar VDC DFloat "hmin_0",Tuple [Scalar VDC DFloat "hzero_0",Scalar VDC DFloat "eta_2",Scalar VDC DFloat "un_1",Scalar VDC DFloat "vn_1"],
+--           -- Tuple [Scalar VDC DFloat "h_1",Scalar VDC DFloat "u_1",Scalar VDC DFloat "v_1",Scalar VDC DInt "wet_1"]
+--           Scalar VDC DFloat "u_1"
+--           ])
+--     ]
 stencilDefinitionsList = [("s1" , [-502,-1,0,1,502] ), ("s2" , [-502,-1,0,1,502] ), ("s3" , [0,1,502] ), ("s4" , [0,1,502] ), ("s5" , [-502,-1,0,1,502] ), ("s6" , [-1,0] ), ("s7" , [-502,0] )]
 
 mainArgDeclsList = [

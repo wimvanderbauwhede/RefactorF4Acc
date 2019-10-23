@@ -73,7 +73,7 @@ inferSignatures ast = Map.toList (inferSignaturesMap functionSignatures ast)
 -- We must update this map with the new signatures, so probably use the state monad
 -- let's be old-school contrarian and use fold
 inferSignaturesMap :: Map.Map Name FSig -> TyTraCLAST -> Map.Map Name FSig
-inferSignaturesMap functionSignatures ast = foldl inferSignature functionSignatures ast
+inferSignaturesMap = foldl inferSignature
 
 inferSignature ::  (Map.Map Name FSig) -> (Expr,Expr) -> Map.Map Name FSig
 inferSignature functionSignatures ast_tup =
@@ -161,9 +161,7 @@ deriveSigApplyT fs functionSignatures =
 deriveSigMaps :: Int -> Name -> (Map.Map Name FSig) -> FSig
 deriveSigMaps sv_sz fname functionSignatures =
     let
-        fsig = case Map.lookup fname functionSignatures  of
-            Just sig -> sig
-            Nothing -> error $ "deriveSigMaps: no entry for "++fname
+        fsig = functionSignatures ! fname
     in            
         case fsig of
             [nms,ms,os] -> let
@@ -172,13 +170,15 @@ maps :: SVec sz a -> c->a->b -> c->SVec sz a -> SVec sz b
 I wonder, why not keep the name from the original expression?
 Let's try that
 -}                
-                    ms' = SVec sv_sz (setName ("sv_"++fname++"_in") ms)
-                    os' = SVec sv_sz (setName ("sv_"++fname++"_out") os)
+                    -- ms' = SVec sv_sz (setName ("sv_"++fname++"_in") ms)
+                    ms' = SVec sv_sz (updateName "sv" "in" ms)
+                    -- os' = SVec sv_sz (setName ("sv_"++fname++"_out") os)
+                    os' = SVec sv_sz (updateName "sv" "out" os)
                 in
                     [nms,ms',os']
             [nms,as,ms,os] -> let
-                    ms' = SVec sv_sz (setName  ("sv_"++fname++"_in") ms)
-                    os' = SVec sv_sz (setName ("sv_"++fname++"_out") os)
+                    ms' = SVec sv_sz (setName  (Single $ "sv_"++fname++"_in") ms)
+                    os' = SVec sv_sz (setName (Single $ "sv_"++fname++"_out") os)
                 in
                     [nms,as,ms',os']
 
@@ -305,12 +305,15 @@ removeDuplicateArgNames = id -- nub
 -- isTuple (Tuple _) = True
 -- isTuple _ = False
 
+-- Tuple [SVec 5 (Scalar VDC DInt "svec_u_1_22_0"),SVec 5 (Scalar VDC DFloat "svec_u_1_22_1")]
+-- SVec 2 (SVec 3 (SVec 5 (Scalar VDC DInt "svec_u_1_22_0")))
+
 fortranType (Scalar _ DInt _) = "integer"
 fortranType (Scalar _ DInteger _) = "integer" 
 fortranType (Scalar _ DReal _) = "real"
 fortranType (Scalar _ DFloat _) = "real"       
 fortranType (SVec sz dt) = (fortranType dt)++", dimension("++(show sz)++")"
-fortranType dt = "No equivalent Fortran type for "++(show dt)
+fortranType dt = "! No equivalent Fortran type for "++(show dt)++"\n"
 
 -- This is fine as we don't need opaques for the Ids
 opaqueFunctionExprs = map (\(fname, _) -> (Function fname [], Id fname [] )) functionSignaturesList
@@ -341,11 +344,21 @@ generateNonSubDef functionSignatures t  =
         -- Vec _ (Scalar _ _ v_name)  = lhs
         -- Scalar _ _ sc_name = lhs
     in
-        case rhs of 
+        case rhs of
             Stencil s_exp v_exp -> generateStencilAppl s_exp v_exp v_name stencilDefinitions
             Map f_exp v_exp -> generateMap functionSignatures f_exp v_exp v_name 
-            Fold f_exp acc_exp v_exp -> generateFold functionSignatures f_exp acc_exp v_exp v_name 
-            _ -> (show rhs, ["generateNonSubDef: TODO: "++(show t)])        
+            UnzipT (Map f_exp v_exp) -> generateMap functionSignatures f_exp v_exp v_name 
+            Vec _ (Scalar _ _ _) -> generateVecAssign lhs rhs
+            Fold f_exp acc_exp v_exp -> generateFold functionSignatures f_exp acc_exp v_exp v_name
+            _ -> (show rhs, ["generateNonSubDef: TODO: "++(show t)])
+        
+
+-- generateNonSubDef: TODO: (Vec VT (Scalar VT DDC "vec_u_1_26"),UnzipT (
+--     Map (Function "f_comp_u_1_21" []) (ZipT [Vec VI (Scalar VDC DFloat "hzero_0"),ZipT [Vec VS (Tuple [Scalar VDC DFloat "svec_u_1_24_0",Tuple [SVec 5 (Scalar VDC DInt "svec_u_1_24_1_0"),SVec 5 (Scalar VDC DFloat "svec_u_1_24_1_1")],SVec 3 (Scalar VDC DInt "svec_u_1_24_2"),Scalar VDC DFloat "svec_u_1_24_3",Tuple [Scalar VDC DInt "svec_u_1_24_4_0",Scalar VDC DFloat "svec_u_1_24_4_1"]]),Vec VS (SVec 5 (Scalar VDC DFloat "h_s_0")),Vec VS (Tuple [Scalar VDC DFloat "svec_u_1_25_0",Tuple [Scalar VDC DInt "svec_u_1_25_1_0",Scalar VDC DFloat "svec_u_1_25_1_1"],Scalar VDC DInt "svec_u_1_25_2",Scalar VDC DFloat "svec_u_1_25_3",Tuple [Scalar VDC DInt "svec_u_1_25_4_0",Scalar VDC DFloat "svec_u_1_25_4_1"]]),ZipT [Vec VS (Scalar VDC DInt "svec_u_1_22"),Vec VS (Scalar VDC DFloat "svec_u_1_22")]],ZipT [Vec VI (Scalar VDC DFloat "u_0"),Vec VS (Tuple [Scalar VDC DInt "svec_u_1_23_0",Scalar VDC DFloat "svec_u_1_23_1"]),Vec VS (Scalar VDC DInt "svec_u_1_23"),Vec VI (Scalar VDC DFloat "v_0"),Vec VS (Tuple [Scalar VDC DInt "svec_u_1_23_0",Scalar VDC DFloat "svec_u_1_23_1"])],ZipT [Vec VI (Scalar VDC DFloat "u_0"),Vec VS (Tuple [Scalar VDC DInt "svec_u_1_23_0",Scalar VDC DFloat "svec_u_1_23_1"]),Vec VS (Scalar VDC DInt "svec_u_1_23"),Vec VI (Scalar VDC DFloat "v_0"),Vec VS (Tuple [Scalar VDC DInt "svec_u_1_23_0",Scalar VDC DFloat "svec_u_1_23_1"])]])
+--     )
+--     )
+-- generateNonSubDef: TODO: (Vec VO (Scalar VDC DFloat "u_1"),Vec VT (Scalar VT DDC "vec_u_1_26"))   
+
 -- ----------------------------------------------------------------------------------------
 -- ----------------------------------------------------------------------------------------        
 generateDefs :: (Map.Map Name FSig) -> TyTraCLAST -> [String] -- 
@@ -512,7 +525,7 @@ generateSubDefApplyT f_exps applyt_fname functionSignatures =
             
 
             
-
+-- For Id we must rename the args so that they are different. Wonder if I could already do that in the Transform?
     in 
         unlines $ concat [
             ["! APPLYT: FLATTENED, NUBBED: \n! " ++(show nmstfn)++"\n! "++(show in_argtfn)++"\n! "++(show out_argtfn)], 
@@ -773,7 +786,7 @@ createIter (SVec sz dt) = let
             -- DDC -> error "SVec DDC!"
             dt -> ["(i)"]
 createIter (Tuple es) = concatMap createIter es
-
+createIter other =  error $ show other
 
 
 
@@ -963,6 +976,15 @@ generateStencilDef' s_exp stencilDefinitions =
             in
                 (scomb_name, s1_def++s2_def,len_s1++len_s2) -- [length s1_def, length s2_def])                
 
+
+generateVecAssign lhs rhs = let
+        rhs_vec_name = getName rhs
+        lhs_vec_name = getName lhs
+        assign_str = "    "++lhs_vec_name++" = "++rhs_vec_name
+        lhs_vec_decl = mainArgDecls ! lhs_vec_name  -- risky, might be indirect!
+        rhs_vec_decl = (take (length lhs_vec_decl - length ", intent(out) :: " - length lhs_vec_name) lhs_vec_decl) ++ " :: "++rhs_vec_name
+    in
+        (assign_str,[rhs_vec_decl])                
 -- Map (Function "f2" ["acc_1"]) (Vec VS DDC "svec_v_1_0")
 -- map (generateSubDef functionSignatures) ast                     
 generateMap functionSignatures f_exp v_exp ov_name =
@@ -1187,7 +1209,7 @@ generateMainProgram functionSignatures ast_stages  =
        
 generateFortranCode decomposed_ast functionSignaturesList idSigList =
     let
-        functionSignatures' =  Map.fromList functionSignaturesList
+        functionSignatures' =  Map.fromList (functionSignaturesList++idSigList)
         (asts_function_defs,ast_stages) = createStages decomposed_ast
         functionSignatures = inferSignaturesMap functionSignatures' asts_function_defs
         generatedFunctionDefs = generateDefs functionSignatures asts_function_defs
@@ -1200,6 +1222,8 @@ generateFortranCode decomposed_ast functionSignaturesList idSigList =
         generatedStageKernelsStr =  unlines generatedStageKernels         
     in
         unlines [
+            -- "SIGS:",
+            -- show functionSignatures',
             mainProgramStr,
             generatedOpaqueFunctionDefsStr,
             generatedFunctionDefsStr,

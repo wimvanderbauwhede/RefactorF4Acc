@@ -36,7 +36,7 @@ inferedSignatures = map inferSignatures ast4
 -- mainProgramStr = generateMainProgram ast_stages
 
 generatedFortranCode = generateFortranCode ast4 functionSignaturesList idSigList 
-info = True -- False
+info =  False
 main = do
     if info 
         then

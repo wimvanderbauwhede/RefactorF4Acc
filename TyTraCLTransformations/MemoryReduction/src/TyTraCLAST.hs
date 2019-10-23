@@ -22,6 +22,8 @@ type FSig = [Expr]
 --   | FoldFSig (Expr,Expr,Expr,Expr)
 --   deriving (Show, Typeable, Data, Eq)
 
+data FName = Single String | Composite [FName]
+
 type TyTraCLAST = [(Expr,Expr)]                      
 
 data Expr =
@@ -84,16 +86,31 @@ instance Show LHSPrint where
 getDType (Vec _ dt_exp ) = dt_exp
 getDType (ZipT es) = Tuple (map getDType es)
 
-setName name' (Scalar ve dt name) = Scalar ve dt name'
-setName name' (Vec ve exp) = Vec ve (setName name' exp)
-setName name' (SVec sz exp) = SVec sz (setName name' exp)
+setName :: FName -> Expr -> Expr
+setName (Single name') (Scalar ve dt name) = Scalar ve dt name'
+setName (Single name') (Vec ve exp) = Vec ve (setName (Single name') exp)
+setName (Single name') (SVec sz exp) = SVec sz (setName (Single name') exp)
 -- Tuple [SVec 5 (Scalar VDC DInt "wet_s_0"),SVec 5 (Scalar VDC DFloat "eta_s_0")]
-setName name' (Tuple exps) = Tuple $ map (\(exp,ct) -> setName (name'++"_"++(show ct)) exp) (zip exps [0..])
+setName (Single name') (Tuple exps) = Tuple $ map (\(exp,ct) -> setName (Single (name'++"_"++(show ct))) exp) (zip exps [0..])
+setName (Composite names') (Tuple exps) = Tuple $ map (\(exp,name) -> setName name exp) (zip exps names')
 setName name' exp = error $ "Don't know how to set the name for "++(show exp)
 
-getName (Scalar ve dt name) = name
+getName :: Expr -> FName
+getName (Scalar ve dt name) = Single name
 getName (Vec ve exp) = getName exp
 getName (SVec sz exp) = getName exp
 -- WV: I want to know if this happens
 -- getName (Tuple exps) = error $ "No unique name to get for "++(show exps)
-getName (Tuple exps) = intercalate "_" (map getName exps)
+getName (Tuple exps) = Composite (map getName exps)
+
+updateName :: String -> String -> Expr -> Expr
+updateName prefix postfix (Tuple exps) = Tuple $ map (\exp -> setName (appendPrePost prefix postfix (getName exp)) exp) exps
+updateName prefix postfix exp =  setName (appendPrePost prefix postfix (getName exp)) exp
+
+appendPrePost :: String -> String -> FName -> FName 
+appendPrePost prefix postfix (Single nm) = -- prefix++"_"++nm++"_"++postfix
+  let
+    nm' = if (take (1 + length prefix) nm) == prefix++"_" || prefix=="" then nm else prefix++"_"++nm
+    nm'' = if (drop ( length nm' -length postfix -1) nm') == "_" ++ postfix || postfix == "" then nm' else nm'++"_"++postfix
+  in
+    Single nm''    
