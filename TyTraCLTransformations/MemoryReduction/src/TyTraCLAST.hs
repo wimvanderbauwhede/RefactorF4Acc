@@ -23,6 +23,30 @@ type FSig = [Expr]
 --   deriving (Show, Typeable, Data, Eq)
 
 data FName = Single String | Composite [FName]
+  deriving (Show, Ord, Typeable, Data, Eq)
+
+data FIntent = In | Out | InOut | Unknown | NA
+  deriving (Show, Ord, Typeable, Data, Eq)
+
+data FDecl = MkFDecl {
+  ftype :: String,
+  dim :: Maybe Int,
+  intent :: Maybe FIntent,
+  names :: [String] 
+  }
+ deriving (Ord, Typeable, Data, Eq)
+
+instance Show FDecl where  
+  show (MkFDecl ftype dim intent names ) = let
+        attributes = [ftype]
+        attributes' = case dim of
+          Just n -> attributes++["dimension(1:"++(show n)++")"]
+          Nothing -> attributes
+        attributes'' = case intent of
+            Just i -> attributes'++["intent("++(show i)++")"]
+            Nothing -> attributes'
+      in
+        (intercalate ", " attributes'') ++ " :: "++ (intercalate ", " names)
 
 type TyTraCLAST = [(Expr,Expr)]                      
 
@@ -93,7 +117,13 @@ setName (Single name') (SVec sz exp) = SVec sz (setName (Single name') exp)
 -- Tuple [SVec 5 (Scalar VDC DInt "wet_s_0"),SVec 5 (Scalar VDC DFloat "eta_s_0")]
 setName (Single name') (Tuple exps) = Tuple $ map (\(exp,ct) -> setName (Single (name'++"_"++(show ct))) exp) (zip exps [0..])
 setName (Composite names') (Tuple exps) = Tuple $ map (\(exp,name) -> setName name exp) (zip exps names')
-setName name' exp = error $ "Don't know how to set the name for "++(show exp)
+
+setName fnm@(Composite names') (SVec sz exp) = SVec sz (setName fnm exp)
+
+setName name' exp = error $ "Don't know how to set the name "++(show name')++" for "++(show exp)
+
+
+-- SVec 3 (Tuple [SVec 5 (Scalar VDC DInt "sv_wet_s_0_in"),SVec 5 (Scalar VDC DFloat "sv_eta_s_0_in")])
 
 getName :: Expr -> FName
 getName (Scalar ve dt name) = Single name
@@ -110,7 +140,12 @@ updateName prefix postfix exp =  setName (appendPrePost prefix postfix (getName 
 appendPrePost :: String -> String -> FName -> FName 
 appendPrePost prefix postfix (Single nm) = -- prefix++"_"++nm++"_"++postfix
   let
-    nm' = if (take (1 + length prefix) nm) == prefix++"_" || prefix=="" then nm else prefix++"_"++nm
-    nm'' = if (drop ( length nm' -length postfix -1) nm') == "_" ++ postfix || postfix == "" then nm' else nm'++"_"++postfix
+    nm' = if 
+      -- (take (1 + length prefix) nm) == prefix++"_" || 
+          prefix=="" then nm else prefix++"_"++nm
+    nm'' = if 
+      -- (drop ( length nm' -length postfix -1) nm') == "_" ++ postfix || 
+      postfix == "" then nm' else nm'++"_"++postfix
   in
     Single nm''    
+appendPrePost prefix postfix (Composite nms) = Composite $ map (appendPrePost prefix postfix) nms

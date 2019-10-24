@@ -19,6 +19,9 @@ import ASTInstance (functionSignaturesList, stencilDefinitionsList, mainArgDecls
 
 (!) = (Map.!)
 
+genMain = True
+genStages = True
+
 {-
 About the duplicated arguments: it's actually very simple. 
 I keep them all until the very last moment of code generation, and only then do I remove the duplicates
@@ -52,7 +55,7 @@ We have
 functionSignatures :: Map.Map Name FSig 
 functionSignatures =  Map.fromList functionSignaturesList
 
-mainArgDecls :: Map.Map Name String
+mainArgDecls :: Map.Map Name FDecl
 mainArgDecls =  Map.fromList mainArgDeclsList
 
 stencilDefinitions :: Map.Map Name [Integer]
@@ -313,7 +316,7 @@ fortranType (Scalar _ DInteger _) = "integer"
 fortranType (Scalar _ DReal _) = "real"
 fortranType (Scalar _ DFloat _) = "real"       
 fortranType (SVec sz dt) = (fortranType dt)++", dimension("++(show sz)++")"
-fortranType dt = "! No equivalent Fortran type for "++(show dt)++"\n"
+fortranType dt = "! No equivalent Fortran type for "++(show dt)++" !!! "
 
 -- This is fine as we don't need opaques for the Ids
 opaqueFunctionExprs = map (\(fname, _) -> (Function fname [], Id fname [] )) functionSignaturesList
@@ -339,13 +342,14 @@ generateNonSubDefs functionSignatures ast =
 generateNonSubDef :: (Map.Map Name FSig) -> (Expr, Expr) -> (String,[String])
 generateNonSubDef functionSignatures t  =
     let
-        (lhs,rhs) = t
-        v_name = getName lhs
+        (lhs,rhs) = t        
+        lhs' = mkFinalVecs lhs
+        v_name = getName lhs'
         -- Vec _ (Scalar _ _ v_name)  = lhs
         -- Scalar _ _ sc_name = lhs
     in
         case rhs of
-            Stencil s_exp v_exp -> generateStencilAppl s_exp v_exp v_name stencilDefinitions
+            Stencil s_exp v_exp -> generateStencilAppl s_exp v_exp v_name stencilDefinitions t
             Map f_exp v_exp -> generateMap functionSignatures f_exp v_exp v_name 
             UnzipT (Map f_exp v_exp) -> generateMap functionSignatures f_exp v_exp v_name 
             Vec _ (Scalar _ _ _) -> generateVecAssign lhs rhs
@@ -486,10 +490,19 @@ we can simply untuple them. So from applyt_fsig, we unpack the tuples \(Tuple es
 
 -}
 
+mkFinalArgSigList :: Expr -> Expr
 mkFinalArgSigList nmst = Tuple $ nub $ (\arg -> case arg of
         Tuple es -> es
         e -> [e]
         ) (flattenSigExpr nmst)
+
+mkFinalVecs :: Expr -> Expr
+mkFinalVecs = flattenSigExpr 
+-- mkFinalVecs  nmst = (\arg -> case arg of
+--     Tuple es -> ZipT es
+--     e -> e
+--     ) (flattenSigExpr nmst)
+
 
 generateSubDefApplyT :: [Expr]  -> Name -> (Map.Map Name FSig) -> String
 generateSubDefApplyT f_exps applyt_fname functionSignatures = 
@@ -755,8 +768,16 @@ rewriteDT' dt = case dt of
     Tuple dts -> Tuple $ concat (map (\dt -> case dt of
                         Tuple dts -> map rewriteDT' dts
                         SVec sz2 dt2 -> [ rewriteDT' (SVec sz2 dt2)]
+                        Vec sz2 dt2 -> [ rewriteDT' (Vec sz2 dt2)]
                         dt' -> [ dt']
                         ) dts)
+    Vec sz (Tuple dts)  -> Tuple (map (\dt -> Vec sz (rewriteDT' dt)) dts)
+    ZipT dts -> ZipT $ concat (map (\dt -> case dt of
+        Tuple dts -> map rewriteDT' dts
+        SVec sz2 dt2 -> [ rewriteDT' (SVec sz2 dt2)]
+        Vec sz2 dt2 -> [ rewriteDT' (Vec sz2 dt2)]
+        dt' -> [ dt']
+        ) dts)                          
     -- Tuple dts -> Tuple (foldl (
     --         \dtl dt -> case dt of 
     --             Tuple dts -> dtl++( map flattenSigExpr dts)
@@ -769,6 +790,7 @@ rewriteDT' dt = case dt of
 createIter :: Expr -> [String]
 createIter (SVec sz dt) = let
         vn = getName dt
+        --now vn could be Single or Composite
     in
         case dt of
             -- we know this can only be either nested DSVec or terminal
@@ -777,12 +799,16 @@ createIter (SVec sz dt) = let
                     colons = map (\_->":") szs
                 in                    
                     ["("++(commaSepList ("i":colons)) ++")"]
-            -- we know this has no tuples inside it                
-            Tuple dts -> createIter (
-                Tuple (
-                    snd $ foldl (\(ct,tl) dt -> (ct+1,tl++[SVec sz (setName (vn++"_"++(show ct)) dt) ] ) )  (0,[]) dts 
-                    )
-                )
+            -- we know this has no tuples inside it  
+            -- It means that if vn is Composite (and it should be!), we can zip the names with dts
+            Tuple dts -> let 
+                        Composite vns = vn 
+                    in createIter (
+                            Tuple (
+                                -- snd $ foldl (\(ct,tl) dt -> (ct+1,tl++[SVec sz (setName (vn++"_"++(show ct)) dt) ] ) )  (0,[]) dts 
+                                map (\(vn',dt) -> SVec sz (setName vn' dt)) (zip vns dts) 
+                                )
+                            )
             -- DDC -> error "SVec DDC!"
             dt -> ["(i)"]
 createIter (Tuple es) = concatMap createIter es
@@ -794,22 +820,22 @@ createIter other =  error $ show other
 makeDeclsUnique :: Expr -> Expr
 makeDeclsUnique expr = expr -- evalState (everywhereM (mkM makeDeclsUnique'') expr) 0
 
-makeDeclsUnique' :: Expr -> Int -> Expr
-makeDeclsUnique' (SVec sz dt) ct = 
-    let
-        vn = getName dt
-    in
-        SVec sz (setName (vn++"_"++(show ct)) dt)
-makeDeclsUnique' (Scalar ve dt vn) ct = Scalar ve dt (vn++"_"++(show ct))
-makeDeclsUnique' e ct = e
+-- makeDeclsUnique' :: Expr -> Int -> Expr
+-- makeDeclsUnique' (SVec sz dt) ct = 
+--     let
+--         vn = getName dt
+--     in
+--         SVec sz (setName (vn++"_"++(show ct)) dt)
+-- makeDeclsUnique' (Scalar ve dt vn) ct = Scalar ve dt (vn++"_"++(show ct))
+-- makeDeclsUnique' e ct = e
 
-makeDeclsUnique'' :: Expr -> State Int Expr
-makeDeclsUnique'' expr = do
-            ct <- get
-            let
-                expr' = makeDeclsUnique' expr ct 
-            put (ct+1)
-            return expr'
+-- makeDeclsUnique'' :: Expr -> State Int Expr
+-- makeDeclsUnique'' expr = do
+--             ct <- get
+--             let
+--                 expr' = makeDeclsUnique' expr ct 
+--             put (ct+1)
+--             return expr'
 
 
 createDecls :: Expr -> [String]
@@ -820,15 +846,24 @@ createDecls (SVec sz dt) = let
             -- we know this can only be either nested DSVec or terminal
             SVec _ _  ->  let
                     (szs,dt') = getSzFromSVec dt []
+                    Single vn' = vn
                 in
-                    [(fortranType dt')++", dimension("++(commaSepList (map show (sz:szs)))++") :: "++ vn]  
+                    [(fortranType dt')++", dimension("++(commaSepList (map show (sz:szs)))++") :: "++ vn']  
             -- we know this has no tuples inside it                
-            Tuple dts -> createDecls (
-                Tuple (
-                    snd $ foldl (\(ct,tl) dt -> (ct+1,tl++[SVec sz (setName (vn++"_"++(show ct)) dt) ] ) )  (0,[]) dts 
+            Tuple dts -> let 
+                     Composite vns = vn 
+                in 
+                    createDecls (
+                        Tuple (
+                            -- snd $ foldl (\(ct,tl) dt -> (ct+1,tl++[SVec sz (setName (vn++"_"++(show ct)) dt) ] ) )  (0,[]) dts 
+                            map (\(vn',dt) -> SVec sz (setName vn' dt)) (zip vns dts)
+                            )
                     )
-                )
-            dt -> [(fortranType dt)++", dimension("++(show sz)++") :: "++ vn]
+            dt -> let 
+                        Single vn' = vn 
+                in
+                    [(fortranType dt)++", dimension("++(show sz)++") :: "++ vn']
+
 createDecls (Scalar _ DDC vn) =  error "DDC!"
 createDecls sdt@(Scalar _ dt vn) = [(fortranType sdt)++" :: "++vn]
 createDecls (Tuple es) = concatMap createDecls es
@@ -883,10 +918,24 @@ mkDeclLines  = unlines . (map ("    "++)) . concat
 -- (Vec VS DDC "svec_v_3_6",Stencil (SVec 3 DInt "s2") (ZipT [Vec VI DFloat "va_0",Vec VI DFloat "vc_0"]))
 -- I suppose to do this right I'd need to actually define the combined stencil and name it
 -- 
-generateStencilAppl :: Expr -> Expr -> Name -> Map.Map Name [Integer] -> (String,[String])
-generateStencilAppl s_exp (Vec _ dt) sv_name stencilDefinitions = 
+-- (lhs,rhs) = t
+-- sv_name = getName lhs
+-- Stencil s_exp v_exp = rhs
+-- generateStencilAppl s_exp v_exp sv_name stencilDefinitions t
+
+-- TODO HERE: we need to move mkFinalVecs to the first call of generateStencilAppl so that the flattened vec lists will be used from there on
+
+
+generateStencilAppl :: Expr -> Expr -> FName -> Map.Map Name [Integer] -> (Expr,Expr) -> (String,[String])
+generateStencilAppl s_exp v_exp@(Vec _ dt) sv_name stencilDefinitions t = 
     let
-        v_name = getName dt
+        (lhs_v_exp',rhs) = t
+        -- Vec sz lhs_v_exp' = lhs
+        -- Stencil s_exp' rhs_v_exp' = rhs
+        lhs_v_exp = mkFinalVecs lhs_v_exp'
+        -- sv_name = getName lhs_v_exp
+        rhs_v_exp = mkFinalVecs v_exp
+        v_name = show $ getName dt
         sv_type = fortranType dt      
         -- (s_name,s_def,sv_szs) = generateStencilDef s_exp stencilDefinitions
         (s_names,s_defs,sv_szs) = generateStencilDef' s_exp stencilDefinitions
@@ -900,24 +949,34 @@ generateStencilAppl s_exp (Vec _ dt) sv_name stencilDefinitions =
             [
                 
             -- if the $sv_type is DDC, it means we need to lookup the type from the definition, which will likely be a zip            
-                sv_type++", dimension("++(commaSepList $ map show sv_szs)++") :: "++sv_name
+                case sv_name of
+                    Single sv_name' -> sv_type++", dimension("++(commaSepList $ map show sv_szs)++") :: "++sv_name'
+                    Composite sv_names -> sv_type++", dimension("++(commaSepList $ map show sv_szs)++") :: SHOW "++(show sv_names)
                 -- ,"integer :: s_idx"           
             ]++(map (\ct -> "integer :: s_idx_"++(show ct) ) [1 .. length sv_szs]   )
     in
         (
         unlines $ concat [
             [""],
+            -- ["! VEC "++(show t)],            
+            ["! LHS ORIG "++(show lhs_v_exp')], 
+            ["! LHS "++(show lhs_v_exp)], 
+            ["! RHS ORIG "++(show v_exp)], 
+            ["! RHS "++(show rhs_v_exp)], 
             map (\(sv_sz,ct) -> "    do s_idx_"++(show ct)++" = 1,"++(show sv_sz)) (zip sv_szs [1..]),
             [
-             "        "++sv_name++"("++lhs_idx_str++") = "++v_name++"(idx+"++stencil_accesses++")"
+             "        "++(show sv_name)++"("++lhs_idx_str++") = "++v_name++"(idx+"++stencil_accesses++")"
              ],
             replicate (length sv_szs) "    end do"
           ]
         ,decl_lines)
-generateStencilAppl s_exp (ZipT vs_exps) sv_name stencilDefinitions = let
+generateStencilAppl s_exp v_exp@(ZipT vs_exps') sv_name stencilDefinitions t = let
+        ZipT vs_exps = mkFinalVecs v_exp   
         gen_stencils :: [String]
         -- [(String,[String])] -> ([String], [[String]])
-        (gen_stencils,decls) = unzip $ map (\(v_exp,ct) -> generateStencilAppl s_exp v_exp (sv_name++"_"++(show ct)) stencilDefinitions) (zip vs_exps [0..])
+        (gen_stencils,decls) = case sv_name of
+            Composite sv_names -> unzip $ map (\(v_exp,sv_name') -> generateStencilAppl s_exp v_exp sv_name' stencilDefinitions t) (zip vs_exps sv_names)
+            Single sv_name' -> unzip $ map (\(v_exp,ct) -> generateStencilAppl s_exp v_exp (Single (sv_name'++"_"++(show ct))) stencilDefinitions t) (zip vs_exps [0..]) -- SHOULD NOT OCCUR!            
         -- I want to "zip" them but it's a list of lists, so I need to round-robin over it
         gen_stencils_lines :: [[String]]
         gen_stencils_lines = map lines gen_stencils
@@ -927,7 +986,7 @@ generateStencilAppl s_exp (ZipT vs_exps) sv_name stencilDefinitions = let
         unique_grouped_lines :: [[String]]
         unique_grouped_lines = map nub grouped_lines
         all_lines :: [String]
-        all_lines = concat unique_grouped_lines
+        all_lines = ["! ZIP "++(show t)]++(concat unique_grouped_lines)
     in
         (unlines all_lines, concat decls)
 
@@ -937,6 +996,7 @@ create_iter_expr sv_szs i expr_str
     | otherwise =
         create_iter_expr (tail sv_szs) (i+1) 
             (expr_str ++ "+(s_idx_"++(show i)++"-1)*"++(show $ product sv_szs)) -- (intercalate "*" (map show sv_szs)))        
+
 -- some kind of a fold where the result is, if I start from n lists, with each list k lines, then I will have k lists of n lines
 -- so for each of these n lists I take the head , that gets me n lines
 pairUpZipCode lsts acc
@@ -964,7 +1024,7 @@ generateStencilDef' :: Expr -> Map.Map Name [Integer] -> ([String],[[Integer]],[
 generateStencilDef' s_exp stencilDefinitions = 
      case s_exp of
         SVec sv_sz sv_exp -> let
-                    s_name = getName sv_exp
+                    Single s_name = getName sv_exp
                 in
                     case Map.lookup s_name  stencilDefinitions of
                         Just s_def -> ([s_name],[s_def], [length s_def])
@@ -978,16 +1038,18 @@ generateStencilDef' s_exp stencilDefinitions =
 
 
 generateVecAssign lhs rhs = let
-        rhs_vec_name = getName rhs
-        lhs_vec_name = getName lhs
+        Single rhs_vec_name = getName rhs
+        Single lhs_vec_name = getName lhs
         assign_str = "    "++lhs_vec_name++" = "++rhs_vec_name
         lhs_vec_decl = mainArgDecls ! lhs_vec_name  -- risky, might be indirect!
-        rhs_vec_decl = (take (length lhs_vec_decl - length ", intent(out) :: " - length lhs_vec_name) lhs_vec_decl) ++ " :: "++rhs_vec_name
+        rhs_vec_decl = lhs_vec_decl{intent=Nothing,names=[rhs_vec_name]}
+        rhs_vec_decl_str =  show rhs_vec_decl
+            -- (take (length lhs_vec_decl - length ", intent(out) :: " - length lhs_vec_name) lhs_vec_decl) ++ " :: "++rhs_vec_name
     in
-        (assign_str,[rhs_vec_decl])                
+        (assign_str,[rhs_vec_decl_str])                
 -- Map (Function "f2" ["acc_1"]) (Vec VS DDC "svec_v_1_0")
 -- map (generateSubDef functionSignatures) ast                     
-generateMap functionSignatures f_exp v_exp ov_name =
+generateMap functionSignatures f_exp v_exp (Single ov_name) =
     let
         Function fname nms_exps = f_exp
         fsig = functionSignatures ! fname 
@@ -1020,7 +1082,7 @@ generateMap functionSignatures f_exp v_exp ov_name =
         ++")"
         ,[])
 
-generateFold functionSignatures f_exp acc_exp v_exp sc_name =
+generateFold functionSignatures f_exp acc_exp v_exp (Single sc_name) =
     let
         Function fname nms_exps = f_exp
         fsig = case Map.lookup fname functionSignatures of
@@ -1031,6 +1093,7 @@ generateFold functionSignatures f_exp acc_exp v_exp sc_name =
         Scalar _ _ acc_name = acc_exp
     in  
         (
+            "! Fold\n"++
         "    call "++fname++"("
         ++(commaSepList (nms ++[acc_name] ++vs_in ++[sc_name]))
         ++")"
@@ -1054,7 +1117,7 @@ generateStageKernel functionSignatures ct stage_ast  =
         -- and I need the declarations for these, so I guess I need to get the Exprs and then the names and decls from there
         -- also I need a mechanism to detect the accs that are passed between the stages
         arg_decl_lines = map (\arg_name -> case Map.lookup arg_name mainArgDecls of
-                                    Just decl -> decl
+                                    Just decl -> show decl
                                     Nothing -> error $ "No declaration for "++arg_name++ " in mainArgDecls"
                             ) (in_args++out_args)
 
@@ -1074,7 +1137,7 @@ getInputArgs = everything (++) (mkQ [] (getInputArgs'))
 
 getInputArgs' :: Expr -> [Name]
 getInputArgs' node = case node of
-                            Vec VI dt -> [getName dt] 
+                            Vec VI dt -> [(\(Single vn) -> vn) $ getName dt] 
                             Scalar VI _ sn -> [sn]
                             _ -> []
 
@@ -1082,7 +1145,7 @@ getOutputArgs = everything (++) (mkQ [] (getOutputArgs'))
 
 getOutputArgs' :: Expr -> [Name]
 getOutputArgs' node = case node of
-                            Vec VO dt -> [getName dt] 
+                            Vec VO dt -> [(\(Single vn) -> vn) $ getName dt] 
                             Scalar VO _ sn -> [sn]
                             _ -> []                                    
 
@@ -1170,13 +1233,17 @@ generateMainProgram functionSignatures ast_stages  =
                 -- and I need the declarations for these, so I guess I need to get the Exprs and then the names and decls from there
                 -- also I need a mechanism to detect the accs that are passed between the stages
                 arg_decl_lines = map (\arg_name -> case Map.lookup arg_name mainArgDecls of
-                                            Just decl -> decl
+                                            Just decl -> show decl
                                             Nothing -> error $ "No declaration for "++arg_name++ " in mainArgDecls"
                                     ) (in_args++out_args)
         
             in        
-                (arg_decl_lines,
-                "call stage_kernel_"++(show ct)++"("++(mkArgList [in_args, out_args])++")"
+                (arg_decl_lines, 
+                if genStages 
+                    then 
+                        "call stage_kernel_"++(show ct)++"("++(mkArgList [in_args, out_args])++")"
+                    else
+                        "! Stage kernel call code not generated"    
                 )
     
         -- stage_kernel_info :: ([[String]],[String])
@@ -1214,18 +1281,20 @@ generateFortranCode decomposed_ast functionSignaturesList idSigList =
         functionSignatures = inferSignaturesMap functionSignatures' asts_function_defs
         generatedFunctionDefs = generateDefs functionSignatures asts_function_defs
         generatedStageKernels = map (\(ast,ct) -> (generateStageKernel functionSignatures) ct ast) (zip ast_stages [1..])
-        mainProgramStr = generateMainProgram functionSignatures ast_stages        
+        mainProgramStr 
+            | genMain = generateMainProgram functionSignatures ast_stages        
+            | otherwise = "! Main code not generated"
         generatedOpaqueFunctionDefsStr = unlines generatedOpaqueFunctionDefs
         -- putStrLn "\n! Generate subroutine definitions"
         generatedFunctionDefsStr = unlines generatedFunctionDefs
         -- putStrLn "\n! Generated stage kernels"
-        generatedStageKernelsStr =  unlines generatedStageKernels         
+        generatedStageKernelsStr
+            | genStages =  unlines generatedStageKernels         
+            | otherwise = "! Stage kernel code not generated"
     in
         unlines [
-            -- "SIGS:",
-            -- show functionSignatures',
-            mainProgramStr,
-            generatedOpaqueFunctionDefsStr,
-            generatedFunctionDefsStr,
-            generatedStageKernelsStr
+             mainProgramStr
+            ,generatedOpaqueFunctionDefsStr
+            ,generatedFunctionDefsStr
+            ,generatedStageKernelsStr
         ]        
