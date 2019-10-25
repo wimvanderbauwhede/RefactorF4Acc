@@ -1046,9 +1046,16 @@ generateMap functionSignatures f_exp v_exp (Single ov_name) t =
             Single ov_name'' -> if Map.member ov_name mainArgDecls then ov_name''++"(idx)" else ov_name''
             Composite ov_names -> intercalate ", " (map (\(Single ov_name'') -> if Map.member ov_name'' mainArgDecls then  ov_name''++"(idx)" else  ov_name'') ov_names)
         
-            This is too hasty: need to add "(idx)" if required; also need to nub!
+            -- This is too hasty: need to add "(idx)" if required; also need to nub!
+        nms_vars_lst = intercalate ", " $ nub $ map (show . getName) nms_exps
+        in_vars_lst =  getName rhs_v_exp
+        in_vars_name_lst = case in_vars_lst of
+            Single ov_name'' -> if Map.member ov_name mainArgDecls then ov_name''++"(idx)" else ov_name''
+            Composite ov_names -> let
+                    Composite fl_ov_names = flattenNames (Composite ov_names)
+                in
+                    intercalate ", " $ nub $ (map (\(Single ov_name'') -> if Map.member ov_name'' mainArgDecls then  ov_name''++"(idx)" else  ov_name'') fl_ov_names)
                 
-        in_vars_lst = (intercalate ", " $ nub $ map (show . getName) nms_exps) ++", "++ (show $ getName rhs_v_exp)
         Function fname nms_exps = f_exp
         fsig = functionSignatures ! fname 
         [nms_exps',v_exp',ov_exp'] = fsig
@@ -1066,7 +1073,7 @@ generateMap functionSignatures f_exp v_exp (Single ov_name) t =
     in
         (
             "! Map \n"++
-            "!    call "++fname++"("++in_vars_lst++" ; " ++ out_vars_name_lst ++ "\n"++
+            "!    call "++fname++"("++nms_vars_lst ++" , " ++ in_vars_name_lst++" , " ++ out_vars_name_lst ++ ")\n"++
         "    call "++fname++"("
         ++(commaSepList (nms ++vs_in' ++[ov_name']))
         ++")\n"

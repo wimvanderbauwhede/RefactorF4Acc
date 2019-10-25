@@ -150,3 +150,7 @@ appendPrePost prefix postfix (Single nm) = -- prefix++"_"++nm++"_"++postfix
   in
     Single nm''    
 appendPrePost prefix postfix (Composite nms) = Composite $ map (appendPrePost prefix postfix) nms
+
+flattenNames :: FName -> FName
+flattenNames (Single nm) =  Composite [Single nm]
+flattenNames (Composite nms) = Composite $ concat $ map ( (\(Composite x) -> x) . flattenNames) nms
