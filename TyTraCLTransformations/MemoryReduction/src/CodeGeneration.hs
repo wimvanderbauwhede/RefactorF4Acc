@@ -308,8 +308,6 @@ removeDuplicateArgNames = id -- nub
 -- isTuple (Tuple _) = True
 -- isTuple _ = False
 
--- Tuple [SVec 5 (Scalar VDC DInt "svec_u_1_22_0"),SVec 5 (Scalar VDC DFloat "svec_u_1_22_1")]
--- SVec 2 (SVec 3 (SVec 5 (Scalar VDC DInt "svec_u_1_22_0")))
 
 fortranType (Scalar _ DInt _) = "integer"
 fortranType (Scalar _ DInteger _) = "integer" 
@@ -350,19 +348,12 @@ generateNonSubDef functionSignatures t  =
     in
         case rhs of
             Stencil s_exp v_exp -> generateStencilAppl s_exp v_exp v_name stencilDefinitions t
-            Map f_exp v_exp -> generateMap functionSignatures f_exp v_exp v_name 
-            UnzipT (Map f_exp v_exp) -> generateMap functionSignatures f_exp v_exp v_name 
+            Map f_exp v_exp -> generateMap functionSignatures f_exp v_exp v_name t
+            UnzipT (Map f_exp v_exp) -> generateMap functionSignatures f_exp v_exp v_name t
             Vec _ (Scalar _ _ _) -> generateVecAssign lhs rhs
             Fold f_exp acc_exp v_exp -> generateFold functionSignatures f_exp acc_exp v_exp v_name
             _ -> (show rhs, ["generateNonSubDef: TODO: "++(show t)])
         
-
--- generateNonSubDef: TODO: (Vec VT (Scalar VT DDC "vec_u_1_26"),UnzipT (
---     Map (Function "f_comp_u_1_21" []) (ZipT [Vec VI (Scalar VDC DFloat "hzero_0"),ZipT [Vec VS (Tuple [Scalar VDC DFloat "svec_u_1_24_0",Tuple [SVec 5 (Scalar VDC DInt "svec_u_1_24_1_0"),SVec 5 (Scalar VDC DFloat "svec_u_1_24_1_1")],SVec 3 (Scalar VDC DInt "svec_u_1_24_2"),Scalar VDC DFloat "svec_u_1_24_3",Tuple [Scalar VDC DInt "svec_u_1_24_4_0",Scalar VDC DFloat "svec_u_1_24_4_1"]]),Vec VS (SVec 5 (Scalar VDC DFloat "h_s_0")),Vec VS (Tuple [Scalar VDC DFloat "svec_u_1_25_0",Tuple [Scalar VDC DInt "svec_u_1_25_1_0",Scalar VDC DFloat "svec_u_1_25_1_1"],Scalar VDC DInt "svec_u_1_25_2",Scalar VDC DFloat "svec_u_1_25_3",Tuple [Scalar VDC DInt "svec_u_1_25_4_0",Scalar VDC DFloat "svec_u_1_25_4_1"]]),ZipT [Vec VS (Scalar VDC DInt "svec_u_1_22"),Vec VS (Scalar VDC DFloat "svec_u_1_22")]],ZipT [Vec VI (Scalar VDC DFloat "u_0"),Vec VS (Tuple [Scalar VDC DInt "svec_u_1_23_0",Scalar VDC DFloat "svec_u_1_23_1"]),Vec VS (Scalar VDC DInt "svec_u_1_23"),Vec VI (Scalar VDC DFloat "v_0"),Vec VS (Tuple [Scalar VDC DInt "svec_u_1_23_0",Scalar VDC DFloat "svec_u_1_23_1"])],ZipT [Vec VI (Scalar VDC DFloat "u_0"),Vec VS (Tuple [Scalar VDC DInt "svec_u_1_23_0",Scalar VDC DFloat "svec_u_1_23_1"]),Vec VS (Scalar VDC DInt "svec_u_1_23"),Vec VI (Scalar VDC DFloat "v_0"),Vec VS (Tuple [Scalar VDC DInt "svec_u_1_23_0",Scalar VDC DFloat "svec_u_1_23_1"])]])
---     )
---     )
--- generateNonSubDef: TODO: (Vec VO (Scalar VDC DFloat "u_1"),Vec VT (Scalar VT DDC "vec_u_1_26"))   
-
 -- ----------------------------------------------------------------------------------------
 -- ----------------------------------------------------------------------------------------        
 generateDefs :: (Map.Map Name FSig) -> TyTraCLAST -> [String] -- 
@@ -915,16 +906,7 @@ commaSepList = intercalate ", "
 mkDeclLines :: [[String]] -> String
 mkDeclLines  = unlines . (map ("    "++)) . concat 
 
--- (Vec VS DDC "svec_v_3_6",Stencil (SVec 3 DInt "s2") (ZipT [Vec VI DFloat "va_0",Vec VI DFloat "vc_0"]))
 -- I suppose to do this right I'd need to actually define the combined stencil and name it
--- 
--- (lhs,rhs) = t
--- sv_name = getName lhs
--- Stencil s_exp v_exp = rhs
--- generateStencilAppl s_exp v_exp sv_name stencilDefinitions t
-
--- TODO HERE: we need to move mkFinalVecs to the first call of generateStencilAppl so that the flattened vec lists will be used from there on
-
 
 generateStencilAppl :: Expr -> Expr -> FName -> Map.Map Name [Integer] -> (Expr,Expr) -> (String,[String])
 generateStencilAppl s_exp v_exp@(Vec _ dt) sv_name stencilDefinitions t = 
@@ -935,7 +917,8 @@ generateStencilAppl s_exp v_exp@(Vec _ dt) sv_name stencilDefinitions t =
         lhs_v_exp = mkFinalVecs lhs_v_exp'
         -- sv_name = getName lhs_v_exp
         rhs_v_exp = mkFinalVecs v_exp
-        v_name = show $ getName dt
+        Single v_name = getName dt
+        Single lhs_v_name = sv_name
         sv_type = fortranType dt      
         -- (s_name,s_def,sv_szs) = generateStencilDef s_exp stencilDefinitions
         (s_names,s_defs,sv_szs) = generateStencilDef' s_exp stencilDefinitions
@@ -951,21 +934,20 @@ generateStencilAppl s_exp v_exp@(Vec _ dt) sv_name stencilDefinitions t =
             -- if the $sv_type is DDC, it means we need to lookup the type from the definition, which will likely be a zip            
                 case sv_name of
                     Single sv_name' -> sv_type++", dimension("++(commaSepList $ map show sv_szs)++") :: "++sv_name'
-                    Composite sv_names -> sv_type++", dimension("++(commaSepList $ map show sv_szs)++") :: SHOW "++(show sv_names)
+                    Composite sv_names -> error $ sv_type++", dimension("++(commaSepList $ map show sv_szs)++") :: SHOW "++(show sv_names) 
                 -- ,"integer :: s_idx"           
             ]++(map (\ct -> "integer :: s_idx_"++(show ct) ) [1 .. length sv_szs]   )
     in
         (
         unlines $ concat [
-            [""],
-            -- ["! VEC "++(show t)],            
-            ["! LHS ORIG "++(show lhs_v_exp')], 
-            ["! LHS "++(show lhs_v_exp)], 
-            ["! RHS ORIG "++(show v_exp)], 
-            ["! RHS "++(show rhs_v_exp)], 
+            ["! Stencil "++(show $ getName s_exp)],
+            -- ["! LHS ORIG "++(show lhs_v_exp')], 
+            -- ["! LHS "++(show lhs_v_exp)], 
+            -- ["! RHS ORIG "++(show v_exp)], 
+            -- ["! RHS "++(show rhs_v_exp)], 
             map (\(sv_sz,ct) -> "    do s_idx_"++(show ct)++" = 1,"++(show sv_sz)) (zip sv_szs [1..]),
             [
-             "        "++(show sv_name)++"("++lhs_idx_str++") = "++v_name++"(idx+"++stencil_accesses++")"
+             "        "++lhs_v_name++"("++lhs_idx_str++") = "++v_name++"(idx+"++stencil_accesses++")"
              ],
             replicate (length sv_szs) "    end do"
           ]
@@ -1047,10 +1029,26 @@ generateVecAssign lhs rhs = let
             -- (take (length lhs_vec_decl - length ", intent(out) :: " - length lhs_vec_name) lhs_vec_decl) ++ " :: "++rhs_vec_name
     in
         (assign_str,[rhs_vec_decl_str])                
--- Map (Function "f2" ["acc_1"]) (Vec VS DDC "svec_v_1_0")
--- map (generateSubDef functionSignatures) ast                     
-generateMap functionSignatures f_exp v_exp (Single ov_name) =
+
+
+-- So instead of the currrent call arg list, we just need to create it from the original tuple
+
+
+-- (Vec VO (Scalar VDC DFloat "du_1"),Map (
+--     Function "f_pelt_du_1_2" [ Scalar VDC DFloat "dt_0", Scalar VDC DFloat "g_0", Scalar VDC DFloat "dx_0", Scalar VDC DFloat "dy_0", Scalar VDC DFloat "eps_0"]) 
+--         (ZipT [Vec VS (Scalar VDC DInt "svec_du_1_3"),Vec VS (Scalar VDC DFloat "svec_du_1_4")]))        
+generateMap functionSignatures f_exp v_exp (Single ov_name) t =
     let
+        (lhs,rhs) = t
+        out_vars_lst = getName lhs 
+        Map f_exp' rhs_v_exp = rhs
+        out_vars_name_lst = case out_vars_lst of
+            Single ov_name'' -> if Map.member ov_name mainArgDecls then ov_name''++"(idx)" else ov_name''
+            Composite ov_names -> intercalate ", " (map (\(Single ov_name'') -> if Map.member ov_name'' mainArgDecls then  ov_name''++"(idx)" else  ov_name'') ov_names)
+        
+            This is too hasty: need to add "(idx)" if required; also need to nub!
+                
+        in_vars_lst = (intercalate ", " $ nub $ map (show . getName) nms_exps) ++", "++ (show $ getName rhs_v_exp)
         Function fname nms_exps = f_exp
         fsig = functionSignatures ! fname 
         [nms_exps',v_exp',ov_exp'] = fsig
@@ -1061,25 +1059,17 @@ generateMap functionSignatures f_exp v_exp (Single ov_name) =
         nms = getVarNames nms_exps_fn        
         vs_in'' = getVarNames v_exp''
         vs_out'' = getVarNames ov_exp''
-        -- nms = getVarNames nms_exps'
         vs_in = getVarNames v_exp''
-        ov_name'' = ov_name -- getName ov_exp
+        ov_name'' = ov_name 
         vs_in' = map (\vn -> if Map.member vn mainArgDecls then vn++"(idx)" else vn) vs_in
         ov_name' = if Map.member ov_name mainArgDecls then ov_name''++"(idx)" else ov_name''
     in
         (
             "! Map \n"++
-            -- "! "++(show nms_exps'')++"\n"++
-            -- "! "++(show nms_exps_fn)++"\n"++
-            -- "! input expression \n"++
-            -- -- "! "++(show $ length $ (\(Tuple x) ->x) v_exp'')++"\n"++
-            -- "! "++(show vs_in'')++"\n"++   
-            -- "! "++(show vs_out'')++"\n"++            
-            -- "! "++(show vs_in)++"\n"++            
+            "!    call "++fname++"("++in_vars_lst++" ; " ++ out_vars_name_lst ++ "\n"++
         "    call "++fname++"("
-        -- ++(commaSepList ((removeDuplicateArgNames nms) ++vs_in' ++[ov_name']))
         ++(commaSepList (nms ++vs_in' ++[ov_name']))
-        ++")"
+        ++")\n"
         ,[])
 
 generateFold functionSignatures f_exp acc_exp v_exp (Single sc_name) =
@@ -1125,8 +1115,15 @@ generateStageKernel functionSignatures ct stage_ast  =
         [
             "subroutine stage_kernel_"++(show ct)++"("++(mkArgList [in_args, out_args])++")"
         ]
-        ++(map ("  "++) arg_decl_lines)
+        ++(map ("    "++) arg_decl_lines)
+        ++["\n"]
         ++(map ("    "++) uniqueGeneratedDecls)
+        ++["\n"]
+        ++[
+            "    integer :: idx",
+            "    call get_global_id(idx)"
+        ]
+        ++["\n"]
         ++generatedStmts
         ++[            
             "end subroutine stage_kernel_"++(show ct)
@@ -1164,7 +1161,7 @@ getFSigs fs functionSignatures = map (\(f_expr, idx) -> case f_expr of
             Nothing -> error $ "getFSigs: no entry for "++fname
         (Id fname dt) ->  case Map.lookup fname functionSignatures  of
             Just sig -> sig
-            Nothing -> error $ "getFSigs: no entry for Id "++fname            
+            Nothing -> [Tuple [],Tuple [],Tuple []] -- error $ "getFSigs: no entry for Id "++fname            
             -- [Tuple [], setName ("id_in_"++(show idx)) dt, setName ("id_out_"++(show idx)) dt ]
     ) (zip fs [1..])
 

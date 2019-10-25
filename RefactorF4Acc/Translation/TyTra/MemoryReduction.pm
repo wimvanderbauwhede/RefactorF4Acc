@@ -1159,7 +1159,7 @@ for my $out_arg_name (keys %{$stref->{'TyTraCL_AST'}{'Main'}{'OutArgsTypes'}}) {
     return "\n".
         'mainArgDeclsList = ['."\n".'      '.
         join ("\n".'    , ', map {
-            '("'.$_->[0].'" , "'.  $_->[1] .'" )' 
+            '("'.$_->[0].'" , '.  $_->[1] .' )' 
             } @{$arg_decl_str_pairs}
         )
         ."\n".'  ]';
@@ -1180,7 +1180,7 @@ sub __toHaskellFDecl {(my $arg_name, my $tytracl_var_rec, my $intent) =@_;
         return 'MkFDecl "'.$fortran_type{$vt}.'"  (Just '.$dim.') (Just '.$intent.') ["'.$arg_name.'"]';
     } else {
         # return $fortran_type{$vt}.', intent('.$intent.') :: '. $arg_name;
-        return 'MkFDecl "'.$fortran_type{$vt}.'" Nothing  (Just('.$intent.') ["'.$arg_name.'"]';
+        return 'MkFDecl "'.$fortran_type{$vt}.'" Nothing  (Just '.$intent.') ["'.$arg_name.'"]';
     }
 
 } # END of __toFortranDecl

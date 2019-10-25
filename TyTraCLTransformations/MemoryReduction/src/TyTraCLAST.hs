@@ -15,15 +15,14 @@ data DType =
   | DDC -- Don't Care ; Int and Integer, Real and Float as I can't make up my mind
     deriving (Show, Ord, Typeable, Data, Eq)
 
--- I wonder if     data FSig = FSig [Expr] would not be a better approach, or even 
 type FSig = [Expr]
--- data FSig = 
---     MapFSig (Expr,Expr,Expr)
---   | FoldFSig (Expr,Expr,Expr,Expr)
---   deriving (Show, Typeable, Data, Eq)
 
 data FName = Single String | Composite [FName]
-  deriving (Show, Ord, Typeable, Data, Eq)
+  deriving (Ord, Typeable, Data, Eq)
+
+instance Show FName where    
+  show (Single nm) = nm
+  show (Composite nms) = intercalate ", " (map show nms)
 
 data FIntent = In | Out | InOut | Unknown | NA
   deriving (Show, Ord, Typeable, Data, Eq)
@@ -132,6 +131,8 @@ getName (SVec sz exp) = getName exp
 -- WV: I want to know if this happens
 -- getName (Tuple exps) = error $ "No unique name to get for "++(show exps)
 getName (Tuple exps) = Composite (map getName exps)
+getName (SComb exp1 exp2) = Composite (map getName [exp1,exp2])
+getName (ZipT exps) = Composite (map getName exps)
 
 updateName :: String -> String -> Expr -> Expr
 updateName prefix postfix (Tuple exps) = Tuple $ map (\exp -> setName (appendPrePost prefix postfix (getName exp)) exp) exps

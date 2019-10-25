@@ -510,8 +510,32 @@ name "lis:Arrays-used-in"
 \begin_layout Standard
 In this particular case, 11 arrays are intermediate and can actually be
  replaced by scalar computations.
- If we could achieve this, the simulation could run on a 4 times larger
- domain with the same memory utilisation.
+\end_layout
+
+\begin_layout Standard
+\begin_inset Note Note
+status open
+
+\begin_layout Plain Layout
+In total, the LES uses 57 3-D arrays for the GPU kernels.
+ Of these, we really only need 4
+\end_layout
+
+\begin_layout Plain Layout
+Of the 15 listed above, 11 are redundant.
+\end_layout
+
+\begin_layout Plain Layout
+If we just consider a particular component of the simulation, the velocity
+ calculation, we see that it uses 30 arrays.
+ Of these 30, 27 are redundant.
+ 
+\end_layout
+
+\end_inset
+
+If we could achieve this, the simulation could run on a 4 times larger domain
+ with the same memory utilisation.
  In this paper we present a novel approach to aggressively reduce memory
  utilisation of stencil-based legacy scientific code that has been auto-parallel
 ised for GPUs, through automatic program transformation.

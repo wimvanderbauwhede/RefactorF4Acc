@@ -330,11 +330,8 @@ rewriteIdToFunc expr = do
     if isId 
         then
             put (ct+1, fsigs++[( "id_"++(show ct), [Tuple [], 
-            updateName "" "_in" in_exp, 
-            updateName "" "_out" in_exp
-            -- setName ((getName in_exp)++"_in") in_exp, 
-            -- setName ((getName in_exp)++"_out") in_exp
-            -- in_exp
+            updateName "" "in" in_exp, 
+            updateName "" "out" in_exp
             ])] )
         else
             put (ct, fsigs)            
