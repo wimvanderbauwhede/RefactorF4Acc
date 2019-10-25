@@ -15,6 +15,8 @@ import CodeGeneration (
     generateFortranCode
     )
 
+info =  False    
+
 ast1 = splitLhsTuples ast
 ast2 = substituteVectors ast1
 (ast3, (_,idSigList)) = applyRewriteRules ast2
@@ -36,7 +38,7 @@ inferedSignatures = map inferSignatures ast4
 -- mainProgramStr = generateMainProgram ast_stages
 
 generatedFortranCode = generateFortranCode ast4 functionSignaturesList idSigList 
-info =  True
+
 main = do
     if info 
         then

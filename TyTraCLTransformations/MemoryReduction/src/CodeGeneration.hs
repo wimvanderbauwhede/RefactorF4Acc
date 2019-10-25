@@ -188,12 +188,8 @@ Let's try that
 deriveSigComp :: Name -> Name -> (Map.Map Name FSig) -> FSig
 deriveSigComp fname1 fname2 functionSignatures =      
     let
-        fsig1 = case Map.lookup fname1 functionSignatures  of
-            Just sig1 -> sig1
-            Nothing -> error $ "deriveSigComp: no entry for "++fname1
-        fsig2 = case Map.lookup fname2 functionSignatures  of
-            Just sig2 -> sig2
-            Nothing -> error $ "deriveSigComp: no entry for "++fname2
+        fsig1 =  functionSignatures ! fname1
+        fsig2 =  functionSignatures ! fname2
         [nms1,ms1,os1] = fsig1
         [nms2,ms2,os2] = fsig2
 -- the output of f2 is used as the input for f1
@@ -214,12 +210,8 @@ deriveSigComp fname1 fname2 functionSignatures =
 
 deriveSigFComp fname1 fname2 functionSignatures =               
     let
-        fsig1 = case Map.lookup fname1 functionSignatures  of
-            Just sig1 -> sig1
-            Nothing -> error $ "deriveSigFComp: no entry for "++fname1
-        fsig2 = case Map.lookup fname2 functionSignatures  of
-            Just sig2 -> sig2
-            Nothing -> error $ "deriveSigFComp: no entry for "++fname2
+        fsig1 =  functionSignatures ! fname1
+        fsig2 =  functionSignatures ! fname2
         [nms1,as,ms1,os1] = fsig1
         [nms2,ms2,os2] = fsig2
     -- the output of f2 is used as the input for f1
@@ -240,7 +232,8 @@ deriveSigFComp fname1 fname2 functionSignatures =
 
         -- os' = (nms,ms',_) = 
     in
-        [nms,as,ms',os']
+        error "TODO SEE deriveSigComp"
+        -- [nms,as,ms',os']
         
 
 deriveSigPELt idx fname functionSignatures = 
@@ -1072,11 +1065,11 @@ generateMap functionSignatures f_exp v_exp (Single ov_name) t =
         ov_name' = if Map.member ov_name mainArgDecls then ov_name''++"(idx)" else ov_name''
     in
         (
-            "! Map \n"++
-            "!    call "++fname++"("++nms_vars_lst ++" , " ++ in_vars_name_lst++" , " ++ out_vars_name_lst ++ ")\n"++
-        "    call "++fname++"("
-        ++(commaSepList (nms ++vs_in' ++[ov_name']))
-        ++")\n"
+            unlines [
+            "! Map",
+            "    call "++fname++"("++nms_vars_lst ++", " ++ in_vars_name_lst++", " ++ out_vars_name_lst ++ ")",
+            "!    call "++fname++"(" ++(commaSepList (nms ++vs_in' ++[ov_name'])) ++")",
+            "" ]
         ,[])
 
 generateFold functionSignatures f_exp acc_exp v_exp (Single sc_name) =
@@ -1090,7 +1083,7 @@ generateFold functionSignatures f_exp acc_exp v_exp (Single sc_name) =
         Scalar _ _ acc_name = acc_exp
     in  
         (
-            "! Fold\n"++
+           error $ "! Fold\n"++
         "    call "++fname++"("
         ++(commaSepList (nms ++[acc_name] ++vs_in ++[sc_name]))
         ++")"
