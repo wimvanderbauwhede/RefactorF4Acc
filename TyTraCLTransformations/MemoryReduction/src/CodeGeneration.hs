@@ -12,7 +12,8 @@ module CodeGeneration (
 import Data.Generics (mkQ, everything, mkM, everywhereM, everywhere, mkT)  
 import Control.Monad.State
 import qualified Data.Map.Strict as Map
-import Data.List (intercalate, nub, partition, zip4)
+import qualified Data.Set as Set
+import Data.List (intercalate, nub, partition, zip4, maximum)
 
 import TyTraCLAST
 import ASTInstance (functionSignaturesList, stencilDefinitionsList, mainArgDeclsList, origNamesList, scalarisedArgsList)
@@ -1036,11 +1037,11 @@ generateMap functionSignatures f_exp v_exp (Single ov_name) t =
         (lhs,rhs) = t
         out_vars_lst = getName lhs 
         Map f_exp' rhs_v_exp = rhs
+        -- I reason that output variables *must* be unique
         out_vars_name_lst = case out_vars_lst of
             Single ov_name'' -> if Map.member ov_name mainArgDecls then ov_name''++"(idx)" else ov_name''
             Composite ov_names -> intercalate ", " (map (\(Single ov_name'') -> if Map.member ov_name'' mainArgDecls then  ov_name''++"(idx)" else  ov_name'') ov_names)
         
-            -- This is too hasty: need to add "(idx)" if required; also need to nub!
         nms_vars_lst = intercalate ", " $ nub $ map (show . getName) nms_exps
         in_vars_lst =  getName rhs_v_exp
         in_vars_name_lst = case in_vars_lst of
@@ -1049,7 +1050,8 @@ generateMap functionSignatures f_exp v_exp (Single ov_name) t =
                     Composite fl_ov_names = flattenNames (Composite ov_names)
                 in
                     map (\(Single ov_name'') -> if Map.member ov_name'' mainArgDecls then  ov_name''++"(idx)" else  ov_name'') fl_ov_names
-        in_vars_name_lst_str = intercalate ", " $ nub $ in_vars_name_lst                
+        in_vars_name_lst_str = intercalate ", " $ nub $ in_vars_name_lst         
+        in_vars_name_lst_str' = intercalate ", " $ snd $ unzip $ nubTup $ zip ((\(Composite  x) -> x ) sig_in_args_lst) in_vars_name_lst
         Function fname nms_exps = f_exp
         fsig = functionSignatures ! fname 
         [nms_exps',v_exp',ov_exp'] = fsig
@@ -1070,22 +1072,30 @@ generateMap functionSignatures f_exp v_exp (Single ov_name) t =
         ov_name'' = ov_name 
         vs_in' = map (\vn -> if Map.member vn mainArgDecls then vn++"(idx)" else vn) vs_in
         ov_name' = if Map.member ov_name mainArgDecls then ov_name''++"(idx)" else ov_name''
+        
+        nmstfn = mkFinalArgSigList nms_exps'
+        non_map_args'' = intercalate ", "  $ getVarNames nmstfn
+
     in
         (
             unlines [
-                show $ length $  (\(Composite  x) -> x ) sig_in_args_lst,
-                show $ length $  in_vars_name_lst,
-                show $ nubTup $ zip ((\(Composite  x) -> x ) sig_in_args_lst) in_vars_name_lst,
-                intercalate ", " $ snd $ unzip $ nubTup $ zip ((\(Composite  x) -> x ) sig_in_args_lst)  in_vars_name_lst,                
-                "Sig args:",
-                show  sig_in_args_lst,
-                "Unique Sig args:",
-                intercalate "," in_args'',
-                intercalate ","  $ map show $ fst $ unzip $ nubTup $ zip ((\(Composite  x) -> x ) sig_in_args_lst)  in_vars_name_lst,
-                "Call args:",
-                show in_vars_lst,
+                -- show $ length $  (\(Composite  x) -> x ) sig_in_args_lst,
+                -- show $ length $  in_vars_name_lst,
+                -- show $ nubTup $ zip ((\(Composite  x) -> x ) sig_in_args_lst) in_vars_name_lst,
+                -- intercalate ", " $ snd $ unzip $ nubTup $ zip ((\(Composite  x) -> x ) sig_in_args_lst)  in_vars_name_lst,                
+                -- "Sig args:",
+                -- show  sig_in_args_lst,
+                -- "Unique Sig args:",
+                -- intercalate "," in_args'',
+                -- intercalate ","  $ map show $ fst $ unzip $ nubTup $ zip ((\(Composite  x) -> x ) sig_in_args_lst)  in_vars_name_lst,
+                -- "Call args:",
+                -- show in_vars_lst,
+                -- "Non-map args:",
+                -- non_map_args'',
+                -- nms_vars_lst,
             "! Map",
-            "    call "++fname++"("++nms_vars_lst ++", " ++ in_vars_name_lst_str++", " ++ out_vars_name_lst ++ ")",
+            "    call "++fname++"("++nms_vars_lst ++", " ++ in_vars_name_lst_str'++", " ++ out_vars_name_lst ++ ")",
+            "!    call "++fname++"("++nms_vars_lst ++", " ++ in_vars_name_lst_str++", " ++ out_vars_name_lst ++ ")",
             "!    call "++fname++"(" ++(commaSepList (nms ++vs_in' ++[ov_name'])) ++")",
             "" ]
         ,[])
@@ -1266,7 +1276,7 @@ generateMainProgram functionSignatures ast_stages  =
         unique_stage_kernel_decls = nub $ concat stage_kernel_decls
         main_program_decls = map createMainProgramDecl unique_stage_kernel_decls
         loops_over_calls = map (\call_str -> unlines [
-            "do global_id=1,VSZ",
+            "do global_id=1,"++(show vSz), --VSZ",
             "  "++call_str,
             "end do"
             ]
@@ -1318,9 +1328,17 @@ generateFortranCode decomposed_ast functionSignaturesList idSigList =
 
 nubTup :: Ord a => [(a,b)]  -> [(a,b)] 
 nubTup lst = fst $ foldl (\(nubbed_lst,occs) (e1,e2) -> 
-    if Map.member e1 occs 
+    if Set.member e1 occs 
         then 
             (nubbed_lst, occs) 
         else
-            (nubbed_lst++[(e1,e2)], Map.insert e1 e1 occs) 
-    ) ([],Map.empty) lst
+            (nubbed_lst++[(e1,e2)], Set.insert e1 occs) 
+    ) ([],Set.empty) lst
+
+vSz = getVSz  mainArgDeclsList  
+
+getVSz  :: [(String,FDecl)] -> Int
+getVSz lst = maximum $ map (\(v,r) -> case dim r of 
+            Nothing -> 0
+            Just sz -> sz
+            ) lst   
