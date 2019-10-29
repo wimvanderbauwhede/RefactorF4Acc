@@ -22,7 +22,9 @@ data FName = Single String | Composite [FName]
 
 instance Show FName where    
   show (Single nm) = nm
-  show (Composite nms) = intercalate ", " (map show nms)
+  show (Composite nms) = 
+    intercalate ", " (map show nms)
+    --"[" ++( intercalate ", " (map show nms))++"]"
 
 data FIntent = In | Out | InOut | Unknown | NA
   deriving (Show, Ord, Typeable, Data, Eq)
