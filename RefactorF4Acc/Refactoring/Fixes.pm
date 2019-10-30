@@ -53,12 +53,12 @@ our @EXPORT_OK = qw(
 # ================================================================================================================================================
 # This is a FIX
 sub _removed_unused_variables { (my $stref, my $f)=@_;
+
 	# If a variable is assigned but is not and arg and does not occur in any RHS or SubroutineCall, it is unused. 
 	# If a variable is declared but not used in any LHS, RHS  or SubroutineCall, it is unused.
 	# So start with all declared variables, put in $state->{'DeclaredVars'}
 	# Make a list of all variables anywhere in the code via Lhs, Rhs, Args, put in $state->{'ExprVars'}
-	
-	
+	# croak Dumper $stref->{Subroutines}{$f}{RefactoredCode}		;
 	my $pass_action_find_all_used_vars = sub { (my $annline, my $state)=@_;		
 		(my $line,my $info)=@{$annline};
 		
@@ -66,7 +66,7 @@ sub _removed_unused_variables { (my $stref, my $f)=@_;
 		my $rlines=[];
 		my $skip_if=0;
 		
- 		if ( exists $info->{'Signature'} ) {
+ 		if ( exists $info->{'Signature'} ) {			 
  			$state->{'Args'} = $info->{'Signature'}{'Args'}{'Set'}; 
  		}
  		elsif (exists $info->{'Select'})  {
@@ -76,7 +76,6 @@ sub _removed_unused_variables { (my $stref, my $f)=@_;
  			for my $var (keys %{ $vars } ) {
  				$state->{'ExprVars'}{$var}++;	
  			}
-# 			$state->{'ExprVars'} ={ %{ $state->{'ExprVars'} }, %{ $vars } };
  		} 		
 		elsif (exists $info->{'CaseVals'})  {
 			for my $val (@{ $info->{'CaseVals'} }) {
@@ -86,9 +85,8 @@ sub _removed_unused_variables { (my $stref, my $f)=@_;
 					my $case_expr_ast=parse_expression($val, $info,{}, '');
  					my $vars = get_vars_from_expression($case_expr_ast,{});
  					for my $var (keys %{ $vars } ) {
- 				$state->{'ExprVars'}{$var}++;	
- 			}
-# 					$state->{'ExprVars'} ={ %{ $state->{'ExprVars'} }, %{ $vars } };
+ 						$state->{'ExprVars'}{$var}++;	
+ 					}
  				}		
 			}
 		}
@@ -96,10 +94,9 @@ sub _removed_unused_variables { (my $stref, my $f)=@_;
 			$state->{'DeclaredVars'}{ $info->{'VarDecl'}{'Name'}}=1;
 		}
 		elsif ( exists $info->{'Assignment'}  ) {
-#			carp Dumper($info->{'Lhs'});
 			my $var = $info->{'Lhs'}{'VarName'};
-			if (exists $state->{'UnusedVars'}{$var}) {
-				say "REMOVED ASSIGNMENT $line in $f"  if $DBG;
+			if (exists $state->{'UnusedVars'}{$var}) {				
+				say "REMOVED ASSIGNMENT $line in $f" if $DBG;
 				$annline=['! '.$line, {%{$info},'Deleted'=>1}];
 				delete $state->{'UnusedVars'}{$var};
 				delete $state->{'AssignedVars'}{$var};	
@@ -194,16 +191,15 @@ sub _removed_unused_variables { (my $stref, my $f)=@_;
 	 	}
 	} until scalar keys %{ $state->{'UnusedVars'} } ==0; 
 #	croak Dumper($stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'});
-
+# OK HERE: croak 'shapiro_map_16: '.Dumper( $stref->{'Subroutines'}{'shapiro_map_16'}{'DeclaredOrigArgs'});
 	# --------------------------------------------------------------------------------------------------------------------------------
  	# So now we have removed all assignments. 
  	# Now we need to check which vars are declared but not used and remove those declarations. 
- 	for my $var (keys %{ $state->{'DeclaredVars'} }) {
- 		
+ 	for my $var (keys %{ $state->{'DeclaredVars'} }) { 		
  		if (not exists $state->{'ExprVars'}{$var} 
 # 		and not exists $state->{'Args'}{$var} 
- 		and not exists $state->{'AssignedVars'}{$var}) {
- 			
+ 		and not exists $state->{'AssignedVars'}{$var}
+		 ) { 			
  			say "VAR $var is declared but unused in $f" if $DBG;
  			$state->{'UnusedDeclaredVars'}{$var}=1;
  		} 
@@ -250,7 +246,7 @@ sub _removed_unused_variables { (my $stref, my $f)=@_;
  	$stref->{'Subroutines'}{$f}{'DeletedArgs'} =$state->{'DeletedArgs'};
  	$stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'List'}=dclone($state->{'RemainingArgs'});
  	map { delete $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$_} }  @{ $state->{'DeletedArgs'} };
-
+# croak 'shapiro_map_16: '.Dumper( $stref->{'Subroutines'}{'shapiro_map_16'}{'DeclaredOrigArgs'});
 	return $stref;
 } # END of _removed_unused_variables()
 # ================================================================================================================================================
@@ -869,7 +865,7 @@ sub remove_redundant_arguments_and_fix_intents { (my $stref, my $f)=@_;
 						$first_use=1;
 						if ($iodir_for_arg_in_called_sub->{$csub}{$arg}  eq 'out' ) {
 					# warn "WARNING: Toplevel INTENT for $arg changed from INOUT to OUT because first use is OUT!\n" ;
-					say "WARNING: Toplevel INTENT for $arg changed from INOUT to OUT because first use ($csub) is OUT!";# if $W;
+					say "WARNING: Toplevel INTENT for $arg changed from INOUT to OUT because first use ($csub) is OUT!" if $W;
 					$top_iodir->{$arg} = 'out';						
 					
 					last;
@@ -1050,7 +1046,7 @@ sub __determine_called_sub_arg_iodir_no_context { my ($arg, $stref, $csub)=@_;
 sub __determine_called_sub_arg_iodir_w_context { my ($arg, $stref, $csub, $iodir_for_top_arg,$iodir_for_arg_in_called_sub,$call_sequence, $cs_idx)=@_;
 	my $iodir=$iodir_for_arg_in_called_sub->{$csub}{$arg};
 	my $top_iodir=$iodir_for_top_arg->{$arg};
-	local $W=1;
+	# local $W=1;
 	# If an argument of a called subroutine is an In arg of the kernel, it could be used as an InOut in a called sub
 	#	If the current sub modifies it (not In; it could be Out)
 	#	AND a later sub uses it as an In or InOut (i.e. read_only OR read_before_written)	

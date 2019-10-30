@@ -173,15 +173,20 @@ sub _rename_array_accesses_to_scalars { (my $stref, my $f) = @_;
 	# 	* DO index range expressions (I'm lazy, FIXME!) 
 	my $pass_rename_array_accesses_in_exprs = sub { (my $annline, my $state)=@_;
 		(my $line,my $info)=@{$annline};
-
-		if (exists $info->{'Assignment'} ) {
+		if (exists $info->{'Signature'} ) { 			
+			$state->{'Args'} = $info->{'Signature'}{'Args'}{'Set'};
+		} elsif (exists $info->{'Assignment'} ) {
 			if (scalar @{ $info->{'Rhs'}{'VarList'}{'List'} } == 1 and $info->{'Rhs'}{'VarList'}{'List'}[0]=~/_ptr/) {
 				croak 'FIXME: What we want is that only array variables with IndexVars are renamed. So constant indices should stay as they are';
 				# IGNORE, this is not a true array access: this is an assignment of the shape
 				# v = v_ptr(1)
 				# and we will remove these later on
 			} else {				
+				
+				
 				# Rename all array accesses in the RHS AST. This updates $state->{'StreamVars'}
+				# Here we should check if the variable is an argument or not!
+				# I have $state->{'Args'} for that. But the RHS is an expression which could have many vars				
 				(my $ast, $state) = _rename_ast_entry($stref, $f,  $state, $info->{'Rhs'}{'ExpressionAST'},'In');
 				 $info->{'Rhs'}{'ExpressionAST'}=$ast;
 				 if (ref($ast) ne '') {
@@ -233,8 +238,8 @@ sub _rename_array_accesses_to_scalars { (my $stref, my $f) = @_;
 		}
 		return ([[$line,$info]],$state);
 	};
-
-	my $state = {'IndexVars'=>{}, 'StreamVars'=>{}};
+# So I think I should put the arguments in $state, I can do that when I encounter the Signature
+	my $state = {'IndexVars'=>{}, 'StreamVars'=>{}, 'Args' =>{}};
  	($stref,$state) = stateful_pass($stref,$f,$pass_rename_array_accesses_in_exprs, $state,'pass_rename_array_accesses_in_exprs ' . __LINE__  ) ;
  	
 # -------------------------------------------------------------------------------------------------------- 	
@@ -353,14 +358,16 @@ sub _rename_array_accesses_to_scalars { (my $stref, my $f) = @_;
 				} 
 			}
 			$info->{'Signature'}{'Args'}{'List'}=$new_args;
-			# carp 'SCALARISED ARGS: ', Dumper $new_args;
+			# carp $f.' SCALARISED ARGS: ', Dumper $new_args;
 
 			$info->{'Signature'}{'Args'}{'Set'} = { map {$_=>$orig_arg_names{$_}  } @{$new_args} };
 			
 		} elsif (exists $info->{'VarDecl'} ) {
 			my $var = $info->{'VarDecl'}{'Name'};
 			if (exists $state->{'StreamVars'}{$var}) {
+				
 				my $vars =  $state->{'StreamVars'}{$var}{'List'};
+				
 				if (exists $info->{'ParsedVarDecl'}) {
 					$info->{'ParsedVarDecl'}{'StreamVars'}=$state->{'StreamVars'}{$var}{'Set'}; # Every streamvar derived from var has the same type
 					$info->{'ParsedVarDecl'}{'Vars'}=$vars;
@@ -369,6 +376,7 @@ sub _rename_array_accesses_to_scalars { (my $stref, my $f) = @_;
 					if (exists $info->{'ParsedVarDecl'}{'Attributes'}{'Intent'} ) {
 						delete $info->{'ParsedVarDecl'}{'Attributes'}{'Intent'};
 					}
+					# croak $var.' '.Dumper($info) if $var=~/etan/;#_j_k';
 				} else {
 					croak "TROUBLE: ".Dumper($annline); 
 				}
@@ -388,7 +396,7 @@ sub _rename_array_accesses_to_scalars { (my $stref, my $f) = @_;
 		
 		if (exists $state->{'StreamVars'}{$orig_arg}) {
 						my $idx=0;
-			for my $new_arg (@{ $state->{'StreamVars'}{$orig_arg}{'List'} }) {				
+			for my $new_arg (@{ $state->{'StreamVars'}{$orig_arg}{'List'} }) {								
 				my $new_decl = dclone( $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$orig_arg} );
 				push @updated_args_list,$new_arg;
 				$new_decl->{'ArrayOrScalar'}='Scalar';
@@ -414,7 +422,7 @@ sub _rename_array_accesses_to_scalars { (my $stref, my $f) = @_;
 	}
 	
 	$stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'List'}=[@updated_args_list]; 	
-	# croak Dumper $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'};
+	# croak $f.': '.Dumper( $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'});
 # --------------------------------------------------------------------------------------------------------	 	
  	# So at this point we should do the lifting of everything to do with indexing
  	
@@ -511,16 +519,21 @@ sub _rename_array_accesses_to_scalars { (my $stref, my $f) = @_;
 			for my $tvar (sort keys %{  $tvar_rec->{'StreamVars'} }) {
 				my $type = $tvar_rec->{'TypeTup'}{'Type'};
 				my $kind = exists $tvar_rec->{'TypeTup'}{'Kind'} ? '(kind='.$tvar_rec->{'TypeTup'}{'Kind'} .')' : '';
-				my $intent = $tvar_rec->{'StreamVars'}{$tvar}{'IODir'};
+				# my $intent = $tvar_rec->{'StreamVars'}{$tvar}{'IODir'};
+				# croak Dumper $tvar_rec->{'StreamVars'}{$tvar} if $tvar=~/etan/;
+				# So we should only have IODir if $intent is defined, i.e. if the IODir key exists
 				my $rdecl = {
 				'Indent' => $info->{'Indent'},
 				'Type'   => $type.$kind,
 				'Attr'   => '',
 				'Dim'    => [],
 				'Name'   => $tvar,
-				'IODir'  => $intent,
+				# 'IODir'  => $intent,
 				'ArrayOrScalar'=>'Scalar'
 				};
+				if (exists $tvar_rec->{'StreamVars'}{$tvar}{'IODir'}) {
+					$rdecl->{'IODir'}=$tvar_rec->{'StreamVars'}{$tvar}{'IODir'};
+				}
 				$rline = emit_f95_var_decl($rdecl);
 				my $orig_name =$info->{'VarDecl'}{'Name'}; 
                 my $rinfo = dclone($info);
@@ -563,11 +576,15 @@ sub _rename_array_accesses_to_scalars { (my $stref, my $f) = @_;
  	($stref,$global_state_access) = stateful_pass($stref,$f,$pass_emit_updated_code , $global_state_access,'_rename_array_accesses_to_scalars_PASS3() ' . __LINE__  ) ;
 	$stref->{'Subroutines'}{$f}{'RefactoredArgs'}= $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'};
 	} # IF NOT A KERNEL
+
+ 
 	return $stref;
 } # END of _rename_array_accesses_to_scalars()
 # ================================================================================================================================================
 # After we've renamed all args in the subroutine definitions, we update the calls as well, but ONLY in the kernel 
 sub _rename_array_accesses_to_scalars_in_subcalls { (my $stref, my $f) = @_;
+# croak 'shapiro_map_16: '.Dumper( $stref->{'Subroutines'}{'shapiro_map_16'}{'DeclaredOrigArgs'});
+
 	if ($f eq $Config{'KERNEL'} ) {
 			
 	my $pass_action = sub { (my $annline, my $state)=@_;		
@@ -579,7 +596,10 @@ sub _rename_array_accesses_to_scalars_in_subcalls { (my $stref, my $f) = @_;
 			not exists $stref->{'ExternalSubroutines'}{ $info->{'SubroutineCall'}{'Name'} }
 			){
 				my $subname = $info->{'SubroutineCall'}{'Name'};
-				# croak $subname;
+		
+		
+	#  croak $subname.': '.Dumper( $stref->{'Subroutines'}{$subname}{'DeclaredOrigArgs'}); # 
+	
 				# Collect stream and index var declarations for all called subs 
 				$stref->{'Subroutines'}{$f}{'LiftedVarDecls'}{'Set'} = {
 					%{ $stref->{'Subroutines'}{$f}{'LiftedVarDecls'}{'Set'} },
@@ -587,11 +607,16 @@ sub _rename_array_accesses_to_scalars_in_subcalls { (my $stref, my $f) = @_;
 					%{ $stref->{'Subroutines'}{$subname}{'LiftedStreamVarDecls'}{'Set'} },
 				};	
 				for my $lifted_var ( sort keys %{ $stref->{'Subroutines'}{$f}{'LiftedVarDecls'}{'Set'} } ) {		
-#					carp 		"$f =>	$subname => $lifted_var "; 
+					# warn 		"$f =>	$subname => $lifted_var "; 
 					if (not exists $stref->{'Subroutines'}{$f}{'DeclaredOrigLocalVars'}{'Set'}{$lifted_var}
-					and not exists $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$lifted_var}
+					and not exists $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$lifted_var}					
 					) {						
-						$stref->{'Subroutines'}{$f}{'DeclaredOrigLocalVars'}{'Set'}{$lifted_var}= dclone( get_var_record_from_set( $stref->{'Subroutines'}{$subname}{'Vars'},$lifted_var ) );
+						my $var_rec = get_var_record_from_set( $stref->{'Subroutines'}{$subname}{'Vars'},$lifted_var );
+						if (defined $var_rec ) {
+							$stref->{'Subroutines'}{$f}{'DeclaredOrigLocalVars'}{'Set'}{$lifted_var}= dclone( $var_rec );
+						} else {
+							warn "No declaration record for $lifted_var in $subname!";
+						}
 					}
 				}
 				
@@ -693,7 +718,8 @@ sub _add_assignments_for_called_subs { (my $stref, my $f) = @_;
 
 						my $var = $lifted_annline->[1]{'Lhs'}{'VarName'};
 						if (exists $stref->{'Subroutines'}{$subname}{'DeclaredOrigArgs'}{'Set'}{$var}) {
-						my $iodir =  $stref->{'Subroutines'}{$subname}{'DeclaredOrigArgs'}{'Set'}{$var}{'IODir'};
+						my $iodir =  exists $stref->{'Subroutines'}{$subname}{'DeclaredOrigArgs'}{'Set'}{$var}{'IODir'}
+						? $stref->{'Subroutines'}{$subname}{'DeclaredOrigArgs'}{'Set'}{$var}{'IODir'} : 'Unknown';
 						if ($iodir eq 'in' or $iodir eq 'inout') {
 							push @{$rlines}, $lifted_annline;
 						} 
@@ -707,7 +733,9 @@ sub _add_assignments_for_called_subs { (my $stref, my $f) = @_;
 					for my $lifted_annline ( @{ $stref->{'Subroutines'}{$subname}{'LiftedArrayAssignments'} } ) {
 						my $var = $lifted_annline->[1]{'Rhs'}{'VarList'}{'List'}[0];
 						if (exists $stref->{'Subroutines'}{$subname}{'DeclaredOrigArgs'}{'Set'}{$var}) {
-						my $iodir =  $stref->{'Subroutines'}{$subname}{'DeclaredOrigArgs'}{'Set'}{$var}{'IODir'};						
+						my $iodir =  exists $stref->{'Subroutines'}{$subname}{'DeclaredOrigArgs'}{'Set'}{$var}{'IODir'} 
+						? $stref->{'Subroutines'}{$subname}{'DeclaredOrigArgs'}{'Set'}{$var}{'IODir'}
+						: 'Unknown';
 						if ($iodir eq 'out' or $iodir eq 'inout') {
 							push @{$rlines}, $lifted_annline;
 						} 
@@ -786,6 +814,8 @@ sub _add_assignments_for_called_subs { (my $stref, my $f) = @_;
 # 	};
 # It would be best, I guess, if we simply had Accesses and Dims in here
 # This should be called "_scalarise_array_accesses_in_ast"
+# $intent can be undefined, because $ast can (of course) be a non-arg variable.
+# In that case we should not have the IODir entry. 
 sub _rename_ast_entry { (my $stref, my $f,  my $state, my $ast, my $intent)=@_;
 	if (ref($ast) eq 'ARRAY') {
 		for my  $idx (0 .. scalar @{$ast}-1) {		
@@ -796,7 +826,7 @@ sub _rename_ast_entry { (my $stref, my $f,  my $state, my $ast, my $intent)=@_;
 				$ast->[$idx] = $entry;
 			} else {
 				if ($idx==0 and (($entry & 0xFF) == 10)) {#'@'				
-					my $mvar = $ast->[$idx+1];
+					my $mvar = $ast->[$idx+1];					
 					say 'Found array access '.$mvar  if $DBG;			
 					my $expr_str = emit_expr_from_ast($ast);
 					my $var_str=$expr_str;
@@ -808,10 +838,14 @@ sub _rename_ast_entry { (my $stref, my $f,  my $state, my $ast, my $intent)=@_;
 					$var_str=~s/\*/t/g;
 					# Taking the IODir from the orig var is not optimal: it leads to many InOut that actually are Out
 					# Ideally I should re-run the analysis for the stream vars
-					if (exists $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$mvar}) { # DAMN PERL! It creates the entry unless I guard!
+					
+					if (exists $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$mvar}) { # DAMN PERL! It creates the entry unless I guard!					
 						$intent = $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$mvar}{'IODir'};
-					}
-					$state->{'StreamVars'}{$mvar}{'Set'}{$var_str}={'IODir'=>$intent,'ArrayIndexExpr'=>$expr_str} ;
+						$state->{'StreamVars'}{$mvar}{'Set'}{$var_str}={'IODir'=>$intent,'ArrayIndexExpr'=>$expr_str} ;
+					} else {
+						$state->{'StreamVars'}{$mvar}{'Set'}{$var_str}={'ArrayIndexExpr'=>$expr_str} ;
+					}					
+					
 					$ast=[0x2+(($entry>>8)<<8),$var_str];#'$'
 					last;					
 				} 

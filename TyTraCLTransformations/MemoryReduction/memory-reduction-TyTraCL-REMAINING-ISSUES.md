@@ -65,6 +65,15 @@ Then the question is how to ensure that the counters match.
 ## Integration of the scalarised code
 
 !!! There is a bug in the scalarisation: the signatures are wrong! 
+
+The remaining issue is: if we have a stencil which is InOut because it updates one point of that stencil
+
+["eta","s",0,VS] In
+["eta","",1,] Out
+
+We then have as output a non-stencil arg, but this is actually one of the stencil points.
+In Fortran this is fine, but the problem is than in TyTraCL I don't know which point of the stencil is actually the output.
+
 - I need to include all modules with the scalarised kernels 
 
 I need to modularise it and create a main program

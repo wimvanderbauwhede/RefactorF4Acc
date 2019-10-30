@@ -537,7 +537,7 @@ sub _emit_TyTraCL_Haskell_AST_Code {
             $node->{'NonMapType'}= $tytracl_ast->{'Main'}{'VarTypes'}{$fname}{'NonMapArgType'};
             $node->{'VecType'}= $tytracl_ast->{'Main'}{'VarTypes'}{$fname}{'MapArgType'};
             $node->{'ReturnType'}= $tytracl_ast->{'Main'}{'VarTypes'}{$fname}{'ReturnType'};
-            my $line = mkMapAST($node);
+            my $line = mkMapAST($node);            
             push @origNamesList, __origNamesListEntry($node);
             push @{$tytracl_hs_ast_strs}, $line;
         }
@@ -1180,7 +1180,7 @@ sub __toHaskellFDecl {(my $arg_name, my $tytracl_var_rec, my $intent) =@_;
         return 'MkFDecl "'.$fortran_type{$vt}.'"  (Just '.$dim.') (Just '.$intent.') ["'.$arg_name.'"]';
     } else {
         # return $fortran_type{$vt}.', intent('.$intent.') :: '. $arg_name;
-        return 'MkFDecl "'.$fortran_type{$vt}.'" Nothing  (Just '.$intent.') ["'.$arg_name.'"]';
+        return 'MkFDecl "'.$fortran_type{$vt}.'" Nothing (Just '.$intent.') ["'.$arg_name.'"]';
     }
 
 } # END of __toFortranDecl
@@ -1202,18 +1202,18 @@ Then for every f we map (orig_name, stencil_index) -> ((origNames ! f) ! orig_na
 =cut
 
 sub _create_TyTraCL_Haskell_scalarisedArgsList { (my $stref)=@_;
-
-    my $sig_mappings={};
-    my @origNamesList = ();
+    
     my @scalarisedArgsList = ();
 
     for my $f (sort keys %{ $stref->{'ScalarisedArgs'} }) {
         my @arg_idx_lst=();
         for my $arg (@{ $stref->{'ScalarisedArgs'}{$f}{'List'} }) {
             my $var_rec = $stref->{'ScalarisedArgs'}{$f}{'Set'}{$arg};
+            my $intent = $var_rec->{'IODir'} eq 'inout' ? 'InOut' : ucfirst($var_rec->{'IODir'});
+            my $ftype = $var_rec->{'Type'};
             my $orig_name = $var_rec->{'Name'};
             my $stencil_index = exists $var_rec->{'StencilIndex'} ?  $var_rec->{'StencilIndex'} : 0;
-            push @arg_idx_lst, [$orig_name,$stencil_index];            
+            push @arg_idx_lst, [$orig_name,$stencil_index, $intent, $ftype];            
         }
             push @scalarisedArgsList,[$f,\@arg_idx_lst]
     }
@@ -1221,8 +1221,8 @@ sub _create_TyTraCL_Haskell_scalarisedArgsList { (my $stref)=@_;
      join("\n".'    ,',map { 
                 (my $f, my $lst) = @{$_}; 
                 my $lst_str = join(', ', map {
-                        (my $on, my $idx) = @{$_}; 
-                        '("'.$on.'",'.$idx.')'
+                        (my $on, my $idx, my $intent, my $ftype) = @{$_}; 
+                        '("'.$on.'",('.$idx.','.$intent.',"'.$ftype.'"))' # I should add the intent and the type
                     } @{$lst}
                 );
                 '( "'.$f.'",['.$lst_str.'])'
@@ -1236,8 +1236,22 @@ sub _create_TyTraCL_Haskell_origNamesList { (my $orig_names_list)=@_;
      join("\n".'    ,',map { 
                 (my $f, my $lst) = @{$_}; 
                 my $lst_str = join(', ', map {
-                        (my $on, my $nn) = @{$_}; 
-                        '("'.$on.'","'.$nn.'")'
+                        (my $on, my $nn) = @{$_};
+                        # carp Dumper $nn;
+                        if (ref($nn->[0]) ne 'ARRAY') {
+                        my ($nm, $intent) =@{$nn};                        
+                        '("'.$on.'",[("'.$nm.'",'.$intent.')])'
+                        } elsif (scalar @{$nn} == 2
+                        and ref($nn->[0]) eq 'ARRAY'
+                        ) {
+                            # carp Dumper $nn;
+                        my ($nm_intent1,$nm_intent2) =@{$nn};
+                        my ($nm1,$intent1) =@{$nm_intent1};
+                        my ($nm2,$intent2) =@{$nm_intent2};
+                        '("'.$on.'",[("'.$nm1.'",'.$intent1.'),("'.$nm2.'",'.$intent2.')])'
+                        } else {
+                            croak Dumper $nn;
+                        }
                     } @{$lst}
                 );
                 '( "'.$f.'",['.$lst_str.'])'
@@ -1246,20 +1260,63 @@ sub _create_TyTraCL_Haskell_origNamesList { (my $orig_names_list)=@_;
     ."\n  ]";    
 }# END of _create_TyTraCL_Haskell_origNamesList
 
+# This has to change because if an Out occurs as an In we need to combine them
+# So for every var in @{$node->{'Lhs'}{'Vars'}} we check if it occurs in @{$node->{'Rhs'}{'MapArgs'}{'Vars'}} (for Map)
+# or @{$node->{'Rhs'}{'AccArgs'}{'Vars'}} (for Fold)
+
 sub __origNamesListEntry { my ($node) = @_;
     my $arg_name_pairs = [];
     my $fname = $node->{'FunctionName'};
+# croak Dumper $node if $fname eq 'dyn_map_65';
 
         if ($node->{'NodeType'} eq 'Map') {
+
+            my %out_args = ();
+            map { $out_args{$_->[0]}=$_ } @{$node->{'Lhs'}{'Vars'}};
+            # croak Dumper $node->{'Rhs'}{'MapArgs'}{'Vars'};
+            my %inout_args =  map { 
+                $_->[0]=>[[$_,'In'],[$out_args{$_->[0]},'Out']] 
+                } grep { exists $out_args{$_->[0]} and $_->[2] eq '' } @{$node->{'Rhs'}{'MapArgs'}{'Vars'}};
+            my %done=();
+
             for my $arg_rec (
                 @{$node->{'Rhs'}{'NonMapArgs'}{'Vars'}},
                 @{$node->{'Rhs'}{'MapArgs'}{'Vars'}},
                 @{$node->{'Lhs'}{'Vars'}}
             ) {
-                push @{$arg_name_pairs},[$arg_rec->[0],_mkVarName($arg_rec)];
+                # so here, if $arg_rec->[0] occurs in %inout_args, we should create the entry with both names;
+                # and then any further occurence should be ignored
+                if (exists $inout_args{$arg_rec->[0]}) {
+                    my $entry = [ map { 
+                            [
+                                _mkVarName($_->[0]), $_->[1]
+                            ]
+                     }  @{$inout_args{$arg_rec->[0]}}
+                     ];            
+                     $done{$arg_rec->[0]}=1;  
+                     delete $inout_args{$arg_rec->[0]};       
+                    push @{$arg_name_pairs},[$arg_rec->[0],$entry];
+                } else {
+                    if (not exists $done{$arg_rec->[0]}) {
+                        push @{$arg_name_pairs},[
+                            $arg_rec->[0],[
+                                _mkVarName($arg_rec)
+                                , exists $out_args{$arg_rec->[0]} ? 'Out' : 'In'
+                            ]
+                        ];
+                    } 
+                    # else {
+                    #     carp "Skipping ". $arg_rec->[0];
+                    # }
+                }
             }
         }
         elsif ($node->{'NodeType'} eq 'Fold') {
+
+            my %out_args = map { $_->[0]=>$_ } @{$node->{'Lhs'}{'Vars'}};
+            my %inout_args =  map { $_->[0]=>[$_,$out_args{$_->[0]}] } grep { exists $out_args{$_->[0]} } map { $_->[0] } @{$node->{'Rhs'}{'AccArgs'}{'Vars'}};
+            my %done=();
+
             for my $arg_rec (
                 @{$node->{'Lhs'}{'Vars'}}
                ,@{$node->{'Rhs'}{'FoldArgs'}{'Vars'}}

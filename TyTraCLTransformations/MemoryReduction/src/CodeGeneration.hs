@@ -225,6 +225,62 @@ generateSubDef functionSignatures t st =
             _ -> show rhs
             ,[])
 
+
+{-
+If a scalarised arg is InOut, then in principle, we should do something like this:
+
+subroutine dyn_map_65(eta_1, eta_2)
+    real :: eta_1 -- I assume this is In
+    real :: eta_2 -- I assume this is Out as it is the last arg
+
+    real :: eta -- we should be able to infer this name using scalarisedArgs and origNames        
+    eta = eta_1 -- This ensures eta_1 can be a proper In    
+    call dyn_map_65_scal(un_s_0(1), un_s_0(2), h_s_0(1), h_s_0(2), h_s_0(3), h_s_0(4), h_s_0(5), vn_s_0(1), vn_s_0(2), eta, dt_0, dx_0, dy_0)
+    eta_2 = eta -- This ensures eta_2 can be a proper Out
+end subroutine dyn_map_65
+
+I think therefore that origNamesList might have to change from 
+( "dyn_map_65",[("eta","eta_1"), ("eta","eta_2")])
+to
+[(String,[(String, FIntent)])]
+( "dyn_map_65",[("eta",[( "eta_1", In), ( "eta_2", Out)]]) -- origNames ! dyn_map_65 ! eta = [(eta_1, In),(eta_2, Out)]
+
+And to complement this we change scalarisedArgsList
+
+    ( "dyn_map_65",[ ("eta",(0,InOut, "real")]) -- scalarisedArgs->{dyn_map_65}{eta} = (0,InOut,"real")
+
+Then we can say: if the arg in argsList is InOut, then we need to do special generation; otherwise, we know there can only be a single element, so we take the head of the list and do a sanity check on the Intent,
+simply by checking if the arg is in in_args or non_map_args (then it must be In), or in out_args (must be Out
+
+        mappedArgsList =  map (
+                \(orig_name, (stencil_index, intent, ftype)) -> 
+                    case intent of
+                        InOut -> let
+                                    extra_statements = handleInOutArg orig_name ftype
+                            in 
+                              (createCallArg fname orig_name stencil_index,extra_statements)  
+                        _ ->  (createCallArg fname orig_name stencil_index,())
+            ) argsList   
+
+
+-}            
+
+createCallArg fname orig_name stencil_index =            
+    let
+        actual_arg_name = fst $ head ( (origNames ! fname) ! orig_name)
+    in
+        actual_arg_name ++ (if stencil_index==0 then "" else "("++(show stencil_index)++")")            
+
+handleInOutArg fname orig_name ftype = let
+    actual_arg_names = origNames ! fname) ! orig_name
+    actual_in_arg_name = fst $ head $ filter (\(n,i) -> i==In) actual_arg_names
+    actual_out_arg_name = fst $ head $ filter (\(n,i) -> i==Out) actual_arg_names
+    orig_arg_decl_str =  "    "++ftype++" :: "++orig_name
+    pre_call_assignment_str = "    "++orig_name++" = "++actual_in_arg_name
+    post_call_assignment_str = "    "++actual_out_arg_name++" = "++orig_name
+    in 
+        (orig_arg_decl_str,pre_call_assignment_str,post_call_assignment_str)
+
 generateSubDefOpaque fname functionSignatures =
     let
         fsig = case Map.lookup fname functionSignatures of
@@ -234,7 +290,7 @@ generateSubDefOpaque fname functionSignatures =
         argsList = scalarisedArgs ! fname
         mappedArgsList =  map (
                 \(orig_name, stencil_index) -> 
-                    ((origNames ! fname) ! orig_name)++(if stencil_index==0 then "" else "("++(show stencil_index++")"))
+                    ((origNames ! fname) ! orig_name)++(if stencil_index==0 then "" else "("++(show stencil_index)++")")
             ) argsList   
         mappedArgsListStr = commaSepList mappedArgsList
         in                      
