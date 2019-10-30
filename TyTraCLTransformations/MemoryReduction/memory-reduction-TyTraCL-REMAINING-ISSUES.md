@@ -1,6 +1,14 @@
 # REMAINING ISSUES : Memory Reduction for Scientific Computing on GPUs
 
+## Fold and staging
+
+This is high priority: I need to make sure that the stages pass on the accumulators. 
+
+
+
 ## Better AST
+
+WV-2019-10-30: DONE
 
 I need to get rid of DType and also flatten the arguments when I derive them rather than later on.
 
@@ -49,15 +57,21 @@ While I'm at it, let's just make
 
 ## Duplicate arguments
 
+WV-2019-10-30: DONE
+
 I can either make them unique in the subroutine definition, but not in the calls. That means I add a counter and use this throughout. The trivial way is to add a running counter even to the unique ones, i.e. a zip.
 Then the question is how to ensure that the counters match.
 
 ## Integration of the scalarised code
 
-!!! There is a bug in the scalarisation: the signatures are wrong!
+!!! There is a bug in the scalarisation: the signatures are wrong! 
+- I need to include all modules with the scalarised kernels 
 
-This is now done except that I need to modularise it and create a main program
+I need to modularise it and create a main program
+WV-2019-10-30: DONE
 Essentially, the generated code should become OpenCL code so I need to generate the call get_global_id(idx)
+WV-2019-10-30: DONE
+
 The host-side code will have to be manual for now.
 
 A trick to have `get_global_id()` to work is to put idx in a COMMON block. Then we define
@@ -167,9 +181,7 @@ program main
 end program main
 
 
-### Fold and staging
 
-This is high priority: I need to make sure that the stages pass on the accumulators.
 
 ## Avoiding double-buffering
 
@@ -206,10 +218,6 @@ Intermediate arrays should not be in, out or inout, but _local_.  I verified thi
 - Combine all subroutines in a time loop (assuming no I/O) into a single subroutine which has no subroutine calls => write that inliner!
 - For that subroutine, do the aggressive new IODir analysis
 - Then check if the Out and InOut arguments are needed: if they are not used in any code downstream from the kernel subroutine, they are not needed so Out should become local and InOut should become In.
-
-
-
-
 
 ## OpenCLC: Passing array slices and returning scalars into array elements
 
@@ -253,3 +261,5 @@ In `/Users/wim/SoC_Research/TyTra/tytra/Type-Transformations-FPGA/TyTraHLL` we h
 
 These are Haskell sketches. What I need is a proper TyTraCL version based on the GPU version.
 If I would ignore the boundaries, it might be possible ...
+
+I think the best thing to do is to use velfg/vel2 as example.

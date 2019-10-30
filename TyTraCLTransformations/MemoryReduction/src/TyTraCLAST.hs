@@ -76,6 +76,10 @@ data Expr =
                     | SComb Expr Expr -- scomb s1 s2
                         deriving (Show, Ord, Typeable, Data, Eq)
 
+{-
+Various helpers for pretty printing and code generation
+-}
+
 newtype LHSPrint = LHSPrint Expr
 
 instance Show LHSPrint where
@@ -83,30 +87,6 @@ instance Show LHSPrint where
     show (LHSPrint (Vec _ x)) = show (LHSPrint x)
     show (LHSPrint (Function x _)) = show x
     show (LHSPrint x) = show x
-
--- How can I encode the type of e.g. MapS?
--- maps :: SVec k Int -> (a->b) -> SVec k a -> SVec k b
--- suppose I have a function f :: a->b and and sv :: SVec k a and I have (maps s f) 
--- Function "f" []
--- MapS sv f
--- I think maybe we define the type as 
-
--- data ExprType = A | B | SVec Int ExprType  | Vec Int ExprType | FType [ExprType] | Idx
-
--- f_type = FType [A,B]
--- maps_type = FType [SVec k Idx, FType [A,B], SVec k A, SVec k B]
--- s_type = SVec k Idx
--- map_type = FType [FType [A,B], Vec n A, Vec n B]
--- maps_s_f_type = FType [ SVec k A, SVec k B]
--- vec_svec_type = Vec n (SVec k A)
--- map_maps_f_type_vec_svec_type
--- -- need to build this from the rules
--- map_type = FType [FType [ SVec k A, SVec k B], Vec n (SVec k A), Vec n (SVec k B)]
-
--- toDType :: Expr -> DType
--- toDType (Scalar _ dt _) = dt
--- toDType (Tuple es) = DTuple (map toDType es)
--- toDType (SVec sz dt _) = DSVec sz dt
 
 getDType (Vec _ dt_exp ) = dt_exp
 getDType (ZipT es) = Tuple (map getDType es)

@@ -286,15 +286,9 @@ applyRewriteRules ast = foldl (\(lst,(ct,mp)) (lhs,rhs) ->
         in (lst++[(lhs,rhs')],(ct',mp'))
     ) ([], (0,[])) ast
     
---     runState (rewriteWithState ast) (0,Map.empty)
 
--- rewriteWithState ast = do
---     let
---         ast' = map (\(lhs,rhs) -> (lhs,rewrite_ast_into_single_map 0 rhs)) ast      
---     return ast'
-
-map_checks :: TyTraCLAST -> [Int]
-map_checks ast = filter (/=0) $ map  (\(lhs,rhs) -> n_map_subexprs rhs) ast
+-- map_checks :: TyTraCLAST -> [Int]
+-- map_checks ast = filter (/=0) $ map  (\(lhs,rhs) -> n_map_subexprs rhs) ast
 
 isMap expr = case expr of
     Map _ _ -> True
@@ -337,12 +331,12 @@ rewriteIdToFunc expr = do
             put (ct, fsigs)            
     return rexp
 
-scalarFromVec expr =
-    case expr of
-        Vec _ dt   -> dt
-        Stencil (SVec sz _ )  (Vec _ dt ) -> SVec sz dt
-        ZipT es -> Tuple $ map scalarFromVec es
-        _ -> error $ show expr
+-- scalarFromVec expr =
+--     case expr of
+--         Vec _ dt   -> dt
+--         Stencil (SVec sz _ )  (Vec _ dt ) -> SVec sz dt
+--         ZipT es -> Tuple $ map scalarFromVec es
+--         _ -> error $ show expr
 
 
 
@@ -351,8 +345,8 @@ get_map m@(Map _ _) = [m]
 get_map m@(Fold _ _ _) = [m] -- cheating
 get_map _ = []
 
-n_map_subexprs :: Expr -> Int
-n_map_subexprs expr = length (everything (++) (mkQ [] get_map) expr) 
+-- n_map_subexprs :: Expr -> Int
+-- n_map_subexprs expr = length (everything (++) (mkQ [] get_map) expr) 
 
 -- This only works if the rules eliminate all maps
 -- I also want to check if the number did not change anymore
@@ -513,7 +507,7 @@ subsitute_exprs ::  (Map.Map Expr Expr) -> Expr -> Expr -> [(Expr,Expr)]
 subsitute_exprs orig_bindings lhs ast = let
         -- ast' is the original expression into which lhs has been substituted
         -- var_expr_pairs are the new intermediate bindings that have been created as a result
-        (ast',(ct,orig_bindings',added_bindings',var_expr_pairs)) = runState (everywhereM (mkM (subsitute_expr lhs)) ast) (0,orig_bindings,Map.empty,[])
+        (ast',(_,_,_,var_expr_pairs)) = runState (everywhereM (mkM (subsitute_expr lhs)) ast) (0,orig_bindings,Map.empty,[])
     in 
        var_expr_pairs ++ [ (lhs,ast') ]
 
