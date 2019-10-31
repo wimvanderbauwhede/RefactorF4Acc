@@ -29,10 +29,10 @@ mainArgDecls =  Map.fromList mainArgDeclsList
 stencilDefinitions :: Map.Map Name [Integer]
 stencilDefinitions  =  Map.fromList stencilDefinitionsList
 
-origNames :: Map.Map Name (Map.Map Name Name)
+origNames :: Map.Map Name (Map.Map Name [(Name, FIntent)])
 origNames = Map.fromList $ map (\(k,v)-> (k, Map.fromList v)) origNamesList
 
-scalarisedArgs :: Map.Map Name [(Name,Integer)]
+scalarisedArgs :: Map.Map Name [(Name,(Integer, FIntent, Name))]
 scalarisedArgs = Map.fromList scalarisedArgsList 
 
 -- For info only, not called except in Main when info = True
@@ -252,32 +252,65 @@ And to complement this we change scalarisedArgsList
 Then we can say: if the arg in argsList is InOut, then we need to do special generation; otherwise, we know there can only be a single element, so we take the head of the list and do a sanity check on the Intent,
 simply by checking if the arg is in in_args or non_map_args (then it must be In), or in out_args (must be Out
 
-        mappedArgsList =  map (
+        (mappedArgsList, (orig_arg_decl_str,pre_call_assignment_str,post_call_assignment_str)) =  map (
                 \(orig_name, (stencil_index, intent, ftype)) -> 
                     case intent of
                         InOut -> let
                                     extra_statements = handleInOutArg orig_name ftype
                             in 
                               (createCallArg fname orig_name stencil_index,extra_statements)  
-                        _ ->  (createCallArg fname orig_name stencil_index,())
+                        _ ->  (createCallArg fname orig_name stencil_index,("","",""))
             ) argsList   
+
+("eta",(1,In,"real")), ("eta",(2,In,"real")), ("eta",(3,InOut,"real")), ("eta",(4,In,"real")), ("eta",(5,In,"real"))
+("eta",[("eta_s_0",In),("eta_1",Out)])])
+eta = eta_s_0(3)
+eta_s_0(1),eta_s_0(2), eta, eta_s_0(4), eta_s_0(5)
+eta_1 = eta
+
 
 
 -}            
 
 createCallArg fname orig_name stencil_index =            
     let
-        actual_arg_name = fst $ head ( (origNames ! fname) ! orig_name)
+        actual_arg_name = if length ( (origNames ! fname) ! orig_name) > 0
+            then
+                fst $ head ( (origNames ! fname) ! orig_name)
+            else
+                 error $ (show (origNames ! fname)) ++ "; "++ orig_name
     in
         actual_arg_name ++ (if stencil_index==0 then "" else "("++(show stencil_index)++")")            
 
-handleInOutArg fname orig_name ftype = let
-    actual_arg_names = origNames ! fname) ! orig_name
-    actual_in_arg_name = fst $ head $ filter (\(n,i) -> i==In) actual_arg_names
-    actual_out_arg_name = fst $ head $ filter (\(n,i) -> i==Out) actual_arg_names
+
+handleInOutArg fname orig_name ftype stencil_index = let
+    actual_arg_names = (origNames ! fname) ! orig_name
+    actual_in_arg_name = if length (filter (\(n,i) -> i==In) actual_arg_names) > 0
+        then
+            Just $ fst $ head $ filter (\(n,i) -> i==In) actual_arg_names
+        else
+            -- means that, although the intent in scalarisedArgs is InOut,
+            -- the intent in origNames is only Out
+            Nothing
+            -- error $ show actual_arg_names  
+
+    -- actual_out_arg_name = fst $ head $ filter (\(n,i) -> i==Out) actual_arg_names
+    actual_out_arg_name = if length (filter (\(n,i) -> i==Out) actual_arg_names) > 0
+        then
+            Just $ fst $ head $ filter (\(n,i) -> i==Out) actual_arg_names
+        else
+            -- means that, although the intent in scalarisedArgs is InOut,
+            -- the intent in origNames is only In
+            -- error $ show actual_arg_names    
+            Nothing
+    -- The args are per definition scalar and we only need this for temporary variables
     orig_arg_decl_str =  "    "++ftype++" :: "++orig_name
-    pre_call_assignment_str = "    "++orig_name++" = "++actual_in_arg_name
-    post_call_assignment_str = "    "++actual_out_arg_name++" = "++orig_name
+    pre_call_assignment_str = case actual_in_arg_name of
+        Just actual_in_arg_name -> "    "++orig_name++" = "++actual_in_arg_name++ (if stencil_index==0 then "" else "("++(show stencil_index)++")")
+        Nothing -> ""
+    post_call_assignment_str = case actual_out_arg_name of
+        Just actual_out_arg_name -> "    "++actual_out_arg_name++" = "++orig_name
+        Nothing -> ""
     in 
         (orig_arg_decl_str,pre_call_assignment_str,post_call_assignment_str)
 
@@ -288,44 +321,65 @@ generateSubDefOpaque fname functionSignatures =
             Nothing -> error "BOOM!"  
 -- Then for every f we do:
         argsList = scalarisedArgs ! fname
-        mappedArgsList =  map (
-                \(orig_name, stencil_index) -> 
-                    ((origNames ! fname) ! orig_name)++(if stencil_index==0 then "" else "("++(show stencil_index)++")")
+        -- mappedArgsList =  map (
+        --         \(orig_name, stencil_index) -> 
+        --             ((origNames ! fname) ! orig_name)++(if stencil_index==0 then "" else "("++(show stencil_index)++")")
+        --     ) argsList   
+        -- ("dt",(0,In,"real"))
+        (mappedArgsList, extra_statements) = unzip $ map (
+                \(orig_name, (stencil_index, intent, ftype)) -> 
+                    case intent of
+                        InOut -> let
+                                    extra_statements = handleInOutArg fname orig_name ftype stencil_index
+                            in 
+                                (createCallArg fname orig_name stencil_index, extra_statements)  
+                        _ ->  (createCallArg fname orig_name stencil_index,("","",""))
             ) argsList   
+        (orig_arg_decl_strs,pre_call_assignment_strs,post_call_assignment_strs) = unzip3 extra_statements           
         mappedArgsListStr = commaSepList mappedArgsList
         in                      
             case fsig of 
                 [nms,ms,os] -> 
                     let                
-                        non_map_arg_decls = createDecls nms -- tuple becomes list of decls
-                        in_arg_decls = createDecls ms
-                        out_arg_decls = createDecls os
+                        non_map_arg_decls = map show $ createIODecls (Just In) nms -- tuple becomes list of decls
+                        in_arg_decls = map show $ createIODecls (Just In)  ms
+                        out_arg_decls = map show $ createIODecls (Just Out) os
                         non_map_args = getVarNames nms
                         in_args = getVarNames ms
                         out_args = getVarNames os           
                     in
                         unlines [
-                            "subroutine "++fname++"("  ++(mkArgList [non_map_args,in_args,out_args])++")"
+                             "subroutine "++fname++"("  ++(mkArgList [non_map_args,in_args,out_args])++")"
                             , mkDeclLines [non_map_arg_decls,in_arg_decls,out_arg_decls]
+                            ,"    ! Temp vars"
+                            , unlines $ filter (/="") orig_arg_decl_strs
                             ,"    ! Call to the original scalarised subroutine"
-                            ,"    !!! call "++fname++"_scal("++mappedArgsListStr++")"
+                            , unlines $ filter (/="") pre_call_assignment_strs
+                            ,"    call "++fname++"_scal("++mappedArgsListStr++")"
+                            , unlines $ filter (/="") post_call_assignment_strs
                             ,"end subroutine "++fname
                         ]
                 [nms,as,ms,os] ->
                     let                
-                        non_map_arg_decls = createDecls nms -- tuple becomes list of decls
-                        acc_arg_decls = createDecls as
-                        in_arg_decls = createDecls ms
-                        out_arg_decls = createDecls os
+                        non_map_arg_decls = map show $ createIODecls (Just In) nms -- tuple becomes list of decls
+                        acc_arg_decls = map show $ createIODecls (Just In) as
+                        in_arg_decls = map show $ createIODecls (Just In) ms
+                        out_arg_decls = map show $ createIODecls (Just Out) os
                         non_map_args = getVarNames nms
                         acc_args  = getVarNames as
                         in_args = getVarNames ms
                         out_args = getVarNames os           
                     in
+                        error $ "TODO:" ++
                         unlines [
-                            "subroutine "++fname++"("  ++(mkArgList [non_map_args,acc_args,in_args,out_args])++")"
+                             "subroutine "++fname++"("  ++(mkArgList [non_map_args,acc_args,in_args,out_args])++")"
                             , mkDeclLines [non_map_arg_decls,acc_arg_decls,in_arg_decls,out_arg_decls]
-                            ,"!!!"
+                            ,"    ! Temp vars"
+                            , unlines $ filter (/="") orig_arg_decl_strs
+                            ,"    ! Call to the original scalarised subroutine"
+                            , unlines $ filter (/="") pre_call_assignment_strs
+                            ,"  !!! call "++fname++"_scal("++mappedArgsListStr++")"
+                            , unlines $ filter (/="") post_call_assignment_strs
                             ,"end subroutine "++fname
                         ]
            
@@ -593,6 +647,35 @@ createIter (SVec sz dt) = let
             dt -> ["(i)"]
 createIter (Tuple es) = concatMap createIter es
 createIter other =  error $ show other
+
+createIODecls :: Maybe FIntent -> Expr -> [FDecl]
+createIODecls intent (SVec sz dt)  = let
+        vn = getName dt
+    in
+        case dt of
+            -- we know this can only be either nested DSVec or terminal
+            SVec _ _  ->  let
+                    (szs,dt') = getSzFromSVec dt []
+                    Single vn' = vn
+                in
+                    [ MkFDecl (fortranType dt') (Just (sz:szs)) intent [ vn']  ]
+            -- we know this has no tuples inside it                
+            Tuple dts -> let 
+                     Composite vns = vn 
+                in 
+                    createIODecls intent (
+                        Tuple (
+                            map (\(vn',dt) -> SVec sz (setName vn' dt)) (zip vns dts)
+                            )
+                    )
+            dt -> let 
+                        Single vn' = vn 
+                in
+                    [MkFDecl (fortranType dt) (Just [sz]) intent [vn'] ]
+
+createIODecls intent (Scalar _ DDC vn) =  error "DDC!"
+createIODecls intent sdt@(Scalar _ dt vn) = [MkFDecl (fortranType sdt) Nothing intent [vn]]
+createIODecls intent (Tuple es) = concatMap (createIODecls intent)  es
 
 createDecls :: Expr -> [String]
 createDecls (SVec sz dt) = let
@@ -1022,7 +1105,8 @@ vSz = getVSz  mainArgDeclsList
 getVSz  :: [(String,FDecl)] -> Int
 getVSz lst = maximum $ map (\(v,r) -> case dim r of 
             Nothing -> 0
-            Just sz -> sz
+            Just [sz] -> sz
+            Just sz -> product sz
             ) lst   
 
             

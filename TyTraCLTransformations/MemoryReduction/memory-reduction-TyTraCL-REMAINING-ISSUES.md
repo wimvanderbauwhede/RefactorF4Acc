@@ -74,6 +74,12 @@ The remaining issue is: if we have a stencil which is InOut because it updates o
 We then have as output a non-stencil arg, but this is actually one of the stencil points.
 In Fortran this is fine, but the problem is than in TyTraCL I don't know which point of the stencil is actually the output.
 
+So I can do one of two things: 
+1/ Find which part of the stencil is assigned to
+2/ Fix the IODir on the stencil
+
+This is more or less the same: the part of the stencil that is assigned to can be Out or InOut, but the rest must be In
+
 - I need to include all modules with the scalarised kernels 
 
 I need to modularise it and create a main program
@@ -272,3 +278,28 @@ These are Haskell sketches. What I need is a proper TyTraCL version based on the
 If I would ignore the boundaries, it might be possible ...
 
 I think the best thing to do is to use velfg/vel2 as example.
+
+## Combinatorial explosion
+
+Given a stencil of m points, called k times, we'll have m**k operations.
+I don't think we can avoid the actual computations, but we can avoid reading m**k values from main memory:
+- The actual number of unique values accessed is much smaller. For example a 4-point stencil +/-1 will after k iterations result in 2*k*k unique values (instead of 4**k). A 2-point stencil would be 2*k (instead of 2**k) values. for a 6-point stencil, we get 8 cube sections, so two cubes, i.e. 2*k*k*k (as opposed to 6**k)
+We can create a small memory that has the iterator values and the actual array value at the point, and as this is small, we can search it linearly for the value needed. A kind of very specialised cache.
+In this way, the memory BW will not grow. The computation requirement still grows very fast though.
+
+Compared to the original: say that we have k iterations, we have k intermediate arrays, so on the whole order of k*m operations, compared with m**k, 
+m**k/k/m
+
+say m=6 and k=5
+6**5/5/6 = 6**4/5 = 260
+
+I should provide a table : 2, 4, 6 point stencils; 1..10 iterations
+
+Looking at e.g. the GeForce GTX TITAN:
+
+threads: 2688
+clock 837 MHz
+Memory Bandwidth (GB/sec) 288
+
+So per ns, we can read 77 words from the memory, to be divided amongst 2688 threads. So per thread it takes 35 ns for a word, i.e. about 40 cycles can be spend on computation.
+

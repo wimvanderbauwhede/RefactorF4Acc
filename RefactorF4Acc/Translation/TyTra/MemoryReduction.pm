@@ -1276,7 +1276,7 @@ sub __origNamesListEntry { my ($node) = @_;
             # croak Dumper $node->{'Rhs'}{'MapArgs'}{'Vars'};
             my %inout_args =  map { 
                 $_->[0]=>[[$_,'In'],[$out_args{$_->[0]},'Out']] 
-                } grep { exists $out_args{$_->[0]} and $_->[2] eq '' } @{$node->{'Rhs'}{'MapArgs'}{'Vars'}};
+                } grep { exists $out_args{$_->[0]}  } @{$node->{'Rhs'}{'MapArgs'}{'Vars'}};#and $_->[2] eq ''
             my %done=();
 
             for my $arg_rec (

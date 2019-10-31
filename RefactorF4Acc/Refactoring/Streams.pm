@@ -733,7 +733,7 @@ sub _add_assignments_for_called_subs { (my $stref, my $f) = @_;
 					for my $lifted_annline ( @{ $stref->{'Subroutines'}{$subname}{'LiftedArrayAssignments'} } ) {
 						my $var = $lifted_annline->[1]{'Rhs'}{'VarList'}{'List'}[0];
 						if (exists $stref->{'Subroutines'}{$subname}{'DeclaredOrigArgs'}{'Set'}{$var}) {
-						my $iodir =  exists $stref->{'Subroutines'}{$subname}{'DeclaredOrigArgs'}{'Set'}{$var}{'IODir'} 
+						my $iodir = exists $stref->{'Subroutines'}{$subname}{'DeclaredOrigArgs'}{'Set'}{$var}{'IODir'} 
 						? $stref->{'Subroutines'}{$subname}{'DeclaredOrigArgs'}{'Set'}{$var}{'IODir'}
 						: 'Unknown';
 						if ($iodir eq 'out' or $iodir eq 'inout') {
@@ -839,9 +839,17 @@ sub _rename_ast_entry { (my $stref, my $f,  my $state, my $ast, my $intent)=@_;
 					# Taking the IODir from the orig var is not optimal: it leads to many InOut that actually are Out
 					# Ideally I should re-run the analysis for the stream vars
 					
-					if (exists $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$mvar}) { # DAMN PERL! It creates the entry unless I guard!					
-						$intent = $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$mvar}{'IODir'};
-						$state->{'StreamVars'}{$mvar}{'Set'}{$var_str}={'IODir'=>$intent,'ArrayIndexExpr'=>$expr_str} ;
+					if (exists $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$mvar}) { # DAMN PERL! It creates the entry unless I guard!
+					# warn "$f $mvar $var_str $intent" if $mvar=~/eta/;
+						# $intent = $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$mvar}{'IODir'};
+						if (exists $state->{'StreamVars'}{$mvar}{'Set'}{$var_str}) {
+								if ( $state->{'StreamVars'}{$mvar}{'Set'}{$var_str}{'IODir'} ne 'InOut'
+								and $state->{'StreamVars'}{$mvar}{'Set'}{$var_str}{'IODir'} ne $intent) {
+									$state->{'StreamVars'}{$mvar}{'Set'}{$var_str}{'IODir'} = 'InOut';
+								} 
+						} else {
+							$state->{'StreamVars'}{$mvar}{'Set'}{$var_str}={'IODir'=>$intent,'ArrayIndexExpr'=>$expr_str} ;
+						}
 					} else {
 						$state->{'StreamVars'}{$mvar}{'Set'}{$var_str}={'ArrayIndexExpr'=>$expr_str} ;
 					}					

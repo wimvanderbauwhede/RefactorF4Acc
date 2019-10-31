@@ -31,17 +31,20 @@ data FIntent = In | Out | InOut | Unknown | NA
 
 data FDecl = MkFDecl {
   ftype :: String,
-  dim :: Maybe Int,
+  dim :: Maybe [Int],
   intent :: Maybe FIntent,
   names :: [String] 
   }
  deriving (Ord, Typeable, Data, Eq)
 
 instance Show FDecl where  
-  show (MkFDecl ftype dim intent names ) = let
+  show (MkFDecl ftype mdim intent names ) = let
         attributes = [ftype]
-        attributes' = case dim of
-          Just n -> attributes++["dimension(1:"++(show n)++")"]
+        attributes' = case mdim of          
+          Just dims -> let
+              dims_str = intercalate "," $ map (\dm ->  "1:"++(show dm)) dims
+            in
+              attributes++["dimension("++dims_str++")"]
           Nothing -> attributes
         attributes'' = case intent of
             Just i -> attributes'++["intent("++(show i)++")"]
