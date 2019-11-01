@@ -9,9 +9,9 @@ import TyTraCLAST
 
 ast :: TyTraCLAST
 ast = [
-            ( Scalar VDC DInt "acc_1", Fold (Function "f1" []) (Scalar VDC DInt "acc_0") (Vec VI (Scalar VDC DInt "v_0")) )
-        ,(Vec VS (SVec 3 (Scalar VDC DInt "v_s_0" )) , Stencil (SVec 3 (Scalar VDC DInt "s1")) (Vec VI (Scalar VDC DInt "v_0")))
-        ,( Vec VO (Scalar VDC DInt "v_1"), Map (Function "f2"  [Scalar VDC DInt "acc_1"]) (Vec VS (SVec 3(Scalar VDC DInt "v_s_0"))) )
+            ( Scalar VT DInt "acc_1", Fold (Function "f1" []) (Scalar VI DInt "acc_0") (Vec VI (Scalar VI DInt "v_0")) )
+        ,(Vec VS (SVec 3 (Scalar VDC DInt "v_s_0" )) , Stencil (SVec 3 (Scalar VDC DInt "s1")) (Vec VI (Scalar VI DInt "v_0")))
+        ,( Vec VO (Scalar VDC DInt "v_1"), Map (Function "f2"  [Scalar VT DInt "acc_1"]) (Vec VS (SVec 3 (Scalar VDC DInt "v_s_0"))) )
         ]
 
 functionSignaturesList = [

@@ -5,7 +5,7 @@ import Control.Monad.State
 import qualified Data.Map.Strict as Map
 
 import TyTraCLAST
--- import Warning ( warning )
+import Warning ( warning )
 
 (!) = (Map.!)
 -- ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -37,37 +37,6 @@ I think the easiest way is to use Generics: with `everywhere` we can update all 
 -}
 
 -- 
-find_in_ast :: TyTraCLAST -> Expr -> Expr
-find_in_ast ast v@(Vec _ _ )  = let
-    maybe_v = filter (\(lhs,rhs) -> lhs == v) ast
-    in
-        if length maybe_v == 1 
-        then
-            snd $ head maybe_v -- return the rhs
-        else
-            v
-find_in_ast ast e  = e
-            
--- expr_has_non_input_vecs expr = length (non_input_vecs expr) > 0
-
--- If an expression is a vector, return it in a list, else return an empty list
-get_vec :: Expr -> [Expr]
-get_vec v@(Vec vt _ ) = [v]
-get_vec _ = []
-
-get_vec_subexprs :: Expr -> [Expr]
-get_vec_subexprs = everything (++) (mkQ [] get_vec) 
-
--- returns all non-input vectors in an expression
-non_input_vecs :: Expr -> [Expr]
-non_input_vecs expr = let
-    vec_subexprs = get_vec_subexprs expr
-    in
-        filter (
-            \v -> case v of 
-                Vec VI _  -> False
-                _ -> True
-            ) vec_subexprs
 
   
 
@@ -81,7 +50,7 @@ Now we should start applying the rewrite rules to reduce each of these expressio
 
 lhs_is_output_vec (lhs_vec,expr) = case lhs_vec of
     Vec VO _ -> True
-    Scalar VT _ _ -> True
+    Scalar _ _ _ -> True -- maybe too loose, should be VT really 
     _ -> False
 
 -- Create a list of all Vecs in the expr
@@ -108,13 +77,45 @@ substitute_vec ast expr_tup@(lhs_vec,expr) = let
         expr' = foldl (\expr' (svec,sexpr) -> substitute_vec_by_expr svec sexpr expr') expr tups
     in 
         (lhs_vec,expr')
+
         
+find_in_ast :: TyTraCLAST -> Expr -> Expr
+find_in_ast ast v@(Vec _ _ )  = let
+    maybe_v = filter (\(lhs,rhs) -> lhs == v) ast
+    in
+        if length maybe_v == 1 
+        then
+            snd $ head maybe_v -- return the rhs
+        else
+            v
+find_in_ast ast e  = e
+
 -- The actual substitution should of course use `everywhere`
 substitute_vec_by_expr svec sexpr  = everywhere (mkT (substitute_vec_by_expr' svec sexpr)) 
 
 substitute_vec_by_expr' svec sexpr  vec
     | vec == svec = sexpr
     |  otherwise = vec
+
+
+-- returns all non-input vectors in an expression
+non_input_vecs :: Expr -> [Expr]
+non_input_vecs expr = let
+    vec_subexprs = get_vec_subexprs expr
+    in
+        filter (
+            \v -> case v of 
+                Vec VI _  -> False
+                _ -> True
+            ) vec_subexprs    
+
+get_vec_subexprs :: Expr -> [Expr]
+get_vec_subexprs = everything (++) (mkQ [] get_vec)    
+
+-- If an expression is a vector, return it in a list, else return an empty list
+get_vec :: Expr -> [Expr]
+get_vec v@(Vec vt _ ) = [v]
+get_vec _ = []
 
 -- ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 {-
@@ -248,7 +249,7 @@ rewrite_ast_expr_fuse expr = case expr of
     Fold f_expr acc_expr v_expr -> let
                 (m,v_expr') = fuse_stencils v_expr
             in 
-                (m, Fold acc_expr f_expr v_expr')                
+                (m, Fold f_expr acc_expr v_expr')                
     _ -> (0,expr)
 
 fuse_stencils (Stencil s_1 (Stencil s_2 v_expr)) = (1,Stencil (SComb s_1 s_2) v_expr)
@@ -388,6 +389,23 @@ Map (Function "dyn_map_65"  [
     (ZipT [Vec VS (SVec 2(Scalar DFloat "un_s_0")),Vec VS (SVec 5(Scalar DFloat "h_s_0")),Vec VS (SVec 2(Scalar DFloat "vn_s_0")),Vec VT (Scalar VDC DFloat "eta_1")]) )
 -}
 
+-- This returns the decomposed expressions as a lists of lists
+-- Because of the original code, this is guaranteed to be in dependency order.
+decomposeExpressions :: TyTraCLAST -> TyTraCLAST -> [TyTraCLAST] 
+decomposeExpressions orig_ast ast = 
+    let
+        bindings = Map.fromList $ map (\(f,s)->(s,f)) orig_ast
+    in
+        map (\(lhs,rhs) -> (subsitute_exprs bindings lhs rhs )) ast
+
+subsitute_exprs ::  (Map.Map Expr Expr) -> Expr -> Expr -> [(Expr,Expr)]
+subsitute_exprs orig_bindings lhs ast = let
+        -- ast' is the original expression into which lhs has been substituted
+        -- var_expr_pairs are the new intermediate bindings that have been created as a result
+        (ast',(_,_,_,var_expr_pairs)) = runState (everywhereM (mkM (subsitute_expr lhs)) ast) (0,orig_bindings,Map.empty,[])
+    in 
+       var_expr_pairs ++ [ (lhs,ast') ]
+
 subsitute_expr :: Expr -> Expr -> State (Int,Map.Map Expr Expr,Map.Map Expr Expr,[(Expr,Expr)]) Expr
 subsitute_expr lhs exp = do
             let 
@@ -502,29 +520,6 @@ maybeAddBinding var exp (ct,orig_bindings, added_bindings, var_expr_pairs) =
                     var
                     )            
 
-
-subsitute_exprs ::  (Map.Map Expr Expr) -> Expr -> Expr -> [(Expr,Expr)]
-subsitute_exprs orig_bindings lhs ast = let
-        -- ast' is the original expression into which lhs has been substituted
-        -- var_expr_pairs are the new intermediate bindings that have been created as a result
-        (ast',(_,_,_,var_expr_pairs)) = runState (everywhereM (mkM (subsitute_expr lhs)) ast) (0,orig_bindings,Map.empty,[])
-    in 
-       var_expr_pairs ++ [ (lhs,ast') ]
-
--- subsitute_exprs scal@(Scalar _ _) ast = let
---         -- Scalar _ scal_name = scal
---         (ast',(ct,var_expr_pairs)) = runState (everywhereM (mkM (subsitute_expr scal)) ast) (0,[])
---     in 
---        var_expr_pairs ++ [ (scal,ast') ]
-
--- This returns the decomposed expressions as a lists of lists
--- Because of the original code, this is guaranteed to be in dependency order.
-decomposeExpressions :: TyTraCLAST -> TyTraCLAST -> [TyTraCLAST] 
-decomposeExpressions orig_ast ast = 
-    let
-        bindings = Map.fromList $ map (\(f,s)->(s,f)) orig_ast
-    in
-        map (\(lhs,rhs) -> (subsitute_exprs bindings lhs rhs )) ast
 
 getNonMapFoldArgs :: Expr -> [Expr]
 getNonMapFoldArgs exp = everything (++) (mkQ [] (getNonMapFoldArgs')) exp

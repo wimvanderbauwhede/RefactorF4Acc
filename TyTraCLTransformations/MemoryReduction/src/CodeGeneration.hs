@@ -875,7 +875,7 @@ generateFold functionSignatures f_exp acc_exp v_exp t =
                     Composite fl_ov_names = flattenNames (Composite ov_names)
                 in
                     map (\(Single ov_name'') -> if Map.member ov_name'' mainArgDecls then  ov_name''++"(idx)" else  ov_name'') fl_ov_names
-        in_vars_name_lst' =  map snd (nubTup $ zip ((\(Composite  x) -> x ) sig_in_args_lst) in_vars_name_lst)            
+        in_vars_name_lst' =  map snd (nubTup $ zip (unwrapName sig_in_args_lst) in_vars_name_lst)            
 
         
         acc_vars_lst =  getName rhs_acc_exp
@@ -885,7 +885,7 @@ generateFold functionSignatures f_exp acc_exp v_exp t =
                     Composite fl_ov_names = flattenNames (Composite ov_names)
                 in
                     map (\(Single ov_name'') -> if Map.member ov_name'' mainArgDecls then  ov_name''++"(idx)" else  ov_name'') fl_ov_names
-        acc_vars_name_lst' =  map snd (nubTup $ zip ((\(Composite  x) -> x ) sig_acc_args_lst) acc_vars_name_lst)            
+        acc_vars_name_lst' =  map snd (nubTup $ zip (unwrapName sig_acc_args_lst) acc_vars_name_lst)            
 
         -- nms = getVarNames (Tuple nms_exps)
         -- vs_in = getVarNames v_exp
