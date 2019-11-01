@@ -609,6 +609,10 @@ if (exists $stref->{'ScalarisedArgs'} and defined $stref->{'ScalarisedArgs'}) {
 
     $tytracl_hs_ast_code_str.= "\n".$scalarised_args_lst_str;
     $tytracl_hs_ast_code_str.= "\n".$orig_names_lst_str;
+} else {
+    $tytracl_hs_ast_code_str.= "\nscalarisedArgsList = []";
+    $tytracl_hs_ast_code_str.= "\norigNamesList = []";
+
 }
     $stref->{'TyTraCL_Haskell_AST_Code'} = $tytracl_hs_ast_code_str ;
 
@@ -1177,7 +1181,7 @@ sub __toHaskellFDecl {(my $arg_name, my $tytracl_var_rec, my $intent) =@_;
         my $dim = shift @{$tytracl_var_rec };
         my $vt = shift @{$tytracl_var_rec};
         # return $fortran_type{$vt}.', dimension(1:'.$dim.'), intent('.$intent.') :: '. $arg_name;
-        return 'MkFDecl "'.$fortran_type{$vt}.'"  (Just '.$dim.') (Just '.$intent.') ["'.$arg_name.'"]';
+        return 'MkFDecl "'.$fortran_type{$vt}.'"  (Just ['.$dim.']) (Just '.$intent.') ["'.$arg_name.'"]';
     } else {
         # return $fortran_type{$vt}.', intent('.$intent.') :: '. $arg_name;
         return 'MkFDecl "'.$fortran_type{$vt}.'" Nothing (Just '.$intent.') ["'.$arg_name.'"]';
@@ -1206,6 +1210,7 @@ sub _create_TyTraCL_Haskell_scalarisedArgsList { (my $stref)=@_;
     my @scalarisedArgsList = ();
 
     for my $f (sort keys %{ $stref->{'ScalarisedArgs'} }) {
+        next if $f eq $Config{'KERNEL'};
         my @arg_idx_lst=();
         for my $arg (@{ $stref->{'ScalarisedArgs'}{$f}{'List'} }) {
             my $var_rec = $stref->{'ScalarisedArgs'}{$f}{'Set'}{$arg};
@@ -1272,11 +1277,10 @@ sub __origNamesListEntry { my ($node) = @_;
         if ($node->{'NodeType'} eq 'Map') {
 
             my %out_args = ();
-            map { $out_args{$_->[0]}=$_ } @{$node->{'Lhs'}{'Vars'}};
-            # croak Dumper $node->{'Rhs'}{'MapArgs'}{'Vars'};
+            map { $out_args{$_->[0]} = $_ } @{$node->{'Lhs'}{'Vars'}};
             my %inout_args =  map { 
                 $_->[0]=>[[$_,'In'],[$out_args{$_->[0]},'Out']] 
-                } grep { exists $out_args{$_->[0]}  } @{$node->{'Rhs'}{'MapArgs'}{'Vars'}};#and $_->[2] eq ''
+                } grep { exists $out_args{$_->[0]}  } @{$node->{'Rhs'}{'MapArgs'}{'Vars'}};
             my %done=();
 
             for my $arg_rec (
@@ -1313,9 +1317,27 @@ sub __origNamesListEntry { my ($node) = @_;
         }
         elsif ($node->{'NodeType'} eq 'Fold') {
 
-            my %out_args = map { $_->[0]=>$_ } @{$node->{'Lhs'}{'Vars'}};
-            my %inout_args =  map { $_->[0]=>[$_,$out_args{$_->[0]}] } grep { exists $out_args{$_->[0]} } map { $_->[0] } @{$node->{'Rhs'}{'AccArgs'}{'Vars'}};
+            # my %out_args = ();
+            # map { $out_args{$_->[0]} = $_ } @{$node->{'Lhs'}{'Vars'}};
+            # say Dumper %out_args;
+            # # my %out_args = map { $_->[0]=>$_ } @{$node->{'Lhs'}{'Vars'}};
+            # say Dumper $node->{'Rhs'}{'AccArgs'}{'Vars'};# = [['acc',0,'','VI']];
+            # say Dumper $node->{'Rhs'}{'FoldArgs'}{'Vars'};# = [['acc',0,'','VI']];
+            # my @tmp1 = map { $_->[0] } @{$node->{'Rhs'}{'AccArgs'}{'Vars'}};
+            # say Dumper @tmp1;
+            # my @tmp2 =   grep { exists $out_args{$_} } @tmp1;
+            # say Dumper @tmp2;
+            # my %tmp3 = map { $_->[0]=>[$_,$out_args{$_}] } @tmp2;            
+            # my %inout_args =  map { $_->[0]=>[$_,$out_args{$_->[0]}] } grep { exists $out_args{$_->[0]} } map { $_->[0] } @{$node->{'Rhs'}{'AccArgs'}{'Vars'}};
+            # my %done=();
+
+            my %out_args = ();
+            map { $out_args{$_->[0]} = $_ } @{$node->{'Lhs'}{'Vars'}};
+            my %inout_args =  map { 
+                $_->[0]=>[[$_,'In'],[$out_args{$_->[0]},'Out']] 
+                } grep { exists $out_args{$_->[0]}  } @{$node->{'Rhs'}{'MapArgs'}{'Vars'}};
             my %done=();
+
 
             for my $arg_rec (
                 @{$node->{'Lhs'}{'Vars'}}
@@ -1323,7 +1345,32 @@ sub __origNamesListEntry { my ($node) = @_;
                ,@{$node->{'Rhs'}{'NonFoldArgs'}{'Vars'}}
             ,@{$node->{'Rhs'}{'AccArgs'}{'Vars'}}
             ) {
-                push @{$arg_name_pairs},[$arg_rec->[0],_mkVarName($arg_rec)];
+
+                                if (exists $inout_args{$arg_rec->[0]}) {
+                    my $entry = [ map { 
+                            [
+                                _mkVarName($_->[0]), $_->[1]
+                            ]
+                     }  @{$inout_args{$arg_rec->[0]}}
+                     ];            
+                     $done{$arg_rec->[0]}=1;  
+                     delete $inout_args{$arg_rec->[0]};       
+                    push @{$arg_name_pairs},[$arg_rec->[0],$entry];
+                } else {
+                    if (not exists $done{$arg_rec->[0]}) {
+                        push @{$arg_name_pairs},[
+                            $arg_rec->[0],[
+                                _mkVarName($arg_rec)
+                                , exists $out_args{$arg_rec->[0]} ? 'Out' : 'In'
+                            ]
+                        ];
+                    } 
+                    # else {
+                    #     carp "Skipping ". $arg_rec->[0];
+                    # }
+                }
+
+                # push @{$arg_name_pairs},[$arg_rec->[0],_mkVarName($arg_rec)];
             }
         }
         

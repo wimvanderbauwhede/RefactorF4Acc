@@ -22,8 +22,8 @@ if ($opts{'h'}){
     $0 -[hvste] 
 
     -v : verbose
-    -s : Scalarise only
-    -t : Testing, no sources needed
+    -s : Scalarise only, don't generate a TyTraCL main program
+    -t : Testing, no sources needed. Provide the number of the test to be run
     -e : Fortran source file extension (default is .f95, needs the dot)
     \n";
 }
@@ -51,8 +51,9 @@ if ($opts{'e'}) {
 
 my $stref={};
 
-if ($test && $scalarise) {
-    die "The -s and -t options can't be combined.\n";
+if ($test) {
+    $scalarise = 0
+    #die "The -s and -t options can't be combined.\n";
 }
 
 # First scalarise
@@ -119,6 +120,9 @@ if ($gen_main) {
 	        $stref = main($args, $stref_init, $stref_merger);                                
             }
         } else {
+            if (! -d './src/') {
+                die "Make sure the src subdirectory exists!\n";
+            }
             $stref = main({'P' => 'memory_reduction', 'c' => {'TEST'=>$test}, 'o'  => './src/ASTInstance.hs'});
         }
     } else {

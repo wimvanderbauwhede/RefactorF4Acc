@@ -320,20 +320,35 @@ generateSubDefOpaque fname functionSignatures =
             Just fs -> fs
             Nothing -> error "BOOM!"  
         -- Then for every f we do:
-        argsList = scalarisedArgs ! fname
-        (mappedArgsList, extra_statements) = unzip $ map (
-                \(orig_name, (stencil_index, intent, ftype)) -> 
-                    case intent of
-                        InOut -> let
-                                    extra_statements = handleInOutArg fname orig_name ftype stencil_index
-                            in 
-                                -- we need to use the orig_name instead of the new name!
-                                -- createCallArg fname  stencil_index
-                                (orig_name, extra_statements)  
-                        _ ->  (createCallArg fname orig_name stencil_index,("","",""))
-            ) argsList   
-        (orig_arg_decl_strs,pre_call_assignment_strs,post_call_assignment_strs) = unzip3 extra_statements           
-        mappedArgsListStr = commaSepList mappedArgsList
+        opaque_function_code_strs = if null scalarisedArgsList 
+            then
+                []
+            else
+                let
+                    argsList = scalarisedArgs ! fname
+                    (mappedArgsList, extra_statements) = unzip $ map (
+                            \(orig_name, (stencil_index, intent, ftype)) -> 
+                                case intent of
+                                    InOut -> let
+                                                extra_statements = handleInOutArg fname orig_name ftype stencil_index
+                                        in 
+                                            -- we need to use the orig_name instead of the new name!
+                                            -- createCallArg fname  stencil_index
+                                            (orig_name, extra_statements)  
+                                    _ ->  (createCallArg fname orig_name stencil_index,("","",""))
+                        ) argsList   
+                    (orig_arg_decl_strs,pre_call_assignment_strs,post_call_assignment_strs) = unzip3 extra_statements           
+                    mappedArgsListStr = commaSepList mappedArgsList
+                in                                            
+                    [
+                    "    ! Temp vars"
+                    , unlines $ filter (/="") orig_arg_decl_strs
+                    ,"    ! Call to the original scalarised subroutine"
+                    , unlines $ filter (/="") pre_call_assignment_strs
+                    ,"    call "++fname++"_scal("++mappedArgsListStr++")"
+                    , unlines $ filter (/="") post_call_assignment_strs
+                    ]
+
         in                      
             case fsig of 
                 [nms,ms,os] -> 
@@ -345,16 +360,13 @@ generateSubDefOpaque fname functionSignatures =
                         in_args = getVarNames ms
                         out_args = getVarNames os           
                     in
-                        unlines [
+                        unlines $ [
                              "subroutine "++fname++"("  ++(mkArgList [non_map_args,in_args,out_args])++")"
                             , mkDeclLines [non_map_arg_decls,in_arg_decls,out_arg_decls]
-                            ,"    ! Temp vars"
-                            , unlines $ filter (/="") orig_arg_decl_strs
-                            ,"    ! Call to the original scalarised subroutine"
-                            , unlines $ filter (/="") pre_call_assignment_strs
-                            ,"    call "++fname++"_scal("++mappedArgsListStr++")"
-                            , unlines $ filter (/="") post_call_assignment_strs
-                            ,"end subroutine "++fname
+                        ] ++
+                        opaque_function_code_strs
+                        ++ [
+                            "end subroutine "++fname
                         ]
                 [nms,as,ms,os] ->
                     let                
@@ -367,18 +379,15 @@ generateSubDefOpaque fname functionSignatures =
                         in_args = getVarNames ms
                         out_args = getVarNames os           
                     in
-                        error $ "TODO:" ++
-                        unlines [
+                        -- error $ "TODO:" ++
+                        unlines ( [
                              "subroutine "++fname++"("  ++(mkArgList [non_map_args,acc_args,in_args,out_args])++")"
                             , mkDeclLines [non_map_arg_decls,acc_arg_decls,in_arg_decls,out_arg_decls]
-                            ,"    ! Temp vars"
-                            , unlines $ filter (/="") orig_arg_decl_strs
-                            ,"    ! Call to the original scalarised subroutine"
-                            , unlines $ filter (/="") pre_call_assignment_strs
-                            ,"  !!! call "++fname++"_scal("++mappedArgsListStr++")"
-                            , unlines $ filter (/="") post_call_assignment_strs
-                            ,"end subroutine "++fname
-                        ]
+                            ] ++
+                            opaque_function_code_strs
+                            ++ [
+                            "end subroutine "++fname
+                            ])
            
 generateSubDefMapS :: Expr -> Expr -> Name -> (Map.Map Name FSig) -> String
 generateSubDefMapS sv_exp f_exp maps_fname functionSignatures =
@@ -817,9 +826,9 @@ generateMap functionSignatures f_exp v_exp t = -- (Single ov_name)
         Map _ rhs_v_exp = rhs
         -- I reason that output variables *must* be unique
         out_vars_name_lst = case out_vars_lst of
-            Single ov_name'' -> if Map.member ov_name'' mainArgDecls then ov_name''++"(idx)" else ov_name''
-            Composite ov_names -> intercalate ", " (map (\(Single ov_name'') -> if Map.member ov_name'' mainArgDecls then  ov_name''++"(idx)" else  ov_name'') ov_names)        
-        nms_vars_lst = intercalate ", " $ nub $ map (show . getName) nms_exps
+            Single ov_name'' -> if Map.member ov_name'' mainArgDecls then [ov_name''++"(idx)"] else [ov_name'']
+            Composite ov_names -> map (\(Single ov_name'') -> if Map.member ov_name'' mainArgDecls then  ov_name''++"(idx)" else  ov_name'') ov_names
+        nms_vars_lst = nub $ map (show . getName) nms_exps
         in_vars_lst =  getName rhs_v_exp
         in_vars_name_lst = case in_vars_lst of
             Single ov_name'' -> if Map.member ov_name'' mainArgDecls then [ov_name''++"(idx)"] else [ov_name'']
@@ -827,7 +836,7 @@ generateMap functionSignatures f_exp v_exp t = -- (Single ov_name)
                     Composite fl_ov_names = flattenNames (Composite ov_names)
                 in
                     map (\(Single ov_name'') -> if Map.member ov_name'' mainArgDecls then  ov_name''++"(idx)" else  ov_name'') fl_ov_names
-        in_vars_name_lst_str' = intercalate ", " $ map snd (nubTup $ zip ((\(Composite  x) -> x ) sig_in_args_lst) in_vars_name_lst)
+        in_vars_name_lst_str' =  map snd (nubTup $ zip (unwrapName sig_in_args_lst) in_vars_name_lst)
         
         fsig = functionSignatures ! fname 
         [_,v_exp',_] = fsig
@@ -836,7 +845,9 @@ generateMap functionSignatures f_exp v_exp t = -- (Single ov_name)
         (
             unlines [
             "! Map",
-            "    call "++fname++"("++nms_vars_lst ++", " ++ in_vars_name_lst_str'++", " ++ out_vars_name_lst ++ ")",
+            "    call "++fname++"("++
+                mkArgList [nms_vars_lst, in_vars_name_lst_str',out_vars_name_lst]
+                 ++ ")",
             "" ]
         ,[])
 
@@ -885,7 +896,7 @@ generateFold functionSignatures f_exp acc_exp v_exp t =
          show acc_vars_name_lst',
          "! Fold",
         "    call "++fname++"("
-        ++(commaSepList (nms_vars_lst ++[acc_name] ++in_vars_name_lst' ++[out_vars_name_lst]))
+        ++ mkArgList [nms_vars_lst,[acc_name] ,in_vars_name_lst',[out_vars_name_lst]] 
         ++")",        
         acc_name++" = "++out_vars_name_lst
             ]
@@ -1043,7 +1054,7 @@ generateMainProgram functionSignatures ast_stages  =
             "end do"
             ]
             )stage_kernel_calls
-        use_statements_for_opaques = map (\fname -> "! use singleton_module_"++fname++", only : "++fname++"_scal") (Map.keys scalarisedArgs)
+        use_statements_for_opaques = map (\fname -> "use singleton_module_"++fname++", only : "++fname++"_scal") (Map.keys scalarisedArgs)
     in unlines $ [
         "program main",
         unlines use_statements_for_opaques,

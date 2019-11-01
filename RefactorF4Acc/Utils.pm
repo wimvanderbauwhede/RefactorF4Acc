@@ -178,7 +178,7 @@ sub write_out { my ($src_str, $out_path)=@_;
     if ($out_path_ eq 'STDOUT') {
         say $src_str;
     } else {
-        open my $OUT, '>', $out_path_ or die $!;
+        open my $OUT, '>', $out_path_ or die $!.': '.$out_path_;
         print $OUT $src_str;
         close $OUT; 
     }
