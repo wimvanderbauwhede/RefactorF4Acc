@@ -271,7 +271,7 @@ eta_1 = eta
 
 
 -}            
-
+createCallArg :: Name -> Name -> Integer -> Name
 createCallArg fname orig_name stencil_index =            
     let
         actual_arg_name = if length ( (origNames ! fname) ! orig_name) > 0
@@ -319,20 +319,17 @@ generateSubDefOpaque fname functionSignatures =
         fsig = case Map.lookup fname functionSignatures of
             Just fs -> fs
             Nothing -> error "BOOM!"  
--- Then for every f we do:
+        -- Then for every f we do:
         argsList = scalarisedArgs ! fname
-        -- mappedArgsList =  map (
-        --         \(orig_name, stencil_index) -> 
-        --             ((origNames ! fname) ! orig_name)++(if stencil_index==0 then "" else "("++(show stencil_index)++")")
-        --     ) argsList   
-        -- ("dt",(0,In,"real"))
         (mappedArgsList, extra_statements) = unzip $ map (
                 \(orig_name, (stencil_index, intent, ftype)) -> 
                     case intent of
                         InOut -> let
                                     extra_statements = handleInOutArg fname orig_name ftype stencil_index
                             in 
-                                (createCallArg fname orig_name stencil_index, extra_statements)  
+                                -- we need to use the orig_name instead of the new name!
+                                -- createCallArg fname  stencil_index
+                                (orig_name, extra_statements)  
                         _ ->  (createCallArg fname orig_name stencil_index,("","",""))
             ) argsList   
         (orig_arg_decl_strs,pre_call_assignment_strs,post_call_assignment_strs) = unzip3 extra_statements           
@@ -1046,8 +1043,10 @@ generateMainProgram functionSignatures ast_stages  =
             "end do"
             ]
             )stage_kernel_calls
+        use_statements_for_opaques = map (\fname -> "! use singleton_module_"++fname++", only : "++fname++"_scal") (Map.keys scalarisedArgs)
     in unlines $ [
         "program main",
+        unlines use_statements_for_opaques,
         "integer :: global_id",
         "common /ocl/ global_id"
         ] ++

@@ -3,114 +3,19 @@
 ## Fold and staging
 
 This is high priority: I need to make sure that the stages pass on the accumulators. 
+For every stage: If it is a Fold then
+we get the accumulators simply as the output of a Fold call, so getName rhs if lhs is Fold
+else we do nothing
+Then we need to find the opaques in the next stages. So I guess we do 
+
+Function fname non_map_args && fname is opaque && acc_name `elem` (unwrapName $ flattenNames $ getName non_map_args 
+
+for every subsequent stage. Then we must add this argument to stage_kernel_* but it is of course possible that this will happen magically
 
 
-
-## Better AST
-
-WV-2019-10-30: DONE
-
-I need to get rid of DType and also flatten the arguments when I derive them rather than later on.
-
-      data DType =
-          DInteger | DInt
-        | DReal | DFloat
-        | DDC -- Don't Care ; Int and Integer, Real and Float as I can't make up my mind
-          deriving (Show, Typeable, Data, Eq)
-
-      -- I wonder if     data FSig = FSig [Expr] would not be a better approach, or even type FSig = [Expr]
-      data FSig =
-          MapFSig (Expr,Expr,Expr)
-        | FoldFSig (Expr,Expr,Expr,Expr)
-        deriving (Show, Typeable, Data, Eq)
-
-      type TyTraCLAST = [(Expr,Expr)]                      
-
-      data Expr =
-              -- Left-hand side:
-                            Scalar VE DType Name
-                          | Const Int
-                          | Tuple [Expr]
-                          | Vec VE Expr
-
-              -- Right-hand side:
-                          | SVec Size Expr
-                          | ZipT [Expr]
-                          | UnzipT Expr
-                          | Elt Int Expr
-                          | PElt Int -- partially applied Elt
-                          | Map Expr Expr -- map f v
-                          | Fold Expr Expr Expr -- fold f acc v
-                          | Stencil Expr Expr -- stencil s v
-                          | Function Name [Expr] -- 2nd arg is list of non-map/fold args
-                          | Id DType -- id
-                          | ApplyT [Expr]  -- applyt (f1,f2)
-                          | MapS Expr Expr -- maps s f
-                          | Comp Expr Expr -- comp f2 f1
-                          | FComp Expr Expr -- like comp but to combine a fold and a map, quite a-hoc!
-                          | SComb Expr Expr -- scomb s1 s2
-                              deriving (Show, Typeable, Data, Eq)
-
-While I'm at it, let's just make
-
-          type FSig = [Expr]                              
-
-## Duplicate arguments
-
-WV-2019-10-30: DONE
-
-I can either make them unique in the subroutine definition, but not in the calls. That means I add a counter and use this throughout. The trivial way is to add a running counter even to the unique ones, i.e. a zip.
-Then the question is how to ensure that the counters match.
-
-## Integration of the scalarised code
-
-!!! There is a bug in the scalarisation: the signatures are wrong! 
-
-The remaining issue is: if we have a stencil which is InOut because it updates one point of that stencil
-
-["eta","s",0,VS] In
-["eta","",1,] Out
-
-We then have as output a non-stencil arg, but this is actually one of the stencil points.
-In Fortran this is fine, but the problem is than in TyTraCL I don't know which point of the stencil is actually the output.
-
-So I can do one of two things: 
-1/ Find which part of the stencil is assigned to
-2/ Fix the IODir on the stencil
-
-This is more or less the same: the part of the stencil that is assigned to can be Out or InOut, but the rest must be In
-
-- I need to include all modules with the scalarised kernels 
-
-I need to modularise it and create a main program
-WV-2019-10-30: DONE
-Essentially, the generated code should become OpenCL code so I need to generate the call get_global_id(idx)
-WV-2019-10-30: DONE
+## OpenCL Code
 
 The host-side code will have to be manual for now.
-
-A trick to have `get_global_id()` to work is to put idx in a COMMON block. Then we define
-
-            subroutine get_global_id(idx)
-              integer, intent(out) :: idx
-              integer :: global_id
-              common /ocl/ global_id
-              idx = global_id
-            end subroutine get_global_id  
-
-and we define the main program as
-
-            program main
-              integer :: global_id
-              common /ocl/ global_id
-              ! and then all decls used in the kernels but without intent
-
-              do global_id=1,VSZ
-                call stage_kernel(<same>)
-              end do
-            end program main  
-
-
 
 ## Testing and Examples
 

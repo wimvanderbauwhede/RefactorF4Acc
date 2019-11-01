@@ -139,3 +139,7 @@ appendPrePost prefix postfix (Composite nms) = Composite $ map (appendPrePost pr
 flattenNames :: FName -> FName
 flattenNames (Single nm) =  Composite [Single nm]
 flattenNames (Composite nms) = Composite $ concat $ map ( (\(Composite x) -> x) . flattenNames) nms
+
+unwrapName  :: FName -> [Name]
+unwrapName (Single nm) =  [nm]
+unwrapName  (Composite nms) = concatMap unwrapName nms
