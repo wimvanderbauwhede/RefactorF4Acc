@@ -47,9 +47,11 @@ substituteVectors ast' =  map (substitute_vec_rec ast') (filter lhs_is_output_ve
 The AST is now reduced to a list of tuples where the first elt (LHS) is an output vector and the second element is an expression which only contains input vectors.     
 Now we should start applying the rewrite rules to reduce each of these expressions to a single Map.
 -}
-
+-- The result of a Fold is always an output
+lhs_is_output_vec (lhs_vec,Fold _ _ _) = True
 lhs_is_output_vec (lhs_vec,expr) = case lhs_vec of
     Vec VO _ -> True
+    -- This is now probably redundant, as only Fold can return a Scalar
     Scalar _ _ _ -> True -- maybe too loose, should be VT really 
     _ -> False
 

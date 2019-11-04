@@ -8,7 +8,7 @@ import CodeGeneration (
     generateFortranCode
     )
 
-info =  True    
+info =  False    
 
 ast1 = splitLhsTuples ast
 ast2 = substituteVectors ast1
