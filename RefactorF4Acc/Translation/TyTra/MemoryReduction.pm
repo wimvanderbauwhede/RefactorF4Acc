@@ -897,7 +897,7 @@ sub mkMapAST {
         and scalar @{$mapNode->{'Rhs'}{'NonMapArgs'}{'Vars'}} > 0)
     {
 # FIXME: I guess a single arg should not be a tuple ...
-        $non_map_arg_str = ' [' . join(',', map { __mkScalar($_) } @{$non_map_vars_types}) . ']';        
+        $non_map_arg_str = ' [' . join(',', map { __mkScalar($_,'In') } @{$non_map_vars_types}) . ']';        
         # $non_map_arg_str = ' [' . join(',', map { '"'._mkVarName($_).'"' } @{$mapNode->{'Rhs'}{'NonMapArgs'}{'Vars'}}) . ']';
     }
     my $rhs_core = 'Map (Function "' . $f_exp . '" '.$non_map_arg_str. ') ' . $map_args ;
@@ -927,15 +927,9 @@ sub mkFoldAST {
 # more than one
     my $lhs =
      scalar @{$foldNode->{'Lhs'}{'Vars'}} > 1
-      ? '(Tuple [' . join(',', map { __mkScalar($_) } @{$lhs_vars_types}) . '])'
+      ? '(Tuple [' . join(',', map { __mkScalar($_,'Out') } @{$lhs_vars_types}) . '])'
 # otherwise
-    : __mkScalar($lhs_vars_types->[0]);    
-# # more than one
-#     my $lhs =
-#      scalar @{$foldNode->{'Lhs'}{'Vars'}} > 1
-#       ? '(Tuple [' . join(',', map { __mkScalar($_) } @{$foldNode->{'Lhs'}{'Vars'}}) . '])'
-# # otherwise
-#     : __mkScalar($foldNode->{'Lhs'}{'Vars'}[0]);
+    : __mkScalar($lhs_vars_types->[0],'Out');    
 
     my $non_fold_vars_types = zip( $foldNode->{'Rhs'}{'NonFoldArgs'}{'Vars'}, $non_fold_type);
     my $fold_vars_types = zip($foldNode->{'Rhs'}{'FoldArgs'}{'Vars'},$vec_type);
@@ -946,8 +940,8 @@ sub mkFoldAST {
 
     my $acc_vars_types = zip($foldNode->{'Rhs'}{'AccArgs'}{'Vars'}, $acc_type);
     my $acc_args =   scalar @{$foldNode->{'Rhs'}{'AccArgs'}{'Vars'}} > 1
-      ? '(' . join(',', map { __mkScalar($_) } @{$acc_vars_types}) . ')'
-      : '(' . __mkScalar($acc_vars_types->[0]) . ')';
+      ? '(' . join(',', map { __mkScalar($_,'In') } @{$acc_vars_types}) . ')'
+      : '(' . __mkScalar($acc_vars_types->[0],'In') . ')';
 
     my $f_exp = $foldNode->{'Rhs'}{'Function'};
     my $non_fold_arg_str = '[]';
@@ -956,7 +950,7 @@ sub mkFoldAST {
     {
 # FIXME: I guess a single arg should not be a tuple ...
 
-        $non_fold_arg_str = ' [' . join(',', map { __mkScalar($_) } @{$non_fold_vars_types}) . ']';
+        $non_fold_arg_str = ' [' . join(',', map { __mkScalar($_,'In') } @{$non_fold_vars_types}) . ']';
         # $non_fold_arg_str = ' [' . join(',', map { '"'. _mkVarName($_).'"' } @{$foldNode->{'Rhs'}{'NonFoldArgs'}{'Vars'}}) . ']';
         # $f_exp .= $non_fold_arg_str;
     }
@@ -968,33 +962,27 @@ sub mkFoldAST {
 }
 
 # In principle the SVec type can contain another SVec but not while generating the code
-# sub __mkType { (my $t_rec)=@_;
-#     if ($t_rec->[0] ne 'SVec') {
-#         return 'D'.$t_rec->[0];
-#     } else {
-#         return '(DSVec '.$t_rec->[1]. ' D'.$t_rec->[2].')';
-#     }
-# }
-
 # (Vec VI (Tuple [Scalar Float "eta_0", Scalar DInt "wet_0"] ) )
 # (Vec VI (Scalar Float "eta_0") )
 # (Vec VS (SVec 5 (Scalar DFloat "eta_s_0") ) )
 # ['SVec',3,'DFloat']
-sub __mkType { (my $t_rec, my $v_name)=@_;
+sub __mkType { (my $t_rec, my $v_name, my $v_intent)=@_; 
+    my $ve = defined $v_intent ? 'V'.ucfirst(substr($v_intent,0,1)) : 'VDC';
+    # carp Dumper($v_intent);#$ve;
     if ($t_rec->[0] ne 'SVec') {
-        return 'Scalar VDC D'.$t_rec->[0].' "'.$v_name.'"';
+        return 'Scalar '.$ve.' D'.$t_rec->[0].' "'.$v_name.'"';
     } else {
-        return 'SVec '.$t_rec->[1]. '(Scalar VDC D'.$t_rec->[2].' "'.$v_name.'")';
+        return 'SVec '.$t_rec->[1]. '(Scalar '.$ve.' D'.$t_rec->[2].' "'.$v_name.'")';
     }
 }
 
 sub __mkVec {
-    my ($var_type_rec) = @_;
+    my ($var_type_rec, $v_intent) = @_;
     my ($v_rec, $t_rec) = @{$var_type_rec};
     # t_rec is either [Int] or [SVec,3,Int]
     my $v_name  = _mkVarName($v_rec);
     my $ve      = $v_rec->[3];
-    return 'Vec ' . $ve . ' ('.__mkType($t_rec, $v_name).')'; #.' "' . $v_name . '"';
+    return 'Vec ' . $ve . ' ('.__mkType($t_rec, $v_name, $v_intent).')'; #.' "' . $v_name . '"';
 }
 
 sub __mkUntypedVec {
@@ -1006,16 +994,16 @@ sub __mkUntypedVec {
     return 'Vec ' . $ve . ' DDC "' . $v_name . '"';
 }
 sub __mkScalar {
-    my ($var_type_rec) = @_;
+    my ($var_type_rec, $v_intent) = @_;
 
     my ($v_rec, $t_rec) = @{$var_type_rec};
 
     my $v_name  = _mkVarName($v_rec);
     my $ve      = $v_rec->[3];    
     if (scalar @{$t_rec} == 1) {
-        return __mkType($t_rec,$v_name);#.'  "' . $v_name . '"';
+        return __mkType($t_rec,$v_name, $v_intent);#.'  "' . $v_name . '"';
     } else {
-    return 'Scalar '.$ve.' '.__mkType($t_rec,$v_name);#.'  "' . $v_name . '"';
+    return 'Scalar '.$ve.' '.__mkType($t_rec,$v_name, $v_intent);#.'  "' . $v_name . '"';
     }
 }
 

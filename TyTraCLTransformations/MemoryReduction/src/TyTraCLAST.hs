@@ -30,10 +30,17 @@ data FIntent = In | Out | InOut | Unknown | NA
   deriving (Show, Ord, Typeable, Data, Eq)
 
 data FDecl = MkFDecl {
-  ftype :: String,
+  ftype :: String,  
   dim :: Maybe [Int],
   intent :: Maybe FIntent,
   names :: [String] 
+  } |
+--  deriving (Ord, Typeable, Data, Eq)
+ MkFParamDecl {
+  ftype :: String,  
+  dim :: Maybe [Int],
+  name :: String,
+  val :: String 
   }
  deriving (Ord, Typeable, Data, Eq)
 
@@ -51,6 +58,16 @@ instance Show FDecl where
             Nothing -> attributes'
       in
         (intercalate ", " attributes'') ++ " :: "++ (intercalate ", " names)
+  show (MkFParamDecl ftype mdim name val) = let
+    maybe_dimstr = case mdim of          
+      Just dims -> let
+          dims_str = intercalate "," $ map (\dm ->  "1:"++(show dm)) dims
+        in
+          ", dimension("++dims_str++")"
+      Nothing -> ""
+    in
+      ftype++", parameter"++maybe_dimstr++" :: "++ name ++ " = " ++ val
+        
 
 type TyTraCLAST = [(Expr,Expr)]                      
 
@@ -138,7 +155,7 @@ appendPrePost prefix postfix (Composite nms) = Composite $ map (appendPrePost pr
 
 flattenNames :: FName -> FName
 flattenNames (Single nm) =  Composite [Single nm]
-flattenNames (Composite nms) = Composite $ concat $ map ( (\(Composite x) -> x) . flattenNames) nms
+flattenNames (Composite nms) = Composite $ concatMap ( (\(Composite x) -> x) . flattenNames) nms
 
 unwrapName  :: FName -> [Name]
 unwrapName (Single nm) =  [nm]
