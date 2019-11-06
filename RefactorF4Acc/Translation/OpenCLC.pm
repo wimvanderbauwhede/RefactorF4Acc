@@ -79,6 +79,7 @@ sub translate_module_to_C {  (my $stref, my $module_name, my $ocl) = @_;
     # This makes sure that no fortran is emitted by emit_all()	
     $stref->{'SourceContains'}={};
 } # END of translate_module_to_C
+
 sub add_OpenCL_address_space_qualifiers { (my $stref, my $f, my $ocl) = @_;
 	
 	if ($ocl>=1) { 
@@ -120,7 +121,7 @@ sub add_OpenCL_address_space_qualifiers { (my $stref, my $f, my $ocl) = @_;
 					# First update the ArgMap 
 					# This is to account for the renamed pointers
 					for my $sig_arg (keys %{$info->{'SubroutineCall'}{'ArgMap'} }) {
-						my $call_arg = $info->{'SubroutineCall'}{'ArgMap'}{$sig_arg};
+						my $call_arg = $info->{'SubroutineCall'}{'ArgMap'}{$sig_arg};						
 						my $call_arg_expr =  $info->{'SubroutineCall'}{'Args'}{'Set'}{$call_arg}{'Expr'};
 						if (exists $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$call_arg_expr} and 
 						exists $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$call_arg_expr}{'OclAddressSpace'} ) {
@@ -180,18 +181,21 @@ sub translate_sub_to_C {  (my $stref, my $f, my $ocl) = @_;
 		elsif (exists $info->{'VarDecl'} ) {
 			
 				my $var = $info->{'VarDecl'}{'Name'};
-#				croak Dumper($stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}) if $var eq 'f';
 				if (exists $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$var}
 				or ($ocl==3 and $var=~/__pipe$/)
 				) {
 					$c_line='//'.$line;
 					$skip=1;
 				} else {
-									
+				# WV20191106 If we always use 1-D arrays then array slices should be mimicked by 
+				# multiplying the array index with the size of the first dimension, e.g for an 8x8 array
+				# v(2,:) would become v[8]
+				# and for an 8x8x8, v(2,:,:) would become v[1*8*8] and v(2,3,:) would be v(1*8*8+2*8)
+				# And this should be a pointer, not a value, so should it then not be &v[8]? I think so.
 					$c_line = _emit_var_decl_C($stref,$f,$var);
 					if (exists $info->{'TrailingComment'} and $info->{'TrailingComment'}=~/\$ACC\s+MemSpace\s+(\w+)/) {
 						# This code will basically only work for arrays with dimensions defined by constants and macros
-#						croak Dumper($var);
+						# 
 						my $decl =  get_var_record_from_set($stref->{'Subroutines'}{$f}{'Vars'},$var);
 						my $dim = $decl->{'Dim'};
 						my @sizes = map {  '('.$_->[1].' - '.$_->[0].' +1)'   } @{$dim} ; #[['1','nth']]
@@ -276,8 +280,7 @@ sub translate_sub_to_C {  (my $stref, my $f, my $ocl) = @_;
 			elsif ($subcall_ast->[1]=~/get_(local|global|group)_id/) {
 				my $qual = $1;
 				$c_line = $info->{'Indent'}."${qual}_id = get_${qual}_id(0);";
-			} else {
-				
+			} else {				
 				$c_line = $info->{'Indent'}._emit_expression_C($subcall_ast,$stref,$f).';';
             }
 		}			 
@@ -546,7 +549,7 @@ sub _emit_expression_C { my ($ast, $stref, $f)=@_;
 					# croak Dumper $ast;
 			}
 
-            if ($ast->[0] ==1 or $ast->[0] ==10) { # '&' array access or function call
+            if ($ast->[0] ==1 or $ast->[0] ==10) { #  array access 10=='@' or function call 1=='&'
                 (my $sigil, my $name, my $args) =@{$ast};
 				# if (in_nested_set($Sf,'Vars',$name)) {
 				# 	say "NAME $name is an ARRAY (".$ast->[0].')';
@@ -572,8 +575,9 @@ sub _emit_expression_C { my ($ast, $stref, $f)=@_;
 						if($args->[0] == 27) { # ','
 						# more than one arg
 							for my $idx (1 .. scalar @{$args}-1) {
-								my $arg = $args->[$idx];
-								push @args_lst, _emit_expression_C($arg, $stref, $f);
+								my $arg = $args->[$idx];							
+								my $is_slice = $arg->[0] == 12;
+								push @args_lst, _emit_expression_C($arg, $stref, $f) unless $is_slice;
 							}
 
 							#                    for my $arg (@{$args->[1]}) {
@@ -587,30 +591,34 @@ sub _emit_expression_C { my ($ast, $stref, $f)=@_;
 							# return "$name("._emit_expression_C($args, $stref, $f).')';
 						}
 
-						if ($ast->[0]==10) { 
-							if( $args->[0]==29 and $args->[1] eq '1') {
+						if ($ast->[0]==10) { # An array access
+							if( $args->[0]==29 and $args->[1] eq '1') { # if we have v(1)
 								return '(*'.$name.')';
 							} else {
-									my $decl = get_var_record_from_set($stref->{'Subroutines'}{$f}{'Vars'},$name);
-									my $dims =  $decl->{'Dim'};
-			#						if (__all_bounds_numeric($dims)) {
-			#							$expr_str.=$name.'['.__C_array_size($dims).',';
-			#						} else {
-										my $ndims = scalar @{$dims};
-										
-										my @ranges=();
-										my @lower_bounds=();
-										for my $boundspair (@{$dims}) {
-											(my $lb, my $hb)=@{$boundspair };
-											push @ranges, "(($hb - $lb )+1)";
-											push @lower_bounds, $lb; 
-										} 				
-										if ($ndims==1) {
-											return $name.'[F1D2C('.join(',',@lower_bounds). ' , '.join(',',@args_lst).')]';
-										} else {
-											return $name.'[F'.$ndims.'D2C('.join(',',@ranges[0.. ($ndims-2)]).' , '.join(',',@lower_bounds). ' , '.join(',',@args_lst).')]';
-										}
-			#						}
+								
+
+
+
+								my $decl = get_var_record_from_set($stref->{'Subroutines'}{$f}{'Vars'},$name);
+								my $dims =  $decl->{'Dim'};
+		#						if (__all_bounds_numeric($dims)) {
+		#							$expr_str.=$name.'['.__C_array_size($dims).',';
+		#						} else {
+								my $ndims = scalar @{$dims};
+									
+								my @ranges=();
+								my @lower_bounds=();
+								for my $boundspair (@{$dims}) {
+									(my $lb, my $hb)=@{$boundspair };
+									push @ranges, "(($hb - $lb )+1)";
+									push @lower_bounds, $lb; 
+								} 				
+								if ($ndims==1) {
+									return $name.'[F1D2C('.join(',',@lower_bounds). ' , '.join(',',@args_lst).')]';
+								} else {
+									return $name.'[F'.$ndims.'D2C('.join(',',@ranges[0.. ($ndims-2)]).' , '.join(',',@lower_bounds). ' , '.join(',',@args_lst).')]';
+								}
+		#						}
 							}
 						} else {							
 							return "$name(".join(',',@args_lst).')';

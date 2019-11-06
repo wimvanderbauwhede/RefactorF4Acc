@@ -265,6 +265,9 @@ mkMap('sor',[],[['p','4','s']],[['p','4','']]),
 
     write_out($tytracl_hs_str);
 
+    $stref = emit_TyTraCL($stref);
+    my $tytracl_str = $stref->{'TyTraCL_Code'};
+    say $tytracl_str;
     # This makes sure that no fortran is emitted by emit_all()
     $stref->{'SourceContains'} = {};
 
@@ -596,7 +599,9 @@ ast = [
     $tytracl_hs_ast_code_str=$header.$tytracl_hs_ast_code_str."\n        ]\n";
 
     my $fsigs_str = _create_TyTraCL_Haskell_signatures($stref);
+    
     my $stencil_defs_str = _create_TyTraCL_Haskell_stencilDefs(\@stencil_defs);
+    
     my $main_arg_decls_str = _create_TyTraCL_Haskell_MainArgDecls($stref,$tytracl_ast->{'MainFunction'});
 
     $tytracl_hs_ast_code_str.= "\n".$fsigs_str;
@@ -1136,14 +1141,14 @@ return
 sub _create_TyTraCL_Haskell_MainArgDecls { (my $stref, my $f) = @_;
         
     my $arg_decl_str_pairs=[];
-for my $in_arg_name (keys %{$stref->{'TyTraCL_AST'}{'Main'}{'InArgsTypes'}}) {
-    my $tytracl_var_rec =  $stref->{'TyTraCL_AST'}{'Main'}{'InArgsTypes'}{$in_arg_name};
-    my $in_arg_decl = __toHaskellFDecl($in_arg_name,$tytracl_var_rec,'In');
+for my $in_arg_name (keys %{$stref->{'TyTraCL_AST'}{'Main'}{'InArgsTypes'}}) {     
+    my @tytracl_var_rec = @{ $stref->{'TyTraCL_AST'}{'Main'}{'InArgsTypes'}{$in_arg_name}};
+    my $in_arg_decl = __toHaskellFDecl($in_arg_name,\@tytracl_var_rec,'In');
     push @{$arg_decl_str_pairs}, [$in_arg_name,$in_arg_decl];
 }
 for my $out_arg_name (keys %{$stref->{'TyTraCL_AST'}{'Main'}{'OutArgsTypes'}}) {
-    my $tytracl_var_rec =  $stref->{'TyTraCL_AST'}{'Main'}{'OutArgsTypes'}{$out_arg_name};
-    my $out_arg_decl = __toHaskellFDecl($out_arg_name,$tytracl_var_rec,'Out');
+    my @tytracl_var_rec = @{ $stref->{'TyTraCL_AST'}{'Main'}{'OutArgsTypes'}{$out_arg_name}};
+    my $out_arg_decl = __toHaskellFDecl($out_arg_name,\@tytracl_var_rec,'Out');
     push @{$arg_decl_str_pairs}, [$out_arg_name,$out_arg_decl];
 }
 

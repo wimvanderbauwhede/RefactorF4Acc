@@ -36,6 +36,10 @@ origNames = Map.fromList $ map (\(k,v)-> (k, Map.fromList v)) origNamesList
 scalarisedArgs :: Map.Map Name [(Name,(Integer, FIntent, Name))]
 scalarisedArgs = Map.fromList scalarisedArgsList 
 
+{-
+9.4 Generating the intermediate function definitions
+-}
+
 -- For info only, not called except in Main when info = True
 inferSignatures :: TyTraCLAST -> [(Name,FSig)]
 inferSignatures ast = Map.toList (inferSignaturesMap functionSignatures ast)
@@ -70,43 +74,31 @@ getFunctionSignature rhs functionSignatures =
             FComp (Function f1 _) (Function f2 _) -> deriveSigFComp f1 f2 functionSignatures
             ApplyT fs -> deriveSigApplyT fs functionSignatures
 
--- ApplyT can only arise because of Map, so it can't be Fold.       
--- Arguments to ApplyT can be Function, Id, what else? Let's assume that is all
--- The signature of the derived function should be grouped   
--- ApplyT simply applies a number of functions to a number of elements in a tuple
--- So the signature is the combination of all signatures
-
-deriveSigApplyT :: [Expr] -> (Map.Map Name FSig) -> FSig      
-deriveSigApplyT fs functionSignatures =
-    let
-        fsigs = getFSigs fs functionSignatures        
-        -- So we have for every function a list [Expr, Expr, Expr]
-        -- I need to combine this into a single list. To do so, I have to remove the Tuple and then concat. Easy:
-        (nsl, msl, osl) = unzip3 $ map (\[nm,m,o] -> (nm,m,o)) fsigs
-        (ns, ms, os) = (Tuple nsl,Tuple msl,Tuple osl)
-    in
-        [ns,ms,os] 
-
+{-
+maps :: SVec sz a -> c->a->b -> c->SVec sz a -> SVec sz b
+-}                
 deriveSigMaps :: Int -> Name -> (Map.Map Name FSig) -> FSig
 deriveSigMaps sv_sz fname functionSignatures =
     let
         fsig = functionSignatures ! fname
+        os:ms:nms_maybe_accs = reverse fsig                    
+        ms' = SVec sv_sz (updateName "sv" "in" ms)
+        os' = SVec sv_sz (updateName "sv" "out" os)
     in            
-        case fsig of
-            [nms,ms,os] -> let
-{-
-maps :: SVec sz a -> c->a->b -> c->SVec sz a -> SVec sz b
--}                
-                    ms' = SVec sv_sz (updateName "sv" "in" ms)
-                    os' = SVec sv_sz (updateName "sv" "out" os)
-                in
-                    [nms,ms',os']
-            [nms,as,ms,os] -> let
-                    ms' = SVec sv_sz (updateName "sv" "in" ms)
-                    os' = SVec sv_sz (updateName "sv" "out" os)
-                in
-                    [nms,as,ms',os']
+        reverse $ os':ms':nms_maybe_accs
+        -- case fsig of
+        --     [nms,ms,os] -> let
+        --             ms' = SVec sv_sz (updateName "sv" "in" ms)
+        --             os' = SVec sv_sz (updateName "sv" "out" os)
+        --         in
+        --             [nms,ms',os']
+        --     [nms,as,ms,os] -> let
+        --             ms' = SVec sv_sz (updateName "sv" "in" ms)
+        --             os' = SVec sv_sz (updateName "sv" "out" os)
+        --         in
+        --             [nms,as,ms',os']    
 
+-- comp :: (b->c) -> (a->b) -> a -> c
 deriveSigComp :: Name -> Name -> (Map.Map Name FSig) -> FSig
 deriveSigComp fname1 fname2 functionSignatures =      
     let
@@ -118,7 +110,8 @@ deriveSigComp fname1 fname2 functionSignatures =
         (nms,ms',os') = (Tuple [nms1,nms2], ms2, os1)
     in
         [nms,ms',os']
-
+-- fcomp :: (c->b->c) -> (a->b) -> c -> a -> c
+deriveSigFComp :: Name -> Name -> (Map.Map Name FSig) -> FSig
 deriveSigFComp fname1 fname2 functionSignatures =               
     let
         fsig1 =  functionSignatures ! fname1
@@ -129,7 +122,8 @@ deriveSigFComp fname1 fname2 functionSignatures =
         (nms,ms',os') = (Tuple [nms1,nms2], ms2, os1)
     in
         [nms,as,ms',os']     
-
+-- elt :: (i::Int) -> (..., a_i, ...) -> a_i
+deriveSigPELt :: Int -> Name -> (Map.Map Name FSig) -> FSig
 deriveSigPELt idx fname functionSignatures = 
     let
         fsig =  functionSignatures ! fname
@@ -145,6 +139,24 @@ deriveSigPELt idx fname functionSignatures =
                     os' = es !! idx
                 in
                     [nms,as,ms,os']
+
+-- ApplyT can only arise because of Map, so it can't be Fold.       
+-- Arguments to ApplyT can be Function, Id, what else? Let's assume that is all
+-- The signature of the derived function should be grouped   
+-- ApplyT simply applies a number of functions to a number of elements in a tuple
+-- So the signature is the combination of all signatures
+deriveSigApplyT :: [Expr] -> (Map.Map Name FSig) -> FSig      
+deriveSigApplyT fs functionSignatures =
+    let
+        fsigs = getFSigs fs functionSignatures        
+        -- So we have for every function a list [Expr, Expr, Expr]
+        -- I need to combine this into a single list. To do so, I have to remove the Tuple and then concat. Easy:
+        (nsl, msl, osl) = unzip3 $ map (\[nm,m,o] -> (nm,m,o)) fsigs
+        (ns, ms, os) = (Tuple nsl,Tuple msl,Tuple osl)
+    in
+        [ns,ms,os] 
+
+
 
 -- ----------------------------------------------------------------------------------------
 -- ----------------------------------------------------------------------------------------
@@ -272,9 +284,7 @@ handleInOutArg fname orig_name ftype stencil_index = let
 
 generateSubDefOpaque fname functionSignatures =
     let
-        fsig = case Map.lookup fname functionSignatures of
-            Just fs -> fs
-            Nothing -> error "BOOM!"  
+        fsig = functionSignatures ! fname
         -- Then for every f we do:
         opaque_function_code_strs = if null scalarisedArgsList 
             then
@@ -350,21 +360,31 @@ generateSubDefMapS sv_exp f_exp maps_fname functionSignatures =
     let
         SVec sv_sz _ = sv_exp
         Function fname _ = f_exp
+
         maps_fsig = functionSignatures ! maps_fname 
-        [nms',in_arg',out_arg'] = maps_fsig
-        nms = mkFinalArgSigList nms'
-        in_arg = mkFinalArgSigList in_arg'     
-        out_arg = mkFinalArgSigList out_arg'     
-        non_map_arg_decls = createDecls nms -- tuple becomes list of decls
-        sv_in_decl = createDecls in_arg
-        sv_out_decl = createDecls out_arg
-        non_map_args = getVarNames nms
-        sv_in_iters = createIter in_arg
-        sv_out_iters = createIter out_arg
+
+        (argts_fn,arg_decls,arg_names) = createArgDeclsAndNames maps_fsig
+        [_,in_argtfn, out_argtfn] = argts_fn
+        [non_map_arg_decls,sv_in_decl,sv_out_decl] = arg_decls
+        [non_map_args,sv_in,sv_out] = arg_names
+
+        -- [nmst,in_argt,out_argt] = maps_fsig
+        -- nmstfn = mkFinalArgSigList nmst
+        -- in_argtfn = mkFinalArgSigList in_argt 
+        -- out_argtfn = mkFinalArgSigList out_argt 
+
+        -- non_map_arg_decls = createDecls nmstfn -- tuple becomes list of decls
+        -- sv_in_decl = createDecls in_argtfn
+        -- sv_out_decl = createDecls out_argtfn
+
+        -- non_map_args = getVarNames nmstfn
+        -- sv_in = getVarNames in_argtfn
+        -- sv_out = getVarNames out_argtfn                
+
+        sv_in_iters = createIter in_argtfn
+        sv_out_iters = createIter out_argtfn
         sv_in_accesses = map (\(x,y)-> x++y) $ zip sv_in sv_in_iters
         sv_out_accesses = map (\(x,y)-> x++y) $ zip sv_out sv_out_iters
-        sv_in = getVarNames in_arg
-        sv_out = getVarNames out_arg                
     in unlines [        
         "subroutine "++maps_fname++"("  ++(mkArgList [non_map_args,sv_in,sv_out])++")"
         , mkDeclLines [non_map_arg_decls,sv_in_decl,sv_out_decl]
@@ -380,41 +400,42 @@ generateSubDefMapS sv_exp f_exp maps_fname functionSignatures =
 generateSubDefApplyT :: [Expr]  -> Name -> (Map.Map Name FSig) -> String
 generateSubDefApplyT f_exps applyt_fname functionSignatures = 
     let
-            -- fsigs = getFSigs f_exps functionSignatures
+        -- fsigs = getFSigs f_exps functionSignatures
 
-            applyt_fsig = case Map.lookup applyt_fname functionSignatures of
-                Just fs -> fs
-                Nothing -> error "BOOM!"
-            [nmst@(Tuple nms),in_argt@(Tuple in_args), out_argt@(Tuple out_args)] = applyt_fsig
-            -- so nmst etc are lists, one per function in f_exps
-            nmstfn = mkFinalArgSigList nmst
-            in_argtfn = mkFinalArgSigList in_argt
-            out_argtfn = mkFinalArgSigList out_argt
+        applyt_fsig = functionSignatures ! applyt_fname
+        [Tuple nms,Tuple in_args,Tuple out_args] = applyt_fsig
+        (_,arg_decls,arg_names) = createArgDeclsAndNames applyt_fsig
+        -- [nmstfn,in_argtfn, out_argtfn] = argts_fn
+        [non_map_arg_decls,in_arg_decls,out_arg_decls] = arg_decls
+        [non_map_args'',in_args'',out_args''] = arg_names
 
-            non_map_args'' = getVarNames nmstfn
-            in_args'' = getVarNames in_argtfn
-            out_args'' = getVarNames out_argtfn
 
-            non_map_arg_decls =  createDecls nmstfn --  nmst -- tuple becomes list of decls
-            in_arg_decls =  createDecls in_argtfn
-            out_arg_decls =  createDecls out_argtfn -- concat $ map            
+        -- so nmst etc are lists, one per function in f_exps
 
-            calls_nmsfn = map mkFinalArgSigList nms
-            calls_msfn = map mkFinalArgSigList in_args
-            calls_osfn = map mkFinalArgSigList out_args
-                       
-            calls_non_map_args =  map getVarNames calls_nmsfn
-            calls_in_args =  map getVarNames calls_msfn
-            calls_out_args =  map getVarNames calls_osfn
+        -- nmstfn = mkFinalArgSigList nmst
+        -- in_argtfn = mkFinalArgSigList in_argt
+        -- out_argtfn = mkFinalArgSigList out_argt
 
-            fsig_names_tups = zip4 f_exps calls_non_map_args calls_in_args calls_out_args
-            
+        -- non_map_arg_decls =  createDecls nmstfn --  nmst -- tuple becomes list of decls
+        -- in_arg_decls =  createDecls in_argtfn
+        -- out_arg_decls =  createDecls out_argtfn -- concat $ map            
 
-            
+        -- non_map_args'' = getVarNames nmstfn
+        -- in_args'' = getVarNames in_argtfn
+        -- out_args'' = getVarNames out_argtfn
+
+        calls_nmsfn = map mkFinalArgSigList nms
+        calls_msfn = map mkFinalArgSigList in_args
+        calls_osfn = map mkFinalArgSigList out_args
+                    
+        calls_non_map_args =  map getVarNames calls_nmsfn
+        calls_in_args =  map getVarNames calls_msfn
+        calls_out_args =  map getVarNames calls_osfn
+
+        fsig_names_tups = zip4 f_exps calls_non_map_args calls_in_args calls_out_args
 -- For Id we must rename the args so that they are different. Wonder if I could already do that in the Transform?
-    in 
-        unlines $ concat [
-            ["! APPLYT: FLATTENED, NUBBED: \n! " ++(show nmstfn)++"\n! "++(show in_argtfn)++"\n! "++(show out_argtfn)], 
+    in unlines $ concat [
+            -- ["! APPLYT: FLATTENED, NUBBED: \n! " ++(show nmstfn)++"\n! "++(show in_argtfn)++"\n! "++(show out_argtfn)], 
             [            
             "subroutine "++applyt_fname++"("  ++(mkArgList [non_map_args'',in_args'',out_args''])++")"            
             , mkDeclLines [non_map_arg_decls,in_arg_decls,out_arg_decls]
@@ -437,18 +458,24 @@ generateSubDefComp f1_exp f2_exp comp_fname functionSignatures =
         Function fname2 _ = f2_exp
         fsig1 = functionSignatures ! fname1  
         comp_fsig = functionSignatures ! comp_fname
-        [nmst@(Tuple nms),in_argt, out_argt] = comp_fsig
-        nmstfn = mkFinalArgSigList nmst
-        in_argtfn = mkFinalArgSigList in_argt
-        out_argtfn = mkFinalArgSigList out_argt
+        [Tuple nms,_,_] = comp_fsig
+        (_,arg_decls,arg_names) = createArgDeclsAndNames comp_fsig
+        -- [nmstfn,in_argtfn, out_argtfn] = argts_fn
+        [non_map_arg_decls,in_arg_decls,out_arg_decls] = arg_decls
+        [non_map_args'',in_args'',out_args''] = arg_names
 
-        non_map_args'' = getVarNames nmstfn
-        in_args'' = getVarNames in_argtfn
-        out_args'' = getVarNames out_argtfn
+        -- nmstfn = mkFinalArgSigList nmst
+        -- in_argtfn = mkFinalArgSigList in_argt
+        -- out_argtfn = mkFinalArgSigList out_argt
 
-        non_map_arg_decls =  createDecls nmstfn --  nmst -- tuple becomes list of decls
-        in_arg_decls =  createDecls in_argtfn
-        out_arg_decls =  createDecls out_argtfn -- concat $ map  
+        -- non_map_args'' = getVarNames nmstfn
+        -- in_args'' = getVarNames in_argtfn
+        -- out_args'' = getVarNames out_argtfn
+
+        -- non_map_arg_decls =  createDecls nmstfn --  nmst -- tuple becomes list of decls
+        -- in_arg_decls =  createDecls in_argtfn
+        -- out_arg_decls =  createDecls out_argtfn -- concat $ map  
+        
         calls_nmsfn = map mkFinalArgSigList nms                   
         [non_map_args1,non_map_args2] =  map getVarNames calls_nmsfn
         [_,ms1',_] = fsig1 
@@ -456,8 +483,7 @@ generateSubDefComp f1_exp f2_exp comp_fname functionSignatures =
         local_var_decls = createDecls ms1
         tmp_args = getVarNames ms1
 
-    in 
-        unlines [
+    in unlines [
             "subroutine "++comp_fname++"("  ++(mkArgList [non_map_args'',in_args'',out_args''])++")"            
             , mkDeclLines [non_map_arg_decls,in_arg_decls,out_arg_decls,local_var_decls]
             , "    call "++fname2++"(" ++(mkArgList [non_map_args2,in_args'',tmp_args]) ++")"
@@ -480,21 +506,28 @@ generateSubDefFComp f1_exp f2_exp fcomp_fname functionSignatures =
         fsig1 = functionSignatures ! fname1  
         -- fsig2 =  functionSignatures ! fname2
         fcomp_fsig = functionSignatures ! fcomp_fname
-        [nmst@(Tuple nms),acc_argt,in_argt, out_argt] = fcomp_fsig
-        nmstfn = mkFinalArgSigList nmst
-        in_argtfn = mkFinalArgSigList in_argt
-        acc_argtfn = mkFinalArgSigList acc_argt
-        out_argtfn = mkFinalArgSigList out_argt
+        [Tuple nms,_,_,_] = fcomp_fsig
+        (_,arg_decls,arg_names) = createArgDeclsAndNames fcomp_fsig
+        -- [nmstfn,acc_argtfn,in_argtfn, out_argtfn] = argts_fn
+        [non_map_arg_decls,acc_arg_decls,in_arg_decls,out_arg_decls] = arg_decls
+        [non_map_args'',acc_args'',in_args'',out_args''] = arg_names
 
-        non_map_args'' = getVarNames nmstfn
-        acc_args'' = getVarNames acc_argtfn
-        in_args'' = getVarNames in_argtfn
-        out_args'' = getVarNames out_argtfn
 
-        non_map_arg_decls =  createDecls nmstfn --  nmst -- tuple becomes list of decls
-        acc_arg_decls =  createDecls acc_argtfn
-        in_arg_decls =  createDecls in_argtfn
-        out_arg_decls =  createDecls out_argtfn -- concat $ map  
+        -- nmstfn = mkFinalArgSigList nmst
+        -- in_argtfn = mkFinalArgSigList in_argt
+        -- acc_argtfn = mkFinalArgSigList acc_argt
+        -- out_argtfn = mkFinalArgSigList out_argt
+
+        -- non_map_args'' = getVarNames nmstfn
+        -- acc_args'' = getVarNames acc_argtfn
+        -- in_args'' = getVarNames in_argtfn
+        -- out_args'' = getVarNames out_argtfn
+
+        -- non_map_arg_decls =  createDecls nmstfn --  nmst -- tuple becomes list of decls
+        -- acc_arg_decls =  createDecls acc_argtfn
+        -- in_arg_decls =  createDecls in_argtfn
+        -- out_arg_decls =  createDecls out_argtfn -- concat $ map  
+
         calls_nmsfn = map mkFinalArgSigList nms                   
         [non_map_args1,non_map_args2] =  map getVarNames calls_nmsfn
         [_,_,ms1',_] = fsig1 
@@ -502,8 +535,7 @@ generateSubDefFComp f1_exp f2_exp fcomp_fname functionSignatures =
         local_var_decls = createDecls ms1
         tmp_args = getVarNames ms1
 
-    in 
-        unlines [                        
+    in unlines [                        
             "! TO BE CHECKED!",
             "subroutine "++fcomp_fname++"("  ++(mkArgList [non_map_args'',acc_args'',in_args'',out_args''])++")"            
             , mkDeclLines [non_map_arg_decls,acc_arg_decls,in_arg_decls,out_arg_decls,local_var_decls]
@@ -518,33 +550,39 @@ generateSubDefElt idx f_exp felt_name functionSignatures =
     let
         Function fname _ = f_exp
         fsig = functionSignatures ! fname   
-        [nms',in_arg',out_arg'] = fsig
+        -- [nms',in_arg',out_arg'] = fsig
+        (_,arg_decls,arg_names) = createArgDeclsAndNames fsig
+        -- [nms,in_arg, out_arg] = argts_fn
+        [non_map_arg_decls,in_args_decl,out_args_decl] = arg_decls
+        [non_map_args,in_args,out_args] = arg_names
+        -- nms = mkFinalArgSigList nms'
+        -- in_arg = mkFinalArgSigList in_arg'     
+        -- out_arg = mkFinalArgSigList out_arg'     
 
-        nms = mkFinalArgSigList nms'
-        in_arg = mkFinalArgSigList in_arg'     
-        out_arg = mkFinalArgSigList out_arg'     
+        -- non_map_arg_decls = createDecls nms -- tuple becomes list of decls
+        -- in_args_decl = createDecls in_arg
+        -- out_args_decl = createDecls out_arg
 
-        -- nms = makeDeclsUnique nms'
-        -- in_arg = makeDeclsUnique in_arg'             
+        -- non_map_args = getVarNames nms
+        -- in_args = getVarNames in_arg
+        -- out_args = getVarNames out_arg
 
-        non_map_arg_decls = createDecls nms -- tuple becomes list of decls
-        in_args_decl = createDecls in_arg
-        out_args_decl = createDecls out_arg
-        non_map_args = getVarNames nms
-        in_args = getVarNames in_arg
-        out_args = getVarNames out_arg
         sel_out_arg = out_args !! idx
     in
         unlines [
-            ("! ELT: FLATTENED, NUBBED: \n! " ++(show nms)++"\n! "++(show in_arg)++"\n! "++(show out_arg)) ,
+            -- ("! ELT: FLATTENED, NUBBED: \n! " ++(show nms)++"\n! "++(show in_arg)++"\n! "++(show out_arg)) ,
             "subroutine "++felt_name++"("  ++(mkArgList [non_map_args,in_args,[sel_out_arg]])++")"            
             , mkDeclLines [non_map_arg_decls,in_args_decl,out_args_decl]
             , "    call "++fname++"(" ++(mkArgList [non_map_args,in_args,out_args]) ++")"
             ,"end subroutine "++felt_name
         ]
 
-
-
+createArgDeclsAndNames argts = let
+        argts_fn = map mkFinalArgSigList argts
+        arg_names = map getVarNames argts_fn
+        arg_decls =  map createDecls argts_fn 
+    in
+        (argts_fn,arg_decls,arg_names)
 -- Because we have simply tupled the args for all elts in the apply,
 -- we can simply untuple them. So from applyt_fsig, we unpack the tuples \(Tuple es) -> es
 mkFinalArgSigList :: Expr -> Expr

@@ -827,7 +827,6 @@ noprefix "false"
 \end_inset
 
 .
- 
 \begin_inset listings
 lstparams "mathescape=true,escapeinside={~~},language=Haskell"
 inline false
@@ -941,7 +940,7 @@ applyt (...,f_i,...) (...,e_i,...) =
 
 \begin_layout Plain Layout
 
-elt :: i:: Int -> (...,a_i,...) -> a_i
+elt :: (i:: Int) -> (...,a_i,...) -> a_i
 \end_layout
 
 \begin_layout Plain Layout
@@ -960,7 +959,7 @@ elt i (...,e_i,...) = e_i
 
 \begin_layout Plain Layout
 
-scomb :: (SVec k_1 Int) -> (SVec k_2 Int) -> SVec k_1 (SVec k_2) Int
+scomb :: (SVec k_1 Int) -> (SVec k_2 Int) -> SVec k_1 (SVec k_2 Int)
 \end_layout
 
 \begin_layout Plain Layout
@@ -1670,17 +1669,17 @@ c -> case c of
 
 \begin_layout Plain Layout
 
-          '+' -> p
+          '+' -> 'p'
 \end_layout
 
 \begin_layout Plain Layout
 
-          '-' -> m
+          '-' -> 'm'
 \end_layout
 
 \begin_layout Plain Layout
 
-          '*' -> t
+          '*' -> 't'
 \end_layout
 
 \begin_layout Plain Layout
@@ -2036,10 +2035,13 @@ map
 fold
 \family default
 .
- And the preceding computation can only be a map.
+ And the preceding computation can only be a 
+\family typewriter
+map
+\family default
+.
  Note also that a stencil call only ever operates on a vector of scalars
- or stencils, not on a vector of tuples E.g.
- 
+ or stencils, not on a vector of tuples, i.e.: 
 \end_layout
 
 \begin_deeper
@@ -2056,12 +2058,12 @@ v1 = map f1 v0
 
 \begin_layout Plain Layout
 
-  v1_s = stencil s1 v1
+v1_s = stencil s1 v1
 \end_layout
 
 \begin_layout Plain Layout
 
-  v2 = map f2 v1_s
+v2 = map f2 v1_s
 \end_layout
 
 \begin_layout Plain Layout
@@ -2084,17 +2086,21 @@ v1 = map f1 v0
 
 \begin_layout Plain Layout
 
-  v1_s = stencil s1 v1
+v1_s = stencil s1 v1
 \end_layout
 
 \begin_layout Plain Layout
 
-  acc2 = fold f2 acc0 v1_s
+acc2 = fold f2 acc0 v1_s
 \end_layout
 
 \end_inset
 
-Now, after the second pass this will become 
+Now, after 
+\begin_inset Formula $\beta$
+\end_inset
+
+ reduction this will become: 
 \begin_inset listings
 lstparams "mathescape=true,escapeinside={~~},language=Haskell"
 inline false
@@ -2107,7 +2113,17 @@ acc2 = fold f2 acc0 (stencil s1 (map f1 v0))
 
 \end_inset
 
-This will then be rewritten into 
+As discussed in detail in Section
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "intermediate-vector-removal-part-ii-the-hard-part"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+, this will then be rewritten into: 
 \begin_inset listings
 lstparams "mathescape=true,escapeinside={~~},language=Haskell"
 inline false
@@ -2315,7 +2331,8 @@ Although all intermediate vectors have been removed, this removal so far
  is purely in terms of the occurrences in the AST.
  Were we to run the program, it would require memory for implicit temporary
  vectors.
- This is because an intermediate stencil will require additional memory.
+ This is because an intermediate expression, e.g.
+ a stencil, will require additional memory.
 \end_layout
 
 \begin_layout Standard
@@ -2378,7 +2395,7 @@ map f_2 (map f_1 v) = map (f_2 .
 
 \begin_layout Plain Layout
 
-fold f_1 acc (map f_2 v) = Fold (f1 `fcomp` f2) acc v -- Fold-Map
+fold f_1 acc (map f_2 v) = fold (f1 `fcomp` f2) acc v -- Fold-Map
 \end_layout
 
 \begin_layout Plain Layout
@@ -3454,7 +3471,7 @@ fuseStencils v_expr = v_expr
 \end_layout
 
 \begin_layout Subsection
-Decomposing the expressions
+Decomposing the expressions into ANF
 \end_layout
 
 \begin_layout Standard
@@ -3479,7 +3496,7 @@ Fold
 \emph on
 Fold
 \emph default
- nodes, and folds always cosnume the entire vector, the folds are executed
+ nodes, and folds always consume the entire vector, the folds are executed
  in dependency order.
  In the final imperative code, the entries in this list are ordered to ensure
  that executing them sequentially satisfies the dependencies.
@@ -3491,7 +3508,11 @@ The next step is to transform the program into a form suitable for emitting
  A suitable representation for this purpose is Administrative Normal Form
  REF; we use a variant where rather than nested let-expressions there is
  a single let with all bindings in order of dependency.
- The algorithm is quite straightforward.
+ 
+\end_layout
+
+\begin_layout Standard
+The algorithm is quite straightforward.
  We create new names to bind all sub expressions in an expression (i.e.
  the RHS element in the TyTraCL AST)  using a running counter, the type
  of the sub expression and the name of the output vector to which the expression
@@ -3681,7 +3702,7 @@ Generation of stencil vector expressions is straightforward, the stencil
 \family typewriter
 SComb
 \family default
- operation either by calculation the combined offset 
+ operation either by calculating the combined offset 
 \emph on
 in situ
 \emph default
@@ -3709,8 +3730,9 @@ r functions that operate on them.
 \begin{align*}
 \mathsf{maps} & ::(a\rightarrow b)\rightarrow\mbox{SVec}\,k\,a\rightarrow\mbox{SVec}\,k\,a\\
 \mathsf{applyt} & ::\mbox{Tup}\,k\,(\dots,a_{i}\rightarrow b_{i},\dots)\rightarrow\mbox{Tup}\,k\,(\dots,a_{i},\dots)\rightarrow\mbox{Tup}\,k\,(\dots,b_{i},\dots)\\
-\mathsf{comb} & ::(b\rightarrow c)\rightarrow(a\rightarrow b)\rightarrow(a\rightarrow c)\\
-\mathsf{fcomb} & ::(c\rightarrow b\rightarrow c)\rightarrow(a\rightarrow b)\rightarrow(c\rightarrow a\rightarrow c)
+\mathsf{comp} & ::(b\rightarrow c)\rightarrow(a\rightarrow b)\rightarrow(a\rightarrow c)\\
+\mathsf{fcomp} & ::(c\rightarrow b\rightarrow c)\rightarrow(a\rightarrow b)\rightarrow(c\rightarrow a\rightarrow c)\\
+\mathsf{elt} & ::(i::Int)\rightarrow\mbox{Tup}\,k\,(\dots,a_{i},\dots)\rightarrow a_{i}
 \end{align*}
 
 \end_inset
@@ -3727,7 +3749,7 @@ It is thus again straightforward to derive the types for the intermediate
 \end_layout
 
 \begin_layout Section
-Fortran-OpenCL implementation
+Fortran-OpenCL code generation
 \begin_inset CommandInset label
 LatexCommand label
 name "fortran-opencl-implementation"
@@ -3738,11 +3760,11 @@ name "fortran-opencl-implementation"
 \end_layout
 
 \begin_layout Standard
-To generate imperative code (in our case Fortran 90) from the TyTraCL AST,
- the main challenge is the generation of the intermediate functions.
+To generate imperative code (in our case Fortran 90 or OpenCL C) from the
+ TyTraCL AST, the main challenge is the generation of the intermediate functions.
  For this we need the actual concrete type information for the input and
  output vectors and scalars and the signatures of the original functions.
- This requires extending the following Expr type variants with a type field:
+ This requires extending the Scalar Expr type variant with a type field:
 \end_layout
 
 \begin_layout Standard
@@ -3758,12 +3780,12 @@ data DType =
 
 \begin_layout Plain Layout
 
-    DInt 
+    DInteger 
 \end_layout
 
 \begin_layout Plain Layout
 
-  | DFloat 
+  | DReal 
 \end_layout
 
 \begin_layout Plain Layout
@@ -3797,32 +3819,11 @@ data Expr =
 
 \begin_layout Plain Layout
 
-            | Vec VE DType Name
-\end_layout
-
-\begin_layout Plain Layout
-
 			...
 \end_layout
 
 \begin_layout Plain Layout
 
--- Right-hand side:           
-\end_layout
-
-\begin_layout Plain Layout
-
-            | Function Name [Expr] 
-\end_layout
-
-\begin_layout Plain Layout
-
-            | Id DType
-\end_layout
-
-\begin_layout Plain Layout
-
-			...
 \begin_inset Caption Standard
 
 \begin_layout Plain Layout
@@ -3855,7 +3856,7 @@ We now present the code generation for each of the TyTraCL primitives, using
 
 \family typewriter
 \begin_inset Note Note
-status open
+status collapsed
 
 \begin_layout Plain Layout
 To recreate the Fortran code from the AST, I need the signatures for the
@@ -3875,6 +3876,10 @@ RefactorF4Acc::Translation::LlvmToTyTraIR
 
 \end_layout
 
+\begin_layout Standard
+
+\end_layout
+
 \begin_layout Subsection
 SVec encoding
 \begin_inset CommandInset label
@@ -3887,7 +3892,7 @@ name "svec-encoding"
 \end_layout
 
 \begin_layout Standard
-The stencil 
+The SVec containg the stencil pattern, 
 \family typewriter
 SVec
 \begin_inset space \space{}
@@ -3925,7 +3930,7 @@ status collapsed
 
 
 \family default
- is encoded as a 1-D array which contains the index offset tuple for each
+, is encoded as a 1-D array which contains the index offset tuple for each
  stencil point.
  
 \begin_inset Note Note

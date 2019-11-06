@@ -426,6 +426,7 @@ subsitute_expr lhs exp = do
                       SComb _ _ -> ((ct,orig_bindings,added_bindings,var_expr_pairs),exp)
                       PElt _ -> ((ct,orig_bindings,added_bindings,var_expr_pairs),exp)
                       ZipT _ -> ((ct,orig_bindings,added_bindings,var_expr_pairs),exp)
+                      Fold _ _ _ -> ((ct,orig_bindings,added_bindings,var_expr_pairs),exp)
                       Map _ _ -> if decomposeMap 
                         then
                             let -- ((ct,orig_bindings,added_bindings,var_expr_pairs),exp)
@@ -433,8 +434,7 @@ subsitute_expr lhs exp = do
                             in
                                 maybeAddBinding var exp (ct,orig_bindings, added_bindings, var_expr_pairs)
                         else
-                            ((ct,orig_bindings, added_bindings,var_expr_pairs),exp)
-                      Fold _ _ _ -> ((ct,orig_bindings,added_bindings,var_expr_pairs),exp)
+                            ((ct,orig_bindings, added_bindings,var_expr_pairs),exp)                      
                       MapS _ (Function _ nms) -> let
                             f_expr = Function ("f_maps_"++vec_name++"_"++(show ct)) nms
                         in
@@ -489,8 +489,6 @@ If it is, do nothing,
 If it is not, we check if it is on orig_bindings.
 	if yes, we remove it from orig_bindings, add it to added_bindings, and add the new binding to the AST
 	if not, then it's a new binding, add it to added_bindings , and add the new binding to the AST
-
-
 -}
 -- (ct',orig_bindings', added_bindings', var_expr_pairs') =
 maybeAddBinding :: Expr -> Expr -> (Int,Map.Map Expr Expr,Map.Map Expr Expr,[(Expr,Expr)]) -> ((Int,Map.Map Expr Expr,Map.Map Expr Expr,[(Expr,Expr)]), Expr)
@@ -502,25 +500,19 @@ maybeAddBinding var exp (ct,orig_bindings, added_bindings, var_expr_pairs) =
         let
             added_name = added_bindings ! exp                    
         in
-            ((ct,orig_bindings, added_bindings, var_expr_pairs),
-            -- (warning added_name ("Already added binding "++(show var)++"<>"++(show added_name)++" for "++(show exp)))
-            added_name
-            )
+            ((ct,orig_bindings, added_bindings, var_expr_pairs)
+            , added_name )
         else 
             if Map.member exp orig_bindings 
                 then
                     let
                         orig_name = orig_bindings ! exp                    
                     in
-                        ((ct,Map.delete exp orig_bindings, Map.insert exp var added_bindings, var_expr_pairs++[(orig_name,exp)]),
-                        -- (warning orig_name ("Binding "++(show orig_name)++" for "++(show exp)++" is original"))
-                        orig_name
-                        )
+                        ((ct,Map.delete exp orig_bindings, Map.insert exp var added_bindings, var_expr_pairs++[(orig_name,exp)])
+                        , orig_name )
                 else                    
-                    ((ct+1,orig_bindings, Map.insert exp var added_bindings, var_expr_pairs++[(var,exp)]),
-                    -- (warning var ("Adding binding "++(show var)++" for "++(show exp)))
-                    var
-                    )            
+                    ((ct+1,orig_bindings, Map.insert exp var added_bindings, var_expr_pairs++[(var,exp)])
+                    , var )            
 
 
 getNonMapFoldArgs :: Expr -> [Expr]

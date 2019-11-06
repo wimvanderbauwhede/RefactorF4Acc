@@ -305,6 +305,7 @@ sub _declare_undeclared_variables { (my $stref, my $f)=@_;
 				}			
 		}
 		elsif ( exists $info->{'SubroutineCall'} ) {
+			# This means array index expressions will be included
 			$state->{'ExprVars'} ={%{$state->{'ExprVars'}},%{$info->{'SubroutineCall'}{'Args'}{'Set'} } };
 		}		
 		if (exists $info->{'If'} ) {					
@@ -331,10 +332,13 @@ sub _declare_undeclared_variables { (my $stref, my $f)=@_;
 	# This is very ad-hoc
 	for my $expr_var (keys %{ $state->{'ExprVars'} } ) {
 		next if exists $Config{'Macros'}{uc($expr_var)};
-		if (not exists $state->{'DeclaredVars'}{$expr_var} ) {
-			if ( $expr_var!~/^\d/) {				
+		if ($expr_var=~/\(/) {
+			$expr_var=~s/\(.+$//;
+		}
+		next if $expr_var=~/^\d/;
+
+		if (not exists $state->{'DeclaredVars'}{$expr_var} ) {			
 				$state->{'UndeclaredVars'}{$expr_var}='real'; # the default
-			} 
 		}
 	}
 	for my $lhs_var (keys %{ $state->{'AssignedVars'} } ) {

@@ -30,7 +30,8 @@ int i,j;
     return 0;
 }
 
-void f(int x_in[4],int* x_out) {
+//void f(int x_in[4],int* x_out) {
+void f(int *x_in,int* x_out) {
     int res=0;
     for (int i=0;i<4;++i) {
          res +=   x_in[i];// * x_in[i];

@@ -1,23 +1,5 @@
 # REMAINING ISSUES : Memory Reduction for Scientific Computing on GPUs
 
-## Fold and staging
-
-This is high priority: I need to make sure that the stages pass on the accumulators. 
-For every stage: If it is a Fold then
-we get the accumulators simply as the output of a Fold call, so getName rhs if lhs is Fold
-else we do nothing
-Then we need to find the opaques in the next stages. So I guess we do 
-
-opaques_with_acc = filter (\(lhs,rhs) -> case rhs of
-\(Function fname non_map_args) -> ( Map.member fname functionSignatures)  && (acc_name `elem` (unwrapName $ flattenNames $ getName non_map_args)) 
-_ -> False
-) 
-
-Almost there but the actual stage kernel defs are too decoupled atm. 
-
-
-for every subsequent stage. Then we must add this argument to stage_kernel_* but it is of course possible that this will happen magically
-
 
 ## OpenCL Code
 

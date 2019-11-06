@@ -1807,16 +1807,17 @@ sub _parse_subroutine_and_function_calls {
 								$Sf->{'ReferencedLabels'}{$label}=$label;		
 							}
 						}
+						
 						$info->{'SubroutineCall'}{'Args'}               = $expr_args;
 						$info->{'ExprVars'}               = $expr_other_vars;
-						$info->{'SubroutineCall'}{'Args'} = $info->{'SubroutineCall'}{'Args'};
+						# $info->{'SubroutineCall'}{'Args'} = $info->{'SubroutineCall'}{'Args'};
 						
 						$info->{'SubroutineCall'}{'ExpressionAST'} = $ast;
 	                } else {
 	                    $info->{'SubroutineCall'}{'Args'}               = {'List'=>[],'Set'=>{}};
 					    $info->{'ExprVars'}               = {'List'=>[],'Set'=>{}};
 	
-	                    $info->{'SubroutineCall'}{'Args'} = $info->{'SubroutineCall'}{'Args'};
+	                    # $info->{'SubroutineCall'}{'Args'} = $info->{'SubroutineCall'}{'Args'};
 					
 					    $info->{'SubroutineCall'}{'ExpressionAST'} = [];
 	

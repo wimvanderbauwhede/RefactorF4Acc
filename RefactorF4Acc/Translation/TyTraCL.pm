@@ -283,6 +283,7 @@ sub emit_TyTraCL {
     # Wrap into main
     #
     my $main_rec          = $tytracl_ast->{'Main'};
+    
     my $in_args_types     = $main_rec->{'InArgsTypes'};
     my @in_arg_type_decls = ();
     my @in_arg_ftypes     = ();
@@ -370,6 +371,7 @@ sub __toTyTraCLScalarType {
 }
 
 # Maybe this should return the type as a datastructure and use emit_TyTraCLType
+# What it returns is [$scalar_type] | ['Vec', $vec_sz, $scalar_type]
 sub __toTyTraCLType {
     (my $type, my $array_dims) = @_;
     croak 'HERE' if not defined $type;
@@ -1240,6 +1242,7 @@ sub __add_to_MainArgTypes {
     my $type = $var_rec->{'Type'};
     # add to InArgsTypes or OutArgsTypes
     $main_rec->{$inoutargs . 'Types'}{$var_name} = __toTyTraCLType($type, $dim);
+    # carp Dumper $main_rec;
     return $main_rec;
 }    # END of __add_to_MainArgTypes
 
