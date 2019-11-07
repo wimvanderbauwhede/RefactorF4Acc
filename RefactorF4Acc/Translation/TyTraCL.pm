@@ -287,7 +287,7 @@ sub emit_TyTraCL {
     my $in_args_types     = $main_rec->{'InArgsTypes'};
     my @in_arg_type_decls = ();
     my @in_arg_ftypes     = ();
-    for my $in_arg (@{$main_rec->{'InArgs'}}) {    #sort keys %{$in_args_types}){
+    for my $in_arg (@{$main_rec->{'InArgs'}}) {
         push @in_arg_type_decls, "$in_arg :: " . emit_TyTraCLType($in_args_types->{$in_arg});
         push @in_arg_ftypes,     emit_TyTraCLType($in_args_types->{$in_arg});
     }
@@ -902,8 +902,9 @@ sub _addToMainSig {
                 or $orig_args->{$var_name} eq 'inout')
           )
         {
-            if ($ctr == 0 && $ext eq '') {
-                push @{$main_rec->{'InArgs'}}, _mkVarName($rhs->{'Var'});
+            if ($ctr == 0 && $ext eq '') {              
+                my $var_name =_mkVarName($rhs->{'Var'});                 
+                push @{$main_rec->{'InArgs'}}, $var_name;
                 $main_rec = __add_to_MainArgTypes('InArgs', $stref, $fname, $rhs->{'Var'}, $main_rec);
             }
         }
@@ -1241,8 +1242,12 @@ sub __add_to_MainArgTypes {
     # my $dim = $var_rec->{'Dim'};
     my $type = $var_rec->{'Type'};
     # add to InArgsTypes or OutArgsTypes
-    $main_rec->{$inoutargs . 'Types'}{$var_name} = __toTyTraCLType($type, $dim);
-    # carp Dumper $main_rec;
+    if (not exists $main_rec->{$inoutargs . 'Types'}{$var_name}) {
+    $main_rec->{$inoutargs . 'Types'}{$var_name} = __toTyTraCLType($type, $dim);    
+    } else {
+        pop @{$main_rec->{$inoutargs} };
+    }
+    
     return $main_rec;
 }    # END of __add_to_MainArgTypes
 

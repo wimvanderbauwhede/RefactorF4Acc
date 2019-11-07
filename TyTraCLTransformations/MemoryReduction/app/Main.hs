@@ -8,7 +8,8 @@ import CodeGeneration (
     generateFortranCode
     )
 
-info =  False    
+info =  False
+stage = 1
 
 ast1 = splitLhsTuples ast
 ast2 = substituteVectors ast1
@@ -16,10 +17,18 @@ ast2 = substituteVectors ast1
 ast3' = fuseStencils ast3
 ast4 = decomposeExpressions ast1 ast3' 
 
+asts
+    | stage == 0 = [ast]
+    | stage == 1 = [ast1]
+    | stage == 2 = [ast2]
+    | stage == 3 = [ast3]
+    | stage == 4 = [ast3']
+    | otherwise = ast4
+
 inferedSignatures :: [[(Name,FSig)]]
 inferedSignatures = map inferSignatures ast4
 
-generatedFortranCode = generateFortranCode ast4 functionSignaturesList idSigList 
+generatedFortranCode = generateFortranCode asts functionSignaturesList idSigList 
 
 main = do
     if info 

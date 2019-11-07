@@ -1,5 +1,14 @@
 # REMAINING ISSUES : Memory Reduction for Scientific Computing on GPUs
 
+## Generate Fortran from the original TyTraCL
+
+Although this might seem obvious, it breaks due to several reasons. 
+
+            call f1(v_0(idx), v_1)
+
+- `v_1` is not recognised as an array because it is not an I/O argument
+- It is not declared either            
+- So what we should do: if the LHS of a Map is an original Vec, but not VI or VO, we should declare it using vSz
 
 ## OpenCL Code
 
@@ -139,9 +148,7 @@ We need to add this to
 
       RefactorF4Acc::Translation::OpenCLC
 
-The current (20191106) status is that the slices are parsed correctly but the generated C code of the argument in a subroutine call I think is wrong.
-This is because the arrays are all converted to 1-D, and then I use macros to make sure the Fortran ordering is achieved. 
-But for slices, these don't do the right thing. It could be as simple as prefixing an '&' but I'm not sure.
+The current (20191106) status is that the slices are now done, I need to verify if return into array elt works.
 
 ## More general case for stencils
 

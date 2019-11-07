@@ -574,12 +574,12 @@ sub _emit_TyTraCL_Haskell_AST_Code {
                 }
                 ++$idx;
             }
-            $indented_tytracl_hs_ast_str='        '.$indented_tytracl_hs_ast_str;            
+            $indented_tytracl_hs_ast_str='       '.$indented_tytracl_hs_ast_str;            
             push @indented_tytracl_hs_ast_strs, $indented_tytracl_hs_ast_str;
             
     }
 
-    my $tytracl_hs_ast_code_str=join("\n", @indented_tytracl_hs_ast_strs);
+    my $tytracl_hs_ast_code_str = join("\n", @indented_tytracl_hs_ast_strs);
 
 
     my $header =
@@ -594,7 +594,7 @@ import TyTraCLAST
 
 ast :: TyTraCLAST
 ast = [
-    ';
+';
 
     $tytracl_hs_ast_code_str=$header.$tytracl_hs_ast_code_str."\n        ]\n";
 
@@ -961,7 +961,7 @@ sub mkFoldAST {
     }
     my $rhs = 'Fold (Function "' . $f_exp . '" '. $non_fold_arg_str.      ') ' . $acc_args.' '.$fold_args ;
 
-    my $ast_line = "( $lhs, $rhs )";
+    my $ast_line = " ($lhs, $rhs)";
 
     return $ast_line;
 }
