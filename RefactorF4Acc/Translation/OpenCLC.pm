@@ -571,20 +571,15 @@ sub _emit_expression_C { my ($ast, $stref, $f)=@_;
                 if (@{$args}) {
 					if ($args->[0] != 14 ) { # NOT ')('
 						my @args_lst=();
-
+						my $has_slices=0;
 						if($args->[0] == 27) { # ','
 						# more than one arg
 							for my $idx (1 .. scalar @{$args}-1) {
 								my $arg = $args->[$idx];							
 								my $is_slice = $arg->[0] == 12;
 								push @args_lst, _emit_expression_C($arg, $stref, $f) unless $is_slice;
+								$has_slices ||= $is_slice;
 							}
-
-							#                    for my $arg (@{$args->[1]}) {
-							#       push @args_lst, _emit_expression_C($arg, $stref, $f;
-							#    }
-							
-							# return "$name(".join(',',@args_lst).')';
 						} else {
 							# only one arg
 							$args_lst[0] = _emit_expression_C($args, $stref, $f);
@@ -595,12 +590,9 @@ sub _emit_expression_C { my ($ast, $stref, $f)=@_;
 							if( $args->[0]==29 and $args->[1] eq '1') { # if we have v(1)
 								return '(*'.$name.')';
 							} else {
-								
-
-
-
 								my $decl = get_var_record_from_set($stref->{'Subroutines'}{$f}{'Vars'},$name);
 								my $dims =  $decl->{'Dim'};
+								my $maybe_amp = $has_slices ? '&' : '';
 		#						if (__all_bounds_numeric($dims)) {
 		#							$expr_str.=$name.'['.__C_array_size($dims).',';
 		#						} else {
@@ -616,7 +608,7 @@ sub _emit_expression_C { my ($ast, $stref, $f)=@_;
 								if ($ndims==1) {
 									return $name.'[F1D2C('.join(',',@lower_bounds). ' , '.join(',',@args_lst).')]';
 								} else {
-									return $name.'[F'.$ndims.'D2C('.join(',',@ranges[0.. ($ndims-2)]).' , '.join(',',@lower_bounds). ' , '.join(',',@args_lst).')]';
+									return $maybe_amp.$name.'[F'.$ndims.'D2C('.join(',',@ranges[0.. ($ndims-2)]).' , '.join(',',@lower_bounds). ' , '.join(',',@args_lst).')]';
 								}
 		#						}
 							}

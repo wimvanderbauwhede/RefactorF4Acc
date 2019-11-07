@@ -139,6 +139,9 @@ We need to add this to
 
       RefactorF4Acc::Translation::OpenCLC
 
+The current (20191106) status is that the slices are parsed correctly but the generated C code of the argument in a subroutine call I think is wrong.
+This is because the arrays are all converted to 1-D, and then I use macros to make sure the Fortran ordering is achieved. 
+But for slices, these don't do the right thing. It could be as simple as prefixing an '&' but I'm not sure.
 
 ## More general case for stencils
 

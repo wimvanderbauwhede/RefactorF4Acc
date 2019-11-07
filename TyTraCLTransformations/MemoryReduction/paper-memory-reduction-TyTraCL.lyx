@@ -3760,6 +3760,21 @@ name "fortran-opencl-implementation"
 \end_layout
 
 \begin_layout Standard
+\begin_inset Note Note
+status open
+
+\begin_layout Plain Layout
+I think maybe this should go in an Appendix as it does not really help the
+ reader.
+ It is better to simply explain in words the semantics I think.
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
 To generate imperative code (in our case Fortran 90 or OpenCL C) from the
  TyTraCL AST, the main challenge is the generation of the intermediate functions.
  For this we need the actual concrete type information for the input and
@@ -3873,10 +3888,6 @@ RefactorF4Acc::Translation::LlvmToTyTraIR
 
 \end_inset
 
-
-\end_layout
-
-\begin_layout Standard
 
 \end_layout
 
