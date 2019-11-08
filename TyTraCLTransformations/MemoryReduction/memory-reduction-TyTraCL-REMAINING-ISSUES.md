@@ -10,6 +10,14 @@ Although this might seem obvious, it breaks due to several reasons.
 - It is not declared either            
 - So what we should do: if the LHS of a Map is an original Vec, but not VI or VO, we should declare it using vSz
 
+Turns out this is totally wrong, because if we don't eliminate the stencils then every map must be a stage.
+So the right way is to have a separate set of rewrite rules that do not touch the stencil. 
+
+It may be enough to not substitute any VT vecs. But that would mean that we can't remove a map in map f map g. 
+So probably we should allow substitution of VT but _not_ in Stencil.
+
+
+
 ## OpenCL Code
 
 The host-side code will have to be manual for now.

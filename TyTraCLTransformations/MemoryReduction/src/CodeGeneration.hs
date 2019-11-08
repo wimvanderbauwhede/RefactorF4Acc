@@ -788,7 +788,7 @@ generateMap functionSignatures f_exp v_exp t = -- (Single ov_name)
                 mkArgList [nms_vars_lst, in_vars_name_lst_str',out_vars_name_lst]
                  ++ ")",
             "" ]
-        ,[],nms_decls++extra_in_var_decls++extra_out_var_decls)
+        ,[],nms_decls) -- ++extra_in_var_decls++extra_out_var_decls)
 
 
 exprToFDecl s_expr@(Scalar _ _ vname)  = MkFDecl (fortranType s_expr) Nothing (Just In) [vname]
@@ -813,7 +813,7 @@ generateFold functionSignatures f_exp acc_exp v_exp t =
         out_var_name = case out_vars_lst of
             Single ov_name'' -> if Map.member ov_name'' mainArgDecls 
                                     then ov_name''++"(idx)" 
-                                    else error "DO SAME AS FOR MAP" -- ov_name''
+                                    else ov_name''
             Composite ov_names -> error $ show $ map (\(Single ov_name'') -> if Map.member ov_name'' mainArgDecls then  ov_name''++"(idx)" else  ov_name'') ov_names
         nms_vars_lst =  nub $ map (show . getName) nms_exps
         nms_decls = map exprToFDecl nms_exps

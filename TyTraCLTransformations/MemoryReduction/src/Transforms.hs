@@ -9,6 +9,8 @@ import Warning ( warning )
 
 (!) = (Map.!)
 -- ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+noStencilRewrites = False -- FIXME: hangs when set to True, I need a different halting condition for the rewrite rules!
+
 -- 1. Replace all LHS Tuple occurrences with multiple expressions using Elt on the RHS. As a result, the LHS will be purely Vec.
 splitLhsTuples :: TyTraCLAST -> TyTraCLAST
 splitLhsTuples = foldl split_lhs_tuples []
@@ -36,21 +38,25 @@ There are two subtasks here:
 I think the easiest way is to use Generics: with `everywhere` we can update all nodes in place
 -}
 
--- 
+-- Go trough all lines of the ast and do a recursive substitution on the lines with an output vector in the LHS
+substituteVectors :: TyTraCLAST -> TyTraCLAST
+substituteVectors ast' 
+    | noStencilRewrites = map (substitute_vec_rec ast') (filter lhs_is_VO_or_VT_vec ast')
+    | otherwise =  map (substitute_vec_rec ast') (filter lhs_is_output_vec ast')
 
-  
-
--- Finally, we go trough all lines of the ast and do a recursive substitution:     
-substituteVectors ast' =  map (substitute_vec_rec ast') (filter lhs_is_output_vec ast')
-
-{-
-The AST is now reduced to a list of tuples where the first elt (LHS) is an output vector and the second element is an expression which only contains input vectors.     
-Now we should start applying the rewrite rules to reduce each of these expressions to a single Map.
--}
 -- The result of a Fold is always an output
 lhs_is_output_vec (lhs_vec,Fold _ _ _) = True
 lhs_is_output_vec (lhs_vec,expr) = case lhs_vec of
     Vec VO _ -> True
+    -- This is now probably redundant, as only Fold can return a Scalar
+    Scalar _ _ _ -> True -- maybe too loose, should be VT really 
+    _ -> False
+
+
+lhs_is_VO_or_VT_vec (lhs_vec,Fold _ _ _) = True    
+lhs_is_VO_or_VT_vec (lhs_vec,expr) = case lhs_vec of
+    Vec VO _ -> True
+    Vec VT _ -> True    
     -- This is now probably redundant, as only Fold can return a Scalar
     Scalar _ _ _ -> True -- maybe too loose, should be VT really 
     _ -> False
@@ -60,7 +66,7 @@ lhs_is_output_vec (lhs_vec,expr) = case lhs_vec of
 -- Substitute all of them in the given expression
 
 -- To do this recursively, we must test if there are still non_input_vecs, and if so, repeat substitute_vec until there are non left
- 
+substitute_vec_rec :: TyTraCLAST -> (Expr, Expr) -> (Expr, Expr)
 substitute_vec_rec ast expr_tup@(lhs_vec,expr) = let
         vecs = non_input_vecs expr
     in
@@ -72,6 +78,11 @@ substitute_vec_rec ast expr_tup@(lhs_vec,expr) = let
         else -- we're done, return the result 
             expr_tup
 
+-- We look for the non-input vectors in the RHS expression (vecs)
+-- We find all lines in the AST that have any of these non-input vectors on the LHS (exprs)
+-- We substituts vecs by exprs
+-- we return the substituted expression
+substitute_vec :: TyTraCLAST -> (Expr, Expr) -> (Expr, Expr)            
 substitute_vec ast expr_tup@(lhs_vec,expr) = let
         vecs = non_input_vecs expr
         exprs = map (find_in_ast ast) vecs
@@ -80,10 +91,11 @@ substitute_vec ast expr_tup@(lhs_vec,expr) = let
     in 
         (lhs_vec,expr')
 
-        
+-- works because there can be at most one occurence of v in ast
+-- It might be better to use a Map here because then it would simply be a lookup
 find_in_ast :: TyTraCLAST -> Expr -> Expr
 find_in_ast ast v@(Vec _ _ )  = let
-    maybe_v = filter (\(lhs,rhs) -> lhs == v) ast
+        maybe_v = filter (\(lhs,rhs) -> lhs == v) ast
     in
         if length maybe_v == 1 
         then
@@ -92,15 +104,18 @@ find_in_ast ast v@(Vec _ _ )  = let
             v
 find_in_ast ast e  = e
 
--- The actual substitution should of course use `everywhere`
+-- The actual substitution with `everywhere`
+substitute_vec_by_expr :: Expr -> Expr -> Expr -> Expr
 substitute_vec_by_expr svec sexpr  = everywhere (mkT (substitute_vec_by_expr' svec sexpr)) 
 
-substitute_vec_by_expr' svec sexpr  vec
+substitute_vec_by_expr' :: Expr -> Expr -> Expr -> Expr 
+substitute_vec_by_expr' svec sexpr vec
     | vec == svec = sexpr
-    |  otherwise = vec
+    | otherwise = vec
 
 
 -- returns all non-input vectors in an expression
+-- This should change to add VT if we want to use this code to emit the original TyTraCL
 non_input_vecs :: Expr -> [Expr]
 non_input_vecs expr = let
     vec_subexprs = get_vec_subexprs expr
@@ -154,6 +169,12 @@ reduce_subtree expr = case expr of
     _ -> expr
 -}
 -- ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------    
+
+{-
+The AST is now reduced to a list of tuples where the first elt (LHS) is an output vector and the second element is an expression which only contains input vectors.     
+Now we should start applying the rewrite rules to reduce each of these expressions to a single Map.
+-}
+
 -- 3. With this preparation I guess we are ready for the actual rewrites:
 --
 -- I should use a monadic version with the State monad
@@ -162,6 +183,8 @@ reduce_subtree expr = case expr of
 --  runState (everywhereM (mkM (rewrite_ast_sub_expr lhs)) ast) (0,Map.empty)
 -- rewrite_ast_expr :: Expr -> Expr
 -- rewrite_ast_expr ast = everywhere (mkT rewrite_ast_sub_expr) ast
+
+
 
 rewrite_ast_expr :: Expr -> State (Int, [(Name, [Expr])]) Expr
 rewrite_ast_expr ast = everywhereM (mkM rewrite_ast_sub_expr) ast
@@ -199,7 +222,9 @@ rewrite_ast_sub_expr expr =
             -- 1b. Fold-Map composition
             Fold f1_expr acc_expr (Map f2_expr v_expr) -> return $ Fold (FComp f1_expr f2_expr) acc_expr v_expr
             -- 2. The key rule: Stencil of Map becomes Map of MapS of Stencil
-            Stencil s_1 (Map f_1 v_expr) -> return $ Map (MapS s_1 f_1) (Stencil s_1 v_expr)   
+            Stencil s_1 (Map f_1 v_expr) -> if noStencilRewrites 
+                then return expr
+                else return $ Map (MapS s_1 f_1) (Stencil s_1 v_expr)   
             ZipT es -> 
                 -- If all args of ZipT are Map
                 if (length ( filter isMap es ) == length es) 
@@ -211,12 +236,10 @@ rewrite_ast_sub_expr expr =
                         then 
                             do
                                 res <- mapM rewriteIdToFunc es
-                                return $ ZipT res -- (map rewriteIdToFunc es) 
+                                return $ ZipT res
                         else return expr
             -- 5.  Tuple select (Elt) after UnzipT of Map becomes Map of the composition of Elt and the mapped function
             Elt i_expr (UnzipT (Map f_expr exprs)) -> return $ Map (Comp (PElt i_expr) f_expr) exprs
-            -- This gets ignored?
-            -- Stencil s_1 (Stencil s_2 v_expr) -> Stencil (SComb s_1 s_2) v_expr
             _ -> return $ expr
 
 
@@ -429,7 +452,7 @@ subsitute_expr lhs exp = do
                       Fold _ _ _ -> ((ct,orig_bindings,added_bindings,var_expr_pairs),exp)
                       Map _ _ -> if decomposeMap 
                         then
-                            let -- ((ct,orig_bindings,added_bindings,var_expr_pairs),exp)
+                            let 
                                 var = Vec VT (Scalar VT DDC ("var_"++vec_name++"_"++(show ct))) 
                             in
                                 maybeAddBinding var exp (ct,orig_bindings, added_bindings, var_expr_pairs)
@@ -437,51 +460,42 @@ subsitute_expr lhs exp = do
                             ((ct,orig_bindings, added_bindings,var_expr_pairs),exp)                      
                       MapS _ (Function _ nms) -> let
                             f_expr = Function ("f_maps_"++vec_name++"_"++(show ct)) nms
-                        in
-                            -- ((ct+1,var_expr_pairs++[(f_expr,exp)]),f_expr)
+                        in                            
                             maybeAddBinding f_expr exp (ct,orig_bindings, added_bindings, var_expr_pairs)
                       ApplyT fs -> let
                             nmss = concatMap getNonMapFoldArgs fs
                             f_expr = Function ("f_applyt_"++vec_name++"_"++(show ct)) nmss
                         in
-                            -- ((ct+1,var_expr_pairs++[(f_expr,exp)]),f_expr)
                             maybeAddBinding f_expr exp (ct,orig_bindings, added_bindings, var_expr_pairs)
                       Comp (Function _ nms1) (Function _ nms2) -> let
                             f_expr = Function ("f_comp_"++vec_name++"_"++(show ct)) (nms1++nms2)
                         in
-                            -- ((ct+1,var_expr_pairs++[(f_expr,exp)]),f_expr)
                             maybeAddBinding f_expr exp (ct,orig_bindings, added_bindings, var_expr_pairs)
                       Comp (PElt idx) (Function _ nms2) -> let
                         -- I think the vec_name here is unique so no need for ++"_"++(show idx)
                             f_expr = Function ("f_pelt_"++vec_name++"_"++(show ct)) nms2
                         in
-                            -- ((ct+1,var_expr_pairs++[(f_expr,exp)]),f_expr)
                             maybeAddBinding f_expr exp (ct,orig_bindings, added_bindings, var_expr_pairs)
                       FComp (Function _ nms1) (Function _ nms2) -> let
                             f_expr = Function ("f_fcomp_"++vec_name++"_"++(show ct)) (nms1++nms2)
                         in
-                            -- ((ct+1,var_expr_pairs++[(f_expr,exp)]),f_expr)
                             maybeAddBinding f_expr exp (ct,orig_bindings, added_bindings, var_expr_pairs)
                       Stencil (SVec _ _ ) v_exp -> let
                             dt_exp = getDType v_exp
                             var = Vec VS (setName (Single ("svec_"++vec_name++"_"++(show ct))) dt_exp)
                         in
-                            -- ((ct+1,var_expr_pairs++[(var,exp)]),var)
                             maybeAddBinding var exp (ct,orig_bindings, added_bindings, var_expr_pairs)
                       Stencil (SComb _ _) v_exp -> let
                             dt_exp = getDType v_exp
                             var = Vec VS (setName  (Single ("svec_"++vec_name++"_"++(show ct))) dt_exp)
                         in
-                            -- ((ct+1,var_expr_pairs++[(var,exp)]),var)
                             maybeAddBinding var exp (ct,orig_bindings, added_bindings, var_expr_pairs)
                       _ -> let
                               var = Vec VT (Scalar VT DDC ("vec_"++vec_name++"_"++(show ct)))
                            in
-                            --  ((ct+1,var_expr_pairs++[(var,exp)]),var)
                              maybeAddBinding var exp (ct,orig_bindings, added_bindings, var_expr_pairs)
             put (ct',orig_bindings',added_bindings',var_expr_pairs')
             return exp'
-
 
 {-
 So we test if an expression is in added_bindings.
