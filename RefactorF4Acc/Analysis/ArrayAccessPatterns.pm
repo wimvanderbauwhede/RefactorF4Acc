@@ -1465,20 +1465,26 @@ sub _is_not_stream_var { my ($state, $f, $block_id, $var_name) =@_;
 	  } else {
 		  # needs more checking of the sizes but a global size comp should do it I think
 		  my $iter_space=1;
+		  my $array_sz=1;
+		  my $ok=1;
+		  my $ii=0;
 		  for my $iter (sort keys %{$iters}) {
 			  my $range = $iters->{$iter}{'Range'};
-			  my $dim_sz = $range->[1] - $range->[0] +1;
-			  $iter_space*=$dim_sz;
-		  }
-		  my $array_sz=1;
-		  for my $dim (@{$dims}) {			  
+			  my $range_sz = $range->[1] - $range->[0] +1;
+			  my $dim = $dims->[$ii];++$ii;
 			  my $dim_sz = $dim->[1] - $dim->[0] +1;
-			  $array_sz*=$dim_sz;
-		  }		  
-		  if ($array_sz<$iter_space) {
-			  carp "ARRAY $var_name in $f IS SMALLER than iter space";
+				$ok*= ($dim_sz > $range_sz-6) ? 1 : 0; # AD HOC: 6-point halo ought to be rare!
+			#   $array_sz*=$dim_sz;
+			#   $iter_space*=$range_sz;
 		  }
-		  return 0;
+		  
+		#   if ($array_sz<$iter_space) {
+		# 	  croak  "ARRAY $var_name in $f IS SMALLER than iter space";
+		#   }
+		  if (not $ok) {
+			  	croak  "ARRAY $var_name in $f IS SMALLER than iter space";
+		  }
+		  return $ok;
 	  }
 	  # from that, get the dims and sizes
 	  # test the heuristic
