@@ -390,8 +390,9 @@ sub __toTyTraCLType {
     else {                                                          # Vector
         my @ranges = ();
         for my $array_dim (@{$array_dims}) {
-            push @ranges, '(' . $array_dim->[1] . '-' . $array_dim->[0] . '+1)';
+            push @ranges, '(' . $array_dim->[1] . '- ' . $array_dim->[0] . '+1)';
         }
+        # carp join('*', @ranges);
         my $vec_sz      = eval(join('*', @ranges));                 # FIXME: needs proper constant folding here!
         my $scalar_type = ucfirst($type);
         if ($type eq 'real') {
@@ -1112,7 +1113,7 @@ sub _add_TyTraCL_AST_entry {
                   or (scalar @{$state->{'Subroutines'}{$f}{'Blocks'}{$block_id}{'Arrays'}{$_}{'Dims'}} < $n_dims)
             )
         } @in_tup;
-
+# carp "NON-MAP ARGS: ".Dumper(@in_tup_non_map_args);
         # non-fold args are non-map args that are not acc args
         my @in_tup_non_fold_args = grep { not exists $accs{$_} } @in_tup_non_map_args;
 
@@ -1150,7 +1151,7 @@ sub _add_TyTraCL_AST_entry {
             if (not exists $unique_var_counters->{$_}) {
                 $unique_var_counters->{$_} = 0;
             }
-              ($stencil_access and  exists $stencils{$_}) ? [$_, $unique_var_counters->{$_ . '_s'},       's']
+              ($stencil_access and  exists $stencils{$_}) ? [$_, $unique_var_counters->{$_ . '_s'},'s']
               : exists $portions{$_} ? [$_, $unique_var_counters->{$_ . '_portion'}, 'portion']
               : [$_, $unique_var_counters->{$_}, '']
         } @in_tup_non_map_args;

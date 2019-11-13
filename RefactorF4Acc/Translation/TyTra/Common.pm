@@ -175,6 +175,7 @@ sub F4D2C {
 
 # ===================================================================================================
 
+#### This is a helper API to generate TyTraCL code without having to parse it
 
 # mkFold(shapiro_reduce_18 => [] , [['etan_avg',0,'']] => [['etan',0,'']] => [['etan_avg',1,'']]);
 sub mkFold {

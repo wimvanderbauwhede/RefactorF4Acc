@@ -798,7 +798,7 @@ generateMap functionSignatures f_exp v_exp t = -- (Single ov_name)
                 mkArgList [nms_vars_lst, in_vars_name_lst_str',out_vars_name_lst]
                  ++ ")",
             "" ]
-        ,[],nms_decls) -- ++extra_in_var_decls++extra_out_var_decls)
+        ,[],nms_decls++extra_in_var_decls++extra_out_var_decls)
 
 
 exprToFDecl s_expr@(Scalar _ _ vname)  = MkFDecl (fortranType s_expr) Nothing (Just In) [vname]
@@ -873,6 +873,7 @@ getInputArgs = everything (++) (mkQ [] (getInputArgs'))
 getInputArgs' :: Expr -> [Name]
 getInputArgs' node = case node of
                             Vec VI dt -> [(\(Single vn) -> vn) $ getName dt] 
+                            Vec VT dt -> if noStencilRewrites then [(\(Single vn) -> vn) $ getName dt] else []
                             Scalar VI _ sn -> [sn]
                             _ -> []
 
@@ -882,6 +883,7 @@ getOutputArgs' :: Expr -> [Name]
 getOutputArgs' node = case node of
                             Vec VO dt -> [(\(Single vn) -> vn) $ getName dt] 
                             Scalar VO _ sn -> [sn]
+                            Vec VT dt -> if noStencilRewrites then [(\(Single vn) -> vn) $ getName dt] else []
                             _ -> []                                    
 
 getFSigs :: [Expr] -> Map.Map Name FSig -> [FSig] 
