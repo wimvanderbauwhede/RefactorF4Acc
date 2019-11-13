@@ -46,7 +46,7 @@ So let's assume we have this in the `rf4a.cfg`:
       HALO_EXTENT = 3
 
 The change to the code is in `_classify_accesses_and_emit_AST` (line 708) in `RefactorF4Acc::Analysis::ArrayAccessPatterns`; but I think we need the same analysis in `RefactorF4Acc::Refactoring::Streams` because of `rename_array_accesses_to_scalars` which is needed for the MemoryReduction pass.
-
+BETTER: use 'LoopIters'
 
 
 ## Generate Fortran from the original TyTraCL

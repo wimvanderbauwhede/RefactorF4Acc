@@ -705,9 +705,10 @@ sub _classify_accesses_and_emit_AST { (my $stref, my $f, my $state ) =@_;
 	
  	for my $array_var (keys %{$state->{'Subroutines'}{ $f }{'Blocks'}{ $block_id }{'Arrays'}}) {
 		 # Excluding arrays that are not streams here is OK, that way I get no stencil and they become SVecs in TyTraCL.pm
-		next if _is_not_stream_var($stref, $array_var);
+		
  		next if $array_var =~/^global_|^local_/;
  		next if not defined  $state->{'Subroutines'}{ $f }{'Blocks'}{ $block_id }{'Arrays'}{$array_var}{'Dims'} ;
+		next if _is_not_stream_var($state, $f, $block_id, $array_var);
 
 		$ast_to_emit = $ast_emitter->( $f,  $state,  $ast_to_emit, 'INIT_COUNTERS',  $block_id,  $array_var) if $emit_ast;
  		for my $rw ('Read','Write') {
@@ -1451,12 +1452,34 @@ sub __generate_buffer_varnames { my ( $boundary_accesss, $block_id ) = @_;
 }
 
 
-sub _is_not_stream_var($stref, $var_name) {
+sub _is_not_stream_var { my ($state, $f, $block_id, $var_name) =@_;
 
-      my $n_dims = $Config{'NDIMS'};
-      my $max_szs = $Config{'MAX_SZS'};
-      my $n_halo_points = $Config{'HALO_EXTENT'};
+    #   my $n_dims = 3;# $Config{'NDIMS'};
+    #   my $max_szs = [300,300,80];#$Config{'MAX_SZS'};
+    #   my $n_halo_points = 3;#$Config{'HALO_EXTENT'};
 	  # Get the record for $var_name
+	  my $iters =  $state->{'Subroutines'}{$f}{'Blocks'}{$block_id}{'LoopIters'};
+	  my $dims = $state->{'Subroutines'}{ $f }{'Blocks'}{ $block_id }{'Arrays'}{$var_name}{'Dims'} ;	  
+	  if (scalar @{$dims} < scalar keys %{$iters}) { 
+		  return 1;
+	  } else {
+		  # needs more checking of the sizes but a global size comp should do it I think
+		  my $iter_space=1;
+		  for my $iter (sort keys %{$iters}) {
+			  my $range = $iters->{$iter}{'Range'};
+			  my $dim_sz = $range->[1] - $range->[0] +1;
+			  $iter_space*=$dim_sz;
+		  }
+		  my $array_sz=1;
+		  for my $dim (@{$dims}) {			  
+			  my $dim_sz = $dim->[1] - $dim->[0] +1;
+			  $array_sz*=$dim_sz;
+		  }		  
+		  if ($array_sz<$iter_space) {
+			  carp "ARRAY $var_name in $f IS SMALLER than iter space";
+		  }
+		  return 0;
+	  }
 	  # from that, get the dims and sizes
 	  # test the heuristic
 	carp "TODO: IMPLEMENT HEURISTIC FOR NON-STREAM VARS!";
