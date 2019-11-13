@@ -9,7 +9,7 @@ import Warning ( warning )
 
 (!) = (Map.!)
 -- ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-noStencilRewrites = False -- FIXME: hangs when set to True, I need a different halting condition for the rewrite rules!
+
 
 -- 1. Replace all LHS Tuple occurrences with multiple expressions using Elt on the RHS. As a result, the LHS will be purely Vec.
 splitLhsTuples :: TyTraCLAST -> TyTraCLAST
@@ -55,7 +55,7 @@ lhs_is_output_vec (lhs_vec,expr) = case lhs_vec of
 
 lhs_is_VO_or_VT_vec (lhs_vec,Fold _ _ _) = True    
 lhs_is_VO_or_VT_vec (lhs_vec,expr) = case lhs_vec of
-    Vec VO _ -> True
+    Vec VO _ -> True 
     Vec VT _ -> True    
     -- This is now probably redundant, as only Fold can return a Scalar
     Scalar _ _ _ -> True -- maybe too loose, should be VT really 
@@ -68,7 +68,9 @@ lhs_is_VO_or_VT_vec (lhs_vec,expr) = case lhs_vec of
 -- To do this recursively, we must test if there are still non_input_vecs, and if so, repeat substitute_vec until there are non left
 substitute_vec_rec :: TyTraCLAST -> (Expr, Expr) -> (Expr, Expr)
 substitute_vec_rec ast expr_tup@(lhs_vec,expr) = let
-        vecs = non_input_vecs expr
+        vecs
+            | noStencilRewrites = non_input_or_temp_vecs expr
+            | otherwise = non_input_vecs expr
     in
         if length vecs > 0 then 
             let
@@ -106,14 +108,28 @@ find_in_ast ast e  = e
 
 -- The actual substitution with `everywhere`
 substitute_vec_by_expr :: Expr -> Expr -> Expr -> Expr
-substitute_vec_by_expr svec sexpr  = everywhere (mkT (substitute_vec_by_expr' svec sexpr)) 
+substitute_vec_by_expr svec sexpr  = everywhere (mkT (
+    if noStencilRewrites
+        then
+            substitute_vec_by_expr'' svec sexpr
+        else
+            substitute_vec_by_expr' svec sexpr
+            )) 
 
 substitute_vec_by_expr' :: Expr -> Expr -> Expr -> Expr 
 substitute_vec_by_expr' svec sexpr vec
-    | vec == svec = sexpr
+    | vec == svec = sexpr -- For the no-stencil-rewrite case I need to match on Map and Fold, not on the Vec itself!    
     | otherwise = vec
 
-
+substitute_vec_by_expr'' :: Expr -> Expr -> Expr -> Expr     
+substitute_vec_by_expr'' svec sexpr (Map f vec) 
+    | vec == svec = Map f sexpr -- For the no-stencil-rewrite case I need to match on Map and Fold, not on the Vec itself!    
+    | otherwise = Map f vec
+substitute_vec_by_expr'' svec sexpr (Fold f acc vec)    
+    | vec == svec = Fold f acc sexpr -- For the no-stencil-rewrite case I need to match on Map and Fold, not on the Vec itself!    
+    | otherwise = Fold f acc vec
+substitute_vec_by_expr'' _ _ expr = expr 
+   
 -- returns all non-input vectors in an expression
 -- This should change to add VT if we want to use this code to emit the original TyTraCL
 non_input_vecs :: Expr -> [Expr]
@@ -125,6 +141,26 @@ non_input_vecs expr = let
                 Vec VI _  -> False
                 _ -> True
             ) vec_subexprs    
+
+non_input_or_temp_vecs :: Expr -> [Expr]
+non_input_or_temp_vecs expr = let -- @(Stencil _ _)
+    vec_subexprs = get_vec_subexprs expr
+    in
+        filter (
+            \v -> case v of 
+                Vec VI _  -> False
+                Vec VT _  -> False
+                _ -> True
+            ) vec_subexprs              
+-- non_input_or_temp_vecs expr = let
+--     vec_subexprs = get_vec_subexprs expr
+--     in
+--         filter (
+--             \v -> case v of 
+--                 Vec VI _  -> False
+--                 _ -> True
+--             ) vec_subexprs    
+
 
 get_vec_subexprs :: Expr -> [Expr]
 get_vec_subexprs = everything (++) (mkQ [] get_vec)    
@@ -176,18 +212,6 @@ Now we should start applying the rewrite rules to reduce each of these expressio
 -}
 
 -- 3. With this preparation I guess we are ready for the actual rewrites:
---
--- I should use a monadic version with the State monad
--- We populate the Map with (id_$ct, [Tuple [], $in_exp, $in_exp ] )
--- Key question is where to get $in_exp 
---  runState (everywhereM (mkM (rewrite_ast_sub_expr lhs)) ast) (0,Map.empty)
--- rewrite_ast_expr :: Expr -> Expr
--- rewrite_ast_expr ast = everywhere (mkT rewrite_ast_sub_expr) ast
-
-
-
-rewrite_ast_expr :: Expr -> State (Int, [(Name, [Expr])]) Expr
-rewrite_ast_expr ast = everywhereM (mkM rewrite_ast_sub_expr) ast
 
 {-
 Rewrite rules
@@ -213,6 +237,36 @@ Rewrite rules
 7.  stencil s1 $ stencil s2 $ v = stencil (scomb s1 s2)  v
 -}
 
+{-      
+This needs to be done repeatedly until a fixpoint is reached.    
+Fixpoint is reached when there is only a single Map expression
+-}
+applyRewriteRules ast = foldl (\(lst,(ct,mp)) (lhs,rhs) -> 
+        let
+            (rhs',(ct',mp')) = runState (rewrite_ast_into_single_map 0 rhs) (ct,mp)
+        in (lst++[(lhs,rhs')],(ct',mp'))
+    ) ([], (0,[])) ast
+--
+-- I use a monadic version with the State monad
+-- We populate the Map with (id_$ct, [Tuple [], $in_exp, $in_exp ] )
+
+rewrite_ast_expr :: Expr -> State (Int, [(Name, [Expr])]) Expr
+rewrite_ast_expr ast = everywhereM (mkM rewrite_ast_sub_expr) ast
+
+rewrite_ast_into_single_map :: Int -> Expr -> State (Int,[(Name, [Expr])]) Expr
+rewrite_ast_into_single_map count exp = do
+    let 
+        count' = count+1
+        map_count = has_map_subexprs exp 
+    -- in
+    if map_count > 1
+        then do 
+            -- let
+            exp' <- rewrite_ast_expr exp
+            -- in
+            rewrite_ast_into_single_map count' exp'
+        else
+            return exp   
 -- (Stencil (SVec 3 "s2") (Stencil (SVec 3 "s1") (Vec VI "v_0"))))
 -- (Stencil (SComb (SVec 3 "s2") (SVec 3 "s1")) (Vec VI "v_0"))))
 rewrite_ast_sub_expr expr = 
@@ -255,17 +309,6 @@ fuseStencils ast
             ) (0,[]) ast
 
 -- What we do is fuse stencils and make sure stencils are applied to input vectors, not zips
--- This is not good because it fails on a ZipT arg   
-
--- rewrite_ast_expr_fuse expr = case expr of   
---     Map f_expr (Stencil s_1 (Stencil s_2 v_expr)) -> (1,Map f_expr (Stencil (SComb s_1 s_2) v_expr))
---     Fold f_expr acc_expr (Stencil s_1 (Stencil s_2 v_expr)) -> (1,Fold f_expr acc_expr (Stencil (SComb s_1 s_2) v_expr))
---     Map f_expr (Stencil s (ZipT vs)) -> (1,Map f_expr (ZipT (map (Stencil s) vs)))
---     Fold f_expr acc_expr (Stencil s (ZipT vs)) -> (1,Fold f_expr acc_expr (ZipT (map (Stencil s) vs)))
---     Map f_expr (ZipT v_exprs) -> (1,)
---     _ -> (0,expr)
-
-
 rewrite_ast_expr_fuse expr = case expr of   
     Map f_expr v_expr -> let
                 (m,v_expr') = fuse_stencils v_expr
@@ -287,30 +330,6 @@ fuse_stencils (ZipT v_exprs) =
 fuse_stencils v_expr = (0,v_expr)
 
 
--- fuseStencils (Stencil s_1 (Stencil s_2 v_expr)) = Stencil (SComb s_1 s_2) v_expr
--- fuseStencils (Stencil s (ZipT v_exprs)) = ZipT (map (Stencil s) v_exprs)
--- fuseStencils (ZipT v_exprs) = ZipT (map fuseStencils v_exprs)
--- fuseStencils v_expr = v_expr
-
-{-      
-This needs to be done repeatedly until a fixpoint is reached.    
-Fixpoint is reached when there is only a single Map expression
-
-Maybe it is easier to do runState and then use a fold manage the Map?
-runState returns ((ct,mp),rhs)
-foldl (\(lst,(ct,mp)) (lhs,rhs) -> let
-    ((ct',mp'),rhs') = runState (rewrite_ast_into_single_map 0 rhs) (ct,mp))
-    in (lst++[(lhs,rhs')],(ct',mp'))
-) ([], (0,Map.empty)) ast
-
-where
-    f' (\(lst,acc) elt -> (lst++[elt],acc)
--}
-applyRewriteRules ast = foldl (\(lst,(ct,mp)) (lhs,rhs) -> 
-        let
-            (rhs',(ct',mp')) = runState (rewrite_ast_into_single_map 0 rhs) (ct,mp)
-        in (lst++[(lhs,rhs')],(ct',mp'))
-    ) ([], (0,[])) ast
     
 
 -- map_checks :: TyTraCLAST -> [Int]
@@ -371,28 +390,12 @@ get_map m@(Map _ _) = [m]
 get_map m@(Fold _ _ _) = [m] -- cheating
 get_map _ = []
 
--- n_map_subexprs :: Expr -> Int
--- n_map_subexprs expr = length (everything (++) (mkQ [] get_map) expr) 
-
 -- This only works if the rules eliminate all maps
 -- I also want to check if the number did not change anymore
 has_map_subexprs :: Expr ->  Int
 has_map_subexprs expr = length (everything (++) (mkQ [] get_map) expr) -- > 1
 
-rewrite_ast_into_single_map :: Int -> Expr -> State (Int,[(Name, [Expr])]) Expr
-rewrite_ast_into_single_map count exp = do
-    let 
-        count' = count+1
-        map_count = has_map_subexprs exp 
-    -- in
-    if map_count > 1
-        then do 
-            -- let
-            exp' <- rewrite_ast_expr exp
-            -- in
-            rewrite_ast_into_single_map count' exp'
-        else
-            return exp            
+         
 
 -- ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------    
 {-
@@ -436,7 +439,8 @@ subsitute_expr lhs exp = do
             let 
                 (vec_name, decomposeMap) = case lhs of
                     Vec VO  (Scalar _ _ vname) -> (vname, False)
-                    Scalar _ _ sname -> (sname, True)
+                    Vec VT  (Scalar _ _ vname) -> (vname, False) -- only for noStencilRewrites
+                    Scalar _ _ sname -> (sname, True)                    
             (ct,orig_bindings,added_bindings,var_expr_pairs) <- get
             let ((ct',orig_bindings', added_bindings',var_expr_pairs'),exp') = case exp of
                       Scalar _ _ _ -> ((ct,orig_bindings,added_bindings,var_expr_pairs),exp)

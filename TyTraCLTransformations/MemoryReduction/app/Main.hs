@@ -8,8 +8,14 @@ import CodeGeneration (
     generateFortranCode
     )
 
-info =  False
-stage = 1
+info 
+    | noStencilRewrites = False
+    | otherwise = False
+
+data Stage = Original | SplitLhsTuples | SubstituteVectors | ApplyRewriteRules | FuseStencils | DecomposeExpressions deriving (Show, Ord, Eq)
+stage 
+    | noStencilRewrites = DecomposeExpressions
+    | otherwise = DecomposeExpressions
 
 ast1 = splitLhsTuples ast
 ast2 = substituteVectors ast1
@@ -17,13 +23,13 @@ ast2 = substituteVectors ast1
 ast3' = fuseStencils ast3
 ast4 = decomposeExpressions ast1 ast3' 
 
-asts
-    | stage == 0 = [ast]
-    | stage == 1 = [ast1]
-    | stage == 2 = [ast2]
-    | stage == 3 = [ast3]
-    | stage == 4 = [ast3']
-    | otherwise = ast4
+asts  -- = ast4
+    | stage == Original = [ast]
+    | stage == SplitLhsTuples = [ast1]
+    | stage == SubstituteVectors = [ast2]
+    | stage == ApplyRewriteRules = [ast3]
+    | stage == FuseStencils = [ast3']
+    | stage == DecomposeExpressions = ast4
 
 inferedSignatures :: [[(Name,FSig)]]
 inferedSignatures = map inferSignatures ast4
@@ -47,13 +53,16 @@ main = do
             putStrLn "\n-- Decompose expressions and Infer intermediate function signatures"
             putStrLn "-- Original function signatures"
             mapM_ print functionSignaturesList
-            putStrLn "-- Decompose expressions and infered function signatures"
-            mapM_ ( \(x1,x2) -> do
-                putStrLn ("-- " ++ ((show . LHSPrint . fst . head) x1))
+            putStrLn "-- Decomposed expressions and infered function signatures"
+            mapM_ ( \((x1,x2),ct) -> do
+                if noStencilRewrites then do
+                    putStrLn $ "-- stage_kernel_" ++ (show ct)
+                    else return ()
+                putStrLn $ "-- " ++ (show . LHSPrint . fst . head) x1
                 putStrLn "-- Decomposed expressions"
                 mapM print x1   
                 putStrLn "-- Infered function signatures"
                 mapM print x2
-                ) (zip ast4 inferedSignatures)
+                ) (zip (zip ast4 inferedSignatures) [1..])
         else return ()            
     putStr generatedFortranCode

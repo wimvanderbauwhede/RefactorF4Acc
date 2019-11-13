@@ -4,6 +4,8 @@ module TyTraCLAST where
 import Data.Generics (Data, Typeable)
 import Data.List (intercalate)
 
+noStencilRewrites = True -- FIXME: hangs when set to True, I need a different halting condition for the rewrite rules!
+
 type Name = String
 type Size = Int
 data VE = VI  | VO  | VS  | VT | VDC deriving (Show, Ord, Typeable, Data, Eq)
@@ -135,6 +137,8 @@ getName (SVec sz exp) = getName exp
 getName (Tuple exps) = Composite (map getName exps)
 getName (SComb exp1 exp2) = Composite (map getName [exp1,exp2])
 getName (ZipT exps) = Composite (map getName exps)
+--  Stencil (SVec 3 (Scalar VDC DInt "s1")) (Vec VT (Scalar VDC DInt "v_1"))
+getName expr = Single $ show expr
 
 updateName :: String -> String -> Expr -> Expr
 updateName prefix postfix (Tuple exps) = Tuple $ map (\exp -> setName (appendPrePost prefix postfix (getName exp)) exp) exps

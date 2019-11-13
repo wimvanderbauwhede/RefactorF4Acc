@@ -185,7 +185,7 @@ sub identify_array_accesses_in_exprs { (my $stref, my $f) = @_;
 				if ($info->{'Lhs'}{'ArrayOrScalar'} eq 'Scalar' and $info->{'Lhs'}{'VarName'} =~/^(\w+)_rel/) {
 					my $loop_iter=$1;
 					if (not exists $state->{'Subroutines'}{ $f }{'Blocks'}{$block_id}{'LoopIters'}{$loop_iter}{'Range'}) {
-						croak "This should not happen!";
+						croak "This should not happen! " .Dumper($annline);
 						$state->{'Subroutines'}{ $f }{'Blocks'}{$block_id}{'LoopIters'}{$loop_iter}={'Range' => [0,0]};
 					}
 				}
