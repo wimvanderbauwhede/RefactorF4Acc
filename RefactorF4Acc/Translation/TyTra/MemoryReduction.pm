@@ -1170,7 +1170,7 @@ sub __toHaskellFDecl {(my $arg_name, my $tytracl_var_rec, my $intent) =@_;
     );
 
     my $vt  = shift @{$tytracl_var_rec };
-    if ($vt eq 'Vec') {
+    if ($vt eq 'Vec' or $vt eq 'SVec') {
         my $dim = shift @{$tytracl_var_rec };
         my $vt = shift @{$tytracl_var_rec};
         # return $fortran_type{$vt}.', dimension(1:'.$dim.'), intent('.$intent.') :: '. $arg_name;

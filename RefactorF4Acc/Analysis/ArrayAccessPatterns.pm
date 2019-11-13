@@ -704,6 +704,8 @@ sub _classify_accesses_and_emit_AST { (my $stref, my $f, my $state ) =@_;
 	$ast_to_emit = $ast_emitter->( $f,  $state,  $ast_to_emit, 'INIT_AST') if $emit_ast;
 	
  	for my $array_var (keys %{$state->{'Subroutines'}{ $f }{'Blocks'}{ $block_id }{'Arrays'}}) {
+		 # Excluding arrays that are not streams here is OK, that way I get no stencil and they become SVecs in TyTraCL.pm
+		next if _is_not_stream_var($stref, $array_var);
  		next if $array_var =~/^global_|^local_/;
  		next if not defined  $state->{'Subroutines'}{ $f }{'Blocks'}{ $block_id }{'Arrays'}{$array_var}{'Dims'} ;
 
@@ -1446,6 +1448,19 @@ sub __generate_buffer_varnames { my ( $boundary_accesss, $block_id ) = @_;
 
     }
          
+}
+
+
+sub _is_not_stream_var($stref, $var_name) {
+
+      my $n_dims = $Config{'NDIMS'};
+      my $max_szs = $Config{'MAX_SZS'};
+      my $n_halo_points = $Config{'HALO_EXTENT'};
+	  # Get the record for $var_name
+	  # from that, get the dims and sizes
+	  # test the heuristic
+	carp "TODO: IMPLEMENT HEURISTIC FOR NON-STREAM VARS!";
+	  return 0;
 }
 
 1;

@@ -1,5 +1,54 @@
 # REMAINING ISSUES : Memory Reduction for Scientific Computing on GPUs
 
+## 2019-11-13
+
+I have started processing the LES. I added a number of macros to make the source suitable for conversion:
+
+The existing macros used are
+
+            #define WV_OPENCL
+            #define WV_NEW
+            #define NO_GLOBAL_SOR 
+            #define TWINNED_BUFFER 
+            #define NO_IO 
+            #undef NO_FILE_IO 
+            #define IFBF 1 
+            #define IADAM 0 
+            #undef I_IFDATA_OUT
+            #undef I_AVEFLOW
+            #define I_ANIME
+
+The new ones are
+
+            #define NO_BOUNDS_CALCS 
+            #define INLINE_VEL2
+            #define LES_EXTERNAL_DELX1
+            #define SEPARATE_P_ARRAYS
+
+- Boundary calculations are assumed to be done on the host.
+- As I want to reduce arrays, I want to use the original `vel2` but we don't have an inliner yet so I did that manually.
+- In `les.f95`, a 1-D array `delx1` is computed, I assume this will be done once on the host.
+- Instead of a 4-D `p` array I have two 3-D arrays `p0` and `p1`.
+
+The current main issue is that non-map/fold args that are arrays are not passed as arrays but are also scalarised. To avoid this, I must identify the arrays as non-map/fold. 
+We could assume that the programmer does this, or we can use the dimension analysis. Identifying these arguments earlier is better anyway, but there does not seem to be a single working criterion.
+A good heuristic might be:
+- how many dimensions is the problem? `$ndims`
+- what is the max size in any dimension? `@max_szs`
+- any array of lower dimensionality is automatically not a stream
+- any array of the correct dimensionality but much smaller than the `@max_szs` is not a stream
+- "much smaller" is based on the assumption that we have a domain and then `$k` points for a halo. Any array where any dimension is smaller than $max_sz - $k should not be a stream
+
+So let's assume we have this in the `rf4a.cfg`:
+
+      NDIMS = 3
+      MAX_SZS = 100, 100, 100 
+      HALO_EXTENT = 3
+
+The change to the code is in `_classify_accesses_and_emit_AST` (line 708) in `RefactorF4Acc::Analysis::ArrayAccessPatterns`; but I think we need the same analysis in `RefactorF4Acc::Refactoring::Streams` because of `rename_array_accesses_to_scalars` which is needed for the MemoryReduction pass.
+
+
+
 ## Generate Fortran from the original TyTraCL
 
 Although this might seem obvious, it breaks due to several reasons. 
