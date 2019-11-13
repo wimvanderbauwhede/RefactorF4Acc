@@ -655,6 +655,9 @@ generateStencilAppl s_exp v_exp@(Vec _ dt) sv_name stencilDefinitions =
         Single v_name = getName dt
         Single lhs_v_name = sv_name
         sv_type = fortranType dt      
+        extra_in_var_decls 
+            | noStencilRewrites = [exprToFDecl v_exp]
+            | otherwise = []
         (s_names,s_defs,sv_szs) = generateStencilDef' s_exp stencilDefinitions
         -- instead of generating new stencils we can also recompute, simply
         stencil_accesses = intercalate "+" (map (\(s_name,ct)-> s_name++"(s_idx_"++(show ct)++")") $ zip s_names [1..])
@@ -685,7 +688,7 @@ generateStencilAppl s_exp v_exp@(Vec _ dt) sv_name stencilDefinitions =
              ],
             replicate (length sv_szs) "    end do"
           ]
-        ,decl_lines,decls)
+        ,decl_lines,decls++extra_in_var_decls)
 generateStencilAppl s_exp v_exp@(ZipT vs_exps') sv_name stencilDefinitions = let
         ZipT vs_exps = mkFinalVecs v_exp   
         gen_stencils :: [String]
@@ -820,22 +823,37 @@ generateFold functionSignatures f_exp acc_exp v_exp t =
         (lhs,rhs) = t
         out_vars_lst = getName lhs
         Fold _ _ rhs_v_exp = rhs -- fold f acc v
-        out_var_name = case out_vars_lst of
+        (out_var_name, extra_out_var_decls) = case out_vars_lst of
             Single ov_name'' -> if Map.member ov_name'' mainArgDecls 
-                                    then ov_name''++"(idx)" 
-                                    else ov_name''
+                                    then (ov_name''++"(idx)" ,[])
+                                    else (ov_name'',[])
             Composite ov_names -> error $ show $ map (\(Single ov_name'') -> if Map.member ov_name'' mainArgDecls then  ov_name''++"(idx)" else  ov_name'') ov_names
         nms_vars_lst =  nub $ map (show . getName) nms_exps
         nms_decls = map exprToFDecl nms_exps
         in_vars_lst =  getName rhs_v_exp
-        in_vars_name_lst = case in_vars_lst of
+        (in_vars_name_lst, extra_in_var_decls) = case in_vars_lst of
             Single ov_name'' -> if Map.member ov_name'' mainArgDecls 
-                                    then [ov_name''++"(idx)"] 
-                                    else [ov_name'']
+                                    then ([ov_name''++"(idx)"],[] )
+                                    else 
+                                        if noStencilRewrites 
+                                            then
+                                                case rhs_v_exp of
+                                                    -- Vec VS _ ->  ([ov_name''++"(idx)"], [exprToFDecl rhs_v_exp]) 
+                                                    Vec VT _ ->  ([ov_name''++"(idx)"] , [exprToFDecl rhs_v_exp]) -- probably WRONG!
+                                                    _ ->  ([ov_name''],[])
+                                            else
+                                                ([ov_name''],[])
             Composite ov_names -> let
                     Composite fl_ov_names = flattenNames (Composite ov_names)
-                in
-                    map (\(Single ov_name'') -> if Map.member ov_name'' mainArgDecls then  ov_name''++"(idx)" else  ov_name'') fl_ov_names
+                in (\(x,y) -> (concat x, concat y)) $ -- [([],[])] -> ([[]],[[]])
+                    unzip $ map (\(Single ov_name'') -> if Map.member ov_name'' mainArgDecls 
+                        then  ([ov_name''++"(idx)"], [])
+                        else  ([ov_name''],[])
+                        ) fl_ov_names                                                  
+            -- Composite ov_names -> let
+            --         Composite fl_ov_names = flattenNames (Composite ov_names)
+            --     in
+            --         map (\(Single ov_name'') -> if Map.member ov_name'' mainArgDecls then  ov_name''++"(idx)" else  ov_name'') fl_ov_names
         in_vars_name_lst' =  map snd (nubTup $ zip (unwrapName sig_in_args_lst) in_vars_name_lst)            
 
         
@@ -865,7 +883,7 @@ generateFold functionSignatures f_exp acc_exp v_exp t =
         ,[ftype++", intent(InOut) :: "++acc_name]
         ,[ MkFDecl ftype Nothing (Just InOut) [acc_name] ,
         MkFDecl ftype Nothing (Just Out) [out_var_name] 
-        ] ++ nms_decls
+        ] ++ nms_decls ++extra_in_var_decls++extra_out_var_decls
         )
 
 getInputArgs = everything (++) (mkQ [] (getInputArgs')) 

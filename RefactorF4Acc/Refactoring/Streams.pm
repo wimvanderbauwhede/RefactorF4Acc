@@ -282,7 +282,7 @@ sub _rename_array_accesses_to_scalars { (my $stref, my $f) = @_;
 		# }
 		# for my $stream_var (sort keys %{ $state->{'StreamVars'}{$var}{'Set'} } ){
 			for my $stream_var (@{$ordered_stencil_var_tuple} ) {
-				
+				carp "$f STREAM VAR $stream_var\n";
 			push @{$state->{'StreamVars'}{$var}{'List'}},$stream_var;		
 			my $scalar_assignment_line= '      '.$stream_var.' = '.$state->{'StreamVars'}{$var}{'Set'}{$stream_var}{'ArrayIndexExpr'};
 			my $array_assignment_line= '      '.$state->{'StreamVars'}{$var}{'Set'}{$stream_var}{'ArrayIndexExpr'}.' = '.$stream_var;
