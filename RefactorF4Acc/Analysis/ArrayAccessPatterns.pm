@@ -708,7 +708,9 @@ sub _classify_accesses_and_emit_AST { (my $stref, my $f, my $state ) =@_;
 		
  		next if $array_var =~/^global_|^local_/;
  		next if not defined  $state->{'Subroutines'}{ $f }{'Blocks'}{ $block_id }{'Arrays'}{$array_var}{'Dims'} ;
-		next if _is_not_stream_var($state, $f, $block_id, $array_var);
+		next unless _is_stream_var($state, $f, $block_id, $array_var);
+		# So there the $array_var is certainly (or at least per def) a stream variable
+		$stref->{'Subroutines'}{$f}{'StreamVars'}{$array_var}={};
 
 		$ast_to_emit = $ast_emitter->( $f,  $state,  $ast_to_emit, 'INIT_COUNTERS',  $block_id,  $array_var) if $emit_ast;
  		for my $rw ('Read','Write') {
@@ -1452,7 +1454,7 @@ sub __generate_buffer_varnames { my ( $boundary_accesss, $block_id ) = @_;
 }
 
 
-sub _is_not_stream_var { my ($state, $f, $block_id, $var_name) =@_;
+sub _is_stream_var { my ($state, $f, $block_id, $var_name) =@_;
 
     #   my $n_dims = 3;# $Config{'NDIMS'};
     #   my $max_szs = [300,300,80];#$Config{'MAX_SZS'};
@@ -1461,7 +1463,8 @@ sub _is_not_stream_var { my ($state, $f, $block_id, $var_name) =@_;
 	  my $iters =  $state->{'Subroutines'}{$f}{'Blocks'}{$block_id}{'LoopIters'};
 	  my $dims = $state->{'Subroutines'}{ $f }{'Blocks'}{ $block_id }{'Arrays'}{$var_name}{'Dims'} ;	  
 	  if (scalar @{$dims} < scalar keys %{$iters}) { 
-		  return 1;
+		  say "$f $var_name dim mismatch" if $V;
+		  return 0;
 	  } else {
 		  # needs more checking of the sizes but a global size comp should do it I think
 		  my $iter_space=1;
@@ -1480,17 +1483,15 @@ sub _is_not_stream_var { my ($state, $f, $block_id, $var_name) =@_;
 		  
 		#   if ($array_sz<$iter_space) {
 		# 	  croak  "ARRAY $var_name in $f IS SMALLER than iter space";
-		#   }
+		#   }		
 		  if (not $ok) {
 			  	croak  "ARRAY $var_name in $f IS SMALLER than iter space";
-		  }
+		  }		  
+		  say "$f $var_name $ok" if not $ok ;
 		  return $ok;
 	  }
-	  # from that, get the dims and sizes
-	  # test the heuristic
-	carp "TODO: IMPLEMENT HEURISTIC FOR NON-STREAM VARS!";
-	  return 0;
-}
+	  return 1;
+} # END of _is_stream_var
 
 1;
 

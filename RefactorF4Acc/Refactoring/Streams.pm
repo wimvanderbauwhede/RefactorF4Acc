@@ -160,12 +160,16 @@ It consists of following sub-passes:
 		$pass_lift_array_index_calculations 
 	6. Emit the updated code for the subroutine signature, the variable declarations, assignment expressions and ifthen expressions	
 		$pass_emit_updated_code 
+
+WV 2019-11-14 What needs to change: the scalarisation should only happen for stream variables. So we need to determine which variables are stream variables, and which ones are not.
+As we first do identify_array_accesses_in_exprs, we should make sure there is a table created, e.g. $Sf->{'StreamVars'}. This is already used, but we could use it to decide on action or not.
 =cut
 
 sub _rename_array_accesses_to_scalars { (my $stref, my $f) = @_;
 
 	if ($f ne $Config{'KERNEL'} ) {
 		$stref->{'TyTraLlvmArgTuples'}={};
+
 	# 1. This pass performs renaming in assignments and conditional expressions of IFs
 	# TODO: It does _not_ rename
 	# 	* subroutine call arguments (because there should not be any)
@@ -182,12 +186,10 @@ sub _rename_array_accesses_to_scalars { (my $stref, my $f) = @_;
 				# v = v_ptr(1)
 				# and we will remove these later on
 			} else {				
-				
-				
 				# Rename all array accesses in the RHS AST. This updates $state->{'StreamVars'}
 				# Here we should check if the variable is an argument or not!
 				# I have $state->{'Args'} for that. But the RHS is an expression which could have many vars				
-				(my $ast, $state) = _rename_ast_entry($stref, $f,  $state, $info->{'Rhs'}{'ExpressionAST'},'In');
+				(my $ast, $state) = _scalarise_array_accesses_in_ast($stref, $f,  $state, $info->{'Rhs'}{'ExpressionAST'},'In');
 				 $info->{'Rhs'}{'ExpressionAST'}=$ast;
 				 if (ref($ast) ne '') {
 				my $vars=get_vars_from_expression($ast,{}) ;
@@ -200,7 +202,7 @@ sub _rename_array_accesses_to_scalars { (my $stref, my $f) = @_;
 			}
 			if ($info->{'Lhs'}{'ArrayOrScalar'} eq 'Array') {
 				# Rename all array accesses in the LHS AST. This updates $state->{'StreamVars'}
-				(my $ast, $state) = _rename_ast_entry($stref, $f,  $state, $info->{'Lhs'}{'ExpressionAST'}, 'Out');
+				(my $ast, $state) = _scalarise_array_accesses_in_ast($stref, $f,  $state, $info->{'Lhs'}{'ExpressionAST'}, 'Out');
 				$info->{'Lhs'}{'ExpressionAST'}=$ast;
 				my $stream_var = $ast->[1];		
 				$info->{'Lhs'}{'VarName'} = $stream_var;
@@ -217,7 +219,7 @@ sub _rename_array_accesses_to_scalars { (my $stref, my $f) = @_;
 			# carp Dumper $info;
 			my $cond_expr_ast = $info->{'CondExecExprAST'};
 			# Rename all array accesses in the AST. This updates $state->{'StreamVars'}			
-			(my $ast, $state) = _rename_ast_entry($stref, $f,  $state, $cond_expr_ast, 'In');			
+			(my $ast, $state) = _scalarise_array_accesses_in_ast($stref, $f,  $state, $cond_expr_ast, 'In');			
 			
 			$info->{'CondExecExpr'}=$ast;
 			for my $var ( @{ $info->{'CondVars'}{'List'} } ) {
@@ -814,21 +816,21 @@ sub _add_assignments_for_called_subs { (my $stref, my $f) = @_;
 # 		},
 # 	};
 # It would be best, I guess, if we simply had Accesses and Dims in here
-# This should be called "_scalarise_array_accesses_in_ast"
 # $intent can be undefined, because $ast can (of course) be a non-arg variable.
 # In that case we should not have the IODir entry. 
-sub _rename_ast_entry { (my $stref, my $f,  my $state, my $ast, my $intent)=@_;
+sub _scalarise_array_accesses_in_ast { (my $stref, my $f,  my $state, my $ast, my $intent)=@_;
 	if (ref($ast) eq 'ARRAY') {
 		for my  $idx (0 .. scalar @{$ast}-1) {		
 			my $entry = $ast->[$idx];
 	
 			if (ref($entry) eq 'ARRAY') {
-				(my $entry, $state) = _rename_ast_entry($stref,$f, $state,$entry,$intent);
+				(my $entry, $state) = _scalarise_array_accesses_in_ast($stref,$f, $state,$entry,$intent);
 				$ast->[$idx] = $entry;
 			} else {
 				if ($idx==0 and (($entry & 0xFF) == 10)) {#'@'				
 					my $mvar = $ast->[$idx+1];					
-					say 'Found array access '.$mvar  if $DBG;			
+					say 'Found array access '.$mvar  if $DBG;		
+					if (exists $stref->{'Subroutines'}{$f}{'StreamVars'}{$mvar}) {
 					my $expr_str = emit_expr_from_ast($ast);
 					my $var_str=$expr_str;
 					# TODO: I should use tr// here
@@ -856,7 +858,10 @@ sub _rename_ast_entry { (my $stref, my $f,  my $state, my $ast, my $intent)=@_;
 					}					
 					
 					$ast=[0x2+(($entry>>8)<<8),$var_str];#'$'
-					last;					
+					last;			
+					}  else {
+						say "VAR $mvar IS NOT A STREAM VAR in $f";
+					}		
 				} 
 			}		
 		}

@@ -246,7 +246,7 @@ sub emit_TyTraCL {
             my $lhs_str =
               (scalar @{$out_vars} == 1)
               ? _mkVarName($out_vars->[0]) . ' = '
-              : '(' . join(',', map { _mkVarName($_) } @{$out_vars}) . ') = unzipt $';
+              : '(' . join(',', map { _mkVarName($_) } @{$out_vars}) . ') = '; # This was unzipt $ but a fold returns a scalar by definition
 
             my $non_map_arg_str =
                 (scalar @{$non_map_args} == 0) ? ''
