@@ -177,8 +177,8 @@ sub generate_llvm_ir_for_TyTra {
 
     _create_llvm_ir_src($new_ll_lines, $targetdir, $f, 'll', '_tf' );
     my $no_diff=1;
-    # __sanity_check($targetdir, $f.'_tf', $no_diff);
-    __sanity_check($targetdir, $f.'_tf');
+    __sanity_check($targetdir, $f.'_tf', $no_diff);
+    # __sanity_check($targetdir, $f.'_tf');
     # exit;
     return $stref;
 }    # END of generate_llvm_ir_for_TyTra
@@ -212,7 +212,7 @@ sub _rename_regs_to_args {
                 push @{$new_ast_nodes}, ['Signature', $f, ['TypedArgs', [@typed_args]]];
             }
         }
-        elsif (defined __ast_node_has_reg($ast_node) ) {
+        elsif (defined __ast_node_has_reg($ast_node) ) {            
             my $regs         = __get_regs_from_ast_node($ast_node, []);
             my $new_ast_node = __rename_arg_regs($ast_node, \%regs_to_args, $reg_offset);
             push @{$new_ast_nodes}, $new_ast_node;
@@ -235,7 +235,9 @@ sub _generate_llvm_ir {
     my $opt   = 'opt-mp-8.0';
 
     system("$clang -O0 -Xclang -disable-O0-optnone -emit-llvm -c $tytra_c_input -o ${tytra_ir}_tmp.bc");
-    system("$opt -S -mem2reg ${tytra_ir}_tmp.bc -o $tytra_ir-raw.ll");
+    # WV: inling the F2C* calls
+    system("$opt -always-inline ${tytra_ir}_tmp.bc -o ${tytra_ir}_tmp_inl.bc");
+    system("$opt -S -mem2reg ${tytra_ir}_tmp_inl.bc -o $tytra_ir-raw.ll");
 
     open my $LL_IN, '<', "$tytra_ir-raw.ll" or die $!;
     my $ll_lines = [];
@@ -349,6 +351,12 @@ sub _parse_llvm_ir {
                             my $reg = $1;
                             ['Reg', $reg];
                         }
+                        elsif (/^(\w+)\s+(.+?)$/) {
+                            my $type = $1;
+                            my $const = $2;
+                            push @{$arg_types}, $type;
+                            ['TypedConst', ['Type', $type],['Const',$const]];
+                        }
                         else {
                             ['Const', $_];
                         }
@@ -365,7 +373,7 @@ sub _parse_llvm_ir {
                         ['Args', [@reg_or_const]]
                     ];
                     push @ast_nodes, $ast_node;
-
+                    # croak "$line => $args_str ", Dumper( @args) if $line=~/pow/;
                     $called_funcs{$fname} =
                       ['Declaration', ['FName', $fname], ['Type', $type_str], ['ArgTypes', $arg_types]];
 
@@ -373,7 +381,21 @@ sub _parse_llvm_ir {
 
                     # %reg = op type [type] rest
                 }
-                elsif ($line =~ /\%(\w+)\s+=\s+(\w+)\s+(\w+(?:\s+\w+)?)\s+(.+)\s*$/) {
+                # array access
+                # getelementptr inbounds float, float* %10, i64 %41
+                elsif ($line =~ /\%([\w\.]+)\s+=\s+getelementptr\sinbounds\s+(\w+),\s+(\w+)\*\s+\%(\d+),\s+(\w+)\s+\%(\d+)$/) {
+                    my $reg      = $1;
+                    my $op       = 'getelementptr inbounds';
+                    my $op_type_str = $2;
+                    my $arg_type_str1 = $3;
+                    my $arg_str1 = $4;
+                    my $arg_type_str2 = $5;
+                    my $arg_str2 = $6;
+                    my $ast_node =
+                      ['Assignment', ['Reg', $reg], ['ArrayAccess', ['Type', $op_type_str], ['Op', $op]], [['TypedReg', ['Type', $arg_type_str1.'*'], ['Reg', $arg_str1]],['TypedReg', ['Type', $arg_type_str2], ['Reg', $arg_str2]]]];
+                    push @ast_nodes, $ast_node;
+                }
+                elsif ($line =~ /\%([\w\.]+)\s+=\s+(\w+)\s+(\w+(?:\s+\w+)?)\s+(.+)\s*$/) {
                     my $reg      = $1;
                     my $op       = $2;
                     my $type_str = $3;
@@ -406,11 +428,11 @@ sub _parse_llvm_ir {
                         push @{$ast_node}, $attr;
                     }
 
-                    #   croak $line. ' => '.$args_str.';'.Dumper( $ast_node) if $line=~/icmp/;
+                       
                     push @ast_nodes, $ast_node;
                 }
                 else {
-                    croak $line;
+                    croak "Can't parse line: $line";
                     (my $lhs, my $rhs) = split(/\s*=\s*/, $line);
                     my $ast_node = ['Pair', $lhs, $rhs];
                     push @ast_nodes, $ast_node;
@@ -657,6 +679,15 @@ sub __emit_llvm_ir_single_ast_node {
                 my $args_str = join(', ', map { __emit_reg_or_const($_) } @{$ast_node->[4][1]});
                 $ll_line = "  $reg = call $type \@$fname($args_str)";
             }
+            elsif ($ast_node->[2][0] eq 'ArrayAccess') {
+                my $typed_op = __emit_typed_op($ast_node->[2]);
+                my $attr     = '';
+                if ($ast_node->[-1][0] eq 'Attribute') {
+                    $attr = $ast_node->[-1][1];
+                }
+                my $args_str = join(', ', map { __emit_reg_or_const($_) } @{$ast_node->[3]});
+                $ll_line = "  $reg = $typed_op, $args_str $attr";
+            }
             else {
                 my $typed_op = __emit_typed_op($ast_node->[2]);
                 my $attr     = '';
@@ -760,6 +791,9 @@ sub __emit_reg_or_const {
     elsif ($ast_node->[0] eq 'Reg') {
         return '%' . $ast_node->[1];
     }
+    if ($ast_node->[0] eq 'TypedConst') {
+        return $ast_node->[1][1] . ' ' . $ast_node->[2][1];
+    }    
     else {    # for Const and Attribute
         return $ast_node->[1];
     }
@@ -771,6 +805,9 @@ sub __emit_typed_op {
 
     if ($ast_node->[0] eq 'TypedOp') {
         return $ast_node->[2][1] . ' ' . $ast_node->[1][1];
+    }
+    if ($ast_node->[0] eq 'ArrayAccess') {
+        return $ast_node->[2][1] . ' ' . $ast_node->[1][1].', ';
     }
     elsif ($ast_node->[0] eq 'Op') {
         return $ast_node->[1];
@@ -832,6 +869,7 @@ sub __get_store_from_ast_node {
 # start with an empty $regs array []
 sub __get_regs_from_ast_node {
     my ($ast_node, $regs) = @_;
+    croak if ref($ast_node) eq 'ARRAY' && scalar @{$ast_node}==0;
     if (ref($ast_node) eq 'ARRAY') {
         if ($ast_node->[0] eq 'Reg') {
             push @{$regs}, $ast_node->[1];
@@ -909,7 +947,7 @@ sub __rename_arg_regs {
     my ($ast_node, $regs_to_args, $reg_offset) = @_;
     if (ref($ast_node) eq 'ARRAY') {
         if ($ast_node->[0] eq 'Reg') {
-
+# carp Dumper $ast_node;
             # rename it
             if (exists $regs_to_args->{$ast_node->[1]}) {
                 $ast_node->[1] = $regs_to_args->{$ast_node->[1]};
@@ -963,7 +1001,8 @@ sub __sanity_check {
         # system("/opt/local/bin/bash","-c"," cat $target_dir/$f.ll");
         system("/opt/local/bin/bash",'-c',"diff -u -w <(opt-mp-8.0 -O0 -S $target_dir/$f.ll | grep -v -E \'^;|^\\s*\$|source_filename|attributes\') <(grep -v -E \'^\\;\\s+(?:br|store|.label)\|^\\s*\$' $target_dir/$f.ll)");
     } else {
-        system("opt-mp-8.0 -S $target_dir/$f.ll ");
+        # system("opt-mp-8.0 -S $target_dir/$f.ll ");
+        system("opt-mp-8.0 -S $target_dir/$f.ll >/dev/null");
     }
 }
 
