@@ -1,9 +1,58 @@
 #!/usr/bin/env perl
 use v5.28;
 
-our $V=0;
+use Getopt::Std;
 
+my %opts = ();
+getopts( 'hvi:o:e:m:', \%opts );
+
+if ($opts{'h'}){
+    die "
+    $0 -[hvioe] 
+
+    -v : verbose
+    -i : directory with scalarized kernel sources (default: Scalarized)
+    -o: output directory (default: TyTraC)
+    -m : macros file (default: macros.h)
+    -e : Fortran source file extension (default is .f95, needs the dot)
+    \n";
+}
+our $V=0;
+if ($opts{'v'}) {
+    $V=1;
+}
 my $kernels_dir = 'Scalarized';
+
+if ($opts{'i'}) {
+    $kernels_dir=$opts{'i'};
+}
+my $out_path ='../TyTraC';
+if ($opts{'o'}) {
+    $out_path=$opts{'o'};
+}
+
+my $scalarise=1;
+my $translate=1;
+if ($opts{'s'}) {
+    $translate=0;
+}
+if ($opts{'t'}) {
+    $scalarise=0;
+}
+if ($opts{'s'} and $opts{'t'}) {
+    $scalarise=1;
+    $translate=1;
+}
+my $ext = '.f95';
+if ($opts{'e'}) {
+    $ext = $opts{'e'};
+}
+
+my $macros_src = 'macros.h';
+if ($opts{'m'}) {
+$macros_src=$opts{'m'};
+}
+
 if (not -d 'Scalarized') {
     if (!@ARGV) {
         die "Provide the directory with the scalarised Fortran-syntax kernel modules as argument";
@@ -15,11 +64,11 @@ if (not -d 'Scalarized') {
 
 chdir $kernels_dir;
 
-my @kernel_srcs = glob("*.f95");    # FIXME: make generic
+my @kernel_srcs = glob("*$ext");  
 
 if (@kernel_srcs) {
-    if (-d '../TyTraC') {
-        system ('rm -f ../TyTraC/*.c');
+    if (-d '../'.$out_path) {
+        system ('rm -f ../'.$out_path.'/*.c');
     }
     for my $kernel_src (@kernel_srcs) {
         say "KERNEL SRC: $kernel_src" if $V;
@@ -41,9 +90,9 @@ MODULE = $kernel_module_name
 MODULE_SRC = $kernel_src
 TOP = $kernel_sub_name
 KERNEL = $kernel_sub_name
-NEWSRCPATH = ../TyTraC
-MACRO_SRC = macros.h
-EXT = .f95
+NEWSRCPATH = ../$out_path
+MACRO_SRC = $macros_src
+EXT = $ext
 ENDCFG
 
     open my $RF4A, '>', "rf4a_${kernel_sub_name}_to_C.cfg" or die $!;

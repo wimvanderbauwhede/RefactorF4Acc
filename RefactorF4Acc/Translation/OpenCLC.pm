@@ -364,6 +364,7 @@ sub translate_sub_to_C {  (my $stref, my $f, my $ocl) = @_;
 } # END of translate_sub_to_C()
 
 # FIXME: only include if they are actually used in the code!
+# $ocl: 0 = C, 1 = CPU/GPU OpenCL, 2 = C for TyTraIR aka TyTraC, 3 = pipe-based OpenCL for FPGAs 
 sub _write_headers { (my $stref, my $ocl)=@_;
 	
 	my @headers= grep { $_ ne '' } (
@@ -371,10 +372,15 @@ sub _write_headers { (my $stref, my $ocl)=@_;
 		( $ocl>0 ? '' : '#include <stdlib.h>'),
 		( $ocl>0 and $ocl!=2 ? '' : '#include <math.h>'),
 		( $ocl>0 ? '' : 'inline unsigned int get_global_id(unsigned int n) { return 0; }'),
-		($ocl != 2 ? '#include "array_index_f2c1d.h"' : ''),
+		# ($ocl != 2 ? '#include "array_index_f2c1d.h"' : ''), # WV 2019-11-20 this is incorrect as non-map/fold args can be arrays
+		'#include "array_index_f2c1d.h"' , 
 		''
 		);
-		$stref->{'TranslatedCode'}=[@headers,@{$stref->{'TranslatedCode'}}];
+		$stref->{'TranslatedCode'}=[@headers,@{$stref->{'TranslatedCode'}}];		
+		
+		if (not -e $targetdir.'/array_index_f2c1d.h') {			
+			_gen_array_index_f2c1d_h();
+		}
 		return $stref;
 } # END of _write_headers()
 
@@ -536,9 +542,12 @@ sub _emit_expression_C { my ($ast, $stref, $f)=@_;
 #	say Dumper($ast);
     if (ref($ast) eq 'ARRAY') {
         if (scalar @{$ast}==3) {
-			if ($ast->[0] == 8) { #eq '^'
-				$ast->[0]='pow';
-				unshift @{$ast},1;# '&' 
+			if ($ast->[0] == 8) { #eq '^'			
+				(my $op, my $arg1, my $arg2) = @{$ast};
+				$ast = [1,'pow',[27,$arg1,$arg2] ] ;
+				# $ast->[0]='pow';
+				# unshift @{$ast},1;# '&' 
+
 			} 
 			elsif ($ast->[0] == 1  and $ast->[1] eq 'mod') {#eq '&'
 					shift @{$ast};
@@ -886,3 +895,56 @@ sub __all_bounds_numeric { (my $dims)=@_;
  }	
 	return $all_bounds_numeric;
 }
+
+sub _gen_array_index_f2c1d_h {
+	# open RefactorF4Acc::Translation::OpenCLC::DATA or die $!;
+	open my $fh, '>', $targetdir.'/array_index_f2c1d.h' or die $!;
+	while(my $line = <RefactorF4Acc::Translation::OpenCLC::DATA>) {
+		print $fh $line;
+	}
+	close $fh;
+	close RefactorF4Acc::Translation::OpenCLC::DATA;
+} # END of _gen_array_index_f2c1d_h
+
+__DATA__
+
+#ifndef __ARRAY_INDEX_F2C_H__
+#define __ARRAY_INDEX_F2C_H__
+inline unsigned int F3D2C(
+        unsigned int i_rng,unsigned int j_rng, // ranges, i.e. (hb-lb)+1
+        int i_lb, int j_lb, int k_lb, // lower bounds
+        int ix, int jx, int kx
+        ) {
+    return (i_rng*j_rng*(kx-k_lb)+i_rng*(jx-j_lb)+ix-i_lb);
+}
+
+inline unsigned int F2D2C(
+        unsigned int i_rng, // ranges, i.e. (hb-lb)+1
+        int i_lb, int j_lb, // lower bounds
+        int ix, int jx
+        ) {
+    return (i_rng*(jx-j_lb)+ix-i_lb);
+}
+
+
+inline unsigned int F1D2C(
+        int i_lb, // lower bounds
+        int ix
+        ) {
+    return ix-i_lb;
+}
+
+inline unsigned int F4D2C(
+        unsigned int i_rng,unsigned int j_rng, unsigned int k_rng, // ranges, i.e. (hb-lb)+1
+        int i_lb, int j_lb, int k_lb, int l_lb, // lower bounds
+        int ix, int jx, int kx, int lx
+        ) {
+    return (i_rng*j_rng*k_rng*(lx-l_lb)+
+            i_rng*j_rng*(kx-k_lb)+
+            i_rng*(jx-j_lb)+
+            ix-i_lb
+            );
+}
+
+
+#endif

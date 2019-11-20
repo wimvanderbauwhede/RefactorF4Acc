@@ -86,7 +86,7 @@ if ($gen_tytra_ir_main) {
 
 # First scalarise
 if ($scalarise) {
-    say "SCALARISE" if $V;
+    say "### SCALARISE" if $V;
     my @kernel_srcs = glob("module_*_superkernel.f95"); 
 
     if (scalar @kernel_srcs == 1) {
@@ -110,7 +110,7 @@ if ($scalarise) {
 }
 # Now convert to C, then to LLVM IR for TyTra
 if ($translate) {
-say "TRANSLATE" if $V;
+say "### TRANSLATE" if $V;
 my $kernels_dir = 'Scalarized';
 if (not -d 'Scalarized') {
     if (!@ARGV) {
@@ -130,6 +130,7 @@ if (@kernel_srcs) {
         system ('rm -f ../TyTraC/*.c');
     }
     for my $kernel_src (@kernel_srcs) {
+        next if $kernel_src=~/superkernel/;
         say "KERNEL SRC: $kernel_src" if $V;
         my ($kernel_sub_name, $kernel_module_name) = get_kernel_and_module_names($kernel_src);
         if ($kernel_sub_name ne '') {
@@ -221,7 +222,7 @@ sub get_kernel_and_module_names {
     open my $SRC, '<', $kernel_src or die $!;
     my @src_lines = <$SRC>;
     close $SRC;
-    say 'NAMES:',Dumper grep {/subroutine/} @src_lines;
+    # say 'NAMES:',Dumper grep {/subroutine/} @src_lines;
     my @kernel_sub_names    = map {/^\s*subroutine\s+(\w+)/; $1} grep { /^\s*subroutine\s+\w+/ } @src_lines;
     my $kernel_sub_name='NO_NAME';
     if (defined $superkernel) {

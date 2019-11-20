@@ -1070,7 +1070,7 @@ sub emit_expr_from_ast { (my $ast)=@_;
 #	say Dumper($ast);
     if (ref($ast) eq 'ARRAY') {
         if (scalar @{$ast}==3) {
-            if ($ast->[0] ==1 or $ast->[0] ==10) { # '&' array access or function call
+            if ($ast->[0] ==1 or $ast->[0] ==10) { # '&' or '@', array access or function call
                 (my $sigil, my $name, my $args) =@{$ast};
                 if (@{$args}) {
 					if ($args->[0] != 14 ) { # ')('
