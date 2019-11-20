@@ -147,7 +147,7 @@ sub create_rf4a_cfg_scalarise {
 'SRCDIRS' => ['.'],
 'NEWSRCPATH' => './Scalarized',
 'EXCL_SRCS' => ['(sub|init|param|module_\\w+_superkernel_init|_host|\\.[^f])'],
-'EXCL_DIRS' => [ qw(./PostCPP ./Scalarized ./TyTraC)],
+'EXCL_DIRS' => [ qw(./PostCPP ./Scalarized ./TyTraC ./Superkernels)],
 'MACRO_SRC' => 'macros.h',
 'EXT' => ['.f95'],
 'SUB_SUFFIX' => '_scal'

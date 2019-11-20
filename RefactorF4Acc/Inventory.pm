@@ -76,7 +76,7 @@ sub find_subroutines_functions_and_includes {
         if ($incl) {
         	return if (!/$incl$/);
         } else {
-        	return if (!/\.f(?:9[05])?$/ &&!/\.c$/); # rather ad-hoc for Flexpart + WRF # FIXME: make pattern configurable in rf4a.cfg
+        	return if (!/\.f(?:or|9[05])?$/i &&!/\.c$/); # rather ad-hoc for Flexpart + WRF # FIXME: make pattern configurable in rf4a.cfg
         }
         my $filepath = $File::Find::name;  # i.e. $path+ the name of the file found
         

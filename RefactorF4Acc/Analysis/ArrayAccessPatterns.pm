@@ -1471,8 +1471,10 @@ sub _is_stream_var { my ($state, $f, $block_id, $var_name) =@_;
 		  my $array_sz=1;
 		  my $ok=1;
 		  my $ii=0;
+		#   carp "$f $var_name ". Dumper( $iters, $dims );
 		  for my $iter (sort keys %{$iters}) {
 			  my $range = $iters->{$iter}{'Range'};
+			  
 			  my $range_sz = $range->[1] - $range->[0] +1;
 			  my $dim = $dims->[$ii];++$ii;
 			  my $dim_sz = $dim->[1] - $dim->[0] +1;

@@ -859,9 +859,10 @@ sub _scalarise_array_accesses_in_ast { (my $stref, my $f,  my $state, my $ast, m
 					
 					$ast=[0x2+(($entry>>8)<<8),$var_str];#'$'
 					last;			
-					}  else {
-						say "VAR $mvar IS NOT A STREAM VAR in $f";
-					}		
+					}  
+					# else {
+					# 	say "VAR $mvar IS NOT A STREAM VAR in $f" if $DBG;
+					# }		
 				} 
 			}		
 		}
