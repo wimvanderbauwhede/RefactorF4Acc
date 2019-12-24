@@ -911,7 +911,7 @@ Suppose we don't:
                     if ( not exists $stref->{$srctype}{$code_unit_name}{'Status'} ) {
                         print "UNDEF: $code_unit_name\n";
                     }
-                    if ( $stref->{$srctype}{$code_unit_name}{'Status'} == $UNREAD ) {
+                    elsif ( $stref->{$srctype}{$code_unit_name}{'Status'} == $UNREAD ) {
                         $stref->{$srctype}{$code_unit_name}{'Status'} = $READ;
                     }
                 }    # free or fixed form

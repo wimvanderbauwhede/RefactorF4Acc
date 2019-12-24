@@ -2816,7 +2816,7 @@ sub __parse_f77_par_decl {
 				next if exists $F95_intrinsic_functions{$mpar}; 
 				# carp "$f $mpar for $var";
 				my $mpar_rec = get_var_record_from_set( $Sf->{'LocalParameters'}, $mpar );
-				# say Dumper($f, $mpar, $mpar_rec);
+				say Dumper($f, $mpar, $mpar_rec);
 				my $mtype=$mpar_rec->{'Type'};
 				my $mattr=$mpar_rec->{'Attr'};
 				if ($mtype ne 'integer' or not $typed) {
