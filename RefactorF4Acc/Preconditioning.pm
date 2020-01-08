@@ -49,6 +49,7 @@ sub precondition_includes {
     }
     for my $inc (keys %{$stref->{'IncludeFiles'}}) {
         next if $stref->{'IncludeFiles'}{$inc}{'InclType'} eq 'External';
+    say "Inlining in $inc";
         my $stref = _inline_includes($stref, $inc);
         my $Sincf = $stref->{'IncludeFiles'}{$inc};
     }
@@ -232,6 +233,7 @@ sub _inline_includes {
             $stref = __merge_include($stref, $inc, $n_inc);
         }
     }
+    croak Dumper($inc, $stref->{'IncludeFiles'}{$inc});
     return $stref;
 }    # END of _inline_includes
 

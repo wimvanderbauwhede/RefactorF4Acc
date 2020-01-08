@@ -658,7 +658,8 @@ SUBROUTINE
 							$Sf->{'UndeclaredCommonVars'}{'Set'}{$var} = $decl;
 							push  @{ $Sf->{'UndeclaredCommonVars'}{'List'} },$var;
 							say "INFO: DECLARED COMMON VAR $var from $f, was typed via implicit rules" if $I;							
-					} else { # Means the var is already declared. So just use the existing declaration
+																
+					} else { # Means the var is already declared. So just use the existing declaration						
 						# As this is a common it can't be an argument
 						if (exists $Sf->{'DeclaredOrigLocalVars'}{'Set'}{$var} ){
 							my $decl = $Sf->{'DeclaredOrigLocalVars'}{'Set'}{$var};
@@ -708,11 +709,42 @@ SUBROUTINE
 							}
 							push @{ $Sf->{'DeclaredCommonVars'}{'List'} }, $var;
 						}
+						elsif (exists $Sf->{'UndeclaredCommonVars'}{'Set'}{$var} ){
+							# So if a variable was common and initially undeclared, it could mean that it was declared via implicits in another subroutine
+							# Maybe I should initially do nothing then. 
+							# Or I could add it to DeclaredCommonVars, but I need to check how this is used
+							if (0) {
+							my $decl = $Sf->{'UndeclaredCommonVars'}{'Set'}{$var};
+#							say Dumper($decl).'<>'.Dumper($parsedvars->{$var});
+							if (
+							     (not exists $decl->{'ArrayOrScalar'} or
+								 $decl->{'ArrayOrScalar'} eq 'Scalar') and 
+								 $parsedvars->{$var}{'ArrayOrScalar'} eq 'Array'
+							) {								
+								$decl->{'Dim'} =  [ @{ $parsedvars->{$var}{'Dim'} } ];	
+							} elsif (
+							exists $decl->{'ArrayOrScalar'} and
+								$decl->{'ArrayOrScalar'} eq 'Array' and 
+								$parsedvars->{$var}{'ArrayOrScalar'} eq 'Array'							
+							) {
+								croak "This should be an error: dimension of $var speficied both in VarDecl and Common";
+							}
+							
+							$Sf->{'DeclaredCommonVars'}{'Set'}{$var} = exists $Sf->{'Program'} ? $decl : dclone($decl);
+							$Sf->{'DeclaredCommonVars'}{'Set'}{$var}{'CommonBlockName'} = $common_block_name;
+							if (not exists $Sf->{'Program'} ) {
+							delete $Sf->{'UndeclaredCommonlVars'}{'Set'}{$var};
+							@{ $Sf->{'UndeclaredCommonlVars'}{'List'} } = grep { $_ ne $var } @{ $Sf->{'UndeclaredCommonlVars'}{'List'} };
+							}
+							push @{ $Sf->{'DeclaredCommonVars'}{'List'} }, $var;
+							}
+						}						
 						else {
 							my $subset = in_nested_set( $Sf, 'Vars', $var );
 							if ($subset ne 'DeclaredCommonVars') {
 								# It could be UndeclaredOrigLocalVars via EQUIVALENCE
-							    croak "SHOULD BE IMPOSSIBLE!  $var in $subset in $f: $line".Dumper( $Sf->{$subset}{'Set'}{$var} );
+							    croak "SHOULD BE IMPOSSIBLE!  $var in $subset in $f: $line\n".Dumper( $Sf->{$subset}{'Set'}{$var} );
+								#UndeclaredCommonVars
 							}
 						}						
 					}
@@ -2816,7 +2848,10 @@ sub __parse_f77_par_decl {
 				next if exists $F95_intrinsic_functions{$mpar}; 
 				# carp "$f $mpar for $var";
 				my $mpar_rec = get_var_record_from_set( $Sf->{'LocalParameters'}, $mpar );
-				say Dumper($f, $mpar, $mpar_rec);
+				say "\nPARAM $mpar used in VAR DECL for $var in $f on line $line: ".Dumper($ast, $mpar_rec);
+				
+				say "The problem here is that the parameter can be declared in the source file including this include. So I must check the parameter declarations via IncludedFrom";
+				say "That should happen here, as this is called when the include is being parsed";
 				my $mtype=$mpar_rec->{'Type'};
 				my $mattr=$mpar_rec->{'Attr'};
 				if ($mtype ne 'integer' or not $typed) {
@@ -4449,7 +4484,8 @@ sub __parse_include_statement { my ($stref, $f, $Sf, $line, $info, $index) = @_;
 		$stref->{'IncludeFiles'}{$name}{'HasBlocks'} = 0;
 		$stref = parse_fortran_src( $name, $stref );
 	} else {
-		say $line, " already processed" if $V;					
+		say $line, " already processed" if $V;
+		warn "Status for Include $name is FILE NOT FOUND" if $stref->{'IncludeFiles'}{$name}{'Status'} == $FILE_NOT_FOUND;
 	}
 	if (    exists $stref->{'Implicits'}
 		and exists $stref->{'Implicits'}{$name} )

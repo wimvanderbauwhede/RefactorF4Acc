@@ -36,11 +36,13 @@ our $VV=0;
 our $wd=undef;
 our $strip_comments=1;
 our $output_dir = '../PostCPP';
+our $srcs_pattern = "*.f* *.F* *.inc";
 
 #run_cpp(@ARGV);
 our $usage = <<'ENDH';
 	This script expects a file `macros.h` in the current folder
-	Without arguments, this script will call `cpp` on all files in the current folder and any subfolders (but only one level)
+	Without arguments, this script will call `cpp` on all files matching *.f *.F *.inc in the current folder and any subfolders (but only one level)
+	If this is too restrictive, provide the patter with the -p flag
 	
 	The `cpp` arguments are `cpp -Wno-invalid-pp-token -P -Wno-extra-tokens`
 	
@@ -56,8 +58,9 @@ ENDH
 
 sub run_cpp { my @args=@_;  
 	$wd=cwd();
-	parse_args(@args);
-
+	
+	@args = parse_args(@args);
+	
 	my $single=0;
 	my $single_src='';
 	if (@args) {
@@ -133,7 +136,7 @@ sub run_cpp { my @args=@_;
 	    }    
 	    chdir "$wd/$srcdir";
 	
-	    my @srcs = $single ? ( $single_src ) : glob("*.f* *.F* *.inc");
+	    my @srcs = $single ? ( $single_src ) : glob($srcs_pattern); # This is too restrictive
 	    
 	    for my $src (@srcs) {
 	        my $src_path = $no_macros_to_skip ? "$wd/$srcdir/$src" : "$wd/$output_dir/PrePostCPP/$srcdir/$src";
@@ -167,7 +170,7 @@ sub run_cpp_and_clean_up { (my $no_macros, my $includestr, my $definestr, my $sr
     my $redir = $out_path eq '' ? '' : '>';
     # The grep removes comment lines  (starting with '!')
     # The perl command removes trailing comments 
-    my $cmd_clean_up = $strip_comments ? "| grep -v -E '^(?:\\s*\\!\\s*|[cC]\\s+)[a-z\#]|^\\s*\$' | perl -p -e 's/^([^\\!]+)\\s*\\![^\\N{QUOTATION MARK}\\N{APOSTROPHE}]+\$/\$1/' $redir $out_path" : " $redir $out_path";
+    my $cmd_clean_up = $strip_comments ? "| grep -v -E '^(?:\\s*\\!\\s*|[cC]\\s+)[a-z\#]|^\\s*\$' | perl -p -e 's/^([^\\!]+)\\s*\\![^\\N{QUOTATION MARK}\\N{APOSTROPHE}]+\$/\$1\n/' $redir $out_path" : " $redir $out_path";
 	my $cmd = $cmd_cpp.$cmd_clean_up;
     say $cmd if $VV;
     system( $cmd );  
@@ -257,7 +260,7 @@ sub parse_args {
  	# Argument parsing. Factor out!
  	@ARGV=@_;
 	my %opts = ();
-	getopts( 'hvCo:', \%opts );
+	getopts( 'hvCo:p:', \%opts );
 	
 	my $help = ( $opts{'h'} ) ? 1 : 0;
 	
@@ -273,6 +276,11 @@ sub parse_args {
     if ($opts{'o'}) {
          $output_dir= $opts{'o'} ;
     }     
+	if ($opts{'p'}) {
+         $srcs_pattern = $opts{'p'} ;
+    }
+	my @args=@ARGV;
+	return @args;
 }
 
 1;

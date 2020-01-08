@@ -175,8 +175,7 @@ Suppose we don't:
                     my $norm_lines = normalise_F95_src( [@lines]); 
 #					map { say $_} @{$norm_lines };
 #					croak ;
-                    for my $line ( @{$norm_lines} ) {
-                    	
+                    for my $line ( @{$norm_lines} ) {                    	
                         # emit line
                         if ( $line ne '' ) {                        	
                             ( $stref, $code_unit_name , $srctype ) = _pushAnnLine( $stref, $code_unit_name , $srctype, $f, $line, $free_form, __LINE__ );
@@ -230,6 +229,8 @@ Suppose we don't:
                     	$line=~s/\x{d}//;
                     }
                     while (@lines) {
+
+
                     	# OK, this is a HACK but I will remove anything after the 72nd character 
 #                    	say $line;
 #                    	say "$code_unit_name LINE: $line";# if $code_unit_name eq './timdata.f';
@@ -248,6 +249,7 @@ Suppose we don't:
 #                        print "LINE: $line";
 #                        print "NEXTLINE: $nextline";
 #######################################################################
+
                         if ($in_cont) {
                             if ( _isCont( $line, $free_form ) ) {
                                 if ( _isCont( $nextline, $free_form ) ) {
@@ -390,6 +392,8 @@ Suppose we don't:
                                 }
                             }
                         } else {    # not $in_cont
+                        
+                        
                             if ( _isCont( $line, $free_form ) ) {
                                 if ( _isCont( $nextline, $free_form ) ) {
 #                                    print DBG "M++\n";
@@ -1018,16 +1022,17 @@ sub _hasCont { croak 'UNUSED';
 # -----------------------------------------------------------------------------
 sub _isCont {
     ( my $line, my $free_form ) = @_;
-    my $is_cont = 0;
-    if ( $free_form == 0 ) {
-        if ( $line =~ /^\ {5}[^0\s]/ )
-        {    # continuation line. Continuation character can be anything! 
+    my $is_cont = 0;    
+    if ( $free_form == 0 ) {      
+        if ( $line =~ /^\ {5}[^0\s]/ )        
+        {    # continuation line. Continuation character can be anything, except a 0         
             $is_cont = 1;
         } elsif ( $line =~ /^\&/ ) {
             $is_cont = 1;
         } elsif ( $line =~ /^\t[1-9]/ ) {
             $is_cont = 1;
         }
+        # carp "<$line> $is_cont" if $line=~/^\s+\$.+nelbox/;
     } else {
         if ( $line =~ /^\s*\&/ ) {
             $is_cont = 1;

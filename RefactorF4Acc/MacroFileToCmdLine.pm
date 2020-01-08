@@ -30,7 +30,7 @@ sub macro_file_to_cmd_line_str { (my $macros_src, my $flag)=@_;
 	# if $flag is not defined '-D' is used for defined and '-U' for undefined
 	# e.g. 
 	# #define VERBOSE
-	# #undefine TEST
+	# #undef TEST
 	# #define NTH 8
 	# e.g. -X: -X VERVBOSE NTH=8 (undefineds are skipped)
 	# e.g. else: -DVERVBOSE -UTEST -DNTH=8			

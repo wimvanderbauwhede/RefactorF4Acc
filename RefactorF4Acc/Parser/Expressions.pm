@@ -599,6 +599,7 @@ sub parse_expression_no_context { (my $str)=@_;
     my $expr_ast=[];
     my $arg_expr_ast=[];
     my $has_funcs=0;
+    my $empty_arg_list=0;
 #    carp "ORIG STR: $str";
     while (length($str)>0) {
         $error=0;
@@ -622,9 +623,10 @@ sub parse_expression_no_context { (my $str)=@_;
             $str=~s/^\s+//;
         }
         #say "STR before term: $str";
-
         if ($str=~s/^([a-zA-Z_]\w*)\s*\(//) {
             # array access or function call
+            
+            # the name of the array or called function
             my $var=$1;
             $has_funcs=1;
             my $arg_expr_ast;
@@ -634,13 +636,18 @@ sub parse_expression_no_context { (my $str)=@_;
                     $arg_expr_ast=[$arg_expr_ast];
                 };
                 $has_funcs||=$has_funcs2;
-            } else { # empty arg list
+                # warn Dumper($arg_expr_ast,$str, $err, $has_funcs2);
+            } else { # empty arg list                       
+                # warn "EMPTY ARG LIST: str <$str>";
+                $empty_arg_list=1;
+                $str=~s/^\)\s*//; # A hack but I'm lazy
                 $arg_expr_ast=[];
+                # warn Dumper($arg_expr_ast,$str);
             }
             if ($defaultToArrays) {
-            $expr_ast=[10,$var,$arg_expr_ast];
+                $expr_ast=[10,$var,$arg_expr_ast];
             } else {
-            $expr_ast=[1,$var,$arg_expr_ast];
+                $expr_ast=[1,$var,$arg_expr_ast];
             }
             # f(x)(y)
             if ($str=~/^\(/) {
@@ -690,13 +697,20 @@ sub parse_expression_no_context { (my $str)=@_;
             #$expr_ast='.'.$1.'.';
         }
         elsif (
+            
+            # eq 
+            # 
         	(
-        		$str!~/^\d+\.[aox]/ and  
+                # and or xor lt gt le ge ne
+                (
+        		($str!~/^\d+\.[aoxlgn]/ and  $str!~/^\d+\.eq/) and
         		$str=~s/^((?:\d*\.\d*)(?:[edqEDQ][\-\+]?\d+)?)//        
+                ) 
         	)
             or 
             $str=~s/^(\d*(?:[edqEDQ][\-\+]?\d+))//
         ) { 
+            
             # reals
             $expr_ast=[30,$1];
             #$expr_ast=$1;
@@ -708,7 +722,8 @@ sub parse_expression_no_context { (my $str)=@_;
             #$expr_ast=$1;#['Label',$1];
         }        
         elsif ($str=~s/^(\d+)//) {
-            # integers
+            # integers            
+            # warn 'INTEGER';
             $expr_ast=[29,$1];
             #$expr_ast=$1;#['integer',$1];
         }
@@ -716,7 +731,6 @@ sub parse_expression_no_context { (my $str)=@_;
             # '*' format for write/print
             $expr_ast=[32,'*'];
         }
-
         # Maybe I should handle string constants as well
         # Although we use placeholders so they should not occur
         elsif ( $str=~s/^\'(.+?)\'// ) {
@@ -735,6 +749,7 @@ sub parse_expression_no_context { (my $str)=@_;
                 return ($expr_ast, $str, $error,0);
             }
         }
+
         # If state is not 0 there is a prefix
         if ($state) {
             $expr_ast=[$state,$expr_ast];
@@ -769,20 +784,29 @@ sub parse_expression_no_context { (my $str)=@_;
             }
         }        
         elsif ($str=~s/^\)//) { # closing paren
+        
             # Again this is like falling off the end of the string
             # if  @{$arg_expr_ast} is not empty, then this must become the ast to return
             # after appending the final value
-            if ( @{$arg_expr_ast} ) {
+            # warn "HERE empty arg list: $empty_arg_list; $str ". Dumper($arg_expr_ast);
+            # if ($empty_arg_list) {
+            #         # warn "HERE empty arg list: $str";
+            #         $state=6;
+            #         $empty_arg_list=0;
+            # }                
+            # els
+            if ( @{$arg_expr_ast}  ) {
                 # Just set a state here
-                $state=7;
+                $state=7;                
             }
             # otherwise it is quite the same as the end of the string
             else {
-            	#say "LEAVE WHILE: closing paren";
+            	# say "LEAVE WHILE: closing paren";
                 last;
             }
         } 
         else { 
+            # warn "HERE OPS $str";
             # Operators
 =info_operator_precedence
 Level
@@ -948,6 +972,7 @@ our @sigils = ( '{', '&', '$', '+', '-', '*', '/', '%', '**', '=', '@', '#', ':'
             }
             $state=0;
         } elsif ($state == 6 or $state==7) {
+            # warn "$state $str";
             # This is the same as end of str, except we need to keep parsing afterwards
             # So we do the same as in that case
             if ( not defined $ast[$lev]) {
@@ -976,6 +1001,7 @@ our @sigils = ( '{', '&', '$', '+', '-', '*', '/', '%', '**', '=', '@', '#', ':'
             } else { # state==7
                 # Now we return this as the ast
                 #say "ERR 6 $error";
+                # warn Dumper([27,@{$arg_expr_ast}],$str,$error,$has_funcs);
                 return ([27,@{$arg_expr_ast}],$str,$error,$has_funcs);
             } 
         }
