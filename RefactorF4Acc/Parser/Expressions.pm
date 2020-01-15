@@ -583,8 +583,7 @@ To support this we need yet another sigil.
 =cut
 
 # parse_expression_no_context :: String -> (AST,String,Error,HasFuncs)
-sub parse_expression_no_context { (my $str)=@_;
-	
+sub parse_expression_no_context { (my $str)=@_;	
     my $max_lev=11; # levels of precedence
     my $prev_lev=0;
     my $lev=0;
@@ -715,18 +714,26 @@ sub parse_expression_no_context { (my $str)=@_;
             $expr_ast=[30,$1];
             #$expr_ast=$1;
         }
-        elsif ($str=~s/^\*(\d+)//) {            
+        # elsif ($str=~s/^\*(\d+)//) { 
+        elsif ($str=~s/^\*(\d+)//) {
             # The '*' is for "alternate returns", a bizarre F77 feature.
             # The integer following the * is a label 
             $expr_ast=[34,$1];
             #$expr_ast=$1;#['Label',$1];
         }        
-        elsif ($str=~s/^(\d+)//) {
+        elsif ($Config{'ALLOW_SPACES_IN_NUMBERS'}==0 and $str=~s/^(\d+)//) {            
             # integers            
-            # warn 'INTEGER';
+            # warn 'INTEGER, ALLOW_SPACES_IN_NUMBERS==0';
             $expr_ast=[29,$1];
             #$expr_ast=$1;#['integer',$1];
         }
+        elsif ($Config{'ALLOW_SPACES_IN_NUMBERS'}==1 and $str=~s/^(\d[\d\s]*)//) {  # But spaces in numbers are allowed in fixed form. So 1 000 000 is fine. so we have (\d[\d\s]*) as the easiest one, assuming a trailing space won't harm
+            # integers            
+            # warn 'INTEGER, ALLOW_SPACES_IN_NUMBERS==1';
+            $expr_ast=[29,$1];
+            #$expr_ast=$1;#['integer',$1];
+        }
+
         elsif ($str=~s/^\*//) {
             # '*' format for write/print
             $expr_ast=[32,'*'];

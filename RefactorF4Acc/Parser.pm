@@ -151,13 +151,14 @@ sub parse_fortran_src {
 	print "LEAVING parse_fortran_src( $f ) with Status "
 	  . show_status( $stref->{$sub_or_incl_or_mod}{$f}{'Status'} ) . "\n"
 	  if $V;
+	#   carp "LEAVING parse_fortran_src( $f ) with Status " . show_status( $stref->{$sub_or_incl_or_mod}{$f}{'Status'} ) . "\n";
 	   
 	   if ($is_mod) { 
 	   	for my $sub ( @{ $stref->{'Modules'}{ $f }{'Contains'} } ) {
 #	   		say $sub;
 	   		$stref = parse_fortran_src($sub, $stref);
 	   	}
-#		croak $f;
+		# croak $f;
 	   }
        # WV 2019-03-29 Here I should clean up some keys that are only used during parsing
        # but only when parse_fortran_src exits, so in fact maybe do this in Preconditioning?
@@ -468,7 +469,7 @@ SUBROUTINE
 				next;
 #== INCLUDE				
 			} elsif ( exists $info->{'Includes'} ) {
-				$info = __parse_include_statement($stref, $f, $Sf, $line, $info, $index);
+				$info = __parse_include_statement($stref, $f, $sub_incl_or_mod, $Sf, $line, $info, $index);
 				$info->{'SpecificationStatement'} = 1;
 				$srcref->[$index] = [ $line, $info ];
 				next;				
@@ -1490,80 +1491,9 @@ sub _parse_includes {
 			}
 			
 			if ( exists $info->{'Includes'} ) { 
-#                $Sf->{'HasIncludes'}=1;
-#				my $name = $info->{'Includes'};
-#				print "FOUND include $name in $f\n" if $V;
-#				$Sf->{'Includes'}{$name} = { 'LineID' => $index };
-#
-#				if (    exists $Sf->{'Translate'}
-#					and exists $stref->{'IncludeFiles'}{$name}
-#					and not
-#					exists $stref->{'IncludeFiles'}{$name}{'Translate'} )
-#				{
-#					$stref->{'IncludeFiles'}{$name}{'Translate'} =
-#					  $Sf->{'Translate'};
-#					if ( $Sf->{'Translate'} eq 'C' ) {
-#						$stref = add_to_C_build_sources( $name, $stref );
-#					} else {
-#						croak '!$acc translate (' 
-#						  . $f . ') '
-#						  . $Sf->{'Translate'}
-#						  . ": Only C translation through F2C_ACC is currently supported.\n";
-#					}
-#				}
 				$last_inc_idx = $index;
-
-#				$info->{'Include'} = {};
-#				$info->{'Include'}{'Name'} = $name;
-#				$stref->{'IncludeFiles'}{$name}{'IncludedFrom'}{$f}=1;
-#				if ( $stref->{'IncludeFiles'}{$name}{'Status'} == $UNREAD ) {
-#					print $line, "\n" if $V;
-#
-#					# Initial guess for Root. 
-#					$stref->{'IncludeFiles'}{$name}{'Root'}      = $f;
-#					$stref->{'IncludeFiles'}{$name}{'HasBlocks'} = 0;
-#					$stref = parse_fortran_src( $name, $stref );
-#				} else {
-#					print $line, " already processed\n" if $V;					
-#				}
-#				if (    exists $stref->{'Implicits'}
-#					and exists $stref->{'Implicits'}{$name} )
-#				{
-#					print "INFO: inheriting IMPLICITS from $name in $f\n" if $I;
-#					if ( not exists $stref->{'Implicits'}{$f} ) {
-#						$stref->{'Implicits'}{$f} =
-#						  $stref->{'Implicits'}{$name};
-#					} else {
-#						for my $k ( keys %{ $stref->{'Implicits'}{$name} } ) {
-#							if ( not exists $stref->{'Implicits'}{$f}{$k} ) {
-#								$stref->{'Implicits'}{$f}{$k} =
-#								  $stref->{'Implicits'}{$name}{$k};
-#							} else {
-#								die "ERROR: $f and $name have different type for $k";
-#							}
-#						}
-#					}
-#				}
-#
-#				# The include has been parsed.
-#				if ( exists $stref->{'IncludeFiles'}{$name} )
-#				{    # Otherwise it means it is an external include
-#					 # 'Parameters' here is OK because the include might contain other includes
-#					$Sf->{'IncludedParameters'} =
-#					  &append_to_set( $Sf->{'IncludedParameters'},
-#						$stref->{'IncludeFiles'}{$name}{'Parameters'} );
-#						
-#					if (exists $stref->{'IncludeFiles'}{$name}{'Includes'}) {
-#						for my $param_inc (keys %{ $stref->{'IncludeFiles'}{$name}{'Includes'} } ) {
-#					$Sf->{'IncludedParameters'} =
-#					  &append_to_set( $Sf->{'IncludedParameters'},
-#						$stref->{'IncludeFiles'}{$param_inc}{'Parameters'} );
-#							
-#						}
-#					}
-#				}
 			} # If the line contains an 'include' statement
-#			$srcref->[$index] = [ $line, $info ];
+
 		} # loop over all lines
 	} else {
 		print "WARNING: NO LOCAL SOURCE for $f\n";
@@ -1860,41 +1790,6 @@ sub _parse_subroutine_and_function_calls {
 					# as CalledEntries
 					# I think we need this only to determine which modules to use
 					# We can do that via the subroutine to which the entry belongs.
-#					if ($entry_call==1) {						
-#						my $parent_sub_name = $stref->{'Entries'}{$name};
-#						my $Sname = $stref->{'Subroutines'}{$parent_sub_name};
-#	
-#						if ( $Sf->{'RefactorGlobals'} == 1 ) {
-#							print "SUB $name NEEDS GLOBALS REFACTORING\n" if $V;
-#							$Sname->{'RefactorGlobals'} = 1;
-#						}
-#	
-#						if ( defined $Sname and not exists $Sf->{'CalledEntries'}{'Set'}{$name}						
-#							) {													
-#							if ( $sub_or_func_or_mod eq 'Subroutines' ) { # The current code unit is a subroutine 
-#								$Sf->{'CalledEntries'}{'Set'}{$name} = 1; # mark $name a called sub in $f
-#								push @{ $Sf->{'CalledEntries'}{'List'} }, $name;
-#							} else { # The current code unit is NOT a subroutine, which means it is a Module I guess
-#								# mark $name as a called sub in $current_sub_name 
-#								$Sf->{'Subroutines'}{$current_sub_name}{'CalledEntries'}{'Set'}{$name} = 1;
-#								push @{ $Sf->{'Subroutines'}{$current_sub_name}{'CalledEntries'}{'List'} }, $name;
-#							}
-#							
-#							if (   not exists $Sname->{'Status'}
-#								or $Sname->{'Status'} < $PARSED
-#								or $gen_sub )
-#							{
-#								print
-#								  "\tFOUND SUBROUTINE CALL $name in $f with STATUS="
-#								  . show_status( $Sname->{'Status'} )
-#								  . ", PARSING\n"
-#								  if $V;
-#								$stref = parse_fortran_src( $name, $stref );
-#							}
-#						}						
-						
-#					} else {			
-	
 									
 						my $Sname = $entry_call ? $stref->{'Subroutines'}{$stref->{'Entries'}{$name}} : $stref->{'Subroutines'}{$name};
 									
@@ -1939,6 +1834,7 @@ sub _parse_subroutine_and_function_calls {
 								$stref = parse_fortran_src( $name, $stref );
 							}
 						} 
+						# it does not yet hang here
 						if ($entry_call==1) {
 							if ( defined $Sname and not exists $Sf->{'CalledEntries'}{'Set'}{$name}) {													
 								if ( $sub_or_func_or_mod eq 'Subroutines' ) { # The current code unit is a subroutine 
@@ -1985,18 +1881,23 @@ sub _parse_subroutine_and_function_calls {
 			# Maybe Function calls
 			if (   $line !~ /function\s/
 				&& $line !~ /subroutine\s/
-				&& $line =~ /(\w+)\s*\(/ )
+				&& $line =~ /(\w+)\(/ )
 			{
+				# say "LINE: $line";
 				my @chunks = ();
 				my $cline  = $line;
-				while ( $cline =~ /(\w+)\(/ ) {
-					if ( $line !~ /call\s+$1/ ) {
-						push @chunks, $1;
-						$cline =~ s/$1\(//;
+				while ( $cline =~ /(\w+)\(/ ) { # this could be a function call
+					my $maybe_func=$1;
+					# if ($line=~/(\w+)\s+$maybe_func/ and $1 ne 'call' and exists $F95_reserved_words{$1} ) { last; }
+					if ( $line !~ /call\s+$maybe_func\b/ ) {
+						push @chunks, $maybe_func;
+						$cline =~ s/$maybe_func\(//;
 					} else {
-						$cline =~ s/call\s+\w+\(//;
+						$cline =~ s/call\s+\w+\s*\(//;
 					}
+					# say "LINE: $line";
 				}
+				# say "Got to here 1b";
 				for my $chunk (@chunks) {
 					if (
 						    exists $stref->{'Subroutines'}{$chunk}
@@ -2059,10 +1960,12 @@ sub _parse_subroutine_and_function_calls {
 				
 				
 			}
+
 			$srcref->[$index] = [ $line, $info ];
 		}    # loop over all annlines
 		$stref->{$sub_or_func_or_mod}{$f}{'AnnLines'} = [ @{$srcref} ];
 	}
+
 	return $stref;
 }    # END of parse_subroutine_and_function_calls()
 
@@ -2070,9 +1973,14 @@ sub _parse_subroutine_and_function_calls {
 
 # This is required for the include analysis, so maybe I should put it there.
 # This routine builds a call graph of numbered nodes, each node has the ids of the child nodes and the correponding name of the called sub, plus the id of the parent and the current name
-
+# The difference with the call tree is that repeated calls are included.
 sub build_call_graph {
 	( my $f, my $stref ) = @_;
+	if (not exists $stref->{'VisitedNodes'}{$f}) {
+		$stref->{'VisitedNodes'}{$f}=$stref->{'NId'}+1;
+		$stref->{'VisitedNodeCtr'}++;
+		say "Visiting $f\t".($stref->{'NId'}+1)."\t".$stref->{'VisitedNodeCtr'};
+	
 	my $prevnid = $stref->{'NId'};    # previous NId
 
 #	if ( $prevnid == 0 ) {
@@ -2082,6 +1990,7 @@ sub build_call_graph {
 	  ( $prevnid > 0 )
 	  ? $stref->{'PNIds'}[-1]
 	  : 0;                            # So take the last node in the PNIds list
+
 	my $sub_or_func_or_mod = sub_func_incl_mod( $f, $stref );
 	if ( $sub_or_func_or_mod ne 'ExternalSubroutines' ) {
 		my $Sf = $stref->{$sub_or_func_or_mod}{$f};
@@ -2093,6 +2002,20 @@ sub build_call_graph {
 			'Parent'     => $pnid,
 			'Subroutine' => $f
 		};
+		# So to get the entire call chain: 
+		# say "BUILDING CALL CHAIN for $f:";
+		my %callers=($f=> $nid);
+		my @call_chain=($f);
+		my $tnid = $pnid; #$stref->{'Nodes'}{$nid}{'Parent'};
+		while ($tnid>0) {
+			my $f = $stref->{'Nodes'}{$tnid}{'Subroutine'};
+			# say $f;
+			$callers{$f}=$tnid;
+			unshift @call_chain,$f;
+			$tnid = $stref->{'Nodes'}{$tnid}{'Parent'};
+		}
+		#  say join(',',@call_chain);
+
 
 		# Add the current node to the list of Children in the parent
 		push @{ $stref->{'Nodes'}{$pnid}{'Children'} }, [ $nid, $f ];
@@ -2101,8 +2024,10 @@ sub build_call_graph {
 		my $annlines = $Sf->{'AnnLines'};
 		if ( defined $annlines ) {
 			my $called_sub_name = '';
+			my $line_ct=0;
 			for my $annline ( @{$annlines} ) {
 				( my $line, my $info ) = @{$annline};
+				++$line_ct;
 				if (
 					    exists $info->{'Deleted'}
 					and $info->{'Deleted'} == 1
@@ -2115,7 +2040,17 @@ sub build_call_graph {
 				) {
 					$called_sub_name = $info->{'SubroutineCall'}{'Name'};
 					push @{ $stref->{'PNIds'} }, $nid;
-					$stref = build_call_graph( $called_sub_name, $stref );
+					# suppose this has already been called. Then it has a NId and a record in Nodes.
+					# I get the NId from VisitedNodes
+					my $cnid = $stref->{'VisitedNodes'}{$f};
+					my $node = $stref->{'Nodes'}{$cnid};
+					 
+					if (exists $callers{$called_sub_name}) {
+						# say "SUBROUTINE CALL: LOOP for $called_sub_name at line $line_ct in  $f";
+					} else {
+						$stref = build_call_graph( $called_sub_name, $stref );
+					}
+					# say $called_sub_name;
 					pop @{ $stref->{'PNIds'} };
 				}
 				
@@ -2123,16 +2058,26 @@ sub build_call_graph {
 					for my $fcall_rec (@{ $info->{'FunctionCalls'} } ) {
 					$called_sub_name = $fcall_rec->{'Name'};
 					push @{ $stref->{'PNIds'} }, $nid;
-					$stref = build_call_graph( $called_sub_name, $stref );
+					if (exists $callers{$called_sub_name}) {
+						# say "FUNCTION CALL: LOOP for $called_sub_name at line $line_ct in  $f";
+					} else {
+						$stref = build_call_graph( $called_sub_name, $stref );
+					}
+					# say $called_sub_name;
 					pop @{ $stref->{'PNIds'} };
 					}
 				}
 				
 			}    # loop over all annlines
 		}
-	} else {
+	} 
+	# else {
+	# 	        say "external $pnid ($sub_or_func_or_mod, $f)";
+	# }
 
-		#        say "external $pnid";
+	} else {
+		# We have already visited this routine's call graph
+		++$stref->{'VisitedNodes'}{$f};
 	}
 	return $stref;
 }    # END of build_call_graph()
@@ -2847,11 +2792,48 @@ sub __parse_f77_par_decl {
 				next if $mpar eq '';
 				next if exists $F95_intrinsic_functions{$mpar}; 
 				# carp "$f $mpar for $var";
-				my $mpar_rec = get_var_record_from_set( $Sf->{'LocalParameters'}, $mpar );
-				say "\nPARAM $mpar used in VAR DECL for $var in $f on line $line: ".Dumper($ast, $mpar_rec);
-				
-				say "The problem here is that the parameter can be declared in the source file including this include. So I must check the parameter declarations via IncludedFrom";
-				say "That should happen here, as this is called when the include is being parsed";
+				my $params_set = in_nested_set($Sf, 'Parameters', $mpar);
+				my $mpar_rec = get_var_record_from_set( $Sf->{$params_set}, $mpar );
+				if (not defined $mpar_rec) { # not in LocalParameters, try the "parent"
+					# say "\nPARAM $mpar used in VAR DECL for $var in $f on line $line has no record in $f";#.Dumper($ast, $mpar_rec);
+					# The problem here is that the parameter can be declared in the source file including this include. So I must check the parameter declarations via IncludedFrom
+					# This source file can be an include file or a proper source, in which case it would be a subroutine or module. 
+					if (scalar keys %{$Sf->{'IncludedFrom'}} == 1) {
+						(my $code_unit_name, my $sub_incl_or_mod)= each %{$Sf->{'IncludedFrom'}};
+
+						# say "Looking in enclosing SRC: $code_unit_name $sub_incl_or_mod";
+						my $params_set = in_nested_set($stref->{$sub_incl_or_mod}{$code_unit_name}, 'Parameters', $mpar);
+						$mpar_rec = get_var_record_from_set( $stref->{$sub_incl_or_mod}{$code_unit_name}{$params_set}, $mpar );
+						# say Dumper($mpar_rec);
+						# This is of course not the end of it, because 
+						# (1) The param can be defined in terms of other params
+						# (2) If it is not in that file, it might be in its parent, so in principle this has to be recursive
+						# I am lazy and so I will simply test one more level.						
+
+						if (not defined $mpar_rec) { # not in Parameters, try the "grandparent"
+						
+						# say "\nAGAIN, PARAM $mpar used in VAR DECL for $var in $f on line $line has no record";#.Dumper($ast, $mpar_rec);
+						# The problem here is that the parameter can be declared in the source file including this include. So I must check the parameter declarations via IncludedFrom
+						# This source file can be an include file or a proper source, in which case it would be a subroutine or module. 
+						# say Dumper($stref->{$sub_incl_or_mod}{$code_unit_name}{'IncludedFrom'});
+							if (scalar keys %{$stref->{$sub_incl_or_mod}{$code_unit_name}{'IncludedFrom'}} == 1) {
+								(my $code_unit_name, my $sub_incl_or_mod)= each %{$stref->{$sub_incl_or_mod}{$code_unit_name}{'IncludedFrom'}};
+								# say "Looking in SRC2: $code_unit_name $sub_incl_or_mod";
+								my $params_set = in_nested_set($stref->{$sub_incl_or_mod}{$code_unit_name}, 'Parameters', $mpar);
+								# say "FOUND PARAM IN: $params_set";
+								$mpar_rec = get_var_record_from_set( $stref->{$sub_incl_or_mod}{$code_unit_name}{$params_set}, $mpar );
+								# say Dumper($mpar_rec);
+							} else {
+								say "Could not find a record for PARAM $mpar in $f";
+							}
+						} else {
+							# say "FOUND PARAM IN: $params_set in $code_unit_name";
+						}
+					}
+				} else {
+					# say "FOUND PARAM IN: $params_set in $f";
+				}
+								
 				my $mtype=$mpar_rec->{'Type'};
 				my $mattr=$mpar_rec->{'Attr'};
 				if ($mtype ne 'integer' or not $typed) {
@@ -4325,129 +4307,137 @@ sub mark_blocks_between_calls { (my $stref)=@_;
 
 
 sub _get_var_recs_from_parse_tree { (my $tpt, my $vspt)=@_;
-my $type;
-my $attr='';
-my $attr_name='kind';
-my $dims=[];
-my @decls=();
-my $var_name;
-my $array_or_scalar='Scalar';
+	my $type;
+	my $attr='';
+	my $attr_name='kind';
+	my $dims=[];
+	my @decls=();
+	my $var_name;
+	my $array_or_scalar='Scalar';
 
-my $var_decls={};
-my $var_lst=[];
+	my $var_decls={};
+	my $var_lst=[];
+	# carp Dumper($tpt, $vspt);
+	# type part
+	if ($tpt->[0] == 5) { # '*'
+		# set the type 
+		if ($tpt->[1][0] == 2 ) { # '$'
+		# set the type
+			$type = $tpt->[1][1];
+		}
+		# set the attribute
+		if ($tpt->[2][0] == 0) { # ( ... )
+			# Emit this and use as attr
+			if ($tpt->[2][1][0] == 32 and $tpt->[2][1][1] eq '*') {
+				$attr = '*';
+			} else {
+			$attr = emit_expr_from_ast($tpt->[2]);
+			}
+		} 
+		elsif  ($tpt->[2][0] == 29) {
+			# take the value
+			$attr = $tpt->[2][1];
+		}
 
-# type part
-if ($tpt->[0] == 5) { # '*'
-    # set the type 
-    if ($tpt->[1][0] == 2 ) { # '$'
-    # set the type
-        $type = $tpt->[1][1];
-    }
-    # set the attribute
-    if ($tpt->[2][0] == 0) { # ( ... )
-        # Emit this and use as attr
-        if ($tpt->[2][1][0] == 32 and $tpt->[2][1][1] eq '*') {
-        	$attr = '*';
-        } else {
-        $attr = emit_expr_from_ast($tpt->[2]);
-        }
-    } 
-    elsif  ($tpt->[2][0] == 29) {
-        # take the value
-        $attr = $tpt->[2][1];
-    }
+	} elsif ($tpt->[0] == 1 ) { # i.e. character(len=...)
+		$type = $tpt->[1];
+		if ($tpt->[2][0] == 9) {
+			$attr =  emit_expr_from_ast($tpt->[2][2]);
+		} else {
+			$attr =  emit_expr_from_ast($tpt->[2]);
+		}
+	} elsif ($tpt->[0] == 2 ) { # '$', so no attribute. Means attributes are per-var
+		# set the type
+		$type = $tpt->[1];  
+		
+	}
 
-} elsif ($tpt->[0] == 1 ) { # i.e. character(len=...)
-    $type = $tpt->[1];
-    if ($tpt->[2][0] == 9) {
-        $attr =  emit_expr_from_ast($tpt->[2][2]);
-    } else {
-        $attr =  emit_expr_from_ast($tpt->[2]);
-    }
-} elsif ($tpt->[0] == 2 ) { # '$', so no attribute. Means attributes are per-var
-    # set the type
-    $type = $tpt->[1];  
-      
-}
+	if ($type eq 'character') {$attr_name='len'};
 
-if ($type eq 'character') {$attr_name='len'};
-# vars part
-my @vpts=();
-## first transform into a plain list
-if ($vspt->[0] ==27) { # comma-sep list
-    #    say Dumper($vspt);
-    shift @{$vspt};
-    @vpts=@{ $vspt };#->[1 .. (scalar( @{$vspt}) -1)] };
-} else { # single elt
-    @vpts = ( $vspt );
-}
-## then
+	
+	# vars part
+	my @vpts=();
+	## first transform into a plain list
+	if ($vspt->[0] ==27) { # comma-sep list
+		#    say Dumper($vspt);
+		shift @{$vspt};
+		@vpts=@{ $vspt };#->[1 .. (scalar( @{$vspt}) -1)] };
+	} else { # single elt
+		@vpts = ( $vspt );
+	}
+	## then
 
-for my $vpt (@vpts) {
-    # it can be either a scalar, an array, or an expression with '*' and a scalar or array
-    my $tvpt=$vpt;
-    
-    if ($vpt->[0] == 5) {
-        # means there is a '*', so get both parts
-        # one of the parts again can be a scalar or an array
-        if ($vpt->[1][0] == 29) {
-            $tvpt=$vpt->[2];
-            # get the attr
-            $attr = $vpt->[1][1];
-        } elsif ($vpt->[2][0] == 29) {
-            $tvpt=$vpt->[1];
-            # get the attr
-            $attr = $vpt->[2][1];
-        }
-    } 
-    if ($tvpt->[0] == 2) {
-        # get the name and create the decl
-        $var_name = $tvpt->[1];
-    }
-    elsif ($tvpt->[0] == 1) { # The array will be '&' so 1
-        # it's an array, get the dim.
-        $array_or_scalar='Array';
-        # dim part
-        my @dpts=();
-        # first transform into a plain list
-        if ($tvpt->[2][0] ==27) { # comma-sep list
-            shift @{ $tvpt->[2] };
-            @dpts=@{ $tvpt->[2] } ;#[1.. scalar @{$tvpt->[2][0]} -1]};
-        } else { # single elt
-            @dpts = ( $tvpt->[2] );
-        }
-        ## then for each of these, check if it is a ':'
-        for my $dpt (@dpts) {
-            my $tdim=[];
-            if ($dpt->[0] == 12) { #':'
-                # take both parts, use directly if integer or variable
-                # emit of expression
-                $tdim=[emit_expr_from_ast($dpt->[1]), emit_expr_from_ast($dpt->[2])];
+	for my $vpt (@vpts) {
+		# it can be either a scalar, an array, or an expression with '*' and a scalar or array
+		my $tvpt=$vpt;
+		
+		if ($vpt->[0] == 5) {
+			# means there is a '*', so get both parts
+			# one of the parts again can be a scalar or an array
+			if ($vpt->[1][0] == 29) { # this is the string 'integer'
+				$tvpt=$vpt->[2];
+				# get the attr
+				$attr = $vpt->[1][1];
+			} elsif ($vpt->[2][0] == 29) {
+				$tvpt=$vpt->[1];
+				# get the attr
+				$attr = $vpt->[2][1];
+			}  elsif ($vpt->[1][0] == 2) {
+				# the part before the * is a scalar, get it
+				# e.g.  
+				# character fnamei*(*)
+				$var_name = $tvpt->[1][1];
+				# croak $var_name;
+			}
+		} 
+		if ($tvpt->[0] == 2) {
+			# get the name and create the decl
+			$var_name = $tvpt->[1];
+		}
+		elsif ($tvpt->[0] == 1) { # The array will be '&' so 1
+			# it's an array, get the dim.
+			$array_or_scalar='Array';
+			# dim part
+			my @dpts=();
+			# first transform into a plain list
+			if ($tvpt->[2][0] ==27) { # comma-sep list
+				shift @{ $tvpt->[2] };
+				@dpts=@{ $tvpt->[2] } ;#[1.. scalar @{$tvpt->[2][0]} -1]};
+			} else { # single elt
+				@dpts = ( $tvpt->[2] );
+			}
+			## then for each of these, check if it is a ':'
+			for my $dpt (@dpts) {
+				my $tdim=[];
+				if ($dpt->[0] == 12) { #':'
+					# take both parts, use directly if integer or variable
+					# emit of expression
+					$tdim=[emit_expr_from_ast($dpt->[1]), emit_expr_from_ast($dpt->[2])];
 
-            } else {
-                # part 1 is a 1, only use part 2
-                $tdim=[1, emit_expr_from_ast($dpt)];
-            }
-            push @{$dims},$tdim;
-        }
+				} else {
+					# part 1 is a 1, only use part 2
+					$tdim=[1, emit_expr_from_ast($dpt)];
+				}
+				push @{$dims},$tdim;
+			}
 
-        # then get the name and create the decl
-        $var_name = $tvpt->[1];
-    }
-    my $decl={
-        'Name'=>$var_name,
-        'Type'=>$type,
-        'Attr'=> $attr ? $attr_name.'='.$attr : '',
-        'Dim'=>$dims,
-        'ArrayOrScalar' => $array_or_scalar
-    };
-    
-    push @{$var_lst}, $var_name;#decls, $decl;
-    $var_decls->{$var_name}=$decl;
-    $dims=[];
-}
+			# then get the name and create the decl
+			$var_name = $tvpt->[1];
+		}
+		my $decl={
+			'Name'=>$var_name,
+			'Type'=>$type,
+			'Attr'=> $attr ? $attr_name.'='.$attr : '',
+			'Dim'=>$dims,
+			'ArrayOrScalar' => $array_or_scalar
+		};
+		
+		push @{$var_lst}, $var_name;
+		$var_decls->{$var_name}=$decl;
+		$dims=[];
+	}
 
-return ($var_decls, $var_lst);
+	return ($var_decls, $var_lst);
 } # END of _get_var_recs_from_parse_tree 
 
 
@@ -4465,7 +4455,7 @@ sub _parse_F77_decl_NEW { (my $decl_str)=@_;
 } # END of _parse_F77_decl_NEW
 
 # We have to parse the include files to get the COMMON variables because of EQUIVALENCE 
-sub __parse_include_statement { my ($stref, $f, $Sf, $line, $info, $index) = @_;
+sub __parse_include_statement { my ($stref, $f, $sub_incl_or_mod, $Sf, $line, $info, $index) = @_;
 	
 	$Sf->{'HasIncludes'}=1;
 	my $name = $info->{'Includes'};
@@ -4476,7 +4466,7 @@ sub __parse_include_statement { my ($stref, $f, $Sf, $line, $info, $index) = @_;
 
 	$info->{'Include'} = {};
 	$info->{'Include'}{'Name'} = $name;
-	$stref->{'IncludeFiles'}{$name}{'IncludedFrom'}{$f}=1;
+	$stref->{'IncludeFiles'}{$name}{'IncludedFrom'}{$f}=$sub_incl_or_mod;
 	if ( $stref->{'IncludeFiles'}{$name}{'Status'} == $UNREAD ) {
 		say $line if $V;
 		# Initial guess for Root. 
@@ -4544,7 +4534,6 @@ sub _get_var_val_pairs { my ($ast) = @_;
 		push @{ $var_val_pairs->{'List'}}, $var ;
 		$var_val_pairs->{'Set'}{ $var}  = { 'Ast' =>$val_ast, 'Expr' => emit_expr_from_ast($val_ast) };
 	}
-
 	
 	return $var_val_pairs;
 }

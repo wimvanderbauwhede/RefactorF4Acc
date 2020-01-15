@@ -21,7 +21,7 @@ use Exporter;
 );
 
 use File::Find;
-
+use Cwd qw( cwd );
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils qw(module_has_only);
 
@@ -84,6 +84,7 @@ sub find_subroutines_functions_and_includes {
         $srcname =~s/^\.\///;  # e.g. admin/aadmn.f
         my $srcdir = $filepath;  
         $srcdir=~s/\/.+$//;        # i.e. $path # e.g. admin
+        
         if (not (
 	         exists $excluded_sources{$srcname} or 
     	     exists $excluded_sources{"./$srcname"} or
@@ -469,10 +470,10 @@ sub _process_src {
                 $stref = find_subroutines_functions_and_includes($stref,$inc);
                 my $src_path=$inc;  
                 for my $k (keys %{$stref->{'SourceContains'}} ){
-                if ($k=~/$inc$/) {
-                	$src_path=$k;
-                	last;
-                }
+                    if ($k=~/$inc$/) {
+                        $src_path=$k;
+                        last;
+                    }
                 }
                 if ($in_module) {
                     $stref->{'Modules'}{$mod_name}{'IncludeFiles'}{$inc}={};
@@ -481,8 +482,18 @@ sub _process_src {
                     $stref->{'IncludeFiles'}{$inc}{'Status'} = $UNREAD;                                                            
                     $stref->{'IncludeFiles'}{$inc}{'Source'}=$inc;
 					$stref->{'SourceFiles'}{$inc}{'SourceType'}='IncludeFiles';
-                    if (not -e $inc) {
-                    	$stref->{'IncludeFiles'}{$inc}{'InclType'} = 'External';                    	
+                    my $is_external=1;
+                    for my $src_dir (@{$stref->{'SourceDirs'}}) {
+                        if (-e "$src_dir/$inc") {    
+                            $is_external=0;
+                            $stref->{'IncludeFiles'}{$inc}{'InclType'} = 'Local';
+                            last;
+                        }
+                    }
+
+                    # if (not -e $inc) {
+                    if ($is_external) {
+                    	$stref->{'IncludeFiles'}{$inc}{'InclType'} = 'External'; #croak cwd().' '.$inc;          	
                     	for my $ext_dir (@extsrcdirs) {
                     		if (-e "$prefix/$ext_dir/$inc") { 
                     			$stref->{'IncludeFiles'}{$inc}{'ExtPath'} =  "$prefix/$ext_dir/$inc";
@@ -495,9 +506,10 @@ sub _process_src {
                     			last;
                     		}
                     	}
-                    } else {
-                        $stref->{'IncludeFiles'}{$inc}{'InclType'} = 'Local';
-                    }
+                    } 
+                    # else {
+                    #     $stref->{'IncludeFiles'}{$inc}{'InclType'} = 'Local';
+                    # }
                 }
                 $stref->{'IncludeFiles'}{$inc}{'FreeForm'}=$free_form;                
                 $stref->{'IncludeFiles'}{$inc}{'FStyle'}=$fstyle;

@@ -101,7 +101,13 @@ our $targetdir = '../RefactoredSources';
 
 #
 
-our %Config=();
+our %Config=(
+'SPLIT_LONG_LINES' => [$SPLIT_LONG_LINES],
+'MAX_LINE_LENGTH' =>  [$MAX_LINE_LENGTH],
+'NO_ONLY' => [$NO_ONLY],
+'RENAME_EXT' => [$RENAME_EXT],
+'ALLOW_SPACES_IN_NUMBERS' => 0,
+);
 
 sub read_rf4a_config { 
 	(my $cfgrc)=@_;
@@ -197,6 +203,7 @@ our $config_menu= {
         ['EXCL_DIRS', 'Source folders to be excluded (comma-separated list)',''],
         ['SPLIT_LONG_LINES', 'Split long lines into chunks of no more than 80 characters? 0/1','1'],
         ['MAX_LINE_LENGTH','Maximum line length for fixed-format F77 code', '132'],
+        ['ALLOW_SPACES_IN_NUMBERS','Allow spaces in numeric constants for fixed-format F77 code', '0'],
         ['CONFIG:SCONS', 'SCons-specific configuration? y/n','n'],
         ['CONFIG:OCL', 'OpenCL-specific configuration? y/n','n'],
         ['CONFIG:SUPER_ADVANCED', 'Super-dvanced configuration? y/n','n'],

@@ -8,6 +8,8 @@ use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
 use RefactorF4Acc::Parser::Expressions qw( get_vars_from_expression parse_expression emit_expr_from_ast );
 use RefactorF4Acc::Refactoring::Common qw( splice_additional_lines_cond );
+# use RefactorF4Acc::Parser qw( parse_fortran_src );
+
 use vars qw( $VERSION );
 $VERSION = "1.2.0";
 
@@ -49,14 +51,22 @@ sub precondition_includes {
     }
     for my $inc (keys %{$stref->{'IncludeFiles'}}) {
         next if $stref->{'IncludeFiles'}{$inc}{'InclType'} eq 'External';
-    say "Inlining in $inc";
+
+        next if ( $stref->{'IncludeFiles'}{$inc}{'Status'} == $UNREAD );
+        #  {		
+    	# 	$stref->{'IncludeFiles'}{$inc}{'Root'}      = 'UNKNOWN';
+	    # 	$stref->{'IncludeFiles'}{$inc}{'HasBlocks'} = 0;
+		#     $stref = parse_fortran_src( $inc, $stref );
+	    # }
+
+        say "Inlining in $inc";
         my $stref = _inline_includes($stref, $inc);
         my $Sincf = $stref->{'IncludeFiles'}{$inc};
     }
 
     for my $inc (keys %{$stref->{'IncludeFiles'}}) {
         next if $stref->{'IncludeFiles'}{$inc}{'InclType'} eq 'External';
-
+        next if ( $stref->{'IncludeFiles'}{$inc}{'Status'} == $UNREAD );
         my $Sincf       = $stref->{'IncludeFiles'}{$inc};
         my $has_commons = $stref->{'IncludeFiles'}{$inc}{'HasCommons'};
         my $has_pars    = $stref->{'IncludeFiles'}{$inc}{'HasParameters'};
@@ -174,7 +184,9 @@ sub __find_parameter_used_in_inc_and_add_to_Only {
         }
         elsif (exists $info->{'VarDecl'}) {
             for my $var (@{$info->{'VarDecl'}{'Names'}}) {
+                my $set = in_nested_set($Sinc,'Vars', $var);
                 my $decl = get_var_record_from_set($Sinc->{'Vars'}, $var);
+                carp  Dumper($Sinc). "\n$var $inc \n".Dumper($decl)."\n".$line;
                 if ($decl->{'ArrayOrScalar'} eq 'Array') {
                     my %dim_tmpstr    = map  { ($_->[0] => 1, $_->[1] => 1) } @{$decl->{'Dim'}};
                     my @maybe_parstrs = grep { !/^\-?\d+$/ } keys %dim_tmpstr;
@@ -223,6 +235,10 @@ sub __find_parameter_used_in_inc_and_add_to_Only {
 # It is of course recursive
 sub _inline_includes {
     (my $stref, my $inc) = @_;
+    say $inc;
+    say Dumper($stref->{'IncludeFiles'}{$inc});
+    #of course, if the status is UNREAD then this does not work, and we must make sure we read it.
+
     if ($stref->{'IncludeFiles'}{$inc}{'HasIncludes'} == 1) {
         my @n_incs = __get_includes($stref, $inc);
         $stref->{'IncludeFiles'}{$inc}{'InlinedIncludes'} = [];
@@ -233,7 +249,7 @@ sub _inline_includes {
             $stref = __merge_include($stref, $inc, $n_inc);
         }
     }
-    croak Dumper($inc, $stref->{'IncludeFiles'}{$inc});
+    # croak Dumper($inc, $stref->{'IncludeFiles'}{$inc});
     return $stref;
 }    # END of _inline_includes
 

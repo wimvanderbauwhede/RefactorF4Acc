@@ -47,12 +47,13 @@ sub create_call_tree { ( my $stref, my $subname ) = @_;
     my %subs = map {$_=>1} @{ $stref->{'CallStack'} }; 
     for my $entry ( @{ $stref->{'CallTree'}{ $subname } } ) {
         if (exists $subs{$entry}) {
+            croak "Found LOOP for $entry\n".Dumper($stref->{'CallStack'});
         	push @{$stref->{'PPCallTree'}}, "Found LOOP for $entry\n";
     	   last;
         }
 
 	    	my $str = _format_call_tree_line($entry,$stref);
-	    	push @{$stref->{'PPCallTree'}}, $str;
+	    	push @{$stref->{'PPCallTree'}}, $entry; #$str;
 	    	
 	    	   $stref->{'Indents'} += 4;    	
 	    	   create_call_tree ($stref,$entry);

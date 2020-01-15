@@ -157,6 +157,7 @@ sub main {
 	# This is not used at the moment
     $stref->{'SubsToTranslate'}=$subs_to_translate;
     
+    local $V=1;
 	# 1. Inventory: Find all subroutines in the source code tree
 	if ($V) {
         say "--------------". ('-' x length($code_unit_name)) ;
@@ -164,8 +165,8 @@ sub main {
         say "--------------". ('-' x length($code_unit_name)) ;
         }    
 	$stref = find_subroutines_functions_and_includes($stref);
-	if ($V) {
-        say "Subroutines that will be analysed:";
+	if ($I) {
+        say "INFO: Subroutines that will be analysed:";
 		for my $sub (sort keys %{ $stref->{'Subroutines'} }) {
 			say $sub,"\t=>\t",$stref->{'Subroutines'}{$sub}{'Source'};
 		}
@@ -195,11 +196,19 @@ sub main {
     } else {
 	   $stref = parse_fortran_src( $code_unit_name, $stref );
     }
-	
+    if ($V) {
+        say "--------------". ('-' x length($code_unit_name)) ;
+        say "BLOCKS PROCESSING for $code_unit_name";
+        say "--------------". ('-' x length($code_unit_name)) ;
+        }  	
 	$stref = mark_blocks_between_calls( $stref );
 	
 	$stref = refactor_marked_blocks_into_subroutines( $stref );
-	
+    if ($V) {
+        say "--------------". ('-' x length($code_unit_name)) ;
+        say "PRECONDITIONING for $code_unit_name";
+        say "--------------". ('-' x length($code_unit_name)) ;
+        }  	
     $stref = precondition_includes($stref);        
 
     if ($code_unit_name eq '' and exists $Config{'SOURCEFILES'} and scalar @{ $Config{'SOURCEFILES'} }>0) {
@@ -211,13 +220,17 @@ sub main {
        $stref = precondition_all( $code_unit_name, $stref );
     }
     
-	if ( $call_tree_only  ) {
+	if ( $call_tree_only  ) {        
 		$stref->{'PPCallTree'}=[];
 		$stref=create_call_tree($stref,$code_unit_name);
 		map {print $_}  @{ $stref->{'PPCallTree'} };
 		exit(0);
 	}
-
+    if ($V) {
+        say "--------------". ('-' x length($code_unit_name)) ;
+        say "BUILDING CALL GRAPH for $code_unit_name";
+        say "--------------". ('-' x length($code_unit_name)) ;
+        }  
 	$stref = build_call_graph($code_unit_name, $stref);
 	
     # 3. Analysis: Analyse the source
@@ -400,6 +413,8 @@ sub parse_args { (my $args)=@_;
 		(exists $Config{'F95PATH'} ) ? $Config{'F95PATH'} : $INCLPATHS;
 	$CFG_refactor_toplevel_globals = (exists $Config{'REFACTOR_TOPLEVEL_GLOBALS'}) ? 1 : 0 	;
 	$CFG_refactor_toplevel_globals= 1; # FIXME: refactoring while ignoring globals is broken ( $opts{'g'} ) ? 1 : $CFG_refactor_toplevel_globals; # Global from Config
+
+    $Config{'ALLOW_SPACES_IN_NUMBERS'} = ref($Config{'ALLOW_SPACES_IN_NUMBERS'}) eq 'ARRAY' ? $Config{'ALLOW_SPACES_IN_NUMBERS'}[0] : $Config{'ALLOW_SPACES_IN_NUMBERS'};
 # Currently broken	
 	if ( $opts{'G'} ) {
 		print "Generating docs...\n";
