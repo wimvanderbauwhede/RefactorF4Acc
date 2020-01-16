@@ -4475,7 +4475,11 @@ sub __parse_include_statement { my ($stref, $f, $sub_incl_or_mod, $Sf, $line, $i
 		$stref = parse_fortran_src( $name, $stref );
 	} else {
 		say $line, " already processed" if $V;
-		warn "Status for Include $name is FILE NOT FOUND" if $stref->{'IncludeFiles'}{$name}{'Status'} == $FILE_NOT_FOUND;
+		if ($stref->{'IncludeFiles'}{$name}{'Status'} == $FILE_NOT_FOUND
+		and $stref->{'IncludeFiles'}{$name}{'InclType'} ne 'External'
+		){
+			warn "Status for Include $name is FILE NOT FOUND" 
+		}
 	}
 	if (    exists $stref->{'Implicits'}
 		and exists $stref->{'Implicits'}{$name} )

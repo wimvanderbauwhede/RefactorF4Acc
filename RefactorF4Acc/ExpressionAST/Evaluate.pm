@@ -51,40 +51,50 @@ use Exporter;
 # Apply to RHS of assignments
 sub replace_consts_in_ast { (my $stref, my $f, my $block_id, my $ast, my $state, my $const)=@_;
 	my $retval=0;
+	# say ref($ast);
 	if (ref($ast) eq 'ARRAY') {
+		# But retval for arrays should only be 0 if it is 0 for every element!
+		# So we need to sum them!
 		for my  $idx (0 .. scalar @{$ast}-1) {
 			
 			my $entry = $ast->[$idx];
 
 			if (ref($entry) eq 'ARRAY') {
-				(my $entry2, $state, $retval) = replace_consts_in_ast($stref,$f, $block_id,$entry, $state,$const);
+				(my $entry2, $state, my $retval2) = replace_consts_in_ast($stref,$f, $block_id,$entry, $state,$const);
+				$retval+=$retval2;
+				# say "ARRAY ".Dumper($entry2). " RETVAL $retval";
 				$ast->[$idx] = $entry2;
 			} else {
 				if ($idx==0 and (($entry & 0xFF) == 2)) { #eq '$'
 					my $mvar = $ast->[$idx+1];
-#					say "MVAR: $mvar in $f";
+					# say "MVAR: $mvar in $f";
 					if (exists $state->{'Subroutines'}{ $f }{'Blocks'}{$block_id}{'LoopIters'}{ $mvar }) { 
 						$ast=''.$const.'';
+						# say "MVAR $mvar RETURN $ast";
 						return ($ast,$state,1);
 					} elsif (in_nested_set($stref->{'Subroutines'}{$f},'Parameters',$mvar)) {
 						my $param_set = in_nested_set($stref->{'Subroutines'}{$f},'Parameters',$mvar);
 						
 		  				my $decl = get_var_record_from_set( $stref->{'Subroutines'}{$f}{'Parameters'},$mvar);
 		  				# say 'DECL: '. Dumper($decl);
-		  				croak "FIXME: the value could be an expression in terms of other parameters!";
+		  				#The value could be an expression in terms of other parameters
 		  				my $val = $decl->{'Val'};
-		  				# say "MVAL: $val";	
+		  				# carp( "MVAR $mvar MVAL: $val");	
 		  				$ast = parse_expression($val, {},$stref,$f);
 		  				return ($ast,$state,1);
 					} else {
-						my $param_set = in_nested_set($stref->{'Subroutines'}{$f},'Parameters',$mvar);
-						carp "Can\'t replace $mvar, no parameter record found for in $f";#: <$param_set> = " . Dumper( $stref->{'Subroutines'}{$f}{'Parameters'} );
+						my $param_set = in_nested_set($stref->{'Subroutines'}{$f},'Parameters',$mvar);						
+						carp "Can\'t replace $mvar, no parameter record found in $f";
 						return ($ast, $state,0);
 					}
 				}
 			}
 		}
-	}
+	} 
+	# else {
+	# 	say "NOT AN ARRAY: ".Dumper($ast);
+	# }# else it must be a constant or what?
+	# say "WHY? RETVAL $retval ";
 	return  ($ast, $state, $retval);
 } # END of replace_consts_in_ast()
 
@@ -97,10 +107,11 @@ sub replace_param_by_val { (my $stref, my $f, my $block_id, my $ast, my $state)=
   		while (
   		scalar keys %{$vars} > 0
   		) {
-			($ast, $state, my $retval) = replace_consts_in_ast($stref, $f, $block_id, $ast, $state, 0);
+			($ast, $state, my $retval) = replace_consts_in_ast($stref, $f, $block_id, $ast, $state, 0);			
 			last if $retval == 0;
 			# - check if the result is var-free, else repeat
 			$vars=get_vars_from_expression($ast,{}) ;
+			# say Dumper($vars);
   		}
   		# - return to be eval'ed
 	return $ast;
@@ -111,11 +122,12 @@ sub replace_param_by_val { (my $stref, my $f, my $block_id, my $ast, my $state)=
 sub eval_expression_with_parameters { (my $expr_str,my $info, my $stref, my $f) = @_;
 
     my $expr_ast=parse_expression($expr_str,$info, $stref,$f);
-   say Dumper($expr_ast);
+#    say Dumper($expr_ast);
     my $expr_ast2 = replace_param_by_val($stref, $f, 0,$expr_ast, {});
-   say Dumper($expr_ast2);
+#    say Dumper($expr_ast2);
     my $evaled_expr_str= emit_expr_from_ast($expr_ast2);
-   say "TO EVAL:$evaled_expr_str";
+#    say "EXPR $expr_str TO EVAL:$evaled_expr_str";
+   
     my $expr_val=eval($evaled_expr_str);
 	return $expr_val;
 

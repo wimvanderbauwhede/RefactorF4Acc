@@ -11,7 +11,7 @@ use strict;
 use v5.10;
 
 use RefactorF4Acc::Config;
-use RefactorF4Acc::ExpressionAST::Evaluate qw( eval_expression_with_parameters );
+# use RefactorF4Acc::ExpressionAST::Evaluate qw( eval_expression_with_parameters );
 use RefactorF4Acc::Utils qw( in_nested_set add_var_decl_to_set remove_var_decl_from_set pp_annlines );
 
 use RefactorF4Acc::Parser::Expressions qw( parse_expression_no_context );
@@ -350,7 +350,7 @@ sub _match_up_common_var_sequences {
 			my $elt_caller = shift @common_caller_seq;
 			my ( $name_caller, $decl_caller, $kind_caller, $dim_caller, $dimsz_caller, $lin_idx_caller, $used_caller ) = @{$elt_caller};
 			my $type_caller = $decl_caller->{'Type'};
-
+			carp 'dim_caller: '.Dumper($dim_caller);
 			#			say "CALLER: $name_caller";
 
 			# add this caller to ExMismatchedCommonArgs
@@ -415,7 +415,7 @@ sub _match_up_common_var_sequences {
 				}
 			} elsif ( $decl_local->{'ArrayOrScalar'} eq 'Array'
 				  and $decl_caller->{'ArrayOrScalar'} eq 'Array' ) {    # both Array
-					# which one is the shortest? This refers the overlapping portions
+					# which one is the shortest? This refers to the overlapping portions
 					# one of them will have a lin_idx of 1, the other can be >=1
 					# We compare the total remaining linear size, e.g. if
 					# local: lin_idx = 3, dim_sz = 8 then the total remaining linear size is (8-3+1)*kind
@@ -452,7 +452,7 @@ sub _match_up_common_var_sequences {
 						push @equivalence_pairs, [ [ $name_local, $type_local, 1, $dim_local_copy, [] ], [ $name_caller, $type_caller, 1, $dim_caller_copy, [] ] ];
 					}
 				} else {    # Arrays of different size
-																																		   # if they have the same name I need to prefix the caller name
+					# if they have the same name I need to prefix the caller name
 					if ( $kind_local * ( $dimsz_local - $lin_idx_local + 1 ) > $kind_caller * ( $dimsz_caller - $lin_idx_caller + 1 ) ) {  # local is larger
 							# so caller will be shifted entirely, local will have to be put back
 							# say caller is size 4 and has local idx 1, so 4
@@ -464,7 +464,6 @@ sub _match_up_common_var_sequences {
 						my $lin_idx_local_start = $lin_idx_local;
 
 						# Now increment the index
-
 						my $dim_local_copy   = dclone($dim_local);
 						my $dim_caller_copy  = dclone($dim_caller);
 						my $coords_local_end = calculate_multidim_indices_from_linear( $stref, $f, $dim_local_copy, $lin_idx_local_end );
@@ -490,8 +489,7 @@ sub _match_up_common_var_sequences {
 
 						#							say "A A ne ".Dumper( [[$name_local,1,$dim_local_copy,[]],[$name_caller,1,$dim_caller_copy,$prefix]]);
 						if ( $name_local eq $name_caller ) {
-							# In that case the SigArg should get the prefix as well
-							
+							# In that case the SigArg should get the prefix as well							
 							$Sf = __add_prefixed_arg( $Sf, $name_caller, $decl_caller, $caller, $block );
 						} else {
 							$prefix = [];
@@ -505,14 +503,19 @@ sub _match_up_common_var_sequences {
 							$elt_local = [ $name_local, $decl_local, $kind_local, $dim_local, $dimsz_local, $lin_idx_local, $used_local ];
 							unshift @common_local_seq, $elt_local;
 						}
-					} else {
+					} else { # the opposite 
 						my $lin_idx_caller_end   = $lin_idx_caller + $kind_local * ( $dimsz_local - $lin_idx_local + 1 ) / $kind_caller - 1;
 						my $lin_idx_caller_start = $lin_idx_caller;
 
 						# Now increment the index
 						my $dim_local_copy    = dclone($dim_local);
 						my $dim_caller_copy   = dclone($dim_caller);
-						my $coords_caller_end = calculate_multidim_indices_from_linear( $stref, $f, $dim_caller_copy, $lin_idx_caller_end );
+						my $coords_caller_end = calculate_multidim_indices_from_linear( $stref, $caller, $dim_caller_copy, $lin_idx_caller_end );
+						carp "$f CALLER $caller LOCAL NAME $name_local CALLER NAME $name_caller ;". 'dim_caller_copy (2): '
+						.Dumper($dim_caller_copy)
+						."\n".Dumper($coords_caller_end)
+						."\n".Dumper($dim_local_copy);
+						
 						for my $idx ( 0 .. scalar @{$coords_caller_end} - 1 ) {
 							$dim_caller_copy->[$idx][1] =
 							  $coords_caller_end->[$idx];
@@ -525,7 +528,9 @@ sub _match_up_common_var_sequences {
 							}
 						}
 						if ( $lin_idx_caller_start != 1 ) {
+							carp "SOMETHING IS WRONG HERE $f CALLER $caller LOCAL NAME $name_local CALLER NAME $name_caller ;".Dumper($dim_caller_copy).';'. $lin_idx_caller_start;
 							my $coords_caller = calculate_multidim_indices_from_linear( $stref, $caller, $dim_caller_copy, $lin_idx_caller_start );
+							# carp "\n".Dumper($coords_caller);
 							for my $idx ( 0 .. scalar @{$coords_caller} - 1 ) {
 								$dim_caller_copy->[$idx][0] =
 								  $coords_caller->[$idx];
@@ -552,7 +557,7 @@ sub _match_up_common_var_sequences {
 							unshift @common_caller_seq, $elt_caller;
 						}
 					}
-				}
+				} # arrays of different size
 			} elsif ( $decl_local->{'ArrayOrScalar'} eq 'Scalar'
 				and $decl_caller->{'ArrayOrScalar'} eq 'Array' )
 			{    # local is Scalar, caller is Array

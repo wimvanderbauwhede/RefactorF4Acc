@@ -75,6 +75,7 @@ sub calculate_multidim_indices_from_linear {
 
 	for my $ii ( 1 .. $n_dims - 1 ) {
 		my $div_dim = shift @tmp_dims;
+		croak $f if $div_dim==0 or $p_dims==0; 
 		$p_dims /= $div_dim;
 		$coords->[ $ii - 1 ] = int( $sz / $p_dims ) + $offsets->[ $ii - 1 ];
 		$sz %= $p_dims;

@@ -52,8 +52,10 @@ sub find_root_for_includes {
         if ( exists  $stref->{'IncludeFiles'}{$inc}{'IncludedFrom'} ) {
             say "INFO: $f: INC $inc included from ".join(', ', keys %{$stref->{'IncludeFiles'}{$inc}{'IncludedFrom'}}) if $I;
         } else {
-            say "$f: INC $inc not included anywhere in reachable code";
-            next;
+            if ($stref->{'IncludeFiles'}{$inc}{'Source'}  ne 'Virtual') {
+                say "$f: INC $inc not included anywhere in reachable code";
+                next;
+            }
         }
         if ($stref->{'IncludeFiles'}{$inc}{'Status'}==$UNREAD) {
             croak "TROUBLE: $inc (in $f) not yet parsed, how come? (Hint: likely the tree contains refactored sources)";
