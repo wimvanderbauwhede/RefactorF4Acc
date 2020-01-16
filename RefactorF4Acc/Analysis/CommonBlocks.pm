@@ -146,7 +146,7 @@ If it's the other way round, CallerSub strict subset of CalledSub, then we need 
 sub identify_common_var_mismatch {
 	my ( $stref, $f ) = @_;
 	my $Sf = $stref->{'Subroutines'}{$f};
-	say "CALLED SUB $f" if $DBG;
+	say "CALLED SUB $f" if 1 or $DBG;
 	if ( exists $Sf->{'Callers'} ) {
 		my $callers = $Sf->{'Callers'};
 
@@ -237,9 +237,10 @@ sub _compare_decls {
 		my $dim1 = $decl1->{'Dim'};
 		my $dim2 = $decl2->{'Dim'};
 
-		#		say Dumper($dim1,$dim2);
+				# carp Dumper($dim1,$dim2);
 		my $size1 = calculate_array_size( $stref, $f1, $dim1 );
 		my $size2 = calculate_array_size( $stref, $f2, $dim2 );
+		# carp Dumper($size1,$size2);
 		my $dims_match = $size1 == $size2;
 		return 0 unless $dims_match;
 	}

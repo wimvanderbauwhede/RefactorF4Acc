@@ -1021,16 +1021,16 @@ or $line=~/^character\s*\(\s*len\s*=\s*[\w\*]+\s*\)/
 					my $mvars = get_vars_from_expression($ast,{});
 					my $vars= [ sort keys %{$mvars} ];
 #					warn 'Support for WHILE: '.$line;#.Dumper($vars);
-#					$info->{'Do'} = {
-#						'While' =>1,
-#						'Iterator' => '',
-#						'Label'    => $label,
-#						'ExpressionsAst' => $ast,
-#						'Range'    => {	
-#							'Vars'        => $vars,
-#							},
-#						'LineID' => $info->{'LineID'}
-#					};
+					$info->{'Do'} = {
+						'While' =>1,
+						'Iterator' => '',
+						'Label'    => $label,
+						'ExpressionsAst' => $ast,
+						'Range'    => {	
+							'Vars'        => $vars,
+							},
+						'LineID' => $info->{'LineID'}
+					};
 				} else {
 					( my $iter, my $range ) = split( /\s*=\s*/, $do_stmt );
 					( my $range_start, my $range_stop, my $range_step ) = split( /s*,\s*/, $range );
@@ -1979,7 +1979,7 @@ sub build_call_graph {
 	if (not exists $stref->{'VisitedNodes'}{$f}) {
 		$stref->{'VisitedNodes'}{$f}=$stref->{'NId'}+1;
 		$stref->{'VisitedNodeCtr'}++;
-		say "Visiting $f\t".($stref->{'NId'}+1)."\t".$stref->{'VisitedNodeCtr'};
+		say "INFO: Visiting $f\t".($stref->{'NId'}+1)."\t".$stref->{'VisitedNodeCtr'} if $I;
 	
 	my $prevnid = $stref->{'NId'};    # previous NId
 

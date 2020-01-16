@@ -47,6 +47,7 @@ our @EXPORT_OK = qw(
 );
 
 sub analyse_all {
+	local $V=1;
 
 	( my $stref, my $code_unit_name, my $stage, my $is_source_file_path  ) = @_;
 	my $sub_or_func_or_mod = sub_func_incl_mod( $code_unit_name, $stref );
@@ -80,10 +81,12 @@ sub analyse_all {
 	}
 	# In this stage, 'ExGlobArgs' is populated from CommonVars by looking at the common blocks that occur in the call chain
 	# Note that this does *not* cover common blocks in includes so hopefully ExGlobArgs will not be affected for the case with includes.
+	say "\t** EX-GLOB ARGS **" if $V;
 	if ($sub_or_func_or_mod eq 'Subroutines') {
 		determine_ExGlobArgs($code_unit_name, $stref);
 	}
 	# First find any additional argument declarations, either in includes or via implicits
+	say "\t** ADDITIONAL ARG DECLS **" if $V;
 	for my $f ( keys %{ $stref->{'Subroutines'} } ) {
 		next if $f eq '';
 		if (exists $stref->{'Entries'}{$f}) {
@@ -96,7 +99,7 @@ sub analyse_all {
 		$stref = find_argument_declarations( $stref, $f );
 	}	
 	return $stref if $stage == 2;
-
+	say "\t** ANALYSE VARS **" if $V;
 	for my $f ( keys %{ $stref->{'Subroutines'} } ) {
 		next if $f eq '';	
 		if (exists $stref->{'Entries'}{$f}) {
@@ -104,7 +107,7 @@ sub analyse_all {
 		}
 		my $Sf = $stref->{'Subroutines'}{$f};
 		if (not exists $Sf->{'BlockData'} or $Sf->{'BlockData'} == 0 ) {	
-			print "\t** analyse_variables($f) **\n" if $V;	
+			print "\t** analyse_variables($f) **\n" if 0;# $V;	
 			$stref = analyse_variables( $stref, $f );
 		}
 	}

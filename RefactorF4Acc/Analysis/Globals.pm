@@ -39,6 +39,9 @@ use Exporter;
 sub identify_inherited_exglobs_to_rename {
 	  (my $stref, my $f) = @_;
 #    local $V=1;
+ 	push @{ $stref->{'CallStack'} }, $f;
+    my %subs = map {$_=>1} @{ $stref->{'CallStack'} }; 
+
     my $ext = $RENAME_EXT;
     say '=' x 80, "\nENTER lift_globals( $f )" if $V;
     if (exists $stref->{'Subroutines'}{$f} ) {
@@ -46,7 +49,11 @@ sub identify_inherited_exglobs_to_rename {
     	if ( exists $Sf->{'CalledSubs'}{'List'}
         and scalar @{ $Sf->{'CalledSubs'}{'List'} }>0 )
 	    {	    	
-	        for my $csub ( @{ $Sf->{'CalledSubs'}{'List'} }) {       
+	        for my $csub ( @{ $Sf->{'CalledSubs'}{'List'} }) {   
+				if (exists $subs{$csub}) {
+				say "WARNING: LOOP for $csub: ".join(', ', @{ $stref->{'CallStack'} }) if $W;
+				next;
+				}    
 	       		say "CALL TO  $csub from $f" if $V;     
 	            $stref = identify_inherited_exglobs_to_rename($stref, $csub );
 	            say "RETURN TO $f from CALL to $csub" if $V;
@@ -70,7 +77,7 @@ sub identify_inherited_exglobs_to_rename {
 	        say "SUB $f is LEAF" if $V; 
 	    }    
     }    
-    
+    pop  @{ $stref->{'CallStack'} };
     return $stref;
 } #  END of identify_inherited_exglobs_to_rename()
 
@@ -83,6 +90,10 @@ if ($RENAME_EXT ne '') {
     my $ext = $RENAME_EXT;
     
     say '=' x 80, "\nENTER lift_globals( $f )" if $V;
+
+ 	push @{ $stref->{'CallStack'} }, $f;
+    my %subs = map {$_=>1} @{ $stref->{'CallStack'} }; 
+
     if (exists $stref->{'Subroutines'}{$f} ) {
     	my $Sf = $stref->{'Subroutines'}{$f};
 	            
@@ -122,7 +133,11 @@ if ($RENAME_EXT ne '') {
 	    {
 	    	# This sub is calling other subs	    	
 	        my @csubs = @{ $Sf->{'CalledSubs'}{'List'} };	        
-	        for my $csub (@csubs) {       
+	        for my $csub (@csubs) {    
+				if (exists $subs{$csub}) {
+					say "WARNING: LOOP for $csub: ".join(', ', @{ $stref->{'CallStack'} }) if $W;
+					next;
+				}    
 	       		say "CALL TO  $csub from $f" if $V;     
 	            $stref = rename_inherited_exglobs($stref, $csub );
 	            say "RETURN TO $f from CALL to $csub" if $V;
@@ -133,6 +148,7 @@ if ($RENAME_EXT ne '') {
 	        say "SUB $f is LEAF" if $V; 
 	    }    
     }    
+	pop  @{ $stref->{'CallStack'} };
 }
     return $stref;
 	
@@ -146,6 +162,9 @@ if ($RENAME_EXT ne '') {
 sub lift_globals { 
     (my $stref, my $f) = @_;
     local $V=0;
+ 	push @{ $stref->{'CallStack'} }, $f;
+    my %subs = map {$_=>1} @{ $stref->{'CallStack'} }; 
+
 #    my $ext = '_GLOB' ;
     say '=' x 80, "\nENTER lift_globals( $f )" if $V; 
     if (exists $stref->{'Subroutines'}{$f} ) {
@@ -156,6 +175,12 @@ sub lift_globals {
 	    {	    	
 	    	# This sub is calling other subs. Go through all called subs in turn	    		     
 	        for my $csub ( @{ $Sf->{'CalledSubs'}{'List'} }) {       
+
+				if (exists $subs{$csub}) {
+				say "WARNING: LOOP for $csub: ".join(', ', @{ $stref->{'CallStack'} }) if $W;
+				next;
+				}    
+
 	       		say "CALL TO  $csub from $f" if $V;   
 	       		# Check if it is an entry
 	       		if (exists $stref->{'Entries'}{$csub}) {
@@ -220,7 +245,7 @@ sub lift_globals {
 	    # We only come here when the recursion and merge is done.   
 #	    $stref = _resolve_conflicts_with_params( $f, $stref );
     }
-    
+    pop  @{ $stref->{'CallStack'} };
     return $stref;
     
 } # END of lift_globals()

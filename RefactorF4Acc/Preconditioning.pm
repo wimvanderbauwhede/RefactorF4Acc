@@ -52,21 +52,21 @@ sub precondition_includes {
     for my $inc (keys %{$stref->{'IncludeFiles'}}) {
         next if $stref->{'IncludeFiles'}{$inc}{'InclType'} eq 'External';
 
-        next if ( $stref->{'IncludeFiles'}{$inc}{'Status'} == $UNREAD );
+        next if ( $stref->{'IncludeFiles'}{$inc}{'Status'} == $UNREAD ); # TODO: WARN!
         #  {		
     	# 	$stref->{'IncludeFiles'}{$inc}{'Root'}      = 'UNKNOWN';
 	    # 	$stref->{'IncludeFiles'}{$inc}{'HasBlocks'} = 0;
 		#     $stref = parse_fortran_src( $inc, $stref );
 	    # }
 
-        say "Inlining in $inc";
+        say "INFO: Check for includes to be inlined in $inc" if $I;
         my $stref = _inline_includes($stref, $inc);
         my $Sincf = $stref->{'IncludeFiles'}{$inc};
     }
 
     for my $inc (keys %{$stref->{'IncludeFiles'}}) {
         next if $stref->{'IncludeFiles'}{$inc}{'InclType'} eq 'External';
-        next if ( $stref->{'IncludeFiles'}{$inc}{'Status'} == $UNREAD );
+        next if ( $stref->{'IncludeFiles'}{$inc}{'Status'} == $UNREAD ); # TODO: WARN!
         my $Sincf       = $stref->{'IncludeFiles'}{$inc};
         my $has_commons = $stref->{'IncludeFiles'}{$inc}{'HasCommons'};
         my $has_pars    = $stref->{'IncludeFiles'}{$inc}{'HasParameters'};
@@ -86,7 +86,7 @@ sub precondition_includes {
             $Sincf->{'InclType'} = 'Parameter';
         }
         else {
-            croak 'HOW?';
+            say "WARNING: INC $inc does not seem to have either COMMON or PARAM!" if $W;
             $Sincf->{'InclType'} = 'None';
         }
     }
@@ -111,7 +111,22 @@ sub __split_out_parameters {
             'Ann'     => [annotate($f, __LINE__)]
         }
       ];
-
+      
+# FIXME: if the parameter was declared before being defined, the declaration should also go into the params file
+# So we need two passes: one to find all parameter definitions and get the names from there
+    my %params_in_inc=();
+    for my $index (0 .. scalar(@{$srcref}) - 1) {
+        $nindex = $index + $nidx_offset;
+        my $line = $srcref->[$index][0];
+        my $info = $srcref->[$index][1];
+        if (exists $info->{'ParamDecl'}) {
+            # say Dumper($info->{'ParamDecl'});
+            for my $par_name (@{$info->{'ParamDecl'}{'Names'}}) {
+                $params_in_inc{ $par_name }=1;
+            }
+        }                
+    }
+# Another one to get any declarations.
     for my $index (0 .. scalar(@{$srcref}) - 1) {
         $nindex = $index + $nidx_offset;
         my $line = $srcref->[$index][0];
@@ -130,6 +145,35 @@ sub __split_out_parameters {
             $srcref->[$index][1]{'Comments'} = 1;
             $srcref->[$index][0] = '! ' . $srcref->[$index][0];
         }
+        elsif (exists $info->{'VarDecl'}) { # Because the assumption is that it can't be a parameter declaration
+        my $all_vars_are_pars=1;
+        my $non_par_ct=0;
+        my @non_par_vars=();
+            for my $var (@{$info->{'VarDecl'}{'Names'}}) {
+                if (not exists $params_in_inc{$var}) {
+                    $all_vars_are_pars=0;                    
+                    push @non_par_vars, $var;
+                }                
+            }
+            if (scalar @non_par_vars > 0 and scalar @{$info->{'VarDecl'}{'Names'}}>1
+            and scalar @non_par_vars != scalar @{$info->{'VarDecl'}{'Names'}}
+            ) {
+                warn "Not all vars are params: ".$line."\n<".join(',',@non_par_vars).'>';
+            }
+            if ($all_vars_are_pars) {
+                # OK, move that line
+                say "INFO: Moving vardecl line to params: $line" if $I;
+                my $n_info = {};
+                $n_info->{'VarDecl'} = {%{$info->{'VarDecl'}}};
+                push @{$param_lines}, [$line, $n_info];
+                delete $srcref->[$index][1]{'VarDecl'};
+                $srcref->[$index][1]{'Comments'} = 1;
+                $srcref->[$index][0] = '! ' . $srcref->[$index][0];                
+            }
+
+        }
+
+
         push @{$nsrcref}, $srcref->[$index];
     }
     $stref->{'IncludeFiles'}{$f}{'AnnLines'}          = $nsrcref;
@@ -182,11 +226,11 @@ sub __find_parameter_used_in_inc_and_add_to_Only {
         {
             my $param_inc = $info->{'Include'}{'Name'};
         }
-        elsif (exists $info->{'VarDecl'}) {
+        elsif (exists $info->{'VarDecl'}) { # Because the assumption is that it can't be a parameter declaration
             for my $var (@{$info->{'VarDecl'}{'Names'}}) {
                 my $set = in_nested_set($Sinc,'Vars', $var);
                 my $decl = get_var_record_from_set($Sinc->{'Vars'}, $var);
-                carp  Dumper($Sinc). "\n$var $inc \n".Dumper($decl)."\n".$line;
+                # carp  Dumper($Sinc). "\n$var $inc \n".Dumper($decl)."\n".$line;
                 if ($decl->{'ArrayOrScalar'} eq 'Array') {
                     my %dim_tmpstr    = map  { ($_->[0] => 1, $_->[1] => 1) } @{$decl->{'Dim'}};
                     my @maybe_parstrs = grep { !/^\-?\d+$/ } keys %dim_tmpstr;
@@ -202,7 +246,6 @@ sub __find_parameter_used_in_inc_and_add_to_Only {
                     }
                 }
             }
-
         }
         elsif (exists $info->{'Common'}) {
             for my $var (@{$info->{'Common'}{'Vars'}{'List'}}) {
@@ -235,8 +278,8 @@ sub __find_parameter_used_in_inc_and_add_to_Only {
 # It is of course recursive
 sub _inline_includes {
     (my $stref, my $inc) = @_;
-    say $inc;
-    say Dumper($stref->{'IncludeFiles'}{$inc});
+    # say $inc;
+    # say Dumper($stref->{'IncludeFiles'}{$inc});
     #of course, if the status is UNREAD then this does not work, and we must make sure we read it.
 
     if ($stref->{'IncludeFiles'}{$inc}{'HasIncludes'} == 1) {

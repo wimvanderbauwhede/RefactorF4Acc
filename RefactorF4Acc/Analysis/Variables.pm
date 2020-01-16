@@ -41,7 +41,9 @@ sub analyse_variables {
 	
 	my $Sf = $stref->{'Subroutines'}{$f};
 	
-	#	local $DBG= ;
+	# local $DBG=1;
+	# local $V=1;
+	# local $I=1;
 	say "analyse_variables($f)" if $DBG;
 
 	my $__analyse_vars_on_line = sub {
@@ -446,6 +448,10 @@ sub identify_vars_on_line {
 					@chunks = ( @chunks, @{ $info->{'Vars'}{'List'} } );
 				}
 			} elsif ( exists $info->{'Do'} ) {
+				if (not defined $info->{'Do'}{'Iterator'} or not defined $info->{'Do'}{'Range'} or not defined $info->{'Do'}{'Range'}{'Vars'} ) {
+					say $line;
+					carp Dumper($info);
+				}
 				@chunks = ( @chunks, $info->{'Do'}{'Iterator'}, @{ $info->{'Do'}{'Range'}{'Vars'} } );
 			} elsif ( (exists $info->{'Assignment'} and not exists $info->{'Data'}) or  exists $info->{'StatementFunction'}) {
 				@chunks = ( @chunks, $info->{'Lhs'}{'VarName'}, @{ $info->{'Lhs'}{'IndexVars'}{'List'} }, @{ $info->{'Rhs'}{'VarList'}{'List'} } );

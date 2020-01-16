@@ -42,9 +42,19 @@ sub find_root_for_includes {
     # this would of course mean it has no root.
     # As we now inline the nested includes, only includes in subs should be processed here
     # And then even only these that are included in the subs in the SOURCEFILES if that is specified. 
+    # WV2020-01-16 I think we should only go through the includes that are effectively included in a code unit
+    # I can do this by setting a flag. But is that not precisely the Status?
+    # Well, it does not hurt to have a flag ""
     for my $inc ( keys %{ $stref->{'IncludeFiles'} } ) {
        say "Finding ROOT for $inc starting from $f" if $V;
         next if $stref->{'IncludeFiles'}{$inc}{'InclType'} eq 'External';
+        # next unless
+        if ( exists  $stref->{'IncludeFiles'}{$inc}{'IncludedFrom'} ) {
+            say "INFO: $f: INC $inc included from ".join(', ', keys %{$stref->{'IncludeFiles'}{$inc}{'IncludedFrom'}}) if $I;
+        } else {
+            say "$f: INC $inc not included anywhere in reachable code";
+            next;
+        }
         if ($stref->{'IncludeFiles'}{$inc}{'Status'}==$UNREAD) {
             croak "TROUBLE: $inc (in $f) not yet parsed, how come? (Hint: likely the tree contains refactored sources)";
                 $stref->{'IncludeFiles'}{$inc}{'HasBlocks'} = 0;

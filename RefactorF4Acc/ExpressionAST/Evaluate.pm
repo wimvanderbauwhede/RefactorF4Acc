@@ -70,10 +70,10 @@ sub replace_consts_in_ast { (my $stref, my $f, my $block_id, my $ast, my $state,
 						my $param_set = in_nested_set($stref->{'Subroutines'}{$f},'Parameters',$mvar);
 						
 		  				my $decl = get_var_record_from_set( $stref->{'Subroutines'}{$f}{'Parameters'},$mvar);
-#		  				say 'DECL: '. Dumper($decl);
-		  				#FIXME: the value could be an expression in terms of other parameters!
+		  				# say 'DECL: '. Dumper($decl);
+		  				croak "FIXME: the value could be an expression in terms of other parameters!";
 		  				my $val = $decl->{'Val'};
-#		  				say "MVAL: $val";	
+		  				# say "MVAL: $val";	
 		  				$ast = parse_expression($val, {},$stref,$f);
 		  				return ($ast,$state,1);
 					} else {
@@ -111,11 +111,11 @@ sub replace_param_by_val { (my $stref, my $f, my $block_id, my $ast, my $state)=
 sub eval_expression_with_parameters { (my $expr_str,my $info, my $stref, my $f) = @_;
 
     my $expr_ast=parse_expression($expr_str,$info, $stref,$f);
-#    say Dumper($expr_ast);
+   say Dumper($expr_ast);
     my $expr_ast2 = replace_param_by_val($stref, $f, 0,$expr_ast, {});
-#    say Dumper($expr_ast2);
+   say Dumper($expr_ast2);
     my $evaled_expr_str= emit_expr_from_ast($expr_ast2);
-#    say "TO EVAL:$evaled_expr_str";
+   say "TO EVAL:$evaled_expr_str";
     my $expr_val=eval($evaled_expr_str);
 	return $expr_val;
 

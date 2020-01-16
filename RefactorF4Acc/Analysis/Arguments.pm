@@ -427,6 +427,7 @@ sub analyse_var_decls_for_params {
 # To make it work correctly, the direct caller must inherit the COMMON vars from the caller, as-is.
 sub determine_ExGlobArgs {
 	( my $f, my $stref ) = @_;
+	local $I=1;
 	my $c;
 	if ($V) {
 		$c = ( defined $stref->{Counter} ) ? $stref->{Counter} : 0;
@@ -455,6 +456,10 @@ sub determine_ExGlobArgs {
 			}		        		    
 			
 			next if exists $stref->{'ExternalSubroutines'}{$calledsub}; # Don't descend into external subs   
+			if (exists $subs{$calledsub}) {
+				say "WARNING: LOOP for $calledsub: ".join(', ', @{ $stref->{'CallStack'} }) if $W;
+				next;
+			}
 			$stref->{Counter}++ if $V;
 			$stref = determine_ExGlobArgs( $calledsub, $stref );
 			$Sf->{'ExGlobArgs'}{'Set'} = { %{ $Sf->{'ExGlobArgs'}{'Set'} }, %{ $stref->{'Subroutines'}{$calledsub}{'ExGlobArgs'}{'Set'} } };			
@@ -479,7 +484,8 @@ sub determine_ExGlobArgs {
 # We are only renaming (must dclone and change 'Name' though)
 
 sub __determine_exglobargs_core { ( my $stref, my $f ) = @_;
-	
+local $I=1;
+local $V=1;	
 	my $Sf = $stref->{'Subroutines'}{$f};
 	
 	my $is_block_data = exists $Sf->{'BlockData'} ? 1 : 0;
