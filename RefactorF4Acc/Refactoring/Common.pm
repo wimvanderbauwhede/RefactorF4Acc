@@ -1069,7 +1069,8 @@ sub emit_f95_var_decl {
     
       my $type = $var_decl_rec->{'Type'}; 
       if (not defined $type) {
-      	croak Dumper($var_decl_rec);
+      	croak Dumper($var_decl_rec) ;
+        #    Dumper($stref->{'Subroutines'}{  $var_decl_rec->{'Name'});
       } elsif(ref($type) eq 'HASH') {
       	# Contains Type and Kind
       	my $ttype=$type->{'Type'};

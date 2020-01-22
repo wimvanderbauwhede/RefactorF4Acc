@@ -71,11 +71,15 @@ sub _refactor_include_file {
     	[ "module $inc_ff", {'BeginModule'=>$inc_ff, 'Ref'=>1} ];
     	
 	for my $annline ( @{$annlines} ) {
-		next if not defined $annline; 
+		next if not defined $annline; 		
 		(my $line, my $info)      =@{ $annline };
 				
 		print '*** ' . join( ',', keys(%{$info}) ) . "\n" if $DBG;
 		print '*** ' . $line . "\n" if $DBG;
+
+		next if exists $info->{'Deleted'}
+			or exists $info->{'Skip'}
+			or exists $info->{'Comment'};
 		my $skip = 0;
 		if ( exists $info->{'Common'} ) {
 			$skip = 1;
@@ -105,7 +109,7 @@ sub _refactor_include_file {
 			$annline->[1]{'VarDecl'}{'Name'} = $nvar;
 		} 
 		if ( exists $info->{'ParamDecl'} ) {
-#			print Dumper(%{$info});
+			# print $line,':',Dumper(%{$info});
             if (exists $info->{'ParamDecl'}{'Name'}) {
 			my $var_val = $info->{'ParamDecl'}{'Name'};
 			(my $var,my $val)=@{$var_val};

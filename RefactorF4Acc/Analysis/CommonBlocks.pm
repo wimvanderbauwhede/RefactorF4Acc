@@ -146,7 +146,7 @@ If it's the other way round, CallerSub strict subset of CalledSub, then we need 
 sub identify_common_var_mismatch {
 	my ( $stref, $f ) = @_;
 	my $Sf = $stref->{'Subroutines'}{$f};
-	say "CALLED SUB $f" if 1 or $DBG;
+	say "CALLED SUB $f" if $DBG;
 	if ( exists $Sf->{'Callers'} ) {
 		my $callers = $Sf->{'Callers'};
 
@@ -350,7 +350,7 @@ sub _match_up_common_var_sequences {
 			my $elt_caller = shift @common_caller_seq;
 			my ( $name_caller, $decl_caller, $kind_caller, $dim_caller, $dimsz_caller, $lin_idx_caller, $used_caller ) = @{$elt_caller};
 			my $type_caller = $decl_caller->{'Type'};
-			carp 'dim_caller: '.Dumper($dim_caller);
+			# carp 'dim_caller: '.Dumper($dim_caller);
 			#			say "CALLER: $name_caller";
 
 			# add this caller to ExMismatchedCommonArgs
@@ -511,10 +511,10 @@ sub _match_up_common_var_sequences {
 						my $dim_local_copy    = dclone($dim_local);
 						my $dim_caller_copy   = dclone($dim_caller);
 						my $coords_caller_end = calculate_multidim_indices_from_linear( $stref, $caller, $dim_caller_copy, $lin_idx_caller_end );
-						carp "$f CALLER $caller LOCAL NAME $name_local CALLER NAME $name_caller ;". 'dim_caller_copy (2): '
-						.Dumper($dim_caller_copy)
-						."\n".Dumper($coords_caller_end)
-						."\n".Dumper($dim_local_copy);
+						# carp "$f CALLER $caller LOCAL NAME $name_local CALLER NAME $name_caller ;". 'dim_caller_copy (2): '
+						# .Dumper($dim_caller_copy)
+						# ."\n".Dumper($coords_caller_end)
+						# ."\n".Dumper($dim_local_copy);
 						
 						for my $idx ( 0 .. scalar @{$coords_caller_end} - 1 ) {
 							$dim_caller_copy->[$idx][1] =
@@ -528,7 +528,7 @@ sub _match_up_common_var_sequences {
 							}
 						}
 						if ( $lin_idx_caller_start != 1 ) {
-							carp "SOMETHING IS WRONG HERE $f CALLER $caller LOCAL NAME $name_local CALLER NAME $name_caller ;".Dumper($dim_caller_copy).';'. $lin_idx_caller_start;
+							# carp "SOMETHING IS WRONG HERE $f CALLER $caller LOCAL NAME $name_local CALLER NAME $name_caller ;".Dumper($dim_caller_copy).';'. $lin_idx_caller_start;
 							my $coords_caller = calculate_multidim_indices_from_linear( $stref, $caller, $dim_caller_copy, $lin_idx_caller_start );
 							# carp "\n".Dumper($coords_caller);
 							for my $idx ( 0 .. scalar @{$coords_caller} - 1 ) {

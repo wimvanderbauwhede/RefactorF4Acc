@@ -265,14 +265,15 @@ sub _analyse_src_for_iodirs {
     print "_analyse_src_for_iodirs() $f\n" if $V;
     my $Sf = $stref->{'Subroutines'}{$f};
 
-    if (not exists $Sf->{'IODirInfo'} or $Sf->{'IODirInfo'} == 0) {
+    if (not exists $Sf->{'IODirInfo'} or $Sf->{'IODirInfo'} == 0) { # This is to avoid doing this more than once
         # croak Dumper $Sf if not defined $Sf->{'RefactoredArgs'}{List};
-        if (not exists $Sf->{'RefactoredArgs'}{'List'} or scalar @{$Sf->{'RefactoredArgs'}{'List'}} == 0) {
+        if (not $Sf->{'Program'} # because of course a program does not have arguments
+            and (not exists $Sf->{'RefactoredArgs'}{'List'} or scalar @{$Sf->{'RefactoredArgs'}{'List'}} == 0)) {
             # say Dumper($Sf->{'RefactoredArgs'});
             # $Sf->{'RefactoredArgs'}{'Set'} = {};
-            say "SUB $f DOES NOT HAVE RefactoredArgs";
-            croak 'BOOM! Logic is wrong:  HasRefactoredArgs 0/1 does not indicate presence of RefactoredArgs List/Set'
-              . __LINE__;    #. ' ' . $f . ' : ' . Dumper($Sf);
+            say "INFO: SUB $f DOES NOT HAVE RefactoredArgs" if $I;
+            # croak 'BOOM! Logic is wrong:  HasRefactoredArgs 0/1 does not indicate presence of RefactoredArgs List/Set' . "\n" 
+            #   . __LINE__. "\n" . ' ' . $f . ' : ' . Dumper($Sf);
         }
         else 
         {

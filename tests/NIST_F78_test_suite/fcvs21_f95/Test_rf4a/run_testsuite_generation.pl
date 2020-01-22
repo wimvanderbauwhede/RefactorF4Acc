@@ -344,6 +344,7 @@ if (@ARGV) {
 
     " .`refactorF4acc.pl -h 2>&1`;
     }
+
     my $src = shift @ARGV;
     $src=~s/^\.\.\///;
     if ($src!~/\.f$/) {

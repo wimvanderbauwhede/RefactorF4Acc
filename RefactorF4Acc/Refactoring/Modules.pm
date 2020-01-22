@@ -106,7 +106,6 @@ sub add_module_decls {
 			# This means that they need new names, i.e. the names of the subs, like above.
 			# And then I need to figure out how to adapt the USE declarations in other subroutines.
 			# Unless there is a way to re-export modules
-			
 			my $only_one_sub_in_module = scalar  @{ $stref->{'Modules'}{ $existing_module_name{$src} }{'Contains'} } == 1 ? 1 : 0;
 			my $split_out_modules_per_subroutine= $only_one_sub_in_module ? 0 : 1;
 			if ($split_out_modules_per_subroutine==1 and $stref->{'Modules'}{  $existing_module_name{$src} }{'Inlineable'}==0) {
@@ -212,7 +211,7 @@ sub _create_module_src { (my $stref, my $src, my $subname, my $no_modules ) = @_
 	my $no_module = $is_program;                    # if it's a program
 	my $skip_because_empty = 0;
 	$no_module = exists $no_modules->{$src} ? 1 : $no_module;    # if it occurs in %no_modules
-
+	# carp "<$src> $subname: NO MODULE? $no_module PROGRAM? $is_program <" . $stref->{'Program'}.'> '. ($stref->{'Program'} eq $src)."\n" if $no_module;
 	print "INFO: adding module decls to $src\n" if $I;
 	my $mod_name = $subname ? $subname : $src;
 	$mod_name =~ s/\.\///;
@@ -266,7 +265,7 @@ sub _create_module_src { (my $stref, my $src, my $subname, my $no_modules ) = @_
 				}
 			}
 			my $annlines       = get_annotated_sourcelines( $stref, $prog_name );
-			croak Dumper($annlines) if $src eq 'common.sn';
+			
 			my $before         = 1;
 			my @prog_p1        = ();
 			my @prog_p2        = ();
@@ -345,6 +344,7 @@ sub _create_module_src { (my $stref, my $src, my $subname, my $no_modules ) = @_
 	} else {
 		
 		if ($is_program) {
+			
 			# In case it is a program
 			# We add the 'use' declarations after the program signature
 			my $before  = 1;

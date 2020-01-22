@@ -1,6 +1,6 @@
 
 hello: error_codes.o greet_world.o main.o
-	$(FC) error_codes.o greet_world.o main.o -o hello 
+	$(FC) error_codes.o greet_world.o main.o -L/usr/lib -o hello 
 
 main.o: src/main.f90
 	$(FC) -c src/main.f90

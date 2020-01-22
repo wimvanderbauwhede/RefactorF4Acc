@@ -157,7 +157,7 @@ sub main {
 	# This is not used at the moment
     $stref->{'SubsToTranslate'}=$subs_to_translate;
     
-    local $V=1;
+    # local $V=1;
 	# 1. Inventory: Find all subroutines in the source code tree
 	if ($V) {
         say "--------------". ('-' x length($code_unit_name)) ;

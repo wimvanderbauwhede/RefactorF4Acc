@@ -662,6 +662,7 @@ sub _create_extra_arg_and_var_decls {
 				#    			croak Dumper($Sf->{'UndeclaredOrigLocalVars'}{'Set'}{$var}) if $var eq 'ff083';
 				my $rdecl = $Sf->{'UndeclaredOrigLocalVars'}{'Set'}{$var};
 				$rdecl->{'Ann'} = "in $f (implicit declaration)";
+				# carp Dumper($stref->{'Subroutines'}{  $var});
 				my $rline = emit_f95_var_decl($rdecl);
 				my $info  = {};
 				$info->{'Ann'} =
@@ -1355,18 +1356,16 @@ sub __insert_assignment_for_ex_EQUIVALENCE_vars {
 	my $skip = 0;
 	if ( exists $info->{'Assignment'} and not exists $info->{'ExCommonOrEquivalence'}) {
 		my $lhs_var = $info->{'Lhs'}{'VarName'};
-#		say "FOUND $lhs_var in $line"; 
 
 # But this is not right because we need the variable only I think
 # There is no way to infer the array index if it's an array
 # Problem is of course that we now can't search by key in equiv_pairs
-# because the key is the expression used in the EQUIVALENCE statement
-# 
+# because the key is the expression used in the EQUIVALENCE statement 
 
 		my $lhs_ast = $info->{'Lhs'}{'ExpressionAST'};
 		my $lhs_v_str = emit_expr_from_ast($lhs_ast);
-# croak $lhs_v_str . Dumper(keys %{$equiv_pairs}) if $lhs_var eq 'iade11';	
-		$lhs_v_str = $lhs_var	; # Ugly HACK! FIXME!
+
+		$lhs_v_str = $lhs_var; # Ugly HACK! FIXME!
 		if ( exists $equiv_pairs->{$lhs_v_str} ) {
 			# insert the extra line
 			push @{$rlines}, $annline;
@@ -1375,15 +1374,17 @@ sub __insert_assignment_for_ex_EQUIVALENCE_vars {
 			$skip   = 1;
 		}
 		if (exists  $info->{'FunctionCalls'}) {
+			# This is a line with a number of function calls
+			# Go through every call
 			for my $fcall ( @{ $info->{'FunctionCalls'} } ) {
         	   my $fname = $fcall->{'Name'};
 				my $ast = $fcall->{'ExpressionAST'};
 				# This is the AST of the function call, so f(...) ['&','f',[',',@fargs]]
-				# So what I need is @fargs, i.e. $ast->[2][1]
+				# So what I need is @fargs, i.e. $ast->[1]
 				my $args_vars = find_args_vars_in_ast($ast);
 				my $args = $args_vars->[1]{'List'};
-				my $arg_asts = $ast->[2][0] == 27 ? $ast->[2][1] : [ $ast->[2]  ]; 
-				# say Dumper($args) .'=>'. Dumper($arg_asts);
+				my $arg_asts = $ast->[2][0] == 27 ? [@{$ast->[2]}] : [ $ast->[2]  ]; 
+				shift @{$arg_asts}; 				
 				if (scalar @{$args} > 0 ) { # should be same number as $arg_asts
 					if ($skip==0) {
 						push @{$rlines}, $annline;
@@ -1395,14 +1396,17 @@ sub __insert_assignment_for_ex_EQUIVALENCE_vars {
 					# 	}
 					# }
 					for my $arg_ast (@{$arg_asts}) {
+						
 						my $arg=emit_expr_from_ast($arg_ast);
+						
 						if ( exists $equiv_pairs->{$arg} ) {
+							# say Dumper($equiv_pairs->{$arg});
 							$rlines = [ @{$rlines}, @{ $equiv_pairs->{$arg} } ];
 						}
 					}
 				} 	
 			}
-#		carp 'TODO: process Function calls on RHS! ';#.Dumper($info->{'FunctionCalls'}) ;
+		# carp 'TODO: process Function calls on RHS! '. Dumper($info->{'FunctionCalls'}) ;
 		}
 	} elsif ( exists $info->{'ReadCall'} ) {	
 		# FIXME: I don't know how to get array accesses from a READ call, so I pretend they're always scalar
@@ -1822,13 +1826,29 @@ sub _emit_refactored_signatures {
 	#    my $Sf = $stref->{'Subroutines'}{$f};
 
 	my $rlines = [];
+	my $has_return_type = 0;
+	my $fname='';
 	for my $annline ( @{$annlines} ) {
 		( my $line, my $info ) = @{$annline};
 		if ( exists $info->{'Signature'} ) {
-			@{$annline} = emit_subroutine_sig($annline);
-
+			@{$annline} = emit_subroutine_sig($annline);			
+			( my $line, my $info ) = @{$annline};
+			if (exists $info->{'Signature'}{'ReturnType'}) {
+				$has_return_type=1;
+				$fname=$info->{'Signature'}{'Name'};
+			}
 			#            say Dumper($annline);
 		}
+		if ( $has_return_type 
+		and exists $info->{'VarDecl'} 
+		and $info->{'VarDecl'}{'Name'} eq $fname
+		) {
+			$info->{'Deleted'}=1;
+			$info->{'Skip'}=1;
+			$annline = [ $line, $info ];
+		}
+
+
 		push @{$rlines}, $annline;
 	}
 	return $rlines;

@@ -530,6 +530,7 @@ SUBROUTINE
 					
 				$extra_lines{$index}=[];
 				for my $var_dim (@vars_with_dim ) {
+					
 					my $dline = $var_dim;
 					my $varname = $var_dim;
 					$varname=~s/\s*\(.+//;
@@ -556,7 +557,7 @@ SUBROUTINE
 						
 							my $decl = get_var_record_from_set($Sf->{'Vars'},$varname);
 							$subset = in_nested_set( $Sf, 'Vars', $varname );
-						 
+						  
 							if (ref($decl) ne 'HASH' and $subset eq 'UndeclaredOrigArgs') {			
 							# This is for so far undeclared arguments: they already have an entry
 							# We call __parse_f95_decl on them and that will make them DeclaredOrigArgs
@@ -592,9 +593,18 @@ SUBROUTINE
 									$Sf->{'DeclaredCommonVars'}{'List'} = ordered_union( $Sf->{'DeclaredCommonVars'}{'List'}, [$varname] );									
 								}  						
 						}
+						# carp $subset,';',$var_dim,';',Dumper($decl) if $line=~/catn13/;
 						$type = $decl->{'Type'};
+						if (exists $decl->{'Attr'} and $decl->{'Attr'} ne '') {
+							my $attr = $decl->{'Attr'};
+							# play it safe
+							$attr=~s/^\(//;
+							$attr=~s/\)$//;
+							$type.="($attr)";
+						}
 					}
 					 my $vline = "$type, $var_dim  :: $varname";
+					#  croak $vline if $line=~/catn13/;
                      ( $Sf, my $info ) = __parse_f95_decl( $stref, $f, $Sf, $indent, $vline, {'Dimension' => 1});
                      $Sf->{'DeclCount'}{$varname}++;
                      $info->{'StmtCount'}{$varname}=$Sf->{'DeclCount'}{$varname};
@@ -1877,13 +1887,15 @@ sub _parse_subroutine_and_function_calls {
 #				croak Dumper(sort keys %{$Sf->{ReferencedLabels}} ) if $name eq 'en722';
 				
 			}
+			# carp $line if $line=~/=.+ff08/i;
 
 			# Maybe Function calls
 			if (   $line !~ /function\s/
 				&& $line !~ /subroutine\s/
-				&& $line =~ /(\w+)\(/ )
+				&& $line =~ /(\w+)\s*\(/ )
 			{
-				# say "LINE: $line";
+				# carp "FUNCTION CALL: $line" if $line=~/=.+ff08/i;
+				# say "LINE: $line";				
 				my @chunks = ();
 				my $cline  = $line;
 				while ( $cline =~ /(\w+)\(/ ) { # this could be a function call
@@ -2306,7 +2318,9 @@ sub _parse_implicit {
 		$patt = $2;
 		if ( $type =~ /\*/ ) {
 			( $type, $attr ) = split( /\*/, $type );    # WEAK!
-			if ( $attr eq '(' ) { $attr = '(*)' }
+			if ( $attr eq '(' ) { 
+				$attr = '(*)';				
+			}
 			else {
 				if ($type ne 'character') {
 					$attr = $attr eq '' ? '' : "(kind=$attr)";
@@ -2644,13 +2658,16 @@ sub __parse_f95_decl {
                 }
 				if ( $type =~ /character/ ) {
 					if (exists $pt->{TypeTup}{'ArrayOrScalar'} ) {
-					$decl->{'Attr'} = '(len=' . $pt->{TypeTup}{'ArrayOrScalar'} . ')';
-					} elsif (exists $pt->{'	'}{'Dim'}) {
-						$decl->{'Attr'} = '(len=' . $pt->{'Attributes'}{'Dim'}[0] . ')';
+						$decl->{'Attr'} = '(len=' . $pt->{TypeTup}{'ArrayOrScalar'} . ')';
+					# } elsif (exists $pt->{'	'}{'Dim'}) {
+					# 	$decl->{'Attr'} = '(len=' . $pt->{'Attributes'}{'Dim'}[0] . ')';
+					} elsif (exists $pt->{'TypeTup'}{'Kind'}) {
+						$decl->{'Attr'} = 'len=' . $pt->{'TypeTup'}{'Kind'} ;						
 					} else {
 						say "WARNING: no length for character string $tvar" if $W;
-						$decl->{'Attr'} = '(len=*)';
+						$decl->{'Attr'} = 'len=*';
 					}
+					
 				} elsif ( exists $pt->{'TypeTup'}{'Kind'} ) {
 					$decl->{'Attr'} = '(kind=' . $pt->{'TypeTup'}{'Kind'} . ')';
 #					croak $decl->{'Attr'};
@@ -2673,7 +2690,7 @@ sub __parse_f95_decl {
 					) {
 						$decl->{'Attr'}=$orig_decl->{'Attr'};
 				}  		  		
-							 
+				# croak Dumper($pt),Dumper($decl) if $tvar eq 'catn13';							 
 				# It is possible that at this point the variable had not been declared yet and we use implicit rules
 				# Then we change it to declared.
 				if ( exists $Sf->{'UndeclaredOrigArgs'}{'Set'}{$tvar} ) {								
@@ -2760,6 +2777,13 @@ sub __parse_f77_par_decl {
 	$indent =~ s/\S.*$//;
 
 	my $ast =  parse_expression($parliststr, $info, $stref, $f);
+	# say Dumper $ast;
+	if ($ast->[0] == 9
+	and $ast->[2][0] == 0
+	and scalar @{$ast->[2][1]} == 3
+	) {
+		$type='complex';		
+	}
 	# This returns be a {($var,{Epxr => $exp, Ast=>$ast})} Set + [$var] List
 	my $var_val_pairs = _get_var_val_pairs($ast);
 
@@ -2772,12 +2796,13 @@ sub __parse_f77_par_decl {
 		# say "$f $maybe_var $var";
 		if ( $maybe_var ) { 
 			my $var_rec = get_var_record_from_set( $Sf->{'LocalVars'}, $var );
-			$type=$var_rec->{'Type'};
+			$type=$var_rec->{'Type'} if $type eq 'Unknown';
 			$attr=$var_rec->{'Attr'};
 			$typed=1;
 			delete $Sf->{'DeclaredOrigLocalVars'}{'Set'}{$var}; 
 			@{ $Sf->{'DeclaredOrigLocalVars'}{'List'} } = grep { $_ ne $var } @{ $Sf->{'DeclaredOrigLocalVars'}{'List'} };
 		} 
+		
 		# else {
 			# type via constants and inherited params
 			# Basically, we start with integer, and any other type overrides this
@@ -2836,34 +2861,56 @@ sub __parse_f77_par_decl {
 								
 				my $mtype=$mpar_rec->{'Type'};
 				my $mattr=$mpar_rec->{'Attr'};
-				if ($mtype ne 'integer' or not $typed) {
+				if ($mtype ne 'integer' and $mtype ne 'complex' or not $typed) {
 					$type = $mtype;
 					$typed=1;
 				}				
 				$inherited_params->{'Set'}{$mpar}=1;
 			}
+			
 			# the pars could be integers, see if the consts in the val_ast might be reals or PlaceHolder
 			# get const types from the AST
 			my $const_types = _find_consts_in_ast( $val_ast, {});
 			# $type = 'integer';
+			my %ttatrs_types=();
+			# say "CONSTS for VAR $var:";
+			$ttatrs_types{$var}=[$type,$attr];
 			for my $const (keys %{$const_types}) {
+				
+				
+
 				my $ctype = $const_types->{$const};
 				if ($ctype eq 'PlaceHolder') {
-					$type = 'character';
-					$attr = '(*)';
+					my $ttype = 'character';
+					my $tattr = '(*)';
+					$ttatrs_types{$var}=[$ttype,$tattr];
 				}
-				if ($ctype ne 'integer' or not $typed) {
-					$type = $ctype;
+				elsif ($ctype ne 'integer' and $type ne 'complex' or not $typed) {
+					# say "NOT integer $var $const $ctype";
+					my $ttype = $ctype;
 					$typed=1;
+					$ttatrs_types{$var}=[$ttype,$attr];
+					
+				}
+				else {
+					
+					if ($type ne 'complex') {
+					$ttatrs_types{$var}=[$ctype,''];
+					} else {
+						$ttatrs_types{$var}=[$type,''];
+					}
+					# say "$var $const must be int".Dumper($ttatrs_types{$const});
 				}
 			}
+			
 		# }
+		# carp "$var $val ".Dumper(%ttatrs_types) if $line=~/ipn002/;
 		my $param_decl = {
-						'Type' => $type,
+						'Type' => $ttatrs_types{$var}[0],#$type,
 						'Var'  => $var,
 						'Val'  => $val,
 						'Ast' => $val_ast,
-						'Attr' => $attr,
+						'Attr' => $ttatrs_types{$var}[1],#$attr,
 						'DEBUG' => __FILE__.' '.__LINE__,
 						'Indent'    => $indent,
 						'Dim'       => [],
@@ -2871,126 +2918,127 @@ sub __parse_f77_par_decl {
 						'InheritedParams' => $inherited_params,
 						'Status'    => 0     
 					};
+					# croak Dumper($param_decl) if $var eq 'icp001';
 		$Sf->{'LocalParameters'}{'Set'}{$var}=$param_decl;		
 	}
-if (0) {
-	my @partups = _parse_comma_sep_expr_list( $parliststr ); 
-	my %pvars = map { split( /\s*=\s*/, $_ ) } @partups;    # Perl::Critic, EYHO
-	my @var_vals = map { ( my $k, my $v ) = split( /\s*=\s*/, $_ ); [ $k, $v ] } @partups; # Perl::Critic, EYHO
-	my @pvarl = map { my $str=$_; $str=~s/\s*=.+//; $str } @partups;
-	my $pars = [];
+# if (0) { # OBSOLETE
+# 	my @partups = _parse_comma_sep_expr_list( $parliststr ); 
+# 	my %pvars = map { split( /\s*=\s*/, $_ ) } @partups;    # Perl::Critic, EYHO
+# 	my @var_vals = map { ( my $k, my $v ) = split( /\s*=\s*/, $_ ); [ $k, $v ] } @partups; # Perl::Critic, EYHO
+# 	my @pvarl = map { my $str=$_; $str=~s/\s*=.+//; $str } @partups;
+# 	my $pars = [];
 
-	my $pars_in_val = {};
+# 	my $pars_in_val = {};
 	
-	for my $var (@pvarl) {
-		my $pars_in_val_for_var = {};
-		croak if ref($var) eq 'ARRAY';
-		if ( not in_nested_set $Sf, 'LocalVars', $var ) { 
-			if ( exists $pvars{$var} ) {
+# 	for my $var (@pvarl) {
+# 		my $pars_in_val_for_var = {};
+# 		croak if ref($var) eq 'ARRAY';
+# 		if ( not in_nested_set $Sf, 'LocalVars', $var ) { 
+# 			if ( exists $pvars{$var} ) {
 
-				my $val             = $pvars{$var};
-				my $pars_in_val_tmp = ___check_par_val_for_pars($val);
-				$type = 'Unknown';
-				$attr='';
-				if ( $val =~ /^\-?\d+$/ ) {
-					$type = 'integer';
-				} elsif ( $val =~ /^(\-?(?:\d+|\d*\.\d*)(?:[edq][\-\+]?\d+)?)$/ ) {					
-					$type = 'real';
-				} elsif ( $val =~/[\*\+\-\/]/ ) { # an expression 
-						my $ast = parse_expression($val, $info, $stref, $f);
-						my $consts = get_consts_from_expression($ast,{});
-						for my $const_type (values %{$consts}) {
-							if ($const_type eq 'real') {
-								$type = 'real';
-								last;
-							} elsif ($const_type ne 'Unknown') {
-								$type=$const_type;
-							}
-						}
-				} elsif ( $val =~ /^[\"\'].+[\'\"]$/ ) {
-					my $nchars = length ($val) -2;
-					$attr = "(len=$nchars)";
-					$type = 'character';		
-				} elsif ( $val =~ /^(__PH\d+__)$/ ) {
-					my $ph =$1;
-					my $tval = $info->{'PlaceHolders'}{$ph};
-					my $nchars = length ($tval) -2;
-					$attr = "(len=$nchars)";
-					$type = 'character';									
-				} else {
-					for my $mpar ( keys %{$pars_in_val_tmp} ) {
-						my $mpar_rec = get_var_record_from_set( $Sf->{'Parameters'}, $mpar );
-						$type = $mpar_rec->{'Type'};						
-					}
-				}
-				$pars_in_val_for_var = { %{$pars_in_val_for_var}, %{$pars_in_val_tmp} };
+# 				my $val             = $pvars{$var};
+# 				my $pars_in_val_tmp = ___check_par_val_for_pars($val);
+# 				$type = 'Unknown';
+# 				$attr='';
+# 				if ( $val =~ /^\-?\d+$/ ) {
+# 					$type = 'integer';
+# 				} elsif ( $val =~ /^(\-?(?:\d+|\d*\.\d*)(?:[edq][\-\+]?\d+)?)$/ ) {					
+# 					$type = 'real';
+# 				} elsif ( $val =~/[\*\+\-\/]/ ) { # an expression 
+# 						my $ast = parse_expression($val, $info, $stref, $f);
+# 						my $consts = get_consts_from_expression($ast,{});
+# 						for my $const_type (values %{$consts}) {
+# 							if ($const_type eq 'real') {
+# 								$type = 'real';
+# 								last;
+# 							} elsif ($const_type ne 'Unknown') {
+# 								$type=$const_type;
+# 							}
+# 						}
+# 				} elsif ( $val =~ /^[\"\'].+[\'\"]$/ ) {
+# 					my $nchars = length ($val) -2;
+# 					$attr = "(len=$nchars)";
+# 					$type = 'character';		
+# 				} elsif ( $val =~ /^(__PH\d+__)$/ ) {
+# 					my $ph =$1;
+# 					my $tval = $info->{'PlaceHolders'}{$ph};
+# 					my $nchars = length ($tval) -2;
+# 					$attr = "(len=$nchars)";
+# 					$type = 'character';									
+# 				} else {
+# 					for my $mpar ( keys %{$pars_in_val_tmp} ) {
+# 						my $mpar_rec = get_var_record_from_set( $Sf->{'Parameters'}, $mpar );
+# 						$type = $mpar_rec->{'Type'};						
+# 					}
+# 				}
+# 				$pars_in_val_for_var = { %{$pars_in_val_for_var}, %{$pars_in_val_tmp} };
 				
-				$Sf->{'LocalParameters'}{'Set'}{$var} = {
-					'Type' => $type,
-					'Var'  => $var,
-					'Val'  => $val,
-					'Attr' => $attr,
-					'DEBUG' => 1,
-			        'Indent'    => $indent,
-        			'Dim'       => [],
-        			'Parameter' => 'parameter',
-        			'Status'    => 0     
-				};
-				say "INFO: LOCAL PARAMETER $var infered type: $type $var = $val" if $I;
-				push @{$pars}, $var;
-			} else {
-				say "WARNING: no VAL for VAR $var ($line)" if $W;
-			}
-		} else {
-			my $var_rec = get_var_record_from_set( $Sf->{'LocalVars'}, $var );
+# 				$Sf->{'LocalParameters'}{'Set'}{$var} = {
+# 					'Type' => $type,
+# 					'Var'  => $var,
+# 					'Val'  => $val,
+# 					'Attr' => $attr,
+# 					'DEBUG' => 1,
+# 			        'Indent'    => $indent,
+#         			'Dim'       => [],
+#         			'Parameter' => 'parameter',
+#         			'Status'    => 0     
+# 				};
+# 				say "INFO: LOCAL PARAMETER $var infered type: $type $var = $val" if $I;
+# 				push @{$pars}, $var;
+# 			} else {
+# 				say "WARNING: no VAL for VAR $var ($line)" if $W;
+# 			}
+# 		} else {
+# 			my $var_rec = get_var_record_from_set( $Sf->{'LocalVars'}, $var );
 			
-			$type = $var_rec->{'Type'};
-			$attr = $var_rec->{'Attr'};
-			$Sf->{'LocalParameters'}{'Set'}{$var} = {
-				'Type' => $type,
-				'Var'  => $var,
-				'Val'  => $pvars{$var},
-				'Attr' => $attr,
-				'DEBUG' => 2,
-        		'Indent'    => $indent,
-        		'Dim'       => [],
-        		'Parameter' => 'parameter',
-        		'Status'    => 0        				
-			};
+# 			$type = $var_rec->{'Type'};
+# 			$attr = $var_rec->{'Attr'};
+# 			$Sf->{'LocalParameters'}{'Set'}{$var} = {
+# 				'Type' => $type,
+# 				'Var'  => $var,
+# 				'Val'  => $pvars{$var},
+# 				'Attr' => $attr,
+# 				'DEBUG' => 2,
+#         		'Indent'    => $indent,
+#         		'Dim'       => [],
+#         		'Parameter' => 'parameter',
+#         		'Status'    => 0        				
+# 			};
 
-			my $val = $pvars{$var};
-			$pars_in_val_for_var =
-			  { %{$pars_in_val_for_var}, %{ ___check_par_val_for_pars($val) } };
-			push @{$pars}, $var;
-		}				
-		for my $mpar ( keys %{$pars_in_val_for_var} ) {
-			next if $mpar eq '';
-			next if exists $F95_intrinsic_functions{$mpar}; 
-			my $mpar_rec = get_var_record_from_set( $Sf->{'Parameters'}, $mpar );												
-			$Sf->{'LocalParameters'}{'Set'}{$var}{'InheritedParams'}{'Set'}{$mpar}=1;
-		}
-		$pars_in_val = { %{$pars_in_val}, %{$pars_in_val_for_var} };
-	}
+# 			my $val = $pvars{$var};
+# 			$pars_in_val_for_var =
+# 			  { %{$pars_in_val_for_var}, %{ ___check_par_val_for_pars($val) } };
+# 			push @{$pars}, $var;
+# 		}				
+# 		for my $mpar ( keys %{$pars_in_val_for_var} ) {
+# 			next if $mpar eq '';
+# 			next if exists $F95_intrinsic_functions{$mpar}; 
+# 			my $mpar_rec = get_var_record_from_set( $Sf->{'Parameters'}, $mpar );												
+# 			$Sf->{'LocalParameters'}{'Set'}{$var}{'InheritedParams'}{'Set'}{$mpar}=1;
+# 		}
+# 		$pars_in_val = { %{$pars_in_val}, %{$pars_in_val_for_var} };
+# 	}
 
-	$info->{'UsedParameters'} = $pars_in_val;
-	$info->{'ParamDecl'}      = {
-		'Indent'    => $indent,
-		'Type'      => $type,
-		'Attr'      => $attr,
-		'Dim'       => [],
-		'Parameter' => 'parameter',
-		'Names'     => [@var_vals],
-		'Status'    => 0,
-		'DEBUG' => 4,		 
-	};
+# 	$info->{'UsedParameters'} = $pars_in_val;
+# 	$info->{'ParamDecl'}      = {
+# 		'Indent'    => $indent,
+# 		'Type'      => $type,
+# 		'Attr'      => $attr,
+# 		'Dim'       => [],
+# 		'Parameter' => 'parameter',
+# 		'Names'     => [@var_vals],
+# 		'Status'    => 0,
+# 		'DEBUG' => 4,		 
+# 	};
 	
-	@{ $Sf->{'LocalParameters'}{'List'} } =  ( @{ $Sf->{'LocalParameters'}{'List'} }, @{$pars} );
-#	for my $var (@{$pars}) {
-#	say $f,$var,$Sf->{'LocalParameters'}{'Set'}{$var}{'Attr'};
-#	}
-#croak Dumper($Sf) if $f eq 'printer.inc' and $line=~/MAXOPENFILES/i;
+# 	@{ $Sf->{'LocalParameters'}{'List'} } =  ( @{ $Sf->{'LocalParameters'}{'List'} }, @{$pars} );
+# #	for my $var (@{$pars}) {
+# #	say $f,$var,$Sf->{'LocalParameters'}{'Set'}{$var}{'Attr'};
+# #	}
+# #croak Dumper($Sf) if $f eq 'printer.inc' and $line=~/MAXOPENFILES/i;
 
-}
+# } # OBSOLETE
 	return ( $Sf, $info );
 
 }    # END of __parse_f77_par_decl()
@@ -4447,8 +4495,7 @@ sub _parse_F77_decl_NEW { (my $decl_str)=@_;
         (my $parse_tree_vars, $rest, $err) = parse_expression_no_context($rest);
         
         (my $var_recs, my $var_lst) = _get_var_recs_from_parse_tree($parse_tree_type, $parse_tree_vars);
-        
-#        say Dumper($var_recs->{cf717}) if $decl_str=~/cf717/;
+                
         return ($var_recs, $var_lst);
     
 
@@ -4475,10 +4522,11 @@ sub __parse_include_statement { my ($stref, $f, $sub_incl_or_mod, $Sf, $line, $i
 		$stref = parse_fortran_src( $name, $stref );
 	} else {
 		say $line, " already processed" if $V;
+		# Not quite sure about this, 
 		if ($stref->{'IncludeFiles'}{$name}{'Status'} == $FILE_NOT_FOUND
 		and $stref->{'IncludeFiles'}{$name}{'InclType'} ne 'External'
 		){
-			warn "Status for Include $name is FILE NOT FOUND" 
+			warn "Status for Include $name is FILE NOT FOUND";
 		}
 	}
 	if (    exists $stref->{'Implicits'}

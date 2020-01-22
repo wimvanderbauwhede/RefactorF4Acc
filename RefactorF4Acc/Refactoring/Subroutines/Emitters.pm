@@ -67,7 +67,7 @@ sub emit_subroutine_sig { #(my $stref, my $f,
 	     my $maybe_returntypeattr = (exists $info->{'Signature'}{'ReturnTypeAttr'} and $info->{'Signature'}{'ReturnTypeAttr'} ne '')  
 	     ? '*'.$info->{'Signature'}{'ReturnTypeAttr'}.' ' : '';
 	     my $maybe_resultvar = exists $info->{'Signature'}{'ResultVar'} ? ' result '.$info->{'Signature'}{'ResultVar'} : '';
-	     
+	    
 	    my $rline =   exists $info->{'Signature'}{'Program'}  ? "$code_unit $name" 
 	    : exists $info->{'Signature'}{'BlockData'} ? "$code_unit $name($args_str)" 
 	    : "$maybe_characteristic$maybe_returntype$maybe_returntypeattr$code_unit $name($args_str)$maybe_resultvar";
@@ -81,6 +81,7 @@ sub emit_subroutine_sig { #(my $stref, my $f,
             $info->{'Ref'}++;
         }  	    
 	    $info->{'Ann'}=[annotate($name, __LINE__ ) ];
+
 		return ( $indent . $rline , $info );
 } # END of emit_subroutine_sig
 

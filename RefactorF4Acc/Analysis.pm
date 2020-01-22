@@ -47,7 +47,7 @@ our @EXPORT_OK = qw(
 );
 
 sub analyse_all {
-	local $V=1;
+	# local $V=1;
 
 	( my $stref, my $code_unit_name, my $stage, my $is_source_file_path  ) = @_;
 	my $sub_or_func_or_mod = sub_func_incl_mod( $code_unit_name, $stref );
