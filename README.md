@@ -8,6 +8,23 @@ An Automated Fortran Code Refactoring Tool to Facilitate Acceleration of Numeric
 
 School of Computing Science, University of Glasgow, UK
 
+## READ THIS FIRST
+
+- This tool was developed for a specific purpose: refactoring FORTRAN77 code into Fortran 95 code _suitable for offloading to GPUs and FPGAs_. The refactorings it includes are there to support that goal. Therefore, many refactorings that you might do to improve code on CPU, e.g. to benefit from SIMD, are _not_ included, for example replacing loops by array operations.
+- The resulting code is also _not_ GPU-ready, as explained
+- This is a research project and because of the limited time I can put into it, it is _definitely not complete or bug free_. Therefore, the chance that it might not work on your particular code is quite high.
+- I would like you to get in touch but I can't guarantee a speedy resolution of your issues.
+
+### Known issues
+
+- The compiler currently assumes that functions are pure, i.e. they do not use global variables. If your code uses impure functions, refactoring should still work but the globals in functions will not be removed.
+- The compiler does not replace C preprocessor macros, so it your code uses these, make sure to run `cpp` in advance.
+- The compiler supports mainly F77. If your code is a mixture of F77 and F90 or later, it may or may not work.
+- Some F77 features are ignored (i.e. kept as-is), notably `ASSIGN`, `DECODE` and `ENCODE`.
+- `SAVE` statements are deleted in PROGRAM code units, ignored elsewhere.
+- "The extension of named `COMMON` block storage by `EQUIVALENCE` association of a variable and an array" as tested by `NIST FM302 TEST 013` is not handled correctly.
+- `EQUIVALENCE` handling for arrays is incorrect for non-constant indices.
+
 ## What is this?
 
 * An automatic refactoring tool for Fortran code
@@ -43,7 +60,7 @@ School of Computing Science, University of Glasgow, UK
   * Preserves comments
 
 * OpenCL/C translation
-  * Once refactored, modules can be translated to C or OpenCL kernel code in a separate pass (see [Automatic parallelisation using OpenCL](https://github.com/wimvanderbauwhede/RefactorF4Acc/blob/master/README.md#automatic-parallelisation-using-opencl)) 
+  * Once refactored, modules can be translated to C or OpenCL kernel code in a separate pass (see [Automatic parallelisation using OpenCL](https://github.com/wimvanderbauwhede/RefactorF4Acc/blob/master/README.md#automatic-parallelisation-using-opencl))
 
 * Subroutine extraction  
     * simply add an annotation
@@ -74,14 +91,14 @@ Please see [INSTALL.md].
 
 ## Getting Started
 Please see [GETTING_STARTED.md] for a demonstration of using RefactorF4Acc to refactor a "Hello, world!" program that uses several legacy Fortran features.  To use RefactorF4Acc, try copying the contents of the minimal configure file listed in [GETTING_STARTED.md] into the top directory of your project source directory. Give the configure file the name `rf4a.cfg` and then from the top of our source tree, invoke RefactorF4Acc with the command `refactorF4acc.pl -c rf4a.cfg` as listed in [GETTING_STARTED.md]:
- 
+
 ## Status
 
 To assess the correctness and capability of our refactoring compiler, we used the NIST (US National Institute of Standards and Technology) [FORTRAN78 test suite](http://www.itl.nist.gov/div897/ctg/fortran_form.htm), which aims to validate adherence to the ANSI X3.9-1978 (FORTRAN 77) standard. We used [a version with some minor changes from Arnaud Desitter](http://www.fortran-2000.com/ArnaudRecipes/fcvs21_f95.html): All files are properly formed; a non standard conforming FORMAT statement has been fixed in test file `FM110.f`; Hollerith strings in FORMAT statements have been converted to quoted strings. This test suite comprises about three thousand tests organised into 192 files.
 
-We skipped/modified some tests because they test features that our compiler does not support (see below for more details). After skipping these types of tests, 2890 tests remain, in total 190 files for which refactored code is generated. The testbench driver provided in the archive skips another 8 tests because they relate to features deleted in Fortran 95. In total the test suite contains 72,473 lines of code (excluding comments). Two test files contain tests that fail in gfortran 4.9 (3 tests in total).
+We skipped/modified some tests because they test features that our compiler does not support (see below for more details). After skipping these types of tests, 2899 tests remain, in total 190 files for which refactored code is generated. The testbench driver provided in the archive skips another 8 tests because they relate to features deleted in Fortran 95. In total the test suite contains 72,473 lines of code (excluding comments). Two test files (FM406 and FM923) contain tests that fail in gfortran (3 tests in total). Our compiler currently fails one additional test, test 13 in FM302, see "Known Issues".
 
-Our compiler successfully generates refactored code for _all_ tests, and the refactored code compiles correctly and passes all tests (2887 tests in total). The tests are available in `tests/NIST_F78_test_suite`.
+Our compiler successfully generates refactored code for _all_ tests, and the refactored code compiles correctly and passes all other tests (2895 tests in total). The tests are available in `tests/NIST_F78_test_suite`.
 
 Furthermore, we tested the compiler on four real-word physics simulation models:
 
@@ -93,13 +110,6 @@ Furthermore, we tested the compiler on four real-word physics simulation models:
 
 
 Each of these models has a different coding style, specifically in terms of the use of common blocks, include files, etc. that affect the refactoring process. All of these codes are refactored fully automatically without changes to the original code and build and run correctly. The performance of the original and refactored code is the same in all cases.
-
-## Known issues
-
-- The compiler currently assumes that functions are pure, i.e. they do not use global variables. If your code uses impure functions, refactoring should still work but the globals in functions will not be removed.
-- The compiler does not replace C preprocessor macros, so it your code uses these, make sure to run `cpp` in advance.
-- The compiler supports mainly F77. If your code is a mixture of F77 and F90 or later, it may or may not work.
-- Some F77 features are ignored, notably `EQUIVALENCE` and `ASSIGN`.
 
 ### Configuration file format
 
@@ -117,6 +127,8 @@ The following keys are defined:
 <dt>MACRO_SRC:</dt><dd>If the sources use the C preprocessor, you can provide a file containing C preprocessor macro definitions</dd>
 <dt>NEWSRCPATH:</dt><dd>Path to the directory that will contain the refactored sources</dd>
 
+<dt>SOURCEFILES:</dt><dd>A comma-separated list of source files to be refactored. Same as specifying them with `-s` on command line</dd>
+
 <dt>KERNEL:</dt><dd>For OpenCL translatation, the name of the subroutine to become the OpenCL kernel (actually same as TOP).</dd>
 <dt>MODULE_SRC:</dt><dd>For OpenCL translatation, the name of the source file containing a module which contains the kernel subroutine.</dd>
 <dt>MODULE:</dt><dd>For OpenCL translatation, the name of the module which contains the kernel subroutine</dd>
@@ -126,6 +138,8 @@ The following keys are defined:
 <dt>NO_ONLY:</dt><dd>Do not use the ONLY qualifier on the USE declaration</dd>
 <dt>SPLIT_LONG_LINES:</dt><dd>Split long lines into chunks of no more than 80 characters</dd>
 <dt>MAX_LINE_LENGTH:</dt><dd>Maximum line length for fixed-format F77 code. The default is 132 characters.</dd>
+<dt>ALLOW_SPACES_IN_NUMBERS:</dt><dd>Allow spaces in numeric constants for fixed-format F77 code. Default 0.</dd>
+<dt>EVAL_PARAM_EXPRS:</dt><dd>Evaluate RHS expression of parameter declarations. Default is 0.</dd>
 <dt>EXT</dt><dd>Extension of generated source files. Default is `.f90`; must include the dot</dd>
 <dt>LIBS</dt><dd>SCons LIBS, comma-separated list</dd>
 <dt>LIBPATH</dt><dd>SCons LIBPATH, comma-separated list</dd>
@@ -135,10 +149,12 @@ The following keys are defined:
 ### Command line flags
 
     -h: help
+    -V: Show the version
     -c <cfg file name>: use this cfg file (default is ~/.rf4a)
     -C: Only generate call tree, don't refactor or emit
-    -g: refactor globals inside toplevel subroutine
+    -s: Provide a comma-separated list of source files to be refactored. Same as specifying SOURCEFILES in the config file
     -b: Generate SCons build script
+    -B: Build the generated code with SCons
     -A: Annotate the refactored lines
     -P translate_to_C|translate_to_OpenCL: to translate a module to C or OpenCL
     -w: show warnings
@@ -212,7 +228,7 @@ We use the [NIST FORTRAN78 test suite](ftp://ftp.fortran-2000.com/fcvs21_f95.tar
 
 In this folder, there are two subfolders `Test_rf4a` and  `RefactoredSources`. To verify the original test suite you can use the script `driver_parse`; to run it you can use the script `driver_run`; you may have to change the name of the Fortran compiler in `FC` at the start of these scripts.
 
-The refactored Fortran-95 code is generated in the folder `RefactoredSources`. There are three scripts in this folder, `driver_parse`, `driver_run` and `driver_run_single`. You may have to change the name of the Fortran compiler in `FC` at the start of these scripts. Please ensure that the environment varianble `$FC` is set to the Fortran compiler you want to use. I have tested the code only with `gfortran 4.9` and `gfortran 7.0`.
+The refactored Fortran-95 code is generated in the folder `RefactoredSources`. There are three scripts in this folder, `driver_parse`, `driver_run` and `driver_run_single`. You may have to change the name of the Fortran compiler in `FC` at the start of these scripts. Please ensure that the environment varianble `$FC` is set to the Fortran compiler you want to use. I have tested the code only with `gfortran 4.9` to `gfortran 10.0`.
 
 To generate the refactored Fortran-95 code for the test suite, build and run it, do:
 
@@ -223,9 +239,9 @@ Generating, compiling and running the test suites takes a few minutes.
 
 The final output should look like:
 
-        real	1m13.853s
-        user	1m8.707s
-        sys	0m4.152s
+        real	0m50.641s
+        user	0m43.246s
+        sys	0m5.761s
 
         # Generation of the refactored test suite code:
         TOTAL TESTS: 196
@@ -236,9 +252,9 @@ The final output should look like:
         Generation Succeeded:
         190
 
-        real	0m7.035s
-        user	0m4.091s
-        sys	0m1.991s
+        real	0m8.281s
+        user	0m4.605s
+        sys	0m2.237s
 
         # Compilation of the refactored test suite:
 
@@ -247,19 +263,19 @@ The final output should look like:
         Failed : 0
         Skipped: 8
 
-        real	0m22.753s
-        user	0m14.143s
-        sys	0m5.500s
+        real	0m35.434s
+        user	0m24.426s
+        sys	0m7.029s
 
         # Running the refactored test suite:
-        PASSED: 2726
-        FAILED: 3
+        PASSED: 2734
+        FAILED: 4
         REQUIRE INSPECTION: 161
-        TOTAL: 2890
+        TOTAL: 2899
 
 ### To run the Fortran to parallel OpenCL test
 
-This an example of automatic parallelisation and GPU-acceleration of legacy code.  It is the 2-D Shallow Water example from the book "Ocean Modelling for Beginners: Using Open-Source Software" by Jochen Kämpf. The code is effectively Fortran-77 except that it uses Fortran-90 style modules.
+The test `tests/ShallowWater2D` is an example of automatic parallelisation and GPU-acceleration of legacy code.  It is the 2-D Shallow Water example from the book "Ocean Modelling for Beginners: Using Open-Source Software" by Jochen Kämpf. The code is effectively Fortran-77 except that it uses Fortran-90 style modules.
 
 As explained above, to run this test you need to install the [AutoParallel-Fortran](https://github.com/wimvanderbauwhede/AutoParallel-Fortran) compiler and the [OclWrapper Fortran OpenCL API](https://github.com/wimvanderbauwhede/OpenCLIntegration), as well as [scons](http://scons.org/), a Python-based build system.
 
@@ -267,7 +283,7 @@ A more detailed explanation of the steps is available in the file [tests/Shallow
 
       $ cd tests/ShallowWater2D/fortran
 
-Please ensure that the environment variable `$FC` is set to the Fortran compiler you want to use. I have tested the code only with `gfortran 4.9` and `gfortran 7.0`.
+Please ensure that the environment variable `$FC` is set to the Fortran compiler you want to use. I have tested the code only with `gfortran 4.9` to `gfortran 10.0`.
 
 We start from the original code, where the only change is the addition of a `!$ACC Subroutine` pragma to automatically extract a subroutine from the source code. This demonstrates the subroutine extraction feature of the compiler.
 To generate the refactored Fortran-95 code used as starting point for autoparallelisation and OpenCL conversion, run the command `./generate_and_build.sh`:

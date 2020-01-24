@@ -147,16 +147,13 @@ sub main {
     # $code_unit_name is either provided on command line or $Config{'TOP'} or, if it's a module, $Config{'MODULE'} 
     # If $code_unit_name is blank then we the files in the $SOURCEFILES list are processed one by one
     # Otherwise a non-blank $SOURCEFILES list will be considered the list of the source files to be inventoried, so includes in them will also be added to the inventory. 	
-	(my $code_unit_name, my $subs_to_translate, my $gen_scons, my $build, my $call_tree_only, my $pass) = parse_args($args);	
+	(my $code_unit_name, my $gen_scons, my $build, my $call_tree_only, my $pass) = parse_args($args);	
 	#  Initialise the global state. $code_unit_name could be empty
 	my $stref = init_state($code_unit_name);
 	if (defined $stref_init and defined $stref_merger) {        
             $stref=$stref_merger->($stref, $stref_init);
     }
-    
-	# This is not used at the moment
-    $stref->{'SubsToTranslate'}=$subs_to_translate;
-    
+        
     # local $V=1;
 	# 1. Inventory: Find all subroutines in the source code tree
 	if ($V) {
@@ -285,16 +282,6 @@ sub main {
 		emit_all($stref);
 	}
 
-	if ( $translate == $YES ) {
-	    # Here we could actually call the genOclKernelFromF95Src script
-
-		$translate = $GO;
-		for my $code_unit_name ( keys %{ $stref->{'SubsToTranslate'} }) {
-			print "\nTranslating $code_unit_name to OpenCL C\n";
-			$gen_sub  = 1;
-		}
-	}
-
 	# 6. Builder: Build and run the generated code
 	# - create an SCons build script
 	if ($gen_scons) {
@@ -321,7 +308,7 @@ sub parse_args { (my $args)=@_;
     if (defined $args) {
         %opts = %{$args};
     } else {
-	    getopts( 'VvwidhACTNgbBGc:P:s:o:', \%opts );
+	    getopts( 'VvwidhACTgbBGc:P:s:o:', \%opts );
     }
 	if ($opts{'V'}) {
 		die "Version: $VERSION\n";
@@ -410,38 +397,26 @@ sub parse_args { (my $args)=@_;
 	$LIBS = (exists $Config{'LIBS'} ) ? $Config{'LIBS'} : $LIBS;
 	$LIBPATHS = (exists $Config{'LIBPATH'} ) ? $Config{'LIBPATH'} : $LIBPATHS;
 	$INCLPATHS = (exists $Config{'INCLPATH'} ) ? $Config{'INCLPATH'} :
-		(exists $Config{'F95PATH'} ) ? $Config{'F95PATH'} : $INCLPATHS;
+		(exists $Config{'F95PATH'} ) ? $Config{'F95PATH'} : 
+        (exists $Config{'F90PATH'} ) ? $Config{'F90PATH'} : 
+        $INCLPATHS;
 	$CFG_refactor_toplevel_globals = (exists $Config{'REFACTOR_TOPLEVEL_GLOBALS'}) ? 1 : 0 	;
 	$CFG_refactor_toplevel_globals= 1; # FIXME: refactoring while ignoring globals is broken ( $opts{'g'} ) ? 1 : $CFG_refactor_toplevel_globals; # Global from Config
 
     $Config{'ALLOW_SPACES_IN_NUMBERS'} = ref($Config{'ALLOW_SPACES_IN_NUMBERS'}) eq 'ARRAY' ? $Config{'ALLOW_SPACES_IN_NUMBERS'}[0] : $Config{'ALLOW_SPACES_IN_NUMBERS'};
-# Currently broken	
-	if ( $opts{'G'} ) {
-		print "Generating docs...\n";
-		generate_docs();
-		exit(0);
-	}
 	
 	if ( $opts{'C'} ) {
 		$call_tree_only = 1;
 		$main_tree = $ARGV[1] ? 0 : 1;		 
 	}
-# OBSOLETE, use $!RF4A pragma instead	
-	my %subs_to_translate = ();
-	if ( $opts{'T'} ) {
-		if ( !@ARGV ) {
-		}
-		$translate = 1;
-		%subs_to_translate = map { $_ => 1 } @ARGV[ 1, -1 ];
-	}
-# Currently broken
+
 	my $build = ( $opts{'B'} ) ? 1 : 0;
     my $gen_scons = ( $opts{'b'} ) ? 1 : 0;
     if ($build) { 
         $gen_scons = 1;
     }
 
-    return (lc($code_unit_name),\%subs_to_translate,$gen_scons,$build,$call_tree_only, $pass);
+    return (lc($code_unit_name),$gen_scons,$build,$call_tree_only, $pass);
 } # END of parse_args()
 
 

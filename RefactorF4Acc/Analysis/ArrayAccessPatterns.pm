@@ -1456,9 +1456,6 @@ sub __generate_buffer_varnames { my ( $boundary_accesss, $block_id ) = @_;
 
 sub _is_stream_var { my ($state, $f, $block_id, $var_name) =@_;
 
-    #   my $n_dims = 3;# $Config{'NDIMS'};
-    #   my $max_szs = [300,300,80];#$Config{'MAX_SZS'};
-    #   my $n_halo_points = 3;#$Config{'HALO_EXTENT'};
 	  # Get the record for $var_name
 	  my $iters =  $state->{'Subroutines'}{$f}{'Blocks'}{$block_id}{'LoopIters'};
 	  my $dims = $state->{'Subroutines'}{ $f }{'Blocks'}{ $block_id }{'Arrays'}{$var_name}{'Dims'} ;	  

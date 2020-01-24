@@ -147,6 +147,7 @@ EXCL_SRCS :: Regex: A regular expression matching the source files to be exclude
 EXCL_DIRS :: [String]: A comma-separated list of directories (relative to PREFIX) NOT to be searched for source files.
 MACRO_SRC :: String: If the sources use the C preprocessor, you can provide a file containing C preprocessor macro definitions
 NEWSRCPATH :: String: Path to the directory that will contain the refactored sources
+SOURCEFILES :: [String]: A comma-separated list of source files to be refactored. Same as specifying -s on command line
 
 KERNEL :: String: For OpenCL translatation, the name of the subroutine to become the OpenCL kernel (actually same as TOP).
 MODULE_SRC :: String: For OpenCL translatation, the name of the source file containing a module which contains the kernel subroutine.
@@ -157,12 +158,19 @@ RENAME_EXT  :: String: Extension for variables that need to be renamed because o
 NO_ONLY :: 0 | 1: Do not use the ONLY qualifier on the USE declaration
 SPLIT_LONG_LINES :: 0 | 1: Split long lines into chunks of no more than 80 characters
 MAX_LINE_LENGTH :: Int: Maximum line length for fixed-format F77 code. The default is 132 characters.
+ALLOW_SPACES_IN_NUMBERS :: 0 | 1: Allow spaces in numeric constants for fixed-format F77 code. Default 0.
+
 EXT :: String: Extension of generated source files. Default is `.f90`; must include the dot
 LIBS :: [String]: SCons LIBS, comma-separated list
 LIBPATH :: [String]: SCons LIBPATH, comma-separated list
 INCLPATH :: [String]: SCons F90PATH or F95PATH (based on EXT), comma-separated list
 SUB_SUFFIX :: [String]: a suffix for all subroutine names. Default is of course blank.
 REFACTOR_TOPLEVEL_GLOBALS :: 0 | 1:: like -g
+EVAL_PARAM_EXPRS ::  0|1: Evaluate RHS expression of parameter declarations, default is 0.
+
+TEST :: 0|1 : for internal use
+CUSTOM_PASS_OUTPUT_PATH :: String: Output path for custom passes
+F90PATH, F95PATH: Aliases for INCLPATH
 
 Examples:
 
