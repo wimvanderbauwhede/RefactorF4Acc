@@ -127,8 +127,8 @@ sub read_fortran_src {
                 $ok = 0;
             };
 
-            if ($ok) {
-				say "read_fortran_src($code_unit_name): READING SOURCE for $f ($code_unit_name , $sub_func_incl)" if $V;
+            if ($ok) { # i.e. found the path
+				        say "read_fortran_src($code_unit_name): READING SOURCE for $f ($code_unit_name , $sub_func_incl)" if $V;
   
                 my @rawlines = <$SRC>;
                 close $SRC;
@@ -138,7 +138,7 @@ sub read_fortran_src {
                 push @lines, "      \n";
 #                croak "$sub_func_incl $code_unit_name".Dumper($stref->{$sub_func_incl}{$code_unit_name});
                 my $free_form = $stref->{$sub_func_incl}{$code_unit_name}{'FreeForm'};
-#                die "$sub_func_incl $code_unit_name FreeForm=$free_form".Dumper($stref->{$sub_func_incl}{$code_unit_name}) if !$free_form; 
+              #  die "$sub_func_incl $code_unit_name FreeForm=$free_form".Dumper($stref->{$sub_func_incl}{$code_unit_name}).'BOOM!!!' if $code_unit_name =~/mpif.h/;#!$free_form; 
                 my $srctype   = $sub_func_incl;
                 if ($sub_contained_in_module) {
                 	$srctype   = 'Modules';
@@ -230,7 +230,6 @@ Suppose we don't:
                     }
                     while (@lines) {
 
-
                     	# OK, this is a HACK but I will remove anything after the 72nd character 
 #                    	say $line;
 #                    	say "$code_unit_name LINE: $line";# if $code_unit_name eq './timdata.f';
@@ -246,8 +245,8 @@ Suppose we don't:
                             $next2 = 1;
                         }
                         my $remove_spaces_ok = $joinedline=~/\w\s*$/ ? 1 : 0;
-#                        print "LINE: $line";
-#                        print "NEXTLINE: $nextline";
+                      #  print "LINE: $line";
+                      #  print "NEXTLINE: $nextline";
 #######################################################################
 
                         if ($in_cont) {
@@ -531,6 +530,7 @@ Suppose we don't:
                                     $line = '';    # TEST
                                     push @comments_stack, $nextline;
                                 } else {           # isPlain
+                                
 #                                    print DBG "M  \n";
 
                                     #  l
@@ -558,6 +558,7 @@ Suppose we don't:
                                     ( $stref, $code_unit_name , $srctype ) =
                                       _pushAnnLine( $stref, $code_unit_name , $srctype, $f, $line,
                                         $free_form, __LINE__ );
+
                                     $line                 = $nextline;
                                     $next2                = 0;
                                     $line_set_to_nextline = 1;
@@ -913,11 +914,16 @@ Suppose we don't:
                     }
 ####### POSTAMBLE
                     if ( not exists $stref->{$srctype}{$code_unit_name}{'Status'} ) {
-                        print "UNDEF: $code_unit_name\n";
+                        carp "UNDEF: $srctype $code_unit_name\n";
                     }
                     elsif ( $stref->{$srctype}{$code_unit_name}{'Status'} == $UNREAD ) {
                         $stref->{$srctype}{$code_unit_name}{'Status'} = $READ;
                     }
+                    # else {
+                    #                         if ($code_unit_name=~/PMPI_Sizeof/i) {
+                    #   print "OK: $srctype $code_unit_name\n";croak;
+                    #   } 
+                    # }
                 }    # free or fixed form
             
 				# Split lines with multiple common block declarations    
@@ -953,12 +959,11 @@ sub _pushAnnLine {
 	        if ( $f ne 'UNKNOWN_SRC' ) {
 	            if ( $stref->{$srctype}{$f}{'Status'} < $READ ) {    # FIXME: bit late, can I catch this earlier?
 	                $stref->{$srctype}{$f}{'Status'} = $READ;                
-	            }
+	            } 
 	        }
 	    }
     
         if ( exists $pline->[1]{'SubroutineSig'} or exists $pline->[1]{'FunctionSig'}) {
-    
         	if ( not defined $stref->{$srctype}{$f}{'Status'} ) {
  				$stref->{$srctype}{$f}{'Status'} = $UNREAD;
  			}
@@ -989,10 +994,18 @@ sub _pushAnnLine {
 	        }
 	        my $mod_name = $pline->[1]{'EndModule'};
 	        push @{ $stref->{'Modules'}{$mod_name}{'AnnLines'} }, $pline unless $stref->{'Modules'}{$mod_name}{'Status'} == $PARSED;
+      }
+      elsif ( exists $pline->[1]{'EndSubroutine'} and $srctype eq 'Subroutines' ) {
+        
+        if (not (exists $stref->{$srctype}{$f}{'Status'} and $stref->{$srctype}{$f}{'Status'} == $PARSED) ) {
+          		push @{ $stref->{$srctype}{$f}{'AnnLines'} }, $pline;
+              $stref->{$srctype}{$f}{'Status'} = $READ;
+        }
+        # say "HEREHERE $srctype $f ".Dumper($stref->{'Subroutines'}{$f}{'AnnLines'} ) ;
 	    } else {
 		    if ($f ne  'UNKNOWN_SRC') { # WV: what should happen is that on exit of a subroutine we push the rest onto the Module annlines.		    
 		    	if (not (exists $stref->{$srctype}{$f}{'Status'} and $stref->{$srctype}{$f}{'Status'} == $PARSED) ) {		    	
-#		    		say "$srctype $f";
+		    		# say "HERE: $srctype $f";
 		    		push @{ $stref->{$srctype}{$f}{'AnnLines'} }, $pline;
 		    	}
 		    } else {
@@ -1227,6 +1240,11 @@ sub _procLine {
             	$info->{'Includes'} = $1;
             	$line =~ s/\bINCLUDE\b/include/;
 			}
+# I think I could add #if, #elif, #else and #endif as well
+# I think #define could be handled as well
+# Question is if this should be done here or in the parser
+# But actually we should not parse these: they should simply be kept as-is and emitted in place
+# Which means that simply the Macro tag is enough and it should be OK already!
 		} elsif ( $line =~ /^\s+include\s+[\'\"]([\w\.]+)[\'\"]/i ) {			
             $info->{'Includes'} = $1;
             $info->{'SpecificationStatement'} = 1;
@@ -1264,7 +1282,8 @@ sub _procLine {
             } elsif ( $keyword eq 'entry' ) {
                 $info->{'EntrySig'} = $name;                
             } else {
-#            	croak if uc($name )eq 'CPHS';
+              # say $name;
+           	# croak if uc($name )eq 'CPHS';
                 $info->{'SubroutineSig'} = [ $spaces, $name, [] ];
             }
             $line = lc($line);

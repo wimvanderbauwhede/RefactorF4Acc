@@ -278,10 +278,8 @@ sub __find_parameter_used_in_inc_and_add_to_Only {
 # It is of course recursive
 sub _inline_includes {
     (my $stref, my $inc) = @_;
-    # say $inc;
-    # say Dumper($stref->{'IncludeFiles'}{$inc});
     #of course, if the status is UNREAD then this does not work, and we must make sure we read it.
-
+    if ( $stref->{'IncludeFiles'}{$inc}{'InclType'} ne 'External') {
     if ($stref->{'IncludeFiles'}{$inc}{'HasIncludes'} == 1) {
         my @n_incs = __get_includes($stref, $inc);
         $stref->{'IncludeFiles'}{$inc}{'InlinedIncludes'} = [];
@@ -291,6 +289,10 @@ sub _inline_includes {
             # Now merge this into $Sincf
             $stref = __merge_include($stref, $inc, $n_inc);
         }
+    }
+    } else {
+        say "WARNING: $inc is EXTERNAL" if $W;
+        say "INFO: $inc is EXTERNAL" if $I;
     }
     # croak Dumper($inc, $stref->{'IncludeFiles'}{$inc});
     return $stref;

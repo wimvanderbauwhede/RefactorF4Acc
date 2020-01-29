@@ -79,8 +79,10 @@ sub context_free_refactorings {
     my $sub_or_func_or_inc = sub_func_incl_mod( $f, $stref );
     my $Sf                 = $stref->{$sub_or_func_or_inc}{$f};
   
-    if ( $Sf->{'Status'} != $PARSED ) {
-        croak "NOT PARSED: $f\n" . caller() . "\n";
+    if ( $Sf->{'Status'} != $PARSED 
+        and  $Sf->{'Status'}!= $UNUSED
+    ) {
+        croak "USED BUT NOT PARSED: $f\n" . caller() . "\n";
     }
     my $annlines   = get_annotated_sourcelines( $stref, $f );
     my $nextLineID = scalar @{$annlines} + 1;

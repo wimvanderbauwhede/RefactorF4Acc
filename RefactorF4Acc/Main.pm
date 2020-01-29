@@ -165,7 +165,11 @@ sub main {
 	if ($I) {
         say "INFO: Subroutines that will be analysed:";
 		for my $sub (sort keys %{ $stref->{'Subroutines'} }) {
-			say $sub,"\t=>\t",$stref->{'Subroutines'}{$sub}{'Source'};
+            if (exists $stref->{'Subroutines'}{$sub}{'Source'}) {
+			    say $sub,"\t=>\t",$stref->{'Subroutines'}{$sub}{'Source'};
+            } else {
+                say $sub,"\t=>\tEXTERNAL";
+            }
 		}
 	}
 
@@ -221,6 +225,8 @@ sub main {
 		$stref->{'PPCallTree'}=[];
 		$stref=create_call_tree($stref,$code_unit_name);
 		map {print $_}  @{ $stref->{'PPCallTree'} };
+        say Dumper$stref->{'CallTreeInfo'};
+        map {say $_} sort( keys( %{$stref->{'CallTreeInfo'}}));
 		exit(0);
 	}
     if ($V) {
@@ -407,7 +413,7 @@ sub parse_args { (my $args)=@_;
 	
 	if ( $opts{'C'} ) {
 		$call_tree_only = 1;
-		$main_tree = $ARGV[1] ? 0 : 1;		 
+		$main_tree = $ARGV[1] ? 0 : 1;		 # not used
 	}
 
 	my $build = ( $opts{'B'} ) ? 1 : 0;

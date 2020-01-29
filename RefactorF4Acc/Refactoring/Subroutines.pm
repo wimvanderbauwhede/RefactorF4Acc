@@ -920,7 +920,7 @@ sub _create_refactored_subroutine_call {
 	return $rlines;
 }    # END of _create_refactored_subroutine_call()
 
-# This is for lines that contain function calls, so in practice either assignments or subroutine calls
+# This is for lines that contain function calls, so in practice either assignments or subroutine calls -- or conditional statements
 sub _create_refactored_function_calls {
 	( my $stref, my $f, my $annline, my $rlines ) = @_;
 	my $Sf = $stref->{'Subroutines'}{$f};
@@ -935,8 +935,11 @@ sub _create_refactored_function_calls {
 		$ast = $info->{'Rhs'}{'ExpressionAST'};
 	} elsif ( exists $info->{'SubroutineCall'} ) {
 		$ast = $info->{'SubroutineCall'}{'ExpressionAST'};
+	} elsif ( exists $info->{'IfThen'} ) {
+		# and if-then-else
+		$ast = $info->{'CondExecExprAST'};
 	} else {
-		carp "UNSUPPORTED STATEMENT FOR FUNCTION CALL: $line ( _create_refactored_function_calls ) " . Dumper($info);
+		croak "TODO: UNSUPPORTED STATEMENT FOR FUNCTION CALL: <$line> ( _create_refactored_function_calls ) " . Dumper($info);
 		$do_not_update = 1;
 	}
 
@@ -1383,8 +1386,9 @@ sub __insert_assignment_for_ex_EQUIVALENCE_vars {
 				# So what I need is @fargs, i.e. $ast->[1]
 				my $args_vars = find_args_vars_in_ast($ast);
 				my $args = $args_vars->[1]{'List'};
-				my $arg_asts = $ast->[2][0] == 27 ? [@{$ast->[2]}] : [ $ast->[2]  ]; 
-				shift @{$arg_asts}; 				
+				# carp Dumper($ast);	
+				my $arg_asts = @{$ast->[2]} ?  $ast->[2][0] == 27 ? [@{$ast->[2]}] : [ $ast->[2]  ] : []; 
+				shift @{$arg_asts} if @{$arg_asts}; 				
 				if (scalar @{$args} > 0 ) { # should be same number as $arg_asts
 					if ($skip==0) {
 						push @{$rlines}, $annline;

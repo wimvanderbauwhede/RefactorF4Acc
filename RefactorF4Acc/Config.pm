@@ -16,7 +16,7 @@ use Exporter;
 $NEW_PARSER
 $V $W $I $DBG $DUMMY $ANN
 $NO $YES $GO
-$UNREAD $INVENTORIED $READ $PARSED $FROM_BLOCK $C_SOURCE $FILE_NOT_FOUND
+$UNREAD $INVENTORIED $READ $PARSED $FROM_BLOCK $C_SOURCE $FILE_NOT_FOUND $UNUSED
 $SOURCEFILES
 $SPLIT_LONG_LINES
 $NO_ONLY
@@ -82,7 +82,7 @@ our $translate         = $NO;
 # The state of each subroutine, function or include
 #   FROM_BLOCK indicates a marked block of code factored out into a subroutine
 #   C_SOURCE means that this source code will be translated to C
-( our $UNREAD, our $INVENTORIED, our $READ, our $PARSED, our $FROM_BLOCK, our $C_SOURCE, our $FILE_NOT_FOUND ) = ( 0 .. 6 ); #  $stref->{$srctype}{$name}{'Status'}
+( our $UNREAD, our $INVENTORIED, our $READ, our $PARSED, our $FROM_BLOCK, our $C_SOURCE, our $FILE_NOT_FOUND , our $UNUSED) = ( 0 .. 7 ); #  $stref->{$srctype}{$name}{'Status'}
 
 our $targetdir = '../RefactoredSources';
 # Config supports the following keys:

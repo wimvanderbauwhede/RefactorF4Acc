@@ -32,7 +32,7 @@ sub _init_emit_all { (my $stref) = @_;
         # if target dir for refactored code does not exist, create it
         # and copy include files into it
     if ( not -e $targetdir ) {
-    	
+    	say "Creating NEWSRCPATH $targetdir" if $V;
         mkdir $targetdir;
         # FIXME: the includes should be taken from $stref->{'IncludeFiles'}
         # But actually, all includes should have been converted to F95 modules!        
@@ -42,7 +42,9 @@ sub _init_emit_all { (my $stref) = @_;
     	# target dir exists. check if subdirs exists
     	my $wd=cwd();
         for my $srcdir (@{ $stref->{'SourceDirs'} }) {
+            
         	if (not -d "$wd/$targetdir/$srcdir") {
+                say "Creating SRCDIR $srcdir inside $targetdir" if $V;    
 				system("mkdir -p $wd/$targetdir/$srcdir"); # FIXME: WEAK! only one level!
         	}
         }        
@@ -54,6 +56,8 @@ sub _init_emit_all { (my $stref) = @_;
 # -----------------------------------------------------------------------------
 sub _emit_refactored_include {
     ( my $f, my $dir, my $stref ) = @_;    
+    # local $I=1;
+    # local $V=1;
     say "INCLUDE: $f" if $I;
     my $srcref = $stref->{'IncludeFiles'}{$f}{'RefactoredCode'};
     my $incsrc=$stref->{'IncludeFiles'}{$f}{'Source'};
@@ -65,16 +69,38 @@ sub _emit_refactored_include {
             say '! '.('=' x 80);
         show_annlines($srcref,0);
         } else {
-        print "INFO: emitting refactored code for include $f in $dir/$incsrc\n" if $V;
+
+        my $nsrc=$incsrc;
+        for my $srcdir (@{$Config{'SRCDIRS'}}) {
+            if (-e "$srcdir/$f") {
+                $nsrc = "$srcdir/$incsrc";
+            } else {
+#   'Source' => 'params_PARALLEL.f90',
+#   'InclType' => 'Parameter',
+#   'Root' => 'PARALLEL',
+                if ($stref->{'IncludeFiles'}{$f}{'InclType'} eq 'Parameter'
+                and exists $stref->{'IncludeFiles'}{$f}{'Root'}
+                ) {
+                    my $orig_f=$stref->{'IncludeFiles'}{$f}{'Root'};
+                    if (-e "$srcdir/$orig_f") {
+                        $nsrc = "$srcdir/$incsrc";
+                    }
+                }                
+            }
+        }            
+        
+        
+
+        print "INFO: emitting refactored code for include $f in $dir/$nsrc\n" if $I;
 #        say "! FILE: $dir/$incsrc";
-        open my $SRC, '>', "$dir/$incsrc" or die "$!: $dir/$incsrc";
+        open my $SRC, '>', "$dir/$nsrc" or die "$!: $dir/$nsrc";
         my $prevline='C ';
         $srcref = create_refactored_source($stref,$f,$srcref);
         for my $annline ( @{$srcref} ) {
         	my $line = $annline->[0];  
             if (not ($prevline =~/^\s*$/ and $line =~/^\s*$/)) {
             print $SRC "$line\n";
-            print "$line\n" if $V;
+            print "$line\n" if $DBG;
             }
             $prevline=$line;
         }
@@ -102,15 +128,28 @@ sub emit_all {
         	next ;
         }
         print '! ','-' x 80,"\n" if $I;
-        print "INFO: emitting refactored code for $src\n" if $I;
+        print "INFO: emitting refactored code for $src\n" if  $I;
         if (not $DUMMY) {
 	        if ( $src =~ /\w\/\w/ ) {
 	            # Source resides in subdirectory, create it if required
 	            my @dirs = split( /\//, $src );
 	            my @subdirs = grep {$_!~/\./} @dirs;
+                for my $srcdir (@{$Config{'SRCDIRS'}}) {
+                    @subdirs = grep {$_!~/$srcdir/} @subdirs;
+                }
 	            my $dirpath=join('/',@subdirs);
-	            
-	            system("mkdir -p $targetdir/$dirpath");
+
+                if (-d $src) {
+                    say "CREATING SUBDIR $targetdir/$dirpath" if $V;
+	                system("mkdir -p $targetdir/$dirpath");                    
+                } else {
+                    pop @subdirs;
+                    my $dirpath=join('/',@subdirs);
+                    if (not -d "$targetdir/$dirpath") {
+                        say "CREATING SUBDIR $targetdir/$dirpath" if $V;
+                        system("mkdir -p $targetdir/$dirpath");                        
+                    }
+                }
 	        }
         }
 	   if ($I) {            
@@ -133,6 +172,13 @@ sub emit_all {
 		if (exists $stref->{'BuildSources'}{'F'}{$src} ) {
 			$nsrc=~s/\.\w+$/$EXT/;
 		}
+        if (exists $stref->{'IncludeFiles'}{$src} ) {
+                for my $srcdir (@{$Config{'SRCDIRS'}}) {
+                    if (-e "$srcdir/$src") {
+                        $nsrc = "$srcdir/$src";
+                    }
+                }            
+        }
 		
 		if ($DUMMY) {
 			say '! '.('=' x 80);
@@ -140,7 +186,7 @@ sub emit_all {
             say '! '.('=' x 80);
         	show_annlines($stref->{'RefactoredCode'}{$src},0);
         } else {
-
+# say "! FILE: $nsrc ($src)";
 			open my $TGT, '>', "$targetdir/$nsrc" or die $!.": $targetdir/$nsrc";
 			
 			my $mod_lines = $stref->{'RefactoredCode'}{$src};
@@ -178,7 +224,7 @@ sub emit_all {
 #    	}
         if ($I) {
         print "! "."=" x 80,"\n";
-        print "! INCLUDE FILE: $f\n";
+        print "! INCLUDE FILE: $f\n";        
         say "! WRITE TO $targetdir";
         print "! "."=" x 80,"\n";
         }

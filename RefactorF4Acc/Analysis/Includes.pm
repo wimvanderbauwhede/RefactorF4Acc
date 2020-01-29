@@ -53,7 +53,9 @@ sub find_root_for_includes {
             say "INFO: $f: INC $inc included from ".join(', ', keys %{$stref->{'IncludeFiles'}{$inc}{'IncludedFrom'}}) if $I;
         } else {
             if ($stref->{'IncludeFiles'}{$inc}{'Source'}  ne 'Virtual') {
-                say "$f: INC $inc not included anywhere in reachable code";
+                say "INFO: $f: INC $inc not included anywhere in reachable code, setting status to UNUSED" if $I;
+                say "WARNING: $f: INC $inc not included anywhere in reachable code, setting status to UNUSED" if $W;
+                $stref->{'IncludeFiles'}{$inc}{'Status'} = $UNUSED;
                 next;
             }
         }

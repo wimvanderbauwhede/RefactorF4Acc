@@ -915,12 +915,14 @@ SUBROUTINE
 # In principle every type can be followed by '*<number>' or *(*) or (<number>)
 #==F77 VarDecl
 			elsif (
-				(				
+				(	
+					
 					$line =~
 /^(logical|complex|byte|integer|real|double\s*(?:precision|complex)|character)\s+([^\*]?.*)\s*$/
 					or $line =~
 /^((?:logical|complex|byte|integer|real|double\s*(?:precision|complex)|character)\s*\(\d+\))([^\*]?.*)\s*$/
-
+					or $line =~
+/^((?:logical|complex|byte|integer|real|double\s*(?:precision|complex)|character)\s*\(kind\s*=\s*.+?\))([^\*]?.*)\s*$/
 					or $line =~
 /^((?:logical|complex|byte|integer|real|double\s*(?:precision|complex)|character)\s*\*(?:\d+|\((?:\*|\w+)\)))\s+(.+)\s*$/
 or $line=~/^character\s*\(\s*len\s*=\s*[\w\*]+\s*\)/
@@ -931,6 +933,7 @@ or $line=~/^character\s*\(\s*len\s*=\s*[\w\*]+\s*\)/
 			  ) {			  	
 				$type   = $1;
 				$varlst = $2;
+				
 				
 				( $Sf, $info ) = __parse_f77_var_decl( $Sf, $stref, $f,$indent, $line, $info, $type, $varlst );
 				$info->{'SpecificationStatement'} = 1;				
@@ -2770,7 +2773,7 @@ sub __parse_f95_decl {
 sub __parse_f77_par_decl {
 	# F77-style parameters
 	( my $Sf, my $stref, my $f,my $indent, my $line, my $info, my $parliststr ) = @_;
-	
+	# say "LINE: $line";
 	my $type   = 'Unknown';
 	my $typed=0;
 	my $attr = '';
@@ -2858,7 +2861,7 @@ sub __parse_f77_par_decl {
 				} else {
 					# say "FOUND PARAM IN: $params_set in $f";
 				}
-								
+				# carp $mpar.':'.Dumper($mpar_rec);
 				my $mtype=$mpar_rec->{'Type'};
 				my $mattr=$mpar_rec->{'Attr'};
 				if ($mtype ne 'integer' and $mtype ne 'complex' or not $typed) {
@@ -3066,6 +3069,8 @@ sub __parse_f77_var_decl {
     }
 	( $pvars, $pvars_lst ) = _parse_F77_decl_NEW( $line );
 	
+
+# croak $line.Dumper($pvars, $pvars_lst ) if $line=~/integer\(KIND=MPI_OFFSET_KIND\)\s*MPI_DISPLACEMENT_CURRENT/i;	
     # For backward compat, remove later. TODO
     $type = $pvars->{$pvars_lst->[0]}{'Type'};
 

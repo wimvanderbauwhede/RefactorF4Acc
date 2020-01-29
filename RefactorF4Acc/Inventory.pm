@@ -129,7 +129,7 @@ sub find_subroutines_functions_and_includes {
     		# And now we must parse C sources too ...
     	} 
 
-        say "INFO: Fortran SOURCE: $src" if $I; 
+        say "DBG: Fortran SOURCE: $src" if $DBG; 
 
     	$stref->{'SourceContains'}{$src}={
     		'Path' => $src_files{$src},
@@ -147,6 +147,7 @@ sub find_subroutines_functions_and_includes {
     
     _add_path_to_includes($stref);
     }
+    
     return $stref;
 }    # END of find_subroutines_functions_and_includes()
 
@@ -155,7 +156,7 @@ sub find_subroutines_functions_and_includes {
 
 sub _process_src {
 	(my $src, my $stref)=@_;
-#	say "_process_src($src)";
+	# say "_process_src($src)";
 	my @extsrcdirs=exists $Config{EXTSRCDIRS} ? @{ $Config{EXTSRCDIRS} } : (); # External sources, should not be refactored but can be parsed
 	my $prefix   = $Config{'PREFIX'};
     my $srctype=''; # sub, func or incl; for F90/95 also module, and then we must tag the module by what it contains
@@ -177,7 +178,7 @@ sub _process_src {
     	$stref->{'SourceFiles'}{$src}{'AnnLines'}=[];
     	$stref->{'SourceFiles'}{$src}{'Path'} =$stref->{'SourceContains'}{$src}{'Path'} ;  
     } else {    	
-    	say "INFO: Already processed $src" if $I;
+    	say "DBG: Already processed $src" if $DBG;
     	return $stref;
     }
     open my $SRC, '<', $src;
@@ -497,6 +498,7 @@ sub _process_src {
                     	for my $ext_dir (@extsrcdirs) {
                     		if (-e "$prefix/$ext_dir/$inc") { 
                     			$stref->{'IncludeFiles'}{$inc}{'ExtPath'} =  "$prefix/$ext_dir/$inc";
+                                say "INC SRC PATH $src_path";
                     			$stref->{'SourceContains'}{$src_path}={
                     				'Inc' => $inc,
                     				'Path' => { 'Ext' => "$prefix/$ext_dir/$inc"},                    				

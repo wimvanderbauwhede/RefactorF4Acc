@@ -45,6 +45,9 @@ sub determine_argument_io_direction_rec {
         print "\t" x $c, $f, "\n";
     }
 
+    push @{ $stref->{'CallStack'} }, $f;
+    my %subs = map {$_=>1} @{ $stref->{'CallStack'} }; 
+
     my $Sf = $stref->{'Subroutines'}{$f};
 
     if (exists $Sf->{'CalledSubs'}{'List'} and scalar @{$Sf->{'CalledSubs'}{'List'}} > 0) {
@@ -54,6 +57,10 @@ sub determine_argument_io_direction_rec {
                 $calledsub = $stref->{'Entries'}{$called_sub_or_entry};
             }
             next if exists $stref->{'ExternalSubroutines'}{$calledsub};    # Don't descend into external subs
+            if (exists $subs{$calledsub}) {
+				say "WARNING: LOOP for $calledsub: ".join(', ', @{ $stref->{'CallStack'} }) if $W;
+				next;
+			}
             $stref->{Counter}++ if $V;
             $stref = determine_argument_io_direction_rec($stref, $calledsub);
             $stref->{Counter}-- if $V;
@@ -260,7 +267,7 @@ sub _find_vars_w_iodir {
 sub _analyse_src_for_iodirs {
     (my $stref, my $f) = @_;
 
-    #    local $W=1;local $V=1;
+    #    local $W=1;local $V=1
 
     print "_analyse_src_for_iodirs() $f\n" if $V;
     my $Sf = $stref->{'Subroutines'}{$f};
@@ -828,9 +835,15 @@ sub _get_iodirs_from_subcall {
                       if $called_arg_iodirs->{$ref_arg} eq 'Unknown' and $I;
                     next;
                 }
-                if (exists $argmap->{$ref_arg}) {
-                    say "INFO: SKIPPING $ref_arg in $f, is ORIG SIG ARG (call arg: " . $argmap->{$ref_arg} . ')'
-                      if $I;    # if $called_arg_iodirs->{$ref_arg} eq 'Unknown' and $I;
+                if (exists $argmap->{$ref_arg} ) {
+                    if ($I) {
+                                if(defined $argmap->{$ref_arg}) {
+                                    say "INFO: SKIPPING $ref_arg in $f, is ORIG SIG ARG (call arg: " . $argmap->{$ref_arg} . ')' if $I;    
+                                } else {
+                                    say "INFO: SKIPPING $ref_arg in $f, is ORIG SIG ARG (call arg: UNDEFINED)" if $I;    
+                                }
+                    }
+                    
                     next;
                 }
                 if (ref($Sname->{'RefactoredArgs'}{'Set'}{$ref_arg}) ne 'HASH'
