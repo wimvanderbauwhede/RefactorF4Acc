@@ -70,7 +70,10 @@ sub get_macro_defs_from_file { (my $macros_src)=@_;
 	    $line=~s/\s*$//;
         $line=~s/^\s*#(\w+)\s+//;
         my $cmd = $1;
-        $line=~s/\s+//;
+		
+        $line=~s/\s+$//;
+		$line=~s/^\s+//;
+		
         if ($cmd eq 'define') {
         	$line=~s/\#define\s*//;
         	$line=~s/\s+(\d+)/=$1/;

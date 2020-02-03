@@ -584,6 +584,7 @@ To support this we need yet another sigil.
 
 # parse_expression_no_context :: String -> (AST,String,Error,HasFuncs)
 sub parse_expression_no_context { (my $str)=@_;	
+
     my $max_lev=11; # levels of precedence
     my $prev_lev=0;
     my $lev=0;
@@ -747,7 +748,8 @@ sub parse_expression_no_context { (my $str)=@_;
         else {          
             # Here we return with an error value
             # What I could do is say:
-            # if the next token is ':' or the pending op is ':'            
+            # if the next token is ':' or the pending op is ':'
+            carp "STR:$str" if not defined $op;
             if($str=~/^\s*:/ or $op == 12) {
                 $expr_ast=[35,'']
             } else { # error

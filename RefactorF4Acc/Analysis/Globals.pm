@@ -214,7 +214,9 @@ sub lift_globals {
 	                # FIXME: the InheritedParams are for ANY new arg, not just ex-glob args!
 	                
 	                for my $var (@{ $Scsub->{'ExGlobArgs'}{'List'} } ) {
+						# carp "$f $var ".Dumper($Scsub->{'ExGlobArgs'}{'Set'}{$var}) if $var eq 'ev';
 	                	if (exists $Scsub->{'ExGlobArgs'}{'Set'}{$var}{'InheritedParams'}) {
+							
 	                		my $all_inherited_parameters = _get_all_inherited_parameters(
 	                			$Scsub,
         						$Scsub->{'ExGlobArgs'}{'Set'}{$var}{'InheritedParams'}{'Set'},
@@ -227,7 +229,7 @@ sub lift_globals {
         						if (not exists $Scsub->{$subset}{'Set'}{$par}{'Indent'}) {
 #        							carp "$par: $f <$csub> <$subset> ".Dumper($Scsub->{$subset}{'Set'}{$par}) ;
         						} else {
-        							$Sf->{'InheritedParameters'}{'Set'}{$par}=dclone($Scsub->{$subset}{'Set'}{$par});
+        							$Sf->{'InheritedParameters'}{'Set'}{$par}=dclone($Scsub->{$subset}{'Set'}{$par});									
         						}
         					}	
 	                	}
@@ -259,8 +261,10 @@ sub _get_all_inherited_parameters { (my $Sf,my $pars, my $all_inherited_paramete
 	    and exists $Sf->{$subset}{'Set'}{$par}{'InheritedParams'}{'Set'}) { 
 	        $all_inherited_parameters = { %{$all_inherited_parameters}, %{ $Sf->{$subset}{'Set'}{$par}{'InheritedParams'}{'Set'} } };
 	        $all_inherited_parameters = _get_all_inherited_parameters($Sf, $Sf->{$subset}{'Set'}{$par}{'InheritedParams'}{'Set'},$all_inherited_parameters);
+			# carp 'EXISTS: '.Dumper($all_inherited_parameters);
 	    } else {
-	        $all_inherited_parameters->{$par}=1; 
+			# carp 'NOT EXISTS: '.Dumper($pars->{$par}) ;
+	        $all_inherited_parameters->{$par}=$pars->{$par}; #croak 'HERE IS THE PROBLEM!';
 	    }
 	}
 	return $all_inherited_parameters;

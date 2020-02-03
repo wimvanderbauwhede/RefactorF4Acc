@@ -627,7 +627,7 @@ SUBROUTINE
 		 elsif ( $line =~ /^common\s*\/\s*([\w\d]+)\s*\/\s*(.+)$/ or 
 				$line =~ /^(common)\s+(.+)$/ 
 		 ) {
-#		 	say "LINE $line";
+		 	
              # WV this is weak/incorrect because we can have              
              # COMMON [/[ cb ]/] nlist [[,]/[ cb ] / nlist ]
              # So the good way is to split on '/' first, like in the DATA statement
@@ -642,11 +642,16 @@ SUBROUTINE
 #				say "COMMON for $f: $commonlst";
                 $info->{'SpecificationStatement'} = 1; 
                 $info->{'HasVars'} = 1; 
+				
 				( my $parsedvars, my $parsedvars_lst ) = f77_var_decl_parser( $commonlst, 0 );
+				# say "LINE $line <".Dumper($parsedvars, $parsedvars_lst).'>' if $f eq 'spec_bis_conn';
+
 #				croak $line.':'.Dumper($parsedvars) if $line=~/iacn11/ and $f eq 'ff305';				
 				for my $var ( @{$parsedvars_lst} ) {	
 #					my $subset;
 					$Sf->{'Commons'}{$var} = $var;
+					my $var_decl={};
+					my $subset='';
 					if ( not in_nested_set( $Sf, 'Vars', $var ) ) {    # This means that it is an undeclared common
 							print "INFO: common <", $var, "> typed via Implicits for $f\n" if $I;
 							my @type_kind_attr =
@@ -665,11 +670,11 @@ SUBROUTINE
 								'ArrayOrScalar' => $parsedvars->{$var}{'ArrayOrScalar'},
 								'CommonBlockName' => $common_block_name
 							};
-							
+							$decl=__get_params_from_dim($decl,$Sf);
 							$Sf->{'UndeclaredCommonVars'}{'Set'}{$var} = $decl;
 							push  @{ $Sf->{'UndeclaredCommonVars'}{'List'} },$var;
 							say "INFO: DECLARED COMMON VAR $var from $f, was typed via implicit rules" if $I;							
-																
+
 					} else { # Means the var is already declared. So just use the existing declaration						
 						# As this is a common it can't be an argument
 						if (exists $Sf->{'DeclaredOrigLocalVars'}{'Set'}{$var} ){
@@ -694,6 +699,8 @@ SUBROUTINE
 							delete $Sf->{'DeclaredOrigLocalVars'}{'Set'}{$var};
 							@{ $Sf->{'DeclaredOrigLocalVars'}{'List'} } = grep { $_ ne $var } @{ $Sf->{'DeclaredOrigLocalVars'}{'List'} };
 							push @{ $Sf->{'DeclaredCommonVars'}{'List'} }, $var;
+							$var_decl=$decl;
+							$subset='DeclaredCommonVars';
 						}
 						elsif (exists $Sf->{'UndeclaredOrigLocalVars'}{'Set'}{$var} ){
 							my $decl = $Sf->{'UndeclaredOrigLocalVars'}{'Set'}{$var};
@@ -711,7 +718,7 @@ SUBROUTINE
 							) {
 								croak "This should be an error: dimension of $var speficied both in VarDecl and Common";
 							}
-							
+							$decl=__get_params_from_dim($decl,$Sf);
 							$Sf->{'DeclaredCommonVars'}{'Set'}{$var} = exists $Sf->{'Program'} ? $decl : dclone($decl);
 							$Sf->{'DeclaredCommonVars'}{'Set'}{$var}{'CommonBlockName'} = $common_block_name;
 							if (not exists $Sf->{'Program'} ) {
@@ -720,36 +727,36 @@ SUBROUTINE
 							}
 							push @{ $Sf->{'DeclaredCommonVars'}{'List'} }, $var;
 						}
-						elsif (exists $Sf->{'UndeclaredCommonVars'}{'Set'}{$var} ){
-							# So if a variable was common and initially undeclared, it could mean that it was declared via implicits in another subroutine
-							# Maybe I should initially do nothing then. 
-							# Or I could add it to DeclaredCommonVars, but I need to check how this is used
-							if (0) {
-							my $decl = $Sf->{'UndeclaredCommonVars'}{'Set'}{$var};
-#							say Dumper($decl).'<>'.Dumper($parsedvars->{$var});
-							if (
-							     (not exists $decl->{'ArrayOrScalar'} or
-								 $decl->{'ArrayOrScalar'} eq 'Scalar') and 
-								 $parsedvars->{$var}{'ArrayOrScalar'} eq 'Array'
-							) {								
-								$decl->{'Dim'} =  [ @{ $parsedvars->{$var}{'Dim'} } ];	
-							} elsif (
-							exists $decl->{'ArrayOrScalar'} and
-								$decl->{'ArrayOrScalar'} eq 'Array' and 
-								$parsedvars->{$var}{'ArrayOrScalar'} eq 'Array'							
-							) {
-								croak "This should be an error: dimension of $var speficied both in VarDecl and Common";
-							}
+# 						elsif (exists $Sf->{'UndeclaredCommonVars'}{'Set'}{$var} ){
+# 							# So if a variable was common and initially undeclared, it could mean that it was declared via implicits in another subroutine
+# 							# Maybe I should initially do nothing then. 
+# 							# Or I could add it to DeclaredCommonVars, but I need to check how this is used
+# 							if (0) {
+# 							my $decl = $Sf->{'UndeclaredCommonVars'}{'Set'}{$var};
+# #							say Dumper($decl).'<>'.Dumper($parsedvars->{$var});
+# 							if (
+# 							     (not exists $decl->{'ArrayOrScalar'} or
+# 								 $decl->{'ArrayOrScalar'} eq 'Scalar') and 
+# 								 $parsedvars->{$var}{'ArrayOrScalar'} eq 'Array'
+# 							) {								
+# 								$decl->{'Dim'} =  [ @{ $parsedvars->{$var}{'Dim'} } ];									
+# 							} elsif (
+# 							exists $decl->{'ArrayOrScalar'} and
+# 								$decl->{'ArrayOrScalar'} eq 'Array' and 
+# 								$parsedvars->{$var}{'ArrayOrScalar'} eq 'Array'							
+# 							) {
+# 								croak "This should be an error: dimension of $var speficied both in VarDecl and Common";
+# 							}
 							
-							$Sf->{'DeclaredCommonVars'}{'Set'}{$var} = exists $Sf->{'Program'} ? $decl : dclone($decl);
-							$Sf->{'DeclaredCommonVars'}{'Set'}{$var}{'CommonBlockName'} = $common_block_name;
-							if (not exists $Sf->{'Program'} ) {
-							delete $Sf->{'UndeclaredCommonlVars'}{'Set'}{$var};
-							@{ $Sf->{'UndeclaredCommonlVars'}{'List'} } = grep { $_ ne $var } @{ $Sf->{'UndeclaredCommonlVars'}{'List'} };
-							}
-							push @{ $Sf->{'DeclaredCommonVars'}{'List'} }, $var;
-							}
-						}						
+# 							$Sf->{'DeclaredCommonVars'}{'Set'}{$var} = exists $Sf->{'Program'} ? $decl : dclone($decl);
+# 							$Sf->{'DeclaredCommonVars'}{'Set'}{$var}{'CommonBlockName'} = $common_block_name;
+# 							if (not exists $Sf->{'Program'} ) {
+# 							delete $Sf->{'UndeclaredCommonlVars'}{'Set'}{$var};
+# 							@{ $Sf->{'UndeclaredCommonlVars'}{'List'} } = grep { $_ ne $var } @{ $Sf->{'UndeclaredCommonlVars'}{'List'} };
+# 							}
+# 							push @{ $Sf->{'DeclaredCommonVars'}{'List'} }, $var;
+# 							}							
+# 						}						
 						else {
 							my $subset = in_nested_set( $Sf, 'Vars', $var );
 							if ($subset ne 'DeclaredCommonVars') {
@@ -759,7 +766,6 @@ SUBROUTINE
 							}
 						}						
 					}
-#					croak Dumper($Sf->{'DeclaredCommonVars'}{'Set'}{'alat'}) if $f eq 'atmos' and $var eq 'alat';
 				} # for loop 
 				
 				$info->{'Common'} = { 'Name' => $common_block_name , 'Vars' => 
@@ -906,11 +912,16 @@ SUBROUTINE
 #@        Indent    => $indent
 #@        Type      => $type
 #@        Attr      => $attr
-#@        Dim'       => []
+#@        Dim       => []
 #@        Parameter => 'parameter'
+#@		  InheritedParams => $inherited_params
 #@        Names     => [@var_vals]
 #@        Status    => 0         
-	 			 	
+#@        Var    => $var
+#@        Val    => $val
+#@        Ast    => $ast
+# $inherited_params => 
+
 # Actual variable declaration line (F77)
 # In principle every type can be followed by '*<number>' or *(*) or (<number>)
 #==F77 VarDecl
@@ -1252,7 +1263,10 @@ END IF
 #@     List => []
 #@     Set => {}
 #@ ImpliedDoVars => $call_args	
-			if ( $mline =~ /^(read|accept|inquire|write|type|print)(?:\s*\(|\s+)/ ) {				
+			if ( 
+				$mline !~ /^(?:read|accept|inquire|write|type|print)\s*=/  and
+				$mline =~ /^(read|accept|inquire|write|type|print)(?:\s*\(|\s+)/ 			
+			) {				
 				my $keyword = $1;
 				$info->{ ucfirst($keyword) . 'Call' } = 1;
 				$info->{'IO'}=1;
@@ -2868,7 +2882,8 @@ sub __parse_f77_par_decl {
 					$type = $mtype;
 					$typed=1;
 				}				
-				$inherited_params->{'Set'}{$mpar}=1;
+				$inherited_params->{'Set'}{$mpar}=$mpar_rec;
+				croak if ref($mpar_rec) ne 'HASH';
 			}
 			
 			# the pars could be integers, see if the consts in the val_ast might be reals or PlaceHolder
@@ -2924,124 +2939,7 @@ sub __parse_f77_par_decl {
 					# croak Dumper($param_decl) if $var eq 'icp001';
 		$Sf->{'LocalParameters'}{'Set'}{$var}=$param_decl;		
 	}
-# if (0) { # OBSOLETE
-# 	my @partups = _parse_comma_sep_expr_list( $parliststr ); 
-# 	my %pvars = map { split( /\s*=\s*/, $_ ) } @partups;    # Perl::Critic, EYHO
-# 	my @var_vals = map { ( my $k, my $v ) = split( /\s*=\s*/, $_ ); [ $k, $v ] } @partups; # Perl::Critic, EYHO
-# 	my @pvarl = map { my $str=$_; $str=~s/\s*=.+//; $str } @partups;
-# 	my $pars = [];
 
-# 	my $pars_in_val = {};
-	
-# 	for my $var (@pvarl) {
-# 		my $pars_in_val_for_var = {};
-# 		croak if ref($var) eq 'ARRAY';
-# 		if ( not in_nested_set $Sf, 'LocalVars', $var ) { 
-# 			if ( exists $pvars{$var} ) {
-
-# 				my $val             = $pvars{$var};
-# 				my $pars_in_val_tmp = ___check_par_val_for_pars($val);
-# 				$type = 'Unknown';
-# 				$attr='';
-# 				if ( $val =~ /^\-?\d+$/ ) {
-# 					$type = 'integer';
-# 				} elsif ( $val =~ /^(\-?(?:\d+|\d*\.\d*)(?:[edq][\-\+]?\d+)?)$/ ) {					
-# 					$type = 'real';
-# 				} elsif ( $val =~/[\*\+\-\/]/ ) { # an expression 
-# 						my $ast = parse_expression($val, $info, $stref, $f);
-# 						my $consts = get_consts_from_expression($ast,{});
-# 						for my $const_type (values %{$consts}) {
-# 							if ($const_type eq 'real') {
-# 								$type = 'real';
-# 								last;
-# 							} elsif ($const_type ne 'Unknown') {
-# 								$type=$const_type;
-# 							}
-# 						}
-# 				} elsif ( $val =~ /^[\"\'].+[\'\"]$/ ) {
-# 					my $nchars = length ($val) -2;
-# 					$attr = "(len=$nchars)";
-# 					$type = 'character';		
-# 				} elsif ( $val =~ /^(__PH\d+__)$/ ) {
-# 					my $ph =$1;
-# 					my $tval = $info->{'PlaceHolders'}{$ph};
-# 					my $nchars = length ($tval) -2;
-# 					$attr = "(len=$nchars)";
-# 					$type = 'character';									
-# 				} else {
-# 					for my $mpar ( keys %{$pars_in_val_tmp} ) {
-# 						my $mpar_rec = get_var_record_from_set( $Sf->{'Parameters'}, $mpar );
-# 						$type = $mpar_rec->{'Type'};						
-# 					}
-# 				}
-# 				$pars_in_val_for_var = { %{$pars_in_val_for_var}, %{$pars_in_val_tmp} };
-				
-# 				$Sf->{'LocalParameters'}{'Set'}{$var} = {
-# 					'Type' => $type,
-# 					'Var'  => $var,
-# 					'Val'  => $val,
-# 					'Attr' => $attr,
-# 					'DEBUG' => 1,
-# 			        'Indent'    => $indent,
-#         			'Dim'       => [],
-#         			'Parameter' => 'parameter',
-#         			'Status'    => 0     
-# 				};
-# 				say "INFO: LOCAL PARAMETER $var infered type: $type $var = $val" if $I;
-# 				push @{$pars}, $var;
-# 			} else {
-# 				say "WARNING: no VAL for VAR $var ($line)" if $W;
-# 			}
-# 		} else {
-# 			my $var_rec = get_var_record_from_set( $Sf->{'LocalVars'}, $var );
-			
-# 			$type = $var_rec->{'Type'};
-# 			$attr = $var_rec->{'Attr'};
-# 			$Sf->{'LocalParameters'}{'Set'}{$var} = {
-# 				'Type' => $type,
-# 				'Var'  => $var,
-# 				'Val'  => $pvars{$var},
-# 				'Attr' => $attr,
-# 				'DEBUG' => 2,
-#         		'Indent'    => $indent,
-#         		'Dim'       => [],
-#         		'Parameter' => 'parameter',
-#         		'Status'    => 0        				
-# 			};
-
-# 			my $val = $pvars{$var};
-# 			$pars_in_val_for_var =
-# 			  { %{$pars_in_val_for_var}, %{ ___check_par_val_for_pars($val) } };
-# 			push @{$pars}, $var;
-# 		}				
-# 		for my $mpar ( keys %{$pars_in_val_for_var} ) {
-# 			next if $mpar eq '';
-# 			next if exists $F95_intrinsic_functions{$mpar}; 
-# 			my $mpar_rec = get_var_record_from_set( $Sf->{'Parameters'}, $mpar );												
-# 			$Sf->{'LocalParameters'}{'Set'}{$var}{'InheritedParams'}{'Set'}{$mpar}=1;
-# 		}
-# 		$pars_in_val = { %{$pars_in_val}, %{$pars_in_val_for_var} };
-# 	}
-
-# 	$info->{'UsedParameters'} = $pars_in_val;
-# 	$info->{'ParamDecl'}      = {
-# 		'Indent'    => $indent,
-# 		'Type'      => $type,
-# 		'Attr'      => $attr,
-# 		'Dim'       => [],
-# 		'Parameter' => 'parameter',
-# 		'Names'     => [@var_vals],
-# 		'Status'    => 0,
-# 		'DEBUG' => 4,		 
-# 	};
-	
-# 	@{ $Sf->{'LocalParameters'}{'List'} } =  ( @{ $Sf->{'LocalParameters'}{'List'} }, @{$pars} );
-# #	for my $var (@{$pars}) {
-# #	say $f,$var,$Sf->{'LocalParameters'}{'Set'}{$var}{'Attr'};
-# #	}
-# #croak Dumper($Sf) if $f eq 'printer.inc' and $line=~/MAXOPENFILES/i;
-
-# } # OBSOLETE
 	return ( $Sf, $info );
 
 }    # END of __parse_f77_par_decl()
@@ -3050,7 +2948,7 @@ sub __parse_f77_par_decl {
 # TODO: F95 decls should not be parsed by a routine named __parse_f77_var_decl !!! 
 sub __parse_f77_var_decl {
 	( my $Sf, my $stref, my $f,my $indent,  my $line, my $info, my $type, my $varlst ) = @_;
-		
+		croak $line if $f eq 'spec_bis_conn' and  $line=~/ev\(mm\*mm/; 
     my $is_module = (exists $stref->{'Modules'}{$f}) ? 1 : 0;
     # Half-baked F95/F77 declarations are threated as F77, so remove the :: here
     my $half_baked = ($line=~s/\:://);
@@ -3167,9 +3065,11 @@ sub __parse_f77_var_decl {
 		if ($common_block_name ne '') {
 			$decl->{'CommonBlockName'} = $common_block_name;
 		}
+		
 		if (exists $pvars->{$tvar}{'InheritedParams'}) {
 			for my $mpar (keys %{ $pvars->{$tvar}{'InheritedParams'}{'Set'} }) {
-				$decl->{'InheritedParams'}{'Set'}{$mpar}=1;
+				$decl->{'InheritedParams'}{'Set'}{$mpar}=$pvars->{$tvar}{'InheritedParams'}{'Set'}{$mpar};
+				croak if ref($pvars->{$tvar}{'InheritedParams'}{'Set'}{$mpar}) ne 'HASH';
 			}
 		}
 				
@@ -3179,13 +3079,16 @@ sub __parse_f77_var_decl {
 					my @mpars = split(/\W+/, $mexpr);
 					for my $mpar (@mpars) {
 						if (defined $mpar and in_nested_set($Sf,'Parameters',$mpar) ) {
-	         				$decl->{'InheritedParams'}{'Set'}{$mpar}=1;
+							my $subset = in_nested_set($Sf,'Parameters',$mpar);
+							my $pdecl = get_var_record_from_set($Sf->{$subset},$mpar);
+	         				$decl->{'InheritedParams'}{'Set'}{$mpar}=$pdecl;
+							 croak if ref($pdecl) ne 'HASH';
 	         			}				
 					}
 				}
 			}
 		} 						
-
+croak Dumper($pvars->{$tvar})."\nDECL:<".Dumper($decl).'>' if $tvar eq 'ev' and $f eq 'spec_bis_conn';
 		push @varnames, $tvar;
 		
 # When we encounter UndeclaredOrigArgs we make them DeclaredOrigArgs
@@ -4594,6 +4497,28 @@ sub _get_var_val_pairs { my ($ast) = @_;
 	
 	return $var_val_pairs;
 }
+
+
+sub __get_params_from_dim { my ($decl, $Sf)=@_;
+	my $dim=$decl->{'Dim'};
+	if (scalar @{$dim}>=1) {
+		for my $dimpair (@{$dim}) {
+			for my $mexpr ( @{$dimpair} ) {
+				my @mpars = split(/\W+/, $mexpr);
+				for my $mpar (@mpars) {
+					if (defined $mpar and in_nested_set($Sf,'Parameters',$mpar) ) {
+						my $subset = in_nested_set($Sf,'Parameters',$mpar);
+						my $pdecl = get_var_record_from_set($Sf->{$subset},$mpar);
+						
+						$decl->{'InheritedParams'}{'Set'}{$mpar}=$pdecl;
+						croak if ref($pdecl) ne 'HASH';
+					}				
+				}
+			}
+		}
+	} 	
+	return $decl;
+} # END of __get_params_from_dim
 
 1;
 

@@ -14,7 +14,7 @@ $VERSION = "1.2.0";
 use warnings;
 use warnings FATAL => qw(uninitialized);
 use strict;
-use Carp qw(croak carp longmess shortmess);
+use Carp qw(croak carp confess longmess shortmess);
 use Data::Dumper;
 #$Data::Dumper::Indent = 0;
 

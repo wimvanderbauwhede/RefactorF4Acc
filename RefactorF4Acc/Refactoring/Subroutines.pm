@@ -505,6 +505,10 @@ sub _create_extra_arg_and_var_decls {
 			say "INFO VAR in $f: IODir for $var: " . $Sf->{'ExGlobArgs'}{'Set'}{$var}{'IODir'}
 			  if $I and not $Sf->{'Program'};
 			my $rdecl = $Sf->{'ExGlobArgs'}{'Set'}{$var};
+			
+			(my $inherited_param_decls, $Sf) = __generate_inherited_param_decls($rdecl, $Sf, $f,[]);
+			# say "VAR $var in $f";
+			# map { say $_->[0] } @{$inherited_param_decls};
 			my $rline = emit_f95_var_decl($rdecl);
 			my $info  = {};
 			$info->{'Ann'}     = [ annotate( $f, __LINE__ . ' : EX-GLOB ' . $annline->[1]{'ExGlobVarDeclHook'} ) ];
@@ -512,7 +516,9 @@ sub _create_extra_arg_and_var_decls {
 			$info->{'Ref'}     = 1;
 			$info->{'VarDecl'} = { 'Name' => $var };                                                                  #$rdecl;
 			$info->{'ArgDecl'} = 1;
+			@{$rlines}=(@{$rlines},@{$inherited_param_decls});
 			push @{$rlines}, [ $rline, $info ];
+			
 		}
 	}    # for
 
@@ -935,8 +941,8 @@ sub _create_refactored_function_calls {
 		$ast = $info->{'Rhs'}{'ExpressionAST'};
 	} elsif ( exists $info->{'SubroutineCall'} ) {
 		$ast = $info->{'SubroutineCall'}{'ExpressionAST'};
-	} elsif ( exists $info->{'IfThen'} ) {
-		# and if-then-else
+	} elsif ( exists $info->{'If'} ) {
+		# an if or if-then-else
 		$ast = $info->{'CondExecExprAST'};
 	} else {
 		croak "TODO: UNSUPPORTED STATEMENT FOR FUNCTION CALL: <$line> ( _create_refactored_function_calls ) " . Dumper($info);
@@ -1305,8 +1311,8 @@ sub _add_ExMismatchedCommonArg_assignment_lines {
 			$first_vardecl = 0;
 			for my $rline ( @{ $stref->{'Subroutines'}{$f}{'ExMismatchedCommonArgs'}{'ArgAssignmentLines'} } ) {
 
-				#        		say "ADDING LINE ".$rline->[0]." to $f ";
-				push @{$rlines}, $rline;
+				       		say "ADDING LINE ".$rline->[0]." to $f ";
+				push @{$rlines}, $rline ;
 			}
 		}
 
@@ -1321,7 +1327,7 @@ sub _add_ExMismatchedCommonArg_assignment_lines {
 			#			carp "Found location for reverse assignments in $f: $line";
 			for my $rline ( @{ $stref->{'Subroutines'}{$f}{'ExMismatchedCommonArgs'}{'ArgRevAssignmentLines'} } ) {
 
-				#		        		say "ADDING LINE ".$rline->[0]." to $f ";
+						        		say "ADDING LINE ".$rline->[0]." to $f ";
 				push @{$rlines}, $rline;
 			}
 
@@ -1468,11 +1474,16 @@ sub _change_EQUIVALENCE_to_assignment_lines_for_ExCommonArgs {
 			if ( ( $ast->[0] & 0xFF ) == 0 ) {
 
 				# a single tuple, ['(',[',',@vs]]
-				( $rline, $exEquivAssignmentLines, $postUpdateAssignmentLines, $equiv_pairs ) =
+				( $rline, $exEquivAssignmentLines, $postUpdateAssignmentLines, $equiv_pairs, my $replaced ) =
 				  __refactor_EQUIVALENCE_line( $stref, $f, $ast, 
 				  $exEquivAssignmentLines, $postUpdateAssignmentLines, $annline, $equiv_pairs );
+				  if ($replaced) {
 				$info->{'Deleted'} = 1;
 				push @{$rlines}, [ '!' . $line, $info ];
+				  } else {
+					#   croak 'HERE!';
+					  push @{$rlines}, $annline;
+				  }
 			} elsif ( ( ( $ast->[0] & 0xFF ) == 27 )
 				&& ( ( $ast->[1][0] & 0xFF ) == 0 ) )
 			{
@@ -1566,6 +1577,7 @@ sub __refactor_EQUIVALENCE_line {
 		my $var_name = $ast->[1]; # the name
 		my $indexed_array_expr = $ast->[0] == 10 ? 1 : 0;
 		my $var = $indexed_array_expr ? emit_expr_from_ast($ast) : $var_name; 
+		
 		if ( exists $equiv_pairs->{$var} ) {
 			# must check if that one was indexed with the same index
 # For proper transitivity, the array expressions must be the same 
@@ -1639,7 +1651,7 @@ sub __refactor_EQUIVALENCE_line {
 	#     1 2 3 4
 	# 1 2 3 4 5 6 7 8
 	# } else reverse the whole thing
-	
+	my $replaced=1; # We assume we will replace the EQUIVALENCE 
 	for my $pair (@pairs) {
 		my $ast1 = $pair->[0];
 		my $ast2 = $pair->[1];
@@ -1652,6 +1664,11 @@ sub __refactor_EQUIVALENCE_line {
 		my $v2_is_array = ( exists $var2_decl->{'ArrayOrScalar'} and ( $var2_decl->{'ArrayOrScalar'} eq 'Array' ) ) ? 1 : 0;
 		my $v1_type = $var1_decl->{'Type'};
 		my $v2_type = $var2_decl->{'Type'};
+		if (@pairs==1 and $v1_type eq 'character' and $v2_type ne 'character' ) {
+			# croak Dumper($pair);
+			$replaced=0;
+			last;
+		}
 		my $v1          = $v1_is_array ? emit_expr_from_ast($ast1) : $var1;
 		my $v2          = $v2_is_array ? emit_expr_from_ast($ast2) : $var2;
 		
@@ -1690,15 +1707,36 @@ sub __refactor_EQUIVALENCE_line {
 		} elsif ( not $v1_is_array and $v2_is_array ) {
 			
 			if ( $v1_type ne 'complex') {
-	
+				if ( $v1_type ne 'character') {
 				# v2 is an array, v1 is a scalar. So if v2 is not indexed, we have a mismatch
 				if ( $v2 eq $var2 ) {
+					
 					my $start_idx2 = join( ',', map { $_->[0] } @{ $var2_decl->{'Dim'} } );
 					$v1_v2_pair = [ $v1, "$v2($start_idx2)" ];    #
 					$v2_v1_pair = ["$v2($start_idx2)", $v1];
+					croak 'HERE: '.$v1_type.';'.$v1_v2_pair->[1];
 					$ann=annotate( $f, __LINE__  );
 				} else {
 					$ann=annotate( $f, __LINE__  );
+				}
+				} else {
+				# v2 is an array, v1 is a character string. We need to see if the string size
+				# and array size in bytes are the same.
+				# The question is what it should become of course
+				#       integer fnami (33)
+      			#		character*132 fname,re2fle
+      			#		equivalence (fname,fnami)
+			    # fname = fnami ?!?
+				# So how to cast a character string to an array of integers?
+				if ( $v2 eq $var2 ) {					
+					my $start_idx2 = join( ',', map { $_->[0] } @{ $var2_decl->{'Dim'} } );
+					$v1_v2_pair = [ $v1, "$v2($start_idx2)" ];    #
+					$v2_v1_pair = ["$v2($start_idx2)", $v1];
+					# croak 'HERE: '.$v1_type.';'.$v1_v2_pair->[1];
+					$ann=annotate( $f, __LINE__  );
+				} else {
+					$ann=annotate( $f, __LINE__  );
+				}					
 				}
 			} 			# else it means v2 was already indexed
 		} elsif ( $v1_is_array and $v2_is_array ) {
@@ -1821,7 +1859,8 @@ sub __refactor_EQUIVALENCE_line {
 			$exEquivAssignmentLines = [ @{$exEquivAssignmentLines}, @{$assign_v1_to_v2} ];    #
 		}
 	}
-	return ( $rline, $exEquivAssignmentLines, $postUpdateAssignmentLines, $equiv_pairs );
+
+	return ( $rline, $exEquivAssignmentLines, $postUpdateAssignmentLines, $equiv_pairs, $replaced );
 }    # END of __refactor_EQUIVALENCE_line
 
 sub _emit_refactored_signatures {
@@ -1955,5 +1994,27 @@ sub _move_StatementFunctions_after_SpecificationStatements { my ( $stref, $f, $a
 	
 }
 
-
+sub __generate_inherited_param_decls { my ($rdecl, $Sf, $f, $inherited_param_decls) = @_;	
+	if (exists $rdecl->{'InheritedParams'}) {
+		for my $inh_par (sort keys %{ $rdecl->{'InheritedParams'}{'Set'} }) {
+			# say $inh_par;
+				my $subset = in_nested_set( $Sf, 'Parameters', $inh_par );
+				if (not $subset) {
+					# say "PAR $inh_par NOT in any subset in $f ";
+					my $par_decl = $rdecl->{'InheritedParams'}{'Set'}{$inh_par};
+					my $par_decl_line = [ '      ' . emit_f95_var_decl($par_decl), { 'ParamDecl' => $par_decl, 'Ref' => 1 } ];
+					push @{$inherited_param_decls}, $par_decl_line;
+					 
+					$Sf->{'LocalParameters'}{'Set'}{$inh_par}=$par_decl;
+					if (exists $par_decl->{'InheritedParams'} and scalar keys %{$par_decl->{'InheritedParams'}{'Set'}}> 0) {
+						($inherited_param_decls, $Sf) =__generate_inherited_param_decls($par_decl, $Sf, $f, $inherited_param_decls);		
+					}
+				}
+				#  else {
+				# 	say "PAR $inh_par in subset $subset in $f";
+				# }
+		}
+	}
+	return ($inherited_param_decls, $Sf);
+} # END of __generate_inherited_param_decls
 1;

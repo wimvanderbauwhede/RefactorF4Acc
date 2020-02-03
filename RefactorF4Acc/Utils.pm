@@ -628,10 +628,12 @@ sub remove_var_decl_from_set { (my $Sf, my $set, my $var)=@_;
 
 
 sub get_var_record_from_set { (my $set, my $var)=@_;
-# carp $var.Dumper($set);
+# carp  "VAR $var => SET: ".Dumper($set);
     my %vars=();
      if (exists $set->{'Subsets'} ) {
+        #  say "SUBSET ".Dumper($set->{'Subsets'});
         for my $subset (keys %{  $set->{'Subsets'} } ) {            
+            # say "SUBSET $subset";
             my $vars_ref= get_vars_from_set($set->{'Subsets'}{$subset});
 #            say '<'.Dumper($vars_ref).'>';
 #			if (defined $vars_ref) {

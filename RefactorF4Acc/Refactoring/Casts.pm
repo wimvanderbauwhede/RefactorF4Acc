@@ -123,6 +123,10 @@ sub _cast_annlines {
 	}
 } # END of _cast_annlines
 
+# More utter evil
+#   integer fnami (33)
+#   character*132 fname
+#   equivalence (fname,fnami)
 sub create_cast_annlines {
 	my ( $to_type_decl, $to_var, $from_type_decl, $from_var ) = @_;
 	my $to_type=$to_type_decl->{'Type'};

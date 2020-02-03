@@ -659,6 +659,7 @@ sub _match_up_common_var_sequences {
 	if ( scalar @equivalence_pairs > 0 ) {
 		my @arg_assignment_lines = map {
 			my $pair = $_;
+			carp 'ADD RESHAPE HERE: '.Dumper($pair);
 			@{ _caller_to_local_assignment_annlines($pair) };
 		} @equivalence_pairs;
 
