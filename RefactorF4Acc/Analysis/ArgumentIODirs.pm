@@ -84,6 +84,7 @@ sub _determine_argument_io_direction_core {
         # If an arg has a non-'U' value, we overwrite it.
         # Up to here RefactoredArgs does not contain any parameter decls
         $stref = _analyse_src_for_iodirs($stref, $f);
+        
     }
     return $stref;
 }    # _determine_argument_io_direction_core()
@@ -526,8 +527,8 @@ sub _analyse_src_for_iodirs {
 
 # Encounter Assignment
                     elsif (exists $info->{'Assignment'}) {
-
-                        # say $line;
+                            
+                        # say "LINE: $line";
                         # First check the RHS
                         my $rhs_vars = $info->{'Rhs'}{'VarList'}{'List'};
 
@@ -537,13 +538,14 @@ sub _analyse_src_for_iodirs {
                         }
                         my $lhs_var = $info->{'Lhs'}{'VarName'};
 
-                        # say "LHS: $lhs_var";
+                        # say "LHS: $lhs_var ".Dumper($lhs_var);
                         _set_iodir_vars([$lhs_var], $args, \&_set_iodir_write);
                         my $lhs_index_vars = $info->{'Lhs'}{'IndexVars'}{'List'};
                         if (scalar @{$lhs_index_vars} > 0) {
                             _set_iodir_vars($lhs_index_vars, $args, \&_set_iodir_read);
                         }
-                        #
+                        
+                        # croak Dumper($args) if  $f eq 'count_sep' and $line=~/count/;
                         next;
                     }
                     else {    # not an assignment, do as before
@@ -576,13 +578,34 @@ sub _analyse_src_for_iodirs {
                     }
 
                 }
+                if (exists $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$arg}) {
+                    if (ref($args->{$arg}) eq 'HASH'
+                        and exists $args->{$arg}{'Name'})
+                    {    # If this is a full declaration record
+
+                        # say Dumper($args->{$arg});
+                        $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$arg} = {%{$args->{$arg}}};
+                    }
+                    else {    # Otherwise, get the record and update the IODir
+                        my $decl = get_f95_var_decl($stref, $f, $arg);
+                        if (ref($args->{$arg}) eq 'HASH' and exists $args->{$arg}{'IODir'}) {
+                            $decl->{'IODir'} = $args->{$arg}{'IODir'};
+                        }
+
+                        
+                        $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$arg} = $decl;
+                    }                    
+# croak Dumper($args,$stref->{'Subroutines'}{'chcopy'}{DeclaredOrigArgs}) if $f eq 'chcopy';
+                }
+
+
             }
 
             # Here for some reason corr has been added as an argument!
             $Sf->{'IODirInfo'} = 1;
         }
     }    # if IODirInfo had not been set to 1
-
+# carp 'ARGIODIRS: '. Dumper($stref->{'Subroutines'}{'chcopy'}{'DeclaredOrigArgs'}{'Set'}{'x'}) if $f eq 'chcopy';
     return $stref;
 }    # END of _analyse_src_for_iodirs()
 
@@ -928,11 +951,12 @@ sub _update_argument_io_direction {
             if (in_nested_set($stref->{'Subroutines'}{$f}, 'Args', $varname)) {
 
                 my $decl = get_var_record_from_set($stref->{'Subroutines'}{$f}{'Args'}, $varname);
+                # carp Dumper($decl) if $f eq 'mult_chk' and $varname eq 'w4';
                 if (exists $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$varname}) {
                     my $rdecl = $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$varname};
 
 #						say 'RefactoredArgs: '.Dumper($rdecl) if $varname eq 'ivd005' and $f eq 'sn705';
-                    if (exists $rdecl->{'Name'}) {
+                    if (exists $rdecl->{'Name'}) {                        
                         $decl = $rdecl;
                     }
                     else {
@@ -941,9 +965,25 @@ sub _update_argument_io_direction {
                         }
                     }
 
-#						say  "DECL FROM REFACTOREDARGS: ".Dumper($decl);
+						# croak "DECL FROM REFACTOREDARGS: ".Dumper($rdecl) if $f eq 'mult_chk' and $varname eq 'w4';
                 }
-#
+                if (exists $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$varname}) {
+                    my $rdecl = $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'Set'}{$varname};
+
+#						say 'RefactoredArgs: '.Dumper($rdecl) if $varname eq 'ivd005' and $f eq 'sn705';
+                    # say  "BEFORE:",$decl->{'IODir'} , '<>', $rdecl->{'IODir'} if $varname eq 'x' and $f eq 'chcopy';
+                    # if (exists $rdecl->{'Name'}) {
+                    #     $decl = $rdecl;
+                    # }
+                    # else {
+                        if (exists $rdecl->{'IODir'} and $rdecl->{'IODir'} ne 'Unknown') {
+                            $decl->{'IODir'} = $rdecl->{'IODir'};
+                        }
+                    # }
+                    # say  "AFTER:",$decl->{'IODir'} ,'<>',$rdecl->{'IODir'} if $varname eq 'x' and $f eq 'chcopy';
+
+						# say  "DECL FROM DeclaredOrigArgs: ".Dumper($rdecl) if $f eq 'mult_chk' and $varname eq 'w4';
+                }
 
 #					croak Dumper($decl) if $varname eq 'string';
                 if (exists $decl->{'Parameter'}) {
@@ -958,9 +998,9 @@ sub _update_argument_io_direction {
                     $decl->{'IODir'} = 'InOut';
                 }
 
-#					say $varname. ' => '.Dumper($decl);
+					
                 my $rline = emit_f95_var_decl($decl);
-
+                push @{$info->{'Ann'}}, '_update_argument_io_direction HERE THE TYPE IS WRONG!';
                 if (exists $info->{'Skip'}) {
                     $rline = '! ' . $rline;
                     push @{$info->{'Ann'}}, 'SKIP';

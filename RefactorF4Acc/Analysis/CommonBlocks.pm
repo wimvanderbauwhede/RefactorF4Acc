@@ -55,6 +55,7 @@ sub analyse_common_blocks { (my $stref) =@_;
     $stref = identify_common_var_mismatch($stref,$f);
 #    say Dumper($stref->{'Subroutines'}{$f}{'CommonVarMismatch'});
 	}
+
 	
 	for my $f ( keys %{ $stref->{'Subroutines'} } ) {
 		next if $f eq '';			
@@ -62,12 +63,15 @@ sub analyse_common_blocks { (my $stref) =@_;
 		next unless exists $stref->{'Subroutines'}{$f}{'HasLocalCommons'};
 		create_common_var_size_tuples( $stref, $f );
 	}
+# Here RefactoredArgs types are still OK	
+
 	for my $f ( keys %{ $stref->{'Subroutines'} } ) {		
 		next if $f eq '';			
 		next  if $f eq 'UNKNOWN_SRC';
 		next unless exists $stref->{'Subroutines'}{$f}{'HasLocalCommons'};
 		match_up_common_vars( $stref, $f );
 		next unless exists $stref->{'Subroutines'}{$f}{'HasCommonVarMismatch'};
+# This is the culprit: after this RefactoredArgs types are wrong
 		$stref = create_RefactoredArgs( $stref, $f );
 	}
 		
@@ -330,7 +334,9 @@ sub match_up_common_vars {
 sub _match_up_common_var_sequences {
 	my ( $stref, $f, $caller, $block ) = @_;
 
-	#	say "MATCHING UP BLOCK $block for $f and $caller";
+		# say "MATCHING UP BLOCK $block for $f and $caller";
+		# So the problem here is that in some evil code, the caller can have a type mismatch with the local
+		# We should use the local if possible I guess. 
 	my $Sf               = $stref->{'Subroutines'}{$f};
 	my @common_local_seq = @{ $Sf->{'CommonBlockSequences'}{$block} };
 	my @common_caller_seq =
@@ -344,21 +350,23 @@ sub _match_up_common_var_sequences {
 		my ( $name_local, $decl_local, $kind_local, $dim_local, $dimsz_local, $lin_idx_local, $used_local ) = @{$elt_local};
 		my $type_local = $decl_local->{'Type'};
 
-		#		say "LOCAL: $name_local";
+		say "LOCAL: $name_local :: $type_local"  if $f eq 'mult_chk' and $name_local eq 'w4';
 		if (@common_caller_seq) {
 
 			my $elt_caller = shift @common_caller_seq;
 			my ( $name_caller, $decl_caller, $kind_caller, $dim_caller, $dimsz_caller, $lin_idx_caller, $used_caller ) = @{$elt_caller};
 			my $type_caller = $decl_caller->{'Type'};
 			# carp 'dim_caller: '.Dumper($dim_caller);
-			#			say "CALLER: $name_caller";
+			say "CALLER: $name_caller :: $type_caller"  if $f eq 'mult_chk' and $name_caller eq 'w4';
 
 			# add this caller to ExMismatchedCommonArgs
+			# WV 2020-02-04 Is this always the case?
 			my $prefix = $block eq 'BLANK' ? [$caller] : [ $caller, $block ];
 			if ( $used_caller == 0 ) {
 				$used_caller = 1;
 				push @{ $Sf->{'ExMismatchedCommonArgs'}{'SigArgs'}{'List'} }, $name_caller;
 				$Sf->{'ExMismatchedCommonArgs'}{'SigArgs'}{'Set'}{$name_caller} = $decl_caller;
+				croak 'TYPE2:'.$Sf->{'ExMismatchedCommonArgs'}{'SigArgs'}{'Set'}{'w4'}{'Type'} if $f eq 'mult_chk' and $name_caller eq 'w4';
 				if ( not exists $decl_caller->{'IODir'} ) {
 					$decl_caller->{'IODir'} = 'Unknown';
 				}
@@ -367,7 +375,7 @@ sub _match_up_common_var_sequences {
 			my $htype_local  = $decl_local->{'Type'};
 			my $htype_caller = $decl_caller->{'Type'};
 
-			if ($DBG) {
+			if ($DBG ) {
 				if ( not( $htype_local eq $htype_caller and $kind_local eq $kind_caller ) ) {    # Type / Attr mismatch
 					if ( $decl_local->{'ArrayOrScalar'} eq 'Array' ) {
 						$htype_local .= ', dimension(' . dim_to_str( $decl_local->{'Dim'} ) . ')';
@@ -645,6 +653,7 @@ sub _match_up_common_var_sequences {
 				}
 				$Sf->{'ExMismatchedCommonArgs'}{'SigArgs'}{'Set'}{$name_local} = $decl_local;
 				$Sf = add_var_decl_to_set( $Sf, 'ExGlobArgs', $name_local, $decl_local );
+				
 			}
 
 			# but in any case, the name must be added to the call args
@@ -655,6 +664,7 @@ sub _match_up_common_var_sequences {
 		}
 
 	}
+	say 'TYPE:'.$Sf->{'ExMismatchedCommonArgs'}{'SigArgs'}{'Set'}{'w4'}{'Type'};
 
 	if ( scalar @equivalence_pairs > 0 ) {
 		my @arg_assignment_lines = map {

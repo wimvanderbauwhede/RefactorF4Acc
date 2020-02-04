@@ -139,8 +139,10 @@ sub _refactor_subroutine_main {
 	say "get_annotated_sourcelines($f)" if $V;
 	my $annlines = $Sf->{'RefactoredCode'};
 
-	# At this point, call line from annlines for extracted sub has too many args
-
+	if ( $Sf->{'HasCommons'} ) {
+		# If there are no COMMON blocks the argument list should not change, so there should be no need to do this		
+		$annlines = _group_local_param_decls_at_top( $stref, $f, $annlines );
+	}
 	if (
 		1 or $Sf->{'HasCommons'} or (                    # FIXME
 			exists $Sf->{'Contains'} and scalar @{ $Sf->{'Contains'} } > 0
@@ -505,13 +507,14 @@ sub _create_extra_arg_and_var_decls {
 			say "INFO VAR in $f: IODir for $var: " . $Sf->{'ExGlobArgs'}{'Set'}{$var}{'IODir'}
 			  if $I and not $Sf->{'Program'};
 			my $rdecl = $Sf->{'ExGlobArgs'}{'Set'}{$var};
-			
+			# carp Dumper($rdecl) if $var eq 'w4' and $f eq 'mult_chk';
 			(my $inherited_param_decls, $Sf) = __generate_inherited_param_decls($rdecl, $Sf, $f,[]);
 			# say "VAR $var in $f";
 			# map { say $_->[0] } @{$inherited_param_decls};
 			my $rline = emit_f95_var_decl($rdecl);
+			# carp $rline if $var eq 'w4' and $f eq 'mult_chk';
 			my $info  = {};
-			$info->{'Ann'}     = [ annotate( $f, __LINE__ . ' : EX-GLOB ' . $annline->[1]{'ExGlobVarDeclHook'} ) ];
+			$info->{'Ann'}     = [ annotate( $f, __LINE__ . ' : EX-GLOB ' . $annline->[1]{'ExGlobVarDeclHook'}.' '.$rline ) ];
 			$info->{'LineID'}  = $nextLineID++;
 			$info->{'Ref'}     = 1;
 			$info->{'VarDecl'} = { 'Name' => $var };                                                                  #$rdecl;
@@ -646,9 +649,15 @@ sub _create_extra_arg_and_var_decls {
 
 			# Skip if the variable is a subroutine
 			if (
+				
+				exists $Sf->{'MaskedIntrinsics'}{$var}
+				or
+				(
 					not exists $F95_reserved_words{$var}
 				and not exists $F95_intrinsics{$var}
 				and not exists $Sf->{'Namelist'}{$var}
+				
+				
 
 				#    		and not ( # an internal subroutine
 				#    			exists $Sf->{'CalledSubs'}{'Set'}{$var} and
@@ -663,9 +672,10 @@ sub _create_extra_arg_and_var_decls {
 				and not $is_param
 				and $var !~ /__PH\d+__/            # FIXME! TOO LATE HERE!
 				and $var =~ /^[a-z][a-z0-9_]*$/    # FIXME: rather check if Expr or Sub
+				)
 			  )
 			{
-				#    			croak Dumper($Sf->{'UndeclaredOrigLocalVars'}{'Set'}{$var}) if $var eq 'ff083';
+				   			# croak Dumper($Sf->{'UndeclaredOrigLocalVars'}{'Set'}{$var}) if $var eq 'len';
 				my $rdecl = $Sf->{'UndeclaredOrigLocalVars'}{'Set'}{$var};
 				$rdecl->{'Ann'} = "in $f (implicit declaration)";
 				# carp Dumper($stref->{'Subroutines'}{  $var});
@@ -678,7 +688,8 @@ sub _create_extra_arg_and_var_decls {
 				$info->{'VarDecl'} = { 'Name' => $var };    #$rdecl;
 				push @{$rlines}, [ $rline, $info ];
 			} else {
-				say "INFO: $var is a reserved word" if $I;
+				say "INFO: $var is a reserved word" if $I;			
+				# croak Dumper($Sf->{'MaskedIntrinsics'}{$var}) if $var eq 'len';
 			}
 		}
 	}    # for
@@ -721,34 +732,34 @@ sub _create_refactored_subroutine_call {
 	# Collect original args
 	my @orig_args = ();
 
-	# if ($NEW_PARSER) {
+	# a shallow copy
+	my $expr_ast = [ @{ $info->{'SubroutineCall'}{'ExpressionAST'} } ];
 
-		# a shallow copy
-		my $expr_ast = [ @{ $info->{'SubroutineCall'}{'ExpressionAST'} } ];
+	if ( @{$expr_ast} and ( $expr_ast->[0] & 0xFF ) != 27 ) {
+		$expr_ast = [$expr_ast];
+	} else {
+		shift @{$expr_ast};
+	}
 
-		if ( @{$expr_ast} and ( $expr_ast->[0] & 0xFF ) != 27 ) {
-			$expr_ast = [$expr_ast];
-		} else {
-			shift @{$expr_ast};
-		}
+	for my $call_arg_expr ( @{$expr_ast} ) {
+		my $call_arg = emit_expr_from_ast($call_arg_expr);
+		push @orig_args, $call_arg;
+	}
+	# if ($f eq 'mult_chk' and $name eq 'rzero') {
+	# for my $sig_arg (sort keys %{$info->{'SubroutineCall'}{'ArgMap'}}) {
+	# 	my $subset = in_nested_set( $stref->{'Subroutines'}{$name},'Args', $sig_arg);
+	# 	my $decl = $stref->{'Subroutines'}{$name}{$subset}{'Set'}{$sig_arg};
+	# 	my $sig_type = $decl->{'Type'};
 
-		for my $call_arg_expr ( @{$expr_ast} ) {
-			my $call_arg = emit_expr_from_ast($call_arg_expr);
-			push @orig_args, $call_arg;
-		}
-	# } else {
-
-	# 	# OLD PARSER
-	# 	for my $call_arg ( @{ $info->{'SubroutineCall'}{'Args'}{'List'} } ) {
-
-	# 		#	    	say $call_arg ;
-	# 		if ( exists $info->{'SubroutineCall'}{'Args'}{'Set'}{$call_arg}{'Expr'} ) {
-	# 			push @orig_args, $info->{'SubroutineCall'}{'Args'}{'Set'}{$call_arg}{'Expr'};
-	# 		} else {
-	# 			push @orig_args, $call_arg;    # WV20170515: is this correct? Do nothing?
-	# 		}
-	# 	}
+	# 	my $call_arg = $info->{'SubroutineCall'}{'ArgMap'}{$sig_arg};
+	# 	my $call_subset = in_nested_set( $Sf,'Vars', $call_arg);
+	# 	my $call_decl = $Sf->{$call_subset}{'Set'}{$call_arg};
+	# 	my $call_type = $call_decl->{'Type'};
+	# 	say $call_subset.Dumper($call_decl);
+	# 	say "$sig_arg $sig_type, $call_arg $call_type";
 	# }
+	# }
+
 	my $args_ref = [@orig_args];               # NOT ordered union, if they repeat that should be OK
 											   # This is for the case of ENTRYs. The "parent" is the actual sub which contains the ENTRY statements
 	my $parent_sub_name =
@@ -790,8 +801,6 @@ sub _create_refactored_subroutine_call {
 		}
 
 	} else {
-
-	
 
 	if ( not exists $stref->{'Subroutines'}{$name}{'HasCommonVarMismatch'} ) {    # old approach is fine
 
@@ -1999,10 +2008,13 @@ sub __generate_inherited_param_decls { my ($rdecl, $Sf, $f, $inherited_param_dec
 		for my $inh_par (sort keys %{ $rdecl->{'InheritedParams'}{'Set'} }) {
 			# say $inh_par;
 				my $subset = in_nested_set( $Sf, 'Parameters', $inh_par );
-				if (not $subset) {
+				
+				if (not $subset and not exists $Sf->{'InheritedParameters'}{'Set'}{$inh_par}) {
 					# say "PAR $inh_par NOT in any subset in $f ";
 					my $par_decl = $rdecl->{'InheritedParams'}{'Set'}{$inh_par};
-					my $par_decl_line = [ '      ' . emit_f95_var_decl($par_decl), { 'ParamDecl' => $par_decl, 'Ref' => 1 } ];
+					my $par_decl_line = [ '      ' . emit_f95_var_decl($par_decl), { 'ParamDecl' => $par_decl, 'Ref' => 1, 
+					'Ann' => [annotate($f, __LINE__ . " : __generate_inherited_param_decls")]
+					} ];
 					push @{$inherited_param_decls}, $par_decl_line;
 					 
 					$Sf->{'LocalParameters'}{'Set'}{$inh_par}=$par_decl;
@@ -2017,4 +2029,58 @@ sub __generate_inherited_param_decls { my ($rdecl, $Sf, $f, $inherited_param_dec
 	}
 	return ($inherited_param_decls, $Sf);
 } # END of __generate_inherited_param_decls
+
+
+# We take the parameter declaration lines out of the annlines, and then re-insert them before the first variable declaration 
+sub _group_local_param_decls_at_top { my ( $stref, $f ) = @_;
+	my $Sf = $stref->{'Subroutines'}{$f};
+	my $pass_split_out_ParamDecls = sub {
+		(my $annline, my $state)=@_;
+		(my $line,my $info)=@{$annline};
+		#  say "LINE:$line ".Dumper(sort keys %{$info});
+		my $new_annlines = [$annline];
+		if (exists $info->{'ParamDecl'}) {	
+			
+					$new_annlines =[ 
+					["! Moved param decl for  ".
+					(ref($info->{'ParamDecl'}{'Name'}) eq 'ARRAY' ? 
+					$info->{'ParamDecl'}{'Name'} [0] :
+					$info->{'ParamDecl'}{'Name'}
+					). ' to top of code unit'					
+					,{'Comments' => 1}],					
+					];
+					$info->{'Ann'}       = [ annotate( $f, __LINE__ . ' :  _group_local_param_decls_at_top'  ) ];
+					push @{$state},[ $line , $info];
+		}		
+		
+		return ($new_annlines,$state);
+	};
+	my $param_decl_annlines = [['! Grouped Parameter Declarations',{'Comments' => 1}]];
+ 	($stref,$param_decl_annlines) = stateful_pass($stref,$f,$pass_split_out_ParamDecls, $param_decl_annlines,'_split_out_ParamDecls ' . __LINE__  ) ;	
+
+	 if (scalar @{ $param_decl_annlines } > 1) {
+		my $merged_annlines = splice_additional_lines_cond(
+			$stref, $f,
+			sub {
+				( my $annline ) = @_;
+				(my $line,my $info)=@{$annline};
+				return (
+					exists $info->{'VarDecl'}
+				) ? 1 : 0;
+			},
+			[],
+			$param_decl_annlines,
+			1, # insert before
+			0, # skip insertion condition line
+			1 # do this only once
+		);
+		# say "SUBROUTINE $f";
+		# say Dumper(pp_annlines($merged_annlines));
+		return $merged_annlines;
+	 } else {
+		return $Sf->{'RefactoredCode'};
+	 }
+}
+
+
 1;

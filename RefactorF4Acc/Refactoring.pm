@@ -44,7 +44,9 @@ sub refactor_all {
     if ($sub_or_func_or_mod eq 'Modules' and $is_source_file_path) {
        $code_unit_name = get_module_name_from_source($stref,$code_unit_name);
     }
-    
+	# Already here the type in RefactoredArgs is wrong
+# carp Dumper($stref->{'Subroutines'}{'mult_chk'}{ExGlobArgs}{Set}{w4}{Type});
+# croak Dumper($stref->{'Subroutines'}{'mult_chk'}{RefactoredArgs}{Set}{w4}{Type});    
     
     $stref = refactor_include_files($stref);
 # FIXME: this should be treated just like subs, but of course that requires full parsing of expressions that contain function calls
@@ -63,10 +65,10 @@ sub refactor_all {
     if ($sub_or_func_or_mod eq 'Subroutines') {
     	$stref = determine_argument_io_direction_rec( $stref,$code_unit_name );    	
     	say "DONE determine_argument_io_direction_rec()" if $V;
-		
+	# croak Dumper($stref->{'Subroutines'}{'chcopy'}{DeclaredOrigArgs});	
     	$stref = update_argument_io_direction_all_subs( $stref );
     }
-    
+    # croak Dumper($stref->{'Subroutines'}{'mult_chk'}{RefactoredCode});
     # So at this point we know everything there is to know about the argument declarations, we can now update them
     say "remove_vars_masking_functions" if $V;    
     $stref = remove_vars_masking_functions($stref);    

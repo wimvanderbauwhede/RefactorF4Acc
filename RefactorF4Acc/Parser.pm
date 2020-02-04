@@ -873,7 +873,7 @@ SUBROUTINE
 		 		
 		 		# WE DO NOT SUPPORT THE FOLLOWING: "An EQUIVALENCE statement can extend a COMMON block on the right-hand side"
 		 		if (not exists $grouped_warnings->{'EQUIVALENCE'}) {
-		 			$grouped_warnings->{'EQUIVALENCE'}=[ "The EQUIVALENCE  statement is not refactored, this could possible break your code, please rewrite:",
+		 			$grouped_warnings->{'EQUIVALENCE'}=[ "The EQUIVALENCE  statement cannot always be refactored, this could possible break your code:",
 		 			'  SOURCE: '.$stref->{$sub_incl_or_mod}{$f}{'Source'},
                     '  CODE UNIT: '.$f, '  LINES:'		 			
 		 			 ];
@@ -1165,33 +1165,33 @@ or $line=~/^character\s*\(\s*len\s*=\s*[\w\*]+\s*\)/
 					$Sf->{'ReferencedLabels'}{$3}=$3;					
 				}
 				if ($cond=~/^\d+$/) { $cond.='+0';}
-#				say "COND:$cond";  
-					my $ast = parse_expression($cond,  $info,  $stref,  $f);
-					
-					$info->{'CondExecExprAST'}= $ast;
-					my $vars_in_cond_expr =  get_vars_from_expression( $ast,{});
-					
-					my $vars_and_index_vars_in_cond_expr={};
-					for my $var (sort keys %{$vars_in_cond_expr}) {
-						if ($vars_in_cond_expr->{$var}{'Type'} eq 'Array'
-						and scalar keys %{$vars_in_cond_expr->{$var}{'IndexVars'}}>0) {
-							for my $indexvar (sort keys %{$vars_in_cond_expr->{$var}{'IndexVars'}}) {
-								$vars_and_index_vars_in_cond_expr->{$indexvar} = {'Type' =>'Scalar'};
-							}														
-						} 
-						$vars_and_index_vars_in_cond_expr->{$var} = $vars_in_cond_expr->{$var};#{'Type'}; 						
-					}
-					# croak Dumper $vars_and_index_vars_in_cond_expr;
+
+				my $ast = parse_expression($cond,  $info,  $stref,  $f);
+				
+				$info->{'CondExecExprAST'}= $ast;
+				my $vars_in_cond_expr =  get_vars_from_expression( $ast,{});
+				
+				my $vars_and_index_vars_in_cond_expr={};
+				for my $var (sort keys %{$vars_in_cond_expr}) {
+					if ($vars_in_cond_expr->{$var}{'Type'} eq 'Array'
+					and scalar keys %{$vars_in_cond_expr->{$var}{'IndexVars'}}>0) {
+						for my $indexvar (sort keys %{$vars_in_cond_expr->{$var}{'IndexVars'}}) {
+							$vars_and_index_vars_in_cond_expr->{$indexvar} = {'Type' =>'Scalar'};
+						}														
+					} 
+					$vars_and_index_vars_in_cond_expr->{$var} = $vars_in_cond_expr->{$var};#{'Type'}; 						
+				}
+				# croak Dumper $vars_and_index_vars_in_cond_expr;
 #					carp($line,Dumper($vars_and_index_vars_in_cond_expr)) if $line=~/ttt/;
-					for my $macro (keys %{$Config{'Macros'}} ) {
-						delete $vars_and_index_vars_in_cond_expr->{ lc($macro) };
-					}
-					$info->{'CondVars'}{'Set'} = $vars_and_index_vars_in_cond_expr;
-					$info->{'CondVars'}{'List'} = [ sort keys %{$vars_and_index_vars_in_cond_expr} ];
-					if ($mline eq 'then') {
-						$info->{ 'Control' } = 1;	
-						$info->{ 'IfThen' } = 1;						
-					}
+				for my $macro (keys %{$Config{'Macros'}} ) {
+					delete $vars_and_index_vars_in_cond_expr->{ lc($macro) };
+				}
+				$info->{'CondVars'}{'Set'} = $vars_and_index_vars_in_cond_expr;
+				$info->{'CondVars'}{'List'} = [ sort keys %{$vars_and_index_vars_in_cond_expr} ];
+				if ($mline eq 'then') {
+					$info->{ 'Control' } = 1;	
+					$info->{ 'IfThen' } = 1;						
+				}
                 $info->{'HasVars'} = 1; 
 			} 
 
@@ -1414,6 +1414,7 @@ END IF
 #croak "$f <$mline>" if $mline=~/^rfos01/ ;
 
 					$info = _parse_assignment( $mline, $info, $stref, $f );
+					# croak Dumper($info->{'Lhs'}) if $mline=~/count\(k\)/;
 			}
 			# GOTO is handled separately in _identify_loops_breaks 
 #			elsif ($mline=~/go\s*to\s+(\w+)/) {
@@ -3731,20 +3732,7 @@ sub _parse_assignment {
 	#     say "LHS: $lhs, RHS: $rhs";
 	my $lhs_ast = parse_expression( $lhs, $info, $stref, $f );
 
-	# WV 2019-04-24 seems to me I could use get_vars_from_expression() as the LHS is either a scalar or an array access
-	# That returns a href and we can just turn that into a list as usual
-	
-    my $lhs_vars = get_vars_from_expression($lhs_ast);
-    (my $lhs_varname, my $lhs_var_attrs)  =  each %{ $lhs_vars } ;
-	my $lhs_index_vars={'List'=>[],'Set'=>{}};
-	if (exists $lhs_var_attrs->{'IndexVars'}) {
-		for my $maybe_idx_var (sort keys %{ $lhs_var_attrs->{'IndexVars'} } ) {
-			if ($lhs_var_attrs->{'IndexVars'}{$maybe_idx_var }{'Type'} eq 'Scalar') {
-				push @{$lhs_index_vars->{'List'}},$maybe_idx_var ;
-				$lhs_index_vars->{'Set'}{$maybe_idx_var}= $lhs_var_attrs->{'IndexVars'}{$maybe_idx_var };
-			}
-		}		
-	}
+
 	#	say 'ARGS: '.Dumper($lhs_args);
 	#	say 'VARS:'.Dumper($lhs_vars)  if $lhs_ast->[1] eq 'len';
 #	say $line . '=>'.$lhs.Dumper($lhs_ast);
@@ -3763,6 +3751,22 @@ sub _parse_assignment {
 		$stref->{$code_unit}{$f}{'MaskedIntrinsics'}{ $lhs_ast->[1] } = 1;
 		$lhs_ast = parse_expression( $lhs, $info, $stref, $f );
 	}
+
+	# WV 2019-04-24 seems to me I could use get_vars_from_expression() as the LHS is either a scalar or an array access
+	# That returns a href and we can just turn that into a list as usual
+	
+    my $lhs_vars = get_vars_from_expression($lhs_ast);
+    (my $lhs_varname, my $lhs_var_attrs)  =  each %{ $lhs_vars } ;
+	my $lhs_index_vars={'List'=>[],'Set'=>{}};
+	if (exists $lhs_var_attrs->{'IndexVars'}) {
+		for my $maybe_idx_var (sort keys %{ $lhs_var_attrs->{'IndexVars'} } ) {
+			if ($lhs_var_attrs->{'IndexVars'}{$maybe_idx_var }{'Type'} eq 'Scalar') {
+				push @{$lhs_index_vars->{'List'}},$maybe_idx_var ;
+				$lhs_index_vars->{'Set'}{$maybe_idx_var}= $lhs_var_attrs->{'IndexVars'}{$maybe_idx_var };
+			}
+		}		
+	}	
+	# carp Dumper($lhs_vars);
 	my $array_constant=0;
 	if ($rhs=~/\(\/.+\/\)/) {
 		$rhs=~s/\(\//(/;

@@ -79,12 +79,14 @@ sub analyse_all {
 			$stref = analyse_variables( $stref, $f );
 		}
 	}
+
 	# In this stage, 'ExGlobArgs' is populated from CommonVars by looking at the common blocks that occur in the call chain
 	# Note that this does *not* cover common blocks in includes so hopefully ExGlobArgs will not be affected for the case with includes.
 	say "\t** EX-GLOB ARGS **" if $V;
 	if ($sub_or_func_or_mod eq 'Subroutines') {
 		determine_ExGlobArgs($code_unit_name, $stref);
 	}
+
 	# First find any additional argument declarations, either in includes or via implicits
 	say "\t** ADDITIONAL ARG DECLS **" if $V;
 	for my $f ( keys %{ $stref->{'Subroutines'} } ) {
@@ -119,7 +121,6 @@ sub analyse_all {
 	    $stref = add_function_var_decls_from_calls( $stref, $f );
     }
 	return $stref if $stage == 3;
-
 
 # ConflictingGlobals: ex-common vars conflicting with params, both from include files
 	for my $f ( keys %{ $stref->{'Subroutines'} } ) {
@@ -190,39 +191,12 @@ sub analyse_all {
 		}		
 		$stref = analyse_var_decls_for_params( $stref, $f );
 	}	
+
 # ================================================================================================================================
 $stref = analyse_common_blocks($stref);	
-#	for my $f ( keys %{ $stref->{'Subroutines'} } ) {
-#		next if $f eq '';			
-#		next  if $f eq 'UNKNOWN_SRC';
-#		next unless exists $stref->{'Subroutines'}{$f}{'HasLocalCommons'};
-#
-##	 say "\nCOMMON BLOCK VARS in $f:\n";
-##    say Dumper($stref->{'Subroutines'}{$f}{'CommonBlocks'});
-##	die if $f eq 'fm302';
-#		next if  exists $stref->{'Subroutines'}{$f}{'Program'} and $stref->{'Subroutines'}{$f}{'Program'}==1;
-#		
-##	 say "\nCOMMON BLOCK MISMATCHES in $f:\n";
-##    say Dumper($stref->{'Subroutines'}{$f}{'CommonBlocks'});
-#    $stref = identify_common_var_mismatch($stref,$f);
-##    say Dumper($stref->{'Subroutines'}{$f}{'CommonVarMismatch'});
-#	}
-#	
-#	for my $f ( keys %{ $stref->{'Subroutines'} } ) {
-#		next if $f eq '';			
-#		next  if $f eq 'UNKNOWN_SRC';
-#		next unless exists $stref->{'Subroutines'}{$f}{'HasLocalCommons'};
-#		create_common_var_size_tuples( $stref, $f );
-#	}
-#	for my $f ( keys %{ $stref->{'Subroutines'} } ) {		
-#		next if $f eq '';			
-#		next  if $f eq 'UNKNOWN_SRC';
-#		next unless exists $stref->{'Subroutines'}{$f}{'HasLocalCommons'};
-#		match_up_common_vars( $stref, $f );
-#		next unless exists $stref->{'Subroutines'}{$f}{'HasCommonVarMismatch'};
-#		$stref = create_RefactoredArgs( $stref, $f );
-#	}
-#	
+
+# carp 'ExGlobArgs:'. Dumper($stref->{'Subroutines'}{'mult_chk'}{ExGlobArgs}{Set}{w4}{Type});
+# croak 'RefactoredArgs:'. Dumper($stref->{'Subroutines'}{'mult_chk'}{RefactoredArgs}{Set}{w4}{Type}); 	
 	
 	return $stref;
 }    # END of analyse_all()

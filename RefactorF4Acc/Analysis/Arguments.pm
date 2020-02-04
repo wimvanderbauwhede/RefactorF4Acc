@@ -129,7 +129,7 @@ sub create_RefactoredArgs {
 		$Sf->{'RefactoredArgs'}{'List'} = ordered_union( $Sf->{'OrigArgs'}{'List'}, $Sf->{'ExGlobArgs'}{'List'} );
 		$Sf->{'RefactoredArgs'}{'Set'} = { %{ $Sf->{'UndeclaredOrigArgs'}{'Set'} }, %{ $Sf->{'DeclaredOrigArgs'}{'Set'} }, %{ $Sf->{'ExGlobArgs'}{'Set'} } };
 		$Sf->{'HasRefactoredArgs'} = 1;
-
+# carp 'HERE: RefactoredArgs w4 Type: '. $Sf->{'RefactoredArgs'}{'Set'}{'w4'}{Type} if $f eq 'mult_chk';
 	} elsif ( exists $Sf->{'ExGlobArgs'}{'List'} and  scalar @{$Sf->{'ExGlobArgs'}{'List'}}==0
 	and scalar @{ $Sf->{'OrigArgs'}{'List'} } >0
 	) {
@@ -141,25 +141,32 @@ sub create_RefactoredArgs {
 		}
 		$Sf->{'RefactoredArgs'}{'List'} = $Sf->{'OrigArgs'}{'List'};
 		$Sf->{'HasRefactoredArgs'}      = 0;
+		# carp 'HERE1: RefactoredArgs w4 Type: '. $Sf->{'RefactoredArgs'}{'Set'}{'w4'}{Type} if $f eq 'mult_chk';
 	} elsif (  exists $Sf->{'ExGlobArgs'}{'List'} and  scalar @{$Sf->{'ExGlobArgs'}{'List'}}>0
 	and scalar @{ $Sf->{'OrigArgs'}{'List'} } ==0
 	) {
 		# No ExGlobArgs, so Refactored = Orig
 		$Sf->{'RefactoredArgs'}    = $Sf->{'ExGlobArgs'};
 		$Sf->{'HasRefactoredArgs'} = 1;
+		# carp 'HERE3: RefactoredArgs w4 Type: '. $Sf->{'RefactoredArgs'}{'Set'}{'w4'}{Type} if $f eq 'mult_chk';
 	} else { # No args at all, implies Globals that have not yet been resolved
 		$Sf->{'RefactoredArgs'} = { 'Set' => {}, 'List' => [] };
 		$Sf->{'HasRefactoredArgs'} = 0;
+		# carp 'HERE4: RefactoredArgs w4 Type: '. $Sf->{'RefactoredArgs'}{'Set'}{'w4'}{Type} if $f eq 'mult_chk';
 	}
 	
 	} else {
 
-	if ( exists $Sf->{'ExMismatchedCommonArgs'}{'SigArgs'}{'List'} and scalar @{$Sf->{'ExMismatchedCommonArgs'}{'SigArgs'}{'List'}}>0 and scalar @{ $Sf->{'OrigArgs'}{'List'} } >0
+	if ( exists $Sf->{'ExMismatchedCommonArgs'}{'SigArgs'}{'List'} 
+	and scalar @{$Sf->{'ExMismatchedCommonArgs'}{'SigArgs'}{'List'}}>0 
+	and scalar @{ $Sf->{'OrigArgs'}{'List'} } >0
 	) {
-
+carp Dumper($Sf->{'RefactoredArgs'}{'Set'}{'w4'}{Type}) if $f eq 'mult_chk';
 		$Sf->{'RefactoredArgs'}{'List'} = ordered_union( $Sf->{'OrigArgs'}{'List'}, $Sf->{'ExMismatchedCommonArgs'}{'SigArgs'}{'List'} );
 		$Sf->{'RefactoredArgs'}{'Set'} = { %{ $Sf->{'UndeclaredOrigArgs'}{'Set'} }, %{ $Sf->{'DeclaredOrigArgs'}{'Set'} }, %{ $Sf->{'ExMismatchedCommonArgs'}{'SigArgs'}{'Set'} } };
 		$Sf->{'HasRefactoredArgs'} = 1;
+carp Dumper($Sf->{'ExMismatchedCommonArgs'}{'SigArgs'}{'Set'}{'w4'}{Type}) if $f eq 'mult_chk';
+carp Dumper($Sf->{'RefactoredArgs'}{'Set'}{'w4'}{Type}) if $f eq 'mult_chk';		
 
 	} elsif ( exists $Sf->{'ExMismatchedCommonArgs'}{'SigArgs'}{'List'} and  scalar @{$Sf->{'ExMismatchedCommonArgs'}{'SigArgs'}{'List'}}==0
 	and scalar @{ $Sf->{'OrigArgs'}{'List'} } >0
@@ -181,6 +188,7 @@ sub create_RefactoredArgs {
 	}		
 				
 	}
+	# carp 'HERE2: RefactoredArgs w4 Type: '. $Sf->{'RefactoredArgs'}{'Set'}{'w4'}{Type} if $f eq 'mult_chk';
 	return $stref;
 } # END of create_RefactoredArgs
 

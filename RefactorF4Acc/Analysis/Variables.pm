@@ -77,7 +77,7 @@ sub analyse_variables {
 			# -------------------------------------------------------------------------------------------------------------------
 			
 			for my $mvar (@chunks) {
-#				croak "$f: $line => $mvar" if $mvar eq 'nx' and $f eq 'init';
+				# croak "$f: $line => $mvar" if $mvar eq 'len' and $f eq 'getreafile';
 #            say "$f VAR0 $mvar";
                 next if exists $stref->{'Subroutines'}{$f}{'CalledSubs'}{'Set'}{$mvar};    # Means it's a function
 				next if $mvar =~ /^\d+$/;
@@ -86,20 +86,23 @@ sub analyse_variables {
 				#				my $maybe_orig_arg = in_nested_set( $Sf, 'OrigArgs', $mvar );
 				# Means arg was declared
 				my $in_vars_subset = in_nested_set( $Sf, 'Vars', $mvar );
-				
+				# say "$mvar: Subset <$in_vars_subset>";
 				my $decl_orig_arg = exists $Sf->{'DeclaredOrigArgs'}{'Set'}{$mvar} ? 1 : 0;
-
+# say $decl_orig_arg;
 				# Means arg has been declared via Implicits
 				my $undecl_orig_arg = exists $Sf->{'UndeclaredOrigArgs'}{'Set'}{$mvar} ? 1 : 0;
-
+# say $undecl_orig_arg;
 				# Means var was declared
 				my $decl_orig_local_var = exists $Sf->{'DeclaredOrigLocalVars'}{'Set'}{$mvar} ? 1 : 0;
-
+# say $decl_orig_local_var;
 				# Means var has been declared via Implicits
 				my $undecl_orig_local_var = exists $Sf->{'UndeclaredOrigLocalVars'}{'Set'}{$mvar} ? 1 : 0;
+# say $undecl_orig_local_var;				
 				my $decl_common_var       = exists $Sf->{'DeclaredCommonVars'}{'Set'}{$mvar}      ? 1 : 0;
+# say $decl_common_var; 				
 				my $undecl_common_var     = exists $Sf->{'UndeclaredCommonVars'}{'Set'}{$mvar}    ? 1 : 0;
-
+# say $undecl_common_var;				
+				
 				# Here it is still possible that the variables don't have any declarations
 				# If that is the case for OrigArgs we must type them via Implicits
 				# But should this not have happened already? No, because UndeclaredOrigArgs could be declared via Includes,
@@ -120,9 +123,10 @@ sub analyse_variables {
 						or ( $in_vars_subset and ref($Sf->{$in_vars_subset}{'Set'}{$mvar}) ne 'HASH' ) 
 						)
 				  ) {
+					  
 #				  	say "$f VAR2 $mvar" ;
 					my $in_incl = 0;
-					if ( not exists $Sf->{'Commons'}{$mvar} ) {												
+					if ( not exists $Sf->{'Commons'}{$mvar} ) {
 						for my $inc ( sort keys %{ $Sf->{'Includes'} } ) {
 							say "LOOKING FOR $mvar from $f in $inc" if $DBG;
 
@@ -276,6 +280,7 @@ sub analyse_variables {
 								$identified_vars->{$mvar}                               = 1;
 							}
 						}
+						
 						if ( $identified_vars->{$mvar} != 1 ) {							
 							if ( $mvar !~ /\*/ and $line =~ /$mvar\s*\(/ ) {                            # Very ugly HACK because somehow ** got into the var name!
 								say "INFO: LOCAL VAR <$mvar> in $f may be an EXTERNAL FUNCTION " if $I;
@@ -284,6 +289,7 @@ sub analyse_variables {
 							my $decl = get_f95_var_decl( $stref, $f, $mvar );
 
 							if ( not $undecl_orig_arg ) {								
+								# carp "$f: $line => $mvar ".Dumper($decl) if $mvar eq 'len' and $f eq 'getreafile';
 								push @{ $stref->{'Subroutines'}{$f}{'UndeclaredOrigLocalVars'}{'List'} }, $mvar;
 								$stref->{'Subroutines'}{$f}{'UndeclaredOrigLocalVars'}{'Set'}{$mvar} = $decl;
 							} else {								

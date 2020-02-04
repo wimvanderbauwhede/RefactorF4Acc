@@ -241,6 +241,15 @@ sub context_free_refactorings {
         	}
             $info->{'Ref'}++;
         }
+
+        if ($Config{'ALLOW_SPACES_IN_NUMBERS'}==1  ) { # I make the assumption that there must be 3 digits after a space
+        
+            while ($line=~/\d\s+\d\d\d+/) {
+                $line =~s/(\d)\s+(\d)/$1$2/;
+            }
+            # croak $line if $line=~/100\s*000/;
+        }
+
         
         if ( exists $info->{'PlaceHolders'} ) { 
 # Here we put the strings back in place of the placeholders
@@ -281,6 +290,8 @@ sub context_free_refactorings {
 	                $info->{'Ann'}=[ annotate($f, __LINE__ .' Removed ParamDecl' ) ];
 	            } elsif (not exists $info->{'Ref'} or $info->{'Ref'} == 0 ){
 	                my $var_decl = get_var_record_from_set( $Sf->{'Vars'},$var);
+                    my $arg_decl = get_var_record_from_set( $Sf->{'DeclaredOrigArgs'},$var);
+                    # carp 'COMMON: '. Dumper($var_decl,$arg_decl) if $var eq 'x' and $f eq 'chcopy';
 	                $line = emit_f95_var_decl($var_decl) ;                
 	                delete $info->{'ExGlobArgDecls'};
 	                $info->{'Ref'} = 1;                 

@@ -730,8 +730,12 @@ sub parse_expression_no_context { (my $str)=@_;
         }
         elsif ($Config{'ALLOW_SPACES_IN_NUMBERS'}==1 and $str=~s/^(\d[\d\s]*)//) {  # But spaces in numbers are allowed in fixed form. So 1 000 000 is fine. so we have (\d[\d\s]*) as the easiest one, assuming a trailing space won't harm
             # integers            
-            # warn 'INTEGER, ALLOW_SPACES_IN_NUMBERS==1';
-            $expr_ast=[29,$1];
+            # warn 'INTEGER, ALLOW_SPACES_IN_NUMBERS==1 '.$1;
+            my $num_with_spaces=$1;
+            my $has_spaces = $num_with_spaces=~/\d\s+\d/;
+            $num_with_spaces=~s/\s*//g;
+            $expr_ast=[29,$num_with_spaces];
+            # croak $num_with_spaces if $has_spaces;
             #$expr_ast=$1;#['integer',$1];
         }
 
