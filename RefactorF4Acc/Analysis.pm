@@ -202,7 +202,7 @@ $stref = analyse_common_blocks($stref);
 # carp 'OCC5d:'.$stref->{'Subroutines'}{'genmap'}{DeclaredCommonVars}{Set}{w1}{Type};
 # carp 'OCC5e:'.$stref->{'Subroutines'}{'genmap'}{ExGlobArgs}{Set}{w1}{Type};
 # carp 'ExGlobArgs:'. Dumper($stref->{'Subroutines'}{'mult_chk'}{ExGlobArgs}{Set}{w4}{Type});
-# croak 'RefactoredArgs:'. Dumper($stref->{'Subroutines'}{'mult_chk'}{RefactoredArgs}{Set}{w4}{Type}); 	
+# croak  Dumper($stref->{'Subroutines'}{'comp_gije'}{AnnLines}); 	
 	
 	return $stref;
 }    # END of analyse_all()

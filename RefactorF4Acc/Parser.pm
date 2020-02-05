@@ -68,7 +68,7 @@ sub parse_fortran_src {
 	( my $f, my $stref, my $is_source_file_path ) = @_;  # NOTE $f is not the name of the source but of the sub/func/incl/module.
 	 
 	# local $V=1;
-	say "parse_fortran_src(): PARSING $f" if $V;
+	say "parse_fortran_src(): PARSING $f" if 1 or $V;
 
 ## 1. Read the source and do some minimal processsing, unless it's already been done (i.e. for extracted blocks)
 	print "parse_fortran_src(): CALL read_fortran_src( $f )\n" if $V;
@@ -128,9 +128,11 @@ sub parse_fortran_src {
 		if ( not $is_incl and not $is_mod) {
 
 			# Recursive descent via subroutine calls
+		 	$stref->{ParseStack}{$f} = 1;
 			$stref = _parse_subroutine_and_function_calls( $f, $stref );
 			$stref->{$sub_or_incl_or_mod}{$f}{'Status'} = $PARSED;
-			print "DONE PARSING $sub_or_incl_or_mod $f\n" if $V;
+			delete $stref->{ParseStack}{$f};
+			print "DONE PARSING $sub_or_incl_or_mod $f\n" if 1 or $V;
 
 		} elsif ($is_incl) {    # includes
 			$stref->{'IncludeFiles'}{$f}{'Status'} = $PARSED;
@@ -641,7 +643,7 @@ SUBROUTINE
 				$commonlst=~s/^,//;        
 				$has_commons=1;
 				$Sf->{'HasCommons'}=1; 		
-						
+			carp $line if $f eq 'exitt' and $line=~/happy/;			
 #				say "COMMON for $f: $commonlst";
                 $info->{'SpecificationStatement'} = 1; 
                 $info->{'HasVars'} = 1; 
@@ -737,7 +739,7 @@ SUBROUTINE
 							my $subset = in_nested_set( $Sf, 'Vars', $var );
 							if ($subset ne 'DeclaredCommonVars') {
 								# It could be UndeclaredOrigLocalVars via EQUIVALENCE
-							    croak "SHOULD BE IMPOSSIBLE!  $var in $subset in $f: $line\n".Dumper( $Sf->{$subset}{'Set'}{$var} );
+							    carp "SHOULD BE IMPOSSIBLE!  $var in $subset in $f: $line\n".Dumper( $Sf->{$subset}{'Set'}{$var} );
 								#UndeclaredCommonVars
 							}
 						}						
@@ -1829,15 +1831,18 @@ sub _parse_subroutine_and_function_calls {
 								push @{ $Sf->{'Subroutines'}{$current_sub_name}{'CalledSubs'}{'List'} }, $name;
 							}
 							
-							if (   not exists $Sname->{'Status'}
+							if (  not exists $stref->{ParseStack}{$name} and (
+								 not exists $Sname->{'Status'}
 								or $Sname->{'Status'} < $PARSED
 								or $gen_sub )
+								)
 							{
 								print
 								  "\tFOUND SUBROUTINE CALL $name in $f with STATUS="
 								  . show_status( $Sname->{'Status'} )
 								  . ", PARSING\n"
 								  if $V;
+								  
 								$stref = parse_fortran_src( $name, $stref );
 							}
 						} 

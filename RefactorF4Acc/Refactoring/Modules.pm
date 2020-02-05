@@ -307,8 +307,10 @@ sub _create_module_src { (my $stref, my $src, my $subname, my $no_modules ) = @_
 			#  source listed in NO_MODULE in rf4a.cfg,  do not  turn into a module for compatibily with F77
 			for my $f ( @{ $stref->{'SourceContains'}{$src}{'List'} } ) {
 				my $annlines = get_annotated_sourcelines( $stref, $f );
+				
 				if ( not exists $refactored_sources->{$f} ) {    # This is a HACK because we need to make sure this is caught higher up
 					$annlines = create_refactored_source( $stref, $f, $annlines );
+
 					$refactored_sources->{$f} = 1;
 				}
 				@refactored_source_lines = ( @refactored_source_lines, @{$annlines} );
@@ -321,18 +323,19 @@ sub _create_module_src { (my $stref, my $src, my $subname, my $no_modules ) = @_
 			$skip_because_empty = 1; 
 			$stref->{'BuildSources'}{'F'}{$src} = 0;
 		} else {
-		for my $f ( @{ $stref->{'SourceContains'}{$src}{'List'} } ) {
-			if ($subname ne '') {
-				next unless $f eq $subname;
+			for my $f ( @{ $stref->{'SourceContains'}{$src}{'List'} } ) {
+				if ($subname ne '') {
+					next unless $f eq $subname;
+				}
+				my $annlines = get_annotated_sourcelines( $stref, $f );
+			# say "$f:".Dumper($stref->) if $src=~/navier/;
+				if ( not exists $refactored_sources->{$f} ) {    # FIXME: This is a HACK because we need to make sure this is caught higher up
+					$annlines = create_refactored_source( $stref, $f, $annlines );
+					$refactored_sources->{$f} = 1;
+				}
+				@refactored_source_lines = ( @refactored_source_lines, @{$annlines} );
 			}
-			my $annlines = get_annotated_sourcelines( $stref, $f );
-			
-			if ( not exists $refactored_sources->{$f} ) {    # FIXME: This is a HACK because we need to make sure this is caught higher up
-				$annlines = create_refactored_source( $stref, $f, $annlines );
-				$refactored_sources->{$f} = 1;
-			}
-			@refactored_source_lines = ( @refactored_source_lines, @{$annlines} );
-		}
+			# croak Dumper(@refactored_source_lines) if $src=~/navier/;
 		}
 	}
     if (!$skip_because_empty) {
@@ -341,6 +344,7 @@ sub _create_module_src { (my $stref, my $src, my $subname, my $no_modules ) = @_
 	my $EXT = $Config{EXT};
 	my $nsrc = $subname ne '' ? $Config{'SRCDIRS'}->[0]."/$subname$EXT" : $src;
 	if ( !$no_module ) {
+		# croak $nsrc.Dumper(@refactored_source_lines) if $nsrc=~/navier/;
 		$stref->{'RefactoredCode'}{$nsrc} = [ $mod_header, @mod_uses, $mod_contains, @refactored_source_lines, $mod_footer ];
 	} else {
 		

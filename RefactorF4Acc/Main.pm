@@ -197,6 +197,7 @@ sub main {
     } else {
 	   $stref = parse_fortran_src( $code_unit_name, $stref );
     }
+    # croak  Dumper($stref->{'Subroutines'}{'comp_gije'}{AnnLines});
     if ($V) {
         say "--------------". ('-' x length($code_unit_name)) ;
         say "BLOCKS PROCESSING for $code_unit_name";

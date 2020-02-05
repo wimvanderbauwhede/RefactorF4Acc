@@ -62,8 +62,9 @@ sub find_subroutines_functions_and_includes {
 	# if there is an entry in $Config{EXCL_SRCS} then it is a regex
     my $has_pattern =  scalar @{ $Config{EXCL_SRCS} } > 0 ? 1 : 0;    
     my $excl_srcs_pattern    = @{ $Config{EXCL_SRCS} }>1? join('|', @{ $Config{EXCL_SRCS} }) : @{ $Config{EXCL_SRCS} }==1 ? $Config{EXCL_SRCS}->[0] : '';
-    say     'Exclude pattern: /'. $excl_srcs_pattern.'/' if $V;
-	my $excl_srcs_regex      = qr/$excl_srcs_pattern/;
+    
+    say     'Exclude pattern: /'. ($excl_srcs_pattern!~/[\^\$]/ ? '^'.$excl_srcs_pattern.'$'  :  $excl_srcs_pattern). '/' if $V; 
+	my $excl_srcs_regex      = $excl_srcs_pattern!~/[\^\$]/ ? qr/^$excl_srcs_pattern$/ : qr/$excl_srcs_pattern/;
 	
 	
 	$stref->{'SourceDirs'} = [@srcdirs];

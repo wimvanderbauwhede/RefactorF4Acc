@@ -828,7 +828,7 @@ if (exists  $Sf->{'Status'} ) {
         }
     }
 } else {
-	carp "$sub_or_func_or_inc $f ".Dumper($f)." has no Status";
+	warn  "$sub_or_func_or_inc $f has no Status";
 }
     return $annlines;
 }    # END of get_annotated_sourcelines()

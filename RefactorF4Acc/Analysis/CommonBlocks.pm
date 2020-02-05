@@ -17,6 +17,7 @@ use RefactorF4Acc::Utils qw( in_nested_set add_var_decl_to_set remove_var_decl_f
 use RefactorF4Acc::Parser::Expressions qw( parse_expression_no_context );
 use RefactorF4Acc::Analysis::Arguments qw( create_RefactoredArgs );
 use RefactorF4Acc::Analysis::Arrays qw(  
+get_array_rank
 calculate_array_size
 calculate_multidim_indices_from_linear
 dim_to_str

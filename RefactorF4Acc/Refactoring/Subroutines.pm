@@ -1007,11 +1007,14 @@ sub _create_refactored_function_calls {
 		$ast = $info->{'Rhs'}{'ExpressionAST'};
 	} elsif ( exists $info->{'SubroutineCall'} ) {
 		$ast = $info->{'SubroutineCall'}{'ExpressionAST'};
-	} elsif ( exists $info->{'If'} ) {
+	} elsif ( exists $info->{'If'}
+	or exists $info->{'ElseIf'}
+	 ) {
 		# an if or if-then-else
 		$ast = $info->{'CondExecExprAST'};
 	} else {
-		croak "TODO: UNSUPPORTED STATEMENT FOR FUNCTION CALL: <$line> ( _create_refactored_function_calls ) " . Dumper($info);
+		croak "TODO: UNSUPPORTED STATEMENT FOR FUNCTION CALL: <$line> ( _create_refactored_function_calls ) " ;
+		#. Dumper($info);
 		$do_not_update = 1;
 	}
 

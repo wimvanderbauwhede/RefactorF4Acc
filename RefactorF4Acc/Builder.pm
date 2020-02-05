@@ -70,9 +70,9 @@ sub create_build_script {
     my $inclpaths_str=@{$INCLPATHS} ? ','.join(',',map { "'".$_."'" } @{$INCLPATHS}) : '';
     my $maybe_fc = $EXT; $maybe_fc=~s/^\.//;
     my $fortran_compiler = $maybe_fc=~/f\d+/i ? uc($maybe_fc) : 'FORTRAN';
-    my $fflags = 'FFLAGS = ['.join(',',@{$Config{FFLAGS}}).']';
-    my $maybe_f77flags = $Config{HAS_F77_SOURCES} ? 'FORTRANFLAGS = ['.join(',',@{$Config{F77FLAGS}}).']' : '';
-    my $maybe_f77path= $Config{HAS_F77_SOURCES} ? 'FORTRANPATH = ['.join(',',@{$Config{F77FLAGS}}).']' : '';
+    my $fflags = 'FFLAGS = ['.join(',',map {"'".$_."'"   }  @{$Config{FFLAGS}}).']';
+    my $maybe_f77flags = $Config{HAS_F77_SOURCES} ? 'FORTRANFLAGS = ['.join(',',map {"'".$_."'"   }  @{$Config{F77FLAGS}}).']' : '';
+    my $maybe_f77path= $Config{HAS_F77_SOURCES} ? 'FORTRANPATH = ['.join(',',map {"'".$_."'"   }  @{$Config{F77FLAGS}}).']' : '';
     my $maybe_f77_compiler=$gfortran;
     my $maybe_f77_env=$Config{HAS_F77_SOURCES} ? ",FORTRAN=$maybe_f77_compiler, $maybe_f77flags, $maybe_f77path" : '';
 
