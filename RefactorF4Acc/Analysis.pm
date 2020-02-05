@@ -79,14 +79,12 @@ sub analyse_all {
 			$stref = analyse_variables( $stref, $f );
 		}
 	}
-
 	# In this stage, 'ExGlobArgs' is populated from CommonVars by looking at the common blocks that occur in the call chain
 	# Note that this does *not* cover common blocks in includes so hopefully ExGlobArgs will not be affected for the case with includes.
 	say "\t** EX-GLOB ARGS **" if $V;
 	if ($sub_or_func_or_mod eq 'Subroutines') {
 		determine_ExGlobArgs($code_unit_name, $stref);
 	}
-
 	# First find any additional argument declarations, either in includes or via implicits
 	say "\t** ADDITIONAL ARG DECLS **" if $V;
 	for my $f ( keys %{ $stref->{'Subroutines'} } ) {
@@ -101,6 +99,7 @@ sub analyse_all {
 		$stref = find_argument_declarations( $stref, $f );
 	}	
 	return $stref if $stage == 2;
+	
 	say "\t** ANALYSE VARS **" if $V;
 	for my $f ( keys %{ $stref->{'Subroutines'} } ) {
 		next if $f eq '';	
@@ -113,6 +112,7 @@ sub analyse_all {
 			$stref = analyse_variables( $stref, $f );
 		}
 	}
+
     for my $f ( keys %{ $stref->{'Subroutines'} } ) {
         next if $f eq '';   
         if (exists $stref->{'Entries'}{$f}) {
@@ -137,10 +137,14 @@ sub analyse_all {
 	if ($sub_or_func_or_mod eq 'Subroutines') {
 	$stref = identify_inherited_exglobs_to_rename( $stref, $code_unit_name );
 	# Although this seems duplication, it is actually required!	
+# carp 'OCC4before:'.$stref->{'Subroutines'}{'genmap'}{ExGlobArgs}{Set}{w1}{Type};		
 	$stref = lift_globals( $stref, $code_unit_name );	
+# carp 'OCC3:'.$stref->{'Subroutines'}{'genmap'}{DeclaredCommonVars}{Set}{w1}{Type};	
+# carp 'OCC4after:'.$stref->{'Subroutines'}{'genmap'}{ExGlobArgs}{Set}{w1}{Type};		
 	$stref = rename_inherited_exglobs( $stref, $code_unit_name );
 	}
 	return $stref if $stage == 5;
+	
 # croak Dumper keys % {$stref->{'Subroutines'}};
 	for my $f ( keys %{ $stref->{'Subroutines'} } ) { 
 		next if $f eq '';
@@ -194,7 +198,9 @@ sub analyse_all {
 
 # ================================================================================================================================
 $stref = analyse_common_blocks($stref);	
-
+# croak Dumper($stref->{'Subroutines'}{'genmap'}{ExGlobArgs});
+# carp 'OCC5d:'.$stref->{'Subroutines'}{'genmap'}{DeclaredCommonVars}{Set}{w1}{Type};
+# carp 'OCC5e:'.$stref->{'Subroutines'}{'genmap'}{ExGlobArgs}{Set}{w1}{Type};
 # carp 'ExGlobArgs:'. Dumper($stref->{'Subroutines'}{'mult_chk'}{ExGlobArgs}{Set}{w4}{Type});
 # croak 'RefactoredArgs:'. Dumper($stref->{'Subroutines'}{'mult_chk'}{RefactoredArgs}{Set}{w4}{Type}); 	
 	

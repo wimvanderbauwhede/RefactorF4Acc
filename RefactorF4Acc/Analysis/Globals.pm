@@ -161,7 +161,7 @@ if ($RENAME_EXT ne '') {
 
 sub lift_globals { 
     (my $stref, my $f) = @_;
-    local $V=0;
+    # local $V= 0;
  	push @{ $stref->{'CallStack'} }, $f;
     my %subs = map {$_=>1} @{ $stref->{'CallStack'} }; 
 
@@ -194,16 +194,30 @@ sub lift_globals {
 	            # If $f and $csub both have globals, merge them, otherwise inherit them
 	            
 	            if (exists $Scsub->{'ExGlobArgs'} and defined $Scsub->{'ExGlobArgs'}) {
+					# say "HERE1";
 	                if (exists $Sf->{'ExGlobArgs'}{'List'} ) {
+						# say "HERE1a";
 	                	# Merge ExGlobArgs of $csub with those of $f  
 	                    $Sf->{'ExGlobArgs'}{'List'} = ordered_union( $Sf->{'ExGlobArgs'}{'List'},$Scsub->{'ExGlobArgs'}{'List'} );  	                    
 	                } else {
+						# say "HERE1b";
 	                	# Inherit
 	                    $Sf->{'ExGlobArgs'}{'List'} = [@{$Scsub->{'ExGlobArgs'}{'List'} }];
 	                } 
 	                if ( exists $Sf->{'ExGlobArgs'}{'Set'} ) {
 	                	# Merge      
-	            	   $Sf->{'ExGlobArgs'}{'Set'} = { %{ $Sf->{'ExGlobArgs'}{'Set'} }, %{ dclone( $Scsub->{'ExGlobArgs'}{'Set'} ) } };
+	            	#    $Sf->{'ExGlobArgs'}{'Set'} = { %{ $Sf->{'ExGlobArgs'}{'Set'} }, %{ dclone( $Scsub->{'ExGlobArgs'}{'Set'} ) } };
+
+						for my $called_var (sort keys %{ $Scsub->{'ExGlobArgs'}{'Set'} } )  {
+							if (not exists $Sf->{'ExGlobArgs'}{'Set'}{$called_var}) {
+								say "Merging $called_var from $csub into $f";
+								$Sf->{'ExGlobArgs'}{'Set'}{$called_var} = dclone($Scsub->{'ExGlobArgs'}{'Set'}{$called_var});
+							} 
+							# else {
+							# 	carp "$called_var from $calledsub already defined in $f";
+							# }
+						}
+
 	                } else {
 	                	# Inherit
 	                    $Sf->{'ExGlobArgs'}{'Set'} = dclone( $Scsub->{'ExGlobArgs'}{'Set'} );

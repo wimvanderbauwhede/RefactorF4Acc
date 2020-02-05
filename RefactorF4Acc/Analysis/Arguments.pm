@@ -161,12 +161,10 @@ sub create_RefactoredArgs {
 	and scalar @{$Sf->{'ExMismatchedCommonArgs'}{'SigArgs'}{'List'}}>0 
 	and scalar @{ $Sf->{'OrigArgs'}{'List'} } >0
 	) {
-carp Dumper($Sf->{'RefactoredArgs'}{'Set'}{'w4'}{Type}) if $f eq 'mult_chk';
+
 		$Sf->{'RefactoredArgs'}{'List'} = ordered_union( $Sf->{'OrigArgs'}{'List'}, $Sf->{'ExMismatchedCommonArgs'}{'SigArgs'}{'List'} );
 		$Sf->{'RefactoredArgs'}{'Set'} = { %{ $Sf->{'UndeclaredOrigArgs'}{'Set'} }, %{ $Sf->{'DeclaredOrigArgs'}{'Set'} }, %{ $Sf->{'ExMismatchedCommonArgs'}{'SigArgs'}{'Set'} } };
 		$Sf->{'HasRefactoredArgs'} = 1;
-carp Dumper($Sf->{'ExMismatchedCommonArgs'}{'SigArgs'}{'Set'}{'w4'}{Type}) if $f eq 'mult_chk';
-carp Dumper($Sf->{'RefactoredArgs'}{'Set'}{'w4'}{Type}) if $f eq 'mult_chk';		
 
 	} elsif ( exists $Sf->{'ExMismatchedCommonArgs'}{'SigArgs'}{'List'} and  scalar @{$Sf->{'ExMismatchedCommonArgs'}{'SigArgs'}{'List'}}==0
 	and scalar @{ $Sf->{'OrigArgs'}{'List'} } >0
@@ -440,10 +438,8 @@ sub determine_ExGlobArgs {
 	if ($V) {
 		$c = ( defined $stref->{Counter} ) ? $stref->{Counter} : 0;
 		say "\t" x $c, $f;
-	}
-	
-	# For the Mismatched COMMON vars, we use SigArgs instead of ExGlobArgs
-	
+	}	
+	# For the Mismatched COMMON vars, we use SigArgs instead of ExGlobArgs	
     push @{ $stref->{'CallStack'} }, $f;
     my %subs = map {$_=>1} @{ $stref->{'CallStack'} }; 
 	
@@ -470,7 +466,18 @@ sub determine_ExGlobArgs {
 			}
 			$stref->{Counter}++ if $V;
 			$stref = determine_ExGlobArgs( $calledsub, $stref );
-			$Sf->{'ExGlobArgs'}{'Set'} = { %{ $Sf->{'ExGlobArgs'}{'Set'} }, %{ $stref->{'Subroutines'}{$calledsub}{'ExGlobArgs'}{'Set'} } };			
+			# This would be fine if the called sub has no overlap with the original sub
+			# The problem is that sometimes we have the same name variable with a different type in the called sub and the caller			
+			# $Sf->{'ExGlobArgs'}{'Set'} = { %{ $Sf->{'ExGlobArgs'}{'Set'} }, %{ $stref->{'Subroutines'}{$calledsub}{'ExGlobArgs'}{'Set'} } };			
+			for my $called_var (sort keys %{ $stref->{'Subroutines'}{$calledsub}{'ExGlobArgs'}{'Set'} } )  {
+				if (not exists $Sf->{'ExGlobArgs'}{'Set'}{$called_var}) {
+					$Sf->{'ExGlobArgs'}{'Set'}{$called_var} = $stref->{'Subroutines'}{$calledsub}{'ExGlobArgs'}{'Set'}{$called_var};
+				} 
+				# else {
+				# 	carp "$called_var from $calledsub already defined in $f";
+				# }
+			}
+
 			$stref->{Counter}-- if $V;
 		}
 		say "\t" x $c, "--------" if $V;
@@ -519,6 +526,7 @@ local $V=1;
 	# If a var occurs in any caller, it must become an ExGlobArg
 	for my $var (keys %{ $common_decls_current }) {
 		my $decl = $common_decls_current->{$var};
+		
 		my $common_block_name = $decl->{'CommonBlockName'};
 		if (exists	$common_decls_callers->{$var}{$common_block_name} ) {
 #			say Dumper( $common_decls_callers->{$var}{$common_block_name} );
@@ -533,6 +541,7 @@ local $V=1;
 				$Sf->{'ExGlobArgs'}{'Set'}{$var.'_ARG'}=$mod_decl ;
 			}			
 		}
+		
 	} 	
 	$Sf->{'ExGlobArgs'}{'List'} =[ sort keys %{ $Sf->{'ExGlobArgs'}{'Set'} } ];
 	return $stref;

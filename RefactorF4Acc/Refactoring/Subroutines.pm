@@ -30,7 +30,7 @@ use RefactorF4Acc::Analysis::Arrays qw(
   calculate_multidim_indices_from_linear
   dim_to_str
 );
-use RefactorF4Acc::Refactoring::Casts qw( create_cast_annlines );
+use RefactorF4Acc::Refactoring::Casts qw( create_cast_annlines cast_call_argument );
 
 use vars qw( $VERSION );
 $VERSION = "1.2.0";
@@ -507,7 +507,7 @@ sub _create_extra_arg_and_var_decls {
 			say "INFO VAR in $f: IODir for $var: " . $Sf->{'ExGlobArgs'}{'Set'}{$var}{'IODir'}
 			  if $I and not $Sf->{'Program'};
 			my $rdecl = $Sf->{'ExGlobArgs'}{'Set'}{$var};
-			# carp Dumper($rdecl) if $var eq 'w4' and $f eq 'mult_chk';
+			# croak Dumper($rdecl) if $var eq 'w4' and $f eq 'mult_chk';
 			(my $inherited_param_decls, $Sf) = __generate_inherited_param_decls($rdecl, $Sf, $f,[]);
 			# say "VAR $var in $f";
 			# map { say $_->[0] } @{$inherited_param_decls};
@@ -722,6 +722,7 @@ sub _create_refactored_subroutine_call {
 
 	( my $line, my $info ) = @{$annline};
 	my $name = $info->{'SubroutineCall'}{'Name'};
+	
 	my $Sf   = $stref->{'Subroutines'}{$f};
 
 	if ( exists $stref->{'ExternalSubroutines'}{$name} ) {
@@ -740,11 +741,50 @@ sub _create_refactored_subroutine_call {
 	} else {
 		shift @{$expr_ast};
 	}
-
+# carp "$f $name ".'ARGMAP:' .Dumper($info->{'SubroutineCall'}{'ArgMap'}) if $name eq 'sbisect';
 	for my $call_arg_expr ( @{$expr_ast} ) {
 		my $call_arg = emit_expr_from_ast($call_arg_expr);
+
+				# my $call_arg = $stref->{'Subroutines'}{$parent_sub_name}{'ExMismatchedCommonArgs'}{'CallArgs'}{$f}{$sig_arg}[0];
+				if ($call_arg!~/__PH\d+__/) {
+						# say "FOR CALL ARG $call_arg of call to $name in $f:";
+					my $subset = in_nested_set($stref->{'Subroutines'}{$f}, 'Vars', $call_arg);
+					if ($subset) { # otherwise it means this is an expression, TODO
+						my $call_arg_decl = $stref->{'Subroutines'}{$f}{$subset}{'Set'}{$call_arg};
+						# carp Dumper($call_arg_decl)  if $call_arg eq 'p2' and $name eq 'sbisect';
+						my $sig_arg = $call_arg;
+						
+						for my $tsig_arg (keys %{$info->{'SubroutineCall'}{'ArgMap'} }) {					
+							if ( defined $info->{'SubroutineCall'}{'ArgMap'}{$tsig_arg} and
+								$info->{'SubroutineCall'}{'ArgMap'}{$tsig_arg} eq $call_arg) {
+								$sig_arg=$tsig_arg;
+								last;
+							}
+						}
+						my $sig_subset = in_nested_set($stref->{'Subroutines'}{$name}, 'Vars', $sig_arg);
+						my $sig_arg_decl = $stref->{'Subroutines'}{$name}{$sig_subset}{'Set'}{$sig_arg};
+						# carp $sig_subset .Dumper($sig_arg_decl)  if $call_arg eq 'p2' and $name eq 'sbisect';
+						if (not exists $sig_arg_decl->{'Name'}) {
+							$sig_arg_decl = $call_arg_decl;
+						}
+						# say "CALL ARG: $call_arg :: " .Dumper($call_arg_decl);
+						# say "SIG ARG: $sig_arg :: ".Dumper($sig_arg_decl);
+						if ($call_arg_decl->{'Type'} ne $sig_arg_decl->{'Type'}) {
+							# carp "HERE WE MAY NEED TO CAST! \nCALL ARG $f . $call_arg :: ".$call_arg_decl->{'Type'}.'<>'." SIG ARG $name . $sig_arg :: ".$sig_arg_decl->{'Type'} ;
+							my $sig_kind=4;
+							if (exists $sig_arg_decl->{'Attr'} and $sig_arg_decl->{'Attr'} ne '') {
+								$sig_kind=$sig_arg_decl->{'Attr'};
+								$sig_kind=~s/\w+=//;
+								$sig_kind=~s/[\(\)]//g;
+							}
+							$call_arg = cast_call_argument($sig_arg_decl->{'Type'}, $sig_kind , $call_arg_decl->{'Type'}, $call_arg);
+						}
+					} #
+				}
+
 		push @orig_args, $call_arg;
 	}
+	# croak Dumper($expr_ast) if $name eq 'sbisect';
 	# if ($f eq 'mult_chk' and $name eq 'rzero') {
 	# for my $sig_arg (sort keys %{$info->{'SubroutineCall'}{'ArgMap'}}) {
 	# 	my $subset = in_nested_set( $stref->{'Subroutines'}{$name},'Args', $sig_arg);
@@ -888,23 +928,40 @@ sub _create_refactored_subroutine_call {
 			my @maybe_renamed_exglobs = ();
 			for my $sig_arg (@ex_glob_sig_args) {
 				my $call_arg = $stref->{'Subroutines'}{$parent_sub_name}{'ExMismatchedCommonArgs'}{'CallArgs'}{$f}{$sig_arg}[0];
+				
+				my $subset = in_nested_set($stref->{'Subroutines'}{$f}, 'Vars', $call_arg);
+				my $call_arg_decl = $stref->{'Subroutines'}{$f}{$subset}{'Set'}{$call_arg};
+				my $sig_arg_decl = $stref->{'Subroutines'}{$parent_sub_name}{'ExMismatchedCommonArgs'}{'SigArgs'}{'Set'}{$sig_arg};
+				if ($call_arg_decl->{'Type'} ne $sig_arg_decl->{'Type'}) {
+					# carp "HERE WE MAY NEED TO CAST! $f . $call_arg :: ".$call_arg_decl->{'Type'}.'<>'."$parent_sub_name . $sig_arg :: ".$sig_arg_decl->{'Type'} ;
+
+					my $sig_kind=4;
+					if (exists $sig_arg_decl->{'Attr'} and $sig_arg_decl->{'Attr'} ne '') {
+						$sig_kind=$sig_arg_decl->{'Attr'};
+						$sig_kind=~s/\w+=//;
+						$sig_kind=~s/[\(\)]//g;
+					}
+					$call_arg = cast_call_argument($sig_arg_decl->{'Type'}, $sig_kind , $call_arg_decl->{'Type'}, $call_arg);
+
+
+				}
 				push @maybe_renamed_exglobs, $call_arg;
 			}
 
 			# Then we concatenate these arg lists
 			$args_ref = [ @orig_args, @maybe_renamed_exglobs ];    # NOT ordered union, if they repeat that should be OK
-			# if ($NEW_PARSER) {
-				my $expr_ast = $info->{'SubroutineCall'}{'ExpressionAST'};
-				if (    @maybe_renamed_exglobs
-					and @{$expr_ast}
-					and ( $expr_ast->[0] & 0xFF ) != 27 )
-				{
-					$expr_ast = [ 27, $expr_ast ];
-				}
-				$expr_ast =
-				  [ @{$expr_ast}, map { [ '2', $_ ] } @maybe_renamed_exglobs ];
-				$info->{'SubroutineCall'}{'ExpressionAST'} = $expr_ast;
-			# }
+			
+			my $expr_ast = $info->{'SubroutineCall'}{'ExpressionAST'};
+			if (    @maybe_renamed_exglobs
+				and @{$expr_ast}
+				and ( $expr_ast->[0] & 0xFF ) != 27 )
+			{
+				$expr_ast = [ 27, $expr_ast ];
+			}
+			$expr_ast =
+				[ @{$expr_ast}, map { [ '2', $_ ] } @maybe_renamed_exglobs ];
+			$info->{'SubroutineCall'}{'ExpressionAST'} = $expr_ast;
+
 
 			$info->{'SubroutineCall'}{'Args'}{'List'} = $args_ref;
 

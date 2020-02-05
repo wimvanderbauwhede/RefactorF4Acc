@@ -344,7 +344,8 @@ sub analyse_lines {
 								'Dim'           => [],
 								'Attr' => '',
 								'IODir' => 'Out',
-								'Name'=>$proc_name
+								'Name'=>$proc_name,
+								'Implicit' => 0
 							};
 							push @{ $Sf->{'DeclaredOrigLocalVars'}{'List'} },$proc_name; 
 						}
@@ -551,6 +552,7 @@ SUBROUTINE
 								'Dim'=>[],
 								'Name'=>$varname,
 								'Names'=>[$varname],
+								'Implicit' => 1
 							};		
 							$subset='DeclaredOrigLocalVars';					
 						} else {
@@ -572,6 +574,7 @@ SUBROUTINE
 									'Name'=>$varname,
 									'Names'=>[$varname],
 									'IODir' => 'Unknown',
+									'Implicit' => 0
 								};		
 								$Sf->{'UndeclaredOrigArgs'}{'Set'}{$varname}=$decl;		
 							} 
@@ -658,6 +661,8 @@ SUBROUTINE
 							  type_via_implicits( $stref, $f, $var );
 							( my $type, my $array_or_scalar, my $attr ) =
 							  @type_kind_attr;
+							# carp __LINE__ . ": $f $var :: $type via IMPLICIT" ;  
+							push @{ $info->{'Ann'} }, annotate( $f, __LINE__ . "$var :: $type via IMPLICIT" );
 							my $default_indent = ' ' x 6;
 							my $decl   = {
 								'IODir'  => 'Unknown',
@@ -668,7 +673,8 @@ SUBROUTINE
 								'Name'   => $var,
 								'Status' => 1,								
 								'ArrayOrScalar' => $parsedvars->{$var}{'ArrayOrScalar'},
-								'CommonBlockName' => $common_block_name
+								'CommonBlockName' => $common_block_name,
+								'Implicit' => 1
 							};
 							$decl=__get_params_from_dim($decl,$Sf);
 							$Sf->{'UndeclaredCommonVars'}{'Set'}{$var} = $decl;
@@ -726,37 +732,7 @@ SUBROUTINE
 							@{ $Sf->{'UndeclaredOrigLocalVars'}{'List'} } = grep { $_ ne $var } @{ $Sf->{'UndeclaredOrigLocalVars'}{'List'} };
 							}
 							push @{ $Sf->{'DeclaredCommonVars'}{'List'} }, $var;
-						}
-# 						elsif (exists $Sf->{'UndeclaredCommonVars'}{'Set'}{$var} ){
-# 							# So if a variable was common and initially undeclared, it could mean that it was declared via implicits in another subroutine
-# 							# Maybe I should initially do nothing then. 
-# 							# Or I could add it to DeclaredCommonVars, but I need to check how this is used
-# 							if (0) {
-# 							my $decl = $Sf->{'UndeclaredCommonVars'}{'Set'}{$var};
-# #							say Dumper($decl).'<>'.Dumper($parsedvars->{$var});
-# 							if (
-# 							     (not exists $decl->{'ArrayOrScalar'} or
-# 								 $decl->{'ArrayOrScalar'} eq 'Scalar') and 
-# 								 $parsedvars->{$var}{'ArrayOrScalar'} eq 'Array'
-# 							) {								
-# 								$decl->{'Dim'} =  [ @{ $parsedvars->{$var}{'Dim'} } ];									
-# 							} elsif (
-# 							exists $decl->{'ArrayOrScalar'} and
-# 								$decl->{'ArrayOrScalar'} eq 'Array' and 
-# 								$parsedvars->{$var}{'ArrayOrScalar'} eq 'Array'							
-# 							) {
-# 								croak "This should be an error: dimension of $var speficied both in VarDecl and Common";
-# 							}
-							
-# 							$Sf->{'DeclaredCommonVars'}{'Set'}{$var} = exists $Sf->{'Program'} ? $decl : dclone($decl);
-# 							$Sf->{'DeclaredCommonVars'}{'Set'}{$var}{'CommonBlockName'} = $common_block_name;
-# 							if (not exists $Sf->{'Program'} ) {
-# 							delete $Sf->{'UndeclaredCommonlVars'}{'Set'}{$var};
-# 							@{ $Sf->{'UndeclaredCommonlVars'}{'List'} } = grep { $_ ne $var } @{ $Sf->{'UndeclaredCommonlVars'}{'List'} };
-# 							}
-# 							push @{ $Sf->{'DeclaredCommonVars'}{'List'} }, $var;
-# 							}							
-# 						}						
+						}					
 						else {
 							my $subset = in_nested_set( $Sf, 'Vars', $var );
 							if ($subset ne 'DeclaredCommonVars') {
@@ -775,7 +751,6 @@ SUBROUTINE
 				};
 				$Sf->{'HasLocalCommons'}=1 unless $is_incl;
 				$stref = collect_common_vars_per_block($stref, $f, $line) unless $is_incl;    
-#				croak Dumper($info);
 			}		
 #== NAMELIST
 #@ Namelist => 
@@ -902,6 +877,8 @@ SUBROUTINE
 				 	$info->{'Vars'}{'Set'}= {%{$info->{'Vars'}{'Set'}},%{ $vars } } ;
             	}
             	$info->{'Vars'}{'List'}= [sort keys %{$info->{'Vars'}{'Set'}}];
+				# carp __LINE__ .': '.$f. ' EQUIVALENCE: '.Dumper($info->{'Vars'}{'List'});
+				push @{ $info->{'Ann'} }, annotate( $f, __LINE__ . " EQUIVALENCE" );
 
 		 	}		
 #== VARIABLE and PARAMETER DECLARATIONS
@@ -948,10 +925,12 @@ or $line=~/^character\s*\(\s*len\s*=\s*[\w\*]+\s*\)/
 				
 				( $Sf, $info ) = __parse_f77_var_decl( $Sf, $stref, $f,$indent, $line, $info, $type, $varlst );
 				$info->{'SpecificationStatement'} = 1;				
-				croak if $line=~/__pipe\s\!\$ACC/;
+				# carp __LINE__ . ": $f DECL ".Dumper($info) ;  
+				push @{ $info->{'Ann'} }, annotate( $f, __LINE__ . " DECL" );
+				#croak if $line=~/__pipe\s\!\$ACC/;
 		}
 #== F95 declaration, no need for refactoring		 	
-		 elsif ( $line =~ /^(.+)\s*::\s*(.+)(?:\s*|\s+\!\$ACC.+)$/ ) { croak if $line=~/__pipe\s\!\$ACC/;
+		 elsif ( $line =~ /^(.+)\s*::\s*(.+)(?:\s*|\s+\!\$ACC.+)$/ ) {# croak if $line=~/__pipe\s\!\$ACC/;
 		 
 				( $Sf, $info ) = __parse_f95_decl( $stref, $f, $Sf, $indent, $line, $info);
 				if (exists $info->{'ParamDecl'}) {
@@ -2597,7 +2576,8 @@ sub __parse_f95_decl {
 			'Names'     => [ [ $var, $val ] ],
 			'Name' => $var,
 			'Val' => $val,
-			'Status'    => 0
+			'Status'    => 0,
+			'Implicit' => 0
 		};    # F95-style
 		$info->{'ParamDecl'} = $param_decl;
 		$info->{'VarDecl'} = {'Name' => $var };
@@ -2935,7 +2915,8 @@ sub __parse_f77_par_decl {
 						'Dim'       => [],
 						'Parameter' => 'parameter',
 						'InheritedParams' => $inherited_params,
-						'Status'    => 0     
+						'Status'    => 0,
+						'Implicit' => 0     
 					};
 					# croak Dumper($param_decl) if $var eq 'icp001';
 		$Sf->{'LocalParameters'}{'Set'}{$var}=$param_decl;		
@@ -2975,6 +2956,7 @@ sub __parse_f77_var_decl {
 
 	my @varnames = ();
 	# Add type information to Vars
+	my $annotation='';
 	for my $tvar ( @{$pvars_lst} ) {
 		
 		if ( $tvar eq '' ) { croak "<$line> in $f" }
@@ -3059,7 +3041,8 @@ sub __parse_f77_var_decl {
 			'IODir'  => $tvar_rec->{'IODir'},
 			'Status' => 0,
 			'StmtCount'	=> $tvar_rec->{'StmtCount'},
-			'ArrayOrScalar' => scalar @{$dim} > 0 ? 'Array' : 'Scalar' #$pvars->{$tvar}{'ArrayOrScalar'},
+			'ArrayOrScalar' => scalar @{$dim} > 0 ? 'Array' : 'Scalar' ,
+			'Implicit' => 0
 		};
 		# Here $decl->{'Type'} is OK
 		
@@ -3083,13 +3066,13 @@ sub __parse_f77_var_decl {
 							my $subset = in_nested_set($Sf,'Parameters',$mpar);
 							my $pdecl = get_var_record_from_set($Sf->{$subset},$mpar);
 	         				$decl->{'InheritedParams'}{'Set'}{$mpar}=$pdecl;
-							 croak if ref($pdecl) ne 'HASH';
+							#  croak '' if ref($pdecl) ne 'HASH';
 	         			}				
 					}
 				}
 			}
 		} 						
-croak Dumper($pvars->{$tvar})."\nDECL:<".Dumper($decl).'>' if $tvar eq 'ev' and $f eq 'spec_bis_conn';
+
 		push @varnames, $tvar;
 		
 # When we encounter UndeclaredOrigArgs we make them DeclaredOrigArgs
@@ -3125,7 +3108,7 @@ croak Dumper($pvars->{$tvar})."\nDECL:<".Dumper($decl).'>' if $tvar eq 'ev' and 
 		}
 		$Sf->{'DeclCount'}{$tvar}++;
 		$info->{'StmtCount'}{$tvar} = $Sf->{'DeclCount'}{$tvar};
-
+		$annotation.= "$tvar :: ".$tvar_rec->{'Type'}.' ' ;
 	}    # loop over all vars declared on a single line
 
 	print "\tINFO: VARS <$line>:\n ", join( ',', sort @varnames ), "\n" if $I;
@@ -3139,7 +3122,8 @@ croak Dumper($pvars->{$tvar})."\nDECL:<".Dumper($decl).'>' if $tvar eq 'ev' and 
     if (scalar @varnames == 1 ) {
     	$info->{'VarDecl'}{'Name'} = $varnames[0];
     }
-	push @{ $info->{'Ann'} }, annotate( $f, __LINE__ );
+	
+	push @{ $info->{'Ann'} }, annotate( $f, __LINE__ . $annotation );
 	return ( $Sf, $info );
 }    # END of __parse_f77_var_decl()
 

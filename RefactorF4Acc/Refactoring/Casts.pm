@@ -25,6 +25,7 @@ our @ISA = qw(Exporter);
 our @EXPORT_OK = qw(
 _cast_annlines
 create_cast_annlines
+cast_call_argument
 );
 
 sub _assignment_info { my ($lhs_var, $rhs_vars) = @_;
@@ -154,6 +155,47 @@ sub __cast_logical_to_integer_annlines {
 		$_endif_info]             
 	];
 } # END of __cast_logical_to_integer_annlines
+
+
+sub cast_call_argument {
+	my ( $sig_type, $sig_kind, $call_type, $call_arg ) = @_;
+	if ( $call_type eq $sig_type ) {
+		return $call_arg;
+	} elsif ( $call_type eq 'integer' ) {
+		if ( $sig_type eq 'logical' ) {
+			return "$call_arg /= 0";
+		} elsif ( $sig_type eq 'real' ) {
+			return "real($call_arg,$sig_kind)";			
+		} elsif ( $sig_type eq 'complex' ) {
+			return "cmplx($call_arg)";
+		}
+	} elsif ( $call_type eq 'real' ) {
+		if ( $sig_type eq 'logical' ) {
+			return "$call_arg /= 0.0";
+		} elsif ( $sig_type eq 'integer' ) {
+			return "int($call_arg, $sig_kind)"
+		} elsif ( $sig_type eq 'complex' ) {
+			return  "cmplx($call_arg)";
+		}
+	} elsif ( $call_type eq 'logical' ) {
+		if ( $sig_type eq 'real' ) {
+			return $call_arg;
+		} elsif ( $sig_type eq 'integer' ) {
+			return $call_arg;
+		}
+	} elsif ( $call_type eq 'complex' ) {
+		if ( $sig_type eq 'logical' ) {
+			return "$call_arg /= (0.0,0.0)"
+		} elsif ( $sig_type eq 'integer' ) {
+			return "int($call_arg)";
+		} elsif ( $sig_type eq 'real' ) {
+			return "real($call_arg)";
+		}
+	} else { # Can't handle, just return
+		return $call_arg;
+	}
+} # END of cast_call_argument
+
 
 sub __cast_logical_to_real_annlines {
 	( my $v_logical, my $v_real ) = @_;

@@ -52,7 +52,7 @@ sub analyse_common_blocks { (my $stref) =@_;
 		
 #	 say "\nCOMMON BLOCK MISMATCHES in $f:\n";
 #    say Dumper($stref->{'Subroutines'}{$f}{'CommonBlocks'});
-    $stref = identify_common_var_mismatch($stref,$f);
+    $stref = _identify_common_var_mismatch($stref,$f);
 #    say Dumper($stref->{'Subroutines'}{$f}{'CommonVarMismatch'});
 	}
 
@@ -61,17 +61,15 @@ sub analyse_common_blocks { (my $stref) =@_;
 		next if $f eq '';			
 		next  if $f eq 'UNKNOWN_SRC';
 		next unless exists $stref->{'Subroutines'}{$f}{'HasLocalCommons'};
-		create_common_var_size_tuples( $stref, $f );
+		_create_common_var_size_tuples( $stref, $f );
 	}
-# Here RefactoredArgs types are still OK	
 
 	for my $f ( keys %{ $stref->{'Subroutines'} } ) {		
 		next if $f eq '';			
 		next  if $f eq 'UNKNOWN_SRC';
 		next unless exists $stref->{'Subroutines'}{$f}{'HasLocalCommons'};
-		match_up_common_vars( $stref, $f );
+		_match_up_common_vars( $stref, $f );
 		next unless exists $stref->{'Subroutines'}{$f}{'HasCommonVarMismatch'};
-# This is the culprit: after this RefactoredArgs types are wrong
 		$stref = create_RefactoredArgs( $stref, $f );
 	}
 		
@@ -79,64 +77,6 @@ sub analyse_common_blocks { (my $stref) =@_;
 	} # END of analyse_common_blocks
 
 
-# This is for Parser, so the result should a list of var names
-#
-sub collect_common_vars_per_block {
-	my ( $stref, $f, $common_decl_str_ ) = @_;
-	my $Sf              = $stref->{'Subroutines'}{$f};
-	my %common_blocks   = %{ $Sf->{'CommonBlocks'} };
-	my $common_decl_str = $common_decl_str_;
-	$common_decl_str =~ s/common\s*//;
-	$common_decl_str =~ s/\s+$//;
-
-	if ( $common_decl_str !~ /^\// ) {
-		$common_decl_str = 'BLANK/' . $common_decl_str;
-	} else {
-		$common_decl_str =~ s/^\/\s*//;
-		if ( $common_decl_str =~ /^\s*\// ) {
-			$common_decl_str = 'BLANK' . $common_decl_str;
-		}
-	}
-
-	my @common_chunks = split( /\s*\/\s*/, $common_decl_str );
-
-	while (@common_chunks) {
-
-		my $common_block_name = shift @common_chunks;
-
-		if ( not exists $common_blocks{$common_block_name} ) {
-			$common_blocks{$common_block_name} = [];
-		}
-		my $common_vars_str = shift @common_chunks;
-		$common_vars_str =~ s/,\s*$//;
-		
-		my ($ast, $rest, $err, $has_funcs) = parse_expression_no_context($common_vars_str);
-		
-		my @common_vars=();
-		if ($ast->[0] == 27) {
-			for my $idx (1 .. scalar @{$ast}-1) {
-				if ($ast->[$idx][0] == 1 or $ast->[$idx][0] == 2 or $ast->[$idx][0] == 10) {
-					push @common_vars, $ast->[$idx][1];
-				}
-			}
-		} elsif ($ast->[0] == 1 or $ast->[0] == 2 or $ast->[0] == 10) {
-				push @common_vars, $ast->[1];			
-		}
-		 
-#		my $args_vars = find_vars_in_ast($ast);
-		
-#		$common_vars_str =~ s/,\s*$//;
-#		my @common_vars_strs = split( /\s*,\s*/, $common_vars_str );
-#
-#		 my @common_vars_OLD = grep { !/\)$/ }
-#		  map { my $str = $_; $str =~ s/\(.+$//; $str } @common_vars_strs;
-		$common_blocks{$common_block_name} =
-		  [ @{ $common_blocks{$common_block_name} }, @common_vars ];
-	}
-
-	$Sf->{'CommonBlocks'} = {%common_blocks};
-	return $stref;
-}    # END of collect_common_vars_per_block
 
 =pod
 We need to identify if there is CommonVarMismatch or not
@@ -147,7 +87,7 @@ If it's the other way round, CallerSub strict subset of CalledSub, then we need 
 =cut
 
 # For every subroutine, see if there is a mismatch with any of the callers.
-sub identify_common_var_mismatch {
+sub _identify_common_var_mismatch {
 	my ( $stref, $f ) = @_;
 	my $Sf = $stref->{'Subroutines'}{$f};
 	say "CALLED SUB $f" if $DBG;
@@ -219,7 +159,7 @@ sub identify_common_var_mismatch {
 		} @{ $Sf->{'ExMismatchedCommonArgs'}{'SigArgs'}{'List'} };
 	}
 	return $stref;
-}    # END of identify_common_var_mismatch
+}    # END of _identify_common_var_mismatch
 
 sub _compare_decls {
 	my ( $stref, $f1, $f2, $decl1, $decl2, $compare_names ) = @_;
@@ -254,7 +194,19 @@ sub _compare_decls {
 
 
 # Annotate the var with most of the declaration, mostly for type checking while lining up
-sub create_common_var_size_tuples {
+# The tuple has the following type:
+# $common_var_size_tuple = [
+# 				$called_sub_common_var,         # :: VarName
+# 				$called_sub_common_var_decl,    # :: VarDeclRec
+# 				$kind_or_len,                   # :: AttrVal
+# 				$dim,                           # :: Dim
+# 				$dimsz,                         # :: Integer, linear size
+# 				$lin_idx,                       # :: Integer, linear index, starting at 1
+# 				$used_before                    # :: Bool, UsedBefore
+# 			];
+# The VarDeclRec is there for convenience
+
+sub _create_common_var_size_tuples {
 
 	my ( $stref, $f ) = @_;
 	my $Sf = $stref->{'Subroutines'}{$f};
@@ -305,9 +257,9 @@ sub create_common_var_size_tuples {
 	}
 
 	return $stref;
-}    # END of create_common_var_size_tuples
+}    # END of _create_common_var_size_tuples
 
-sub match_up_common_vars {
+sub _match_up_common_vars {
 	my ( $stref, $f ) = @_;
 	my $Sf = $stref->{'Subroutines'}{$f};
 	if ( not exists $Sf->{'ExMismatchedCommonArgs'} ) {
@@ -324,7 +276,7 @@ sub match_up_common_vars {
 	
 #	croak Dumper($Sf->{'ExMismatchedCommonArgs'}) if $f eq 'ff304';
 	return $stref;
-}    # END of match_up_common_vars
+}    # END of _match_up_common_vars
 
 # We create assignments local_var = caller_var
 # and if the intent is also Out, also caller_var = local_var before exiting the subroutine.
@@ -334,9 +286,9 @@ sub match_up_common_vars {
 sub _match_up_common_var_sequences {
 	my ( $stref, $f, $caller, $block ) = @_;
 
-		# say "MATCHING UP BLOCK $block for $f and $caller";
-		# So the problem here is that in some evil code, the caller can have a type mismatch with the local
-		# We should use the local if possible I guess. 
+	# say "MATCHING UP BLOCK $block for $f and $caller";
+	# So the problem here is that in some evil code, the caller can have a type mismatch with the local
+	# We should use the local if possible I guess. 
 	my $Sf               = $stref->{'Subroutines'}{$f};
 	my @common_local_seq = @{ $Sf->{'CommonBlockSequences'}{$block} };
 	my @common_caller_seq =
@@ -344,29 +296,34 @@ sub _match_up_common_var_sequences {
 
 	# @equivalence_pairs ::  [(VarName,Type,ArrayOrScalar,Dim,PrefixStr, TypeDeclRec)]
 	my @equivalence_pairs = ();
+	# croak Dumper( map {$_->[0] } @common_local_seq).Dumper( map {$_->[0] } @common_caller_seq) if $f eq 'mult_chk';
 	while ( scalar @common_local_seq > 0 ) {    # keep going until the local sequence is consumed
 		my $elt_local = shift @common_local_seq;
 
 		my ( $name_local, $decl_local, $kind_local, $dim_local, $dimsz_local, $lin_idx_local, $used_local ) = @{$elt_local};
 		my $type_local = $decl_local->{'Type'};
 
-		say "LOCAL: $name_local :: $type_local"  if $f eq 'mult_chk' and $name_local eq 'w4';
+		# say "LOCAL: $name_local :: $type_local"  if $f eq 'mult_chk' and $name_local eq 'w4';
 		if (@common_caller_seq) {
 
 			my $elt_caller = shift @common_caller_seq;
 			my ( $name_caller, $decl_caller, $kind_caller, $dim_caller, $dimsz_caller, $lin_idx_caller, $used_caller ) = @{$elt_caller};
 			my $type_caller = $decl_caller->{'Type'};
 			# carp 'dim_caller: '.Dumper($dim_caller);
-			say "CALLER: $name_caller :: $type_caller"  if $f eq 'mult_chk' and $name_caller eq 'w4';
+			# say "CALLER: $name_caller :: $type_caller"  if $f eq 'mult_chk' and $name_caller eq 'w4';
 
 			# add this caller to ExMismatchedCommonArgs
 			# WV 2020-02-04 Is this always the case?
 			my $prefix = $block eq 'BLANK' ? [$caller] : [ $caller, $block ];
 			if ( $used_caller == 0 ) {
 				$used_caller = 1;
-				push @{ $Sf->{'ExMismatchedCommonArgs'}{'SigArgs'}{'List'} }, $name_caller;
-				$Sf->{'ExMismatchedCommonArgs'}{'SigArgs'}{'Set'}{$name_caller} = $decl_caller;
-				croak 'TYPE2:'.$Sf->{'ExMismatchedCommonArgs'}{'SigArgs'}{'Set'}{'w4'}{'Type'} if $f eq 'mult_chk' and $name_caller eq 'w4';
+				# WV 2020-02-05 I think it must be local as this is what is used in RefactoredArgs for $f
+				# push @{ $Sf->{'ExMismatchedCommonArgs'}{'SigArgs'}{'List'} }, $name_caller;
+				# $Sf->{'ExMismatchedCommonArgs'}{'SigArgs'}{'Set'}{$name_caller} = $decl_caller;
+				# WV 2020-02-05 I think it must be local as this is what is used in RefactoredArgs for $f
+				push @{ $Sf->{'ExMismatchedCommonArgs'}{'SigArgs'}{'List'} }, $name_local;
+				$Sf->{'ExMismatchedCommonArgs'}{'SigArgs'}{'Set'}{$name_local} = $decl_local;
+				# carp 'TYPE:'.$Sf->{'ExMismatchedCommonArgs'}{'SigArgs'}{'Set'}{'w4'}{'Type'} if $f eq 'mult_chk' and $name_caller eq 'w4';
 				if ( not exists $decl_caller->{'IODir'} ) {
 					$decl_caller->{'IODir'} = 'Unknown';
 				}
@@ -662,14 +619,18 @@ sub _match_up_common_var_sequences {
 
 			# Either way, the local will have been consumed and there is no caller, so no unshifting
 		}
+	} # loop to consume the local sequence
 
-	}
-	say 'TYPE:'.$Sf->{'ExMismatchedCommonArgs'}{'SigArgs'}{'Set'}{'w4'}{'Type'};
+	# say 'TYPE:'.$Sf->{'ExMismatchedCommonArgs'}{'SigArgs'}{'Set'}{'w4'}{'Type'};
 
 	if ( scalar @equivalence_pairs > 0 ) {
 		my @arg_assignment_lines = map {
 			my $pair = $_;
-			carp 'ADD RESHAPE HERE: '.Dumper($pair);
+			# carp 'ADD RESHAPE HERE: '.Dumper($pair);
+			 __reshape_rhs_if_required($pair, $stref, $f ); 
+
+
+
 			@{ _caller_to_local_assignment_annlines($pair) };
 		} @equivalence_pairs;
 
@@ -709,7 +670,7 @@ sub __emit_equiv_var_str {
 } # END of __emit_equiv_var_str
 
 sub _caller_to_local_assignment_annlines {
-	( my $equiv_pair ) = @_;
+	( my $equiv_pair ) = @_; 
 
 	my $l        = $equiv_pair->[0];
 	my $l_str    = __emit_equiv_var_str($l);
@@ -722,6 +683,53 @@ sub _caller_to_local_assignment_annlines {
 	$annlines = [ map { [ $indent . $_->[0], $_->[1] ] } @{$annlines} ];
 	return $annlines;
 } # END of _caller_to_local_assignment_annlines
+
+# Reshape works on an array or perhaps on a slice. 
+# I am not sure how it works with casts
+# I will apply this to the finished strings of the assignment
+
+sub __reshape_rhs_if_required { my ($pair, $stref, $f ) = @_; 
+	 my $tup_lhs = $pair->[0];
+	( my $var1, my $type1, my $is_array1, my $m_dim1, my $m_prefix1 ) = @{$tup_lhs};
+	my $tup_rhs = $pair->[1];
+	( my $var2, my $type2, my $is_array2, my $m_dim2, my $m_prefix2 ) = @{$tup_rhs};
+
+	my $l        = $tup_lhs;
+	my $l_str    = __emit_equiv_var_str($l);
+	my $r        = $tup_rhs;
+	my $r_str    = __emit_equiv_var_str($r);
+	my $annlines = _cast_annlines( $l->[1], $l_str, $r->[1], $r_str );
+
+
+	if ($is_array1 and $is_array2) {
+
+	my $size1 = calculate_array_size( $stref, $f, $m_dim1 );
+	my $size2 = calculate_array_size( $stref, $f, $m_dim2 );
+
+	# but the rank we need is the rank of the expression
+	# FIXME: I will assume that if the array is indexed, all indices are used, i.e. rank is 0
+	my $rank1 =  get_array_rank($m_dim1) ;
+	my $rank2 =  get_array_rank($m_dim2) ;
+
+	# if ( $size1 == $size2 and $rank1 == $rank2 ) {
+
+	# 	# if different rank and same size
+	# 	# reshape						
+	# 	return
+	# }
+	# if the same rank and different size
+	if ( $size1 == $size2 and $rank1 != $rank2 ) {
+
+		# if different rank and same size
+		# reshape	
+		carp 'MUST RESHAPE1! '.Dumper($annlines);
+		# my $rhs_expr = [ $var1, "reshape($var2,shape($var1))" ];
+	}
+	# } else {
+
+	}
+} # END of __reshape_rhs_if_required
+
 
 # These are the reverse assignements on exiting the subroutine
 sub _caller_to_rev_local_assignment_annlines {
@@ -756,6 +764,60 @@ sub __add_prefixed_arg {
 	$Sf = remove_var_decl_from_set( $Sf, 'ExGlobArgs', $name_caller);
 	return $Sf;
 }    # END of __add_prefixed_arg
+
+
+# This is for Parser, so the result should a list of var names.
+# It is only used in Parser
+sub collect_common_vars_per_block {
+	my ( $stref, $f, $common_decl_str_ ) = @_;
+	my $Sf              = $stref->{'Subroutines'}{$f};
+	my %common_blocks   = %{ $Sf->{'CommonBlocks'} };
+	my $common_decl_str = $common_decl_str_;
+	$common_decl_str =~ s/common\s*//;
+	$common_decl_str =~ s/\s+$//;
+
+	if ( $common_decl_str !~ /^\// ) {
+		$common_decl_str = 'BLANK/' . $common_decl_str;
+	} else {
+		$common_decl_str =~ s/^\/\s*//;
+		if ( $common_decl_str =~ /^\s*\// ) {
+			$common_decl_str = 'BLANK' . $common_decl_str;
+		}
+	}
+
+	my @common_chunks = split( /\s*\/\s*/, $common_decl_str );
+
+	while (@common_chunks) {
+
+		my $common_block_name = shift @common_chunks;
+
+		if ( not exists $common_blocks{$common_block_name} ) {
+			$common_blocks{$common_block_name} = [];
+		}
+		my $common_vars_str = shift @common_chunks;
+		$common_vars_str =~ s/,\s*$//;
+		
+		my ($ast, $rest, $err, $has_funcs) = parse_expression_no_context($common_vars_str);
+		
+		my @common_vars=();
+		if ($ast->[0] == 27) {
+			for my $idx (1 .. scalar @{$ast}-1) {
+				if ($ast->[$idx][0] == 1 or $ast->[$idx][0] == 2 or $ast->[$idx][0] == 10) {
+					push @common_vars, $ast->[$idx][1];
+				}
+			}
+		} elsif ($ast->[0] == 1 or $ast->[0] == 2 or $ast->[0] == 10) {
+				push @common_vars, $ast->[1];			
+		}
+		 
+		$common_blocks{$common_block_name} =
+		  [ @{ $common_blocks{$common_block_name} }, @common_vars ];
+	}
+
+	$Sf->{'CommonBlocks'} = {%common_blocks};
+	return $stref;
+}    # END of collect_common_vars_per_block
+
 
 1;
 
