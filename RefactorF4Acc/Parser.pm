@@ -68,7 +68,7 @@ sub parse_fortran_src {
 	( my $f, my $stref, my $is_source_file_path ) = @_;  # NOTE $f is not the name of the source but of the sub/func/incl/module.
 	 
 	# local $V=1;
-	say "parse_fortran_src(): PARSING $f" if 1 or $V;
+	say "parse_fortran_src(): PARSING $f" if $V;
 
 ## 1. Read the source and do some minimal processsing, unless it's already been done (i.e. for extracted blocks)
 	print "parse_fortran_src(): CALL read_fortran_src( $f )\n" if $V;
@@ -132,7 +132,7 @@ sub parse_fortran_src {
 			$stref = _parse_subroutine_and_function_calls( $f, $stref );
 			$stref->{$sub_or_incl_or_mod}{$f}{'Status'} = $PARSED;
 			delete $stref->{ParseStack}{$f};
-			print "DONE PARSING $sub_or_incl_or_mod $f\n" if 1 or $V;
+			print "DONE PARSING $sub_or_incl_or_mod $f\n" if $V;
 
 		} elsif ($is_incl) {    # includes
 			$stref->{'IncludeFiles'}{$f}{'Status'} = $PARSED;
@@ -643,7 +643,7 @@ SUBROUTINE
 				$commonlst=~s/^,//;        
 				$has_commons=1;
 				$Sf->{'HasCommons'}=1; 		
-			carp $line if $f eq 'exitt' and $line=~/happy/;			
+				
 #				say "COMMON for $f: $commonlst";
                 $info->{'SpecificationStatement'} = 1; 
                 $info->{'HasVars'} = 1; 

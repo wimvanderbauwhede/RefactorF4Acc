@@ -1380,7 +1380,7 @@ sub _add_ExMismatchedCommonArg_assignment_lines {
 			$first_vardecl = 0;
 			for my $rline ( @{ $stref->{'Subroutines'}{$f}{'ExMismatchedCommonArgs'}{'ArgAssignmentLines'} } ) {
 
-				       		say "ADDING LINE ".$rline->[0]." to $f ";
+				       		# say "ADDING LINE ".$rline->[0]." to $f ";
 				push @{$rlines}, $rline ;
 			}
 		}
@@ -1396,7 +1396,7 @@ sub _add_ExMismatchedCommonArg_assignment_lines {
 			#			carp "Found location for reverse assignments in $f: $line";
 			for my $rline ( @{ $stref->{'Subroutines'}{$f}{'ExMismatchedCommonArgs'}{'ArgRevAssignmentLines'} } ) {
 
-						        		say "ADDING LINE ".$rline->[0]." to $f ";
+						        		# say "ADDING LINE ".$rline->[0]." to $f ";
 				push @{$rlines}, $rline;
 			}
 

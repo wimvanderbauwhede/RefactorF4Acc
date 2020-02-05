@@ -210,9 +210,10 @@ sub lift_globals {
 
 						for my $called_var (sort keys %{ $Scsub->{'ExGlobArgs'}{'Set'} } )  {
 							if (not exists $Sf->{'ExGlobArgs'}{'Set'}{$called_var}) {
-								say "Merging $called_var from $csub into $f";
+								# say "Merging $called_var from $csub into $f";
 								$Sf->{'ExGlobArgs'}{'Set'}{$called_var} = dclone($Scsub->{'ExGlobArgs'}{'Set'}{$called_var});
 							} 
+
 							# else {
 							# 	carp "$called_var from $calledsub already defined in $f";
 							# }

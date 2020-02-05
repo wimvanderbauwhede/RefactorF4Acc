@@ -628,11 +628,8 @@ sub _match_up_common_var_sequences {
 		my @arg_assignment_lines = map {
 			my $pair = $_;
 			# carp 'ADD RESHAPE HERE: '.Dumper($pair);
-			 __reshape_rhs_if_required($pair, $stref, $f ); 
-
-
-
-			@{ _caller_to_local_assignment_annlines($pair) };
+			@{__reshape_rhs_if_required($pair, $stref, $f )}; 
+			# @{ _caller_to_local_assignment_annlines($pair) };
 		} @equivalence_pairs;
 
 		if ( not exists $Sf->{'ExMismatchedCommonArgs'}{'ArgAssignmentLines'} ) {
@@ -712,21 +709,26 @@ sub __reshape_rhs_if_required { my ($pair, $stref, $f ) = @_;
 	my $rank1 =  get_array_rank($m_dim1) ;
 	my $rank2 =  get_array_rank($m_dim2) ;
 
-	# if ( $size1 == $size2 and $rank1 == $rank2 ) {
-
-	# 	# if different rank and same size
-	# 	# reshape						
-	# 	return
-	# }
+	 if ( $size1 == $size2 and $rank1 == $rank2 ) {
+		return $annlines;
+	 }
 	# if the same rank and different size
 	if ( $size1 == $size2 and $rank1 != $rank2 ) {
 
 		# if different rank and same size
-		# reshape	
-		carp 'MUST RESHAPE1! '.Dumper($annlines);
-		# my $rhs_expr = [ $var1, "reshape($var2,shape($var1))" ];
+		# reshape			
+		if (scalar @{$annlines} == 1) {
+		my ($line,$info) = @{$annlines->[0]};
+		my $indent = ' ' x 6 ;
+		return [
+			["$indent$l_str = reshape($r_str,shape($l_str))" , $info]
+		];
+
+		} else {
+			carp 'MUST RESHAPE BUT CANNOT!';
+		}
 	}
-	# } else {
+	
 
 	}
 } # END of __reshape_rhs_if_required
