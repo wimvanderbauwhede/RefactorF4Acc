@@ -380,11 +380,11 @@ sub parse_args { (my $args)=@_;
     my $sourcefiles_str = $opts{'s'} // '';
     if ($sourcefiles_str ne '') {    
         # OK, source files from command line
-        $SOURCEFILES = [ split(/\s*\,\s*/,$sourcefiles_str) ];
-    } elsif (exists $Config{'SOURCEFILES'} and $Config{'SOURCEFILES'} ne '') {
+        $Config{'SOURCEFILES'} = [ split(/\s*\,\s*/,$sourcefiles_str) ];
+    } elsif (exists $Config{'SOURCEFILES'} and @{$Config{'SOURCEFILES'}}==0) {
     	# OK, source files from config file
-        $SOURCEFILES = $Config{'SOURCEFILES'}     
-    } elsif (not $has_code_unit_name) {
+        # $SOURCEFILES = $Config{'SOURCEFILES'}     
+    # } elsif (not $has_code_unit_name) {
     	# die "No default for toplevel subroutine (TOP) in rf4a.cfg, please specify the toplevel subroutine on command line\n"; 
         say "No default for toplevel subroutine (TOP) in rf4a.cfg, I will use the program name" if $V; 
     }
@@ -395,22 +395,29 @@ sub parse_args { (my $args)=@_;
 	$I = ( $opts{'i'} ) ? 1 : 0;
 	$W = ( $opts{'w'} ) ? 1 : 0;
 	$DBG = ( $opts{'d'} ) ? 1 : 0;
-	$NO_ONLY = (exists $Config{'NO_ONLY'}[0] ) ? $Config{'NO_ONLY'}[0] : $NO_ONLY;
-	$SPLIT_LONG_LINES = (exists $Config{'SPLIT_LONG_LINES'}[0] ) ? $Config{'SPLIT_LONG_LINES'}[0] : $SPLIT_LONG_LINES;
-	$MAX_LINE_LENGTH = (exists $Config{'MAX_LINE_LENGTH'}[0] ) ? $Config{'MAX_LINE_LENGTH'}[0] : $MAX_LINE_LENGTH;
-	$RENAME_EXT = (exists $Config{'RENAME_EXT'}[0] ) ? $Config{'RENAME_EXT'}[0] : $RENAME_EXT;
-	$EXT = (exists $Config{'EXT'}[0] ) ? $Config{'EXT'}[0] : $EXT;
-	$LIBS = (exists $Config{'LIBS'} ) ? $Config{'LIBS'} : $LIBS;
-	$LIBPATHS = (exists $Config{'LIBPATH'} ) ? $Config{'LIBPATH'} : $LIBPATHS;
-	$INCLPATHS = (exists $Config{'INCLPATH'} ) ? $Config{'INCLPATH'} :
-		(exists $Config{'F95PATH'} ) ? $Config{'F95PATH'} : 
-        (exists $Config{'F90PATH'} ) ? $Config{'F90PATH'} : 
-        $INCLPATHS;
+
+for my $CFG_VAR (sort keys %Config) {
+
+}
+
+	# $NO_ONLY = (exists $Config{'NO_ONLY'}[0] ) ? $Config{'NO_ONLY'}[0] : $NO_ONLY;
+	# $SPLIT_LONG_LINES = (exists $Config{'SPLIT_LONG_LINES'}[0] ) ? $Config{'SPLIT_LONG_LINES'}[0] : $SPLIT_LONG_LINES;
+	# $MAX_LINE_LENGTH = (exists $Config{'MAX_LINE_LENGTH'}[0] ) ? $Config{'MAX_LINE_LENGTH'}[0] : $MAX_LINE_LENGTH;
+	# $RENAME_EXT = (exists $Config{'RENAME_EXT'}[0] ) ? $Config{'RENAME_EXT'}[0] : $RENAME_EXT;
+	# $EXT = (exists $Config{'EXT'}[0] ) ? $Config{'EXT'}[0] : $EXT;
+	# $LIBS = (exists $Config{'LIBS'} ) ? $Config{'LIBS'} : $LIBS;
+	# $LIBPATHS = (exists $Config{'LIBPATH'} ) ? $Config{'LIBPATH'} : $LIBPATHS;
+	# $INCLPATHS = (@{ $Config{'INCLPATH'}}>0 ) ? $Config{'INCLPATH'} :
+	# 	(@{ $Config{'F95PATH'} } >0) ? $Config{'F95PATH'} : 
+    #     (@{ $Config{'F90PATH'} }>0) ? $Config{'F90PATH'} : 
+    #     $INCLPATHS;
 	$CFG_refactor_toplevel_globals = (exists $Config{'REFACTOR_TOPLEVEL_GLOBALS'}) ? 1 : 0 	;
 	$CFG_refactor_toplevel_globals= 1; # FIXME: refactoring while ignoring globals is broken ( $opts{'g'} ) ? 1 : $CFG_refactor_toplevel_globals; # Global from Config
 
-    $Config{'ALLOW_SPACES_IN_NUMBERS'} = ref($Config{'ALLOW_SPACES_IN_NUMBERS'}) eq 'ARRAY' ? $Config{'ALLOW_SPACES_IN_NUMBERS'}[0] : $Config{'ALLOW_SPACES_IN_NUMBERS'};
-	
+    # $Config{'ALLOW_SPACES_IN_NUMBERS'} = ref($Config{'ALLOW_SPACES_IN_NUMBERS'}) eq 'ARRAY' ? $Config{'ALLOW_SPACES_IN_NUMBERS'}[0] : $Config{'ALLOW_SPACES_IN_NUMBERS'};
+	# $Config{'HAS_F77_SOURCES'} = ref($Config{'HAS_F77_SOURCES'}) eq 'ARRAY' ? $Config{'HAS_F77_SOURCES'}[0] : $Config{'HAS_F77_SOURCES'};
+
+
 	if ( $opts{'C'} ) {
 		$call_tree_only = 1;
 		$main_tree = $ARGV[1] ? 0 : 1;		 # not used

@@ -17,13 +17,9 @@ $NEW_PARSER
 $V $W $I $DBG $DUMMY $ANN
 $NO $YES $GO
 $UNREAD $INVENTORIED $READ $PARSED $FROM_BLOCK $C_SOURCE $FILE_NOT_FOUND $UNUSED
-$SOURCEFILES
 $SPLIT_LONG_LINES
 $NO_ONLY
-$RENAME_EXT
-$EXT
 $MAX_LINE_LENGTH
-$LIBS $LIBPATHS $INCLPATHS
 $noop
 $CFG_refactor_toplevel_globals
 $call_tree_only
@@ -35,7 +31,11 @@ $targetdir
 &read_rf4a_config    
 &interactive_create_rf4a_cfg
 );
-
+# $SOURCEFILES
+# $RENAME_EXT
+# $EXT
+# 
+# $LIBS $LIBPATHS $INCLPATHS
 our $NEW_PARSER = 1;
 
 
@@ -45,33 +45,27 @@ our $I = 0;    # Info
 our $DBG = 0;    # Debug
 our $ANN = 1; # Annotations
 our $DUMMY = 0; # Dummy run, print out code rather than printing to file
+
+
 our $SPLIT_LONG_LINES = 1;
 our $MAX_LINE_LENGTH = 132;
 our $NO_ONLY = 0;
 our $RENAME_EXT = '_GLOB';
+our $EXT = '.f90'; # You can set this in rf4a.cfg, changed from .f95 default to .f90 default on suggestion of @rouson
+our $LIBS = []; 
+our $LIBPATHS =  [];
+our $INCLPATHS = [];
+
 # Instead of FORTRAN's 'continue', we can insert a call to a subroutine noop() that does nothing
 our $noop           = 0;
 our $CFG_refactor_toplevel_globals = 0;
 our $call_tree_only = 0;
 our $main_tree      = 0;
-our $EXT = '.f90'; # You can set this in rf4a.cfg, changed from .f95 default to .f90 default on suggestion of @rouson
 
-our $SOURCEFILES = [];
-our $LIBS = []; 
-my @maybe_lib_paths = ('/usr/lib','/opt/local/lib','/usr/local/lib');
-our $LIBPATHS =  [];
-for my $maybe_lib_path ( @maybe_lib_paths ) {
-	if (-d $maybe_lib_path) {
-		push @{$LIBPATHS}, $maybe_lib_path;
-	}
-} 
-my @maybe_inc_paths = ('/opt/local/include','/usr/local/include');
-our $INCLPATHS = [];
-for my $maybe_inc_path ( @maybe_inc_paths ) {
-    if (-d $maybe_inc_path) {
-        push @{$INCLPATHS}, $maybe_inc_path;
-    }
-}
+
+# our $SOURCEFILES = [];
+
+
 # Flag used when generating a subroutine from a marked block of code
 our $gen_sub = 0;
 
@@ -102,12 +96,63 @@ our $targetdir = '../RefactoredSources';
 #
 
 our %Config=(
-'SPLIT_LONG_LINES' => [$SPLIT_LONG_LINES],
-'MAX_LINE_LENGTH' =>  [$MAX_LINE_LENGTH],
-'NO_ONLY' => [$NO_ONLY],
-'RENAME_EXT' => [$RENAME_EXT],
+'SPLIT_LONG_LINES' => $SPLIT_LONG_LINES,
+'MAX_LINE_LENGTH' =>  $MAX_LINE_LENGTH,
+'NO_ONLY' => $NO_ONLY,
+'RENAME_EXT' => $RENAME_EXT,
+'EXT' => $EXT,
 'ALLOW_SPACES_IN_NUMBERS' => 0,
+'HAS_F77_SOURCES' => 0,
+'LIBS' => [], 
+'LIBPATHS' => [], 
+
+
+'TOP' => '',
+'PREFIX' => '.',
+
+'SRCDIRS' => [],
+'EXTSRCDIRS'  => [],
+'EXCL_SRCS' => [],
+'EXCL_DIRS'  => [],
+'MACRO_SRC' => '',
+'NEWSRCPATH' => '',
+'SOURCEFILES'  => [],
+
+'KERNEL' => '',
+'MODULE_SRC' => '',
+'MODULE'  => '',
+
+'NO_MODULE'  => [],
+
+'SUB_SUFFIX'  => '',
+'REFACTOR_TOPLEVEL_GLOBALS' => 1,
+'EVAL_PARAM_EXPRS'  => 0,
+
+'TEST'   => 0,
+'CUSTOM_PASS_OUTPUT_PATH' => '',
+'INCLPATH' => [],
+'F90PATH'  => [],
+'F95PATH' => [],
+'F77PATH' => [],
+'FFLAGS'  => ['-cpp','-O3', '-m64', '-ffree-form', '-ffree-line-length-0','-fconvert=little-endian', '-frecord-marker=4'],
+'F77FLAGS'  => ['-cpp','-O3', '-m64', '-fconvert=little-endian', '-frecord-marker=4'],
+
 );
+
+my @maybe_lib_paths = ('/usr/lib','/opt/local/lib','/usr/local/lib');
+
+for my $maybe_lib_path ( @maybe_lib_paths ) {
+	if (-d $maybe_lib_path) {
+		push @{ $Config{'LIBPATHS'} }, $maybe_lib_path;
+	}
+} 
+my @maybe_inc_paths = ('/opt/local/include','/usr/local/include');
+
+for my $maybe_inc_path ( @maybe_inc_paths ) {
+    if (-d $maybe_inc_path) {
+        push @{$Config{'INCLPATH'}}, $maybe_inc_path;
+    }
+}
 
 sub read_rf4a_config { 
 	(my $cfgrc)=@_;
@@ -121,19 +166,29 @@ sub read_rf4a_config {
 	chomp $line;
 	$line=~s/\s+$//;
 	(my $k, my $v) = split(/\s*\=\s*/,$line);
-	say "INFO: $k => $v" if $I;
-	if ($v=~/,/) {
+    if (ref($Config{$k}) eq 'ARRAY') {
 		my @vs=split(/\s*,\s*/,$v);
 		$Config{$k}=[@vs];
-	} elsif ($k !~/TOP\w*|NEWSRCPATH|CUSTOM_*|PREFIX|KERNEL|^MODULE|MODULE_\w*|MACRO_SRC/) { # FIXME: Check this
-		# These are keys that take a list but it has only one element
-        # But why?!
-		$Config{$k}=[$v];
 	} elsif ($k eq 'TOP') {
 		$Config{$k}=lc($v);
-	} else {
-		$Config{$k}=$v;
-	}
+    } else {
+        $Config{$k}=$v;
+    }
+
+
+	say "INFO: $k => $v" if $I;
+	# if ($v=~/,/) {
+	# 	my @vs=split(/\s*,\s*/,$v);
+	# 	$Config{$k}=[@vs];
+	# } elsif ($k !~/TOP\w*|NEWSRCPATH|CUSTOM_*|PREFIX|KERNEL|^MODULE|MODULE_\w*|MACRO_SRC/) { # FIXME: Check this
+	# 	# These are keys that take a list but it has only one element
+    #     # But why?!
+	# 	$Config{$k}=[$v];
+	# } elsif ($k eq 'TOP') {
+	# 	$Config{$k}=lc($v);
+	# } else {
+	# 	$Config{$k}=$v;
+	# }
 }
 close $CFG;
 }
@@ -171,6 +226,9 @@ EVAL_PARAM_EXPRS ::  0|1: Evaluate RHS expression of parameter declarations, def
 TEST :: 0|1 : for internal use
 CUSTOM_PASS_OUTPUT_PATH :: String: Output path for custom passes
 F90PATH, F95PATH: Aliases for INCLPATH
+
+FFLAGS  = '-cpp','-O3', '-m64', '-freal-4-real-8', '-ffree-form', '-ffree-line-length-0','-fconvert=little-endian', '-frecord-marker=4'
+F77FLAGS  = '-cpp','-O3', '-m64', '-freal-4-real-8','-std=legacy', '-fconvert=little-endian', '-frecord-marker=4'
 
 Examples:
 
@@ -221,7 +279,11 @@ our $config_menu= {
         ['EXE','Name of executable to be build (default is program name)',''],
         ['LIBS','SCons LIBS, comma-separated list',''],
         ['LIBPATH','SCons LIBPATH, comma-separated list',''],
-        ['INCLPATH','SCons F90PATH or F95PATH (based on EXT), comma-separated list','']
+        ['INCLPATH','SCons F90PATH or F95PATH (based on EXT), comma-separated list',''],
+        ['HAS_F77_SOURCES','Tells SCons to add the F77 compiler as well as the F90 compiler','0'],
+        ['FFLAGS','SCons FFLAGS, comma-separated list',''],
+        ['F77FLAGS','SCons F77FLAGS, comma-separated list',''],
+        ['F90FLAGS','SCons F77FLAGS, comma-separated list',''],
     ],
 
     'OCL' => [

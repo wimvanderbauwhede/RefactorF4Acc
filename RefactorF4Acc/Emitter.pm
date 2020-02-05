@@ -26,93 +26,6 @@ use Exporter;
     &emit_all
 );
 
-# -----------------------------------------------------------------------------
-# This routine does not generate or manipulate files, it only does copying etc. 
-sub _init_emit_all { (my $stref) = @_;
-        # if target dir for refactored code does not exist, create it
-        # and copy include files into it
-    if ( not -e $targetdir ) {
-    	say "Creating NEWSRCPATH $targetdir" if $V;
-        mkdir $targetdir;
-        # FIXME: the includes should be taken from $stref->{'IncludeFiles'}
-        # But actually, all includes should have been converted to F95 modules!        
-    } elsif ( not -d $targetdir ) {
-        die "ERROR: $targetdir exists but is not a directory!\n";        
-    } else {
-    	# target dir exists. check if subdirs exists
-    	my $wd=cwd();
-        for my $srcdir (@{ $stref->{'SourceDirs'} }) {
-            
-        	if (not -d "$wd/$targetdir/$srcdir") {
-                say "Creating SRCDIR $srcdir inside $targetdir" if $V;    
-				system("mkdir -p $wd/$targetdir/$srcdir"); # FIXME: WEAK! only one level!
-        	}
-        }        
-    	
-    	# Remove existing Fortran-95 sources
-		__remove_previously_generated_f95_sources($stref);
-    }    
-}
-# -----------------------------------------------------------------------------
-sub _emit_refactored_include {
-    ( my $f, my $dir, my $stref ) = @_;    
-    # local $I=1;
-    # local $V=1;
-    say "INCLUDE: $f" if $I;
-    my $srcref = $stref->{'IncludeFiles'}{$f}{'RefactoredCode'};
-    my $incsrc=$stref->{'IncludeFiles'}{$f}{'Source'};
-    
-    if ( defined $srcref ) {
-        if ($DUMMY) {
-            say '! '.('=' x 80);
-            say "! FILE: $dir/$incsrc";
-            say '! '.('=' x 80);
-        show_annlines($srcref,0);
-        } else {
-
-        my $nsrc=$incsrc;
-        for my $srcdir (@{$Config{'SRCDIRS'}}) {
-            if (-e "$srcdir/$f") {
-                $nsrc = "$srcdir/$incsrc";
-            } else {
-#   'Source' => 'params_PARALLEL.f90',
-#   'InclType' => 'Parameter',
-#   'Root' => 'PARALLEL',
-                if ($stref->{'IncludeFiles'}{$f}{'InclType'} eq 'Parameter'
-                and exists $stref->{'IncludeFiles'}{$f}{'Root'}
-                ) {
-                    my $orig_f=$stref->{'IncludeFiles'}{$f}{'Root'};
-                    if (-e "$srcdir/$orig_f") {
-                        $nsrc = "$srcdir/$incsrc";
-                    }
-                }                
-            }
-        }            
-        
-        
-
-        print "INFO: emitting refactored code for include $f in $dir/$nsrc\n" if $I;
-#        say "! FILE: $dir/$incsrc";
-        open my $SRC, '>', "$dir/$nsrc" or die "$!: $dir/$nsrc";
-        my $prevline='C ';
-        $srcref = create_refactored_source($stref,$f,$srcref);
-        for my $annline ( @{$srcref} ) {
-        	my $line = $annline->[0];  
-            if (not ($prevline =~/^\s*$/ and $line =~/^\s*$/)) {
-            print $SRC "$line\n";
-            print "$line\n" if $DBG;
-            }
-            $prevline=$line;
-        }
-        close $SRC;
-        }
-    } else {
-#    	say "Not writing $f";
-    }
-} # END of emit_refactored_include
-
-# -----------------------------------------------------------------------------
-
 sub emit_all {
     (my $stref)=@_;
     if ($I) {
@@ -120,6 +33,9 @@ sub emit_all {
         print "ENTERING EMIT_ALL\n";
         print "=" x 80,"\n";
     }
+    my $EXT = $Config{EXT};
+    # I build a fresh list here. I should just delete 'F' at the end
+    $stref->{'BuildSources'}{$EXT}={};
 
     _init_emit_all($stref) unless $DUMMY;
     for my $src (keys %{ $stref->{'SourceContains'} } ) {
@@ -176,10 +92,13 @@ sub emit_all {
                 for my $srcdir (@{$Config{'SRCDIRS'}}) {
                     if (-e "$srcdir/$src") {
                         $nsrc = "$srcdir/$src";
+                        last;
                     }
                 }            
         }
-		
+        if ($nsrc=~/$EXT$/) {
+		    $stref->{'BuildSources'}{$EXT}{$nsrc}=1 ;
+        }
 		if ($DUMMY) {
 			say '! '.('=' x 80);
             say "! FILE: $targetdir/$nsrc ($src)";
@@ -187,6 +106,7 @@ sub emit_all {
         	show_annlines($stref->{'RefactoredCode'}{$src},0);
         } else {
 # say "! FILE: $nsrc ($src)";
+
 			open my $TGT, '>', "$targetdir/$nsrc" or die $!.": $targetdir/$nsrc";
 			
 			my $mod_lines = $stref->{'RefactoredCode'}{$src};
@@ -213,15 +133,7 @@ sub emit_all {
     
     
     for my $f ( keys %{ $stref->{'IncludeFiles'} } ) { 
-#    	if ($f=~/\.(\w+)$/) {
-#    		my $inc_ext = $1;
-#    		if ($inc_ext ne $EXT) {
-##    			say "$inc_ext ne $EXT";die;
-##    			$f=~s/\./_/;
-##    			$f.=$EXT;
-##    			next;
-#    		}
-#    	}
+
         if ($I) {
         print "! "."=" x 80,"\n";
         print "! INCLUDE FILE: $f\n";        
@@ -240,11 +152,102 @@ sub emit_all {
     if ($noop and not $DUMMY) {
         _gen_noop($targetdir);        
     }
-
+    delete $stref->{'BuildSources'}{'F'};
 	return $stref;
 
 } # END of emit_all()
 # -----------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
+# This routine does not generate or manipulate files, it only does copying etc. 
+sub _init_emit_all { (my $stref) = @_;
+        # if target dir for refactored code does not exist, create it
+        # and copy include files into it
+    if ( not -e $targetdir ) {
+    	say "Creating NEWSRCPATH $targetdir" if $V;
+        mkdir $targetdir;
+        # FIXME: the includes should be taken from $stref->{'IncludeFiles'}
+        # But actually, all includes should have been converted to F95 modules!        
+    } elsif ( not -d $targetdir ) {
+        die "ERROR: $targetdir exists but is not a directory!\n";        
+    } else {
+    	# target dir exists. check if subdirs exists
+    	my $wd=cwd();
+        for my $srcdir (@{ $stref->{'SourceDirs'} }) {
+            
+        	if (not -d "$wd/$targetdir/$srcdir") {
+                say "Creating SRCDIR $srcdir inside $targetdir" if $V;    
+				system("mkdir -p $wd/$targetdir/$srcdir"); # FIXME: WEAK! only one level!
+        	}
+        }        
+    	
+    	# Remove existing Fortran-95 sources
+		__remove_previously_generated_f95_sources($stref);
+    }    
+}
+# -----------------------------------------------------------------------------
+sub _emit_refactored_include {
+    ( my $f, my $dir, my $stref ) = @_;    
+    # local $I=1;
+    # local $V=1;
+    
+    say "INCLUDE: $f" if $I;
+    my $srcref = $stref->{'IncludeFiles'}{$f}{'RefactoredCode'};
+    my $incsrc=$stref->{'IncludeFiles'}{$f}{'Source'};
+    
+    if ( defined $srcref ) {
+        if ($DUMMY) {
+            say '! '.('=' x 80);
+            say "! FILE: $dir/$incsrc";
+            say '! '.('=' x 80);
+        show_annlines($srcref,0);
+        } else {
+
+        my $nsrc=$incsrc;
+        
+        for my $srcdir (@{$Config{'SRCDIRS'}}) {
+            if (-e "$srcdir/$f") {
+                $nsrc = "$srcdir/$incsrc";
+                last;
+            } else {
+#   'Source' => 'params_PARALLEL.f90',
+#   'InclType' => 'Parameter',
+#   'Root' => 'PARALLEL',
+                if ($stref->{'IncludeFiles'}{$f}{'InclType'} eq 'Parameter'
+                and exists $stref->{'IncludeFiles'}{$f}{'Root'}
+                ) {
+                    my $orig_f=$stref->{'IncludeFiles'}{$f}{'Root'};
+                    if (-e "$srcdir/$orig_f") {
+                        $nsrc = "$srcdir/$incsrc";
+                    }
+                }                
+            }
+        }            
+        
+        my $EXT = $Config{EXT};
+        $stref->{'BuildSources'}{$EXT}{$nsrc}=1;
+        print "INFO: emitting refactored code for include $f in $dir/$nsrc\n" if $I;
+#        say "! FILE: $dir/$incsrc";
+        open my $SRC, '>', "$dir/$nsrc" or die "$!: $dir/$nsrc";
+        
+        my $prevline='C ';
+        $srcref = create_refactored_source($stref,$f,$srcref);
+        for my $annline ( @{$srcref} ) {
+        	my $line = $annline->[0];  
+            if (not ($prevline =~/^\s*$/ and $line =~/^\s*$/)) {
+            print $SRC "$line\n";
+            print "$line\n" if $DBG;
+            }
+            $prevline=$line;
+        }
+        close $SRC;
+        }
+    } else {
+#    	say "Not writing $f";
+    }
+} # END of emit_refactored_include
+
+# -----------------------------------------------------------------------------
+
 sub _gen_noop {
     (my $tgtdir)=@_;
     open my $NOOP,'>',"$tgtdir/noop.c";
@@ -272,7 +275,7 @@ sub __remove_previously_generated_f95_sources { (my $stref)=@_;
 	my $wd=cwd();
 	for my $srcdir (@{ $stref->{'SourceDirs'} }) {
 		chdir "$wd/$targetdir/$srcdir";
-		my @srcs = glob('*'.$EXT);
+		my @srcs = glob('*'.$Config{EXT});
 		for my $src (@srcs) {
 			unlink $src;
 		}

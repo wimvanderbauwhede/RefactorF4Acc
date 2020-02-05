@@ -72,7 +72,7 @@ sub refactor_all {
     # So at this point we know everything there is to know about the argument declarations, we can now update them
     say "remove_vars_masking_functions" if $V;    
     $stref = remove_vars_masking_functions($stref);    
-	if (exists $Config{'EVAL_PARAM_EXPRS'}) {
+	if ( $Config{'EVAL_PARAM_EXPRS'}) {
     	say "eval_param_expressions_all" if $V;    
 		$stref = eval_param_expressions_all($stref);
 	}

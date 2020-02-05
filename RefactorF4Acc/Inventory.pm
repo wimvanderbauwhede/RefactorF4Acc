@@ -46,8 +46,8 @@ sub find_subroutines_functions_and_includes {
     my %src_files = ();
     my %excluded_dirs = $Config{EXCL_DIRS} ? map { $_ => 1 } @{ $Config{EXCL_DIRS} } : ();
     
-    if ($incl eq '' and scalar @{$SOURCEFILES} > 0) {
-    	%src_files = map { $_ => {'Local' => $prefix } } @{$SOURCEFILES};
+    if ($incl eq '' and scalar @{$Config{'SOURCEFILES'}} > 0) {
+    	%src_files = map { $_ => {'Local' => $prefix } } @{$Config{'SOURCEFILES'}};
     	%excluded_dirs=();     	
     }  else {
     my @srcdirs=exists $Config{SRCDIRS} ?  @{ $Config{SRCDIRS} } : ('.');    
@@ -102,7 +102,6 @@ sub find_subroutines_functions_and_includes {
     	if ($dir eq '.') {
     	   $path=$prefix;
     	}     	
-
         find( $tf_finder, $path );
     }
     }

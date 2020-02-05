@@ -338,6 +338,7 @@ sub _create_module_src { (my $stref, my $src, my $subname, my $no_modules ) = @_
     if (!$skip_because_empty) {
 	# Step 2
 #	say "SRC $src";
+	my $EXT = $Config{EXT};
 	my $nsrc = $subname ne '' ? $Config{'SRCDIRS'}->[0]."/$subname$EXT" : $src;
 	if ( !$no_module ) {
 		$stref->{'RefactoredCode'}{$nsrc} = [ $mod_header, @mod_uses, $mod_contains, @refactored_source_lines, $mod_footer ];

@@ -49,6 +49,7 @@ sub _refactor_include_file {
 	my $If = $stref->{'IncludeFiles'}{$inc_f};
 	my $inc_ff=$inc_f;
 	$inc_ff=~s/\./_/g;
+	my $EXT = $Config{EXT};
 	$stref->{'IncludeFiles'}{$inc_f}{'Source'}=$inc_ff.$EXT; # FIXME: ad hoc
 	if ($stref->{'IncludeFiles'}{$inc_f}{'InclType'} eq 'Parameter') {
 		$stref->{'BuildSources'}{'F'}{$inc_ff.$EXT}=1;

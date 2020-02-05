@@ -42,7 +42,7 @@ sub identify_inherited_exglobs_to_rename {
  	push @{ $stref->{'CallStack'} }, $f;
     my %subs = map {$_=>1} @{ $stref->{'CallStack'} }; 
 
-    my $ext = $RENAME_EXT;
+    my $ext = $Config{RENAME_EXT};
     say '=' x 80, "\nENTER lift_globals( $f )" if $V;
     if (exists $stref->{'Subroutines'}{$f} ) {
     	my $Sf = $stref->{'Subroutines'}{$f};
@@ -86,8 +86,8 @@ sub rename_inherited_exglobs  {
 		  (my $stref, my $f) = @_;
 #    local $V=1;
 
-if ($RENAME_EXT ne '') {
-    my $ext = $RENAME_EXT;
+if ($Config{RENAME_EXT} ne '') {
+    my $ext = $Config{RENAME_EXT};
     
     say '=' x 80, "\nENTER lift_globals( $f )" if $V;
 

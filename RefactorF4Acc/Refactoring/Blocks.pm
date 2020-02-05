@@ -283,7 +283,7 @@ sub __create_new_subroutine_entries {
         if ( not exists $stref->{'Subroutines'}{$block} ) {
             $stref->{'Subroutines'}{$block} = {};
             $stref->{'Subroutines'}{$block}{'Source'} =
-              "$srcdir/$block$EXT";    #$Sf->{'Source'};
+              "$srcdir/$block".$Config{EXT};    #$Sf->{'Source'};
             #   croak $stref->{'Subroutines'}{$block}{'Source'} ;
         }
 
@@ -294,7 +294,7 @@ sub __create_new_subroutine_entries {
             $annline->[1]{'LineID'} = $line_id++;
         }
         
-        my $src = "$srcdir/$block$EXT";
+        my $src = "$srcdir/$block".$Config{EXT};
 
         $stref->{'SourceContains'}{$src}{'Set'}{$block} = 'Subroutines';
         push @{ $stref->{'SourceContains'}{$src}{'List'} }, $block;       

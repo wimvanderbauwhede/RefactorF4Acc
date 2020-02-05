@@ -31,12 +31,12 @@ sub create_build_script {
 
     my $gfortran = $ENV{'FC'};
     my $gcc = $ENV{'CC'};
-    
+    my $EXT = $Config{EXT};
     my $exe = (exists $Config{'EXE'} and $Config{'EXE'} ne '')
     ? $Config{'EXE'}
     : $stref->{'Top'}; 
     
-    my @fsourcelst = sort keys %{ $stref->{'BuildSources'}{'F'} };
+    my @fsourcelst = sort keys %{ $stref->{'BuildSources'}{$EXT} };
     my $fsources = join( ',', map {
     	# Ad-hoc: names that do not end in .f\d+ or $EXT are renamed by substituting . with _ and $EXT is appended
     	# This is for includes transformed into modules
@@ -60,11 +60,21 @@ sub create_build_script {
         $csources = join( ',', map { s/\.f$/.c/; "'" . $_ . "'" } @csourcelst );
     }
     my $date  = localtime;
-    my $libpaths_str = @{$LIBPATHS} ? ','.join(',',map { "'".$_."'" } @{$LIBPATHS}) : '';
-    my $libs_str = @{$LIBS} ? ','.join(',',map { "'".$_."'" } @{$LIBS}) : ''; 
+    my $libpaths_str = @{$Config{LIBPATHS}} ? ','.join(',',map { "'".$_."'" } @{$Config{LIBPATHS}}) : '';
+    my $libs_str = @{$Config{LIBS}} ? ','.join(',',map { "'".$_."'" } @{$Config{LIBS}}) : ''; 
+
+    	my $INCLPATHS = (@{ $Config{'INCLPATH'}}>0 ) ? $Config{'INCLPATH'} :
+		(@{ $Config{'F95PATH'} } >0) ? $Config{'F95PATH'} : 
+        (@{ $Config{'F90PATH'} }>0) ? $Config{'F90PATH'} : 
+        [];
     my $inclpaths_str=@{$INCLPATHS} ? ','.join(',',map { "'".$_."'" } @{$INCLPATHS}) : '';
     my $maybe_fc = $EXT; $maybe_fc=~s/^\.//;
     my $fortran_compiler = $maybe_fc=~/f\d+/i ? uc($maybe_fc) : 'FORTRAN';
+    my $fflags = 'FFLAGS = ['.join(',',@{$Config{FFLAGS}}).']';
+    my $maybe_f77flags = $Config{HAS_F77_SOURCES} ? 'FORTRANFLAGS = ['.join(',',@{$Config{F77FLAGS}}).']' : '';
+    my $maybe_f77path= $Config{HAS_F77_SOURCES} ? 'FORTRANPATH = ['.join(',',@{$Config{F77FLAGS}}).']' : '';
+    my $maybe_f77_compiler=$gfortran;
+    my $maybe_f77_env=$Config{HAS_F77_SOURCES} ? ",FORTRAN=$maybe_f77_compiler, $maybe_f77flags, $maybe_f77path" : '';
 
     my $scons = <<ENDSCONS;
 # Generated build script for refactored source code
@@ -78,8 +88,9 @@ envC=Environment(CC='$gcc',CPPPATH=[]);
 #if csources:
 #    envC.Library('${exe}_c',csources)
 
-FFLAGS  = ['-cpp','-O3', '-m64', '-ffree-form', '-ffree-line-length-0','-fconvert=little-endian', '-frecord-marker=4']
-envF=Environment($fortran_compiler='$gfortran',LINK='$gfortran',${fortran_compiler}FLAGS=FFLAGS,${fortran_compiler}PATH=['.' $inclpaths_str])
+$fflags
+$maybe_f77flags
+envF=Environment($fortran_compiler='$gfortran',LINK='$gfortran',${fortran_compiler}FLAGS=FFLAGS,${fortran_compiler}PATH=['.' $inclpaths_str]$maybe_f77_env)
 #if csources:
 #    envF.Program('$exe',fsources,LIBS=[$libs_str '${exe}_c','m'],LIBPATH=['.' $libpaths_str])   
 #else:
