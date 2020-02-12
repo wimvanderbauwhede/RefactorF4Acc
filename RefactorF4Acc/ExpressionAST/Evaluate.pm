@@ -165,9 +165,9 @@ sub __try_to_eval_arg { my ($stref,$f,$arg)=@_;
 	
 	my $call_info={};
  	($stref,$call_info) = stateful_pass($stref,$caller,$pass_find_call, $call_info,'_find_call ' . __LINE__  ) ;	
-	warn "ARGMAP for call to $f in $caller:\n" .Dumper($call_info->{$f}{'SubroutineCall'}{'ArgMap'});
+	warn "1. ARGMAP for call to $f in $caller:\n" .Dumper($call_info->{$f}{'SubroutineCall'}{'ArgMap'});
 	 my $call_arg = $call_info->{$f}{'SubroutineCall'}{'ArgMap'}{$arg};
-	 warn 'CALL ARG:'. Dumper($call_arg);
+	 warn '2. CALL ARG:'. Dumper($call_arg);
 	 if ($call_arg=~/^\d+$/) {
 		 return [29,$call_arg];
 	 }
@@ -188,6 +188,10 @@ sub __try_to_eval_arg { my ($stref,$f,$arg)=@_;
 		# 	'ArrayOrScalar' => $lhs_var_attrs->{'Type'},
 		# 	'ExpressionAST' => $lhs_ast
 		# };
+
+# TODO:
+		# Instead of assigment, it could be a sig arg.
+		# Then we have to do this all over again!
 	my $pass_find_assignment = sub {
 		(my $annline, my $expr_asts)=@_;
 		(my $line,my $info)=@{$annline};		
@@ -197,7 +201,7 @@ sub __try_to_eval_arg { my ($stref,$f,$arg)=@_;
 		and $info->{'Lhs'}{'VarName'} eq $call_arg
 		and $info->{'Lhs'}{'ArrayOrScalar'} eq 'Scalar' # no nonsense!
 		) {	
-			say "ASSIGNMENT LINE: ". $line;
+			warn  "3. ASSIGNMENT LINE: ". $line;
 			$expr_asts->{$call_arg}=$info->{'Rhs'}{'ExpressionAST'};
 		}				
 		return ($new_annlines,$expr_asts);
@@ -207,7 +211,7 @@ sub __try_to_eval_arg { my ($stref,$f,$arg)=@_;
 
  	($stref,$expr_asts) = stateful_pass($stref,$caller,$pass_find_assignment, $expr_asts,'_find_assignment ' . __LINE__  ) ;	
 
-	carp "Assignment for $call_arg in $caller: ".Dumper($expr_asts->{$call_arg}) ;
+	carp "4. Assignment for $call_arg in $caller: ".Dumper($expr_asts->{$call_arg}) ;
 	my $expr_str = emit_expr_from_ast($expr_asts->{$call_arg});
 
 

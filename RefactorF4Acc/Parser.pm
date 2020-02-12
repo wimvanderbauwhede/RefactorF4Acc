@@ -1773,9 +1773,9 @@ sub _parse_subroutine_and_function_calls {
 						# Or rather, we should not use this in Analysis::Arguments but use the AST
 						( my $expr_args, my $expr_other_vars ) = get_args_vars_from_subcall($ast);
 						
-		                croak $line.
-						"\n".Dumper($ast).
-						"\n".Dumper($expr_args,$expr_other_vars) if $line=~/gop.+maxobj/;
+		                # croak $line.
+						# "\n".Dumper($ast).
+						# "\n".Dumper($expr_args,$expr_other_vars) if $line=~/gop.+maxobj/;
 						for my $expr_arg (@{$expr_args->{'List'}}) {
 							if (substr($expr_arg,0,1) eq '*') {
 								my $label=substr($expr_arg,1);

@@ -1587,10 +1587,26 @@ sub _find_args_in_ast { (my $ast, my $args) =@_;
     return $args;
 } # END of _find_args_in_ast
 
+
+#               0    1    2    3    4    5    6    7    8    9    10   11   12   13    14
+#ur @sigils = ('{', '&', '$', '+', '-', '*', '/', '%', '**', '=', '@', '#', ':' ,'//', ')('
+#                15    16    17  18   19    20     21       22       23      24       25       26      
+#              ,'==', '/=', '<', '>', '<=', '>=', '.not.', '.and.', '.or.', '.xor.', '.eqv.', '.neqv.'
+#                27   28    29        30      31         32           33             34       35 
+#              ,',', '(/', 'integer', 'real', 'logical', 'character', 'PlaceHolder', 'Label', 'BLANK'
+#              );
 # The assumption is that we pass this the 3rd arg of an AST for a subroutine call
 # This can either be a comma-sep list or a single arg
 sub _parse_subcall_args { (my $ast, my $args) =@_;
-	if ( ($ast->[0] & 0xFF) == 0 ) { #	'('
+# An expression: 
+# carp Dumper($ast);
+    if (
+    (scalar @{$ast} >= 3 and  
+    $ast->[0]<27 and $ast->[0] != 2  and $ast->[0] != 10 )
+    or
+    (scalar @{$ast} == 2 and  $ast->[0] == 4 and $ast->[1][0]<27) # - not followed by const
+    ) {
+	# if ( ($ast->[0] & 0xFF) == 0 ) { #	'('
 	# An expression. 
        my $expr_str = emit_expr_from_ast($ast);
 	   my $vars = find_vars_in_ast($ast, {});
@@ -1602,7 +1618,7 @@ sub _parse_subcall_args { (my $ast, my $args) =@_;
        };
        push @{$args->{'List'}}, $expr_str;
     }
-	elsif (($ast->[0] & 0xFF)== 2) { #'$'
+	elsif (($ast->[0] & 0xFF) == 2) { #'$'
 	        my $arg = $ast->[1];
 	        $args->{'Set'}{$arg}={ 	      
                 'Type'=>'Scalar',              
@@ -1610,41 +1626,42 @@ sub _parse_subcall_args { (my $ast, my $args) =@_;
             };
        push @{$args->{'List'}}, $arg;
     }
-    elsif (($ast->[0] & 0xFF) == 4
+    elsif (
+        scalar @{$ast} == 2 and
+        ($ast->[0] & 0xFF) == 4
     and ($ast->[1][0] & 0xFF) > 28
     ) { #'-' then const
-    my $arg = '-'.$ast->[1][1]; 
-    $args->{'Set'}{$arg}={        
-        'Type'=>'Const', 
-        'SubType'=>$sigils[ ($ast->[1][0] & 0xFF) ],
-        'Expr' => '-'.$arg
-    };
-       push @{$args->{'List'}}, $arg;
-    
+        my $arg = '-'.$ast->[1][1]; 
+        $args->{'Set'}{$arg}={        
+            'Type'=>'Const', 
+            'SubType'=>$sigils[ ($ast->[1][0] & 0xFF) ],
+            'Expr' => '-'.$arg
+        };
+       push @{$args->{'List'}}, $arg;    
     }
     elsif (($ast->[0] & 0xFF) > 28) { # constants
-    # constants
-    my $arg = $ast->[1]; 
-    $args->{'Set'}{$arg}={        
-        'Type'=>'Const', 
-        'SubType'=>$sigils[ ($ast->[0] & 0xFF) ],
-        'Expr' => $arg
-    };
-       push @{$args->{'List'}}, $arg;
+        # constants
+        my $arg = $ast->[1]; 
+        $args->{'Set'}{$arg}={        
+            'Type'=>'Const', 
+            'SubType'=>$sigils[ ($ast->[0] & 0xFF) ],
+            'Expr' => $arg
+        };
+        push @{$args->{'List'}}, $arg;
 	}     
 	elsif (($ast->[0] & 0xFF)== 10) { #'@'
-            my $arg = $ast->[1]; 
-           my $expr_str = emit_expr_from_ast($ast);
-	       my $vars = find_vars_in_ast($ast, {});
-            $args->{'Set'}{$expr_str}={ 
+        my $arg = $ast->[1]; 
+        my $expr_str = emit_expr_from_ast($ast);
+        my $vars = find_vars_in_ast($ast, {});
+        $args->{'Set'}{$expr_str}={ 
                 'Type'=>'Array',
                 'Vars'=>$vars, 
                 'Expr' => $expr_str, 
                 'Arg' => $arg,
                 'AST' => $ast
-            };	
-       push @{$args->{'List'}}, $expr_str;
-        }  
+        };	
+        push @{$args->{'List'}}, $expr_str;
+    }  
 	elsif (($ast->[0] & 0xFF)== 1) {# '&'
             my $arg = $ast->[1]; 
            my $expr_str = emit_expr_from_ast($ast);

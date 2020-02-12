@@ -244,8 +244,8 @@ sub map_call_args_to_sig_args {
 			$info->{'SubroutineCall'}{'ArgMap'} = {};    # A map from the sig arg to the call arg, because there can be duplicate call args but not sig args
 
 			my $call_args = $info->{'SubroutineCall'}{'Args'}{'List'};
-			croak $line.Dumper($call_args) if $line=~/gop.+maxobj/;
-			FIXME: use the AST instead!
+			# croak $line.Dumper($call_args) if $line=~/gop.+maxobj/;
+			# FIXME: use the AST instead!
 			for my $call_arg_expr ( @{ $info->{'SubroutineCall'}{'Args'}{'List'} } ) {
 
 				my $call_arg = $call_arg_expr;
