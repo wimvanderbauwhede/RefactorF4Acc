@@ -414,7 +414,7 @@ sub _refactor_globals_new {
 		) {
 
 			# simply tag the common vars onto the arguments
-			$rlines = _create_refactored_subroutine_call( $stref, $f, $annline, $rlines );
+			($rlines, $stref) = _create_refactored_subroutine_call( $stref, $f, $annline, $rlines );
 			$skip   = 1;
 		}
 
@@ -430,12 +430,52 @@ sub _refactor_globals_new {
 		push @{$rlines}, $annline unless $skip;
 
 	}    # loop over all lines
-carp 'TODO: CAST VAR DECLS';
+	# carp 'TODO: CAST VAR DECLS';
 	# I think it is best to create the additional decls for casts in a separate loop.
-	# We can store them in $Sf->{'CastVarDeclAnnLines'}, for convenience we would just create them and emit them
+	# We can store them in $Sf->{'CastReshapeVarDecls'}, for convenience we would just create them and emit them
 	# To have the full picture I suppose the decls should go into DeclaredLocalVars
 	# The can go anywhere but I guess the best place is after all other VarDecls, so before the first non-VarDecl statement
-	# We can simply do this using splice_additional_lines_cond()
+	# We can simply do this using 
+	if (scalar @{$Sf->{'CastReshapeVarDecls'}{'List'}} > 0 ) {
+		my $nextLineID = scalar @{$rlines} + 1;
+		my $cast_reshape_vardecl_annlines = [];
+		for my $cast_reshape_vardecl (@{$Sf->{'CastReshapeVarDecls'}{'List'}}) {
+			my $rdecl = $Sf->{'CastReshapeVarDecls'}{'Set'}{$cast_reshape_vardecl};
+			my $rline = emit_f95_var_decl($rdecl);
+				my $info  = {};
+				$info->{'Ann'}       = [ annotate( $f, __LINE__ . ' : Cast/Reshape intermediate variable' ) ];
+				$info->{'LineID'}    = $nextLineID++;
+				$info->{'Ref'}       = 1;
+				$info->{'VarDecl'} = { 'Name' => $cast_reshape_vardecl };
+				push @{$cast_reshape_vardecl_annlines}, [ $rline, $info ];
+		}
+
+		my $insert_cond_subref = sub { (my $annline)=@_;
+			my ($line, $info) = @{$annline};
+			if (    not exists $info->{'Signature'}
+			and not exists $info->{'VarDecl'}
+			and not exists $info->{'ImplicitNone'}
+			and not exists $info->{'SpecificationStatement'}
+			and not exists $info->{'Comment'}
+			and not exists $info->{'Blank'}
+			and not exists $info->{'Skip'}
+			and not exists $info->{'Deleted'}
+			) {
+				return 1;
+			} else {
+				return 0;
+			}
+		};
+		# Usage: 
+		my $merged_annlines = splice_additional_lines_cond( $stref, $f, $insert_cond_subref, $rlines, $cast_reshape_vardecl_annlines, 1, 0, 1 );
+		$rlines = $merged_annlines;
+	}
+#- Go through the AnnLines
+#- Find the hook based on a condition on the $annline (i.e. $insert_cond_subref->($annline) )
+#- splice the new lines before/after the hook depending on $insert_before
+#- if $once is 0, do this whenever the condition is met. Otherwise do it once
+# NOTE that get_annotated_sourcelines will preferentially use RefactoredCode rather than AnnLines 
+# If this is unwanted, pass in $old_annlines explicitly	
 
 	return $rlines;
 }    # END of _refactor_globals_new()
@@ -735,6 +775,8 @@ sub _create_refactored_subroutine_call {
 		push @{$rlines}, [ $line, $info ];
 		return $rlines;
 	}
+	# This is in case we need intermediate variables for casting and reshaping of arguments to subroutine calls
+	$Sf->{'CastReshapeVarDecls'}={'List'=>[], 'Set'=>{}};
 
 	# Collect original args
 	my @orig_args = ();
@@ -806,6 +848,13 @@ sub _create_refactored_subroutine_call {
 
 		push @orig_args, $call_arg;
 	} # loop over all call args
+
+	$Sf->{'CastReshapeVarDecls'}{'List'}=map {$_->{'CallArg'}} @cast_reshape_results;
+	map { 
+		$Sf->{'CastReshapeVarDecls'}{'Set'}{
+			$_->{'CallArg'}
+		} = $_->{'CastReshapeVarDecl'};
+	} @cast_reshape_results;
 
 	my $args_ref = [@orig_args];               # NOT ordered union, if they repeat that should be OK
 											   # This is for the case of ENTRYs. The "parent" is the actual sub which contains the ENTRY statements
@@ -975,6 +1024,14 @@ sub _create_refactored_subroutine_call {
 				push @maybe_renamed_exglobs, $call_arg;
 			}
 
+			$Sf->{'CastReshapeVarDecls'}{'List'}=map {$_->{'CallArg'}} @cast_reshape_results;
+			map { 
+				$Sf->{'CastReshapeVarDecls'}{'Set'}{
+					$_->{'CallArg'}
+				} = $_->{'CastReshapeVarDecl'};
+			} @cast_reshape_results;
+
+
 			# Then we concatenate these arg lists
 			$args_ref = [ @orig_args, @maybe_renamed_exglobs ];    # NOT ordered union, if they repeat that should be OK
 			
@@ -1031,10 +1088,8 @@ sub _create_refactored_subroutine_call {
 		}
 	}
 	}
-
-
 	
-	return $rlines;
+	return ($rlines, $stref);
 }    # END of _create_refactored_subroutine_call()
 
 # This is for lines that contain function calls, so in practice either assignments or subroutine calls -- or conditional statements
@@ -2192,7 +2247,7 @@ sub _group_local_param_decls_at_top { my ( $stref, $f ) = @_;
 # 		'CallArg' => $call_arg,
 # 		'PreAnnLine' => [],
 # 		'PostAnnLine' => [],
-# 		'CastVarDecl' => {},
+# 		'CastReshapeVarDecl' => {},
 # 		'Status' => 0
 # 	};
 # where Status =
@@ -2227,7 +2282,7 @@ sub _maybe_cast_call_args { my ($stref, $f, $sub_name, $call_arg,$call_arg_decl,
 		'CallArg' => $call_arg,
 		'PreAnnLine' => ['',{'Assignment'=>1}],
 		'PostAnnLine' =>  ['',{'Assignment'=>1}],
-		'CastVarDecl' => {},
+		'CastReshapeVarDecl' => {},
 		'Status' => 0
 	};
 		
@@ -2292,7 +2347,7 @@ sub _maybe_cast_call_args { my ($stref, $f, $sub_name, $call_arg,$call_arg_decl,
 		my $new_call_arg_decl = dclone($sig_arg_decl);
 		$new_call_arg_decl->{'Name'}=$new_call_arg;
 		$cast_reshape_result->{'CallArg'}=$new_call_arg;
-		$cast_reshape_result->{'CastVarDecl'}=$new_call_arg_decl;
+		$cast_reshape_result->{'CastReshapeVarDecl'}=$new_call_arg_decl;
 		$cast_reshape_result->{'Status'}=2;		
 	} elsif ($needs_cast and not $is_out) {
 		$cast_reshape_result->{'Status'}=1;
