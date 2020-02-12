@@ -82,6 +82,12 @@ sub replace_consts_in_ast { (my $stref, my $f, my $block_id, my $ast, my $state,
 		  				# carp( "MVAR $mvar MVAL: $val");	
 		  				$ast = parse_expression($val, {},$stref,$f);
 		  				return ($ast,$state,1);
+					} elsif (in_nested_set($stref->{'Subroutines'}{$f},'Args',$mvar)) {
+						# carp "VAR $mvar is an arg, not a parameter. Trying to eval anyway ... ";
+						# if ( scalar keys %{$stref->{'Subroutines'}{$f}{'Callers'} }==1) {
+							my $maybe_evaled_ast = __try_to_eval_arg($stref, $f, $mvar);
+						# } 
+						return ($maybe_evaled_ast,$state,1);
 					} else {
 						my $param_set = in_nested_set($stref->{'Subroutines'}{$f},'Parameters',$mvar);						
 						carp "Can\'t replace $mvar, no parameter record found in $f";
@@ -133,5 +139,95 @@ sub eval_expression_with_parameters { (my $expr_str,my $info, my $stref, my $f) 
 
 } # END of eval_expression_with_parameters()
 
+sub __try_to_eval_arg { my ($stref,$f,$arg)=@_;
+# carp Dumper($stref->{'Subroutines'}{$f}{'Callers'});
+	my $caller; my $line_id;
+	for my $k (keys %{$stref->{'Subroutines'}{$f}{'Callers'} }) {
+		$caller=$k;
+		$line_id = $stref->{'Subroutines'}{$f}{'Callers'}{$k};
+		last;
+	};
 
+	# First find the call to $f in $caller
+	
+	my $pass_find_call= sub {
+		(my $annline, my $call_info)=@_;
+		(my $line,my $info)=@{$annline};		
+		my $new_annlines = [$annline];
+		if (exists $info->{'SubroutineCall'} and
+		$info->{'SubroutineCall'}{'Name'} eq $f
+		) {	
+			$call_info->{$f} = $info;
+		}		
+		
+		return ($new_annlines,$call_info);
+	};
+	
+	my $call_info={};
+ 	($stref,$call_info) = stateful_pass($stref,$caller,$pass_find_call, $call_info,'_find_call ' . __LINE__  ) ;	
+	warn "ARGMAP for call to $f in $caller:\n" .Dumper($call_info->{$f}{'SubroutineCall'}{'ArgMap'});
+	 my $call_arg = $call_info->{$f}{'SubroutineCall'}{'ArgMap'}{$arg};
+	 warn 'CALL ARG:'. Dumper($call_arg);
+	 if ($call_arg=~/^\d+$/) {
+		 return [29,$call_arg];
+	 }
+	my $subset = in_nested_set( $stref->{'Subroutines'}{$caller}, 'Parameters', $call_arg );
+	if ($subset) { # OK, this is a parameter, 
+			my $decl = get_var_record_from_set( $stref->{'Subroutines'}{$caller}{'Parameters'},$call_arg);
+			my $val = $decl->{'Val'};
+			my $ast = parse_expression($val, {},$stref,$f);
+			my $expr_val = eval_expression_with_parameters($val,{},  $stref, $caller) ;
+			# assuming it is an integer, FIXME
+			return [29,$expr_val];
+	} else {
+		# carp "$call_arg is not a parameter in $caller, plough on!";
+
+		# $info->{'Lhs'} = {
+		# 	'VarName'       => $lhs_varname,
+		# 	'IndexVars'     => $lhs_index_vars,
+		# 	'ArrayOrScalar' => $lhs_var_attrs->{'Type'},
+		# 	'ExpressionAST' => $lhs_ast
+		# };
+	my $pass_find_assignment = sub {
+		(my $annline, my $expr_asts)=@_;
+		(my $line,my $info)=@{$annline};		
+		my $new_annlines = [$annline];
+		if (exists $info->{'Assignment'} 
+		
+		and $info->{'Lhs'}{'VarName'} eq $call_arg
+		and $info->{'Lhs'}{'ArrayOrScalar'} eq 'Scalar' # no nonsense!
+		) {	
+			say "ASSIGNMENT LINE: ". $line;
+			$expr_asts->{$call_arg}=$info->{'Rhs'}{'ExpressionAST'};
+		}				
+		return ($new_annlines,$expr_asts);
+	};
+
+	my $expr_asts={};
+
+ 	($stref,$expr_asts) = stateful_pass($stref,$caller,$pass_find_assignment, $expr_asts,'_find_assignment ' . __LINE__  ) ;	
+
+	carp "Assignment for $call_arg in $caller: ".Dumper($expr_asts->{$call_arg}) ;
+	my $expr_str = emit_expr_from_ast($expr_asts->{$call_arg});
+
+
+
+	my $expr_val = eval_expression_with_parameters ( $expr_str,{} 	,  $stref, $caller) ;
+	
+		return [29,$expr_val]
+	}
+}
+
+#  call gop(dragpx,w1,'+  ',maxobj+1)
+#  subroutine gop( x, w, op, n)
+# 
+# ARGMAP for call to gop in torque_calc:
+# $VAR1 = {
+#   'n' => undef,
+#   'w' => 'w1',
+#   'x' => 'torqvz',
+#   'op' => '__PH0__'
+# };
+
+							
 1;

@@ -600,7 +600,8 @@ sub parse_expression_no_context { (my $str)=@_;
     my $arg_expr_ast=[];
     my $has_funcs=0;
     my $empty_arg_list=0;
-#    carp "ORIG STR: $str";
+    # carp "ORIG STR: $str";
+    croak if not defined $str;
     while (length($str)>0) {
         $error=0;
 #		say "STR before prefix: $str";

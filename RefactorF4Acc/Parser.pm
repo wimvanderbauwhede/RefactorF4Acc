@@ -1769,10 +1769,14 @@ sub _parse_subroutine_and_function_calls {
 	                if ($argstr) {
 	                	
 						my $ast = parse_expression( $argstr, $info, $stref, $f ); 
+						# This returns the arguments if they are vars or PlaceHolders, but really this should return the expression string.
+						# Or rather, we should not use this in Analysis::Arguments but use the AST
 						( my $expr_args, my $expr_other_vars ) = get_args_vars_from_subcall($ast);
 						
-#		                croak $line."\n".Dumper($ast)."\n".Dumper($expr_args,$expr_other_vars) if $argstr=~/ivcomp/ and $line=~/sn705/;
-						for my $expr_arg(@{$expr_args->{'List'}}) {
+		                croak $line.
+						"\n".Dumper($ast).
+						"\n".Dumper($expr_args,$expr_other_vars) if $line=~/gop.+maxobj/;
+						for my $expr_arg (@{$expr_args->{'List'}}) {
 							if (substr($expr_arg,0,1) eq '*') {
 								my $label=substr($expr_arg,1);
 								$Sf->{'ReferencedLabels'}{$label}=$label;		
@@ -1784,6 +1788,7 @@ sub _parse_subroutine_and_function_calls {
 						# $info->{'SubroutineCall'}{'Args'} = $info->{'SubroutineCall'}{'Args'};
 						
 						$info->{'SubroutineCall'}{'ExpressionAST'} = $ast;
+						
 	                } else {
 	                    $info->{'SubroutineCall'}{'Args'}               = {'List'=>[],'Set'=>{}};
 					    $info->{'ExprVars'}               = {'List'=>[],'Set'=>{}};

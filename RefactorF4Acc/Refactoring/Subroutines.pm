@@ -436,12 +436,14 @@ sub _refactor_globals_new {
 	# To have the full picture I suppose the decls should go into DeclaredLocalVars
 	# The can go anywhere but I guess the best place is after all other VarDecls, so before the first non-VarDecl statement
 	# We can simply do this using 
-	if (scalar @{$Sf->{'CastReshapeVarDecls'}{'List'}} > 0 ) {
+	if (exists $Sf->{'CastReshapeVarDecls'}
+	and exists $Sf->{'CastReshapeVarDecls'}{'List'} and scalar @{$Sf->{'CastReshapeVarDecls'}{'List'}} > 0 ) { 
 		my $nextLineID = scalar @{$rlines} + 1;
 		my $cast_reshape_vardecl_annlines = [];
 		for my $cast_reshape_vardecl (@{$Sf->{'CastReshapeVarDecls'}{'List'}}) {
 			my $rdecl = $Sf->{'CastReshapeVarDecls'}{'Set'}{$cast_reshape_vardecl};
 			my $rline = emit_f95_var_decl($rdecl);
+			# say $rline;
 				my $info  = {};
 				$info->{'Ann'}       = [ annotate( $f, __LINE__ . ' : Cast/Reshape intermediate variable' ) ];
 				$info->{'LineID'}    = $nextLineID++;
@@ -790,8 +792,10 @@ sub _create_refactored_subroutine_call {
 		shift @{$expr_ast};
 	}
 # carp "$f $name ".'ARGMAP:' .Dumper($info->{'SubroutineCall'}{'ArgMap'}) if $name eq 'sbisect';
+# carp $line. Dumper($expr_ast);
 	my @cast_reshape_results=();
 	for my $call_arg_expr ( @{$expr_ast} ) {
+		# carp Dumper($call_arg_expr);
 		my $call_arg = emit_expr_from_ast($call_arg_expr);
 
 				# my $call_arg = $stref->{'Subroutines'}{$parent_sub_name}{'ExMismatchedCommonArgs'}{'CallArgs'}{$f}{$sig_arg}[0];
@@ -800,6 +804,7 @@ sub _create_refactored_subroutine_call {
 					my $subset = in_nested_set($stref->{'Subroutines'}{$f}, 'Vars', $call_arg);
 					if ($subset) { # otherwise it means this is an expression, TODO
 						my $call_arg_decl = $stref->{'Subroutines'}{$f}{$subset}{'Set'}{$call_arg};
+						# carp "Subset $subset for $call_arg in $f";
 						# carp Dumper($call_arg_decl)  if $call_arg eq 'p2' and $name eq 'sbisect';
 						my $sig_arg = $call_arg;
 						
@@ -849,7 +854,7 @@ sub _create_refactored_subroutine_call {
 		push @orig_args, $call_arg;
 	} # loop over all call args
 
-	$Sf->{'CastReshapeVarDecls'}{'List'}=map {$_->{'CallArg'}} @cast_reshape_results;
+	$Sf->{'CastReshapeVarDecls'}{'List'} = [map {$_->{'CallArg'}} @cast_reshape_results];
 	map { 
 		$Sf->{'CastReshapeVarDecls'}{'Set'}{
 			$_->{'CallArg'}
@@ -1024,7 +1029,7 @@ sub _create_refactored_subroutine_call {
 				push @maybe_renamed_exglobs, $call_arg;
 			}
 
-			$Sf->{'CastReshapeVarDecls'}{'List'}=map {$_->{'CallArg'}} @cast_reshape_results;
+			$Sf->{'CastReshapeVarDecls'}{'List'} = [map {$_->{'CallArg'}} @cast_reshape_results];
 			map { 
 				$Sf->{'CastReshapeVarDecls'}{'Set'}{
 					$_->{'CallArg'}
@@ -2277,7 +2282,7 @@ cast and reshape (always new arg)
 
 =cut
 sub _maybe_cast_call_args { my ($stref, $f, $sub_name, $call_arg,$call_arg_decl,$sig_arg, $sig_arg_decl)=@_;
-
+#  carp "CALL ARG $call_arg for call to $sub_name in $f : ".Dumper($call_arg_decl);
 	my $cast_reshape_result={
 		'CallArg' => $call_arg,
 		'PreAnnLine' => ['',{'Assignment'=>1}],
@@ -2288,7 +2293,7 @@ sub _maybe_cast_call_args { my ($stref, $f, $sub_name, $call_arg,$call_arg_decl,
 		
 	my $needs_reshape=0;
 
-	if (
+	if (exists $call_arg_decl->{'ArrayOrScalar'} and
 		$call_arg_decl->{'ArrayOrScalar'} eq 'Array'
 		and $sig_arg_decl->{'ArrayOrScalar'} eq 'Array'									
 	) { # both are arrays. Let's check size and rank
@@ -2308,9 +2313,11 @@ sub _maybe_cast_call_args { my ($stref, $f, $sub_name, $call_arg,$call_arg_decl,
 		if ( $size1 == $size2 and $rank1 != $rank2 ) {
 			$needs_reshape=1;			
 		} elsif ( $size1 != $size2 and $rank1 == $rank2 ) {
-			croak "Call arg and subroutine arg have different sizes, type error!";
+			say "WARNING: Call to $sub_name in $f: call arg $call_arg and subroutine arg $sig_arg have different sizes $size1<>$size2, type error!" if $W;
+			$needs_reshape=1;
 		} elsif ( $size1 != $size2 and $rank1 != $rank2 ) {
-			croak "Call arg and subroutine arg have different sizes and different ranks, can't reshape!";
+			say "WARNING: Call to $sub_name in $f: call arg $call_arg and subroutine arg $sig_arg have different sizes $size1<>$size2, type error in reshape()!" if $W;
+			$needs_reshape=1;
 		}
 	}
 
