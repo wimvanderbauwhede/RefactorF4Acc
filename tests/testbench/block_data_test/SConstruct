@@ -1,0 +1,13 @@
+import os
+
+FC=os.environ.get('FC')
+
+print FC
+fsources = ['refactored-source/cea2.f90','refactored-source/params_cea_inc.f90']
+
+LDFLAGS= [] 
+FFLAGS  = ['-cpp', '-Wall','-ffree-form', '-ffree-line-length-0']#, '-fconvert=big-endian','-mcmodel=medium']
+
+envF=Environment(FORTRAN=FC,F90=FC,LINK=FC,LINKFLAGS=LDFLAGS,F90FLAGS=FFLAGS,F90PATH=['.'])
+
+envF.Program('cea2',fsources,LIBS=[ 'm'],LIBPATH=['.' ,'/usr/lib','/opt/local/lib','/usr/local/lib'])

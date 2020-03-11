@@ -1,0 +1,29 @@
+module params_SIZE
+      integer, parameter :: ldim=3
+      integer, parameter :: lx1=8
+      integer, parameter :: lxd=12
+      integer, parameter :: lx2=lx1-2
+      integer, parameter :: lelg=30*20*24
+      integer, parameter :: lpmin=12
+      integer, parameter :: lpmax=1024
+      integer, parameter :: ldimt=1
+      integer, parameter :: ldimt_proj=1
+      integer, parameter :: lhis=1000
+      integer, parameter :: maxobj=4
+      integer, parameter :: lpert=1
+      integer, parameter :: toteq=5
+      integer, parameter :: nsessmax=2
+      integer, parameter :: lxo=lx1
+      integer, parameter :: mxprev=20
+      integer, parameter :: lgmres=30
+      integer, parameter :: lorder=3
+      integer, parameter :: lx1m=lx1
+      integer, parameter :: lfdm=0
+      integer, parameter :: lelx=1
+      integer, parameter :: lely=1
+      integer, parameter :: lelz=1
+      integer, parameter :: lelt=lelg/lpmin+3
+      integer, parameter :: lbelt=1
+      integer, parameter :: lpelt=1
+      integer, parameter :: lcvelt=lelt
+end module params_SIZE

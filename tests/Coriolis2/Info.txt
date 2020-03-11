@@ -1,0 +1,11 @@
+
++++++ FORTRAN +++++
+
+The switch MODE is used to select either the semi-implicit scheme or the local-rotation scheme. Remember that, in contrast to SciLab scripts, 
+each line in a FORTRAN code can only have one equation.
+
++++++ SciLAB +++++
+
+All the SciLab script does is to animate data predicted by the FORTRAN model code.  The first line of the input file contains information on
+rotation rate, time step, and number of frames of the animation, so that we don't need to refine the SciLab script when changing settings in
+the FORTRAN code.  Note that SciLab scripts are case sensitive.

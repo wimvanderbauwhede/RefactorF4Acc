@@ -1,0 +1,3 @@
+AutoParallel-Fortran-exe src/predict_loc.f90 src/predict_vel.f90 src/update_loc_vel.f90 -out ../Autopar/ -main src/coriolis.f90 -v -plat $1 
+
+
