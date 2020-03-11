@@ -1,0 +1,3 @@
+AutoParallel-Fortran-exe src/corio_core.f95 -out ../Autopar/ -main src/coriolis.f95 -v -plat $1 
+
+

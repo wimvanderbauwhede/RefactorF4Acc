@@ -1,0 +1,21 @@
+# Generated build script for refactored source code
+# Wed Jan 29 15:22:03 2020
+
+#csources =[]
+
+fsources = ['./src/abl.f90','./src/blas.f90','./src/calcz.f90','./src/comm_mpi.f','./src/drive.f90','./src/math.f','./src/mpi_dummy.f','./src/navier5.f90','./src/papi.f','./src/postpro.f90','./src/singlmesh.f90','./src/subs1.f90','./src/params_INPUT.f90','./src/params_OPCTR.f90','./src/params_PARALLEL.f90','./src/params_SIZE.f90','./src/params_SOLN.f90','./src/params_TOTAL.f90','./src/params_WZF.f90','./src/params_ZPER.f90','./src/params_mpif_h.f90','./src/mxm_wrapper.f90','./src/mxm_std.f90'] 
+# './src/mxm_bgq.f90','./src/params_SIZE_inc.f90'
+
+envC=Environment(CC='/opt/local/bin/gcc-mp-10',CPPPATH=[]); 
+#if csources:
+#    envC.Library('main_c',csources)
+
+FFLAGS  = ['-cpp','-O3', '-m64', '-freal-4-real-8', '-ffree-form', '-ffree-line-length-0','-fconvert=little-endian', '-frecord-marker=4']
+F77FLAGS  = ['-cpp','-O3', '-m64', '-freal-4-real-8','-std=legacy', '-fconvert=little-endian', '-frecord-marker=4']
+envF=Environment(F90='/opt/local/bin/gfortran-mp-10 -L/usr/lib ',LINK='/opt/local/bin/gfortran-mp-10 -L/usr/lib ',F90FLAGS=FFLAGS,F90PATH=['.' ,'/opt/local/include','/usr/local/include'],
+        FORTRAN='/opt/local/bin/gfortran-mp-10 -L/usr/lib ', FORTRANFLAGS=F77FLAGS, FORTRANPATH=['.','./src'])
+#if csources:
+#    envF.Program('main',fsources,LIBS=[ 'main_c','m'],LIBPATH=['.' ,'/usr/lib','/opt/local/lib','/usr/local/lib'])   
+#else:
+#    envF.Program('main',fsources,LIBS=[ 'm'],LIBPATH=['.' ,'/usr/lib','/opt/local/lib','/usr/local/lib'])
+envF.Program('main',fsources,LIBS=[ 'm'],LIBPATH=['.' ,'/usr/lib','/opt/local/lib','/usr/local/lib'])
