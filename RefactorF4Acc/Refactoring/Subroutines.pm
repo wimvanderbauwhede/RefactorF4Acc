@@ -814,12 +814,11 @@ sub _create_refactored_subroutine_call {
 						my $sig_arg = $call_arg;
 						# Now see if there is an actual $sig_arg for which the entry in ArgMap
 						# matches the $call_arg
-						# This is odd because the ArgMap entries should be typed 
-						croak Dumper($info->{'SubroutineCall'}{'ArgMap'});
+						# ArgMap entries are not typed: the type info is in $info->{'SubroutineCall'}{'Args'}
+						carp Dumper($info->{'SubroutineCall'}{'ArgMap'});
 						for my $tsig_arg (keys %{$info->{'SubroutineCall'}{'ArgMap'} }) {					
 							if ( defined $info->{'SubroutineCall'}{'ArgMap'}{$tsig_arg} and
-								$info->{'SubroutineCall'}{'ArgMap'}{$tsig_arg} eq $call_arg) {
-									croak 'ArgMap values should be typed so WHY?';
+								$info->{'SubroutineCall'}{'ArgMap'}{$tsig_arg} eq $call_arg) {									
 								$sig_arg=$tsig_arg;
 								last;
 							}
