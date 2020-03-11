@@ -1783,8 +1783,8 @@ sub _parse_subroutine_and_function_calls {
 							}
 						}
 						
-						$info->{'SubroutineCall'}{'Args'}               = $expr_args;
-						$info->{'ExprVars'}               = $expr_other_vars;
+						$info->{'SubroutineCall'}{'Args'} = $expr_args;
+						$info->{'ExprVars'} = $expr_other_vars;
 						# $info->{'SubroutineCall'}{'Args'} = $info->{'SubroutineCall'}{'Args'};
 						
 						$info->{'SubroutineCall'}{'ExpressionAST'} = $ast;

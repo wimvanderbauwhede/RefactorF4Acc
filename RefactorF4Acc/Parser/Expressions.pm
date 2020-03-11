@@ -377,7 +377,7 @@ sub get_args_vars_from_subcall {(my $ast)=@_;
 	my $all_vars={'List'=>[],'Set'=>{} };
 
 	my $vars = get_vars_from_expression($ast,{} );
-	$all_vars->{'Set'}=$vars;
+	$all_vars->{'Set'}=$vars;    
 	$args = _parse_subcall_args($ast, $args);
 
 	$all_vars->{'List'} = [sort keys %{ $all_vars->{'Set'} }];
@@ -1632,7 +1632,7 @@ sub _parse_subcall_args { (my $ast, my $args) =@_;
     and ($ast->[1][0] & 0xFF) > 28
     ) { #'-' then const
         my $arg = '-'.$ast->[1][1]; 
-        $args->{'Set'}{$arg}={        
+        $args->{'Set'}{$arg}={    
             'Type'=>'Const', 
             'SubType'=>$sigils[ ($ast->[1][0] & 0xFF) ],
             'Expr' => '-'.$arg

@@ -11,18 +11,18 @@ School of Computing Science, University of Glasgow, UK
 ## READ THIS FIRST
 
 - This tool was developed for a specific purpose: refactoring FORTRAN77 code into Fortran 95 code _suitable for offloading to GPUs and FPGAs_. The refactorings it includes are there to support that goal. Therefore, many refactorings that you might do to improve code on CPU, e.g. to benefit from SIMD, are _not_ included, for example replacing loops by array operations.
-- The resulting code is also _not_ GPU-ready, as explained
+- To perform static code analysis, the compiler requires all array bounds to be constants at compile time. If your code contains array bounds defined using variables, in particular subroutine arguments, the analysis can't work.
+- The resulting code is also _not_ GPU-ready, as explained below.
 - This is a research project and because of the limited time I can put into it, it is _definitely not complete or bug free_. Therefore, the chance that it might not work on your particular code is quite high.
 - I would like you to get in touch but I can't guarantee a speedy resolution of your issues.
 
 ### Known issues
 
-- The compiler currently assumes that functions are pure, i.e. they do not use global variables. If your code uses impure functions, refactoring should still work but the globals in functions will not be removed.
-- The compiler does not replace C preprocessor macros, so it your code uses these, make sure to run `cpp` in advance.
+- The compiler completely ignores C preprocessor macros, so it your code uses these, it is best to run `cpp` in advance.
 - The compiler supports mainly F77. If your code is a mixture of F77 and F90 or later, it may or may not work.
 - Some F77 features are ignored (i.e. kept as-is), notably `ASSIGN`, `DECODE` and `ENCODE`.
 - `SAVE` statements are deleted in PROGRAM code units, ignored elsewhere.
-- "The extension of named `COMMON` block storage by `EQUIVALENCE` association of a variable and an array" as tested by `NIST FM302 TEST 013` is not handled correctly.
+- "The extension of named `COMMON` block storage by `EQUIVALENCE` association of a variable and an array" as tested by `NIST FM302 TEST 013` is not handled correctly. 
 - `EQUIVALENCE` handling for arrays is incorrect for non-constant indices.
 
 ## What is this?

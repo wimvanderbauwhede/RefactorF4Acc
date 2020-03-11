@@ -139,8 +139,10 @@ sub eval_expression_with_parameters { (my $expr_str,my $info, my $stref, my $f) 
 
 } # END of eval_expression_with_parameters()
 
+# This routine attempts to evaluate arguments by following them to the caller, 
+# but in a very limited way.
 sub __try_to_eval_arg { my ($stref,$f,$arg)=@_;
-# carp Dumper($stref->{'Subroutines'}{$f}{'Callers'});
+	# Get the caller and the ID of the line with the call in $f
 	my $caller; my $line_id;
 	for my $k (keys %{$stref->{'Subroutines'}{$f}{'Callers'} }) {
 		$caller=$k;
@@ -148,14 +150,12 @@ sub __try_to_eval_arg { my ($stref,$f,$arg)=@_;
 		last;
 	};
 
-	# First find the call to $f in $caller
-	
-	my $pass_find_call= sub {
-		(my $annline, my $call_info)=@_;
+	# Find the call to $f in $caller	
+	my $pass_find_call= sub { my ($annline, $call_info)=@_;
 		(my $line,my $info)=@{$annline};		
 		my $new_annlines = [$annline];
-		if (exists $info->{'SubroutineCall'} and
-		$info->{'SubroutineCall'}{'Name'} eq $f
+		if ( exists $info->{'SubroutineCall'} 
+			and	$info->{'SubroutineCall'}{'Name'} eq $f
 		) {	
 			$call_info->{$f} = $info;
 		}		
@@ -165,12 +165,14 @@ sub __try_to_eval_arg { my ($stref,$f,$arg)=@_;
 	
 	my $call_info={};
  	($stref,$call_info) = stateful_pass($stref,$caller,$pass_find_call, $call_info,'_find_call ' . __LINE__  ) ;	
+
+	# Find the call arguments 
 	warn "1. ARGMAP for call to $f in $caller:\n" .Dumper($call_info->{$f}{'SubroutineCall'}{'ArgMap'});
-	 my $call_arg = $call_info->{$f}{'SubroutineCall'}{'ArgMap'}{$arg};
-	 warn '2. CALL ARG:'. Dumper($call_arg);
-	 if ($call_arg=~/^\d+$/) {
+	my $call_arg = $call_info->{$f}{'SubroutineCall'}{'ArgMap'}{$arg};
+	warn '2. CALL ARG:'. Dumper($call_arg);
+	if ($call_arg=~/^\d+$/) {
 		 return [29,$call_arg];
-	 }
+	}
 	my $subset = in_nested_set( $stref->{'Subroutines'}{$caller}, 'Parameters', $call_arg );
 	if ($subset) { # OK, this is a parameter, 
 			my $decl = get_var_record_from_set( $stref->{'Subroutines'}{$caller}{'Parameters'},$call_arg);
@@ -192,32 +194,30 @@ sub __try_to_eval_arg { my ($stref,$f,$arg)=@_;
 # TODO:
 		# Instead of assigment, it could be a sig arg.
 		# Then we have to do this all over again!
-	my $pass_find_assignment = sub {
-		(my $annline, my $expr_asts)=@_;
-		(my $line,my $info)=@{$annline};		
-		my $new_annlines = [$annline];
-		if (exists $info->{'Assignment'} 
+		my $pass_find_assignment = sub {
+			(my $annline, my $expr_asts)=@_;
+			(my $line,my $info)=@{$annline};		
+			my $new_annlines = [$annline];
+			if (exists $info->{'Assignment'} 
+			
+			and $info->{'Lhs'}{'VarName'} eq $call_arg
+			and $info->{'Lhs'}{'ArrayOrScalar'} eq 'Scalar' # no nonsense!
+			) {	
+				warn  "3. ASSIGNMENT LINE: ". $line;
+				$expr_asts->{$call_arg}=$info->{'Rhs'}{'ExpressionAST'};
+			}				
+			return ($new_annlines,$expr_asts);
+		};
+
+		my $expr_asts={};
+
+		($stref,$expr_asts) = stateful_pass($stref,$caller,$pass_find_assignment, $expr_asts,'_find_assignment ' . __LINE__  ) ;	
+
+		carp "4. Assignment for $call_arg in $caller: ".Dumper($expr_asts->{$call_arg}) ;
+		my $expr_str = emit_expr_from_ast($expr_asts->{$call_arg});
+
+		my $expr_val = eval_expression_with_parameters ( $expr_str,{} 	,  $stref, $caller) ;
 		
-		and $info->{'Lhs'}{'VarName'} eq $call_arg
-		and $info->{'Lhs'}{'ArrayOrScalar'} eq 'Scalar' # no nonsense!
-		) {	
-			warn  "3. ASSIGNMENT LINE: ". $line;
-			$expr_asts->{$call_arg}=$info->{'Rhs'}{'ExpressionAST'};
-		}				
-		return ($new_annlines,$expr_asts);
-	};
-
-	my $expr_asts={};
-
- 	($stref,$expr_asts) = stateful_pass($stref,$caller,$pass_find_assignment, $expr_asts,'_find_assignment ' . __LINE__  ) ;	
-
-	carp "4. Assignment for $call_arg in $caller: ".Dumper($expr_asts->{$call_arg}) ;
-	my $expr_str = emit_expr_from_ast($expr_asts->{$call_arg});
-
-
-
-	my $expr_val = eval_expression_with_parameters ( $expr_str,{} 	,  $stref, $caller) ;
-	
 		return [29,$expr_val]
 	}
 }

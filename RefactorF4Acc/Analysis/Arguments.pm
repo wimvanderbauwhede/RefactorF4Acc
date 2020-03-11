@@ -269,6 +269,10 @@ sub map_call_args_to_sig_args {
 			my $i = 0;
 			for my $sig_arg ( @{ $stref->{'Subroutines'}{$sub}{'OrigArgs'}{'List'} } ) {
 				my $call_arg_expr = $call_args->[$i];
+				# This means that to get the type information, we need
+				# $info->{'SubroutineCall'}{'Args'}{'Set'}{$call_arg_expr}
+				# Which is OK as long as $call_arg_expr is defined!
+				croak Dumper($info->{'SubroutineCall'}{'Args'}) if not defined $call_arg_expr;
 				$info->{'SubroutineCall'}{'ArgMap'}{$sig_arg} = $call_arg_expr;
 				$i++;
 			}

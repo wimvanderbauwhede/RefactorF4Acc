@@ -795,22 +795,31 @@ sub _create_refactored_subroutine_call {
 # carp $line. Dumper($expr_ast);
 	my @cast_reshape_results=();
 	for my $call_arg_expr ( @{$expr_ast} ) {
-		# carp Dumper($call_arg_expr);
+		# The main purpose is to handle variable names
+		# So this is rather weak because e.g. v(i) will not be in Vars.
+		# So this only works for plain variable names
 		my $call_arg = emit_expr_from_ast($call_arg_expr);
 
 				# my $call_arg = $stref->{'Subroutines'}{$parent_sub_name}{'ExMismatchedCommonArgs'}{'CallArgs'}{$f}{$sig_arg}[0];
 				if ($call_arg!~/__PH\d+__/) {
 						# say "FOR CALL ARG $call_arg of call to $name in $f:";
 					my $subset = in_nested_set($stref->{'Subroutines'}{$f}, 'Vars', $call_arg);
-					if ($subset) { # otherwise it means this is an expression, TODO
+					if ($subset) { # otherwise it means this is an expression, including array accesses, or a constant.
+					# TODO!
 						my $call_arg_decl = $stref->{'Subroutines'}{$f}{$subset}{'Set'}{$call_arg};
 						# carp "Subset $subset for $call_arg in $f";
 						# carp Dumper($call_arg_decl)  if $call_arg eq 'p2' and $name eq 'sbisect';
+
+						# Just set $sig_arg to $call_arg as a start
 						my $sig_arg = $call_arg;
-						
+						# Now see if there is an actual $sig_arg for which the entry in ArgMap
+						# matches the $call_arg
+						# This is odd because the ArgMap entries should be typed 
+						croak Dumper($info->{'SubroutineCall'}{'ArgMap'});
 						for my $tsig_arg (keys %{$info->{'SubroutineCall'}{'ArgMap'} }) {					
 							if ( defined $info->{'SubroutineCall'}{'ArgMap'}{$tsig_arg} and
 								$info->{'SubroutineCall'}{'ArgMap'}{$tsig_arg} eq $call_arg) {
+									croak 'ArgMap values should be typed so WHY?';
 								$sig_arg=$tsig_arg;
 								last;
 							}
@@ -824,30 +833,6 @@ sub _create_refactored_subroutine_call {
 						my $cast_reshape_result = _maybe_cast_call_args($stref, $f, $name, $call_arg,$call_arg_decl,$sig_arg, $sig_arg_decl);
 						$call_arg = $cast_reshape_result->{'CallArg'};
 						push @cast_reshape_results, $cast_reshape_result if $cast_reshape_result->{'Status'} == 2;
-
-						# say "CALL ARG: $call_arg :: " .Dumper($call_arg_decl);
-						# say "SIG ARG: $sig_arg :: ".Dumper($sig_arg_decl);
-# TODO						
-# $var\_$f = cast($var)
-# call ...
-# $var = cast($var\_$f)
-# And if it is an array, we might need to do
-# $avar\_$f = cast(reshape($var, shape($avar\_$f))) ! and shape of $avar\_$f is shape of sig arg array
-# ...
-# $avar = cast(reshape($avar_f, shape($avar)))
-# So the logic is:
-# 
-# if the sig arg IODir is Out or InOut, we can't simply pass a cast expression
-						# if ($call_arg_decl->{'Type'} ne $sig_arg_decl->{'Type'}) {
-						# 	# carp "HERE WE MAY NEED TO CAST! \nCALL ARG $f . $call_arg :: ".$call_arg_decl->{'Type'}.'<>'." SIG ARG $name . $sig_arg :: ".$sig_arg_decl->{'Type'} ;
-						# 	my $sig_kind=4;
-						# 	if (exists $sig_arg_decl->{'Attr'} and $sig_arg_decl->{'Attr'} ne '') {
-						# 		$sig_kind=$sig_arg_decl->{'Attr'};
-						# 		$sig_kind=~s/\w+=//;
-						# 		$sig_kind=~s/[\(\)]//g;
-						# 	}
-						# 	$call_arg = cast_call_argument($sig_arg_decl->{'Type'}, $sig_kind , $call_arg_decl->{'Type'}, $call_arg);
-						# }
 					} # in subset
 				} # not a PlaceHolder, this is a HACK as it shouldn't be one anyway!
 
