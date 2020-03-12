@@ -1,5 +1,5 @@
       program cea2
-      use params_cea_inc, only : maxr, maxnc, iotrn, maxngc, maxel, maxng, ncol, maxmix, iosch, maxtr, iothm, ioout, maxmat, maxpv, maxt
+      use params_cea_inc, only : maxmat, maxngc, maxnc, maxtr, iotrn, iosch, ncol, maxpv, maxel, maxmix, maxt, maxng, iothm, maxr, ioout
       implicit none
       real(kind=8), dimension(1:100) :: atmwt
       real(kind=8) :: avgdr
@@ -210,6 +210,7 @@
       real(kind=8) :: xln
       real(kind=8) :: dlog
       call block_data(atmwt,avgdr,boltz,fmt,pi,rr,symbol,valnce)
+
       open (iosch,status='scratch',form='unformatted')
       open (iothm,file='thermo.lib',form='unformatted')
       open (iotrn,file='trans.lib',form='unformatted')
@@ -221,6 +222,7 @@
  100  iplt = 0
       nplt = 0
       call input(readok,caseok,ensert,nonly,nomit,nsert,trace,short,massf,debug,nplt,siunit,prod,omit,newr,trnspt,pltvar,moles,nreac,pecwt,rtemp,energy,enth,rr,dens,nfla,ratom,rnum,fox,rname,jray,rmw,case,p,v,t,lsave,r,s0,tp,hp,sp,rkt,shock,detn,vol,ions,eql,froz,fac,debugf,acat,ma,nfz,nsub,nsup,npp,tcest,pcp,supar,subar,mach1,u1,gamma1,shkdbg,incdeq,incdfz,refleq,reflfz,np,nt,detdbg,nof,hsub0,size,viscns,avgdr,boltz,pi,nlm,oxf,wp,vmin,vpls,nsk,thdate,hpp,am,rh,elmt,b0p,tt,tg,tln,symbol,atmwt,atwt,x,valnce)
+
       if ( caseok.and.readok ) then
         do iof = 1,nof
           if ( oxf(iof) == 0..and.b0p(1,1) /= 0. ) then
@@ -246,9 +248,11 @@
           jray(n) = 0
         enddo
         call search(nc,nlm,jx,s,h0,deln,a,tg,thdate,ngc,cft,ifz,mw,temp,nonly,prod,nomit,omit,elmt,ng,coef,jcm,ngp1,nspx,symbol,atmwt,atwt,cp,short,ntape)
+
         if ( ngc == 0 ) goto 300
         newr = .false.
         call readtr(nc,nlm,jx,s,h0,deln,a,tg,thdate,ngc,cft,ifz,mw,temp,nonly,prod,nomit,omit,elmt,ng,coef,jcm,ngp1,nspx,symbol,atmwt,atwt,cp,short,ntape)
+
         npr = 0
         gonly = .true.
         enn = .1d0
@@ -283,12 +287,16 @@
         endif
         if ( rkt ) then
           call rocket(iplt,app,iopt,npp,fac,eql,acat,ma,tt,nsub,subar,nfz,nsup,froz,tcest,pp,p,it,oxfl,oxf,t,tp,hp,sp,ip,np,area,isup,page1,npt,cpsum,trnspt,ppp,debugf,isv,cpr,dlvpt,dlvtp,gammas,hsum,ssum,totn,ttt,vlm,wm,short,rr,vv,debug,jsol,enn,npr,s0,awt,aeat,supar,jliq,pcp,nof,nt,eqrat,vmin,vpls,nlm,b0,b0p,bcheck,am,wmix,size,hsub0,hpp,vol,jcm,prod,trace,ngc,pderiv,convg,jcond,ng,ifz,temp,en,nc,enln,deln,tln,tm,lsave,a,ions,shock,elmt,cp,iq1,imat,g,msing,x,h0,mu,ennl,s,sumn,tg,ngp1,mw,jx,nspx,atwt,gonly,coef,cft,nm,confro,vis,eta,wmol,xs,con,nr,stc,ind,r,cpfro,cprr,siunit,prfro,cpeql,coneql,preql,incdeq,nreac,jray,ntape,boltz,avgdr,pi,viscns,ensave,enlsav,sln,fmt,nplt,pltvar,spim,cstr,vmoc,sonvel,pltout,massf,case,moles,enth,fox,pecwt,rname,rtemp,rh,rkt,omit)
+
         elseif ( tp.or.hp.or.sp ) then
           call thermp(hp,tp,sp,eql,nof,oxfl,oxf,ip,np,pp,p,it,nt,vv,v,tt,t,npt,trnspt,isv,vol,iplt,short,eqrat,vmin,vpls,nlm,b0,b0p,bcheck,am,wmix,size,hsub0,hpp,jsol,jliq,jcm,prod,trace,ngc,pderiv,convg,npr,jcond,ng,ifz,temp,en,nc,enln,deln,tln,enn,rr,tm,lsave,a,ions,shock,elmt,debug,cpsum,cp,iq1,imat,g,msing,x,h0,mu,ennl,s,totn,sumn,dlvtp,cpr,dlvpt,gammas,hsum,ssum,s0,tg,ngp1,mw,jx,nspx,atwt,ttt,ppp,vlm,wm,gonly,coef,cft,nm,confro,vis,eta,wmol,xs,con,nr,stc,ind,r,cpfro,cprr,siunit,prfro,cpeql,coneql,preql,incdeq,nreac,jray,nfz,ntape,boltz,avgdr,pi,viscns,case,moles,enth,fox,pecwt,rname,rtemp,rh,page1,rkt,iopt,nplt,pltvar,pltout,fmt,sonvel,massf,omit,ensave,enlsav,sln)
+
         elseif ( detn ) then
           call deton(eql,t,rtemp,nt,tt,oxfl,oxf,it,ip,np,p,pp,detdbg,npt,hsub0,r,cpmix,wmix,tp,hp,gammas,cpr,wm,dlvpt,dlvtp,hsum,rr,vmoc,trnspt,isv,nplt,pltvar,fmt,siunit,v,pltout,iplt,sonvel,ppp,pcp,ttt,nof,short,eqrat,vmin,vpls,nlm,b0,b0p,bcheck,am,size,hpp,jsol,jliq,vol,jcm,prod,tm,ssum,nspr,nspx,nreac,fox,jray,ngc,rname,ng,tg,mw,nfla,ratom,rnum,coef,energy,moles,pecwt,wp,rmw,tln,en,s,h0,cp,case,enth,rh,page1,rkt,iopt,gonly,x,vlm,totn,trace,massf,omit,vis,coneql,preql,confro,prfro,cpeql,cpfro,pderiv,convg,npr,jcond,ifz,temp,nc,enln,deln,enn,vv,lsave,a,ions,shock,elmt,debug,cpsum,iq1,imat,g,msing,mu,ennl,sumn,sp,s0,ngp1,jx,atwt,cft,nm,eta,wmol,xs,con,nr,stc,ind,cprr,incdeq,nfz,ntape,boltz,avgdr,pi,viscns,ensave,enlsav,sln)
+
         elseif ( shock ) then
           call shck(trace,tp,cpmix,short,incdeq,incdfz,refleq,reflfz,t,rtemp,nsk,u1,mach1,oxfl,oxf,pp,p,tt,dlvtp,dlvpt,npt,ppp,ttt,ssum,hsum,tg,hsub0,gamma1,wmix,a1,rr,wm,cpr,gammas,vlm,eql,fmt,hp,shkdbg,tln,cpsum,ng,en,h0,g,x,ngc,s,trnspt,isv,massf,nreac,jray,mw,prod,iplt,nof,eqrat,vmin,vpls,nlm,b0,b0p,bcheck,am,size,hpp,jsol,jliq,vol,jcm,tm,nspr,nspx,fox,rname,nfla,ratom,rnum,coef,energy,moles,pecwt,wp,rmw,cp,case,siunit,enth,r,rh,page1,rkt,iopt,nplt,pltvar,gonly,pltout,totn,sonvel,omit,vis,coneql,preql,confro,prfro,cpeql,cpfro,pderiv,convg,npr,jcond,ifz,temp,nc,enln,deln,enn,vv,lsave,a,ions,shock,elmt,debug,iq1,imat,msing,mu,ennl,sumn,sp,s0,ngp1,jx,atwt,cft,nm,eta,wmol,xs,con,nr,stc,ind,cprr,nfz,ntape,boltz,avgdr,pi,viscns,ensave,enlsav,sln)
+
         endif
       endif
  200  if ( readok ) goto 100
@@ -306,7 +314,8 @@
 99008 format (/,'OXIDANT NOT PERMITTED WHEN SPECIFYING 100% FUEL(main)')
 99009 format ('#',2x,20a12)
       end program cea2
-      subroutine block_data(atmwt_ARG,avgdr_ARG,boltz_ARG,fmt_ARG,pi_ARG,rr_ARG,symbol_ARG,valnce_ARG)
+      subroutine block_data(atmwt_ARG,avgdr_ARG,boltz_ARG,fmt_ARG,pi_ARG,rr_ARG,symbol_ARG, &
+      valnce_ARG)
 !!      use params_cea_inc ! ONLY LIST EMPTY
       implicit none
       real(kind=8), dimension(1:100) :: atmwt
@@ -326,10 +335,30 @@
       character(len=2), dimension(1:100), intent(InOut) :: symbol_ARG
       real(kind=8), dimension(1:100), intent(InOut) :: valnce_ARG
       data rr / 8314.51d0 / ,pi / 3.14159265d0 / ,avgdr / 6.0221367d0 / ,boltz / 1.380658d0 / 
-      data symbol / 'H ','D ','HE','LI','BE','B ','C ','N ','O ','F ','NE','NA','MG','AL','SI','P ','S ','CL','AR','K ','CA','SC','TI','V ','CR','MN','FE','CO','NI','CU','ZN','GA','GE','AS','SE','BR','KR','RB','SR','Y ','ZR','NB','MO','TC','RU','RH','PD','AG','CD','IN','SN','SB','TE','I ','XE','CS','BA','LA','CE','PR','ND','PM','SM','EU','GD','TB','DY','HO','ER','TM','YB','LU','HF','TA','W ','RE','OS','IR','PT','AU','HG','TL','PB','BI','PO','AT','RN','FR','RA','AC','TH','PA','U ','NP','PU','AM','CM','BK','CF','ES' / 
-      data atmwt / 1.00794d0,2.014102d0,4.002602d0,6.941d0,9.012182d0,10.811d0,12.0107d0,14.0067d0,15.9994d0,18.9984032d0,20.1797d0,22.989770d0,24.305d0,26.981538d0,28.0855d0,30.973761d0,32.065d0,35.453d0,39.948d0,39.0983d0,40.078d0,44.95591d0,47.867d0,50.9415d0,51.9961d0,54.938049d0,55.845d0,58.933200d0,58.6934d0,63.546d0,65.39d0,69.723d0,72.64d0,74.92160d0,78.96d0,79.904d0,83.80d0,85.4678d0,87.62d0,88.90585d0,91.224d0,92.90638d0,95.94d0,97.9072d0,101.07d0,102.9055d0,106.42d0,107.8682d0,112.411d0,114.818d0,118.710d0,121.760d0,127.6d0,126.90447d0,131.293d0,132.90545d0,137.327d0,138.9055d0,140.116d0,140.90765d0,144.9127d0,145.d0,150.36d0,151.964d0,157.25d0,158.92534d0,162.50d0,164.93032d0,167.259d0,168.93421d0,173.04d0,174.967d0,178.49d0,180.9479d0,183.84d0,186.207d0,190.23d0,192.217d0,195.078d0,196.96655d0,200.59d0,204.3833d0,207.2d0,208.98038d0,208.9824d0,209.9871d0,222.0176d0,223.0197d0,226.0254d0,227.0278d0,232.0381d0,231.03588d0,238.02891d0,237.0482d0,244.0642d0,243.0614d0,247.0703d0,247.0703d0,251.0587d0,252.083d0 / 
-      data valnce / 1.,1.,0.,1.,2.,3.,4.,0.,-2.,-1.,0.,1.,2.,3.,4.,5.,4.,-1.,0.,1.,2.,3.,4.,5.,3.,2.,3.,2.,2.,2.,2.,3.,4.,3.,4.,-1.,0.,1.,2.,3.,4.,5.,6.,7.,3.,3.,2.,1.,2.,3.,4.,3.,4.,-1.,0.,1.,2.,3.,3.,3.,3.,3.,3.,3.,3.,3.,3.,3.,3.,3.,3.,3.,4.,5.,6.,7.,4.,4.,4.,3.,2.,1.,2.,3.,2.,-1.,0.,1.,2.,3.,4.,5.,6.,5.,4.,3.,3.,3.,3.,3. / 
-      data fmt / '(1X',',A15',',','F9.','0,','F9.','0,','F9.','0,','F9.','0,','F9.','0,','F9.','0,','F9.','0,','F9.','0,','F9.','0,','F9.','0,','F9.','0,','F9.','0,','F9.','0',')' / 
+      data symbol / 'H ','D ','HE','LI','BE','B ','C ','N ','O ','F ','NE','NA','MG','AL','SI','P ', &
+      'S ','CL','AR','K ','CA','SC','TI','V ','CR','MN','FE','CO','NI','CU','ZN','GA','GE','AS', &
+      'SE','BR','KR','RB','SR','Y ','ZR','NB','MO','TC','RU','RH','PD','AG','CD','IN','SN','SB', &
+      'TE','I ','XE','CS','BA','LA','CE','PR','ND','PM','SM','EU','GD','TB','DY','HO','ER','TM', &
+      'YB','LU','HF','TA','W ','RE','OS','IR','PT','AU','HG','TL','PB','BI','PO','AT','RN','FR', &
+      'RA','AC','TH','PA','U ','NP','PU','AM','CM','BK','CF','ES' /
+      data atmwt / 1.00794d0,2.014102d0,4.002602d0,6.941d0,9.012182d0,10.811d0,12.0107d0,14.0067d0, &
+      15.9994d0,18.9984032d0,20.1797d0,22.989770d0,24.305d0,26.981538d0,28.0855d0,30.973761d0, &
+      32.065d0,35.453d0,39.948d0,39.0983d0,40.078d0,44.95591d0,47.867d0,50.9415d0,51.9961d0, &
+      54.938049d0,55.845d0,58.933200d0,58.6934d0,63.546d0,65.39d0,69.723d0,72.64d0,74.92160d0, &
+      78.96d0,79.904d0,83.80d0,85.4678d0,87.62d0,88.90585d0,91.224d0,92.90638d0,95.94d0,97.9072d0, &
+      101.07d0,102.9055d0,106.42d0,107.8682d0,112.411d0,114.818d0,118.710d0,121.760d0,127.6d0, &
+      126.90447d0,131.293d0,132.90545d0,137.327d0,138.9055d0,140.116d0,140.90765d0,144.9127d0, &
+      145.d0,150.36d0,151.964d0,157.25d0,158.92534d0,162.50d0,164.93032d0,167.259d0,168.93421d0, &
+      173.04d0,174.967d0,178.49d0,180.9479d0,183.84d0,186.207d0,190.23d0,192.217d0,195.078d0, &
+      196.96655d0,200.59d0,204.3833d0,207.2d0,208.98038d0,208.9824d0,209.9871d0,222.0176d0, &
+      223.0197d0,226.0254d0,227.0278d0,232.0381d0,231.03588d0,238.02891d0,237.0482d0,244.0642d0, &
+      243.0614d0,247.0703d0,247.0703d0,251.0587d0,252.083d0 /
+      data valnce / 1.,1.,0.,1.,2.,3.,4.,0.,-2.,-1.,0.,1.,2.,3.,4.,5.,4.,-1.,0.,1.,2.,3.,4.,5.,3., &
+      2.,3.,2.,2.,2.,2.,3.,4.,3.,4.,-1.,0.,1.,2.,3.,4.,5.,6.,7.,3.,3.,2.,1.,2.,3.,4.,3.,4.,-1.,0., &
+      1.,2.,3.,3.,3.,3.,3.,3.,3.,3.,3.,3.,3.,3.,3.,3.,3.,4.,5.,6.,7.,4.,4.,4.,3.,2.,1.,2.,3.,2., &
+      -1.,0.,1.,2.,3.,4.,5.,6.,5.,4.,3.,3.,3.,3.,3. /
+      data fmt / '(1X',',A15',',','F9.','0,','F9.','0,','F9.','0,','F9.','0,','F9.','0,','F9.','0,', &
+      'F9.','0,','F9.','0,','F9.','0,','F9.','0,','F9.','0,','F9.','0,','F9.','0',')' /
         atmwt_ARG = atmwt
         avgdr_ARG = avgdr
         boltz_ARG = boltz
@@ -340,7 +369,7 @@
         valnce_ARG = valnce
       end subroutine block_data
       subroutine cphs(tg,tt,tln,ng,h0,s,coef,convg,tp,cp,ngc,npr,jcond,cft,nc)
-      use params_cea_inc, only : maxngc, maxnc, maxng
+      use params_cea_inc, only : maxnc, maxng, maxngc
       implicit none
       real(kind=8), dimension(1:4) :: tg
       real(kind=8) :: tt
@@ -459,8 +488,17 @@
         h0(j) = h0(j) + cft(jj,8)*cx(2)
       enddo
 99999 end subroutine cphs
-      subroutine deton(eql,t,rtemp,nt,tt,oxfl,oxf,it,ip,np,p,pp,detdbg,npt,hsub0,r,cpmix,wmix,tp,hp,gammas,cpr,wm,dlvpt,dlvtp,hsum,rr,vmoc,trnspt,isv,nplt,pltvar,fmt,siunit,v,pltout,iplt,sonvel,ppp,pcp,ttt,nof,short,eqrat,vmin,vpls,nlm,b0,b0p,bcheck,am,size,hpp,jsol,jliq,vol,jcm,prod,tm,ssum,nspr,nspx,nreac,fox,jray,ngc,rname,ng,tg,mw,nfla,ratom,rnum,coef,energy,moles,pecwt,wp,rmw,tln,en,s,h0,cp,case,enth,rh,page1,rkt,iopt,gonly,x,vlm,totn,trace,massf,omit,vis,coneql,preql,confro,prfro,cpeql,cpfro,pderiv,convg,npr,jcond,ifz,temp,nc,enln,deln,enn,vv,lsave,a,ions,shock,elmt,debug,cpsum,iq1,imat,g,msing,mu,ennl,sumn,sp,s0,ngp1,jx,atwt,cft,nm,eta,wmol,xs,con,nr,stc,ind,cprr,incdeq,nfz,ntape,boltz,avgdr,pi,viscns,ensave,enlsav,sln)
-      use params_cea_inc, only : maxel, maxngc, maxnc, maxr, maxmix, ncol, maxng, maxtr, maxt, ioout, maxpv, maxmat
+      subroutine deton(eql,t,rtemp,nt,tt,oxfl,oxf,it,ip,np,p,pp,detdbg,npt,hsub0,r,cpmix,wmix,tp,hp, &
+      gammas,cpr,wm,dlvpt,dlvtp,hsum,rr,vmoc,trnspt,isv,nplt,pltvar,fmt,siunit,v,pltout,iplt, &
+      sonvel,ppp,pcp,ttt,nof,short,eqrat,vmin,vpls,nlm,b0,b0p,bcheck,am,size,hpp,jsol,jliq,vol, &
+      jcm,prod,tm,ssum,nspr,nspx,nreac,fox,jray,ngc,rname,ng,tg,mw,nfla,ratom,rnum,coef,energy, &
+      moles,pecwt,wp,rmw,tln,en,s,h0,cp,case,enth,rh,page1,rkt,iopt,gonly,x,vlm,totn,trace,massf, &
+      omit,vis,coneql,preql,confro,prfro,cpeql,cpfro,pderiv,convg,npr,jcond,ifz,temp,nc,enln,deln, &
+      enn,vv,lsave,a,ions,shock,elmt,debug,cpsum,iq1,imat,g,msing,mu,ennl,sumn,sp,s0,ngp1,jx,atwt, &
+      cft,nm,eta,wmol,xs,con,nr,stc,ind,cprr,incdeq,nfz,ntape,boltz,avgdr,pi,viscns,ensave,enlsav, &
+      sln)
+      use params_cea_inc, only : maxnc, maxmat, maxngc, ncol, maxtr, maxpv, maxel, maxmix, maxng, &
+       maxt, maxr, ioout
       implicit none
       logical, intent(Out) :: eql
       real(kind=8), dimension(1:maxt), intent(InOut) :: t
@@ -668,8 +706,11 @@
       real(kind=8) :: ud
       real(kind=8) :: x1
       real(kind=8) :: x2
-      save a11,a12,a21,a22,alam,alfa,amm,b1,b2,cpl,d,gam,gm1,h1,i,ii,  iof,itr,j,mdv,mgam,mh,mmach,mp,mson,mt,mxx,p1,pp1,pub,rk,rr1,  rrho,t1,tem,tt1,tub,ud,unit,x1,x2
-      data ft1 / 'T1, K' / ,fh1 / 'H1, CAL/G' / ,fhs1 / 'H1, KJ/KG' / ,fm1 / 'M1, (1/n) ' / ,fg1 / 'GAMMA1' / ,fpp1 / 'P/P1' / ,ftt1 / 'T/T1' / ,fmm1 / 'M/M1' / ,frr1 / 'RHO/RHO1' / ,fdv / 'DET VEL,M/SEC' / 
+      save a11,a12,a21,a22,alam,alfa,amm,b1,b2,cpl,d,gam,gm1,h1,i,ii,  iof,itr,j,mdv,mgam,mh,mmach, &
+      mp,mson,mt,mxx,p1,pp1,pub,rk,rr1,  rrho,t1,tem,tt1,tub,ud,unit,x1,x2
+      data ft1 / 'T1, K' / ,fh1 / 'H1, CAL/G' / ,fhs1 / 'H1, KJ/KG' / ,fm1 / 'M1, (1/n) ' / , &
+      fg1 / 'GAMMA1' / ,fpp1 / 'P/P1' / ,ftt1 / 'T/T1' / ,fmm1 / 'M/M1' / ,frr1 / 'RHO/RHO1' / , &
+      fdv / 'DET VEL,M/SEC' /
       mp = mxx(1)
       mt = mxx(2)
       mgam = mxx(3)
@@ -686,16 +727,21 @@
  100  tt = t(1)
       iof = iof + 1
       oxfl = oxf(iof)
-      call newof(short,oxfl,eqrat,vmin,vpls,nlm,b0,b0p,bcheck,am,wmix,npt,size,hsub0,hpp,jsol,jliq,vol,jcm,prod)
+      call newof(short,oxfl,eqrat,vmin,vpls,nlm,b0,b0p,bcheck,am,wmix,npt,size,hsub0,hpp,jsol,jliq, &
+      vol,jcm,prod)
       do it = 1,nt
         t1 = t(it)
         do ip = 1,np
           p1 = p(ip)
           tt = t1
           pp = p1
-          call hcalc(tt,tm,pp,wmix,ssum,npt,hpp,hsub0,cpmix,oxfl,nspr,nspx,nreac,fox,rtemp,jray,ngc,prod,rname,ng,tg,mw,nfla,ratom,rnum,coef,energy,moles,pecwt,wp,rmw,tln,en,s,h0,cp)
+          call hcalc(tt,tm,pp,wmix,ssum,npt,hpp,hsub0,cpmix,oxfl,nspr,nspx,nreac,fox,rtemp,jray,ngc, &
+      prod,rname,ng,tg,mw,nfla,ratom,rnum,coef,energy,moles,pecwt,wp,rmw,tln,en,s,h0,cp)
           if ( tt == 0. ) return
-          call out1(case,moles,siunit,nreac,enth,fox,pecwt,r,rname,rtemp,oxfl,vmin,vpls,rh,eqrat,page1,rkt,iopt,nplt,pltvar,gonly,iplt,npt,pltout,fmt,ppp,x,ttt,vlm,hsum,rr,ssum,wm,totn,cpr,gammas,dlvtp,dlvpt,eql,sonvel,trace,massf,ngc,ng,prod,mw,en,omit,tg,short,vis,coneql,preql,confro,prfro,cpeql,cpfro)
+          call out1(case,moles,siunit,nreac,enth,fox,pecwt,r,rname,rtemp,oxfl,vmin,vpls,rh,eqrat, &
+      page1,rkt,iopt,nplt,pltvar,gonly,iplt,npt,pltout,fmt,ppp,x,ttt,vlm,hsum,rr,ssum,wm,totn,cpr, &
+      gammas,dlvtp,dlvpt,eql,sonvel,trace,massf,ngc,ng,prod,mw,en,omit,tg,short,vis,coneql,preql, &
+      confro,prfro,cpeql,cpfro)
           h1(npt) = hsub0*r
           tub(npt) = t1
           pub(npt) = p1
@@ -707,7 +753,10 @@
           hsub0 = h1(npt)/r + .75*t1*pp1/wmix
           tp = .false.
           hp = .true.
-          call eqlbrm(nlm,size,trace,ngc,pderiv,convg,tp,tt,npr,t,jcond,ng,ifz,temp,en,npt,prod,short,nc,enln,deln,tln,vol,pp,enn,rr,vv,tm,lsave,a,ions,shock,elmt,debug,cpsum,cp,iq1,imat,g,msing,x,h0,mu,ennl,s,totn,sumn,hp,b0,bcheck,dlvtp,cpr,dlvpt,jliq,gammas,jsol,hsum,ssum,sp,s0,tg,ngp1,mw,jx,jcm,b0p,nspx,atwt,ttt,ppp,vlm,wm,gonly,coef,cft,hsub0)
+          call eqlbrm(nlm,size,trace,ngc,pderiv,convg,tp,tt,npr,t,jcond,ng,ifz,temp,en,npt,prod, &
+      short,nc,enln,deln,tln,vol,pp,enn,rr,vv,tm,lsave,a,ions,shock,elmt,debug,cpsum,cp,iq1,imat, &
+      g,msing,x,h0,mu,ennl,s,totn,sumn,hp,b0,bcheck,dlvtp,cpr,dlvpt,jliq,gammas,jsol,hsum,ssum,sp, &
+      s0,tg,ngp1,mw,jx,jcm,b0p,nspx,atwt,ttt,ppp,vlm,wm,gonly,coef,cft,hsub0)
           hsub0 = h1(npt)/r
           hp = .false.
           if ( tt /= 0. ) then
@@ -729,7 +778,10 @@
             rr1 = pp1*amm/tt1
  110        itr = itr + 1
             pp = p1*pp1
-            call eqlbrm(nlm,size,trace,ngc,pderiv,convg,tp,tt,npr,t,jcond,ng,ifz,temp,en,npt,prod,short,nc,enln,deln,tln,vol,pp,enn,rr,vv,tm,lsave,a,ions,shock,elmt,debug,cpsum,cp,iq1,imat,g,msing,x,h0,mu,ennl,s,totn,sumn,hp,b0,bcheck,dlvtp,cpr,dlvpt,jliq,gammas,jsol,hsum,ssum,sp,s0,tg,ngp1,mw,jx,jcm,b0p,nspx,atwt,ttt,ppp,vlm,wm,gonly,coef,cft,hsub0)
+            call eqlbrm(nlm,size,trace,ngc,pderiv,convg,tp,tt,npr,t,jcond,ng,ifz,temp,en,npt,prod, &
+      short,nc,enln,deln,tln,vol,pp,enn,rr,vv,tm,lsave,a,ions,shock,elmt,debug,cpsum,cp,iq1,imat, &
+      g,msing,x,h0,mu,ennl,s,totn,sumn,hp,b0,bcheck,dlvtp,cpr,dlvpt,jliq,gammas,jsol,hsum,ssum,sp, &
+      s0,tg,ngp1,mw,jx,jcm,b0p,nspx,atwt,ttt,ppp,vlm,wm,gonly,coef,cft,hsub0)
             if ( npt == 0 ) goto 200
             if ( tt /= 0. ) then
               gam = gammas(npt)
@@ -770,7 +822,9 @@
                 npt = npt - 1
                 tt = 0.
               endif
-              call tranp(nm,confro,npt,vis,eta,wmol,xs,con,eql,nr,lsave,jcm,h0,stc,ind,g,imat,r,x,cpfro,cprr,siunit,prfro,cpeql,coneql,preql,shock,incdeq,nreac,jray,mw,en,wm,ngc,enln,ennl,ng,nfz,a,ntape,tt,tln,ions,boltz,avgdr,pi,rr,cp,nlm,viscns,msing)
+              call tranp(nm,confro,npt,vis,eta,wmol,xs,con,eql,nr,lsave,jcm,h0,stc,ind,g,imat,r,x, &
+      cpfro,cprr,siunit,prfro,cpeql,coneql,preql,shock,incdeq,nreac,jray,mw,en,wm,ngc,enln,ennl, &
+      ng,nfz,a,ntape,tt,tln,ions,boltz,avgdr,pi,rr,cp,nlm,viscns,msing)
               isv = 0
               if ( ip /= np.or.it /= nt.and.tt /= 0. ) then
                 isv = npt
@@ -778,7 +832,10 @@
               endif
             endif
             write (ioout,99005)
-            call out1(case,moles,siunit,nreac,enth,fox,pecwt,r,rname,rtemp,oxfl,vmin,vpls,rh,eqrat,page1,rkt,iopt,nplt,pltvar,gonly,iplt,npt,pltout,fmt,ppp,x,ttt,vlm,hsum,rr,ssum,wm,totn,cpr,gammas,dlvtp,dlvpt,eql,sonvel,trace,massf,ngc,ng,prod,mw,en,omit,tg,short,vis,coneql,preql,confro,prfro,cpeql,cpfro)
+            call out1(case,moles,siunit,nreac,enth,fox,pecwt,r,rname,rtemp,oxfl,vmin,vpls,rh,eqrat, &
+      page1,rkt,iopt,nplt,pltvar,gonly,iplt,npt,pltout,fmt,ppp,x,ttt,vlm,hsum,rr,ssum,wm,totn,cpr, &
+      gammas,dlvtp,dlvpt,eql,sonvel,trace,massf,ngc,ng,prod,mw,en,omit,tg,short,vis,coneql,preql, &
+      confro,prfro,cpeql,cpfro)
             do i = 1,8
               mxx(i) = 0
       mp = mxx(1)
@@ -854,8 +911,14 @@
             endif
             write (ioout,99007)
             fmt(4) = fmt(6)
-            call out2(case,moles,siunit,nreac,enth,fox,pecwt,r,rname,rtemp,oxfl,vmin,vpls,rh,eqrat,page1,rkt,iopt,nplt,pltvar,gonly,iplt,npt,pltout,fmt,ppp,x,ttt,vlm,hsum,rr,ssum,wm,totn,cpr,gammas,dlvtp,dlvpt,eql,sonvel,trace,massf,ngc,ng,prod,mw,en,omit,tg,short,vis,coneql,preql,confro,prfro,cpeql,cpfro)
-            call out4(case,moles,siunit,nreac,enth,fox,pecwt,r,rname,rtemp,oxfl,vmin,vpls,rh,eqrat,page1,rkt,iopt,nplt,pltvar,gonly,iplt,npt,pltout,fmt,ppp,x,ttt,vlm,hsum,rr,ssum,wm,totn,cpr,gammas,dlvtp,dlvpt,eql,sonvel,trace,massf,ngc,ng,prod,mw,en,omit,tg,short,vis,coneql,preql,confro,prfro,cpeql,cpfro)
+            call out2(case,moles,siunit,nreac,enth,fox,pecwt,r,rname,rtemp,oxfl,vmin,vpls,rh,eqrat, &
+      page1,rkt,iopt,nplt,pltvar,gonly,iplt,npt,pltout,fmt,ppp,x,ttt,vlm,hsum,rr,ssum,wm,totn,cpr, &
+      gammas,dlvtp,dlvpt,eql,sonvel,trace,massf,ngc,ng,prod,mw,en,omit,tg,short,vis,coneql,preql, &
+      confro,prfro,cpeql,cpfro)
+            call out4(case,moles,siunit,nreac,enth,fox,pecwt,r,rname,rtemp,oxfl,vmin,vpls,rh,eqrat, &
+      page1,rkt,iopt,nplt,pltvar,gonly,iplt,npt,pltout,fmt,ppp,x,ttt,vlm,hsum,rr,ssum,wm,totn,cpr, &
+      gammas,dlvtp,dlvpt,eql,sonvel,trace,massf,ngc,ng,prod,mw,en,omit,tg,short,vis,coneql,preql, &
+      confro,prfro,cpeql,cpfro)
             write (ioout,99008)
             fmt(7) = '3,'
             do i = 1,npt
@@ -877,7 +940,10 @@
             fmt(7) = '1,'
             write (ioout,fmt) fdv,(sonvel(j),j=1,npt)
             eql = .true.
-            call out3(case,moles,siunit,nreac,enth,fox,pecwt,r,rname,rtemp,oxfl,vmin,vpls,rh,eqrat,page1,rkt,iopt,nplt,pltvar,gonly,iplt,npt,pltout,fmt,ppp,x,ttt,vlm,hsum,rr,ssum,wm,totn,cpr,gammas,dlvtp,dlvpt,eql,sonvel,trace,massf,ngc,ng,prod,mw,en,omit,tg,short,vis,coneql,preql,confro,prfro,cpeql,cpfro)
+            call out3(case,moles,siunit,nreac,enth,fox,pecwt,r,rname,rtemp,oxfl,vmin,vpls,rh,eqrat, &
+      page1,rkt,iopt,nplt,pltvar,gonly,iplt,npt,pltout,fmt,ppp,x,ttt,vlm,hsum,rr,ssum,wm,totn,cpr, &
+      gammas,dlvtp,dlvpt,eql,sonvel,trace,massf,ngc,ng,prod,mw,en,omit,tg,short,vis,coneql,preql, &
+      confro,prfro,cpeql,cpfro)
             iplt = min(iplt+npt,500)
             if ( isv == 0.and.iof == nof ) goto 200
             if ( np == 1.and.nt == 1 ) goto 100
@@ -885,7 +951,8 @@
             npt = 0
  120        npt = npt + 1
             if ( isv == 1 ) isv = -1
-            call seten(isv,ttt,ensave,enn,enlsav,ennl,lsave,ng,sln,enln,en,npt,npr,ngp1,ngc,jliq,jsol,tt,jcond,tp,sumn)
+            call seten(isv,ttt,ensave,enn,enlsav,ennl,lsave,ng,sln,enln,en,npt,npr,ngp1,ngc,jliq, &
+      jsol,tt,jcond,tp,sumn)
           endif
         enddo
       enddo
@@ -895,7 +962,8 @@
       return
 99001 format (/' T EST.=',f8.2/11x,'P/P1',17x,'T/T1')
 99002 format (i5,2e20.8)
-99003 format (/' ITER =',i2,5x,'P/P1 =',e15.8,/7x,'T/T1 =',e15.8,5x,        'RHO/RHO1 =',e15.8,/7x,'DEL LN P/P1 =',e15.8,5x,        'DEL LN T/T1 =',e15.8)
+99003 format (/' ITER =',i2,5x,'P/P1 =',e15.8,/7x,'T/T1 =',e15.8,5x,        'RHO/RHO1 =',e15.8,/7x, &
+      'DEL LN P/P1 =',e15.8,5x,        'DEL LN T/T1 =',e15.8)
 99004 format (/        ' CONSERVATION EQNS NOT SATISFIED IN 8 ITERATIONS (DETON)'        )
 99005 format (//,21x,'DETONATION PROPERTIES OF AN IDEAL REACTING GAS')
 99006 format (/' UNBURNED GAS'/)
@@ -904,7 +972,7 @@
 99009 format (///)
       end subroutine deton
       subroutine efmt(fone,aa,vx,npt)
-      use params_cea_inc, only : ioout, maxmat, ncol
+      use params_cea_inc, only : maxmat, ioout, ncol
       implicit none
       integer, intent(In) :: npt
       character(len=15), intent(In) :: aa
@@ -951,8 +1019,11 @@
       enddo
       write (ioout,frmt) aa,(w(j),ne(j),j=j1,npt)
       end subroutine efmt
-      subroutine eqlbrm(nlm,size,trace,ngc,pderiv,convg,tp,tt,npr,t,jcond,ng,ifz,temp,en,npt,prod,short,nc,enln,deln,tln,vol,pp,enn,rr,vv,tm,lsave,a,ions,shock,elmt,debug,cpsum,cp,iq1,imat,g,msing,x,h0,mu,ennl,s,totn,sumn,hp,b0,bcheck,dlvtp,cpr,dlvpt,jliq,gammas,jsol,hsum,ssum,sp,s0,tg,ngp1,mw,jx,jcm,b0p,nspx,atwt,ttt,ppp,vlm,wm,gonly,coef,cft,hsub0)
-      use params_cea_inc, only : maxt, ioout, maxng, maxmat, ncol, maxngc, maxel, maxnc
+      subroutine eqlbrm(nlm,size,trace,ngc,pderiv,convg,tp,tt,npr,t,jcond,ng,ifz,temp,en,npt,prod, &
+      short,nc,enln,deln,tln,vol,pp,enn,rr,vv,tm,lsave,a,ions,shock,elmt,debug,cpsum,cp,iq1,imat, &
+      g,msing,x,h0,mu,ennl,s,totn,sumn,hp,b0,bcheck,dlvtp,cpr,dlvpt,jliq,gammas,jsol,hsum,ssum,sp, &
+      s0,tg,ngp1,mw,jx,jcm,b0p,nspx,atwt,ttt,ppp,vlm,wm,gonly,coef,cft,hsub0)
+      use params_cea_inc, only : ioout, maxel, maxng, maxt, ncol, maxnc, maxmat, maxngc
       implicit none
       integer, intent(InOut) :: nlm
       real(kind=8), intent(In) :: size
@@ -1120,7 +1191,11 @@
       real(kind=8) :: dexp
       real(kind=8) :: dlog
       real(kind=8) :: dmax1
-      save aa,ae,amb,ambda,ambda1,bigen,bigneg,cmp,cpcalc,delg,dlnt,  dpie,ensol,esize,gap,gasfrc,i,i2many,il,ilamb,ilamb1,inc,ipr,  iq2,iter,ix,ixsing,iz,j,ja,jb,jbx,jc,jcondi,jcons,jdelg,jex,jj,  jkg,jneg,jsw,k,kc,kg,kk,kmat,kneg,l,lc,lcs,le,lelim,lk,ll,lncvg,  ls,lsing,lz,maxitn,ncvg,newcom,njc,nn,numb,pie,pisave,reduce,  siz9,sizeg,sum,sum1,szgj,tem,tmelt,tsize,ween,xi,xln,xsize,xx
+      save aa,ae,amb,ambda,ambda1,bigen,bigneg,cmp,cpcalc,delg,dlnt,  dpie,ensol,esize,gap,gasfrc,i, &
+      i2many,il,ilamb,ilamb1,inc,ipr,  iq2,iter,ix,ixsing,iz,j,ja,jb,jbx,jc,jcondi,jcons,jdelg, &
+      jex,jj,  jkg,jneg,jsw,k,kc,kg,kk,kmat,kneg,l,lc,lcs,le,lelim,lk,ll,lncvg,  ls,lsing,lz, &
+      maxitn,ncvg,newcom,njc,nn,numb,pie,pisave,reduce,  siz9,sizeg,sum,sum1,szgj,tem,tmelt,tsize, &
+      ween,xi,xln,xsize,xx
       data smalno / 1.e-6 / ,smnol / -13.815511 / 
       ixsing = 0
       lsing = 0
@@ -1192,6 +1267,7 @@
  400  tln = dlog(tt)
       if ( vol ) pp = rr*enn*tt/vv
       call cphs(tg,tt,tln,ng,h0,s,coef,convg,tp,cp,ngc,npr,jcond,cft,nc)
+
       tm = dlog(pp/enn)
       le = nlm
       if ( lsave /= 0.and.nlm /= lsave ) then
@@ -1229,7 +1305,8 @@
         endif
       endif
       numb = numb + 1
-      call matrix(nlm,npr,iq1,convg,tp,imat,g,hsum,npt,ng,mu,enln,h0,s,tm,en,a,sp,hp,jcond,enn,sumn,b0,s0,hsub0,tt,cpsum,pderiv,vol)
+      call matrix(nlm,npr,iq1,convg,tp,imat,g,hsum,npt,ng,mu,enln,h0,s,tm,en,a,sp,hp,jcond,enn,sumn, &
+      b0,s0,hsub0,tt,cpsum,pderiv,vol)
       iq2 = iq1 + 1
       if ( convg ) imat = imat - 1
       if ( debug(npt) ) then
@@ -1246,6 +1323,7 @@
       endif
       msing = 0
       call gauss(imat,g,msing,x)
+
       if ( msing == 0 ) then
         if ( debug(npt) ) then
           write (ioout,99005) (cmp(k),k=1,le)
@@ -1363,6 +1441,7 @@
             tt = dexp(tln)
             cpcalc = .true.
             call cphs(tg,tt,tln,ng,h0,s,coef,convg,tp,cp,ngc,npr,jcond,cft,nc)
+
           endif
           if ( vol ) then
             enn = sumn
@@ -1663,10 +1742,12 @@
         if ( ngc /= ng.or.tp ) then
           ng = ngc
           call cphs(tg,tt,tln,ng,h0,s,coef,convg,tp,cp,ngc,npr,jcond,cft,nc)
+
           ng = ngp1 - 1
           cpcalc = .true.
           if ( ngc == ng ) goto 750
           call allcon(tg,tt,tln,ng,h0,s,coef,convg,tp,cp,ngc,npr,jcond,cft,nc)
+
           if ( npr /= 0.and..not.tp ) then
             gap = 50.
             do ipr = 1,npr
@@ -1682,7 +1763,8 @@
                       jkg = j + kg
                       if ( iabs(kg) > 1.or.prod(j) == prod(jkg) )                     goto 740
                       if ( jkg == jsw ) goto 720
-                      if ( tt < temp(1,inc)-gap.or.tt > temp(2,inc)                     +gap ) goto 740
+                      if ( tt < temp(1,inc)-gap.or.tt > temp(2, &
+      inc)                     +gap ) goto 740
                       goto 720
                     endif
                     goto 710
@@ -1832,7 +1914,8 @@
  1210       do i = 1,nn
               if ( i /= lc ) then
                 jex = jx(i)
-                if ( dabs(a(lc,jbx)*a(i,jex)-a(lc,jex)*a(i,jbx))                <= smalno ) goto 1250
+                if ( dabs(a(lc,jbx)*a(i,jex)-a(lc,jex)*a(i, &
+      jbx))                <= smalno ) goto 1250
               endif
             enddo
             njc = njc + 1
@@ -1969,18 +2052,25 @@
 99005 format (/' SOLUTION VECTOR',/,6x,5a15/8x,5a15)
 99006 format (3x,5e15.6)
 99007 format (/' DERIVATIVE MATRIX SINGULAR (EQLBRM)')
-99008 format (/' LOW TEMPERATURE IMPLIES A CONDENSED SPECIES SHOULD HA',        'VE BEEN INSERTED,',        /' RESTART WITH insert DATASET (EQLBRM)')
+99008 format (/' LOW TEMPERATURE IMPLIES A CONDENSED SPECIES SHOULD HA',        'VE BEEN INSERTED,', &
+              /' RESTART WITH insert DATASET (EQLBRM)')
 99009 format (/' SINGULAR MATRIX, ITERATION',i3,'  VARIABLE',i3,        '(EQLBRM)')
-99010 format (/' WARNING!! POINT',i3,        ' USES A REDUCED SET OF COMPONENTS',/       ' SPECIES CONTAINING THE ELIMINATED COMPONENT ARE OMITTED.'       ,/   ' IT MAY BE NECESSARY TO RERUN WITH INSERTED CONDENSED SPECIES'   ,/' CONTAINING COMPONENT ',a8,'(EQLBRM)')
-99011 format (/' T=',e15.8,' ENN=',e15.8,' ENNL=',e15.8,' PP=',e15.8,        /' LN P/N=',e15.8,' AMBDA=',e15.8)
+99010 format (/' WARNING!! POINT',i3,        ' USES A REDUCED SET OF COMPONENTS', &
+      /       ' SPECIES CONTAINING THE ELIMINATED COMPONENT ARE OMITTED.'       , &
+      /   ' IT MAY BE NECESSARY TO RERUN WITH INSERTED CONDENSED SPECIES'   , &
+      /' CONTAINING COMPONENT ',a8,'(EQLBRM)')
+99011 format (/' T=',e15.8,' ENN=',e15.8,' ENNL=',e15.8,' PP=',e15.8,        /' LN P/N=',e15.8, &
+      ' AMBDA=',e15.8)
 99012 format (/' AMBDA SET BY ',a16)
 99013 format (' VOLUME=',e15.8,'CC/G')
-99014 format (/24x,'Nj',12x,'LN Nj',8x,'DEL LN Nj',6x,'H0j/RT',/,41x,        'S0j/R',10x,' G0j/RT',8x,' Gj/RT')
+99014 format (/24x,'Nj',12x,'LN Nj',8x,'DEL LN Nj',6x,'H0j/RT',/,41x,        'S0j/R',10x,' G0j/RT', &
+      8x,' Gj/RT')
 99015 format (1x,a16,4e15.6,/35x,3e15.6)
 99016 format (/' ELECTRON BALANCE ITER NO. =',i4,'  DELTA PI =',e14.7)
 99017 format (/' DID NOT CONVERGE ON ELECTRON BALANCE (EQLBRM)')
 99018 format (/' DELTA S/R =',e15.8)
-99019 format (/,i4,' ITERATIONS DID NOT SATISFY CONVERGENCE',/,15x,        ' REQUIREMENTS FOR THE POINT',i5,' (EQLBRM)')
+99019 format (/,i4,' ITERATIONS DID NOT SATISFY CONVERGENCE',/,15x, &
+              ' REQUIREMENTS FOR THE POINT',i5,' (EQLBRM)')
 99020 format (/' TRY REMOVING CONDENSED SPECIES (EQLBRM)')
 99021 format (/' POINT ITN',6x,'T',10x,4a12/(18x,5a12))
 99022 format (i4,i5,5f12.3,/(12x,5f12.3))
@@ -1992,14 +2082,18 @@
 99028 format (' REMOVE ',a16)
 99029 format (/' NEW COMPONENTS')
 99030 format (/2x,6a12)
-99031 format (/' WARNING!  RESULTS MAY BE WRONG FOR POINT',i3,' DUE TO',        /' LOW MOLE FRACTION OF GASES (',e15.8,') (EQLBRM)')
-99032 format (/' POINT=',i3,3x,'P=',e13.6,3x,'T=',e13.6,/3x,'H/R=',        e13.6,3x,'S/R=',e13.6,/3x,'M=',e13.6,3x,'CP/R=',e13.6,3x,        'DLVPT=',e13.6,/3x,'DLVTP=',e13.6,3x,'GAMMA(S)=',e13.6,3x,        'V=',e13.6)
+99031 format (/' WARNING!  RESULTS MAY BE WRONG FOR POINT',i3,' DUE TO', &
+              /' LOW MOLE FRACTION OF GASES (',e15.8,') (EQLBRM)')
+99032 format (/' POINT=',i3,3x,'P=',e13.6,3x,'T=',e13.6,/3x,'H/R=',        e13.6,3x,'S/R=',e13.6, &
+      /3x,'M=',e13.6,3x,'CP/R=',e13.6,3x,        'DLVPT=',e13.6,/3x,'DLVTP=',e13.6,3x,'GAMMA(S)=', &
+      e13.6,3x,        'V=',e13.6)
 99033 format (' THE TEMPERATURE=',e12.4,' IS OUT OF RANGE FOR POINT',i5,        '(EQLBRM)')
 99034 format (/,i3,' CONVERGENCES FAILED TO ESTABLISH SET OF CONDENSED',        ' SPECIES (EQLBRM)')
 99035 format (/' CALCULATIONS STOPPED AFTER POINT',i3,'(EQLBRM)')
       end subroutine eqlbrm
-      subroutine frozen(convg,tln,tt,pp,wm,npt,nfz,ng,en,deln,ssum,cpsum,cp,s,npr,jcond,hsum,ngc,h0,ttt,gammas,vlm,rr,dlvpt,dlvtp,totn,ppp,cpr,tg,ngp1,temp,coef,tp,cft,nc)
-      use params_cea_inc, only : maxngc, ncol, maxng, ioout, maxnc
+      subroutine frozen(convg,tln,tt,pp,wm,npt,nfz,ng,en,deln,ssum,cpsum,cp,s,npr,jcond,hsum,ngc,h0, &
+      ttt,gammas,vlm,rr,dlvpt,dlvtp,totn,ppp,cpr,tg,ngp1,temp,coef,tp,cft,nc)
+      use params_cea_inc, only : maxng, maxnc, maxngc, ioout, ncol
       implicit none
       logical, intent(InOut) :: convg
       real(kind=8), intent(InOut) :: tln
@@ -2060,6 +2154,7 @@
         ssum(nnn) = 0.d0
         cpsum = 0.d0
         call cphs(tg,tt,tln,ng,h0,s,coef,convg,tp,cp,ngc,npr,jcond,cft,nc)
+
         do j = 1,ng
           cpsum = cpsum + en(j,nfz)*cp(j)
           ssum(nnn) = ssum(nnn) + en(j,nfz)*(s(j)+deln(j))
@@ -2202,8 +2297,9 @@
       k = k - 1
       if ( k /= 0 ) goto 100
 99999 end subroutine gauss
-      subroutine hcalc(tt,tm,pp,wmix,ssum,npt,hpp,hsub0,cpmix,oxfl,nspr,nspx,nreac,fox,rtemp,jray,ngc,prod,rname,ng,tg,mw,nfla,ratom,rnum,coef,energy,moles,pecwt,wp,rmw,tln,en,s,h0,cp)
-      use params_cea_inc, only : iothm, maxngc, ncol, ioout, maxng, maxr
+      subroutine hcalc(tt,tm,pp,wmix,ssum,npt,hpp,hsub0,cpmix,oxfl,nspr,nspx,nreac,fox,rtemp,jray, &
+      ngc,prod,rname,ng,tg,mw,nfla,ratom,rnum,coef,energy,moles,pecwt,wp,rmw,tln,en,s,h0,cp)
+      use params_cea_inc, only : maxng, maxr, iothm, ioout, maxngc, ncol
       implicit none
       real(kind=8), intent(InOut) :: tt
       real(kind=8), intent(InOut) :: tm
@@ -2267,7 +2363,8 @@
       real(kind=8), dimension(1:9,1:3) :: thermo
       real(kind=8) :: tsave
       real(kind=8) :: dlog
-      save bb,date,el,enj,er,i,icf,ifaz,itot,j,k,l,m,n,nall,nint,ntgas,  ntot,sj,sub,t1,t2,tem,thermo,tsave
+      save bb,date,el,enj,er,i,icf,ifaz,itot,j,k,l,m,n,nall,nint,ntgas,  ntot,sj,sub,t1,t2,tem, &
+      thermo,tsave
       tsave = tt
       tm = 0.
       if ( pp > 0. ) tm = dlog(pp*wmix)
@@ -2351,9 +2448,13 @@
           if ( tt > tg(2) ) l = 2
           if ( tt > tg(3).and.ifaz < 0 ) l = 3
         endif
-        s(j) = ((((coef(j,7,l)/4.)*tt+coef(j,6,l)/3.)*tt+coef(j,5,l)/2.)         *tt+coef(j,4,l))*tt - (coef(j,1,l)*.5d0/tt+coef(j,2,l))         /tt + coef(j,3,l)*tln + coef(j,9,l)
-        h0(j) = ((((coef(j,7,l)/5.)*tt+coef(j,6,l)/4.)*tt+coef(j,5,l)/3.          )*tt+coef(j,4,l)/2.)          *tt - (coef(j,1,l)/tt-coef(j,2,l)*tln-coef(j,8,l))          /tt + coef(j,3,l)
-        cp(j) = (((coef(j,7,l)*tt+coef(j,6,l))*tt+coef(j,5,l))          *tt+coef(j,4,l))*tt + (coef(j,1,l)/tt+coef(j,2,l))          /tt + coef(j,3,l)
+        s(j) = ((((coef(j,7,l)/4.)*tt+coef(j,6,l)/3.)*tt+coef(j,5,l)/2.)         *tt+coef(j,4, &
+      l))*tt - (coef(j,1,l)*.5d0/tt+coef(j,2,l))         /tt + coef(j,3,l)*tln + coef(j,9,l)
+        h0(j) = ((((coef(j,7,l)/5.)*tt+coef(j,6,l)/4.)*tt+coef(j,5,l)/3.          )*tt+coef(j,4, &
+      l)/2.)          *tt - (coef(j,1,l)/tt-coef(j,2,l)*tln-coef(j,8,l))          /tt + coef(j,3, &
+      l)
+        cp(j) = (((coef(j,7,l)*tt+coef(j,6,l))*tt+coef(j,5,l))          *tt+coef(j,4, &
+      l))*tt + (coef(j,1,l)/tt+coef(j,2,l))          /tt + coef(j,3,l)
         if ( h0(j) > -.01.and.h0(j) < .01 ) h0(j) = 0.
         cpmix = cpmix + cp(j)*enj
         sj = s(j) - dlog(enj) - tm
@@ -2366,10 +2467,11 @@
  100  return
 99001 format (/' REACTANTS MUST BE GASEOUS FOR THIS PROBLEM (HCALC)')
 99002 format (/' COEFFICIENTS FOR ',a15,' ARE NOT AVAILABLE (HCALC)')
-99003 format (/' ERROR IN DATA FOR ',a15,' CHECK NAME AND TEMPERATURE',        ' RANGE IN',/,' thermo.inp (HCALC)')
+99003 format (/' ERROR IN DATA FOR ',a15,' CHECK NAME AND TEMPERATURE',        ' RANGE IN',/, &
+      ' thermo.inp (HCALC)')
       end subroutine hcalc
       subroutine infree(readok,cin,ncin,lcin,dpin)
-      use params_cea_inc, only : ioout, ioinp, maxngc
+      use params_cea_inc, only : maxngc, ioout, ioinp
       implicit none
       real :: err
       character(len=15), dimension(1:maxngc), intent(Out) :: cin
@@ -2393,7 +2495,8 @@
       integer :: nx
       data fmtl / '(g','16','.0)' / 
       data nums / '+','-','0','1','2','3','4','5','6','7','8','9','.' / 
-      data numg / '1','2','3','4','5','6','7','8','9','10','11','12','13','14','15','16','17','18','19','20','21','22','23','24' / 
+      data numg / '1','2','3','4','5','6','7','8','9','10','11','12','13','14','15','16','17','18', &
+      '19','20','21','22','23','24' /
       ncin = 1
       lcin(1) = 0
       kcin = 0
@@ -2418,7 +2521,8 @@
         goto 100
       endif
       w1 = ch1(ich1)//ch1(ich1+1)//ch1(ich1+2)//ch1(ich1+3)
-      if ( w1 == 'ther'.or.w1 == 'tran'.or.w1 == 'prob'.or.     w1 == 'reac'.or.w1 == 'outp'.or.w1 == 'omit'.or.     w1 == 'only'.or.w1 == 'inse'.or.w1(1:3) == 'end' ) then
+      if ( w1 == 'ther'.or.w1 == 'tran'.or.w1 == 'prob'.or.     w1 == 'reac'.or.w1 == 'outp'.or.w1  &
+      == 'omit'.or.     w1 == 'only'.or.w1 == 'inse'.or.w1(1:3) == 'end' ) then
         if ( ncin == 1 ) then
           cin(ncin) = w1
           if ( w1(1:3) == 'end'.or.w1 == 'ther'.or.w1 == 'tran' ) then
@@ -2494,8 +2598,14 @@
 99003 format (/' FATAL ERROR IN INPUT FORMAT (INFREE)')
 99004 format (/' WARNING!!  UNACCEPTABLE NUMBER ',a15,' (INFREE)')
       end subroutine infree
-      subroutine input(readok,caseok,ensert,nonly,nomit,nsert,trace,short,massf,debug,nplt,siunit,prod,omit,newr,trnspt,pltvar,moles,nreac,pecwt,rtemp,energy,enth,rr,dens,nfla,ratom,rnum,fox,rname,jray,rmw,case,p,v,t,lsave,r,s0,tp,hp,sp,rkt,shock,detn,vol,ions,eql,froz,fac,debugf,acat,ma,nfz,nsub,nsup,npp,tcest,pcp,supar,subar,mach1,u1,gamma1,shkdbg,incdeq,incdfz,refleq,reflfz,np,nt,detdbg,nof,hsub0,size,viscns,avgdr,boltz,pi,nlm,oxf,wp,vmin,vpls,nsk,thdate,hpp,am,rh,elmt,b0p,tt,tg,tln,symbol,atmwt,atwt,x,valnce)
-      use params_cea_inc, only : maxt, maxmat, maxpv, ioout, maxmix, ncol, maxngc, maxel, iothm, maxr
+      subroutine input(readok,caseok,ensert,nonly,nomit,nsert,trace,short,massf,debug,nplt,siunit, &
+      prod,omit,newr,trnspt,pltvar,moles,nreac,pecwt,rtemp,energy,enth,rr,dens,nfla,ratom,rnum, &
+      fox,rname,jray,rmw,case,p,v,t,lsave,r,s0,tp,hp,sp,rkt,shock,detn,vol,ions,eql,froz,fac, &
+      debugf,acat,ma,nfz,nsub,nsup,npp,tcest,pcp,supar,subar,mach1,u1,gamma1,shkdbg,incdeq,incdfz, &
+      refleq,reflfz,np,nt,detdbg,nof,hsub0,size,viscns,avgdr,boltz,pi,nlm,oxf,wp,vmin,vpls,nsk, &
+      thdate,hpp,am,rh,elmt,b0p,tt,tg,tln,symbol,atmwt,atwt,x,valnce)
+      use params_cea_inc, only : maxel, maxr, ioout, iothm, maxt, maxpv, ncol, maxmix, maxngc, &
+       maxmat
       implicit none
       integer, intent(InOut) :: nonly
       integer, intent(InOut) :: nomit
@@ -2635,7 +2745,8 @@
       real(kind=8) :: dabs
       real(kind=8) :: dmin1
       real(kind=8) :: dsqrt
-      save cin,code,cx1,cx15,cx2,cx3,cx4,denmtr,dpin,eqrats,eratio,hr,i,  ifrmla,ii,in,incd,iv,ix,j,jj,k,lcin,mix,ncin,nmix,phi,pltdat,  reacts,refl,ur,xyz
+      save cin,code,cx1,cx15,cx2,cx3,cx4,denmtr,dpin,eqrats,eratio,hr,i,  ifrmla,ii,in,incd,iv,ix,j, &
+      jj,k,lcin,mix,ncin,nmix,phi,pltdat,  reacts,refl,ur,xyz
       data uc / 'ABCDEFGHIJKLMNOPQRSTUVWXYZ' / 
       data lc / 'abcdefghijklmnopqrstuvwxyz' / 
       write (ioout,99001)
@@ -2654,6 +2765,7 @@
       siunit = .true.
       pltdat = .false.
  100 call infree(readok,cin,ncin,lcin,dpin)
+
       if ( .not.readok ) goto 400
       code = cin(1)
       if ( code /= '    ' ) then
@@ -2676,12 +2788,14 @@
           newr = .true.
           rewind iothm
           call utherm(readok,thdate)
+
           if ( .not.readok ) then
             write (ioout,99025)
             goto 400
           endif
         elseif ( code == 'tran' ) then
           call utran(readok)
+
           if ( .not.readok ) then
             write (ioout,99025)
             goto 400
@@ -2763,9 +2877,12 @@
                     i = i + 1
                     rtemp(nreac) = dpin(i)
                     if ( lcin(i-1) < 1 ) then
-                      if ( index(cx15,'r') > 0 ) rtemp(nreac)                     = rtemp(nreac)/1.8d0
-                      if ( index(cx15,'c') > 0 ) rtemp(nreac)                     = rtemp(nreac) + 273.15d0
-                      if ( index(cx15,'f') > 0 ) rtemp(nreac)                     = (rtemp(nreac)-32.d0)/1.8d0 + 273.15d0
+                      if ( index(cx15, &
+      'r') > 0 ) rtemp(nreac)                     = rtemp(nreac)/1.8d0
+                      if ( index(cx15, &
+      'c') > 0 ) rtemp(nreac)                     = rtemp(nreac) + 273.15d0
+                      if ( index(cx15, &
+      'f') > 0 ) rtemp(nreac)                     = (rtemp(nreac)-32.d0)/1.8d0 + 273.15d0
                     endif
                   else
                     write (ioout,99006)
@@ -2778,8 +2895,10 @@
                   if ( lcin(i+1) > 0 ) then
                     i = i + 1
                     enth(nreac) = dpin(i)*1000.d0/rr
-                    if ( index(cin(i-1),'c') > 0 ) enth(nreac)                   = enth(nreac)*4.184d0
-                    if ( index(cin(i-1),'k') > 0 ) enth(nreac)                   = enth(nreac)*1000.d0
+                    if ( index(cin(i-1), &
+      'c') > 0 ) enth(nreac)                   = enth(nreac)*4.184d0
+                    if ( index(cin(i-1), &
+      'k') > 0 ) enth(nreac)                   = enth(nreac)*1000.d0
                   endif
                   goto 140
                 endif
@@ -2985,7 +3104,8 @@
           else
             if ( .not.vol.and..not.short ) write (ioout,99017)           (p(jj),jj=1,np)
           endif
-          call react(wp,hpp,vpls,vmin,am,rh,elmt,b0p,nreac,energy,rnum,tt,rtemp,tg,rname,enth,rr,nlm,nfla,ratom,hp,tln,vol,fox,symbol,atmwt,atwt,x,valnce,pecwt,moles,dens,rmw,short)
+          call react(wp,hpp,vpls,vmin,am,rh,elmt,b0p,nreac,energy,rnum,tt,rtemp,tg,rname,enth,rr, &
+      nlm,nfla,ratom,hp,tln,vol,fox,symbol,atmwt,atwt,x,valnce,pecwt,moles,dens,rmw,short)
           if ( nreac == 0.or.nlm <= 0 ) then
             write (ioout,99018)
             caseok = .false.
@@ -3022,7 +3142,8 @@
               oxf(i) = xyz/denmtr
             enddo
           endif
-          if ( .not.sp.and..not.tp.and..not.hp.and..not.rkt.and.         .not.detn.and..not.shock ) then
+          if ( .not.sp.and..not.tp.and..not.hp.and..not.rkt.and.         .not.detn.and..not.shock )  &
+      then
             caseok = .false.
             write (ioout,99020)
           elseif ( tp.and.t(1) <= 0. ) then
@@ -3081,7 +3202,8 @@
             endif
           endif
         enddo
-      elseif ( (cx2 == 'pc'.or.cx2 == 'pi').and.index(cx15(3:15),'p')          > 0.and.index(cx15,'psi') == 0 ) then
+      elseif ( (cx2 == 'pc'.or.cx2 == 'pi').and.index(cx15(3:15),'p')          > 0.and.index(cx15, &
+      'psi') == 0 ) then
         npp = nmix
         if ( nmix > 2*ncol ) then
           npp = 2*ncol
@@ -3186,7 +3308,8 @@
       elseif ( cx4 == 'case' ) then
         case = cin(in+1)
         lcin(in+1) = 0
-      elseif ( nof == 0.and.         (cx3 == 'phi'.or.cx3 == 'o/f'.or.cx3 == 'f/a'.or.         cx2 == '%f'.or.cx1 == 'r') ) then
+      elseif ( nof == 0.and.         (cx3 == 'phi'.or.cx3 == 'o/f'.or.cx3 == 'f/a'.or.         cx2  &
+      == '%f'.or.cx1 == 'r') ) then
         nof = nmix
         if ( nmix > maxmix ) then
           nof = maxmix
@@ -3221,7 +3344,10 @@
 99005 format (/' MOLES AND WEIGHT PERCENTS SHOULD NOT BE MIXED (INPUT)')
 99006 format (/' REACTANT TEMPERATURE MISSING (INPUT) ')
 99007 format (/' WARNING!! ',a15,' NOT RECOGNIZED (INPUT)')
-99008 format (/' OPTIONS: TP=',l1,'  HP=',l1,'  SP=',l1,'  TV=',l1,        '  UV=',l1,'  SV=',l1,'  DETN=',l1,'  SHOCK=',l1,        '  REFL=',l1,'  INCD=',l1,/' RKT=',l1,'  FROZ=',l1,        '  EQL=',l1,'  IONS=',l1,'  SIUNIT=',l1,'  DEBUGF=',l1,        '  SHKDBG=',l1,'  DETDBG=',l1,'  TRNSPT=',l1)
+99008 format (/' OPTIONS: TP=',l1,'  HP=',l1,'  SP=',l1,'  TV=',l1,        '  UV=',l1,'  SV=',l1, &
+      '  DETN=',l1,'  SHOCK=',l1,        '  REFL=',l1,'  INCD=',l1,/' RKT=',l1,'  FROZ=',l1, &
+              '  EQL=',l1,'  IONS=',l1,'  SIUNIT=',l1,'  DEBUGF=',l1,        '  SHKDBG=',l1, &
+      '  DETDBG=',l1,'  TRNSPT=',l1)
 99009 format (/' T,K =',7f11.4)
 99010 format (/1p,' TRACE=',e9.2,'  S/R=',e13.6,'  H/R=',e13.6,'  U/R=',        e13.6)
 99011 format (/' SPECIFIC VOLUME,M**3/KG =',1p,(4e14.7))
@@ -3240,8 +3366,9 @@
 99024 format (/' NOTE!! MAXIMUM NUMBER OF ASSIGNED ',a5,' VALUES IS',i3,        ' (INPUT)',/)
 99025 format (/' FATAL ERROR IN DATASET (INPUT)')
       end subroutine input
-      subroutine matrix(nlm,npr,iq1,convg,tp,imat,g,hsum,npt,ng,mu,enln,h0,s,tm,en,a,sp,hp,jcond,enn,sumn,b0,s0,hsub0,tt,cpsum,pderiv,vol)
-      use params_cea_inc, only : ncol, maxmat, maxel, maxngc
+      subroutine matrix(nlm,npr,iq1,convg,tp,imat,g,hsum,npt,ng,mu,enln,h0,s,tm,en,a,sp,hp,jcond, &
+      enn,sumn,b0,s0,hsub0,tt,cpsum,pderiv,vol)
+      use params_cea_inc, only : ncol, maxel, maxmat, maxngc
       implicit none
       integer, intent(In) :: nlm
       integer, intent(In) :: npr
@@ -3411,8 +3538,9 @@
         imat = imat - 1
       endif
       end subroutine matrix
-      subroutine newof(short,oxfl,eqrat,vmin,vpls,nlm,b0,b0p,bcheck,am,wmix,npt,size,hsub0,hpp,jsol,jliq,vol,jcm,prod)
-      use params_cea_inc, only : maxel, maxngc, ioout
+      subroutine newof(short,oxfl,eqrat,vmin,vpls,nlm,b0,b0p,bcheck,am,wmix,npt,size,hsub0,hpp,jsol, &
+      jliq,vol,jcm,prod)
+      use params_cea_inc, only : maxel, ioout, maxngc
       implicit none
       logical, intent(In) :: short
       real(kind=8), intent(In) :: oxfl
@@ -3499,8 +3627,11 @@
 99006 format (/' KG-FORM.WT./KG',13x,'bi(2)',15x,'bi(1)',15x,'b0i')
 99007 format (1x,a16,3e20.8)
       end subroutine newof
-      subroutine out1(case,moles,siunit,nreac,enth,fox,pecwt,r,rname,rtemp,oxfl,vmin,vpls,rh,eqrat,page1,rkt,iopt,nplt,pltvar,gonly,iplt,npt,pltout,fmt,ppp,x,ttt,vlm,hsum,rr,ssum,wm,totn,cpr,gammas,dlvtp,dlvpt,eql,sonvel,trace,massf,ngc,ng,prod,mw,en,omit,tg,short,vis,coneql,preql,confro,prfro,cpeql,cpfro)
-      use params_cea_inc, only : ncol, maxr, maxmat, ioout, maxngc
+      subroutine out1(case,moles,siunit,nreac,enth,fox,pecwt,r,rname,rtemp,oxfl,vmin,vpls,rh,eqrat, &
+      page1,rkt,iopt,nplt,pltvar,gonly,iplt,npt,pltout,fmt,ppp,x,ttt,vlm,hsum,rr,ssum,wm,totn,cpr, &
+      gammas,dlvtp,dlvpt,eql,sonvel,trace,massf,ngc,ng,prod,mw,en,omit,tg,short,vis,coneql,preql, &
+      confro,prfro,cpeql,cpfro)
+      use params_cea_inc, only : ncol, maxr, ioout, maxngc, maxmat
       implicit none
       character(len=15) :: case
       logical :: moles
@@ -3610,7 +3741,9 @@
       real(kind=8) :: tem
       real(kind=8) :: tra
       real(kind=8) :: vnum
-      save fc,fgi,fh,fp,frh,fs,fu,i,im,ione,j,k,kin,kok,m,  mamo,mcond,mcondf,mcp,mdvp,mdvt,meq,mfa,mg,mgam,mh,mie,mm,mmw,  mof,mp,mpf,mph,mpn,mpnf,mrho,ms,mson,mt,mvis,mxx,n,notuse,  pfactor,pfuel,phi,rho,tem,tra,vnum
+      save fc,fgi,fh,fp,frh,fs,fu,i,im,ione,j,k,kin,kok,m,  mamo,mcond,mcondf,mcp,mdvp,mdvt,meq,mfa, &
+      mg,mgam,mh,mie,mm,mmw,  mof,mp,mpf,mph,mpn,mpnf,mrho,ms,mson,mt,mvis,mxx,n,notuse,  pfactor, &
+      pfuel,phi,rho,tem,tra,vnum
       mp = mxx(1)
       mt = mxx(2)
       mrho = mxx(3)
@@ -3671,7 +3804,10 @@
       endif
       write (ioout,99008) oxfl,pfuel,eqrat,phi
       return
-      entry out2(case,moles,siunit,nreac,enth,fox,pecwt,r,rname,rtemp,oxfl,vmin,vpls,rh,eqrat,page1,rkt,iopt,nplt,pltvar,gonly,iplt,npt,pltout,fmt,ppp,x,ttt,vlm,hsum,rr,ssum,wm,totn,cpr,gammas,dlvtp,dlvpt,eql,sonvel,trace,massf,ngc,ng,prod,mw,en,omit,tg,short,vis,coneql,preql,confro,prfro,cpeql,cpfro)
+      entry out2(case,moles,siunit,nreac,enth,fox,pecwt,r,rname,rtemp,oxfl,vmin,vpls,rh,eqrat,page1, &
+      rkt,iopt,nplt,pltvar,gonly,iplt,npt,pltout,fmt,ppp,x,ttt,vlm,hsum,rr,ssum,wm,totn,cpr, &
+      gammas,dlvtp,dlvpt,eql,sonvel,trace,massf,ngc,ng,prod,mw,en,omit,tg,short,vis,coneql,preql, &
+      confro,prfro,cpeql,cpfro)
       ione = 0
       if ( rkt.and..not.page1 ) then
         ione = 2
@@ -3817,6 +3953,7 @@
       endif
       fmt(4) = fmt(6)
       call varfmt(ppp,npt,fmt)
+
       do i = 1,npt
         x(i) = ppp(i)*pfactor
         if ( nplt /= 0.and.i > ione ) then
@@ -3834,18 +3971,21 @@
         if ( nplt /= 0.and.i > ione.and.mrho > 0 )       pltout(i+iplt-ione,mrho) = x(i)
       enddo
       call efmt(fmt(4),frh,x,npt)
+
       do i = 1,npt
         x(i) = hsum(i)*r
         if ( nplt /= 0.and.i > ione.and.mh > 0 )       pltout(i+iplt-ione,mh) = x(i)
       enddo
       fmt(4) = fmt(6)
-      call varfmt(x,npt,fmt)
+      call varfmt(x_varfmt,npt,fmt)
+
       write (ioout,fmt) fh,(x(j),j=1,npt)
       do i = 1,npt
         x(i) = (hsum(i)-ppp(i)*vlm(i)/rr)*r
         if ( nplt /= 0.and.i > ione.and.mie > 0 )       pltout(i+iplt-ione,mie) = x(i)
       enddo
-      call varfmt(x,npt,fmt)
+      call varfmt(x_varfmt,npt,fmt)
+
       write (ioout,fmt) fu,(x(j),j=1,npt)
       do i = 1,npt
         x(i) = (hsum(i)-ttt(i)*ssum(i))*r
@@ -3860,7 +4000,8 @@
           if ( mdvp > 0 ) pltout(i+iplt-ione,mdvp) = dlvpt(i)
         endif
       enddo
-      call varfmt(x,npt,fmt)
+      call varfmt(x_varfmt,npt,fmt)
+
       write (ioout,fmt) fgi,(x(j),j=1,npt)
       fmt(4) = '13'
       fmt(5) = ' '
@@ -3884,7 +4025,10 @@
       enddo
       write (ioout,fmt) 'SON VEL,M/SEC   ',(sonvel(j),j=1,npt)
       return
-      entry out3(case,moles,siunit,nreac,enth,fox,pecwt,r,rname,rtemp,oxfl,vmin,vpls,rh,eqrat,page1,rkt,iopt,nplt,pltvar,gonly,iplt,npt,pltout,fmt,ppp,x,ttt,vlm,hsum,rr,ssum,wm,totn,cpr,gammas,dlvtp,dlvpt,eql,sonvel,trace,massf,ngc,ng,prod,mw,en,omit,tg,short,vis,coneql,preql,confro,prfro,cpeql,cpfro)
+      entry out3(case,moles,siunit,nreac,enth,fox,pecwt,r,rname,rtemp,oxfl,vmin,vpls,rh,eqrat,page1, &
+      rkt,iopt,nplt,pltvar,gonly,iplt,npt,pltout,fmt,ppp,x,ttt,vlm,hsum,rr,ssum,wm,totn,cpr, &
+      gammas,dlvtp,dlvpt,eql,sonvel,trace,massf,ngc,ng,prod,mw,en,omit,tg,short,vis,coneql,preql, &
+      confro,prfro,cpeql,cpfro)
       tra = 5.d-6
       if ( trace /= 0. ) tra = trace
       if ( massf ) then
@@ -3930,6 +4074,7 @@
               write (ioout,99011) prod(k),(x(i),i=1,npt)
             else
               call efmt(fmt(4),prod(k),x,npt)
+
             endif
             if ( prod(k) == omit(notuse) ) notuse = notuse - 1
           elseif ( prod(k) /= prod(k-1) ) then
@@ -3945,7 +4090,10 @@
       endif
       if ( .not.moles ) write (ioout,99015)
       goto 200
-      entry out4(case,moles,siunit,nreac,enth,fox,pecwt,r,rname,rtemp,oxfl,vmin,vpls,rh,eqrat,page1,rkt,iopt,nplt,pltvar,gonly,iplt,npt,pltout,fmt,ppp,x,ttt,vlm,hsum,rr,ssum,wm,totn,cpr,gammas,dlvtp,dlvpt,eql,sonvel,trace,massf,ngc,ng,prod,mw,en,omit,tg,short,vis,coneql,preql,confro,prfro,cpeql,cpfro)
+      entry out4(case,moles,siunit,nreac,enth,fox,pecwt,r,rname,rtemp,oxfl,vmin,vpls,rh,eqrat,page1, &
+      rkt,iopt,nplt,pltvar,gonly,iplt,npt,pltout,fmt,ppp,x,ttt,vlm,hsum,rr,ssum,wm,totn,cpr, &
+      gammas,dlvtp,dlvpt,eql,sonvel,trace,massf,ngc,ng,prod,mw,en,omit,tg,short,vis,coneql,preql, &
+      confro,prfro,cpeql,cpfro)
       write (ioout,99009)
       write (ioout,99016)
       if ( siunit ) then
@@ -3966,6 +4114,7 @@
         enddo
       endif
       call varfmt(vis,npt,fmt)
+
       write (ioout,fmt) 'VISC,MILLIPOISE',(vis(j),j=1,npt)
       fmt(4) = '13'
       fmt(5) = ' '
@@ -3988,14 +4137,17 @@
 99005 format (42x,'(SEE NOTE)      CAL/MOL       K  ')
 99006 format (42x,'(SEE NOTE)     KJ/KG-MOL      K  ')
 99007 format (1x,a8,4x,a15,11x,f12.7,f14.3,f11.3)
-99008 format (/' O/F=',f11.5,2x,'%FUEL=',f10.6,2x,'R,EQ.RATIO=',f9.6,2x,        'PHI,EQ.RATIO=',f9.6)
+99008 format (/' O/F=',f11.5,2x,'%FUEL=',f10.6,2x,'R,EQ.RATIO=',f9.6,2x,        'PHI,EQ.RATIO=', &
+      f9.6)
 99009 format ()
 99010 format (/1x,a4,' FRACTIONS'/)
 99011 format (1x,a15,f9.5,12f9.5)
 99012 format (/'  * THERMODYNAMIC PROPERTIES FITTED TO',f7.0,'K')
-99013 format (/'    PRODUCTS WHICH WERE CONSIDERED BUT WHOSE ',a4,        ' FRACTIONS',/'    WERE LESS THAN',1pe13.6,        ' FOR ALL ASSIGNED CONDITIONS'/)
+99013 format (/'    PRODUCTS WHICH WERE CONSIDERED BUT WHOSE ',a4,        ' FRACTIONS', &
+      /'    WERE LESS THAN',1pe13.6,        ' FOR ALL ASSIGNED CONDITIONS'/)
 99014 format (5(1x,a15))
-99015 format (/' NOTE. WEIGHT FRACTION OF FUEL IN TOTAL FUELS AND OF',        ' OXIDANT IN TOTAL OXIDANTS')
+99015 format (/' NOTE. WEIGHT FRACTION OF FUEL IN TOTAL FUELS AND OF', &
+              ' OXIDANT IN TOTAL OXIDANTS')
 99016 format (' TRANSPORT PROPERTIES (GASES ONLY)')
 99017 format ('   CONDUCTIVITY IN UNITS OF MILLICALORIES/(CM)(K)(SEC)'/)
 99018 format ('   CONDUCTIVITY IN UNITS OF MILLIWATTS/(CM)(K)'/)
@@ -4004,8 +4156,9 @@
 99021 format (/' REACTANT DENSITY=',f8.2,' KG/CU M')
 99022 format (/' REACTANT DENSITY=',f8.4,' G/CC')
       end subroutine out1
-      subroutine react(wp,hpp,vpls,vmin,am,rh,elmt,b0p,nreac,energy,rnum,tt,rtemp,tg,rname,enth,rr,nlm,nfla,ratom,hp,tln,vol,fox,symbol,atmwt,atwt,x,valnce,pecwt,moles,dens,rmw,short)
-      use params_cea_inc, only : maxmat, ioout, maxr, iothm, maxel
+      subroutine react(wp,hpp,vpls,vmin,am,rh,elmt,b0p,nreac,energy,rnum,tt,rtemp,tg,rname,enth,rr, &
+      nlm,nfla,ratom,hp,tln,vol,fox,symbol,atmwt,atwt,x,valnce,pecwt,moles,dens,rmw,short)
+      use params_cea_inc, only : maxmat, maxr, iothm, ioout, maxel
       implicit none
       real(kind=8), dimension(1:2), intent(InOut) :: wp
       real(kind=8), dimension(1:2), intent(InOut) :: hpp
@@ -4079,7 +4232,8 @@
       real(kind=8) :: dlog
       real(kind=8) :: t1save
       real(kind=8) :: t2save
-      save bb,dat,date,dift,eform,el,fuel,i,icf,ifaz,ifrmla,itot,j,jj,k,  kk,kr,l,n,nall,nint,nj,ntgas,ntot,pcwt,rcf,rcoefs,rm,sub,t1,t2,  wdone
+      save bb,dat,date,dift,eform,el,fuel,i,icf,ifaz,ifrmla,itot,j,jj,k,  kk,kr,l,n,nall,nint,nj, &
+      ntgas,ntot,pcwt,rcf,rcoefs,rm,sub,t1,t2,  wdone
       do k = 1,2
         wdone(k) = .false.
         wp(k) = 0.
@@ -4166,7 +4320,8 @@
                   if ( tt > tg(2) ) l = 2
                   if ( tt > tg(3) ) l = 3
                 endif
-                enth(n) = (((((rcf(7,l)/5.d0)*tt+rcf(6,l)/4.d0)*tt+rcf(5,l)/3.d0)*tt+rcf(4,l)/2.d0)*tt+rcf(3,l))                    *tt - rcf(1,l)/tt + rcf(2,l)*tln + rcf(8,l)
+                enth(n) = (((((rcf(7,l)/5.d0)*tt+rcf(6,l)/4.d0)*tt+rcf(5,l)/3.d0)*tt+rcf(4, &
+      l)/2.d0)*tt+rcf(3,l))                    *tt - rcf(1,l)/tt + rcf(2,l)*tln + rcf(8,l)
                 if ( vol.and.ifaz <= 0 ) enth(n) = enth(n) - tt
               endif
               if (hok) goto 50
@@ -4297,19 +4452,30 @@
         endif
       endif
  200  return
-99001 format (/' REACTANT ',a15,'HAS BEEN DEFINED FOR THE TEMPERATURE',   f8.2,'K ONLY.'/' YOUR TEMPERATURE ASSIGNMENT',f8.2,  ' IS MORE THAN 10 K FROM THIS VALUE. (REACT)')
-99002 format (/' NOTE! REACTANT ',a15,'HAS BEEN DEFINED FOR ',  'TEMPERATURE',f8.2,'K ONLY.'/' YOUR TEMPERATURE ASSIGNMENT',  f8.2,' IS NOT = BUT <10 K FROM THIS VALUE. (REACT)')
-99003 format (/' NOTE: ',a15,' IS EITHER NOT IN thermo.lib OR THE',        ' TEMPERATURE ',/,        ' IS OUT OF RANGE FOR THIS SPECIES (REACT)')
+99001 format (/' REACTANT ',a15,'HAS BEEN DEFINED FOR THE TEMPERATURE',   f8.2, &
+      'K ONLY.'/' YOUR TEMPERATURE ASSIGNMENT',f8.2, &
+        ' IS MORE THAN 10 K FROM THIS VALUE. (REACT)')
+99002 format (/' NOTE! REACTANT ',a15,'HAS BEEN DEFINED FOR ',  'TEMPERATURE',f8.2, &
+      'K ONLY.'/' YOUR TEMPERATURE ASSIGNMENT',  f8.2, &
+      ' IS NOT = BUT <10 K FROM THIS VALUE. (REACT)')
+99003 format (/' NOTE: ',a15,' IS EITHER NOT IN thermo.lib OR THE',        ' TEMPERATURE ',/, &
+              ' IS OUT OF RANGE FOR THIS SPECIES (REACT)')
 99004 format (/' TEMPERATURE MISSING FOR REACTANT NO.',i2,'(REACT)')
 99005 format (/1x,a2,' NOT FOUND IN BLOCKDATA (REACT)')
-99006 format (/' WARNING!!  AMOUNT MISSING FOR REACTANT',i3,'.',        /' PROGRAM SETS WEIGHT PERCENT = 100. (REACT)')
+99006 format (/' WARNING!!  AMOUNT MISSING FOR REACTANT',i3,'.', &
+              /' PROGRAM SETS WEIGHT PERCENT = 100. (REACT)')
 99007 format (/' AMOUNT MISSING FOR REACTANT NO.',i2,'(REACT)')
-99008 format (/4x,'REACTANT',10x,a7,3x,'(ENERGY/R),K',3x,        'TEMP,K  DENSITY'/,8x,'EXPLODED FORMULA')
+99008 format (/4x,'REACTANT',10x,a7,3x,'(ENERGY/R),K',3x,        'TEMP,K  DENSITY'/,8x, &
+      'EXPLODED FORMULA')
 99009 format (1x,a1,': ',a15,f10.6,e15.6,f9.2,f8.4,/8x,5(2x,a2,f8.5))
-99010 format (/' YOUR ASSIGNED TEMPERATURE',f8.2,'K FOR ',a15,/, 'IS OUTSIDE ITS TEMPERATURE RANGE',f8.2,' TO',f9.2,'K (REACT)')
+99010 format (/' YOUR ASSIGNED TEMPERATURE',f8.2,'K FOR ',a15,/, 'IS OUTSIDE ITS TEMPERATURE RANGE', &
+      f8.2,' TO',f9.2,'K (REACT)')
       end subroutine react
-      subroutine rktout(eql,nfz,iopt,it,t,ttt,ppp,app,subar,ma,fmt,npt,page1,x,nplt,pltvar,siunit,spim,hsum,rr,wm,cstr,vmoc,sonvel,gammas,trnspt,aeat,pltout,iplt,massf,totn,trace,ngc,mw,en,prod,case,moles,nreac,enth,fox,pecwt,r,rname,rtemp,oxfl,vmin,vpls,rh,eqrat,rkt,gonly,vlm,ssum,cpr,dlvtp,dlvpt,ng,omit,tg,short,vis,coneql,preql,confro,prfro,cpeql,cpfro)
-      use params_cea_inc, only : maxt, maxngc, ncol, ioout, maxmat, maxr
+      subroutine rktout(eql,nfz,iopt,it,t,ttt,ppp,app,subar,ma,fmt,npt,page1,x,nplt,pltvar,siunit, &
+      spim,hsum,rr,wm,cstr,vmoc,sonvel,gammas,trnspt,aeat,pltout,iplt,massf,totn,trace,ngc,mw,en, &
+      prod,case,moles,nreac,enth,fox,pecwt,r,rname,rtemp,oxfl,vmin,vpls,rh,eqrat,rkt,gonly,vlm, &
+      ssum,cpr,dlvtp,dlvpt,ng,omit,tg,short,vis,coneql,preql,confro,prfro,cpeql,cpfro)
+      use params_cea_inc, only : maxmat, maxngc, ncol, maxt, maxr, ioout
       implicit none
       logical, intent(In) :: eql
       integer, intent(In) :: nfz
@@ -4414,7 +4580,8 @@
       real(kind=8) :: tra
       real(kind=8), dimension(1:ncol) :: vaci
       real(kind=8) :: ww
-      save agv,aw,fi,fiv,fr,gc,i,i23,i46,i57,i68,i79,ione,ixfr,ixfz,j,k,  line,ln,mae,mcf,misp,mivac,mmach,mppf,mppj,mxx,nex,tem,tra,vaci,  ww,z
+      save agv,aw,fi,fiv,fr,gc,i,i23,i46,i57,i68,i79,ione,ixfr,ixfz,j,k,  line,ln,mae,mcf,misp, &
+      mivac,mmach,mppf,mppj,mxx,nex,tem,tra,vaci,  ww,z
       data exit / 11*'EXIT' / 
       mppf = mxx(1)
       mppj = mxx(2)
@@ -4440,7 +4607,10 @@
         if ( iopt == 2 ) write (ioout,99008) ma,app(2)
         i23 = 3
       endif
-      call out1(case,moles,siunit,nreac,enth,fox,pecwt,r,rname,rtemp,oxfl,vmin,vpls,rh,eqrat,page1,rkt,iopt,nplt,pltvar,gonly,iplt,npt,pltout,fmt,ppp,x,ttt,vlm,hsum,rr,ssum,wm,totn,cpr,gammas,dlvtp,dlvpt,eql,sonvel,trace,massf,ngc,ng,prod,mw,en,omit,tg,short,vis,coneql,preql,confro,prfro,cpeql,cpfro)
+      call out1(case,moles,siunit,nreac,enth,fox,pecwt,r,rname,rtemp,oxfl,vmin,vpls,rh,eqrat,page1, &
+      rkt,iopt,nplt,pltvar,gonly,iplt,npt,pltout,fmt,ppp,x,ttt,vlm,hsum,rr,ssum,wm,totn,cpr, &
+      gammas,dlvtp,dlvpt,eql,sonvel,trace,massf,ngc,ng,prod,mw,en,omit,tg,short,vis,coneql,preql, &
+      confro,prfro,cpeql,cpfro)
       fmt(4) = fmt(6)
       nex = npt - 2
       if ( page1 ) then
@@ -4455,6 +4625,7 @@
       if ( iopt == 0 ) then
         write (ioout,99011) (exit(i),i=1,nex)
         call varfmt(app,npt,fmt)
+
         write (ioout,fmt) 'Pinf/P         ',(app(j),j=1,npt)
       else
         nex = nex - 1
@@ -4463,10 +4634,14 @@
         do i = 2,npt
           x(i) = ppp(1)/ppp(i)
         enddo
-        call varfmt(x,npt,fmt)
+        call varfmt(x_varfmt,npt,fmt)
+
         write (ioout,fmt) 'Pinj/P         ',(x(i),i=1,npt)
       endif
-      call out2(case,moles,siunit,nreac,enth,fox,pecwt,r,rname,rtemp,oxfl,vmin,vpls,rh,eqrat,page1,rkt,iopt,nplt,pltvar,gonly,iplt,npt,pltout,fmt,ppp,x,ttt,vlm,hsum,rr,ssum,wm,totn,cpr,gammas,dlvtp,dlvpt,eql,sonvel,trace,massf,ngc,ng,prod,mw,en,omit,tg,short,vis,coneql,preql,confro,prfro,cpeql,cpfro)
+      call out2(case,moles,siunit,nreac,enth,fox,pecwt,r,rname,rtemp,oxfl,vmin,vpls,rh,eqrat,page1, &
+      rkt,iopt,nplt,pltvar,gonly,iplt,npt,pltout,fmt,ppp,x,ttt,vlm,hsum,rr,ssum,wm,totn,cpr, &
+      gammas,dlvtp,dlvpt,eql,sonvel,trace,massf,ngc,ng,prod,mw,en,omit,tg,short,vis,coneql,preql, &
+      confro,prfro,cpeql,cpfro)
       do i = 1,8
         mxx(i) = 0
       mppf = mxx(1)
@@ -4536,11 +4711,15 @@
       if ( gammas(i23) == 0. ) vmoc(i23) = 0.
       fmt(7) = '3,'
       write (ioout,fmt) 'MACH NUMBER    ',(vmoc(j),j=1,npt)
-      call out4(case,moles,siunit,nreac,enth,fox,pecwt,r,rname,rtemp,oxfl,vmin,vpls,rh,eqrat,page1,rkt,iopt,nplt,pltvar,gonly,iplt,npt,pltout,fmt,ppp,x,ttt,vlm,hsum,rr,ssum,wm,totn,cpr,gammas,dlvtp,dlvpt,eql,sonvel,trace,massf,ngc,ng,prod,mw,en,omit,tg,short,vis,coneql,preql,confro,prfro,cpeql,cpfro)
+      call out4(case,moles,siunit,nreac,enth,fox,pecwt,r,rname,rtemp,oxfl,vmin,vpls,rh,eqrat,page1, &
+      rkt,iopt,nplt,pltvar,gonly,iplt,npt,pltout,fmt,ppp,x,ttt,vlm,hsum,rr,ssum,wm,totn,cpr, &
+      gammas,dlvtp,dlvpt,eql,sonvel,trace,massf,ngc,ng,prod,mw,en,omit,tg,short,vis,coneql,preql, &
+      confro,prfro,cpeql,cpfro)
       write (ioout,99013)
       fmt(4) = '9x,'
       fmt(i46) = '9x,'
       call varfmt(aeat,npt,fmt)
+
       fmt(5) = ' '
       fmt(i57) = ' '
       write (ioout,fmt) 'Ae/At          ',(aeat(j),j=2,npt)
@@ -4606,7 +4785,10 @@
           endif
         enddo
       endif
- 200 call out3(case,moles,siunit,nreac,enth,fox,pecwt,r,rname,rtemp,oxfl,vmin,vpls,rh,eqrat,page1,rkt,iopt,nplt,pltvar,gonly,iplt,npt,pltout,fmt,ppp,x,ttt,vlm,hsum,rr,ssum,wm,totn,cpr,gammas,dlvtp,dlvpt,eql,sonvel,trace,massf,ngc,ng,prod,mw,en,omit,tg,short,vis,coneql,preql,confro,prfro,cpeql,cpfro)
+ 200 call out3(case,moles,siunit,nreac,enth,fox,pecwt,r,rname,rtemp,oxfl,vmin,vpls,rh,eqrat,page1, &
+      rkt,iopt,nplt,pltvar,gonly,iplt,npt,pltout,fmt,ppp,x,ttt,vlm,hsum,rr,ssum,wm,totn,cpr, &
+      gammas,dlvtp,dlvpt,eql,sonvel,trace,massf,ngc,ng,prod,mw,en,omit,tg,short,vis,coneql,preql, &
+      confro,prfro,cpeql,cpfro)
       return
 99001 format (/////13x,' THEORETICAL ROCKET PERFORMANCE ASSUMING',        ' EQUILIBRIUM')
 99002 format (/11x,' COMPOSITION DURING EXPANSION FROM FINITE AREA',        ' COMBUSTOR')
@@ -4624,8 +4806,17 @@
 99014 format (1x,a4,' FRACTIONS'/)
 99015 format (1x,3(a15,f8.5,3x))
       end subroutine rktout
-      subroutine rocket(iplt,app,iopt,npp,fac,eql,acat,ma,tt,nsub,subar,nfz,nsup,froz,tcest,pp,p,it,oxfl,oxf,t,tp,hp,sp,ip,np,area,isup,page1,npt,cpsum,trnspt,ppp,debugf,isv,cpr,dlvpt,dlvtp,gammas,hsum,ssum,totn,ttt,vlm,wm,short,rr,vv,debug,jsol,enn,npr,s0,awt,aeat,supar,jliq,pcp,nof,nt,eqrat,vmin,vpls,nlm,b0,b0p,bcheck,am,wmix,size,hsub0,hpp,vol,jcm,prod,trace,ngc,pderiv,convg,jcond,ng,ifz,temp,en,nc,enln,deln,tln,tm,lsave,a,ions,shock,elmt,cp,iq1,imat,g,msing,x,h0,mu,ennl,s,sumn,tg,ngp1,mw,jx,nspx,atwt,gonly,coef,cft,nm,confro,vis,eta,wmol,xs,con,nr,stc,ind,r,cpfro,cprr,siunit,prfro,cpeql,coneql,preql,incdeq,nreac,jray,ntape,boltz,avgdr,pi,viscns,ensave,enlsav,sln,fmt,nplt,pltvar,spim,cstr,vmoc,sonvel,pltout,massf,case,moles,enth,fox,pecwt,rname,rtemp,rh,rkt,omit)
-      use params_cea_inc, only : maxel, maxngc, maxnc, maxr, ncol, maxmix, maxng, maxtr, maxt, ioout, maxpv, maxmat
+      subroutine rocket(iplt,app,iopt,npp,fac,eql,acat,ma,tt,nsub,subar,nfz,nsup,froz,tcest,pp,p,it, &
+      oxfl,oxf,t,tp,hp,sp,ip,np,area,isup,page1,npt,cpsum,trnspt,ppp,debugf,isv,cpr,dlvpt,dlvtp, &
+      gammas,hsum,ssum,totn,ttt,vlm,wm,short,rr,vv,debug,jsol,enn,npr,s0,awt,aeat,supar,jliq,pcp, &
+      nof,nt,eqrat,vmin,vpls,nlm,b0,b0p,bcheck,am,wmix,size,hsub0,hpp,vol,jcm,prod,trace,ngc, &
+      pderiv,convg,jcond,ng,ifz,temp,en,nc,enln,deln,tln,tm,lsave,a,ions,shock,elmt,cp,iq1,imat,g, &
+      msing,x,h0,mu,ennl,s,sumn,tg,ngp1,mw,jx,nspx,atwt,gonly,coef,cft,nm,confro,vis,eta,wmol,xs, &
+      con,nr,stc,ind,r,cpfro,cprr,siunit,prfro,cpeql,coneql,preql,incdeq,nreac,jray,ntape,boltz, &
+      avgdr,pi,viscns,ensave,enlsav,sln,fmt,nplt,pltvar,spim,cstr,vmoc,sonvel,pltout,massf,case, &
+      moles,enth,fox,pecwt,rname,rtemp,rh,rkt,omit)
+      use params_cea_inc, only : maxmix, maxt, maxng, maxr, ioout, maxmat, maxngc, maxnc, maxtr, &
+       ncol, maxpv, maxel
       implicit none
       integer, intent(InOut) :: iplt
       real(kind=8), dimension(1:ncol), intent(InOut) :: app
@@ -4851,7 +5042,9 @@
       real(kind=8) :: dlog
       real(kind=8) :: dmax1
       real(kind=8) :: dsqrt
-      save acatsv,aeatl,appl,aratio,asq,check,cprf,dd,dh,dlnp,dlnpe,dlt,  done,dp,eln,i,i01,i12,iof,iplt1,iplte,ipp,isub,isup1,isupsv,  itnum,itrot,mat,msq,nar,nipp,niter,nn,npr1,nptth,p1,pcpa,pcplt,  pinf,pinj,pinjas,pjrat,ppa,pr,pracat,prat,pratsv,pvg,seql,test,  thi,tmelt,usq
+      save acatsv,aeatl,appl,aratio,asq,check,cprf,dd,dh,dlnp,dlnpe,dlt,  done,dp,eln,i,i01,i12,iof, &
+      iplt1,iplte,ipp,isub,isup1,isupsv,  itnum,itrot,mat,msq,nar,nipp,niter,nn,npr1,nptth,p1, &
+      pcpa,pcplt,  pinf,pinj,pinjas,pjrat,ppa,pr,pracat,prat,pratsv,pvg,seql,test,  thi,tmelt,usq
       data a1l / -1.26505 / ,b1 / 1.0257 / ,c1 / -1.2318 / ,pa / 1.e05 / 
       iplte = iplt
       isup1 = 1
@@ -4911,7 +5104,8 @@
         hp = .true.
       endif
       sp = .false.
-      call newof(short,oxfl,eqrat,vmin,vpls,nlm,b0,b0p,bcheck,am,wmix,npt,size,hsub0,hpp,jsol,jliq,vol,jcm,prod)
+      call newof(short,oxfl,eqrat,vmin,vpls,nlm,b0,b0p,bcheck,am,wmix,npt,size,hsub0,hpp,jsol,jliq, &
+      vol,jcm,prod)
       if ( t(1) /= 0. ) tt = t(1)
  200  do ip = 1,np
         itnum = 0
@@ -4934,17 +5128,23 @@
         done = .false.
  250    nar = npt
         if ( eql ) then
-          call eqlbrm(nlm,size,trace,ngc,pderiv,convg,tp,tt,npr,t,jcond,ng,ifz,temp,en,npt,prod,short,nc,enln,deln,tln,vol,pp,enn,rr,vv,tm,lsave,a,ions,shock,elmt,debug,cpsum,cp,iq1,imat,g,msing,x,h0,mu,ennl,s,totn,sumn,hp,b0,bcheck,dlvtp,cpr,dlvpt,jliq,gammas,jsol,hsum,ssum,sp,s0,tg,ngp1,mw,jx,jcm,b0p,nspx,atwt,ttt,ppp,vlm,wm,gonly,coef,cft,hsub0)
+          call eqlbrm(nlm,size,trace,ngc,pderiv,convg,tp,tt,npr,t,jcond,ng,ifz,temp,en,npt,prod, &
+      short,nc,enln,deln,tln,vol,pp,enn,rr,vv,tm,lsave,a,ions,shock,elmt,debug,cpsum,cp,iq1,imat, &
+      g,msing,x,h0,mu,ennl,s,totn,sumn,hp,b0,bcheck,dlvtp,cpr,dlvpt,jliq,gammas,jsol,hsum,ssum,sp, &
+      s0,tg,ngp1,mw,jx,jcm,b0p,nspx,atwt,ttt,ppp,vlm,wm,gonly,coef,cft,hsub0)
           if ( npt == nfz ) cprf = cpsum
         else
-          call frozen(convg,tln,tt,pp,wm,npt,nfz,ng,en,deln,ssum,cpsum,cp,s,npr,jcond,hsum,ngc,h0,ttt,gammas,vlm,rr,dlvpt,dlvtp,totn,ppp,cpr,tg,ngp1,temp,coef,tp,cft,nc)
+          call frozen(convg,tln,tt,pp,wm,npt,nfz,ng,en,deln,ssum,cpsum,cp,s,npr,jcond,hsum,ngc,h0, &
+      ttt,gammas,vlm,rr,dlvpt,dlvtp,totn,ppp,cpr,tg,ngp1,temp,coef,tp,cft,nc)
         endif
         if ( tt /= 0. ) then
           if ( .not.fac ) goto 400
           pinjas = p(ip)*pa
           pinj = pinjas
           if ( npt <= 2 ) then
-            call tranp(nm,confro,npt,vis,eta,wmol,xs,con,eql,nr,lsave,jcm,h0,stc,ind,g,imat,r,x,cpfro,cprr,siunit,prfro,cpeql,coneql,preql,shock,incdeq,nreac,jray,mw,en,wm,ngc,enln,ennl,ng,nfz,a,ntape,tt,tln,ions,boltz,avgdr,pi,rr,cp,nlm,viscns,msing)
+            call tranp(nm,confro,npt,vis,eta,wmol,xs,con,eql,nr,lsave,jcm,h0,stc,ind,g,imat,r,x, &
+      cpfro,cprr,siunit,prfro,cpeql,coneql,preql,shock,incdeq,nreac,jray,mw,en,wm,ngc,enln,ennl, &
+      ng,nfz,a,ntape,tt,tln,ions,boltz,avgdr,pi,rr,cp,nlm,viscns,msing)
             if ( npt == 2 ) pinf = ppp(2)
           endif
           if ( npt /= 1 ) goto 400
@@ -4984,7 +5184,8 @@
         isv = 0
         npt = 2
         ipp = 2
-        call seten(isv,ttt,ensave,enn,enlsav,ennl,lsave,ng,sln,enln,en,npt,npr,ngp1,ngc,jliq,jsol,tt,jcond,tp,sumn)
+        call seten(isv,ttt,ensave,enn,enlsav,ennl,lsave,ng,sln,enln,en,npt,npr,ngp1,ngc,jliq,jsol, &
+      tt,jcond,tp,sumn)
         goto 250
  350    done = .true.
         app(1) = ppp(2)/ppp(1)
@@ -4993,7 +5194,8 @@
         isv = 4
         npt = 2
         ipp = min(4,npp)
-        call seten(isv,ttt,ensave,enn,enlsav,ennl,lsave,ng,sln,enln,en,npt,npr,ngp1,ngc,jliq,jsol,tt,jcond,tp,sumn)
+        call seten(isv,ttt,ensave,enn,enlsav,ennl,lsave,ng,sln,enln,en,npt,npr,ngp1,ngc,jliq,jsol, &
+      tt,jcond,tp,sumn)
         cpr(2) = cpr(4)
         dlvpt(2) = dlvpt(4)
         dlvtp(2) = dlvtp(4)
@@ -5066,7 +5268,9 @@
             goto 550
           endif
         else
-          call tranp(nm,confro,npt,vis,eta,wmol,xs,con,eql,nr,lsave,jcm,h0,stc,ind,g,imat,r,x,cpfro,cprr,siunit,prfro,cpeql,coneql,preql,shock,incdeq,nreac,jray,mw,en,wm,ngc,enln,ennl,ng,nfz,a,ntape,tt,tln,ions,boltz,avgdr,pi,rr,cp,nlm,viscns,msing)
+          call tranp(nm,confro,npt,vis,eta,wmol,xs,con,eql,nr,lsave,jcm,h0,stc,ind,g,imat,r,x,cpfro, &
+      cprr,siunit,prfro,cpeql,coneql,preql,shock,incdeq,nreac,jray,mw,en,wm,ngc,enln,ennl,ng,nfz, &
+      a,ntape,tt,tln,ions,boltz,avgdr,pi,rr,cp,nlm,viscns,msing)
           if ( npt == nfz ) eql = seql
           tp = .false.
           hp = .false.
@@ -5093,7 +5297,9 @@
         aeat(npt) = enn*ttt(npt)/(pp*usq**.5*awt)
         if ( tt == 0. ) goto 1150
         if ( area ) goto 750
-        call tranp(nm,confro,npt,vis,eta,wmol,xs,con,eql,nr,lsave,jcm,h0,stc,ind,g,imat,r,x,cpfro,cprr,siunit,prfro,cpeql,coneql,preql,shock,incdeq,nreac,jray,mw,en,wm,ngc,enln,ennl,ng,nfz,a,ntape,tt,tln,ions,boltz,avgdr,pi,rr,cp,nlm,viscns,msing)
+        call tranp(nm,confro,npt,vis,eta,wmol,xs,con,eql,nr,lsave,jcm,h0,stc,ind,g,imat,r,x,cpfro, &
+      cprr,siunit,prfro,cpeql,coneql,preql,shock,incdeq,nreac,jray,mw,en,wm,ngc,enln,ennl,ng,nfz, &
+      a,ntape,tt,tln,ions,boltz,avgdr,pi,rr,cp,nlm,viscns,msing)
         if ( npt == nfz ) eql = seql
         if ( fac ) then
           if ( npt == nptth ) then
@@ -5225,7 +5431,9 @@
             endif
           endif
         endif
- 950 call tranp(nm,confro,npt,vis,eta,wmol,xs,con,eql,nr,lsave,jcm,h0,stc,ind,g,imat,r,x,cpfro,cprr,siunit,prfro,cpeql,coneql,preql,shock,incdeq,nreac,jray,mw,en,wm,ngc,enln,ennl,ng,nfz,a,ntape,tt,tln,ions,boltz,avgdr,pi,rr,cp,nlm,viscns,msing)
+ 950 call tranp(nm,confro,npt,vis,eta,wmol,xs,con,eql,nr,lsave,jcm,h0,stc,ind,g,imat,r,x,cpfro,cprr, &
+      siunit,prfro,cpeql,coneql,preql,shock,incdeq,nreac,jray,mw,en,wm,ngc,enln,ennl,ng,nfz,a, &
+      ntape,tt,tln,ions,boltz,avgdr,pi,rr,cp,nlm,viscns,msing)
         if ( npt == nfz ) eql = seql
  1000   itnum = 0
         if ( nsub > i01 ) then
@@ -5251,7 +5459,10 @@
             gammas(nfz) = cprf/(cprf-1./wm(nfz))
           endif
         endif
-        call rktout(eql,nfz,iopt,it,t,ttt,ppp,app,subar,ma,fmt,npt,page1,x,nplt,pltvar,siunit,spim,hsum,rr,wm,cstr,vmoc,sonvel,gammas,trnspt,aeat,pltout,iplt,massf,totn,trace,ngc,mw,en,prod,case,moles,nreac,enth,fox,pecwt,r,rname,rtemp,oxfl,vmin,vpls,rh,eqrat,rkt,gonly,vlm,ssum,cpr,dlvtp,dlvpt,ng,omit,tg,short,vis,coneql,preql,confro,prfro,cpeql,cpfro)
+        call rktout(eql,nfz,iopt,it,t,ttt,ppp,app,subar,ma,fmt,npt,page1,x,nplt,pltvar,siunit,spim, &
+      hsum,rr,wm,cstr,vmoc,sonvel,gammas,trnspt,aeat,pltout,iplt,massf,totn,trace,ngc,mw,en,prod, &
+      case,moles,nreac,enth,fox,pecwt,r,rname,rtemp,oxfl,vmin,vpls,rh,eqrat,rkt,gonly,vlm,ssum, &
+      cpr,dlvtp,dlvpt,ng,omit,tg,short,vis,coneql,preql,confro,prfro,cpeql,cpfro)
         iplt = iplt + npt
         if ( .not.page1 ) then
           iplt = iplt - 2
@@ -5270,7 +5481,8 @@
           if ( eql ) iplt = iplt1
           eql = .false.
           page1 = .true.
-          call seten(isv,ttt,ensave,enn,enlsav,ennl,lsave,ng,sln,enln,en,npt,npr,ngp1,ngc,jliq,jsol,tt,jcond,tp,sumn)
+          call seten(isv,ttt,ensave,enn,enlsav,ennl,lsave,ng,sln,enln,en,npt,npr,ngp1,ngc,jliq,jsol, &
+      tt,jcond,tp,sumn)
           tt = ttt(nfz)
           ipp = nfz
           if ( nfz == npt ) goto 1150
@@ -5295,7 +5507,8 @@
  1200   npt = npt + 1
         if ( eql.or.(isv == -i12.and..not.seql) ) then
           if ( jliq /= 0.and.isv > 0 ) isv = 0
-          call seten(isv,ttt,ensave,enn,enlsav,ennl,lsave,ng,sln,enln,en,npt,npr,ngp1,ngc,jliq,jsol,tt,jcond,tp,sumn)
+          call seten(isv,ttt,ensave,enn,enlsav,ennl,lsave,ng,sln,enln,en,npt,npr,ngp1,ngc,jliq,jsol, &
+      tt,jcond,tp,sumn)
         endif
  1250   ipp = ipp + 1
         if ( npt > nptth ) then
@@ -5328,7 +5541,8 @@
  1300   npt = 1
         if ( ip == np.and.it == nt.and.iof == nof ) goto 1400
         write (ioout,99019)
-        call seten(isv,ttt,ensave,enn,enlsav,ennl,lsave,ng,sln,enln,en,npt,npr,ngp1,ngc,jliq,jsol,tt,jcond,tp,sumn)
+        call seten(isv,ttt,ensave,enn,enlsav,ennl,lsave,ng,sln,enln,en,npt,npr,ngp1,ngc,jliq,jsol, &
+      tt,jcond,tp,sumn)
         tt = ttt(i12)
       enddo
       if ( it < nt ) then
@@ -5341,11 +5555,14 @@
  1400 iplt = max(iplt,iplte)
       return
 99001 format (/' FATAL ERROR!! EITHER mdot OR ac/at MISSING ',        'FOR fac PROBLEM (ROCKET)')
-99002 format (/' WARNING!!  nfz NOT ALLOWED TO BE > 2 IF THE TOTAL',/,        ' NUMBER OF POINTS IS >',i3,' (ROCKET)')
-99003 format (/' INPUT VALUE OF mdot/a =',f12.3,' IS TOO LARGE.'/        ' GIVES CONTRACTION RATIO ESTIMATE LESS THAN 1 (ROCKET)')
+99002 format (/' WARNING!!  nfz NOT ALLOWED TO BE > 2 IF THE TOTAL',/, &
+              ' NUMBER OF POINTS IS >',i3,' (ROCKET)')
+99003 format (/' INPUT VALUE OF mdot/a =',f12.3, &
+      ' IS TOO LARGE.'/        ' GIVES CONTRACTION RATIO ESTIMATE LESS THAN 1 (ROCKET)')
 99004 format (/'  ITERATION',9x,'PC',7x,'CONTRACTION RATIO')
 99005 format (5x,i2,7x,f12.2,3x,f12.6)
-99006 format (' ITER',3x,'TEST',3x,'ASSIGNED PINJ',1x,'CALC PINJ',5x,        'PC',7x,'P AT ACAT',3x,'PREV ACAT',2x,'ACAT')
+99006 format (' ITER',3x,'TEST',3x,'ASSIGNED PINJ',1x,'CALC PINJ',5x,        'PC',7x,'P AT ACAT',3x, &
+      'PREV ACAT',2x,'ACAT')
 99007 format (i3,f10.6,1x,4f12.2,2f9.5)
 99008 format (' NEW PC = ',f10.2,2x,'NEW ACAT = ',f9.6,2x,'PJRAT =',        f10.7,' PRACAT =',f10.7)
 99009 format (' END OF CHAMBER ITERATIONS')
@@ -5353,21 +5570,35 @@
 99011 format (/' USQ=',e15.8,5x,'PVG=',e15.8)
 99012 format (/' WARNING!!  DISCONTINUITY AT THE THROAT (ROCKET)')
 99013 format (' Pinf/Pt =',f9.6)
-99014 format (/,' WARNING!! FOR FROZEN PERFORMANCE, POINTS WERE OMITTED'        ,' WHERE THE ASSIGNED',/,' SUPERSONIC AREA RATIOS WERE ',        'LESS THAN THE VALUE AT POINT nfz =',i3,' (ROCKET)')
-99015 format (/' WARNING!!  AREA RATIO CALCULATION CANNOT BE DONE ',        'BECAUSE GAMMAs',/,' CALCULATION IMPOSSIBLE. (ROCKET)')
-99016 format (/' ITER=',i2,2x,'ASSIGNED AE/AT=',f14.7,3x,'AE/AT=',f14.7,        /,2x,'PC/P=',f14.7,2x,'DELTA LN PCP=',f14.7)
+99014 format (/,' WARNING!! FOR FROZEN PERFORMANCE, POINTS WERE OMITTED'        , &
+      ' WHERE THE ASSIGNED',/,' SUPERSONIC AREA RATIOS WERE ', &
+              'LESS THAN THE VALUE AT POINT nfz =',i3,' (ROCKET)')
+99015 format (/' WARNING!!  AREA RATIO CALCULATION CANNOT BE DONE ',        'BECAUSE GAMMAs',/, &
+      ' CALCULATION IMPOSSIBLE. (ROCKET)')
+99016 format (/' ITER=',i2,2x,'ASSIGNED AE/AT=',f14.7,3x,'AE/AT=',f14.7,        /,2x,'PC/P=',f14.7, &
+      2x,'DELTA LN PCP=',f14.7)
 99017 format (/' WARNING!!  DID NOT CONVERGE FOR AREA RATIO =',f10.5,        ' (ROCKET)')
-99018 format (/' WARNING!!  CALCULATIONS WERE STOPPED BECAUSE NEXT ',        'POINT IS MORE',/,' THAN 50 K BELOW THE TEMPERATURE',        ' RANGE OF A CONDENSED SPECIES (ROCKET)')
+99018 format (/' WARNING!!  CALCULATIONS WERE STOPPED BECAUSE NEXT ',        'POINT IS MORE',/, &
+      ' THAN 50 K BELOW THE TEMPERATURE',        ' RANGE OF A CONDENSED SPECIES (ROCKET)')
 99019 format (////)
-99020 format (/,' WARNING!! FOR FROZEN PERFORMANCE, POINTS WERE OMITTED'        ,' WHERE THE ASSIGNED',/,        ' PRESSURE RATIOS WERE LESS THAN ',        'THE VALUE AT POINT nfz =',i3,' (ROCKET)')
-99021 format (/' WARNING!!  ASSIGNED subae/at =',f10.5,' IS NOT ',        'PERMITTED TO BE GREATER'/' THAN ac/at =',f9.5,        '.  POINT OMITTED (ROCKET)')
-99022 format (/' WARNING!!  ASSIGNED pip =',f10.5,        ' IS NOT PERMITTED'/' TO BE LESS THAN  Pinj/Pc =',f9.5,        '. POINT OMITTED',' (ROCKET)')
-99023 format (/' WARNING!!  FOR FROZEN PERFORMANCE, SUBSONIC AREA ',/,       ' RATIOS WERE OMITTED SINCE nfz IS GREATER THAN 1 (ROCKET)'       )
-99024 format (/' WARNING!!  FREEZING IS NOT ALLOWED AT A SUBSONIC ',        'PRESSURE RATIO FOR nfz GREATER'/' THAN 1. FROZEN ',        'PERFORMANCE CALCULATIONS WERE OMITTED (ROCKET)')
+99020 format (/,' WARNING!! FOR FROZEN PERFORMANCE, POINTS WERE OMITTED'        , &
+      ' WHERE THE ASSIGNED',/,        ' PRESSURE RATIOS WERE LESS THAN ', &
+              'THE VALUE AT POINT nfz =',i3,' (ROCKET)')
+99021 format (/' WARNING!!  ASSIGNED subae/at =',f10.5,' IS NOT ', &
+              'PERMITTED TO BE GREATER'/' THAN ac/at =',f9.5,        '.  POINT OMITTED (ROCKET)')
+99022 format (/' WARNING!!  ASSIGNED pip =',f10.5, &
+              ' IS NOT PERMITTED'/' TO BE LESS THAN  Pinj/Pc =',f9.5,        '. POINT OMITTED', &
+      ' (ROCKET)')
+99023 format (/' WARNING!!  FOR FROZEN PERFORMANCE, SUBSONIC AREA ',/, &
+             ' RATIOS WERE OMITTED SINCE nfz IS GREATER THAN 1 (ROCKET)'       )
+99024 format (/' WARNING!!  FREEZING IS NOT ALLOWED AT A SUBSONIC ', &
+              'PRESSURE RATIO FOR nfz GREATER'/' THAN 1. FROZEN ', &
+              'PERFORMANCE CALCULATIONS WERE OMITTED (ROCKET)')
 99025 format (/' AN ASSIGNED AREA RATIO IS < 1 (ROCKET)' )
       end subroutine rocket
-      subroutine search(nc,nlm,jx,s,h0,deln,a,tg,thdate,ngc,cft,ifz,mw,temp,nonly,prod,nomit,omit,elmt,ng,coef,jcm,ngp1,nspx,symbol,atmwt,atwt,cp,short,ntape)
-      use params_cea_inc, only : iotrn, iosch, maxnc, iothm, maxel, maxngc, maxng, ioout
+      subroutine search(nc,nlm,jx,s,h0,deln,a,tg,thdate,ngc,cft,ifz,mw,temp,nonly,prod,nomit,omit, &
+      elmt,ng,coef,jcm,ngp1,nspx,symbol,atmwt,atwt,cp,short,ntape)
+      use params_cea_inc, only : maxel, iothm, ioout, maxng, iosch, iotrn, maxnc, maxngc
       implicit none
       integer :: nc
       integer :: nlm
@@ -5428,7 +5659,8 @@
       real(kind=8) :: t2
       real(kind=8), dimension(1:9,1:3) :: thermo
       real(kind=8), dimension(1:36) :: trdata
-      save b,bin,date,el,i,i5,ifaz,ii,ir,itot,j,jj,jk,k,lineb,nall,ne,  nint,npure,nrec,ntgas,ntot,pure,spece,sub,t1,t2,thermo,trdata
+      save b,bin,date,el,i,i5,ifaz,ii,ir,itot,j,jj,jk,k,lineb,nall,ne,  nint,npure,nrec,ntgas,ntot, &
+      pure,spece,sub,t1,t2,thermo,trdata
       nc = 0
       ne = 0
       do i = 1,nlm
@@ -5570,7 +5802,8 @@
  400  write (ioout,99005)
       ngc = 0
       goto 600
-      entry readtr(nc,nlm,jx,s,h0,deln,a,tg,thdate,ngc,cft,ifz,mw,temp,nonly,prod,nomit,omit,elmt,ng,coef,jcm,ngp1,nspx,symbol,atmwt,atwt,cp,short,ntape)
+      entry readtr(nc,nlm,jx,s,h0,deln,a,tg,thdate,ngc,cft,ifz,mw,temp,nonly,prod,nomit,omit,elmt, &
+      ng,coef,jcm,ngp1,nspx,symbol,atmwt,atwt,cp,short,ntape)
       rewind iotrn
       rewind iosch
       ntape = 0
@@ -5621,17 +5854,22 @@
       write (ioout,99010)
  600  return
 99001 format (/' WARNING!!  ',a15,' NOT A PRODUCT IN thermo.lib FILE ',        '(SEARCH)')
-99002 format (/' PRODUCT SPECIES CONTAINING THE ELEMENT',a3,' MISSING',        //,13x,'FATAL ERROR (SEARCH)')
-99003 format (/2x,'SPECIES BEING CONSIDERED IN THIS SYSTEM',        /' (CONDENSED PHASE MAY HAVE NAME LISTED SEVERAL TIMES)',        /'  LAST thermo.inp UPDATE: ',a10,/)
+99002 format (/' PRODUCT SPECIES CONTAINING THE ELEMENT',a3,' MISSING',        //,13x, &
+      'FATAL ERROR (SEARCH)')
+99003 format (/2x,'SPECIES BEING CONSIDERED IN THIS SYSTEM', &
+              /' (CONDENSED PHASE MAY HAVE NAME LISTED SEVERAL TIMES)', &
+              /'  LAST thermo.inp UPDATE: ',a10,/)
 99004 format (3(2x,a6,2x,a15))
-99005 format (/' INSUFFICIENT STORAGE FOR PRODUCTS-SEE RP-1311,',        /'   PART 2, PAGE 39. (SEARCH)')
+99005 format (/' INSUFFICIENT STORAGE FOR PRODUCTS-SEE RP-1311,',        /'   PART 2, &
+       PAGE 39. (SEARCH)')
 99006 format (/' SPECIES WITH TRANSPORT PROPERTIES'//8x,'PURE SPECIES'/)
 99007 format (4(2x,a16))
 99008 format (/'     BINARY INTERACTIONS'/)
 99009 format (5x,2a16)
 99010 format ()
       end subroutine search
-      subroutine seten(isv,ttt,ensave,enn,enlsav,ennl,lsave,ng,sln,enln,en,npt,npr,ngp1,ngc,jliq,jsol,tt,jcond,tp,sumn)
+      subroutine seten(isv,ttt,ensave,enn,enlsav,ennl,lsave,ng,sln,enln,en,npt,npr,ngp1,ngc,jliq, &
+      jsol,tt,jcond,tp,sumn)
       use params_cea_inc, only : maxngc, ncol
       implicit none
       integer, intent(InOut) :: isv
@@ -5719,8 +5957,17 @@
         enddo
       endif
       end subroutine seten
-      subroutine shck(trace,tp,cpmix,short,incdeq,incdfz,refleq,reflfz,t,rtemp,nsk,u1,mach1,oxfl,oxf,pp,p,tt,dlvtp,dlvpt,npt,ppp,ttt,ssum,hsum,tg,hsub0,gamma1,wmix,a1,rr,wm,cpr,gammas,vlm,eql,fmt,hp,shkdbg,tln,cpsum,ng,en,h0,g,x,ngc,s,trnspt,isv,massf,nreac,jray,mw,prod,iplt,nof,eqrat,vmin,vpls,nlm,b0,b0p,bcheck,am,size,hpp,jsol,jliq,vol,jcm,tm,nspr,nspx,fox,rname,nfla,ratom,rnum,coef,energy,moles,pecwt,wp,rmw,cp,case,siunit,enth,r,rh,page1,rkt,iopt,nplt,pltvar,gonly,pltout,totn,sonvel,omit,vis,coneql,preql,confro,prfro,cpeql,cpfro,pderiv,convg,npr,jcond,ifz,temp,nc,enln,deln,enn,vv,lsave,a,ions,shock,elmt,debug,iq1,imat,msing,mu,ennl,sumn,sp,s0,ngp1,jx,atwt,cft,nm,eta,wmol,xs,con,nr,stc,ind,cprr,nfz,ntape,boltz,avgdr,pi,viscns,ensave,enlsav,sln)
-      use params_cea_inc, only : maxtr, maxt, maxmat, maxpv, ioout, maxngc, maxel, maxnc, maxr, maxng, ncol, maxmix
+      subroutine shck(trace,tp,cpmix,short,incdeq,incdfz,refleq,reflfz,t,rtemp,nsk,u1,mach1,oxfl, &
+      oxf,pp,p,tt,dlvtp,dlvpt,npt,ppp,ttt,ssum,hsum,tg,hsub0,gamma1,wmix,a1,rr,wm,cpr,gammas,vlm, &
+      eql,fmt,hp,shkdbg,tln,cpsum,ng,en,h0,g,x,ngc,s,trnspt,isv,massf,nreac,jray,mw,prod,iplt,nof, &
+      eqrat,vmin,vpls,nlm,b0,b0p,bcheck,am,size,hpp,jsol,jliq,vol,jcm,tm,nspr,nspx,fox,rname,nfla, &
+      ratom,rnum,coef,energy,moles,pecwt,wp,rmw,cp,case,siunit,enth,r,rh,page1,rkt,iopt,nplt, &
+      pltvar,gonly,pltout,totn,sonvel,omit,vis,coneql,preql,confro,prfro,cpeql,cpfro,pderiv,convg, &
+      npr,jcond,ifz,temp,nc,enln,deln,enn,vv,lsave,a,ions,shock,elmt,debug,iq1,imat,msing,mu,ennl, &
+      sumn,sp,s0,ngp1,jx,atwt,cft,nm,eta,wmol,xs,con,nr,stc,ind,cprr,nfz,ntape,boltz,avgdr,pi, &
+      viscns,ensave,enlsav,sln)
+      use params_cea_inc, only : maxmix, maxng, maxt, maxr, ioout, maxnc, maxmat, maxngc, ncol, &
+       maxtr, maxpv, maxel
       implicit none
       real(kind=8), intent(InOut) :: trace
       logical, intent(Out) :: tp
@@ -5922,7 +6169,9 @@
       real(kind=8) :: dexp
       real(kind=8) :: dlog
       real(kind=8) :: dmin1
-      save ax,axx,b2,cormax,cr12,cr52,gg,hs,i,iof,it1,it2,itr,j,m2m1,  mis,mu12rt,n,p1,p21,p21l,p2p1,pmn,refl,rho12,rho52,rrho,seql,sg,  srefl,t1,t21,t21l,t2t1,ttmax,u1u2,uis,utwo,uu,wmx,ww
+      save ax,axx,b2,cormax,cr12,cr52,gg,hs,i,iof,it1,it2,itr,j,m2m1,  mis,mu12rt,n,p1,p21,p21l, &
+      p2p1,pmn,refl,rho12,rho52,rrho,seql,sg,  srefl,t1,t21,t21l,t2t1,ttmax,u1u2,uis,utwo,uu,wmx, &
+      ww
       if ( trace == 0. ) trace = 5.e-9
       tp = .true.
       cpmix = 0.
@@ -5950,7 +6199,8 @@
       iof = 0
  200  iof = iof + 1
       oxfl = oxf(iof)
-      call newof(short,oxfl,eqrat,vmin,vpls,nlm,b0,b0p,bcheck,am,wmix,npt,size,hsub0,hpp,jsol,jliq,vol,jcm,prod)
+      call newof(short,oxfl,eqrat,vmin,vpls,nlm,b0,b0p,bcheck,am,wmix,npt,size,hsub0,hpp,jsol,jliq, &
+      vol,jcm,prod)
       incdeq = seql
  300  refl = .false.
       it2 = 2
@@ -5976,7 +6226,8 @@
         pp = ppp(npt)
         tt = ttt(npt)
         if ( tt >= tg(1)*.8d0 ) then
-          call hcalc(tt,tm,pp,wmix,ssum,npt,hpp,hsub0,cpmix,oxfl,nspr,nspx,nreac,fox,rtemp,jray,ngc,prod,rname,ng,tg,mw,nfla,ratom,rnum,coef,energy,moles,pecwt,wp,rmw,tln,en,s,h0,cp)
+          call hcalc(tt,tm,pp,wmix,ssum,npt,hpp,hsub0,cpmix,oxfl,nspr,nspx,nreac,fox,rtemp,jray,ngc, &
+      prod,rname,ng,tg,mw,nfla,ratom,rnum,coef,energy,moles,pecwt,wp,rmw,tln,en,s,h0,cp)
           hsum(npt) = hsub0
         else
           write (ioout,99016) tt,npt
@@ -5999,7 +6250,10 @@
         write (ioout,99007)
       endif
       eql = .false.
-      call out1(case,moles,siunit,nreac,enth,fox,pecwt,r,rname,rtemp,oxfl,vmin,vpls,rh,eqrat,page1,rkt,iopt,nplt,pltvar,gonly,iplt,npt,pltout,fmt,ppp,x,ttt,vlm,hsum,rr,ssum,wm,totn,cpr,gammas,dlvtp,dlvpt,eql,sonvel,trace,massf,ngc,ng,prod,mw,en,omit,tg,short,vis,coneql,preql,confro,prfro,cpeql,cpfro)
+      call out1(case,moles,siunit,nreac,enth,fox,pecwt,r,rname,rtemp,oxfl,vmin,vpls,rh,eqrat,page1, &
+      rkt,iopt,nplt,pltvar,gonly,iplt,npt,pltout,fmt,ppp,x,ttt,vlm,hsum,rr,ssum,wm,totn,cpr, &
+      gammas,dlvtp,dlvpt,eql,sonvel,trace,massf,ngc,ng,prod,mw,en,omit,tg,short,vis,coneql,preql, &
+      confro,prfro,cpeql,cpfro)
       write (ioout,99009)
       fmt(4) = '13'
       fmt(5) = ' '
@@ -6007,7 +6261,10 @@
       write (ioout,fmt) 'MACH NUMBER1   ',(mach1(j),j=1,npt)
       fmt(7) = '2,'
       write (ioout,fmt) 'U1, M/SEC      ',(u1(j),j=1,npt)
-      call out2(case,moles,siunit,nreac,enth,fox,pecwt,r,rname,rtemp,oxfl,vmin,vpls,rh,eqrat,page1,rkt,iopt,nplt,pltvar,gonly,iplt,npt,pltout,fmt,ppp,x,ttt,vlm,hsum,rr,ssum,wm,totn,cpr,gammas,dlvtp,dlvpt,eql,sonvel,trace,massf,ngc,ng,prod,mw,en,omit,tg,short,vis,coneql,preql,confro,prfro,cpeql,cpfro)
+      call out2(case,moles,siunit,nreac,enth,fox,pecwt,r,rname,rtemp,oxfl,vmin,vpls,rh,eqrat,page1, &
+      rkt,iopt,nplt,pltvar,gonly,iplt,npt,pltout,fmt,ppp,x,ttt,vlm,hsum,rr,ssum,wm,totn,cpr, &
+      gammas,dlvtp,dlvpt,eql,sonvel,trace,massf,ngc,ng,prod,mw,en,omit,tg,short,vis,coneql,preql, &
+      confro,prfro,cpeql,cpfro)
       if ( incdeq ) eql = .true.
       npt = 1
  400  gamma1 = gammas(npt)
@@ -6031,7 +6288,10 @@
           tp = .false.
           hp = .true.
           hsub0 = hs + uu**2/(2.*rr)
-          call eqlbrm(nlm,size,trace,ngc,pderiv,convg,tp,tt,npr,t,jcond,ng,ifz,temp,en,npt,prod,short,nc,enln,deln,tln,vol,pp,enn,rr,vv,tm,lsave,a,ions,shock,elmt,debug,cpsum,cp,iq1,imat,g,msing,x,h0,mu,ennl,s,totn,sumn,hp,b0,bcheck,dlvtp,cpr,dlvpt,jliq,gammas,jsol,hsum,ssum,sp,s0,tg,ngp1,mw,jx,jcm,b0p,nspx,atwt,ttt,ppp,vlm,wm,gonly,coef,cft,hsub0)
+          call eqlbrm(nlm,size,trace,ngc,pderiv,convg,tp,tt,npr,t,jcond,ng,ifz,temp,en,npt,prod, &
+      short,nc,enln,deln,tln,vol,pp,enn,rr,vv,tm,lsave,a,ions,shock,elmt,debug,cpsum,cp,iq1,imat, &
+      g,msing,x,h0,mu,ennl,s,totn,sumn,hp,b0,bcheck,dlvtp,cpr,dlvpt,jliq,gammas,jsol,hsum,ssum,sp, &
+      s0,tg,ngp1,mw,jx,jcm,b0p,nspx,atwt,ttt,ppp,vlm,wm,gonly,coef,cft,hsub0)
           t21 = ttt(npt)/t1
           hp = .false.
           tp = .true.
@@ -6048,12 +6308,14 @@
       if ( .not.eql ) then
         tln = dlog(tt)
         if ( .not.incdeq ) then
-          call hcalc(tt,tm,pp,wmix,ssum,npt,hpp,hsub0,cpmix,oxfl,nspr,nspx,nreac,fox,rtemp,jray,ngc,prod,rname,ng,tg,mw,nfla,ratom,rnum,coef,energy,moles,pecwt,wp,rmw,tln,en,s,h0,cp)
+          call hcalc(tt,tm,pp,wmix,ssum,npt,hpp,hsub0,cpmix,oxfl,nspr,nspx,nreac,fox,rtemp,jray,ngc, &
+      prod,rname,ng,tg,mw,nfla,ratom,rnum,coef,energy,moles,pecwt,wp,rmw,tln,en,s,h0,cp)
           if ( tt == 0. ) goto 600
           hsum(npt) = hsub0
           cpr(npt) = cpmix
         else
           call cphs(tg,tt,tln,ng,h0,s,coef,convg,tp,cp,ngc,npr,jcond,cft,nc)
+
           cpr(npt) = cpsum
           hsum(npt) = 0.
           do j = 1,ng
@@ -6062,7 +6324,10 @@
           hsum(npt) = hsum(npt)*tt
         endif
       else
-        call eqlbrm(nlm,size,trace,ngc,pderiv,convg,tp,tt,npr,t,jcond,ng,ifz,temp,en,npt,prod,short,nc,enln,deln,tln,vol,pp,enn,rr,vv,tm,lsave,a,ions,shock,elmt,debug,cpsum,cp,iq1,imat,g,msing,x,h0,mu,ennl,s,totn,sumn,hp,b0,bcheck,dlvtp,cpr,dlvpt,jliq,gammas,jsol,hsum,ssum,sp,s0,tg,ngp1,mw,jx,jcm,b0p,nspx,atwt,ttt,ppp,vlm,wm,gonly,coef,cft,hsub0)
+        call eqlbrm(nlm,size,trace,ngc,pderiv,convg,tp,tt,npr,t,jcond,ng,ifz,temp,en,npt,prod,short, &
+      nc,enln,deln,tln,vol,pp,enn,rr,vv,tm,lsave,a,ions,shock,elmt,debug,cpsum,cp,iq1,imat,g, &
+      msing,x,h0,mu,ennl,s,totn,sumn,hp,b0,bcheck,dlvtp,cpr,dlvpt,jliq,gammas,jsol,hsum,ssum,sp, &
+      s0,tg,ngp1,mw,jx,jcm,b0p,nspx,atwt,ttt,ppp,vlm,wm,gonly,coef,cft,hsub0)
         if ( tt == 0. ) goto 800
       endif
       rho12 = wmx*t21/(wm(npt)*p21)
@@ -6143,12 +6408,15 @@
       tt = 0.
  800  if ( npt < 1 ) goto 1000
       nsk = npt
- 900 call tranp(nm,confro,npt,vis,eta,wmol,xs,con,eql,nr,lsave,jcm,h0,stc,ind,g,imat,r,x,cpfro,cprr,siunit,prfro,cpeql,coneql,preql,shock,incdeq,nreac,jray,mw,en,wm,ngc,enln,ennl,ng,nfz,a,ntape,tt,tln,ions,boltz,avgdr,pi,rr,cp,nlm,viscns,msing)
+ 900 call tranp(nm,confro,npt,vis,eta,wmol,xs,con,eql,nr,lsave,jcm,h0,stc,ind,g,imat,r,x,cpfro,cprr, &
+      siunit,prfro,cpeql,coneql,preql,shock,incdeq,nreac,jray,mw,en,wm,ngc,enln,ennl,ng,nfz,a, &
+      ntape,tt,tln,ions,boltz,avgdr,pi,rr,cp,nlm,viscns,msing)
       isv = 0
       if ( npt < nsk ) isv = npt
       if ( npt == 1 ) isv = -1
       npt = npt + 1
-      call seten(isv,ttt,ensave,enn,enlsav,ennl,lsave,ng,sln,enln,en,npt,npr,ngp1,ngc,jliq,jsol,tt,jcond,tp,sumn)
+      call seten(isv,ttt,ensave,enn,enlsav,ennl,lsave,ng,sln,enln,en,npt,npr,ngp1,ngc,jliq,jsol,tt, &
+      jcond,tp,sumn)
       if ( npt <= nsk ) goto 400
       npt = nsk
       if ( refl ) then
@@ -6164,8 +6432,14 @@
       endif
       fmt(7) = '2,'
       write (ioout,fmt) 'U'//cr52//', M/SEC      ',(utwo(j),j=1,npt)
-      call out2(case,moles,siunit,nreac,enth,fox,pecwt,r,rname,rtemp,oxfl,vmin,vpls,rh,eqrat,page1,rkt,iopt,nplt,pltvar,gonly,iplt,npt,pltout,fmt,ppp,x,ttt,vlm,hsum,rr,ssum,wm,totn,cpr,gammas,dlvtp,dlvpt,eql,sonvel,trace,massf,ngc,ng,prod,mw,en,omit,tg,short,vis,coneql,preql,confro,prfro,cpeql,cpfro)
-      call out4(case,moles,siunit,nreac,enth,fox,pecwt,r,rname,rtemp,oxfl,vmin,vpls,rh,eqrat,page1,rkt,iopt,nplt,pltvar,gonly,iplt,npt,pltout,fmt,ppp,x,ttt,vlm,hsum,rr,ssum,wm,totn,cpr,gammas,dlvtp,dlvpt,eql,sonvel,trace,massf,ngc,ng,prod,mw,en,omit,tg,short,vis,coneql,preql,confro,prfro,cpeql,cpfro)
+      call out2(case,moles,siunit,nreac,enth,fox,pecwt,r,rname,rtemp,oxfl,vmin,vpls,rh,eqrat,page1, &
+      rkt,iopt,nplt,pltvar,gonly,iplt,npt,pltout,fmt,ppp,x,ttt,vlm,hsum,rr,ssum,wm,totn,cpr, &
+      gammas,dlvtp,dlvpt,eql,sonvel,trace,massf,ngc,ng,prod,mw,en,omit,tg,short,vis,coneql,preql, &
+      confro,prfro,cpeql,cpfro)
+      call out4(case,moles,siunit,nreac,enth,fox,pecwt,r,rname,rtemp,oxfl,vmin,vpls,rh,eqrat,page1, &
+      rkt,iopt,nplt,pltvar,gonly,iplt,npt,pltout,fmt,ppp,x,ttt,vlm,hsum,rr,ssum,wm,totn,cpr, &
+      gammas,dlvtp,dlvpt,eql,sonvel,trace,massf,ngc,ng,prod,mw,en,omit,tg,short,vis,coneql,preql, &
+      confro,prfro,cpeql,cpfro)
       write (ioout,99017)
       fmt(7) = '3,'
       write (ioout,fmt) 'P'//cr52//'/P'//cr12//'           ',              (p2p1(j),j=1,npt)
@@ -6192,11 +6466,17 @@
           enddo
         else
           eql = .true.
-          call out3(case,moles,siunit,nreac,enth,fox,pecwt,r,rname,rtemp,oxfl,vmin,vpls,rh,eqrat,page1,rkt,iopt,nplt,pltvar,gonly,iplt,npt,pltout,fmt,ppp,x,ttt,vlm,hsum,rr,ssum,wm,totn,cpr,gammas,dlvtp,dlvpt,eql,sonvel,trace,massf,ngc,ng,prod,mw,en,omit,tg,short,vis,coneql,preql,confro,prfro,cpeql,cpfro)
+          call out3(case,moles,siunit,nreac,enth,fox,pecwt,r,rname,rtemp,oxfl,vmin,vpls,rh,eqrat, &
+      page1,rkt,iopt,nplt,pltvar,gonly,iplt,npt,pltout,fmt,ppp,x,ttt,vlm,hsum,rr,ssum,wm,totn,cpr, &
+      gammas,dlvtp,dlvpt,eql,sonvel,trace,massf,ngc,ng,prod,mw,en,omit,tg,short,vis,coneql,preql, &
+      confro,prfro,cpeql,cpfro)
           eql = .false.
         endif
       else
-        call out3(case,moles,siunit,nreac,enth,fox,pecwt,r,rname,rtemp,oxfl,vmin,vpls,rh,eqrat,page1,rkt,iopt,nplt,pltvar,gonly,iplt,npt,pltout,fmt,ppp,x,ttt,vlm,hsum,rr,ssum,wm,totn,cpr,gammas,dlvtp,dlvpt,eql,sonvel,trace,massf,ngc,ng,prod,mw,en,omit,tg,short,vis,coneql,preql,confro,prfro,cpeql,cpfro)
+        call out3(case,moles,siunit,nreac,enth,fox,pecwt,r,rname,rtemp,oxfl,vmin,vpls,rh,eqrat, &
+      page1,rkt,iopt,nplt,pltvar,gonly,iplt,npt,pltout,fmt,ppp,x,ttt,vlm,hsum,rr,ssum,wm,totn,cpr, &
+      gammas,dlvtp,dlvpt,eql,sonvel,trace,massf,ngc,ng,prod,mw,en,omit,tg,short,vis,coneql,preql, &
+      confro,prfro,cpeql,cpfro)
       endif
       iplt = min(iplt+npt,500)
       if ( srefl ) then
@@ -6269,12 +6549,14 @@
 99007 format (/,16x,' EQUILIBRIUM COMPOSITION FOR INCIDENT SHOCKED',        ' CONDITIONS'//)
 99008 format (/,17x,' FROZEN COMPOSITION FOR INCIDENT SHOCKED',        ' CONDITI1ONS'//)
 99009 format (/' INITIAL GAS (1)')
-99010 format (/' ITR NO.=',i3,3x,'P',i1,'/P',i1,' =',f9.4,3x,'T',i1,        '/T',i1,' =',f9.4,'   RHO2/RHO1 =',f9.6)
+99010 format (/' ITR NO.=',i3,3x,'P',i1,'/P',i1,' =',f9.4,3x,'T',i1,        '/T',i1,' =',f9.4, &
+      '   RHO2/RHO1 =',f9.6)
 99011 format (/' G(I,J)  ',3e15.8)
 99012 format (/' X       ',2e15.8)
 99013 format (/' HSUM HS UU U2 ',4e15.8)
 99014 format (/' MAX.COR.=',e13.6,' X(1)=',e13.6,' X(2)=',e13.6)
-99015 format (/6x,' WARNING!!  NO CONVERGENCE FOR u1=',f8.1,        /'  ANSWERS NOT RELIABLE, SOLUTION MAY NOT EXIST (SHCK)')
+99015 format (/6x,' WARNING!!  NO CONVERGENCE FOR u1=',f8.1,        /'  ANSWERS NOT RELIABLE, &
+       SOLUTION MAY NOT EXIST (SHCK)')
 99016 format (/' TEMPERATURE=',e12.4,' IS OUT OF EXTENDED RANGE ',        'FOR POINT',i5,' (SHCK)')
 99017 format ()
 99018 format (/' SHOCKED GAS (2)--INCIDENT--FROZEN')
@@ -6284,8 +6566,16 @@
 99022 format (/1x,a4,' FRACTIONS'/)
 99023 format (' ',a16,f8.5,12f9.5)
       end subroutine shck
-      subroutine thermp(hp,tp,sp,eql,nof,oxfl,oxf,ip,np,pp,p,it,nt,vv,v,tt,t,npt,trnspt,isv,vol,iplt,short,eqrat,vmin,vpls,nlm,b0,b0p,bcheck,am,wmix,size,hsub0,hpp,jsol,jliq,jcm,prod,trace,ngc,pderiv,convg,npr,jcond,ng,ifz,temp,en,nc,enln,deln,tln,enn,rr,tm,lsave,a,ions,shock,elmt,debug,cpsum,cp,iq1,imat,g,msing,x,h0,mu,ennl,s,totn,sumn,dlvtp,cpr,dlvpt,gammas,hsum,ssum,s0,tg,ngp1,mw,jx,nspx,atwt,ttt,ppp,vlm,wm,gonly,coef,cft,nm,confro,vis,eta,wmol,xs,con,nr,stc,ind,r,cpfro,cprr,siunit,prfro,cpeql,coneql,preql,incdeq,nreac,jray,nfz,ntape,boltz,avgdr,pi,viscns,case,moles,enth,fox,pecwt,rname,rtemp,rh,page1,rkt,iopt,nplt,pltvar,pltout,fmt,sonvel,massf,omit,ensave,enlsav,sln)
-      use params_cea_inc, only : maxtr, maxpv, ioout, maxmat, maxt, maxnc, maxr, maxngc, maxel, maxng, maxmix, ncol
+      subroutine thermp(hp,tp,sp,eql,nof,oxfl,oxf,ip,np,pp,p,it,nt,vv,v,tt,t,npt,trnspt,isv,vol, &
+      iplt,short,eqrat,vmin,vpls,nlm,b0,b0p,bcheck,am,wmix,size,hsub0,hpp,jsol,jliq,jcm,prod, &
+      trace,ngc,pderiv,convg,npr,jcond,ng,ifz,temp,en,nc,enln,deln,tln,enn,rr,tm,lsave,a,ions, &
+      shock,elmt,debug,cpsum,cp,iq1,imat,g,msing,x,h0,mu,ennl,s,totn,sumn,dlvtp,cpr,dlvpt,gammas, &
+      hsum,ssum,s0,tg,ngp1,mw,jx,nspx,atwt,ttt,ppp,vlm,wm,gonly,coef,cft,nm,confro,vis,eta,wmol, &
+      xs,con,nr,stc,ind,r,cpfro,cprr,siunit,prfro,cpeql,coneql,preql,incdeq,nreac,jray,nfz,ntape, &
+      boltz,avgdr,pi,viscns,case,moles,enth,fox,pecwt,rname,rtemp,rh,page1,rkt,iopt,nplt,pltvar, &
+      pltout,fmt,sonvel,massf,omit,ensave,enlsav,sln)
+      use params_cea_inc, only : maxt, maxng, ioout, maxr, maxmix, maxpv, maxel, maxmat, maxngc, &
+       maxnc, maxtr, ncol
       implicit none
       logical, intent(In) :: hp
       logical, intent(In) :: tp
@@ -6441,18 +6731,24 @@
       eql = .true.
       do iof = 1,nof
         oxfl = oxf(iof)
-        call newof(short,oxfl,eqrat,vmin,vpls,nlm,b0,b0p,bcheck,am,wmix,npt,size,hsub0,hpp,jsol,jliq,vol,jcm,prod)
+        call newof(short,oxfl,eqrat,vmin,vpls,nlm,b0,b0p,bcheck,am,wmix,npt,size,hsub0,hpp,jsol, &
+      jliq,vol,jcm,prod)
         do ip = 1,np
           pp = p(ip)
           do it = 1,nt
             vv = v(ip)
             tt = t(it)
-            call eqlbrm(nlm,size,trace,ngc,pderiv,convg,tp,tt,npr,t,jcond,ng,ifz,temp,en,npt,prod,short,nc,enln,deln,tln,vol,pp,enn,rr,vv,tm,lsave,a,ions,shock,elmt,debug,cpsum,cp,iq1,imat,g,msing,x,h0,mu,ennl,s,totn,sumn,hp,b0,bcheck,dlvtp,cpr,dlvpt,jliq,gammas,jsol,hsum,ssum,sp,s0,tg,ngp1,mw,jx,jcm,b0p,nspx,atwt,ttt,ppp,vlm,wm,gonly,coef,cft,hsub0)
+            call eqlbrm(nlm,size,trace,ngc,pderiv,convg,tp,tt,npr,t,jcond,ng,ifz,temp,en,npt,prod, &
+      short,nc,enln,deln,tln,vol,pp,enn,rr,vv,tm,lsave,a,ions,shock,elmt,debug,cpsum,cp,iq1,imat, &
+      g,msing,x,h0,mu,ennl,s,totn,sumn,hp,b0,bcheck,dlvtp,cpr,dlvpt,jliq,gammas,jsol,hsum,ssum,sp, &
+      s0,tg,ngp1,mw,jx,jcm,b0p,nspx,atwt,ttt,ppp,vlm,wm,gonly,coef,cft,hsub0)
       tv = tp
       uv = hp
       sv = sp
             if ( npt == 0 ) goto 200
-            call tranp(nm,confro,npt,vis,eta,wmol,xs,con,eql,nr,lsave,jcm,h0,stc,ind,g,imat,r,x,cpfro,cprr,siunit,prfro,cpeql,coneql,preql,shock,incdeq,nreac,jray,mw,en,wm,ngc,enln,ennl,ng,nfz,a,ntape,tt,tln,ions,boltz,avgdr,pi,rr,cp,nlm,viscns,msing)
+            call tranp(nm,confro,npt,vis,eta,wmol,xs,con,eql,nr,lsave,jcm,h0,stc,ind,g,imat,r,x, &
+      cpfro,cprr,siunit,prfro,cpeql,coneql,preql,shock,incdeq,nreac,jray,mw,en,wm,ngc,enln,ennl, &
+      ng,nfz,a,ntape,tt,tln,ions,boltz,avgdr,pi,rr,cp,nlm,viscns,msing)
             isv = 0
             if ( ip /= np.or.it /= nt.and.tt /= 0. ) then
               isv = npt
@@ -6469,11 +6765,23 @@
               if ( tv ) write (ioout,99004)
               if ( sv ) write (ioout,99005)
             endif
-            call out1(case,moles,siunit,nreac,enth,fox,pecwt,r,rname,rtemp,oxfl,vmin,vpls,rh,eqrat,page1,rkt,iopt,nplt,pltvar,gonly,iplt,npt,pltout,fmt,ppp,x,ttt,vlm,hsum,rr,ssum,wm,totn,cpr,gammas,dlvtp,dlvpt,eql,sonvel,trace,massf,ngc,ng,prod,mw,en,omit,tg,short,vis,coneql,preql,confro,prfro,cpeql,cpfro)
+            call out1(case,moles,siunit,nreac,enth,fox,pecwt,r,rname,rtemp,oxfl,vmin,vpls,rh,eqrat, &
+      page1,rkt,iopt,nplt,pltvar,gonly,iplt,npt,pltout,fmt,ppp,x,ttt,vlm,hsum,rr,ssum,wm,totn,cpr, &
+      gammas,dlvtp,dlvpt,eql,sonvel,trace,massf,ngc,ng,prod,mw,en,omit,tg,short,vis,coneql,preql, &
+      confro,prfro,cpeql,cpfro)
             write (ioout,99009)
-            call out2(case,moles,siunit,nreac,enth,fox,pecwt,r,rname,rtemp,oxfl,vmin,vpls,rh,eqrat,page1,rkt,iopt,nplt,pltvar,gonly,iplt,npt,pltout,fmt,ppp,x,ttt,vlm,hsum,rr,ssum,wm,totn,cpr,gammas,dlvtp,dlvpt,eql,sonvel,trace,massf,ngc,ng,prod,mw,en,omit,tg,short,vis,coneql,preql,confro,prfro,cpeql,cpfro)
-            call out4(case,moles,siunit,nreac,enth,fox,pecwt,r,rname,rtemp,oxfl,vmin,vpls,rh,eqrat,page1,rkt,iopt,nplt,pltvar,gonly,iplt,npt,pltout,fmt,ppp,x,ttt,vlm,hsum,rr,ssum,wm,totn,cpr,gammas,dlvtp,dlvpt,eql,sonvel,trace,massf,ngc,ng,prod,mw,en,omit,tg,short,vis,coneql,preql,confro,prfro,cpeql,cpfro)
-            call out3(case,moles,siunit,nreac,enth,fox,pecwt,r,rname,rtemp,oxfl,vmin,vpls,rh,eqrat,page1,rkt,iopt,nplt,pltvar,gonly,iplt,npt,pltout,fmt,ppp,x,ttt,vlm,hsum,rr,ssum,wm,totn,cpr,gammas,dlvtp,dlvpt,eql,sonvel,trace,massf,ngc,ng,prod,mw,en,omit,tg,short,vis,coneql,preql,confro,prfro,cpeql,cpfro)
+            call out2(case,moles,siunit,nreac,enth,fox,pecwt,r,rname,rtemp,oxfl,vmin,vpls,rh,eqrat, &
+      page1,rkt,iopt,nplt,pltvar,gonly,iplt,npt,pltout,fmt,ppp,x,ttt,vlm,hsum,rr,ssum,wm,totn,cpr, &
+      gammas,dlvtp,dlvpt,eql,sonvel,trace,massf,ngc,ng,prod,mw,en,omit,tg,short,vis,coneql,preql, &
+      confro,prfro,cpeql,cpfro)
+            call out4(case,moles,siunit,nreac,enth,fox,pecwt,r,rname,rtemp,oxfl,vmin,vpls,rh,eqrat, &
+      page1,rkt,iopt,nplt,pltvar,gonly,iplt,npt,pltout,fmt,ppp,x,ttt,vlm,hsum,rr,ssum,wm,totn,cpr, &
+      gammas,dlvtp,dlvpt,eql,sonvel,trace,massf,ngc,ng,prod,mw,en,omit,tg,short,vis,coneql,preql, &
+      confro,prfro,cpeql,cpfro)
+            call out3(case,moles,siunit,nreac,enth,fox,pecwt,r,rname,rtemp,oxfl,vmin,vpls,rh,eqrat, &
+      page1,rkt,iopt,nplt,pltvar,gonly,iplt,npt,pltout,fmt,ppp,x,ttt,vlm,hsum,rr,ssum,wm,totn,cpr, &
+      gammas,dlvtp,dlvpt,eql,sonvel,trace,massf,ngc,ng,prod,mw,en,omit,tg,short,vis,coneql,preql, &
+      confro,prfro,cpeql,cpfro)
             iplt = min(iplt+npt,500)
             if ( isv == 0.and.iof == nof ) goto 200
             write (ioout,99010)
@@ -6485,7 +6793,8 @@
             if ( nt /= 1 ) then
               if ( it == nt.or.tt == 0. ) isv = 0
             endif
-            call seten(isv,ttt,ensave,enn,enlsav,ennl,lsave,ng,sln,enln,en,npt,npr,ngp1,ngc,jliq,jsol,tt,jcond,tp,sumn)
+            call seten(isv,ttt,ensave,enn,enlsav,ennl,lsave,ng,sln,enln,en,npt,npr,ngp1,ngc,jliq, &
+      jsol,tt,jcond,tp,sumn)
       tv = tp
           enddo
         enddo
@@ -6503,8 +6812,9 @@
 99009 format (/' THERMODYNAMIC PROPERTIES'/)
 99010 format (////)
       end subroutine thermp
-      subroutine tranin(eql,shock,nm,xs,wmol,ind,incdeq,npt,nreac,jray,mw,en,wm,lsave,jcm,ngc,enln,ennl,ng,nfz,nr,stc,a,con,eta,ntape,tt,tln,ions,boltz,avgdr,pi,rr,cprr,cp,nlm,viscns)
-      use params_cea_inc, only : ncol, iosch, ioout, maxr, maxel, maxtr, maxngc
+      subroutine tranin(eql,shock,nm,xs,wmol,ind,incdeq,npt,nreac,jray,mw,en,wm,lsave,jcm,ngc,enln, &
+      ennl,ng,nfz,nr,stc,a,con,eta,ntape,tt,tln,ions,boltz,avgdr,pi,rr,cprr,cp,nlm,viscns)
+      use params_cea_inc, only : maxngc, maxtr, ncol, iosch, ioout, maxel, maxr
       implicit none
       logical, intent(In) :: eql
       logical, intent(In) :: shock
@@ -6592,7 +6902,9 @@
       real(kind=8) :: dexp
       real(kind=8) :: dlog
       real(kind=8) :: dsqrt
-      save change,coeff,debye,ekt,elc1,elc2,enel,enmin,i,ii,inds,ion1,  ion2,ionic,ir,j,jtape,k,k1,k2,kt,kvc,l,lamda,loop,m,nms,omega,  prop,qc,ratio,setx,stcf,stcoef,te,testen,testot,total,trc,wmols,  wmred,xsel,xss
+      save change,coeff,debye,ekt,elc1,elc2,enel,enmin,i,ii,inds,ion1,  ion2,ionic,ir,j,jtape,k,k1, &
+      k2,kt,kvc,l,lamda,loop,m,nms,omega,  prop,qc,ratio,setx,stcf,stcoef,te,testen,testot,total, &
+      trc,wmols,  wmred,xsel,xss
       if ( .not.eql ) then
         if ( .not.shock ) then
           if ( .not.setx ) then
@@ -6744,7 +7056,8 @@
                       if ( tt > trc(2,2,kvc) ) kt = 3
                     endif
                   endif
-                  prop = exp(trc(6,kt,kvc)                   +(trc(5,kt,kvc)/tt+trc(4,kt,kvc))                   /tt+trc(3,kt,kvc)*tln)
+                  prop = exp(trc(6,kt,kvc)                   +(trc(5,kt,kvc)/tt+trc(4,kt, &
+      kvc))                   /tt+trc(3,kt,kvc)*tln)
                   if ( kvc == 2 ) then
                     con(l) = prop
                     goto 400
@@ -6788,7 +7101,8 @@
             omega = max(omega,1.d0)
             eta(i,i) = viscns*dsqrt(wmol(i)*tt)/omega
           endif
-          if ( con(i) == 0.d0 ) con(i) = eta(i,i)         *rr*(.00375d0+.00132d0*(cprr(i)-2.5d0))/wmol(i)
+          if ( con(i) == 0.d0 ) con(i) = eta(i, &
+      i)         *rr*(.00375d0+.00132d0*(cprr(i)-2.5d0))/wmol(i)
         endif
       enddo
       do i = 1,nm
@@ -6810,14 +7124,16 @@
               if ( wmol(j) < 1.0 ) elc2 = .true.
               if ( ion1.and.ion2 ) omega = 1.36d0*qc*dlog(lamda)
               if ( (ion1.and.elc2).or.(ion2.and.elc1) )             omega = 1.29d0*qc*dlog(lamda)
-              if ( (ion1.and..not.ion2).or.(ion2.and..not.ion1) )             omega = exp(6.776-0.4*tln)
+              if ( (ion1.and..not.ion2).or.(ion2.and..not.ion1) )             omega =  &
+      exp(6.776-0.4*tln)
               if ( omega /= 0. ) then
                 wmred = dsqrt(2.0*tt*wmol(i)*wmol(j)/(wmol(i)+wmol(j)))
                 eta(i,j) = viscns*wmred*pi/omega
                 eta(j,i) = eta(i,j)
                 if ( i == j ) then
                   cprr(i) = cp(k1)
-                  con(i) = eta(i,i)                     *rr*(.00375d0+.00132d0*(cprr(i)-2.5d0))                     /wmol(i)
+                  con(i) = eta(i, &
+      i)                     *rr*(.00375d0+.00132d0*(cprr(i)-2.5d0))                     /wmol(i)
                 endif
                 goto 450
               endif
@@ -6831,10 +7147,13 @@
       end do
       enddo
       return
-99001 format (/' WARNING!!  MAXIMUM ALLOWED NO. OF SPECIES',i3,        ' WAS USED IN ',        /' TRANSPORT PROPERTY CALCULATIONS FOR POINT',i3,        '(TRANIN))')
+99001 format (/' WARNING!!  MAXIMUM ALLOWED NO. OF SPECIES',i3,        ' WAS USED IN ', &
+              /' TRANSPORT PROPERTY CALCULATIONS FOR POINT',i3,        '(TRANIN))')
       end subroutine tranin
-      subroutine tranp(nm,confro,npt,vis,eta,wmol,xs,con,eql,nr,lsave,jcm,h0,stc,ind,g,imat,r,x,cpfro,cprr,siunit,prfro,cpeql,coneql,preql,shock,incdeq,nreac,jray,mw,en,wm,ngc,enln,ennl,ng,nfz,a,ntape,tt,tln,ions,boltz,avgdr,pi,rr,cp,nlm,viscns,msing)
-      use params_cea_inc, only : maxtr, maxngc, maxel, maxmat, maxr, ncol
+      subroutine tranp(nm,confro,npt,vis,eta,wmol,xs,con,eql,nr,lsave,jcm,h0,stc,ind,g,imat,r,x, &
+      cpfro,cprr,siunit,prfro,cpeql,coneql,preql,shock,incdeq,nreac,jray,mw,en,wm,ngc,enln,ennl, &
+      ng,nfz,a,ntape,tt,tln,ions,boltz,avgdr,pi,rr,cp,nlm,viscns,msing)
+      use params_cea_inc, only : maxtr, ncol, maxmat, maxngc, maxr, maxel
       implicit none
       integer, intent(InOut) :: nm
       real(kind=8), dimension(1:ncol), intent(InOut) :: confro
@@ -6910,8 +7229,10 @@
       real(kind=8) :: wtmol
       real(kind=8), dimension(1:maxtr,1:maxtr) :: xskm
       real(kind=8) :: dabs
-      save cpreac,delh,gmat,i,i1,j,jj,k,m,mm,nlmm,nmm,phi,psi,reacon,  rtpd,stx,stxij,sumc,sumv,wtmol,xskm
-      call tranin(eql,shock,nm,xs,wmol,ind,incdeq,npt,nreac,jray,mw,en,wm,lsave,jcm,ngc,enln,ennl,ng,nfz,nr,stc,a,con,eta,ntape,tt,tln,ions,boltz,avgdr,pi,rr,cprr,cp,nlm,viscns)
+      save cpreac,delh,gmat,i,i1,j,jj,k,m,mm,nlmm,nmm,phi,psi,reacon,  rtpd,stx,stxij,sumc,sumv, &
+      wtmol,xskm
+      call tranin(eql,shock,nm,xs,wmol,ind,incdeq,npt,nreac,jray,mw,en,wm,lsave,jcm,ngc,enln,ennl, &
+      ng,nfz,nr,stc,a,con,eta,ntape,tt,tln,ions,boltz,avgdr,pi,rr,cprr,cp,nlm,viscns)
       nmm = nm - 1
       do i = 1,nm
         rtpd(i,i) = 0.d0
@@ -6927,8 +7248,12 @@
           phi(i,j) = sumc*wmol(j)*eta(i,i)
           phi(j,i) = sumc*wmol(i)*eta(j,j)
           sumc = (wmol(i)+wmol(j))**2
-          psi(i,j) = phi(i,j)               *(1.d0+2.41d0*(wmol(i)-wmol(j))*(wmol(i)-.142d0*               wmol(j))/sumc)
-          psi(j,i) = phi(j,i)               *(1.d0+2.41d0*(wmol(j)-wmol(i))*(wmol(j)-.142d0*               wmol(i))/sumc)
+          psi(i,j) = phi(i, &
+      j)               *(1.d0+2.41d0*(wmol(i)-wmol(j))*(wmol(i)-.142d0*                &
+      wmol(j))/sumc)
+          psi(j,i) = phi(j, &
+      i)               *(1.d0+2.41d0*(wmol(j)-wmol(i))*(wmol(j)-.142d0*                &
+      wmol(i))/sumc)
         enddo
       enddo
       do i = 1,nm
@@ -6983,7 +7308,8 @@
             if ( xs(k) >= 1.0d-10.and.xs(m) >= 1.0d-10 ) then
               do j = 1,nr
                 if ( (stc(j,k) == 0.d0).and.(stc(j,m) == 0.d0) ) stx(j)               = 0.d0
-                if ( (stc(j,k) /= 0.d0).or.(stc(j,m) /= 0.d0) ) stx(j)               = xs(m)*stc(j,k) - xs(k)*stc(j,m)
+                if ( (stc(j,k) /= 0.d0).or.(stc(j,m) /= 0.d0) ) stx(j)               = xs(m)*stc(j, &
+      k) - xs(k)*stc(j,m)
               enddo
               do i = 1,nr
                 do j = i,nr
@@ -7004,6 +7330,7 @@
         enddo
         imat = nr
         call gauss(imat,g,msing,x)
+
         cpreac = 0.d0
         do i = 1,nr
           g(i,m) = delh(i)
@@ -7014,6 +7341,7 @@
           enddo
         enddo
         call gauss(imat,g,msing,x)
+
         reacon = 0.d0
         do i = 1,nr
           reacon = reacon + r*delh(i)*x(i)
@@ -7043,7 +7371,7 @@
       endif
       end subroutine tranp
       subroutine utherm(readok,thdate)
-      use params_cea_inc, only : iosch, ioout, iothm, ioinp
+      use params_cea_inc, only : ioinp, iosch, ioout, iothm
       implicit none
       character(len=10) :: thdate
       real :: err
@@ -7258,7 +7586,7 @@
 99007 format (/' ERROR IN PROCESSING thermo.inp AT OR NEAR ',a15,        ' (UTHERM)')
       end subroutine utherm
       subroutine utran(readok)
-      use params_cea_inc, only : ioout, iotrn, iosch, ioinp
+      use params_cea_inc, only : ioout, iosch, ioinp, iotrn
       implicit none
       real :: err
       logical, intent(Out) :: readok

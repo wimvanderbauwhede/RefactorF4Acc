@@ -40,7 +40,8 @@ use Exporter;
   &find_assignments_to_scalars_in_ast
   &find_implied_do_in_ast
   &_traverse_ast_with_action
-  @sigils  
+  @sigils
+  %sigil_codes
   $defaultToArrays
 );
 
@@ -59,8 +60,8 @@ our @sigils = ('{', '&', '$', '+', '-', '*', '/', '%', '**', '=', '@', '#', ':' 
 #                27   28    29        30      31         32           33             34       35 
                ,',', '(/', 'integer', 'real', 'logical', 'character', 'PlaceHolder', 'Label', 'BLANK'
               );
-
-
+my $opcode=0;
+our %sigil_codes = map { $_ => $opcode++  } @sigils;
 
 my %F95_ops =(
 	'==' => '.eq.',  
@@ -753,9 +754,10 @@ sub parse_expression_no_context { (my $str)=@_;
         else {          
             # Here we return with an error value
             # What I could do is say:
-            # if the next token is ':' or the pending op is ':'
-            carp "STR:$str" if not defined $op;
+            # if the next token is ':' or the pending op is ':' (12)
+            # carp "STR:<$str>" if not defined $op;
             if($str=~/^\s*:/ or $op == 12) {
+                # Return a blank
                 $expr_ast=[35,'']
             } else { # error
             #say "ERR 3";
@@ -845,13 +847,7 @@ Level
 11        left        .xor. .eqv. .neqv.
 
 So it looks like I need at least 6 bits, so we'll need <<8 and 0xFF
-                 0    1    2    3    4    5    6    7    8     9    10   11   12   13   14 
-our @sigils = ( '{', '&', '$', '+', '-', '*', '/', '%', '**', '=', '@', '#', ':' ,'//',')('
-                 15   16  17  18  19   20    21      22      23     24      25      26      
-               ,'==','/=',<','>','<=','>=','.not.','.and.','.or.','.xor.','.eqv.','.neqv.'
-                 27  28        29     30        31
-               ,',','integer','real','logical','character'
-              );
+
 =cut 
 
             $prev_lev=$lev;
@@ -1175,7 +1171,11 @@ sub emit_expr_from_ast { (my $ast)=@_;
         } elsif (scalar @{$ast}==2) { #  for '{'  and '$'
             (my $opcode, my $exp) =@{$ast};
             if ($opcode==0 ) {#eq '('
+            # warn Dumper($exp);
                 my $v = (ref($exp) eq 'ARRAY') ? emit_expr_from_ast($exp) : $exp;
+                if (not defined $v) {
+                    carp Dumper($ast);
+                }
                 return "($v)";
             } elsif ($opcode==28 ) {#eq '(/'
                 my $v = (ref($exp) eq 'ARRAY') ? emit_expr_from_ast($exp) : $exp;
@@ -1589,7 +1589,7 @@ sub _find_args_in_ast { (my $ast, my $args) =@_;
 
 
 #               0    1    2    3    4    5    6    7    8    9    10   11   12   13    14
-#ur @sigils = ('{', '&', '$', '+', '-', '*', '/', '%', '**', '=', '@', '#', ':' ,'//', ')('
+#our @sigils = ('{', '&', '$', '+', '-', '*', '/', '%', '**', '=', '@', '#', ':' ,'//', ')('
 #                15    16    17  18   19    20     21       22       23      24       25       26      
 #              ,'==', '/=', '<', '>', '<=', '>=', '.not.', '.and.', '.or.', '.xor.', '.eqv.', '.neqv.'
 #                27   28    29        30      31         32           33             34       35 

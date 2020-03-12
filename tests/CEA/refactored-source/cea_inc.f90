@@ -1,5 +1,6 @@
 module cea_inc
-      use params_cea_inc, only : maxng, maxmix, ncol, maxnc, maxr, maxngc, maxel, maxpv, maxmat, maxt, maxtr
+      use params_cea_inc, only : maxel, maxr, maxpv, maxng, maxt, ncol, maxtr, maxnc, maxmix, &
+       maxngc, maxmat
       real(kind=8) :: enn
       real(kind=8) :: ennl
       real(kind=8) :: enlsav

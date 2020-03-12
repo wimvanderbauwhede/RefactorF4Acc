@@ -272,7 +272,7 @@ sub map_call_args_to_sig_args {
 				# This means that to get the type information, we need
 				# $info->{'SubroutineCall'}{'Args'}{'Set'}{$call_arg_expr}
 				# Which is OK as long as $call_arg_expr is defined!
-				croak Dumper($info->{'SubroutineCall'}{'Args'}) if not defined $call_arg_expr;
+				croak Dumper($line,$info) if not defined $call_arg_expr;
 				$info->{'SubroutineCall'}{'ArgMap'}{$sig_arg} = $call_arg_expr;
 				$i++;
 			}

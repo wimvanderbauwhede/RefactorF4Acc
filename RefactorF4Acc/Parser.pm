@@ -1725,13 +1725,13 @@ sub _parse_subroutine_and_function_calls {
 			{
 				my $name = $1;    # The name of the called subroutine. The caller is $f
 				my $argstr = $2;
-				 
 				if (not defined $argstr) {
 					$argstr='';
 				}
 				if ( $argstr =~ /^\s*$/ ) {
 					$argstr = '';
 				}
+				
 				$info->{'SubroutineCall'}{'Name'} = $name;
 				if ( $in_kernel_wrapper_region == 1 ) {
 					if ($in_kernel_sub_region) {
@@ -1766,8 +1766,9 @@ sub _parse_subroutine_and_function_calls {
 						$entry_call=0;
 					}
 				}
-	                if ($argstr) {
-	                	
+	                if ($argstr ne '') {
+	                					#  croak "$line => $name $argstr" if $line=~/happy_check/;
+
 						my $ast = parse_expression( $argstr, $info, $stref, $f ); 
 						# This returns the arguments if they are vars or PlaceHolders, but really this should return the expression string.
 						# Or rather, we should not use this in Analysis::Arguments but use the AST

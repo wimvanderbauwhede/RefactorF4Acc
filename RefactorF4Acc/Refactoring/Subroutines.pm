@@ -815,7 +815,7 @@ sub _create_refactored_subroutine_call {
 						# Now see if there is an actual $sig_arg for which the entry in ArgMap
 						# matches the $call_arg
 						# ArgMap entries are not typed: the type info is in $info->{'SubroutineCall'}{'Args'}
-						carp Dumper($info->{'SubroutineCall'}{'ArgMap'});
+						# carp Dumper($info->{'SubroutineCall'}{'ArgMap'});
 						for my $tsig_arg (keys %{$info->{'SubroutineCall'}{'ArgMap'} }) {					
 							if ( defined $info->{'SubroutineCall'}{'ArgMap'}{$tsig_arg} and
 								$info->{'SubroutineCall'}{'ArgMap'}{$tsig_arg} eq $call_arg) {									
@@ -993,23 +993,13 @@ sub _create_refactored_subroutine_call {
 				my $subset = in_nested_set($stref->{'Subroutines'}{$f}, 'Vars', $call_arg);
 				my $call_arg_decl = $stref->{'Subroutines'}{$f}{$subset}{'Set'}{$call_arg};
 				my $sig_arg_decl = $stref->{'Subroutines'}{$parent_sub_name}{'ExMismatchedCommonArgs'}{'SigArgs'}{'Set'}{$sig_arg};
-
+				# I think it is safe enough not to cast if call arg and sig arg have the same name. 
+				# But I'll handle that inside _maybe_cast_call_args
+				carp 'CAST?'. Dumper($f, $parent_sub_name, $call_arg,$sig_arg);
 				my $cast_reshape_result = _maybe_cast_call_args($stref, $f, $parent_sub_name, $call_arg,$call_arg_decl,$sig_arg, $sig_arg_decl);
+
 				$call_arg = $cast_reshape_result->{'CallArg'};
 				push @cast_reshape_results, $cast_reshape_result if $cast_reshape_result->{'Status'} == 2;
-				# if ($call_arg_decl->{'Type'} ne $sig_arg_decl->{'Type'}) {
-				# 	# carp "HERE WE MAY NEED TO CAST! $f . $call_arg :: ".$call_arg_decl->{'Type'}.'<>'."$parent_sub_name . $sig_arg :: ".$sig_arg_decl->{'Type'} ;
-
-				# 	my $sig_kind=4;
-				# 	if (exists $sig_arg_decl->{'Attr'} and $sig_arg_decl->{'Attr'} ne '') {
-				# 		$sig_kind=$sig_arg_decl->{'Attr'};
-				# 		$sig_kind=~s/\w+=//;
-				# 		$sig_kind=~s/[\(\)]//g;
-				# 	}
-				# 	$call_arg = cast_call_argument($sig_arg_decl->{'Type'}, $sig_kind , $call_arg_decl->{'Type'}, $call_arg);
-
-
-				# }
 				push @maybe_renamed_exglobs, $call_arg;
 			}
 
@@ -2260,11 +2250,8 @@ cast only
 - new arg
 reshape only (always new arg)
 cast and reshape (always new arg)
-
-
-
-
 =cut
+
 sub _maybe_cast_call_args { my ($stref, $f, $sub_name, $call_arg,$call_arg_decl,$sig_arg, $sig_arg_decl)=@_;
 #  carp "CALL ARG $call_arg for call to $sub_name in $f : ".Dumper($call_arg_decl);
 	my $cast_reshape_result={
@@ -2275,19 +2262,23 @@ sub _maybe_cast_call_args { my ($stref, $f, $sub_name, $call_arg,$call_arg_decl,
 		'Status' => 0
 	};
 		
+	if ($call_arg eq $sig_arg)	{
+		return $cast_reshape_result;
+	}
 	my $needs_reshape=0;
 
 	if (exists $call_arg_decl->{'ArrayOrScalar'} and
 		$call_arg_decl->{'ArrayOrScalar'} eq 'Array'
 		and $sig_arg_decl->{'ArrayOrScalar'} eq 'Array'									
 	) { # both are arrays. Let's check size and rank
-
+# warn '_maybe_cast_call_args(): ' . $f. ':'. Dumper($call_arg_decl->{'Dim'}).';'.$sub_name. ':' .   Dumper($sig_arg_decl->{'Dim'});
 		# and also assignment is array to array
 		my $dim1  = $call_arg_decl->{'Dim'};
-		my $dim2  = $sig_arg_decl->{'Dim'};
+		my $dim2  = $sig_arg_decl->{'Dim'};		
 		my $size1 = calculate_array_size( $stref, $f, $dim1 );
 		my $size2 = calculate_array_size( $stref, $sub_name, $dim2 );
-
+# carp 'SIZES: '.Dumper($size1,$size2);
+croak unless defined $size1 and defined $size2;
 		# but the rank we need is the rank of the expression
 		# FIXME: I will assume that if the array is indexed, all indices are used, i.e. rank is 0
 		my $rank1 = get_array_rank($dim1);
