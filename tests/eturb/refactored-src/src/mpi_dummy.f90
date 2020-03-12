@@ -13,13 +13,17 @@ contains
       integer, intent(In) :: operation
       ierror = mpi_success
       if ( datatype  ==  mpi_double_precision ) then
-        call mpi_reduce_double_precision(real(data1,8),real(data2,8),n,operation,ierror)
+        call mpi_reduce_double_precision(data1,data2,n,operation,ierror)
+
       else if ( datatype  ==  mpi_integer ) then
         call mpi_reduce_integer(data1,data2,n,operation,ierror)
+
       else if ( datatype  ==  mpi_integer8 ) then
         call mpi_reduce_integer8(data1,data2,n,operation,ierror)
+
       else if ( datatype  ==  mpi_real ) then
-        call mpi_reduce_real(real(data1,4),real(data2,4),n,operation,ierror)
+        call mpi_reduce_real(data1,data2,n,operation,ierror)
+
       else
         ierror = mpi_failure
       end if

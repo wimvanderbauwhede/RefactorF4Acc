@@ -66,6 +66,7 @@ contains
       end if
       if( info /= 0 )then
          call xerbla('DGEMM ',info)
+
          return
       end if
       if( ( m == 0 ).or.( n == 0 ).or.    ( ( ( alpha == zero ).or.( k == 0 ) ).and.( beta == one )  &

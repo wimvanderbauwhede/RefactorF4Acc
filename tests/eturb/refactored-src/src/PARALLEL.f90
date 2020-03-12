@@ -1,5 +1,5 @@
 module PARALLEL
-      use params_PARALLEL, only : lelt, lelg, lx1, ldimt1, ldim, lz1, ldimt3
+      use params_PARALLEL, only : lelg, ldimt3, ldim, lz1, lelt, lx1, ldimt1
       integer :: node
       integer :: pid
       integer :: np

@@ -1,7 +1,7 @@
 module singleton_module_src_dabl
 
-      use singleton_module_src_math
       use singleton_module_src_navier5
+      use singleton_module_src_math
       use singleton_module_src_postpro
 contains
 
@@ -16,11 +16,15 @@ contains
       nhis_GLOB,hcode_GLOB,lochis_GLOB,nmember_GLOB,ifield_GLOB,object_GLOB,gllnid_GLOB, &
       gllel_GLOB,nio_GLOB,time_GLOB,ifsplit,ixm21,iytm21,iztm21,vmult,tcol2,ta2s2,ifrzer_GLOB, &
       dytm1_GLOB,dym1,dam1,datm1,dcm1,dctm1,eface1,skpdat,area,unx,uny,unz,nelt_GLOB)
-      use params_SIZE, only : ly2, lelg, ldimt, maxmbr, lx1, ldimt1, lz2, maxobj, lelt, lhis, ly1, &
-       lx2, ldim, lz1, lelv
+      use params_SIZE, only : lx2, ldim, lelv, ly1, ldimt, lz2, maxmbr, lhis, lx1, lelt, maxobj, &
+       ldimt1, lz1, ly2, lelg
 !!      use params_TOTAL ! ONLY LIST EMPTY
 !!      use params_ZPER ! ONLY LIST EMPTY
       implicit none
+      real, dimension(1:lxyz,1:1) :: gradux_gradm1
+      real, dimension(1:lxyz,1:1) :: graduy_gradm1
+      real, dimension(1:lxyz,1:1) :: graduz_gradm1
+      real, dimension(1:lxyz,1:1) :: vx_gradm1
       integer, parameter :: lr=lx1*ly1*lz1
       integer, parameter :: lxyz=lx1*ly1*lz1
       real :: base_flow
@@ -180,10 +184,12 @@ contains
       rym1_GLOB,sym1_GLOB,tym1_GLOB,rzm1_GLOB,szm1_GLOB,tzm1_GLOB,ifaxis_GLOB,nrout,rname,dct, &
       ncall,dcount,tmxmf,ifneknek,ttotal,etimes,tprep,ttime,istep,nvtot,ifsync,tgop,ngop)
         enddo
-        call copy(t,ediff,n)
+        call copy(t_copy,ediff_copy,n)
+
       endif
       if (istep == 0) then
-         call rzero(x0,3)
+         call rzero(x0_rzero,3)
+
       endif
       call torque_calc(1.0,x0,.false. /= 0.0,.false. /= 0.0,dragx,dragpx,dragvx,dragy,dragpy,dragvy, &
       dragz,dragpz,dragvz,torqx,torqpx,torqvx,torqy,torqpy,torqvy,torqz,torqpz,torqvz,dpdx_mean, &
@@ -193,16 +199,16 @@ contains
       a_w    = 19.7
       utau= sqrt(dragx(1)**2+dragz(1)**2)/a_w
       utau=sqrt(utau)
-      call gradm1(gradux,graduy,graduz,vx,ur,us,ut,nelt_GLOB,if3d_GLOB,dxm1_GLOB,dxtm1_GLOB, &
-      jacmi_GLOB,rxm1_GLOB,sxm1_GLOB,txm1_GLOB,rym1_GLOB,sym1_GLOB,tym1_GLOB,rzm1_GLOB,szm1_GLOB, &
-      tzm1_GLOB,ifaxis_GLOB,ifrzer_GLOB,dytm1_GLOB,nrout,rname,dct,ncall,dcount,tmxmf,dym1,dam1, &
-      datm1,dcm1,dctm1)
+      call gradm1(gradux_gradm1,graduy_gradm1,graduz_gradm1,vx_gradm1,ur,us,ut,nelt_GLOB,if3d_GLOB, &
+      dxm1_GLOB,dxtm1_GLOB,jacmi_GLOB,rxm1_GLOB,sxm1_GLOB,txm1_GLOB,rym1_GLOB,sym1_GLOB,tym1_GLOB, &
+      rzm1_GLOB,szm1_GLOB,tzm1_GLOB,ifaxis_GLOB,ifrzer_GLOB,dytm1_GLOB,nrout,rname,dct,ncall, &
+      dcount,tmxmf,dym1,dam1,datm1,dcm1,dctm1)
       end subroutine userchk
       subroutine eddy_visc(e,cs,dg2,ediff,icall,nekcomm,nekgroup,nekreal,nid,np,sij,snrm,nx1,ny1, &
       nz1,vx,vy,vz,if3d_GLOB,dxm1_GLOB,dxtm1_GLOB,jacmi_GLOB,rxm1_GLOB,sxm1_GLOB,txm1_GLOB, &
       rym1_GLOB,sym1_GLOB,tym1_GLOB,rzm1_GLOB,szm1_GLOB,tzm1_GLOB,ifaxis_GLOB,nrout,rname,dct, &
       ncall,dcount,tmxmf,ifneknek,ttotal,etimes,tprep,ttime,istep,nvtot,ifsync,tgop,ngop)
-      use params_SIZE, only : ly1, lz1, ldim, lelt, lx1, lelv
+      use params_SIZE, only : ldim, lelv, lx1, ly1, lelt, lz1
 !!      use params_TOTAL ! ONLY LIST EMPTY
 !!      use params_ZPER ! ONLY LIST EMPTY
       implicit none
@@ -264,8 +270,11 @@ contains
       sym1_GLOB,tym1_GLOB,rzm1_GLOB,szm1_GLOB,tzm1_GLOB,ifaxis_GLOB,nrout,rname,dct,ncall,dcount, &
       tmxmf,ifneknek,ttotal,etimes,tprep,ttime,istep,nvtot,ifsync,tgop,ngop)
       call comp_sije(sij)
+
       call mag_tensor_e(snrm(1,e),sij)
+
       call cmult(snrm(1,e),2.0,ntot)
+
       end subroutine eddy_visc
 
 end module singleton_module_src_dabl

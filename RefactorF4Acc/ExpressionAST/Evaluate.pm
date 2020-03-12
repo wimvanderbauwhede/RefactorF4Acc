@@ -94,13 +94,16 @@ sub replace_consts_in_ast { (my $stref, my $f, my $block_id, my $ast, my $state,
 						if ($var_set) {
 							carp "replace_consts_in_ast($f,$const): Can\'t replace $mvar, no parameter record found in $f, it is a Var in $var_set";
 							# So now we must find a line with an assignment to this var and do it again
-
+ 							my $eval_res = _try_to_eval_via_vars($stref, $f, $mvar);
+							 croak Dumper($eval_res);
+							return($eval_res,$state,1)	
 						} else {
 									croak "Cannot replace $mvar, no parameter or var record found in $f";
+									return ($ast, $state,0);
 						}
 						
 
-						return ($ast, $state,0);
+						
 					}
 				}
 			}

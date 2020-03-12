@@ -7,6 +7,7 @@ contains
       real(kind=4) :: mflops
       integer(kind=8) :: flpops
       call getflops_papi(flpops,mflops)
+
       dnekgflops = mflops/1e3
       return
       end function dnekgflops
