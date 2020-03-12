@@ -41,6 +41,15 @@ use Exporter;
 
 @RefactorF4Acc::ExpressionAST::Evaluate::ISA = qw(Exporter);
 
+# eval_expression_with_parameters: parse the expression string, substitute all params by their values (recursively) and compute the final expression value
+# 	replace_param_by_val: part of eval_expression_with_parameters, it changes the parameters by their values in the AST.
+# 		replace_consts_in_ast: part of replace_param_by_val; this returns an AST where all params are replaced by their value expressions
+# _try_to_eval_arg extends this from parameters to subroutine arguments; calls eval_expression_with_parameters and _try_to_eval_via_vars
+# _try_to_eval_via_vars extends this to local variables; calls eval_expression_with_parameters and _try_to_eval_arg
+
+# I have a feeling this could be refactored to make it more elegant
+
+
 @RefactorF4Acc::ExpressionAST::Evaluate::EXPORT_OK = qw(
 &eval_expression_with_parameters
 &replace_param_by_val
@@ -86,7 +95,7 @@ sub replace_consts_in_ast { (my $stref, my $f, my $block_id, my $ast, my $state,
 					} elsif (in_nested_set($stref->{'Subroutines'}{$f},'Args',$mvar)) {
 						# carp "VAR $mvar is an arg, not a parameter. Trying to eval anyway ... ";
 						# if ( scalar keys %{$stref->{'Subroutines'}{$f}{'Callers'} }==1) {
-							my $maybe_evaled_ast = __try_to_eval_arg($stref, $f, $mvar);
+							my $maybe_evaled_ast = _try_to_eval_arg($stref, $f, $mvar);
 						# } 
 						return ($maybe_evaled_ast,$state,1);
 					} else {
@@ -98,12 +107,9 @@ sub replace_consts_in_ast { (my $stref, my $f, my $block_id, my $ast, my $state,
 							 croak Dumper($eval_res);
 							return($eval_res,$state,1)	
 						} else {
-									croak "Cannot replace $mvar, no parameter or var record found in $f";
-									return ($ast, $state,0);
-						}
-						
-
-						
+							croak "Cannot replace $mvar, no parameter or var record found in $f";
+							return ($ast, $state,0);
+						}						
 					}
 				}
 			}
@@ -153,7 +159,7 @@ sub eval_expression_with_parameters { (my $expr_str,my $info, my $stref, my $f) 
 
 # This routine attempts to evaluate arguments by following them to the caller, 
 # but in a very limited way.
-sub __try_to_eval_arg { my ($stref,$f,$arg)=@_;
+sub _try_to_eval_arg { my ($stref,$f,$arg)=@_;
 	# Get the caller and the ID of the line with the call in $f
 	my $caller; my $line_id;
 	for my $k (keys %{$stref->{'Subroutines'}{$f}{'Callers'} }) {
@@ -264,13 +270,13 @@ sub _try_to_eval_via_vars { my ($stref, $f, $var) = @_;
 			my $subset = in_nested_set( $stref->{'Subroutines'}{$f}, 'Args', $var );
 			
 			if ($subset) {
-				my $result_expr = __try_to_eval_arg($stref,$f,$var);
+				my $result_expr = _try_to_eval_arg($stref,$f,$var);
 				return $result_expr;
 			} else {
 				die "Sorry, can\'t evaluate $var in $f, giving up.";
 			}
 		}
-} # END of try_to_eval_via_vars
+} # END of _try_to_eval_via_vars
 
 
 1;
