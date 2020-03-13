@@ -3,6 +3,8 @@
       	real :: dragpx
       	real :: w1
       integer, parameter :: maxobj=41
+      	dragpx=1.1
+      	w1=22
       	call f1()
 
       	call gop(dragpx,w1,'+  ',maxobj+1)
@@ -13,6 +15,8 @@
       	real, dimension(1:256) :: av
       	integer :: asz
       integer, parameter :: nelts=257
+      	av(1)=33
+      	av(256)=44
       	asz = nelts -1 
       	call f2(av,asz)
 
@@ -21,11 +25,13 @@
       implicit none
       	integer :: asz
       	real, dimension(1:asz) :: av
+      	print *, av(1),av(256)
       end subroutine f2
       subroutine gop(x,w,op,n)
       implicit none
-      real :: x
-      real :: w
-      character(len=3), intent(In) :: op
-      integer, intent(In) :: n
+      	real :: x
+      	real :: w
+      	character(len=3) :: op
+      	integer :: n
+      	print *, x, w, op, n
       end subroutine gop

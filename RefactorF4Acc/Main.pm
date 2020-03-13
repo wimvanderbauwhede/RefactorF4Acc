@@ -46,6 +46,7 @@ our $usage = "
     -h: help
     -V: print the version number
     -w: show warnings 
+    -W: show more warnings
     -v: verbose (implies -w)
     -i: show info messages
     -d: show debug messages
@@ -315,7 +316,7 @@ sub parse_args { (my $args)=@_;
     if (defined $args) {
         %opts = %{$args};
     } else {
-	    getopts( 'VvwidhACTgbBGc:P:s:o:', \%opts );
+	    getopts( 'VvwWidhACTgbBGc:P:s:o:', \%opts );
     }
 	if ($opts{'V'}) {
 		die "Version: $VERSION\n";
@@ -395,6 +396,7 @@ sub parse_args { (my $args)=@_;
 	$V = ( $opts{'v'} ) ? 1 : 0;
 	$I = ( $opts{'i'} ) ? 1 : 0;
 	$W = ( $opts{'w'} ) ? 1 : 0;
+    $WW = ( $opts{'W'} ) ? 1 : 0;
 	$DBG = ( $opts{'d'} ) ? 1 : 0;
 
 for my $CFG_VAR (sort keys %Config) {

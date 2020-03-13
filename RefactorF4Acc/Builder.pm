@@ -76,27 +76,49 @@ sub create_build_script {
     my $maybe_f77_compiler=$gfortran;
     my $maybe_f77_env=$Config{HAS_F77_SOURCES} ? ",FORTRAN=$maybe_f77_compiler, $maybe_f77flags, $maybe_f77path" : '';
 
+    my $maybe_c_sources = '';
+    my $program="envF.Program('$exe',fsources,LIBS=[$libs_str 'm'],LIBPATH=['.' $libpaths_str])";
+    if ($csources ne '') {
+        $maybe_c_sources = <<ENDC;
+csources =[$csources]
+
+CC=os.environ.get('CC')
+envC=Environment(CC=CC,CPPPATH=[]);
+if csources:
+    envC.Library('${exe}_c',csources)
+ENDC
+
+        $program = <<ENDCP;
+if csources:
+    envF.Program('$exe',fsources,LIBS=[$libs_str '${exe}_c','m'],LIBPATH=['.' $libpaths_str])   
+else:
+    $program
+ENDCP
+
+    }
+
     my $scons = <<ENDSCONS;
 # Generated build script for refactored source code
 # $date
+import os
 
-#csources =[$csources]
+FC=os.environ.get('FC')
 
 fsources = [$fsources]
 
-envC=Environment(CC='$gcc',CPPPATH=[]); 
-#if csources:
-#    envC.Library('${exe}_c',csources)
+$maybe_c_sources
 
 $fflags
 $maybe_f77flags
-envF=Environment($fortran_compiler='$gfortran',LINK='$gfortran',${fortran_compiler}FLAGS=FFLAGS,${fortran_compiler}PATH=['.' $inclpaths_str]$maybe_f77_env)
-#if csources:
-#    envF.Program('$exe',fsources,LIBS=[$libs_str '${exe}_c','m'],LIBPATH=['.' $libpaths_str])   
-#else:
-#    envF.Program('$exe',fsources,LIBS=[$libs_str 'm'],LIBPATH=['.' $libpaths_str])
-envF.Program('$exe',fsources,LIBS=[$libs_str 'm'],LIBPATH=['.' $libpaths_str])
+#envF=Environment($fortran_compiler='$gfortran',LINK='$gfortran',${fortran_compiler}FLAGS=FFLAGS,${fortran_compiler}PATH=['.' $inclpaths_str]$maybe_f77_env)
+envF=Environment($fortran_compiler=FC,LINK=FC,${fortran_compiler}FLAGS=FFLAGS,${fortran_compiler}PATH=['.' $inclpaths_str]$maybe_f77_env)
+
+$program
 ENDSCONS
+
+=pod_no_C
+At the moment I've removed support for C sources.
+=cut
 
     open my $SC, '>', "$targetdir/SConstruct.rf4a";
     print $SC $scons;

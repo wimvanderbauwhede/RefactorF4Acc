@@ -3742,7 +3742,7 @@ sub _parse_assignment {
 		  . $tmp_line,
 		  "' in subroutine/function '$f' in '"
 		  . $stref->{$code_unit}{$f}{'Source'}
-		  . "'\nThis is DANGEROUS, please fix your code!" if $W;
+		  . "'\nThis is DANGEROUS, please fix your code!" if $WW;
 		$stref->{$code_unit}{$f}{'MaskedIntrinsics'}{ $lhs_ast->[1] } = 1;
 		$lhs_ast = parse_expression( $lhs, $info, $stref, $f );
 	}

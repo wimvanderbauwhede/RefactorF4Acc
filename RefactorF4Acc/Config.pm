@@ -14,7 +14,7 @@ use Exporter;
 @RefactorF4Acc::Config::ISA = qw(Exporter);
 @RefactorF4Acc::Config::EXPORT = qw(
 $NEW_PARSER
-$V $W $I $DBG $DUMMY $ANN
+$V $W $WW $I $DBG $DUMMY $ANN
 $NO $YES $GO
 $UNREAD $INVENTORIED $READ $PARSED $FROM_BLOCK $C_SOURCE $FILE_NOT_FOUND $UNUSED
 $SPLIT_LONG_LINES
@@ -41,6 +41,7 @@ our $NEW_PARSER = 1;
 
 our $V = 0;    # Verbose
 our $W = 0;    # Warnings
+our $WW = 0; # Extended warnings
 our $I = 0;    # Info
 our $DBG = 0;    # Debug
 our $ANN = 1; # Annotations

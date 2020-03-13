@@ -45,6 +45,13 @@ sub find_subroutines_functions_and_includes {
     
     my %src_files = ();
     my %excluded_dirs = $Config{EXCL_DIRS} ? map { $_ => 1 } @{ $Config{EXCL_DIRS} } : ();
+    # The NEWSRCPATH should always be excluded
+     if ($Config{'NEWSRCPATH'} ne '.') {
+            $excluded_dirs{ $Config{'NEWSRCPATH'} } = 1;
+     } else {
+        # I don't exclude it if it is '.', instead I throw an error as that is not a good idea  
+        die "NEWSRCPATH can't be '.', has to be a subfolder\n";
+     }
     
     if ($incl eq '' and scalar @{$Config{'SOURCEFILES'}} > 0) {
     	%src_files = map { $_ => {'Local' => $prefix } } @{$Config{'SOURCEFILES'}};

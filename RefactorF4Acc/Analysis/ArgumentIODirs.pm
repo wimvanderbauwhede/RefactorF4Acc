@@ -58,7 +58,7 @@ sub determine_argument_io_direction_rec {
             }
             next if exists $stref->{'ExternalSubroutines'}{$calledsub};    # Don't descend into external subs
             if (exists $subs{$calledsub}) {
-				say "WARNING: LOOP for $calledsub: ".join(', ', @{ $stref->{'CallStack'} }) if $W;
+				say "WARNING: LOOP for $calledsub: ".join(', ', @{ $stref->{'CallStack'} }) if $WW;
 				next;
 			}
             $stref->{Counter}++ if $V;
@@ -503,7 +503,7 @@ sub _analyse_src_for_iodirs {
                                         }    # if it's already InOut or Out, stays like it is.
                                     }
                                     else {
-                                        say "WARNING: Intent for $var in call to $name in $f is unknown" if $W;
+                                        say "WARNING: Intent for $var in call to $name in $f is unknown" if $WW;
                                     }
                                 }
                                 else {

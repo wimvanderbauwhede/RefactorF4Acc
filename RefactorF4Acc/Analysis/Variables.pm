@@ -140,7 +140,7 @@ sub analyse_variables {
 									if ( $stref->{'IncludeFiles'}{$inc}{'InclType'} eq 'Parameter' ) {
 										
 										$grouped_messages->{'W'}{'PARAM_FROM_INC'}{$mvar} = 
-										"WARNING: $mvar in $f is a PARAMETER from $inc!" if $W;
+										"WARNING: $mvar in $f is a PARAMETER from $inc!" if $WW;
 
 										$Sf->{'Includes'}{$inc}{'Only'}{$mvar} = 1;
 									} else {
@@ -206,7 +206,7 @@ sub analyse_variables {
 								if (not exists $stref->{'Modules'}{$inc}{'ExtPath'} ) {
 									my $var_rec = get_var_record_from_set( $stref->{'Modules'}{$inc}{'Vars'}, $mvar );
 									if (exists $var_rec->{'Parameter'} ) {
-										$grouped_messages->{'W'}{'PARAM_FROM_INC'}{$mvar} =  "WARNING: $mvar in $f is a PARAMETER from $inc!" if $W;
+										$grouped_messages->{'W'}{'PARAM_FROM_INC'}{$mvar} =  "WARNING: $mvar in $f is a PARAMETER from $inc!" if $WW;
 										$Sf->{'Uses'}{$inc}{'Only'}{$mvar} = 1;
 
 									} else {
@@ -306,7 +306,7 @@ sub analyse_variables {
 							# A variable can be declared in an include file or not and can be listed as common or not
 							if ( in_nested_set( $stref->{'IncludeFiles'}{$inc}, 'Vars', $mvar )) {								
 								if ( $stref->{'IncludeFiles'}{$inc}{'InclType'} eq 'Parameter' ) {
-									$grouped_messages->{'W'}{'PARAM_FROM_INC'}{$mvar} =  "WARNING: $mvar in $f is a PARAMETER from $inc!" if $W;
+									$grouped_messages->{'W'}{'PARAM_FROM_INC'}{$mvar} =  "WARNING: $mvar in $f is a PARAMETER from $inc!" if $WW;
 									 $Sf->{'Includes'}{$inc}{'Only'}{$mvar} =1;
 
 								}

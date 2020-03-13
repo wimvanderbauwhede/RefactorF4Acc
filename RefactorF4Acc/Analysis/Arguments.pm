@@ -466,7 +466,7 @@ sub determine_ExGlobArgs {
 			
 			next if exists $stref->{'ExternalSubroutines'}{$calledsub}; # Don't descend into external subs   
 			if (exists $subs{$calledsub}) {
-				say "WARNING: LOOP for $calledsub: ".join(', ', @{ $stref->{'CallStack'} }) if $W;
+				say "WARNING: LOOP for $calledsub: ".join(', ', @{ $stref->{'CallStack'} }) if $WW;
 				next;
 			}
 			$stref->{Counter}++ if $V;
