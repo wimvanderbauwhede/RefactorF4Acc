@@ -158,14 +158,12 @@ contains
       real, dimension(1:1) :: x
       real, dimension(1:1) :: tmp
       real, dimension(1:1) :: work
-      real, dimension(1:n) :: tmp_gop
-      real, dimension(1:n) :: work_gop
       tsum = 0.
       do i=1,n
          tsum = tsum+x(i)
   end do
       tmp(1)=tsum
-      call gop(tmp_gop,work_gop,'+  ',1,icall,nekcomm,nekgroup,nekreal,nid,np,ifsync_GLOB,tgop_GLOB, &
+      call gop(tmp,work,'+  ',1,icall,nekcomm,nekgroup,nekreal,nid,np,ifsync_GLOB,tgop_GLOB, &
       ngop_GLOB,ifneknek,ttotal,etimes,tprep,ttime,istep,nvtot)
       glsum = tmp(1)
       return
@@ -230,14 +228,12 @@ contains
       real, dimension(1:1) :: a
       real, dimension(1:1) :: tmp
       real, dimension(1:1) :: work
-      real, dimension(1:n) :: tmp_gop
-      real, dimension(1:n) :: work_gop
       tmax=-99.0e20
       do i=1,n
          tmax=max(tmax,a(i))
    end do
       tmp(1)=tmax
-      call gop(tmp_gop,work_gop,'M  ',1,icall,nekcomm,nekgroup,nekreal,nid,np,ifsync_GLOB,tgop_GLOB, &
+      call gop(tmp,work,'M  ',1,icall,nekcomm,nekgroup,nekreal,nid,np,ifsync_GLOB,tgop_GLOB, &
       ngop_GLOB,ifneknek,ttotal,etimes,tprep,ttime,istep,nvtot)
       glmax=tmp(1)
       return
@@ -267,14 +263,12 @@ contains
       real, dimension(1:1) :: a
       real, dimension(1:1) :: tmp
       real, dimension(1:1) :: work
-      real, dimension(1:n) :: tmp_gop
-      real, dimension(1:n) :: work_gop
       tmin=99.0e20
       do i=1,n
          tmin=min(tmin,a(i))
    end do
       tmp(1)=tmin
-      call gop(tmp_gop,work_gop,'m  ',1,icall,nekcomm,nekgroup,nekreal,nid,np,ifsync_GLOB,tgop_GLOB, &
+      call gop(tmp,work,'m  ',1,icall,nekcomm,nekgroup,nekreal,nid,np,ifsync_GLOB,tgop_GLOB, &
       ngop_GLOB,ifneknek,ttotal,etimes,tprep,ttime,istep,nvtot)
       glmin = tmp(1)
       return

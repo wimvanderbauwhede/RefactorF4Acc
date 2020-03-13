@@ -1,10 +1,14 @@
       program test_const_args
       implicit none
       	real :: dragpx
-      	real :: w1
+                integer :: w1
+                integer :: w2
+                integer :: w3
       integer, parameter :: maxobj=41
       	dragpx=1.1
-      	w1=22
+                w3=1
+                w2 = maxobj+w3
+      	w1=w2*w2
       	call f1()
 
       	call gop(dragpx,w1,'+  ',maxobj+1)
@@ -30,7 +34,8 @@
       subroutine gop(x,w,op,n)
       implicit none
       	real :: x
-      	real :: w
+                integer :: w
+                real, dimension(1:w) :: ra
       	character(len=3) :: op
       	integer :: n
       	print *, x, w, op, n

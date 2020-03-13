@@ -1,6 +1,6 @@
 module ZPER
-      use params_ZPER, only : lfdy, ly2, ldimt1, leig2, lp_small, lely, ltfdm2, lx1, lelz, ly1, &
-       lelx, leig, lelv, lfdz, lx2, lfdx
+      use params_ZPER, only : leig, lfdy, lely, lelz, lfdz, lp_small, ly2, leig2, lx2, lfdx, lelx, &
+       ly1, ltfdm2, lx1, lelv, ldimt1
 
       integer :: neigx
       integer :: neigy

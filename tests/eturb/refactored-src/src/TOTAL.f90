@@ -1,8 +1,8 @@
 module TOTAL
-      use params_TOTAL, only : ly3, lelg, lzd, lpx1, ly2, lorder2, lpy2, lelt, lbz2, lz1m, lpert, &
-       lpelt, lx1, lyd, lz3, lbx2, lby1, lz2, lxq, lelv, numsts, lpz1, lbelv, lorder, ly1m, lby2, &
-       lz1, lbx1, lx1m, ldimt1, lxd, lpz2, maxobj, ldimt3, lhis, lpy1, maxmbr, ldimt, lpx2, ly1, &
-       lbz1, lx3, lpelv, ldim, lx2
+      use params_TOTAL, only : lpert, ldimt, lx1, lpelt, lbx2, lby1, ly3, lpy2, lpx1, ldim, lorder2, &
+       lz3, ldimt1, lelv, lxd, lpz1, lx1m, lx2, lelt, lbelv, lbz2, maxmbr, lz2, lyd, ly1m, lhis, &
+       lbx1, lby2, lelg, lxq, lzd, lpy1, ly2, lpx2, lz1m, lpz2, ldimt3, lpelv, ly1, lx3, numsts, &
+       maxobj, lz1, lbz1, lorder
       real, dimension(1:lx1,1:lx1) :: dxm1
       real, dimension(1:lx2,1:lx1) :: dxm12
       real, dimension(1:ly1,1:ly1) :: dym1

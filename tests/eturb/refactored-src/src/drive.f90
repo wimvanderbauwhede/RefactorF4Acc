@@ -1,6 +1,6 @@
       program main
       use singleton_module_src_dabl
-      use params_SIZE, only : lelv, ldim, lx2, lhis, maxmbr, lz2, ldimt, ly1, maxobj, lelt, lx1, lelg, ly2, lz1, ldimt1
+      use params_SIZE, only : ly1, lx1, lelv, ldimt1, ldimt, lz2, lhis, ly2, maxmbr, lz1, ldim, lelt, lx2, lelg, maxobj
 !!      use params_TOTAL ! ONLY LIST EMPTY
 !!      use params_ZPER ! ONLY LIST EMPTY
       implicit none

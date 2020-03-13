@@ -1,15 +1,15 @@
 module singleton_module_src_comm_mpi
 
-      use singleton_module_src_math
       use singleton_module_src_subs1
-      use singleton_module_src_papi
-      use singleton_module_src_singlmesh
       use singleton_module_src_mpi_dummy
+      use singleton_module_src_singlmesh
+      use singleton_module_src_math
+      use singleton_module_src_papi
 contains
 
       subroutine gop(x,w,op,n,icall,nekcomm,nekgroup,nekreal,nid,np,ifsync,tgop,ngop,ifneknek_GLOB, &
       ttotal,etimes,tprep,ttime,istep,nvtot)
-      use params_mpif_h, only : mpi_min, mpi_prod, mpi_max, mpi_sum
+      use params_mpif_h, only : mpi_prod, mpi_min, mpi_max, mpi_sum
       implicit none
       integer :: icall
       integer, intent(In) :: nekcomm
@@ -34,8 +34,6 @@ contains
       real, dimension(1:n), intent(InOut) :: x
       real, dimension(1:n), intent(InOut) :: w
       character(len=3), intent(In) :: op
-      real, dimension(1:1) :: x_copy
-      real, dimension(1:1) :: w_copy
       call nekgsync(nekcomm,nekgroup,nekreal,nid,np)
 
 #ifdef TIMER
@@ -48,23 +46,23 @@ contains
       etime1 = dnekclock()
 #endif
       if (op == '+  ') then
-         call mpi_allreduce(x_mpi_allreduce,w_mpi_allreduce,n,nekreal,mpi_sum,nekcomm,ierr)
+         call mpi_allreduce(int(x, 4),int(w, 4),n,nekreal,mpi_sum,nekcomm,ierr)
 
       elseif (op == 'M  ') then
-         call mpi_allreduce(x_mpi_allreduce,w_mpi_allreduce,n,nekreal,mpi_max,nekcomm,ierr)
+         call mpi_allreduce(int(x, 4),int(w, 4),n,nekreal,mpi_max,nekcomm,ierr)
 
       elseif (op == 'm  ') then
-         call mpi_allreduce(x_mpi_allreduce,w_mpi_allreduce,n,nekreal,mpi_min,nekcomm,ierr)
+         call mpi_allreduce(int(x, 4),int(w, 4),n,nekreal,mpi_min,nekcomm,ierr)
 
       elseif (op == '*  ') then
-         call mpi_allreduce(x_mpi_allreduce,w_mpi_allreduce,n,nekreal,mpi_prod,nekcomm,ierr)
+         call mpi_allreduce(int(x, 4),int(w, 4),n,nekreal,mpi_prod,nekcomm,ierr)
 
       else
          write(6,*) nid,' OP ',op,' not supported.  ABORT in GOP.'
          call exitt(icall,nekcomm,nekgroup,nekreal,nid,np,ifneknek_GLOB,ttotal,etimes,tprep,ttime, &
       istep,nvtot,ifsync,tgop,ngop)
       endif
-      call copy(x_copy,w_copy,n)
+      call copy(x,w,n)
 
 #ifdef TIMER
       tgop  = tgop+(dnekclock()-etime1)
@@ -73,7 +71,7 @@ contains
       end subroutine gop
       subroutine igop(x,w,op,n,icall,nekcomm,nekgroup,nekreal,nid,np,ifneknek_GLOB,ttotal,etimes, &
       tprep,ttime,istep,nvtot,ifsync,tgop,ngop)
-      use params_mpif_h, only : mpi_prod, mpi_sum, mpi_max, mpi_integer, mpi_min
+      use params_mpif_h, only : mpi_min, mpi_sum, mpi_integer, mpi_max, mpi_prod
       implicit none
       integer, intent(In) :: icall
       integer, intent(In) :: nekcomm
@@ -185,7 +183,7 @@ contains
       end subroutine exitt
       subroutine print_runtime_info(icall,nekcomm,nekgroup,nekreal,nid,np,ttotal,etimes,tprep,ttime, &
       istep,nvtot,ifsync,tgop,ngop,ifneknek)
-      use params_SIZE, only : lz1, lx1, ly1
+      use params_SIZE, only : lx1, ly1, lz1
 !!      use params_TOTAL ! ONLY LIST EMPTY
 !!      use params_mpif_h ! ONLY LIST EMPTY
       implicit none

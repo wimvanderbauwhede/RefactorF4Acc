@@ -1,22 +1,27 @@
 module singleton_module_src_navier5
 
-      use singleton_module_src_subs1
-      use singleton_module_src_math
-      use singleton_module_src_mxm_wrapper
       use singleton_module_src_comm_mpi
+      use singleton_module_src_math
+      use singleton_module_src_subs1
+      use singleton_module_src_mxm_wrapper
 contains
 
       subroutine mappr(pm1,pm2,pa,pb,nelv,ifsplit,ixm21,iytm21,iztm21,ifield,vmult,nrout_GLOB, &
       rname_GLOB,dct_GLOB,ncall_GLOB,dcount_GLOB,tmxmf_GLOB,tcol2_GLOB)
-      use params_SIZE, only : lelv, lx2, lx1, ly2, lz1, lz2, ly1
+      use params_SIZE, only : ly1, ly2, lx1, lelv, lz1, lz2, lx2
 !!      use params_TOTAL ! ONLY LIST EMPTY
       implicit none
+      real, dimension(1:n1,1:n2) :: ixm21_mxm
+      real, dimension(1:n2,1:n3) :: iytm21_mxm
+      real, dimension(1:n2,1:n3) :: iztm21_mxm
+      real, dimension(1:lx1,1:ly1,1:lz1,1:lelv) :: pm1_copy
+      real, dimension(1:lx2,1:ly2,1:lz2,1:lelv) :: pm2_copy
       integer, parameter :: maxrts=1000
       integer, intent(In) :: nelv
       logical, intent(In) :: ifsplit
-      real, dimension(1:lx1,1:lx2), intent(In) :: ixm21
-      real, dimension(1:ly2,1:ly1), intent(In) :: iytm21
-      real, dimension(1:lz2,1:lz1), intent(In) :: iztm21
+      real, dimension(1:lx1,1:lx2), intent(InOut) :: ixm21
+      real, dimension(1:ly2,1:ly1), intent(InOut) :: iytm21
+      real, dimension(1:lz2,1:lz1), intent(InOut) :: iztm21
       integer, intent(Out) :: ifield
       real, dimension(1:lx1,1:ly1,1:lz1,1:lelv), intent(In) :: vmult
       integer :: nrout_GLOB
@@ -33,7 +38,7 @@ contains
       integer :: iel
       integer :: iz
       real, dimension(1:lx1,1:ly1,1:lz1,1:lelv), intent(InOut) :: pm1
-      real, dimension(1:lx2,1:ly2,1:lz2,1:lelv), intent(In) :: pm2
+      real, dimension(1:lx2,1:ly2,1:lz2,1:lelv), intent(InOut) :: pm2
       real, dimension(1:lx1,1:ly2,1:lz2), intent(InOut) :: pa
       real, dimension(1:lx1,1:ly1,1:lz2), intent(InOut) :: pb
       nglob1 = lx1*ly1*lz1*nelv
@@ -41,18 +46,28 @@ contains
       nxy1   = lx1*ly1
       nxyz   = lx1*ly1*lz1
       if (ifsplit) then
+         pm1_copy = reshape(pm1,shape(pm1_copy))
+         pm2_copy = reshape(pm2,shape(pm2_copy))
          call copy(pm1_copy,pm2_copy,nglob1)
 
+         pm1 = reshape(pm1_copy, shape(pm1))
+         pm2 = reshape(pm2_copy, shape(pm2))
       else
          do iel=1,nelv
+            ixm21_mxm = reshape(ixm21,shape(ixm21_mxm))
             call mxm(ixm21_mxm,lx1,pm2(1,1,1,iel),lx2,pa(1,1,1),nyz2,nrout_GLOB,rname_GLOB,dct_GLOB, &
       ncall_GLOB,dcount_GLOB,tmxmf_GLOB)
+            ixm21 = reshape(ixm21_mxm, shape(ixm21))
             do iz=1,lz2
-               call mxm(pa(1,1,iz),lx1,iytm21,ly2,pb(1,1,iz),ly1,nrout_GLOB,rname_GLOB,dct_GLOB, &
+               iytm21_mxm = reshape(iytm21,shape(iytm21_mxm))
+               call mxm(pa(1,1,iz),lx1,iytm21_mxm,ly2,pb(1,1,iz),ly1,nrout_GLOB,rname_GLOB,dct_GLOB, &
       ncall_GLOB,dcount_GLOB,tmxmf_GLOB)
+               iytm21 = reshape(iytm21_mxm, shape(iytm21))
   end do
-            call mxm(pb(1,1,1),nxy1,iztm21,lz2,pm1(1,1,1,iel),lz1,nrout_GLOB,rname_GLOB,dct_GLOB, &
-      ncall_GLOB,dcount_GLOB,tmxmf_GLOB)
+            iztm21_mxm = reshape(iztm21,shape(iztm21_mxm))
+            call mxm(pb(1,1,1),nxy1,iztm21_mxm,lz2,pm1(1,1,1,iel),lz1,nrout_GLOB,rname_GLOB, &
+      dct_GLOB,ncall_GLOB,dcount_GLOB,tmxmf_GLOB)
+            iztm21 = reshape(iztm21_mxm, shape(iztm21))
   end do
        ifield=1
        call dssum (pm1,lx1,ly1,lz1)
@@ -63,8 +78,8 @@ contains
       subroutine local_grad3(ur,us,ut,u,n,e,d,dt,nrout_GLOB,rname_GLOB,dct_GLOB,ncall_GLOB, &
       dcount_GLOB,tmxmf_GLOB)
       implicit none
-      real, dimension(1:n2,1:n3) :: dt_mxm
-      real, dimension(1:n1,1:n3) :: ut_mxm
+      real, dimension(0:n,0:n,0:n) :: ur_mxm
+      real, dimension(0:n,0:n,0:n) :: ut_mxm
       integer, parameter :: maxrts=1000
       integer :: nrout_GLOB
       character(len=6), dimension(1:maxrts) :: rname_GLOB
@@ -85,21 +100,23 @@ contains
       integer, intent(In) :: e
       m1 = n+1
       m2 = m1*m1
-      call mxm(d_mxm,m1,u(0,0,0,e),m1,ur_mxm,m2,nrout_GLOB,rname_GLOB,dct_GLOB,ncall_GLOB, &
-      dcount_GLOB,tmxmf_GLOB)
+      ur_mxm = reshape(ur,shape(ur_mxm))
+      call mxm(d,m1,u(0,0,0,e),m1,ur_mxm,m2,nrout_GLOB,rname_GLOB,dct_GLOB,ncall_GLOB,dcount_GLOB, &
+      tmxmf_GLOB)
+      ur = reshape(ur_mxm, shape(ur))
       do k=0,n
-         call mxm(u(0,0,k,e),m1,dt_mxm,m1,us(0,0,k),m1,nrout_GLOB,rname_GLOB,dct_GLOB,ncall_GLOB, &
+         call mxm(u(0,0,k,e),m1,dt,m1,us(0,0,k),m1,nrout_GLOB,rname_GLOB,dct_GLOB,ncall_GLOB, &
       dcount_GLOB,tmxmf_GLOB)
       enddo
-      call mxm(u(0,0,0,e),m2,dt_mxm,m1,ut_mxm,m1,nrout_GLOB,rname_GLOB,dct_GLOB,ncall_GLOB, &
-      dcount_GLOB,tmxmf_GLOB)
+      ut_mxm = reshape(ut,shape(ut_mxm))
+      call mxm(u(0,0,0,e),m2,dt,m1,ut_mxm,m1,nrout_GLOB,rname_GLOB,dct_GLOB,ncall_GLOB,dcount_GLOB, &
+      tmxmf_GLOB)
+      ut = reshape(ut_mxm, shape(ut))
       return
       end subroutine local_grad3
       subroutine local_grad2(ur,us,u,n,e,d,dt,nrout_GLOB,rname_GLOB,dct_GLOB,ncall_GLOB,dcount_GLOB, &
       tmxmf_GLOB)
       implicit none
-      real, dimension(1:n2,1:n3) :: dt_mxm
-      real, dimension(1:n1,1:n3) :: us_mxm
       integer, parameter :: maxrts=1000
       integer :: nrout_GLOB
       character(len=6), dimension(1:maxrts) :: rname_GLOB
@@ -116,16 +133,16 @@ contains
       real, dimension(0:n,0:n), intent(In) :: dt
       integer, intent(In) :: e
       m1 = n+1
-      call mxm(d_mxm,m1,u(0,0,e),m1,ur_mxm,m1,nrout_GLOB,rname_GLOB,dct_GLOB,ncall_GLOB,dcount_GLOB, &
+      call mxm(d,m1,u(0,0,e),m1,ur,m1,nrout_GLOB,rname_GLOB,dct_GLOB,ncall_GLOB,dcount_GLOB, &
       tmxmf_GLOB)
-      call mxm(u(0,0,e),m1,dt_mxm,m1,us_mxm,m1,nrout_GLOB,rname_GLOB,dct_GLOB,ncall_GLOB, &
-      dcount_GLOB,tmxmf_GLOB)
+      call mxm(u(0,0,e),m1,dt,m1,us,m1,nrout_GLOB,rname_GLOB,dct_GLOB,ncall_GLOB,dcount_GLOB, &
+      tmxmf_GLOB)
       return
       end subroutine local_grad2
       subroutine gradm1(ux,uy,uz,u,ur,us,ut,nelt,if3d,dxm1,dxtm1,jacmi,rxm1,sxm1,txm1,rym1,sym1, &
       tym1,rzm1,szm1,tzm1,ifaxis,ifrzer,dytm1,nrout,rname,dct,ncall,dcount,tmxmf,dym1_GLOB, &
       dam1_GLOB,datm1_GLOB,dcm1_GLOB,dctm1_GLOB)
-      use params_SIZE, only : lx1, ly1, lelt, lz1
+      use params_SIZE, only : lelt, ly1, lx1, lz1
 !!      use params_INPUT ! ONLY LIST EMPTY
 ! Grouped Parameter Declarations
       implicit none
@@ -204,7 +221,7 @@ contains
       end subroutine gradm1
       subroutine drgtrq(dgtq,xm0,ym0,zm0,sij,pm1,visc,f,e,eface1,skpdat,if3d,ifaxis,area,unx,uny, &
       unz)
-      use params_SIZE, only : ldim, lelv, lx1, ly1, lz1, lelt
+      use params_SIZE, only : lz1, ldim, lelv, lx1, lelt, ly1
 !!      use params_INPUT ! ONLY LIST EMPTY
       implicit none
       integer, dimension(1:6), intent(In) :: eface1
@@ -348,13 +365,44 @@ contains
       dragpz,dragvz,torqx,torqpx,torqvx,torqy,torqpy,torqvy,torqz,torqpz,torqvz,dpdx_mean, &
       dpdy_mean,dpdz_mean,dgtq,flow_rate,base_flow,domain_length,xsec,scale_vf,pm1,sij,ur,us,ut, &
       vr,vs,vt,wr,ws,wt,xm0,xm0,xm0,ym0,zm0)
-      use params_SIZE, only : lx1, lelt, lx2, lelv, maxobj, lz2, ldimt1, ly1, ly2, lz1, maxmbr, &
-       lhis, lelg
+      use params_SIZE, only : ly1, lhis, lelv, lx1, ldimt1, lz2, maxmbr, ly2, lz1, lelt, lx2, &
+       maxobj, lelg
 !!      use params_TOTAL ! ONLY LIST EMPTY
+      implicit none
+      real, dimension(1:3,1:4) :: dgtq_cmult
+      real, dimension(0:maxobj) :: dragpx_gop
+      real, dimension(0:maxobj) :: dragpy_gop
+      real, dimension(0:maxobj) :: dragpz_gop
+      real, dimension(0:maxobj) :: dragvx_gop
+      real, dimension(0:maxobj) :: dragvy_gop
+      real, dimension(0:maxobj) :: dragvz_gop
+      real, dimension(1:lx1,1:ly1,1:lz1,1:lelv) :: pm1_add2s2
+      real, dimension(0:maxobj) :: torqpx_gop
+      real, dimension(0:maxobj) :: torqpy_gop
+      real, dimension(0:maxobj) :: torqpz_gop
+      real, dimension(0:maxobj) :: torqvx_gop
+      real, dimension(0:maxobj) :: torqvy_gop
+      real, dimension(0:maxobj) :: torqvz_gop
+      real, dimension(1:lx1,1:ly1,1:lz1,1:lelt,1:ldimt1) :: vdiff_cfill
+      real, dimension(1:lx1,1:ly1,1:lz1,1:lelt,1:ldimt1) :: vdiff_drgtrq
+      real, dimension(1:lx1,1:ly1,1:lz1,1:lelv) :: vx_comp_sij
+      real, dimension(1:lx1,1:ly1,1:lz1,1:lelv) :: vy_comp_sij
+      real, dimension(1:lx1,1:ly1,1:lz1,1:lelv) :: vz_comp_sij
+      real, dimension(0:maxobj) :: w1_gop
+      real, dimension(1:lx1,1:ly1,1:lz1,1:lelt) :: xm0_cadd2
+      real, dimension(1:lx1,1:ly1,1:lz1,1:lelt) :: xm0_mappr
+      real, dimension(1:lx1,1:ly1,1:lz1,1:lelt) :: xm1_add2s2
+      real, dimension(1:lx1,1:ly1,1:lz1,1:lelt) :: xm1_cadd2
+      real, dimension(1:lx1,1:ly1,1:lz1,1:lelt) :: ym0_cadd2
+      real, dimension(1:lx1,1:ly1,1:lz1,1:lelt) :: ym0_mappr
+      real, dimension(1:lx1,1:ly1,1:lz1,1:lelt) :: ym1_add2s2
+      real, dimension(1:lx1,1:ly1,1:lz1,1:lelt) :: ym1_cadd2
+      real, dimension(1:lx1,1:ly1,1:lz1,1:lelt) :: zm0_cadd2
+      real, dimension(1:lx1,1:ly1,1:lz1,1:lelt) :: zm1_add2s2
+      real, dimension(1:lx1,1:ly1,1:lz1,1:lelt) :: zm1_cadd2
       xm0(1,1,1,1:512) = reshape(trx(1:lx1,1:ly1,1:lz1),shape(xm0(1,1,1,1:512)))
       xm0(1,1,1,513:1024) = reshape(trz(1:lx1,1:ly1,1:lz1),shape(xm0(1,1,1,513:1024)))
 ! Grouped Parameter Declarations
-      implicit none
       integer, parameter :: lr=lx1*ly1*lz1
       real :: base_flow
       real, dimension(1:3,1:4), intent(InOut) :: dgtq
@@ -501,33 +549,69 @@ contains
       logical, intent(In) :: iftout
 ! Moved param decl for  lr to top of code unit
       n = lx1*ly1*lz1*nelv
+      xm0_mappr = reshape(xm0,shape(xm0_mappr))
+      ym0_mappr = reshape(ym0,shape(ym0_mappr))
       call mappr(pm1,pr,xm0_mappr,ym0_mappr,nelv,ifsplit_GLOB,ixm21_GLOB,iytm21_GLOB,iztm21_GLOB, &
       ifield,vmult_GLOB,nrout,rname,dct,ncall,dcount,tmxmf,tcol2)
+      xm0 = reshape(xm0_mappr, shape(xm0))
+      ym0 = reshape(ym0_mappr, shape(ym0))
       if (param(55) /= 0) then
          dpdx_mean = -scale_vf(1)
          dpdy_mean = -scale_vf(2)
          dpdz_mean = -scale_vf(3)
       endif
+      pm1_add2s2 = reshape(pm1,shape(pm1_add2s2))
+      xm1_add2s2 = reshape(xm1,shape(xm1_add2s2))
       call add2s2(pm1_add2s2,xm1_add2s2,dpdx_mean,n,ta2s2_GLOB)
 
+      pm1 = reshape(pm1_add2s2, shape(pm1))
+      xm1 = reshape(xm1_add2s2, shape(xm1))
+      pm1_add2s2 = reshape(pm1,shape(pm1_add2s2))
+      ym1_add2s2 = reshape(ym1,shape(ym1_add2s2))
       call add2s2(pm1_add2s2,ym1_add2s2,dpdy_mean,n,ta2s2_GLOB)
 
+      pm1 = reshape(pm1_add2s2, shape(pm1))
+      ym1 = reshape(ym1_add2s2, shape(ym1))
+      pm1_add2s2 = reshape(pm1,shape(pm1_add2s2))
+      zm1_add2s2 = reshape(zm1,shape(zm1_add2s2))
       call add2s2(pm1_add2s2,zm1_add2s2,dpdz_mean,n,ta2s2_GLOB)
 
+      pm1 = reshape(pm1_add2s2, shape(pm1))
+      zm1 = reshape(zm1_add2s2, shape(zm1))
       nij = 3
       if (if3d.or.ifaxis) nij=6
+      vx_comp_sij = reshape(vx,shape(vx_comp_sij))
+      vy_comp_sij = reshape(vy,shape(vy_comp_sij))
+      vz_comp_sij = reshape(vz,shape(vz_comp_sij))
       call comp_sij(sij,nij,vx_comp_sij,vy_comp_sij,vz_comp_sij,ur,us,ut,vr,vs,vt,wr,ws,wt,if3d, &
       nelv,dxm1_GLOB,dxtm1_GLOB,jacmi_GLOB,rxm1_GLOB,sxm1_GLOB,txm1_GLOB,rym1_GLOB,sym1_GLOB, &
       tym1_GLOB,rzm1_GLOB,szm1_GLOB,tzm1_GLOB,ifaxis,ifrzer_GLOB,dytm1_GLOB,ym1,nrout,rname,dct, &
       ncall,dcount,tmxmf,dym1,dam1,datm1,dcm1,dctm1)
+      vx = reshape(vx_comp_sij, shape(vx))
+      vy = reshape(vy_comp_sij, shape(vy))
+      vz = reshape(vz_comp_sij, shape(vz))
+      vdiff_cfill = reshape(vdiff,shape(vdiff_cfill))
       call cfill(vdiff_cfill,param(2),n)
 
+      vdiff = reshape(vdiff_cfill, shape(vdiff))
+      xm0_cadd2 = reshape(xm0,shape(xm0_cadd2))
+      xm1_cadd2 = reshape(xm1,shape(xm1_cadd2))
       call cadd2(xm0_cadd2,xm1_cadd2,-x0(1),n)
 
+      xm0 = reshape(xm0_cadd2, shape(xm0))
+      xm1 = reshape(xm1_cadd2, shape(xm1))
+      ym0_cadd2 = reshape(ym0,shape(ym0_cadd2))
+      ym1_cadd2 = reshape(ym1,shape(ym1_cadd2))
       call cadd2(ym0_cadd2,ym1_cadd2,-x0(2),n)
 
+      ym0 = reshape(ym0_cadd2, shape(ym0))
+      ym1 = reshape(ym1_cadd2, shape(ym1))
+      zm0_cadd2 = reshape(zm0,shape(zm0_cadd2))
+      zm1_cadd2 = reshape(zm1,shape(zm1_cadd2))
       call cadd2(zm0_cadd2,zm1_cadd2,-x0(3),n)
 
+      zm0 = reshape(zm0_cadd2, shape(zm0))
+      zm1 = reshape(zm1_cadd2, shape(zm1))
       x1min = glmin(xm0(1,1,1,1),n,icall,nekcomm,nekgroup,nekreal,nid,np,ifsync_GLOB,tgop_GLOB, &
       ngop_GLOB,ifneknek,ttotal,etimes,tprep,ttime,istep,nvtot)
       x2min = glmin(ym0(1,1,1,1),n,icall,nekcomm,nekgroup,nekreal,nid,np,ifsync_GLOB,tgop_GLOB, &
@@ -573,10 +657,14 @@ contains
                ifc   = object(iobj,mem,2)
                if (gllnid(ieg) == nid) then 
                   ie = gllel(ieg)
+                  vdiff_drgtrq = reshape(vdiff,shape(vdiff_drgtrq))
                   call drgtrq(dgtq,xm0,ym0,zm0,sij,pm1,vdiff_drgtrq,ifc,ie,eface1_GLOB,skpdat_GLOB, &
       if3d,ifaxis,area_GLOB,unx_GLOB,uny_GLOB,unz_GLOB)
+                  vdiff = reshape(vdiff_drgtrq, shape(vdiff))
+                  dgtq_cmult = reshape(dgtq,shape(dgtq_cmult))
                   call cmult(dgtq_cmult,scale,12)
 
+                  dgtq = reshape(dgtq_cmult, shape(dgtq))
                   dragpx(iobj) = dragpx(iobj) + dgtq(1,1)  
                   dragpy(iobj) = dragpy(iobj) + dgtq(2,1)
                   dragpz(iobj) = dragpz(iobj) + dgtq(3,1)
@@ -594,30 +682,78 @@ contains
           endif
         endif
       enddo
-      call gop(dragpx,w1,'+  ',maxobj+1,icall,nekcomm,nekgroup,nekreal,nid,np,ifsync_GLOB,tgop_GLOB, &
-      ngop_GLOB,ifneknek,ttotal,etimes,tprep,ttime,istep,nvtot)
-      call gop(dragpy,w1,'+  ',maxobj+1,icall,nekcomm,nekgroup,nekreal,nid,np,ifsync_GLOB,tgop_GLOB, &
-      ngop_GLOB,ifneknek,ttotal,etimes,tprep,ttime,istep,nvtot)
-      call gop(dragpz,w1,'+  ',maxobj+1,icall,nekcomm,nekgroup,nekreal,nid,np,ifsync_GLOB,tgop_GLOB, &
-      ngop_GLOB,ifneknek,ttotal,etimes,tprep,ttime,istep,nvtot)
-      call gop(dragvx,w1,'+  ',maxobj+1,icall,nekcomm,nekgroup,nekreal,nid,np,ifsync_GLOB,tgop_GLOB, &
-      ngop_GLOB,ifneknek,ttotal,etimes,tprep,ttime,istep,nvtot)
-      call gop(dragvy,w1,'+  ',maxobj+1,icall,nekcomm,nekgroup,nekreal,nid,np,ifsync_GLOB,tgop_GLOB, &
-      ngop_GLOB,ifneknek,ttotal,etimes,tprep,ttime,istep,nvtot)
-      call gop(dragvz,w1,'+  ',maxobj+1,icall,nekcomm,nekgroup,nekreal,nid,np,ifsync_GLOB,tgop_GLOB, &
-      ngop_GLOB,ifneknek,ttotal,etimes,tprep,ttime,istep,nvtot)
-      call gop(torqpx,w1,'+  ',maxobj+1,icall,nekcomm,nekgroup,nekreal,nid,np,ifsync_GLOB,tgop_GLOB, &
-      ngop_GLOB,ifneknek,ttotal,etimes,tprep,ttime,istep,nvtot)
-      call gop(torqpy,w1,'+  ',maxobj+1,icall,nekcomm,nekgroup,nekreal,nid,np,ifsync_GLOB,tgop_GLOB, &
-      ngop_GLOB,ifneknek,ttotal,etimes,tprep,ttime,istep,nvtot)
-      call gop(torqpz,w1,'+  ',maxobj+1,icall,nekcomm,nekgroup,nekreal,nid,np,ifsync_GLOB,tgop_GLOB, &
-      ngop_GLOB,ifneknek,ttotal,etimes,tprep,ttime,istep,nvtot)
-      call gop(torqvx,w1,'+  ',maxobj+1,icall,nekcomm,nekgroup,nekreal,nid,np,ifsync_GLOB,tgop_GLOB, &
-      ngop_GLOB,ifneknek,ttotal,etimes,tprep,ttime,istep,nvtot)
-      call gop(torqvy,w1,'+  ',maxobj+1,icall,nekcomm,nekgroup,nekreal,nid,np,ifsync_GLOB,tgop_GLOB, &
-      ngop_GLOB,ifneknek,ttotal,etimes,tprep,ttime,istep,nvtot)
-      call gop(torqvz,w1,'+  ',maxobj+1,icall,nekcomm,nekgroup,nekreal,nid,np,ifsync_GLOB,tgop_GLOB, &
-      ngop_GLOB,ifneknek,ttotal,etimes,tprep,ttime,istep,nvtot)
+      dragpx_gop = reshape(dragpx,shape(dragpx_gop))
+      w1_gop = reshape(w1,shape(w1_gop))
+      call gop(dragpx_gop,w1_gop,'+  ',maxobj+1,icall,nekcomm,nekgroup,nekreal,nid,np,ifsync_GLOB, &
+      tgop_GLOB,ngop_GLOB,ifneknek,ttotal,etimes,tprep,ttime,istep,nvtot)
+      dragpx = reshape(dragpx_gop, shape(dragpx))
+      w1 = reshape(w1_gop, shape(w1))
+      dragpy_gop = reshape(dragpy,shape(dragpy_gop))
+      w1_gop = reshape(w1,shape(w1_gop))
+      call gop(dragpy_gop,w1_gop,'+  ',maxobj+1,icall,nekcomm,nekgroup,nekreal,nid,np,ifsync_GLOB, &
+      tgop_GLOB,ngop_GLOB,ifneknek,ttotal,etimes,tprep,ttime,istep,nvtot)
+      dragpy = reshape(dragpy_gop, shape(dragpy))
+      w1 = reshape(w1_gop, shape(w1))
+      dragpz_gop = reshape(dragpz,shape(dragpz_gop))
+      w1_gop = reshape(w1,shape(w1_gop))
+      call gop(dragpz_gop,w1_gop,'+  ',maxobj+1,icall,nekcomm,nekgroup,nekreal,nid,np,ifsync_GLOB, &
+      tgop_GLOB,ngop_GLOB,ifneknek,ttotal,etimes,tprep,ttime,istep,nvtot)
+      dragpz = reshape(dragpz_gop, shape(dragpz))
+      w1 = reshape(w1_gop, shape(w1))
+      dragvx_gop = reshape(dragvx,shape(dragvx_gop))
+      w1_gop = reshape(w1,shape(w1_gop))
+      call gop(dragvx_gop,w1_gop,'+  ',maxobj+1,icall,nekcomm,nekgroup,nekreal,nid,np,ifsync_GLOB, &
+      tgop_GLOB,ngop_GLOB,ifneknek,ttotal,etimes,tprep,ttime,istep,nvtot)
+      dragvx = reshape(dragvx_gop, shape(dragvx))
+      w1 = reshape(w1_gop, shape(w1))
+      dragvy_gop = reshape(dragvy,shape(dragvy_gop))
+      w1_gop = reshape(w1,shape(w1_gop))
+      call gop(dragvy_gop,w1_gop,'+  ',maxobj+1,icall,nekcomm,nekgroup,nekreal,nid,np,ifsync_GLOB, &
+      tgop_GLOB,ngop_GLOB,ifneknek,ttotal,etimes,tprep,ttime,istep,nvtot)
+      dragvy = reshape(dragvy_gop, shape(dragvy))
+      w1 = reshape(w1_gop, shape(w1))
+      dragvz_gop = reshape(dragvz,shape(dragvz_gop))
+      w1_gop = reshape(w1,shape(w1_gop))
+      call gop(dragvz_gop,w1_gop,'+  ',maxobj+1,icall,nekcomm,nekgroup,nekreal,nid,np,ifsync_GLOB, &
+      tgop_GLOB,ngop_GLOB,ifneknek,ttotal,etimes,tprep,ttime,istep,nvtot)
+      dragvz = reshape(dragvz_gop, shape(dragvz))
+      w1 = reshape(w1_gop, shape(w1))
+      torqpx_gop = reshape(torqpx,shape(torqpx_gop))
+      w1_gop = reshape(w1,shape(w1_gop))
+      call gop(torqpx_gop,w1_gop,'+  ',maxobj+1,icall,nekcomm,nekgroup,nekreal,nid,np,ifsync_GLOB, &
+      tgop_GLOB,ngop_GLOB,ifneknek,ttotal,etimes,tprep,ttime,istep,nvtot)
+      torqpx = reshape(torqpx_gop, shape(torqpx))
+      w1 = reshape(w1_gop, shape(w1))
+      torqpy_gop = reshape(torqpy,shape(torqpy_gop))
+      w1_gop = reshape(w1,shape(w1_gop))
+      call gop(torqpy_gop,w1_gop,'+  ',maxobj+1,icall,nekcomm,nekgroup,nekreal,nid,np,ifsync_GLOB, &
+      tgop_GLOB,ngop_GLOB,ifneknek,ttotal,etimes,tprep,ttime,istep,nvtot)
+      torqpy = reshape(torqpy_gop, shape(torqpy))
+      w1 = reshape(w1_gop, shape(w1))
+      torqpz_gop = reshape(torqpz,shape(torqpz_gop))
+      w1_gop = reshape(w1,shape(w1_gop))
+      call gop(torqpz_gop,w1_gop,'+  ',maxobj+1,icall,nekcomm,nekgroup,nekreal,nid,np,ifsync_GLOB, &
+      tgop_GLOB,ngop_GLOB,ifneknek,ttotal,etimes,tprep,ttime,istep,nvtot)
+      torqpz = reshape(torqpz_gop, shape(torqpz))
+      w1 = reshape(w1_gop, shape(w1))
+      torqvx_gop = reshape(torqvx,shape(torqvx_gop))
+      w1_gop = reshape(w1,shape(w1_gop))
+      call gop(torqvx_gop,w1_gop,'+  ',maxobj+1,icall,nekcomm,nekgroup,nekreal,nid,np,ifsync_GLOB, &
+      tgop_GLOB,ngop_GLOB,ifneknek,ttotal,etimes,tprep,ttime,istep,nvtot)
+      torqvx = reshape(torqvx_gop, shape(torqvx))
+      w1 = reshape(w1_gop, shape(w1))
+      torqvy_gop = reshape(torqvy,shape(torqvy_gop))
+      w1_gop = reshape(w1,shape(w1_gop))
+      call gop(torqvy_gop,w1_gop,'+  ',maxobj+1,icall,nekcomm,nekgroup,nekreal,nid,np,ifsync_GLOB, &
+      tgop_GLOB,ngop_GLOB,ifneknek,ttotal,etimes,tprep,ttime,istep,nvtot)
+      torqvy = reshape(torqvy_gop, shape(torqvy))
+      w1 = reshape(w1_gop, shape(w1))
+      torqvz_gop = reshape(torqvz,shape(torqvz_gop))
+      w1_gop = reshape(w1,shape(w1_gop))
+      call gop(torqvz_gop,w1_gop,'+  ',maxobj+1,icall,nekcomm,nekgroup,nekreal,nid,np,ifsync_GLOB, &
+      tgop_GLOB,ngop_GLOB,ifneknek,ttotal,etimes,tprep,ttime,istep,nvtot)
+      torqvz = reshape(torqvz_gop, shape(torqvz))
+      w1 = reshape(w1_gop, shape(w1))
       nobj  = iglmax(nobj,1,icall,nekcomm,nekgroup,nekreal,nid,np,ifneknek,ttotal,etimes,tprep, &
       ttime,istep,nvtot,ifsync_GLOB,tgop_GLOB,ngop_GLOB)
       do i=1,nobj
@@ -680,7 +816,7 @@ contains
       subroutine comp_sij(sij,nij,u,v,w,ur,us,ut,vr,vs,vt,wr,ws,wt,if3d,nelv,dxm1,dxtm1,jacmi,rxm1, &
       sxm1,txm1,rym1,sym1,tym1,rzm1,szm1,tzm1,ifaxis,ifrzer,dytm1,ym1,nrout,rname,dct,ncall, &
       dcount,tmxmf,dym1_GLOB,dam1_GLOB,datm1_GLOB,dcm1_GLOB,dctm1_GLOB)
-      use params_SIZE, only : lelt, lz1, ly1, lx1, lelv
+      use params_SIZE, only : lelv, ly1, lelt, lx1, lz1
 !!      use params_TOTAL ! ONLY LIST EMPTY
       implicit none
       logical, intent(In) :: if3d
@@ -702,9 +838,20 @@ contains
       real, dimension(1:ly1,1:ly1), intent(InOut) :: dytm1
       real, dimension(1:lx1,1:ly1,1:lz1,1:lelt), intent(In) :: ym1
       integer :: nrout
+      real, dimension(1:lx1*ly1*lz1,1:lelv) :: v_local_grad2
+      real, dimension(1:lx1*ly1*lz1,1:lelv) :: v_local_grad3
       real, dimension(0:n,0:n) :: vr_local_grad2
+      real, dimension(0:n,0:n,0:n) :: vr_local_grad3
       real, dimension(0:n,0:n) :: vs_local_grad2
-      real, dimension(0:n,0:n,1:1) :: v_local_grad2
+      real, dimension(0:n,0:n,0:n) :: vs_local_grad3
+      real, dimension(0:n,0:n,0:n) :: vt_local_grad3
+      real, dimension(1:lx1*ly1*lz1,1:lelv) :: w_local_grad2
+      real, dimension(1:lx1*ly1*lz1,1:lelv) :: w_local_grad3
+      real, dimension(0:n,0:n) :: wr_local_grad2
+      real, dimension(0:n,0:n,0:n) :: wr_local_grad3
+      real, dimension(0:n,0:n) :: ws_local_grad2
+      real, dimension(0:n,0:n,0:n) :: ws_local_grad3
+      real, dimension(0:n,0:n,0:n) :: wt_local_grad3
             integer, parameter :: maxrts=1000
       character(len=6), dimension(1:maxrts) :: rname
       real(kind=8), dimension(1:maxrts) :: dct
@@ -724,8 +871,8 @@ contains
       integer :: e
       real, dimension(1:lx1*ly1*lz1,1:nij,1:lelv), intent(Out) :: sij
       real, dimension(1:lx1*ly1*lz1,1:lelv), intent(In) :: u
-      real, dimension(1:lx1*ly1*lz1,1:lelv), intent(In) :: v
-      real, dimension(1:lx1*ly1*lz1,1:lelv), intent(In) :: w
+      real, dimension(1:lx1*ly1*lz1,1:lelv), intent(InOut) :: v
+      real, dimension(1:lx1*ly1*lz1,1:lelv), intent(InOut) :: w
       real, dimension(1:1), intent(InOut) :: ur
       real, dimension(1:1), intent(InOut) :: us
       real, dimension(1:1), intent(InOut) :: ut
@@ -742,10 +889,26 @@ contains
        do e=1,nelv
         call local_grad3(ur,us,ut,u,n,e,dxm1,dxtm1,nrout,rname,dct,ncall,dcount,tmxmf)
 
+        vr_local_grad3 = reshape(vr,shape(vr_local_grad3))
+        vs_local_grad3 = reshape(vs,shape(vs_local_grad3))
+        vt_local_grad3 = reshape(vt,shape(vt_local_grad3))
+        v_local_grad3 = reshape(v,shape(v_local_grad3))
         call local_grad3(vr_local_grad3,vs_local_grad3,vt_local_grad3,v_local_grad3,n,e,dxm1,dxtm1, &
       nrout,rname,dct,ncall,dcount,tmxmf)
+        vr = reshape(vr_local_grad3, shape(vr))
+        vs = reshape(vs_local_grad3, shape(vs))
+        vt = reshape(vt_local_grad3, shape(vt))
+        v = reshape(v_local_grad3, shape(v))
+        wr_local_grad3 = reshape(wr,shape(wr_local_grad3))
+        ws_local_grad3 = reshape(ws,shape(ws_local_grad3))
+        wt_local_grad3 = reshape(wt,shape(wt_local_grad3))
+        w_local_grad3 = reshape(w,shape(w_local_grad3))
         call local_grad3(wr_local_grad3,ws_local_grad3,wt_local_grad3,w_local_grad3,n,e,dxm1,dxtm1, &
       nrout,rname,dct,ncall,dcount,tmxmf)
+        wr = reshape(wr_local_grad3, shape(wr))
+        ws = reshape(ws_local_grad3, shape(ws))
+        wt = reshape(wt_local_grad3, shape(wt))
+        w = reshape(w_local_grad3, shape(w))
         do i=1,nxyz
          j = jacmi(i,e)
          sij(i,1,e) = j*     2*(ur(i)*rxm1(i,1,1,e)+us(i)*sxm1(i,1,1,e)+ut(i)*txm1(i,1,1,e))
@@ -765,10 +928,22 @@ contains
 
             call local_grad2(ur,us,u,n,e,dxm1,dytm1,nrout,rname,dct,ncall,dcount,tmxmf)
 
+            vr_local_grad2 = reshape(vr,shape(vr_local_grad2))
+            vs_local_grad2 = reshape(vs,shape(vs_local_grad2))
+            v_local_grad2 = reshape(v,shape(v_local_grad2))
             call local_grad2(vr_local_grad2,vs_local_grad2,v_local_grad2,n,e,dxm1,dytm1,nrout,rname, &
       dct,ncall,dcount,tmxmf)
+            vr = reshape(vr_local_grad2, shape(vr))
+            vs = reshape(vs_local_grad2, shape(vs))
+            v = reshape(v_local_grad2, shape(v))
+            wr_local_grad2 = reshape(wr,shape(wr_local_grad2))
+            ws_local_grad2 = reshape(ws,shape(ws_local_grad2))
+            w_local_grad2 = reshape(w,shape(w_local_grad2))
             call local_grad2(wr_local_grad2,ws_local_grad2,w_local_grad2,n,e,dxm1,dytm1,nrout,rname, &
       dct,ncall,dcount,tmxmf)
+            wr = reshape(wr_local_grad2, shape(wr))
+            ws = reshape(ws_local_grad2, shape(ws))
+            w = reshape(w_local_grad2, shape(w))
             do i=1,nxyz
                j = jacmi(i,e)
                r = ym1(i,1,1,e)                              
@@ -794,8 +969,14 @@ contains
          do e=1,nelv
             call local_grad2(ur,us,u,n,e,dxm1,dxtm1,nrout,rname,dct,ncall,dcount,tmxmf)
 
+            vr_local_grad2 = reshape(vr,shape(vr_local_grad2))
+            vs_local_grad2 = reshape(vs,shape(vs_local_grad2))
+            v_local_grad2 = reshape(v,shape(v_local_grad2))
             call local_grad2(vr_local_grad2,vs_local_grad2,v_local_grad2,n,e,dxm1,dxtm1,nrout,rname, &
       dct,ncall,dcount,tmxmf)
+            vr = reshape(vr_local_grad2, shape(vr))
+            vs = reshape(vs_local_grad2, shape(vs))
+            v = reshape(v_local_grad2, shape(v))
             do i=1,nxyz
                j = jacmi(i,e)
                sij(i,1,e) = j*             2*(ur(i)*rxm1(i,1,1,e)+us(i)*sxm1(i,1,1,e))

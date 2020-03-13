@@ -1,8 +1,11 @@
 	program test_const_args
-		real dragpx, w1
+		real dragpx
+                integer w1, w2, w3
 		parameter(maxobj=41)
 		dragpx=1.1
-		w1=22
+                w3=1
+                w2 = maxobj+w3
+		w1=w2*w2
 		call f1
 		call gop(dragpx,w1,'+  ',maxobj+1)
 
@@ -25,7 +28,9 @@
 	end subroutine f2
 
 	subroutine gop( x, w, op, n)
-		real x,w
+		real x
+                integer w
+                real ra(w)
 		character(3) op
 		integer n
 		print *, x, w, op, n
