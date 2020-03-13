@@ -77,31 +77,21 @@ sub analyse_variables {
 			# -------------------------------------------------------------------------------------------------------------------
 			
 			for my $mvar (@chunks) {
-				# croak "$f: $line => $mvar" if $mvar eq 'len' and $f eq 'getreafile';
-#            say "$f VAR0 $mvar";
+				# say "<$mvar>";
                 next if exists $stref->{'Subroutines'}{$f}{'CalledSubs'}{'Set'}{$mvar};    # Means it's a function
 				next if $mvar =~ /^\d+$/;
 				next if not defined $mvar or $mvar eq '';
-# 			say "$f VAR1 $mvar";
-				#				my $maybe_orig_arg = in_nested_set( $Sf, 'OrigArgs', $mvar );
 				# Means arg was declared
 				my $in_vars_subset = in_nested_set( $Sf, 'Vars', $mvar );
-				# say "$mvar: Subset <$in_vars_subset>";
 				my $decl_orig_arg = exists $Sf->{'DeclaredOrigArgs'}{'Set'}{$mvar} ? 1 : 0;
-# say $decl_orig_arg;
 				# Means arg has been declared via Implicits
 				my $undecl_orig_arg = exists $Sf->{'UndeclaredOrigArgs'}{'Set'}{$mvar} ? 1 : 0;
-# say $undecl_orig_arg;
 				# Means var was declared
 				my $decl_orig_local_var = exists $Sf->{'DeclaredOrigLocalVars'}{'Set'}{$mvar} ? 1 : 0;
-# say $decl_orig_local_var;
 				# Means var has been declared via Implicits
 				my $undecl_orig_local_var = exists $Sf->{'UndeclaredOrigLocalVars'}{'Set'}{$mvar} ? 1 : 0;
-# say $undecl_orig_local_var;				
 				my $decl_common_var       = exists $Sf->{'DeclaredCommonVars'}{'Set'}{$mvar}      ? 1 : 0;
-# say $decl_common_var; 				
 				my $undecl_common_var     = exists $Sf->{'UndeclaredCommonVars'}{'Set'}{$mvar}    ? 1 : 0;
-# say $undecl_common_var;				
 				
 				# Here it is still possible that the variables don't have any declarations
 				# If that is the case for OrigArgs we must type them via Implicits
@@ -439,8 +429,14 @@ sub identify_vars_on_line {
 #                croak Dumper(@chunks,$info->{'Vars'}) if $line=~/read.*time/;
 			} elsif ( exists $info->{'SubroutineCall'} ) {
 				for my $var_expr ( @{ $info->{'SubroutineCall'}{'Args'}{'List'} } ) {
+					# carp Dumper( $info->{'SubroutineCall'}{'Args'}{'Set'});
 					if ( exists $info->{'SubroutineCall'}{'Args'}{'Set'}{$var_expr}{'Arg'} ) {
 						push @chunks, $info->{'SubroutineCall'}{'Args'}{'Set'}{$var_expr}{'Arg'};
+						# carp Dumper($info->{'SubroutineCall'}{'Args'}{'Set'}{$var_expr});
+					} elsif(
+						exists $info->{'SubroutineCall'}{'Args'}{'Set'}{$var_expr}{'Vars'}
+					) {
+						@chunks = (@chunks, sort keys %{$info->{'SubroutineCall'}{'Args'}{'Set'}{$var_expr}{'Vars'}});
 					} else {
 						push @chunks, $var_expr;
 					}

@@ -785,14 +785,11 @@ sub _create_refactored_subroutine_call {
 
 	# a shallow copy
 	my $expr_ast = [ @{ $info->{'SubroutineCall'}{'ExpressionAST'} } ];
-
 	if ( @{$expr_ast} and ( $expr_ast->[0] & 0xFF ) != 27 ) {
 		$expr_ast = [$expr_ast];
 	} else {
 		shift @{$expr_ast};
 	}
-# carp "$f $name ".'ARGMAP:' .Dumper($info->{'SubroutineCall'}{'ArgMap'}) if $name eq 'sbisect';
-# carp $line. Dumper($expr_ast);
 	my @cast_reshape_results=();
 	for my $call_arg_expr ( @{$expr_ast} ) {
 		# The main purpose is to handle variable names
@@ -800,40 +797,35 @@ sub _create_refactored_subroutine_call {
 		# So this only works for plain variable names
 		my $call_arg = emit_expr_from_ast($call_arg_expr);
 
-				# my $call_arg = $stref->{'Subroutines'}{$parent_sub_name}{'ExMismatchedCommonArgs'}{'CallArgs'}{$f}{$sig_arg}[0];
-				if ($call_arg!~/__PH\d+__/) {
-						# say "FOR CALL ARG $call_arg of call to $name in $f:";
-					my $subset = in_nested_set($stref->{'Subroutines'}{$f}, 'Vars', $call_arg);
-					if ($subset) { # otherwise it means this is an expression, including array accesses, or a constant.
-					# TODO!
-						my $call_arg_decl = $stref->{'Subroutines'}{$f}{$subset}{'Set'}{$call_arg};
-						# carp "Subset $subset for $call_arg in $f";
-						# carp Dumper($call_arg_decl)  if $call_arg eq 'p2' and $name eq 'sbisect';
+		if ($call_arg!~/__PH\d+__/) {
+			my $subset = in_nested_set($stref->{'Subroutines'}{$f}, 'Vars', $call_arg);
+			if ($subset) { # otherwise it means this is an expression, including array accesses, or a constant.
+				my $call_arg_decl = $stref->{'Subroutines'}{$f}{$subset}{'Set'}{$call_arg};
 
-						# Just set $sig_arg to $call_arg as a start
-						my $sig_arg = $call_arg;
-						# Now see if there is an actual $sig_arg for which the entry in ArgMap
-						# matches the $call_arg
-						# ArgMap entries are not typed: the type info is in $info->{'SubroutineCall'}{'Args'}
-						# carp Dumper($info->{'SubroutineCall'}{'ArgMap'});
-						for my $tsig_arg (keys %{$info->{'SubroutineCall'}{'ArgMap'} }) {					
-							if ( defined $info->{'SubroutineCall'}{'ArgMap'}{$tsig_arg} and
-								$info->{'SubroutineCall'}{'ArgMap'}{$tsig_arg} eq $call_arg) {									
-								$sig_arg=$tsig_arg;
-								last;
-							}
-						}
-						my $sig_subset = in_nested_set($stref->{'Subroutines'}{$name}, 'Vars', $sig_arg);
-						my $sig_arg_decl = $stref->{'Subroutines'}{$name}{$sig_subset}{'Set'}{$sig_arg};
-						# carp $sig_subset .Dumper($sig_arg_decl)  if $call_arg eq 'p2' and $name eq 'sbisect';
-						if (not exists $sig_arg_decl->{'Name'}) {
-							$sig_arg_decl = $call_arg_decl;
-						}
-						my $cast_reshape_result = _maybe_cast_call_args($stref, $f, $name, $call_arg,$call_arg_decl,$sig_arg, $sig_arg_decl);
-						$call_arg = $cast_reshape_result->{'CallArg'};
-						push @cast_reshape_results, $cast_reshape_result if $cast_reshape_result->{'Status'} == 2;
-					} # in subset
-				} # not a PlaceHolder, this is a HACK as it shouldn't be one anyway!
+				# Just set $sig_arg to $call_arg as a start
+				my $sig_arg = $call_arg;
+				# Now see if there is an actual $sig_arg for which the entry in ArgMap
+				# matches the $call_arg
+				# ArgMap entries are not typed: the type info is in $info->{'SubroutineCall'}{'Args'}
+				# carp Dumper($info->{'SubroutineCall'}{'ArgMap'});
+				for my $tsig_arg (keys %{$info->{'SubroutineCall'}{'ArgMap'} }) {					
+					if ( defined $info->{'SubroutineCall'}{'ArgMap'}{$tsig_arg} and
+						$info->{'SubroutineCall'}{'ArgMap'}{$tsig_arg} eq $call_arg) {									
+						$sig_arg=$tsig_arg;
+						last;
+					}
+				}
+				my $sig_subset = in_nested_set($stref->{'Subroutines'}{$name}, 'Vars', $sig_arg);
+				my $sig_arg_decl = $stref->{'Subroutines'}{$name}{$sig_subset}{'Set'}{$sig_arg};
+				# carp $sig_subset .Dumper($sig_arg_decl)  if $call_arg eq 'p2' and $name eq 'sbisect';
+				if (not exists $sig_arg_decl->{'Name'}) {
+					$sig_arg_decl = $call_arg_decl;
+				}
+				my $cast_reshape_result = _maybe_cast_call_args($stref, $f, $name, $call_arg,$call_arg_decl,$sig_arg, $sig_arg_decl);
+				$call_arg = $cast_reshape_result->{'CallArg'};
+				push @cast_reshape_results, $cast_reshape_result if $cast_reshape_result->{'Status'} == 2;
+			} # in subset
+		} # not a PlaceHolder, this is a HACK as it shouldn't be one anyway!
 
 		push @orig_args, $call_arg;
 	} # loop over all call args
@@ -2299,16 +2291,19 @@ sub _maybe_cast_call_args { my ($stref, $f, $sub_name, $call_arg,$call_arg_decl,
 		if ( $size1 == $size2 and $rank1 != $rank2 ) {
 			$needs_reshape=1;			
 		} elsif ( $size1 != $size2 and $rank1 == $rank2 ) {
-			say "WARNING: In call to $sub_name in $f: call arg $call_arg and subroutine arg $sig_arg have different sizes $size1<>$size2, type error!" if $W;
+			say "WARNING: In call to $sub_name in $f: call arg $call_arg and subroutine arg $sig_arg have different sizes $size1<>$size2, type error!\n"
+			.'Using the largest dimension for the reshaped array.' if $W;
 			if ($size1>$size2) {
 				$use_arg_sz=1;
 			}
 			$needs_reshape=1;
 		} elsif ( $size1 != $size2 and $rank1 != $rank2 ) {
+			# We take the largest of the two. This can of course lead to run-time errors.
 			if ($size1>$size2) {
 				$use_arg_sz=1;
 			}
-			say "WARNING: In call to $sub_name in $f: call arg $call_arg and subroutine arg $sig_arg have different sizes $size1<>$size2, type error in reshape()!" if $W;
+			say "WARNING: In call to $sub_name in $f: call arg $call_arg and subroutine arg $sig_arg have different sizes $size1<>$size2, type error in reshape()!\n"
+			.'Using the largest dimension for the reshaped array.' if $W;
 			$needs_reshape=1;
 		}
 	}

@@ -7,7 +7,7 @@
       ia(1)=42
       i=1
       is=7
-      call test(ia,ia(i),int(2*is+1, 4),is,ip,43,int(is))
+      call test(ia,ia(i),2*is+1,is,ip,43,int(is))
 
       end program test_argmap
       subroutine test(a1,a2,a3,a4,a5,a6,a7)
