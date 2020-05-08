@@ -76,8 +76,7 @@ sub read_fortran_src {
         if ( not exists $stref->{'SourceContains'}{$f}
         or ( scalar @{ $stref->{'SourceContains'}{$f}{'List'} } == 0)
         ) {
-            $no_need_to_read = 0;
-            
+            $no_need_to_read = 0;            
         } else {
         	 
             for my $item ( @{ $stref->{'SourceContains'}{$f}{'List'} } ) {

@@ -182,22 +182,22 @@ sub main {
         }    
     for my $data_block (keys %{ $stref->{'BlockData'} } ) {
     	$stref = parse_fortran_src( $data_block, $stref );
-    }
+    }    
     # It is possible that the TOP routine was set to the default (PROGRAM) while doing the inventory
     if ($code_unit_name eq '' and exists $Config{'TOP'} and $Config{'TOP'} ne '') {
     	$code_unit_name = $Config{'TOP'};
         $stref->{'Top'}=$code_unit_name;
         say "Using PROGRAM $code_unit_name as TOP" if $V;
     }
-   
     if ($code_unit_name eq '' and exists $Config{'SOURCEFILES'} and scalar @{ $Config{'SOURCEFILES'} }>0) {
     	# $code_unit_name is empty, i.e. no TOP routine. So we go through all sources one by one by file name
     	for my $fp ( @{ $Config{'SOURCEFILES'} } ) {
     		parse_fortran_src( $fp, $stref, 1 );
     	}
     } else {
-	   $stref = parse_fortran_src( $code_unit_name, $stref );
+	   $stref = parse_fortran_src( $code_unit_name, $stref );              
     }
+    
     # croak  Dumper($stref->{'Subroutines'}{'comp_gije'}{AnnLines});
     if ($V) {
         say "--------------". ('-' x length($code_unit_name)) ;
@@ -205,7 +205,7 @@ sub main {
         say "--------------". ('-' x length($code_unit_name)) ;
         }  	
 	$stref = mark_blocks_between_calls( $stref );
-	
+
 	$stref = refactor_marked_blocks_into_subroutines( $stref );
     if ($V) {
         say "--------------". ('-' x length($code_unit_name)) ;
@@ -222,7 +222,7 @@ sub main {
     } else {
        $stref = precondition_all( $code_unit_name, $stref );
     }
-    
+
 	if ( $call_tree_only  ) {        
 		$stref->{'PPCallTree'}=[];
 		$stref=create_call_tree($stref,$code_unit_name);

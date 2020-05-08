@@ -296,37 +296,36 @@ sub _process_src {
             
         }   
         # Tests for F77 or F95
-            if ( $line =~ /^\s*module\s+(\w+)/i ) { # die "LINE: $line";
-            
-                $in_module=1; 
-                $srctype='Modules';
-                $stref->{'SourceFiles'}{$src}{'SourceType'}='Modules';
-                $mod_name = lc($1); #die $line.':'.$mod_name;
-                $stref->{'SourceFiles'}{$src}{'ModuleName'}=$mod_name;
-#                say "SRC $src IS MODULE SRC: $mod_name";
+        if ( $line =~ /^\s*module\s+(\w+)/i ) { # die "LINE: $line";
+        
+            $in_module=1; 
+            $srctype='Modules';
+            $stref->{'SourceFiles'}{$src}{'SourceType'}='Modules';
+            $mod_name = lc($1); #die $line.':'.$mod_name;
+            $stref->{'SourceFiles'}{$src}{'ModuleName'}=$mod_name;
+            say "SRC $src IS MODULE SRC: $mod_name" if $DBG;
 #                $f=$mod_name;
-                $container=$mod_name;
+            $container=$mod_name;
 # What I want is a connection between a module and its file name, and also with its content.
 # So that we can say, given a module name, get the source, from there get the contents                
 # Maybe we don't really need the source, as we can use the module name as identifier
-                $stref->{'Modules'}{$mod_name}{'Source'}=$src;
-                
-	            $stref->{'SourceContains'}{$src}{'Set'}{$mod_name}=$srctype;
-	            push @{ $stref->{'SourceContains'}{$src}{'List'} },$mod_name;
-                
-                $fstyle='F95';                
-                $stref->{'Modules'}{$mod_name}{'FStyle'}=$fstyle;
-            	$stref->{'Modules'}{$mod_name}{'FreeForm'}=1;#$free_form;                  
-                $stref->{'Modules'}{$mod_name}{'TabFormat'}=$tab_format;         
-                
-            } 
-            if ( $line =~ /^\s*end\s+(?:module|program)/i ) { 
-            	$in_contains=0;
-            }
+            $stref->{'Modules'}{$mod_name}{'Source'}=$src;
+            
+            $stref->{'SourceContains'}{$src}{'Set'}{$mod_name}=$srctype;
+            push @{ $stref->{'SourceContains'}{$src}{'List'} },$mod_name;
+            
+            $fstyle='F95';                
+            $stref->{'Modules'}{$mod_name}{'FStyle'}=$fstyle;
+            $stref->{'Modules'}{$mod_name}{'FreeForm'}=1;#$free_form;                  
+            $stref->{'Modules'}{$mod_name}{'TabFormat'}=$tab_format;         
+            
+        } 
+        if ( $line =~ /^\s*end\s+(?:module|program)/i ) { 
+            $in_contains=0;
+        }
         if ($fstyle eq 'F77') {            
             if ( $line =~ /^\s*(^[\'\"]+)\s*::\s*(.*?)\s*$/ ) {
                  $fstyle='F95'; 
-#                 die $srctype . Dumper( $stref->{'SourceContains'}{$src} ) if $src=~/main/;
                  if (scalar @{ $stref->{'SourceContains'}{$src}{'List'} } == 1) {
                  	(my $code_unit, $srctype) = %{ $stref->{'SourceContains'}{$src}{'Set'} };
 	                $stref->{$srctype}{$code_unit}{'FStyle'}='F95';
@@ -517,7 +516,7 @@ sub _process_src {
                     	for my $ext_dir (@extsrcdirs) {
                     		if (-e "$prefix/$ext_dir/$inc") { 
                     			$stref->{'IncludeFiles'}{$inc}{'ExtPath'} =  "$prefix/$ext_dir/$inc";
-                                say "INC SRC PATH $src_path";
+                                say "INC SRC PATH $src_path" if $DBG;
                     			$stref->{'SourceContains'}{$src_path}={
                     				'Inc' => $inc,
                     				'Path' => { 'Ext' => "$prefix/$ext_dir/$inc"},                    				

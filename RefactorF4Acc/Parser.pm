@@ -72,10 +72,11 @@ sub parse_fortran_src {
 
 ## 1. Read the source and do some minimal processsing, unless it's already been done (i.e. for extracted blocks)
 	print "parse_fortran_src(): CALL read_fortran_src( $f )\n" if $V;
+		# carp '1'.Dumper(keys %{$stref->{'SourceContains'}});
+
 	$stref = read_fortran_src( $f, $stref, $is_source_file_path );    #
-	
+	# carp		 Dumper(keys %{$stref->{'SourceContains'}});
 	say "DONE read_fortran_src( $f )" if $V;	
-	
 	my $sub_or_incl_or_mod = sub_func_incl_mod( $f, $stref ); # Maybe call this "code_unit()"	
 	my $is_incl = $sub_or_incl_or_mod eq 'IncludeFiles' ? 1 : 0;
 	my $is_mod = $sub_or_incl_or_mod eq 'Modules' ? 1 : 0;
@@ -86,7 +87,7 @@ sub parse_fortran_src {
 	  $is_incl ? ( $stref->{'IncludeFiles'}{$f}{'InclType'} eq 'External' ) : 0;
 
 	say "SRC TYPE for $f: $sub_or_incl_or_mod" if $V;
-	
+
 	if ( 
 		$sub_or_incl_or_mod ne 'ExternalSubroutines' 
 		and $stref->{$sub_or_incl_or_mod}{$f}{'Status'} != $FILE_NOT_FOUND
@@ -107,11 +108,9 @@ sub parse_fortran_src {
 		}
 ## 2. Parse the type declarations in the source, create a per-target table Vars and a per-line VarDecl list and other context-free stuff
 		# NOTE: The Vars set are the *declared* variables, not the *used* ones
-
 		print "ANALYSE LINES of $f\n" if $V;
 		$stref = analyse_lines( $f, $stref );
 		say "DONE analyse_lines( $f )" if $V;
-
 		say "ANALYSE LOOPS/BREAKS in $f\n" if $V;
 		$stref = _identify_loops_breaks( $f, $stref );
 		say "DONE _identify_loops_breaks($f)" if $V;
@@ -166,6 +165,7 @@ sub parse_fortran_src {
        # but only when parse_fortran_src exits, so in fact maybe do this in Preconditioning?
        #delete  $stref->{$sub_or_incl_or_mod}{$f}{'DeclCount'};
        #delete  $stref->{$sub_or_incl_or_mod}{$f}{'DoneInitTables'};
+	   
 	return $stref;
 
 }    # END of parse_fortran_src()
@@ -229,6 +229,7 @@ sub analyse_lines {
 		my %block_id = ();
 		my @blocks_stack=();
 		my %extra_lines=(); # $index => [ ... ]
+	# croak Dumper(keys %{$stref->{'SourceContains'}});
 
 		for my $index ( 0 .. scalar( @{$srcref} ) - 1 ) {
 			my $attr = '';
@@ -409,7 +410,6 @@ sub analyse_lines {
 			# --------------------------------------------------------------------------------
 			# END of BLOCK identification code			
 			# --------------------------------------------------------------------------------
-						
 if ($in_excluded_block==0) {	
 						
 			# --------------------------------------------------------------------------------
@@ -479,6 +479,7 @@ SUBROUTINE
 #== USE				
 # WV20190626 I'm not sure why 'include' is handled in SrcReader and 'use' here ...
 			} elsif ( $line =~ /^use\s+(\w+)/ ) {
+				
 				my $module = $1;
 				$info->{'Use'}{'Name'} = $module;
 				if ($line =~ /only\s*:\s*([\w\s\,]+)/) {
@@ -618,6 +619,7 @@ SUBROUTINE
 		 }
 				next;
 		}
+		
 #== COMMON block processing for common blocks not in an include file
 			# common /name/ x...
 			# However, common/name/x is also valid, and even  common x, damn F77!
@@ -1414,6 +1416,8 @@ END IF
 #			}
 			}
 			
+			
+
 			if (not exists $info->{'Block'}) {
 				$info->{'Block'}=$current_block;
 			}
@@ -1448,7 +1452,7 @@ END IF
 			}
 
 		}    # Loop over lines
-
+		# croak Dumper(keys %{$stref->{'SourceContains'}});
 		# We sort the indices from high to low so that the insertions are at the correct index 
 		for my $idx (sort {$b <=> $a} keys %extra_lines) {		
 			$srcref = [@{$srcref}[0..$idx-1],@{ $extra_lines{$idx} },@{$srcref}[($idx+1) .. (scalar(@{$srcref})-1)] ]; 
@@ -1479,7 +1483,6 @@ END IF
 # If the include was not yet read, do it now.
 sub _parse_includes {
 	( my $f, my $stref ) = @_;
-
 #		local $V=1;
 
 	my $sub_or_func_or_mod_or_inc_or_mod = sub_func_incl_mod( $f, $stref );
@@ -4404,7 +4407,6 @@ sub __parse_include_statement { my ($stref, $f, $sub_incl_or_mod, $Sf, $line, $i
 		$stref->{'IncludeFiles'}{$name}{'Root'}      = $f;
 		$stref->{'IncludeFiles'}{$name}{'HasBlocks'} = 0;
 		$stref = parse_fortran_src( $name, $stref );
-		
 	} else {
 		say $line, " already processed" if $V;
 		# Not quite sure about this, 
@@ -4414,6 +4416,7 @@ sub __parse_include_statement { my ($stref, $f, $sub_incl_or_mod, $Sf, $line, $i
 			warn "Status for Include $name is FILE NOT FOUND";
 		}
 	}
+
 	if (    exists $stref->{'Implicits'}
 		and exists $stref->{'Implicits'}{$name} )
 	{
@@ -4433,6 +4436,7 @@ sub __parse_include_statement { my ($stref, $f, $sub_incl_or_mod, $Sf, $line, $i
 		}
 	}
 
+
 	# The include has been parsed.
 	if ( exists $stref->{'IncludeFiles'}{$name} )
 	{    # Otherwise it means it is an external include
@@ -4450,6 +4454,7 @@ sub __parse_include_statement { my ($stref, $f, $sub_incl_or_mod, $Sf, $line, $i
 			}
 		}
 	}
+	
 	say "DONE PARSE INCLUDE $name" if $V;
 	return $info;
 } # END of __parse_include_statement

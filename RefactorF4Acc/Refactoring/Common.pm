@@ -1467,7 +1467,7 @@ sub top_src_is_module {( my $stref, my $s) = @_;
     if ($sub_func_incl eq 'Modules') { return 1};
 	my $is_incl = exists $stref->{'IncludeFiles'}{$s} ? 1 : 0;
     my $f = $is_incl ? $s : $stref->{$sub_func_incl}{$s}{'Source'};
-    if ( defined $f ) {     	
+    if ( defined $f ) {    	        
 		for my $item ( @{ $stref->{'SourceContains'}{$f}{'List'} } ) {
 			# If $s is a subroutine, it could be that the source file is a Module, and then we should set that as the entry source type            
 			if ($stref->{'SourceContains'}{$f}{'Set'}{$item} eq 'Modules') {

@@ -295,9 +295,7 @@ sub __create_new_subroutine_entries {
         }
         
         my $src = "$srcdir/$block".$Config{EXT};
-
-        $stref->{'SourceContains'}{$src}{'Set'}{$block} = 'Subroutines';
-        push @{ $stref->{'SourceContains'}{$src}{'List'} }, $block;       
+        push @{ $stref->{'SourceContains'}{$src}{'List'} }, $block;      
         $stref->{'SourceFiles'}{$src}{'SourceType'}='Subroutines';
          $stref->{'BuildSources'}{'F'}{$src}=1;
         $Sblock->{'RefactorGlobals'} = 1;
