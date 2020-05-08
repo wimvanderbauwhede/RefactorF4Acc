@@ -1,15 +1,15 @@
 module singleton_module_src_comm_mpi
 
+      use singleton_module_src_subs1
       use singleton_module_src_mpi_dummy
+      use singleton_module_src_singlmesh
       use singleton_module_src_math
       use singleton_module_src_papi
-      use singleton_module_src_singlmesh
-      use singleton_module_src_subs1
 contains
 
       subroutine gop(x,w,op,n,icall,nekcomm,nekgroup,nekreal,nid,np,ifsync,tgop,ngop,ifneknek_GLOB, &
       ttotal,etimes,tprep,ttime,istep,nvtot)
-      use params_mpif_h, only : mpi_sum, mpi_max, mpi_min, mpi_prod
+      use params_mpif_h, only : mpi_prod, mpi_min, mpi_max, mpi_sum
       implicit none
       integer :: icall
       integer, intent(In) :: nekcomm
@@ -35,6 +35,7 @@ contains
       real, dimension(1:n), intent(InOut) :: w
       character(len=3), intent(In) :: op
       call nekgsync(nekcomm,nekgroup,nekreal,nid,np)
+
 #ifdef TIMER
       if (icalld == 0) then
         tgop =0.0d0
@@ -46,18 +47,23 @@ contains
 #endif
       if (op == '+  ') then
          call mpi_allreduce(int(x, 4),int(w, 4),n,nekreal,mpi_sum,nekcomm,ierr)
+
       elseif (op == 'M  ') then
          call mpi_allreduce(int(x, 4),int(w, 4),n,nekreal,mpi_max,nekcomm,ierr)
+
       elseif (op == 'm  ') then
          call mpi_allreduce(int(x, 4),int(w, 4),n,nekreal,mpi_min,nekcomm,ierr)
+
       elseif (op == '*  ') then
          call mpi_allreduce(int(x, 4),int(w, 4),n,nekreal,mpi_prod,nekcomm,ierr)
+
       else
          write(6,*) nid,' OP ',op,' not supported.  ABORT in GOP.'
          call exitt(icall,nekcomm,nekgroup,nekreal,nid,np,ifneknek_GLOB,ttotal,etimes,tprep,ttime, &
       istep,nvtot,ifsync,tgop,ngop)
       endif
       call copy(x,w,n)
+
 #ifdef TIMER
       tgop  = tgop+(dnekclock()-etime1)
 #endif
@@ -65,7 +71,7 @@ contains
       end subroutine gop
       subroutine igop(x,w,op,n,icall,nekcomm,nekgroup,nekreal,nid,np,ifneknek_GLOB,ttotal,etimes, &
       tprep,ttime,istep,nvtot,ifsync,tgop,ngop)
-      use params_mpif_h, only : mpi_min, mpi_prod, mpi_sum, mpi_max, mpi_integer
+      use params_mpif_h, only : mpi_min, mpi_sum, mpi_integer, mpi_max, mpi_prod
       implicit none
       integer, intent(In) :: icall
       integer, intent(In) :: nekcomm
@@ -90,18 +96,23 @@ contains
       character(len=3), intent(In) :: op
       if     (op == '+  ') then
         call mpi_allreduce(x,w,n,mpi_integer,mpi_sum,nekcomm,ierr)
+
       elseif (op == 'M  ') then
         call mpi_allreduce(x,w,n,mpi_integer,mpi_max,nekcomm,ierr)
+
       elseif (op == 'm  ') then
         call mpi_allreduce(x,w,n,mpi_integer,mpi_min,nekcomm,ierr)
+
       elseif (op == '*  ') then
         call mpi_allreduce(x,w,n,mpi_integer,mpi_prod,nekcomm,ierr)
+
       else
         write(6,*) nid,' OP ',op,' not supported.  ABORT in igop.'
         call exitt(icall,nekcomm,nekgroup,nekreal,nid,np,ifneknek_GLOB,ttotal,etimes,tprep,ttime, &
       istep,nvtot,ifsync,tgop,ngop)
       endif
       call icopy(x,w,n)
+
       return
       end subroutine igop
       real *8 function dnekclock()
@@ -119,6 +130,7 @@ contains
       integer :: nid
       integer :: np
       call nekgsync(nekcomm,nekgroup,nekreal,nid,np)
+
       dnekclock_sync = mpi_wtime()
       return
       end function dnekclock_sync
@@ -132,6 +144,7 @@ contains
       integer :: np
       integer :: ierr
       call mpi_barrier(nekcomm,ierr)
+
       return
       end subroutine nekgsync
       subroutine exitt(icall,nekcomm,nekgroup,nekreal,nid,np,ifneknek,ttotal_GLOB,etimes_GLOB, &
@@ -160,15 +173,17 @@ contains
          write(6,'(A)') 'an error occured: dying ...'
          write(6,*) ' '
       endif
-      call happy_check()
+      call happy_check(0)
+
       call print_runtime_info(icall,nekcomm,nekgroup,nekreal,nid,np,ttotal_GLOB,etimes_GLOB, &
       tprep_GLOB,ttime_GLOB,istep_GLOB,nvtot_GLOB,ifsync,tgop,ngop,ifneknek)
       call nek_die(1)
+
       return
       end subroutine exitt
       subroutine print_runtime_info(icall,nekcomm,nekgroup,nekreal,nid,np,ttotal,etimes,tprep,ttime, &
       istep,nvtot,ifsync,tgop,ngop,ifneknek)
-      use params_SIZE, only : lz1, ly1, lx1
+      use params_SIZE, only : lx1, ly1, lz1
 !!      use params_TOTAL ! ONLY LIST EMPTY
 !!      use params_mpif_h ! ONLY LIST EMPTY
       implicit none
@@ -226,6 +241,7 @@ contains
 #endif
       endif 
       call flush_io()
+
       return
       end subroutine print_runtime_info
       subroutine nek_die(ierr)
@@ -235,6 +251,7 @@ contains
       integer, intent(In) :: ierr
       integer :: ierr_
       call mpi_finalize(ierr_)
+
 #ifdef EXTBAR
       call exit_(ierr)
 #else

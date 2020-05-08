@@ -16,6 +16,7 @@ use RefactorF4Acc::Parser::Expressions qw(
 	parse_expression	
 	emit_expr_from_ast
 	get_vars_from_expression	
+	%sigil_codes
 	);
 
 #
@@ -39,6 +40,15 @@ use Storable qw( dclone );
 use Exporter;
 
 @RefactorF4Acc::ExpressionAST::Evaluate::ISA = qw(Exporter);
+
+# eval_expression_with_parameters: parse the expression string, substitute all params by their values (recursively) and compute the final expression value
+# 	replace_param_by_val: part of eval_expression_with_parameters, it changes the parameters by their values in the AST.
+# 		replace_consts_in_ast: part of replace_param_by_val; this returns an AST where all params are replaced by their value expressions
+# _try_to_eval_arg extends this from parameters to subroutine arguments; calls eval_expression_with_parameters and _try_to_eval_via_vars
+# _try_to_eval_via_vars extends this to local variables; calls eval_expression_with_parameters and _try_to_eval_arg
+
+# I have a feeling this could be refactored to make it more elegant
+
 
 @RefactorF4Acc::ExpressionAST::Evaluate::EXPORT_OK = qw(
 &eval_expression_with_parameters
@@ -85,13 +95,21 @@ sub replace_consts_in_ast { (my $stref, my $f, my $block_id, my $ast, my $state,
 					} elsif (in_nested_set($stref->{'Subroutines'}{$f},'Args',$mvar)) {
 						# carp "VAR $mvar is an arg, not a parameter. Trying to eval anyway ... ";
 						# if ( scalar keys %{$stref->{'Subroutines'}{$f}{'Callers'} }==1) {
-							my $maybe_evaled_ast = __try_to_eval_arg($stref, $f, $mvar);
+							my $maybe_evaled_ast = _try_to_eval_arg($stref, $f, $mvar);
 						# } 
 						return ($maybe_evaled_ast,$state,1);
 					} else {
-						my $param_set = in_nested_set($stref->{'Subroutines'}{$f},'Parameters',$mvar);						
-						carp "Can\'t replace $mvar, no parameter record found in $f";
-						return ($ast, $state,0);
+						my $var_set = in_nested_set($stref->{'Subroutines'}{$f},'Vars',$mvar);	
+						if ($var_set) {
+							carp "replace_consts_in_ast($f,$const): Can\'t replace $mvar, no parameter record found in $f, it is a Var in $var_set";
+							# So now we must find a line with an assignment to this var and do it again
+ 							my $eval_res = _try_to_eval_via_vars($stref, $f, $mvar);
+							 croak Dumper($eval_res);
+							return($eval_res,$state,1)	
+						} else {
+							croak "Cannot replace $mvar, no parameter or var record found in $f";
+							return ($ast, $state,0);
+						}						
 					}
 				}
 			}
@@ -139,8 +157,10 @@ sub eval_expression_with_parameters { (my $expr_str,my $info, my $stref, my $f) 
 
 } # END of eval_expression_with_parameters()
 
-sub __try_to_eval_arg { my ($stref,$f,$arg)=@_;
-# carp Dumper($stref->{'Subroutines'}{$f}{'Callers'});
+# This routine attempts to evaluate arguments by following them to the caller, 
+# but in a very limited way.
+sub _try_to_eval_arg { my ($stref,$f,$arg)=@_;
+	# Get the caller and the ID of the line with the call in $f
 	my $caller; my $line_id;
 	for my $k (keys %{$stref->{'Subroutines'}{$f}{'Callers'} }) {
 		$caller=$k;
@@ -148,14 +168,12 @@ sub __try_to_eval_arg { my ($stref,$f,$arg)=@_;
 		last;
 	};
 
-	# First find the call to $f in $caller
-	
-	my $pass_find_call= sub {
-		(my $annline, my $call_info)=@_;
+	# Find the call to $f in $caller	
+	my $pass_find_call= sub { my ($annline, $call_info)=@_;
 		(my $line,my $info)=@{$annline};		
 		my $new_annlines = [$annline];
-		if (exists $info->{'SubroutineCall'} and
-		$info->{'SubroutineCall'}{'Name'} eq $f
+		if ( exists $info->{'SubroutineCall'} 
+			and	$info->{'SubroutineCall'}{'Name'} eq $f
 		) {	
 			$call_info->{$f} = $info;
 		}		
@@ -165,60 +183,45 @@ sub __try_to_eval_arg { my ($stref,$f,$arg)=@_;
 	
 	my $call_info={};
  	($stref,$call_info) = stateful_pass($stref,$caller,$pass_find_call, $call_info,'_find_call ' . __LINE__  ) ;	
-	warn "1. ARGMAP for call to $f in $caller:\n" .Dumper($call_info->{$f}{'SubroutineCall'}{'ArgMap'});
-	 my $call_arg = $call_info->{$f}{'SubroutineCall'}{'ArgMap'}{$arg};
-	 warn '2. CALL ARG:'. Dumper($call_arg);
-	 if ($call_arg=~/^\d+$/) {
-		 return [29,$call_arg];
-	 }
+
+	# Find the call arguments 
+	# warn "\n1. ARGMAP for call to $f in $caller:\n" .Dumper($call_info->{$f}{'SubroutineCall'}{'ArgMap'});
+	my $call_arg = $call_info->{$f}{'SubroutineCall'}{'ArgMap'}{$arg};
+	my $call_arg_type = $call_info->{$f}{'SubroutineCall'}{'Args'}{'Set'}{$call_arg}{'Type'};
+	# warn '2. CALL ARG:'. Dumper($call_arg) . Dumper($call_arg_type);
+
+	# Check if $call_arg is maybe a constant
+	if ($call_arg_type eq 'Const') { 
+		my $sub_type = $call_info->{$f}{'SubroutineCall'}{'Args'}{'Set'}{$call_arg}{'SubType'};
+		my $opcode = $sigil_codes{$sub_type};
+		 return [$opcode,$call_arg];
+	} 
+	# Check if $call_arg is maybe an expression
+	elsif ($call_arg_type eq 'Expr') {
+		# warn 'EXPR:'. Dumper(
+	 	# 	$call_info->{$f}{'SubroutineCall'}{'Args'}{'Set'}{$call_arg}
+		# );	
+		my $expr_val = eval_expression_with_parameters($call_arg,{},  $stref, $caller) ;
+			# assuming it is an integer, FIXME
+			croak "Cannot eval $call_arg in $caller " unless defined $expr_val;
+		return [29,$expr_val];	
+	}
+	# Check if $call_arg is maybe a parameter
 	my $subset = in_nested_set( $stref->{'Subroutines'}{$caller}, 'Parameters', $call_arg );
 	if ($subset) { # OK, this is a parameter, 
 			my $decl = get_var_record_from_set( $stref->{'Subroutines'}{$caller}{'Parameters'},$call_arg);
 			my $val = $decl->{'Val'};
 			my $ast = parse_expression($val, {},$stref,$f);
+			# carp 'AST for parameter expression '.$call_arg.' : '.Dumper($ast);
 			my $expr_val = eval_expression_with_parameters($val,{},  $stref, $caller) ;
 			# assuming it is an integer, FIXME
+			croak "Cannot eval $call_arg $val in $caller " unless defined $expr_val;
 			return [29,$expr_val];
 	} else {
-		# carp "$call_arg is not a parameter in $caller, plough on!";
+		# OK, $call_arg is not a parameter in $caller, plough on
 
-		# $info->{'Lhs'} = {
-		# 	'VarName'       => $lhs_varname,
-		# 	'IndexVars'     => $lhs_index_vars,
-		# 	'ArrayOrScalar' => $lhs_var_attrs->{'Type'},
-		# 	'ExpressionAST' => $lhs_ast
-		# };
-
-# TODO:
-		# Instead of assigment, it could be a sig arg.
-		# Then we have to do this all over again!
-	my $pass_find_assignment = sub {
-		(my $annline, my $expr_asts)=@_;
-		(my $line,my $info)=@{$annline};		
-		my $new_annlines = [$annline];
-		if (exists $info->{'Assignment'} 
-		
-		and $info->{'Lhs'}{'VarName'} eq $call_arg
-		and $info->{'Lhs'}{'ArrayOrScalar'} eq 'Scalar' # no nonsense!
-		) {	
-			warn  "3. ASSIGNMENT LINE: ". $line;
-			$expr_asts->{$call_arg}=$info->{'Rhs'}{'ExpressionAST'};
-		}				
-		return ($new_annlines,$expr_asts);
-	};
-
-	my $expr_asts={};
-
- 	($stref,$expr_asts) = stateful_pass($stref,$caller,$pass_find_assignment, $expr_asts,'_find_assignment ' . __LINE__  ) ;	
-
-	carp "4. Assignment for $call_arg in $caller: ".Dumper($expr_asts->{$call_arg}) ;
-	my $expr_str = emit_expr_from_ast($expr_asts->{$call_arg});
-
-
-
-	my $expr_val = eval_expression_with_parameters ( $expr_str,{} 	,  $stref, $caller) ;
-	
-		return [29,$expr_val]
+		my $expr_val = _try_to_eval_via_vars($stref, $caller, $call_arg);
+		return $expr_val;
 	}
 }
 
@@ -233,5 +236,47 @@ sub __try_to_eval_arg { my ($stref,$f,$arg)=@_;
 #   'op' => '__PH0__'
 # };
 
-							
+sub _try_to_eval_via_vars { my ($stref, $f, $var) = @_;
+		# OK, $var is not a parameter in $f, plough on
+		my $pass_find_assignment = sub {
+			(my $annline, my $expr_asts)=@_;
+			(my $line,my $info)=@{$annline};		
+			my $new_annlines = [$annline];
+			if (exists $info->{'Assignment'} 
+			
+			and $info->{'Lhs'}{'VarName'} eq $var
+			and $info->{'Lhs'}{'ArrayOrScalar'} eq 'Scalar' # no nonsense!
+			) {	
+				# warn  "3. ASSIGNMENT LINE: ". $line;a 
+				$expr_asts->{$var}=$info->{'Rhs'}{'ExpressionAST'};
+			}				
+			return ($new_annlines,$expr_asts);
+		};
+
+		my $expr_asts={};
+
+		($stref,$expr_asts) = stateful_pass($stref,$f,$pass_find_assignment, $expr_asts,'_find_assignment ' . __LINE__  ) ;	
+
+		if (defined $expr_asts->{$var}) {
+			# OK, there was an assigment line.
+		
+			my $expr_str = emit_expr_from_ast($expr_asts->{$var});
+
+			my $expr_val = eval_expression_with_parameters ( $expr_str,{} 	,  $stref, $f) ;
+			croak "Cannot eval $var via $expr_str in $f " unless defined $expr_val;		
+			return [29,$expr_val]
+		} else {
+			# Instead of assigment, it could be a sig arg of the caller
+			my $subset = in_nested_set( $stref->{'Subroutines'}{$f}, 'Args', $var );
+			
+			if ($subset) {
+				my $result_expr = _try_to_eval_arg($stref,$f,$var);
+				return $result_expr;
+			} else {
+				die "Sorry, can\'t evaluate $var in $f, giving up.";
+			}
+		}
+} # END of _try_to_eval_via_vars
+
+
 1;

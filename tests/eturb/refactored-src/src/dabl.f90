@@ -1,8 +1,8 @@
 module singleton_module_src_dabl
 
       use singleton_module_src_math
-      use singleton_module_src_navier5
       use singleton_module_src_postpro
+      use singleton_module_src_navier5
 contains
 
       subroutine userchk(base_flow,cs,dg2,dgtq,domain_length,dpdx_mean,dpdy_mean,dpdz_mean,dragpx, &
@@ -16,11 +16,18 @@ contains
       nhis_GLOB,hcode_GLOB,lochis_GLOB,nmember_GLOB,ifield_GLOB,object_GLOB,gllnid_GLOB, &
       gllel_GLOB,nio_GLOB,time_GLOB,ifsplit,ixm21,iytm21,iztm21,vmult,tcol2,ta2s2,ifrzer_GLOB, &
       dytm1_GLOB,dym1,dam1,datm1,dcm1,dctm1,eface1,skpdat,area,unx,uny,unz,nelt_GLOB)
-      use params_SIZE, only : ly2, lelg, ldimt, maxmbr, lx1, ldimt1, lz2, maxobj, lelt, lhis, ly1, &
-       lx2, ldim, lz1, lelv
+      use params_SIZE, only : ly2, maxmbr, ldim, lz1, lelt, lx2, maxobj, lelg, ly1, lx1, lelv, &
+       ldimt1, ldimt, lz2, lhis
 !!      use params_TOTAL ! ONLY LIST EMPTY
 !!      use params_ZPER ! ONLY LIST EMPTY
       implicit none
+      real, dimension(1:lx1,1:ly1,1:lz1,1:lelv) :: ediff_copy
+      real, dimension(1:lx1,1:ly1,1:lz1,1:lelv) :: gradux_gradm1
+      real, dimension(1:lx1,1:ly1,1:lz1,1:lelv) :: graduy_gradm1
+      real, dimension(1:lx1,1:ly1,1:lz1,1:lelv) :: graduz_gradm1
+      real, dimension(1:lx1,1:ly1,1:lz1,1:lelt,1:ldimt) :: t_copy
+      real, dimension(1:lx1,1:ly1,1:lz1,1:lelv) :: vx_gradm1
+      real, dimension(1:3) :: x0_rzero
       integer, parameter :: lr=lx1*ly1*lz1
       integer, parameter :: lxyz=lx1*ly1*lz1
       real :: base_flow
@@ -40,7 +47,7 @@ contains
       real, dimension(0:maxobj), intent(InOut) :: dragx
       real, dimension(0:maxobj), intent(InOut) :: dragy
       real, dimension(0:maxobj), intent(InOut) :: dragz
-      real, dimension(1:lx1,1:ly1,1:lz1,1:lelv), intent(In) :: ediff
+      real, dimension(1:lx1,1:ly1,1:lz1,1:lelv), intent(InOut) :: ediff
       real :: ffx_new
       real :: ffy_new
       real :: ffz_new
@@ -86,7 +93,7 @@ contains
       logical, intent(In) :: ifuservp
       real, dimension(1:lx1,1:ly1,1:lz1,1:lelt,1:ldimt), intent(InOut) :: t
       integer, intent(In) :: istep
-      real, dimension(1:lx1,1:ly1,1:lz1,1:lelv), intent(In) :: vx
+      real, dimension(1:lx1,1:ly1,1:lz1,1:lelv), intent(InOut) :: vx
       real, dimension(1:lx1,1:ly1,1:lz1,1:lelv) :: vy_GLOB
       real, dimension(1:lx1,1:ly1,1:lz1,1:lelv) :: vz_GLOB
       logical :: if3d_GLOB
@@ -180,10 +187,18 @@ contains
       rym1_GLOB,sym1_GLOB,tym1_GLOB,rzm1_GLOB,szm1_GLOB,tzm1_GLOB,ifaxis_GLOB,nrout,rname,dct, &
       ncall,dcount,tmxmf,ifneknek,ttotal,etimes,tprep,ttime,istep,nvtot,ifsync,tgop,ngop)
         enddo
-        call copy(t,ediff,n)
+        t_copy = reshape(t,shape(t_copy))
+        ediff_copy = reshape(ediff,shape(ediff_copy))
+        call copy(t_copy,ediff_copy,n)
+
+        t = reshape(t_copy, shape(t))
+        ediff = reshape(ediff_copy, shape(ediff))
       endif
       if (istep == 0) then
-         call rzero(x0,3)
+         x0_rzero = reshape(x0,shape(x0_rzero))
+         call rzero(x0_rzero,3)
+
+         x0 = reshape(x0_rzero, shape(x0))
       endif
       call torque_calc(1.0,x0,.false. /= 0.0,.false. /= 0.0,dragx,dragpx,dragvx,dragy,dragpy,dragvy, &
       dragz,dragpz,dragvz,torqx,torqpx,torqvx,torqy,torqpy,torqvy,torqz,torqpz,torqvz,dpdx_mean, &
@@ -193,16 +208,24 @@ contains
       a_w    = 19.7
       utau= sqrt(dragx(1)**2+dragz(1)**2)/a_w
       utau=sqrt(utau)
-      call gradm1(gradux,graduy,graduz,vx,ur,us,ut,nelt_GLOB,if3d_GLOB,dxm1_GLOB,dxtm1_GLOB, &
-      jacmi_GLOB,rxm1_GLOB,sxm1_GLOB,txm1_GLOB,rym1_GLOB,sym1_GLOB,tym1_GLOB,rzm1_GLOB,szm1_GLOB, &
-      tzm1_GLOB,ifaxis_GLOB,ifrzer_GLOB,dytm1_GLOB,nrout,rname,dct,ncall,dcount,tmxmf,dym1,dam1, &
-      datm1,dcm1,dctm1)
+      gradux_gradm1 = reshape(gradux,shape(gradux_gradm1))
+      graduy_gradm1 = reshape(graduy,shape(graduy_gradm1))
+      graduz_gradm1 = reshape(graduz,shape(graduz_gradm1))
+      vx_gradm1 = reshape(vx,shape(vx_gradm1))
+      call gradm1(gradux_gradm1,graduy_gradm1,graduz_gradm1,vx_gradm1,ur,us,ut,nelt_GLOB,if3d_GLOB, &
+      dxm1_GLOB,dxtm1_GLOB,jacmi_GLOB,rxm1_GLOB,sxm1_GLOB,txm1_GLOB,rym1_GLOB,sym1_GLOB,tym1_GLOB, &
+      rzm1_GLOB,szm1_GLOB,tzm1_GLOB,ifaxis_GLOB,ifrzer_GLOB,dytm1_GLOB,nrout,rname,dct,ncall, &
+      dcount,tmxmf,dym1,dam1,datm1,dcm1,dctm1)
+      gradux = reshape(gradux_gradm1, shape(gradux))
+      graduy = reshape(graduy_gradm1, shape(graduy))
+      graduz = reshape(graduz_gradm1, shape(graduz))
+      vx = reshape(vx_gradm1, shape(vx))
       end subroutine userchk
       subroutine eddy_visc(e,cs,dg2,ediff,icall,nekcomm,nekgroup,nekreal,nid,np,sij,snrm,nx1,ny1, &
       nz1,vx,vy,vz,if3d_GLOB,dxm1_GLOB,dxtm1_GLOB,jacmi_GLOB,rxm1_GLOB,sxm1_GLOB,txm1_GLOB, &
       rym1_GLOB,sym1_GLOB,tym1_GLOB,rzm1_GLOB,szm1_GLOB,tzm1_GLOB,ifaxis_GLOB,nrout,rname,dct, &
       ncall,dcount,tmxmf,ifneknek,ttotal,etimes,tprep,ttime,istep,nvtot,ifsync,tgop,ngop)
-      use params_SIZE, only : ly1, lz1, ldim, lelt, lx1, lelv
+      use params_SIZE, only : lx1, lelv, lelt, lz1, ldim, ly1
 !!      use params_TOTAL ! ONLY LIST EMPTY
 !!      use params_ZPER ! ONLY LIST EMPTY
       implicit none
@@ -218,8 +241,8 @@ contains
       integer, intent(In) :: ny1
       integer, intent(In) :: nz1
       real, dimension(1:lx1,1:ly1,1:lz1,1:lelv), intent(In) :: vx
-      real, dimension(1:lx1,1:ly1,1:lz1,1:lelv), intent(In) :: vy
-      real, dimension(1:lx1,1:ly1,1:lz1,1:lelv), intent(In) :: vz
+      real, dimension(1:lx1,1:ly1,1:lz1,1:lelv), intent(InOut) :: vy
+      real, dimension(1:lx1,1:ly1,1:lz1,1:lelv), intent(InOut) :: vz
       logical :: if3d_GLOB
       real, dimension(1:lx1,1:lx1) :: dxm1_GLOB
       real, dimension(1:lx1,1:lx1) :: dxtm1_GLOB
@@ -264,8 +287,11 @@ contains
       sym1_GLOB,tym1_GLOB,rzm1_GLOB,szm1_GLOB,tzm1_GLOB,ifaxis_GLOB,nrout,rname,dct,ncall,dcount, &
       tmxmf,ifneknek,ttotal,etimes,tprep,ttime,istep,nvtot,ifsync,tgop,ngop)
       call comp_sije(sij)
+
       call mag_tensor_e(snrm(1,e),sij)
+
       call cmult(snrm(1,e),2.0,ntot)
+
       end subroutine eddy_visc
 
 end module singleton_module_src_dabl

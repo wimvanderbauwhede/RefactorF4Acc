@@ -443,7 +443,6 @@ sub _refactor_globals_new {
 		for my $cast_reshape_vardecl (@{$Sf->{'CastReshapeVarDecls'}{'List'}}) {
 			my $rdecl = $Sf->{'CastReshapeVarDecls'}{'Set'}{$cast_reshape_vardecl};
 			my $rline = emit_f95_var_decl($rdecl);
-			# say $rline;
 				my $info  = {};
 				$info->{'Ann'}       = [ annotate( $f, __LINE__ . ' : Cast/Reshape intermediate variable' ) ];
 				$info->{'LineID'}    = $nextLineID++;
@@ -778,94 +777,71 @@ sub _create_refactored_subroutine_call {
 		return $rlines;
 	}
 	# This is in case we need intermediate variables for casting and reshaping of arguments to subroutine calls
-	$Sf->{'CastReshapeVarDecls'}={'List'=>[], 'Set'=>{}};
-
+	if (not exists $Sf->{'CastReshapeVarDecls'}) {	
+		$Sf->{'CastReshapeVarDecls'}={'List'=>[], 'Set'=>{}};
+	}
 	# Collect original args
 	my @orig_args = ();
 
 	# a shallow copy
 	my $expr_ast = [ @{ $info->{'SubroutineCall'}{'ExpressionAST'} } ];
-
 	if ( @{$expr_ast} and ( $expr_ast->[0] & 0xFF ) != 27 ) {
 		$expr_ast = [$expr_ast];
 	} else {
 		shift @{$expr_ast};
 	}
-# carp "$f $name ".'ARGMAP:' .Dumper($info->{'SubroutineCall'}{'ArgMap'}) if $name eq 'sbisect';
-# carp $line. Dumper($expr_ast);
 	my @cast_reshape_results=();
 	for my $call_arg_expr ( @{$expr_ast} ) {
-		# carp Dumper($call_arg_expr);
+		# The main purpose is to handle variable names
+		# So this is rather weak because e.g. v(i) will not be in Vars.
+		# So this only works for plain variable names
 		my $call_arg = emit_expr_from_ast($call_arg_expr);
 
-				# my $call_arg = $stref->{'Subroutines'}{$parent_sub_name}{'ExMismatchedCommonArgs'}{'CallArgs'}{$f}{$sig_arg}[0];
-				if ($call_arg!~/__PH\d+__/) {
-						# say "FOR CALL ARG $call_arg of call to $name in $f:";
-					my $subset = in_nested_set($stref->{'Subroutines'}{$f}, 'Vars', $call_arg);
-					if ($subset) { # otherwise it means this is an expression, TODO
-						my $call_arg_decl = $stref->{'Subroutines'}{$f}{$subset}{'Set'}{$call_arg};
-						# carp "Subset $subset for $call_arg in $f";
-						# carp Dumper($call_arg_decl)  if $call_arg eq 'p2' and $name eq 'sbisect';
-						my $sig_arg = $call_arg;
-						
-						for my $tsig_arg (keys %{$info->{'SubroutineCall'}{'ArgMap'} }) {					
-							if ( defined $info->{'SubroutineCall'}{'ArgMap'}{$tsig_arg} and
-								$info->{'SubroutineCall'}{'ArgMap'}{$tsig_arg} eq $call_arg) {
-								$sig_arg=$tsig_arg;
-								last;
-							}
-						}
-						my $sig_subset = in_nested_set($stref->{'Subroutines'}{$name}, 'Vars', $sig_arg);
-						my $sig_arg_decl = $stref->{'Subroutines'}{$name}{$sig_subset}{'Set'}{$sig_arg};
-						# carp $sig_subset .Dumper($sig_arg_decl)  if $call_arg eq 'p2' and $name eq 'sbisect';
-						if (not exists $sig_arg_decl->{'Name'}) {
-							$sig_arg_decl = $call_arg_decl;
-						}
-						my $cast_reshape_result = _maybe_cast_call_args($stref, $f, $name, $call_arg,$call_arg_decl,$sig_arg, $sig_arg_decl);
-						$call_arg = $cast_reshape_result->{'CallArg'};
-						push @cast_reshape_results, $cast_reshape_result if $cast_reshape_result->{'Status'} == 2;
+		if ($call_arg!~/__PH\d+__/) {
+			my $subset = in_nested_set($stref->{'Subroutines'}{$f}, 'Vars', $call_arg);
+			if ($subset) { # otherwise it means this is an expression, including array accesses, or a constant.
+				my $call_arg_decl = $stref->{'Subroutines'}{$f}{$subset}{'Set'}{$call_arg};
 
-						# say "CALL ARG: $call_arg :: " .Dumper($call_arg_decl);
-						# say "SIG ARG: $sig_arg :: ".Dumper($sig_arg_decl);
-# TODO						
-# $var\_$f = cast($var)
-# call ...
-# $var = cast($var\_$f)
-# And if it is an array, we might need to do
-# $avar\_$f = cast(reshape($var, shape($avar\_$f))) ! and shape of $avar\_$f is shape of sig arg array
-# ...
-# $avar = cast(reshape($avar_f, shape($avar)))
-# So the logic is:
-# 
-# if the sig arg IODir is Out or InOut, we can't simply pass a cast expression
-						# if ($call_arg_decl->{'Type'} ne $sig_arg_decl->{'Type'}) {
-						# 	# carp "HERE WE MAY NEED TO CAST! \nCALL ARG $f . $call_arg :: ".$call_arg_decl->{'Type'}.'<>'." SIG ARG $name . $sig_arg :: ".$sig_arg_decl->{'Type'} ;
-						# 	my $sig_kind=4;
-						# 	if (exists $sig_arg_decl->{'Attr'} and $sig_arg_decl->{'Attr'} ne '') {
-						# 		$sig_kind=$sig_arg_decl->{'Attr'};
-						# 		$sig_kind=~s/\w+=//;
-						# 		$sig_kind=~s/[\(\)]//g;
-						# 	}
-						# 	$call_arg = cast_call_argument($sig_arg_decl->{'Type'}, $sig_kind , $call_arg_decl->{'Type'}, $call_arg);
-						# }
-					} # in subset
-				} # not a PlaceHolder, this is a HACK as it shouldn't be one anyway!
+				# Just set $sig_arg to $call_arg as a start
+				my $sig_arg = $call_arg;
+				# Now see if there is an actual $sig_arg for which the entry in ArgMap
+				# matches the $call_arg
+				# ArgMap entries are not typed: the type info is in $info->{'SubroutineCall'}{'Args'}
+				# carp Dumper($info->{'SubroutineCall'}{'ArgMap'});
+				for my $tsig_arg (keys %{$info->{'SubroutineCall'}{'ArgMap'} }) {					
+					if ( defined $info->{'SubroutineCall'}{'ArgMap'}{$tsig_arg} and
+						$info->{'SubroutineCall'}{'ArgMap'}{$tsig_arg} eq $call_arg) {									
+						$sig_arg=$tsig_arg;
+						last;
+					}
+				}
+				my $sig_subset = in_nested_set($stref->{'Subroutines'}{$name}, 'Vars', $sig_arg);
+				my $sig_arg_decl = $stref->{'Subroutines'}{$name}{$sig_subset}{'Set'}{$sig_arg};
+				# carp $sig_subset .Dumper($sig_arg_decl)  if $call_arg eq 'p2' and $name eq 'sbisect';
+				if (not exists $sig_arg_decl->{'Name'}) {
+					$sig_arg_decl = $call_arg_decl;
+				}
+				my $cast_reshape_result = _maybe_cast_call_args($stref, $f, $name, $call_arg,$call_arg_decl,$sig_arg, $sig_arg_decl);
+				$call_arg = $cast_reshape_result->{'CallArg'};
+				push @cast_reshape_results, $cast_reshape_result if $cast_reshape_result->{'Status'} == 2;
+			} # in subset
+		} # not a PlaceHolder, this is a HACK as it shouldn't be one anyway!
 
 		push @orig_args, $call_arg;
 	} # loop over all call args
 
-	$Sf->{'CastReshapeVarDecls'}{'List'} = [map {$_->{'CallArg'}} @cast_reshape_results];
+	# $Sf->{'CastReshapeVarDecls'}{'List'} = [map {$_->{'CallArg'}} @cast_reshape_results]; # WRONG, this overwrites!
 	map { 
 		$Sf->{'CastReshapeVarDecls'}{'Set'}{
 			$_->{'CallArg'}
 		} = $_->{'CastReshapeVarDecl'};
 	} @cast_reshape_results;
-
+	$Sf->{'CastReshapeVarDecls'}{'List'} = [sort keys %{ $Sf->{'CastReshapeVarDecls'}{'Set'} }];
 	my $args_ref = [@orig_args];               # NOT ordered union, if they repeat that should be OK
 											   # This is for the case of ENTRYs. The "parent" is the actual sub which contains the ENTRY statements
 	my $parent_sub_name =
 	  exists $stref->{'Entries'}{$name} ? $stref->{'Entries'}{$name} : $name;
-
+	
 	# If there are any ex-global args, collect them
 	# WV2019-06-03 Here we should check.
 	if ( exists $stref->{'Subroutines'}{$name}{'RefactoredArgs'} 
@@ -917,7 +893,6 @@ sub _create_refactored_subroutine_call {
 		}
 
 	} else {
-
 	if ( not exists $stref->{'Subroutines'}{$name}{'HasCommonVarMismatch'} ) {    # old approach is fine
 
 		if ( exists $stref->{'Subroutines'}{$parent_sub_name}{'ExGlobArgs'} ) {
@@ -956,18 +931,16 @@ sub _create_refactored_subroutine_call {
 
 			# Then we concatenate these arg lists
 			$args_ref = [ @orig_args, @maybe_renamed_exglobs ];    # NOT ordered union, if they repeat that should be OK
-			if ($NEW_PARSER) {
-				my $expr_ast = $info->{'SubroutineCall'}{'ExpressionAST'};
-				if (    @maybe_renamed_exglobs
-					and @{$expr_ast}
-					and ( $expr_ast->[0] & 0xFF ) != 27 )
-				{
-					$expr_ast = [ 27, $expr_ast ];
-				}
-				$expr_ast =
-				  [ @{$expr_ast}, map { [ '2', $_ ] } @maybe_renamed_exglobs ];
-				$info->{'SubroutineCall'}{'ExpressionAST'} = $expr_ast;
+			my $expr_ast = $info->{'SubroutineCall'}{'ExpressionAST'};
+			if (    @maybe_renamed_exglobs
+				and @{$expr_ast}
+				and ( $expr_ast->[0] & 0xFF ) != 27 )
+			{
+				$expr_ast = [ 27, $expr_ast ];
 			}
+			$expr_ast =
+				[ @{$expr_ast}, map { [ '2', $_ ] } @maybe_renamed_exglobs ];
+			$info->{'SubroutineCall'}{'ExpressionAST'} = $expr_ast;
 
 			$info->{'SubroutineCall'}{'Args'}{'List'} = $args_ref;
 
@@ -989,7 +962,22 @@ sub _create_refactored_subroutine_call {
 			}
 			$info->{'Ann'} = [ annotate( $f, __LINE__ ) ];
 
+			if ( @cast_reshape_results) {
+				for my $cast_reshape_result ( @cast_reshape_results) {
+					my ($cast_reshape_pre_line, $cast_reshape_pre_info) =@{$cast_reshape_result->{'PreAnnLine'}};
+					push @{$rlines}, [ $indent . $cast_reshape_pre_line, $cast_reshape_pre_info ];
+				}
+			}
+
 			push @{$rlines}, [ $indent . $maybe_label . $rline, $info ];
+
+			if ( @cast_reshape_results) {
+				for my $cast_reshape_result ( @cast_reshape_results) {
+					my ($cast_reshape_post_line, $cast_reshape_post_info) =@{$cast_reshape_result->{'PostAnnLine'}};
+					push @{$rlines}, [ $indent . $cast_reshape_post_line, $cast_reshape_post_info ];
+				}
+			}		
+
 		} else { # no change to original call line
 			push @{$rlines}, [ $line, $info ];
 		}
@@ -1009,23 +997,13 @@ sub _create_refactored_subroutine_call {
 				my $subset = in_nested_set($stref->{'Subroutines'}{$f}, 'Vars', $call_arg);
 				my $call_arg_decl = $stref->{'Subroutines'}{$f}{$subset}{'Set'}{$call_arg};
 				my $sig_arg_decl = $stref->{'Subroutines'}{$parent_sub_name}{'ExMismatchedCommonArgs'}{'SigArgs'}{'Set'}{$sig_arg};
-
+				# I think it is safe enough not to cast if call arg and sig arg have the same name. 
+				# But I'll handle that inside _maybe_cast_call_args
+				# carp 'CAST?'. Dumper($f, $parent_sub_name, $call_arg,$sig_arg);
 				my $cast_reshape_result = _maybe_cast_call_args($stref, $f, $parent_sub_name, $call_arg,$call_arg_decl,$sig_arg, $sig_arg_decl);
+
 				$call_arg = $cast_reshape_result->{'CallArg'};
 				push @cast_reshape_results, $cast_reshape_result if $cast_reshape_result->{'Status'} == 2;
-				# if ($call_arg_decl->{'Type'} ne $sig_arg_decl->{'Type'}) {
-				# 	# carp "HERE WE MAY NEED TO CAST! $f . $call_arg :: ".$call_arg_decl->{'Type'}.'<>'."$parent_sub_name . $sig_arg :: ".$sig_arg_decl->{'Type'} ;
-
-				# 	my $sig_kind=4;
-				# 	if (exists $sig_arg_decl->{'Attr'} and $sig_arg_decl->{'Attr'} ne '') {
-				# 		$sig_kind=$sig_arg_decl->{'Attr'};
-				# 		$sig_kind=~s/\w+=//;
-				# 		$sig_kind=~s/[\(\)]//g;
-				# 	}
-				# 	$call_arg = cast_call_argument($sig_arg_decl->{'Type'}, $sig_kind , $call_arg_decl->{'Type'}, $call_arg);
-
-
-				# }
 				push @maybe_renamed_exglobs, $call_arg;
 			}
 
@@ -1093,7 +1071,7 @@ sub _create_refactored_subroutine_call {
 		}
 	}
 	}
-	
+	# carp Dumper($stref->{'Subroutines'}{$f}{'CastReshapeVarDecls'}) if $f eq 'out1' and $name eq 'varfmt';
 	return ($rlines, $stref);
 }    # END of _create_refactored_subroutine_call()
 
@@ -1544,7 +1522,7 @@ sub __insert_assignment_for_ex_EQUIVALENCE_vars {
 # There is no way to infer the array index if it's an array
 # Problem is of course that we now can't search by key in equiv_pairs
 # because the key is the expression used in the EQUIVALENCE statement 
-
+# carp Dumper( $line, $info);
 		my $lhs_ast = $info->{'Lhs'}{'ExpressionAST'};
 		my $lhs_v_str = emit_expr_from_ast($lhs_ast);
 
@@ -2276,11 +2254,8 @@ cast only
 - new arg
 reshape only (always new arg)
 cast and reshape (always new arg)
-
-
-
-
 =cut
+
 sub _maybe_cast_call_args { my ($stref, $f, $sub_name, $call_arg,$call_arg_decl,$sig_arg, $sig_arg_decl)=@_;
 #  carp "CALL ARG $call_arg for call to $sub_name in $f : ".Dumper($call_arg_decl);
 	my $cast_reshape_result={
@@ -2291,19 +2266,22 @@ sub _maybe_cast_call_args { my ($stref, $f, $sub_name, $call_arg,$call_arg_decl,
 		'Status' => 0
 	};
 		
+	if ($call_arg eq $sig_arg)	{
+		return $cast_reshape_result;
+	}
 	my $needs_reshape=0;
-
+	my $use_arg_sz=0;
 	if (exists $call_arg_decl->{'ArrayOrScalar'} and
 		$call_arg_decl->{'ArrayOrScalar'} eq 'Array'
 		and $sig_arg_decl->{'ArrayOrScalar'} eq 'Array'									
 	) { # both are arrays. Let's check size and rank
-
+# warn '_maybe_cast_call_args(): ' . $f. ':'. Dumper($call_arg_decl->{'Dim'}).';'.$sub_name. ':' .   Dumper($sig_arg_decl->{'Dim'});
 		# and also assignment is array to array
 		my $dim1  = $call_arg_decl->{'Dim'};
-		my $dim2  = $sig_arg_decl->{'Dim'};
+		my $dim2  = $sig_arg_decl->{'Dim'};		
 		my $size1 = calculate_array_size( $stref, $f, $dim1 );
 		my $size2 = calculate_array_size( $stref, $sub_name, $dim2 );
-
+		croak 'FIXME!' unless defined $size1 and defined $size2;
 		# but the rank we need is the rank of the expression
 		# FIXME: I will assume that if the array is indexed, all indices are used, i.e. rank is 0
 		my $rank1 = get_array_rank($dim1);
@@ -2313,10 +2291,19 @@ sub _maybe_cast_call_args { my ($stref, $f, $sub_name, $call_arg,$call_arg_decl,
 		if ( $size1 == $size2 and $rank1 != $rank2 ) {
 			$needs_reshape=1;			
 		} elsif ( $size1 != $size2 and $rank1 == $rank2 ) {
-			say "WARNING: Call to $sub_name in $f: call arg $call_arg and subroutine arg $sig_arg have different sizes $size1<>$size2, type error!" if $W;
+			say "WARNING: In call to $sub_name in $f: call arg $call_arg and subroutine arg $sig_arg have different sizes $size1<>$size2, type error!\n"
+			.'Using the largest dimension for the reshaped array.' if $W;
+			if ($size1>$size2) {
+				$use_arg_sz=1;
+			}
 			$needs_reshape=1;
 		} elsif ( $size1 != $size2 and $rank1 != $rank2 ) {
-			say "WARNING: Call to $sub_name in $f: call arg $call_arg and subroutine arg $sig_arg have different sizes $size1<>$size2, type error in reshape()!" if $W;
+			# We take the largest of the two. This can of course lead to run-time errors.
+			if ($size1>$size2) {
+				$use_arg_sz=1;
+			}
+			say "WARNING: In call to $sub_name in $f: call arg $call_arg and subroutine arg $sig_arg have different sizes $size1<>$size2, type error in reshape()!\n"
+			.'Using the largest dimension for the reshaped array.' if $W;
 			$needs_reshape=1;
 		}
 	}
@@ -2349,10 +2336,16 @@ sub _maybe_cast_call_args { my ($stref, $f, $sub_name, $call_arg,$call_arg_decl,
 		$is_out = 1;
 	}
 	my $new_call_arg=undef;
+
 	if ($needs_reshape or ($needs_cast and $is_out)) {
+		# carp "$f, $sub_name, $call_arg,$sig_arg, needs_reshape" if $needs_reshape;
 		$new_call_arg = $call_arg.'_'.$sub_name;
 		my $new_call_arg_decl = dclone($sig_arg_decl);
 		$new_call_arg_decl->{'Name'}=$new_call_arg;
+		if ($use_arg_sz) {
+			$new_call_arg_decl->{'Dim'}=$call_arg_decl->{'Dim'};
+		}
+
 		$cast_reshape_result->{'CallArg'}=$new_call_arg;
 		$cast_reshape_result->{'CastReshapeVarDecl'}=$new_call_arg_decl;
 		$cast_reshape_result->{'Status'}=2;		
@@ -2366,7 +2359,7 @@ sub _maybe_cast_call_args { my ($stref, $f, $sub_name, $call_arg,$call_arg_decl,
 		
 		my $reshaped_call_arg = "reshape($call_arg,shape($new_call_arg))";
 		my $cast_reshape_pre_line = "$new_call_arg = $reshaped_call_arg";
-		my $reshaped_new_call_arg = "reshape($new_call_arg, shape($call_arg)";		
+		my $reshaped_new_call_arg = "reshape($new_call_arg, shape($call_arg))";		
 		my $cast_reshape_post_line = "$call_arg = $reshaped_new_call_arg";
 
 		if ($needs_cast) {
@@ -2378,7 +2371,16 @@ sub _maybe_cast_call_args { my ($stref, $f, $sub_name, $call_arg,$call_arg_decl,
 			$cast_reshape_post_line = "$call_arg = $cast_reshaped_new_call_arg";
 		} 
 		$cast_reshape_result->{'PreAnnLine'}[0]=$cast_reshape_pre_line;
-		$cast_reshape_result->{'PostAnnLine'}[0]=$cast_reshape_post_line;		
+		$cast_reshape_result->{'PreAnnLine'}[1]{'Lhs'}{'VarName'}=$new_call_arg;
+		$cast_reshape_result->{'PreAnnLine'}[1]{'Lhs'}{'ExpressionAST'}=[2,$new_call_arg];
+		$cast_reshape_result->{'PreAnnLine'}[1]{'Lhs'}{'IndexVars'}{'List'}=[];
+		$cast_reshape_result->{'PreAnnLine'}[1]{'Rhs'}{'VarList'}{'List'}=[$new_call_arg,$call_arg];
+		$cast_reshape_result->{'PostAnnLine'}[0]=$cast_reshape_post_line;	
+		$cast_reshape_result->{'PostAnnLine'}[1]{'Lhs'}{'VarName'}=$call_arg;
+		$cast_reshape_result->{'PostAnnLine'}[1]{'Lhs'}{'ExpressionAST'}=[2,$call_arg];
+		$cast_reshape_result->{'PostAnnLine'}[1]{'Lhs'}{'IndexVars'}{'List'}=[];
+		$cast_reshape_result->{'PostAnnLine'}[1]{'Rhs'}{'VarList'}{'List'}=[$new_call_arg,$call_arg];
+		# warn 	"<$cast_reshape_pre_line>\n<$cast_reshape_post_line>\n";
 	} else { # no reshape
 		if ($needs_cast) {
 			if ($is_out) { # not in place								
@@ -2387,8 +2389,19 @@ sub _maybe_cast_call_args { my ($stref, $f, $sub_name, $call_arg,$call_arg_decl,
 
 					my $cast_new_call_arg = cast_call_argument($call_arg_decl->{'Type'}, $call_kind , $sig_arg_decl->{'Type'}, $new_call_arg);
 					my $cast_reshape_post_line = "$call_arg = $cast_new_call_arg";
+					# $cast_reshape_result->{'PreAnnLine'}[0]=$cast_reshape_pre_line;
+					# $cast_reshape_result->{'PostAnnLine'}[0]=$cast_reshape_post_line;	
+
 					$cast_reshape_result->{'PreAnnLine'}[0]=$cast_reshape_pre_line;
+					$cast_reshape_result->{'PreAnnLine'}[1]{'Lhs'}{'VarName'}=$new_call_arg;
+					$cast_reshape_result->{'PreAnnLine'}[1]{'Lhs'}{'ExpressionAST'}=[2,$new_call_arg];
+					$cast_reshape_result->{'PreAnnLine'}[1]{'Lhs'}{'IndexVars'}{'List'}=[];
+					$cast_reshape_result->{'PreAnnLine'}[1]{'Rhs'}{'VarList'}{'List'}=[$new_call_arg,$call_arg];
 					$cast_reshape_result->{'PostAnnLine'}[0]=$cast_reshape_post_line;	
+					$cast_reshape_result->{'PostAnnLine'}[1]{'Lhs'}{'VarName'}=$call_arg;
+					$cast_reshape_result->{'PostAnnLine'}[1]{'Lhs'}{'ExpressionAST'}=[2,$call_arg];
+					$cast_reshape_result->{'PostAnnLine'}[1]{'Lhs'}{'IndexVars'}{'List'}=[];
+					$cast_reshape_result->{'PostAnnLine'}[1]{'Rhs'}{'VarList'}{'List'}=[$new_call_arg,$call_arg];
 
 			} else { # in place
 					my $cast_call_arg = cast_call_argument($sig_arg_decl->{'Type'}, $sig_kind , $call_arg_decl->{'Type'}, $call_arg);

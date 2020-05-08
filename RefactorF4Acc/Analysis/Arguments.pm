@@ -269,6 +269,10 @@ sub map_call_args_to_sig_args {
 			my $i = 0;
 			for my $sig_arg ( @{ $stref->{'Subroutines'}{$sub}{'OrigArgs'}{'List'} } ) {
 				my $call_arg_expr = $call_args->[$i];
+				# This means that to get the type information, we need
+				# $info->{'SubroutineCall'}{'Args'}{'Set'}{$call_arg_expr}
+				# Which is OK as long as $call_arg_expr is defined!
+				croak Dumper($line,$info) if not defined $call_arg_expr;
 				$info->{'SubroutineCall'}{'ArgMap'}{$sig_arg} = $call_arg_expr;
 				$i++;
 			}
@@ -284,7 +288,6 @@ sub map_call_args_to_sig_args {
 			my $call_args = $fcall_rec->{'Args'}{'List'};
 			
 			for my $call_arg_expr ( @{ $fcall_rec->{'Args'}{'List'} } ) {
-#				say "map_call_args_to_sig_args( $f ) " . __LINE__ . " FUNC $sub CALL ARG: $call_arg_expr "; 
 
 				my $call_arg = $call_arg_expr;
 				if ( $fcall_rec->{'Args'}{'Set'}{$call_arg_expr}{'Type'} eq 'Array' ) {
@@ -462,7 +465,7 @@ sub determine_ExGlobArgs {
 			
 			next if exists $stref->{'ExternalSubroutines'}{$calledsub}; # Don't descend into external subs   
 			if (exists $subs{$calledsub}) {
-				say "WARNING: LOOP for $calledsub: ".join(', ', @{ $stref->{'CallStack'} }) if $W;
+				say "WARNING: LOOP for $calledsub: ".join(', ', @{ $stref->{'CallStack'} }) if $WW;
 				next;
 			}
 			$stref->{Counter}++ if $V;

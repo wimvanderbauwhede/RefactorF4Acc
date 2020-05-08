@@ -1,9 +1,9 @@
 module singleton_module_src_mxm_wrapper
 
-      use singleton_module_src_mxm_std
-      use singleton_module_src_mxm_bgq
-      use singleton_module_src_comm_mpi
       use singleton_module_src_blas
+      use singleton_module_src_mxm_std
+      use singleton_module_src_comm_mpi
+      use singleton_module_src_mxm_bgq
 contains
 
       subroutine mxm(a,n1,b,n2,c,n3,nrout,rname,dct,ncall,dcount,tmxmf)
@@ -44,21 +44,25 @@ contains
 #ifdef BGQ
       if (n2  ==  8 .and. mod(n1,4)  ==  0 ) then
         call mxm_bgq_8(a,n1,b,n2,c,n3)
+
         goto 111
       endif
       if (n2  ==  16 .and. mod(n1,4)  ==  0 ) then
         call mxm_bgq_16(a,n1,b,n2,c,n3)
+
         goto 111
       endif
       tt = 32
       if (n2  ==  10 .and. mod(n1,4)  ==  0 .and. mod(n3,2)  ==  0 .and. mod(loc(a), &
       tt) == 0 .and. mod(loc(b),tt) == 0  .and. mod(loc(c),tt) == 0  ) then
         call mxm_bgq_10(a,n1,b,n2,c,n3)
+
         goto 111
       endif
       if (n2  ==  6 .and. mod(n1,4)  ==  0 .and. mod(n3,2)  ==  0 .and. mod(loc(a), &
       tt) == 0 .and. mod(loc(b),tt) == 0  .and. mod(loc(c),tt) == 0  ) then
         call mxm_bgq_6(a,n1,b,n2,c,n3)
+
         goto 111
       endif
 #endif
@@ -74,7 +78,7 @@ contains
       call dgemm('N','N',n1,n3,n2,1.0,a,n1,b,n2,0.0,c,n1)
       goto 111
 #endif
- 101 call mxmf2(a,n1,b,n2,c,n3)
+ 101  call mxmf2(a,n1,b,n2,c,n3)
  111  continue
 #ifdef TIMER2
       tmxmf  = tmxmf+dnekclock()-etime1

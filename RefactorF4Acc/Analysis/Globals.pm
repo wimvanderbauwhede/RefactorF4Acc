@@ -51,7 +51,7 @@ sub identify_inherited_exglobs_to_rename {
 	    {	    	
 	        for my $csub ( @{ $Sf->{'CalledSubs'}{'List'} }) {   
 				if (exists $subs{$csub}) {
-				say "WARNING: LOOP for $csub: ".join(', ', @{ $stref->{'CallStack'} }) if $W;
+				say "WARNING: LOOP for $csub: ".join(', ', @{ $stref->{'CallStack'} }) if $WW;
 				next;
 				}    
 	       		say "CALL TO  $csub from $f" if $V;     
@@ -135,7 +135,7 @@ if ($Config{RENAME_EXT} ne '') {
 	        my @csubs = @{ $Sf->{'CalledSubs'}{'List'} };	        
 	        for my $csub (@csubs) {    
 				if (exists $subs{$csub}) {
-					say "WARNING: LOOP for $csub: ".join(', ', @{ $stref->{'CallStack'} }) if $W;
+					say "WARNING: LOOP for $csub: ".join(', ', @{ $stref->{'CallStack'} }) if $WW;
 					next;
 				}    
 	       		say "CALL TO  $csub from $f" if $V;     
@@ -177,7 +177,7 @@ sub lift_globals {
 	        for my $csub ( @{ $Sf->{'CalledSubs'}{'List'} }) {       
 
 				if (exists $subs{$csub}) {
-				say "WARNING: LOOP for $csub: ".join(', ', @{ $stref->{'CallStack'} }) if $W;
+				say "WARNING: LOOP for $csub: ".join(', ', @{ $stref->{'CallStack'} }) if $WW;
 				next;
 				}    
 

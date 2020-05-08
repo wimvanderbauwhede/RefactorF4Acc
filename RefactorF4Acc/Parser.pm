@@ -1725,13 +1725,13 @@ sub _parse_subroutine_and_function_calls {
 			{
 				my $name = $1;    # The name of the called subroutine. The caller is $f
 				my $argstr = $2;
-				 
 				if (not defined $argstr) {
 					$argstr='';
 				}
 				if ( $argstr =~ /^\s*$/ ) {
 					$argstr = '';
 				}
+				
 				$info->{'SubroutineCall'}{'Name'} = $name;
 				if ( $in_kernel_wrapper_region == 1 ) {
 					if ($in_kernel_sub_region) {
@@ -1766,16 +1766,13 @@ sub _parse_subroutine_and_function_calls {
 						$entry_call=0;
 					}
 				}
-	                if ($argstr) {
-	                	
+	                if ($argstr ne '') {
+
 						my $ast = parse_expression( $argstr, $info, $stref, $f ); 
 						# This returns the arguments if they are vars or PlaceHolders, but really this should return the expression string.
 						# Or rather, we should not use this in Analysis::Arguments but use the AST
 						( my $expr_args, my $expr_other_vars ) = get_args_vars_from_subcall($ast);
 						
-		                # croak $line.
-						# "\n".Dumper($ast).
-						# "\n".Dumper($expr_args,$expr_other_vars) if $line=~/gop.+maxobj/;
 						for my $expr_arg (@{$expr_args->{'List'}}) {
 							if (substr($expr_arg,0,1) eq '*') {
 								my $label=substr($expr_arg,1);
@@ -1783,20 +1780,14 @@ sub _parse_subroutine_and_function_calls {
 							}
 						}
 						
-						$info->{'SubroutineCall'}{'Args'}               = $expr_args;
-						$info->{'ExprVars'}               = $expr_other_vars;
-						# $info->{'SubroutineCall'}{'Args'} = $info->{'SubroutineCall'}{'Args'};
-						
+						$info->{'SubroutineCall'}{'Args'} = $expr_args;
+						$info->{'ExprVars'} = $expr_other_vars;						
 						$info->{'SubroutineCall'}{'ExpressionAST'} = $ast;
 						
 	                } else {
 	                    $info->{'SubroutineCall'}{'Args'}               = {'List'=>[],'Set'=>{}};
-					    $info->{'ExprVars'}               = {'List'=>[],'Set'=>{}};
-	
-	                    # $info->{'SubroutineCall'}{'Args'} = $info->{'SubroutineCall'}{'Args'};
-					
+					    $info->{'ExprVars'}               = {'List'=>[],'Set'=>{}};	
 					    $info->{'SubroutineCall'}{'ExpressionAST'} = [];
-	
 	                }
 				
 				if ( $external_sub == 0 ) {
@@ -1822,7 +1813,7 @@ sub _parse_subroutine_and_function_calls {
 						push @{ $Sname->{'Callers'}{$f} }, $index;
 	
 						if ( $Sf->{'RefactorGlobals'} == 1 ) {
-							print "SUB $name NEEDS GLOBALS REFACTORING\n" if $V;
+							say "SUB $name NEEDS GLOBALS REFACTORING" if $V;
 							$Sname->{'RefactorGlobals'} = 1;
 						}
 
@@ -1880,21 +1871,14 @@ sub _parse_subroutine_and_function_calls {
 						}
 					
 				}
-#				$stref = _check_used_modules_for_globals($stref, $f, $name);
 # Add labels used as arguments to ReferencedLabels
 				for my $arg (keys %{ $info->{'SubroutineCall'}{'Args'}{'Set'} }) {
-#					say $arg;
 					if (exists $info->{'SubroutineCall'}{'Args'}{'Set'}{$arg}{'SubType'} and 
-						$info->{'SubroutineCall'}{'Args'}{'Set'}{$arg}{'SubType'} eq 'Label') {
-							
-								$Sf->{'ReferencedLabels'}{$arg}=$arg;
+						$info->{'SubroutineCall'}{'Args'}{'Set'}{$arg}{'SubType'} eq 'Label') {							
+						$Sf->{'ReferencedLabels'}{$arg}=$arg;
 					}  
 				}
-#				croak Dumper($info->{'SubroutineCall'}{'Args'}) if $name eq 'en722';
-#				croak Dumper(sort keys %{$Sf->{ReferencedLabels}} ) if $name eq 'en722';
-				
 			}
-			# carp $line if $line=~/=.+ff08/i;
 
 			# Maybe Function calls
 			if (   $line !~ /function\s/
@@ -1976,10 +1960,7 @@ sub _parse_subroutine_and_function_calls {
 								$stref = parse_fortran_src( $sub_or_func, $stref );
 							} 
 					}
-				
-				
 			}
-
 			$srcref->[$index] = [ $line, $info ];
 		}    # loop over all annlines
 		$stref->{$sub_or_func_or_mod}{$f}{'AnnLines'} = [ @{$srcref} ];
@@ -3741,7 +3722,7 @@ sub _parse_assignment {
 		  . $tmp_line,
 		  "' in subroutine/function '$f' in '"
 		  . $stref->{$code_unit}{$f}{'Source'}
-		  . "'\nThis is DANGEROUS, please fix your code!" if $W;
+		  . "'\nThis is DANGEROUS, please fix your code!" if $WW;
 		$stref->{$code_unit}{$f}{'MaskedIntrinsics'}{ $lhs_ast->[1] } = 1;
 		$lhs_ast = parse_expression( $lhs, $info, $stref, $f );
 	}

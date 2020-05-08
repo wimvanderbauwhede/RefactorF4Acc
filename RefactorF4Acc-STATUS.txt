@@ -1,0 +1,3519 @@
+STATUS
+
+To keep track:
+$ git status
+$ git diff .
+$ find . -ctime -5w # 5 weeks before now
+$ ack WV2015
+
+~/Git/RefactorF4Acc/refactorF4acc.pl -c ../rf4a.cfg -N -g main
+~/Git/RefactorF4Acc/refactorF4acc.pl -c ../rf4a.cfg -N -g flexpart_wrf
+
+TO RELEASE
+
+* In the devel branch
+- update the version:
+  $  ./update_version.pl 1.2.1
+- update CHANGELOG.md
+- switch to master
+  $  git checkout master
+
+* On branch master
+- Get the changed or added files:
+  $ git diff --name-status master devel
+- Checkout the required files from devel
+!!! CAREFUL, this does not merge, it overwrites !!!h
+  $  git checkout devel relative-file-path
+!!! To do it selectively:
+  $  git checkout --patch devel relative-file-path
+!!! OR of course just merge, but that merges all changes
+  $  git merge devel
+- Commit and push changes
+  $  git commit -a
+  $  git push origin HEAD
+- Create a release tag
+  $  git tag v1.2.1
+  $  git push origin v1.2.1
+
+STATUS 2020-03-12
+
+A problem specifically with Nek but more general, is that I have always assumed that include files would be
+1. self-contained (i.e. they contain or include what they need)
+2. Only include other files at the top, so that the declarations in those files are encountered first.
+
+Nek breaks both:
+
+SIZE.inc is included in SIZE at the bottom, an requires definititions from SIZE so it is not self-contained.
+Even TOTAL, despite its name, does not include SIZE, but needs it. 
+
+So what to do? First, identify the different cases:
+
+Case A
+include F1:
+	include F2
+	... needs F2
+> This is OK: F2 and F1 can become modules
+
+Case B
+include F1:
+	...
+	include F2
+		... needs content from F1
+
+It is impossible to create a module from F2. So inline F2 into F1. If this merged F1 is self-contained, turn it into a module.
+
+
+Case C
+include F1
+include F2: 
+	... needs F1
+> This means: 
+- assuming F1 is case A or B
+- go to the parent
+- find the include line for F2
+- Go up from there
+	- find any declarations of variables or parameters used in F2
+		- If they are variables:
+            - Essentially, we can't use a module in that case. Just inline F2
+        - If they are parameters: 
+            - To make this work we would need to
+                - insert the parameter declarations into F2
+                - move the use statement above those parameter declarations as it has to be the first thing
+                - so in practice, that is too ugly, just inline the whole thing.
+    - find any include that contains the declarations for F2, e.g. F1
+        - Assuming this can be modularised, use the module F1 in F2 and modularise the F1 line
+        - If not, inline F1 as well
+
+* The only acceptable code before an include statement is 
+- another include statement
+- a program, function or subroutine declaration
+
+So, when descending into the include F1:
+- go through the file, if we meet anything except comments and blanks or program, function or subroutine declaration, then it is Case B. 
+	- continue to find any includes F2
+	- inline them
+	- test if F1 is now self-contained. 
+        If so, turn into a module
+        If not, it's case C     
+- if we find an include F2, it's maybe case A. Descend into that include F2 and inventory the declarations
+- then check if the include F1 is self-contained. 
+    If so, it's case A. Turn into a module
+    If not, it's case C.
+
+
+STATUS 2020-03-12
+
+I added functionality to evaluate via arguments and variables. Essentially:
+
+- If a var in an expression is not a parameter, I try to find an assignment to it and then try again with that expression.
+- I also try via the subroutine call arguments
+- I am a little bit unsure if I've done this properly: I fear I might have returned the first calculated result rather than going back up the chain.
+=> So make a few simple tests to verify this. Still need to do this because due to other change (mainly exclude all args with same name as sig args from cast/reshape) this is not called.
+
+
+STATUS 2020-02-12
+
+A case that has me stumped now is this:
+
+subroutine f1
+
+	parameter nelts(...)
+	asz= nelts -1 
+	call  f2(av, asz)
+end subroutine f1
+
+
+subroutine f2(av, asz)
+	integer asz
+	integer av(asz)
+
+end subroutine f2
+
+So asz is not a parameter, and I would effectively have to run the code 
+
+We could do something like: 
+- go to the caller
+- find the assignment to asz closest to the call
+- check if this contains only parameters and evaluate it
+
+Problem now is that for expressions, the ArgMap contains undef.
+
+STATUS 2020-02-06
+
+There is a way to handle casts in args for Out and InOut:
+
+t1 :: x
+t2 :: x_f
+x_f=cast(t2,x)
+call f(x_f)
+x=cast(t1,x_f)
+
+I'd need to check it casting works on whole arrays but I suspect it will
+
+The next issue to address is "STATUS 2020-01-24"
+
+
+STATUS 2020-02-05
+
+I added type casting for subroutine call arguments. This does not always work because sometimes an arg is Out or InOut and that does not work with a cast expression
+
+
+STATUS 2020-02-03
+
+I have added missing InheritedParams to ExGlobArgs in Refactoring::Subroutines.
+What I need now is a pass that will reorder the existing parameter declarations so that they are above their first point of use.
+
+I think I can do this as follows: 
+- Keep a list of all encountered param decls
+- For any declaration, look if it has InheritedParams. If so, check if the inherited params are in the list. 
+	- If so, fine
+	- If not, they are lower down. Find the line and put it above the declaration
+
+STATUS 2020-01-30
+
+I got around a few more compilation errors in the F77 code by adding -freal-4-real-8 but now I get an issue probably with my OpenMPI version, in the mpif.h which itself includes  mpif-sizeof.h:
+
+Error: Ambiguous interfaces in generic interface 'mpi_sizeof' for 'mpi_sizeof_real32_r15' at (1) and 'mpi_sizeof_real64_r15' at (2)
+
+and lots more like this.
+
+STATUS 2020-01-29
+
+* The mpif.h file contains interfaces, but it is not a module. This is quite important to support, because it provides me with info about the IODirs of the subroutines in the interfaces. I think this is OK now.
+
+In mpi_dummy, the parameter modules were not included. This is odd, at the very least mpi_dummy_h.f90 should have been USE'd
+
+	! use params_mpif_h 
+	use mpi_dummy_h, only : mpi_failure, mpi_success, mpi_double_precision, mpi_integer, mpi_integer8, mpi_real
+
+
+Missing in many places:
+
+      integer, parameter :: lxyz=lx1*ly1*lz1
+      integer, parameter :: lr=lx1*ly1*lz1
+
+But these are only every defined in source files, not in includes. My guess is that these are parameters used in COMMON vars but the parameter decl is not inherited/copied.
+
+From OPCTR:
+      integer, parameter :: maxrts=1000
+The reason seems to be that we include the local variables defined in OPCTR rather than doing a 'USE' but the result is that params_OPCTR is also not USE'd
+
+params_SIZE_inc needs params_SIZE but this was not USE'd, and some more like this. This is because SIZE.inc is included at the bottom of SIZE, and with the
+USE mechanism we'd have to USE SIZE in SIZE.inc, but that messes up the names in the other modules.
+
+* Problem of incorrect rank, the reshape is not generated:
+
+src/navier5.f90
+493:      xm0(1,1,1,1:512) = reshape(trx(1:lx1,1:ly1,1:lz1), shape(xm0(1,1,1,1:512))) 
+494:      xm0(1,1,1,513:1024) = reshape(trz(1:lx1,1:ly1,1:lz1), shape(xm0(1,1,1,513:1024)))
+660:      trx(1:lx1,1:ly1,1:lz1) = reshape(xm0(1,1,1,1:512), shape(trx))
+661:      trz(1:lx1,1:ly1,1:lz1) = reshape(xm0(1,1,1,513:1024), shape(trz))
+
+Despite having this:
+
+Refactoring/Subroutines.pm
+1748:						# reshape
+1749:						$v2_v1_pair = [ $var2, "reshape($var1,shape($var2))" ];
+1750:						$v1_v2_pair = [ $var1, "reshape($var2,shape($var1))" ];
+
+The reason is that the above is for EQUIVALENCE but the problem is in Analysis/CommonBlocks
+
+
+* The Scons build script has the wrong paths for the params_* files
+
+There are many other issues but they have not much to do with me:
+
+comm_mpi and math refer to one another, so the USE declarations form a loop and it does not build. So I reverted to the F77 files, also for mpi_dummy because it only occurs in comm_mpi. Same for papi as well, so that is also F77.
+
+In the end, the original F77 source of comm_mpi does not build, various errors.
+
+mxm_bgq has some IBM-specific extensions so I had to skip that
+
+There seemed to be some bugs in abl.f, I "fixed" to get the build going.
+
+
+STATUS 2020-01-26
+
+I should consider the following additions:
+
+- external calls for which the signature is known including the intent, e.g. MPI calls: I should add some mechanism that allows to incorporate this information
+- if statements with const args could be changed to CPP macros or eliminated right away.
+
+STATUS 2020-01-24
+
+- `EQUIVALENCE` handling for arrays is incorrect for non-constant indices. Example from CEA:
+
+      real(kind=8), dimension(1:6) :: tcin
+      real(kind=8), dimension(1:6,1:3,1:2) :: trcoef
+
+      do i = 1,36
+        tc(i) = 0.
+        trcoef(1,1,1) = tc(1)
+      enddo
+
+      do i = 1,ns
+        read (iosch,err=200) tname,trcoef
+        tc(1) = trcoef(1,1,1)
+        write (iotrn) tname,trcoef
+      enddo
+
+* If the index is not a constant, but the shapes are the same, I could use the index on both sides.
+But in the case above, the only good approach would be:
+
+	$idxs_lhs=create_index_expression($lhs_dims,$rhs_dims,$idxs_rhs);
+        trcoef($idxs_lhs_str) = tc($idxs_rhs_str)
+
+And create_index_expression() 
+- takes the dims of both sides
+- flattens the RHS indices into a single 1-D index based on $rhs_dims
+- composes the LHS expressions for each index based on $lhs_dims
+- generated the tuple of strings of these expressions
+
+calculate_multidim_indices_from_linear() in Analysis::Arrays is a good starting point, and
+_calc_linear_offset from Refactoring::Streams.
+
+Then we do join(',', ...) etc to create the actual code.
+
+* If there is an index but it is unused, like in 
+
+        DO i = 1,ns
+          READ (IOSCH,ERR=200) tname,trcoef
+          WRITE (IOTRN) tname,trcoef
+        ENDDO
+
+Then I think it should just be
+
+        tc = reshape(trcoef,shape(tc))
+
+
+STATUS 2020-01-22
+
+TOTAL TESTS: 196
+TESTS RUN: 190
+SKIPPED: 6
+
+real	0m50.641s
+user	0m43.246s
+sys	0m5.761s
+# Generation of the refactored test suite code:
+TOTAL TESTS: 196
+TESTS RUN: 190
+SKIPPED: 6
+Generation Failed:
+0
+Generation Succeeded:
+190
+
+real	0m8.281s
+user	0m4.605s
+sys	0m2.237s
+
+
+# Compilation of the refactored test suite:
+
+Total  : 190
+Passed : 182
+Failed : 0
+Skipped: 8
+
+real	0m35.434s
+user	0m24.426s
+sys	0m7.029s
+
+# Running the refactored test suite:
+PASSED: 2734
+FAILED: 4
+REQUIRE INSPECTION: 161
+TOTAL: 2899
+
+
+TOTAL TESTS: 196
+TESTS RUN: 190
+SKIPPED: 6
+
+real	0m52.979s
+user	0m44.810s
+sys	0m6.368s
+# Generation of the refactored test suite code:
+TOTAL TESTS: 196
+TESTS RUN: 190
+SKIPPED: 6
+Generation Failed:
+0
+Generation Succeeded:
+190
+
+real	0m8.332s
+user	0m4.655s
+sys	0m2.188s
+
+
+# Compilation of the refactored test suite:
+
+Total  : 190
+Passed : 182
+Failed : 0
+Skipped: 8
+
+real	0m35.561s
+user	0m24.603s
+sys	0m7.038s
+
+# Running the refactored test suite:
+PASSED: 2732
+FAILED: 6
+REQUIRE INSPECTION: 161
+TOTAL: 2899
+
+FAILED:
+
+FM302.res:                        2 TESTS FAILED 
+FM406.res:                          1 TESTS FAILED
+FM722.res:                          1 TESTS FAILED
+FM923.res:                          2 TESTS FAILED
+
+So the difference with 2019-07-25 is:
+
+FM 302:  one additional failed test
+
+        12       FAIL               2              6
+        13       FAIL               2            210
+
+This is a real bug caused by the interaction of COMMON and EQUIVALENCE. The first one was an actual bug in the code. But the second one is because of an equivalence between a scalar common var and an array. Then the scalar gets extended implicitly into an array:
+
+	EQUIVALENCE (IVCEI1,IACE1I)
+	DIMENSION IACE1I(3)
+	COMMON /BLK9/IVCEI1
+
+	IVCEI1 = 5
+	IACE1I(1) = 10
+	IACE1I(2) = 15
+	IACE1I(3) = 20 
+
+INTEGER FUNCTION FF304 ()    
+	COMMON /BLK9/IVCNI1, IVCNI2, IVCNI3
+
+C     TEST 013
+           IVCNI1 = IVCNI1 + 1 => therefore IVCEI1(1) and IACEI1(1) are now 11
+           IVCNI2 = IVCNI2 + 1 => therefore IVCEI1(2) and IACEI1(2) are now 16
+           IVCNI3 = IVCNI3 + 1 => therefore IVCEI1(3) and IACEI1(3) are now 21
+
+C     TEST 013
+      IF (IVCEI1 .EQ. 11) IVCOMP = IVCOMP * 2
+      IF (IACE1I(1) .EQ. 11) IVCOMP = IVCOMP * 3
+      IF (IACE1I(2) .EQ. 16) IVCOMP = IVCOMP * 5
+      IF (IACE1I(3) .EQ. 21) IVCOMP = IVCOMP * 7              
+
+In my code however:
+
+      iace1i(1) = ivcei1
+
+      ivcei1 = 5                                                        
+      iace1i(1) = ivcei1
+      iace1i(1) = 10                                                    
+      ivcei1 = iace1i(1)
+      iace1i(2) = 15                                                    
+      ivcei1 = iace1i(1)
+      iace1i(3) = 20                                                    
+      ivcei1 = iace1i(1)
+      ivcnj1 = 1                                                        
+      ivon99  = ff304(ivcnj1,ivcnk1,ivcnd1,ivcnd2,rvcnd1,lvcnd1,rvcne1,ivcn01,ivcn02,lvcn01,rvcn01,ivcn03,ivcn04,ivcn05,iacn11,ivcn06,ivcn07,ivcn08,ivce09,ivcn12,ivcn13,ivcei1,ivcni2,ivcni3)
+      iace1i(1) = ivcei1      
+
+What is missing is
+
+      iace1i(2) = ivcni2
+      iace1i(3) = ivcni3
+
+In other words, if the argument list has been extended because a common variable was extended via an equivalence, then that is not covered at the moment. TODO
+
+FM406 is as before, gfortran problem, fails in F77 as well
+
+     3     FAIL                                  COMPUTED VALUE NOT CONSISTENT
+                                                 WITH PERMISSIBLE OPTIONS ABOVE
+                 COMPUTED=            -0.0
+                 CORRECT=   0.0
+
+FM722
+
+     9     FAIL
+                 COMPUTED= (     6.40000,      0.00000)
+                 CORRECT=  (     6.40000,      4.60000)
+
+This is also a rather silly bug:
+
+ real, parameter :: icp001=(3.2,2.3)
+
+must of course be COMPLEX! I hacked a fix, ugly
+
+FM923: as before, "LIST DIRECTED INPUT", I think this is "won't fix" or "can't fix" because the original F77 code fails as well
+
+    22     FAIL
+                 COMPUTED= ABCDEF
+                 CORRECT=  CAN'T, AND/OR   WON'T
+    23     FAIL
+                 COMPUTED: XYZ'             CAN'T, A  123456789
+                 CORRECT:  1234567890       12345678  123456789
+
+STATUS 2020-01-15
+
+* I've added a check for loops in the call graph, I just stop when I detect a loop
+* Note that the Nodes analysis now does NOT differentiate all unique nodes, every call chain in the tree is only done once.
+I think this is OK but I need to test it!
+* TODO for now is to make sure the evaluation does recurse in case there are expressions in expressions in expressions for parameters.
+
+* And edge case in calculate_multidim_indices_from_linear results in division by zero.
+The problem is that I end up with [1,0] for some dimensions and that of course makes no sense.
+
+I think I have the reason: it is a pattern as follows:
+
+subroutine s1
+
+  common /c1/ a1(dx1,dy1,dz1), a2(dx2,dy2,dz2), a3(dx3,dy3,dz3)
+  call s2(a3)
+
+end subroutine s1
+
+subroutine s2
+
+  real a3(dx3*dy3*dz3)
+  common /c1/ b1(dx1*dy1*dz1), b2(dx2*dy2*dz2), b3(dx3*dy3*dz3)
+
+end subroutine s2
+
+In other words, one of the vars of the common block is used as an arg, but with a different dimensionality than the common block var with the same name. Nevertheless, that should not really change anything, isn't it? 
+
+
+
+STATUS 2020-01-15
+
+More work on Nek5000. Turns out this code uses if(...) to enable MPI instead of #if. Also, it has loops in the call graph (!).
+And it uses spaces in numeric constants, I added ALLOW_SPACES_IN_NUMBERS for this.
+Also it has literally thousands of subroutines and functions (1713 according to acc+grep) and millions of nodes. It takes ages to just build the call graph.
+Makes me wonder if I really need a call graph with unique nodes, or if a call tree is good enough. It will have to be because I am running out of memory with the current approach.
+
+The Preconditioning is not good because in Nek5000 some include files have not been used because of the flags which are set in the build system.
+
+Also, many of the includes mix params and commons and somehow when I come to Preconditioning this goes wrong
+
+STATUS 2020-01-08
+
+Working on Nek5000
+https://octodon.social/@wim_v12e/103362615788893619
+
+* Fixed some issues in the expression parser and added a flag to run_cpp.pl to specify the file pattern.
+
+* In Parser.pm:
+The problem here is that a parameter used in an include can be declared in the source file including this include. So I must check the parameter declarations via IncludedFrom.
+That should happen when the include is being parsed, in __parse_f77_par_decl
+
+* There is also the question to be finally resolved about how we use Undeclared*. At the moment, I do not always move a var from Undeclared to Declared because I can declare it. So I have to define Undeclared* as "Undeclared when encountered", and then I declare them but they stay in Undeclared*
+
+STATUS 2019-07-31
+
+There is yet another problem with the subroutine extraction: if variables are not args, i.e. they should become local vars, then this falls back to implicits. Instead these should be added like the args.
+
+STATUS 2019-07-29
+
+Work on evaluation of parameter expression by creating a Fortran program and running it ...
+This required a rewrite of the F77 param decl parser. Should now do the same for the F95 one as well, and in fact this should be easier I hope.
+
+It is still not correct though:
+
+- param decls that also have a var decl are wrong? In any case, sometimes I get the var decl for dt and sometimes the param decl
+- indent is wrong, which also points to a problem.
+
+        real, parameter :: dt=432.000000 ! Refactoring::Common::context_free_refactorings(predict_loc) 363
+
+              real, intent(In) :: dt ! __construct_new_subroutine_signatures 456; Parser::__parse_f77_var_decl(predict_loc) 3162; Preconditioning::_split_multivar_decls(predict_loc) 512; Refactoring::Common::context_free_refactorings(predict_loc) 284: Ref==0, 1
+
+I think I have it: in Blocks we have
+
+my $varsref = get_vars_from_set( $Sf->{'Vars'} );
+
+If in this set, a $var is listed as a Var rather than a Param, because of a F77 var decl + param decl, then there is the problem
+
+
+STATUS 2019-07-25
+
+Extracted subs now use local parameters, but currently this breaks for parameters that are USE'd
+
+STATUS 2019-07-24
+
+I think this is as good as it gets, provided I didn't break the other tests again:
+
+real	0m48.856s
+user	0m41.253s
+sys	0m5.878s
+# Generation of the refactored test suite code:
+TOTAL TESTS: 196
+TESTS RUN: 190
+SKIPPED: 6
+Generation Failed:
+0
+Generation Succeeded:
+190
+
+real	0m9.114s
+user	0m4.670s
+sys	0m2.800s
+
+
+# Compilation of the refactored test suite:
+
+Total  : 190
+Passed : 182
+Failed : 0
+Skipped: 8
+
+real	0m33.080s
+user	0m19.955s
+sys	0m8.633s
+
+# Running the refactored test suite:
+PASSED: 2733
+FAILED: 5
+REQUIRE INSPECTION: 161
+TOTAL: 2899
+
+I need to ensure that statement functions are moved just before the first non-specification statement. => OK, done
+
+
+I have been lazy and the refactored annlines for EQUIVALENCE have a blank $info. At the very least I need:
+
+  $info->{'Assignment'}=1
+  $info->{'HasVars'}=1
+  $info->{'Rhs'}{'VarList'}{'List'}=[$rhs_var];
+  $info->{'Lhs'}{'VarName'}=$lhs_var;
+
+
+STATUS 2019-07-22
+
+Trying a very simple example in Fortran 95, it breaks in many places. I will created a F77 version to see how broken that is.
+
+1. multiple vars on a decl line results in replication of the line. => This is a F95-only bug. Fix later
+
+2. Subroutine refactoring is totally broken: the CALL does not get any arguments; the signature has the wrong arguments; the dimensions are wrong.
+=> This was a combination of many things, but I have now narrowed it down to
+- The generated arg decls are somehow ignored, resulting them being generated again as UndeclaredOrigArgs using IMPLICIT rules
+- I suspect that this is a result of the fact that they are F95 decls
+- Then the IODir is still wrong, so I need check that analysis. Or better, check what goes into it.
+- I should also check what goes into the very first analysis step.
+
+3. Extracted subroutines are not in the correct folder. This only works right if the script is run from the src folder.  => This is now fixed.
+
+
+
+STATUS 2019-07-06
+
+Unsurprisingly, the complex numbers handling conflicts with the transitive algorithm
+need to change
+$equiv_pairs->{$var1} = { $var2 => $ast2 };
+into
+$equiv_pairs->{$var1} = { $var2 => $ast2 , $var1 => $ast1 };
+so that I can check the actual expression, not just the variable name
+
+So I need to emit the asts and compare the strings instead of comparing $var1 to $var2
+
+STATUS 2019-07-05
+
+There is still a bug in EQUIVALENCE between a COMPLEX and a 2-D array of REAL
+We need to add the imaginary part in the updates using AIMAG
+
+# Check the types of v1 and v2
+# if only one of them is COMPLEX we need to cast in a special way
+
+if ($v2_is_array and not $v1_is_array) {
+if( $v1_type eq 'complex') {
+if ($var2 eq $v2) {# is not indexed
+} else { # indexed
+} 
+} else {
+# as before
+}
+if ($v1_is_array and not $v2_is_array) {
+if ( $v2_type eq 'complex') {
+if ($var1 eq $v1) {# is not indexed
+} else { # indexed
+}
+} else {
+# as before
+}
+
+
+
+
+
+
+STATUS 2019-06-27
+
+The new COMMON block code is still wrong: it needs to be rec descent and we need to add any missing variable to the Caller's CommonVars. Need to check if this has to be Declared or Undeclared.
+
+Renaming with _GLOB only should happen for inherited exglobs and params. Need to check why it goes wrong in CEA.
+
+EQUIVALENCE handling is wrong. I need an assignment after every update
+
+x_l = x_a
+
+x_l = ...
+x_a = x_l
+
+x_a = ...
+
+x_l = x_a
+
+
+STATUS 2019-06-25
+
+Now turns out there is a bug in SrcReader so that the END of BLOCK DATA gets duplicated, but not if it is preceded by a space. It is a bug in the continuation line handling.
+
+      DATA Rr/8314.51D0/,Pi/3.14159265D0/,Avgdr/6.0221367D0/,
+     & Boltz/1.380658D0/
+      END
+
+./cea2.f L:<      END
+>
+./cea2.f N:<      
+>
+./cea2.f J:<      END>
+
+      DATA Rr/8314.51D0/,Pi/3.14159265D0/,Avgdr/6.0221367D0/,
+     & Boltz/1.380658D0/
+C    spacer      
+      END
+
+./cea2.f L:<>
+./cea2.f N:<      
+>
+./cea2.f J:<      END>
+
+      DATA Rr/8314.51D0/,Pi/3.14159265D0/,Avgdr/6.0221367D0/,Boltz/1.380658D0/
+      END
+
+./cea2.f L:<>
+./cea2.f N:<      
+>
+./cea2.f J:<      END>
+
+
+      DATA Rr/8314.51D0/,Pi/3.14159265D0/,Avgdr/6.0221367D0/,Boltz/1.380658D0/
+      END
+C
+
+./cea2.f L:<      
+>
+./cea2.f N:<>
+./cea2.f J:<      END>
+
+      DATA Rr/8314.51D0/,Pi/3.14159265D0/,Avgdr/6.0221367D0/,
+     & Boltz/1.380658D0/
+      BROL = 1
+      END
+
+./cea2.f L:<>
+./cea2.f N:<      
+>
+./cea2.f J:<      END>
+
+
+STATUS 2019-06-24
+
+In the CEA2 code, we have a problem with the BLOCK DATA. Despite the preconditioning, clearly the split between COMMON includes and PARAMETER includes has not worked here.
+
+
+STATUS 2019-06-21
+
+The status with the previous release was 3 failed tests, passed 2726, total 2890
+After fixing some more bugs, including in the code added to fix bugs, we have 4 failed tests, passed 2739, total 2904, so we now do better!
+
+
+FM302.res:                        1 TESTS FAILED
+
+C          TEST 013 IS DESIGNED TO TEST THE EXTENSION OF NAMED COMMON   05320302
+C     BLOCK STORAGE BY EQUIVALENCE ASSOCIATION OF A VARIABLE AND AN     05330302
+C     ARRAY.                                                            05340302
+
+Won't fix!
+
+FM406.res:                          1 TESTS FAILED
+
+This I think is a gfortran problem, not my problem
+
+FM923.res:                          2 TESTS FAILED
+
+# Generation of the refactored test suite code:
+TOTAL TESTS: 196
+TESTS RUN: 190
+SKIPPED: 6
+Generation Failed:
+0
+Generation Succeeded:
+190
+
+real	0m7.577s
+user	0m4.197s
+sys	0m2.102s
+
+# Compilation of the refactored test suite:
+
+Total  : 190
+Passed : 182
+Failed : 0
+Skipped: 8
+
+real	0m30.942s
+user	0m19.261s
+sys	0m7.775s
+# Running the refactored test suite:
+PASSED: 2739
+FAILED: 4
+REQUIRE INSPECTION: 161
+TOTAL: 2904
+
+STATUS 2019-06-19
+
+Status after adding new refactoring for COMMON blocks. It is better than before but still 15 failed tests. The status with the previous release was 3 failed tests, passed 2726. 
+
+The failing programs are
+FM302.res:                          1 TESTS FAILED
+
+C          TEST 013 IS DESIGNED TO TEST THE EXTENSION OF NAMED COMMON   
+C     BLOCK STORAGE BY EQUIVALENCE ASSOCIATION OF A VARIABLE AND AN     
+C     ARRAY.                                                            
+
+This is horrible so I think this is "won't fix"
+
+FM406.res:                          1 TESTS FAILED
+
+     3     FAIL                                  COMPUTED VALUE NOT CONSISTENT
+                                                 WITH PERMISSIBLE OPTIONS ABOVE
+                 COMPUTED=            -0.0
+                 CORRECT=   0.0
+
+I think this is "won't fix" or "can't fix"
+
+FM715.res: 			    6 TESTS FAILED
+
+    11     FAIL
+    12     FAIL
+    27     FAIL
+    28     FAIL
+    29     FAIL
+    30     FAIL
+
+
+This is character strings, so I'm not much bothered => But the reason was an actual bug and it is now fixed!
+
+FM722.res:                          5 TESTS FAILED (8..12)
+
+This is DOUBLE PRECISION and DOUBLE COMPLEX so I think I should fix this
+
+=> The reason is that I assumed that var in an EQUIVALENCE statement must have the same type. Not so:
+
+      IMPLICIT COMPLEX (Z)
+      REAL R2NN02(2)
+      EQUIVALENCE (ZVCOMP,R2NN02) 
+
+FM923.res:                          2 TESTS FAILED
+
+"LIST DIRECTED INPUT", I think this is "won't fix" or "can't fix"
+
+
+
+# Generation of the refactored test suite code:
+TOTAL TESTS: 196
+TESTS RUN: 190
+SKIPPED: 6
+Generation Failed:
+0
+Generation Succeeded:
+190
+
+real	0m7.857s
+user	0m4.340s
+sys	0m2.221s
+
+# Compilation of the refactored test suite:
+
+Total  : 190
+Passed : 182
+Failed : 0
+Skipped: 8
+
+real	0m31.513s
+user	0m19.617s
+sys	0m7.959s
+# Running the refactored test suite:
+PASSED: 2700
+FAILED: 9
+REQUIRE INSPECTION: 161
+TOTAL: 2870
+
+
+STATUS 2019-06-12
+
+What I must do is
+- decls should *only* be in the Vars/Args sets, *not* in $info
+- To make sure, I will rename 'Set' to 'Map' in the Vars/Args sets and use 'Set' with as key  __PACKAGE__ . ' ' . __LINE__ rather than '1'
+
+
+The support for mismatched COMMON blocks is in place but there are some issues that I did not address:
+1. This works only for direct callers, so if f and h have COMMONs but g doesn't, then f(g(h)) is not handled correctly.
+2. I need to reparse the inserted lines but this happens after PlaceHolders have been reinserted, it should happen before that.
+3. I did not yet implement this support for ENTRYs
+
+Sadly, the ArgumentIODirs code sometimes overrides the correct type declaration for ex-glob args. My guess is that this is a result of the order in which the subs are handled. If so I will need a proper rec descent.
+
+Also, I realise I forgot to put in the assignments at the end of the sub for updates of the args.
+And also also, resolving IODirs will therefore not work correctly for these mismatched ex-COMMON vars and I think I should simply make them InOut.
+
+OK, it is clearly the reparsing that is the problem, because we only parse but don't analyse. It might be better to either parse context-free or just build the AST without parsing.
+So I've just uncommented the reparsing
+
+Another problem clearly is that the subroutine call args are wrong
+
+STATUS 2019-06-11
+
+The new signatures and call args are in 
+
+$stref->{'Subroutines'}{$f}{'ExMismatchedCommonArgs'}{'SigArgs'}
+
+to be used in _refactor_globals_new() in Refactoring::Subroutines
+
+and
+
+$stref->{'Subroutines'}{$f}{'ExMismatchedCommonArgs'}{'CallArgs'}
+
+to be used in _create_refactored_subroutine_call() in Refactoring::Subroutines
+
+and the new annlines for assignments to locals are in
+
+$stref->{'Subroutines'}{$f}{'ExMismatchedCommonArgs'}{'ArgAssignmentLines'}
+
+also to be added in Refactoring::Subroutines
+
+STATUS 2019-06-06
+
+For overlap of scalars and array I now use the linear index, and I keep the total linear size unmodified in the tuple.
+The n-dim indices are calculated from the Dim info and the linear index
+
+STATUS 2019-06-04
+
+For the proper COMMON block handling, we need to implement the following steps:
+
+Analysis
+
+1. Determine if a subroutine can still use the old approach. If not, mark it with "HasCommonVarMismatch". If this does not exists, the old approach is OK.
+
+I think I should use 
+
+$stref->{'Subroutines'}{$f}{'CommonVarMismatch'}{$caller} = {$block=>1,...};
+
+rather than
+
+$stref->{'Subroutines'}{$f}{'CommonVarMismatch'}{$block} = $caller;
+
+Then I can use $stref->{'Subroutines'}{$f}{'ExMismatchedCommonArgs'} on a per-caller basis:
+- the List has the SigArgs
+- The Set has the CallArgs, per caller
+$stref->{'Subroutines'}{$f}{'ExMismatchedCommonArgs'}{'Set'}{$caller}{$sig_arg}{$call_arg => $block}
+sig_arg_1 => call_arg1(1:3)
+sig_arg_2(1) = call_arg1(4)
+sig_arg_3(1:4) = call_arg1(5:8)
+sig_arg_3(5:8) = call_arg2
+
+It might actually be better to create the call arg lists on a per-caller basis:
+
+$stref->{'Subroutines'}{$f}{'ExMismatchedCommonArgs'}{'SigArgs'} = [...]
+$stref->{'Subroutines'}{$f}{'ExMismatchedCommonArgs'}{'CallArgs'}{$caller} = [...]
+
+Combined with the equivalence pairs this is enough, I think.
+
+2. Create the CallArgs and SigArgs lists, and the "equivalence pairs" which are needed to assign CallArgs to SigArgs
+
+- Essentially, we use the call arg names for the sig arg 
+- Except for the case where the COMMON block was extended. Then we use the names of the vars extending the block for both sig arg and call arg, but in call arg we prefix them
+
+There is an issue with the overlaps here (several locals accessing a single caller var), but it is easy to solve: if the last sig arg has the same name, don't add it again. Just add it once, we have a flag for that already.
+
+I think declaration of the locals will happen automatically because any variable in a COMMON decl will get a proper declaration
+
+We have following cases:
+
+- If local and caller are either scalars or arrays of the same size
+
+v_local = v_caller
+
+Of course if v_local eq v_caller we can omit this
+
+- If local is a scalar and caller is an array:
+
+v_local = v_caller(idx)
+
+- If local is an array and caller is a scalar:
+
+v_local(idx) = v_caller 
+
+- If local is an array and caller is an array:
+
+v_local(i_b_l:i_e_l) = v_caller(i_b_c:i_e_c)
+
+
+
+3. Add the additional var decls in the caller (usually the program) for arguments that are the result of a subroutine extending a COMMON block. The cleanest is to create a new subset, but I will put them into UndeclaredCommonVars (alternative would be ExGlobArgs)
+
+Refactoring
+
+1. Update the call argument list and the subroutine signature, by extending the current functionality in _create_refactored_subroutine_call() and _create_refactored_function_calls()
+
+2. Create the statements that assign the CallArgs to the SigArgs, and the other way round. We need to insert these
+- after the last declaration
+- before a $info->{'Return'} or $info->{'EndSubroutine'} or $info->{'EndFunction'}
+This I think needs a new pass
+
+
+
+
+
+
+
+
+
+
+STATUS 2019-05-30
+
+Working on proper COMMON block handling. There is still a bug in the matching-up algorithm and I need to get the correct names for the arguments by adding caller name and block name.
+I think there might be a bug in the COMMON parser because it seems to miss out IVCN06 in FM302 but not in FF304
+
+STATUS 2019-05-28
+
+After changing line 00070305 in FM302.f:
+
+C WV  COMMON IACN11(15)                                                 00070305
+      COMMON IACN11(4)                                                  00070305
+
+Now everything passes BUT 
+
+COMMON is fundamentally handled incorrectly. The correct way is to build and equivalence between the lists of variable declarations in each COMMON block, depending on how they are used in a code unit. For example, in FM302:
+
+1      COMMON IVCN01
+3      COMMON //IVCN02,LVCN01
+5      COMMON RVCN01//IVCN03
+11      COMMON IVCN04, IVCN05,  // IACN11(4)
+14      COMMON IVCN06,//IVCN07,IVCN08
+15      COMMON IVCE09
+16      COMMON IVCN12
+
+is equivalent to
+
+COMMON IVCN01,IVCN02,LVCN01,RVCN01,IVCN03,IVCN04,IVCN05,IACN11(4), IVCN06,IVCN07,IVCN08,IVCE09,IVCN12
+
+Then in the subroutine FS303
+
+COMMON IVCN01,IVCN02,LVCN01,RVCN01,IVCN03,IVCN04,IVCN05,IACN11(4)
+
+Here the variables match up, but they don't have to. 
+
+----
+For example 
+
+      DIMENSION IACN1F(3)
+      COMMON /BLK7/IVCNF1,IVCNF2,IVCNF3,IACN1F(3)
+
+Then in the subroutine FS303
+
+      COMMON /BLK7/IACN1G(5),IVCNG1 
+
+So this means that 
+
+IACN1G(1) = IVCNF1
+IACN1G(2) = IVCNF2
+IACN1G(3) = IVCNF3
+IACN1G(4) = IACN1F(1)
+IACN1G(5) = IACN1F(2)
+IVCNG1    = IACN1F(3)
+
+and this needs to be combined with EQUIVALENCE
+
+What this means is that a COMMON block in a subroutine must be translated as follows:
+
+- Create a mapping as above. The key problem is how to handle overlapping array ranges, e.g.:
+
+v1, v2(5),v3(4),v4
+w1(4),w2,w3(5),w4
+
+So the way to do this is to create a list of pairs (name,dim) (and if they're multi-dim we need to flatten!)
+
+[v1,1], [v2,5],[v3,4],[v4,1]
+[w1,4],[w2,1],[w3,5],[w4,1]
+
+Then we need to identify the shortest of the two. 
+
+Then for each element in this list, we do as follows:
+
+Look at both, identify shortest.
+
+([v1,1,1],[w1,1,4])
+=>
+[v2,5],[v3,4],[v4,1]
+[w1,3],[w2,1],[w3,5],[w4,1]
+
+
+([v2,1:3,5],[w1,2:4,4])
+=>
+[v2,2],[v3,4],[v4,1]
+[w2,1],[w3,5],[w4,1]
+
+([v2,1,2],[w2,1,1])
+=>
+[v2,1],[v3,4],[v4,1]
+[w3,5],[w4,1]
+
+([v2,2,5],[w3,1,5])
+=>
+[v3,4],[v4,1]
+[w3,4],[w4,1]
+
+([v3,1:4,4],[w3,2:5,5])
+=>
+[v4,1]
+[w4,1]
+
+([v4,1,1],[w4,1,1])
+
+
+- Identify the arguments to be passed in. These need to be declared the same as in the calling code unit. For the above example:
+
+arg list: IVCNF1,IVCNF2,IVCNF3,IACN1F, to be appended to the orig args
+
+declarations:
+integer, intent(WHATEVER) :: IVCNF1,IVCNF2,IVCNF3
+integer, dimenion(1:3), intent(WHATEVER) :: IACN1F
+
+Then we need equivalence statements for every arg that is different:
+
+equivalence(IACN1G(1),IVCNF1)
+equivalence(IACN1G(2),IVCNF2)
+equivalence(IACN1G(3),IVCNF3)
+equivalence(IACN1G(4),IACN1F(1))
+equivalence(IACN1G(5),IACN1F(2))
+equivalence(IVCNG1,IACN1F(3))
+
+
+
+
+And I think if some of these are doubles, they will span two 4-byte words.
+
+
+
+# Compilation of the refactored test suite:
+
+Total  : 190
+Passed : 182
+Failed : 0
+Skipped: 8
+
+real	0m29.846s
+user	0m18.202s
+sys	0m7.687s
+
+# Running the refactored test suite:
+PASSED: 2697
+FAILED: 12
+REQUIRE INSPECTION: 161
+TOTAL: 2870
+
+
+FM302.res:                        4 TESTS FAILED
+FM406.res:                          1 TESTS FAILED => -0.0 vs 0.0, OK
+FM722.res:                          5 TESTS FAILED => these are actually compiler errors
+FM923.res:                          2 TESTS FAILED => this are actually a compiler errors
+
+
+----
+PASSED: 2685
+FAILED: 8
+REQUIRE INSPECTION: 161
+TOTAL: 2854
+
+FM406.res:                          1 TESTS FAILED => -0.0 vs 0.0, OK
+FM719.res:                          4 TESTS FAILED => actual failures, due to ENTRY mistake, fixed.
+
+FM722.res:                          5 TESTS FAILED, as far as I can see these are correctly refactored so not my problem?
+FM923.res:                          2 TESTS FAILED
+
+STATUS 2019-05-24
+
+The NIST tests that currently fail are:
+
+# Compilation of the refactored test suite:
+
+Total  : 190
+Passed : 181
+Failed : 1
+Skipped: 8
+
+grep -E 'FM.+:' ../RefactoredSources/parse.log  | perl -p -e  's/:.+//' | uniq
+
+FM302.f95 a COMMON var has different DIMENSION in the main program than in a subroutine. I could flag this up, rather than accept it.
+
+# Running the refactored test suite:
+PASSED: 2671
+FAILED: 12
+REQUIRE INSPECTION: 161
+TOTAL: 2844
+
+- Passing subroutines as args to subroutines: 
+- BLOCK DATA: 
+This is because the args of the block data subroutine are declared at toplevel, but only the call args should be declared.
+- COMMON blocks with conflicting dimensions, FM302. If I modify this one by hand, it passes?
+
+STATUS 2019-05-23
+
+For blocks extracted into subroutines, the call args are not updated when the sig args are updated.
+
+The reason is that in _create_refactored_subroutine_call() I now use 
+
+my $expr_ast=[@{$info->{'SubroutineCall'}{'ExpressionAST'}}];
+
+which is empty for a call to an extracted sub, but for some reason 
+
+ $info->{'SubroutineCall'}{'Args'}{'Set'}
+
+contains the ex-globs 
+
+I guess what I can do is simply overwrite
+
+ $info->{'SubroutineCall'}{'Args'}{'Set'} 
+
+but I'd rather work out what's wrong.
+
+STATUS 2019-05-22
+
+The NIST tests that currently fail are:
+
+- Passing subroutines as args to subroutines
+- BLOCK DATA because the args of the block data subroutine are declared at toplevel, but only the call args should be declared.
+- Some issue with COMMON because of prior EQUIVALENCE (line 837 in Parser.pm)
+
+STATUS 2019-05-17
+
+Fixed the FUNCTION and EQUIVALENCE issues
+- the problem with the CHARACTER decls is due to diffs with the new parser, but in fact the best way I think is to split on the first space and parse everything with the new parser. 
+- DATA is not done yet but I hope it will be easier
+
+
+STATUS 2019-05-16
+
+* Most NIST test cases now FAIL for various reasons: 
+- EQUIVALENCE parsing does not lead to correct typing 
+- CHARACTER type decl is wrong in some cases
+
+- Function 'ff083' at (1) has no IMPLICIT type in FM080.f95:433:6:
+
+The reason is twofold: 
+(1) the function definition must be preceded by a type and it isn't.
+(2) ff083 must be declared as a variable and it isn't.
+
+When we encounter a function call we must add the function as a variable to UndeclaredOrigLocalVars unless it was declared.
+We should therefore inspect the function to determine the return type. This is either the type of the var with the name of the function or of the RESULT var (explicitly provided, F95) or the type-spec of the function definition, if provided.
+If none of these is provided, we should type using implicit rules.
+So on parsing a subroutine, we need to check if it's a function, and if it has a RESULT var or not and a type-spec or not. When we exit the definition, these vars should have been typed. If not, we type them via implicits. We do this in Analysis _analyse_variables().
+
+Then we need to make sure the result type is used when generating the function code.
+
+
+- New emitter seems to emit the type as well as the value! 
+FM110.f95:57:20:
+
+       character(len=integer13) :: zvers
+- We should now also do typing in DATA, like in EQUIVALENCE
+
+
+STATUS 2019-05-15
+
+- Fixed READ parsing issue below
+- To support a(:), a(term:), a(:term), I guess the best approach is a state to track that we are inside ( ... , ... ). 
+In that state, if no term was parsed before or after ':', we use a blank. I think this should be a special constant.
+
+STATUS 2019-05-02
+
+- Look in /Users/wim/Desktop/FortranRefactoring/AST-access.txt for accesses to the AST, to change this for the new parser.
+
+
+Current errors on NIST with new parser:
+
+This is just a mistake in the logic for the READ parser:
+
+refactorF4acc.pl -c rf4a_fm411.cfg  -g fm411
+Can't use string ("read") as an ARRAY ref while "strict refs" in use at /Users/wim/Git/RefactorF4Acc/RefactorF4Acc/Parser.pm line 3767.
+
+refactorF4acc.pl -c rf4a_fm413.cfg  -g fm413
+Can't use string ("read") as an ARRAY ref while "strict refs" in use at /Users/wim/Git/RefactorF4Acc/RefactorF4Acc/Parser.pm line 3767.
+
+- New parser needs to support a(:), a(term:), a(:term)
+
+refactorF4acc.pl -c rf4a_fm710.cfg  -g fm710
+PARSE ERROR in <cvn001(:)>, REST: ) at /Users/wim/Git/RefactorF4Acc/RefactorF4Acc/Parser/Expressions.pm line 232.
+	RefactorF4Acc::Parser::Expressions::parse_expression('cvn001(:)', 'HASH(0x7fd60ee2bce8)', 'HASH(0x7fd60d8224c0)', 'fm710') called at /Users/wim/Git/RefactorF4Acc/RefactorF4Acc/Parser.pm line 4273
+	RefactorF4Acc::Parser::_parse_assignment('cvcomp=cvn001(:)', 'HASH(0x7fd60ee2bce8)', 'HASH(0x7fd60d8224c0)', 'fm710') called at /Users/wim/Git/RefactorF4Acc/RefactorF4Acc/Parser.pm line 1415
+	RefactorF4Acc::Parser::_analyse_lines('fm710', 'HASH(0x7fd60d8224c0)') called at /Users/wim/Git/RefactorF4Acc/RefactorF4Acc/Parser.pm line 104
+	RefactorF4Acc::Parser::parse_fortran_src('fm710', 'HASH(0x7fd60d8224c0)') called at /Users/wim/Git/RefactorF4Acc/RefactorF4Acc/Main.pm line 181
+	RefactorF4Acc::Main::main() called at /Users/wim/Git/RefactorF4Acc/bin/refactorF4acc.pl line 15
+
+refactorF4acc.pl -c rf4a_fm901.cfg  -g fm901
+PARSE ERROR in <a36vk(24:29), a13vk(13:13), a36vk(30:31),            a13vk(11:12), a13vk(8:10), a36vk(10:12), a36vk(:6),               a36vk(32:), a36vk(13:23), a13vk(1:7), a36vk(7:9)           >, REST: ,               a36vk(32:), a36vk(13:23), a13vk(1:7), a36vk(7:9)            at /Users/wim/Git/RefactorF4Acc/RefactorF4Acc/Parser/Expressions.pm line 232.
+	RefactorF4Acc::Parser::Expressions::parse_expression('a36vk(24:29), a13vk(13:13), a36vk(30:31),            a13vk(11...', 'HASH(0x7fc7cc217148)', 'HASH(0x7fc7ca0224c0)', 'fm901') called at /Users/wim/Git/RefactorF4Acc/RefactorF4Acc/Parser.pm line 3699
+	RefactorF4Acc::Parser::_parse_read_write_print('read(irvi, 02301) a36vk(24:29), a13vk(13:13), a36vk(30:31),  ...', 'HASH(0x7fc7cc217148)', 'HASH(0x7fc7ca0224c0)', 'fm901') called at /Users/wim/Git/RefactorF4Acc/RefactorF4Acc/Parser.pm line 1299
+	RefactorF4Acc::Parser::_analyse_lines('fm901', 'HASH(0x7fc7ca0224c0)') called at /Users/wim/Git/RefactorF4Acc/RefactorF4Acc/Parser.pm line 104
+	RefactorF4Acc::Parser::parse_fortran_src('fm901', 'HASH(0x7fc7ca0224c0)') called at /Users/wim/Git/RefactorF4Acc/RefactorF4Acc/Main.pm line 181
+	RefactorF4Acc::Main::main() called at /Users/wim/Git/RefactorF4Acc/bin/refactorF4acc.pl line 15
+
+STATUS 2019-05-01
+
+Most of the new parser is now in place, except I think OPEN/CLOSE/ and REWIND is still handled the old way
+
+- A strange regression bug: intrinsics now show up in the list of subroutines. Don't know why. FIXME!!!
+
+- The NIST testbench has 11 files that do not compile after refactoring. Mostly I think this is because of EQUIVALENCE, I've started to fix this.
+This worked before because I did not enforce IMPLICIT NONE.
+
+
+
+
+STATUS 2019-04-29
+
+The new expression parser and auxiliary functions are now ready and debugged to the extent that the LES generation is OK -- still need to test the build though.
+
+I think I should change "$name($args)" to just $args in subcall and maybe remove either CallArgs or CallAttrs in read_write_print. This is because the Attrs are not always only attribbutes. 
+
+STATUS 2019-04-18
+
+*** I don't think I support complex numbers, do I? ***
+
+New expression parser and emitter. The main differences in the AST are:
+
+- Constants are now wrapped in a list with a type as sigil
+- Comma-sep lists are wrapped in a list with ',' as sigil
+- There are many more operators so many more sigils
+- Therefore we need 0xFF instead of 0x0F
+- We do not use nodeId at the moment because the compiler doesn't use it either.
+
+I think it now works for everything except array constants. It even supports implicit do. 
+I think the main issues to be addressed now is to remove all the old kludges
+
+First of all, 
+
+  &get_vars_from_expression => &_find_vars_in_ast, drop-in replacement 
+  &get_consts_from_expression => &_find_consts_in_ast, drop-in replacement 
+  &get_args_vars_from_expression => implement this using _find_args_vars_in_ast() or just rename => We don't need this anymore
+
+  &get_args_vars_from_subcall=> needs get_args_vars_from_expression() and emit_expression(). But do we need it?
+I think we need it but I need to redo this using _find_args_vars_in_ast()
+The main difference between the two is that get_args_vars_from_subcall() returns the expressions for the arguments and a detailed record
+whereas get_args_vars_from_expression() returns only the arguments that are actually array, scalar or constant and nothing else.
+
+$args->{'Set'}{$arg_expr}={   'Type'=>'Expr', 'Vars'=>$vars, 'Expr' => $arg_expr,   'AST'=>$ast->[$idx]}
+$args->{'Set'}{$array_expr}={ 'Type'=>'Array','Vars'=>$vars, 'Expr' => $array_expr, 'Arg' => $arg};
+$args->{'Set'}{$arg_expr}={   'Type'=>'Sub',  'Vars'=>$vars, 'Expr' => $arg_expr};
+$args->{'Set'}{$arg}={ 	      'Type'=>'Scalar',              'Expr' => $arg};
+$args->{'Set'}{$arg}={        'Type'=>'Const',               'Expr' => $arg};
+
+
+# read/write/print
+3602:					( my $call_args, my $other_vars ) = @{ get_args_vars_from_expression($ast) };
+3618:						( my $call_args, my $other_vars ) = @{ get_args_vars_from_expression($ast) };
+3653:				( my $args, my $other_vars ) = @{ get_args_vars_from_expression($ast) };
+
+assignment LHS, RHS:
+3705:	  @{ get_args_vars_from_expression($lhs_ast) };
+3740:	  @{ get_args_vars_from_expression($rhs_ast) };
+
+* read/write/print, I think we should now redo this entirely
+					say "RANGE:<$fake_range_expr>" ;
+					my $ast = parse_expression( $fake_range_expr, $info, $stref, $f );
+					( my $call_args, my $other_vars ) = @{ get_args_vars_from_expression($ast) };
+uwfx(i,j,k)
+real(a1(i,j,k))
+ "$call($tline)"
+
+* assignment
+LHS of assignment, we are only interested in VarName and IndexVars
+RHS of assignment but we combine args and vars, goes into VarList
+
+* DATA declaration
+Needs a complete redo
+
+*** I guess I could add '*' as a term $str=~/^\*//, then we could more easily parse WRITE
+
+STATUS 2019-04-14
+
+From profiling it is clear that the expression parser is the slowest part of the compiler.
+
+In many cases, the expression is simple and a simpler, faster parser could be used first. I should write one based on f77_var_decl_parser(), test if it succeeded and only try the full expression parser if it didn't. 
+
+
+STATUS 2019-04-10
+
+- Fixed a few bugs in the OpenCL translation
+- Started on the inliner. Done so far: renaming locals and args; splitting into specification and computation.
+- I need to do the next step, i.e. put the split out parts in the caller code, and then I can make this recursive
+- Looks like I forgot to update $info when changing INCLUDE to USE/ONLY!
+
+STATUS 2019-04-03
+
+What I would like is an option to refactor COMMON blocks into module-based globals rather than subroutine arguments.
+This should be via RefactorGlobals 
+
+gfortran-mp-8 -Wall -ffree-form -fsyntax-only -ffree-line-length-0 -Wno-tabs
+
+Refactoring for Preconditioning and inlining of includes is now done.
+
+- Fixed a small bug with ONLY: did not take into account implicit do loops in read/write/print.
+- Fixed placement of 'implicit only' 
+
+I need to check if I did not make the assumption that COMMONs can only be in a particular include file. It looks OK, but it would be better to use the COMMON namespaces.
+
+STATUS 2019-03-27
+
+I changed the inventory to properly handle includes in includes, but that breaks the find-root-for-include algorithm. So I think I had better inline the includes, as this is always possible. So now is the time to add the Preconditioning pass where we will do that as well.
+
+I have now done the Refactoring::Blocks and put the IncludeFiles predonditioning in Preconditioning.pm 
+TODO: The inlining of nested includes has not been done yet
+TODO: The _split_multi* has not been done yet
+
+STATUS 2019-03-20
+
+- Passing a (series of) file name(s) to the compiler instead of a TOP routine now works, either -s flag or SOURCEFILES config key
+- Also TOP is set to the name of the PROGRAM if it is not explicitly named and there is a program
+- No need for MODULE or MODULE_SRC anymore
+- But the non-subroutine code in the modules for OpenCL translation is currently skipped, need to do the right thing there.
+
+
+STATUS 2019-03-18
+
+Worked on pipes support in OpenCL translator, in the process fixed a bug: C emitter did not emit constants.
+
+STATUS 2019-03-15
+
+Some changes to have a cleaner separation:
+
+&refactor_marked_blocks_into_subroutines should be split out into Refactoring::Blocks.pm
+
+Code says '# One could say this is "refactoring" but I say it's "preconditioning"', if so, create a Preconditioning.pm
+
+In _analyse_lines():
+__split_out_parameters( $inc, $stref );
+This is because we then do
+$stref = _parse_includes( $f, $stref );
+
+In parse_fortran_src():
+  # 7. Split variable declarations with multiple vars into single-var lines
+_split_multivar_decls( $f, $stref );
+_split_multipar_decls_and_set_type( $f, $stref );
+
+
+STATUS 2019-03-13
+
+- Created the first of a series of simple tests to make debugging easier
+- Added 'implicit none' to all code units
+- Debugged the refactoring of commons in functions
+
+- Remaining bug is that parameters that get Inherited after being transformed from Local to Included, don't have Indent etc, only Val, Var, Attr and Type
+I don't know how the other decls get their Indent, but I could of course make sure that the records in __parse_f77_par_decl() are complete.
+I think the reason for the bug is that I changed my mind on what should be in $Sf and what in $info. 
+To make it more confusing, we have $Sf->{'InheritedParameters'} as well as $Sf->{$subset}{'Set'}{$var}{'InheritedParams'}{'Set'}{$mpar}=1; 
+
+STATUS 2019-03-08
+
+__update_function_calls_in_AST still uses the old AST with '&', '$' etc
+So I guess _create_refactored_function_calls is never called?
+Or maybe $info->{'FunctionCalls'} is empty?
+
+In any case I need to create a minimal test case for a function with a common block.
+
+
+
+STATUS 2018-11-05
+
+Added TyTraIR emitter, only for the coordination code. Functions should now work via the C backend.
+
+- we have the stencil pattern:
+
+{'NodeType' => 'StencilDef', 'FunctionName' => $f,
+  'Lhs' => {'Ctr' => $ctr_st},
+  'Rhs' => {'StencilPattern' => {
+    'Accesses' => $state->{'Subroutines'}{ $f }{'Blocks'}{ $block_id }{'Arrays'}{$array_var}{$rw}{'Accesses'},
+    'Dims' => $state->{'Subroutines'}{ $f }{'Blocks'}{ $block_id }{'Arrays'}{$array_var}{'Dims'}
+    }
+  }
+};
+
+- we also have the original signatures of the functions
+- we need to ensure that the order of the stencil is the same in both compilers.
+- the easiest way is to sort them alphabetically, I think that's what I'll do. So
+v_i_j, v_im1_jp1, v_ip1_jm1. 
+- So Part 1 is to do this in the Streams pass; as it happens, this is already the case.
+- Part 2 is to create a TyTraIR emitter, copy of TyTraCL of course.
+
+    s1 = [-1,-502,0,502,1]
+    etan_s_0 = stencil s1 etan_0
+    s2 = [-1,-502,0,502,1]
+    wet_s_0 = stencil s2 wet_0
+    eta_1 =  map (shapiro_map_15 eps_0) (zipt (wet_s_0,etan_s_0))
+
+Needs to be transformed into 
+
+  subroutine shapiro_map_15(
+    wet_j_k,wet_j_km1,wet_j_kp1,wet_jm1_k,wet_jp1_k,
+    eps,
+    etan_j_k,etan_j_km1, etan_j_kp1,etan_jm1_k,etan_jp1_k,
+    eta_j_k
+  )
+
+I have access to
+
+  shapiro_map_15(wet,eps,etan,eta)
+
+via $stref->{Subroutines}{$f}{Args}{Subsets}{OrigArgs}{List}
+
+
+$state->{Subroutines}{shapiro_map_15}{Blocks}{0}{Arrays}{wet}{Read}{Exprs}}
+        $stref->{'Subroutines'}{ $f }{'ArrayAccesses'} = $state->{Subroutines}{shapiro_map_15}{Blocks};
+
+The Arrays field has structure
+
+  $var =>  {Read | Write => {Exprs => {$expr1 => 1, $expr2 => 2}
+
+So what I need to do is
+
+(1) for the function calls: based on the original variable name and the new stencil variable name, I should create a group of variables instead by scalaring the array accesses, and I should add the same counter as used in the stencil variable name. So
+
+  eta_1 =  map (shapiro_map_15 eps_0) (zipt (wet_s_0,etan_s_0))
+
+should become
+
+  call @shapiro_map_15 (
+     float %wet_j_k_0,float %wet_j_km1_0,float %wet_j_kp1_0,float %wet_jm1_k_0,float %wet_jp1_k_0,
+     float %eps_0,
+     float %etan_j_k_0,float %etan_j_km1_0, float %etan_j_kp1_0,float %etan_jm1_k_0,float %etan_jp1_k_0,
+     float %eta_j_k_1
+  )
+
+The key question is how to relate the counters 
+
+(2) The actual stencil
+
+    s1 = [-1,-502,0,502,1]
+    wet_s_0 = stencil s1 wet_0
+
+must be transformed into so we must have a link between the new name and the pattern, which we can do via the expression string
+
+;  %wet_j_k_0 = stencil 0 %wet_j_k_0 ; a no-op, remove
+  %wet_j_km1_0 = stencil -1  %wet_j_k_0
+  %wet_j_kp1_0 = stencil 1  %wet_j_k_0
+  %wet_jm1_k_0 = stencil -502  %wet_j_k_0
+  %wet_jp1_k_0 = stencil -502  %wet_j_k_0
+
+
+Fixed intent analysis in Streams pass
+
+This is a more general issue: when we run a custom pass, not all other passes are run. So RefactoredArgs is not populated. 
+So what we should do is populate RefactoredArgs before doing a custom pass.
+
+Fixed pointer C code generation: LHS and RHS now OK
+Fixed path handling in C code generation and stopped the emitter from emitting spurious fortran.
+
+
+
+STATUS 2018-10-31
+
+- Released version 1.1.0
+- Refactored the various emitters and put them in a dir Translation
+- Fixed a bug in TyTraCL and added `fold` generation
+- Sketched out SaC fold in more detail but not done yet
+
+TODO
+- SaC: add fold
+- Better stencil handling (see memory-reduction-TyTraCL.md) 
+- `select` or `extract` feature to deal properlty with boundary conditions that need block buffers
+- Rewrite rules: create the algorithm, implement in Haskell
+- Halo analysis: add code to factor out also the dependencies
+ack Un
+
+STATUS 2018-10-18
+
+I changed the AutoParallel-Fortran compiler so that the -plat=FPGA flag results in generation of purely sequently device-side reductions without any host-side loop.
+This should make SaC and TytraCL fold generation much easier.
+
+STATUS 2018-09-25
+
+The status is as follows:
+
+
+## 1. Halo access detection
+
+The actual detection of halo accesses is done, the code is in 
+
+    _detect_halo_accesses
+
+which is called from
+
+    _identify_array_accesses_in_exprs
+
+in `Analysis/IdentifyStencils.pm (needs renaming!)`
+
+However, to factor out the halo accesses we need to identify all lines on which the halo access depend and all lines dependent on the line with the halo access.
+This is done in
+
+    _collect_dependencies_for_halo_access
+
+but it is not ready yet.
+
+## 4. TytraCL generation
+
+    TODO: Fold
+
+- TytraCL generation is complete except for Fold. The pass is called with `-P emit_TyTraCL`
+
+    pass_emit_TyTraCL in Analysis/IdentifyStencils.pm (needs renaming!)
+
+which calls 
+
+    _identify_array_accesses_in_exprs
+
+and
+
+    _emit_TyTraCL
+
+## 2. SaC generation
+
+    TODO: fold
+
+- SaC generation is complete except for `fold`. The pass is called with `-P translate_to_SaC` which calls
+
+    translate_module_to_SaC in SaCTranslation.pm
+
+Handling of fold is sketched out in `translate_sub_to_SaC`, line 255-277
+
+## 3. TytraCL Rewrite Engine
+
+This is not done at all. We have created the rewrite rules, see 
+
+/Users/wim/SoC_Research/Documents/Papers/Shonan2018/Pres_Shonan2018
+/Users/wim/Desktop/湘南〜京都２０１８年/memory-reduction-TyTraCL.md
+
+The AST is also ready for extension to implement these rewrite rules.
+
+
+
+STATUS 2018-09-10
+
+Problems in Gavin's compiler: 
+- it misses out parameter declarations in the kernel sub (superkernel). I added these via a fix pass into the record but not into the AnnLines
+- the extra vars in each sub (READ, WRITTEN, WRITTEN & READ) do not have an intent
+- intent of inout when it should be out
+
+STATUS 2018-09-10
+
+SaC emitter in progresss: generated code is I think correct apart from the bounds
+but the compiler chokes on it. Next steps are to replace [.] by proper sizes
+and to insert the bound as used by the enqueueNDRange
+
+
+
+
+STATUS 2018-09-05
+
+Added parser support for halos
+
+
+STATUS 2018-09-04
+
+We now have array access analysis for non-OpenCL-kernel subroutines. The next three goals are:
+
+Goal 1. Halo access detection
+-----------------------------
+
+Array accesses are stored in 
+# $state->{'Subroutines'}{ $f }{ $block_id }{'Arrays'}{$array_var}{$rw}{
+# 'Exprs' => { $expr_str_1 => 1,...},
+# 'Stencils' => { '0:1' =>  'j' => [1,0],'k' => [1,1]},
+# 'Iterators' => ['i','j']
+# };
+an per-line accesses are returned separately
+Array dimensions are stored in
+# 	$state->{'Subroutines'}{ $f }{ $block_id }{'Arrays'}{$array_var}{'Dims'} = [[0,501],[1,500],...]
+Halo info is stored in 
+#	$stref->{'Subroutines'}{ $f }{'Vars'}
+
+So to identify array accesses that are in the halo, there are three possible scenarios:
+1. No iterator-dependent conditionals: then we need to check if loop bounds result in halo access, and 
+possibly move inwards.
+2. The array access does not have an iterator and it is inside the halo
+3. There is a condition on the iterator (e.g. if (i > nx-1)) 
+Then we need to check agains the bounds around the inequality I think.
+So the things to check are: 
+- array accesses, of course
+- if-conditions, where the expression tests an iterator
+
+But first I need to add halo type annotations!
+
+See Fortran-GPU-sequential-large-memory.txt for a more detailed analysis
+
+Goal 2. Emit SaC
+----------------
+* Initially maybe from our OpenCL kernels
+Questions: 
+- When to use modarray and when genarray?
+- How to do a reduction
+- How to return multiple results from a with-loop?
+- Are there tuples?
+
+Rules:
+- Replace loop nest Do with inequality OR for the kernels, put a with-loop around the function or inside it?
+- Rewrite function sig to separate out ins and outs; inouts occur on both sides?
+
+- Rewrite function sig to separate out ins and outs; inouts occur on both sides.
+- Functions are based on the OpenCL C emitter, but I need some mods, so make a new one. 
+
+int, int divmod( int x, int y)
+ {
+ return( x/y, x%y);
+ }
+
+ d, m = divmod( 8, 3);
+
+Goal 3. TyTraCL Rewrite Engine
+------------------------------
+
+
+
+STATUS 2018-08-29
+
+I worked on IdentifyStencils and it emits the correct TyTraCL for the ShallowWater-2D example.
+I am now refactoring the TyTraCL into a proper emitter.
+
+The current code assumes *our* Fortran-OpenCL kernels. To make the stencil analysis work with more general code, I need to detect LoopIters based on the Do loops, add them to the set and remove them on exiting the do block.
+
+
+
+STATUS 2018-08-24
+
+There are two ways to refactor the function calls: either I do it in place, or I replace the nodes by variables that are assigned on the line before. We can use the AST nodeId to extend the variable name.
+If the refactored calls become very long then that might be a better way.
+
+In the short term it is better to exclude functions from the globals refactoring.
+
+STATUS 2018-08-22
+
+I have added functions to CalledSubs and Callers, and also to $info->{'CalledFunctions'} but this is not yet used everywhere where CalledSubroutine is used. I added it to the CallTree and the build_call_graph() though, that should be the main use.
+
+But the key missing functionality is that functions with refactored arguments need to be updated in all expressions. I need to think of a good way to do this, but probably there is only one way.
+
+
+STATUS 2018-08-21
+Trying to build the protoms code base. Many small fixes, nothing fundamental.
+Currently stuck at 
+
+_find_root_for_include(): Can't find nbenergyvar2.inc in parent main or any children, something's wrong!
+
+for 
+
+include 'nbenergyvar2.inc'
+
+=> This seems to be because functions are not quite treated as subroutines.
+
+We currently have $info->{'FunctionCalls'}($f}=1
+
+Whereas for subroutines we have
+
+$info->{'SubroutineCall'}={
+'Name' => $f,
+'Args' => {
+    'List' => [...], 
+    'Set' => { ... }
+    }
+'ArgMap' => {...},
+'ExpressionAST' => ...
+}
+
+So we need quite the same functionality for function calls.
+
+So questions: 
+- how to get the arguments? Same as for Subroutines, so I need $argstr -- or can I just get the subnode of the AST. And for the Args we need to emit the AST for each arg.
+
+				my $ast = parse_expression( "$name($argstr)", $info, $stref, $f );
+				( my $expr_args, my $expr_other_vars ) = get_args_vars_from_subcall($ast);
+				for my $expr_arg(@{$expr_args->{'List'}}) {
+					if (substr($expr_arg,0,1) eq '*') {
+						my $label=substr($expr_arg,1);
+						$Sf->{'ReferencedLabels'}{$label}=$label;		
+					}
+				}
+				$info->{'CallArgs'}               = $expr_args;
+				$info->{'ExprVars'}               = $expr_other_vars;
+				$info->{'SubroutineCall'}{'Args'} = $info->{'CallArgs'};
+				
+				$info->{'SubroutineCall'}{'ExpressionAST'} = $ast;
+
+CallArgs is used throughout, so we need to support that somehow. Same for ExprVars. We need a list Function calls per $info, and it must be a list because an expression can contain multiple calls to the same function. 
+
+So we have a different structure than for SubroutineCall:
+
+$info->{'FunctionCalls'}=[ {
+'Name' => $f,
+'Args' => {
+    'List' => [...], 
+    'Set' => { ... }
+    }
+'ArgMap' => {...},
+'ExpressionAST' => ...,
+'ExprVars' => [] or {List,Set}, but this is returned by get_args_vars_from_subcall
+}
+
+
+
+Also, this code uses do while, need to check if this fully works.
+
+
+STATUS 2017-11-24
+
+Last experiments with generating streams/stencils are done in
+
+/Users/wim/SoC_Research/Code/Git/MPI-LES/GeneratedCode
+
+using rf4a_find_stencils.cfg
+
+~/Git/RefactorF4Acc/refactorF4acc.pl -c ./rf4a_find_stencils.cfg  -P identify_stencils
+
+So clearly what I need to do next is to create unique names for the variables. Assuming we encounter the maps/folds in order and global variables,
+then if I number an out var _i then the next in var must also be _i
+- We do this for every variable, so we need a map of the  counter per variable.
+
+in _classify_accesses
+
+817 $array_var  used in 
+852 stencil patt 
+871 extract patt 
+877 insert patt
+
+All of these generate a new variable which needs to be added to the table
+
+919 $in_tup_ms is an array ref
+
+For every value in this array we need to look it up in the table
+And we need to update the count on all vars in $out_tup
+
+Also, reduce is not generated correctly at the moment, it emits map code
+
+STATUS 20170608
+
+A very annoying "feature" of the C/OpenCL translation is that I have to exclude all sources because by default the tool is greedy. 
+
+STATUS 20170607
+
+- I implemented module support assuming that vars in modules are always global. 
+- Furthermore, parameters from modules are inlined, that is not very practical, I should refactor the module to keep only parameters instead.
+- Finally, for Gavin's compiler I would need every subroutine in its own module. So I could write a pass to split a module, should be easy. 
+Or maybe I can modify Gavin's compiler instead, to deal with multiple subroutines in a module.
+
+STATUS 20170606
+
+In F95, a USEd module can contain declarations. These are in practice global if the module is USED in the main PROGRAM and then in its called subroutines
+So de facto I think I should treat all variables in modules as COMMON or maybe better as MODULE GLOBAL
+The test should be that a variable in a subroutine is module global if:
+- the subroutine is in a module AND this module USEs a module containing the declaration AND this declaring module is also USEd in the main program
+- Or actually in any common caller of two subs. Meaning, if the module contains 2 subs, the variables declared in that module are effectively shared amongst these subs
+- It is even worse I think, if the module was not USEd in a common caller, but has SAVE set on some variables, then these are global as well. 
+- I hope that in practice all I need to do is inspect USEd modules for declarations
+
+
+
+STATUS 20170531
+
+The automatic extraction of subroutines in Kernel regions is actually harder than I thought. Problem is, if a subroutine is in a block, i.e.
+if-then-else, do, or case, then we have to test for this. 
+So if a non-call line is a Block, we need not only a !ACC Subroutine before that line, but also ignore subroutine calls in that block.
+
+STATUS 20170517
+
+A fundamental problem is how to deal with several kernel regions. Basically, currently, this would not work at all I think. It can work if the regions are called sequentially. But then the autopar compiler would have to be called for every such region. This requires detecting that the regions are not in one anothers call tree.
+
+For the !$ACC Kernel annotation, we need to do two things:
+1/ Extract all code in this region into subroutines
+We can do this by adding annotations at the start and end of these regions, i.e. 
+- after every call unless the next line is a call
+- before every call unless the previous line was a call 
+- so we need prevline and nextline, can do that via $index
+2/ collect all subroutine calls in the region
+
+STATUS 20170421
+
+C translation bugs:
+real, parameter :: vn=15.83E-6 => const float vn = 15.83;
+real, parameter :: alpha=-10. => const float alpha = 10.;
+real, parameter :: beta=-1. => const float beta = 1.;
+
+=> FIXED 20170424
+
+STATUS 20170329
+
+I made a version of the LES where constants are moved to parameters in common.sn
+The strange result is that in adam.f95, there is an open() call where the placeholders have not been subtituted!
+
+STATUS 20170317
+
+A relatively minor issue is that params in includes are removed because we are not adding the parameters used in variable declarations to 'Only' for the include. 
+So I guess I should parse include files after I lift the parameters (in 'Parser') but before
+I remove the use declaration (in 'Common')
+
+STATUS 20170205
+
+For the code from Xiaoyu I need to deal with module globals. Basically, variables declared in a module are global if the module has SAVE or if the module is USEd at toplevel.
+So we must check both these cases. Then we mark these variables as globals same as we do with the COMMON block variables from includes.
+So if a module is USED at toplevel, OK, do it. If not, it's more tricky because I need to check if it provides scope in nested subs or not.
+
+
+STATUS 20161218
+
+I need to rework the arugment handling.
+
+RefactoredArgs should be {$arg => $orig_arg } with a function
+
+insert_arg($stref,$f,$where,$ref_arg, $new_arg, $new_arg_decl, $subset ) {
+# $where = 'before', 'after', 'inplace' 
+# $subset is optional, if not provided it is DeclaredOrigArgs
+# if the $new_arg_decl is not provided we create and entry wth a key 'Empty' => 15
+}
+
+and
+
+delete_arg($stref,$f,$arg) {
+}
+
+We also need 
+
+insert_arg_decl($stref,$f,$arg) {
+
+}
+
+delete_arg_decl($stref,$f,$arg) {
+
+}
+
+So no decls in RefactoredArgs
+
+Also no args in $info->{Signature}
+
+For VarDecl, it should only contain the VarName
+
+
+
+STATUS 20161123
+
+I found a few more issues:
+- Fortran-95-style var decls are not treated in the same way as F77, the result is duplication of vars
+- Hybrid F95/77 arrays like real:: v(42) are not supported at all. 
+
+STATUS 20161031
+
+Regression testing after passing LBM and GModel:
+- LES is OK
+- Flexpart is OK
+- NIST suite has now a few failures.
+
+**** FM700, FM719
+
+Failure is because I remove labels from DO even if they are referenced.
+So I actually do need a list of ReferencedLabels and then I remove only if it's not in that list.
+SOLVED: I added ReferencedLabels. However, there are *many* places where a label can be referenced and I only added support for the minimum to pass the tests 
+**** FM308  -  TEST 057
+Fails because it uses a COMMON in a function call and I do not pass the argument to the function call correctly:
+
+  rvcomp = aint(ff310( ))
+
+should be
+
+  rvcomp = aint(ff310( rvcn01 ))
+
+SOLVED: I changed the rules for & to @ and intrinsics are now treated as functions, which leads to issues with Status.
+Maybe I don't need to define intrinsics as functions as it doesn't matter?
+
+**** FM915, FM917, FM920, FM921
+"ERROR IN AN INQUIRE SPECIFIER" (3x) because I have 
+
+"FORM= UNFORMATTE"
+
+and should have
+
+"FORM=UNFORMATTED"
+
+This is because I have
+
+  character(len=10) :: e11vk
+
+But the original code was
+
+  CHARACTER*10 B10VK, C10VK, E11VK*11, G10VK
+
+SOLVED, I added an override for the length.
+
+
+STATUS 20161025
+
+I think it is better to treat calls to ENTRYs as calls to subs, and simply test if it's an ENTRY or a sub rather than having CalledEntries and CalledSubs
+
+STATUS 20161024
+
+There is an issue with the refactoring of ENTRY declarations. There are some variables, e.g. CP in W2G, that are COMMON, so they need to be turned into ExGlobArgs. This happens indeed. But somehow these variables are not present in the caller of the ENTRY. They are present in the caller of the SUBROUTINE containing the ENTRY though. So I guess this is a result of improper handling of a call to an ENTRY.
+
+For recursive descent we use CalledSubs but not CalledEntries.
+
+CalledSubs are proper subs which have their own list of CalledSubs. They an also have a list of CalledEntries.
+For CalledEntries, we must find the subroutine corresponding to the entry. This is done via $stref->{'Entries'}{$entry_name}=$parent_sub_name;
+Then we can use this as the key for CalledSubs and CalledEntries. This seems to be the case in Modules
+ 
+Analysis/ArgumentIODirs.pm
+50:		for my $calledsub ( @{ $Sf->{'CalledSubs'}{'List'} } ) {
+
+Analysis/Includes.pm
+87:        for my $calledsub ( @{ $Ssub->{'CalledSubs'}{'List'} } ) {
+
+Analysis.pm
+807:		for my $calledsub ( @{ $Sf->{'CalledSubs'}{'List'} } ) {
+
+
+		for my $calledsub ( @{ $Sf->{'CalledSubs'}{'List'} } ) {
+			next if exists $stref->{'ExternalSubroutines'}{$calledsub}; # Don't descend into external subs   
+			$stref = _rec( $calledsub, $stref );
+
+		}
+		        
+		        for my $called_entry ( @{ $Sf->{'CalledEntries'}{'List'} } ) {
+ 		        	my $calledsub = $stref->{'Entries'}{$called_entry};
+			next if exists $stref->{'ExternalSubroutines'}{$calledsub}; # Don't descend into external subs   
+			$stref = _rec( $calledsub, $stref );
+		        		    		        	
+
+		        }
+
+
+
+
+
+
+STATUS 20160916
+
+Trying to get the ocean model to generate & compile. Current issues are to do with parameters in includes:
+I uncomment 'use params_commons' but I should not do that if these params are used!
+Worse, I declare the types of the params so there is a conflict. But it's actually a red herring: we don't use this module commons.f95 so it is not a problem. Still, I bet it breaks regression.
+
+Also, External on a function that exists in a module should be removed!
+
+STATUS 20160915
+Mixing F77 with commons and F95 without of course breaks. So I guess I might have to refactor everything after all.
+Which means dealing with ENTRY, either support or refactor
+1. Support
+- Add ExGlobArgs to ENTRY calls and signatures. Which involves parsing ENTRY just like SUBROUTINE, but I guess we use a separate pass to fix the args
+So we need to augment the $info of the ENTRY statement with the arg names. Then we need to add the RefactoredArgs for the parent sub to it.
+For the calls, we need to add the args of the parent sub but as we will have done this we can pretend it is just a regular call
+
+I have created $Sname = $Sf->{'Entries'}{'Set'}($name} which serves the purpose of $Sf but for entry $name in $f
+So when I find a call to an entry I need to get info from there via 
+
+  $f = $stref->{'Entries'}{$name}
+  $Sname = $Sf->{'Entries'}{'Set'}($name}
+
+
+2. Refactor: see below
+
+
+STATUS 20160912
+
+I would like to get rid of non-overlapping ENTRY statements by replacing them with if-thens. The transformations are:
+1/ In the subroutine, add an extra integer argument sel_entry as the first argument and use it to select the relevant entry in an if-then or a select-case
+2/ For the calls, map the arguments of each entry to the arguments of the subroutine:
+
+new_args[entry_arg_pos[i]]=entry_args[i]
+
+entry_arg_pos[i] is the position of the entry arg in the subroutine arg list
+
+For every undefined elt in new_args, create a dummy local in the caller context, with the same name as the var in the subroutine, unless it already exists
+
+STATUS 20160908
+
+Done the parameter inheritance
+
+STATUS 20160906
+
+Got the climate atmosphere model to compile and link. It reveals two major issues:
+1/ ENTRY is problematic, because it messes with IODir. I guess I could simply put IODir to Ignore for any subroutine that has ENTRY statements.
+That is relatively easy.
+Also, the IODir algorithm should stop when it encounters a RETURN statement.
+2/ EQUIVALENCE breaks code, no way around it except rewrite I think. I should warn or even die.
+3/ PARAMETER declarations for dimensions, lengths etc of inherited ex-globals must also be inherited!
+For now, I added this to atmmain.f95:
+
+      integer, parameter :: kmax=20
+      integer, parameter :: imax=128
+      integer, parameter :: jmax=64
+      integer, parameter :: nmax=42
+      integer, parameter :: mint=1
+      integer, parameter :: mmax=nmax
+      integer, parameter :: lmax=nmax
+      integer, parameter :: idim=imax+1
+      integer, parameter :: jdim=jmax
+      integer, parameter :: ijdim=idim*jdim
+      integer, parameter :: ijsdim=ijdim
+      integer, parameter :: kdim=kmax
+      integer, parameter :: ijkdim=ijdim*kdim      
+      integer, parameter :: ncc=16
+
+
+4/ For these reasons I have not refactored part of the code. As a result, I had to _remove_ the module declaration from one module: 
+module_util_uspst
+used in
+module_dynamics_dsphe
+and in F77 code admin/asetc.f
+
+
+STATUS 20160905
+
+I encountered a new horrible F77 feature: ENTRY. It is a way to split a single subroutine in regions which can be called as separate subroutines. 
+So I guess a refactoring 
+
+STATUS 20160831
+
+Started on the climate model provide by Saji. It reveals several issues with the current compiler:
+
+- many intents are wrong, probably because of the error in intent for IO calls
+- CHARACTER  HLINE   *(*) is somehow not supported!
+- CHARACTER  HNUM  *20 is somehow not supported!
+- character(len=(*)) is wrong, should be character(len=*)
+- IODir based on open() call is wrong, depends on the actual field:
+open(unit=ifile:IN , file=hfile:OUT, iostat=ios:OUT,          action=hact:OUT, form=hform:OUT, )
+- intrinsics that are overwritten are not always detected correctly, e.g. END is a function call in an Assignment expression
+- This code has CPP preprocessor macros and I think there is an edge case that would break because in SrcReader any line before a subroutine/function/program decl goes into the previous unit.
+- loops that could become while loops are not refactored
+
+STATUS 20160817
+
+Need to make sure write etc are parsed before assignment!
+
+Undefined symbols for architecture x86_64, these are functions in modules and I suspect the problem is simply that they have been declared in the sub or func where they are used
+
+And then there is 
+      real :: duma_alloc ! Refactoring::Subroutines::_create_extra_arg_and_var_decls(read_ncwrfout_gridinfo) 505 : EX-IMPLICIT VAR
+which should not be there as we have
+
+      real, allocatable, dimension(:) :: duma_alloc ! Parser::_split_multivar_decls(read_ncwrfout_gridinfo) 2716
+
+
+STATUS 20160816
+
+I have a stupid problem in flexpart, at some point part of some of the IF/THEN statements is wiped, no idea why ...
+
+STATUS 20160815
+PROBLEM in flexpart: variables from includecom are neither included, used nor declared! Reason is that I should have 'use' declarations for all these modules!
+Also, minor niggle is that there is a bang after every line, why?
+
+Cleaning up. Currently, analyse_lines is not consistent in the use of if or elsif
+Basically, if the line contains an "IF ... " without a THEN, then we need to parse the remainder which could be many things. But anything it could not be should be exclusive and tested before the test for IF/THEN
+
+STATUS 20160812
+
+So, to keep the Haskell parser happy I need to include some "NO_FILE_IO" functionality. Ideally I'd put #ifndef NO_FILE_IO ...  #endif around IO. I wonder how I can do that in a nice pass.
+Basically, I should do a statefull pass with splicing or a splice with state. For example, the subroutine to make the decision would be
+
+sub { (my $annline, my $state) = @_ }  
+
+but that should return the updated state so this state should then contain the true or false ...
+
+STATUS 20160810
+
+Nearly there, only issue in the shallow water code is that the args of the subs don't have Intent.
+
+This is because the intent is updated for RefactoredArgs but the signatures are generated for ExGlobArgs. 
+
+But when I replace ExGlobArgs with RefactoredArgs, I still don't have the Intent, so it seems I lose it between the detection in
+
+ at /Users/wim/Git/RefactorF4Acc/RefactorF4Acc/Analysis/ArgumentIODirs.pm line 599.
+	RefactorF4Acc::Analysis::ArgumentIODirs::_analyse_src_for_iodirs('HASH(0x7fa1c102fe30)', 'init') called at /Users/wim/Git/RefactorF4Acc/RefactorF4Acc/Analysis/ArgumentIODirs.pm line 93
+	RefactorF4Acc::Analysis::ArgumentIODirs::_determine_argument_io_direction_core('HASH(0x7fa1c102fe30)', 'init') called at /Users/wim/Git/RefactorF4Acc/RefactorF4Acc/Analysis/ArgumentIODirs.pm line 76
+	RefactorF4Acc::Analysis::ArgumentIODirs::determine_argument_io_direction_rec('init', 'HASH(0x7fa1c102fe30)') called at /Users/wim/Git/RefactorF4Acc/RefactorF4Acc/Analysis/ArgumentIODirs.pm line 58
+	RefactorF4Acc::Analysis::ArgumentIODirs::determine_argument_io_direction_rec('wave1d', 'HASH(0x7fa1c102fe30)') called at /Users/wim/Git/RefactorF4Acc/RefactorF4Acc/Refactoring.pm line 59
+	RefactorF4Acc::Refactoring::refactor_all('HASH(0x7fa1c102fe30)', 'wave1d', 0) called at /Users/wim/Git/RefactorF4Acc/refactorF4acc.pl line 243
+
+and the call to 
+
+_create_extra_arg_and_var_decls
+
+in 
+
+ at /Users/wim/Git/RefactorF4Acc/RefactorF4Acc/Refactoring/Subroutines.pm line 440.
+	RefactorF4Acc::Refactoring::Subroutines::_create_extra_arg_and_var_decls('HASH(0x7f984102fe30)', 'dyn', 'ARRAY(0x7f98428176e8)', 'ARRAY(0x7f9841b99c10)') called at /Users/wim/Git/RefactorF4Acc/RefactorF4Acc/Refactoring/Subroutines.pm line 384
+	RefactorF4Acc::Refactoring::Subroutines::_refactor_globals_new('HASH(0x7f984102fe30)', 'dyn', 'ARRAY(0x7f9843005c40)') called at /Users/wim/Git/RefactorF4Acc/RefactorF4Acc/Refactoring/Subroutines.pm line 131
+	RefactorF4Acc::Refactoring::Subroutines::_refactor_subroutine_main('HASH(0x7f984102fe30)', 'dyn') called at /Users/wim/Git/RefactorF4Acc/RefactorF4Acc/Refactoring/Subroutines.pm line 62
+	RefactorF4Acc::Refactoring::Subroutines::refactor_all_subroutines('HASH(0x7f984102fe30)') called at /Users/wim/Git/RefactorF4Acc/RefactorF4Acc/Refactoring.pm line 51
+	RefactorF4Acc::Refactoring::refactor_all('HASH(0x7f984102fe30)', 'wave1d', 0) called at /Users/wim/Git/RefactorF4Acc/refactorF4acc.pl line 243
+
+REASON: determine_argument_io_direction_rec is called AFTER refactor_all_subroutines in refactor_all
+
+So the mystery should be solved in update_argument_io_direction_all_subs() which is done after that!
+
+
+STATUS 20160810
+
+Fixed module creatio, but need to sort our module vars. Mainly, is module that uses a module basically the same as a module that includes a file, as far as vardecls are concerned? Maybe, purely for clarity, I should have 
+
+			$Sf->{'UsedLocalVars'} = { 'Set' => {}, 'List' => [] };
+
+which is similar to
+
+			$Sf->{'ExInclLocalVars'} = { 'Set' => {}, 'List' => [] };
+
+and can occur essentially anywhere. Basically, if it's 'use module', we use that, if it's 'include file' we use the old entry.
+
+STATUS 20160808
+
+Looks like there is still a lot of work to do until we can correctly run shallow_water_1D.f95
+Mainly: 
+* the creation of the modules is entirely broken
+* The subroutine vars are shared via "param.f95", but they are not common. The "use param" in sub results in the variables being module variables, so they are shared between all subroutines. And apparently via the "use param" in the main program they are also program-global. So the steps to take would be to resolve the 'use', then create args for all these vars just like in the "Contains" case in a main program. 
+
+STATUS 20160808
+
+I want to fix the Modules vs Subroutines issue once and for all. What I think I'll do is similar to the 'Container' approach. Only, the container will be a module, rather than a program. But we use quite the same 'contains' hook etc. I guess we can even have the same functionality, i.e. if vars are declared in a module, they are shared across all subs in a module. That is of course a recipe for trouble.
+
+But it means that a Module only contains anything NOT a sub or function. So the old Modules -> Subroutines functionality would become obsolete, we would have Modules $f -> Contains
+
+The 'Modules' functionality would get some addition for each $module in 'Modules', i.e. a simple reconstruction like for programs that are containers.
+
+STATUS 20160804
+
+What remains, apart from 'no spaces', is 'Alternate Returns (obsolescent)' and some problems with parameters of type 'unknown', clearly I forgot to type via implicits when all else fails.
+
+Also, if I would use 'external' and check the argument of a function call if it is external, then I could remove intent from such args and probably support procs as args
+
+
+
+ALSO: in F95, external can be an attribute, should support it!
+
+I guess there is also some problem with equivalence, not sure but FM500.f is problematic
+
+RefactoredSources/FM500.f95:174.31:
+
+        equivalence (nyvi, ezvs)                                        !
+                               1
+Error: EQUIVALENCE attribute conflicts with DUMMY attribute in 'ezvs' at (1) => because ezvs is now an arg, so when we find EQUIVALENCE we need to check for args. These should then simply become assignments
+
+RefactoredSources/FM500.f95:891.41:
+
+        common /blk1/ ixvi, fxvi, kx1i(2), hx2i(2,2), mx2i(2,2)          ! Refa
+                                         1
+Error: Duplicate DIMENSION attribute specified at (1) => because I have an explicit declaration, so we should remove dimensions from common blocks
+
+
+RefactoredSources/FM500.f95:45.22:
+
+        character(len=lpi) :: i10xvk_ARG ! Refactoring::Subroutines::_create_ex
+                      1
+Error: Variable 'lpi' cannot appear in the expression at (1) => this is a killer! only way might be to replace them textually! Or check if this var needs to be declared at the top?
+
+
+
+
+STATUS 20160728
+
+As it turns out I have completely misunderstood COMMON blocks. The way they work is actually positional, not by name. 
+
+If in one file we have
+
+  common /block1/ v1
+
+and in the other
+
+  common /block1/ v2
+
+Then v1 and v2 are the same!
+
+To make matters worse, for arrays the sections can overlap so that e.g.
+
+v1 , v2(3), v3(2)
+w1(2), w2(4)
+
+are the same.
+
+This is a nightmare.
+
+So, what is the solution? We need some equivalence between the ex-common variables in the subroutine and the ex-common ones outside it. 
+
+Q1: what should be use as args, the sub ones or the caller ones?
+A1: the sub, because there can be multiple callers.
+
+Thus, given:
+
+main:
+v1 , v2(3), v3(2)
+
+sub f:
+w1(2), w2(4)
+
+we need
+
+subroutine(w1, w2)
+
+but maybe not
+
+call f(w1,w2) 
+
+but rather, we should declare w1_tmp and w2_tmp in main as locals same as in f, and assign:
+
+w1_tmp(1)=v1
+w1_tmp(2)=v2(1)
+
+w2_tmp(1:2)=v2(2:3)
+w2_tmp(3:4)=v3(1:2)
+
+
+f(w1_tmp,w2_tmp)
+
+This is assuming INTENT = IN
+
+For INTENT=OUT we need to assign the other way round and for INOUT we need both.
+
+
+
+
+
+------
+
+
+
+
+
+Now BLOCK DATA are subroutines, the question is when to call them. 
+I guess we could put them in the program under the last declaration before any refactoring, and initially without any arguments,
+*before* we do any parsing (or during parsing for convenience, but how do we know we saw the last declaration?
+
+STATUS 20160719
+
+Pragmatic approach to DATA and BLOCK DATA
+
+if (exists $Sf->{'BlockData'} ) {
+- we turn BLOCK DATA into a subroutine (OK)
+- we keep the common blocks and data declarations ( already the case right now)
+
+- we create a new argument for every common block variable, by copying ${Var}_ARG into ExGlobArgs; hopefully this will automatically create the additional argument declarations.
+=> This requires an extra pass, but in fact the determine_exglobvars() routine can incorporate this, after all we are only renaming (must dclone and change 'Name' though)
+
+- Finally, we assign ${var}_ARG = $var at the end of the data block
+=> This is an entirely new pass, only for data blocks. 
+We look for the last line in the procedure and insert the new lines before that line
+
+
+
+
+BLOCK DATA is actually important: it is like a subroutine that is called implicity to initialise variables in labeled common blocks.
+In other words, if there are common blocks in a subroutine, and there is a 'block data' anywhere in the codebase that contains some of these common blocks, it will be called to initialize the variables.
+To refactor that, I must treat "block data" as a special subroutine related to commons. It will be called just once in a program, and initialise the ex-commons. So it should be used in the subroutine where Commons do not become ExGlobArgs but OriginalDeclaredLocalVars.
+I think we can make this part of the populate_exglobargs routine, call it populate_and_init_exglobargs 
+
+An additional problem is that the DATA declarations can use implicit do, which is not supported in ordinary assignments; but a variable in a data declaration can't be a subroutine argument. So either we rename the arguments and add additional assignments, or we rewrite the implicit do into an explicit do. Both are too much hassle really.
+
+((mx2i(ivi,jvi),ivi=1,2), jvi=1,2) should become
+do jvi=1,2
+do ivi=1,2
+mx2i(ivi,jvi) = ... ! and this is from the 
+end do
+end do
+
+DATA declarations are from hell: they use a 'repeat * value' syntax, totally ad-hoc, as well.
+
+
+
+STATUS 20160718
+
+The compiler passes now most of the NIST test as well as LES and Flexpart. Remaining issue is that the common block names are ignored, would result in passing 8 more tests. 
+
+To solve that issue I can modify the new populate_exglobargs routine in Analysis. What we do is:
+* Log the name of the block in the var record (CommonBlockName)
+* Then determine the arguments:
+- start from the top
+- recursive descent to leave (no callers), push the path onto a stack
+- For every Common in a leave node:
+	- go through the stack in order check if this Common var is declared in any of the callers 
+if (my $subset=in_nested_sets($Sf,'CommonVars',$var) and $Sf->{$subset}{'Set'}{$var}{'CommonBlockName'} eq $common_block_name) {
+# add this $var to ExGlobArgs
+}
+
+STATUS 20160714
+
+- I will not use COMMON lines for declarations, so I need to keep UndeclaredCommons as well as DeclaredCommons.
+- The StmtDecl is now just binary, it's either DIMENSION or <type>, so pick one. But we can keep the counter approach and just select #1
+What we do is simply increment the counter for $var when we encounter either a dimension or type line.
+The easiest way to do this is to create $stref->{'DeclCount'}{$var}
+
+- I will populate ExGlobArgs in a separate pass, so that there is no need to check them.
+
+STATUS 20160712
+
+I've removed all *Decls datastructures. Now trying to add support for common blocks not in includes. Must make sure these get added to calls and signatures.
+
+If we find a common either in an incl or in the src, then should we automatically convert it into an arg? This will actually work as the buck would stop with the program. I guess it's a HACK but I also think that's what we do right now.
+That means that actually CommonVars should simply be a subset of ExGlobArgs.
+
+STATUS 20160607
+
+There is an issue with common vars that were not declared via includes: somehow they are not turned into arguments!
+We don't have CommonVars in ExGlobArgs. Of course in general these are different:
+
+CommonVars can become LocalVars or Args, depending on if the CommonVars in a sub are used in a caller of that sub or not.
+And to be quite correct, I need to check the name of the Common block!
+So basically, starting from the program, for any Common block in the program, look if any of its vars are used in any of the called subs or their children
+If so, then we have ExGlobs, which will be ExGlobArgs in the callers. Otherwise, they are just LocalVars. 
+The include is in a way a bit of a red herring. What I need is the common block, identified by name. And then we can tie this to an include.
+
+So we identify common blocks in the parser and create an entry $Sf->{'CommonBlocks'} -> {$common_block_name} => {List=>[],Set=>{}}
+Then we need to see if any vars in this block are used somewhere. For them to be used it means we need the same common block in one of the callers.
+
+That is: if in a given sub we find a Common block and the variables are used in that sub, then we need to check if this sub is a caller of a sub or prog with that same common block. This is actually the same as the IncludeChains but for Common blocks.
+
+The names of common blocks matter: any var can appear in only one common block anyway. So if a var is in a common block A that appears in sub f and in a common block B that appears in sub g, then they are not actually common. 
+
+At the moment I have $Sf->{'Commons'}. We also have DeclaredCommonVars and UndeclaredCommonVars.  
+
+
+STATUS 20160606
+
+$stref->{'SourceContains'}{$src} must become List,Set so that we keep the ordering => OK, done
+
+
+
+INTRINSIC  ABS, IABS, NINT  
+EXTERNAL FF318, FF321, FF325, FS327 
+
+This means that you can actually do things like
+
+call F(FF318)
+
+so at the moment I'm sure I'm not covering that!
+
+
+STATUS 20160602
+
+TESTS RUN: 152
+SKIPPED: 40
+Generation Failed:
+0
+Generation Succeeded:
+152
+
+Total  : 152
+Passed : 138
+Failed : 6
+Skipped: 8
+
+FM302.f
+ CHARACTER CVTN01*2, CVTN02*3, CATN11(3)*5                         01200302
+
+
+STATUS 20160531
+
+URGENT TODO: make sure subs and funcs in program sources are properly included
+TODO: Detect sub args only ever used as parameters and replace by parameters
+
+
+TESTS RUN: 155
+SKIPPED: 37
+Generation Failed:
+1
+Generation Succeeded:
+154
+Total  : 154
+Passed : 112
+Failed : 34
+Skipped: 8
+
+STATUS 20160526
+
+TESTS RUN: 156
+SKIPPED: 36
+Generation Failed:
+2
+Generation Succeeded:
+156
+Total  : 156
+Passed : 124
+Failed : 30
+Skipped: 2
+124/154
+
+
+STATUS 20160525
+
+Using the NIST testbench on the compiler. 
+Total: 192 tests
+TESTS RUN: 156
+SKIPPED: 36
+Generation Failed:
+0
+Generation Succeeded:
+156
+Total  : 156
+Passed : 116
+Failed : 38
+Skipped: 2
+116/154
+
+Mistakes:
+
+- implicit rules are removed but the declarations from the implicits are not added to the program!
+- labels are removed on end do
+- subroutines are not properly included in the program file
+- I need proper end detection: make a list of all statements that can have "end" and then count the blocks.
+
+
+STATUS 20160516
+
+So we have a silly problem with the split-out parameter file for the LES: it's not registered in the $info.
+What I need to do is check if the $inc on the $info line has a ParamInclude, and if so, use that one instead of the original $inc
+
+STATUS 20160513
+
+Problem with functions that are not recognised as such:
+
+obukhov is not refactored, neither is psim or scalev, I think it is because these are 'real function' rather than 'function', 
+another silly parse error ...
+
+flexpart_wrf.f95:629.33:
+
+      open(unitdates,file=path(2)(1:len(2))//'dates')
+                                 1
+Error: Syntax error in OPEN statement at (1)
+
+Basically, path should have been recognised as a global but it wasn't
+=> parser problem? or forgot to check some vars in @chunks?
+
+
+There is also still a problem with renamed globals (sigh!) 
+in timemanager, ix has intent(In) but ix_GLOB is used as the argument.
+So the intent is added to the wrong variable, as ix is not an argument.
+
+The reason seems to be that ix,jy appear in RefactoredArgs even though they were renamed.
+
+flexpart_wrf.f95:629.33:
+
+      open(unitdates,file=path(2)(1:len(2))//'dates')
+
+same in flexpart_wrf.f95: path is path_GLOB, this is wrong
+
+wetdepo.f95:208.76:
+
+         call interpol_rain(lsprec,convprec,tcc,nxmax,nymax,1,nx,ny,memind,sngl
+                                                                           1
+Error: Non-variable expression in variable definition context (actual argument to INTENT = OUT/INOUT) at (1)
+
+        if (ngrid == 0) then
+          call interpol_rain(lsprec,convprec,tcc,nxmax,nymax,1,nx,ny,memind,sngl(xtra1(jpart)),sngl(ytra1(jpart)),1,memtime(1),memtime(2),nint((itime-(0.5*ltsample))),lsp,convp,cc)
+        else
+          call interpol_rain_nests(lsprecn,convprecn,tccn,nxmaxn,nymaxn,1,maxnests,ngrid,nxn,nyn,memind,xtn,ytn,1,memtime(1),memtime(2),nint((itime-(0.5*ltsample))),lsp,convp,cc) 
+        endif
+
+Because there are two calls, we did not set the IODir for the sig arg corresponding to sngl(xtra1(jpart)),sngl(ytra1(jpart)) to In
+It looks like we should simply make this stronger: as soon as a single non-variable occurs in a call arg list, that position must become In.
+
+However, if I do that I get 
+
+interpol_rain.f95:97.29:
+
+      if (xt >= float(nx-1)) xt=float(nx-1)-0.00001
+                             1
+Error: Dummy argument 'xt' with INTENT(IN) in variable definition context (assignment) at (1)
+interpol_rain.f95:98.29:
+
+      if (yt >= float(ny-1)) yt=float(ny-1)-0.00001
+                             1
+Error: Dummy argument 'yt' with INTENT(IN) in variable definition context (assignment) at (1)
+
+I guess the problem is that sngl() is kind of a special case?
+
+
+STATUS 20160511
+
+Previous issues solved but now:
+
+* read_ncwrfout.f95 attname is character, should be character*80, so character parsing is still broken
+This is mostly because somehow in refactor_all_subroutines we wipe 'Attr'
+
+* read_ncwrfout.f95:454.74:
+
+      call reorder_ncwrfout_1realfield( ierr, idiagaa,  varname, vardata, varda
+                                                                          1
+Error: Dummy argument 'vardata' with INTENT(IN) in variable definition context (actual argument to INTENT = OUT/INOUT) at (1)
+
+=> This is because vardata is used twice as a call arg, and once the sig arg is In, the other time Out
+
+*  fnamenc = path(3)(1:len(3))//wfname(ifn) 
+Somehow, len here is not parsed as an ex-glob
+
+
+STATUS 20160510
+
+* Renaming is now fine but some remaining issues:
+- vars from if conditions not declared
+- params defined in terms of other params are 'real'
+
+
+* I think the algorithm for finding the "include root" needs reworking/refining. What we need is to find the location for the ex-global variable declarations. We do this as follows:
+
+- recursive descent into the subs until we reach a leaf sub. 
+- get all globals in the sub, mark sub as HasGlobals=1 (currently called HasCommons, OK)
+- go back up
+	- if 1 or more children has Globals, set InheritGlobals=1 (and maybe build a list of the children)
+	- if the sub has Globals, set HasGlobals=1
+	- create a joint set of ExGlobs per sub = ExGlobs U_i InheritedExGlobs(sub_i)
+- so after this, the toplevel program will have complete paths marked
+
+- recursive descent into the subs:
+	- if a sub HasGlobals it becomes the Root for these Globals (call them LocalExGlobs)
+	- if a sub has InheritGlobals then for we compute the intersection between all sets of inherited globals
+		- The sub becomes Root for the union of all (non-empty) intersections
+
+* I think the algorithm for ParamIncludes needs to look at which parameters from an include are actually used in the sub, using "Only".
+
+STATUS 20160510
+
+I'm trying to rename inherited ex-globals but there is a problem, I think it is that some subs get called more than once in the hierarchy; the result is that the arg list
+contains duplicates even though I use ordered_union. What happens is that at some point I get a list which has, for some reason, both x and x_GLOB.
+then x gets also renamed to x_GLOB
+So why do I add x_GLOB when I have x? The reason would seem to be that when I check for the difference between the ExGlobArgDecls in $f an $csub, at that point it is possible that either of these have already been renamed. So we have  following cases:
+
+x,x => OK
+x_GLOB, x_GLOB =>OK
+x, x_GLOB => here I would need to rename the x_GLOB to x, then take the difference
+x_GLOB, x => here I would have to rename the x_GLOB to x, then take the difference
+
+Maybe a much simpler solution is possible: based on the variable analysis, I know which ex-glob variables are used in each subroutine, they are in  ExGlobArgDecls.
+So, when we inherit, all vars should be renamed except those in ExGlobArgDecls
+The problem is of course that we append the inherited ExGlobArgs to the ones in ExGlobArgs
+To solve this cleanly, we must simply keep the InheritedExGlobArgs apart from the ExGlobArgs until we have resolved everything, and then we can merge them
+So we have 
+- InheritedExGlobArgs Set which will go from the original name to the renamed name unless there is a conflict
+- InheritedExGlobArgs List which we should build from the leaves up
+
+So, say a leaf sub has orig args ox,oy; used globals ugx, ugy
+then the caller will inherit ugx and ugy, which will be renamed unless they are used in the caller. 
+
+So basically, what we do is three passes: first pass, work out which inherited ex-globs should be renamed ; 2nd pass, do the inheritance; 3rd pass, do the actual renaming.
+
+STATUS 20160505
+
+IODir for functions is not done right because I don't properly check for functions, which I should.
+As a hack, I will do not set the intent (in ArgumentIODirs) and see what happens 
+Another issues is that some idiot has defined pi as an argument with intent Out in map_proj_wrf.f95, and it conflicts with the parameter pi from includepar.
+Previously we resolved this by renaming the conflicting variables but I'm not sure how that can be done:
+Should the global variable mask the parameter or the other way round?
+
+What I could do is say: if a parameter with a given name is defined, then no other var with that name should occur in the subroutine, so I remove it from the args and decls
+But then suppose I have
+
+real, parameter :: pi=3.1415
+call set_pi(pi) ! and in set_pi, pi has intent(Out)
+
+then that still conflicts. But we can't remove the parameter. So what we should do in that case is _rename_ this variable to pi_GLOB but *ONLY* when it is assigned.
+
+Some more nice errors:
+
+/opt/local/bin/gfortran-mp-4.9 -o boundcond_domainfill.o -c -O3 -m64 -ffree-form -fconvert=little-endian -frecord-marker=4 -I. -I/opt/local/include -I/usr/local/include boundcond_domainfill.f95
+boundcond_domainfill.f95:714.39:
+
+        open(unitboundcond,file=path(2)(1:len(2))//'boundcond.bin', form='unfor
+                                       1
+Error: Syntax error in OPEN statement at (1)
+
+=> Same old: 'path' is not declared, most likely because I failed to parse file=path(2)(1:len(2))//'boundcond.bin' correctly, check!
+
+boundcond_domainfill.f95:196.21:
+
+          if (((.not.xglobal).or.(nx_we(2) /= (nx-2))).and. ((xtra1(i) < float(
+                     1
+Error: Operand of .not. operator at (1) is REAL(4)
+
+=> This is awful: xglobal is a real because of the typing rules, but because of its usage in the logical context it should have been a bool!
+
+STATUS 20160504
+
+I added Parameters to Vars but in ArgumentIODirs I have a case where there it is empty while it shouldn't be!
+
+STATUS 20160503
+
+I can now generate Flexpart refactored code but there are still many bugs.
+
+Main issue is that includecom is not used, even though its variables are not included
+Another key issue is that the call to interpol_all in advance has an extra argument:
+
+call interpol_all(zt,itime,xts,yts,
+ddx,ix,ddy,jy,rddx,rddy,p1,p2,p3,p4,dt1,memtime,dt2,dtt,memind,ustar,jyp,ixp,wstar,oli,ust,wst,ol,nz,height,indz,indzp,ngrid,uupol,vvpol,uu,vv,ww,drhodz,rho,uprof,vprof,wprof,rhoprof,rhogradprof,indzindicator,usigprof,vsigprof, wsigprof)
+
+subroutine interpol_all(itime,xt,yt,zt,
+ddx,ix,ddy,jy,rddx,rddy,p1,p2,p3,p4,dt1,memtime,dt2,dtt,memind,ustar,jyp,ixp,wstar,oli,ust,wst,ol,nz,height,indz,indzp,ngrid,uupol,vvpol,uu,vv, ww,drhodz,rho,uprof,vprof,wprof,rhoprof,rhogradprof,indzindicator,usigprof,vsigprof, wsigprof)
+
+The original call is
+
+call interpol_all(itime,xts,yts,zt)
+
+and the original signature is
+
+subroutine interpol_all(itime,xt,yt,zt)
+
+So what happend is that the original arguments of the call are in the wrong order in the refactored call
+In the sig everything is fine so I guess this is a result of the mapping
+
+
+
+STATUS 20160429
+
+NO DECLARED:
+bmask1 in  feedbf
+cmask1  feedbf
+dmask1 feedbf
+
+diu1  les
+diu5  les
+diu9  les
+
+dzs  init
+p  aveflow
+z2 anime
+
+
+Getting much closer to IODir debugging. Now looking at why the following is wrong:
+- velfg diu1 In
+calls vel2, diu1 Out
+then reads from diu1
+
+Suppose it's Unknown, then we have : write to diu1, then read from it, then return it. So it is Out but the current value is In 
+
+STATUS 20160428
+
+I think I found a very insidious bug: looping through the subroutines out of call order leads to wrong IO dirs! 
+The problem is in 
+
+for my $calledsub ( keys %{ $Sf->{'CalledSubs'} } ) { 
+
+in determine_argument_io_direction_rec
+
+What we actually need is a list of CalledSubs in order of calling!
+
+
+STATUS 20160428
+
+I went down a really deep rabbit hole creating a decent expression parser for my Parser::Combinators. It works kind of now, except that somehow if the last token of a string is a Var it gets identified as a FunctionCall.
+ 
+The parser does now not parse in the traditional (op, lexpr, rexpr) fashion, rather it produces and (expr,op,expr,op,...) list. I think this should be easy to reconstruct, even if it is not so suitable for evaluation.
+As the getParseTree call only keeps the labeled nodes, the result can look a bit strange. It is now a mixture of lists and hashes, I need to do something about that. 
+
+[
+	[
+	{'FunctionCall' => [
+		{'FunctionName' => 'v'},
+		{'FunctionArgs' => {'Var' => 'x'}}
+		]
+	},
+	{'Const' => '3'}
+	],
+	[
+		{'Var' => 'w'},
+		{'Const' => '6'}
+	],
+	{'Var' => 'x'},
+	{'FunctionCall' => {'FunctionName' => 'qq'}
+	}
+]
+
+So, for every list: 
+sub l2m { (my $hlist,my $hmap) =@_;
+if (ref($hlist) eq 'ARRAY') {
+	for my  $elt (@{$hlist}) {
+#	- if what it contains is a single-elt hash, 
+if (ref($elt) eq 'HASH') {
+	if ( scalar keys %{$elt}==1) {
+	#first check the value: if it is also an array, call the function on it
+		(my $k,my $v) = each(%{$elt});
+		my $mv = l2m($v,{});
+	#add it to a new hash
+		$hmap ={%{$hmap},($k => $mv)};
+	}
+} elsif (ref($elt) eq 'ARRAY') {
+	- if it is an array, descend and return the hash and make sure it gets added as well
+		my $mv = l2m($v,{});	
+		$hmap ={%{$hmap},%{$mv}};
+}
+} else {
+return $hlist;
+}
+}
+
+That should give:
+
+{
+	'FunctionCall' => 
+		{'FunctionName' => 'v',
+		'FunctionArgs' => {'Var' => 'x'}
+		}	
+	{'Const' => '3'}
+		'Var' => 'w',
+		'Const' => '6'
+	'Var' => 'x',
+	'FunctionCall' => {'FunctionName' => 'qq'}	
+}
+
+
+
+STATUS 20160425
+
+OK, we now parse read/write/print and subcalls. Next target is open/close!
+We need a real combinator parser for this:
+
+sequence [ 
+symbol 'open',
+parens(
+commaSep(
+choice(
+sequence [
+maybe( sequence [symbol 'UNIT', symbol '=']), natural
+],
+sequence [
+choice(symbol 'FILE',symbol 'NAME'), symbol '=', regex("^(\'[\.\/\w]+\'|\*|\w+)")
+],
+sequence [
+symbol 'ACCESS' ,symbol '=', choice(symbol 'APPEND',symbol 'SEQUENTIAL',symbol 'DIRECT')
+],
+sequence [
+symbol 'BLANK' ,symbol '=' ,choice(symbol 'ZERO',symbol 'NULL')
+],
+sequence [
+symbol 'ERR' ,symbol '=', natural
+],
+sequence [
+symbol 'FORM' ,symbol '=', choice(symbol 'UNFORMATTED',symbol 'FORMATTED',symbol 'PRINT')
+],
+sequence [
+symbol 'IOSTAT',ymbol '=', natural
+],
+sequence [
+choice(symbol 'RECL',symbol'RECORDSIZE') ,symbol '=', natural
+],
+sequence [
+choice(symbol 'STATUS',symbol 'TYPE')  ,symbol '=', choice(symbol 'OLD',symbol 'NEW',symbol 'UNKNOWN',symbol 'SCRATCH')
+],
+sequence [
+symbol 'FILEOPT'  ,symbol '=', choice(symbol 'NOPAD',sequence [ symbol 'BUFFER',symbol '=',natural ],symbol 'EOF')
+],
+symbol 'READONLY',
+sequence [
+symbol 'ACTION' ,symbol '=', choice(symbol 'READWRITE',symbol 'READ',symbol 'WRITE')
+],
+))
+
+STATUS 20160421
+
+- Added much better annotations, switch off with -A
+- read call parsing for IODir is wrong because apparently the args after the (...) are Out, FIXME
+
+read*, x, y, z
+read (...) x, y, z
+
+STATUS 20160420
+- Looks like we are not adding the LocalVars declarations because ExInclLocalVars is empty. DONE
+- Verbose should give *useful info for the user*
+- Info should give *useful info for the user*
+So what should verbose really say?  
+- As Parameters is used for Local parameters, I need a separate ParametersFromContainer DONE
+- In general I should make sure all parsing is done in the parser and not later!
+- It might be better to refactor the case of ParametersFromContainer using a module for the parameters
+
+- There is a silly issue with lines coming before a program/subroutine, because we don't know the name of the program/sub yet. So maybe these lines should go onto a 'SourceFile' entry, which we then use when we reconstruct the source file. The ones in between and at the end would be tagged onto program/sub code anyway. DONE
+
+- LES main does not have any var decls! So there is clearly an issue here, FIXME!
+Actually, 'Vars' is empty for main
+
+
+STATUS 20160419
+
+ExternalSubroutines must set all args to InOut, and also warn that they can't be parallelised! DONE
+
+STATUS 20160419
+
+
+The contained subroutines also need the Parameters from the Container. We can do this ad-hoc I guess, in 
+_refactor_globals_new().DONE
+We need to test if a sub is contained in a program, then check for parameters, then create paramdecls, then insert them in the right place.DONE
+
+I would need to fix pretty-printing by keeping better track of Indents too.
+
+It looks like I'm doing a few things wrong for globals and intents: I get Intents for a program, that should not happen; also, I get superfluous vardecls (repeated) if I don't stop refactoring in case of a program.
+
+Somehow I generate new declarations even if the old ones are present!
+
+Also, for intrinsic/external subroutines, all args should be InOut DONE
+
+But also, if I generate a var at program level, it should not have an Intent anyway.
+So I should delete the Intent in that case.
+
+
+STATUS 20160415
+
+I need a 'Contains' entry for Subroutines that are Programs that contain other Subroutines.
+
+STATUS 20160414
+
+It turns out that in Fortran you can define subroutines in a program so that they see all vars in the program scope. These are 'internal procedures' and follow a 'contains' statement.
+So I need to cover that case. I will add a 'Containter' entry to 'Subroutines' so that I can look for variables in the container.
+This is also the case for modules and of course this could become very tricky/messy. 
+
+I need to add the search in the Container in _analyse_variables, before Implicits!
+
+STATUS 20160411
+
+It seems to me that the code to resolve the IODir and the code for refactoring the subroutine signatures etc. is quite broken.
+Let's just look at the logical steps:
+- First of all we need to make sure we have the refactored argument list for every subroutine. This is identical to ExGlobArgs because all other args should appear in the arg list of both sig and call. => OK
+- We should also create a list of the original arguments, but we should take that from the AnnLines code to get the correct order.    => OK
+- Then we need to create a list of the original arguments for every call, and create a map with the arguments from this sig.  => OK
+- All this information should be stored in the $info I think. => OK
+
+- One issue to address is that every arg in OrigArgs can in principle be declared or not, so 
+OrigArgs != ordered_union(DeclaredOrigArgs, UndeclaredOrigArgs)
+So we need a separate List for OrigArgs => OK
+
+- Once that is done we can work out the IODirs for all these arguments, and update the tables.
+
+
+STATUS 20160407
+
+Now stuck at _get_iodirs_from_subcall(), part of determine_argument_io_direction_rec.
+
+The problem is that there is a check if a routine was refactored or not, and it fails for e.g. bondv1.
+
+So I need to check if this is because the check is obsolete or for another reason. Main question is how the RefactoredArgs list in the $info of a subroutine call is created.
+
+Apparently like this:
+
+Refactoring/Subroutines/Calls.pm
+refactor_subroutine_call_args()
+170:    $tags->{'SubroutineCall'}{'RefactoredArgs'} = $args_ref;
+
+which is called from
+
+Analysis/ArgumentIODirs.pm
+_get_iodirs_from_subcall()
+280:        $stref = refactor_subroutine_call_args( $stref, $f, $index );
+
+STATUS 20160407
+
+'Commons' is used but does not seem to be the same as CommonVars, it is only used for testing if a variable is common, nothing else. Apparently the actual common variables are registered via the $Sf->{Globals} with the Inc attribute 
+
+STATUS 20160405
+
+Currently debugged up to refactor_all->refactor_all_subroutines. The next step is determine_argument_io_direction_rec
+I introduced 'CommonIncs' for every Subroutine to replace the previous per-include Vars etc. 
+It is assigined in Analysis.pm _analyse_variables line 224, somewhat ad-hoc
+
+STATUS 20160405
+
+Currently debugging an issue with $f->{Globals}
+Before, this was a per-include datastructure, but now it is 
+aliased to $Sf->{ExGlobArgDecls} which is flat.
+That leads to an error in _resolve_conflicts_with_params because on line 311 there is a loop over $commoninc
+
+for my $commoninc ( keys %{ $Sf->{'Globals'} } ) {
+
+but Globals is flat!
+
+
+STATUS 20151221
+
+Replaced all format* by get*
+I think the way Intent is emitted is fine now but I need to check all occurences of IODir to see if they are doing the right thing. The main problem seems to be in create_exglob_var_declarations() so I should check that one and maybe rewrite it.
+
+STATUS 20151109
+
+I think format_f95_var_decl() is now redundant. Either a variable is declared, or it is not. If it is not, it can de declared via Implicits. To know if a variable is declared: if it is not locally declared it could be in an include file. So I have to look in all include files.
+Once a variable has been declared that way, we can determine the Intent, but that is the only additional information.
+So instead of format_f95_var_decl() what I need is get_f95_var_decl() which simply finds the record. 
+
+In particular Intent handling is strange. I can basically say, if Intent is not Unknown it can be emitted else emit nothing, and the Intent field stores a string.
+
+Also, Set should always be a Set of Declarations, so no attribute Decl!
+
+I introduced get_f95_var_decl and get_f95_par_decl but must still replace all the old function calls
+
+
+STATUS 20151105
+
+parse_fortran_src 
+	-> _analyse_lines 
+		-> __parse_sub_func_prog_decls
+			used {'OrigArgs'} because not yet known if declared or not
+			I changed this to
+			{'OrigArgs'}{'Subsets'}{'UndeclaredOrigArgs'}
+			so that we can move the declared ones and leave the rest
+OK		-> parse_assignment
+		-> __parse_f77_var_decl
+		used {'Vars'} but we know it's either {'DeclaredOrigArgs'} or {'DeclaredOrigLocalVars'} so I changed it
+		-> __parse_f95_decl
+		used {'Vars'} but we know it's either {'DeclaredOrigArgs'} or {'DeclaredOrigLocalVars'} so I changed it
+OK		-> __parse_f77_par_decl	
+OK	-> _identify_loops_breaks
+OK	-> _parse_use (rec)
+	-> _parse_includes (rec)
+OK	-> _parse_subroutine_and_function_calls
+	-> _get_commons_params_from_includes
+	use {'Commons'} and {'Vars'} 1134, change this to
+	{'OrigLocalVars'} = {'Subsets' => 
+                { 'DeclaredOrigLocalVars' =>$Sf->{'DeclaredOrigLocalVars'},
+                'UndeclaredOrigLocalVars' => $Sf->{'UndeclaredOrigLocalVars'}        
+                }
+            }
+	Declared variables can be Common or OrigLocal, vars in a Common block are obv. common but maybe not declared
+	Declarations must come first so let's set all declared vars as 'DeclaredOrigLocalVars', this has presumably been done in _analyse_lines
+	Then when we encounter a common block, the var becomes either DeclaredCommonVars or UndeclaredCommonVars
+	So I can test against either 'Vars' or 'DeclaredOrigLocalVars'
+	We needed a test for the encompassing sets, so in_set(), so I wrote one and put it in Utils
+	-> _split_multivar_decls
+	use Vars, I changed it to DeclaredArgs or DeclaredOrigLocalVars or DeclaredCommonVars
+OK	-> _split_multipar_decls_and_set_type
+
+create_call_tree
+OK	-> _format_call_tree_line
+
+build_call_graph
+
+analyse_all
+OK	-> find_root_for_includes
+OK		-> _create_include_chains
+OK			-> __merge_includes
+OK		-> _find_root_for_include
+	-> _find_argument_declarations
+OK		-> type_via_implicits
+		-> format_f95_var_decl
+		This used RefactoredArgs which does not exist anymore. 
+		Maybe we should have an additional record 'FromInclude' in the Set record?
+		So I rewrote it and I did not use FromInclude
+	-> _analyse_variables 
+	Done, but not sure if it is correct ...
+TODO on 20151106:
+	-> _resolve_conflicts_with_params
+	-> lift_globals
+	-> _create_refactored_args
+	-> outer_loop_end_detect
+
+
+
+NOTE that UndeclaredCommonVars and DeclaredCommonVars go into ExGlobVars, aliased to Globals
+So once I am satisfied that UndeclaredCommons are properly typed using Implicits, I should merge them into CommonVars
+
+refactor_marked_blocks_into_subroutines
+OK	-> _separate_blocks
+OK		-> __separate_into_blocks
+		-> __construct_new_subroutine_signatures
+		used 'Vars' and 'OrigArgs', all I had to do was comment out
+OK		-> __reparse_extracted_subroutines (rec)
+OK		-> __update_caller_datastructures
+
+
+STATUS 20151021
+
+The first pass is the parser, which actually does not attempt yet to parse all expressions and assignments. But it does parse
+- subroutine arguments, both in signatures and calls
+- declarations
+So we can start populating
+{'DeclaredOrigArgs'}
+{'UndeclaredOrigArgs'} and args that are not declared     
+{'DeclaredOrigLocalVars'} any declarations that are not arguments
+
+STATUS 20151013
+
+I have made a categorisation of all variables and declarations. What I need to do now is determine which categories are introduced in which subroutine.
+
+STATUS 20151006
+
+I added "_identify_globals_used_in_subroutine()" for LEAF nodes in lift_globals() and made sure $Sf->{'Globals'} is populated if it is either not defined or empty.
+This still does not solve the problem. I have it now narrowed down to the fact that Vars in IncludeFiles does not include Commons
+
+The status today is that after _analyse_variables(), I get Globals populated but the Set is of the shape 
+
+ 'w' => [
+          '      ',
+          [
+            'real'
+          ],
+          [
+            'w'
+          ],
+          0
+        ],
+so the old format
+
+and LocalVars is populated like this:
+
+   'rhsav' => {
+        'Names' => [
+          'rhsav'
+        ],
+        'Status' => 1,
+        'Indent' => '      ',
+        'Type' => 'Unknown',
+        'Intent' => [],
+        'Attr' => '',
+        'Name' => 'rhsav',
+        'Dim' => []
+      },
+so obviously the type here is incorrect, it should be determined via implicits.
+
+Furthermore, the final routine has now the correct signature (I think) but no matching declarations:
+
+ subroutine press(rhs,u,dx1,v,dy1,w,dzn,f,g,h,dt,cn1,cn2l,p,cn2s,cn3l,cn3s,cn4l,cn4s,n,km,jm, &
+      im)
+      real, parameter :: pjuge=0.0001 ! context-free ParamDecl
+      integer, parameter :: nmaxp=50 ! context-free ParamDecl
+!! Original line context-free ParamDecl !!       parameter(omega = 1.)
+      Unknown :: i ! EX-IMPLICIT VAR 
+      Unknown :: j ! EX-IMPLICIT VAR 
+      Unknown :: k ! EX-IMPLICIT VAR 
+      Unknown :: rhsav ! EX-IMPLICIT VAR 
+      Unknown :: area ! EX-IMPLICIT VAR 
+      Unknown :: sor ! EX-IMPLICIT VAR 
+      Unknown :: reltmp ! EX-IMPLICIT VAR 
+      Unknown :: omega ! EX-IMPLICIT VAR 
+      Unknown :: l ! EX-IMPLICIT VAR 
+      Unknown :: pav ! EX-IMPLICIT VAR 
+      Unknown :: pco ! EX-IMPLICIT VAR 
+      Unknown :: cflu ! EX-IMPLICIT VAR 
+      Unknown :: cflv ! EX-IMPLICIT VAR 
+      Unknown :: cflw ! EX-IMPLICIT VAR 
+      real, parameter :: omega=1. ! context-free ParamDecl
+
+and to make it worse, omega is listed twice, once as a local variable and once as a parameter!
+
+
+STATUS 20151005
+
+Too long a hiatus, as usual. Main problem is that for LES, the current code does not refactor the subroutine signatures at all! I guess the reason is "SUB XXX DOES NOT HAVE RefactoredArgs"
+
+Analysis/ArgumentIODirs.pm
+398:              say "SUB $f DOES NOT HAVE RefactoredArgs";
+
+This is still the same problem from 20150810, to do obviously with the whole Globals processing.
+
+--- 
+
+I see that IncludeFiles has a bug in the List of Parameters: the parameters are duplicated
+
+----
+
+So the problem seems to be that a variable is no longer considered 'common' if it is ina common block, unless it also has a declaration in the same include file.
+Need to fix that: anything in a common block is common!
+
+
+STATUS 20150824
+
+So, now CalledSubs in the caller is OK, as is the $annline for the factored-out call, except that the Args don't have proper types. But I guess that should not matter?
+
+So, the next problem is with ij_to_latlon(): the arguments for the calls in map_set have not been updated with the ex-globals.
+I guess the problem is the inherited ex-globals. 
+So I need to check where this update is supposed to happen, I assume it is _create_refactored_subroutine_call().
+OK, I think I fixed it. Forgot to reassign the updated args list in $info...
+
+STATUS 20150824
+
+The timemanager routine still has the wrong CalledSubs
+
+          'CalledSubs' => {
+                            'advance' => 1,
+                            'initialize' => 1,
+                            'calcfluxes' => 1,
+                            'partoutput_short' => 1,
+                            'init_domainfill' => 1,
+                            'drydepokernel_nest' => 1,
+                            'partoutput' => 1,
+                            'concoutput' => 1,
+                            'boundcond_domainfill' => 1,
+                            'conccalc' => 1,
+                            'concoutput_nest' => 1,
+                            'plumetraj' => 1,
+                            'wetdepo' => 1,
+                            'convmix' => 1,
+                            'releaseparticles' => 1,
+                            'fluxoutput' => 1,
+                            'getfields' => 1,
+                            'drydepokernel' => 1
+                          },
+
+I should remove the subs called inside particles_main_loop of course, and add particles_main_loop.
+I should also check the line where particles_main_loop is called
+
+call wetdepo(itime,lsynctime,loutnext)
+call convmix(itime)
+call getfields(itime,nstop1)
+call init_domainfill()
+call boundcond_domainfill(itime,loutend)
+call releaseparticles(itime)
+call convmix(itime)
+call conccalc(itime,weight)
+call partoutput_short(itime)    ! dump particle positions in extremely compressed format
+call concoutput(itime,outnum,gridtotalunc,
+call concoutput_nest(itime,outnum)
+call plumetraj(itime)
+call fluxoutput(itime)
+call partoutput(itime)    ! dump particle positions
+call conccalc(itime,weight)
+
+!$ACC SUBROUTINE particles_main_loop
+call initialize(itime,idt(j),uap(j),ucp(j),uzp(j),
+call advance(itime,idt(j),uap(j),ucp(j),uzp(j),us(j),
+call calcfluxes(nage,j,xold,yold,zold)
+call drydepokernel(nclass(j),drydeposit,sngl(xtra1(j)),
+call drydepokernel_nest(
+!$ACC END SUBROUTINE particles_main_loop
+
+call partoutput(itime)     ! dump particle positions
+
+
+
+STATUS 20150821
+
+the refactored subroutine particles_main_loop has the right $line but the wrong $info in its parent: 
+
+ 'SubroutineCall' => {
+                                'Args' => {},
+                                'Name' => 'particles_main_loop'
+                              },
+          'RefactoredSubroutineCall' => {
+                                          'Name' => 'particles_main_loop'
+                                        },
+
+This should of course be {'Args'}{
+'List' => [ ... ],
+'Set' => { ... }
+}
+
+Also, the call to particles_main_loop() in timemanager has no LineID
+
+
+STATUS 20150817
+
+We need to distinguish a bit more clearly between Analysis and Refactoring. At the moment, format_f95_var_decl() is in Refactoring::Common but it is actually not really refactoring, so it could be in "Analysis/Common". emit_f95_var_decl() could be considered refactoring.
+But refactor_marked_blocks_into_subroutines() is in Parser, and is obviously Refactoring; but it can't be done any later. Still, the routine should be in Refactoring.
+__split_out_parameters() is technically also Refactoring, not Parsing.
+The difference between Parsing and Analysis is of course not clear but I'd say Analysis should not work on regexes, otherwise it's Parsing. So at the moment _analyse_variables() is doing some parsing and some analysis. It would be better to parse in Parser.
+
+
+
+
+STATUS 20150812
+
+Yak shaving: put subdecl parsing and do-block parsing in Parser, remove use of SubroutineSig/FunctionSig (TODO in SrcReader)
+
+
+The current implementation is:
+
+analyse_all ->
+1.  find_root_for_includes
+2.  resolve_globals
+    -> _identify_globals_used_in_subroutine
+    -> _resolve_conflicts_with_params
+  outer_loop_end_detect
+
+refactor_all ->
+  refactor_include_files => This is really only needed to factor out the parameters, and even that might be redundant
+    -> context_free_refactorings
+    -> _refactor_include_file 
+      -> __resolve_module_deps => Here we re-parse the VarDecl again for no good reason! Use the $info! Also, why is this only done here? If it is an issue it should be done everywhere!
+  refactor_called_functions => we no longer distinguish so maybe this can be merged with the subroutines?   
+  refactor_all_subroutines  
+    -> _refactor_subroutine_main
+  determine_argument_io_direction_rec
+  find_and_add_missing_var_decls  
+  remove_vars_masking_functions  
+  add_module_decls  
+
+{'Parameters'}{'OrderedList'} is not used outside the Parser so get rid of it
+
+
+STATUS 20150810
+
+- So now flexpart_wrf compiles and links (almost, stack-related problem on Mac) but now LES is broken: the globals from common.sn are no longer there in main and in the other files all declarations seem to be added only at "missing". Which means that somehow the Globals processing got broken.
+- The identification seems to be OK.
+- I need to make sure that there is less overlap between data structures:
+* 'Vars' should be declared vars only, be they args or not.
+* 'Globals' are undeclared and taken from a common block, and declarations need to be added and signatures/calls need to be adapted
+* Non-common Variables declared in an include need a declaration but are not added to the subroutine signature. 
+* I don't know what 'Args' is used for ...
+* 'RefactoredArgs' contains the total List of subroutine arguments, and the corresponding Set, but is only to be used for Signatures
+
+A better organisation:
+
+- Vars is a list/set of all vars used in the subroutine. Slight issue is that while we parse we identify Vars that have a VarDecl, but these can  be Args, so maybe the parser needs to be a bit smarter from the start. 
+- Args (just the names, list + set)  and DeclaredArgs (list+map)
+The actual arguments and declarations, note that DeclaredArgs <= Args
+- LocalVars (just the names, list + set)  and DeclaredVars (list+map)
+The actual Vars used in the sub, i.e. local vars, and the corresponding decls, again DeclaredVars <= Vars
+Also, Vars = Args+LocalVars+Globals
+- Globals from includes, list+map, the globals used in the sub
+- ExGlobArgs (just the names, list + set) and ExGlobArgDecls
+This should be the same as Globals, but it is possible that ExGlobArgDecls < Globals => WV: why? every global should be an arg and should be declared
+- ExInclVarDecls
+These are declarations from includes for local variables
+- ExInclArgDecls 
+These are declarations from includes for subroutine arguments
+Of course there can also be Args and LocalVars that are simply not declared:
+- ExImplicitArgDecls
+- ExImplicitVarDecls
+
+But maybe in practice it is better to only have ExtraArgDecls and ExtraVarDecls, as we don't really care why they are extra.
+
+
+1. Find the includes with commons for all subroutines -> which means I should have done Commons analysis in the includes first, OK
+2. Perform a variable analysis
+2.1 Find arguments, put in Args -> in Parser
+2.2 Find declarations, put in DeclaredArgs/LocalVarDecls -> in Parser
+2.3 Find missing arg decls, put in ExInclArgDecls or ExImplicitArgDecls -> in Analysis
+
+2.4 Find variables and test:
+- IF NOT IN Args:
+	- IF IN DeclaredVars => Locals
+	_ ELSE 
+		IF IN Commons for any Incl => ExGlobVarDecls, Globals
+		ELSE 
+			IF in Vars for any Incl => ExInclVarDecl, Locals
+				ELSE => MissingLocalVarDecl, Locals
+2.5 Resolve conflicts with params
+3. Refactor the signatures and calls
+3.1 Signatures => This is trivial, just use RefactoredArgs when emitting. The current routine is actually already emitting, so maybe I should use a separate Emitter function
+3.2 Calls
+4. Add the missing declarations
+5. Analyse the IO directions
+6. Update the IO directions
+7. Do context-free refactoring
+8. Emit
+
+The current implementation is:
+
+analyse_all ->
+  find_root_for_includes
+  resolve_globals
+    -> _identify_globals_used_in_subroutine
+      -> __determine_subroutine_arguments, this should be a function of the Parser obviously. OK
+      I don't see why I have FunctionSig, SubroutineSig and Signature, just the latter should do. Add 'Function' => 1 for function, as attribute to the Signature.
+    -> _resolve_conflicts_with_params
+  analyse_sources OK, this is now commented out
+    -> _identify_loops_breaks => This should at least partially be part of the parser, as it reparses do-blocks OK
+    -> lift_includes => as far as I can tell this is never called and obsolete
+  outer_loop_end_detect
+
+refactor_all ->
+  refactor_include_file => This is really only needed to factor out the parameters   
+    -> context_free_refactorings
+    -> _refactor_include_file 
+      -> __resolve_module_deps => Here we re-parse the VarDecl again for no good reason! Use the $info! Also, why is this only done here?
+If it is an issue it should be done everywhere!
+  refactor_called_functions => we no longer distinguish so maybe this can be merged with the subroutines?   
+  refactor_all_subroutines  
+  determine_argument_io_direction_rec
+  find_and_add_missing_var_decls  
+  remove_vars_masking_functions  
+  add_module_decls  
+
+
+
+STATUS 20150807
+
+- Wrote a new routine to build the call graph because the old one was broken in case of factored-out subs.
+- I think create_new_include_statements() is now obsolete
+- Somehow I have a duplicate for ix and jy in timemanager
+
+STATUS 20150806
+
+scons: Reading SConscript files ...
+scons: done reading SConscript files.
+scons: Building targets ...
+/opt/local/bin/gfortran-mp-4.9 -o particles_main_loop.o -c -O3 -m64 -ffree-form -fconvert=little-endian -frecord-marker=4 -I. -I/opt/local/include -I/usr/local/include particles_main_loop.f95
+particles_main_loop.f95:166.14:
+
+      indzp,u,uprof,v,vprof,w,wprof,usig,usigprof,vsig,vsigprof,wsig,wsigprof,d
+              1
+Error: Rank mismatch in argument 'uprof' at (1) (rank-1 and scalar)
+particles_main_loop.f95:181.47:
+
+      rho,vdepn,vdep,pvn,pv,ustarn,wstarn,olin,indzindicator,depoindicator,ngri
+                                               1
+Error: Type mismatch in argument 'indzindicator' at (1); passed INTEGER(4) to LOGICAL(4)
+scons: *** [particles_main_loop.o] Error 1
+scons: building terminated because of errors.
+
+[wim@MacBookPro-2 src_gfortran2]$ grep indzindicator *.f 
+advance.f:70      indzindicator(i)=.true.
+advance.f:              if (indzindicator(i)) then
+interpol_all.f:        indzindicator(n)=.false.
+interpol_all_nests.f:        indzindicator(n)=.false.
+interpol_misslev.f:      indzindicator(n)=.false.
+interpol_misslev_nests.f:      indzindicator(n)=.false.
+[wim@MacBookPro-2 src_gfortran2]$ grep indzindicator include*
+includeinterpol:      logical indzindicator(nzmax)
+includeinterpol:     +depoindicator,indzindicator
+
+[wim@MacBookPro-2 src_gfortran2]$ grep uprof *.f include*
+advance.f:c     real uprof(nzmax),vprof(nzmax),wprof(nzmax)
+advance.f:          u=dz1*uprof(indzp)+dz2*uprof(indz)
+initialize.f:        u=(dz1*uprof(indzp)+dz2*uprof(indz))*dz
+interpol_all.f:        uprof(n)=(y1(1)*dt2+y1(2)*dt1)*dtt
+interpol_all_nests.f:        uprof(n)=(y1(1)*dt2+y1(2)*dt1)*dtt
+interpol_misslev.f:      uprof(n)=(y1(1)*dt2+y1(2)*dt1)*dtt
+interpol_misslev_nests.f:      uprof(n)=(y1(1)*dt2+y1(2)*dt1)*dtt
+includeinterpol:      real uprof(nzmax),vprof(nzmax),wprof(nzmax)
+includeinterpol:     +uprof,vprof,wprof,usigprof,vsigprof,wsigprof,rhoprof,rhogradprof,
+[wim@MacBookPro-2 src_gfortran2]$ 
+
+STATUS 20150805
+
+- Apparently, real(8) in F77 is not parsed correctly
+- Also lines like 
+	real drydeposit(maxspec),gridtotalunc,wetgridtotalunc
+  are parsed incorrectly in F77
+
+I think this is a problem of inconsistency in VarDecl.
+
+STATUS 20150804
+
+The problem is not with rf4a but with the Fortran-77 code for Flexpart, which mixes scalars and 3-D arrays ...
+A new problem: readcommand.f95:118.20:
+      call skplin(9,unitcommand)
+                    1
+Error: Non-variable expression in variable definition context (actual argument to INTENT = OUT/INOUT) at (1)
+=> Problem is that the argument is a parameter, so read-only, so the intent should be In, not InOut.
+I think it gets set to InOut because I don't properly handel IO calls like read(). Fixed!
+
+readpartpositions.f95:250.45:
+        call ll_to_xyindex_wrf(xlonin,ylatin,xtra1(i),ytra1(i),proj_init,proj_c
+Error: Type mismatch in argument 'x_i' at (1); passed REAL(8) to REAL(4)
+
+=> This is again a bug in Flexpart!
+
+* Now we have several bugs in particles_main_loop.f95, i.e. the factored-out subroutine:
+
+articles_main_loop.f95:156.15:
+
+            do nage = 1,nageclass
+               1
+Error: Dummy argument 'nage' with INTENT(IN) in variable definition context (iterator variable) at (1)
+
+=> Here we have a real problem: the variable 'nage' is a loop counter and is only accidentally used in several subroutines.
+We should at least exclude loop counters from being subroutine argument! Fixed.
+----------------
+particles_main_loop.f95:205.18:
+
+                  drydeposit(k) = xmass1(j,k)*prob(k)*decfact
+                  1
+Error: Unclassifiable statement at (1)
+
+=> because drydeposit is declared as a scalar, wrongly, via V6 apparently.
+----------------
+
+
+
+STATUS 20150803
+
+The issue about the intent seems fixed, there was a case missing in the analysis.
+Also a problem with rank in 'missing'
+I think the problem is that there are way too many 'missing' cases, although they only occur in three files:
+gridcheck.f95
+gridcheck_nests.f95
+redist.f95
+
+STATUS 20150724 
+
+Again more progress but we now have a problem with the intent of some variables added via 'missing', should be InOut but is In (ztra1  in convmix/redist).
+redist.f95
+convmix.f95
+Also a problem with rank in 'missing'
+I think the problem is that there are way too many 'missing' cases, although they only occur in three files:
+gridcheck.f95
+gridcheck_nests.f95
+redist.f95
+
+What I should do is review the way the includes are processed, and look for non-common variables in the includes much earlier,before the IODir routines.
+
+STATUS 20150723
+
+More progress, the problem is now that the renaming of conflicting variables seems to break things, or at least what happens is that some param in includepar is used as arg as well as included.
+Basically, I'm not sure if this is a solvable problem: is an argument and a parameter have the same name, it is not possible to tell which one the user wants to use.
+So, suppose we find the initial include with the common block and rename anything downwards. 
+
+STATUS 20150722
+
+OK, progress, but now clearly the parameter-containing modules are totally broken:
+Several parameters appear up to three times!
+
+STATUS 20150721
+
+Two days of yak shaving later, we are in the same stage as before but with correctly generated code.
+Except for files that mix functions and subroutines, like Flexpart does...
+And then some more ...
+
+STATUS 20150720
+
+- We are now at the stage where I need to generate the init_() and run_() subroutines in their own modules. 
+- In general, it seems that this generation of extra code is what slows me down. So here is how it's done:
+* Assuming we have done a pass to gather all data required for the code generation:
+- Go through the AnnLines
+- Find the hook
+- splice the new lines after the hook.
+So I wrote a routine splice_additional_lines() in Refactoring/Common to do this.
+
+- Another issue is that we have $Sf->{AnnLines} and $Sf->{RefactoredCode}. To use this the proper way I need to make sure that AnnLines does never contain any refactored code, so I should check this carefully. I already verified that RefactoredCode is only used in Refactoring/.
+It would be better to never change $line until we emit it anyway, let's check if that is possible. But anyway, for now we use RefactoredCode.
+
+
+STATUS 20150701
+
+- A bit of a detour into OpenCL kernel generation, but most of it is concentrated in OpenCLTranslation.pm. However, OpenCL kernel generation works so the parser for F95 is now fairly complete.
+- Back to LoopDetect, but just added comments.
+- Reading the notes below, I think variable declaration parsing now works for F95, using F95VarDeclParser.pm
+- I started on the factoring out of the KernelWrapper subroutine, as described in OpenCL_generate_kernel_wrapper.txt and OpenCL_infering_kernel_args.txt.
+It looks like separating out subroutines still works. So what I need to do next is separate out the init() subroutine. So we need to look at variables that are only used inside the loop. So simply inventory all vars inside the loop while we do the outer loop detection. Then see if any of these is used outside the loop. 
+
+~/Git/RefactorF4Acc/refactorF4acc.pl -c ../rf4a.cfg -N -g main
+
+STATUS 20150531
+
+- Added support for inventory of F90/F95 modules, as well as detection of modules that can be inlined, this required for proper generation of OpenCL kernels. 
+- Also fixed a bug where type declarations in include files were not converted to F95
+- Also, implicit rules are now commented out. 
+- But a lot of the code still only works for F77, including even variable declaration parsing
+
+STATUS 20150424
+
+Modules in progress:
+
+Analysis::KernelArgs
+
+Analysis::ArgumentIODirs
+parse_assignment -> is called in RefactorF4Acc/Parser.pm
+
+Analysis::LoopDetect -> loop_detect is called in RefactorF4Acc/Parser.pm
+
+
+Analysis/ArgumentIODirs.pm
+456:# WV20150304 TODO: factor this out and export it so we can use it as a parser for assignments
+
+Parser.pm
+103:#WV20150305 I've added labels to the lines, as identifiers for e.g. start/end of pragmas. I can do this here because here the lines have been normalised but no refactoring has been done yet.
+186:#WV20150304: We parse the do and store the iterator and the range { 'Iterator' => $i,'Range' =>[$start,$stop]} 
+190:#WV20150303: We parse this assignment and return {Lhs => {Varname, Kind, IndexExpr}, Rhs => {Expr, VarList}}
+743:# WV20150304 TODO we should create a datastructure instead!
+Refactoring.pm
+34:# WV20150303: I think the note below is obsolete: we actually use a datastructure for the declarations! 

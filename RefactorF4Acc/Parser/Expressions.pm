@@ -40,7 +40,8 @@ use Exporter;
   &find_assignments_to_scalars_in_ast
   &find_implied_do_in_ast
   &_traverse_ast_with_action
-  @sigils  
+  @sigils
+  %sigil_codes
   $defaultToArrays
 );
 
@@ -59,8 +60,8 @@ our @sigils = ('{', '&', '$', '+', '-', '*', '/', '%', '**', '=', '@', '#', ':' 
 #                27   28    29        30      31         32           33             34       35 
                ,',', '(/', 'integer', 'real', 'logical', 'character', 'PlaceHolder', 'Label', 'BLANK'
               );
-
-
+my $opcode=0;
+our %sigil_codes = map { $_ => $opcode++  } @sigils;
 
 my %F95_ops =(
 	'==' => '.eq.',  
@@ -162,11 +163,11 @@ sub _change_func_to_array { (my $stref, my $f,  my $info, my $ast, my $exp, my $
 				} elsif (   	exists $F95_intrinsics{$mvar} ) {
 					say "parse_expression('$exp') " . __LINE__ if $DBG;
                     say "WARNING: treating $mvar in $f as an intrinsic! " if $DBG;
-					$grouped_messages->{'W'}{'VAR_AS_INTRINSIC'}{$mvar} =   "WARNING: treating $mvar in $f as an intrinsic! " if $W;  
+					$grouped_messages->{'W'}{'VAR_AS_INTRINSIC'}{$mvar} =   "WARNING: treating $mvar in $f as an intrinsic! " if $WW;  
 				} elsif (   	exists $F95_function_like_reserved_words{$mvar} ) {
 					say "parse_expression('$exp') " . __LINE__ if $DBG;
                     say "Treating $mvar in $f as a function-like reserved word " if $DBG;
-					$grouped_messages->{'W'}{'VAR_AS_INTRINSIC'}{$mvar} =   "Treating $mvar in $f as a function-like reserved word  " if $W;  
+					$grouped_messages->{'W'}{'VAR_AS_INTRINSIC'}{$mvar} =   "WARNING: Treating $mvar in $f as a function-like reserved word  " if $WW;  
 				} else {
 					# FUNCTION CALL
 					# So, this line contains a function call, so we should say so in $info!
@@ -377,7 +378,7 @@ sub get_args_vars_from_subcall {(my $ast)=@_;
 	my $all_vars={'List'=>[],'Set'=>{} };
 
 	my $vars = get_vars_from_expression($ast,{} );
-	$all_vars->{'Set'}=$vars;
+	$all_vars->{'Set'}=$vars;    
 	$args = _parse_subcall_args($ast, $args);
 
 	$all_vars->{'List'} = [sort keys %{ $all_vars->{'Set'} }];
@@ -753,9 +754,10 @@ sub parse_expression_no_context { (my $str)=@_;
         else {          
             # Here we return with an error value
             # What I could do is say:
-            # if the next token is ':' or the pending op is ':'
-            carp "STR:$str" if not defined $op;
+            # if the next token is ':' or the pending op is ':' (12)
+            # carp "STR:<$str>" if not defined $op;
             if($str=~/^\s*:/ or $op == 12) {
+                # Return a blank
                 $expr_ast=[35,'']
             } else { # error
             #say "ERR 3";
@@ -845,13 +847,7 @@ Level
 11        left        .xor. .eqv. .neqv.
 
 So it looks like I need at least 6 bits, so we'll need <<8 and 0xFF
-                 0    1    2    3    4    5    6    7    8     9    10   11   12   13   14 
-our @sigils = ( '{', '&', '$', '+', '-', '*', '/', '%', '**', '=', '@', '#', ':' ,'//',')('
-                 15   16  17  18  19   20    21      22      23     24      25      26      
-               ,'==','/=',<','>','<=','>=','.not.','.and.','.or.','.xor.','.eqv.','.neqv.'
-                 27  28        29     30        31
-               ,',','integer','real','logical','character'
-              );
+
 =cut 
 
             $prev_lev=$lev;
@@ -1175,7 +1171,11 @@ sub emit_expr_from_ast { (my $ast)=@_;
         } elsif (scalar @{$ast}==2) { #  for '{'  and '$'
             (my $opcode, my $exp) =@{$ast};
             if ($opcode==0 ) {#eq '('
+            # warn Dumper($exp);
                 my $v = (ref($exp) eq 'ARRAY') ? emit_expr_from_ast($exp) : $exp;
+                if (not defined $v) {
+                    carp Dumper($ast);
+                }
                 return "($v)";
             } elsif ($opcode==28 ) {#eq '(/'
                 my $v = (ref($exp) eq 'ARRAY') ? emit_expr_from_ast($exp) : $exp;
@@ -1254,11 +1254,11 @@ sub _replace_function_calls_in_ast {
 				} elsif (   	exists $F95_intrinsics{$mvar} ) {
 					say "parse_expression('$exp') " . __LINE__ if $DBG;
                     say "WARNING: treating $mvar in $f as an intrinsic! " if $DBG;
-					$grouped_messages->{'W'}{'VAR_AS_INTRINSIC'}{$mvar} =   "WARNING: treating $mvar in $f as an intrinsic! " if $W;  
+					$grouped_messages->{'W'}{'VAR_AS_INTRINSIC'}{$mvar} =   "WARNING: treating $mvar in $f as an intrinsic! " if $WW;  
 				} elsif (   	exists $F95_function_like_reserved_words{$mvar} ) {
 					say "parse_expression('$exp') " . __LINE__ if $DBG;
                     say "Treating $mvar in $f as a function-like reserved word " if $DBG;
-					$grouped_messages->{'W'}{'VAR_AS_INTRINSIC'}{$mvar} =   "Treating $mvar in $f as a function-like reserved word  " if $W;  
+					$grouped_messages->{'W'}{'VAR_AS_INTRINSIC'}{$mvar} =   "WARNING: Treating $mvar in $f as a function-like reserved word  " if $WW;  
 				} else {
                     #say ' FUNCTION CALL';
 					# So, this line contains a function call, so we should say so in $info!
@@ -1589,7 +1589,7 @@ sub _find_args_in_ast { (my $ast, my $args) =@_;
 
 
 #               0    1    2    3    4    5    6    7    8    9    10   11   12   13    14
-#ur @sigils = ('{', '&', '$', '+', '-', '*', '/', '%', '**', '=', '@', '#', ':' ,'//', ')('
+#our @sigils = ('{', '&', '$', '+', '-', '*', '/', '%', '**', '=', '@', '#', ':' ,'//', ')('
 #                15    16    17  18   19    20     21       22       23      24       25       26      
 #              ,'==', '/=', '<', '>', '<=', '>=', '.not.', '.and.', '.or.', '.xor.', '.eqv.', '.neqv.'
 #                27   28    29        30      31         32           33             34       35 
@@ -1632,7 +1632,7 @@ sub _parse_subcall_args { (my $ast, my $args) =@_;
     and ($ast->[1][0] & 0xFF) > 28
     ) { #'-' then const
         my $arg = '-'.$ast->[1][1]; 
-        $args->{'Set'}{$arg}={        
+        $args->{'Set'}{$arg}={    
             'Type'=>'Const', 
             'SubType'=>$sigils[ ($ast->[1][0] & 0xFF) ],
             'Expr' => '-'.$arg
