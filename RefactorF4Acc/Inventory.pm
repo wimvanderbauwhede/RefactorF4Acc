@@ -39,6 +39,7 @@ sub find_subroutines_functions_and_includes {
     my $incl='';
     if (@_) {
     	($incl)=@_;
+        say "Looking for INC $incl" if $V;
     }
     	
     my $prefix   = exists $Config{PREFIX} ? $Config{PREFIX} : '.';
@@ -57,68 +58,66 @@ sub find_subroutines_functions_and_includes {
     	%src_files = map { $_ => {'Local' => $prefix } } @{$Config{'SOURCEFILES'}};
     	%excluded_dirs=();     	
     }  else {
-    my @srcdirs=exists $Config{SRCDIRS} ?  @{ $Config{SRCDIRS} } : ('.');    
-    my @extsrcdirs=exists $Config{EXTSRCDIRS} ? @{ $Config{EXTSRCDIRS} } : (); # External sources, should not be refactored but can be parsed
-    my %ext_src_dirs = map { $prefix.'/'.$_ => 1 } @extsrcdirs; 
-    
-    my %excluded_sources = exists $Config{EXCL_SRCS} ? map { $_ => 1 } @{ $Config{EXCL_SRCS} } : ();
-    if (not exists $Config{EXCL_SRCS}) {
-    	$Config{EXCL_SRCS} = [];
-    }
-    
-	# if there is an entry in $Config{EXCL_SRCS} then it is a regex
-    my $has_pattern =  scalar @{ $Config{EXCL_SRCS} } > 0 ? 1 : 0;    
-    my $excl_srcs_pattern    = @{ $Config{EXCL_SRCS} }>1? join('|', @{ $Config{EXCL_SRCS} }) : @{ $Config{EXCL_SRCS} }==1 ? $Config{EXCL_SRCS}->[0] : '';
-    
-    say     'Exclude pattern: /'. ($excl_srcs_pattern!~/[\^\$]/ ? '^'.$excl_srcs_pattern.'$'  :  $excl_srcs_pattern). '/' if $V; 
-	my $excl_srcs_regex      = $excl_srcs_pattern!~/[\^\$]/ ? qr/^$excl_srcs_pattern$/ : qr/$excl_srcs_pattern/;
-	
-	
-	$stref->{'SourceDirs'} = [@srcdirs];
-	$stref->{'Prefix'} = $prefix;
-    # find sources (borrowed from PerlMonks)
-    
-    
-    my $tf_finder = sub { 
-        return if !-f;
-        if ($incl) {
-        	return if (!/$incl$/);
-        } else {
-        	return if (!/\.f(?:or|9[05])?$/i &&!/\.c$/); # rather ad-hoc for Flexpart + WRF # FIXME: make pattern configurable in rf4a.cfg
-        }
-        my $filepath = $File::Find::name;  # i.e. $path+ the name of the file found
+        my @srcdirs=exists $Config{SRCDIRS} ?  @{ $Config{SRCDIRS} } : ('.');    
+        my @extsrcdirs=exists $Config{EXTSRCDIRS} ? @{ $Config{EXTSRCDIRS} } : (); # External sources, should not be refactored but can be parsed
+        my %ext_src_dirs = map { $prefix.'/'.$_ => 1 } @extsrcdirs; 
         
-        my $srcname = $filepath; # e.g. ./admin/aadmn.f
-        $srcname =~s/^\.\///;  # e.g. admin/aadmn.f
-        my $srcdir = $filepath;  
-        $srcdir=~s/\/.+$//;        # i.e. $path # e.g. admin
-        
-        if (not (
-	         exists $excluded_sources{$srcname} or 
-    	     exists $excluded_sources{"./$srcname"} or
-        	 ($has_pattern and $srcname=~$excl_srcs_regex)
-        	) and not exists $excluded_dirs{$srcdir} # this does not work as the $srcdir is simply '.' 
-         ) {
-         $src_files{$File::Find::name} = (exists $ext_src_dirs{$srcdir}) ? { 'Ext' => $filepath }  : {'Local' => $filepath };
-        } else {
-            print "EXCLUDED SOURCE: $srcname\n" if $V;
+        my %excluded_sources = exists $Config{EXCL_SRCS} ? map { $_ => 1 } @{ $Config{EXCL_SRCS} } : ();
+        if (not exists $Config{EXCL_SRCS}) {
+            $Config{EXCL_SRCS} = [];
         }
-    };
-    
-    for my $dir (@srcdirs,@extsrcdirs) {
-    	my $path="$prefix/$dir";
-    	if ($dir eq '.') {
-    	   $path=$prefix;
-    	}     	
-        find( $tf_finder, $path );
-    }
+        
+        # if there is an entry in $Config{EXCL_SRCS} then it is a regex
+        my $has_pattern =  scalar @{ $Config{EXCL_SRCS} } > 0 ? 1 : 0;    
+        my $excl_srcs_pattern    = @{ $Config{EXCL_SRCS} }>1? join('|', @{ $Config{EXCL_SRCS} }) : @{ $Config{EXCL_SRCS} }==1 ? $Config{EXCL_SRCS}->[0] : '';
+        
+        say     'Exclude pattern: /'. ($excl_srcs_pattern!~/[\^\$]/ ? '^'.$excl_srcs_pattern.'$'  :  $excl_srcs_pattern). '/' if $V; 
+        my $excl_srcs_regex      = $excl_srcs_pattern!~/[\^\$]/ ? qr/^$excl_srcs_pattern$/ : qr/$excl_srcs_pattern/;
+        
+        
+        $stref->{'SourceDirs'} = [@srcdirs];
+        $stref->{'Prefix'} = $prefix;
+
+        # find sources (borrowed from PerlMonks)    
+        my $tf_finder = sub { 
+            return if !-f;
+            if ($incl) {
+                return if (!/$incl$/);
+            } else {
+                return if (!/\.f(?:or|9[05])?$/i &&!/\.c$/); # rather ad-hoc for Flexpart + WRF # FIXME: make pattern configurable in rf4a.cfg
+            }
+            my $filepath = $File::Find::name;  # i.e. $path+ the name of the file found
+            
+            my $srcname = $filepath; # e.g. ./admin/aadmn.f
+            $srcname =~s/^\.\///;  # e.g. admin/aadmn.f
+            my $srcdir = $filepath;  
+            $srcdir=~s/\/.+$//;        # i.e. $path # e.g. admin
+            
+            if (not (
+                exists $excluded_sources{$srcname} or 
+                exists $excluded_sources{"./$srcname"} or
+                ($has_pattern and $srcname=~$excl_srcs_regex)
+                ) and not exists $excluded_dirs{$srcdir} # this does not work as the $srcdir is simply '.' 
+            ) {
+            $src_files{$File::Find::name} = (exists $ext_src_dirs{$srcdir}) ? { 'Ext' => $filepath }  : {'Local' => $filepath };
+            } else {
+                print "EXCLUDED SOURCE: $srcname\n" if $V;
+            }
+        };
+        
+        for my $dir (@srcdirs,@extsrcdirs) {
+            my $path="$prefix/$dir";
+            if ($dir eq '.') {
+                $path=$prefix;
+            }     	
+            find( $tf_finder, $path );
+        }
     }
     for my $src ( sort keys %src_files ) {
 		say "SRC: $src" if $V;
         my $exclude=0;        
         for my $excl_dir (keys %excluded_dirs) {            
             if ($src=~/$excl_dir\//) {
-#            	say "EXCLUDING $src" if $V;
                 $exclude=1;
                 last;
             }
@@ -478,11 +477,13 @@ sub _process_src {
                 $stref = find_subroutines_functions_and_includes($stref,$inc);
                 my $src_path=$inc;  
                 for my $k (keys %{$stref->{'SourceContains'}} ){
+                    # say "SRC_PATH: $src_path <$k> '$inc'" if $V;
                     if ($k=~/$inc$/) {
                         $src_path=$k;
                         last;
                     }
                 }
+                 say "SRC_PATH: <$src_path> '$inc'" if $V;
                 if ($in_module) {
                     $stref->{'Modules'}{$mod_name}{'IncludeFiles'}{$inc}={};
                 }
@@ -492,10 +493,21 @@ sub _process_src {
 					$stref->{'SourceFiles'}{$inc}{'SourceType'}='IncludeFiles';
                     my $is_external=1;
                     for my $src_dir (@{$stref->{'SourceDirs'}}) {
+                        # This only works if the $inc is in the $src_dir but not in a subdirectory
                         if (-e "$src_dir/$inc") {    
                             $is_external=0;
                             $stref->{'IncludeFiles'}{$inc}{'InclType'} = 'Local';
                             last;
+                        }
+                        # To check if $inc might be in a subdirectory, simply check if $src_path starts with "$prefix/$src_dir";
+                        if (
+                            substr($src_path, 0, length("$prefix/$src_dir")) eq "$prefix/$src_dir"
+                        ) {
+                            $is_external=0;
+                            $stref->{'IncludeFiles'}{$inc}{'InclType'} = 'Local';
+                            # But let's store the full path here. Should probably be SrcPath, TODO
+                            $stref->{'IncludeFiles'}{$inc}{'SrcPath'} = $src_path; 
+                            last;                            
                         }
                     }
 

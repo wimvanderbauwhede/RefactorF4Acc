@@ -2320,12 +2320,13 @@ sub _maybe_cast_call_args { my ($stref, $f, $sub_name, $call_arg,$call_arg_decl,
 		$call_kind=~s/\w+=//;
 		$call_kind=~s/[\(\)]//g;
 	}
+		# carp "$sig_kind <> $call_kind";
 
 	my $needs_cast = 0;
 	if ($call_arg_decl->{'Type'} ne $sig_arg_decl->{'Type'}) {
 		# TODO: if they are the same type but different kinds, we also need to cast.
 		$needs_cast = 1;
-	} elsif ($sig_kind != $call_kind) {
+	} elsif ("$sig_kind" ne "$call_kind") {
 		$needs_cast = 1;	
 	}
 

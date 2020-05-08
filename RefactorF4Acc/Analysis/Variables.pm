@@ -119,7 +119,6 @@ sub analyse_variables {
 					if ( not exists $Sf->{'Commons'}{$mvar} ) {
 						for my $inc ( sort keys %{ $Sf->{'Includes'} } ) {
 							say "LOOKING FOR $mvar from $f in $inc" if $DBG;
-
 							# A variable can be declared in an include file or not and can be listed as common or not
 							if ( in_nested_set( $stref->{'IncludeFiles'}{$inc}, 'Vars', $mvar )
 								or exists $stref->{'IncludeFiles'}{$inc}{'Commons'}{$mvar} )

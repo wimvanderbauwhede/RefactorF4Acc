@@ -45,29 +45,41 @@ sub emit_all {
         }
         print '! ','-' x 80,"\n" if $I;
         print "INFO: emitting refactored code for $src\n" if  $I;
-        if (not $DUMMY) {
-	        if ( $src =~ /\w\/\w/ ) {
-	            # Source resides in subdirectory, create it if required
-	            my @dirs = split( /\//, $src );
-	            my @subdirs = grep {$_!~/\./} @dirs;
-                for my $srcdir (@{$Config{'SRCDIRS'}}) {
-                    @subdirs = grep {$_!~/$srcdir/} @subdirs;
-                }
-	            my $dirpath=join('/',@subdirs);
+        
+            my ($has_subdirs, $subdir_path) = __get_src_subdirs($src);
+	        # if ( $src =~ /\w\/\w/ ) {
+	        #     # Source resides in subdirectory, create it if required
+	        #     my @dirs = split( /\//, $src );
+            #     if (! -d $src) {
+            #         pop @dirs;
+            #     }
 
-                if (-d $src) {
-                    say "CREATING SUBDIR $targetdir/$dirpath" if $V;
-	                system("mkdir -p $targetdir/$dirpath");                    
-                } else {
-                    pop @subdirs;
-                    my $dirpath=join('/',@subdirs);
-                    if (not -d "$targetdir/$dirpath") {
-                        say "CREATING SUBDIR $targetdir/$dirpath" if $V;
-                        system("mkdir -p $targetdir/$dirpath");                        
-                    }
+            #     my @subdirs = @dirs ;
+            #     if ($subdirs[0] eq '.') {
+            #         shift @subdirs;
+            #     }
+	        #     # my @subdirs = @dirs; grep {$_!~/\./} @dirs; # A bit weak, right? 
+            #     # for my $srcdir (@{$Config{'SRCDIRS'}}) {
+            #     #     @subdirs = grep {$_!~/$srcdir/} @subdirs;
+            #     # }
+            #     # my $fullpath = join('/',@dirs);
+	        #     my $dirpath=join('/',@subdirs);
+            if (not $DUMMY) {
+                if ($has_subdirs) {
+                    say "CREATING SUBDIR $targetdir/$subdir_path" if $V;
+	                system("mkdir -p $targetdir/$subdir_path");                    
                 }
-	        }
-        }
+            }
+                # } else {
+                #     pop @subdirs;
+                #     my $dirpath=join('/',@subdirs);
+                #     if (not -d "$targetdir/$dirpath") {
+                #         say "CREATING SUBDIR $targetdir/$dirpath" if $V;
+                #         system("mkdir -p $targetdir/$dirpath");                        
+                #     }
+                # }
+	        # }
+        
 	   if ($I) {            
             print "INFO:\tSRC: $src\n";
             print "INFO:\tCONTAINS: ";
@@ -105,7 +117,7 @@ sub emit_all {
             say '! '.('=' x 80);
         	show_annlines($stref->{'RefactoredCode'}{$src},0);
         } else {
-# say "! FILE: $nsrc ($src)";
+            # say "! FILE: $targetdir/$nsrc ($src)";
 
 			open my $TGT, '>', "$targetdir/$nsrc" or die $!.": $targetdir/$nsrc";
 			
@@ -193,17 +205,26 @@ sub _emit_refactored_include {
     say "INCLUDE: $f" if $I;
     my $srcref = $stref->{'IncludeFiles'}{$f}{'RefactoredCode'};
     my $incsrc=$stref->{'IncludeFiles'}{$f}{'Source'};
-    
+
     if ( defined $srcref ) {
         if ($DUMMY) {
             say '! '.('=' x 80);
             say "! FILE: $dir/$incsrc";
             say '! '.('=' x 80);
-        show_annlines($srcref,0);
+            show_annlines($srcref,0);
         } else {
 
         my $nsrc=$incsrc;
-        
+
+   
+    if (exists $stref->{'IncludeFiles'}{$f}{'SrcPath'}){
+        my ($has_subdirs, $subdir_path) = __get_src_subdirs($stref->{'IncludeFiles'}{$f}{'SrcPath'});
+        $nsrc="$subdir_path/$incsrc";
+        if (not -d "$dir/$subdir_path") {
+            system("mkdir -p $dir/$subdir_path");
+        }
+    }
+
         for my $srcdir (@{$Config{'SRCDIRS'}}) {
             if (-e "$srcdir/$f") {
                 $nsrc = "$srcdir/$incsrc";
@@ -282,3 +303,21 @@ sub __remove_previously_generated_f95_sources { (my $stref)=@_;
 		chdir $wd;
 	}
 }
+
+sub __get_src_subdirs { my ($src_path) = @_;
+    if ( $src_path =~ /\w\/\w/ ) {
+        my @dirs = split( /\//, $src_path );
+        if (! -d $src_path) {
+            pop @dirs;
+        }
+
+        my @subdirs = @dirs ;
+        if ($subdirs[0] eq '.') {
+            shift @subdirs;
+        }
+        my $subdirpath=join('/',@subdirs);
+        return (1,$subdirpath);
+    } else {
+        return (0,'');
+    }
+} # END of __get_src_subdirs

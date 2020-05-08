@@ -1395,7 +1395,7 @@ END IF
 #croak "$f <$mline>" if $mline=~/^rfos01/ ;
 
 					$info = _parse_assignment( $mline, $info, $stref, $f );
-					# croak Dumper($info->{'Lhs'}) if $mline=~/count\(k\)/;
+					# croak Dumper($info) if $mline=~/isuccess/;
 			}
 			# GOTO is handled separately in _identify_loops_breaks 
 #			elsif ($mline=~/go\s*to\s+(\w+)/) {
@@ -4390,13 +4390,10 @@ sub _parse_F77_decl_NEW { (my $decl_str)=@_;
 
 # We have to parse the include files to get the COMMON variables because of EQUIVALENCE 
 sub __parse_include_statement { my ($stref, $f, $sub_incl_or_mod, $Sf, $line, $info, $index) = @_;
-	
 	$Sf->{'HasIncludes'}=1;
 	my $name = $info->{'Includes'};
 	print "FOUND include $name in $f\n" if $V;
 	$Sf->{'Includes'}{$name} = { 'LineID' => $index };
-
-
 
 	$info->{'Include'} = {};
 	$info->{'Include'}{'Name'} = $name;
@@ -4407,6 +4404,7 @@ sub __parse_include_statement { my ($stref, $f, $sub_incl_or_mod, $Sf, $line, $i
 		$stref->{'IncludeFiles'}{$name}{'Root'}      = $f;
 		$stref->{'IncludeFiles'}{$name}{'HasBlocks'} = 0;
 		$stref = parse_fortran_src( $name, $stref );
+		
 	} else {
 		say $line, " already processed" if $V;
 		# Not quite sure about this, 
@@ -4452,6 +4450,7 @@ sub __parse_include_statement { my ($stref, $f, $sub_incl_or_mod, $Sf, $line, $i
 			}
 		}
 	}
+	say "DONE PARSE INCLUDE $name" if $V;
 	return $info;
 } # END of __parse_include_statement
 

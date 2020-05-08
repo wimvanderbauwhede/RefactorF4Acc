@@ -67,6 +67,7 @@ sub precondition_includes {
     for my $inc (keys %{$stref->{'IncludeFiles'}}) {
         next if $stref->{'IncludeFiles'}{$inc}{'InclType'} eq 'External';
         next if ( $stref->{'IncludeFiles'}{$inc}{'Status'} == $UNREAD ); # TODO: WARN!
+        # carp Dumper($stref->{'IncludeFiles'}{$inc});
         my $Sincf       = $stref->{'IncludeFiles'}{$inc};
         my $has_commons = $stref->{'IncludeFiles'}{$inc}{'HasCommons'};
         my $has_pars    = $stref->{'IncludeFiles'}{$inc}{'HasParameters'};
@@ -80,7 +81,7 @@ sub precondition_includes {
             $has_pars = 0;
         }
         elsif ($has_commons) {
-            $Sincf->{'InclType'} = 'Common';
+            $Sincf->{'InclType'} = 'Common'; 
         }
         elsif ($has_pars) {
             $Sincf->{'InclType'} = 'Parameter';
@@ -280,7 +281,8 @@ sub _inline_includes {
     (my $stref, my $inc) = @_;
     #of course, if the status is UNREAD then this does not work, and we must make sure we read it.
     if ( $stref->{'IncludeFiles'}{$inc}{'InclType'} ne 'External') {
-    if ($stref->{'IncludeFiles'}{$inc}{'HasIncludes'} == 1) {
+    if (exists $stref->{'IncludeFiles'}{$inc}{'HasIncludes'} and
+        $stref->{'IncludeFiles'}{$inc}{'HasIncludes'} == 1) {
         my @n_incs = __get_includes($stref, $inc);
         $stref->{'IncludeFiles'}{$inc}{'InlinedIncludes'} = [];
         for my $n_inc (@n_incs) {

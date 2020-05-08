@@ -112,6 +112,11 @@ sub read_fortran_src {
 			) {
 				$fpath= $stref->{'IncludeFiles'}{$code_unit_name}{ 'ExtPath' };
 			}
+			if ( $is_incl and
+				exists $stref->{'IncludeFiles'}{$code_unit_name}{ 'SrcPath' }
+			) {
+				$fpath= $stref->{'IncludeFiles'}{$code_unit_name}{ 'SrcPath' };
+			}      
 			if (not -e $fpath) {
 				for my $srcdir (@{ $stref->{'SourceDirs'} }) {					
 					if ( -e "$srcdir/$fpath") {
@@ -119,6 +124,9 @@ sub read_fortran_src {
 						 $stref->{$sub_func_incl}{$code_unit_name}{'Source'}=$fpath;
 						 last;
 					}
+          # # Nested dirs 
+          # croak Dumper($stref->{'IncludeFiles'});
+
 				}
 			}
             open my $SRC, '<', $fpath or do {
@@ -1001,11 +1009,9 @@ sub _pushAnnLine {
           		push @{ $stref->{$srctype}{$f}{'AnnLines'} }, $pline;
               $stref->{$srctype}{$f}{'Status'} = $READ;
         }
-        # say "HEREHERE $srctype $f ".Dumper($stref->{'Subroutines'}{$f}{'AnnLines'} ) ;
 	    } else {
 		    if ($f ne  'UNKNOWN_SRC') { # WV: what should happen is that on exit of a subroutine we push the rest onto the Module annlines.		    
 		    	if (not (exists $stref->{$srctype}{$f}{'Status'} and $stref->{$srctype}{$f}{'Status'} == $PARSED) ) {		    	
-		    		# say "HERE: $srctype $f";
 		    		push @{ $stref->{$srctype}{$f}{'AnnLines'} }, $pline;
 		    	}
 		    } else {
