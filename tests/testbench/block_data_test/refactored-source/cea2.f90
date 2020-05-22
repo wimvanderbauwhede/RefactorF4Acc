@@ -18,8 +18,8 @@
       real(kind=8) :: enn
       real(kind=8) :: ennl
       real(kind=8) :: sumn
-      real(kind=8), dimension(1:maxngc,1:ncol) :: en
-      real(kind=8), dimension(1:maxngc) :: enln
+      real(kind=8), dimension(1:maxngc+maxnc,1:ncol) :: en
+      real(kind=8), dimension(1:maxngc+maxnc) :: enln
       integer, dimension(1:45) :: jcond
       integer :: i
       integer :: inc
@@ -30,6 +30,7 @@
       real(kind=8) :: xln
       real(kind=8) :: dlog
       call block_data(avgdr,boltz,pi,rr)
+
       newr = .false.
  100  iplt = 0
       nplt = 0
