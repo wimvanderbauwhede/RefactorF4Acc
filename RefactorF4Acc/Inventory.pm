@@ -408,6 +408,7 @@ sub _process_src {
 	                	$stref->{'SourceFiles'}{$src}{'SourceType'}='Subroutines';
 	                }
 	                $stref->{'Subroutines'}{$sub}={} unless exists $stref->{'Subroutines'}{$sub}{'InModule'};
+                    say "DBG: Fortran SOURCE: $src" if $DBG; 
 	                $stref->{'SourceContains'}{$src}{'Set'}{$sub}=$srctype;
 	                push @{ $stref->{'SourceContains'}{$src}{'List'} },$sub;
 	                my $Ssub = $stref->{'Subroutines'}{$sub};

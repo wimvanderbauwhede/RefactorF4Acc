@@ -72,10 +72,8 @@ sub parse_fortran_src {
 
 ## 1. Read the source and do some minimal processsing, unless it's already been done (i.e. for extracted blocks)
 	print "parse_fortran_src(): CALL read_fortran_src( $f )\n" if $V;
-		# carp '1'.Dumper(keys %{$stref->{'SourceContains'}});
-
 	$stref = read_fortran_src( $f, $stref, $is_source_file_path );    #
-	# carp		 Dumper(keys %{$stref->{'SourceContains'}});
+	 croak  "AFTER read_fortran_src " .  Dumper(keys %{$stref->{'SourceContains'}}) if exists $stref->{'SourceContains'}{'error_codes.h'};
 	say "DONE read_fortran_src( $f )" if $V;	
 	my $sub_or_incl_or_mod = sub_func_incl_mod( $f, $stref ); # Maybe call this "code_unit()"	
 	my $is_incl = $sub_or_incl_or_mod eq 'IncludeFiles' ? 1 : 0;
@@ -106,6 +104,7 @@ sub parse_fortran_src {
 			print "INFO: set RefactorGlobals=1 for $f\n" if $I;
 			$Sf->{'RefactorGlobals'} = 1;
 		}
+		
 ## 2. Parse the type declarations in the source, create a per-target table Vars and a per-line VarDecl list and other context-free stuff
 		# NOTE: The Vars set are the *declared* variables, not the *used* ones
 		print "ANALYSE LINES of $f\n" if $V;
@@ -121,7 +120,7 @@ sub parse_fortran_src {
 
 	## 4. Parse includes
 	# NOTE: Apart from simply parsing, this routine also causes IMPLICITs from the include file to be inherited by the parent
-		$stref = _parse_includes( $f, $stref );
+		$stref = __add_include_hooks( $f, $stref );
 
 	## 5. Parse subroutine and function calls
 		if ( not $is_incl and not $is_mod) {
@@ -229,7 +228,6 @@ sub analyse_lines {
 		my %block_id = ();
 		my @blocks_stack=();
 		my %extra_lines=(); # $index => [ ... ]
-	# croak Dumper(keys %{$stref->{'SourceContains'}});
 
 		for my $index ( 0 .. scalar( @{$srcref} ) - 1 ) {
 			my $attr = '';
@@ -1452,7 +1450,6 @@ END IF
 			}
 
 		}    # Loop over lines
-		# croak Dumper(keys %{$stref->{'SourceContains'}});
 		# We sort the indices from high to low so that the insertions are at the correct index 
 		for my $idx (sort {$b <=> $a} keys %extra_lines) {		
 			$srcref = [@{$srcref}[0..$idx-1],@{ $extra_lines{$idx} },@{$srcref}[($idx+1) .. (scalar(@{$srcref})-1)] ]; 
@@ -1481,7 +1478,7 @@ END IF
 # For every 'include' statement in a subroutine
 # the filename is entered in 'Includes' and in Info->[$index]{'Include'}
 # If the include was not yet read, do it now.
-sub _parse_includes {
+sub __add_include_hooks {
 	( my $f, my $stref ) = @_;
 #		local $V=1;
 
@@ -1517,7 +1514,7 @@ sub _parse_includes {
 	$last_inc_idx++;
 	$srcref->[$last_inc_idx][1]{'ExtraIncludesHook'} = 1;
 	return $stref;
-}    # END of _parse_includes()
+}    # END of __add_include_hooks()
 
 # -----------------------------------------------------------------------------
 # Parse 'use' declarations 

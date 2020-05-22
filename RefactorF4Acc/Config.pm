@@ -178,18 +178,7 @@ sub read_rf4a_config {
 
 
 	say "INFO: $k => $v" if $I;
-	# if ($v=~/,/) {
-	# 	my @vs=split(/\s*,\s*/,$v);
-	# 	$Config{$k}=[@vs];
-	# } elsif ($k !~/TOP\w*|NEWSRCPATH|CUSTOM_*|PREFIX|KERNEL|^MODULE|MODULE_\w*|MACRO_SRC/) { # FIXME: Check this
-	# 	# These are keys that take a list but it has only one element
-    #     # But why?!
-	# 	$Config{$k}=[$v];
-	# } elsif ($k eq 'TOP') {
-	# 	$Config{$k}=lc($v);
-	# } else {
-	# 	$Config{$k}=$v;
-	# }
+
 }
 close $CFG;
 }

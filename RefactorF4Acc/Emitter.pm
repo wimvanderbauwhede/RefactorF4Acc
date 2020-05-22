@@ -117,7 +117,7 @@ sub emit_all {
             say '! '.('=' x 80);
         	show_annlines($stref->{'RefactoredCode'}{$src},0);
         } else {
-            say "! FILE: $targetdir/$nsrc ($src)";
+            say "! FILE: $targetdir/$nsrc ($src)" if $DBG;
 
 			open my $TGT, '>', "$targetdir/$nsrc" or die $!.": $targetdir/$nsrc";
 			

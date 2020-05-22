@@ -11,7 +11,7 @@ import Data.List (intercalate, nub, partition, zip4, maximum)
 
 import TyTraCLAST
 import ASTInstance (functionSignaturesList, stencilDefinitionsList, mainArgDeclsList, origNamesList, scalarisedArgsList)
-import Warning ( warning )
+-- import Warning ( warning )
 
 (!) = (Map.!)
 

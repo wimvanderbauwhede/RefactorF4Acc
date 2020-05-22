@@ -189,16 +189,17 @@ sub main {
         $stref->{'Top'}=$code_unit_name;
         say "Using PROGRAM $code_unit_name as TOP" if $V;
     }
+    
     if ($code_unit_name eq '' and exists $Config{'SOURCEFILES'} and scalar @{ $Config{'SOURCEFILES'} }>0) {
     	# $code_unit_name is empty, i.e. no TOP routine. So we go through all sources one by one by file name
     	for my $fp ( @{ $Config{'SOURCEFILES'} } ) {
     		parse_fortran_src( $fp, $stref, 1 );
     	}
+        
     } else {
-	   $stref = parse_fortran_src( $code_unit_name, $stref );              
+	   $stref = parse_fortran_src( $code_unit_name, $stref );                     
     }
     
-    # croak  Dumper($stref->{'Subroutines'}{'comp_gije'}{AnnLines});
     if ($V) {
         say "--------------". ('-' x length($code_unit_name)) ;
         say "BLOCKS PROCESSING for $code_unit_name";
