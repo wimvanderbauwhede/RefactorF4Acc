@@ -5,10 +5,14 @@
       dimension vs(nelts)
 
       integer t
-
+      vs=0
+      state=0
       call sub1(vs)
+      
       print *, 'INIT DONE'
-      do t=1,nsteps
+      print *,state
+      
+      do t=1,nsteps ! 8
           call sub2(vs)
           call sub3(vs)
       end do
