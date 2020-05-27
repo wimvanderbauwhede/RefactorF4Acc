@@ -4096,7 +4096,7 @@ status open
 
 \begin_layout Plain Layout
 
-stencilDefs = [("s1" , [-502,-1,0,1,502] ), 
+stencilDefs = [("s1" , [-502,-1,0,1,502] ), (
 \begin_inset Quotes eld
 \end_inset
 
@@ -4104,7 +4104,7 @@ s5
 \begin_inset Quotes erd
 \end_inset
 
- = [0,1,502], ...]
+ , [0,1,502]), ...]
 \end_layout
 
 \begin_layout Plain Layout
@@ -4144,6 +4144,16 @@ We add the two stencils offsets directly rather than constructing a new
 lstparams "language=Fortran"
 inline false
 status open
+
+\begin_layout Plain Layout
+
+integer, parameter, dimension(5) :: s1 = [-502,-1,0,1,502]
+\end_layout
+
+\begin_layout Plain Layout
+
+integer, parameter, dimension(3) :: s5 = [0,1,502]
+\end_layout
 
 \begin_layout Plain Layout
 
