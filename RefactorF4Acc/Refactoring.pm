@@ -48,7 +48,7 @@ sub refactor_all {
 # carp Dumper($stref->{'Subroutines'}{'mult_chk'}{ExGlobArgs}{Set}{w4}{Type});
 # croak Dumper($stref->{'Subroutines'}{'mult_chk'}{RefactoredArgs}{Set}{w4}{Type});    
     
-    $stref = refactor_include_files($stref);
+    $stref = refactor_include_files($stref) unless $Config{'INLINE_INCLUDES'} == 1;
 # FIXME: this should be treated just like subs, but of course that requires full parsing of expressions that contain function calls
     $stref = refactor_called_functions($stref); # Context-free only 
 

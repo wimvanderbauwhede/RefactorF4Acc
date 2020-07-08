@@ -279,6 +279,7 @@ contains
       implicit none
       real, dimension(1:1), intent(InOut) :: a
       real, dimension(1:1), intent(In) :: b
+      integer, parameter :: maxrts=1000
       character(len=6), dimension(1:maxrts) :: rname
       real(kind=8), dimension(1:maxrts) :: dct
       real(kind=8), dimension(1:maxrts) :: rct

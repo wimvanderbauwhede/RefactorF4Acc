@@ -1,9 +1,9 @@
 module singleton_module_src_mxm_wrapper
 
-      use singleton_module_src_comm_mpi
-      use singleton_module_src_blas
-      use singleton_module_src_mxm_std
       use singleton_module_src_mxm_bgq
+      use singleton_module_src_comm_mpi
+      use singleton_module_src_mxm_std
+      use singleton_module_src_blas
 contains
 
       subroutine mxm(a,n1,b,n2,c,n3)

@@ -1,9 +1,9 @@
 module singleton_module_src_navier5
 
-      use singleton_module_src_comm_mpi
       use singleton_module_src_mxm_wrapper
-      use singleton_module_src_subs1
       use singleton_module_src_math
+      use singleton_module_src_comm_mpi
+      use singleton_module_src_subs1
 contains
 
       subroutine mappr(pm1,pm2,pa,pb)
@@ -707,9 +707,7 @@ contains
       return
       end subroutine local_grad2
       subroutine gradm1(ux,uy,uz,u)
-! Grouped Parameter Declarations
       implicit none
-      integer, parameter :: lxyz=lx1*ly1*lz1
       integer :: nio
       integer :: loglevel
       integer :: optlevel
@@ -1033,7 +1031,7 @@ contains
       logical :: if_full_pres
       logical :: ifoutfld
       real, dimension(1:3,1:lpert) :: lyap
-! Moved param decl for  lxyz to top of code unit
+      integer, parameter :: lxyz=lx1*ly1*lz1
       real, dimension(1:lxyz,1:1), intent(Out) :: ux
       real, dimension(1:lxyz,1:1), intent(Out) :: uy
       real, dimension(1:lxyz,1:1), intent(Out) :: uz
@@ -1166,6 +1164,7 @@ contains
       logical, dimension(1:8,1:lelt,0:1) :: ifmscr
       logical, dimension(1:8,1:lelt) :: ifnskp
       logical :: ifbcor
+      integer, parameter :: numsts=50
       real, dimension(1:200) :: param
       real :: rstim
       real :: vnekton
@@ -1496,11 +1495,7 @@ contains
       return
       end subroutine drgtrq
       subroutine torque_calc(scale,x0,ifdout,iftout)
-      xm0(1,1,1,1:512) = reshape(trx(1:lx1,1:ly1,1:lz1),shape(xm0(1,1,1,1:512)))
-      xm0(1,1,1,513:1024) = reshape(trz(1:lx1,1:ly1,1:lz1),shape(xm0(1,1,1,513:1024)))
-! Grouped Parameter Declarations
       implicit none
-      integer, parameter :: lr=lx1*ly1*lz1
       integer :: nio
       integer :: loglevel
       integer :: optlevel
@@ -2148,7 +2143,9 @@ contains
       real, dimension(0:maxobj) :: w1
       logical, intent(In) :: ifdout
       logical, intent(In) :: iftout
-! Moved param decl for  lr to top of code unit
+      integer, parameter :: lr=lx1*ly1*lz1
+      xm0(1,1,1,1:512) = reshape(trx(1:lx1,1:ly1,1:lz1),shape(xm0(1,1,1,1:512)))
+      xm0(1,1,1,513:1024) = reshape(trz(1:lx1,1:ly1,1:lz1),shape(xm0(1,1,1,513:1024)))
       n = lx1*ly1*lz1*nelv
       call mappr(pm1,pr,xm0,ym0) 
       if (param(55) /= 0) then

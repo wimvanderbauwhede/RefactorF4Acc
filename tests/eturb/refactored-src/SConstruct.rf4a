@@ -1,10 +1,10 @@
 # Generated build script for refactored source code
-# Fri Mar 13 15:33:19 2020
+# Wed Jul  8 17:03:46 2020
 import os
 
 FC=os.environ.get('FC')
 
-fsources = ['./src/blas.f90','./src/calcz.f90','./src/comm_mpi.f90','./src/dabl.f90','./src/drive.f90','./src/math.f90','./src/mpi_dummy.f90','./src/mxm_bgq.f90','./src/mxm_std.f90','./src/mxm_wrapper.f90','./src/navier5.f90','./src/papi.f90','./src/postpro.f90','./src/singlmesh.f90','./src/subs1.f90','src/AVG.f90','src/CTIMER.f90','src/DEALIAS.f90','src/DOMAIN.f90','src/DXYZ.f90','src/EIGEN.f90','src/ESOLV.f90','src/FDMH1.f90','src/GEOM.f90','src/INPUT.f90','src/IXYZ.f90','src/MASS.f90','src/MVGEOM.f90','src/NEKUSE.f90','src/OPCTR.f90','src/ORTHOSTRS.f90','src/PARALLEL.f90','src/RESTART.f90','src/SIZE.f90','src/SIZE_inc.f90','src/SOLN.f90','src/STEADY.f90','src/TOPOL.f90','src/TOTAL.f90','src/TSTEP.f90','src/WZ.f90','src/WZF.f90','src/ZPER.f90','src/f77papi_h.f90','src/mpi_dummy_h.f90','src/mpif_h.f90','src/params_INPUT.f90','src/params_OPCTR.f90','src/params_PARALLEL.f90','src/params_SIZE.f90','src/params_SIZE_inc.f90','src/params_SOLN.f90','src/params_TOTAL.f90','src/params_WZF.f90','src/params_ZPER.f90','src/params_mpif_h.f90']
+fsources = ['./src/blas.f90','./src/calcz.f90','./src/comm_mpi.f90','./src/dabl.f90','./src/drive.f90','./src/math.f90','./src/mpi_dummy.f90','./src/mxm_bgq.f90','./src/mxm_std.f90','./src/mxm_wrapper.f90','./src/navier5.f90','./src/papi.f90','./src/postpro.f90','./src/singlmesh.f90','./src/subs1.f90']
 
 
 

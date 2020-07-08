@@ -589,7 +589,7 @@ sub __merge_include_into_subroutine {
     my $merged_annlines =
       splice_additional_lines_cond($stref, $f, $insert_cond_subref, $old_annlines, \@n_inc_annlines_ann, 0, 1, 1);
     $Sf->{'AnnLines'} = $merged_annlines;
-
+croak Dumper(pp_annlines($merged_annlines)) if $f eq 'mpi_reduce_real';
 # For variables, we only need to update the leaf sets
 # For include files the order does not really matter because there are no arguments. Also I could recover the ordering in a final separate pass
 #

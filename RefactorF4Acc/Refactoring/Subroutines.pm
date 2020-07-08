@@ -139,7 +139,7 @@ sub _refactor_subroutine_main {
 	say "get_annotated_sourcelines($f)" if $V;
 	my $annlines = $Sf->{'RefactoredCode'};
 
-	if ( $Sf->{'HasCommons'} ) {
+	if ( $Sf->{'HasCommons'} and $Config{'INLINE_INCLUDES'}==0 ) {
 		# If there are no COMMON blocks the argument list should not change, so there should be no need to do this		
 		$annlines = _group_local_param_decls_at_top( $stref, $f, $annlines );
 	}
@@ -2199,7 +2199,7 @@ sub _group_local_param_decls_at_top { my ( $stref, $f ) = @_;
 					(ref($info->{'ParamDecl'}{'Name'}) eq 'ARRAY' ? 
 					$info->{'ParamDecl'}{'Name'} [0] :
 					$info->{'ParamDecl'}{'Name'}
-					). ' to top of code unit'					
+					). ' in '.$f.' to top of code unit'					
 					,{'Comments' => 1}],					
 					];
 					$info->{'Ann'}       = [ annotate( $f, __LINE__ . ' :  _group_local_param_decls_at_top'  ) ];
