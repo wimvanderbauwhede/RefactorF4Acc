@@ -45,9 +45,9 @@ I added a -I flag to inline all includes.
 src/mpi_dummy.f90:137:6:
 
   137 |       real *kind=8 function mpi_wtime()
+=> fixed in Subroutines/Emitters 
   
-  
-* Other problem is that for some reason in several routines in src/mpi_dummy.f90 the src/mpi_dummy.h has gone rather than having been inlined. As yet no idea why.
+* Other problem is that for some reason in several routines in src/mpi_dummy.f90 the src/mpi_dummy.h has gone rather than having been inlined. 
 
 /usr/bin/gfortran -o src/mpi_dummy.o -c -cpp -O3 -m64 -ffree-form -ffree-line-length-0 -fconvert=little-endian -frecord-marker=4 -I. -I/usr/local/include src/mpi_dummy.f90
 src/mpi_dummy.f90:123:42:
@@ -126,10 +126,8 @@ is line 24
       integer mpi_status_size
       parameter ( mpi_status_size = 3 )
 is on lines 16 and 17. Could it be that all these lines have been pruned because they are unused?
-In any case, it's clearly incorrect. So I need to trace what happens with the inlining of "mpi_dummy.h" in  mpi_reduce_real. Right after the inlining step, it's all fine. To be continued.
-Code now croaks on line 592 of Preconditioning:
-
-croak Dumper(pp_annlines($merged_annlines)) if $f eq 'mpi_reduce_real';
+In any case, it's clearly incorrect. So I need to trace what happens with the inlining of "mpi_dummy.h" in  mpi_reduce_real. Right after the inlining step, it's all fine. 
+=> Fixed, this was in Common refactoring, these lines were marked for deletion because if they had not been inlined they'd have been removed.
 
 
 STATUS 2020-03-12
