@@ -23,7 +23,7 @@ use RefactorF4Acc::Inventory qw( find_subroutines_functions_and_includes );
 use RefactorF4Acc::Parser qw( parse_fortran_src build_call_graph mark_blocks_between_calls );
 use RefactorF4Acc::Refactoring::Blocks qw( refactor_marked_blocks_into_subroutines ); 
 use RefactorF4Acc::CallTree qw( create_call_tree );
-use RefactorF4Acc::Preconditioning qw( precondition_includes precondition_decls );
+use RefactorF4Acc::Preconditioning qw( precondition_includes precondition_decls precondition_subroutines_with_includes );
 use RefactorF4Acc::Analysis qw( analyse_all );
 use RefactorF4Acc::Refactoring qw( refactor_all );
 use RefactorF4Acc::CustomPasses qw( run_custom_passes );
@@ -51,6 +51,7 @@ our $usage = "
     -i: show info messages
     -d: show debug messages
     -c <cfg file name>: use this cfg file (default is ~/.rf4a)
+    -I: Inline all include files. Use this if include files are not self-contained and can't be turned into modules
     -C: Only generate call tree, don't refactor or emit
     -g: refactor globals inside toplevel subroutine (NOTE: in the current version this does nothing, globals will always be refactored) 
     -b: Generate SCons build script
@@ -219,10 +220,19 @@ sub main {
     if ($code_unit_name eq '' and exists $Config{'SOURCEFILES'} and scalar @{ $Config{'SOURCEFILES'} }>0) {
         # $code_unit_name is empty, i.e. no TOP routine. So we go through all sources one by one by file name
         for my $fp ( @{ $Config{'SOURCEFILES'} } ) {
-            precondition_decls( $fp, $stref, 1 );
+            precondition_decls( $fp, $stref );
         }
     } else {
        $stref = precondition_decls( $code_unit_name, $stref );
+    }
+
+   if ($code_unit_name eq '' and exists $Config{'SOURCEFILES'} and scalar @{ $Config{'SOURCEFILES'} }>0) {
+        # $code_unit_name is empty, i.e. no TOP routine. So we go through all sources one by one by file name
+        for my $fp ( @{ $Config{'SOURCEFILES'} } ) {
+            precondition_subroutines_with_includes( $fp, $stref );
+        }
+    } else {
+       $stref = precondition_subroutines_with_includes( $code_unit_name, $stref );
     }
 
 	if ( $call_tree_only  ) {        
@@ -318,7 +328,7 @@ sub parse_args { (my $args)=@_;
     if (defined $args) {
         %opts = %{$args};
     } else {
-	    getopts( 'VvwWidhACTgbBGc:P:s:o:', \%opts );
+	    getopts( 'VvwWiIdhACTgbBGc:P:s:o:', \%opts );
     }
 	if ($opts{'V'}) {
 		die "Version: $VERSION\n";
@@ -401,9 +411,11 @@ sub parse_args { (my $args)=@_;
     $WW = ( $opts{'W'} ) ? 1 : 0;
 	$DBG = ( $opts{'d'} ) ? 1 : 0;
 
-for my $CFG_VAR (sort keys %Config) {
+    $Config{'INLINE_INCLUDES'} = $opts{'I'}  ? 1 : 0;
 
-}
+# for my $CFG_VAR (sort keys %Config) {
+
+# }
 
 	# $NO_ONLY = (exists $Config{'NO_ONLY'}[0] ) ? $Config{'NO_ONLY'}[0] : $NO_ONLY;
 	# $SPLIT_LONG_LINES = (exists $Config{'SPLIT_LONG_LINES'}[0] ) ? $Config{'SPLIT_LONG_LINES'}[0] : $SPLIT_LONG_LINES;
@@ -416,8 +428,9 @@ for my $CFG_VAR (sort keys %Config) {
 	# 	(@{ $Config{'F95PATH'} } >0) ? $Config{'F95PATH'} : 
     #     (@{ $Config{'F90PATH'} }>0) ? $Config{'F90PATH'} : 
     #     $INCLPATHS;
-	$CFG_refactor_toplevel_globals = (exists $Config{'REFACTOR_TOPLEVEL_GLOBALS'}) ? 1 : 0 	;
-	$CFG_refactor_toplevel_globals= 1; # FIXME: refactoring while ignoring globals is broken ( $opts{'g'} ) ? 1 : $CFG_refactor_toplevel_globals; # Global from Config
+
+	# $CFG_refactor_toplevel_globals = (exists $Config{'REFACTOR_TOPLEVEL_GLOBALS'}) ? 1 : 0 	;
+	# $CFG_refactor_toplevel_globals= 1; # FIXME: refactoring while ignoring globals is broken ( $opts{'g'} ) ? 1 : $CFG_refactor_toplevel_globals; # Global from Config
 
     # $Config{'ALLOW_SPACES_IN_NUMBERS'} = ref($Config{'ALLOW_SPACES_IN_NUMBERS'}) eq 'ARRAY' ? $Config{'ALLOW_SPACES_IN_NUMBERS'}[0] : $Config{'ALLOW_SPACES_IN_NUMBERS'};
 	# $Config{'HAS_F77_SOURCES'} = ref($Config{'HAS_F77_SOURCES'}) eq 'ARRAY' ? $Config{'HAS_F77_SOURCES'}[0] : $Config{'HAS_F77_SOURCES'};

@@ -7,14 +7,12 @@ contains
       real(kind=4) :: mflops
       integer(kind=8) :: flpops
       call getflops_papi(flpops,mflops)
-
       dnekgflops = mflops/1e3
       return
       end function dnekgflops
       subroutine getflops_papi(flpops,mflops)
 #ifdef PAPI
       implicit none
-      integer :: ierr
       real(kind=4) :: rtime
       real(kind=4) :: ptime
       real(kind=4), intent(InOut) :: mflops

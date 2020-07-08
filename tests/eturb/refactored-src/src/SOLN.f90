@@ -1,7 +1,7 @@
 module SOLN
-      use params_SOLN, only : lpx2, lorder2, lpy1, lzd, ly2, lpx1, ldim, lpy2, lby2, lbx1, lx1, &
-       lpelt, lpert, lz2, ldimt, lyd, lby1, lbx2, lbz2, lelt, lz1, lx2, lbelv, lbz1, lorder, ly1, &
-       lpz1, lpelv, lxd, lelv, lpz2, ldimt1
+      use params_SOLN, only : lzd, lelv, lx2, lbz1, ldim, lorder, lpy2, lpx2, lz1, lbx2, lpert, &
+       lby2, lpz1, ly2, lpx1, lpy1, ldimt, lelt, lbz2, lz2, lpelt, lxd, ly1, lbelv, lpz2, lyd, &
+       lby1, lbx1, lx1, lorder2, lpelv, ldimt1
 
       real, dimension(1:lx1,1:ly1,1:lz1,1:lelt,1:ldimt) :: bq
 

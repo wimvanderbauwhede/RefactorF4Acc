@@ -1,5 +1,5 @@
 module WZF
-      use params_WZF, only : lxq, lx1
+      use params_WZF, only : lx1, lxq
 
       real, dimension(1:lx1) :: zgl
       real, dimension(1:lx1) :: wgl

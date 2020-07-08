@@ -555,7 +555,7 @@ sub _create_extra_arg_and_var_decls {
 			  if $I and not $Sf->{'Program'};
 			my $rdecl = $Sf->{'ExGlobArgs'}{'Set'}{$var};
 			# croak Dumper($rdecl) if $var eq 'nx' and $f eq 'dyn';
-			(my $inherited_param_decls, $Sf) = __generate_inherited_param_decls($rdecl, $stref, $f,[]);
+			(my $inherited_param_decls, $Sf) = __generate_inherited_param_decls($rdecl, $var, $stref, $f,[]);
 			# say "VAR $var in $f";
 			# map { say $_->[0] } @{$inherited_param_decls};
 			my $rline = emit_f95_var_decl($rdecl);
@@ -2146,7 +2146,7 @@ sub _move_StatementFunctions_after_SpecificationStatements { my ( $stref, $f, $a
 	
 }
 
-sub __generate_inherited_param_decls { my ($rdecl, $stref, $f, $inherited_param_decls) = @_;	
+sub __generate_inherited_param_decls { my ($rdecl, $var, $stref, $f, $inherited_param_decls) = @_;	
 my $Sf         = $stref->{'Subroutines'}{$f};
 	if (exists $rdecl->{'InheritedParams'}) {
 		for my $inh_par (sort keys %{ $rdecl->{'InheritedParams'}{'Set'} }) {
@@ -2161,7 +2161,8 @@ my $Sf         = $stref->{'Subroutines'}{$f};
 					}
 
 				if (not $in_mod and not $subset and not exists $Sf->{'InheritedParameters'}{'Set'}{$inh_par}) {
-					carp "PAR $inh_par NOT in any subset in $f ";
+					carp "PAR $inh_par, INHERITED by $var, NOT in any subset in $f ";
+					croak Dumper(pp_annlines($Sf->{'AnnLines'}));
 					croak Dumper($Sf);
 					my $par_decl = $rdecl->{'InheritedParams'}{'Set'}{$inh_par};
 					my $par_decl_line = [ '      ' . emit_f95_var_decl($par_decl), { 'ParamDecl' => $par_decl, 'Ref' => 1, 

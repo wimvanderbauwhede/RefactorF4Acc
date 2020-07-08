@@ -1,5 +1,4 @@
 module OPCTR
-      use params_OPCTR, only : maxrts
 
       character(len=6), dimension(1:maxrts) :: rname
       real(kind=8), dimension(1:maxrts) :: dct

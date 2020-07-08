@@ -290,14 +290,14 @@ sub context_free_refactorings {
 	                $info->{'Ann'}=[ annotate($f, __LINE__ .' Removed ParamDecl' ) ];
 	            } elsif (not exists $info->{'Ref'} or $info->{'Ref'} == 0 ){
 	                my $var_decl = get_var_record_from_set( $Sf->{'Vars'},$var);
-                    my $arg_decl = get_var_record_from_set( $Sf->{'DeclaredOrigArgs'},$var);
-                    # carp 'COMMON: '. Dumper($var_decl,$arg_decl) if $var eq 'x' and $f eq 'chcopy';
 	                $line = emit_f95_var_decl($var_decl) ;                
 	                delete $info->{'ExGlobArgDecls'};
-	                $info->{'Ref'} = 1;                 
+	                $info->{'Ref'} = 1 unless exists $info->{'Inlined'};                 
 	                push @{$info->{'Ann'}}, annotate($f, __LINE__ .': Ref==0, '.$stmt_count );
 	            } else {
-	                croak 'BOOM! ' . 'context_free_refactoring '. __LINE__ ."; ".$line.'    '.Dumper($info);
+	                croak $f.' : BOOM! ' . 'context_free_refactoring '. __LINE__ ."; ".$line.'    '.Dumper($info)."\n".
+                    Dumper(pp_annlines($Sf->{'AnnLines'}));
+
 	            }                        
             }
             

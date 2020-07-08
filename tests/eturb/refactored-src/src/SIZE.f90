@@ -1,5 +1,4 @@
 module SIZE
-      use params_SIZE
 
       integer :: nio
 

@@ -1,5 +1,4 @@
 module mpif_h
-      use params_mpif_h, only : mpi_status_size
 ! $COPYRIGHT$
 ! $HEADER$
 

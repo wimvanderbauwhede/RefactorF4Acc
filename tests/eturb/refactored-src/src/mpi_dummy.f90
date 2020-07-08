@@ -4,26 +4,24 @@ contains
 
       subroutine mpi_allreduce(data1,data2,n,datatype,operation,comm,ierror)
       implicit none
+      integer, dimension(1:mpi_status_size) :: mpi_status_ignore
+      real(kind=8) :: mpi_wtime
       integer, intent(In) :: n
       integer :: comm
       integer, dimension(1:n), intent(In) :: data1
       integer, dimension(1:n), intent(InOut) :: data2
       integer, intent(In) :: datatype
-      integer, intent(Out) :: ierror
+      integer, intent(InOut) :: ierror
       integer, intent(In) :: operation
       ierror = mpi_success
       if ( datatype  ==  mpi_double_precision ) then
-        call mpi_reduce_double_precision(data1,data2,n,operation,ierror)
-
+        call mpi_reduce_double_precision (     data1, data2, n, operation, ierror )
       else if ( datatype  ==  mpi_integer ) then
-        call mpi_reduce_integer(data1,data2,n,operation,ierror)
-
+        call mpi_reduce_integer (     data1, data2, n, operation, ierror )
       else if ( datatype  ==  mpi_integer8 ) then
-        call mpi_reduce_integer8(data1,data2,n,operation,ierror)
-
+        call mpi_reduce_integer8(     data1, data2, n, operation, ierror )
       else if ( datatype  ==  mpi_real ) then
-        call mpi_reduce_real(data1,data2,n,operation,ierror)
-
+        call mpi_reduce_real (     data1, data2, n, operation, ierror )
       else
         ierror = mpi_failure
       end if
@@ -48,6 +46,8 @@ contains
       end subroutine mpi_finalize
       subroutine mpi_reduce_double_precision(data1,data2,n,operation,ierror)
       implicit none
+      integer, dimension(1:mpi_status_size) :: mpi_status_ignore
+      real(kind=8) :: mpi_wtime
       integer, intent(In) :: n
       real(kind=8), dimension(1:n), intent(In) :: data1
       real(kind=8), dimension(1:n), intent(Out) :: data2
@@ -62,6 +62,8 @@ contains
       end subroutine mpi_reduce_double_precision
       subroutine mpi_reduce_integer8(data1,data2,n,operation,ierror)
       implicit none
+      integer, dimension(1:mpi_status_size) :: mpi_status_ignore
+      real(kind=8) :: mpi_wtime
       integer, intent(In) :: n
       integer(kind=8), dimension(1:n), intent(In) :: data1
       integer(kind=8), dimension(1:n), intent(Out) :: data2
@@ -77,6 +79,8 @@ contains
       end subroutine mpi_reduce_integer8
       subroutine mpi_reduce_integer(data1,data2,n,operation,ierror)
       implicit none
+      integer, dimension(1:mpi_status_size) :: mpi_status_ignore
+      real(kind=8) :: mpi_wtime
       integer, intent(In) :: n
       integer, dimension(1:n), intent(In) :: data1
       integer, dimension(1:n), intent(Out) :: data2
@@ -92,6 +96,8 @@ contains
       end subroutine mpi_reduce_integer
       subroutine mpi_reduce_real(data1,data2,n,operation,ierror)
       implicit none
+      integer, dimension(1:mpi_status_size) :: mpi_status_ignore
+      real(kind=8) :: mpi_wtime
       integer, intent(In) :: n
       real, dimension(1:n), intent(In) :: data1
       real, dimension(1:n), intent(Out) :: data2

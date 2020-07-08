@@ -30,7 +30,7 @@ our @EXPORT_OK = qw(
   precondition_includes
   precondition_decls
   split_multiblock_common_lines
-  include_is_not_selfcontained
+  precondition_subroutines_with_includes
 );
 
 # -----------------------------------------------------------------------------
@@ -578,9 +578,17 @@ sub __merge_include_into_subroutine {
           ? 1
           : 0;
     };
+    my @n_inc_annlines_ann = map { 
+        $_->[1]{'Inlined'} = 1;
+        $_;
+        # [
+        #     $_->[0], 
+        #     { %{$_->[1]}, 'Inlined' => 1 }
+        # ]
+    } @n_inc_annlines;
     my $merged_annlines =
-      splice_additional_lines_cond($stref, $f, $insert_cond_subref, $old_annlines, \@n_inc_annlines, 0, 1, 1);
-    $stref->{'IncludeFiles'}{$f}{'AnnLines'} = $merged_annlines;
+      splice_additional_lines_cond($stref, $f, $insert_cond_subref, $old_annlines, \@n_inc_annlines_ann, 0, 1, 1);
+    $Sf->{'AnnLines'} = $merged_annlines;
 
 # For variables, we only need to update the leaf sets
 # For include files the order does not really matter because there are no arguments. Also I could recover the ordering in a final separate pass
@@ -601,13 +609,13 @@ sub __merge_include_into_subroutine {
             }
         }
     }
-
+    # delete $stref->{'IncludeFiles'}{$n_inc};
     return $stref;
 }    # END of __merge_include_into_subroutine
 
 sub precondition_decls {
 	# NOTE $f is not the name of the source but of the sub/func/incl/module.
-    my ($f, $stref, $is_source_file_path) = @_;    
+    my ($f, $stref) = @_;    
 
     for my $inc (keys %{$stref->{'IncludeFiles'}}) {
         next if $stref->{'IncludeFiles'}{$inc}{'InclType'} eq 'External';
@@ -979,6 +987,24 @@ If there is a variable accessed in an include that was not declared, that may be
 
 So, when we encounter an include, we need to check a list of prior_declarations and a list of prior_includes
 
+However, this goes somehow much deeper. For example, the OPCTR include has this:
+
+      integer maxrts
+      parameter (maxrts=1000)
+
+      character*6     rname(maxrts)
+      common /opctrc/ rname
+
+And this leads to an undefined inherited occurence of maxrts in rname because the parameter is defined locally inside OPCTR 
+but rname is used in the mxm() routine that is called almost everywhere. Because rname is a common it becomes an arg and so needs a local decl
+and therefore it needs maxrts to be declared locally.
+
+This is somehow a different issue. 
+I think the pragmatic way to solve this is to set a flag "INLINE_ALL_INCLS" if we detect an issue like this, and restart the run with this flag.
+Then there will be no more includes and everything should work.
+
+So what this means is that I simply call __merge_include_into_subroutine regardless
+
 
 
 =cut
@@ -989,7 +1015,9 @@ sub precondition_subroutines_with_includes {
     for my $f (keys %{$stref->{'Subroutines'}}) {
         next if $f eq 'UNKNOWN_SRC';
 
-        my $Sf = $stref->{'Subroutines'}{$f};
+        # my $Sf = $stref->{'Subroutines'}{$f};
+        # say "precondition_subroutines_with_includes($f)"; 
+        $stref = _precondition_subroutine_with_includes($stref, $f);
     }
 
     say "LEAVING precondition_subroutines_with_includes( $f )" if $V;
@@ -1021,9 +1049,13 @@ sub _precondition_subroutine_with_includes { my ($stref, $f) = @_;
 
             elsif (exists $info->{'Include'} ) {
                 my $inc = $info->{'Include'}{'Name'};
-                if (include_is_selfcontained($stref,$inc,\%prior_declarations,\@prior_includes)) {
+                say "Found INCL $inc in $f" if $DBG;
+                if ($Config{'INLINE_INCLUDES'} == 0 and
+                    include_is_selfcontained($stref,$f,$inc,\%prior_declarations,\@prior_includes)) {
+                    say "INCL $inc in $f is self-contained" if $DBG;
                     push @prior_includes, $inc;
                 } else {
+                    say "INCL $inc in $f is NOT self-contained, MERGE";# if $DBG;
                     $stref = __merge_include_into_subroutine($stref, $f, $inc);
                     # We restart the process
                     $stref = _precondition_subroutine_with_includes($stref,$f);
@@ -1037,23 +1069,47 @@ sub _precondition_subroutine_with_includes { my ($stref, $f) = @_;
 
 
 # This is only for includes in non-include source files, so no need to make it recursive
-sub include_is_selfcontained { my ($stref, $inc, $prior_decls, $prior_incls) =@_;
+sub include_is_selfcontained { my ($stref, $f, $inc, $prior_decls, $prior_incls) =@_;
 # So we have to check any UndeclaredOrigLocalVars. UndeclaredCommonVars should by their very nature have been declared previously.
 my $Sinc = $stref->{'IncludeFiles'}{$inc};
+
 if ( exists $Sinc->{'UndeclaredOrigLocalVars'}) {
     for my $var ( sort keys %{ $Sinc->{'UndeclaredOrigLocalVars'}{'Set'} } ) {
         # Check if this var was declared in the parent previously
         if (exists $prior_decls->{$var}) {
+            say "INCL $inc IN $f: PRIOR DECL $var" if $DBG;
             return 0;            
         }
         # Check if this var was declared in one of the preceding includes.
         # As each of these includes will only be added if it is self-contained, and inlined otherwise, this is fine.
         for my $prior_inc (@{$prior_incls}) {
             if (in_nested_set( $stref->{'IncludeFiles'}{$prior_inc},'Vars',$var)) {
+                say "INCL $inc IN $f: PRIOR DECL $var in INCL $prior_inc"  if $DBG;
                 return 0;
             }
         }
     }
+} 
+# This is not good enought because it is possible to have parameter(x=x_ext) so we need to look up x_ext
+if ( exists $Sinc->{'LocalParameters'} 
+and exists $Sinc->{'LocalParameters'}{'Set'} 
+and scalar keys %{$Sinc->{'LocalParameters'}{'Set'}} >0
+) {
+    for my $par (sort keys %{$Sinc->{'LocalParameters'}{'Set'}}) {
+        my $decl = $Sinc->{'LocalParameters'}{'Set'}{$par};
+        if (
+            exists $decl->{'InheritedParams'} 
+        and scalar keys %{$decl->{'InheritedParams'}}>0
+        ) {
+            for my $inh_param (keys %{$decl->{'InheritedParams'}} ) {
+                if (not in_nested_set( $stref->{'IncludeFiles'}{$inc},'Parameters',$inh_param) ) {
+                    say "INCL $inc IN $f: PARAM $par INHERITS FROM UNDECLARED $inh_param" if $DBG;
+                    return 0;                
+                }
+            }
+        }
+    }
+#  carp "INC $inc HAS PARAMS";#Dumper(pp_annlines($Sinc->{'AnnLines'})),Dumper($Sinc->{'LocalParameters'});
 }
 return 1;
 } # END of include_is_not_selfcontained

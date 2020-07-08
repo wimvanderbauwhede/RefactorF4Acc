@@ -1,5 +1,4 @@
 module INPUT
-      use params_INPUT, only : numsts, maxmbr, lhis, lelt, ldimt3, ldimt, maxobj, ldimt1
       real, dimension(1:200) :: param
       real :: rstim
       real :: vnekton
