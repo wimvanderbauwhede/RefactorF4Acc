@@ -23,7 +23,7 @@ use RefactorF4Acc::Inventory qw( find_subroutines_functions_and_includes );
 use RefactorF4Acc::Parser qw( parse_fortran_src build_call_graph mark_blocks_between_calls );
 use RefactorF4Acc::Refactoring::Blocks qw( refactor_marked_blocks_into_subroutines ); 
 use RefactorF4Acc::CallTree qw( create_call_tree );
-use RefactorF4Acc::Preconditioning qw( precondition_includes precondition_all );
+use RefactorF4Acc::Preconditioning qw( precondition_includes precondition_decls );
 use RefactorF4Acc::Analysis qw( analyse_all );
 use RefactorF4Acc::Refactoring qw( refactor_all );
 use RefactorF4Acc::CustomPasses qw( run_custom_passes );
@@ -213,15 +213,16 @@ sub main {
         say "PRECONDITIONING for $code_unit_name";
         say "--------------". ('-' x length($code_unit_name)) ;
         }  	
+    # 
     $stref = precondition_includes($stref);        
 
     if ($code_unit_name eq '' and exists $Config{'SOURCEFILES'} and scalar @{ $Config{'SOURCEFILES'} }>0) {
         # $code_unit_name is empty, i.e. no TOP routine. So we go through all sources one by one by file name
         for my $fp ( @{ $Config{'SOURCEFILES'} } ) {
-            precondition_all( $fp, $stref, 1 );
+            precondition_decls( $fp, $stref, 1 );
         }
     } else {
-       $stref = precondition_all( $code_unit_name, $stref );
+       $stref = precondition_decls( $code_unit_name, $stref );
     }
 
 	if ( $call_tree_only  ) {        

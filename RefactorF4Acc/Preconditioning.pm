@@ -28,8 +28,9 @@ use Exporter;
 our @ISA       = qw(Exporter);
 our @EXPORT_OK = qw(
   precondition_includes
-  precondition_all
+  precondition_decls
   split_multiblock_common_lines
+  include_is_not_selfcontained
 );
 
 # -----------------------------------------------------------------------------
@@ -49,25 +50,20 @@ sub precondition_includes {
         say "PRECONDITIONING";
         say '=' x 80;
     }
+    # Inlining includes that are inside other includes. 
     for my $inc (keys %{$stref->{'IncludeFiles'}}) {
         next if $stref->{'IncludeFiles'}{$inc}{'InclType'} eq 'External';
-
         next if ( $stref->{'IncludeFiles'}{$inc}{'Status'} == $UNREAD ); # TODO: WARN!
-        #  {		
-    	# 	$stref->{'IncludeFiles'}{$inc}{'Root'}      = 'UNKNOWN';
-	    # 	$stref->{'IncludeFiles'}{$inc}{'HasBlocks'} = 0;
-		#     $stref = parse_fortran_src( $inc, $stref );
-	    # }
 
         say "INFO: Check for includes to be inlined in $inc" if $I;
         my $stref = _inline_includes($stref, $inc);
         my $Sincf = $stref->{'IncludeFiles'}{$inc};
     }
-
+    # Splitting out parameters and creating the ONLY list
     for my $inc (keys %{$stref->{'IncludeFiles'}}) {
         next if $stref->{'IncludeFiles'}{$inc}{'InclType'} eq 'External';
         next if ( $stref->{'IncludeFiles'}{$inc}{'Status'} == $UNREAD ); # TODO: WARN!
-        # carp Dumper($stref->{'IncludeFiles'}{$inc});
+
         my $Sincf       = $stref->{'IncludeFiles'}{$inc};
         my $has_commons = $stref->{'IncludeFiles'}{$inc}{'HasCommons'};
         my $has_pars    = $stref->{'IncludeFiles'}{$inc}{'HasParameters'};
@@ -210,6 +206,8 @@ sub __split_out_parameters {
 }    # END of __split_out_parameters
 
 # -----------------------------------------------------------------------------
+# As we split out the parameters, and will turn both the split-out parameter include and the current include into a module, 
+# we can have an import list for the parameters used in the non-param include, via ONLY. 
 sub __find_parameter_used_in_inc_and_add_to_Only {
     (my $inc, my $stref) = @_;
 
@@ -231,7 +229,6 @@ sub __find_parameter_used_in_inc_and_add_to_Only {
             for my $var (@{$info->{'VarDecl'}{'Names'}}) {
                 my $set = in_nested_set($Sinc,'Vars', $var);
                 my $decl = get_var_record_from_set($Sinc->{'Vars'}, $var);
-                # carp  Dumper($Sinc). "\n$var $inc \n".Dumper($decl)."\n".$line;
                 if ($decl->{'ArrayOrScalar'} eq 'Array') {
                     my %dim_tmpstr    = map  { ($_->[0] => 1, $_->[1] => 1) } @{$decl->{'Dim'}};
                     my @maybe_parstrs = grep { !/^\-?\d+$/ } keys %dim_tmpstr;
@@ -266,7 +263,7 @@ sub __find_parameter_used_in_inc_and_add_to_Only {
                 }
             }
         }
-        elsif (exists $info->{'Dimension'}) {
+        elsif (exists $info->{'Dimension'}) { # WHY?
             say "DIMENSION $line";
             say Dumper($info);
         }
@@ -281,22 +278,21 @@ sub _inline_includes {
     (my $stref, my $inc) = @_;
     #of course, if the status is UNREAD then this does not work, and we must make sure we read it.
     if ( $stref->{'IncludeFiles'}{$inc}{'InclType'} ne 'External') {
-    if (exists $stref->{'IncludeFiles'}{$inc}{'HasIncludes'} and
-        $stref->{'IncludeFiles'}{$inc}{'HasIncludes'} == 1) {
-        my @n_incs = __get_includes($stref, $inc);
-        $stref->{'IncludeFiles'}{$inc}{'InlinedIncludes'} = [];
-        for my $n_inc (@n_incs) {
-            push @{$stref->{'IncludeFiles'}{$inc}{'InlinedIncludes'}}, $n_inc;
-            $stref = _inline_includes($stref, $n_inc);
-            # Now merge this into $Sincf
-            $stref = __merge_include($stref, $inc, $n_inc);
+        if (exists $stref->{'IncludeFiles'}{$inc}{'HasIncludes'} and
+            $stref->{'IncludeFiles'}{$inc}{'HasIncludes'} == 1) {
+            my @n_incs = __get_includes($stref, $inc);
+            $stref->{'IncludeFiles'}{$inc}{'InlinedIncludes'} = [];
+            for my $n_inc (@n_incs) {
+                push @{$stref->{'IncludeFiles'}{$inc}{'InlinedIncludes'}}, $n_inc;
+                $stref = _inline_includes($stref, $n_inc);
+                # Now merge this into $Sincf
+                $stref = __merge_include($stref, $inc, $n_inc);
+            }
         }
-    }
     } else {
         say "WARNING: $inc is EXTERNAL" if $W;
         say "INFO: $inc is EXTERNAL" if $I;
     }
-    # croak Dumper($inc, $stref->{'IncludeFiles'}{$inc});
     return $stref;
 }    # END of _inline_includes
 
@@ -395,6 +391,7 @@ For variables, we only need to update the leaf sets
            UndeclaredOrigLocalVars
 =cut
 
+# Merge means that we merge the datastructures in $stref as well as the source code lines.
 sub __merge_include {
     my ($stref, $inc, $n_inc) = @_;
 
@@ -472,6 +469,7 @@ sub __merge_include {
         }
     }
 
+    # Merge the source code lines
     my @n_inc_annlines = grep {
         (my $line, my $info) = @{$_};
         not exists $info->{'ImplicitNone'};
@@ -489,7 +487,7 @@ sub __merge_include {
       splice_additional_lines_cond($stref, $inc, $insert_cond_subref, $old_annlines, \@n_inc_annlines, 0, 1, 1);
     $stref->{'IncludeFiles'}{$inc}{'AnnLines'} = $merged_annlines;
 
-#     For variables, we only need to update the leaf sets
+# For variables, we only need to update the leaf sets
 # For include files the order does not really matter because there are no arguments. Also I could recover the ordering in a final separate pass
 #
     for my $var_type (
@@ -512,7 +510,102 @@ sub __merge_include {
     return $stref;
 }    # END of __merge_include
 
-sub precondition_all {
+
+# Merge means that we merge the datastructures in $stref as well as the source code lines.
+sub __merge_include_into_subroutine {
+    my ($stref, $f, $n_inc) = @_;
+
+    #	local $I=1;
+    say "INFO: MERGING $n_inc into $f" if $I;
+    my $Sf  = $stref->{'Subroutines'}{$f};
+    my $Snincf = $stref->{'IncludeFiles'}{$n_inc};
+
+    #Commons: merge the hashes
+    if (exists $Snincf->{'Commons'}) {
+        say "INFO: $n_inc in $f has COMMON variables" if $I;
+        $Sf->{'HasCommons'} = 1;
+        if (exists $Sf->{'Commons'}) {
+            $Sf->{'Commons'} =
+              {%{$Sf->{'Commons'}}, %{$Snincf->{'Commons'}}};
+        }
+        else {
+            $Sf->{'Commons'} = {%{$Snincf->{'Commons'}}};
+        }
+    }
+    #Includes = []
+    # MaskedIntrinsics = merge the hashes
+    if (exists $Snincf->{'MaskedIntrinsics'}) {
+        say "INFO: $f has masked intrinsics" if $I;
+        if (exists $Sf->{'MaskedIntrinsics'}) {
+            $Sf->{'MaskedIntrinsics'} = {%{$Sf->{'MaskedIntrinsics'}}, %{$Snincf->{'MaskedIntrinsics'}}};
+        }
+        else {
+            $Sf->{'MaskedIntrinsics'} =
+              {%{$Snincf->{'MaskedIntrinsics'}}};
+        }
+    }
+
+#Implicits
+# Considering the includes are textually nested, there can't really be IMPLICIT statements in includes included in includes
+# This is correct unless the parent only contains 'IMPLICIT ...' or nothing before the first INCLUDE
+# So in principle the first file could provide the implicit rule for the parent an all others. And of course recursively so
+# So I think merging implicit statements should be fine
+# I do remove IMPLICIT NONE because I will add it later to the module
+
+    # Implicits = merge the hashes
+    if (exists $Snincf->{'Implicits'}) {
+        say "INFO: $f has Implicits" if $I;
+        if (exists $Sf->{'Implicits'}) {
+            $Sf->{'Implicits'} =
+              {%{$Sf->{'Implicits'}}, %{$Snincf->{'Implicits'}}};
+        }
+        else {
+            $Sf->{'Implicits'} = {%{$Snincf->{'Implicits'}}};
+        }
+    }
+
+    # Merge the source code lines
+    my @n_inc_annlines = grep {
+        (my $line, my $info) = @{$_};
+        not exists $info->{'ImplicitNone'};
+    } @{$Snincf->{'AnnLines'}};
+
+    my $old_annlines       = $Sf->{'AnnLines'};
+    my $insert_cond_subref = sub {
+        (my $annline) = @_;
+        (my $line, my $info) = @{$annline};
+        return (exists $info->{'Include'} and $info->{'Include'}{'Name'} eq $n_inc)
+          ? 1
+          : 0;
+    };
+    my $merged_annlines =
+      splice_additional_lines_cond($stref, $f, $insert_cond_subref, $old_annlines, \@n_inc_annlines, 0, 1, 1);
+    $stref->{'IncludeFiles'}{$f}{'AnnLines'} = $merged_annlines;
+
+# For variables, we only need to update the leaf sets
+# For include files the order does not really matter because there are no arguments. Also I could recover the ordering in a final separate pass
+#
+    for my $var_type (
+        qw( DeclaredCommonVars UndeclaredCommonVars LocalParameters DeclaredOrigLocalVars UndeclaredOrigLocalVars))
+    {
+        if (exists $Snincf->{$var_type}{'Set'}) {
+            say "INFO: $n_inc contains $var_type variables" if $I;
+            if (exists $Sf->{$var_type}{'Set'}) {
+                $Sf->{$var_type}{'Set'} = {%{$Sf->{$var_type}{'Set'}}, %{$Snincf->{$var_type}{'Set'}}};
+                $Sf->{$var_type}{'List'} =
+                  [sort keys %{$Sf->{$var_type}{'Set'}}];
+            }
+            else {
+                $Sf->{$var_type}{'Set'} =
+                  dclone($Snincf->{$var_type}{'Set'});
+            }
+        }
+    }
+
+    return $stref;
+}    # END of __merge_include_into_subroutine
+
+sub precondition_decls {
 	# NOTE $f is not the name of the source but of the sub/func/incl/module.
     my ($f, $stref, $is_source_file_path) = @_;    
 
@@ -548,11 +641,11 @@ sub precondition_all {
             $stref = _split_multipar_decls_and_set_type($f, $stref);
         }
     }
-    say "LEAVING precondition_all( $f )" if $V;
+    say "LEAVING precondition_decls( $f )" if $V;
 
     return $stref;
 
-}    # END of precondition_all()
+}    # END of precondition_decls()
 
 # -----------------------------------------------------------------------------
 #
@@ -793,5 +886,176 @@ sub split_multiblock_common_lines {
 sub _remove_var_decls_for_param_decls { my ($stref,$f)=@_;
 
 } # END of _remove_var_decls_for_param_decls 
+
+
+=pod
+
+A problem specifically with Nek but more general, is that I have always assumed that include files would be
+1. self-contained (i.e. they contain or include what they need)
+2. Only include other files at the top, so that the declarations in those files are encountered first.
+
+Nek breaks both:
+
+SIZE.inc is included in SIZE at the bottom, an requires definititions from SIZE so it is not self-contained.
+Even TOTAL, despite its name, does not include SIZE, but needs it. 
+
+So what to do? First, identify the different cases:
+
+Case A
+include F1:
+	include F2
+	... needs F2
+> This is OK: F2 and F1 can become modules
+To determine this case:
+* The include must come before any other statements except other includes
+* If this is the case, proceed as normal (Case A)
+* If this is not the case, 
+    * Check if F2 uses any of the preceding declarations from F1 or preceding includes. 
+        * If not, we can move the F2 include up and proceed as normal
+        * If it does, however, we are in Case B (if content from F1) or Case C (if content from preceding include)
+
+Case B
+include F1:
+	...
+	include F2
+		... needs content from F1
+
+It is impossible to create a module from F2. 
+* So inline F2 into F1. 
+* If this merged F1 is self-contained, turn it into a module.
+* If not, we are probably in case C
+
+
+Case C
+include F1
+include F2: 
+	... needs F1
+> This means: 
+- assuming F1 is case A or B
+- go to the parent
+- find the include line for F2
+- Go up from there
+	- find any declarations of variables or parameters used in F2
+		- If they are variables:
+            - Essentially, we can't use a module in that case. Just inline F2
+        - If they are parameters: 
+            - To make this work we would need to
+                - insert the parameter declarations into F2
+                - move the use statement above those parameter declarations as it has to be the first thing
+                - so in practice, that is too ugly, just inline the whole thing.
+    - find any include that contains the declarations for F2, e.g. F1
+        - Assuming this can be modularised, use the module F1 in F2 and modularise the F1 line
+        - If not, inline F1 as well
+
+* The only acceptable code before an include statement is 
+- another include statement
+- a program, function or subroutine declaration
+
+So, when descending into the include F1:
+- go through the file, if we meet anything except comments and blanks or program, function or subroutine declaration, then it is Case B unless te include can be moved up
+	- continue to find any includes F2
+	- inline them
+	- test if F1 is now self-contained. 
+        If so, turn into a module
+        If not, it's case C     
+- if we find an include F2, it's maybe case A. Descend into that include F2 and inventory the declarations
+- then check if the include F1 is self-contained. 
+    If so, it's case A. Turn into a module
+    If not, it's case C.
+
+All this should happen in Preconditioning
+
+We already inline includes in other includes. So it would seem the problem arises if the includes are in a non-include source file
+
+Source file F1
+include I1
+include I2: 
+	... needs I1
+
+Because the other cases should do the right thing with inlining, right?
+
+If there is a variable accessed in an include that was not declared, that may be because it was declared elsewhere, but it is also possible that it was not declared anywhere else.
+"Elsewhere" could mean in the declarations in the source preceding the include statement, or in an include preceding it.
+
+So, when we encounter an include, we need to check a list of prior_declarations and a list of prior_includes
+
+
+
+=cut
+sub precondition_subroutines_with_includes {
+	# NOTE $f is not the name of the source but of the sub/func/incl/module.
+    my ($f, $stref, $is_source_file_path) = @_;    
+
+    for my $f (keys %{$stref->{'Subroutines'}}) {
+        next if $f eq 'UNKNOWN_SRC';
+
+        my $Sf = $stref->{'Subroutines'}{$f};
+    }
+
+    say "LEAVING precondition_subroutines_with_includes( $f )" if $V;
+
+    return $stref;
+
+}    # END of precondition_subroutines_with_includes()
+
+sub _precondition_subroutine_with_includes { my ($stref, $f) = @_;
+    my $sub_incl_or_mod = sub_func_incl_mod($f, $stref);
+
+    my $Sf = $stref->{$sub_incl_or_mod}{$f};
+    my %prior_declarations=();
+    my @prior_includes=();
+    if (exists $Sf->{'AnnLines'}) {
+        my $annlines     = $Sf->{'AnnLines'};
+        my $nextLineID   = scalar @{$annlines} + 1;
+        my $new_annlines = [];
+        for my $annline (@{$annlines}) {
+            (my $line, my $info) = @{$annline};
+            if (exists $info->{'VarDecl'} ) {
+                my $var_name = $info->{'VarDecl'}{'Name'};
+                $prior_declarations{$var_name}=1;
+            }
+            elsif (exists $info->{'ParamDecl'} ) {
+                my $par_name = $info->{'ParamDecl'}{'Name'};
+                $prior_declarations{$par_name}=1;
+            }
+
+            elsif (exists $info->{'Include'} ) {
+                my $inc = $info->{'Include'}{'Name'};
+                if (include_is_selfcontained($stref,$inc,\%prior_declarations,\@prior_includes)) {
+                    push @prior_includes, $inc;
+                } else {
+                    $stref = __merge_include_into_subroutine($stref, $f, $inc);
+                    # We restart the process
+                    $stref = _precondition_subroutine_with_includes($stref,$f);
+                }
+            }
+        }
+    }
+    return $stref;
+} # END of _precondition_subroutine_with_includes
+
+
+
+# This is only for includes in non-include source files, so no need to make it recursive
+sub include_is_selfcontained { my ($stref, $inc, $prior_decls, $prior_incls) =@_;
+# So we have to check any UndeclaredOrigLocalVars. UndeclaredCommonVars should by their very nature have been declared previously.
+my $Sinc = $stref->{'IncludeFiles'}{$inc};
+if ( exists $Sinc->{'UndeclaredOrigLocalVars'}) {
+    for my $var ( sort keys %{ $Sinc->{'UndeclaredOrigLocalVars'}{'Set'} } ) {
+        # Check if this var was declared in the parent previously
+        if (exists $prior_decls->{$var}) {
+            return 0;            
+        }
+        # Check if this var was declared in one of the preceding includes.
+        # As each of these includes will only be added if it is self-contained, and inlined otherwise, this is fine.
+        for my $prior_inc (@{$prior_incls}) {
+            if (in_nested_set( $stref->{'IncludeFiles'}{$prior_inc},'Vars',$var)) {
+                return 0;
+            }
+        }
+    }
+}
+return 1;
+} # END of include_is_not_selfcontained
 
 1;

@@ -295,7 +295,7 @@ sub _parse_comma_sep_expr_list {
 				push @matched_strs, $matched_str;
 				unshift @chars,')';
 				last;
-			}
+			} 
 			$matched_str .= $ch;
 		} elsif ( $ch eq ',' and $found_parens == 0 ) {
 			push @matched_strs, $matched_str;

@@ -1000,7 +1000,7 @@ sub _update_argument_io_direction {
 
 					
                 my $rline = emit_f95_var_decl($decl);
-                push @{$info->{'Ann'}}, '_update_argument_io_direction HERE THE TYPE IS WRONG!';
+                push @{$info->{'Ann'}}, '_update_argument_io_direction';
                 if (exists $info->{'Skip'}) {
                     $rline = '! ' . $rline;
                     push @{$info->{'Ann'}}, 'SKIP';
