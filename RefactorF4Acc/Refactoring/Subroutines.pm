@@ -78,7 +78,6 @@ sub refactor_all_subroutines {
 		next if $Sf->{'Status'} == $FROM_BLOCK;
 
 		$stref = _refactor_subroutine_main( $stref, $f );
-
 	}
 
 	return $stref;
@@ -135,7 +134,8 @@ sub _refactor_subroutine_main {
 		say "context_free_refactorings($f)";
 	}
 
-	$stref = context_free_refactorings( $stref, $f );    # FIXME maybe do this later
+	$stref = context_free_refactorings( $stref, $f );    # FIXME maybe do this later	
+
 	say "get_annotated_sourcelines($f)" if $V;
 	my $annlines = $Sf->{'RefactoredCode'};
 
@@ -143,6 +143,7 @@ sub _refactor_subroutine_main {
 		# If there are no COMMON blocks the argument list should not change, so there should be no need to do this		
 		$annlines = _group_local_param_decls_at_top( $stref, $f, $annlines );
 	}
+
 	if (
 		1 or $Sf->{'HasCommons'} or (                    # FIXME
 			exists $Sf->{'Contains'} and scalar @{ $Sf->{'Contains'} } > 0
@@ -168,6 +169,7 @@ sub _refactor_subroutine_main {
 	}
 
 	$annlines = _add_implicit_none( $stref, $f, $annlines );
+
 
 	# The assignment lines for the mismatched ex-COMMON vars can go here
 	# probably before the first line that is not a SpecificationStatement and not a Comment and not a Blank and not Skip or Deleted

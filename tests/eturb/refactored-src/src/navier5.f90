@@ -1,13 +1,40 @@
 module singleton_module_src_navier5
 
-      use singleton_module_src_mxm_wrapper
-      use singleton_module_src_math
       use singleton_module_src_comm_mpi
       use singleton_module_src_subs1
+      use singleton_module_src_mxm_wrapper
+      use singleton_module_src_math
 contains
 
       subroutine mappr(pm1,pm2,pa,pb)
       implicit none
+      integer, parameter :: ldim=3
+      integer, parameter :: lx1=8
+      integer, parameter :: lxd=12
+      integer, parameter :: lx2=lx1-2
+      integer, parameter :: lelg=30*20*24
+      integer, parameter :: lpmin=12
+      integer, parameter :: lpmax=1024
+      integer, parameter :: ldimt=1
+      integer, parameter :: ldimt_proj=1
+      integer, parameter :: lhis=1000
+      integer, parameter :: maxobj=4
+      integer, parameter :: lpert=1
+      integer, parameter :: toteq=5
+      integer, parameter :: nsessmax=2
+      integer, parameter :: lxo=lx1
+      integer, parameter :: mxprev=20
+      integer, parameter :: lgmres=30
+      integer, parameter :: lorder=3
+      integer, parameter :: lx1m=lx1
+      integer, parameter :: lfdm=0
+      integer, parameter :: lelx=1
+      integer, parameter :: lely=1
+      integer, parameter :: lelz=1
+      integer, parameter :: lelt=lelg/lpmin+3
+      integer, parameter :: lbelt=1
+      integer, parameter :: lpelt=1
+      integer, parameter :: lcvelt=lelt
       integer :: nio
       integer :: loglevel
       integer :: optlevel
@@ -31,6 +58,13 @@ contains
       integer :: nzd
       integer :: ndim
       integer :: ldimr
+      integer, parameter :: numsts=50
+      integer, parameter :: lvt1=lx1*ly1*lz1*lelv
+      integer, parameter :: lvt2=lx2*ly2*lz2*lelv
+      integer, parameter :: lbt1=lbx1*lby1*lbz1*lbelv
+      integer, parameter :: lbt2=lbx2*lby2*lbz2*lbelv
+      integer, parameter :: lorder2=max(1,lorder-2)
+      integer, parameter :: lxq=lx2
       real, dimension(1:lx1,1:lx1) :: dxm1
       real, dimension(1:lx2,1:lx1) :: dxm12
       real, dimension(1:ly1,1:ly1) :: dym1
@@ -655,6 +689,8 @@ contains
       real, dimension(1:lx2,1:ly2,1:lz2,1:lelv), intent(In) :: pm2
       real, dimension(1:lx1,1:ly2,1:lz2), intent(InOut) :: pa
       real, dimension(1:lx1,1:ly1,1:lz2), intent(InOut) :: pb
+      ifadvc(1) = ifnav
+      textsw(1,1) = turbmod
       nglob1 = lx1*ly1*lz1*nelv
       nyz2   = ly2*lz2
       nxy1   = lx1*ly1
@@ -708,6 +744,33 @@ contains
       end subroutine local_grad2
       subroutine gradm1(ux,uy,uz,u)
       implicit none
+      integer, parameter :: ldim=3
+      integer, parameter :: lx1=8
+      integer, parameter :: lxd=12
+      integer, parameter :: lx2=lx1-2
+      integer, parameter :: lelg=30*20*24
+      integer, parameter :: lpmin=12
+      integer, parameter :: lpmax=1024
+      integer, parameter :: ldimt=1
+      integer, parameter :: ldimt_proj=1
+      integer, parameter :: lhis=1000
+      integer, parameter :: maxobj=4
+      integer, parameter :: lpert=1
+      integer, parameter :: toteq=5
+      integer, parameter :: nsessmax=2
+      integer, parameter :: lxo=lx1
+      integer, parameter :: mxprev=20
+      integer, parameter :: lgmres=30
+      integer, parameter :: lorder=3
+      integer, parameter :: lx1m=lx1
+      integer, parameter :: lfdm=0
+      integer, parameter :: lelx=1
+      integer, parameter :: lely=1
+      integer, parameter :: lelz=1
+      integer, parameter :: lelt=lelg/lpmin+3
+      integer, parameter :: lbelt=1
+      integer, parameter :: lpelt=1
+      integer, parameter :: lcvelt=lelt
       integer :: nio
       integer :: loglevel
       integer :: optlevel
@@ -1037,6 +1100,8 @@ contains
       real, dimension(1:lxyz,1:1), intent(Out) :: uz
       real, dimension(1:lxyz,1:1), intent(In) :: u
       integer :: e
+      ifadvc(1) = ifnav
+      textsw(1,1) = turbmod
       nxyz = lx1*ly1*lz1
       ntot = nxyz*nelt
       n = lx1-1
@@ -1066,6 +1131,33 @@ contains
       end subroutine gradm1
       subroutine drgtrq(dgtq,xm0,ym0,zm0,sij,pm1,visc,f,e)
       implicit none
+      integer, parameter :: ldim=3
+      integer, parameter :: lx1=8
+      integer, parameter :: lxd=12
+      integer, parameter :: lx2=lx1-2
+      integer, parameter :: lelg=30*20*24
+      integer, parameter :: lpmin=12
+      integer, parameter :: lpmax=1024
+      integer, parameter :: ldimt=1
+      integer, parameter :: ldimt_proj=1
+      integer, parameter :: lhis=1000
+      integer, parameter :: maxobj=4
+      integer, parameter :: lpert=1
+      integer, parameter :: toteq=5
+      integer, parameter :: nsessmax=2
+      integer, parameter :: lxo=lx1
+      integer, parameter :: mxprev=20
+      integer, parameter :: lgmres=30
+      integer, parameter :: lorder=3
+      integer, parameter :: lx1m=lx1
+      integer, parameter :: lfdm=0
+      integer, parameter :: lelx=1
+      integer, parameter :: lely=1
+      integer, parameter :: lelz=1
+      integer, parameter :: lelt=lelg/lpmin+3
+      integer, parameter :: lbelt=1
+      integer, parameter :: lpelt=1
+      integer, parameter :: lcvelt=lelt
       integer :: nio
       integer :: loglevel
       integer :: optlevel
@@ -1164,7 +1256,6 @@ contains
       logical, dimension(1:8,1:lelt,0:1) :: ifmscr
       logical, dimension(1:8,1:lelt) :: ifnskp
       logical :: ifbcor
-      integer, parameter :: numsts=50
       real, dimension(1:200) :: param
       real :: rstim
       real :: vnekton
@@ -1404,6 +1495,8 @@ contains
       real :: n1
       real :: n2
       real :: n3
+      ifadvc(1) = ifnav
+      textsw(1,1) = turbmod
       call dsset(lx1,ly1,lz1)    
       pf     = eface1(f)         
       js1    = skpdat(1,pf)
@@ -1496,6 +1589,33 @@ contains
       end subroutine drgtrq
       subroutine torque_calc(scale,x0,ifdout,iftout)
       implicit none
+      integer, parameter :: ldim=3
+      integer, parameter :: lx1=8
+      integer, parameter :: lxd=12
+      integer, parameter :: lx2=lx1-2
+      integer, parameter :: lelg=30*20*24
+      integer, parameter :: lpmin=12
+      integer, parameter :: lpmax=1024
+      integer, parameter :: ldimt=1
+      integer, parameter :: ldimt_proj=1
+      integer, parameter :: lhis=1000
+      integer, parameter :: maxobj=4
+      integer, parameter :: lpert=1
+      integer, parameter :: toteq=5
+      integer, parameter :: nsessmax=2
+      integer, parameter :: lxo=lx1
+      integer, parameter :: mxprev=20
+      integer, parameter :: lgmres=30
+      integer, parameter :: lorder=3
+      integer, parameter :: lx1m=lx1
+      integer, parameter :: lfdm=0
+      integer, parameter :: lelx=1
+      integer, parameter :: lely=1
+      integer, parameter :: lelz=1
+      integer, parameter :: lelt=lelg/lpmin+3
+      integer, parameter :: lbelt=1
+      integer, parameter :: lpelt=1
+      integer, parameter :: lcvelt=lelt
       integer :: nio
       integer :: loglevel
       integer :: optlevel
@@ -1519,6 +1639,13 @@ contains
       integer :: nzd
       integer :: ndim
       integer :: ldimr
+      integer, parameter :: numsts=50
+      integer, parameter :: lvt1=lx1*ly1*lz1*lelv
+      integer, parameter :: lvt2=lx2*ly2*lz2*lelv
+      integer, parameter :: lbt1=lbx1*lby1*lbz1*lbelv
+      integer, parameter :: lbt2=lbx2*lby2*lbz2*lbelv
+      integer, parameter :: lorder2=max(1,lorder-2)
+      integer, parameter :: lxq=lx2
       real, dimension(1:lx1,1:lx1) :: dxm1
       real, dimension(1:lx2,1:lx1) :: dxm12
       real, dimension(1:ly1,1:ly1) :: dym1
@@ -2144,6 +2271,8 @@ contains
       logical, intent(In) :: ifdout
       logical, intent(In) :: iftout
       integer, parameter :: lr=lx1*ly1*lz1
+      ifadvc(1) = ifnav
+      textsw(1,1) = turbmod
       xm0(1,1,1,1:512) = reshape(trx(1:lx1,1:ly1,1:lz1),shape(xm0(1,1,1,1:512)))
       xm0(1,1,1,513:1024) = reshape(trz(1:lx1,1:ly1,1:lz1),shape(xm0(1,1,1,513:1024)))
       n = lx1*ly1*lz1*nelv
@@ -2293,6 +2422,33 @@ contains
       end subroutine torque_calc
       subroutine comp_sij(sij,nij,u,v,w,ur,us,ut,vr,vs,vt,wr,ws,wt)
       implicit none
+      integer, parameter :: ldim=3
+      integer, parameter :: lx1=8
+      integer, parameter :: lxd=12
+      integer, parameter :: lx2=lx1-2
+      integer, parameter :: lelg=30*20*24
+      integer, parameter :: lpmin=12
+      integer, parameter :: lpmax=1024
+      integer, parameter :: ldimt=1
+      integer, parameter :: ldimt_proj=1
+      integer, parameter :: lhis=1000
+      integer, parameter :: maxobj=4
+      integer, parameter :: lpert=1
+      integer, parameter :: toteq=5
+      integer, parameter :: nsessmax=2
+      integer, parameter :: lxo=lx1
+      integer, parameter :: mxprev=20
+      integer, parameter :: lgmres=30
+      integer, parameter :: lorder=3
+      integer, parameter :: lx1m=lx1
+      integer, parameter :: lfdm=0
+      integer, parameter :: lelx=1
+      integer, parameter :: lely=1
+      integer, parameter :: lelz=1
+      integer, parameter :: lelt=lelg/lpmin+3
+      integer, parameter :: lbelt=1
+      integer, parameter :: lpelt=1
+      integer, parameter :: lcvelt=lelt
       integer :: nio
       integer :: loglevel
       integer :: optlevel
@@ -2316,6 +2472,13 @@ contains
       integer :: nzd
       integer :: ndim
       integer :: ldimr
+      integer, parameter :: numsts=50
+      integer, parameter :: lvt1=lx1*ly1*lz1*lelv
+      integer, parameter :: lvt2=lx2*ly2*lz2*lelv
+      integer, parameter :: lbt1=lbx1*lby1*lbz1*lbelv
+      integer, parameter :: lbt2=lbx2*lby2*lbz2*lbelv
+      integer, parameter :: lorder2=max(1,lorder-2)
+      integer, parameter :: lxq=lx2
       real, dimension(1:lx1,1:lx1), intent(In) :: dxm1
       real, dimension(1:lx2,1:lx1) :: dxm12
       real, dimension(1:ly1,1:ly1), intent(InOut) :: dym1
@@ -2951,6 +3114,8 @@ contains
       real, dimension(1:1), intent(InOut) :: ws
       real, dimension(1:1), intent(InOut) :: wt
       real :: j
+      ifadvc(1) = ifnav
+      textsw(1,1) = turbmod
       n    = lx1-1      
       nxyz = lx1*ly1*lz1
       if (if3d) then     

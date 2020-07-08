@@ -99,10 +99,11 @@ sub context_free_refactorings {
               "Undefined source code line for $f in create_refactored_source()";
         }
         ( my $line, my $info ) = @{$annline};
-        
+
         if ( exists $info->{'Comments'}  ) {
             next;
-        }     
+        }
+if ( not exists $info->{'Inlined'} ) {
         if ( exists $info->{'Skip'}  ) {
             next;
         }        
@@ -110,9 +111,10 @@ sub context_free_refactorings {
         	# WV20190403: originally the condition included: "and $line eq '' ) {"
             next;
         }
-        if ( exists $info->{'ImplicitNone'} ) {
-#            next;
-        }
+}
+#         if ( exists $info->{'ImplicitNone'} ) {
+# #            next;
+#         }
         if ( exists $info->{'Save'} ) {
         	if ( exists  $Sf->{'Program'} and $Sf->{'Program'} == 1  ) { 
         	$line = '! '.$line;
@@ -283,6 +285,7 @@ sub context_free_refactorings {
                 }
             } else { 
 	            if ( in_nested_set($Sf, 'Parameters', $var) ) { 
+                    
 	                # Remove this line, because this param should have been declared above
 	                $line = '!! Original line PAR:2 !! ' . $line;
 	                $info->{'Skip'}=1;
@@ -456,7 +459,10 @@ sub context_free_refactorings {
             @extra_lines = ();
 
         }
+
+
     }    # LOOP over AnnLines
+
 
     # now splice the include stack just below the signature
     if (@include_use_stack) {

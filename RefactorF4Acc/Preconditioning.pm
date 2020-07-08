@@ -589,7 +589,7 @@ sub __merge_include_into_subroutine {
     my $merged_annlines =
       splice_additional_lines_cond($stref, $f, $insert_cond_subref, $old_annlines, \@n_inc_annlines_ann, 0, 1, 1);
     $Sf->{'AnnLines'} = $merged_annlines;
-croak Dumper(pp_annlines($merged_annlines)) if $f eq 'mpi_reduce_real';
+# croak Dumper(pp_annlines($stref->{'Subroutines'}{$f}{'AnnLines'})) if $f eq 'mpi_reduce_real';
 # For variables, we only need to update the leaf sets
 # For include files the order does not really matter because there are no arguments. Also I could recover the ordering in a final separate pass
 #
@@ -1055,7 +1055,7 @@ sub _precondition_subroutine_with_includes { my ($stref, $f) = @_;
                     say "INCL $inc in $f is self-contained" if $DBG;
                     push @prior_includes, $inc;
                 } else {
-                    say "INCL $inc in $f is NOT self-contained, MERGE";# if $DBG;
+                    say "INCL $inc in $f is NOT self-contained, MERGE" if $DBG;
                     $stref = __merge_include_into_subroutine($stref, $f, $inc);
                     # We restart the process
                     $stref = _precondition_subroutine_with_includes($stref,$f);

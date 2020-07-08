@@ -1,9 +1,9 @@
 module singleton_module_src_mxm_wrapper
 
-      use singleton_module_src_mxm_bgq
-      use singleton_module_src_comm_mpi
       use singleton_module_src_mxm_std
       use singleton_module_src_blas
+      use singleton_module_src_comm_mpi
+      use singleton_module_src_mxm_bgq
 contains
 
       subroutine mxm(a,n1,b,n2,c,n3)
@@ -11,6 +11,33 @@ contains
       real, dimension(1:n1,1:n2), intent(In) :: a
       real, dimension(1:n2,1:n3), intent(In) :: b
       real, dimension(1:n1,1:n3), intent(InOut) :: c
+      integer, parameter :: ldim=3
+      integer, parameter :: lx1=8
+      integer, parameter :: lxd=12
+      integer, parameter :: lx2=lx1-2
+      integer, parameter :: lelg=30*20*24
+      integer, parameter :: lpmin=12
+      integer, parameter :: lpmax=1024
+      integer, parameter :: ldimt=1
+      integer, parameter :: ldimt_proj=1
+      integer, parameter :: lhis=1000
+      integer, parameter :: maxobj=4
+      integer, parameter :: lpert=1
+      integer, parameter :: toteq=5
+      integer, parameter :: nsessmax=2
+      integer, parameter :: lxo=lx1
+      integer, parameter :: mxprev=20
+      integer, parameter :: lgmres=30
+      integer, parameter :: lorder=3
+      integer, parameter :: lx1m=lx1
+      integer, parameter :: lfdm=0
+      integer, parameter :: lelx=1
+      integer, parameter :: lely=1
+      integer, parameter :: lelz=1
+      integer, parameter :: lelt=lelg/lpmin+3
+      integer, parameter :: lbelt=1
+      integer, parameter :: lpelt=1
+      integer, parameter :: lcvelt=lelt
       integer :: nio
       integer :: loglevel
       integer :: optlevel
@@ -184,6 +211,7 @@ contains
       save    icalld
       data icalld / 0 / 
       logical :: ifsync
+      integer, parameter :: maxrts=1000
       character(len=6), dimension(1:maxrts), intent(Out) :: rname
       real(kind=8), dimension(1:maxrts), intent(InOut) :: dct
       real(kind=8), dimension(1:maxrts) :: rct
@@ -195,6 +223,13 @@ contains
       save    myrout,isclld
       data myrout / 0 / 
       data isclld / 0 / 
+      integer, parameter :: numsts=50
+      integer, parameter :: lvt1=lx1*ly1*lz1*lelv
+      integer, parameter :: lvt2=lx2*ly2*lz2*lelv
+      integer, parameter :: lbt1=lbx1*lby1*lbz1*lbelv
+      integer, parameter :: lbt2=lbx2*lby2*lbz2*lbelv
+      integer, parameter :: lorder2=max(1,lorder-2)
+      integer, parameter :: lxq=lx2
       real, dimension(1:lx1,1:lx1) :: dxm1
       real, dimension(1:lx2,1:lx1) :: dxm12
       real, dimension(1:ly1,1:ly1) :: dym1
@@ -816,6 +851,8 @@ contains
       real, dimension(1:lx1*lxq) :: wglg
       real, dimension(1:lx1*lxq) :: wglgt
       integer(kind=8) :: tt
+      ifadvc(1) = ifnav
+      textsw(1,1) = turbmod
 #ifdef TIMER2
       if (isclld == 0) then
           isclld=1

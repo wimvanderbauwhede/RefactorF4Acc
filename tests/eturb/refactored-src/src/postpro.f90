@@ -57,6 +57,12 @@ contains
       integer :: nzd
       integer :: ndim
       integer :: ldimr
+      integer, parameter :: numsts=50
+      integer, parameter :: lvt1=lx1*ly1*lz1*lelv
+      integer, parameter :: lvt2=lx2*ly2*lz2*lelv
+      integer, parameter :: lbt1=lbx1*lby1*lbz1*lbelv
+      integer, parameter :: lbt2=lbx2*lby2*lbz2*lbelv
+      integer, parameter :: lorder2=max(1,lorder-2)
       integer, parameter :: lxq=lx2
       real, dimension(1:lx1,1:lx1), intent(In) :: dxm1
       real, dimension(1:lx2,1:lx1) :: dxm12
@@ -720,6 +726,33 @@ contains
       end subroutine comp_gije
       subroutine mag_tensor_e(mag,aije)
       implicit none
+      integer, parameter :: ldim=3
+      integer, parameter :: lx1=8
+      integer, parameter :: lxd=12
+      integer, parameter :: lx2=lx1-2
+      integer, parameter :: lelg=30*20*24
+      integer, parameter :: lpmin=12
+      integer, parameter :: lpmax=1024
+      integer, parameter :: ldimt=1
+      integer, parameter :: ldimt_proj=1
+      integer, parameter :: lhis=1000
+      integer, parameter :: maxobj=4
+      integer, parameter :: lpert=1
+      integer, parameter :: toteq=5
+      integer, parameter :: nsessmax=2
+      integer, parameter :: lxo=lx1
+      integer, parameter :: mxprev=20
+      integer, parameter :: lgmres=30
+      integer, parameter :: lorder=3
+      integer, parameter :: lx1m=lx1
+      integer, parameter :: lfdm=0
+      integer, parameter :: lelx=1
+      integer, parameter :: lely=1
+      integer, parameter :: lelz=1
+      integer, parameter :: lelt=lelg/lpmin+3
+      integer, parameter :: lbelt=1
+      integer, parameter :: lpelt=1
+      integer, parameter :: lcvelt=lelt
       integer :: nio
       integer :: loglevel
       integer :: optlevel
@@ -759,6 +792,33 @@ contains
       end subroutine mag_tensor_e
       subroutine comp_sije(gije)
       implicit none
+      integer, parameter :: ldim=3
+      integer, parameter :: lx1=8
+      integer, parameter :: lxd=12
+      integer, parameter :: lx2=lx1-2
+      integer, parameter :: lelg=30*20*24
+      integer, parameter :: lpmin=12
+      integer, parameter :: lpmax=1024
+      integer, parameter :: ldimt=1
+      integer, parameter :: ldimt_proj=1
+      integer, parameter :: lhis=1000
+      integer, parameter :: maxobj=4
+      integer, parameter :: lpert=1
+      integer, parameter :: toteq=5
+      integer, parameter :: nsessmax=2
+      integer, parameter :: lxo=lx1
+      integer, parameter :: mxprev=20
+      integer, parameter :: lgmres=30
+      integer, parameter :: lorder=3
+      integer, parameter :: lx1m=lx1
+      integer, parameter :: lfdm=0
+      integer, parameter :: lelx=1
+      integer, parameter :: lely=1
+      integer, parameter :: lelz=1
+      integer, parameter :: lelt=lelg/lpmin+3
+      integer, parameter :: lbelt=1
+      integer, parameter :: lpelt=1
+      integer, parameter :: lcvelt=lelt
       integer :: nio
       integer :: loglevel
       integer :: optlevel
@@ -782,6 +842,13 @@ contains
       integer :: nzd
       integer :: ndim
       integer :: ldimr
+      integer, parameter :: numsts=50
+      integer, parameter :: lvt1=lx1*ly1*lz1*lelv
+      integer, parameter :: lvt2=lx2*ly2*lz2*lelv
+      integer, parameter :: lbt1=lbx1*lby1*lbz1*lbelv
+      integer, parameter :: lbt2=lbx2*lby2*lbz2*lbelv
+      integer, parameter :: lorder2=max(1,lorder-2)
+      integer, parameter :: lxq=lx2
       real, dimension(1:lx1,1:lx1) :: dxm1
       real, dimension(1:lx2,1:lx1) :: dxm12
       real, dimension(1:ly1,1:ly1) :: dym1
@@ -1403,6 +1470,8 @@ contains
       real, dimension(1:lx1*lxq) :: wglg
       real, dimension(1:lx1*lxq) :: wglgt
       real, dimension(1:lx1*ly1*lz1,1:ldim,1:ldim), intent(InOut) :: gije
+      ifadvc(1) = ifnav
+      textsw(1,1) = turbmod
       nxyz = lx1*ly1*lz1
       k = 1
       do j=1,ldim
