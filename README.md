@@ -114,7 +114,7 @@ Full details of these four real-world examples can be found in
 ## Limitations of RefactorF4Acc
 - This tool was developed for a specific purpose: refactoring FORTRAN77 code into Fortran 95 code _suitable for offloading to GPUs and FPGAs_. The refactorings it includes are there to support that goal. Therefore, many refactorings that you might do to improve code on CPU, e.g. to benefit from SIMD, are _not_ included, for example replacing loops by array operations.
 - To perform static code analysis, the compiler requires all array bounds to be constants at compile time. If your code contains array bounds defined using variables, in particular subroutine arguments, the analysis can't work.
-- The resulting code is also _not_ GPU-ready, it is still ordinary, single-threaded Fortran code. For the process to generate fully parallel OpenCL code for GPU, see <a name="fulltoolchain">Example of full toolchain from FORTRAN77 to parallel OpenCL</a>. 
+- The resulting code is also _not_ GPU-ready, it is still ordinary, single-threaded Fortran code. For the process to generate fully parallel OpenCL code for GPU, see <a href="#fulltoolchain">Example of full toolchain from FORTRAN77 to parallel OpenCL</a>. 
 - This is a research project and because of the limited time I can put into it, it is _definitely not complete or bug free_. Therefore, the chance that it might not work on your particular code is quite high.
 - I would like you to get in touch but I can't guarantee a speedy resolution of your issues.
 
