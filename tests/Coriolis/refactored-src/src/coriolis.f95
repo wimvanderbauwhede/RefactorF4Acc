@@ -1,7 +1,7 @@
         program corio
-      use singleton_module_src_predict_vel
       use singleton_module_src_update_loc_vel
       use singleton_module_src_predict_loc
+      use singleton_module_src_predict_vel
       implicit none
       integer, parameter :: im=10
       integer, parameter :: jm=10

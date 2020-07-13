@@ -177,7 +177,13 @@ The following keys are defined:
 
 <dt>SRCDIRS:</dt><dd>A comma-separated list of directories (relative to PREFIX) to be searched for source files.</dd>
 <dt>EXTSRCDIRS:</dt><dd>A comma-separated list of directories (relative to PREFIX) to be searched for source files.</dd>
-<dt>EXCL_SRCS:</dt><dd>A regular expression matching the source files to be excluded from the analysis.</dd>
+<dt>EXCL_SRCS:</dt><dd>A regular expression matching the source files to be excluded from the analysis. This is relative to `SRCDIRS` unless it starts with '^', so for example 
+      SRCDIRS: src
+      EXCL_SRCS: hello.f95
+will exclude `hello.f95` from sources in directory `src` and so will
+      SRCDIRS: src
+      EXCL_SRCS: ^src\/hello.f95
+</dd>
 <dt>EXCL_DIRS:</dt><dd>A comma-separated list of directories (relative to PREFIX) NOT to be searched for source files.</dd>
 <dt>MACRO_SRC:</dt><dd>If the sources use the C preprocessor, you can provide a file containing C preprocessor macro definitions</dd>
 <dt>NEWSRCPATH:</dt><dd>Path to the directory that will contain the refactored sources</dd>
