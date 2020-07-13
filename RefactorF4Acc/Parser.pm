@@ -100,10 +100,10 @@ sub parse_fortran_src {
 		if ( not exists $Sf->{'RefactorGlobals'} ) {
 			$Sf->{'RefactorGlobals'} = 0;
 		}
-		if ( $CFG_refactor_toplevel_globals == 1 ) {
+		if ( $CFG_refactor_toplevel_globals == 1 ) { 
 			print "INFO: set RefactorGlobals=1 for $f\n" if $I;
 			$Sf->{'RefactorGlobals'} = 1;
-		}
+		} 
 		
 ## 2. Parse the type declarations in the source, create a per-target table Vars and a per-line VarDecl list and other context-free stuff
 		# NOTE: The Vars set are the *declared* variables, not the *used* ones
@@ -270,7 +270,7 @@ sub analyse_lines {
 			# BLOCK identification code
 			# --------------------------------------------------------------------------------
 			# START of BLOCK
-			
+			# croak $line if $line=~/parameter.+alpha/;
 			$line=~/^(map|structure|union|select)\s+/ && do {
 				my $block_type=$1;
 				++$block_nest_counter;
@@ -944,9 +944,9 @@ or $line=~/^character\s*\(\s*len\s*=\s*[\w\*]+\s*\)/
 			} 
 #== PARAMETER			
 #== F77-style parameters			
-			elsif ( $line =~ /\bparameter\s*\(\s*(.+)\s*\)/ ) {    
+			elsif ( $line =~ /\bparameter\s*\(\s*(.+)\s*\)/ ) {  #  parameter\s*\(\s*alpha = f*dt\s*\) => 'alpha = f*dt'
 				my $parliststr = $1;
-#				croak $line if $line=~/nstreams/ and $f=~/\.inc/ ;
+				# croak $line;# if $line=~/nstreams/ and $f=~/\.inc/ ;
 				( $Sf, $info ) = __parse_f77_par_decl( $Sf, $stref, $f, $indent, $line, $info, $parliststr );				
 				$has_pars=1;
 				$Sf->{'HasParameters'}=1;
@@ -2756,10 +2756,11 @@ sub __parse_f95_decl {
 
 # -----------------------------------------------------------------------------
 
-sub __parse_f77_par_decl {
+sub __parse_f77_par_decl { 
 	# F77-style parameters
 	( my $Sf, my $stref, my $f,my $indent, my $line, my $info, my $parliststr ) = @_;
 	# say "LINE: $line";
+	
 	my $type   = 'Unknown';
 	my $typed=0;
 	my $attr = '';

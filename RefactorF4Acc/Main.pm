@@ -430,7 +430,7 @@ sub parse_args { (my $args)=@_;
     #     $INCLPATHS;
 
 	# $CFG_refactor_toplevel_globals = (exists $Config{'REFACTOR_TOPLEVEL_GLOBALS'}) ? 1 : 0 	;
-	# $CFG_refactor_toplevel_globals= 1; # FIXME: refactoring while ignoring globals is broken ( $opts{'g'} ) ? 1 : $CFG_refactor_toplevel_globals; # Global from Config
+	$CFG_refactor_toplevel_globals= 1; # FIXME: refactoring while ignoring globals is broken ( $opts{'g'} ) ? 1 : $CFG_refactor_toplevel_globals; # Global from Config
 
     # $Config{'ALLOW_SPACES_IN_NUMBERS'} = ref($Config{'ALLOW_SPACES_IN_NUMBERS'}) eq 'ARRAY' ? $Config{'ALLOW_SPACES_IN_NUMBERS'}[0] : $Config{'ALLOW_SPACES_IN_NUMBERS'};
 	# $Config{'HAS_F77_SOURCES'} = ref($Config{'HAS_F77_SOURCES'}) eq 'ARRAY' ? $Config{'HAS_F77_SOURCES'}[0] : $Config{'HAS_F77_SOURCES'};

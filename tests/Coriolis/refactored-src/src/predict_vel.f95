@@ -8,7 +8,7 @@ contains
       real, parameter :: dt=24.*3600./200.
       real, parameter :: pi=4.*atan(1.)
       real, parameter :: freq=-2.*pi/(24.*3600.)
-      real, parameter :: f=2*freq
+      integer, parameter :: f=2*freq
       real, parameter :: alpha=f*dt
       real, parameter :: beta=0.25*alpha*alpha
       integer, parameter :: im=10

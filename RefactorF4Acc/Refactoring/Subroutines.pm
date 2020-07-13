@@ -150,7 +150,7 @@ sub _refactor_subroutine_main {
 		)
 	  )
 	{
-		print "REFACTORING COMMONS for SUBROUTINE $f\n" if $V;
+		print "REFACTORING COMMONS for SUBROUTINE $f\n" if $V; 
 
 		if ( $Sf->{'RefactorGlobals'} == 1 ) {
 
@@ -264,7 +264,7 @@ sub _fix_end_lines {
 #- create_new_include_statements, this should be OBSOLETE, except that it takes ParamIncludes out of other Includes and instantiates them, so RENAME
 #- creates ex-glob arg declarations, basically we have to look at ExInclArgs, UndeclaredOrigArgs and ExGlobArgs.
 #- create_refactored_subroutine_call, I hope we can keep this
-sub _refactor_globals_new {
+sub _refactor_globals_new { 
 	( my $stref, my $f, my $annlines ) = @_;
 	my $Sf = $stref->{'Subroutines'}{$f};
 
@@ -386,6 +386,7 @@ sub _refactor_globals_new {
 				  if $W;
 			}
 		}
+		# say  $inc_counter , exists $info->{'Include'}, exists $info->{'ImplicitNone'},$hook_after_last_incl ;
 		if (    $inc_counter == 0
 			and not exists $info->{'Include'}
 			and not exists $info->{'ImplicitNone'}
