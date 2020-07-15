@@ -413,22 +413,6 @@ sub parse_args { (my $args)=@_;
 
     $Config{'INLINE_INCLUDES'} = $opts{'I'}  ? 1 : 0;
 
-# for my $CFG_VAR (sort keys %Config) {
-
-# }
-
-	# $NO_ONLY = (exists $Config{'NO_ONLY'}[0] ) ? $Config{'NO_ONLY'}[0] : $NO_ONLY;
-	# $SPLIT_LONG_LINES = (exists $Config{'SPLIT_LONG_LINES'}[0] ) ? $Config{'SPLIT_LONG_LINES'}[0] : $SPLIT_LONG_LINES;
-	# $MAX_LINE_LENGTH = (exists $Config{'MAX_LINE_LENGTH'}[0] ) ? $Config{'MAX_LINE_LENGTH'}[0] : $MAX_LINE_LENGTH;
-	# $RENAME_EXT = (exists $Config{'RENAME_EXT'}[0] ) ? $Config{'RENAME_EXT'}[0] : $RENAME_EXT;
-	# $EXT = (exists $Config{'EXT'}[0] ) ? $Config{'EXT'}[0] : $EXT;
-	# $LIBS = (exists $Config{'LIBS'} ) ? $Config{'LIBS'} : $LIBS;
-	# $LIBPATHS = (exists $Config{'LIBPATH'} ) ? $Config{'LIBPATH'} : $LIBPATHS;
-	# $INCLPATHS = (@{ $Config{'INCLPATH'}}>0 ) ? $Config{'INCLPATH'} :
-	# 	(@{ $Config{'F95PATH'} } >0) ? $Config{'F95PATH'} : 
-    #     (@{ $Config{'F90PATH'} }>0) ? $Config{'F90PATH'} : 
-    #     $INCLPATHS;
-
 	# $CFG_refactor_toplevel_globals = (exists $Config{'REFACTOR_TOPLEVEL_GLOBALS'}) ? 1 : 0 	;
 	$CFG_refactor_toplevel_globals= 1; # FIXME: refactoring while ignoring globals is broken ( $opts{'g'} ) ? 1 : $CFG_refactor_toplevel_globals; # Global from Config
 

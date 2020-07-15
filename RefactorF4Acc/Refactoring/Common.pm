@@ -403,7 +403,7 @@ if ( not exists $info->{'Inlined'} ) {
             	if (exists $Sf->{'Includes'}{$inc}{'Only'} and scalar keys %{ $Sf->{'Includes'}{$inc}{'Only'} }>0) {
                     push @{$stref->{'IncludeFiles'}{$inc}{'UsedBy'}}, $f; 
             		my @used_params = keys %{ $Sf->{'Includes'}{$inc}{'Only'} };
-                	$line = "      use $tinc". ($NO_ONLY ?  '!' : '') .', only : '.join(', ', @used_params) ;
+                	$line = "      use $tinc". ($Config{'NO_ONLY'} ?  '!' : '') .', only : '.join(', ', @used_params) ;
                   	push @{ $info->{'Ann'} }, annotate($f, __LINE__. ' Include' );
                   	
             	} elsif (exists $stref->{'IncludeFiles'}{$inc}{'ParamInclude'}) {
@@ -414,7 +414,7 @@ if ( not exists $info->{'Inlined'} ) {
             		$tinc =~ s/\./_/g;            		
             		if (exists $Sf->{'Includes'}{$param_include}{'Only'} and scalar keys %{ $Sf->{'Includes'}{$param_include}{'Only'} }>0) {            		            	
             			my @used_params = keys %{ $Sf->{'Includes'}{$param_include}{'Only'} };
-                		$line = "      use $tinc". ($NO_ONLY ?  '!' : '') .", only : ".join(', ', @used_params);
+                		$line = "      use $tinc". ($Config{'NO_ONLY'} ?  '!' : '') .", only : ".join(', ', @used_params);
                   		push @{ $info->{'Ann'} }, annotate($f, __LINE__. ' Include' );
 					} else {
                 		$line = "!!      use $tinc ! ONLY LIST EMPTY";
@@ -641,7 +641,7 @@ sub create_refactored_source {
 						 	$line_without_comment = $line;
 					}
 				    }
- 	           	    my @split_lines = $SPLIT_LONG_LINES ? split_long_line($line_without_comment) : ( $line_without_comment );
+ 	           	    my @split_lines = $Config{'SPLIT_LONG_LINES'} ? split_long_line($line_without_comment) : ( $line_without_comment );
     	         	for my $sline (@split_lines) {    	         			
         	            	push @{$refactored_lines}, [ $sline, $info ];
             	    }

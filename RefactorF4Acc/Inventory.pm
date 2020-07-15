@@ -69,7 +69,7 @@ sub find_subroutines_functions_and_includes {
         
         # if there is an entry in $Config{EXCL_SRCS} then it is a regex
         my $has_pattern =  scalar @{ $Config{EXCL_SRCS} } > 0 ? 1 : 0;    
-        my $excl_srcs_pattern    = @{ $Config{EXCL_SRCS} }>1? '(?"'.join('|', @{ $Config{EXCL_SRCS} }).')' : @{ $Config{EXCL_SRCS} }==1 ? $Config{EXCL_SRCS}->[0] : '';
+        my $excl_srcs_pattern    = @{ $Config{EXCL_SRCS} }>1? '(?:'.join('|', @{ $Config{EXCL_SRCS} }).')' : @{ $Config{EXCL_SRCS} }==1 ? $Config{EXCL_SRCS}->[0] : '';
         # I treat the EXCL_SRC regex as relative to SRCDIRS unless it starts with '^'
         if ($excl_srcs_pattern!~/^\^/) {
             my @excl_srcs_pattern_w_srcdirs =();

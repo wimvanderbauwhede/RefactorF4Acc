@@ -967,7 +967,7 @@ or $line=~/^character\s*\(\s*len\s*=\s*[\w\*]+\s*\)/
 			) {				
 				my $maybe_function = $1;				
 				say  "INFO: I'm pretty sure $maybe_function is a StatementFunction in $f" if $I;
-				croak "INFO: I'm pretty sure $maybe_function is a StatementFunction in $f : <$line>";
+				# croak "INFO: I'm pretty sure $maybe_function is a StatementFunction in $f : <$line>";
 
 				$info->{'StatementFunction'} = $maybe_function;
 				$info->{'HasVars'} = 1; 
@@ -1771,7 +1771,8 @@ sub _parse_subroutine_and_function_calls {
 	                if ($argstr ne '') {
 
 						my $ast = parse_expression( $argstr, $info, $stref, $f ); 
-						# This returns the arguments if they are vars or PlaceHolders, but really this should return the expression string.
+						
+						# This returns the arguments if they are consts, vars or PlaceHolders, but really this should return the expression string.
 						# Or rather, we should not use this in Analysis::Arguments but use the AST
 						( my $expr_args, my $expr_other_vars ) = get_args_vars_from_subcall($ast);
 						

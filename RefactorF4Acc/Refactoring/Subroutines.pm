@@ -426,6 +426,7 @@ sub _refactor_globals_new {
 
 			# If the line is a subroutine call which has function calls, we need to operate on that line
 			$annline = pop @{$rlines} if exists $info->{'SubroutineCall'};
+			carp Dumper($annline);
 			$rlines  = _create_refactored_function_calls( $stref, $f, $annline, $rlines );
 			$skip    = 1;
 		}
@@ -996,7 +997,7 @@ sub _create_refactored_subroutine_call {
 			my @cast_reshape_results = ();
 			for my $sig_arg (@ex_glob_sig_args) {
 				my $call_arg = $stref->{'Subroutines'}{$parent_sub_name}{'ExMismatchedCommonArgs'}{'CallArgs'}{$f}{$sig_arg}[0];
-				
+				if (defined $call_arg) { # otherwise it is an expression
 				my $subset = in_nested_set($stref->{'Subroutines'}{$f}, 'Vars', $call_arg);
 				my $call_arg_decl = $stref->{'Subroutines'}{$f}{$subset}{'Set'}{$call_arg};
 				my $sig_arg_decl = $stref->{'Subroutines'}{$parent_sub_name}{'ExMismatchedCommonArgs'}{'SigArgs'}{'Set'}{$sig_arg};
@@ -1008,6 +1009,7 @@ sub _create_refactored_subroutine_call {
 				$call_arg = $cast_reshape_result->{'CallArg'};
 				push @cast_reshape_results, $cast_reshape_result if $cast_reshape_result->{'Status'} == 2;
 				push @maybe_renamed_exglobs, $call_arg;
+				}
 			}
 
 			$Sf->{'CastReshapeVarDecls'}{'List'} = [map {$_->{'CallArg'}} @cast_reshape_results];

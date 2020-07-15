@@ -701,36 +701,35 @@ sub __reshape_rhs_if_required { my ($pair, $stref, $f ) = @_;
 
 	if ($is_array1 and $is_array2) {
 
-	my $size1 = calculate_array_size( $stref, $f, $m_dim1 );
-	my $size2 = calculate_array_size( $stref, $f, $m_dim2 );
+		my $size1 = calculate_array_size( $stref, $f, $m_dim1 );
+		my $size2 = calculate_array_size( $stref, $f, $m_dim2 );
 
-	# but the rank we need is the rank of the expression
-	# FIXME: I will assume that if the array is indexed, all indices are used, i.e. rank is 0
-	my $rank1 =  get_array_rank($m_dim1) ;
-	my $rank2 =  get_array_rank($m_dim2) ;
+		# but the rank we need is the rank of the expression
+		# FIXME: I will assume that if the array is indexed, all indices are used, i.e. rank is 0
+		my $rank1 =  get_array_rank($m_dim1) ;
+		my $rank2 =  get_array_rank($m_dim2) ;
 
-	 if ( $size1 == $size2 and $rank1 == $rank2 ) {
-		return $annlines;
-	 }
-	# if the same rank and different size
-	if ( $size1 == $size2 and $rank1 != $rank2 ) {
-
-		# if different rank and same size
-		# reshape			
-		if (scalar @{$annlines} == 1) {
-		my ($line,$info) = @{$annlines->[0]};
-		my $indent = ' ' x 6 ;
-		return [
-			["$indent$l_str = reshape($r_str,shape($l_str))" , $info]
-		];
-
-		} else {
-			carp 'MUST RESHAPE BUT CANNOT!';
+		if ( $size1 == $size2 and $rank1 == $rank2 ) {
+			return $annlines;
 		}
-	}
-	
+		# if the same rank and different size
+		if ( $size1 == $size2 and $rank1 != $rank2 ) {
 
+			# if different rank and same size
+			# reshape			
+			if (scalar @{$annlines} == 1) {
+			my ($line,$info) = @{$annlines->[0]};
+			my $indent = ' ' x 6 ;
+			return [
+				["$indent$l_str = reshape($r_str,shape($l_str))" , $info]
+			];
+
+			} else {
+				carp 'MUST RESHAPE BUT CANNOT!';
+			}
+		}	
 	}
+	return [['',{}]];
 } # END of __reshape_rhs_if_required
 
 

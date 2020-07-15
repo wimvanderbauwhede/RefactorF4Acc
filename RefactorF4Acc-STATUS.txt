@@ -35,6 +35,17 @@ TO RELEASE
   $  git tag v1.2.1
   $  git push origin v1.2.1
 
+STATUS 2020-07-15
+
+NIST FM302 fails because of the problem of expressions as function call args, I think. I really need to move to a typed ArgMap with as value a (type, expr) tuple, as types
+Const | Scalar | Array | Expr and the AST as the 2nd elt of the tuple.
+The issue arrises because currently, in the Parser 1775 we return consts and vars but not exprs. Then when we get to Analysis/Arguments map_call_args_to_sig_args
+248 and 276 we use 'undef' but finally in Expressions 1104 emit_expr_from_ast this catches up on us. Probably because I create the new AST using those undefined values.
+
+There is one other test with the same issue, and another that fails on some FIXME. 
+
+There are two other 
+
 STATUS 2020-07-13
 
 Two minor fixes:
