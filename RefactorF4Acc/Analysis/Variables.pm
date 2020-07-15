@@ -274,7 +274,8 @@ sub analyse_variables {
 							if ( $mvar !~ /\*/ and $line =~ /$mvar\s*\(/ ) {                            # Very ugly HACK because somehow ** got into the var name!
 								say "INFO: LOCAL VAR <$mvar> in $f may be an EXTERNAL FUNCTION " if $I;
 							}
-							say "INFO: LOCAL VAR <$mvar> in $f via IMPLICIT! " . $line . ' analyse_variables() ' . __LINE__ if $I;
+							say "INFO: LOCAL VAR <$mvar> in $f undeclared, typed via IMPLICIT! " . $line if ($I or $DBG); 
+							say ' analyse_variables() ' . __LINE__ if $I;
 							my $decl = get_f95_var_decl( $stref, $f, $mvar );
 
 							if ( not $undecl_orig_arg ) {								
@@ -289,7 +290,8 @@ sub analyse_variables {
 						}
 					}
 				} else {
-					say "analyse_variables($f) " . __LINE__ . " : $mvar ALREADY DECLARED in $in_vars_subset:\n" . Dumper( $Sf->{$in_vars_subset}{'Set'}{$mvar} ) if $I;
+					say "INFO: $f : $mvar ALREADY DECLARED in $in_vars_subset" if $I ;					
+					say "analyse_variables($f) " . __LINE__ . " : $mvar ALREADY DECLARED in $in_vars_subset:\n" . Dumper( $Sf->{$in_vars_subset}{'Set'}{$mvar} ) if $DBG;
 					for my $inc ( keys %{ $Sf->{'Includes'} } ) {
 							say "LOOKING FOR $mvar from $f in $inc" if $DBG;
 							# A variable can be declared in an include file or not and can be listed as common or not

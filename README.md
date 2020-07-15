@@ -177,7 +177,7 @@ The following keys are defined:
 
 <dt>SRCDIRS:</dt><dd>A comma-separated list of directories (relative to PREFIX) to be searched for source files.</dd>
 <dt>EXTSRCDIRS:</dt><dd>A comma-separated list of directories (relative to PREFIX) to be searched for source files.</dd>
-<dt>EXCL_SRCS:</dt><dd>A regular expression matching the source files to be excluded from the analysis. This is relative to `SRCDIRS` unless it starts with '^', so for example 
+<dt>EXCL_SRCS:</dt><dd>A comma-separated list of regular expressions matching the source files to be excluded from the analysis. This is relative to `SRCDIRS` unless it starts with '^', so for example 
       SRCDIRS: src
       EXCL_SRCS: hello.f95
 will exclude `hello.f95` from sources in directory `src` and so will

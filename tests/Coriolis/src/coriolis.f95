@@ -85,9 +85,16 @@ end do
 
 ! predictor of new location
 !$ACC Subroutine predict_loc
-xn(i,j,k) = x(i,j,k) + dt*un(i,j,k)/1000
-yn(i,j,k) = y(i,j,k) + dt*vn(i,j,k)/1000
+do i=1,im
+  do j=1,jm
+      do k=1,km        
+          xn(i,j,k) = x(i,j,k) + dt*un(i,j,k)/dmax
+          yn(i,j,k) = y(i,j,k) + dt*vn(i,j,k)/dmax
+      end do
+  end do
+end do
 !$ACC End Subroutine predict_loc
+
 ! updates for next time step 
 !$ACC Subroutine update_loc_vel
 do i=1,im

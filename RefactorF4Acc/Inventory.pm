@@ -78,7 +78,7 @@ sub find_subroutines_functions_and_includes {
             }
             $excl_srcs_pattern = join('|', @excl_srcs_pattern_w_srcdirs);
         }
-        say     'Exclude pattern: /'. ($excl_srcs_pattern!~/[\^\$]/ ? '^'.$excl_srcs_pattern.'$'  :  $excl_srcs_pattern). '/' if $V; 
+        say 'Exclude pattern: /'. ($excl_srcs_pattern!~/[\^\$]/ ? '^'.$excl_srcs_pattern.'$'  :  $excl_srcs_pattern). '/' if $V; 
         my $excl_srcs_regex      = $excl_srcs_pattern!~/[\^\$]/ 
             ? qr/^$excl_srcs_pattern$/ 
             : qr/$excl_srcs_pattern/;

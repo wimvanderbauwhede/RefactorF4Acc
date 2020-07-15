@@ -33,7 +33,7 @@ use Exporter;
 sub read_fortran_src {
     ( my $code_unit_name, my $stref, my $is_source_file_path ) = @_;
 
-    #	 local $V=1;
+    	#  local $V=1;
 
     # Determine the type of file (Include or not)
     my $is_incl = exists $stref->{'IncludeFiles'}{$code_unit_name} ? 1 : 0;
@@ -216,6 +216,7 @@ Suppose we don't:
 
                     #					map { say $_} @{$norm_lines };
                     #					croak ;
+
                     for my $line ( @{$norm_lines} ) {
 
                         # emit line
@@ -243,6 +244,14 @@ Suppose we don't:
                     my $in_cont              = 0;
                     my @comments_stack       = ();
                     my $firstline            = 1;
+
+
+                  if ( not exists  $stref->{'SourceFiles'}{$f}{'Status'} ) {
+                      $stref->{'SourceFiles'}{$f}{'Status'} = 1;
+
+                  } else {
+                    $stref->{'SourceFiles'}{$f}{'Status'} = 0;
+                  }
 
 # There is an extension to allow 132 characters. But that is a compiler flag so I can't tell
 # I can guess based on the max line length.
@@ -1301,8 +1310,13 @@ sub _pushAnnLine {
                 chomp $line;
                 say
                   "INFO: Adding <$line> to $src because code unit not yet known"
-                  if $I;
-                push @{ $stref->{'SourceFiles'}{$src}{'AnnLines'} }, $pline;
+                  if $I;# or $line=~/SPECIES IS NOT FOUND/;
+
+                  # This should only happen on the firs read of the sourcefile
+                  if ( $stref->{'SourceFiles'}{$src}{'Status'} == 1) {
+                    push @{ $stref->{'SourceFiles'}{$src}{'AnnLines'} }, $pline;
+                  }
+
             }
         }
 

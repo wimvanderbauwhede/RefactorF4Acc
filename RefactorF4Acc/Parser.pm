@@ -967,6 +967,8 @@ or $line=~/^character\s*\(\s*len\s*=\s*[\w\*]+\s*\)/
 			) {				
 				my $maybe_function = $1;				
 				say  "INFO: I'm pretty sure $maybe_function is a StatementFunction in $f" if $I;
+				croak "INFO: I'm pretty sure $maybe_function is a StatementFunction in $f : <$line>";
+
 				$info->{'StatementFunction'} = $maybe_function;
 				$info->{'HasVars'} = 1; 
 				$info->{'SpecificationStatement'} = 1;    
@@ -2545,40 +2547,44 @@ sub __parse_f95_decl {
     
 	my $pt = parse_F95_var_decl($line);
 		
-#croak $line.Dumper($info).Dumper($pt) if $line=~/nx/;
+# croak $line.Dumper($info).Dumper($pt) if $line=~/alpha/;
 	# But this could be a parameter declaration, with an assignment ...
 	if ( $line =~ /,\s*parameter\s*.*?::\s*(\w+\s*=\s*.+?)\s*$/ ) {    
+
+
 		# F95-style parameters
-		$info->{'ParsedParDecl'} = $pt; #WV20150709 currently used by OpenCLTranslation, TODO: use ParamDecl
+		$info->{'ParsedParDecl'} = $pt; #WV20150709 currently used by OpenCLTranslation, TODO: use ParamDecl and the AST from the expression parser
 		
 		my $parliststr = $1;
-		my $var        = $pt->{'Pars'}{'Var'};
-		my $val        = $pt->{'Pars'}{'Val'};
-		my $type       = $pt->{'TypeTup'}; # e.g. integer(kind=8) => {Type => 'integer', Kind => 8}
+		( $Sf, $info ) = __parse_f77_par_decl(  $Sf, $stref, $f, $indent,  $line, $info, $parliststr );
 
-		my $pars_in_val = ___check_par_val_for_pars($val);
+		# my $var        = $pt->{'Pars'}{'Var'};
+		# my $val        = $pt->{'Pars'}{'Val'};
+		# my $type       = $pt->{'TypeTup'}; # e.g. integer(kind=8) => {Type => 'integer', Kind => 8}
 
-		my $param_decl = {
-			'Indent'    => $indent,
-			'Type'      => $type,
-			'Attr'      => '',
-			'Dim'       => [],
-			'Parameter' => 'parameter',
-			'Names'     => [ [ $var, $val ] ],
-			'Name' => $var,
-			'Val' => $val,
-			'Status'    => 0,
-			'Implicit' => 0
-		};    # F95-style
-		$info->{'ParamDecl'} = $param_decl;
-		$info->{'VarDecl'} = {'Name' => $var };
+		# my $pars_in_val = ___check_par_val_for_pars($val);
+
+		# my $param_decl = {
+		# 	'Indent'    => $indent,
+		# 	'Type'      => $type,
+		# 	'Attr'      => '',
+		# 	'Dim'       => [],
+		# 	'Parameter' => 'parameter',
+		# 	'Names'     => [ [ $var, $val ] ],
+		# 	'Name' => $var,
+		# 	'Val' => $val,
+		# 	'Status'    => 0,
+		# 	'Implicit' => 0
+		# };    # F95-style
+		# $info->{'ParamDecl'} = $param_decl;
+		# $info->{'VarDecl'} = {'Name' => $var };
 		
-		$info->{'UsedParameters'} = $pars_in_val;
+		# $info->{'UsedParameters'} = $pars_in_val;
 
-		$Sf->{'LocalParameters'}{'Set'}{$var} = $param_decl;
+		# $Sf->{'LocalParameters'}{'Set'}{$var} = $param_decl;
 
-		# List is only used in Parser, find out what it does
-		$Sf->{'LocalParameters'}{'List'}  = [ @{ $Sf->{'LocalParameters'}{'List'} }, $var ];
+		# # List is only used in Parser, find out what it does
+		# $Sf->{'LocalParameters'}{'List'}  = [ @{ $Sf->{'LocalParameters'}{'List'} }, $var ];
 
 	} else {
 		# F95 VarDecl, continued
@@ -2767,7 +2773,7 @@ sub __parse_f77_par_decl {
 	$indent =~ s/\S.*$//;
 
 	my $ast =  parse_expression($parliststr, $info, $stref, $f);
-	# say Dumper $ast;
+	# croak Dumper( $ast) if $line=~/alpha/;
 	if ($ast->[0] == 9
 	and $ast->[2][0] == 0
 	and scalar @{$ast->[2][1]} == 3

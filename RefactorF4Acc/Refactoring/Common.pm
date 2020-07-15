@@ -399,8 +399,9 @@ if ( not exists $info->{'Inlined'} ) {
             my $tinc = $inc;
             $tinc =~ s/\./_/g;
             if ( not exists $stref->{'IncludeFiles'}{$inc}{'ExtPath'} ) { # FIXME: this is because 'InclType' => 'External' gets overwritten by 'Parameter' 
+            
             	if (exists $Sf->{'Includes'}{$inc}{'Only'} and scalar keys %{ $Sf->{'Includes'}{$inc}{'Only'} }>0) {
-            		            		            		            	
+                    push @{$stref->{'IncludeFiles'}{$inc}{'UsedBy'}}, $f; 
             		my @used_params = keys %{ $Sf->{'Includes'}{$inc}{'Only'} };
                 	$line = "      use $tinc". ($NO_ONLY ?  '!' : '') .', only : '.join(', ', @used_params) ;
                   	push @{ $info->{'Ann'} }, annotate($f, __LINE__. ' Include' );
@@ -408,6 +409,7 @@ if ( not exists $info->{'Inlined'} ) {
             	} elsif (exists $stref->{'IncludeFiles'}{$inc}{'ParamInclude'}) {
             		
             		my $param_include=$stref->{'IncludeFiles'}{$inc}{'ParamInclude'};
+                    push @{$stref->{'IncludeFiles'}{$param_include}{'UsedBy'}}, $f; 
             		my $tinc = $param_include;
             		$tinc =~ s/\./_/g;            		
             		if (exists $Sf->{'Includes'}{$param_include}{'Only'} and scalar keys %{ $Sf->{'Includes'}{$param_include}{'Only'} }>0) {            		            	

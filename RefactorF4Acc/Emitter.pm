@@ -38,13 +38,14 @@ sub emit_all {
     $stref->{'BuildSources'}{$EXT}={};
 
     _init_emit_all($stref) unless $DUMMY;
+
     for my $src (keys %{ $stref->{'SourceContains'} } ) {
         if (exists $stref->{'SourceContains'}{$src}{'Path'} and  exists $stref->{'SourceContains'}{$src}{'Path'}{'Ext'}) {
         	say "SKIPPING $src";
         	next ;
         }
-        print '! ','-' x 80,"\n" if $I;
-        print "INFO: emitting refactored code for $src\n" if  $I;
+        print 'INFO: ','-' x 80,"\n" if $I;
+        print "INFO: Emitter: refactored code for $src?\n" if  $I;
         
             my ($has_subdirs, $subdir_path) = __get_src_subdirs($src);
 	        # if ( $src =~ /\w\/\w/ ) {
@@ -79,12 +80,14 @@ sub emit_all {
                 #     }
                 # }
 	        # }
-        
+       
 	   if ($I) {            
+           if (@{ $stref->{'SourceContains'}{$src}{'List'} } ) {
             print "INFO:\tSRC: $src\n";
             print "INFO:\tCONTAINS: ";
             print join(', ',@{ $stref->{'SourceContains'}{$src}{'List'}   } ),"\n";
-            say "";
+            # say "";
+            }
 	   }
 	   
         if (    not exists $stref->{'BuildSources'}{'C'}{$src}
@@ -99,7 +102,9 @@ sub emit_all {
 		my $nsrc=$src;
 		if (exists $stref->{'BuildSources'}{'F'}{$src} ) {
 			$nsrc=~s/\.\w+$/$EXT/;
-		}
+		} else {
+            next;
+        }
         if (exists $stref->{'IncludeFiles'}{$src} ) {
                 for my $srcdir (@{$Config{'SRCDIRS'}}) {
                     if (-e "$srcdir/$src") {
@@ -112,16 +117,23 @@ sub emit_all {
 		    $stref->{'BuildSources'}{$EXT}{$nsrc}=1 ;
         }
 		if ($DUMMY) {
-			say '! '.('=' x 80);
-            say "! FILE: $targetdir/$nsrc ($src)";
-            say '! '.('=' x 80);
+			say 'INFO: '.('=' x 80);
+            say "INFO: Emitter: New source: $targetdir/$nsrc ($src)";
+            say 'INFO: '.('=' x 80);
         	show_annlines($stref->{'RefactoredCode'}{$src},0);
         } else {
-            say "! FILE: $targetdir/$nsrc ($src)" if $DBG;
+            say "INFO: Emitter: New source: $targetdir/$nsrc ($src)" if ($I or $DBG);
+			my $mod_lines = $stref->{'RefactoredCode'}{$src};
+            
+            if (exists $stref->{'SourceFiles'}{$src}{'AnnLines'}) {
+                my @source_level_comments = grep {exists $_->[1]{'Comments'}} @{$stref->{'SourceFiles'}{$src}{'AnnLines'}};
+                if (@source_level_comments) {
+                    $mod_lines =[@source_level_comments,@{$mod_lines}];
+                }
+            }
 
 			open my $TGT, '>', "$targetdir/$nsrc" or die $!.": $targetdir/$nsrc";
 			
-			my $mod_lines = $stref->{'RefactoredCode'}{$src};
 			
 			for my $mod_line (@{ $mod_lines }) {
 				my $info = $mod_line->[1];
@@ -145,14 +157,14 @@ sub emit_all {
     
     
     for my $f ( keys %{ $stref->{'IncludeFiles'} } ) { 
+        if ( 
+        exists $stref->{'IncludeFiles'}{$f}{'UsedBy'} and
+        scalar @{$stref->{'IncludeFiles'}{$f}{'UsedBy'}}>0) {
 
-        if ($I) {
-        print "! "."=" x 80,"\n";
-        print "! INCLUDE FILE: $f\n";        
-        say "! WRITE TO $targetdir";
-        print "! "."=" x 80,"\n";
-        }
         _emit_refactored_include( $f, $targetdir, $stref );
+        } else {
+            say "INFO: INCLUDE $f NOT USED!" if $I;
+        }
     }
     if ($DUMMY) {
         say '! '. '=' x 80;
@@ -201,16 +213,22 @@ sub _emit_refactored_include {
     ( my $f, my $dir, my $stref ) = @_;    
     # local $I=1;
     # local $V=1;
-    
-    say "INCLUDE: $f" if $I;
+        if ($I) {
+        say "INFO: "."=" x 80;
+        say "INFO: INCLUDE FILE: $f";
+        say "INFO: WRITE TO $targetdir";
+        say "INFO: "."=" x 80;
+        }
+    # map {say $_} sort keys %{$stref->{'IncludeFiles'}{$f}};
+    # say "INFO: INCLUDE: $f" if $I;
     my $srcref = $stref->{'IncludeFiles'}{$f}{'RefactoredCode'};
     my $incsrc=$stref->{'IncludeFiles'}{$f}{'Source'};
 
     if ( defined $srcref ) {
         if ($DUMMY) {
-            say '! '.('=' x 80);
-            say "! FILE: $dir/$incsrc";
-            say '! '.('=' x 80);
+            say 'INFO:  '.('=' x 80);
+            say "INFO:  FILE: $dir/$incsrc";
+            say 'INFO:  '.('=' x 80);
             show_annlines($srcref,0);
         } else {
 
@@ -246,7 +264,7 @@ sub _emit_refactored_include {
         
         my $EXT = $Config{EXT};
         $stref->{'BuildSources'}{$EXT}{$nsrc}=1;
-        print "INFO: emitting refactored code for include $f in $dir/$nsrc\n" if $I;
+        print "INFO: Emitter: refactored code for include $f: $dir/$nsrc\n" if $I;
 #        say "! FILE: $dir/$incsrc";
         open my $SRC, '>', "$dir/$nsrc" or die "$!: $dir/$nsrc";
         
