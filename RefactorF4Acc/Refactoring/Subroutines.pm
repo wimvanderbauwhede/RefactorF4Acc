@@ -2237,13 +2237,17 @@ sub _maybe_cast_call_args { my ($stref, $f, $sub_name, $call_arg,$call_arg_decl,
 		$call_arg_decl->{'ArrayOrScalar'} eq 'Array'
 		and $sig_arg_decl->{'ArrayOrScalar'} eq 'Array'									
 	) { # both are arrays. Let's check size and rank
-# warn '_maybe_cast_call_args(): ' . $f. ':'. Dumper($call_arg_decl->{'Dim'}).';'.$sub_name. ':' .   Dumper($sig_arg_decl->{'Dim'});
 		# and also assignment is array to array
 		my $dim1  = $call_arg_decl->{'Dim'};
 		my $dim2  = $sig_arg_decl->{'Dim'};		
+		# say "ASSUMED? ". __is_assumed_array($dim2);
+		if (__is_assumed_array($dim2)) {
+			$dim2 = __take_upper_bound_from_call_arg($dim1,$dim2);
+		}
+		
 		my $size1 = calculate_array_size( $stref, $f, $dim1 );
 		my $size2 = calculate_array_size( $stref, $sub_name, $dim2 );
-		croak 'FIXME!' unless defined $size1 and defined $size2;
+		croak 'FIXME!'.Dumper($call_arg_decl,$sig_arg_decl) unless defined $size1 and defined $size2;
 		# but the rank we need is the rank of the expression
 		# FIXME: I will assume that if the array is indexed, all indices are used, i.e. rank is 0
 		my $rank1 = get_array_rank($dim1);
@@ -2378,4 +2382,85 @@ sub _maybe_cast_call_args { my ($stref, $f, $sub_name, $call_arg,$call_arg_decl,
 
 	return $cast_reshape_result;
 }
+
+# Dim :: [(Int,IntOrStar)]
+# IntOrStar = Int | '*'
+sub __is_assumed_array { my ($dims) = @_;
+for my $dim_comp (@{$dims}) {
+	my $upper_bound=$dim_comp->[1];
+	if ($upper_bound eq '*') {
+		return 1;
+	}
+}
+return 0;
+} # END of __is_assumed_array
+
+# I will at first assume the dimensions are the same, and if not I need to reshape 
+sub __take_upper_bound_from_call_arg { my ($dim1,$dim2) = @_;
+	my $idx=0;
+	if (
+		scalar @{$dim1} == scalar @{$dim2}
+	) {
+		for my $dim1_comp (@{$dim1}) {
+			my $dim2_comp= $dim2->[$idx];
+			my $upper_bound2=$dim2_comp->[1];
+			if ($upper_bound2 eq '*') {
+				my $lower_bound1=$dim1_comp->[0];
+				my $upper_bound1=$dim1_comp->[1];
+				# If we had [1,3] and [-1, *] => -1 -1 = -2; 3+ -2 = 1
+				# If we had [-1,3] and [1, *] => 1 - -1 = 2; 3+ 2 = 5
+				my $lower_bound2=$dim1_comp->[0];
+				my $offset = $lower_bound2 - $lower_bound1;
+				$upper_bound2=$dim1_comp->[1] + $offset;
+				$dim2->[$idx][1]=$upper_bound2;
+			}
+			++$idx;
+		}
+		return $dim2;
+	} else { # This means $dim1 has a different shape from $dim2
+	# For example [1,6] and [[1,2],[1,*]]
+	# In this case we see that * should be 3. 
+	# But what if we had
+	# For example [1,6] and [[1,*],[1,*]]
+	# Then there is no unique solution! 
+	# If on the contrary we had [[1,2],[1,3]] and [1,*] then it is clear.
+	# So: 
+	# - If there is only one *, the we calculate the linear size of the call arg, and the linear sizes of the non-* sig arg dims
+		my $nstars = 0;
+		for my $dim_comp2 (@{$dim2}) {
+			my $upper_bound2=$dim_comp2->[1];
+			if ($upper_bound2 eq '*') {
+				++$nstars;
+			}
+		}
+		if ($nstars==1) {
+			my $size1 = 1;
+			for my $dim1_comp (@{$dim1}) {
+				my $upper_bound1=$dim1_comp->[1];
+				my $lower_bound1=$dim1_comp->[1];
+				$size1 = $size1*($upper_bound1-$lower_bound1+1);
+			}
+			my $size2 = 1;
+			for my $dim2_comp (@{$dim2}) {
+				my $upper_bound2=$dim2_comp->[1];
+				my $lower_bound2=$dim2_comp->[1];
+				if ($upper_bound2 ne '*'){
+					$size2 = $size2*($upper_bound2-$lower_bound2+1);			
+				}
+			}
+			my $assumed_size = $size1/$size2;
+			for my $dim_comp2 (@{$dim2}) {
+				my $upper_bound2=$dim_comp2->[1];
+				if ($upper_bound2 eq '*') {
+					$dim_comp2->[1]=$assumed_size-$dim_comp2->[0]+1;
+				}
+			}			
+			return $dim2;
+		} else {
+			# Not good, better error message needed
+			die "Can't handle assumed array with multiple * and mismatched array dimensions.\n";
+		}
+	}
+} # END of __take_upper_bound_from_call_arg
+
 1;

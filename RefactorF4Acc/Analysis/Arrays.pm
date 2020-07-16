@@ -44,7 +44,8 @@ sub calculate_array_size {
 		push @sz_strs, $sz_str;
 	}
 	my $tot_sz_str = join( '*', @sz_strs );
-
+	# $tot_sz_str=~s/\-/ - /g;
+	# say $tot_sz_str;
 	my $size = eval_expression_with_parameters( $tot_sz_str, {}, $stref, $f );
 
 	return $size;

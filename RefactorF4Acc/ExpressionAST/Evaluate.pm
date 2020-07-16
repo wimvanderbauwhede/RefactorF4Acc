@@ -150,6 +150,7 @@ sub eval_expression_with_parameters { (my $expr_str,my $info, my $stref, my $f) 
     my $expr_ast2 = replace_param_by_val($stref, $f, 0,$expr_ast, {});
 #    say Dumper($expr_ast2);
     my $evaled_expr_str= emit_expr_from_ast($expr_ast2);
+	$evaled_expr_str=~s/\-/ -/g;
 #    say "EXPR $expr_str TO EVAL:$evaled_expr_str";
    
     my $expr_val=eval($evaled_expr_str);

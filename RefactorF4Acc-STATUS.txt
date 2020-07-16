@@ -35,6 +35,47 @@ TO RELEASE
   $  git tag v1.2.1
   $  git push origin v1.2.1
 
+STATUS 2020-07-16
+
+Test FM701 fails 
+
+refactorF4acc.pl -c rf4a_fm701.cfg  -g fm701
+FIXME! at /Users/wim/Git/RefactorF4Acc/RefactorF4Acc/Refactoring/Subroutines.pm line 2246.
+	RefactorF4Acc::Refactoring::Subroutines::_maybe_cast_call_args('HASH(0x7f81c9822580)', 'fm701', 'sn703', 'c2d002', 'HASH(0x7f81c9e2e6c0)', 'c2d001', 'HASH(0x7f81ca6099b0)') called at /Users/wim/Git/RefactorF4Acc/RefactorF4Acc/Refactoring/Subroutines.pm line 828
+	RefactorF4Acc::Refactoring::Subroutines::_create_refactored_subroutine_call('HASH(0x7f81c9822580)', 'fm701', 'ARRAY(0x7f81c9e52fe0)', 'ARRAY(0x7f81caed9880)') called at /Users/wim/Git/RefactorF4Acc/RefactorF4Acc/Refactoring/Subroutines.pm line 420
+	RefactorF4Acc::Refactoring::Subroutines::_refactor_globals_new('HASH(0x7f81c9822580)', 'fm701', 'ARRAY(0x7f81caee6790)') called at /Users/wim/Git/RefactorF4Acc/RefactorF4Acc/Refactoring/Subroutines.pm line 157
+	RefactorF4Acc::Refactoring::Subroutines::_refactor_subroutine_main('HASH(0x7f81c9822580)', 'fm701') called at /Users/wim/Git/RefactorF4Acc/RefactorF4Acc/Refactoring/Subroutines.pm line 80
+	RefactorF4Acc::Refactoring::Subroutines::refactor_all_subroutines('HASH(0x7f81c9822580)') called at /Users/wim/Git/RefactorF4Acc/RefactorF4Acc/Refactoring.pm line 57
+	RefactorF4Acc::Refactoring::refactor_all('HASH(0x7f81c9822580)', 'fm701') called at /Users/wim/Git/RefactorF4Acc/RefactorF4Acc/Main.pm line 296
+	RefactorF4Acc::Main::main() called at /Users/wim/Git/RefactorF4Acc/bin/refactorF4acc.pl line 15
+
+The reason:
+
+ c2d002 for call to sn703 in fm701
+
+ $call_arg_decl = {
+  'ArrayOrScalar' => 'Array',
+  'Type' => 'character',
+  'Attr' => 'len=4',  
+  'Dim' => [ [ 1, '2' ], [ '1', '3' ] ],
+  'Name' => 'c2d002',
+};
+$sig_arg_decl = {
+  'ArrayOrScalar' => 'Array',
+  'Type' => 'character',  
+  'Dim' => [ [ 1, '2' ], [ '1', '*' ] ],
+  'Attr' => 'len=4',
+  'Name' => 'c2d001',
+};
+
+What this is:
+Assumed-Size Arrays
+An assumed-size array is an array that is a dummy argument, and which has an asterisk as the upper bound of the last dimension.
+You can declare assumed-size arrays in the usual DIMENSION, COMMON, or type statements.
+
+So, this * will take its value from the call arg dimension
+
+
 STATUS 2020-07-15
 
 NIST FM302 fails because of the problem of expressions as function call args, I think. I really need to move to a typed ArgMap with as value a (type, expr) tuple, as types
@@ -42,9 +83,13 @@ Const | Scalar | Array | Expr and the AST as the 2nd elt of the tuple.
 The issue arrises because currently, in the Parser 1775 we return consts and vars but not exprs. Then when we get to Analysis/Arguments map_call_args_to_sig_args
 248 and 276 we use 'undef' but finally in Expressions 1104 emit_expr_from_ast this catches up on us. Probably because I create the new AST using those undefined values.
 
-There is one other test with the same issue, and another that fails on some FIXME. 
+There is one other test with the same issue. Fixed now, it was an error in _match_up_common_var_sequences(), line 348
 
-There are two other 
+				$Sf->{'ExMismatchedCommonArgs'}{'CallArgs'}{$caller}{$name_caller} = [ $name_caller, $caller, $block ];
+				# I think the above is wrong for the case when $name_local ne $name_caller
+				$Sf->{'ExMismatchedCommonArgs'}{'CallArgs'}{$caller}{$name_local} = [ $name_caller, $caller, $block ];
+
+
 
 STATUS 2020-07-13
 
