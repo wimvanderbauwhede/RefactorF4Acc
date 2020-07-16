@@ -75,6 +75,12 @@ You can declare assumed-size arrays in the usual DIMENSION, COMMON, or type stat
 
 So, this * will take its value from the call arg dimension
 
+Fixed FM701, no idea how it could have passed before. Implemented 
+support for assumed arrays in _maybe_cast_call_args().
+
+		if (__is_assumed_array($dim2)) {
+			$dim2 = __take_upper_bound_from_call_arg($dim1,$dim2);
+		}
 
 STATUS 2020-07-15
 
