@@ -426,7 +426,7 @@ sub _refactor_globals_new {
 
 			# If the line is a subroutine call which has function calls, we need to operate on that line
 			$annline = pop @{$rlines} if exists $info->{'SubroutineCall'};
-			carp Dumper($annline);
+			# carp Dumper($annline);
 			$rlines  = _create_refactored_function_calls( $stref, $f, $annline, $rlines );
 			$skip    = 1;
 		}
@@ -1177,66 +1177,44 @@ sub _create_refactored_function_calls {
 sub __update_function_calls_in_AST {
 	( my $stref, my $Sf, my $f, my $ast ) = @_;
 
-	#	carp "NEEDS TO BE TESTED FOR NEW PARSER!";
-	if ($NEW_PARSER) {
-		if ( !@{$ast} ) { return $ast; }    # an empty AST
-											# use the new walker
-		if (   ( $ast->[0] & 0xFF ) == 1
-			or ( $ast->[0] & 0xFF ) == 10 )
-		{                                   # array var or function/subroutine call
-											# it it's a function call, update the call args
-			if ( ( $ast->[0] & 0xFF ) == 1 ) {
-				my $name = $ast->[1];
-				if ( not exists $stref->{'Subroutines'}{$name}{'HasCommonVarMismatch'} ) {
 
-					if ( $name ne $f and exists $stref->{'Subroutines'}{$name}{'ExGlobArgs'} ) {
+	if ( !@{$ast} ) { return $ast; }    # an empty AST
+										# use the new walker
+	if (   ( $ast->[0] & 0xFF ) == 1
+		or ( $ast->[0] & 0xFF ) == 10 )
+	{                                   # array var or function/subroutine call
+										# it it's a function call, update the call args
+		if ( ( $ast->[0] & 0xFF ) == 1 ) {
+			my $name = $ast->[1];
+			if ( not exists $stref->{'Subroutines'}{$name}{'HasCommonVarMismatch'} ) {
 
-						#				say "SUB $f CALLING $name:".Dumper($stref->{'Subroutines'}{$name}{'ExGlobArgs'});
-						my @globals =
-						  exists $stref->{'Subroutines'}{$name}{'ExGlobArgs'}{'List'}
-						  ? @{ $stref->{'Subroutines'}{$name}{'ExGlobArgs'}{'List'} }
-						  : ();
-						my @maybe_renamed_exglobs = ();
-						for my $ex_glob (@globals) {
+				if ( $name ne $f and exists $stref->{'Subroutines'}{$name}{'ExGlobArgs'} ) {
 
-							# $ex_glob may be renamed or not. I test this using OrigName.
-							# This way I am sure I get only original names
-							if (    exists $stref->{'Subroutines'}{$name}{'ExGlobArgs'}{'Set'}{$ex_glob}
-								and ref( $stref->{'Subroutines'}{$name}{'ExGlobArgs'}{'Set'}{$ex_glob} ) eq 'HASH'
-								and exists $stref->{'Subroutines'}{$name}{'ExGlobArgs'}{'Set'}{$ex_glob}{'OrigName'} )
-							{
-								$ex_glob = $stref->{'Subroutines'}{$name}{'ExGlobArgs'}{'Set'}{$ex_glob}{'OrigName'};
-							}
-							if ( exists $Sf->{'RenamedInheritedExGLobs'}{'Set'}{$ex_glob} ) {
-								say "INFO: RENAMED $ex_glob => " . $Sf->{'RenamedInheritedExGLobs'}{'Set'}{$ex_glob} . ' in call to ' . $name . ' in ' . $f
-								  if $I;
-								push @maybe_renamed_exglobs, $Sf->{'RenamedInheritedExGLobs'}{'Set'}{$ex_glob};
-							} else {
-								push @maybe_renamed_exglobs, $ex_glob;
-							}
-						}
-
-						if (@maybe_renamed_exglobs) {
-							if ( not @{ $ast->[2] } ) {    # empty list. create [',' ]
-								push @{ $ast->[2] }, 27;
-							} elsif ( ( $ast->[2][0] && 0xFF ) != 27 ) {    # not a list. Wrap in [',', ... ]
-								my $entry = $ast->[2];
-								$ast->[2] = [ 27, $entry ];
-							}
-							for my $extra_arg (@maybe_renamed_exglobs) {
-								push @{ $ast->[2] }, [ 2, $extra_arg ];     #'$'
-							}
-						}
-					}
-				} else {
-
-					# For mismatched COMMON blocks we need to append the call args with 'CallArgs'
+					#				say "SUB $f CALLING $name:".Dumper($stref->{'Subroutines'}{$name}{'ExGlobArgs'});
+					my @globals =
+						exists $stref->{'Subroutines'}{$name}{'ExGlobArgs'}{'List'}
+						? @{ $stref->{'Subroutines'}{$name}{'ExGlobArgs'}{'List'} }
+						: ();
 					my @maybe_renamed_exglobs = ();
-					for my $sig_arg ( @{ $stref->{'Subroutines'}{$name}{'ExMismatchedCommonArgs'}{'SigArgs'}{'List'} } ) {
-						my $call_arg =
-						  $stref->{'Subroutines'}{$name}{'ExMismatchedCommonArgs'}{'CallArgs'}{$f}{$sig_arg}[0];
-						push @maybe_renamed_exglobs, $call_arg;
+					for my $ex_glob (@globals) {
+
+						# $ex_glob may be renamed or not. I test this using OrigName.
+						# This way I am sure I get only original names
+						if (    exists $stref->{'Subroutines'}{$name}{'ExGlobArgs'}{'Set'}{$ex_glob}
+							and ref( $stref->{'Subroutines'}{$name}{'ExGlobArgs'}{'Set'}{$ex_glob} ) eq 'HASH'
+							and exists $stref->{'Subroutines'}{$name}{'ExGlobArgs'}{'Set'}{$ex_glob}{'OrigName'} )
+						{
+							$ex_glob = $stref->{'Subroutines'}{$name}{'ExGlobArgs'}{'Set'}{$ex_glob}{'OrigName'};
+						}
+						if ( exists $Sf->{'RenamedInheritedExGLobs'}{'Set'}{$ex_glob} ) {
+							say "INFO: RENAMED $ex_glob => " . $Sf->{'RenamedInheritedExGLobs'}{'Set'}{$ex_glob} . ' in call to ' . $name . ' in ' . $f
+								if $I;
+							push @maybe_renamed_exglobs, $Sf->{'RenamedInheritedExGLobs'}{'Set'}{$ex_glob};
+						} else {
+							push @maybe_renamed_exglobs, $ex_glob;
+						}
 					}
+
 					if (@maybe_renamed_exglobs) {
 						if ( not @{ $ast->[2] } ) {    # empty list. create [',' ]
 							push @{ $ast->[2] }, 27;
@@ -1248,79 +1226,48 @@ sub __update_function_calls_in_AST {
 							push @{ $ast->[2] }, [ 2, $extra_arg ];     #'$'
 						}
 					}
-
 				}
-			}
+			} else {
 
-			# but in any case we need to traverse again for the old call args
-
-			my $entry = __update_function_calls_in_AST( $stref, $Sf, $f, $ast->[2] );
-			$ast->[2] = $entry;
-
-		} elsif ( ( $ast->[0] & 0xFF ) < 29 and ( $ast->[0] & 0xFF ) != 2 ) {    # other operators
-			for my $idx ( 1 .. scalar @{$ast} - 1 ) {
-				my $entry = __update_function_calls_in_AST( $stref, $Sf, $f, $ast->[$idx] );
-				$ast->[$idx] = $entry;
-			}
-		}
-
-	} else {    # OLD PARSER
-		croak "HOPEFULLY OBSOLETE!";
-		if ( ref($ast) eq 'ARRAY' ) {
-			my $nelts = scalar @{$ast};
-			for my $idx ( 0 .. $nelts - 1 ) {
-				my $entry = $ast->[$idx];
-				if ( ref($entry) eq 'ARRAY' ) {
-					my $entry = __update_function_calls_in_AST( $stref, $Sf, $f, $entry );
-					$ast->[$idx] = $entry;
-				} else {
-					if ( $idx == 0 and ( ( $entry & 0xFF ) == 1 ) ) {
-						my $name = $ast->[ $idx + 1 ];
-
-						if ( $name ne $f
-							and exists $stref->{'Subroutines'}{$name}{'ExGlobArgs'} )
-						{
-
-							my @globals =
-							  exists $stref->{'Subroutines'}{$name}{'ExGlobArgs'}{'List'}
-							  ? @{ $stref->{'Subroutines'}{$name}{'ExGlobArgs'}{'List'} }
-							  : ();
-							my @maybe_renamed_exglobs = ();
-							for my $ex_glob (@globals) {
-
-								# $ex_glob may be renamed or not. I test this using OrigName.
-								# This way I am sure I get only original names
-								if ( exists $stref->{'Subroutines'}{$name}{'ExGlobArgs'}{'Set'}{$ex_glob}{'OrigName'} ) {
-									$ex_glob = $stref->{'Subroutines'}{$name}{'ExGlobArgs'}{'Set'}{$ex_glob}{'OrigName'};
-								}
-								if ( exists $Sf->{'RenamedInheritedExGLobs'}{'Set'}{$ex_glob} ) {
-									say "INFO: RENAMED $ex_glob => " . $Sf->{'RenamedInheritedExGLobs'}{'Set'}{$ex_glob} . ' in call to ' . $name . ' in ' . $f
-									  if $I;
-									push @maybe_renamed_exglobs, $Sf->{'RenamedInheritedExGLobs'}{'Set'}{$ex_glob};
-								} else {
-									push @maybe_renamed_exglobs, $ex_glob;
-								}
-							}
-
-							my $j = 0;
-							for my $extra_arg (@maybe_renamed_exglobs) {
-								$ast->[ $nelts + $j ] = [
-									( ++$Fortran::Expression::Evaluator::Parser::nodeId << 8 ) + 2
-
-									  #					    	'$'
-									,
-									$extra_arg
-								];
-								$j++;
-							}
-						}
+				# For mismatched COMMON blocks we need to append the call args with 'CallArgs'
+				# So here is the problem that some of them are undefined, and that is because there is no entry for
+				# the $sig_arg in $stref->{'Subroutines'}{$name}{'ExMismatchedCommonArgs'}{'CallArgs'}{$f}
+				# So the question is now, why is that then?
+				my @maybe_renamed_exglobs = ();
+				for my $sig_arg ( @{ $stref->{'Subroutines'}{$name}{'ExMismatchedCommonArgs'}{'SigArgs'}{'List'} } ) {
+					my $call_arg =
+						$stref->{'Subroutines'}{$name}{'ExMismatchedCommonArgs'}{'CallArgs'}{$f}{$sig_arg}[0];
+					push @maybe_renamed_exglobs, $call_arg;
+					croak "$name called in $f => $sig_arg " unless defined $call_arg;
+				}
+				if (@maybe_renamed_exglobs) {
+					if ( not @{ $ast->[2] } ) {    # empty list. create [',' ]
+						push @{ $ast->[2] }, 27;
+					} elsif ( ( $ast->[2][0] && 0xFF ) != 27 ) {    # not a list. Wrap in [',', ... ]
+						my $entry = $ast->[2];
+						croak unless defined $entry;
+						$ast->[2] = [ 27, $entry ];
+					}
+					for my $extra_arg (@maybe_renamed_exglobs) {
+						croak Dumper(@maybe_renamed_exglobs) unless defined $extra_arg;
+						push @{ $ast->[2] }, [ 2, $extra_arg ];     #'$'
 					}
 				}
+
 			}
 		}
-	}    # NEW_PARSER
+		# but in any case we need to traverse again for the old call args
+		# carp(Dumper($ast) );
+		my $entry = __update_function_calls_in_AST( $stref, $Sf, $f, $ast->[2] );
+		$ast->[2] = $entry;
+	} elsif ( ( $ast->[0] & 0xFF ) < 29 and ( $ast->[0] & 0xFF ) != 2 ) {    # other operators
+	
+		for my $idx ( 1 .. scalar @{$ast} - 1 ) {
+			my $entry = __update_function_calls_in_AST( $stref, $Sf, $f, $ast->[$idx] );
+			$ast->[$idx] = $entry;
+		}
+	}
 
-	#	carp Dumper($ast);
 	return $ast;    #($stref,$f, $ast);
 
 }    # END of __update_function_calls_in_AST()
@@ -1871,7 +1818,7 @@ sub __refactor_EQUIVALENCE_line {
 					my $start_idx2 = join( ',', map { $_->[0] } @{ $var2_decl->{'Dim'} } );
 					$v1_v2_pair = [ $v1, "$v2($start_idx2)" ];    #
 					$v2_v1_pair = ["$v2($start_idx2)", $v1];
-					croak 'HERE: '.$v1_type.';'.$v1_v2_pair->[1];
+					# croak 'HERE: '.$v1_type.';'.$v1_v2_pair->[1];
 					$ann=annotate( $f, __LINE__  );
 				} else {
 					$ann=annotate( $f, __LINE__  );

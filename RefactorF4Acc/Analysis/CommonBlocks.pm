@@ -245,12 +245,12 @@ sub _create_common_var_size_tuples {
 			# Let's start with 0|1
 			# I think it might be better to just put the entire Decl in here, with a separate Dim which gets updated
 			[
-				$called_sub_common_var,         # :: VarName
-				$called_sub_common_var_decl,    # VarDeclRec
+				$called_sub_common_var,         # :: VarName -- String
+				$called_sub_common_var_decl,    # :: VarDeclRec
 				$kind_or_len,                   # :: AttrVal
-				$dim,                           # :: Dim
-				$dimsz,                         # linear size
-				1,                              # linear index, starting at 1
+				$dim,                           # :: Dim -- [[Integer]]
+				$dimsz,                         # :: Integer -- linear size
+				1,                              # :: Integer -- linear index, starting at 1
 				0                               # :: UsedBefore
 			];
 		} @called_sub_common_vars;
@@ -275,7 +275,17 @@ sub _match_up_common_vars {
 		}
 	}
 	
-#	croak Dumper($Sf->{'ExMismatchedCommonArgs'}) if $f eq 'ff304';
+	# if ($f eq 'ff304') {
+	# 	for my $sig_arg (@{$Sf->{'ExMismatchedCommonArgs'}{'SigArgs'}{'List'}}) {
+			
+	# 		if (not exists $Sf->{'ExMismatchedCommonArgs'}{'CallArgs'}{'fm302'}{$sig_arg}) {
+	# 			say "NO CALL ARG for $sig_arg in call to ff304 in fm302";
+	# 		} else {
+	# 			my $call_arg = $Sf->{'ExMismatchedCommonArgs'}{'CallArgs'}{'fm302'}{$sig_arg}[0];
+	# 			say $sig_arg .'=>'.$call_arg unless $sig_arg eq $call_arg;
+	# 		}
+	# 	}
+	# }
 	return $stref;
 }    # END of _match_up_common_vars
 
@@ -295,9 +305,15 @@ sub _match_up_common_var_sequences {
 	my @common_caller_seq =
 	  @{ $stref->{'Subroutines'}{$caller}{'CommonBlockSequences'}{$block} };
 
-	# @equivalence_pairs ::  [(VarName,Type,ArrayOrScalar,Dim,PrefixStr, TypeDeclRec)]
-	my @equivalence_pairs = ();
-	# croak Dumper( map {$_->[0] } @common_local_seq).Dumper( map {$_->[0] } @common_caller_seq) if $f eq 'mult_chk';
+	# @equivalence_pairs ::  [(VarName,Type,ArrayOrScalar,Dim,PrefixStr)]
+	#  [ $name, $type, 0|1, [], [] ]
+	# type VarName = String
+	# type Type = String -- integer | real | character | ...
+	# type ArrayOrScalar = Integer -- 1 for Array, 0 for Scalar
+	# type Dim is [[Integer]]
+	# type PrefixStr = [String]	
+	my @equivalence_pairs = ();	
+	# croak 'LOCAL:'.Dumper( map {$_->[0].(@{$_->[3]}>0? '('.$_->[4].')':'' )} @common_local_seq).'CALLER:'.Dumper( map {$_->[0].(@{$_->[3]}>0? '('.$_->[4].')':'' )} @common_caller_seq) if $f eq 'ff304';
 	while ( scalar @common_local_seq > 0 ) {    # keep going until the local sequence is consumed
 		my $elt_local = shift @common_local_seq;
 
@@ -311,7 +327,7 @@ sub _match_up_common_var_sequences {
 			my ( $name_caller, $decl_caller, $kind_caller, $dim_caller, $dimsz_caller, $lin_idx_caller, $used_caller ) = @{$elt_caller};
 			my $type_caller = $decl_caller->{'Type'};
 			# carp 'dim_caller: '.Dumper($dim_caller);
-			# say "CALLER: $name_caller :: $type_caller"  if $f eq 'mult_chk' and $name_caller eq 'w4';
+			# say "1. $f $caller: LOCAL: $name_local CALLER: $name_caller " if $f eq 'ff304' and $name_local ne $name_caller;
 
 			# add this caller to ExMismatchedCommonArgs
 			# WV 2020-02-04 Is this always the case?
@@ -329,6 +345,10 @@ sub _match_up_common_var_sequences {
 					$decl_caller->{'IODir'} = 'Unknown';
 				}
 				$Sf->{'ExMismatchedCommonArgs'}{'CallArgs'}{$caller}{$name_caller} = [ $name_caller, $caller, $block ];
+				# I think the above is wrong for the case when $name_local ne $name_caller
+				$Sf->{'ExMismatchedCommonArgs'}{'CallArgs'}{$caller}{$name_local} = [ $name_caller, $caller, $block ];
+			# say "2. $f $caller: LOCAL: $name_local CALLER: $name_caller " if $f eq 'ff304' and $name_local ne $name_caller;
+
 			}
 			my $htype_local  = $decl_local->{'Type'};
 			my $htype_caller = $decl_caller->{'Type'};
@@ -613,10 +633,10 @@ sub _match_up_common_var_sequences {
 				$Sf = add_var_decl_to_set( $Sf, 'ExGlobArgs', $name_local, $decl_local );
 				
 			}
+			# say "3. $f $caller: LOCAL: $name_local CALLER: $name_local to be added " if $f eq 'ff304' ;
 
 			# but in any case, the name must be added to the call args
-			$Sf->{'ExMismatchedCommonArgs'}{'CallArgs'}{$caller}{$name_local} =
-			  [ $name_local, $f, $block ];
+			$Sf->{'ExMismatchedCommonArgs'}{'CallArgs'}{$caller}{$name_local} = [ $name_local, $f, $block ];
 
 			# Either way, the local will have been consumed and there is no caller, so no unshifting
 		}
@@ -628,10 +648,12 @@ sub _match_up_common_var_sequences {
 		my @arg_assignment_lines = map {
 			my $pair = $_;
 			# carp 'ADD RESHAPE HERE: '.Dumper($pair);
+			# This goes wrong when both elts of the pair are Scalar but also when one is a scalar and the other an array of size 1
+			# In both cases there is no need for a reshape. 
 			@{__reshape_rhs_if_required($pair, $stref, $f )}; 
 			# @{ _caller_to_local_assignment_annlines($pair) };
 		} @equivalence_pairs;
-
+# carp Dumper(@arg_assignment_lines);
 		if ( not exists $Sf->{'ExMismatchedCommonArgs'}{'ArgAssignmentLines'} ) {
 			$Sf->{'ExMismatchedCommonArgs'}{'ArgAssignmentLines'} = \@arg_assignment_lines;
 		} else {
@@ -685,7 +707,7 @@ sub _caller_to_local_assignment_annlines {
 # Reshape works on an array or perhaps on a slice. 
 # I am not sure how it works with casts
 # I will apply this to the finished strings of the assignment
-
+# 
 sub __reshape_rhs_if_required { my ($pair, $stref, $f ) = @_; 
 	 my $tup_lhs = $pair->[0];
 	( my $var1, my $type1, my $is_array1, my $m_dim1, my $m_prefix1 ) = @{$tup_lhs};
@@ -729,7 +751,8 @@ sub __reshape_rhs_if_required { my ($pair, $stref, $f ) = @_;
 			}
 		}	
 	}
-	return [['',{}]];
+	# return [['',{}]];
+	return $annlines;
 } # END of __reshape_rhs_if_required
 
 
@@ -760,8 +783,7 @@ sub __add_prefixed_arg {
 	$prefixed_name_caller_decl->{'OrigName'} = $name_caller;
 	$Sf->{'ExMismatchedCommonArgs'}{'SigArgs'}{'Set'}{$prefixed_name_caller} =
 	  $prefixed_name_caller_decl;
-	$Sf->{'ExMismatchedCommonArgs'}{'CallArgs'}{$caller}{$prefixed_name_caller} =
-	  [ $name_caller, $caller, $block ];
+	$Sf->{'ExMismatchedCommonArgs'}{'CallArgs'}{$caller}{$prefixed_name_caller} = [ $name_caller, $caller, $block ];
 	$Sf = add_var_decl_to_set( $Sf, 'ExGlobArgs', $prefixed_name_caller, $prefixed_name_caller_decl );
 	$Sf = remove_var_decl_from_set( $Sf, 'ExGlobArgs', $name_caller);
 	return $Sf;

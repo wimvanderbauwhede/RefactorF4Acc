@@ -1108,7 +1108,7 @@ sub emit_expr_from_ast { (my $ast)=@_;
         if (scalar @{$ast}==3) {
             if ($ast->[0] ==1 or $ast->[0] ==10) { # '&' or '@', array access or function call
                 (my $sigil, my $name, my $args) =@{$ast};
-                carp Dumper($ast);
+                # carp Dumper($ast);
                 if (@{$args}) {
 					if ($args->[0] != 14 ) { # ')('
 						my @args_lst=();
@@ -1121,7 +1121,9 @@ sub emit_expr_from_ast { (my $ast)=@_;
 							#                    for my $arg (@{$args->[1]}) {
 							#       push @args_lst, emit_expr_from_ast($arg);
 							#    }
-							carp Dumper(@args_lst);
+                            # if (grep {(not defined $_)} @args_lst){
+							#     carp Dumper($ast,@args_lst);
+                            # }
 							return "$name(".join(',',@args_lst).')';
 						} else {
 							return "$name(".emit_expr_from_ast($args).')';
