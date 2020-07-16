@@ -99,10 +99,11 @@ sub context_free_refactorings {
               "Undefined source code line for $f in create_refactored_source()";
         }
         ( my $line, my $info ) = @{$annline};
-        
+
         if ( exists $info->{'Comments'}  ) {
             next;
-        }     
+        }
+if ( not exists $info->{'Inlined'} ) {
         if ( exists $info->{'Skip'}  ) {
             next;
         }        
@@ -110,9 +111,10 @@ sub context_free_refactorings {
         	# WV20190403: originally the condition included: "and $line eq '' ) {"
             next;
         }
-        if ( exists $info->{'ImplicitNone'} ) {
-#            next;
-        }
+}
+#         if ( exists $info->{'ImplicitNone'} ) {
+# #            next;
+#         }
         if ( exists $info->{'Save'} ) {
         	if ( exists  $Sf->{'Program'} and $Sf->{'Program'} == 1  ) { 
         	$line = '! '.$line;
@@ -283,6 +285,7 @@ sub context_free_refactorings {
                 }
             } else { 
 	            if ( in_nested_set($Sf, 'Parameters', $var) ) { 
+                    
 	                # Remove this line, because this param should have been declared above
 	                $line = '!! Original line PAR:2 !! ' . $line;
 	                $info->{'Skip'}=1;
@@ -290,14 +293,14 @@ sub context_free_refactorings {
 	                $info->{'Ann'}=[ annotate($f, __LINE__ .' Removed ParamDecl' ) ];
 	            } elsif (not exists $info->{'Ref'} or $info->{'Ref'} == 0 ){
 	                my $var_decl = get_var_record_from_set( $Sf->{'Vars'},$var);
-                    my $arg_decl = get_var_record_from_set( $Sf->{'DeclaredOrigArgs'},$var);
-                    # carp 'COMMON: '. Dumper($var_decl,$arg_decl) if $var eq 'x' and $f eq 'chcopy';
 	                $line = emit_f95_var_decl($var_decl) ;                
 	                delete $info->{'ExGlobArgDecls'};
-	                $info->{'Ref'} = 1;                 
+	                $info->{'Ref'} = 1 unless exists $info->{'Inlined'};                 
 	                push @{$info->{'Ann'}}, annotate($f, __LINE__ .': Ref==0, '.$stmt_count );
 	            } else {
-	                croak 'BOOM! ' . 'context_free_refactoring '. __LINE__ ."; ".$line.'    '.Dumper($info);
+	                croak $f.' : BOOM! ' . 'context_free_refactoring '. __LINE__ ."; ".$line.'    '.Dumper($info)."\n".
+                    Dumper(pp_annlines($Sf->{'AnnLines'}));
+
 	            }                        
             }
             
@@ -396,20 +399,22 @@ sub context_free_refactorings {
             my $tinc = $inc;
             $tinc =~ s/\./_/g;
             if ( not exists $stref->{'IncludeFiles'}{$inc}{'ExtPath'} ) { # FIXME: this is because 'InclType' => 'External' gets overwritten by 'Parameter' 
+            
             	if (exists $Sf->{'Includes'}{$inc}{'Only'} and scalar keys %{ $Sf->{'Includes'}{$inc}{'Only'} }>0) {
-            		            		            		            	
+                    push @{$stref->{'IncludeFiles'}{$inc}{'UsedBy'}}, $f; 
             		my @used_params = keys %{ $Sf->{'Includes'}{$inc}{'Only'} };
-                	$line = "      use $tinc". ($NO_ONLY ?  '!' : '') .', only : '.join(', ', @used_params) ;
+                	$line = "      use $tinc". ($Config{'NO_ONLY'} ?  '!' : '') .', only : '.join(', ', @used_params) ;
                   	push @{ $info->{'Ann'} }, annotate($f, __LINE__. ' Include' );
                   	
             	} elsif (exists $stref->{'IncludeFiles'}{$inc}{'ParamInclude'}) {
             		
             		my $param_include=$stref->{'IncludeFiles'}{$inc}{'ParamInclude'};
+                    push @{$stref->{'IncludeFiles'}{$param_include}{'UsedBy'}}, $f; 
             		my $tinc = $param_include;
             		$tinc =~ s/\./_/g;            		
             		if (exists $Sf->{'Includes'}{$param_include}{'Only'} and scalar keys %{ $Sf->{'Includes'}{$param_include}{'Only'} }>0) {            		            	
             			my @used_params = keys %{ $Sf->{'Includes'}{$param_include}{'Only'} };
-                		$line = "      use $tinc". ($NO_ONLY ?  '!' : '') .", only : ".join(', ', @used_params);
+                		$line = "      use $tinc". ($Config{'NO_ONLY'} ?  '!' : '') .", only : ".join(', ', @used_params);
                   		push @{ $info->{'Ann'} }, annotate($f, __LINE__. ' Include' );
 					} else {
                 		$line = "!!      use $tinc ! ONLY LIST EMPTY";
@@ -456,7 +461,10 @@ sub context_free_refactorings {
             @extra_lines = ();
 
         }
+
+
     }    # LOOP over AnnLines
+
 
     # now splice the include stack just below the signature
     if (@include_use_stack) {
@@ -633,7 +641,7 @@ sub create_refactored_source {
 						 	$line_without_comment = $line;
 					}
 				    }
- 	           	    my @split_lines = $SPLIT_LONG_LINES ? split_long_line($line_without_comment) : ( $line_without_comment );
+ 	           	    my @split_lines = $Config{'SPLIT_LONG_LINES'} ? split_long_line($line_without_comment) : ( $line_without_comment );
     	         	for my $sline (@split_lines) {    	         			
         	            	push @{$refactored_lines}, [ $sline, $info ];
             	    }
@@ -1467,7 +1475,7 @@ sub top_src_is_module {( my $stref, my $s) = @_;
     if ($sub_func_incl eq 'Modules') { return 1};
 	my $is_incl = exists $stref->{'IncludeFiles'}{$s} ? 1 : 0;
     my $f = $is_incl ? $s : $stref->{$sub_func_incl}{$s}{'Source'};
-    if ( defined $f ) {     	
+    if ( defined $f ) {    	        
 		for my $item ( @{ $stref->{'SourceContains'}{$f}{'List'} } ) {
 			# If $s is a subroutine, it could be that the source file is a Module, and then we should set that as the entry source type            
 			if ($stref->{'SourceContains'}{$f}{'Set'}{$item} eq 'Modules') {

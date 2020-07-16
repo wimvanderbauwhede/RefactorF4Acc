@@ -42,12 +42,12 @@ integer, parameter :: ntot = 200; ! total number of interation steps
 do i=1,im
   do j=1,jm
     do k=1,km
-u(i,j,k) = 0.5
-v(i,j,k) = 0.5
-x(i,j,k) = 0.
-y(i,j,k) = 5.
-end do
-end do
+      u(i,j,k) = 0.5
+      v(i,j,k) = 0.5
+      x(i,j,k) = 0.
+      y(i,j,k) = 5.
+    end do
+  end do
 end do
 
 ! mode = 1   ! choose between mode 1 and mode 2
@@ -66,8 +66,9 @@ DO n = 1,ntot
 
 time = REAL(n)*dt
 
+!$ACC Subroutine corio_core
+
 ! velocity predictor
-!$ACC Subroutine predict_vel
 do i=1,im
   do j=1,jm
     do k=1,km
@@ -81,15 +82,18 @@ do i=1,im
     end do
   end do
 end do
-!$ACC End Subroutine predict_vel
 
 ! predictor of new location
-!$ACC Subroutine predict_loc
-xn(i,j,k) = x(i,j,k) + dt*un(i,j,k)/1000
-yn(i,j,k) = y(i,j,k) + dt*vn(i,j,k)/1000
-!$ACC End Subroutine predict_loc
+do i=1,im
+  do j=1,jm
+      do k=1,km        
+          xn(i,j,k) = x(i,j,k) + dt*un(i,j,k)/dmax
+          yn(i,j,k) = y(i,j,k) + dt*vn(i,j,k)/dmax
+      end do
+  end do
+end do
+
 ! updates for next time step 
-!$ACC Subroutine update_loc_vel
 do i=1,im
   do j=1,jm
     do k=1,km
@@ -100,7 +104,8 @@ do i=1,im
     end do
   end do
 end do
-!$ACC End Subroutine update_loc_vel
+!$ACC End Subroutine corio_core
+
 ! data output
 !WRITE(10,*)x,y,time
 

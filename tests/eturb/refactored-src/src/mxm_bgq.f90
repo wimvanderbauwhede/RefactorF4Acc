@@ -4,29 +4,6 @@ contains
 
         subroutine mxm_bgq_8(a,n1,b,n2,c,n3)
           implicit none
-      real :: av1
-      real :: vec_ld
-      real :: av2
-      real :: av3
-      real :: av4
-      real :: av5
-      real :: av6
-      real :: av7
-      real :: av8
-      real :: bv1
-      real :: bv2
-      real :: bsv1
-      real :: vec_splat
-      real :: bsv2
-      real :: bsv3
-      real :: bsv4
-      real :: bsv5
-      real :: bsv6
-      real :: bsv7
-      real :: bsv8
-      real :: cv
-      real :: vec_mul
-      real :: vec_madd
           integer, intent(In) :: n1
           integer :: n2
           integer, intent(In) :: n3
@@ -77,47 +54,6 @@ contains
         end subroutine mxm_bgq_8
         subroutine mxm_bgq_16(a,n1,b,n2,c,n3)
           implicit none
-      real :: av1
-      real :: vec_ld
-      real :: av2
-      real :: av3
-      real :: av4
-      real :: av5
-      real :: av6
-      real :: av7
-      real :: av8
-      real :: av9
-      real :: av10
-      real :: av11
-      real :: av12
-      real :: av13
-      real :: av14
-      real :: av15
-      real :: av16
-      real :: bv1
-      real :: bv2
-      real :: bv3
-      real :: bv4
-      real :: bsv1
-      real :: vec_splat
-      real :: bsv2
-      real :: bsv3
-      real :: bsv4
-      real :: bsv5
-      real :: bsv6
-      real :: bsv7
-      real :: bsv8
-      real :: bsv9
-      real :: bsv10
-      real :: bsv11
-      real :: bsv12
-      real :: bsv13
-      real :: bsv14
-      real :: bsv15
-      real :: bsv16
-      real :: cv
-      real :: vec_mul
-      real :: vec_madd
           integer, intent(In) :: n1
           integer :: n2
           integer, intent(In) :: n3
@@ -197,25 +133,6 @@ contains
         end subroutine mxm_bgq_16
         subroutine mxm_bgq_6(a,n1,b,n2,c,n3)
           implicit none
-      real :: av1
-      real :: vec_ld
-      real :: av2
-      real :: av3
-      real :: av4
-      real :: av5
-      real :: av6
-      real :: bv1
-      real :: bv2
-      real :: bsv1
-      real :: vec_splat
-      real :: bsv2
-      real :: bsv3
-      real :: bsv4
-      real :: bsv5
-      real :: bsv6
-      real :: cv
-      real :: vec_mul
-      real :: vec_madd
           integer, intent(In) :: n1
           integer :: n2
           integer, intent(In) :: n3
@@ -274,34 +191,6 @@ contains
         end subroutine mxm_bgq_6
         subroutine mxm_bgq_10(a,n1,b,n2,c,n3)
           implicit none
-      real :: av1
-      real :: vec_ld
-      real :: av2
-      real :: av3
-      real :: av4
-      real :: av5
-      real :: av6
-      real :: av7
-      real :: av8
-      real :: av9
-      real :: av10
-      real :: bv1
-      real :: bv2
-      real :: bv3
-      real :: bsv1
-      real :: vec_splat
-      real :: bsv2
-      real :: bsv3
-      real :: bsv4
-      real :: bsv5
-      real :: bsv6
-      real :: bsv7
-      real :: bsv8
-      real :: bsv9
-      real :: bsv10
-      real :: cv
-      real :: vec_mul
-      real :: vec_madd
           integer, intent(In) :: n1
           integer :: n2
           integer, intent(In) :: n3

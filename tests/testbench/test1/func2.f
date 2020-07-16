@@ -4,6 +4,7 @@
 
           integer i
           state = state+ ( v / 2 )
+          print *, v, state
           func2=v-state
           return
       end

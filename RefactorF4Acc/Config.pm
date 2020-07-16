@@ -17,9 +17,6 @@ $NEW_PARSER
 $V $W $WW $I $DBG $DUMMY $ANN
 $NO $YES $GO
 $UNREAD $INVENTORIED $READ $PARSED $FROM_BLOCK $C_SOURCE $FILE_NOT_FOUND $UNUSED
-$SPLIT_LONG_LINES
-$NO_ONLY
-$MAX_LINE_LENGTH
 $noop
 $CFG_refactor_toplevel_globals
 $call_tree_only
@@ -31,6 +28,10 @@ $targetdir
 &read_rf4a_config    
 &interactive_create_rf4a_cfg
 );
+# $SPLIT_LONG_LINES
+# $NO_ONLY
+# $MAX_LINE_LENGTH
+
 # $SOURCEFILES
 # $RENAME_EXT
 # $EXT
@@ -47,12 +48,13 @@ our $DBG = 0;    # Debug
 our $ANN = 1; # Annotations
 our $DUMMY = 0; # Dummy run, print out code rather than printing to file
 
+# Default configuration
+my $SPLIT_LONG_LINES = 1;
+my $MAX_LINE_LENGTH = 132;
+my $NO_ONLY = 0;
+my $RENAME_EXT = '_GLOB';
+my $EXT = '.f90'; # You can set this in rf4a.cfg, changed from .f95 default to .f90 default on suggestion of @rouson
 
-our $SPLIT_LONG_LINES = 1;
-our $MAX_LINE_LENGTH = 132;
-our $NO_ONLY = 0;
-our $RENAME_EXT = '_GLOB';
-our $EXT = '.f90'; # You can set this in rf4a.cfg, changed from .f95 default to .f90 default on suggestion of @rouson
 our $LIBS = []; 
 our $LIBPATHS =  [];
 our $INCLPATHS = [];
@@ -178,18 +180,7 @@ sub read_rf4a_config {
 
 
 	say "INFO: $k => $v" if $I;
-	# if ($v=~/,/) {
-	# 	my @vs=split(/\s*,\s*/,$v);
-	# 	$Config{$k}=[@vs];
-	# } elsif ($k !~/TOP\w*|NEWSRCPATH|CUSTOM_*|PREFIX|KERNEL|^MODULE|MODULE_\w*|MACRO_SRC/) { # FIXME: Check this
-	# 	# These are keys that take a list but it has only one element
-    #     # But why?!
-	# 	$Config{$k}=[$v];
-	# } elsif ($k eq 'TOP') {
-	# 	$Config{$k}=lc($v);
-	# } else {
-	# 	$Config{$k}=$v;
-	# }
+
 }
 close $CFG;
 }

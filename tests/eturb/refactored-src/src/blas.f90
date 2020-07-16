@@ -16,7 +16,7 @@ contains
       real(kind=8), intent(In) :: beta
       real(kind=8), dimension(1:lda,1:*), intent(In) :: a
       real(kind=8), dimension(1:ldb,1:*), intent(In) :: b
-      real(kind=8), dimension(1:ldc,1:*), intent(Out) :: c
+      real(kind=8), dimension(1:ldc,1:*), intent(InOut) :: c
       intrinsic          max
       logical :: nota
       logical :: notb
@@ -30,8 +30,8 @@ contains
       real(kind=8) :: temp
       real(kind=8), parameter :: one=1.0d+0
       real(kind=8), parameter :: zero=0.0d+0
-      nota   = lsame(transa,'N')
-      notb   = lsame(transb,'N')
+      nota  = lsame( transa, 'N' )
+      notb  = lsame( transb, 'N' )
       if( nota )then
          nrowa = m
          ncola = k
@@ -65,8 +65,7 @@ contains
          info = 13
       end if
       if( info /= 0 )then
-         call xerbla('DGEMM ',info)
-
+         call xerbla( 'DGEMM ', info )
          return
       end if
       if( ( m == 0 ).or.( n == 0 ).or.    ( ( ( alpha == zero ).or.( k == 0 ) ).and.( beta == one )  &

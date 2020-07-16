@@ -295,14 +295,15 @@ sub __create_new_subroutine_entries {
         }
         
         my $src = "$srcdir/$block".$Config{EXT};
-
-        $stref->{'SourceContains'}{$src}{'Set'}{$block} = 'Subroutines';
-        push @{ $stref->{'SourceContains'}{$src}{'List'} }, $block;       
+        push @{ $stref->{'SourceContains'}{$src}{'List'} }, $block;      
+        $stref->{'SourceContains'}{$src}{'Set'}{$block}='Subroutines';
+        $stref->{'SourceContains'}{$src}{'Path'}{'Local'}=$src;
         $stref->{'SourceFiles'}{$src}{'SourceType'}='Subroutines';
          $stref->{'BuildSources'}{'F'}{$src}=1;
         $Sblock->{'RefactorGlobals'} = 1;
         $stref->{'Subroutines'}{$block} = $Sblock;
         if ( $Sf->{'RefactorGlobals'} == 0 ) {
+            croak "Should be obsolete";
             $Sf->{'RefactorGlobals'} = 2;
         } else {
             say "INFO: RefactorGlobals==1 for $f while processing BLOCK $block" if $I;
@@ -492,7 +493,7 @@ sub __construct_new_subroutine_signatures {
         my %params = %{ $paramsref->{$block} };
         # say 'emitting local param lines in '.$block;
         # carp "Only do this if the params are not declared via USE!";
-        my $param_annlines = __emit_param_lines($Sblock, $varsref, \%params, {}, []);         
+        my $param_annlines = __emit_param_lines($Sblock, $varsref, \%params, {}, [], $block, $f);         
         # croak $block.Dumper($Sblock->{UsedParameters});
         $Sblock->{'AnnLines'} = [ @{$param_annlines},  @{ $Sblock->{'AnnLines'} }];
         }
@@ -690,7 +691,7 @@ sub __find_vars_in_block {# warn "This should use he $block,same() code as Refac
 	return [ $occsref, $itersref, $paramsref ];
 }    # END of __find_vars_in_block() keys %{$
 
-sub __emit_param_lines { my ($Sblock, $varsref, $params, $param_decl_generated, $param_annlines)=@_;
+sub __emit_param_lines { my ($Sblock, $varsref, $params, $param_decl_generated, $param_annlines, $block, $f)=@_;
     for my $param ( sort keys %{$params} ) {    
         # say "PAR $param";
         if (not exists $param_decl_generated->{$param}) {
@@ -702,7 +703,7 @@ sub __emit_param_lines { my ($Sblock, $varsref, $params, $param_decl_generated, 
                 for my $ip (sort keys %{$decl->{'InheritedParams'}{'Set'}}) {
                     # say "INHERITED PAR <$ip>" .Dumper($Sblock->{'Source'});
                     # carp "Only do this if the params are not declared via USE!";
-                    $param_annlines = __emit_param_lines($Sblock, $varsref, {$ip=>$ip},  $param_decl_generated, $param_annlines);
+                    $param_annlines = __emit_param_lines($Sblock, $varsref, {$ip=>$ip},  $param_decl_generated, $param_annlines, $block, $f);
                     
                 #     if (not exists $Sblock->{'LocalParameters'}{'Set'}{$ip}) {
                 # $Sblock->{'LocalParameters'}{'Set'}{$param}  = $decl;        
@@ -712,8 +713,13 @@ sub __emit_param_lines { my ($Sblock, $varsref, $params, $param_decl_generated, 
             } #else {
                 # say "EMIT!";
                 # say "Added $param decl to ".Dumper($Sblock->{'Source'});
+                # carp Dumper($decl);
                 $Sblock->{'LocalParameters'}{'Set'}{$param}  = $decl;
-                push @{ $Sblock->{'LocalParameters'}{'List'} }, $param;                                
+                push @{ $Sblock->{'LocalParameters'}{'List'} }, $param;        
+                if (not exists $decl->{'Ast'}
+                ) {
+                    die __PACKAGE__ . ' ' . __LINE__ ." :  No AST for declaration of $param in block $block of $f";
+                }                        
                 my $val = emit_expr_from_ast($decl->{'Ast'});                
 
                 my $param_annline = [

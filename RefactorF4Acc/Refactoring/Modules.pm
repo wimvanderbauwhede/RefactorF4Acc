@@ -380,7 +380,7 @@ sub _create_module_src { (my $stref, my $src, my $subname, my $no_modules ) = @_
 		}
 	}
 	if ($subname ne '') {
-#		say "NEW SRC $nsrc ";
+		# say "NEW SRC $nsrc ";die;
 #		show_annlines($stref->{'RefactoredCode'}{$nsrc});
 		 $stref->{'SourceContains'}{$nsrc} = {'List' =>[$subname]   };
 		$stref->{'BuildSources'}{'F'}{$nsrc}=1;

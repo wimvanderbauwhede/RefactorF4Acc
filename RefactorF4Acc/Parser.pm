@@ -73,9 +73,8 @@ sub parse_fortran_src {
 ## 1. Read the source and do some minimal processsing, unless it's already been done (i.e. for extracted blocks)
 	print "parse_fortran_src(): CALL read_fortran_src( $f )\n" if $V;
 	$stref = read_fortran_src( $f, $stref, $is_source_file_path );    #
-	
+	 croak  "AFTER read_fortran_src " .  Dumper(keys %{$stref->{'SourceContains'}}) if exists $stref->{'SourceContains'}{'error_codes.h'};
 	say "DONE read_fortran_src( $f )" if $V;	
-	
 	my $sub_or_incl_or_mod = sub_func_incl_mod( $f, $stref ); # Maybe call this "code_unit()"	
 	my $is_incl = $sub_or_incl_or_mod eq 'IncludeFiles' ? 1 : 0;
 	my $is_mod = $sub_or_incl_or_mod eq 'Modules' ? 1 : 0;
@@ -86,7 +85,7 @@ sub parse_fortran_src {
 	  $is_incl ? ( $stref->{'IncludeFiles'}{$f}{'InclType'} eq 'External' ) : 0;
 
 	say "SRC TYPE for $f: $sub_or_incl_or_mod" if $V;
-	
+
 	if ( 
 		$sub_or_incl_or_mod ne 'ExternalSubroutines' 
 		and $stref->{$sub_or_incl_or_mod}{$f}{'Status'} != $FILE_NOT_FOUND
@@ -101,17 +100,16 @@ sub parse_fortran_src {
 		if ( not exists $Sf->{'RefactorGlobals'} ) {
 			$Sf->{'RefactorGlobals'} = 0;
 		}
-		if ( $CFG_refactor_toplevel_globals == 1 ) {
+		if ( $CFG_refactor_toplevel_globals == 1 ) { 
 			print "INFO: set RefactorGlobals=1 for $f\n" if $I;
 			$Sf->{'RefactorGlobals'} = 1;
-		}
+		} 
+		
 ## 2. Parse the type declarations in the source, create a per-target table Vars and a per-line VarDecl list and other context-free stuff
 		# NOTE: The Vars set are the *declared* variables, not the *used* ones
-
 		print "ANALYSE LINES of $f\n" if $V;
 		$stref = analyse_lines( $f, $stref );
 		say "DONE analyse_lines( $f )" if $V;
-
 		say "ANALYSE LOOPS/BREAKS in $f\n" if $V;
 		$stref = _identify_loops_breaks( $f, $stref );
 		say "DONE _identify_loops_breaks($f)" if $V;
@@ -122,7 +120,7 @@ sub parse_fortran_src {
 
 	## 4. Parse includes
 	# NOTE: Apart from simply parsing, this routine also causes IMPLICITs from the include file to be inherited by the parent
-		$stref = _parse_includes( $f, $stref );
+		$stref = __add_include_hooks( $f, $stref );
 
 	## 5. Parse subroutine and function calls
 		if ( not $is_incl and not $is_mod) {
@@ -166,6 +164,7 @@ sub parse_fortran_src {
        # but only when parse_fortran_src exits, so in fact maybe do this in Preconditioning?
        #delete  $stref->{$sub_or_incl_or_mod}{$f}{'DeclCount'};
        #delete  $stref->{$sub_or_incl_or_mod}{$f}{'DoneInitTables'};
+	   
 	return $stref;
 
 }    # END of parse_fortran_src()
@@ -271,7 +270,7 @@ sub analyse_lines {
 			# BLOCK identification code
 			# --------------------------------------------------------------------------------
 			# START of BLOCK
-			
+			# croak $line if $line=~/parameter.+alpha/;
 			$line=~/^(map|structure|union|select)\s+/ && do {
 				my $block_type=$1;
 				++$block_nest_counter;
@@ -409,7 +408,6 @@ sub analyse_lines {
 			# --------------------------------------------------------------------------------
 			# END of BLOCK identification code			
 			# --------------------------------------------------------------------------------
-						
 if ($in_excluded_block==0) {	
 						
 			# --------------------------------------------------------------------------------
@@ -479,6 +477,7 @@ SUBROUTINE
 #== USE				
 # WV20190626 I'm not sure why 'include' is handled in SrcReader and 'use' here ...
 			} elsif ( $line =~ /^use\s+(\w+)/ ) {
+				
 				my $module = $1;
 				$info->{'Use'}{'Name'} = $module;
 				if ($line =~ /only\s*:\s*([\w\s\,]+)/) {
@@ -618,6 +617,7 @@ SUBROUTINE
 		 }
 				next;
 		}
+		
 #== COMMON block processing for common blocks not in an include file
 			# common /name/ x...
 			# However, common/name/x is also valid, and even  common x, damn F77!
@@ -944,9 +944,9 @@ or $line=~/^character\s*\(\s*len\s*=\s*[\w\*]+\s*\)/
 			} 
 #== PARAMETER			
 #== F77-style parameters			
-			elsif ( $line =~ /\bparameter\s*\(\s*(.+)\s*\)/ ) {    
+			elsif ( $line =~ /\bparameter\s*\(\s*(.+)\s*\)/ ) {  #  parameter\s*\(\s*alpha = f*dt\s*\) => 'alpha = f*dt'
 				my $parliststr = $1;
-#				croak $line if $line=~/nstreams/ and $f=~/\.inc/ ;
+				# croak $line;# if $line=~/nstreams/ and $f=~/\.inc/ ;
 				( $Sf, $info ) = __parse_f77_par_decl( $Sf, $stref, $f, $indent, $line, $info, $parliststr );				
 				$has_pars=1;
 				$Sf->{'HasParameters'}=1;
@@ -967,6 +967,8 @@ or $line=~/^character\s*\(\s*len\s*=\s*[\w\*]+\s*\)/
 			) {				
 				my $maybe_function = $1;				
 				say  "INFO: I'm pretty sure $maybe_function is a StatementFunction in $f" if $I;
+				# croak "INFO: I'm pretty sure $maybe_function is a StatementFunction in $f : <$line>";
+
 				$info->{'StatementFunction'} = $maybe_function;
 				$info->{'HasVars'} = 1; 
 				$info->{'SpecificationStatement'} = 1;    
@@ -1395,7 +1397,7 @@ END IF
 #croak "$f <$mline>" if $mline=~/^rfos01/ ;
 
 					$info = _parse_assignment( $mline, $info, $stref, $f );
-					# croak Dumper($info->{'Lhs'}) if $mline=~/count\(k\)/;
+					# croak Dumper($info) if $mline=~/isuccess/;
 			}
 			# GOTO is handled separately in _identify_loops_breaks 
 #			elsif ($mline=~/go\s*to\s+(\w+)/) {
@@ -1414,6 +1416,8 @@ END IF
 #			}
 			}
 			
+			
+
 			if (not exists $info->{'Block'}) {
 				$info->{'Block'}=$current_block;
 			}
@@ -1448,7 +1452,6 @@ END IF
 			}
 
 		}    # Loop over lines
-
 		# We sort the indices from high to low so that the insertions are at the correct index 
 		for my $idx (sort {$b <=> $a} keys %extra_lines) {		
 			$srcref = [@{$srcref}[0..$idx-1],@{ $extra_lines{$idx} },@{$srcref}[($idx+1) .. (scalar(@{$srcref})-1)] ]; 
@@ -1477,9 +1480,8 @@ END IF
 # For every 'include' statement in a subroutine
 # the filename is entered in 'Includes' and in Info->[$index]{'Include'}
 # If the include was not yet read, do it now.
-sub _parse_includes {
+sub __add_include_hooks {
 	( my $f, my $stref ) = @_;
-
 #		local $V=1;
 
 	my $sub_or_func_or_mod_or_inc_or_mod = sub_func_incl_mod( $f, $stref );
@@ -1514,7 +1516,7 @@ sub _parse_includes {
 	$last_inc_idx++;
 	$srcref->[$last_inc_idx][1]{'ExtraIncludesHook'} = 1;
 	return $stref;
-}    # END of _parse_includes()
+}    # END of __add_include_hooks()
 
 # -----------------------------------------------------------------------------
 # Parse 'use' declarations 
@@ -1769,7 +1771,8 @@ sub _parse_subroutine_and_function_calls {
 	                if ($argstr ne '') {
 
 						my $ast = parse_expression( $argstr, $info, $stref, $f ); 
-						# This returns the arguments if they are vars or PlaceHolders, but really this should return the expression string.
+						
+						# This returns the arguments if they are consts, vars or PlaceHolders, but really this should return the expression string.
 						# Or rather, we should not use this in Analysis::Arguments but use the AST
 						( my $expr_args, my $expr_other_vars ) = get_args_vars_from_subcall($ast);
 						
@@ -2545,40 +2548,44 @@ sub __parse_f95_decl {
     
 	my $pt = parse_F95_var_decl($line);
 		
-#croak $line.Dumper($info).Dumper($pt) if $line=~/nx/;
+# croak $line.Dumper($info).Dumper($pt) if $line=~/alpha/;
 	# But this could be a parameter declaration, with an assignment ...
 	if ( $line =~ /,\s*parameter\s*.*?::\s*(\w+\s*=\s*.+?)\s*$/ ) {    
+
+
 		# F95-style parameters
-		$info->{'ParsedParDecl'} = $pt; #WV20150709 currently used by OpenCLTranslation, TODO: use ParamDecl
+		$info->{'ParsedParDecl'} = $pt; #WV20150709 currently used by OpenCLTranslation, TODO: use ParamDecl and the AST from the expression parser
 		
 		my $parliststr = $1;
-		my $var        = $pt->{'Pars'}{'Var'};
-		my $val        = $pt->{'Pars'}{'Val'};
-		my $type       = $pt->{'TypeTup'}; # e.g. integer(kind=8) => {Type => 'integer', Kind => 8}
+		( $Sf, $info ) = __parse_f77_par_decl(  $Sf, $stref, $f, $indent,  $line, $info, $parliststr );
 
-		my $pars_in_val = ___check_par_val_for_pars($val);
+		# my $var        = $pt->{'Pars'}{'Var'};
+		# my $val        = $pt->{'Pars'}{'Val'};
+		# my $type       = $pt->{'TypeTup'}; # e.g. integer(kind=8) => {Type => 'integer', Kind => 8}
 
-		my $param_decl = {
-			'Indent'    => $indent,
-			'Type'      => $type,
-			'Attr'      => '',
-			'Dim'       => [],
-			'Parameter' => 'parameter',
-			'Names'     => [ [ $var, $val ] ],
-			'Name' => $var,
-			'Val' => $val,
-			'Status'    => 0,
-			'Implicit' => 0
-		};    # F95-style
-		$info->{'ParamDecl'} = $param_decl;
-		$info->{'VarDecl'} = {'Name' => $var };
+		# my $pars_in_val = ___check_par_val_for_pars($val);
+
+		# my $param_decl = {
+		# 	'Indent'    => $indent,
+		# 	'Type'      => $type,
+		# 	'Attr'      => '',
+		# 	'Dim'       => [],
+		# 	'Parameter' => 'parameter',
+		# 	'Names'     => [ [ $var, $val ] ],
+		# 	'Name' => $var,
+		# 	'Val' => $val,
+		# 	'Status'    => 0,
+		# 	'Implicit' => 0
+		# };    # F95-style
+		# $info->{'ParamDecl'} = $param_decl;
+		# $info->{'VarDecl'} = {'Name' => $var };
 		
-		$info->{'UsedParameters'} = $pars_in_val;
+		# $info->{'UsedParameters'} = $pars_in_val;
 
-		$Sf->{'LocalParameters'}{'Set'}{$var} = $param_decl;
+		# $Sf->{'LocalParameters'}{'Set'}{$var} = $param_decl;
 
-		# List is only used in Parser, find out what it does
-		$Sf->{'LocalParameters'}{'List'}  = [ @{ $Sf->{'LocalParameters'}{'List'} }, $var ];
+		# # List is only used in Parser, find out what it does
+		# $Sf->{'LocalParameters'}{'List'}  = [ @{ $Sf->{'LocalParameters'}{'List'} }, $var ];
 
 	} else {
 		# F95 VarDecl, continued
@@ -2756,17 +2763,18 @@ sub __parse_f95_decl {
 
 # -----------------------------------------------------------------------------
 
-sub __parse_f77_par_decl {
+sub __parse_f77_par_decl { 
 	# F77-style parameters
 	( my $Sf, my $stref, my $f,my $indent, my $line, my $info, my $parliststr ) = @_;
 	# say "LINE: $line";
+	
 	my $type   = 'Unknown';
 	my $typed=0;
 	my $attr = '';
 	$indent =~ s/\S.*$//;
 
 	my $ast =  parse_expression($parliststr, $info, $stref, $f);
-	# say Dumper $ast;
+	# croak Dumper( $ast) if $line=~/alpha/;
 	if ($ast->[0] == 9
 	and $ast->[2][0] == 0
 	and scalar @{$ast->[2][1]} == 3
@@ -4390,13 +4398,10 @@ sub _parse_F77_decl_NEW { (my $decl_str)=@_;
 
 # We have to parse the include files to get the COMMON variables because of EQUIVALENCE 
 sub __parse_include_statement { my ($stref, $f, $sub_incl_or_mod, $Sf, $line, $info, $index) = @_;
-	
 	$Sf->{'HasIncludes'}=1;
 	my $name = $info->{'Includes'};
 	print "FOUND include $name in $f\n" if $V;
 	$Sf->{'Includes'}{$name} = { 'LineID' => $index };
-
-
 
 	$info->{'Include'} = {};
 	$info->{'Include'}{'Name'} = $name;
@@ -4416,6 +4421,7 @@ sub __parse_include_statement { my ($stref, $f, $sub_incl_or_mod, $Sf, $line, $i
 			warn "Status for Include $name is FILE NOT FOUND";
 		}
 	}
+
 	if (    exists $stref->{'Implicits'}
 		and exists $stref->{'Implicits'}{$name} )
 	{
@@ -4435,6 +4441,7 @@ sub __parse_include_statement { my ($stref, $f, $sub_incl_or_mod, $Sf, $line, $i
 		}
 	}
 
+
 	# The include has been parsed.
 	if ( exists $stref->{'IncludeFiles'}{$name} )
 	{    # Otherwise it means it is an external include
@@ -4452,6 +4459,8 @@ sub __parse_include_statement { my ($stref, $f, $sub_incl_or_mod, $Sf, $line, $i
 			}
 		}
 	}
+	
+	say "DONE PARSE INCLUDE $name" if $V;
 	return $info;
 } # END of __parse_include_statement
 

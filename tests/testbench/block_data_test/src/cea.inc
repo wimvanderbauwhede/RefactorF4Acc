@@ -34,8 +34,8 @@ C
       PARAMETER (IOTRN=18)
 C***********************************************************************
       REAL*8 Enn,Ennl,Enlsav,Ensave,Sumn
-      REAL*8 Deln(MAXNGC),Enln(MAXNGC),Sln(MAXNGC)
-      REAL*8 En(MAXNGC,NCOL)
+      REAL*8 Deln(MAXNGC),Enln(MAXNGC+MAXNC),Sln(MAXNGC)
+      REAL*8 En(MAXNGC+MAXNC,NCOL)
       COMMON /COMP  / Deln,En,Enln,Enn,Ennl,Enlsav,Ensave,Sln,Sumn
 C
       INTEGER Ip,Iplt,It,Nc,Ng,Ngp1,Nlm,Nplt,Nof,Nomit,Nonly,Np,Npr,Npt,

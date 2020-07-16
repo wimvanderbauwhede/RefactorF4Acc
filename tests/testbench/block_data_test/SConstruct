@@ -2,7 +2,7 @@ import os
 
 FC=os.environ.get('FC')
 
-print FC
+print( FC )
 fsources = ['refactored-source/cea2.f90','refactored-source/params_cea_inc.f90']
 
 LDFLAGS= [] 

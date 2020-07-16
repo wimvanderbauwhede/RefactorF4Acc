@@ -3,7 +3,7 @@ use v5.10;
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
 use RefactorF4Acc::Refactoring::Common qw( get_f95_var_decl stateless_pass );
-
+use RefactorF4Acc::Parser::Expressions qw( emit_expr_from_ast );
 #
 #   (c) 2010-2017 Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
 #
@@ -244,7 +244,7 @@ sub map_call_args_to_sig_args {
 			$info->{'SubroutineCall'}{'ArgMap'} = {};    # A map from the sig arg to the call arg, because there can be duplicate call args but not sig args
 
 			my $call_args = $info->{'SubroutineCall'}{'Args'}{'List'};
-			# croak $line.Dumper($call_args) if $line=~/gop.+maxobj/;
+			# croak $line.Dumper($call_args) if $line=~/\.not\.\s+lvon01/;
 			# FIXME: use the AST instead!
 			for my $call_arg_expr ( @{ $info->{'SubroutineCall'}{'Args'}{'List'} } ) {
 
@@ -272,7 +272,15 @@ sub map_call_args_to_sig_args {
 				# This means that to get the type information, we need
 				# $info->{'SubroutineCall'}{'Args'}{'Set'}{$call_arg_expr}
 				# Which is OK as long as $call_arg_expr is defined!
-				croak Dumper($line,$info) if not defined $call_arg_expr;
+
+				# This is an UGLY HACK, FIXME!!! I should find out why it was blank instead!
+			if (not defined $call_arg_expr) {
+					my $expr_ast = $info->{'SubroutineCall'}{'ExpressionAST'}[$i+1];
+					# croak $sig_arg.Dumper($call_args)."\n".emit_expr_from_ast($expr_ast) ;
+					# $call_arg_expr= emit_expr_from_ast($expr_ast) ;
+					#  $info->{'SubroutineCall'}{'Args'}{'Set'}{$call_arg_expr}{'Type'}='Scalar';
+			}
+
 				$info->{'SubroutineCall'}{'ArgMap'}{$sig_arg} = $call_arg_expr;
 				$i++;
 			}
@@ -437,7 +445,7 @@ sub analyse_var_decls_for_params {
 # To make it work correctly, the direct caller must inherit the COMMON vars from the caller, as-is.
 sub determine_ExGlobArgs {
 	( my $f, my $stref ) = @_;
-	local $I=1;
+	# local $I=1;
 	my $c;
 	if ($V) {
 		$c = ( defined $stref->{Counter} ) ? $stref->{Counter} : 0;
@@ -503,8 +511,8 @@ sub determine_ExGlobArgs {
 # We are only renaming (must dclone and change 'Name' though)
 
 sub __determine_exglobargs_core { ( my $stref, my $f ) = @_;
-local $I=1;
-local $V=1;	
+# local $I=1;
+# local $V=1;	
 	my $Sf = $stref->{'Subroutines'}{$f};
 	
 	my $is_block_data = exists $Sf->{'BlockData'} ? 1 : 0;

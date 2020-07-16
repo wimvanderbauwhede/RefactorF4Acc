@@ -1,15 +1,15 @@
 module cea_inc
-      use params_cea_inc, only : maxt, ncol, maxr, maxtr, maxmix, maxmat, maxnc, maxng, maxpv, &
-       maxel, maxngc
+      use params_cea_inc, only : maxtr, maxt, maxng, maxmix, maxr, ncol, maxngc, maxnc, maxpv, &
+       maxmat, maxel
       real(kind=8) :: enn
       real(kind=8) :: ennl
       real(kind=8) :: enlsav
       real(kind=8) :: ensave
       real(kind=8) :: sumn
       real(kind=8), dimension(1:maxngc) :: deln
-      real(kind=8), dimension(1:maxngc) :: enln
+      real(kind=8), dimension(1:maxngc+maxnc) :: enln
       real(kind=8), dimension(1:maxngc) :: sln
-      real(kind=8), dimension(1:maxngc,1:ncol) :: en
+      real(kind=8), dimension(1:maxngc+maxnc,1:ncol) :: en
       integer :: ip
       integer :: iplt
       integer :: it

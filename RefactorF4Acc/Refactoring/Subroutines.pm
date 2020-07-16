@@ -78,7 +78,6 @@ sub refactor_all_subroutines {
 		next if $Sf->{'Status'} == $FROM_BLOCK;
 
 		$stref = _refactor_subroutine_main( $stref, $f );
-
 	}
 
 	return $stref;
@@ -135,21 +134,23 @@ sub _refactor_subroutine_main {
 		say "context_free_refactorings($f)";
 	}
 
-	$stref = context_free_refactorings( $stref, $f );    # FIXME maybe do this later
+	$stref = context_free_refactorings( $stref, $f );    # FIXME maybe do this later	
+
 	say "get_annotated_sourcelines($f)" if $V;
 	my $annlines = $Sf->{'RefactoredCode'};
 
-	if ( $Sf->{'HasCommons'} ) {
+	if ( $Sf->{'HasCommons'} and $Config{'INLINE_INCLUDES'}==0 ) {
 		# If there are no COMMON blocks the argument list should not change, so there should be no need to do this		
 		$annlines = _group_local_param_decls_at_top( $stref, $f, $annlines );
 	}
+
 	if (
 		1 or $Sf->{'HasCommons'} or (                    # FIXME
 			exists $Sf->{'Contains'} and scalar @{ $Sf->{'Contains'} } > 0
 		)
 	  )
 	{
-		print "REFACTORING COMMONS for SUBROUTINE $f\n" if $V;
+		print "REFACTORING COMMONS for SUBROUTINE $f\n" if $V; 
 
 		if ( $Sf->{'RefactorGlobals'} == 1 ) {
 
@@ -168,6 +169,7 @@ sub _refactor_subroutine_main {
 	}
 
 	$annlines = _add_implicit_none( $stref, $f, $annlines );
+
 
 	# The assignment lines for the mismatched ex-COMMON vars can go here
 	# probably before the first line that is not a SpecificationStatement and not a Comment and not a Blank and not Skip or Deleted
@@ -262,7 +264,7 @@ sub _fix_end_lines {
 #- create_new_include_statements, this should be OBSOLETE, except that it takes ParamIncludes out of other Includes and instantiates them, so RENAME
 #- creates ex-glob arg declarations, basically we have to look at ExInclArgs, UndeclaredOrigArgs and ExGlobArgs.
 #- create_refactored_subroutine_call, I hope we can keep this
-sub _refactor_globals_new {
+sub _refactor_globals_new { 
 	( my $stref, my $f, my $annlines ) = @_;
 	my $Sf = $stref->{'Subroutines'}{$f};
 
@@ -384,6 +386,7 @@ sub _refactor_globals_new {
 				  if $W;
 			}
 		}
+		# say  $inc_counter , exists $info->{'Include'}, exists $info->{'ImplicitNone'},$hook_after_last_incl ;
 		if (    $inc_counter == 0
 			and not exists $info->{'Include'}
 			and not exists $info->{'ImplicitNone'}
@@ -423,6 +426,7 @@ sub _refactor_globals_new {
 
 			# If the line is a subroutine call which has function calls, we need to operate on that line
 			$annline = pop @{$rlines} if exists $info->{'SubroutineCall'};
+			carp Dumper($annline);
 			$rlines  = _create_refactored_function_calls( $stref, $f, $annline, $rlines );
 			$skip    = 1;
 		}
@@ -554,8 +558,8 @@ sub _create_extra_arg_and_var_decls {
 			say "INFO VAR in $f: IODir for $var: " . $Sf->{'ExGlobArgs'}{'Set'}{$var}{'IODir'}
 			  if $I and not $Sf->{'Program'};
 			my $rdecl = $Sf->{'ExGlobArgs'}{'Set'}{$var};
-			# croak Dumper($rdecl) if $var eq 'w4' and $f eq 'mult_chk';
-			(my $inherited_param_decls, $Sf) = __generate_inherited_param_decls($rdecl, $Sf, $f,[]);
+			# croak Dumper($rdecl) if $var eq 'nx' and $f eq 'dyn';
+			(my $inherited_param_decls, $Sf) = __generate_inherited_param_decls($rdecl, $var, $stref, $f,[]);
 			# say "VAR $var in $f";
 			# map { say $_->[0] } @{$inherited_param_decls};
 			my $rline = emit_f95_var_decl($rdecl);
@@ -993,7 +997,7 @@ sub _create_refactored_subroutine_call {
 			my @cast_reshape_results = ();
 			for my $sig_arg (@ex_glob_sig_args) {
 				my $call_arg = $stref->{'Subroutines'}{$parent_sub_name}{'ExMismatchedCommonArgs'}{'CallArgs'}{$f}{$sig_arg}[0];
-				
+				if (defined $call_arg) { # otherwise it is an expression
 				my $subset = in_nested_set($stref->{'Subroutines'}{$f}, 'Vars', $call_arg);
 				my $call_arg_decl = $stref->{'Subroutines'}{$f}{$subset}{'Set'}{$call_arg};
 				my $sig_arg_decl = $stref->{'Subroutines'}{$parent_sub_name}{'ExMismatchedCommonArgs'}{'SigArgs'}{'Set'}{$sig_arg};
@@ -1005,6 +1009,7 @@ sub _create_refactored_subroutine_call {
 				$call_arg = $cast_reshape_result->{'CallArg'};
 				push @cast_reshape_results, $cast_reshape_result if $cast_reshape_result->{'Status'} == 2;
 				push @maybe_renamed_exglobs, $call_arg;
+				}
 			}
 
 			$Sf->{'CastReshapeVarDecls'}{'List'} = [map {$_->{'CallArg'}} @cast_reshape_results];
@@ -2146,14 +2151,24 @@ sub _move_StatementFunctions_after_SpecificationStatements { my ( $stref, $f, $a
 	
 }
 
-sub __generate_inherited_param_decls { my ($rdecl, $Sf, $f, $inherited_param_decls) = @_;	
+sub __generate_inherited_param_decls { my ($rdecl, $var, $stref, $f, $inherited_param_decls) = @_;	
+my $Sf         = $stref->{'Subroutines'}{$f};
 	if (exists $rdecl->{'InheritedParams'}) {
 		for my $inh_par (sort keys %{ $rdecl->{'InheritedParams'}{'Set'} }) {
 			# say $inh_par;
 				my $subset = in_nested_set( $Sf, 'Parameters', $inh_par );
-				
-				if (not $subset and not exists $Sf->{'InheritedParameters'}{'Set'}{$inh_par}) {
-					# say "PAR $inh_par NOT in any subset in $f ";
+				my $in_mod=0;
+					if ( exists $Sf->{'InModule'} ) {
+						my $mod = $Sf->{'InModule'};
+						if ( exists $stref->{'Modules'}{$mod}{'Parameters'} ) { 
+							$in_mod=1;
+						}
+					}
+
+				if (not $in_mod and not $subset and not exists $Sf->{'InheritedParameters'}{'Set'}{$inh_par}) {
+					carp "PAR $inh_par, INHERITED by $var, NOT in any subset in $f ";
+					croak Dumper(pp_annlines($Sf->{'AnnLines'}));
+					croak Dumper($Sf);
 					my $par_decl = $rdecl->{'InheritedParams'}{'Set'}{$inh_par};
 					my $par_decl_line = [ '      ' . emit_f95_var_decl($par_decl), { 'ParamDecl' => $par_decl, 'Ref' => 1, 
 					'Ann' => [annotate($f, __LINE__ . " : __generate_inherited_param_decls")]
@@ -2162,7 +2177,7 @@ sub __generate_inherited_param_decls { my ($rdecl, $Sf, $f, $inherited_param_dec
 					 
 					$Sf->{'LocalParameters'}{'Set'}{$inh_par}=$par_decl;
 					if (exists $par_decl->{'InheritedParams'} and scalar keys %{$par_decl->{'InheritedParams'}{'Set'}}> 0) {
-						($inherited_param_decls, $Sf) =__generate_inherited_param_decls($par_decl, $Sf, $f, $inherited_param_decls);		
+						($inherited_param_decls, $Sf) =__generate_inherited_param_decls($par_decl, $stref, $f, $inherited_param_decls);		
 					}
 				}
 				#  else {
@@ -2189,7 +2204,7 @@ sub _group_local_param_decls_at_top { my ( $stref, $f ) = @_;
 					(ref($info->{'ParamDecl'}{'Name'}) eq 'ARRAY' ? 
 					$info->{'ParamDecl'}{'Name'} [0] :
 					$info->{'ParamDecl'}{'Name'}
-					). ' to top of code unit'					
+					). ' in '.$f.' to top of code unit'					
 					,{'Comments' => 1}],					
 					];
 					$info->{'Ann'}       = [ annotate( $f, __LINE__ . ' :  _group_local_param_decls_at_top'  ) ];
@@ -2320,12 +2335,13 @@ sub _maybe_cast_call_args { my ($stref, $f, $sub_name, $call_arg,$call_arg_decl,
 		$call_kind=~s/\w+=//;
 		$call_kind=~s/[\(\)]//g;
 	}
+		# carp "$sig_kind <> $call_kind";
 
 	my $needs_cast = 0;
 	if ($call_arg_decl->{'Type'} ne $sig_arg_decl->{'Type'}) {
 		# TODO: if they are the same type but different kinds, we also need to cast.
 		$needs_cast = 1;
-	} elsif ($sig_kind != $call_kind) {
+	} elsif ("$sig_kind" ne "$call_kind") {
 		$needs_cast = 1;	
 	}
 

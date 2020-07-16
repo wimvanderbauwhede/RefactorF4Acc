@@ -35,6 +35,118 @@ TO RELEASE
   $  git tag v1.2.1
   $  git push origin v1.2.1
 
+STATUS 2020-07-15
+
+NIST FM302 fails because of the problem of expressions as function call args, I think. I really need to move to a typed ArgMap with as value a (type, expr) tuple, as types
+Const | Scalar | Array | Expr and the AST as the 2nd elt of the tuple.
+The issue arrises because currently, in the Parser 1775 we return consts and vars but not exprs. Then when we get to Analysis/Arguments map_call_args_to_sig_args
+248 and 276 we use 'undef' but finally in Expressions 1104 emit_expr_from_ast this catches up on us. Probably because I create the new AST using those undefined values.
+
+There is one other test with the same issue, and another that fails on some FIXME. 
+
+There are two other 
+
+STATUS 2020-07-13
+
+Two minor fixes:
+- $CFG_refactor_toplevel_globals=1 had been commented out by mistake
+- There was an error in the handling of EXCL_SRCS with relative paths, so that they were not excluded. 
+
+STATUS 2020-07-08
+
+I added a -I flag to inline all includes. 
+
+* Error in eturb, clearly incorrect generation:
+
+/usr/bin/gfortran -o src/mpi_dummy.o -c -cpp -O3 -m64 -ffree-form -ffree-line-length-0 -fconvert=little-endian -frecord-marker=4 -I. -I/usr/local/include src/mpi_dummy.f90
+src/mpi_dummy.f90:137:6:
+
+  137 |       real *kind=8 function mpi_wtime()
+=> fixed in Subroutines/Emitters 
+  
+* Other problem is that for some reason in several routines in src/mpi_dummy.f90 the src/mpi_dummy.h has gone rather than having been inlined. 
+
+/usr/bin/gfortran -o src/mpi_dummy.o -c -cpp -O3 -m64 -ffree-form -ffree-line-length-0 -fconvert=little-endian -frecord-marker=4 -I. -I/usr/local/include src/mpi_dummy.f90
+src/mpi_dummy.f90:123:42:
+
+  123 |       integer, dimension(1:mpi_status_size) :: mpi_status_ignore
+      |                                          1
+Error: Symbol 'mpi_status_size' at (1) has no IMPLICIT type; did you mean 'mpi_status_ignore'?
+src/mpi_dummy.f90:131:26:
+
+  131 |       ierror = mpi_success
+      |                          1
+Error: Symbol 'mpi_success' at (1) has no IMPLICIT type
+src/mpi_dummy.f90:118:26:
+
+  118 |       ierror = mpi_failure
+      |                          1
+Error: Symbol 'mpi_failure' at (1) has no IMPLICIT type; did you mean 'mpi_wtime'?
+src/mpi_dummy.f90:106:42:
+
+  106 |       integer, dimension(1:mpi_status_size) :: mpi_status_ignore
+      |                                          1
+Error: Symbol 'mpi_status_size' at (1) has no IMPLICIT type; did you mean 'mpi_status_ignore'?
+
+
+For example
+
+      subroutine mpi_reduce_real(data1,data2,n,operation,ierror)
+      implicit none
+      
+      integer, dimension(1:mpi_status_size) :: mpi_status_ignore
+      real(kind=8) :: mpi_wtime
+      
+      integer, intent(In) :: n
+      real, dimension(1:n), intent(In) :: data1
+      real, dimension(1:n), intent(Out) :: data2
+      integer :: i
+      integer, intent(Out) :: ierror
+      integer :: operation
+      ierror = mpi_success
+        do i = 1, n
+          data2(i) = data1(i)
+        end do
+      return
+      end subroutine mpi_reduce_real      
+
+But the original was
+
+      subroutine mpi_reduce_real (
+     &  data1, data2, n, operation, ierror )
+
+      implicit none
+
+      include "mpi_dummy.h"
+
+      integer n
+
+      real data1(n)
+      real data2(n)
+      integer i
+      integer ierror
+      integer operation
+
+      ierror = MPI_SUCCESS
+
+        do i = 1, n
+          data2(i) = data1(i)
+        end do
+
+      return
+      end
+
+And "mpi_dummy.h" is 74 lines. The line 
+
+      integer mpi_status_ignore(mpi_status_size)
+is line 24
+      integer mpi_status_size
+      parameter ( mpi_status_size = 3 )
+is on lines 16 and 17. Could it be that all these lines have been pruned because they are unused?
+In any case, it's clearly incorrect. So I need to trace what happens with the inlining of "mpi_dummy.h" in  mpi_reduce_real. Right after the inlining step, it's all fine. 
+=> Fixed, this was in Common refactoring, these lines were marked for deletion because if they had not been inlined they'd have been removed.
+
+
 STATUS 2020-03-12
 
 A problem specifically with Nek but more general, is that I have always assumed that include files would be
@@ -100,6 +212,7 @@ So, when descending into the include F1:
     If so, it's case A. Turn into a module
     If not, it's case C.
 
+All this should happen in Preconditioning
 
 STATUS 2020-03-12
 

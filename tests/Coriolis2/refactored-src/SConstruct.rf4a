@@ -1,18 +1,16 @@
 # Generated build script for refactored source code
-# Wed Jan 22 11:55:29 2020
+# Wed Jul 15 12:54:52 2020
+import os
 
-#csources =[]
+FC=os.environ.get('FC')
 
 fsources = ['./src/corio_core.f95','./src/coriolis.f95']
 
-envC=Environment(CC='/opt/local/bin/gcc-mp-10',CPPPATH=[]); 
-#if csources:
-#    envC.Library('corio_c',csources)
 
-FFLAGS  = ['-cpp','-O3', '-m64', '-ffree-form', '-ffree-line-length-0','-fconvert=little-endian', '-frecord-marker=4']
-envF=Environment(F95='/opt/local/bin/gfortran-mp-10 -L/usr/lib ',LINK='/opt/local/bin/gfortran-mp-10 -L/usr/lib ',F95FLAGS=FFLAGS,F95PATH=['.' ,'/opt/local/include','/usr/local/include'])
-#if csources:
-#    envF.Program('corio',fsources,LIBS=[ 'corio_c','m'],LIBPATH=['.' ,'/usr/lib','/opt/local/lib','/usr/local/lib'])   
-#else:
-#    envF.Program('corio',fsources,LIBS=[ 'm'],LIBPATH=['.' ,'/usr/lib','/opt/local/lib','/usr/local/lib'])
-envF.Program('corio',fsources,LIBS=[ 'm'],LIBPATH=['.' ,'/usr/lib','/opt/local/lib','/usr/local/lib'])
+
+FFLAGS = ['-cpp','-O3','-m64','-ffree-form','-ffree-line-length-0','-fconvert=little-endian','-frecord-marker=4']
+
+#envF=Environment(F95='/usr/bin/gfortran',LINK='/usr/bin/gfortran',F95FLAGS=FFLAGS,F95PATH=['.' ,'/usr/local/include'])
+envF=Environment(F95=FC,LINK=FC,F95FLAGS=FFLAGS,F95PATH=['.' ,'/usr/local/include'])
+
+envF.Program('corio',fsources,LIBS=[ 'm'],LIBPATH=['.' ,'/usr/lib','/usr/local/lib'])

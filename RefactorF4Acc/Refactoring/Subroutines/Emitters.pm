@@ -63,9 +63,22 @@ sub emit_subroutine_sig { #(my $stref, my $f,
 	    : exists $info->{'Signature'}{'Entry'} ? 'entry'
 	    : 'subroutine';
 	    my $maybe_characteristic = exists $info->{'Signature'}{'Characteristic'} ? $info->{'Signature'}{'Characteristic'}.' ' : '';
-	     my $maybe_returntype = exists $info->{'Signature'}{'ReturnType'} ? $info->{'Signature'}{'ReturnType'}.' ' : '';
-	     my $maybe_returntypeattr = (exists $info->{'Signature'}{'ReturnTypeAttr'} and $info->{'Signature'}{'ReturnTypeAttr'} ne '')  
-	     ? '*'.$info->{'Signature'}{'ReturnTypeAttr'}.' ' : '';
+	     my $maybe_returntype = exists $info->{'Signature'}{'ReturnType'} ? 
+		 (
+			 exists $info->{'Signature'}{'ReturnTypeAttr'} and 
+			 $info->{'Signature'}{'ReturnTypeAttr'} ne ''
+			 )  
+	     ? $info->{'Signature'}{'ReturnType'}
+		 : $info->{'Signature'}{'ReturnType'}.' '
+		 : '';
+	     my $maybe_returntypeattr = (
+			 exists $info->{'Signature'}{'ReturnTypeAttr'} and 
+			 $info->{'Signature'}{'ReturnTypeAttr'} ne ''
+			 )  
+	     ? $info->{'Signature'}{'ReturnTypeAttr'} =~/=/ 
+		 	?'('.$info->{'Signature'}{'ReturnTypeAttr'}.') '
+		 	:'*'.$info->{'Signature'}{'ReturnTypeAttr'}.' ' 
+		 : ''; 
 	     my $maybe_resultvar = exists $info->{'Signature'}{'ResultVar'} ? ' result '.$info->{'Signature'}{'ResultVar'} : '';
 	    
 	    my $rline =   exists $info->{'Signature'}{'Program'}  ? "$code_unit $name" 

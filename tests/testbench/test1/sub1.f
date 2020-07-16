@@ -1,7 +1,7 @@
       subroutine sub1(vs)
       include 'incl1.inc'
       integer vs
-      dimension vs(nelts)
+      dimension vs(nelts) ! 16
 
       integer i, vv
 C     This declaration must be present or the result is wrong!
@@ -10,5 +10,5 @@ C     This declaration must be present or the result is wrong!
           vv=func1(i)
           print *, i, vv
           vs(i)=vv
-      end do
+      end do            
       end

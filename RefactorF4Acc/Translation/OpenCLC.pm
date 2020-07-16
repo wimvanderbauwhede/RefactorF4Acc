@@ -865,12 +865,6 @@ sub add_to_C_build_sources {
     	
     }
 
-#    for my $inc ( keys %{ $stref->{$sub_or_func}{$f}{'Includes'} } ) {
-#        if ( not exists $stref->{'BuildSources'}{'H'}{$inc} ) {
-#            print "ADDING $inc to C Header BuildSources\n" if $V;
-#            $stref->{'BuildSources'}{'H'}{$inc} = 1;
-#        }
-#    }
     return $stref;
 } # END of add_to_C_build_sources()
 
