@@ -37,6 +37,40 @@ TO RELEASE
 
 STATUS 2020-07-16
 
+# Generation of the refactored test suite code:
+TOTAL TESTS: 196
+TESTS RUN: 190
+SKIPPED: 6
+Generation Failed:
+0
+Generation Succeeded:
+190
+
+real	0m8.238s
+user	0m4.462s
+sys	0m2.170s
+
+
+# Compilation of the refactored test suite:
+
+Total  : 190
+Passed : 179
+Failed : 3 => TO BE CHECKED! 
+Skipped: 8
+
+
+real	0m30.241s
+user	0m18.882s
+sys	0m7.159s
+
+# Running the refactored test suite:
+PASSED: 2685
+FAILED: 3
+REQUIRE INSPECTION: 161
+TOTAL: 2849
+
+STATUS 2020-07-16
+
 Test FM701 fails 
 
 refactorF4acc.pl -c rf4a_fm701.cfg  -g fm701

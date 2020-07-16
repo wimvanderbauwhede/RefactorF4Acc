@@ -264,7 +264,6 @@ TEST CASE 128: FM700.f
 refactorF4acc.pl -c rf4a_fm700.cfg  -g fm700
 TEST CASE 129: FM701.f
 refactorF4acc.pl -c rf4a_fm701.cfg  -g fm701
-Generation failed for FM701.f95
 TEST CASE 130: FM710.f
 refactorF4acc.pl -c rf4a_fm710.cfg  -g fm710
 TEST CASE 131: FM711.f
