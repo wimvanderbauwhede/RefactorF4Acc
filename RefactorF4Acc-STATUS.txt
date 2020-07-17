@@ -71,6 +71,17 @@ Error: Two main PROGRAMs at (1) and (2)
 I think what happens here is that there are arguments with the same name, which should not happen, and they each have their declaration. 
 So find out why they have the same name?  
 
+OK, I think I've found it out: suppose we have
+CALLER: v1, v2
+LOCAL: v3(2)
+subroutine f(v3)
+call f(v1, v2)
+=> This does not work! We would need to create v3_f(2) and assignments 
+
+In _match_up_common_var_sequences, I had
+
+
+
 
 FM328: One error here is that logical constants .true. and .false. are not recognised as such but cast as real. Need to find out where this happens, probably Parser?
 The other error is that arguments that are actually subroutines or functions should not be cast! 

@@ -141,7 +141,7 @@ sub _identify_common_var_mismatch {
 					$Sf->{'ExMismatchedCommonArgs'}{'SigArgs'}{'List'} =
 					  [ @{ $Sf->{'ExMismatchedCommonArgs'}{'SigArgs'}{'List'} }, @{ $Sf->{'CommonBlocks'}{$block} } ];
 
-					map { $Sf->{'ExMismatchedCommonArgs'}{'CallArgs'}{$caller}{$_} = [ $_, $caller, $block ]; } @{ $Sf->{'CommonBlocks'}{$block} };
+					map { $Sf->{'ExMismatchedCommonArgs'}{'CallArgs'}{$caller}{$_} = [ [$_], $caller, $_, $block ]; } @{ $Sf->{'CommonBlocks'}{$block} };
 				}
 
 			}    # block
@@ -274,17 +274,6 @@ sub _match_up_common_vars {
 		}
 	}
 	
-	# if ($f eq 'ff304') {
-	# 	for my $sig_arg (@{$Sf->{'ExMismatchedCommonArgs'}{'SigArgs'}{'List'}}) {
-			
-	# 		if (not exists $Sf->{'ExMismatchedCommonArgs'}{'CallArgs'}{'fm302'}{$sig_arg}) {
-	# 			say "NO CALL ARG for $sig_arg in call to ff304 in fm302";
-	# 		} else {
-	# 			my $call_arg = $Sf->{'ExMismatchedCommonArgs'}{'CallArgs'}{'fm302'}{$sig_arg}[0];
-	# 			say $sig_arg .'=>'.$call_arg unless $sig_arg eq $call_arg;
-	# 		}
-	# 	}
-	# }
 	return $stref;
 }    # END of _match_up_common_vars
 
@@ -344,9 +333,8 @@ sub _match_up_common_var_sequences {
 					$decl_caller->{'IODir'} = 'Unknown';
 				}
 				# $Sf->{'ExMismatchedCommonArgs'}{'CallArgs'}{$caller}{$name_caller} = [ $name_caller, $caller, $block ]; 
-				# $Sf->{'ExMismatchedCommonArgs'}{'CallArgs'}{$caller}{$name_caller} = [ $name_local, $caller, $block ]; 
 				# I think the above is wrong for the case when $name_local ne $name_caller
-				$Sf->{'ExMismatchedCommonArgs'}{'CallArgs'}{$caller}{$name_local} = [ $name_caller, $caller, $block ];
+				$Sf->{'ExMismatchedCommonArgs'}{'CallArgs'}{$caller}{$name_local} = [ [$name_caller], $caller,$name_local, $block ];
 				# }
 			# say "2. $f $caller: LOCAL: $name_local CALLER: $name_caller " if $f eq 'ff304' and $name_local ne $name_caller;
 
@@ -637,7 +625,7 @@ sub _match_up_common_var_sequences {
 			# say "3. $f $caller: LOCAL: $name_local CALLER: $name_local to be added " if $f eq 'ff304' ;
 
 			# but in any case, the name must be added to the call args
-			$Sf->{'ExMismatchedCommonArgs'}{'CallArgs'}{$caller}{$name_local} = [ $name_local, $f, $block ];
+			$Sf->{'ExMismatchedCommonArgs'}{'CallArgs'}{$caller}{$name_local} = [ [$name_local], $f,$name_local, $block ];
 
 			# Either way, the local will have been consumed and there is no caller, so no unshifting
 		}
@@ -784,7 +772,7 @@ sub __add_prefixed_arg {
 	$prefixed_name_caller_decl->{'OrigName'} = $name_caller;
 	$Sf->{'ExMismatchedCommonArgs'}{'SigArgs'}{'Set'}{$prefixed_name_caller} =
 	  $prefixed_name_caller_decl;
-	$Sf->{'ExMismatchedCommonArgs'}{'CallArgs'}{$caller}{$prefixed_name_caller} = [ $name_caller, $caller, $block ];
+	$Sf->{'ExMismatchedCommonArgs'}{'CallArgs'}{$caller}{$prefixed_name_caller} = [ [$name_caller], $caller, $prefixed_name_caller, $block ];
 	$Sf = add_var_decl_to_set( $Sf, 'ExGlobArgs', $prefixed_name_caller, $prefixed_name_caller_decl );
 	$Sf = remove_var_decl_from_set( $Sf, 'ExGlobArgs', $name_caller);
 	return $Sf;

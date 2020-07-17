@@ -1000,7 +1000,7 @@ sub _create_refactored_subroutine_call {
 			my @maybe_renamed_exglobs = ();
 			my @cast_reshape_results = ();
 			for my $sig_arg (@ex_glob_sig_args) {
-				my $call_arg = $stref->{'Subroutines'}{$parent_sub_name}{'ExMismatchedCommonArgs'}{'CallArgs'}{$f}{$sig_arg}[0];
+				my $call_arg = $stref->{'Subroutines'}{$parent_sub_name}{'ExMismatchedCommonArgs'}{'CallArgs'}{$f}{$sig_arg}[0][0];
 				if (defined $call_arg) { # otherwise it is an expression
 				my $subset = in_nested_set($stref->{'Subroutines'}{$f}, 'Vars', $call_arg);
 				my $call_arg_decl = $stref->{'Subroutines'}{$f}{$subset}{'Set'}{$call_arg};
@@ -1233,13 +1233,10 @@ sub __update_function_calls_in_AST {
 			} else {
 
 				# For mismatched COMMON blocks we need to append the call args with 'CallArgs'
-				# So here is the problem that some of them are undefined, and that is because there is no entry for
-				# the $sig_arg in $stref->{'Subroutines'}{$name}{'ExMismatchedCommonArgs'}{'CallArgs'}{$f}
-				# So the question is now, why is that then?
 				my @maybe_renamed_exglobs = ();
 				for my $sig_arg ( @{ $stref->{'Subroutines'}{$name}{'ExMismatchedCommonArgs'}{'SigArgs'}{'List'} } ) {
 					my $call_arg =
-						$stref->{'Subroutines'}{$name}{'ExMismatchedCommonArgs'}{'CallArgs'}{$f}{$sig_arg}[0];
+						$stref->{'Subroutines'}{$name}{'ExMismatchedCommonArgs'}{'CallArgs'}{$f}{$sig_arg}[0][0];
 					push @maybe_renamed_exglobs, $call_arg;
 					croak "$name called in $f => $sig_arg " unless defined $call_arg;
 				}
