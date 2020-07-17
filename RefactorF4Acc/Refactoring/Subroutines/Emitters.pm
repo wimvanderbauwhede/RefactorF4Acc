@@ -53,7 +53,8 @@ sub emit_subroutine_sig { #(my $stref, my $f,
 		if (exists $Config{'SUB_SUFFIX'} ) {
 			$name.=$Config{'SUB_SUFFIX'};
 		}
-		my $args_ref = $info->{'Signature'}{'Args'}{'List'};	    	    
+		my $args_ref = $info->{'Signature'}{'Args'}{'List'};	
+		# croak Dumper($args_ref) if $name eq 'fs303';
 	    my $args_str = join( ',', @{$args_ref} );	 
 	    my $indent = $info->{'Indent'} // ' ' x 6;   
 	    

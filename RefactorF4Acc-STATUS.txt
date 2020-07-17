@@ -83,7 +83,7 @@ FM722.f95:153:19:
       |                   1
 Error: Syntax error in argument list at (1)
 
-
+=> OK, got fixed while fixing FM328
 
 STATUS 2020-07-16
 

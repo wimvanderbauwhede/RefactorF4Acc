@@ -134,8 +134,7 @@ sub _identify_common_var_mismatch {
 				if (    exists $Sf->{'CommonVarMismatch'}{$caller}
 					and exists $Sf->{'CommonVarMismatch'}{$caller}{$block} )
 				{
-					say "BLOCK $block in $f has CommonVarMismatch with $caller"
-					  if $DBG;
+					say "BLOCK $block in $f has CommonVarMismatch with $caller" if $DBG;
 					$Sf->{'HasCommonVarMismatch'} = 1;
 				} else {
 					say "BLOCK $block in $f is matched with $caller: " . join( ',', @{ $Sf->{'CommonBlocks'}{$block} } ) if $DBG;
@@ -302,8 +301,7 @@ sub _match_up_common_var_sequences {
 	# We should use the local if possible I guess. 
 	my $Sf               = $stref->{'Subroutines'}{$f};
 	my @common_local_seq = @{ $Sf->{'CommonBlockSequences'}{$block} };
-	my @common_caller_seq =
-	  @{ $stref->{'Subroutines'}{$caller}{'CommonBlockSequences'}{$block} };
+	my @common_caller_seq =  @{ $stref->{'Subroutines'}{$caller}{'CommonBlockSequences'}{$block} };
 
 	# @equivalence_pairs ::  [(VarName,Type,ArrayOrScalar,Dim,PrefixStr)]
 	#  [ $name, $type, 0|1, [], [] ]
@@ -313,21 +311,21 @@ sub _match_up_common_var_sequences {
 	# type Dim is [[Integer]]
 	# type PrefixStr = [String]	
 	my @equivalence_pairs = ();	
-	# croak 'LOCAL:'.Dumper( map {$_->[0].(@{$_->[3]}>0? '('.$_->[4].')':'' )} @common_local_seq).'CALLER:'.Dumper( map {$_->[0].(@{$_->[3]}>0? '('.$_->[4].')':'' )} @common_caller_seq) if $f eq 'ff304';
+	# croak 'LOCAL:'.Dumper( map {$_->[0].(@{$_->[3]}>0? '('.$_->[4].')':'' )} @common_local_seq).'CALLER:'.Dumper( map {$_->[0].(@{$_->[3]}>0? '('.$_->[4].')':'' )} @common_caller_seq);
 	while ( scalar @common_local_seq > 0 ) {    # keep going until the local sequence is consumed
 		my $elt_local = shift @common_local_seq;
-
+		
 		my ( $name_local, $decl_local, $kind_local, $dim_local, $dimsz_local, $lin_idx_local, $used_local ) = @{$elt_local};
 		my $type_local = $decl_local->{'Type'};
-
-		# say "LOCAL: $name_local :: $type_local"  if $f eq 'mult_chk' and $name_local eq 'w4';
+		# say Dumper($elt_local);
+		# say "LOCAL: $name_local :: $type_local";#  if $f eq 'mult_chk' and $name_local eq 'w4';
 		if (@common_caller_seq) {
 
 			my $elt_caller = shift @common_caller_seq;
 			my ( $name_caller, $decl_caller, $kind_caller, $dim_caller, $dimsz_caller, $lin_idx_caller, $used_caller ) = @{$elt_caller};
 			my $type_caller = $decl_caller->{'Type'};
 			# carp 'dim_caller: '.Dumper($dim_caller);
-			# say "1. $f $caller: LOCAL: $name_local CALLER: $name_caller " if $f eq 'ff304' and $name_local ne $name_caller;
+			say "$f $caller: LOCAL: $name_local CALLER: $name_caller " ;#if $f eq 'ff304' and $name_local ne $name_caller;
 
 			# add this caller to ExMismatchedCommonArgs
 			# WV 2020-02-04 Is this always the case?
@@ -335,18 +333,21 @@ sub _match_up_common_var_sequences {
 			if ( $used_caller == 0 ) {
 				$used_caller = 1;
 				# WV 2020-02-05 I think it must be local as this is what is used in RefactoredArgs for $f
-				# push @{ $Sf->{'ExMismatchedCommonArgs'}{'SigArgs'}{'List'} }, $name_caller;
-				# $Sf->{'ExMismatchedCommonArgs'}{'SigArgs'}{'Set'}{$name_caller} = $decl_caller;
-				# WV 2020-02-05 I think it must be local as this is what is used in RefactoredArgs for $f
+				# if (scalar @{$Sf->{'ExMismatchedCommonArgs'}{'SigArgs'}{'List'}} > 0 and
+				# 	$Sf->{'ExMismatchedCommonArgs'}{'SigArgs'}{'List'}[-1] =~/$name_local\((\d+)\)/
+				# ) {
+					croak "not good enough: we should either allow for a local with multiple callers, to be wrapped in an array, 
+					or a caller with multiple locals, which I guess we do";
 				push @{ $Sf->{'ExMismatchedCommonArgs'}{'SigArgs'}{'List'} }, $name_local;
 				$Sf->{'ExMismatchedCommonArgs'}{'SigArgs'}{'Set'}{$name_local} = $decl_local;
-				# carp 'TYPE:'.$Sf->{'ExMismatchedCommonArgs'}{'SigArgs'}{'Set'}{'w4'}{'Type'} if $f eq 'mult_chk' and $name_caller eq 'w4';
 				if ( not exists $decl_caller->{'IODir'} ) {
 					$decl_caller->{'IODir'} = 'Unknown';
 				}
-				$Sf->{'ExMismatchedCommonArgs'}{'CallArgs'}{$caller}{$name_caller} = [ $name_caller, $caller, $block ];
+				# $Sf->{'ExMismatchedCommonArgs'}{'CallArgs'}{$caller}{$name_caller} = [ $name_caller, $caller, $block ]; 
+				# $Sf->{'ExMismatchedCommonArgs'}{'CallArgs'}{$caller}{$name_caller} = [ $name_local, $caller, $block ]; 
 				# I think the above is wrong for the case when $name_local ne $name_caller
 				$Sf->{'ExMismatchedCommonArgs'}{'CallArgs'}{$caller}{$name_local} = [ $name_caller, $caller, $block ];
+				# }
 			# say "2. $f $caller: LOCAL: $name_local CALLER: $name_caller " if $f eq 'ff304' and $name_local ne $name_caller;
 
 			}
