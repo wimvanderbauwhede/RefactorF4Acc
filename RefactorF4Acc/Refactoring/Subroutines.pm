@@ -799,19 +799,22 @@ sub _create_refactored_subroutine_call {
 		# The main purpose is to handle variable names
 		# So this is rather weak because e.g. v(i) will not be in Vars.
 		# So this only works for plain variable names
-		my $call_arg = emit_expr_from_ast($call_arg_expr);
-
-		if ($call_arg!~/__PH\d+__/) {
+		my $call_arg = emit_expr_from_ast($call_arg_expr);		
+		if (# skip constants
+			$call_arg_expr->[0] < 29 
+			and not exists $stref->{'Subroutines'}{$call_arg}
+			# and $call_arg!~/__PH\d+__/
+			) { 
 			my $subset = in_nested_set($stref->{'Subroutines'}{$f}, 'Vars', $call_arg);
+			
 			if ($subset) { # otherwise it means this is an expression, including array accesses, or a constant.
 				my $call_arg_decl = $stref->{'Subroutines'}{$f}{$subset}{'Set'}{$call_arg};
-
+# croak $subset, Dumper($call_arg_expr, $call_arg_decl) if $call_arg eq 'fs335';
 				# Just set $sig_arg to $call_arg as a start
 				my $sig_arg = $call_arg;
 				# Now see if there is an actual $sig_arg for which the entry in ArgMap
 				# matches the $call_arg
 				# ArgMap entries are not typed: the type info is in $info->{'SubroutineCall'}{'Args'}
-				# carp Dumper($info->{'SubroutineCall'}{'ArgMap'});
 				for my $tsig_arg (keys %{$info->{'SubroutineCall'}{'ArgMap'} }) {					
 					if ( defined $info->{'SubroutineCall'}{'ArgMap'}{$tsig_arg} and
 						$info->{'SubroutineCall'}{'ArgMap'}{$tsig_arg} eq $call_arg) {									
@@ -834,7 +837,6 @@ sub _create_refactored_subroutine_call {
 		push @orig_args, $call_arg;
 	} # loop over all call args
 
-	# $Sf->{'CastReshapeVarDecls'}{'List'} = [map {$_->{'CallArg'}} @cast_reshape_results]; # WRONG, this overwrites!
 	map { 
 		$Sf->{'CastReshapeVarDecls'}{'Set'}{
 			$_->{'CallArg'}
@@ -842,7 +844,9 @@ sub _create_refactored_subroutine_call {
 	} @cast_reshape_results;
 	$Sf->{'CastReshapeVarDecls'}{'List'} = [sort keys %{ $Sf->{'CastReshapeVarDecls'}{'Set'} }];
 	my $args_ref = [@orig_args];               # NOT ordered union, if they repeat that should be OK
-											   # This is for the case of ENTRYs. The "parent" is the actual sub which contains the ENTRY statements
+# carp Dumper($args_ref) if $name eq 'sn725';
+	
+	# This is for the case of ENTRYs. The "parent" is the actual sub which contains the ENTRY statements
 	my $parent_sub_name =
 	  exists $stref->{'Entries'}{$name} ? $stref->{'Entries'}{$name} : $name;
 	
@@ -1076,7 +1080,6 @@ sub _create_refactored_subroutine_call {
 		}
 	}
 	}
-	# carp Dumper($stref->{'Subroutines'}{$f}{'CastReshapeVarDecls'}) if $f eq 'out1' and $name eq 'varfmt';
 	return ($rlines, $stref);
 }    # END of _create_refactored_subroutine_call()
 
@@ -2241,12 +2244,14 @@ sub _maybe_cast_call_args { my ($stref, $f, $sub_name, $call_arg,$call_arg_decl,
 		my $dim1  = $call_arg_decl->{'Dim'};
 		my $dim2  = $sig_arg_decl->{'Dim'};		
 		# say "ASSUMED? ". __is_assumed_array($dim2);
+		# Avoid overwriting the actual Dim field
+		my $dim2d = dclone($dim2);
 		if (__is_assumed_array($dim2)) {
-			$dim2 = __take_upper_bound_from_call_arg($dim1,$dim2);
+			$dim2d = __take_upper_bound_from_call_arg($dim1,$dim2);
 		}
 		
 		my $size1 = calculate_array_size( $stref, $f, $dim1 );
-		my $size2 = calculate_array_size( $stref, $sub_name, $dim2 );
+		my $size2 = calculate_array_size( $stref, $sub_name, $dim2d );
 		croak 'FIXME!'.Dumper($call_arg_decl,$sig_arg_decl) unless defined $size1 and defined $size2;
 		# but the rank we need is the rank of the expression
 		# FIXME: I will assume that if the array is indexed, all indices are used, i.e. rank is 0

@@ -35,6 +35,56 @@ TO RELEASE
   $  git tag v1.2.1
   $  git push origin v1.2.1
 
+STATUS 2020-07-17
+
+FM302: 
+
+FM302.f95:64:45:
+
+   64 |       integer, dimension(1:5) :: iacn1f_fs303
+      |                                             1
+Error: Symbol ‘iacn1f_fs303’ at (1) already has basic type of INTEGER
+FM302.f95:65:45:
+
+   65 |       integer, dimension(1:5) :: iacn1f_fs303
+      |                                             1
+Error: Symbol ‘iacn1f_fs303’ at (1) already has basic type of INTEGER
+FM302.f95:66:45:
+
+   66 |       integer, dimension(1:5) :: iacn1f_fs303
+      |                                             1
+Error: Symbol ‘iacn1f_fs303’ at (1) already has basic type of INTEGER
+FM302.f95:475:191:
+
+  475 |       subroutine fs303(ivcn01,ivcn02,lvcn01,rvcn01,ivcn03,ivcn04,ivcn05,iacn11,ivcna1,ivcnb1,rvcnb1,ivcnb2,lvcnc1,ivcnc1,racn11,iacn21,cvtn01,cvtn02,catn11,iacn1g,iacn1g,iacn1g,iacn1g,ivcnh1)
+      |                                                                                                                                                                                               1
+Error: Duplicate symbol ‘iacn1g’ in formal argument list at (1)
+FM302.f95:1:19:
+
+    1 |       program fm302
+      |                   1
+......
+  476 |       implicit none
+      |                   2
+Error: Two main PROGRAMs at (1) and (2)
+
+I think what happens here is that there are arguments with the same name, which should not happen, and they each have their declaration. 
+So find out why they have the same name?  
+
+
+FM328: One error here is that logical constants .true. and .false. are not recognised as such but cast as real. Need to find out where this happens, probably Parser?
+The other error is that arguments that are actually subroutines or functions should not be cast! 
+
+=> OK. fixed. Changes are all in the guard around _maybe_cast_call_args() in _create_refactored_subroutine_call()
+
+FM722.f95:153:19:
+
+  153 |         call sn725(,dvn009,dvc006)
+      |                   1
+Error: Syntax error in argument list at (1)
+
+
+
 STATUS 2020-07-16
 
 # Generation of the refactored test suite code:

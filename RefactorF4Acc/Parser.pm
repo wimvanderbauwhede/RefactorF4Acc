@@ -3194,9 +3194,9 @@ sub _identify_loops_breaks {
 						delete $do_loops{$label};
 						$nest--;
 					} else {
-						print
-"WARNING: $f: Found continue for label $label but nesting level is wrong: $nest<>$do_loops{$label}[1]\n"
-						  if $W;
+						say
+"WARNING: $f: Found CONTINUE for label $label but nesting level is wrong" if $W
+# : $nest<>$do_loops{$label}[1]\n"  if $W;
 					}
 				} elsif ( exists $gotos{$label} ) {
 					my $target = 'GotoTarget';
@@ -3214,20 +3214,16 @@ sub _identify_loops_breaks {
 									$target = 'BreakTarget';
 									$srcref->[$tindex][1]{'Break'}{'Label'} =
 									  $label;
-
-#                       print STDERR "WARNING: $f: Found BREAK target not NOOP for label $label\n";
 								}
 							} else {
 								if ($is_cont) {
 									$target = 'NoopTarget';
 								}
-
-#                           print "WARNING: goto $label ($tindex) is not in loop ($f)\n" if $translate==$GO;
 							}
 						} else {
-							print
-"WARNING: $f: Found GOTO target not BREAK for label $label: wrong nesting $nest<>$gotos{$label}[1]\n"
-							  if $W;
+							say
+"WARNING: $f: Found GOTO target not BREAK for label $label: wrong nesting" if $W;# $nest<>$gotos{$label}[1]"
+							
 						}
 					}
 					$info->{$target}{'Label'} = $label;
@@ -3247,7 +3243,7 @@ sub _identify_loops_breaks {
 			$srcref->[$index] = [ $line, $info ];
 		}
 	} else {
-		print "WARNING: NO SOURCE (AnnLines) for $f\n" if $W;
+		print "WARNING: NO SOURCE (AnnLines) for $f\n" if $DBG
 	}
 	return $stref;
 }    # END of _identify_loops_breaks()
