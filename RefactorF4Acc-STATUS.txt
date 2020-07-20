@@ -37,6 +37,44 @@ TO RELEASE
 
 STATUS 2020-07-17
 
+Case 1
+| a a | b b . b b | c c |
+-------------------------
+| d d . d d | e e . e e |
+
+sig(d,e)
+call(d_call,e_call)
+
+Case 2
+| d d . d d | e e . e e |
+-------------------------
+| a a | b b . b b | c c |
+
+Case 3
+| b | c | d | e |
+-----------------
+| a . a . a . a |
+
+Case 4
+| a . a . a . a |
+-----------------
+| b | c | d | e |
+
+
+
+sig(a,b,c)
+
+call(d(1:2),b_call,e(1:2))
+OR
+call(a_call,b_call,c_call)
+
+The way we solve this currently (but clearly incorrectly/buggy) is:
+- as soon as there is a mismatch (either sig<call or sig>call), the call arg becomes the prefixed sig arg 
+- so we should always keep the ex-common sig args as they are
+
+We should maybe do this consistently for all 4 cases above, it would simplify matters.
+So only if the arguments are aligned do we keep the original names in the call, otherwise we create equivalence pairs
+
 FM302: 
 
 FM302.f95:64:45:

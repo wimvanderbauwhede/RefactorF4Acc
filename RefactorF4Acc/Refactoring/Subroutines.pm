@@ -550,7 +550,7 @@ sub _create_extra_arg_and_var_decls {
 				not exists $Sf->{'DeclaredOrigLocalVars'}{'Set'}{$var}
 			and not exists $Sf->{'DeclaredOrigArgs'}{'Set'}{$var}
 			and not exists $Sf->{'DeclaredCommonVars'}{'Set'}{$var}
-
+			# and exists $Sf->{'RefactoredArgs'}{'Set'}{$var} # Because otherwise there is no point
 			#    	and not exists $Sf->{'UndeclaredCommonVars'}{'Set'}{$var}
 		  )
 		{
@@ -565,7 +565,7 @@ sub _create_extra_arg_and_var_decls {
 			my $rline = emit_f95_var_decl($rdecl);
 			# carp $rline if $var eq 'w4' and $f eq 'mult_chk';
 			my $info  = {};
-			$info->{'Ann'}     = [ annotate( $f, __LINE__ . ' : EX-GLOB ' . $annline->[1]{'ExGlobVarDeclHook'}.' '.$rline ) ];
+			$info->{'Ann'}     = [ annotate( $f, __LINE__ . ' : EX-GLOB ' . $annline->[1]{'ExGlobVarDeclHook'} ) ]; #.' '.$rline
 			$info->{'LineID'}  = $nextLineID++;
 			$info->{'Ref'}     = 1;
 			$info->{'VarDecl'} = { 'Name' => $var };                                                                  #$rdecl;
