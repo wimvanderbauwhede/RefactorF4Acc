@@ -381,7 +381,8 @@ sub _match_up_common_var_sequences {
 					if ( $name_local ne $name_caller ) {                                                           # Different names
 							# Else no need to create an equivalence pair, just use the orginal arg name in the subroutine.
 							#							say "S S ".Dumper([[$name_local,0,[],[]],[$name_caller,0,[],[]]]);
-						push @equivalence_pairs, [ [ $name_local, $type_local, 0, [], [] ], [ $name_caller, $type_caller, 0, [], [] ] ];
+							# carp "UNCOMMENTED, PROBLEM?";
+						# push @equivalence_pairs, [ [ $name_local, $type_local, 0, [], [] ], [ $name_caller, $type_caller, 0, [], [] ] ];
 					}
 
 					# If the names are the same then should it still be in ExGlobArgs? I think so
@@ -432,7 +433,7 @@ sub _match_up_common_var_sequences {
 						push @equivalence_pairs, [ [ $name_local, $type_local, 1, $dim_local_copy, [] ], [ $name_caller, $type_caller, 1, $dim_caller_copy, [] ] ];
 					}
 				} else {    # Arrays of different size		
-				$well_aligned=0;		
+					$well_aligned=0;
 					# if they have the same name I need to prefix the caller name
 					if ( $kind_local * ( $dimsz_local - $lin_idx_local + 1 ) > $kind_caller * ( $dimsz_caller - $lin_idx_caller + 1 ) ) {  # local is larger
 							# so caller will be shifted entirely, local will have to be put back
@@ -471,6 +472,10 @@ sub _match_up_common_var_sequences {
 						#							say "A A ne ".Dumper( [[$name_local,1,$dim_local_copy,[]],[$name_caller,1,$dim_caller_copy,$prefix]]);
 						if ( $name_local eq $name_caller ) {
 							# In that case the SigArg should get the prefix as well							
+							# croak Dumper($decl_local , $decl_caller);
+							# WV2020-07-20 There is a problem here if the caller has a different size from the local
+							# So I think I need to use the local, not the caller
+							# $Sf = __add_prefixed_arg( $Sf, $name_local, $decl_local, $caller, $block );
 							$Sf = __add_prefixed_arg( $Sf, $name_caller, $decl_caller, $caller, $block );
 						} else {
 							$prefix = [];							
@@ -653,7 +658,7 @@ sub _match_up_common_var_sequences {
 
 
 		} else {    # The local seq is longer than the caller seq
-croak;
+# croak;
 			# It can be that the local seq contains an elt that was already partially matched to the last caller elt.
 			# this means that $name_local is already matched;  but we still need to add it to call args
 			if ( $used_local == 0 ) {
@@ -754,7 +759,7 @@ sub __reshape_rhs_if_required { my ($pair, $stref, $f ) = @_;
 	my $r        = $tup_rhs;
 	my $r_str    = __emit_equiv_var_str($r);
 	my $annlines = _cast_annlines( $l->[1], $l_str, $r->[1], $r_str );
-
+	say "$l_str = $r_str OK?";
 
 	if ($is_array1 and $is_array2) {
 

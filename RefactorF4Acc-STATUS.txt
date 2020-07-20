@@ -35,6 +35,54 @@ TO RELEASE
   $  git tag v1.2.1
   $  git push origin v1.2.1
 
+STATUS 2020-07-20
+
+Current status is
+
+# Running the refactored test suite:
+PASSED: 2731
+FAILED: 6
+REQUIRE INSPECTION: 161
+TOTAL: 2898
+
+The previous status was
+
+# Running the refactored test suite:
+PASSED: 2734
+FAILED: 4
+REQUIRE INSPECTION: 161
+TOTAL: 2899
+
+What is strange is: why has the total gone down from 2899 to 2898?
+
+This is OK: the original test does the same thing
+FM001.res:                TEST 2 FAILED WITH COMPUTED AND CORRECT =2 
+FM406 and FM923 fail in the original too, as before
+
+So this is the status: one additional test fails in FM302
+FM302.res:                        3 TESTS FAILED
+
+         4       FAIL            5005          30030
+        13       FAIL               6            210
+        14       FAIL               5             11
+
+- "The extension of named `COMMON` block storage by `EQUIVALENCE` association of a variable and an array" as tested by `NIST FM302 TEST 013` is not handled correctly. 
+
+So I guess the one to fix is TEST 004
+
+C          TESTS 003 AND 004 TEST THE USE OF UNNAMED COMMON IN A MAIN   
+C     PROGRAM AND AN EXTERNAL FUNCTION.                                 
+
+
+C          TEST 013 IS DESIGNED TO TEST THE EXTENSION OF NAMED COMMON   
+C     BLOCK STORAGE BY EQUIVALENCE ASSOCIATION OF A VARIABLE AND AN     
+
+C          TEST 014 IS DESIGNED TO TEST THE ABILITY OF PASSING DATA     
+C     THROUGH UNNAMED COMMON FROM EXTERNAL FUNCTIONS WHICH HAVE MORE    
+C     ENTITIES IN UNNAMED COMMON THAN THE MAIN PROGRAM.                 
+
+
+
 STATUS 2020-07-17
 
 Case 1

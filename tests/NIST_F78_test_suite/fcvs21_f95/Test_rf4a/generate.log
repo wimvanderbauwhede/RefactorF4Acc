@@ -168,6 +168,15 @@ TEST CASE 81: FM301.f
 refactorF4acc.pl -c rf4a_fm301.cfg  -g fm301
 TEST CASE 82: FM302.f
 refactorF4acc.pl -c rf4a_fm302.cfg  -g fm302
+iacn1g(1) = ivcnf1 OK?
+iacn1g(2) = ivcnf2 OK?
+iacn1g(3) = ivcnf3 OK?
+iacn1g(4:5) = iacn1f(1:2) OK?
+ivcng1 = iacn1f(3) OK?
+iacn11(1) = ivcn01 OK?
+iacn11(2) = ivcn02 OK?
+iacn11(3) = lvcn01 OK?
+iacn11(4) = rvcn01 OK?
 TEST CASE 83: FM306.f
 refactorF4acc.pl -c rf4a_fm306.cfg  -g fm306
 TEST CASE 84: FM307.f
