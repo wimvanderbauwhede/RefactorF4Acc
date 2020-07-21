@@ -2062,7 +2062,7 @@ sub _move_StatementFunctions_after_SpecificationStatements { my ( $stref, $f, $a
 			
 					$new_annlines =[ 
 					["! Removed statement function ".$info->{'StatementFunction'},{'Comments' => 1}],					
-					];
+					]; 
 					push @{$state},$annline;
 		}		
 		

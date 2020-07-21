@@ -1466,12 +1466,14 @@ sub _procLine {
     elsif ( $free_form == 0 and $line =~ /^[CD\*\!]/i ) {
 
         #    	croak $free_form;
+        $info->{'OrigComments'} = 1;
         $info->{'Comments'} = 1;
         $line = '! ' . substr( $line, 1 );
     }
     elsif ( $line =~ /^\s*\!/ ) {
 
 # If you put an exclamation mark (!) in any column of the statement field, except within character literals, then everything after the ! on that line is a comment.
+        $info->{'OrigComments'} = 1;
         $info->{'Comments'} = 1;
     }
     elsif ( $line =~ /^\s*contains\s*$/i ) {

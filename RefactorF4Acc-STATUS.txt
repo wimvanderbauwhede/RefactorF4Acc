@@ -35,6 +35,67 @@ TO RELEASE
   $  git tag v1.2.1
   $  git push origin v1.2.1
 
+STATUS 2020-07-21
+
+I added comments back in. I need a flag to generated the additional comments and/or turn of comments, I guess.
+Maybe -A can do the additional ones, and -C to have none
+
+I ran the original F77 test bench. It seems I am excluding the following:
+
+< FM010.res
+< FM011.res
+< FM013.res
+< FM045.res
+< FM111.res
+< FM200.res
+< FM252.res
+< FM253.res
+< FM255.res
+< FM257.res
+< FM259.res
+< FM260.res
+< FM500.res
+< FM509.res
+
+The results on Mac, gfortran-10 and on Linux, gfortran 9.3 are the same:
+
+PASSED: 2862
+FAILED: 5
+REQUIRE INSPECTION: 179
+TOTAL: 3046
+
+When looking at the failures, we have:
+
+FM302.res:                        2 TESTS FAILED
+FM406.res:                          1 TESTS FAILED
+FM923.res:                          2 TESTS FAILED
+
+The F95 version seems to behave different from the Linux version:
+
+FM302 fails to compile
+
+FM302.f95:720:7:
+
+  720 | iacn1g(4:5) = iacn1f(1:2)
+      |       1
+Error: 'iacn1g' at (1) is not a variable
+
+FM300.res:                        1 TESTS FAILED
+FM406.res:                          1 TESTS FAILED
+FM923.res:                          2 TESTS FAILED
+
+Whereas on Linux, all tests generate and compile, and we have
+
+FM302.res:                        3 TESTS FAILED
+FM406.res:                          1 TESTS FAILED
+FM923.res:                          2 TESTS FAILED
+
+In the F77 reference, the failed tests in FM302 are 4 and 14
+In the F95 version on Linux, the failed tests in FM302 are 4 and 13, 14
+
+And Test 13 is a "WON'T FIX"
+
+
 STATUS 2020-07-20
 
 Current status is
