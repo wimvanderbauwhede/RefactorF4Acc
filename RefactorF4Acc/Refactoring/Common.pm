@@ -102,7 +102,6 @@ sub context_free_refactorings {
 
         if ( exists $info->{'Comments'}  ) { # I should distinguish between original comments and new comments.
         # Also, maybe a -C flag to suppress comments might be good.
-            # push @{ $Sf->{'RefactoredCode'} }, [ $line, $info ];   
         if ( exists $info->{'OrigComments'}  ) { # I should distinguish between original comments and new comments.
         # Also, maybe a -C flag to suppress comments might be good.
             push @{ $Sf->{'RefactoredCode'} }, [ $line, $info ];   

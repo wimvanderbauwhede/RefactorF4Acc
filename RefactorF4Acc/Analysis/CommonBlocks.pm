@@ -651,14 +651,8 @@ sub _match_up_common_var_sequences {
 				# I think the above is wrong for the case when $name_local ne $name_caller
 				# }
 			# say "2. $f $caller: LOCAL: $name_local CALLER: $name_caller " if $f eq 'ff304' and $name_local ne $name_caller;
-
 			}
-
-
-
-
 		} else {    # The local seq is longer than the caller seq
-# croak;
 			# It can be that the local seq contains an elt that was already partially matched to the last caller elt.
 			# this means that $name_local is already matched;  but we still need to add it to call args
 			if ( $used_local == 0 ) {
@@ -693,7 +687,6 @@ sub _match_up_common_var_sequences {
 			@{__reshape_rhs_if_required($pair, $stref, $f )}; 
 			# @{ _caller_to_local_assignment_annlines($pair) };
 		} @equivalence_pairs;
-# carp Dumper(@arg_assignment_lines);
 		if ( not exists $Sf->{'ExMismatchedCommonArgs'}{'ArgAssignmentLines'} ) {
 			$Sf->{'ExMismatchedCommonArgs'}{'ArgAssignmentLines'} = \@arg_assignment_lines;
 		} else {
@@ -731,7 +724,7 @@ sub __emit_equiv_var_str {
 
 sub _caller_to_local_assignment_annlines {
 	( my $equiv_pair ) = @_; 
-
+croak 'UNUSED?';
 	my $l        = $equiv_pair->[0];
 	my $l_str    = __emit_equiv_var_str($l);
 	my $r        = $equiv_pair->[1];
@@ -759,7 +752,7 @@ sub __reshape_rhs_if_required { my ($pair, $stref, $f ) = @_;
 	my $r        = $tup_rhs;
 	my $r_str    = __emit_equiv_var_str($r);
 	my $annlines = _cast_annlines( $l->[1], $l_str, $r->[1], $r_str );
-	say "$l_str = $r_str OK?";
+	# say "$l_str = $r_str OK?";
 
 	if ($is_array1 and $is_array2) {
 

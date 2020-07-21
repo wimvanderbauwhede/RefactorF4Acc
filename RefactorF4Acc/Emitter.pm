@@ -140,7 +140,7 @@ sub emit_all {
 				if (exists $info->{'Blank'}
 				or exists $info->{'Skip'}
 				or exists $info->{'Deleted'}
-                or (exists $info->{'Comments'} and not exists $info->{'OrigComments'})
+                # or (exists $info->{'Comments'} and not exists $info->{'OrigComments'})
 				) {
 					next;
 				}

@@ -461,7 +461,7 @@ sub _refactor_globals_new {
 			and not exists $info->{'VarDecl'}
 			and not exists $info->{'ImplicitNone'}
 			and not exists $info->{'SpecificationStatement'}
-			and not exists $info->{'Comment'}
+			and not exists $info->{'Comments'}
 			and not exists $info->{'Blank'}
 			and not exists $info->{'Skip'}
 			and not exists $info->{'Deleted'}
@@ -1406,16 +1406,15 @@ sub _add_ExMismatchedCommonArg_assignment_lines {
 			and not exists $info->{'VarDecl'}
 			and not exists $info->{'ImplicitNone'}
 			and not exists $info->{'SpecificationStatement'}
-			and not exists $info->{'Comment'}
+			and not exists $info->{'Comments'}
 			and not exists $info->{'Blank'}
 			and not exists $info->{'Skip'}
 			and not exists $info->{'Deleted'}
 			and $first_vardecl == 1 )
 		{
 			$first_vardecl = 0;
-			for my $rline ( @{ $stref->{'Subroutines'}{$f}{'ExMismatchedCommonArgs'}{'ArgAssignmentLines'} } ) {
-
-				       		# say "ADDING LINE ".$rline->[0]." to $f ";
+			
+			for my $rline ( @{ $stref->{'Subroutines'}{$f}{'ExMismatchedCommonArgs'}{'ArgAssignmentLines'} } ) {				
 				push @{$rlines}, $rline ;
 			}
 		}
@@ -1430,7 +1429,7 @@ sub _add_ExMismatchedCommonArg_assignment_lines {
 
 			#			carp "Found location for reverse assignments in $f: $line";
 			for my $rline ( @{ $stref->{'Subroutines'}{$f}{'ExMismatchedCommonArgs'}{'ArgRevAssignmentLines'} } ) {
-
+# say 'HERE '.$rline->[0];
 						        		# say "ADDING LINE ".$rline->[0]." to $f ";
 				push @{$rlines}, $rline;
 			}
@@ -1477,12 +1476,12 @@ sub __insert_assignment_for_ex_EQUIVALENCE_vars {
 # carp Dumper( $line, $info);
 		my $lhs_ast = $info->{'Lhs'}{'ExpressionAST'};
 		my $lhs_v_str = emit_expr_from_ast($lhs_ast);
-
+		
 		$lhs_v_str = $lhs_var; # Ugly HACK! FIXME!
 		if ( exists $equiv_pairs->{$lhs_v_str} ) {
 			# insert the extra line
 			push @{$rlines}, $annline;
-			say 'INSERTING ' . join( "\n", pp_annlines( $equiv_pairs->{$lhs_v_str} ) ) . ' after ' . $line if $DBG;
+			say 'INSERTING ' . join( "\n", Dumper(pp_annlines( $equiv_pairs->{$lhs_v_str} ) )) . ' after ' . $line if $DBG;
 			$rlines = [ @{$rlines}, @{ $equiv_pairs->{$lhs_v_str} } ];
 			$skip   = 1;
 		}
@@ -1618,14 +1617,14 @@ sub _change_EQUIVALENCE_to_assignment_lines_for_ExCommonArgs {
 			and not exists $info->{'VarDecl'}
 			and not exists $info->{'ImplicitNone'}
 			and not exists $info->{'SpecificationStatement'}
-			and not exists $info->{'Comment'}
+			and not exists $info->{'Comments'}
 			and not exists $info->{'Blank'}
 			and not exists $info->{'Skip'}
 			and not exists $info->{'Deleted'}
 			and $first_occ == 1 )
 		{
 			$first_occ = 0;
-#			say "AFTER LINE $line";
+			# say "AFTER LINE $line";
 			for my $rline ( @{$exEquivAssignmentLines} ) {
 				say 'REPLACED EQUIVALENCE BY ' . Dumper($rline) if $DBG;				
 				push @{$rlines}, $rline;

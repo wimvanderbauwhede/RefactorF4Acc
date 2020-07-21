@@ -11,6 +11,7 @@ use strict;
 use v5.10;
 
 use RefactorF4Acc::Config;
+use RefactorF4Acc::Utils qw( annotate );
 
 use vars qw( $VERSION );
 $VERSION = "1.2.0";
@@ -45,7 +46,8 @@ sub _assignment_info { my ($lhs_var, $rhs_vars) = @_;
 			}		
 		},
 		'Indent' => ' ' x 6,
-		'ExCommonOrEquivalence'	=> 1
+		'ExCommonOrEquivalence'	=> 1,
+		'Ann' => [ annotate('', __LINE__ .' caller to local' ) ]
 	}
 };
 

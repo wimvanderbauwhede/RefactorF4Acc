@@ -113,7 +113,7 @@ sub split_specification_computation_parts { (my $stref, my $f) =@_;
 
 			if ( exists $info->{'Signature'} or exists $info->{'EndSubroutine'} or exists $info->{'ArgDecl'} or exists $info->{'Return'}) {
 				# do nothing;
-			} elsif ( exists $info->{'Comment'} or exists $info->{'Blank'} ) {
+			} elsif ( exists $info->{'Comments'} or exists $info->{'Blank'} ) {
 				push @{$preceding_comments}, $annline;
 			} elsif ( exists $info->{'SpecificationStatement'} ) {
 				$specification_part = [ @{$specification_part}, @{$preceding_comments}, $annline ];

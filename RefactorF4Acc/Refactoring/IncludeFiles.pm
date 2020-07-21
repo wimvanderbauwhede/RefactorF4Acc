@@ -80,7 +80,7 @@ sub _refactor_include_file {
 
 		next if exists $info->{'Deleted'}
 			or exists $info->{'Skip'}
-			or exists $info->{'Comment'};
+			or exists $info->{'Comments'};
 		my $skip = 0;
 		if ( exists $info->{'Common'} ) {
 			$skip = 1;
