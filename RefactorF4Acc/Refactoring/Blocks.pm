@@ -12,7 +12,7 @@ use RefactorF4Acc::Parser::Expressions qw( emit_expr_from_ast );
 #
 
 use vars qw( $VERSION );
-$VERSION = "1.2.0";
+$VERSION = "2.1.0";
 
 #use warnings::unused;
 use warnings;

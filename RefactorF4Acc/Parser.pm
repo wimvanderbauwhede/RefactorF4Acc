@@ -42,7 +42,7 @@ use Fortran::ConstructParser qw(
 );  
 
 use vars qw( $VERSION );
-$VERSION = "1.2.0";
+$VERSION = "2.1.0";
 
 use Carp;
 use Data::Dumper;

@@ -27,7 +27,7 @@ use RefactorF4Acc::Analysis::CommonBlocks qw( analyse_common_blocks );
 #
 
 use vars qw( $VERSION );
-$VERSION = "1.2.0";
+$VERSION = "2.1.0";
 
 #use warnings::unused;
 use warnings;

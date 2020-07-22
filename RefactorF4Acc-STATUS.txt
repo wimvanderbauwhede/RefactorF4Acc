@@ -35,12 +35,17 @@ TO RELEASE
   $  git tag v1.2.1
   $  git push origin v1.2.1
 
+STATUS 2020-07-22
+
+Ready to release 
+
 STATUS 2020-07-21
 
 I added comments back in. I need a flag to generated the additional comments and/or turn of comments, I guess.
 Maybe -A can do the additional ones, and -C to have none
 
-But unfortunately this cause a bug: some of the caller-to-local assignment lines are gone as a result!
+But unfortunately this cause a bug: some of the caller-to-local assignment lines are gone as a result! 
+=> Fixed that, it was a typo 'Comment' instead of 'Comments'
 
 I ran the original F77 test bench. It seems I am excluding the following:
 

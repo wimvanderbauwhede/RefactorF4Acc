@@ -12,7 +12,7 @@ use Fortran::F95Normaliser qw( normalise_F95_src );
 #
 
 use vars qw( $VERSION );
-$VERSION = "1.2.0";
+$VERSION = "2.1.0";
 
 #use warnings::unused;
 use warnings;

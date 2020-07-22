@@ -14,8 +14,17 @@ The versioning convention is as follows:
 
 ## [Unreleased]
 ### Planned
-    - Refactoring of common blocks in functions 
+    - Inlining of function and subroutine calls
 
+## [2.1.0] - 2020-07-22
+### Fixes
+- 
+### Features
+- Support for EQUIVALENCE and non-aligned COMMON blocks
+- Support for casting when turning COMMON variables into subroutine arguments
+- Some support for BLOCK DATA
+- An interactive mode to generate an initial config file
+- Option to inline include files  
 ## [1.2.0] - 2019-03-08
 ### Fixes
 - Include statement detection in Inventory is now case insensitive.

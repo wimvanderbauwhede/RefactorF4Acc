@@ -5,7 +5,7 @@ package RefactorF4Acc::MacroFileToCmdLine;
 #   
 	
 use vars qw( $VERSION );
-$VERSION = "1.2.0";
+$VERSION = "2.1.0";
 
 use v5.10;
 use warnings;

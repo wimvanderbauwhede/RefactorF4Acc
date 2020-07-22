@@ -13,7 +13,7 @@ use RefactorF4Acc::Refactoring::Common qw( get_annotated_sourcelines stateful_pa
 #
 
 use vars qw( $VERSION );
-$VERSION = "1.2.0";
+$VERSION = "2.1.0";
 
 #use warnings::unused;
 use warnings;

@@ -17,7 +17,7 @@ use RefactorF4Acc::Refactoring::Modules qw( add_module_decls );
 use RefactorF4Acc::Refactoring::InlineSubroutine qw( inline_subroutine );
 use RefactorF4Acc::Refactoring::EvalParamExprs qw( eval_param_expressions_all );
 use vars qw( $VERSION );
-$VERSION = "1.2.0";
+$VERSION = "2.1.0";
 
 #use warnings::unused;
 use warnings;
