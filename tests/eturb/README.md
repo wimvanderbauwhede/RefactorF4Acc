@@ -4,10 +4,10 @@ The folder `eturb/src` contains a subset of the Nek5000 source code used by the 
 
 Apart from the files taken from the [Nek5000 source](https://github.com/Nek5000/Nek5000), it contains the following files:
 
-- From the eTurb sources:
+- Based on the eTurb sources (because the eturb source license does not allow me to include the originals here):
 
-    - `abl.f` : a renamed copy of `src/abl/abl.usr` from eturb-0.1.1
-    - `SIZE` : a copy of `src/abl/SIZE` from eturb-0.1.1
+    - `dabl.f` : a dummy similar to`src/abl/abl.usr` from eturb-0.1.1
+    - `SIZE` : similar to `src/abl/SIZE` from eturb-0.1.1
 
 - From the OpenMPI header files
 
