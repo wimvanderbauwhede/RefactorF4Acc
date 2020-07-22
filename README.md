@@ -196,6 +196,7 @@ will exclude `hello.f95` from sources in directory `src` and so will
 
 <dt>NO_MODULE:</dt><dd>List of source files that should not be changed to modules</dd>
 <dt>RENAME_EXT:</dt><dd>Extension for variables that need to be renamed because of conflicts (usually you don't need this; the default is _GLOB)</dd>
+<dt>INLINE_INCLUDES:</dt><dd>Inline all includes, in the same way the preprocessor would do. Use this if your code has include files that can't be turned into modules because they are not self-contained.</dd>
 <dt>NO_ONLY:</dt><dd>Do not use the ONLY qualifier on the USE declaration</dd>
 <dt>SPLIT_LONG_LINES:</dt><dd>Split long lines into chunks of no more than 80 characters</dd>
 <dt>MAX_LINE_LENGTH:</dt><dd>Maximum line length for fixed-format FORTRAN77 code. The default is 132 characters.</dd>
@@ -211,18 +212,21 @@ will exclude `hello.f95` from sources in directory `src` and so will
 ### Command line flags
 
     -h: help
-    -V: Show the version
-    -c <cfg file name>: use this cfg file (default is ~/.rf4a)
-    -C: Only generate call tree, don't refactor or emit
-    -s: Provide a comma-separated list of source files to be refactored. Same as specifying SOURCEFILES in the config file
-    -b: Generate SCons build script
-    -B: Build the generated code with SCons
-    -A: Annotate the refactored lines
-    -P translate_to_C|translate_to_OpenCL: to translate a module to C or OpenCL
-    -w: show warnings
+    -V: print the version number
+    -w: show warnings 
+    -W: show more warnings
     -v: verbose (implies -w)
     -i: show info messages
     -d: show debug messages
+    -c <cfg file name>: use this cfg file (default is ./rf4a.cfg, or a global ~/.rf4a)
+    -I: Inline all include files. Use this if include files are not self-contained and can't be turned into modules
+    -C: Only generate call tree, don't refactor or emit
+    -b: Generate SCons build script
+    -B: Build the generated code
+    -A: Annotate the refactored lines 
+    -P: Name of pass to be performed
+    -s: Provide a comma-separated list of source files to be refactored. Same as specifying SOURCEFILES in the config file
+
 
 <a name="examples"></a>
 ## Examples of RefactorF4Acc in action 
@@ -230,9 +234,9 @@ will exclude `hello.f95` from sources in directory `src` and so will
 ### Refactoring code  
 To refactor code as explained above:
 
-        $ refactorF4acc.pl -c ./rf4a.cfg -g
+        $ refactorF4acc.pl
 
-   with `rf4a.cfg` containing:
+   This requires a config file `rf4a.cfg` in the directory where `refactorF4Acc.pl` is called, containing:
 
     # The name of the PROGRAM
     TOP = wave2d
@@ -337,23 +341,21 @@ Running the accelerated code on this GPU results in 14x speedup compared to the 
 
 We use the [NIST FORTRAN78 test suite](ftp://ftp.fortran-2000.com/fcvs21_f95.tar.bz2) for validation.
 
-      $ cd tests/NIST_F78_test_suite/fcvs21_f95
+      $ cd tests/NIST_F78_test_suite
+
+The original FORTRAN 77 test suite source files are in `fcvs21_f95/`.
 
 - The file `FM090.f` is a modified version of `FM010.f` without spaces in types, variable names, values and labels.
 - The file `FM091.f` is a modified version of `FM011.f` without spaces in types, variable names, values and labels.
 - The file `FM210.f` is a modified version of `FM200.f` without spaces in variable names and values.
 - The files `FM500.f` and `FM509.f` contain tests for corner cases of common blocks and block data (37+16 tests) which we don't support.
 
-In this folder, there are two subfolders `Test_rf4a` and  `RefactoredSources`. To verify the original test suite you can use the script `driver_parse`; to run it you can use the script `driver_run`; you may have to change the name of the Fortran compiler in `FC` at the start of these scripts.
+Please ensure that the environment varianble `$FC` is set to the Fortran compiler you want to use. I have tested the code only with `gfortran 4.9` to `gfortran 10.0`. 
+To generate the refactored Fortran-95 code for the test suite, build it and run it, do:
 
-The refactored Fortran-95 code is generated in the folder `RefactoredSources`. There are three scripts in this folder, `driver_parse`, `driver_run` and `driver_run_single`. You may have to change the name of the Fortran compiler in `FC` at the start of these scripts. Please ensure that the environment varianble `$FC` is set to the Fortran compiler you want to use. I have tested the code only with `gfortran 4.9` to `gfortran 10.0`.
+      $ ./generate_build_and_run_testsuite.sh
 
-To generate the refactored Fortran-95 code for the test suite, build and run it, do:
-
-      $ cd Test_rf4a
-      $ ./generate_and_run.sh
-
-Generating, compiling and running the test suites takes a few minutes.
+Generating, compiling and running the test suites takes a few minutes. The refactored Fortran-95 code is generated in the folder `fcvs21_f95/RefactoredSources/`. 
 
 The final output should look like:
 
@@ -390,3 +392,12 @@ The final output should look like:
       FAILED: 6
       REQUIRE INSPECTION: 161
       TOTAL: 2911
+
+To verify the original FORTRAN 77 test suite you can use the original scripts `driver_parse` and `driver_run`. You may have to change the name of the Fortran compiler in `FC` at the start of these scripts.
+
+      $ cd fcvs21_f95
+      $ ./driver_parse
+      $ ./driver_run
+
+      
+

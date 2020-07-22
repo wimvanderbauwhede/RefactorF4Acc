@@ -42,7 +42,7 @@ use Exporter;
 our $usage = "
     $0 [-hVvwicCNg] <toplevel subroutine name> 
        [<subroutine name(s) for C translation>]
-    Typical use: rf4a -c ./rf4a.cfg -g -v -i main   
+    Typical use: refactorF4Acc.pl -c ./custom_rf4a.cfg -w
     -h: help
     -V: print the version number
     -w: show warnings 
@@ -50,10 +50,9 @@ our $usage = "
     -v: verbose (implies -w)
     -i: show info messages
     -d: show debug messages
-    -c <cfg file name>: use this cfg file (default is ~/.rf4a)
+    -c <cfg file name>: use this cfg file (default is ./rf4a.cfg, or a global ~/.rf4a)
     -I: Inline all include files. Use this if include files are not self-contained and can't be turned into modules
     -C: Only generate call tree, don't refactor or emit
-    -g: refactor globals inside toplevel subroutine (NOTE: in the current version this does nothing, globals will always be refactored) 
     -b: Generate SCons build script
     -B: Build the generated code
     -A: Annotate the refactored lines 
@@ -61,6 +60,7 @@ our $usage = "
     -s: Provide a comma-separated list of source files to be refactored. Same as specifying SOURCEFILES in the config file
     \n";
 #    -N: Replace CONTINUE by CALL NOOP    
+    # -g: refactor globals inside toplevel subroutine (NOTE: in the current version this does nothing, globals will always be refactored) 
 
 our @unit_tests= (1,2,3,4,5,6,7,8);
 our @test_descs =qw(

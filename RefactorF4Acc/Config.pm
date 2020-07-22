@@ -99,6 +99,7 @@ our $targetdir = '../RefactoredSources';
 #
 
 our %Config=(
+'INLINE_INCLUDES' => 0,
 'SPLIT_LONG_LINES' => $SPLIT_LONG_LINES,
 'MAX_LINE_LENGTH' =>  $MAX_LINE_LENGTH,
 'NO_ONLY' => $NO_ONLY,
@@ -259,6 +260,7 @@ our $config_menu= {
         ['EXT','Extension of refactored source files','.f90'],
         ['EXCL_SRCS', 'Source files to be excluded (comma-separated list)',''],
         ['EXCL_DIRS', 'Source folders to be excluded (comma-separated list)',''],
+        ['INLINE_INCLUDES', 'Inline all include files? 0/1','0'],
         ['SPLIT_LONG_LINES', 'Split long lines into chunks of no more than 80 characters? 0/1','1'],
         ['MAX_LINE_LENGTH','Maximum line length for fixed-format F77 code', '132'],
         ['ALLOW_SPACES_IN_NUMBERS','Allow spaces in numeric constants for fixed-format F77 code', '0'],
