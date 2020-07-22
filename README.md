@@ -236,7 +236,7 @@ To refactor code as explained above:
 
         $ refactorF4acc.pl
 
-   This requires a config file `rf4a.cfg` in the directory where `refactorF4Acc.pl` is called, containing:
+This requires a config file `rf4a.cfg` in the directory where `refactorF4Acc.pl` is called, containing:
 
     # The name of the PROGRAM
     TOP = wave2d
@@ -246,7 +246,7 @@ To refactor code as explained above:
     # Path for refactored source
     NEWSRCPATH = ../RefactoredSources
 
-  or for another example:    
+or for another example:    
 
     # The name of the PROGRAM  
     TOP = main
@@ -259,6 +259,8 @@ To refactor code as explained above:
     SPLIT_LONG_LINES = 1
     # By default the extension is _GLOB, this forces no extension
     RENAME_EXT =  
+
+If the config file does not exists, the script will present you with an interactive menu to create one.      
 
 <a name="translate"></a>
 ### Translating refactored code to OpenCL/C
