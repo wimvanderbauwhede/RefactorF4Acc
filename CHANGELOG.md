@@ -18,13 +18,15 @@ The versioning convention is as follows:
 
 ## [2.1.0] - 2020-07-22
 ### Fixes
-- 
+- Too many to list, in particular the parser is now much more robust
 ### Features
+- Improved README
 - Support for EQUIVALENCE and non-aligned COMMON blocks
 - Support for casting when turning COMMON variables into subroutine arguments
 - Some support for BLOCK DATA
 - An interactive mode to generate an initial config file
 - Option to inline include files  
+
 ## [1.2.0] - 2019-03-08
 ### Fixes
 - Include statement detection in Inventory is now case insensitive.
