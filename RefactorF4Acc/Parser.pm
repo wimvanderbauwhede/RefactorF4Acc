@@ -265,7 +265,7 @@ sub analyse_lines {
 				# remove any leading spaces
 				$line=~s/^\s+//;
 			}
-			# say "LINE: $line" if $f eq 'predict_loc';
+			# say "LINE: $line" ;
 			# --------------------------------------------------------------------------------
 			# BLOCK identification code
 			# --------------------------------------------------------------------------------

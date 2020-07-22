@@ -1,3 +1,4 @@
+rm a.out
 rm fm*.f
 rm FM*
 rm ../RefactoredSources/FM*

@@ -15,113 +15,21 @@ two failed tests, both fail in gfortran as well
 ----
 
 I skipped following files:
-FM010.f
-FM011.f 
-FM200.f
-This accounts for 23 tests
+FM010.f => replaced by FM090
+FM011.f => replaced by FM091    
 
-From the remaining 189, the driver that comes with the test suite skipped 8 tests; 1 test failed to parse (FM500.f, 37 tests) 
+FM045.f => OK now. So I removed FM046.f which was my patch
+FM200.f => replaced by FM210
 
-One test FM509 crashed
-Process FM509
-FM509.f95:411.17:
-call sn512(c1n001(5)(2:9),cvcomp)
-1
-
-Warning: Actual argument contains too few elements for dummy argument 'c1d001' (19/48) at (1)
-Program received signal SIGSEGV: Segmentation fault - invalid memory reference.
-Backtrace for this error:
-#0 0x10871011b
-#1 0x10870f8e8
-#2 0x7fff8bd6f5a9
-#3 0x108706e98
-#4 0x108706907
-#5 0x108708199
-#6 0x108709533
-./driver_run_single: line 23: 62657 Segmentation fault: 11 ./a.out > "${result}"
-Finished.
-
-TOTAL TESTS: 192
-TESTS RUN: 189
-SKIPPED: 3
-Generation Failed:
-0
-Generation Succeeded:
-189
-
-Total : 189
-Passed : 180
-Failed : 1
-Skipped: 8
-
-PASSED: 2703
-FAILED: 3
-REQUIRE INSPECTION: 161
-TOTAL: 2867
-
-FM406.res: 1 TESTS FAILED
-FM923.res: 2 TESTS FAILED
-
--rw-r--r--+ 1 wim staff 0 19 Aug 15:02 FM500.res
--rw-r--r--+ 1 wim staff 0 19 Aug 15:02 FM509.res
-
-# Generation failed: (165 tests)
-FM011.f 7 tests SPACES IN VARS
-
-#
-# Parse failed:
-#
-FM010.f 3 tests (124 tests) SPACES IN VARS
-FM200.f 13 tests SPACES IN VARS
-
-FM500.f 37 => SERIOUS MESS!
-#
-# Fails in original with gfortran
-#
-FM406.f (1 test)
-FM923.f (2 tests)
-
-Runtime error: 
--rw-r--r--+ 1 wim  staff      0  5 Aug 17:16 FM509.res
-
-EQUIVALENCE occurs in
-022
-024
-300
-302
-308
-500***
-700
-722
-809
-811
-813
-185
-817
-820
-828
-829
-830
-831
-833
-834
-906
-908
-909
-
-
-FM514.f
-FM517.f
-
-FM317.f
-FM328.f
+FM500.f
+FM509.f
+- The files `FM500.f` and `FM509.f` contain tests for corner cases of COMMON blocks and BLOCK DATA (37+16 tests) which we don't support.
 =cut
 
 
 my @skipped_tests=qw(
-FM010.f
+FM010.f 
 FM011.f    
-FM045.f    
 FM200.f
 FM500.f
 FM509.f
@@ -173,7 +81,6 @@ FM042.f
 FM043.f
 FM044.f
 FM045.f
-FM046.f
 FM050.f
 FM056.f
 FM060.f
@@ -204,6 +111,7 @@ FM202.f
 FM203.f
 FM204.f
 FM205.f
+FM210.f
 FM251.f
 FM252.f
 FM253.f

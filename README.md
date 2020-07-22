@@ -89,7 +89,7 @@ However, the work flow is more complicated and requires an additional compiler, 
 ###  US National Institute of Standards and Technology (NIST) test suite
 To assess the correctness and capability of our refactoring compiler, we used the NIST (US National Institute of Standards and Technology) [FORTRAN78 test suite](http://www.itl.nist.gov/div897/ctg/fortran_form.htm), which aims to validate adherence to the ANSI X3.9-1978 (FORTRAN 77) standard. We used [a version with some minor changes from Arnaud Desitter](http://www.fortran-2000.com/ArnaudRecipes/fcvs21_f95.html): All files are properly formed; a non standard conforming FORMAT statement has been fixed in test file `FM110.f`; Hollerith strings in FORMAT statements have been converted to quoted strings. This test suite comprises about three thousand tests organised into 192 files.
 
-We skipped/modified some tests because they test features that our compiler does not support (see below for more details). After skipping these types of tests, 2899 tests remain, in total 190 files for which refactored code is generated. The testbench driver provided in the archive skips another 8 tests because they relate to features deleted in Fortran 95. In total the test suite contains 72,473 lines of code (excluding comments). Two test files (FM406 and FM923) contain tests that fail in gfortran (3 tests in total). Our compiler currently fails one additional test, test 13 in FM302, see "Known Issues".
+We skipped/modified some tests because they test features that our compiler does not support (see below for more details). After skipping these types of tests, 2899 tests remain, in total 190 files for which refactored code is generated. The testbench driver provided in the archive skips another 8 tests because they relate to features deleted in Fortran 95. In total the test suite contains 72,473 lines of code (excluding comments). Three test files (FM302, FM406 and FM923) contain tests that fail in gfortran (3 tests in total). Our compiler currently fails one additional test, test 13 in FM302, see ["Known issues"](#issues).
 
 Our compiler successfully generates refactored code for _all_ tests, and the refactored code compiles correctly and passes all other tests (2895 tests in total). The tests are available in `tests/NIST_F78_test_suite`, together with a dedicated readme. For full details, please refer to <a href="#appnist">Appendix: Validation of RefactorF4Acc using the NIST test</a> and 
 <a href="https://doi.org/10.1016/j.compfluid.2018.06.005">"Domain-specific acceleration and auto-parallelization of legacy scientific code in FORTRAN 77 using source-to-source compilation"</a> (Wim Vanderbauwhede and Gavin Davidson; Computers & Fluids Vol 173, 15 September 2018, Pages 1-5).
@@ -339,9 +339,9 @@ We use the [NIST FORTRAN78 test suite](ftp://ftp.fortran-2000.com/fcvs21_f95.tar
 
       $ cd tests/NIST_F78_test_suite/fcvs21_f95
 
-- The file `FM046.f` contains a change to TEST 759: the original test (`FM045.f`) has 57 nested parentheses, this was changed to 5 nested parentheses because the current expression parser takes too long to parse this.
 - The file `FM090.f` is a modified version of `FM010.f` without spaces in types, variable names, values and labels.
 - The file `FM091.f` is a modified version of `FM011.f` without spaces in types, variable names, values and labels.
+- The file `FM210.f` is a modified version of `FM200.f` without spaces in variable names and values.
 - The files `FM500.f` and `FM509.f` contain tests for corner cases of common blocks and block data (37+16 tests) which we don't support.
 
 In this folder, there are two subfolders `Test_rf4a` and  `RefactoredSources`. To verify the original test suite you can use the script `driver_parse`; to run it you can use the script `driver_run`; you may have to change the name of the Fortran compiler in `FC` at the start of these scripts.
@@ -357,36 +357,36 @@ Generating, compiling and running the test suites takes a few minutes.
 
 The final output should look like:
 
-        real	0m50.641s
-        user	0m43.246s
-        sys	0m5.761s
+      real	0m51.079s
+      user	0m46.688s
+      sys	0m4.372s
 
-        # Generation of the refactored test suite code:
-        TOTAL TESTS: 196
-        TESTS RUN: 190
-        SKIPPED: 6
-        Generation Failed:
-        0
-        Generation Succeeded:
-        190
+      # Generation of the refactored test suite code:
+      TOTAL TESTS: 196
+      TESTS RUN: 191
+      SKIPPED: 5
+      Generation Failed:
+      0
+      Generation Succeeded:
+      191
 
-        real	0m8.281s
-        user	0m4.605s
-        sys	0m2.237s
+      real	0m6.303s
+      user	0m4.832s
+      sys	0m1.484s
 
-        # Compilation of the refactored test suite:
+      # Compilation of the refactored test suite:
 
-        Total  : 190
-        Passed : 182
-        Failed : 0
-        Skipped: 8
+      Total  : 191
+      Passed : 183
+      Failed : 0
+      Skipped: 8
 
-        real	0m35.434s
-        user	0m24.426s
-        sys	0m7.029s
+      real	0m25.071s
+      user	0m21.046s
+      sys	0m4.014s
 
-        # Running the refactored test suite:
-        PASSED: 2734
-        FAILED: 4
-        REQUIRE INSPECTION: 161
-        TOTAL: 2899
+      # Running the refactored test suite:
+      PASSED: 2744
+      FAILED: 6
+      REQUIRE INSPECTION: 161
+      TOTAL: 2911

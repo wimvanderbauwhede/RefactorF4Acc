@@ -1904,14 +1904,14 @@ sub __refactor_EQUIVALENCE_line {
 							$v1_v2_pair = [ "$var1($offset1:$range1:1)", "$var2($offset2:$range2:1)" ];
 							$ann=annotate( $f, __LINE__  );
 						} else {
-							warn 'EQUIVALENCE statement not refactored because it is between two arrays of rank > 1 and different size';
+							say 'WARNING: EQUIVALENCE statement not refactored because it is between two arrays of rank > 1 and different size: '."\n$line\n";;
 							$remove_equiv_stmt = 0;
 						}
 					} else {
 
 						# else give up, warn and keep the original line
 
-						warn 'EQUIVALENCE statement not refactored because it is between two arrays of different rank and size';
+						say 'WARNING: EQUIVALENCE statement not refactored because it is between two arrays of different rank and size: '."\n$line\n";
 						$remove_equiv_stmt = 0;
 					}
 				} elsif ( $v1 eq $var1 and $v2 ne $var2 ) {

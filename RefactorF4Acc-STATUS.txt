@@ -44,20 +44,22 @@ But unfortunately this cause a bug: some of the caller-to-local assignment lines
 
 I ran the original F77 test bench. It seems I am excluding the following:
 
-< FM010.res
-< FM011.res
-< FM013.res
-< FM045.res
-< FM111.res
-< FM200.res
-< FM252.res
-< FM253.res
-< FM255.res
-< FM257.res
-< FM259.res
-< FM260.res
-< FM500.res
-< FM509.res
+ FM010.f => FM090
+ FM011.f => FM091
+ FM013.f => Skipped because of deleted feature
+ FM045.f => OK now, no longer skipped
+ FM111.f => Skipped because of deleted feature
+ FM200.f => FM210
+ FM252.f => Skipped because of deleted feature
+ FM253.f => Skipped because of deleted feature
+ FM255.f => Skipped because of deleted feature
+ FM257.f => Skipped because of deleted feature
+ FM259.f => Skipped because of deleted feature
+ FM260.f => Skipped because of deleted feature
+ FM500.f
+ FM509.f
+
+- The files `FM500.f` and `FM509.f` contain tests for corner cases of common blocks and block data (37+16 tests) which we don't support.
 
 The results on Mac, gfortran-10 and on Linux, gfortran 9.3 are the same:
 
