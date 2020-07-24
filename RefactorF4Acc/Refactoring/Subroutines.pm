@@ -22,7 +22,7 @@ use RefactorF4Acc::Refactoring::Common qw(
 	);
 use RefactorF4Acc::Refactoring::Subroutines::Signatures qw( create_refactored_subroutine_signature refactor_subroutine_signature );
 use RefactorF4Acc::Refactoring::Subroutines::IncludeStatements qw( skip_common_include_statement create_new_include_statements create_additional_include_statements );
-use RefactorF4Acc::Parser::Expressions qw( emit_expr_from_ast find_args_vars_in_ast );
+use RefactorF4Acc::Parser::Expressions qw( emit_expr_from_ast find_args_vars_in_ast find_vars_in_ast );
 use RefactorF4Acc::Refactoring::Subroutines::Emitters qw( emit_subroutine_sig );
 use RefactorF4Acc::Analysis::Arrays qw(
   calculate_array_size
@@ -561,7 +561,7 @@ sub _create_extra_arg_and_var_decls {
 			# croak Dumper($rdecl) if $var eq 'nx' and $f eq 'dyn';
 			(my $inherited_param_decls, $Sf) = __generate_inherited_param_decls($rdecl, $var, $stref, $f,[]);
             #carp "VAR $var in $f";
-			 map { say 'INHERITED DECL:'. $_->[0] } @{$inherited_param_decls};
+			#  map { say 'INHERITED DECL:'. $_->[0] } @{$inherited_param_decls};
 			my $rline = emit_f95_var_decl($rdecl);
 			# carp $rline if $var eq 'w4' and $f eq 'mult_chk';
 			my $info  = {};
@@ -773,7 +773,7 @@ sub _create_refactored_subroutine_call {
 
 	( my $line, my $info ) = @{$annline};
 	my $name = $info->{'SubroutineCall'}{'Name'};
-	
+
 	my $Sf   = $stref->{'Subroutines'}{$f};
 
 	if ( exists $stref->{'ExternalSubroutines'}{$name} ) {
@@ -800,14 +800,18 @@ sub _create_refactored_subroutine_call {
 		# So this is rather weak because e.g. v(i) will not be in Vars.
 		# So this only works for plain variable names
 		my $call_arg = emit_expr_from_ast($call_arg_expr);		
+		# carp Dumper($call_arg_expr);
+		my $has_vars = scalar keys %{ find_vars_in_ast($call_arg_expr,{}) } > 0;
 		if (# skip constants
-			$call_arg_expr->[0] < 29 
+			$has_vars 
+			# $call_arg_expr->[0] < 29 
+			# and not ($call_arg_expr->[0]==4 and $call_arg_expr->[1][0] >= 29) # negative constant
+			# This is still weak because for example 1+1 would get through. Maybe better is to check if there are any vars at all!
 			and not exists $stref->{'Subroutines'}{$call_arg}
-			# and $call_arg!~/__PH\d+__/
 			) { 
 			my $subset = in_nested_set($stref->{'Subroutines'}{$f}, 'Vars', $call_arg);
 			
-			if ($subset) { # otherwise it means this is an expression, including array accesses, or a constant.
+			if ($subset) { # otherwise it means this is an expression, including array accesses, or a constant.			
 				my $call_arg_decl = $stref->{'Subroutines'}{$f}{$subset}{'Set'}{$call_arg};
 # croak $subset, Dumper($call_arg_expr, $call_arg_decl) if $call_arg eq 'fs335';
 				# Just set $sig_arg to $call_arg as a start
@@ -822,13 +826,17 @@ sub _create_refactored_subroutine_call {
 						last;
 					}
 				}
+				# carp "CALL $name in $f: $call_arg $sig_arg" if $name =~/mpi_reduce_double_precision/;
 				my $sig_subset = in_nested_set($stref->{'Subroutines'}{$name}, 'Vars', $sig_arg);
 				my $sig_arg_decl = $stref->{'Subroutines'}{$name}{$sig_subset}{'Set'}{$sig_arg};
 				# carp $sig_subset .Dumper($sig_arg_decl)  if $call_arg eq 'p2' and $name eq 'sbisect';
 				if (not exists $sig_arg_decl->{'Name'}) {
 					$sig_arg_decl = $call_arg_decl;
 				}
+				
 				my $cast_reshape_result = _maybe_cast_call_args($stref, $f, $name, $call_arg,$call_arg_decl,$sig_arg, $sig_arg_decl);
+				# say Dumper($cast_reshape_result)  if $name =~/mpi_reduce_double_precision/;
+				# croak Dumper($sig_arg_decl,$call_arg_decl)  if $name =~/mpi_reduce_double_precision/ and $call_arg eq 'data1';
 				$call_arg = $cast_reshape_result->{'CallArg'};
 				push @cast_reshape_results, $cast_reshape_result if $cast_reshape_result->{'Status'} == 2;
 			} # in subset
@@ -2228,9 +2236,10 @@ sub _maybe_cast_call_args { my ($stref, $f, $sub_name, $call_arg,$call_arg_decl,
 		'Status' => 0
 	};
 		
-	if ($call_arg eq $sig_arg)	{
+	if (_compare_decls($stref, $f, $call_arg_decl, $sig_arg_decl))	{
 		return $cast_reshape_result;
 	}
+	
 	my $needs_reshape=0;
 	my $use_arg_sz=0;
 	if (exists $call_arg_decl->{'ArrayOrScalar'} and
@@ -2246,7 +2255,7 @@ sub _maybe_cast_call_args { my ($stref, $f, $sub_name, $call_arg,$call_arg_decl,
 		if (__is_assumed_array($dim2)) {
 			$dim2d = __take_upper_bound_from_call_arg($dim1,$dim2);
 		}
-		
+		# carp "$f ".Dumper($dim1)."\n$sub_name".Dumper($dim2d);
 		my $size1 = calculate_array_size( $stref, $f, $dim1 );
 		my $size2 = calculate_array_size( $stref, $sub_name, $dim2d );
 		croak 'FIXME!'.Dumper($call_arg_decl,$sig_arg_decl)  if $DBG and not defined $size1 or not defined $size2;
@@ -2291,19 +2300,26 @@ sub _maybe_cast_call_args { my ($stref, $f, $sub_name, $call_arg,$call_arg_decl,
 		# carp "$sig_kind <> $call_kind";
 
 	my $needs_cast = 0;
+	# HACK for double precision
+	$call_arg_decl->{'Type'}=~s/\s+//g;
+	$sig_arg_decl->{'Type'}=~s/\s+//g;
+
 	if ($call_arg_decl->{'Type'} ne $sig_arg_decl->{'Type'}) {
 		# TODO: if they are the same type but different kinds, we also need to cast.
 		$needs_cast = 1;
-	} elsif ("$sig_kind" ne "$call_kind") {
+	} elsif ("$sig_kind" ne "$call_kind" 
+			and "$sig_kind" ne '*' # Assumed length for character string
+			) {		
 		$needs_cast = 1;	
 	}
 
 	my $is_out = 0;
-	if ($sig_arg_decl->{'IODir'} eq 'Out'
-		or $sig_arg_decl->{'IODir'} eq 'InOut'
+	if ($sig_arg_decl->{'IODir'} ne 'In'
+		# or $sig_arg_decl->{'IODir'} eq 'InOut'
 	) { 
 		$is_out = 1;
 	}
+
 	my $new_call_arg=undef;
 
 	if ($needs_reshape or ($needs_cast and $is_out)) {
@@ -2352,12 +2368,13 @@ sub _maybe_cast_call_args { my ($stref, $f, $sub_name, $call_arg,$call_arg_decl,
 		# warn 	"<$cast_reshape_pre_line>\n<$cast_reshape_post_line>\n";
 	} else { # no reshape
 		if ($needs_cast) {
-			if ($is_out) { # not in place								
+			if ($is_out) { # not in place		
+			
 					my $cast_call_arg = cast_call_argument($sig_arg_decl->{'Type'}, $sig_kind , $call_arg_decl->{'Type'}, $call_arg);		
-					my $cast_reshape_pre_line = "$new_call_arg = $cast_call_arg";
+					my $cast_reshape_pre_line =  "$new_call_arg = $cast_call_arg" ;
 
 					my $cast_new_call_arg = cast_call_argument($call_arg_decl->{'Type'}, $call_kind , $sig_arg_decl->{'Type'}, $new_call_arg);
-					my $cast_reshape_post_line = "$call_arg = $cast_new_call_arg";
+					my $cast_reshape_post_line =   "$call_arg = $cast_new_call_arg" ;
 					# $cast_reshape_result->{'PreAnnLine'}[0]=$cast_reshape_pre_line;
 					# $cast_reshape_result->{'PostAnnLine'}[0]=$cast_reshape_post_line;	
 
@@ -2465,4 +2482,30 @@ sub __take_upper_bound_from_call_arg { my ($dim1,$dim2) = @_;
 	}
 } # END of __take_upper_bound_from_call_arg
 
+sub _compare_decls{my ($stref, $f, $var1_decl, $var2_decl)=@_;
+	my $decls_are_equal = 1;
+	for my $k ( qw(Name ArrayOrScalar Type Kind Attr) ) {
+		$decls_are_equal *= (
+			exists $var1_decl->{$k} and
+			exists $var2_decl->{$k} and
+			$var1_decl->{$k} eq $var2_decl->{$k}) ? 1 : 0;
+	}
+	if ($decls_are_equal and
+	$var1_decl->{'ArrayOrScalar'} eq 'Array'
+	){
+		my $dim1  = $var1_decl->{'Dim'};
+		my $dim2  = $var2_decl->{'Dim'};
+		my $size1 = calculate_array_size( $stref, $f, $dim1 );
+		my $size2 = calculate_array_size( $stref, $f, $dim2 );
+
+		# but the rank we need is the rank of the expression
+		# FIXME: I will assume that if the array is indexed, all indices are used, i.e. rank is 0
+		my $rank1 = get_array_rank($dim1);
+		my $rank2 = get_array_rank($dim2);
+
+		# if the same rank and different size	
+		$decls_are_equal *=  ( $size1 == $size2 and $rank1 == $rank2 ) ? 1 : 0;
+	}
+	return $decls_are_equal;
+}
 1;

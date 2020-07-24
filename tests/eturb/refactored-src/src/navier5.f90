@@ -2,9 +2,9 @@
 module singleton_module_src_navier5
 
       use singleton_module_src_mxm_wrapper
+      use singleton_module_src_subs1
       use singleton_module_src_math
       use singleton_module_src_comm_mpi
-      use singleton_module_src_subs1
 contains
 
       subroutine mappr(pm1,pm2,pa,pb,ab,abmsh,abx1,abx2,aby1,aby2,abz1,abz2,area,atol,avdiff,avtran, &
@@ -151,7 +151,9 @@ contains
       ! averaging
       ! adjoint
       ! mhd
-      real, dimension(1:n1,1:n2) :: ixm21_mxm
+      real, dimension(1:lx1,1:lx2) :: ixm21_mxm
+      real, dimension(1:ly2,1:ly1) :: iytm21_mxm
+      real, dimension(1:lz2,1:lz1) :: iztm21_mxm
       real, dimension(1:lx1,1:ly1,1:lz1,1:lelv) :: pm1_copy
       real, dimension(1:lx2,1:ly2,1:lz2,1:lelv) :: pm2_copy
       integer, parameter :: maxrts=1000
@@ -344,6 +346,8 @@ contains
       integer :: nzd
       integer :: ndim
       integer :: ldimr
+      integer, parameter :: numsts=50
+      integer, parameter :: nelgt_max=178956970
       integer, parameter :: lvt1=lx1*ly1*lz1*lelv
       integer, parameter :: lvt2=lx2*ly2*lz2*lelv
       integer, parameter :: lbt1=lbx1*lby1*lbz1*lbelv
@@ -652,9 +656,9 @@ contains
       real, dimension(1:lx1,1:lx2) :: ixtm12
       real, dimension(1:lx2,1:lx1) :: ixtm21
       real, dimension(1:ly1,1:ly2) :: iytm12
-      real, dimension(1:ly2,1:ly1), intent(In) :: iytm21
+      real, dimension(1:ly2,1:ly1), intent(InOut) :: iytm21
       real, dimension(1:lz1,1:lz2) :: iztm12
-      real, dimension(1:lz2,1:lz1), intent(In) :: iztm21
+      real, dimension(1:lz2,1:lz1), intent(InOut) :: iztm21
       real, dimension(1:lx3,1:lx1) :: ixm13
       real, dimension(1:lx1,1:lx3) :: ixm31
       real, dimension(1:ly3,1:ly1) :: iym13
@@ -1153,28 +1157,29 @@ contains
       turbmod = textsw(1,1)
             ixm21 = reshape(ixm21_mxm, shape(ixm21))
             do iz=1,lz2
-               call mxm(pa(1,1,iz),lx1,iytm21,ly2,pb(1,1,iz),ly1,ab,abmsh,abx1,abx2,aby1,aby2,abz1, &
-      abz2,area,atol,avdiff,avtran,b1ia1,b1ia1t,b1mask,b2mask,b2p,b3mask,baxm1,bbx1,bbx2,bby1, &
-      bby2,bbz1,bbz2,bc,bcf,bctyps,bd,bdivw,bfx,bfxp,bfy,bfyp,bfz,bfzp,bintm1,binvdg,binvm1,bm1, &
-      bm1lag,bm2,bm2inv,bmass,bmnv,bmx,bmy,bmz,bpmask,bq,bqp,bx,bxlag,by,bylag,bz,bzlag,c_vx,cbc, &
-      ccurve,cdof,cerror,cflf,courno,cpfld,cpgrp,cr_h,cr_re2,csize,ctarg,curve,d1,d1t,d2,da,dam1, &
-      dam12,dam3,dat,datm1,datm12,datm3,dcm1,dcm12,dcm3,dcount,dct,dctm1,dctm12,dctm3,dg_face, &
-      dg_hndlx,dglg,dglgt,dlam,dmpfle,dp0thdt,drivc,dt,dtinit,dtinvm,dtlag,dvdfh1,dvdfl2,dvdfl8, &
-      dvdfsm,dvnnh1,dvnnl2,dvnnl8,dvnnsm,dvprh1,dvprl2,dvprl8,dvprsm,dxm1,dxm12,dxm3,dxtm1,dxtm12, &
-      dxtm3,dym1,dym12,dym3,dytm1,dytm12,dytm3,dzm1,dzm12,dzm3,dztm1,dztm12,dztm3,eface,eface1, &
-      eigaa,eigae,eigas,eigast,eigga,eigge,eiggs,eiggst,eskip,etalph,etimes,etims0,ev1,ev2,ev3, &
-      exx1p,exx2p,exy1p,exy2p,exz1p,exz2p,fh_re2,filtertype,fintim,fldfle,fw,g1m1,g2m1,g3m1,g4m1, &
-      g5m1,g6m1,gamma0,gcnnum,gednum,gedtyp,gllel,gllnid,group,gsh,gsh_fld,hcode,hisfle,iajl1, &
-      iajl2,ialj1,ialj3,iam12,iam13,iam21,iam31,iatjl1,iatjl2,iatlj1,iatlj3,iatm12,iatm13,iatm21, &
-      iatm31,ibcsts,icedg,icface,icm12,icm13,icm21,icm31,ictm12,ictm13,ictm21,ictm31,idpss,idsess, &
-      ieact,iedge,iedgef,iedgfc,iesolv,if3d,if_full_pres,ifaa,ifadvc,ifae,ifalgn,ifanl2,ifanls, &
-      ifas,ifast,ifaxis,ifaziv,ifbase,ifbcor,ifbo,ifchar,ifcons,ifcoup,ifcvfld,ifcvode,ifcyclic, &
-      ifdeal,ifdg,ifdgfld,ifdiff,ifdp0dt,ifeppm,ifessr,ifexplvis,ifextr,ifexvt,ifflow,iffmtin, &
-      ifga,ifge,ifgeom,ifgmsh3,ifgprnt,ifgs,ifgsh_fld_same,ifgst,ifheat,ifield,ifintq,ifkeps, &
-      ifldmhd,iflmsc,iflmse,iflmsf,iflomach,ifmelt,ifmgrid,ifmhd,ifmoab,ifmodel,ifmodp,ifmpiio, &
-      ifmscr,ifmseg,ifmsfc,ifmvbd,ifneknek,ifneknekm,ifnonl,ifnskp,ifoutfld,ifpert,ifpo,ifprnt, &
-      ifprojfld,ifpsco,ifpso,ifqinp,ifreguo,ifrich,ifrsxy,ifrzer,ifschclob,ifskip,ifsplit,ifssvt, &
-      ifstrs,ifstst,ifsurt,ifsync,iftgo,iftmsh,ifto,iftran,ifusermv,ifuservp,ifvarp,ifvcor, &
+               iytm21_mxm = reshape(iytm21,shape(iytm21_mxm))
+               call mxm(pa(1,1,iz),lx1,iytm21_mxm,ly2,pb(1,1,iz),ly1,ab,abmsh,abx1,abx2,aby1,aby2, &
+      abz1,abz2,area,atol,avdiff,avtran,b1ia1,b1ia1t,b1mask,b2mask,b2p,b3mask,baxm1,bbx1,bbx2, &
+      bby1,bby2,bbz1,bbz2,bc,bcf,bctyps,bd,bdivw,bfx,bfxp,bfy,bfyp,bfz,bfzp,bintm1,binvdg,binvm1, &
+      bm1,bm1lag,bm2,bm2inv,bmass,bmnv,bmx,bmy,bmz,bpmask,bq,bqp,bx,bxlag,by,bylag,bz,bzlag,c_vx, &
+      cbc,ccurve,cdof,cerror,cflf,courno,cpfld,cpgrp,cr_h,cr_re2,csize,ctarg,curve,d1,d1t,d2,da, &
+      dam1,dam12,dam3,dat,datm1,datm12,datm3,dcm1,dcm12,dcm3,dcount,dct,dctm1,dctm12,dctm3, &
+      dg_face,dg_hndlx,dglg,dglgt,dlam,dmpfle,dp0thdt,drivc,dt,dtinit,dtinvm,dtlag,dvdfh1,dvdfl2, &
+      dvdfl8,dvdfsm,dvnnh1,dvnnl2,dvnnl8,dvnnsm,dvprh1,dvprl2,dvprl8,dvprsm,dxm1,dxm12,dxm3,dxtm1, &
+      dxtm12,dxtm3,dym1,dym12,dym3,dytm1,dytm12,dytm3,dzm1,dzm12,dzm3,dztm1,dztm12,dztm3,eface, &
+      eface1,eigaa,eigae,eigas,eigast,eigga,eigge,eiggs,eiggst,eskip,etalph,etimes,etims0,ev1,ev2, &
+      ev3,exx1p,exx2p,exy1p,exy2p,exz1p,exz2p,fh_re2,filtertype,fintim,fldfle,fw,g1m1,g2m1,g3m1, &
+      g4m1,g5m1,g6m1,gamma0,gcnnum,gednum,gedtyp,gllel,gllnid,group,gsh,gsh_fld,hcode,hisfle, &
+      iajl1,iajl2,ialj1,ialj3,iam12,iam13,iam21,iam31,iatjl1,iatjl2,iatlj1,iatlj3,iatm12,iatm13, &
+      iatm21,iatm31,ibcsts,icedg,icface,icm12,icm13,icm21,icm31,ictm12,ictm13,ictm21,ictm31,idpss, &
+      idsess,ieact,iedge,iedgef,iedgfc,iesolv,if3d,if_full_pres,ifaa,ifadvc,ifae,ifalgn,ifanl2, &
+      ifanls,ifas,ifast,ifaxis,ifaziv,ifbase,ifbcor,ifbo,ifchar,ifcons,ifcoup,ifcvfld,ifcvode, &
+      ifcyclic,ifdeal,ifdg,ifdgfld,ifdiff,ifdp0dt,ifeppm,ifessr,ifexplvis,ifextr,ifexvt,ifflow, &
+      iffmtin,ifga,ifge,ifgeom,ifgmsh3,ifgprnt,ifgs,ifgsh_fld_same,ifgst,ifheat,ifield,ifintq, &
+      ifkeps,ifldmhd,iflmsc,iflmse,iflmsf,iflomach,ifmelt,ifmgrid,ifmhd,ifmoab,ifmodel,ifmodp, &
+      ifmpiio,ifmscr,ifmseg,ifmsfc,ifmvbd,ifneknek,ifneknekm,ifnonl,ifnskp,ifoutfld,ifpert,ifpo, &
+      ifprnt,ifprojfld,ifpsco,ifpso,ifqinp,ifreguo,ifrich,ifrsxy,ifrzer,ifschclob,ifskip,ifsplit, &
+      ifssvt,ifstrs,ifstst,ifsurt,ifsync,iftgo,iftmsh,ifto,iftran,ifusermv,ifuservp,ifvarp,ifvcor, &
       ifvcoup,ifvo,ifvps,ifwcno,ifxyo,ifxyo_,iggl,igglt,igroup,im1d,im1dt,imatie,imd1,imd1t,imesh, &
       indx,initc,instep,invedg,iocomm,ioinfodmp,iostep,ipscal,ipsco,irstim,irstt,irstv,isize, &
       istep,ixcn,ixm12,ixm13,ixm21,ixm31,ixtm12,ixtm13,ixtm21,ixtm31,iym12,iym13,iym21,iym31, &
@@ -1211,29 +1216,31 @@ contains
       zm1,zm2)
       ifnav = ifadvc(1)
       turbmod = textsw(1,1)
+               iytm21 = reshape(iytm21_mxm, shape(iytm21))
   end do
-            call mxm(pb(1,1,1),nxy1,iztm21,lz2,pm1(1,1,1,iel),lz1,ab,abmsh,abx1,abx2,aby1,aby2,abz1, &
-      abz2,area,atol,avdiff,avtran,b1ia1,b1ia1t,b1mask,b2mask,b2p,b3mask,baxm1,bbx1,bbx2,bby1, &
-      bby2,bbz1,bbz2,bc,bcf,bctyps,bd,bdivw,bfx,bfxp,bfy,bfyp,bfz,bfzp,bintm1,binvdg,binvm1,bm1, &
-      bm1lag,bm2,bm2inv,bmass,bmnv,bmx,bmy,bmz,bpmask,bq,bqp,bx,bxlag,by,bylag,bz,bzlag,c_vx,cbc, &
-      ccurve,cdof,cerror,cflf,courno,cpfld,cpgrp,cr_h,cr_re2,csize,ctarg,curve,d1,d1t,d2,da,dam1, &
-      dam12,dam3,dat,datm1,datm12,datm3,dcm1,dcm12,dcm3,dcount,dct,dctm1,dctm12,dctm3,dg_face, &
-      dg_hndlx,dglg,dglgt,dlam,dmpfle,dp0thdt,drivc,dt,dtinit,dtinvm,dtlag,dvdfh1,dvdfl2,dvdfl8, &
-      dvdfsm,dvnnh1,dvnnl2,dvnnl8,dvnnsm,dvprh1,dvprl2,dvprl8,dvprsm,dxm1,dxm12,dxm3,dxtm1,dxtm12, &
-      dxtm3,dym1,dym12,dym3,dytm1,dytm12,dytm3,dzm1,dzm12,dzm3,dztm1,dztm12,dztm3,eface,eface1, &
-      eigaa,eigae,eigas,eigast,eigga,eigge,eiggs,eiggst,eskip,etalph,etimes,etims0,ev1,ev2,ev3, &
-      exx1p,exx2p,exy1p,exy2p,exz1p,exz2p,fh_re2,filtertype,fintim,fldfle,fw,g1m1,g2m1,g3m1,g4m1, &
-      g5m1,g6m1,gamma0,gcnnum,gednum,gedtyp,gllel,gllnid,group,gsh,gsh_fld,hcode,hisfle,iajl1, &
-      iajl2,ialj1,ialj3,iam12,iam13,iam21,iam31,iatjl1,iatjl2,iatlj1,iatlj3,iatm12,iatm13,iatm21, &
-      iatm31,ibcsts,icedg,icface,icm12,icm13,icm21,icm31,ictm12,ictm13,ictm21,ictm31,idpss,idsess, &
-      ieact,iedge,iedgef,iedgfc,iesolv,if3d,if_full_pres,ifaa,ifadvc,ifae,ifalgn,ifanl2,ifanls, &
-      ifas,ifast,ifaxis,ifaziv,ifbase,ifbcor,ifbo,ifchar,ifcons,ifcoup,ifcvfld,ifcvode,ifcyclic, &
-      ifdeal,ifdg,ifdgfld,ifdiff,ifdp0dt,ifeppm,ifessr,ifexplvis,ifextr,ifexvt,ifflow,iffmtin, &
-      ifga,ifge,ifgeom,ifgmsh3,ifgprnt,ifgs,ifgsh_fld_same,ifgst,ifheat,ifield,ifintq,ifkeps, &
-      ifldmhd,iflmsc,iflmse,iflmsf,iflomach,ifmelt,ifmgrid,ifmhd,ifmoab,ifmodel,ifmodp,ifmpiio, &
-      ifmscr,ifmseg,ifmsfc,ifmvbd,ifneknek,ifneknekm,ifnonl,ifnskp,ifoutfld,ifpert,ifpo,ifprnt, &
-      ifprojfld,ifpsco,ifpso,ifqinp,ifreguo,ifrich,ifrsxy,ifrzer,ifschclob,ifskip,ifsplit,ifssvt, &
-      ifstrs,ifstst,ifsurt,ifsync,iftgo,iftmsh,ifto,iftran,ifusermv,ifuservp,ifvarp,ifvcor, &
+            iztm21_mxm = reshape(iztm21,shape(iztm21_mxm))
+            call mxm(pb(1,1,1),nxy1,iztm21_mxm,lz2,pm1(1,1,1,iel),lz1,ab,abmsh,abx1,abx2,aby1,aby2, &
+      abz1,abz2,area,atol,avdiff,avtran,b1ia1,b1ia1t,b1mask,b2mask,b2p,b3mask,baxm1,bbx1,bbx2, &
+      bby1,bby2,bbz1,bbz2,bc,bcf,bctyps,bd,bdivw,bfx,bfxp,bfy,bfyp,bfz,bfzp,bintm1,binvdg,binvm1, &
+      bm1,bm1lag,bm2,bm2inv,bmass,bmnv,bmx,bmy,bmz,bpmask,bq,bqp,bx,bxlag,by,bylag,bz,bzlag,c_vx, &
+      cbc,ccurve,cdof,cerror,cflf,courno,cpfld,cpgrp,cr_h,cr_re2,csize,ctarg,curve,d1,d1t,d2,da, &
+      dam1,dam12,dam3,dat,datm1,datm12,datm3,dcm1,dcm12,dcm3,dcount,dct,dctm1,dctm12,dctm3, &
+      dg_face,dg_hndlx,dglg,dglgt,dlam,dmpfle,dp0thdt,drivc,dt,dtinit,dtinvm,dtlag,dvdfh1,dvdfl2, &
+      dvdfl8,dvdfsm,dvnnh1,dvnnl2,dvnnl8,dvnnsm,dvprh1,dvprl2,dvprl8,dvprsm,dxm1,dxm12,dxm3,dxtm1, &
+      dxtm12,dxtm3,dym1,dym12,dym3,dytm1,dytm12,dytm3,dzm1,dzm12,dzm3,dztm1,dztm12,dztm3,eface, &
+      eface1,eigaa,eigae,eigas,eigast,eigga,eigge,eiggs,eiggst,eskip,etalph,etimes,etims0,ev1,ev2, &
+      ev3,exx1p,exx2p,exy1p,exy2p,exz1p,exz2p,fh_re2,filtertype,fintim,fldfle,fw,g1m1,g2m1,g3m1, &
+      g4m1,g5m1,g6m1,gamma0,gcnnum,gednum,gedtyp,gllel,gllnid,group,gsh,gsh_fld,hcode,hisfle, &
+      iajl1,iajl2,ialj1,ialj3,iam12,iam13,iam21,iam31,iatjl1,iatjl2,iatlj1,iatlj3,iatm12,iatm13, &
+      iatm21,iatm31,ibcsts,icedg,icface,icm12,icm13,icm21,icm31,ictm12,ictm13,ictm21,ictm31,idpss, &
+      idsess,ieact,iedge,iedgef,iedgfc,iesolv,if3d,if_full_pres,ifaa,ifadvc,ifae,ifalgn,ifanl2, &
+      ifanls,ifas,ifast,ifaxis,ifaziv,ifbase,ifbcor,ifbo,ifchar,ifcons,ifcoup,ifcvfld,ifcvode, &
+      ifcyclic,ifdeal,ifdg,ifdgfld,ifdiff,ifdp0dt,ifeppm,ifessr,ifexplvis,ifextr,ifexvt,ifflow, &
+      iffmtin,ifga,ifge,ifgeom,ifgmsh3,ifgprnt,ifgs,ifgsh_fld_same,ifgst,ifheat,ifield,ifintq, &
+      ifkeps,ifldmhd,iflmsc,iflmse,iflmsf,iflomach,ifmelt,ifmgrid,ifmhd,ifmoab,ifmodel,ifmodp, &
+      ifmpiio,ifmscr,ifmseg,ifmsfc,ifmvbd,ifneknek,ifneknekm,ifnonl,ifnskp,ifoutfld,ifpert,ifpo, &
+      ifprnt,ifprojfld,ifpsco,ifpso,ifqinp,ifreguo,ifrich,ifrsxy,ifrzer,ifschclob,ifskip,ifsplit, &
+      ifssvt,ifstrs,ifstst,ifsurt,ifsync,iftgo,iftmsh,ifto,iftran,ifusermv,ifuservp,ifvarp,ifvcor, &
       ifvcoup,ifvo,ifvps,ifwcno,ifxyo,ifxyo_,iggl,igglt,igroup,im1d,im1dt,imatie,imd1,imd1t,imesh, &
       indx,initc,instep,invedg,iocomm,ioinfodmp,iostep,ipscal,ipsco,irstim,irstt,irstv,isize, &
       istep,ixcn,ixm12,ixm13,ixm21,ixm31,ixtm12,ixtm13,ixtm21,ixtm31,iym12,iym13,iym21,iym31, &
@@ -1270,6 +1277,7 @@ contains
       zm1,zm2)
       ifnav = ifadvc(1)
       turbmod = textsw(1,1)
+            iztm21 = reshape(iztm21_mxm, shape(iztm21))
   end do
 !      Average the pressure on elemental boundaries
        ifield=1
@@ -1339,8 +1347,8 @@ contains
 !      Output: ur,us,ut         Input:u,N,e,D,Dt
       implicit none
       real, dimension(1:n1,1:n2) :: d_mxm
-      real, dimension(1:n1,1:n3) :: ur_mxm
-      real, dimension(1:n1,1:n3) :: ut_mxm
+      real, dimension(0:n,0:n,0:n) :: ur_mxm
+      real, dimension(0:n,0:n,0:n) :: ut_mxm
       integer, parameter :: lorder=3
       integer, parameter :: lorder2=max(1,lorder-2)
       integer, parameter :: lx1=8
@@ -2153,9 +2161,9 @@ contains
       real, dimension(0:n,0:n,0:n), intent(InOut) :: ur
       real, dimension(0:n,0:n,0:n), intent(InOut) :: us
       real, dimension(0:n,0:n,0:n), intent(InOut) :: ut
-      real, dimension(0:n,0:n,0:n,1:1), intent(In) :: u
+      real, dimension(0:n,0:n,0:n,1:1), intent(InOut) :: u
       real, dimension(0:n,0:n), intent(InOut) :: d
-      real, intent(In) :: dt
+      real, intent(InOut) :: dt
       integer, intent(In) :: e
 ! 
       m1 = n+1
@@ -2399,6 +2407,7 @@ contains
 !      Output: ur,us         Input:u,N,e,D,Dt
       implicit none
       real, dimension(1:n1,1:n2) :: d_mxm
+      real, dimension(1:n2,1:n3) :: dt_mxm
       real, dimension(1:n1,1:n3) :: ur_mxm
       real, dimension(1:n1,1:n3) :: us_mxm
       integer, parameter :: lorder=3
@@ -3210,9 +3219,9 @@ contains
       integer :: m1
       real, dimension(0:n,0:n), intent(InOut) :: ur
       real, dimension(0:n,0:n), intent(InOut) :: us
-      real, dimension(0:n,0:n,1:1), intent(In) :: u
+      real, dimension(0:n,0:n,1:1), intent(InOut) :: u
       real, dimension(0:n,0:n), intent(InOut) :: d
-      real, intent(In) :: dt
+      real, intent(InOut) :: dt
       integer, intent(In) :: e
 ! 
       m1 = n+1
@@ -3277,62 +3286,65 @@ contains
       zm1,zm2)
       d = reshape(d_mxm, shape(d))
       ur = reshape(ur_mxm, shape(ur))
+      dt_mxm = reshape(dt,shape(dt_mxm))
       us_mxm = reshape(us,shape(us_mxm))
-      call mxm(u(0,0,e),m1,dt,m1,us_mxm,m1,ab,abmsh,abx1,abx2,aby1,aby2,abz1,abz2,area,atol,avdiff, &
-      avtran,b1ia1,b1ia1t,b1mask,b2mask,b2p,b3mask,baxm1,bbx1,bbx2,bby1,bby2,bbz1,bbz2,bc,bcf, &
-      bctyps,bd,bdivw,bfx,bfxp,bfy,bfyp,bfz,bfzp,bintm1,binvdg,binvm1,bm1,bm1lag,bm2,bm2inv,bmass, &
-      bmnv,bmx,bmy,bmz,bpmask,bq,bqp,bx,bxlag,by,bylag,bz,bzlag,c_vx,cbc,ccurve,cdof,cerror,cflf, &
-      courno,cpfld,cpgrp,cr_h,cr_re2,csize,ctarg,curve,d1,d1t,d2,da,dam1,dam12,dam3,dat,datm1, &
-      datm12,datm3,dcm1,dcm12,dcm3,dcount,dct,dctm1,dctm12,dctm3,dg_face,dg_hndlx,dglg,dglgt,dlam, &
-      dmpfle,dp0thdt,drivc,dtinit,dtinvm,dtlag,dvdfh1,dvdfl2,dvdfl8,dvdfsm,dvnnh1,dvnnl2,dvnnl8, &
-      dvnnsm,dvprh1,dvprl2,dvprl8,dvprsm,dxm1,dxm12,dxm3,dxtm1,dxtm12,dxtm3,dym1,dym12,dym3,dytm1, &
-      dytm12,dytm3,dzm1,dzm12,dzm3,dztm1,dztm12,dztm3,eface,eface1,eigaa,eigae,eigas,eigast,eigga, &
-      eigge,eiggs,eiggst,eskip,etalph,etimes,etims0,ev1,ev2,ev3,exx1p,exx2p,exy1p,exy2p,exz1p, &
-      exz2p,fh_re2,filtertype,fintim,fldfle,fw,g1m1,g2m1,g3m1,g4m1,g5m1,g6m1,gamma0,gcnnum,gednum, &
-      gedtyp,gllel,gllnid,group,gsh,gsh_fld,hcode,hisfle,iajl1,iajl2,ialj1,ialj3,iam12,iam13, &
-      iam21,iam31,iatjl1,iatjl2,iatlj1,iatlj3,iatm12,iatm13,iatm21,iatm31,ibcsts,icedg,icface, &
-      icm12,icm13,icm21,icm31,ictm12,ictm13,ictm21,ictm31,idpss,idsess,ieact,iedge,iedgef,iedgfc, &
-      iesolv,if3d,if_full_pres,ifaa,ifadvc,ifae,ifalgn,ifanl2,ifanls,ifas,ifast,ifaxis,ifaziv, &
-      ifbase,ifbcor,ifbo,ifchar,ifcons,ifcoup,ifcvfld,ifcvode,ifcyclic,ifdeal,ifdg,ifdgfld,ifdiff, &
-      ifdp0dt,ifeppm,ifessr,ifexplvis,ifextr,ifexvt,ifflow,iffmtin,ifga,ifge,ifgeom,ifgmsh3, &
-      ifgprnt,ifgs,ifgsh_fld_same,ifgst,ifheat,ifield,ifintq,ifkeps,ifldmhd,iflmsc,iflmse,iflmsf, &
-      iflomach,ifmelt,ifmgrid,ifmhd,ifmoab,ifmodel,ifmodp,ifmpiio,ifmscr,ifmseg,ifmsfc,ifmvbd, &
-      ifneknek,ifneknekm,ifnonl,ifnskp,ifoutfld,ifpert,ifpo,ifprnt,ifprojfld,ifpsco,ifpso,ifqinp, &
-      ifreguo,ifrich,ifrsxy,ifrzer,ifschclob,ifskip,ifsplit,ifssvt,ifstrs,ifstst,ifsurt,ifsync, &
-      iftgo,iftmsh,ifto,iftran,ifusermv,ifuservp,ifvarp,ifvcor,ifvcoup,ifvo,ifvps,ifwcno,ifxyo, &
-      ifxyo_,iggl,igglt,igroup,im1d,im1dt,imatie,imd1,imd1t,imesh,indx,initc,instep,invedg,iocomm, &
-      ioinfodmp,iostep,ipscal,ipsco,irstim,irstt,irstv,isize,istep,ixcn,ixm12,ixm13,ixm21,ixm31, &
-      ixtm12,ixtm13,ixtm21,ixtm31,iym12,iym13,iym21,iym31,iytm12,iytm13,iytm21,iytm31,izm12,izm13, &
-      izm21,izm31,iztm12,iztm13,iztm21,iztm31,jacm1,jacm2,jacmi,jp,lastep,lcnnum,ldimr,lednum, &
-      lglel,lochis,loglevel,lsize,lyap,matids,matindx,matype,maxmlt,mpi_argv_null,mpi_argvs_null, &
-      mpi_bottom,mpi_errcodes_ignore,mpi_in_place,mpi_status_ignore,mpi_statuses_ignore, &
-      mpi_unweighted,mpi_weights_empty,nab,nabmsh,nadvc,naxhm,nbbbb,nbd,nbdinp,nbso2,nbsol,ncall, &
-      ncccc,ncdtp,ncmp,nconv,nconv_max,ncopy,ncrsl,ncvf,ndadd,ndddd,nddsl,ndg_facex,ndim,ndott, &
-      ndsmn,ndsmx,ndsnd,ndsum,neact,nedg,neeee,nelfld,nelg,nelgt,nelgv,nelt,nelv,neslv,nfield, &
-      ngcomm,ngeom,ngop,ngop1,ngop_sync,ngp2,ngsmn,ngsmx,ngspcn,ngsped,ngsum,nhis,nhmhz,nid, &
-      ninter,ninv3,ninvc,nio,nktonv,nmember,nmlinv,nmltd,nmxe,nmxh,nmxmf,nmxms,nmxnl,nmxp,nobj, &
-      node,node0,noffst,nomlis,np,npert,nprep,npres,npscal,nrefle,nrout,nsett,nslvb,nsolv,nspmax, &
-      nspro,nsskip,nsteps,nsyc,ntaubd,nu_star,nullpid,numbcs,numflu,numoth,numscn,numsed,nusbc, &
-      nvdss,nvtot,nwal,nx1,nx2,nx3,nxd,ny1,ny2,ny3,nyd,nz1,nz2,nz3,nzd,object,ocode,omask, &
-      optlevel,orefle,p0th,param,parfle,path,paxhm,pbbbb,pbso2,pbsol,pcccc,pcdtp,pcopy,pcrsl, &
-      pdadd,pdddd,pddsl,pdott,pdsmn,pdsmx,pdsnd,pdsum,peeee,peslv,pgop,pgop1,pgop_sync,pgp2,pgsmn, &
-      pgsmx,pgsum,phmhz,pi,pid,pinv3,pinvc,pm,pmask,pmd1,pmd1t,pmlag,pmltd,pmxmf,pmxms,pprep, &
-      ppres,pr,prelax,prlag,prlagp,prp,psett,pslvb,psolv,pspro,psyc,pusbc,pvdss,pwal,qinteg,qtl, &
-      rct,re2fle,re2off_b,reafle,restol,rname,rstim,rstt,rstv,rx,rxm1,rxm2,rym1,rym2,rzm1,rzm2, &
-      schfle,session,skpdat,solver_type,sxm1,sxm2,sym1,sym2,szm1,szm2,t,t1x,t1y,t1z,t2x,t2y,t2z, &
-      ta2s2,tadc3,tadd2,tadvc,tauss,taxhm,tbbbb,tbso2,tbsol,tcccc,tcdtp,tcol2,tcol3,tcopy,tcrsl, &
-      tcvf,tdadd,tdddd,tddsl,tdott,tdsmn,tdsmx,tdsnd,tdsum,teeee,teslv,textsw,tgop,tgop1, &
-      tgop_sync,tgp2,tgsmn,tgsmx,tgsum,thmhz,time,timef,timeio,tinit,tinv3,tinvc,tlag,tlagp,tmask, &
-      tmean,tmltd,tmult,tmxmf,tmxms,tnrmh1,tnrml2,tnrml8,tnrmsm,tolabs,tolev,tolhdf,tolhe,tolhr, &
-      tolhs,tolht,tolhv,tolnl,tolpdf,tolps,tolrel,tp,tprep,tpres,tproj,tschw,tsett,tslvb,tsolv, &
-      tspro,tsyc,ttime,ttotal,tttstp,tusbc,tusfq,tvdss,twal,txm1,txm2,txnext,tym1,tym2,tzm1,tzm2, &
-      unr,uns,unt,unx,uny,unz,uparam,usrdiv,v1mask,v1x,v1y,v1z,v2mask,v2x,v2y,v2z,v3mask,vdiff, &
-      vdiff_e,vgradt1,vgradt1p,vgradt2,vgradt2p,vmean,vmult,vnekton,vnrmh1,vnrml2,vnrml8,vnrmsm, &
-      vnx,vny,vnz,volel,volfld,voltm1,voltm2,volvm1,volvm2,vtrans,vx,vx_e,vxd,vxlag,vxlagp,vxp,vy, &
-      vy_e,vyd,vylag,vylagp,vyp,vz,vz_e,vzd,vzlag,vzlagp,vzp,w1mask,w2am1,w2am2,w2am3,w2cm1,w2cm2, &
-      w2cm3,w2mask,w3m1,w3m2,w3m3,w3mask,wam1,wam2,wam3,wdsize,wdsizi,wgl,wgl1,wgl2,wglg,wglgt, &
-      wgli,wgp,wmult,wx,wxlag,wxm1,wxm2,wxm3,wy,wylag,wym1,wym2,wym3,wz,wzlag,wzm1,wzm2,wzm3,xc, &
-      xm1,xm2,xxth,yc,yinvm1,ym1,ym2,zam1,zam2,zam3,zc,zgl,zgm1,zgm2,zgm3,zgp,zm1,zm2)
+      call mxm(u(0,0,e),m1,dt_mxm,m1,us_mxm,m1,ab,abmsh,abx1,abx2,aby1,aby2,abz1,abz2,area,atol, &
+      avdiff,avtran,b1ia1,b1ia1t,b1mask,b2mask,b2p,b3mask,baxm1,bbx1,bbx2,bby1,bby2,bbz1,bbz2,bc, &
+      bcf,bctyps,bd,bdivw,bfx,bfxp,bfy,bfyp,bfz,bfzp,bintm1,binvdg,binvm1,bm1,bm1lag,bm2,bm2inv, &
+      bmass,bmnv,bmx,bmy,bmz,bpmask,bq,bqp,bx,bxlag,by,bylag,bz,bzlag,c_vx,cbc,ccurve,cdof,cerror, &
+      cflf,courno,cpfld,cpgrp,cr_h,cr_re2,csize,ctarg,curve,d1,d1t,d2,da,dam1,dam12,dam3,dat, &
+      datm1,datm12,datm3,dcm1,dcm12,dcm3,dcount,dct,dctm1,dctm12,dctm3,dg_face,dg_hndlx,dglg, &
+      dglgt,dlam,dmpfle,dp0thdt,drivc,dtinit,dtinvm,dtlag,dvdfh1,dvdfl2,dvdfl8,dvdfsm,dvnnh1, &
+      dvnnl2,dvnnl8,dvnnsm,dvprh1,dvprl2,dvprl8,dvprsm,dxm1,dxm12,dxm3,dxtm1,dxtm12,dxtm3,dym1, &
+      dym12,dym3,dytm1,dytm12,dytm3,dzm1,dzm12,dzm3,dztm1,dztm12,dztm3,eface,eface1,eigaa,eigae, &
+      eigas,eigast,eigga,eigge,eiggs,eiggst,eskip,etalph,etimes,etims0,ev1,ev2,ev3,exx1p,exx2p, &
+      exy1p,exy2p,exz1p,exz2p,fh_re2,filtertype,fintim,fldfle,fw,g1m1,g2m1,g3m1,g4m1,g5m1,g6m1, &
+      gamma0,gcnnum,gednum,gedtyp,gllel,gllnid,group,gsh,gsh_fld,hcode,hisfle,iajl1,iajl2,ialj1, &
+      ialj3,iam12,iam13,iam21,iam31,iatjl1,iatjl2,iatlj1,iatlj3,iatm12,iatm13,iatm21,iatm31, &
+      ibcsts,icedg,icface,icm12,icm13,icm21,icm31,ictm12,ictm13,ictm21,ictm31,idpss,idsess,ieact, &
+      iedge,iedgef,iedgfc,iesolv,if3d,if_full_pres,ifaa,ifadvc,ifae,ifalgn,ifanl2,ifanls,ifas, &
+      ifast,ifaxis,ifaziv,ifbase,ifbcor,ifbo,ifchar,ifcons,ifcoup,ifcvfld,ifcvode,ifcyclic,ifdeal, &
+      ifdg,ifdgfld,ifdiff,ifdp0dt,ifeppm,ifessr,ifexplvis,ifextr,ifexvt,ifflow,iffmtin,ifga,ifge, &
+      ifgeom,ifgmsh3,ifgprnt,ifgs,ifgsh_fld_same,ifgst,ifheat,ifield,ifintq,ifkeps,ifldmhd,iflmsc, &
+      iflmse,iflmsf,iflomach,ifmelt,ifmgrid,ifmhd,ifmoab,ifmodel,ifmodp,ifmpiio,ifmscr,ifmseg, &
+      ifmsfc,ifmvbd,ifneknek,ifneknekm,ifnonl,ifnskp,ifoutfld,ifpert,ifpo,ifprnt,ifprojfld,ifpsco, &
+      ifpso,ifqinp,ifreguo,ifrich,ifrsxy,ifrzer,ifschclob,ifskip,ifsplit,ifssvt,ifstrs,ifstst, &
+      ifsurt,ifsync,iftgo,iftmsh,ifto,iftran,ifusermv,ifuservp,ifvarp,ifvcor,ifvcoup,ifvo,ifvps, &
+      ifwcno,ifxyo,ifxyo_,iggl,igglt,igroup,im1d,im1dt,imatie,imd1,imd1t,imesh,indx,initc,instep, &
+      invedg,iocomm,ioinfodmp,iostep,ipscal,ipsco,irstim,irstt,irstv,isize,istep,ixcn,ixm12,ixm13, &
+      ixm21,ixm31,ixtm12,ixtm13,ixtm21,ixtm31,iym12,iym13,iym21,iym31,iytm12,iytm13,iytm21,iytm31, &
+      izm12,izm13,izm21,izm31,iztm12,iztm13,iztm21,iztm31,jacm1,jacm2,jacmi,jp,lastep,lcnnum, &
+      ldimr,lednum,lglel,lochis,loglevel,lsize,lyap,matids,matindx,matype,maxmlt,mpi_argv_null, &
+      mpi_argvs_null,mpi_bottom,mpi_errcodes_ignore,mpi_in_place,mpi_status_ignore, &
+      mpi_statuses_ignore,mpi_unweighted,mpi_weights_empty,nab,nabmsh,nadvc,naxhm,nbbbb,nbd, &
+      nbdinp,nbso2,nbsol,ncall,ncccc,ncdtp,ncmp,nconv,nconv_max,ncopy,ncrsl,ncvf,ndadd,ndddd, &
+      nddsl,ndg_facex,ndim,ndott,ndsmn,ndsmx,ndsnd,ndsum,neact,nedg,neeee,nelfld,nelg,nelgt,nelgv, &
+      nelt,nelv,neslv,nfield,ngcomm,ngeom,ngop,ngop1,ngop_sync,ngp2,ngsmn,ngsmx,ngspcn,ngsped, &
+      ngsum,nhis,nhmhz,nid,ninter,ninv3,ninvc,nio,nktonv,nmember,nmlinv,nmltd,nmxe,nmxh,nmxmf, &
+      nmxms,nmxnl,nmxp,nobj,node,node0,noffst,nomlis,np,npert,nprep,npres,npscal,nrefle,nrout, &
+      nsett,nslvb,nsolv,nspmax,nspro,nsskip,nsteps,nsyc,ntaubd,nu_star,nullpid,numbcs,numflu, &
+      numoth,numscn,numsed,nusbc,nvdss,nvtot,nwal,nx1,nx2,nx3,nxd,ny1,ny2,ny3,nyd,nz1,nz2,nz3,nzd, &
+      object,ocode,omask,optlevel,orefle,p0th,param,parfle,path,paxhm,pbbbb,pbso2,pbsol,pcccc, &
+      pcdtp,pcopy,pcrsl,pdadd,pdddd,pddsl,pdott,pdsmn,pdsmx,pdsnd,pdsum,peeee,peslv,pgop,pgop1, &
+      pgop_sync,pgp2,pgsmn,pgsmx,pgsum,phmhz,pi,pid,pinv3,pinvc,pm,pmask,pmd1,pmd1t,pmlag,pmltd, &
+      pmxmf,pmxms,pprep,ppres,pr,prelax,prlag,prlagp,prp,psett,pslvb,psolv,pspro,psyc,pusbc,pvdss, &
+      pwal,qinteg,qtl,rct,re2fle,re2off_b,reafle,restol,rname,rstim,rstt,rstv,rx,rxm1,rxm2,rym1, &
+      rym2,rzm1,rzm2,schfle,session,skpdat,solver_type,sxm1,sxm2,sym1,sym2,szm1,szm2,t,t1x,t1y, &
+      t1z,t2x,t2y,t2z,ta2s2,tadc3,tadd2,tadvc,tauss,taxhm,tbbbb,tbso2,tbsol,tcccc,tcdtp,tcol2, &
+      tcol3,tcopy,tcrsl,tcvf,tdadd,tdddd,tddsl,tdott,tdsmn,tdsmx,tdsnd,tdsum,teeee,teslv,textsw, &
+      tgop,tgop1,tgop_sync,tgp2,tgsmn,tgsmx,tgsum,thmhz,time,timef,timeio,tinit,tinv3,tinvc,tlag, &
+      tlagp,tmask,tmean,tmltd,tmult,tmxmf,tmxms,tnrmh1,tnrml2,tnrml8,tnrmsm,tolabs,tolev,tolhdf, &
+      tolhe,tolhr,tolhs,tolht,tolhv,tolnl,tolpdf,tolps,tolrel,tp,tprep,tpres,tproj,tschw,tsett, &
+      tslvb,tsolv,tspro,tsyc,ttime,ttotal,tttstp,tusbc,tusfq,tvdss,twal,txm1,txm2,txnext,tym1, &
+      tym2,tzm1,tzm2,unr,uns,unt,unx,uny,unz,uparam,usrdiv,v1mask,v1x,v1y,v1z,v2mask,v2x,v2y,v2z, &
+      v3mask,vdiff,vdiff_e,vgradt1,vgradt1p,vgradt2,vgradt2p,vmean,vmult,vnekton,vnrmh1,vnrml2, &
+      vnrml8,vnrmsm,vnx,vny,vnz,volel,volfld,voltm1,voltm2,volvm1,volvm2,vtrans,vx,vx_e,vxd,vxlag, &
+      vxlagp,vxp,vy,vy_e,vyd,vylag,vylagp,vyp,vz,vz_e,vzd,vzlag,vzlagp,vzp,w1mask,w2am1,w2am2, &
+      w2am3,w2cm1,w2cm2,w2cm3,w2mask,w3m1,w3m2,w3m3,w3mask,wam1,wam2,wam3,wdsize,wdsizi,wgl,wgl1, &
+      wgl2,wglg,wglgt,wgli,wgp,wmult,wx,wxlag,wxm1,wxm2,wxm3,wy,wylag,wym1,wym2,wym3,wz,wzlag, &
+      wzm1,wzm2,wzm3,xc,xm1,xm2,xxth,yc,yinvm1,ym1,ym2,zam1,zam2,zam3,zc,zgl,zgm1,zgm2,zgm3,zgp, &
+      zm1,zm2)
+      dt = reshape(dt_mxm, shape(dt))
       us = reshape(us_mxm, shape(us))
 ! 
       return
@@ -3541,6 +3553,16 @@ contains
       real, dimension(1:lx1*lx1) :: da
       real, dimension(1:lx1*lx1) :: dat
       real(kind=8), intent(InOut) :: dcount
+      real, dimension(1:lx1,1:lx1) :: dxm1_local_grad2
+      real, dimension(1:lx1,1:lx1) :: dxm1_local_grad3
+      real, dimension(1:ly1,1:ly1) :: dytm1_local_grad2
+      real, dimension(0:n,0:n,1:1) :: u_local_grad2
+      real, dimension(0:n,0:n,0:n,1:1) :: u_local_grad3
+      real, dimension(0:n,0:n) :: ur_local_grad2
+      real, dimension(0:n,0:n,0:n) :: ur_local_grad3
+      real, dimension(0:n,0:n) :: us_local_grad2
+      real, dimension(0:n,0:n,0:n) :: us_local_grad3
+      real, dimension(0:n,0:n,0:n) :: ut_local_grad3
             integer, parameter :: maxrts=1000
       real(kind=8), dimension(1:maxrts), intent(InOut) :: dct
       integer, dimension(1:lx1*lz1*2*ldim*lelt) :: dg_face
@@ -4006,7 +4028,7 @@ contains
       real, dimension(1:ly2,1:ly1) :: dym12
       real, dimension(1:lz1,1:lz1) :: dzm1
       real, dimension(1:lz2,1:lz1) :: dzm12
-      real, dimension(1:lx1,1:lx1), intent(In) :: dxtm1
+      real, dimension(1:lx1,1:lx1), intent(InOut) :: dxtm1
       real, dimension(1:lx1,1:lx2) :: dxtm12
       real, dimension(1:ly1,1:ly1), intent(InOut) :: dytm1
       real, dimension(1:ly1,1:ly2) :: dytm12
@@ -4108,7 +4130,6 @@ contains
       logical, dimension(1:8,1:lelt,0:1) :: ifmscr
       logical, dimension(1:8,1:lelt) :: ifnskp
       logical :: ifbcor
-      integer, parameter :: numsts=50
 ! 
 !      Input parameters from preprocessors.
 ! 
@@ -4331,71 +4352,81 @@ contains
       real, dimension(1:lxyz,1:1), intent(Out) :: ux
       real, dimension(1:lxyz,1:1), intent(Out) :: uy
       real, dimension(1:lxyz,1:1), intent(Out) :: uz
-      real, dimension(1:lxyz,1:1), intent(In) :: u
+      real, dimension(1:lxyz,1:1), intent(InOut) :: u
       integer :: e
       nxyz = lx1*ly1*lz1
       ntot = nxyz*nelt
       n = lx1-1
       do e=1,nelt
          if (if3d) then
-            call local_grad3(ur,us,ut,u,n,e,dxm1,dxtm1,ab,abmsh,abx1,abx2,aby1,aby2,abz1,abz2,area, &
-      atol,avdiff,avtran,b1ia1,b1ia1t,b1mask,b2mask,b2p,b3mask,baxm1,bbx1,bbx2,bby1,bby2,bbz1, &
-      bbz2,bc,bcf,bctyps,bd,bdivw,bfx,bfxp,bfy,bfyp,bfz,bfzp,bintm1,binvdg,binvm1,bm1,bm1lag,bm2, &
-      bm2inv,bmass,bmnv,bmx,bmy,bmz,bpmask,bq,bqp,bx,bxlag,by,bylag,bz,bzlag,c_vx,cbc,ccurve,cdof, &
-      cerror,cflf,courno,cpfld,cpgrp,cr_h,cr_re2,csize,ctarg,curve,d1,d1t,d2,da,dam1,dam12,dam3, &
-      dat,datm1,datm12,datm3,dcm1,dcm12,dcm3,dcount,dct,dctm1,dctm12,dctm3,dg_face,dg_hndlx,dglg, &
-      dglgt,dlam,dmpfle,dp0thdt,drivc,dt,dtinit,dtinvm,dtlag,dvdfh1,dvdfl2,dvdfl8,dvdfsm,dvnnh1, &
-      dvnnl2,dvnnl8,dvnnsm,dvprh1,dvprl2,dvprl8,dvprsm,dxm12,dxm3,dxtm12,dxtm3,dym1,dym12,dym3, &
-      dytm1,dytm12,dytm3,dzm1,dzm12,dzm3,dztm1,dztm12,dztm3,eface,eface1,eigaa,eigae,eigas,eigast, &
-      eigga,eigge,eiggs,eiggst,eskip,etalph,etimes,etims0,ev1,ev2,ev3,exx1p,exx2p,exy1p,exy2p, &
-      exz1p,exz2p,fh_re2,filtertype,fintim,fldfle,fw,g1m1,g2m1,g3m1,g4m1,g5m1,g6m1,gamma0,gcnnum, &
-      gednum,gedtyp,gllel,gllnid,group,gsh,gsh_fld,hcode,hisfle,iajl1,iajl2,ialj1,ialj3,iam12, &
-      iam13,iam21,iam31,iatjl1,iatjl2,iatlj1,iatlj3,iatm12,iatm13,iatm21,iatm31,ibcsts,icedg, &
-      icface,icm12,icm13,icm21,icm31,ictm12,ictm13,ictm21,ictm31,idpss,idsess,ieact,iedge,iedgef, &
-      iedgfc,iesolv,if3d,if_full_pres,ifaa,ifadvc,ifae,ifalgn,ifanl2,ifanls,ifas,ifast,ifaxis, &
-      ifaziv,ifbase,ifbcor,ifbo,ifchar,ifcons,ifcoup,ifcvfld,ifcvode,ifcyclic,ifdeal,ifdg,ifdgfld, &
-      ifdiff,ifdp0dt,ifeppm,ifessr,ifexplvis,ifextr,ifexvt,ifflow,iffmtin,ifga,ifge,ifgeom, &
-      ifgmsh3,ifgprnt,ifgs,ifgsh_fld_same,ifgst,ifheat,ifield,ifintq,ifkeps,ifldmhd,iflmsc,iflmse, &
-      iflmsf,iflomach,ifmelt,ifmgrid,ifmhd,ifmoab,ifmodel,ifmodp,ifmpiio,ifmscr,ifmseg,ifmsfc, &
-      ifmvbd,ifneknek,ifneknekm,ifnonl,ifnskp,ifoutfld,ifpert,ifpo,ifprnt,ifprojfld,ifpsco,ifpso, &
-      ifqinp,ifreguo,ifrich,ifrsxy,ifrzer,ifschclob,ifskip,ifsplit,ifssvt,ifstrs,ifstst,ifsurt, &
-      ifsync,iftgo,iftmsh,ifto,iftran,ifusermv,ifuservp,ifvarp,ifvcor,ifvcoup,ifvo,ifvps,ifwcno, &
-      ifxyo,ifxyo_,iggl,igglt,igroup,im1d,im1dt,imatie,imd1,imd1t,imesh,indx,initc,instep,invedg, &
-      iocomm,ioinfodmp,iostep,ipscal,ipsco,irstim,irstt,irstv,isize,istep,ixcn,ixm12,ixm13,ixm21, &
-      ixm31,ixtm12,ixtm13,ixtm21,ixtm31,iym12,iym13,iym21,iym31,iytm12,iytm13,iytm21,iytm31,izm12, &
-      izm13,izm21,izm31,iztm12,iztm13,iztm21,iztm31,jacm1,jacm2,jacmi,jp,lastep,lcnnum,ldimr, &
-      lednum,lglel,lochis,loglevel,lsize,lyap,matids,matindx,matype,maxmlt,mpi_argv_null, &
-      mpi_argvs_null,mpi_bottom,mpi_errcodes_ignore,mpi_in_place,mpi_status_ignore, &
-      mpi_statuses_ignore,mpi_unweighted,mpi_weights_empty,nab,nabmsh,nadvc,naxhm,nbbbb,nbd, &
-      nbdinp,nbso2,nbsol,ncall,ncccc,ncdtp,ncmp,nconv,nconv_max,ncopy,ncrsl,ncvf,ndadd,ndddd, &
-      nddsl,ndg_facex,ndim,ndott,ndsmn,ndsmx,ndsnd,ndsum,neact,nedg,neeee,nelfld,nelg,nelgt,nelgv, &
-      nelt,nelv,neslv,nfield,ngcomm,ngeom,ngop,ngop1,ngop_sync,ngp2,ngsmn,ngsmx,ngspcn,ngsped, &
-      ngsum,nhis,nhmhz,nid,ninter,ninv3,ninvc,nio,nktonv,nmember,nmlinv,nmltd,nmxe,nmxh,nmxmf, &
-      nmxms,nmxnl,nmxp,nobj,node,node0,noffst,nomlis,np,npert,nprep,npres,npscal,nrefle,nrout, &
-      nsett,nslvb,nsolv,nspmax,nspro,nsskip,nsteps,nsyc,ntaubd,nu_star,nullpid,numbcs,numflu, &
-      numoth,numscn,numsed,nusbc,nvdss,nvtot,nwal,nx1,nx2,nx3,nxd,ny1,ny2,ny3,nyd,nz1,nz2,nz3,nzd, &
-      object,ocode,omask,optlevel,orefle,p0th,param,parfle,path,paxhm,pbbbb,pbso2,pbsol,pcccc, &
-      pcdtp,pcopy,pcrsl,pdadd,pdddd,pddsl,pdott,pdsmn,pdsmx,pdsnd,pdsum,peeee,peslv,pgop,pgop1, &
-      pgop_sync,pgp2,pgsmn,pgsmx,pgsum,phmhz,pi,pid,pinv3,pinvc,pm,pmask,pmd1,pmd1t,pmlag,pmltd, &
-      pmxmf,pmxms,pprep,ppres,pr,prelax,prlag,prlagp,prp,psett,pslvb,psolv,pspro,psyc,pusbc,pvdss, &
-      pwal,qinteg,qtl,rct,re2fle,re2off_b,reafle,restol,rname,rstim,rstt,rstv,rx,rxm1,rxm2,rym1, &
-      rym2,rzm1,rzm2,schfle,session,skpdat,solver_type,sxm1,sxm2,sym1,sym2,szm1,szm2,t,t1x,t1y, &
-      t1z,t2x,t2y,t2z,ta2s2,tadc3,tadd2,tadvc,tauss,taxhm,tbbbb,tbso2,tbsol,tcccc,tcdtp,tcol2, &
-      tcol3,tcopy,tcrsl,tcvf,tdadd,tdddd,tddsl,tdott,tdsmn,tdsmx,tdsnd,tdsum,teeee,teslv,textsw, &
-      tgop,tgop1,tgop_sync,tgp2,tgsmn,tgsmx,tgsum,thmhz,time,timef,timeio,tinit,tinv3,tinvc,tlag, &
-      tlagp,tmask,tmean,tmltd,tmult,tmxmf,tmxms,tnrmh1,tnrml2,tnrml8,tnrmsm,tolabs,tolev,tolhdf, &
-      tolhe,tolhr,tolhs,tolht,tolhv,tolnl,tolpdf,tolps,tolrel,tp,tprep,tpres,tproj,tschw,tsett, &
-      tslvb,tsolv,tspro,tsyc,ttime,ttotal,tttstp,tusbc,tusfq,tvdss,twal,txm1,txm2,txnext,tym1, &
-      tym2,tzm1,tzm2,unr,uns,unt,unx,uny,unz,uparam,usrdiv,v1mask,v1x,v1y,v1z,v2mask,v2x,v2y,v2z, &
-      v3mask,vdiff,vdiff_e,vgradt1,vgradt1p,vgradt2,vgradt2p,vmean,vmult,vnekton,vnrmh1,vnrml2, &
-      vnrml8,vnrmsm,vnx,vny,vnz,volel,volfld,voltm1,voltm2,volvm1,volvm2,vtrans,vx,vx_e,vxd,vxlag, &
-      vxlagp,vxp,vy,vy_e,vyd,vylag,vylagp,vyp,vz,vz_e,vzd,vzlag,vzlagp,vzp,w1mask,w2am1,w2am2, &
-      w2am3,w2cm1,w2cm2,w2cm3,w2mask,w3m1,w3m2,w3m3,w3mask,wam1,wam2,wam3,wdsize,wdsizi,wgl,wgl1, &
-      wgl2,wglg,wglgt,wgli,wgp,wmult,wx,wxlag,wxm1,wxm2,wxm3,wy,wylag,wym1,wym2,wym3,wz,wzlag, &
-      wzm1,wzm2,wzm3,xc,xm1,xm2,xxth,yc,yinvm1,ym1,ym2,zam1,zam2,zam3,zc,zgl,zgm1,zgm2,zgm3,zgp, &
-      zm1,zm2)
+            ur_local_grad3 = reshape(ur,shape(ur_local_grad3))
+            us_local_grad3 = reshape(us,shape(us_local_grad3))
+            ut_local_grad3 = reshape(ut,shape(ut_local_grad3))
+            u_local_grad3 = reshape(u,shape(u_local_grad3))
+            dxm1_local_grad3 = reshape(dxm1,shape(dxm1_local_grad3))
+            call local_grad3(ur_local_grad3,us_local_grad3,ut_local_grad3,u_local_grad3,n,e, &
+      dxm1_local_grad3,dxtm1,ab,abmsh,abx1,abx2,aby1,aby2,abz1,abz2,area,atol,avdiff,avtran,b1ia1, &
+      b1ia1t,b1mask,b2mask,b2p,b3mask,baxm1,bbx1,bbx2,bby1,bby2,bbz1,bbz2,bc,bcf,bctyps,bd,bdivw, &
+      bfx,bfxp,bfy,bfyp,bfz,bfzp,bintm1,binvdg,binvm1,bm1,bm1lag,bm2,bm2inv,bmass,bmnv,bmx,bmy, &
+      bmz,bpmask,bq,bqp,bx,bxlag,by,bylag,bz,bzlag,c_vx,cbc,ccurve,cdof,cerror,cflf,courno,cpfld, &
+      cpgrp,cr_h,cr_re2,csize,ctarg,curve,d1,d1t,d2,da,dam1,dam12,dam3,dat,datm1,datm12,datm3, &
+      dcm1,dcm12,dcm3,dcount,dct,dctm1,dctm12,dctm3,dg_face,dg_hndlx,dglg,dglgt,dlam,dmpfle, &
+      dp0thdt,drivc,dt,dtinit,dtinvm,dtlag,dvdfh1,dvdfl2,dvdfl8,dvdfsm,dvnnh1,dvnnl2,dvnnl8, &
+      dvnnsm,dvprh1,dvprl2,dvprl8,dvprsm,dxm12,dxm3,dxtm12,dxtm3,dym1,dym12,dym3,dytm1,dytm12, &
+      dytm3,dzm1,dzm12,dzm3,dztm1,dztm12,dztm3,eface,eface1,eigaa,eigae,eigas,eigast,eigga,eigge, &
+      eiggs,eiggst,eskip,etalph,etimes,etims0,ev1,ev2,ev3,exx1p,exx2p,exy1p,exy2p,exz1p,exz2p, &
+      fh_re2,filtertype,fintim,fldfle,fw,g1m1,g2m1,g3m1,g4m1,g5m1,g6m1,gamma0,gcnnum,gednum, &
+      gedtyp,gllel,gllnid,group,gsh,gsh_fld,hcode,hisfle,iajl1,iajl2,ialj1,ialj3,iam12,iam13, &
+      iam21,iam31,iatjl1,iatjl2,iatlj1,iatlj3,iatm12,iatm13,iatm21,iatm31,ibcsts,icedg,icface, &
+      icm12,icm13,icm21,icm31,ictm12,ictm13,ictm21,ictm31,idpss,idsess,ieact,iedge,iedgef,iedgfc, &
+      iesolv,if3d,if_full_pres,ifaa,ifadvc,ifae,ifalgn,ifanl2,ifanls,ifas,ifast,ifaxis,ifaziv, &
+      ifbase,ifbcor,ifbo,ifchar,ifcons,ifcoup,ifcvfld,ifcvode,ifcyclic,ifdeal,ifdg,ifdgfld,ifdiff, &
+      ifdp0dt,ifeppm,ifessr,ifexplvis,ifextr,ifexvt,ifflow,iffmtin,ifga,ifge,ifgeom,ifgmsh3, &
+      ifgprnt,ifgs,ifgsh_fld_same,ifgst,ifheat,ifield,ifintq,ifkeps,ifldmhd,iflmsc,iflmse,iflmsf, &
+      iflomach,ifmelt,ifmgrid,ifmhd,ifmoab,ifmodel,ifmodp,ifmpiio,ifmscr,ifmseg,ifmsfc,ifmvbd, &
+      ifneknek,ifneknekm,ifnonl,ifnskp,ifoutfld,ifpert,ifpo,ifprnt,ifprojfld,ifpsco,ifpso,ifqinp, &
+      ifreguo,ifrich,ifrsxy,ifrzer,ifschclob,ifskip,ifsplit,ifssvt,ifstrs,ifstst,ifsurt,ifsync, &
+      iftgo,iftmsh,ifto,iftran,ifusermv,ifuservp,ifvarp,ifvcor,ifvcoup,ifvo,ifvps,ifwcno,ifxyo, &
+      ifxyo_,iggl,igglt,igroup,im1d,im1dt,imatie,imd1,imd1t,imesh,indx,initc,instep,invedg,iocomm, &
+      ioinfodmp,iostep,ipscal,ipsco,irstim,irstt,irstv,isize,istep,ixcn,ixm12,ixm13,ixm21,ixm31, &
+      ixtm12,ixtm13,ixtm21,ixtm31,iym12,iym13,iym21,iym31,iytm12,iytm13,iytm21,iytm31,izm12,izm13, &
+      izm21,izm31,iztm12,iztm13,iztm21,iztm31,jacm1,jacm2,jacmi,jp,lastep,lcnnum,ldimr,lednum, &
+      lglel,lochis,loglevel,lsize,lyap,matids,matindx,matype,maxmlt,mpi_argv_null,mpi_argvs_null, &
+      mpi_bottom,mpi_errcodes_ignore,mpi_in_place,mpi_status_ignore,mpi_statuses_ignore, &
+      mpi_unweighted,mpi_weights_empty,nab,nabmsh,nadvc,naxhm,nbbbb,nbd,nbdinp,nbso2,nbsol,ncall, &
+      ncccc,ncdtp,ncmp,nconv,nconv_max,ncopy,ncrsl,ncvf,ndadd,ndddd,nddsl,ndg_facex,ndim,ndott, &
+      ndsmn,ndsmx,ndsnd,ndsum,neact,nedg,neeee,nelfld,nelg,nelgt,nelgv,nelt,nelv,neslv,nfield, &
+      ngcomm,ngeom,ngop,ngop1,ngop_sync,ngp2,ngsmn,ngsmx,ngspcn,ngsped,ngsum,nhis,nhmhz,nid, &
+      ninter,ninv3,ninvc,nio,nktonv,nmember,nmlinv,nmltd,nmxe,nmxh,nmxmf,nmxms,nmxnl,nmxp,nobj, &
+      node,node0,noffst,nomlis,np,npert,nprep,npres,npscal,nrefle,nrout,nsett,nslvb,nsolv,nspmax, &
+      nspro,nsskip,nsteps,nsyc,ntaubd,nu_star,nullpid,numbcs,numflu,numoth,numscn,numsed,nusbc, &
+      nvdss,nvtot,nwal,nx1,nx2,nx3,nxd,ny1,ny2,ny3,nyd,nz1,nz2,nz3,nzd,object,ocode,omask, &
+      optlevel,orefle,p0th,param,parfle,path,paxhm,pbbbb,pbso2,pbsol,pcccc,pcdtp,pcopy,pcrsl, &
+      pdadd,pdddd,pddsl,pdott,pdsmn,pdsmx,pdsnd,pdsum,peeee,peslv,pgop,pgop1,pgop_sync,pgp2,pgsmn, &
+      pgsmx,pgsum,phmhz,pi,pid,pinv3,pinvc,pm,pmask,pmd1,pmd1t,pmlag,pmltd,pmxmf,pmxms,pprep, &
+      ppres,pr,prelax,prlag,prlagp,prp,psett,pslvb,psolv,pspro,psyc,pusbc,pvdss,pwal,qinteg,qtl, &
+      rct,re2fle,re2off_b,reafle,restol,rname,rstim,rstt,rstv,rx,rxm1,rxm2,rym1,rym2,rzm1,rzm2, &
+      schfle,session,skpdat,solver_type,sxm1,sxm2,sym1,sym2,szm1,szm2,t,t1x,t1y,t1z,t2x,t2y,t2z, &
+      ta2s2,tadc3,tadd2,tadvc,tauss,taxhm,tbbbb,tbso2,tbsol,tcccc,tcdtp,tcol2,tcol3,tcopy,tcrsl, &
+      tcvf,tdadd,tdddd,tddsl,tdott,tdsmn,tdsmx,tdsnd,tdsum,teeee,teslv,textsw,tgop,tgop1, &
+      tgop_sync,tgp2,tgsmn,tgsmx,tgsum,thmhz,time,timef,timeio,tinit,tinv3,tinvc,tlag,tlagp,tmask, &
+      tmean,tmltd,tmult,tmxmf,tmxms,tnrmh1,tnrml2,tnrml8,tnrmsm,tolabs,tolev,tolhdf,tolhe,tolhr, &
+      tolhs,tolht,tolhv,tolnl,tolpdf,tolps,tolrel,tp,tprep,tpres,tproj,tschw,tsett,tslvb,tsolv, &
+      tspro,tsyc,ttime,ttotal,tttstp,tusbc,tusfq,tvdss,twal,txm1,txm2,txnext,tym1,tym2,tzm1,tzm2, &
+      unr,uns,unt,unx,uny,unz,uparam,usrdiv,v1mask,v1x,v1y,v1z,v2mask,v2x,v2y,v2z,v3mask,vdiff, &
+      vdiff_e,vgradt1,vgradt1p,vgradt2,vgradt2p,vmean,vmult,vnekton,vnrmh1,vnrml2,vnrml8,vnrmsm, &
+      vnx,vny,vnz,volel,volfld,voltm1,voltm2,volvm1,volvm2,vtrans,vx,vx_e,vxd,vxlag,vxlagp,vxp,vy, &
+      vy_e,vyd,vylag,vylagp,vyp,vz,vz_e,vzd,vzlag,vzlagp,vzp,w1mask,w2am1,w2am2,w2am3,w2cm1,w2cm2, &
+      w2cm3,w2mask,w3m1,w3m2,w3m3,w3mask,wam1,wam2,wam3,wdsize,wdsizi,wgl,wgl1,wgl2,wglg,wglgt, &
+      wgli,wgp,wmult,wx,wxlag,wxm1,wxm2,wxm3,wy,wylag,wym1,wym2,wym3,wz,wzlag,wzm1,wzm2,wzm3,xc, &
+      xm1,xm2,xxth,yc,yinvm1,ym1,ym2,zam1,zam2,zam3,zc,zgl,zgm1,zgm2,zgm3,zgp,zm1,zm2)
       ifnav = ifadvc(1)
       turbmod = textsw(1,1)
+            ur = reshape(ur_local_grad3, shape(ur))
+            us = reshape(us_local_grad3, shape(us))
+            ut = reshape(ut_local_grad3, shape(ut))
+            u = reshape(u_local_grad3, shape(u))
+            dxm1 = reshape(dxm1_local_grad3, shape(dxm1))
             do i=1,lxyz
                ux(i,e) = jacmi(i,e)*(ur(i)*rxm1(i,1,1,e)                             + us(i)*sxm1(i, &
       1,1,e)                             + ut(i)*txm1(i,1,1,e) )
@@ -4409,64 +4440,74 @@ contains
       dctm3,dxm1,dxm12,dxm3,dxtm1,dxtm12,dxtm3,dym1,dym12,dym3,dytm1,dytm12,dytm3,dzm1,dzm12,dzm3, &
       dztm1,dztm12,dztm3,idsess,ldimr,loglevel,ndim,nelt,nelv,nfield,nid,nio,npert,nx1,nx2,nx3, &
       nxd,ny1,ny2,ny3,nyd,nz1,nz2,nz3,nzd,optlevel)
-            call local_grad2(ur,us,u,n,e,dxm1,dytm1,ab,abmsh,abx1,abx2,aby1,aby2,abz1,abz2,area, &
-      atol,avdiff,avtran,b1ia1,b1ia1t,b1mask,b2mask,b2p,b3mask,baxm1,bbx1,bbx2,bby1,bby2,bbz1, &
-      bbz2,bc,bcf,bctyps,bd,bdivw,bfx,bfxp,bfy,bfyp,bfz,bfzp,bintm1,binvdg,binvm1,bm1,bm1lag,bm2, &
-      bm2inv,bmass,bmnv,bmx,bmy,bmz,bpmask,bq,bqp,bx,bxlag,by,bylag,bz,bzlag,c_vx,cbc,ccurve,cdof, &
-      cerror,cflf,courno,cpfld,cpgrp,cr_h,cr_re2,csize,ctarg,curve,d1,d1t,d2,da,dam1,dam12,dam3, &
-      dat,datm1,datm12,datm3,dcm1,dcm12,dcm3,dcount,dct,dctm1,dctm12,dctm3,dg_face,dg_hndlx,dglg, &
-      dglgt,dlam,dmpfle,dp0thdt,drivc,dt,dtinit,dtinvm,dtlag,dvdfh1,dvdfl2,dvdfl8,dvdfsm,dvnnh1, &
-      dvnnl2,dvnnl8,dvnnsm,dvprh1,dvprl2,dvprl8,dvprsm,dxm12,dxm3,dxtm1,dxtm12,dxtm3,dym1,dym12, &
-      dym3,dytm12,dytm3,dzm1,dzm12,dzm3,dztm1,dztm12,dztm3,eface,eface1,eigaa,eigae,eigas,eigast, &
-      eigga,eigge,eiggs,eiggst,eskip,etalph,etimes,etims0,ev1,ev2,ev3,exx1p,exx2p,exy1p,exy2p, &
-      exz1p,exz2p,fh_re2,filtertype,fintim,fldfle,fw,g1m1,g2m1,g3m1,g4m1,g5m1,g6m1,gamma0,gcnnum, &
-      gednum,gedtyp,gllel,gllnid,group,gsh,gsh_fld,hcode,hisfle,iajl1,iajl2,ialj1,ialj3,iam12, &
-      iam13,iam21,iam31,iatjl1,iatjl2,iatlj1,iatlj3,iatm12,iatm13,iatm21,iatm31,ibcsts,icedg, &
-      icface,icm12,icm13,icm21,icm31,ictm12,ictm13,ictm21,ictm31,idpss,idsess,ieact,iedge,iedgef, &
-      iedgfc,iesolv,if3d,if_full_pres,ifaa,ifadvc,ifae,ifalgn,ifanl2,ifanls,ifas,ifast,ifaxis, &
-      ifaziv,ifbase,ifbcor,ifbo,ifchar,ifcons,ifcoup,ifcvfld,ifcvode,ifcyclic,ifdeal,ifdg,ifdgfld, &
-      ifdiff,ifdp0dt,ifeppm,ifessr,ifexplvis,ifextr,ifexvt,ifflow,iffmtin,ifga,ifge,ifgeom, &
-      ifgmsh3,ifgprnt,ifgs,ifgsh_fld_same,ifgst,ifheat,ifield,ifintq,ifkeps,ifldmhd,iflmsc,iflmse, &
-      iflmsf,iflomach,ifmelt,ifmgrid,ifmhd,ifmoab,ifmodel,ifmodp,ifmpiio,ifmscr,ifmseg,ifmsfc, &
-      ifmvbd,ifneknek,ifneknekm,ifnonl,ifnskp,ifoutfld,ifpert,ifpo,ifprnt,ifprojfld,ifpsco,ifpso, &
-      ifqinp,ifreguo,ifrich,ifrsxy,ifrzer,ifschclob,ifskip,ifsplit,ifssvt,ifstrs,ifstst,ifsurt, &
-      ifsync,iftgo,iftmsh,ifto,iftran,ifusermv,ifuservp,ifvarp,ifvcor,ifvcoup,ifvo,ifvps,ifwcno, &
-      ifxyo,ifxyo_,iggl,igglt,igroup,im1d,im1dt,imatie,imd1,imd1t,imesh,indx,initc,instep,invedg, &
-      iocomm,ioinfodmp,iostep,ipscal,ipsco,irstim,irstt,irstv,isize,istep,ixcn,ixm12,ixm13,ixm21, &
-      ixm31,ixtm12,ixtm13,ixtm21,ixtm31,iym12,iym13,iym21,iym31,iytm12,iytm13,iytm21,iytm31,izm12, &
-      izm13,izm21,izm31,iztm12,iztm13,iztm21,iztm31,jacm1,jacm2,jacmi,jp,lastep,lcnnum,ldimr, &
-      lednum,lglel,lochis,loglevel,lsize,lyap,matids,matindx,matype,maxmlt,mpi_argv_null, &
-      mpi_argvs_null,mpi_bottom,mpi_errcodes_ignore,mpi_in_place,mpi_status_ignore, &
-      mpi_statuses_ignore,mpi_unweighted,mpi_weights_empty,nab,nabmsh,nadvc,naxhm,nbbbb,nbd, &
-      nbdinp,nbso2,nbsol,ncall,ncccc,ncdtp,ncmp,nconv,nconv_max,ncopy,ncrsl,ncvf,ndadd,ndddd, &
-      nddsl,ndg_facex,ndim,ndott,ndsmn,ndsmx,ndsnd,ndsum,neact,nedg,neeee,nelfld,nelg,nelgt,nelgv, &
-      nelt,nelv,neslv,nfield,ngcomm,ngeom,ngop,ngop1,ngop_sync,ngp2,ngsmn,ngsmx,ngspcn,ngsped, &
-      ngsum,nhis,nhmhz,nid,ninter,ninv3,ninvc,nio,nktonv,nmember,nmlinv,nmltd,nmxe,nmxh,nmxmf, &
-      nmxms,nmxnl,nmxp,nobj,node,node0,noffst,nomlis,np,npert,nprep,npres,npscal,nrefle,nrout, &
-      nsett,nslvb,nsolv,nspmax,nspro,nsskip,nsteps,nsyc,ntaubd,nu_star,nullpid,numbcs,numflu, &
-      numoth,numscn,numsed,nusbc,nvdss,nvtot,nwal,nx1,nx2,nx3,nxd,ny1,ny2,ny3,nyd,nz1,nz2,nz3,nzd, &
-      object,ocode,omask,optlevel,orefle,p0th,param,parfle,path,paxhm,pbbbb,pbso2,pbsol,pcccc, &
-      pcdtp,pcopy,pcrsl,pdadd,pdddd,pddsl,pdott,pdsmn,pdsmx,pdsnd,pdsum,peeee,peslv,pgop,pgop1, &
-      pgop_sync,pgp2,pgsmn,pgsmx,pgsum,phmhz,pi,pid,pinv3,pinvc,pm,pmask,pmd1,pmd1t,pmlag,pmltd, &
-      pmxmf,pmxms,pprep,ppres,pr,prelax,prlag,prlagp,prp,psett,pslvb,psolv,pspro,psyc,pusbc,pvdss, &
-      pwal,qinteg,qtl,rct,re2fle,re2off_b,reafle,restol,rname,rstim,rstt,rstv,rx,rxm1,rxm2,rym1, &
-      rym2,rzm1,rzm2,schfle,session,skpdat,solver_type,sxm1,sxm2,sym1,sym2,szm1,szm2,t,t1x,t1y, &
-      t1z,t2x,t2y,t2z,ta2s2,tadc3,tadd2,tadvc,tauss,taxhm,tbbbb,tbso2,tbsol,tcccc,tcdtp,tcol2, &
-      tcol3,tcopy,tcrsl,tcvf,tdadd,tdddd,tddsl,tdott,tdsmn,tdsmx,tdsnd,tdsum,teeee,teslv,textsw, &
-      tgop,tgop1,tgop_sync,tgp2,tgsmn,tgsmx,tgsum,thmhz,time,timef,timeio,tinit,tinv3,tinvc,tlag, &
-      tlagp,tmask,tmean,tmltd,tmult,tmxmf,tmxms,tnrmh1,tnrml2,tnrml8,tnrmsm,tolabs,tolev,tolhdf, &
-      tolhe,tolhr,tolhs,tolht,tolhv,tolnl,tolpdf,tolps,tolrel,tp,tprep,tpres,tproj,tschw,tsett, &
-      tslvb,tsolv,tspro,tsyc,ttime,ttotal,tttstp,tusbc,tusfq,tvdss,twal,txm1,txm2,txnext,tym1, &
-      tym2,tzm1,tzm2,unr,uns,unt,unx,uny,unz,uparam,usrdiv,v1mask,v1x,v1y,v1z,v2mask,v2x,v2y,v2z, &
-      v3mask,vdiff,vdiff_e,vgradt1,vgradt1p,vgradt2,vgradt2p,vmean,vmult,vnekton,vnrmh1,vnrml2, &
-      vnrml8,vnrmsm,vnx,vny,vnz,volel,volfld,voltm1,voltm2,volvm1,volvm2,vtrans,vx,vx_e,vxd,vxlag, &
-      vxlagp,vxp,vy,vy_e,vyd,vylag,vylagp,vyp,vz,vz_e,vzd,vzlag,vzlagp,vzp,w1mask,w2am1,w2am2, &
-      w2am3,w2cm1,w2cm2,w2cm3,w2mask,w3m1,w3m2,w3m3,w3mask,wam1,wam2,wam3,wdsize,wdsizi,wgl,wgl1, &
-      wgl2,wglg,wglgt,wgli,wgp,wmult,wx,wxlag,wxm1,wxm2,wxm3,wy,wylag,wym1,wym2,wym3,wz,wzlag, &
-      wzm1,wzm2,wzm3,xc,xm1,xm2,xxth,yc,yinvm1,ym1,ym2,zam1,zam2,zam3,zc,zgl,zgm1,zgm2,zgm3,zgp, &
-      zm1,zm2)
+            ur_local_grad2 = reshape(ur,shape(ur_local_grad2))
+            us_local_grad2 = reshape(us,shape(us_local_grad2))
+            u_local_grad2 = reshape(u,shape(u_local_grad2))
+            dxm1_local_grad2 = reshape(dxm1,shape(dxm1_local_grad2))
+            dytm1_local_grad2 = reshape(dytm1,shape(dytm1_local_grad2))
+            call local_grad2(ur_local_grad2,us_local_grad2,u_local_grad2,n,e,dxm1_local_grad2, &
+      dytm1_local_grad2,ab,abmsh,abx1,abx2,aby1,aby2,abz1,abz2,area,atol,avdiff,avtran,b1ia1, &
+      b1ia1t,b1mask,b2mask,b2p,b3mask,baxm1,bbx1,bbx2,bby1,bby2,bbz1,bbz2,bc,bcf,bctyps,bd,bdivw, &
+      bfx,bfxp,bfy,bfyp,bfz,bfzp,bintm1,binvdg,binvm1,bm1,bm1lag,bm2,bm2inv,bmass,bmnv,bmx,bmy, &
+      bmz,bpmask,bq,bqp,bx,bxlag,by,bylag,bz,bzlag,c_vx,cbc,ccurve,cdof,cerror,cflf,courno,cpfld, &
+      cpgrp,cr_h,cr_re2,csize,ctarg,curve,d1,d1t,d2,da,dam1,dam12,dam3,dat,datm1,datm12,datm3, &
+      dcm1,dcm12,dcm3,dcount,dct,dctm1,dctm12,dctm3,dg_face,dg_hndlx,dglg,dglgt,dlam,dmpfle, &
+      dp0thdt,drivc,dt,dtinit,dtinvm,dtlag,dvdfh1,dvdfl2,dvdfl8,dvdfsm,dvnnh1,dvnnl2,dvnnl8, &
+      dvnnsm,dvprh1,dvprl2,dvprl8,dvprsm,dxm12,dxm3,dxtm1,dxtm12,dxtm3,dym1,dym12,dym3,dytm12, &
+      dytm3,dzm1,dzm12,dzm3,dztm1,dztm12,dztm3,eface,eface1,eigaa,eigae,eigas,eigast,eigga,eigge, &
+      eiggs,eiggst,eskip,etalph,etimes,etims0,ev1,ev2,ev3,exx1p,exx2p,exy1p,exy2p,exz1p,exz2p, &
+      fh_re2,filtertype,fintim,fldfle,fw,g1m1,g2m1,g3m1,g4m1,g5m1,g6m1,gamma0,gcnnum,gednum, &
+      gedtyp,gllel,gllnid,group,gsh,gsh_fld,hcode,hisfle,iajl1,iajl2,ialj1,ialj3,iam12,iam13, &
+      iam21,iam31,iatjl1,iatjl2,iatlj1,iatlj3,iatm12,iatm13,iatm21,iatm31,ibcsts,icedg,icface, &
+      icm12,icm13,icm21,icm31,ictm12,ictm13,ictm21,ictm31,idpss,idsess,ieact,iedge,iedgef,iedgfc, &
+      iesolv,if3d,if_full_pres,ifaa,ifadvc,ifae,ifalgn,ifanl2,ifanls,ifas,ifast,ifaxis,ifaziv, &
+      ifbase,ifbcor,ifbo,ifchar,ifcons,ifcoup,ifcvfld,ifcvode,ifcyclic,ifdeal,ifdg,ifdgfld,ifdiff, &
+      ifdp0dt,ifeppm,ifessr,ifexplvis,ifextr,ifexvt,ifflow,iffmtin,ifga,ifge,ifgeom,ifgmsh3, &
+      ifgprnt,ifgs,ifgsh_fld_same,ifgst,ifheat,ifield,ifintq,ifkeps,ifldmhd,iflmsc,iflmse,iflmsf, &
+      iflomach,ifmelt,ifmgrid,ifmhd,ifmoab,ifmodel,ifmodp,ifmpiio,ifmscr,ifmseg,ifmsfc,ifmvbd, &
+      ifneknek,ifneknekm,ifnonl,ifnskp,ifoutfld,ifpert,ifpo,ifprnt,ifprojfld,ifpsco,ifpso,ifqinp, &
+      ifreguo,ifrich,ifrsxy,ifrzer,ifschclob,ifskip,ifsplit,ifssvt,ifstrs,ifstst,ifsurt,ifsync, &
+      iftgo,iftmsh,ifto,iftran,ifusermv,ifuservp,ifvarp,ifvcor,ifvcoup,ifvo,ifvps,ifwcno,ifxyo, &
+      ifxyo_,iggl,igglt,igroup,im1d,im1dt,imatie,imd1,imd1t,imesh,indx,initc,instep,invedg,iocomm, &
+      ioinfodmp,iostep,ipscal,ipsco,irstim,irstt,irstv,isize,istep,ixcn,ixm12,ixm13,ixm21,ixm31, &
+      ixtm12,ixtm13,ixtm21,ixtm31,iym12,iym13,iym21,iym31,iytm12,iytm13,iytm21,iytm31,izm12,izm13, &
+      izm21,izm31,iztm12,iztm13,iztm21,iztm31,jacm1,jacm2,jacmi,jp,lastep,lcnnum,ldimr,lednum, &
+      lglel,lochis,loglevel,lsize,lyap,matids,matindx,matype,maxmlt,mpi_argv_null,mpi_argvs_null, &
+      mpi_bottom,mpi_errcodes_ignore,mpi_in_place,mpi_status_ignore,mpi_statuses_ignore, &
+      mpi_unweighted,mpi_weights_empty,nab,nabmsh,nadvc,naxhm,nbbbb,nbd,nbdinp,nbso2,nbsol,ncall, &
+      ncccc,ncdtp,ncmp,nconv,nconv_max,ncopy,ncrsl,ncvf,ndadd,ndddd,nddsl,ndg_facex,ndim,ndott, &
+      ndsmn,ndsmx,ndsnd,ndsum,neact,nedg,neeee,nelfld,nelg,nelgt,nelgv,nelt,nelv,neslv,nfield, &
+      ngcomm,ngeom,ngop,ngop1,ngop_sync,ngp2,ngsmn,ngsmx,ngspcn,ngsped,ngsum,nhis,nhmhz,nid, &
+      ninter,ninv3,ninvc,nio,nktonv,nmember,nmlinv,nmltd,nmxe,nmxh,nmxmf,nmxms,nmxnl,nmxp,nobj, &
+      node,node0,noffst,nomlis,np,npert,nprep,npres,npscal,nrefle,nrout,nsett,nslvb,nsolv,nspmax, &
+      nspro,nsskip,nsteps,nsyc,ntaubd,nu_star,nullpid,numbcs,numflu,numoth,numscn,numsed,nusbc, &
+      nvdss,nvtot,nwal,nx1,nx2,nx3,nxd,ny1,ny2,ny3,nyd,nz1,nz2,nz3,nzd,object,ocode,omask, &
+      optlevel,orefle,p0th,param,parfle,path,paxhm,pbbbb,pbso2,pbsol,pcccc,pcdtp,pcopy,pcrsl, &
+      pdadd,pdddd,pddsl,pdott,pdsmn,pdsmx,pdsnd,pdsum,peeee,peslv,pgop,pgop1,pgop_sync,pgp2,pgsmn, &
+      pgsmx,pgsum,phmhz,pi,pid,pinv3,pinvc,pm,pmask,pmd1,pmd1t,pmlag,pmltd,pmxmf,pmxms,pprep, &
+      ppres,pr,prelax,prlag,prlagp,prp,psett,pslvb,psolv,pspro,psyc,pusbc,pvdss,pwal,qinteg,qtl, &
+      rct,re2fle,re2off_b,reafle,restol,rname,rstim,rstt,rstv,rx,rxm1,rxm2,rym1,rym2,rzm1,rzm2, &
+      schfle,session,skpdat,solver_type,sxm1,sxm2,sym1,sym2,szm1,szm2,t,t1x,t1y,t1z,t2x,t2y,t2z, &
+      ta2s2,tadc3,tadd2,tadvc,tauss,taxhm,tbbbb,tbso2,tbsol,tcccc,tcdtp,tcol2,tcol3,tcopy,tcrsl, &
+      tcvf,tdadd,tdddd,tddsl,tdott,tdsmn,tdsmx,tdsnd,tdsum,teeee,teslv,textsw,tgop,tgop1, &
+      tgop_sync,tgp2,tgsmn,tgsmx,tgsum,thmhz,time,timef,timeio,tinit,tinv3,tinvc,tlag,tlagp,tmask, &
+      tmean,tmltd,tmult,tmxmf,tmxms,tnrmh1,tnrml2,tnrml8,tnrmsm,tolabs,tolev,tolhdf,tolhe,tolhr, &
+      tolhs,tolht,tolhv,tolnl,tolpdf,tolps,tolrel,tp,tprep,tpres,tproj,tschw,tsett,tslvb,tsolv, &
+      tspro,tsyc,ttime,ttotal,tttstp,tusbc,tusfq,tvdss,twal,txm1,txm2,txnext,tym1,tym2,tzm1,tzm2, &
+      unr,uns,unt,unx,uny,unz,uparam,usrdiv,v1mask,v1x,v1y,v1z,v2mask,v2x,v2y,v2z,v3mask,vdiff, &
+      vdiff_e,vgradt1,vgradt1p,vgradt2,vgradt2p,vmean,vmult,vnekton,vnrmh1,vnrml2,vnrml8,vnrmsm, &
+      vnx,vny,vnz,volel,volfld,voltm1,voltm2,volvm1,volvm2,vtrans,vx,vx_e,vxd,vxlag,vxlagp,vxp,vy, &
+      vy_e,vyd,vylag,vylagp,vyp,vz,vz_e,vzd,vzlag,vzlagp,vzp,w1mask,w2am1,w2am2,w2am3,w2cm1,w2cm2, &
+      w2cm3,w2mask,w3m1,w3m2,w3m3,w3mask,wam1,wam2,wam3,wdsize,wdsizi,wgl,wgl1,wgl2,wglg,wglgt, &
+      wgli,wgp,wmult,wx,wxlag,wxm1,wxm2,wxm3,wy,wylag,wym1,wym2,wym3,wz,wzlag,wzm1,wzm2,wzm3,xc, &
+      xm1,xm2,xxth,yc,yinvm1,ym1,ym2,zam1,zam2,zam3,zc,zgl,zgm1,zgm2,zgm3,zgp,zm1,zm2)
       ifnav = ifadvc(1)
       turbmod = textsw(1,1)
+            ur = reshape(ur_local_grad2, shape(ur))
+            us = reshape(us_local_grad2, shape(us))
+            u = reshape(u_local_grad2, shape(u))
+            dxm1 = reshape(dxm1_local_grad2, shape(dxm1))
+            dytm1 = reshape(dytm1_local_grad2, shape(dytm1))
             do i=1,lxyz
                ux(i,e) =jacmi(i,e)*(ur(i)*rxm1(i,1,1,e)                            + us(i)*sxm1(i,1, &
       1,e) )
@@ -4718,7 +4759,6 @@ contains
       logical, dimension(1:8,1:lelt,0:1) :: ifmscr
       logical, dimension(1:8,1:lelt) :: ifnskp
       logical :: ifbcor
-      integer, parameter :: numsts=50
 ! 
 !      Input parameters from preprocessors.
 ! 
@@ -5094,7 +5134,7 @@ contains
       subroutine torque_calc(scale,x0,ifdout,iftout,dragx,dragpx,dragvx,dragy,dragpy,dragvy,dragz, &
       dragpz,dragvz,torqx,torqpx,torqvx,torqy,torqpy,torqvy,torqz,torqpz,torqvz,dpdx_mean, &
       dpdy_mean,dpdz_mean,dgtq,flow_rate,base_flow,domain_length,xsec,scale_vf,pm1,sij,ur,us,ut, &
-      vr,vs,vt,wr,ws,wt,trx,trz,xm0,ym0,zm0)
+      vr,vs,vt,wr,ws,wt,trx,trz,ym0,zm0)
 ! 
 !      Compute torque about point x0
 ! 
@@ -5191,12 +5231,36 @@ contains
       ! adjoint
       ! mhd
       real, dimension(1:3,1:4) :: dgtq_cmult
+      real, dimension(0:maxobj) :: dragpx_gop
+      real, dimension(0:maxobj) :: dragpy_gop
+      real, dimension(0:maxobj) :: dragpz_gop
+      real, dimension(0:maxobj) :: dragvx_gop
+      real, dimension(0:maxobj) :: dragvy_gop
+      real, dimension(0:maxobj) :: dragvz_gop
       real, dimension(1:lx1,1:ly1,1:lz1,1:lelv) :: pm1_add2s2
+      real, dimension(1:lx1*ly1*lz1,1:nij,1:lelv) :: sij_comp_sij
+      real, dimension(1:lx1,1:ly1,1:lz1,1:3*ldim-3,1:lelv) :: sij_drgtrq
+      real, dimension(0:maxobj) :: torqpx_gop
+      real, dimension(0:maxobj) :: torqpy_gop
+      real, dimension(0:maxobj) :: torqpz_gop
+      real, dimension(0:maxobj) :: torqvx_gop
+      real, dimension(0:maxobj) :: torqvy_gop
+      real, dimension(0:maxobj) :: torqvz_gop
+      real, dimension(1:lr) :: ur_comp_sij
+      real, dimension(1:lr) :: us_comp_sij
+      real, dimension(1:lr) :: ut_comp_sij
       real, dimension(1:lx1,1:ly1,1:lz1,1:lelt,1:ldimt1) :: vdiff_cfill
       real, dimension(1:lx1,1:ly1,1:lz1,1:lelt,1:ldimt1) :: vdiff_drgtrq
+      real, dimension(1:lr) :: vr_comp_sij
+      real, dimension(1:lr) :: vs_comp_sij
+      real, dimension(1:lr) :: vt_comp_sij
       real, dimension(1:lx1,1:ly1,1:lz1,1:lelv) :: vx_comp_sij
       real, dimension(1:lx1,1:ly1,1:lz1,1:lelv) :: vy_comp_sij
       real, dimension(1:lx1,1:ly1,1:lz1,1:lelv) :: vz_comp_sij
+      real, dimension(0:maxobj) :: w1_gop
+      real, dimension(1:lr) :: wr_comp_sij
+      real, dimension(1:lr) :: ws_comp_sij
+      real, dimension(1:lr) :: wt_comp_sij
       real, dimension(1:lx1,1:ly1,1:lz1,1:lelt) :: xm0_cadd2
       real, dimension(1:lx1,1:ly1,1:lz1,1:lelt) :: xm0_mappr
       real, dimension(1:lx1,1:ly1,1:lz1,1:lelt) :: xm1_add2s2
@@ -5208,8 +5272,9 @@ contains
       real, dimension(1:lx1,1:ly1,1:lz1,1:lelt) :: zm0_cadd2
       real, dimension(1:lx1,1:ly1,1:lz1,1:lelt) :: zm1_add2s2
       real, dimension(1:lx1,1:ly1,1:lz1,1:lelt) :: zm1_cadd2
-      xm0(1,1,1,1:512) = reshape(trx(1:lx1,1:ly1,1:lz1),shape(xm0(1,1,1,1:512)))
-      xm0(1,1,1,513:1024) = reshape(trz(1:lx1,1:ly1,1:lz1),shape(xm0(1,1,1,513:1024)))
+xm0(1,1,1:2,1:1194) = trx(1:lx1,1:ly1,1:lz1)
+xm0(1:lx1,1:ly1,2:lz1,1195:lelt) = trz(1:16,1:2,1:0)
+ym0(1,1,1:2,1:226) = trz(16:lx1,2:ly1,1:lz1)
       integer, parameter :: maxrts=1000
       integer, parameter :: mpi_status_size=6
       real :: base_flow
@@ -5410,7 +5475,7 @@ contains
       real, dimension(1:lr), intent(InOut) :: wr
       real, dimension(1:lr), intent(InOut) :: ws
       real, dimension(1:lr), intent(InOut) :: wt
-      real, dimension(1:lx1,1:ly1,1:lz1,1:lelt), intent(InOut) :: xm0
+      real, dimension(1:lx1,1:ly1,1:lz1,1:lelt) :: xm0
       real :: xsec
       real, dimension(1:lx1,1:ly1,1:lz1,1:lelt), intent(InOut) :: ym0
       real, dimension(1:lx1,1:ly1,1:lz1,1:lelt), intent(InOut) :: zm0
@@ -5459,6 +5524,8 @@ contains
       integer :: nzd
       integer :: ndim
       integer :: ldimr
+      integer, parameter :: numsts=50
+      integer, parameter :: nelgt_max=178956970
       integer, parameter :: lvt1=lx1*ly1*lz1*lelv
       integer, parameter :: lvt2=lx2*ly2*lz2*lelv
       integer, parameter :: lbt1=lbx1*lby1*lbz1*lbelv
@@ -6325,70 +6392,91 @@ contains
 ! 
       nij = 3
       if (if3d.or.ifaxis) nij=6
+      sij_comp_sij = reshape(sij,shape(sij_comp_sij))
       vx_comp_sij = reshape(vx,shape(vx_comp_sij))
       vy_comp_sij = reshape(vy,shape(vy_comp_sij))
       vz_comp_sij = reshape(vz,shape(vz_comp_sij))
-      call comp_sij(sij,nij,vx_comp_sij,vy_comp_sij,vz_comp_sij,ur,us,ut,vr,vs,vt,wr,ws,wt,ab,abmsh, &
-      abx1,abx2,aby1,aby2,abz1,abz2,area,atol,avdiff,avtran,b1ia1,b1ia1t,b1mask,b2mask,b2p,b3mask, &
-      baxm1,bbx1,bbx2,bby1,bby2,bbz1,bbz2,bc,bcf,bctyps,bd,bdivw,bfx,bfxp,bfy,bfyp,bfz,bfzp, &
-      bintm1,binvdg,binvm1,bm1,bm1lag,bm2,bm2inv,bmass,bmnv,bmx,bmy,bmz,bpmask,bq,bqp,bx,bxlag,by, &
-      bylag,bz,bzlag,c_vx,cbc,ccurve,cdof,cerror,cflf,courno,cpfld,cpgrp,cr_h,cr_re2,csize,ctarg, &
-      curve,d1,d1t,d2,da,dam1,dam12,dam3,dat,datm1,datm12,datm3,dcm1,dcm12,dcm3,dcount,dct,dctm1, &
-      dctm12,dctm3,dg_face,dg_hndlx,dglg,dglgt,dlam,dmpfle,dp0thdt,drivc,dt,dtinit,dtinvm,dtlag, &
-      dvdfh1,dvdfl2,dvdfl8,dvdfsm,dvnnh1,dvnnl2,dvnnl8,dvnnsm,dvprh1,dvprl2,dvprl8,dvprsm,dxm1, &
-      dxm12,dxm3,dxtm1,dxtm12,dxtm3,dym1,dym12,dym3,dytm1,dytm12,dytm3,dzm1,dzm12,dzm3,dztm1, &
-      dztm12,dztm3,eface,eface1,eigaa,eigae,eigas,eigast,eigga,eigge,eiggs,eiggst,eskip,etalph, &
-      etimes,etims0,ev1,ev2,ev3,exx1p,exx2p,exy1p,exy2p,exz1p,exz2p,fh_re2,filtertype,fintim, &
-      fldfle,fw,g1m1,g2m1,g3m1,g4m1,g5m1,g6m1,gamma0,gcnnum,gednum,gedtyp,gllel,gllnid,group,gsh, &
-      gsh_fld,hcode,hisfle,iajl1,iajl2,ialj1,ialj3,iam12,iam13,iam21,iam31,iatjl1,iatjl2,iatlj1, &
-      iatlj3,iatm12,iatm13,iatm21,iatm31,ibcsts,icedg,icface,icm12,icm13,icm21,icm31,ictm12, &
-      ictm13,ictm21,ictm31,idpss,idsess,ieact,iedge,iedgef,iedgfc,iesolv,if3d,if_full_pres,ifaa, &
-      ifadvc,ifae,ifalgn,ifanl2,ifanls,ifas,ifast,ifaxis,ifaziv,ifbase,ifbcor,ifbo,ifchar,ifcons, &
-      ifcoup,ifcvfld,ifcvode,ifcyclic,ifdeal,ifdg,ifdgfld,ifdiff,ifdp0dt,ifeppm,ifessr,ifexplvis, &
-      ifextr,ifexvt,ifflow,iffmtin,ifga,ifge,ifgeom,ifgmsh3,ifgprnt,ifgs,ifgsh_fld_same,ifgst, &
-      ifheat,ifield,ifintq,ifkeps,ifldmhd,iflmsc,iflmse,iflmsf,iflomach,ifmelt,ifmgrid,ifmhd, &
-      ifmoab,ifmodel,ifmodp,ifmpiio,ifmscr,ifmseg,ifmsfc,ifmvbd,ifneknek,ifneknekm,ifnonl,ifnskp, &
-      ifoutfld,ifpert,ifpo,ifprnt,ifprojfld,ifpsco,ifpso,ifqinp,ifreguo,ifrich,ifrsxy,ifrzer, &
-      ifschclob,ifskip,ifsplit,ifssvt,ifstrs,ifstst,ifsurt,ifsync,iftgo,iftmsh,ifto,iftran, &
-      ifusermv,ifuservp,ifvarp,ifvcor,ifvcoup,ifvo,ifvps,ifwcno,ifxyo,ifxyo_,iggl,igglt,igroup, &
-      im1d,im1dt,imatie,imd1,imd1t,imesh,indx,initc,instep,invedg,iocomm,ioinfodmp,iostep,ipscal, &
-      ipsco,irstim,irstt,irstv,isize,istep,ixcn,ixm12,ixm13,ixm21,ixm31,ixtm12,ixtm13,ixtm21, &
-      ixtm31,iym12,iym13,iym21,iym31,iytm12,iytm13,iytm21,iytm31,izm12,izm13,izm21,izm31,iztm12, &
-      iztm13,iztm21,iztm31,jacm1,jacm2,jacmi,jp,lastep,lcnnum,ldimr,lednum,lglel,lochis,loglevel, &
-      lsize,lyap,matids,matindx,matype,maxmlt,mpi_argv_null,mpi_argvs_null,mpi_bottom, &
-      mpi_errcodes_ignore,mpi_in_place,mpi_status_ignore,mpi_statuses_ignore,mpi_unweighted, &
-      mpi_weights_empty,nab,nabmsh,nadvc,naxhm,nbbbb,nbd,nbdinp,nbso2,nbsol,ncall,ncccc,ncdtp, &
-      ncmp,nconv,nconv_max,ncopy,ncrsl,ncvf,ndadd,ndddd,nddsl,ndg_facex,ndim,ndott,ndsmn,ndsmx, &
-      ndsnd,ndsum,neact,nedg,neeee,nelfld,nelg,nelgt,nelgv,nelt,nelv,neslv,nfield,ngcomm,ngeom, &
-      ngop,ngop1,ngop_sync,ngp2,ngsmn,ngsmx,ngspcn,ngsped,ngsum,nhis,nhmhz,nid,ninter,ninv3,ninvc, &
-      nio,nktonv,nmember,nmlinv,nmltd,nmxe,nmxh,nmxmf,nmxms,nmxnl,nmxp,nobj,node,node0,noffst, &
-      nomlis,np,npert,nprep,npres,npscal,nrefle,nrout,nsett,nslvb,nsolv,nspmax,nspro,nsskip, &
-      nsteps,nsyc,ntaubd,nu_star,nullpid,numbcs,numflu,numoth,numscn,numsed,nusbc,nvdss,nvtot, &
-      nwal,nx1,nx2,nx3,nxd,ny1,ny2,ny3,nyd,nz1,nz2,nz3,nzd,object,ocode,omask,optlevel,orefle, &
-      p0th,param,parfle,path,paxhm,pbbbb,pbso2,pbsol,pcccc,pcdtp,pcopy,pcrsl,pdadd,pdddd,pddsl, &
-      pdott,pdsmn,pdsmx,pdsnd,pdsum,peeee,peslv,pgop,pgop1,pgop_sync,pgp2,pgsmn,pgsmx,pgsum,phmhz, &
-      pi,pid,pinv3,pinvc,pm,pmask,pmd1,pmd1t,pmlag,pmltd,pmxmf,pmxms,pprep,ppres,pr,prelax,prlag, &
-      prlagp,prp,psett,pslvb,psolv,pspro,psyc,pusbc,pvdss,pwal,qinteg,qtl,rct,re2fle,re2off_b, &
-      reafle,restol,rname,rstim,rstt,rstv,rx,rxm1,rxm2,rym1,rym2,rzm1,rzm2,schfle,session,skpdat, &
-      solver_type,sxm1,sxm2,sym1,sym2,szm1,szm2,t,t1x,t1y,t1z,t2x,t2y,t2z,ta2s2,tadc3,tadd2,tadvc, &
-      tauss,taxhm,tbbbb,tbso2,tbsol,tcccc,tcdtp,tcol2,tcol3,tcopy,tcrsl,tcvf,tdadd,tdddd,tddsl, &
-      tdott,tdsmn,tdsmx,tdsnd,tdsum,teeee,teslv,textsw,tgop,tgop1,tgop_sync,tgp2,tgsmn,tgsmx, &
-      tgsum,thmhz,time,timef,timeio,tinit,tinv3,tinvc,tlag,tlagp,tmask,tmean,tmltd,tmult,tmxmf, &
-      tmxms,tnrmh1,tnrml2,tnrml8,tnrmsm,tolabs,tolev,tolhdf,tolhe,tolhr,tolhs,tolht,tolhv,tolnl, &
-      tolpdf,tolps,tolrel,tp,tprep,tpres,tproj,tschw,tsett,tslvb,tsolv,tspro,tsyc,ttime,ttotal, &
-      tttstp,tusbc,tusfq,tvdss,twal,txm1,txm2,txnext,tym1,tym2,tzm1,tzm2,unr,uns,unt,unx,uny,unz, &
-      uparam,usrdiv,v1mask,v1x,v1y,v1z,v2mask,v2x,v2y,v2z,v3mask,vdiff,vdiff_e,vgradt1,vgradt1p, &
-      vgradt2,vgradt2p,vmean,vmult,vnekton,vnrmh1,vnrml2,vnrml8,vnrmsm,vnx,vny,vnz,volel,volfld, &
-      voltm1,voltm2,volvm1,volvm2,vtrans,vx_e,vxd,vxlag,vxlagp,vxp,vy_e,vyd,vylag,vylagp,vyp,vz_e, &
-      vzd,vzlag,vzlagp,vzp,w1mask,w2am1,w2am2,w2am3,w2cm1,w2cm2,w2cm3,w2mask,w3m1,w3m2,w3m3, &
-      w3mask,wam1,wam2,wam3,wdsize,wdsizi,wgl,wgl1,wgl2,wglg,wglgt,wgli,wgp,wmult,wx,wxlag,wxm1, &
-      wxm2,wxm3,wy,wylag,wym1,wym2,wym3,wz,wzlag,wzm1,wzm2,wzm3,xc,xm1,xm2,xxth,yc,yinvm1,ym1,ym2, &
-      zam1,zam2,zam3,zc,zgl,zgm1,zgm2,zgm3,zgp,zm1,zm2)
+      ur_comp_sij = reshape(ur,shape(ur_comp_sij))
+      us_comp_sij = reshape(us,shape(us_comp_sij))
+      ut_comp_sij = reshape(ut,shape(ut_comp_sij))
+      vr_comp_sij = reshape(vr,shape(vr_comp_sij))
+      vs_comp_sij = reshape(vs,shape(vs_comp_sij))
+      vt_comp_sij = reshape(vt,shape(vt_comp_sij))
+      wr_comp_sij = reshape(wr,shape(wr_comp_sij))
+      ws_comp_sij = reshape(ws,shape(ws_comp_sij))
+      wt_comp_sij = reshape(wt,shape(wt_comp_sij))
+      call comp_sij(sij_comp_sij,nij,vx_comp_sij,vy_comp_sij,vz_comp_sij,ur_comp_sij,us_comp_sij, &
+      ut_comp_sij,vr_comp_sij,vs_comp_sij,vt_comp_sij,wr_comp_sij,ws_comp_sij,wt_comp_sij,ab, &
+      abmsh,abx1,abx2,aby1,aby2,abz1,abz2,area,atol,avdiff,avtran,b1ia1,b1ia1t,b1mask,b2mask,b2p, &
+      b3mask,baxm1,bbx1,bbx2,bby1,bby2,bbz1,bbz2,bc,bcf,bctyps,bd,bdivw,bfx,bfxp,bfy,bfyp,bfz, &
+      bfzp,bintm1,binvdg,binvm1,bm1,bm1lag,bm2,bm2inv,bmass,bmnv,bmx,bmy,bmz,bpmask,bq,bqp,bx, &
+      bxlag,by,bylag,bz,bzlag,c_vx,cbc,ccurve,cdof,cerror,cflf,courno,cpfld,cpgrp,cr_h,cr_re2, &
+      csize,ctarg,curve,d1,d1t,d2,da,dam1,dam12,dam3,dat,datm1,datm12,datm3,dcm1,dcm12,dcm3, &
+      dcount,dct,dctm1,dctm12,dctm3,dg_face,dg_hndlx,dglg,dglgt,dlam,dmpfle,dp0thdt,drivc,dt, &
+      dtinit,dtinvm,dtlag,dvdfh1,dvdfl2,dvdfl8,dvdfsm,dvnnh1,dvnnl2,dvnnl8,dvnnsm,dvprh1,dvprl2, &
+      dvprl8,dvprsm,dxm1,dxm12,dxm3,dxtm1,dxtm12,dxtm3,dym1,dym12,dym3,dytm1,dytm12,dytm3,dzm1, &
+      dzm12,dzm3,dztm1,dztm12,dztm3,eface,eface1,eigaa,eigae,eigas,eigast,eigga,eigge,eiggs, &
+      eiggst,eskip,etalph,etimes,etims0,ev1,ev2,ev3,exx1p,exx2p,exy1p,exy2p,exz1p,exz2p,fh_re2, &
+      filtertype,fintim,fldfle,fw,g1m1,g2m1,g3m1,g4m1,g5m1,g6m1,gamma0,gcnnum,gednum,gedtyp,gllel, &
+      gllnid,group,gsh,gsh_fld,hcode,hisfle,iajl1,iajl2,ialj1,ialj3,iam12,iam13,iam21,iam31, &
+      iatjl1,iatjl2,iatlj1,iatlj3,iatm12,iatm13,iatm21,iatm31,ibcsts,icedg,icface,icm12,icm13, &
+      icm21,icm31,ictm12,ictm13,ictm21,ictm31,idpss,idsess,ieact,iedge,iedgef,iedgfc,iesolv,if3d, &
+      if_full_pres,ifaa,ifadvc,ifae,ifalgn,ifanl2,ifanls,ifas,ifast,ifaxis,ifaziv,ifbase,ifbcor, &
+      ifbo,ifchar,ifcons,ifcoup,ifcvfld,ifcvode,ifcyclic,ifdeal,ifdg,ifdgfld,ifdiff,ifdp0dt, &
+      ifeppm,ifessr,ifexplvis,ifextr,ifexvt,ifflow,iffmtin,ifga,ifge,ifgeom,ifgmsh3,ifgprnt,ifgs, &
+      ifgsh_fld_same,ifgst,ifheat,ifield,ifintq,ifkeps,ifldmhd,iflmsc,iflmse,iflmsf,iflomach, &
+      ifmelt,ifmgrid,ifmhd,ifmoab,ifmodel,ifmodp,ifmpiio,ifmscr,ifmseg,ifmsfc,ifmvbd,ifneknek, &
+      ifneknekm,ifnonl,ifnskp,ifoutfld,ifpert,ifpo,ifprnt,ifprojfld,ifpsco,ifpso,ifqinp,ifreguo, &
+      ifrich,ifrsxy,ifrzer,ifschclob,ifskip,ifsplit,ifssvt,ifstrs,ifstst,ifsurt,ifsync,iftgo, &
+      iftmsh,ifto,iftran,ifusermv,ifuservp,ifvarp,ifvcor,ifvcoup,ifvo,ifvps,ifwcno,ifxyo,ifxyo_, &
+      iggl,igglt,igroup,im1d,im1dt,imatie,imd1,imd1t,imesh,indx,initc,instep,invedg,iocomm, &
+      ioinfodmp,iostep,ipscal,ipsco,irstim,irstt,irstv,isize,istep,ixcn,ixm12,ixm13,ixm21,ixm31, &
+      ixtm12,ixtm13,ixtm21,ixtm31,iym12,iym13,iym21,iym31,iytm12,iytm13,iytm21,iytm31,izm12,izm13, &
+      izm21,izm31,iztm12,iztm13,iztm21,iztm31,jacm1,jacm2,jacmi,jp,lastep,lcnnum,ldimr,lednum, &
+      lglel,lochis,loglevel,lsize,lyap,matids,matindx,matype,maxmlt,mpi_argv_null,mpi_argvs_null, &
+      mpi_bottom,mpi_errcodes_ignore,mpi_in_place,mpi_status_ignore,mpi_statuses_ignore, &
+      mpi_unweighted,mpi_weights_empty,nab,nabmsh,nadvc,naxhm,nbbbb,nbd,nbdinp,nbso2,nbsol,ncall, &
+      ncccc,ncdtp,ncmp,nconv,nconv_max,ncopy,ncrsl,ncvf,ndadd,ndddd,nddsl,ndg_facex,ndim,ndott, &
+      ndsmn,ndsmx,ndsnd,ndsum,neact,nedg,neeee,nelfld,nelg,nelgt,nelgv,nelt,nelv,neslv,nfield, &
+      ngcomm,ngeom,ngop,ngop1,ngop_sync,ngp2,ngsmn,ngsmx,ngspcn,ngsped,ngsum,nhis,nhmhz,nid, &
+      ninter,ninv3,ninvc,nio,nktonv,nmember,nmlinv,nmltd,nmxe,nmxh,nmxmf,nmxms,nmxnl,nmxp,nobj, &
+      node,node0,noffst,nomlis,np,npert,nprep,npres,npscal,nrefle,nrout,nsett,nslvb,nsolv,nspmax, &
+      nspro,nsskip,nsteps,nsyc,ntaubd,nu_star,nullpid,numbcs,numflu,numoth,numscn,numsed,nusbc, &
+      nvdss,nvtot,nwal,nx1,nx2,nx3,nxd,ny1,ny2,ny3,nyd,nz1,nz2,nz3,nzd,object,ocode,omask, &
+      optlevel,orefle,p0th,param,parfle,path,paxhm,pbbbb,pbso2,pbsol,pcccc,pcdtp,pcopy,pcrsl, &
+      pdadd,pdddd,pddsl,pdott,pdsmn,pdsmx,pdsnd,pdsum,peeee,peslv,pgop,pgop1,pgop_sync,pgp2,pgsmn, &
+      pgsmx,pgsum,phmhz,pi,pid,pinv3,pinvc,pm,pmask,pmd1,pmd1t,pmlag,pmltd,pmxmf,pmxms,pprep, &
+      ppres,pr,prelax,prlag,prlagp,prp,psett,pslvb,psolv,pspro,psyc,pusbc,pvdss,pwal,qinteg,qtl, &
+      rct,re2fle,re2off_b,reafle,restol,rname,rstim,rstt,rstv,rx,rxm1,rxm2,rym1,rym2,rzm1,rzm2, &
+      schfle,session,skpdat,solver_type,sxm1,sxm2,sym1,sym2,szm1,szm2,t,t1x,t1y,t1z,t2x,t2y,t2z, &
+      ta2s2,tadc3,tadd2,tadvc,tauss,taxhm,tbbbb,tbso2,tbsol,tcccc,tcdtp,tcol2,tcol3,tcopy,tcrsl, &
+      tcvf,tdadd,tdddd,tddsl,tdott,tdsmn,tdsmx,tdsnd,tdsum,teeee,teslv,textsw,tgop,tgop1, &
+      tgop_sync,tgp2,tgsmn,tgsmx,tgsum,thmhz,time,timef,timeio,tinit,tinv3,tinvc,tlag,tlagp,tmask, &
+      tmean,tmltd,tmult,tmxmf,tmxms,tnrmh1,tnrml2,tnrml8,tnrmsm,tolabs,tolev,tolhdf,tolhe,tolhr, &
+      tolhs,tolht,tolhv,tolnl,tolpdf,tolps,tolrel,tp,tprep,tpres,tproj,tschw,tsett,tslvb,tsolv, &
+      tspro,tsyc,ttime,ttotal,tttstp,tusbc,tusfq,tvdss,twal,txm1,txm2,txnext,tym1,tym2,tzm1,tzm2, &
+      unr,uns,unt,unx,uny,unz,uparam,usrdiv,v1mask,v1x,v1y,v1z,v2mask,v2x,v2y,v2z,v3mask,vdiff, &
+      vdiff_e,vgradt1,vgradt1p,vgradt2,vgradt2p,vmean,vmult,vnekton,vnrmh1,vnrml2,vnrml8,vnrmsm, &
+      vnx,vny,vnz,volel,volfld,voltm1,voltm2,volvm1,volvm2,vtrans,vx_e,vxd,vxlag,vxlagp,vxp,vy_e, &
+      vyd,vylag,vylagp,vyp,vz_e,vzd,vzlag,vzlagp,vzp,w1mask,w2am1,w2am2,w2am3,w2cm1,w2cm2,w2cm3, &
+      w2mask,w3m1,w3m2,w3m3,w3mask,wam1,wam2,wam3,wdsize,wdsizi,wgl,wgl1,wgl2,wglg,wglgt,wgli,wgp, &
+      wmult,wx,wxlag,wxm1,wxm2,wxm3,wy,wylag,wym1,wym2,wym3,wz,wzlag,wzm1,wzm2,wzm3,xc,xm1,xm2, &
+      xxth,yc,yinvm1,ym1,ym2,zam1,zam2,zam3,zc,zgl,zgm1,zgm2,zgm3,zgp,zm1,zm2)
       ifnav = ifadvc(1)
       turbmod = textsw(1,1)
+      sij = reshape(sij_comp_sij, shape(sij))
       vx = reshape(vx_comp_sij, shape(vx))
       vy = reshape(vy_comp_sij, shape(vy))
       vz = reshape(vz_comp_sij, shape(vz))
+      ur = reshape(ur_comp_sij, shape(ur))
+      us = reshape(us_comp_sij, shape(us))
+      ut = reshape(ut_comp_sij, shape(ut))
+      vr = reshape(vr_comp_sij, shape(vr))
+      vs = reshape(vs_comp_sij, shape(vs))
+      vt = reshape(vt_comp_sij, shape(vt))
+      wr = reshape(wr_comp_sij, shape(wr))
+      ws = reshape(ws_comp_sij, shape(ws))
+      wt = reshape(wt_comp_sij, shape(wt))
 ! 
 ! 
 !      Fill up viscous array w/ default
@@ -6800,22 +6888,23 @@ contains
                ifc   = object(iobj,mem,2)
                if (gllnid(ieg) == nid) then 
                   ie = gllel(ieg)
+                  sij_drgtrq = reshape(sij,shape(sij_drgtrq))
                   vdiff_drgtrq = reshape(vdiff,shape(vdiff_drgtrq))
-                  call drgtrq(dgtq,xm0,ym0,zm0,sij,pm1,vdiff_drgtrq,ifc,ie,ab,abmsh,area,atol, &
-      avdiff,avtran,bc,bcf,bctyps,bd,cbc,ccurve,cdof,cerror,courno,cpfld,cpgrp,cr_re2,ctarg,curve, &
-      dlam,dmpfle,drivc,dt,dtinit,dtinvm,dtlag,eface,eface1,eskip,etalph,fh_re2,filtertype,fintim, &
-      fldfle,g1m1,g2m1,g3m1,g4m1,g5m1,g6m1,gcnnum,gednum,gedtyp,group,hcode,hisfle,ibcsts,icedg, &
-      icface,idpss,idsess,ieact,iedge,iedgef,iedgfc,if3d,if_full_pres,ifadvc,ifanl2,ifanls,ifaxis, &
-      ifaziv,ifbase,ifbcor,ifbo,ifchar,ifcons,ifcoup,ifcvfld,ifcvode,ifcyclic,ifdeal,ifdg,ifdgfld, &
-      ifdiff,ifdp0dt,ifeppm,ifessr,ifexplvis,ifflow,iffmtin,ifgeom,ifgmsh3,ifheat,ifield,ifintq, &
-      ifkeps,ifldmhd,iflmsc,iflmse,iflmsf,iflomach,ifmelt,ifmgrid,ifmhd,ifmoab,ifmodel,ifmpiio, &
-      ifmscr,ifmseg,ifmsfc,ifmvbd,ifneknek,ifneknekm,ifnonl,ifnskp,ifoutfld,ifpert,ifpo,ifprnt, &
-      ifprojfld,ifpsco,ifpso,ifqinp,ifreguo,ifrich,ifrzer,ifschclob,ifsplit,ifstrs,ifsurt,iftgo, &
-      iftmsh,ifto,iftran,ifusermv,ifuservp,ifvarp,ifvcor,ifvcoup,ifvo,ifvps,ifwcno,ifxyo,ifxyo_, &
-      igroup,imatie,imesh,indx,initc,instep,invedg,iocomm,ioinfodmp,iostep,ipscal,ipsco,irstim, &
-      irstt,irstv,istep,ixcn,jacm1,jacm2,jacmi,lastep,lcnnum,ldimr,lednum,lochis,loglevel,lyap, &
-      matids,matindx,matype,maxmlt,nab,nabmsh,nbd,nbdinp,ncmp,nconv,nconv_max,ndim,neact,nedg, &
-      nelfld,nelt,nelv,nfield,ngcomm,ngeom,ngspcn,ngsped,nhis,nid,ninter,nio,nktonv,nmember, &
+                  call drgtrq(dgtq,xm0,ym0,zm0,sij_drgtrq,pm1,vdiff_drgtrq,ifc,ie,ab,abmsh,area, &
+      atol,avdiff,avtran,bc,bcf,bctyps,bd,cbc,ccurve,cdof,cerror,courno,cpfld,cpgrp,cr_re2,ctarg, &
+      curve,dlam,dmpfle,drivc,dt,dtinit,dtinvm,dtlag,eface,eface1,eskip,etalph,fh_re2,filtertype, &
+      fintim,fldfle,g1m1,g2m1,g3m1,g4m1,g5m1,g6m1,gcnnum,gednum,gedtyp,group,hcode,hisfle,ibcsts, &
+      icedg,icface,idpss,idsess,ieact,iedge,iedgef,iedgfc,if3d,if_full_pres,ifadvc,ifanl2,ifanls, &
+      ifaxis,ifaziv,ifbase,ifbcor,ifbo,ifchar,ifcons,ifcoup,ifcvfld,ifcvode,ifcyclic,ifdeal,ifdg, &
+      ifdgfld,ifdiff,ifdp0dt,ifeppm,ifessr,ifexplvis,ifflow,iffmtin,ifgeom,ifgmsh3,ifheat,ifield, &
+      ifintq,ifkeps,ifldmhd,iflmsc,iflmse,iflmsf,iflomach,ifmelt,ifmgrid,ifmhd,ifmoab,ifmodel, &
+      ifmpiio,ifmscr,ifmseg,ifmsfc,ifmvbd,ifneknek,ifneknekm,ifnonl,ifnskp,ifoutfld,ifpert,ifpo, &
+      ifprnt,ifprojfld,ifpsco,ifpso,ifqinp,ifreguo,ifrich,ifrzer,ifschclob,ifsplit,ifstrs,ifsurt, &
+      iftgo,iftmsh,ifto,iftran,ifusermv,ifuservp,ifvarp,ifvcor,ifvcoup,ifvo,ifvps,ifwcno,ifxyo, &
+      ifxyo_,igroup,imatie,imesh,indx,initc,instep,invedg,iocomm,ioinfodmp,iostep,ipscal,ipsco, &
+      irstim,irstt,irstv,istep,ixcn,jacm1,jacm2,jacmi,lastep,lcnnum,ldimr,lednum,lochis,loglevel, &
+      lyap,matids,matindx,matype,maxmlt,nab,nabmsh,nbd,nbdinp,ncmp,nconv,nconv_max,ndim,neact, &
+      nedg,nelfld,nelt,nelv,nfield,ngcomm,ngeom,ngspcn,ngsped,nhis,nid,ninter,nio,nktonv,nmember, &
       nmlinv,nmxe,nmxh,nmxnl,nmxp,nobj,noffst,nomlis,npert,npscal,nrefle,nspmax,nsteps,ntaubd, &
       numbcs,numflu,numoth,numscn,numsed,nx1,nx2,nx3,nxd,ny1,ny2,ny3,nyd,nz1,nz2,nz3,nzd,object, &
       ocode,optlevel,orefle,param,parfle,path,pi,prelax,qinteg,re2fle,re2off_b,reafle,restol, &
@@ -6827,6 +6916,7 @@ contains
       zm2)
       ifnav = ifadvc(1)
       turbmod = textsw(1,1)
+                  sij = reshape(sij_drgtrq, shape(sij))
                   vdiff = reshape(vdiff_drgtrq, shape(vdiff))
 ! 
                   dgtq_cmult = reshape(dgtq,shape(dgtq_cmult))
@@ -6858,33 +6948,35 @@ contains
 ! 
 !      Sum contributions from all processors
 ! 
-      call gop(dragpx,w1,'+  ',maxobj+1,ab,abmsh,abx1,abx2,aby1,aby2,abz1,abz2,area,atol,avdiff, &
-      avtran,b1ia1,b1ia1t,b1mask,b2mask,b2p,b3mask,baxm1,bbx1,bbx2,bby1,bby2,bbz1,bbz2,bc,bcf, &
-      bctyps,bd,bdivw,bfx,bfxp,bfy,bfyp,bfz,bfzp,bintm1,binvdg,binvm1,bm1,bm1lag,bm2,bm2inv,bmass, &
-      bmnv,bmx,bmy,bmz,bpmask,bq,bqp,bx,bxlag,by,bylag,bz,bzlag,c_vx,cbc,ccurve,cdof,cerror,cflf, &
-      courno,cpfld,cpgrp,cr_h,cr_re2,csize,ctarg,curve,d1,d1t,d2,da,dam1,dam12,dam3,dat,datm1, &
-      datm12,datm3,dcm1,dcm12,dcm3,dctm1,dctm12,dctm3,dg_face,dg_hndlx,dglg,dglgt,dlam,dmpfle, &
-      dp0thdt,drivc,dt,dtinit,dtinvm,dtlag,dvdfh1,dvdfl2,dvdfl8,dvdfsm,dvnnh1,dvnnl2,dvnnl8, &
-      dvnnsm,dvprh1,dvprl2,dvprl8,dvprsm,dxm1,dxm12,dxm3,dxtm1,dxtm12,dxtm3,dym1,dym12,dym3,dytm1, &
-      dytm12,dytm3,dzm1,dzm12,dzm3,dztm1,dztm12,dztm3,eface,eface1,eigaa,eigae,eigas,eigast,eigga, &
-      eigge,eiggs,eiggst,eskip,etalph,etimes,etims0,ev1,ev2,ev3,exx1p,exx2p,exy1p,exy2p,exz1p, &
-      exz2p,fh_re2,filtertype,fintim,fldfle,fw,g1m1,g2m1,g3m1,g4m1,g5m1,g6m1,gamma0,gcnnum,gednum, &
-      gedtyp,gllel,gllnid,group,gsh,gsh_fld,hcode,hisfle,iajl1,iajl2,ialj1,ialj3,iam12,iam13, &
-      iam21,iam31,iatjl1,iatjl2,iatlj1,iatlj3,iatm12,iatm13,iatm21,iatm31,ibcsts,icall,icedg, &
-      icface,icm12,icm13,icm21,icm31,ictm12,ictm13,ictm21,ictm31,idpss,idsess,ieact,iedge,iedgef, &
-      iedgfc,iesolv,if3d,if_full_pres,ifaa,ifadvc,ifae,ifalgn,ifanl2,ifanls,ifas,ifast,ifaxis, &
-      ifaziv,ifbase,ifbcor,ifbo,ifchar,ifcons,ifcoup,ifcvfld,ifcvode,ifcyclic,ifdeal,ifdg,ifdgfld, &
-      ifdiff,ifdp0dt,ifeppm,ifessr,ifexplvis,ifextr,ifexvt,ifflow,iffmtin,ifga,ifge,ifgeom, &
-      ifgmsh3,ifgprnt,ifgs,ifgsh_fld_same,ifgst,ifheat,ifield,ifintq,ifkeps,ifldmhd,iflmsc,iflmse, &
-      iflmsf,iflomach,ifmelt,ifmgrid,ifmhd,ifmoab,ifmodel,ifmodp,ifmpiio,ifmscr,ifmseg,ifmsfc, &
-      ifmvbd,ifneknek,ifneknekm,ifnonl,ifnskp,ifoutfld,ifpert,ifpo,ifprnt,ifprojfld,ifpsco,ifpso, &
-      ifqinp,ifreguo,ifrich,ifrsxy,ifrzer,ifschclob,ifskip,ifsplit,ifssvt,ifstrs,ifstst,ifsurt, &
-      ifsync,iftgo,iftmsh,ifto,iftran,ifusermv,ifuservp,ifvarp,ifvcor,ifvcoup,ifvo,ifvps,ifwcno, &
-      ifxyo,ifxyo_,iggl,igglt,igroup,im1d,im1dt,imatie,imd1,imd1t,imesh,indx,initc,instep,invedg, &
-      iocomm,ioinfodmp,iostep,ipscal,ipsco,irstim,irstt,irstv,isize,istep,ixcn,ixm12,ixm13,ixm21, &
-      ixm31,ixtm12,ixtm13,ixtm21,ixtm31,iym12,iym13,iym21,iym31,iytm12,iytm13,iytm21,iytm31,izm12, &
-      izm13,izm21,izm31,iztm12,iztm13,iztm21,iztm31,jacm1,jacm2,jacmi,jp,lastep,lcnnum,ldimr, &
-      lednum,lglel,lochis,loglevel,lsize,lyap,matids,matindx,matype,maxmlt,mpi_argv_null, &
+      dragpx_gop = reshape(dragpx,shape(dragpx_gop))
+      w1_gop = reshape(w1,shape(w1_gop))
+      call gop(dragpx_gop,w1_gop,'+  ',maxobj+1,ab,abmsh,abx1,abx2,aby1,aby2,abz1,abz2,area,atol, &
+      avdiff,avtran,b1ia1,b1ia1t,b1mask,b2mask,b2p,b3mask,baxm1,bbx1,bbx2,bby1,bby2,bbz1,bbz2,bc, &
+      bcf,bctyps,bd,bdivw,bfx,bfxp,bfy,bfyp,bfz,bfzp,bintm1,binvdg,binvm1,bm1,bm1lag,bm2,bm2inv, &
+      bmass,bmnv,bmx,bmy,bmz,bpmask,bq,bqp,bx,bxlag,by,bylag,bz,bzlag,c_vx,cbc,ccurve,cdof,cerror, &
+      cflf,courno,cpfld,cpgrp,cr_h,cr_re2,csize,ctarg,curve,d1,d1t,d2,da,dam1,dam12,dam3,dat, &
+      datm1,datm12,datm3,dcm1,dcm12,dcm3,dctm1,dctm12,dctm3,dg_face,dg_hndlx,dglg,dglgt,dlam, &
+      dmpfle,dp0thdt,drivc,dt,dtinit,dtinvm,dtlag,dvdfh1,dvdfl2,dvdfl8,dvdfsm,dvnnh1,dvnnl2, &
+      dvnnl8,dvnnsm,dvprh1,dvprl2,dvprl8,dvprsm,dxm1,dxm12,dxm3,dxtm1,dxtm12,dxtm3,dym1,dym12, &
+      dym3,dytm1,dytm12,dytm3,dzm1,dzm12,dzm3,dztm1,dztm12,dztm3,eface,eface1,eigaa,eigae,eigas, &
+      eigast,eigga,eigge,eiggs,eiggst,eskip,etalph,etimes,etims0,ev1,ev2,ev3,exx1p,exx2p,exy1p, &
+      exy2p,exz1p,exz2p,fh_re2,filtertype,fintim,fldfle,fw,g1m1,g2m1,g3m1,g4m1,g5m1,g6m1,gamma0, &
+      gcnnum,gednum,gedtyp,gllel,gllnid,group,gsh,gsh_fld,hcode,hisfle,iajl1,iajl2,ialj1,ialj3, &
+      iam12,iam13,iam21,iam31,iatjl1,iatjl2,iatlj1,iatlj3,iatm12,iatm13,iatm21,iatm31,ibcsts, &
+      icall,icedg,icface,icm12,icm13,icm21,icm31,ictm12,ictm13,ictm21,ictm31,idpss,idsess,ieact, &
+      iedge,iedgef,iedgfc,iesolv,if3d,if_full_pres,ifaa,ifadvc,ifae,ifalgn,ifanl2,ifanls,ifas, &
+      ifast,ifaxis,ifaziv,ifbase,ifbcor,ifbo,ifchar,ifcons,ifcoup,ifcvfld,ifcvode,ifcyclic,ifdeal, &
+      ifdg,ifdgfld,ifdiff,ifdp0dt,ifeppm,ifessr,ifexplvis,ifextr,ifexvt,ifflow,iffmtin,ifga,ifge, &
+      ifgeom,ifgmsh3,ifgprnt,ifgs,ifgsh_fld_same,ifgst,ifheat,ifield,ifintq,ifkeps,ifldmhd,iflmsc, &
+      iflmse,iflmsf,iflomach,ifmelt,ifmgrid,ifmhd,ifmoab,ifmodel,ifmodp,ifmpiio,ifmscr,ifmseg, &
+      ifmsfc,ifmvbd,ifneknek,ifneknekm,ifnonl,ifnskp,ifoutfld,ifpert,ifpo,ifprnt,ifprojfld,ifpsco, &
+      ifpso,ifqinp,ifreguo,ifrich,ifrsxy,ifrzer,ifschclob,ifskip,ifsplit,ifssvt,ifstrs,ifstst, &
+      ifsurt,ifsync,iftgo,iftmsh,ifto,iftran,ifusermv,ifuservp,ifvarp,ifvcor,ifvcoup,ifvo,ifvps, &
+      ifwcno,ifxyo,ifxyo_,iggl,igglt,igroup,im1d,im1dt,imatie,imd1,imd1t,imesh,indx,initc,instep, &
+      invedg,iocomm,ioinfodmp,iostep,ipscal,ipsco,irstim,irstt,irstv,isize,istep,ixcn,ixm12,ixm13, &
+      ixm21,ixm31,ixtm12,ixtm13,ixtm21,ixtm31,iym12,iym13,iym21,iym31,iytm12,iytm13,iytm21,iytm31, &
+      izm12,izm13,izm21,izm31,iztm12,iztm13,iztm21,iztm31,jacm1,jacm2,jacmi,jp,lastep,lcnnum, &
+      ldimr,lednum,lglel,lochis,loglevel,lsize,lyap,matids,matindx,matype,maxmlt,mpi_argv_null, &
       mpi_argvs_null,mpi_bottom,mpi_errcodes_ignore,mpi_in_place,mpi_status_ignore, &
       mpi_statuses_ignore,mpi_unweighted,mpi_weights_empty,nab,nabmsh,nadvc,naxhm,nbbbb,nbd, &
       nbdinp,nbso2,nbsol,ncccc,ncdtp,ncmp,nconv,nconv_max,ncopy,ncrsl,ncvf,ndadd,ndddd,nddsl, &
@@ -6915,33 +7007,37 @@ contains
       xm1,xm2,xxth,yc,yinvm1,ym1,ym2,zam1,zam2,zam3,zc,zgl,zgm1,zgm2,zgm3,zgp,zm1,zm2)
       ifnav = ifadvc(1)
       turbmod = textsw(1,1)
-      call gop(dragpy,w1,'+  ',maxobj+1,ab,abmsh,abx1,abx2,aby1,aby2,abz1,abz2,area,atol,avdiff, &
-      avtran,b1ia1,b1ia1t,b1mask,b2mask,b2p,b3mask,baxm1,bbx1,bbx2,bby1,bby2,bbz1,bbz2,bc,bcf, &
-      bctyps,bd,bdivw,bfx,bfxp,bfy,bfyp,bfz,bfzp,bintm1,binvdg,binvm1,bm1,bm1lag,bm2,bm2inv,bmass, &
-      bmnv,bmx,bmy,bmz,bpmask,bq,bqp,bx,bxlag,by,bylag,bz,bzlag,c_vx,cbc,ccurve,cdof,cerror,cflf, &
-      courno,cpfld,cpgrp,cr_h,cr_re2,csize,ctarg,curve,d1,d1t,d2,da,dam1,dam12,dam3,dat,datm1, &
-      datm12,datm3,dcm1,dcm12,dcm3,dctm1,dctm12,dctm3,dg_face,dg_hndlx,dglg,dglgt,dlam,dmpfle, &
-      dp0thdt,drivc,dt,dtinit,dtinvm,dtlag,dvdfh1,dvdfl2,dvdfl8,dvdfsm,dvnnh1,dvnnl2,dvnnl8, &
-      dvnnsm,dvprh1,dvprl2,dvprl8,dvprsm,dxm1,dxm12,dxm3,dxtm1,dxtm12,dxtm3,dym1,dym12,dym3,dytm1, &
-      dytm12,dytm3,dzm1,dzm12,dzm3,dztm1,dztm12,dztm3,eface,eface1,eigaa,eigae,eigas,eigast,eigga, &
-      eigge,eiggs,eiggst,eskip,etalph,etimes,etims0,ev1,ev2,ev3,exx1p,exx2p,exy1p,exy2p,exz1p, &
-      exz2p,fh_re2,filtertype,fintim,fldfle,fw,g1m1,g2m1,g3m1,g4m1,g5m1,g6m1,gamma0,gcnnum,gednum, &
-      gedtyp,gllel,gllnid,group,gsh,gsh_fld,hcode,hisfle,iajl1,iajl2,ialj1,ialj3,iam12,iam13, &
-      iam21,iam31,iatjl1,iatjl2,iatlj1,iatlj3,iatm12,iatm13,iatm21,iatm31,ibcsts,icall,icedg, &
-      icface,icm12,icm13,icm21,icm31,ictm12,ictm13,ictm21,ictm31,idpss,idsess,ieact,iedge,iedgef, &
-      iedgfc,iesolv,if3d,if_full_pres,ifaa,ifadvc,ifae,ifalgn,ifanl2,ifanls,ifas,ifast,ifaxis, &
-      ifaziv,ifbase,ifbcor,ifbo,ifchar,ifcons,ifcoup,ifcvfld,ifcvode,ifcyclic,ifdeal,ifdg,ifdgfld, &
-      ifdiff,ifdp0dt,ifeppm,ifessr,ifexplvis,ifextr,ifexvt,ifflow,iffmtin,ifga,ifge,ifgeom, &
-      ifgmsh3,ifgprnt,ifgs,ifgsh_fld_same,ifgst,ifheat,ifield,ifintq,ifkeps,ifldmhd,iflmsc,iflmse, &
-      iflmsf,iflomach,ifmelt,ifmgrid,ifmhd,ifmoab,ifmodel,ifmodp,ifmpiio,ifmscr,ifmseg,ifmsfc, &
-      ifmvbd,ifneknek,ifneknekm,ifnonl,ifnskp,ifoutfld,ifpert,ifpo,ifprnt,ifprojfld,ifpsco,ifpso, &
-      ifqinp,ifreguo,ifrich,ifrsxy,ifrzer,ifschclob,ifskip,ifsplit,ifssvt,ifstrs,ifstst,ifsurt, &
-      ifsync,iftgo,iftmsh,ifto,iftran,ifusermv,ifuservp,ifvarp,ifvcor,ifvcoup,ifvo,ifvps,ifwcno, &
-      ifxyo,ifxyo_,iggl,igglt,igroup,im1d,im1dt,imatie,imd1,imd1t,imesh,indx,initc,instep,invedg, &
-      iocomm,ioinfodmp,iostep,ipscal,ipsco,irstim,irstt,irstv,isize,istep,ixcn,ixm12,ixm13,ixm21, &
-      ixm31,ixtm12,ixtm13,ixtm21,ixtm31,iym12,iym13,iym21,iym31,iytm12,iytm13,iytm21,iytm31,izm12, &
-      izm13,izm21,izm31,iztm12,iztm13,iztm21,iztm31,jacm1,jacm2,jacmi,jp,lastep,lcnnum,ldimr, &
-      lednum,lglel,lochis,loglevel,lsize,lyap,matids,matindx,matype,maxmlt,mpi_argv_null, &
+      dragpx = reshape(dragpx_gop, shape(dragpx))
+      w1 = reshape(w1_gop, shape(w1))
+      dragpy_gop = reshape(dragpy,shape(dragpy_gop))
+      w1_gop = reshape(w1,shape(w1_gop))
+      call gop(dragpy_gop,w1_gop,'+  ',maxobj+1,ab,abmsh,abx1,abx2,aby1,aby2,abz1,abz2,area,atol, &
+      avdiff,avtran,b1ia1,b1ia1t,b1mask,b2mask,b2p,b3mask,baxm1,bbx1,bbx2,bby1,bby2,bbz1,bbz2,bc, &
+      bcf,bctyps,bd,bdivw,bfx,bfxp,bfy,bfyp,bfz,bfzp,bintm1,binvdg,binvm1,bm1,bm1lag,bm2,bm2inv, &
+      bmass,bmnv,bmx,bmy,bmz,bpmask,bq,bqp,bx,bxlag,by,bylag,bz,bzlag,c_vx,cbc,ccurve,cdof,cerror, &
+      cflf,courno,cpfld,cpgrp,cr_h,cr_re2,csize,ctarg,curve,d1,d1t,d2,da,dam1,dam12,dam3,dat, &
+      datm1,datm12,datm3,dcm1,dcm12,dcm3,dctm1,dctm12,dctm3,dg_face,dg_hndlx,dglg,dglgt,dlam, &
+      dmpfle,dp0thdt,drivc,dt,dtinit,dtinvm,dtlag,dvdfh1,dvdfl2,dvdfl8,dvdfsm,dvnnh1,dvnnl2, &
+      dvnnl8,dvnnsm,dvprh1,dvprl2,dvprl8,dvprsm,dxm1,dxm12,dxm3,dxtm1,dxtm12,dxtm3,dym1,dym12, &
+      dym3,dytm1,dytm12,dytm3,dzm1,dzm12,dzm3,dztm1,dztm12,dztm3,eface,eface1,eigaa,eigae,eigas, &
+      eigast,eigga,eigge,eiggs,eiggst,eskip,etalph,etimes,etims0,ev1,ev2,ev3,exx1p,exx2p,exy1p, &
+      exy2p,exz1p,exz2p,fh_re2,filtertype,fintim,fldfle,fw,g1m1,g2m1,g3m1,g4m1,g5m1,g6m1,gamma0, &
+      gcnnum,gednum,gedtyp,gllel,gllnid,group,gsh,gsh_fld,hcode,hisfle,iajl1,iajl2,ialj1,ialj3, &
+      iam12,iam13,iam21,iam31,iatjl1,iatjl2,iatlj1,iatlj3,iatm12,iatm13,iatm21,iatm31,ibcsts, &
+      icall,icedg,icface,icm12,icm13,icm21,icm31,ictm12,ictm13,ictm21,ictm31,idpss,idsess,ieact, &
+      iedge,iedgef,iedgfc,iesolv,if3d,if_full_pres,ifaa,ifadvc,ifae,ifalgn,ifanl2,ifanls,ifas, &
+      ifast,ifaxis,ifaziv,ifbase,ifbcor,ifbo,ifchar,ifcons,ifcoup,ifcvfld,ifcvode,ifcyclic,ifdeal, &
+      ifdg,ifdgfld,ifdiff,ifdp0dt,ifeppm,ifessr,ifexplvis,ifextr,ifexvt,ifflow,iffmtin,ifga,ifge, &
+      ifgeom,ifgmsh3,ifgprnt,ifgs,ifgsh_fld_same,ifgst,ifheat,ifield,ifintq,ifkeps,ifldmhd,iflmsc, &
+      iflmse,iflmsf,iflomach,ifmelt,ifmgrid,ifmhd,ifmoab,ifmodel,ifmodp,ifmpiio,ifmscr,ifmseg, &
+      ifmsfc,ifmvbd,ifneknek,ifneknekm,ifnonl,ifnskp,ifoutfld,ifpert,ifpo,ifprnt,ifprojfld,ifpsco, &
+      ifpso,ifqinp,ifreguo,ifrich,ifrsxy,ifrzer,ifschclob,ifskip,ifsplit,ifssvt,ifstrs,ifstst, &
+      ifsurt,ifsync,iftgo,iftmsh,ifto,iftran,ifusermv,ifuservp,ifvarp,ifvcor,ifvcoup,ifvo,ifvps, &
+      ifwcno,ifxyo,ifxyo_,iggl,igglt,igroup,im1d,im1dt,imatie,imd1,imd1t,imesh,indx,initc,instep, &
+      invedg,iocomm,ioinfodmp,iostep,ipscal,ipsco,irstim,irstt,irstv,isize,istep,ixcn,ixm12,ixm13, &
+      ixm21,ixm31,ixtm12,ixtm13,ixtm21,ixtm31,iym12,iym13,iym21,iym31,iytm12,iytm13,iytm21,iytm31, &
+      izm12,izm13,izm21,izm31,iztm12,iztm13,iztm21,iztm31,jacm1,jacm2,jacmi,jp,lastep,lcnnum, &
+      ldimr,lednum,lglel,lochis,loglevel,lsize,lyap,matids,matindx,matype,maxmlt,mpi_argv_null, &
       mpi_argvs_null,mpi_bottom,mpi_errcodes_ignore,mpi_in_place,mpi_status_ignore, &
       mpi_statuses_ignore,mpi_unweighted,mpi_weights_empty,nab,nabmsh,nadvc,naxhm,nbbbb,nbd, &
       nbdinp,nbso2,nbsol,ncccc,ncdtp,ncmp,nconv,nconv_max,ncopy,ncrsl,ncvf,ndadd,ndddd,nddsl, &
@@ -6972,33 +7068,37 @@ contains
       xm1,xm2,xxth,yc,yinvm1,ym1,ym2,zam1,zam2,zam3,zc,zgl,zgm1,zgm2,zgm3,zgp,zm1,zm2)
       ifnav = ifadvc(1)
       turbmod = textsw(1,1)
-      call gop(dragpz,w1,'+  ',maxobj+1,ab,abmsh,abx1,abx2,aby1,aby2,abz1,abz2,area,atol,avdiff, &
-      avtran,b1ia1,b1ia1t,b1mask,b2mask,b2p,b3mask,baxm1,bbx1,bbx2,bby1,bby2,bbz1,bbz2,bc,bcf, &
-      bctyps,bd,bdivw,bfx,bfxp,bfy,bfyp,bfz,bfzp,bintm1,binvdg,binvm1,bm1,bm1lag,bm2,bm2inv,bmass, &
-      bmnv,bmx,bmy,bmz,bpmask,bq,bqp,bx,bxlag,by,bylag,bz,bzlag,c_vx,cbc,ccurve,cdof,cerror,cflf, &
-      courno,cpfld,cpgrp,cr_h,cr_re2,csize,ctarg,curve,d1,d1t,d2,da,dam1,dam12,dam3,dat,datm1, &
-      datm12,datm3,dcm1,dcm12,dcm3,dctm1,dctm12,dctm3,dg_face,dg_hndlx,dglg,dglgt,dlam,dmpfle, &
-      dp0thdt,drivc,dt,dtinit,dtinvm,dtlag,dvdfh1,dvdfl2,dvdfl8,dvdfsm,dvnnh1,dvnnl2,dvnnl8, &
-      dvnnsm,dvprh1,dvprl2,dvprl8,dvprsm,dxm1,dxm12,dxm3,dxtm1,dxtm12,dxtm3,dym1,dym12,dym3,dytm1, &
-      dytm12,dytm3,dzm1,dzm12,dzm3,dztm1,dztm12,dztm3,eface,eface1,eigaa,eigae,eigas,eigast,eigga, &
-      eigge,eiggs,eiggst,eskip,etalph,etimes,etims0,ev1,ev2,ev3,exx1p,exx2p,exy1p,exy2p,exz1p, &
-      exz2p,fh_re2,filtertype,fintim,fldfle,fw,g1m1,g2m1,g3m1,g4m1,g5m1,g6m1,gamma0,gcnnum,gednum, &
-      gedtyp,gllel,gllnid,group,gsh,gsh_fld,hcode,hisfle,iajl1,iajl2,ialj1,ialj3,iam12,iam13, &
-      iam21,iam31,iatjl1,iatjl2,iatlj1,iatlj3,iatm12,iatm13,iatm21,iatm31,ibcsts,icall,icedg, &
-      icface,icm12,icm13,icm21,icm31,ictm12,ictm13,ictm21,ictm31,idpss,idsess,ieact,iedge,iedgef, &
-      iedgfc,iesolv,if3d,if_full_pres,ifaa,ifadvc,ifae,ifalgn,ifanl2,ifanls,ifas,ifast,ifaxis, &
-      ifaziv,ifbase,ifbcor,ifbo,ifchar,ifcons,ifcoup,ifcvfld,ifcvode,ifcyclic,ifdeal,ifdg,ifdgfld, &
-      ifdiff,ifdp0dt,ifeppm,ifessr,ifexplvis,ifextr,ifexvt,ifflow,iffmtin,ifga,ifge,ifgeom, &
-      ifgmsh3,ifgprnt,ifgs,ifgsh_fld_same,ifgst,ifheat,ifield,ifintq,ifkeps,ifldmhd,iflmsc,iflmse, &
-      iflmsf,iflomach,ifmelt,ifmgrid,ifmhd,ifmoab,ifmodel,ifmodp,ifmpiio,ifmscr,ifmseg,ifmsfc, &
-      ifmvbd,ifneknek,ifneknekm,ifnonl,ifnskp,ifoutfld,ifpert,ifpo,ifprnt,ifprojfld,ifpsco,ifpso, &
-      ifqinp,ifreguo,ifrich,ifrsxy,ifrzer,ifschclob,ifskip,ifsplit,ifssvt,ifstrs,ifstst,ifsurt, &
-      ifsync,iftgo,iftmsh,ifto,iftran,ifusermv,ifuservp,ifvarp,ifvcor,ifvcoup,ifvo,ifvps,ifwcno, &
-      ifxyo,ifxyo_,iggl,igglt,igroup,im1d,im1dt,imatie,imd1,imd1t,imesh,indx,initc,instep,invedg, &
-      iocomm,ioinfodmp,iostep,ipscal,ipsco,irstim,irstt,irstv,isize,istep,ixcn,ixm12,ixm13,ixm21, &
-      ixm31,ixtm12,ixtm13,ixtm21,ixtm31,iym12,iym13,iym21,iym31,iytm12,iytm13,iytm21,iytm31,izm12, &
-      izm13,izm21,izm31,iztm12,iztm13,iztm21,iztm31,jacm1,jacm2,jacmi,jp,lastep,lcnnum,ldimr, &
-      lednum,lglel,lochis,loglevel,lsize,lyap,matids,matindx,matype,maxmlt,mpi_argv_null, &
+      dragpy = reshape(dragpy_gop, shape(dragpy))
+      w1 = reshape(w1_gop, shape(w1))
+      dragpz_gop = reshape(dragpz,shape(dragpz_gop))
+      w1_gop = reshape(w1,shape(w1_gop))
+      call gop(dragpz_gop,w1_gop,'+  ',maxobj+1,ab,abmsh,abx1,abx2,aby1,aby2,abz1,abz2,area,atol, &
+      avdiff,avtran,b1ia1,b1ia1t,b1mask,b2mask,b2p,b3mask,baxm1,bbx1,bbx2,bby1,bby2,bbz1,bbz2,bc, &
+      bcf,bctyps,bd,bdivw,bfx,bfxp,bfy,bfyp,bfz,bfzp,bintm1,binvdg,binvm1,bm1,bm1lag,bm2,bm2inv, &
+      bmass,bmnv,bmx,bmy,bmz,bpmask,bq,bqp,bx,bxlag,by,bylag,bz,bzlag,c_vx,cbc,ccurve,cdof,cerror, &
+      cflf,courno,cpfld,cpgrp,cr_h,cr_re2,csize,ctarg,curve,d1,d1t,d2,da,dam1,dam12,dam3,dat, &
+      datm1,datm12,datm3,dcm1,dcm12,dcm3,dctm1,dctm12,dctm3,dg_face,dg_hndlx,dglg,dglgt,dlam, &
+      dmpfle,dp0thdt,drivc,dt,dtinit,dtinvm,dtlag,dvdfh1,dvdfl2,dvdfl8,dvdfsm,dvnnh1,dvnnl2, &
+      dvnnl8,dvnnsm,dvprh1,dvprl2,dvprl8,dvprsm,dxm1,dxm12,dxm3,dxtm1,dxtm12,dxtm3,dym1,dym12, &
+      dym3,dytm1,dytm12,dytm3,dzm1,dzm12,dzm3,dztm1,dztm12,dztm3,eface,eface1,eigaa,eigae,eigas, &
+      eigast,eigga,eigge,eiggs,eiggst,eskip,etalph,etimes,etims0,ev1,ev2,ev3,exx1p,exx2p,exy1p, &
+      exy2p,exz1p,exz2p,fh_re2,filtertype,fintim,fldfle,fw,g1m1,g2m1,g3m1,g4m1,g5m1,g6m1,gamma0, &
+      gcnnum,gednum,gedtyp,gllel,gllnid,group,gsh,gsh_fld,hcode,hisfle,iajl1,iajl2,ialj1,ialj3, &
+      iam12,iam13,iam21,iam31,iatjl1,iatjl2,iatlj1,iatlj3,iatm12,iatm13,iatm21,iatm31,ibcsts, &
+      icall,icedg,icface,icm12,icm13,icm21,icm31,ictm12,ictm13,ictm21,ictm31,idpss,idsess,ieact, &
+      iedge,iedgef,iedgfc,iesolv,if3d,if_full_pres,ifaa,ifadvc,ifae,ifalgn,ifanl2,ifanls,ifas, &
+      ifast,ifaxis,ifaziv,ifbase,ifbcor,ifbo,ifchar,ifcons,ifcoup,ifcvfld,ifcvode,ifcyclic,ifdeal, &
+      ifdg,ifdgfld,ifdiff,ifdp0dt,ifeppm,ifessr,ifexplvis,ifextr,ifexvt,ifflow,iffmtin,ifga,ifge, &
+      ifgeom,ifgmsh3,ifgprnt,ifgs,ifgsh_fld_same,ifgst,ifheat,ifield,ifintq,ifkeps,ifldmhd,iflmsc, &
+      iflmse,iflmsf,iflomach,ifmelt,ifmgrid,ifmhd,ifmoab,ifmodel,ifmodp,ifmpiio,ifmscr,ifmseg, &
+      ifmsfc,ifmvbd,ifneknek,ifneknekm,ifnonl,ifnskp,ifoutfld,ifpert,ifpo,ifprnt,ifprojfld,ifpsco, &
+      ifpso,ifqinp,ifreguo,ifrich,ifrsxy,ifrzer,ifschclob,ifskip,ifsplit,ifssvt,ifstrs,ifstst, &
+      ifsurt,ifsync,iftgo,iftmsh,ifto,iftran,ifusermv,ifuservp,ifvarp,ifvcor,ifvcoup,ifvo,ifvps, &
+      ifwcno,ifxyo,ifxyo_,iggl,igglt,igroup,im1d,im1dt,imatie,imd1,imd1t,imesh,indx,initc,instep, &
+      invedg,iocomm,ioinfodmp,iostep,ipscal,ipsco,irstim,irstt,irstv,isize,istep,ixcn,ixm12,ixm13, &
+      ixm21,ixm31,ixtm12,ixtm13,ixtm21,ixtm31,iym12,iym13,iym21,iym31,iytm12,iytm13,iytm21,iytm31, &
+      izm12,izm13,izm21,izm31,iztm12,iztm13,iztm21,iztm31,jacm1,jacm2,jacmi,jp,lastep,lcnnum, &
+      ldimr,lednum,lglel,lochis,loglevel,lsize,lyap,matids,matindx,matype,maxmlt,mpi_argv_null, &
       mpi_argvs_null,mpi_bottom,mpi_errcodes_ignore,mpi_in_place,mpi_status_ignore, &
       mpi_statuses_ignore,mpi_unweighted,mpi_weights_empty,nab,nabmsh,nadvc,naxhm,nbbbb,nbd, &
       nbdinp,nbso2,nbsol,ncccc,ncdtp,ncmp,nconv,nconv_max,ncopy,ncrsl,ncvf,ndadd,ndddd,nddsl, &
@@ -7029,33 +7129,37 @@ contains
       xm1,xm2,xxth,yc,yinvm1,ym1,ym2,zam1,zam2,zam3,zc,zgl,zgm1,zgm2,zgm3,zgp,zm1,zm2)
       ifnav = ifadvc(1)
       turbmod = textsw(1,1)
-      call gop(dragvx,w1,'+  ',maxobj+1,ab,abmsh,abx1,abx2,aby1,aby2,abz1,abz2,area,atol,avdiff, &
-      avtran,b1ia1,b1ia1t,b1mask,b2mask,b2p,b3mask,baxm1,bbx1,bbx2,bby1,bby2,bbz1,bbz2,bc,bcf, &
-      bctyps,bd,bdivw,bfx,bfxp,bfy,bfyp,bfz,bfzp,bintm1,binvdg,binvm1,bm1,bm1lag,bm2,bm2inv,bmass, &
-      bmnv,bmx,bmy,bmz,bpmask,bq,bqp,bx,bxlag,by,bylag,bz,bzlag,c_vx,cbc,ccurve,cdof,cerror,cflf, &
-      courno,cpfld,cpgrp,cr_h,cr_re2,csize,ctarg,curve,d1,d1t,d2,da,dam1,dam12,dam3,dat,datm1, &
-      datm12,datm3,dcm1,dcm12,dcm3,dctm1,dctm12,dctm3,dg_face,dg_hndlx,dglg,dglgt,dlam,dmpfle, &
-      dp0thdt,drivc,dt,dtinit,dtinvm,dtlag,dvdfh1,dvdfl2,dvdfl8,dvdfsm,dvnnh1,dvnnl2,dvnnl8, &
-      dvnnsm,dvprh1,dvprl2,dvprl8,dvprsm,dxm1,dxm12,dxm3,dxtm1,dxtm12,dxtm3,dym1,dym12,dym3,dytm1, &
-      dytm12,dytm3,dzm1,dzm12,dzm3,dztm1,dztm12,dztm3,eface,eface1,eigaa,eigae,eigas,eigast,eigga, &
-      eigge,eiggs,eiggst,eskip,etalph,etimes,etims0,ev1,ev2,ev3,exx1p,exx2p,exy1p,exy2p,exz1p, &
-      exz2p,fh_re2,filtertype,fintim,fldfle,fw,g1m1,g2m1,g3m1,g4m1,g5m1,g6m1,gamma0,gcnnum,gednum, &
-      gedtyp,gllel,gllnid,group,gsh,gsh_fld,hcode,hisfle,iajl1,iajl2,ialj1,ialj3,iam12,iam13, &
-      iam21,iam31,iatjl1,iatjl2,iatlj1,iatlj3,iatm12,iatm13,iatm21,iatm31,ibcsts,icall,icedg, &
-      icface,icm12,icm13,icm21,icm31,ictm12,ictm13,ictm21,ictm31,idpss,idsess,ieact,iedge,iedgef, &
-      iedgfc,iesolv,if3d,if_full_pres,ifaa,ifadvc,ifae,ifalgn,ifanl2,ifanls,ifas,ifast,ifaxis, &
-      ifaziv,ifbase,ifbcor,ifbo,ifchar,ifcons,ifcoup,ifcvfld,ifcvode,ifcyclic,ifdeal,ifdg,ifdgfld, &
-      ifdiff,ifdp0dt,ifeppm,ifessr,ifexplvis,ifextr,ifexvt,ifflow,iffmtin,ifga,ifge,ifgeom, &
-      ifgmsh3,ifgprnt,ifgs,ifgsh_fld_same,ifgst,ifheat,ifield,ifintq,ifkeps,ifldmhd,iflmsc,iflmse, &
-      iflmsf,iflomach,ifmelt,ifmgrid,ifmhd,ifmoab,ifmodel,ifmodp,ifmpiio,ifmscr,ifmseg,ifmsfc, &
-      ifmvbd,ifneknek,ifneknekm,ifnonl,ifnskp,ifoutfld,ifpert,ifpo,ifprnt,ifprojfld,ifpsco,ifpso, &
-      ifqinp,ifreguo,ifrich,ifrsxy,ifrzer,ifschclob,ifskip,ifsplit,ifssvt,ifstrs,ifstst,ifsurt, &
-      ifsync,iftgo,iftmsh,ifto,iftran,ifusermv,ifuservp,ifvarp,ifvcor,ifvcoup,ifvo,ifvps,ifwcno, &
-      ifxyo,ifxyo_,iggl,igglt,igroup,im1d,im1dt,imatie,imd1,imd1t,imesh,indx,initc,instep,invedg, &
-      iocomm,ioinfodmp,iostep,ipscal,ipsco,irstim,irstt,irstv,isize,istep,ixcn,ixm12,ixm13,ixm21, &
-      ixm31,ixtm12,ixtm13,ixtm21,ixtm31,iym12,iym13,iym21,iym31,iytm12,iytm13,iytm21,iytm31,izm12, &
-      izm13,izm21,izm31,iztm12,iztm13,iztm21,iztm31,jacm1,jacm2,jacmi,jp,lastep,lcnnum,ldimr, &
-      lednum,lglel,lochis,loglevel,lsize,lyap,matids,matindx,matype,maxmlt,mpi_argv_null, &
+      dragpz = reshape(dragpz_gop, shape(dragpz))
+      w1 = reshape(w1_gop, shape(w1))
+      dragvx_gop = reshape(dragvx,shape(dragvx_gop))
+      w1_gop = reshape(w1,shape(w1_gop))
+      call gop(dragvx_gop,w1_gop,'+  ',maxobj+1,ab,abmsh,abx1,abx2,aby1,aby2,abz1,abz2,area,atol, &
+      avdiff,avtran,b1ia1,b1ia1t,b1mask,b2mask,b2p,b3mask,baxm1,bbx1,bbx2,bby1,bby2,bbz1,bbz2,bc, &
+      bcf,bctyps,bd,bdivw,bfx,bfxp,bfy,bfyp,bfz,bfzp,bintm1,binvdg,binvm1,bm1,bm1lag,bm2,bm2inv, &
+      bmass,bmnv,bmx,bmy,bmz,bpmask,bq,bqp,bx,bxlag,by,bylag,bz,bzlag,c_vx,cbc,ccurve,cdof,cerror, &
+      cflf,courno,cpfld,cpgrp,cr_h,cr_re2,csize,ctarg,curve,d1,d1t,d2,da,dam1,dam12,dam3,dat, &
+      datm1,datm12,datm3,dcm1,dcm12,dcm3,dctm1,dctm12,dctm3,dg_face,dg_hndlx,dglg,dglgt,dlam, &
+      dmpfle,dp0thdt,drivc,dt,dtinit,dtinvm,dtlag,dvdfh1,dvdfl2,dvdfl8,dvdfsm,dvnnh1,dvnnl2, &
+      dvnnl8,dvnnsm,dvprh1,dvprl2,dvprl8,dvprsm,dxm1,dxm12,dxm3,dxtm1,dxtm12,dxtm3,dym1,dym12, &
+      dym3,dytm1,dytm12,dytm3,dzm1,dzm12,dzm3,dztm1,dztm12,dztm3,eface,eface1,eigaa,eigae,eigas, &
+      eigast,eigga,eigge,eiggs,eiggst,eskip,etalph,etimes,etims0,ev1,ev2,ev3,exx1p,exx2p,exy1p, &
+      exy2p,exz1p,exz2p,fh_re2,filtertype,fintim,fldfle,fw,g1m1,g2m1,g3m1,g4m1,g5m1,g6m1,gamma0, &
+      gcnnum,gednum,gedtyp,gllel,gllnid,group,gsh,gsh_fld,hcode,hisfle,iajl1,iajl2,ialj1,ialj3, &
+      iam12,iam13,iam21,iam31,iatjl1,iatjl2,iatlj1,iatlj3,iatm12,iatm13,iatm21,iatm31,ibcsts, &
+      icall,icedg,icface,icm12,icm13,icm21,icm31,ictm12,ictm13,ictm21,ictm31,idpss,idsess,ieact, &
+      iedge,iedgef,iedgfc,iesolv,if3d,if_full_pres,ifaa,ifadvc,ifae,ifalgn,ifanl2,ifanls,ifas, &
+      ifast,ifaxis,ifaziv,ifbase,ifbcor,ifbo,ifchar,ifcons,ifcoup,ifcvfld,ifcvode,ifcyclic,ifdeal, &
+      ifdg,ifdgfld,ifdiff,ifdp0dt,ifeppm,ifessr,ifexplvis,ifextr,ifexvt,ifflow,iffmtin,ifga,ifge, &
+      ifgeom,ifgmsh3,ifgprnt,ifgs,ifgsh_fld_same,ifgst,ifheat,ifield,ifintq,ifkeps,ifldmhd,iflmsc, &
+      iflmse,iflmsf,iflomach,ifmelt,ifmgrid,ifmhd,ifmoab,ifmodel,ifmodp,ifmpiio,ifmscr,ifmseg, &
+      ifmsfc,ifmvbd,ifneknek,ifneknekm,ifnonl,ifnskp,ifoutfld,ifpert,ifpo,ifprnt,ifprojfld,ifpsco, &
+      ifpso,ifqinp,ifreguo,ifrich,ifrsxy,ifrzer,ifschclob,ifskip,ifsplit,ifssvt,ifstrs,ifstst, &
+      ifsurt,ifsync,iftgo,iftmsh,ifto,iftran,ifusermv,ifuservp,ifvarp,ifvcor,ifvcoup,ifvo,ifvps, &
+      ifwcno,ifxyo,ifxyo_,iggl,igglt,igroup,im1d,im1dt,imatie,imd1,imd1t,imesh,indx,initc,instep, &
+      invedg,iocomm,ioinfodmp,iostep,ipscal,ipsco,irstim,irstt,irstv,isize,istep,ixcn,ixm12,ixm13, &
+      ixm21,ixm31,ixtm12,ixtm13,ixtm21,ixtm31,iym12,iym13,iym21,iym31,iytm12,iytm13,iytm21,iytm31, &
+      izm12,izm13,izm21,izm31,iztm12,iztm13,iztm21,iztm31,jacm1,jacm2,jacmi,jp,lastep,lcnnum, &
+      ldimr,lednum,lglel,lochis,loglevel,lsize,lyap,matids,matindx,matype,maxmlt,mpi_argv_null, &
       mpi_argvs_null,mpi_bottom,mpi_errcodes_ignore,mpi_in_place,mpi_status_ignore, &
       mpi_statuses_ignore,mpi_unweighted,mpi_weights_empty,nab,nabmsh,nadvc,naxhm,nbbbb,nbd, &
       nbdinp,nbso2,nbsol,ncccc,ncdtp,ncmp,nconv,nconv_max,ncopy,ncrsl,ncvf,ndadd,ndddd,nddsl, &
@@ -7086,33 +7190,37 @@ contains
       xm1,xm2,xxth,yc,yinvm1,ym1,ym2,zam1,zam2,zam3,zc,zgl,zgm1,zgm2,zgm3,zgp,zm1,zm2)
       ifnav = ifadvc(1)
       turbmod = textsw(1,1)
-      call gop(dragvy,w1,'+  ',maxobj+1,ab,abmsh,abx1,abx2,aby1,aby2,abz1,abz2,area,atol,avdiff, &
-      avtran,b1ia1,b1ia1t,b1mask,b2mask,b2p,b3mask,baxm1,bbx1,bbx2,bby1,bby2,bbz1,bbz2,bc,bcf, &
-      bctyps,bd,bdivw,bfx,bfxp,bfy,bfyp,bfz,bfzp,bintm1,binvdg,binvm1,bm1,bm1lag,bm2,bm2inv,bmass, &
-      bmnv,bmx,bmy,bmz,bpmask,bq,bqp,bx,bxlag,by,bylag,bz,bzlag,c_vx,cbc,ccurve,cdof,cerror,cflf, &
-      courno,cpfld,cpgrp,cr_h,cr_re2,csize,ctarg,curve,d1,d1t,d2,da,dam1,dam12,dam3,dat,datm1, &
-      datm12,datm3,dcm1,dcm12,dcm3,dctm1,dctm12,dctm3,dg_face,dg_hndlx,dglg,dglgt,dlam,dmpfle, &
-      dp0thdt,drivc,dt,dtinit,dtinvm,dtlag,dvdfh1,dvdfl2,dvdfl8,dvdfsm,dvnnh1,dvnnl2,dvnnl8, &
-      dvnnsm,dvprh1,dvprl2,dvprl8,dvprsm,dxm1,dxm12,dxm3,dxtm1,dxtm12,dxtm3,dym1,dym12,dym3,dytm1, &
-      dytm12,dytm3,dzm1,dzm12,dzm3,dztm1,dztm12,dztm3,eface,eface1,eigaa,eigae,eigas,eigast,eigga, &
-      eigge,eiggs,eiggst,eskip,etalph,etimes,etims0,ev1,ev2,ev3,exx1p,exx2p,exy1p,exy2p,exz1p, &
-      exz2p,fh_re2,filtertype,fintim,fldfle,fw,g1m1,g2m1,g3m1,g4m1,g5m1,g6m1,gamma0,gcnnum,gednum, &
-      gedtyp,gllel,gllnid,group,gsh,gsh_fld,hcode,hisfle,iajl1,iajl2,ialj1,ialj3,iam12,iam13, &
-      iam21,iam31,iatjl1,iatjl2,iatlj1,iatlj3,iatm12,iatm13,iatm21,iatm31,ibcsts,icall,icedg, &
-      icface,icm12,icm13,icm21,icm31,ictm12,ictm13,ictm21,ictm31,idpss,idsess,ieact,iedge,iedgef, &
-      iedgfc,iesolv,if3d,if_full_pres,ifaa,ifadvc,ifae,ifalgn,ifanl2,ifanls,ifas,ifast,ifaxis, &
-      ifaziv,ifbase,ifbcor,ifbo,ifchar,ifcons,ifcoup,ifcvfld,ifcvode,ifcyclic,ifdeal,ifdg,ifdgfld, &
-      ifdiff,ifdp0dt,ifeppm,ifessr,ifexplvis,ifextr,ifexvt,ifflow,iffmtin,ifga,ifge,ifgeom, &
-      ifgmsh3,ifgprnt,ifgs,ifgsh_fld_same,ifgst,ifheat,ifield,ifintq,ifkeps,ifldmhd,iflmsc,iflmse, &
-      iflmsf,iflomach,ifmelt,ifmgrid,ifmhd,ifmoab,ifmodel,ifmodp,ifmpiio,ifmscr,ifmseg,ifmsfc, &
-      ifmvbd,ifneknek,ifneknekm,ifnonl,ifnskp,ifoutfld,ifpert,ifpo,ifprnt,ifprojfld,ifpsco,ifpso, &
-      ifqinp,ifreguo,ifrich,ifrsxy,ifrzer,ifschclob,ifskip,ifsplit,ifssvt,ifstrs,ifstst,ifsurt, &
-      ifsync,iftgo,iftmsh,ifto,iftran,ifusermv,ifuservp,ifvarp,ifvcor,ifvcoup,ifvo,ifvps,ifwcno, &
-      ifxyo,ifxyo_,iggl,igglt,igroup,im1d,im1dt,imatie,imd1,imd1t,imesh,indx,initc,instep,invedg, &
-      iocomm,ioinfodmp,iostep,ipscal,ipsco,irstim,irstt,irstv,isize,istep,ixcn,ixm12,ixm13,ixm21, &
-      ixm31,ixtm12,ixtm13,ixtm21,ixtm31,iym12,iym13,iym21,iym31,iytm12,iytm13,iytm21,iytm31,izm12, &
-      izm13,izm21,izm31,iztm12,iztm13,iztm21,iztm31,jacm1,jacm2,jacmi,jp,lastep,lcnnum,ldimr, &
-      lednum,lglel,lochis,loglevel,lsize,lyap,matids,matindx,matype,maxmlt,mpi_argv_null, &
+      dragvx = reshape(dragvx_gop, shape(dragvx))
+      w1 = reshape(w1_gop, shape(w1))
+      dragvy_gop = reshape(dragvy,shape(dragvy_gop))
+      w1_gop = reshape(w1,shape(w1_gop))
+      call gop(dragvy_gop,w1_gop,'+  ',maxobj+1,ab,abmsh,abx1,abx2,aby1,aby2,abz1,abz2,area,atol, &
+      avdiff,avtran,b1ia1,b1ia1t,b1mask,b2mask,b2p,b3mask,baxm1,bbx1,bbx2,bby1,bby2,bbz1,bbz2,bc, &
+      bcf,bctyps,bd,bdivw,bfx,bfxp,bfy,bfyp,bfz,bfzp,bintm1,binvdg,binvm1,bm1,bm1lag,bm2,bm2inv, &
+      bmass,bmnv,bmx,bmy,bmz,bpmask,bq,bqp,bx,bxlag,by,bylag,bz,bzlag,c_vx,cbc,ccurve,cdof,cerror, &
+      cflf,courno,cpfld,cpgrp,cr_h,cr_re2,csize,ctarg,curve,d1,d1t,d2,da,dam1,dam12,dam3,dat, &
+      datm1,datm12,datm3,dcm1,dcm12,dcm3,dctm1,dctm12,dctm3,dg_face,dg_hndlx,dglg,dglgt,dlam, &
+      dmpfle,dp0thdt,drivc,dt,dtinit,dtinvm,dtlag,dvdfh1,dvdfl2,dvdfl8,dvdfsm,dvnnh1,dvnnl2, &
+      dvnnl8,dvnnsm,dvprh1,dvprl2,dvprl8,dvprsm,dxm1,dxm12,dxm3,dxtm1,dxtm12,dxtm3,dym1,dym12, &
+      dym3,dytm1,dytm12,dytm3,dzm1,dzm12,dzm3,dztm1,dztm12,dztm3,eface,eface1,eigaa,eigae,eigas, &
+      eigast,eigga,eigge,eiggs,eiggst,eskip,etalph,etimes,etims0,ev1,ev2,ev3,exx1p,exx2p,exy1p, &
+      exy2p,exz1p,exz2p,fh_re2,filtertype,fintim,fldfle,fw,g1m1,g2m1,g3m1,g4m1,g5m1,g6m1,gamma0, &
+      gcnnum,gednum,gedtyp,gllel,gllnid,group,gsh,gsh_fld,hcode,hisfle,iajl1,iajl2,ialj1,ialj3, &
+      iam12,iam13,iam21,iam31,iatjl1,iatjl2,iatlj1,iatlj3,iatm12,iatm13,iatm21,iatm31,ibcsts, &
+      icall,icedg,icface,icm12,icm13,icm21,icm31,ictm12,ictm13,ictm21,ictm31,idpss,idsess,ieact, &
+      iedge,iedgef,iedgfc,iesolv,if3d,if_full_pres,ifaa,ifadvc,ifae,ifalgn,ifanl2,ifanls,ifas, &
+      ifast,ifaxis,ifaziv,ifbase,ifbcor,ifbo,ifchar,ifcons,ifcoup,ifcvfld,ifcvode,ifcyclic,ifdeal, &
+      ifdg,ifdgfld,ifdiff,ifdp0dt,ifeppm,ifessr,ifexplvis,ifextr,ifexvt,ifflow,iffmtin,ifga,ifge, &
+      ifgeom,ifgmsh3,ifgprnt,ifgs,ifgsh_fld_same,ifgst,ifheat,ifield,ifintq,ifkeps,ifldmhd,iflmsc, &
+      iflmse,iflmsf,iflomach,ifmelt,ifmgrid,ifmhd,ifmoab,ifmodel,ifmodp,ifmpiio,ifmscr,ifmseg, &
+      ifmsfc,ifmvbd,ifneknek,ifneknekm,ifnonl,ifnskp,ifoutfld,ifpert,ifpo,ifprnt,ifprojfld,ifpsco, &
+      ifpso,ifqinp,ifreguo,ifrich,ifrsxy,ifrzer,ifschclob,ifskip,ifsplit,ifssvt,ifstrs,ifstst, &
+      ifsurt,ifsync,iftgo,iftmsh,ifto,iftran,ifusermv,ifuservp,ifvarp,ifvcor,ifvcoup,ifvo,ifvps, &
+      ifwcno,ifxyo,ifxyo_,iggl,igglt,igroup,im1d,im1dt,imatie,imd1,imd1t,imesh,indx,initc,instep, &
+      invedg,iocomm,ioinfodmp,iostep,ipscal,ipsco,irstim,irstt,irstv,isize,istep,ixcn,ixm12,ixm13, &
+      ixm21,ixm31,ixtm12,ixtm13,ixtm21,ixtm31,iym12,iym13,iym21,iym31,iytm12,iytm13,iytm21,iytm31, &
+      izm12,izm13,izm21,izm31,iztm12,iztm13,iztm21,iztm31,jacm1,jacm2,jacmi,jp,lastep,lcnnum, &
+      ldimr,lednum,lglel,lochis,loglevel,lsize,lyap,matids,matindx,matype,maxmlt,mpi_argv_null, &
       mpi_argvs_null,mpi_bottom,mpi_errcodes_ignore,mpi_in_place,mpi_status_ignore, &
       mpi_statuses_ignore,mpi_unweighted,mpi_weights_empty,nab,nabmsh,nadvc,naxhm,nbbbb,nbd, &
       nbdinp,nbso2,nbsol,ncccc,ncdtp,ncmp,nconv,nconv_max,ncopy,ncrsl,ncvf,ndadd,ndddd,nddsl, &
@@ -7143,33 +7251,37 @@ contains
       xm1,xm2,xxth,yc,yinvm1,ym1,ym2,zam1,zam2,zam3,zc,zgl,zgm1,zgm2,zgm3,zgp,zm1,zm2)
       ifnav = ifadvc(1)
       turbmod = textsw(1,1)
-      call gop(dragvz,w1,'+  ',maxobj+1,ab,abmsh,abx1,abx2,aby1,aby2,abz1,abz2,area,atol,avdiff, &
-      avtran,b1ia1,b1ia1t,b1mask,b2mask,b2p,b3mask,baxm1,bbx1,bbx2,bby1,bby2,bbz1,bbz2,bc,bcf, &
-      bctyps,bd,bdivw,bfx,bfxp,bfy,bfyp,bfz,bfzp,bintm1,binvdg,binvm1,bm1,bm1lag,bm2,bm2inv,bmass, &
-      bmnv,bmx,bmy,bmz,bpmask,bq,bqp,bx,bxlag,by,bylag,bz,bzlag,c_vx,cbc,ccurve,cdof,cerror,cflf, &
-      courno,cpfld,cpgrp,cr_h,cr_re2,csize,ctarg,curve,d1,d1t,d2,da,dam1,dam12,dam3,dat,datm1, &
-      datm12,datm3,dcm1,dcm12,dcm3,dctm1,dctm12,dctm3,dg_face,dg_hndlx,dglg,dglgt,dlam,dmpfle, &
-      dp0thdt,drivc,dt,dtinit,dtinvm,dtlag,dvdfh1,dvdfl2,dvdfl8,dvdfsm,dvnnh1,dvnnl2,dvnnl8, &
-      dvnnsm,dvprh1,dvprl2,dvprl8,dvprsm,dxm1,dxm12,dxm3,dxtm1,dxtm12,dxtm3,dym1,dym12,dym3,dytm1, &
-      dytm12,dytm3,dzm1,dzm12,dzm3,dztm1,dztm12,dztm3,eface,eface1,eigaa,eigae,eigas,eigast,eigga, &
-      eigge,eiggs,eiggst,eskip,etalph,etimes,etims0,ev1,ev2,ev3,exx1p,exx2p,exy1p,exy2p,exz1p, &
-      exz2p,fh_re2,filtertype,fintim,fldfle,fw,g1m1,g2m1,g3m1,g4m1,g5m1,g6m1,gamma0,gcnnum,gednum, &
-      gedtyp,gllel,gllnid,group,gsh,gsh_fld,hcode,hisfle,iajl1,iajl2,ialj1,ialj3,iam12,iam13, &
-      iam21,iam31,iatjl1,iatjl2,iatlj1,iatlj3,iatm12,iatm13,iatm21,iatm31,ibcsts,icall,icedg, &
-      icface,icm12,icm13,icm21,icm31,ictm12,ictm13,ictm21,ictm31,idpss,idsess,ieact,iedge,iedgef, &
-      iedgfc,iesolv,if3d,if_full_pres,ifaa,ifadvc,ifae,ifalgn,ifanl2,ifanls,ifas,ifast,ifaxis, &
-      ifaziv,ifbase,ifbcor,ifbo,ifchar,ifcons,ifcoup,ifcvfld,ifcvode,ifcyclic,ifdeal,ifdg,ifdgfld, &
-      ifdiff,ifdp0dt,ifeppm,ifessr,ifexplvis,ifextr,ifexvt,ifflow,iffmtin,ifga,ifge,ifgeom, &
-      ifgmsh3,ifgprnt,ifgs,ifgsh_fld_same,ifgst,ifheat,ifield,ifintq,ifkeps,ifldmhd,iflmsc,iflmse, &
-      iflmsf,iflomach,ifmelt,ifmgrid,ifmhd,ifmoab,ifmodel,ifmodp,ifmpiio,ifmscr,ifmseg,ifmsfc, &
-      ifmvbd,ifneknek,ifneknekm,ifnonl,ifnskp,ifoutfld,ifpert,ifpo,ifprnt,ifprojfld,ifpsco,ifpso, &
-      ifqinp,ifreguo,ifrich,ifrsxy,ifrzer,ifschclob,ifskip,ifsplit,ifssvt,ifstrs,ifstst,ifsurt, &
-      ifsync,iftgo,iftmsh,ifto,iftran,ifusermv,ifuservp,ifvarp,ifvcor,ifvcoup,ifvo,ifvps,ifwcno, &
-      ifxyo,ifxyo_,iggl,igglt,igroup,im1d,im1dt,imatie,imd1,imd1t,imesh,indx,initc,instep,invedg, &
-      iocomm,ioinfodmp,iostep,ipscal,ipsco,irstim,irstt,irstv,isize,istep,ixcn,ixm12,ixm13,ixm21, &
-      ixm31,ixtm12,ixtm13,ixtm21,ixtm31,iym12,iym13,iym21,iym31,iytm12,iytm13,iytm21,iytm31,izm12, &
-      izm13,izm21,izm31,iztm12,iztm13,iztm21,iztm31,jacm1,jacm2,jacmi,jp,lastep,lcnnum,ldimr, &
-      lednum,lglel,lochis,loglevel,lsize,lyap,matids,matindx,matype,maxmlt,mpi_argv_null, &
+      dragvy = reshape(dragvy_gop, shape(dragvy))
+      w1 = reshape(w1_gop, shape(w1))
+      dragvz_gop = reshape(dragvz,shape(dragvz_gop))
+      w1_gop = reshape(w1,shape(w1_gop))
+      call gop(dragvz_gop,w1_gop,'+  ',maxobj+1,ab,abmsh,abx1,abx2,aby1,aby2,abz1,abz2,area,atol, &
+      avdiff,avtran,b1ia1,b1ia1t,b1mask,b2mask,b2p,b3mask,baxm1,bbx1,bbx2,bby1,bby2,bbz1,bbz2,bc, &
+      bcf,bctyps,bd,bdivw,bfx,bfxp,bfy,bfyp,bfz,bfzp,bintm1,binvdg,binvm1,bm1,bm1lag,bm2,bm2inv, &
+      bmass,bmnv,bmx,bmy,bmz,bpmask,bq,bqp,bx,bxlag,by,bylag,bz,bzlag,c_vx,cbc,ccurve,cdof,cerror, &
+      cflf,courno,cpfld,cpgrp,cr_h,cr_re2,csize,ctarg,curve,d1,d1t,d2,da,dam1,dam12,dam3,dat, &
+      datm1,datm12,datm3,dcm1,dcm12,dcm3,dctm1,dctm12,dctm3,dg_face,dg_hndlx,dglg,dglgt,dlam, &
+      dmpfle,dp0thdt,drivc,dt,dtinit,dtinvm,dtlag,dvdfh1,dvdfl2,dvdfl8,dvdfsm,dvnnh1,dvnnl2, &
+      dvnnl8,dvnnsm,dvprh1,dvprl2,dvprl8,dvprsm,dxm1,dxm12,dxm3,dxtm1,dxtm12,dxtm3,dym1,dym12, &
+      dym3,dytm1,dytm12,dytm3,dzm1,dzm12,dzm3,dztm1,dztm12,dztm3,eface,eface1,eigaa,eigae,eigas, &
+      eigast,eigga,eigge,eiggs,eiggst,eskip,etalph,etimes,etims0,ev1,ev2,ev3,exx1p,exx2p,exy1p, &
+      exy2p,exz1p,exz2p,fh_re2,filtertype,fintim,fldfle,fw,g1m1,g2m1,g3m1,g4m1,g5m1,g6m1,gamma0, &
+      gcnnum,gednum,gedtyp,gllel,gllnid,group,gsh,gsh_fld,hcode,hisfle,iajl1,iajl2,ialj1,ialj3, &
+      iam12,iam13,iam21,iam31,iatjl1,iatjl2,iatlj1,iatlj3,iatm12,iatm13,iatm21,iatm31,ibcsts, &
+      icall,icedg,icface,icm12,icm13,icm21,icm31,ictm12,ictm13,ictm21,ictm31,idpss,idsess,ieact, &
+      iedge,iedgef,iedgfc,iesolv,if3d,if_full_pres,ifaa,ifadvc,ifae,ifalgn,ifanl2,ifanls,ifas, &
+      ifast,ifaxis,ifaziv,ifbase,ifbcor,ifbo,ifchar,ifcons,ifcoup,ifcvfld,ifcvode,ifcyclic,ifdeal, &
+      ifdg,ifdgfld,ifdiff,ifdp0dt,ifeppm,ifessr,ifexplvis,ifextr,ifexvt,ifflow,iffmtin,ifga,ifge, &
+      ifgeom,ifgmsh3,ifgprnt,ifgs,ifgsh_fld_same,ifgst,ifheat,ifield,ifintq,ifkeps,ifldmhd,iflmsc, &
+      iflmse,iflmsf,iflomach,ifmelt,ifmgrid,ifmhd,ifmoab,ifmodel,ifmodp,ifmpiio,ifmscr,ifmseg, &
+      ifmsfc,ifmvbd,ifneknek,ifneknekm,ifnonl,ifnskp,ifoutfld,ifpert,ifpo,ifprnt,ifprojfld,ifpsco, &
+      ifpso,ifqinp,ifreguo,ifrich,ifrsxy,ifrzer,ifschclob,ifskip,ifsplit,ifssvt,ifstrs,ifstst, &
+      ifsurt,ifsync,iftgo,iftmsh,ifto,iftran,ifusermv,ifuservp,ifvarp,ifvcor,ifvcoup,ifvo,ifvps, &
+      ifwcno,ifxyo,ifxyo_,iggl,igglt,igroup,im1d,im1dt,imatie,imd1,imd1t,imesh,indx,initc,instep, &
+      invedg,iocomm,ioinfodmp,iostep,ipscal,ipsco,irstim,irstt,irstv,isize,istep,ixcn,ixm12,ixm13, &
+      ixm21,ixm31,ixtm12,ixtm13,ixtm21,ixtm31,iym12,iym13,iym21,iym31,iytm12,iytm13,iytm21,iytm31, &
+      izm12,izm13,izm21,izm31,iztm12,iztm13,iztm21,iztm31,jacm1,jacm2,jacmi,jp,lastep,lcnnum, &
+      ldimr,lednum,lglel,lochis,loglevel,lsize,lyap,matids,matindx,matype,maxmlt,mpi_argv_null, &
       mpi_argvs_null,mpi_bottom,mpi_errcodes_ignore,mpi_in_place,mpi_status_ignore, &
       mpi_statuses_ignore,mpi_unweighted,mpi_weights_empty,nab,nabmsh,nadvc,naxhm,nbbbb,nbd, &
       nbdinp,nbso2,nbsol,ncccc,ncdtp,ncmp,nconv,nconv_max,ncopy,ncrsl,ncvf,ndadd,ndddd,nddsl, &
@@ -7200,34 +7312,38 @@ contains
       xm1,xm2,xxth,yc,yinvm1,ym1,ym2,zam1,zam2,zam3,zc,zgl,zgm1,zgm2,zgm3,zgp,zm1,zm2)
       ifnav = ifadvc(1)
       turbmod = textsw(1,1)
+      dragvz = reshape(dragvz_gop, shape(dragvz))
+      w1 = reshape(w1_gop, shape(w1))
 ! 
-      call gop(torqpx,w1,'+  ',maxobj+1,ab,abmsh,abx1,abx2,aby1,aby2,abz1,abz2,area,atol,avdiff, &
-      avtran,b1ia1,b1ia1t,b1mask,b2mask,b2p,b3mask,baxm1,bbx1,bbx2,bby1,bby2,bbz1,bbz2,bc,bcf, &
-      bctyps,bd,bdivw,bfx,bfxp,bfy,bfyp,bfz,bfzp,bintm1,binvdg,binvm1,bm1,bm1lag,bm2,bm2inv,bmass, &
-      bmnv,bmx,bmy,bmz,bpmask,bq,bqp,bx,bxlag,by,bylag,bz,bzlag,c_vx,cbc,ccurve,cdof,cerror,cflf, &
-      courno,cpfld,cpgrp,cr_h,cr_re2,csize,ctarg,curve,d1,d1t,d2,da,dam1,dam12,dam3,dat,datm1, &
-      datm12,datm3,dcm1,dcm12,dcm3,dctm1,dctm12,dctm3,dg_face,dg_hndlx,dglg,dglgt,dlam,dmpfle, &
-      dp0thdt,drivc,dt,dtinit,dtinvm,dtlag,dvdfh1,dvdfl2,dvdfl8,dvdfsm,dvnnh1,dvnnl2,dvnnl8, &
-      dvnnsm,dvprh1,dvprl2,dvprl8,dvprsm,dxm1,dxm12,dxm3,dxtm1,dxtm12,dxtm3,dym1,dym12,dym3,dytm1, &
-      dytm12,dytm3,dzm1,dzm12,dzm3,dztm1,dztm12,dztm3,eface,eface1,eigaa,eigae,eigas,eigast,eigga, &
-      eigge,eiggs,eiggst,eskip,etalph,etimes,etims0,ev1,ev2,ev3,exx1p,exx2p,exy1p,exy2p,exz1p, &
-      exz2p,fh_re2,filtertype,fintim,fldfle,fw,g1m1,g2m1,g3m1,g4m1,g5m1,g6m1,gamma0,gcnnum,gednum, &
-      gedtyp,gllel,gllnid,group,gsh,gsh_fld,hcode,hisfle,iajl1,iajl2,ialj1,ialj3,iam12,iam13, &
-      iam21,iam31,iatjl1,iatjl2,iatlj1,iatlj3,iatm12,iatm13,iatm21,iatm31,ibcsts,icall,icedg, &
-      icface,icm12,icm13,icm21,icm31,ictm12,ictm13,ictm21,ictm31,idpss,idsess,ieact,iedge,iedgef, &
-      iedgfc,iesolv,if3d,if_full_pres,ifaa,ifadvc,ifae,ifalgn,ifanl2,ifanls,ifas,ifast,ifaxis, &
-      ifaziv,ifbase,ifbcor,ifbo,ifchar,ifcons,ifcoup,ifcvfld,ifcvode,ifcyclic,ifdeal,ifdg,ifdgfld, &
-      ifdiff,ifdp0dt,ifeppm,ifessr,ifexplvis,ifextr,ifexvt,ifflow,iffmtin,ifga,ifge,ifgeom, &
-      ifgmsh3,ifgprnt,ifgs,ifgsh_fld_same,ifgst,ifheat,ifield,ifintq,ifkeps,ifldmhd,iflmsc,iflmse, &
-      iflmsf,iflomach,ifmelt,ifmgrid,ifmhd,ifmoab,ifmodel,ifmodp,ifmpiio,ifmscr,ifmseg,ifmsfc, &
-      ifmvbd,ifneknek,ifneknekm,ifnonl,ifnskp,ifoutfld,ifpert,ifpo,ifprnt,ifprojfld,ifpsco,ifpso, &
-      ifqinp,ifreguo,ifrich,ifrsxy,ifrzer,ifschclob,ifskip,ifsplit,ifssvt,ifstrs,ifstst,ifsurt, &
-      ifsync,iftgo,iftmsh,ifto,iftran,ifusermv,ifuservp,ifvarp,ifvcor,ifvcoup,ifvo,ifvps,ifwcno, &
-      ifxyo,ifxyo_,iggl,igglt,igroup,im1d,im1dt,imatie,imd1,imd1t,imesh,indx,initc,instep,invedg, &
-      iocomm,ioinfodmp,iostep,ipscal,ipsco,irstim,irstt,irstv,isize,istep,ixcn,ixm12,ixm13,ixm21, &
-      ixm31,ixtm12,ixtm13,ixtm21,ixtm31,iym12,iym13,iym21,iym31,iytm12,iytm13,iytm21,iytm31,izm12, &
-      izm13,izm21,izm31,iztm12,iztm13,iztm21,iztm31,jacm1,jacm2,jacmi,jp,lastep,lcnnum,ldimr, &
-      lednum,lglel,lochis,loglevel,lsize,lyap,matids,matindx,matype,maxmlt,mpi_argv_null, &
+      torqpx_gop = reshape(torqpx,shape(torqpx_gop))
+      w1_gop = reshape(w1,shape(w1_gop))
+      call gop(torqpx_gop,w1_gop,'+  ',maxobj+1,ab,abmsh,abx1,abx2,aby1,aby2,abz1,abz2,area,atol, &
+      avdiff,avtran,b1ia1,b1ia1t,b1mask,b2mask,b2p,b3mask,baxm1,bbx1,bbx2,bby1,bby2,bbz1,bbz2,bc, &
+      bcf,bctyps,bd,bdivw,bfx,bfxp,bfy,bfyp,bfz,bfzp,bintm1,binvdg,binvm1,bm1,bm1lag,bm2,bm2inv, &
+      bmass,bmnv,bmx,bmy,bmz,bpmask,bq,bqp,bx,bxlag,by,bylag,bz,bzlag,c_vx,cbc,ccurve,cdof,cerror, &
+      cflf,courno,cpfld,cpgrp,cr_h,cr_re2,csize,ctarg,curve,d1,d1t,d2,da,dam1,dam12,dam3,dat, &
+      datm1,datm12,datm3,dcm1,dcm12,dcm3,dctm1,dctm12,dctm3,dg_face,dg_hndlx,dglg,dglgt,dlam, &
+      dmpfle,dp0thdt,drivc,dt,dtinit,dtinvm,dtlag,dvdfh1,dvdfl2,dvdfl8,dvdfsm,dvnnh1,dvnnl2, &
+      dvnnl8,dvnnsm,dvprh1,dvprl2,dvprl8,dvprsm,dxm1,dxm12,dxm3,dxtm1,dxtm12,dxtm3,dym1,dym12, &
+      dym3,dytm1,dytm12,dytm3,dzm1,dzm12,dzm3,dztm1,dztm12,dztm3,eface,eface1,eigaa,eigae,eigas, &
+      eigast,eigga,eigge,eiggs,eiggst,eskip,etalph,etimes,etims0,ev1,ev2,ev3,exx1p,exx2p,exy1p, &
+      exy2p,exz1p,exz2p,fh_re2,filtertype,fintim,fldfle,fw,g1m1,g2m1,g3m1,g4m1,g5m1,g6m1,gamma0, &
+      gcnnum,gednum,gedtyp,gllel,gllnid,group,gsh,gsh_fld,hcode,hisfle,iajl1,iajl2,ialj1,ialj3, &
+      iam12,iam13,iam21,iam31,iatjl1,iatjl2,iatlj1,iatlj3,iatm12,iatm13,iatm21,iatm31,ibcsts, &
+      icall,icedg,icface,icm12,icm13,icm21,icm31,ictm12,ictm13,ictm21,ictm31,idpss,idsess,ieact, &
+      iedge,iedgef,iedgfc,iesolv,if3d,if_full_pres,ifaa,ifadvc,ifae,ifalgn,ifanl2,ifanls,ifas, &
+      ifast,ifaxis,ifaziv,ifbase,ifbcor,ifbo,ifchar,ifcons,ifcoup,ifcvfld,ifcvode,ifcyclic,ifdeal, &
+      ifdg,ifdgfld,ifdiff,ifdp0dt,ifeppm,ifessr,ifexplvis,ifextr,ifexvt,ifflow,iffmtin,ifga,ifge, &
+      ifgeom,ifgmsh3,ifgprnt,ifgs,ifgsh_fld_same,ifgst,ifheat,ifield,ifintq,ifkeps,ifldmhd,iflmsc, &
+      iflmse,iflmsf,iflomach,ifmelt,ifmgrid,ifmhd,ifmoab,ifmodel,ifmodp,ifmpiio,ifmscr,ifmseg, &
+      ifmsfc,ifmvbd,ifneknek,ifneknekm,ifnonl,ifnskp,ifoutfld,ifpert,ifpo,ifprnt,ifprojfld,ifpsco, &
+      ifpso,ifqinp,ifreguo,ifrich,ifrsxy,ifrzer,ifschclob,ifskip,ifsplit,ifssvt,ifstrs,ifstst, &
+      ifsurt,ifsync,iftgo,iftmsh,ifto,iftran,ifusermv,ifuservp,ifvarp,ifvcor,ifvcoup,ifvo,ifvps, &
+      ifwcno,ifxyo,ifxyo_,iggl,igglt,igroup,im1d,im1dt,imatie,imd1,imd1t,imesh,indx,initc,instep, &
+      invedg,iocomm,ioinfodmp,iostep,ipscal,ipsco,irstim,irstt,irstv,isize,istep,ixcn,ixm12,ixm13, &
+      ixm21,ixm31,ixtm12,ixtm13,ixtm21,ixtm31,iym12,iym13,iym21,iym31,iytm12,iytm13,iytm21,iytm31, &
+      izm12,izm13,izm21,izm31,iztm12,iztm13,iztm21,iztm31,jacm1,jacm2,jacmi,jp,lastep,lcnnum, &
+      ldimr,lednum,lglel,lochis,loglevel,lsize,lyap,matids,matindx,matype,maxmlt,mpi_argv_null, &
       mpi_argvs_null,mpi_bottom,mpi_errcodes_ignore,mpi_in_place,mpi_status_ignore, &
       mpi_statuses_ignore,mpi_unweighted,mpi_weights_empty,nab,nabmsh,nadvc,naxhm,nbbbb,nbd, &
       nbdinp,nbso2,nbsol,ncccc,ncdtp,ncmp,nconv,nconv_max,ncopy,ncrsl,ncvf,ndadd,ndddd,nddsl, &
@@ -7258,33 +7374,37 @@ contains
       xm1,xm2,xxth,yc,yinvm1,ym1,ym2,zam1,zam2,zam3,zc,zgl,zgm1,zgm2,zgm3,zgp,zm1,zm2)
       ifnav = ifadvc(1)
       turbmod = textsw(1,1)
-      call gop(torqpy,w1,'+  ',maxobj+1,ab,abmsh,abx1,abx2,aby1,aby2,abz1,abz2,area,atol,avdiff, &
-      avtran,b1ia1,b1ia1t,b1mask,b2mask,b2p,b3mask,baxm1,bbx1,bbx2,bby1,bby2,bbz1,bbz2,bc,bcf, &
-      bctyps,bd,bdivw,bfx,bfxp,bfy,bfyp,bfz,bfzp,bintm1,binvdg,binvm1,bm1,bm1lag,bm2,bm2inv,bmass, &
-      bmnv,bmx,bmy,bmz,bpmask,bq,bqp,bx,bxlag,by,bylag,bz,bzlag,c_vx,cbc,ccurve,cdof,cerror,cflf, &
-      courno,cpfld,cpgrp,cr_h,cr_re2,csize,ctarg,curve,d1,d1t,d2,da,dam1,dam12,dam3,dat,datm1, &
-      datm12,datm3,dcm1,dcm12,dcm3,dctm1,dctm12,dctm3,dg_face,dg_hndlx,dglg,dglgt,dlam,dmpfle, &
-      dp0thdt,drivc,dt,dtinit,dtinvm,dtlag,dvdfh1,dvdfl2,dvdfl8,dvdfsm,dvnnh1,dvnnl2,dvnnl8, &
-      dvnnsm,dvprh1,dvprl2,dvprl8,dvprsm,dxm1,dxm12,dxm3,dxtm1,dxtm12,dxtm3,dym1,dym12,dym3,dytm1, &
-      dytm12,dytm3,dzm1,dzm12,dzm3,dztm1,dztm12,dztm3,eface,eface1,eigaa,eigae,eigas,eigast,eigga, &
-      eigge,eiggs,eiggst,eskip,etalph,etimes,etims0,ev1,ev2,ev3,exx1p,exx2p,exy1p,exy2p,exz1p, &
-      exz2p,fh_re2,filtertype,fintim,fldfle,fw,g1m1,g2m1,g3m1,g4m1,g5m1,g6m1,gamma0,gcnnum,gednum, &
-      gedtyp,gllel,gllnid,group,gsh,gsh_fld,hcode,hisfle,iajl1,iajl2,ialj1,ialj3,iam12,iam13, &
-      iam21,iam31,iatjl1,iatjl2,iatlj1,iatlj3,iatm12,iatm13,iatm21,iatm31,ibcsts,icall,icedg, &
-      icface,icm12,icm13,icm21,icm31,ictm12,ictm13,ictm21,ictm31,idpss,idsess,ieact,iedge,iedgef, &
-      iedgfc,iesolv,if3d,if_full_pres,ifaa,ifadvc,ifae,ifalgn,ifanl2,ifanls,ifas,ifast,ifaxis, &
-      ifaziv,ifbase,ifbcor,ifbo,ifchar,ifcons,ifcoup,ifcvfld,ifcvode,ifcyclic,ifdeal,ifdg,ifdgfld, &
-      ifdiff,ifdp0dt,ifeppm,ifessr,ifexplvis,ifextr,ifexvt,ifflow,iffmtin,ifga,ifge,ifgeom, &
-      ifgmsh3,ifgprnt,ifgs,ifgsh_fld_same,ifgst,ifheat,ifield,ifintq,ifkeps,ifldmhd,iflmsc,iflmse, &
-      iflmsf,iflomach,ifmelt,ifmgrid,ifmhd,ifmoab,ifmodel,ifmodp,ifmpiio,ifmscr,ifmseg,ifmsfc, &
-      ifmvbd,ifneknek,ifneknekm,ifnonl,ifnskp,ifoutfld,ifpert,ifpo,ifprnt,ifprojfld,ifpsco,ifpso, &
-      ifqinp,ifreguo,ifrich,ifrsxy,ifrzer,ifschclob,ifskip,ifsplit,ifssvt,ifstrs,ifstst,ifsurt, &
-      ifsync,iftgo,iftmsh,ifto,iftran,ifusermv,ifuservp,ifvarp,ifvcor,ifvcoup,ifvo,ifvps,ifwcno, &
-      ifxyo,ifxyo_,iggl,igglt,igroup,im1d,im1dt,imatie,imd1,imd1t,imesh,indx,initc,instep,invedg, &
-      iocomm,ioinfodmp,iostep,ipscal,ipsco,irstim,irstt,irstv,isize,istep,ixcn,ixm12,ixm13,ixm21, &
-      ixm31,ixtm12,ixtm13,ixtm21,ixtm31,iym12,iym13,iym21,iym31,iytm12,iytm13,iytm21,iytm31,izm12, &
-      izm13,izm21,izm31,iztm12,iztm13,iztm21,iztm31,jacm1,jacm2,jacmi,jp,lastep,lcnnum,ldimr, &
-      lednum,lglel,lochis,loglevel,lsize,lyap,matids,matindx,matype,maxmlt,mpi_argv_null, &
+      torqpx = reshape(torqpx_gop, shape(torqpx))
+      w1 = reshape(w1_gop, shape(w1))
+      torqpy_gop = reshape(torqpy,shape(torqpy_gop))
+      w1_gop = reshape(w1,shape(w1_gop))
+      call gop(torqpy_gop,w1_gop,'+  ',maxobj+1,ab,abmsh,abx1,abx2,aby1,aby2,abz1,abz2,area,atol, &
+      avdiff,avtran,b1ia1,b1ia1t,b1mask,b2mask,b2p,b3mask,baxm1,bbx1,bbx2,bby1,bby2,bbz1,bbz2,bc, &
+      bcf,bctyps,bd,bdivw,bfx,bfxp,bfy,bfyp,bfz,bfzp,bintm1,binvdg,binvm1,bm1,bm1lag,bm2,bm2inv, &
+      bmass,bmnv,bmx,bmy,bmz,bpmask,bq,bqp,bx,bxlag,by,bylag,bz,bzlag,c_vx,cbc,ccurve,cdof,cerror, &
+      cflf,courno,cpfld,cpgrp,cr_h,cr_re2,csize,ctarg,curve,d1,d1t,d2,da,dam1,dam12,dam3,dat, &
+      datm1,datm12,datm3,dcm1,dcm12,dcm3,dctm1,dctm12,dctm3,dg_face,dg_hndlx,dglg,dglgt,dlam, &
+      dmpfle,dp0thdt,drivc,dt,dtinit,dtinvm,dtlag,dvdfh1,dvdfl2,dvdfl8,dvdfsm,dvnnh1,dvnnl2, &
+      dvnnl8,dvnnsm,dvprh1,dvprl2,dvprl8,dvprsm,dxm1,dxm12,dxm3,dxtm1,dxtm12,dxtm3,dym1,dym12, &
+      dym3,dytm1,dytm12,dytm3,dzm1,dzm12,dzm3,dztm1,dztm12,dztm3,eface,eface1,eigaa,eigae,eigas, &
+      eigast,eigga,eigge,eiggs,eiggst,eskip,etalph,etimes,etims0,ev1,ev2,ev3,exx1p,exx2p,exy1p, &
+      exy2p,exz1p,exz2p,fh_re2,filtertype,fintim,fldfle,fw,g1m1,g2m1,g3m1,g4m1,g5m1,g6m1,gamma0, &
+      gcnnum,gednum,gedtyp,gllel,gllnid,group,gsh,gsh_fld,hcode,hisfle,iajl1,iajl2,ialj1,ialj3, &
+      iam12,iam13,iam21,iam31,iatjl1,iatjl2,iatlj1,iatlj3,iatm12,iatm13,iatm21,iatm31,ibcsts, &
+      icall,icedg,icface,icm12,icm13,icm21,icm31,ictm12,ictm13,ictm21,ictm31,idpss,idsess,ieact, &
+      iedge,iedgef,iedgfc,iesolv,if3d,if_full_pres,ifaa,ifadvc,ifae,ifalgn,ifanl2,ifanls,ifas, &
+      ifast,ifaxis,ifaziv,ifbase,ifbcor,ifbo,ifchar,ifcons,ifcoup,ifcvfld,ifcvode,ifcyclic,ifdeal, &
+      ifdg,ifdgfld,ifdiff,ifdp0dt,ifeppm,ifessr,ifexplvis,ifextr,ifexvt,ifflow,iffmtin,ifga,ifge, &
+      ifgeom,ifgmsh3,ifgprnt,ifgs,ifgsh_fld_same,ifgst,ifheat,ifield,ifintq,ifkeps,ifldmhd,iflmsc, &
+      iflmse,iflmsf,iflomach,ifmelt,ifmgrid,ifmhd,ifmoab,ifmodel,ifmodp,ifmpiio,ifmscr,ifmseg, &
+      ifmsfc,ifmvbd,ifneknek,ifneknekm,ifnonl,ifnskp,ifoutfld,ifpert,ifpo,ifprnt,ifprojfld,ifpsco, &
+      ifpso,ifqinp,ifreguo,ifrich,ifrsxy,ifrzer,ifschclob,ifskip,ifsplit,ifssvt,ifstrs,ifstst, &
+      ifsurt,ifsync,iftgo,iftmsh,ifto,iftran,ifusermv,ifuservp,ifvarp,ifvcor,ifvcoup,ifvo,ifvps, &
+      ifwcno,ifxyo,ifxyo_,iggl,igglt,igroup,im1d,im1dt,imatie,imd1,imd1t,imesh,indx,initc,instep, &
+      invedg,iocomm,ioinfodmp,iostep,ipscal,ipsco,irstim,irstt,irstv,isize,istep,ixcn,ixm12,ixm13, &
+      ixm21,ixm31,ixtm12,ixtm13,ixtm21,ixtm31,iym12,iym13,iym21,iym31,iytm12,iytm13,iytm21,iytm31, &
+      izm12,izm13,izm21,izm31,iztm12,iztm13,iztm21,iztm31,jacm1,jacm2,jacmi,jp,lastep,lcnnum, &
+      ldimr,lednum,lglel,lochis,loglevel,lsize,lyap,matids,matindx,matype,maxmlt,mpi_argv_null, &
       mpi_argvs_null,mpi_bottom,mpi_errcodes_ignore,mpi_in_place,mpi_status_ignore, &
       mpi_statuses_ignore,mpi_unweighted,mpi_weights_empty,nab,nabmsh,nadvc,naxhm,nbbbb,nbd, &
       nbdinp,nbso2,nbsol,ncccc,ncdtp,ncmp,nconv,nconv_max,ncopy,ncrsl,ncvf,ndadd,ndddd,nddsl, &
@@ -7315,33 +7435,37 @@ contains
       xm1,xm2,xxth,yc,yinvm1,ym1,ym2,zam1,zam2,zam3,zc,zgl,zgm1,zgm2,zgm3,zgp,zm1,zm2)
       ifnav = ifadvc(1)
       turbmod = textsw(1,1)
-      call gop(torqpz,w1,'+  ',maxobj+1,ab,abmsh,abx1,abx2,aby1,aby2,abz1,abz2,area,atol,avdiff, &
-      avtran,b1ia1,b1ia1t,b1mask,b2mask,b2p,b3mask,baxm1,bbx1,bbx2,bby1,bby2,bbz1,bbz2,bc,bcf, &
-      bctyps,bd,bdivw,bfx,bfxp,bfy,bfyp,bfz,bfzp,bintm1,binvdg,binvm1,bm1,bm1lag,bm2,bm2inv,bmass, &
-      bmnv,bmx,bmy,bmz,bpmask,bq,bqp,bx,bxlag,by,bylag,bz,bzlag,c_vx,cbc,ccurve,cdof,cerror,cflf, &
-      courno,cpfld,cpgrp,cr_h,cr_re2,csize,ctarg,curve,d1,d1t,d2,da,dam1,dam12,dam3,dat,datm1, &
-      datm12,datm3,dcm1,dcm12,dcm3,dctm1,dctm12,dctm3,dg_face,dg_hndlx,dglg,dglgt,dlam,dmpfle, &
-      dp0thdt,drivc,dt,dtinit,dtinvm,dtlag,dvdfh1,dvdfl2,dvdfl8,dvdfsm,dvnnh1,dvnnl2,dvnnl8, &
-      dvnnsm,dvprh1,dvprl2,dvprl8,dvprsm,dxm1,dxm12,dxm3,dxtm1,dxtm12,dxtm3,dym1,dym12,dym3,dytm1, &
-      dytm12,dytm3,dzm1,dzm12,dzm3,dztm1,dztm12,dztm3,eface,eface1,eigaa,eigae,eigas,eigast,eigga, &
-      eigge,eiggs,eiggst,eskip,etalph,etimes,etims0,ev1,ev2,ev3,exx1p,exx2p,exy1p,exy2p,exz1p, &
-      exz2p,fh_re2,filtertype,fintim,fldfle,fw,g1m1,g2m1,g3m1,g4m1,g5m1,g6m1,gamma0,gcnnum,gednum, &
-      gedtyp,gllel,gllnid,group,gsh,gsh_fld,hcode,hisfle,iajl1,iajl2,ialj1,ialj3,iam12,iam13, &
-      iam21,iam31,iatjl1,iatjl2,iatlj1,iatlj3,iatm12,iatm13,iatm21,iatm31,ibcsts,icall,icedg, &
-      icface,icm12,icm13,icm21,icm31,ictm12,ictm13,ictm21,ictm31,idpss,idsess,ieact,iedge,iedgef, &
-      iedgfc,iesolv,if3d,if_full_pres,ifaa,ifadvc,ifae,ifalgn,ifanl2,ifanls,ifas,ifast,ifaxis, &
-      ifaziv,ifbase,ifbcor,ifbo,ifchar,ifcons,ifcoup,ifcvfld,ifcvode,ifcyclic,ifdeal,ifdg,ifdgfld, &
-      ifdiff,ifdp0dt,ifeppm,ifessr,ifexplvis,ifextr,ifexvt,ifflow,iffmtin,ifga,ifge,ifgeom, &
-      ifgmsh3,ifgprnt,ifgs,ifgsh_fld_same,ifgst,ifheat,ifield,ifintq,ifkeps,ifldmhd,iflmsc,iflmse, &
-      iflmsf,iflomach,ifmelt,ifmgrid,ifmhd,ifmoab,ifmodel,ifmodp,ifmpiio,ifmscr,ifmseg,ifmsfc, &
-      ifmvbd,ifneknek,ifneknekm,ifnonl,ifnskp,ifoutfld,ifpert,ifpo,ifprnt,ifprojfld,ifpsco,ifpso, &
-      ifqinp,ifreguo,ifrich,ifrsxy,ifrzer,ifschclob,ifskip,ifsplit,ifssvt,ifstrs,ifstst,ifsurt, &
-      ifsync,iftgo,iftmsh,ifto,iftran,ifusermv,ifuservp,ifvarp,ifvcor,ifvcoup,ifvo,ifvps,ifwcno, &
-      ifxyo,ifxyo_,iggl,igglt,igroup,im1d,im1dt,imatie,imd1,imd1t,imesh,indx,initc,instep,invedg, &
-      iocomm,ioinfodmp,iostep,ipscal,ipsco,irstim,irstt,irstv,isize,istep,ixcn,ixm12,ixm13,ixm21, &
-      ixm31,ixtm12,ixtm13,ixtm21,ixtm31,iym12,iym13,iym21,iym31,iytm12,iytm13,iytm21,iytm31,izm12, &
-      izm13,izm21,izm31,iztm12,iztm13,iztm21,iztm31,jacm1,jacm2,jacmi,jp,lastep,lcnnum,ldimr, &
-      lednum,lglel,lochis,loglevel,lsize,lyap,matids,matindx,matype,maxmlt,mpi_argv_null, &
+      torqpy = reshape(torqpy_gop, shape(torqpy))
+      w1 = reshape(w1_gop, shape(w1))
+      torqpz_gop = reshape(torqpz,shape(torqpz_gop))
+      w1_gop = reshape(w1,shape(w1_gop))
+      call gop(torqpz_gop,w1_gop,'+  ',maxobj+1,ab,abmsh,abx1,abx2,aby1,aby2,abz1,abz2,area,atol, &
+      avdiff,avtran,b1ia1,b1ia1t,b1mask,b2mask,b2p,b3mask,baxm1,bbx1,bbx2,bby1,bby2,bbz1,bbz2,bc, &
+      bcf,bctyps,bd,bdivw,bfx,bfxp,bfy,bfyp,bfz,bfzp,bintm1,binvdg,binvm1,bm1,bm1lag,bm2,bm2inv, &
+      bmass,bmnv,bmx,bmy,bmz,bpmask,bq,bqp,bx,bxlag,by,bylag,bz,bzlag,c_vx,cbc,ccurve,cdof,cerror, &
+      cflf,courno,cpfld,cpgrp,cr_h,cr_re2,csize,ctarg,curve,d1,d1t,d2,da,dam1,dam12,dam3,dat, &
+      datm1,datm12,datm3,dcm1,dcm12,dcm3,dctm1,dctm12,dctm3,dg_face,dg_hndlx,dglg,dglgt,dlam, &
+      dmpfle,dp0thdt,drivc,dt,dtinit,dtinvm,dtlag,dvdfh1,dvdfl2,dvdfl8,dvdfsm,dvnnh1,dvnnl2, &
+      dvnnl8,dvnnsm,dvprh1,dvprl2,dvprl8,dvprsm,dxm1,dxm12,dxm3,dxtm1,dxtm12,dxtm3,dym1,dym12, &
+      dym3,dytm1,dytm12,dytm3,dzm1,dzm12,dzm3,dztm1,dztm12,dztm3,eface,eface1,eigaa,eigae,eigas, &
+      eigast,eigga,eigge,eiggs,eiggst,eskip,etalph,etimes,etims0,ev1,ev2,ev3,exx1p,exx2p,exy1p, &
+      exy2p,exz1p,exz2p,fh_re2,filtertype,fintim,fldfle,fw,g1m1,g2m1,g3m1,g4m1,g5m1,g6m1,gamma0, &
+      gcnnum,gednum,gedtyp,gllel,gllnid,group,gsh,gsh_fld,hcode,hisfle,iajl1,iajl2,ialj1,ialj3, &
+      iam12,iam13,iam21,iam31,iatjl1,iatjl2,iatlj1,iatlj3,iatm12,iatm13,iatm21,iatm31,ibcsts, &
+      icall,icedg,icface,icm12,icm13,icm21,icm31,ictm12,ictm13,ictm21,ictm31,idpss,idsess,ieact, &
+      iedge,iedgef,iedgfc,iesolv,if3d,if_full_pres,ifaa,ifadvc,ifae,ifalgn,ifanl2,ifanls,ifas, &
+      ifast,ifaxis,ifaziv,ifbase,ifbcor,ifbo,ifchar,ifcons,ifcoup,ifcvfld,ifcvode,ifcyclic,ifdeal, &
+      ifdg,ifdgfld,ifdiff,ifdp0dt,ifeppm,ifessr,ifexplvis,ifextr,ifexvt,ifflow,iffmtin,ifga,ifge, &
+      ifgeom,ifgmsh3,ifgprnt,ifgs,ifgsh_fld_same,ifgst,ifheat,ifield,ifintq,ifkeps,ifldmhd,iflmsc, &
+      iflmse,iflmsf,iflomach,ifmelt,ifmgrid,ifmhd,ifmoab,ifmodel,ifmodp,ifmpiio,ifmscr,ifmseg, &
+      ifmsfc,ifmvbd,ifneknek,ifneknekm,ifnonl,ifnskp,ifoutfld,ifpert,ifpo,ifprnt,ifprojfld,ifpsco, &
+      ifpso,ifqinp,ifreguo,ifrich,ifrsxy,ifrzer,ifschclob,ifskip,ifsplit,ifssvt,ifstrs,ifstst, &
+      ifsurt,ifsync,iftgo,iftmsh,ifto,iftran,ifusermv,ifuservp,ifvarp,ifvcor,ifvcoup,ifvo,ifvps, &
+      ifwcno,ifxyo,ifxyo_,iggl,igglt,igroup,im1d,im1dt,imatie,imd1,imd1t,imesh,indx,initc,instep, &
+      invedg,iocomm,ioinfodmp,iostep,ipscal,ipsco,irstim,irstt,irstv,isize,istep,ixcn,ixm12,ixm13, &
+      ixm21,ixm31,ixtm12,ixtm13,ixtm21,ixtm31,iym12,iym13,iym21,iym31,iytm12,iytm13,iytm21,iytm31, &
+      izm12,izm13,izm21,izm31,iztm12,iztm13,iztm21,iztm31,jacm1,jacm2,jacmi,jp,lastep,lcnnum, &
+      ldimr,lednum,lglel,lochis,loglevel,lsize,lyap,matids,matindx,matype,maxmlt,mpi_argv_null, &
       mpi_argvs_null,mpi_bottom,mpi_errcodes_ignore,mpi_in_place,mpi_status_ignore, &
       mpi_statuses_ignore,mpi_unweighted,mpi_weights_empty,nab,nabmsh,nadvc,naxhm,nbbbb,nbd, &
       nbdinp,nbso2,nbsol,ncccc,ncdtp,ncmp,nconv,nconv_max,ncopy,ncrsl,ncvf,ndadd,ndddd,nddsl, &
@@ -7372,33 +7496,37 @@ contains
       xm1,xm2,xxth,yc,yinvm1,ym1,ym2,zam1,zam2,zam3,zc,zgl,zgm1,zgm2,zgm3,zgp,zm1,zm2)
       ifnav = ifadvc(1)
       turbmod = textsw(1,1)
-      call gop(torqvx,w1,'+  ',maxobj+1,ab,abmsh,abx1,abx2,aby1,aby2,abz1,abz2,area,atol,avdiff, &
-      avtran,b1ia1,b1ia1t,b1mask,b2mask,b2p,b3mask,baxm1,bbx1,bbx2,bby1,bby2,bbz1,bbz2,bc,bcf, &
-      bctyps,bd,bdivw,bfx,bfxp,bfy,bfyp,bfz,bfzp,bintm1,binvdg,binvm1,bm1,bm1lag,bm2,bm2inv,bmass, &
-      bmnv,bmx,bmy,bmz,bpmask,bq,bqp,bx,bxlag,by,bylag,bz,bzlag,c_vx,cbc,ccurve,cdof,cerror,cflf, &
-      courno,cpfld,cpgrp,cr_h,cr_re2,csize,ctarg,curve,d1,d1t,d2,da,dam1,dam12,dam3,dat,datm1, &
-      datm12,datm3,dcm1,dcm12,dcm3,dctm1,dctm12,dctm3,dg_face,dg_hndlx,dglg,dglgt,dlam,dmpfle, &
-      dp0thdt,drivc,dt,dtinit,dtinvm,dtlag,dvdfh1,dvdfl2,dvdfl8,dvdfsm,dvnnh1,dvnnl2,dvnnl8, &
-      dvnnsm,dvprh1,dvprl2,dvprl8,dvprsm,dxm1,dxm12,dxm3,dxtm1,dxtm12,dxtm3,dym1,dym12,dym3,dytm1, &
-      dytm12,dytm3,dzm1,dzm12,dzm3,dztm1,dztm12,dztm3,eface,eface1,eigaa,eigae,eigas,eigast,eigga, &
-      eigge,eiggs,eiggst,eskip,etalph,etimes,etims0,ev1,ev2,ev3,exx1p,exx2p,exy1p,exy2p,exz1p, &
-      exz2p,fh_re2,filtertype,fintim,fldfle,fw,g1m1,g2m1,g3m1,g4m1,g5m1,g6m1,gamma0,gcnnum,gednum, &
-      gedtyp,gllel,gllnid,group,gsh,gsh_fld,hcode,hisfle,iajl1,iajl2,ialj1,ialj3,iam12,iam13, &
-      iam21,iam31,iatjl1,iatjl2,iatlj1,iatlj3,iatm12,iatm13,iatm21,iatm31,ibcsts,icall,icedg, &
-      icface,icm12,icm13,icm21,icm31,ictm12,ictm13,ictm21,ictm31,idpss,idsess,ieact,iedge,iedgef, &
-      iedgfc,iesolv,if3d,if_full_pres,ifaa,ifadvc,ifae,ifalgn,ifanl2,ifanls,ifas,ifast,ifaxis, &
-      ifaziv,ifbase,ifbcor,ifbo,ifchar,ifcons,ifcoup,ifcvfld,ifcvode,ifcyclic,ifdeal,ifdg,ifdgfld, &
-      ifdiff,ifdp0dt,ifeppm,ifessr,ifexplvis,ifextr,ifexvt,ifflow,iffmtin,ifga,ifge,ifgeom, &
-      ifgmsh3,ifgprnt,ifgs,ifgsh_fld_same,ifgst,ifheat,ifield,ifintq,ifkeps,ifldmhd,iflmsc,iflmse, &
-      iflmsf,iflomach,ifmelt,ifmgrid,ifmhd,ifmoab,ifmodel,ifmodp,ifmpiio,ifmscr,ifmseg,ifmsfc, &
-      ifmvbd,ifneknek,ifneknekm,ifnonl,ifnskp,ifoutfld,ifpert,ifpo,ifprnt,ifprojfld,ifpsco,ifpso, &
-      ifqinp,ifreguo,ifrich,ifrsxy,ifrzer,ifschclob,ifskip,ifsplit,ifssvt,ifstrs,ifstst,ifsurt, &
-      ifsync,iftgo,iftmsh,ifto,iftran,ifusermv,ifuservp,ifvarp,ifvcor,ifvcoup,ifvo,ifvps,ifwcno, &
-      ifxyo,ifxyo_,iggl,igglt,igroup,im1d,im1dt,imatie,imd1,imd1t,imesh,indx,initc,instep,invedg, &
-      iocomm,ioinfodmp,iostep,ipscal,ipsco,irstim,irstt,irstv,isize,istep,ixcn,ixm12,ixm13,ixm21, &
-      ixm31,ixtm12,ixtm13,ixtm21,ixtm31,iym12,iym13,iym21,iym31,iytm12,iytm13,iytm21,iytm31,izm12, &
-      izm13,izm21,izm31,iztm12,iztm13,iztm21,iztm31,jacm1,jacm2,jacmi,jp,lastep,lcnnum,ldimr, &
-      lednum,lglel,lochis,loglevel,lsize,lyap,matids,matindx,matype,maxmlt,mpi_argv_null, &
+      torqpz = reshape(torqpz_gop, shape(torqpz))
+      w1 = reshape(w1_gop, shape(w1))
+      torqvx_gop = reshape(torqvx,shape(torqvx_gop))
+      w1_gop = reshape(w1,shape(w1_gop))
+      call gop(torqvx_gop,w1_gop,'+  ',maxobj+1,ab,abmsh,abx1,abx2,aby1,aby2,abz1,abz2,area,atol, &
+      avdiff,avtran,b1ia1,b1ia1t,b1mask,b2mask,b2p,b3mask,baxm1,bbx1,bbx2,bby1,bby2,bbz1,bbz2,bc, &
+      bcf,bctyps,bd,bdivw,bfx,bfxp,bfy,bfyp,bfz,bfzp,bintm1,binvdg,binvm1,bm1,bm1lag,bm2,bm2inv, &
+      bmass,bmnv,bmx,bmy,bmz,bpmask,bq,bqp,bx,bxlag,by,bylag,bz,bzlag,c_vx,cbc,ccurve,cdof,cerror, &
+      cflf,courno,cpfld,cpgrp,cr_h,cr_re2,csize,ctarg,curve,d1,d1t,d2,da,dam1,dam12,dam3,dat, &
+      datm1,datm12,datm3,dcm1,dcm12,dcm3,dctm1,dctm12,dctm3,dg_face,dg_hndlx,dglg,dglgt,dlam, &
+      dmpfle,dp0thdt,drivc,dt,dtinit,dtinvm,dtlag,dvdfh1,dvdfl2,dvdfl8,dvdfsm,dvnnh1,dvnnl2, &
+      dvnnl8,dvnnsm,dvprh1,dvprl2,dvprl8,dvprsm,dxm1,dxm12,dxm3,dxtm1,dxtm12,dxtm3,dym1,dym12, &
+      dym3,dytm1,dytm12,dytm3,dzm1,dzm12,dzm3,dztm1,dztm12,dztm3,eface,eface1,eigaa,eigae,eigas, &
+      eigast,eigga,eigge,eiggs,eiggst,eskip,etalph,etimes,etims0,ev1,ev2,ev3,exx1p,exx2p,exy1p, &
+      exy2p,exz1p,exz2p,fh_re2,filtertype,fintim,fldfle,fw,g1m1,g2m1,g3m1,g4m1,g5m1,g6m1,gamma0, &
+      gcnnum,gednum,gedtyp,gllel,gllnid,group,gsh,gsh_fld,hcode,hisfle,iajl1,iajl2,ialj1,ialj3, &
+      iam12,iam13,iam21,iam31,iatjl1,iatjl2,iatlj1,iatlj3,iatm12,iatm13,iatm21,iatm31,ibcsts, &
+      icall,icedg,icface,icm12,icm13,icm21,icm31,ictm12,ictm13,ictm21,ictm31,idpss,idsess,ieact, &
+      iedge,iedgef,iedgfc,iesolv,if3d,if_full_pres,ifaa,ifadvc,ifae,ifalgn,ifanl2,ifanls,ifas, &
+      ifast,ifaxis,ifaziv,ifbase,ifbcor,ifbo,ifchar,ifcons,ifcoup,ifcvfld,ifcvode,ifcyclic,ifdeal, &
+      ifdg,ifdgfld,ifdiff,ifdp0dt,ifeppm,ifessr,ifexplvis,ifextr,ifexvt,ifflow,iffmtin,ifga,ifge, &
+      ifgeom,ifgmsh3,ifgprnt,ifgs,ifgsh_fld_same,ifgst,ifheat,ifield,ifintq,ifkeps,ifldmhd,iflmsc, &
+      iflmse,iflmsf,iflomach,ifmelt,ifmgrid,ifmhd,ifmoab,ifmodel,ifmodp,ifmpiio,ifmscr,ifmseg, &
+      ifmsfc,ifmvbd,ifneknek,ifneknekm,ifnonl,ifnskp,ifoutfld,ifpert,ifpo,ifprnt,ifprojfld,ifpsco, &
+      ifpso,ifqinp,ifreguo,ifrich,ifrsxy,ifrzer,ifschclob,ifskip,ifsplit,ifssvt,ifstrs,ifstst, &
+      ifsurt,ifsync,iftgo,iftmsh,ifto,iftran,ifusermv,ifuservp,ifvarp,ifvcor,ifvcoup,ifvo,ifvps, &
+      ifwcno,ifxyo,ifxyo_,iggl,igglt,igroup,im1d,im1dt,imatie,imd1,imd1t,imesh,indx,initc,instep, &
+      invedg,iocomm,ioinfodmp,iostep,ipscal,ipsco,irstim,irstt,irstv,isize,istep,ixcn,ixm12,ixm13, &
+      ixm21,ixm31,ixtm12,ixtm13,ixtm21,ixtm31,iym12,iym13,iym21,iym31,iytm12,iytm13,iytm21,iytm31, &
+      izm12,izm13,izm21,izm31,iztm12,iztm13,iztm21,iztm31,jacm1,jacm2,jacmi,jp,lastep,lcnnum, &
+      ldimr,lednum,lglel,lochis,loglevel,lsize,lyap,matids,matindx,matype,maxmlt,mpi_argv_null, &
       mpi_argvs_null,mpi_bottom,mpi_errcodes_ignore,mpi_in_place,mpi_status_ignore, &
       mpi_statuses_ignore,mpi_unweighted,mpi_weights_empty,nab,nabmsh,nadvc,naxhm,nbbbb,nbd, &
       nbdinp,nbso2,nbsol,ncccc,ncdtp,ncmp,nconv,nconv_max,ncopy,ncrsl,ncvf,ndadd,ndddd,nddsl, &
@@ -7429,33 +7557,37 @@ contains
       xm1,xm2,xxth,yc,yinvm1,ym1,ym2,zam1,zam2,zam3,zc,zgl,zgm1,zgm2,zgm3,zgp,zm1,zm2)
       ifnav = ifadvc(1)
       turbmod = textsw(1,1)
-      call gop(torqvy,w1,'+  ',maxobj+1,ab,abmsh,abx1,abx2,aby1,aby2,abz1,abz2,area,atol,avdiff, &
-      avtran,b1ia1,b1ia1t,b1mask,b2mask,b2p,b3mask,baxm1,bbx1,bbx2,bby1,bby2,bbz1,bbz2,bc,bcf, &
-      bctyps,bd,bdivw,bfx,bfxp,bfy,bfyp,bfz,bfzp,bintm1,binvdg,binvm1,bm1,bm1lag,bm2,bm2inv,bmass, &
-      bmnv,bmx,bmy,bmz,bpmask,bq,bqp,bx,bxlag,by,bylag,bz,bzlag,c_vx,cbc,ccurve,cdof,cerror,cflf, &
-      courno,cpfld,cpgrp,cr_h,cr_re2,csize,ctarg,curve,d1,d1t,d2,da,dam1,dam12,dam3,dat,datm1, &
-      datm12,datm3,dcm1,dcm12,dcm3,dctm1,dctm12,dctm3,dg_face,dg_hndlx,dglg,dglgt,dlam,dmpfle, &
-      dp0thdt,drivc,dt,dtinit,dtinvm,dtlag,dvdfh1,dvdfl2,dvdfl8,dvdfsm,dvnnh1,dvnnl2,dvnnl8, &
-      dvnnsm,dvprh1,dvprl2,dvprl8,dvprsm,dxm1,dxm12,dxm3,dxtm1,dxtm12,dxtm3,dym1,dym12,dym3,dytm1, &
-      dytm12,dytm3,dzm1,dzm12,dzm3,dztm1,dztm12,dztm3,eface,eface1,eigaa,eigae,eigas,eigast,eigga, &
-      eigge,eiggs,eiggst,eskip,etalph,etimes,etims0,ev1,ev2,ev3,exx1p,exx2p,exy1p,exy2p,exz1p, &
-      exz2p,fh_re2,filtertype,fintim,fldfle,fw,g1m1,g2m1,g3m1,g4m1,g5m1,g6m1,gamma0,gcnnum,gednum, &
-      gedtyp,gllel,gllnid,group,gsh,gsh_fld,hcode,hisfle,iajl1,iajl2,ialj1,ialj3,iam12,iam13, &
-      iam21,iam31,iatjl1,iatjl2,iatlj1,iatlj3,iatm12,iatm13,iatm21,iatm31,ibcsts,icall,icedg, &
-      icface,icm12,icm13,icm21,icm31,ictm12,ictm13,ictm21,ictm31,idpss,idsess,ieact,iedge,iedgef, &
-      iedgfc,iesolv,if3d,if_full_pres,ifaa,ifadvc,ifae,ifalgn,ifanl2,ifanls,ifas,ifast,ifaxis, &
-      ifaziv,ifbase,ifbcor,ifbo,ifchar,ifcons,ifcoup,ifcvfld,ifcvode,ifcyclic,ifdeal,ifdg,ifdgfld, &
-      ifdiff,ifdp0dt,ifeppm,ifessr,ifexplvis,ifextr,ifexvt,ifflow,iffmtin,ifga,ifge,ifgeom, &
-      ifgmsh3,ifgprnt,ifgs,ifgsh_fld_same,ifgst,ifheat,ifield,ifintq,ifkeps,ifldmhd,iflmsc,iflmse, &
-      iflmsf,iflomach,ifmelt,ifmgrid,ifmhd,ifmoab,ifmodel,ifmodp,ifmpiio,ifmscr,ifmseg,ifmsfc, &
-      ifmvbd,ifneknek,ifneknekm,ifnonl,ifnskp,ifoutfld,ifpert,ifpo,ifprnt,ifprojfld,ifpsco,ifpso, &
-      ifqinp,ifreguo,ifrich,ifrsxy,ifrzer,ifschclob,ifskip,ifsplit,ifssvt,ifstrs,ifstst,ifsurt, &
-      ifsync,iftgo,iftmsh,ifto,iftran,ifusermv,ifuservp,ifvarp,ifvcor,ifvcoup,ifvo,ifvps,ifwcno, &
-      ifxyo,ifxyo_,iggl,igglt,igroup,im1d,im1dt,imatie,imd1,imd1t,imesh,indx,initc,instep,invedg, &
-      iocomm,ioinfodmp,iostep,ipscal,ipsco,irstim,irstt,irstv,isize,istep,ixcn,ixm12,ixm13,ixm21, &
-      ixm31,ixtm12,ixtm13,ixtm21,ixtm31,iym12,iym13,iym21,iym31,iytm12,iytm13,iytm21,iytm31,izm12, &
-      izm13,izm21,izm31,iztm12,iztm13,iztm21,iztm31,jacm1,jacm2,jacmi,jp,lastep,lcnnum,ldimr, &
-      lednum,lglel,lochis,loglevel,lsize,lyap,matids,matindx,matype,maxmlt,mpi_argv_null, &
+      torqvx = reshape(torqvx_gop, shape(torqvx))
+      w1 = reshape(w1_gop, shape(w1))
+      torqvy_gop = reshape(torqvy,shape(torqvy_gop))
+      w1_gop = reshape(w1,shape(w1_gop))
+      call gop(torqvy_gop,w1_gop,'+  ',maxobj+1,ab,abmsh,abx1,abx2,aby1,aby2,abz1,abz2,area,atol, &
+      avdiff,avtran,b1ia1,b1ia1t,b1mask,b2mask,b2p,b3mask,baxm1,bbx1,bbx2,bby1,bby2,bbz1,bbz2,bc, &
+      bcf,bctyps,bd,bdivw,bfx,bfxp,bfy,bfyp,bfz,bfzp,bintm1,binvdg,binvm1,bm1,bm1lag,bm2,bm2inv, &
+      bmass,bmnv,bmx,bmy,bmz,bpmask,bq,bqp,bx,bxlag,by,bylag,bz,bzlag,c_vx,cbc,ccurve,cdof,cerror, &
+      cflf,courno,cpfld,cpgrp,cr_h,cr_re2,csize,ctarg,curve,d1,d1t,d2,da,dam1,dam12,dam3,dat, &
+      datm1,datm12,datm3,dcm1,dcm12,dcm3,dctm1,dctm12,dctm3,dg_face,dg_hndlx,dglg,dglgt,dlam, &
+      dmpfle,dp0thdt,drivc,dt,dtinit,dtinvm,dtlag,dvdfh1,dvdfl2,dvdfl8,dvdfsm,dvnnh1,dvnnl2, &
+      dvnnl8,dvnnsm,dvprh1,dvprl2,dvprl8,dvprsm,dxm1,dxm12,dxm3,dxtm1,dxtm12,dxtm3,dym1,dym12, &
+      dym3,dytm1,dytm12,dytm3,dzm1,dzm12,dzm3,dztm1,dztm12,dztm3,eface,eface1,eigaa,eigae,eigas, &
+      eigast,eigga,eigge,eiggs,eiggst,eskip,etalph,etimes,etims0,ev1,ev2,ev3,exx1p,exx2p,exy1p, &
+      exy2p,exz1p,exz2p,fh_re2,filtertype,fintim,fldfle,fw,g1m1,g2m1,g3m1,g4m1,g5m1,g6m1,gamma0, &
+      gcnnum,gednum,gedtyp,gllel,gllnid,group,gsh,gsh_fld,hcode,hisfle,iajl1,iajl2,ialj1,ialj3, &
+      iam12,iam13,iam21,iam31,iatjl1,iatjl2,iatlj1,iatlj3,iatm12,iatm13,iatm21,iatm31,ibcsts, &
+      icall,icedg,icface,icm12,icm13,icm21,icm31,ictm12,ictm13,ictm21,ictm31,idpss,idsess,ieact, &
+      iedge,iedgef,iedgfc,iesolv,if3d,if_full_pres,ifaa,ifadvc,ifae,ifalgn,ifanl2,ifanls,ifas, &
+      ifast,ifaxis,ifaziv,ifbase,ifbcor,ifbo,ifchar,ifcons,ifcoup,ifcvfld,ifcvode,ifcyclic,ifdeal, &
+      ifdg,ifdgfld,ifdiff,ifdp0dt,ifeppm,ifessr,ifexplvis,ifextr,ifexvt,ifflow,iffmtin,ifga,ifge, &
+      ifgeom,ifgmsh3,ifgprnt,ifgs,ifgsh_fld_same,ifgst,ifheat,ifield,ifintq,ifkeps,ifldmhd,iflmsc, &
+      iflmse,iflmsf,iflomach,ifmelt,ifmgrid,ifmhd,ifmoab,ifmodel,ifmodp,ifmpiio,ifmscr,ifmseg, &
+      ifmsfc,ifmvbd,ifneknek,ifneknekm,ifnonl,ifnskp,ifoutfld,ifpert,ifpo,ifprnt,ifprojfld,ifpsco, &
+      ifpso,ifqinp,ifreguo,ifrich,ifrsxy,ifrzer,ifschclob,ifskip,ifsplit,ifssvt,ifstrs,ifstst, &
+      ifsurt,ifsync,iftgo,iftmsh,ifto,iftran,ifusermv,ifuservp,ifvarp,ifvcor,ifvcoup,ifvo,ifvps, &
+      ifwcno,ifxyo,ifxyo_,iggl,igglt,igroup,im1d,im1dt,imatie,imd1,imd1t,imesh,indx,initc,instep, &
+      invedg,iocomm,ioinfodmp,iostep,ipscal,ipsco,irstim,irstt,irstv,isize,istep,ixcn,ixm12,ixm13, &
+      ixm21,ixm31,ixtm12,ixtm13,ixtm21,ixtm31,iym12,iym13,iym21,iym31,iytm12,iytm13,iytm21,iytm31, &
+      izm12,izm13,izm21,izm31,iztm12,iztm13,iztm21,iztm31,jacm1,jacm2,jacmi,jp,lastep,lcnnum, &
+      ldimr,lednum,lglel,lochis,loglevel,lsize,lyap,matids,matindx,matype,maxmlt,mpi_argv_null, &
       mpi_argvs_null,mpi_bottom,mpi_errcodes_ignore,mpi_in_place,mpi_status_ignore, &
       mpi_statuses_ignore,mpi_unweighted,mpi_weights_empty,nab,nabmsh,nadvc,naxhm,nbbbb,nbd, &
       nbdinp,nbso2,nbsol,ncccc,ncdtp,ncmp,nconv,nconv_max,ncopy,ncrsl,ncvf,ndadd,ndddd,nddsl, &
@@ -7486,33 +7618,37 @@ contains
       xm1,xm2,xxth,yc,yinvm1,ym1,ym2,zam1,zam2,zam3,zc,zgl,zgm1,zgm2,zgm3,zgp,zm1,zm2)
       ifnav = ifadvc(1)
       turbmod = textsw(1,1)
-      call gop(torqvz,w1,'+  ',maxobj+1,ab,abmsh,abx1,abx2,aby1,aby2,abz1,abz2,area,atol,avdiff, &
-      avtran,b1ia1,b1ia1t,b1mask,b2mask,b2p,b3mask,baxm1,bbx1,bbx2,bby1,bby2,bbz1,bbz2,bc,bcf, &
-      bctyps,bd,bdivw,bfx,bfxp,bfy,bfyp,bfz,bfzp,bintm1,binvdg,binvm1,bm1,bm1lag,bm2,bm2inv,bmass, &
-      bmnv,bmx,bmy,bmz,bpmask,bq,bqp,bx,bxlag,by,bylag,bz,bzlag,c_vx,cbc,ccurve,cdof,cerror,cflf, &
-      courno,cpfld,cpgrp,cr_h,cr_re2,csize,ctarg,curve,d1,d1t,d2,da,dam1,dam12,dam3,dat,datm1, &
-      datm12,datm3,dcm1,dcm12,dcm3,dctm1,dctm12,dctm3,dg_face,dg_hndlx,dglg,dglgt,dlam,dmpfle, &
-      dp0thdt,drivc,dt,dtinit,dtinvm,dtlag,dvdfh1,dvdfl2,dvdfl8,dvdfsm,dvnnh1,dvnnl2,dvnnl8, &
-      dvnnsm,dvprh1,dvprl2,dvprl8,dvprsm,dxm1,dxm12,dxm3,dxtm1,dxtm12,dxtm3,dym1,dym12,dym3,dytm1, &
-      dytm12,dytm3,dzm1,dzm12,dzm3,dztm1,dztm12,dztm3,eface,eface1,eigaa,eigae,eigas,eigast,eigga, &
-      eigge,eiggs,eiggst,eskip,etalph,etimes,etims0,ev1,ev2,ev3,exx1p,exx2p,exy1p,exy2p,exz1p, &
-      exz2p,fh_re2,filtertype,fintim,fldfle,fw,g1m1,g2m1,g3m1,g4m1,g5m1,g6m1,gamma0,gcnnum,gednum, &
-      gedtyp,gllel,gllnid,group,gsh,gsh_fld,hcode,hisfle,iajl1,iajl2,ialj1,ialj3,iam12,iam13, &
-      iam21,iam31,iatjl1,iatjl2,iatlj1,iatlj3,iatm12,iatm13,iatm21,iatm31,ibcsts,icall,icedg, &
-      icface,icm12,icm13,icm21,icm31,ictm12,ictm13,ictm21,ictm31,idpss,idsess,ieact,iedge,iedgef, &
-      iedgfc,iesolv,if3d,if_full_pres,ifaa,ifadvc,ifae,ifalgn,ifanl2,ifanls,ifas,ifast,ifaxis, &
-      ifaziv,ifbase,ifbcor,ifbo,ifchar,ifcons,ifcoup,ifcvfld,ifcvode,ifcyclic,ifdeal,ifdg,ifdgfld, &
-      ifdiff,ifdp0dt,ifeppm,ifessr,ifexplvis,ifextr,ifexvt,ifflow,iffmtin,ifga,ifge,ifgeom, &
-      ifgmsh3,ifgprnt,ifgs,ifgsh_fld_same,ifgst,ifheat,ifield,ifintq,ifkeps,ifldmhd,iflmsc,iflmse, &
-      iflmsf,iflomach,ifmelt,ifmgrid,ifmhd,ifmoab,ifmodel,ifmodp,ifmpiio,ifmscr,ifmseg,ifmsfc, &
-      ifmvbd,ifneknek,ifneknekm,ifnonl,ifnskp,ifoutfld,ifpert,ifpo,ifprnt,ifprojfld,ifpsco,ifpso, &
-      ifqinp,ifreguo,ifrich,ifrsxy,ifrzer,ifschclob,ifskip,ifsplit,ifssvt,ifstrs,ifstst,ifsurt, &
-      ifsync,iftgo,iftmsh,ifto,iftran,ifusermv,ifuservp,ifvarp,ifvcor,ifvcoup,ifvo,ifvps,ifwcno, &
-      ifxyo,ifxyo_,iggl,igglt,igroup,im1d,im1dt,imatie,imd1,imd1t,imesh,indx,initc,instep,invedg, &
-      iocomm,ioinfodmp,iostep,ipscal,ipsco,irstim,irstt,irstv,isize,istep,ixcn,ixm12,ixm13,ixm21, &
-      ixm31,ixtm12,ixtm13,ixtm21,ixtm31,iym12,iym13,iym21,iym31,iytm12,iytm13,iytm21,iytm31,izm12, &
-      izm13,izm21,izm31,iztm12,iztm13,iztm21,iztm31,jacm1,jacm2,jacmi,jp,lastep,lcnnum,ldimr, &
-      lednum,lglel,lochis,loglevel,lsize,lyap,matids,matindx,matype,maxmlt,mpi_argv_null, &
+      torqvy = reshape(torqvy_gop, shape(torqvy))
+      w1 = reshape(w1_gop, shape(w1))
+      torqvz_gop = reshape(torqvz,shape(torqvz_gop))
+      w1_gop = reshape(w1,shape(w1_gop))
+      call gop(torqvz_gop,w1_gop,'+  ',maxobj+1,ab,abmsh,abx1,abx2,aby1,aby2,abz1,abz2,area,atol, &
+      avdiff,avtran,b1ia1,b1ia1t,b1mask,b2mask,b2p,b3mask,baxm1,bbx1,bbx2,bby1,bby2,bbz1,bbz2,bc, &
+      bcf,bctyps,bd,bdivw,bfx,bfxp,bfy,bfyp,bfz,bfzp,bintm1,binvdg,binvm1,bm1,bm1lag,bm2,bm2inv, &
+      bmass,bmnv,bmx,bmy,bmz,bpmask,bq,bqp,bx,bxlag,by,bylag,bz,bzlag,c_vx,cbc,ccurve,cdof,cerror, &
+      cflf,courno,cpfld,cpgrp,cr_h,cr_re2,csize,ctarg,curve,d1,d1t,d2,da,dam1,dam12,dam3,dat, &
+      datm1,datm12,datm3,dcm1,dcm12,dcm3,dctm1,dctm12,dctm3,dg_face,dg_hndlx,dglg,dglgt,dlam, &
+      dmpfle,dp0thdt,drivc,dt,dtinit,dtinvm,dtlag,dvdfh1,dvdfl2,dvdfl8,dvdfsm,dvnnh1,dvnnl2, &
+      dvnnl8,dvnnsm,dvprh1,dvprl2,dvprl8,dvprsm,dxm1,dxm12,dxm3,dxtm1,dxtm12,dxtm3,dym1,dym12, &
+      dym3,dytm1,dytm12,dytm3,dzm1,dzm12,dzm3,dztm1,dztm12,dztm3,eface,eface1,eigaa,eigae,eigas, &
+      eigast,eigga,eigge,eiggs,eiggst,eskip,etalph,etimes,etims0,ev1,ev2,ev3,exx1p,exx2p,exy1p, &
+      exy2p,exz1p,exz2p,fh_re2,filtertype,fintim,fldfle,fw,g1m1,g2m1,g3m1,g4m1,g5m1,g6m1,gamma0, &
+      gcnnum,gednum,gedtyp,gllel,gllnid,group,gsh,gsh_fld,hcode,hisfle,iajl1,iajl2,ialj1,ialj3, &
+      iam12,iam13,iam21,iam31,iatjl1,iatjl2,iatlj1,iatlj3,iatm12,iatm13,iatm21,iatm31,ibcsts, &
+      icall,icedg,icface,icm12,icm13,icm21,icm31,ictm12,ictm13,ictm21,ictm31,idpss,idsess,ieact, &
+      iedge,iedgef,iedgfc,iesolv,if3d,if_full_pres,ifaa,ifadvc,ifae,ifalgn,ifanl2,ifanls,ifas, &
+      ifast,ifaxis,ifaziv,ifbase,ifbcor,ifbo,ifchar,ifcons,ifcoup,ifcvfld,ifcvode,ifcyclic,ifdeal, &
+      ifdg,ifdgfld,ifdiff,ifdp0dt,ifeppm,ifessr,ifexplvis,ifextr,ifexvt,ifflow,iffmtin,ifga,ifge, &
+      ifgeom,ifgmsh3,ifgprnt,ifgs,ifgsh_fld_same,ifgst,ifheat,ifield,ifintq,ifkeps,ifldmhd,iflmsc, &
+      iflmse,iflmsf,iflomach,ifmelt,ifmgrid,ifmhd,ifmoab,ifmodel,ifmodp,ifmpiio,ifmscr,ifmseg, &
+      ifmsfc,ifmvbd,ifneknek,ifneknekm,ifnonl,ifnskp,ifoutfld,ifpert,ifpo,ifprnt,ifprojfld,ifpsco, &
+      ifpso,ifqinp,ifreguo,ifrich,ifrsxy,ifrzer,ifschclob,ifskip,ifsplit,ifssvt,ifstrs,ifstst, &
+      ifsurt,ifsync,iftgo,iftmsh,ifto,iftran,ifusermv,ifuservp,ifvarp,ifvcor,ifvcoup,ifvo,ifvps, &
+      ifwcno,ifxyo,ifxyo_,iggl,igglt,igroup,im1d,im1dt,imatie,imd1,imd1t,imesh,indx,initc,instep, &
+      invedg,iocomm,ioinfodmp,iostep,ipscal,ipsco,irstim,irstt,irstv,isize,istep,ixcn,ixm12,ixm13, &
+      ixm21,ixm31,ixtm12,ixtm13,ixtm21,ixtm31,iym12,iym13,iym21,iym31,iytm12,iytm13,iytm21,iytm31, &
+      izm12,izm13,izm21,izm31,iztm12,iztm13,iztm21,iztm31,jacm1,jacm2,jacmi,jp,lastep,lcnnum, &
+      ldimr,lednum,lglel,lochis,loglevel,lsize,lyap,matids,matindx,matype,maxmlt,mpi_argv_null, &
       mpi_argvs_null,mpi_bottom,mpi_errcodes_ignore,mpi_in_place,mpi_status_ignore, &
       mpi_statuses_ignore,mpi_unweighted,mpi_weights_empty,nab,nabmsh,nadvc,naxhm,nbbbb,nbd, &
       nbdinp,nbso2,nbsol,ncccc,ncdtp,ncmp,nconv,nconv_max,ncopy,ncrsl,ncvf,ndadd,ndddd,nddsl, &
@@ -7543,6 +7679,8 @@ contains
       xm1,xm2,xxth,yc,yinvm1,ym1,ym2,zam1,zam2,zam3,zc,zgl,zgm1,zgm2,zgm3,zgp,zm1,zm2)
       ifnav = ifadvc(1)
       turbmod = textsw(1,1)
+      torqvz = reshape(torqvz_gop, shape(torqvz))
+      w1 = reshape(w1_gop, shape(w1))
 ! 
       nobj  = iglmax(nobj,1,ab,abmsh,abx1,abx2,aby1,aby2,abz1,abz2,area,atol,avdiff,avtran,b1ia1, &
       b1ia1t,b1mask,b2mask,b2p,b3mask,baxm1,bbx1,bbx2,bby1,bby2,bbz1,bbz2,bc,bcf,bctyps,bd,bdivw, &
@@ -7666,8 +7804,9 @@ contains
     6   format(i8,1p4e19.11,2x,i5,a5)
       enddo
 ! 
-      trx(1:lx1,1:ly1,1:lz1) = xm0(1,1,1,1:512)
-      trz(1:lx1,1:ly1,1:lz1) = xm0(1,1,1,513:1024)
+      trx(1:lx1,1:ly1,1:lz1) = xm0(1,1,1:2,1:1194)
+      trz(1:16,1:2,1:0) = xm0(1:lx1,1:ly1,2:lz1,1195:lelt)
+      trz(16:lx1,2:ly1,1:lz1) = ym0(1,1,1:2,1:226)
       return
       end subroutine torque_calc
       subroutine comp_sij(sij,nij,u,v,w,ur,us,ut,vr,vs,vt,wr,ws,wt,ab,abmsh,abx1,abx2,aby1,aby2, &
@@ -7819,15 +7958,26 @@ contains
       ! adjoint
       ! mhd
       real(kind=8), intent(InOut) :: dcount
+      real, dimension(1:lx1,1:lx1) :: dxm1_local_grad2
+      real, dimension(1:lx1,1:lx1) :: dxm1_local_grad3
+      real, dimension(1:lx1,1:lx1) :: dxtm1_local_grad2
+      real, dimension(1:ly1,1:ly1) :: dytm1_local_grad2
+      real, dimension(1:lx1*ly1*lz1,1:lelv) :: u_local_grad2
+      real, dimension(0:n,0:n,0:n,1:1) :: u_local_grad3
+      real, dimension(0:n,0:n) :: ur_local_grad2
+      real, dimension(0:n,0:n,0:n) :: ur_local_grad3
+      real, dimension(0:n,0:n) :: us_local_grad2
+      real, dimension(0:n,0:n,0:n) :: us_local_grad3
+      real, dimension(0:n,0:n,0:n) :: ut_local_grad3
       real, dimension(1:lx1*ly1*lz1,1:lelv) :: v_local_grad2
-      real, dimension(1:lx1*ly1*lz1,1:lelv) :: v_local_grad3
+      real, dimension(0:n,0:n,0:n,1:1) :: v_local_grad3
       real, dimension(0:n,0:n) :: vr_local_grad2
       real, dimension(0:n,0:n,0:n) :: vr_local_grad3
       real, dimension(0:n,0:n) :: vs_local_grad2
       real, dimension(0:n,0:n,0:n) :: vs_local_grad3
       real, dimension(0:n,0:n,0:n) :: vt_local_grad3
       real, dimension(1:lx1*ly1*lz1,1:lelv) :: w_local_grad2
-      real, dimension(1:lx1*ly1*lz1,1:lelv) :: w_local_grad3
+      real, dimension(0:n,0:n,0:n,1:1) :: w_local_grad3
       real, dimension(0:n,0:n) :: wr_local_grad2
       real, dimension(0:n,0:n,0:n) :: wr_local_grad3
       real, dimension(0:n,0:n) :: ws_local_grad2
@@ -8021,6 +8171,8 @@ contains
       integer :: nzd
       integer :: ndim
       integer :: ldimr
+      integer, parameter :: numsts=50
+      integer, parameter :: nelgt_max=178956970
       integer, parameter :: lvt1=lx1*ly1*lz1*lelv
       integer, parameter :: lvt2=lx2*ly2*lz2*lelv
       integer, parameter :: lbt1=lbx1*lby1*lbz1*lbelv
@@ -8036,7 +8188,7 @@ contains
       real, dimension(1:ly2,1:ly1) :: dym12
       real, dimension(1:lz1,1:lz1) :: dzm1
       real, dimension(1:lz2,1:lz1) :: dzm12
-      real, dimension(1:lx1,1:lx1), intent(In) :: dxtm1
+      real, dimension(1:lx1,1:lx1), intent(InOut) :: dxtm1
       real, dimension(1:lx1,1:lx2) :: dxtm12
       real, dimension(1:ly1,1:ly1), intent(InOut) :: dytm1
       real, dimension(1:ly1,1:ly2) :: dytm12
@@ -8752,7 +8904,7 @@ contains
       integer :: e
 ! 
       real, dimension(1:lx1*ly1*lz1,1:nij,1:lelv), intent(Out) :: sij
-      real, dimension(1:lx1*ly1*lz1,1:lelv), intent(In) :: u
+      real, dimension(1:lx1*ly1*lz1,1:lelv), intent(InOut) :: u
       real, dimension(1:lx1*ly1*lz1,1:lelv), intent(InOut) :: v
       real, dimension(1:lx1*ly1*lz1,1:lelv), intent(InOut) :: w
       real, dimension(1:1), intent(InOut) :: ur
@@ -8769,92 +8921,103 @@ contains
       nxyz = lx1*ly1*lz1
       if (if3d) then     
        do e=1,nelv
-        call local_grad3(ur,us,ut,u,n,e,dxm1,dxtm1,ab,abmsh,abx1,abx2,aby1,aby2,abz1,abz2,area,atol, &
-      avdiff,avtran,b1ia1,b1ia1t,b1mask,b2mask,b2p,b3mask,baxm1,bbx1,bbx2,bby1,bby2,bbz1,bbz2,bc, &
-      bcf,bctyps,bd,bdivw,bfx,bfxp,bfy,bfyp,bfz,bfzp,bintm1,binvdg,binvm1,bm1,bm1lag,bm2,bm2inv, &
-      bmass,bmnv,bmx,bmy,bmz,bpmask,bq,bqp,bx,bxlag,by,bylag,bz,bzlag,c_vx,cbc,ccurve,cdof,cerror, &
-      cflf,courno,cpfld,cpgrp,cr_h,cr_re2,csize,ctarg,curve,d1,d1t,d2,da,dam1,dam12,dam3,dat, &
-      datm1,datm12,datm3,dcm1,dcm12,dcm3,dcount,dct,dctm1,dctm12,dctm3,dg_face,dg_hndlx,dglg, &
-      dglgt,dlam,dmpfle,dp0thdt,drivc,dt,dtinit,dtinvm,dtlag,dvdfh1,dvdfl2,dvdfl8,dvdfsm,dvnnh1, &
-      dvnnl2,dvnnl8,dvnnsm,dvprh1,dvprl2,dvprl8,dvprsm,dxm12,dxm3,dxtm12,dxtm3,dym1,dym12,dym3, &
-      dytm1,dytm12,dytm3,dzm1,dzm12,dzm3,dztm1,dztm12,dztm3,eface,eface1,eigaa,eigae,eigas,eigast, &
-      eigga,eigge,eiggs,eiggst,eskip,etalph,etimes,etims0,ev1,ev2,ev3,exx1p,exx2p,exy1p,exy2p, &
-      exz1p,exz2p,fh_re2,filtertype,fintim,fldfle,fw,g1m1,g2m1,g3m1,g4m1,g5m1,g6m1,gamma0,gcnnum, &
-      gednum,gedtyp,gllel,gllnid,group,gsh,gsh_fld,hcode,hisfle,iajl1,iajl2,ialj1,ialj3,iam12, &
-      iam13,iam21,iam31,iatjl1,iatjl2,iatlj1,iatlj3,iatm12,iatm13,iatm21,iatm31,ibcsts,icedg, &
-      icface,icm12,icm13,icm21,icm31,ictm12,ictm13,ictm21,ictm31,idpss,idsess,ieact,iedge,iedgef, &
-      iedgfc,iesolv,if3d,if_full_pres,ifaa,ifadvc,ifae,ifalgn,ifanl2,ifanls,ifas,ifast,ifaxis, &
-      ifaziv,ifbase,ifbcor,ifbo,ifchar,ifcons,ifcoup,ifcvfld,ifcvode,ifcyclic,ifdeal,ifdg,ifdgfld, &
-      ifdiff,ifdp0dt,ifeppm,ifessr,ifexplvis,ifextr,ifexvt,ifflow,iffmtin,ifga,ifge,ifgeom, &
-      ifgmsh3,ifgprnt,ifgs,ifgsh_fld_same,ifgst,ifheat,ifield,ifintq,ifkeps,ifldmhd,iflmsc,iflmse, &
-      iflmsf,iflomach,ifmelt,ifmgrid,ifmhd,ifmoab,ifmodel,ifmodp,ifmpiio,ifmscr,ifmseg,ifmsfc, &
-      ifmvbd,ifneknek,ifneknekm,ifnonl,ifnskp,ifoutfld,ifpert,ifpo,ifprnt,ifprojfld,ifpsco,ifpso, &
-      ifqinp,ifreguo,ifrich,ifrsxy,ifrzer,ifschclob,ifskip,ifsplit,ifssvt,ifstrs,ifstst,ifsurt, &
-      ifsync,iftgo,iftmsh,ifto,iftran,ifusermv,ifuservp,ifvarp,ifvcor,ifvcoup,ifvo,ifvps,ifwcno, &
-      ifxyo,ifxyo_,iggl,igglt,igroup,im1d,im1dt,imatie,imd1,imd1t,imesh,indx,initc,instep,invedg, &
-      iocomm,ioinfodmp,iostep,ipscal,ipsco,irstim,irstt,irstv,isize,istep,ixcn,ixm12,ixm13,ixm21, &
-      ixm31,ixtm12,ixtm13,ixtm21,ixtm31,iym12,iym13,iym21,iym31,iytm12,iytm13,iytm21,iytm31,izm12, &
-      izm13,izm21,izm31,iztm12,iztm13,iztm21,iztm31,jacm1,jacm2,jacmi,jp,lastep,lcnnum,ldimr, &
-      lednum,lglel,lochis,loglevel,lsize,lyap,matids,matindx,matype,maxmlt,mpi_argv_null, &
-      mpi_argvs_null,mpi_bottom,mpi_errcodes_ignore,mpi_in_place,mpi_status_ignore, &
-      mpi_statuses_ignore,mpi_unweighted,mpi_weights_empty,nab,nabmsh,nadvc,naxhm,nbbbb,nbd, &
-      nbdinp,nbso2,nbsol,ncall,ncccc,ncdtp,ncmp,nconv,nconv_max,ncopy,ncrsl,ncvf,ndadd,ndddd, &
-      nddsl,ndg_facex,ndim,ndott,ndsmn,ndsmx,ndsnd,ndsum,neact,nedg,neeee,nelfld,nelg,nelgt,nelgv, &
-      nelt,nelv,neslv,nfield,ngcomm,ngeom,ngop,ngop1,ngop_sync,ngp2,ngsmn,ngsmx,ngspcn,ngsped, &
-      ngsum,nhis,nhmhz,nid,ninter,ninv3,ninvc,nio,nktonv,nmember,nmlinv,nmltd,nmxe,nmxh,nmxmf, &
-      nmxms,nmxnl,nmxp,nobj,node,node0,noffst,nomlis,np,npert,nprep,npres,npscal,nrefle,nrout, &
-      nsett,nslvb,nsolv,nspmax,nspro,nsskip,nsteps,nsyc,ntaubd,nu_star,nullpid,numbcs,numflu, &
-      numoth,numscn,numsed,nusbc,nvdss,nvtot,nwal,nx1,nx2,nx3,nxd,ny1,ny2,ny3,nyd,nz1,nz2,nz3,nzd, &
-      object,ocode,omask,optlevel,orefle,p0th,param,parfle,path,paxhm,pbbbb,pbso2,pbsol,pcccc, &
-      pcdtp,pcopy,pcrsl,pdadd,pdddd,pddsl,pdott,pdsmn,pdsmx,pdsnd,pdsum,peeee,peslv,pgop,pgop1, &
-      pgop_sync,pgp2,pgsmn,pgsmx,pgsum,phmhz,pi,pid,pinv3,pinvc,pm,pmask,pmd1,pmd1t,pmlag,pmltd, &
-      pmxmf,pmxms,pprep,ppres,pr,prelax,prlag,prlagp,prp,psett,pslvb,psolv,pspro,psyc,pusbc,pvdss, &
-      pwal,qinteg,qtl,rct,re2fle,re2off_b,reafle,restol,rname,rstim,rstt,rstv,rx,rxm1,rxm2,rym1, &
-      rym2,rzm1,rzm2,schfle,session,skpdat,solver_type,sxm1,sxm2,sym1,sym2,szm1,szm2,t,t1x,t1y, &
-      t1z,t2x,t2y,t2z,ta2s2,tadc3,tadd2,tadvc,tauss,taxhm,tbbbb,tbso2,tbsol,tcccc,tcdtp,tcol2, &
-      tcol3,tcopy,tcrsl,tcvf,tdadd,tdddd,tddsl,tdott,tdsmn,tdsmx,tdsnd,tdsum,teeee,teslv,textsw, &
-      tgop,tgop1,tgop_sync,tgp2,tgsmn,tgsmx,tgsum,thmhz,time,timef,timeio,tinit,tinv3,tinvc,tlag, &
-      tlagp,tmask,tmean,tmltd,tmult,tmxmf,tmxms,tnrmh1,tnrml2,tnrml8,tnrmsm,tolabs,tolev,tolhdf, &
-      tolhe,tolhr,tolhs,tolht,tolhv,tolnl,tolpdf,tolps,tolrel,tp,tprep,tpres,tproj,tschw,tsett, &
-      tslvb,tsolv,tspro,tsyc,ttime,ttotal,tttstp,tusbc,tusfq,tvdss,twal,txm1,txm2,txnext,tym1, &
-      tym2,tzm1,tzm2,unr,uns,unt,unx,uny,unz,uparam,usrdiv,v1mask,v1x,v1y,v1z,v2mask,v2x,v2y,v2z, &
-      v3mask,vdiff,vdiff_e,vgradt1,vgradt1p,vgradt2,vgradt2p,vmean,vmult,vnekton,vnrmh1,vnrml2, &
-      vnrml8,vnrmsm,vnx,vny,vnz,volel,volfld,voltm1,voltm2,volvm1,volvm2,vtrans,vx,vx_e,vxd,vxlag, &
-      vxlagp,vxp,vy,vy_e,vyd,vylag,vylagp,vyp,vz,vz_e,vzd,vzlag,vzlagp,vzp,w1mask,w2am1,w2am2, &
-      w2am3,w2cm1,w2cm2,w2cm3,w2mask,w3m1,w3m2,w3m3,w3mask,wam1,wam2,wam3,wdsize,wdsizi,wgl,wgl1, &
-      wgl2,wglg,wglgt,wgli,wgp,wmult,wx,wxlag,wxm1,wxm2,wxm3,wy,wylag,wym1,wym2,wym3,wz,wzlag, &
-      wzm1,wzm2,wzm3,xc,xm1,xm2,xxth,yc,yinvm1,ym1,ym2,zam1,zam2,zam3,zc,zgl,zgm1,zgm2,zgm3,zgp, &
-      zm1,zm2)
+        ur_local_grad3 = reshape(ur,shape(ur_local_grad3))
+        us_local_grad3 = reshape(us,shape(us_local_grad3))
+        ut_local_grad3 = reshape(ut,shape(ut_local_grad3))
+        u_local_grad3 = reshape(u,shape(u_local_grad3))
+        dxm1_local_grad3 = reshape(dxm1,shape(dxm1_local_grad3))
+        call local_grad3(ur_local_grad3,us_local_grad3,ut_local_grad3,u_local_grad3,n,e, &
+      dxm1_local_grad3,dxtm1,ab,abmsh,abx1,abx2,aby1,aby2,abz1,abz2,area,atol,avdiff,avtran,b1ia1, &
+      b1ia1t,b1mask,b2mask,b2p,b3mask,baxm1,bbx1,bbx2,bby1,bby2,bbz1,bbz2,bc,bcf,bctyps,bd,bdivw, &
+      bfx,bfxp,bfy,bfyp,bfz,bfzp,bintm1,binvdg,binvm1,bm1,bm1lag,bm2,bm2inv,bmass,bmnv,bmx,bmy, &
+      bmz,bpmask,bq,bqp,bx,bxlag,by,bylag,bz,bzlag,c_vx,cbc,ccurve,cdof,cerror,cflf,courno,cpfld, &
+      cpgrp,cr_h,cr_re2,csize,ctarg,curve,d1,d1t,d2,da,dam1,dam12,dam3,dat,datm1,datm12,datm3, &
+      dcm1,dcm12,dcm3,dcount,dct,dctm1,dctm12,dctm3,dg_face,dg_hndlx,dglg,dglgt,dlam,dmpfle, &
+      dp0thdt,drivc,dt,dtinit,dtinvm,dtlag,dvdfh1,dvdfl2,dvdfl8,dvdfsm,dvnnh1,dvnnl2,dvnnl8, &
+      dvnnsm,dvprh1,dvprl2,dvprl8,dvprsm,dxm12,dxm3,dxtm12,dxtm3,dym1,dym12,dym3,dytm1,dytm12, &
+      dytm3,dzm1,dzm12,dzm3,dztm1,dztm12,dztm3,eface,eface1,eigaa,eigae,eigas,eigast,eigga,eigge, &
+      eiggs,eiggst,eskip,etalph,etimes,etims0,ev1,ev2,ev3,exx1p,exx2p,exy1p,exy2p,exz1p,exz2p, &
+      fh_re2,filtertype,fintim,fldfle,fw,g1m1,g2m1,g3m1,g4m1,g5m1,g6m1,gamma0,gcnnum,gednum, &
+      gedtyp,gllel,gllnid,group,gsh,gsh_fld,hcode,hisfle,iajl1,iajl2,ialj1,ialj3,iam12,iam13, &
+      iam21,iam31,iatjl1,iatjl2,iatlj1,iatlj3,iatm12,iatm13,iatm21,iatm31,ibcsts,icedg,icface, &
+      icm12,icm13,icm21,icm31,ictm12,ictm13,ictm21,ictm31,idpss,idsess,ieact,iedge,iedgef,iedgfc, &
+      iesolv,if3d,if_full_pres,ifaa,ifadvc,ifae,ifalgn,ifanl2,ifanls,ifas,ifast,ifaxis,ifaziv, &
+      ifbase,ifbcor,ifbo,ifchar,ifcons,ifcoup,ifcvfld,ifcvode,ifcyclic,ifdeal,ifdg,ifdgfld,ifdiff, &
+      ifdp0dt,ifeppm,ifessr,ifexplvis,ifextr,ifexvt,ifflow,iffmtin,ifga,ifge,ifgeom,ifgmsh3, &
+      ifgprnt,ifgs,ifgsh_fld_same,ifgst,ifheat,ifield,ifintq,ifkeps,ifldmhd,iflmsc,iflmse,iflmsf, &
+      iflomach,ifmelt,ifmgrid,ifmhd,ifmoab,ifmodel,ifmodp,ifmpiio,ifmscr,ifmseg,ifmsfc,ifmvbd, &
+      ifneknek,ifneknekm,ifnonl,ifnskp,ifoutfld,ifpert,ifpo,ifprnt,ifprojfld,ifpsco,ifpso,ifqinp, &
+      ifreguo,ifrich,ifrsxy,ifrzer,ifschclob,ifskip,ifsplit,ifssvt,ifstrs,ifstst,ifsurt,ifsync, &
+      iftgo,iftmsh,ifto,iftran,ifusermv,ifuservp,ifvarp,ifvcor,ifvcoup,ifvo,ifvps,ifwcno,ifxyo, &
+      ifxyo_,iggl,igglt,igroup,im1d,im1dt,imatie,imd1,imd1t,imesh,indx,initc,instep,invedg,iocomm, &
+      ioinfodmp,iostep,ipscal,ipsco,irstim,irstt,irstv,isize,istep,ixcn,ixm12,ixm13,ixm21,ixm31, &
+      ixtm12,ixtm13,ixtm21,ixtm31,iym12,iym13,iym21,iym31,iytm12,iytm13,iytm21,iytm31,izm12,izm13, &
+      izm21,izm31,iztm12,iztm13,iztm21,iztm31,jacm1,jacm2,jacmi,jp,lastep,lcnnum,ldimr,lednum, &
+      lglel,lochis,loglevel,lsize,lyap,matids,matindx,matype,maxmlt,mpi_argv_null,mpi_argvs_null, &
+      mpi_bottom,mpi_errcodes_ignore,mpi_in_place,mpi_status_ignore,mpi_statuses_ignore, &
+      mpi_unweighted,mpi_weights_empty,nab,nabmsh,nadvc,naxhm,nbbbb,nbd,nbdinp,nbso2,nbsol,ncall, &
+      ncccc,ncdtp,ncmp,nconv,nconv_max,ncopy,ncrsl,ncvf,ndadd,ndddd,nddsl,ndg_facex,ndim,ndott, &
+      ndsmn,ndsmx,ndsnd,ndsum,neact,nedg,neeee,nelfld,nelg,nelgt,nelgv,nelt,nelv,neslv,nfield, &
+      ngcomm,ngeom,ngop,ngop1,ngop_sync,ngp2,ngsmn,ngsmx,ngspcn,ngsped,ngsum,nhis,nhmhz,nid, &
+      ninter,ninv3,ninvc,nio,nktonv,nmember,nmlinv,nmltd,nmxe,nmxh,nmxmf,nmxms,nmxnl,nmxp,nobj, &
+      node,node0,noffst,nomlis,np,npert,nprep,npres,npscal,nrefle,nrout,nsett,nslvb,nsolv,nspmax, &
+      nspro,nsskip,nsteps,nsyc,ntaubd,nu_star,nullpid,numbcs,numflu,numoth,numscn,numsed,nusbc, &
+      nvdss,nvtot,nwal,nx1,nx2,nx3,nxd,ny1,ny2,ny3,nyd,nz1,nz2,nz3,nzd,object,ocode,omask, &
+      optlevel,orefle,p0th,param,parfle,path,paxhm,pbbbb,pbso2,pbsol,pcccc,pcdtp,pcopy,pcrsl, &
+      pdadd,pdddd,pddsl,pdott,pdsmn,pdsmx,pdsnd,pdsum,peeee,peslv,pgop,pgop1,pgop_sync,pgp2,pgsmn, &
+      pgsmx,pgsum,phmhz,pi,pid,pinv3,pinvc,pm,pmask,pmd1,pmd1t,pmlag,pmltd,pmxmf,pmxms,pprep, &
+      ppres,pr,prelax,prlag,prlagp,prp,psett,pslvb,psolv,pspro,psyc,pusbc,pvdss,pwal,qinteg,qtl, &
+      rct,re2fle,re2off_b,reafle,restol,rname,rstim,rstt,rstv,rx,rxm1,rxm2,rym1,rym2,rzm1,rzm2, &
+      schfle,session,skpdat,solver_type,sxm1,sxm2,sym1,sym2,szm1,szm2,t,t1x,t1y,t1z,t2x,t2y,t2z, &
+      ta2s2,tadc3,tadd2,tadvc,tauss,taxhm,tbbbb,tbso2,tbsol,tcccc,tcdtp,tcol2,tcol3,tcopy,tcrsl, &
+      tcvf,tdadd,tdddd,tddsl,tdott,tdsmn,tdsmx,tdsnd,tdsum,teeee,teslv,textsw,tgop,tgop1, &
+      tgop_sync,tgp2,tgsmn,tgsmx,tgsum,thmhz,time,timef,timeio,tinit,tinv3,tinvc,tlag,tlagp,tmask, &
+      tmean,tmltd,tmult,tmxmf,tmxms,tnrmh1,tnrml2,tnrml8,tnrmsm,tolabs,tolev,tolhdf,tolhe,tolhr, &
+      tolhs,tolht,tolhv,tolnl,tolpdf,tolps,tolrel,tp,tprep,tpres,tproj,tschw,tsett,tslvb,tsolv, &
+      tspro,tsyc,ttime,ttotal,tttstp,tusbc,tusfq,tvdss,twal,txm1,txm2,txnext,tym1,tym2,tzm1,tzm2, &
+      unr,uns,unt,unx,uny,unz,uparam,usrdiv,v1mask,v1x,v1y,v1z,v2mask,v2x,v2y,v2z,v3mask,vdiff, &
+      vdiff_e,vgradt1,vgradt1p,vgradt2,vgradt2p,vmean,vmult,vnekton,vnrmh1,vnrml2,vnrml8,vnrmsm, &
+      vnx,vny,vnz,volel,volfld,voltm1,voltm2,volvm1,volvm2,vtrans,vx,vx_e,vxd,vxlag,vxlagp,vxp,vy, &
+      vy_e,vyd,vylag,vylagp,vyp,vz,vz_e,vzd,vzlag,vzlagp,vzp,w1mask,w2am1,w2am2,w2am3,w2cm1,w2cm2, &
+      w2cm3,w2mask,w3m1,w3m2,w3m3,w3mask,wam1,wam2,wam3,wdsize,wdsizi,wgl,wgl1,wgl2,wglg,wglgt, &
+      wgli,wgp,wmult,wx,wxlag,wxm1,wxm2,wxm3,wy,wylag,wym1,wym2,wym3,wz,wzlag,wzm1,wzm2,wzm3,xc, &
+      xm1,xm2,xxth,yc,yinvm1,ym1,ym2,zam1,zam2,zam3,zc,zgl,zgm1,zgm2,zgm3,zgp,zm1,zm2)
       ifnav = ifadvc(1)
       turbmod = textsw(1,1)
+        ur = reshape(ur_local_grad3, shape(ur))
+        us = reshape(us_local_grad3, shape(us))
+        ut = reshape(ut_local_grad3, shape(ut))
+        u = reshape(u_local_grad3, shape(u))
+        dxm1 = reshape(dxm1_local_grad3, shape(dxm1))
         vr_local_grad3 = reshape(vr,shape(vr_local_grad3))
         vs_local_grad3 = reshape(vs,shape(vs_local_grad3))
         vt_local_grad3 = reshape(vt,shape(vt_local_grad3))
         v_local_grad3 = reshape(v,shape(v_local_grad3))
-        call local_grad3(vr_local_grad3,vs_local_grad3,vt_local_grad3,v_local_grad3,n,e,dxm1,dxtm1, &
-      ab,abmsh,abx1,abx2,aby1,aby2,abz1,abz2,area,atol,avdiff,avtran,b1ia1,b1ia1t,b1mask,b2mask, &
-      b2p,b3mask,baxm1,bbx1,bbx2,bby1,bby2,bbz1,bbz2,bc,bcf,bctyps,bd,bdivw,bfx,bfxp,bfy,bfyp,bfz, &
-      bfzp,bintm1,binvdg,binvm1,bm1,bm1lag,bm2,bm2inv,bmass,bmnv,bmx,bmy,bmz,bpmask,bq,bqp,bx, &
-      bxlag,by,bylag,bz,bzlag,c_vx,cbc,ccurve,cdof,cerror,cflf,courno,cpfld,cpgrp,cr_h,cr_re2, &
-      csize,ctarg,curve,d1,d1t,d2,da,dam1,dam12,dam3,dat,datm1,datm12,datm3,dcm1,dcm12,dcm3, &
-      dcount,dct,dctm1,dctm12,dctm3,dg_face,dg_hndlx,dglg,dglgt,dlam,dmpfle,dp0thdt,drivc,dt, &
-      dtinit,dtinvm,dtlag,dvdfh1,dvdfl2,dvdfl8,dvdfsm,dvnnh1,dvnnl2,dvnnl8,dvnnsm,dvprh1,dvprl2, &
-      dvprl8,dvprsm,dxm12,dxm3,dxtm12,dxtm3,dym1,dym12,dym3,dytm1,dytm12,dytm3,dzm1,dzm12,dzm3, &
-      dztm1,dztm12,dztm3,eface,eface1,eigaa,eigae,eigas,eigast,eigga,eigge,eiggs,eiggst,eskip, &
-      etalph,etimes,etims0,ev1,ev2,ev3,exx1p,exx2p,exy1p,exy2p,exz1p,exz2p,fh_re2,filtertype, &
-      fintim,fldfle,fw,g1m1,g2m1,g3m1,g4m1,g5m1,g6m1,gamma0,gcnnum,gednum,gedtyp,gllel,gllnid, &
-      group,gsh,gsh_fld,hcode,hisfle,iajl1,iajl2,ialj1,ialj3,iam12,iam13,iam21,iam31,iatjl1, &
-      iatjl2,iatlj1,iatlj3,iatm12,iatm13,iatm21,iatm31,ibcsts,icedg,icface,icm12,icm13,icm21, &
-      icm31,ictm12,ictm13,ictm21,ictm31,idpss,idsess,ieact,iedge,iedgef,iedgfc,iesolv,if3d, &
-      if_full_pres,ifaa,ifadvc,ifae,ifalgn,ifanl2,ifanls,ifas,ifast,ifaxis,ifaziv,ifbase,ifbcor, &
-      ifbo,ifchar,ifcons,ifcoup,ifcvfld,ifcvode,ifcyclic,ifdeal,ifdg,ifdgfld,ifdiff,ifdp0dt, &
-      ifeppm,ifessr,ifexplvis,ifextr,ifexvt,ifflow,iffmtin,ifga,ifge,ifgeom,ifgmsh3,ifgprnt,ifgs, &
-      ifgsh_fld_same,ifgst,ifheat,ifield,ifintq,ifkeps,ifldmhd,iflmsc,iflmse,iflmsf,iflomach, &
-      ifmelt,ifmgrid,ifmhd,ifmoab,ifmodel,ifmodp,ifmpiio,ifmscr,ifmseg,ifmsfc,ifmvbd,ifneknek, &
-      ifneknekm,ifnonl,ifnskp,ifoutfld,ifpert,ifpo,ifprnt,ifprojfld,ifpsco,ifpso,ifqinp,ifreguo, &
-      ifrich,ifrsxy,ifrzer,ifschclob,ifskip,ifsplit,ifssvt,ifstrs,ifstst,ifsurt,ifsync,iftgo, &
-      iftmsh,ifto,iftran,ifusermv,ifuservp,ifvarp,ifvcor,ifvcoup,ifvo,ifvps,ifwcno,ifxyo,ifxyo_, &
-      iggl,igglt,igroup,im1d,im1dt,imatie,imd1,imd1t,imesh,indx,initc,instep,invedg,iocomm, &
+        dxm1_local_grad3 = reshape(dxm1,shape(dxm1_local_grad3))
+        call local_grad3(vr_local_grad3,vs_local_grad3,vt_local_grad3,v_local_grad3,n,e, &
+      dxm1_local_grad3,dxtm1,ab,abmsh,abx1,abx2,aby1,aby2,abz1,abz2,area,atol,avdiff,avtran,b1ia1, &
+      b1ia1t,b1mask,b2mask,b2p,b3mask,baxm1,bbx1,bbx2,bby1,bby2,bbz1,bbz2,bc,bcf,bctyps,bd,bdivw, &
+      bfx,bfxp,bfy,bfyp,bfz,bfzp,bintm1,binvdg,binvm1,bm1,bm1lag,bm2,bm2inv,bmass,bmnv,bmx,bmy, &
+      bmz,bpmask,bq,bqp,bx,bxlag,by,bylag,bz,bzlag,c_vx,cbc,ccurve,cdof,cerror,cflf,courno,cpfld, &
+      cpgrp,cr_h,cr_re2,csize,ctarg,curve,d1,d1t,d2,da,dam1,dam12,dam3,dat,datm1,datm12,datm3, &
+      dcm1,dcm12,dcm3,dcount,dct,dctm1,dctm12,dctm3,dg_face,dg_hndlx,dglg,dglgt,dlam,dmpfle, &
+      dp0thdt,drivc,dt,dtinit,dtinvm,dtlag,dvdfh1,dvdfl2,dvdfl8,dvdfsm,dvnnh1,dvnnl2,dvnnl8, &
+      dvnnsm,dvprh1,dvprl2,dvprl8,dvprsm,dxm12,dxm3,dxtm12,dxtm3,dym1,dym12,dym3,dytm1,dytm12, &
+      dytm3,dzm1,dzm12,dzm3,dztm1,dztm12,dztm3,eface,eface1,eigaa,eigae,eigas,eigast,eigga,eigge, &
+      eiggs,eiggst,eskip,etalph,etimes,etims0,ev1,ev2,ev3,exx1p,exx2p,exy1p,exy2p,exz1p,exz2p, &
+      fh_re2,filtertype,fintim,fldfle,fw,g1m1,g2m1,g3m1,g4m1,g5m1,g6m1,gamma0,gcnnum,gednum, &
+      gedtyp,gllel,gllnid,group,gsh,gsh_fld,hcode,hisfle,iajl1,iajl2,ialj1,ialj3,iam12,iam13, &
+      iam21,iam31,iatjl1,iatjl2,iatlj1,iatlj3,iatm12,iatm13,iatm21,iatm31,ibcsts,icedg,icface, &
+      icm12,icm13,icm21,icm31,ictm12,ictm13,ictm21,ictm31,idpss,idsess,ieact,iedge,iedgef,iedgfc, &
+      iesolv,if3d,if_full_pres,ifaa,ifadvc,ifae,ifalgn,ifanl2,ifanls,ifas,ifast,ifaxis,ifaziv, &
+      ifbase,ifbcor,ifbo,ifchar,ifcons,ifcoup,ifcvfld,ifcvode,ifcyclic,ifdeal,ifdg,ifdgfld,ifdiff, &
+      ifdp0dt,ifeppm,ifessr,ifexplvis,ifextr,ifexvt,ifflow,iffmtin,ifga,ifge,ifgeom,ifgmsh3, &
+      ifgprnt,ifgs,ifgsh_fld_same,ifgst,ifheat,ifield,ifintq,ifkeps,ifldmhd,iflmsc,iflmse,iflmsf, &
+      iflomach,ifmelt,ifmgrid,ifmhd,ifmoab,ifmodel,ifmodp,ifmpiio,ifmscr,ifmseg,ifmsfc,ifmvbd, &
+      ifneknek,ifneknekm,ifnonl,ifnskp,ifoutfld,ifpert,ifpo,ifprnt,ifprojfld,ifpsco,ifpso,ifqinp, &
+      ifreguo,ifrich,ifrsxy,ifrzer,ifschclob,ifskip,ifsplit,ifssvt,ifstrs,ifstst,ifsurt,ifsync, &
+      iftgo,iftmsh,ifto,iftran,ifusermv,ifuservp,ifvarp,ifvcor,ifvcoup,ifvo,ifvps,ifwcno,ifxyo, &
+      ifxyo_,iggl,igglt,igroup,im1d,im1dt,imatie,imd1,imd1t,imesh,indx,initc,instep,invedg,iocomm, &
       ioinfodmp,iostep,ipscal,ipsco,irstim,irstt,irstv,isize,istep,ixcn,ixm12,ixm13,ixm21,ixm31, &
       ixtm12,ixtm13,ixtm21,ixtm31,iym12,iym13,iym21,iym31,iytm12,iytm13,iytm21,iytm31,izm12,izm13, &
       izm21,izm31,iztm12,iztm13,iztm21,iztm31,jacm1,jacm2,jacmi,jp,lastep,lcnnum,ldimr,lednum, &
@@ -8893,34 +9056,36 @@ contains
         vs = reshape(vs_local_grad3, shape(vs))
         vt = reshape(vt_local_grad3, shape(vt))
         v = reshape(v_local_grad3, shape(v))
+        dxm1 = reshape(dxm1_local_grad3, shape(dxm1))
         wr_local_grad3 = reshape(wr,shape(wr_local_grad3))
         ws_local_grad3 = reshape(ws,shape(ws_local_grad3))
         wt_local_grad3 = reshape(wt,shape(wt_local_grad3))
         w_local_grad3 = reshape(w,shape(w_local_grad3))
-        call local_grad3(wr_local_grad3,ws_local_grad3,wt_local_grad3,w_local_grad3,n,e,dxm1,dxtm1, &
-      ab,abmsh,abx1,abx2,aby1,aby2,abz1,abz2,area,atol,avdiff,avtran,b1ia1,b1ia1t,b1mask,b2mask, &
-      b2p,b3mask,baxm1,bbx1,bbx2,bby1,bby2,bbz1,bbz2,bc,bcf,bctyps,bd,bdivw,bfx,bfxp,bfy,bfyp,bfz, &
-      bfzp,bintm1,binvdg,binvm1,bm1,bm1lag,bm2,bm2inv,bmass,bmnv,bmx,bmy,bmz,bpmask,bq,bqp,bx, &
-      bxlag,by,bylag,bz,bzlag,c_vx,cbc,ccurve,cdof,cerror,cflf,courno,cpfld,cpgrp,cr_h,cr_re2, &
-      csize,ctarg,curve,d1,d1t,d2,da,dam1,dam12,dam3,dat,datm1,datm12,datm3,dcm1,dcm12,dcm3, &
-      dcount,dct,dctm1,dctm12,dctm3,dg_face,dg_hndlx,dglg,dglgt,dlam,dmpfle,dp0thdt,drivc,dt, &
-      dtinit,dtinvm,dtlag,dvdfh1,dvdfl2,dvdfl8,dvdfsm,dvnnh1,dvnnl2,dvnnl8,dvnnsm,dvprh1,dvprl2, &
-      dvprl8,dvprsm,dxm12,dxm3,dxtm12,dxtm3,dym1,dym12,dym3,dytm1,dytm12,dytm3,dzm1,dzm12,dzm3, &
-      dztm1,dztm12,dztm3,eface,eface1,eigaa,eigae,eigas,eigast,eigga,eigge,eiggs,eiggst,eskip, &
-      etalph,etimes,etims0,ev1,ev2,ev3,exx1p,exx2p,exy1p,exy2p,exz1p,exz2p,fh_re2,filtertype, &
-      fintim,fldfle,fw,g1m1,g2m1,g3m1,g4m1,g5m1,g6m1,gamma0,gcnnum,gednum,gedtyp,gllel,gllnid, &
-      group,gsh,gsh_fld,hcode,hisfle,iajl1,iajl2,ialj1,ialj3,iam12,iam13,iam21,iam31,iatjl1, &
-      iatjl2,iatlj1,iatlj3,iatm12,iatm13,iatm21,iatm31,ibcsts,icedg,icface,icm12,icm13,icm21, &
-      icm31,ictm12,ictm13,ictm21,ictm31,idpss,idsess,ieact,iedge,iedgef,iedgfc,iesolv,if3d, &
-      if_full_pres,ifaa,ifadvc,ifae,ifalgn,ifanl2,ifanls,ifas,ifast,ifaxis,ifaziv,ifbase,ifbcor, &
-      ifbo,ifchar,ifcons,ifcoup,ifcvfld,ifcvode,ifcyclic,ifdeal,ifdg,ifdgfld,ifdiff,ifdp0dt, &
-      ifeppm,ifessr,ifexplvis,ifextr,ifexvt,ifflow,iffmtin,ifga,ifge,ifgeom,ifgmsh3,ifgprnt,ifgs, &
-      ifgsh_fld_same,ifgst,ifheat,ifield,ifintq,ifkeps,ifldmhd,iflmsc,iflmse,iflmsf,iflomach, &
-      ifmelt,ifmgrid,ifmhd,ifmoab,ifmodel,ifmodp,ifmpiio,ifmscr,ifmseg,ifmsfc,ifmvbd,ifneknek, &
-      ifneknekm,ifnonl,ifnskp,ifoutfld,ifpert,ifpo,ifprnt,ifprojfld,ifpsco,ifpso,ifqinp,ifreguo, &
-      ifrich,ifrsxy,ifrzer,ifschclob,ifskip,ifsplit,ifssvt,ifstrs,ifstst,ifsurt,ifsync,iftgo, &
-      iftmsh,ifto,iftran,ifusermv,ifuservp,ifvarp,ifvcor,ifvcoup,ifvo,ifvps,ifwcno,ifxyo,ifxyo_, &
-      iggl,igglt,igroup,im1d,im1dt,imatie,imd1,imd1t,imesh,indx,initc,instep,invedg,iocomm, &
+        dxm1_local_grad3 = reshape(dxm1,shape(dxm1_local_grad3))
+        call local_grad3(wr_local_grad3,ws_local_grad3,wt_local_grad3,w_local_grad3,n,e, &
+      dxm1_local_grad3,dxtm1,ab,abmsh,abx1,abx2,aby1,aby2,abz1,abz2,area,atol,avdiff,avtran,b1ia1, &
+      b1ia1t,b1mask,b2mask,b2p,b3mask,baxm1,bbx1,bbx2,bby1,bby2,bbz1,bbz2,bc,bcf,bctyps,bd,bdivw, &
+      bfx,bfxp,bfy,bfyp,bfz,bfzp,bintm1,binvdg,binvm1,bm1,bm1lag,bm2,bm2inv,bmass,bmnv,bmx,bmy, &
+      bmz,bpmask,bq,bqp,bx,bxlag,by,bylag,bz,bzlag,c_vx,cbc,ccurve,cdof,cerror,cflf,courno,cpfld, &
+      cpgrp,cr_h,cr_re2,csize,ctarg,curve,d1,d1t,d2,da,dam1,dam12,dam3,dat,datm1,datm12,datm3, &
+      dcm1,dcm12,dcm3,dcount,dct,dctm1,dctm12,dctm3,dg_face,dg_hndlx,dglg,dglgt,dlam,dmpfle, &
+      dp0thdt,drivc,dt,dtinit,dtinvm,dtlag,dvdfh1,dvdfl2,dvdfl8,dvdfsm,dvnnh1,dvnnl2,dvnnl8, &
+      dvnnsm,dvprh1,dvprl2,dvprl8,dvprsm,dxm12,dxm3,dxtm12,dxtm3,dym1,dym12,dym3,dytm1,dytm12, &
+      dytm3,dzm1,dzm12,dzm3,dztm1,dztm12,dztm3,eface,eface1,eigaa,eigae,eigas,eigast,eigga,eigge, &
+      eiggs,eiggst,eskip,etalph,etimes,etims0,ev1,ev2,ev3,exx1p,exx2p,exy1p,exy2p,exz1p,exz2p, &
+      fh_re2,filtertype,fintim,fldfle,fw,g1m1,g2m1,g3m1,g4m1,g5m1,g6m1,gamma0,gcnnum,gednum, &
+      gedtyp,gllel,gllnid,group,gsh,gsh_fld,hcode,hisfle,iajl1,iajl2,ialj1,ialj3,iam12,iam13, &
+      iam21,iam31,iatjl1,iatjl2,iatlj1,iatlj3,iatm12,iatm13,iatm21,iatm31,ibcsts,icedg,icface, &
+      icm12,icm13,icm21,icm31,ictm12,ictm13,ictm21,ictm31,idpss,idsess,ieact,iedge,iedgef,iedgfc, &
+      iesolv,if3d,if_full_pres,ifaa,ifadvc,ifae,ifalgn,ifanl2,ifanls,ifas,ifast,ifaxis,ifaziv, &
+      ifbase,ifbcor,ifbo,ifchar,ifcons,ifcoup,ifcvfld,ifcvode,ifcyclic,ifdeal,ifdg,ifdgfld,ifdiff, &
+      ifdp0dt,ifeppm,ifessr,ifexplvis,ifextr,ifexvt,ifflow,iffmtin,ifga,ifge,ifgeom,ifgmsh3, &
+      ifgprnt,ifgs,ifgsh_fld_same,ifgst,ifheat,ifield,ifintq,ifkeps,ifldmhd,iflmsc,iflmse,iflmsf, &
+      iflomach,ifmelt,ifmgrid,ifmhd,ifmoab,ifmodel,ifmodp,ifmpiio,ifmscr,ifmseg,ifmsfc,ifmvbd, &
+      ifneknek,ifneknekm,ifnonl,ifnskp,ifoutfld,ifpert,ifpo,ifprnt,ifprojfld,ifpsco,ifpso,ifqinp, &
+      ifreguo,ifrich,ifrsxy,ifrzer,ifschclob,ifskip,ifsplit,ifssvt,ifstrs,ifstst,ifsurt,ifsync, &
+      iftgo,iftmsh,ifto,iftran,ifusermv,ifuservp,ifvarp,ifvcor,ifvcoup,ifvo,ifvps,ifwcno,ifxyo, &
+      ifxyo_,iggl,igglt,igroup,im1d,im1dt,imatie,imd1,imd1t,imesh,indx,initc,instep,invedg,iocomm, &
       ioinfodmp,iostep,ipscal,ipsco,irstim,irstt,irstv,isize,istep,ixcn,ixm12,ixm13,ixm21,ixm31, &
       ixtm12,ixtm13,ixtm21,ixtm31,iym12,iym13,iym21,iym31,iytm12,iytm13,iytm21,iytm31,izm12,izm13, &
       izm21,izm31,iztm12,iztm13,iztm21,iztm31,jacm1,jacm2,jacmi,jp,lastep,lcnnum,ldimr,lednum, &
@@ -8959,6 +9124,7 @@ contains
         ws = reshape(ws_local_grad3, shape(ws))
         wt = reshape(wt_local_grad3, shape(wt))
         w = reshape(w_local_grad3, shape(w))
+        dxm1 = reshape(dxm1_local_grad3, shape(dxm1))
         do i=1,nxyz
          j = jacmi(i,e)
          sij(i,1,e) = j*     2*(ur(i)*rxm1(i,1,1,e)+us(i)*sxm1(i,1,1,e)+ut(i)*txm1(i,1,1,e))
@@ -8987,192 +9153,210 @@ contains
       dctm3,dxm1,dxm12,dxm3,dxtm1,dxtm12,dxtm3,dym1,dym12,dym3,dytm1,dytm12,dytm3,dzm1,dzm12,dzm3, &
       dztm1,dztm12,dztm3,idsess,ldimr,loglevel,ndim,nelt,nelv,nfield,nid,nio,npert,nx1,nx2,nx3, &
       nxd,ny1,ny2,ny3,nyd,nz1,nz2,nz3,nzd,optlevel)
-            call local_grad2(ur,us,u,n,e,dxm1,dytm1,ab,abmsh,abx1,abx2,aby1,aby2,abz1,abz2,area, &
-      atol,avdiff,avtran,b1ia1,b1ia1t,b1mask,b2mask,b2p,b3mask,baxm1,bbx1,bbx2,bby1,bby2,bbz1, &
-      bbz2,bc,bcf,bctyps,bd,bdivw,bfx,bfxp,bfy,bfyp,bfz,bfzp,bintm1,binvdg,binvm1,bm1,bm1lag,bm2, &
-      bm2inv,bmass,bmnv,bmx,bmy,bmz,bpmask,bq,bqp,bx,bxlag,by,bylag,bz,bzlag,c_vx,cbc,ccurve,cdof, &
-      cerror,cflf,courno,cpfld,cpgrp,cr_h,cr_re2,csize,ctarg,curve,d1,d1t,d2,da,dam1,dam12,dam3, &
-      dat,datm1,datm12,datm3,dcm1,dcm12,dcm3,dcount,dct,dctm1,dctm12,dctm3,dg_face,dg_hndlx,dglg, &
-      dglgt,dlam,dmpfle,dp0thdt,drivc,dt,dtinit,dtinvm,dtlag,dvdfh1,dvdfl2,dvdfl8,dvdfsm,dvnnh1, &
-      dvnnl2,dvnnl8,dvnnsm,dvprh1,dvprl2,dvprl8,dvprsm,dxm12,dxm3,dxtm1,dxtm12,dxtm3,dym1,dym12, &
-      dym3,dytm12,dytm3,dzm1,dzm12,dzm3,dztm1,dztm12,dztm3,eface,eface1,eigaa,eigae,eigas,eigast, &
-      eigga,eigge,eiggs,eiggst,eskip,etalph,etimes,etims0,ev1,ev2,ev3,exx1p,exx2p,exy1p,exy2p, &
-      exz1p,exz2p,fh_re2,filtertype,fintim,fldfle,fw,g1m1,g2m1,g3m1,g4m1,g5m1,g6m1,gamma0,gcnnum, &
-      gednum,gedtyp,gllel,gllnid,group,gsh,gsh_fld,hcode,hisfle,iajl1,iajl2,ialj1,ialj3,iam12, &
-      iam13,iam21,iam31,iatjl1,iatjl2,iatlj1,iatlj3,iatm12,iatm13,iatm21,iatm31,ibcsts,icedg, &
-      icface,icm12,icm13,icm21,icm31,ictm12,ictm13,ictm21,ictm31,idpss,idsess,ieact,iedge,iedgef, &
-      iedgfc,iesolv,if3d,if_full_pres,ifaa,ifadvc,ifae,ifalgn,ifanl2,ifanls,ifas,ifast,ifaxis, &
-      ifaziv,ifbase,ifbcor,ifbo,ifchar,ifcons,ifcoup,ifcvfld,ifcvode,ifcyclic,ifdeal,ifdg,ifdgfld, &
-      ifdiff,ifdp0dt,ifeppm,ifessr,ifexplvis,ifextr,ifexvt,ifflow,iffmtin,ifga,ifge,ifgeom, &
-      ifgmsh3,ifgprnt,ifgs,ifgsh_fld_same,ifgst,ifheat,ifield,ifintq,ifkeps,ifldmhd,iflmsc,iflmse, &
-      iflmsf,iflomach,ifmelt,ifmgrid,ifmhd,ifmoab,ifmodel,ifmodp,ifmpiio,ifmscr,ifmseg,ifmsfc, &
-      ifmvbd,ifneknek,ifneknekm,ifnonl,ifnskp,ifoutfld,ifpert,ifpo,ifprnt,ifprojfld,ifpsco,ifpso, &
-      ifqinp,ifreguo,ifrich,ifrsxy,ifrzer,ifschclob,ifskip,ifsplit,ifssvt,ifstrs,ifstst,ifsurt, &
-      ifsync,iftgo,iftmsh,ifto,iftran,ifusermv,ifuservp,ifvarp,ifvcor,ifvcoup,ifvo,ifvps,ifwcno, &
-      ifxyo,ifxyo_,iggl,igglt,igroup,im1d,im1dt,imatie,imd1,imd1t,imesh,indx,initc,instep,invedg, &
-      iocomm,ioinfodmp,iostep,ipscal,ipsco,irstim,irstt,irstv,isize,istep,ixcn,ixm12,ixm13,ixm21, &
-      ixm31,ixtm12,ixtm13,ixtm21,ixtm31,iym12,iym13,iym21,iym31,iytm12,iytm13,iytm21,iytm31,izm12, &
-      izm13,izm21,izm31,iztm12,iztm13,iztm21,iztm31,jacm1,jacm2,jacmi,jp,lastep,lcnnum,ldimr, &
-      lednum,lglel,lochis,loglevel,lsize,lyap,matids,matindx,matype,maxmlt,mpi_argv_null, &
-      mpi_argvs_null,mpi_bottom,mpi_errcodes_ignore,mpi_in_place,mpi_status_ignore, &
-      mpi_statuses_ignore,mpi_unweighted,mpi_weights_empty,nab,nabmsh,nadvc,naxhm,nbbbb,nbd, &
-      nbdinp,nbso2,nbsol,ncall,ncccc,ncdtp,ncmp,nconv,nconv_max,ncopy,ncrsl,ncvf,ndadd,ndddd, &
-      nddsl,ndg_facex,ndim,ndott,ndsmn,ndsmx,ndsnd,ndsum,neact,nedg,neeee,nelfld,nelg,nelgt,nelgv, &
-      nelt,nelv,neslv,nfield,ngcomm,ngeom,ngop,ngop1,ngop_sync,ngp2,ngsmn,ngsmx,ngspcn,ngsped, &
-      ngsum,nhis,nhmhz,nid,ninter,ninv3,ninvc,nio,nktonv,nmember,nmlinv,nmltd,nmxe,nmxh,nmxmf, &
-      nmxms,nmxnl,nmxp,nobj,node,node0,noffst,nomlis,np,npert,nprep,npres,npscal,nrefle,nrout, &
-      nsett,nslvb,nsolv,nspmax,nspro,nsskip,nsteps,nsyc,ntaubd,nu_star,nullpid,numbcs,numflu, &
-      numoth,numscn,numsed,nusbc,nvdss,nvtot,nwal,nx1,nx2,nx3,nxd,ny1,ny2,ny3,nyd,nz1,nz2,nz3,nzd, &
-      object,ocode,omask,optlevel,orefle,p0th,param,parfle,path,paxhm,pbbbb,pbso2,pbsol,pcccc, &
-      pcdtp,pcopy,pcrsl,pdadd,pdddd,pddsl,pdott,pdsmn,pdsmx,pdsnd,pdsum,peeee,peslv,pgop,pgop1, &
-      pgop_sync,pgp2,pgsmn,pgsmx,pgsum,phmhz,pi,pid,pinv3,pinvc,pm,pmask,pmd1,pmd1t,pmlag,pmltd, &
-      pmxmf,pmxms,pprep,ppres,pr,prelax,prlag,prlagp,prp,psett,pslvb,psolv,pspro,psyc,pusbc,pvdss, &
-      pwal,qinteg,qtl,rct,re2fle,re2off_b,reafle,restol,rname,rstim,rstt,rstv,rx,rxm1,rxm2,rym1, &
-      rym2,rzm1,rzm2,schfle,session,skpdat,solver_type,sxm1,sxm2,sym1,sym2,szm1,szm2,t,t1x,t1y, &
-      t1z,t2x,t2y,t2z,ta2s2,tadc3,tadd2,tadvc,tauss,taxhm,tbbbb,tbso2,tbsol,tcccc,tcdtp,tcol2, &
-      tcol3,tcopy,tcrsl,tcvf,tdadd,tdddd,tddsl,tdott,tdsmn,tdsmx,tdsnd,tdsum,teeee,teslv,textsw, &
-      tgop,tgop1,tgop_sync,tgp2,tgsmn,tgsmx,tgsum,thmhz,time,timef,timeio,tinit,tinv3,tinvc,tlag, &
-      tlagp,tmask,tmean,tmltd,tmult,tmxmf,tmxms,tnrmh1,tnrml2,tnrml8,tnrmsm,tolabs,tolev,tolhdf, &
-      tolhe,tolhr,tolhs,tolht,tolhv,tolnl,tolpdf,tolps,tolrel,tp,tprep,tpres,tproj,tschw,tsett, &
-      tslvb,tsolv,tspro,tsyc,ttime,ttotal,tttstp,tusbc,tusfq,tvdss,twal,txm1,txm2,txnext,tym1, &
-      tym2,tzm1,tzm2,unr,uns,unt,unx,uny,unz,uparam,usrdiv,v1mask,v1x,v1y,v1z,v2mask,v2x,v2y,v2z, &
-      v3mask,vdiff,vdiff_e,vgradt1,vgradt1p,vgradt2,vgradt2p,vmean,vmult,vnekton,vnrmh1,vnrml2, &
-      vnrml8,vnrmsm,vnx,vny,vnz,volel,volfld,voltm1,voltm2,volvm1,volvm2,vtrans,vx,vx_e,vxd,vxlag, &
-      vxlagp,vxp,vy,vy_e,vyd,vylag,vylagp,vyp,vz,vz_e,vzd,vzlag,vzlagp,vzp,w1mask,w2am1,w2am2, &
-      w2am3,w2cm1,w2cm2,w2cm3,w2mask,w3m1,w3m2,w3m3,w3mask,wam1,wam2,wam3,wdsize,wdsizi,wgl,wgl1, &
-      wgl2,wglg,wglgt,wgli,wgp,wmult,wx,wxlag,wxm1,wxm2,wxm3,wy,wylag,wym1,wym2,wym3,wz,wzlag, &
-      wzm1,wzm2,wzm3,xc,xm1,xm2,xxth,yc,yinvm1,ym1,ym2,zam1,zam2,zam3,zc,zgl,zgm1,zgm2,zgm3,zgp, &
-      zm1,zm2)
+            ur_local_grad2 = reshape(ur,shape(ur_local_grad2))
+            us_local_grad2 = reshape(us,shape(us_local_grad2))
+            u_local_grad2 = reshape(u,shape(u_local_grad2))
+            dxm1_local_grad2 = reshape(dxm1,shape(dxm1_local_grad2))
+            dytm1_local_grad2 = reshape(dytm1,shape(dytm1_local_grad2))
+            call local_grad2(ur_local_grad2,us_local_grad2,u_local_grad2,n,e,dxm1_local_grad2, &
+      dytm1_local_grad2,ab,abmsh,abx1,abx2,aby1,aby2,abz1,abz2,area,atol,avdiff,avtran,b1ia1, &
+      b1ia1t,b1mask,b2mask,b2p,b3mask,baxm1,bbx1,bbx2,bby1,bby2,bbz1,bbz2,bc,bcf,bctyps,bd,bdivw, &
+      bfx,bfxp,bfy,bfyp,bfz,bfzp,bintm1,binvdg,binvm1,bm1,bm1lag,bm2,bm2inv,bmass,bmnv,bmx,bmy, &
+      bmz,bpmask,bq,bqp,bx,bxlag,by,bylag,bz,bzlag,c_vx,cbc,ccurve,cdof,cerror,cflf,courno,cpfld, &
+      cpgrp,cr_h,cr_re2,csize,ctarg,curve,d1,d1t,d2,da,dam1,dam12,dam3,dat,datm1,datm12,datm3, &
+      dcm1,dcm12,dcm3,dcount,dct,dctm1,dctm12,dctm3,dg_face,dg_hndlx,dglg,dglgt,dlam,dmpfle, &
+      dp0thdt,drivc,dt,dtinit,dtinvm,dtlag,dvdfh1,dvdfl2,dvdfl8,dvdfsm,dvnnh1,dvnnl2,dvnnl8, &
+      dvnnsm,dvprh1,dvprl2,dvprl8,dvprsm,dxm12,dxm3,dxtm1,dxtm12,dxtm3,dym1,dym12,dym3,dytm12, &
+      dytm3,dzm1,dzm12,dzm3,dztm1,dztm12,dztm3,eface,eface1,eigaa,eigae,eigas,eigast,eigga,eigge, &
+      eiggs,eiggst,eskip,etalph,etimes,etims0,ev1,ev2,ev3,exx1p,exx2p,exy1p,exy2p,exz1p,exz2p, &
+      fh_re2,filtertype,fintim,fldfle,fw,g1m1,g2m1,g3m1,g4m1,g5m1,g6m1,gamma0,gcnnum,gednum, &
+      gedtyp,gllel,gllnid,group,gsh,gsh_fld,hcode,hisfle,iajl1,iajl2,ialj1,ialj3,iam12,iam13, &
+      iam21,iam31,iatjl1,iatjl2,iatlj1,iatlj3,iatm12,iatm13,iatm21,iatm31,ibcsts,icedg,icface, &
+      icm12,icm13,icm21,icm31,ictm12,ictm13,ictm21,ictm31,idpss,idsess,ieact,iedge,iedgef,iedgfc, &
+      iesolv,if3d,if_full_pres,ifaa,ifadvc,ifae,ifalgn,ifanl2,ifanls,ifas,ifast,ifaxis,ifaziv, &
+      ifbase,ifbcor,ifbo,ifchar,ifcons,ifcoup,ifcvfld,ifcvode,ifcyclic,ifdeal,ifdg,ifdgfld,ifdiff, &
+      ifdp0dt,ifeppm,ifessr,ifexplvis,ifextr,ifexvt,ifflow,iffmtin,ifga,ifge,ifgeom,ifgmsh3, &
+      ifgprnt,ifgs,ifgsh_fld_same,ifgst,ifheat,ifield,ifintq,ifkeps,ifldmhd,iflmsc,iflmse,iflmsf, &
+      iflomach,ifmelt,ifmgrid,ifmhd,ifmoab,ifmodel,ifmodp,ifmpiio,ifmscr,ifmseg,ifmsfc,ifmvbd, &
+      ifneknek,ifneknekm,ifnonl,ifnskp,ifoutfld,ifpert,ifpo,ifprnt,ifprojfld,ifpsco,ifpso,ifqinp, &
+      ifreguo,ifrich,ifrsxy,ifrzer,ifschclob,ifskip,ifsplit,ifssvt,ifstrs,ifstst,ifsurt,ifsync, &
+      iftgo,iftmsh,ifto,iftran,ifusermv,ifuservp,ifvarp,ifvcor,ifvcoup,ifvo,ifvps,ifwcno,ifxyo, &
+      ifxyo_,iggl,igglt,igroup,im1d,im1dt,imatie,imd1,imd1t,imesh,indx,initc,instep,invedg,iocomm, &
+      ioinfodmp,iostep,ipscal,ipsco,irstim,irstt,irstv,isize,istep,ixcn,ixm12,ixm13,ixm21,ixm31, &
+      ixtm12,ixtm13,ixtm21,ixtm31,iym12,iym13,iym21,iym31,iytm12,iytm13,iytm21,iytm31,izm12,izm13, &
+      izm21,izm31,iztm12,iztm13,iztm21,iztm31,jacm1,jacm2,jacmi,jp,lastep,lcnnum,ldimr,lednum, &
+      lglel,lochis,loglevel,lsize,lyap,matids,matindx,matype,maxmlt,mpi_argv_null,mpi_argvs_null, &
+      mpi_bottom,mpi_errcodes_ignore,mpi_in_place,mpi_status_ignore,mpi_statuses_ignore, &
+      mpi_unweighted,mpi_weights_empty,nab,nabmsh,nadvc,naxhm,nbbbb,nbd,nbdinp,nbso2,nbsol,ncall, &
+      ncccc,ncdtp,ncmp,nconv,nconv_max,ncopy,ncrsl,ncvf,ndadd,ndddd,nddsl,ndg_facex,ndim,ndott, &
+      ndsmn,ndsmx,ndsnd,ndsum,neact,nedg,neeee,nelfld,nelg,nelgt,nelgv,nelt,nelv,neslv,nfield, &
+      ngcomm,ngeom,ngop,ngop1,ngop_sync,ngp2,ngsmn,ngsmx,ngspcn,ngsped,ngsum,nhis,nhmhz,nid, &
+      ninter,ninv3,ninvc,nio,nktonv,nmember,nmlinv,nmltd,nmxe,nmxh,nmxmf,nmxms,nmxnl,nmxp,nobj, &
+      node,node0,noffst,nomlis,np,npert,nprep,npres,npscal,nrefle,nrout,nsett,nslvb,nsolv,nspmax, &
+      nspro,nsskip,nsteps,nsyc,ntaubd,nu_star,nullpid,numbcs,numflu,numoth,numscn,numsed,nusbc, &
+      nvdss,nvtot,nwal,nx1,nx2,nx3,nxd,ny1,ny2,ny3,nyd,nz1,nz2,nz3,nzd,object,ocode,omask, &
+      optlevel,orefle,p0th,param,parfle,path,paxhm,pbbbb,pbso2,pbsol,pcccc,pcdtp,pcopy,pcrsl, &
+      pdadd,pdddd,pddsl,pdott,pdsmn,pdsmx,pdsnd,pdsum,peeee,peslv,pgop,pgop1,pgop_sync,pgp2,pgsmn, &
+      pgsmx,pgsum,phmhz,pi,pid,pinv3,pinvc,pm,pmask,pmd1,pmd1t,pmlag,pmltd,pmxmf,pmxms,pprep, &
+      ppres,pr,prelax,prlag,prlagp,prp,psett,pslvb,psolv,pspro,psyc,pusbc,pvdss,pwal,qinteg,qtl, &
+      rct,re2fle,re2off_b,reafle,restol,rname,rstim,rstt,rstv,rx,rxm1,rxm2,rym1,rym2,rzm1,rzm2, &
+      schfle,session,skpdat,solver_type,sxm1,sxm2,sym1,sym2,szm1,szm2,t,t1x,t1y,t1z,t2x,t2y,t2z, &
+      ta2s2,tadc3,tadd2,tadvc,tauss,taxhm,tbbbb,tbso2,tbsol,tcccc,tcdtp,tcol2,tcol3,tcopy,tcrsl, &
+      tcvf,tdadd,tdddd,tddsl,tdott,tdsmn,tdsmx,tdsnd,tdsum,teeee,teslv,textsw,tgop,tgop1, &
+      tgop_sync,tgp2,tgsmn,tgsmx,tgsum,thmhz,time,timef,timeio,tinit,tinv3,tinvc,tlag,tlagp,tmask, &
+      tmean,tmltd,tmult,tmxmf,tmxms,tnrmh1,tnrml2,tnrml8,tnrmsm,tolabs,tolev,tolhdf,tolhe,tolhr, &
+      tolhs,tolht,tolhv,tolnl,tolpdf,tolps,tolrel,tp,tprep,tpres,tproj,tschw,tsett,tslvb,tsolv, &
+      tspro,tsyc,ttime,ttotal,tttstp,tusbc,tusfq,tvdss,twal,txm1,txm2,txnext,tym1,tym2,tzm1,tzm2, &
+      unr,uns,unt,unx,uny,unz,uparam,usrdiv,v1mask,v1x,v1y,v1z,v2mask,v2x,v2y,v2z,v3mask,vdiff, &
+      vdiff_e,vgradt1,vgradt1p,vgradt2,vgradt2p,vmean,vmult,vnekton,vnrmh1,vnrml2,vnrml8,vnrmsm, &
+      vnx,vny,vnz,volel,volfld,voltm1,voltm2,volvm1,volvm2,vtrans,vx,vx_e,vxd,vxlag,vxlagp,vxp,vy, &
+      vy_e,vyd,vylag,vylagp,vyp,vz,vz_e,vzd,vzlag,vzlagp,vzp,w1mask,w2am1,w2am2,w2am3,w2cm1,w2cm2, &
+      w2cm3,w2mask,w3m1,w3m2,w3m3,w3mask,wam1,wam2,wam3,wdsize,wdsizi,wgl,wgl1,wgl2,wglg,wglgt, &
+      wgli,wgp,wmult,wx,wxlag,wxm1,wxm2,wxm3,wy,wylag,wym1,wym2,wym3,wz,wzlag,wzm1,wzm2,wzm3,xc, &
+      xm1,xm2,xxth,yc,yinvm1,ym1,ym2,zam1,zam2,zam3,zc,zgl,zgm1,zgm2,zgm3,zgp,zm1,zm2)
       ifnav = ifadvc(1)
       turbmod = textsw(1,1)
+            ur = reshape(ur_local_grad2, shape(ur))
+            us = reshape(us_local_grad2, shape(us))
+            u = reshape(u_local_grad2, shape(u))
+            dxm1 = reshape(dxm1_local_grad2, shape(dxm1))
+            dytm1 = reshape(dytm1_local_grad2, shape(dytm1))
             vr_local_grad2 = reshape(vr,shape(vr_local_grad2))
             vs_local_grad2 = reshape(vs,shape(vs_local_grad2))
             v_local_grad2 = reshape(v,shape(v_local_grad2))
-            call local_grad2(vr_local_grad2,vs_local_grad2,v_local_grad2,n,e,dxm1,dytm1,ab,abmsh, &
-      abx1,abx2,aby1,aby2,abz1,abz2,area,atol,avdiff,avtran,b1ia1,b1ia1t,b1mask,b2mask,b2p,b3mask, &
-      baxm1,bbx1,bbx2,bby1,bby2,bbz1,bbz2,bc,bcf,bctyps,bd,bdivw,bfx,bfxp,bfy,bfyp,bfz,bfzp, &
-      bintm1,binvdg,binvm1,bm1,bm1lag,bm2,bm2inv,bmass,bmnv,bmx,bmy,bmz,bpmask,bq,bqp,bx,bxlag,by, &
-      bylag,bz,bzlag,c_vx,cbc,ccurve,cdof,cerror,cflf,courno,cpfld,cpgrp,cr_h,cr_re2,csize,ctarg, &
-      curve,d1,d1t,d2,da,dam1,dam12,dam3,dat,datm1,datm12,datm3,dcm1,dcm12,dcm3,dcount,dct,dctm1, &
-      dctm12,dctm3,dg_face,dg_hndlx,dglg,dglgt,dlam,dmpfle,dp0thdt,drivc,dt,dtinit,dtinvm,dtlag, &
-      dvdfh1,dvdfl2,dvdfl8,dvdfsm,dvnnh1,dvnnl2,dvnnl8,dvnnsm,dvprh1,dvprl2,dvprl8,dvprsm,dxm12, &
-      dxm3,dxtm1,dxtm12,dxtm3,dym1,dym12,dym3,dytm12,dytm3,dzm1,dzm12,dzm3,dztm1,dztm12,dztm3, &
-      eface,eface1,eigaa,eigae,eigas,eigast,eigga,eigge,eiggs,eiggst,eskip,etalph,etimes,etims0, &
-      ev1,ev2,ev3,exx1p,exx2p,exy1p,exy2p,exz1p,exz2p,fh_re2,filtertype,fintim,fldfle,fw,g1m1, &
-      g2m1,g3m1,g4m1,g5m1,g6m1,gamma0,gcnnum,gednum,gedtyp,gllel,gllnid,group,gsh,gsh_fld,hcode, &
-      hisfle,iajl1,iajl2,ialj1,ialj3,iam12,iam13,iam21,iam31,iatjl1,iatjl2,iatlj1,iatlj3,iatm12, &
-      iatm13,iatm21,iatm31,ibcsts,icedg,icface,icm12,icm13,icm21,icm31,ictm12,ictm13,ictm21, &
-      ictm31,idpss,idsess,ieact,iedge,iedgef,iedgfc,iesolv,if3d,if_full_pres,ifaa,ifadvc,ifae, &
-      ifalgn,ifanl2,ifanls,ifas,ifast,ifaxis,ifaziv,ifbase,ifbcor,ifbo,ifchar,ifcons,ifcoup, &
-      ifcvfld,ifcvode,ifcyclic,ifdeal,ifdg,ifdgfld,ifdiff,ifdp0dt,ifeppm,ifessr,ifexplvis,ifextr, &
-      ifexvt,ifflow,iffmtin,ifga,ifge,ifgeom,ifgmsh3,ifgprnt,ifgs,ifgsh_fld_same,ifgst,ifheat, &
-      ifield,ifintq,ifkeps,ifldmhd,iflmsc,iflmse,iflmsf,iflomach,ifmelt,ifmgrid,ifmhd,ifmoab, &
-      ifmodel,ifmodp,ifmpiio,ifmscr,ifmseg,ifmsfc,ifmvbd,ifneknek,ifneknekm,ifnonl,ifnskp, &
-      ifoutfld,ifpert,ifpo,ifprnt,ifprojfld,ifpsco,ifpso,ifqinp,ifreguo,ifrich,ifrsxy,ifrzer, &
-      ifschclob,ifskip,ifsplit,ifssvt,ifstrs,ifstst,ifsurt,ifsync,iftgo,iftmsh,ifto,iftran, &
-      ifusermv,ifuservp,ifvarp,ifvcor,ifvcoup,ifvo,ifvps,ifwcno,ifxyo,ifxyo_,iggl,igglt,igroup, &
-      im1d,im1dt,imatie,imd1,imd1t,imesh,indx,initc,instep,invedg,iocomm,ioinfodmp,iostep,ipscal, &
-      ipsco,irstim,irstt,irstv,isize,istep,ixcn,ixm12,ixm13,ixm21,ixm31,ixtm12,ixtm13,ixtm21, &
-      ixtm31,iym12,iym13,iym21,iym31,iytm12,iytm13,iytm21,iytm31,izm12,izm13,izm21,izm31,iztm12, &
-      iztm13,iztm21,iztm31,jacm1,jacm2,jacmi,jp,lastep,lcnnum,ldimr,lednum,lglel,lochis,loglevel, &
-      lsize,lyap,matids,matindx,matype,maxmlt,mpi_argv_null,mpi_argvs_null,mpi_bottom, &
-      mpi_errcodes_ignore,mpi_in_place,mpi_status_ignore,mpi_statuses_ignore,mpi_unweighted, &
-      mpi_weights_empty,nab,nabmsh,nadvc,naxhm,nbbbb,nbd,nbdinp,nbso2,nbsol,ncall,ncccc,ncdtp, &
-      ncmp,nconv,nconv_max,ncopy,ncrsl,ncvf,ndadd,ndddd,nddsl,ndg_facex,ndim,ndott,ndsmn,ndsmx, &
-      ndsnd,ndsum,neact,nedg,neeee,nelfld,nelg,nelgt,nelgv,nelt,nelv,neslv,nfield,ngcomm,ngeom, &
-      ngop,ngop1,ngop_sync,ngp2,ngsmn,ngsmx,ngspcn,ngsped,ngsum,nhis,nhmhz,nid,ninter,ninv3,ninvc, &
-      nio,nktonv,nmember,nmlinv,nmltd,nmxe,nmxh,nmxmf,nmxms,nmxnl,nmxp,nobj,node,node0,noffst, &
-      nomlis,np,npert,nprep,npres,npscal,nrefle,nrout,nsett,nslvb,nsolv,nspmax,nspro,nsskip, &
-      nsteps,nsyc,ntaubd,nu_star,nullpid,numbcs,numflu,numoth,numscn,numsed,nusbc,nvdss,nvtot, &
-      nwal,nx1,nx2,nx3,nxd,ny1,ny2,ny3,nyd,nz1,nz2,nz3,nzd,object,ocode,omask,optlevel,orefle, &
-      p0th,param,parfle,path,paxhm,pbbbb,pbso2,pbsol,pcccc,pcdtp,pcopy,pcrsl,pdadd,pdddd,pddsl, &
-      pdott,pdsmn,pdsmx,pdsnd,pdsum,peeee,peslv,pgop,pgop1,pgop_sync,pgp2,pgsmn,pgsmx,pgsum,phmhz, &
-      pi,pid,pinv3,pinvc,pm,pmask,pmd1,pmd1t,pmlag,pmltd,pmxmf,pmxms,pprep,ppres,pr,prelax,prlag, &
-      prlagp,prp,psett,pslvb,psolv,pspro,psyc,pusbc,pvdss,pwal,qinteg,qtl,rct,re2fle,re2off_b, &
-      reafle,restol,rname,rstim,rstt,rstv,rx,rxm1,rxm2,rym1,rym2,rzm1,rzm2,schfle,session,skpdat, &
-      solver_type,sxm1,sxm2,sym1,sym2,szm1,szm2,t,t1x,t1y,t1z,t2x,t2y,t2z,ta2s2,tadc3,tadd2,tadvc, &
-      tauss,taxhm,tbbbb,tbso2,tbsol,tcccc,tcdtp,tcol2,tcol3,tcopy,tcrsl,tcvf,tdadd,tdddd,tddsl, &
-      tdott,tdsmn,tdsmx,tdsnd,tdsum,teeee,teslv,textsw,tgop,tgop1,tgop_sync,tgp2,tgsmn,tgsmx, &
-      tgsum,thmhz,time,timef,timeio,tinit,tinv3,tinvc,tlag,tlagp,tmask,tmean,tmltd,tmult,tmxmf, &
-      tmxms,tnrmh1,tnrml2,tnrml8,tnrmsm,tolabs,tolev,tolhdf,tolhe,tolhr,tolhs,tolht,tolhv,tolnl, &
-      tolpdf,tolps,tolrel,tp,tprep,tpres,tproj,tschw,tsett,tslvb,tsolv,tspro,tsyc,ttime,ttotal, &
-      tttstp,tusbc,tusfq,tvdss,twal,txm1,txm2,txnext,tym1,tym2,tzm1,tzm2,unr,uns,unt,unx,uny,unz, &
-      uparam,usrdiv,v1mask,v1x,v1y,v1z,v2mask,v2x,v2y,v2z,v3mask,vdiff,vdiff_e,vgradt1,vgradt1p, &
-      vgradt2,vgradt2p,vmean,vmult,vnekton,vnrmh1,vnrml2,vnrml8,vnrmsm,vnx,vny,vnz,volel,volfld, &
-      voltm1,voltm2,volvm1,volvm2,vtrans,vx,vx_e,vxd,vxlag,vxlagp,vxp,vy,vy_e,vyd,vylag,vylagp, &
-      vyp,vz,vz_e,vzd,vzlag,vzlagp,vzp,w1mask,w2am1,w2am2,w2am3,w2cm1,w2cm2,w2cm3,w2mask,w3m1, &
-      w3m2,w3m3,w3mask,wam1,wam2,wam3,wdsize,wdsizi,wgl,wgl1,wgl2,wglg,wglgt,wgli,wgp,wmult,wx, &
-      wxlag,wxm1,wxm2,wxm3,wy,wylag,wym1,wym2,wym3,wz,wzlag,wzm1,wzm2,wzm3,xc,xm1,xm2,xxth,yc, &
-      yinvm1,ym1,ym2,zam1,zam2,zam3,zc,zgl,zgm1,zgm2,zgm3,zgp,zm1,zm2)
+            dxm1_local_grad2 = reshape(dxm1,shape(dxm1_local_grad2))
+            dytm1_local_grad2 = reshape(dytm1,shape(dytm1_local_grad2))
+            call local_grad2(vr_local_grad2,vs_local_grad2,v_local_grad2,n,e,dxm1_local_grad2, &
+      dytm1_local_grad2,ab,abmsh,abx1,abx2,aby1,aby2,abz1,abz2,area,atol,avdiff,avtran,b1ia1, &
+      b1ia1t,b1mask,b2mask,b2p,b3mask,baxm1,bbx1,bbx2,bby1,bby2,bbz1,bbz2,bc,bcf,bctyps,bd,bdivw, &
+      bfx,bfxp,bfy,bfyp,bfz,bfzp,bintm1,binvdg,binvm1,bm1,bm1lag,bm2,bm2inv,bmass,bmnv,bmx,bmy, &
+      bmz,bpmask,bq,bqp,bx,bxlag,by,bylag,bz,bzlag,c_vx,cbc,ccurve,cdof,cerror,cflf,courno,cpfld, &
+      cpgrp,cr_h,cr_re2,csize,ctarg,curve,d1,d1t,d2,da,dam1,dam12,dam3,dat,datm1,datm12,datm3, &
+      dcm1,dcm12,dcm3,dcount,dct,dctm1,dctm12,dctm3,dg_face,dg_hndlx,dglg,dglgt,dlam,dmpfle, &
+      dp0thdt,drivc,dt,dtinit,dtinvm,dtlag,dvdfh1,dvdfl2,dvdfl8,dvdfsm,dvnnh1,dvnnl2,dvnnl8, &
+      dvnnsm,dvprh1,dvprl2,dvprl8,dvprsm,dxm12,dxm3,dxtm1,dxtm12,dxtm3,dym1,dym12,dym3,dytm12, &
+      dytm3,dzm1,dzm12,dzm3,dztm1,dztm12,dztm3,eface,eface1,eigaa,eigae,eigas,eigast,eigga,eigge, &
+      eiggs,eiggst,eskip,etalph,etimes,etims0,ev1,ev2,ev3,exx1p,exx2p,exy1p,exy2p,exz1p,exz2p, &
+      fh_re2,filtertype,fintim,fldfle,fw,g1m1,g2m1,g3m1,g4m1,g5m1,g6m1,gamma0,gcnnum,gednum, &
+      gedtyp,gllel,gllnid,group,gsh,gsh_fld,hcode,hisfle,iajl1,iajl2,ialj1,ialj3,iam12,iam13, &
+      iam21,iam31,iatjl1,iatjl2,iatlj1,iatlj3,iatm12,iatm13,iatm21,iatm31,ibcsts,icedg,icface, &
+      icm12,icm13,icm21,icm31,ictm12,ictm13,ictm21,ictm31,idpss,idsess,ieact,iedge,iedgef,iedgfc, &
+      iesolv,if3d,if_full_pres,ifaa,ifadvc,ifae,ifalgn,ifanl2,ifanls,ifas,ifast,ifaxis,ifaziv, &
+      ifbase,ifbcor,ifbo,ifchar,ifcons,ifcoup,ifcvfld,ifcvode,ifcyclic,ifdeal,ifdg,ifdgfld,ifdiff, &
+      ifdp0dt,ifeppm,ifessr,ifexplvis,ifextr,ifexvt,ifflow,iffmtin,ifga,ifge,ifgeom,ifgmsh3, &
+      ifgprnt,ifgs,ifgsh_fld_same,ifgst,ifheat,ifield,ifintq,ifkeps,ifldmhd,iflmsc,iflmse,iflmsf, &
+      iflomach,ifmelt,ifmgrid,ifmhd,ifmoab,ifmodel,ifmodp,ifmpiio,ifmscr,ifmseg,ifmsfc,ifmvbd, &
+      ifneknek,ifneknekm,ifnonl,ifnskp,ifoutfld,ifpert,ifpo,ifprnt,ifprojfld,ifpsco,ifpso,ifqinp, &
+      ifreguo,ifrich,ifrsxy,ifrzer,ifschclob,ifskip,ifsplit,ifssvt,ifstrs,ifstst,ifsurt,ifsync, &
+      iftgo,iftmsh,ifto,iftran,ifusermv,ifuservp,ifvarp,ifvcor,ifvcoup,ifvo,ifvps,ifwcno,ifxyo, &
+      ifxyo_,iggl,igglt,igroup,im1d,im1dt,imatie,imd1,imd1t,imesh,indx,initc,instep,invedg,iocomm, &
+      ioinfodmp,iostep,ipscal,ipsco,irstim,irstt,irstv,isize,istep,ixcn,ixm12,ixm13,ixm21,ixm31, &
+      ixtm12,ixtm13,ixtm21,ixtm31,iym12,iym13,iym21,iym31,iytm12,iytm13,iytm21,iytm31,izm12,izm13, &
+      izm21,izm31,iztm12,iztm13,iztm21,iztm31,jacm1,jacm2,jacmi,jp,lastep,lcnnum,ldimr,lednum, &
+      lglel,lochis,loglevel,lsize,lyap,matids,matindx,matype,maxmlt,mpi_argv_null,mpi_argvs_null, &
+      mpi_bottom,mpi_errcodes_ignore,mpi_in_place,mpi_status_ignore,mpi_statuses_ignore, &
+      mpi_unweighted,mpi_weights_empty,nab,nabmsh,nadvc,naxhm,nbbbb,nbd,nbdinp,nbso2,nbsol,ncall, &
+      ncccc,ncdtp,ncmp,nconv,nconv_max,ncopy,ncrsl,ncvf,ndadd,ndddd,nddsl,ndg_facex,ndim,ndott, &
+      ndsmn,ndsmx,ndsnd,ndsum,neact,nedg,neeee,nelfld,nelg,nelgt,nelgv,nelt,nelv,neslv,nfield, &
+      ngcomm,ngeom,ngop,ngop1,ngop_sync,ngp2,ngsmn,ngsmx,ngspcn,ngsped,ngsum,nhis,nhmhz,nid, &
+      ninter,ninv3,ninvc,nio,nktonv,nmember,nmlinv,nmltd,nmxe,nmxh,nmxmf,nmxms,nmxnl,nmxp,nobj, &
+      node,node0,noffst,nomlis,np,npert,nprep,npres,npscal,nrefle,nrout,nsett,nslvb,nsolv,nspmax, &
+      nspro,nsskip,nsteps,nsyc,ntaubd,nu_star,nullpid,numbcs,numflu,numoth,numscn,numsed,nusbc, &
+      nvdss,nvtot,nwal,nx1,nx2,nx3,nxd,ny1,ny2,ny3,nyd,nz1,nz2,nz3,nzd,object,ocode,omask, &
+      optlevel,orefle,p0th,param,parfle,path,paxhm,pbbbb,pbso2,pbsol,pcccc,pcdtp,pcopy,pcrsl, &
+      pdadd,pdddd,pddsl,pdott,pdsmn,pdsmx,pdsnd,pdsum,peeee,peslv,pgop,pgop1,pgop_sync,pgp2,pgsmn, &
+      pgsmx,pgsum,phmhz,pi,pid,pinv3,pinvc,pm,pmask,pmd1,pmd1t,pmlag,pmltd,pmxmf,pmxms,pprep, &
+      ppres,pr,prelax,prlag,prlagp,prp,psett,pslvb,psolv,pspro,psyc,pusbc,pvdss,pwal,qinteg,qtl, &
+      rct,re2fle,re2off_b,reafle,restol,rname,rstim,rstt,rstv,rx,rxm1,rxm2,rym1,rym2,rzm1,rzm2, &
+      schfle,session,skpdat,solver_type,sxm1,sxm2,sym1,sym2,szm1,szm2,t,t1x,t1y,t1z,t2x,t2y,t2z, &
+      ta2s2,tadc3,tadd2,tadvc,tauss,taxhm,tbbbb,tbso2,tbsol,tcccc,tcdtp,tcol2,tcol3,tcopy,tcrsl, &
+      tcvf,tdadd,tdddd,tddsl,tdott,tdsmn,tdsmx,tdsnd,tdsum,teeee,teslv,textsw,tgop,tgop1, &
+      tgop_sync,tgp2,tgsmn,tgsmx,tgsum,thmhz,time,timef,timeio,tinit,tinv3,tinvc,tlag,tlagp,tmask, &
+      tmean,tmltd,tmult,tmxmf,tmxms,tnrmh1,tnrml2,tnrml8,tnrmsm,tolabs,tolev,tolhdf,tolhe,tolhr, &
+      tolhs,tolht,tolhv,tolnl,tolpdf,tolps,tolrel,tp,tprep,tpres,tproj,tschw,tsett,tslvb,tsolv, &
+      tspro,tsyc,ttime,ttotal,tttstp,tusbc,tusfq,tvdss,twal,txm1,txm2,txnext,tym1,tym2,tzm1,tzm2, &
+      unr,uns,unt,unx,uny,unz,uparam,usrdiv,v1mask,v1x,v1y,v1z,v2mask,v2x,v2y,v2z,v3mask,vdiff, &
+      vdiff_e,vgradt1,vgradt1p,vgradt2,vgradt2p,vmean,vmult,vnekton,vnrmh1,vnrml2,vnrml8,vnrmsm, &
+      vnx,vny,vnz,volel,volfld,voltm1,voltm2,volvm1,volvm2,vtrans,vx,vx_e,vxd,vxlag,vxlagp,vxp,vy, &
+      vy_e,vyd,vylag,vylagp,vyp,vz,vz_e,vzd,vzlag,vzlagp,vzp,w1mask,w2am1,w2am2,w2am3,w2cm1,w2cm2, &
+      w2cm3,w2mask,w3m1,w3m2,w3m3,w3mask,wam1,wam2,wam3,wdsize,wdsizi,wgl,wgl1,wgl2,wglg,wglgt, &
+      wgli,wgp,wmult,wx,wxlag,wxm1,wxm2,wxm3,wy,wylag,wym1,wym2,wym3,wz,wzlag,wzm1,wzm2,wzm3,xc, &
+      xm1,xm2,xxth,yc,yinvm1,ym1,ym2,zam1,zam2,zam3,zc,zgl,zgm1,zgm2,zgm3,zgp,zm1,zm2)
       ifnav = ifadvc(1)
       turbmod = textsw(1,1)
             vr = reshape(vr_local_grad2, shape(vr))
             vs = reshape(vs_local_grad2, shape(vs))
             v = reshape(v_local_grad2, shape(v))
+            dxm1 = reshape(dxm1_local_grad2, shape(dxm1))
+            dytm1 = reshape(dytm1_local_grad2, shape(dytm1))
             wr_local_grad2 = reshape(wr,shape(wr_local_grad2))
             ws_local_grad2 = reshape(ws,shape(ws_local_grad2))
             w_local_grad2 = reshape(w,shape(w_local_grad2))
-            call local_grad2(wr_local_grad2,ws_local_grad2,w_local_grad2,n,e,dxm1,dytm1,ab,abmsh, &
-      abx1,abx2,aby1,aby2,abz1,abz2,area,atol,avdiff,avtran,b1ia1,b1ia1t,b1mask,b2mask,b2p,b3mask, &
-      baxm1,bbx1,bbx2,bby1,bby2,bbz1,bbz2,bc,bcf,bctyps,bd,bdivw,bfx,bfxp,bfy,bfyp,bfz,bfzp, &
-      bintm1,binvdg,binvm1,bm1,bm1lag,bm2,bm2inv,bmass,bmnv,bmx,bmy,bmz,bpmask,bq,bqp,bx,bxlag,by, &
-      bylag,bz,bzlag,c_vx,cbc,ccurve,cdof,cerror,cflf,courno,cpfld,cpgrp,cr_h,cr_re2,csize,ctarg, &
-      curve,d1,d1t,d2,da,dam1,dam12,dam3,dat,datm1,datm12,datm3,dcm1,dcm12,dcm3,dcount,dct,dctm1, &
-      dctm12,dctm3,dg_face,dg_hndlx,dglg,dglgt,dlam,dmpfle,dp0thdt,drivc,dt,dtinit,dtinvm,dtlag, &
-      dvdfh1,dvdfl2,dvdfl8,dvdfsm,dvnnh1,dvnnl2,dvnnl8,dvnnsm,dvprh1,dvprl2,dvprl8,dvprsm,dxm12, &
-      dxm3,dxtm1,dxtm12,dxtm3,dym1,dym12,dym3,dytm12,dytm3,dzm1,dzm12,dzm3,dztm1,dztm12,dztm3, &
-      eface,eface1,eigaa,eigae,eigas,eigast,eigga,eigge,eiggs,eiggst,eskip,etalph,etimes,etims0, &
-      ev1,ev2,ev3,exx1p,exx2p,exy1p,exy2p,exz1p,exz2p,fh_re2,filtertype,fintim,fldfle,fw,g1m1, &
-      g2m1,g3m1,g4m1,g5m1,g6m1,gamma0,gcnnum,gednum,gedtyp,gllel,gllnid,group,gsh,gsh_fld,hcode, &
-      hisfle,iajl1,iajl2,ialj1,ialj3,iam12,iam13,iam21,iam31,iatjl1,iatjl2,iatlj1,iatlj3,iatm12, &
-      iatm13,iatm21,iatm31,ibcsts,icedg,icface,icm12,icm13,icm21,icm31,ictm12,ictm13,ictm21, &
-      ictm31,idpss,idsess,ieact,iedge,iedgef,iedgfc,iesolv,if3d,if_full_pres,ifaa,ifadvc,ifae, &
-      ifalgn,ifanl2,ifanls,ifas,ifast,ifaxis,ifaziv,ifbase,ifbcor,ifbo,ifchar,ifcons,ifcoup, &
-      ifcvfld,ifcvode,ifcyclic,ifdeal,ifdg,ifdgfld,ifdiff,ifdp0dt,ifeppm,ifessr,ifexplvis,ifextr, &
-      ifexvt,ifflow,iffmtin,ifga,ifge,ifgeom,ifgmsh3,ifgprnt,ifgs,ifgsh_fld_same,ifgst,ifheat, &
-      ifield,ifintq,ifkeps,ifldmhd,iflmsc,iflmse,iflmsf,iflomach,ifmelt,ifmgrid,ifmhd,ifmoab, &
-      ifmodel,ifmodp,ifmpiio,ifmscr,ifmseg,ifmsfc,ifmvbd,ifneknek,ifneknekm,ifnonl,ifnskp, &
-      ifoutfld,ifpert,ifpo,ifprnt,ifprojfld,ifpsco,ifpso,ifqinp,ifreguo,ifrich,ifrsxy,ifrzer, &
-      ifschclob,ifskip,ifsplit,ifssvt,ifstrs,ifstst,ifsurt,ifsync,iftgo,iftmsh,ifto,iftran, &
-      ifusermv,ifuservp,ifvarp,ifvcor,ifvcoup,ifvo,ifvps,ifwcno,ifxyo,ifxyo_,iggl,igglt,igroup, &
-      im1d,im1dt,imatie,imd1,imd1t,imesh,indx,initc,instep,invedg,iocomm,ioinfodmp,iostep,ipscal, &
-      ipsco,irstim,irstt,irstv,isize,istep,ixcn,ixm12,ixm13,ixm21,ixm31,ixtm12,ixtm13,ixtm21, &
-      ixtm31,iym12,iym13,iym21,iym31,iytm12,iytm13,iytm21,iytm31,izm12,izm13,izm21,izm31,iztm12, &
-      iztm13,iztm21,iztm31,jacm1,jacm2,jacmi,jp,lastep,lcnnum,ldimr,lednum,lglel,lochis,loglevel, &
-      lsize,lyap,matids,matindx,matype,maxmlt,mpi_argv_null,mpi_argvs_null,mpi_bottom, &
-      mpi_errcodes_ignore,mpi_in_place,mpi_status_ignore,mpi_statuses_ignore,mpi_unweighted, &
-      mpi_weights_empty,nab,nabmsh,nadvc,naxhm,nbbbb,nbd,nbdinp,nbso2,nbsol,ncall,ncccc,ncdtp, &
-      ncmp,nconv,nconv_max,ncopy,ncrsl,ncvf,ndadd,ndddd,nddsl,ndg_facex,ndim,ndott,ndsmn,ndsmx, &
-      ndsnd,ndsum,neact,nedg,neeee,nelfld,nelg,nelgt,nelgv,nelt,nelv,neslv,nfield,ngcomm,ngeom, &
-      ngop,ngop1,ngop_sync,ngp2,ngsmn,ngsmx,ngspcn,ngsped,ngsum,nhis,nhmhz,nid,ninter,ninv3,ninvc, &
-      nio,nktonv,nmember,nmlinv,nmltd,nmxe,nmxh,nmxmf,nmxms,nmxnl,nmxp,nobj,node,node0,noffst, &
-      nomlis,np,npert,nprep,npres,npscal,nrefle,nrout,nsett,nslvb,nsolv,nspmax,nspro,nsskip, &
-      nsteps,nsyc,ntaubd,nu_star,nullpid,numbcs,numflu,numoth,numscn,numsed,nusbc,nvdss,nvtot, &
-      nwal,nx1,nx2,nx3,nxd,ny1,ny2,ny3,nyd,nz1,nz2,nz3,nzd,object,ocode,omask,optlevel,orefle, &
-      p0th,param,parfle,path,paxhm,pbbbb,pbso2,pbsol,pcccc,pcdtp,pcopy,pcrsl,pdadd,pdddd,pddsl, &
-      pdott,pdsmn,pdsmx,pdsnd,pdsum,peeee,peslv,pgop,pgop1,pgop_sync,pgp2,pgsmn,pgsmx,pgsum,phmhz, &
-      pi,pid,pinv3,pinvc,pm,pmask,pmd1,pmd1t,pmlag,pmltd,pmxmf,pmxms,pprep,ppres,pr,prelax,prlag, &
-      prlagp,prp,psett,pslvb,psolv,pspro,psyc,pusbc,pvdss,pwal,qinteg,qtl,rct,re2fle,re2off_b, &
-      reafle,restol,rname,rstim,rstt,rstv,rx,rxm1,rxm2,rym1,rym2,rzm1,rzm2,schfle,session,skpdat, &
-      solver_type,sxm1,sxm2,sym1,sym2,szm1,szm2,t,t1x,t1y,t1z,t2x,t2y,t2z,ta2s2,tadc3,tadd2,tadvc, &
-      tauss,taxhm,tbbbb,tbso2,tbsol,tcccc,tcdtp,tcol2,tcol3,tcopy,tcrsl,tcvf,tdadd,tdddd,tddsl, &
-      tdott,tdsmn,tdsmx,tdsnd,tdsum,teeee,teslv,textsw,tgop,tgop1,tgop_sync,tgp2,tgsmn,tgsmx, &
-      tgsum,thmhz,time,timef,timeio,tinit,tinv3,tinvc,tlag,tlagp,tmask,tmean,tmltd,tmult,tmxmf, &
-      tmxms,tnrmh1,tnrml2,tnrml8,tnrmsm,tolabs,tolev,tolhdf,tolhe,tolhr,tolhs,tolht,tolhv,tolnl, &
-      tolpdf,tolps,tolrel,tp,tprep,tpres,tproj,tschw,tsett,tslvb,tsolv,tspro,tsyc,ttime,ttotal, &
-      tttstp,tusbc,tusfq,tvdss,twal,txm1,txm2,txnext,tym1,tym2,tzm1,tzm2,unr,uns,unt,unx,uny,unz, &
-      uparam,usrdiv,v1mask,v1x,v1y,v1z,v2mask,v2x,v2y,v2z,v3mask,vdiff,vdiff_e,vgradt1,vgradt1p, &
-      vgradt2,vgradt2p,vmean,vmult,vnekton,vnrmh1,vnrml2,vnrml8,vnrmsm,vnx,vny,vnz,volel,volfld, &
-      voltm1,voltm2,volvm1,volvm2,vtrans,vx,vx_e,vxd,vxlag,vxlagp,vxp,vy,vy_e,vyd,vylag,vylagp, &
-      vyp,vz,vz_e,vzd,vzlag,vzlagp,vzp,w1mask,w2am1,w2am2,w2am3,w2cm1,w2cm2,w2cm3,w2mask,w3m1, &
-      w3m2,w3m3,w3mask,wam1,wam2,wam3,wdsize,wdsizi,wgl,wgl1,wgl2,wglg,wglgt,wgli,wgp,wmult,wx, &
-      wxlag,wxm1,wxm2,wxm3,wy,wylag,wym1,wym2,wym3,wz,wzlag,wzm1,wzm2,wzm3,xc,xm1,xm2,xxth,yc, &
-      yinvm1,ym1,ym2,zam1,zam2,zam3,zc,zgl,zgm1,zgm2,zgm3,zgp,zm1,zm2)
+            dxm1_local_grad2 = reshape(dxm1,shape(dxm1_local_grad2))
+            dytm1_local_grad2 = reshape(dytm1,shape(dytm1_local_grad2))
+            call local_grad2(wr_local_grad2,ws_local_grad2,w_local_grad2,n,e,dxm1_local_grad2, &
+      dytm1_local_grad2,ab,abmsh,abx1,abx2,aby1,aby2,abz1,abz2,area,atol,avdiff,avtran,b1ia1, &
+      b1ia1t,b1mask,b2mask,b2p,b3mask,baxm1,bbx1,bbx2,bby1,bby2,bbz1,bbz2,bc,bcf,bctyps,bd,bdivw, &
+      bfx,bfxp,bfy,bfyp,bfz,bfzp,bintm1,binvdg,binvm1,bm1,bm1lag,bm2,bm2inv,bmass,bmnv,bmx,bmy, &
+      bmz,bpmask,bq,bqp,bx,bxlag,by,bylag,bz,bzlag,c_vx,cbc,ccurve,cdof,cerror,cflf,courno,cpfld, &
+      cpgrp,cr_h,cr_re2,csize,ctarg,curve,d1,d1t,d2,da,dam1,dam12,dam3,dat,datm1,datm12,datm3, &
+      dcm1,dcm12,dcm3,dcount,dct,dctm1,dctm12,dctm3,dg_face,dg_hndlx,dglg,dglgt,dlam,dmpfle, &
+      dp0thdt,drivc,dt,dtinit,dtinvm,dtlag,dvdfh1,dvdfl2,dvdfl8,dvdfsm,dvnnh1,dvnnl2,dvnnl8, &
+      dvnnsm,dvprh1,dvprl2,dvprl8,dvprsm,dxm12,dxm3,dxtm1,dxtm12,dxtm3,dym1,dym12,dym3,dytm12, &
+      dytm3,dzm1,dzm12,dzm3,dztm1,dztm12,dztm3,eface,eface1,eigaa,eigae,eigas,eigast,eigga,eigge, &
+      eiggs,eiggst,eskip,etalph,etimes,etims0,ev1,ev2,ev3,exx1p,exx2p,exy1p,exy2p,exz1p,exz2p, &
+      fh_re2,filtertype,fintim,fldfle,fw,g1m1,g2m1,g3m1,g4m1,g5m1,g6m1,gamma0,gcnnum,gednum, &
+      gedtyp,gllel,gllnid,group,gsh,gsh_fld,hcode,hisfle,iajl1,iajl2,ialj1,ialj3,iam12,iam13, &
+      iam21,iam31,iatjl1,iatjl2,iatlj1,iatlj3,iatm12,iatm13,iatm21,iatm31,ibcsts,icedg,icface, &
+      icm12,icm13,icm21,icm31,ictm12,ictm13,ictm21,ictm31,idpss,idsess,ieact,iedge,iedgef,iedgfc, &
+      iesolv,if3d,if_full_pres,ifaa,ifadvc,ifae,ifalgn,ifanl2,ifanls,ifas,ifast,ifaxis,ifaziv, &
+      ifbase,ifbcor,ifbo,ifchar,ifcons,ifcoup,ifcvfld,ifcvode,ifcyclic,ifdeal,ifdg,ifdgfld,ifdiff, &
+      ifdp0dt,ifeppm,ifessr,ifexplvis,ifextr,ifexvt,ifflow,iffmtin,ifga,ifge,ifgeom,ifgmsh3, &
+      ifgprnt,ifgs,ifgsh_fld_same,ifgst,ifheat,ifield,ifintq,ifkeps,ifldmhd,iflmsc,iflmse,iflmsf, &
+      iflomach,ifmelt,ifmgrid,ifmhd,ifmoab,ifmodel,ifmodp,ifmpiio,ifmscr,ifmseg,ifmsfc,ifmvbd, &
+      ifneknek,ifneknekm,ifnonl,ifnskp,ifoutfld,ifpert,ifpo,ifprnt,ifprojfld,ifpsco,ifpso,ifqinp, &
+      ifreguo,ifrich,ifrsxy,ifrzer,ifschclob,ifskip,ifsplit,ifssvt,ifstrs,ifstst,ifsurt,ifsync, &
+      iftgo,iftmsh,ifto,iftran,ifusermv,ifuservp,ifvarp,ifvcor,ifvcoup,ifvo,ifvps,ifwcno,ifxyo, &
+      ifxyo_,iggl,igglt,igroup,im1d,im1dt,imatie,imd1,imd1t,imesh,indx,initc,instep,invedg,iocomm, &
+      ioinfodmp,iostep,ipscal,ipsco,irstim,irstt,irstv,isize,istep,ixcn,ixm12,ixm13,ixm21,ixm31, &
+      ixtm12,ixtm13,ixtm21,ixtm31,iym12,iym13,iym21,iym31,iytm12,iytm13,iytm21,iytm31,izm12,izm13, &
+      izm21,izm31,iztm12,iztm13,iztm21,iztm31,jacm1,jacm2,jacmi,jp,lastep,lcnnum,ldimr,lednum, &
+      lglel,lochis,loglevel,lsize,lyap,matids,matindx,matype,maxmlt,mpi_argv_null,mpi_argvs_null, &
+      mpi_bottom,mpi_errcodes_ignore,mpi_in_place,mpi_status_ignore,mpi_statuses_ignore, &
+      mpi_unweighted,mpi_weights_empty,nab,nabmsh,nadvc,naxhm,nbbbb,nbd,nbdinp,nbso2,nbsol,ncall, &
+      ncccc,ncdtp,ncmp,nconv,nconv_max,ncopy,ncrsl,ncvf,ndadd,ndddd,nddsl,ndg_facex,ndim,ndott, &
+      ndsmn,ndsmx,ndsnd,ndsum,neact,nedg,neeee,nelfld,nelg,nelgt,nelgv,nelt,nelv,neslv,nfield, &
+      ngcomm,ngeom,ngop,ngop1,ngop_sync,ngp2,ngsmn,ngsmx,ngspcn,ngsped,ngsum,nhis,nhmhz,nid, &
+      ninter,ninv3,ninvc,nio,nktonv,nmember,nmlinv,nmltd,nmxe,nmxh,nmxmf,nmxms,nmxnl,nmxp,nobj, &
+      node,node0,noffst,nomlis,np,npert,nprep,npres,npscal,nrefle,nrout,nsett,nslvb,nsolv,nspmax, &
+      nspro,nsskip,nsteps,nsyc,ntaubd,nu_star,nullpid,numbcs,numflu,numoth,numscn,numsed,nusbc, &
+      nvdss,nvtot,nwal,nx1,nx2,nx3,nxd,ny1,ny2,ny3,nyd,nz1,nz2,nz3,nzd,object,ocode,omask, &
+      optlevel,orefle,p0th,param,parfle,path,paxhm,pbbbb,pbso2,pbsol,pcccc,pcdtp,pcopy,pcrsl, &
+      pdadd,pdddd,pddsl,pdott,pdsmn,pdsmx,pdsnd,pdsum,peeee,peslv,pgop,pgop1,pgop_sync,pgp2,pgsmn, &
+      pgsmx,pgsum,phmhz,pi,pid,pinv3,pinvc,pm,pmask,pmd1,pmd1t,pmlag,pmltd,pmxmf,pmxms,pprep, &
+      ppres,pr,prelax,prlag,prlagp,prp,psett,pslvb,psolv,pspro,psyc,pusbc,pvdss,pwal,qinteg,qtl, &
+      rct,re2fle,re2off_b,reafle,restol,rname,rstim,rstt,rstv,rx,rxm1,rxm2,rym1,rym2,rzm1,rzm2, &
+      schfle,session,skpdat,solver_type,sxm1,sxm2,sym1,sym2,szm1,szm2,t,t1x,t1y,t1z,t2x,t2y,t2z, &
+      ta2s2,tadc3,tadd2,tadvc,tauss,taxhm,tbbbb,tbso2,tbsol,tcccc,tcdtp,tcol2,tcol3,tcopy,tcrsl, &
+      tcvf,tdadd,tdddd,tddsl,tdott,tdsmn,tdsmx,tdsnd,tdsum,teeee,teslv,textsw,tgop,tgop1, &
+      tgop_sync,tgp2,tgsmn,tgsmx,tgsum,thmhz,time,timef,timeio,tinit,tinv3,tinvc,tlag,tlagp,tmask, &
+      tmean,tmltd,tmult,tmxmf,tmxms,tnrmh1,tnrml2,tnrml8,tnrmsm,tolabs,tolev,tolhdf,tolhe,tolhr, &
+      tolhs,tolht,tolhv,tolnl,tolpdf,tolps,tolrel,tp,tprep,tpres,tproj,tschw,tsett,tslvb,tsolv, &
+      tspro,tsyc,ttime,ttotal,tttstp,tusbc,tusfq,tvdss,twal,txm1,txm2,txnext,tym1,tym2,tzm1,tzm2, &
+      unr,uns,unt,unx,uny,unz,uparam,usrdiv,v1mask,v1x,v1y,v1z,v2mask,v2x,v2y,v2z,v3mask,vdiff, &
+      vdiff_e,vgradt1,vgradt1p,vgradt2,vgradt2p,vmean,vmult,vnekton,vnrmh1,vnrml2,vnrml8,vnrmsm, &
+      vnx,vny,vnz,volel,volfld,voltm1,voltm2,volvm1,volvm2,vtrans,vx,vx_e,vxd,vxlag,vxlagp,vxp,vy, &
+      vy_e,vyd,vylag,vylagp,vyp,vz,vz_e,vzd,vzlag,vzlagp,vzp,w1mask,w2am1,w2am2,w2am3,w2cm1,w2cm2, &
+      w2cm3,w2mask,w3m1,w3m2,w3m3,w3mask,wam1,wam2,wam3,wdsize,wdsizi,wgl,wgl1,wgl2,wglg,wglgt, &
+      wgli,wgp,wmult,wx,wxlag,wxm1,wxm2,wxm3,wy,wylag,wym1,wym2,wym3,wz,wzlag,wzm1,wzm2,wzm3,xc, &
+      xm1,xm2,xxth,yc,yinvm1,ym1,ym2,zam1,zam2,zam3,zc,zgl,zgm1,zgm2,zgm3,zgp,zm1,zm2)
       ifnav = ifadvc(1)
       turbmod = textsw(1,1)
             wr = reshape(wr_local_grad2, shape(wr))
             ws = reshape(ws_local_grad2, shape(ws))
             w = reshape(w_local_grad2, shape(w))
+            dxm1 = reshape(dxm1_local_grad2, shape(dxm1))
+            dytm1 = reshape(dytm1_local_grad2, shape(dytm1))
             do i=1,nxyz
                j = jacmi(i,e)
                r = ym1(i,1,1,e)                              
@@ -9196,128 +9380,142 @@ contains
          enddo
       else              
          do e=1,nelv
-            call local_grad2(ur,us,u,n,e,dxm1,dxtm1,ab,abmsh,abx1,abx2,aby1,aby2,abz1,abz2,area, &
-      atol,avdiff,avtran,b1ia1,b1ia1t,b1mask,b2mask,b2p,b3mask,baxm1,bbx1,bbx2,bby1,bby2,bbz1, &
-      bbz2,bc,bcf,bctyps,bd,bdivw,bfx,bfxp,bfy,bfyp,bfz,bfzp,bintm1,binvdg,binvm1,bm1,bm1lag,bm2, &
-      bm2inv,bmass,bmnv,bmx,bmy,bmz,bpmask,bq,bqp,bx,bxlag,by,bylag,bz,bzlag,c_vx,cbc,ccurve,cdof, &
-      cerror,cflf,courno,cpfld,cpgrp,cr_h,cr_re2,csize,ctarg,curve,d1,d1t,d2,da,dam1,dam12,dam3, &
-      dat,datm1,datm12,datm3,dcm1,dcm12,dcm3,dcount,dct,dctm1,dctm12,dctm3,dg_face,dg_hndlx,dglg, &
-      dglgt,dlam,dmpfle,dp0thdt,drivc,dt,dtinit,dtinvm,dtlag,dvdfh1,dvdfl2,dvdfl8,dvdfsm,dvnnh1, &
-      dvnnl2,dvnnl8,dvnnsm,dvprh1,dvprl2,dvprl8,dvprsm,dxm12,dxm3,dxtm12,dxtm3,dym1,dym12,dym3, &
-      dytm1,dytm12,dytm3,dzm1,dzm12,dzm3,dztm1,dztm12,dztm3,eface,eface1,eigaa,eigae,eigas,eigast, &
-      eigga,eigge,eiggs,eiggst,eskip,etalph,etimes,etims0,ev1,ev2,ev3,exx1p,exx2p,exy1p,exy2p, &
-      exz1p,exz2p,fh_re2,filtertype,fintim,fldfle,fw,g1m1,g2m1,g3m1,g4m1,g5m1,g6m1,gamma0,gcnnum, &
-      gednum,gedtyp,gllel,gllnid,group,gsh,gsh_fld,hcode,hisfle,iajl1,iajl2,ialj1,ialj3,iam12, &
-      iam13,iam21,iam31,iatjl1,iatjl2,iatlj1,iatlj3,iatm12,iatm13,iatm21,iatm31,ibcsts,icedg, &
-      icface,icm12,icm13,icm21,icm31,ictm12,ictm13,ictm21,ictm31,idpss,idsess,ieact,iedge,iedgef, &
-      iedgfc,iesolv,if3d,if_full_pres,ifaa,ifadvc,ifae,ifalgn,ifanl2,ifanls,ifas,ifast,ifaxis, &
-      ifaziv,ifbase,ifbcor,ifbo,ifchar,ifcons,ifcoup,ifcvfld,ifcvode,ifcyclic,ifdeal,ifdg,ifdgfld, &
-      ifdiff,ifdp0dt,ifeppm,ifessr,ifexplvis,ifextr,ifexvt,ifflow,iffmtin,ifga,ifge,ifgeom, &
-      ifgmsh3,ifgprnt,ifgs,ifgsh_fld_same,ifgst,ifheat,ifield,ifintq,ifkeps,ifldmhd,iflmsc,iflmse, &
-      iflmsf,iflomach,ifmelt,ifmgrid,ifmhd,ifmoab,ifmodel,ifmodp,ifmpiio,ifmscr,ifmseg,ifmsfc, &
-      ifmvbd,ifneknek,ifneknekm,ifnonl,ifnskp,ifoutfld,ifpert,ifpo,ifprnt,ifprojfld,ifpsco,ifpso, &
-      ifqinp,ifreguo,ifrich,ifrsxy,ifrzer,ifschclob,ifskip,ifsplit,ifssvt,ifstrs,ifstst,ifsurt, &
-      ifsync,iftgo,iftmsh,ifto,iftran,ifusermv,ifuservp,ifvarp,ifvcor,ifvcoup,ifvo,ifvps,ifwcno, &
-      ifxyo,ifxyo_,iggl,igglt,igroup,im1d,im1dt,imatie,imd1,imd1t,imesh,indx,initc,instep,invedg, &
-      iocomm,ioinfodmp,iostep,ipscal,ipsco,irstim,irstt,irstv,isize,istep,ixcn,ixm12,ixm13,ixm21, &
-      ixm31,ixtm12,ixtm13,ixtm21,ixtm31,iym12,iym13,iym21,iym31,iytm12,iytm13,iytm21,iytm31,izm12, &
-      izm13,izm21,izm31,iztm12,iztm13,iztm21,iztm31,jacm1,jacm2,jacmi,jp,lastep,lcnnum,ldimr, &
-      lednum,lglel,lochis,loglevel,lsize,lyap,matids,matindx,matype,maxmlt,mpi_argv_null, &
-      mpi_argvs_null,mpi_bottom,mpi_errcodes_ignore,mpi_in_place,mpi_status_ignore, &
-      mpi_statuses_ignore,mpi_unweighted,mpi_weights_empty,nab,nabmsh,nadvc,naxhm,nbbbb,nbd, &
-      nbdinp,nbso2,nbsol,ncall,ncccc,ncdtp,ncmp,nconv,nconv_max,ncopy,ncrsl,ncvf,ndadd,ndddd, &
-      nddsl,ndg_facex,ndim,ndott,ndsmn,ndsmx,ndsnd,ndsum,neact,nedg,neeee,nelfld,nelg,nelgt,nelgv, &
-      nelt,nelv,neslv,nfield,ngcomm,ngeom,ngop,ngop1,ngop_sync,ngp2,ngsmn,ngsmx,ngspcn,ngsped, &
-      ngsum,nhis,nhmhz,nid,ninter,ninv3,ninvc,nio,nktonv,nmember,nmlinv,nmltd,nmxe,nmxh,nmxmf, &
-      nmxms,nmxnl,nmxp,nobj,node,node0,noffst,nomlis,np,npert,nprep,npres,npscal,nrefle,nrout, &
-      nsett,nslvb,nsolv,nspmax,nspro,nsskip,nsteps,nsyc,ntaubd,nu_star,nullpid,numbcs,numflu, &
-      numoth,numscn,numsed,nusbc,nvdss,nvtot,nwal,nx1,nx2,nx3,nxd,ny1,ny2,ny3,nyd,nz1,nz2,nz3,nzd, &
-      object,ocode,omask,optlevel,orefle,p0th,param,parfle,path,paxhm,pbbbb,pbso2,pbsol,pcccc, &
-      pcdtp,pcopy,pcrsl,pdadd,pdddd,pddsl,pdott,pdsmn,pdsmx,pdsnd,pdsum,peeee,peslv,pgop,pgop1, &
-      pgop_sync,pgp2,pgsmn,pgsmx,pgsum,phmhz,pi,pid,pinv3,pinvc,pm,pmask,pmd1,pmd1t,pmlag,pmltd, &
-      pmxmf,pmxms,pprep,ppres,pr,prelax,prlag,prlagp,prp,psett,pslvb,psolv,pspro,psyc,pusbc,pvdss, &
-      pwal,qinteg,qtl,rct,re2fle,re2off_b,reafle,restol,rname,rstim,rstt,rstv,rx,rxm1,rxm2,rym1, &
-      rym2,rzm1,rzm2,schfle,session,skpdat,solver_type,sxm1,sxm2,sym1,sym2,szm1,szm2,t,t1x,t1y, &
-      t1z,t2x,t2y,t2z,ta2s2,tadc3,tadd2,tadvc,tauss,taxhm,tbbbb,tbso2,tbsol,tcccc,tcdtp,tcol2, &
-      tcol3,tcopy,tcrsl,tcvf,tdadd,tdddd,tddsl,tdott,tdsmn,tdsmx,tdsnd,tdsum,teeee,teslv,textsw, &
-      tgop,tgop1,tgop_sync,tgp2,tgsmn,tgsmx,tgsum,thmhz,time,timef,timeio,tinit,tinv3,tinvc,tlag, &
-      tlagp,tmask,tmean,tmltd,tmult,tmxmf,tmxms,tnrmh1,tnrml2,tnrml8,tnrmsm,tolabs,tolev,tolhdf, &
-      tolhe,tolhr,tolhs,tolht,tolhv,tolnl,tolpdf,tolps,tolrel,tp,tprep,tpres,tproj,tschw,tsett, &
-      tslvb,tsolv,tspro,tsyc,ttime,ttotal,tttstp,tusbc,tusfq,tvdss,twal,txm1,txm2,txnext,tym1, &
-      tym2,tzm1,tzm2,unr,uns,unt,unx,uny,unz,uparam,usrdiv,v1mask,v1x,v1y,v1z,v2mask,v2x,v2y,v2z, &
-      v3mask,vdiff,vdiff_e,vgradt1,vgradt1p,vgradt2,vgradt2p,vmean,vmult,vnekton,vnrmh1,vnrml2, &
-      vnrml8,vnrmsm,vnx,vny,vnz,volel,volfld,voltm1,voltm2,volvm1,volvm2,vtrans,vx,vx_e,vxd,vxlag, &
-      vxlagp,vxp,vy,vy_e,vyd,vylag,vylagp,vyp,vz,vz_e,vzd,vzlag,vzlagp,vzp,w1mask,w2am1,w2am2, &
-      w2am3,w2cm1,w2cm2,w2cm3,w2mask,w3m1,w3m2,w3m3,w3mask,wam1,wam2,wam3,wdsize,wdsizi,wgl,wgl1, &
-      wgl2,wglg,wglgt,wgli,wgp,wmult,wx,wxlag,wxm1,wxm2,wxm3,wy,wylag,wym1,wym2,wym3,wz,wzlag, &
-      wzm1,wzm2,wzm3,xc,xm1,xm2,xxth,yc,yinvm1,ym1,ym2,zam1,zam2,zam3,zc,zgl,zgm1,zgm2,zgm3,zgp, &
-      zm1,zm2)
+            ur_local_grad2 = reshape(ur,shape(ur_local_grad2))
+            us_local_grad2 = reshape(us,shape(us_local_grad2))
+            u_local_grad2 = reshape(u,shape(u_local_grad2))
+            dxm1_local_grad2 = reshape(dxm1,shape(dxm1_local_grad2))
+            dxtm1_local_grad2 = reshape(dxtm1,shape(dxtm1_local_grad2))
+            call local_grad2(ur_local_grad2,us_local_grad2,u_local_grad2,n,e,dxm1_local_grad2, &
+      dxtm1_local_grad2,ab,abmsh,abx1,abx2,aby1,aby2,abz1,abz2,area,atol,avdiff,avtran,b1ia1, &
+      b1ia1t,b1mask,b2mask,b2p,b3mask,baxm1,bbx1,bbx2,bby1,bby2,bbz1,bbz2,bc,bcf,bctyps,bd,bdivw, &
+      bfx,bfxp,bfy,bfyp,bfz,bfzp,bintm1,binvdg,binvm1,bm1,bm1lag,bm2,bm2inv,bmass,bmnv,bmx,bmy, &
+      bmz,bpmask,bq,bqp,bx,bxlag,by,bylag,bz,bzlag,c_vx,cbc,ccurve,cdof,cerror,cflf,courno,cpfld, &
+      cpgrp,cr_h,cr_re2,csize,ctarg,curve,d1,d1t,d2,da,dam1,dam12,dam3,dat,datm1,datm12,datm3, &
+      dcm1,dcm12,dcm3,dcount,dct,dctm1,dctm12,dctm3,dg_face,dg_hndlx,dglg,dglgt,dlam,dmpfle, &
+      dp0thdt,drivc,dt,dtinit,dtinvm,dtlag,dvdfh1,dvdfl2,dvdfl8,dvdfsm,dvnnh1,dvnnl2,dvnnl8, &
+      dvnnsm,dvprh1,dvprl2,dvprl8,dvprsm,dxm12,dxm3,dxtm12,dxtm3,dym1,dym12,dym3,dytm1,dytm12, &
+      dytm3,dzm1,dzm12,dzm3,dztm1,dztm12,dztm3,eface,eface1,eigaa,eigae,eigas,eigast,eigga,eigge, &
+      eiggs,eiggst,eskip,etalph,etimes,etims0,ev1,ev2,ev3,exx1p,exx2p,exy1p,exy2p,exz1p,exz2p, &
+      fh_re2,filtertype,fintim,fldfle,fw,g1m1,g2m1,g3m1,g4m1,g5m1,g6m1,gamma0,gcnnum,gednum, &
+      gedtyp,gllel,gllnid,group,gsh,gsh_fld,hcode,hisfle,iajl1,iajl2,ialj1,ialj3,iam12,iam13, &
+      iam21,iam31,iatjl1,iatjl2,iatlj1,iatlj3,iatm12,iatm13,iatm21,iatm31,ibcsts,icedg,icface, &
+      icm12,icm13,icm21,icm31,ictm12,ictm13,ictm21,ictm31,idpss,idsess,ieact,iedge,iedgef,iedgfc, &
+      iesolv,if3d,if_full_pres,ifaa,ifadvc,ifae,ifalgn,ifanl2,ifanls,ifas,ifast,ifaxis,ifaziv, &
+      ifbase,ifbcor,ifbo,ifchar,ifcons,ifcoup,ifcvfld,ifcvode,ifcyclic,ifdeal,ifdg,ifdgfld,ifdiff, &
+      ifdp0dt,ifeppm,ifessr,ifexplvis,ifextr,ifexvt,ifflow,iffmtin,ifga,ifge,ifgeom,ifgmsh3, &
+      ifgprnt,ifgs,ifgsh_fld_same,ifgst,ifheat,ifield,ifintq,ifkeps,ifldmhd,iflmsc,iflmse,iflmsf, &
+      iflomach,ifmelt,ifmgrid,ifmhd,ifmoab,ifmodel,ifmodp,ifmpiio,ifmscr,ifmseg,ifmsfc,ifmvbd, &
+      ifneknek,ifneknekm,ifnonl,ifnskp,ifoutfld,ifpert,ifpo,ifprnt,ifprojfld,ifpsco,ifpso,ifqinp, &
+      ifreguo,ifrich,ifrsxy,ifrzer,ifschclob,ifskip,ifsplit,ifssvt,ifstrs,ifstst,ifsurt,ifsync, &
+      iftgo,iftmsh,ifto,iftran,ifusermv,ifuservp,ifvarp,ifvcor,ifvcoup,ifvo,ifvps,ifwcno,ifxyo, &
+      ifxyo_,iggl,igglt,igroup,im1d,im1dt,imatie,imd1,imd1t,imesh,indx,initc,instep,invedg,iocomm, &
+      ioinfodmp,iostep,ipscal,ipsco,irstim,irstt,irstv,isize,istep,ixcn,ixm12,ixm13,ixm21,ixm31, &
+      ixtm12,ixtm13,ixtm21,ixtm31,iym12,iym13,iym21,iym31,iytm12,iytm13,iytm21,iytm31,izm12,izm13, &
+      izm21,izm31,iztm12,iztm13,iztm21,iztm31,jacm1,jacm2,jacmi,jp,lastep,lcnnum,ldimr,lednum, &
+      lglel,lochis,loglevel,lsize,lyap,matids,matindx,matype,maxmlt,mpi_argv_null,mpi_argvs_null, &
+      mpi_bottom,mpi_errcodes_ignore,mpi_in_place,mpi_status_ignore,mpi_statuses_ignore, &
+      mpi_unweighted,mpi_weights_empty,nab,nabmsh,nadvc,naxhm,nbbbb,nbd,nbdinp,nbso2,nbsol,ncall, &
+      ncccc,ncdtp,ncmp,nconv,nconv_max,ncopy,ncrsl,ncvf,ndadd,ndddd,nddsl,ndg_facex,ndim,ndott, &
+      ndsmn,ndsmx,ndsnd,ndsum,neact,nedg,neeee,nelfld,nelg,nelgt,nelgv,nelt,nelv,neslv,nfield, &
+      ngcomm,ngeom,ngop,ngop1,ngop_sync,ngp2,ngsmn,ngsmx,ngspcn,ngsped,ngsum,nhis,nhmhz,nid, &
+      ninter,ninv3,ninvc,nio,nktonv,nmember,nmlinv,nmltd,nmxe,nmxh,nmxmf,nmxms,nmxnl,nmxp,nobj, &
+      node,node0,noffst,nomlis,np,npert,nprep,npres,npscal,nrefle,nrout,nsett,nslvb,nsolv,nspmax, &
+      nspro,nsskip,nsteps,nsyc,ntaubd,nu_star,nullpid,numbcs,numflu,numoth,numscn,numsed,nusbc, &
+      nvdss,nvtot,nwal,nx1,nx2,nx3,nxd,ny1,ny2,ny3,nyd,nz1,nz2,nz3,nzd,object,ocode,omask, &
+      optlevel,orefle,p0th,param,parfle,path,paxhm,pbbbb,pbso2,pbsol,pcccc,pcdtp,pcopy,pcrsl, &
+      pdadd,pdddd,pddsl,pdott,pdsmn,pdsmx,pdsnd,pdsum,peeee,peslv,pgop,pgop1,pgop_sync,pgp2,pgsmn, &
+      pgsmx,pgsum,phmhz,pi,pid,pinv3,pinvc,pm,pmask,pmd1,pmd1t,pmlag,pmltd,pmxmf,pmxms,pprep, &
+      ppres,pr,prelax,prlag,prlagp,prp,psett,pslvb,psolv,pspro,psyc,pusbc,pvdss,pwal,qinteg,qtl, &
+      rct,re2fle,re2off_b,reafle,restol,rname,rstim,rstt,rstv,rx,rxm1,rxm2,rym1,rym2,rzm1,rzm2, &
+      schfle,session,skpdat,solver_type,sxm1,sxm2,sym1,sym2,szm1,szm2,t,t1x,t1y,t1z,t2x,t2y,t2z, &
+      ta2s2,tadc3,tadd2,tadvc,tauss,taxhm,tbbbb,tbso2,tbsol,tcccc,tcdtp,tcol2,tcol3,tcopy,tcrsl, &
+      tcvf,tdadd,tdddd,tddsl,tdott,tdsmn,tdsmx,tdsnd,tdsum,teeee,teslv,textsw,tgop,tgop1, &
+      tgop_sync,tgp2,tgsmn,tgsmx,tgsum,thmhz,time,timef,timeio,tinit,tinv3,tinvc,tlag,tlagp,tmask, &
+      tmean,tmltd,tmult,tmxmf,tmxms,tnrmh1,tnrml2,tnrml8,tnrmsm,tolabs,tolev,tolhdf,tolhe,tolhr, &
+      tolhs,tolht,tolhv,tolnl,tolpdf,tolps,tolrel,tp,tprep,tpres,tproj,tschw,tsett,tslvb,tsolv, &
+      tspro,tsyc,ttime,ttotal,tttstp,tusbc,tusfq,tvdss,twal,txm1,txm2,txnext,tym1,tym2,tzm1,tzm2, &
+      unr,uns,unt,unx,uny,unz,uparam,usrdiv,v1mask,v1x,v1y,v1z,v2mask,v2x,v2y,v2z,v3mask,vdiff, &
+      vdiff_e,vgradt1,vgradt1p,vgradt2,vgradt2p,vmean,vmult,vnekton,vnrmh1,vnrml2,vnrml8,vnrmsm, &
+      vnx,vny,vnz,volel,volfld,voltm1,voltm2,volvm1,volvm2,vtrans,vx,vx_e,vxd,vxlag,vxlagp,vxp,vy, &
+      vy_e,vyd,vylag,vylagp,vyp,vz,vz_e,vzd,vzlag,vzlagp,vzp,w1mask,w2am1,w2am2,w2am3,w2cm1,w2cm2, &
+      w2cm3,w2mask,w3m1,w3m2,w3m3,w3mask,wam1,wam2,wam3,wdsize,wdsizi,wgl,wgl1,wgl2,wglg,wglgt, &
+      wgli,wgp,wmult,wx,wxlag,wxm1,wxm2,wxm3,wy,wylag,wym1,wym2,wym3,wz,wzlag,wzm1,wzm2,wzm3,xc, &
+      xm1,xm2,xxth,yc,yinvm1,ym1,ym2,zam1,zam2,zam3,zc,zgl,zgm1,zgm2,zgm3,zgp,zm1,zm2)
       ifnav = ifadvc(1)
       turbmod = textsw(1,1)
+            ur = reshape(ur_local_grad2, shape(ur))
+            us = reshape(us_local_grad2, shape(us))
+            u = reshape(u_local_grad2, shape(u))
+            dxm1 = reshape(dxm1_local_grad2, shape(dxm1))
+            dxtm1 = reshape(dxtm1_local_grad2, shape(dxtm1))
             vr_local_grad2 = reshape(vr,shape(vr_local_grad2))
             vs_local_grad2 = reshape(vs,shape(vs_local_grad2))
             v_local_grad2 = reshape(v,shape(v_local_grad2))
-            call local_grad2(vr_local_grad2,vs_local_grad2,v_local_grad2,n,e,dxm1,dxtm1,ab,abmsh, &
-      abx1,abx2,aby1,aby2,abz1,abz2,area,atol,avdiff,avtran,b1ia1,b1ia1t,b1mask,b2mask,b2p,b3mask, &
-      baxm1,bbx1,bbx2,bby1,bby2,bbz1,bbz2,bc,bcf,bctyps,bd,bdivw,bfx,bfxp,bfy,bfyp,bfz,bfzp, &
-      bintm1,binvdg,binvm1,bm1,bm1lag,bm2,bm2inv,bmass,bmnv,bmx,bmy,bmz,bpmask,bq,bqp,bx,bxlag,by, &
-      bylag,bz,bzlag,c_vx,cbc,ccurve,cdof,cerror,cflf,courno,cpfld,cpgrp,cr_h,cr_re2,csize,ctarg, &
-      curve,d1,d1t,d2,da,dam1,dam12,dam3,dat,datm1,datm12,datm3,dcm1,dcm12,dcm3,dcount,dct,dctm1, &
-      dctm12,dctm3,dg_face,dg_hndlx,dglg,dglgt,dlam,dmpfle,dp0thdt,drivc,dt,dtinit,dtinvm,dtlag, &
-      dvdfh1,dvdfl2,dvdfl8,dvdfsm,dvnnh1,dvnnl2,dvnnl8,dvnnsm,dvprh1,dvprl2,dvprl8,dvprsm,dxm12, &
-      dxm3,dxtm12,dxtm3,dym1,dym12,dym3,dytm1,dytm12,dytm3,dzm1,dzm12,dzm3,dztm1,dztm12,dztm3, &
-      eface,eface1,eigaa,eigae,eigas,eigast,eigga,eigge,eiggs,eiggst,eskip,etalph,etimes,etims0, &
-      ev1,ev2,ev3,exx1p,exx2p,exy1p,exy2p,exz1p,exz2p,fh_re2,filtertype,fintim,fldfle,fw,g1m1, &
-      g2m1,g3m1,g4m1,g5m1,g6m1,gamma0,gcnnum,gednum,gedtyp,gllel,gllnid,group,gsh,gsh_fld,hcode, &
-      hisfle,iajl1,iajl2,ialj1,ialj3,iam12,iam13,iam21,iam31,iatjl1,iatjl2,iatlj1,iatlj3,iatm12, &
-      iatm13,iatm21,iatm31,ibcsts,icedg,icface,icm12,icm13,icm21,icm31,ictm12,ictm13,ictm21, &
-      ictm31,idpss,idsess,ieact,iedge,iedgef,iedgfc,iesolv,if3d,if_full_pres,ifaa,ifadvc,ifae, &
-      ifalgn,ifanl2,ifanls,ifas,ifast,ifaxis,ifaziv,ifbase,ifbcor,ifbo,ifchar,ifcons,ifcoup, &
-      ifcvfld,ifcvode,ifcyclic,ifdeal,ifdg,ifdgfld,ifdiff,ifdp0dt,ifeppm,ifessr,ifexplvis,ifextr, &
-      ifexvt,ifflow,iffmtin,ifga,ifge,ifgeom,ifgmsh3,ifgprnt,ifgs,ifgsh_fld_same,ifgst,ifheat, &
-      ifield,ifintq,ifkeps,ifldmhd,iflmsc,iflmse,iflmsf,iflomach,ifmelt,ifmgrid,ifmhd,ifmoab, &
-      ifmodel,ifmodp,ifmpiio,ifmscr,ifmseg,ifmsfc,ifmvbd,ifneknek,ifneknekm,ifnonl,ifnskp, &
-      ifoutfld,ifpert,ifpo,ifprnt,ifprojfld,ifpsco,ifpso,ifqinp,ifreguo,ifrich,ifrsxy,ifrzer, &
-      ifschclob,ifskip,ifsplit,ifssvt,ifstrs,ifstst,ifsurt,ifsync,iftgo,iftmsh,ifto,iftran, &
-      ifusermv,ifuservp,ifvarp,ifvcor,ifvcoup,ifvo,ifvps,ifwcno,ifxyo,ifxyo_,iggl,igglt,igroup, &
-      im1d,im1dt,imatie,imd1,imd1t,imesh,indx,initc,instep,invedg,iocomm,ioinfodmp,iostep,ipscal, &
-      ipsco,irstim,irstt,irstv,isize,istep,ixcn,ixm12,ixm13,ixm21,ixm31,ixtm12,ixtm13,ixtm21, &
-      ixtm31,iym12,iym13,iym21,iym31,iytm12,iytm13,iytm21,iytm31,izm12,izm13,izm21,izm31,iztm12, &
-      iztm13,iztm21,iztm31,jacm1,jacm2,jacmi,jp,lastep,lcnnum,ldimr,lednum,lglel,lochis,loglevel, &
-      lsize,lyap,matids,matindx,matype,maxmlt,mpi_argv_null,mpi_argvs_null,mpi_bottom, &
-      mpi_errcodes_ignore,mpi_in_place,mpi_status_ignore,mpi_statuses_ignore,mpi_unweighted, &
-      mpi_weights_empty,nab,nabmsh,nadvc,naxhm,nbbbb,nbd,nbdinp,nbso2,nbsol,ncall,ncccc,ncdtp, &
-      ncmp,nconv,nconv_max,ncopy,ncrsl,ncvf,ndadd,ndddd,nddsl,ndg_facex,ndim,ndott,ndsmn,ndsmx, &
-      ndsnd,ndsum,neact,nedg,neeee,nelfld,nelg,nelgt,nelgv,nelt,nelv,neslv,nfield,ngcomm,ngeom, &
-      ngop,ngop1,ngop_sync,ngp2,ngsmn,ngsmx,ngspcn,ngsped,ngsum,nhis,nhmhz,nid,ninter,ninv3,ninvc, &
-      nio,nktonv,nmember,nmlinv,nmltd,nmxe,nmxh,nmxmf,nmxms,nmxnl,nmxp,nobj,node,node0,noffst, &
-      nomlis,np,npert,nprep,npres,npscal,nrefle,nrout,nsett,nslvb,nsolv,nspmax,nspro,nsskip, &
-      nsteps,nsyc,ntaubd,nu_star,nullpid,numbcs,numflu,numoth,numscn,numsed,nusbc,nvdss,nvtot, &
-      nwal,nx1,nx2,nx3,nxd,ny1,ny2,ny3,nyd,nz1,nz2,nz3,nzd,object,ocode,omask,optlevel,orefle, &
-      p0th,param,parfle,path,paxhm,pbbbb,pbso2,pbsol,pcccc,pcdtp,pcopy,pcrsl,pdadd,pdddd,pddsl, &
-      pdott,pdsmn,pdsmx,pdsnd,pdsum,peeee,peslv,pgop,pgop1,pgop_sync,pgp2,pgsmn,pgsmx,pgsum,phmhz, &
-      pi,pid,pinv3,pinvc,pm,pmask,pmd1,pmd1t,pmlag,pmltd,pmxmf,pmxms,pprep,ppres,pr,prelax,prlag, &
-      prlagp,prp,psett,pslvb,psolv,pspro,psyc,pusbc,pvdss,pwal,qinteg,qtl,rct,re2fle,re2off_b, &
-      reafle,restol,rname,rstim,rstt,rstv,rx,rxm1,rxm2,rym1,rym2,rzm1,rzm2,schfle,session,skpdat, &
-      solver_type,sxm1,sxm2,sym1,sym2,szm1,szm2,t,t1x,t1y,t1z,t2x,t2y,t2z,ta2s2,tadc3,tadd2,tadvc, &
-      tauss,taxhm,tbbbb,tbso2,tbsol,tcccc,tcdtp,tcol2,tcol3,tcopy,tcrsl,tcvf,tdadd,tdddd,tddsl, &
-      tdott,tdsmn,tdsmx,tdsnd,tdsum,teeee,teslv,textsw,tgop,tgop1,tgop_sync,tgp2,tgsmn,tgsmx, &
-      tgsum,thmhz,time,timef,timeio,tinit,tinv3,tinvc,tlag,tlagp,tmask,tmean,tmltd,tmult,tmxmf, &
-      tmxms,tnrmh1,tnrml2,tnrml8,tnrmsm,tolabs,tolev,tolhdf,tolhe,tolhr,tolhs,tolht,tolhv,tolnl, &
-      tolpdf,tolps,tolrel,tp,tprep,tpres,tproj,tschw,tsett,tslvb,tsolv,tspro,tsyc,ttime,ttotal, &
-      tttstp,tusbc,tusfq,tvdss,twal,txm1,txm2,txnext,tym1,tym2,tzm1,tzm2,unr,uns,unt,unx,uny,unz, &
-      uparam,usrdiv,v1mask,v1x,v1y,v1z,v2mask,v2x,v2y,v2z,v3mask,vdiff,vdiff_e,vgradt1,vgradt1p, &
-      vgradt2,vgradt2p,vmean,vmult,vnekton,vnrmh1,vnrml2,vnrml8,vnrmsm,vnx,vny,vnz,volel,volfld, &
-      voltm1,voltm2,volvm1,volvm2,vtrans,vx,vx_e,vxd,vxlag,vxlagp,vxp,vy,vy_e,vyd,vylag,vylagp, &
-      vyp,vz,vz_e,vzd,vzlag,vzlagp,vzp,w1mask,w2am1,w2am2,w2am3,w2cm1,w2cm2,w2cm3,w2mask,w3m1, &
-      w3m2,w3m3,w3mask,wam1,wam2,wam3,wdsize,wdsizi,wgl,wgl1,wgl2,wglg,wglgt,wgli,wgp,wmult,wx, &
-      wxlag,wxm1,wxm2,wxm3,wy,wylag,wym1,wym2,wym3,wz,wzlag,wzm1,wzm2,wzm3,xc,xm1,xm2,xxth,yc, &
-      yinvm1,ym1,ym2,zam1,zam2,zam3,zc,zgl,zgm1,zgm2,zgm3,zgp,zm1,zm2)
+            dxm1_local_grad2 = reshape(dxm1,shape(dxm1_local_grad2))
+            dxtm1_local_grad2 = reshape(dxtm1,shape(dxtm1_local_grad2))
+            call local_grad2(vr_local_grad2,vs_local_grad2,v_local_grad2,n,e,dxm1_local_grad2, &
+      dxtm1_local_grad2,ab,abmsh,abx1,abx2,aby1,aby2,abz1,abz2,area,atol,avdiff,avtran,b1ia1, &
+      b1ia1t,b1mask,b2mask,b2p,b3mask,baxm1,bbx1,bbx2,bby1,bby2,bbz1,bbz2,bc,bcf,bctyps,bd,bdivw, &
+      bfx,bfxp,bfy,bfyp,bfz,bfzp,bintm1,binvdg,binvm1,bm1,bm1lag,bm2,bm2inv,bmass,bmnv,bmx,bmy, &
+      bmz,bpmask,bq,bqp,bx,bxlag,by,bylag,bz,bzlag,c_vx,cbc,ccurve,cdof,cerror,cflf,courno,cpfld, &
+      cpgrp,cr_h,cr_re2,csize,ctarg,curve,d1,d1t,d2,da,dam1,dam12,dam3,dat,datm1,datm12,datm3, &
+      dcm1,dcm12,dcm3,dcount,dct,dctm1,dctm12,dctm3,dg_face,dg_hndlx,dglg,dglgt,dlam,dmpfle, &
+      dp0thdt,drivc,dt,dtinit,dtinvm,dtlag,dvdfh1,dvdfl2,dvdfl8,dvdfsm,dvnnh1,dvnnl2,dvnnl8, &
+      dvnnsm,dvprh1,dvprl2,dvprl8,dvprsm,dxm12,dxm3,dxtm12,dxtm3,dym1,dym12,dym3,dytm1,dytm12, &
+      dytm3,dzm1,dzm12,dzm3,dztm1,dztm12,dztm3,eface,eface1,eigaa,eigae,eigas,eigast,eigga,eigge, &
+      eiggs,eiggst,eskip,etalph,etimes,etims0,ev1,ev2,ev3,exx1p,exx2p,exy1p,exy2p,exz1p,exz2p, &
+      fh_re2,filtertype,fintim,fldfle,fw,g1m1,g2m1,g3m1,g4m1,g5m1,g6m1,gamma0,gcnnum,gednum, &
+      gedtyp,gllel,gllnid,group,gsh,gsh_fld,hcode,hisfle,iajl1,iajl2,ialj1,ialj3,iam12,iam13, &
+      iam21,iam31,iatjl1,iatjl2,iatlj1,iatlj3,iatm12,iatm13,iatm21,iatm31,ibcsts,icedg,icface, &
+      icm12,icm13,icm21,icm31,ictm12,ictm13,ictm21,ictm31,idpss,idsess,ieact,iedge,iedgef,iedgfc, &
+      iesolv,if3d,if_full_pres,ifaa,ifadvc,ifae,ifalgn,ifanl2,ifanls,ifas,ifast,ifaxis,ifaziv, &
+      ifbase,ifbcor,ifbo,ifchar,ifcons,ifcoup,ifcvfld,ifcvode,ifcyclic,ifdeal,ifdg,ifdgfld,ifdiff, &
+      ifdp0dt,ifeppm,ifessr,ifexplvis,ifextr,ifexvt,ifflow,iffmtin,ifga,ifge,ifgeom,ifgmsh3, &
+      ifgprnt,ifgs,ifgsh_fld_same,ifgst,ifheat,ifield,ifintq,ifkeps,ifldmhd,iflmsc,iflmse,iflmsf, &
+      iflomach,ifmelt,ifmgrid,ifmhd,ifmoab,ifmodel,ifmodp,ifmpiio,ifmscr,ifmseg,ifmsfc,ifmvbd, &
+      ifneknek,ifneknekm,ifnonl,ifnskp,ifoutfld,ifpert,ifpo,ifprnt,ifprojfld,ifpsco,ifpso,ifqinp, &
+      ifreguo,ifrich,ifrsxy,ifrzer,ifschclob,ifskip,ifsplit,ifssvt,ifstrs,ifstst,ifsurt,ifsync, &
+      iftgo,iftmsh,ifto,iftran,ifusermv,ifuservp,ifvarp,ifvcor,ifvcoup,ifvo,ifvps,ifwcno,ifxyo, &
+      ifxyo_,iggl,igglt,igroup,im1d,im1dt,imatie,imd1,imd1t,imesh,indx,initc,instep,invedg,iocomm, &
+      ioinfodmp,iostep,ipscal,ipsco,irstim,irstt,irstv,isize,istep,ixcn,ixm12,ixm13,ixm21,ixm31, &
+      ixtm12,ixtm13,ixtm21,ixtm31,iym12,iym13,iym21,iym31,iytm12,iytm13,iytm21,iytm31,izm12,izm13, &
+      izm21,izm31,iztm12,iztm13,iztm21,iztm31,jacm1,jacm2,jacmi,jp,lastep,lcnnum,ldimr,lednum, &
+      lglel,lochis,loglevel,lsize,lyap,matids,matindx,matype,maxmlt,mpi_argv_null,mpi_argvs_null, &
+      mpi_bottom,mpi_errcodes_ignore,mpi_in_place,mpi_status_ignore,mpi_statuses_ignore, &
+      mpi_unweighted,mpi_weights_empty,nab,nabmsh,nadvc,naxhm,nbbbb,nbd,nbdinp,nbso2,nbsol,ncall, &
+      ncccc,ncdtp,ncmp,nconv,nconv_max,ncopy,ncrsl,ncvf,ndadd,ndddd,nddsl,ndg_facex,ndim,ndott, &
+      ndsmn,ndsmx,ndsnd,ndsum,neact,nedg,neeee,nelfld,nelg,nelgt,nelgv,nelt,nelv,neslv,nfield, &
+      ngcomm,ngeom,ngop,ngop1,ngop_sync,ngp2,ngsmn,ngsmx,ngspcn,ngsped,ngsum,nhis,nhmhz,nid, &
+      ninter,ninv3,ninvc,nio,nktonv,nmember,nmlinv,nmltd,nmxe,nmxh,nmxmf,nmxms,nmxnl,nmxp,nobj, &
+      node,node0,noffst,nomlis,np,npert,nprep,npres,npscal,nrefle,nrout,nsett,nslvb,nsolv,nspmax, &
+      nspro,nsskip,nsteps,nsyc,ntaubd,nu_star,nullpid,numbcs,numflu,numoth,numscn,numsed,nusbc, &
+      nvdss,nvtot,nwal,nx1,nx2,nx3,nxd,ny1,ny2,ny3,nyd,nz1,nz2,nz3,nzd,object,ocode,omask, &
+      optlevel,orefle,p0th,param,parfle,path,paxhm,pbbbb,pbso2,pbsol,pcccc,pcdtp,pcopy,pcrsl, &
+      pdadd,pdddd,pddsl,pdott,pdsmn,pdsmx,pdsnd,pdsum,peeee,peslv,pgop,pgop1,pgop_sync,pgp2,pgsmn, &
+      pgsmx,pgsum,phmhz,pi,pid,pinv3,pinvc,pm,pmask,pmd1,pmd1t,pmlag,pmltd,pmxmf,pmxms,pprep, &
+      ppres,pr,prelax,prlag,prlagp,prp,psett,pslvb,psolv,pspro,psyc,pusbc,pvdss,pwal,qinteg,qtl, &
+      rct,re2fle,re2off_b,reafle,restol,rname,rstim,rstt,rstv,rx,rxm1,rxm2,rym1,rym2,rzm1,rzm2, &
+      schfle,session,skpdat,solver_type,sxm1,sxm2,sym1,sym2,szm1,szm2,t,t1x,t1y,t1z,t2x,t2y,t2z, &
+      ta2s2,tadc3,tadd2,tadvc,tauss,taxhm,tbbbb,tbso2,tbsol,tcccc,tcdtp,tcol2,tcol3,tcopy,tcrsl, &
+      tcvf,tdadd,tdddd,tddsl,tdott,tdsmn,tdsmx,tdsnd,tdsum,teeee,teslv,textsw,tgop,tgop1, &
+      tgop_sync,tgp2,tgsmn,tgsmx,tgsum,thmhz,time,timef,timeio,tinit,tinv3,tinvc,tlag,tlagp,tmask, &
+      tmean,tmltd,tmult,tmxmf,tmxms,tnrmh1,tnrml2,tnrml8,tnrmsm,tolabs,tolev,tolhdf,tolhe,tolhr, &
+      tolhs,tolht,tolhv,tolnl,tolpdf,tolps,tolrel,tp,tprep,tpres,tproj,tschw,tsett,tslvb,tsolv, &
+      tspro,tsyc,ttime,ttotal,tttstp,tusbc,tusfq,tvdss,twal,txm1,txm2,txnext,tym1,tym2,tzm1,tzm2, &
+      unr,uns,unt,unx,uny,unz,uparam,usrdiv,v1mask,v1x,v1y,v1z,v2mask,v2x,v2y,v2z,v3mask,vdiff, &
+      vdiff_e,vgradt1,vgradt1p,vgradt2,vgradt2p,vmean,vmult,vnekton,vnrmh1,vnrml2,vnrml8,vnrmsm, &
+      vnx,vny,vnz,volel,volfld,voltm1,voltm2,volvm1,volvm2,vtrans,vx,vx_e,vxd,vxlag,vxlagp,vxp,vy, &
+      vy_e,vyd,vylag,vylagp,vyp,vz,vz_e,vzd,vzlag,vzlagp,vzp,w1mask,w2am1,w2am2,w2am3,w2cm1,w2cm2, &
+      w2cm3,w2mask,w3m1,w3m2,w3m3,w3mask,wam1,wam2,wam3,wdsize,wdsizi,wgl,wgl1,wgl2,wglg,wglgt, &
+      wgli,wgp,wmult,wx,wxlag,wxm1,wxm2,wxm3,wy,wylag,wym1,wym2,wym3,wz,wzlag,wzm1,wzm2,wzm3,xc, &
+      xm1,xm2,xxth,yc,yinvm1,ym1,ym2,zam1,zam2,zam3,zc,zgl,zgm1,zgm2,zgm3,zgp,zm1,zm2)
       ifnav = ifadvc(1)
       turbmod = textsw(1,1)
             vr = reshape(vr_local_grad2, shape(vr))
             vs = reshape(vs_local_grad2, shape(vs))
             v = reshape(v_local_grad2, shape(v))
+            dxm1 = reshape(dxm1_local_grad2, shape(dxm1))
+            dxtm1 = reshape(dxtm1_local_grad2, shape(dxtm1))
             do i=1,nxyz
                j = jacmi(i,e)
                sij(i,1,e) = j*             2*(ur(i)*rxm1(i,1,1,e)+us(i)*sxm1(i,1,1,e))

@@ -1,10 +1,10 @@
 ! ---------------------------------------------------------------------
 module singleton_module_src_comm_mpi
 
-      use singleton_module_src_subs1
-      use singleton_module_src_papi
       use singleton_module_src_singlmesh
+      use singleton_module_src_papi
       use singleton_module_src_mpi_dummy
+      use singleton_module_src_subs1
       use singleton_module_src_math
 contains
 
@@ -2174,33 +2174,33 @@ contains
 #endif
 ! 
       if (op == '+  ') then
-         x_mpi_allreduce = int(reshape(x,shape(x_mpi_allreduce)), 4)
-         w_mpi_allreduce = int(reshape(w,shape(w_mpi_allreduce)), 4)
+         x_mpi_allreduce = int(x, 4)
+         w_mpi_allreduce = int(w, 4)
          call mpi_allreduce(x_mpi_allreduce,w_mpi_allreduce,n,nekreal,mpi_sum,nekcomm,ierr)
 
-         x = real(reshape(x_mpi_allreduce, shape(x),4)
-         w = real(reshape(w_mpi_allreduce, shape(w),4)
+         x = real(x_mpi_allreduce,4)
+         w = real(w_mpi_allreduce,4)
       elseif (op == 'M  ') then
-         x_mpi_allreduce = int(reshape(x,shape(x_mpi_allreduce)), 4)
-         w_mpi_allreduce = int(reshape(w,shape(w_mpi_allreduce)), 4)
+         x_mpi_allreduce = int(x, 4)
+         w_mpi_allreduce = int(w, 4)
          call mpi_allreduce(x_mpi_allreduce,w_mpi_allreduce,n,nekreal,mpi_max,nekcomm,ierr)
 
-         x = real(reshape(x_mpi_allreduce, shape(x),4)
-         w = real(reshape(w_mpi_allreduce, shape(w),4)
+         x = real(x_mpi_allreduce,4)
+         w = real(w_mpi_allreduce,4)
       elseif (op == 'm  ') then
-         x_mpi_allreduce = int(reshape(x,shape(x_mpi_allreduce)), 4)
-         w_mpi_allreduce = int(reshape(w,shape(w_mpi_allreduce)), 4)
+         x_mpi_allreduce = int(x, 4)
+         w_mpi_allreduce = int(w, 4)
          call mpi_allreduce(x_mpi_allreduce,w_mpi_allreduce,n,nekreal,mpi_min,nekcomm,ierr)
 
-         x = real(reshape(x_mpi_allreduce, shape(x),4)
-         w = real(reshape(w_mpi_allreduce, shape(w),4)
+         x = real(x_mpi_allreduce,4)
+         w = real(w_mpi_allreduce,4)
       elseif (op == '*  ') then
-         x_mpi_allreduce = int(reshape(x,shape(x_mpi_allreduce)), 4)
-         w_mpi_allreduce = int(reshape(w,shape(w_mpi_allreduce)), 4)
+         x_mpi_allreduce = int(x, 4)
+         w_mpi_allreduce = int(w, 4)
          call mpi_allreduce(x_mpi_allreduce,w_mpi_allreduce,n,nekreal,mpi_prod,nekcomm,ierr)
 
-         x = real(reshape(x_mpi_allreduce, shape(x),4)
-         w = real(reshape(w_mpi_allreduce, shape(w),4)
+         x = real(x_mpi_allreduce,4)
+         w = real(w_mpi_allreduce,4)
       else
          write(6,*) nid,' OP ',op,' not supported.  ABORT in GOP.'
          call exitt(ab,abmsh,abx1,abx2,aby1,aby2,abz1,abz2,area,atol,avdiff,avtran,b1ia1,b1ia1t, &
@@ -2645,6 +2645,8 @@ contains
 !  Copyright (c) 2006-2014 Cisco Systems, Inc.  All rights reserved.
 !  Copyright (c) 2017      Research Organization for Information Science
 !                          and Technology (RIST). All rights reserved.
+      integer, dimension(1:n) :: w_icopy
+      integer, dimension(1:n) :: x_icopy
 ! $COPYRIGHT$
 ! 
 !  Additional copyrights may follow
@@ -3819,8 +3821,12 @@ contains
       wgli,wgp,wmult,wx,wxlag,wxm1,wxm2,wxm3,wy,wylag,wym1,wym2,wym3,wz,wzlag,wzm1,wzm2,wzm3,xc, &
       xm1,xm2,xxth,yc,yinvm1,ym1,ym2,zam1,zam2,zam3,zc,zgl,zgm1,zgm2,zgm3,zgp,zm1,zm2)
       endif
-      call icopy(x,w,n)
+      x_icopy = reshape(x,shape(x_icopy))
+      w_icopy = reshape(w,shape(w_icopy))
+      call icopy(x_icopy,w_icopy,n)
 
+      x = reshape(x_icopy, shape(x))
+      w = reshape(w_icopy, shape(w))
       return
       end subroutine igop
       real*8 function dnekclock(mpi_argv_null,mpi_argvs_null,mpi_bottom,mpi_errcodes_ignore, &
@@ -6049,6 +6055,8 @@ contains
       integer :: nzd
       integer :: ndim
       integer :: ldimr
+      integer, parameter :: numsts=50
+      integer, parameter :: nelgt_max=178956970
       integer, parameter :: lvt1=lx1*ly1*lz1*lelv
       integer, parameter :: lvt2=lx2*ly2*lz2*lelv
       integer, parameter :: lbt1=lbx1*lby1*lbz1*lbelv
@@ -7030,6 +7038,8 @@ contains
       integer :: nzd
       integer :: ndim
       integer :: ldimr
+      integer, parameter :: numsts=50
+      integer, parameter :: nelgt_max=178956970
       integer, parameter :: lvt1=lx1*ly1*lz1*lelv
       integer, parameter :: lvt2=lx2*ly2*lz2*lelv
       integer, parameter :: lbt1=lbx1*lby1*lbz1*lbelv

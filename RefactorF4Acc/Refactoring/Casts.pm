@@ -29,6 +29,110 @@ create_cast_annlines
 cast_call_argument
 );
 
+# More utter evil
+#   integer fnami (33)
+#   character*132 fname
+#   equivalence (fname,fnami)
+# create_cast_annlines :: (Decl,VarStr) -> (Decl, VarStr) -> [AnnLine]
+sub create_cast_annlines {
+	my ( $to_type_decl, $to_var, $from_type_decl, $from_var ) = @_;
+	my $to_type=$to_type_decl->{'Type'};
+	my $from_type=$from_type_decl->{'Type'};	
+	# Indent with a fixed 6 spaces. TODO
+	 my $annlines = [ map { [ '      '.$_->[0], $_->[1] ] } @{_cast_annlines( $to_type, $to_var, $from_type, $from_var )} ];
+	 return $annlines
+} # END of create_cast_annlines
+
+# Casting between types
+# It might be better to pass the decl instead of just the type 
+# FIXME: this does assume essentially kind=4
+# _cast_annlines :: (TypeStr, VarStr) -> (TypeStr, VarStr) -> [AnnLine]
+# returns a list of AnnLines with the code for the cast and an empty $info
+sub _cast_annlines {
+	my ( $to_type, $to_var, $from_type, $from_var ) = @_;
+	if ( $from_type eq $to_type ) {
+		return [
+			[
+				"$to_var = $from_var",
+				_assignment_info($to_var,[$from_var])
+			]
+		];
+	} elsif ( $from_type eq 'integer' ) {
+		if ( $to_type eq 'logical' ) {
+			return __cast_integer_to_logical_annlines( $from_var, $to_var );
+		} elsif ( $to_type eq 'real' ) {
+			return __cast_integer_to_real_annlines( $from_var, $to_var );
+		} elsif ( $to_type eq 'complex' ) {
+			return __cast_integer_to_complex_annlines( $from_var, $to_var );
+		}
+	} elsif ( $from_type eq 'real' ) {
+		if ( $to_type eq 'logical' ) {
+			return __cast_real_to_logical_annlines( $from_var, $to_var );
+		} elsif ( $to_type eq 'integer' ) {
+			return __cast_real_to_integer_annlines( $from_var, $to_var );
+		} elsif ( $to_type eq 'complex' ) {
+			return __cast_real_to_complex_annlines( $from_var, $to_var );
+		}
+	} elsif ( $from_type eq 'logical' ) {
+		if ( $to_type eq 'real' ) {
+			return __cast_logical_to_real_annlines( $from_var, $to_var );
+		} elsif ( $to_type eq 'integer' ) {
+			return __cast_logical_to_integer_annlines( $from_var, $to_var );
+		}
+	} elsif ( $from_type eq 'complex' ) {
+		if ( $to_type eq 'logical' ) {
+			return __cast_complex_to_logical_annlines( $from_var, $to_var );
+		} elsif ( $to_type eq 'integer' ) {
+			return __cast_complex_to_integer_annlines( $from_var, $to_var );
+		} elsif ( $to_type eq 'real' ) {
+			return __cast_complex_to_real_annlines( $from_var, $to_var );
+		}
+	}
+} # END of _cast_annlines
+
+sub cast_call_argument {
+	my ( $sig_type, $sig_kind, $call_type, $call_arg ) = @_;
+	if ( $call_type eq $sig_type ) {
+		return $call_arg;
+	} elsif ( $call_type eq 'integer' ) {
+		if ( $sig_type eq 'logical' ) {
+			return "$call_arg /= 0";
+		} elsif ( $sig_type eq 'real' ) {
+			return "real($call_arg,$sig_kind)";			
+		} elsif ( $sig_type eq 'complex' ) {
+			return "cmplx($call_arg)";
+		}
+	} elsif ( $call_type eq 'real' ) {
+		if ( $sig_type eq 'logical' ) {
+			croak if $DBG and $call_arg eq '.true.';
+			return "$call_arg /= 0.0";
+		} elsif ( $sig_type eq 'integer' ) {
+			return "int($call_arg, $sig_kind)"
+		} elsif ( $sig_type eq 'complex' ) {
+			return  "cmplx($call_arg)";
+		}
+	} elsif ( $call_type eq 'logical' ) {
+		if ( $sig_type eq 'real' ) {
+			return $call_arg;
+		} elsif ( $sig_type eq 'integer' ) {
+			return $call_arg;
+		}
+	} elsif ( $call_type eq 'complex' ) {
+		if ( $sig_type eq 'logical' ) {
+			return "$call_arg /= (0.0,0.0)"
+		} elsif ( $sig_type eq 'integer' ) {
+			return "int($call_arg)";
+		} elsif ( $sig_type eq 'real' ) {
+			return "real($call_arg)";
+		}
+	} else { # Can't handle, just return
+		return $call_arg;
+	}
+} # END of cast_call_argument
+
+
+
+
 sub _assignment_info { my ($lhs_var, $rhs_vars) = @_;
 	return {
 		'Assignment'=>1,
@@ -80,63 +184,7 @@ our $_else_info = {
 };
 
 
-# Casting between types
-# It might be better to pass the decl instead of just the type 
-# FIXME: this does assume essentially kind=4
-# returns a list of AnnLines with the code for the cast and an empty $info
-sub _cast_annlines {
-	my ( $to_type, $to_var, $from_type, $from_var ) = @_;
-	if ( $from_type eq $to_type ) {
-		return [
-			[
-				"$to_var = $from_var",
-				_assignment_info($to_var,[$from_var])
-			]
-		];
-	} elsif ( $from_type eq 'integer' ) {
-		if ( $to_type eq 'logical' ) {
-			return __cast_integer_to_logical_annlines( $from_var, $to_var );
-		} elsif ( $to_type eq 'real' ) {
-			return __cast_integer_to_real_annlines( $from_var, $to_var );
-		} elsif ( $to_type eq 'complex' ) {
-			return __cast_integer_to_complex_annlines( $from_var, $to_var );
-		}
-	} elsif ( $from_type eq 'real' ) {
-		if ( $to_type eq 'logical' ) {
-			return __cast_real_to_logical_annlines( $from_var, $to_var );
-		} elsif ( $to_type eq 'integer' ) {
-			return __cast_real_to_integer_annlines( $from_var, $to_var );
-		} elsif ( $to_type eq 'complex' ) {
-			return __cast_real_to_complex_annlines( $from_var, $to_var );
-		}
-	} elsif ( $from_type eq 'logical' ) {
-		if ( $to_type eq 'real' ) {
-			return __cast_logical_to_real_annlines( $from_var, $to_var );
-		} elsif ( $to_type eq 'integer' ) {
-			return __cast_logical_to_integer_annlines( $from_var, $to_var );
-		}
-	} elsif ( $from_type eq 'complex' ) {
-		if ( $to_type eq 'logical' ) {
-			return __cast_complex_to_logical_annlines( $from_var, $to_var );
-		} elsif ( $to_type eq 'integer' ) {
-			return __cast_complex_to_integer_annlines( $from_var, $to_var );
-		} elsif ( $to_type eq 'real' ) {
-			return __cast_complex_to_real_annlines( $from_var, $to_var );
-		}
-	}
-} # END of _cast_annlines
 
-# More utter evil
-#   integer fnami (33)
-#   character*132 fname
-#   equivalence (fname,fnami)
-sub create_cast_annlines {
-	my ( $to_type_decl, $to_var, $from_type_decl, $from_var ) = @_;
-	my $to_type=$to_type_decl->{'Type'};
-	my $from_type=$from_type_decl->{'Type'};	
-	 my $annlines = [ map { [ '      '.$_->[0], $_->[1] ] } @{_cast_annlines( $to_type, $to_var, $from_type, $from_var )} ];
-	 return $annlines
-} # END of create_cast_annlines
 
 sub __cast_logical_to_integer_annlines {
 	( my $v_logical, my $v_integer ) = @_;
@@ -157,47 +205,6 @@ sub __cast_logical_to_integer_annlines {
 		$_endif_info]             
 	];
 } # END of __cast_logical_to_integer_annlines
-
-
-sub cast_call_argument {
-	my ( $sig_type, $sig_kind, $call_type, $call_arg ) = @_;
-	if ( $call_type eq $sig_type ) {
-		return $call_arg;
-	} elsif ( $call_type eq 'integer' ) {
-		if ( $sig_type eq 'logical' ) {
-			return "$call_arg /= 0";
-		} elsif ( $sig_type eq 'real' ) {
-			return "real($call_arg,$sig_kind)";			
-		} elsif ( $sig_type eq 'complex' ) {
-			return "cmplx($call_arg)";
-		}
-	} elsif ( $call_type eq 'real' ) {
-		if ( $sig_type eq 'logical' ) {
-			croak if $DBG and $call_arg eq '.true.';
-			return "$call_arg /= 0.0";
-		} elsif ( $sig_type eq 'integer' ) {
-			return "int($call_arg, $sig_kind)"
-		} elsif ( $sig_type eq 'complex' ) {
-			return  "cmplx($call_arg)";
-		}
-	} elsif ( $call_type eq 'logical' ) {
-		if ( $sig_type eq 'real' ) {
-			return $call_arg;
-		} elsif ( $sig_type eq 'integer' ) {
-			return $call_arg;
-		}
-	} elsif ( $call_type eq 'complex' ) {
-		if ( $sig_type eq 'logical' ) {
-			return "$call_arg /= (0.0,0.0)"
-		} elsif ( $sig_type eq 'integer' ) {
-			return "int($call_arg)";
-		} elsif ( $sig_type eq 'real' ) {
-			return "real($call_arg)";
-		}
-	} else { # Can't handle, just return
-		return $call_arg;
-	}
-} # END of cast_call_argument
 
 
 sub __cast_logical_to_real_annlines {

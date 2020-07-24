@@ -575,6 +575,8 @@
       integer :: nzd
       integer :: ndim
       integer :: ldimr
+      integer, parameter :: numsts=50
+      integer, parameter :: nelgt_max=178956970
       integer, parameter :: lvt1=lx1*ly1*lz1*lelv
       integer, parameter :: lvt2=lx2*ly2*lz2*lelv
       integer, parameter :: lbt1=lbx1*lby1*lbz1*lbelv

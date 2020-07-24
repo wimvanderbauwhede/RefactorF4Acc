@@ -41,6 +41,15 @@ TO RELEASE
   $ git push --delete origin v2.1.0
   $ git push origin v2.1.0
 
+STATUS 2020-07-24
+
+There was a bug in the casting (vars with same name excluded), and that led to more bugs:
+- double precision vs doubleprecision
+- dims with vars in them, possible in sig args
+- '*' in character strings
+
+Now all NIST tests pass again and eturb has correct casting
+
 STATUS 2020-07-22
 
 Ready to release 

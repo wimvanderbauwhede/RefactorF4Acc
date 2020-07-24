@@ -173,6 +173,7 @@ contains
       real, dimension(1:lx1,1:ly1,1:lz1,1:lelv) :: gradux_gradm1
       real, dimension(1:lx1,1:ly1,1:lz1,1:lelv) :: graduy_gradm1
       real, dimension(1:lx1,1:ly1,1:lz1,1:lelv) :: graduz_gradm1
+      real, dimension(1:lx1*ly1*lz1,1:ldim,1:ldim) :: sij_torque_calc
       real, dimension(1:lx1,1:ly1,1:lz1,1:lelt,1:ldimt) :: t_copy
       real, dimension(1:lx1,1:ly1,1:lz1,1:lelv) :: vx_gradm1
       real, dimension(1:3) :: x0_rzero
@@ -387,7 +388,7 @@ contains
       real, dimension(1:lr), intent(InOut) :: wr
       real, dimension(1:lr), intent(InOut) :: ws
       real, dimension(1:lr), intent(InOut) :: wt
-      real, dimension(1:lx1,1:ly1,1:lz1,1:lelt), intent(InOut) :: xm0
+      real, dimension(1:lx1,1:ly1,1:lz1,1:lelt) :: xm0
       real :: xsec
       real, dimension(1:lx1,1:ly1,1:lz1,1:lelt), intent(InOut) :: ym0
       real, dimension(1:lx1,1:ly1,1:lz1,1:lelt), intent(InOut) :: zm0
@@ -420,6 +421,8 @@ contains
       integer :: nzd
       integer :: ndim
       integer :: ldimr
+      integer, parameter :: numsts=50
+      integer, parameter :: nelgt_max=178956970
       integer, parameter :: lvt1=lx1*ly1*lz1*lelv
       integer, parameter :: lvt2=lx2*ly2*lz2*lelv
       integer, parameter :: lbt1=lbx1*lby1*lbz1*lbelv
@@ -435,7 +438,7 @@ contains
       real, dimension(1:ly2,1:ly1) :: dym12
       real, dimension(1:lz1,1:lz1) :: dzm1
       real, dimension(1:lz2,1:lz1) :: dzm12
-      real, dimension(1:lx1,1:lx1), intent(In) :: dxtm1
+      real, dimension(1:lx1,1:lx1), intent(InOut) :: dxtm1
       real, dimension(1:lx1,1:lx2) :: dxtm12
       real, dimension(1:ly1,1:ly1), intent(InOut) :: dytm1
       real, dimension(1:ly1,1:ly2) :: dytm12
@@ -1314,10 +1317,12 @@ contains
 
          x0 = reshape(x0_rzero, shape(x0))
       endif
+      sij_torque_calc = reshape(sij,shape(sij_torque_calc))
       call torque_calc(1.0,x0,.false.,.false.,dragx,dragpx,dragvx,dragy,dragpy,dragvy,dragz,dragpz, &
       dragvz,torqx,torqpx,torqvx,torqy,torqpy,torqvy,torqz,torqpz,torqvz,dpdx_mean,dpdy_mean, &
-      dpdz_mean,dgtq,flow_rate,base_flow,domain_length,xsec,scale_vf,pm1,sij,ur,us,ut,vr,vs,vt,wr, &
-      ws,wt,trx,trz,xm0,ym0,zm0)
+      dpdz_mean,dgtq,flow_rate,base_flow,domain_length,xsec,scale_vf,pm1,sij_torque_calc,ur,us,ut, &
+      vr,vs,vt,wr,ws,wt,trx,trz,ym0,zm0)
+      sij = reshape(sij_torque_calc, shape(sij))
       rho    = 1.
       a_w    = 19.7
       utau= sqrt(dragx(1)**2+dragz(1)**2)/a_w
@@ -1727,6 +1732,8 @@ contains
       integer :: nzd
       integer :: ndim
       integer :: ldimr
+      integer, parameter :: numsts=50
+      integer, parameter :: nelgt_max=178956970
       integer, parameter :: lvt1=lx1*ly1*lz1*lelv
       integer, parameter :: lvt2=lx2*ly2*lz2*lelv
       integer, parameter :: lbt1=lbx1*lby1*lbz1*lbelv
@@ -1742,7 +1749,7 @@ contains
       real, dimension(1:ly2,1:ly1) :: dym12
       real, dimension(1:lz1,1:lz1) :: dzm1
       real, dimension(1:lz2,1:lz1) :: dzm12
-      real, dimension(1:lx1,1:lx1), intent(In) :: dxtm1
+      real, dimension(1:lx1,1:lx1), intent(InOut) :: dxtm1
       real, dimension(1:lx1,1:lx2) :: dxtm12
       real, dimension(1:ly1,1:ly1) :: dytm1
       real, dimension(1:ly1,1:ly2) :: dytm12
@@ -2162,7 +2169,7 @@ contains
       real, dimension(1:lx1,1:ly1,1:lz1,1:lelv) :: abz2
       real, dimension(1:lx1,1:ly1,1:lz1,1:lelt) :: vdiff_e
 !      Solution data
-      real, dimension(1:lx1,1:ly1,1:lz1,1:lelv), intent(In) :: vx
+      real, dimension(1:lx1,1:ly1,1:lz1,1:lelv), intent(InOut) :: vx
       real, dimension(1:lx1,1:ly1,1:lz1,1:lelv), intent(InOut) :: vy
       real, dimension(1:lx1,1:ly1,1:lz1,1:lelv), intent(InOut) :: vz
       real, dimension(1:lx1*ly1*lz1*lelv) :: vx_e

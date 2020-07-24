@@ -1,9 +1,9 @@
 module singleton_module_src_mxm_wrapper
 
-      use singleton_module_src_mxm_std
+      use singleton_module_src_comm_mpi
       use singleton_module_src_mxm_bgq
       use singleton_module_src_blas
-      use singleton_module_src_comm_mpi
+      use singleton_module_src_mxm_std
 contains
 
       subroutine mxm(a,n1,b,n2,c,n3,ab,abmsh,abx1,abx2,aby1,aby2,abz1,abz2,area,atol,avdiff,avtran, &
@@ -66,6 +66,18 @@ contains
 !      for contiguously packed matrices A,B, and C.
 ! 
       implicit none
+          real(kind=8), dimension(1:n1,1:n2) :: a_mxm_bgq_10
+          real(kind=8), dimension(1:n1,1:n2) :: a_mxm_bgq_16
+          real(kind=8), dimension(1:n1,1:n2) :: a_mxm_bgq_6
+          real(kind=8), dimension(1:n1,1:n2) :: a_mxm_bgq_8
+          real(kind=8), dimension(1:n2,1:n3) :: b_mxm_bgq_10
+          real(kind=8), dimension(1:n2,1:n3) :: b_mxm_bgq_16
+          real(kind=8), dimension(1:n2,1:n3) :: b_mxm_bgq_6
+          real(kind=8), dimension(1:n2,1:n3) :: b_mxm_bgq_8
+          real(kind=8), dimension(1:n1,1:n3) :: c_mxm_bgq_10
+          real(kind=8), dimension(1:n1,1:n3) :: c_mxm_bgq_16
+          real(kind=8), dimension(1:n1,1:n3) :: c_mxm_bgq_6
+          real(kind=8), dimension(1:n1,1:n3) :: c_mxm_bgq_8
       integer, parameter :: mpi_status_size=6
       character, dimension(1:1) :: mpi_argv_null
       character, dimension(1:1,1:1) :: mpi_argvs_null
@@ -80,8 +92,8 @@ contains
       integer, intent(In) :: n2
       integer, intent(In) :: n3
       integer :: isbcnt
-      real, dimension(1:n1,1:n2), intent(In) :: a
-      real, dimension(1:n2,1:n3), intent(In) :: b
+      real, dimension(1:n1,1:n2), intent(InOut) :: a
+      real, dimension(1:n2,1:n3), intent(InOut) :: b
       real, dimension(1:n1,1:n3), intent(InOut) :: c
 ! 
       integer, parameter :: ldim=3
@@ -402,6 +414,8 @@ contains
       save    myrout,isclld
       data myrout / 0 / 
       data isclld / 0 / 
+      integer, parameter :: numsts=50
+      integer, parameter :: nelgt_max=178956970
       integer, parameter :: lvt1=lx1*ly1*lz1*lelv
       integer, parameter :: lvt2=lx2*ly2*lz2*lelv
       integer, parameter :: lbt1=lbx1*lby1*lbz1*lbelv
@@ -1147,26 +1161,50 @@ contains
 #endif
 #ifdef BGQ
       if (n2  ==  8 .and. mod(n1,4)  ==  0 ) then
-        call mxm_bgq_8(a,n1,b,n2,c,n3)
+        a_mxm_bgq_8 = a
+        b_mxm_bgq_8 = b
+        c_mxm_bgq_8 = c
+        call mxm_bgq_8(a_mxm_bgq_8,n1,b_mxm_bgq_8,n2,c_mxm_bgq_8,n3)
 
+        a = a_mxm_bgq_8
+        b = b_mxm_bgq_8
+        c = c_mxm_bgq_8
         goto 111
       endif
       if (n2  ==  16 .and. mod(n1,4)  ==  0 ) then
-        call mxm_bgq_16(a,n1,b,n2,c,n3)
+        a_mxm_bgq_16 = a
+        b_mxm_bgq_16 = b
+        c_mxm_bgq_16 = c
+        call mxm_bgq_16(a_mxm_bgq_16,n1,b_mxm_bgq_16,n2,c_mxm_bgq_16,n3)
 
+        a = a_mxm_bgq_16
+        b = b_mxm_bgq_16
+        c = c_mxm_bgq_16
         goto 111
       endif
       tt = 32
       if (n2  ==  10 .and. mod(n1,4)  ==  0 .and. mod(n3,2)  ==  0 .and. mod(loc(a), &
       tt) == 0 .and. mod(loc(b),tt) == 0  .and. mod(loc(c),tt) == 0  ) then
-        call mxm_bgq_10(a,n1,b,n2,c,n3)
+        a_mxm_bgq_10 = a
+        b_mxm_bgq_10 = b
+        c_mxm_bgq_10 = c
+        call mxm_bgq_10(a_mxm_bgq_10,n1,b_mxm_bgq_10,n2,c_mxm_bgq_10,n3)
 
+        a = a_mxm_bgq_10
+        b = b_mxm_bgq_10
+        c = c_mxm_bgq_10
         goto 111
       endif
       if (n2  ==  6 .and. mod(n1,4)  ==  0 .and. mod(n3,2)  ==  0 .and. mod(loc(a), &
       tt) == 0 .and. mod(loc(b),tt) == 0  .and. mod(loc(c),tt) == 0  ) then
-        call mxm_bgq_6(a,n1,b,n2,c,n3)
+        a_mxm_bgq_6 = a
+        b_mxm_bgq_6 = b
+        c_mxm_bgq_6 = c
+        call mxm_bgq_6(a_mxm_bgq_6,n1,b_mxm_bgq_6,n2,c_mxm_bgq_6,n3)
 
+        a = a_mxm_bgq_6
+        b = b_mxm_bgq_6
+        c = c_mxm_bgq_6
         goto 111
       endif
 #endif

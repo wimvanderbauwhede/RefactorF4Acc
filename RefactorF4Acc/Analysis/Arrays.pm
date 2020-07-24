@@ -46,8 +46,11 @@ sub calculate_array_size {
 	my $tot_sz_str = join( '*', @sz_strs );
 	# $tot_sz_str=~s/\-/ - /g;
 	# say $tot_sz_str;
-	my $size = eval_expression_with_parameters( $tot_sz_str, {}, $stref, $f );
-
+	my $size = 0;
+	# If there are unresolved vars, we return 0
+	if ($tot_sz_str!~/[a-z]/){
+		$size = eval_expression_with_parameters( $tot_sz_str, {}, $stref, $f );
+	} 
 	return $size;
 }    # END of calculate_array_size
 

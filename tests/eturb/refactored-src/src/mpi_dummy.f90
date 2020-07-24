@@ -61,24 +61,42 @@ contains
       integer, parameter :: mpi_mode_wronly=4
       integer, intent(In) :: n
       integer :: comm
-      integer, dimension(1:n), intent(In) :: data1
+      integer, dimension(1:n), intent(InOut) :: data1
       integer, dimension(1:n), intent(InOut) :: data2
       integer, intent(In) :: datatype
       integer, intent(Out) :: ierror
       integer, intent(In) :: operation
+      real(kind=8), dimension(1:n) :: data1_mpi_reduce_double_precision
+      integer(kind=8), dimension(1:n) :: data1_mpi_reduce_integer8
+      real, dimension(1:n) :: data1_mpi_reduce_real
+      real(kind=8), dimension(1:n) :: data2_mpi_reduce_double_precision
+      integer(kind=8), dimension(1:n) :: data2_mpi_reduce_integer8
+      real, dimension(1:n) :: data2_mpi_reduce_real
       ierror = mpi_success
       if ( datatype  ==  mpi_double_precision ) then
-        call mpi_reduce_double_precision(real(data1,8),real(data2,8),n,operation,ierror)
-
+        data1_mpi_reduce_double_precision = real(data1,8)
+        data2_mpi_reduce_double_precision = real(data2,8)
+        call mpi_reduce_double_precision(data1_mpi_reduce_double_precision, &
+      data2_mpi_reduce_double_precision,n,operation,ierror)
+        data1 = int(data1_mpi_reduce_double_precision, 4)
+        data2 = int(data2_mpi_reduce_double_precision, 4)
       else if ( datatype  ==  mpi_integer ) then
         call mpi_reduce_integer(data1,data2,n,operation,ierror)
 
       else if ( datatype  ==  mpi_integer8 ) then
-        call mpi_reduce_integer8(data1,data2,n,operation,ierror)
-
+        data1_mpi_reduce_integer8 = data1
+        data2_mpi_reduce_integer8 = data2
+        call mpi_reduce_integer8(data1_mpi_reduce_integer8,data2_mpi_reduce_integer8,n,operation, &
+      ierror)
+        data1 = data1_mpi_reduce_integer8
+        data2 = data2_mpi_reduce_integer8
       else if ( datatype  ==  mpi_real ) then
-        call mpi_reduce_real(data1,data2,n,operation,ierror)
+        data1_mpi_reduce_real = real(data1,4)
+        data2_mpi_reduce_real = real(data2,4)
+        call mpi_reduce_real(data1_mpi_reduce_real,data2_mpi_reduce_real,n,operation,ierror)
 
+        data1 = int(data1_mpi_reduce_real, 4)
+        data2 = int(data2_mpi_reduce_real, 4)
       else
         ierror = mpi_failure
       end if
