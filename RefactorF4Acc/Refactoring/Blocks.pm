@@ -740,7 +740,7 @@ sub __emit_param_lines { my ($Sblock, $varsref, $params, $param_decl_generated, 
         
     }
     return $param_annlines;
-    carp "Only do this if the params are not declared via USE!";
+    carp "Only do this if the params are not declared via USE!" if $DBG;
 } # END of __emit_param_lines
 
 

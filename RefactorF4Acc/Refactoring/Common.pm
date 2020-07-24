@@ -989,7 +989,7 @@ sub format_f95_par_decl {
         'Status' => 1
     };
     
-     carp "FINAL PAR REC $f:".Dumper($final_par_rec) if $type eq 'Unknown';
+     carp "FINAL PAR REC $f:".Dumper($final_par_rec) if $DBG and $type eq 'Unknown';
 #     if ($type eq 'Unknown') {
 #     	$final_par_rec->{'Type'} = 'real';
 #     } 

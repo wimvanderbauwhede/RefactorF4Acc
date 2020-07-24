@@ -738,7 +738,7 @@ SUBROUTINE
 							my $subset = in_nested_set( $Sf, 'Vars', $var );
 							if ($subset ne 'DeclaredCommonVars') {
 								# It could be UndeclaredOrigLocalVars via EQUIVALENCE
-							    carp "SHOULD BE IMPOSSIBLE!  $var in $subset in $f: $line\n".Dumper( $Sf->{$subset}{'Set'}{$var} );
+							    carp "SHOULD BE IMPOSSIBLE!  $var in $subset in $f: $line\n".Dumper( $Sf->{$subset}{'Set'}{$var} ) if $DBG;
 								#UndeclaredCommonVars
 							}
 						}						
@@ -3616,7 +3616,7 @@ sub _parse_read_write_print {
         }            	
     	
 	} elsif ( exists $info->{'OpenCall'} ) {
-		carp "TODO: parse OPEN call using new parser";
+		carp "TODO: parse OPEN call using new parser" if $DBG;
 		#OPEN 
 		#if unit has vars, add to Read from
 		#
@@ -3640,7 +3640,7 @@ sub _parse_read_write_print {
 		#IOSTAT Written to
 		#
 	} elsif ( exists $info->{'CloseCall'} ) {
-		carp "TODO: parse CLOSE call using new parser";
+		carp "TODO: parse CLOSE call using new parser" if $DBG;
 		#CLOSE
 		#if unit has vars, add to Read from
 		#All args are all Read from except the ERR Label and IOSTAT

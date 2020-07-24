@@ -106,7 +106,7 @@ sub _removed_unused_variables { (my $stref, my $f)=@_;
  						$state->{'ExprVars'}{$var}--;	
 		 				if ( $state->{'ExprVars'}{$var} == 0) {
 		 					delete $state->{'ExprVars'}{$var};
-		 					carp "DELETE ExprVar $var in IF";
+		 					carp "DELETE ExprVar $var in IF"  if $DBG;
 		 				}	 						
  					}
 				}

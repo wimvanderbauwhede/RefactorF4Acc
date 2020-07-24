@@ -1176,7 +1176,7 @@ sub emit_expr_from_ast { (my $ast)=@_;
             # warn Dumper($exp);
                 my $v = (ref($exp) eq 'ARRAY') ? emit_expr_from_ast($exp) : $exp;
                 if (not defined $v) {
-                    carp Dumper($ast);
+                    croak Dumper($ast) if $DBG;
                 }
                 return "($v)";
             } elsif ($opcode==28 ) {#eq '(/'

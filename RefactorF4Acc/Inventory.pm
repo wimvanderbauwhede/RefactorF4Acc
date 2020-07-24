@@ -281,7 +281,7 @@ sub _process_src {
             	if ($cols1to6_char eq "\t") {
             		 $free_form = 0;     
             		 $tab_format=1;
-            		 carp 'TAB FORMAT IS NOT WELL SUPPORTED!';
+            		 say  'WARNING: TAB FORMAT IS NOT WELL SUPPORTED!' if $W;
 #• Continuation lines are identified by  a nonzero digit after the first tab.                        		 
             		 if ($cols1to6_chars[$col_ctr+1] =~/1-9/) {
             		 	$is_cont=1;

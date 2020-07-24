@@ -1198,6 +1198,7 @@ Suppose we don't:
                     }
 ####### POSTAMBLE
                     if (
+                      $DBG and 
                         not
                         exists $stref->{$srctype}{$code_unit_name}{'Status'} )
                     {

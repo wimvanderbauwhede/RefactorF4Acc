@@ -97,7 +97,7 @@ sub _eval_param_expressions { my ($stref, $f) = @_;
 					[emit_f95_var_decl($param_decl), $info] 
 				];	
 				} else {
-					carp "Could not find the record for $param_name, not evaluated"
+					carp "Could not find the record for $param_name, not evaluated" if $DBG;
 				}				
 			}				
 			return ($new_annlines,$vars_vals);

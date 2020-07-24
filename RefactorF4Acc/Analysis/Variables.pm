@@ -447,7 +447,7 @@ sub identify_vars_on_line {
 					@chunks = ( @chunks, @{ $info->{'Vars'}{'List'} } );
 				}
 			} elsif ( exists $info->{'Do'} ) {
-				if (not defined $info->{'Do'}{'Iterator'} or not defined $info->{'Do'}{'Range'} or not defined $info->{'Do'}{'Range'}{'Vars'} ) {
+				if ($DBG and not defined $info->{'Do'}{'Iterator'} or not defined $info->{'Do'}{'Range'} or not defined $info->{'Do'}{'Range'}{'Vars'} ) {
 					say $line;
 					carp Dumper($info);
 				}

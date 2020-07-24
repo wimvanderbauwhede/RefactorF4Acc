@@ -168,7 +168,8 @@ sub _compare_decls {
 	return 0 unless ( !$compare_names or $names_match );
 	my $types_match = $decl1->{'Type'} eq $decl2->{'Type'};
 	return 0 unless $types_match;
-	if (   $decl1->{'Attr'} =~ /=/ and $decl2->{'Attr'} !~ /=/
+	if ( $DBG and  
+		 $decl1->{'Attr'} =~ /=/ and $decl2->{'Attr'} !~ /=/
 		or $decl1->{'Attr'} !~ /=/ and $decl2->{'Attr'} =~ /=/ )
 	{
 		carp "Attributes have different structure: $f1 " . $decl1->{'Attr'} . Dumper($decl1).'<>' . $f2.' '.$decl2->{'Attr'}.Dumper($decl2);		
@@ -780,7 +781,7 @@ sub __reshape_rhs_if_required { my ($pair, $stref, $f ) = @_;
 			];
 
 			} else {
-				carp 'MUST RESHAPE BUT CANNOT!';
+				carp 'MUST RESHAPE BUT CANNOT!' if $DBG;;
 			}
 		}	
 	}
