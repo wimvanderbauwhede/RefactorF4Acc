@@ -80,6 +80,7 @@ sub refactor_all {
     # We need to decide what to inline.
     # I would say any call inside a subroutine marked for offloading.
     # This needs to be recursive!
+	# Testing with LES
     #my $f='les';
     #my $sub='boundsm';
     #$stref = inline_subroutine($stref, $f, $sub) ;
