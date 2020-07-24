@@ -231,7 +231,7 @@ sub _create_common_var_size_tuples {
 			}
 			my $type        = $called_sub_common_var_decl->{'Type'};
 			my $kind_or_len = $type eq 'character' ? 1 : 4;            # default
-			if ( $called_sub_common_var_decl->{'Attr'} =~ /\*/ ) {
+			if ($DBG and $called_sub_common_var_decl->{'Attr'} =~ /\*/ ) {
 				croak "MUST HAVE ACTUAL SIZE!";
 			}
 			if ( $called_sub_common_var_decl->{'Attr'} ne '' ) {
@@ -391,7 +391,7 @@ sub _match_up_common_var_sequences {
 					$Sf = add_var_decl_to_set( $Sf, 'ExGlobArgs', $name_caller, $decl_caller );
 
 				} else {
-					croak "Can't match scalars with different kinds: ";
+					die "ERROR: Can't match scalars with different kinds in call to $f in $caller\n";
 				}
 			} elsif ( $decl_local->{'ArrayOrScalar'} eq 'Array'
 				  and $decl_caller->{'ArrayOrScalar'} eq 'Array' ) {    # both Array
@@ -583,7 +583,7 @@ sub _match_up_common_var_sequences {
 						unshift @common_caller_seq, $elt_caller;
 					}
 				} else {
-					croak "Can't match a scalar to an array with different kinds!";
+					die "ERROR: Can't match a scalar to an array with different kinds in call to $f in $caller\n";
 				}
 			} elsif ( $decl_local->{'ArrayOrScalar'} eq 'Array'
 				and $decl_caller->{'ArrayOrScalar'} eq 'Scalar' ) {
@@ -619,7 +619,7 @@ sub _match_up_common_var_sequences {
 						unshift @common_local_seq, $elt_local;
 					}
 				} else {
-					croak "Can't match a scalar to an array with different kinds!";
+					die "ERROR: Can't match a scalar to an array with different kinds in call to $f in $caller\n";
 				}
 			}
 
@@ -724,7 +724,7 @@ sub __emit_equiv_var_str {
 
 sub _caller_to_local_assignment_annlines {
 	( my $equiv_pair ) = @_; 
-croak 'UNUSED?';
+croak 'UNUSED?' if $DBG;
 	my $l        = $equiv_pair->[0];
 	my $l_str    = __emit_equiv_var_str($l);
 	my $r        = $equiv_pair->[1];

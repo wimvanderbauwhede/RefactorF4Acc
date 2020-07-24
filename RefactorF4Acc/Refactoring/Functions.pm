@@ -109,7 +109,7 @@ sub refactor_called_functions {
         	if ( defined $Ff->{'Called'} ) { # FIXME: This test is weak because the caller might not be called itself!
         		if ($Ff->{'Status'} == $READ) { 
         		    warn "refactor_called_functions(): Function $f was never parsed ";
-                    croak Dumper($Ff);
+                    croak Dumper($Ff) if $DBG;
         		} else {        
             		$stref = _refactor_function( $f, $stref );
         		}

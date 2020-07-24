@@ -59,7 +59,7 @@ sub find_root_for_includes {
                 next;
             }
         }
-        if ($stref->{'IncludeFiles'}{$inc}{'Status'}==$UNREAD) {
+        if ($DBG and $stref->{'IncludeFiles'}{$inc}{'Status'}==$UNREAD) {
             croak "TROUBLE: $inc (in $f) not yet parsed, how come? (Hint: likely the tree contains refactored sources)";
                 $stref->{'IncludeFiles'}{$inc}{'HasBlocks'} = 0;
                 $stref = parse_fortran_src( $inc, $stref );   

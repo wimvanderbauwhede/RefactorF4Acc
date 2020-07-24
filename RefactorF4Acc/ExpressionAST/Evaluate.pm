@@ -104,10 +104,10 @@ sub replace_consts_in_ast { (my $stref, my $f, my $block_id, my $ast, my $state,
 							carp "replace_consts_in_ast($f,$const): Can\'t replace $mvar, no parameter record found in $f, it is a Var in $var_set";
 							# So now we must find a line with an assignment to this var and do it again
  							my $eval_res = _try_to_eval_via_vars($stref, $f, $mvar);
-							 croak Dumper($eval_res);
+							 croak Dumper($eval_res) if $DBG;
 							return($eval_res,$state,1)	
 						} else {
-							croak "Cannot replace $mvar, no parameter or var record found in $f";
+							croak "Cannot replace $mvar, no parameter or var record found in $f" if $DBG;
 							return ($ast, $state,0);
 						}						
 					}
@@ -204,7 +204,7 @@ sub _try_to_eval_arg { my ($stref,$f,$arg)=@_;
 		# );	
 		my $expr_val = eval_expression_with_parameters($call_arg,{},  $stref, $caller) ;
 			# assuming it is an integer, FIXME
-			croak "Cannot eval $call_arg in $caller " unless defined $expr_val;
+			croak "Cannot eval $call_arg in $caller "  if $DBG and not defined $expr_val;
 		return [29,$expr_val];	
 	}
 	# Check if $call_arg is maybe a parameter
@@ -216,7 +216,7 @@ sub _try_to_eval_arg { my ($stref,$f,$arg)=@_;
 			# carp 'AST for parameter expression '.$call_arg.' : '.Dumper($ast);
 			my $expr_val = eval_expression_with_parameters($val,{},  $stref, $caller) ;
 			# assuming it is an integer, FIXME
-			croak "Cannot eval $call_arg $val in $caller " unless defined $expr_val;
+			croak "Cannot eval $call_arg $val in $caller "  if $DBG and not defined $expr_val;
 			return [29,$expr_val];
 	} else {
 		# OK, $call_arg is not a parameter in $caller, plough on
@@ -264,7 +264,7 @@ sub _try_to_eval_via_vars { my ($stref, $f, $var) = @_;
 			my $expr_str = emit_expr_from_ast($expr_asts->{$var});
 
 			my $expr_val = eval_expression_with_parameters ( $expr_str,{} 	,  $stref, $f) ;
-			croak "Cannot eval $var via $expr_str in $f " unless defined $expr_val;		
+			croak "Cannot eval $var via $expr_str in $f "  if $DBG and not defined $expr_val;		
 			return [29,$expr_val]
 		} else {
 			# Instead of assigment, it could be a sig arg of the caller

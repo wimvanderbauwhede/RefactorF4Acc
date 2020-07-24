@@ -135,8 +135,8 @@ sub numeric  ($$) { $_[0] <=> $_[1]; }
 sub sub_func_incl_mod {
     ( my $f, my $stref ) = @_;
     if (not defined $stref) {croak "arg not defined sub_func_incl_mod" }
-    croak join(' ; ', caller ) if $stref!~/0x/;
-    croak if not defined $f;        
+    croak join(' ; ', caller )  if $DBG and $stref!~/0x/;
+    croak if $DBG and not defined $f;        
     if ( exists $stref->{'Subroutines'}{$f} ) {
         if (not  exists $stref->{'Modules'}{$f} ) {
             return 'Subroutines';
@@ -257,7 +257,7 @@ sub get_maybe_args_globs {
 # -----------------------------------------------------------------------------
 sub type_via_implicits { (my $stref, my $f, my $var)=@_;
 	#return ($type, $array_or_scalar, $attr);
-if (not defined $var or $var eq '') {croak "VAR not defined!"}
+if ($DBG and not defined $var or $var eq '') {croak "VAR not defined!"}
 #say 'type_via_implicits'.scalar(@_).$var;
     my $sub_func_incl = sub_func_incl_mod( $f, $stref );
     my $type ='Unknown';      
@@ -298,7 +298,7 @@ sub zip { ( my $aref, my $bref ) = @_;
 # -----------------------------------------------------------------------------
 sub union {
     ( my $aref, my $bref ) = @_;
-    croak("union()") unless (defined $aref and defined $bref);    
+    croak("union()") if $DBG and not (defined $aref and defined $bref);    
     if (not defined $aref) {
         return $bref;
     } elsif (not defined $bref) {
@@ -318,7 +318,7 @@ sub union {
 # This union is obtained by removing duplicates from @b. It is a bit slower but preserves the order
 sub ordered_union {
     ( my $aref, my $bref ) = @_;
-    croak("ordered_union(): both args must be defined!") unless (defined $aref and defined $bref);   
+    croak("ordered_union(): both args must be defined!") if $DBG and not (defined $aref and defined $bref);   
     if (not defined $aref) {
     	return $bref;
     } elsif (not defined $bref) {
@@ -338,7 +338,7 @@ sub ordered_union {
 # This is the set of all members of $bref not in $aref, not the other way round
 sub ordered_difference {
     ( my $aref, my $bref ) = @_;
-    croak("ordered_difference()") unless (defined $aref and defined $bref);   
+    croak("ordered_difference()") if $DBG and not (defined $aref and defined $bref);   
     if (not defined $aref) { # assume it's empty
     	return $bref;
     } elsif (not defined $bref) {
@@ -358,7 +358,7 @@ sub ordered_difference {
 # This is the set of all members of $bref that also occur in $aref (or vice-versa of course)
 sub ordered_intersection {
     ( my $aref, my $bref ) = @_;
-    croak("ordered_intersection()") unless (defined $aref and defined $bref);   
+    croak("ordered_intersection()") if $DBG and not (defined $aref and defined $bref);   
     if (not defined $aref) {
     	return [];
     } elsif (not defined $bref) {
@@ -378,7 +378,7 @@ sub ordered_intersection {
 # This is the set of all members of $bref that also occur in $aref (or vice-versa of course)
 sub intersection {
     ( my $aref, my $bref ) = @_;
-    croak("intersection()") unless (defined $aref and defined $bref);   
+    croak("intersection()") if $DBG and not (defined $aref and defined $bref);   
     if (not defined $aref) {
     	return {};
     } elsif (not defined $bref) {
@@ -563,7 +563,7 @@ sub show_status {
 }
 # Test if a var is an element of a nested set. Returns the innermost set 
 sub in_nested_set { (my $set, my $set_key, my $var)=@_;
-	croak if not defined $var;
+	croak if $DBG and not defined $var;
     if (exists $set->{$set_key}{'Subsets'} ) {
         for my $subset (keys %{  $set->{$set_key}{'Subsets'} } ) {
             my $retval = in_nested_set($set->{$set_key}{'Subsets'},$subset, $var);

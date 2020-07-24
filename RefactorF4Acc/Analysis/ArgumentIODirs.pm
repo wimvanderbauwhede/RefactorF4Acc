@@ -818,9 +818,11 @@ sub _get_iodirs_from_subcall {
                                     say "CALLER ARG <$call_arg> for call to $name in $f IS A LOCAL VAR." if $DBG;
                                 }
                                 else {
+                                     if ($DBG) {
                                     say Dumper($Sf->{'Vars'})
                                       . "\nCALLER ARG <$call_arg> for call to <$name> HAS NO REC in Vars($f) $call_arg_type ";
                                     croak;
+                                    }
                                 }
                             }
                         }

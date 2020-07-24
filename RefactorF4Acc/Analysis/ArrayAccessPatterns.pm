@@ -118,7 +118,7 @@ sub identify_array_accesses_in_exprs { (my $stref, my $f) = @_;
 			if ( exists $info->{'Signature'} ) {
 				my $subname =$info->{'Signature'}{'Name'} ;
 				$state->{'CurrentSub'}= $subname  ;
-				croak if $subname ne $f;
+				croak if $DBG and $subname ne $f;
 				$state->{'Subroutines'}{$subname }={};
 				$state->{'Subroutines'}{$subname }{'Blocks'}={};
 				$state->{'Subroutines'}{$subname }{'Blocks'}{$block_id}={};
@@ -184,7 +184,8 @@ sub identify_array_accesses_in_exprs { (my $stref, my $f) = @_;
 				# Assignment to scalar *_rel
 				if ($info->{'Lhs'}{'ArrayOrScalar'} eq 'Scalar' and $info->{'Lhs'}{'VarName'} =~/^(\w+)_rel/) {
 					my $loop_iter=$1;
-					if (not exists $state->{'Subroutines'}{ $f }{'Blocks'}{$block_id}{'LoopIters'}{$loop_iter}{'Range'}) {
+					if ($DBG and
+						not exists $state->{'Subroutines'}{ $f }{'Blocks'}{$block_id}{'LoopIters'}{$loop_iter}{'Range'}) {
 						croak "This should not happen! " .Dumper($annline);
 						$state->{'Subroutines'}{ $f }{'Blocks'}{$block_id}{'LoopIters'}{$loop_iter}={'Range' => [0,0]};
 					}
@@ -328,7 +329,7 @@ sub identify_array_accesses_in_exprs { (my $stref, my $f) = @_;
                     $state->{'Subroutines'}{ $f }{'Blocks'}{$block_id}{'LoopIters'}{$loop_iter}=$range_rec;
                 }
             } else {
-                croak "Sorry, a `do` loop without an iterator is not supported";
+                die "ERROR: Sorry, a `do` loop without an iterator is not supported\n";
             }
             } elsif ( exists $info->{'EndDo'} ) {
 
@@ -870,7 +871,7 @@ sub __is_array_decl { (my $info)=@_;
 
 sub __mkLoopId { (my $loop_nest_stack ) =@_;
     my $loop_id = join('',map {$_->[0]} @{$loop_nest_stack});
-    croak if $loop_id eq '';
+    croak if $DBG and $loop_id eq '';
     return $loop_id;
 }
 
@@ -1483,10 +1484,10 @@ sub _is_stream_var { my ($state, $f, $block_id, $var_name) =@_;
 		#   if ($array_sz<$iter_space) {
 		# 	  croak  "ARRAY $var_name in $f IS SMALLER than iter space";
 		#   }		
-		  if (not $ok) {
+		  if ($DBG and not $ok) {
 			  	croak  "ARRAY $var_name in $f IS SMALLER than iter space";
 		  }		  
-		  say "$f $var_name $ok" if not $ok ;
+		#   say "$f $var_name $ok" if not $ok ;
 		  return $ok;
 	  }
 	  return 1;

@@ -625,7 +625,7 @@ sub _emit_expression_C { my ($ast, $stref, $f)=@_;
 							return "$name(".join(',',@args_lst).')';
 						}
 					} else { #  ')(', e.g. f(x)(y)
-					croak 'f()() is not supported, sorry!';
+					die 'ERROR: f()() is not supported, sorry!'."\n";
 						(my $sigil,my $args1, my $args2) = @{$args};
 						my $args_str1='';
 						my $args_str2='';
@@ -679,7 +679,7 @@ sub _emit_expression_C { my ($ast, $stref, $f)=@_;
                 return "{ $v }";
             } elsif ($opcode==2 or $opcode>28) {# eq '$' or constants
 				if ($opcode == 34) {
-					croak 'Fortran LABEL as arg is not supported, sorry!'; #  "*$exp" : $exp;   # Fortran LABEL, does not exist in C
+					die 'ERROR: Fortran LABEL as arg is not supported, sorry!'."\n"; #  "*$exp" : $exp;   # Fortran LABEL, does not exist in C
 				}
 				my $mvar = $ast->[1];
 				my $called_sub_name = $stref->{'CalledSub'} // '';
@@ -711,14 +711,14 @@ sub _emit_expression_C { my ($ast, $stref, $f)=@_;
                 my $v = (ref($exp) eq 'ARRAY') ? _emit_expression_C($exp, $stref, $f) : $exp;
                 return $sigils[$opcode]. $v;
             } elsif ($opcode == 27) { # ',' 
-                croak Dumper($ast); # WHY is this here?
+                croak Dumper($ast) if $DBG; # WHY is this here?
                 my @args_lst=();
                 for my $arg (@{$exp}) {
                     push @args_lst, _emit_expression_C($arg, $stref, $f);
                 }
                 return join(',',@args_lst);        
             } else {
-                die 'BOOM! '.Dumper($ast).$opcode;
+                croak 'BOOM! '.Dumper($ast).$opcode  if $DBG;
             }
         } elsif (scalar @{$ast} > 3) {
 
@@ -730,7 +730,7 @@ sub _emit_expression_C { my ($ast, $stref, $f)=@_;
                 }
                 return join(',',@args_lst); 
             } else {
-                croak Dumper($ast);
+                croak Dumper($ast) if $DBG;
             }
         }
     } else {

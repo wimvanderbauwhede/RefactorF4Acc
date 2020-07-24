@@ -156,7 +156,7 @@ sub _refactor_subroutine_main {
 
 			$annlines = _refactor_globals_new( $stref, $f, $annlines );
 
-		} elsif ( $Sf->{'RefactorGlobals'} == 2 ) {
+		} elsif ( $DBG and $Sf->{'RefactorGlobals'} == 2 ) {
 			croak 'SHOULD BE OBSOLETE!';
 		}
 	}
@@ -1104,7 +1104,7 @@ sub _create_refactored_function_calls {
 		# an if or if-then-else
 		$ast = $info->{'CondExecExprAST'};
 	} else {
-		croak "TODO: UNSUPPORTED STATEMENT FOR FUNCTION CALL: <$line> ( _create_refactored_function_calls ) " ;
+		croak "TODO: UNSUPPORTED STATEMENT FOR FUNCTION CALL: <$line> ( _create_refactored_function_calls ) "  if $DBG;
 		#. Dumper($info);
 		$do_not_update = 1;
 	}
@@ -1238,18 +1238,18 @@ sub __update_function_calls_in_AST {
 					my $call_arg =
 						$stref->{'Subroutines'}{$name}{'ExMismatchedCommonArgs'}{'CallArgs'}{$f}{$sig_arg}[0][0];
 					push @maybe_renamed_exglobs, $call_arg;
-					croak "$name called in $f => $sig_arg " unless defined $call_arg;
+					croak "$name called in $f => $sig_arg " if $DBG and not defined $call_arg;
 				}
 				if (@maybe_renamed_exglobs) {
 					if ( not @{ $ast->[2] } ) {    # empty list. create [',' ]
 						push @{ $ast->[2] }, 27;
 					} elsif ( ( $ast->[2][0] && 0xFF ) != 27 ) {    # not a list. Wrap in [',', ... ]
 						my $entry = $ast->[2];
-						croak unless defined $entry;
+						croak  if $DBG and not defined $entry;
 						$ast->[2] = [ 27, $entry ];
 					}
 					for my $extra_arg (@maybe_renamed_exglobs) {
-						croak Dumper(@maybe_renamed_exglobs) unless defined $extra_arg;
+						croak Dumper(@maybe_renamed_exglobs)  if $DBG and not defined $extra_arg;
 						push @{ $ast->[2] }, [ 2, $extra_arg ];     #'$'
 					}
 				}
@@ -1601,7 +1601,7 @@ sub _change_EQUIVALENCE_to_assignment_lines_for_ExCommonArgs {
 
 				}
 			} else {
-				croak "INVALID AST : " . Dumper($ast) . ( $ast->[0] & 0xFF ) . ( $ast->[1][0] & 0xFF );
+				croak "INVALID AST : " . Dumper($ast) . ( $ast->[0] & 0xFF ) . ( $ast->[1][0] & 0xFF ) if $DBG;
 			}
 
 			if ( $line ne $rline->[0] ) {
@@ -2249,7 +2249,7 @@ sub _maybe_cast_call_args { my ($stref, $f, $sub_name, $call_arg,$call_arg_decl,
 		
 		my $size1 = calculate_array_size( $stref, $f, $dim1 );
 		my $size2 = calculate_array_size( $stref, $sub_name, $dim2d );
-		croak 'FIXME!'.Dumper($call_arg_decl,$sig_arg_decl) unless defined $size1 and defined $size2;
+		croak 'FIXME!'.Dumper($call_arg_decl,$sig_arg_decl)  if $DBG and not defined $size1 or not defined $size2;
 		# but the rank we need is the rank of the expression
 		# FIXME: I will assume that if the array is indexed, all indices are used, i.e. rank is 0
 		my $rank1 = get_array_rank($dim1);

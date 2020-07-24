@@ -74,15 +74,16 @@ sub context_free_refactorings {
     ( my $stref, my $f ) = @_;
     print "CONTEXT-FREE REFACTORINGS for $f CODE\n" if $V ;
     
-    my $die_if_one         = ($f eq 'BOOM')? 1 : 0;
+    my $die_if_one         = ($DBG and $f eq 'BOOM')? 1 : 0;
     my @extra_lines        = ();
     my $sub_or_func_or_inc = sub_func_incl_mod( $f, $stref );
     my $Sf                 = $stref->{$sub_or_func_or_inc}{$f};
   
-    if ( $Sf->{'Status'} != $PARSED 
+    if ($DBG and 
+        $Sf->{'Status'} != $PARSED 
         and  $Sf->{'Status'}!= $UNUSED
     ) {
-        croak "USED BUT NOT PARSED: $f\n" . caller() . "\n";
+        croak "USED BUT NOT PARSED: $f\n" . caller() . "\n" ;
     }
     my $annlines   = get_annotated_sourcelines( $stref, $f );
     my $nextLineID = scalar @{$annlines} + 1;
@@ -94,7 +95,7 @@ sub context_free_refactorings {
 
     for my $annline ( @{$annlines} ) {
 #    	++$line_ct;
-        if ( not defined $annline or not defined $annline->[0] ) {
+        if ( $DBG and not defined $annline or not defined $annline->[0] ) {
             croak
               "Undefined source code line for $f in create_refactored_source()";
         }
@@ -168,7 +169,7 @@ if ( not exists $info->{'Inlined'} ) {
         }	                
 		elsif ( exists $info->{'Data'} ) {
 			my @chunks=split(/data\s+/,$line);
-			croak if scalar @chunks > 2;
+			croak if $DBG and  scalar @chunks > 2;
 			my $str = $chunks[1];
 			$str=~s/\s+//g;
 			$str=~s/\// \/ /g;
@@ -304,9 +305,10 @@ if ( not exists $info->{'Inlined'} ) {
 	                $info->{'Ref'} = 1 unless exists $info->{'Inlined'};                 
 	                push @{$info->{'Ann'}}, annotate($f, __LINE__ .': Ref==0, '.$stmt_count );
 	            } else {
-	                croak $f.' : BOOM! ' . 'context_free_refactoring '. __LINE__ ."; ".$line.'    '.Dumper($info)."\n".
-                    Dumper(pp_annlines($Sf->{'AnnLines'}));
-
+                    if ($DBG){
+	                    croak $f.' : BOOM! ' . 'context_free_refactoring '. __LINE__ ."; ".$line.'    '.Dumper($info)."\n" .
+                        Dumper(pp_annlines($Sf->{'AnnLines'}));
+                    }
 	            }                        
             }
             
@@ -517,7 +519,7 @@ if ( not exists $info->{'Inlined'} ) {
     my $has_includes=0;
     my $has_implicit_none = 0;
     for my $annline ( @{$Sf->{'RefactoredCode'}} ) {
-        if ( not defined $annline or not defined $annline->[0] ) {
+        if ( $DBG and not defined $annline or not defined $annline->[0] ) {
             croak
               "Undefined source code line for $f in create_refactored_source()" . Dumper($annlines) ;
         }
@@ -552,7 +554,7 @@ if ( not exists $info->{'Inlined'} ) {
         
         for my $annline ( @{$Sf->{'RefactoredCode'}} ) {
 #        	say Dumper($annline);
-            if ( not defined $annline or not defined $annline->[0] ) {
+            if ( $DBG and not defined $annline or not defined $annline->[0] ) {
                 croak
                   "Undefined source code line for $f in create_refactored_source()";
             }
@@ -867,8 +869,8 @@ sub get_f95_var_decl {
     		my $Sv = $Sf->{ $subset }{'Set'}{$var};
         	if ( exists $Sf->{'ConflictingLiftedVars'}{$var} ) {
             	$nvar = $Sf->{'ConflictingLiftedVars'}{$var};
-            	say "WARNING: CONFLICT for VAR $var in $subset, setting var name to $nvar in format_f95_var_decl()!" if $W;
-				croak Dumper($Sv);
+            	say "WARNING: CONFLICT for VAR $var in $subset, setting var name to $nvar in format_f95_var_decl()!" if $WW;
+				croak Dumper($Sv) if $DBG;
         	}
 	        $spaces =$Sv->{'Indent'};
 	        $spaces =~ s/\S.*$//;
@@ -880,7 +882,7 @@ sub get_f95_var_decl {
         ( $type, my $kind, $attr ) = type_via_implicits( $stref, $f, $var );
     } else {
         croak
-"Can't type $var, not in Vars and format_f95_var_decl() called the wrong way for implicits";
+"Can't type $var, not in Vars and format_f95_var_decl() called the wrong way for implicits" if $DBG;
     }
 
     return {
@@ -938,7 +940,7 @@ sub format_f95_par_decl {
 			if (
 		 		not defined $Sv->{'Type'} or $Sv->{'Type'} eq 'Unknown'
 			) {
-				say "IMPLICIT TYPING OF PARAM $var from $f";croak;
+				say "WARNINGL: IMPLICIT TYPING OF PARAM $var from $f" if $W;
 				($type, my $array_or_scalar, $attr) =type_via_implicits( $stref, $f, $var);
 			} else {	
 				$type = $Sv->{'Type'};
@@ -1085,18 +1087,18 @@ sub _rename_conflicting_global_pars {
 sub emit_f95_var_decl {
     ( my $var_decl_rec ) = @_;
 	if (not defined $var_decl_rec) {
-		confess('Argument to emit_f95_var_decl is not defined!');
+		confess('Argument to emit_f95_var_decl is not defined!')  if $DBG;
 	}
     if ( ref($var_decl_rec) ne 'HASH' ) {
-        croak "NOT a HASH in emit_f95_var_decl(".$var_decl_rec.")";
+        croak "NOT a HASH in emit_f95_var_decl(".$var_decl_rec.")"  if $DBG;
     }
     my $external = exists $var_decl_rec->{'External'} ? 1 : 0;
     my $spaces = $var_decl_rec->{'Indent'};
-    croak Dumper($var_decl_rec) if not defined $spaces;
+    croak Dumper($var_decl_rec) if $DBG and not defined $spaces;
     
       my $type = $var_decl_rec->{'Type'}; 
       if (not defined $type) {
-      	croak Dumper($var_decl_rec) ;
+      	croak Dumper($var_decl_rec) if $DBG;
         #    Dumper($stref->{'Subroutines'}{  $var_decl_rec->{'Name'});
       } elsif(ref($type) eq 'HASH') {
       	# Contains Type and Kind
@@ -1122,7 +1124,7 @@ sub emit_f95_var_decl {
       elsif (exists $var_decl_rec->{'Var'}) {
       	if (ref(  $var_decl_rec->{'Var'} ) eq 'ARRAY'  and scalar @{ $var_decl_rec->{'Var'} } == 2 ) {
       	    ($var,$val) = @{	$var_decl_rec->{'Var'} };
-              croak 'SHOULD NEVER HAPPEN!';
+              croak 'SHOULD NEVER HAPPEN!' if $DBG;
       	} elsif (ref(  $var_decl_rec->{'Var'} ) ne 'ARRAY'  and exists $var_decl_rec->{'Val'} ) { 
             $var = $var_decl_rec->{'Var'};
             $val = $var_decl_rec->{'Val'};
@@ -1131,7 +1133,7 @@ sub emit_f95_var_decl {
       	if (scalar @{ $var_decl_rec->{'Names'} } == 1 and ref($var_decl_rec->{'Names'}[0]) eq 'ARRAY') {
       		($var,$val) = @{ $var_decl_rec->{'Names'}[0] };
       	} else {
-      		croak 'Parameter declaration record is incorrect: '.Dumper($var_decl_rec);
+      		croak 'Parameter declaration record is incorrect: '.Dumper($var_decl_rec) if $DBG;
       	}
       	
       }
@@ -1229,7 +1231,7 @@ sub emit_f95_var_decl {
     } else {
         # Parameter        
 #        say Dumper($var_decl_rec);
-        croak Dumper($var_decl_rec) if not defined $val;
+        croak Dumper($var_decl_rec) if $DBG and not defined $val;
         my $var_val = ref($var) eq 'ARRAY' ? $var->[0] . '=' . $var->[1] :  $var.'='.$val;
         my $decl_line =
             $spaces 
@@ -1324,7 +1326,7 @@ sub splice_additional_lines_cond {
     my $Sf                 = $stref->{$sub_or_func_or_mod}{$f};
     
     my $annlines           = scalar @{$old_annlines} ? $old_annlines : get_annotated_sourcelines( $stref, $f );
-    croak if scalar @{$annlines}==0;
+    croak if $DBG and scalar @{$annlines}==0;
     my $nextLineID         = scalar @{$annlines} + 1;
     my $merged_annlines    = [];
     $do_once = defined $do_once ? $do_once : 1;

@@ -216,7 +216,7 @@ sub _process_src {
                         my $block_type=$1;
                          my $sub=$2;
                          say 'Detected block: '."$block_type $sub in $srctype $sub_name" if $V;
-                         croak 'Detect blocks: No '.$block_type.' name from '.$line if $sub eq '';
+                         croak 'Detect blocks: No '.$block_type.' name from '.$line  if $DBG and $sub eq '';
                         $has_blocks = 1;
                         $stref->{$srctype}{$sub_name}{'HasBlocks'}=$has_blocks;
                         if ($translate_to ne '') {
@@ -467,7 +467,7 @@ sub _process_src {
                 } elsif ($in_interface_block) {
                 	$stref->{$srctype}{$mod_name}{'Interface'}{$sub}=1; #WV: TODO: add functionality here
                 } else {
-                	croak 'TROUBLE!';
+                	croak 'TROUBLE!' if $DBG;
                 }
                 $stref->{'Subroutines'}{$sub}{'FStyle'}=$fstyle;
             	$stref->{'Subroutines'}{$sub}{'FreeForm'}=$free_form;                  

@@ -49,7 +49,7 @@ $stref->{'KernelWrappers'}{$kernelwrapper}={
 
 # For some reason this is called twice??!
 sub outer_loop_start_detect {
-croak 'NOT UP TO DATE!';
+croak 'NOT UP TO DATE!' if $DBG;
     ( my $kernelwrapper, my $stref ) = @_;
     say "calling loop_detect($kernelwrapper)\n" if $V;
     my $f = $stref->{'KernelWrappers'}{$kernelwrapper}{'BeginKernelWrapper'}[0];
@@ -113,7 +113,7 @@ sub _loop_detect_rec {
             my $call_index = _find_call_index( $caller, $subname, $stref );
             $stref =
               _loop_detect_rec( $caller, $stref, $call_index, $kernelwrapper );
-            die "_loop_detect_rec(): WHY HERE?";
+            croak "_loop_detect_rec(): WHY HERE?" if $DBG;
             return $stref;
         }
     }
@@ -129,7 +129,7 @@ sub _find_call_index {
     } else {
         croak(
 "TROUBLE in find_call_index(): $subname was NOT called from $caller!"
-        );
+        ) if $DBG;
     }
 }    # END of _find_call_index()
 

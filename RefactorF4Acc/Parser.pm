@@ -73,7 +73,6 @@ sub parse_fortran_src {
 ## 1. Read the source and do some minimal processsing, unless it's already been done (i.e. for extracted blocks)
 	print "parse_fortran_src(): CALL read_fortran_src( $f )\n" if $V;
 	$stref = read_fortran_src( $f, $stref, $is_source_file_path );    #
-	 croak  "AFTER read_fortran_src " .  Dumper(keys %{$stref->{'SourceContains'}}) if exists $stref->{'SourceContains'}{'error_codes.h'};
 	say "DONE read_fortran_src( $f )" if $V;	
 	my $sub_or_incl_or_mod = sub_func_incl_mod( $f, $stref ); # Maybe call this "code_unit()"	
 	my $is_incl = $sub_or_incl_or_mod eq 'IncludeFiles' ? 1 : 0;
@@ -699,7 +698,7 @@ SUBROUTINE
 								$decl->{'ArrayOrScalar'} eq 'Array' and 
 								$parsedvars->{$var}{'ArrayOrScalar'} eq 'Array'							
 							) {
-								croak "This should be an error: dimension of $var speficied both in VarDecl and Common";
+								die "ERROR: dimension of $var speficied both in declaration and COMMON\n";
 							}
 							
 							$Sf->{'DeclaredCommonVars'}{'Set'}{$var} = dclone($decl);
@@ -724,7 +723,7 @@ SUBROUTINE
 								$decl->{'ArrayOrScalar'} eq 'Array' and 
 								$parsedvars->{$var}{'ArrayOrScalar'} eq 'Array'							
 							) {
-								croak "This should be an error: dimension of $var speficied both in VarDecl and Common";
+								die "ERROR: dimension of $var speficied both in declaration and COMMON\n";
 							}
 							$decl=__get_params_from_dim($decl,$Sf);
 							$Sf->{'DeclaredCommonVars'}{'Set'}{$var} = exists $Sf->{'Program'} ? $decl : dclone($decl);
@@ -1054,7 +1053,7 @@ or $line=~/^character\s*\(\s*len\s*=\s*[\w\*]+\s*\)/
 						} elsif ( $mchunk =~ /^\w+$/ ) {
 							push @mchunks, $mchunk;
 						} else {
-							croak "Unknown pattern $mchunk in Do Range";
+							die "ERROR: Unknown pattern $mchunk in DO range\n";
 						}
 						for my $mvar (@mchunks) {
 							next if exists $Config{'Macros'}{uc($mvar)}; # skip macros
@@ -1459,7 +1458,7 @@ END IF
 		$Sf->{'AnnLines'}=$srcref;
 		
 	} else {
-		croak "WARNING: NO source file found for $f ($sub_incl_or_mod). If this file is in an external directory, please speficy the directory in EXTSRCDIRS in the config file\n" ;
+		die "ERROR: NO source file found for $f ($sub_incl_or_mod). If this file is in an external directory, please speficy the directory in EXTSRCDIRS in the config file\n" ;
 		if ($Sf->{'Entry'} ==0) {
 		# TODO: if we can't find the source, we should search the include path, but not attempt to create a module for that source!			
 		}
@@ -1555,10 +1554,12 @@ sub _parse_use {
 					if ( $Sf->{'Translate'} eq 'C' ) {
 						$stref = add_to_C_build_sources( $name, $stref );
 					} else {
+						if ($DBG) {
 						croak '!$acc translate (' 
 						  . $f . ') '
 						  . $Sf->{'Translate'}
 						  . ": Only C translation through F2C_ACC is currently supported.\n";
+						  }
 					}
 				}
 				$last_inc_idx = $index;
@@ -1914,7 +1915,7 @@ sub _parse_subroutine_and_function_calls {
 							$Sf->{'CalledSubs'}{'Set'}{$chunk} = 1;
 							push @{ $Sf->{'CalledSubs'}{'List'} }, $chunk;
 							print "FOUND FUNCTION CALL $chunk in $f\n" if $V;
-							if ( $chunk eq $f ) {
+							if ( $DBG and $chunk eq $f ) {
 								show($srcref);
 								croak $line;
 							}
@@ -2202,7 +2203,7 @@ sub f77_var_decl_parser {
 			elsif ( $c eq ')' ) { $nest_count--; }
 		} elsif ( $st == $store_var ) {
 			print "VAR:[$var]\n" if $T;
-			if ( $var eq '' ) { croak $varlst }
+			if ($DBG and $var eq '' ) { croak $varlst }
 			push @{$vars_lst}, $var;
 			$vars->{$var}{'ArrayOrScalar'} = 'Scalar';
 			$vars->{$var}{'Dim'}           = [];
@@ -2491,7 +2492,7 @@ sub __parse_sub_func_prog_decls {
 			};				
 		
 	} else { 
-		croak 'UNRECOGNISED SUBROUTINE DECLARATION: '.$line;
+		die 'ERROR: Unrecognised subroutine declaration: '.$line."\n";
 	}
 #	croak Dumper $info if $name eq 'gzwrit';
     $Sf->{'Signature'}=$info->{'Signature'};
@@ -2649,7 +2650,7 @@ sub __parse_f95_decl {
 #                	say "SUB $f VAR $tvar HALOS: ".Dumper($halos);
                     $decl->{'Halos'} = $halos;
                     if( scalar( @{$decl->{'Dim'} } ) != scalar(@{$halos}) ) {
-                        croak("$line: ERROR: The halo attribute must have the same dimension as the array.");
+                        die("ERROR: The halo attribute must have the same dimension as the array\n".$line."\n");
                     }
                 }
 				if ( $type =~ /character/ ) {
@@ -2863,7 +2864,7 @@ sub __parse_f77_par_decl {
 					$typed=1;
 				}				
 				$inherited_params->{'Set'}{$mpar}=$mpar_rec;
-				croak if ref($mpar_rec) ne 'HASH';
+				croak if $DBG and ref($mpar_rec) ne 'HASH';
 			}
 			
 			# the pars could be integers, see if the consts in the val_ast might be reals or PlaceHolder
@@ -2929,7 +2930,6 @@ sub __parse_f77_par_decl {
 # TODO: F95 decls should not be parsed by a routine named __parse_f77_var_decl !!! 
 sub __parse_f77_var_decl {
 	( my $Sf, my $stref, my $f,my $indent,  my $line, my $info, my $type, my $varlst ) = @_;
-		croak $line if $f eq 'spec_bis_conn' and  $line=~/ev\(mm\*mm/; 
     my $is_module = (exists $stref->{'Modules'}{$f}) ? 1 : 0;
     # Half-baked F95/F77 declarations are threated as F77, so remove the :: here
     my $half_baked = ($line=~s/\:://);
@@ -2958,7 +2958,7 @@ sub __parse_f77_var_decl {
 	my $annotation='';
 	for my $tvar ( @{$pvars_lst} ) {
 		
-		if ( $tvar eq '' ) { croak "<$line> in $f" }
+		if ($DBG and $tvar eq '' ) { croak "<$line> in $f" }
 #		my $tvar = $var;
 		if ( ref($tvar) eq 'ARRAY' ) { die __LINE__ . ':' . Dumper($tvar); }
 		my $common_block_name='';
@@ -3052,7 +3052,7 @@ sub __parse_f77_var_decl {
 		if (exists $pvars->{$tvar}{'InheritedParams'}) {
 			for my $mpar (keys %{ $pvars->{$tvar}{'InheritedParams'}{'Set'} }) {
 				$decl->{'InheritedParams'}{'Set'}{$mpar}=$pvars->{$tvar}{'InheritedParams'}{'Set'}{$mpar};
-				croak if ref($pvars->{$tvar}{'InheritedParams'}{'Set'}{$mpar}) ne 'HASH';
+				croak if $DBG and ref($pvars->{$tvar}{'InheritedParams'}{'Set'}{$mpar}) ne 'HASH';
 			}
 		}
 				
@@ -3664,7 +3664,7 @@ sub _parse_read_write_print {
         } 
 	} else {
 		# I dont do TOPEN/TCLOSE/ENCODE/DECODE/TYPE 
-		croak 'Unsupported IO call, probably not part of the FORTRAN 77 standard: '.$tline;
+		die 'ERROR: Unsupported IO call, probably not part of the FORTRAN 77 standard: '.$tline."\n";
 	}    
 
     #Add labels to ReferencedLabels, WHY?
@@ -3779,7 +3779,7 @@ sub _parse_assignment {
 			'ExpressionAST' => $lhs_ast
 		};
 	} else {
-		croak 'SHOULD NOT HAPPEN: '.Dumper($lhs_ast);
+		croak 'SHOULD NOT HAPPEN: '.Dumper($lhs_ast) if $DBG;
 		$info->{'Lhs'} = {
 			'ArrayOrScalar' => 'Other',
 			'ExpressionAST' => $lhs_ast
@@ -4081,7 +4081,9 @@ sub  _get_var_from_ast { (my  $ast ) = @_;
 		} elsif (($ast->[1][0] & 0xFF) == 10) { # @
 			$var= $ast->[1][1];
 		} else {
-			croak Dumper($ast);
+			if($DBG){
+				croak Dumper($ast);
+			}
 		}
 	  
 	} else {
@@ -4093,7 +4095,9 @@ sub  _get_var_from_ast { (my  $ast ) = @_;
         	warn "Variable $var is masking an intrinsic!";
             $var= $ast->[1];			
 		} else {
+			if($DBG){
 			croak( ($ast->[0] & 0xFF).': '.Dumper($ast) ); 
+			}
 		}
 	}
 	return $var;
@@ -4112,7 +4116,7 @@ sub  _get_var_from_ast_OLD { (my  $ast ) = @_;
 		} elsif ($ast->[1][0] eq '@') {
 			$var= $ast->[1][1];
 		} else {
-			croak Dumper($ast);
+			croak Dumper($ast) if $DBG;
 		}
 	  
 	} else {
@@ -4121,7 +4125,7 @@ sub  _get_var_from_ast_OLD { (my  $ast ) = @_;
 		} elsif ($ast->[0] eq '@') {
 			$var= $ast->[1];
 		} else {
-			croak Dumper($ast);
+			croak Dumper($ast) if $DBG;
 		}
 	}
 	return $var;
@@ -4495,7 +4499,7 @@ sub __get_params_from_dim { my ($decl, $Sf)=@_;
 						my $pdecl = get_var_record_from_set($Sf->{$subset},$mpar);
 						
 						$decl->{'InheritedParams'}{'Set'}{$mpar}=$pdecl;
-						croak if ref($pdecl) ne 'HASH';
+						croak  if $DBG and ref($pdecl) ne 'HASH';
 					}				
 				}
 			}
