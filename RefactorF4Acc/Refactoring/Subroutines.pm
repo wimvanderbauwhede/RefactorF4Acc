@@ -560,8 +560,8 @@ sub _create_extra_arg_and_var_decls {
 			my $rdecl = $Sf->{'ExGlobArgs'}{'Set'}{$var};
 			# croak Dumper($rdecl) if $var eq 'nx' and $f eq 'dyn';
 			(my $inherited_param_decls, $Sf) = __generate_inherited_param_decls($rdecl, $var, $stref, $f,[]);
-			# say "VAR $var in $f";
-			# map { say $_->[0] } @{$inherited_param_decls};
+            #carp "VAR $var in $f";
+			 map { say 'INHERITED DECL:'. $_->[0] } @{$inherited_param_decls};
 			my $rline = emit_f95_var_decl($rdecl);
 			# carp $rline if $var eq 'w4' and $f eq 'mult_chk';
 			my $info  = {};
@@ -2098,7 +2098,7 @@ sub _move_StatementFunctions_after_SpecificationStatements { my ( $stref, $f, $a
 }
 
 sub __generate_inherited_param_decls { my ($rdecl, $var, $stref, $f, $inherited_param_decls) = @_;	
-my $Sf         = $stref->{'Subroutines'}{$f};
+    my $Sf         = $stref->{'Subroutines'}{$f};
 	if (exists $rdecl->{'InheritedParams'}) {
 		for my $inh_par (sort keys %{ $rdecl->{'InheritedParams'}{'Set'} }) {
 			# say $inh_par;
@@ -2112,9 +2112,10 @@ my $Sf         = $stref->{'Subroutines'}{$f};
 					}
 
 				if (not $in_mod and not $subset and not exists $Sf->{'InheritedParameters'}{'Set'}{$inh_par}) {
-					carp "PAR $inh_par, INHERITED by $var, NOT in any subset in $f ";
-					croak Dumper(pp_annlines($Sf->{'AnnLines'}));
-					croak Dumper($Sf);
+                    #carp "PAR $inh_par, INHERITED by $var, NOT in any subset in $f ";
+                    #carp Dumper( $rdecl->{'InheritedParams'});
+                    #croak Dumper(pp_annlines($Sf->{'AnnLines'}));
+                    #croak Dumper($Sf);
 					my $par_decl = $rdecl->{'InheritedParams'}{'Set'}{$inh_par};
 					my $par_decl_line = [ '      ' . emit_f95_var_decl($par_decl), { 'ParamDecl' => $par_decl, 'Ref' => 1, 
 					'Ann' => [annotate($f, __LINE__ . " : __generate_inherited_param_decls")]
@@ -2123,7 +2124,7 @@ my $Sf         = $stref->{'Subroutines'}{$f};
 					 
 					$Sf->{'LocalParameters'}{'Set'}{$inh_par}=$par_decl;
 					if (exists $par_decl->{'InheritedParams'} and scalar keys %{$par_decl->{'InheritedParams'}{'Set'}}> 0) {
-						($inherited_param_decls, $Sf) =__generate_inherited_param_decls($par_decl, $stref, $f, $inherited_param_decls);		
+						($inherited_param_decls, $Sf) =__generate_inherited_param_decls($par_decl, $inh_par, $stref, $f, $inherited_param_decls);		
 					}
 				}
 				#  else {

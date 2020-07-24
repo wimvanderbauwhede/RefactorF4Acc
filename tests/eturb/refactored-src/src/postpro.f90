@@ -1,11 +1,71 @@
 module singleton_module_src_postpro
 
-      use singleton_module_src_math
       use singleton_module_src_navier5
       use singleton_module_src_comm_mpi
+      use singleton_module_src_math
 contains
 
-      subroutine comp_gije(gije,u,v,w,e)
+      subroutine comp_gije(gije,u,v,w,e,ab,abmsh,abx1,abx2,aby1,aby2,abz1,abz2,area,atol,avdiff, &
+      avtran,b1ia1,b1ia1t,b1mask,b2mask,b2p,b3mask,baxm1,bbx1,bbx2,bby1,bby2,bbz1,bbz2,bc,bcf, &
+      bctyps,bd,bdivw,bfx,bfxp,bfy,bfyp,bfz,bfzp,bintm1,binvdg,binvm1,bm1,bm1lag,bm2,bm2inv,bmass, &
+      bmnv,bmx,bmy,bmz,bpmask,bq,bqp,bx,bxlag,by,bylag,bz,bzlag,c_vx,cbc,ccurve,cdof,cerror,cflf, &
+      courno,cpfld,cpgrp,cr_h,cr_re2,csize,ctarg,curve,d1,d1t,d2,da,dam1,dam12,dam3,dat,datm1, &
+      datm12,datm3,dcm1,dcm12,dcm3,dcount,dct,dctm1,dctm12,dctm3,dg_face,dg_hndlx,dglg,dglgt,dlam, &
+      dmpfle,dp0thdt,drivc,dt,dtinit,dtinvm,dtlag,dvdfh1,dvdfl2,dvdfl8,dvdfsm,dvnnh1,dvnnl2, &
+      dvnnl8,dvnnsm,dvprh1,dvprl2,dvprl8,dvprsm,dxm1,dxm12,dxm3,dxtm1,dxtm12,dxtm3,dym1,dym12, &
+      dym3,dytm1,dytm12,dytm3,dzm1,dzm12,dzm3,dztm1,dztm12,dztm3,eface,eface1,eigaa,eigae,eigas, &
+      eigast,eigga,eigge,eiggs,eiggst,eskip,etalph,etimes,etims0,ev1,ev2,ev3,exx1p,exx2p,exy1p, &
+      exy2p,exz1p,exz2p,fh_re2,filtertype,fintim,fldfle,fw,g1m1,g2m1,g3m1,g4m1,g5m1,g6m1,gamma0, &
+      gcnnum,gednum,gedtyp,gllel,gllnid,group,gsh,gsh_fld,hcode,hisfle,iajl1,iajl2,ialj1,ialj3, &
+      iam12,iam13,iam21,iam31,iatjl1,iatjl2,iatlj1,iatlj3,iatm12,iatm13,iatm21,iatm31,ibcsts, &
+      icall,icedg,icface,icm12,icm13,icm21,icm31,ictm12,ictm13,ictm21,ictm31,idpss,idsess,ieact, &
+      iedge,iedgef,iedgfc,iesolv,if3d,if_full_pres,ifaa,ifadvc,ifae,ifalgn,ifanl2,ifanls,ifas, &
+      ifast,ifaxis,ifaziv,ifbase,ifbcor,ifbo,ifchar,ifcons,ifcoup,ifcvfld,ifcvode,ifcyclic,ifdeal, &
+      ifdg,ifdgfld,ifdiff,ifdp0dt,ifeppm,ifessr,ifexplvis,ifextr,ifexvt,ifflow,iffmtin,ifga,ifge, &
+      ifgeom,ifgmsh3,ifgprnt,ifgs,ifgsh_fld_same,ifgst,ifheat,ifield,ifintq,ifkeps,ifldmhd,iflmsc, &
+      iflmse,iflmsf,iflomach,ifmelt,ifmgrid,ifmhd,ifmoab,ifmodel,ifmodp,ifmpiio,ifmscr,ifmseg, &
+      ifmsfc,ifmvbd,ifneknek,ifneknekm,ifnonl,ifnskp,ifoutfld,ifpert,ifpo,ifprnt,ifprojfld,ifpsco, &
+      ifpso,ifqinp,ifreguo,ifrich,ifrsxy,ifrzer,ifschclob,ifskip,ifsplit,ifssvt,ifstrs,ifstst, &
+      ifsurt,ifsync,iftgo,iftmsh,ifto,iftran,ifusermv,ifuservp,ifvarp,ifvcor,ifvcoup,ifvo,ifvps, &
+      ifwcno,ifxyo,ifxyo_,iggl,igglt,igroup,im1d,im1dt,imatie,imd1,imd1t,imesh,indx,initc,instep, &
+      invedg,iocomm,ioinfodmp,iostep,ipscal,ipsco,irstim,irstt,irstv,isize,istep,ixcn,ixm12,ixm13, &
+      ixm21,ixm31,ixtm12,ixtm13,ixtm21,ixtm31,iym12,iym13,iym21,iym31,iytm12,iytm13,iytm21,iytm31, &
+      izm12,izm13,izm21,izm31,iztm12,iztm13,iztm21,iztm31,jacm1,jacm2,jacmi,jp,lastep,lcnnum, &
+      ldimr,lednum,lglel,lochis,loglevel,lsize,lyap,matids,matindx,matype,maxmlt,mpi_argv_null, &
+      mpi_argvs_null,mpi_bottom,mpi_errcodes_ignore,mpi_in_place,mpi_status_ignore, &
+      mpi_statuses_ignore,mpi_unweighted,mpi_weights_empty,nab,nabmsh,nadvc,naxhm,nbbbb,nbd, &
+      nbdinp,nbso2,nbsol,ncall,ncccc,ncdtp,ncmp,nconv,nconv_max,ncopy,ncrsl,ncvf,ndadd,ndddd, &
+      nddsl,ndg_facex,ndim,ndott,ndsmn,ndsmx,ndsnd,ndsum,neact,nedg,neeee,nekcomm,nekgroup, &
+      nekreal,nelfld,nelg,nelgt,nelgv,nelt,nelv,neslv,nfield,ngcomm,ngeom,ngop,ngop1,ngop_sync, &
+      ngp2,ngsmn,ngsmx,ngspcn,ngsped,ngsum,nhis,nhmhz,nid,ninter,ninv3,ninvc,nio,nktonv,nmember, &
+      nmlinv,nmltd,nmxe,nmxh,nmxmf,nmxms,nmxnl,nmxp,nobj,node,node0,noffst,nomlis,np,npert,nprep, &
+      npres,npscal,nrefle,nrout,nsett,nslvb,nsolv,nspmax,nspro,nsskip,nsteps,nsyc,ntaubd,nu_star, &
+      nullpid,numbcs,numflu,numoth,numscn,numsed,nusbc,nvdss,nvtot,nwal,nx1,nx2,nx3,nxd,ny1,ny2, &
+      ny3,nyd,nz1,nz2,nz3,nzd,object,ocode,omask,optlevel,orefle,p0th,param,parfle,path,paxhm, &
+      pbbbb,pbso2,pbsol,pcccc,pcdtp,pcopy,pcrsl,pdadd,pdddd,pddsl,pdott,pdsmn,pdsmx,pdsnd,pdsum, &
+      peeee,peslv,pgop,pgop1,pgop_sync,pgp2,pgsmn,pgsmx,pgsum,phmhz,pi,pid,pinv3,pinvc,pm,pmask, &
+      pmd1,pmd1t,pmlag,pmltd,pmxmf,pmxms,pprep,ppres,pr,prelax,prlag,prlagp,prp,psett,pslvb,psolv, &
+      pspro,psyc,pusbc,pvdss,pwal,qinteg,qtl,rct,re2fle,re2off_b,reafle,restol,rname,rstim,rstt, &
+      rstv,rx,rxm1,rxm2,rym1,rym2,rzm1,rzm2,schfle,session,skpdat,solver_type,sxm1,sxm2,sym1,sym2, &
+      szm1,szm2,t,t1x,t1y,t1z,t2x,t2y,t2z,ta2s2,tadc3,tadd2,tadvc,tauss,taxhm,tbbbb,tbso2,tbsol, &
+      tcccc,tcdtp,tcol2,tcol3,tcopy,tcrsl,tcvf,tdadd,tdddd,tddsl,tdott,tdsmn,tdsmx,tdsnd,tdsum, &
+      teeee,teslv,textsw,tgop,tgop1,tgop_sync,tgp2,tgsmn,tgsmx,tgsum,thmhz,time,timef,timeio, &
+      tinit,tinv3,tinvc,tlag,tlagp,tmask,tmean,tmltd,tmult,tmxmf,tmxms,tnrmh1,tnrml2,tnrml8, &
+      tnrmsm,tolabs,tolev,tolhdf,tolhe,tolhr,tolhs,tolht,tolhv,tolnl,tolpdf,tolps,tolrel,tp,tprep, &
+      tpres,tproj,tschw,tsett,tslvb,tsolv,tspro,tsyc,ttime,ttotal,tttstp,tusbc,tusfq,tvdss,twal, &
+      txm1,txm2,txnext,tym1,tym2,tzm1,tzm2,unr,uns,unt,unx,uny,unz,uparam,usrdiv,v1mask,v1x,v1y, &
+      v1z,v2mask,v2x,v2y,v2z,v3mask,vdiff,vdiff_e,vgradt1,vgradt1p,vgradt2,vgradt2p,vmean,vmult, &
+      vnekton,vnrmh1,vnrml2,vnrml8,vnrmsm,vnx,vny,vnz,volel,volfld,voltm1,voltm2,volvm1,volvm2, &
+      vtrans,vx,vx_e,vxd,vxlag,vxlagp,vxp,vy,vy_e,vyd,vylag,vylagp,vyp,vz,vz_e,vzd,vzlag,vzlagp, &
+      vzp,w1mask,w2am1,w2am2,w2am3,w2cm1,w2cm2,w2cm3,w2mask,w3m1,w3m2,w3m3,w3mask,wam1,wam2,wam3, &
+      wdsize,wdsizi,wgl,wgl1,wgl2,wglg,wglgt,wgli,wgp,wmult,wx,wxlag,wxm1,wxm2,wxm3,wy,wylag,wym1, &
+      wym2,wym3,wz,wzlag,wzm1,wzm2,wzm3,xc,xm1,xm2,xxth,yc,yinvm1,ym1,ym2,zam1,zam2,zam3,zc,zgl, &
+      zgm1,zgm2,zgm3,zgp,zm1,zm2)
+! 
+!                                          du_i
+!      Compute the gradient tensor G_ij := ----  ,  for element e
+!                                          du_j
+! 
       implicit none
       integer, parameter :: ldim=3
       integer, parameter :: lx1=8
@@ -34,7 +94,240 @@ contains
       integer, parameter :: lbelt=1
       integer, parameter :: lpelt=1
       integer, parameter :: lcvelt=lelt
+      integer, parameter :: lelv=lelt
+      integer, parameter :: ly1=lx1
+      integer, parameter :: lz1=1+(ldim-2)*(lx1-1)
+      integer, parameter :: lyd=lxd
+      integer, parameter :: lzd=1+(ldim-2)*(lxd-1)
+      integer, parameter :: ly2=lx2
+      integer, parameter :: lz2=1+(ldim-2)*(lx2-1)
+      integer, parameter :: ly1m=lx1m
+      integer, parameter :: lz1m=1+(ldim-2)*(lx1m-1)
+      integer, parameter :: lp=lpmax
+      integer, parameter :: ax1=lx1
+      integer, parameter :: ay1=ax1
+      integer, parameter :: az1=1+(ldim-2)*(ax1-1)
+      integer, parameter :: ax2=lx2
+      integer, parameter :: ay2=ax2
+      integer, parameter :: az2=1+(ldim-2)*(ax2-1)
+      integer, parameter :: lpelv=lpelt
+      integer, parameter :: lpx1=lx1
+      integer, parameter :: lpy1=lpx1
+      integer, parameter :: lpz1=1+(ldim-2)*(lpx1-1)
+      integer, parameter :: lpx2=lx2
+      integer, parameter :: lpy2=lpx2
+      integer, parameter :: lpz2=1+(ldim-2)*(lpx2-1)
+      integer, parameter :: lbelv=lbelt
+      integer, parameter :: lbx1=lx1
+      integer, parameter :: lby1=lbx1
+      integer, parameter :: lbz1=1+(ldim-2)*(lbx1-1)
+      integer, parameter :: lbx2=lx2
+      integer, parameter :: lby2=lbx2
+      integer, parameter :: lbz2=1+(ldim-2)*(lbx2-1)
+      integer, parameter :: lxz=lx1*lz1
+      integer, parameter :: lzl=3+2*(ldim-3)
+      integer, parameter :: ldimt1=ldimt+1
+      integer, parameter :: ldimt3=ldimt+3
+      integer, parameter :: lx3=lx1
+      integer, parameter :: ly3=ly1
+      integer, parameter :: lz3=lz1
+      integer, parameter :: lctmp0=2*lx1*ly1*lz1*lelt
+      integer, parameter :: lctmp1=4*lx1*ly1*lz1*lelt
+      integer, parameter :: maxmor=lelt
+      integer, parameter :: lxs=1
+      integer, parameter :: lys=lxs
+      integer, parameter :: lzs=(lxs-1)*(ldim-2)+1
+      integer, parameter :: maxmbr=lelt*6
+      integer, parameter :: lcvx1=lx1
+      integer, parameter :: lcvy1=lcvx1
+      integer, parameter :: lcvz1=1+(ldim-2)*(lcvx1-1)
+      integer, parameter :: nmaxl_nn=min(1+(nsessmax-1)*2*ldim*lxz*lelt,2*ldim*lxz*lelt)
+      integer, parameter :: nfldmax_nn=min(1+(nsessmax-1)*(ldim+1+ldimt),ldim+1+ldimt)
+! 
+!      Include file to dimension static arrays
+!      and to set some hardwired run-time parameters
+! 
+      ! basic
+      ! optional
+      ! internals
+!  - - SIZE internals
+      ! averaging
+      ! adjoint
+      ! mhd
+      real(kind=8), intent(InOut) :: dcount
+      real, dimension(1:lx1*ly1*lz1) :: v_local_grad2
+      real, dimension(0:n,0:n,0:n,1:1) :: v_local_grad3
+      real, dimension(0:n,0:n,0:n,1:1) :: w_local_grad3
+            integer, parameter :: maxrts=1000
+      real(kind=8), dimension(1:maxrts), intent(InOut) :: dct
+      real(kind=8), intent(In) :: etimes
+      real(kind=8) :: etims0
+      integer, intent(In) :: icall
+      logical :: ifsync
+      character, dimension(1:1) :: mpi_argv_null
+      character, dimension(1:1,1:1) :: mpi_argvs_null
+      integer :: mpi_bottom
+      integer, dimension(1:1) :: mpi_errcodes_ignore
+      integer :: mpi_in_place
+            integer, parameter :: mpi_status_size=6
+      integer, dimension(1:mpi_status_size) :: mpi_status_ignore
+      integer, dimension(1:mpi_status_size,1:1) :: mpi_statuses_ignore
+      integer, dimension(1:1) :: mpi_unweighted
+      integer, dimension(1:1) :: mpi_weights_empty
+      integer :: nadvc
+      integer :: naxhm
+      integer :: nbbbb
+      integer :: nbso2
+      integer :: nbsol
+      integer, dimension(1:maxrts), intent(InOut) :: ncall
+      integer :: ncccc
+      integer :: ncdtp
+      integer :: ncopy
+      integer :: ncrsl
+      integer :: ncvf
+      integer :: ndadd
+      integer :: ndddd
+      integer :: nddsl
+      integer :: ndott
+      integer :: ndsmn
+      integer :: ndsmx
+      integer :: ndsnd
+      integer :: ndsum
+      integer :: neeee
+      integer :: nekcomm
+      integer :: nekgroup
+      integer :: nekreal
+      integer :: neslv
+      integer :: ngop
+      integer :: ngop1
+      integer :: ngop_sync
+      integer :: ngp2
+      integer :: ngsmn
+      integer :: ngsmx
+      integer :: ngsum
+      integer :: nhmhz
+      integer :: ninv3
+      integer :: ninvc
+      integer :: nmltd
+      integer :: nmxmf
+      integer :: nmxms
+      integer :: nprep
+      integer :: npres
+      integer, intent(InOut) :: nrout
+      integer :: nsett
+      integer :: nslvb
+      integer :: nsolv
+      integer :: nspro
+      integer :: nsyc
+      integer :: nusbc
+      integer :: nvdss
+      integer :: nwal
+      real(kind=8) :: paxhm
+      real(kind=8) :: pbbbb
+      real(kind=8) :: pbso2
+      real(kind=8) :: pbsol
+      real(kind=8) :: pcccc
+      real(kind=8) :: pcdtp
+      real(kind=8) :: pcopy
+      real(kind=8) :: pcrsl
+      real(kind=8) :: pdadd
+      real(kind=8) :: pdddd
+      real(kind=8) :: pddsl
+      real(kind=8) :: pdott
+      real(kind=8) :: pdsmn
+      real(kind=8) :: pdsmx
+      real(kind=8) :: pdsnd
+      real(kind=8) :: pdsum
+      real(kind=8) :: peeee
+      real(kind=8) :: peslv
+      real(kind=8) :: pgop
+      real(kind=8) :: pgop1
+      real(kind=8) :: pgop_sync
+      real(kind=8) :: pgp2
+      real(kind=8) :: pgsmn
+      real(kind=8) :: pgsmx
+      real(kind=8) :: pgsum
+      real(kind=8) :: phmhz
+      real(kind=8) :: pinv3
+      real(kind=8) :: pinvc
+      real(kind=8) :: pmltd
+      real(kind=8) :: pmxmf
+      real(kind=8) :: pmxms
+      real(kind=8) :: pprep
+      real(kind=8) :: ppres
+      real(kind=8) :: psett
+      real(kind=8) :: pslvb
+      real(kind=8) :: psolv
+      real(kind=8) :: pspro
+      real(kind=8) :: psyc
+      real(kind=8) :: pusbc
+      real(kind=8) :: pvdss
+      real(kind=8) :: pwal
+      real(kind=8), dimension(1:maxrts) :: rct
+      character(len=6), dimension(1:maxrts), intent(Out) :: rname
+      real(kind=8) :: ta2s2
+      real(kind=8) :: tadc3
+      real(kind=8) :: tadd2
+      real(kind=8) :: tadvc
+      real(kind=8) :: taxhm
+      real(kind=8) :: tbbbb
+      real(kind=8) :: tbso2
+      real(kind=8) :: tbsol
+      real(kind=8) :: tcccc
+      real(kind=8) :: tcdtp
+      real(kind=8) :: tcol2
+      real(kind=8) :: tcol3
+      real(kind=8) :: tcopy
+      real(kind=8) :: tcrsl
+      real(kind=8) :: tcvf
+      real(kind=8) :: tdadd
+      real(kind=8) :: tdddd
+      real(kind=8) :: tddsl
+      real(kind=8) :: tdott
+      real(kind=8) :: tdsmn
+      real(kind=8) :: tdsmx
+      real(kind=8) :: tdsnd
+      real(kind=8) :: tdsum
+      real(kind=8) :: teeee
+      real(kind=8) :: teslv
+      real(kind=8) :: tgop
+      real(kind=8) :: tgop1
+      real(kind=8) :: tgop_sync
+      real(kind=8) :: tgp2
+      real(kind=8) :: tgsmn
+      real(kind=8) :: tgsmx
+      real(kind=8) :: tgsum
+      real(kind=8) :: thmhz
+      real(kind=8) :: tinit
+      real(kind=8) :: tinv3
+      real(kind=8) :: tinvc
+      real(kind=8) :: tmltd
+      real(kind=8), intent(Out) :: tmxmf
+      real(kind=8) :: tmxms
+      real(kind=8), intent(In) :: tprep
+      real(kind=8) :: tpres
+      real(kind=8) :: tproj
+      real(kind=8) :: tschw
+      real(kind=8) :: tsett
+      real(kind=8) :: tslvb
+      real(kind=8) :: tsolv
+      real(kind=8) :: tspro
+      real(kind=8) :: tsyc
+      real(kind=8), intent(In) :: ttime
+      real(kind=8), intent(InOut) :: ttotal
+      real(kind=8) :: tttstp
+      real(kind=8) :: tusbc
+      real(kind=8) :: tusfq
+      real(kind=8) :: tvdss
+      real(kind=8) :: twal
+      integer :: n
+      integer :: nxyz
+      integer :: k
+      integer :: i
+      real :: dj
       integer :: nio
+      ! cvode
+      ! nek-nek
       integer :: loglevel
       integer :: optlevel
       integer :: nelv
@@ -57,14 +350,16 @@ contains
       integer :: nzd
       integer :: ndim
       integer :: ldimr
-      integer, parameter :: numsts=50
       integer, parameter :: lvt1=lx1*ly1*lz1*lelv
       integer, parameter :: lvt2=lx2*ly2*lz2*lelv
       integer, parameter :: lbt1=lbx1*lby1*lbz1*lbelv
       integer, parameter :: lbt2=lbx2*lby2*lbz2*lbelv
       integer, parameter :: lorder2=max(1,lorder-2)
       integer, parameter :: lxq=lx2
-      real, dimension(1:lx1,1:lx1), intent(In) :: dxm1
+! 
+!      Elemental derivative operators
+! 
+      real, dimension(1:lx1,1:lx1), intent(InOut) :: dxm1
       real, dimension(1:lx2,1:lx1) :: dxm12
       real, dimension(1:ly1,1:ly1) :: dym1
       real, dimension(1:ly2,1:ly1) :: dym12
@@ -94,6 +389,9 @@ contains
       real, dimension(1:ly1,1:ly2) :: datm12
       real, dimension(1:ly3,1:ly3) :: dam3
       real, dimension(1:ly3,1:ly3) :: datm3
+! 
+!     Dealiasing variables
+! 
       real, dimension(1:lxd,1:lyd,1:lzd,1:lelv) :: vxd
       real, dimension(1:lxd,1:lyd,1:lzd,1:lelv) :: vyd
       real, dimension(1:lxd,1:lyd,1:lzd,1:lelv) :: vzd
@@ -103,6 +401,9 @@ contains
       real, dimension(1:lx1,1:lxd) :: im1dt
       real, dimension(1:lx1,1:lxd) :: pmd1
       real, dimension(1:lxd,1:lx1) :: pmd1t
+! 
+!      Eigenvalues
+! 
       real :: eigas
       real :: eigaa
       real :: eigast
@@ -119,6 +420,9 @@ contains
       logical :: ifge
       logical :: ifgs
       logical :: ifgst
+! 
+!      Geometry arrays
+! 
       real, dimension(1:lx1,1:ly1,1:lz1,1:lelt) :: xm1
       real, dimension(1:lx1,1:ly1,1:lz1,1:lelt) :: ym1
       real, dimension(1:lx1,1:ly1,1:lz1,1:lelt) :: zm1
@@ -194,6 +498,19 @@ contains
       logical, dimension(1:8,1:lelt,0:1) :: ifmscr
       logical, dimension(1:8,1:lelt) :: ifnskp
       logical :: ifbcor
+! 
+!      Input parameters from preprocessors.
+! 
+!      Note that in parallel implementations, we distinguish between
+!      distributed data (LELT) and uniformly distributed data.
+! 
+!      Input common block structure:
+! 
+!      INPUT1:  REAL            INPUT5: REAL      with LELT entries
+!      INPUT2:  INTEGER         INPUT6: INTEGER   with LELT entries
+!      INPUT3:  LOGICAL         INPUT7: LOGICAL   with LELT entries
+!      INPUT4:  CHARACTER       INPUT8: CHARACTER with LELT entries
+! 
       real, dimension(1:200) :: param
       real :: rstim
       real :: vnekton
@@ -300,6 +617,9 @@ contains
       integer :: cr_re2
       integer :: fh_re2
       integer(kind=8) :: re2off_b
+! 
+!  proportional to LELT
+! 
       real, dimension(1:8,1:lelt) :: xc
       real, dimension(1:8,1:lelt) :: yc
       real, dimension(1:8,1:lelt) :: zc
@@ -314,6 +634,9 @@ contains
       character(len=3) :: solver_type
       integer, dimension(1:lelt) :: ieact
       integer :: neact
+! 
+!  material set ids, BC set ids, materials (f=fluid, s=solid), bc types
+! 
       integer :: numflu
       integer :: numoth
       integer :: numbcs
@@ -323,6 +646,9 @@ contains
       integer, dimension(1:numsts) :: ibcsts
       integer, dimension(1:numsts) :: bcf
       character(len=3), dimension(1:numsts) :: bctyps
+! 
+!      Interpolation operators
+! 
       real, dimension(1:lx2,1:lx1) :: ixm12
       real, dimension(1:lx1,1:lx2) :: ixm21
       real, dimension(1:ly2,1:ly1) :: iym12
@@ -371,6 +697,9 @@ contains
       real, dimension(1:ly3,1:ly3) :: iatlj3
       real, dimension(1:ly1,1:ly1) :: ialj1
       real, dimension(1:ly1,1:ly1) :: iatlj1
+! 
+!      Mass matrix
+! 
       real, dimension(1:lx1,1:ly1,1:lz1,1:lelt) :: bm1
       real, dimension(1:lx2,1:ly2,1:lz2,1:lelv) :: bm2
       real, dimension(1:lx1,1:ly1,1:lz1,1:lelv) :: binvm1
@@ -384,6 +713,9 @@ contains
       real :: voltm2
       real, dimension(1:lx1,1:ly1,1:lz1,1:lelt) :: yinvm1
       real, dimension(1:lx1*ly1*lz1,1:lelt) :: binvdg
+! 
+!      Moving mesh variables
+! 
       real, dimension(1:lx1m,1:ly1m,1:lz1m,1:lelt) :: wx
       real, dimension(1:lx1m,1:ly1m,1:lz1m,1:lelt) :: wy
       real, dimension(1:lx1m,1:ly1m,1:lz1m,1:lelt) :: wz
@@ -397,11 +729,16 @@ contains
       real, dimension(1:lx1m,1:ly1m,1:lz1m,1:lelv) :: ev1
       real, dimension(1:lx1m,1:ly1m,1:lz1m,1:lelv) :: ev2
       real, dimension(1:lx1m,1:ly1m,1:lz1m,1:lelv) :: ev3
+! 
+!      Communication information
+!      NOTE: NID is stored in 'SIZE' for greater accessibility
       integer :: node
       integer :: pid
       integer, intent(In) :: np
       integer :: nullpid
       integer :: node0
+! 
+!      Maximum number of elements (limited to 2**31/12, at least for now)
       integer(kind=8), intent(In) :: nvtot
       integer, dimension(0:ldimt1) :: nelg
       integer, dimension(1:lelt) :: lglel
@@ -415,15 +752,25 @@ contains
       integer :: lsize
       integer :: csize
       integer :: wdsizi
+!      crystal-router, gather-scatter, and xxt handles (xxt=csr grid solve)
+! 
       integer :: cr_h
       integer :: gsh
       integer, dimension(0:ldimt3) :: gsh_fld
       integer, dimension(1:ldimt3) :: xxth
       logical :: ifgsh_fld_same
+!      These arrays need to be reconciled with cmt (pff, 11/03/15)
       integer, dimension(1:lx1*lz1*2*ldim*lelt) :: dg_face
       integer :: dg_hndlx
       integer :: ndg_facex
+! 
+!      Main storage of simulation variables
+! 
+! 
+!      Solution and data
+! 
       real, dimension(1:lx1,1:ly1,1:lz1,1:lelt,1:ldimt) :: bq
+!      Can be used for post-processing runs (SIZE .gt. 10+3*LDIMT flds)
       real, dimension(1:lx1,1:ly1,1:lz1,1:lelv,1:2) :: vxlag
       real, dimension(1:lx1,1:ly1,1:lz1,1:lelv,1:2) :: vylag
       real, dimension(1:lx1,1:ly1,1:lz1,1:lelv,1:2) :: vzlag
@@ -437,6 +784,7 @@ contains
       real, dimension(1:lx1,1:ly1,1:lz1,1:lelv) :: aby2
       real, dimension(1:lx1,1:ly1,1:lz1,1:lelv) :: abz2
       real, dimension(1:lx1,1:ly1,1:lz1,1:lelt) :: vdiff_e
+!      Solution data
       real, dimension(1:lx1,1:ly1,1:lz1,1:lelv) :: vx
       real, dimension(1:lx1,1:ly1,1:lz1,1:lelv) :: vy
       real, dimension(1:lx1,1:ly1,1:lz1,1:lelv) :: vz
@@ -455,6 +803,7 @@ contains
       real, dimension(1:lx1*ly1*lz1*lelv*ldim,1:lorder+1) :: bdivw
       real, dimension(1:lxd*lyd*lzd*lelv*ldim,1:lorder+1) :: c_vx
       real, dimension(1:2*ldim,1:lelt) :: fw
+!      Solution data for magnetic field
       real, dimension(1:lbx1,1:lby1,1:lbz1,1:lbelv) :: bx
       real, dimension(1:lbx1,1:lby1,1:lbz1,1:lbelv) :: by
       real, dimension(1:lbx1,1:lby1,1:lbz1,1:lbelv) :: bz
@@ -492,6 +841,9 @@ contains
       real, dimension(1:lbx1,1:lby1,1:lbz1,1:lbelv) :: b2mask
       real, dimension(1:lbx1,1:lby1,1:lbz1,1:lbelv) :: b3mask
       real, dimension(1:lbx1,1:lby1,1:lbz1,1:lbelv) :: bpmask
+! 
+! 
+!      Solution and data for perturbation fields
        real, dimension(1:lpx1*lpy1*lpz1*lpelv,1:lpert) :: vxp
        real, dimension(1:lpx1*lpy1*lpz1*lpelv,1:lpert) :: vyp
        real, dimension(1:lpx1*lpy1*lpz1*lpelv,1:lpert) :: vzp
@@ -515,6 +867,9 @@ contains
        real, dimension(1:lpx1*lpy1*lpz1*lpelt,1:ldimt,1:lpert) :: vgradt1p
        real, dimension(1:lpx1*lpy1*lpz1*lpelt,1:ldimt,1:lpert) :: vgradt2p
       integer :: jp
+! 
+!      Steady variables
+! 
       real, dimension(1:ldimt1) :: tauss
       real, dimension(1:ldimt1) :: txnext
       integer :: nsskip
@@ -536,6 +891,9 @@ contains
       real :: dvprsm
       real :: dvprl2
       real :: dvprl8
+! 
+!      Arrays for direct stiffness summation
+! 
       integer, dimension(1:2,1:3) :: nomlis
       integer, dimension(1:6) :: nmlinv
       integer, dimension(1:6) :: group
@@ -566,6 +924,9 @@ contains
       integer, dimension(1:4,1:10) :: icface
       integer, dimension(1:8) :: indx
       integer, dimension(1:27) :: invedg
+!  
+!      Variables related to time integration
+! 
       real :: time
       real :: timef
       real :: fintim
@@ -632,16 +993,25 @@ contains
       logical :: if_full_pres
       logical :: ifoutfld
       real, dimension(1:3,1:lpert) :: lyap
+! 
+!      Variables for E-solver
+! 
       integer :: iesolv
       logical, dimension(1:lelv) :: ifalgn
       logical, dimension(1:lelv) :: ifrsxy
       real, dimension(1:lelv) :: volel
+! 
+!      Gauss-Labotto and Gauss points
+! 
       real, dimension(1:lx1,1:3) :: zgm1
       real, dimension(1:lx2,1:3) :: zgm2
       real, dimension(1:lx3,1:3) :: zgm3
       real, dimension(1:lx1) :: zam1
       real, dimension(1:lx2) :: zam2
       real, dimension(1:lx3) :: zam3
+! 
+!     Weights
+! 
       real, dimension(1:lx1) :: wxm1
       real, dimension(1:ly1) :: wym1
       real, dimension(1:lz1) :: wzm1
@@ -663,13 +1033,36 @@ contains
       real, dimension(1:lx2,1:ly2) :: w2cm2
       real, dimension(1:lx3,1:ly3) :: w2am3
       real, dimension(1:lx3,1:ly3) :: w2cm3
+! 
+!      Points (z) and weights (w) on velocity, pressure
+! 
+!      zgl -- velocity points on Gauss-Lobatto points i = 1,...nx
+!      zgp -- pressure points on Gauss         points i = 1,...nxp (nxp = nx-2)
+! 
+!      integer    lxm ! defined in HSMG
+!      parameter (lxm = lx1)
+! 
       real, dimension(1:lx1) :: zgl
       real, dimension(1:lx1) :: wgl
       real, dimension(1:lx1) :: zgp
       real, dimension(1:lxq) :: wgp
+! 
+!      Tensor- (outer-) product of 1D weights   (for volumetric integration)
+! 
       real, dimension(1:lx1*lx1) :: wgl1
       real, dimension(1:lxq*lxq) :: wgl2
       real, dimension(1:lx1*lx1) :: wgli
+! 
+! 
+!     Frequently used derivative matrices:
+! 
+!     D1, D1t   ---  differentiate on mesh 1 (velocity mesh)
+!     D2, D2t   ---  differentiate on mesh 2 (pressure mesh)
+! 
+!     DXd,DXdt  ---  differentiate from velocity mesh ONTO dealiased mesh
+!                    (currently the same as D1 and D1t...)
+! 
+! 
       real, dimension(1:lx1*lx1) :: d1
       real, dimension(1:lx1*lx1) :: d1t
       real, dimension(1:lx1*lx1) :: d2
@@ -686,45 +1079,401 @@ contains
       real, dimension(1:lx1*lxq) :: wglgt
       real, dimension(1:lx1*ly1*lz1,1:ldim,1:ldim), intent(Out) :: gije
       real, dimension(1:lx1*ly1*lz1), intent(In) :: u
-      real, dimension(1:lx1*ly1*lz1), intent(In) :: v
-      real, dimension(1:lx1*ly1*lz1), intent(In) :: w
+      real, dimension(1:lx1*ly1*lz1), intent(InOut) :: v
+      real, dimension(1:lx1*ly1*lz1), intent(InOut) :: w
       real, dimension(1:lx1*ly1*lz1) :: ur
       real, dimension(1:lx1*ly1*lz1) :: us
       real, dimension(1:lx1*ly1*lz1) :: ut
       integer :: e
-      ifadvc(1) = ifnav
-      textsw(1,1) = turbmod
       n    = lx1-1      
       nxyz = lx1*ly1*lz1
       if (if3d) then     
         do k=1,3
-          if (k == 1) call local_grad3(ur,us,ut,u,n,1,dxm1,dxtm1)
-          if (k == 2) call local_grad3(ur,us,ut,v,n,1,dxm1,dxtm1)
-          if (k == 3) call local_grad3(ur,us,ut,w,n,1,dxm1,dxtm1)
+          call local_grad3(ur,us,ut,u,n,1,dxm1,dxtm1,ab,abmsh,abx1,abx2,aby1,aby2,abz1,abz2,area, &
+      atol,avdiff,avtran,b1ia1,b1ia1t,b1mask,b2mask,b2p,b3mask,baxm1,bbx1,bbx2,bby1,bby2,bbz1, &
+      bbz2,bc,bcf,bctyps,bd,bdivw,bfx,bfxp,bfy,bfyp,bfz,bfzp,bintm1,binvdg,binvm1,bm1,bm1lag,bm2, &
+      bm2inv,bmass,bmnv,bmx,bmy,bmz,bpmask,bq,bqp,bx,bxlag,by,bylag,bz,bzlag,c_vx,cbc,ccurve,cdof, &
+      cerror,cflf,courno,cpfld,cpgrp,cr_h,cr_re2,csize,ctarg,curve,d1,d1t,d2,da,dam1,dam12,dam3, &
+      dat,datm1,datm12,datm3,dcm1,dcm12,dcm3,dcount,dct,dctm1,dctm12,dctm3,dg_face,dg_hndlx,dglg, &
+      dglgt,dlam,dmpfle,dp0thdt,drivc,dt,dtinit,dtinvm,dtlag,dvdfh1,dvdfl2,dvdfl8,dvdfsm,dvnnh1, &
+      dvnnl2,dvnnl8,dvnnsm,dvprh1,dvprl2,dvprl8,dvprsm,dxm12,dxm3,dxtm12,dxtm3,dym1,dym12,dym3, &
+      dytm1,dytm12,dytm3,dzm1,dzm12,dzm3,dztm1,dztm12,dztm3,eface,eface1,eigaa,eigae,eigas,eigast, &
+      eigga,eigge,eiggs,eiggst,eskip,etalph,etimes,etims0,ev1,ev2,ev3,exx1p,exx2p,exy1p,exy2p, &
+      exz1p,exz2p,fh_re2,filtertype,fintim,fldfle,fw,g1m1,g2m1,g3m1,g4m1,g5m1,g6m1,gamma0,gcnnum, &
+      gednum,gedtyp,gllel,gllnid,group,gsh,gsh_fld,hcode,hisfle,iajl1,iajl2,ialj1,ialj3,iam12, &
+      iam13,iam21,iam31,iatjl1,iatjl2,iatlj1,iatlj3,iatm12,iatm13,iatm21,iatm31,ibcsts,icedg, &
+      icface,icm12,icm13,icm21,icm31,ictm12,ictm13,ictm21,ictm31,idpss,idsess,ieact,iedge,iedgef, &
+      iedgfc,iesolv,if3d,if_full_pres,ifaa,ifadvc,ifae,ifalgn,ifanl2,ifanls,ifas,ifast,ifaxis, &
+      ifaziv,ifbase,ifbcor,ifbo,ifchar,ifcons,ifcoup,ifcvfld,ifcvode,ifcyclic,ifdeal,ifdg,ifdgfld, &
+      ifdiff,ifdp0dt,ifeppm,ifessr,ifexplvis,ifextr,ifexvt,ifflow,iffmtin,ifga,ifge,ifgeom, &
+      ifgmsh3,ifgprnt,ifgs,ifgsh_fld_same,ifgst,ifheat,ifield,ifintq,ifkeps,ifldmhd,iflmsc,iflmse, &
+      iflmsf,iflomach,ifmelt,ifmgrid,ifmhd,ifmoab,ifmodel,ifmodp,ifmpiio,ifmscr,ifmseg,ifmsfc, &
+      ifmvbd,ifneknek,ifneknekm,ifnonl,ifnskp,ifoutfld,ifpert,ifpo,ifprnt,ifprojfld,ifpsco,ifpso, &
+      ifqinp,ifreguo,ifrich,ifrsxy,ifrzer,ifschclob,ifskip,ifsplit,ifssvt,ifstrs,ifstst,ifsurt, &
+      ifsync,iftgo,iftmsh,ifto,iftran,ifusermv,ifuservp,ifvarp,ifvcor,ifvcoup,ifvo,ifvps,ifwcno, &
+      ifxyo,ifxyo_,iggl,igglt,igroup,im1d,im1dt,imatie,imd1,imd1t,imesh,indx,initc,instep,invedg, &
+      iocomm,ioinfodmp,iostep,ipscal,ipsco,irstim,irstt,irstv,isize,istep,ixcn,ixm12,ixm13,ixm21, &
+      ixm31,ixtm12,ixtm13,ixtm21,ixtm31,iym12,iym13,iym21,iym31,iytm12,iytm13,iytm21,iytm31,izm12, &
+      izm13,izm21,izm31,iztm12,iztm13,iztm21,iztm31,jacm1,jacm2,jacmi,jp,lastep,lcnnum,ldimr, &
+      lednum,lglel,lochis,loglevel,lsize,lyap,matids,matindx,matype,maxmlt,mpi_argv_null, &
+      mpi_argvs_null,mpi_bottom,mpi_errcodes_ignore,mpi_in_place,mpi_status_ignore, &
+      mpi_statuses_ignore,mpi_unweighted,mpi_weights_empty,nab,nabmsh,nadvc,naxhm,nbbbb,nbd, &
+      nbdinp,nbso2,nbsol,ncall,ncccc,ncdtp,ncmp,nconv,nconv_max,ncopy,ncrsl,ncvf,ndadd,ndddd, &
+      nddsl,ndg_facex,ndim,ndott,ndsmn,ndsmx,ndsnd,ndsum,neact,nedg,neeee,nelfld,nelg,nelgt,nelgv, &
+      nelt,nelv,neslv,nfield,ngcomm,ngeom,ngop,ngop1,ngop_sync,ngp2,ngsmn,ngsmx,ngspcn,ngsped, &
+      ngsum,nhis,nhmhz,nid,ninter,ninv3,ninvc,nio,nktonv,nmember,nmlinv,nmltd,nmxe,nmxh,nmxmf, &
+      nmxms,nmxnl,nmxp,nobj,node,node0,noffst,nomlis,np,npert,nprep,npres,npscal,nrefle,nrout, &
+      nsett,nslvb,nsolv,nspmax,nspro,nsskip,nsteps,nsyc,ntaubd,nu_star,nullpid,numbcs,numflu, &
+      numoth,numscn,numsed,nusbc,nvdss,nvtot,nwal,nx1,nx2,nx3,nxd,ny1,ny2,ny3,nyd,nz1,nz2,nz3,nzd, &
+      object,ocode,omask,optlevel,orefle,p0th,param,parfle,path,paxhm,pbbbb,pbso2,pbsol,pcccc, &
+      pcdtp,pcopy,pcrsl,pdadd,pdddd,pddsl,pdott,pdsmn,pdsmx,pdsnd,pdsum,peeee,peslv,pgop,pgop1, &
+      pgop_sync,pgp2,pgsmn,pgsmx,pgsum,phmhz,pi,pid,pinv3,pinvc,pm,pmask,pmd1,pmd1t,pmlag,pmltd, &
+      pmxmf,pmxms,pprep,ppres,pr,prelax,prlag,prlagp,prp,psett,pslvb,psolv,pspro,psyc,pusbc,pvdss, &
+      pwal,qinteg,qtl,rct,re2fle,re2off_b,reafle,restol,rname,rstim,rstt,rstv,rx,rxm1,rxm2,rym1, &
+      rym2,rzm1,rzm2,schfle,session,skpdat,solver_type,sxm1,sxm2,sym1,sym2,szm1,szm2,t,t1x,t1y, &
+      t1z,t2x,t2y,t2z,ta2s2,tadc3,tadd2,tadvc,tauss,taxhm,tbbbb,tbso2,tbsol,tcccc,tcdtp,tcol2, &
+      tcol3,tcopy,tcrsl,tcvf,tdadd,tdddd,tddsl,tdott,tdsmn,tdsmx,tdsnd,tdsum,teeee,teslv,textsw, &
+      tgop,tgop1,tgop_sync,tgp2,tgsmn,tgsmx,tgsum,thmhz,time,timef,timeio,tinit,tinv3,tinvc,tlag, &
+      tlagp,tmask,tmean,tmltd,tmult,tmxmf,tmxms,tnrmh1,tnrml2,tnrml8,tnrmsm,tolabs,tolev,tolhdf, &
+      tolhe,tolhr,tolhs,tolht,tolhv,tolnl,tolpdf,tolps,tolrel,tp,tprep,tpres,tproj,tschw,tsett, &
+      tslvb,tsolv,tspro,tsyc,ttime,ttotal,tttstp,tusbc,tusfq,tvdss,twal,txm1,txm2,txnext,tym1, &
+      tym2,tzm1,tzm2,unr,uns,unt,unx,uny,unz,uparam,usrdiv,v1mask,v1x,v1y,v1z,v2mask,v2x,v2y,v2z, &
+      v3mask,vdiff,vdiff_e,vgradt1,vgradt1p,vgradt2,vgradt2p,vmean,vmult,vnekton,vnrmh1,vnrml2, &
+      vnrml8,vnrmsm,vnx,vny,vnz,volel,volfld,voltm1,voltm2,volvm1,volvm2,vtrans,vx,vx_e,vxd,vxlag, &
+      vxlagp,vxp,vy,vy_e,vyd,vylag,vylagp,vyp,vz,vz_e,vzd,vzlag,vzlagp,vzp,w1mask,w2am1,w2am2, &
+      w2am3,w2cm1,w2cm2,w2cm3,w2mask,w3m1,w3m2,w3m3,w3mask,wam1,wam2,wam3,wdsize,wdsizi,wgl,wgl1, &
+      wgl2,wglg,wglgt,wgli,wgp,wmult,wx,wxlag,wxm1,wxm2,wxm3,wy,wylag,wym1,wym2,wym3,wz,wzlag, &
+      wzm1,wzm2,wzm3,xc,xm1,xm2,xxth,yc,yinvm1,ym1,ym2,zam1,zam2,zam3,zc,zgl,zgm1,zgm2,zgm3,zgp, &
+      zm1,zm2)
+      ifnav = ifadvc(1)
+      turbmod = textsw(1,1)
+          v_local_grad3 = reshape(v,shape(v_local_grad3))
+          call local_grad3(ur,us,ut,v_local_grad3,n,1,dxm1,dxtm1,ab,abmsh,abx1,abx2,aby1,aby2,abz1, &
+      abz2,area,atol,avdiff,avtran,b1ia1,b1ia1t,b1mask,b2mask,b2p,b3mask,baxm1,bbx1,bbx2,bby1, &
+      bby2,bbz1,bbz2,bc,bcf,bctyps,bd,bdivw,bfx,bfxp,bfy,bfyp,bfz,bfzp,bintm1,binvdg,binvm1,bm1, &
+      bm1lag,bm2,bm2inv,bmass,bmnv,bmx,bmy,bmz,bpmask,bq,bqp,bx,bxlag,by,bylag,bz,bzlag,c_vx,cbc, &
+      ccurve,cdof,cerror,cflf,courno,cpfld,cpgrp,cr_h,cr_re2,csize,ctarg,curve,d1,d1t,d2,da,dam1, &
+      dam12,dam3,dat,datm1,datm12,datm3,dcm1,dcm12,dcm3,dcount,dct,dctm1,dctm12,dctm3,dg_face, &
+      dg_hndlx,dglg,dglgt,dlam,dmpfle,dp0thdt,drivc,dt,dtinit,dtinvm,dtlag,dvdfh1,dvdfl2,dvdfl8, &
+      dvdfsm,dvnnh1,dvnnl2,dvnnl8,dvnnsm,dvprh1,dvprl2,dvprl8,dvprsm,dxm12,dxm3,dxtm12,dxtm3,dym1, &
+      dym12,dym3,dytm1,dytm12,dytm3,dzm1,dzm12,dzm3,dztm1,dztm12,dztm3,eface,eface1,eigaa,eigae, &
+      eigas,eigast,eigga,eigge,eiggs,eiggst,eskip,etalph,etimes,etims0,ev1,ev2,ev3,exx1p,exx2p, &
+      exy1p,exy2p,exz1p,exz2p,fh_re2,filtertype,fintim,fldfle,fw,g1m1,g2m1,g3m1,g4m1,g5m1,g6m1, &
+      gamma0,gcnnum,gednum,gedtyp,gllel,gllnid,group,gsh,gsh_fld,hcode,hisfle,iajl1,iajl2,ialj1, &
+      ialj3,iam12,iam13,iam21,iam31,iatjl1,iatjl2,iatlj1,iatlj3,iatm12,iatm13,iatm21,iatm31, &
+      ibcsts,icedg,icface,icm12,icm13,icm21,icm31,ictm12,ictm13,ictm21,ictm31,idpss,idsess,ieact, &
+      iedge,iedgef,iedgfc,iesolv,if3d,if_full_pres,ifaa,ifadvc,ifae,ifalgn,ifanl2,ifanls,ifas, &
+      ifast,ifaxis,ifaziv,ifbase,ifbcor,ifbo,ifchar,ifcons,ifcoup,ifcvfld,ifcvode,ifcyclic,ifdeal, &
+      ifdg,ifdgfld,ifdiff,ifdp0dt,ifeppm,ifessr,ifexplvis,ifextr,ifexvt,ifflow,iffmtin,ifga,ifge, &
+      ifgeom,ifgmsh3,ifgprnt,ifgs,ifgsh_fld_same,ifgst,ifheat,ifield,ifintq,ifkeps,ifldmhd,iflmsc, &
+      iflmse,iflmsf,iflomach,ifmelt,ifmgrid,ifmhd,ifmoab,ifmodel,ifmodp,ifmpiio,ifmscr,ifmseg, &
+      ifmsfc,ifmvbd,ifneknek,ifneknekm,ifnonl,ifnskp,ifoutfld,ifpert,ifpo,ifprnt,ifprojfld,ifpsco, &
+      ifpso,ifqinp,ifreguo,ifrich,ifrsxy,ifrzer,ifschclob,ifskip,ifsplit,ifssvt,ifstrs,ifstst, &
+      ifsurt,ifsync,iftgo,iftmsh,ifto,iftran,ifusermv,ifuservp,ifvarp,ifvcor,ifvcoup,ifvo,ifvps, &
+      ifwcno,ifxyo,ifxyo_,iggl,igglt,igroup,im1d,im1dt,imatie,imd1,imd1t,imesh,indx,initc,instep, &
+      invedg,iocomm,ioinfodmp,iostep,ipscal,ipsco,irstim,irstt,irstv,isize,istep,ixcn,ixm12,ixm13, &
+      ixm21,ixm31,ixtm12,ixtm13,ixtm21,ixtm31,iym12,iym13,iym21,iym31,iytm12,iytm13,iytm21,iytm31, &
+      izm12,izm13,izm21,izm31,iztm12,iztm13,iztm21,iztm31,jacm1,jacm2,jacmi,jp,lastep,lcnnum, &
+      ldimr,lednum,lglel,lochis,loglevel,lsize,lyap,matids,matindx,matype,maxmlt,mpi_argv_null, &
+      mpi_argvs_null,mpi_bottom,mpi_errcodes_ignore,mpi_in_place,mpi_status_ignore, &
+      mpi_statuses_ignore,mpi_unweighted,mpi_weights_empty,nab,nabmsh,nadvc,naxhm,nbbbb,nbd, &
+      nbdinp,nbso2,nbsol,ncall,ncccc,ncdtp,ncmp,nconv,nconv_max,ncopy,ncrsl,ncvf,ndadd,ndddd, &
+      nddsl,ndg_facex,ndim,ndott,ndsmn,ndsmx,ndsnd,ndsum,neact,nedg,neeee,nelfld,nelg,nelgt,nelgv, &
+      nelt,nelv,neslv,nfield,ngcomm,ngeom,ngop,ngop1,ngop_sync,ngp2,ngsmn,ngsmx,ngspcn,ngsped, &
+      ngsum,nhis,nhmhz,nid,ninter,ninv3,ninvc,nio,nktonv,nmember,nmlinv,nmltd,nmxe,nmxh,nmxmf, &
+      nmxms,nmxnl,nmxp,nobj,node,node0,noffst,nomlis,np,npert,nprep,npres,npscal,nrefle,nrout, &
+      nsett,nslvb,nsolv,nspmax,nspro,nsskip,nsteps,nsyc,ntaubd,nu_star,nullpid,numbcs,numflu, &
+      numoth,numscn,numsed,nusbc,nvdss,nvtot,nwal,nx1,nx2,nx3,nxd,ny1,ny2,ny3,nyd,nz1,nz2,nz3,nzd, &
+      object,ocode,omask,optlevel,orefle,p0th,param,parfle,path,paxhm,pbbbb,pbso2,pbsol,pcccc, &
+      pcdtp,pcopy,pcrsl,pdadd,pdddd,pddsl,pdott,pdsmn,pdsmx,pdsnd,pdsum,peeee,peslv,pgop,pgop1, &
+      pgop_sync,pgp2,pgsmn,pgsmx,pgsum,phmhz,pi,pid,pinv3,pinvc,pm,pmask,pmd1,pmd1t,pmlag,pmltd, &
+      pmxmf,pmxms,pprep,ppres,pr,prelax,prlag,prlagp,prp,psett,pslvb,psolv,pspro,psyc,pusbc,pvdss, &
+      pwal,qinteg,qtl,rct,re2fle,re2off_b,reafle,restol,rname,rstim,rstt,rstv,rx,rxm1,rxm2,rym1, &
+      rym2,rzm1,rzm2,schfle,session,skpdat,solver_type,sxm1,sxm2,sym1,sym2,szm1,szm2,t,t1x,t1y, &
+      t1z,t2x,t2y,t2z,ta2s2,tadc3,tadd2,tadvc,tauss,taxhm,tbbbb,tbso2,tbsol,tcccc,tcdtp,tcol2, &
+      tcol3,tcopy,tcrsl,tcvf,tdadd,tdddd,tddsl,tdott,tdsmn,tdsmx,tdsnd,tdsum,teeee,teslv,textsw, &
+      tgop,tgop1,tgop_sync,tgp2,tgsmn,tgsmx,tgsum,thmhz,time,timef,timeio,tinit,tinv3,tinvc,tlag, &
+      tlagp,tmask,tmean,tmltd,tmult,tmxmf,tmxms,tnrmh1,tnrml2,tnrml8,tnrmsm,tolabs,tolev,tolhdf, &
+      tolhe,tolhr,tolhs,tolht,tolhv,tolnl,tolpdf,tolps,tolrel,tp,tprep,tpres,tproj,tschw,tsett, &
+      tslvb,tsolv,tspro,tsyc,ttime,ttotal,tttstp,tusbc,tusfq,tvdss,twal,txm1,txm2,txnext,tym1, &
+      tym2,tzm1,tzm2,unr,uns,unt,unx,uny,unz,uparam,usrdiv,v1mask,v1x,v1y,v1z,v2mask,v2x,v2y,v2z, &
+      v3mask,vdiff,vdiff_e,vgradt1,vgradt1p,vgradt2,vgradt2p,vmean,vmult,vnekton,vnrmh1,vnrml2, &
+      vnrml8,vnrmsm,vnx,vny,vnz,volel,volfld,voltm1,voltm2,volvm1,volvm2,vtrans,vx,vx_e,vxd,vxlag, &
+      vxlagp,vxp,vy,vy_e,vyd,vylag,vylagp,vyp,vz,vz_e,vzd,vzlag,vzlagp,vzp,w1mask,w2am1,w2am2, &
+      w2am3,w2cm1,w2cm2,w2cm3,w2mask,w3m1,w3m2,w3m3,w3mask,wam1,wam2,wam3,wdsize,wdsizi,wgl,wgl1, &
+      wgl2,wglg,wglgt,wgli,wgp,wmult,wx,wxlag,wxm1,wxm2,wxm3,wy,wylag,wym1,wym2,wym3,wz,wzlag, &
+      wzm1,wzm2,wzm3,xc,xm1,xm2,xxth,yc,yinvm1,ym1,ym2,zam1,zam2,zam3,zc,zgl,zgm1,zgm2,zgm3,zgp, &
+      zm1,zm2)
+      ifnav = ifadvc(1)
+      turbmod = textsw(1,1)
+          v = reshape(v_local_grad3, shape(v))
+          w_local_grad3 = reshape(w,shape(w_local_grad3))
+          call local_grad3(ur,us,ut,w_local_grad3,n,1,dxm1,dxtm1,ab,abmsh,abx1,abx2,aby1,aby2,abz1, &
+      abz2,area,atol,avdiff,avtran,b1ia1,b1ia1t,b1mask,b2mask,b2p,b3mask,baxm1,bbx1,bbx2,bby1, &
+      bby2,bbz1,bbz2,bc,bcf,bctyps,bd,bdivw,bfx,bfxp,bfy,bfyp,bfz,bfzp,bintm1,binvdg,binvm1,bm1, &
+      bm1lag,bm2,bm2inv,bmass,bmnv,bmx,bmy,bmz,bpmask,bq,bqp,bx,bxlag,by,bylag,bz,bzlag,c_vx,cbc, &
+      ccurve,cdof,cerror,cflf,courno,cpfld,cpgrp,cr_h,cr_re2,csize,ctarg,curve,d1,d1t,d2,da,dam1, &
+      dam12,dam3,dat,datm1,datm12,datm3,dcm1,dcm12,dcm3,dcount,dct,dctm1,dctm12,dctm3,dg_face, &
+      dg_hndlx,dglg,dglgt,dlam,dmpfle,dp0thdt,drivc,dt,dtinit,dtinvm,dtlag,dvdfh1,dvdfl2,dvdfl8, &
+      dvdfsm,dvnnh1,dvnnl2,dvnnl8,dvnnsm,dvprh1,dvprl2,dvprl8,dvprsm,dxm12,dxm3,dxtm12,dxtm3,dym1, &
+      dym12,dym3,dytm1,dytm12,dytm3,dzm1,dzm12,dzm3,dztm1,dztm12,dztm3,eface,eface1,eigaa,eigae, &
+      eigas,eigast,eigga,eigge,eiggs,eiggst,eskip,etalph,etimes,etims0,ev1,ev2,ev3,exx1p,exx2p, &
+      exy1p,exy2p,exz1p,exz2p,fh_re2,filtertype,fintim,fldfle,fw,g1m1,g2m1,g3m1,g4m1,g5m1,g6m1, &
+      gamma0,gcnnum,gednum,gedtyp,gllel,gllnid,group,gsh,gsh_fld,hcode,hisfle,iajl1,iajl2,ialj1, &
+      ialj3,iam12,iam13,iam21,iam31,iatjl1,iatjl2,iatlj1,iatlj3,iatm12,iatm13,iatm21,iatm31, &
+      ibcsts,icedg,icface,icm12,icm13,icm21,icm31,ictm12,ictm13,ictm21,ictm31,idpss,idsess,ieact, &
+      iedge,iedgef,iedgfc,iesolv,if3d,if_full_pres,ifaa,ifadvc,ifae,ifalgn,ifanl2,ifanls,ifas, &
+      ifast,ifaxis,ifaziv,ifbase,ifbcor,ifbo,ifchar,ifcons,ifcoup,ifcvfld,ifcvode,ifcyclic,ifdeal, &
+      ifdg,ifdgfld,ifdiff,ifdp0dt,ifeppm,ifessr,ifexplvis,ifextr,ifexvt,ifflow,iffmtin,ifga,ifge, &
+      ifgeom,ifgmsh3,ifgprnt,ifgs,ifgsh_fld_same,ifgst,ifheat,ifield,ifintq,ifkeps,ifldmhd,iflmsc, &
+      iflmse,iflmsf,iflomach,ifmelt,ifmgrid,ifmhd,ifmoab,ifmodel,ifmodp,ifmpiio,ifmscr,ifmseg, &
+      ifmsfc,ifmvbd,ifneknek,ifneknekm,ifnonl,ifnskp,ifoutfld,ifpert,ifpo,ifprnt,ifprojfld,ifpsco, &
+      ifpso,ifqinp,ifreguo,ifrich,ifrsxy,ifrzer,ifschclob,ifskip,ifsplit,ifssvt,ifstrs,ifstst, &
+      ifsurt,ifsync,iftgo,iftmsh,ifto,iftran,ifusermv,ifuservp,ifvarp,ifvcor,ifvcoup,ifvo,ifvps, &
+      ifwcno,ifxyo,ifxyo_,iggl,igglt,igroup,im1d,im1dt,imatie,imd1,imd1t,imesh,indx,initc,instep, &
+      invedg,iocomm,ioinfodmp,iostep,ipscal,ipsco,irstim,irstt,irstv,isize,istep,ixcn,ixm12,ixm13, &
+      ixm21,ixm31,ixtm12,ixtm13,ixtm21,ixtm31,iym12,iym13,iym21,iym31,iytm12,iytm13,iytm21,iytm31, &
+      izm12,izm13,izm21,izm31,iztm12,iztm13,iztm21,iztm31,jacm1,jacm2,jacmi,jp,lastep,lcnnum, &
+      ldimr,lednum,lglel,lochis,loglevel,lsize,lyap,matids,matindx,matype,maxmlt,mpi_argv_null, &
+      mpi_argvs_null,mpi_bottom,mpi_errcodes_ignore,mpi_in_place,mpi_status_ignore, &
+      mpi_statuses_ignore,mpi_unweighted,mpi_weights_empty,nab,nabmsh,nadvc,naxhm,nbbbb,nbd, &
+      nbdinp,nbso2,nbsol,ncall,ncccc,ncdtp,ncmp,nconv,nconv_max,ncopy,ncrsl,ncvf,ndadd,ndddd, &
+      nddsl,ndg_facex,ndim,ndott,ndsmn,ndsmx,ndsnd,ndsum,neact,nedg,neeee,nelfld,nelg,nelgt,nelgv, &
+      nelt,nelv,neslv,nfield,ngcomm,ngeom,ngop,ngop1,ngop_sync,ngp2,ngsmn,ngsmx,ngspcn,ngsped, &
+      ngsum,nhis,nhmhz,nid,ninter,ninv3,ninvc,nio,nktonv,nmember,nmlinv,nmltd,nmxe,nmxh,nmxmf, &
+      nmxms,nmxnl,nmxp,nobj,node,node0,noffst,nomlis,np,npert,nprep,npres,npscal,nrefle,nrout, &
+      nsett,nslvb,nsolv,nspmax,nspro,nsskip,nsteps,nsyc,ntaubd,nu_star,nullpid,numbcs,numflu, &
+      numoth,numscn,numsed,nusbc,nvdss,nvtot,nwal,nx1,nx2,nx3,nxd,ny1,ny2,ny3,nyd,nz1,nz2,nz3,nzd, &
+      object,ocode,omask,optlevel,orefle,p0th,param,parfle,path,paxhm,pbbbb,pbso2,pbsol,pcccc, &
+      pcdtp,pcopy,pcrsl,pdadd,pdddd,pddsl,pdott,pdsmn,pdsmx,pdsnd,pdsum,peeee,peslv,pgop,pgop1, &
+      pgop_sync,pgp2,pgsmn,pgsmx,pgsum,phmhz,pi,pid,pinv3,pinvc,pm,pmask,pmd1,pmd1t,pmlag,pmltd, &
+      pmxmf,pmxms,pprep,ppres,pr,prelax,prlag,prlagp,prp,psett,pslvb,psolv,pspro,psyc,pusbc,pvdss, &
+      pwal,qinteg,qtl,rct,re2fle,re2off_b,reafle,restol,rname,rstim,rstt,rstv,rx,rxm1,rxm2,rym1, &
+      rym2,rzm1,rzm2,schfle,session,skpdat,solver_type,sxm1,sxm2,sym1,sym2,szm1,szm2,t,t1x,t1y, &
+      t1z,t2x,t2y,t2z,ta2s2,tadc3,tadd2,tadvc,tauss,taxhm,tbbbb,tbso2,tbsol,tcccc,tcdtp,tcol2, &
+      tcol3,tcopy,tcrsl,tcvf,tdadd,tdddd,tddsl,tdott,tdsmn,tdsmx,tdsnd,tdsum,teeee,teslv,textsw, &
+      tgop,tgop1,tgop_sync,tgp2,tgsmn,tgsmx,tgsum,thmhz,time,timef,timeio,tinit,tinv3,tinvc,tlag, &
+      tlagp,tmask,tmean,tmltd,tmult,tmxmf,tmxms,tnrmh1,tnrml2,tnrml8,tnrmsm,tolabs,tolev,tolhdf, &
+      tolhe,tolhr,tolhs,tolht,tolhv,tolnl,tolpdf,tolps,tolrel,tp,tprep,tpres,tproj,tschw,tsett, &
+      tslvb,tsolv,tspro,tsyc,ttime,ttotal,tttstp,tusbc,tusfq,tvdss,twal,txm1,txm2,txnext,tym1, &
+      tym2,tzm1,tzm2,unr,uns,unt,unx,uny,unz,uparam,usrdiv,v1mask,v1x,v1y,v1z,v2mask,v2x,v2y,v2z, &
+      v3mask,vdiff,vdiff_e,vgradt1,vgradt1p,vgradt2,vgradt2p,vmean,vmult,vnekton,vnrmh1,vnrml2, &
+      vnrml8,vnrmsm,vnx,vny,vnz,volel,volfld,voltm1,voltm2,volvm1,volvm2,vtrans,vx,vx_e,vxd,vxlag, &
+      vxlagp,vxp,vy,vy_e,vyd,vylag,vylagp,vyp,vz,vz_e,vzd,vzlag,vzlagp,vzp,w1mask,w2am1,w2am2, &
+      w2am3,w2cm1,w2cm2,w2cm3,w2mask,w3m1,w3m2,w3m3,w3mask,wam1,wam2,wam3,wdsize,wdsizi,wgl,wgl1, &
+      wgl2,wglg,wglgt,wgli,wgp,wmult,wx,wxlag,wxm1,wxm2,wxm3,wy,wylag,wym1,wym2,wym3,wz,wzlag, &
+      wzm1,wzm2,wzm3,xc,xm1,xm2,xxth,yc,yinvm1,ym1,ym2,zam1,zam2,zam3,zc,zgl,zgm1,zgm2,zgm3,zgp, &
+      zm1,zm2)
+      ifnav = ifadvc(1)
+      turbmod = textsw(1,1)
+          w = reshape(w_local_grad3, shape(w))
           do i=1,nxyz
             dj = jacmi(i,e)
+            ! d/dx
             gije(i,k,1) = dj*(       ur(i)*rxm1(i,1,1,e)+us(i)*sxm1(i,1,1,e)+ut(i)*txm1(i,1,1,e))
+            ! d/dy
             gije(i,k,2) = dj*(       ur(i)*rym1(i,1,1,e)+us(i)*sym1(i,1,1,e)+ut(i)*tym1(i,1,1,e))
+            ! d/dz
             gije(i,k,3) = dj*(      ur(i)*rzm1(i,1,1,e)+us(i)*szm1(i,1,1,e)+ut(i)*tzm1(i,1,1,e))
           enddo
         enddo
       elseif (ifaxis) then   
             if(nid == 0) write(6,*)         'ABORT: comp_gije no axialsymmetric support for now'
-            call exitt
+            call exitt(ab,abmsh,abx1,abx2,aby1,aby2,abz1,abz2,area,atol,avdiff,avtran,b1ia1,b1ia1t, &
+      b1mask,b2mask,b2p,b3mask,baxm1,bbx1,bbx2,bby1,bby2,bbz1,bbz2,bc,bcf,bctyps,bd,bdivw,bfx, &
+      bfxp,bfy,bfyp,bfz,bfzp,bintm1,binvdg,binvm1,bm1,bm1lag,bm2,bm2inv,bmass,bmnv,bmx,bmy,bmz, &
+      bpmask,bq,bqp,bx,bxlag,by,bylag,bz,bzlag,c_vx,cbc,ccurve,cdof,cerror,cflf,courno,cpfld, &
+      cpgrp,cr_h,cr_re2,csize,ctarg,curve,d1,d1t,d2,da,dam1,dam12,dam3,dat,datm1,datm12,datm3, &
+      dcm1,dcm12,dcm3,dctm1,dctm12,dctm3,dg_face,dg_hndlx,dglg,dglgt,dlam,dmpfle,dp0thdt,drivc,dt, &
+      dtinit,dtinvm,dtlag,dvdfh1,dvdfl2,dvdfl8,dvdfsm,dvnnh1,dvnnl2,dvnnl8,dvnnsm,dvprh1,dvprl2, &
+      dvprl8,dvprsm,dxm1,dxm12,dxm3,dxtm1,dxtm12,dxtm3,dym1,dym12,dym3,dytm1,dytm12,dytm3,dzm1, &
+      dzm12,dzm3,dztm1,dztm12,dztm3,eface,eface1,eigaa,eigae,eigas,eigast,eigga,eigge,eiggs, &
+      eiggst,eskip,etalph,etimes,etims0,ev1,ev2,ev3,exx1p,exx2p,exy1p,exy2p,exz1p,exz2p,fh_re2, &
+      filtertype,fintim,fldfle,fw,g1m1,g2m1,g3m1,g4m1,g5m1,g6m1,gamma0,gcnnum,gednum,gedtyp,gllel, &
+      gllnid,group,gsh,gsh_fld,hcode,hisfle,iajl1,iajl2,ialj1,ialj3,iam12,iam13,iam21,iam31, &
+      iatjl1,iatjl2,iatlj1,iatlj3,iatm12,iatm13,iatm21,iatm31,ibcsts,icall,icedg,icface,icm12, &
+      icm13,icm21,icm31,ictm12,ictm13,ictm21,ictm31,idpss,idsess,ieact,iedge,iedgef,iedgfc,iesolv, &
+      if3d,if_full_pres,ifaa,ifadvc,ifae,ifalgn,ifanl2,ifanls,ifas,ifast,ifaxis,ifaziv,ifbase, &
+      ifbcor,ifbo,ifchar,ifcons,ifcoup,ifcvfld,ifcvode,ifcyclic,ifdeal,ifdg,ifdgfld,ifdiff, &
+      ifdp0dt,ifeppm,ifessr,ifexplvis,ifextr,ifexvt,ifflow,iffmtin,ifga,ifge,ifgeom,ifgmsh3, &
+      ifgprnt,ifgs,ifgsh_fld_same,ifgst,ifheat,ifield,ifintq,ifkeps,ifldmhd,iflmsc,iflmse,iflmsf, &
+      iflomach,ifmelt,ifmgrid,ifmhd,ifmoab,ifmodel,ifmodp,ifmpiio,ifmscr,ifmseg,ifmsfc,ifmvbd, &
+      ifneknek,ifneknekm,ifnonl,ifnskp,ifoutfld,ifpert,ifpo,ifprnt,ifprojfld,ifpsco,ifpso,ifqinp, &
+      ifreguo,ifrich,ifrsxy,ifrzer,ifschclob,ifskip,ifsplit,ifssvt,ifstrs,ifstst,ifsurt,ifsync, &
+      iftgo,iftmsh,ifto,iftran,ifusermv,ifuservp,ifvarp,ifvcor,ifvcoup,ifvo,ifvps,ifwcno,ifxyo, &
+      ifxyo_,iggl,igglt,igroup,im1d,im1dt,imatie,imd1,imd1t,imesh,indx,initc,instep,invedg,iocomm, &
+      ioinfodmp,iostep,ipscal,ipsco,irstim,irstt,irstv,isize,istep,ixcn,ixm12,ixm13,ixm21,ixm31, &
+      ixtm12,ixtm13,ixtm21,ixtm31,iym12,iym13,iym21,iym31,iytm12,iytm13,iytm21,iytm31,izm12,izm13, &
+      izm21,izm31,iztm12,iztm13,iztm21,iztm31,jacm1,jacm2,jacmi,jp,lastep,lcnnum,ldimr,lednum, &
+      lglel,lochis,loglevel,lsize,lyap,matids,matindx,matype,maxmlt,mpi_argv_null,mpi_argvs_null, &
+      mpi_bottom,mpi_errcodes_ignore,mpi_in_place,mpi_status_ignore,mpi_statuses_ignore, &
+      mpi_unweighted,mpi_weights_empty,nab,nabmsh,nadvc,naxhm,nbbbb,nbd,nbdinp,nbso2,nbsol,ncccc, &
+      ncdtp,ncmp,nconv,nconv_max,ncopy,ncrsl,ncvf,ndadd,ndddd,nddsl,ndg_facex,ndim,ndott,ndsmn, &
+      ndsmx,ndsnd,ndsum,neact,nedg,neeee,nekcomm,nekgroup,nekreal,nelfld,nelg,nelgt,nelgv,nelt, &
+      nelv,neslv,nfield,ngcomm,ngeom,ngop,ngop1,ngop_sync,ngp2,ngsmn,ngsmx,ngspcn,ngsped,ngsum, &
+      nhis,nhmhz,nid,ninter,ninv3,ninvc,nio,nktonv,nmember,nmlinv,nmltd,nmxe,nmxh,nmxmf,nmxms, &
+      nmxnl,nmxp,nobj,node,node0,noffst,nomlis,np,npert,nprep,npres,npscal,nrefle,nsett,nslvb, &
+      nsolv,nspmax,nspro,nsskip,nsteps,nsyc,ntaubd,nu_star,nullpid,numbcs,numflu,numoth,numscn, &
+      numsed,nusbc,nvdss,nvtot,nwal,nx1,nx2,nx3,nxd,ny1,ny2,ny3,nyd,nz1,nz2,nz3,nzd,object,ocode, &
+      omask,optlevel,orefle,p0th,param,parfle,path,paxhm,pbbbb,pbso2,pbsol,pcccc,pcdtp,pcopy, &
+      pcrsl,pdadd,pdddd,pddsl,pdott,pdsmn,pdsmx,pdsnd,pdsum,peeee,peslv,pgop,pgop1,pgop_sync,pgp2, &
+      pgsmn,pgsmx,pgsum,phmhz,pi,pid,pinv3,pinvc,pm,pmask,pmd1,pmd1t,pmlag,pmltd,pmxmf,pmxms, &
+      pprep,ppres,pr,prelax,prlag,prlagp,prp,psett,pslvb,psolv,pspro,psyc,pusbc,pvdss,pwal,qinteg, &
+      qtl,re2fle,re2off_b,reafle,restol,rstim,rstt,rstv,rx,rxm1,rxm2,rym1,rym2,rzm1,rzm2,schfle, &
+      session,skpdat,solver_type,sxm1,sxm2,sym1,sym2,szm1,szm2,t,t1x,t1y,t1z,t2x,t2y,t2z,ta2s2, &
+      tadc3,tadd2,tadvc,tauss,taxhm,tbbbb,tbso2,tbsol,tcccc,tcdtp,tcol2,tcol3,tcopy,tcrsl,tcvf, &
+      tdadd,tdddd,tddsl,tdott,tdsmn,tdsmx,tdsnd,tdsum,teeee,teslv,textsw,tgop,tgop1,tgop_sync, &
+      tgp2,tgsmn,tgsmx,tgsum,thmhz,time,timef,timeio,tinit,tinv3,tinvc,tlag,tlagp,tmask,tmean, &
+      tmltd,tmult,tmxmf,tmxms,tnrmh1,tnrml2,tnrml8,tnrmsm,tolabs,tolev,tolhdf,tolhe,tolhr,tolhs, &
+      tolht,tolhv,tolnl,tolpdf,tolps,tolrel,tp,tprep,tpres,tproj,tschw,tsett,tslvb,tsolv,tspro, &
+      tsyc,ttime,ttotal,tttstp,tusbc,tusfq,tvdss,twal,txm1,txm2,txnext,tym1,tym2,tzm1,tzm2,unr, &
+      uns,unt,unx,uny,unz,uparam,usrdiv,v1mask,v1x,v1y,v1z,v2mask,v2x,v2y,v2z,v3mask,vdiff, &
+      vdiff_e,vgradt1,vgradt1p,vgradt2,vgradt2p,vmean,vmult,vnekton,vnrmh1,vnrml2,vnrml8,vnrmsm, &
+      vnx,vny,vnz,volel,volfld,voltm1,voltm2,volvm1,volvm2,vtrans,vx,vx_e,vxd,vxlag,vxlagp,vxp,vy, &
+      vy_e,vyd,vylag,vylagp,vyp,vz,vz_e,vzd,vzlag,vzlagp,vzp,w1mask,w2am1,w2am2,w2am3,w2cm1,w2cm2, &
+      w2cm3,w2mask,w3m1,w3m2,w3m3,w3mask,wam1,wam2,wam3,wdsize,wdsizi,wgl,wgl1,wgl2,wglg,wglgt, &
+      wgli,wgp,wmult,wx,wxlag,wxm1,wxm2,wxm3,wy,wylag,wym1,wym2,wym3,wz,wzlag,wzm1,wzm2,wzm3,xc, &
+      xm1,xm2,xxth,yc,yinvm1,ym1,ym2,zam1,zam2,zam3,zc,zgl,zgm1,zgm2,zgm3,zgp,zm1,zm2)
+      ifnav = ifadvc(1)
+      turbmod = textsw(1,1)
       else              
         do k=1,2
-          if (k == 1) call local_grad2(ur,us,u,n,1,dxm1,dxtm1)
-          if (k == 2) call local_grad2(ur,us,v,n,1,dxm1,dxtm1)
+          call local_grad2(ur,us,u,n,1,dxm1,dxtm1,ab,abmsh,abx1,abx2,aby1,aby2,abz1,abz2,area,atol, &
+      avdiff,avtran,b1ia1,b1ia1t,b1mask,b2mask,b2p,b3mask,baxm1,bbx1,bbx2,bby1,bby2,bbz1,bbz2,bc, &
+      bcf,bctyps,bd,bdivw,bfx,bfxp,bfy,bfyp,bfz,bfzp,bintm1,binvdg,binvm1,bm1,bm1lag,bm2,bm2inv, &
+      bmass,bmnv,bmx,bmy,bmz,bpmask,bq,bqp,bx,bxlag,by,bylag,bz,bzlag,c_vx,cbc,ccurve,cdof,cerror, &
+      cflf,courno,cpfld,cpgrp,cr_h,cr_re2,csize,ctarg,curve,d1,d1t,d2,da,dam1,dam12,dam3,dat, &
+      datm1,datm12,datm3,dcm1,dcm12,dcm3,dcount,dct,dctm1,dctm12,dctm3,dg_face,dg_hndlx,dglg, &
+      dglgt,dlam,dmpfle,dp0thdt,drivc,dt,dtinit,dtinvm,dtlag,dvdfh1,dvdfl2,dvdfl8,dvdfsm,dvnnh1, &
+      dvnnl2,dvnnl8,dvnnsm,dvprh1,dvprl2,dvprl8,dvprsm,dxm12,dxm3,dxtm12,dxtm3,dym1,dym12,dym3, &
+      dytm1,dytm12,dytm3,dzm1,dzm12,dzm3,dztm1,dztm12,dztm3,eface,eface1,eigaa,eigae,eigas,eigast, &
+      eigga,eigge,eiggs,eiggst,eskip,etalph,etimes,etims0,ev1,ev2,ev3,exx1p,exx2p,exy1p,exy2p, &
+      exz1p,exz2p,fh_re2,filtertype,fintim,fldfle,fw,g1m1,g2m1,g3m1,g4m1,g5m1,g6m1,gamma0,gcnnum, &
+      gednum,gedtyp,gllel,gllnid,group,gsh,gsh_fld,hcode,hisfle,iajl1,iajl2,ialj1,ialj3,iam12, &
+      iam13,iam21,iam31,iatjl1,iatjl2,iatlj1,iatlj3,iatm12,iatm13,iatm21,iatm31,ibcsts,icedg, &
+      icface,icm12,icm13,icm21,icm31,ictm12,ictm13,ictm21,ictm31,idpss,idsess,ieact,iedge,iedgef, &
+      iedgfc,iesolv,if3d,if_full_pres,ifaa,ifadvc,ifae,ifalgn,ifanl2,ifanls,ifas,ifast,ifaxis, &
+      ifaziv,ifbase,ifbcor,ifbo,ifchar,ifcons,ifcoup,ifcvfld,ifcvode,ifcyclic,ifdeal,ifdg,ifdgfld, &
+      ifdiff,ifdp0dt,ifeppm,ifessr,ifexplvis,ifextr,ifexvt,ifflow,iffmtin,ifga,ifge,ifgeom, &
+      ifgmsh3,ifgprnt,ifgs,ifgsh_fld_same,ifgst,ifheat,ifield,ifintq,ifkeps,ifldmhd,iflmsc,iflmse, &
+      iflmsf,iflomach,ifmelt,ifmgrid,ifmhd,ifmoab,ifmodel,ifmodp,ifmpiio,ifmscr,ifmseg,ifmsfc, &
+      ifmvbd,ifneknek,ifneknekm,ifnonl,ifnskp,ifoutfld,ifpert,ifpo,ifprnt,ifprojfld,ifpsco,ifpso, &
+      ifqinp,ifreguo,ifrich,ifrsxy,ifrzer,ifschclob,ifskip,ifsplit,ifssvt,ifstrs,ifstst,ifsurt, &
+      ifsync,iftgo,iftmsh,ifto,iftran,ifusermv,ifuservp,ifvarp,ifvcor,ifvcoup,ifvo,ifvps,ifwcno, &
+      ifxyo,ifxyo_,iggl,igglt,igroup,im1d,im1dt,imatie,imd1,imd1t,imesh,indx,initc,instep,invedg, &
+      iocomm,ioinfodmp,iostep,ipscal,ipsco,irstim,irstt,irstv,isize,istep,ixcn,ixm12,ixm13,ixm21, &
+      ixm31,ixtm12,ixtm13,ixtm21,ixtm31,iym12,iym13,iym21,iym31,iytm12,iytm13,iytm21,iytm31,izm12, &
+      izm13,izm21,izm31,iztm12,iztm13,iztm21,iztm31,jacm1,jacm2,jacmi,jp,lastep,lcnnum,ldimr, &
+      lednum,lglel,lochis,loglevel,lsize,lyap,matids,matindx,matype,maxmlt,mpi_argv_null, &
+      mpi_argvs_null,mpi_bottom,mpi_errcodes_ignore,mpi_in_place,mpi_status_ignore, &
+      mpi_statuses_ignore,mpi_unweighted,mpi_weights_empty,nab,nabmsh,nadvc,naxhm,nbbbb,nbd, &
+      nbdinp,nbso2,nbsol,ncall,ncccc,ncdtp,ncmp,nconv,nconv_max,ncopy,ncrsl,ncvf,ndadd,ndddd, &
+      nddsl,ndg_facex,ndim,ndott,ndsmn,ndsmx,ndsnd,ndsum,neact,nedg,neeee,nelfld,nelg,nelgt,nelgv, &
+      nelt,nelv,neslv,nfield,ngcomm,ngeom,ngop,ngop1,ngop_sync,ngp2,ngsmn,ngsmx,ngspcn,ngsped, &
+      ngsum,nhis,nhmhz,nid,ninter,ninv3,ninvc,nio,nktonv,nmember,nmlinv,nmltd,nmxe,nmxh,nmxmf, &
+      nmxms,nmxnl,nmxp,nobj,node,node0,noffst,nomlis,np,npert,nprep,npres,npscal,nrefle,nrout, &
+      nsett,nslvb,nsolv,nspmax,nspro,nsskip,nsteps,nsyc,ntaubd,nu_star,nullpid,numbcs,numflu, &
+      numoth,numscn,numsed,nusbc,nvdss,nvtot,nwal,nx1,nx2,nx3,nxd,ny1,ny2,ny3,nyd,nz1,nz2,nz3,nzd, &
+      object,ocode,omask,optlevel,orefle,p0th,param,parfle,path,paxhm,pbbbb,pbso2,pbsol,pcccc, &
+      pcdtp,pcopy,pcrsl,pdadd,pdddd,pddsl,pdott,pdsmn,pdsmx,pdsnd,pdsum,peeee,peslv,pgop,pgop1, &
+      pgop_sync,pgp2,pgsmn,pgsmx,pgsum,phmhz,pi,pid,pinv3,pinvc,pm,pmask,pmd1,pmd1t,pmlag,pmltd, &
+      pmxmf,pmxms,pprep,ppres,pr,prelax,prlag,prlagp,prp,psett,pslvb,psolv,pspro,psyc,pusbc,pvdss, &
+      pwal,qinteg,qtl,rct,re2fle,re2off_b,reafle,restol,rname,rstim,rstt,rstv,rx,rxm1,rxm2,rym1, &
+      rym2,rzm1,rzm2,schfle,session,skpdat,solver_type,sxm1,sxm2,sym1,sym2,szm1,szm2,t,t1x,t1y, &
+      t1z,t2x,t2y,t2z,ta2s2,tadc3,tadd2,tadvc,tauss,taxhm,tbbbb,tbso2,tbsol,tcccc,tcdtp,tcol2, &
+      tcol3,tcopy,tcrsl,tcvf,tdadd,tdddd,tddsl,tdott,tdsmn,tdsmx,tdsnd,tdsum,teeee,teslv,textsw, &
+      tgop,tgop1,tgop_sync,tgp2,tgsmn,tgsmx,tgsum,thmhz,time,timef,timeio,tinit,tinv3,tinvc,tlag, &
+      tlagp,tmask,tmean,tmltd,tmult,tmxmf,tmxms,tnrmh1,tnrml2,tnrml8,tnrmsm,tolabs,tolev,tolhdf, &
+      tolhe,tolhr,tolhs,tolht,tolhv,tolnl,tolpdf,tolps,tolrel,tp,tprep,tpres,tproj,tschw,tsett, &
+      tslvb,tsolv,tspro,tsyc,ttime,ttotal,tttstp,tusbc,tusfq,tvdss,twal,txm1,txm2,txnext,tym1, &
+      tym2,tzm1,tzm2,unr,uns,unt,unx,uny,unz,uparam,usrdiv,v1mask,v1x,v1y,v1z,v2mask,v2x,v2y,v2z, &
+      v3mask,vdiff,vdiff_e,vgradt1,vgradt1p,vgradt2,vgradt2p,vmean,vmult,vnekton,vnrmh1,vnrml2, &
+      vnrml8,vnrmsm,vnx,vny,vnz,volel,volfld,voltm1,voltm2,volvm1,volvm2,vtrans,vx,vx_e,vxd,vxlag, &
+      vxlagp,vxp,vy,vy_e,vyd,vylag,vylagp,vyp,vz,vz_e,vzd,vzlag,vzlagp,vzp,w1mask,w2am1,w2am2, &
+      w2am3,w2cm1,w2cm2,w2cm3,w2mask,w3m1,w3m2,w3m3,w3mask,wam1,wam2,wam3,wdsize,wdsizi,wgl,wgl1, &
+      wgl2,wglg,wglgt,wgli,wgp,wmult,wx,wxlag,wxm1,wxm2,wxm3,wy,wylag,wym1,wym2,wym3,wz,wzlag, &
+      wzm1,wzm2,wzm3,xc,xm1,xm2,xxth,yc,yinvm1,ym1,ym2,zam1,zam2,zam3,zc,zgl,zgm1,zgm2,zgm3,zgp, &
+      zm1,zm2)
+      ifnav = ifadvc(1)
+      turbmod = textsw(1,1)
+          v_local_grad2 = reshape(v,shape(v_local_grad2))
+          call local_grad2(ur,us,v_local_grad2,n,1,dxm1,dxtm1,ab,abmsh,abx1,abx2,aby1,aby2,abz1, &
+      abz2,area,atol,avdiff,avtran,b1ia1,b1ia1t,b1mask,b2mask,b2p,b3mask,baxm1,bbx1,bbx2,bby1, &
+      bby2,bbz1,bbz2,bc,bcf,bctyps,bd,bdivw,bfx,bfxp,bfy,bfyp,bfz,bfzp,bintm1,binvdg,binvm1,bm1, &
+      bm1lag,bm2,bm2inv,bmass,bmnv,bmx,bmy,bmz,bpmask,bq,bqp,bx,bxlag,by,bylag,bz,bzlag,c_vx,cbc, &
+      ccurve,cdof,cerror,cflf,courno,cpfld,cpgrp,cr_h,cr_re2,csize,ctarg,curve,d1,d1t,d2,da,dam1, &
+      dam12,dam3,dat,datm1,datm12,datm3,dcm1,dcm12,dcm3,dcount,dct,dctm1,dctm12,dctm3,dg_face, &
+      dg_hndlx,dglg,dglgt,dlam,dmpfle,dp0thdt,drivc,dt,dtinit,dtinvm,dtlag,dvdfh1,dvdfl2,dvdfl8, &
+      dvdfsm,dvnnh1,dvnnl2,dvnnl8,dvnnsm,dvprh1,dvprl2,dvprl8,dvprsm,dxm12,dxm3,dxtm12,dxtm3,dym1, &
+      dym12,dym3,dytm1,dytm12,dytm3,dzm1,dzm12,dzm3,dztm1,dztm12,dztm3,eface,eface1,eigaa,eigae, &
+      eigas,eigast,eigga,eigge,eiggs,eiggst,eskip,etalph,etimes,etims0,ev1,ev2,ev3,exx1p,exx2p, &
+      exy1p,exy2p,exz1p,exz2p,fh_re2,filtertype,fintim,fldfle,fw,g1m1,g2m1,g3m1,g4m1,g5m1,g6m1, &
+      gamma0,gcnnum,gednum,gedtyp,gllel,gllnid,group,gsh,gsh_fld,hcode,hisfle,iajl1,iajl2,ialj1, &
+      ialj3,iam12,iam13,iam21,iam31,iatjl1,iatjl2,iatlj1,iatlj3,iatm12,iatm13,iatm21,iatm31, &
+      ibcsts,icedg,icface,icm12,icm13,icm21,icm31,ictm12,ictm13,ictm21,ictm31,idpss,idsess,ieact, &
+      iedge,iedgef,iedgfc,iesolv,if3d,if_full_pres,ifaa,ifadvc,ifae,ifalgn,ifanl2,ifanls,ifas, &
+      ifast,ifaxis,ifaziv,ifbase,ifbcor,ifbo,ifchar,ifcons,ifcoup,ifcvfld,ifcvode,ifcyclic,ifdeal, &
+      ifdg,ifdgfld,ifdiff,ifdp0dt,ifeppm,ifessr,ifexplvis,ifextr,ifexvt,ifflow,iffmtin,ifga,ifge, &
+      ifgeom,ifgmsh3,ifgprnt,ifgs,ifgsh_fld_same,ifgst,ifheat,ifield,ifintq,ifkeps,ifldmhd,iflmsc, &
+      iflmse,iflmsf,iflomach,ifmelt,ifmgrid,ifmhd,ifmoab,ifmodel,ifmodp,ifmpiio,ifmscr,ifmseg, &
+      ifmsfc,ifmvbd,ifneknek,ifneknekm,ifnonl,ifnskp,ifoutfld,ifpert,ifpo,ifprnt,ifprojfld,ifpsco, &
+      ifpso,ifqinp,ifreguo,ifrich,ifrsxy,ifrzer,ifschclob,ifskip,ifsplit,ifssvt,ifstrs,ifstst, &
+      ifsurt,ifsync,iftgo,iftmsh,ifto,iftran,ifusermv,ifuservp,ifvarp,ifvcor,ifvcoup,ifvo,ifvps, &
+      ifwcno,ifxyo,ifxyo_,iggl,igglt,igroup,im1d,im1dt,imatie,imd1,imd1t,imesh,indx,initc,instep, &
+      invedg,iocomm,ioinfodmp,iostep,ipscal,ipsco,irstim,irstt,irstv,isize,istep,ixcn,ixm12,ixm13, &
+      ixm21,ixm31,ixtm12,ixtm13,ixtm21,ixtm31,iym12,iym13,iym21,iym31,iytm12,iytm13,iytm21,iytm31, &
+      izm12,izm13,izm21,izm31,iztm12,iztm13,iztm21,iztm31,jacm1,jacm2,jacmi,jp,lastep,lcnnum, &
+      ldimr,lednum,lglel,lochis,loglevel,lsize,lyap,matids,matindx,matype,maxmlt,mpi_argv_null, &
+      mpi_argvs_null,mpi_bottom,mpi_errcodes_ignore,mpi_in_place,mpi_status_ignore, &
+      mpi_statuses_ignore,mpi_unweighted,mpi_weights_empty,nab,nabmsh,nadvc,naxhm,nbbbb,nbd, &
+      nbdinp,nbso2,nbsol,ncall,ncccc,ncdtp,ncmp,nconv,nconv_max,ncopy,ncrsl,ncvf,ndadd,ndddd, &
+      nddsl,ndg_facex,ndim,ndott,ndsmn,ndsmx,ndsnd,ndsum,neact,nedg,neeee,nelfld,nelg,nelgt,nelgv, &
+      nelt,nelv,neslv,nfield,ngcomm,ngeom,ngop,ngop1,ngop_sync,ngp2,ngsmn,ngsmx,ngspcn,ngsped, &
+      ngsum,nhis,nhmhz,nid,ninter,ninv3,ninvc,nio,nktonv,nmember,nmlinv,nmltd,nmxe,nmxh,nmxmf, &
+      nmxms,nmxnl,nmxp,nobj,node,node0,noffst,nomlis,np,npert,nprep,npres,npscal,nrefle,nrout, &
+      nsett,nslvb,nsolv,nspmax,nspro,nsskip,nsteps,nsyc,ntaubd,nu_star,nullpid,numbcs,numflu, &
+      numoth,numscn,numsed,nusbc,nvdss,nvtot,nwal,nx1,nx2,nx3,nxd,ny1,ny2,ny3,nyd,nz1,nz2,nz3,nzd, &
+      object,ocode,omask,optlevel,orefle,p0th,param,parfle,path,paxhm,pbbbb,pbso2,pbsol,pcccc, &
+      pcdtp,pcopy,pcrsl,pdadd,pdddd,pddsl,pdott,pdsmn,pdsmx,pdsnd,pdsum,peeee,peslv,pgop,pgop1, &
+      pgop_sync,pgp2,pgsmn,pgsmx,pgsum,phmhz,pi,pid,pinv3,pinvc,pm,pmask,pmd1,pmd1t,pmlag,pmltd, &
+      pmxmf,pmxms,pprep,ppres,pr,prelax,prlag,prlagp,prp,psett,pslvb,psolv,pspro,psyc,pusbc,pvdss, &
+      pwal,qinteg,qtl,rct,re2fle,re2off_b,reafle,restol,rname,rstim,rstt,rstv,rx,rxm1,rxm2,rym1, &
+      rym2,rzm1,rzm2,schfle,session,skpdat,solver_type,sxm1,sxm2,sym1,sym2,szm1,szm2,t,t1x,t1y, &
+      t1z,t2x,t2y,t2z,ta2s2,tadc3,tadd2,tadvc,tauss,taxhm,tbbbb,tbso2,tbsol,tcccc,tcdtp,tcol2, &
+      tcol3,tcopy,tcrsl,tcvf,tdadd,tdddd,tddsl,tdott,tdsmn,tdsmx,tdsnd,tdsum,teeee,teslv,textsw, &
+      tgop,tgop1,tgop_sync,tgp2,tgsmn,tgsmx,tgsum,thmhz,time,timef,timeio,tinit,tinv3,tinvc,tlag, &
+      tlagp,tmask,tmean,tmltd,tmult,tmxmf,tmxms,tnrmh1,tnrml2,tnrml8,tnrmsm,tolabs,tolev,tolhdf, &
+      tolhe,tolhr,tolhs,tolht,tolhv,tolnl,tolpdf,tolps,tolrel,tp,tprep,tpres,tproj,tschw,tsett, &
+      tslvb,tsolv,tspro,tsyc,ttime,ttotal,tttstp,tusbc,tusfq,tvdss,twal,txm1,txm2,txnext,tym1, &
+      tym2,tzm1,tzm2,unr,uns,unt,unx,uny,unz,uparam,usrdiv,v1mask,v1x,v1y,v1z,v2mask,v2x,v2y,v2z, &
+      v3mask,vdiff,vdiff_e,vgradt1,vgradt1p,vgradt2,vgradt2p,vmean,vmult,vnekton,vnrmh1,vnrml2, &
+      vnrml8,vnrmsm,vnx,vny,vnz,volel,volfld,voltm1,voltm2,volvm1,volvm2,vtrans,vx,vx_e,vxd,vxlag, &
+      vxlagp,vxp,vy,vy_e,vyd,vylag,vylagp,vyp,vz,vz_e,vzd,vzlag,vzlagp,vzp,w1mask,w2am1,w2am2, &
+      w2am3,w2cm1,w2cm2,w2cm3,w2mask,w3m1,w3m2,w3m3,w3mask,wam1,wam2,wam3,wdsize,wdsizi,wgl,wgl1, &
+      wgl2,wglg,wglgt,wgli,wgp,wmult,wx,wxlag,wxm1,wxm2,wxm3,wy,wylag,wym1,wym2,wym3,wz,wzlag, &
+      wzm1,wzm2,wzm3,xc,xm1,xm2,xxth,yc,yinvm1,ym1,ym2,zam1,zam2,zam3,zc,zgl,zgm1,zgm2,zgm3,zgp, &
+      zm1,zm2)
+      ifnav = ifadvc(1)
+      turbmod = textsw(1,1)
+          v = reshape(v_local_grad2, shape(v))
           do i=1,nxyz
              dj = jacmi(i,e)
+             ! d/dx
              gije(i,k,1)=dj*(ur(i)*rxm1(i,1,1,e)+us(i)*sxm1(i,1,1,e))
+             ! d/dy 
              gije(i,k,2)=dj*(ur(i)*rym1(i,1,1,e)+us(i)*sym1(i,1,1,e))
           enddo
         enddo
       endif
       return
       end subroutine comp_gije
-      subroutine mag_tensor_e(mag,aije)
+      subroutine mag_tensor_e(mag,aije,dcount,dct,idsess,ldimr,loglevel,ncall,ndim,nelt,nelv,nfield, &
+      nid,nio,npert,nrout,nx1,nx2,nx3,nxd,ny1,ny2,ny3,nyd,nz1,nz2,nz3,nzd,optlevel,rct,rname)
+! 
+!      Compute magnitude of tensor A_e for element e
+! 
+!      mag(A_e) = sqrt( 0.5 (A:A) )
+! 
       implicit none
       integer, parameter :: ldim=3
       integer, parameter :: lx1=8
@@ -753,7 +1502,82 @@ contains
       integer, parameter :: lbelt=1
       integer, parameter :: lpelt=1
       integer, parameter :: lcvelt=lelt
+      integer, parameter :: lelv=lelt
+      integer, parameter :: ly1=lx1
+      integer, parameter :: lz1=1+(ldim-2)*(lx1-1)
+      integer, parameter :: lyd=lxd
+      integer, parameter :: lzd=1+(ldim-2)*(lxd-1)
+      integer, parameter :: ly2=lx2
+      integer, parameter :: lz2=1+(ldim-2)*(lx2-1)
+      integer, parameter :: ly1m=lx1m
+      integer, parameter :: lz1m=1+(ldim-2)*(lx1m-1)
+      integer, parameter :: lp=lpmax
+      integer, parameter :: ax1=lx1
+      integer, parameter :: ay1=ax1
+      integer, parameter :: az1=1+(ldim-2)*(ax1-1)
+      integer, parameter :: ax2=lx2
+      integer, parameter :: ay2=ax2
+      integer, parameter :: az2=1+(ldim-2)*(ax2-1)
+      integer, parameter :: lpelv=lpelt
+      integer, parameter :: lpx1=lx1
+      integer, parameter :: lpy1=lpx1
+      integer, parameter :: lpz1=1+(ldim-2)*(lpx1-1)
+      integer, parameter :: lpx2=lx2
+      integer, parameter :: lpy2=lpx2
+      integer, parameter :: lpz2=1+(ldim-2)*(lpx2-1)
+      integer, parameter :: lbelv=lbelt
+      integer, parameter :: lbx1=lx1
+      integer, parameter :: lby1=lbx1
+      integer, parameter :: lbz1=1+(ldim-2)*(lbx1-1)
+      integer, parameter :: lbx2=lx2
+      integer, parameter :: lby2=lbx2
+      integer, parameter :: lbz2=1+(ldim-2)*(lbx2-1)
+      integer, parameter :: lxz=lx1*lz1
+      integer, parameter :: lzl=3+2*(ldim-3)
+      integer, parameter :: ldimt1=ldimt+1
+      integer, parameter :: ldimt3=ldimt+3
+      integer, parameter :: lx3=lx1
+      integer, parameter :: ly3=ly1
+      integer, parameter :: lz3=lz1
+      integer, parameter :: lctmp0=2*lx1*ly1*lz1*lelt
+      integer, parameter :: lctmp1=4*lx1*ly1*lz1*lelt
+      integer, parameter :: maxmor=lelt
+      integer, parameter :: lxs=1
+      integer, parameter :: lys=lxs
+      integer, parameter :: lzs=(lxs-1)*(ldim-2)+1
+      integer, parameter :: maxmbr=lelt*6
+      integer, parameter :: lcvx1=lx1
+      integer, parameter :: lcvy1=lcvx1
+      integer, parameter :: lcvz1=1+(ldim-2)*(lcvx1-1)
+      integer, parameter :: nmaxl_nn=min(1+(nsessmax-1)*2*ldim*lxz*lelt,2*ldim*lxz*lelt)
+      integer, parameter :: nfldmax_nn=min(1+(nsessmax-1)*(ldim+1+ldimt),ldim+1+ldimt)
+! 
+!      Include file to dimension static arrays
+!      and to set some hardwired run-time parameters
+! 
+      ! basic
+      ! optional
+      ! internals
+!  - - SIZE internals
+      ! averaging
+      ! adjoint
+      ! mhd
+      real, dimension(1:lx1*ly1*lz1) :: mag_rzero
+      real, dimension(1:lx1*ly1*lz1) :: mag_vsqrt
+      integer, parameter :: maxrts=1000
+      real(kind=8) :: dcount
+      real(kind=8), dimension(1:maxrts) :: dct
+      integer, dimension(1:maxrts) :: ncall
+      integer :: nrout
+      real(kind=8), dimension(1:maxrts) :: rct
+      character(len=6), dimension(1:maxrts) :: rname
+      integer :: nxyz
+      integer :: j
+      integer :: i
+      integer :: l
       integer :: nio
+      ! cvode
+      ! nek-nek
       integer :: loglevel
       integer :: optlevel
       integer :: nelv
@@ -779,7 +1603,10 @@ contains
       real, dimension(1:lx1*ly1*lz1), intent(InOut) :: mag
       real, dimension(1:lx1*ly1*lz1,1:ldim,1:ldim), intent(In) :: aije
       nxyz = lx1*ly1*lz1
-      call rzero(mag,nxyz)
+      mag_rzero = reshape(mag,shape(mag_rzero))
+      call rzero(mag_rzero,nxyz)
+
+      mag = reshape(mag_rzero, shape(mag))
       do j=1,ldim
       do i=1,ldim
       do l=1,nxyz 
@@ -787,10 +1614,59 @@ contains
   end do
       end do
       end do
-      call vsqrt(mag,nxyz)
+      mag_vsqrt = reshape(mag,shape(mag_vsqrt))
+      call vsqrt(mag_vsqrt,nxyz,dcount,dct,ncall,nrout,rct,rname)
+
+      mag = reshape(mag_vsqrt, shape(mag))
       return
       end subroutine mag_tensor_e
-      subroutine comp_sije(gije)
+      subroutine comp_sije(gije,ab,abmsh,abx1,abx2,aby1,aby2,abz1,abz2,area,atol,avdiff,avtran, &
+      b1ia1,b1ia1t,b1mask,b2mask,b2p,b3mask,baxm1,bbx1,bbx2,bby1,bby2,bbz1,bbz2,bc,bcf,bctyps,bd, &
+      bdivw,bfx,bfxp,bfy,bfyp,bfz,bfzp,bintm1,binvdg,binvm1,bm1,bm1lag,bm2,bm2inv,bmass,bmnv,bmx, &
+      bmy,bmz,bpmask,bq,bqp,bx,bxlag,by,bylag,bz,bzlag,c_vx,cbc,ccurve,cdof,cerror,cflf,courno, &
+      cpfld,cpgrp,cr_h,cr_re2,csize,ctarg,curve,d1,d1t,d2,da,dam1,dam12,dam3,dat,datm1,datm12, &
+      datm3,dcm1,dcm12,dcm3,dctm1,dctm12,dctm3,dg_face,dg_hndlx,dglg,dglgt,dlam,dmpfle,dp0thdt, &
+      drivc,dt,dtinit,dtinvm,dtlag,dvdfh1,dvdfl2,dvdfl8,dvdfsm,dvnnh1,dvnnl2,dvnnl8,dvnnsm,dvprh1, &
+      dvprl2,dvprl8,dvprsm,dxm1,dxm12,dxm3,dxtm1,dxtm12,dxtm3,dym1,dym12,dym3,dytm1,dytm12,dytm3, &
+      dzm1,dzm12,dzm3,dztm1,dztm12,dztm3,eface,eface1,eigaa,eigae,eigas,eigast,eigga,eigge,eiggs, &
+      eiggst,eskip,etalph,ev1,ev2,ev3,exx1p,exx2p,exy1p,exy2p,exz1p,exz2p,fh_re2,filtertype, &
+      fintim,fldfle,fw,g1m1,g2m1,g3m1,g4m1,g5m1,g6m1,gamma0,gcnnum,gednum,gedtyp,gllel,gllnid, &
+      group,gsh,gsh_fld,hcode,hisfle,iajl1,iajl2,ialj1,ialj3,iam12,iam13,iam21,iam31,iatjl1, &
+      iatjl2,iatlj1,iatlj3,iatm12,iatm13,iatm21,iatm31,ibcsts,icedg,icface,icm12,icm13,icm21, &
+      icm31,ictm12,ictm13,ictm21,ictm31,idpss,idsess,ieact,iedge,iedgef,iedgfc,iesolv,if3d, &
+      if_full_pres,ifaa,ifadvc,ifae,ifalgn,ifanl2,ifanls,ifas,ifast,ifaxis,ifaziv,ifbase,ifbcor, &
+      ifbo,ifchar,ifcons,ifcoup,ifcvfld,ifcvode,ifcyclic,ifdeal,ifdg,ifdgfld,ifdiff,ifdp0dt, &
+      ifeppm,ifessr,ifexplvis,ifextr,ifexvt,ifflow,iffmtin,ifga,ifge,ifgeom,ifgmsh3,ifgprnt,ifgs, &
+      ifgsh_fld_same,ifgst,ifheat,ifield,ifintq,ifkeps,ifldmhd,iflmsc,iflmse,iflmsf,iflomach, &
+      ifmelt,ifmgrid,ifmhd,ifmoab,ifmodel,ifmodp,ifmpiio,ifmscr,ifmseg,ifmsfc,ifmvbd,ifneknek, &
+      ifneknekm,ifnonl,ifnskp,ifoutfld,ifpert,ifpo,ifprnt,ifprojfld,ifpsco,ifpso,ifqinp,ifreguo, &
+      ifrich,ifrsxy,ifrzer,ifschclob,ifskip,ifsplit,ifssvt,ifstrs,ifstst,ifsurt,iftgo,iftmsh,ifto, &
+      iftran,ifusermv,ifuservp,ifvarp,ifvcor,ifvcoup,ifvo,ifvps,ifwcno,ifxyo,ifxyo_,iggl,igglt, &
+      igroup,im1d,im1dt,imatie,imd1,imd1t,imesh,indx,initc,instep,invedg,iocomm,ioinfodmp,iostep, &
+      ipscal,ipsco,irstim,irstt,irstv,isize,istep,ixcn,ixm12,ixm13,ixm21,ixm31,ixtm12,ixtm13, &
+      ixtm21,ixtm31,iym12,iym13,iym21,iym31,iytm12,iytm13,iytm21,iytm31,izm12,izm13,izm21,izm31, &
+      iztm12,iztm13,iztm21,iztm31,jacm1,jacm2,jacmi,jp,lastep,lcnnum,ldimr,lednum,lglel,lochis, &
+      loglevel,lsize,lyap,matids,matindx,matype,maxmlt,nab,nabmsh,nbd,nbdinp,ncmp,nconv,nconv_max, &
+      ndg_facex,ndim,neact,nedg,nelfld,nelg,nelgt,nelgv,nelt,nelv,nfield,ngcomm,ngeom,ngspcn, &
+      ngsped,nhis,nid,ninter,nio,nktonv,nmember,nmlinv,nmxe,nmxh,nmxnl,nmxp,nobj,node,node0, &
+      noffst,nomlis,np,npert,npscal,nrefle,nspmax,nsskip,nsteps,ntaubd,nu_star,nullpid,numbcs, &
+      numflu,numoth,numscn,numsed,nvtot,nx1,nx2,nx3,nxd,ny1,ny2,ny3,nyd,nz1,nz2,nz3,nzd,object, &
+      ocode,omask,optlevel,orefle,p0th,param,parfle,path,pi,pid,pm,pmask,pmd1,pmd1t,pmlag,pr, &
+      prelax,prlag,prlagp,prp,qinteg,qtl,re2fle,re2off_b,reafle,restol,rstim,rstt,rstv,rx,rxm1, &
+      rxm2,rym1,rym2,rzm1,rzm2,schfle,session,skpdat,solver_type,sxm1,sxm2,sym1,sym2,szm1,szm2,t, &
+      t1x,t1y,t1z,t2x,t2y,t2z,tauss,textsw,time,timef,timeio,tlag,tlagp,tmask,tmean,tmult,tnrmh1, &
+      tnrml2,tnrml8,tnrmsm,tolabs,tolev,tolhdf,tolhe,tolhr,tolhs,tolht,tolhv,tolnl,tolpdf,tolps, &
+      tolrel,tp,txm1,txm2,txnext,tym1,tym2,tzm1,tzm2,unr,uns,unt,unx,uny,unz,uparam,usrdiv,v1mask, &
+      v1x,v1y,v1z,v2mask,v2x,v2y,v2z,v3mask,vdiff,vdiff_e,vgradt1,vgradt1p,vgradt2,vgradt2p,vmean, &
+      vmult,vnekton,vnrmh1,vnrml2,vnrml8,vnrmsm,vnx,vny,vnz,volel,volfld,voltm1,voltm2,volvm1, &
+      volvm2,vtrans,vx,vx_e,vxd,vxlag,vxlagp,vxp,vy,vy_e,vyd,vylag,vylagp,vyp,vz,vz_e,vzd,vzlag, &
+      vzlagp,vzp,w1mask,w2am1,w2am2,w2am3,w2cm1,w2cm2,w2cm3,w2mask,w3m1,w3m2,w3m3,w3mask,wam1, &
+      wam2,wam3,wdsize,wdsizi,wgl,wgl1,wgl2,wglg,wglgt,wgli,wgp,wmult,wx,wxlag,wxm1,wxm2,wxm3,wy, &
+      wylag,wym1,wym2,wym3,wz,wzlag,wzm1,wzm2,wzm3,xc,xm1,xm2,xxth,yc,yinvm1,ym1,ym2,zam1,zam2, &
+      zam3,zc,zgl,zgm1,zgm2,zgm3,zgp,zm1,zm2)
+! 
+!      Compute symmetric part of a tensor G_ij for element e
+! 
       implicit none
       integer, parameter :: ldim=3
       integer, parameter :: lx1=8
@@ -819,7 +1695,74 @@ contains
       integer, parameter :: lbelt=1
       integer, parameter :: lpelt=1
       integer, parameter :: lcvelt=lelt
+      integer, parameter :: lelv=lelt
+      integer, parameter :: ly1=lx1
+      integer, parameter :: lz1=1+(ldim-2)*(lx1-1)
+      integer, parameter :: lyd=lxd
+      integer, parameter :: lzd=1+(ldim-2)*(lxd-1)
+      integer, parameter :: ly2=lx2
+      integer, parameter :: lz2=1+(ldim-2)*(lx2-1)
+      integer, parameter :: ly1m=lx1m
+      integer, parameter :: lz1m=1+(ldim-2)*(lx1m-1)
+      integer, parameter :: lp=lpmax
+      integer, parameter :: ax1=lx1
+      integer, parameter :: ay1=ax1
+      integer, parameter :: az1=1+(ldim-2)*(ax1-1)
+      integer, parameter :: ax2=lx2
+      integer, parameter :: ay2=ax2
+      integer, parameter :: az2=1+(ldim-2)*(ax2-1)
+      integer, parameter :: lpelv=lpelt
+      integer, parameter :: lpx1=lx1
+      integer, parameter :: lpy1=lpx1
+      integer, parameter :: lpz1=1+(ldim-2)*(lpx1-1)
+      integer, parameter :: lpx2=lx2
+      integer, parameter :: lpy2=lpx2
+      integer, parameter :: lpz2=1+(ldim-2)*(lpx2-1)
+      integer, parameter :: lbelv=lbelt
+      integer, parameter :: lbx1=lx1
+      integer, parameter :: lby1=lbx1
+      integer, parameter :: lbz1=1+(ldim-2)*(lbx1-1)
+      integer, parameter :: lbx2=lx2
+      integer, parameter :: lby2=lbx2
+      integer, parameter :: lbz2=1+(ldim-2)*(lbx2-1)
+      integer, parameter :: lxz=lx1*lz1
+      integer, parameter :: lzl=3+2*(ldim-3)
+      integer, parameter :: ldimt1=ldimt+1
+      integer, parameter :: ldimt3=ldimt+3
+      integer, parameter :: lx3=lx1
+      integer, parameter :: ly3=ly1
+      integer, parameter :: lz3=lz1
+      integer, parameter :: lctmp0=2*lx1*ly1*lz1*lelt
+      integer, parameter :: lctmp1=4*lx1*ly1*lz1*lelt
+      integer, parameter :: maxmor=lelt
+      integer, parameter :: lxs=1
+      integer, parameter :: lys=lxs
+      integer, parameter :: lzs=(lxs-1)*(ldim-2)+1
+      integer, parameter :: maxmbr=lelt*6
+      integer, parameter :: lcvx1=lx1
+      integer, parameter :: lcvy1=lcvx1
+      integer, parameter :: lcvz1=1+(ldim-2)*(lcvx1-1)
+      integer, parameter :: nmaxl_nn=min(1+(nsessmax-1)*2*ldim*lxz*lelt,2*ldim*lxz*lelt)
+      integer, parameter :: nfldmax_nn=min(1+(nsessmax-1)*(ldim+1+ldimt),ldim+1+ldimt)
+! 
+!      Include file to dimension static arrays
+!      and to set some hardwired run-time parameters
+! 
+      ! basic
+      ! optional
+      ! internals
+!  - - SIZE internals
+      ! averaging
+      ! adjoint
+      ! mhd
+      integer :: nxyz
+      integer :: k
+      integer :: j
+      integer :: i
+      integer :: l
       integer :: nio
+      ! cvode
+      ! nek-nek
       integer :: loglevel
       integer :: optlevel
       integer :: nelv
@@ -842,13 +1785,15 @@ contains
       integer :: nzd
       integer :: ndim
       integer :: ldimr
-      integer, parameter :: numsts=50
       integer, parameter :: lvt1=lx1*ly1*lz1*lelv
       integer, parameter :: lvt2=lx2*ly2*lz2*lelv
       integer, parameter :: lbt1=lbx1*lby1*lbz1*lbelv
       integer, parameter :: lbt2=lbx2*lby2*lbz2*lbelv
       integer, parameter :: lorder2=max(1,lorder-2)
       integer, parameter :: lxq=lx2
+! 
+!      Elemental derivative operators
+! 
       real, dimension(1:lx1,1:lx1) :: dxm1
       real, dimension(1:lx2,1:lx1) :: dxm12
       real, dimension(1:ly1,1:ly1) :: dym1
@@ -879,6 +1824,9 @@ contains
       real, dimension(1:ly1,1:ly2) :: datm12
       real, dimension(1:ly3,1:ly3) :: dam3
       real, dimension(1:ly3,1:ly3) :: datm3
+! 
+!     Dealiasing variables
+! 
       real, dimension(1:lxd,1:lyd,1:lzd,1:lelv) :: vxd
       real, dimension(1:lxd,1:lyd,1:lzd,1:lelv) :: vyd
       real, dimension(1:lxd,1:lyd,1:lzd,1:lelv) :: vzd
@@ -888,6 +1836,9 @@ contains
       real, dimension(1:lx1,1:lxd) :: im1dt
       real, dimension(1:lx1,1:lxd) :: pmd1
       real, dimension(1:lxd,1:lx1) :: pmd1t
+! 
+!      Eigenvalues
+! 
       real :: eigas
       real :: eigaa
       real :: eigast
@@ -904,6 +1855,9 @@ contains
       logical :: ifge
       logical :: ifgs
       logical :: ifgst
+! 
+!      Geometry arrays
+! 
       real, dimension(1:lx1,1:ly1,1:lz1,1:lelt) :: xm1
       real, dimension(1:lx1,1:ly1,1:lz1,1:lelt) :: ym1
       real, dimension(1:lx1,1:ly1,1:lz1,1:lelt) :: zm1
@@ -979,6 +1933,19 @@ contains
       logical, dimension(1:8,1:lelt,0:1) :: ifmscr
       logical, dimension(1:8,1:lelt) :: ifnskp
       logical :: ifbcor
+! 
+!      Input parameters from preprocessors.
+! 
+!      Note that in parallel implementations, we distinguish between
+!      distributed data (LELT) and uniformly distributed data.
+! 
+!      Input common block structure:
+! 
+!      INPUT1:  REAL            INPUT5: REAL      with LELT entries
+!      INPUT2:  INTEGER         INPUT6: INTEGER   with LELT entries
+!      INPUT3:  LOGICAL         INPUT7: LOGICAL   with LELT entries
+!      INPUT4:  CHARACTER       INPUT8: CHARACTER with LELT entries
+! 
       real, dimension(1:200) :: param
       real :: rstim
       real :: vnekton
@@ -1085,6 +2052,9 @@ contains
       integer :: cr_re2
       integer :: fh_re2
       integer(kind=8) :: re2off_b
+! 
+!  proportional to LELT
+! 
       real, dimension(1:8,1:lelt) :: xc
       real, dimension(1:8,1:lelt) :: yc
       real, dimension(1:8,1:lelt) :: zc
@@ -1099,6 +2069,9 @@ contains
       character(len=3) :: solver_type
       integer, dimension(1:lelt) :: ieact
       integer :: neact
+! 
+!  material set ids, BC set ids, materials (f=fluid, s=solid), bc types
+! 
       integer :: numflu
       integer :: numoth
       integer :: numbcs
@@ -1108,6 +2081,9 @@ contains
       integer, dimension(1:numsts) :: ibcsts
       integer, dimension(1:numsts) :: bcf
       character(len=3), dimension(1:numsts) :: bctyps
+! 
+!      Interpolation operators
+! 
       real, dimension(1:lx2,1:lx1) :: ixm12
       real, dimension(1:lx1,1:lx2) :: ixm21
       real, dimension(1:ly2,1:ly1) :: iym12
@@ -1156,6 +2132,9 @@ contains
       real, dimension(1:ly3,1:ly3) :: iatlj3
       real, dimension(1:ly1,1:ly1) :: ialj1
       real, dimension(1:ly1,1:ly1) :: iatlj1
+! 
+!      Mass matrix
+! 
       real, dimension(1:lx1,1:ly1,1:lz1,1:lelt) :: bm1
       real, dimension(1:lx2,1:ly2,1:lz2,1:lelv) :: bm2
       real, dimension(1:lx1,1:ly1,1:lz1,1:lelv) :: binvm1
@@ -1169,6 +2148,9 @@ contains
       real :: voltm2
       real, dimension(1:lx1,1:ly1,1:lz1,1:lelt) :: yinvm1
       real, dimension(1:lx1*ly1*lz1,1:lelt) :: binvdg
+! 
+!      Moving mesh variables
+! 
       real, dimension(1:lx1m,1:ly1m,1:lz1m,1:lelt) :: wx
       real, dimension(1:lx1m,1:ly1m,1:lz1m,1:lelt) :: wy
       real, dimension(1:lx1m,1:ly1m,1:lz1m,1:lelt) :: wz
@@ -1182,11 +2164,16 @@ contains
       real, dimension(1:lx1m,1:ly1m,1:lz1m,1:lelv) :: ev1
       real, dimension(1:lx1m,1:ly1m,1:lz1m,1:lelv) :: ev2
       real, dimension(1:lx1m,1:ly1m,1:lz1m,1:lelv) :: ev3
+! 
+!      Communication information
+!      NOTE: NID is stored in 'SIZE' for greater accessibility
       integer :: node
       integer :: pid
       integer :: np
       integer :: nullpid
       integer :: node0
+! 
+!      Maximum number of elements (limited to 2**31/12, at least for now)
       integer(kind=8) :: nvtot
       integer, dimension(0:ldimt1) :: nelg
       integer, dimension(1:lelt) :: lglel
@@ -1200,15 +2187,25 @@ contains
       integer :: lsize
       integer :: csize
       integer :: wdsizi
+!      crystal-router, gather-scatter, and xxt handles (xxt=csr grid solve)
+! 
       integer :: cr_h
       integer :: gsh
       integer, dimension(0:ldimt3) :: gsh_fld
       integer, dimension(1:ldimt3) :: xxth
       logical :: ifgsh_fld_same
+!      These arrays need to be reconciled with cmt (pff, 11/03/15)
       integer, dimension(1:lx1*lz1*2*ldim*lelt) :: dg_face
       integer :: dg_hndlx
       integer :: ndg_facex
+! 
+!      Main storage of simulation variables
+! 
+! 
+!      Solution and data
+! 
       real, dimension(1:lx1,1:ly1,1:lz1,1:lelt,1:ldimt) :: bq
+!      Can be used for post-processing runs (SIZE .gt. 10+3*LDIMT flds)
       real, dimension(1:lx1,1:ly1,1:lz1,1:lelv,1:2) :: vxlag
       real, dimension(1:lx1,1:ly1,1:lz1,1:lelv,1:2) :: vylag
       real, dimension(1:lx1,1:ly1,1:lz1,1:lelv,1:2) :: vzlag
@@ -1222,6 +2219,7 @@ contains
       real, dimension(1:lx1,1:ly1,1:lz1,1:lelv) :: aby2
       real, dimension(1:lx1,1:ly1,1:lz1,1:lelv) :: abz2
       real, dimension(1:lx1,1:ly1,1:lz1,1:lelt) :: vdiff_e
+!      Solution data
       real, dimension(1:lx1,1:ly1,1:lz1,1:lelv) :: vx
       real, dimension(1:lx1,1:ly1,1:lz1,1:lelv) :: vy
       real, dimension(1:lx1,1:ly1,1:lz1,1:lelv) :: vz
@@ -1240,6 +2238,7 @@ contains
       real, dimension(1:lx1*ly1*lz1*lelv*ldim,1:lorder+1) :: bdivw
       real, dimension(1:lxd*lyd*lzd*lelv*ldim,1:lorder+1) :: c_vx
       real, dimension(1:2*ldim,1:lelt) :: fw
+!      Solution data for magnetic field
       real, dimension(1:lbx1,1:lby1,1:lbz1,1:lbelv) :: bx
       real, dimension(1:lbx1,1:lby1,1:lbz1,1:lbelv) :: by
       real, dimension(1:lbx1,1:lby1,1:lbz1,1:lbelv) :: bz
@@ -1277,6 +2276,9 @@ contains
       real, dimension(1:lbx1,1:lby1,1:lbz1,1:lbelv) :: b2mask
       real, dimension(1:lbx1,1:lby1,1:lbz1,1:lbelv) :: b3mask
       real, dimension(1:lbx1,1:lby1,1:lbz1,1:lbelv) :: bpmask
+! 
+! 
+!      Solution and data for perturbation fields
        real, dimension(1:lpx1*lpy1*lpz1*lpelv,1:lpert) :: vxp
        real, dimension(1:lpx1*lpy1*lpz1*lpelv,1:lpert) :: vyp
        real, dimension(1:lpx1*lpy1*lpz1*lpelv,1:lpert) :: vzp
@@ -1300,6 +2302,9 @@ contains
        real, dimension(1:lpx1*lpy1*lpz1*lpelt,1:ldimt,1:lpert) :: vgradt1p
        real, dimension(1:lpx1*lpy1*lpz1*lpelt,1:ldimt,1:lpert) :: vgradt2p
       integer :: jp
+! 
+!      Steady variables
+! 
       real, dimension(1:ldimt1) :: tauss
       real, dimension(1:ldimt1) :: txnext
       integer :: nsskip
@@ -1321,6 +2326,9 @@ contains
       real :: dvprsm
       real :: dvprl2
       real :: dvprl8
+! 
+!      Arrays for direct stiffness summation
+! 
       integer, dimension(1:2,1:3) :: nomlis
       integer, dimension(1:6) :: nmlinv
       integer, dimension(1:6) :: group
@@ -1351,6 +2359,9 @@ contains
       integer, dimension(1:4,1:10) :: icface
       integer, dimension(1:8) :: indx
       integer, dimension(1:27) :: invedg
+!  
+!      Variables related to time integration
+! 
       real :: time
       real :: timef
       real :: fintim
@@ -1417,16 +2428,25 @@ contains
       logical :: if_full_pres
       logical :: ifoutfld
       real, dimension(1:3,1:lpert) :: lyap
+! 
+!      Variables for E-solver
+! 
       integer :: iesolv
       logical, dimension(1:lelv) :: ifalgn
       logical, dimension(1:lelv) :: ifrsxy
       real, dimension(1:lelv) :: volel
+! 
+!      Gauss-Labotto and Gauss points
+! 
       real, dimension(1:lx1,1:3) :: zgm1
       real, dimension(1:lx2,1:3) :: zgm2
       real, dimension(1:lx3,1:3) :: zgm3
       real, dimension(1:lx1) :: zam1
       real, dimension(1:lx2) :: zam2
       real, dimension(1:lx3) :: zam3
+! 
+!     Weights
+! 
       real, dimension(1:lx1) :: wxm1
       real, dimension(1:ly1) :: wym1
       real, dimension(1:lz1) :: wzm1
@@ -1448,13 +2468,36 @@ contains
       real, dimension(1:lx2,1:ly2) :: w2cm2
       real, dimension(1:lx3,1:ly3) :: w2am3
       real, dimension(1:lx3,1:ly3) :: w2cm3
+! 
+!      Points (z) and weights (w) on velocity, pressure
+! 
+!      zgl -- velocity points on Gauss-Lobatto points i = 1,...nx
+!      zgp -- pressure points on Gauss         points i = 1,...nxp (nxp = nx-2)
+! 
+!      integer    lxm ! defined in HSMG
+!      parameter (lxm = lx1)
+! 
       real, dimension(1:lx1) :: zgl
       real, dimension(1:lx1) :: wgl
       real, dimension(1:lx1) :: zgp
       real, dimension(1:lxq) :: wgp
+! 
+!      Tensor- (outer-) product of 1D weights   (for volumetric integration)
+! 
       real, dimension(1:lx1*lx1) :: wgl1
       real, dimension(1:lxq*lxq) :: wgl2
       real, dimension(1:lx1*lx1) :: wgli
+! 
+! 
+!     Frequently used derivative matrices:
+! 
+!     D1, D1t   ---  differentiate on mesh 1 (velocity mesh)
+!     D2, D2t   ---  differentiate on mesh 2 (pressure mesh)
+! 
+!     DXd,DXdt  ---  differentiate from velocity mesh ONTO dealiased mesh
+!                    (currently the same as D1 and D1t...)
+! 
+! 
       real, dimension(1:lx1*lx1) :: d1
       real, dimension(1:lx1*lx1) :: d1t
       real, dimension(1:lx1*lx1) :: d2

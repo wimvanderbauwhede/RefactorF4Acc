@@ -34,7 +34,6 @@ use Exporter;
 sub inline_subroutine { (my $stref, my $f, my $sub) =@_;
 
     
-        # First rename all variables           
 	    
         # Find the call(s) to the subroutine $sub in $f
         # Rename using $info->{'ArgMap'}{$sig_arg}
@@ -50,13 +49,14 @@ sub inline_subroutine { (my $stref, my $f, my $sub) =@_;
     return $stref;
 }
 
+# Inlining a call to $sub in $f
 sub inline_call { (my $stref, my $f, my $sub) =@_;
-	
+
+   # First rename all variables in $sub. This is safe because even with COMMON blocks, the names are not global
+   $stref = rename_vars($stref,$sub);
     
-    
-    
-   $stref = rename_vars($stref,$sub);    
-    
+    # Now rename the arguments, i.e. any occurrence of an argument in the body of $sub should get the value of the call arg in $f
+    # TODO: refactor out
     my $pass_rename_args = sub {
             ( my $annline, my $state ) = @_;
             ( my $line,    my $info )  = @{$annline};
@@ -71,23 +71,23 @@ sub inline_call { (my $stref, my $f, my $sub) =@_;
             return ( [$annline], [ $stref, $f, $sub ] );
     };
 
-        my $state = [ $stref, $f, $sub];
-        ( $stref, $state ) = stateful_pass( $stref, $f, $pass_rename_args, $state, 'pass_rename_args()' . __LINE__ );
+    my $state = [ $stref, $f, $sub];
+    ( $stref, $state ) = stateful_pass( $stref, $f, $pass_rename_args, $state, 'pass_rename_args()' . __LINE__ );
         
         
-        # Now run the analysis again and check the result
-        my $Sf = $stref->{'Subroutines'}{$sub};       
+    # Now run the analysis again and check the result
+    my $Sf = $stref->{'Subroutines'}{$sub};       
 
-        $stref = analyse_lines( $sub, $stref );
+    $stref = analyse_lines( $sub, $stref );
 #        say Dumper(pp_annlines($Sf->{'AnnLines'},1));
 #        say '========';
 #        say Dumper(pp_annlines($Sf->{'RefactoredCode'},1    ));        
 #        croak;        
 #        croak;
         
-        ($stref,my $specification_part,my $computation_part) = split_specification_computation_parts($stref, $sub);
+    ($stref,my $specification_part,my $computation_part) = split_specification_computation_parts($stref, $sub);
 
-        $stref = merge_specification_computation_parts_into_caller($stref, $f, $sub,$specification_part,$computation_part);  	            
+    $stref = merge_specification_computation_parts_into_caller($stref, $f, $sub,$specification_part,$computation_part);  	            
 	
     return $stref;
 }
@@ -177,43 +177,53 @@ sub merge_specification_computation_parts_into_caller { (my $stref, my $f, my $s
 # Also, which lines can have vars and what does their $info look like?
 # Of course a rather cheap way would be to rename the source before it gets parsed, e.g. in SrcReader. But we need to rename the args anyway so the problem remains.
 # Or I could emit the refactored source and parse it but then I have to run all analysis again as well. Although maybe not, because this source should be "complete".
-# So basically do the renaming, emit the source and run it through the parser. Or maybe it is enough to only rerun _analyse_lines. OK, let's try that!
+# So basically
+# - do the renaming, 
+# - emit the source and 
+# - run it through the parser. 
+# - Or maybe it is enough to only rerun _analyse_lines. 
 
+
+# Rename every variable on every line $var to  $var . '_' . $f
 sub rename_vars {
 	( my $stref, my $f ) = @_;
-	
 		
-		my $Sf               = $stref->{'Subroutines'}{$f};
-		
-		
-		my $rename_vars_pass = sub {
-			( my $annline, my $state ) = @_;
-			( my $line,    my $info )  = @{$annline};
-			( my $stref,   my $f )     = @{$state};
-			if (not exists $info->{'Use'} ) {
-			my $Sf = $stref->{'Subroutines'}{$f};
-			my $vars = get_vars_from_set( $Sf->{'Vars'} );
-			for my $var (keys %{$vars} ) {
-				my $subset1 = in_nested_set($Sf,'Args', $var);
-				my $subset2 = in_nested_set($Sf,'UsedParameters', $var);
-				my $subset3 = in_nested_set($Sf,'IncludedParameters', $var);
-				if (not $subset1 and not $subset2 and not $subset3) { 
-				my $qvar = $var . '_' . $f;
-				$line =~ s/\b$var\b/$qvar/g;
-				}				
-			}
-			}
-			return ( [[$line,$info]], [ $stref, $f ] );
-		};
+    my $Sf               = $stref->{'Subroutines'}{$f};
+    
+    my $rename_vars_pass = sub {
+        ( my $annline, my $state ) = @_;
+        ( my $line,    my $info )  = @{$annline};
+        ( my $stref,   my $f )     = @{$state};
+        if (
+                not exists $info->{'Use'}
+			and not exists $info->{'ImplicitNone'}
+			and not exists $info->{'Comments'}
+			and not exists $info->{'Blank'}
+			and not exists $info->{'Skip'}
+			and not exists $info->{'Deleted'}            
+         ) {
+            my $Sf = $stref->{'Subroutines'}{$f};
+            my $vars = get_vars_from_set( $Sf->{'Vars'} );
+            for my $var (keys %{$vars} ) {
+                my $subset1 = in_nested_set($Sf,'Args', $var);
+                my $subset2 = in_nested_set($Sf,'UsedParameters', $var);
+                my $subset3 = in_nested_set($Sf,'IncludedParameters', $var);
+                if (not $subset1 and not $subset2 and not $subset3) { 
+                    my $qvar = $var . '_' . $f;
+                    $line =~ s/\b$var\b/$qvar/g;
+                }				
+            }
+        }
+        return ( [[$line,$info]], [ $stref, $f ] );
+    };
 
-		my $state = [ $stref, $f ];
-		( $stref, $state ) = stateful_pass( $stref, $f, $rename_vars_pass, $state, 'rename_vars_pass() ' . __LINE__ );
+    my $state = [ $stref, $f ];
+    ( $stref, $state ) = stateful_pass( $stref, $f, $rename_vars_pass, $state, 'rename_vars_pass() ' . __LINE__ );
 
-	
-#	$Sf->{'AnnLines'}=$Sf->{'RefactoredCode'};
 	return $stref;
 
 }    #  END of rename_vars
+
 
 sub rename_args {
     ( my $stref, my $f , my $argmap) = @_;
