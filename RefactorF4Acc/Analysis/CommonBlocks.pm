@@ -686,7 +686,6 @@ sub _match_up_common_var_sequences {
 			# This goes wrong when both elts of the pair are Scalar but also when one is a scalar and the other an array of size 1
 			# In both cases there is no need for a reshape. 
 			@{__reshape_rhs_if_required($pair, $stref, $f )}; 
-			# @{ _caller_to_local_assignment_annlines($pair) };
 		} @equivalence_pairs;
 		if ( not exists $Sf->{'ExMismatchedCommonArgs'}{'ArgAssignmentLines'} ) {
 			$Sf->{'ExMismatchedCommonArgs'}{'ArgAssignmentLines'} = \@arg_assignment_lines;
@@ -722,21 +721,6 @@ sub __emit_equiv_var_str {
 		return $prefix_str . $var;
 	}
 } # END of __emit_equiv_var_str
-
-sub _caller_to_local_assignment_annlines {
-	( my $equiv_pair ) = @_; 
-croak 'UNUSED?' if $DBG;
-	my $l        = $equiv_pair->[0];
-	my $l_str    = __emit_equiv_var_str($l);
-	my $r        = $equiv_pair->[1];
-	my $r_str    = __emit_equiv_var_str($r);
-	my $annlines = _cast_annlines( $l->[1], $l_str, $r->[1], $r_str );
-
-	# Adding the Indent
-	my $indent = ' ' x 6;
-	$annlines = [ map { [ $indent . $_->[0], $_->[1] ] } @{$annlines} ];
-	return $annlines;
-} # END of _caller_to_local_assignment_annlines
 
 # Reshape works on an array or perhaps on a slice. 
 # I am not sure how it works with casts

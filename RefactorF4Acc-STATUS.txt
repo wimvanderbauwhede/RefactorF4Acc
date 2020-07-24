@@ -48,6 +48,11 @@ There was a bug in the casting (vars with same name excluded), and that led to m
 - dims with vars in them, possible in sig args
 - '*' in character strings
 
+TODO: cast should use the kind, and warn if we cast down
+The change is mostly in CommonBlocks, the equivalence_pairs
+Then in Casts we should all integer_kind_cast and real_kind_cast
+Then also real_to_doubleprecision and (ouch) doubleprecision_to_real
+
 Now all NIST tests pass again and eturb has correct casting
 
 STATUS 2020-07-22

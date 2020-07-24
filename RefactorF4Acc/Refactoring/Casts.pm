@@ -36,8 +36,12 @@ cast_call_argument
 # create_cast_annlines :: (Decl,VarStr) -> (Decl, VarStr) -> [AnnLine]
 sub create_cast_annlines {
 	my ( $to_type_decl, $to_var, $from_type_decl, $from_var ) = @_;
-	my $to_type=$to_type_decl->{'Type'};
-	my $from_type=$from_type_decl->{'Type'};	
+	my $to_type = $to_type_decl->{'Type'};
+	my $to_kind = $to_type_decl->{'Attr'};
+	$to_kind =~s/^\w+\s*=\s*//;
+	my $from_type=$from_type_decl->{'Type'};
+	my $from_kind = $from_type_decl->{'Attr'};
+	$from_kind =~s/^\w+\s*=\s*//;	
 	# Indent with a fixed 6 spaces. TODO
 	 my $annlines = [ map { [ '      '.$_->[0], $_->[1] ] } @{_cast_annlines( $to_type, $to_var, $from_type, $from_var )} ];
 	 return $annlines
