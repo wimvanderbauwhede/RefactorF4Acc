@@ -27,6 +27,10 @@
             print *,'p ','ivb3',ivb3(i)
         end do
 
+        do i=1,8      
+            print *,'p:',' ext','ivb3',ivb3(i+8)
+        end do
+
         call s2
 
       end program test_common_equivalence
@@ -41,7 +45,7 @@
         common vs1,vs2
         common /b2/ vs3,vs4,vs5,vs6
         common ivb3(16) ! This does extend the blank block 
-        ! but the extended portion can't be accessed in the program
+        ! the extended portion can be accessed in the program, but there is a out-of-bounds warning
 
         print *,'s',vs3,vs5,vs6
         do i=1,4

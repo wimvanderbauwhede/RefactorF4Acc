@@ -1,4 +1,4 @@
-! gfortran-mp-8 -Wall test_common_equivalence.f90  -o test_common_equivalence
+! gfortran -Wall test_common_equivalence.f90  -o test_common_equivalence
       program test_common_equivalence
         implicit none
         integer i, ivb3
@@ -27,6 +27,10 @@
             print *,'p ','ivb3',ivb3(i)
         end do
 
+        do i=1,8      
+            print *,'p ','ivb3',ivb3(i+8)
+        end do
+
         call s2
 
       end program test_common_equivalence
@@ -41,7 +45,8 @@
         common vs1,vs2
         common /b2/ vs3,vs4,vs5,vs6
         common ivb3(16) ! This does extend the blank block 
-        ! but the extended portion can't be accessed in the program
+        ! the extended portion can be accessed in the program
+        ! even though there is an out-of-bounds warning 
 
         print *,'s',vs3,vs5,vs6
         do i=1,4
