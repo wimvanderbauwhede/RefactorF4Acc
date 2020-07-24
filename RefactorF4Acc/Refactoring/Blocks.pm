@@ -303,7 +303,7 @@ sub __create_new_subroutine_entries {
         $Sblock->{'RefactorGlobals'} = 1;
         $stref->{'Subroutines'}{$block} = $Sblock;
         if ( $Sf->{'RefactorGlobals'} == 0 ) {
-            croak "Should be obsolete";
+            croak "Should be obsolete" if $DBG;
             $Sf->{'RefactorGlobals'} = 2;
         } else {
             say "INFO: RefactorGlobals==1 for $f while processing BLOCK $block" if $I;
@@ -740,7 +740,7 @@ sub __emit_param_lines { my ($Sblock, $varsref, $params, $param_decl_generated, 
         
     }
     return $param_annlines;
-    carp "Only do this if the params are not declared via USE!";
+    carp "Only do this if the params are not declared via USE!" if $DBG;
 } # END of __emit_param_lines
 
 

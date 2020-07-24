@@ -204,7 +204,7 @@ sub _ifdef_io_per_source_PASS1 { (my $stref,my $f) =@_;
 					(my $next_relevant_statement, my $relevant_annline_idx) = get_next_relevant_statement($annlines, $idx);
 					if (exists  $next_relevant_statement->[1]{'EndIf'} or exists $next_relevant_statement->[1]{'Else'} or exists $next_relevant_statement->[1]{'ElseIf'}) {
 						#remove the Else and the block but NOT the EndIf/Else
-						croak if $idx == $relevant_annline_idx-1;
+						croak  if $DBG and $idx == $relevant_annline_idx-1;
 					 	for my $b_idx ($idx .. $relevant_annline_idx-1) {
 					 		$annlines->[$b_idx][1]{'Removed'}=1;
 					 		$removed_count++;

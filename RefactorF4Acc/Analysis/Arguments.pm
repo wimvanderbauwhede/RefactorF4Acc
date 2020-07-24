@@ -407,7 +407,7 @@ sub analyse_var_decls_for_params {
 						}
 					}
 				} else {
-					croak "SHOULD NOT HAPPEN ".Dumper($var_rec);
+					croak "SHOULD NOT HAPPEN ".Dumper($var_rec) if $DBG;
 					next if $dim =~ /^\d+$/;
 					my @pars = split( /\W+/, $dim );
 					for my $par (@pars) {
@@ -527,7 +527,7 @@ sub __determine_exglobargs_core { ( my $stref, my $f ) = @_;
 	for my $caller (@{$stref->{'CallStack'}}) {
 		my $common_decls_caller=__get_common_decls($stref,$caller);
 		for my $var (keys %{ $common_decls_caller }) {
-			if (not exists $common_decls_caller->{$var}{'CommonBlockName'}) {
+			if ($DBG and not exists $common_decls_caller->{$var}{'CommonBlockName'}) {
 				croak "$caller => $var => ".Dumper($common_decls_caller->{$var});
 			}
 			my $common_block_name = $common_decls_caller->{$var}{'CommonBlockName'};

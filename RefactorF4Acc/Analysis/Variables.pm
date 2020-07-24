@@ -151,7 +151,7 @@ sub analyse_variables {
 													$decl = $var_rec;
 												}
 											} else {
-												croak "No Subset for $mvar in $inc $subset_for_mvar";
+												croak "No Subset for $mvar in $inc $subset_for_mvar" if $DBG;
 											}
 	
 											if ( exists $stref->{'IncludeFiles'}{$inc}{'Commons'}{$mvar} ) {
@@ -170,12 +170,12 @@ sub analyse_variables {
 												say "INFO: LOCAL VAR FROM $inc, NOT COMMON! " . 'analyse_variables() ' . __LINE__ if $I;
 												push @{ $stref->{'Subroutines'}{$f}{'ExInclLocalVars'}{'List'} }, $mvar;
 												$stref->{'Subroutines'}{$f}{'ExInclLocalVars'}{'Set'}{$mvar} = $decl;
-												croak "INFO: LOCAL VAR FROM $inc, NOT COMMON! " if $mvar eq 'len';
+												croak "INFO: LOCAL VAR FROM $inc, NOT COMMON! " if $DBG and $mvar eq 'len';
 											}
 											$identified_vars->{$mvar} = 1;
 											last;
 										} else {
-											croak $mvar ,' : ' ,$inc,' ',$stref->{'IncludeFiles'}{$inc}{'InclType'};
+											croak $mvar ,' : ' ,$inc,' ',$stref->{'IncludeFiles'}{$inc}{'InclType'} if $DBG;
 										}
 									}
 								} else {
@@ -201,8 +201,6 @@ sub analyse_variables {
 									} else {
 #										say "$f VAR7 $mvar";
 											print "FOUND COMMON $mvar in INC $inc in $line\n" if $DBG;
-											croak "COMMON $mvar for $f" . in_nested_set( $stref->{'Modules'}{$inc}, 'Vars', $mvar )
-											  if $mvar eq 'kp';
 											my $decl;
 											my $subset_for_mvar = in_nested_set( $stref->{'Modules'}{$inc}, 'Vars', $mvar );
 											say "Found $mvar in $subset_for_mvar "
@@ -218,7 +216,7 @@ sub analyse_variables {
 													$decl = $var_rec;
 												}
 											} else {
-												croak "No Subset for $mvar in $inc $subset_for_mvar";
+												croak "No Subset for $mvar in $inc $subset_for_mvar" if $DBG;
 											}
 												say "FOUND argdecl for $mvar via common block in $inc" if $DBG;
 												push @{ $stref->{'Subroutines'}{$f}{'ExGlobArgs'}{'List'} }, $mvar;
@@ -379,8 +377,6 @@ sub analyse_variables {
             }
 		}
 	}
-#	croak Dumper($Sf->{CommonVars}) if $f eq 'block_data';
-#	croak Dumper($Sf->{ExGlobArgs}) if $f eq 'block_data';
 	return $stref;
 }    # END of analyse_variables()
 
@@ -451,7 +447,7 @@ sub identify_vars_on_line {
 					@chunks = ( @chunks, @{ $info->{'Vars'}{'List'} } );
 				}
 			} elsif ( exists $info->{'Do'} ) {
-				if (not defined $info->{'Do'}{'Iterator'} or not defined $info->{'Do'}{'Range'} or not defined $info->{'Do'}{'Range'}{'Vars'} ) {
+				if ($DBG and not defined $info->{'Do'}{'Iterator'} or not defined $info->{'Do'}{'Range'} or not defined $info->{'Do'}{'Range'}{'Vars'} ) {
 					say $line;
 					carp Dumper($info);
 				}

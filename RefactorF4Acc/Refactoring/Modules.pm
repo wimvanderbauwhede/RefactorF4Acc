@@ -77,7 +77,7 @@ sub add_module_decls {
 					if ( exists $stref->{'Subroutines'}{$called_sub} and exists $stref->{'Subroutines'}{$called_sub}{'Source'} ) {
 						$cs_src = $stref->{'Subroutines'}{$called_sub}{'Source'};
 					} else {
-						croak "PROBLEM: NO $called_sub in $src" . Dumper( keys %{ $stref->{'Subroutines'} } ) . $stref->{'Subroutines'}{$called_sub}{'Source'};
+						croak "PROBLEM: NO $called_sub in $src" . Dumper( keys %{ $stref->{'Subroutines'} } ) . $stref->{'Subroutines'}{$called_sub}{'Source'} if $DBG;
 					}
 					next if $cs_src eq $src;                                                # FIXME: ad-hoc!
 					next if $stref->{'SourceFiles'}{$cs_src}{'SourceType'} eq 'Modules';    # Because in that case there should already be a USE

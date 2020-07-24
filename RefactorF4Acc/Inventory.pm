@@ -216,7 +216,7 @@ sub _process_src {
                         my $block_type=$1;
                          my $sub=$2;
                          say 'Detected block: '."$block_type $sub in $srctype $sub_name" if $V;
-                         croak 'Detect blocks: No '.$block_type.' name from '.$line if $sub eq '';
+                         croak 'Detect blocks: No '.$block_type.' name from '.$line  if $DBG and $sub eq '';
                         $has_blocks = 1;
                         $stref->{$srctype}{$sub_name}{'HasBlocks'}=$has_blocks;
                         if ($translate_to ne '') {
@@ -281,7 +281,7 @@ sub _process_src {
             	if ($cols1to6_char eq "\t") {
             		 $free_form = 0;     
             		 $tab_format=1;
-            		 carp 'TAB FORMAT IS NOT WELL SUPPORTED!';
+            		 say  'WARNING: TAB FORMAT IS NOT WELL SUPPORTED!' if $W;
 #• Continuation lines are identified by  a nonzero digit after the first tab.                        		 
             		 if ($cols1to6_chars[$col_ctr+1] =~/1-9/) {
             		 	$is_cont=1;
@@ -467,7 +467,7 @@ sub _process_src {
                 } elsif ($in_interface_block) {
                 	$stref->{$srctype}{$mod_name}{'Interface'}{$sub}=1; #WV: TODO: add functionality here
                 } else {
-                	croak 'TROUBLE!';
+                	croak 'TROUBLE!' if $DBG;
                 }
                 $stref->{'Subroutines'}{$sub}{'FStyle'}=$fstyle;
             	$stref->{'Subroutines'}{$sub}{'FreeForm'}=$free_form;                  

@@ -1198,6 +1198,7 @@ Suppose we don't:
                     }
 ####### POSTAMBLE
                     if (
+                      $DBG and 
                         not
                         exists $stref->{$srctype}{$code_unit_name}{'Status'} )
                     {
@@ -1345,7 +1346,7 @@ sub _pushAnnLine {
 # -----------------------------------------------------------------------------
 
 sub _hasCont {
-    croak 'UNUSED';
+    croak 'UNUSED' if $DBG;
     ( my $line ) = @_;
     if ( $line =~ /\&\s*$/ ) {
         return 1;
@@ -1413,7 +1414,7 @@ sub _removeCont {
             $line =~ s/^\t[0-9]/ /;
         }
         else {
-            croak $line. $remove_blanks_ok if $line =~ /iatt\,\ attname/;
+            croak $line. $remove_blanks_ok if $DBG and $line =~ /iatt\,\ attname/;
         }
     }
     else {

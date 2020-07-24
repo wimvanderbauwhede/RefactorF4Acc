@@ -818,9 +818,11 @@ sub _get_iodirs_from_subcall {
                                     say "CALLER ARG <$call_arg> for call to $name in $f IS A LOCAL VAR." if $DBG;
                                 }
                                 else {
+                                     if ($DBG) {
                                     say Dumper($Sf->{'Vars'})
                                       . "\nCALLER ARG <$call_arg> for call to <$name> HAS NO REC in Vars($f) $call_arg_type ";
                                     croak;
+                                    }
                                 }
                             }
                         }
@@ -869,7 +871,7 @@ sub _get_iodirs_from_subcall {
                     
                     next;
                 }
-                if (ref($Sname->{'RefactoredArgs'}{'Set'}{$ref_arg}) ne 'HASH'
+                if ($DBG and ref($Sname->{'RefactoredArgs'}{'Set'}{$ref_arg}) ne 'HASH'
                     or not exists $Sname->{'RefactoredArgs'}{'Set'}{$ref_arg}{'IODir'})
                 {
                     carp "ARG $ref_arg SUB $name called from $f has no IODir "

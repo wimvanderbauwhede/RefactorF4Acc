@@ -76,7 +76,7 @@ my %F95_ops =(
 sub parse_expression { my ($exp, $info, $stref, $f)=@_;
 	
 		(my $ast, my $rest, my $err, my $has_funcs)  = parse_expression_no_context($exp);
-		if($err or $rest ne '') {
+		if($DBG and $err or $rest ne '') {
             croak "PARSE ERROR in <$exp>, REST: $rest";
 #            return ($ast,$rest,$err);
 		}
@@ -259,7 +259,7 @@ sub _change_func_to_array { (my $stref, my $f,  my $info, my $ast, my $exp, my $
 # All variables in the expression
 # $vars = {} to start
 sub get_vars_from_expression {(my $ast, my $vars)=@_;
-    croak unless ref($ast) eq 'ARRAY';
+    croak  if $DBG and not ref($ast) eq 'ARRAY';
     $vars = find_vars_in_ast($ast,$vars);
 	return $vars;		
 } # END of get_vars_from_expression
@@ -267,7 +267,7 @@ sub get_vars_from_expression {(my $ast, my $vars)=@_;
 # All variables in the expression
 # $vars = {} to start
 sub get_consts_from_expression {(my $ast, my $vars)=@_;
-	croak unless ref($ast) eq 'ARRAY';
+	croak if $DBG and not ref($ast) eq 'ARRAY';
 	for my  $idx (0 .. scalar @{$ast}-1) {		
 		my $entry = $ast->[$idx];
 		if (ref($entry) eq 'ARRAY') {
@@ -601,7 +601,7 @@ sub parse_expression_no_context { (my $str)=@_;
     my $has_funcs=0;
     my $empty_arg_list=0;
     # carp "ORIG STR: $str";
-    croak if not defined $str;
+    croak if $DBG and not defined $str;
     while (length($str)>0) {
         $error=0;
 #		say "STR before prefix: $str";
@@ -1065,7 +1065,7 @@ sub interpret { (my $ast)=@_;
         if ($op=~/\./) {
             $op=~s/\.//g;
         }
-        croak Dumper($lexp) if not defined $lv;
+        croak Dumper($lexp) if $DBG and not defined $lv;
         return eval("$lv $op $rv");
     } elsif (scalar @{$ast}==2) { 
         (my $op, my $exp) =@{$ast};
@@ -1176,7 +1176,7 @@ sub emit_expr_from_ast { (my $ast)=@_;
             # warn Dumper($exp);
                 my $v = (ref($exp) eq 'ARRAY') ? emit_expr_from_ast($exp) : $exp;
                 if (not defined $v) {
-                    carp Dumper($ast);
+                    croak Dumper($ast) if $DBG;
                 }
                 return "($v)";
             } elsif ($opcode==28 ) {#eq '(/'
@@ -1188,14 +1188,14 @@ sub emit_expr_from_ast { (my $ast)=@_;
                 my $v = (ref($exp) eq 'ARRAY') ? emit_expr_from_ast($exp) : $exp;
                 return $sigils[$opcode]. $v;
             } elsif ($opcode == 27) { # ',' 
-                croak  Dumper($ast);
+                croak  Dumper($ast) if $DBG ;
                 my @args_lst=();
                 for my $arg (@{$exp}) {
                     push @args_lst, emit_expr_from_ast($arg);
                 }
                 return join(',',@args_lst);        
             } else {
-                die 'BOOM! '.Dumper($ast).$opcode;
+                croak 'BOOM! '.Dumper($ast).$opcode if $DBG;
             }
         } elsif (scalar @{$ast} > 3) {
 
@@ -1207,7 +1207,7 @@ sub emit_expr_from_ast { (my $ast)=@_;
                 }
                 return join(',',@args_lst); 
             } else {
-                croak Dumper($ast);
+                croak Dumper($ast) if $DBG;
             }
         }
     } else {return $ast;}

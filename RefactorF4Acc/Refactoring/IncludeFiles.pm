@@ -129,12 +129,12 @@ sub _refactor_include_file {
                     (my $var,my $val)=@{$var_val};
                 if ( exists $stref->{'IncludeFiles'}{$inc_f}{'ConflictingGlobals'} {$var} )
                 {
-                    croak 'BOOM!';
+                    croak 'BOOM!' if $DBG;
                 	my $gvar=$stref->{'IncludeFiles'}{$inc_f}{'ConflictingGlobals'}{$var}[0];
                 	$line=~s/\b$var\b/$gvar/;
                 	$info->{'Ref'}++;
                     $info->{'ParamDecl'}{'Name'}=[$gvar,$val];    
-                    print "WARNING: WEAK! renamed $var to $gvar ($line) refactor_include_file() 121\n" if $W;                 
+                    print "WARNING: WEAK! renamed $var to $gvar ($line) refactor_include_file() ".__LINE__."\n" if $WW;                 
                 }			
                 }
  
