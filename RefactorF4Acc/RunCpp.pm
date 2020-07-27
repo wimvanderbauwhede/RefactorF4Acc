@@ -5,7 +5,7 @@ package RefactorF4Acc::RunCpp;
 #   
 	
 use vars qw( $VERSION );
-$VERSION = "2.1.0";
+$VERSION = "2.1.1";
 
 use v5.10;
 use warnings;
@@ -42,9 +42,9 @@ our $srcs_pattern = "*.f* *.F* *.inc";
 our $usage = <<'ENDH';
 	This script expects a file `macros.h` in the current folder
 	Without arguments, this script will call `cpp` on all files matching *.f *.F *.inc in the current folder and any subfolders (but only one level)
-	If this is too restrictive, provide the patter with the -p flag
+	If this is too restrictive, provide the pattern with the -p flag
 	
-	The `cpp` arguments are `cpp -Wno-invalid-pp-token -P -Wno-extra-tokens`
+	The `cpp` arguments are `cpp -Wno-invalid-pp-token -P -Wno-extra-tokens` if cpp is provided by clang
 	
 	With a single filename as argument, this script will call `cpp` on that file
 	The processed files are put in `../PostCPP`, you can change this with the -o <path> flag.
@@ -166,7 +166,14 @@ sub run_cpp { my @args=@_;
 } # END of run_cpp()
 #
 sub run_cpp_and_clean_up { (my $no_macros, my $includestr, my $definestr, my $src_path, my $out_path) = @_;
-    my $cmd_cpp =  $no_macros ? "cat $src_path " : "cpp -Wno-invalid-pp-token -P  $includestr $definestr -Wno-extra-tokens $src_path ";
+	my $cpp_type = `cpp --version`;
+	my $Wno_invalid_pp_token = '';
+	my $Wno_extra_tokens = '';
+	if ($cpp_type=~/clang/) {
+	 	$Wno_invalid_pp_token = '-Wno-invalid-pp-token';
+		$Wno_extra_tokens = '-Wno-extra-tokens';
+	}
+    my $cmd_cpp =  $no_macros ? "cat $src_path " : "cpp $Wno_invalid_pp_token -P  $includestr $definestr $Wno_extra_tokens $src_path ";
     my $redir = $out_path eq '' ? '' : '>';
     # The grep removes comment lines  (starting with '!')
     # The perl command removes trailing comments 

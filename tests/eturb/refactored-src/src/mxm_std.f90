@@ -11,243 +11,90 @@ contains
       integer, intent(In) :: n1
       integer, intent(In) :: n2
       integer, intent(In) :: n3
-      real, dimension(1:n1,1:n2), intent(InOut) :: a
-      real, dimension(1:n2,1:n3), intent(InOut) :: b
+      real, dimension(1:n1,1:n2), intent(In) :: a
+      real, dimension(1:n2,1:n3), intent(In) :: b
       real, dimension(1:n1,1:n3), intent(InOut) :: c
-      real, dimension(1:n1,1:n2) :: a_mxf1
-      real, dimension(1:n1,1:n2) :: a_mxf10
-      real, dimension(1:n1,1:n2) :: a_mxf11
-      real, dimension(1:n1,1:n2) :: a_mxf12
-      real, dimension(1:n1,1:n2) :: a_mxf13
-      real, dimension(1:n1,1:n2) :: a_mxf14
-      real, dimension(1:n1,1:n2) :: a_mxf15
-      real, dimension(1:n1,1:n2) :: a_mxf16
-      real, dimension(1:n1,1:n2) :: a_mxf17
-      real, dimension(1:n1,1:n2) :: a_mxf18
-      real, dimension(1:n1,1:n2) :: a_mxf19
-      real, dimension(1:n1,1:n2) :: a_mxf2
-      real, dimension(1:n1,1:n2) :: a_mxf20
-      real, dimension(1:n1,1:n2) :: a_mxf21
-      real, dimension(1:n1,1:n2) :: a_mxf22
-      real, dimension(1:n1,1:n2) :: a_mxf23
-      real, dimension(1:n1,1:n2) :: a_mxf24
-      real, dimension(1:n1,1:n2) :: a_mxf3
-      real, dimension(1:n1,1:n2) :: a_mxf4
-      real, dimension(1:n1,1:n2) :: a_mxf5
-      real, dimension(1:n1,1:n2) :: a_mxf6
-      real, dimension(1:n1,1:n2) :: a_mxf7
-      real, dimension(1:n1,1:n2) :: a_mxf8
-      real, dimension(1:n1,1:n2) :: a_mxf9
-      real, dimension(1:n1,1:n2) :: a_mxm44_0
-      real, dimension(1:n2,1:n3) :: b_mxf1
-      real, dimension(1:n2,1:n3) :: b_mxf10
-      real, dimension(1:n2,1:n3) :: b_mxf11
-      real, dimension(1:n2,1:n3) :: b_mxf12
-      real, dimension(1:n2,1:n3) :: b_mxf13
-      real, dimension(1:n2,1:n3) :: b_mxf14
-      real, dimension(1:n2,1:n3) :: b_mxf15
-      real, dimension(1:n2,1:n3) :: b_mxf16
-      real, dimension(1:n2,1:n3) :: b_mxf17
-      real, dimension(1:n2,1:n3) :: b_mxf18
-      real, dimension(1:n2,1:n3) :: b_mxf19
-      real, dimension(1:n2,1:n3) :: b_mxf2
-      real, dimension(1:n2,1:n3) :: b_mxf20
-      real, dimension(1:n2,1:n3) :: b_mxf21
-      real, dimension(1:n2,1:n3) :: b_mxf22
-      real, dimension(1:n2,1:n3) :: b_mxf23
-      real, dimension(1:n2,1:n3) :: b_mxf24
-      real, dimension(1:n2,1:n3) :: b_mxf3
-      real, dimension(1:n2,1:n3) :: b_mxf4
-      real, dimension(1:n2,1:n3) :: b_mxf5
-      real, dimension(1:n2,1:n3) :: b_mxf6
-      real, dimension(1:n2,1:n3) :: b_mxf7
-      real, dimension(1:n2,1:n3) :: b_mxf8
-      real, dimension(1:n2,1:n3) :: b_mxf9
-      real, dimension(1:n2,1:n3) :: b_mxm44_0
-      real, dimension(1:n1,1:n3) :: c_mxm44_0
       if (n2 <= 8) then
          if (n2 == 1) then
-            a_mxf1 = reshape(a,shape(a_mxf1))
-            b_mxf1 = reshape(b,shape(b_mxf1))
-            call mxf1(a_mxf1,n1,b_mxf1,n2,c,n3)
+            call mxf1(a,n1,b,n2,c,n3)
 
-            a = reshape(a_mxf1, shape(a))
-            b = reshape(b_mxf1, shape(b))
          elseif (n2 == 2) then
-            a_mxf2 = reshape(a,shape(a_mxf2))
-            b_mxf2 = reshape(b,shape(b_mxf2))
-            call mxf2(a_mxf2,n1,b_mxf2,n2,c,n3)
+            call mxf2(a,n1,b,n2,c,n3)
 
-            a = reshape(a_mxf2, shape(a))
-            b = reshape(b_mxf2, shape(b))
          elseif (n2 == 3) then
-            a_mxf3 = reshape(a,shape(a_mxf3))
-            b_mxf3 = reshape(b,shape(b_mxf3))
-            call mxf3(a_mxf3,n1,b_mxf3,n2,c,n3)
+            call mxf3(a,n1,b,n2,c,n3)
 
-            a = reshape(a_mxf3, shape(a))
-            b = reshape(b_mxf3, shape(b))
          elseif (n2 == 4) then
-            a_mxf4 = reshape(a,shape(a_mxf4))
-            b_mxf4 = reshape(b,shape(b_mxf4))
-            call mxf4(a_mxf4,n1,b_mxf4,n2,c,n3)
+            call mxf4(a,n1,b,n2,c,n3)
 
-            a = reshape(a_mxf4, shape(a))
-            b = reshape(b_mxf4, shape(b))
          elseif (n2 == 5) then
-            a_mxf5 = reshape(a,shape(a_mxf5))
-            b_mxf5 = reshape(b,shape(b_mxf5))
-            call mxf5(a_mxf5,n1,b_mxf5,n2,c,n3)
+            call mxf5(a,n1,b,n2,c,n3)
 
-            a = reshape(a_mxf5, shape(a))
-            b = reshape(b_mxf5, shape(b))
          elseif (n2 == 6) then
-            a_mxf6 = reshape(a,shape(a_mxf6))
-            b_mxf6 = reshape(b,shape(b_mxf6))
-            call mxf6(a_mxf6,n1,b_mxf6,n2,c,n3)
+            call mxf6(a,n1,b,n2,c,n3)
 
-            a = reshape(a_mxf6, shape(a))
-            b = reshape(b_mxf6, shape(b))
          elseif (n2 == 7) then
-            a_mxf7 = reshape(a,shape(a_mxf7))
-            b_mxf7 = reshape(b,shape(b_mxf7))
-            call mxf7(a_mxf7,n1,b_mxf7,n2,c,n3)
+            call mxf7(a,n1,b,n2,c,n3)
 
-            a = reshape(a_mxf7, shape(a))
-            b = reshape(b_mxf7, shape(b))
          else
-            a_mxf8 = reshape(a,shape(a_mxf8))
-            b_mxf8 = reshape(b,shape(b_mxf8))
-            call mxf8(a_mxf8,n1,b_mxf8,n2,c,n3)
+            call mxf8(a,n1,b,n2,c,n3)
 
-            a = reshape(a_mxf8, shape(a))
-            b = reshape(b_mxf8, shape(b))
          endif
       elseif (n2 <= 16) then
          if (n2 == 9) then
-            a_mxf9 = reshape(a,shape(a_mxf9))
-            b_mxf9 = reshape(b,shape(b_mxf9))
-            call mxf9(a_mxf9,n1,b_mxf9,n2,c,n3)
+            call mxf9(a,n1,b,n2,c,n3)
 
-            a = reshape(a_mxf9, shape(a))
-            b = reshape(b_mxf9, shape(b))
          elseif (n2 == 10) then
-            a_mxf10 = reshape(a,shape(a_mxf10))
-            b_mxf10 = reshape(b,shape(b_mxf10))
-            call mxf10(a_mxf10,n1,b_mxf10,n2,c,n3)
+            call mxf10(a,n1,b,n2,c,n3)
 
-            a = reshape(a_mxf10, shape(a))
-            b = reshape(b_mxf10, shape(b))
          elseif (n2 == 11) then
-            a_mxf11 = reshape(a,shape(a_mxf11))
-            b_mxf11 = reshape(b,shape(b_mxf11))
-            call mxf11(a_mxf11,n1,b_mxf11,n2,c,n3)
+            call mxf11(a,n1,b,n2,c,n3)
 
-            a = reshape(a_mxf11, shape(a))
-            b = reshape(b_mxf11, shape(b))
          elseif (n2 == 12) then
-            a_mxf12 = reshape(a,shape(a_mxf12))
-            b_mxf12 = reshape(b,shape(b_mxf12))
-            call mxf12(a_mxf12,n1,b_mxf12,n2,c,n3)
+            call mxf12(a,n1,b,n2,c,n3)
 
-            a = reshape(a_mxf12, shape(a))
-            b = reshape(b_mxf12, shape(b))
          elseif (n2 == 13) then
-            a_mxf13 = reshape(a,shape(a_mxf13))
-            b_mxf13 = reshape(b,shape(b_mxf13))
-            call mxf13(a_mxf13,n1,b_mxf13,n2,c,n3)
+            call mxf13(a,n1,b,n2,c,n3)
 
-            a = reshape(a_mxf13, shape(a))
-            b = reshape(b_mxf13, shape(b))
          elseif (n2 == 14) then
-            a_mxf14 = reshape(a,shape(a_mxf14))
-            b_mxf14 = reshape(b,shape(b_mxf14))
-            call mxf14(a_mxf14,n1,b_mxf14,n2,c,n3)
+            call mxf14(a,n1,b,n2,c,n3)
 
-            a = reshape(a_mxf14, shape(a))
-            b = reshape(b_mxf14, shape(b))
          elseif (n2 == 15) then
-            a_mxf15 = reshape(a,shape(a_mxf15))
-            b_mxf15 = reshape(b,shape(b_mxf15))
-            call mxf15(a_mxf15,n1,b_mxf15,n2,c,n3)
+            call mxf15(a,n1,b,n2,c,n3)
 
-            a = reshape(a_mxf15, shape(a))
-            b = reshape(b_mxf15, shape(b))
          else
-            a_mxf16 = reshape(a,shape(a_mxf16))
-            b_mxf16 = reshape(b,shape(b_mxf16))
-            call mxf16(a_mxf16,n1,b_mxf16,n2,c,n3)
+            call mxf16(a,n1,b,n2,c,n3)
 
-            a = reshape(a_mxf16, shape(a))
-            b = reshape(b_mxf16, shape(b))
          endif
       elseif (n2 <= 24) then
          if (n2 == 17) then
-            a_mxf17 = reshape(a,shape(a_mxf17))
-            b_mxf17 = reshape(b,shape(b_mxf17))
-            call mxf17(a_mxf17,n1,b_mxf17,n2,c,n3)
+            call mxf17(a,n1,b,n2,c,n3)
 
-            a = reshape(a_mxf17, shape(a))
-            b = reshape(b_mxf17, shape(b))
          elseif (n2 == 18) then
-            a_mxf18 = reshape(a,shape(a_mxf18))
-            b_mxf18 = reshape(b,shape(b_mxf18))
-            call mxf18(a_mxf18,n1,b_mxf18,n2,c,n3)
+            call mxf18(a,n1,b,n2,c,n3)
 
-            a = reshape(a_mxf18, shape(a))
-            b = reshape(b_mxf18, shape(b))
          elseif (n2 == 19) then
-            a_mxf19 = reshape(a,shape(a_mxf19))
-            b_mxf19 = reshape(b,shape(b_mxf19))
-            call mxf19(a_mxf19,n1,b_mxf19,n2,c,n3)
+            call mxf19(a,n1,b,n2,c,n3)
 
-            a = reshape(a_mxf19, shape(a))
-            b = reshape(b_mxf19, shape(b))
          elseif (n2 == 20) then
-            a_mxf20 = reshape(a,shape(a_mxf20))
-            b_mxf20 = reshape(b,shape(b_mxf20))
-            call mxf20(a_mxf20,n1,b_mxf20,n2,c,n3)
+            call mxf20(a,n1,b,n2,c,n3)
 
-            a = reshape(a_mxf20, shape(a))
-            b = reshape(b_mxf20, shape(b))
          elseif (n2 == 21) then
-            a_mxf21 = reshape(a,shape(a_mxf21))
-            b_mxf21 = reshape(b,shape(b_mxf21))
-            call mxf21(a_mxf21,n1,b_mxf21,n2,c,n3)
+            call mxf21(a,n1,b,n2,c,n3)
 
-            a = reshape(a_mxf21, shape(a))
-            b = reshape(b_mxf21, shape(b))
          elseif (n2 == 22) then
-            a_mxf22 = reshape(a,shape(a_mxf22))
-            b_mxf22 = reshape(b,shape(b_mxf22))
-            call mxf22(a_mxf22,n1,b_mxf22,n2,c,n3)
+            call mxf22(a,n1,b,n2,c,n3)
 
-            a = reshape(a_mxf22, shape(a))
-            b = reshape(b_mxf22, shape(b))
          elseif (n2 == 23) then
-            a_mxf23 = reshape(a,shape(a_mxf23))
-            b_mxf23 = reshape(b,shape(b_mxf23))
-            call mxf23(a_mxf23,n1,b_mxf23,n2,c,n3)
+            call mxf23(a,n1,b,n2,c,n3)
 
-            a = reshape(a_mxf23, shape(a))
-            b = reshape(b_mxf23, shape(b))
          elseif (n2 == 24) then
-            a_mxf24 = reshape(a,shape(a_mxf24))
-            b_mxf24 = reshape(b,shape(b_mxf24))
-            call mxf24(a_mxf24,n1,b_mxf24,n2,c,n3)
+            call mxf24(a,n1,b,n2,c,n3)
 
-            a = reshape(a_mxf24, shape(a))
-            b = reshape(b_mxf24, shape(b))
          endif
       else
-         a_mxm44_0 = reshape(a,shape(a_mxm44_0))
-         b_mxm44_0 = reshape(b,shape(b_mxm44_0))
-         c_mxm44_0 = reshape(c,shape(c_mxm44_0))
-         call mxm44_0(a_mxm44_0,n1,b_mxm44_0,n2,c_mxm44_0,n3)
+         call mxm44_0(a,n1,b,n2,c,n3)
 
-         a = reshape(a_mxm44_0, shape(a))
-         b = reshape(b_mxm44_0, shape(b))
-         c = reshape(c_mxm44_0, shape(c))
       endif
 ! 
       return

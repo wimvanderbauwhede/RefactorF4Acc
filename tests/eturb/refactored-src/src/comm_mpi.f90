@@ -1,11 +1,11 @@
 ! ---------------------------------------------------------------------
 module singleton_module_src_comm_mpi
 
-      use singleton_module_src_singlmesh
-      use singleton_module_src_papi
-      use singleton_module_src_mpi_dummy
-      use singleton_module_src_subs1
       use singleton_module_src_math
+      use singleton_module_src_singlmesh
+      use singleton_module_src_mpi_dummy
+      use singleton_module_src_papi
+      use singleton_module_src_subs1
 contains
 
       subroutine gop(x,w,op,n,ab,abmsh,abx1,abx2,aby1,aby2,abz1,abz2,area,atol,avdiff,avtran,b1ia1, &
@@ -68,9 +68,9 @@ contains
 !      Timer variables
 ! 
       implicit none
-      real, dimension(1:n) :: w_copy
+      real, dimension(1:1) :: w_copy
       integer, dimension(1:n) :: w_mpi_allreduce
-      real, dimension(1:n) :: x_copy
+      real, dimension(1:1) :: x_copy
       integer, dimension(1:n) :: x_mpi_allreduce
       integer, parameter :: lorder=3
       integer, parameter :: lorder2=max(1,lorder-2)
@@ -2645,8 +2645,8 @@ contains
 !  Copyright (c) 2006-2014 Cisco Systems, Inc.  All rights reserved.
 !  Copyright (c) 2017      Research Organization for Information Science
 !                          and Technology (RIST). All rights reserved.
-      integer, dimension(1:n) :: w_icopy
-      integer, dimension(1:n) :: x_icopy
+      integer, dimension(1:1) :: w_icopy
+      integer, dimension(1:1) :: x_icopy
 ! $COPYRIGHT$
 ! 
 !  Additional copyrights may follow
@@ -5814,55 +5814,6 @@ contains
       integer, parameter :: lbelt=1
       integer, parameter :: lpelt=1
       integer, parameter :: lcvelt=lelt
-      integer, parameter :: lelv=lelt
-      integer, parameter :: ly1=lx1
-      integer, parameter :: lz1=1+(ldim-2)*(lx1-1)
-      integer, parameter :: lyd=lxd
-      integer, parameter :: lzd=1+(ldim-2)*(lxd-1)
-      integer, parameter :: ly2=lx2
-      integer, parameter :: lz2=1+(ldim-2)*(lx2-1)
-      integer, parameter :: ly1m=lx1m
-      integer, parameter :: lz1m=1+(ldim-2)*(lx1m-1)
-      integer, parameter :: lp=lpmax
-      integer, parameter :: ax1=lx1
-      integer, parameter :: ay1=ax1
-      integer, parameter :: az1=1+(ldim-2)*(ax1-1)
-      integer, parameter :: ax2=lx2
-      integer, parameter :: ay2=ax2
-      integer, parameter :: az2=1+(ldim-2)*(ax2-1)
-      integer, parameter :: lpelv=lpelt
-      integer, parameter :: lpx1=lx1
-      integer, parameter :: lpy1=lpx1
-      integer, parameter :: lpz1=1+(ldim-2)*(lpx1-1)
-      integer, parameter :: lpx2=lx2
-      integer, parameter :: lpy2=lpx2
-      integer, parameter :: lpz2=1+(ldim-2)*(lpx2-1)
-      integer, parameter :: lbelv=lbelt
-      integer, parameter :: lbx1=lx1
-      integer, parameter :: lby1=lbx1
-      integer, parameter :: lbz1=1+(ldim-2)*(lbx1-1)
-      integer, parameter :: lbx2=lx2
-      integer, parameter :: lby2=lbx2
-      integer, parameter :: lbz2=1+(ldim-2)*(lbx2-1)
-      integer, parameter :: lxz=lx1*lz1
-      integer, parameter :: lzl=3+2*(ldim-3)
-      integer, parameter :: ldimt1=ldimt+1
-      integer, parameter :: ldimt3=ldimt+3
-      integer, parameter :: lx3=lx1
-      integer, parameter :: ly3=ly1
-      integer, parameter :: lz3=lz1
-      integer, parameter :: lctmp0=2*lx1*ly1*lz1*lelt
-      integer, parameter :: lctmp1=4*lx1*ly1*lz1*lelt
-      integer, parameter :: maxmor=lelt
-      integer, parameter :: lxs=1
-      integer, parameter :: lys=lxs
-      integer, parameter :: lzs=(lxs-1)*(ldim-2)+1
-      integer, parameter :: maxmbr=lelt*6
-      integer, parameter :: lcvx1=lx1
-      integer, parameter :: lcvy1=lcvx1
-      integer, parameter :: lcvz1=1+(ldim-2)*(lcvx1-1)
-      integer, parameter :: nmaxl_nn=min(1+(nsessmax-1)*2*ldim*lxz*lelt,2*ldim*lxz*lelt)
-      integer, parameter :: nfldmax_nn=min(1+(nsessmax-1)*(ldim+1+ldimt),ldim+1+ldimt)
 ! 
 !      Include file to dimension static arrays
 !      and to set some hardwired run-time parameters
@@ -6056,13 +6007,6 @@ contains
       integer :: ndim
       integer :: ldimr
       integer, parameter :: numsts=50
-      integer, parameter :: nelgt_max=178956970
-      integer, parameter :: lvt1=lx1*ly1*lz1*lelv
-      integer, parameter :: lvt2=lx2*ly2*lz2*lelv
-      integer, parameter :: lbt1=lbx1*lby1*lbz1*lbelv
-      integer, parameter :: lbt2=lbx2*lby2*lbz2*lbelv
-      integer, parameter :: lorder2=max(1,lorder-2)
-      integer, parameter :: lxq=lx2
 ! 
 !      Elemental derivative operators
 ! 
@@ -6939,55 +6883,6 @@ contains
       integer, parameter :: lbelt=1
       integer, parameter :: lpelt=1
       integer, parameter :: lcvelt=lelt
-      integer, parameter :: lelv=lelt
-      integer, parameter :: ly1=lx1
-      integer, parameter :: lz1=1+(ldim-2)*(lx1-1)
-      integer, parameter :: lyd=lxd
-      integer, parameter :: lzd=1+(ldim-2)*(lxd-1)
-      integer, parameter :: ly2=lx2
-      integer, parameter :: lz2=1+(ldim-2)*(lx2-1)
-      integer, parameter :: ly1m=lx1m
-      integer, parameter :: lz1m=1+(ldim-2)*(lx1m-1)
-      integer, parameter :: lp=lpmax
-      integer, parameter :: ax1=lx1
-      integer, parameter :: ay1=ax1
-      integer, parameter :: az1=1+(ldim-2)*(ax1-1)
-      integer, parameter :: ax2=lx2
-      integer, parameter :: ay2=ax2
-      integer, parameter :: az2=1+(ldim-2)*(ax2-1)
-      integer, parameter :: lpelv=lpelt
-      integer, parameter :: lpx1=lx1
-      integer, parameter :: lpy1=lpx1
-      integer, parameter :: lpz1=1+(ldim-2)*(lpx1-1)
-      integer, parameter :: lpx2=lx2
-      integer, parameter :: lpy2=lpx2
-      integer, parameter :: lpz2=1+(ldim-2)*(lpx2-1)
-      integer, parameter :: lbelv=lbelt
-      integer, parameter :: lbx1=lx1
-      integer, parameter :: lby1=lbx1
-      integer, parameter :: lbz1=1+(ldim-2)*(lbx1-1)
-      integer, parameter :: lbx2=lx2
-      integer, parameter :: lby2=lbx2
-      integer, parameter :: lbz2=1+(ldim-2)*(lbx2-1)
-      integer, parameter :: lxz=lx1*lz1
-      integer, parameter :: lzl=3+2*(ldim-3)
-      integer, parameter :: ldimt1=ldimt+1
-      integer, parameter :: ldimt3=ldimt+3
-      integer, parameter :: lx3=lx1
-      integer, parameter :: ly3=ly1
-      integer, parameter :: lz3=lz1
-      integer, parameter :: lctmp0=2*lx1*ly1*lz1*lelt
-      integer, parameter :: lctmp1=4*lx1*ly1*lz1*lelt
-      integer, parameter :: maxmor=lelt
-      integer, parameter :: lxs=1
-      integer, parameter :: lys=lxs
-      integer, parameter :: lzs=(lxs-1)*(ldim-2)+1
-      integer, parameter :: maxmbr=lelt*6
-      integer, parameter :: lcvx1=lx1
-      integer, parameter :: lcvy1=lcvx1
-      integer, parameter :: lcvz1=1+(ldim-2)*(lcvx1-1)
-      integer, parameter :: nmaxl_nn=min(1+(nsessmax-1)*2*ldim*lxz*lelt,2*ldim*lxz*lelt)
-      integer, parameter :: nfldmax_nn=min(1+(nsessmax-1)*(ldim+1+ldimt),ldim+1+ldimt)
 ! 
 !      Include file to dimension static arrays
 !      and to set some hardwired run-time parameters
@@ -7039,13 +6934,6 @@ contains
       integer :: ndim
       integer :: ldimr
       integer, parameter :: numsts=50
-      integer, parameter :: nelgt_max=178956970
-      integer, parameter :: lvt1=lx1*ly1*lz1*lelv
-      integer, parameter :: lvt2=lx2*ly2*lz2*lelv
-      integer, parameter :: lbt1=lbx1*lby1*lbz1*lbelv
-      integer, parameter :: lbt2=lbx2*lby2*lbz2*lbelv
-      integer, parameter :: lorder2=max(1,lorder-2)
-      integer, parameter :: lxq=lx2
 ! 
 !      Elemental derivative operators
 ! 
@@ -8753,55 +8641,6 @@ contains
       integer, parameter :: lbelt=1
       integer, parameter :: lpelt=1
       integer, parameter :: lcvelt=lelt
-      integer, parameter :: lelv=lelt
-      integer, parameter :: ly1=lx1
-      integer, parameter :: lz1=1+(ldim-2)*(lx1-1)
-      integer, parameter :: lyd=lxd
-      integer, parameter :: lzd=1+(ldim-2)*(lxd-1)
-      integer, parameter :: ly2=lx2
-      integer, parameter :: lz2=1+(ldim-2)*(lx2-1)
-      integer, parameter :: ly1m=lx1m
-      integer, parameter :: lz1m=1+(ldim-2)*(lx1m-1)
-      integer, parameter :: lp=lpmax
-      integer, parameter :: ax1=lx1
-      integer, parameter :: ay1=ax1
-      integer, parameter :: az1=1+(ldim-2)*(ax1-1)
-      integer, parameter :: ax2=lx2
-      integer, parameter :: ay2=ax2
-      integer, parameter :: az2=1+(ldim-2)*(ax2-1)
-      integer, parameter :: lpelv=lpelt
-      integer, parameter :: lpx1=lx1
-      integer, parameter :: lpy1=lpx1
-      integer, parameter :: lpz1=1+(ldim-2)*(lpx1-1)
-      integer, parameter :: lpx2=lx2
-      integer, parameter :: lpy2=lpx2
-      integer, parameter :: lpz2=1+(ldim-2)*(lpx2-1)
-      integer, parameter :: lbelv=lbelt
-      integer, parameter :: lbx1=lx1
-      integer, parameter :: lby1=lbx1
-      integer, parameter :: lbz1=1+(ldim-2)*(lbx1-1)
-      integer, parameter :: lbx2=lx2
-      integer, parameter :: lby2=lbx2
-      integer, parameter :: lbz2=1+(ldim-2)*(lbx2-1)
-      integer, parameter :: lxz=lx1*lz1
-      integer, parameter :: lzl=3+2*(ldim-3)
-      integer, parameter :: ldimt1=ldimt+1
-      integer, parameter :: ldimt3=ldimt+3
-      integer, parameter :: lx3=lx1
-      integer, parameter :: ly3=ly1
-      integer, parameter :: lz3=lz1
-      integer, parameter :: lctmp0=2*lx1*ly1*lz1*lelt
-      integer, parameter :: lctmp1=4*lx1*ly1*lz1*lelt
-      integer, parameter :: maxmor=lelt
-      integer, parameter :: lxs=1
-      integer, parameter :: lys=lxs
-      integer, parameter :: lzs=(lxs-1)*(ldim-2)+1
-      integer, parameter :: maxmbr=lelt*6
-      integer, parameter :: lcvx1=lx1
-      integer, parameter :: lcvy1=lcvx1
-      integer, parameter :: lcvz1=1+(ldim-2)*(lcvx1-1)
-      integer, parameter :: nmaxl_nn=min(1+(nsessmax-1)*2*ldim*lxz*lelt,2*ldim*lxz*lelt)
-      integer, parameter :: nfldmax_nn=min(1+(nsessmax-1)*(ldim+1+ldimt),ldim+1+ldimt)
 ! 
 !      Include file to dimension static arrays
 !      and to set some hardwired run-time parameters

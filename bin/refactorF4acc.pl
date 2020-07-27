@@ -8,7 +8,7 @@ use warnings;
 use strict;
 
 use vars qw( $VERSION );
-$VERSION = "2.1.0";
+$VERSION = "2.1.1";
 
 use RefactorF4Acc::Main qw( main usage );
 

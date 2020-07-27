@@ -646,8 +646,8 @@ contains
       wgli,wgp,wmult,wx,wxlag,wxm1,wxm2,wxm3,wy,wylag,wym1,wym2,wym3,wz,wzlag,wzm1,wzm2,wzm3,xc, &
       xm1,xm2,xxth,yc,yinvm1,ym1,ym2,zam1,zam2,zam3,zc,zgl,zgm1,zgm2,zgm3,zgp,zm1,zm2)
       implicit none
-      real, dimension(1:n) :: tmp_gop
-      real, dimension(1:n) :: work_gop
+      real, dimension(1:1) :: tmp_gop
+      real, dimension(1:1) :: work_gop
       integer, parameter :: mpi_status_size=6
       real, dimension(1:10) :: ab
       real, dimension(1:10) :: abmsh
@@ -1580,8 +1580,8 @@ contains
       wgli,wgp,wmult,wx,wxlag,wxm1,wxm2,wxm3,wy,wylag,wym1,wym2,wym3,wz,wzlag,wzm1,wzm2,wzm3,xc, &
       xm1,xm2,xxth,yc,yinvm1,ym1,ym2,zam1,zam2,zam3,zc,zgl,zgm1,zgm2,zgm3,zgp,zm1,zm2)
       implicit none
-      integer, dimension(1:n) :: tmp_igop
-      integer, dimension(1:n) :: work_igop
+      integer, dimension(1:1) :: tmp_igop
+      integer, dimension(1:1) :: work_igop
       integer, parameter :: mpi_status_size=6
       real, dimension(1:10) :: ab
       real, dimension(1:10) :: abmsh
@@ -2514,8 +2514,8 @@ contains
       wgli,wgp,wmult,wx,wxlag,wxm1,wxm2,wxm3,wy,wylag,wym1,wym2,wym3,wz,wzlag,wzm1,wzm2,wzm3,xc, &
       xm1,xm2,xxth,yc,yinvm1,ym1,ym2,zam1,zam2,zam3,zc,zgl,zgm1,zgm2,zgm3,zgp,zm1,zm2)
       implicit none
-      real, dimension(1:n) :: tmp_gop
-      real, dimension(1:n) :: work_gop
+      real, dimension(1:1) :: tmp_gop
+      real, dimension(1:1) :: work_gop
       integer, parameter :: mpi_status_size=6
       real, dimension(1:10) :: ab
       real, dimension(1:10) :: abmsh
@@ -3448,8 +3448,8 @@ contains
       wgli,wgp,wmult,wx,wxlag,wxm1,wxm2,wxm3,wy,wylag,wym1,wym2,wym3,wz,wzlag,wzm1,wzm2,wzm3,xc, &
       xm1,xm2,xxth,yc,yinvm1,ym1,ym2,zam1,zam2,zam3,zc,zgl,zgm1,zgm2,zgm3,zgp,zm1,zm2)
       implicit none
-      real, dimension(1:n) :: tmp_gop
-      real, dimension(1:n) :: work_gop
+      real, dimension(1:1) :: tmp_gop
+      real, dimension(1:1) :: work_gop
       integer, parameter :: mpi_status_size=6
       real, dimension(1:10) :: ab
       real, dimension(1:10) :: abmsh

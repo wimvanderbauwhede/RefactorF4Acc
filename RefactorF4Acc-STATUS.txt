@@ -44,7 +44,7 @@ TO RELEASE
 STATUS 2020-07-24
 
 There was a bug in the casting (vars with same name excluded), and that led to more bugs:
-- double precision vs doubleprecision
+- double precision vs doubleprecision, I have a fix but really I should normalise this, preferably into real(8)
 - dims with vars in them, possible in sig args
 - '*' in character strings
 

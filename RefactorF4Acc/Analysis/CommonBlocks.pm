@@ -25,7 +25,7 @@ dim_to_str
 use RefactorF4Acc::Refactoring::Casts qw( _cast_annlines );
 
 use vars qw( $VERSION );
-$VERSION = "2.1.0";
+$VERSION = "2.1.1";
 
 use Carp;
 use Data::Dumper;

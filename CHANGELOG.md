@@ -16,6 +16,10 @@ The versioning convention is as follows:
 ### Planned
     - Inlining of function and subroutine calls
 
+## [2.1.1] - 2020-07-27
+### Fixes
+    - Removed stray croak/carp debug messages
+    - Fixed bug in casting of arguments with same name as dummies
 ## [2.1.0] - 2020-07-22
 ### Fixes
 - Too many to list, in particular the parser is now much more robust

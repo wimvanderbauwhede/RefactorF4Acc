@@ -22,7 +22,7 @@ use RefactorF4Acc::Translation::TyTra::MemoryReduction qw( pass_memory_reduction
 use RefactorF4Acc::Analysis::ArrayAccessPatterns qw( pass_identify_stencils );
 
 use vars qw( $VERSION );
-$VERSION = "2.1.0";
+$VERSION = "2.1.1";
 
 #use warnings::unused;
 use warnings;

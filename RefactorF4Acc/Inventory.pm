@@ -6,7 +6,7 @@ use RefactorF4Acc::Config qw ($V $W $UNREAD);
 #   
 
 use vars qw( $VERSION );
-$VERSION = "2.1.0";
+$VERSION = "2.1.1";
 
 use warnings;
 use strict;
