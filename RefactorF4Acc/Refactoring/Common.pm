@@ -8,13 +8,13 @@ use RefactorF4Acc::Utils;
 #
 
 use vars qw( $VERSION );
-$VERSION = "1.2.0";
+$VERSION = "2.1.1";
 
 #use warnings::unused;
 use warnings;
 use warnings FATAL => qw(uninitialized);
 use strict;
-use Carp;
+use Carp qw(croak carp confess longmess shortmess);
 use Data::Dumper;
 #$Data::Dumper::Indent = 0;
 
@@ -38,6 +38,7 @@ use Exporter;
   &stateful_pass_reverse
   &top_src_is_module
   &pass_wrapper_subs_in_module
+  &update_arg_var_decl_sourcelines
 );
 
 our %f95ops = (
@@ -68,17 +69,21 @@ our %f95ops = (
 
 #* WV20150722: problem is this does too much, should not insert any new code, do that separately! FIXME!
 #* WV20150803: I added another pass to insert a proper ExGlobVarDeclHook after the last parameter, if any.
+# WV20190403: skip lines marked as Deleted or Skip, what's the point in refactoring those?
 sub context_free_refactorings {
     ( my $stref, my $f ) = @_;
     print "CONTEXT-FREE REFACTORINGS for $f CODE\n" if $V ;
     
-    my $die_if_one         = ($f eq 'BOOM')? 1 : 0;
+    my $die_if_one         = ($DBG and $f eq 'BOOM')? 1 : 0;
     my @extra_lines        = ();
     my $sub_or_func_or_inc = sub_func_incl_mod( $f, $stref );
     my $Sf                 = $stref->{$sub_or_func_or_inc}{$f};
   
-    if ( $Sf->{'Status'} != $PARSED ) {
-        croak "NOT PARSED: $f\n" . caller() . "\n";
+    if ($DBG and 
+        $Sf->{'Status'} != $PARSED 
+        and  $Sf->{'Status'}!= $UNUSED
+    ) {
+        croak "USED BUT NOT PARSED: $f\n" . caller() . "\n" ;
     }
     my $annlines   = get_annotated_sourcelines( $stref, $f );
     my $nextLineID = scalar @{$annlines} + 1;
@@ -86,42 +91,62 @@ sub context_free_refactorings {
     $Sf->{'RefactoredCode'} = [];
     my @include_use_stack = ();
     # FIXME: This is way too long and quite unclear
+#    my $line_ct=0;
+
     for my $annline ( @{$annlines} ) {
-        if ( not defined $annline or not defined $annline->[0] ) {
+#    	++$line_ct;
+        if ( $DBG and not defined $annline or not defined $annline->[0] ) {
             croak
               "Undefined source code line for $f in create_refactored_source()";
         }
         ( my $line, my $info ) = @{$annline};
-        
-        if ( exists $info->{'Deleted'} and $line eq '' ) {
+
+        if ( exists $info->{'Comments'}  ) { # I should distinguish between original comments and new comments.
+        # Also, maybe a -C flag to suppress comments might be good.
+        if ( exists $info->{'OrigComments'}  ) { # I should distinguish between original comments and new comments.
+        # Also, maybe a -C flag to suppress comments might be good.
+            push @{ $Sf->{'RefactoredCode'} }, [ $line, $info ];   
+        }        
+
             next;
         }
-        if ( exists $info->{'ImplicitNone'} ) {
+if ( not exists $info->{'Inlined'} ) {
+        if ( exists $info->{'Skip'}  ) {
             next;
+        }        
+        if ( exists $info->{'Deleted'} ) {
+        	# WV20190403: originally the condition included: "and $line eq '' ) {"
+            next;
+        }
+}
+#         if ( exists $info->{'ImplicitNone'} ) {
+# #            next;
+#         }
+        if ( exists $info->{'Save'} ) {
+        	if ( exists  $Sf->{'Program'} and $Sf->{'Program'} == 1  ) { 
+        	$line = '! '.$line;
+        	$info->{'Deleted'}=1;
+        	$info->{'Ann'}=[ annotate($f, __LINE__ .' SAVE statement in Program' ) ];
+        		
+        	}
         }	
-        if ( exists $info->{'Implicit'} ) { 
+        elsif ( exists $info->{'Implicit'} ) { 
         	$line = '! '.$line;
         	$info->{'Deleted'}=1;
         	$info->{'Ann'}=[ annotate($f, __LINE__ .' Original Implicit statement' ) ];
-#            next;
         }	        
-        if ( exists $info->{'Dimension'} and not exists $info->{'VarDecl'} ) {
-#        	say "DIM LINE: <$line> STMT COUNT ".join(' = ',each(%{$info->{'StmtCount'}})); 
+        elsif ( exists $info->{'Dimension'} and not exists $info->{'VarDecl'} ) {
         	$line = '! '.$line;
         	$info->{'Deleted'}=1;
         	$info->{'Ann'}=[ annotate($f, __LINE__ .' Original Dimension statement' ) ];
-#            next;
         }	
-        if ( exists $info->{'Common'} ) {
-#        	say "COMMON LINE: $line STMT COUNT ".Dumper($info->{'StmtCount'}); 
+        elsif ( exists $info->{'Common'} ) {
         	$line = '! '.$line unless exists $Sf->{'BlockData'};
         	$info->{'Deleted'}=1;
         	$info->{'Ann'}=[ annotate($f, __LINE__ .' Original Common statement' ) ];
-#            next;
         }	
         
-        if ( exists $info->{'External'} ) {
-#        	warn "EXTERNAL LINE: $line in $f";
+        elsif ( exists $info->{'External'} ) {
         	if (scalar keys %{ $info->{'External'}} >1) {
         		say 'WARNING: Cannot handle EXTERNAL with multiple names, IGNORING!' if $W;
         	} else {
@@ -129,43 +154,38 @@ sub context_free_refactorings {
         		if (exists $stref->{'Subroutines'}{$maybe_ext}
         		and exists $stref->{'Subroutines'}{$maybe_ext}{'Source'}
         		 and $stref->{'Subroutines'}{$maybe_ext}{'Source'} eq $Sf->{'Source'}) {
-#        			croak "NOT EXT $maybe_ext in $f";
         			$line = '! '.$line." ! $maybe_ext is defined in this file";
         			$info->{'Deleted'}=1;        			
         		} else {
         			# Now it is possible that we have identified a source for this func
         			if (exists $stref->{'Subroutines'}{$maybe_ext}) {
-#        				croak "FOUND source for EXTERNAL $maybe_ext"; 
 						$line = '! '.$line." ! $maybe_ext is accessed via 'use'";
 						$info->{'Deleted'}=1;
         			}
         		}
         	}  
         	}
-#        	$line = '! '.$line if 
-        	
         	$info->{'Ann'}=[ annotate($f, __LINE__ .' External statement' ) ];
         }	                
-		if ( exists $info->{'Data'} ) {
+		elsif ( exists $info->{'Data'} ) {
 			my @chunks=split(/data\s+/,$line);
-			croak if scalar @chunks > 2;
+			croak if $DBG and  scalar @chunks > 2;
 			my $str = $chunks[1];
 			$str=~s/\s+//g;
 			$str=~s/\// \/ /g;
 			$line = $chunks[0].'data '.$str;
 		}
 			
-        if ( exists $info->{'Goto'} ) {
+        elsif ( exists $info->{'Goto'} ) {
             $line =~ s/\bgo\sto\b/goto/;
             $info->{'Ref'}++;
         }
 
         # BeginDo: just remove the label
-        if ( exists $info->{'BeginDo'} ) {
+        elsif ( exists $info->{'BeginDo'} ) {
         	my $label = $info->{'BeginDo'}{'Label'};
         	# This should have an extra check
         	
-#        	if ( (not exists $Sf->{'ReferencedLabels'}{$label}) and 
         	if ($Sf->{'DoLabelTarget'}{$label} eq 'Continue' or $Sf->{'DoLabelTarget'}{$label} eq 'EndDo')  {         	
             	$line =~ s/do\s+\d+\s+/do /;
             	$info->{'Ref'}++;
@@ -176,10 +196,8 @@ sub context_free_refactorings {
         # if no continue, remove label & add end do on next line
         if ( exists $info->{'EndDo'} and exists $info->{'EndDo'}{'Label'} ) {
 
-            #warn "$f: END DO $line\n";
             my $is_goto_target = 0;
             if ( $Sf->{'Gotos'}{ $info->{'EndDo'}{'Label'} } ) {
-
                 # this is an end do which serves as a goto target
                 $is_goto_target = 1;
             }
@@ -193,12 +211,11 @@ sub context_free_refactorings {
                 	} elsif (exists $info->{'Continue'}{'Label'}) {
                 		$label = $info->{'Continue'}{'Label'}
                 	}
-                	if ($label ne '' and exists  $Sf->{'ReferencedLabels'}{$label}) {                		
+	                	if ($label ne '' and exists  $Sf->{'ReferencedLabels'}{$label}) {                		
                     	$line = $info->{'Indent'}. $label.    ' end do'; # END DO can't be a label target I think
 					} else {
                     	$line = $info->{'Indent'}.' end do';
 					}
-#					$line = ' end do';
                     $count--;
                 } elsif ($noop) {
                     $line =~ s/continue/call noop/;
@@ -232,9 +249,16 @@ sub context_free_refactorings {
                 $line .= '  !Break';
         	}
             $info->{'Ref'}++;
-
-            # $line=~s/goto\s+(\d+)/call break($1)/;
         }
+
+        if ($Config{'ALLOW_SPACES_IN_NUMBERS'}==1  ) { # I make the assumption that there must be 3 digits after a space
+        
+            while ($line=~/\d\s+\d\d\d+/) {
+                $line =~s/(\d)\s+(\d)/$1$2/;
+            }
+            # croak $line if $line=~/100\s*000/;
+        }
+
         
         if ( exists $info->{'PlaceHolders'} ) { 
 # Here we put the strings back in place of the placeholders
@@ -243,7 +267,6 @@ sub context_free_refactorings {
 				my $ph_str = $info->{'PlaceHolders'}{$ph};
 				$line=~s/$ph/$ph_str/;
 			}
-#if ( exists $info->{'IO'} and $line=~/open/ and $f=~/adam/) { carp  $f. ' : '.$line."\t=>\t".Dumper($info); }                                    
             $info->{'Ref'}++;
         }
 
@@ -251,7 +274,7 @@ sub context_free_refactorings {
 # This section refactors variable and parameter declarations
 # ------------------------------------------------------------------------------
 
-        if ( exists $info->{'VarDecl'} ) {        	        	        
+        if ( exists $info->{'VarDecl'} ) {
         	my $var =  $info->{'VarDecl'}{'Name'};
 			my $stmt_count = $info->{'StmtCount'}{$var};
 			if (not defined $stmt_count) {$stmt_count=1; };
@@ -269,6 +292,7 @@ sub context_free_refactorings {
                 }
             } else { 
 	            if ( in_nested_set($Sf, 'Parameters', $var) ) { 
+                    
 	                # Remove this line, because this param should have been declared above
 	                $line = '!! Original line PAR:2 !! ' . $line;
 	                $info->{'Skip'}=1;
@@ -278,10 +302,13 @@ sub context_free_refactorings {
 	                my $var_decl = get_var_record_from_set( $Sf->{'Vars'},$var);
 	                $line = emit_f95_var_decl($var_decl) ;                
 	                delete $info->{'ExGlobArgDecls'};
-	                $info->{'Ref'} = 1;                 
+	                $info->{'Ref'} = 1 unless exists $info->{'Inlined'};                 
 	                push @{$info->{'Ann'}}, annotate($f, __LINE__ .': Ref==0, '.$stmt_count );
 	            } else {
-	                croak 'BOOM! ' . 'context_free_refactoring '. __LINE__ ."; ";
+                    if ($DBG){
+	                    croak $f.' : BOOM! ' . 'context_free_refactoring '. __LINE__ ."; ".$line.'    '.Dumper($info)."\n" .
+                        Dumper(pp_annlines($Sf->{'AnnLines'}));
+                    }
 	            }                        
             }
             
@@ -357,6 +384,7 @@ sub context_free_refactorings {
 	                        'ParamDecl' => $par_decl,
 	                        'Ref'       => $info_ref + 1,
 	                        'LineID'    => $nextLineID++,
+	                        'SpecificationStatement' => 1,
 	                        'Ann' => [annotate($f, __LINE__, ' : ParamDecl') ]                        
 	                    }
 	                  ]
@@ -379,23 +407,27 @@ sub context_free_refactorings {
             my $tinc = $inc;
             $tinc =~ s/\./_/g;
             if ( not exists $stref->{'IncludeFiles'}{$inc}{'ExtPath'} ) { # FIXME: this is because 'InclType' => 'External' gets overwritten by 'Parameter' 
-            	if (exists $Sf->{'Includes'}{$inc}{'Only'} and scalar keys %{ $Sf->{'Includes'}{$inc}{'Only'} }>0) {            		            		            	
+            
+            	if (exists $Sf->{'Includes'}{$inc}{'Only'} and scalar keys %{ $Sf->{'Includes'}{$inc}{'Only'} }>0) {
+                    push @{$stref->{'IncludeFiles'}{$inc}{'UsedBy'}}, $f; 
             		my @used_params = keys %{ $Sf->{'Includes'}{$inc}{'Only'} };
-                	$line = "      use $tinc". ($NO_ONLY ?  '!' : '') .', only : '.join(', ', @used_params) ;
+                	$line = "      use $tinc". ($Config{'NO_ONLY'} ?  '!' : '') .', only : '.join(', ', @used_params) ;
                   	push @{ $info->{'Ann'} }, annotate($f, __LINE__. ' Include' );
+                  	
             	} elsif (exists $stref->{'IncludeFiles'}{$inc}{'ParamInclude'}) {
+            		
             		my $param_include=$stref->{'IncludeFiles'}{$inc}{'ParamInclude'};
+                    push @{$stref->{'IncludeFiles'}{$param_include}{'UsedBy'}}, $f; 
             		my $tinc = $param_include;
             		$tinc =~ s/\./_/g;            		
-            		  	if (exists $Sf->{'Includes'}{$param_include}{'Only'} and scalar keys %{ $Sf->{'Includes'}{$param_include}{'Only'} }>0) {            		            	
-            		my @used_params = keys %{ $Sf->{'Includes'}{$param_include}{'Only'} };
-                	$line = "      use $tinc". ($NO_ONLY ?  '!' : '') .", only : ".join(', ', @used_params);
-                  	push @{ $info->{'Ann'} }, annotate($f, __LINE__. ' Include' );
-            		  	} else {
-                	$line = "!!      use $tinc ! ONLY LIST EMPTY";
-                  	push @{ $info->{'Ann'} }, annotate($f, __LINE__ . ' no pars used'); #croak 'SKIP USE PARAM';            		
-            		  		
-            		  	}
+            		if (exists $Sf->{'Includes'}{$param_include}{'Only'} and scalar keys %{ $Sf->{'Includes'}{$param_include}{'Only'} }>0) {            		            	
+            			my @used_params = keys %{ $Sf->{'Includes'}{$param_include}{'Only'} };
+                		$line = "      use $tinc". ($Config{'NO_ONLY'} ?  '!' : '') .", only : ".join(', ', @used_params);
+                  		push @{ $info->{'Ann'} }, annotate($f, __LINE__. ' Include' );
+					} else {
+                		$line = "!!      use $tinc ! ONLY LIST EMPTY";
+                  		push @{ $info->{'Ann'} }, annotate($f, __LINE__ . ' no pars used'); #croak 'SKIP USE PARAM';            		            		  		
+            		}
 				} elsif (exists $stref->{'IncludeFiles'}{$tinc}{'InclType'}
 					and $stref->{'IncludeFiles'}{$tinc}{'InclType'} eq 'Parameter'
 				) {
@@ -409,6 +441,10 @@ sub context_free_refactorings {
                   	push @{ $info->{'Ann'} }, annotate($f, __LINE__ . ' no pars used'); #croak 'SKIP USE PARAM';
                   	$info->{'Deleted'}=1;            		
             	}
+            	$info->{'Use'}{'Name'}=$tinc; 
+            	$info->{'Use'}{'Only'}=[]; 
+            	$info->{'Use'}{'Inlineable'}=1; 
+                #carp 'FIXME: USE/ONLY!';
             } else {
 #            	say 'WARNING: EXTERNAL INCLUDES ARE COMMENTED OUT!' if $W;
                 $line =                
@@ -425,10 +461,6 @@ sub context_free_refactorings {
             next;
         } # exists $info->{'Include'} )
          
-#		my $indent=$info->{'Indent'} // '';
-#		my $maybe_label= ( exists $info->{'Label'} and exists $Sf->{'ReferencedLabels'}{$info->{'Label'}} ) ?  $info->{'Label'}.' ' : '';
-#        push @{ $Sf->{'RefactoredCode'} }, [ "$indent$maybe_label".$line, $info ];   # if $line ne '';
-#if ( exists $info->{'IO'} and $line=~/open/ and $f=~/adam/) { croak  $f. ' : '.$line."\t=>\t".Dumper($info); }
         push @{ $Sf->{'RefactoredCode'} }, [ $line, $info ];   # if $line ne '';
         if (@extra_lines) {
             for my $extra_line (@extra_lines) {
@@ -437,7 +469,10 @@ sub context_free_refactorings {
             @extra_lines = ();
 
         }
+
+
     }    # LOOP over AnnLines
+
 
     # now splice the include stack just below the signature
     if (@include_use_stack) {
@@ -482,10 +517,11 @@ sub context_free_refactorings {
     my $has_vardecl=0;
     my $has_pars = 0;    
     my $has_includes=0;
+    my $has_implicit_none = 0;
     for my $annline ( @{$Sf->{'RefactoredCode'}} ) {
-        if ( not defined $annline or not defined $annline->[0] ) {
+        if ( $DBG and not defined $annline or not defined $annline->[0] ) {
             croak
-              "Undefined source code line for $f in create_refactored_source()";
+              "Undefined source code line for $f in create_refactored_source()" . Dumper($annlines) ;
         }
         ( my $line, my $info ) = @{$annline};
         
@@ -498,6 +534,12 @@ sub context_free_refactorings {
         if (exists $info->{'Include'} ) {
             $has_includes++;
         }
+        if (exists $info->{'ImplicitNone'}) {
+        	$info->{'ExGlobVarDeclHook'}='ImplicitNone';
+        	$Sf->{'ExGlobVarDeclHook'}=1;
+        	$has_implicit_none=1;
+        	last;
+        }
         if (exists $info->{'VarDecl'}) {
             $info->{'ExGlobVarDeclHook'}='VarDecl';
             $Sf->{'ExGlobVarDeclHook'}=1;
@@ -506,13 +548,13 @@ sub context_free_refactorings {
         }        
     }    
     
-    if ($has_vardecl==0) {
+    if ($has_vardecl==0 and $has_implicit_none==0) {
         my $parlinecount=$has_pars;
         my $incllinecount=$has_includes;
         
         for my $annline ( @{$Sf->{'RefactoredCode'}} ) {
 #        	say Dumper($annline);
-            if ( not defined $annline or not defined $annline->[0] ) {
+            if ( $DBG and not defined $annline or not defined $annline->[0] ) {
                 croak
                   "Undefined source code line for $f in create_refactored_source()";
             }
@@ -571,22 +613,11 @@ sub create_refactored_source {
 					# say I split a line on ' => pre ' str1 ' sep1 ' str2 ' sep2_maybe_! ' 
 					# So I remove pre; then I remove str then look at sep. If sep has ! => OK, found comment.
 					
-					# WV 2019-03-06 FIXME: this is expensive and not quite right. Find out a case where it is actually needed!
 					my $line_without_comment = $line;  
 					if ($DBG) {
 					my $replace_PHs = 1;
 					if ($replace_PHs and exists $info->{'PlaceHolders'} ) {
 					 	my $ph_line=$line;
-#					 	for my $ph (keys %{$info->{'PlaceHolders'}} ) {
-#					 		my $ph_str = $info->{'PlaceHolders'}{$ph};
-#					 		$ph_str=~s/\)/\\\)/g;
-#					 		$ph_str=~s/\(/\\\(/g;
-#					 		$ph_str=~s/\]/\\\]/g;
-#                            $ph_str=~s/\[/\\\[/g;
-#					 		$ph_str=~s/\*/\\\*/g;
-##					 		say "s/$ph_str/$ph/";
-#					 		$ph_line=~s/$ph_str/$ph/;					 							 		
-#					 	}
 					 	my $phs={};
 					 	for my $ph (keys %{$info->{'PlaceHolders'}} ) { 
                             my $ph_str = $info->{'PlaceHolders'}{$ph};
@@ -602,8 +633,6 @@ sub create_refactored_source {
                                 my $ph       = $phs->{$strconst};                               
                                 $ph_line =~ s/\".*?\"/$ph/;
                             }
-					 	
-					 	
 					 	$line_without_comment = $ph_line;
 					}
 					}				 
@@ -620,7 +649,7 @@ sub create_refactored_source {
 						 	$line_without_comment = $line;
 					}
 				    }
- 	           	    my @split_lines = $SPLIT_LONG_LINES ? split_long_line($line_without_comment) : ( $line_without_comment );
+ 	           	    my @split_lines = $Config{'SPLIT_LONG_LINES'} ? split_long_line($line_without_comment) : ( $line_without_comment );
     	         	for my $sline (@split_lines) {    	         			
         	            	push @{$refactored_lines}, [ $sline, $info ];
             	    }
@@ -805,115 +834,22 @@ if (exists  $Sf->{'Status'} ) {
         }
     } else {    	
         print "WARNING: get_annotated_sourcelines($f) STATUS: "
-          . show_status( $Sf->{'Status'} )
-          if $W;
+          . show_status( $Sf->{'Status'} ). shortmess()
+          if $DBG;
         if ( $Sf->{'Status'} > $INVENTORIED )
         {    # Means it was READ, and INVENTORIED but not PARSED
-            print ", NOT PARSED\n" if $W;
+            print ", NOT PARSED\n" if $DBG;
         } else {
-            print "\n" if $W;
+            print "\n" if $DBG;
         }
     }
 } else {
-	carp "$sub_or_func_or_inc ".Dumper($f)." has no Status";
+	warn  "$sub_or_func_or_inc $f has no Status";
 }
     return $annlines;
 }    # END of get_annotated_sourcelines()
 
 # -----------------------------------------------------------------------------
-
-# -----------------------------------------------------------------------------
-#sub _OBSOLETE_format_f95_var_decl {
-#	# This sub can be called in different ways, I think it would be better to create different subs that call a common core
-#    my $stref;
-#    my $f;
-#    my $Sf;
-#    my $var;
-#    my $vardecl;
-#    my $var_or_vardecl;
-#    if ( scalar(@_) == 3 ) {
-#        # Sub is called with  $stref, $f, $var_or_vardecl 
-#        ( $stref, $f, $var_or_vardecl ) = @_;
-#        my $code_unit = sub_func_incl_mod( $f, $stref );
-#        $Sf = $stref->{$code_unit}{$f};
-#    } else {
-#        # Sub is called with  $Sf, $var_or_vardecl 
-#        ( $Sf, $var_or_vardecl ) = @_;
-#    }
-#    
-#    if ( ref($var_or_vardecl) eq 'ARRAY') { 
-#        if ( $var->[-1] == 1 ) {
-#            return $var_or_vardecl; # This means it was a formatted vardecl 
-#        } elsif ( ref($var_or_vardecl) eq 'ARRAY' && $var->[-1] == 0 ) {
-#            # This means it is a vardecl but it is not yet formatted correctly. 
-#            $var = $var_or_vardecl->[2][0];
-#        }  else {
-#            die 'format_f95_var_decl: invalid input '.Dumper($var_or_vardecl);
-#        }
-#    } else {
-#        $var = $var_or_vardecl;
-#    }
-#    
-#    my $spaces = '      ';
-#    my $intent = [];
-#    my $shape  = [];
-#    my $attr   = '';
-#    my $type   = 'Unknown';
-#    my $nvar   = $var;
-## --------------------------------------------------------------------------------------------------------------------------------    
-#    # FIXME: we are using different data structures now!
-#    
-#    my $subset = in_nested_set($Sf, 'Vars', $var); # Should tell us exactly where we are
-#    if ($subset ne '') {
-#    my $Sv = $Sf->{ $subset }{'Set'}{$var};    
-#    if ( exists $Sf->{$subset}{'Set'}{$var} ) {
-##        if ( not exists $Sv->{'Decl'} ) {
-##            say "WARNING: VAR $var does not have Decl in $subset in format_f95_var_decl()!" if $W;
-##			croak Dumper($Sv);
-##        }
-#
-#        if ( exists $Sf->{'ConflictingLiftedVars'}{$var} ) {
-#            $nvar = $Sf->{'ConflictingLiftedVars'}{$var};
-#            say "WARNING: CONFLICT for VAR $var in $subset, setting var name to $nvar in format_f95_var_decl()!" if $W;
-#			croak Dumper($Sv);
-#        }
-#        $spaces =$Sv->{'Indent'};
-#           #WV20150707 Decl is a record of 4 entries: [spaces, [type], [varname],formatted(0|1)]
-#        $spaces =~ s/\S.*$//;
-#        $shape = $Sv->{'Dim'};
-#        $type  = $Sv->{'Type'};
-#        $attr  = $Sv->{'Attr'};
-#        $intent = $Sv->{'IODir'};                 
-#
-#    } elsif ( defined $f and defined $stref and defined $var ) {        
-#        ( $type, my $kind, $attr ) = type_via_implicits( $stref, $f, $var );
-#    } else {
-#        croak
-#"Can't type $var, not in Vars and format_f95_var_decl() called the wrong way for implicits";
-#    }
-#    
-## --------------------------------------------------------------------------------------------------------------------------------    
-#    if (not defined $shape) {croak($var) };
-#    my $dim = [];
-#    # FIXME: I think the case dimension(:) is not covered!
-#    if ( @{$shape} >= 1) {
-#        $dim=$shape;
-#    } else {
-#        $dim = [];
-#    }
-#
-#    return {
-#        'Indent' => $spaces,
-#        'Type' => $type,
-#        'Attr' => $attr,
-#        'Dim' => $dim,
-#        'IODir' => $intent,
-#        'Names' => [$nvar],
-#        'Name' => $nvar,
-#        'Status' => 1
-#    };
-#
-#}    # format_f95_var_decl()
 
 # -----------------------------------------------------------------------------
 sub get_f95_var_decl {	
@@ -933,8 +869,8 @@ sub get_f95_var_decl {
     		my $Sv = $Sf->{ $subset }{'Set'}{$var};
         	if ( exists $Sf->{'ConflictingLiftedVars'}{$var} ) {
             	$nvar = $Sf->{'ConflictingLiftedVars'}{$var};
-            	say "WARNING: CONFLICT for VAR $var in $subset, setting var name to $nvar in format_f95_var_decl()!" if $W;
-				croak Dumper($Sv);
+            	say "WARNING: CONFLICT for VAR $var in $subset, setting var name to $nvar in format_f95_var_decl()!" if $WW;
+				croak Dumper($Sv) if $DBG;
         	}
 	        $spaces =$Sv->{'Indent'};
 	        $spaces =~ s/\S.*$//;
@@ -946,7 +882,7 @@ sub get_f95_var_decl {
         ( $type, my $kind, $attr ) = type_via_implicits( $stref, $f, $var );
     } else {
         croak
-"Can't type $var, not in Vars and format_f95_var_decl() called the wrong way for implicits";
+"Can't type $var, not in Vars and format_f95_var_decl() called the wrong way for implicits" if $DBG;
     }
 
     return {
@@ -965,56 +901,9 @@ sub get_f95_var_decl {
 # -----------------------------------------------------------------------------
 
 
-# ----------------------------------------------------------------------------------------------------
-
-## This could work but it means the code has to be regenerated every time a parameter changes ...
-#sub UNUSED_resolve_params {
-#    ( my $Sf, my $val ) = @_;
-#
-#    $val =~ s/\s*$//;
-#    $val =~ s/^\s+//;
-#
-#    if ( $val =~ /\b[a-df-z_]\w*\b/ ) {
-#        print "CALL: $val\n";
-#        my @chunks = split( /\s*[\/\+\-\*]\s*/, $val );
-#        my @maybe_pars;
-#        for my $chunk (@chunks) {
-#            print "[$chunk]\n";
-#            if ( $chunk =~ /^[a-z_]\w*/ ) {
-#                if ( exists $Sf->{'Parameters'}{'Set'}{$chunk} ) {
-#                    push @maybe_pars, $chunk;
-#                } else {
-#                    croak "Can't find PARAM $chunk";
-#                }
-#            }
-#        }
-#        print "VAL:<$val>\n";
-#        if (@maybe_pars) {
-#            for my $par (@maybe_pars) {
-#
-#                #				print "TEST PAR:{$par}\n";
-#                my $tval = $Sf->{'Parameters'}{'Set'}{$par}{'Val'};
-#
-#                #				print 'PAR:', $par, ' VAL:', $tval, "\n";
-#                $val =~ s/\b$par\b/$tval/;
-#
-#                #				print "AFTER SUB:<$val>\n";
-#            }
-#
-#            #                    die;
-#            UNUSED_resolve_params( $Sf, $val );
-#        } else {
-#            return $val;
-#        }
-#    } else {
-#        return $val;
-#    }
-#}    # END of UNUSED_resolve_params()
-
-# -----------------------------------------------------------------------------
-
 sub format_f95_par_decl {
     ( my $stref, my $f, my $var_rec ) = @_;
+    
     if ( ref($var_rec) eq 'HASH' && $var_rec->{'Status'} == 1 ) {
         return $var_rec;
     }
@@ -1029,6 +918,7 @@ sub format_f95_par_decl {
     my $sub_or_func_or_inc = sub_func_incl_mod( $f, $stref );
     my $Sf = $stref->{$sub_or_func_or_inc}{$f};
     my $par_rec = get_var_record_from_set( $Sf->{'Parameters'},$var);
+    
     my $val = $par_rec->{'Val'};
 
 	my $type = defined $par_rec->{'Type'} ? $par_rec->{'Type'} : 'Unknown'; 
@@ -1050,7 +940,7 @@ sub format_f95_par_decl {
 			if (
 		 		not defined $Sv->{'Type'} or $Sv->{'Type'} eq 'Unknown'
 			) {
-				say "IMPLICIT TYPING OF PARAM $var from $f";croak;
+				say "WARNINGL: IMPLICIT TYPING OF PARAM $var from $f" if $W;
 				($type, my $array_or_scalar, $attr) =type_via_implicits( $stref, $f, $var);
 			} else {	
 				$type = $Sv->{'Type'};
@@ -1095,14 +985,15 @@ sub format_f95_par_decl {
         'Attr' => $attr, 
         'Dim' => $dimrec, 
         'Parameter' => 'parameter',
-        'Name' => [ $var, $val ] ,
+        'Name' => [ $var, $val ] ,        
         'Status' => 1
     };
     
-     carp "FINAL PAR REC $f:".Dumper($final_par_rec) if $type eq 'Unknown';
+     carp "FINAL PAR REC $f:".Dumper($final_par_rec) if $DBG and $type eq 'Unknown';
 #     if ($type eq 'Unknown') {
 #     	$final_par_rec->{'Type'} = 'real';
 #     } 
+
     return $final_par_rec; 
 }    # format_f95_par_decl()
 
@@ -1191,133 +1082,64 @@ sub _rename_conflicting_global_pars {
         }
     }
     return ( $nk, $rhs_expr );
-}
-
-sub _rename_conflicting_vars {
-    ( my $expr, my $stref, my $f ) = @_;
-    croak ' I HOPE THIS NEVER HAPPENS! ' . __LINE__ ;
-    my $sub_or_func_or_inc = sub_func_incl_mod( $f, $stref );
-    my $Sf = $stref->{$sub_or_func_or_inc}{$f};
-
-    # This splits an expression on non-word tokens
-    my @vals     = grep { /[a-z]\w*/ } split( /\W+/, $expr );
-    my @n_vals   = @vals;
-    my $conflict = 0;
-    if (@vals) {
-        my $i = 0;
-        for my $val (@vals) {
-            $n_vals[$i] = $val;
-            if (   $val eq 'if'
-                || $val eq 'then'
-                || $val eq 'else'
-                || $val eq 'call' ) # WV20150723 I suppose this is weak, it should also include all predefined functions etc. But this is purely optimisation.
-            {
-                #skip
-            } else {
-                 # To decide on renaming, I should test if the include with commons containing the conflicting name is included in the current file.
-                 
-                if ( exists $Sf->{'ConflictingGlobals'}{$val} ) {
-                    say "INFO: CONFLICT: $val in $expr ($f)" if $I;
-                    $n_vals[$i] = $Sf->{'ConflictingGlobals'}{$val}[0];
-                    $conflict = 1;
-                } elsif ( exists $Sf->{'ConflictingLiftedVars'}{$val} ) {
-                    say "CONFLICT (LIFT) for $val: $f: $expr" if $I;
-                    $n_vals[$i] = $Sf->{'ConflictingLiftedVars'}{$val}[0];
-                    $conflict = 1;
-                } else {
-                    for my $inc ( keys %{ $Sf->{'Includes'} } ) {
-                        if (
-                            exists $stref->{'IncludeFiles'}{$inc}{'ConflictingGlobals'}{$val} )
-                        {
-                            say
-"CONFLICT (INC): $val in <$expr> ($f), from $inc"
-                              if $I;
-                            $conflict = 1;
-                            $n_vals[$i] =
-                              $stref->{'IncludeFiles'}{$inc}{'ConflictingGlobals'}{$val}[0];
-                            last;
-                        }
-                    }
-                }
-            }
-            $i++;
-        }
-    }
-    for my $v (@vals) {
-        my $nv = shift @n_vals;
-        if ( $nv ne $v ) {
-            $expr =~ s/\b$v\b/$nv/;
-        }
-    }
-#    warn "EXPR: $expr\n"  if $conflict && $V;
-#    print "EXPR: $expr\n" if $conflict && $V;
-    return $expr;
-}    # END of _rename_conflicting_vars()
-
-sub _rename_conflicting_lhs_var {
-    ( my $expr, my $stref, my $f ) = @_;
-    my $sub_or_func_or_inc = sub_func_incl_mod( $f, $stref );
-    my $Sf                 = $stref->{$sub_or_func_or_inc}{$f};
-    my $val                = $expr;
-
-    if ( exists $Sf->{'ConflictingGlobals'}{$val} ) {
-        say "INFO: CONFLICT LHS : $val in $expr ($f)" if $I;
-        return $Sf->{'ConflictingGlobals'}{$val}[0];
-    } elsif ( exists $Sf->{'ConflictingLiftedVars'}{$val} ) {
-        say  "INFO: CONFLICT LHS (LIFT) for $val: $f: $expr "
-          . $Sf->{'ConflictingLiftedVars'}{$val}[0] 
-          if $I;
-        return $Sf->{'ConflictingLiftedVars'}{$val}[0];
-    } else {
-        for my $inc ( keys %{ $Sf->{'Includes'} } ) {
-            if (
-                exists $stref->{'IncludeFiles'}{$inc}{'ConflictingGlobals'}
-                {$val} )
-            {
-                say "INFO: CONFLICT  LHS (INC): $val in <$expr> ($f), from $inc"
-                  if $I;
-                return $stref->{'IncludeFiles'}{$inc}{'ConflictingGlobals'}
-                  {$val}[0];
-                last;
-            }
-        }
-    }
-    return $expr;
-}    # END of _rename_conflicting_lhs_var()
+} # _rename_conflicting_global_pars() 
 
 sub emit_f95_var_decl {
     ( my $var_decl_rec ) = @_;
- 
 	if (not defined $var_decl_rec) {
-		confess('Argument to emit_f95_var_decl is not defined!');
+		confess('Argument to emit_f95_var_decl is not defined!')  if $DBG;
 	}
     if ( ref($var_decl_rec) ne 'HASH' ) {
-        croak "NOT a HASH in emit_f95_var_decl(".$var_decl_rec.")";
+        croak "NOT a HASH in emit_f95_var_decl(".$var_decl_rec.")"  if $DBG;
     }
-#    croak Dumper($var_decl_rec) if $var_decl_rec->{'Name'} eq 'dtint';
     my $external = exists $var_decl_rec->{'External'} ? 1 : 0;
-    my $spaces = $var_decl_rec->{'Indent'};# [0];
-    croak Dumper($var_decl_rec) if not defined $spaces;
+    my $spaces = $var_decl_rec->{'Indent'};
+    croak Dumper($var_decl_rec) if $DBG and not defined $spaces;
     
-#    ( my $type, my $attr, my $dim, my $intent_or_par ) =
-#      @{ $var_decl_rec->[1] };
       my $type = $var_decl_rec->{'Type'}; 
       if (not defined $type) {
-      	croak Dumper($var_decl_rec);
+      	croak Dumper($var_decl_rec) if $DBG;
+        #    Dumper($stref->{'Subroutines'}{  $var_decl_rec->{'Name'});
       } elsif(ref($type) eq 'HASH') {
       	# Contains Type and Kind
       	my $ttype=$type->{'Type'};
       	my $tkind=$type->{'Kind'};
       	$type= $ttype . (defined $tkind ?  "($tkind)" : '');       	
       } 
-      croak Dumper($var_decl_rec) if $type eq 'character*70';
       my $attr= $var_decl_rec->{'Attr'}; 
-      
       my $dim= $var_decl_rec->{'Dim'}; 
       
       my $is_par = exists $var_decl_rec->{'Parameter'} ? 1 : 0;
-      my $var = $var_decl_rec->{'Name'};
-      my $val = $var_decl_rec->{'Val'};
+      # We seem to have three ways of encoding the (var,val) pairs
+      my ($var,$val);
+      if ($is_par) {
+      if (exists $var_decl_rec->{'Name'}) {
+      	if (ref(  $var_decl_rec->{'Name'} ) eq 'ARRAY'  and scalar @{ $var_decl_rec->{'Name'} } == 2 ) {
+      	    ($var,$val) = @{	$var_decl_rec->{'Name'} };
+      	} elsif (ref(  $var_decl_rec->{'Name'} ) ne 'ARRAY'  and exists $var_decl_rec->{'Val'} ) { 
+            $var = $var_decl_rec->{'Name'};
+            $val = $var_decl_rec->{'Val'};
+      	}
+      }
+      elsif (exists $var_decl_rec->{'Var'}) {
+      	if (ref(  $var_decl_rec->{'Var'} ) eq 'ARRAY'  and scalar @{ $var_decl_rec->{'Var'} } == 2 ) {
+      	    ($var,$val) = @{	$var_decl_rec->{'Var'} };
+              croak 'SHOULD NEVER HAPPEN!' if $DBG;
+      	} elsif (ref(  $var_decl_rec->{'Var'} ) ne 'ARRAY'  and exists $var_decl_rec->{'Val'} ) { 
+            $var = $var_decl_rec->{'Var'};
+            $val = $var_decl_rec->{'Val'};
+      	}          
+      } elsif(exists $var_decl_rec->{'Names'}) {
+      	if (scalar @{ $var_decl_rec->{'Names'} } == 1 and ref($var_decl_rec->{'Names'}[0]) eq 'ARRAY') {
+      		($var,$val) = @{ $var_decl_rec->{'Names'}[0] };
+      	} else {
+      		croak 'Parameter declaration record is incorrect: '.Dumper($var_decl_rec) if $DBG;
+      	}
+      	
+      }
+      } else {
+      	$var = $var_decl_rec->{'Name'};
+      }
       
     my $dimstr = '';
     if ( ref($dim) eq 'ARRAY' and scalar @{$dim}>0) {
@@ -1326,16 +1148,27 @@ sub emit_f95_var_decl {
     }
     my @attrs = ();
     if ($attr) {    	
-    	if ($attr=~/len/ && $type eq 'character') {
+    	if ( $type eq 'character') {
+    	if ($attr=~/len/) {
     		$type.='('.$attr.')';
+        } else {
+                if ($attr=~/\((.+)\)/) {
+                    $attr=$1;
+                }
+    		$type.='(len='.$attr.')';
+        }
     		$attr='';
     	} elsif ($attr=~/kind/ ) {
-    		$type=~s/\*\d+$//;
-    		if ($attr!~/\(.+\)/) {
-    			$type.='('.$attr.')';
-    		}
+            if ($attr=~/kind=\d+/ ) {
+                $type=~s/\*\d+$//;
+                if ($attr!~/\(.+\)/) {
+                    $type.='('.$attr.')';$attr='';
+                }
+            } else {
+                $attr='';
+            }
     	} else {
-        push @attrs, $attr;
+            push @attrs, $attr;
     	}
     }
     if (exists $var_decl_rec->{'Allocatable'} ) {
@@ -1350,7 +1183,8 @@ sub emit_f95_var_decl {
         my $intent    =  $var_decl_rec->{'IODir'};
         
         if (not defined $intent or $intent eq '') {
-        	carp 'Intent not defined for '.Dumper($var_decl_rec) if $W;
+#        	carp 'Intent not defined for '.Dumper($var_decl_rec) if $W;
+        	say 'WARNING: Intent not known for declaration of '.$var if $W;#.' '.$var_decl_rec->{'Ann'} if $W;
         	$intent='Unknown'; 
         }
         if (ref($intent) eq 'ARRAY' and scalar @{$intent}==0) {
@@ -1364,7 +1198,6 @@ sub emit_f95_var_decl {
         	$intentstr ='intent('.$intent.')'; 
 		} 
 		elsif ($intent eq 'Ignore' and $DBG) {			
-#			carp("VAR $var with intent Ignore");
 			$trailing_comment=" ! Intent $intent"; 
 		}
 		
@@ -1385,17 +1218,20 @@ sub emit_f95_var_decl {
               . $trailing_comment;
             return $decl_line;
         } else {
+        	
             my $decl_line =
                 $spaces
               . join( ', ', ( $type, @attrs ) ) . ' :: '
               . $var
               . $trailing_comment;
+              #say 'emit_f95_var_decl 2'.$decl_line ;
             return $decl_line;
         }
         
     } else {
         # Parameter        
-        
+#        say Dumper($var_decl_rec);
+        croak Dumper($var_decl_rec) if $DBG and not defined $val;
         my $var_val = ref($var) eq 'ARRAY' ? $var->[0] . '=' . $var->[1] :  $var.'='.$val;
         my $decl_line =
             $spaces 
@@ -1405,7 +1241,7 @@ sub emit_f95_var_decl {
           . 'parameter' . ' :: '
           . $var_val;
 
-        #  	say 'emit_f95_var_decl PARAM: '.$decl_line ;
+          #say 'emit_f95_var_decl PARAM: '.$decl_line ;
         
         return $decl_line;
     }
@@ -1472,6 +1308,8 @@ sub splice_additional_lines {
 #- Find the hook based on a condition on the $annline (i.e. $insert_cond_subref->($annline) )
 #- splice the new lines before/after the hook depending on $insert_before
 #- if $once is 0, do this whenever the condition is met. Otherwise do it once
+# NOTE that get_annotated_sourcelines will preferentially use RefactoredCode rather than AnnLines 
+# If this is unwanted, pass in $old_annlines explicitly
 sub splice_additional_lines_cond {
     (
         my $stref, 
@@ -1488,6 +1326,7 @@ sub splice_additional_lines_cond {
     my $Sf                 = $stref->{$sub_or_func_or_mod}{$f};
     
     my $annlines           = scalar @{$old_annlines} ? $old_annlines : get_annotated_sourcelines( $stref, $f );
+    croak if $DBG and scalar @{$annlines}==0;
     my $nextLineID         = scalar @{$annlines} + 1;
     my $merged_annlines    = [];
     $do_once = defined $do_once ? $do_once : 1;
@@ -1498,22 +1337,38 @@ sub splice_additional_lines_cond {
 #        say Dumper($info);
         if ( $insert_cond_subref->($annline) and $once ) {
             $once = 0 unless $do_once==0;
-
-            if ( not $skip_insert_pos_line and not $insert_before ) {
-                say $annline->[0] if $DBG;
-                push @{$merged_annlines}, $annline;
+            if (not $insert_before ) {
+            	say $annline->[0] if $DBG; 
+                if ( not $skip_insert_pos_line ) {                
+                    push @{$merged_annlines}, $annline;
+                } else {
+            	   # Skip; but I comment out instead if $DBG is on
+            	   $info->{'Skip'}=1;
+            	   if ($DBG) {
+            	   	 $info->{'Comments'}=1;
+            		 push @{$merged_annlines}, ['! SKIP ! '.$line, $info];
+            	   }
+                }
             }
             for my $extra_annline ( @{$new_annlines} ) {
                 ( my $nline, my $ninfo ) = @{$extra_annline};
                 $ninfo->{'LineID'} = $nextLineID++;
                 say $nline if $DBG;
                 push @{$merged_annlines}, [ $nline, $ninfo ];
-            }
-            if ( not $skip_insert_pos_line and $insert_before ) {
+            }            
+            if ($insert_before ) {
                 say $annline->[0] if $DBG;
-                push @{$merged_annlines}, $annline;
+                if ( not $skip_insert_pos_line ) {                
+                    push @{$merged_annlines}, $annline;
+                } else {
+                   # Skip; but I comment out instead if $DBG is on
+                   $info->{'Skip'}=1;
+                   if ($DBG) {
+                     $info->{'Comments'}=1;
+                     push @{$merged_annlines}, ['! '.$line, $info];
+                   }
+                }
             }
-
         } else {
             say $annline->[0] if $DBG;
             push @{$merged_annlines}, $annline;
@@ -1548,8 +1403,10 @@ sub stateless_pass {
     return $stref;
 } # END of stateless_pass() 
 
-sub stateful_pass {
-    (my $stref, my $f, my $pass_actions, my $state, my $pass_info ) = @_;
+# original  annlines are taken from $Sf->{'AnnLines'} or $Sf->{'RefactoredCode'} 
+# updated annlines are stored in $Sf->{'RefactoredCode'} 
+sub stateful_pass { my ( $stref, $f, $pass_actions, $state, $pass_info ) = @_;
+    # return ($stref,$state);
 #    local $Data::Dumper::Indent =0;
 #    local $Data::Dumper::Terse=1;
     say "STATEFUL PASS ".Dumper($pass_info)." for $f" if $DBG; 
@@ -1610,7 +1467,7 @@ sub _emit_f95_parsed_var_decl { (my $pvd) =@_;
             push @attrs, 'allocatable';
         }
         if (exists $pvd->{'Attributes'}{'Dim'} ) {
-        	croak Dumper($pvd);
+        	# croak Dumper($pvd);
             push @attrs,'dimension('.join(', ',@{ $pvd->{'Attributes'}{'Dim'} }).')';
         }
         if (exists $pvd->{'Attributes'}{'Intent'} ) {
@@ -1623,9 +1480,10 @@ sub _emit_f95_parsed_var_decl { (my $pvd) =@_;
 
 sub top_src_is_module {( my $stref, my $s) = @_;
     my $sub_func_incl = sub_func_incl_mod( $s, $stref ); 
+    if ($sub_func_incl eq 'Modules') { return 1};
 	my $is_incl = exists $stref->{'IncludeFiles'}{$s} ? 1 : 0;
     my $f = $is_incl ? $s : $stref->{$sub_func_incl}{$s}{'Source'};
-    if ( defined $f ) {     	
+    if ( defined $f ) {    	        
 		for my $item ( @{ $stref->{'SourceContains'}{$f}{'List'} } ) {
 			# If $s is a subroutine, it could be that the source file is a Module, and then we should set that as the entry source type            
 			if ($stref->{'SourceContains'}{$f}{'Set'}{$item} eq 'Modules') {
@@ -1639,41 +1497,91 @@ sub top_src_is_module {( my $stref, my $s) = @_;
 	return 0;        
 }
 
-# This is a wrapper to get the subroutines out of a module
-sub pass_wrapper_subs_in_module { (my $stref,my $pass_sequences, my @rest) = @_;
-	my %is_existing_module = ();
-    my %existing_module_name = ();
-	
-	for my $src (keys %{ $stref->{'SourceContains'} } ) {		
+# This is a wrapper to get the subroutines out of a module and then call other passes on these subroutines
+# It does this for all sources but in practice it assumes a single source, so it might be better to pass this source name in as an arg instead 
+sub pass_wrapper_subs_in_module { (my $stref,my $module_name, my $module_pass_sequences, my $sub_pass_sequences, my @rest) = @_;
+	if ($module_name eq '') {
+        
+		my %is_existing_module = ();
+	    my %existing_module_name = ();
 		
-		if (exists $stref->{'SourceContains'}{$src}{'Path'}
-		and  exists $stref->{'SourceContains'}{$src}{'Path'}{'Ext'} ) {	
-		# External, SKIP!
-			say "SKIPPING $src";			
-		} else {		
-		# Get the unit name from the list	    		
-		    for my $sub_or_func_or_mod ( @{  $stref->{'SourceContains'}{$src}{'List'}   } ) {
-		    	# Get its type
-		        my $sub_func_type= $stref->{'SourceContains'}{$src}{'Set'}{$sub_or_func_or_mod};
-		        if ($sub_func_type eq 'Modules') {
-		        	$is_existing_module{$src}=1;
-		        	$existing_module_name{$src} = $sub_or_func_or_mod;
-		        }		
-		    }
-		}
-		my $has_contains = ( $is_existing_module{$src} and exists $stref->{'Modules'}{$existing_module_name{$src}}{'Contains'}  ) ? 1 : 0;
-#		say "SRC: $src";
-		my @subs= $is_existing_module{$src}  ? $has_contains ? @{ $stref->{'Modules'}{$existing_module_name{$src}}{'Contains'} } : ()  :  grep {$_ ne 'UNKNOWN_SRC' } sort keys %{ $stref->{'Subroutines'} };
-		for my $pass_sequence (@{$pass_sequences}) {	
-			for my $f ( @subs ) {
-#				say "SUB $f";
-				for my $pass_sub_ref (@{$pass_sequence}) {			
-					$stref=$pass_sub_ref->($stref, $f, @rest);
-				}			
+		for my $src (keys %{ $stref->{'SourceContains'} } ) {		
+			
+			if (exists $stref->{'SourceContains'}{$src}{'Path'}
+			and  exists $stref->{'SourceContains'}{$src}{'Path'}{'Ext'} ) {	
+			  # External, SKIP! 
+				say "SKIPPING $src";			
+			} else {		
+	    		# Get the unit name from the list	    		
+			    for my $sub_or_func_or_mod ( @{  $stref->{'SourceContains'}{$src}{'List'}   } ) {
+			    	# Get its type
+			        my $sub_func_type= $stref->{'SourceContains'}{$src}{'Set'}{$sub_or_func_or_mod};
+			        if ($sub_func_type eq 'Modules') {
+			        	$is_existing_module{$src}=1;
+			        	$existing_module_name{$src} = $sub_or_func_or_mod;
+			        }		
+			    }
+			}
+			my $has_contains = ( $is_existing_module{$src} and exists $stref->{'Modules'}{$existing_module_name{$src}}{'Contains'}  ) ? 1 : 0;
+	
+			my @subs= $is_existing_module{$src}  ? $has_contains ? @{ $stref->{'Modules'}{$existing_module_name{$src}}{'Contains'} } : ()  :  grep {$_ ne 'UNKNOWN_SRC' } sort keys %{ $stref->{'Subroutines'} };
+            # carp $src . Dumper @subs;
+			for my $pass_sequence (@{$sub_pass_sequences}) {	
+				for my $f ( @subs ) {
+					for my $pass_sub_ref (@{$pass_sequence}) {			
+						$stref=$pass_sub_ref->($stref, $f, @rest);
+					}			
+				}
 			}
 		}
+	} else { 
+        
+		for my $pass_sequence (@{$module_pass_sequences}) {    	
+                for my $pass_sub_ref (@{$pass_sequence}) {                	         
+                    $stref=$pass_sub_ref->($stref, $module_name, @rest);
+                }           
+		}		
+		
+        my $has_contains = exists $stref->{'Modules'}{$module_name}{'Contains'}  ? 1 : 0;
+        my @subs=  $has_contains ? @{ $stref->{'Modules'}{$module_name}{'Contains'} } : ()  ;
+        for my $pass_sequence (@{$sub_pass_sequences}) {    
+            for my $f ( @subs ) {
+                for my $pass_sub_ref (@{$pass_sequence}) {          
+                    $stref=$pass_sub_ref->($stref, $f, @rest);
+                }           
+            }
+        }
 	}
 	return $stref;
 }
+
+# Emit a new source line based on the variable name in $info and the $decl record in RefactoredArgs
+# I might have a flag here to say "use the name from the record"
+sub update_arg_var_decl_sourcelines { (my $stref, my $f)=@_;
+	my $pass_update_arg_var_decls = sub { (my $annline, my $state)=@_;	
+		(my $line,my $info)=@{$annline};
+		(my $stref, my $f) = @{$state};
+		if ( exists $info->{'VarDecl'} ) {
+			my $var = $info->{'VarDecl'}{'Name'}; # May need OrigName?
+			if (exists $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$var} ) {
+                my $decl = $stref->{'Subroutines'}{$f}{'RefactoredArgs'}{'Set'}{$var};
+				# We store the var name from $decl in $pvar, then replace it temporarily with $var, in case a var had been renamed in $info (for example for scalarisation)
+				# to emit the actual F95 code
+				# Then we put $pvar back into the $decl, which will put it back into $stref
+                my $pvar =$decl->{'Name'};
+                $decl->{'Name'}=$var;
+			    $line = emit_f95_var_decl($decl);                
+                $decl->{'Name'}=$pvar;
+			}
+		}				
+		return ([[$line,$info]],$state);
+	};
+	
+	my $state=[$stref,$f];
+ 	($stref,$state) = stateful_pass($stref,$f,$pass_update_arg_var_decls, $state,'pass_update_arg_var_decls() ' . __LINE__  ) ;	
+    return $stref;
+} # END of update_arg_var_decl_sourcelines
+
+
 
 1;

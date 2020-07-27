@@ -6,7 +6,7 @@ use RefactorF4Acc::Config qw ($V $W $UNREAD);
 #   
 
 use vars qw( $VERSION );
-$VERSION = "1.2.0";
+$VERSION = "2.1.1";
 
 use warnings;
 use strict;
@@ -21,7 +21,7 @@ use Exporter;
 );
 
 use File::Find;
-
+use Cwd qw( cwd );
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils qw(module_has_only);
 
@@ -39,74 +39,97 @@ sub find_subroutines_functions_and_includes {
     my $incl='';
     if (@_) {
     	($incl)=@_;
+        say "Looking for INC $incl" if $V;
     }
     	
     my $prefix   = exists $Config{PREFIX} ? $Config{PREFIX} : '.';
-    my @srcdirs=exists $Config{SRCDIRS} ?  @{ $Config{SRCDIRS} } : ('.');    
-    my @extsrcdirs=exists $Config{EXTSRCDIRS} ? @{ $Config{EXTSRCDIRS} } : (); # External sources, should not be refactored but can be parsed
-    my %ext_src_dirs = map { $prefix.'/'.$_ => 1 } @extsrcdirs; 
-    
-    my %excluded_sources = exists $Config{EXCL_SRCS} ? map { $_ => 1 } @{ $Config{EXCL_SRCS} } : ();
-    if (not exists $Config{EXCL_SRCS}) {
-    	$Config{EXCL_SRCS} = [];
-    }
-    my %excluded_dirs = $Config{EXCL_DIRS} ? map { $_ => 1 } @{ $Config{EXCL_DIRS} } : ();
-	# if there is an entry in $Config{EXCL_SRCS} then it is a regex
-    my $has_pattern =  scalar @{ $Config{EXCL_SRCS} } > 0 ? 1 : 0;    
-    my $excl_srcs_pattern    = @{ $Config{EXCL_SRCS} }>1? join('|', @{ $Config{EXCL_SRCS} }) : @{ $Config{EXCL_SRCS} }==1 ? $Config{EXCL_SRCS}->[0] : '';
-    say     'Exclude pattern: /'. $excl_srcs_pattern.'/' if $V;
-	my $excl_srcs_regex      = qr/$excl_srcs_pattern/;
-	
-	
-	$stref->{'SourceDirs'} = [@srcdirs];
-	$stref->{'Prefix'} = $prefix;
-    # find sources (borrowed from PerlMonks)
     
     my %src_files = ();
-    my $tf_finder = sub { 
-        return if !-f;
-        if ($incl) {
-        	return if (!/$incl$/);
-        } else {
-        	return if (!/\.f(?:9[05])?$/ &&!/\.c$/); # rather ad-hoc for Flexpart + WRF # FIXME: make pattern configurable in rf4a.cfg
-        }
-        my $filepath = $File::Find::name;  # i.e. $path+ the name of the file found
+    my %excluded_dirs = $Config{EXCL_DIRS} ? map { $_ => 1 } @{ $Config{EXCL_DIRS} } : ();
+    # The NEWSRCPATH should always be excluded
+     if ($Config{'NEWSRCPATH'} ne '.') {
+            $excluded_dirs{ $Config{'NEWSRCPATH'} } = 1;
+     } else {
+        # I don't exclude it if it is '.', instead I throw an error as that is not a good idea  
+        die "NEWSRCPATH can't be '.', has to be a subfolder\n";
+     }
+    
+    if ($incl eq '' and scalar @{$Config{'SOURCEFILES'}} > 0) {
+    	%src_files = map { $_ => {'Local' => $prefix } } @{$Config{'SOURCEFILES'}};
+    	%excluded_dirs=();     	
+    }  else {
+        my @srcdirs=exists $Config{SRCDIRS} ?  @{ $Config{SRCDIRS} } : ('.');    
+        my @extsrcdirs=exists $Config{EXTSRCDIRS} ? @{ $Config{EXTSRCDIRS} } : (); # External sources, should not be refactored but can be parsed
+        my %ext_src_dirs = map { $prefix.'/'.$_ => 1 } @extsrcdirs; 
         
-        my $srcname = $filepath; # e.g. ./admin/aadmn.f
-        $srcname =~s/^\.\///;  # e.g. admin/aadmn.f
-        my $srcdir = $filepath;  
-        $srcdir=~s/\/.+$//;        # i.e. $path # e.g. admin
-        if (not (
-	         exists $excluded_sources{$srcname} or 
-    	     exists $excluded_sources{"./$srcname"} or
-        	 ($has_pattern and $srcname=~$excl_srcs_regex)
-        	) and not exists $excluded_dirs{$srcdir} # this does not work as the $srcdir is simply '.' 
-         ) {
-         $src_files{$File::Find::name} = (exists $ext_src_dirs{$srcdir}) ? { 'Ext' => $filepath }  : {'Local' => $filepath };
-        } else {
-            print "EXCLUDED SOURCE: $srcname\n" if $V;
+        my %excluded_sources = exists $Config{EXCL_SRCS} ? map { $_ => 1 } @{ $Config{EXCL_SRCS} } : ();
+        if (not exists $Config{EXCL_SRCS}) {
+            $Config{EXCL_SRCS} = [];
         }
-    };
-    
-    for my $dir (@srcdirs,@extsrcdirs) {
-    	my $path="$prefix/$dir";
-    	if ($dir eq '.') {
-    	   $path=$prefix;
-    	}     	
+        
+        # if there is an entry in $Config{EXCL_SRCS} then it is a regex
+        my $has_pattern =  scalar @{ $Config{EXCL_SRCS} } > 0 ? 1 : 0;    
+        my $excl_srcs_pattern    = @{ $Config{EXCL_SRCS} }>1? '(?:'.join('|', @{ $Config{EXCL_SRCS} }).')' : @{ $Config{EXCL_SRCS} }==1 ? $Config{EXCL_SRCS}->[0] : '';
+        # I treat the EXCL_SRC regex as relative to SRCDIRS unless it starts with '^'
+        if ($excl_srcs_pattern!~/^\^/) {
+            my @excl_srcs_pattern_w_srcdirs =();
+            for my $srcdir (@srcdirs) {
+                push @excl_srcs_pattern_w_srcdirs , "$srcdir\\/$excl_srcs_pattern"
+            }
+            $excl_srcs_pattern = join('|', @excl_srcs_pattern_w_srcdirs);
+        }
+        say 'Exclude pattern: /'. ($excl_srcs_pattern!~/[\^\$]/ ? '^'.$excl_srcs_pattern.'$'  :  $excl_srcs_pattern). '/' if $V; 
+        my $excl_srcs_regex      = $excl_srcs_pattern!~/[\^\$]/ 
+            ? qr/^$excl_srcs_pattern$/ 
+            : qr/$excl_srcs_pattern/;
+        
+        $stref->{'SourceDirs'} = [@srcdirs];
+        $stref->{'Prefix'} = $prefix;
 
-        find( $tf_finder, $path );
+        # find sources (borrowed from PerlMonks)    
+        my $tf_finder = sub { 
+            return if !-f;
+            if ($incl) {
+                return if (!/$incl$/);
+            } else {
+                return if (!/\.f(?:or|9[05])?$/i &&!/\.c$/); # rather ad-hoc for Flexpart + WRF # FIXME: make pattern configurable in rf4a.cfg
+            }
+            my $filepath = $File::Find::name;  # i.e. $path+ the name of the file found
+            
+            my $srcname = $filepath; # e.g. ./admin/aadmn.f
+            $srcname =~s/^\.\///;  # e.g. admin/aadmn.f
+            my $srcdir = $filepath;  
+            $srcdir=~s/\/.+$//;        # i.e. $path # e.g. admin
+            if (not (
+                exists $excluded_sources{$srcname} or 
+                exists $excluded_sources{"./$srcname"} or
+                ($has_pattern and $srcname=~$excl_srcs_regex)
+                ) and not exists $excluded_dirs{$srcdir} # this does not work as the $srcdir is simply '.' 
+            ) {
+            $src_files{$File::Find::name} = (exists $ext_src_dirs{$srcdir}) ? { 'Ext' => $filepath }  : {'Local' => $filepath };
+            } else {
+                print "EXCLUDED SOURCE: $srcname\n" if $V;
+            }
+        };
+        
+        for my $dir (@srcdirs,@extsrcdirs) {
+            my $path="$prefix/$dir";
+            if ($dir eq '.') {
+                $path=$prefix;
+            }     	
+            find( $tf_finder, $path );
+        }
     }
-    
     for my $src ( sort keys %src_files ) {
-#		say "SRC: $src";
+		say "SRC: $src" if $V;
         my $exclude=0;        
         for my $excl_dir (keys %excluded_dirs) {            
-            if ($src=~/$excl_dir\//) { 
+            if ($src=~/$excl_dir\//) {
                 $exclude=1;
                 last;
             }
         }    
-        next if $exclude;
+        next if $exclude; 
  
     	if  ($src=~/\.c$/) { 
     		say "WARNING: IGNORING C SOURCE: $src\n" if $W;
@@ -119,7 +142,7 @@ sub find_subroutines_functions_and_includes {
     		# And now we must parse C sources too ...
     	} 
 
-        say "INFO: Fortran SOURCE: $src" if $I; 
+        say "DBG: Fortran SOURCE: $src" if $DBG; 
 
     	$stref->{'SourceContains'}{$src}={
     		'Path' => $src_files{$src},
@@ -127,8 +150,8 @@ sub find_subroutines_functions_and_includes {
     		'List'=>[]
     	};
     	
-        $stref=_process_src($src,$stref) if not $incl ;
-        
+        $stref=_process_src($src,$stref) ;#if not $incl ;
+        say "Done _process_src($src)" if $V;   
     }
     if (!$incl) {
     _find_external_modules($stref);
@@ -137,6 +160,7 @@ sub find_subroutines_functions_and_includes {
     
     _add_path_to_includes($stref);
     }
+    
     return $stref;
 }    # END of find_subroutines_functions_and_includes()
 
@@ -145,7 +169,7 @@ sub find_subroutines_functions_and_includes {
 
 sub _process_src {
 	(my $src, my $stref)=@_;
-#	say "_process_src($src)";
+	# say "_process_src($src)";
 	my @extsrcdirs=exists $Config{EXTSRCDIRS} ? @{ $Config{EXTSRCDIRS} } : (); # External sources, should not be refactored but can be parsed
 	my $prefix   = $Config{'PREFIX'};
     my $srctype=''; # sub, func or incl; for F90/95 also module, and then we must tag the module by what it contains
@@ -166,8 +190,9 @@ sub _process_src {
     	$stref->{'SourceFiles'}{$src}={};
     	$stref->{'SourceFiles'}{$src}{'AnnLines'}=[];
     	$stref->{'SourceFiles'}{$src}{'Path'} =$stref->{'SourceContains'}{$src}{'Path'} ;  
-    } else {
-    	croak "Already processed $src!";
+    } else {    	
+    	say "DBG: Already processed $src" if $DBG;
+    	return $stref;
     }
     open my $SRC, '<', $src;
     while ( my $lline = <$SRC> ) {
@@ -183,7 +208,7 @@ sub _process_src {
 		$line=~s/\s+\!.+$//;
 		# Skip blanks
         $line =~ /^\s*$/ && next;
-		 
+#		 print "$src LINE: $line";
         # Detect blocks. FIXME: we need to distinguish between the Subroutine and KernelWrapper pragmas!
             if ( $has_blocks == 0 ) {
                 if ( $line =~ /^(?:[Cc\*]|\s*\!)\s+BEGIN\sSUBROUTINE\s(\w+)/ 
@@ -191,7 +216,7 @@ sub _process_src {
                         my $block_type=$1;
                          my $sub=$2;
                          say 'Detected block: '."$block_type $sub in $srctype $sub_name" if $V;
-                         croak 'Detect blocks: No '.$block_type.' name from '.$line if $sub eq '';
+                         croak 'Detect blocks: No '.$block_type.' name from '.$line  if $DBG and $sub eq '';
                         $has_blocks = 1;
                         $stref->{$srctype}{$sub_name}{'HasBlocks'}=$has_blocks;
                         if ($translate_to ne '') {
@@ -213,7 +238,7 @@ sub _process_src {
 #             $line =~ /^\s*\*/ && next;
 #             $line =~ /^\s*[CcDd]\W/ && next;
         # Tests for free or fixed form
-        if ($free_form==0) { 
+        if ($free_form==0) {
         	# Get 6 cols
         	my $cols1to6 = substr($line,0,6);
         	# FIXME: HACK: change TAB to 4 spaces
@@ -244,7 +269,7 @@ sub _process_src {
         	# And the whitespace at the start of the line does not contain tabs
             if ( $line!~/^\s*$/ and $line !~ /^[\s\d]{5}.+/ and $line !~ /^\t[\t\s]*\w/ and $line !~/^\s+\t/ and $line!~/^\s*\#/) {
                 $free_form = 1;
-                croak "<$line>" if $src=~/ucaln/;     
+#                croak "<$line>" if $src=~/dyn_shapiro_vernieuw_device_code.f95/;     
             } 
 
             # TAB format
@@ -256,7 +281,7 @@ sub _process_src {
             	if ($cols1to6_char eq "\t") {
             		 $free_form = 0;     
             		 $tab_format=1;
-            		 carp 'TAB FORMAT IS NOT WELL SUPPORTED!';
+            		 say  'WARNING: TAB FORMAT IS NOT WELL SUPPORTED!' if $W;
 #• Continuation lines are identified by  a nonzero digit after the first tab.                        		 
             		 if ($cols1to6_chars[$col_ctr+1] =~/1-9/) {
             		 	$is_cont=1;
@@ -278,39 +303,41 @@ sub _process_src {
             
         }   
         # Tests for F77 or F95
-            if ( $line =~ /^\s*module\s+(\w+)/i ) { # die "LINE: $line";
-            
-                $in_module=1; 
-                $srctype='Modules';
-                $stref->{'SourceFiles'}{$src}{'SourceType'}='Modules';
-                $mod_name = lc($1); #die $line.':'.$mod_name;
-#                say "SRC $src IS MODULE SRC: $mod_name";
+        if ( $line =~ /^\s*module\s+(\w+)/i ) { # die "LINE: $line";
+        
+            $in_module=1; 
+            $srctype='Modules';
+            $stref->{'SourceFiles'}{$src}{'SourceType'}='Modules';
+            $mod_name = lc($1); #die $line.':'.$mod_name;
+            $stref->{'SourceFiles'}{$src}{'ModuleName'}=$mod_name;
+            say "SRC $src IS MODULE SRC: $mod_name" if $DBG;
 #                $f=$mod_name;
-                $container=$mod_name;
+            $container=$mod_name;
 # What I want is a connection between a module and its file name, and also with its content.
 # So that we can say, given a module name, get the source, from there get the contents                
 # Maybe we don't really need the source, as we can use the module name as identifier
-                $stref->{'Modules'}{$mod_name}{'Source'}=$src;
-                
-	            $stref->{'SourceContains'}{$src}{'Set'}{$mod_name}=$srctype;
-	            push @{ $stref->{'SourceContains'}{$src}{'List'} },$mod_name;
-                
-                $fstyle='F95';                
-                $stref->{'Modules'}{$mod_name}{'FStyle'}=$fstyle;
-            	$stref->{'Modules'}{$mod_name}{'FreeForm'}=1;#$free_form;                  
-                $stref->{'Modules'}{$mod_name}{'TabFormat'}=$tab_format;         
-            } 
-            if ( $line =~ /^\s*end\s+(?:module|program)/i ) { 
-            	$in_contains=0;
-            }
-        if ($fstyle eq 'F77') {    
-            if ( $line =~ /^\s*(.*)\s*::\s*(.*?)\s*$/ ) {
+            $stref->{'Modules'}{$mod_name}{'Source'}=$src;
+            
+            $stref->{'SourceContains'}{$src}{'Set'}{$mod_name}=$srctype;
+            push @{ $stref->{'SourceContains'}{$src}{'List'} },$mod_name;
+            
+            $fstyle='F95';                
+            $stref->{'Modules'}{$mod_name}{'FStyle'}=$fstyle;
+            $stref->{'Modules'}{$mod_name}{'FreeForm'}=1;#$free_form;                  
+            $stref->{'Modules'}{$mod_name}{'TabFormat'}=$tab_format;         
+            
+        } 
+        if ( $line =~ /^\s*end\s+(?:module|program)/i ) { 
+            $in_contains=0;
+        }
+        if ($fstyle eq 'F77') {            
+            if ( $line =~ /^\s*(^[\'\"]+)\s*::\s*(.*?)\s*$/ ) {
                  $fstyle='F95'; 
-#                 die $srctype . Dumper( $stref->{'SourceContains'}{$src} ) if $src=~/main/;
                  if (scalar @{ $stref->{'SourceContains'}{$src}{'List'} } == 1) {
                  	(my $code_unit, $srctype) = %{ $stref->{'SourceContains'}{$src}{'Set'} };
 	                $stref->{$srctype}{$code_unit}{'FStyle'}='F95';
-    	        	$stref->{$srctype}{$code_unit}{'FreeForm'}=1;                                   	
+    	        	$stref->{$srctype}{$code_unit}{'FreeForm'}=1;        
+                    
                  }
                  
             }
@@ -324,10 +351,13 @@ sub _process_src {
             $in_interface_block=0;
         }
         
-        #say "LINE: $line";
+        
             # Find subroutine/function/program signatures
             
-           $line =~ /^\s*(\w+\s+\w+\s+(?:function|subroutine|entry)|\w+\s+(?:subroutine|entry)|[\*\(\)\w]+\s+function|function|subroutine|entry|program|block)\s+(\w+)/i && $line!~/\Wend\s+/i && $line!~/^end\s+/i && do {           	
+           (
+           $line =~ /^\s*(\w+\s+\w+\s+(?:function|subroutine|entry)|\w+\s+(?:subroutine|entry)|[\*\(\)\w]+\s+function|function|subroutine|entry|program|block)\s+(\w+)/i
+           || $line =~ /^\s*(block)(data)/i
+           ) && $line!~/\Wend\s+/i && $line!~/^end\s+/i && do {           	
             	my $full_proc_type=$1;            	
             	my $proc_name=$2;
 
@@ -347,12 +377,26 @@ sub _process_src {
                 my $sub  = lc($proc_name);                
                 if ( $is_prog == 1 ) {
                     print "Found program $sub in $src\n" if $V;
+                    # If there is no TOP, the PROGRAM is the top
+                    if (not exists $Config{'TOP'} or $Config{'TOP'} eq '') {
+                        # print "Found program $sub in $src\n" ;
+                    	$Config{'TOP'} = $sub;
+                    } elsif (exists $Config{'TOP'} and $Config{'TOP'} eq $sub) {
+                    	say "INFO: Found TOP program $sub" if $I; 
+                    } elsif  (exists $Config{'TOP'} and $Config{'TOP'} ne $sub) {
+                    	# TOP has a different name from the program
+                    	my $topsub = $Config{'TOP'};
+                    	# If this TOP subroutine is also a program, then there are at least two programs with different names, or TOP is wrong
+                    	 if (exists $stref->{'Subroutines'}{$topsub} and exists $stref->{'Subroutines'}{$topsub}{'Program'} and $stref->{'Subroutines'}{$topsub}{'Program'}==1) {
+                    	 	say "WARNING: TOP routine $topsub is a program but $sub is also a program at " . __PACKAGE__ . ' ' . __LINE__ if $W;
+                    	 } 
+                    }
                     $container=$sub;                    
                 }
-                if ( $is_block_data == 1 ) {
+                if ( $is_block_data == 1 ) { 
                 	if (lc($sub) eq 'data') {
                 		$sub = 'block_data';
-                		$line=~/block\s+data\s{1,4}(\w+)/i && do { $sub=lc($1) };
+                		$line=~/block\s*data\s{1,4}(\w+)/i && do { $sub=lc($1) };
                 	}
 					say "Found block data $sub in $src: $line" if $V;
                 }
@@ -371,6 +415,7 @@ sub _process_src {
 	                	$stref->{'SourceFiles'}{$src}{'SourceType'}='Subroutines';
 	                }
 	                $stref->{'Subroutines'}{$sub}={} unless exists $stref->{'Subroutines'}{$sub}{'InModule'};
+                    say "DBG: Fortran SOURCE: $src" if $DBG; 
 	                $stref->{'SourceContains'}{$src}{'Set'}{$sub}=$srctype;
 	                push @{ $stref->{'SourceContains'}{$src}{'List'} },$sub;
 	                my $Ssub = $stref->{'Subroutines'}{$sub};
@@ -378,7 +423,7 @@ sub _process_src {
 	                if ($is_function) {
 	                	$Ssub->{'Function'} = 1;     
 	                }
-	                if ( $is_block_data == 1 ) {
+	                if ( $is_block_data == 1 ) { 
 	                		$Ssub->{'BlockData'} = 1;
 	                		$stref->{'BlockData'}{$sub}=1;
 	                }
@@ -422,10 +467,10 @@ sub _process_src {
                 } elsif ($in_interface_block) {
                 	$stref->{$srctype}{$mod_name}{'Interface'}{$sub}=1; #WV: TODO: add functionality here
                 } else {
-                	croak 'TROUBLE!';
+                	croak 'TROUBLE!' if $DBG;
                 }
                 $stref->{'Subroutines'}{$sub}{'FStyle'}=$fstyle;
-            	$stref->{'Subroutines'}{$sub}{'FreeForm'}=$free_form;  
+            	$stref->{'Subroutines'}{$sub}{'FreeForm'}=$free_form;                  
             	$stref->{'Subroutines'}{$sub}{'TabFormat'}=$tab_format;
 		        $stref->{'Subroutines'}{$sub}{'HasBlocks'}=$has_blocks;
                 $sub_name=$sub unless $is_entry;
@@ -439,12 +484,13 @@ sub _process_src {
                 $stref = find_subroutines_functions_and_includes($stref,$inc);
                 my $src_path=$inc;  
                 for my $k (keys %{$stref->{'SourceContains'}} ){
-                if ($k=~/$inc$/) {
-                	$src_path=$k;
-                	last;
+                    # say "SRC_PATH: $src_path <$k> '$inc'" if $V;
+                    if ($k=~/$inc$/) {
+                        $src_path=$k;
+                        last;
+                    }
                 }
-                }
-#                die "PATH $src_path";
+                 say "SRC_PATH: <$src_path> '$inc'" if $V;
                 if ($in_module) {
                     $stref->{'Modules'}{$mod_name}{'IncludeFiles'}{$inc}={};
                 }
@@ -452,11 +498,33 @@ sub _process_src {
                     $stref->{'IncludeFiles'}{$inc}{'Status'} = $UNREAD;                                                            
                     $stref->{'IncludeFiles'}{$inc}{'Source'}=$inc;
 					$stref->{'SourceFiles'}{$inc}{'SourceType'}='IncludeFiles';
-                    if (not -e $inc) {
-                    	$stref->{'IncludeFiles'}{$inc}{'InclType'} = 'External';                    	
+                    my $is_external=1;
+                    for my $src_dir (@{$stref->{'SourceDirs'}}) {
+                        # This only works if the $inc is in the $src_dir but not in a subdirectory
+                        if (-e "$src_dir/$inc") {    
+                            $is_external=0;
+                            $stref->{'IncludeFiles'}{$inc}{'InclType'} = 'Local';
+                            last;
+                        }
+                        # To check if $inc might be in a subdirectory, simply check if $src_path starts with "$prefix/$src_dir";
+                        if (
+                            substr($src_path, 0, length("$prefix/$src_dir")) eq "$prefix/$src_dir"
+                        ) {
+                            $is_external=0;
+                            $stref->{'IncludeFiles'}{$inc}{'InclType'} = 'Local';
+                            # But let's store the full path here. Should probably be SrcPath, TODO
+                            $stref->{'IncludeFiles'}{$inc}{'SrcPath'} = $src_path; 
+                            last;                            
+                        }
+                    }
+
+                    # if (not -e $inc) {
+                    if ($is_external) {
+                    	$stref->{'IncludeFiles'}{$inc}{'InclType'} = 'External'; #croak cwd().' '.$inc;          	
                     	for my $ext_dir (@extsrcdirs) {
                     		if (-e "$prefix/$ext_dir/$inc") { 
                     			$stref->{'IncludeFiles'}{$inc}{'ExtPath'} =  "$prefix/$ext_dir/$inc";
+                                say "INC SRC PATH $src_path" if $DBG;
                     			$stref->{'SourceContains'}{$src_path}={
                     				'Inc' => $inc,
                     				'Path' => { 'Ext' => "$prefix/$ext_dir/$inc"},                    				
@@ -466,11 +534,12 @@ sub _process_src {
                     			last;
                     		}
                     	}
-                    } else {
-                        $stref->{'IncludeFiles'}{$inc}{'InclType'} = 'Local';
-                    }
+                    } 
+                    # else {
+                    #     $stref->{'IncludeFiles'}{$inc}{'InclType'} = 'Local';
+                    # }
                 }
-                $stref->{'IncludeFiles'}{$inc}{'FreeForm'}=$free_form;
+                $stref->{'IncludeFiles'}{$inc}{'FreeForm'}=$free_form;                
                 $stref->{'IncludeFiles'}{$inc}{'FStyle'}=$fstyle;
             };
             

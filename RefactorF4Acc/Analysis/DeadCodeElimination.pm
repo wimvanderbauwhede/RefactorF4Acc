@@ -6,7 +6,7 @@ use RefactorF4Acc::Config;
 #   
 
 use vars qw( $VERSION );
-$VERSION = "1.2.0";
+$VERSION = "2.1.1";
 
 #use warnings::unused;
 use warnings;
@@ -19,7 +19,7 @@ use Exporter;
 
 @RefactorF4Acc::Analysis::DeadCodeElimination::ISA = qw(Exporter);
 
-@RefactorF4Acc::Analysis::DeadCodeElimination::EXPORT = qw(
+@RefactorF4Acc::Analysis::DeadCodeElimination::EXPORT_OK = qw(
     &analyse_for_dead_code
 );
 
