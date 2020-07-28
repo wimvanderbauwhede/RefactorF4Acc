@@ -41,6 +41,18 @@ TO RELEASE
   $ git push --delete origin v2.1.0
   $ git push origin v2.1.0
 
+STATUS 2020-07-28
+
+- In the matching up of common block sequences, I should throw an error if the kinds are not the same because this is effectively trying to split atomic types.- I should also throw an error if the types are not the same, except in two cases:
+    - Any caller and Bool local should be OK: if the local is Bool, the decision is based on 0 or not, so it will be correct
+    - Bool caller and Int local is OK, because it will be 1 or 0
+    - Not sure about Bool caller and Real local, need to try it out
+    - Complex and Real is OK for the following cases:
+      - Complex Scalar and Array of Real of length >= 2
+      - Complex array of half the size of a Real Array
+    - Need to check if the kinds match up though
+- I think this means I can simplify the code a bit too.
+
 STATUS 2020-07-24
 
 There was a bug in the casting (vars with same name excluded), and that led to more bugs:
