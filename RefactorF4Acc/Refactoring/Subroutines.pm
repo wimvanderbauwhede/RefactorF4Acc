@@ -70,7 +70,7 @@ sub refactor_all_subroutines {
 		next if ( exists $Sf->{'Entry'} && $Sf->{'Entry'} == 1 );
 		if ( not defined $Sf->{'Status'} ) {
 			$Sf->{'Status'} = $UNREAD;
-			print "WARNING: no Status for $f\n" if $W;
+			say "INFO: no Status for $f" if $I;
 		}
 
 		next if $Sf->{'Status'} == $UNREAD;
@@ -382,8 +382,7 @@ sub _refactor_globals_new {
 				--$inc_counter;
 				$skip = 1;
 			} else {
-				warn "Module " . $info->{'Use'}{'Name'} . " in $f is not Inlineable"
-				  if $W;
+				warning( "Module " . $info->{'Use'}{'Name'} . " in $f is not Inlineable" ,4);
 			}
 		}
 		# say  $inc_counter , exists $info->{'Include'}, exists $info->{'ImplicitNone'},$hook_after_last_incl ;
@@ -1882,8 +1881,8 @@ sub __refactor_EQUIVALENCE_line {
 					# and also assignment is array to array
 					my $dim1  = $var1_decl->{'Dim'};
 					my $dim2  = $var2_decl->{'Dim'};
-					my $size1 = calculate_array_size( $stref, $f, $dim1 );
-					my $size2 = calculate_array_size( $stref, $f, $dim2 );
+					my ($size1, $not_const1) = calculate_array_size( $stref, $f, $dim1 );
+					my ($size2, $not_const2) = calculate_array_size( $stref, $f, $dim2 );
 
 					# but the rank we need is the rank of the expression
 					# FIXME: I will assume that if the array is indexed, all indices are used, i.e. rank is 0
@@ -2256,9 +2255,15 @@ sub _maybe_cast_call_args { my ($stref, $f, $sub_name, $call_arg,$call_arg_decl,
 			$dim2d = __take_upper_bound_from_call_arg($dim1,$dim2);
 		}
 		# carp "$f ".Dumper($dim1)."\n$sub_name".Dumper($dim2d);
-		my $size1 = calculate_array_size( $stref, $f, $dim1 );
-		my $size2 = calculate_array_size( $stref, $sub_name, $dim2d );
-		croak 'FIXME!'.Dumper($call_arg_decl,$sig_arg_decl)  if $DBG and not defined $size1 or not defined $size2;
+		my ($size1, $not_const1) = calculate_array_size( $stref, $f, $dim1 );
+		my ($size2, $not_const2) = calculate_array_size( $stref, $sub_name, $dim2d );
+		croak 'FIXME!'.Dumper($call_arg_decl,$sig_arg_decl) if $DBG and not defined $size1 or not defined $size2;
+		if ($not_const1 ne $not_const2) {
+			warning("the call to $sub_name in $f might have the wrong dimension for " .
+			( $not_const1 ? "$call_arg($not_const1)" : $call_arg) . " with dummy " . 
+			( $not_const2 ? "$sig_arg($not_const2)" : $sig_arg) ,2);
+			# say Dumper($dim1, $dim2d);
+		}
 		# but the rank we need is the rank of the expression
 		# FIXME: I will assume that if the array is indexed, all indices are used, i.e. rank is 0
 		my $rank1 = get_array_rank($dim1);
@@ -2268,8 +2273,14 @@ sub _maybe_cast_call_args { my ($stref, $f, $sub_name, $call_arg,$call_arg_decl,
 		if ( $size1 == $size2 and $rank1 != $rank2 ) {
 			$needs_reshape=1;			
 		} elsif ( $size1 != $size2 and $rank1 == $rank2 ) {
-			say "WARNING: In call to $sub_name in $f: call arg $call_arg and subroutine arg $sig_arg have different sizes $size1<>$size2, type error!\n"
-			.'Using the largest dimension for the reshaped array.' if $W;
+			# warning("In call to $sub_name in $f: call arg $call_arg and subroutine arg $sig_arg have different sizes $size1<>$size2, type error!\n"
+			# .'Using the largest dimension for the reshaped array.' if not $not_const2 and $W ;
+
+			warning("the call to $sub_name in $f might have the wrong dimension for " .
+			( $not_const1 ? "$call_arg($not_const1)" : $call_arg) . " with dummy " . 
+			( $not_const2 ? "$sig_arg($not_const2)" : $sig_arg) . "\n\t" .
+			'Using the largest dimension for the reshaped array.',2) if not $not_const2 ;
+			# If the dim is for some reason still symbolic, we'll take the non-symbolic one			
 			if ($size1>$size2) {
 				$use_arg_sz=1;
 			}
@@ -2279,8 +2290,14 @@ sub _maybe_cast_call_args { my ($stref, $f, $sub_name, $call_arg,$call_arg_decl,
 			if ($size1>$size2) {
 				$use_arg_sz=1;
 			}
-			say "WARNING: In call to $sub_name in $f: call arg $call_arg and subroutine arg $sig_arg have different sizes $size1<>$size2, type error in reshape()!\n"
-			.'Using the largest dimension for the reshaped array.' if $W;
+			# warning("In call to $sub_name in $f: call arg $call_arg and subroutine arg $sig_arg have different sizes $size1<>$size2, type error in reshape()!\n"
+			# .'Using the largest dimension for the reshaped array.',2) if not $not_const2;
+			warning("the call to $sub_name in $f might have the wrong dimension for " .
+			( $not_const1 ? "$call_arg($not_const1)" : $call_arg) . " with dummy " . 
+			( $not_const2 ? "$sig_arg($not_const2)" : $sig_arg) . "\n\t" .
+			'Using the largest dimension for the reshaped array.',2) if not $not_const2 ;
+
+
 			$needs_reshape=1;
 		}
 	}
@@ -2495,8 +2512,8 @@ sub _compare_decls{my ($stref, $f, $var1_decl, $var2_decl)=@_;
 	){
 		my $dim1  = $var1_decl->{'Dim'};
 		my $dim2  = $var2_decl->{'Dim'};
-		my $size1 = calculate_array_size( $stref, $f, $dim1 );
-		my $size2 = calculate_array_size( $stref, $f, $dim2 );
+		my ($size1, $not_const1) = calculate_array_size( $stref, $f, $dim1 );
+		my ($size2, $not_const2) = calculate_array_size( $stref, $f, $dim2 );
 
 		# but the rank we need is the rank of the expression
 		# FIXME: I will assume that if the array is indexed, all indices are used, i.e. rank is 0

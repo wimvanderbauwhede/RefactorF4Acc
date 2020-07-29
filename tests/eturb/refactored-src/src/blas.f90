@@ -142,7 +142,9 @@ contains
 ! 
 ! 
 !      .. External Functions ..
+      external           lsame
 !      .. External Subroutines ..
+      external           xerbla
 !      .. Intrinsic Functions ..
       intrinsic          max
 !      .. Local Scalars ..

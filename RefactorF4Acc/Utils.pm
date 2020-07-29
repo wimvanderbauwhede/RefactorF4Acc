@@ -61,6 +61,7 @@ use Exporter;
     &remove_vars_from_ordered_set
     &get_module_name_from_source
     &get_kernel_and_module_names
+    &warning
 );
 
 
@@ -1086,5 +1087,15 @@ our %F95_types = map { $_=>1 } @F95_types_list;
 
 
 our %F95_intrinsics = (%F95_intrinsic_functions,%F95_other_intrinsics);
+
+sub warning { my ($msg, $lev) = @_;
+    return if $WARNING_LEVEL==0;
+    if (not exists $messages->{WARNING}{$msg}) {
+        $messages->{WARNING}{$msg}=1;
+        if ($lev<=$WARNING_LEVEL) {
+            say "WARNING: $msg"
+        }
+    }
+}
 
 1;

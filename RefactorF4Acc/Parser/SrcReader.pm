@@ -271,8 +271,8 @@ Suppose we don't:
 
 #                    	die "WARNING: The file $f is a fixed-form F77 source file but the max line length is $max_line_length characters, using $MAX_LINE_LENGTH-character lines. To use a different max line length, set MAX_LINE_LENGTH in the config file.";
                         say
-"WARNING: The file $f is a fixed-form F77 source file but the max line length is $max_line_length characters, using $Config{'MAX_LINE_LENGTH'}-character lines.\nTo use a different max line length, set MAX_LINE_LENGTH in the config file."
-                          if $W;
+"WARNING: The file $f is a fixed-form F77 source file so the default line length is 72 characters.\n\tThe max line length in $f is $max_line_length characters, using $Config{'MAX_LINE_LENGTH'}-character lines.\n\tTo use a different max line length, set MAX_LINE_LENGTH in the config file."
+                          if $WW;
                     }
                     my $ncols = $Config{'MAX_LINE_LENGTH'};   #$max_line_length > 72 ? 132 : 72;
 

@@ -47,11 +47,22 @@ sub calculate_array_size {
 	# $tot_sz_str=~s/\-/ - /g;
 	# say $tot_sz_str;
 	my $size = 0;
+	my $not_const = '';
 	# If there are unresolved vars, we return 0
 	if ($tot_sz_str!~/[a-z]/){
 		$size = eval_expression_with_parameters( $tot_sz_str, {}, $stref, $f );
-	} 
-	return $size;
+	} else {
+		# the size string is not constant, can't evaluate
+		$not_const=$tot_sz_str;
+		$not_const=~s/\s+//g;
+		$not_const=~s/\((\w+)\)/$1/g;
+		$not_const=~s/\-(\d)\+$1//g;
+		$not_const=~s/[\-\+]0//g;
+		$not_const=~s/\((\w+)\)/$1/g;
+		$not_const=~s/\*1//g;
+		$not_const=~s/^\(+([^\(\)]+?)\)+$/$1/;
+	}
+	return ($size, $not_const);
 }    # END of calculate_array_size
 
 sub get_array_rank { (my $dim)=@_;

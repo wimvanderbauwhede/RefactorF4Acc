@@ -147,24 +147,25 @@ if ( not exists $info->{'Inlined'} ) {
         }	
         
         elsif ( exists $info->{'External'} ) {
-        	if (scalar keys %{ $info->{'External'}} >1) {
-        		say 'WARNING: Cannot handle EXTERNAL with multiple names, IGNORING!' if $W;
-        	} else {
-        	for my $maybe_ext (keys %{ $info->{'External'} } ) {
-        		if (exists $stref->{'Subroutines'}{$maybe_ext}
-        		and exists $stref->{'Subroutines'}{$maybe_ext}{'Source'}
-        		 and $stref->{'Subroutines'}{$maybe_ext}{'Source'} eq $Sf->{'Source'}) {
-        			$line = '! '.$line." ! $maybe_ext is defined in this file";
-        			$info->{'Deleted'}=1;        			
-        		} else {
-        			# Now it is possible that we have identified a source for this func
-        			if (exists $stref->{'Subroutines'}{$maybe_ext}) {
-						$line = '! '.$line." ! $maybe_ext is accessed via 'use'";
-						$info->{'Deleted'}=1;
-        			}
-        		}
-        	}  
-        	}
+        	# # if (scalar keys %{ $info->{'External'}} >1) {
+        	# # 	say 'WARNING: Cannot handle EXTERNAL with multiple names, IGNORING!' if $W;
+            # #     croak $line;
+        	# # } else {
+            #     for my $maybe_ext (keys %{ $info->{'External'} } ) {
+            #         if (exists $stref->{'Subroutines'}{$maybe_ext}
+            #         and exists $stref->{'Subroutines'}{$maybe_ext}{'Source'}
+            #         and $stref->{'Subroutines'}{$maybe_ext}{'Source'} eq $Sf->{'Source'}) {
+            #             # $line = '! '.$line." ! $maybe_ext is defined in this file";
+            #             # $info->{'Deleted'}=1;        			
+            #         } else {
+            #             # Now it is possible that we have identified a source for this func
+            #             if (exists $stref->{'Subroutines'}{$maybe_ext}) {
+            #                 # $line = '! '.$line." ! $maybe_ext is accessed via 'use'";
+            #                 # $info->{'Deleted'}=1;
+            #             }
+            #         }
+            #     }  
+        	# # }
         	$info->{'Ann'}=[ annotate($f, __LINE__ .' External statement' ) ];
         }	                
 		elsif ( exists $info->{'Data'} ) {
@@ -1184,7 +1185,7 @@ sub emit_f95_var_decl {
         
         if (not defined $intent or $intent eq '') {
 #        	carp 'Intent not defined for '.Dumper($var_decl_rec) if $W;
-        	say 'WARNING: Intent not known for declaration of '.$var if $W;#.' '.$var_decl_rec->{'Ann'} if $W;
+        	say 'WARNING: Intent not known for declaration of '.$var if $WWW;#.' '.$var_decl_rec->{'Ann'} if $W;
         	$intent='Unknown'; 
         }
         if (ref($intent) eq 'ARRAY' and scalar @{$intent}==0) {

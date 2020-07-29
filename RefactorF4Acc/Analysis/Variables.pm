@@ -129,7 +129,7 @@ sub analyse_variables {
 									if ( $stref->{'IncludeFiles'}{$inc}{'InclType'} eq 'Parameter' ) {
 										
 										$grouped_messages->{'W'}{'PARAM_FROM_INC'}{$mvar} = 
-										"WARNING: $mvar in $f is a PARAMETER from $inc!" if $WW;
+										"WARNING: $mvar in $f is a PARAMETER from $inc!" if $WARNING_LEVEL==4;
 
 										$Sf->{'Includes'}{$inc}{'Only'}{$mvar} = 1;
 									} else {
@@ -295,7 +295,7 @@ sub analyse_variables {
 							# A variable can be declared in an include file or not and can be listed as common or not
 							if ( in_nested_set( $stref->{'IncludeFiles'}{$inc}, 'Vars', $mvar )) {								
 								if ( $stref->{'IncludeFiles'}{$inc}{'InclType'} eq 'Parameter' ) {
-									$grouped_messages->{'W'}{'PARAM_FROM_INC'}{$mvar} =  "WARNING: $mvar in $f is a PARAMETER from $inc!" if $WW;
+									$grouped_messages->{'W'}{'PARAM_FROM_INC'}{$mvar} =  "WARNING: $mvar in $f is a PARAMETER from $inc!" if $WARNING_LEVEL==4;
 									 $Sf->{'Includes'}{$inc}{'Only'}{$mvar} =1;
 
 								}
@@ -317,13 +317,13 @@ sub analyse_variables {
 			 ( my $list_w_annline, $state ) = $__analyse_vars_on_line->($annline, $state );
 	}
 	my $grouped_messages = $state->[3];
-        if ($W) {
-    for my $warning_type (sort keys % {$grouped_messages->{'W'}} ) {
-        for my $k (sort keys %{$grouped_messages->{'W'}{$warning_type}}) {
-        	my $line = $grouped_messages->{'W'}{$warning_type}{$k};
-            say $line;
-        }
-    }
+	if ($W) {
+		for my $warning_type (sort keys % {$grouped_messages->{'W'}} ) {
+			for my $k (sort keys %{$grouped_messages->{'W'}{$warning_type}}) {
+				my $line = $grouped_messages->{'W'}{$warning_type}{$k};
+				say $line;
+			}
+		}
     }
     
     if ($I) {

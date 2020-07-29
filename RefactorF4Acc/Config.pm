@@ -14,7 +14,7 @@ use Exporter;
 @RefactorF4Acc::Config::ISA = qw(Exporter);
 @RefactorF4Acc::Config::EXPORT = qw(
 $NEW_PARSER
-$V $W $WW $I $DBG $DUMMY $ANN
+$V $W $WW $WWW $I $DBG $DUMMY $ANN $WARNING_LEVEL
 $NO $YES $GO
 $UNREAD $INVENTORIED $READ $PARSED $FROM_BLOCK $C_SOURCE $FILE_NOT_FOUND $UNUSED
 $noop
@@ -27,6 +27,7 @@ $targetdir
 %Config
 &read_rf4a_config    
 &interactive_create_rf4a_cfg
+$messages
 );
 # $SPLIT_LONG_LINES
 # $NO_ONLY
@@ -39,10 +40,16 @@ $targetdir
 # $LIBS $LIBPATHS $INCLPATHS
 our $NEW_PARSER = 1;
 
-
+our $messages ={
+    INFO => {},
+    WARNING => {},
+    VERBOSE => {},
+};
 our $V = 0;    # Verbose
 our $W = 0;    # Warnings
 our $WW = 0; # Extended warnings
+our $WWW = 0; # Even more extended warnings
+our $WARNING_LEVEL = 1;
 our $I = 0;    # Info
 our $DBG = 0;    # Debug
 our $ANN = 1; # Annotations

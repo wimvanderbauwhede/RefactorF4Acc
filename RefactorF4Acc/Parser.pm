@@ -143,7 +143,7 @@ sub parse_fortran_src {
 	} else {
 		print "INFO: $f is EXTERNAL\n" if $I;
 		if ($stref->{$sub_or_incl_or_mod}{$f}{Status} == $FILE_NOT_FOUND) {
-			print "WARNING: NO source file for $f, if this is an external file please provide the path in EXTSRCDIRS in the config file\n" if $W;
+			warning("No source file for $f\n\tIf this is an external file please provide the path in EXTSRCDIRS in the config file",1);
 		};
 	}
 
@@ -831,7 +831,7 @@ SUBROUTINE
 		 		$info->{'SpecificationStatement'} = 1;
 		 		$Sf->{ucfirst($qualifier)}={ map {$_=>1} @external_procs };
 #		 		say Dumper($Sf->{ucfirst($qualifier)});
-		 			say "WARNING: ".uc($qualifier)." IS IGNORED!" if $qualifier ne 'external' and $W;
+		 			say "INFO: ".uc($qualifier)." is ignored" if $qualifier ne 'external' and $DBG;
                 if ($qualifier ne 'intrinsic' and $qualifier ne 'external') {
                 $info->{'HasVars'} = 1; 
                 }
@@ -1336,7 +1336,7 @@ END IF
 				$info->{ ucfirst($keyword) } = 1;
 				$info->{'IO'}=1;
 				warn uc($keyword)." is ignored!" if $DBG;
-				say "WARNING: ".uc($keyword)." is ignored!" if $W; 
+				warning(uc($keyword)." is ignored",3); 
 #== RETURN, STOP and PAUSE statements		
 			} elsif ($mline=~/^(return|stop|pause)/) {	
 				my $keyword = $1;
@@ -1362,7 +1362,7 @@ END IF
 				$info->{'Assign'}={'Label' => $label, 'Var' => $var};
                 $info->{'HasVars'} = 1; 
 				$Sf->{'ReferencedLabels'}{$label}=$label;
-				say 'WARNING: ASSIGN IS IGNORED!' if $W;
+				warning('ASSIGN is ignored',3);
 			 }													
 #== CONTINUE statement. 			
 			elsif ($line=~/continue/) {				
@@ -1374,7 +1374,7 @@ END IF
 				$info->{ ucfirst($keyword) } = 1;
 				$info->{'IO'}=1;
                 $info->{'HasVars'} = 1; 
-				say "WARNING: ".uc($keyword).' IS IGNORED!' if $W;					
+				warning(uc($keyword).' is ignored',3);					
 			}							
 #== ASSIGNMENT
 # This is an ASSIGNMENT and so can come after IF (...)		
@@ -1464,7 +1464,7 @@ END IF
 		}
 	}
 	if ($W) {
-		say "WARNING:" if scalar keys % {$grouped_warnings};
+		print "WARNING: 	" if scalar keys % {$grouped_warnings};
 	for my $warning_type (sort keys % {$grouped_warnings} ) {
 		for my $line (@{$grouped_warnings->{$warning_type}}) {
 			say $line;
@@ -1506,7 +1506,7 @@ sub __add_include_hooks {
 
 		} # loop over all lines
 	} else {
-		print "WARNING: NO LOCAL SOURCE for $f\n";
+		print "WARNING: NO LOCAL SOURCE for $f\n" if $DBG;
 		# TODO: if we can't find the source, we should search the include path, but
 		# not attempt to create a module for that source!
 	}
@@ -1611,13 +1611,13 @@ sub _parse_use {
 					$Sf->{'UndeclaredCommonVars'} = append_to_set( $Sf->{'UndeclaredCommonVars'}, $stref->{'Modules'}{$name}{'DeclaredCommonVars'} );
 				}
 				} else {
-					say "WARNING: module $name is EXTERNAL" if $W;
+					warning("module $name is EXTERNAL", 2);
 				}
 			} # If the line contains a 'use' statement			
 			$srcref->[$index] = [ $line, $info ];
 		}
 	} else {
-		print "WARNING: NO LOCAL SOURCE for $f\n";
+		print "WARNING: NO LOCAL SOURCE for $f\n" if $DBG;
 
 	# TODO: if we can't find the source, we should search the include path, but
 	# not attempt to create a module for that source!
@@ -2661,7 +2661,7 @@ sub __parse_f95_decl {
 					} elsif (exists $pt->{'TypeTup'}{'Kind'}) {
 						$decl->{'Attr'} = 'len=' . $pt->{'TypeTup'}{'Kind'} ;						
 					} else {
-						say "WARNING: no length for character string $tvar" if $W;
+						warning("No length given for character string $tvar:\n\t$line",2 );
 						$decl->{'Attr'} = 'len=*';
 					}
 					
@@ -3194,8 +3194,7 @@ sub _identify_loops_breaks {
 						delete $do_loops{$label};
 						$nest--;
 					} else {
-						say
-"WARNING: $f: Found CONTINUE for label $label but nesting level is wrong" if $W
+						warning("Found CONTINUE for label $label in $f but nesting level is wrong\n\t$line",2);
 # : $nest<>$do_loops{$label}[1]\n"  if $W;
 					}
 				} elsif ( exists $gotos{$label} ) {
@@ -3220,10 +3219,8 @@ sub _identify_loops_breaks {
 									$target = 'NoopTarget';
 								}
 							}
-						} else {
-							say
-"WARNING: $f: Found GOTO target not BREAK for label $label: wrong nesting" if $W;# $nest<>$gotos{$label}[1]"
-							
+						} else {							
+							warning("Found GOTO target that is not a BREAK for label $label: wrong nesting in $f\n\t$line",2);# $nest<>$gotos{$label}[1]"							
 						}
 					}
 					$info->{$target}{'Label'} = $label;
@@ -3720,13 +3717,13 @@ sub _parse_assignment {
 	{
 		my $tmp_line = $line;
 		$tmp_line =~ s/__PH\d+__/.../g;
-		say "WARNING: ASSIGNMENT to reserved word or intrinsic '"
+		warning("Assignment to reserved word or intrinsic '"
 		  . $lhs_ast->[1]
-		  . "' at line '"
-		  . $tmp_line,
-		  "' in subroutine/function '$f' in '"
+		  . "' at line\n\t'"
+		  . $tmp_line
+		  . "'\n\tin subroutine/function '$f' in '"
 		  . $stref->{$code_unit}{$f}{'Source'}
-		  . "'\nThis is DANGEROUS, please fix your code!" if $WW;
+		  . "'\n\tThis is DANGEROUS, please fix your code!",2);
 		$stref->{$code_unit}{$f}{'MaskedIntrinsics'}{ $lhs_ast->[1] } = 1;
 		$lhs_ast = parse_expression( $lhs, $info, $stref, $f );
 	}
