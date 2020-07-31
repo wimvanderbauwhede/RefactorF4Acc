@@ -49,7 +49,7 @@ _match_up_common_var_sequences stref f caller block = let
         -- type ArrayOrScalar = Integer -- 1 for Array, 0 for Scalar
         -- type Dim is [[Integer]]
         -- type PrefixStr = [String]    
-    in        
+        in        
         -- equivalence_pairs = 
         __consume_sequences stref f common_local_seq common_caller_seq []
 
@@ -125,24 +125,24 @@ __consume_sequences stref f (elt_local:common_local_seq') common_caller_seq equi
                                     in 
                                         __update_dim_start_with_coords dim_local_copy' coords_local
                                 else dim_local_copy'
-                            dim_caller_copy = if lin_idx_caller /= 1 then
+                            dim_caller_copy = -- error "" --if lin_idx_caller /= 1 then
                                 let
-                                    coords_caller = calculate_multidim_indices_from_linear stref caller dim_caller_copy lin_idx_caller
+                                   coords_caller = calculate_multidim_indices_from_linear stref caller dim_caller_copy lin_idx_caller
                                 in
-                                    __update_dim_start_with_coords dim_caller coords_caller
+                                   __update_dim_start_with_coords dim_caller coords_caller
                             lin_idx_local' =  lin_idx_local + dimsz_caller - lin_idx_caller + 1 
                             common_local_seq'' =
                                 if  dimsz_local - lin_idx_local' >= 0 then 
                                     let
-                                    elt_local =  (name_local, decl_local, kind_local, dim_local, dimsz_local, lin_idx_local, used_local) 
+                                      elt_local =  (name_local, decl_local, kind_local, dim_local, dimsz_local, lin_idx_local, used_local) 
                                     in
-                                    elt_local:common_local_seq', 
+                                      elt_local:common_local_seq'
                                 else 
-                                    common_local_seq)
+                                    common_local_seq
                             (_Sf', prefix') = if name_local == name_caller then
                                         ( __add_prefixed_arg _Sf name_caller decl_caller caller block, prefix)
                                     else 
-                                        (add_var_decl_to_set _Sf "ExGlobArgs" name_caller decl_caller, []])    
+                                        (add_var_decl_to_set _Sf "ExGlobArgs" name_caller decl_caller, [])    
                         in
                             (_Sf'
                             ,equivalence_pairs 
@@ -152,34 +152,42 @@ __consume_sequences stref f (elt_local:common_local_seq') common_caller_seq equi
 
                             -- if the local lin index has not entirely consumed the array, we need to unshift
                     else -- the opposite 
-                        let
+                      let
                         lin_idx_caller_end   = lin_idx_caller + dimsz_local - lin_idx_local 
                         lin_idx_caller_start = lin_idx_caller
                         -- Now increment the index
                         coords_caller_end = calculate_multidim_indices_from_linear stref caller dim_caller_copy lin_idx_caller_end
                         dim_caller_copy' = __update_dim_end_with_coords dim_caller coords_caller_end
-                        dim_local_copy = if lin_idx_local /= 1 then let
+                        dim_local_copy = if lin_idx_local /= 1 
+                          then 
+                            let
                                 coords_local = calculate_multidim_indices_from_linear stref f dim_local_copy lin_idx_local
                             in
                                 __update_dim_start_with_coords dim_local coords_local
-                        dim_caller_copy = if lin_idx_caller_start /= 1 then let
-                            coords_caller = calculate_multidim_indices_from_linear stref caller dim_caller_copy lin_idx_caller_start
+                          else local_copy 
+                        dim_caller_copy = if lin_idx_caller_start /= 1 
+                          then 
+                            let
+                                coords_caller = calculate_multidim_indices_from_linear stref caller dim_caller_copy lin_idx_caller_start
                             in
                                 __update_dim_start_with_coords dim_caller_copy' coords_caller
 
+                          else caller_copy 
                         lin_idx_caller' = lin_idx_caller + dimsz_local - lin_idx_local + 1 
-                        common_caller_seq'' = if ( dimsz_caller - lin_idx_caller' >= 0 then
+                        common_caller_seq'' = if dimsz_caller - lin_idx_caller' >= 0 
+                          then
                             let
                                 elt_caller = (name_caller, decl_caller, kind_caller, dim_caller, dimsz_caller, lin_idx_caller, used_caller)
                             in
                                 elt_caller: common_caller_seq'
-                            else common_caller_seq'
-                        (_Sf', prefix') = if  name_local eq name_caller then
+                          else common_caller_seq'
+                        (_Sf', prefix') = if name_local eq name_caller 
+                          then
                                 -- In that case the SigArg should get the prefix as well
-                                (__add_prefixed_arg( _Sf, name_caller, decl_caller, caller, block, prefix)
-                            else 
+                                (__add_prefixed_arg _Sf name_caller decl_caller caller block, prefix)
+                          else 
                                 (add_var_decl_to_set _Sf "ExGlobArgs" name_caller decl_caller, [])
-                        in 
+                      in 
                             (_Sf
                             ,equivalence_pairs 
                             ++ [((name_local, type_local, Array, dim_local_copy, []),(name_caller, type_caller, Array, dim_caller_copy, prefix'))]
