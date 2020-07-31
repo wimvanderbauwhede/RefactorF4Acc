@@ -3,7 +3,7 @@ use v5.10;
 
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils
-  qw( pp_annlines get_maybe_args_globs type_via_implicits in_nested_set get_var_record_from_set %F95_intrinsic_functions);
+  qw( pp_annlines get_maybe_args_globs type_via_implicits in_nested_set get_var_record_from_set %F95_intrinsic_functions warning);
 use RefactorF4Acc::Refactoring::Common qw( get_annotated_sourcelines stateful_pass emit_f95_var_decl get_f95_var_decl );
 
 #use RefactorF4Acc::Refactoring::Subroutines::Signatures qw( refactor_subroutine_signature );
@@ -58,7 +58,10 @@ sub determine_argument_io_direction_rec {
             }
             next if exists $stref->{'ExternalSubroutines'}{$calledsub};    # Don't descend into external subs
             if (exists $subs{$calledsub}) {
-				say "WARNING: LOOP for $calledsub: ".join(', ', @{ $stref->{'CallStack'} }) if $WW;
+                warning("CALL LOOP for $calledsub in $f. This does not conform to the ANSI X3.9-1978 standard, proceed at your peril!",1);
+                warning(join(', ', @{ $stref->{'CallStack'} }),2);
+				# say "WARNING: CALL LOOP for $calledsub in $f. This does not conform to the ANSI X3.9-1978 standard, proceed at your peril!" if $W;
+				# say join(', ', @{ $stref->{'CallStack'} }) if $WW;
 				next;
 			}
             $stref->{Counter}++ if $V;
@@ -503,11 +506,11 @@ sub _analyse_src_for_iodirs {
                                         }    # if it's already InOut or Out, stays like it is.
                                     }
                                     else {
-                                        say "WARNING: Intent for $var in call to $name in $f is unknown" if $WW;
+                                        warning("Intent for $var in call to $name in $f is unknown",4);
                                     }
                                 }
                                 else {
-                                    say "WARNING: $f: NO IODir info for $var" if $W;
+                                    warning("$f: NO IODir info for $var" ,1);
                                 }
                             }
                             else {
@@ -804,7 +807,7 @@ sub _get_iodirs_from_subcall {
                                 say "CALLER ARG <$call_arg> for call to $name in $f IS A PARAMETER." if $DBG;
                                 say
                                   "WARNING: Setting intent(In) for argument $sig_arg of $name because the called argument is a parameter!"
-                                  if $W;
+                                  if $DBG;
                                 print
                                   "INFO: $name in $f is called only once; $sig_arg is a parameter, setting IODir to 'In'\n"
                                   if $I;
@@ -833,7 +836,7 @@ sub _get_iodirs_from_subcall {
    # It leads to Error: Non-variable expression in variable definition context (actual argument to INTENT = OUT/INOUT) at (1)
                         say
                           "WARNING: Setting intent(In) for argument $sig_arg of $name because the called argument is not a variable!"
-                          if $W;
+                          if $DBG;
                         $Sname->{'RefactoredArgs'}{'Set'}{$sig_arg}{'IODir'} = 'In';
 
                     }

@@ -162,7 +162,7 @@ sub _change_func_to_array { (my $stref, my $f,  my $info, my $ast, my $exp, my $
 				} elsif (   	exists $F95_intrinsics{$mvar} ) {
 					say "parse_expression('$exp') " . __LINE__ if $DBG;
                     say "WARNING: treating $mvar in $f as an intrinsic! " if $DBG;
-					$grouped_messages->{'W'}{'VAR_AS_INTRINSIC'}{$mvar} =   "WARNING: treating $mvar in $f as an intrinsic! " if $WW;  
+					$grouped_messages->{'W'}{'VAR_AS_INTRINSIC'}{$mvar} =   "WARNING: Treating $mvar in $f as an intrinsic " if $WW;  
 				} elsif (   	exists $F95_function_like_reserved_words{$mvar} ) {
 					say "parse_expression('$exp') " . __LINE__ if $DBG;
                     say "Treating $mvar in $f as a function-like reserved word " if $DBG;

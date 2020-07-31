@@ -45,8 +45,7 @@ our $usage = "
     Typical use: refactorF4Acc.pl -c ./custom_rf4a.cfg -w
     -h: help
     -V: print the version number
-    -w: show warnings 
-    -W: show more warnings
+    -w <level>: show warnings, levels 0 (none) to 3 (most). default level = 1, 
     -v: verbose (implies -w)
     -i: show info messages
     -d: show debug messages
@@ -328,7 +327,7 @@ sub parse_args { (my $args)=@_;
     if (defined $args) {
         %opts = %{$args};
     } else {
-	    getopts( 'VvwWiIdhACTgbBGc:P:s:o:', \%opts );
+	    getopts( 'Vvw:iIdhACTgbBGc:P:s:o:', \%opts );
     }
 	if ($opts{'V'}) {
 		die "Version: $VERSION\n";
@@ -407,8 +406,11 @@ sub parse_args { (my $args)=@_;
     
 	$V = ( $opts{'v'} ) ? 1 : 0;
 	$I = ( $opts{'i'} ) ? 1 : 0;
-	$W = ( $opts{'w'} ) ? 1 : 0;
-    $WW = ( $opts{'W'} ) ? 1 : 0;
+    $WARNING_LEVEL = defined $opts{'w'} ? $opts{'w'} : 1;
+    say "WARNING LEVEL: $WARNING_LEVEL";
+	$W = $WARNING_LEVEL >= 1 ? 1 : 0;
+    $WW = $WARNING_LEVEL >= 2 ? 1 : 0;
+    $WWW = $WARNING_LEVEL >= 3 ? 1 : 0;
 	$DBG = ( $opts{'d'} ) ? 1 : 0;
 
     $Config{'INLINE_INCLUDES'} = $opts{'I'}  ? 1 : 0;
