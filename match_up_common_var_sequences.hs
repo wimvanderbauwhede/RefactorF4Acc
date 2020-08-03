@@ -29,11 +29,11 @@ data State = MkState {
 
 -- dim and coords have the same shape and size
 __update_dim_with_coords dim coords_start coords_end =
-    map (\d cs ce -> (cs,ce)) (zip3 dim coords_start coords_end)
+    map (\(d, cs, ce) -> (cs,ce)) (zip3 dim coords_start coords_end)
 __update_dim_start_with_coords dim coords =
-        map (\d c -> (c,snd d)) (zip dim coords)    
+        map (\(d, c) -> (c,snd d)) (zip dim coords)    
 __update_dim_end_with_coords dim coords =
-        map (\d c -> (fst d,c)) (zip dim coords)
+        map (\(d, c) -> (fst d,c)) (zip dim coords)
 
 _match_up_common_var_sequences stref f caller block = let
         _Sf :: SubroutineRecord
@@ -134,7 +134,8 @@ __consume_sequences stref f (elt_local:common_local_seq') common_caller_seq equi
                             common_local_seq'' =
                                 if  dimsz_local - lin_idx_local' >= 0 then 
                                     let
-                                      elt_local =  (name_local, decl_local, kind_local, dim_local, dimsz_local, lin_idx_local, used_local) 
+                                    -- WV CHECK THIS!
+                                      elt_local =  (name_local, decl_local, kind_local, dim_local, dimsz_local, lin_idx_local', used_local) 
                                     in
                                       elt_local:common_local_seq'
                                 else 
@@ -177,7 +178,7 @@ __consume_sequences stref f (elt_local:common_local_seq') common_caller_seq equi
                         common_caller_seq'' = if dimsz_caller - lin_idx_caller' >= 0 
                           then
                             let
-                                elt_caller = (name_caller, decl_caller, kind_caller, dim_caller, dimsz_caller, lin_idx_caller, used_caller)
+                                elt_caller = (name_caller, decl_caller, kind_caller, dim_caller, dimsz_caller, lin_idx_caller', used_caller)
                             in
                                 elt_caller: common_caller_seq'
                           else common_caller_seq'
@@ -212,9 +213,9 @@ __consume_sequences stref f (elt_local:common_local_seq') common_caller_seq equi
                     -- increment lin idx. But if the lin idx is already the dimsz, we should not do this, as it means we"re at the last element.
                     -- e.g. if the caller idx is 3 and the caller array is 4, then 4-3 = 1 > 0
                     lin_idx_caller' = lin_idx_caller + kind_local / kind_caller    -- currently this of course just means +=1
-                    common_caller_seq'' = if dimsz_caller - lin_idx_caller >= 0 then
+                    common_caller_seq'' = if dimsz_caller - lin_idx_caller' >= 0 then
                         let
-                            elt_caller = ( name_caller, decl_caller, kind_caller, dim_caller, dimsz_caller, lin_idx_caller, used_caller) 
+                            elt_caller = ( name_caller, decl_caller, kind_caller, dim_caller, dimsz_caller, lin_idx_caller', used_caller) 
                         in
                             elt_caller : common_caller_seq'
                     else common_caller_seq'
@@ -239,9 +240,9 @@ __consume_sequences stref f (elt_local:common_local_seq') common_caller_seq equi
                         (add_var_decl_to_set _Sf "ExGlobArgs" name_caller decl_caller,[] )
                     -- increment lin idx. But if the lin idx is already the dimsz, we should not do this, as it means we"re at the last element.
                     lin_idx_local' =lin_idx_local + kind_caller / kind_local    -- works if the are dividable
-                    common_local_seq'' = if dimsz_local - lin_idx_local >= 0  then      -- 15-14>0 => unshift it
+                    common_local_seq'' = if dimsz_local - lin_idx_local' >= 0  then      -- 15-14>0 => unshift it
                             let
-                                elt_local = [ name_local, decl_local, kind_local, dim_local, dimsz_local, lin_idx_local, used_local ]
+                                elt_local = [ name_local, decl_local, kind_local, dim_local, dimsz_local, lin_idx_local', used_local ]
                             in
                                 elt_local :common_local_seq'
                         else common_local_seq'    
@@ -254,5 +255,6 @@ __consume_sequences stref f (elt_local:common_local_seq') common_caller_seq equi
 
     in
         __consume_sequences 
-        stref{subroutines = H.update (subroutines stref) f _Sf'}
-         f common_local_seq'' common_caller_seq'' equivalence_pairs' 
+        stref --{subroutines = H.update (subroutines stref) f _Sf'}
+         f common_local_seq'' common_caller_seq'' equivalence_pairs' :w
+
