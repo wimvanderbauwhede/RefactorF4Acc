@@ -553,9 +553,8 @@ sub _match_up_common_var_sequences {
 				if ( $kind_local == $kind_caller ) { 
 
 					# increment dim
-					# We support a scalar with a larger kind, simply by having
 					my $lin_idx_caller_start = $lin_idx_caller;
-					my $lin_idx_caller_end   = $lin_idx_caller_start + $kind_caller / $kind_local - 1;                # so, usually this is 0
+					my $lin_idx_caller_end   = $lin_idx_caller_start;
 					my $coords_start         = calculate_multidim_indices_from_linear( $stref, $caller, $dim_caller, $lin_idx_caller_start );
 					my $coords_end           = calculate_multidim_indices_from_linear( $stref, $caller, $dim_caller, $lin_idx_caller_end );
 					my $dim_caller_copy      = dclone($dim_caller);
@@ -592,7 +591,7 @@ sub _match_up_common_var_sequences {
 					$well_aligned=0;
 				if ( $kind_local == $kind_caller ) {
 					my $lin_idx_local_start = $lin_idx_local;
-					my $lin_idx_local_end   = $lin_idx_local_start + $kind_local / $kind_caller - 1;          # so, usually this is 0
+					my $lin_idx_local_end   = $lin_idx_local_start;
 					my $coords_start        = calculate_multidim_indices_from_linear( $stref, $f, $dim_local, $lin_idx_local_start );
 					my $coords_end          = calculate_multidim_indices_from_linear( $stref, $f, $dim_local, $lin_idx_local_end );
 					my $dim_local_copy      = dclone($dim_local);
