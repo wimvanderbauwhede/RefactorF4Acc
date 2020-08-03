@@ -113,7 +113,6 @@ __consume_sequences stref (local,caller,block) (elt_local:common_local_seq') com
                                     common_local_seq'' = if  dimsz_local - (lin_idx_local_end + 1) >= 0 
                                             then (decl_local, lin_idx_local_end + 1) : common_local_seq'
                                             else common_local_seq'
-
                                 in
                                     (dim_local', dim_caller' ,common_local_seq'' ,common_caller_seq')
                             else -- local < caller
