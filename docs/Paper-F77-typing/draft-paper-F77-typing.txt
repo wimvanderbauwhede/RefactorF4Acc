@@ -112,15 +112,15 @@ Now the big question is: given
 
 common id_1 : tau_1, ...
 -- G: all values for id_i in the common block
-subroutine id_s () : () 
+
+subroutine s () : () 
   common id_{s,1} : tau_{s,1}, ...
-  
+  ...
 end subroutine
 
 How can we prove that this is the same as 
 
-
-call id_s' (id_i | id_s,i in G_s)
+call s' (id_i | id_s,i in G_s)
 
 
 -- G: all updated values for id_i in the common block
