@@ -12,7 +12,7 @@ use v5.10;
 
 use RefactorF4Acc::Config;
 # use RefactorF4Acc::ExpressionAST::Evaluate qw( eval_expression_with_parameters );
-use RefactorF4Acc::Utils qw( in_nested_set add_var_decl_to_set remove_var_decl_from_set pp_annlines );
+use RefactorF4Acc::Utils qw( in_nested_set add_var_decl_to_set remove_var_decl_from_set pp_annlines annotate );
 
 use RefactorF4Acc::Parser::Expressions qw( parse_expression_no_context );
 use RefactorF4Acc::Analysis::Arguments qw( create_RefactoredArgs );
@@ -684,7 +684,7 @@ sub _match_up_common_var_sequences {
 			# carp 'ADD RESHAPE HERE: '.Dumper($pair);
 			# This goes wrong when both elts of the pair are Scalar but also when one is a scalar and the other an array of size 1
 			# In both cases there is no need for a reshape. 
-			@{__reshape_rhs_if_required($pair, $stref, $f )}; 
+			@{__reshape_rhs_of_pair_if_required($pair, $stref, $f )}; 
 		} @equivalence_pairs;
 		if ( not exists $Sf->{'ExMismatchedCommonArgs'}{'ArgAssignmentLines'} ) {
 			$Sf->{'ExMismatchedCommonArgs'}{'ArgAssignmentLines'} = \@arg_assignment_lines;
@@ -725,7 +725,7 @@ sub __emit_equiv_var_str {
 # I am not sure how it works with casts
 # I will apply this to the finished strings of the assignment
 # 
-sub __reshape_rhs_if_required { my ($pair, $stref, $f ) = @_; 
+sub __reshape_rhs_of_pair_if_required { my ($pair, $stref, $f ) = @_; 
 	 my $tup_lhs = $pair->[0];
 	( my $var1, my $type1, my $is_array1, my $m_dim1, my $m_prefix1 ) = @{$tup_lhs};
 	my $tup_rhs = $pair->[1];
@@ -735,7 +735,10 @@ sub __reshape_rhs_if_required { my ($pair, $stref, $f ) = @_;
 	my $l_str    = __emit_equiv_var_str($l);
 	my $r        = $tup_rhs;
 	my $r_str    = __emit_equiv_var_str($r);
-	my $annlines = _cast_annlines( $l->[1], $l_str, $r->[1], $r_str );
+	
+	my $annlines = [ map { [ '      '.$_->[0], $_->[1] ] } @{
+	_cast_annlines( $l->[1], $l_str, $r->[1], $r_str )
+	 } ];
 	# say "$l_str = $r_str OK?";
 
 	if ($is_array1 and $is_array2) {
@@ -753,15 +756,15 @@ sub __reshape_rhs_if_required { my ($pair, $stref, $f ) = @_;
 		}
 		# if the same rank and different size
 		if ( $size1 == $size2 and $rank1 != $rank2 ) {
-
+			
 			# if different rank and same size
 			# reshape			
 			if (scalar @{$annlines} == 1) {
-			my ($line,$info) = @{$annlines->[0]};
-			my $indent = ' ' x 6 ;
-			return [
-				["$indent$l_str = reshape($r_str,shape($l_str))" , $info]
-			];
+				my ($line,$info) = @{$annlines->[0]};
+				my $indent = ' ' x 6 ;
+				return [
+					["$indent$l_str = reshape($r_str,shape($l_str))" , $info]
+				];
 
 			} else {
 				carp 'MUST RESHAPE BUT CANNOT!' if $DBG;;
@@ -770,7 +773,7 @@ sub __reshape_rhs_if_required { my ($pair, $stref, $f ) = @_;
 	}
 	# return [['',{}]];
 	return $annlines;
-} # END of __reshape_rhs_if_required
+} # END of __reshape_rhs_of_pair_if_required
 
 
 # These are the reverse assignements on exiting the subroutine

@@ -20,7 +20,8 @@ Cite success of heterogeneous supercomputers
 
 * Preliminaries
 
-- full explicit typing and type checking (algo)
+- full explicit typing 
+(and type checking) i.e. make convert IMPLICIT rules into type declarations  (algo)
 - intent inference (algo)
 - some discussion on F77 type safety, i.e. F77 warns but errors are blanket
 - I need some discussion on EQUIVALENCE too to justify expected behaviour

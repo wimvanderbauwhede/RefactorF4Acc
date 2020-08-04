@@ -1422,7 +1422,8 @@ sub _add_ExMismatchedCommonArg_assignment_lines {
 			$first_vardecl = 0;
 			
 			for my $rline ( @{ $stref->{'Subroutines'}{$f}{'ExMismatchedCommonArgs'}{'ArgAssignmentLines'} } ) {				
-				push @{$rlines}, $rline ;
+				# push @{$rlines}, $rline ;
+				push @{$rlines}, [$rline->[0].' ! ArgAssignmentLines', $rline->[1]] ;
 			}
 		}
 
@@ -1438,7 +1439,8 @@ sub _add_ExMismatchedCommonArg_assignment_lines {
 			for my $rline ( @{ $stref->{'Subroutines'}{$f}{'ExMismatchedCommonArgs'}{'ArgRevAssignmentLines'} } ) {
 # say 'HERE '.$rline->[0];
 						        		# say "ADDING LINE ".$rline->[0]." to $f ";
-				push @{$rlines}, $rline;
+				# push @{$rlines}, $rline;
+				push @{$rlines}, [$rline->[0].' ! ArgRevAssignmentLines', $rline->[1]] ;
 			}
 
 		}

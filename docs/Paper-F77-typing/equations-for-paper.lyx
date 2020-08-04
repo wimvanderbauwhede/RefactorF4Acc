@@ -1,0 +1,519 @@
+#LyX 2.3 created this file. For more info see http://www.lyx.org/
+\lyxformat 544
+\begin_document
+\begin_header
+\save_transient_properties true
+\origin unavailable
+\textclass article
+\use_default_options true
+\maintain_unincluded_children false
+\language english
+\language_package default
+\inputencoding auto
+\fontencoding global
+\font_roman "default" "default"
+\font_sans "default" "default"
+\font_typewriter "default" "default"
+\font_math "auto" "auto"
+\font_default_family default
+\use_non_tex_fonts false
+\font_sc false
+\font_osf false
+\font_sf_scale 100 100
+\font_tt_scale 100 100
+\use_microtype false
+\use_dash_ligatures true
+\graphics default
+\default_output_format default
+\output_sync 0
+\bibtex_command default
+\index_command default
+\paperfontsize default
+\use_hyperref false
+\papersize default
+\use_geometry false
+\use_package amsmath 1
+\use_package amssymb 1
+\use_package cancel 1
+\use_package esint 1
+\use_package mathdots 1
+\use_package mathtools 1
+\use_package mhchem 1
+\use_package stackrel 1
+\use_package stmaryrd 1
+\use_package undertilde 1
+\cite_engine basic
+\cite_engine_type default
+\use_bibtopic false
+\use_indices false
+\paperorientation portrait
+\suppress_date false
+\justification true
+\use_refstyle 1
+\use_minted 0
+\index Index
+\shortcut idx
+\color #008000
+\end_index
+\secnumdepth 3
+\tocdepth 3
+\paragraph_separation indent
+\paragraph_indentation default
+\is_math_indent 0
+\math_numbering_side default
+\quotes_style english
+\dynamic_quotes 0
+\papercolumns 1
+\papersides 1
+\paperpagestyle default
+\tracking_changes false
+\output_changes false
+\html_math_output 0
+\html_css_as_file 0
+\html_be_strict false
+\end_header
+
+\begin_body
+
+\begin_layout Standard
+In the equations below, the subscript 
+\emph on
+c
+\emph default
+ (
+\begin_inset Quotes eld
+\end_inset
+
+caller
+\begin_inset Quotes erd
+\end_inset
+
+) is used for the variables declared in the caller of a subroutine and 
+\emph on
+l
+\emph default
+ (
+\begin_inset Quotes eld
+\end_inset
+
+local
+\begin_inset Quotes erd
+\end_inset
+
+) for the variables declared by in subroutine.
+ 
+\end_layout
+
+\begin_layout Subsection*
+Typechecking COMMON block assignments
+\end_layout
+
+\begin_layout Standard
+Variables stored in COMMON blocks lose all type information.
+ This means in particular that there is no type coercion between real and
+ integer values.
+ To ensure type safety before refactoring, if a COMMON block is used to
+ pass arguments to a subroutine, our compiler will perform typechecks.
+ Because of the lack of coercion, these checks are different from the typechecks
+ performed for normal assignments or arguments passed to subroutines via
+ dummy parameters.
+ 
+\end_layout
+
+\begin_layout Standard
+For the purpose of typechecking, we can assume that all variables are scalar:
+ an array a is considered as syntactic sugar for an ordered collection of
+ scalars with names a(i).
+ We further assume all arrays are linear and traversed using an index starting
+ at 1.
+ 
+\end_layout
+
+\begin_layout Standard
+The main rule for type soundness which we adopt are:
+\end_layout
+
+\begin_layout Itemize
+Kind matching (rule-kind)
+\end_layout
+
+\begin_deeper
+\begin_layout Standard
+A scalar type is atomic, and therefore we cannot split the type, which would
+ be the case if we attempted to map types with different kinds.
+ 
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\begin{eqnarray*}
+ & K_{c,i}=K_{l,i} & ,\forall i\in\#K_{l}
+\end{eqnarray*}
+
+\end_inset
+
+
+\end_layout
+
+\end_deeper
+\begin_layout Itemize
+No COMMON block extension in the called subroutine (rule-size)
+\end_layout
+
+\begin_deeper
+\begin_layout Standard
+The ordered set of words in a COMMON block accessed from a subroutine must
+ be no larger than the size of the COMMON block in the caller.
+ 
+\end_layout
+
+\begin_layout Standard
+If W is the ordered set of all words accessed via the COMMON block then
+ 
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\begin{eqnarray*}
+ & \#W_{l}\leq\#W_{c}
+\end{eqnarray*}
+
+\end_inset
+
+
+\end_layout
+
+\end_deeper
+\begin_layout Itemize
+Logical coercion (rule-logical)
+\end_layout
+
+\begin_deeper
+\begin_layout Standard
+The next rule is that all types must match between the sequence of variables
+ in the caller and the called subroutine.
+ However, this rule is too strict: there are several cases in which type
+ coercion is sound.
+ The first case involves logicals:
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\begin{eqnarray*}
+ &  & \begin{cases}
+T_{c,i}=\mbox{logical}\land T_{l,i}=\mbox{integer}\\
+T_{c,i}=\mbox{integer}\land T_{l,i}=\mbox{logical}\\
+T_{c,i}=\mbox{real}\land T_{l,i}=\mbox{logical}
+\end{cases}
+\end{eqnarray*}
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+A logical is false when coerced from 0 and true otherwise.
+ Therefore interpreting a logical as an integer gives 1 or 0, and interpreting
+ an integer or real as a logical will return correct values of .true.
+ or .false.
+ .
+ Note that Therefore interpreting a logical as a real is only correct for
+ .false.
+ because the .true.
+ interpreted as a real is a non-zero number that depends on the kind of
+ the real.
+ As this is quite non-intuitive, our typechecker therefor throws an error
+ on attempts to interpret a logical as a real.
+\end_layout
+
+\end_deeper
+\begin_layout Itemize
+Complex coercion (rule-complex)
+\end_layout
+
+\begin_deeper
+\begin_layout Standard
+The next case involves complex numbers, which can be coerced to and from
+ two contiguous real numbers:
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\begin{eqnarray*}
+ &  & \begin{cases}
+T_{c,i}=\mbox{complex}\land T_{l,i}=\mbox{real}\land T_{l,i+1}=\mbox{real}\\
+T_{c,i}=\mbox{real}\land T_{c,i+1}=\mbox{real}\land T_{l,i}=\mbox{complex}
+\end{cases}
+\end{eqnarray*}
+
+\end_inset
+
+
+\end_layout
+
+\end_deeper
+\begin_layout Itemize
+Default rule (rule-default)
+\end_layout
+
+\begin_deeper
+\begin_layout Standard
+In all other cases, the types must match:
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\begin{eqnarray*}
+ & T_{l,i}=T_{c,i} & ,\forall i\in\#K_{l}
+\end{eqnarray*}
+
+\end_inset
+
+
+\end_layout
+
+\end_deeper
+\begin_layout Itemize
+So the overall typecheck rule is as follows:
+\end_layout
+
+\begin_deeper
+\begin_layout Standard
+\begin_inset Formula 
+\begin{eqnarray*}
+ & \mbox{rule-kind\land}\mbox{rule-size\land}\left(\mbox{rule-logical}\lor\mbox{rule-complex}\lor\mbox{rule-default}\right)
+\end{eqnarray*}
+
+\end_inset
+
+
+\end_layout
+
+\end_deeper
+\begin_layout Subsection*
+Matching up COMMON block variables in a subroutine call
+\end_layout
+
+\begin_layout Standard
+Given that the typecheck succeeds, then it follows that for every variable
+ in a COMMON block declared in the caller, there is a corresponding variable
+ in the called subroutine.
+ In practice these variables can be either arrays or scalars.
+ Whereas for the purpose of typechecking we have assumed that all variables
+ are scalar, without loss of generality, we will now assume that all variables
+ are arrays.
+ A scalar s is simply syntactic sugar for the first element of an array
+ of size 1, s(1).
+ This is merely to keep the rules more compact.
+ As before, we traverse every array using a linear index starting at 1.
+\end_layout
+
+\begin_layout Standard
+Because it is possible for arrays from the caller and arrays in the called
+ subroutine to overlap in both directions, our strategy for converting the
+ COMMON variables into dummy parameters is as follows: 
+\end_layout
+
+\begin_layout Itemize
+we declare dummy parameters with the names of the variables in the caller
+ (prefixed with the name of the caller and the COMMON block).
+ 
+\end_layout
+
+\begin_layout Itemize
+Then we determine the assignments required to match these dummy parameters
+ with the variables that used to be COMMON block variables in the caller
+ subroutine, but now are ordinary local variables.
+ 
+\end_layout
+
+\begin_layout Itemize
+We insert these assignments after the last specification statement.
+ 
+\end_layout
+
+\begin_layout Itemize
+At the end of the subroutine, we insert the corresponding reverse assignments.
+\end_layout
+
+\begin_layout Itemize
+If required, the right-hand side of the assignment will contain an explicit
+ cast and/or a reshape instruction, because it is possible that the arrays
+ in the caller and the called subroutine have different shapes.
+\end_layout
+
+\begin_layout Standard
+The compiler maintains a global state record.
+ The state information of each subroutine, 
+\emph on
+st
+\emph default
+, is used in 
+\family typewriter
+updateDim
+\family default
+ for evaluation of the array bounds.
+\end_layout
+
+\begin_layout Standard
+the sequence 
+\emph on
+cseq
+\emph default
+ consists of tuples of the type declaration 
+\emph on
+decl
+\emph default
+ and the linear index 
+\emph on
+idx
+\emph default
+ in the 
+\family sans
+COMMON
+\family default
+ block
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\begin{eqnarray*}
+cseq & = & (decl_{1},idx_{1}),...,(decl_{i},idx_{i}),...)
+\end{eqnarray*}
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+For every array variable, the type declaration contains a 
+\emph on
+Dim 
+\emph default
+field 
+\emph on
+d
+\emph default
+ which is an array of (start index, end index) tuples, with total size 
+\emph on
+sz
+\emph default
+.
+\end_layout
+
+\begin_layout Standard
+The list of equivalence pairs 
+\emph on
+eqps
+\emph default
+ contains the matched up declarations of the original 
+\family sans
+COMMON
+\family default
+ block variables of the called subroutine and the 
+\family sans
+COMMON
+\family default
+ block variables of the caller that constitute the new arguments to the
+ subroutine.
+ The caller variables are prefixed with the name of the block and the caller
+ subroutine.
+\end_layout
+
+\begin_layout Standard
+The matching algorithm traverses the local sequence 
+\begin_inset Formula $\mathit{cseq}_{c}$
+\end_inset
+
+ and matches each element to one or more elements of the caller sequence
+ 
+\begin_inset Formula $\mathit{cseq}_{l}$
+\end_inset
+
+.
+ The algorithm is iterative and stops when the local sequence has been consumed,
+ and returns 
+\emph on
+eqps
+\emph default
+.
+ 
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\begin{eqnarray}
+d_{l} & = & \begin{cases}
+sz_{l}-\mathit{idx_{l}}>sz_{c}-idx_{c} & \mbox{updateDim}\,\mathit{st}_{l}\,d_{l}\,idx_{l}\,1\\
+sz_{l}-idx_{l}<=sz_{c}-idx_{c} & \mbox{updateDim}\,\mathit{st}_{l}\,d_{l}\,idx_{l}\,idx_{l,e}
+\end{cases}
+\end{eqnarray}
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\begin{eqnarray}
+d_{c} & = & \begin{cases}
+sz_{l}-idx_{l}=>sz_{c}-idx_{c} & \mbox{updateDim}\,\mathit{st}_{c}\,d_{c}\,idx_{c}\,1\\
+sz_{l}-idx_{l}<sz_{c}-idx_{c} & \mbox{updateDim}\,st_{c}\,d_{c}\,idx_{c}\,idx_{c,e}
+\end{cases}
+\end{eqnarray}
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\begin{eqnarray}
+\mathit{cseq}_{l} & = & \begin{cases}
+sz_{l}-idx_{l}>sz_{c}-idx_{c} & \begin{cases}
+sz_{l}-idx_{l,e}\geq1 & (\mathit{decl}_{l},idx_{l}+1)\bullet\mathit{cseq}_{l}\\
+sz_{l}-idx_{l,e}<1 & \mathit{cseq}_{l}
+\end{cases}\\
+sz_{l}-idx_{l}\leq sz_{c}-idx_{c} & \mathit{cseq}_{l}
+\end{cases}
+\end{eqnarray}
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\begin{eqnarray}
+\mathit{cseq}_{c} & = & \begin{cases}
+sz_{l}-idx_{l}<sz_{c}-idx_{c} & \begin{cases}
+sz_{c}-idx_{c,e}\geq1 & (\mathit{decl}_{c},idx_{c}+1)\bullet\mathit{cseq}_{c}\\
+sz_{c}-idx_{c,e}<1 & \mathit{cseq}_{c}
+\end{cases}\\
+sz_{l}-idx_{l}\geq sz_{c}-idx_{c} & \mathit{cseq}_{c}
+\end{cases}
+\end{eqnarray}
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\begin{eqnarray}
+\mathit{eqps} & = & \mathit{eqps}\bullet(\mathit{decl}_{l}\left\{ \mathit{Dim}=d_{l}\right\} ,\mathit{decl}_{c}\left\{ \mathit{Dim}=d_{c},\mathit{Prefix}=p\right\} )
+\end{eqnarray}
+
+\end_inset
+
+
+\end_layout
+
+\end_body
+\end_document
