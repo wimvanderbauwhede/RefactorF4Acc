@@ -1,3 +1,31 @@
+In terms of structure of the paper:
+
+* Fortran still matters
+
+Show bibliographic data, Archer load, see other paper
+
+* Acceleration by offloading matters
+
+Cite success of heterogeneous supercomputers
+
+* Therefore we need self-contained ("pure") functions
+- no shared memory space
+- no system calls 
+- no library calls except intrinsic ones
+- no I/O
+
+* Related work: see earlier paper, be nice to CamFort
+
+
+
+* Preliminaries
+
+- full explicit typing and type checking (algo)
+- intent inference (algo)
+- some discussion on F77 type safety, i.e. F77 warns but errors are blanket
+- I need some discussion on EQUIVALENCE too to justify expected behaviour
+
+
 So the main points to formalise:
 
 a pure function is
@@ -225,19 +253,6 @@ else
 
 
 ====
-In terms of structure of the paper:
-
-* Fortran still matters
-* Acceleration by offloading matters
-* Therefore we need self-contained ("pure") functions
-
-* Related work: see earlier paper, be nice to CamFort
-
-* Preliminaries
-- full explicit typing and type checking (algo)
-- intent inference (algo)
-- some discussion on F77 type safety, i.e. F77 warns but errors are blanket
-- I need some discussion on EQUIVALENCE too to justify expected behaviour
 
 
 
