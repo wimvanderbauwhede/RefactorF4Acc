@@ -1,0 +1,243 @@
+So the main points to formalise:
+
+a pure function is
+
+f :: t_1 -> ... -> t_i -> ... -> t_n -> t_r
+
+where t_r in general could be (t_{r,1}, ..., t_{r,i}, ..., t_{r,m})
+
+a fortran subroutine can be translated into a pure function as follows: 
+- infer the intent (!)
+- every InOut becomes an (In,Out) tuple
+- every read is from the In, every write is to the Out; 
+
+T, intent(InOut) :: a
+
+(a, ...,l_{i},...) = exp(a, ...,l_{i},...)
+
+T, intent(In) :: a_{in}
+T, intent(Out) :: a_{out}
+
+=> 
+
+a = a_{in}
+
+(a, ...,l_{i},...) = exp(a, ...,l_{i},...)
+
+a_{out} = a
+
+[[
+Or else:
+
+a = a_{in}
+call f(a)
+a_{out} = a
+]]
+
+The typing rule for a pure function is simply
+
+e1: tau1 s : tau1 -> tau2
+--------------------------
+call s(e1) :: tau2
+
+where tau1 is type consisting of the the tuple of all input types, tau2 is type consisting of the the tuple of all output types.
+
+-----
+
+
+Function Declaration Typing
+
+Do I need this? because there is fundamentally no difference in the body
+
+subdecl ::= subroutine id_s ( ...,id_in,i : τ_in,i,... ) : (...,id_out,i : τ_out,i, ...) = [exp_1, ...]
+
+where
+	exp_i :: = (id_{j}, ...,l_{i},...) = exp(id_{j}, ...,l_{i},...)
+
+G [id2 : τ1] |-- exp : τ2
+----------------------------------------------------------
+G |-- (subroutine id_s ( id_1 : τ_1, ... ) : τ_r = exp) ok
+
+
+
+Program Typing
+
+contextof(decl1 ... decln) = G
+
+G |-- decl1 ok   ...  G |-- decln ok
+
+----------------------------------------------------
+
+|-- decl1 ... decln ok
+
+
+The judgment (G |-- exp : τ) states that expression exp has type τ in context G. A context G is a finite partial map from identifiers to types. The context "nil" is the empty context. The context G [x : τ] is the same as G except it maps identifier x to τ. The following rules define the expression typing judgement.
+
+
+https://www.cs.princeton.edu/courses/archive/spring12/cos320/resources/fun_language_definition.html
+
+-------
+
+
+Now the big question is: given
+
+common id_1 : tau_1, ...
+-- G: all values for id_i in the common block
+subroutine id_s () : () 
+  common id_{s,1} : tau_{s,1}, ...
+  
+end subroutine
+
+How can we prove that this is the same as 
+
+
+call id_s' (id_i | id_s,i in G_s)
+
+
+-- G: all updated values for id_i in the common block
+
+G: all types for id_i in the common block, G_s: all types for id_s,i in the common block , 
+#{tau_i}>= #{tau_s,i}
+forall i in , tau_i == tau_s,i => OK, and not just OK but we can type the subroutine as above
+
+----
+
+So at  first, we will assume that an array T, dimension(i,j,...) :: a
+is a collection of scalars and that
+a(i,j,k) is syntactic sugar for a_ijk. So all arguments can in principle be scalars (in practice of course not)
+
+Then we revisit this and present an algorithm to map this, including reshaping.
+
+a_{i,s}(j) = a_i,j+k or something
+
+-----
+
+Now let's have a look at what we have:
+
+1/ "Do they align?" i,e, 
+#{tau_i}>= #{tau_s,i}
+forall i, tau_i == tau_s,i and id_i == id_s,i
+
+If they do, the conversion is trivial
+
+2/ If not:
+
+I need to explain about how the arrays can overlap:
+
+xxxxyzzz
+uvxxxx--
+
+uvxxxx--
+xxxxyzzz
+
+For simplicity I will assume we always prefix the names from local in caller
+
+	elt_local:common_local_seq' = common_local_seq
+	(name_local, decl_local, kind_local, dim_local, dimsz_local, lin_idx_local, used_local ) = elt_local
+      type_local = declType decl_local
+		if (!null common_caller_seq) then 
+-- get caller
+
+case (local,caller) of
+(Scalar,Scalar) ->
+      if type_local == type_caller
+      then
+          if kind_local == kind_caller 
+          then
+	        add_var_decl_to_set 'ExGlobArgs' caller
+          else  
+              error "Can't match scalars with different kinds in call to $f in $caller"
+      else
+	    if 
+		type_caller == "logical" and type_local=="integer"
+--		or type_caller == "logical" and type_local=="real" ! this is debatable because the value in the real will be some non-zero number
+		or type_caller == "integer" and type_local=="logical"
+		or type_caller == "real" and type_local=="logical"
+-- and in principle this should be done for different kinds of course, and it should even work for character? Let's not go there.
+          error "Types of local and caller are not the same in call to $f in $caller"
+(Array,Array) ->  
+    if type_local == type_caller 
+    then
+    if size_local == size_caller 
+    then    
+        if kind_local == kind_caller 
+        then
+-- this is fine, matching array
+            add_var_decl_to_set 'ExGlobArgs' caller
+            equiv_pair  ( local, dim_local_copy ),(caller, dim_caller_copy ) 
+        else if kind_local > kind_caller then
+-- this means that we are grouping kind_local/kind_caller values from the caller into each local
+-- this I think should be an error 
+        else -- kind_local < kind_caller
+-- this means that we are mapping each value from the caller onto kind_caller/kind_local locals
+-- this I think should be an error
+-- so we should lift this up!
+    else
+        -- The arrays are not the same size, 
+        if size_local > size_caller 
+        then -- the caller array can be entirely mapped onto the local array
+            add_var_decl_to_set 'ExGlobArgs' caller
+            equiv_pair  ( local, dim_local_copy ),(caller, dim_caller_copy )
+        else -- the caller array cannot be entirely mapped onto the local array
+            add_var_decl_to_set 'ExGlobArgs' caller
+            equiv_pair  ( local, dim_local_copy ),(caller, dim_caller_copy )
+    else
+        if type_local == "real" and type_caller == "complex"
+        then
+-- if the sizes match, we accept that
+        else if type_local == "complex" and type_caller == "real"
+        then
+-- if the sizes match, we accept that
+        else
+            error "Types of local and caller don't match"
+(Array, Scalar) ->
+    if type_local == type_caller 
+    then
+    if kind_local == kind_caller 
+    then
+        add_var_decl_to_set 'ExGlobArgs' caller
+        equiv_pair  ( local, dim_local_copy ),(caller, [] ) 
+    else
+        error "Can't match a scalar to an array with different kinds in call to $f in $caller"		
+    else
+	  if  type_local == 'real' and size_local==2 and rank_local==1 and type_caller==complex
+	  then
+	  else
+		error "Types of local and caller are not compatible in call to $f in $caller"
+(Scalar, Array) ->
+    if type_local == type_caller
+    then
+    if kind_local == kind_caller 
+    then
+        add_var_decl_to_set 'ExGlobArgs' caller
+        equiv_pair  ( local, [] ),(caller, dim_caller_copy ) 
+    else
+        error "Can't match a scalar to an array with different kinds in call to $f in $caller"
+    else
+	  if  type_local=="complex" and type_caller == 'real' and size_caller==2 and rank_caller==1 
+	  then
+		
+	  else
+		error "Types of local and caller are not compatible in call to $f in $caller"
+
+else
+    error "Local common block sequence can't be longer than caller common block sequence"
+
+
+====
+In terms of structure of the paper:
+
+* Fortran still matters
+* Acceleration by offloading matters
+* Therefore we need self-contained ("pure") functions
+
+* Related work: see earlier paper, be nice to CamFort
+
+* Preliminaries
+- full explicit typing and type checking (algo)
+- intent inference (algo)
+- some discussion on F77 type safety, i.e. F77 warns but errors are blanket
+- I need some discussion on EQUIVALENCE too to justify expected behaviour
+
+
+
