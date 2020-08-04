@@ -63,10 +63,10 @@ updateDim _Sfc dim lin_idx_start lin_idx_end = let
             _updateDim' dim coords_start coords_end
 
 _match_up_common_var_sequences stref local caller block = let
-        stLocal               = (subroutines stref) ! local
-        stCaller               = (subroutines stref) ! caller
-        common_local_seq =  (commonBlockSequences stLocal) ! block
-        common_caller_seq =  (commonBlockSequences stCaller) ! block 
+        stLocal               = subroutines stref ! local
+        stCaller               = subroutines stref ! caller
+        common_local_seq =  commonBlockSequences stLocal ! block
+        common_caller_seq = commonBlockSequences stCaller ! block 
     in        
         __consume_sequences stref (local,caller,block) common_local_seq common_caller_seq []
 
@@ -76,8 +76,8 @@ __consume_sequences stref (local,caller,block) [] common_caller_seq equivalence_
 __consume_sequences stref (local,caller,block) common_local_seq [] equivalence_pairs = error "Local too long for caller" -- "
 __consume_sequences stref (local,caller,block) (elt_local:common_local_seq') common_caller_seq equivalence_pairs = 
     let
-        stLocal = (subroutines stref) ! local
-        stCaller = (subroutines stref) ! caller
+        stLocal = subroutines stref ! local
+        stCaller = subroutines stref ! caller
         (decl_local,lin_idx_local) = elt_local
         (name_local, type_local, kind_local, dim_local) = (vName decl_local, vType decl_local, vKind decl_local, vDim decl_local)
         dimsz_local = dimSize dim_local
@@ -95,17 +95,18 @@ __consume_sequences stref (local,caller,block) (elt_local:common_local_seq') com
             case (vArrayOrScalar decl_local,vArrayOrScalar decl_caller) of
             (Scalar,Scalar) -> 
                             (equivalence_pairs, common_local_seq',common_caller_seq')
+--  If I treat a Scalar as an Array of size 1, I only need this one:                            
             (Array,Array) -> 
                 let
-                    (dim_local', dim_caller', common_local_seq'',common_caller_seq'') =
-                        if dimsz_local - lin_idx_local ==  dimsz_caller - lin_idx_caller  then -- Arrays of identical size
+                    (dim_local', dim_caller', common_local_seq'',common_caller_seq'') 
+                        | dimsz_local - lin_idx_local ==  dimsz_caller - lin_idx_caller  = -- Arrays of identical size
                             let
                                 dim_local' = updateDim stLocal dim_local lin_idx_local 1
                                 dim_caller' = updateDim stCaller dim_caller lin_idx_caller 1                            
                             in                            
                                 (dim_local', dim_caller', common_local_seq', common_caller_seq')                        
-                        else -- local > caller
-                            if  dimsz_local - lin_idx_local > dimsz_caller - lin_idx_caller then
+                        | -- local > caller
+                             dimsz_local - lin_idx_local > dimsz_caller - lin_idx_caller =
                                 let
                                     lin_idx_local_end   = lin_idx_local + dimsz_caller - lin_idx_caller                                 
                                     dim_local' = updateDim stLocal dim_local lin_idx_local lin_idx_local_end 
@@ -115,7 +116,7 @@ __consume_sequences stref (local,caller,block) (elt_local:common_local_seq') com
                                             else common_local_seq'
                                 in
                                     (dim_local', dim_caller' ,common_local_seq'' ,common_caller_seq')
-                            else -- local < caller
+                        | otherwise = -- local < caller
                                 let
                                     lin_idx_caller_end   = lin_idx_caller + dimsz_local - lin_idx_local 
                                     dim_local' = updateDim stLocal dim_local lin_idx_local 1              
@@ -126,8 +127,7 @@ __consume_sequences stref (local,caller,block) (elt_local:common_local_seq') com
                                 in 
                                     (dim_local', dim_caller', common_local_seq', common_caller_seq'')
                     equivalence_pairs' = equivalence_pairs 
-                            ++ [(decl_local{vDim=dim_local'}, decl_caller{vDim=dim_caller',vPrefix=prefix})]
-
+                        ++ [(decl_local{vDim=dim_local'}, decl_caller{vDim=dim_caller',vPrefix=prefix})]
                 in
                     (equivalence_pairs' ,common_local_seq'' ,common_caller_seq'')
             (Scalar,Array) ->
@@ -157,11 +157,10 @@ __consume_sequences stref (local,caller,block) (elt_local:common_local_seq') com
                         (equivalence_pairs' ,common_local_seq'' ,common_caller_seq')    
 
         stLocal' = addPrefixedArg stLocal decl_caller{vPrefix=prefix}                        
-        subroutines' = H.adjust (\_ -> stLocal') local (subroutines stref)
+        subroutines' = H.adjust (const stLocal') local (subroutines stref)
         stref' = stref{subroutines = subroutines' }
     in
         __consume_sequences stref' (local,caller,block) common_local_seq'' common_caller_seq'' equivalence_pairs' 
-
 
 
 
