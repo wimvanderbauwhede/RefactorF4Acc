@@ -460,6 +460,8 @@ sub identify_vars_on_line {
 			or exists $info->{'Equivalence'} ) {
 				@chunks = ( @chunks, @{ $info->{'Vars'}{'List'} } );
 			} else {
+				# carp "HERE FOR IF ... GOTO $line" if $line=~/go\sto/;
+				# $line=~s/go\s+to/goto/; # WV: HACK, should normalise this much earlier!
 				my @mchunks = split( /\W+/, $line );
 				for my $mvar (@mchunks) {
 					next

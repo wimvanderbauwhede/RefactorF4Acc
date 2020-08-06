@@ -123,7 +123,9 @@ if ( not exists $info->{'Inlined'} ) {
 # #            next;
 #         }
         if ( exists $info->{'Save'} ) {
-        	if ( exists  $Sf->{'Program'} and $Sf->{'Program'} == 1  ) { 
+        	if ( $Config{'NO_SAVE'} == 1 or
+                exists  $Sf->{'Program'} and $Sf->{'Program'} == 1             
+             ) { 
         	$line = '! '.$line;
         	$info->{'Deleted'}=1;
         	$info->{'Ann'}=[ annotate($f, __LINE__ .' SAVE statement in Program' ) ];
@@ -386,7 +388,7 @@ if ( not exists $info->{'Inlined'} ) {
 	                        'Ref'       => $info_ref + 1,
 	                        'LineID'    => $nextLineID++,
 	                        'SpecificationStatement' => 1,
-	                        'Ann' => [annotate($f, __LINE__, ' : ParamDecl') ]                        
+	                        'Ann' => [annotate($f, __LINE__. ' : ParamDecl') ]                        
 	                    }
 	                  ]
 	                  ; # Create parameter declarations before variable declarations            

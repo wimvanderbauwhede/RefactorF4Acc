@@ -124,7 +124,7 @@ Full details of these four real-world examples can be found in
 - The compiler completely ignores C preprocessor macros, so it your code uses these, it is best to run `cpp` in advance.
 - The compiler supports mainly FORTRAN77. If your code is a mixture of FORTRAN77 and Fortran-90 or later, it may or may not work.
 - Some FORTRAN77 features are ignored (i.e. kept as-is), notably `ASSIGN`, `DECODE` and `ENCODE`.
-- `SAVE` statements are deleted in PROGRAM code units, ignored elsewhere.
+- `SAVE` statements are deleted everywhere unless the configuration `NO_SAVE = 0` is set. 
 - "The extension of named `COMMON` block storage by `EQUIVALENCE` association of a variable and an array" as tested by `NIST FM302 TEST 013` is not handled correctly. 
 - `EQUIVALENCE` handling for arrays is incorrect for non-constant indices.
 
@@ -361,39 +361,39 @@ Generating, compiling and running the test suites takes a few minutes. The refac
 
 The final output should look like:
 
-      real	0m51.079s
-      user	0m46.688s
-      sys	0m4.372s
+            real	0m54.082s
+            user	0m45.875s
+            sys	0m6.143s
 
-      # Generation of the refactored test suite code:
-      TOTAL TESTS: 196
-      TESTS RUN: 191
-      SKIPPED: 5
-      Generation Failed:
-      0
-      Generation Succeeded:
-      191
+            # Generation of the refactored test suite code:
+            TOTAL TESTS: 196
+            TESTS RUN: 191
+            SKIPPED: 5
+            Generation Failed:
+            0
+            Generation Succeeded:
+            191
 
-      real	0m6.303s
-      user	0m4.832s
-      sys	0m1.484s
+            real	0m9.426s
+            user	0m4.918s
+            sys	0m2.653s
 
-      # Compilation of the refactored test suite:
+            # Compilation of the refactored test suite:
 
-      Total  : 191
-      Passed : 183
-      Failed : 0
-      Skipped: 8
+            Total  : 191
+            Passed : 183
+            Failed : 0
+            Skipped: 8
 
-      real	0m25.071s
-      user	0m21.046s
-      sys	0m4.014s
+            real	0m34.278s
+            user	0m20.498s
+            sys	0m8.786s
 
-      # Running the refactored test suite:
-      PASSED: 2744
-      FAILED: 6
-      REQUIRE INSPECTION: 161
-      TOTAL: 2911
+            # Running the refactored test suite:
+            PASSED: 2745
+            FAILED: 6
+            REQUIRE INSPECTION: 161
+            TOTAL: 2912
 
 To verify the original FORTRAN 77 test suite you can use the original scripts `driver_parse` and `driver_run`. You may have to change the name of the Fortran compiler in `FC` at the start of these scripts.
 
