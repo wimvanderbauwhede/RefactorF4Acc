@@ -25,6 +25,17 @@ Cite success of heterogeneous supercomputers
 - intent inference (algo)
 - some discussion on F77 type safety, i.e. F77 warns but errors are blanket
 - I need some discussion on EQUIVALENCE too to justify expected behaviour
+- Need to discuss removal of COMMON blocks
+- Eliminating SAVE:
+
+• Create a new COMMON block SAVE_$subname
+• Add all SAVEd variables from $subname to that block 
+• Declare them with the $subname prefix at PROGRAM level
+• Initialise them, with defaults if required.
+• Add the same COMMON block to the $subname declaration, with the un-prefixed variables
+• It is now safe to remove SAVE
+
+ 
 
 
 So the main points to formalise:
