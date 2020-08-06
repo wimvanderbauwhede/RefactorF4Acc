@@ -775,25 +775,27 @@ SUBROUTINE
 			$prev_stmt_was_spec=0;
 		}
 #== SAVE
-#The SAVE statement prevents items in a subprogram from becoming undefined
-#after the RETURN or END statements are executed.
-#Syntax
-#Description
-#All variables to be saved are placed in an internal static area. All common
-#blocks are saved by allocating a static area. Therefore, common block names
-#specified in SAVE statements are just ignored.
-#A SAVE statement is optional in the main program and has no effect.
-#A SAVE with no list saves everything that can be saved.
-#Restrictions
-#The following constructs must not appear in a SAVE statement:
-#• Variables or arrays in a common block
-#• Dummy argument names
-#• Record names
-#• Procedure names
-#• Automatic variables or arrays			 
+# The SAVE statement prevents items in a subprogram from becoming undefined
+# after the RETURN or END statements are executed.
+# Syntax
+# Description
+# All variables to be saved are placed in an internal static area. All common
+# blocks are saved by allocating a static area. Therefore, common block names
+# specified in SAVE statements are just ignored.
+# A SAVE statement is optional in the main program and has no effect.
+# A SAVE with no list saves everything that can be saved.
+# Restrictions
+# The following constructs must not appear in a SAVE statement:
+# • Variables or arrays in a common block
+# • Dummy argument names
+# • Record names
+# • Procedure names
+# • Automatic variables or arrays			 
 		elsif ( $line =~/^save/) {
 			$info->{'Save'}=1;
 			$info->{'SpecificationStatement'} = 1;
+			warning('SAVE will be deleted: '. "\n". $line,3) if $Config{'NO_SAVE'}==1;
+			# croak('SAVE will be deleted: '. "\n". $line);
 		}		
 #== DATA
 		elsif ($line=~/^data\b/ and $line!~/=/) { 
@@ -1410,9 +1412,9 @@ END IF
 				$info->{'ArithmeticIf'}=[$label_lt, $label_eq, $label_gt];
 #				say Dumper($info);
 			}
-#			else {
-#				carp "UNDETERMINED LINE: <$mline> ".Dumper($info) ;
-#			}
+			# else {
+			# 	carp "UNDETERMINED LINE: <$mline> ".Dumper($info) if $line=~/go to/;
+			# }
 			}
 			
 			
@@ -3162,17 +3164,21 @@ sub _identify_loops_breaks {
 				} else {
 					push @{ $do_loops{$label}[0] }, $index;
 				}
+				$srcref->[$index] = [ $line, $info ];
 				next;
 			};
-#    Unconditional GO TO, assigned GO TO, and computed GO TO statements
+#    (Un)conditional GO TO, assigned GO TO, and computed GO TO statements
 			# Goto
-			$line =~ /^\s*\d*\s+.*?[\)\ ]\s*go\s?to\s+(\d+)\s*$/ && do {
+			$line =~ /^\s*\d*\s+.*?[\)\ ]\s*go\s*to\s+(\d+)\s*$/ && do {
 				my $label = $1;
 				$info->{'Goto'}{'Label'} = $label;
 				$Sf->{'ReferencedLabels'}{$label}=$label;
 				$Sf->{'Gotos'}{$label} = 1;				
 				push @{ $gotos{$label} }, [ $index, $nest ];
-#				say "UNCONDITIONAL GOTO: $line";
+				$line=~s/\sgo\s+to\s/ goto /;
+				# carp 'GOTO: '.$line;
+#				say " GOTO: $line";
+				$srcref->[$index] = [ $line, $info ];
 				next;
 			};
 #    CONTINUE statement
@@ -3227,6 +3233,7 @@ sub _identify_loops_breaks {
 					$Sf->{'Gotos'}{$label} = $target;
 					delete $gotos{$label};
 				}
+				$srcref->[$index] = [ $line, $info ];
 				next;
 			};
 
@@ -3237,6 +3244,7 @@ sub _identify_loops_breaks {
 				$Sf->{'Gotos'}{$label} = 1;
 				next;
 			};
+			
 			$srcref->[$index] = [ $line, $info ];
 		}
 	} else {
