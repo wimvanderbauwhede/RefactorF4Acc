@@ -25,6 +25,7 @@ Cite success of heterogeneous supercomputers
 - intent inference (algo)
 - some discussion on F77 type safety, i.e. F77 warns but errors are blanket
 - I need some discussion on EQUIVALENCE too to justify expected behaviour
+As it turns out, EQUIVALENCE behaves just like COMMON!
 - Need to discuss removal of COMMON blocks
 - Eliminating SAVE:
 
