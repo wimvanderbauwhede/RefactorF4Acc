@@ -214,6 +214,7 @@ WARNING: 	The EQUIVALENCE  statement cannot always be refactored, this could pos
     99: equivalence (iade15(2), ivoe18)                                   
     104: equivalence (iade21, iade16)                                      
     108: equivalence (ivoe19, ivoe20)                                      
+Generation failed for FM300.f95
 TEST CASE 82: FM301.f
 refactorF4acc.pl -c rf4a_fm301.cfg  -g fm301
 TEST CASE 83: FM302.f

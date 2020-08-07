@@ -1,3 +1,7 @@
+
+In this paper we present the program transformations and type checking algorithms required to convert FORTRAN 77 subroutines and functions into pure, side-effect free subroutines and functions in Fortran 95. The resulting code is type safe and the pure, side-effect free subroutines can readily be offloaded to accelerators.
+
+
 In terms of structure of the paper:
 
 * Fortran still matters
@@ -6,9 +10,12 @@ Show bibliographic data, Archer load, see other paper
 
 * Acceleration by offloading matters
 
-Cite success of heterogeneous supercomputers
+Hardware accelerators have proven extremely effective in accelerating scientific code. Of the Green Top 10 (https://www.top500.org/lists/green500/2019/11/), 8 systems use accelerators. However, in practice the accelertors have their own memory, and the most common compute model is still to offload part of the calculation to the accelerator and copy the results back to the host memory. Even if the accelerator is cache-coherent with the host memory, having the code to be run on the accelertor in a separate memory space is still advantageous as it results in reduced coherency traffic.
+
+Cite success of heterogeneous supercomputers etc
 
 * Therefore we need self-contained ("pure") functions
+
 - no shared memory space
 - no system calls 
 - no library calls except intrinsic ones
@@ -18,15 +25,151 @@ Cite success of heterogeneous supercomputers
 
 
 
+
+
 * Preliminaries
 
-- full explicit typing 
-(and type checking) i.e. make convert IMPLICIT rules into type declarations  (algo)
+- fully explicit typing 
+(and type checking) i.e. make convert IMPLICIT rules into type declarations (algo)
+
+We parse all IMPLICIT statements and turn them into a lookup table Char => (Type,ArrayOrScalar,Attribute)
+This lookup table is initially populated with the default rule:
+
+    implicit integer (i-n), real (a-h, o-z)
+
+We analyse all relevant lines for occurnences of undeclared variables and add declarations following the IMPLICIT rules.
+
+
+- Removal of COMMON blocks
+
+From the spec:
+
+
+The COMMON statement provides a means of associating entities in different program units. This allows different program units to define and reference the same data without using arguments, and to share storage units.
+
+
+(From the F95 spec:
+"The COMMON statement specifies blocks of physical storage, called common blocks, that may be
+accessed by any of the scoping units in a program. Thus, the COMMON statement provides a
+global data facility based on storage association.
+
+Storage sequences are used to describe relationships that exist among variables, common blocks,
+and result variables. Storage association is the association of two or more data objects that occurs
+when two or more storage sequences share or are aligned with one or more storage units.
+"
+)
+
+Our approach is to convert COMMON block variables into subroutine arguments. The more common approach of conversion into module-scoped variables is not suitable for our purpose because it does not result in pure functions. (Furthermore, because of the difference in semantics of storage association and module scoped variables, this approach only works for COMMON blocks where all variables are aligned, whereas COMMON blocks allow overlapping sequences). One of the main contributions of this paper is in this conversion and the associated type checks.
+
+1. construct the COMMON block chain
+
+In a subroutine call chain, it is not necessary for a COMMON blocks to occur in the caller. It is sufficient that the COMMON block used in a called subroutine occurs somewhere in the call chain. As a consequence, it is not generally possible to associate the COMMON block variables in a called subroutine with those of the caller. For example
+
+progam ex1
+
+common /bf2/x
+common /bf1/y
+
+call f1
+
+end program ex1
+
+subroutine f1
+common /bf1/y1
+call f2
+end subroutine f1
+
+subroutine f2
+common /bf2/x2
+end subroutine f2
+
+In this example, x2 in f2 is associated with x in the main program 
+
+progam ex1
+call f1(x,y)
+end program ex1
+
+subroutine f1(x,y1)
+call f2(x)
+! ... use y1 ...
+end subroutine f1
+
+subroutine f2(x2)
+! ... use of x2
+end subroutine f2
+
+So the argument for f2 has to be passed via f1 from the main program. Therefore, we need to analyse the code for the call chain paths between disjoint COMMON blocks and pass all arguments via the intervening calls. This also requires checking if the names are unique an renaming if necessary. The result of this analysis is that for every called subroutine, we have a pair consisting of the common block sequence that will become the call arguments, and the common block sequence that will become the dummy arguments. 
+
+2. The actual conversion
+
+To create the call arguments and dummy arguments, we need to identify which variable in the caller sequence matches which in the subroutine call sequence (called the 'local' sequence for brevity). This is complicated by the fact that storage sequences are allowed to overlap, and do not follow the normal type checking rules. For example, the following is acceptable:
+
+! caller
+real xc(8),z1c,z2c
+complex yc
+common  yc,xc,zx
+
+! local
+real xl(2),zl(4)
+complex yl(3)
+common  yl,xl,zl
+
+yl(1) will be associated with yc(1)
+yl(2) will be associated with xl(1) and xl(2)
+yl(3) will be associated with zl(1) and zl(2)
+zl(3) will be associated with z1c
+zl(4) will be associated with z2c
+
+Furthermore, we need to type check the associations, because COMMON blocks are not type safe: the association does not cause type conversion or imply mathematical equivalence. 
+
+XXX algos here XXX
+
+
+
+
+- EQUIVALENCE
+
+According to the F77 spec, 
+"An EQUIVALENCE statement is used to specify the sharing of storage units by two or more entities in a program unit. This causes association of the entities that share the storage units.
+If the equivalenced entities are of different data types, the EQUIVALENCE statement does not cause type conversion or imply mathematical equivalence. If a variable and an array are equivalenced, the variable does not have array properties and the array does not have the properties of a variable."
+
+This is another form of storage association, with the same issue that it is not type-safe. For example
+
+XXX example XXX
+
+Therefore, EQUIVALENCE statements also need to be refactored. They come with their own flavour of complications:
+
+if a line has multiple tuples, this is allowed: 
+
+    (v1,v2),(v2,v3)
+    
+So we must effectively do a transitivity check across all tuples. Furthermore,
+
+(v1,v2,v3),(v3,v4,v5) then this effectively means (v1,v2,v3,v4,v5)
+
+
+Another complication is this:
+
+     DIMENSION RADE11(5), RADE12(5)
+     EQUIVALENCE (RADE11(4), RADE12(2))
+
+Because the arrays start at 1, and they overlap, this actually creates an equivalence between `RADE11(3), RADE12(1)` and `RADE11(5), RADE12(3)` as well. So we have to equate the overlapping ranges. 
+
+
+
 - intent inference (algo)
+
+
+
+Because the subroutines to be offloaded cannot contain external calls or I/O calls, we can infer the intent of all arguments by recursive descent into nested calls.
+
+
+
 - some discussion on F77 type safety, i.e. F77 warns but errors are blanket
 - I need some discussion on EQUIVALENCE too to justify expected behaviour
 As it turns out, EQUIVALENCE behaves just like COMMON!
 - Need to discuss removal of COMMON blocks
+     
 - Eliminating SAVE:
 
 • Create a new COMMON block SAVE_$subname
@@ -41,39 +184,58 @@ As it turns out, EQUIVALENCE behaves just like COMMON!
 
 So the main points to formalise:
 
-a pure function is
+a pure function take a number of arguments of a given type and returns a single value of a given type:
 
-f :: t_1 -> ... -> t_i -> ... -> t_n -> t_r
+f : t_1 -> ... -> t_i -> ... -> t_n -> t_r
+y = f x_1 ... x_i ... x_n 
+The return value y is of type t_r where t_r in general could be (t_{r,1}, ..., t_{r,i}, ..., t_{r,m})
 
-where t_r in general could be (t_{r,1}, ..., t_{r,i}, ..., t_{r,m})
-
-a fortran subroutine can be translated into a pure function as follows: 
+a FORTRAN 77 subroutine can be translated into a pure function as follows: 
 - infer the intent (!)
-- every InOut becomes an (In,Out) tuple
+- every InOut argument becomes an (In,Out) tuple
 - every read is from the In, every write is to the Out; 
 
-T, intent(InOut) :: a
 
-(a, ...,l_{i},...) = exp(a, ...,l_{i},...)
 
-T, intent(In) :: a_{in}
-T, intent(Out) :: a_{out}
+subroutine f(a_1,...,a_i,...,a_n)
+
+T, intent(InOut) :: a_i
+
+(...,a_i,..., ...,l_{i},...) = exp(...,a_i,..., ...,l_{i},...)
+
+end subroutine f
 
 => 
+subroutine f'(a_1,...,a_{i,in},a_{i,out},...,a_n)
 
-a = a_{in}
+T, intent(In) :: a_{i,in}
+T, intent(Out) :: a_{i.out}
+T :: a_i ! local
 
-(a, ...,l_{i},...) = exp(a, ...,l_{i},...)
+a_i = a_{i,in}
 
-a_{out} = a
+(...,a_i,..., ...,l_{i},...) = exp(...,a_i,..., ...,l_{i},...))
 
-[[
-Or else:
+a_{i,out} = a_i
 
-a = a_{in}
-call f(a)
-a_{out} = a
-]]
+end subroutine f'
+
+Let us denote the transformed argument list as a', so ( a_i \in a' | intent(a_i) = InOut ) = empty
+
+Given the `intent`, then we have:
+
+y = ( a_i \in a' | intent(a_i) = Out ) 
+a'' = a' \ y
+
+In this way we have identified the function arguments and the function return value. So regardless of the subroutine syntax, with this information it is now a pure function as far as its arguments are concerned.
+
+
+
+
+
+
+
+
 
 The typing rule for a pure function is simply
 

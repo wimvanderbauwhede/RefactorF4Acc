@@ -137,10 +137,7 @@ sub analyse_all {
 	if ($sub_or_func_or_mod eq 'Subroutines') {
 	$stref = identify_inherited_exglobs_to_rename( $stref, $code_unit_name );
 	# Although this seems duplication, it is actually required!	
-# carp 'OCC4before:'.$stref->{'Subroutines'}{'genmap'}{ExGlobArgs}{Set}{w1}{Type};		
 	$stref = lift_globals( $stref, $code_unit_name );	
-# carp 'OCC3:'.$stref->{'Subroutines'}{'genmap'}{DeclaredCommonVars}{Set}{w1}{Type};	
-# carp 'OCC4after:'.$stref->{'Subroutines'}{'genmap'}{ExGlobArgs}{Set}{w1}{Type};		
 	$stref = rename_inherited_exglobs( $stref, $code_unit_name );
 	}
 	return $stref if $stage == 5;

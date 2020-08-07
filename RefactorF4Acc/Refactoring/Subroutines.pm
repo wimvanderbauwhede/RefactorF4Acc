@@ -1646,7 +1646,7 @@ sub _change_EQUIVALENCE_to_assignment_lines_for_ExCommonArgs {
 	}
 	return $rlines;
 }    # END of _change_EQUIVALENCE_to_assignment_lines_for_ExCommonArgs
-
+# WV: FIXME: put this in Refactoring:: Equivalence and split it ip
 sub __refactor_EQUIVALENCE_line {
 	( my $stref, my $f, my $ast, my $exEquivAssignmentLines, my $postUpdateAssignmentLines, my $annline, my $equiv_pairs ) = @_;
 	my $Sf    = $stref->{'Subroutines'}{$f};
@@ -1654,7 +1654,8 @@ sub __refactor_EQUIVALENCE_line {
 	my ( $line, $info ) = @{$annline};
 	
 	my $ann=annotate( $f, __LINE__  );
-	#EQUIVALENCE can be general tuple, not just two elts. I need to take this apart into pairs!
+
+	# EQUIVALENCE can be a general tuple, not just two elts. I need to take this apart into pairs!
 	# $ast : ['(',[',',@vs]]
 	my @asts = @{ $ast->[1] }; # @asts : (',',@vs)
 	shift @asts; # @asts : @vs; 
@@ -1662,7 +1663,7 @@ sub __refactor_EQUIVALENCE_line {
 
 	my @pairs = ();
 
-	for my $ast1 (@asts) {
+	for my $ast1 (@asts) { 
 		my $elt1      = $ast1->[1];
 		my $found_elt = 0;
 		for my $ast2 (@asts) {
@@ -1674,13 +1675,22 @@ sub __refactor_EQUIVALENCE_line {
 			}
 		}
 	}
+	# So now @pairs is a list of pairs (ast1, ast2)
 
 	# And perversely, if a line has multiple tuples, this is allowed: (v1,v2),(v2,v3)
 	# So I must do some kind of transitivity check, I'll use $equiv_pairs for that
-	# now suppose it is (v1,v2,v3),(v3,v4,v5) the this effectively means (v1,v2,v3,v4,v5)
+	# now suppose it is (v1,v2,v3),(v3,v4,v5) then this effectively means (v1,v2,v3,v4,v5)
 	# So for each v3, v4, v5 I have to check in $equiv_pairs
 	# Initially I will find v3 and so v1 and v2, but of course we already have that.
 	# But then I should create pairs for v4 and v5 with v1 and v2 as well
+
+	# 
+	# (v1,v2,v3),(v2,v3,v4,v5) is also valid. 
+	# But of course it is enough to have one overlap
+	# because processing v3 after v2 will not result in new associations:
+	# v1 v2, v1 v3, v2 v3
+	# via v2: v2 v4, v2 v5, v3 v4, v3 v5, v4 v5; but then of course also v1 v4, v1 v5
+	# via v3: quite the same. It is sufficient that one variable occurs in multiple tuples. 
 
 	my $transitive = 0;
 	my $trans_var;
@@ -1702,8 +1712,7 @@ sub __refactor_EQUIVALENCE_line {
 # So I guess I should use the full expression string as key, and then I can use the name as secondary key with the ast
 # so  'v3(1)' => {v1 => ast1, v2=>ast2, 'v3(1) => ast31 }
 # and 'v3(2)' => {v4 => ast4,  'v3' => ast32, }
-# Then a test $equiv_pairs->{$var_expr_str} works I can still get the var name only form $ast->[1]
-			# croak if $indexed_array_expr;
+# Then a test $equiv_pairs->{$var_expr_str} works I can still get the var name only form $ast->[1]			
 			$transitive = 1;
 			$trans_var  = $var;
 			last;
@@ -1732,6 +1741,7 @@ sub __refactor_EQUIVALENCE_line {
 	# and
 	# RADE11(5), RADE12(3)
 	# as well
+
 	# So what we should do is equate the overlapping ranges. This is just crazy.
 	# if a pair consists of two arrays
 	# and at least one of them is indexed
@@ -1763,6 +1773,7 @@ sub __refactor_EQUIVALENCE_line {
 	#     1 2 3 4
 	# 1 2 3 4 5 6 7 8
 	# } else reverse the whole thing
+
 	my $replaced=1; # We assume we will replace the EQUIVALENCE 
 	for my $pair (@pairs) {
 		my $ast1 = $pair->[0];
@@ -1779,8 +1790,21 @@ sub __refactor_EQUIVALENCE_line {
 		if (@pairs==1 and $v1_type eq 'character' and $v2_type ne 'character' ) {
 			# croak Dumper($pair);
 			$replaced=0;
+			warning('EQUIVALENCE with CHARACTER string is not refactored'."\n$line\n",1);
 			last;
 		}
+		if ( not (
+			$v1_type eq $v2_type
+		or ($v1_type eq 'logical' and  $v2_type eq 'integer') 
+		or ($v1_type eq 'integer' and $v2_type eq 'logical')
+		or ($v1_type eq 'real' and $v2_type eq 'complex')
+		or ($v1_type eq 'complex' and $v2_type eq 'real')
+		)
+		) {
+			die "TYPE ERROR: '$v1_type' and '$v2_type' are incompatible"."\n$line\n";
+		}
+
+
 		my $v1          = $v1_is_array ? emit_expr_from_ast($ast1) : $var1;
 		my $v2          = $v2_is_array ? emit_expr_from_ast($ast2) : $var2;
 		
@@ -1879,7 +1903,6 @@ sub __refactor_EQUIVALENCE_line {
 			} else {
 				$ann=annotate( $f, __LINE__  );
 				if ( $v1 eq $var1 and $v2 eq $var2 ) {
-
 					# and also assignment is array to array
 					my $dim1  = $var1_decl->{'Dim'};
 					my $dim2  = $var2_decl->{'Dim'};
@@ -1893,7 +1916,6 @@ sub __refactor_EQUIVALENCE_line {
 
 					# if the same rank and different size
 					if ( $size1 == $size2 and $rank1 != $rank2 ) {
-
 						# if different rank and same size
 						# reshape
 						$v2_v1_pair = [ $var2, "reshape($var1,shape($var2))" ];
@@ -1901,7 +1923,6 @@ sub __refactor_EQUIVALENCE_line {
 						$ann=annotate( $f, __LINE__  );
 					} elsif ( $size1 != $size2 and $rank1 == $rank2 ) {
 						if ( $rank1 == 1 ) {
-
 							# 1:size, 0:size-1, -1:size-2 => $size-1+$offset
 							# If the rank is the same, take the overlap, i.e. the smallest dim
 							my $size    = $size1 < $size2 ? $size1 : $size2;
@@ -1913,14 +1934,12 @@ sub __refactor_EQUIVALENCE_line {
 							$v1_v2_pair = [ "$var1($offset1:$range1:1)", "$var2($offset2:$range2:1)" ];
 							$ann=annotate( $f, __LINE__  );
 						} else {
-							say 'WARNING: EQUIVALENCE statement not refactored because it is between two arrays of rank > 1 and different size: '."\n$line\n";;
+							warning('EQUIVALENCE statement not refactored because it is between two arrays of rank > 1 and different size: '."\n$line\n",1);
 							$remove_equiv_stmt = 0;
 						}
 					} else {
-
 						# else give up, warn and keep the original line
-
-						say 'WARNING: EQUIVALENCE statement not refactored because it is between two arrays of different rank and size: '."\n$line\n";
+						warning('EQUIVALENCE statement not refactored because it is between two arrays of different rank and size: '."\n$line\n",1);
 						$remove_equiv_stmt = 0;
 					}
 				} elsif ( $v1 eq $var1 and $v2 ne $var2 ) {

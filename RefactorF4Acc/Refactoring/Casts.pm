@@ -30,8 +30,8 @@ cast_call_argument
 );
 
 # More utter evil
-#   integer fnami (33)
-#   character*132 fname
+#   integer fnami (33) ! 33*4
+#   character*132 fname 
 #   equivalence (fname,fnami)
 # create_cast_annlines :: (Decl,VarStr) -> (Decl, VarStr) -> [AnnLine]
 sub create_cast_annlines {

@@ -39,6 +39,10 @@
         print *, r1(i)
         r1(i) = i
         end do
-
+        print *, 'Test 42'
+        vb2(1) = 42
+        print *, r1(1)
+        r1(1)=42
+        print *, vb2(1)
       end program test_equivalence
       
