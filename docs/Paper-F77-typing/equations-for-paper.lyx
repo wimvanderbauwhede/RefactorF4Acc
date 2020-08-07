@@ -75,6 +75,88 @@
 
 \begin_body
 
+\begin_layout Subsection*
+The definition of a pure function
+\end_layout
+
+\begin_layout Standard
+Let 
+\begin_inset Formula $\Gamma$
+\end_inset
+
+ be the context of a given program, i.e.
+ the set of all variables with their current value and type:
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\[
+\{...,x_{i}:\tau_{i}=v_{i},...\}
+\]
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+Consider a function 
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\begin{eqnarray*}
+y & = & f(x_{1},...,x_{N})\\
+y:\tau_{y}\\
+x_{i}:\tau_{i},i\in[1,N]
+\end{eqnarray*}
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+and for convenience we'll write 
+\begin_inset Formula $x_{1},...,x_{N}$
+\end_inset
+
+ as 
+\begin_inset Formula $\overrightarrow{x}$
+\end_inset
+
+ and its type as 
+\begin_inset Formula $\overrightarrow{\tau}$
+\end_inset
+
+.
+\end_layout
+
+\begin_layout Standard
+This function is 
+\emph on
+pure
+\emph default
+ iff
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\[
+\forall\,\Gamma,\forall\overrightarrow{x}\in\Gamma,\exists!y\in\Gamma:y=f(\overrightarrow{x})
+\]
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+In words, whatever the environment, for a given set of argument values of
+ the correct type, the function will always return the same value.
+ 
+\end_layout
+
 \begin_layout Standard
 In the equations below, the subscript 
 \emph on
@@ -105,7 +187,7 @@ local
 \end_layout
 
 \begin_layout Subsection*
-Typechecking COMMON block assignments
+Typechecking COMMON block and EQUIVALENCE associations 
 \end_layout
 
 \begin_layout Standard
@@ -117,7 +199,39 @@ Variables stored in COMMON blocks lose all type information.
  Because of the lack of coercion, these checks are different from the typechecks
  performed for normal assignments or arguments passed to subroutines via
  dummy parameters.
- 
+ The same is true for EQUIVALENCE statements: they associate different names
+ with the same memory location, but the type of the word written to the
+ memory location is erased.
+ Therefore, the following is legal and does not generate any warnings, but
+ is incorrect
+\end_layout
+
+\begin_layout LyX-Code
+integer*4 i1
+\end_layout
+
+\begin_layout LyX-Code
+real*4 r1       
+\end_layout
+
+\begin_layout LyX-Code
+equivalence (i2,r1)
+\end_layout
+
+\begin_layout LyX-Code
+i1 = 42
+\end_layout
+
+\begin_layout LyX-Code
+print *, r1 ! prints 5.88545355E-44
+\end_layout
+
+\begin_layout LyX-Code
+r1 = 42
+\end_layout
+
+\begin_layout LyX-Code
+print *, i1 ! prints 1109917696
 \end_layout
 
 \begin_layout Standard

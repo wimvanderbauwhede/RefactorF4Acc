@@ -137,23 +137,26 @@ This is another form of storage association, with the same issue that it is not 
 
 XXX example XXX
 
-Therefore, EQUIVALENCE statements also need to be refactored. They come with their own flavour of complications:
+Therefore, EQUIVALENCE statements also need to be refactored. They come with their own flavour of complications. 
 
 if a line has multiple tuples, this is allowed: 
 
     (v1,v2),(v2,v3)
     
-So we must effectively do a transitivity check across all tuples. Furthermore,
+So we must effectively do a transitivity check across all tuples. Furthermore, the tuples (called lists in the spec) can have more than two elements. 
 
-(v1,v2,v3),(v3,v4,v5) then this effectively means (v1,v2,v3,v4,v5)
+(v1,v2,v3),(v3,v4,v5) 
 
+then this effectively means (v1,v2,v3,v4,v5) and each of these variables is associated with all the others, so there are 10 unique associations in this example.
 
-Another complication is this:
+Another complication is that overlapping is allowed, e.g.:
 
      DIMENSION RADE11(5), RADE12(5)
      EQUIVALENCE (RADE11(4), RADE12(2))
 
-Because the arrays start at 1, and they overlap, this actually creates an equivalence between `RADE11(3), RADE12(1)` and `RADE11(5), RADE12(3)` as well. So we have to equate the overlapping ranges. 
+Because the arrays start at 1, and they overlap, this actually creates an equivalence between `RADE11(3), RADE12(1)` and `RADE11(5), RADE12(3)` as well. So we have to equate the overlapping ranges.
+
+
 
 
 
