@@ -143,11 +143,15 @@ if a line has multiple tuples, this is allowed:
 
     (v1,v2),(v2,v3)
     
-So we must effectively do a transitivity check across all tuples. Furthermore, the tuples (called lists in the spec) can have more than two elements. 
+So we must effectively do a transitivity check across all tuples. We do this by checking if an element of a tuple occurs in another tuple. It is sufficient to do this for a single element because the transivity means that every element from the one tuple will be associated with every element from the other.
+
+
+Furthermore, the tuples (called lists in the spec) can have more than two elements. 
 
 (v1,v2,v3),(v3,v4,v5) 
 
-then this effectively means (v1,v2,v3,v4,v5) and each of these variables is associated with all the others, so there are 10 unique associations in this example.
+then this effectively means (v1,v2,v3,v4,v5) and each of these variables is associated with all the others, so there are 10 unique associations in this example. 
+In general, for a tuple of n values, there will be (n-1)*n/2 associations.
 
 Another complication is that overlapping is allowed, e.g.:
 
