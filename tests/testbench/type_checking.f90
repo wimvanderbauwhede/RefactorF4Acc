@@ -15,6 +15,8 @@ program ts
     d2 = d1
 
     i41 = i81 ! Possible change of value in conversion ('Unsafe')
+    i41 = 2*i41+i81/2
+    i41= int(i81,4)
     i41 = r1 ! Unsafe
     i41 = d1 ! Unsafe
 

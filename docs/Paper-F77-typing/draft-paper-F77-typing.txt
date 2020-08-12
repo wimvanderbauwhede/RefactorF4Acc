@@ -1,5 +1,75 @@
 
+https://typing-is-hard.ch/
+
+Completeness
+
+A type checker is complete if it can check every correctly typed program.
+
+Soundness
+
+A type checker is sound if it only accepts correctly typed programs.
+
+Basic Type Safety
+
+An intuitive notion of type safety is pithily summarized by the phrase, “Well typed programs cannot go wrong.” This phrase was coined by Robin Milner in his 1978 paper, A Theory of Type Polymorphism in Programming. Let’s deconstruct this phrase and define its parts, considering the second part first.
+
+
 In this paper we present the program transformations and type checking algorithms required to convert FORTRAN 77 subroutines and functions into pure, side-effect free subroutines and functions in Fortran 95. The resulting code is type safe and the pure, side-effect free subroutines can readily be offloaded to accelerators.
+
+[[
+So we must show that our type checker is sound and complete for the parts that we are interested in. 
+
+ANSI X3.9-1978 Revision of ANSI X3.9-1966
+American National Standard Programming Language FORTRAN
+
+2.13 Storage
+A storage sequence is a sequence of storage units. A storage unit is either a numeric storage unit or a character storage unit.
+An integer, real, or logical datum has one numeric storage unit in a storage sequence. A double precision or complex datum has two numeric storage units in a storage sequence.
+A character datum has one character storage unit in a storage sequence for each character in the datum. This standard does not specify a relationship between a numeric storage unit and a character storage unit.
+If a datum requires more than one storage unit in a storage sequence, those storage units are consecutive.
+The concept of a storage sequence is used to describe relationships that exist among variables, array elements, arrays, substrings, and common blocks. This standard does not specify a relationship between the storage sequence concept and the physical properties or implementation of storage.
+
+
+The six types of data are:
+(1) Integer
+(2) Real
+(3) Double precision
+A double precision datum has two consecutive numeric storage units in a storage sequence
+(4) Complex
+A complex datum is a processor approximation to the value of a complex number. The representation of a complex datum is in the form of an ordered pair of real data. The first
+of the pair represents the real part of the complex datum and the second represents the
+imaginary part. Each part has the same degree of approximation as for a real datum. A
+complex datum has two consecutive numeric storage units in a storage sequence; the first
+storage unit is the real part and the second storage unit is the imaginary part.
+(5) Logical
+(6) Character
+
+
+
+
+https://gcc.gnu.org/onlinedocs/gcc-3.4.6/g77/Language.html
+
+The standard does not specify the size of a numeric storage unit, nor does it speficy a relationship between a numeric storage unit and a character storage unit. However, the consensus amongst Fortran compilers is as follows:
+
+(1) Integer: 4
+(2) Real: 4
+(3) Double precision: 8
+(4) Complex: 8, 
+Double Complex: 16
+(5) Logical: 4
+(6) Character: 1
+
+
+Technically, the use of kinds in type declarations is not part of the FORTRAN 77 specification. It is however widely used and supported by all current Fortran compilers, in particular g77. Therefore we treat all types as (typename, kind) tuples. This allows us the simplify the types to integer, real, logical and character, because we write 
+
+Double precision: (real,8)
+Comples:  ((real,4),(real,4))
+Double Complex ((real,8),(real,8))
+
+Type safety of type coercions: Fortran compilers warn 
+
+
+]]
 
 
 In terms of structure of the paper:
@@ -29,7 +99,10 @@ Cite success of heterogeneous supercomputers etc
 
 * Preliminaries
 
-- fully explicit typing 
+- fully explicit typing
+
+F77 allows types to me infered based on the first character
+This is necessary because without it there is no referential transparency 
 (and type checking) i.e. make convert IMPLICIT rules into type declarations (algo)
 
 We parse all IMPLICIT statements and turn them into a lookup table Char => (Type,ArrayOrScalar,Attribute)
@@ -437,4 +510,15 @@ else
 ====
 
 
+data Array a = MkArray
+    atype :: TypeName, -- some representation of the name of the type a
+    adim :: [(Int,Int)], -- can calculate size and rank from this
+    avals :: [a]
 
+type Array
+  sequence
+  TypeName :: atype,
+  integer, dimension(arank,2) :: adim
+  a, dimension(asize) :: avals
+  
+  

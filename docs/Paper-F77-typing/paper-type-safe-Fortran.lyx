@@ -1,0 +1,1198 @@
+#LyX 2.3 created this file. For more info see http://www.lyx.org/
+\lyxformat 544
+\begin_document
+\begin_header
+\save_transient_properties true
+\origin unavailable
+\textclass article
+\use_default_options true
+\maintain_unincluded_children false
+\language english
+\language_package default
+\inputencoding auto
+\fontencoding global
+\font_roman "default" "default"
+\font_sans "default" "default"
+\font_typewriter "default" "default"
+\font_math "auto" "auto"
+\font_default_family default
+\use_non_tex_fonts false
+\font_sc false
+\font_osf false
+\font_sf_scale 100 100
+\font_tt_scale 100 100
+\use_microtype false
+\use_dash_ligatures true
+\graphics default
+\default_output_format default
+\output_sync 0
+\bibtex_command default
+\index_command default
+\paperfontsize default
+\use_hyperref false
+\papersize default
+\use_geometry false
+\use_package amsmath 1
+\use_package amssymb 1
+\use_package cancel 1
+\use_package esint 1
+\use_package mathdots 1
+\use_package mathtools 1
+\use_package mhchem 1
+\use_package stackrel 1
+\use_package stmaryrd 1
+\use_package undertilde 1
+\cite_engine basic
+\cite_engine_type default
+\use_bibtopic false
+\use_indices false
+\paperorientation portrait
+\suppress_date false
+\justification true
+\use_refstyle 1
+\use_minted 0
+\index Index
+\shortcut idx
+\color #008000
+\end_index
+\secnumdepth 3
+\tocdepth 3
+\paragraph_separation indent
+\paragraph_indentation default
+\is_math_indent 0
+\math_numbering_side default
+\quotes_style english
+\dynamic_quotes 0
+\papercolumns 1
+\papersides 1
+\paperpagestyle default
+\tracking_changes false
+\output_changes false
+\html_math_output 0
+\html_css_as_file 0
+\html_be_strict false
+\end_header
+
+\begin_body
+
+\begin_layout Title
+Making Legacy Fortran Code Type Safe through Source-to-source Compilation
+\end_layout
+
+\begin_layout Author
+Wim Vanderbauwhede
+\end_layout
+
+\begin_layout Abstract
+In this paper we present the program transformations and type checking algorithm
+s required to convert FORTRAN 77 subroutines and functions into pure, side-effec
+t free subroutines and functions in Fortran 95.
+ The resulting code is type safe and the pure, side-effect free and referentiall
+y transparent subroutines can readily be offloaded to accelerators.
+ 
+\end_layout
+
+\begin_layout Section
+Introduction
+\end_layout
+
+\begin_layout Subsection
+Fortran still matters
+\end_layout
+
+\begin_layout Standard
+Show bibliographic data, Archer load, see other paper
+\end_layout
+
+\begin_layout Subsection
+Acceleration by offloading matters
+\end_layout
+
+\begin_layout Standard
+Hardware accelerators have proven extremely effective in accelerating scientific
+ code.
+ Of the Green Top 10 (https://www.top500.org/lists/green500/2019/11/), 8 systems
+ use accelerators.
+ However, in practice the accelertors have their own memory, and the most
+ common compute model is still to offload part of the calculation to the
+ accelerator and copy the results back to the host memory.
+ Even if the accelerator is cache-coherent with the host memory, having
+ the code to be run on the accelertor in a separate memory space is still
+ advantageous as it results in reduced coherency traffic.
+\end_layout
+
+\begin_layout Standard
+Cite success of heterogeneous supercomputers etc
+\end_layout
+
+\begin_layout Subsection
+The need for pure functions
+\end_layout
+
+\begin_layout Standard
+Therefore we need self-contained ("pure") functions
+\end_layout
+
+\begin_layout Standard
+- no shared memory space - no system calls - no library calls except intrinsic
+ ones - no I/O
+\end_layout
+
+\begin_layout Subsection
+The case for type safety
+\end_layout
+
+\begin_layout Standard
+In his paper, 
+\begin_inset Quotes eld
+\end_inset
+
+A Theory of Type Polymorphism in Programming
+\begin_inset Quotes erd
+\end_inset
+
+ [REF], Robin Milner expressed the notion of type safety concisely as “Well
+ typed programs cannot go wrong.” By 
+\begin_inset Quotes eld
+\end_inset
+
+going wrong
+\begin_inset Quotes erd
+\end_inset
+
+ we mean in general not computing the expected result.
+ In a type-safe language, the language’s type system ensures programs cannot
+ 
+\begin_inset Quotes eld
+\end_inset
+
+go wrong
+\begin_inset Quotes erd
+\end_inset
+
+.
+ In particular, we say a program is well typed if it follows the rules of
+ the type system.
+ Type safety ensures that well typed programs never go wrong: they will
+ have a well defined meaning.
+\end_layout
+
+\begin_layout Standard
+Type safety is the extent to which a programming language discourages or
+ prevents type errors.
+ A type error is erroneous or undesirable program behaviour caused by a
+ discrepancy between differing data types for the program's constants, variables
+, and methods (functions), e.g., treating an integer (int) as a floating-point
+ number (float).
+ 
+\end_layout
+
+\begin_layout Standard
+Type safety is sometimes alternatively considered to be a property of a
+ computer program rather than the language in which that program is written;
+ that is, some languages have type-safe facilities that can be circumvented
+ by programmers who adopt practices that exhibit poor type safety.
+ The formal type-theoretic definition of type safety is considerably stronger
+ than what is understood by most programmers.
+\end_layout
+
+\begin_layout Standard
+Type enforcement can be static, catching potential errors at compile time,
+ or dynamic, associating type information with values at run-time and consulting
+ them as needed to detect imminent errors, or a combination of both.
+\end_layout
+
+\begin_layout Standard
+The behaviors classified as type errors by a given programming language
+ are usually those that result from attempts to perform operations on values
+ that are not of the appropriate data type.
+ This classification is partly based on opinion; it may imply that any operation
+ not leading to program crashes, security flaws or other obvious failures
+ is legitimate and need not be considered an error, or it may imply that
+ any contravention of the programmer's explicit intent (as communicated
+ via typing annotations) to be erroneous and not "type-safe".
+\end_layout
+
+\begin_layout Standard
+In the context of static (compile-time) type systems, type safety usually
+ involves (among other things) a guarantee that the eventual value of any
+ expression will be a legitimate member of that expression's static type.
+ 
+\end_layout
+
+\begin_layout Section
+Related work: 
+\end_layout
+
+\begin_layout Standard
+see earlier paper, be nice to CamFort
+\end_layout
+
+\begin_layout Section
+Preliminaries
+\end_layout
+
+\begin_layout Subsection
+The definition of a pure function
+\end_layout
+
+\begin_layout Standard
+Let 
+\begin_inset Formula $\Gamma$
+\end_inset
+
+ be the context of a given program, i.e.
+ the set of all variables with their current value and type:
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\[
+\{...,x_{i}:\tau_{i}=v_{i},...\}
+\]
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+Consider a function 
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\begin{eqnarray*}
+y & = & f(x_{1},...,x_{N})\\
+y:\tau_{y}\\
+x_{i}:\tau_{i},i\in[1,N]
+\end{eqnarray*}
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+and for convenience we'll write 
+\begin_inset Formula $x_{1},...,x_{N}$
+\end_inset
+
+ as 
+\begin_inset Formula $\overrightarrow{x}$
+\end_inset
+
+ and its type as 
+\begin_inset Formula $\overrightarrow{\tau}$
+\end_inset
+
+.
+\end_layout
+
+\begin_layout Standard
+This function is 
+\emph on
+pure
+\emph default
+ iff
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\[
+\forall\,\Gamma,\forall\overrightarrow{x}\in\Gamma,\exists!y\in\Gamma:y=f(\overrightarrow{x})
+\]
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+In words, whatever the environment, for a given set of argument values of
+ the correct type, the function will always return the same value.
+ 
+\end_layout
+
+\begin_layout Standard
+In the equations below, the subscript 
+\emph on
+c
+\emph default
+ (
+\begin_inset Quotes eld
+\end_inset
+
+caller
+\begin_inset Quotes erd
+\end_inset
+
+) is used for the variables declared in the caller of a subroutine and 
+\emph on
+l
+\emph default
+ (
+\begin_inset Quotes eld
+\end_inset
+
+local
+\begin_inset Quotes erd
+\end_inset
+
+) for the variables declared by in subroutine.
+ 
+\end_layout
+
+\begin_layout Subsection
+Explicit typing
+\end_layout
+
+\begin_layout Standard
+According to §4.1.2 of the specification, in FORTRAN 77 a variable 
+\begin_inset Quotes eld
+\end_inset
+
+may have its type specified in a type-statement (8.4) as integer, real, double
+ precision, complex, logical, or character.
+ In the absence of an explicit declaration in a type-statement, the type
+ is implied by the first letter of the name.
+ A first letter of I, J, K, L, M, or N implies type integer and any other
+ letter implies type real, unless an IMPLICIT statement (8.5) is used to
+ change the default implied type.
+\begin_inset Quotes erd
+\end_inset
+
+ An IMPLICIT statement specifies a type for all variables that begin with
+ any letter that appears in the specification.
+ 
+\end_layout
+
+\begin_layout Standard
+From a type safety perspective, the problem with this typing discipline
+ is no 
+\emph on
+referential transparency
+\emph default
+, i.e.
+ if the name of a variable changes then the result of a computation may
+ change.
+ As our aim is to create pure functional code, our compiler infers explicity
+ type declarations (
+\begin_inset Quotes eld
+\end_inset
+
+type-statements
+\begin_inset Quotes erd
+\end_inset
+
+ in the F77 spec) for all implicity typed variables.
+ 
+\end_layout
+
+\begin_layout Standard
+The algorithm for this is straightforward:
+\end_layout
+
+\begin_layout Enumerate
+Parse all IMPLICIT statements and turn them into a lookup table {Char =>
+ (Type,ArrayOrScalar,Attribute)}.
+ This lookup table is initially populated with the default rule: implicit
+ integer (i-n), real (a-h, o-z)
+\end_layout
+
+\begin_layout Enumerate
+Analyse all executable statements for occurences of undeclared variables
+ and add declarations following the IMPLICIT rules, i.e
+\end_layout
+
+\begin_deeper
+\begin_layout Enumerate
+Get the first character
+\end_layout
+
+\begin_layout Enumerate
+Look up the type in the lookup table
+\end_layout
+
+\begin_layout Enumerate
+Create a type declaration 
+\end_layout
+
+\end_deeper
+\begin_layout Enumerate
+Add the created declarations before the first executable statement
+\end_layout
+
+\begin_layout Enumerate
+Add IMPLICIT NONE before the first non-executable statement to specify that
+ no implicit typing should be done in the generated code
+\end_layout
+
+\begin_layout Subsection
+Removal of COMMON blocks
+\end_layout
+
+\begin_layout Standard
+From the spec:
+\end_layout
+
+\begin_layout Standard
+The COMMON statement provides a means of associating entities in different
+ program units.
+ This allows different program units to define and reference the same data
+ without using arguments, and to share storage units.
+\end_layout
+
+\begin_layout Standard
+(From the F95 spec: "The COMMON statement specifies blocks of physical storage,
+ called common blocks, that may be accessed by any of the scoping units
+ in a program.
+ Thus, the COMMON statement provides a global data facility based on storage
+ association.
+\end_layout
+
+\begin_layout Standard
+Storage sequences are used to describe relationships that exist among variables,
+ common blocks, and result variables.
+ Storage association is the association of two or more data objects that
+ occurs when two or more storage sequences share or are aligned with one
+ or more storage units.
+ " )
+\end_layout
+
+\begin_layout Standard
+Our approach is to convert COMMON block variables into subroutine arguments.
+ The more common approach of conversion into module-scoped variables is
+ not suitable for our purpose because it does not result in pure functions.
+ (Furthermore, because of the difference in semantics of storage association
+ and module scoped variables, this approach only works for COMMON blocks
+ where all variables are aligned, whereas COMMON blocks allow overlapping
+ sequences).
+ One of the main contributions of this paper is in this conversion and the
+ associated type checks.
+\end_layout
+
+\begin_layout Subsubsection
+Construct the COMMON block chain
+\end_layout
+
+\begin_layout Standard
+In a subroutine call chain, it is not necessary for a COMMON blocks to occur
+ in the caller.
+ It is sufficient that the COMMON block used in a called subroutine occurs
+ somewhere in the call chain.
+ As a consequence, it is not generally possible to associate the COMMON
+ block variables in a called subroutine with those of the caller.
+ For example:
+\end_layout
+
+\begin_layout LyX-Code
+progam ex1
+\end_layout
+
+\begin_layout LyX-Code
+common /bf2/x 
+\end_layout
+
+\begin_layout LyX-Code
+common /bf1/y
+\end_layout
+
+\begin_layout LyX-Code
+call f1
+\end_layout
+
+\begin_layout LyX-Code
+end program ex1
+\end_layout
+
+\begin_layout LyX-Code
+subroutine f1 
+\end_layout
+
+\begin_layout LyX-Code
+common /bf1/y1 
+\end_layout
+
+\begin_layout LyX-Code
+call f2 
+\end_layout
+
+\begin_layout LyX-Code
+end subroutine f1
+\end_layout
+
+\begin_layout LyX-Code
+subroutine f2 
+\end_layout
+
+\begin_layout LyX-Code
+common /bf2/x2 
+\end_layout
+
+\begin_layout LyX-Code
+end subroutine f2
+\end_layout
+
+\begin_layout LyX-Code
+
+\end_layout
+
+\begin_layout Standard
+In this example, x2 in f2 is associated with x in the main program 
+\end_layout
+
+\begin_layout LyX-Code
+progam ex1 
+\end_layout
+
+\begin_layout LyX-Code
+call f1(x,y) 
+\end_layout
+
+\begin_layout LyX-Code
+end program ex1
+\end_layout
+
+\begin_layout LyX-Code
+subroutine 
+\end_layout
+
+\begin_layout LyX-Code
+f1(x,y1) 
+\end_layout
+
+\begin_layout LyX-Code
+call f2(x) 
+\end_layout
+
+\begin_layout LyX-Code
+! ...
+ use y1 ...
+ 
+\end_layout
+
+\begin_layout LyX-Code
+end subroutine f1
+\end_layout
+
+\begin_layout LyX-Code
+subroutine f2(x2) 
+\end_layout
+
+\begin_layout LyX-Code
+! ...
+ use of x2 
+\end_layout
+
+\begin_layout LyX-Code
+end subroutine f2
+\end_layout
+
+\begin_layout Standard
+So the argument for f2 has to be passed via f1 from the main program.
+ Therefore, we need to analyse the code for the call chain paths between
+ disjoint COMMON blocks and pass all arguments via the intervening calls.
+ This also requires checking if the names are unique an renaming if necessary.
+ The result of this analysis is that for every called subroutine, we have
+ a pair consisting of the common block sequence that will become the call
+ arguments, and the common block sequence that will become the dummy arguments.
+ 
+\end_layout
+
+\begin_layout Subsubsection
+The actual conversion
+\end_layout
+
+\begin_layout Standard
+To create the call arguments and dummy arguments, we need to identify which
+ variable in the caller sequence matches which in the subroutine call sequence
+ (called the 'local' sequence for brevity).
+ This is complicated by the fact that storage sequences are allowed to overlap,
+ and do not follow the normal type checking rules.
+ For example, the following is acceptable:
+\end_layout
+
+\begin_layout LyX-Code
+! caller 
+\end_layout
+
+\begin_layout LyX-Code
+real xc(8),z1c,z2c 
+\end_layout
+
+\begin_layout LyX-Code
+complex yc 
+\end_layout
+
+\begin_layout LyX-Code
+common yc,xc,zx
+\end_layout
+
+\begin_layout LyX-Code
+! local real xl(2),zl(4) 
+\end_layout
+
+\begin_layout LyX-Code
+complex yl(3) 
+\end_layout
+
+\begin_layout LyX-Code
+common yl,xl,zl
+\end_layout
+
+\begin_layout Standard
+yl(1) will be associated with yc(1) yl(2) will be associated with xl(1)
+ and xl(2) yl(3) will be associated with zl(1) and zl(2) zl(3) will be associate
+d with z1c zl(4) will be associated with z2c
+\end_layout
+
+\begin_layout Standard
+Furthermore, we need to type check the associations, because COMMON blocks
+ are not type safe: the association does not cause type conversion or imply
+ mathematical equivalence.
+ 
+\end_layout
+
+\begin_layout Standard
+XXX algos here XXX
+\end_layout
+
+\begin_layout Section
+Removal of EQUIVALENCE statements
+\end_layout
+
+\begin_layout Standard
+According to §8.2 of the F77 spec , "An EQUIVALENCE statement is used to
+ specify the sharing of storage units by two or more entities in a program
+ unit.
+ This causes association of the entities that share the storage units.
+ If the equivalenced entities are of different data types, the EQUIVALENCE
+ statement does not cause type conversion or imply mathematical equivalence.
+ If a variable and an array are equivalenced, the variable does not have
+ array properties and the array does not have the properties of a variable."
+\end_layout
+
+\begin_layout Standard
+This is another form of storage association, with the same issue that it
+ is not type-safe.
+ For example
+\end_layout
+
+\begin_layout LyX-Code
+XXX example XXX
+\end_layout
+
+\begin_layout Standard
+Therefore, EQUIVALENCE statements also need to be refactored.
+ They come with their own flavour of complications.
+ 
+\end_layout
+
+\begin_layout Standard
+if a line has multiple tuples, this is allowed: 
+\end_layout
+
+\begin_layout Standard
+(v1,v2),(v2,v3) 
+\end_layout
+
+\begin_layout Standard
+So we must effectively do a transitivity check across all tuples.
+ We do this by checking if an element of a tuple occurs in another tuple.
+ It is sufficient to do this for a single element because the transivity
+ means that every element from the one tuple will be associated with every
+ element from the other.
+\end_layout
+
+\begin_layout Standard
+Furthermore, the tuples (called lists in the spec) can have more than two
+ elements.
+ 
+\end_layout
+
+\begin_layout Standard
+(v1,v2,v3),(v3,v4,v5) 
+\end_layout
+
+\begin_layout Standard
+then this effectively means (v1,v2,v3,v4,v5) and each of these variables
+ is associated with all the others, so there are 10 unique associations
+ in this example.
+ In general, for a tuple of n values, there will be (n-1)*n/2 associations.
+\end_layout
+
+\begin_layout Standard
+Another complication is that overlapping is allowed, e.g.:
+\end_layout
+
+\begin_layout Standard
+DIMENSION RADE11(5), RADE12(5) 
+\end_layout
+
+\begin_layout Standard
+EQUIVALENCE (RADE11(4), RADE12(2))
+\end_layout
+
+\begin_layout Standard
+Because the arrays start at 1, and they overlap, this actually creates an
+ equivalence between `RADE11(3), RADE12(1)` and `RADE11(5), RADE12(3)` as
+ well.
+ So we have to equate the overlapping ranges.
+\end_layout
+
+\begin_layout Section
+INTENT inference 
+\end_layout
+
+\begin_layout Standard
+Because the subroutines to be offloaded cannot contain external calls or
+ I/O calls, we can infer the intent of all arguments by recursive descent
+ into nested calls.
+\end_layout
+
+\begin_layout Subsection*
+Typechecking COMMON block and EQUIVALENCE associations 
+\end_layout
+
+\begin_layout Standard
+Variables stored in COMMON blocks lose all type information.
+ This means in particular that there is no type coercion between real and
+ integer values.
+ To ensure type safety before refactoring, if a COMMON block is used to
+ pass arguments to a subroutine, our compiler will perform typechecks.
+ Because of the lack of coercion, these checks are different from the typechecks
+ performed for normal assignments or arguments passed to subroutines via
+ dummy parameters.
+ The same is true for EQUIVALENCE statements: they associate different names
+ with the same memory location, but the type of the word written to the
+ memory location is erased.
+ Therefore, the following is legal and does not generate any warnings, but
+ is incorrect
+\end_layout
+
+\begin_layout LyX-Code
+integer*4 i1
+\end_layout
+
+\begin_layout LyX-Code
+real*4 r1       
+\end_layout
+
+\begin_layout LyX-Code
+equivalence (i2,r1)
+\end_layout
+
+\begin_layout LyX-Code
+i1 = 42
+\end_layout
+
+\begin_layout LyX-Code
+print *, r1 ! prints 5.88545355E-44
+\end_layout
+
+\begin_layout LyX-Code
+r1 = 42
+\end_layout
+
+\begin_layout LyX-Code
+print *, i1 ! prints 1109917696
+\end_layout
+
+\begin_layout Standard
+For the purpose of typechecking, we can assume that all variables are scalar:
+ an array a is considered as syntactic sugar for an ordered collection of
+ scalars with names a(i).
+ We further assume all arrays are linear and traversed using an index starting
+ at 1.
+ 
+\end_layout
+
+\begin_layout Standard
+The main rule for type soundness which we adopt are:
+\end_layout
+
+\begin_layout Itemize
+Kind matching (rule-kind)
+\end_layout
+
+\begin_deeper
+\begin_layout Standard
+A scalar type is atomic, and therefore we cannot split the type, which would
+ be the case if we attempted to map types with different kinds.
+ 
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\begin{eqnarray*}
+ & K_{c,i}=K_{l,i} & ,\forall i\in\#K_{l}
+\end{eqnarray*}
+
+\end_inset
+
+
+\end_layout
+
+\end_deeper
+\begin_layout Itemize
+No COMMON block extension in the called subroutine (rule-size)
+\end_layout
+
+\begin_deeper
+\begin_layout Standard
+The ordered set of words in a COMMON block accessed from a subroutine must
+ be no larger than the size of the COMMON block in the caller.
+ 
+\end_layout
+
+\begin_layout Standard
+If W is the ordered set of all words accessed via the COMMON block then
+ 
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\begin{eqnarray*}
+ & \#W_{l}\leq\#W_{c}
+\end{eqnarray*}
+
+\end_inset
+
+
+\end_layout
+
+\end_deeper
+\begin_layout Itemize
+Logical coercion (rule-logical)
+\end_layout
+
+\begin_deeper
+\begin_layout Standard
+The next rule is that all types must match between the sequence of variables
+ in the caller and the called subroutine.
+ However, this rule is too strict: there are several cases in which type
+ coercion is sound.
+ The first case involves logicals:
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\begin{eqnarray*}
+ &  & \begin{cases}
+T_{c,i}=\mbox{logical}\land T_{l,i}=\mbox{integer}\\
+T_{c,i}=\mbox{integer}\land T_{l,i}=\mbox{logical}\\
+T_{c,i}=\mbox{real}\land T_{l,i}=\mbox{logical}
+\end{cases}
+\end{eqnarray*}
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+A logical is false when coerced from 0 and true otherwise.
+ Therefore interpreting a logical as an integer gives 1 or 0, and interpreting
+ an integer or real as a logical will return correct values of .true.
+ or .false.
+ .
+ Note that Therefore interpreting a logical as a real is only correct for
+ .false.
+ because the .true.
+ interpreted as a real is a non-zero number that depends on the kind of
+ the real.
+ As this is quite non-intuitive, our typechecker therefor throws an error
+ on attempts to interpret a logical as a real.
+\end_layout
+
+\end_deeper
+\begin_layout Itemize
+Complex coercion (rule-complex)
+\end_layout
+
+\begin_deeper
+\begin_layout Standard
+The next case involves complex numbers, which can be coerced to and from
+ two contiguous real numbers:
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\begin{eqnarray*}
+ &  & \begin{cases}
+T_{c,i}=\mbox{complex}\land T_{l,i}=\mbox{real}\land T_{l,i+1}=\mbox{real}\\
+T_{c,i}=\mbox{real}\land T_{c,i+1}=\mbox{real}\land T_{l,i}=\mbox{complex}
+\end{cases}
+\end{eqnarray*}
+
+\end_inset
+
+
+\end_layout
+
+\end_deeper
+\begin_layout Itemize
+Default rule (rule-default)
+\end_layout
+
+\begin_deeper
+\begin_layout Standard
+In all other cases, the types must match:
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\begin{eqnarray*}
+ & T_{l,i}=T_{c,i} & ,\forall i\in\#K_{l}
+\end{eqnarray*}
+
+\end_inset
+
+
+\end_layout
+
+\end_deeper
+\begin_layout Itemize
+So the overall typecheck rule is as follows:
+\end_layout
+
+\begin_deeper
+\begin_layout Standard
+\begin_inset Formula 
+\begin{eqnarray*}
+ & \mbox{rule-kind\land}\mbox{rule-size\land}\left(\mbox{rule-logical}\lor\mbox{rule-complex}\lor\mbox{rule-default}\right)
+\end{eqnarray*}
+
+\end_inset
+
+
+\end_layout
+
+\end_deeper
+\begin_layout Subsection*
+Matching up COMMON block variables in a subroutine call
+\end_layout
+
+\begin_layout Standard
+Given that the typecheck succeeds, then it follows that for every variable
+ in a COMMON block declared in the caller, there is a corresponding variable
+ in the called subroutine.
+ In practice these variables can be either arrays or scalars.
+ Whereas for the purpose of typechecking we have assumed that all variables
+ are scalar, without loss of generality, we will now assume that all variables
+ are arrays.
+ A scalar s is simply syntactic sugar for the first element of an array
+ of size 1, s(1).
+ This is merely to keep the rules more compact.
+ As before, we traverse every array using a linear index starting at 1.
+\end_layout
+
+\begin_layout Standard
+Because it is possible for arrays from the caller and arrays in the called
+ subroutine to overlap in both directions, our strategy for converting the
+ COMMON variables into dummy parameters is as follows: 
+\end_layout
+
+\begin_layout Itemize
+we declare dummy parameters with the names of the variables in the caller
+ (prefixed with the name of the caller and the COMMON block).
+ 
+\end_layout
+
+\begin_layout Itemize
+Then we determine the assignments required to match these dummy parameters
+ with the variables that used to be COMMON block variables in the caller
+ subroutine, but now are ordinary local variables.
+ 
+\end_layout
+
+\begin_layout Itemize
+We insert these assignments after the last specification statement.
+ 
+\end_layout
+
+\begin_layout Itemize
+At the end of the subroutine, we insert the corresponding reverse assignments.
+\end_layout
+
+\begin_layout Itemize
+If required, the right-hand side of the assignment will contain an explicit
+ cast and/or a reshape instruction, because it is possible that the arrays
+ in the caller and the called subroutine have different shapes.
+\end_layout
+
+\begin_layout Standard
+The compiler maintains a global state record.
+ The state information of each subroutine, 
+\emph on
+st
+\emph default
+, is used in 
+\family typewriter
+updateDim
+\family default
+ for evaluation of the array bounds.
+\end_layout
+
+\begin_layout Standard
+the sequence 
+\emph on
+cseq
+\emph default
+ consists of tuples of the type declaration 
+\emph on
+decl
+\emph default
+ and the linear index 
+\emph on
+idx
+\emph default
+ in the 
+\family sans
+COMMON
+\family default
+ block
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\begin{eqnarray*}
+cseq & = & (decl_{1},idx_{1}),...,(decl_{i},idx_{i}),...)
+\end{eqnarray*}
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+For every array variable, the type declaration contains a 
+\emph on
+Dim 
+\emph default
+field 
+\emph on
+d
+\emph default
+ which is an array of (start index, end index) tuples, with total size 
+\emph on
+sz
+\emph default
+.
+\end_layout
+
+\begin_layout Standard
+The list of equivalence pairs 
+\emph on
+eqps
+\emph default
+ contains the matched up declarations of the original 
+\family sans
+COMMON
+\family default
+ block variables of the called subroutine and the 
+\family sans
+COMMON
+\family default
+ block variables of the caller that constitute the new arguments to the
+ subroutine.
+ The caller variables are prefixed with the name of the block and the caller
+ subroutine.
+\end_layout
+
+\begin_layout Standard
+The matching algorithm traverses the local sequence 
+\begin_inset Formula $\mathit{cseq}_{c}$
+\end_inset
+
+ and matches each element to one or more elements of the caller sequence
+ 
+\begin_inset Formula $\mathit{cseq}_{l}$
+\end_inset
+
+.
+ The algorithm is iterative and stops when the local sequence has been consumed,
+ and returns 
+\emph on
+eqps
+\emph default
+.
+ 
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\begin{eqnarray}
+d_{l} & = & \begin{cases}
+sz_{l}-\mathit{idx_{l}}>sz_{c}-idx_{c} & \mbox{updateDim}\,\mathit{st}_{l}\,d_{l}\,idx_{l}\,1\\
+sz_{l}-idx_{l}<=sz_{c}-idx_{c} & \mbox{updateDim}\,\mathit{st}_{l}\,d_{l}\,idx_{l}\,idx_{l,e}
+\end{cases}
+\end{eqnarray}
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\begin{eqnarray}
+d_{c} & = & \begin{cases}
+sz_{l}-idx_{l}=>sz_{c}-idx_{c} & \mbox{updateDim}\,\mathit{st}_{c}\,d_{c}\,idx_{c}\,1\\
+sz_{l}-idx_{l}<sz_{c}-idx_{c} & \mbox{updateDim}\,st_{c}\,d_{c}\,idx_{c}\,idx_{c,e}
+\end{cases}
+\end{eqnarray}
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\begin{eqnarray}
+\mathit{cseq}_{l} & = & \begin{cases}
+sz_{l}-idx_{l}>sz_{c}-idx_{c} & \begin{cases}
+sz_{l}-idx_{l,e}\geq1 & (\mathit{decl}_{l},idx_{l}+1)\bullet\mathit{cseq}_{l}\\
+sz_{l}-idx_{l,e}<1 & \mathit{cseq}_{l}
+\end{cases}\\
+sz_{l}-idx_{l}\leq sz_{c}-idx_{c} & \mathit{cseq}_{l}
+\end{cases}
+\end{eqnarray}
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\begin{eqnarray}
+\mathit{cseq}_{c} & = & \begin{cases}
+sz_{l}-idx_{l}<sz_{c}-idx_{c} & \begin{cases}
+sz_{c}-idx_{c,e}\geq1 & (\mathit{decl}_{c},idx_{c}+1)\bullet\mathit{cseq}_{c}\\
+sz_{c}-idx_{c,e}<1 & \mathit{cseq}_{c}
+\end{cases}\\
+sz_{l}-idx_{l}\geq sz_{c}-idx_{c} & \mathit{cseq}_{c}
+\end{cases}
+\end{eqnarray}
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\begin{eqnarray}
+\mathit{eqps} & = & \mathit{eqps}\bullet(\mathit{decl}_{l}\left\{ \mathit{Dim}=d_{l}\right\} ,\mathit{decl}_{c}\left\{ \mathit{Dim}=d_{c},\mathit{Prefix}=p\right\} )
+\end{eqnarray}
+
+\end_inset
+
+
+\end_layout
+
+\end_body
+\end_document
