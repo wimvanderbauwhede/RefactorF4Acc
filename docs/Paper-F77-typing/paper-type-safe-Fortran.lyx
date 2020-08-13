@@ -151,8 +151,8 @@ A Theory of Type Polymorphism in Programming
 \begin_inset Quotes erd
 \end_inset
 
- [REF], Robin Milner expressed the notion of type safety concisely as “Well
- typed programs cannot go wrong.” By 
+ [REF], Robin Milner expressed the notion of type safety as “Well typed
+ programs cannot go wrong.” By 
 \begin_inset Quotes eld
 \end_inset
 
@@ -161,63 +161,82 @@ going wrong
 \end_inset
 
  we mean in general not computing the expected result.
- In a type-safe language, the language’s type system ensures programs cannot
+ There are several components contributing to this behaviour: one is the
+ language's type system, the other is the type checker, and finally there
+ is the actual program code.
  
+\end_layout
+
+\begin_layout Standard
+In a type-safe language, the language’s type system ensures programs cannot
+ perform operations that are not compatible with the types of the operands
+ involved, i.e.
+ there are no type errors in a well-typed program written in a type-safe
+ language.
+ By type error we mean an error arising from the fact that a variable (or
+ constant or function) with a given type is treated as if it has a different
+ type.
+ 
+\end_layout
+
+\begin_layout Standard
+A type checker is called 
+\emph on
+sound 
+\emph default
+if it only accepts correctly typed programs.
+ However, the fact that a sound typechecker accepts a correctly typed program
+ does not mean the program is correct.
+ 
+\end_layout
+
+\begin_layout Standard
+In the context of Fortran, the type system as specified in 
 \begin_inset Quotes eld
 \end_inset
 
-go wrong
+ANSI X3.9-1978 – American National Standard Programming Language FORTRAN
 \begin_inset Quotes erd
 \end_inset
 
-.
- In particular, we say a program is well typed if it follows the rules of
- the type system.
- Type safety ensures that well typed programs never go wrong: they will
- have a well defined meaning.
-\end_layout
+ [REF], hereafter called the 
+\begin_inset Quotes eld
+\end_inset
 
-\begin_layout Standard
-Type safety is the extent to which a programming language discourages or
- prevents type errors.
- A type error is erroneous or undesirable program behaviour caused by a
- discrepancy between differing data types for the program's constants, variables
-, and methods (functions), e.g., treating an integer (int) as a floating-point
- number (float).
+f77 specification
+\begin_inset Quotes erd
+\end_inset
+
+, is not type-safe.
+ It is possible to write programs which the type checker accepts but are
+ nonetheless incorrect.
+ The key culprit for this is the type erasure which happens when data is
+ handled via COMMON or EQUIVALENCE.
+ The subset of Fortran 90 which we target in this paper, and which we can
+ loosely define as FORTRAN 77 without COMMON or EQUIVALENCE statements,
+ with pure functions and referential transparency, and using Fortran 90
+ style type declarations, is type safe and well typed programs in this subset
+ will not go wrong if they are accepted by the type checker.
  
 \end_layout
 
 \begin_layout Standard
-Type safety is sometimes alternatively considered to be a property of a
- computer program rather than the language in which that program is written;
- that is, some languages have type-safe facilities that can be circumvented
- by programmers who adopt practices that exhibit poor type safety.
- The formal type-theoretic definition of type safety is considerably stronger
- than what is understood by most programmers.
+Therefore, if we can extended the FORTRAN 77 type system to be type-safe,
+ then programs accepted by the extended type checker are well typed.
+ If these programs are
 \end_layout
 
 \begin_layout Standard
-Type enforcement can be static, catching potential errors at compile time,
- or dynamic, associating type information with values at run-time and consulting
- them as needed to detect imminent errors, or a combination of both.
-\end_layout
-
-\begin_layout Standard
-The behaviors classified as type errors by a given programming language
- are usually those that result from attempts to perform operations on values
- that are not of the appropriate data type.
- This classification is partly based on opinion; it may imply that any operation
- not leading to program crashes, security flaws or other obvious failures
- is legitimate and need not be considered an error, or it may imply that
- any contravention of the programmer's explicit intent (as communicated
- via typing annotations) to be erroneous and not "type-safe".
-\end_layout
-
-\begin_layout Standard
-In the context of static (compile-time) type systems, type safety usually
- involves (among other things) a guarantee that the eventual value of any
- expression will be a legitimate member of that expression's static type.
+automatically converted into code written in this Fortran 90 subset, then
+ an ordinary Fortran compiler can be used as the type checker with all type-base
+d warnings turned into errors, and the code will type check cleanly.
  
+\end_layout
+
+\begin_layout Standard
+This paper presents such an extended type system and type checks as well
+ as the algorithms required to convert FORTRAN 77 into type-safe Fortran
+ 90.
 \end_layout
 
 \begin_layout Section
@@ -230,6 +249,714 @@ see earlier paper, be nice to CamFort
 
 \begin_layout Section
 Preliminaries
+\end_layout
+
+\begin_layout Standard
+2.13 Storage A storage sequence is a sequence of storage units.
+ A storage unit is either a numeric storage unit or a character storage
+ unit.
+ An integer, real, or logical datum has one numeric storage unit in a storage
+ sequence.
+ A double precision or complex datum has two numeric storage units in a
+ storage sequence.
+ A character datum has one character storage unit in a storage sequence
+ for each character in the datum.
+ This standard does not specify a relationship between a numeric storage
+ unit and a character storage unit.
+ If a datum requires more than one storage unit in a storage sequence, those
+ storage units are consecutive.
+ The concept of a storage sequence is used to describe relationships that
+ exist among variables, array elements, arrays, substrings, and common blocks.
+ This standard does not specify a relationship between the storage sequence
+ concept and the physical properties or implementation of storage.
+\end_layout
+
+\begin_layout Standard
+The six types of data are: (1) Integer (2) Real (3) Double precision A double
+ precision datum has two consecutive numeric storage units in a storage
+ sequence (4) Complex A complex datum is a processor approximation to the
+ value of a complex number.
+ The representation of a complex datum is in the form of an ordered pair
+ of real data.
+ The first of the pair represents the real part of the complex datum and
+ the second represents the imaginary part.
+ Each part has the same degree of approximation as for a real datum.
+ A complex datum has two consecutive numeric storage units in a storage
+ sequence; the first storage unit is the real part and the second storage
+ unit is the imaginary part.
+ (5) Logical (6) Character
+\end_layout
+
+\begin_layout Standard
+https://gcc.gnu.org/onlinedocs/gcc-3.4.6/g77/Language.html
+\end_layout
+
+\begin_layout Standard
+The standard does not specify the size of a numeric storage unit, nor does
+ it speficy a relationship between a numeric storage unit and a character
+ storage unit.
+ However, the consensus amongst Fortran compilers is as follows:
+\end_layout
+
+\begin_layout Standard
+(1) Integer: 4 (2) Real: 4 (3) Double precision: 8 (4) Complex: 8, Double
+ Complex: 16 (5) Logical: 4 (6) Character: 1
+\end_layout
+
+\begin_layout Standard
+Technically, the use of kinds in type declarations is not part of the FORTRAN
+ 77 specification.
+ It is however widely used and supported by all current Fortran compilers,
+ in particular g77.
+ Therefore we treat all types as (typename, kind) tuples.
+ This allows us the simplify the types to integer, real, logical and character,
+ because we write 
+\end_layout
+
+\begin_layout Standard
+Double precision: (real,8) Comples: ((real,4),(real,4)) Double Complex ((real,8)
+,(real,8))
+\end_layout
+
+\begin_layout Subsection
+How type-safe is FORTRAN 77?
+\end_layout
+
+\begin_layout Standard
+We start by considering a FORTRAN 77 program that consists of pure functions
+ or subroutines (see below for a formal definition) and where all variables,
+ parameters and functions are explicitly typed.
+ We will see later how to achieve fully explicity typing and under which
+ conditions a subroutine or function can be made pure.
+ 
+\end_layout
+
+\begin_layout Standard
+According to §4.1 
+\begin_inset Quotes eld
+\end_inset
+
+Data Types
+\begin_inset Quotes erd
+\end_inset
+
+ of the f77 specification, the six types of data are:
+\end_layout
+
+\begin_layout Enumerate
+Integer
+\end_layout
+
+\begin_layout Enumerate
+Real
+\end_layout
+
+\begin_layout Enumerate
+Double precision
+\end_layout
+
+\begin_layout Enumerate
+Complex
+\end_layout
+
+\begin_layout Enumerate
+Logical
+\end_layout
+
+\begin_layout Enumerate
+Character
+\end_layout
+
+\begin_layout Standard
+The f77 specification discusses each of these types in terms of their 
+\emph on
+storage units
+\emph default
+.
+ According to §2.13 
+\begin_inset Quotes eld
+\end_inset
+
+Storage
+\begin_inset Quotes erd
+\end_inset
+
+, 
+\begin_inset Quotes eld
+\end_inset
+
+A storage unit is either a numeric storage unit or a character storage unit.
+ An integer, real, or logical datum has one numeric storage unit in a storage
+ sequence.
+ A double precision or complex datum has two numeric storage units in a
+ storage sequence.
+ A character datum has one character storage unit in a storage sequence
+ for each character in the datum.
+ This standard does not specify a relationship between a numeric storage
+ unit and a character storage unit.
+ If a datum requires more than one storage unit in a storage sequence, those
+ storage units are consecutive.
+\begin_inset Quotes erd
+\end_inset
+
+
+\end_layout
+
+\begin_layout Itemize
+An integer or real has one storage unit
+\end_layout
+
+\begin_layout Itemize
+A 
+\emph on
+double precision
+\emph default
+ datum has two consecutive numeric storage units in a storage sequence (§4.5
+ Double Precision Type).
+\end_layout
+
+\begin_layout Itemize
+A 
+\emph on
+complex
+\emph default
+ datum is a processor approximation to the value of a complex number.
+ The representation of a complex datum is in the form of an ordered pair
+ of real data.
+ The first of the pair represents the real part of the complex datum and
+ the second represents the imaginary part.
+ Each part has the same degree of approximation as for a real datum.
+ A complex datum has two consecutive numeric storage units in a storage
+ sequence; the first storage unit is the real part and the second storage
+ unit is the imaginary part (§4.6 Complex Type).
+\end_layout
+
+\begin_layout Standard
+As quoted above, the f77 specification does not specify the size of a storage
+ unit.
+ However, the consensus amongst Fortran compilers is as follows:
+\end_layout
+
+\begin_layout Standard
+\begin_inset Float table
+wide false
+sideways false
+status open
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\begin_layout Plain Layout
+\begin_inset Tabular
+<lyxtabular version="3" rows="8" columns="3">
+<features tabularvalignment="middle">
+<column alignment="center" valignment="top">
+<column alignment="center" valignment="top">
+<column alignment="center" valignment="top">
+<row>
+<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+Type 
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+Size in bytes (Kind)
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+#Storage Units (numeric)
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+Integer
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+4
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+1
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+Real
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+4
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+1
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+Double precision
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+8
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+2
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+Complex
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+8
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+2
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+Logical
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+4
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+1
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+Size in bytes 
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+#Storage Units (character)
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+Character
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+1
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+1 
+\end_layout
+
+\end_inset
+</cell>
+</row>
+</lyxtabular>
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Plain Layout
+\begin_inset Caption Standard
+
+\begin_layout Plain Layout
+Relationship between storage unit, kind and bytes for FORTRAN 77 types.
+\begin_inset CommandInset label
+LatexCommand label
+name "tab:Relationship-between-storage"
+
+\end_inset
+
+
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+Various extensions exists such as Byte, Double complex etc.
+ Technically, the use of Kinds in type declarations (e.g.
+ integer*8) is not part of the f77 specification.
+ It is however widely used and supported by all current Fortran compilers,
+ specifically the open source GNU Fortran compiler g77.
+ In this paper we effectively consider FORTRAN 77 to be defined by the f77
+ specification combined with the g77 extensions https://gcc.gnu.org/onlinedocs/gcc
+-3.4.6/g77/Language.html.
+ 
+\end_layout
+
+\begin_layout Standard
+We will treat the kind as the number of bytes of storage as in Table 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "tab:Relationship-between-storage"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+ and define the scalar types as (Typename, Kind) tuples.
+ Moreover, we define a character storage unit as 1 byte.
+ This allows us the simplify the types to integer, real, complex and logical,
+ because we can write:
+\end_layout
+
+\begin_layout Standard
+Double precision: (real,8)
+\end_layout
+
+\begin_layout Standard
+Complex: ((real,4),(real,4)) – not sure!
+\end_layout
+
+\begin_layout Standard
+Double Complex ((real,8),(real,8)) – not sure!
+\end_layout
+
+\begin_layout Standard
+Character: (integer,1)
+\end_layout
+
+\begin_layout Standard
+For the rest of the discussion we will treat the character type as an integer
+ with a kind of 1 and a character string as an array of characters.
+\end_layout
+
+\begin_layout Standard
+Fortran's type system in this context 
+\end_layout
+
+\begin_layout Standard
+Type = 
+\begin_inset Formula $\left\{ Integer,Real,Complex,Logical\right\} $
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+Kind = 
+\begin_inset Formula $\left\{ 2^{n}|\;n\in[0,5]\right\} $
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+Scalar = 
+\begin_inset Formula $\left\{ Type\times Kind\right\} $
+\end_inset
+
+, and we will denote an element of this set as 
+\emph on
+Scalar t k
+\end_layout
+
+\begin_layout Standard
+Dim =
+\begin_inset Formula $\left\{ ((s_{1},e_{i}),...,(s_{i},e_{i}),...,(s_{k},e_{k})),\forall k,i\in\,[1,7],s_{i},e_{i}\in\mathbb{Z},s_{i}\le e_{i}\right\} $
+\end_inset
+
+, so Dim is a set of ordered sets of tuples, we denote an element as 
+\emph on
+Dim d
+\end_layout
+
+\begin_layout Standard
+Array = 
+\begin_inset Formula $\left\{ Scalar\times Dim\right\} $
+\end_inset
+
+, and we will denote an element of this set as 
+\emph on
+Array (Scalar t k) (Dim d)
+\end_layout
+
+\begin_layout Standard
+FortranType = 
+\begin_inset Formula $Scalar\cap Array$
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+To investigate the type safety, we need to consider the typing rules for
+\end_layout
+
+\begin_layout Standard
+- scalars
+\end_layout
+
+\begin_layout Standard
+- array declarations
+\end_layout
+
+\begin_layout Standard
+- array accesses 
+\end_layout
+
+\begin_layout Standard
+- function and subroutine declarations
+\end_layout
+
+\begin_layout Standard
+- expressions
+\end_layout
+
+\begin_layout Standard
+- assignments
+\end_layout
+
+\begin_layout Standard
+- function and subroutine calls
+\end_layout
+
+\begin_layout Standard
+The typing rule for a scalar s is simply that any occurence of a scalar
+ variable must have the same type, which must be the type from its declaration
+ and belong to the set 
+\emph on
+Scalar
+\emph default
+.
+ we write this as
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\[
+s:\tau_{s}=Scalar\,t\,k
+\]
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+The typing rules for an array are that in addition to being of a valid Scalar
+ type it must have a non-empty Dim set, 
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\[
+a:\tau_{a}=Array\,\tau_{s}\ (Dim\,d),d=((s_{1},e_{i}),...,(s_{i},e_{i}),...,(s_{k},e_{k}))
+\]
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+and for any array access 
+\begin_inset Formula $a(j_{1},...,j_{k}),j_{i}\in[s_{i},e_{i}]$
+\end_inset
+
+ the number indices must XXX, each index must be within bounds and the type
+ must be the scalar type:
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\[
+a(j_{1},...,j_{i},...,j_{k}):\forall\,i\in[1,k]|j_{i}\in[s_{i},e_{i}]\Rightarrow\tau_{s}
+\]
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+The subroutine declaration typing rule is that every dummy argument must
+ be of a valid FortranType:
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\[
+s(a_{1},...,a_{i},...,a_{m})\,|\,a_{i}:FortranType,\forall i\in[1,m],m\in\mathbb{N}
+\]
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+The function declaration typing rule is that every dummy argument and the
+ function itself must be of a valid FortranType:
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\[
+f(a_{1},...,a_{i},...,a_{m})\,|\,f:FortranType,a_{i}:FortranType,\forall i\in[1,m],m\in\mathbb{N}
+\]
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+Expressions
+\end_layout
+
+\begin_layout Standard
+Assignments
 \end_layout
 
 \begin_layout Subsection
@@ -348,7 +1075,7 @@ Explicit typing
 \end_layout
 
 \begin_layout Standard
-According to §4.1.2 of the specification, in FORTRAN 77 a variable 
+According to §4.1.2 of the f77 specification, in FORTRAN 77 a variable 
 \begin_inset Quotes eld
 \end_inset
 
