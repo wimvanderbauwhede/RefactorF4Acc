@@ -86,7 +86,7 @@ Wim Vanderbauwhede
 \begin_layout Abstract
 In this paper we present the program transformations and type checking algorithm
 s required to convert FORTRAN 77 subroutines and functions into pure, side-effec
-t free subroutines and functions in Fortran 95.
+t free subroutines and functions in Fortran 90.
  The resulting code is type safe and the pure, side-effect free and referentiall
 y transparent subroutines can readily be offloaded to accelerators.
  
