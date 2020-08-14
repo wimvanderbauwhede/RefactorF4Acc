@@ -251,71 +251,63 @@ see earlier paper, be nice to CamFort
 Preliminaries
 \end_layout
 
-\begin_layout Standard
-2.13 Storage A storage sequence is a sequence of storage units.
- A storage unit is either a numeric storage unit or a character storage
- unit.
- An integer, real, or logical datum has one numeric storage unit in a storage
- sequence.
- A double precision or complex datum has two numeric storage units in a
- storage sequence.
- A character datum has one character storage unit in a storage sequence
- for each character in the datum.
- This standard does not specify a relationship between a numeric storage
- unit and a character storage unit.
- If a datum requires more than one storage unit in a storage sequence, those
- storage units are consecutive.
- The concept of a storage sequence is used to describe relationships that
- exist among variables, array elements, arrays, substrings, and common blocks.
- This standard does not specify a relationship between the storage sequence
- concept and the physical properties or implementation of storage.
+\begin_layout Subsection
+Type systems concepts and notation
 \end_layout
 
 \begin_layout Standard
-The six types of data are: (1) Integer (2) Real (3) Double precision A double
- precision datum has two consecutive numeric storage units in a storage
- sequence (4) Complex A complex datum is a processor approximation to the
- value of a complex number.
- The representation of a complex datum is in the form of an ordered pair
- of real data.
- The first of the pair represents the real part of the complex datum and
- the second represents the imaginary part.
- Each part has the same degree of approximation as for a real datum.
- A complex datum has two consecutive numeric storage units in a storage
- sequence; the first storage unit is the real part and the second storage
- unit is the imaginary part.
- (5) Logical (6) Character
+A type is a formal mechanism to provide information about the expected form
+ of the result of a computation.
+ More precisely, 
 \end_layout
 
 \begin_layout Standard
-https://gcc.gnu.org/onlinedocs/gcc-3.4.6/g77/Language.html
+if 
+\emph on
+e
+\emph default
+ is an expression, a 
+\emph on
+typing 
+\emph default
+of for e.g.
+ 
+\begin_inset Formula $e:\mathrm{integer}$
+\end_inset
+
+ is an assertion that when 
+\emph on
+e
+\emph default
+ is evaluated, its value will be an integer.
+ Such an assertion is called a typing judgment.
+ For such a typing judegement to be meaningful, e must be well typed.
+ For any expression this means that it must be internally consistent as
+ well as consistent with its context, i.e.
+ if it contains free variables, they must be declared with the right type
+ in the context of the code unit.
+ We will use the terms 
+\emph on
+type statement
+\emph default
+ (as used in the f77 specification) or 
+\emph on
+type declaration
+\emph default
+ (more common in type theory) for the statements that declare the type of
+ a constant, variable or function.
 \end_layout
 
 \begin_layout Standard
-The standard does not specify the size of a numeric storage unit, nor does
- it speficy a relationship between a numeric storage unit and a character
- storage unit.
- However, the consensus amongst Fortran compilers is as follows:
-\end_layout
-
-\begin_layout Standard
-(1) Integer: 4 (2) Real: 4 (3) Double precision: 8 (4) Complex: 8, Double
- Complex: 16 (5) Logical: 4 (6) Character: 1
-\end_layout
-
-\begin_layout Standard
-Technically, the use of kinds in type declarations is not part of the FORTRAN
- 77 specification.
- It is however widely used and supported by all current Fortran compilers,
- in particular g77.
- Therefore we treat all types as (typename, kind) tuples.
- This allows us the simplify the types to integer, real, logical and character,
- because we write 
-\end_layout
-
-\begin_layout Standard
-Double precision: (real,8) Comples: ((real,4),(real,4)) Double Complex ((real,8)
-,(real,8))
+We will use set theory to construct the sets of valid types for FORTRAN
+ 77, and the standard notation for typing rules as used for example in [REF
+ Pierce].
+ We deviate slightly from the terminology used in the f77 specification
+ in favour of the more common terminology: we will refer to the symbolic
+ name of a datum as a variable rather than a variable name, and we will
+ refer to what the f77 specification calls a variable as a scalar.
+ Thus a variable can be a scalar or an array.
+ 
 \end_layout
 
 \begin_layout Subsection
@@ -747,23 +739,33 @@ noprefix "false"
  and define the scalar types as (Typename, Kind) tuples.
  Moreover, we define a character storage unit as 1 byte.
  This allows us the simplify the types to integer, real, complex and logical,
- because we can write:
+ because we can define a double precision as (real,8) and a character as
+ (integer,1).
 \end_layout
 
 \begin_layout Standard
+\begin_inset Note Note
+status open
+
+\begin_layout Plain Layout
 Double precision: (real,8)
 \end_layout
 
-\begin_layout Standard
+\begin_layout Plain Layout
 Complex: ((real,4),(real,4)) – not sure!
 \end_layout
 
-\begin_layout Standard
+\begin_layout Plain Layout
 Double Complex ((real,8),(real,8)) – not sure!
 \end_layout
 
-\begin_layout Standard
+\begin_layout Plain Layout
 Character: (integer,1)
+\end_layout
+
+\end_inset
+
+
 \end_layout
 
 \begin_layout Standard
@@ -771,11 +773,36 @@ For the rest of the discussion we will treat the character type as an integer
  with a kind of 1 and a character string as an array of characters.
 \end_layout
 
-\begin_layout Standard
-Fortran's type system in this context 
+\begin_layout Subsubsection
+The FORTRAN 77 type system
 \end_layout
 
 \begin_layout Standard
+With the above conventions and assumptions, we can describe Fortran's type
+ system as show in Alg 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "alg:The-FORTRAN-77"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+.
+\end_layout
+
+\begin_layout Standard
+\begin_inset Float algorithm
+wide false
+sideways false
+status open
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\begin_layout Plain Layout
 Type = 
 \begin_inset Formula $\left\{ Integer,Real,Complex,Logical\right\} $
 \end_inset
@@ -783,7 +810,7 @@ Type =
 
 \end_layout
 
-\begin_layout Standard
+\begin_layout Plain Layout
 Kind = 
 \begin_inset Formula $\left\{ 2^{n}|\;n\in[0,5]\right\} $
 \end_inset
@@ -791,19 +818,19 @@ Kind =
 
 \end_layout
 
-\begin_layout Standard
+\begin_layout Plain Layout
 Scalar = 
 \begin_inset Formula $\left\{ Type\times Kind\right\} $
 \end_inset
 
-, and we will denote an element of this set as 
+, and we denote an element of this set as 
 \emph on
 Scalar t k
 \end_layout
 
-\begin_layout Standard
+\begin_layout Plain Layout
 Dim =
-\begin_inset Formula $\left\{ ((s_{1},e_{i}),...,(s_{i},e_{i}),...,(s_{k},e_{k})),\forall k,i\in\,[1,7],s_{i},e_{i}\in\mathbb{Z},s_{i}\le e_{i}\right\} $
+\begin_inset Formula $\left\{ ((b_{i},e_{i}),...,(b_{i},e_{i}),...,(b_{k},e_{k})),\forall k,i\in\,[1,7],b_{i},e_{i}\in\mathbb{Z},b_{i}\le e_{i}\right\} $
 \end_inset
 
 , so Dim is a set of ordered sets of tuples, we denote an element as 
@@ -811,19 +838,47 @@ Dim =
 Dim d
 \end_layout
 
-\begin_layout Standard
+\begin_layout Plain Layout
 Array = 
 \begin_inset Formula $\left\{ Scalar\times Dim\right\} $
 \end_inset
 
-, and we will denote an element of this set as 
+, and we denote an element of this set as 
 \emph on
 Array (Scalar t k) (Dim d)
 \end_layout
 
-\begin_layout Standard
+\begin_layout Plain Layout
 FortranType = 
 \begin_inset Formula $Scalar\cap Array$
+\end_inset
+
+ 
+\end_layout
+
+\begin_layout Plain Layout
+\begin_inset Caption Standard
+
+\begin_layout Plain Layout
+The FORTRAN 77 type system for scalars and arrays
+\begin_inset CommandInset label
+LatexCommand label
+name "alg:The-FORTRAN-77"
+
+\end_inset
+
+
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Plain Layout
+
+\end_layout
+
 \end_inset
 
 
@@ -833,37 +888,211 @@ FortranType =
 To investigate the type safety, we need to consider the typing rules for
 \end_layout
 
-\begin_layout Standard
-- scalars
+\begin_layout Itemize
+constants
+\end_layout
+
+\begin_layout Itemize
+scalar and array declarations and accesses
+\end_layout
+
+\begin_layout Itemize
+function and subroutine declarations and applications
+\end_layout
+
+\begin_layout Itemize
+expressions
+\end_layout
+
+\begin_layout Itemize
+assignments
+\end_layout
+
+\begin_layout Subsubsection
+Constants
 \end_layout
 
 \begin_layout Standard
-- array declarations
+The forms of numeric constants are described in words in §4 of the f77 specifica
+tion.
+ Using Extended Backus-Naur Form
+\begin_inset Foot
+status open
+
+\begin_layout Plain Layout
+\begin_inset CommandInset href
+LatexCommand href
+target "https://www.w3.org/TR/2008/REC-xml-20081126/#sec-notation"
+
+\end_inset
+
+
+\end_layout
+
+\end_inset
+
+, we can describe them formally as show in Alg 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "alg:EBNF-for-numeric"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+.
+\end_layout
+
+\begin_layout LyX-Code
+\begin_inset Float algorithm
+wide false
+sideways false
+status open
+
+\begin_layout LyX-Code
+integer-constant ::= [sign] {digit}+ 
+\end_layout
+
+\begin_layout LyX-Code
+sign ::= + | -
+\end_layout
+
+\begin_layout LyX-Code
+digit ::= 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9
+\end_layout
+
+\begin_layout LyX-Code
+
+\end_layout
+
+\begin_layout LyX-Code
+real-constant ::= [sign] {digit}* decimal-point {digit}* [real-exponent]
+\end_layout
+
+\begin_layout LyX-Code
+| [sign] {digit}+ [decimal-point {digit}*] real-exponent
+\end_layout
+
+\begin_layout LyX-Code
+decimal-point ::= .
+\end_layout
+
+\begin_layout LyX-Code
+real-exponent ::= E [sign] {digit}+
+\end_layout
+
+\begin_layout LyX-Code
+
+\end_layout
+
+\begin_layout LyX-Code
+double-constant ::= [sign] {digit}* decimal-point {digit}* [double-exponent]
+\end_layout
+
+\begin_layout LyX-Code
+| [sign] {digit}+ [decimal-point {digit}*] double-exponent
+\end_layout
+
+\begin_layout LyX-Code
+double-exponent ::= D [sign] {digit}+
+\end_layout
+
+\begin_layout LyX-Code
+
+\end_layout
+
+\begin_layout LyX-Code
+complex-constant ::== ( real-constant , real-constant )
+\end_layout
+
+\begin_layout LyX-Code
+logical-constant ::== .TRUE.
+ | .FALSE.
+\end_layout
+
+\begin_layout LyX-Code
+
+\end_layout
+
+\begin_layout LyX-Code
+
+\end_layout
+
+\begin_layout Plain Layout
+\begin_inset Caption Standard
+
+\begin_layout Plain Layout
+EBNF for numeric constants
+\begin_inset CommandInset label
+LatexCommand label
+name "alg:EBNF-for-numeric"
+
+\end_inset
+
+
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\end_inset
+
+
 \end_layout
 
 \begin_layout Standard
-- array accesses 
+We define the set of constants of for each type, for example for integers:
 \end_layout
 
 \begin_layout Standard
-- function and subroutine declarations
+IntegerConstants = 
+\begin_inset Formula $\left\{ n\,|\,n\,\textrm{is an integer-constant}\right\} $
+\end_inset
+
+
 \end_layout
 
 \begin_layout Standard
-- expressions
+and thus we can write the typing rule
 \end_layout
 
 \begin_layout Standard
-- assignments
+\begin_inset Formula 
+\[
+\frac{\,}{n\,:\,Integer}.\,\forall\,n\in\mathit{IntegerConstants}
+\]
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Description
+and similar for the other types.
+\end_layout
+
+\begin_layout Subsubsection
+Scalars
 \end_layout
 
 \begin_layout Standard
-- function and subroutine calls
-\end_layout
+The typing rule for a scalar 
+\emph on
+s
+\emph default
+ is simply that any access of a scalar variable, this variable must have
+ the same type, which must be the type from its declaration in the current
+ contex (code unit) 
+\begin_inset Formula $\Gamma$
+\end_inset
 
-\begin_layout Standard
-The typing rule for a scalar s is simply that any occurence of a scalar
- variable must have the same type, which must be the type from its declaration
  and belong to the set 
 \emph on
 Scalar
@@ -875,7 +1104,7 @@ Scalar
 \begin_layout Standard
 \begin_inset Formula 
 \[
-s:\tau_{s}=Scalar\,t\,k
+\Gamma\vdash s:\tau_{s}=Scalar\,t\,k
 \]
 
 \end_inset
@@ -884,50 +1113,433 @@ s:\tau_{s}=Scalar\,t\,k
 \end_layout
 
 \begin_layout Standard
-The typing rules for an array are that in addition to being of a valid Scalar
- type it must have a non-empty Dim set, 
+What this means is that, given the context 
+\begin_inset Formula $\Gamma$
+\end_inset
+
+ which contains all types of all variables valid in a given expression,
+ the type judegement is valid.
+ In a Fortran expression this means that all variables with a type statement
+ in a code unit will be of the type determined by that statement.
+ 
 \end_layout
 
+\begin_layout Subsubsection
+Arrays
+\end_layout
+
+\begin_layout Standard
+The typing rule for an array declaration is that in addition to being of
+ a valid Scalar type 
+\end_layout
+
+\begin_layout Itemize
+it must have a non-empty Dim set, 
+\end_layout
+
+\begin_deeper
 \begin_layout Standard
 \begin_inset Formula 
-\[
-a:\tau_{a}=Array\,\tau_{s}\ (Dim\,d),d=((s_{1},e_{i}),...,(s_{i},e_{i}),...,(s_{k},e_{k}))
-\]
+\begin{align*}
+a & :\tau_{a}=Array\,(Scalar\,t_{a}\,k_{a})\ (Dim\,d),\\
+ & d=((b_{1},e_{i}),...,(b_{i},e_{i}),...,(b_{k},e_{k}))
+\end{align*}
 
 \end_inset
 
 
 \end_layout
 
+\end_deeper
 \begin_layout Standard
 and for any array access 
-\begin_inset Formula $a(j_{1},...,j_{k}),j_{i}\in[s_{i},e_{i}]$
+\begin_inset Formula $a(j_{1},...,j_{k}),j_{i}\in[b_{i},e_{i}]$
 \end_inset
 
- the number indices must XXX, each index must be within bounds and the type
- must be the scalar type:
+ that
 \end_layout
 
+\begin_layout Itemize
+the number indices must 
+\begin_inset Formula $k=\#d$
+\end_inset
+
+, 
+\end_layout
+
+\begin_layout Itemize
+the type must be the scalar type:
+\end_layout
+
+\begin_deeper
 \begin_layout Standard
 \begin_inset Formula 
 \[
-a(j_{1},...,j_{i},...,j_{k}):\forall\,i\in[1,k]|j_{i}\in[s_{i},e_{i}]\Rightarrow\tau_{s}
+a(j_{1},...,j_{i},...,j_{k}):\forall\,i\in[1,k]|j_{i}\in[b_{i},e_{i}]\Rightarrow\tau_{s}
 \]
 
 \end_inset
 
 
+\end_layout
+
+\end_deeper
+\begin_layout Paragraph
+Array Slicing
+\end_layout
+
+\begin_layout Standard
+Fortran allows array slicing using the notation 
+\begin_inset Formula $(b_{s}:e_{s}:s_{s})$
+\end_inset
+
+.
+ For example:
+\end_layout
+
+\begin_layout LyX-Code
+integer a, s
+\end_layout
+
+\begin_layout LyX-Code
+dimension a(5,7), s(3)
+\end_layout
+
+\begin_layout LyX-Code
+s = a(2,1:5:2)
+\end_layout
+
+\begin_layout Standard
+The array s will be populated with the values from a(2,1) ,a(2,3) and a(2,5).
+ From a type checking perspective, we need to check if the slice has the
+ correct type, in this case the same type as the array to which it is assigned.
+\end_layout
+
+\begin_layout Standard
+For a given tuple 
+\begin_inset Formula $(b_{i},e_{i})$
+\end_inset
+
+ from 
+\emph on
+d
+\emph default
+, a slice is valid (i.e.
+ within bounds) if 
+\begin_inset Formula $b_{s}\geq b_{i},e_{s}\leq e_{i},s_{s}\leq e_{i}-b_{i}$
+\end_inset
+
+.
+ We will call the set of indices in the slice a DimSlice and it is given
+ by
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\[
+\mathit{DimSlice}=\left\{ idx|idx\in[b,e]\land(idx-b)\,mod\,%s=0
+\right\} 
+\]
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+and we'll denote this as 
+\emph on
+DimSlice b e s
+\emph default
+.
+ 
+\end_layout
+
+\begin_layout Standard
+The type of a sliced array is determined from the 
+\emph on
+DimSlice
+\emph default
+ as follows: 
+\end_layout
+
+\begin_layout Itemize
+let the array 
+\emph on
+a
+\emph default
+ have 
+\emph on
+Dim d
+\emph default
+, 
+\begin_inset Formula $d=(p_{1},...,p_{i},...,p_{k})$
+\end_inset
+
+ and we slice 
+\emph on
+p_i
+\emph default
+ with a valid slice 
+\begin_inset Formula $s_{i}=\mathit{DimSlice}\,b_{s}e_{s}s_{s}$
+\end_inset
+
+.
+\end_layout
+
+\begin_layout Itemize
+Then this results in a new 
+\begin_inset Formula $p'_{i}=(1,\#s_{i})$
+\end_inset
+
+ 
+\end_layout
+
+\begin_layout Itemize
+and therefore a new 
+\emph on
+Dim d
+\emph default
+', 
+\begin_inset Formula $d'=(p_{1},...,p'_{i},...,p_{k})$
+\end_inset
+
+ 
+\end_layout
+
+\begin_layout Itemize
+and a new array type
+\end_layout
+
+\begin_deeper
+\begin_layout Standard
+\begin_inset Formula 
+\[
+\tau'_{a}=Array\,\tau_{s}\ (Dim\,d')
+\]
+
+\end_inset
+
+
+\end_layout
+
+\end_deeper
+\begin_layout Standard
+To be type safe, the size of the 
+\emph on
+DimSlice
+\emph default
+ must be known at type check time.
+ This implies that the components 
+\emph on
+b,e,s
+\emph default
+ of the slice must be constant.
+ If so, we can determin the size of the slice and thus check that the new
+ type is correct given the context.
+ 
+\end_layout
+
+\begin_layout Paragraph
+Arrays as indices
+\end_layout
+
+\begin_layout Standard
+Fortran also allows arrays to be indexed by other arrays, for example
+\end_layout
+
+\begin_layout LyX-Code
+       integer a(5,5), b(3), k(3)
+\end_layout
+
+\begin_layout LyX-Code
+       k = (/ 1, 5, 2 /)
+\end_layout
+
+\begin_layout LyX-Code
+       b = a(2, k)
+\end_layout
+
+\begin_layout Standard
+The array b will contain the values a(2,1),a(2,5) and a(2,2) in that order.
+\end_layout
+
+\begin_layout Standard
+The array to be used for indexing must be an array of rank 1 that contains
+ the indices of the locations to be accessed, just like a 
+\emph on
+DimSlice
+\emph default
+.
+ Thus the requirement for type safety is the same (the size of the array),
+ and the criterion for the array to be valid for indexing is that all elements
+ must be in the valid index range for the given array index.
+\end_layout
+
+\begin_layout Paragraph
+Bounds checking
+\end_layout
+
+\begin_layout Standard
+Fortran checks constant array bounds at type check time and our compiler
+ performs a more aggressive constant folding so that any index reduceable
+ to a constant with linear arithmetic will be considered constant.
+ However, in general array indices are not known at type check time and
+ therefore even in a well typed program, it is still possible to have out-of-bou
+nd errors.
+ Fundamentally, index checking is not type checking because it concerns
+ the actual values, and has to be performed at run time.
+ All modern Fortran compilers provide this option, e.g.
+ -fcheck=bounds in the GNU gfortran.
+\end_layout
+
+\begin_layout Subsubsection
+Subroutines and Functions
+\end_layout
+
+\begin_layout Standard
+As explained below (Section 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "subsec:The-definition-of"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+), every Fortran function or subroutine can be transformed into a pure function.
+ From a type checking perspective, the only difference between a Fortran
+ function and subroutine is that a function call can occur in an expression
+ and a subroutine call can't.
+ 
+\end_layout
+
+\begin_layout Standard
+Given a function 
+\emph on
+f
+\emph default
+, for any expression 
+\emph on
+e
+\end_layout
+
+\begin_layout LyX-Code
+\begin_inset Formula $e=...f(...,a_{i},...)...$
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+we can always replace the function call 
+\end_layout
+
+\begin_layout LyX-Code
+\begin_inset Formula $\tau$
+\end_inset
+
+ function 
+\begin_inset Formula $f(...,a_{i}:\tau_{i},...)$
+\end_inset
+
+ 
+\end_layout
+
+\begin_layout LyX-Code
+\begin_inset Formula $...$
+\end_inset
+
+
+\end_layout
+
+\begin_layout LyX-Code
+\begin_inset Formula $f=...$
+\end_inset
+
+
+\end_layout
+
+\begin_layout LyX-Code
+end function
+\end_layout
+
+\begin_layout Standard
+with a subroutine call with 
+\begin_inset Formula $f$
+\end_inset
+
+ as an additional argument and as the final assigned variable: 
+\end_layout
+
+\begin_layout LyX-Code
+subroutine 
+\begin_inset Formula $sf(...,a_{i}:\tau_{i},...,f:\tau)$
+\end_inset
+
+
+\end_layout
+
+\begin_layout LyX-Code
+\begin_inset Formula $...$
+\end_inset
+
+
+\end_layout
+
+\begin_layout LyX-Code
+\begin_inset Formula $f=...$
+\end_inset
+
+
+\end_layout
+
+\begin_layout LyX-Code
+end subroutine
+\end_layout
+
+\begin_layout Standard
+We call 
+\emph on
+sf
+\emph default
+ immediately before the expression is evaluated:
+\end_layout
+
+\begin_layout LyX-Code
+call 
+\begin_inset Formula $sf(...,a_{i},...,f)$
+\end_inset
+
+
+\end_layout
+
+\begin_layout LyX-Code
+\begin_inset Formula $e=...f...$
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+Therefore, in what follows we only discuss subroutines that behave as pure
+ functions.
 \end_layout
 
 \begin_layout Standard
 The subroutine declaration typing rule is that every dummy argument must
- be of a valid FortranType:
+ be of a valid 
+\emph on
+FortranType
+\emph default
+:
 \end_layout
 
 \begin_layout Standard
 \begin_inset Formula 
 \[
-s(a_{1},...,a_{i},...,a_{m})\,|\,a_{i}:FortranType,\forall i\in[1,m],m\in\mathbb{N}
+sf(a_{1},...,a_{i},...,a_{m})\,|\,a_{i}:FortranType,\forall i\in[1,m],m\in\mathbb{N}
 \]
 
 \end_inset
@@ -936,19 +1548,11 @@ s(a_{1},...,a_{i},...,a_{m})\,|\,a_{i}:FortranType,\forall i\in[1,m],m\in\mathbb
 \end_layout
 
 \begin_layout Standard
-The function declaration typing rule is that every dummy argument and the
- function itself must be of a valid FortranType:
-\end_layout
-
-\begin_layout Standard
-\begin_inset Formula 
-\[
-f(a_{1},...,a_{i},...,a_{m})\,|\,f:FortranType,a_{i}:FortranType,\forall i\in[1,m],m\in\mathbb{N}
-\]
-
-\end_inset
-
-
+The subroutine application (call) typing rule is that every call argument
+ and every dummy argument must have the same type.
+ Given that, then because our subroutines are pure functions, we can derive
+ the type of the return value of the function.
+ 
 \end_layout
 
 \begin_layout Standard
@@ -961,6 +1565,13 @@ Assignments
 
 \begin_layout Subsection
 The definition of a pure function
+\begin_inset CommandInset label
+LatexCommand label
+name "subsec:The-definition-of"
+
+\end_inset
+
+
 \end_layout
 
 \begin_layout Standard
@@ -1027,7 +1638,7 @@ pure
 \begin_layout Standard
 \begin_inset Formula 
 \[
-\forall\,\Gamma,\forall\overrightarrow{x}\in\Gamma,\exists!y\in\Gamma:y=f(\overrightarrow{x})
+\forall\,\Gamma,\forall\overrightarrow{x}\in\Gamma,\exists!\,y\in\Gamma:y=f(\overrightarrow{x})
 \]
 
 \end_inset
@@ -1038,10 +1649,32 @@ pure
 \begin_layout Standard
 In words, whatever the environment, for a given set of argument values of
  the correct type, the function will always return the same value.
- 
+ In general, the type 
+\backslash
+tau_y is not simply a valid 
+\emph on
+FortranType
+\emph default
+, but a tuple of valid FortranTypes.
+ We therefore extend our type system with the notion of a tuple:
 \end_layout
 
 \begin_layout Standard
+\begin_inset Formula 
+\[
+\mathit{Tuple}=(\tau_{1},...,\tau_{i},...,\tau_{k}),\,\forall\,i\,\in[1,k]\,|\,\tau_{i}\in\mathit{FortranType}
+\]
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset Note Note
+status open
+
+\begin_layout Plain Layout
 In the equations below, the subscript 
 \emph on
 c
@@ -1067,6 +1700,187 @@ local
 \end_inset
 
 ) for the variables declared by in subroutine.
+ 
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Subsection
+Transforming Fortran subroutines into pure functions
+\end_layout
+
+\begin_layout Standard
+A FORTRAN 77 subroutine can be translated into a pure function as follows:
+ 
+\end_layout
+
+\begin_layout Itemize
+infer the INTENT of every argument (see Section XXX)
+\end_layout
+
+\begin_layout Itemize
+replace every InOut argument with an (In,Out) tuple
+\end_layout
+
+\begin_layout Itemize
+every read is from the In argument, every write is to the Out argument
+\end_layout
+
+\begin_layout Standard
+Thus,
+\end_layout
+
+\begin_layout LyX-Code
+subroutine 
+\begin_inset Formula $f(a_{1},...,a_{i},...,a_{n})$
+\end_inset
+
+
+\end_layout
+
+\begin_layout LyX-Code
+\begin_inset Formula $\tau_{i},$
+\end_inset
+
+intent(InOut)
+\begin_inset Formula $::a_{i}$
+\end_inset
+
+
+\end_layout
+
+\begin_layout LyX-Code
+\begin_inset Formula $(...,a_{i},...,...,l_{i},...)=exp(...,a_{i},...,...,l_{i},...)$
+\end_inset
+
+
+\end_layout
+
+\begin_layout LyX-Code
+end subroutine 
+\begin_inset Formula $f$
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+becomes
+\end_layout
+
+\begin_layout LyX-Code
+subroutine 
+\begin_inset Formula $f'(a_{1},...,a_{i,in},a_{i,out},...,a_{n})$
+\end_inset
+
+
+\end_layout
+
+\begin_layout LyX-Code
+\begin_inset Formula $\tau_{i},$
+\end_inset
+
+intent(In)
+\begin_inset Formula $::a_{i,in}$
+\end_inset
+
+
+\end_layout
+
+\begin_layout LyX-Code
+\begin_inset Formula $\tau_{i},$
+\end_inset
+
+intent(Out)
+\begin_inset Formula $::a_{i,out}$
+\end_inset
+
+
+\end_layout
+
+\begin_layout LyX-Code
+\begin_inset Formula $\tau_{i}::a_{i}$
+\end_inset
+
+! local
+\end_layout
+
+\begin_layout LyX-Code
+\begin_inset Formula $a_{i}=a_{i,in}$
+\end_inset
+
+
+\end_layout
+
+\begin_layout LyX-Code
+\begin_inset Formula $(...,a_{i},...,...,l_{i},...)=exp(...,a_{i},...,...,l_{i},...))$
+\end_inset
+
+
+\end_layout
+
+\begin_layout LyX-Code
+\begin_inset Formula $a_{i,out}=a_{i}$
+\end_inset
+
+
+\end_layout
+
+\begin_layout LyX-Code
+end subroutine 
+\begin_inset Formula $f'$
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+Let us denote the transformed argument list as 
+\emph on
+a'
+\emph default
+, so 
+\begin_inset Formula $(a_{i}\in a'|\textrm{intent}(a_{i})=\textrm{InOut})=\emptyset$
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+Given the intent, then we have:
+\end_layout
+
+\begin_layout LyX-Code
+\begin_inset Formula $y=(a_{i}\in a'|\textrm{intent}(a_{i})=\textrm{Out})$
+\end_inset
+
+
+\end_layout
+
+\begin_layout LyX-Code
+\begin_inset Formula $a''=a'\ \backslash\ y$
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+The type of 
+\emph on
+y
+\emph default
+ is the 
+\emph on
+Tuple
+\emph default
+ of the types of all arguments with intent Out.
+ In this way we have identified the function arguments and the function
+ return value and their types.
+ So regardless of the subroutine syntax, with this information it is now
+ a pure function as far as its arguments are concerned.
  
 \end_layout
 
