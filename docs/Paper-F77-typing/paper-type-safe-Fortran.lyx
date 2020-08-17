@@ -302,12 +302,362 @@ type declaration
 We will use set theory to construct the sets of valid types for FORTRAN
  77, and the standard notation for typing rules as used for example in [REF
  Pierce].
- We deviate slightly from the terminology used in the f77 specification
- in favour of the more common terminology: we will refer to the symbolic
- name of a datum as a variable rather than a variable name, and we will
- refer to what the f77 specification calls a variable as a scalar.
+ 
+\end_layout
+
+\begin_layout Standard
+In summary:
+\end_layout
+
+\begin_layout Itemize
+The assertion 
+\begin_inset Quotes eld
+\end_inset
+
+the expression 
+\emph on
+e
+\emph default
+ has type 
+\begin_inset Formula $\tau$
+\end_inset
+
+
+\begin_inset Quotes erd
+\end_inset
+
+ is written as 
+\begin_inset Formula $e:\tau$
+\end_inset
+
+
+\end_layout
+
+\begin_layout Itemize
+If an assertion must hold for a certain context, i.e.
+ a set of expressions with declared types such as a code unit, the context
+ is conventionally denoted as 
+\begin_inset Formula $\Gamma$
+\end_inset
+
+ and the operator 
+\begin_inset Formula $\vdash$
+\end_inset
+
+ (called 
+\begin_inset Quotes eld
+\end_inset
+
+turnstyle
+\begin_inset Quotes erd
+\end_inset
+
+ in type theory) is used to write an assertion of the form 
+\begin_inset Quotes eld
+\end_inset
+
+assuming a context 
+\begin_inset Formula $\Gamma$
+\end_inset
+
+ then the expression 
+\emph on
+e
+\emph default
+ has type 
+\begin_inset Formula $\tau$
+\end_inset
+
+
+\begin_inset Quotes erd
+\end_inset
+
+ is written as 
+\begin_inset Formula $\Gamma\vdash e:\tau$
+\end_inset
+
+ .
+\end_layout
+
+\begin_layout Itemize
+The type of a function of a single argument is written as 
+\begin_inset Formula $f:\tau_{in}\rightarrow\tau_{out}$
+\end_inset
+
+ and the function itself is written without parentheses, so 
+\begin_inset Formula $y=f\,x$
+\end_inset
+
+ rather than 
+\begin_inset Formula $y=f(x)$
+\end_inset
+
+.
+\end_layout
+
+\begin_layout Itemize
+We will write the type declaration for a tuple (ordered set) of 
+\emph on
+m
+\emph default
+ expressions as 
+\family roman
+\series medium
+\shape up
+\size normal
+\emph off
+\bar no
+\strikeout off
+\xout off
+\uuline off
+\uwave off
+\noun off
+\color none
+
+\begin_inset Formula $(e_{1},...,e_{m}):(\tau_{1},...,\tau_{m})$
+\end_inset
+
+ or for brevity as 
+\begin_inset Formula $\mathbf{e_{m}}:\mathbf{T_{m}}$
+\end_inset
+
+.
+\end_layout
+
+\begin_layout Standard
+We deviate slightly from the terminology used in the f77 specification in
+ favour of the more common terminology: we will refer to the symbolic name
+ of a datum as a variable rather than a variable name, and we will refer
+ to what the f77 specification calls a variable as a scalar.
  Thus a variable can be a scalar or an array.
  
+\end_layout
+
+\begin_layout Subsection
+The definition of a pure function
+\begin_inset CommandInset label
+LatexCommand label
+name "subsec:The-definition-of"
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+In the context of Fortran, we can without loss of generality assume that
+ a function takes as a single argument a tuple of expressions, and returns
+ a tuple of expressions.
+ This lets us simplify the notation somewhat.
+\end_layout
+
+\begin_layout Standard
+Let 
+\begin_inset Formula $\Gamma$
+\end_inset
+
+ be the context of a given program, i.e.
+ the set of all variables with their type that are declared in a code unit:
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\[
+\Gamma=\{...,x_{i}:\tau_{i},...\}
+\]
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+Consider a function 
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\begin{eqnarray*}
+f:(\tau_{in,1},...,\tau_{in,k}) & \rightarrow & (\tau_{out,1},...,\tau_{out,m})\\
+(x_{out,1},...,x_{out,m}) & = & f\,(x_{in,1},...,x_{in,k})
+\end{eqnarray*}
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+or shorter
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\begin{eqnarray*}
+f:\mathbf{T_{in,k}} & \rightarrow & \mathbf{T_{out,m}}\\
+\mathbf{x_{out,k}} & = & f\,\mathbf{x_{in,m}}
+\end{eqnarray*}
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+This function is 
+\emph on
+pure
+\emph default
+ iff
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\[
+\forall\,\Gamma,\forall\mathbf{x_{in,k}}\in\Gamma,\exists!\,\mathbf{x_{out,m}}\in\Gamma:\mathbf{x_{out,m}}=f\mathbf{\,x_{in,k}}
+\]
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+In words, for any given environment 
+\begin_inset Formula $\Gamma$
+\end_inset
+
+ where 
+\family roman
+\series medium
+\shape up
+\size normal
+\emph off
+\bar no
+\strikeout off
+\xout off
+\uuline off
+\uwave off
+\noun off
+\color none
+
+\begin_inset Formula $\mathbf{x_{in,k}}$
+\end_inset
+
+ and 
+\begin_inset Formula $\mathbf{x_{out,m}}$
+\end_inset
+
+ are declared
+\family default
+\series default
+\shape default
+\size default
+\emph default
+\bar default
+\strikeout default
+\xout default
+\uuline default
+\uwave default
+\noun default
+\color inherit
+, then if 
+\family roman
+\series medium
+\shape up
+\size normal
+\emph off
+\bar no
+\strikeout off
+\xout off
+\uuline off
+\uwave off
+\noun off
+\color none
+
+\begin_inset Formula $\mathbf{x_{in,k}}$
+\end_inset
+
+
+\family default
+\series default
+\shape default
+\size default
+\emph default
+\bar default
+\strikeout default
+\xout default
+\uuline default
+\uwave default
+\noun default
+\color inherit
+ is a given set of argument values of the correct type, the function will
+ always return the same value 
+\family roman
+\series medium
+\shape up
+\size normal
+\emph off
+\bar no
+\strikeout off
+\xout off
+\uuline off
+\uwave off
+\noun off
+\color none
+
+\begin_inset Formula $\mathbf{x_{out,m}}$
+\end_inset
+
+ 
+\family default
+\series default
+\shape default
+\size default
+\emph default
+\bar default
+\strikeout default
+\xout default
+\uuline default
+\uwave default
+\noun default
+\color inherit
+regardless of the rest of the content of 
+\begin_inset Formula $\Gamma$
+\end_inset
+
+.
+ We will see in Section XXX and following how any Fortran subroutine can
+ be transformed into a pure function.
+\end_layout
+
+\begin_layout Standard
+\begin_inset Note Note
+status open
+
+\begin_layout Plain Layout
+The type 
+\begin_inset Formula $\mathbf{T_{m}}$
+\end_inset
+
+ is a tuple of valid Fortran types, as introduced.
+ We therefore extend our type system with the notion of a tuple:
+\end_layout
+
+\begin_layout Plain Layout
+\begin_inset Formula 
+\[
+\mathit{Tuple}=(\tau_{1},...,\tau_{i},...,\tau_{k}),\,\forall\,i\,\in[1,k]\,|\,\tau_{i}\in\mathit{FortranType}
+\]
+
+\end_inset
+
+
+\end_layout
+
+\end_inset
+
+
 \end_layout
 
 \begin_layout Subsection
@@ -745,7 +1095,7 @@ noprefix "false"
 
 \begin_layout Standard
 \begin_inset Note Note
-status open
+status collapsed
 
 \begin_layout Plain Layout
 Double precision: (real,8)
@@ -799,15 +1149,19 @@ sideways false
 status open
 
 \begin_layout Plain Layout
-
-\end_layout
-
-\begin_layout Plain Layout
 Type = 
 \begin_inset Formula $\left\{ Integer,Real,Complex,Logical\right\} $
 \end_inset
 
+ 
+\end_layout
 
+\begin_layout Plain Layout
+NumType = 
+\begin_inset Formula $\left\{ Integer,Real,Complex\right\} $
+\end_inset
+
+ 
 \end_layout
 
 \begin_layout Plain Layout
@@ -826,6 +1180,26 @@ Scalar =
 , and we denote an element of this set as 
 \emph on
 Scalar t k
+\end_layout
+
+\begin_layout Plain Layout
+Num = 
+\begin_inset Formula $\left\{ NumType\times Kind\right\} $
+\end_inset
+
+, and we denote an element of this set as 
+\emph on
+Num a
+\end_layout
+
+\begin_layout Plain Layout
+Bool= 
+\begin_inset Formula $\left\{ Logical\times Kind\right\} $
+\end_inset
+
+, and we denote an element of this singleton set as 
+\emph on
+Bool
 \end_layout
 
 \begin_layout Plain Layout
@@ -854,6 +1228,22 @@ FortranType =
 \end_inset
 
  
+\end_layout
+
+\begin_layout Plain Layout
+Tuple = 
+\begin_inset Formula $(\tau_{1},...,\tau_{i},...,\tau_{k}),\,\forall\,i\,\in[1,k]\,|\,\tau_{i}\in\mathit{FortranType}$
+\end_inset
+
+ and we'll write 
+\emph on
+Tuple t
+\emph default
+, where 
+\begin_inset Formula $t=(\tau_{1},...,\tau_{k})$
+\end_inset
+
+
 \end_layout
 
 \begin_layout Plain Layout
@@ -1104,7 +1494,7 @@ Scalar
 \begin_layout Standard
 \begin_inset Formula 
 \[
-\Gamma\vdash s:\tau_{s}=Scalar\,t\,k
+\frac{\,}{\Gamma\vdash s:\tau_{s}=Scalar\,t\,k}
 \]
 
 \end_inset
@@ -1141,13 +1531,33 @@ it must have a non-empty Dim set,
 \begin_layout Standard
 \begin_inset Formula 
 \begin{align*}
-a & :\tau_{a}=Array\,(Scalar\,t_{a}\,k_{a})\ (Dim\,d),\\
- & d=((b_{1},e_{i}),...,(b_{i},e_{i}),...,(b_{k},e_{k}))
+\frac{\,}{\Gamma\vdash a:\tau_{a}=Array\,(Scalar\,t_{a}\,k_{a})\ (Dim\,d)}
 \end{align*}
 
 \end_inset
 
 
+\end_layout
+
+\begin_layout Standard
+where 
+\family roman
+\series medium
+\shape up
+\size normal
+\emph off
+\bar no
+\strikeout off
+\xout off
+\uuline off
+\uwave off
+\noun off
+\color none
+
+\begin_inset Formula $d=((b_{1},e_{i}),...,(b_{i},e_{i}),...,(b_{k},e_{k}))$
+\end_inset
+
+ 
 \end_layout
 
 \end_deeper
@@ -1174,9 +1584,9 @@ the type must be the scalar type:
 \begin_deeper
 \begin_layout Standard
 \begin_inset Formula 
-\[
-a(j_{1},...,j_{i},...,j_{k}):\forall\,i\in[1,k]|j_{i}\in[b_{i},e_{i}]\Rightarrow\tau_{s}
-\]
+\begin{align*}
+\frac{\Gamma\vdash a:\tau_{a}\;\;\;\Gamma\vdash j_{i}:Integer,\forall\,i\in[1,k]}{\Gamma\vdash a(j_{1},...,j_{i},...,j_{k}):\tau_{s}=Scalar\,t_{a}\,k_{a}}
+\end{align*}
 
 \end_inset
 
@@ -1184,6 +1594,16 @@ a(j_{1},...,j_{i},...,j_{k}):\forall\,i\in[1,k]|j_{i}\in[b_{i},e_{i}]\Rightarrow
 \end_layout
 
 \end_deeper
+\begin_layout Standard
+Note that the additional condition of validity of the range of the array
+ indices 
+\begin_inset Formula $a(j_{1},...,j_{i},...,j_{k}),\,\forall\,i\in[1,k]|j_{i}\in[b_{i},e_{i}]$
+\end_inset
+
+ is not a type checking condition but an run-time range checking condition,
+ so it is not part of the typing rules.
+\end_layout
+
 \begin_layout Paragraph
 Array Slicing
 \end_layout
@@ -1525,6 +1945,8 @@ call
 \begin_layout Standard
 Therefore, in what follows we only discuss subroutines that behave as pure
  functions.
+ We write these as explained in Section XXX, as functions from an input
+ tuple of expressions to an output tuple of variables.
 \end_layout
 
 \begin_layout Standard
@@ -1533,10 +1955,26 @@ The subroutine declaration typing rule is that every dummy argument must
 \emph on
 FortranType
 \emph default
-:
+.
+ Using the tuple type notation from Section XXX, we write this as:
 \end_layout
 
 \begin_layout Standard
+\begin_inset Formula 
+\[
+FortranType\,\mathbf{T_{k}},\mathbf{FortranType\,T_{m}}\Rightarrow sf:\mathbf{T_{k}}\rightarrow\mathbf{T_{m}}
+\]
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset Note Note
+status collapsed
+
+\begin_layout Plain Layout
 \begin_inset Formula 
 \[
 sf(a_{1},...,a_{i},...,a_{m})\,|\,a_{i}:FortranType,\forall i\in[1,m],m\in\mathbb{N}
@@ -1547,161 +1985,263 @@ sf(a_{1},...,a_{i},...,a_{m})\,|\,a_{i}:FortranType,\forall i\in[1,m],m\in\mathb
 
 \end_layout
 
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+The double arrow (
+\family roman
+\series medium
+\shape up
+\size normal
+\emph off
+\bar no
+\strikeout off
+\xout off
+\uuline off
+\uwave off
+\noun off
+\color none
+
+\begin_inset Formula $\Rightarrow$
+\end_inset
+
+
+\family default
+\series default
+\shape default
+\size default
+\emph default
+\bar default
+\strikeout default
+\xout default
+\uuline default
+\uwave default
+\noun default
+\color inherit
+) is read as 
+\begin_inset Quotes eld
+\end_inset
+
+these constraints must apply to the types for the type judgement to hold
+\begin_inset Quotes erd
+\end_inset
+
+
+\end_layout
+
 \begin_layout Standard
 The subroutine application (call) typing rule is that every call argument
  and every dummy argument must have the same type.
- Given that, then because our subroutines are pure functions, we can derive
- the type of the return value of the function.
+ If that is the case, then because our subroutines are pure functions, we
+ can derive the type of the return value of the function.
  
 \end_layout
 
 \begin_layout Standard
+The rule for type checking a function call is in general
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\[
+\frac{f:\tau_{i}\rightarrow\tau_{o}\;\;\;e:\tau_{i}}{f\,e:\tau_{o}}
+\]
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+and specifically for a function from tuple to tuple
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\[
+\frac{sf:\mathbf{T_{k}}\rightarrow\mathbf{T_{m}}\;\;\;\mathbf{\Gamma\vdash x_{k}}:\mathbf{T_{k}}}{\Gamma\vdash sf\,\mathbf{x_{k}}:\mathbf{T_{m}}}
+\]
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Subsubsection
+Assignments
+\end_layout
+
+\begin_layout Standard
+Because the assignment in Fortran is a statement, it does not return a type.
+ Therefore, the type check rule for an assignment (
+\begin_inset Formula $\leftarrow$
+\end_inset
+
+) of variable 
+\emph on
+x
+\emph default
+ declared in the context 
+\begin_inset Formula $\Gamma$
+\end_inset
+
+ to an expression 
+\emph on
+e
+\emph default
+ which may contain any variable 
+\begin_inset Formula $x_{i}$
+\end_inset
+
+ declared in the context 
+\begin_inset Formula $\Gamma$
+\end_inset
+
+, is as follows:
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\[
+\frac{\Gamma\vdash x:\tau\;\;\;\Gamma(x_{i})\vdash e(x_{i}):\tau}{\Gamma\vdash x\leftarrow e:\,void}
+\]
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+Note that we are more strict than the Fortran specification, because we
+ require the left-hand side and the right-hand side to be of the same type.
+ This means that the implicit type coercions are made explicit following
+ the rules form from Table 4 in the f77 specification.
+\end_layout
+
+\begin_layout Subsubsection
 Expressions
 \end_layout
 
 \begin_layout Standard
-Assignments
-\end_layout
-
-\begin_layout Subsection
-The definition of a pure function
-\begin_inset CommandInset label
-LatexCommand label
-name "subsec:The-definition-of"
-
-\end_inset
-
-
-\end_layout
-
-\begin_layout Standard
-Let 
-\begin_inset Formula $\Gamma$
-\end_inset
-
- be the context of a given program, i.e.
- the set of all variables with their current value and type:
-\end_layout
-
-\begin_layout Standard
-\begin_inset Formula 
-\[
-\{...,x_{i}:\tau_{i}=v_{i},...\}
-\]
-
-\end_inset
-
-
-\end_layout
-
-\begin_layout Standard
-Consider a function 
-\end_layout
-
-\begin_layout Standard
-\begin_inset Formula 
-\begin{eqnarray*}
-y & = & f(x_{1},...,x_{N})\\
-y:\tau_{y}\\
-x_{i}:\tau_{i},i\in[1,N]
-\end{eqnarray*}
-
-\end_inset
-
-
-\end_layout
-
-\begin_layout Standard
-and for convenience we'll write 
-\begin_inset Formula $x_{1},...,x_{N}$
-\end_inset
-
- as 
-\begin_inset Formula $\overrightarrow{x}$
-\end_inset
-
- and its type as 
-\begin_inset Formula $\overrightarrow{\tau}$
-\end_inset
-
-.
-\end_layout
-
-\begin_layout Standard
-This function is 
-\emph on
-pure
-\emph default
- iff
-\end_layout
-
-\begin_layout Standard
-\begin_inset Formula 
-\[
-\forall\,\Gamma,\forall\overrightarrow{x}\in\Gamma,\exists!\,y\in\Gamma:y=f(\overrightarrow{x})
-\]
-
-\end_inset
-
-
-\end_layout
-
-\begin_layout Standard
-In words, whatever the environment, for a given set of argument values of
- the correct type, the function will always return the same value.
- In general, the type 
-\backslash
-tau_y is not simply a valid 
-\emph on
-FortranType
-\emph default
-, but a tuple of valid FortranTypes.
- We therefore extend our type system with the notion of a tuple:
-\end_layout
-
-\begin_layout Standard
-\begin_inset Formula 
-\[
-\mathit{Tuple}=(\tau_{1},...,\tau_{i},...,\tau_{k}),\,\forall\,i\,\in[1,k]\,|\,\tau_{i}\in\mathit{FortranType}
-\]
-
-\end_inset
-
-
-\end_layout
-
-\begin_layout Standard
-\begin_inset Note Note
-status open
-
-\begin_layout Plain Layout
-In the equations below, the subscript 
-\emph on
-c
-\emph default
- (
-\begin_inset Quotes eld
-\end_inset
-
-caller
-\begin_inset Quotes erd
-\end_inset
-
-) is used for the variables declared in the caller of a subroutine and 
-\emph on
-l
-\emph default
- (
-\begin_inset Quotes eld
-\end_inset
-
-local
-\begin_inset Quotes erd
-\end_inset
-
-) for the variables declared by in subroutine.
+Expressions can consist of constants, variables, operators and calls to
+ intrinsic functions.
+ With the transformation outlined above, expressions can always be rewritten
+ so that they do not contain external function calls.
  
 \end_layout
+
+\begin_layout Itemize
+Operators +,-,* and / all have the type 
+\begin_inset Formula $Num\,a\Rightarrow a\rightarrow a\rightarrow a$
+\end_inset
+
+, which means that given that 
+\emph on
+a
+\emph default
+ is an element of 
+\emph on
+Num
+\emph default
+ (see XXX) then the operator takes two arguments of type 
+\emph on
+a
+\emph default
+ and returns an argument of type 
+\emph on
+a
+\emph default
+.
+ As with the assignment, the implicit type coercion performed by the operators
+ is replaced by an explicit conversion according to the rules in Tables
+ 2 and 3 in the f77 specification.
+\end_layout
+
+\begin_layout Itemize
+The operator (**) has the same signature except when the exponent is an
+ integer, in that case we have 
+\begin_inset Formula $Kind\,k,\,Num\,a\Rightarrow a\rightarrow Scalar\,Integer\,k\rightarrow a$
+\end_inset
+
+ .
+\end_layout
+
+\begin_layout Itemize
+Comparison operations .lt., .le.,.eq.,.ne.,.gt.,.ge.
+ are all of type 
+\begin_inset Formula $Num\,a\Rightarrow a\rightarrow a\rightarrow Bool$
+\end_inset
+
+,
+\end_layout
+
+\begin_layout Itemize
+For the typechecking of intrinsic functions, we refer to Table 5 in the
+ f77 specification.
+ Intrinsics are either of type
+\end_layout
+
+\begin_deeper
+\begin_layout Itemize
+\begin_inset Formula $Num\,a\Rightarrow a\rightarrow a\rightarrow a$
+\end_inset
+
+ 
+\begin_inset Newline newline
+\end_inset
+
+except 
+\begin_inset Formula $imag:Kind\,k\Rightarrow Scalar\,Complex\,k\rightarrow\rightarrow Scalar\,Real\,k$
+\end_inset
+
+ o
+\end_layout
+
+\begin_layout Itemize
+\begin_inset Formula $Num\,a\Rightarrow a\rightarrow a\rightarrow a$
+\end_inset
+
+ except 
+\begin_inset Newline newline
+\end_inset
+
+
+\begin_inset Formula $dprod:Scalar\,Real\,4\rightarrow Scalar\,Real\,4\rightarrow Scalar\,Real\,8$
+\end_inset
+
+ 
+\begin_inset Newline newline
+\end_inset
+
+
+\begin_inset Formula $amin0:Scalar\,Integer\,4\rightarrow Scalar\,Integer\,4\rightarrow Scalar\,Real\,4$
+\end_inset
+
+
+\begin_inset Newline newline
+\end_inset
+
+
+\begin_inset Formula $min1:Scalar\,Real\,4\rightarrow Scalar\,Real\,4\rightarrow Scalar\,Integer\,4$
+\end_inset
+
+
+\end_layout
+
+\end_deeper
+\begin_layout Standard
+The expression forms a tree and type checking is performed via recursive
+ descent, for example for the + operator:
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\[
+\frac{Num\,a\;\;\;\Gamma\vdash e_{1}:a\;\;\;\Gamma\vdash e_{2}:a}{\Gamma\vdash e_{1}+e_{2}:\,a}
+\]
 
 \end_inset
 
