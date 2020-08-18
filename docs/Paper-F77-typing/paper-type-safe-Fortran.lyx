@@ -248,7 +248,7 @@ see earlier paper, be nice to CamFort
 \end_layout
 
 \begin_layout Section
-Preliminaries
+On the type safety of Fortran
 \end_layout
 
 \begin_layout Subsection
@@ -661,7 +661,7 @@ The type
 \end_layout
 
 \begin_layout Subsection
-How type-safe is FORTRAN 77?
+Formalising the FORTRAN 77 type system 
 \end_layout
 
 \begin_layout Standard
@@ -1180,6 +1180,10 @@ Scalar =
 , and we denote an element of this set as 
 \emph on
 Scalar t k
+\emph default
+ or for brevity as 
+\emph on
+t*k
 \end_layout
 
 \begin_layout Plain Layout
@@ -1232,7 +1236,7 @@ FortranType =
 
 \begin_layout Plain Layout
 Tuple = 
-\begin_inset Formula $(\tau_{1},...,\tau_{i},...,\tau_{k}),\,\forall\,i\,\in[1,k]\,|\,\tau_{i}\in\mathit{FortranType}$
+\begin_inset Formula $\tau\times...\times\tau_{i}\times...\times\tau_{k}),\,\forall\,i\,\in[1,k]\,|\,\tau_{i}\in\mathit{FortranType}$
 \end_inset
 
  and we'll write 
@@ -1268,6 +1272,29 @@ name "alg:The-FORTRAN-77"
 \begin_layout Plain Layout
 
 \end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+With the organisation in Alg XXX, the general form a type 
+\begin_inset Formula $\tau$
+\end_inset
+
+ in Fortran 77 is given as
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\begin{eqnarray*}
+\tau & ::=\\
+ & FortranType & \textrm{primitive\,type}\\
+| & Tuple\\
+| & Tuple\rightarrow Tuple & \textrm{function\,type}\\
+| & a & \textrm{type\,variable}
+\end{eqnarray*}
 
 \end_inset
 
@@ -2114,13 +2141,6 @@ e
 
 \end_layout
 
-\begin_layout Standard
-Note that we are more strict than the Fortran specification, because we
- require the left-hand side and the right-hand side to be of the same type.
- This means that the implicit type coercions are made explicit following
- the rules form from Table 4 in the f77 specification.
-\end_layout
-
 \begin_layout Subsubsection
 Expressions
 \end_layout
@@ -2135,7 +2155,11 @@ Expressions can consist of constants, variables, operators and calls to
 
 \begin_layout Itemize
 Operators +,-,* and / all have the type 
-\begin_inset Formula $Num\,a\Rightarrow a\rightarrow a\rightarrow a$
+\begin_inset Formula 
+\[
+Num\,a\Rightarrow a\rightarrow a\rightarrow a
+\]
+
 \end_inset
 
 , which means that given that 
@@ -2146,7 +2170,7 @@ a
 \emph on
 Num
 \emph default
- (see XXX) then the operator takes two arguments of type 
+ (see Alg XXX) then the operator takes two arguments of type 
 \emph on
 a
 \emph default
@@ -2155,20 +2179,34 @@ a
 a
 \emph default
 .
- As with the assignment, the implicit type coercion performed by the operators
- is replaced by an explicit conversion according to the rules in Tables
- 2 and 3 in the f77 specification.
+ 
 \end_layout
 
 \begin_layout Itemize
-The operator (**) has the same signature except when the exponent is an
- integer, in that case we have 
-\begin_inset Formula $Kind\,k,\,Num\,a\Rightarrow a\rightarrow Scalar\,Integer\,k\rightarrow a$
+The operator (**) also has the type 
+\begin_inset Formula 
+\[
+Num\,a\Rightarrow a\rightarrow a\rightarrow a
+\]
+
 \end_inset
 
- .
+except when the exponent is an integer, in that case we have: 
 \end_layout
 
+\begin_deeper
+\begin_layout Standard
+\begin_inset Formula 
+\[
+\mathit{Kind}\,k,\,\mathit{Num}\,a\Rightarrow a\rightarrow\mathit{Integer}*k\rightarrow a
+\]
+
+\end_inset
+
+
+\end_layout
+
+\end_deeper
 \begin_layout Itemize
 Comparison operations .lt., .le.,.eq.,.ne.,.gt.,.ge.
  are all of type 
@@ -2179,14 +2217,14 @@ Comparison operations .lt., .le.,.eq.,.ne.,.gt.,.ge.
 \end_layout
 
 \begin_layout Itemize
-For the typechecking of intrinsic functions, we refer to Table 5 in the
- f77 specification.
+For the types of intrinsic functions, we refer to Table 5 in the f77 specificati
+on.
  Intrinsics are either of type
 \end_layout
 
 \begin_deeper
 \begin_layout Itemize
-\begin_inset Formula $Num\,a\Rightarrow a\rightarrow a\rightarrow a$
+\begin_inset Formula $Num\,a\Rightarrow a\rightarrow a$
 \end_inset
 
  
@@ -2194,30 +2232,50 @@ For the typechecking of intrinsic functions, we refer to Table 5 in the
 \end_inset
 
 except 
-\begin_inset Formula $imag:Kind\,k\Rightarrow Scalar\,Complex\,k\rightarrow\rightarrow Scalar\,Real\,k$
-\end_inset
-
- o
-\end_layout
-
-\begin_layout Itemize
-\begin_inset Formula $Num\,a\Rightarrow a\rightarrow a\rightarrow a$
-\end_inset
-
- except 
 \begin_inset Newline newline
 \end_inset
 
 
-\begin_inset Formula $dprod:Scalar\,Real\,4\rightarrow Scalar\,Real\,4\rightarrow Scalar\,Real\,8$
+\begin_inset Formula $\mathtt{imag}:\mathit{Kind}\,k\Rightarrow\mathit{Complex}*k\rightarrow\mathit{Real}*k$
+\end_inset
+
+ 
+\end_layout
+
+\begin_layout Itemize
+\begin_inset Formula $\mathit{Num}\,a\Rightarrow a\rightarrow a\rightarrow a$
 \end_inset
 
  
 \begin_inset Newline newline
 \end_inset
 
+except 
+\begin_inset Newline newline
+\end_inset
 
-\begin_inset Formula $amin0:Scalar\,Integer\,4\rightarrow Scalar\,Integer\,4\rightarrow Scalar\,Real\,4$
+
+\begin_inset Formula $\mathtt{dprod}:\mathit{Real}*4\rightarrow\mathit{Real}*4\rightarrow\mathit{Real}*8$
+\end_inset
+
+ 
+\end_layout
+
+\begin_layout Itemize
+For min, max: 
+\begin_inset Formula $\mathit{Num}\,a\Rightarrow Tuple\,a\rightarrow a$
+\end_inset
+
+ 
+\begin_inset Newline newline
+\end_inset
+
+except
+\begin_inset Newline newline
+\end_inset
+
+
+\begin_inset Formula $\mathtt{amin0,amax0}:\mathit{Tuple\,Integer}*4\rightarrow\mathit{Real}*4$
 \end_inset
 
 
@@ -2225,7 +2283,7 @@ except
 \end_inset
 
 
-\begin_inset Formula $min1:Scalar\,Real\,4\rightarrow Scalar\,Real\,4\rightarrow Scalar\,Integer\,4$
+\begin_inset Formula $\mathtt{min1,max1}:\mathit{Tuple\,Real}*4\rightarrow\mathit{Integer}*4$
 \end_inset
 
 
@@ -2233,19 +2291,215 @@ except
 
 \end_deeper
 \begin_layout Standard
-The expression forms a tree and type checking is performed via recursive
- descent, for example for the + operator:
+The expression forms a tree of applications of either operators or intrinsic
+ functions, with the leaves being constants or variables.
+ Type checking is performed via recursive descent, for example for the +
+ operator:
 \end_layout
 
 \begin_layout Standard
 \begin_inset Formula 
 \[
-\frac{Num\,a\;\;\;\Gamma\vdash e_{1}:a\;\;\;\Gamma\vdash e_{2}:a}{\Gamma\vdash e_{1}+e_{2}:\,a}
+\frac{Num\,a\;\;\;\Gamma\vdash e_{1}:a\;\;\;\Gamma\vdash e_{2}:a\;\;\;(+):a\rightarrow a\rightarrow a}{\Gamma\vdash e_{1}+e_{2}:\,a}
 \]
 
 \end_inset
 
 
+\end_layout
+
+\begin_layout Subsubsection
+Explicit type conversions
+\end_layout
+
+\begin_layout Standard
+The f77 specification defines specific intrinsic functions 
+\family typewriter
+int
+\family default
+, 
+\family typewriter
+real
+\family default
+, 
+\family typewriter
+dble
+\family default
+ and 
+\family typewriter
+cmplx
+\family default
+ for the purpose of type conversion (Table 5), and the Fortran 90 specification
+ extends these to include the 
+\emph on
+kind
+\emph default
+ (thereby making 
+\family typewriter
+dble
+\family default
+ redundant).
+ Their signatures are respectively
+\begin_inset Foot
+status open
+
+\begin_layout Plain Layout
+The actual signature for 
+\family typewriter
+cmplx
+\family default
+ is more complicated because it can be used to construct a complex number
+ from two reals, but for the purpose of type conversion, the presented signature
+ suffices.
+\end_layout
+
+\end_inset
+
+:
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\begin{align*}
+\mathtt{int} & :Num\,a,Kind\,k\Rightarrow a\rightarrow k\rightarrow Integer*k\\
+\mathtt{real} & :Num\,a,Kind\,k\Rightarrow a\rightarrow k\rightarrow Real*k\\
+\mathtt{cmplx} & :Num\,a,Kind\,k\Rightarrow a\rightarrow k\rightarrow Complex*k
+\end{align*}
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+For the type checking of assignments, operators and intrinsics, the implicit
+ type coercion is replaced by an explicit conversion according to the rules
+ in Tables 2 and 3 and 4 in the f77 specification.
+ This is done as follows:
+\end_layout
+
+\begin_layout Enumerate
+Identify the types of the arguments 
+\end_layout
+
+\begin_layout Enumerate
+Identify the type of the operator or intrinsic.
+ 
+\end_layout
+
+\begin_deeper
+\begin_layout Enumerate
+If the types are not Num a or the number of arguments is incorrect, throw
+ a type error 
+\end_layout
+
+\begin_layout Enumerate
+If the types match, return the type of the applied operator or intrinsic
+\end_layout
+
+\begin_layout Enumerate
+If the types don't match, insert type conversion intrinsic according to
+ the f90 specification
+\begin_inset Foot
+status open
+
+\begin_layout Plain Layout
+A special case is the type of 
+\family typewriter
+min
+\family default
+ and 
+\family typewriter
+max
+\family default
+: if due to a type constraint it appears that the types are these of 
+\family typewriter
+amin0
+\family default
+, 
+\family typewriter
+amax0
+\family default
+, 
+\family typewriter
+min1
+\family default
+ or 
+\family typewriter
+max1
+\family default
+, then rather than performing an explicit type conversion, we replace the
+ generic call with the specific call.
+ Thus, suppose we have 
+\family typewriter
+min(x,y,z)
+\family default
+ with 
+\family roman
+\series medium
+\shape up
+\size normal
+\emph off
+\bar no
+\strikeout off
+\xout off
+\uuline off
+\uwave off
+\noun off
+\color none
+
+\begin_inset Formula $min:Tuple\,Integer*4\rightarrow Real*4$
+\end_inset
+
+ then instead of 
+\family typewriter
+\series default
+\shape default
+\emph default
+\bar default
+\strikeout default
+\xout default
+\uuline default
+\uwave default
+\noun default
+\color inherit
+real(min(x,y,z),4)
+\family roman
+\series medium
+\shape up
+\emph off
+\bar no
+\strikeout off
+\xout off
+\uuline off
+\uwave off
+\noun off
+\color none
+ we write 
+\family typewriter
+\series default
+\shape default
+\emph default
+\bar default
+\strikeout default
+\xout default
+\uuline default
+\uwave default
+\noun default
+\color inherit
+amin0(x,y,z)
+\family default
+ and similar.
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\end_deeper
+\begin_layout Section
+Program transformations for type safety
 \end_layout
 
 \begin_layout Subsection
