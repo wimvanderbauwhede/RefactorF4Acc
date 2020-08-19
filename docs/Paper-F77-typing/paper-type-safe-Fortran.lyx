@@ -130,7 +130,7 @@ literal "true"
 \end_inset
 
 , 68% of the utlisation of the K computer (one of the largest supercomputers
- in the world) in 2014 was Fortran (using invovations of the compiler as
+ in the world) in 2014 was Fortran (using invocations of the compiler as
  a proxy).
  The montly usage statistics of Archer, the largest supercomputer in the
  UK 
@@ -396,6 +396,10 @@ pure function
 The case for type safety
 \end_layout
 
+\begin_layout Subsubsection
+What is type safety
+\end_layout
+
 \begin_layout Standard
 In his paper, 
 \begin_inset Quotes eld
@@ -452,6 +456,10 @@ if it only accepts correctly typed programs.
  
 \end_layout
 
+\begin_layout Subsubsection
+Type safety in Fortran
+\end_layout
+
 \begin_layout Standard
 In the context of Fortran, the type system as specified in 
 \begin_inset Quotes eld
@@ -480,32 +488,37 @@ f77 specification
 , is not type-safe.
  It is possible to write programs which the type checker accepts but are
  nonetheless incorrect.
- The key culprit for this is the type erasure which happens when data is
- handled via COMMON or EQUIVALENCE.
- The subset of Fortran 90 which we target in this paper, and which we can
- loosely define as FORTRAN 77 without COMMON or EQUIVALENCE statements,
- with pure functions and referential transparency, and using Fortran 90
- style type declarations, is type safe and well typed programs in this subset
- will not go wrong if they are accepted by the type checker.
+ The key culprit for this is the loss of type information which occurs when
+ data is handled via COMMON blocks or EQUIVALENCE statements.
  
 \end_layout
 
 \begin_layout Standard
-Therefore, if we can extended the FORTRAN 77 type system to be type-safe,
- then programs accepted by the extended type checker are well typed.
- If these programs are
-\end_layout
-
-\begin_layout Standard
-automatically converted into code written in this Fortran 90 subset, then
- an ordinary Fortran compiler can be used as the type checker with all type-base
-d warnings turned into errors, and the code will type check cleanly.
+However, we present in this paper a source-to-source compiler which can
+ automatically rewrite FORTRAN 77 programs into Fortran 90 so as to remove
+ all COMMON and EQUIVALENCE statements, provide full referential transparency
+ and ensure that all functions marked for offloading to accelerators are
+ pure.
  
 \end_layout
 
 \begin_layout Standard
-This paper presents such an extended type system and type checks as well
- as the algorithms required to convert FORTRAN 77 into type-safe Fortran
+We further show that with a small number of additional restrictions, the
+ resulting code is type safe when type checked against the type system which
+ we present and well typed programs adhering to these restrictions will
+ not go wrong if they are accepted by the type checker.
+ What this means is that, if an original FORTRAN 77 program is accepted
+ by the type checker of our source-to-source compiler, then the Fortran
+ 90 program which it generates can be type checked with an ordinary Fortran
+ compiler with all type-based warnings turned into errors, and the code
+ will type check cleanly.
+ 
+\end_layout
+
+\begin_layout Standard
+We first present the formal type system and type checks used in our compiler
+ to ensure that a program transformed as described is type safe, and then
+ the algorithms required to transform FORTRAN 77 code into type-safe Fortran
  90.
 \end_layout
 
@@ -518,7 +531,7 @@ see earlier paper, be nice to CamFort
 \end_layout
 
 \begin_layout Section
-On the type safety of Fortran
+Formal analysis of the type safety of Fortran
 \end_layout
 
 \begin_layout Subsection
@@ -533,13 +546,13 @@ name "subsec:Type-systems-concepts"
 \end_layout
 
 \begin_layout Standard
-A type is a formal mechanism to provide information about the expected form
- of the result of a computation.
- More precisely, 
-\end_layout
-
-\begin_layout Standard
-if 
+A 
+\emph on
+type
+\emph default
+ is a formal mechanism to provide information about the expected form of
+ the result of a computation.
+ More precisely, if 
 \emph on
 e
 \emph default
@@ -558,11 +571,19 @@ e
 \emph default
  is evaluated, its value will be an integer.
  Such an assertion is called a typing judgment.
- For such a typing judegement to be meaningful, e must be well typed.
+ For such a typing judgement to be meaningful, 
+\begin_inset Formula $e$
+\end_inset
+
+ must be well typed.
  For any expression this means that it must be internally consistent as
  well as consistent with its context, i.e.
- if it contains free variables, they must be declared with the right type
- in the context of the code unit.
+ if the expression 
+\begin_inset Formula $e$
+\end_inset
+
+ contains free variables, they must be declared with the right type in the
+ context of the code unit.
  We will use the terms 
 \emph on
 type statement
@@ -576,8 +597,8 @@ type declaration
 \end_layout
 
 \begin_layout Standard
-We will use set theory to construct the sets of valid types for FORTRAN
- 77, and the standard notation for typing rules as used for example in 
+We use set theory to construct the sets of valid types for FORTRAN 77, and
+ the standard notation for typing rules as used for example in 
 \begin_inset CommandInset citation
 LatexCommand cite
 key "pierce2002types"
@@ -585,12 +606,7 @@ literal "false"
 
 \end_inset
 
-.
- 
-\end_layout
-
-\begin_layout Standard
-In summary:
+, which can be summarised as: 
 \end_layout
 
 \begin_layout Itemize
@@ -771,10 +787,18 @@ name "subsec:The-definition-of"
 \end_layout
 
 \begin_layout Standard
-In the context of Fortran, we can without loss of generality assume that
- a function takes as a single argument a tuple of expressions, and returns
- a tuple of expressions.
- Let 
+If a function is pure, then it must return a least one datum as a result,
+ because otherwise it means it did not compute anything and can be removed
+ as dead code.
+ Furthermore, a pure function without input arguments is effectively a constant,
+ so we can also assume that the there is at least a single input variable.
+ Therefore, we can without loss of generality assume that a function takes
+ as a single argument a tuple of expressions, and returns a tuple of expressions.
+ 
+\end_layout
+
+\begin_layout Standard
+Let 
 \begin_inset Formula $\Gamma$
 \end_inset
 
@@ -949,7 +973,7 @@ regardless of the rest of the content of
 \end_inset
 
 .
- We will see in Section XXX and following how any Fortran subroutine can
+ We will see in Section XXX and following how any Fortran procedure can
  be transformed into a pure function.
 \end_layout
 
@@ -988,22 +1012,46 @@ Formalising the FORTRAN 77 type system
 
 \begin_layout Standard
 We start by considering a FORTRAN 77 program that consists of pure functions
- or subroutines (see below for a formal definition) and where all variables,
- parameters and functions are explicitly typed.
+ (see Section 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "subsec:The-definition-of"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+ for a formal definition) and where all variables, parameters and functions
+ are explicitly typed.
  We will see later how to achieve fully explicity typing and under which
- conditions a subroutine or function can be made pure.
+ conditions a procedure can be made pure.
  
+\begin_inset Note Note
+status open
+
+\begin_layout Plain Layout
+XXX 
+\begin_inset Quotes eld
+\end_inset
+
+later
+\begin_inset Quotes erd
+\end_inset
+
+ XXX
+\end_layout
+
+\end_inset
+
+
 \end_layout
 
 \begin_layout Standard
 According to §4.1 
-\begin_inset Quotes eld
-\end_inset
-
+\emph on
 Data Types
-\begin_inset Quotes erd
-\end_inset
-
+\emph default
  of the f77 specification, the six types of data are:
 \end_layout
 
@@ -1038,17 +1086,13 @@ storage units
 \emph default
 .
  According to §2.13 
-\begin_inset Quotes eld
-\end_inset
-
+\emph on
 Storage
-\begin_inset Quotes erd
-\end_inset
+\emph default
+: 
+\end_layout
 
-, 
-\begin_inset Quotes eld
-\end_inset
-
+\begin_layout Quote
 A storage unit is either a numeric storage unit or a character storage unit.
  An integer, real, or logical datum has one numeric storage unit in a storage
  sequence.
@@ -1060,10 +1104,10 @@ A storage unit is either a numeric storage unit or a character storage unit.
  unit and a character storage unit.
  If a datum requires more than one storage unit in a storage sequence, those
  storage units are consecutive.
-\begin_inset Quotes erd
-\end_inset
+\end_layout
 
-
+\begin_layout Standard
+Thus
 \end_layout
 
 \begin_layout Itemize
@@ -1076,7 +1120,11 @@ A
 double precision
 \emph default
  datum has two consecutive numeric storage units in a storage sequence (§4.5
- Double Precision Type).
+ 
+\emph on
+Double Precision Type
+\emph default
+).
 \end_layout
 
 \begin_layout Itemize
@@ -1092,7 +1140,11 @@ complex
  Each part has the same degree of approximation as for a real datum.
  A complex datum has two consecutive numeric storage units in a storage
  sequence; the first storage unit is the real part and the second storage
- unit is the imaginary part (§4.6 Complex Type).
+ unit is the imaginary part (§4.6 
+\emph on
+Complex Type
+\emph default
+).
 \end_layout
 
 \begin_layout Standard
@@ -1112,6 +1164,7 @@ status open
 \end_layout
 
 \begin_layout Plain Layout
+\align center
 \begin_inset Tabular
 <lyxtabular version="3" rows="8" columns="3">
 <features tabularvalignment="middle">
@@ -1387,13 +1440,26 @@ name "tab:Relationship-between-storage"
 
 \begin_layout Standard
 Various extensions exists such as Byte, Double complex etc.
- Technically, the use of Kinds in type declarations (e.g.
+ Technically, the use of 
+\emph on
+kinds
+\emph default
+ in type declarations (e.g.
  integer*8) is not part of the f77 specification.
  It is however widely used and supported by all current Fortran compilers,
  specifically the open source GNU Fortran compiler g77.
  In this paper we effectively consider FORTRAN 77 to be defined by the f77
- specification combined with the g77 extensions https://gcc.gnu.org/onlinedocs/gcc
--3.4.6/g77/Language.html.
+ specification combined with the g77 extensions
+\begin_inset Foot
+status open
+
+\begin_layout Plain Layout
+https://gcc.gnu.org/onlinedocs/gcc-3.4.6/g77/Language.html
+\end_layout
+
+\end_inset
+
+.
  
 \end_layout
 
@@ -1408,45 +1474,24 @@ noprefix "false"
 
 \end_inset
 
- and define the scalar types as (Typename, Kind) tuples.
+ and define the scalar types as 
+\emph on
+(Typename, Kind)
+\emph default
+ tuples.
  Moreover, we define a character storage unit as 1 byte.
  This allows us the simplify the types to integer, real, complex and logical,
  because we can define a double precision as (real,8) and a character as
  (integer,1).
-\end_layout
-
-\begin_layout Standard
-\begin_inset Note Note
-status collapsed
-
-\begin_layout Plain Layout
-Double precision: (real,8)
-\end_layout
-
-\begin_layout Plain Layout
-Complex: ((real,4),(real,4)) – not sure!
-\end_layout
-
-\begin_layout Plain Layout
-Double Complex ((real,8),(real,8)) – not sure!
-\end_layout
-
-\begin_layout Plain Layout
-Character: (integer,1)
-\end_layout
-
-\end_inset
-
-
-\end_layout
-
-\begin_layout Standard
-For the rest of the discussion we will treat the character type as an integer
+ For the rest of the discussion we will treat the character type as an integer
  with a kind of 1 and a character string as an array of characters.
+ We will not discuss any special cases for characters because it would needlessl
+y complicate the discussion without adding anything material in terms of
+ the type system.
 \end_layout
 
 \begin_layout Subsubsection
-The FORTRAN 77 type system
+The form of a FORTRAN 77 type 
 \end_layout
 
 \begin_layout Standard
@@ -1578,10 +1623,6 @@ Tuple t
 \end_layout
 
 \begin_layout Standard
-
-\end_layout
-
-\begin_layout Standard
 With the organisation in Alg 
 \begin_inset CommandInset ref
 LatexCommand ref
@@ -1601,13 +1642,13 @@ noprefix "false"
 
 \begin_layout Standard
 \begin_inset Formula 
-\begin{eqnarray*}
+\begin{eqnarray}
 \tau & ::=\\
- & FortranType & \textrm{primitive\,type}\\
-| & Tuple\\
-| & Tuple\rightarrow Tuple & \textrm{function\,type}\\
-| & a & \textrm{type\,variable}
-\end{eqnarray*}
+ & FortranType & \textrm{primitive\,type}\nonumber \\
+| & Tuple\nonumber \\
+| & Tuple\rightarrow Tuple & \textrm{function\,type}\nonumber \\
+| & a & \textrm{type\,variable}\nonumber 
+\end{eqnarray}
 
 \end_inset
 
@@ -1615,31 +1656,39 @@ noprefix "false"
 \end_layout
 
 \begin_layout Standard
-To investigate the type safety, we need to consider the typing rules for
-\end_layout
-
-\begin_layout Itemize
-constants
-\end_layout
-
-\begin_layout Itemize
-scalar and array declarations and accesses
-\end_layout
-
-\begin_layout Itemize
-function and subroutine declarations and applications
-\end_layout
-
-\begin_layout Itemize
-expressions
-\end_layout
-
-\begin_layout Itemize
-assignments
+The type variables arise a result of the polymorphism of the arithmetic
+ and relational operators, as well as of some intrinsic functions.
+ 
 \end_layout
 
 \begin_layout Standard
-Furthermore, we need to consider specifically how Fortran handles subtypes.
+To investigate the type safety of this type system, we need to consider
+ the typing rules for
+\end_layout
+
+\begin_layout Itemize
+Constants
+\end_layout
+
+\begin_layout Itemize
+Scalar and array declarations and accesses
+\end_layout
+
+\begin_layout Itemize
+Function and subroutine declarations and applications
+\end_layout
+
+\begin_layout Itemize
+Expressions
+\end_layout
+
+\begin_layout Itemize
+Assignments
+\end_layout
+
+\begin_layout Standard
+Furthermore, we need to consider specifically how Fortran handles subtypes,
+ which arise in the context of type conversion (coercion).
 \end_layout
 
 \begin_layout Subsubsection
@@ -1647,8 +1696,11 @@ Constants
 \end_layout
 
 \begin_layout Standard
-The forms of numeric constants are described in words in §4 of the f77 specifica
-tion.
+The forms of numeric constants are described in words in §4 
+\emph on
+Data Types and Constants
+\emph default
+ of the f77 specification.
  Using Extended Backus-Naur Form
 \begin_inset Foot
 status open
@@ -2084,8 +2136,13 @@ DimSlice
 b,e,s
 \emph default
  of the slice must be constant.
- If so, we can determin the size of the slice and thus check that the new
+ If so, we can determine the size of the slice and thus check that the new
  type is correct given the context.
+ In practice, our compiler performs aggressive linear constant folding,
+ which means that an linear expression with constants as leaf nodes will
+ be reduced to a constant.
+ If it is not possible to determine the size of the slice, the compiler
+ will issue a type error, which can be relaxed to warning.
  
 \end_layout
 
@@ -2116,7 +2173,23 @@ b = a(2, k)
 \end_layout
 
 \begin_layout Standard
-The array b will contain the values a(2,1),a(2,5) and a(2,2) in that order.
+The array 
+\emph on
+b
+\emph default
+ will contain the values from 
+\emph on
+a(2,1)
+\emph default
+, 
+\emph on
+a(2,5)
+\emph default
+ and 
+\emph on
+a(2,2)
+\emph default
+ in that order.
 \end_layout
 
 \begin_layout Standard
@@ -2129,6 +2202,9 @@ DimSlice
  Thus the requirement for type safety is the same (the size of the array),
  and the criterion for the array to be valid for indexing is that all elements
  must be in the valid index range for the given array index.
+ If it is not possible to determine the size of the array, the compiler
+ will issue a type error, which can be relaxed to warning.
+ 
 \end_layout
 
 \begin_layout Paragraph
@@ -2650,7 +2726,7 @@ is a subtype of a type
  .
  
 \begin_inset Note Note
-status open
+status collapsed
 
 \begin_layout Plain Layout
 To include the case where 
@@ -2692,8 +2768,15 @@ t*k1<:t*k2 & , & k1,k2\in Kind,t\in NumType
 \end_layout
 
 \begin_layout Standard
-Therefore we can write the type conversion rules from Table 2 of the f77
- specification formally as
+Therefore we can write the type conversion rules from Table 2 
+\emph on
+Type and Interpretation of Result for 
+\begin_inset Formula $x_{1}+x_{2}$
+\end_inset
+
+
+\emph default
+ of the f77 specification formally as
 \end_layout
 
 \begin_layout Standard
@@ -2712,7 +2795,11 @@ Therefore we can write the type conversion rules from Table 2 of the f77
 \end_layout
 
 \begin_layout Standard
-with op=+,-,*,/ or ** 
+with 
+\emph on
+op
+\emph default
+ = +,-,*,/ or ** 
 \begin_inset Foot
 status collapsed
 
@@ -2766,7 +2853,11 @@ If the types of the arguments are such that
 
 \begin_layout Standard
 As for the relational operators .lt., .le.,.eq.,.ne.,.gt.,.ge.
- , according to the f77 specification §6.3.3:
+ , according to the f77 specification §6.3.3 
+\emph on
+Interpretation of Arithmetic Relational Expressions
+\emph default
+:
 \end_layout
 
 \begin_layout Quote
@@ -3062,133 +3153,41 @@ i2 = int(i1+r1,4)
 end program unsafeCoercion
 \end_layout
 
+\begin_layout Subsection
+Conclusions regarding the type safety of the Fortran type system
+\end_layout
+
 \begin_layout Standard
-For the type checking of assignments and operators, the implicit type coercion
- is replaced by an explicit conversion according to the rules in Tables
- 2 and 3 and 4 in the f77 specification.
- This is done as follows:
-\end_layout
-
-\begin_layout Enumerate
-Identify the types of the arguments 
-\end_layout
-
-\begin_layout Enumerate
-Identify the type of the operator or intrinsic.
+Based on the above analysis, we have identified three causes for potential
+ unsafe behaviour in FORTRAN 77 programs that are explicitly typed and consist
+ of pure functions: array slicing and array indexing using arrays, and unsafe
+ type coercions.
  
 \end_layout
 
-\begin_deeper
-\begin_layout Enumerate
-If the types are not Num a or the number of arguments is incorrect, throw
- a type error 
+\begin_layout Standard
+For the array operations, current compilers guarantee type safety if the
+ slice indices or the array used as index are constant, and also if the
+ array used for indexing is of the wrong rank.
+ However, if the indices are non-constant expressions, potentially unsafe
+ programs pass without warning or error.
+ Our compiler will try more aggresively to determine the slice or array
+ size and will issue a type error, which can be relaxed to warning, rather
+ than ignoring the potential unsafe behaviour.
 \end_layout
 
-\begin_layout Enumerate
-If the types match, return the type of the applied operator or intrinsic
+\begin_layout Standard
+Unsafe type coercions are recognised by current compilers, and can result
+ in warnings or errors if enables.
+ Our compiler follows this convention.
+ 
 \end_layout
 
-\begin_layout Enumerate
-If the types don't match, insert type conversion intrinsic according to
- the f90 specification
-\begin_inset Foot
-status open
-
-\begin_layout Plain Layout
-A special case is the type of 
-\family typewriter
-min
-\family default
- and 
-\family typewriter
-max
-\family default
-: if due to a type constraint it appears that the types are these of 
-\family typewriter
-amin0
-\family default
-, 
-\family typewriter
-amax0
-\family default
-, 
-\family typewriter
-min1
-\family default
- or 
-\family typewriter
-max1
-\family default
-, then rather than performing an explicit type conversion, we replace the
- generic call with the specific call.
- Thus, suppose we have 
-\family typewriter
-min(x,y,z)
-\family default
- with 
-\family roman
-\series medium
-\shape up
-\size normal
-\emph off
-\bar no
-\strikeout off
-\xout off
-\uuline off
-\uwave off
-\noun off
-\color none
-
-\begin_inset Formula $min:Tuple\,Integer*4\rightarrow Real*4$
-\end_inset
-
- then instead of 
-\family typewriter
-\series default
-\shape default
-\emph default
-\bar default
-\strikeout default
-\xout default
-\uuline default
-\uwave default
-\noun default
-\color inherit
-real(min(x,y,z),4)
-\family roman
-\series medium
-\shape up
-\emph off
-\bar no
-\strikeout off
-\xout off
-\uuline off
-\uwave off
-\noun off
-\color none
- we write 
-\family typewriter
-\series default
-\shape default
-\emph default
-\bar default
-\strikeout default
-\xout default
-\uuline default
-\uwave default
-\noun default
-\color inherit
-amin0(x,y,z)
-\family default
- and similar.
+\begin_layout Standard
+In the next sections we discuss the transformations required to ensure that
+ the resulting programs are explicitly typed and consist of pure functions.
 \end_layout
 
-\end_inset
-
-
-\end_layout
-
-\end_deeper
 \begin_layout Section
 Program transformations for type safety
 \end_layout
@@ -3218,7 +3217,9 @@ every read is from the In argument, every write is to the Out argument
 Thus,
 \end_layout
 
-\begin_layout Case
+\begin_layout Standard
+
+\family typewriter
 subroutine 
 \begin_inset Formula $f(a_{1},...,a_{i},...,a_{n})$
 \end_inset
@@ -3226,7 +3227,9 @@ subroutine
 
 \end_layout
 
-\begin_layout Case
+\begin_layout Standard
+
+\family typewriter
 \begin_inset Formula $\tau_{i},$
 \end_inset
 
@@ -3237,16 +3240,27 @@ intent(InOut)
 
 \end_layout
 
-\begin_layout Case
+\begin_layout Standard
+
+\family typewriter
 \begin_inset Formula $(...,a_{i},...,...,l_{i},...)=exp(...,a_{i},...,...,l_{i},...)$
 \end_inset
 
 
 \end_layout
 
-\begin_layout Case
+\begin_layout Standard
+
+\family typewriter
 end subroutine 
 \begin_inset Formula $f$
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset space ~
 \end_inset
 
 
@@ -3256,7 +3270,9 @@ end subroutine
 becomes
 \end_layout
 
-\begin_layout Case
+\begin_layout Standard
+
+\family typewriter
 subroutine 
 \begin_inset Formula $f'(a_{1},...,a_{i,in},a_{i,out},...,a_{n})$
 \end_inset
@@ -3264,7 +3280,9 @@ subroutine
 
 \end_layout
 
-\begin_layout Case
+\begin_layout Standard
+
+\family typewriter
 \begin_inset Formula $\tau_{i},$
 \end_inset
 
@@ -3275,7 +3293,9 @@ intent(In)
 
 \end_layout
 
-\begin_layout Case
+\begin_layout Standard
+
+\family typewriter
 \begin_inset Formula $\tau_{i},$
 \end_inset
 
@@ -3286,37 +3306,54 @@ intent(Out)
 
 \end_layout
 
-\begin_layout Case
+\begin_layout Standard
+
+\family typewriter
 \begin_inset Formula $\tau_{i}::a_{i}$
 \end_inset
 
 ! local
 \end_layout
 
-\begin_layout Case
+\begin_layout Standard
+
+\family typewriter
 \begin_inset Formula $a_{i}=a_{i,in}$
 \end_inset
 
 
 \end_layout
 
-\begin_layout Case
+\begin_layout Standard
+
+\family typewriter
 \begin_inset Formula $(...,a_{i},...,...,l_{i},...)=exp(...,a_{i},...,...,l_{i},...))$
 \end_inset
 
 
 \end_layout
 
-\begin_layout Case
+\begin_layout Standard
+
+\family typewriter
 \begin_inset Formula $a_{i,out}=a_{i}$
 \end_inset
 
 
 \end_layout
 
-\begin_layout Case
+\begin_layout Standard
+
+\family typewriter
 end subroutine 
 \begin_inset Formula $f'$
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset space ~
 \end_inset
 
 
@@ -3328,10 +3365,22 @@ Let us denote the transformed argument list as
 a'
 \emph default
 , so 
-\begin_inset Formula $(a_{i}\in a'|\textrm{intent}(a_{i})=\textrm{InOut})=\emptyset$
+\begin_inset Formula 
+\[
+(a_{i}\in a'|\textrm{intent}(a_{i})=\textrm{InOut})=\emptyset
+\]
+
 \end_inset
 
 
+\end_layout
+
+\begin_layout Standard
+In words, 
+\emph on
+a'
+\emph default
+ does no longer contain any element with intent InOut.
 \end_layout
 
 \begin_layout Standard
@@ -3339,34 +3388,51 @@ Given the intent, then we have:
 \end_layout
 
 \begin_layout LyX-Code
-\begin_inset Formula $y=(a_{i}\in a'|\textrm{intent}(a_{i})=\textrm{Out})$
+\begin_inset Formula 
+\[
+y=(a_{i}\in a'|\textrm{intent}(a_{i})=\textrm{Out})
+\]
+
 \end_inset
 
 
 \end_layout
 
 \begin_layout LyX-Code
-\begin_inset Formula $a''=a'\ \backslash\ y$
+\begin_inset Formula 
+\[
+a''=a'\ \backslash\ y
+\]
+
 \end_inset
 
 
 \end_layout
 
 \begin_layout Standard
-The type of 
+In words, 
 \emph on
 y
 \emph default
- is the 
+ is the tuple of all elements from 
 \emph on
-Tuple
+a'
 \emph default
- of the types of all arguments with intent Out.
+ with intent Out and 
+\emph on
+a''
+\emph default
+ is the tuple of all arguments of 
+\emph on
+a'
+\emph default
+ with intent In.
  In this way we have identified the function arguments and the function
  return value and their types.
  So regardless of the subroutine syntax, with this information it is now
  a pure function as far as its arguments are concerned.
- 
+ For an external function, the algoritm is the same but the return value
+ tuple includes the original return value.
 \end_layout
 
 \begin_layout Subsection
@@ -3374,10 +3440,14 @@ Explicit typing
 \end_layout
 
 \begin_layout Standard
-According to §4.1.2 of the f77 specification, in FORTRAN 77 a variable 
-\begin_inset Quotes eld
-\end_inset
+According to §4.1.2 
+\emph on
+Type Rules for Data and Procedure Identifiers
+\emph default
+ of the f77 specification, in FORTRAN 77 a variable 
+\end_layout
 
+\begin_layout Quote
 may have its type specified in a type-statement (8.4) as integer, real, double
  precision, complex, logical, or character.
  In the absence of an explicit declaration in a type-statement, the type
@@ -3385,16 +3455,12 @@ may have its type specified in a type-statement (8.4) as integer, real, double
  A first letter of I, J, K, L, M, or N implies type integer and any other
  letter implies type real, unless an IMPLICIT statement (8.5) is used to
  change the default implied type.
-\begin_inset Quotes erd
-\end_inset
-
- An IMPLICIT statement specifies a type for all variables that begin with
- any letter that appears in the specification.
- 
 \end_layout
 
 \begin_layout Standard
-From a type safety perspective, the problem with this typing discipline
+An IMPLICIT statement specifies a type for all variables that begin with
+ any letter that appears in the specification.
+ From a type safety perspective, the problem with this typing discipline
  is no 
 \emph on
 referential transparency
@@ -3411,7 +3477,7 @@ type-statements
 \begin_inset Quotes erd
 \end_inset
 
- in the F77 spec) for all implicity typed variables.
+ in the f77 specification) for all implicity typed variables.
  
 \end_layout
 
@@ -3420,12 +3486,22 @@ The algorithm for this is straightforward:
 \end_layout
 
 \begin_layout Enumerate
-Parse all IMPLICIT statements and turn them into a lookup table {Char =>
- (Type,ArrayOrScalar,Attribute)}.
- This lookup table is initially populated with the default rule: implicit
- integer (i-n), real (a-h, o-z)
+Parse all IMPLICIT statements and turn them into a lookup table 
+\emph on
+{Char => (Type,ArrayOrScalar,Attribute)}
+\emph default
+.
+ This lookup table is initially populated with the default rule: 
 \end_layout
 
+\begin_deeper
+\begin_layout Standard
+
+\family typewriter
+implicit integer (i-n), real (a-h, o-z)
+\end_layout
+
+\end_deeper
 \begin_layout Enumerate
 Analyse all executable statements for occurences of undeclared variables
  and add declarations following the IMPLICIT rules, i.e
@@ -3459,10 +3535,15 @@ Removal of COMMON blocks
 \end_layout
 
 \begin_layout Standard
-From the spec:
+The f77 specification defines the semantics of the COMMON statement in §8.3
+ 
+\emph on
+COMMON Statement
+\emph default
+:
 \end_layout
 
-\begin_layout Standard
+\begin_layout Quote
 The COMMON statement provides a means of associating entities in different
  program units.
  This allows different program units to define and reference the same data
@@ -3470,26 +3551,73 @@ The COMMON statement provides a means of associating entities in different
 \end_layout
 
 \begin_layout Standard
-(From the F95 spec: "The COMMON statement specifies blocks of physical storage,
- called common blocks, that may be accessed by any of the scoping units
- in a program.
+The f90 specification (§5.5.2 
+\emph on
+COMMON statement
+\emph default
+) has a slightly different wording:
+\end_layout
+
+\begin_layout Quote
+The COMMON statement specifies blocks of physical storage, called common
+ blocks, that may be accessed by any of the scoping units in a program.
  Thus, the COMMON statement provides a global data facility based on storage
  association.
 \end_layout
 
-\begin_layout Standard
+\begin_layout Quote
 Storage sequences are used to describe relationships that exist among variables,
  common blocks, and result variables.
  Storage association is the association of two or more data objects that
  occurs when two or more storage sequences share or are aligned with one
  or more storage units.
- " )
+ 
+\end_layout
+
+\begin_layout Standard
+As explained above, the main reason to remove COMMON blocks is to create
+ pure functions that don't share a memory space with their caller code unit.
+ This is an essential requirement for offloading to accelerators.
+ The main problem with COMMON blocks hoever is that they are not type safe:
+ the f77 specification does not mention any typing rules and in practice,
+ any datum stored in a common block loses all type information.
+ 
+\end_layout
+
+\begin_layout Standard
+The f90 speficiation (§5.5.2.3 
+\emph on
+Common association
+\emph default
+) states that 
+\end_layout
+
+\begin_layout Quote
+A nonpointer object of default integer type, default real type, double precision
+ real type, default complex type, default logical type, or numeric sequence
+ type shall become associated only with nonpointer objects of these types.
+\end_layout
+
+\begin_layout Standard
+However, in practice this is not enforced: 
+\begin_inset Note Note
+status open
+
+\begin_layout Plain Layout
+MUST CHECK WITH ifortran https://software.intel.com/content/www/us/en/develop/tool
+s/parallel-studio-xe/choose-download/free-trial-cluster-linux.html and maybe
+ PGI https://developer.nvidia.com/hpc-sdk 
+\end_layout
+
+\end_inset
+
+
 \end_layout
 
 \begin_layout Standard
 Our approach is to convert COMMON block variables into subroutine arguments.
- The more common approach of conversion into module-scoped variables is
- not suitable for our purpose because it does not result in pure functions.
+ The more common approach of conversion into module-scoped variables [REFS]
+ is not suitable for our purpose because it does not result in pure functions.
  (Furthermore, because of the difference in semantics of storage association
  and module scoped variables, this approach only works for COMMON blocks
  where all variables are aligned, whereas COMMON blocks allow overlapping
@@ -3513,50 +3641,78 @@ In a subroutine call chain, it is not necessary for a COMMON blocks to occur
 \end_layout
 
 \begin_layout Example
+COMMON block chain
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
 progam ex1
 \end_layout
 
 \begin_layout Example
+
+\family typewriter
 common /bf2/x 
 \end_layout
 
 \begin_layout Example
+
+\family typewriter
 common /bf1/y
 \end_layout
 
 \begin_layout Example
+
+\family typewriter
 call f1
 \end_layout
 
 \begin_layout Example
+
+\family typewriter
 end program ex1
 \end_layout
 
 \begin_layout Example
+
+\family typewriter
 subroutine f1 
 \end_layout
 
 \begin_layout Example
+
+\family typewriter
 common /bf1/y1 
 \end_layout
 
 \begin_layout Example
+
+\family typewriter
 call f2 
 \end_layout
 
 \begin_layout Example
+
+\family typewriter
 end subroutine f1
 \end_layout
 
 \begin_layout Example
+
+\family typewriter
 subroutine f2 
 \end_layout
 
 \begin_layout Example
+
+\family typewriter
 common /bf2/x2 
 \end_layout
 
 \begin_layout Example
+
+\family typewriter
 end subroutine f2
 \end_layout
 
@@ -3569,49 +3725,75 @@ In this example, x2 in f2 is associated with x in the main program
 \end_layout
 
 \begin_layout Example
+Passing arguments through the call chain
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
 progam ex1 
 \end_layout
 
 \begin_layout Example
+
+\family typewriter
 call f1(x,y) 
 \end_layout
 
 \begin_layout Example
+
+\family typewriter
 end program ex1
 \end_layout
 
 \begin_layout Example
+
+\family typewriter
 subroutine 
 \end_layout
 
 \begin_layout Example
+
+\family typewriter
 f1(x,y1) 
 \end_layout
 
 \begin_layout Example
+
+\family typewriter
 call f2(x) 
 \end_layout
 
 \begin_layout Example
+
+\family typewriter
 ! ...
  use y1 ...
  
 \end_layout
 
 \begin_layout Example
+
+\family typewriter
 end subroutine f1
 \end_layout
 
 \begin_layout Example
+
+\family typewriter
 subroutine f2(x2) 
 \end_layout
 
 \begin_layout Example
+
+\family typewriter
 ! ...
  use of x2 
 \end_layout
 
 \begin_layout Example
+
+\family typewriter
 end subroutine f2
 \end_layout
 
@@ -3640,30 +3822,48 @@ To create the call arguments and dummy arguments, we need to identify which
 \end_layout
 
 \begin_layout Example
+Overlapping sequences
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
 ! caller 
 \end_layout
 
 \begin_layout Example
+
+\family typewriter
 real xc(8),z1c,z2c 
 \end_layout
 
 \begin_layout Example
+
+\family typewriter
 complex yc 
 \end_layout
 
 \begin_layout Example
+
+\family typewriter
 common yc,xc,zx
 \end_layout
 
 \begin_layout Example
+
+\family typewriter
 ! local real xl(2),zl(4) 
 \end_layout
 
 \begin_layout Example
+
+\family typewriter
 complex yl(3) 
 \end_layout
 
 \begin_layout Example
+
+\family typewriter
 common yl,xl,zl
 \end_layout
 
@@ -3681,7 +3881,16 @@ Furthermore, we need to type check the associations, because COMMON blocks
 \end_layout
 
 \begin_layout Standard
+\begin_inset Note Note
+status open
+
+\begin_layout Plain Layout
 XXX algos here XXX
+\end_layout
+
+\end_inset
+
+
 \end_layout
 
 \begin_layout Section
@@ -3689,9 +3898,12 @@ Removal of EQUIVALENCE statements
 \end_layout
 
 \begin_layout Standard
-According to §8.2 of the F77 spec , "An EQUIVALENCE statement is used to
- specify the sharing of storage units by two or more entities in a program
- unit.
+According to §8.2 
+\emph on
+EQUIVALENCE Statement 
+\emph default
+of the f77 specification , "An EQUIVALENCE statement is used to specify
+ the sharing of storage units by two or more entities in a program unit.
  This causes association of the entities that share the storage units.
  If the equivalenced entities are of different data types, the EQUIVALENCE
  statement does not cause type conversion or imply mathematical equivalence.
@@ -3706,7 +3918,16 @@ This is another form of storage association, with the same issue that it
 \end_layout
 
 \begin_layout LyX-Code
+\begin_inset Note Note
+status open
+
+\begin_layout Plain Layout
 XXX example XXX
+\end_layout
+
+\end_inset
+
+
 \end_layout
 
 \begin_layout Standard
@@ -3753,10 +3974,18 @@ Another complication is that overlapping is allowed, e.g.:
 \end_layout
 
 \begin_layout Example
+Overlap in EQUIVALENCE
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
 DIMENSION RADE11(5), RADE12(5) 
 \end_layout
 
 \begin_layout Example
+
+\family typewriter
 EQUIVALENCE (RADE11(4), RADE12(2))
 \end_layout
 
@@ -3798,30 +4027,48 @@ Variables stored in COMMON blocks lose all type information.
 \end_layout
 
 \begin_layout Example
+Loss of type information in EQUIVALENCE
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
 integer*4 i1
 \end_layout
 
 \begin_layout Example
+
+\family typewriter
 real*4 r1       
 \end_layout
 
 \begin_layout Example
+
+\family typewriter
 equivalence (i2,r1)
 \end_layout
 
 \begin_layout Example
+
+\family typewriter
 i1 = 42
 \end_layout
 
 \begin_layout Example
+
+\family typewriter
 print *, r1 ! prints 5.88545355E-44
 \end_layout
 
 \begin_layout Example
+
+\family typewriter
 r1 = 42
 \end_layout
 
 \begin_layout Example
+
+\family typewriter
 print *, i1 ! prints 1109917696
 \end_layout
 
@@ -4481,5 +4728,164 @@ and specifically for a function from tuple to tuple
 
 \end_layout
 
+\begin_layout Standard
+=========
+\end_layout
+
+\begin_layout Standard
+The f77 specification (§15.1.1) defines categories of procedures:
+\end_layout
+
+\begin_layout Enumerate
+Intrinsic functions
+\end_layout
+
+\begin_layout Enumerate
+Statement functions
+\end_layout
+
+\begin_layout Enumerate
+External functions
+\end_layout
+
+\begin_layout Enumerate
+Subroutines
+\end_layout
+
+\begin_layout Standard
+We discuss 
+\end_layout
+
+\begin_layout Standard
+==========
+\end_layout
+
+\begin_layout Standard
+For the type checking of assignments and operators, the implicit type coercion
+ is replaced by an explicit conversion according to the rules in Tables
+ 2 and 3 and 4 in the f77 specification.
+ This is done as follows:
+\end_layout
+
+\begin_layout Enumerate
+Identify the types of the arguments 
+\end_layout
+
+\begin_layout Enumerate
+Identify the type of the operator or intrinsic.
+ 
+\end_layout
+
+\begin_deeper
+\begin_layout Enumerate
+If the types are not Num a or the number of arguments is incorrect, throw
+ a type error 
+\end_layout
+
+\begin_layout Enumerate
+If the types match, return the type of the applied operator or intrinsic
+\end_layout
+
+\begin_layout Enumerate
+If the types don't match, insert type conversion intrinsic according to
+ the f90 specification
+\begin_inset Foot
+status open
+
+\begin_layout Plain Layout
+A special case is the type of 
+\family typewriter
+min
+\family default
+ and 
+\family typewriter
+max
+\family default
+: if due to a type constraint it appears that the types are these of 
+\family typewriter
+amin0
+\family default
+, 
+\family typewriter
+amax0
+\family default
+, 
+\family typewriter
+min1
+\family default
+ or 
+\family typewriter
+max1
+\family default
+, then rather than performing an explicit type conversion, we replace the
+ generic call with the specific call.
+ Thus, suppose we have 
+\family typewriter
+min(x,y,z)
+\family default
+ with 
+\family roman
+\series medium
+\shape up
+\size normal
+\emph off
+\bar no
+\strikeout off
+\xout off
+\uuline off
+\uwave off
+\noun off
+\color none
+
+\begin_inset Formula $min:Tuple\,Integer*4\rightarrow Real*4$
+\end_inset
+
+ then instead of 
+\family typewriter
+\series default
+\shape default
+\emph default
+\bar default
+\strikeout default
+\xout default
+\uuline default
+\uwave default
+\noun default
+\color inherit
+real(min(x,y,z),4)
+\family roman
+\series medium
+\shape up
+\emph off
+\bar no
+\strikeout off
+\xout off
+\uuline off
+\uwave off
+\noun off
+\color none
+ we write 
+\family typewriter
+\series default
+\shape default
+\emph default
+\bar default
+\strikeout default
+\xout default
+\uuline default
+\uwave default
+\noun default
+\color inherit
+amin0(x,y,z)
+\family default
+ and similar.
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\end_deeper
 \end_body
 \end_document
