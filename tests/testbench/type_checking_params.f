@@ -10,6 +10,10 @@
       integer*8 i81,ri81
       real r1,ir1
       real*8 d1,id1
+
+      integer ia1,ia2
+      dimension ia1(2,2)
+      dimension ia2(4)
       parameter(i41 = 2147483647)
       parameter(i81 = 2147483647*2147483647)
       parameter(r1 = 1e-4)
@@ -26,8 +30,8 @@
       r2 = iif2(ra1) ! type error unless it is an integer, the 'i' seems to determine the type!
       l1 = lif(ra1) ! type error
       l2 = lif2(ra1)
-
-
+      !ia1 = ia2 ! type error 'incompatible ranks'
+      ! test slicing
       end 
 
       function rif(ia1)

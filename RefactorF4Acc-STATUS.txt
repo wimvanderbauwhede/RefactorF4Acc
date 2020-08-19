@@ -41,6 +41,13 @@ TO RELEASE
   $ git push --delete origin v2.1.0
   $ git push origin v2.1.0
 
+STATUS 2020-08-13
+
+I should implement the type checking and conversion as in the paper:
+- always cast, also on assignments. Add a config NO_EXPLICIT_CASTS
+- parameters should be typed as variables and type checked against their constants, rather than typed by their constants.
+- function declarations and the 'external' declaration should be type checked
+
 STATUS 2020-07-28
 
 - In the matching up of common block sequences, I should throw an error if the kinds are not the same because this is effectively trying to split atomic types.- I should also throw an error if the types are not the same, except in two cases:

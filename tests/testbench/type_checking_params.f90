@@ -3,9 +3,11 @@
       integer :: i1
       real :: ra1,r2
       logical :: l1,l2
+      ! Even in F90 this is necessary!
       real :: rif,iif2
       integer :: iif, rif2
       logical :: lif, lif2
+
       integer, parameter :: i41 = 2147483647
       integer(kind=8), parameter :: i81 = 2147483647*2147483647
       real, parameter :: r1 = 1e-4
