@@ -1454,7 +1454,15 @@ kinds
 status open
 
 \begin_layout Plain Layout
-https://gcc.gnu.org/onlinedocs/gcc-3.4.6/g77/Language.html
+\begin_inset CommandInset href
+LatexCommand href
+name "https://gcc.gnu.org/onlinedocs/gcc-3.4.6/g77/Language.html"
+target "https://gcc.gnu.org/onlinedocs/gcc-3.4.6/g77/Language.html"
+literal "false"
+
+\end_inset
+
+
 \end_layout
 
 \end_inset
@@ -1640,13 +1648,22 @@ noprefix "false"
  in Fortran 77 is given as
 \end_layout
 
-\begin_layout Standard
+\begin_layout Definition
+General form a type 
+\begin_inset Formula $\tau$
+\end_inset
+
+ in Fortran 77
+\end_layout
+
+\begin_layout Definition
 \begin_inset Formula 
 \begin{eqnarray}
 \tau & ::=\\
  & FortranType & \textrm{primitive\,type}\nonumber \\
-| & Tuple\nonumber \\
-| & Tuple\rightarrow Tuple & \textrm{function\,type}\nonumber \\
+| & Tuple & \textrm{tuple\,type}\nonumber \\
+| & \tau\rightarrow\tau & \textrm{function\,type}\nonumber \\
+| & void & \textrm{non-type}\nonumber \\
 | & a & \textrm{type\,variable}\nonumber 
 \end{eqnarray}
 
@@ -1658,7 +1675,8 @@ noprefix "false"
 \begin_layout Standard
 The type variables arise a result of the polymorphism of the arithmetic
  and relational operators, as well as of some intrinsic functions.
- 
+ The void type is used in the typing rules for subroutine calls and assignments,
+ as these are statements that do not have a type.
 \end_layout
 
 \begin_layout Standard
@@ -1973,15 +1991,15 @@ Note that the additional condition of validity of the range of the array
 \end_layout
 
 \begin_layout Paragraph
-Array Slicing
+Array Sections
 \end_layout
 
 \begin_layout Standard
-Fortran allows array slicing using the notation 
+Fortran 90 allows array slicing using the notation 
 \begin_inset Formula $(b_{s}:e_{s}:s_{s})$
 \end_inset
 
-.
+, and it is quite common in FORTRAN 77 style code.
  For example:
 \end_layout
 
@@ -2142,8 +2160,9 @@ b,e,s
  which means that an linear expression with constants as leaf nodes will
  be reduced to a constant.
  If it is not possible to determine the size of the slice, the compiler
- will issue a type error, which can be relaxed to warning.
- 
+ will issue a type error.
+ This can be relaxed to warning, in which case the compiler will insert
+ a run-time check, for example:
 \end_layout
 
 \begin_layout Paragraph
@@ -2203,8 +2222,61 @@ DimSlice
  and the criterion for the array to be valid for indexing is that all elements
  must be in the valid index range for the given array index.
  If it is not possible to determine the size of the array, the compiler
- will issue a type error, which can be relaxed to warning.
- 
+ will issue a type error.
+ This can be relaxed to warning, in which case the compiler will insert
+ a run-time check, for example:
+\end_layout
+
+\begin_layout Example
+Arrays as indices
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+integer a(5,5), b(3), k(5), i
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+! compute a, b, k, i
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+if (size(b)==size(a(2,k(3:i)))) then 
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+b = a(2,k(3:i))
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+else
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+print *, 'Type error: b and a(2,k(3:i)) have a different SIZE: ',b,a(2,k(3:i))
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+call exit(0)
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+end if
 \end_layout
 
 \begin_layout Paragraph
@@ -2221,7 +2293,11 @@ nd errors.
  Fundamentally, index checking is not type checking because it concerns
  the actual values, and has to be performed at run time.
  All modern Fortran compilers provide this option, e.g.
- -fcheck=bounds in the GNU gfortran.
+ 
+\family typewriter
+-fcheck=bounds
+\family default
+ in the GNU gfortran.
 \end_layout
 
 \begin_layout Subsubsection
@@ -2377,6 +2453,46 @@ The function application typing rule is also that every call argument and
 
 \end_layout
 
+\begin_layout Standard
+In the above we have glossed over one detail: subroutines and external functions
+ can take the names of other subroutines or external functions as arguments.
+ The case of an external functions is covered by the above rules because
+ the function passed as argument has as type the return type, and as such
+ is indistinguishable from a variable.
+ A subroutine passed as an argument however does not have a type, so we
+ have to add void to the set of types that can are valid for arguments of
+ a subroutine or function.
+ In the case of a subroutine call:
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\[
+\frac{FortranType\cap\{void\}\,\mathbf{T_{k}}\Rightarrow sf:\mathbf{T_{k}}\rightarrow void\;\;\;\Gamma\vdash\mathbf{e_{k}}:\mathbf{T_{k}}}{\Gamma\vdash\mathtt{call}\,sf\,e_{k}:void}
+\]
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+and similar for a function call, purely for the sake of type checking of
+ the call.
+ 
+\end_layout
+
+\begin_layout Standard
+The f77 specification §8.7 
+\emph on
+EXTERNAL Statement
+\emph default
+ requires that any external function or subroutine used as an argument is
+ declared using the EXTERNAL statement.
+ Omitting this declaration results in a type error.
+ 
+\end_layout
+
 \begin_layout Subsubsection
 Assignments
 \end_layout
@@ -2419,6 +2535,14 @@ e
 \end_inset
 
 
+\end_layout
+
+\begin_layout Standard
+According to the f77 specification, only assignments to variables and array
+ elements are valid, but the extension to arrays as in Fortran 90 is very
+ common.
+ The above typing rule does not limit the type check to scalars, so array
+ assignments will type check if the types match.
 \end_layout
 
 \begin_layout Subsubsection
@@ -2501,9 +2625,44 @@ except when the exponent is an integer, in which case the type is:
 \end_layout
 
 \begin_layout Standard
+The unary - operator is also polymorphic with type
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\[
+Num\,a\Rightarrow a\rightarrow a
+\]
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+In Fortran 90, all the above operators also work on arrays, i.e.
+ we have
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\[
+Num\,a,Dim\,d\Rightarrow Array\,a\,d\rightarrow Array\,a\,d\rightarrow Array\,a\,d
+\]
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
 Comparison operations .lt., .le.,.eq.,.ne.,.gt.,.ge.
  are all of type 
-\begin_inset Formula $Num\,a\Rightarrow a\rightarrow a\rightarrow Bool$
+\begin_inset Formula 
+\[
+Num\,a\Rightarrow a\rightarrow a\rightarrow Bool
+\]
+
 \end_inset
 
 
@@ -3151,6 +3310,21 @@ i2 = int(i1+r1,4)
 
 \family typewriter
 end program unsafeCoercion
+\end_layout
+
+\begin_layout Standard
+In Fortran 90, the coercion functions can take an array operand:
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\[
+cast\langle\tau_{2}\rangle:Num\,\tau_{1},\tau_{2},Dim\,d\Rightarrow Array\,\tau_{1}d\rightarrow Array\,\tau_{2}\,d
+\]
+
+\end_inset
+
+
 \end_layout
 
 \begin_layout Subsection
