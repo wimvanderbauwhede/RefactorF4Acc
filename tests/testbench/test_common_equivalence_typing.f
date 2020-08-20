@@ -70,10 +70,10 @@
         print *, 'i1',i1,'r2',r2
         ! i2 is correct
         print *, 'r1',r1,'i2',i2
-!       print *,'s',vs3,vs5,vs6
-!        do i=1,4
-!            print *,'s',vs1(i),vs2(i),vs4(i)
-!        end do  
+        print *,'s',vs3,vs5,vs6
+        do i=1,4
+            print *,'s',vs1(i),vs2(i),vs4(i)
+        end do  
         do i=1,16
             ivb3(17-i)=i
         end do  
