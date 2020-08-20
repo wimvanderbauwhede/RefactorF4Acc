@@ -2462,13 +2462,28 @@ In the above we have glossed over one detail: subroutines and external functions
  A subroutine passed as an argument however does not have a type, so we
  have to add void to the set of types that can are valid for arguments of
  a subroutine or function.
- In the case of a subroutine call:
+ 
+\end_layout
+
+\begin_layout Standard
+In the case of a subroutine call:
 \end_layout
 
 \begin_layout Standard
 \begin_inset Formula 
 \[
 \frac{FortranType\cap\{void\}\,\mathbf{T_{k}}\Rightarrow sf:\mathbf{T_{k}}\rightarrow void\;\;\;\Gamma\vdash\mathbf{e_{k}}:\mathbf{T_{k}}}{\Gamma\vdash\mathtt{call}\,sf\,e_{k}:void}
+\]
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\[
+\frac{FortranType\,\mathbf{T_{k}}\Rightarrow sf:void\rightarrow void\;\;\;\Gamma\vdash\mathbf{e}:\mathbf{T_{k}}\rightarrow void}{\Gamma\vdash\mathtt{call}\,sf\,e:void}
 \]
 
 \end_inset
@@ -3165,10 +3180,6 @@ i2 = i1+r1
 
 \family typewriter
 end
-\end_layout
-
-\begin_layout LyX-Code
-
 \end_layout
 
 \begin_layout Standard
