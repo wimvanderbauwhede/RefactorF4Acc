@@ -1,3 +1,9 @@
+TODO:
+
+- For array slicing and array indexing by arrays: insert guards if undecidable
+- Add the discussion of functions-of-functions, including how we could emulate sum types to fix it
+
+
 
 https://typing-is-hard.ch/
 
