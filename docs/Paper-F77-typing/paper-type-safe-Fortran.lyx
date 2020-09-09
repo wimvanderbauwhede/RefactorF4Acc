@@ -356,7 +356,7 @@ no library calls except intrinsic ones
 \end_layout
 
 \begin_layout Standard
-A procedure which meets these requirement is equivalent to a pure function:
+A routine which meets these requirement is equivalent to a pure function:
  for a given set of input values, it always produces the same outputs values,
  and it only influences the rest of the world through these output values.
  Therefore, any other mechanism to share data (specifically COMMON blocks)
@@ -1677,21 +1677,6 @@ The type variables arise a result of the polymorphism of the arithmetic
  and relational operators, as well as of some intrinsic functions.
  The void type is used in the typing rules for subroutine calls and assignments,
  as these are statements that do not have a type.
- We will write the union of 
-\emph on
-FortranType
-\emph default
- with the 
-\emph on
-{void}
-\emph default
- singleton as
-\emph on
-
-\begin_inset Formula $\mathit{FortranType}_{\ensuremath{\emptyset}}$
-\end_inset
-
-.
 \end_layout
 
 \begin_layout Standard
@@ -2320,42 +2305,6 @@ Subroutines and Functions
 \end_layout
 
 \begin_layout Standard
-According to the f77 specificatin, §15.1.1 
-\emph on
-Procedures
-\emph default
-:
-\end_layout
-
-\begin_layout Quote
-Functions and subroutines are procedures.
- There are four categories of procedures:
-\end_layout
-
-\begin_layout Quote
-(1) Intrinsic functions
-\end_layout
-
-\begin_layout Quote
-(2) Statement functions
-\end_layout
-
-\begin_layout Quote
-(3) External functions
-\end_layout
-
-\begin_layout Quote
-(4) Subroutines
-\end_layout
-
-\begin_layout Quote
-Intrinsic functions, statement functions, and external functions are referred
- to collectively as functions.
- External functions and subroutines are referred to collectively as external
- procedures.
-\end_layout
-
-\begin_layout Standard
 As explained below (Section 
 \begin_inset CommandInset ref
 LatexCommand ref
@@ -2366,11 +2315,13 @@ noprefix "false"
 
 \end_inset
 
-), every Fortran procedure can be transformed into a pure function.
+), every Fortran subroutine or external function can be transformed into
+ a pure function.
+ Intrinsic functions are pure by definition.
  From a type checking perspective, the difference between a Fortran function
- (statement, external or intrinsic) and subroutine is that a function call
- can occur in an expression, and therefore has a return type, and a subroutine
- call is a statement and so has no return type.
+ (external or intrinsic) and subroutine is that a function call can occur
+ in an expression, and therefore has a return type, and a subroutine call
+ is a statement and so has no return type.
  As explained before, we consider both subroutines and functions to be pure
  in the sense that any interaction with the code is via the arguments and
  return value.
@@ -2404,7 +2355,7 @@ noprefix "false"
 \begin_layout Standard
 \begin_inset Formula 
 \[
-\frac{\,}{sf:FortranType\,\mathbf{T_{k}}\Rightarrow\mathbf{T_{k}}\rightarrow void}
+\frac{\,}{FortranType\,\mathbf{T_{k}}\Rightarrow sf:\mathbf{T_{k}}\rightarrow void}
 \]
 
 \end_inset
@@ -2445,7 +2396,7 @@ call
 \begin_layout Standard
 \begin_inset Formula 
 \[
-\frac{sf:FortranType\,\mathbf{T_{k}}\Rightarrow\mathbf{T_{k}}\rightarrow void\;\;\;\Gamma\vdash\mathbf{e_{k}}:FortranType\,\mathbf{T_{k}}\Rightarrow\mathbf{T_{k}}}{\Gamma\vdash\mathtt{call}\,sf\,e_{k}:void}
+\frac{FortranType\,\mathbf{T_{k}}\Rightarrow sf:\mathbf{T_{k}}\rightarrow void\;\;\;\Gamma\vdash\mathbf{e_{k}}:\mathbf{T_{k}}}{\Gamma\vdash\mathtt{call}\,sf\,e_{k}:void}
 \]
 
 \end_inset
@@ -2454,8 +2405,8 @@ call
 \end_layout
 
 \begin_layout Standard
-The function declaration typing rule is that every dummy argument must be
- of a valid 
+The external function declaration typing rule is that every dummy argument
+ must be of a valid 
 \emph on
 FortranType
 \emph default
@@ -2477,7 +2428,7 @@ noprefix "false"
 \begin_layout Standard
 \begin_inset Formula 
 \[
-\frac{\,}{f:FortranType\,\mathbf{T_{k}},\tau_{f}\Rightarrow\mathbf{T_{k}}\rightarrow\tau_{f}}
+\frac{\,}{FortranType\,\mathbf{T_{k}},\tau_{f}\Rightarrow f:\mathbf{T_{k}}\rightarrow\tau_{f}}
 \]
 
 \end_inset
@@ -2494,7 +2445,7 @@ The function application typing rule is also that every call argument and
 \begin_layout Standard
 \begin_inset Formula 
 \[
-\frac{f:FortranType\,\mathbf{T_{k},\tau_{f}}\Rightarrow\mathbf{T_{k}}\rightarrow\tau_{f}\;\;\;\Gamma\vdash\mathbf{e_{k}}:\mathbf{FortranType\,\mathbf{T_{k}}\Rightarrow\mathbf{T_{k}}}}{\Gamma\vdash f\,\mathbf{e_{k}}:\tau_{f}}
+\frac{FortranType\,\mathbf{T_{k},\tau_{f}}\Rightarrow f:\mathbf{T_{k}}\rightarrow\tau_{f}\;\;\;\Gamma\vdash\mathbf{e_{k}}:\mathbf{T_{k}}}{\Gamma\vdash f\,\mathbf{e_{k}}:\tau_{f}}
 \]
 
 \end_inset
@@ -2505,29 +2456,23 @@ The function application typing rule is also that every call argument and
 \begin_layout Standard
 In the above we have glossed over one detail: subroutines and external functions
  can take the names of other subroutines or external functions as arguments.
+ The case of an external functions is covered by the above rules because
+ the function passed as argument has as type the return type, and as such
+ is indistinguishable from a variable.
+ A subroutine passed as an argument however does not have a type, so we
+ have to add void to the set of types that can are valid for arguments of
+ a subroutine or function.
  
 \end_layout
 
 \begin_layout Standard
-For the case of an external function passed as argument, the type declaration
- of the calling subroutine does not change because the external function
- is only represented by its return type.
- A subroutine passed as argument does not have a return type.
- Therefore we must include the 
-\emph on
-void
-\emph default
- non-type in the set of types, so we write 
-\begin_inset Formula $\mathit{FortranType}_{\emptyset}$
-\end_inset
-
-:
+In the case of a subroutine call:
 \end_layout
 
 \begin_layout Standard
 \begin_inset Formula 
 \[
-\frac{sf:\mathit{FortranType}_{\emptyset}\,\mathbf{\tau}\Rightarrow\mathbf{...\rightarrow\tau\rightarrow...}\rightarrow void\;\;\;\Gamma\vdash\mathbf{e_{k}}:\mathit{FortranType}_{\emptyset}\,\mathbf{T_{k},\tau}\Rightarrow\mathbf{T_{k}\rightarrow\tau}}{\Gamma\vdash\mathtt{call}\,sf\,e_{k}:void}
+\frac{FortranType\cap\{void\}\,\mathbf{T_{k}}\Rightarrow sf:\mathbf{T_{k}}\rightarrow void\;\;\;\Gamma\vdash\mathbf{e_{k}}:\mathbf{T_{k}}}{\Gamma\vdash\mathtt{call}\,sf\,e_{k}:void}
 \]
 
 \end_inset
@@ -2536,454 +2481,31 @@ void
 \end_layout
 
 \begin_layout Standard
-Therefore, any external function argument with the correct return type will
- type check correctly as far as the call is concerned, and any subroutine
- argument will type check correctly.
- The rules for a function call with external function or subroutine arguments
- are similar adaptations of Eq.
- XXX.
+\begin_inset Formula 
+\[
+\frac{FortranType\,\mathbf{T_{k}}\Rightarrow sf:void\rightarrow void\;\;\;\Gamma\vdash\mathbf{e}:\mathbf{T_{k}}\rightarrow void}{\Gamma\vdash\mathtt{call}\,sf\,e:void}
+\]
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+and similar for a function call, purely for the sake of type checking of
+ the call.
  
 \end_layout
 
 \begin_layout Standard
-The loss of type information in the call type check is a source of potentially
- unsafe behaviour.
- In the most common case, we can typecheck the call to the passed-in function
- or subroutine because we have its type signature.
- The symbolic names of external functions or subroutines are not variables,
- and can therefore only be used literally as a call argument.
- The f77 specification §8.7 
+The f77 specification §8.7 
 \emph on
 EXTERNAL Statement
 \emph default
  requires that any external function or subroutine used as an argument is
  declared using the EXTERNAL statement.
  Omitting this declaration results in a type error.
- Therefore our explicit type declarations (Section XXX) include the the
- EXTERNAL statement.
- So we can always identify the type of the procedure argument.
- For example:
-\end_layout
-
-\begin_layout Example
-External procedure as argument, type check decidable
-\end_layout
-
-\begin_layout Example
-...
-\end_layout
-
-\begin_layout Example
-
-\family typewriter
-external sf1
-\end_layout
-
-\begin_layout Example
-...
-\end_layout
-
-\begin_layout Example
-
-\family typewriter
-call sf2(sf1,x,y)
-\end_layout
-
-\begin_layout Example
-...
-\end_layout
-
-\begin_layout Example
-
-\family typewriter
-subroutine sf1(x,y)
-\end_layout
-
-\begin_layout Example
-
-\family typewriter
-integer x,y
-\end_layout
-
-\begin_layout Example
-y=2*x+1
-\end_layout
-
-\begin_layout Example
-
-\family typewriter
-end 
-\end_layout
-
-\begin_layout Example
-
-\family typewriter
-subroutine sf2(sf,x,y)
-\end_layout
-
-\begin_layout Example
-
-\family typewriter
-external sf
-\end_layout
-
-\begin_layout Example
-
-\family typewriter
-integer x,y
-\end_layout
-
-\begin_layout Example
-
-\family typewriter
-call sf(x,y)
-\end_layout
-
-\begin_layout Example
-
-\family typewriter
-end 
-\end_layout
-
-\begin_layout Standard
-In this example, we have the signature of 
-\emph on
-sf1
-\emph default
- and we know that the 
-\emph on
-sf
-\emph default
- in 
-\emph on
-sf2
-\emph default
- refers to 
-\emph on
-sf1
-\emph default
-, so we can typecheck the call 
-\emph on
-sf(x,y)
-\emph default
- as a call to 
-\emph on
-sf1(x,y)
-\emph default
-.
- However, consider the following example:
-\end_layout
-
-\begin_layout Example
-External procedure as argument, type check undecidable
-\end_layout
-
-\begin_layout Example
-
-\family typewriter
-subroutine sf3(sf,x,y,z)
-\end_layout
-
-\begin_layout Example
-
-\family typewriter
-external sf
-\end_layout
-
-\begin_layout Example
-
-\family typewriter
-integer x,y,z
-\end_layout
-
-\begin_layout Example
-
-\family typewriter
-logical c
-\end_layout
-
-\begin_layout Example
-...
  
-\end_layout
-
-\begin_layout Example
-
-\family typewriter
-if (c) then
-\end_layout
-
-\begin_layout Example
-
-\family typewriter
-call sf(x,y,z)
-\end_layout
-
-\begin_layout Example
-
-\family typewriter
-else
-\end_layout
-
-\begin_layout Example
-
-\family typewriter
-call sf(r1,r2,x,y,z) 
-\end_layout
-
-\begin_layout Example
-
-\family typewriter
-end if
-\end_layout
-
-\begin_layout Example
-
-\family typewriter
-end 
-\end_layout
-
-\begin_layout Standard
-Assuming the rest of the program is as in the previous example, then depending
- on the value of 
-\emph on
-c
-\emph default
-, the call can be correct or entirely wrong.
- Even if the program contained another external procedure with the correct
- signature for each case, as the value of 
-\emph on
-c
-\emph default
- is not know at type check time, it is not possible to verify, even at run
- time, if the call arguments type check with the procedure arguments.
- Type checking of this example is therefore undecidable and so unsafe.
- However, in Section XXX we present a code transformation which can make
- the type check decidable at run time, and so guarantee type safety.
-\end_layout
-
-\begin_layout Itemize
-Make an inventory of all external procedures declared as EXTERNAL in a code
- unit, ps
-\end_layout
-
-\begin_layout Itemize
-Map the names to the type signatures: 
-\begin_inset Formula $ptm$
-\end_inset
-
-
-\end_layout
-
-\begin_layout Itemize
-From that map, create a list of the unique type signatures: 
-\begin_inset Formula $utl$
-\end_inset
-
-
-\end_layout
-
-\begin_layout Itemize
-Create a map from each signature to the index in this list: 
-\begin_inset Formula $utm$
-\end_inset
-
-
-\end_layout
-
-\begin_layout Itemize
-Map the names of the external procedures to the indices: 
-\begin_inset Formula $pim$
-\end_inset
-
-
-\end_layout
-
-\begin_layout Standard
-\begin_inset Formula 
-\[
-ptm=\{p_{i}\Rightarrow\tau_{i}\}
-\]
-
-\end_inset
-
-
-\end_layout
-
-\begin_layout Standard
-\begin_inset Formula 
-\[
-utl=(...,\tau_{i},...,\tau_{j},...),\forall i,j:\tau_{i}/=\tau_{j}
-\]
-
-\end_inset
-
-
-\end_layout
-
-\begin_layout Standard
-\begin_inset Formula 
-\[
-utm=\{\tau_{i}\Rightarrow idx_{i}\}
-\]
-
-\end_inset
-
-
-\end_layout
-
-\begin_layout Standard
-\begin_inset Formula 
-\[
-pim=\{p_{i}\Rightarrow idx_{i}\}
-\]
-
-\end_inset
-
-
-\end_layout
-
-\begin_layout Standard
-Now, for every procedure argument, add the index as an argument
-\end_layout
-
-\begin_layout Standard
-\begin_inset Formula 
-\[
-idx_{i}=pim[p_{i}]
-\]
-
-\end_inset
-
-
-\end_layout
-
-\begin_layout Standard
-in the call
-\end_layout
-
-\begin_layout Standard
-
-\family typewriter
-call sf(...,
-\begin_inset Formula $idx_{i}$
-\end_inset
-
-,
-\begin_inset Formula $p_{i}$
-\end_inset
-
-,...)
-\end_layout
-
-\begin_layout Standard
-And in the subroutine declaration
-\end_layout
-
-\begin_layout Standard
-
-\family typewriter
-subroutine sf(...,
-\begin_inset Formula $idx$
-\end_inset
-
-,
-\begin_inset Formula $p$
-\end_inset
-
-,...)
-\end_layout
-
-\begin_layout Standard
-Given a call in 
-\emph on
-sf
-\emph default
- to the procedure 
-\emph on
-p
-\emph default
- where the argument tuple is of type 
-\begin_inset Formula $\tau$
-\end_inset
-
-, 
-\end_layout
-
-\begin_layout Standard
-\begin_inset Formula 
-\[
-\frac{p:?\rightarrow void\;\;\;\Gamma\vdash\mathbf{e_{k}}:\tau}{\Gamma\vdash\mathtt{call}\,p\,e_{k}:void}
-\]
-
-\end_inset
-
-
-\end_layout
-
-\begin_layout Standard
-we can lookup the index 
-\begin_inset Formula $idx_{\tau}$
-\end_inset
-
- in utm: 
-\end_layout
-
-\begin_layout Standard
-\begin_inset Formula 
-\[
-idx_{\tau}=utm[\tau]
-\]
-
-\end_inset
-
- 
-\end_layout
-
-\begin_layout Standard
-The we can insert the following guard around the call:
-\end_layout
-
-\begin_layout Standard
-
-\family typewriter
-if (idx == 
-\begin_inset Formula $idx_{\tau}$
-\end_inset
-
-) then
-\end_layout
-
-\begin_layout Standard
-
-\family typewriter
-call p(...)
-\end_layout
-
-\begin_layout Standard
-
-\family typewriter
-else 
-\end_layout
-
-\begin_layout Standard
-
-\family typewriter
-type-error
-\end_layout
-
-\begin_layout Standard
-
-\family typewriter
-end
-\end_layout
-
-\begin_layout Standard
-In other words, if the run-time index idx_i in the call corresponds to the
- index idx_
-\backslash
-tau inserted in the code at type check time, the we are certain that the
- types correspond.
 \end_layout
 
 \begin_layout Subsubsection
@@ -3036,19 +2558,6 @@ According to the f77 specification, only assignments to variables and array
  common.
  The above typing rule does not limit the type check to scalars, so array
  assignments will type check if the types match.
- However, arrays can be assigned to scalars as well, therefore we need an
- additional rule:
-\end_layout
-
-\begin_layout Standard
-\begin_inset Formula 
-\[
-\frac{\Gamma\vdash v:Array\,\tau\,d\;\;\;\Gamma(v_{i})\vdash e(v_{i}):\tau}{\Gamma\vdash v\leftarrow e:\,void}
-\]
-
-\end_inset
-
-
 \end_layout
 
 \begin_layout Subsubsection
@@ -3869,22 +3378,12 @@ Program transformations for type safety
 \end_layout
 
 \begin_layout Subsection
-Transforming Fortran procedures into pure functions
+Transforming Fortran subroutines into pure functions
 \end_layout
 
 \begin_layout Standard
-Intrinsic functions are pure by definition.
- Subroutines, external functions and statement functions can be impure.
+A FORTRAN 77 subroutine can be translated into a pure function as follows:
  
-\end_layout
-
-\begin_layout Subsubsection
-Subroutines and external functions
-\end_layout
-
-\begin_layout Standard
-A FORTRAN 77 subroutine or external function can be translated into a pure
- function as follows: 
 \end_layout
 
 \begin_layout Itemize
@@ -4073,7 +3572,7 @@ a'
 Given the intent, then we have:
 \end_layout
 
-\begin_layout Standard
+\begin_layout LyX-Code
 \begin_inset Formula 
 \[
 y=(a_{i}\in a'|\textrm{intent}(a_{i})=\textrm{Out})
@@ -4084,7 +3583,7 @@ y=(a_{i}\in a'|\textrm{intent}(a_{i})=\textrm{Out})
 
 \end_layout
 
-\begin_layout Standard
+\begin_layout LyX-Code
 \begin_inset Formula 
 \[
 a''=a'\ \backslash\ y
@@ -4121,315 +3620,6 @@ a'
  tuple includes the original return value.
 \end_layout
 
-\begin_layout Subsubsection
-Statement functions
-\end_layout
-
-\begin_layout Standard
-A FORTRAN 77 statement function can be impure because it is allowed to include
- variables from the scope of the code unit, for example:
-\end_layout
-
-\begin_layout Example
-Impure statement function
-\end_layout
-
-\begin_layout Example
-
-\family typewriter
-program statement_function
-\end_layout
-
-\begin_layout Example
-
-\family typewriter
-real root, a,b,c
-\end_layout
-
-\begin_layout Example
-
-\family typewriter
-real x, y
-\end_layout
-
-\begin_layout Example
-
-\family typewriter
-root(a,b,c) = (-b + sqrt(b**2-4.0*a*c))/(2.0*a) + x
-\end_layout
-
-\begin_layout Example
-
-\family typewriter
-x = 1
-\end_layout
-
-\begin_layout Example
-
-\family typewriter
-y = root(1,4,2) ! returns 0.0
-\end_layout
-
-\begin_layout Example
-
-\family typewriter
-end
-\end_layout
-
-\begin_layout Standard
-or in general
-\end_layout
-
-\begin_layout Standard
-
-\family typewriter
-\begin_inset Formula $\tau$
-\end_inset
-
-
-\begin_inset Formula $::f,y$
-\end_inset
-
-
-\end_layout
-
-\begin_layout Standard
-
-\family typewriter
-\begin_inset Formula $\tau_{i}$
-\end_inset
-
-
-\begin_inset Formula $::a_{i},a'_{i}$
-\end_inset
-
-
-\end_layout
-
-\begin_layout Standard
-
-\family typewriter
-\begin_inset Formula $\tau_{j}$
-\end_inset
-
-
-\begin_inset Formula $::x_{j}$
-\end_inset
-
-
-\end_layout
-
-\begin_layout Standard
-
-\family typewriter
-\begin_inset Formula $f(a_{1},...,a_{i},...,a_{n})=exp(...,a_{i},...,...,x_{j},...)$
-\end_inset
-
-
-\end_layout
-
-\begin_layout Standard
-\begin_inset Formula $x_{j}=...$
-\end_inset
-
-
-\end_layout
-
-\begin_layout Standard
-\begin_inset Formula $a'_{i}=...$
-\end_inset
-
-
-\end_layout
-
-\begin_layout Standard
-
-\family roman
-\series medium
-\shape up
-\size normal
-\emph off
-\bar no
-\strikeout off
-\xout off
-\uuline off
-\uwave off
-\noun off
-\color none
-\begin_inset Formula $y=f(a'_{1},...,a'_{i},...,a'_{n})$
-\end_inset
-
-
-\end_layout
-
-\begin_layout Standard
-\begin_inset space ~
-\end_inset
-
-
-\end_layout
-
-\begin_layout Standard
-The variable 
-\emph on
-x
-\emph default
- in the example is effectively treated as a global from the perspective
- of the statement function.
- It is easy to make such a statement function pure:
-\end_layout
-
-\begin_layout Itemize
-Add any global variable in the expression to the dummy argument list
-\end_layout
-
-\begin_layout Itemize
-Add any global variable in the expression to the call argument list
-\end_layout
-
-\begin_layout Standard
-Thus the example becomes:
-\end_layout
-
-\begin_layout Example
-Impure statement function made pure
-\end_layout
-
-\begin_layout Example
-
-\family typewriter
-program statement_function
-\end_layout
-
-\begin_layout Example
-
-\family typewriter
-real root, a,b,c
-\end_layout
-
-\begin_layout Example
-
-\family typewriter
-real x, y
-\end_layout
-
-\begin_layout Example
-
-\family typewriter
-root(a,b,c,x) = (-b + sqrt(b**2-4.0*a*c))/(2.0*a) + x
-\end_layout
-
-\begin_layout Example
-
-\family typewriter
-x = 1
-\end_layout
-
-\begin_layout Example
-
-\family typewriter
-y = root(1,4,2,x) ! returns 0.0
-\end_layout
-
-\begin_layout Example
-
-\family typewriter
-end
-\end_layout
-
-\begin_layout Standard
-or in general
-\end_layout
-
-\begin_layout Standard
-
-\family typewriter
-\begin_inset Formula $\tau$
-\end_inset
-
-
-\begin_inset Formula $::f$
-\end_inset
-
-
-\end_layout
-
-\begin_layout Standard
-
-\family typewriter
-\begin_inset Formula $\tau_{i}$
-\end_inset
-
-
-\begin_inset Formula $::a_{i},a'_{i}$
-\end_inset
-
-
-\end_layout
-
-\begin_layout Standard
-
-\family typewriter
-\begin_inset Formula $\tau_{j}$
-\end_inset
-
-
-\begin_inset Formula $::x_{j}$
-\end_inset
-
-
-\end_layout
-
-\begin_layout Standard
-
-\family typewriter
-\begin_inset Formula $f(a_{1},...,a_{i},...,a_{n},...,x_{j},...)=exp(...,a_{i},...,...,x_{j},...)$
-\end_inset
-
-
-\end_layout
-
-\begin_layout Standard
-\begin_inset Formula $x_{j}=...$
-\end_inset
-
-
-\end_layout
-
-\begin_layout Standard
-\begin_inset Formula $a'_{i}=...$
-\end_inset
-
-
-\end_layout
-
-\begin_layout Standard
-
-\family roman
-\series medium
-\shape up
-\size normal
-\emph off
-\bar no
-\strikeout off
-\xout off
-\uuline off
-\uwave off
-\noun off
-\color none
-\begin_inset Formula $y=f(a'_{1},...,a'_{i},...,a'_{n},...,x_{j},...)$
-\end_inset
-
-
-\end_layout
-
-\begin_layout Standard
-\begin_inset space ~
-\end_inset
-
-
-\end_layout
-
 \begin_layout Subsection
 Explicit typing
 \end_layout
@@ -4439,7 +3629,7 @@ According to §4.1.2
 \emph on
 Type Rules for Data and Procedure Identifiers
 \emph default
- of the f77 specification, in FORTRAN 77 a variable:
+ of the f77 specification, in FORTRAN 77 a variable 
 \end_layout
 
 \begin_layout Quote
@@ -4523,63 +3713,6 @@ Add the created declarations before the first executable statement
 \begin_layout Enumerate
 Add IMPLICIT NONE before the first non-executable statement to specify that
  no implicit typing should be done in the generated code
-\end_layout
-
-\begin_layout Standard
-As discussed in Section XXX, external functions and subroutines must be
- declared using the EXTERNAL statement.
- Although this is not a type declaration 
-\emph on
-per se
-\emph default
-, it is a requirement for the type safety.
- Therefore we ensure that for all external functions and subroutines used
- as arguments to calls in a code unit, an EXTERNAL statement is added.
- 
-\end_layout
-
-\begin_layout Enumerate
-Identify which arguments to a call are external functions or subroutines.
- For any call argument 
-\begin_inset Formula $f_{c}$
-\end_inset
-
- that does 
-\emph on
-not
-\emph default
- have an EXTERNAL declaration, if the corresponding dummy argument 
-\begin_inset Formula $f_{d}$
-\end_inset
-
- is either
-\end_layout
-
-\begin_deeper
-\begin_layout Enumerate
-used as the name in a subroutine call
-\end_layout
-
-\begin_layout Enumerate
-used as the name in a function call
-\end_layout
-
-\begin_layout Enumerate
-passed as an argument to a call, and a recursive descent eventually results
- in (a) or (b)
-\end_layout
-
-\begin_layout Standard
-then the call argument 
-\begin_inset Formula $f_{c}$
-\end_inset
-
- needs an EXTERNAL declaration
-\end_layout
-
-\end_deeper
-\begin_layout Enumerate
-For all identified names, create the EXTERNAL declaration
 \end_layout
 
 \begin_layout Subsection
