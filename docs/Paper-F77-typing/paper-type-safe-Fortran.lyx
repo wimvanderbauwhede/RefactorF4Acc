@@ -3572,7 +3572,7 @@ a'
 Given the intent, then we have:
 \end_layout
 
-\begin_layout LyX-Code
+\begin_layout Standard
 \begin_inset Formula 
 \[
 y=(a_{i}\in a'|\textrm{intent}(a_{i})=\textrm{Out})
@@ -3583,7 +3583,7 @@ y=(a_{i}\in a'|\textrm{intent}(a_{i})=\textrm{Out})
 
 \end_layout
 
-\begin_layout LyX-Code
+\begin_layout Standard
 \begin_inset Formula 
 \[
 a''=a'\ \backslash\ y
@@ -3901,10 +3901,6 @@ common /bf2/x2
 end subroutine f2
 \end_layout
 
-\begin_layout LyX-Code
-
-\end_layout
-
 \begin_layout Standard
 In this example, x2 in f2 is associated with x in the main program 
 \end_layout
@@ -4102,7 +4098,7 @@ This is another form of storage association, with the same issue that it
  For example
 \end_layout
 
-\begin_layout LyX-Code
+\begin_layout Standard
 \begin_inset Note Note
 status open
 
@@ -4688,7 +4684,7 @@ f
 e
 \end_layout
 
-\begin_layout LyX-Code
+\begin_layout Standard
 \begin_inset Formula $e=...f(...,a_{i},...)...$
 \end_inset
 

@@ -1,11 +1,14 @@
       program fof
-          !integer sqsum
+          integer sqsum2
           external sqsum
           external f2
+#ifdef SHOW_ERROR          
+          integer v1,v2
+#endif          
           integer x,y,z
           x=3
           y=4
-          !z = sqsum(x,y)
+          z = sqsum2(x,y)
           !print *,z            
           !call f2(x,y,z)
           !print *,z            
@@ -13,11 +16,15 @@
           print *,z
           call ten_times_s(f2,3,4,z,.false.)
           print *,z
-          
+#ifdef SHOW_ERROR          
+          v1=sqsum
+          v2=sqsum2
+#endif          
       end 
       
       subroutine ten_times_f(f3,x,y,z,c)
           integer  f3 ! for a function
+          external f3 ! 
           integer x,y
           integer z
           real r1,r2
@@ -36,7 +43,7 @@
       end 
 
       subroutine ten_times_s(f3,x,y,z,c)
-          !external f3 ! for a subroutine but not needed
+          external f3 ! for a subroutine. GCC does not warn, PGI warns
           integer x,y
           integer z
           real r1,r2
@@ -65,5 +72,11 @@
       	integer x,y
       	sqsum = x*x+y*y
       	!print *,sqsum
+      end 
+      
+      integer function sqsum2(x,y)
+      	integer x,y
+      	sqsum2 = x*x+y*y
+      	!print *,sqsum2
       end 
       

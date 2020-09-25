@@ -3,7 +3,69 @@ TODO:
 - For array slicing and array indexing by arrays: insert guards if undecidable
 - Add the discussion of functions-of-functions, including how we could emulate sum types to fix it
 
+Sum types for functions of functions:
 
+There is one corner case which I fear is ultimately undecidable:
+
+say
+f12 :: Int -> Int
+ f12(x,y) {y=x*x}
+ integer, intent(in) :: x
+ integer, intent(out) :: y
+f21 :: Int -> Int
+ f21(x,y) {x=y*y}
+ integer, intent(out) :: x
+ integer, intent(in) :: y
+ 
+ if we have then:
+ 
+ sf(f)
+ external f
+ integer :: x
+ integer :: y
+ call f(x,y)
+ 
+ then the type of the call is Int -> Int and 
+ integer, intent(inout) :: x
+ integer, intent(inout) :: y
+ 
+ unless we can show refine the intent from the context. But that is not always statically decideable.
+ 
+ for example:
+ 
+ x=1
+ y=2
+ call f(x,y)
+ z=x+y ! 1+2*2 or 1*1+2
+ 
+ One can wonder how this is different from having just two different functions, e.g. x+2*y and 2*x+y
+It is impossible to tell from the type which one is the correct one. But is this really a type error? 
+Well, in a decent language, you know the arguments are in and the return values out, so this is what the difference is. 
+
+But in Fortran, the call syntax makes it impossible to say if
+
+call f(x1:t,x2:t,x3:t) has type
+f: (x1,x2) -> x3
+or
+f: x1 -> (x2,x3)
+or
+f: x2 -> (x1,x3)
+
+And this is after InOut to In+Out rewrite, otherwise it could even be
+
+f: (x2,x1) -> (x1,x3)
+
+The best thing we can do is distinguish in the type system between
+
+f(x:t:in,y:t:out)
+and
+f(x:t:out,y:t:in)
+
+Either by including the intent in the type as above, or by adding the position to the type:
+
+f : t:2 -> t:1 
+
+which lets us reconstruct the intent. In the call typecheck rule the intent makes most sense, and it is simply (FortranType,Intent)
 
 https://typing-is-hard.ch/
 
