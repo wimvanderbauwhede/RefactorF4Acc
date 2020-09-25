@@ -356,8 +356,11 @@ no library calls except intrinsic ones
 \end_layout
 
 \begin_layout Standard
-A routine which meets these requirement is equivalent to a pure function:
- for a given set of input values, it always produces the same outputs values,
+A routine which meets these requirement is equivalent to a 
+\emph on
+pure function
+\emph default
+: for a given set of input values, it always produces the same outputs values,
  and it only influences the rest of the world through these output values.
  Therefore, any other mechanism to share data (specifically COMMON blocks)
  is not allowed.
@@ -388,7 +391,8 @@ pure function
 \begin_inset Quotes erd
 \end_inset
 
- perspective, calls to library functions are acceptable if they are pure.
+ perspective, calls to library functions are acceptable if the library functions
+ themselves are pure.
  
 \end_layout
 
@@ -532,6 +536,13 @@ see earlier paper, be nice to CamFort
 
 \begin_layout Section
 Formal analysis of the type safety of Fortran
+\begin_inset CommandInset label
+LatexCommand label
+name "sec:Formal-analysis-of"
+
+\end_inset
+
+
 \end_layout
 
 \begin_layout Subsection
@@ -869,7 +880,7 @@ pure
 \end_layout
 
 \begin_layout Standard
-In words, for any given environment 
+In words, for any given context 
 \begin_inset Formula $\Gamma$
 \end_inset
 
@@ -938,7 +949,7 @@ In words, for any given environment
 \noun default
 \color inherit
  is a given set of argument values of the correct type, the function will
- always return the same value 
+ always return the same values 
 \family roman
 \series medium
 \shape up
@@ -973,13 +984,67 @@ regardless of the rest of the content of
 \end_inset
 
 .
- We will see in Section XXX and following how any Fortran procedure can
- be transformed into a pure function.
+ Note that the fact that 
+\family roman
+\series medium
+\shape up
+\size normal
+\emph off
+\bar no
+\strikeout off
+\xout off
+\uuline off
+\uwave off
+\noun off
+\color none
+
+\begin_inset Formula $\Gamma$
+\end_inset
+
+is the same for 
+the inputs
+\begin_inset Formula $\mathbf{x_{in,k}}$
+\end_inset
+
+ and the results of the function call 
+\begin_inset Formula $\mathbf{x_{out,m}}$
+\end_inset
+
+ implies that the function does not modify 
+\begin_inset Formula $\Gamma$
+\end_inset
+
+.
+ 
+\family default
+\series default
+\shape default
+\size default
+\emph default
+\bar default
+\strikeout default
+\xout default
+\uuline default
+\uwave default
+\noun default
+\color inherit
+We will see in Section 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "sec:Program-transformations-for"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+ and following how any Fortran procedure can be transformed into a pure
+ function.
 \end_layout
 
 \begin_layout Standard
 \begin_inset Note Note
-status open
+status collapsed
 
 \begin_layout Plain Layout
 The type 
@@ -1024,27 +1089,18 @@ noprefix "false"
 
  for a formal definition) and where all variables, parameters and functions
  are explicitly typed.
- We will see later how to achieve fully explicity typing and under which
- conditions a procedure can be made pure.
- 
-\begin_inset Note Note
-status open
-
-\begin_layout Plain Layout
-XXX 
-\begin_inset Quotes eld
-\end_inset
-
-later
-\begin_inset Quotes erd
-\end_inset
-
- XXX
-\end_layout
+ We discuss in Section 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "sec:Program-transformations-for"
+plural "false"
+caps "false"
+noprefix "false"
 
 \end_inset
 
-
+ how to achieve fully explicity typing and under which conditions a procedure
+ can be made pure.
 \end_layout
 
 \begin_layout Standard
@@ -1052,7 +1108,7 @@ According to §4.1
 \emph on
 Data Types
 \emph default
- of the f77 specification, the six types of data are:
+ of the f77 specification, the six types of data in FORTRAN 77 are:
 \end_layout
 
 \begin_layout Enumerate
@@ -1772,10 +1828,6 @@ digit ::= 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9
 \end_layout
 
 \begin_layout Definition
-
-\end_layout
-
-\begin_layout Definition
 real-constant ::= [sign] {digit}* decimal-point {digit}* [real-exponent]
 \end_layout
 
@@ -2163,6 +2215,19 @@ b,e,s
  will issue a type error.
  This can be relaxed to warning, in which case the compiler will insert
  a run-time check, for example:
+\end_layout
+
+\begin_layout Standard
+\begin_inset Note Note
+status open
+
+\begin_layout Plain Layout
+EXAMPLE HERE
+\end_layout
+
+\end_inset
+
+
 \end_layout
 
 \begin_layout Paragraph
@@ -2603,7 +2668,17 @@ a
 \emph on
 Num
 \emph default
- type (see Alg XXX) then the operator takes two arguments of type 
+ type (see Definition 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "alg:The-FORTRAN-77"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+) then the operator takes two arguments of type 
 \emph on
 a
 \emph default
@@ -3343,17 +3418,13 @@ Conclusions regarding the type safety of the Fortran type system
 \end_layout
 
 \begin_layout Standard
-Based on the above analysis, we have identified three causes for potential
- unsafe behaviour in FORTRAN 77 programs that are explicitly typed and consist
- of pure functions: array slicing and array indexing using arrays, and unsafe
- type coercions.
- 
-\end_layout
-
-\begin_layout Standard
-For the array operations, current compilers guarantee type safety if the
- slice indices or the array used as index are constant, and also if the
- array used for indexing is of the wrong rank.
+Based on the above analysis, we conclude that FORTRAN 77 programs that are
+ explicitly typed and consist of pure functions are type safe, except for
+ two specific constructs: array slicing and array indexing with values that
+ are unknown at compile time.
+ Current compilers guarantee type safety if the slice indices or the array
+ used as index are constant, and also if the array used for indexing is
+ of the wrong rank.
  However, if the indices are non-constant expressions, potentially unsafe
  programs pass without warning or error.
  Our compiler will try more aggresively to determine the slice or array
@@ -3362,8 +3433,10 @@ For the array operations, current compilers guarantee type safety if the
 \end_layout
 
 \begin_layout Standard
-Unsafe type coercions are recognised by current compilers, and can result
- in warnings or errors if enables.
+In principle, sometype coercions are also unsafe.
+ However, unsafe type coercions are recognised by current compilers, and
+ the compiler can produce a warning or errors if the option is enabled.
+ So type coercions don't compromise the type safety.
  Our compiler follows this convention.
  
 \end_layout
@@ -3374,20 +3447,404 @@ In the next sections we discuss the transformations required to ensure that
 \end_layout
 
 \begin_layout Section
-Program transformations for type safety
-\end_layout
-
-\begin_layout Subsection
-Transforming Fortran subroutines into pure functions
+Typechecking COMMON block and EQUIVALENCE associations 
 \end_layout
 
 \begin_layout Standard
-A FORTRAN 77 subroutine can be translated into a pure function as follows:
+In the preceding sections (Sections XXX) we analysed the type safety of
+ a FORTRAN 77 program that consists of pure functions and where all variables,
+ parameters and functions are explicitly typed.
+ In the following sections (Sections XXX) we will show how any FORTRAN 77
+ program can be transformed into an equivalent program with these properties.
+ In particular, we will discuss how to remove COMMON blocks and EQUIVALENCE
+ associations.
+ In this section, we present a novel algorithm to type check variables in
+ COMMON and EQUIVALENCE statements.
+ If the type check passes, they can be safely removed.
+ Otherwise it means the code is not type safe and in practice most likely
+ incorrect.
+ If the original code passes the type check then the transformed code without
+ COMMON and EQUIVALENCE statements will be type safe when checked with any
+ of the major Fortran compilers.
+\end_layout
+
+\begin_layout Subsection
+Loss of type information 
+\end_layout
+
+\begin_layout Standard
+From the perspective of this paper, the main problem with COMMON blocks
+ and EQUIVALENCE associations is that they are not type safe: the f77 specificat
+ion does not mention any typing rules and in practice, any datum stored
+ in a common block loses all type information.
  
 \end_layout
 
+\begin_layout Standard
+\begin_inset Note Note
+status collapsed
+
+\begin_layout Plain Layout
+The f90 speficiation (§5.5.2.3 
+\emph on
+Common association
+\emph default
+) states that 
+\end_layout
+
+\begin_layout Quote
+A nonpointer object of default integer type, default real type, double precision
+ real type, default complex type, default logical type, or numeric sequence
+ type shall become associated only with nonpointer objects of these types.
+\end_layout
+
+\begin_layout Plain Layout
+So in principle, COMMON blocks in f90 code should be type-safe.
+ In practice, neither gfortran nor pgfortran enforce this.
+ 
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+This means in particular that there is no type coercion between real (and
+ by extension complex) and integer values.
+ Because of this lack of coercion, these type checks are different from
+ the type checks discussed in Sections XXX.
+ The same is true for EQUIVALENCE statements: they associate different names
+ with the same memory location, but the type of the word written to the
+ memory location is erased.
+ Therefore, the following is legal and does not generate any warnings, but
+ is incorrect
+\end_layout
+
+\begin_layout Example
+Loss of type information in EQUIVALENCE
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+integer*4 i1
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+real*4 r1       
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+equivalence (i2,r1)
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+i1 = 42
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+print *, r1 ! prints 5.88545355E-44
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+r1 = 42
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+print *, i1 ! prints 1109917696
+\end_layout
+
+\begin_layout Subsection
+A type checking algorithm for COMMON and EQUIVALENCE statements
+\end_layout
+
+\begin_layout Standard
+For the purpose of typechecking, and without loss of generality, we assume
+ that all variables are scalar: an array a is considered as syntactic sugar
+ for an ordered collection of scalars with names a(i).
+ We further assume all arrays are linear and traversed using an index starting
+ at 1.
+ 
+\end_layout
+
+\begin_layout Standard
+The rules for type soundness which we adopt are:
+\end_layout
+
 \begin_layout Itemize
-infer the INTENT of every argument (see Section XXX)
+Kind matching (
+\emph on
+rule-kind
+\emph default
+)
+\end_layout
+
+\begin_deeper
+\begin_layout Standard
+A scalar type is atomic, and therefore we cannot split the type, which would
+ be the case if we attempted to map types with different kinds.
+ 
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\begin{eqnarray*}
+ & K_{c,i}=K_{l,i} & ,\forall i\in\#K_{l}
+\end{eqnarray*}
+
+\end_inset
+
+
+\end_layout
+
+\end_deeper
+\begin_layout Itemize
+No COMMON block extension in the called subroutine (
+\emph on
+rule-size
+\emph default
+)
+\end_layout
+
+\begin_deeper
+\begin_layout Standard
+The ordered set of words in a COMMON block accessed from a subroutine must
+ be no larger than the size of the COMMON block in the caller.
+ 
+\end_layout
+
+\begin_layout Standard
+If 
+\begin_inset Formula $W$
+\end_inset
+
+ is the ordered set of all words accessed via the COMMON block then 
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\begin{eqnarray*}
+ & \#W_{l}\leq\#W_{c}
+\end{eqnarray*}
+
+\end_inset
+
+
+\end_layout
+
+\end_deeper
+\begin_layout Itemize
+Logical coercion (
+\emph on
+rule-logical
+\emph default
+)
+\end_layout
+
+\begin_deeper
+\begin_layout Standard
+The default rule (
+\emph on
+rule-default
+\emph default
+) is that all types must match between the sequence of variables in the
+ caller and the called subroutine.
+ However, this rule is too strict: there are two cases in which type coercion
+ is sound.
+ 
+\end_layout
+
+\begin_layout Standard
+The first case involves logicals:
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\begin{eqnarray*}
+ &  & \begin{cases}
+T_{c,i}=\mbox{logical}\land T_{l,i}=\mbox{integer}\\
+T_{c,i}=\mbox{integer}\land T_{l,i}=\mbox{logical}\\
+T_{c,i}=\mbox{real}\land T_{l,i}=\mbox{logical}
+\end{cases}
+\end{eqnarray*}
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+A logical is false when coerced from 0 and true otherwise.
+ Therefore interpreting a logical as an integer gives 1 or 0, and interpreting
+ an integer or real as a logical will return correct values of 
+\family typewriter
+.true.
+
+\family default
+ or 
+\family typewriter
+.false.
+\family default
+.
+ Therefore interpreting a logical as a real is only correct for 
+\family typewriter
+.false.
+
+\family default
+ because the value of 
+\family typewriter
+.true.
+
+\family default
+ interpreted as a real is a non-zero number that depends on the kind of
+ the real.
+ As this is quite non-intuitive, our typechecker therefor throws an error
+ on attempts to interpret a logical as a real.
+\end_layout
+
+\end_deeper
+\begin_layout Itemize
+Complex coercion (
+\emph on
+rule-complex
+\emph default
+)
+\end_layout
+
+\begin_deeper
+\begin_layout Standard
+The second case involves complex numbers, which can be coerced to and from
+ two contiguous real numbers:
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\begin{eqnarray*}
+ &  & \begin{cases}
+T_{c,i}=\mbox{complex}\land T_{l,i}=\mbox{real}\land T_{l,i+1}=\mbox{real}\\
+T_{c,i}=\mbox{real}\land T_{c,i+1}=\mbox{real}\land T_{l,i}=\mbox{complex}
+\end{cases}
+\end{eqnarray*}
+
+\end_inset
+
+
+\end_layout
+
+\end_deeper
+\begin_layout Itemize
+Default rule (
+\emph on
+rule-default
+\emph default
+)
+\end_layout
+
+\begin_deeper
+\begin_layout Standard
+In all other cases, the types must match:
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\begin{eqnarray*}
+ & T_{l,i}=T_{c,i} & ,\forall i\in\#K_{l}
+\end{eqnarray*}
+
+\end_inset
+
+
+\end_layout
+
+\end_deeper
+\begin_layout Itemize
+So the overall typecheck rule is as follows:
+\end_layout
+
+\begin_deeper
+\begin_layout Standard
+\begin_inset Formula 
+\begin{eqnarray*}
+ & \mbox{rule-kind\land}\mbox{rule-size\land}\left(\mbox{rule-logical}\lor\mbox{rule-complex}\lor\mbox{rule-default}\right)
+\end{eqnarray*}
+
+\end_inset
+
+
+\end_layout
+
+\end_deeper
+\begin_layout Standard
+With these type checking rules, we can type check the soundness of associations
+ in COMMON blocks and EQUIVALENCE statements.
+ If the associations are correctly typed, we can proceed to remove them.
+\end_layout
+
+\begin_layout Section
+Program transformations for type safety
+\begin_inset CommandInset label
+LatexCommand label
+name "sec:Program-transformations-for"
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+In the preceding sections we analysed the type safety of a FORTRAN 77 program
+ that consists of pure functions and where all variables, parameters and
+ functions are explicitly typed.
+ In this section we show how any FORTRAN 77 program can be transformed into
+ an equivalent program with these properties.
+ First, we show how to transform side-effect-free procedures into pure functions.
+ Then we discuss how to remove COMMON blocks in a type-safe manner.
+ Because of the assumptions that our procedures do not contain I/O calls
+ or external library calls, the COMMON blocks are the only source of potential
+ side effects.
+\end_layout
+
+\begin_layout Subsection
+Transforming side-effect-free Fortran subroutines into pure functions
+\begin_inset CommandInset label
+LatexCommand label
+name "subsec:Transforming-Fortran-subroutines"
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+A side-effect-free FORTRAN 77 subroutine can be translated into a pure function
+ as follows: 
+\end_layout
+
+\begin_layout Itemize
+infer the INTENT of every argument (see Section 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "subsec:INTENT-inference"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+)
 \end_layout
 
 \begin_layout Itemize
@@ -3565,11 +4022,11 @@ In words,
 \emph on
 a'
 \emph default
- does no longer contain any element with intent InOut.
+ does no longer contain any element with INTENT InOut.
 \end_layout
 
 \begin_layout Standard
-Given the intent, then we have:
+Given the INTENT, then we have:
 \end_layout
 
 \begin_layout Standard
@@ -3611,13 +4068,44 @@ a''
 \emph on
 a'
 \emph default
- with intent In.
+ with INTENT In.
  In this way we have identified the function arguments and the function
  return value and their types.
  So regardless of the subroutine syntax, with this information it is now
  a pure function as far as its arguments are concerned.
  For an external function, the algoritm is the same but the return value
  tuple includes the original return value.
+\end_layout
+
+\begin_layout Subsection
+INTENT inference
+\begin_inset CommandInset label
+LatexCommand label
+name "subsec:INTENT-inference"
+
+\end_inset
+
+ 
+\end_layout
+
+\begin_layout Standard
+Because the subroutines to be offloaded cannot contain external calls or
+ I/O calls, we can infer the intent of all arguments by recursive descent
+ into nested calls.
+ The rules are quite simple:
+\end_layout
+
+\begin_layout Standard
+\begin_inset Note Note
+status open
+
+\begin_layout Plain Layout
+XXX Rules for intent inference XXX
+\end_layout
+
+\end_inset
+
+
 \end_layout
 
 \begin_layout Subsection
@@ -3763,28 +4251,11 @@ Storage sequences are used to describe relationships that exist among variables,
 As explained above, the main reason to remove COMMON blocks is to create
  pure functions that don't share a memory space with their caller code unit.
  This is an essential requirement for offloading to accelerators.
- The main problem with COMMON blocks hoever is that they are not type safe:
- the f77 specification does not mention any typing rules and in practice,
- any datum stored in a common block loses all type information.
- 
+ However, type-safe removal of COMMON blocks and rewriting of EQUIVALENCE
+ statements also guarantees that the resulting code is type-safe.
 \end_layout
 
 \begin_layout Standard
-The f90 speficiation (§5.5.2.3 
-\emph on
-Common association
-\emph default
-) states that 
-\end_layout
-
-\begin_layout Quote
-A nonpointer object of default integer type, default real type, double precision
- real type, default complex type, default logical type, or numeric sequence
- type shall become associated only with nonpointer objects of these types.
-\end_layout
-
-\begin_layout Standard
-However, in practice this is not enforced: 
 \begin_inset Note Note
 status open
 
@@ -3990,7 +4461,7 @@ So the argument for f2 has to be passed via f1 from the main program.
 \end_layout
 
 \begin_layout Subsubsection
-The actual conversion
+Matching up COMMON block variables in a subroutine call
 \end_layout
 
 \begin_layout Standard
@@ -4003,6 +4474,12 @@ To create the call arguments and dummy arguments, we need to identify which
 \end_layout
 
 \begin_layout Example
+\begin_inset CommandInset label
+LatexCommand label
+name "exa:Overlapping-sequences"
+
+\end_inset
+
 Overlapping sequences
 \end_layout
 
@@ -4031,6 +4508,13 @@ common yc,xc,zx
 \end_layout
 
 \begin_layout Example
+\begin_inset space ~
+\end_inset
+
+
+\end_layout
+
+\begin_layout Example
 
 \family typewriter
 ! local real xl(2),zl(4) 
@@ -4049,16 +4533,37 @@ common yl,xl,zl
 \end_layout
 
 \begin_layout Standard
-yl(1) will be associated with yc(1) yl(2) will be associated with xl(1)
- and xl(2) yl(3) will be associated with zl(1) and zl(2) zl(3) will be associate
-d with z1c zl(4) will be associated with z2c
+The COMMON statements in Example 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "exa:Overlapping-sequences"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+ leads to following associations:
 \end_layout
 
-\begin_layout Standard
-Furthermore, we need to type check the associations, because COMMON blocks
- are not type safe: the association does not cause type conversion or imply
- mathematical equivalence.
- 
+\begin_layout Itemize
+complex yl(1) will be associated with complex yc(1)
+\end_layout
+
+\begin_layout Itemize
+complex yl(2) will be associated with real xl(1) and real xl(2)
+\end_layout
+
+\begin_layout Itemize
+complex yl(3) will be associated with real zl(1) and zl(2) 
+\end_layout
+
+\begin_layout Itemize
+real zl(3) will be associated with real z1c 
+\end_layout
+
+\begin_layout Itemize
+real zl(4) will be associated with real z2c
 \end_layout
 
 \begin_layout Standard
@@ -4066,44 +4571,8 @@ Furthermore, we need to type check the associations, because COMMON blocks
 status open
 
 \begin_layout Plain Layout
-XXX algos here XXX
-\end_layout
-
-\end_inset
-
-
-\end_layout
-
-\begin_layout Section
-Removal of EQUIVALENCE statements
-\end_layout
-
-\begin_layout Standard
-According to §8.2 
-\emph on
-EQUIVALENCE Statement 
-\emph default
-of the f77 specification , "An EQUIVALENCE statement is used to specify
- the sharing of storage units by two or more entities in a program unit.
- This causes association of the entities that share the storage units.
- If the equivalenced entities are of different data types, the EQUIVALENCE
- statement does not cause type conversion or imply mathematical equivalence.
- If a variable and an array are equivalenced, the variable does not have
- array properties and the array does not have the properties of a variable."
-\end_layout
-
-\begin_layout Standard
-This is another form of storage association, with the same issue that it
- is not type-safe.
- For example
-\end_layout
-
-\begin_layout Standard
-\begin_inset Note Note
-status open
-
-\begin_layout Plain Layout
-XXX example XXX
+XXX algos here XXX This would be the algo for converting from COMMON to
+ arguments, without the type checking 
 \end_layout
 
 \end_inset
@@ -4112,330 +4581,13 @@ XXX example XXX
 \end_layout
 
 \begin_layout Standard
-Therefore, EQUIVALENCE statements also need to be refactored.
- They come with their own flavour of complications.
- 
-\end_layout
-
-\begin_layout Standard
-if a line has multiple tuples, this is allowed: 
-\end_layout
-
-\begin_layout Standard
-(v1,v2),(v2,v3) 
-\end_layout
-
-\begin_layout Standard
-So we must effectively do a transitivity check across all tuples.
- We do this by checking if an element of a tuple occurs in another tuple.
- It is sufficient to do this for a single element because the transivity
- means that every element from the one tuple will be associated with every
- element from the other.
-\end_layout
-
-\begin_layout Standard
-Furthermore, the tuples (called lists in the spec) can have more than two
- elements.
- 
-\end_layout
-
-\begin_layout Standard
-(v1,v2,v3),(v3,v4,v5) 
-\end_layout
-
-\begin_layout Standard
-then this effectively means (v1,v2,v3,v4,v5) and each of these variables
- is associated with all the others, so there are 10 unique associations
- in this example.
- In general, for a tuple of n values, there will be (n-1)*n/2 associations.
-\end_layout
-
-\begin_layout Standard
-Another complication is that overlapping is allowed, e.g.:
-\end_layout
-
-\begin_layout Example
-Overlap in EQUIVALENCE
-\end_layout
-
-\begin_layout Example
-
-\family typewriter
-DIMENSION RADE11(5), RADE12(5) 
-\end_layout
-
-\begin_layout Example
-
-\family typewriter
-EQUIVALENCE (RADE11(4), RADE12(2))
-\end_layout
-
-\begin_layout Standard
-Because the arrays start at 1, and they overlap, this actually creates an
- equivalence between `RADE11(3), RADE12(1)` and `RADE11(5), RADE12(3)` as
- well.
- So we have to equate the overlapping ranges.
-\end_layout
-
-\begin_layout Section
-INTENT inference 
-\end_layout
-
-\begin_layout Standard
-Because the subroutines to be offloaded cannot contain external calls or
- I/O calls, we can infer the intent of all arguments by recursive descent
- into nested calls.
-\end_layout
-
-\begin_layout Subsection*
-Typechecking COMMON block and EQUIVALENCE associations 
-\end_layout
-
-\begin_layout Standard
-Variables stored in COMMON blocks lose all type information.
- This means in particular that there is no type coercion between real and
- integer values.
- To ensure type safety before refactoring, if a COMMON block is used to
- pass arguments to a subroutine, our compiler will perform typechecks.
- Because of the lack of coercion, these checks are different from the typechecks
- performed for normal assignments or arguments passed to subroutines via
- dummy parameters.
- The same is true for EQUIVALENCE statements: they associate different names
- with the same memory location, but the type of the word written to the
- memory location is erased.
- Therefore, the following is legal and does not generate any warnings, but
- is incorrect
-\end_layout
-
-\begin_layout Example
-Loss of type information in EQUIVALENCE
-\end_layout
-
-\begin_layout Example
-
-\family typewriter
-integer*4 i1
-\end_layout
-
-\begin_layout Example
-
-\family typewriter
-real*4 r1       
-\end_layout
-
-\begin_layout Example
-
-\family typewriter
-equivalence (i2,r1)
-\end_layout
-
-\begin_layout Example
-
-\family typewriter
-i1 = 42
-\end_layout
-
-\begin_layout Example
-
-\family typewriter
-print *, r1 ! prints 5.88545355E-44
-\end_layout
-
-\begin_layout Example
-
-\family typewriter
-r1 = 42
-\end_layout
-
-\begin_layout Example
-
-\family typewriter
-print *, i1 ! prints 1109917696
-\end_layout
-
-\begin_layout Standard
-For the purpose of typechecking, we can assume that all variables are scalar:
- an array a is considered as syntactic sugar for an ordered collection of
- scalars with names a(i).
- We further assume all arrays are linear and traversed using an index starting
- at 1.
- 
-\end_layout
-
-\begin_layout Standard
-The main rule for type soundness which we adopt are:
-\end_layout
-
-\begin_layout Itemize
-Kind matching (rule-kind)
-\end_layout
-
-\begin_deeper
-\begin_layout Standard
-A scalar type is atomic, and therefore we cannot split the type, which would
- be the case if we attempted to map types with different kinds.
- 
-\end_layout
-
-\begin_layout Standard
-\begin_inset Formula 
-\begin{eqnarray*}
- & K_{c,i}=K_{l,i} & ,\forall i\in\#K_{l}
-\end{eqnarray*}
-
-\end_inset
-
-
-\end_layout
-
-\end_deeper
-\begin_layout Itemize
-No COMMON block extension in the called subroutine (rule-size)
-\end_layout
-
-\begin_deeper
-\begin_layout Standard
-The ordered set of words in a COMMON block accessed from a subroutine must
- be no larger than the size of the COMMON block in the caller.
- 
-\end_layout
-
-\begin_layout Standard
-If W is the ordered set of all words accessed via the COMMON block then
- 
-\end_layout
-
-\begin_layout Standard
-\begin_inset Formula 
-\begin{eqnarray*}
- & \#W_{l}\leq\#W_{c}
-\end{eqnarray*}
-
-\end_inset
-
-
-\end_layout
-
-\end_deeper
-\begin_layout Itemize
-Logical coercion (rule-logical)
-\end_layout
-
-\begin_deeper
-\begin_layout Standard
-The next rule is that all types must match between the sequence of variables
- in the caller and the called subroutine.
- However, this rule is too strict: there are several cases in which type
- coercion is sound.
- The first case involves logicals:
-\end_layout
-
-\begin_layout Standard
-\begin_inset Formula 
-\begin{eqnarray*}
- &  & \begin{cases}
-T_{c,i}=\mbox{logical}\land T_{l,i}=\mbox{integer}\\
-T_{c,i}=\mbox{integer}\land T_{l,i}=\mbox{logical}\\
-T_{c,i}=\mbox{real}\land T_{l,i}=\mbox{logical}
-\end{cases}
-\end{eqnarray*}
-
-\end_inset
-
-
-\end_layout
-
-\begin_layout Standard
-A logical is false when coerced from 0 and true otherwise.
- Therefore interpreting a logical as an integer gives 1 or 0, and interpreting
- an integer or real as a logical will return correct values of .true.
- or .false.
- .
- Note that Therefore interpreting a logical as a real is only correct for
- .false.
- because the .true.
- interpreted as a real is a non-zero number that depends on the kind of
- the real.
- As this is quite non-intuitive, our typechecker therefor throws an error
- on attempts to interpret a logical as a real.
-\end_layout
-
-\end_deeper
-\begin_layout Itemize
-Complex coercion (rule-complex)
-\end_layout
-
-\begin_deeper
-\begin_layout Standard
-The next case involves complex numbers, which can be coerced to and from
- two contiguous real numbers:
-\end_layout
-
-\begin_layout Standard
-\begin_inset Formula 
-\begin{eqnarray*}
- &  & \begin{cases}
-T_{c,i}=\mbox{complex}\land T_{l,i}=\mbox{real}\land T_{l,i+1}=\mbox{real}\\
-T_{c,i}=\mbox{real}\land T_{c,i+1}=\mbox{real}\land T_{l,i}=\mbox{complex}
-\end{cases}
-\end{eqnarray*}
-
-\end_inset
-
-
-\end_layout
-
-\end_deeper
-\begin_layout Itemize
-Default rule (rule-default)
-\end_layout
-
-\begin_deeper
-\begin_layout Standard
-In all other cases, the types must match:
-\end_layout
-
-\begin_layout Standard
-\begin_inset Formula 
-\begin{eqnarray*}
- & T_{l,i}=T_{c,i} & ,\forall i\in\#K_{l}
-\end{eqnarray*}
-
-\end_inset
-
-
-\end_layout
-
-\end_deeper
-\begin_layout Itemize
-So the overall typecheck rule is as follows:
-\end_layout
-
-\begin_deeper
-\begin_layout Standard
-\begin_inset Formula 
-\begin{eqnarray*}
- & \mbox{rule-kind\land}\mbox{rule-size\land}\left(\mbox{rule-logical}\lor\mbox{rule-complex}\lor\mbox{rule-default}\right)
-\end{eqnarray*}
-
-\end_inset
-
-
-\end_layout
-
-\end_deeper
-\begin_layout Subsection*
-Matching up COMMON block variables in a subroutine call
-\end_layout
-
-\begin_layout Standard
-Given that the typecheck succeeds, then it follows that for every variable
- in a COMMON block declared in the caller, there is a corresponding variable
- in the called subroutine.
+Given that the associations typecheck correctly, then it follows that for
+ every variable in a COMMON block declared in the caller, there is a correspondi
+ng variable in the called subroutine.
  In practice these variables can be either arrays or scalars.
  Whereas for the purpose of typechecking we have assumed that all variables
- are scalar, without loss of generality, we will now assume that all variables
- are arrays.
+ are scalar, again without loss of generality, we will now assume that all
+ variables are arrays.
  A scalar s is simply syntactic sugar for the first element of an array
  of size 1, s(1).
  This is merely to keep the rules more compact.
@@ -4478,11 +4630,7 @@ If required, the right-hand side of the assignment will contain an explicit
 
 \begin_layout Standard
 The compiler maintains a global state record.
- The state information of each subroutine, 
-\emph on
-st
-\emph default
-, is used in 
+ The state information of each subroutine, st, is used in 
 \family typewriter
 updateDim
 \family default
@@ -4490,19 +4638,8 @@ updateDim
 \end_layout
 
 \begin_layout Standard
-the sequence 
-\emph on
-cseq
-\emph default
- consists of tuples of the type declaration 
-\emph on
-decl
-\emph default
- and the linear index 
-\emph on
-idx
-\emph default
- in the 
+the sequence cseq consists of tuples of the type declaration decl and the
+ linear index idx in the 
 \family sans
 COMMON
 \family default
@@ -4521,27 +4658,13 @@ cseq & = & (decl_{1},idx_{1}),...,(decl_{i},idx_{i}),...)
 \end_layout
 
 \begin_layout Standard
-For every array variable, the type declaration contains a 
-\emph on
-Dim 
-\emph default
-field 
-\emph on
-d
-\emph default
- which is an array of (start index, end index) tuples, with total size 
-\emph on
-sz
-\emph default
-.
+For every array variable, the type declaration contains a Dim field d which
+ is an array of (start index, end index) tuples, with total size sz.
 \end_layout
 
 \begin_layout Standard
-The list of equivalence pairs 
-\emph on
-eqps
-\emph default
- contains the matched up declarations of the original 
+The list of equivalence pairs eqps contains the matched up declarations
+ of the original 
 \family sans
 COMMON
 \family default
@@ -4567,11 +4690,7 @@ The matching algorithm traverses the local sequence
 
 .
  The algorithm is iterative and stops when the local sequence has been consumed,
- and returns 
-\emph on
-eqps
-\emph default
-.
+ and returns eqps.
  
 \end_layout
 
@@ -4648,6 +4767,164 @@ sz_{l}-idx_{l}\geq sz_{c}-idx_{c} & \mathit{cseq}_{c}
 
 \end_layout
 
+\begin_layout Subsection
+Removal of EQUIVALENCE statements
+\end_layout
+
+\begin_layout Standard
+According to §8.2 
+\emph on
+EQUIVALENCE Statement 
+\emph default
+of the f77 specification , 
+\end_layout
+
+\begin_layout Quote
+An EQUIVALENCE statement is used to specify the sharing of storage units
+ by two or more entities in a program unit.
+ This causes association of the entities that share the storage units.
+ If the equivalenced entities are of different data types, the EQUIVALENCE
+ statement does not cause type conversion or imply mathematical equivalence.
+ If a variable and an array are equivalenced, the variable does not have
+ array properties and the array does not have the properties of a variable.
+\end_layout
+
+\begin_layout Standard
+This is another form of storage association, with the same issue that it
+ is not type-safe.
+ For example
+\end_layout
+
+\begin_layout Standard
+\begin_inset Note Note
+status open
+
+\begin_layout Plain Layout
+XXX example XXX
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+Therefore, EQUIVALENCE statements also need to be refactored.
+ They come with their own flavour of complications.
+ 
+\end_layout
+
+\begin_layout Subsubsection
+Transitivity
+\end_layout
+
+\begin_layout Standard
+If a line has multiple tuples, a variable can occur in more than one tuple,
+ e.g.: 
+\end_layout
+
+\begin_layout Standard
+
+\family typewriter
+(v1,v2),(v2,v3) 
+\end_layout
+
+\begin_layout Standard
+So we must effectively do a transitivity check across all tuples.
+ We do this by checking if an element of a tuple occurs in another tuple.
+ It is sufficient to do this for a single element because the transivity
+ means that every element from the one tuple will be associated with every
+ element from the other.
+\end_layout
+
+\begin_layout Subsubsection
+Quadratic complexity
+\end_layout
+
+\begin_layout Standard
+Furthermore, the tuples (called lists in the spec) can have more than two
+ elements.
+ 
+\end_layout
+
+\begin_layout Standard
+
+\family typewriter
+(v1,v2,v3),(v3,v4,v5) 
+\end_layout
+
+\begin_layout Standard
+then this effectively means 
+\family typewriter
+(v1,v2,v3,v4,v5)
+\family default
+ and each of these variables is associated with all the others, so there
+ are 10 unique associations in this example.
+ In general, for a tuple of 
+\emph on
+n
+\emph default
+ values, there will be 
+\begin_inset Formula $(n-1).n/2$
+\end_inset
+
+ associations.
+ 
+\end_layout
+
+\begin_layout Subsubsection
+Overlapping ranges
+\end_layout
+
+\begin_layout Standard
+A final complication is that overlapping is allowed, e.g.:
+\end_layout
+
+\begin_layout Example
+Overlap in EQUIVALENCE
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+DIMENSION RADE11(5), RADE12(5) 
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+EQUIVALENCE (RADE11(4), RADE12(2))
+\end_layout
+
+\begin_layout Standard
+Because the arrays start at 1, and they overlap, this actually creates an
+ equivalence between 
+\family typewriter
+RADE11(3), RADE12(1)
+\family default
+ and 
+\family typewriter
+RADE11(5), RADE12(3)
+\family default
+ as well.
+ So we have to equate the overlapping ranges.
+\end_layout
+
+\begin_layout Standard
+\begin_inset Note Note
+status open
+
+\begin_layout Plain Layout
+XXX Here we should have the algorithms to remove EQUIVALENCE by adding assignmen
+ts before and after the statements.
+ XXX
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
 \begin_layout Standard
 \begin_inset CommandInset bibtex
 LatexCommand bibtex
@@ -4665,11 +4942,7 @@ Appendices
 \end_layout
 
 \begin_layout Standard
-================
-\end_layout
-
-\begin_layout Standard
-the only difference between a Fortran function and subroutine is that a
+The only difference between a Fortran function and subroutine is that a
  function call can occur in an expression and a subroutine call can't.
  
 \end_layout
@@ -4931,10 +5204,6 @@ External functions
 
 \begin_layout Enumerate
 Subroutines
-\end_layout
-
-\begin_layout Standard
-We discuss 
 \end_layout
 
 \begin_layout Standard
