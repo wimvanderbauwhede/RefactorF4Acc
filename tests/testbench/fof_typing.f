@@ -12,9 +12,10 @@
           !print *,z            
           !call f2(x,y,z)
           !print *,z            
-          call ten_times_f(sqsum,3,4,z,.false.)
+          ! true = correct, false = wrong
+          call ten_times_f(sqsum,3,4,z,.true.)
           print *,z
-          call ten_times_s(f2,3,4,z,.false.)
+          call ten_times_s(f2,3,4,z,.true.)
           print *,z
 #ifdef SHOW_ERROR          
           v1=sqsum
@@ -23,7 +24,7 @@
       end 
       
       subroutine ten_times_f(f3,x,y,z,c)
-          integer  f3 ! for a function
+          integer f3 ! for a function. Omitting this gives the wrong result, -Wall warns because f3 is typed as real
           external f3 ! 
           integer x,y
           integer z

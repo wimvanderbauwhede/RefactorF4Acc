@@ -1001,8 +1001,7 @@ regardless of the rest of the content of
 \begin_inset Formula $\Gamma$
 \end_inset
 
-is the same for 
-the inputs
+is the same for the inputs
 \begin_inset Formula $\mathbf{x_{in,k}}$
 \end_inset
 
@@ -1671,7 +1670,7 @@ FortranType =
 \end_layout
 
 \begin_layout Definition
-Tuple = 
+Tuple = (
 \begin_inset Formula $\tau\times...\times\tau_{i}\times...\times\tau_{k}),\,\forall\,i\,\in[1,k]\,|\,\tau_{i}\in\mathit{FortranType}$
 \end_inset
 
@@ -1731,7 +1730,11 @@ General form a type
 \begin_layout Standard
 The type variables arise a result of the polymorphism of the arithmetic
  and relational operators, as well as of some intrinsic functions.
- The void type is used in the typing rules for subroutine calls and assignments,
+ The 
+\emph on
+void
+\emph default
+ type is used in the typing rules for subroutine calls and assignments,
  as these are statements that do not have a type.
 \end_layout
 
@@ -2519,14 +2522,19 @@ The function application typing rule is also that every call argument and
 \end_layout
 
 \begin_layout Standard
-In the above we have glossed over one detail: subroutines and external functions
- can take the names of other subroutines or external functions as arguments.
- The case of an external functions is covered by the above rules because
- the function passed as argument has as type the return type, and as such
- is indistinguishable from a variable.
+In the above we have glossed over one important detail: subroutines and
+ external functions can take the names of other subroutines or external
+ functions as arguments.
+ The case of an external functions is covered by the above typing rules
+ because the function passed as argument has as type the return type, and
+ as such is indistinguishable from a variable.
  A subroutine passed as an argument however does not have a type, so we
- have to add void to the set of types that can are valid for arguments of
- a subroutine or function.
+ have to add 
+\emph on
+void
+\emph default
+ to the set of types that can are valid for arguments of a subroutine or
+ function.
  
 \end_layout
 
@@ -2570,7 +2578,1093 @@ EXTERNAL Statement
  requires that any external function or subroutine used as an argument is
  declared using the EXTERNAL statement.
  Omitting this declaration results in a type error.
+ Strictly speaking this means that 
+\emph on
+External
+\emph default
+ is a type attribute for functions or subroutines, in other words the type
+ of a function in Definition XXX must be extended with this attribute:
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\[
+f:(\mathit{External},\tau\rightarrow\tau)
+\]
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+with
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\[
+\mathit{External}=\mathit{True\,}|\,\mathit{False}
+\]
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Subsubsection
+Higher-order Subroutines and Functions
+\end_layout
+
+\begin_layout Standard
+The fact that subroutines and external functions can take the names of other
+ subroutines or external functions as arguments implies that FORTRAN 77
+ has limited supports higher-order functions.
  
+\end_layout
+
+\begin_layout Standard
+The issue with the higher order functions is how they are typed.
+ Essentially, when a function 
+\begin_inset Formula $f_{1}(x)$
+\end_inset
+
+
+\emph on
+ 
+\emph default
+with type
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\[
+f_{1}:t_{1}\rightarrow t_{2}
+\]
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+is passed as argument to a function 
+\begin_inset Formula $f_{2}(f)$
+\end_inset
+
+, the type of 
+\begin_inset Formula $f_{2}$
+\end_inset
+
+ is
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\[
+f_{2}:t_{2}\rightarrow t_{3}
+\]
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+because in Fortran, only the return type of the passed function is used.
+ The complete type would be
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\[
+f_{2}:(t_{1}\rightarrow t_{2})\rightarrow t_{3}
+\]
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+So in Fortran the type of the argument(s) of 
+\begin_inset Formula $f_{1}$
+\end_inset
+
+ is not considered.
+ Which means that we can easily write unsafe code:
+\end_layout
+
+\begin_layout Example
+Unsafe code with higher-order function call
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+t3 function f2(f)
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+t2 :: f,y
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+t1 :: x
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+t4 :: z
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+logical :: c
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+...
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+if (c) then
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+y = f(x)
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+else
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+y = f(z,x) 
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+end if
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+end function
+\end_layout
+
+\begin_layout Standard
+The 
+\emph on
+f(z,x) 
+\emph default
+call, while patently wrong, will pass silently.
+ For subroutines the situation is the same, the only difference is that
+ there is no return type so we use 
+\emph on
+void
+\emph default
+ as the type of the subroutine passed as argument.
+\end_layout
+
+\begin_layout Standard
+Because the type information is incomplete, it is not possible to catch
+ this type of error at compile time.
+ However, we propose here a novel approach to detect the behaviour at run
+ time and throw an error.
+ To do so, we construct a so-called 
+\emph on
+sum type 
+\emph default
+at compile time.
+ This is one kind of type used by many functional programming languages
+ called algebraic data types (the other kind are 
+\emph on
+product types
+\emph default
+, i.e.
+ records), and it allows you to define a type with variants, so we can say
+ "the type of this exprssion either be A or B or C etc".
+ In particular, we use a sum type where every type variant is a function
+ type, something like
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\[
+datatype\;F=F_{1}\;t_{1}\rightarrow t_{2}\,|\,F_{2}\;t_{4}\rightarrow t_{1}\rightarrow t_{2}\,|\,F_{3}\;\dots
+\]
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+Then the type of the argument in the call becomes 
+\emph on
+F
+\emph default
+ but we can check which variant has been selected because effectively each
+ argument is tagged with the name of the type variant.
+ Fortran does not have such a type, but using an appropriate program transformat
+ion we can achieve the same effect.
+ The approach is as follows:
+\end_layout
+
+\begin_layout Itemize
+The types of all functions that are allowed to be passed as argument are
+ known because these are the functions marked as EXTERNAL in the code unit
+ containing the call (see Example 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "exa:External-functions"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+)
+\end_layout
+
+\begin_layout Example
+\begin_inset CommandInset label
+LatexCommand label
+name "exa:External-functions"
+
+\end_inset
+
+External functions
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+program functions_as_arguments
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+external f3
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+external f4
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+t3 :: v1, v2, f2
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+v1 = f2(f3,...)
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+v2 = f2(f4,...)
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+end 
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+t3 f2(f,...)
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+t2 :: f
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+external f
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+...
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+end
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+t2 function f3(x)
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+t1 :: x
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+...
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+end
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+t2 function f4(z,x)
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+t1 :: x
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+t4 :: z
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+...
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+end
+\end_layout
+
+\begin_layout Itemize
+Make a list of the type signatures of these functions:
+\end_layout
+
+\begin_deeper
+\begin_layout Standard
+\begin_inset Formula 
+\[
+F=[t_{1}\rightarrow t_{2},t_{4}\rightarrow t_{1}\rightarrow t_{2},\dots]
+\]
+
+\end_inset
+
+
+\end_layout
+
+\end_deeper
+\begin_layout Itemize
+The index in this list is a unique identifier for that type, 
+\emph on
+F(1)
+\emph default
+ refers to the first type, 
+\emph on
+F(2)
+\emph default
+ to the second etc.
+\end_layout
+
+\begin_layout Itemize
+We add the index variable as an additional argument to the calling function
+ (Example 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "exa:Identifying-type-variants"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+) and use the index corresponding to the called function in the actual call
+ (Example XXX)
+\end_layout
+
+\begin_layout Example
+\begin_inset CommandInset label
+LatexCommand label
+name "exa:External-functions-1"
+
+\end_inset
+
+Indexed external functions 
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+program functions_as_arguments
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+external f3 ! 1
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+external f4 ! 2
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+t3 :: v1, v2, f2
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+v1 = f2(1,f3,...)
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+v2 = f2(2,f4,...)
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+end 
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+t3 f2(idx,f,...)
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+integer :: idx
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+t2 :: f
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+external f
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+...
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+end
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+t2 function f3(t1)
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+t1 :: x
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+...
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+end
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+t2 function f4(t4,t1)
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+t1 :: x
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+t4 :: z
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+...
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+end
+\end_layout
+
+\begin_layout Itemize
+We can now use this index to identify the selected type variant, as shown
+ in Example 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "exa:Identifying-type-variants"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+.
+ Every call to the function argument 
+\emph on
+f
+\emph default
+ is guarded by an if-then-else statement checking if the index 
+\emph on
+idx
+\emph default
+ matches the actual index corresponding to the variant.
+ If this is not the case, an error is thrown.
+\end_layout
+
+\begin_layout Example
+\begin_inset CommandInset label
+LatexCommand label
+name "exa:Identifying-type-variants"
+
+\end_inset
+
+Identifying type variants using indexing
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+t3 function f2(idx,f)
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+integer :: idx 
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+t2 :: f,y
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+t1 :: x
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+t4 :: z
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+logical :: c
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+...
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+if (c) then
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+if (idx==1) then
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+y = f(x)
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+else
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+error('Type error!')
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+end if
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+else
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+if (idx==2) then
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+y = f(z,x) 
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+else
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+error('Type error!')
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+end if
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+end if
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+end function
+\end_layout
+
+\begin_layout Standard
+And so our higher-order functions are type safe at run time.
+ In practice, the "we" is a refactoring compiler, so the programmer does
+ not need to do anything.
 \end_layout
 
 \begin_layout Subsubsection
@@ -3224,30 +4318,65 @@ program unsafeCoercion
 \begin_layout Example
 
 \family typewriter
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
 integer i1,i2
 \end_layout
 
 \begin_layout Example
 
 \family typewriter
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
 real r1
 \end_layout
 
 \begin_layout Example
 
 \family typewriter
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
 r1 = 0.14159
 \end_layout
 
 \begin_layout Example
 
 \family typewriter
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
 i1=3
 \end_layout
 
 \begin_layout Example
 
 \family typewriter
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
 i2 = i1+r1
 \end_layout
 

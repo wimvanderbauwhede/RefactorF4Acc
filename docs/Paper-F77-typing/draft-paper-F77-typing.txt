@@ -3,6 +3,86 @@ TODO:
 - For array slicing and array indexing by arrays: insert guards if undecidable
 - Add the discussion of functions-of-functions, including how we could emulate sum types to fix it
 
+Type Safe Higher-Order Functions Fortran
+
+
+Fortran 77 has limited support for higher-order functions. The issue with the higher order functions is how they are typed. Essentially, when a function f1(x) with type
+
+f1 : t1 -> t2
+
+is passed as argument to a function f2(f), the type of f2 is:
+
+f2 : t2 -> t3
+
+whereas the complete type would be
+
+f2: (t1 -> t2) -> t3
+
+So in Fortran the type of the argument(s) of f1 is not considered. Which means that we can easily write unsafe code:
+
+t3 function f2(f) 
+ t2 :: f,y
+ t1 :: x
+ t4 :: z
+ logical :: c
+ ...
+ if (c) then
+ y = f(x)
+ else
+ y = f(z,x) 
+ end if
+end function
+
+The f(z,x) call, while patently wrong, will pass silently. 
+
+That's a bit not good, but fortunately all is not lost. The solution comes from a rather unexpected angle: algebraic data types to the rescue. This is a kind of type used by many functional programming languages, and it allows you to say something like "this type of thingy can either be A or B or C etc". In particular, I am going to use an algebraic data type where every type alternative is a function type, something like
+
+datatype F12 = F1 t1 -> t2 | F2 t4 ->t1 ->t2 
+
+Fortran does not have such a type. But with a little trickery we can achieve the same effect.
+ 
+Fortran requires us to explicitly declare which functions will be used as arguments in code unit. So we can look all functions so declared in a code unit, and make a list of their type signatures:
+
+F12 = [ t1 -> t2 , t4 ->t1 ->t2 ] 
+
+The index in this list is a unique identifier for that type,  F12[1] refers to the first type, F12[2] to the second.
+
+And now we can do this:
+
+t3 function f2(idx,f)
+ integer :: idx 
+ t2 :: f,y
+ t1 :: x
+ t4 :: z
+ logical :: c
+ ...
+ if (c) then
+if (idx==1) then
+ y = f(x)
+else
+error('Type error!')
+end if
+ else
+if (idx==2) then
+ y = f(z,x) 
+else
+error('Type error!')
+end if
+ end if
+end function
+
+And so our higher-order functions are type safe at run time. In practice, the "we" is a refactoring compiler, so the programmer does not need to do anything.
+
+
+
+
+  
+ 
+
+
+
+
+
 Sum types for functions of functions:
 
 There is one corner case which I fear is ultimately undecidable:
