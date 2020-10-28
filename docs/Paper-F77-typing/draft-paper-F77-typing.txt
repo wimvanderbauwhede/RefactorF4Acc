@@ -29,7 +29,7 @@ f21 :: Int -> Int
  integer, intent(inout) :: x
  integer, intent(inout) :: y
  
- unless we can show refine the intent from the context. But that is not always statically decideable.
+ unless we can refine the intent from the context. But that is not always statically decideable.
  
  for example:
  
