@@ -1704,6 +1704,12 @@ noprefix "false"
 \end_layout
 
 \begin_layout Definition
+\begin_inset CommandInset label
+LatexCommand label
+name "def:General-form-a"
+
+\end_inset
+
 General form a type 
 \begin_inset Formula $\tau$
 \end_inset
@@ -1860,10 +1866,6 @@ double-constant ::= [sign] {digit}* decimal-point {digit}* [double-exponent]
 
 \begin_layout Definition
 double-exponent ::= D [sign] {digit}+
-\end_layout
-
-\begin_layout Definition
-
 \end_layout
 
 \begin_layout Definition
@@ -2583,7 +2585,17 @@ EXTERNAL Statement
 External
 \emph default
  is a type attribute for functions or subroutines, in other words the type
- of a function in Definition XXX must be extended with this attribute:
+ of a function in Definition 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "def:General-form-a"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+ must be extended with this attribute:
 \end_layout
 
 \begin_layout Standard
@@ -2613,19 +2625,32 @@ with
 \end_layout
 
 \begin_layout Subsubsection
-Higher-order Subroutines and Functions
+Run-time Checking of Higher-order Subroutines and Functions
 \end_layout
 
 \begin_layout Standard
 The fact that subroutines and external functions can take the names of other
  subroutines or external functions as arguments implies that FORTRAN 77
  has limited supports higher-order functions.
+ The issue with the Fortran implementation of higher order functions is
+ how they are typed.
+ Recall that we can transform any function or subroutine into a pure function
+ as discussed in Section 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "sec:Program-transformations-for"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+.
  
 \end_layout
 
 \begin_layout Standard
-The issue with the higher order functions is how they are typed.
- Essentially, when a function 
+Essentially, when a function 
 \begin_inset Formula $f_{1}(x)$
 \end_inset
 
@@ -2692,10 +2717,26 @@ So in Fortran the type of the argument(s) of
 \end_inset
 
  is not considered.
- Which means that we can easily write unsafe code:
+ Which means that code can easily be unsafe, as illustrated in Example 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "exa:Unsafe-code-with"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+.
 \end_layout
 
 \begin_layout Example
+\begin_inset CommandInset label
+LatexCommand label
+name "exa:Unsafe-code-with"
+
+\end_inset
+
 Unsafe code with higher-order function call
 \end_layout
 
@@ -2858,11 +2899,11 @@ end function
 \end_layout
 
 \begin_layout Standard
-The 
+The call to 
 \emph on
 f(z,x) 
 \emph default
-call, while patently wrong, will pass silently.
+in the example, while patently wrong, will pass silently.
  For subroutines the situation is the same, the only difference is that
  there is no return type so we use 
 \emph on
@@ -2932,6 +2973,7 @@ noprefix "false"
 )
 \end_layout
 
+\begin_deeper
 \begin_layout Example
 \begin_inset CommandInset label
 LatexCommand label
@@ -3068,6 +3110,7 @@ t4 :: z
 end
 \end_layout
 
+\end_deeper
 \begin_layout Itemize
 Make a list of the type signatures of these functions:
 \end_layout
@@ -3110,13 +3153,24 @@ noprefix "false"
 \end_inset
 
 ) and use the index corresponding to the called function in the actual call
- (Example XXX)
+ (Example 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "exa:Indexed-external-functions"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+)
 \end_layout
 
+\begin_deeper
 \begin_layout Example
 \begin_inset CommandInset label
 LatexCommand label
-name "exa:External-functions-1"
+name "exa:Indexed-external-functions"
 
 \end_inset
 
@@ -3255,6 +3309,7 @@ t4 :: z
 end
 \end_layout
 
+\end_deeper
 \begin_layout Itemize
 We can now use this index to identify the selected type variant, as shown
  in Example 
@@ -3277,9 +3332,13 @@ f
 idx
 \emph default
  matches the actual index corresponding to the variant.
- If this is not the case, an error is thrown.
+ If this is not the case, a run-time type error is thrown.
+ The variant is determined by matching the signature of the call to the
+ signatures in the sum type.
+ 
 \end_layout
 
+\begin_deeper
 \begin_layout Example
 \begin_inset CommandInset label
 LatexCommand label
@@ -3661,10 +3720,11 @@ end if
 end function
 \end_layout
 
+\end_deeper
 \begin_layout Standard
-And so our higher-order functions are type safe at run time.
- In practice, the "we" is a refactoring compiler, so the programmer does
- not need to do anything.
+With these program transformations, higher-order functions are type safe
+ at run time.
+ 
 \end_layout
 
 \begin_layout Subsubsection

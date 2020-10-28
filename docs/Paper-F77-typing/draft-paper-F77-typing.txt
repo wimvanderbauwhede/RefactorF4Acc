@@ -74,8 +74,14 @@ end function
 And so our higher-order functions are type safe at run time. In practice, the "we" is a refactoring compiler, so the programmer does not need to do anything.
 
 
+So formally we have:
 
+f : F
 
+case f of
+	F1 ->
+	F2 ->
+	F3 ->
   
  
 
@@ -146,6 +152,22 @@ Either by including the intent in the type as above, or by adding the position t
 f : t:2 -> t:1 
 
 which lets us reconstruct the intent. In the call typecheck rule the intent makes most sense, and it is simply (FortranType,Intent)
+
+But even then, we would have
+
+f1(t1:In,t2:Out,t3:In) 
+f2(t1:Out,t2:In,t3:In) 
+f3(t1:In,t2:Out,t3:Out) 
+
+and a call with intents identified as
+
+f(t1:InOut,t2:InOut,t3:InOut)
+
+then there is absolutely no way to tell them apart
+
+
+------
+
 
 https://typing-is-hard.ch/
 
