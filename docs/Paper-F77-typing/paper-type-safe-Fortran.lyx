@@ -6504,7 +6504,7 @@ As explained above, the main reason to remove COMMON blocks is to create
 
 \begin_layout Standard
 \begin_inset Note Note
-status open
+status collapsed
 
 \begin_layout Plain Layout
 MUST CHECK WITH ifortran https://software.intel.com/content/www/us/en/develop/tool
@@ -6902,39 +6902,6 @@ real zl(3) will be associated with real z1c
 
 \begin_layout Itemize
 real zl(4) will be associated with real z2c
-\end_layout
-
-\begin_layout Standard
-\begin_inset Note Note
-status open
-
-\begin_layout Plain Layout
-XXX algos here XXX This would be the algo for converting from COMMON to
- arguments, without the type checking 
-\end_layout
-
-\begin_layout Plain Layout
-The algorithm for converting COMMON variables to arguments is quite straightforw
-ard:
-\end_layout
-
-\begin_layout Plain Layout
-- Identify all COMMON variables accessed in the code unit and all nested
- units (subroutine and function calls) using recursive descent 
-\end_layout
-
-\begin_layout Plain Layout
-- Add all of them as additional arguments to the signature.
-\end_layout
-
-\begin_layout Plain Layout
-- The call arguments need to be adapted in the same way, the only complication
- is that we need to check for name conflicts with local variables
-\end_layout
-
-\end_inset
-
-
 \end_layout
 
 \begin_layout Standard
@@ -7443,6 +7410,10 @@ RADE11(5), RADE12(3)
  So we have to equate the overlapping ranges.
 \end_layout
 
+\begin_layout Subsubsection
+Reproducing EQUIVALENCE behaviour via assignments
+\end_layout
+
 \begin_layout Standard
 \begin_inset Note Note
 status open
@@ -7456,6 +7427,14 @@ ts before and after the statements.
 \end_inset
 
 
+\end_layout
+
+\begin_layout Subsection
+Summary of program transformations
+\end_layout
+
+\begin_layout Section
+Conclusions 
 \end_layout
 
 \begin_layout Standard
