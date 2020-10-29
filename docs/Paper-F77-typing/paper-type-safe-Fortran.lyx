@@ -6467,7 +6467,7 @@ As explained above, the main reason to remove COMMON blocks is to create
 
 \begin_layout Standard
 \begin_inset Note Note
-status open
+status collapsed
 
 \begin_layout Plain Layout
 MUST CHECK WITH ifortran https://software.intel.com/content/www/us/en/develop/tool
@@ -6862,6 +6862,25 @@ XXX algos here XXX This would be the algo for converting from COMMON to
  arguments, without the type checking 
 \end_layout
 
+\begin_layout Plain Layout
+The algorithm for converting COMMON variables to arguments is quite straightforw
+ard:
+\end_layout
+
+\begin_layout Plain Layout
+- Identify all COMMON variables accessed in the code unit and all nested
+ units (subroutine and function calls) using recursive descent 
+\end_layout
+
+\begin_layout Plain Layout
+- Add all of them as additional arguments to the signature.
+\end_layout
+
+\begin_layout Plain Layout
+- The call arguments need to be adapted in the same way, the only complication
+ is that we need to check for name conflicts with local variables
+\end_layout
+
 \end_inset
 
 
@@ -7063,7 +7082,7 @@ According to §8.2
 \emph on
 EQUIVALENCE Statement 
 \emph default
-of the f77 specification , 
+of the f77 specification, 
 \end_layout
 
 \begin_layout Quote
@@ -7079,20 +7098,196 @@ An EQUIVALENCE statement is used to specify the sharing of storage units
 \begin_layout Standard
 This is another form of storage association, with the same issue that it
  is not type-safe.
- For example
-\end_layout
-
-\begin_layout Standard
-\begin_inset Note Note
-status open
-
-\begin_layout Plain Layout
-XXX example XXX
-\end_layout
+ For example, the equivalence between vb2 and d1 or r1 in Example 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "exa:Unsafe-equivalence"
+plural "false"
+caps "false"
+noprefix "false"
 
 \end_inset
 
+ is a type error but passes silently because the f77 specification does
+ not mandate an error or even a warning.
+\end_layout
 
+\begin_layout Example
+\begin_inset CommandInset label
+LatexCommand label
+name "exa:Unsafe-equivalence"
+
+\end_inset
+
+Unsafe equivalence
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+program test_equivalence
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+implicit integer (i,v)
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+dimension vb2(8)
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+logical l2(8)
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+double precision d1(4)
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+real*4 r1(8)
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+! not type safe, in fact plain wrong
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+equivalence (vb2,d1)
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+equivalence (vb2,r1)
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+! This is OK
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+equivalence (vb2,l2)
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+equivalence (r1,l2)
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+...
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+end
 \end_layout
 
 \begin_layout Standard
