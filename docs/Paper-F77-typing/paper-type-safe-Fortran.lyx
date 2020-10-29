@@ -1704,6 +1704,12 @@ noprefix "false"
 \end_layout
 
 \begin_layout Definition
+\begin_inset CommandInset label
+LatexCommand label
+name "def:General-form-a"
+
+\end_inset
+
 General form a type 
 \begin_inset Formula $\tau$
 \end_inset
@@ -1860,10 +1866,6 @@ double-constant ::= [sign] {digit}* decimal-point {digit}* [double-exponent]
 
 \begin_layout Definition
 double-exponent ::= D [sign] {digit}+
-\end_layout
-
-\begin_layout Definition
-
 \end_layout
 
 \begin_layout Definition
@@ -2046,7 +2048,7 @@ Note that the additional condition of validity of the range of the array
 \end_layout
 
 \begin_layout Paragraph
-Array Sections
+Array slicing
 \end_layout
 
 \begin_layout Standard
@@ -2059,7 +2061,7 @@ Fortran 90 allows array slicing using the notation
 \end_layout
 
 \begin_layout Example
-Array Slicing
+Array slicing
 \begin_inset CommandInset label
 LatexCommand label
 name "exa:Array-Slicing"
@@ -2073,18 +2075,22 @@ name "exa:Array-Slicing"
 
 \family typewriter
 integer a, s
-\begin_inset Newline newline
-\end_inset
+\end_layout
 
+\begin_layout Example
+
+\family typewriter
 dimension a(5,7), s(3)
-\begin_inset Newline newline
-\end_inset
+\end_layout
 
+\begin_layout Example
+
+\family typewriter
 s = a(2,1:5:2)
 \end_layout
 
 \begin_layout Standard
-The array s will be populated with the values from a(2,1) ,a(2,3) and a(2,5).
+The array s will be populated with the values from a(2,1), a(2,3) and a(2,5).
  From a type checking perspective, we need to check if the slice has the
  correct type, in this case the same type as the array to which it is assigned.
 \end_layout
@@ -2206,7 +2212,7 @@ DimSlice
  must be known at type check time.
  This implies that the components 
 \emph on
-b,e,s
+b, e, s
 \emph default
  of the slice must be constant.
  If so, we can determine the size of the slice and thus check that the new
@@ -2214,23 +2220,147 @@ b,e,s
  In practice, our compiler performs aggressive linear constant folding,
  which means that an linear expression with constants as leaf nodes will
  be reduced to a constant.
- If it is not possible to determine the size of the slice, the compiler
- will issue a type error.
+ 
+\end_layout
+
+\begin_layout Paragraph
+Run-time size checking for arrays slicing
+\end_layout
+
+\begin_layout Standard
+If it is not possible to determine the size of the slice, our compiler will
+ issue a type error.
  This can be relaxed to warning, in which case the compiler will insert
  a run-time check, for example:
 \end_layout
 
-\begin_layout Standard
-\begin_inset Note Note
-status open
-
-\begin_layout Plain Layout
-EXAMPLE HERE
+\begin_layout Example
+Run-time check for array slicing
 \end_layout
 
+\begin_layout Example
+
+\family typewriter
+integer a, s, i
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+dimension a(5,7), s(3)
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+! compute a, s, i
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+\begin_inset space ~
 \end_inset
 
 
+\begin_inset space ~
+\end_inset
+
+if (size(s)==size(a(2,1:5:i)) then 
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+s = a(2,1:5:i)
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+else
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+print *, 'Type error: s and a(2,1:5:i) have a different SIZE'
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+call exit(0)
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+end if
+\end_layout
+
+\begin_layout Standard
+In this way type safety of non-constant array slices can be enforced at
+ run time.
 \end_layout
 
 \begin_layout Paragraph
@@ -2249,13 +2379,17 @@ Arrays as indices
 
 \family typewriter
 integer a(5,5), b(3), k(3)
-\begin_inset Newline newline
-\end_inset
+\end_layout
 
+\begin_layout Example
+
+\family typewriter
 k = (/ 1, 5, 2 /)
-\begin_inset Newline newline
-\end_inset
+\end_layout
 
+\begin_layout Example
+
+\family typewriter
 b = a(2, k)
 \end_layout
 
@@ -2289,14 +2423,36 @@ DimSlice
  Thus the requirement for type safety is the same (the size of the array),
  and the criterion for the array to be valid for indexing is that all elements
  must be in the valid index range for the given array index.
- If it is not possible to determine the size of the array, the compiler
- will issue a type error.
+ 
+\end_layout
+
+\begin_layout Paragraph
+Run-time size checking for arrays as indices
+\end_layout
+
+\begin_layout Standard
+If it is not possible to determine the size of the array, the compiler will
+ issue a type error.
  This can be relaxed to warning, in which case the compiler will insert
- a run-time check, for example:
+ a run-time check.
+ This is simply an if-then-else with the condition that 
+\family typewriter
+size(
+\emph on
+lhs expr
+\emph default
+) == size(
+\emph on
+rhs expr
+\emph default
+)
+\family default
+.
+ For example:
 \end_layout
 
 \begin_layout Example
-Arrays as indices
+Run-time check for arrays as indices
 \end_layout
 
 \begin_layout Example
@@ -2314,37 +2470,108 @@ integer a(5,5), b(3), k(5), i
 \begin_layout Example
 
 \family typewriter
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
 if (size(b)==size(a(2,k(3:i)))) then 
 \end_layout
 
 \begin_layout Example
 
 \family typewriter
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
 b = a(2,k(3:i))
 \end_layout
 
 \begin_layout Example
 
 \family typewriter
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
 else
 \end_layout
 
 \begin_layout Example
 
 \family typewriter
-print *, 'Type error: b and a(2,k(3:i)) have a different SIZE: ',b,a(2,k(3:i))
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+print *, 'Type error: b and a(2,k(3:i)) have a different SIZE'
 \end_layout
 
 \begin_layout Example
 
 \family typewriter
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
 call exit(0)
 \end_layout
 
 \begin_layout Example
 
 \family typewriter
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
 end if
+\end_layout
+
+\begin_layout Standard
+In this way type safety of non-constant array accesses can be enforced at
+ run time.
 \end_layout
 
 \begin_layout Paragraph
@@ -2583,7 +2810,17 @@ EXTERNAL Statement
 External
 \emph default
  is a type attribute for functions or subroutines, in other words the type
- of a function in Definition XXX must be extended with this attribute:
+ of a function in Definition 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "def:General-form-a"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+ must be extended with this attribute:
 \end_layout
 
 \begin_layout Standard
@@ -2613,19 +2850,32 @@ with
 \end_layout
 
 \begin_layout Subsubsection
-Higher-order Subroutines and Functions
+Run-time Checking of Higher-order Subroutines and Functions
 \end_layout
 
 \begin_layout Standard
 The fact that subroutines and external functions can take the names of other
  subroutines or external functions as arguments implies that FORTRAN 77
  has limited supports higher-order functions.
+ The issue with the Fortran implementation of higher order functions is
+ how they are typed.
+ Recall that we can transform any function or subroutine into a pure function
+ as discussed in Section 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "sec:Program-transformations-for"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+.
  
 \end_layout
 
 \begin_layout Standard
-The issue with the higher order functions is how they are typed.
- Essentially, when a function 
+Essentially, when a function 
 \begin_inset Formula $f_{1}(x)$
 \end_inset
 
@@ -2692,10 +2942,26 @@ So in Fortran the type of the argument(s) of
 \end_inset
 
  is not considered.
- Which means that we can easily write unsafe code:
+ Which means that code can easily be unsafe, as illustrated in Example 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "exa:Unsafe-code-with"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+.
 \end_layout
 
 \begin_layout Example
+\begin_inset CommandInset label
+LatexCommand label
+name "exa:Unsafe-code-with"
+
+\end_inset
+
 Unsafe code with higher-order function call
 \end_layout
 
@@ -2858,11 +3124,11 @@ end function
 \end_layout
 
 \begin_layout Standard
-The 
+The call to 
 \emph on
 f(z,x) 
 \emph default
-call, while patently wrong, will pass silently.
+in the example, while patently wrong, will pass silently.
  For subroutines the situation is the same, the only difference is that
  there is no return type so we use 
 \emph on
@@ -2932,6 +3198,7 @@ noprefix "false"
 )
 \end_layout
 
+\begin_deeper
 \begin_layout Example
 \begin_inset CommandInset label
 LatexCommand label
@@ -3068,6 +3335,7 @@ t4 :: z
 end
 \end_layout
 
+\end_deeper
 \begin_layout Itemize
 Make a list of the type signatures of these functions:
 \end_layout
@@ -3110,13 +3378,24 @@ noprefix "false"
 \end_inset
 
 ) and use the index corresponding to the called function in the actual call
- (Example )
+ (Example 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "exa:Indexed-external-functions"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+)
 \end_layout
 
+\begin_deeper
 \begin_layout Example
 \begin_inset CommandInset label
 LatexCommand label
-name "exa:External-functions-1"
+name "exa:Indexed-external-functions"
 
 \end_inset
 
@@ -3255,6 +3534,7 @@ t4 :: z
 end
 \end_layout
 
+\end_deeper
 \begin_layout Itemize
 We can now use this index to identify the selected type variant, as shown
  in Example 
@@ -3277,9 +3557,13 @@ f
 idx
 \emph default
  matches the actual index corresponding to the variant.
- If this is not the case, an error is thrown.
+ If this is not the case, a run-time type error is thrown.
+ The variant is determined by matching the signature of the call to the
+ signatures in the sum type.
+ 
 \end_layout
 
+\begin_deeper
 \begin_layout Example
 \begin_inset CommandInset label
 LatexCommand label
@@ -3484,7 +3768,36 @@ else
 \begin_inset space ~
 \end_inset
 
-error('Type error!')
+print *, 'Type error: call does not match signature'
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+call exit(0)
 \end_layout
 
 \begin_layout Example
@@ -3618,7 +3931,36 @@ else
 \begin_inset space ~
 \end_inset
 
-error('Type error!')
+print *, 'Type error: call does not match signature'
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+call exit(0)
 \end_layout
 
 \begin_layout Example
@@ -3661,20 +4003,17 @@ end if
 end function
 \end_layout
 
+\end_deeper
 \begin_layout Standard
 We can express this algoritm more formally as follows (for subroutines;
  functions are entirely analogous):
 \end_layout
 
 \begin_layout Enumerate
-Preliminaries
+Preliminaries:
 \end_layout
 
 \begin_deeper
-\begin_layout Standard
-Given
-\end_layout
-
 \begin_layout Standard
 \begin_inset Formula $F=(\dots,\tau_{i},\dots)$
 \end_inset
@@ -3929,7 +4268,7 @@ c
 \emph on
 i
 \emph default
- is the index of the signature of 
+ is the index of the type of 
 \begin_inset Formula $f_{i}$
 \end_inset
 
@@ -3960,12 +4299,27 @@ h
 \begin_layout Standard
 
 \family typewriter
-subroutine h(...,g,...) 
+subroutine 
+\begin_inset Formula $h$
+\end_inset
+
+(...,
+\begin_inset Formula $g$
+\end_inset
+
+,...) 
 \end_layout
 
 \begin_layout Standard
 
 \family typewriter
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
 ...
 \end_layout
 
@@ -3979,12 +4333,23 @@ subroutine h(...,g,...)
 \begin_inset space ~
 \end_inset
 
-call g(...)
+call 
+\begin_inset Formula $g$
+\end_inset
+
+(...)
 \end_layout
 
 \begin_layout Standard
 
 \family typewriter
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
 ...
 \end_layout
 
@@ -4015,7 +4380,15 @@ transforms into
 \begin_layout Standard
 
 \family typewriter
-subroutine h(...,idx,g,...)
+subroutine 
+\begin_inset Formula $h$
+\end_inset
+
+(...,idx,
+\begin_inset Formula $g$
+\end_inset
+
+,...)
 \end_layout
 
 \begin_layout Standard
@@ -4034,6 +4407,13 @@ integer :: idx
 \begin_layout Standard
 
 \family typewriter
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
 ...
 \end_layout
 
@@ -4072,11 +4452,11 @@ if (idx=
 \begin_inset space ~
 \end_inset
 
-c
-\begin_inset space ~
+call 
+\begin_inset Formula $g$
 \end_inset
 
-all g(...)
+(...)
 \end_layout
 
 \begin_layout Standard
@@ -4123,6 +4503,13 @@ end if
 \begin_layout Standard
 
 \family typewriter
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
 ...
 \end_layout
 
@@ -4301,15 +4688,8 @@ if (idx==
 \begin_inset Formula $i_{2}$
 \end_inset
 
+ ...) then ...
  
-\begin_inset Formula $\dots$
-\end_inset
-
-) then 
-\begin_inset Formula $\dots$
-\end_inset
-
-
 \end_layout
 
 \begin_layout Standard
@@ -4323,7 +4703,9 @@ if (idx==
 
 \end_deeper
 \begin_layout Standard
-In this way higher-order functions can be made type safe at run time.
+In this way, type safety of higher-order functions can be enforece at run
+ time.
+ 
 \end_layout
 
 \begin_layout Subsubsection
@@ -5208,20 +5590,30 @@ Conclusions regarding the type safety of the Fortran type system
 \begin_layout Standard
 Based on the above analysis, we conclude that FORTRAN 77 programs that are
  explicitly typed and consist of pure functions are type safe, except for
- two specific constructs: array slicing and array indexing with values that
- are unknown at compile time.
+ three specific constructs: array slicing and array indexing with values
+ that are unknown at compile time, and higher-order functions.
  Current compilers guarantee type safety if the slice indices or the array
  used as index are constant, and also if the array used for indexing is
  of the wrong rank.
  However, if the indices are non-constant expressions, potentially unsafe
  programs pass without warning or error.
  Our compiler will try more aggresively to determine the slice or array
- size and will issue a type error, which can be relaxed to warning, rather
- than ignoring the potential unsafe behaviour.
+ size and will issue a type error, which can be relaxed to warning or run-time
+ type check, rather than ignoring the potential unsafe behaviour.
+ 
 \end_layout
 
 \begin_layout Standard
-In principle, sometype coercions are also unsafe.
+Calls to functions passed as arguments to other functions (i.e.
+ higher-order functions) are fundamentally unsafe because the type signature
+ of Fortran functions and subroutines does not contain the information about
+ the types of the arguments.
+ We propose a novel run-time check which is equivalent to constructing a
+ sum type for all external functions and type checking the variants.
+\end_layout
+
+\begin_layout Standard
+In principle, some type coercions are also unsafe.
  However, unsafe type coercions are recognised by current compilers, and
  the compiler can produce a warning or errors if the option is enabled.
  So type coercions don't compromise the type safety.
@@ -5239,11 +5631,31 @@ Typechecking COMMON block and EQUIVALENCE associations
 \end_layout
 
 \begin_layout Standard
-In the preceding sections (Sections XXX) we analysed the type safety of
- a FORTRAN 77 program that consists of pure functions and where all variables,
- parameters and functions are explicitly typed.
- In the following sections (Sections XXX) we will show how any FORTRAN 77
- program can be transformed into an equivalent program with these properties.
+In the preceding section (Section 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "sec:Formal-analysis-of"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+) we analysed the type safety of a FORTRAN 77 program that consists of pure
+ functions and where all variables, parameters and functions are explicitly
+ typed.
+ In this section and the following (Section 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "sec:Program-transformations-for"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+) we will show how any FORTRAN 77 program can be transformed into an equivalent
+ program with these properties.
  In particular, we will discuss how to remove COMMON blocks and EQUIVALENCE
  associations.
  In this section, we present a novel algorithm to type check variables in
@@ -5301,7 +5713,17 @@ So in principle, COMMON blocks in f90 code should be type-safe.
 This means in particular that there is no type coercion between real (and
  by extension complex) and integer values.
  Because of this lack of coercion, these type checks are different from
- the type checks discussed in Sections XXX.
+ the type checks discussed in Section 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "sec:Formal-analysis-of"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+.
  The same is true for EQUIVALENCE statements: they associate different names
  with the same memory location, but the type of the word written to the
  memory location is erased.
@@ -6097,18 +6519,39 @@ progam ex1
 \begin_layout Example
 
 \family typewriter
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
 common /bf2/x 
 \end_layout
 
 \begin_layout Example
 
 \family typewriter
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
 common /bf1/y
 \end_layout
 
 \begin_layout Example
 
 \family typewriter
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
 call f1
 \end_layout
 
@@ -6127,12 +6570,26 @@ subroutine f1
 \begin_layout Example
 
 \family typewriter
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
 common /bf1/y1 
 \end_layout
 
 \begin_layout Example
 
 \family typewriter
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
 call f2 
 \end_layout
 
@@ -6151,6 +6608,13 @@ subroutine f2
 \begin_layout Example
 
 \family typewriter
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
 common /bf2/x2 
 \end_layout
 
@@ -6177,6 +6641,13 @@ progam ex1
 \begin_layout Example
 
 \family typewriter
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
 call f1(x,y) 
 \end_layout
 
@@ -6195,18 +6666,39 @@ subroutine
 \begin_layout Example
 
 \family typewriter
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
 f1(x,y1) 
 \end_layout
 
 \begin_layout Example
 
 \family typewriter
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
 call f2(x) 
 \end_layout
 
 \begin_layout Example
 
 \family typewriter
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
 ! ...
  use y1 ...
  
@@ -6227,6 +6719,13 @@ subroutine f2(x2)
 \begin_layout Example
 
 \family typewriter
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
 ! ...
  use of x2 
 \end_layout
