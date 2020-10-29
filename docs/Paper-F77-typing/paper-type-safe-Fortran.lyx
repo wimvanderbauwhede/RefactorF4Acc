@@ -2660,7 +2660,7 @@ noprefix "false"
 
 \begin_layout Standard
 \begin_inset Note Note
-status open
+status collapsed
 
 \begin_layout Plain Layout
 \begin_inset Formula 
@@ -2805,7 +2805,11 @@ EXTERNAL Statement
  requires that any external function or subroutine used as an argument is
  declared using the EXTERNAL statement.
  Omitting this declaration results in a type error.
- Strictly speaking this means that 
+ 
+\end_layout
+
+\begin_layout Standard
+Strictly speaking this means that 
 \emph on
 External
 \emph default
@@ -2847,6 +2851,11 @@ with
 \end_inset
 
 
+\end_layout
+
+\begin_layout Standard
+However, for the purpose of this paper we will maintain the unextended type
+ and instead group the EXTERNAL functions in a separate context.
 \end_layout
 
 \begin_layout Subsubsection
@@ -5348,6 +5357,13 @@ v
 
 \begin_layout Example
 Unsafe coercion
+\begin_inset CommandInset label
+LatexCommand label
+name "exa:Unsafe-coercion"
+
+\end_inset
+
+
 \end_layout
 
 \begin_layout Example
@@ -5436,6 +5452,13 @@ using the GNU fortran compiler with the following flags, we do indeed get
 Output from g77 for program 
 \family typewriter
 unsafeCoercion
+\begin_inset CommandInset label
+LatexCommand label
+name "exa:Output-from-g77"
+
+\end_inset
+
+
 \end_layout
 
 \begin_layout Example
@@ -5485,6 +5508,13 @@ n is what the programmer wants.
 
 \begin_layout Example
 Explicit conversion
+\begin_inset CommandInset label
+LatexCommand label
+name "exa:Explicit-conversion"
+
+\end_inset
+
+
 \end_layout
 
 \begin_layout Example
@@ -6123,6 +6153,13 @@ becomes
 \end_layout
 
 \begin_layout Standard
+\begin_inset space ~
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
 
 \family typewriter
 subroutine 
@@ -6467,7 +6504,7 @@ As explained above, the main reason to remove COMMON blocks is to create
 
 \begin_layout Standard
 \begin_inset Note Note
-status collapsed
+status open
 
 \begin_layout Plain Layout
 MUST CHECK WITH ifortran https://software.intel.com/content/www/us/en/develop/tool
@@ -6508,6 +6545,13 @@ In a subroutine call chain, it is not necessary for a COMMON blocks to occur
 
 \begin_layout Example
 COMMON block chain
+\begin_inset CommandInset label
+LatexCommand label
+name "exa:COMMON-block-chain"
+
+\end_inset
+
+
 \end_layout
 
 \begin_layout Example
@@ -6630,6 +6674,13 @@ In this example, x2 in f2 is associated with x in the main program
 
 \begin_layout Example
 Passing arguments through the call chain
+\begin_inset CommandInset label
+LatexCommand label
+name "exa:Passing-arguments-through"
+
+\end_inset
+
+
 \end_layout
 
 \begin_layout Example
