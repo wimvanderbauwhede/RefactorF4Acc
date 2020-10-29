@@ -3110,7 +3110,7 @@ noprefix "false"
 \end_inset
 
 ) and use the index corresponding to the called function in the actual call
- (Example XXX)
+ (Example )
 \end_layout
 
 \begin_layout Example
@@ -3662,9 +3662,668 @@ end function
 \end_layout
 
 \begin_layout Standard
-And so our higher-order functions are type safe at run time.
- In practice, the "we" is a refactoring compiler, so the programmer does
- not need to do anything.
+We can express this algoritm more formally as follows (for subroutines;
+ functions are entirely analogous):
+\end_layout
+
+\begin_layout Enumerate
+Preliminaries
+\end_layout
+
+\begin_deeper
+\begin_layout Standard
+Given
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula $F=(\dots,\tau_{i},\dots)$
+\end_inset
+
+ : an ordered list of function signatures
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula $\Gamma_{p}$
+\end_inset
+
+ : the entire program context
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula $\Gamma_{c}$
+\end_inset
+
+ : the context of the code unit 
+\emph on
+c
+\emph default
+ in which the higher-order function is called
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula $External(\Gamma_{c})$
+\end_inset
+
+ : the subset of 
+\begin_inset Formula $\Gamma_{c}$
+\end_inset
+
+ containing all functions declared as EXTERNAL
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula $\Gamma_{h}$
+\end_inset
+
+ : the context of the higher-order function 
+\emph on
+h
+\end_layout
+
+\end_deeper
+\begin_layout Enumerate
+Build the list 
+\emph on
+F
+\emph default
+ of the signatures of the external functions in 
+\emph on
+c
+\emph default
+:
+\end_layout
+
+\begin_deeper
+\begin_layout Standard
+\begin_inset Formula 
+\[
+F=(\forall f_{i}\in External(\Gamma_{c}),\tau_{i}\in\Gamma_{p}|\Gamma_{p}\vdash f_{i}:\tau_{i})
+\]
+
+\end_inset
+
+
+\end_layout
+
+\end_deeper
+\begin_layout Enumerate
+Transformation rule for the call to the higher-order function 
+\emph on
+h
+\emph default
+ in 
+\emph on
+c
+\emph default
+:
+\end_layout
+
+\begin_deeper
+\begin_layout Standard
+\begin_inset space ~
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+
+\family typewriter
+call 
+\begin_inset Formula $h$
+\end_inset
+
+(
+\begin_inset Formula $\dots$
+\end_inset
+
+,
+\begin_inset Formula $f_{i}$
+\end_inset
+
+,
+\family roman
+\series medium
+\shape up
+\size normal
+\emph off
+\bar no
+\strikeout off
+\xout off
+\uuline off
+\uwave off
+\noun off
+\color none
+
+\begin_inset Formula $\dots$
+\end_inset
+
+
+\family typewriter
+\series default
+\shape default
+\size default
+\emph default
+\bar default
+\strikeout default
+\xout default
+\uuline default
+\uwave default
+\noun default
+\color inherit
+) 
+\end_layout
+
+\begin_layout Standard
+\begin_inset space ~
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+transforms into
+\end_layout
+
+\begin_layout Standard
+\begin_inset space ~
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+
+\family typewriter
+call 
+\begin_inset Formula $h$
+\end_inset
+
+(
+\begin_inset Formula $\dots$
+\end_inset
+
+,
+\begin_inset Formula $i$
+\end_inset
+
+,
+\begin_inset Formula $f_{i}$
+\end_inset
+
+,
+\family roman
+\series medium
+\shape up
+\size normal
+\emph off
+\bar no
+\strikeout off
+\xout off
+\uuline off
+\uwave off
+\noun off
+\color none
+
+\begin_inset Formula $\dots$
+\end_inset
+
+
+\family typewriter
+\series default
+\shape default
+\size default
+\emph default
+\bar default
+\strikeout default
+\xout default
+\uuline default
+\uwave default
+\noun default
+\color inherit
+)
+\end_layout
+
+\begin_layout Standard
+\begin_inset space ~
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+where 
+\family roman
+\series medium
+\shape up
+\size normal
+\emph off
+\bar no
+\strikeout off
+\xout off
+\uuline off
+\uwave off
+\noun off
+\color none
+
+\begin_inset Formula $f_{i}\in External(\Gamma_{c})$
+\end_inset
+
+ and 
+\begin_inset Formula $\Gamma_{p}\vdash f_{i}:F(i)$
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+In words, 
+\begin_inset Formula $f_{i}$
+\end_inset
+
+ is marked as EXTERNAL in 
+\emph on
+c
+\emph default
+ and 
+\emph on
+i
+\emph default
+ is the index of the signature of 
+\begin_inset Formula $f_{i}$
+\end_inset
+
+ in 
+\emph on
+F
+\emph default
+.
+\end_layout
+
+\end_deeper
+\begin_layout Enumerate
+Transformation rule for the declaration of the higher-order function 
+\emph on
+h
+\end_layout
+
+\begin_deeper
+\begin_layout Standard
+
+\family typewriter
+\begin_inset space ~
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+
+\family typewriter
+subroutine h(...,g,...) 
+\end_layout
+
+\begin_layout Standard
+
+\family typewriter
+...
+\end_layout
+
+\begin_layout Standard
+
+\family typewriter
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+call g(...)
+\end_layout
+
+\begin_layout Standard
+
+\family typewriter
+...
+\end_layout
+
+\begin_layout Standard
+
+\family typewriter
+end
+\end_layout
+
+\begin_layout Standard
+\begin_inset space ~
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+transforms into
+\end_layout
+
+\begin_layout Standard
+\begin_inset space ~
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+
+\family typewriter
+subroutine h(...,idx,g,...)
+\end_layout
+
+\begin_layout Standard
+
+\family typewriter
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+integer :: idx
+\end_layout
+
+\begin_layout Standard
+
+\family typewriter
+...
+\end_layout
+
+\begin_layout Standard
+
+\family typewriter
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+if (idx=
+\begin_inset Formula $i$
+\end_inset
+
+) then 
+\end_layout
+
+\begin_layout Standard
+
+\family typewriter
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+c
+\begin_inset space ~
+\end_inset
+
+all g(...)
+\end_layout
+
+\begin_layout Standard
+
+\family typewriter
+\begin_inset space ~
+\end_inset
+
+else
+\end_layout
+
+\begin_layout Standard
+
+\family typewriter
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\emph on
+type error
+\end_layout
+
+\begin_layout Standard
+
+\family typewriter
+\begin_inset space ~
+\end_inset
+
+end if
+\end_layout
+
+\begin_layout Standard
+
+\family typewriter
+...
+\end_layout
+
+\begin_layout Standard
+
+\family typewriter
+end
+\end_layout
+
+\begin_layout Standard
+\begin_inset space ~
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+
+\family roman
+\series medium
+\shape up
+\size normal
+\emph off
+\bar no
+\strikeout off
+\xout off
+\uuline off
+\uwave off
+\noun off
+\color none
+where 
+\family default
+\series default
+\shape default
+\size default
+\emph on
+\bar default
+\strikeout default
+\xout default
+\uuline default
+\uwave default
+\noun default
+\color inherit
+i
+\family roman
+\series medium
+\shape up
+\size normal
+\emph off
+\bar no
+\strikeout off
+\xout off
+\uuline off
+\uwave off
+\noun off
+\color none
+ is given by 
+\begin_inset Formula $\Gamma_{h}\vdash g:\tau_{g}\Rightarrow i\;|\tau_{g}=F(i)$
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+
+\family roman
+\series medium
+\shape up
+\size normal
+\emph off
+\bar no
+\strikeout off
+\xout off
+\uuline off
+\uwave off
+\noun off
+\color none
+In words: given the type 
+\begin_inset Formula $\tau_{g}$
+\end_inset
+
+of 
+\begin_inset Formula $g$
+\end_inset
+
+ infered in the context 
+\begin_inset Formula $\Gamma_{h}$
+\end_inset
+
+ of the code unit 
+\begin_inset Formula $h$
+\end_inset
+
+ , 
+\begin_inset Formula $i$
+\end_inset
+
+ is the index of 
+\begin_inset Formula $\tau_{g}$
+\end_inset
+
+ in the list of external signatures in the context 
+\begin_inset Formula $\Gamma_{c}$
+\end_inset
+
+ of the caller 
+\begin_inset Formula $c$
+\end_inset
+
+ of 
+\begin_inset Formula $h$
+\end_inset
+
+, 
+\begin_inset Formula $F$
+\end_inset
+
+.
+ 
+\end_layout
+
+\begin_layout Standard
+
+\family roman
+\series medium
+\shape up
+\size normal
+\emph off
+\bar no
+\strikeout off
+\xout off
+\uuline off
+\uwave off
+\noun off
+\color none
+Note that the type of 
+\begin_inset Formula $g$
+\end_inset
+
+ is infered within the context of 
+\begin_inset Formula $h$
+\end_inset
+
+ and that there can be more than one matching entry in 
+\begin_inset Formula $F$
+\end_inset
+
+, so that in general the if condition might be: 
+\end_layout
+
+\begin_layout Standard
+
+\family typewriter
+\begin_inset space ~
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+
+\family typewriter
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+if (idx==
+\begin_inset Formula $i_{1}$
+\end_inset
+
+ .or.
+ idx==
+\begin_inset Formula $i_{2}$
+\end_inset
+
+ 
+\begin_inset Formula $\dots$
+\end_inset
+
+) then 
+\begin_inset Formula $\dots$
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+
+\family typewriter
+\begin_inset space ~
+\end_inset
+
+
+\end_layout
+
+\end_deeper
+\begin_layout Standard
+In this way higher-order functions can be made type safe at run time.
 \end_layout
 
 \begin_layout Subsubsection
