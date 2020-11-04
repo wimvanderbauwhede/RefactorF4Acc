@@ -2857,7 +2857,7 @@ noprefix "false"
 
 \begin_layout Standard
 \begin_inset Note Note
-status open
+status collapsed
 
 \begin_layout Plain Layout
 \begin_inset Formula 
@@ -3002,7 +3002,11 @@ EXTERNAL Statement
  requires that any external function or subroutine used as an argument is
  declared using the EXTERNAL statement.
  Omitting this declaration results in a type error.
- Strictly speaking this means that 
+ 
+\end_layout
+
+\begin_layout Standard
+Strictly speaking this means that 
 \emph on
 External
 \emph default
@@ -3044,6 +3048,11 @@ with
 \end_inset
 
 
+\end_layout
+
+\begin_layout Standard
+However, for the purpose of this paper we will maintain the unextended type
+ and instead group the EXTERNAL functions in a separate context.
 \end_layout
 
 \begin_layout Subsubsection
@@ -5615,6 +5624,13 @@ v
 
 \begin_layout Example
 Unsafe coercion
+\begin_inset CommandInset label
+LatexCommand label
+name "exa:Unsafe-coercion"
+
+\end_inset
+
+
 \end_layout
 
 \begin_layout Example
@@ -5703,6 +5719,13 @@ using the GNU fortran compiler with the following flags, we do indeed get
 Output from g77 for program 
 \family typewriter
 unsafeCoercion
+\begin_inset CommandInset label
+LatexCommand label
+name "exa:Output-from-g77"
+
+\end_inset
+
+
 \end_layout
 
 \begin_layout Example
@@ -5752,6 +5775,13 @@ n is what the programmer wants.
 
 \begin_layout Example
 Explicit conversion
+\begin_inset CommandInset label
+LatexCommand label
+name "exa:Explicit-conversion"
+
+\end_inset
+
+
 \end_layout
 
 \begin_layout Example
@@ -6577,6 +6607,13 @@ end subroutine
 
 \begin_layout Standard
 becomes
+\end_layout
+
+\begin_layout Standard
+\begin_inset space ~
+\end_inset
+
+
 \end_layout
 
 \begin_layout Standard
@@ -7670,6 +7707,12 @@ COMMON
 COMMON
 \family default
  block chain
+\begin_inset CommandInset label
+LatexCommand label
+name "exa:COMMON-block-chain"
+
+\end_inset
+
 \end_layout
 
 \begin_layout Example
@@ -7792,6 +7835,13 @@ In this example, x2 in f2 is associated with x in the main program
 
 \begin_layout Example
 Passing arguments through the call chain
+\begin_inset CommandInset label
+LatexCommand label
+name "exa:Passing-arguments-through"
+
+\end_inset
+
+
 \end_layout
 
 \begin_layout Example
@@ -8025,39 +8075,6 @@ real zl(3) will be associated with real z1c
 
 \begin_layout Itemize
 real zl(4) will be associated with real z2c
-\end_layout
-
-\begin_layout Standard
-\begin_inset Note Note
-status open
-
-\begin_layout Plain Layout
-XXX algos here XXX This would be the algo for converting from COMMON to
- arguments, without the type checking 
-\end_layout
-
-\begin_layout Plain Layout
-The algorithm for converting COMMON variables to arguments is quite straightforw
-ard:
-\end_layout
-
-\begin_layout Plain Layout
-- Identify all COMMON variables accessed in the code unit and all nested
- units (subroutine and function calls) using recursive descent 
-\end_layout
-
-\begin_layout Plain Layout
-- Add all of them as additional arguments to the signature.
-\end_layout
-
-\begin_layout Plain Layout
-- The call arguments need to be adapted in the same way, the only complication
- is that we need to check for name conflicts with local variables
-\end_layout
-
-\end_inset
-
-
 \end_layout
 
 \begin_layout Standard
@@ -8900,6 +8917,7 @@ The left-had side of an assignment
 An argument to a subroutine or function call that is used with INTENT Out
  or InOut.
  
+Reproducing EQUIVALENCE behaviour via assignments
 \end_layout
 
 \begin_layout Standard
@@ -8915,6 +8933,14 @@ ts before and after the statements.
 \end_inset
 
 
+\end_layout
+
+\begin_layout Subsection
+Summary of program transformations
+\end_layout
+
+\begin_layout Section
+Conclusions 
 \end_layout
 
 \begin_layout Standard
