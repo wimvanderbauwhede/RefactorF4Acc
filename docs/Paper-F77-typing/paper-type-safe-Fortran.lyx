@@ -6,13 +6,13 @@
 \origin unavailable
 \textclass svglobal3
 \begin_preamble
-\setlength\parindent{0pt}
+%\setlength\parindent{0pt}
 
-\def\thechapter{}
+%\def\thechapter{}
 
+%\newcounter{chapter}
 
-
-\newcounter{chapter}
+\usepackage[boxruled]{algorithm2e}
 \end_preamble
 \use_default_options true
 \maintain_unincluded_children false
@@ -344,7 +344,11 @@ Our toolchain allows fully automated offloading of code units to accelerators,
 \end_layout
 
 \begin_layout Itemize
-no shared memory space (COMMON blocks)
+no shared memory space (
+\family sans
+COMMON
+\family default
+ blocks)
 \end_layout
 
 \begin_layout Itemize
@@ -362,8 +366,11 @@ pure function
 \emph default
 : for a given set of input values, it always produces the same outputs values,
  and it only influences the rest of the world through these output values.
- Therefore, any other mechanism to share data (specifically COMMON blocks)
- is not allowed.
+ Therefore, any other mechanism to share data (specifically 
+\family sans
+COMMON
+\family default
+ blocks) is not allowed.
 \end_layout
 
 \begin_layout Standard
@@ -493,16 +500,31 @@ f77 specification
  It is possible to write programs which the type checker accepts but are
  nonetheless incorrect.
  The key culprit for this is the loss of type information which occurs when
- data is handled via COMMON blocks or EQUIVALENCE statements.
+ data is handled via 
+\family sans
+COMMON
+\family default
+ blocks or 
+\family sans
+EQUIVALENCE
+\family default
+ statements.
  
 \end_layout
 
 \begin_layout Standard
 However, we present in this paper a source-to-source compiler which can
  automatically rewrite FORTRAN 77 programs into Fortran 90 so as to remove
- all COMMON and EQUIVALENCE statements, provide full referential transparency
- and ensure that all functions marked for offloading to accelerators are
- pure.
+ all 
+\family sans
+COMMON
+\family default
+ and 
+\family sans
+EQUIVALENCE
+\family default
+ statements, provide full referential transparency and ensure that all functions
+ marked for offloading to accelerators are pure.
  
 \end_layout
 
@@ -527,11 +549,186 @@ We first present the formal type system and type checks used in our compiler
 \end_layout
 
 \begin_layout Section
-Related work: 
+Related work
+\end_layout
+
+\begin_layout Subsection
+Formalisation
+\end_layout
+
+\begin_layout Subsection
+Source-to-source compilation and refactoring
 \end_layout
 
 \begin_layout Standard
-see earlier paper, be nice to CamFort
+There are a number of source-to-source compilers and refactoring tools for
+ Fortran available.
+ However, very few of them actually support FORTRAN 77.
+ The most well known are the ROSE framework
+\begin_inset Foot
+status open
+
+\begin_layout Plain Layout
+\begin_inset Flex URL
+status open
+
+\begin_layout Plain Layout
+
+http://www.rosecompiler.org/index.html
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\end_inset
+
+ from LLNL 
+\begin_inset CommandInset citation
+LatexCommand cite
+key "liao2010rose"
+literal "true"
+
+\end_inset
+
+, which relies on the Open Fortran Parser (OFP
+\begin_inset Foot
+status open
+
+\begin_layout Plain Layout
+\begin_inset Flex URL
+status open
+
+\begin_layout Plain Layout
+
+http://fortran-parser.sourceforge.net/
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\end_inset
+
+).
+ This parser claims to support the Fortran 2008 standard.
+ Furthermore, there is the language-fortran
+\begin_inset Foot
+status open
+
+\begin_layout Plain Layout
+\begin_inset Flex URL
+status open
+
+\begin_layout Plain Layout
+
+https://hackage.haskell.org/package/language-fortran
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\end_inset
+
+ parser which claims to support FORTRAN 77 to Fortran 2003.
+ A  refactoring framework which claims to support FORTRAN 77 is CamFort
+ 
+\begin_inset CommandInset citation
+LatexCommand cite
+key "Orchard:2013:UFS:2541348.2541356"
+literal "true"
+
+\end_inset
+
+, according to its documentation it supports Fortran 66, 77, and 90 with
+ various legacy extensions.
+ However, CamFort is not a whole-source compiler, it works on a per-file
+ basis.
+ That is also the case for the Eclipse-based interactive refactoring tool
+ Photran 
+\begin_inset CommandInset citation
+LatexCommand cite
+key "overbey2005refactorings"
+literal "true"
+
+\end_inset
+
+, which supports FORTRAN 77 - 2008.
+ This is not to say that these tools are not useful, indeed both CamFort
+ and Photran provide very useful refactorings, but these are limited to
+ the scope of a code unit.
+ As we shall discuss in more detail below, for effective refactoring of
+ common blocks, and determination of data movement direction, whole-source
+ code (interprocedural) analysis and refactoring is essential.
+ A long-running project which does support interprocedural analysis is PIPS
+\begin_inset Foot
+status open
+
+\begin_layout Plain Layout
+\begin_inset Flex URL
+status open
+
+\begin_layout Plain Layout
+
+http://pips4u.org/
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\end_inset
+
+, started in the 1990's.
+ The PIPS tool does support FORTRAN 77 but does not supported the refactorings
+ we propose.
+ For completeness we mention the commercial solutions plusFort 
+\begin_inset Foot
+status open
+
+\begin_layout Plain Layout
+\begin_inset Flex URL
+status open
+
+\begin_layout Plain Layout
+
+http://www.polyhedron.com/pf-plusfort0html
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\end_inset
+
+ and VAST/77to90 
+\begin_inset Foot
+status open
+
+\begin_layout Plain Layout
+\begin_inset Flex URL
+status open
+
+\begin_layout Plain Layout
+
+http://www.crescentbaysoftware.com/compilertech.html
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\end_inset
+
+ which both can refactor common blocks into modules but not into procedure
+ arguments.
 \end_layout
 
 \begin_layout Section
@@ -4009,26 +4206,68 @@ We can express this algoritm more formally as follows (for subroutines;
  functions are entirely analogous):
 \end_layout
 
+\begin_layout Standard
+\begin_inset ERT
+status open
+
+\begin_layout Plain Layout
+
+
+\backslash
+begin{algorithm}
+\end_layout
+
+\end_inset
+
+
+\begin_inset CommandInset label
+LatexCommand label
+name "alg:hof_rt_typechecking"
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset Box Frameless
+position "t"
+hor_pos "c"
+has_inner_box 1
+inner_pos "t"
+use_parbox 0
+use_makebox 0
+width "90col%"
+special "none"
+height "1in"
+height_special "totalheight"
+thickness "0.4pt"
+separation "3pt"
+shadowsize "4pt"
+framecolor "black"
+backgroundcolor "none"
+status open
+
 \begin_layout Enumerate
 Preliminaries:
 \end_layout
 
 \begin_deeper
-\begin_layout Standard
+\begin_layout Plain Layout
 \begin_inset Formula $F=(\dots,\tau_{i},\dots)$
 \end_inset
 
  : an ordered list of function signatures
 \end_layout
 
-\begin_layout Standard
+\begin_layout Plain Layout
 \begin_inset Formula $\Gamma_{p}$
 \end_inset
 
  : the entire program context
 \end_layout
 
-\begin_layout Standard
+\begin_layout Plain Layout
 \begin_inset Formula $\Gamma_{c}$
 \end_inset
 
@@ -4039,7 +4278,7 @@ c
  in which the higher-order function is called
 \end_layout
 
-\begin_layout Standard
+\begin_layout Plain Layout
 \begin_inset Formula $External(\Gamma_{c})$
 \end_inset
 
@@ -4050,7 +4289,7 @@ c
  containing all functions declared as EXTERNAL
 \end_layout
 
-\begin_layout Standard
+\begin_layout Plain Layout
 \begin_inset Formula $\Gamma_{h}$
 \end_inset
 
@@ -4073,7 +4312,7 @@ c
 \end_layout
 
 \begin_deeper
-\begin_layout Standard
+\begin_layout Plain Layout
 \begin_inset Formula 
 \[
 F=(\forall f_{i}\in External(\Gamma_{c}),\tau_{i}\in\Gamma_{p}|\Gamma_{p}\vdash f_{i}:\tau_{i})
@@ -4098,14 +4337,14 @@ c
 \end_layout
 
 \begin_deeper
-\begin_layout Standard
+\begin_layout Plain Layout
 \begin_inset space ~
 \end_inset
 
 
 \end_layout
 
-\begin_layout Standard
+\begin_layout Plain Layout
 
 \family typewriter
 call 
@@ -4153,25 +4392,25 @@ call
 ) 
 \end_layout
 
-\begin_layout Standard
+\begin_layout Plain Layout
 \begin_inset space ~
 \end_inset
 
 
 \end_layout
 
-\begin_layout Standard
+\begin_layout Plain Layout
 transforms into
 \end_layout
 
-\begin_layout Standard
+\begin_layout Plain Layout
 \begin_inset space ~
 \end_inset
 
 
 \end_layout
 
-\begin_layout Standard
+\begin_layout Plain Layout
 
 \family typewriter
 call 
@@ -4223,14 +4462,14 @@ call
 )
 \end_layout
 
-\begin_layout Standard
+\begin_layout Plain Layout
 \begin_inset space ~
 \end_inset
 
 
 \end_layout
 
-\begin_layout Standard
+\begin_layout Plain Layout
 where 
 \family roman
 \series medium
@@ -4255,7 +4494,7 @@ where
 
 \end_layout
 
-\begin_layout Standard
+\begin_layout Plain Layout
 In words, 
 \begin_inset Formula $f_{i}$
 \end_inset
@@ -4287,7 +4526,7 @@ h
 \end_layout
 
 \begin_deeper
-\begin_layout Standard
+\begin_layout Plain Layout
 
 \family typewriter
 \begin_inset space ~
@@ -4296,7 +4535,7 @@ h
 
 \end_layout
 
-\begin_layout Standard
+\begin_layout Plain Layout
 
 \family typewriter
 subroutine 
@@ -4310,7 +4549,7 @@ subroutine
 ,...) 
 \end_layout
 
-\begin_layout Standard
+\begin_layout Plain Layout
 
 \family typewriter
 \begin_inset space ~
@@ -4323,7 +4562,7 @@ subroutine
 ...
 \end_layout
 
-\begin_layout Standard
+\begin_layout Plain Layout
 
 \family typewriter
 \begin_inset space ~
@@ -4340,7 +4579,7 @@ call
 (...)
 \end_layout
 
-\begin_layout Standard
+\begin_layout Plain Layout
 
 \family typewriter
 \begin_inset space ~
@@ -4353,31 +4592,31 @@ call
 ...
 \end_layout
 
-\begin_layout Standard
+\begin_layout Plain Layout
 
 \family typewriter
 end
 \end_layout
 
-\begin_layout Standard
+\begin_layout Plain Layout
 \begin_inset space ~
 \end_inset
 
 
 \end_layout
 
-\begin_layout Standard
+\begin_layout Plain Layout
 transforms into
 \end_layout
 
-\begin_layout Standard
+\begin_layout Plain Layout
 \begin_inset space ~
 \end_inset
 
 
 \end_layout
 
-\begin_layout Standard
+\begin_layout Plain Layout
 
 \family typewriter
 subroutine 
@@ -4391,7 +4630,7 @@ subroutine
 ,...)
 \end_layout
 
-\begin_layout Standard
+\begin_layout Plain Layout
 
 \family typewriter
 \begin_inset space ~
@@ -4404,7 +4643,7 @@ subroutine
 integer :: idx
 \end_layout
 
-\begin_layout Standard
+\begin_layout Plain Layout
 
 \family typewriter
 \begin_inset space ~
@@ -4417,7 +4656,7 @@ integer :: idx
 ...
 \end_layout
 
-\begin_layout Standard
+\begin_layout Plain Layout
 
 \family typewriter
 \begin_inset space ~
@@ -4434,7 +4673,7 @@ if (idx=
 ) then 
 \end_layout
 
-\begin_layout Standard
+\begin_layout Plain Layout
 
 \family typewriter
 \begin_inset space ~
@@ -4459,7 +4698,7 @@ call
 (...)
 \end_layout
 
-\begin_layout Standard
+\begin_layout Plain Layout
 
 \family typewriter
 \begin_inset space ~
@@ -4468,7 +4707,7 @@ call
 else
 \end_layout
 
-\begin_layout Standard
+\begin_layout Plain Layout
 
 \family typewriter
 \begin_inset space ~
@@ -4491,7 +4730,7 @@ else
 type error
 \end_layout
 
-\begin_layout Standard
+\begin_layout Plain Layout
 
 \family typewriter
 \begin_inset space ~
@@ -4500,7 +4739,7 @@ type error
 end if
 \end_layout
 
-\begin_layout Standard
+\begin_layout Plain Layout
 
 \family typewriter
 \begin_inset space ~
@@ -4513,20 +4752,20 @@ end if
 ...
 \end_layout
 
-\begin_layout Standard
+\begin_layout Plain Layout
 
 \family typewriter
 end
 \end_layout
 
-\begin_layout Standard
+\begin_layout Plain Layout
 \begin_inset space ~
 \end_inset
 
 
 \end_layout
 
-\begin_layout Standard
+\begin_layout Plain Layout
 
 \family roman
 \series medium
@@ -4573,7 +4812,7 @@ i
 
 \end_layout
 
-\begin_layout Standard
+\begin_layout Plain Layout
 
 \family roman
 \series medium
@@ -4631,7 +4870,7 @@ of
  
 \end_layout
 
-\begin_layout Standard
+\begin_layout Plain Layout
 
 \family roman
 \series medium
@@ -4660,7 +4899,7 @@ Note that the type of
 , so that in general the if condition might be: 
 \end_layout
 
-\begin_layout Standard
+\begin_layout Plain Layout
 
 \family typewriter
 \begin_inset space ~
@@ -4669,7 +4908,7 @@ Note that the type of
 
 \end_layout
 
-\begin_layout Standard
+\begin_layout Plain Layout
 
 \family typewriter
 \begin_inset space ~
@@ -4692,7 +4931,7 @@ if (idx==
  
 \end_layout
 
-\begin_layout Standard
+\begin_layout Plain Layout
 
 \family typewriter
 \begin_inset space ~
@@ -4702,8 +4941,36 @@ if (idx==
 \end_layout
 
 \end_deeper
+\end_inset
+
+
+\end_layout
+
 \begin_layout Standard
-In this way, type safety of higher-order functions can be enforece at run
+\begin_inset ERT
+status open
+
+\begin_layout Plain Layout
+
+
+\backslash
+caption{Run-time type checks for higher-order function calls}
+\end_layout
+
+\begin_layout Plain Layout
+
+
+\backslash
+end{algorithm}
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+In this way, type safety of higher-order functions can be enforced at run
  time.
  
 \end_layout
@@ -5627,7 +5894,15 @@ In the next sections we discuss the transformations required to ensure that
 \end_layout
 
 \begin_layout Section
-Typechecking COMMON block and EQUIVALENCE associations 
+Typechecking 
+\family sans
+COMMON
+\family default
+ block and 
+\family sans
+EQUIVALENCE
+\family default
+ associations 
 \end_layout
 
 \begin_layout Standard
@@ -5656,16 +5931,39 @@ noprefix "false"
 
 ) we will show how any FORTRAN 77 program can be transformed into an equivalent
  program with these properties.
- In particular, we will discuss how to remove COMMON blocks and EQUIVALENCE
+ In particular, we will discuss how to remove 
+\family sans
+COMMON
+\family default
+ blocks and 
+\family sans
+EQUIVALENCE
+\family default
  associations.
  In this section, we present a novel algorithm to type check variables in
- COMMON and EQUIVALENCE statements.
+ 
+\family sans
+COMMON
+\family default
+ and 
+\family sans
+EQUIVALENCE
+\family default
+ statements.
  If the type check passes, they can be safely removed.
  Otherwise it means the code is not type safe and in practice most likely
  incorrect.
  If the original code passes the type check then the transformed code without
- COMMON and EQUIVALENCE statements will be type safe when checked with any
- of the major Fortran compilers.
+ 
+\family sans
+COMMON
+\family default
+ON and 
+\family sans
+EQUIVALENCE
+\family default
+ statements will be type safe when checked with any of the major Fortran
+ compilers.
 \end_layout
 
 \begin_layout Subsection
@@ -5673,10 +5971,17 @@ Loss of type information
 \end_layout
 
 \begin_layout Standard
-From the perspective of this paper, the main problem with COMMON blocks
- and EQUIVALENCE associations is that they are not type safe: the f77 specificat
-ion does not mention any typing rules and in practice, any datum stored
- in a common block loses all type information.
+From the perspective of this paper, the main problem with 
+\family sans
+COMMON
+\family default
+ blocks and 
+\family sans
+EQUIVALENCE
+\family default
+ associations is that they are not type safe: the f77 specification does
+ not mention any typing rules and in practice, any datum stored in a common
+ block loses all type information.
  
 \end_layout
 
@@ -5724,15 +6029,20 @@ noprefix "false"
 \end_inset
 
 .
- The same is true for EQUIVALENCE statements: they associate different names
- with the same memory location, but the type of the word written to the
- memory location is erased.
+ The same is true for 
+\family sans
+EQUIVALENCE
+\family default
+ statements: they associate different names with the same memory location,
+ but the type of the word written to the memory location is erased.
  Therefore, the following is legal and does not generate any warnings, but
  is incorrect
 \end_layout
 
 \begin_layout Example
-Loss of type information in EQUIVALENCE
+Loss of type information in 
+\family sans
+EQUIVALENCE
 \end_layout
 
 \begin_layout Example
@@ -5778,21 +6088,101 @@ print *, i1 ! prints 1109917696
 \end_layout
 
 \begin_layout Subsection
-A type checking algorithm for COMMON and EQUIVALENCE statements
+A type checking algorithm for 
+\family sans
+COMMON
+\family default
+ and 
+\family sans
+EQUIVALENCE
+\family default
+ statements
 \end_layout
 
 \begin_layout Standard
 For the purpose of typechecking, and without loss of generality, we assume
- that all variables are scalar: an array a is considered as syntactic sugar
- for an ordered collection of scalars with names a(i).
+ that all variables are scalar: an array 
+\begin_inset Formula $a$
+\end_inset
+
+ is considered as syntactic sugar for an ordered collection of scalars with
+ names 
+\begin_inset Formula $a(i)$
+\end_inset
+
+.
  We further assume all arrays are linear and traversed using an index starting
- at 1.
+ at 
+\begin_inset Formula $1$
+\end_inset
+
+.
  
 \end_layout
 
 \begin_layout Standard
-The rules for type soundness which we adopt are:
+The rules for type soundness of 
+\family sans
+COMMON
+\family default
+ and 
+\family sans
+EQUIVALENCE
+\family default
+ statements are shown in Algorithm 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "alg:common_equiv_typechecking"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+:
 \end_layout
+
+\begin_layout Standard
+\begin_inset ERT
+status open
+
+\begin_layout Plain Layout
+
+
+\backslash
+begin{algorithm}
+\end_layout
+
+\end_inset
+
+
+\begin_inset CommandInset label
+LatexCommand label
+name "alg:common_equiv_typechecking"
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset Box Frameless
+position "t"
+hor_pos "c"
+has_inner_box 1
+inner_pos "t"
+use_parbox 0
+use_makebox 0
+width "90col%"
+special "none"
+height "1in"
+height_special "totalheight"
+thickness "0.4pt"
+separation "3pt"
+shadowsize "4pt"
+framecolor "black"
+backgroundcolor "none"
+status open
 
 \begin_layout Itemize
 Kind matching (
@@ -5803,13 +6193,13 @@ rule-kind
 \end_layout
 
 \begin_deeper
-\begin_layout Standard
+\begin_layout Plain Layout
 A scalar type is atomic, and therefore we cannot split the type, which would
  be the case if we attempted to map types with different kinds.
  
 \end_layout
 
-\begin_layout Standard
+\begin_layout Plain Layout
 \begin_inset Formula 
 \begin{eqnarray*}
  & K_{c,i}=K_{l,i} & ,\forall i\in\#K_{l}
@@ -5822,7 +6212,11 @@ A scalar type is atomic, and therefore we cannot split the type, which would
 
 \end_deeper
 \begin_layout Itemize
-No COMMON block extension in the called subroutine (
+No 
+\family sans
+COMMON
+\family default
+ block extension in the called subroutine (
 \emph on
 rule-size
 \emph default
@@ -5830,21 +6224,33 @@ rule-size
 \end_layout
 
 \begin_deeper
-\begin_layout Standard
-The ordered set of words in a COMMON block accessed from a subroutine must
- be no larger than the size of the COMMON block in the caller.
+\begin_layout Plain Layout
+The ordered set of words in a 
+\family sans
+COMMON
+\family default
+ block accessed from a subroutine must be no larger than the size of the
+ 
+\family sans
+COMMON
+\family default
+ block in the caller.
  
 \end_layout
 
-\begin_layout Standard
+\begin_layout Plain Layout
 If 
 \begin_inset Formula $W$
 \end_inset
 
- is the ordered set of all words accessed via the COMMON block then 
+ is the ordered set of all words accessed via the 
+\family sans
+COMMON
+\family default
+ block then 
 \end_layout
 
-\begin_layout Standard
+\begin_layout Plain Layout
 \begin_inset Formula 
 \begin{eqnarray*}
  & \#W_{l}\leq\#W_{c}
@@ -5865,7 +6271,7 @@ rule-logical
 \end_layout
 
 \begin_deeper
-\begin_layout Standard
+\begin_layout Plain Layout
 The default rule (
 \emph on
 rule-default
@@ -5877,11 +6283,11 @@ rule-default
  
 \end_layout
 
-\begin_layout Standard
+\begin_layout Plain Layout
 The first case involves logicals:
 \end_layout
 
-\begin_layout Standard
+\begin_layout Plain Layout
 \begin_inset Formula 
 \begin{eqnarray*}
  &  & \begin{cases}
@@ -5896,7 +6302,7 @@ T_{c,i}=\mbox{real}\land T_{l,i}=\mbox{logical}
 
 \end_layout
 
-\begin_layout Standard
+\begin_layout Plain Layout
 A logical is false when coerced from 0 and true otherwise.
  Therefore interpreting a logical as an integer gives 1 or 0, and interpreting
  an integer or real as a logical will return correct values of 
@@ -5935,12 +6341,12 @@ rule-complex
 \end_layout
 
 \begin_deeper
-\begin_layout Standard
+\begin_layout Plain Layout
 The second case involves complex numbers, which can be coerced to and from
  two contiguous real numbers:
 \end_layout
 
-\begin_layout Standard
+\begin_layout Plain Layout
 \begin_inset Formula 
 \begin{eqnarray*}
  &  & \begin{cases}
@@ -5964,11 +6370,11 @@ rule-default
 \end_layout
 
 \begin_deeper
-\begin_layout Standard
+\begin_layout Plain Layout
 In all other cases, the types must match:
 \end_layout
 
-\begin_layout Standard
+\begin_layout Plain Layout
 \begin_inset Formula 
 \begin{eqnarray*}
  & T_{l,i}=T_{c,i} & ,\forall i\in\#K_{l}
@@ -5981,11 +6387,11 @@ In all other cases, the types must match:
 
 \end_deeper
 \begin_layout Itemize
-So the overall typecheck rule is as follows:
+Thus the overall typecheck rule becomes:
 \end_layout
 
 \begin_deeper
-\begin_layout Standard
+\begin_layout Plain Layout
 \begin_inset Formula 
 \begin{eqnarray*}
  & \mbox{rule-kind\land}\mbox{rule-size\land}\left(\mbox{rule-logical}\lor\mbox{rule-complex}\lor\mbox{rule-default}\right)
@@ -5997,9 +6403,49 @@ So the overall typecheck rule is as follows:
 \end_layout
 
 \end_deeper
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset ERT
+status open
+
+\begin_layout Plain Layout
+
+
+\backslash
+caption{Type checking rules for variables in 
+\backslash
+textsf{COMMON} and 
+\backslash
+textsf{EQUIVALENCE} statements}
+\end_layout
+
+\begin_layout Plain Layout
+
+
+\backslash
+end{algorithm}
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
 \begin_layout Standard
 With these type checking rules, we can type check the soundness of associations
- in COMMON blocks and EQUIVALENCE statements.
+ in 
+\family sans
+COMMON
+\family default
+ blocks and 
+\family sans
+EQUIVALENCE
+\family default
+ statements.
  If the associations are correctly typed, we can proceed to remove them.
 \end_layout
 
@@ -6021,10 +6467,17 @@ In the preceding sections we analysed the type safety of a FORTRAN 77 program
  In this section we show how any FORTRAN 77 program can be transformed into
  an equivalent program with these properties.
  First, we show how to transform side-effect-free procedures into pure functions.
- Then we discuss how to remove COMMON blocks in a type-safe manner.
+ Then we discuss how to remove 
+\family sans
+COMMON
+\family default
+ blocks in a type-safe manner.
  Because of the assumptions that our procedures do not contain I/O calls
- or external library calls, the COMMON blocks are the only source of potential
- side effects.
+ or external library calls, the 
+\family sans
+COMMON
+\family default
+ blocks are the only source of potential side effects.
 \end_layout
 
 \begin_layout Subsection
@@ -6044,7 +6497,11 @@ A side-effect-free FORTRAN 77 subroutine can be translated into a pure function
 \end_layout
 
 \begin_layout Itemize
-infer the INTENT of every argument (see Section 
+infer the 
+\family sans
+INTENT
+\family default
+ of every argument (see Section 
 \begin_inset CommandInset ref
 LatexCommand ref
 reference "subsec:INTENT-inference"
@@ -6232,11 +6689,19 @@ In words,
 \emph on
 a'
 \emph default
- does no longer contain any element with INTENT InOut.
+ does no longer contain any element with 
+\family sans
+INTENT
+\family default
+ InOut.
 \end_layout
 
 \begin_layout Standard
-Given the INTENT, then we have:
+Given the 
+\family sans
+INTENT
+\family default
+, then we have:
 \end_layout
 
 \begin_layout Standard
@@ -6278,7 +6743,11 @@ a''
 \emph on
 a'
 \emph default
- with INTENT In.
+ with 
+\family sans
+INTENT
+\family default
+ In.
  In this way we have identified the function arguments and the function
  return value and their types.
  So regardless of the subroutine syntax, with this information it is now
@@ -6288,7 +6757,11 @@ a'
 \end_layout
 
 \begin_layout Subsection
-INTENT inference
+
+\family sans
+INTENT
+\family default
+ inference
 \begin_inset CommandInset label
 LatexCommand label
 name "subsec:INTENT-inference"
@@ -6300,17 +6773,537 @@ name "subsec:INTENT-inference"
 
 \begin_layout Standard
 Because the subroutines to be offloaded cannot contain external calls or
- I/O calls, we can infer the intent of all arguments by recursive descent
- into nested calls.
- The rules are quite simple:
+ I/O calls, once all 
+\family sans
+COMMON
+\family default
+ variables have been transformed into subroutine arguments, we can infer
+ the 
+\family sans
+INTENT
+\family default
+ of all arguments by recursive descent into nested calls, as shown in Algorithm
+ 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "alg:intent"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+: 
 \end_layout
 
 \begin_layout Standard
-\begin_inset Note Note
+\begin_inset ERT
 status open
 
 \begin_layout Plain Layout
-XXX Rules for intent inference XXX
+
+
+\backslash
+begin{algorithm}
+\end_layout
+
+\end_inset
+
+
+\begin_inset CommandInset label
+LatexCommand label
+name "alg:intent"
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset Box Frameless
+position "t"
+hor_pos "c"
+has_inner_box 1
+inner_pos "t"
+use_parbox 0
+use_makebox 0
+width "90col%"
+special "none"
+height "1in"
+height_special "totalheight"
+thickness "0.4pt"
+separation "3pt"
+shadowsize "4pt"
+framecolor "black"
+backgroundcolor "none"
+status open
+
+\begin_layout Enumerate
+Determine the 
+\family sans
+INTENT
+\family default
+ for all leaf subroutines:
+\end_layout
+
+\begin_deeper
+\begin_layout Itemize
+Using a recursive descent of the call graph from the entry procedure 
+\begin_inset Formula $p_{e}$
+\end_inset
+
+ until a leaf procedure 
+\begin_inset Formula $p_{l}$
+\end_inset
+
+ (one that does not call other procedures) is reached.
+ 
+\end_layout
+
+\begin_layout Itemize
+All different paths through the call graph need to be followed in the order
+ they are called.
+\end_layout
+
+\begin_layout Itemize
+When a leaf node is reached, determine the 
+\family sans
+INTENT
+\family default
+ of the arguments of the leaf subroutine using Algorithm 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "alg:intent_leaf"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+.
+\end_layout
+
+\end_deeper
+\begin_layout Enumerate
+Using recursive descent, determine the INTENT of all arguments of the calling
+ subroutines.
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset ERT
+status open
+
+\begin_layout Plain Layout
+
+
+\backslash
+caption{Infering 
+\backslash
+textsf{INTENT}}
+\end_layout
+
+\begin_layout Plain Layout
+
+
+\backslash
+end{algorithm}
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+The 
+\family sans
+INTENT
+\family default
+ reflects if a subroutine argument is accessed read-only (
+\emph on
+In
+\emph default
+), write-only (
+\emph on
+Out
+\emph default
+) or read-write (
+\emph on
+InOut
+\emph default
+) in the subroutine.
+ To determine the 
+\family sans
+INTENT
+\family default
+ of an argument in a leaf subroutine, we use Algorithm 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "alg:intent_leaf"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+:
+\end_layout
+
+\begin_layout Itemize
+Inspect every statement that accesses one or more of the subroutine arguments
+ (i.e.
+ all expressions and procedure calls, including intrinsic calls) in order
+ of occurence.
+ 
+\end_layout
+
+\begin_layout Itemize
+Based on the type of statement, it is possible to determine how a variable
+ is accessed (
+\emph on
+Read
+\emph default
+, 
+\emph on
+Write
+\emph default
+ or 
+\emph on
+Read-Write
+\emph default
+).
+ 
+\end_layout
+
+\begin_deeper
+\begin_layout Itemize
+Initially, the 
+\family sans
+INTENT
+\family default
+ of an argument is 
+\emph on
+Unknown
+\emph default
+ because the f77 specification does not support the 
+\family sans
+INTENT
+\family default
+ attribute.
+\end_layout
+
+\begin_layout Itemize
+Based on the access pattern in the subroutine, set the 
+\family sans
+INTENT
+\family default
+ to In, Out or InOut.
+ 
+\end_layout
+
+\begin_layout Itemize
+Once an 
+\family sans
+INTENT
+\family default
+ has been set to InOut, there is no need to look at any remaining statements.
+ 
+\end_layout
+
+\begin_layout Itemize
+If the 
+\family sans
+INTENT
+\family default
+ is set to In or Out, further statements can result in a change to InOut.
+ In that case,inspect all further statements in the subroutine.
+\end_layout
+
+\end_deeper
+\begin_layout Itemize
+The the 
+\family sans
+INTENT
+\family default
+ of an argument is determined based on its access in a statement using Algorithm
+ 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "alg:intent_statement"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+.
+\end_layout
+
+\begin_layout Standard
+\begin_inset ERT
+status open
+
+\begin_layout Plain Layout
+
+
+\backslash
+begin{algorithm}
+\end_layout
+
+\end_inset
+
+
+\begin_inset CommandInset label
+LatexCommand label
+name "alg:intent_leaf"
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset ERT
+status open
+
+\begin_layout Plain Layout
+
+
+\backslash
+KwIn{INTENT = Unknown }
+\end_layout
+
+\begin_layout Plain Layout
+
+
+\backslash
+BlankLine
+\end_layout
+
+\begin_layout Plain Layout
+
+
+\backslash
+While{ INTENT != InOut} { 
+\end_layout
+
+\begin_layout Plain Layout
+
+Determine INTENT using Algorithm 
+\backslash
+ref{alg:intent_statement}.
+\end_layout
+
+\begin_layout Plain Layout
+
+}
+\end_layout
+
+\begin_layout Plain Layout
+
+
+\backslash
+BlankLine
+\end_layout
+
+\begin_layout Plain Layout
+
+
+\backslash
+KwOut{INTENT for leaf subroutine argument}
+\end_layout
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset ERT
+status open
+
+\begin_layout Plain Layout
+
+
+\backslash
+caption{Infering Intent for leaf subroutine}
+\end_layout
+
+\begin_layout Plain Layout
+
+
+\backslash
+end{algorithm}
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+To determine the change of 
+\family sans
+INTENT
+\family default
+ of an argument based in its access in a statement, we use Algorithm 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "alg:intent_statement"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+.
+ 
+\end_layout
+
+\begin_layout Standard
+\begin_inset ERT
+status open
+
+\begin_layout Plain Layout
+
+
+\backslash
+begin{algorithm}
+\end_layout
+
+\end_inset
+
+
+\begin_inset CommandInset label
+LatexCommand label
+name "alg:intent_statement"
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset ERT
+status open
+
+\begin_layout Plain Layout
+
+
+\backslash
+KwIn{current INTENT}
+\end_layout
+
+\begin_layout Plain Layout
+
+
+\backslash
+BlankLine
+\end_layout
+
+\begin_layout Plain Layout
+
+
+\backslash
+uIf{access = Read-Write}{ INTENT = InOut}
+\end_layout
+
+\begin_layout Plain Layout
+
+
+\backslash
+uElseIf{access = Read}{
+\end_layout
+
+\begin_layout Plain Layout
+
+
+\backslash
+uIf{ INTENT = Unknown}{ INTENT = In}
+\end_layout
+
+\begin_layout Plain Layout
+
+
+\backslash
+uElseIf{ INTENT Out}{ INTENT = InOut}
+\end_layout
+
+\begin_layout Plain Layout
+
+}
+\end_layout
+
+\begin_layout Plain Layout
+
+
+\backslash
+uElseIf{access = Write}{
+\end_layout
+
+\begin_layout Plain Layout
+
+
+\backslash
+uIf{ INTENT = Unknown}{ INTENT = Out}
+\end_layout
+
+\begin_layout Plain Layout
+
+
+\backslash
+uElseIf{ INTENT In}{ INTENT = InOut}
+\end_layout
+
+\begin_layout Plain Layout
+
+}
+\end_layout
+
+\begin_layout Plain Layout
+
+
+\backslash
+BlankLine
+\end_layout
+
+\begin_layout Plain Layout
+
+
+\backslash
+KwOut{updated INTENT}
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset ERT
+status open
+
+\begin_layout Plain Layout
+
+
+\backslash
+caption{Infering Intent for leaf subroutine}
+\end_layout
+
+\begin_layout Plain Layout
+
+
+\backslash
+end{algorithm}
 \end_layout
 
 \end_inset
@@ -6336,13 +7329,20 @@ may have its type specified in a type-statement (8.4) as integer, real, double
  In the absence of an explicit declaration in a type-statement, the type
  is implied by the first letter of the name.
  A first letter of I, J, K, L, M, or N implies type integer and any other
- letter implies type real, unless an IMPLICIT statement (8.5) is used to
- change the default implied type.
+ letter implies type real, unless an 
+\family sans
+IMPLICIT
+\family default
+ statement (8.5) is used to change the default implied type.
 \end_layout
 
 \begin_layout Standard
-An IMPLICIT statement specifies a type for all variables that begin with
- any letter that appears in the specification.
+An 
+\family sans
+IMPLICIT
+\family default
+ statement specifies a type for all variables that begin with any letter
+ that appears in the specification.
  From a type safety perspective, the problem with this typing discipline
  is no 
 \emph on
@@ -6365,20 +7365,80 @@ type-statements
 \end_layout
 
 \begin_layout Standard
-The algorithm for this is straightforward:
+The algorithm for this (Algorithm 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "alg:implicit"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+) is straightforward:
 \end_layout
 
+\begin_layout Standard
+\begin_inset ERT
+status open
+
+\begin_layout Plain Layout
+
+
+\backslash
+begin{algorithm}[H]
+\end_layout
+
+\end_inset
+
+
+\begin_inset CommandInset label
+LatexCommand label
+name "alg:implicit"
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset Box Frameless
+position "t"
+hor_pos "c"
+has_inner_box 1
+inner_pos "t"
+use_parbox 0
+use_makebox 0
+width "90col%"
+special "none"
+height "1in"
+height_special "totalheight"
+thickness "0.4pt"
+separation "3pt"
+shadowsize "4pt"
+framecolor "black"
+backgroundcolor "none"
+status open
+
 \begin_layout Enumerate
-Parse all IMPLICIT statements and turn them into a lookup table 
+Parse all 
+\family sans
+IMPLICIT
+\family default
+ statements and turn them into a lookup table 
 \emph on
-{Char => (Type,ArrayOrScalar,Attribute)}
+{Char 
+\begin_inset Formula $\Rightarrow$
+\end_inset
+
+ (Type,ArrayOrScalar,Attribute)}
 \emph default
 .
  This lookup table is initially populated with the default rule: 
 \end_layout
 
 \begin_deeper
-\begin_layout Standard
+\begin_layout Plain Layout
 
 \family typewriter
 implicit integer (i-n), real (a-h, o-z)
@@ -6387,7 +7447,11 @@ implicit integer (i-n), real (a-h, o-z)
 \end_deeper
 \begin_layout Enumerate
 Analyse all executable statements for occurences of undeclared variables
- and add declarations following the IMPLICIT rules, i.e
+ and add declarations following the 
+\family sans
+IMPLICIT
+\family default
+ rules, i.e
 \end_layout
 
 \begin_deeper
@@ -6409,43 +7473,103 @@ Add the created declarations before the first executable statement
 \end_layout
 
 \begin_layout Enumerate
-Add IMPLICIT NONE before the first non-executable statement to specify that
- no implicit typing should be done in the generated code
+Add 
+\family sans
+IMPLICIT
+\family default
+ 
+\family sans
+NONE
+\family default
+ before the first non-executable statement to specify that no implicit typing
+ should be done in the generated code
 \end_layout
 
-\begin_layout Subsection
-Removal of COMMON blocks
+\end_inset
+
+
 \end_layout
 
 \begin_layout Standard
-The f77 specification defines the semantics of the COMMON statement in §8.3
- 
+\begin_inset ERT
+status open
+
+\begin_layout Plain Layout
+
+
+\backslash
+caption{Removal of IMPLICIT typing rules}
+\end_layout
+
+\begin_layout Plain Layout
+
+
+\backslash
+end{algorithm}
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Subsection
+Removal of 
+\family sans
+COMMON
+\family default
+ blocks
+\end_layout
+
+\begin_layout Standard
+The f77 specification defines the semantics of the 
+\family sans
+COMMON
+\family default
+ statement in §8.3 
+\family sans
 \emph on
-COMMON Statement
+COMMON
+\family default
+ Statement
 \emph default
 :
 \end_layout
 
 \begin_layout Quote
-The COMMON statement provides a means of associating entities in different
- program units.
+The 
+\family sans
+COMMON
+\family default
+ statement provides a means of associating entities in different program
+ units.
  This allows different program units to define and reference the same data
  without using arguments, and to share storage units.
 \end_layout
 
 \begin_layout Standard
 The f90 specification (§5.5.2 
+\family sans
+COMMON
+\family default
 \emph on
-COMMON statement
+ statement
 \emph default
 ) has a slightly different wording:
 \end_layout
 
 \begin_layout Quote
-The COMMON statement specifies blocks of physical storage, called common
- blocks, that may be accessed by any of the scoping units in a program.
- Thus, the COMMON statement provides a global data facility based on storage
- association.
+The 
+\family sans
+COMMON
+\family default
+ statement specifies blocks of physical storage, called common blocks, that
+ may be accessed by any of the scoping units in a program.
+ Thus, the 
+\family sans
+COMMON
+\family default
+ statement provides a global data facility based on storage association.
 \end_layout
 
 \begin_layout Quote
@@ -6458,10 +7582,21 @@ Storage sequences are used to describe relationships that exist among variables,
 \end_layout
 
 \begin_layout Standard
-As explained above, the main reason to remove COMMON blocks is to create
- pure functions that don't share a memory space with their caller code unit.
+As explained above, the main reason to remove 
+\family sans
+COMMON
+\family default
+ blocks is to create pure functions that don't share a memory space with
+ their caller code unit.
  This is an essential requirement for offloading to accelerators.
- However, type-safe removal of COMMON blocks and rewriting of EQUIVALENCE
+ However, type-safe removal of 
+\family sans
+COMMON
+\family default
+ blocks and rewriting of 
+\family sans
+EQUIVALENCE
+\family default
  statements also guarantees that the resulting code is type-safe.
 \end_layout
 
@@ -6481,33 +7616,60 @@ s/parallel-studio-xe/choose-download/free-trial-cluster-linux.html and maybe
 \end_layout
 
 \begin_layout Standard
-Our approach is to convert COMMON block variables into subroutine arguments.
- The more common approach of conversion into module-scoped variables [REFS]
- is not suitable for our purpose because it does not result in pure functions.
+Our approach is to convert 
+\family sans
+COMMON
+\family default
+ block variables into subroutine arguments.
+ The more common approach of conversion into module-scoped variables is
+ not suitable for our purpose because it does not result in pure functions.
  (Furthermore, because of the difference in semantics of storage association
- and module scoped variables, this approach only works for COMMON blocks
- where all variables are aligned, whereas COMMON blocks allow overlapping
- sequences).
+ and module scoped variables, this approach only works for 
+\family sans
+COMMON
+\family default
+ blocks where all variables are aligned, whereas 
+\family sans
+COMMON
+\family default
+ blocks allow overlapping sequences).
  One of the main contributions of this paper is in this conversion and the
  associated type checks.
 \end_layout
 
 \begin_layout Subsubsection
-Construct the COMMON block chain
+Construct the 
+\family sans
+COMMON
+\family default
+ block chain
 \end_layout
 
 \begin_layout Standard
-In a subroutine call chain, it is not necessary for a COMMON blocks to occur
- in the caller.
- It is sufficient that the COMMON block used in a called subroutine occurs
- somewhere in the call chain.
- As a consequence, it is not generally possible to associate the COMMON
+In a subroutine call chain, it is not necessary for a 
+\family sans
+COMMON
+\family default
+ blocks to occur in the caller.
+ It is sufficient that the 
+\family sans
+COMMON
+\family default
+ block used in a called subroutine occurs somewhere in the call chain.
+ As a consequence, it is not generally possible to associate the 
+\family sans
+COMMON
+\family default
  block variables in a called subroutine with those of the caller.
  For example:
 \end_layout
 
 \begin_layout Example
-COMMON block chain
+
+\family sans
+COMMON
+\family default
+ block chain
 \end_layout
 
 \begin_layout Example
@@ -6739,7 +7901,11 @@ end subroutine f2
 \begin_layout Standard
 So the argument for f2 has to be passed via f1 from the main program.
  Therefore, we need to analyse the code for the call chain paths between
- disjoint COMMON blocks and pass all arguments via the intervening calls.
+ disjoint 
+\family sans
+COMMON
+\family default
+ blocks and pass all arguments via the intervening calls.
  This also requires checking if the names are unique an renaming if necessary.
  The result of this analysis is that for every called subroutine, we have
  a pair consisting of the common block sequence that will become the call
@@ -6748,7 +7914,11 @@ So the argument for f2 has to be passed via f1 from the main program.
 \end_layout
 
 \begin_layout Subsubsection
-Matching up COMMON block variables in a subroutine call
+Matching up 
+\family sans
+COMMON
+\family default
+ block variables in a subroutine call
 \end_layout
 
 \begin_layout Standard
@@ -6820,7 +7990,11 @@ common yl,xl,zl
 \end_layout
 
 \begin_layout Standard
-The COMMON statements in Example 
+The 
+\family sans
+COMMON
+\family default
+ statements in Example 
 \begin_inset CommandInset ref
 LatexCommand ref
 reference "exa:Overlapping-sequences"
@@ -6888,44 +8062,126 @@ ard:
 
 \begin_layout Standard
 Given that the associations typecheck correctly, then it follows that for
- every variable in a COMMON block declared in the caller, there is a correspondi
-ng variable in the called subroutine.
+ every variable in a 
+\family sans
+COMMON
+\family default
+ block declared in the caller, there is a corresponding variable in the
+ called subroutine.
  In practice these variables can be either arrays or scalars.
  Whereas for the purpose of typechecking we have assumed that all variables
  are scalar, again without loss of generality, we will now assume that all
  variables are arrays.
- A scalar s is simply syntactic sugar for the first element of an array
- of size 1, s(1).
+ A scalar 
+\begin_inset Formula $s$
+\end_inset
+
+ is simply syntactic sugar for the first element of an array of size 
+\begin_inset Formula $1$
+\end_inset
+
+, 
+\begin_inset Formula $s(1)$
+\end_inset
+
+.
  This is merely to keep the rules more compact.
- As before, we traverse every array using a linear index starting at 1.
+ As before, we traverse every array using a linear index starting at 
+\begin_inset Formula $1$
+\end_inset
+
+.
 \end_layout
 
 \begin_layout Standard
 Because it is possible for arrays from the caller and arrays in the called
  subroutine to overlap in both directions, our strategy for converting the
- COMMON variables into dummy parameters is as follows: 
+ 
+\family sans
+COMMON
+\family default
+ variables into dummy parameters is as follows (Algorithm 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "alg:common_vars_to_args"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+): 
 \end_layout
 
+\begin_layout Standard
+\begin_inset ERT
+status open
+
+\begin_layout Plain Layout
+
+
+\backslash
+begin{algorithm}[H]
+\end_layout
+
+\end_inset
+
+
+\begin_inset CommandInset label
+LatexCommand label
+name "alg:common_vars_to_args"
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset Box Frameless
+position "t"
+hor_pos "c"
+has_inner_box 1
+inner_pos "t"
+use_parbox 0
+use_makebox 0
+width "90col%"
+special "none"
+height "1in"
+height_special "totalheight"
+thickness "0.4pt"
+separation "3pt"
+shadowsize "4pt"
+framecolor "black"
+backgroundcolor "none"
+status open
+
 \begin_layout Itemize
-we declare dummy parameters with the names of the variables in the caller
- (prefixed with the name of the caller and the COMMON block).
+Declare dummy parameters with the names of the variables in the caller (prefixed
+ with the name of the caller and the 
+\family sans
+COMMON
+\family default
+ block).
  
 \end_layout
 
 \begin_layout Itemize
-Then we determine the assignments required to match these dummy parameters
- with the variables that used to be COMMON block variables in the caller
- subroutine, but now are ordinary local variables.
+Determine the assignments required to match these dummy parameters with
+ the variables that used to be 
+\family sans
+COMMON
+\family default
+ block variables in the caller subroutine, but now are ordinary local variables.
  
 \end_layout
 
 \begin_layout Itemize
-We insert these assignments after the last specification statement.
+Insert these assignments after the last specification statement.
  
 \end_layout
 
 \begin_layout Itemize
-At the end of the subroutine, we insert the corresponding reverse assignments.
+At the end of the subroutine, insert the corresponding reverse assignments.
 \end_layout
 
 \begin_layout Itemize
@@ -6934,9 +8190,43 @@ If required, the right-hand side of the assignment will contain an explicit
  in the caller and the called subroutine have different shapes.
 \end_layout
 
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset ERT
+status open
+
+\begin_layout Plain Layout
+
+
+\backslash
+caption{strategy for converting the 
+\backslash
+textsf{COMMON} variables into dummy parameters is as follows}
+\end_layout
+
+\begin_layout Plain Layout
+
+
+\backslash
+end{algorithm}
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
 \begin_layout Standard
 The compiler maintains a global state record.
- The state information of each subroutine, st, is used in 
+ The state information of each subroutine, 
+\emph on
+st
+\emph default
+, is used in 
 \family typewriter
 updateDim
 \family default
@@ -6944,8 +8234,15 @@ updateDim
 \end_layout
 
 \begin_layout Standard
-the sequence cseq consists of tuples of the type declaration decl and the
- linear index idx in the 
+the sequence 
+\emph on
+cseq
+\emph default
+ consists of tuples of the type declaration decl and the linear index 
+\emph on
+idx
+\emph default
+ in the 
 \family sans
 COMMON
 \family default
@@ -6964,13 +8261,31 @@ cseq & = & (decl_{1},idx_{1}),...,(decl_{i},idx_{i}),...)
 \end_layout
 
 \begin_layout Standard
-For every array variable, the type declaration contains a Dim field d which
- is an array of (start index, end index) tuples, with total size sz.
+For every array variable, the type declaration contains a 
+\emph on
+Dim
+\emph default
+ field 
+\emph on
+d
+\emph default
+ which is an array of 
+\emph on
+(start index, end index)
+\emph default
+ tuples, with total size 
+\emph on
+sz
+\emph default
+.
 \end_layout
 
 \begin_layout Standard
-The list of equivalence pairs eqps contains the matched up declarations
- of the original 
+The list of equivalence pairs 
+\emph on
+eqps
+\emph default
+ contains the matched up declarations of the original 
 \family sans
 COMMON
 \family default
@@ -6995,12 +8310,102 @@ The matching algorithm traverses the local sequence
 \end_inset
 
 .
- The algorithm is iterative and stops when the local sequence has been consumed,
- and returns eqps.
+ The algorithm (Algorithm 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "alg:matching_up_common_seqs"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+) is iterative and stops when the local sequence has been consumed, and
+ returns 
+\emph on
+eqps
+\emph default
+.
  
 \end_layout
 
 \begin_layout Standard
+\begin_inset ERT
+status open
+
+\begin_layout Plain Layout
+
+
+\backslash
+begin{algorithm}
+\end_layout
+
+\end_inset
+
+
+\begin_inset CommandInset label
+LatexCommand label
+name "alg:matching_up_common_seqs"
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset ERT
+status open
+
+\begin_layout Plain Layout
+
+
+\backslash
+KwIn{$st_l,st_c,cseq_l,cseq_c$}
+\end_layout
+
+\begin_layout Plain Layout
+
+
+\backslash
+BlankLine
+\end_layout
+
+\begin_layout Plain Layout
+
+
+\backslash
+While{$cseq_l
+\backslash
+neq
+\backslash
+emptyset$ } {
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset Box Frameless
+position "t"
+hor_pos "c"
+has_inner_box 1
+inner_pos "t"
+use_parbox 0
+use_makebox 0
+width "90col%"
+special "none"
+height "1in"
+height_special "totalheight"
+thickness "0.4pt"
+separation "3pt"
+shadowsize "4pt"
+framecolor "black"
+backgroundcolor "none"
+status open
+
+\begin_layout Plain Layout
 \begin_inset Formula 
 \begin{eqnarray}
 d_{l} & = & \begin{cases}
@@ -7014,7 +8419,7 @@ sz_{l}-idx_{l}<=sz_{c}-idx_{c} & \mbox{updateDim}\,\mathit{st}_{l}\,d_{l}\,idx_{
 
 \end_layout
 
-\begin_layout Standard
+\begin_layout Plain Layout
 \begin_inset Formula 
 \begin{eqnarray}
 d_{c} & = & \begin{cases}
@@ -7028,7 +8433,7 @@ sz_{l}-idx_{l}<sz_{c}-idx_{c} & \mbox{updateDim}\,st_{c}\,d_{c}\,idx_{c}\,idx_{c
 
 \end_layout
 
-\begin_layout Standard
+\begin_layout Plain Layout
 \begin_inset Formula 
 \begin{eqnarray}
 \mathit{cseq}_{l} & = & \begin{cases}
@@ -7045,7 +8450,7 @@ sz_{l}-idx_{l}\leq sz_{c}-idx_{c} & \mathit{cseq}_{l}
 
 \end_layout
 
-\begin_layout Standard
+\begin_layout Plain Layout
 \begin_inset Formula 
 \begin{eqnarray}
 \mathit{cseq}_{c} & = & \begin{cases}
@@ -7062,7 +8467,7 @@ sz_{l}-idx_{l}\geq sz_{c}-idx_{c} & \mathit{cseq}_{c}
 
 \end_layout
 
-\begin_layout Standard
+\begin_layout Plain Layout
 \begin_inset Formula 
 \begin{eqnarray}
 \mathit{eqps} & = & \mathit{eqps}\bullet(\mathit{decl}_{l}\left\{ \mathit{Dim}=d_{l}\right\} ,\mathit{decl}_{c}\left\{ \mathit{Dim}=d_{c},\mathit{Prefix}=p\right\} )
@@ -7073,23 +8478,90 @@ sz_{l}-idx_{l}\geq sz_{c}-idx_{c} & \mathit{cseq}_{c}
 
 \end_layout
 
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset ERT
+status open
+
+\begin_layout Plain Layout
+
+}
+\end_layout
+
+\begin_layout Plain Layout
+
+
+\backslash
+BlankLine
+\end_layout
+
+\begin_layout Plain Layout
+
+
+\backslash
+KwOut{$eqps$}
+\end_layout
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\begin_layout Plain Layout
+
+
+\backslash
+caption{Matching up  
+\backslash
+textsf{COMMON} block variables in a subroutine call}
+\end_layout
+
+\begin_layout Plain Layout
+
+
+\backslash
+end{algorithm}
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
 \begin_layout Subsection
-Removal of EQUIVALENCE statements
+Removal of 
+\family sans
+EQUIVALENCE
+\family default
+ statements
 \end_layout
 
 \begin_layout Standard
 According to §8.2 
+\family sans
+EQUIVALENCE
+\family default
 \emph on
-EQUIVALENCE Statement 
+ Statement 
 \emph default
 of the f77 specification, 
 \end_layout
 
 \begin_layout Quote
-An EQUIVALENCE statement is used to specify the sharing of storage units
- by two or more entities in a program unit.
+An 
+\family sans
+EQUIVALENCE
+\family default
+ statement is used to specify the sharing of storage units by two or more
+ entities in a program unit.
  This causes association of the entities that share the storage units.
- If the equivalenced entities are of different data types, the EQUIVALENCE
+ If the equivalenced entities are of different data types, the 
+\family sans
+EQUIVALENCE
+\family default
  statement does not cause type conversion or imply mathematical equivalence.
  If a variable and an array are equivalenced, the variable does not have
  array properties and the array does not have the properties of a variable.
@@ -7291,7 +8763,11 @@ end
 \end_layout
 
 \begin_layout Standard
-Therefore, EQUIVALENCE statements also need to be refactored.
+Therefore, 
+\family sans
+EQUIVALENCE
+\family default
+ statements also need to be refactored.
  They come with their own flavour of complications.
  
 \end_layout
@@ -7363,7 +8839,9 @@ A final complication is that overlapping is allowed, e.g.:
 \end_layout
 
 \begin_layout Example
-Overlap in EQUIVALENCE
+Overlap in 
+\family sans
+EQUIVALENCE
 \end_layout
 
 \begin_layout Example
@@ -7390,6 +8868,38 @@ RADE11(5), RADE12(3)
 \family default
  as well.
  So we have to equate the overlapping ranges.
+\end_layout
+
+\begin_layout Subsubsection
+Equivalence pairs
+\end_layout
+
+\begin_layout Standard
+Taking the above into account, we can create a set of pairs identifying
+ the scalar variables or array accesses that are equivalent.
+ I call these 
+\begin_inset Quotes eld
+\end_inset
+
+equivalence pairs
+\begin_inset Quotes erd
+\end_inset
+
+.
+ To be able to remove the EQUIVALENCE statements, we must insert additional
+ assignment after every statement where one of more of the variables that
+ is part of an equivalence pair gets modified.
+ The possible cases are
+\end_layout
+
+\begin_layout Itemize
+The left-had side of an assignment
+\end_layout
+
+\begin_layout Itemize
+An argument to a subroutine or function call that is used with INTENT Out
+ or InOut.
+ 
 \end_layout
 
 \begin_layout Standard

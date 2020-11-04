@@ -1478,7 +1478,7 @@ sub __insert_assignment_for_ex_EQUIVALENCE_vars {
 	if ( exists $info->{'Assignment'} and not exists $info->{'ExCommonOrEquivalence'}) {
 		my $lhs_var = $info->{'Lhs'}{'VarName'};
 
-# But this is not right because we need the variable only I think
+# FIXME: This is not right because we need the variable only I think
 # There is no way to infer the array index if it's an array
 # Problem is of course that we now can't search by key in equiv_pairs
 # because the key is the expression used in the EQUIVALENCE statement 
@@ -1646,7 +1646,8 @@ sub _change_EQUIVALENCE_to_assignment_lines_for_ExCommonArgs {
 	}
 	return $rlines;
 }    # END of _change_EQUIVALENCE_to_assignment_lines_for_ExCommonArgs
-# WV: FIXME: put this in Refactoring:: Equivalence and split it ip
+
+# WV: FIXME: put this in Refactoring:: Equivalence and split it up
 sub __refactor_EQUIVALENCE_line {
 	( my $stref, my $f, my $ast, my $exEquivAssignmentLines, my $postUpdateAssignmentLines, my $annline, my $equiv_pairs ) = @_;
 	my $Sf    = $stref->{'Subroutines'}{$f};
