@@ -1449,6 +1449,7 @@ sub _add_ExMismatchedCommonArg_assignment_lines {
 	return $rlines;
 }    # END of _add_ExMismatchedCommonArg_assignment_lines
 
+# WV: FIXME: put this in Refactoring:: Equivalence and split it up
 =info_equivalence
 EQUIVALENCE done right:
 
@@ -1565,9 +1566,12 @@ sub __insert_assignment_for_ex_EQUIVALENCE_vars {
 	return ( $rlines, $skip );
 }    # END of __insert_assignment_for_ex_EQUIVALENCE_vars
 
+# WV: FIXME: put this in Refactoring:: Equivalence and split it up
+# WV20201105 I think this is a misnomer, it works for all vars, not just ExCommonArgs 
 sub _change_EQUIVALENCE_to_assignment_lines_for_ExCommonArgs {
 	my ( $stref, $f, $annlines ) = @_;
 	my $Sf                        = $stref->{'Subroutines'}{$f};
+
 	my $last_statement            = 0;
 	my $first_occ                 = 1;
 	my $rlines                    = [];
@@ -1578,10 +1582,11 @@ sub _change_EQUIVALENCE_to_assignment_lines_for_ExCommonArgs {
 	for my $annline ( @{$annlines} ) {
 		( my $line, my $info ) = @{$annline};
 		my $skip = 0;
+		# Create the equivalence pairs and remove the EQUIVALENCE statement
 		if ( exists $info->{'Equivalence'} ) {
 			my $rline = $annline;
 			my $ast = dclone( $info->{'Ast'} );
-
+			# WV20201105 refactor this if-then into a separate function for clarity
 			# Two cases: either a list of tuples, or a single tuples
 			if ( ( $ast->[0] & 0xFF ) == 0 ) {
 
@@ -1613,14 +1618,13 @@ sub _change_EQUIVALENCE_to_assignment_lines_for_ExCommonArgs {
 				croak "INVALID AST : " . Dumper($ast) . ( $ast->[0] & 0xFF ) . ( $ast->[1][0] & 0xFF ) if $DBG;
 			}
 
-			if ( $line ne $rline->[0] ) {
-
+			# if ( $line ne $rline->[0] ) {
 				#				say "CHANGING LINE $line TO ".$rline->[0]." in $f ";
-			}
+			# }
 			$skip = 1;
 		}
 
-		# For the assignments:
+		# For the assignments that replace the EQUIVALENCE statement
 		# They should come after the last SpecificationStatement
 		elsif ( not exists $info->{'Signature'}
 			and not exists $info->{'VarDecl'}
@@ -1633,12 +1637,12 @@ sub _change_EQUIVALENCE_to_assignment_lines_for_ExCommonArgs {
 			and $first_occ == 1 )
 		{
 			$first_occ = 0;
-			# say "AFTER LINE $line";
 			for my $rline ( @{$exEquivAssignmentLines} ) {
 				say 'REPLACED EQUIVALENCE BY ' . Dumper($rline) if $DBG;				
 				push @{$rlines}, $rline;
 			}
-		} else {
+		} else { # triggered by $first_occ = 0
+			# These are the assignments whenever a var is modified
 			( $rlines, $skip ) = __insert_assignment_for_ex_EQUIVALENCE_vars( $stref, $f, $annline, $rlines, $postUpdateAssignmentLines );
 		}
 
@@ -1648,6 +1652,10 @@ sub _change_EQUIVALENCE_to_assignment_lines_for_ExCommonArgs {
 }    # END of _change_EQUIVALENCE_to_assignment_lines_for_ExCommonArgs
 
 # WV: FIXME: put this in Refactoring:: Equivalence and split it up
+# $ast is the ast of the EQUIVALENCE statement 
+# $exEquivAssignmentLines,  $postUpdateAssignmentLines are intially empty 
+# $annline has the original AST, $ast is a copy
+# $equiv_pairs is initially empty
 sub __refactor_EQUIVALENCE_line {
 	( my $stref, my $f, my $ast, my $exEquivAssignmentLines, my $postUpdateAssignmentLines, my $annline, my $equiv_pairs ) = @_;
 	my $Sf    = $stref->{'Subroutines'}{$f};
@@ -1656,7 +1664,8 @@ sub __refactor_EQUIVALENCE_line {
 	
 	my $ann=annotate( $f, __LINE__  );
 
-	# EQUIVALENCE can be a general tuple, not just two elts. I need to take this apart into pairs!
+	# EQUIVALENCE can be a general tuple, not just two elts. 
+	# Take it apart into pairs
 	# $ast : ['(',[',',@vs]]
 	my @asts = @{ $ast->[1] }; # @asts : (',',@vs)
 	shift @asts; # @asts : @vs; 
@@ -1693,6 +1702,7 @@ sub __refactor_EQUIVALENCE_line {
 	# via v2: v2 v4, v2 v5, v3 v4, v3 v5, v4 v5; but then of course also v1 v4, v1 v5
 	# via v3: quite the same. It is sufficient that one variable occurs in multiple tuples. 
 
+	# Transitivity check
 	my $transitive = 0;
 	my $trans_var;
 
@@ -1702,33 +1712,32 @@ sub __refactor_EQUIVALENCE_line {
 		my $var = $indexed_array_expr ? emit_expr_from_ast($ast) : $var_name; 
 		
 		if ( exists $equiv_pairs->{$var} ) {
-			# must check if that one was indexed with the same index
-# For proper transitivity, the array expressions must be the same 
-# i.e. (v1,v2,v3(1)),(v3(2),v4) is not transitive
-# Now, $equiv_pairs contains all pairs that are connected. 
-# so v1 =>[v2,v3]
-# v3 => [v1,v2,v4]
-# I thought I could solve this by adding v3 to this list, but what I really need is
-# v3(1) => [v1,v2] and v3(2)=> [v4]
-# So I guess I should use the full expression string as key, and then I can use the name as secondary key with the ast
-# so  'v3(1)' => {v1 => ast1, v2=>ast2, 'v3(1) => ast31 }
-# and 'v3(2)' => {v4 => ast4,  'v3' => ast32, }
-# Then a test $equiv_pairs->{$var_expr_str} works I can still get the var name only form $ast->[1]			
+		# must check if that one was indexed with the same index
+		# For proper transitivity, the array expressions must be the same 
+		# i.e. (v1,v2,v3(1)),(v3(2),v4) is not transitive
+		# Now, $equiv_pairs contains all pairs that are connected. 
+		# so v1 =>[v2,v3]
+		# v3 => [v1,v2,v4]
+		# I thought I could solve this by adding v3 to this list, but what I really need is
+		# v3(1) => [v1,v2] and v3(2)=> [v4]
+		# So I guess I should use the full expression string as key, and then I can use the name as secondary key with the ast
+		# so  'v3(1)' => {v1 => ast1, v2=>ast2, 'v3(1) => ast31 }
+		# and 'v3(2)' => {v4 => ast4,  'v3' => ast32, }
+		# Then a test $equiv_pairs->{$var_expr_str} works I can still get the var name only form $ast->[1]			
 			$transitive = 1;
 			$trans_var  = $var;
 			last;
 		}
 	}
-
+	
 	if ($transitive) {
-#		say "TRANSITIVE!";
+		# Handle transitive pairs
 		for my $ast1 (@asts) {
 			my $var1 = emit_expr_from_ast($ast1);
 			if ( $var1 ne $trans_var ) {
 				for my $var2 ( keys %{ $equiv_pairs->{$trans_var} } ) {
 					my $ast2 = $equiv_pairs->{$trans_var}{$var2};
 					push @pairs, [ $ast1, $ast2 ];
-#					say "ADDED: ($var1,$var2)";
 				}
 			}
 		}
@@ -1744,7 +1753,8 @@ sub __refactor_EQUIVALENCE_line {
 	# as well
 
 	# So what we should do is equate the overlapping ranges. This is just crazy.
-	# if a pair consists of two arrays
+
+	# If a pair consists of two arrays
 	# and at least one of them is indexed
 	# then we must check if this caused an overlap, as follows:
 	# find the smaller of the two
@@ -1776,6 +1786,8 @@ sub __refactor_EQUIVALENCE_line {
 	# } else reverse the whole thing
 
 	my $replaced=1; # We assume we will replace the EQUIVALENCE 
+	# The only exception is character strings, see below
+
 	for my $pair (@pairs) {
 		my $ast1 = $pair->[0];
 		my $ast2 = $pair->[1];
@@ -1789,7 +1801,6 @@ sub __refactor_EQUIVALENCE_line {
 		my $v1_type = $var1_decl->{'Type'};
 		my $v2_type = $var2_decl->{'Type'};
 		if (@pairs==1 and $v1_type eq 'character' and $v2_type ne 'character' ) {
-			# croak Dumper($pair);
 			$replaced=0;
 			warning('EQUIVALENCE with CHARACTER string is not refactored'."\n$line\n",1);
 			last;
@@ -1804,7 +1815,6 @@ sub __refactor_EQUIVALENCE_line {
 		) {
 			die "TYPE ERROR: '$v1_type' and '$v2_type' are incompatible"."\n$line\n";
 		}
-
 
 		my $v1          = $v1_is_array ? emit_expr_from_ast($ast1) : $var1;
 		my $v2          = $v2_is_array ? emit_expr_from_ast($ast2) : $var2;
@@ -1825,6 +1835,7 @@ sub __refactor_EQUIVALENCE_line {
 		my $v2_v1_pair = [ $v2, $v1 ];		
 		my $v1_v2_pair = [ $v1, $v2 ];
 		my $ann=annotate( $f, __LINE__  );
+		# FIXME: is this not the same as $replaced above?
 		my $remove_equiv_stmt = 1;
 
 		if ( $v1_is_array and not $v2_is_array ) {
@@ -1869,7 +1880,6 @@ sub __refactor_EQUIVALENCE_line {
 					my $start_idx2 = join( ',', map { $_->[0] } @{ $var2_decl->{'Dim'} } );
 					$v1_v2_pair = [ $v1, "$v2($start_idx2)" ];    #
 					$v2_v1_pair = ["$v2($start_idx2)", $v1];
-					# croak 'HERE: '.$v1_type.';'.$v1_v2_pair->[1];
 					$ann=annotate( $f, __LINE__  );
 				} else {
 					$ann=annotate( $f, __LINE__  );
@@ -1878,6 +1888,7 @@ sub __refactor_EQUIVALENCE_line {
 			} 			# else it means v2 was already indexed
 		} elsif ( $v1_is_array and $v2_is_array ) {
 			
+			# Check for overlapping ranges
 			my $overlapping=0;
 		
 			my $dim1 = $var1_decl->{'Dim'};
@@ -1894,7 +1905,9 @@ sub __refactor_EQUIVALENCE_line {
 				say "OVERLAPPING: ".Dumper($index1, $index2) if $DBG;
 				$overlapping=1;			
 			}
+			
 			if ($overlapping) {
+				# Handle overlapping ranges
 				my ($array1, $array2) = @{__equate_overlapping_ranges( $index1, $dim1, $index2, $dim2 ) };
 				my ($offset1, $range1)=@{$array1};
 				my ($offset2, $range2)=@{$array2};
@@ -1961,10 +1974,6 @@ sub __refactor_EQUIVALENCE_line {
 			}
 		}
 
-		# else {
-		# Both are scalars, nothing special
-		#}
-		#	my $indent = $info->{'Indent'};
 		if ($remove_equiv_stmt) {
 			$rline = [ '!' . $line, { 'Deleted' => 1 } ];
 		}
@@ -1990,7 +1999,7 @@ sub __refactor_EQUIVALENCE_line {
 			# if both are ExGlobArgs, we don't need the initial assignment
 			$exEquivAssignmentLines = [ @{$exEquivAssignmentLines}, @{$assign_v1_to_v2} ];    #
 		}
-	}
+	} # loop over all pairs
 
 	return ( $rline, $exEquivAssignmentLines, $postUpdateAssignmentLines, $equiv_pairs, $replaced );
 }    # END of __refactor_EQUIVALENCE_line
