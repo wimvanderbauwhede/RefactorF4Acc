@@ -184,7 +184,7 @@ sub _refactor_subroutine_main {
 		#	    $annlines=$Sf->{'AnnLines'};
 	}
 
-	$annlines = _change_EQUIVALENCE_to_assignment_lines_for_ExCommonArgs( $stref, $f, $annlines );
+	$annlines = _change_EQUIVALENCE_to_assignment_lines( $stref, $f, $annlines );
 
 	#	$Sf->{'AnnLines'} = $annlines;
 	#	$Sf->{'RefactoredCode'} = $annlines; # cargo cult
@@ -1568,7 +1568,7 @@ sub __insert_assignment_for_ex_EQUIVALENCE_vars {
 
 # WV: FIXME: put this in Refactoring:: Equivalence and split it up
 # WV20201105 I think this is a misnomer, it works for all vars, not just ExCommonArgs 
-sub _change_EQUIVALENCE_to_assignment_lines_for_ExCommonArgs {
+sub _change_EQUIVALENCE_to_assignment_lines {
 	my ( $stref, $f, $annlines ) = @_;
 	my $Sf                        = $stref->{'Subroutines'}{$f};
 
@@ -1587,36 +1587,40 @@ sub _change_EQUIVALENCE_to_assignment_lines_for_ExCommonArgs {
 			my $rline = $annline;
 			my $ast = dclone( $info->{'Ast'} );
 			# WV20201105 refactor this if-then into a separate function for clarity
-			# Two cases: either a list of tuples, or a single tuples
-			if ( ( $ast->[0] & 0xFF ) == 0 ) {
+			($rlines,$exEquivAssignmentLines, $postUpdateAssignmentLines, $equiv_pairs) = __create_EQUIVALENCE_pairs(
+				$stref, $f, $annline, $ast, 
+				$rlines, $exEquivAssignmentLines, $postUpdateAssignmentLines,  $equiv_pairs);
 
-				# a single tuple, ['(',[',',@vs]]
-				( $rline, $exEquivAssignmentLines, $postUpdateAssignmentLines, $equiv_pairs, my $replaced ) =
-				  __refactor_EQUIVALENCE_line( $stref, $f, $ast, 
-				  $exEquivAssignmentLines, $postUpdateAssignmentLines, $annline, $equiv_pairs );
-				  if ($replaced) {
-				$info->{'Deleted'} = 1;
-				push @{$rlines}, [ '!' . $line, $info ];
-				  } else {
-					#   croak 'HERE!';
-					  push @{$rlines}, $annline;
-				  }
-			} elsif ( ( ( $ast->[0] & 0xFF ) == 27 )
-				&& ( ( $ast->[1][0] & 0xFF ) == 0 ) )
-			{
-				# a list of tuples
-				shift @{$ast};
-				for my $pair_ast ( @{$ast} ) {
-					( $rline, $exEquivAssignmentLines, $postUpdateAssignmentLines, $equiv_pairs ) =
-					  __refactor_EQUIVALENCE_line( $stref, $f, $pair_ast, 
-					  $exEquivAssignmentLines, $postUpdateAssignmentLines, $annline, $equiv_pairs );
-					$info->{'Deleted'} = 1;
-					push @{$rlines}, [ '!' . $line, $info ];
+			# # Two cases: either a list of tuples, or a single tuples
+			# if ( ( $ast->[0] & 0xFF ) == 0 ) {
 
-				}
-			} else {
-				croak "INVALID AST : " . Dumper($ast) . ( $ast->[0] & 0xFF ) . ( $ast->[1][0] & 0xFF ) if $DBG;
-			}
+			# 	# a single tuple, ['(',[',',@vs]]
+			# 	( $rline, $exEquivAssignmentLines, $postUpdateAssignmentLines, $equiv_pairs, my $replaced ) =
+			# 	  __refactor_EQUIVALENCE_line( $stref, $f, $ast, 
+			# 	  $exEquivAssignmentLines, $postUpdateAssignmentLines, $annline, $equiv_pairs );
+			# 	  if ($replaced) {
+			# 	$info->{'Deleted'} = 1;
+			# 	push @{$rlines}, [ '!' . $line, $info ];
+			# 	  } else {
+			# 		#   croak 'HERE!';
+			# 		  push @{$rlines}, $annline;
+			# 	  }
+			# } elsif ( ( ( $ast->[0] & 0xFF ) == 27 )
+			# 	&& ( ( $ast->[1][0] & 0xFF ) == 0 ) )
+			# {
+			# 	# a list of tuples
+			# 	shift @{$ast};
+			# 	for my $pair_ast ( @{$ast} ) {
+			# 		( $rline, $exEquivAssignmentLines, $postUpdateAssignmentLines, $equiv_pairs ) =
+			# 		  __refactor_EQUIVALENCE_line( $stref, $f, $pair_ast, 
+			# 		  $exEquivAssignmentLines, $postUpdateAssignmentLines, $annline, $equiv_pairs );
+			# 		$info->{'Deleted'} = 1;
+			# 		push @{$rlines}, [ '!' . $line, $info ];
+
+			# 	}
+			# } else {
+			# 	croak "INVALID AST : " . Dumper($ast) . ( $ast->[0] & 0xFF ) . ( $ast->[1][0] & 0xFF ) if $DBG;
+			# }
 
 			# if ( $line ne $rline->[0] ) {
 				#				say "CHANGING LINE $line TO ".$rline->[0]." in $f ";
@@ -1649,7 +1653,50 @@ sub _change_EQUIVALENCE_to_assignment_lines_for_ExCommonArgs {
 		push @{$rlines}, $annline unless $skip;
 	}
 	return $rlines;
-}    # END of _change_EQUIVALENCE_to_assignment_lines_for_ExCommonArgs
+}    # END of _change_EQUIVALENCE_to_assignment_lines
+
+
+sub __create_EQUIVALENCE_pairs { 
+	my ($stref, $f, $annline, $ast, 
+		$rlines, $exEquivAssignmentLines, $postUpdateAssignmentLines, $equiv_pairs
+	)=@_;
+	( my $line, my $info ) = @{$annline};				  
+		if ( ( $ast->[0] & 0xFF ) == 0 ) {
+			# a single tuple, ['(',[',',@vs]]
+			# $rline is unused
+			( my $rline, $exEquivAssignmentLines, $postUpdateAssignmentLines, $equiv_pairs, my $replaced ) =
+				__refactor_EQUIVALENCE_line( $stref, $f, $ast, 
+				$exEquivAssignmentLines, $postUpdateAssignmentLines, $annline, $equiv_pairs );
+				if ($replaced) {
+				$info->{'Deleted'} = 1;
+				push @{$rlines}, [ '!' . $line, $info ];
+				} else {
+				#   croak 'HERE!';
+					push @{$rlines}, $annline;
+				}
+		} elsif ( ( ( $ast->[0] & 0xFF ) == 27 )
+			&& ( ( $ast->[1][0] & 0xFF ) == 0 ) )
+		{
+			# a list of tuples
+			shift @{$ast};
+			for my $pair_ast ( @{$ast} ) {
+				# $rline is unused
+				( my $rline, $exEquivAssignmentLines, $postUpdateAssignmentLines, $equiv_pairs ) =
+					__refactor_EQUIVALENCE_line( $stref, $f, $pair_ast, 
+					$exEquivAssignmentLines, $postUpdateAssignmentLines, $annline, $equiv_pairs );
+				$info->{'Deleted'} = 1;
+				push @{$rlines}, [ '!' . $line, $info ];
+
+			}
+		} else {
+			croak "INVALID AST : " . Dumper($ast) . ( $ast->[0] & 0xFF ) . ( $ast->[1][0] & 0xFF ) if $DBG;
+		}
+		return ($rlines,$exEquivAssignmentLines, $postUpdateAssignmentLines, $equiv_pairs);
+	
+} # __create_EQUIVALENCE_pairs
+
+
+
 
 # WV: FIXME: put this in Refactoring:: Equivalence and split it up
 # $ast is the ast of the EQUIVALENCE statement 
