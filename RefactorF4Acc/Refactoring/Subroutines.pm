@@ -32,6 +32,9 @@ use RefactorF4Acc::Analysis::Arrays qw(
 );
 use RefactorF4Acc::Refactoring::Casts qw( create_cast_annlines cast_call_argument );
 
+use RefactorF4Acc::Refactoring::Equivalence qw( change_EQUIVALENCE_to_assignment_lines );
+use RefactorF4Acc::Refactoring::StatementFunctions qw( move_StatementFunctions_after_SpecificationStatements );
+
 use vars qw( $VERSION );
 $VERSION = "2.1.1";
 
@@ -254,6 +257,8 @@ sub _fix_end_lines {
 }    # END of _fix_end_lines()
 
 # -----------------------------------------------------------------------------
+
+# WV20201106 I could put this in a separate module CommonBlocks or Globals
 
 # The problem with this routine is as follows: the refactoring of the signature happens when it is encountered.
 # But any subsequent call to a subroutine can result in new arguments being added to ExGlobArgDecls
@@ -2180,7 +2185,7 @@ sub _move_StatementFunctions_after_SpecificationStatements { my ( $stref, $f, $a
 	return $Sf->{'RefactoredCode'};
 	 }
 	
-}
+} # END of _move_StatementFunctions_after_SpecificationStatements
 
 sub __generate_inherited_param_decls { my ($rdecl, $var, $stref, $f, $inherited_param_decls) = @_;	
     my $Sf         = $stref->{'Subroutines'}{$f};
