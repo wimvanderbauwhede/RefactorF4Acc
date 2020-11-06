@@ -164,7 +164,6 @@ sub _refactor_subroutine_main {
 		}
 	}
 
-	# This eats CPHS entirely!
 	$annlines = _fix_end_lines( $stref, $f, $annlines );    # FIXME maybe do this later
 
 	if ($is_block_data) {
@@ -187,11 +186,11 @@ sub _refactor_subroutine_main {
 		#	    $annlines=$Sf->{'AnnLines'};
 	}
 
-	$annlines = _change_EQUIVALENCE_to_assignment_lines( $stref, $f, $annlines );
+	$annlines = change_EQUIVALENCE_to_assignment_lines( $stref, $f, $annlines );
 
 	#	$Sf->{'AnnLines'} = $annlines;
 	#	$Sf->{'RefactoredCode'} = $annlines; # cargo cult
-	$annlines = _move_StatementFunctions_after_SpecificationStatements( $stref, $f, $annlines );
+	$annlines = move_StatementFunctions_after_SpecificationStatements( $stref, $f, $annlines );
 
 	$annlines = _emit_refactored_signatures( $stref, $f, $annlines );
 	$Sf->{'RefactoredCode'} = $annlines;
@@ -269,7 +268,7 @@ sub _fix_end_lines {
 #- create_new_include_statements, this should be OBSOLETE, except that it takes ParamIncludes out of other Includes and instantiates them, so RENAME
 #- creates ex-glob arg declarations, basically we have to look at ExInclArgs, UndeclaredOrigArgs and ExGlobArgs.
 #- create_refactored_subroutine_call, I hope we can keep this
-sub _refactor_globals_new { 
+sub _refactor_globals_new {  # 218 lines
 	( my $stref, my $f, my $annlines ) = @_;
 	my $Sf = $stref->{'Subroutines'}{$f};
 
@@ -492,7 +491,7 @@ sub _refactor_globals_new {
 # ExInclArgs, UndeclaredOrigArgs and ExGlobArgs
 # ExInclLocalVars and UndeclaredOrigLocalVars.
 # I must make sure that these do not already exists!
-sub _create_extra_arg_and_var_decls {
+sub _create_extra_arg_and_var_decls { #272 lines
 
 	( my $stref, my $f, my $annline, my $rlines ) = @_;
 
@@ -772,7 +771,7 @@ sub _create_extra_arg_and_var_decls {
 # It should update ExGlobArgs
 # Furthermore I notice that sometimes these arguments are not passed on to the containing subroutine. 
 # That should be an issue in the subroutine refactoring code
-sub _create_refactored_subroutine_call {
+sub _create_refactored_subroutine_call { # 321 lines
 	( my $stref, my $f, my $annline, my $rlines ) = @_;
 
 	( my $line, my $info ) = @{$annline};
@@ -1192,7 +1191,6 @@ sub _create_refactored_function_calls {
 sub __update_function_calls_in_AST {
 	( my $stref, my $Sf, my $f, my $ast ) = @_;
 
-
 	if ( !@{$ast} ) { return $ast; }    # an empty AST
 										# use the new walker
 	if (   ( $ast->[0] & 0xFF ) == 1
@@ -1204,8 +1202,6 @@ sub __update_function_calls_in_AST {
 			if ( not exists $stref->{'Subroutines'}{$name}{'HasCommonVarMismatch'} ) {
 
 				if ( $name ne $f and exists $stref->{'Subroutines'}{$name}{'ExGlobArgs'} ) {
-
-					#				say "SUB $f CALLING $name:".Dumper($stref->{'Subroutines'}{$name}{'ExGlobArgs'});
 					my @globals =
 						exists $stref->{'Subroutines'}{$name}{'ExGlobArgs'}{'List'}
 						? @{ $stref->{'Subroutines'}{$name}{'ExGlobArgs'}{'List'} }
@@ -1243,7 +1239,6 @@ sub __update_function_calls_in_AST {
 					}
 				}
 			} else {
-
 				# For mismatched COMMON blocks we need to append the call args with 'CallArgs'
 				my @maybe_renamed_exglobs = ();
 				for my $sig_arg ( @{ $stref->{'Subroutines'}{$name}{'ExMismatchedCommonArgs'}{'SigArgs'}{'List'} } ) {
@@ -1269,7 +1264,6 @@ sub __update_function_calls_in_AST {
 			}
 		}
 		# but in any case we need to traverse again for the old call args
-		# carp(Dumper($ast) );
 		my $entry = __update_function_calls_in_AST( $stref, $Sf, $f, $ast->[2] );
 		$ast->[2] = $entry;
 	} elsif ( ( $ast->[0] & 0xFF ) < 29 and ( $ast->[0] & 0xFF ) != 2 ) {    # other operators
@@ -1439,266 +1433,239 @@ sub _add_ExMismatchedCommonArg_assignment_lines {
 			and $last_statement == 0 )
 		{
 			$last_statement = 1;
-
-			#			carp "Found location for reverse assignments in $f: $line";
 			for my $rline ( @{ $stref->{'Subroutines'}{$f}{'ExMismatchedCommonArgs'}{'ArgRevAssignmentLines'} } ) {
-# say 'HERE '.$rline->[0];
-						        		# say "ADDING LINE ".$rline->[0]." to $f ";
-				# push @{$rlines}, $rline;
 				push @{$rlines}, [$rline->[0].' ! ArgRevAssignmentLines', $rline->[1]] ;
 			}
-
 		}
 		push @{$rlines}, $annline;
 	}
 	return $rlines;
 }    # END of _add_ExMismatchedCommonArg_assignment_lines
 
-# WV: FIXME: put this in Refactoring:: Equivalence and split it up
-=info_equivalence
-EQUIVALENCE done right:
 
-v_loc = v_glob
 
-1. v_loc is updated either as LHS or as Out or InOut in a CALL
-v_loc = exp()
-call f(v_loc::(InOut|Out))
-v_glob = v_loc
+# sub __insert_assignment_for_ex_EQUIVALENCE_vars {
+# 	my ( $stref, $f, $annline, $rlines, $equiv_pairs ) = @_;
+# 	( my $line, my $info ) = @{$annline};
+# 	my $skip = 0;
+# 	if ( exists $info->{'Assignment'} and not exists $info->{'ExCommonOrEquivalence'}) {
+# 		my $lhs_var = $info->{'Lhs'}{'VarName'};
 
-2. Same but we modify v_loc in a function call. This change gets wiped out as the assignment happens last
-v_loc = f(v_loc::(InOut|Out)) 
-v_glob = v_loc
-
-3. Same but we modify v_glob in a function call. This change gets wiped out as the assignment happens last, and assigning to v_loc is the same as assigning to v_glob
-
-v_loc = f(v_glob::(InOut|Out)) -- so we modify v_glob, then we modify v_loc
-v_glob = v_loc
-
-The opposite case (swap v_loc and v_glob) is the same. 
-=cut
-
-sub __insert_assignment_for_ex_EQUIVALENCE_vars {
-	my ( $stref, $f, $annline, $rlines, $equiv_pairs ) = @_;
-	( my $line, my $info ) = @{$annline};
-	my $skip = 0;
-	if ( exists $info->{'Assignment'} and not exists $info->{'ExCommonOrEquivalence'}) {
-		my $lhs_var = $info->{'Lhs'}{'VarName'};
-
-# FIXME: This is not right because we need the variable only I think
-# There is no way to infer the array index if it's an array
-# Problem is of course that we now can't search by key in equiv_pairs
-# because the key is the expression used in the EQUIVALENCE statement 
-# carp Dumper( $line, $info);
-		my $lhs_ast = $info->{'Lhs'}{'ExpressionAST'};
-		my $lhs_v_str = emit_expr_from_ast($lhs_ast);
+# # FIXME: This is not right because we need the variable only I think
+# # There is no way to infer the array index if it's an array
+# # Problem is of course that we now can't search by key in equiv_pairs
+# # because the key is the expression used in the EQUIVALENCE statement 
+# # carp Dumper( $line, $info);
+# 		my $lhs_ast = $info->{'Lhs'}{'ExpressionAST'};
+# 		my $lhs_v_str = emit_expr_from_ast($lhs_ast);
 		
-		$lhs_v_str = $lhs_var; # Ugly HACK! FIXME!
-		if ( exists $equiv_pairs->{$lhs_v_str} ) {
-			# insert the extra line
-			push @{$rlines}, $annline;
-			say 'INSERTING ' . join( "\n", Dumper(pp_annlines( $equiv_pairs->{$lhs_v_str} ) )) . ' after ' . $line if $DBG;
-			$rlines = [ @{$rlines}, @{ $equiv_pairs->{$lhs_v_str} } ];
-			$skip   = 1;
-		}
-		if (exists  $info->{'FunctionCalls'}) {
-			# This is a line with a number of function calls
-			# Go through every call
-			for my $fcall ( @{ $info->{'FunctionCalls'} } ) {
-        	   my $fname = $fcall->{'Name'};
-				my $ast = $fcall->{'ExpressionAST'};
-				# This is the AST of the function call, so f(...) ['&','f',[',',@fargs]]
-				# So what I need is @fargs, i.e. $ast->[1]
-				my $args_vars = find_args_vars_in_ast($ast);
-				my $args = $args_vars->[1]{'List'};
-				# carp Dumper($ast);	
-				my $arg_asts = @{$ast->[2]} ?  $ast->[2][0] == 27 ? [@{$ast->[2]}] : [ $ast->[2]  ] : []; 
-				shift @{$arg_asts} if @{$arg_asts}; 				
-				if (scalar @{$args} > 0 ) { # should be same number as $arg_asts
-					if ($skip==0) {
-						push @{$rlines}, $annline;
-						$skip   = 1;
-					}		
-					# for my $arg (@{$args}) {
-					# 	if ( exists $equiv_pairs->{$arg} ) {
-					# 		$rlines = [ @{$rlines}, @{ $equiv_pairs->{$arg} } ];
-					# 	}
-					# }
-					for my $arg_ast (@{$arg_asts}) {
+# 		$lhs_v_str = $lhs_var; # Ugly HACK! FIXME!
+# 		if ( exists $equiv_pairs->{$lhs_v_str} ) {
+# 			# insert the extra line
+# 			push @{$rlines}, $annline;
+# 			say 'INSERTING ' . join( "\n", Dumper(pp_annlines( $equiv_pairs->{$lhs_v_str} ) )) . ' after ' . $line if $DBG;
+# 			$rlines = [ @{$rlines}, @{ $equiv_pairs->{$lhs_v_str} } ];
+# 			$skip   = 1;
+# 		}
+# 		if (exists  $info->{'FunctionCalls'}) {
+# 			# This is a line with a number of function calls
+# 			# Go through every call
+# 			for my $fcall ( @{ $info->{'FunctionCalls'} } ) {
+#         	   my $fname = $fcall->{'Name'};
+# 				my $ast = $fcall->{'ExpressionAST'};
+# 				# This is the AST of the function call, so f(...) ['&','f',[',',@fargs]]
+# 				# So what I need is @fargs, i.e. $ast->[1]
+# 				my $args_vars = find_args_vars_in_ast($ast);
+# 				my $args = $args_vars->[1]{'List'};
+# 				# carp Dumper($ast);	
+# 				my $arg_asts = @{$ast->[2]} ?  $ast->[2][0] == 27 ? [@{$ast->[2]}] : [ $ast->[2]  ] : []; 
+# 				shift @{$arg_asts} if @{$arg_asts}; 				
+# 				if (scalar @{$args} > 0 ) { # should be same number as $arg_asts
+# 					if ($skip==0) {
+# 						push @{$rlines}, $annline;
+# 						$skip   = 1;
+# 					}		
+# 					# for my $arg (@{$args}) {
+# 					# 	if ( exists $equiv_pairs->{$arg} ) {
+# 					# 		$rlines = [ @{$rlines}, @{ $equiv_pairs->{$arg} } ];
+# 					# 	}
+# 					# }
+# 					for my $arg_ast (@{$arg_asts}) {
 						
-						my $arg=emit_expr_from_ast($arg_ast);
+# 						my $arg=emit_expr_from_ast($arg_ast);
 						
-						if ( exists $equiv_pairs->{$arg} ) {
-							# say Dumper($equiv_pairs->{$arg});
-							$rlines = [ @{$rlines}, @{ $equiv_pairs->{$arg} } ];
-						}
-					}
-				} 	
-			}
-		# carp 'TODO: process Function calls on RHS! '. Dumper($info->{'FunctionCalls'}) ;
-		}
-	} elsif ( exists $info->{'ReadCall'} ) {	
-		# FIXME: I don't know how to get array accesses from a READ call, so I pretend they're always scalar
-		# So in the case of a transitive EQUIVALENCE between real and complex this will go wrong ...
-		my @vars =  @{ $info->{'Vars'}{'Written'}{'List'} } ;
-#		croak Dumper(@vars);
-		if (scalar @vars>0) {
-			push @{$rlines}, $annline;
-			$skip   = 1;
+# 						if ( exists $equiv_pairs->{$arg} ) {
+# 							# say Dumper($equiv_pairs->{$arg});
+# 							$rlines = [ @{$rlines}, @{ $equiv_pairs->{$arg} } ];
+# 						}
+# 					}
+# 				} 	
+# 			}
+# 		# carp 'TODO: process Function calls on RHS! '. Dumper($info->{'FunctionCalls'}) ;
+# 		}
+# 	} elsif ( exists $info->{'ReadCall'} ) {	
+# 		# FIXME: I don't know how to get array accesses from a READ call, so I pretend they're always scalar
+# 		# So in the case of a transitive EQUIVALENCE between real and complex this will go wrong ...
+# 		my @vars =  @{ $info->{'Vars'}{'Written'}{'List'} } ;
+# #		croak Dumper(@vars);
+# 		if (scalar @vars>0) {
+# 			push @{$rlines}, $annline;
+# 			$skip   = 1;
 	
-			for my $arg (@{vars}) {
-				if ( exists $equiv_pairs->{$arg} ) {
-					$rlines = [ @{$rlines}, @{ $equiv_pairs->{$arg} } ];
-				}
-			}
-		}
-	} elsif ( exists $info->{'SubroutineCall'} ) {
+# 			for my $arg (@{vars}) {
+# 				if ( exists $equiv_pairs->{$arg} ) {
+# 					$rlines = [ @{$rlines}, @{ $equiv_pairs->{$arg} } ];
+# 				}
+# 			}
+# 		}
+# 	} elsif ( exists $info->{'SubroutineCall'} ) {
 
-		# Unfortunately at this point we do not yet know the intent
-		# So I will assume any call is an update
-		for my $call_arg ( @{ $info->{'SubroutineCall'}{'Args'}{'List'} } ) {
-			my $call_arg_name = $call_arg;
-			# $call_arg_name =~ s/\(.+$//;
-			if ( exists $equiv_pairs->{$call_arg_name} ) {
-				# Means the arg is getting modified
-				push @{$rlines}, $annline if $skip == 0;
-				$rlines = [ @{$rlines}, @{ $equiv_pairs->{$call_arg_name} } ];
-				say 'INSERTING ' . join( "\n", pp_annlines( $equiv_pairs->{$call_arg_name} ) ) . ' after ' . $line if $DBG;
-				$skip = 1;
-			}
-		}
-	}
+# 		# Unfortunately at this point we do not yet know the intent
+# 		# So I will assume any call is an update
+# 		for my $call_arg ( @{ $info->{'SubroutineCall'}{'Args'}{'List'} } ) {
+# 			my $call_arg_name = $call_arg;
+# 			# $call_arg_name =~ s/\(.+$//;
+# 			if ( exists $equiv_pairs->{$call_arg_name} ) {
+# 				# Means the arg is getting modified
+# 				push @{$rlines}, $annline if $skip == 0;
+# 				$rlines = [ @{$rlines}, @{ $equiv_pairs->{$call_arg_name} } ];
+# 				say 'INSERTING ' . join( "\n", pp_annlines( $equiv_pairs->{$call_arg_name} ) ) . ' after ' . $line if $DBG;
+# 				$skip = 1;
+# 			}
+# 		}
+# 	}
 
-	return ( $rlines, $skip );
-}    # END of __insert_assignment_for_ex_EQUIVALENCE_vars
+# 	return ( $rlines, $skip );
+# }    # END of __insert_assignment_for_ex_EQUIVALENCE_vars
 
 # WV: FIXME: put this in Refactoring:: Equivalence and split it up
 # WV20201105 I think this is a misnomer, it works for all vars, not just ExCommonArgs 
-sub _change_EQUIVALENCE_to_assignment_lines {
-	my ( $stref, $f, $annlines ) = @_;
-	my $Sf                        = $stref->{'Subroutines'}{$f};
+# sub _change_EQUIVALENCE_to_assignment_lines {
+# 	my ( $stref, $f, $annlines ) = @_;
+# 	my $Sf                        = $stref->{'Subroutines'}{$f};
 
-	my $last_statement            = 0;
-	my $first_occ                 = 1;
-	my $rlines                    = [];
-	my $postUpdateAssignmentLines = {};
-	my $exEquivAssignmentLines    = [];
-	my $equiv_pairs               = {};
+# 	my $last_statement            = 0;
+# 	my $first_occ                 = 1;
+# 	my $rlines                    = [];
+# 	my $postUpdateAssignmentLines = {};
+# 	my $exEquivAssignmentLines    = [];
+# 	my $equiv_pairs               = {};
 
-	for my $annline ( @{$annlines} ) {
-		( my $line, my $info ) = @{$annline};
-		my $skip = 0;
-		# Create the equivalence pairs and remove the EQUIVALENCE statement
-		if ( exists $info->{'Equivalence'} ) {
-			my $rline = $annline;
-			my $ast = dclone( $info->{'Ast'} );
-			# WV20201105 refactor this if-then into a separate function for clarity
-			($rlines,$exEquivAssignmentLines, $postUpdateAssignmentLines, $equiv_pairs) = __create_EQUIVALENCE_pairs(
-				$stref, $f, $annline, $ast, 
-				$rlines, $exEquivAssignmentLines, $postUpdateAssignmentLines,  $equiv_pairs);
+# 	for my $annline ( @{$annlines} ) {
+# 		( my $line, my $info ) = @{$annline};
+# 		my $skip = 0;
+# 		# Create the equivalence pairs and remove the EQUIVALENCE statement
+# 		if ( exists $info->{'Equivalence'} ) {
+# 			my $rline = $annline;
+# 			my $ast = dclone( $info->{'Ast'} );
+# 			# WV20201105 refactor this if-then into a separate function for clarity
+# 			($rlines,$exEquivAssignmentLines, $postUpdateAssignmentLines, $equiv_pairs) = __create_EQUIVALENCE_pairs(
+# 				$stref, $f, $annline, $ast, 
+# 				$rlines, $exEquivAssignmentLines, $postUpdateAssignmentLines,  $equiv_pairs);
 
-			# # Two cases: either a list of tuples, or a single tuples
-			# if ( ( $ast->[0] & 0xFF ) == 0 ) {
+# 			# # Two cases: either a list of tuples, or a single tuples
+# 			# if ( ( $ast->[0] & 0xFF ) == 0 ) {
 
-			# 	# a single tuple, ['(',[',',@vs]]
-			# 	( $rline, $exEquivAssignmentLines, $postUpdateAssignmentLines, $equiv_pairs, my $replaced ) =
-			# 	  __refactor_EQUIVALENCE_line( $stref, $f, $ast, 
-			# 	  $exEquivAssignmentLines, $postUpdateAssignmentLines, $annline, $equiv_pairs );
-			# 	  if ($replaced) {
-			# 	$info->{'Deleted'} = 1;
-			# 	push @{$rlines}, [ '!' . $line, $info ];
-			# 	  } else {
-			# 		#   croak 'HERE!';
-			# 		  push @{$rlines}, $annline;
-			# 	  }
-			# } elsif ( ( ( $ast->[0] & 0xFF ) == 27 )
-			# 	&& ( ( $ast->[1][0] & 0xFF ) == 0 ) )
-			# {
-			# 	# a list of tuples
-			# 	shift @{$ast};
-			# 	for my $pair_ast ( @{$ast} ) {
-			# 		( $rline, $exEquivAssignmentLines, $postUpdateAssignmentLines, $equiv_pairs ) =
-			# 		  __refactor_EQUIVALENCE_line( $stref, $f, $pair_ast, 
-			# 		  $exEquivAssignmentLines, $postUpdateAssignmentLines, $annline, $equiv_pairs );
-			# 		$info->{'Deleted'} = 1;
-			# 		push @{$rlines}, [ '!' . $line, $info ];
+# 			# 	# a single tuple, ['(',[',',@vs]]
+# 			# 	( $rline, $exEquivAssignmentLines, $postUpdateAssignmentLines, $equiv_pairs, my $replaced ) =
+# 			# 	  __refactor_EQUIVALENCE_line( $stref, $f, $ast, 
+# 			# 	  $exEquivAssignmentLines, $postUpdateAssignmentLines, $annline, $equiv_pairs );
+# 			# 	  if ($replaced) {
+# 			# 	$info->{'Deleted'} = 1;
+# 			# 	push @{$rlines}, [ '!' . $line, $info ];
+# 			# 	  } else {
+# 			# 		#   croak 'HERE!';
+# 			# 		  push @{$rlines}, $annline;
+# 			# 	  }
+# 			# } elsif ( ( ( $ast->[0] & 0xFF ) == 27 )
+# 			# 	&& ( ( $ast->[1][0] & 0xFF ) == 0 ) )
+# 			# {
+# 			# 	# a list of tuples
+# 			# 	shift @{$ast};
+# 			# 	for my $pair_ast ( @{$ast} ) {
+# 			# 		( $rline, $exEquivAssignmentLines, $postUpdateAssignmentLines, $equiv_pairs ) =
+# 			# 		  __refactor_EQUIVALENCE_line( $stref, $f, $pair_ast, 
+# 			# 		  $exEquivAssignmentLines, $postUpdateAssignmentLines, $annline, $equiv_pairs );
+# 			# 		$info->{'Deleted'} = 1;
+# 			# 		push @{$rlines}, [ '!' . $line, $info ];
 
-			# 	}
-			# } else {
-			# 	croak "INVALID AST : " . Dumper($ast) . ( $ast->[0] & 0xFF ) . ( $ast->[1][0] & 0xFF ) if $DBG;
-			# }
+# 			# 	}
+# 			# } else {
+# 			# 	croak "INVALID AST : " . Dumper($ast) . ( $ast->[0] & 0xFF ) . ( $ast->[1][0] & 0xFF ) if $DBG;
+# 			# }
 
-			# if ( $line ne $rline->[0] ) {
-				#				say "CHANGING LINE $line TO ".$rline->[0]." in $f ";
-			# }
-			$skip = 1;
-		}
+# 			# if ( $line ne $rline->[0] ) {
+# 				#				say "CHANGING LINE $line TO ".$rline->[0]." in $f ";
+# 			# }
+# 			$skip = 1;
+# 		}
 
-		# For the assignments that replace the EQUIVALENCE statement
-		# They should come after the last SpecificationStatement
-		elsif ( not exists $info->{'Signature'}
-			and not exists $info->{'VarDecl'}
-			and not exists $info->{'ImplicitNone'}
-			and not exists $info->{'SpecificationStatement'}
-			and not exists $info->{'Comments'}
-			and not exists $info->{'Blank'}
-			and not exists $info->{'Skip'}
-			and not exists $info->{'Deleted'}
-			and $first_occ == 1 )
-		{
-			$first_occ = 0;
-			for my $rline ( @{$exEquivAssignmentLines} ) {
-				say 'REPLACED EQUIVALENCE BY ' . Dumper($rline) if $DBG;				
-				push @{$rlines}, $rline;
-			}
-		} else { # triggered by $first_occ = 0
-			# These are the assignments whenever a var is modified
-			( $rlines, $skip ) = __insert_assignment_for_ex_EQUIVALENCE_vars( $stref, $f, $annline, $rlines, $postUpdateAssignmentLines );
-		}
+# 		# For the assignments that replace the EQUIVALENCE statement
+# 		# They should come after the last SpecificationStatement
+# 		elsif ( not exists $info->{'Signature'}
+# 			and not exists $info->{'VarDecl'}
+# 			and not exists $info->{'ImplicitNone'}
+# 			and not exists $info->{'SpecificationStatement'}
+# 			and not exists $info->{'Comments'}
+# 			and not exists $info->{'Blank'}
+# 			and not exists $info->{'Skip'}
+# 			and not exists $info->{'Deleted'}
+# 			and $first_occ == 1 )
+# 		{
+# 			$first_occ = 0;
+# 			for my $rline ( @{$exEquivAssignmentLines} ) {
+# 				say 'REPLACED EQUIVALENCE BY ' . Dumper($rline) if $DBG;				
+# 				push @{$rlines}, $rline;
+# 			}
+# 		} else { # triggered by $first_occ = 0
+# 			# These are the assignments whenever a var is modified
+# 			( $rlines, $skip ) = __insert_assignment_for_ex_EQUIVALENCE_vars( $stref, $f, $annline, $rlines, $postUpdateAssignmentLines );
+# 		}
 
-		push @{$rlines}, $annline unless $skip;
-	}
-	return $rlines;
-}    # END of _change_EQUIVALENCE_to_assignment_lines
+# 		push @{$rlines}, $annline unless $skip;
+# 	}
+# 	return $rlines;
+# }    # END of _change_EQUIVALENCE_to_assignment_lines
 
 
-sub __create_EQUIVALENCE_pairs { 
-	my ($stref, $f, $annline, $ast, 
-		$rlines, $exEquivAssignmentLines, $postUpdateAssignmentLines, $equiv_pairs
-	)=@_;
-	( my $line, my $info ) = @{$annline};				  
-		if ( ( $ast->[0] & 0xFF ) == 0 ) {
-			# a single tuple, ['(',[',',@vs]]
-			# $rline is unused
-			( my $rline, $exEquivAssignmentLines, $postUpdateAssignmentLines, $equiv_pairs, my $replaced ) =
-				__refactor_EQUIVALENCE_line( $stref, $f, $ast, 
-				$exEquivAssignmentLines, $postUpdateAssignmentLines, $annline, $equiv_pairs );
-				if ($replaced) {
-				$info->{'Deleted'} = 1;
-				push @{$rlines}, [ '!' . $line, $info ];
-				} else {
-				#   croak 'HERE!';
-					push @{$rlines}, $annline;
-				}
-		} elsif ( ( ( $ast->[0] & 0xFF ) == 27 )
-			&& ( ( $ast->[1][0] & 0xFF ) == 0 ) )
-		{
-			# a list of tuples
-			shift @{$ast};
-			for my $pair_ast ( @{$ast} ) {
-				# $rline is unused
-				( my $rline, $exEquivAssignmentLines, $postUpdateAssignmentLines, $equiv_pairs ) =
-					__refactor_EQUIVALENCE_line( $stref, $f, $pair_ast, 
-					$exEquivAssignmentLines, $postUpdateAssignmentLines, $annline, $equiv_pairs );
-				$info->{'Deleted'} = 1;
-				push @{$rlines}, [ '!' . $line, $info ];
+# sub __create_EQUIVALENCE_pairs { 
+# 	my ($stref, $f, $annline, $ast, 
+# 		$rlines, $exEquivAssignmentLines, $postUpdateAssignmentLines, $equiv_pairs
+# 	)=@_;
+# 	( my $line, my $info ) = @{$annline};				  
+# 		if ( ( $ast->[0] & 0xFF ) == 0 ) {
+# 			# a single tuple, ['(',[',',@vs]]
+# 			# $rline is unused
+# 			( my $rline, $exEquivAssignmentLines, $postUpdateAssignmentLines, $equiv_pairs, my $replaced ) =
+# 				__refactor_EQUIVALENCE_line( $stref, $f, $ast, 
+# 				$exEquivAssignmentLines, $postUpdateAssignmentLines, $annline, $equiv_pairs );
+# 				if ($replaced) {
+# 				$info->{'Deleted'} = 1;
+# 				push @{$rlines}, [ '!' . $line, $info ];
+# 				} else {
+# 				#   croak 'HERE!';
+# 					push @{$rlines}, $annline;
+# 				}
+# 		} elsif ( ( ( $ast->[0] & 0xFF ) == 27 )
+# 			&& ( ( $ast->[1][0] & 0xFF ) == 0 ) )
+# 		{
+# 			# a list of tuples
+# 			shift @{$ast};
+# 			for my $pair_ast ( @{$ast} ) {
+# 				# $rline is unused
+# 				( my $rline, $exEquivAssignmentLines, $postUpdateAssignmentLines, $equiv_pairs ) =
+# 					__refactor_EQUIVALENCE_line( $stref, $f, $pair_ast, 
+# 					$exEquivAssignmentLines, $postUpdateAssignmentLines, $annline, $equiv_pairs );
+# 				$info->{'Deleted'} = 1;
+# 				push @{$rlines}, [ '!' . $line, $info ];
 
-			}
-		} else {
-			croak "INVALID AST : " . Dumper($ast) . ( $ast->[0] & 0xFF ) . ( $ast->[1][0] & 0xFF ) if $DBG;
-		}
-		return ($rlines,$exEquivAssignmentLines, $postUpdateAssignmentLines, $equiv_pairs);
+# 			}
+# 		} else {
+# 			croak "INVALID AST : " . Dumper($ast) . ( $ast->[0] & 0xFF ) . ( $ast->[1][0] & 0xFF ) if $DBG;
+# 		}
+# 		return ($rlines,$exEquivAssignmentLines, $postUpdateAssignmentLines, $equiv_pairs);
 	
-} # __create_EQUIVALENCE_pairs
+# } # __create_EQUIVALENCE_pairs
 
 
 
@@ -1708,353 +1675,353 @@ sub __create_EQUIVALENCE_pairs {
 # $exEquivAssignmentLines,  $postUpdateAssignmentLines are intially empty 
 # $annline has the original AST, $ast is a copy
 # $equiv_pairs is initially empty
-sub __refactor_EQUIVALENCE_line {
-	( my $stref, my $f, my $ast, my $exEquivAssignmentLines, my $postUpdateAssignmentLines, my $annline, my $equiv_pairs ) = @_;
-	my $Sf    = $stref->{'Subroutines'}{$f};
-	my $rline = $annline;
-	my ( $line, $info ) = @{$annline};
+# sub __refactor_EQUIVALENCE_line {
+# 	( my $stref, my $f, my $ast, my $exEquivAssignmentLines, my $postUpdateAssignmentLines, my $annline, my $equiv_pairs ) = @_;
+# 	my $Sf    = $stref->{'Subroutines'}{$f};
+# 	my $rline = $annline;
+# 	my ( $line, $info ) = @{$annline};
 	
-	my $ann=annotate( $f, __LINE__  );
+# 	my $ann=annotate( $f, __LINE__  );
 
-	# EQUIVALENCE can be a general tuple, not just two elts. 
-	# Take it apart into pairs
-	# $ast : ['(',[',',@vs]]
-	my @asts = @{ $ast->[1] }; # @asts : (',',@vs)
-	shift @asts; # @asts : @vs; 
-	my @equiv_tuple = map { $_->[1] } @asts; # just the names
+# 	# EQUIVALENCE can be a general tuple, not just two elts. 
+# 	# Take it apart into pairs
+# 	# $ast : ['(',[',',@vs]]
+# 	my @asts = @{ $ast->[1] }; # @asts : (',',@vs)
+# 	shift @asts; # @asts : @vs; 
+# 	my @equiv_tuple = map { $_->[1] } @asts; # just the names
 
-	my @pairs = ();
+# 	my @pairs = ();
 
-	for my $ast1 (@asts) { 
-		my $elt1      = $ast1->[1];
-		my $found_elt = 0;
-		for my $ast2 (@asts) {
-			my $elt2 = $ast2->[1];
-			if ( $elt1 eq $elt2 ) {
-				$found_elt = 1;
-			} elsif ($found_elt) {
-				push @pairs, [ $ast1, $ast2 ];
-			}
-		}
-	}
-	# So now @pairs is a list of pairs (ast1, ast2)
+# 	for my $ast1 (@asts) { 
+# 		my $elt1      = $ast1->[1];
+# 		my $found_elt = 0;
+# 		for my $ast2 (@asts) {
+# 			my $elt2 = $ast2->[1];
+# 			if ( $elt1 eq $elt2 ) {
+# 				$found_elt = 1;
+# 			} elsif ($found_elt) {
+# 				push @pairs, [ $ast1, $ast2 ];
+# 			}
+# 		}
+# 	}
+# 	# So now @pairs is a list of pairs (ast1, ast2)
 
-	# And perversely, if a line has multiple tuples, this is allowed: (v1,v2),(v2,v3)
-	# So I must do some kind of transitivity check, I'll use $equiv_pairs for that
-	# now suppose it is (v1,v2,v3),(v3,v4,v5) then this effectively means (v1,v2,v3,v4,v5)
-	# So for each v3, v4, v5 I have to check in $equiv_pairs
-	# Initially I will find v3 and so v1 and v2, but of course we already have that.
-	# But then I should create pairs for v4 and v5 with v1 and v2 as well
+# 	# And perversely, if a line has multiple tuples, this is allowed: (v1,v2),(v2,v3)
+# 	# So I must do some kind of transitivity check, I'll use $equiv_pairs for that
+# 	# now suppose it is (v1,v2,v3),(v3,v4,v5) then this effectively means (v1,v2,v3,v4,v5)
+# 	# So for each v3, v4, v5 I have to check in $equiv_pairs
+# 	# Initially I will find v3 and so v1 and v2, but of course we already have that.
+# 	# But then I should create pairs for v4 and v5 with v1 and v2 as well
 
-	# 
-	# (v1,v2,v3),(v2,v3,v4,v5) is also valid. 
-	# But of course it is enough to have one overlap
-	# because processing v3 after v2 will not result in new associations:
-	# v1 v2, v1 v3, v2 v3
-	# via v2: v2 v4, v2 v5, v3 v4, v3 v5, v4 v5; but then of course also v1 v4, v1 v5
-	# via v3: quite the same. It is sufficient that one variable occurs in multiple tuples. 
+# 	# 
+# 	# (v1,v2,v3),(v2,v3,v4,v5) is also valid. 
+# 	# But of course it is enough to have one overlap
+# 	# because processing v3 after v2 will not result in new associations:
+# 	# v1 v2, v1 v3, v2 v3
+# 	# via v2: v2 v4, v2 v5, v3 v4, v3 v5, v4 v5; but then of course also v1 v4, v1 v5
+# 	# via v3: quite the same. It is sufficient that one variable occurs in multiple tuples. 
 
-	# Transitivity check
-	my $transitive = 0;
-	my $trans_var;
+# 	# Transitivity check
+# 	my $transitive = 0;
+# 	my $trans_var;
 
-	for my $ast (@asts) { # $ast : ['$',v] | ['@',v,@idxs]
-		my $var_name = $ast->[1]; # the name
-		my $indexed_array_expr = $ast->[0] == 10 ? 1 : 0;
-		my $var = $indexed_array_expr ? emit_expr_from_ast($ast) : $var_name; 
+# 	for my $ast (@asts) { # $ast : ['$',v] | ['@',v,@idxs]
+# 		my $var_name = $ast->[1]; # the name
+# 		my $indexed_array_expr = $ast->[0] == 10 ? 1 : 0;
+# 		my $var = $indexed_array_expr ? emit_expr_from_ast($ast) : $var_name; 
 		
-		if ( exists $equiv_pairs->{$var} ) {
-		# must check if that one was indexed with the same index
-		# For proper transitivity, the array expressions must be the same 
-		# i.e. (v1,v2,v3(1)),(v3(2),v4) is not transitive
-		# Now, $equiv_pairs contains all pairs that are connected. 
-		# so v1 =>[v2,v3]
-		# v3 => [v1,v2,v4]
-		# I thought I could solve this by adding v3 to this list, but what I really need is
-		# v3(1) => [v1,v2] and v3(2)=> [v4]
-		# So I guess I should use the full expression string as key, and then I can use the name as secondary key with the ast
-		# so  'v3(1)' => {v1 => ast1, v2=>ast2, 'v3(1) => ast31 }
-		# and 'v3(2)' => {v4 => ast4,  'v3' => ast32, }
-		# Then a test $equiv_pairs->{$var_expr_str} works I can still get the var name only form $ast->[1]			
-			$transitive = 1;
-			$trans_var  = $var;
-			last;
-		}
-	}
+# 		if ( exists $equiv_pairs->{$var} ) {
+# 		# must check if that one was indexed with the same index
+# 		# For proper transitivity, the array expressions must be the same 
+# 		# i.e. (v1,v2,v3(1)),(v3(2),v4) is not transitive
+# 		# Now, $equiv_pairs contains all pairs that are connected. 
+# 		# so v1 =>[v2,v3]
+# 		# v3 => [v1,v2,v4]
+# 		# I thought I could solve this by adding v3 to this list, but what I really need is
+# 		# v3(1) => [v1,v2] and v3(2)=> [v4]
+# 		# So I guess I should use the full expression string as key, and then I can use the name as secondary key with the ast
+# 		# so  'v3(1)' => {v1 => ast1, v2=>ast2, 'v3(1) => ast31 }
+# 		# and 'v3(2)' => {v4 => ast4,  'v3' => ast32, }
+# 		# Then a test $equiv_pairs->{$var_expr_str} works I can still get the var name only form $ast->[1]			
+# 			$transitive = 1;
+# 			$trans_var  = $var;
+# 			last;
+# 		}
+# 	}
 	
-	if ($transitive) {
-		# Handle transitive pairs
-		for my $ast1 (@asts) {
-			my $var1 = emit_expr_from_ast($ast1);
-			if ( $var1 ne $trans_var ) {
-				for my $var2 ( keys %{ $equiv_pairs->{$trans_var} } ) {
-					my $ast2 = $equiv_pairs->{$trans_var}{$var2};
-					push @pairs, [ $ast1, $ast2 ];
-				}
-			}
-		}
-	}
+# 	if ($transitive) {
+# 		# Handle transitive pairs
+# 		for my $ast1 (@asts) {
+# 			my $var1 = emit_expr_from_ast($ast1);
+# 			if ( $var1 ne $trans_var ) {
+# 				for my $var2 ( keys %{ $equiv_pairs->{$trans_var} } ) {
+# 					my $ast2 = $equiv_pairs->{$trans_var}{$var2};
+# 					push @pairs, [ $ast1, $ast2 ];
+# 				}
+# 			}
+# 		}
+# 	}
 
-	# Another utterly perverse feature is this:
-	#      DIMENSION RADE11(5), RADE12(5)
-	#      EQUIVALENCE (RADE11(4), RADE12(2))
-	# Because the arrays start at 1, and they overlap, this actually creates an equivalence between
-	#   RADE11(3), RADE12(1)
-	# and
-	# RADE11(5), RADE12(3)
-	# as well
+# 	# Another utterly perverse feature is this:
+# 	#      DIMENSION RADE11(5), RADE12(5)
+# 	#      EQUIVALENCE (RADE11(4), RADE12(2))
+# 	# Because the arrays start at 1, and they overlap, this actually creates an equivalence between
+# 	#   RADE11(3), RADE12(1)
+# 	# and
+# 	# RADE11(5), RADE12(3)
+# 	# as well
 
-	# So what we should do is equate the overlapping ranges. This is just crazy.
+# 	# So what we should do is equate the overlapping ranges. This is just crazy.
 
-	# If a pair consists of two arrays
-	# and at least one of them is indexed
-	# then we must check if this caused an overlap, as follows:
-	# find the smaller of the two
-	# if ($index1 - $offset1 < $index2 - $offset2) {
+# 	# If a pair consists of two arrays
+# 	# and at least one of them is indexed
+# 	# then we must check if this caused an overlap, as follows:
+# 	# find the smaller of the two
+# 	# if ($index1 - $offset1 < $index2 - $offset2) {
 
-	# offset it with the starting index,
-	#	$trange1 = $index1 - $offset1 + 1
-	# and subtract this from the larger of the two
-	# $start_index2 = ($index2-$offset2+1)-$trange1+1
-	# this is the start index for that array
-	# then check if the end index of that array
-	# if it is smaller than the end index of the other array,
-	# if ($end_index2-$start_index2+$offset1<$end_index1) {
-	# $range2=$end_index2-$start_index2+1;
-	# $array2 = [$start_index2 ,$end_index2];
-	# $array1  = [$offset1 ,$offset1+$range2-1 ];
-	# That gives the range for the other array
-	# } else {
-	# $range1 = $end_index1-offset1+1;
-	# $array1 =[$offset1 ,$end_index1];
-	# $array2 =[$start_index2,$start_index2 + $range1 - 1];
-	# }
-	# end_index1 +1 - offset1 = range1, start_index2 +  range1 - offset2 = end_index2
-	#     1 2 3 4 5 6 7 8
-	# 1 2 3 4 5 6
-	#
-	#     1 2 3 4
-	# 1 2 3 4 5 6 7 8
-	# } else reverse the whole thing
+# 	# offset it with the starting index,
+# 	#	$trange1 = $index1 - $offset1 + 1
+# 	# and subtract this from the larger of the two
+# 	# $start_index2 = ($index2-$offset2+1)-$trange1+1
+# 	# this is the start index for that array
+# 	# then check if the end index of that array
+# 	# if it is smaller than the end index of the other array,
+# 	# if ($end_index2-$start_index2+$offset1<$end_index1) {
+# 	# $range2=$end_index2-$start_index2+1;
+# 	# $array2 = [$start_index2 ,$end_index2];
+# 	# $array1  = [$offset1 ,$offset1+$range2-1 ];
+# 	# That gives the range for the other array
+# 	# } else {
+# 	# $range1 = $end_index1-offset1+1;
+# 	# $array1 =[$offset1 ,$end_index1];
+# 	# $array2 =[$start_index2,$start_index2 + $range1 - 1];
+# 	# }
+# 	# end_index1 +1 - offset1 = range1, start_index2 +  range1 - offset2 = end_index2
+# 	#     1 2 3 4 5 6 7 8
+# 	# 1 2 3 4 5 6
+# 	#
+# 	#     1 2 3 4
+# 	# 1 2 3 4 5 6 7 8
+# 	# } else reverse the whole thing
 
-	my $replaced=1; # We assume we will replace the EQUIVALENCE 
-	# The only exception is character strings, see below
+# 	my $replaced=1; # We assume we will replace the EQUIVALENCE 
+# 	# The only exception is character strings, see below
 
-	for my $pair (@pairs) {
-		my $ast1 = $pair->[0];
-		my $ast2 = $pair->[1];
-		my $var1 = $ast1->[1];
-		my $var2 = $ast2->[1];
+# 	for my $pair (@pairs) {
+# 		my $ast1 = $pair->[0];
+# 		my $ast2 = $pair->[1];
+# 		my $var1 = $ast1->[1];
+# 		my $var2 = $ast2->[1];
 		
-		my $var1_decl = get_var_record_from_set( $Sf->{'Vars'}, $var1 );
-		my $var2_decl = get_var_record_from_set( $Sf->{'Vars'}, $var2 );
-		my $v1_is_array = ( exists $var1_decl->{'ArrayOrScalar'} and ( $var1_decl->{'ArrayOrScalar'} eq 'Array' ) ) ? 1 : 0;
-		my $v2_is_array = ( exists $var2_decl->{'ArrayOrScalar'} and ( $var2_decl->{'ArrayOrScalar'} eq 'Array' ) ) ? 1 : 0;
-		my $v1_type = $var1_decl->{'Type'};
-		my $v2_type = $var2_decl->{'Type'};
-		if (@pairs==1 and $v1_type eq 'character' and $v2_type ne 'character' ) {
-			$replaced=0;
-			warning('EQUIVALENCE with CHARACTER string is not refactored'."\n$line\n",1);
-			last;
-		}
-		if ( not (
-			$v1_type eq $v2_type
-		or ($v1_type eq 'logical' and  $v2_type eq 'integer') 
-		or ($v1_type eq 'integer' and $v2_type eq 'logical')
-		or ($v1_type eq 'real' and $v2_type eq 'complex')
-		or ($v1_type eq 'complex' and $v2_type eq 'real')
-		)
-		) {
-			die "TYPE ERROR: '$v1_type' and '$v2_type' are incompatible"."\n$line\n";
-		}
+# 		my $var1_decl = get_var_record_from_set( $Sf->{'Vars'}, $var1 );
+# 		my $var2_decl = get_var_record_from_set( $Sf->{'Vars'}, $var2 );
+# 		my $v1_is_array = ( exists $var1_decl->{'ArrayOrScalar'} and ( $var1_decl->{'ArrayOrScalar'} eq 'Array' ) ) ? 1 : 0;
+# 		my $v2_is_array = ( exists $var2_decl->{'ArrayOrScalar'} and ( $var2_decl->{'ArrayOrScalar'} eq 'Array' ) ) ? 1 : 0;
+# 		my $v1_type = $var1_decl->{'Type'};
+# 		my $v2_type = $var2_decl->{'Type'};
+# 		if (@pairs==1 and $v1_type eq 'character' and $v2_type ne 'character' ) {
+# 			$replaced=0;
+# 			warning('EQUIVALENCE with CHARACTER string is not refactored'."\n$line\n",1);
+# 			last;
+# 		}
+# 		if ( not (
+# 			$v1_type eq $v2_type
+# 		or ($v1_type eq 'logical' and  $v2_type eq 'integer') 
+# 		or ($v1_type eq 'integer' and $v2_type eq 'logical')
+# 		or ($v1_type eq 'real' and $v2_type eq 'complex')
+# 		or ($v1_type eq 'complex' and $v2_type eq 'real')
+# 		)
+# 		) {
+# 			die "TYPE ERROR: '$v1_type' and '$v2_type' are incompatible"."\n$line\n";
+# 		}
 
-		my $v1          = $v1_is_array ? emit_expr_from_ast($ast1) : $var1;
-		my $v2          = $v2_is_array ? emit_expr_from_ast($ast2) : $var2;
+# 		my $v1          = $v1_is_array ? emit_expr_from_ast($ast1) : $var1;
+# 		my $v2          = $v2_is_array ? emit_expr_from_ast($ast2) : $var2;
 		
-		if ( not exists $equiv_pairs->{$v1} ) {
-			$equiv_pairs->{$v1} = { $v2 => $ast2, $v1 => $ast1  };
-		} else {
-			$equiv_pairs->{$v1}{$v2} = $ast2;
-		}
+# 		if ( not exists $equiv_pairs->{$v1} ) {
+# 			$equiv_pairs->{$v1} = { $v2 => $ast2, $v1 => $ast1  };
+# 		} else {
+# 			$equiv_pairs->{$v1}{$v2} = $ast2;
+# 		}
 
-		# And the reverse as well
-		if ( not exists $equiv_pairs->{$v2} ) {
-			$equiv_pairs->{$v2} = { $v1 => $ast1, $v2 => $ast2 };
-		} else {
-			$equiv_pairs->{$v2}{$v1} = $ast1;
-		}
+# 		# And the reverse as well
+# 		if ( not exists $equiv_pairs->{$v2} ) {
+# 			$equiv_pairs->{$v2} = { $v1 => $ast1, $v2 => $ast2 };
+# 		} else {
+# 			$equiv_pairs->{$v2}{$v1} = $ast1;
+# 		}
 
-		my $v2_v1_pair = [ $v2, $v1 ];		
-		my $v1_v2_pair = [ $v1, $v2 ];
-		my $ann=annotate( $f, __LINE__  );
-		# FIXME: is this not the same as $replaced above?
-		my $remove_equiv_stmt = 1;
+# 		my $v2_v1_pair = [ $v2, $v1 ];		
+# 		my $v1_v2_pair = [ $v1, $v2 ];
+# 		my $ann=annotate( $f, __LINE__  );
+# 		# FIXME: is this not the same as $replaced above?
+# 		my $remove_equiv_stmt = 1;
 
-		if ( $v1_is_array and not $v2_is_array ) {
+# 		if ( $v1_is_array and not $v2_is_array ) {
 
-			if ( $v2_type ne 'complex') {
-				# v1 is an array, v2 is a scalar. So if v1 is not indexed, we have a mismatch
-				if ( $v1 eq $var1 ) {
-					my $start_idx1 = join( ',', map { $_->[0] } @{ $var1_decl->{'Dim'} } );
-					$v2_v1_pair = [ $v2, "$v1($start_idx1)" ];    #
-					$v1_v2_pair = ["$v1($start_idx1)",$v2 ];
-					$ann=annotate( $f, __LINE__  );
-				} else {
-					$ann=annotate( $f, __LINE__  );
-				}
-			}
-			# else it means v1 was already indexed
-		} elsif ( not $v1_is_array and $v2_is_array ) {
+# 			if ( $v2_type ne 'complex') {
+# 				# v1 is an array, v2 is a scalar. So if v1 is not indexed, we have a mismatch
+# 				if ( $v1 eq $var1 ) {
+# 					my $start_idx1 = join( ',', map { $_->[0] } @{ $var1_decl->{'Dim'} } );
+# 					$v2_v1_pair = [ $v2, "$v1($start_idx1)" ];    #
+# 					$v1_v2_pair = ["$v1($start_idx1)",$v2 ];
+# 					$ann=annotate( $f, __LINE__  );
+# 				} else {
+# 					$ann=annotate( $f, __LINE__  );
+# 				}
+# 			}
+# 			# else it means v1 was already indexed
+# 		} elsif ( not $v1_is_array and $v2_is_array ) {
 			
-			if ( $v1_type ne 'complex') {
-				if ( $v1_type ne 'character') {
-				# v2 is an array, v1 is a scalar. So if v2 is not indexed, we have a mismatch
-				if ( $v2 eq $var2 ) {
+# 			if ( $v1_type ne 'complex') {
+# 				if ( $v1_type ne 'character') {
+# 				# v2 is an array, v1 is a scalar. So if v2 is not indexed, we have a mismatch
+# 				if ( $v2 eq $var2 ) {
 					
-					my $start_idx2 = join( ',', map { $_->[0] } @{ $var2_decl->{'Dim'} } );
-					$v1_v2_pair = [ $v1, "$v2($start_idx2)" ];    #
-					$v2_v1_pair = ["$v2($start_idx2)", $v1];
-					# croak 'HERE: '.$v1_type.';'.$v1_v2_pair->[1];
-					$ann=annotate( $f, __LINE__  );
-				} else {
-					$ann=annotate( $f, __LINE__  );
-				}
-				} else {
-				# v2 is an array, v1 is a character string. We need to see if the string size
-				# and array size in bytes are the same.
-				# The question is what it should become of course
-				#       integer fnami (33)
-      			#		character*132 fname,re2fle
-      			#		equivalence (fname,fnami)
-			    # fname = fnami ?!?
-				# So how to cast a character string to an array of integers?
-				if ( $v2 eq $var2 ) {					
-					my $start_idx2 = join( ',', map { $_->[0] } @{ $var2_decl->{'Dim'} } );
-					$v1_v2_pair = [ $v1, "$v2($start_idx2)" ];    #
-					$v2_v1_pair = ["$v2($start_idx2)", $v1];
-					$ann=annotate( $f, __LINE__  );
-				} else {
-					$ann=annotate( $f, __LINE__  );
-				}					
-				}
-			} 			# else it means v2 was already indexed
-		} elsif ( $v1_is_array and $v2_is_array ) {
+# 					my $start_idx2 = join( ',', map { $_->[0] } @{ $var2_decl->{'Dim'} } );
+# 					$v1_v2_pair = [ $v1, "$v2($start_idx2)" ];    #
+# 					$v2_v1_pair = ["$v2($start_idx2)", $v1];
+# 					# croak 'HERE: '.$v1_type.';'.$v1_v2_pair->[1];
+# 					$ann=annotate( $f, __LINE__  );
+# 				} else {
+# 					$ann=annotate( $f, __LINE__  );
+# 				}
+# 				} else {
+# 				# v2 is an array, v1 is a character string. We need to see if the string size
+# 				# and array size in bytes are the same.
+# 				# The question is what it should become of course
+# 				#       integer fnami (33)
+#       			#		character*132 fname,re2fle
+#       			#		equivalence (fname,fnami)
+# 			    # fname = fnami ?!?
+# 				# So how to cast a character string to an array of integers?
+# 				if ( $v2 eq $var2 ) {					
+# 					my $start_idx2 = join( ',', map { $_->[0] } @{ $var2_decl->{'Dim'} } );
+# 					$v1_v2_pair = [ $v1, "$v2($start_idx2)" ];    #
+# 					$v2_v1_pair = ["$v2($start_idx2)", $v1];
+# 					$ann=annotate( $f, __LINE__  );
+# 				} else {
+# 					$ann=annotate( $f, __LINE__  );
+# 				}					
+# 				}
+# 			} 			# else it means v2 was already indexed
+# 		} elsif ( $v1_is_array and $v2_is_array ) {
 			
-			# Check for overlapping ranges
-			my $overlapping=0;
+# 			# Check for overlapping ranges
+# 			my $overlapping=0;
 		
-			my $dim1 = $var1_decl->{'Dim'};
-			my $dim2 = $var2_decl->{'Dim'};
-			# [10 ,'v' ,[ ',',['const' ,$idx]]
-			# This is of course wrong because it assumes 1-D arrays only!
+# 			my $dim1 = $var1_decl->{'Dim'};
+# 			my $dim2 = $var2_decl->{'Dim'};
+# 			# [10 ,'v' ,[ ',',['const' ,$idx]]
+# 			# This is of course wrong because it assumes 1-D arrays only!
 			 
-			my $index1 = $ast1->[0]==10 ? $ast1->[2][1] : $dim1->[0][0];
-			my $index2 = $ast2->[0]==10 ? $ast2->[2][1] : $dim2->[0][0];
-			if (
-			 (scalar @{$dim1}==1 and scalar @{$dim2}==1) # FIXME! WEAK!  
-			 and
-			$index1-$dim1->[0][0] != $index2-$dim2->[0][0]) {
-				say "OVERLAPPING: ".Dumper($index1, $index2) if $DBG;
-				$overlapping=1;			
-			}
+# 			my $index1 = $ast1->[0]==10 ? $ast1->[2][1] : $dim1->[0][0];
+# 			my $index2 = $ast2->[0]==10 ? $ast2->[2][1] : $dim2->[0][0];
+# 			if (
+# 			 (scalar @{$dim1}==1 and scalar @{$dim2}==1) # FIXME! WEAK!  
+# 			 and
+# 			$index1-$dim1->[0][0] != $index2-$dim2->[0][0]) {
+# 				say "OVERLAPPING: ".Dumper($index1, $index2) if $DBG;
+# 				$overlapping=1;			
+# 			}
 			
-			if ($overlapping) {
-				# Handle overlapping ranges
-				my ($array1, $array2) = @{__equate_overlapping_ranges( $index1, $dim1, $index2, $dim2 ) };
-				my ($offset1, $range1)=@{$array1};
-				my ($offset2, $range2)=@{$array2};
-				$v2_v1_pair = [ "$var2($offset2:$range2:1)", "$var1($offset1:$range1:1)" ];
-				$v1_v2_pair = [ "$var1($offset1:$range1:1)", "$var2($offset2:$range2:1)" ];
-				$ann=annotate( $f, __LINE__  );
-			} else {
-				$ann=annotate( $f, __LINE__  );
-				if ( $v1 eq $var1 and $v2 eq $var2 ) {
-					# and also assignment is array to array
-					my $dim1  = $var1_decl->{'Dim'};
-					my $dim2  = $var2_decl->{'Dim'};
-					my ($size1, $not_const1) = calculate_array_size( $stref, $f, $dim1 );
-					my ($size2, $not_const2) = calculate_array_size( $stref, $f, $dim2 );
+# 			if ($overlapping) {
+# 				# Handle overlapping ranges
+# 				my ($array1, $array2) = @{__equate_overlapping_ranges( $index1, $dim1, $index2, $dim2 ) };
+# 				my ($offset1, $range1)=@{$array1};
+# 				my ($offset2, $range2)=@{$array2};
+# 				$v2_v1_pair = [ "$var2($offset2:$range2:1)", "$var1($offset1:$range1:1)" ];
+# 				$v1_v2_pair = [ "$var1($offset1:$range1:1)", "$var2($offset2:$range2:1)" ];
+# 				$ann=annotate( $f, __LINE__  );
+# 			} else {
+# 				$ann=annotate( $f, __LINE__  );
+# 				if ( $v1 eq $var1 and $v2 eq $var2 ) {
+# 					# and also assignment is array to array
+# 					my $dim1  = $var1_decl->{'Dim'};
+# 					my $dim2  = $var2_decl->{'Dim'};
+# 					my ($size1, $not_const1) = calculate_array_size( $stref, $f, $dim1 );
+# 					my ($size2, $not_const2) = calculate_array_size( $stref, $f, $dim2 );
 
-					# but the rank we need is the rank of the expression
-					# FIXME: I will assume that if the array is indexed, all indices are used, i.e. rank is 0
-					my $rank1 = $v1 eq $var1 ? get_array_rank($dim1) : 0;
-					my $rank2 = $v2 eq $var2 ? get_array_rank($dim2) : 0;
+# 					# but the rank we need is the rank of the expression
+# 					# FIXME: I will assume that if the array is indexed, all indices are used, i.e. rank is 0
+# 					my $rank1 = $v1 eq $var1 ? get_array_rank($dim1) : 0;
+# 					my $rank2 = $v2 eq $var2 ? get_array_rank($dim2) : 0;
 
-					# if the same rank and different size
-					if ( $size1 == $size2 and $rank1 != $rank2 ) {
-						# if different rank and same size
-						# reshape
-						$v2_v1_pair = [ $var2, "reshape($var1,shape($var2))" ];
-						$v1_v2_pair = [ $var1, "reshape($var2,shape($var1))" ];
-						$ann=annotate( $f, __LINE__  );
-					} elsif ( $size1 != $size2 and $rank1 == $rank2 ) {
-						if ( $rank1 == 1 ) {
-							# 1:size, 0:size-1, -1:size-2 => $size-1+$offset
-							# If the rank is the same, take the overlap, i.e. the smallest dim
-							my $size    = $size1 < $size2 ? $size1 : $size2;
-							my $offset1 = $var1_decl->{'Dim'}[0][0];
-							my $offset2 = $var2_decl->{'Dim'}[0][0];
-							my $range1  = $size - 1 + $offset1;
-							my $range2  = $size - 1 + $offset2;
-							$v2_v1_pair = [ "$var2($offset2:$range2:1)", "$var1($offset1:$range1:1)" ];
-							$v1_v2_pair = [ "$var1($offset1:$range1:1)", "$var2($offset2:$range2:1)" ];
-							$ann=annotate( $f, __LINE__  );
-						} else {
-							warning('EQUIVALENCE statement not refactored because it is between two arrays of rank > 1 and different size: '."\n$line\n",1);
-							$remove_equiv_stmt = 0;
-						}
-					} else {
-						# else give up, warn and keep the original line
-						warning('EQUIVALENCE statement not refactored because it is between two arrays of different rank and size: '."\n$line\n",1);
-						$remove_equiv_stmt = 0;
-					}
-				} elsif ( $v1 eq $var1 and $v2 ne $var2 ) {
+# 					# if the same rank and different size
+# 					if ( $size1 == $size2 and $rank1 != $rank2 ) {
+# 						# if different rank and same size
+# 						# reshape
+# 						$v2_v1_pair = [ $var2, "reshape($var1,shape($var2))" ];
+# 						$v1_v2_pair = [ $var1, "reshape($var2,shape($var1))" ];
+# 						$ann=annotate( $f, __LINE__  );
+# 					} elsif ( $size1 != $size2 and $rank1 == $rank2 ) {
+# 						if ( $rank1 == 1 ) {
+# 							# 1:size, 0:size-1, -1:size-2 => $size-1+$offset
+# 							# If the rank is the same, take the overlap, i.e. the smallest dim
+# 							my $size    = $size1 < $size2 ? $size1 : $size2;
+# 							my $offset1 = $var1_decl->{'Dim'}[0][0];
+# 							my $offset2 = $var2_decl->{'Dim'}[0][0];
+# 							my $range1  = $size - 1 + $offset1;
+# 							my $range2  = $size - 1 + $offset2;
+# 							$v2_v1_pair = [ "$var2($offset2:$range2:1)", "$var1($offset1:$range1:1)" ];
+# 							$v1_v2_pair = [ "$var1($offset1:$range1:1)", "$var2($offset2:$range2:1)" ];
+# 							$ann=annotate( $f, __LINE__  );
+# 						} else {
+# 							warning('EQUIVALENCE statement not refactored because it is between two arrays of rank > 1 and different size: '."\n$line\n",1);
+# 							$remove_equiv_stmt = 0;
+# 						}
+# 					} else {
+# 						# else give up, warn and keep the original line
+# 						warning('EQUIVALENCE statement not refactored because it is between two arrays of different rank and size: '."\n$line\n",1);
+# 						$remove_equiv_stmt = 0;
+# 					}
+# 				} elsif ( $v1 eq $var1 and $v2 ne $var2 ) {
 
-					# v1 is array, v2 is indexed => need to use start index for v1
-					my $start_idx1 = join( ',', map { $_->[0] } @{ $var1_decl->{'Dim'} } );
-					$v2_v1_pair = [ $v2, "$v1($start_idx1   )" ];    #
-					$v1_v2_pair = [ "$v1($start_idx1   )", $v2 ];
-					$ann=annotate( $f, __LINE__  );
-				} elsif ( $v1 ne $var1 and $v2 eq $var2 ) {
+# 					# v1 is array, v2 is indexed => need to use start index for v1
+# 					my $start_idx1 = join( ',', map { $_->[0] } @{ $var1_decl->{'Dim'} } );
+# 					$v2_v1_pair = [ $v2, "$v1($start_idx1   )" ];    #
+# 					$v1_v2_pair = [ "$v1($start_idx1   )", $v2 ];
+# 					$ann=annotate( $f, __LINE__  );
+# 				} elsif ( $v1 ne $var1 and $v2 eq $var2 ) {
 
-					# v1 is indexed, v2 is array => need to use start index for v2
-					my $start_idx2 = join( ',', map { $_->[0] } @{ $var2_decl->{'Dim'} } );
-					$v1_v2_pair = [ $v1, "$v2($start_idx2   )" ];    #
-					$v2_v1_pair = [ "$v2($start_idx2   )", $v1 ];
-					$ann=annotate( $f, __LINE__  );
-				}
-			}
-		}
+# 					# v1 is indexed, v2 is array => need to use start index for v2
+# 					my $start_idx2 = join( ',', map { $_->[0] } @{ $var2_decl->{'Dim'} } );
+# 					$v1_v2_pair = [ $v1, "$v2($start_idx2   )" ];    #
+# 					$v2_v1_pair = [ "$v2($start_idx2   )", $v1 ];
+# 					$ann=annotate( $f, __LINE__  );
+# 				}
+# 			}
+# 		}
 
-		if ($remove_equiv_stmt) {
-			$rline = [ '!' . $line, { 'Deleted' => 1 } ];
-		}
-		my $assign_v2_to_v1 = create_cast_annlines( $var1_decl, $v1_v2_pair->[0], $var2_decl, $v1_v2_pair->[1] );
-		my $assign_v1_to_v2 = create_cast_annlines( $var2_decl, $v2_v1_pair->[0], $var1_decl, $v2_v1_pair->[1] );
-		# add an annotation to the first line
-		$assign_v2_to_v1->[0][1]{'Ann'}=[$ann];
-		$assign_v1_to_v2->[0][1]{'Ann'}=[$ann];
+# 		if ($remove_equiv_stmt) {
+# 			$rline = [ '!' . $line, { 'Deleted' => 1 } ];
+# 		}
+# 		my $assign_v2_to_v1 = create_cast_annlines( $var1_decl, $v1_v2_pair->[0], $var2_decl, $v1_v2_pair->[1] );
+# 		my $assign_v1_to_v2 = create_cast_annlines( $var2_decl, $v2_v1_pair->[0], $var1_decl, $v2_v1_pair->[1] );
+# 		# add an annotation to the first line
+# 		$assign_v2_to_v1->[0][1]{'Ann'}=[$ann];
+# 		$assign_v1_to_v2->[0][1]{'Ann'}=[$ann];
 		
-		if ( not exists $postUpdateAssignmentLines->{$var1} ) {
-			$postUpdateAssignmentLines->{$var1} = $assign_v1_to_v2;    #[$indent . "$v2 = $v1",{}];
-		} else {
-			$postUpdateAssignmentLines->{$var1} = [ @{ $postUpdateAssignmentLines->{$var1} }, @{$assign_v1_to_v2} ];
-		}
+# 		if ( not exists $postUpdateAssignmentLines->{$var1} ) {
+# 			$postUpdateAssignmentLines->{$var1} = $assign_v1_to_v2;    #[$indent . "$v2 = $v1",{}];
+# 		} else {
+# 			$postUpdateAssignmentLines->{$var1} = [ @{ $postUpdateAssignmentLines->{$var1} }, @{$assign_v1_to_v2} ];
+# 		}
 
-		if ( not exists $postUpdateAssignmentLines->{$var2} ) {
-			$postUpdateAssignmentLines->{$var2} = $assign_v2_to_v1;    #[$indent . "$v1 = $v2",{}];
-		} else {
-			$postUpdateAssignmentLines->{$var2} = [ @{ $postUpdateAssignmentLines->{$var2} }, @{$assign_v2_to_v1} ];
-		}
-		if ( not( exists $Sf->{'ExGlobArgs'}{'Set'}{$var1} and exists $Sf->{'ExGlobArgs'}{'Set'}{$var2} ) ) {
+# 		if ( not exists $postUpdateAssignmentLines->{$var2} ) {
+# 			$postUpdateAssignmentLines->{$var2} = $assign_v2_to_v1;    #[$indent . "$v1 = $v2",{}];
+# 		} else {
+# 			$postUpdateAssignmentLines->{$var2} = [ @{ $postUpdateAssignmentLines->{$var2} }, @{$assign_v2_to_v1} ];
+# 		}
+# 		if ( not( exists $Sf->{'ExGlobArgs'}{'Set'}{$var1} and exists $Sf->{'ExGlobArgs'}{'Set'}{$var2} ) ) {
 
-			# if both are ExGlobArgs, we don't need the initial assignment
-			$exEquivAssignmentLines = [ @{$exEquivAssignmentLines}, @{$assign_v1_to_v2} ];    #
-		}
-	} # loop over all pairs
+# 			# if both are ExGlobArgs, we don't need the initial assignment
+# 			$exEquivAssignmentLines = [ @{$exEquivAssignmentLines}, @{$assign_v1_to_v2} ];    #
+# 		}
+# 	} # loop over all pairs
 
-	return ( $rline, $exEquivAssignmentLines, $postUpdateAssignmentLines, $equiv_pairs, $replaced );
-}    # END of __refactor_EQUIVALENCE_line
+# 	return ( $rline, $exEquivAssignmentLines, $postUpdateAssignmentLines, $equiv_pairs, $replaced );
+# }    # END of __refactor_EQUIVALENCE_line
 
 sub _emit_refactored_signatures {
 	my ( $stref, $f, $annlines ) = @_;
@@ -2138,54 +2105,54 @@ sub __equate_overlapping_ranges {
 }    # END of __equate_overlapping_ranges
 
 # TODO: Clearly this is Refactoring and should be put in Refactoring/StatementFunctions.pm 
-sub _move_StatementFunctions_after_SpecificationStatements { my ( $stref, $f, $annlines ) = @_;
-	my $Sf = $stref->{'Subroutines'}{$f};
-	$Sf->{'RefactoredCode'}=$annlines;
-# first cut out the StatementFunction lines
-	my $pass_cut_out_StatementFunction_lines= sub {
-		(my $annline, my $state)=@_;
-		(my $line,my $info)=@{$annline};
-		#  say "LINE:$line ".Dumper(sort keys %{$info});
-		my $new_annlines = [$annline];
-		if (exists $info->{'StatementFunction'}) {	
+# sub _move_StatementFunctions_after_SpecificationStatements { my ( $stref, $f, $annlines ) = @_;
+# 	my $Sf = $stref->{'Subroutines'}{$f};
+# 	$Sf->{'RefactoredCode'}=$annlines;
+# # first cut out the StatementFunction lines
+# 	my $pass_cut_out_StatementFunction_lines= sub {
+# 		(my $annline, my $state)=@_;
+# 		(my $line,my $info)=@{$annline};
+# 		#  say "LINE:$line ".Dumper(sort keys %{$info});
+# 		my $new_annlines = [$annline];
+# 		if (exists $info->{'StatementFunction'}) {	
 			
-					$new_annlines =[ 
-					["! Removed statement function ".$info->{'StatementFunction'},{'Comments' => 1}],					
-					]; 
-					push @{$state},$annline;
-		}		
+# 					$new_annlines =[ 
+# 					["! Removed statement function ".$info->{'StatementFunction'},{'Comments' => 1}],					
+# 					]; 
+# 					push @{$state},$annline;
+# 		}		
 		
-		return ($new_annlines,$state);
-	};
+# 		return ($new_annlines,$state);
+# 	};
 	
-	my $statement_function_annlines = [['! Moved statement functions',{'Comments' => 1}]];
- 	($stref,$statement_function_annlines) = stateful_pass($stref,$f,$pass_cut_out_StatementFunction_lines, $statement_function_annlines,'_cut_out_StatementFunctions §' . __LINE__  ) ;	
-	#  carp Dumper(pp_annlines($statement_function_annlines));
-	 if (scalar @{ $statement_function_annlines } > 1) {
-	my $merged_annlines = splice_additional_lines_cond(
-		$stref, $f,
-		sub {
-			( my $annline ) = @_;
-			(my $line,my $info)=@{$annline};
-			return (
-				exists $info->{'HasVars'}
-			or exists $info->{'Control'}			
-			or exists $info->{'EndControl'}
-			) ? 1 : 0;
-		},
-		[],
-		$statement_function_annlines,
-		1, # insert before
-		0, # skip insertion condition line
-		1 # do this only once
-	);
-	# croak Dumper(pp_annlines($merged_annlines));
-	return $merged_annlines;
-	 } else {
-	return $Sf->{'RefactoredCode'};
-	 }
+# 	my $statement_function_annlines = [['! Moved statement functions',{'Comments' => 1}]];
+#  	($stref,$statement_function_annlines) = stateful_pass($stref,$f,$pass_cut_out_StatementFunction_lines, $statement_function_annlines,'_cut_out_StatementFunctions §' . __LINE__  ) ;	
+# 	#  carp Dumper(pp_annlines($statement_function_annlines));
+# 	 if (scalar @{ $statement_function_annlines } > 1) {
+# 	my $merged_annlines = splice_additional_lines_cond(
+# 		$stref, $f,
+# 		sub {
+# 			( my $annline ) = @_;
+# 			(my $line,my $info)=@{$annline};
+# 			return (
+# 				exists $info->{'HasVars'}
+# 			or exists $info->{'Control'}			
+# 			or exists $info->{'EndControl'}
+# 			) ? 1 : 0;
+# 		},
+# 		[],
+# 		$statement_function_annlines,
+# 		1, # insert before
+# 		0, # skip insertion condition line
+# 		1 # do this only once
+# 	);
+# 	# croak Dumper(pp_annlines($merged_annlines));
+# 	return $merged_annlines;
+# 	 } else {
+# 	return $Sf->{'RefactoredCode'};
+# 	 }
 	
-} # END of _move_StatementFunctions_after_SpecificationStatements
+# } # END of _move_StatementFunctions_after_SpecificationStatements
 
 sub __generate_inherited_param_decls { my ($rdecl, $var, $stref, $f, $inherited_param_decls) = @_;	
     my $Sf         = $stref->{'Subroutines'}{$f};
@@ -2275,22 +2242,23 @@ sub _group_local_param_decls_at_top { my ( $stref, $f ) = @_;
 	 } else {
 		return $Sf->{'RefactoredCode'};
 	 }
-}
+} # END of _group_local_param_decls_at_top
 
-# returns  $cast_reshape_result, 
-# 	my $cast_reshape_result={
-# 		'CallArg' => $call_arg,
-# 		'PreAnnLine' => [],
-# 		'PostAnnLine' => [],
-# 		'CastReshapeVarDecl' => {},
-# 		'Status' => 0
-# 	};
-# where Status =
-# 0: no need to cast, $cast_code is $call_arg and can be ignored
-# 1: in-place cast, $cast_code is the cast version of $call_arg
-# 2: heavyweight cast: needs a new var decl, an pre-assignment line and a post-assignment line
-
+# _maybe_cast_call_args
 =pod
+returns  $cast_reshape_result, 
+	my $cast_reshape_result={
+		'CallArg' => $call_arg,
+		'PreAnnLine' => [],
+		'PostAnnLine' => [],
+		'CastReshapeVarDecl' => {},
+		'Status' => 0
+	};
+where Status =
+0: no need to cast, $cast_code is $call_arg and can be ignored
+1: in-place cast, $cast_code is the cast version of $call_arg
+2: heavyweight cast: needs a new var decl, an pre-assignment line and a post-assignment line
+
 Casting and reshaping may both be needed. We have four cases
 1. Cast only
 2. Reshape only
@@ -2308,8 +2276,9 @@ reshape only (always new arg)
 cast and reshape (always new arg)
 =cut
 
-sub _maybe_cast_call_args { my ($stref, $f, $sub_name, $call_arg,$call_arg_decl,$sig_arg, $sig_arg_decl)=@_;
-#  carp "CALL ARG $call_arg for call to $sub_name in $f : ".Dumper($call_arg_decl);
+sub _maybe_cast_call_args { # 200 lines
+	my ($stref, $f, $sub_name, $call_arg,$call_arg_decl, $sig_arg,$sig_arg_decl)=@_;
+
 	my $cast_reshape_result={
 		'CallArg' => $call_arg,
 		'PreAnnLine' => ['',{'Assignment'=>1}],
@@ -2322,13 +2291,130 @@ sub _maybe_cast_call_args { my ($stref, $f, $sub_name, $call_arg,$call_arg_decl,
 		return $cast_reshape_result;
 	}
 	
-	my $needs_reshape=0;
+	my ($needs_reshape, $use_arg_sz) = __reshape_check($stref, $f, $sub_name, $call_arg_decl,$sig_arg_decl);
+	my $needs_cast = __cast_check( $call_arg_decl,$sig_arg_decl);
+	my $sig_kind=__get_kind_from_decl($sig_arg_decl);
+	my $call_kind=__get_kind_from_decl($call_arg_decl);
+		# carp "$sig_kind <> $call_kind";
+	my $is_out = __out_check($sig_arg_decl);
+
+	my $new_call_arg=undef;
+
+	if ($needs_reshape or ($needs_cast and $is_out)) {
+		# carp "$f, $sub_name, $call_arg,$sig_arg, needs_reshape" if $needs_reshape;
+		$new_call_arg = $call_arg.'_'.$sub_name;
+		my $new_call_arg_decl = dclone($sig_arg_decl);
+		$new_call_arg_decl->{'Name'}=$new_call_arg;
+		if ($use_arg_sz) {
+			$new_call_arg_decl->{'Dim'}=$call_arg_decl->{'Dim'};
+		}
+
+		$cast_reshape_result->{'CallArg'}=$new_call_arg;
+		$cast_reshape_result->{'CastReshapeVarDecl'}=$new_call_arg_decl;
+		$cast_reshape_result->{'Status'}=2;		
+	} elsif ($needs_cast and not $is_out) {
+		$cast_reshape_result->{'Status'}=1;
+	}
+	# my $cast_reshape_info = {'Assignment' => 1};
+
+	if ($needs_reshape) { # never in-place
+		# do the reshape, then check for cast
+		
+		my $reshaped_call_arg = "reshape($call_arg,shape($new_call_arg))";
+		my $cast_reshape_pre_line = "$new_call_arg = $reshaped_call_arg";
+		my $reshaped_new_call_arg = "reshape($new_call_arg, shape($call_arg))";		
+		my $cast_reshape_post_line = "$call_arg = $reshaped_new_call_arg";
+
+		if ($needs_cast) {
+			# cast
+			my $cast_reshaped_call_arg = cast_call_argument($sig_arg_decl->{'Type'}, $sig_kind , $call_arg_decl->{'Type'}, $reshaped_call_arg);
+			$cast_reshape_pre_line = "$new_call_arg = $cast_reshaped_call_arg";
+			my $reshaped_new_call_arg = "reshape($new_call_arg, shape($call_arg)";
+			my $cast_reshaped_new_call_arg = cast_call_argument($call_arg_decl->{'Type'}, $call_kind , $sig_arg_decl->{'Type'}, $reshaped_new_call_arg);
+			$cast_reshape_post_line = "$call_arg = $cast_reshaped_new_call_arg";
+		} 
+		$cast_reshape_result = __update_cast_reshape_result($cast_reshape_result,
+			$cast_reshape_pre_line,
+			$cast_reshape_post_line.
+			$call_arg,
+			$new_call_arg
+		);
+
+	} else { # no reshape
+		if ($needs_cast) {
+			if ($is_out) { # not in place		
+			
+					my $cast_call_arg = cast_call_argument($sig_arg_decl->{'Type'}, $sig_kind , $call_arg_decl->{'Type'}, $call_arg);		
+					my $cast_reshape_pre_line =  "$new_call_arg = $cast_call_arg" ;
+
+					my $cast_new_call_arg = cast_call_argument($call_arg_decl->{'Type'}, $call_kind , $sig_arg_decl->{'Type'}, $new_call_arg);
+					my $cast_reshape_post_line =   "$call_arg = $cast_new_call_arg" ;
+
+					$cast_reshape_result = __update_cast_reshape_result($cast_reshape_result,
+						$cast_reshape_pre_line,
+						$cast_reshape_post_line.
+						$call_arg,
+						$new_call_arg
+					);
+
+			} else { # in place
+					my $cast_call_arg = cast_call_argument($sig_arg_decl->{'Type'}, $sig_kind , $call_arg_decl->{'Type'}, $call_arg);
+					$cast_reshape_result->{'CallArg'}=$cast_call_arg;
+			}	
+		}
+	}
+
+	return $cast_reshape_result;
+} # END of _maybe_cast_call_args
+
+
+sub  __update_cast_reshape_result {
+	my ($cast_reshape_result,
+	$cast_reshape_pre_line,
+	$cast_reshape_post_line,
+	$call_arg,
+	$new_call_arg
+	) = @_;
+	$cast_reshape_result->{'PreAnnLine'}[0]=$cast_reshape_pre_line;
+	$cast_reshape_result->{'PreAnnLine'}[1]{'Lhs'}{'VarName'}=$new_call_arg;
+	$cast_reshape_result->{'PreAnnLine'}[1]{'Lhs'}{'ExpressionAST'}=[2,$new_call_arg];
+	$cast_reshape_result->{'PreAnnLine'}[1]{'Lhs'}{'IndexVars'}{'List'}=[];
+	$cast_reshape_result->{'PreAnnLine'}[1]{'Rhs'}{'VarList'}{'List'}=[$new_call_arg,$call_arg];		
+	$cast_reshape_result->{'PostAnnLine'}[0]=$cast_reshape_post_line;	
+	$cast_reshape_result->{'PostAnnLine'}[1]{'Lhs'}{'VarName'}=$call_arg;
+	$cast_reshape_result->{'PostAnnLine'}[1]{'Lhs'}{'ExpressionAST'}=[2,$call_arg];
+	$cast_reshape_result->{'PostAnnLine'}[1]{'Lhs'}{'IndexVars'}{'List'}=[];
+	$cast_reshape_result->{'PostAnnLine'}[1]{'Rhs'}{'VarList'}{'List'}=[$new_call_arg,$call_arg];
+
+	return $cast_reshape_result;
+}
+
+
+
+sub __get_kind_from_decl { my ($decl) = @_;
+	my $kind=4;
+	if (exists $decl->{'Attr'} and $decl->{'Attr'} ne '') {
+		$kind=$decl->{'Attr'};
+		$kind=~s/\w+=//;
+		$kind=~s/[\(\)]//g;
+	}
+	return $kind;
+}
+
+
+sub __reshape_check { my ($stref, $f, $sub_name, $call_arg_decl,$sig_arg_decl) = @_;
+	
+	my $call_arg = $call_arg_decl->{'Name'};
+	my $sig_arg = $sig_arg_decl->{'Name'};
+
+	my $needs_reshape=0;	
 	my $use_arg_sz=0;
 	if (exists $call_arg_decl->{'ArrayOrScalar'} and
 		$call_arg_decl->{'ArrayOrScalar'} eq 'Array'
 		and $sig_arg_decl->{'ArrayOrScalar'} eq 'Array'									
 	) { # both are arrays. Let's check size and rank
 		# and also assignment is array to array
+
 		my $dim1  = $call_arg_decl->{'Dim'};
 		my $dim2  = $sig_arg_decl->{'Dim'};		
 		# say "ASSUMED? ". __is_assumed_array($dim2);
@@ -2379,24 +2465,16 @@ sub _maybe_cast_call_args { my ($stref, $f, $sub_name, $call_arg,$call_arg_decl,
 			( $not_const1 ? "$call_arg($not_const1)" : $call_arg) . " with dummy " . 
 			( $not_const2 ? "$sig_arg($not_const2)" : $sig_arg) . "\n\t" .
 			'Using the largest dimension for the reshaped array.',2) if not $not_const2 ;
-
-
 			$needs_reshape=1;
 		}
 	}
+	return ($needs_reshape, $use_arg_sz) ;
+} # END of __reshape_check
 
-	my $sig_kind=4;
-	if (exists $sig_arg_decl->{'Attr'} and $sig_arg_decl->{'Attr'} ne '') {
-		$sig_kind=$sig_arg_decl->{'Attr'};
-		$sig_kind=~s/\w+=//;
-		$sig_kind=~s/[\(\)]//g;
-	}
-	my $call_kind=4;
-	if (exists $call_arg_decl->{'Attr'} and $call_arg_decl->{'Attr'} ne '') {
-		$call_kind=$call_arg_decl->{'Attr'};
-		$call_kind=~s/\w+=//;
-		$call_kind=~s/[\(\)]//g;
-	}
+sub __cast_check {
+	my ($call_arg_decl,$sig_arg_decl) = @_;
+	my $sig_kind=__get_kind_from_decl($sig_arg_decl);
+	my $call_kind=__get_kind_from_decl($call_arg_decl);
 		# carp "$sig_kind <> $call_kind";
 
 	my $needs_cast = 0;
@@ -2411,95 +2489,19 @@ sub _maybe_cast_call_args { my ($stref, $f, $sub_name, $call_arg,$call_arg_decl,
 			and "$sig_kind" ne '*' # Assumed length for character string
 			) {		
 		$needs_cast = 1;	
-	}
+	}	
+	return $needs_cast;
+}
 
-	my $is_out = 0;
+sub __out_check {
+	my ($sig_arg_decl) = @_;
 	if ($sig_arg_decl->{'IODir'} ne 'In'
 		# or $sig_arg_decl->{'IODir'} eq 'InOut'
 	) { 
-		$is_out = 1;
+		return 1;
+	} else {
+		return 0;
 	}
-
-	my $new_call_arg=undef;
-
-	if ($needs_reshape or ($needs_cast and $is_out)) {
-		# carp "$f, $sub_name, $call_arg,$sig_arg, needs_reshape" if $needs_reshape;
-		$new_call_arg = $call_arg.'_'.$sub_name;
-		my $new_call_arg_decl = dclone($sig_arg_decl);
-		$new_call_arg_decl->{'Name'}=$new_call_arg;
-		if ($use_arg_sz) {
-			$new_call_arg_decl->{'Dim'}=$call_arg_decl->{'Dim'};
-		}
-
-		$cast_reshape_result->{'CallArg'}=$new_call_arg;
-		$cast_reshape_result->{'CastReshapeVarDecl'}=$new_call_arg_decl;
-		$cast_reshape_result->{'Status'}=2;		
-	} elsif ($needs_cast and not $is_out) {
-		$cast_reshape_result->{'Status'}=1;
-	}
-	# my $cast_reshape_info = {'Assignment' => 1};
-
-	if ($needs_reshape) { # never in-place
-		# do the reshape, then check for cast
-		
-		my $reshaped_call_arg = "reshape($call_arg,shape($new_call_arg))";
-		my $cast_reshape_pre_line = "$new_call_arg = $reshaped_call_arg";
-		my $reshaped_new_call_arg = "reshape($new_call_arg, shape($call_arg))";		
-		my $cast_reshape_post_line = "$call_arg = $reshaped_new_call_arg";
-
-		if ($needs_cast) {
-			# cast
-			my $cast_reshaped_call_arg = cast_call_argument($sig_arg_decl->{'Type'}, $sig_kind , $call_arg_decl->{'Type'}, $reshaped_call_arg);
-			$cast_reshape_pre_line = "$new_call_arg = $cast_reshaped_call_arg";
-			my $reshaped_new_call_arg = "reshape($new_call_arg, shape($call_arg)";
-			my $cast_reshaped_new_call_arg = cast_call_argument($call_arg_decl->{'Type'}, $call_kind , $sig_arg_decl->{'Type'}, $reshaped_new_call_arg);
-			$cast_reshape_post_line = "$call_arg = $cast_reshaped_new_call_arg";
-		} 
-		$cast_reshape_result->{'PreAnnLine'}[0]=$cast_reshape_pre_line;
-		$cast_reshape_result->{'PreAnnLine'}[1]{'Lhs'}{'VarName'}=$new_call_arg;
-		$cast_reshape_result->{'PreAnnLine'}[1]{'Lhs'}{'ExpressionAST'}=[2,$new_call_arg];
-		$cast_reshape_result->{'PreAnnLine'}[1]{'Lhs'}{'IndexVars'}{'List'}=[];
-		$cast_reshape_result->{'PreAnnLine'}[1]{'Rhs'}{'VarList'}{'List'}=[$new_call_arg,$call_arg];
-		$cast_reshape_result->{'PostAnnLine'}[0]=$cast_reshape_post_line;	
-		$cast_reshape_result->{'PostAnnLine'}[1]{'Lhs'}{'VarName'}=$call_arg;
-		$cast_reshape_result->{'PostAnnLine'}[1]{'Lhs'}{'ExpressionAST'}=[2,$call_arg];
-		$cast_reshape_result->{'PostAnnLine'}[1]{'Lhs'}{'IndexVars'}{'List'}=[];
-		$cast_reshape_result->{'PostAnnLine'}[1]{'Rhs'}{'VarList'}{'List'}=[$new_call_arg,$call_arg];
-		# warn 	"<$cast_reshape_pre_line>\n<$cast_reshape_post_line>\n";
-	} else { # no reshape
-		if ($needs_cast) {
-			if ($is_out) { # not in place		
-			
-					my $cast_call_arg = cast_call_argument($sig_arg_decl->{'Type'}, $sig_kind , $call_arg_decl->{'Type'}, $call_arg);		
-					my $cast_reshape_pre_line =  "$new_call_arg = $cast_call_arg" ;
-
-					my $cast_new_call_arg = cast_call_argument($call_arg_decl->{'Type'}, $call_kind , $sig_arg_decl->{'Type'}, $new_call_arg);
-					my $cast_reshape_post_line =   "$call_arg = $cast_new_call_arg" ;
-					# $cast_reshape_result->{'PreAnnLine'}[0]=$cast_reshape_pre_line;
-					# $cast_reshape_result->{'PostAnnLine'}[0]=$cast_reshape_post_line;	
-
-					$cast_reshape_result->{'PreAnnLine'}[0]=$cast_reshape_pre_line;
-					$cast_reshape_result->{'PreAnnLine'}[1]{'Lhs'}{'VarName'}=$new_call_arg;
-					$cast_reshape_result->{'PreAnnLine'}[1]{'Lhs'}{'ExpressionAST'}=[2,$new_call_arg];
-					$cast_reshape_result->{'PreAnnLine'}[1]{'Lhs'}{'IndexVars'}{'List'}=[];
-					$cast_reshape_result->{'PreAnnLine'}[1]{'Rhs'}{'VarList'}{'List'}=[$new_call_arg,$call_arg];
-					$cast_reshape_result->{'PostAnnLine'}[0]=$cast_reshape_post_line;	
-					$cast_reshape_result->{'PostAnnLine'}[1]{'Lhs'}{'VarName'}=$call_arg;
-					$cast_reshape_result->{'PostAnnLine'}[1]{'Lhs'}{'ExpressionAST'}=[2,$call_arg];
-					$cast_reshape_result->{'PostAnnLine'}[1]{'Lhs'}{'IndexVars'}{'List'}=[];
-					$cast_reshape_result->{'PostAnnLine'}[1]{'Rhs'}{'VarList'}{'List'}=[$new_call_arg,$call_arg];
-
-			} else { # in place
-					my $cast_call_arg = cast_call_argument($sig_arg_decl->{'Type'}, $sig_kind , $call_arg_decl->{'Type'}, $call_arg);
-					$cast_reshape_result->{'CallArg'}=$cast_call_arg;
-			}	
-		}
-		#  else {
-		# 	# no action
-		# }
-	}
-
-	return $cast_reshape_result;
 }
 
 # Dim :: [(Int,IntOrStar)]
