@@ -623,9 +623,13 @@ sub __refactor_EQUIVALENCE_line {
 			$postUpdateAssignmentLines->{$var2} = [ @{ $postUpdateAssignmentLines->{$var2} }, @{$assign_v2_to_v1} ];
 		}
 		if ( not( exists $Sf->{'ExGlobArgs'}{'Set'}{$var1} and exists $Sf->{'ExGlobArgs'}{'Set'}{$var2} ) ) {
-
+			# EQUIVALENCE (v1,v2)
 			# if both are ExGlobArgs, we don't need the initial assignment
-			$exEquivAssignmentLines = [ @{$exEquivAssignmentLines}, @{$assign_v1_to_v2} ];    #
+			# When we encounter EQUIVALENCE, no assignments have happened
+			# So if var2 is an ExGlobArg and var1 is a local, then we should assign var2 to var 1
+			# WV20201109: I think this should this be $assign_v2_to_v1, but it was $assign_v1_to_v2
+			# FIXME: create a test
+			$exEquivAssignmentLines = [ @{$exEquivAssignmentLines}, @{$assign_v2_to_v1} ];    #
 		}
 	} # loop over all pairs
 
