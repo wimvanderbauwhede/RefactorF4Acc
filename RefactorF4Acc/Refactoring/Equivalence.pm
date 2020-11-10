@@ -301,10 +301,10 @@ sub __refactor_EQUIVALENCE_line {
 
 	my @pairs = ();
 
-	for my $ast1 (@asts) { 
+	for my $ast1 (@asts) {  # $ast1 : ['$',v] | ['@',v,@idxs]
 		my $elt1      = $ast1->[1];
 		my $found_elt = 0;
-		for my $ast2 (@asts) {
+		for my $ast2 (@asts) { # $ast2 : ['$',v] | ['@',v,@idxs]
 			my $elt2 = $ast2->[1];
 			if ( $elt1 eq $elt2 ) {
 				$found_elt = 1;

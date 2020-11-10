@@ -556,6 +556,10 @@ Related work
 Formalisation
 \end_layout
 
+\begin_layout Standard
+TBA
+\end_layout
+
 \begin_layout Subsection
 Source-to-source compilation and refactoring
 \end_layout
@@ -5912,10 +5916,18 @@ Calls to functions passed as arguments to other functions (i.e.
 \begin_layout Standard
 In principle, some type coercions are also unsafe.
  However, unsafe type coercions are recognised by current compilers, and
- the compiler can produce a warning or errors if the option is enabled.
+ the compiler can produce a warning or error if the option is enabled.
  So type coercions don't compromise the type safety.
  Our compiler follows this convention.
  
+\end_layout
+
+\begin_layout Standard
+In conclusion, FORTRAN 77 programs that are explicitly typed and consist
+ of pure functions are almost entirely type safe at compile time and can
+ be made entirely type safe through the addition of run-time type checks
+ for array slicing and array indexing with values that are unknown at compile
+ time, and higher-order functions.
 \end_layout
 
 \begin_layout Standard
@@ -5932,7 +5944,14 @@ COMMON
 \family sans
 EQUIVALENCE
 \family default
- associations 
+ associations
+\begin_inset CommandInset label
+LatexCommand label
+name "sec:Typechecking-COMMON-block"
+
+\end_inset
+
+ 
 \end_layout
 
 \begin_layout Standard
@@ -6523,11 +6542,63 @@ name "subsec:Transforming-Fortran-subroutines"
 
 \begin_layout Standard
 A side-effect-free FORTRAN 77 subroutine can be translated into a pure function
- as follows: 
+ as shown in Algorithm 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "alg:procs-to-pure-funcs"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+: 
 \end_layout
 
+\begin_layout Standard
+\begin_inset ERT
+status open
+
+\begin_layout Plain Layout
+
+
+\backslash
+begin{algorithm}
+\end_layout
+
+\end_inset
+
+
+\begin_inset CommandInset label
+LatexCommand label
+name "alg:procs-to-pure-funcs"
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset Box Frameless
+position "t"
+hor_pos "c"
+has_inner_box 1
+inner_pos "t"
+use_parbox 0
+use_makebox 0
+width "90col%"
+special "none"
+height "1in"
+height_special "totalheight"
+thickness "0.4pt"
+separation "3pt"
+shadowsize "4pt"
+framecolor "black"
+backgroundcolor "none"
+status open
+
 \begin_layout Itemize
-infer the 
+Infer the 
 \family sans
 INTENT
 \family default
@@ -6545,18 +6616,18 @@ noprefix "false"
 \end_layout
 
 \begin_layout Itemize
-replace every InOut argument with an (In,Out) tuple
+Replace every InOut argument with an (In,Out) tuple
 \end_layout
 
 \begin_layout Itemize
-every read is from the In argument, every write is to the Out argument
+Every read is from the In argument, every write is to the Out argument
 \end_layout
 
-\begin_layout Standard
+\begin_layout Plain Layout
 Thus,
 \end_layout
 
-\begin_layout Standard
+\begin_layout Plain Layout
 
 \family typewriter
 subroutine 
@@ -6566,7 +6637,7 @@ subroutine
 
 \end_layout
 
-\begin_layout Standard
+\begin_layout Plain Layout
 
 \family typewriter
 \begin_inset Formula $\tau_{i},$
@@ -6579,7 +6650,7 @@ intent(InOut)
 
 \end_layout
 
-\begin_layout Standard
+\begin_layout Plain Layout
 
 \family typewriter
 \begin_inset Formula $(...,a_{i},...,...,l_{i},...)=exp(...,a_{i},...,...,l_{i},...)$
@@ -6588,7 +6659,7 @@ intent(InOut)
 
 \end_layout
 
-\begin_layout Standard
+\begin_layout Plain Layout
 
 \family typewriter
 end subroutine 
@@ -6598,25 +6669,25 @@ end subroutine
 
 \end_layout
 
-\begin_layout Standard
+\begin_layout Plain Layout
 \begin_inset space ~
 \end_inset
 
 
 \end_layout
 
-\begin_layout Standard
+\begin_layout Plain Layout
 becomes
 \end_layout
 
-\begin_layout Standard
+\begin_layout Plain Layout
 \begin_inset space ~
 \end_inset
 
 
 \end_layout
 
-\begin_layout Standard
+\begin_layout Plain Layout
 
 \family typewriter
 subroutine 
@@ -6626,7 +6697,7 @@ subroutine
 
 \end_layout
 
-\begin_layout Standard
+\begin_layout Plain Layout
 
 \family typewriter
 \begin_inset Formula $\tau_{i},$
@@ -6639,7 +6710,7 @@ intent(In)
 
 \end_layout
 
-\begin_layout Standard
+\begin_layout Plain Layout
 
 \family typewriter
 \begin_inset Formula $\tau_{i},$
@@ -6652,7 +6723,7 @@ intent(Out)
 
 \end_layout
 
-\begin_layout Standard
+\begin_layout Plain Layout
 
 \family typewriter
 \begin_inset Formula $\tau_{i}::a_{i}$
@@ -6661,7 +6732,7 @@ intent(Out)
 ! local
 \end_layout
 
-\begin_layout Standard
+\begin_layout Plain Layout
 
 \family typewriter
 \begin_inset Formula $a_{i}=a_{i,in}$
@@ -6670,7 +6741,7 @@ intent(Out)
 
 \end_layout
 
-\begin_layout Standard
+\begin_layout Plain Layout
 
 \family typewriter
 \begin_inset Formula $(...,a_{i},...,...,l_{i},...)=exp(...,a_{i},...,...,l_{i},...))$
@@ -6679,7 +6750,7 @@ intent(Out)
 
 \end_layout
 
-\begin_layout Standard
+\begin_layout Plain Layout
 
 \family typewriter
 \begin_inset Formula $a_{i,out}=a_{i}$
@@ -6688,7 +6759,7 @@ intent(Out)
 
 \end_layout
 
-\begin_layout Standard
+\begin_layout Plain Layout
 
 \family typewriter
 end subroutine 
@@ -6698,23 +6769,73 @@ end subroutine
 
 \end_layout
 
-\begin_layout Standard
+\begin_layout Plain Layout
 \begin_inset space ~
 \end_inset
 
 
 \end_layout
 
-\begin_layout Standard
-Let us denote the transformed argument list as 
+\begin_layout Plain Layout
+Denoting the transformed argument list as 
 \emph on
 a'
 \emph default
-, so 
+: 
 \begin_inset Formula 
 \[
-(a_{i}\in a'|\textrm{intent}(a_{i})=\textrm{InOut})=\emptyset
+(\forall a_{i}\in a'\,|\,\textrm{intent}(a_{i})=\textrm{InOut})=\emptyset
 \]
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Plain Layout
+\begin_inset Formula 
+\[
+y=(\forall a_{i}\in a'\,|\,\textrm{intent}(a_{i})=\textrm{Out})
+\]
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Plain Layout
+\begin_inset Formula 
+\[
+a''=a'\ \backslash\ y\;\Longleftrightarrow\forall a_{i}\in a'':\textrm{intent}(a_{i})=\textrm{In}
+\]
+
+\end_inset
+
+
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset ERT
+status open
+
+\begin_layout Plain Layout
+
+
+\backslash
+caption{Transforming a FORTRAN 77 procedure into a pure function}
+\end_layout
+
+\begin_layout Plain Layout
+
+
+\backslash
+end{algorithm}
+\end_layout
 
 \end_inset
 
@@ -6730,41 +6851,7 @@ a'
 \family sans
 INTENT
 \family default
- InOut.
-\end_layout
-
-\begin_layout Standard
-Given the 
-\family sans
-INTENT
-\family default
-, then we have:
-\end_layout
-
-\begin_layout Standard
-\begin_inset Formula 
-\[
-y=(a_{i}\in a'|\textrm{intent}(a_{i})=\textrm{Out})
-\]
-
-\end_inset
-
-
-\end_layout
-
-\begin_layout Standard
-\begin_inset Formula 
-\[
-a''=a'\ \backslash\ y
-\]
-
-\end_inset
-
-
-\end_layout
-
-\begin_layout Standard
-In words, 
+ InOut; 
 \emph on
 y
 \emph default
@@ -7350,6 +7437,13 @@ end{algorithm}
 
 \begin_layout Subsection
 Explicit typing
+\begin_inset CommandInset label
+LatexCommand label
+name "subsec:Explicit-typing"
+
+\end_inset
+
+
 \end_layout
 
 \begin_layout Standard
@@ -7556,6 +7650,13 @@ Removal of
 COMMON
 \family default
  blocks
+\begin_inset CommandInset label
+LatexCommand label
+name "subsec:Removal-of-COMMON"
+
+\end_inset
+
+
 \end_layout
 
 \begin_layout Standard
@@ -8532,7 +8633,7 @@ KwOut{$eqps$}
 
 
 \backslash
-caption{Matching up  
+caption{Matching up 
 \backslash
 textsf{COMMON} block variables in a subroutine call}
 \end_layout
@@ -8555,6 +8656,13 @@ Removal of
 EQUIVALENCE
 \family default
  statements
+\begin_inset CommandInset label
+LatexCommand label
+name "subsec:Removal-of-EQUIVALENCE"
+
+\end_inset
+
+
 \end_layout
 
 \begin_layout Standard
@@ -8588,7 +8696,19 @@ EQUIVALENCE
 \begin_layout Standard
 This is another form of storage association, with the same issue that it
  is not type-safe.
- For example, the equivalence between vb2 and d1 or r1 in Example 
+ For example, the equivalence between 
+\emph on
+vb2
+\emph default
+ and 
+\emph on
+d1
+\emph default
+ or 
+\emph on
+r1
+\emph default
+ in Example 
 \begin_inset CommandInset ref
 LatexCommand ref
 reference "exa:Unsafe-equivalence"
@@ -8886,6 +9006,7 @@ RADE11(5), RADE12(3)
 \family default
  as well.
  So we have to equate the overlapping ranges.
+ 
 \end_layout
 
 \begin_layout Subsubsection
@@ -8904,9 +9025,13 @@ equivalence pairs
 \end_inset
 
 .
- To be able to remove the EQUIVALENCE statements, we must insert additional
- assignment after every statement where one of more of the variables that
- is part of an equivalence pair gets modified.
+ To be able to remove the 
+\family sans
+EQUIVALENCE
+\family default
+ statements, we must insert additional assignment after every statement
+ where one of more of the variables that is part of an equivalence pair
+ gets modified.
  The possible cases are
 \end_layout
 
@@ -8919,8 +9044,11 @@ If the one of the variables in an equivalence pair,
 \begin_inset Formula $a$
 \end_inset
 
- that results from refactoring a COMMON block, then we need an initial assignmen
-t 
+ that results from refactoring a 
+\family sans
+COMMON
+\family default
+ block, then we need an initial assignment 
 \begin_inset Formula $v_{l}=a$
 \end_inset
 
@@ -8932,8 +9060,458 @@ Any variable on the left-hand side of an assignment
 \end_layout
 
 \begin_layout Itemize
-Any argument to a subroutine or function call that is used with INTENT Out
- or InOut.
+Any argument to a subroutine or function call that is used with 
+\family sans
+INTENT
+\family default
+ Out or InOut.
+ 
+\end_layout
+
+\begin_layout Standard
+The construction if the equivalence pairs is shown in Algorithm 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "alg:create-equiv-pairs"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+.
+ As before, we consider array accesses as syntactic sugar for indexed scalars,
+ so that we don't need to distinguish between scalars and arrays.
+ The algorithm constructs a set of pairs 
+\emph on
+EquivalencePairs
+\emph default
+ from the original tuples in the 
+\family sans
+EQUIVALENCE
+\family default
+ statements, taking into account transitivity.
+ It then groups the pairs into pairs tuples 
+\emph on
+EquivalenceSets
+\emph default
+.
+ The set 
+\emph on
+EquivalenceVars
+\emph default
+ is the set of the first element of each pair.
+\end_layout
+
+\begin_layout Standard
+\begin_inset ERT
+status open
+
+\begin_layout Plain Layout
+
+
+\backslash
+begin{algorithm}[H]
+\end_layout
+
+\end_inset
+
+
+\begin_inset CommandInset label
+LatexCommand label
+name "alg:create-equiv-pairs"
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset ERT
+status open
+
+\begin_layout Plain Layout
+
+
+\backslash
+SetKw{KwStop}{Stop}
+\end_layout
+
+\begin_layout Plain Layout
+
+
+\backslash
+KwIn{$EquivalenceSets = ()$}
+\end_layout
+
+\begin_layout Plain Layout
+
+
+\backslash
+KwIn{$EquivalenceVars = ()$}
+\end_layout
+
+\begin_layout Plain Layout
+
+
+\backslash
+KwIn{$EquivalencePairs = ()$}
+\end_layout
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\begin_layout Plain Layout
+
+
+\backslash
+For{ $t 
+\backslash
+in EquivalenceTuples$ } { 
+\end_layout
+
+\begin_layout Plain Layout
+
+    
+\backslash
+For{ $v_1 
+\backslash
+in t$ } {        
+\end_layout
+
+\begin_layout Plain Layout
+
+		
+\backslash
+For{ $v_2 
+\backslash
+in t$ } {
+\end_layout
+
+\begin_layout Plain Layout
+
+			
+\backslash
+If{ $v_1 
+\backslash
+neq e_2$ } {
+\end_layout
+
+\begin_layout Plain Layout
+
+				 $EquivalencePairs = EquivalencePairs 
+\backslash
+bullet  (v_1, v_2)$
+\end_layout
+
+\begin_layout Plain Layout
+
+			}
+\end_layout
+
+\begin_layout Plain Layout
+
+		}
+\end_layout
+
+\begin_layout Plain Layout
+
+	}
+\end_layout
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\begin_layout Plain Layout
+
+	$transitive = False$
+\end_layout
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\begin_layout Plain Layout
+
+	
+\backslash
+For{ $v 
+\backslash
+in t$} { 		
+\end_layout
+
+\begin_layout Plain Layout
+
+		
+\backslash
+If{ $v 
+\backslash
+in EquivalenceVars$ } {
+\end_layout
+
+\begin_layout Plain Layout
+
+			$trans = True$
+\end_layout
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\begin_layout Plain Layout
+
+			$v_{trans}  = v$
+\end_layout
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\begin_layout Plain Layout
+
+			
+\backslash
+KwStop
+\end_layout
+
+\begin_layout Plain Layout
+
+		}
+\end_layout
+
+\begin_layout Plain Layout
+
+	}
+\end_layout
+
+\begin_layout Plain Layout
+
+	
+\end_layout
+
+\begin_layout Plain Layout
+
+	
+\backslash
+If{transitive} {
+\end_layout
+
+\begin_layout Plain Layout
+
+		
+\backslash
+For{ $v_1 
+\backslash
+in$ t} {
+\end_layout
+
+\begin_layout Plain Layout
+
+			
+\backslash
+If{ $v_1 
+\backslash
+neq v_{trans}$ } {
+\end_layout
+
+\begin_layout Plain Layout
+
+				
+\backslash
+For{ $v_2 
+\backslash
+in EquivalenceSets(v_{trans})$ } {
+\end_layout
+
+\begin_layout Plain Layout
+
+					$EquivalencePairs = EquivalencePairs 
+\backslash
+bullet  (v_1, v_2)$
+\end_layout
+
+\begin_layout Plain Layout
+
+				}
+\end_layout
+
+\begin_layout Plain Layout
+
+			}
+\end_layout
+
+\begin_layout Plain Layout
+
+		}
+\end_layout
+
+\begin_layout Plain Layout
+
+	}
+\end_layout
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\begin_layout Plain Layout
+
+    
+\backslash
+For{$(v_1,v_2) 
+\backslash
+in EquivalencePairs$} {		
+\end_layout
+
+\begin_layout Plain Layout
+
+        $EquivalenceSets(v_1)=(EquivalenceSets(v_1) 
+\backslash
+bullet v_2)$
+\end_layout
+
+\begin_layout Plain Layout
+
+        $EquivalenceSets(v_2)=
+\backslash
+left(EquivalenceSets(v_2) 
+\backslash
+bullet v_1
+\backslash
+right)$
+\end_layout
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\begin_layout Plain Layout
+
+		
+\backslash
+If{ $v_1 
+\backslash
+notin EquivalenceVars$} {
+\end_layout
+
+\begin_layout Plain Layout
+
+        $EquivalenceVars=
+\backslash
+left(EquivalenceVars 
+\backslash
+bullet v_1
+\backslash
+right)$
+\end_layout
+
+\begin_layout Plain Layout
+
+		}
+\end_layout
+
+\begin_layout Plain Layout
+
+		
+\backslash
+If{ $v_2 
+\backslash
+notin EquivalenceVars$} {
+\end_layout
+
+\begin_layout Plain Layout
+
+        $EquivalenceVars=
+\backslash
+left(EquivalenceVars 
+\backslash
+bullet v_2
+\backslash
+right)$
+\end_layout
+
+\begin_layout Plain Layout
+
+		}
+\end_layout
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\begin_layout Plain Layout
+
+    }
+\end_layout
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\begin_layout Plain Layout
+
+}
+\end_layout
+
+\begin_layout Plain Layout
+
+
+\backslash
+KwOut{EquivalenceSets, EquivalenceVars}
+\end_layout
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset ERT
+status open
+
+\begin_layout Plain Layout
+
+
+\backslash
+caption{Creating 
+\backslash
+textsf{EQUIVALENCE} pairs}
+\end_layout
+
+\begin_layout Plain Layout
+
+
+\backslash
+end{algorithm}
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+The algorithm to replace the 
+\family sans
+EQUIVALENCE
+\family default
+ statements by assignments is shown in Algorithm 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "alg:remove-equiv"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+.
  
 \end_layout
 
@@ -8968,7 +9546,7 @@ status open
 
 
 \backslash
-KwIn{$EquivalencePairs = 
+KwIn{$EquivalenceSets = 
 \end_layout
 
 \begin_layout Plain Layout
@@ -9006,13 +9584,13 @@ KwIn{ $EquivalenceVars = (v_{1,l},...,v_{i,l},...) $}
 
 \begin_layout Plain Layout
 
+
+\backslash
+KwIn{ Statements(c)}
 \end_layout
 
 \begin_layout Plain Layout
 
-
-\backslash
-BlankLine
 \end_layout
 
 \begin_layout Plain Layout
@@ -9037,7 +9615,9 @@ notin Args(h)$} {
 
 \begin_layout Plain Layout
 
-		$v = a$
+		$Statements(c) = Statements(c) 
+\backslash
+bullet v = a$
 \end_layout
 
 \begin_layout Plain Layout
@@ -9049,7 +9629,7 @@ notin Args(h)$} {
 
 	
 \backslash
-If{ stmt is Assignment to v} {
+If{ $stmt = Assignment(v, RHSexpr)$} {
 \end_layout
 
 \begin_layout Plain Layout
@@ -9067,12 +9647,14 @@ in EquivalenceVars$} {
 \backslash
 For{ $v_r 
 \backslash
-in EquivalencePairs(v)$ } { 
+in EquivalenceSets(v)$ } { 
 \end_layout
 
 \begin_layout Plain Layout
 
-	            $v_r = v$
+	            $Statements(c) = Statements(c) 
+\backslash
+bullet v_r = v$
 \end_layout
 
 \begin_layout Plain Layout
@@ -9089,7 +9671,11 @@ in EquivalencePairs(v)$ } {
 
 		
 \backslash
-If{ RHS has FunctionCalls} {
+If{ $FunctionCalls(RHSexpr) 
+\backslash
+neq 
+\backslash
+emptyset$} {
 \end_layout
 
 \begin_layout Plain Layout
@@ -9098,7 +9684,7 @@ If{ RHS has FunctionCalls} {
 \backslash
 For{ $f 
 \backslash
-in FunctionCalls$ } {
+in FunctionCalls(RHSexpr)$ } {
 \end_layout
 
 \begin_layout Plain Layout
@@ -9127,12 +9713,14 @@ in EquivalenceVars$} {
 \backslash
 For{ $a_r 
 \backslash
-in EquivalencePairs(a)$ } {
+in EquivalenceSets(a)$ } {
 \end_layout
 
 \begin_layout Plain Layout
 
-	            	        $a_r = a$
+	            	        $Statements(c) = Statements(c) 
+\backslash
+bullet a_r = a$
 \end_layout
 
 \begin_layout Plain Layout
@@ -9169,7 +9757,7 @@ in EquivalencePairs(a)$ } {
 
 	
 \backslash
-ElseIf{ stmt is Subroutine Call s} {
+ElseIf{ $stmt = SubroutineCall(s)$} {
 \end_layout
 
 \begin_layout Plain Layout
@@ -9198,12 +9786,14 @@ in EquivalenceVars$} {
 \backslash
 For{ $a_r 
 \backslash
-in EquivalencePairs(a)$ } {
+in EquivalenceSets(a)$ } {
 \end_layout
 
 \begin_layout Plain Layout
 
-                    $a_r = a$
+                    $Statements(c) = Statements(c) 
+\backslash
+bullet a_r = a$
 \end_layout
 
 \begin_layout Plain Layout
@@ -9235,7 +9825,7 @@ in EquivalencePairs(a)$ } {
 
 
 \backslash
-BlankLine
+KwOut{ Statements(c)}
 \end_layout
 
 \begin_layout Plain Layout
@@ -9255,7 +9845,9 @@ status open
 
 
 \backslash
-caption{Reproducing EQUIVALENCE behaviour via assignments}
+caption{Replacing 
+\backslash
+textsf{EQUIVALENCE} statements with assignments}
 \end_layout
 
 \begin_layout Plain Layout
@@ -9274,8 +9866,139 @@ end{algorithm}
 Summary of program transformations
 \end_layout
 
+\begin_layout Standard
+The algorithms presented in this section transform the code units of a FORTRAN
+ 77 program into side-effect-free pure functions.
+ All arguments and local variables are explicitly, statically typed using
+ the algorithm from Section 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "subsec:Explicit-typing"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+.
+ To ensure type safety of the transformations, the type checks presented
+ in Section 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "sec:Typechecking-COMMON-block"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+ are performed before the 
+\family sans
+COMMON
+\family default
+ and 
+\family sans
+EQUIVALENCE
+\family default
+ statements are eliminated using the algorithms presented in Sections 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "subsec:Removal-of-COMMON"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+ and 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "subsec:Removal-of-EQUIVALENCE"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+.
+ The final prerequisite to the actual transformation into pure functions
+ (Section 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "subsec:Transforming-Fortran-subroutines"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+) is infering the 
+\family sans
+INTENT
+\family default
+ using the algorithm from Section 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "subsec:INTENT-inference"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+.
+\end_layout
+
 \begin_layout Section
 Conclusions 
+\end_layout
+
+\begin_layout Standard
+In this paper we have analysed the type safety of FORTRAN 77 programs.
+ We have shown that FORTRAN 77 programs that are explicitly typed and consist
+ of pure, side-effect-free functions are type safe at compile time with
+ the exception of array slicing and array indexing with values that are
+ unknown at compile time, and higher-order functions, and that even these
+ features can be made entirely type safe through the addition of run-time
+ type checks for these features.
+ 
+\end_layout
+
+\begin_layout Standard
+We have presented the algorithms for transforming arbitrary FORTRAN 77 programs
+ into explicitly typed, type-safe code consisting of pure, side-effect-free
+ functions.
+ 
+\end_layout
+
+\begin_layout Standard
+We have created a source-to-source compiler which implements the transformations
+ and type checks presented in this paper and generates fully type safe Fortran
+ 90 code.
+ 
+\end_layout
+
+\begin_layout Standard
+That FORTRAN 77 programs can be made entirely type safe through program
+ transformations is a significant finding in its own right.
+ However, our work has considerable benefits.
+ The obvious benefit of type safety is fewer errors.
+ Furthermore, our compiler transform legacy FORTRAN 77 code into modern,
+ type safe Fortran 90.
+ And finally, because the resulting code consists of self-contained pure
+ functions, each of these functions can also be offloaded more easily to
+ accelerators such as GPUs or FPGAs.
+ This is demonstrated by our work on automated parallelisation and GPU-offloadin
+g 
+\begin_inset CommandInset citation
+LatexCommand cite
+key "vanderbauwhede2018domain"
+literal "false"
+
+\end_inset
+
+.
+ 
 \end_layout
 
 \begin_layout Standard
