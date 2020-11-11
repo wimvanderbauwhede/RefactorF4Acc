@@ -139,6 +139,21 @@ author = "N.S. Scott and P.L. Kilpatrick and D. Maley",
 abstract = "In this paper we present an approach to the development of computational science software based on the identification and specification of Abstract Data Types and their implementation in Fortran 90. Our aim is to improve upon current standards of documentation and levels of genericity of such software, and, by the use of a formal specification notation, afford the possibility of undertaking correctness proofs. We illustrate the approach by applying it to a problem which is concerned with the construction of sets of electron configurations and their angular momentum couplings; software to solve this problem is required to enhance the Graphical R-matrix Atomic Collision Environment (GRACE) graphical user interface. In particular, we show how a formal notation can be used to specify unambigously the functionality of software components and we describe the role of the formal specification from the perspective of the ADT implementor and the ADT user. Finally we show how Fortran 90, through its derived types and module facility, directly supports the encapsulation of ADTs thereby enabling the construction of better engineered software than has hitherto been possible using Fortran."
 }
 
+
+@article{MALEY1996167,
+title = "The formal specification of abstract data types and their implementation in Fortran 90: implementation issues concerning the use of pointers",
+journal = "Computer Physics Communications",
+volume = "98",
+number = "1",
+pages = "167 - 180",
+year = "1996",
+issn = "0010-4655",
+doi = "https://doi.org/10.1016/0010-4655(96)00093-8",
+url = "http://www.sciencedirect.com/science/article/pii/0010465596000938",
+author = "D. Maley and P.L. Kilpatrick and E.W. Schreiner and N.S. Scott and G.H.F. Diercksen",
+abstract = "In this paper we continue our investigation into the development of computational-science software based on the identification and formal specification of Abstract Data Types (ADTs) and their implementation in Fortran 90. In particular, we consider the consequences of using pointers when implementing a formally specified ADT in Fortran 90. Our aim is to highlight the resulting conflict between the goal of information hiding, which is central to the ADT methodology, and the space efficiency of the implementation. We show that the issue of storage recovery cannot be avoided by the ADT user, and present a range of implementations of a simple ADT to illustrate various approaches towards satisfactory storage management. Finally, we propose a set of guidelines for implementing ADTs using pointers in Fortran 90. These guidelines offer a way gracefully to provide disposal operations in Fortran 90. Such an approach is desirable since Fortran 90 does not provide automatic garbage collection which is offered by many object-oriented languages including Eiffel, Java, Smalltalk, and Simula."
+}
+
 @ARTICLE{54403,  
 author={A. {Colbrook} and C. {Smythe}},  
 journal={Software Engineering Journal},   
@@ -150,23 +165,48 @@ pages={151-159},
 doi={10.1049/sej.1990.0017}
 }
 
-@article{10.1145/328239.333386,
-author = {Reid, N. and Wray, J. P.},
-title = {A Prescriptive Semantics of Fortran 95},
-year = {1999},
-issue_date = {August 1999},
-publisher = {Association for Computing Machinery},
-address = {New York, NY, USA},
-volume = {18},
-number = {2},
-issn = {1061-7264},
-url = {https://doi.org/10.1145/328239.333386},
-doi = {10.1145/328239.333386},
-abstract = {This paper outlines current research into a prescriptive semantics of Fortran 95, as a means of investigating the language's strengths and shortcomings. Additionally, it is intended that this research will provide a foundation for the application of rigor to Fortran programming.},
-journal = {SIGPLAN Fortran Forum},
-month = aug,
-pages = {2–3},
-numpages = {2}
+@inproceedings{reid1999prescriptive,
+  title={A prescriptive semantics of Fortran 95},
+  author={Reid, N and Wray, JP},
+  booktitle={ACM SIGPLAN Fortran Forum},
+  volume={18},
+  number={2},
+  pages={2--3},
+  year={1999},
+  organization={ACM New York, NY, USA}
+}
+
+
+@ARTICLE{
+   :/content/journals/10.1049/sej.1990.0017,
+   author = {A. Colbrook},
+   author = {C. Smythe},
+   keywords = {FORTRAN 77;data organisation;maintenance;simple data structures;iterators;programming languages;encapsulation;structured development;abstract array data structure;data abstraction;formal specification;},
+   ISSN = {0268-6961},
+   language = {English},
+   abstract = {The emphasis of data organisation on the specification, design and implementation of large systems raises the question whether data abstraction may be applied to programming languages designed before the widespread use of such techniques. The data abstraction facilities available in FORTRAN 77 are considered, and it is shown that encapsulation is possible for simple data structures. An abstract array data structure is pecified and further refined to allow the definition of iterators. An example of this structure is implemented in FORTRAN 77. The introduction of a series of abstractions is thus made possible, which facilitates structured development and efficient maintenance.},
+   title = {Formal specification of data abstraction in FORTRAN 77: abstract arrays},
+   journal = {Software Engineering Journal},
+   issue = {3},   
+   volume = {5},
+   year = {1990},
+   month = {May},
+   pages = {151-159(8)},
+   publisher ={},
+   copyright = {© The Institution of Electrical Engineers},
+   url = {https://digital-library.theiet.org/content/journals/10.1049/sej.1990.0017}
+}
+
+
+@article{contrastin2016units,
+  title={Units-of-measure correctness in fortran programs},
+  author={Contrastin, Mistral and Rice, Andrew and Danish, Matthew and Orchard, Dominic},
+  journal={Computing in Science \& Engineering},
+  volume={18},
+  number={1},
+  pages={102--107},
+  year={2016},
+  publisher={IEEE Computer Society}
 }
 
 @article{vanderbauwhede2018domain,

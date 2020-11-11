@@ -78,11 +78,8 @@ sub parse_expression { my ($exp, $info, $stref, $f)=@_;
 		(my $ast, my $rest, my $err, my $has_funcs)  = parse_expression_no_context($exp);
 		if($DBG and $err or $rest ne '') {
             croak "PARSE ERROR in <$exp>, REST: $rest";
-#            return ($ast,$rest,$err);
 		}
-        #say 'AST:'.Dumper($ast);
         (my $ast2, my $grouped_messages) = $has_funcs ? _replace_function_calls_in_ast($stref,$f,$info,$ast, $exp, {}) : ($ast,{});
-        #say 'AST2:'.Dumper($ast2);
 	    if ($W) {
 	        for my $warning_type (sort keys % {$grouped_messages->{'W'}} ) {
 	            for my $k (sort keys %{$grouped_messages->{'W'}{$warning_type}}) {
@@ -102,7 +99,6 @@ sub _change_func_to_array { (my $stref, my $f,  my $info, my $ast, my $exp, my $
 	if (ref($ast) eq 'ARRAY') {
 	for my  $idx (0 .. scalar @{$ast}-1) {		
 		my $entry = $ast->[$idx];
-#carp Dumper($ast);
 		if (ref($entry) eq 'ARRAY') {
 			(my $entry, $grouped_messages) = _change_func_to_array($stref,$f, $info,$entry, $exp,$grouped_messages);
 			$ast->[$idx] = $entry;
@@ -112,17 +108,7 @@ sub _change_func_to_array { (my $stref, my $f,  my $info, my $ast, my $exp, my $
 				my $mvar = $ast->[$idx+1];
 				say 'Found function or array '.$mvar  if $DBG;
 				
-				# If the line is not a subroutine call, we set subname to #dummy#
-				# We do this to check if the $mvar is maybe the subroutine itself
 				my $subname = (exists $info->{'SubroutineCall'} and exists $info->{'SubroutineCall'}{'Name'}) ? $info->{'SubroutineCall'}{'Name'} : '#dummy#';
-				# Now, when is $mvar NOT a function?
-				# - if $mvar ne $subname including #dummy#, because this function is used for parsing both subcalls and assignments
-				#	AND $mvar is not a called sub in $f AND $mvar is not an unmasked intrinsic
-				# - if $mvar is in MaskedIntrinsics then it's a var masking an intrinsic
-				# - if $f does not have a Called Sub named $mvar. Seems acceptable, but what if it's a function call and we have v = f(x) ?
-				# So I say, if $mvar is the name of a subroutine in the whole source code base, and it's a function
-				# 
-				
 				
  				if (
  					(
@@ -139,26 +125,10 @@ sub _change_func_to_array { (my $stref, my $f,  my $info, my $ast, my $exp, my $
  				# 2. OR $mvar is a masked intrinsic	 
  					or exists $stref->{$code_unit}{$f}{'MaskedIntrinsics'}{$mvar}
  					) 
-# 					or (
-#				# 3. OR $mvar is actually an array 					 					  	
-# 					$mvar ne '#dummy#' and $mvar ne $subname 
-# 					and not exists $stref->{$code_unit}{$f}{'CalledSubs'}{'Set'}{$mvar}
-#					and not exists $F95_reserved_words{$mvar}
-##					and not exists $F95_intrinsics{$mvar} # Dangerous, because some idiot may have overwritten an intrinsic with an array! 					
-#					)							
 				) {
     		# change & to @
-#    		croak '<'.(
-#    		not( 
-# 					exists $stref->{$code_unit}{$mvar} and 
-# 					exists $stref->{$code_unit}{$mvar}{'Function'} and 
-# 					$stref->{$code_unit}{$mvar}{'Function'} == 1
-# 					)
-#    		).'><'.( exists $stref->{$code_unit}{$f}{'MaskedIntrinsics'}{$mvar} ).'>' if $mvar eq 'aint';
-
     				$ast->[$idx]=  10 + (($ast->[$idx]>>8)<<8);#    '@';
     				say "\tFound array $mvar" if $DBG;
-#    				croak Dumper($stref->{$code_unit}{$f}{'MaskedIntrinsics'}). (exists $F95_intrinsics{$mvar}) if $mvar eq 'write';
 				} elsif (   	exists $F95_intrinsics{$mvar} ) {
 					say "parse_expression('$exp') " . __LINE__ if $DBG;
                     say "WARNING: treating $mvar in $f as an intrinsic! " if $DBG;
@@ -180,8 +150,7 @@ sub _change_func_to_array { (my $stref, my $f,  my $info, my $ast, my $exp, my $
 						and not exists $F95_reserved_words{$mvar} 					
 						)
 					) {
-						
-
+				
 						( my $expr_args, my $expr_other_vars ) = get_args_vars_from_subcall($ast);
 						for my $expr_arg (@{$expr_args->{'List'}}) {
 							if (substr($expr_arg,0,1) eq '*') {
@@ -189,7 +158,6 @@ sub _change_func_to_array { (my $stref, my $f,  my $info, my $ast, my $exp, my $
 								$stref->{$code_unit}{$f}{'ReferencedLabels'}{$label}=$label;		
 							}
 						}
-#die "TAG FunctionCalls $mvar in $f: ".Dumper($expr_args) if $mvar =~/rad2deg/i;
 						push @{ $info->{'FunctionCalls'} },  {
 							'Name' => $mvar,
 							'Args' => $expr_args,
@@ -220,10 +188,10 @@ sub _change_func_to_array { (my $stref, my $f,  my $info, my $ast, my $exp, my $
 			} elsif ($entry & 0xFF == 11) {
 				my $mvar = $ast->[$idx+1];
 				say "Found dummy $mvar" if $DBG;				
-			} else {
-				# This is either an operation or a constant
-#				say $entry;
-			}
+			} 
+			#else {
+			#	# This is either an operation or a constant
+			#}
 			}
 		}		
 	}
@@ -473,7 +441,7 @@ sub _fix_string_concat_in_ast { (my $orig_ast)=@_;
 	} else {
 		return $ast;
 	}
-}
+} # END of _fix_string_concat_in_ast
  
 sub _fix_string_concat_in_expr { (my $ast)=@_;
 	if ( ref($ast) eq 'ARRAY' ) {
@@ -1348,48 +1316,6 @@ sub _find_consts_in_ast { my ( $ast, $consts)=@_;
     return $consts;
 } # END of _find_consts_in_ast
 
-#sub find_vars_in_ast { (my $ast, my $vars)=@_;
-#    
-#    if (ref($ast) eq 'ARRAY' and scalar @{$ast}>0) { 
-#        if (ref($ast->[0]) ne 'ARRAY') {
-#            if ( ($ast->[0] & 0xFF) == 1 or ($ast->[0] & 0xFF) == 10) { # '&', function call; '@', array                 
-#                if (($ast->[0] & 0xFF) == 10) { 
-#                my $mvar = $ast->[1];
-#                $vars->{$mvar}={'Type'=>'Array'};
-#                # Handle IndexVars
-#				my $index_vars={};
-#                $index_vars =  get_vars_from_expression($ast->[2],$index_vars);
-#
-#					for my $idx_var (keys %{ $index_vars }) {
-#						if ($index_vars->{$idx_var}{'Type'} eq 'Array') {
-#							delete $index_vars->{$idx_var};
-#						}
-#					}					
-#					$vars->{$mvar}{'IndexVars'} = $index_vars;
-#                } else {                
-#                    $vars = find_vars_in_ast($ast->[2], $vars);
-#                }
-#            } 
-#            elsif ( ($ast->[0] & 0xFF) != 2 and ($ast->[0] & 0xFF) < 29) { # not a var or constant
-#                for my $idx (1 .. scalar @{$ast} -1) {
-#                    $vars  = find_vars_in_ast( $ast->[$idx], $vars);
-#                }
-#            } 
-#            elsif (($ast->[0] & 0xFF) == 2) { # a constant
-#                # say Dumper($ast);
-#                my $mvar = $ast->[1]; 
-#                if (not exists $Config{'Macros'}{uc($mvar)} ) {
-#				    $vars->{$mvar}={'Type'=>'Scalar'} ;
-#                }
-#            }
-#        } else {
-#             for my $idx (0 .. scalar @{$ast} -1) {
-#                $vars  = find_vars_in_ast( $ast->[$idx], $vars);
-#            }
-#        }
-#    }
-#    return $vars;
-#} # END of find_vars_in_ast
 
 
 # if the expression is a sub call (or in fact just a comma-sep list), return the arguments and also all variables that are not arguments
@@ -1454,20 +1380,6 @@ sub find_vars_in_ast { my ( $ast, $vars)=@_;
                 if (($ast->[0] & 0xFF) == 10) { 
                 my $mvar = $ast->[1];
                 $vars->{$mvar}={'Type'=>'Array'};
-                # Determine the dimension
-                # Either it's 1 because not a comma-sep list or it's the size of the comma-sep list
-                #my $dim=0;
-                #if(scalar @{$ast->[2]}==0) {
-                #	# empty list, this can't be an array
-                #	croak "$mvar cannot be an array as the index list is empty!"
-                #	
-                #} elsif (($ast->[2][0] & 0xFF)==27) {
-                #	$dim = scalar @{$ast->[2]}-1;
-                #} else {
-                #	$dim=1;
-                #} 
-                #$vars->{$mvar}{'Dim'}=$dim;
-                # Handle IndexVars
                 my $index_vars={};
                 $index_vars =  find_vars_in_ast($ast->[2],$index_vars);
 
@@ -1477,9 +1389,7 @@ sub find_vars_in_ast { my ( $ast, $vars)=@_;
                         }
                     }                   
                     $vars->{$mvar}{'IndexVars'} = $index_vars;
-                    # croak  Dumper($vars->{$mvar}{'IndexVars'});
                 } else {      
-#                	say "skipping functions: ".$ast->[1];          
                     $vars = find_vars_in_ast($ast->[2], $vars);
                 }
   } elsif (($ast->[0] & 0xFF) == 2) { # scalar variable
@@ -1489,8 +1399,6 @@ sub find_vars_in_ast { my ( $ast, $vars)=@_;
                 }      
   } elsif (($ast->[0] & 0xFF) > 28) { # constants
     # constants
-    #    my $mvar = $ast->[1]; 
-    #$vars->{$mvar}={'Type'=>$sigils[ ($ast->[0] & 0xFF) ]} ;
   } else { # other operators    
     for my $idx (1 .. scalar @{$ast}-1) {
         $vars = find_vars_in_ast($ast->[$idx],$vars);        
@@ -1562,7 +1470,6 @@ sub find_implied_do_in_ast { (my $ast, my $vars)=@_;
 # I think only keeping these would be enough; and also maybe I should give them a proper Type and sigil
 sub _find_args_in_ast { (my $ast, my $args) =@_;
 	if (! @{$ast} ){ return $args; }
-#	carp Dumper($ast);
 	if ( ($ast->[0] & 0xFF) == 0 ) {	
 	# descend
 	   $args = _find_args_in_ast($ast->[1], $args);
@@ -1601,14 +1508,12 @@ sub _find_args_in_ast { (my $ast, my $args) =@_;
 # This can either be a comma-sep list or a single arg
 sub _parse_subcall_args { (my $ast, my $args) =@_;
 # An expression: 
-# carp Dumper($ast);
     if (
     (scalar @{$ast} >= 3 and  
     $ast->[0]<27 and $ast->[0] != 2  and $ast->[0] != 10 )
     or
     (scalar @{$ast} == 2 and  $ast->[0] == 4 and $ast->[1][0]<27) # - not followed by const
     ) {
-	# if ( ($ast->[0] & 0xFF) == 0 ) { #	'('
 	# An expression. 
        my $expr_str = emit_expr_from_ast($ast);
 	   my $vars = find_vars_in_ast($ast, {});

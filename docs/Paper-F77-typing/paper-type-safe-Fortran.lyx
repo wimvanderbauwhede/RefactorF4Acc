@@ -14,9 +14,10 @@
 
 \usepackage[boxruled]{algorithm2e}
 \end_preamble
+\options smallextended
 \use_default_options true
 \maintain_unincluded_children false
-\language english
+\language british
 \language_package default
 \inputencoding auto
 \fontencoding global
@@ -72,7 +73,7 @@
 \paragraph_indentation default
 \is_math_indent 0
 \math_numbering_side default
-\quotes_style english
+\quotes_style british
 \dynamic_quotes 0
 \papercolumns 1
 \papersides 1
@@ -94,12 +95,18 @@ Making Legacy Fortran Code Type Safe through Source-to-source Compilation
 Wim Vanderbauwhede
 \end_layout
 
+\begin_layout Institute
+School of Computing Science, University of Glasgow, UK
+\end_layout
+
 \begin_layout Abstract
-In this paper we present the program transformations and type checking algorithm
-s required to convert FORTRAN 77 subroutines and functions into pure, side-effec
-t free subroutines and functions in Fortran 90.
- The resulting code is type safe and the pure, side-effect free and referentiall
-y transparent subroutines can readily be offloaded to accelerators.
+In this paper we present an analysis of the type safety of FORTRAN 77 and
+ the program transformations and type checking algorithms required to convert
+ FORTRAN 77 subroutines and functions into pure, side-effect free subroutines
+ and functions in Fortran 90.
+ We show that the resulting code is type safe and the pure, side-effect
+ free and referentially transparent subroutines can readily be offloaded
+ to accelerators.
  
 \end_layout
 
@@ -129,10 +136,10 @@ literal "true"
 
 \end_inset
 
-, 68% of the utlisation of the K computer (one of the largest supercomputers
+, 68% of the utilisation of the K computer (one of the largest supercomputers
  in the world) in 2014 was Fortran (using invocations of the compiler as
  a proxy).
- The montly usage statistics of Archer, the largest supercomputer in the
+ The monthly usage statistics of Archer, the largest supercomputer in the
  UK 
 \begin_inset Foot
 status open
@@ -191,7 +198,7 @@ name "fig:The-montly-usage"
 
 \end_inset
 
-The montly usage of the UK Archer supercomputer per programming language
+The monthly usage of the UK Archer supercomputer per programming language
  (July 2016)
 \end_layout
 
@@ -323,11 +330,11 @@ literal "false"
 \end_inset
 
 , 8 systems use accelerators.
- However, in practice the accelertors have their own memory, and the most
+ However, in practice the accelerators have their own memory, and the most
  common compute model is still to offload part of the calculation to the
  accelerator and copy the results back to the host memory.
  Even if the accelerator is cache-coherent with the host memory, having
- the code to be run on the accelertor in a separate memory space is still
+ the code to be run on the accelerator in a separate memory space is still
  advantageous as it results in reduced coherency traffic.
 \end_layout
 
@@ -462,7 +469,7 @@ A type checker is called
 sound 
 \emph default
 if it only accepts correctly typed programs.
- However, the fact that a sound typechecker accepts a correctly typed program
+ However, the fact that a sound type checker accepts a correctly typed program
  does not mean the program is correct.
  
 \end_layout
@@ -553,11 +560,53 @@ Related work
 \end_layout
 
 \begin_layout Subsection
-Formalisation
+Formalisation of Fortran
 \end_layout
 
 \begin_layout Standard
-TBA
+There has been surprisingly little research into Fortran's type system.
+ There is some work on formalisation of data abstraction, specifically encapsula
+tion to create abstract arrays in FORTRAN 77 
+\begin_inset CommandInset citation
+LatexCommand cite
+key "54403"
+literal "false"
+
+\end_inset
+
+ and on the formal specification of abstract data types implemented through
+ derived types in Fortran 90 
+\begin_inset CommandInset citation
+LatexCommand cite
+key "SCOTT1994201,MALEY1996167"
+literal "false"
+
+\end_inset
+
+.
+ There is also some work on the formalisation of Fortran 95 semantics using
+ VDM 
+\begin_inset CommandInset citation
+LatexCommand cite
+key "reid1999prescriptive"
+literal "false"
+
+\end_inset
+
+ but there is no publication on the final outcome.
+ Specifically with regards to the type system, the only work that we are
+ aware of is on the extension of Fortran 90 types with an attribute reflecting
+ the unit of measurement 
+\begin_inset CommandInset citation
+LatexCommand cite
+key "contrastin2016units"
+literal "false"
+
+\end_inset
+
+.
+ According to our survey, a formalisation of the FORTRAN 77 type system
+ or an analysis of its type safety has not been reported before.
 \end_layout
 
 \begin_layout Subsection
@@ -650,8 +699,6 @@ literal "true"
 
 , according to its documentation it supports Fortran 66, 77, and 90 with
  various legacy extensions.
- However, CamFort is not a whole-source compiler, it works on a per-file
- basis.
  That is also the case for the Eclipse-based interactive refactoring tool
  Photran 
 \begin_inset CommandInset citation
@@ -662,13 +709,13 @@ literal "true"
 \end_inset
 
 , which supports FORTRAN 77 - 2008.
- This is not to say that these tools are not useful, indeed both CamFort
- and Photran provide very useful refactorings, but these are limited to
- the scope of a code unit.
+ These tools are very useful, indeed both CamFort and Photran provide powerful
+ refactorings.
  As we shall discuss in more detail below, for effective refactoring of
  common blocks, and determination of data movement direction, whole-source
- code (interprocedural) analysis and refactoring is essential.
- A long-running project which does support interprocedural analysis is PIPS
+ code (inter-procedural) analysis and refactoring is essential.
+ A long-running project which does support inter-procedural analysis is
+ PIPS
 \begin_inset Foot
 status open
 
@@ -733,6 +780,10 @@ http://www.crescentbaysoftware.com/compilertech.html
 
  which both can refactor common blocks into modules but not into procedure
  arguments.
+ In conclusion, there are many projects that provide refactoring program
+ transformations.
+ However, none of them focus on the type safety of the resulting programs.
+ 
 \end_layout
 
 \begin_layout Section
@@ -1299,7 +1350,7 @@ noprefix "false"
 
 \end_inset
 
- how to achieve fully explicity typing and under which conditions a procedure
+ how to achieve fully explicitly typing and under which conditions a procedure
  can be made pure.
 \end_layout
 
@@ -1308,7 +1359,27 @@ According to §4.1
 \emph on
 Data Types
 \emph default
- of the f77 specification, the six types of data in FORTRAN 77 are:
+ of the f77 specification, 
+\end_layout
+
+\begin_layout Standard
+\begin_inset ERT
+status open
+
+\begin_layout Plain Layout
+
+
+\backslash
+begin{quote}
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+The six types of data are:
 \end_layout
 
 \begin_layout Enumerate
@@ -1333,6 +1404,22 @@ Logical
 
 \begin_layout Enumerate
 Character
+\end_layout
+
+\begin_layout Standard
+\begin_inset ERT
+status open
+
+\begin_layout Plain Layout
+
+
+\backslash
+end{quote}
+\end_layout
+
+\end_inset
+
+
 \end_layout
 
 \begin_layout Standard
@@ -1411,6 +1498,7 @@ As quoted above, the f77 specification does not specify the size of a storage
 
 \begin_layout Standard
 \begin_inset Float table
+placement h
 wide false
 sideways false
 status open
@@ -1461,7 +1549,9 @@ Size in bytes (Kind)
 \begin_inset Text
 
 \begin_layout Plain Layout
-Integer
+
+\family typewriter
+integer
 \end_layout
 
 \end_inset
@@ -1490,7 +1580,9 @@ Integer
 \begin_inset Text
 
 \begin_layout Plain Layout
-Real
+
+\family typewriter
+real
 \end_layout
 
 \end_inset
@@ -1519,7 +1611,9 @@ Real
 \begin_inset Text
 
 \begin_layout Plain Layout
-Double precision
+
+\family typewriter
+double precision
 \end_layout
 
 \end_inset
@@ -1548,7 +1642,9 @@ Double precision
 \begin_inset Text
 
 \begin_layout Plain Layout
-Complex
+
+\family typewriter
+complex
 \end_layout
 
 \end_inset
@@ -1577,7 +1673,9 @@ Complex
 \begin_inset Text
 
 \begin_layout Plain Layout
-Logical
+
+\family typewriter
+logical
 \end_layout
 
 \end_inset
@@ -1635,7 +1733,9 @@ Size in bytes
 \begin_inset Text
 
 \begin_layout Plain Layout
-Character
+
+\family typewriter
+character
 \end_layout
 
 \end_inset
@@ -1695,13 +1795,25 @@ name "tab:Relationship-between-storage"
 \end_layout
 
 \begin_layout Standard
-Various extensions exists such as Byte, Double complex etc.
+Various extensions exists such as 
+\family typewriter
+byte
+\family default
+, 
+\family typewriter
+double complex
+\family default
+ etc.
  Technically, the use of 
 \emph on
 kinds
 \emph default
  in type declarations (e.g.
- integer*8) is not part of the f77 specification.
+ 
+\family typewriter
+integer*8
+\family default
+) is not part of the f77 specification.
  It is however widely used and supported by all current Fortran compilers,
  specifically the open source GNU Fortran compiler g77.
  In this paper we effectively consider FORTRAN 77 to be defined by the f77
@@ -1728,7 +1840,11 @@ literal "false"
 \end_layout
 
 \begin_layout Standard
-We will treat the kind as the number of bytes of storage as in Table 
+We will treat the 
+\emph on
+kind
+\emph default
+ as the number of bytes of storage as in Table 
 \begin_inset CommandInset ref
 LatexCommand ref
 reference "tab:Relationship-between-storage"
@@ -1760,7 +1876,7 @@ The form of a FORTRAN 77 type
 
 \begin_layout Standard
 With the above conventions and assumptions, we can describe Fortran's type
- system as show in Alg 
+ system using sets of entities as show in Definition 
 \begin_inset CommandInset ref
 LatexCommand ref
 reference "alg:The-FORTRAN-77"
@@ -1813,11 +1929,11 @@ Scalar =
 \begin_inset Formula $\left\{ Type\times Kind\right\} $
 \end_inset
 
-, and we denote an element of this set as 
+, an element is denoted as 
 \emph on
 Scalar t k
 \emph default
- or for brevity as 
+ or 
 \emph on
 t*k
 \end_layout
@@ -1827,7 +1943,7 @@ Num =
 \begin_inset Formula $\left\{ NumType\times Kind\right\} $
 \end_inset
 
-, and we denote an element of this set as 
+, an element is denoted as 
 \emph on
 Num a
 \end_layout
@@ -1837,7 +1953,7 @@ Bool=
 \begin_inset Formula $\left\{ Logical\times Kind\right\} $
 \end_inset
 
-, and we denote an element of this singleton set as 
+, an element is denoted as 
 \emph on
 Bool
 \end_layout
@@ -1887,7 +2003,7 @@ Tuple t
 \end_layout
 
 \begin_layout Standard
-With the organisation in Alg 
+With the organisation in Definition 
 \begin_inset CommandInset ref
 LatexCommand ref
 reference "alg:The-FORTRAN-77"
@@ -1985,7 +2101,7 @@ The forms of numeric constants are described in words in §4
 Data Types and Constants
 \emph default
  of the f77 specification.
- Using Extended Backus-Naur Form
+ Using Extended Backus-Naur Form (EBNF, 
 \begin_inset Foot
 status open
 
@@ -2001,7 +2117,7 @@ target "https://www.w3.org/TR/2008/REC-xml-20081126/#sec-notation"
 
 \end_inset
 
-, we can describe them formally as show in Alg 
+), we can describe them formally as show in Definition 
 \begin_inset CommandInset ref
 LatexCommand ref
 reference "alg:EBNF-for-numeric"
@@ -2123,7 +2239,7 @@ s
 \emph default
  is simply that any access of a scalar variable, this variable must have
  the same type, which must be the type from its declaration in the current
- contex (code unit) 
+ context (code unit) 
 \begin_inset Formula $\Gamma$
 \end_inset
 
@@ -2132,7 +2248,7 @@ s
 Scalar
 \emph default
 .
- we write this as
+ We write this as
 \end_layout
 
 \begin_layout Standard
@@ -2152,7 +2268,7 @@ What this means is that, given the context
 \end_inset
 
  which contains all types of all variables valid in a given expression,
- the type judegement is valid.
+ the type judgement is valid.
  In a Fortran expression this means that all variables with a type statement
  in a code unit will be of the type determined by that statement.
  
@@ -2781,7 +2897,7 @@ Bounds checking
 
 \begin_layout Standard
 Fortran checks constant array bounds at type check time and our compiler
- performs a more aggressive constant folding so that any index reduceable
+ performs a more aggressive constant folding so that any index reducible
  to a constant with linear arithmetic will be considered constant.
  However, in general array indices are not known at type check time and
  therefore even in a well typed program, it is still possible to have out-of-bou
@@ -2907,7 +3023,7 @@ The external function declaration typing rule is that every dummy argument
 FortranType
 \emph default
 .
- An external function must havea a return a type.
+ An external function must have a return a type.
  Using the tuple type notation from Section 
 \begin_inset CommandInset ref
 LatexCommand ref
@@ -3064,9 +3180,9 @@ Run-time Checking of Higher-order Subroutines and Functions
 \end_layout
 
 \begin_layout Standard
-The fact that subroutines and external functions can take the names of other
- subroutines or external functions as arguments implies that FORTRAN 77
- has limited supports higher-order functions.
+As subroutines and external functions can take the names of other subroutines
+ or external functions as arguments, FORTRAN 77 has limited supports higher-orde
+r functions.
  The issue with the Fortran implementation of higher order functions is
  how they are typed.
  Recall that we can transform any function or subroutine into a pure function
@@ -3364,7 +3480,7 @@ product types
 \emph default
 , i.e.
  records), and it allows you to define a type with variants, so we can say
- "the type of this exprssion either be A or B or C etc".
+ "the type of this expression either be A or B or C etc".
  In particular, we use a sum type where every type variant is a function
  type, something like
 \end_layout
@@ -3428,30 +3544,65 @@ program functions_as_arguments
 \begin_layout Example
 
 \family typewriter
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
 external f3
 \end_layout
 
 \begin_layout Example
 
 \family typewriter
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
 external f4
 \end_layout
 
 \begin_layout Example
 
 \family typewriter
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
 t3 :: v1, v2, f2
 \end_layout
 
 \begin_layout Example
 
 \family typewriter
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
 v1 = f2(f3,...)
 \end_layout
 
 \begin_layout Example
 
 \family typewriter
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
 v2 = f2(f4,...)
 \end_layout
 
@@ -3464,24 +3615,45 @@ end
 \begin_layout Example
 
 \family typewriter
-t3 f2(f,...)
+t3 function f2(f,...)
 \end_layout
 
 \begin_layout Example
 
 \family typewriter
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
 t2 :: f
 \end_layout
 
 \begin_layout Example
 
 \family typewriter
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
 external f
 \end_layout
 
 \begin_layout Example
 
 \family typewriter
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
 ...
 \end_layout
 
@@ -3500,12 +3672,26 @@ t2 function f3(x)
 \begin_layout Example
 
 \family typewriter
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
 t1 :: x
 \end_layout
 
 \begin_layout Example
 
 \family typewriter
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
 ...
 \end_layout
 
@@ -3524,18 +3710,39 @@ t2 function f4(z,x)
 \begin_layout Example
 
 \family typewriter
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
 t1 :: x
 \end_layout
 
 \begin_layout Example
 
 \family typewriter
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
 t4 :: z
 \end_layout
 
 \begin_layout Example
 
 \family typewriter
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
 ...
 \end_layout
 
@@ -3621,30 +3828,65 @@ program functions_as_arguments
 \begin_layout Example
 
 \family typewriter
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
 external f3 ! 1
 \end_layout
 
 \begin_layout Example
 
 \family typewriter
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
 external f4 ! 2
 \end_layout
 
 \begin_layout Example
 
 \family typewriter
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
 t3 :: v1, v2, f2
 \end_layout
 
 \begin_layout Example
 
 \family typewriter
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
 v1 = f2(1,f3,...)
 \end_layout
 
 \begin_layout Example
 
 \family typewriter
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
 v2 = f2(2,f4,...)
 \end_layout
 
@@ -3657,30 +3899,58 @@ end
 \begin_layout Example
 
 \family typewriter
-t3 f2(idx,f,...)
+t3 function f2(idx,f,...)
 \end_layout
 
 \begin_layout Example
 
 \family typewriter
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
 integer :: idx
 \end_layout
 
 \begin_layout Example
 
 \family typewriter
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
 t2 :: f
 \end_layout
 
 \begin_layout Example
 
 \family typewriter
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
 external f
 \end_layout
 
 \begin_layout Example
 
 \family typewriter
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
 ...
 \end_layout
 
@@ -3699,12 +3969,26 @@ t2 function f3(t1)
 \begin_layout Example
 
 \family typewriter
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
 t1 :: x
 \end_layout
 
 \begin_layout Example
 
 \family typewriter
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
 ...
 \end_layout
 
@@ -3723,18 +4007,39 @@ t2 function f4(t4,t1)
 \begin_layout Example
 
 \family typewriter
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
 t1 :: x
 \end_layout
 
 \begin_layout Example
 
 \family typewriter
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
 t4 :: z
 \end_layout
 
 \begin_layout Example
 
 \family typewriter
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
 ...
 \end_layout
 
@@ -4215,8 +4520,17 @@ end function
 
 \end_deeper
 \begin_layout Standard
-We can express this algoritm more formally as follows (for subroutines;
- functions are entirely analogous):
+This algorithm is formalised for subroutines as Algorithm 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "alg:hof_rt_typechecking"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+; functions are entirely analogous.
 \end_layout
 
 \begin_layout Standard
@@ -4299,7 +4613,9 @@ c
 \begin_inset Formula $\Gamma_{c}$
 \end_inset
 
- containing all functions declared as EXTERNAL
+ containing all functions declared as 
+\family sans
+EXTERNAL
 \end_layout
 
 \begin_layout Plain Layout
@@ -4351,13 +4667,7 @@ c
 
 \begin_deeper
 \begin_layout Plain Layout
-\begin_inset space ~
-\end_inset
-
-
-\end_layout
-
-\begin_layout Plain Layout
+\align center
 
 \family typewriter
 call 
@@ -4406,24 +4716,28 @@ call
 \end_layout
 
 \begin_layout Plain Layout
-\begin_inset space ~
+\align center
+
+\family roman
+\series medium
+\shape up
+\size normal
+\emph off
+\bar no
+\strikeout off
+\xout off
+\uuline off
+\uwave off
+\noun off
+\color none
+\begin_inset Formula $\Downarrow$
 \end_inset
 
 
 \end_layout
 
 \begin_layout Plain Layout
-transforms into
-\end_layout
-
-\begin_layout Plain Layout
-\begin_inset space ~
-\end_inset
-
-
-\end_layout
-
-\begin_layout Plain Layout
+\align center
 
 \family typewriter
 call 
@@ -4476,27 +4790,8 @@ call
 \end_layout
 
 \begin_layout Plain Layout
-\begin_inset space ~
-\end_inset
-
-
-\end_layout
-
-\begin_layout Plain Layout
+\align center
 where 
-\family roman
-\series medium
-\shape up
-\size normal
-\emph off
-\bar no
-\strikeout off
-\xout off
-\uuline off
-\uwave off
-\noun off
-\color none
-
 \begin_inset Formula $f_{i}\in External(\Gamma_{c})$
 \end_inset
 
@@ -4512,7 +4807,11 @@ In words,
 \begin_inset Formula $f_{i}$
 \end_inset
 
- is marked as EXTERNAL in 
+ is marked as 
+\family sans
+EXTERNAL
+\family default
+ in 
 \emph on
 c
 \emph default
@@ -4540,13 +4839,24 @@ h
 
 \begin_deeper
 \begin_layout Plain Layout
-
-\family typewriter
-\begin_inset space ~
-\end_inset
-
-
-\end_layout
+\align center
+\begin_inset Box Frameless
+position "t"
+hor_pos "c"
+has_inner_box 1
+inner_pos "t"
+use_parbox 0
+use_makebox 0
+width "45col%"
+special "none"
+height "1in"
+height_special "totalheight"
+thickness "0.4pt"
+separation "3pt"
+shadowsize "4pt"
+framecolor "black"
+backgroundcolor "none"
+status open
 
 \begin_layout Plain Layout
 
@@ -4611,7 +4921,62 @@ call
 end
 \end_layout
 
+\end_inset
+
+
+\end_layout
+
 \begin_layout Plain Layout
+\align center
+
+\family roman
+\series medium
+\shape up
+\size normal
+\emph off
+\bar no
+\strikeout off
+\xout off
+\uuline off
+\uwave off
+\noun off
+\color none
+\begin_inset Formula $\Downarrow$
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
 \begin_inset space ~
 \end_inset
 
@@ -4619,15 +4984,24 @@ end
 \end_layout
 
 \begin_layout Plain Layout
-transforms into
-\end_layout
-
-\begin_layout Plain Layout
-\begin_inset space ~
-\end_inset
-
-
-\end_layout
+\align center
+\begin_inset Box Frameless
+position "t"
+hor_pos "c"
+has_inner_box 1
+inner_pos "t"
+use_parbox 0
+use_makebox 0
+width "45col%"
+special "none"
+height "1in"
+height_special "totalheight"
+thickness "0.4pt"
+separation "3pt"
+shadowsize "4pt"
+framecolor "black"
+backgroundcolor "none"
+status open
 
 \begin_layout Plain Layout
 
@@ -4771,14 +5145,13 @@ end if
 end
 \end_layout
 
-\begin_layout Plain Layout
-\begin_inset space ~
 \end_inset
 
 
 \end_layout
 
 \begin_layout Plain Layout
+\align center
 
 \family roman
 \series medium
@@ -4855,7 +5228,7 @@ of
 \begin_inset Formula $h$
 \end_inset
 
- , 
+, 
 \begin_inset Formula $i$
 \end_inset
 
@@ -4913,24 +5286,9 @@ Note that the type of
 \end_layout
 
 \begin_layout Plain Layout
+\align center
 
 \family typewriter
-\begin_inset space ~
-\end_inset
-
-
-\end_layout
-
-\begin_layout Plain Layout
-
-\family typewriter
-\begin_inset space ~
-\end_inset
-
-
-\begin_inset space ~
-\end_inset
-
 if (idx==
 \begin_inset Formula $i_{1}$
 \end_inset
@@ -4942,15 +5300,6 @@ if (idx==
 
  ...) then ...
  
-\end_layout
-
-\begin_layout Plain Layout
-
-\family typewriter
-\begin_inset space ~
-\end_inset
-
-
 \end_layout
 
 \end_deeper
@@ -4993,12 +5342,12 @@ Assignments
 \end_layout
 
 \begin_layout Standard
-Because the assignment in Fortran is a statement, it does not return a type.
+Because in Fortran the assignment is a statement, it does not return a type.
  Therefore, the type check rule for an assignment (
 \begin_inset Formula $\leftarrow$
 \end_inset
 
-) of variable 
+) of a variable 
 \emph on
 v
 \emph default
@@ -5051,11 +5400,11 @@ Expressions can consist of constants, variables, operators and calls to
 \end_layout
 
 \begin_layout Paragraph
-Polymorphic mumeric operators
+Polymorphic numeric operators
 \end_layout
 
 \begin_layout Standard
-The operators +,-,* and / are 
+Numeric operators in Fortran are 
 \emph on
 polymorphic
 \emph default
@@ -5064,9 +5413,26 @@ polymorphic
 \emph on
 Num
 \emph default
- type:
+ type.
 \end_layout
 
+\begin_layout Itemize
+The operators 
+\family typewriter
++
+\family default
+,
+\family typewriter
+-
+\family default
+,
+\family typewriter
+*
+\family default
+ have type:
+\end_layout
+
+\begin_deeper
 \begin_layout Standard
 \begin_inset Formula 
 \[
@@ -5105,9 +5471,13 @@ a
  
 \end_layout
 
-\begin_layout Standard
+\begin_layout Itemize
 \noindent
-The operator (**) also has the type 
+The operator 
+\family typewriter
+**
+\family default
+ also has the type 
 \begin_inset Formula 
 \[
 Num\,a\Rightarrow a\rightarrow a\rightarrow a
@@ -5115,6 +5485,10 @@ Num\,a\Rightarrow a\rightarrow a\rightarrow a
 
 \end_inset
 
+
+\end_layout
+
+\begin_layout Standard
 except when the exponent is an integer, in which case the type is: 
 \end_layout
 
@@ -5129,69 +5503,88 @@ except when the exponent is an integer, in which case the type is:
 
 \end_layout
 
-\begin_layout Standard
-The unary - operator is also polymorphic with type
+\end_deeper
+\begin_layout Itemize
+\noindent
+The unary 
+\family typewriter
+-
+\family default
+ operator is also polymorphic with type
 \end_layout
 
 \begin_layout Standard
-\begin_inset Formula 
-\[
-Num\,a\Rightarrow a\rightarrow a
-\]
-
+\align center
+\begin_inset Formula $Num\,a\Rightarrow a\rightarrow a$
 \end_inset
 
 
 \end_layout
 
-\begin_layout Standard
+\begin_layout Itemize
+\noindent
 In Fortran 90, all the above operators also work on arrays, i.e.
  we have
 \end_layout
 
+\begin_deeper
 \begin_layout Standard
-\begin_inset Formula 
-\[
-Num\,a,Dim\,d\Rightarrow Array\,a\,d\rightarrow Array\,a\,d\rightarrow Array\,a\,d
-\]
-
+\align center
+\begin_inset Formula $Num\,a,Dim\,d\Rightarrow Array\,a\,d\rightarrow Array\,a\,d\rightarrow Array\,a\,d$
 \end_inset
 
 
 \end_layout
 
-\begin_layout Standard
+\end_deeper
+\begin_layout Itemize
+\noindent
 Comparison operations .lt., .le.,.eq.,.ne.,.gt.,.ge.
- are all of type 
-\begin_inset Formula 
-\[
-Num\,a\Rightarrow a\rightarrow a\rightarrow Bool
-\]
+ are all of type
+\end_layout
 
+\begin_deeper
+\begin_layout Standard
+\noindent
+\align center
+\begin_inset Formula $Num\,a\Rightarrow a\rightarrow a\rightarrow Bool$
 \end_inset
 
 
 \end_layout
 
-\begin_layout Standard
-For the types of intrinsic functions, we refer to Table 5 in the f77 specificati
-on.
- Intrinsics are either of type
+\end_deeper
+\begin_layout Paragraph
+Polymorphic intrinsics 
 \end_layout
 
 \begin_layout Standard
-\begin_inset Formula 
-\[
-Num\,a\Rightarrow a\rightarrow a
-\]
+Many intrinsic functions are also polymorphic.
+ For the types of intrinsic functions, we refer to Table 5 in the f77 specificat
+ion.
+ 
+\end_layout
 
+\begin_layout Itemize
+\noindent
+Intrinsics are either of type
+\end_layout
+
+\begin_deeper
+\begin_layout Standard
+\align center
+\begin_inset Formula $Num\,a\Rightarrow a\rightarrow a$
 \end_inset
 
- except for
-\begin_inset Newline newline
-\end_inset
+ 
+\end_layout
 
+\begin_layout Standard
+except for
+\end_layout
 
+\begin_layout Standard
+\align center
 \begin_inset Formula $\mathtt{imag}:\mathit{Kind}\,k\Rightarrow\mathit{Complex}*k\rightarrow\mathit{Real}*k$
 \end_inset
 
@@ -5199,55 +5592,68 @@ Num\,a\Rightarrow a\rightarrow a
 \end_layout
 
 \begin_layout Standard
+\noindent
 or of type
 \end_layout
 
 \begin_layout Standard
-\begin_inset Formula 
-\[
-\mathit{Num}\,a\Rightarrow a\rightarrow a\rightarrow a
-\]
-
+\noindent
+\align center
+\begin_inset Formula $\mathit{Num}\,a\Rightarrow a\rightarrow a\rightarrow a$
 \end_inset
 
- 
-\begin_inset Newline newline
-\end_inset
 
+\end_layout
+
+\begin_layout Standard
 except for
-\begin_inset Newline newline
-\end_inset
+\end_layout
 
-
+\end_deeper
+\begin_layout Standard
+\noindent
+\align center
 \begin_inset Formula $\mathtt{dprod}:\mathit{Real}*4\rightarrow\mathit{Real}*4\rightarrow\mathit{Real}*8$
 \end_inset
 
  
 \end_layout
 
-\begin_layout Standard
-The intrinsics min and max take a list of arguments of a given type and
- undetermined length (denoted by 
+\begin_layout Itemize
+\noindent
+The intrinsics 
+\family sans
+min
+\family default
+ and 
+\family sans
+max
+\family default
+ take a list of arguments of a given type and undetermined length (denoted
+ by 
 \begin_inset Formula $[...]$
 \end_inset
 
 ) 
-\begin_inset Formula 
-\[
-\mathit{Num}\,a\Rightarrow[a]\rightarrow a
-\]
+\end_layout
 
+\begin_deeper
+\begin_layout Standard
+\noindent
+\align center
+\begin_inset Formula $\mathit{Num}\,a\Rightarrow[a]\rightarrow a$
 \end_inset
 
  
-\begin_inset Newline newline
-\end_inset
+\end_layout
 
+\begin_layout Standard
 except
-\begin_inset Newline newline
-\end_inset
+\end_layout
 
-
+\begin_layout Standard
+\noindent
+\align center
 \begin_inset Formula $\mathtt{amin0,amax0}:[\mathit{Integer}*4]\rightarrow\mathit{Real}*4$
 \end_inset
 
@@ -5262,10 +5668,19 @@ except
 
 \end_layout
 
+\end_deeper
+\begin_layout Paragraph
+Expression type rule
+\end_layout
+
 \begin_layout Standard
+\noindent
 The expression forms a tree of applications of either operators or intrinsic
  functions, with the leaves being constants or variables.
- Type checking is performed via recursive descent, for example for the +
+ Type checking is performed via recursive descent, for example for the 
+\family typewriter
++
+\family default
  operator:
 \end_layout
 
@@ -5281,7 +5696,7 @@ The expression forms a tree of applications of either operators or intrinsic
 \end_layout
 
 \begin_layout Subsubsection
-Type conversions for polymorphic operators
+Type conversions for polymorphic operators 
 \end_layout
 
 \begin_layout Standard
@@ -5346,6 +5761,23 @@ cmplx
 \begin_layout Standard
 As the name and the kind argument identify a Num type, for the typing rules
  we use the generic notation
+\begin_inset Foot
+status open
+
+\begin_layout Plain Layout
+In Fortran 90, the coercion functions can take an array operand:
+\end_layout
+
+\begin_layout Plain Layout
+\begin_inset Formula $cast\langle\tau_{2}\rangle:Num\,\tau_{1},\tau_{2},Dim\,d\Rightarrow Array\,\tau_{1}\,d\rightarrow Array\,\tau_{2}\,d$
+\end_inset
+
+
+\end_layout
+
+\end_inset
+
+
 \end_layout
 
 \begin_layout Standard
@@ -5366,7 +5798,11 @@ s, according to some simple
 subtyping
 \emph default
  rules.
- A type 
+ 
+\end_layout
+
+\begin_layout Standard
+A type 
 \begin_inset Formula $\tau_{1}$
 \end_inset
 
@@ -5421,9 +5857,9 @@ The following (transitive) subtyping relations apply to numeric Fortran
 \begin_layout Standard
 \begin_inset Formula 
 \begin{eqnarray*}
-Integer*k<:Real*k & , & k\in Kind\\
-Real*k<:Complex*k\\
-t*k1<:t*k2 & , & k1,k2\in Kind,t\in NumType
+Integer*k & <: & Real*k,k\in Kind\\
+Real*k & <: & Complex*k\\
+t*k_{1} & <: & t*k_{2},k_{1},k_{2}\in Kind,t\in NumType
 \end{eqnarray*}
 
 \end_inset
@@ -5516,8 +5952,8 @@ If the types of the arguments are such that
 \end_layout
 
 \begin_layout Standard
-As for the relational operators .lt., .le.,.eq.,.ne.,.gt.,.ge.
- , according to the f77 specification §6.3.3 
+As for the relational operators .lt., .le., .eq., .ne., .gt., .ge., according to the
+ f77 specification §6.3.3 
 \emph on
 Interpretation of Arithmetic Relational Expressions
 \emph default
@@ -5623,6 +6059,27 @@ v
 \emph default
  even if the conversion is unsafe.
  Strictly speaking, this is a type error, and if we type check e.g.
+ Example 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "exa:Unsafe-coercion"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+ using the GNU fortran compiler with flags as shown in Example 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "exa:Output-from-g77"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+, we do indeed get a type error.
  
 \end_layout
 
@@ -5715,8 +6172,10 @@ end
 \end_layout
 
 \begin_layout Standard
-using the GNU fortran compiler with the following flags, we do indeed get
- a type error 
+\begin_inset space ~
+\end_inset
+
+
 \end_layout
 
 \begin_layout Example
@@ -5772,7 +6231,17 @@ Error: Possible change of value in conversion from REAL(4) to INTEGER(4)
 However, this behaviour is so common that by default, Fortran compilers
  only warn about unsafe conversions, and then only when warnings are enabled.
  Our compiler warns by default and converts the implicit coercion to an
- explicit conversion.
+ explicit conversion as shown in Example 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "exa:Explicit-conversion"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+.
  Thus the resulting code is type safe, and we assume that the explicit conversio
 n is what the programmer wants.
 \end_layout
@@ -5869,21 +6338,6 @@ i2 = int(i1+r1,4)
 end program unsafeCoercion
 \end_layout
 
-\begin_layout Standard
-In Fortran 90, the coercion functions can take an array operand:
-\end_layout
-
-\begin_layout Standard
-\begin_inset Formula 
-\[
-cast\langle\tau_{2}\rangle:Num\,\tau_{1},\tau_{2},Dim\,d\Rightarrow Array\,\tau_{1}d\rightarrow Array\,\tau_{2}\,d
-\]
-
-\end_inset
-
-
-\end_layout
-
 \begin_layout Subsection
 Conclusions regarding the type safety of the Fortran type system
 \end_layout
@@ -5898,7 +6352,7 @@ Based on the above analysis, we conclude that FORTRAN 77 programs that are
  of the wrong rank.
  However, if the indices are non-constant expressions, potentially unsafe
  programs pass without warning or error.
- Our compiler will try more aggresively to determine the slice or array
+ Our compiler will try more aggressively to determine the slice or array
  size and will issue a type error, which can be relaxed to warning or run-time
  type check, rather than ignoring the potential unsafe behaviour.
  
@@ -5936,7 +6390,7 @@ In the next sections we discuss the transformations required to ensure that
 \end_layout
 
 \begin_layout Section
-Typechecking 
+Type checking 
 \family sans
 COMMON
 \family default
@@ -6007,7 +6461,7 @@ EQUIVALENCE
 \family sans
 COMMON
 \family default
-ON and 
+ and 
 \family sans
 EQUIVALENCE
 \family default
@@ -6149,7 +6603,7 @@ EQUIVALENCE
 \end_layout
 
 \begin_layout Standard
-For the purpose of typechecking, and without loss of generality, we assume
+For the purpose of type checking, and without loss of generality, we assume
  that all variables are scalar: an array 
 \begin_inset Formula $a$
 \end_inset
@@ -6376,7 +6830,7 @@ A logical is false when coerced from 0 and true otherwise.
 \family default
  interpreted as a real is a non-zero number that depends on the kind of
  the real.
- As this is quite non-intuitive, our typechecker therefor throws an error
+ As this is quite non-intuitive, our type checker therefor throws an error
  on attempts to interpret a logical as a real.
 \end_layout
 
@@ -6876,7 +7330,7 @@ INTENT
  return value and their types.
  So regardless of the subroutine syntax, with this information it is now
  a pure function as far as its arguments are concerned.
- For an external function, the algoritm is the same but the return value
+ For an external function, the algorithm is the same but the return value
  tuple includes the original return value.
 \end_layout
 
@@ -7082,7 +7536,7 @@ noprefix "false"
 Inspect every statement that accesses one or more of the subroutine arguments
  (i.e.
  all expressions and procedure calls, including intrinsic calls) in order
- of occurence.
+ of occurrence.
  
 \end_layout
 
@@ -7482,7 +7936,7 @@ referential transparency
 , i.e.
  if the name of a variable changes then the result of a computation may
  change.
- As our aim is to create pure functional code, our compiler infers explicity
+ As our aim is to create pure functional code, our compiler infers explicit
  type declarations (
 \begin_inset Quotes eld
 \end_inset
@@ -7491,7 +7945,7 @@ type-statements
 \begin_inset Quotes erd
 \end_inset
 
- in the f77 specification) for all implicity typed variables.
+ in the f77 specification) for all implicit typed variables.
  
 \end_layout
 
@@ -7577,7 +8031,7 @@ implicit integer (i-n), real (a-h, o-z)
 
 \end_deeper
 \begin_layout Enumerate
-Analyse all executable statements for occurences of undeclared variables
+Analyse all executable statements for occurrences of undeclared variables
  and add declarations following the 
 \family sans
 IMPLICIT
@@ -7820,7 +8274,7 @@ name "exa:COMMON-block-chain"
 \begin_layout Example
 
 \family typewriter
-progam ex1
+program ex1
 \end_layout
 
 \begin_layout Example
@@ -7949,7 +8403,7 @@ name "exa:Passing-arguments-through"
 \begin_layout Example
 
 \family typewriter
-progam ex1 
+program ex1 
 \end_layout
 
 \begin_layout Example
@@ -8180,7 +8634,7 @@ real zl(4) will be associated with real z2c
 \end_layout
 
 \begin_layout Standard
-Given that the associations typecheck correctly, then it follows that for
+Given that the associations type check correctly, then it follows that for
  every variable in a 
 \family sans
 COMMON
@@ -8188,7 +8642,7 @@ COMMON
  block declared in the caller, there is a corresponding variable in the
  called subroutine.
  In practice these variables can be either arrays or scalars.
- Whereas for the purpose of typechecking we have assumed that all variables
+ Whereas for the purpose of type checking we have assumed that all variables
  are scalar, again without loss of generality, we will now assume that all
  variables are arrays.
  A scalar 
@@ -8928,7 +9382,7 @@ If a line has multiple tuples, a variable can occur in more than one tuple,
 \begin_layout Standard
 So we must effectively do a transitivity check across all tuples.
  We do this by checking if an element of a tuple occurs in another tuple.
- It is sufficient to do this for a single element because the transivity
+ It is sufficient to do this for a single element because the transitivity
  means that every element from the one tuple will be associated with every
  element from the other.
 \end_layout
@@ -9932,7 +10386,7 @@ noprefix "false"
 
 \end_inset
 
-) is infering the 
+) is inferring the 
 \family sans
 INTENT
 \family default
