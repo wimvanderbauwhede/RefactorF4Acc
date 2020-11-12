@@ -2284,7 +2284,11 @@ The typing rule for an array declaration is that in addition to being of
 \end_layout
 
 \begin_layout Itemize
-it must have a non-empty Dim set, 
+it must have a non-empty Dim set 
+\begin_inset Formula $Dim\,d$
+\end_inset
+
+ :
 \end_layout
 
 \begin_deeper
@@ -2314,21 +2318,45 @@ where
 \noun off
 \color none
 
-\begin_inset Formula $d=((b_{1},e_{i}),...,(b_{i},e_{i}),...,(b_{k},e_{k}))$
+\begin_inset Formula $d=((b_{1},e_{1}),...,(b_{i},e_{i}),...,(b_{k},e_{k}))$
+\end_inset
+
+ 
+\family default
+\series default
+\shape default
+\size default
+\emph default
+\bar default
+\strikeout default
+\xout default
+\uuline default
+\uwave default
+\noun default
+\color inherit
+as defined in Definition 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "def:General-form-a"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+.
+\end_layout
+
+\end_deeper
+\begin_layout Itemize
+and for any array access 
+\begin_inset Formula $a(j_{1},...,j_{k}),j_{i}\in[b_{i},e_{i}]$
 \end_inset
 
  
 \end_layout
 
-\end_deeper
-\begin_layout Standard
-and for any array access 
-\begin_inset Formula $a(j_{1},...,j_{k}),j_{i}\in[b_{i},e_{i}]$
-\end_inset
-
- that
-\end_layout
-
+\begin_deeper
 \begin_layout Itemize
 the number indices must 
 \begin_inset Formula $k=\#d$
@@ -2341,7 +2369,6 @@ the number indices must
 the type must be the scalar type:
 \end_layout
 
-\begin_deeper
 \begin_layout Standard
 \begin_inset Formula 
 \begin{align*}
@@ -2407,7 +2434,19 @@ s = a(2,1:5:2)
 \end_layout
 
 \begin_layout Standard
-The array s will be populated with the values from a(2,1), a(2,3) and a(2,5).
+The array s will be populated with the values from 
+\emph on
+a(2,1)
+\emph default
+, 
+\emph on
+a(2,3)
+\emph default
+ and 
+\emph on
+a(2,5)
+\emph default
+.
  From a type checking perspective, we need to check if the slice has the
  correct type, in this case the same type as the array to which it is assigned.
 \end_layout
@@ -2427,8 +2466,11 @@ d
 \end_inset
 
 .
- We will call the set of indices in the slice a DimSlice and it is given
- by
+ We will call the set of indices in the slice a 
+\emph on
+DimSlice
+\emph default
+ and it is given by
 \end_layout
 
 \begin_layout Standard
@@ -2473,10 +2515,10 @@ Dim d
 \begin_inset Formula $d=(p_{1},...,p_{i},...,p_{k})$
 \end_inset
 
- and we slice 
-\emph on
-p_i
-\emph default
+ and we slice the tuple 
+\begin_inset Formula $p_{i}$
+\end_inset
+
  with a valid slice 
 \begin_inset Formula $s_{i}=\mathit{DimSlice}\,b_{s}e_{s}s_{s}$
 \end_inset
@@ -2505,7 +2547,7 @@ Dim d
 \end_layout
 
 \begin_layout Itemize
-and a new array type
+and thus a new array type
 \end_layout
 
 \begin_deeper
@@ -3120,7 +3162,11 @@ The f77 specification §8.7
 EXTERNAL Statement
 \emph default
  requires that any external function or subroutine used as an argument is
- declared using the EXTERNAL statement.
+ declared using the 
+\family sans
+EXTERNAL
+\family default
+ statement.
  Omitting this declaration results in a type error.
  
 \end_layout
@@ -3172,7 +3218,11 @@ with
 
 \begin_layout Standard
 However, for the purpose of this paper we will maintain the unextended type
- and instead group the EXTERNAL functions in a separate context.
+ and instead group the 
+\family sans
+EXTERNAL
+\family default
+ functions in a separate context.
 \end_layout
 
 \begin_layout Subsubsection
@@ -3510,8 +3560,11 @@ ion we can achieve the same effect.
 
 \begin_layout Itemize
 The types of all functions that are allowed to be passed as argument are
- known because these are the functions marked as EXTERNAL in the code unit
- containing the call (see Example 
+ known because these are the functions marked as 
+\family sans
+EXTERNAL
+\family default
+ in the code unit containing the call (see Example 
 \begin_inset CommandInset ref
 LatexCommand ref
 reference "exa:External-functions"
@@ -4531,6 +4584,9 @@ noprefix "false"
 \end_inset
 
 ; functions are entirely analogous.
+ In this way, type safety of higher-order functions can be enforced at run
+ time.
+ 
 \end_layout
 
 \begin_layout Standard
@@ -5329,12 +5385,6 @@ end{algorithm}
 \end_inset
 
 
-\end_layout
-
-\begin_layout Standard
-In this way, type safety of higher-order functions can be enforced at run
- time.
- 
 \end_layout
 
 \begin_layout Subsubsection
@@ -6347,14 +6397,13 @@ Based on the above analysis, we conclude that FORTRAN 77 programs that are
  explicitly typed and consist of pure functions are type safe, except for
  three specific constructs: array slicing and array indexing with values
  that are unknown at compile time, and higher-order functions.
- Current compilers guarantee type safety if the slice indices or the array
+ Current compilers guarantee type safety if the slice indices or the arrays
  used as index are constant, and also if the array used for indexing is
  of the wrong rank.
  However, if the indices are non-constant expressions, potentially unsafe
  programs pass without warning or error.
- Our compiler will try more aggressively to determine the slice or array
- size and will issue a type error, which can be relaxed to warning or run-time
- type check, rather than ignoring the potential unsafe behaviour.
+ Our compiler will issue a type error, which can be relaxed to warning or
+ run-time type check, rather than ignoring the potential unsafe behaviour.
  
 \end_layout
 
@@ -6363,7 +6412,7 @@ Calls to functions passed as arguments to other functions (i.e.
  higher-order functions) are fundamentally unsafe because the type signature
  of Fortran functions and subroutines does not contain the information about
  the types of the arguments.
- We propose a novel run-time check which is equivalent to constructing a
+ We present a novel run-time check which is equivalent to constructing a
  sum type for all external functions and type checking the variants.
 \end_layout
 
