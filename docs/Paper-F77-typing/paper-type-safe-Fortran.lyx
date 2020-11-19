@@ -2418,18 +2418,21 @@ name "exa:Array-Slicing"
 \begin_layout Example
 
 \family typewriter
+\size small
 integer a, s
 \end_layout
 
 \begin_layout Example
 
 \family typewriter
+\size small
 dimension a(5,7), s(3)
 \end_layout
 
 \begin_layout Example
 
 \family typewriter
+\size small
 s = a(2,1:5:2)
 \end_layout
 
@@ -2579,147 +2582,12 @@ b, e, s
  In practice, our compiler performs aggressive linear constant folding,
  which means that an linear expression with constants as leaf nodes will
  be reduced to a constant.
- 
-\end_layout
-
-\begin_layout Paragraph
-Run-time size checking for arrays slicing
-\end_layout
-
-\begin_layout Standard
-If it is not possible to determine the size of the slice, our compiler will
- issue a type error.
- This can be relaxed to warning, in which case the compiler will insert
- a run-time check, for example:
-\end_layout
-
-\begin_layout Example
-Run-time check for array slicing
-\end_layout
-
-\begin_layout Example
-
-\family typewriter
-integer a, s, i
-\end_layout
-
-\begin_layout Example
-
-\family typewriter
-dimension a(5,7), s(3)
-\end_layout
-
-\begin_layout Example
-
-\family typewriter
-! compute a, s, i
-\end_layout
-
-\begin_layout Example
-
-\family typewriter
-\begin_inset space ~
-\end_inset
-
-
-\begin_inset space ~
-\end_inset
-
-if (size(s)==size(a(2,1:5:i)) then 
-\end_layout
-
-\begin_layout Example
-
-\family typewriter
-\begin_inset space ~
-\end_inset
-
-
-\begin_inset space ~
-\end_inset
-
-
-\begin_inset space ~
-\end_inset
-
-
-\begin_inset space ~
-\end_inset
-
-s = a(2,1:5:i)
-\end_layout
-
-\begin_layout Example
-
-\family typewriter
-\begin_inset space ~
-\end_inset
-
-
-\begin_inset space ~
-\end_inset
-
-else
-\end_layout
-
-\begin_layout Example
-
-\family typewriter
-\begin_inset space ~
-\end_inset
-
-
-\begin_inset space ~
-\end_inset
-
-
-\begin_inset space ~
-\end_inset
-
-
-\begin_inset space ~
-\end_inset
-
-print *, 'Type error: s and a(2,1:5:i) have a different SIZE'
-\end_layout
-
-\begin_layout Example
-
-\family typewriter
-\begin_inset space ~
-\end_inset
-
-
-\begin_inset space ~
-\end_inset
-
-
-\begin_inset space ~
-\end_inset
-
-
-\begin_inset space ~
-\end_inset
-
-call exit(0)
-\end_layout
-
-\begin_layout Example
-
-\family typewriter
-\begin_inset space ~
-\end_inset
-
-
-\begin_inset space ~
-\end_inset
-
-end if
-\end_layout
-
-\begin_layout Standard
-In this way type safety of non-constant array slices can be enforced at
- run time.
+ If the size of the 
+\emph on
+DimSlice
+\emph default
+ is only known at run time, our compiler allows to insert run-time checks
+ as explained in Appendix A1.
 \end_layout
 
 \begin_layout Paragraph
@@ -2737,18 +2605,21 @@ Arrays as indices
 \begin_layout Example
 
 \family typewriter
+\size small
 integer a(5,5), b(3), k(3)
 \end_layout
 
 \begin_layout Example
 
 \family typewriter
+\size small
 k = (/ 1, 5, 2 /)
 \end_layout
 
 \begin_layout Example
 
 \family typewriter
+\size small
 b = a(2, k)
 \end_layout
 
@@ -2782,155 +2653,8 @@ DimSlice
  Thus the requirement for type safety is the same (the size of the array),
  and the criterion for the array to be valid for indexing is that all elements
  must be in the valid index range for the given array index.
- 
-\end_layout
-
-\begin_layout Paragraph
-Run-time size checking for arrays as indices
-\end_layout
-
-\begin_layout Standard
-If it is not possible to determine the size of the array, the compiler will
- issue a type error.
- This can be relaxed to warning, in which case the compiler will insert
- a run-time check.
- This is simply an if-then-else with the condition that 
-\family typewriter
-size(
-\emph on
-lhs expr
-\emph default
-) == size(
-\emph on
-rhs expr
-\emph default
-)
-\family default
-.
- For example:
-\end_layout
-
-\begin_layout Example
-Run-time check for arrays as indices
-\end_layout
-
-\begin_layout Example
-
-\family typewriter
-integer a(5,5), b(3), k(5), i
-\end_layout
-
-\begin_layout Example
-
-\family typewriter
-! compute a, b, k, i
-\end_layout
-
-\begin_layout Example
-
-\family typewriter
-\begin_inset space ~
-\end_inset
-
-
-\begin_inset space ~
-\end_inset
-
-if (size(b)==size(a(2,k(3:i)))) then 
-\end_layout
-
-\begin_layout Example
-
-\family typewriter
-\begin_inset space ~
-\end_inset
-
-
-\begin_inset space ~
-\end_inset
-
-
-\begin_inset space ~
-\end_inset
-
-
-\begin_inset space ~
-\end_inset
-
-b = a(2,k(3:i))
-\end_layout
-
-\begin_layout Example
-
-\family typewriter
-\begin_inset space ~
-\end_inset
-
-
-\begin_inset space ~
-\end_inset
-
-else
-\end_layout
-
-\begin_layout Example
-
-\family typewriter
-\begin_inset space ~
-\end_inset
-
-
-\begin_inset space ~
-\end_inset
-
-
-\begin_inset space ~
-\end_inset
-
-
-\begin_inset space ~
-\end_inset
-
-print *, 'Type error: b and a(2,k(3:i)) have a different SIZE'
-\end_layout
-
-\begin_layout Example
-
-\family typewriter
-\begin_inset space ~
-\end_inset
-
-
-\begin_inset space ~
-\end_inset
-
-
-\begin_inset space ~
-\end_inset
-
-
-\begin_inset space ~
-\end_inset
-
-call exit(0)
-\end_layout
-
-\begin_layout Example
-
-\family typewriter
-\begin_inset space ~
-\end_inset
-
-
-\begin_inset space ~
-\end_inset
-
-end if
-\end_layout
-
-\begin_layout Standard
-In this way type safety of non-constant array accesses can be enforced at
- run time.
+ If the index range is only known at run time, our compiler allows to insert
+ run-time checks as explained in Appendix A2.
 \end_layout
 
 \begin_layout Paragraph
@@ -3107,6 +2831,10 @@ The function application typing rule is also that every call argument and
 
 \end_layout
 
+\begin_layout Paragraph
+Higher-order functions
+\end_layout
+
 \begin_layout Standard
 In the above we have glossed over one important detail: subroutines and
  external functions can take the names of other subroutines or external
@@ -3223,2168 +2951,11 @@ However, for the purpose of this paper we will maintain the unextended type
 EXTERNAL
 \family default
  functions in a separate context.
-\end_layout
-
-\begin_layout Subsubsection
-Run-time Checking of Higher-order Subroutines and Functions
-\end_layout
-
-\begin_layout Standard
-As subroutines and external functions can take the names of other subroutines
- or external functions as arguments, FORTRAN 77 has limited supports higher-orde
-r functions.
- The issue with the Fortran implementation of higher order functions is
- how they are typed.
- Recall that we can transform any function or subroutine into a pure function
- as discussed in Section 
-\begin_inset CommandInset ref
-LatexCommand ref
-reference "sec:Program-transformations-for"
-plural "false"
-caps "false"
-noprefix "false"
-
-\end_inset
-
-.
- 
-\end_layout
-
-\begin_layout Standard
-Essentially, when a function 
-\begin_inset Formula $f_{1}(x)$
-\end_inset
-
-
-\emph on
- 
-\emph default
-with type
-\end_layout
-
-\begin_layout Standard
-\begin_inset Formula 
-\[
-f_{1}:t_{1}\rightarrow t_{2}
-\]
-
-\end_inset
-
-
-\end_layout
-
-\begin_layout Standard
-is passed as argument to a function 
-\begin_inset Formula $f_{2}(f)$
-\end_inset
-
-, the type of 
-\begin_inset Formula $f_{2}$
-\end_inset
-
- is
-\end_layout
-
-\begin_layout Standard
-\begin_inset Formula 
-\[
-f_{2}:t_{2}\rightarrow t_{3}
-\]
-
-\end_inset
-
-
-\end_layout
-
-\begin_layout Standard
-because in Fortran, only the return type of the passed function is used.
- The complete type would be
-\end_layout
-
-\begin_layout Standard
-\begin_inset Formula 
-\[
-f_{2}:(t_{1}\rightarrow t_{2})\rightarrow t_{3}
-\]
-
-\end_inset
-
-
-\end_layout
-
-\begin_layout Standard
-So in Fortran the type of the argument(s) of 
-\begin_inset Formula $f_{1}$
-\end_inset
-
- is not considered.
- Which means that code can easily be unsafe, as illustrated in Example 
-\begin_inset CommandInset ref
-LatexCommand ref
-reference "exa:Unsafe-code-with"
-plural "false"
-caps "false"
-noprefix "false"
-
-\end_inset
-
-.
-\end_layout
-
-\begin_layout Example
-\begin_inset CommandInset label
-LatexCommand label
-name "exa:Unsafe-code-with"
-
-\end_inset
-
-Unsafe code with higher-order function call
-\end_layout
-
-\begin_layout Example
-
-\family typewriter
-t3 function f2(f)
-\end_layout
-
-\begin_layout Example
-
-\family typewriter
-\begin_inset space ~
-\end_inset
-
-
-\begin_inset space ~
-\end_inset
-
-t2 :: f,y
-\end_layout
-
-\begin_layout Example
-
-\family typewriter
-\begin_inset space ~
-\end_inset
-
-
-\begin_inset space ~
-\end_inset
-
-t1 :: x
-\end_layout
-
-\begin_layout Example
-
-\family typewriter
-\begin_inset space ~
-\end_inset
-
-
-\begin_inset space ~
-\end_inset
-
-t4 :: z
-\end_layout
-
-\begin_layout Example
-
-\family typewriter
-\begin_inset space ~
-\end_inset
-
-
-\begin_inset space ~
-\end_inset
-
-logical :: c
-\end_layout
-
-\begin_layout Example
-
-\family typewriter
-\begin_inset space ~
-\end_inset
-
-
-\begin_inset space ~
-\end_inset
-
-...
-\end_layout
-
-\begin_layout Example
-
-\family typewriter
-\begin_inset space ~
-\end_inset
-
-
-\begin_inset space ~
-\end_inset
-
-if (c) then
-\end_layout
-
-\begin_layout Example
-
-\family typewriter
-\begin_inset space ~
-\end_inset
-
-
-\begin_inset space ~
-\end_inset
-
-
-\begin_inset space ~
-\end_inset
-
-
-\begin_inset space ~
-\end_inset
-
-y = f(x)
-\end_layout
-
-\begin_layout Example
-
-\family typewriter
-\begin_inset space ~
-\end_inset
-
-
-\begin_inset space ~
-\end_inset
-
-else
-\end_layout
-
-\begin_layout Example
-
-\family typewriter
-\begin_inset space ~
-\end_inset
-
-
-\begin_inset space ~
-\end_inset
-
-
-\begin_inset space ~
-\end_inset
-
-
-\begin_inset space ~
-\end_inset
-
-y = f(z,x) 
-\end_layout
-
-\begin_layout Example
-
-\family typewriter
-\begin_inset space ~
-\end_inset
-
-
-\begin_inset space ~
-\end_inset
-
-end if
-\end_layout
-
-\begin_layout Example
-
-\family typewriter
-end function
-\end_layout
-
-\begin_layout Standard
-The call to 
-\emph on
-f(z,x) 
-\emph default
-in the example, while patently wrong, will pass silently.
- For subroutines the situation is the same, the only difference is that
- there is no return type so we use 
-\emph on
-void
-\emph default
- as the type of the subroutine passed as argument.
-\end_layout
-
-\begin_layout Standard
-Because the type information is incomplete, it is not possible to catch
- this type of error at compile time.
- However, we propose here a novel approach to detect the behaviour at run
- time and throw an error.
- To do so, we construct a so-called 
-\emph on
-sum type 
-\emph default
-at compile time.
- This is one kind of type used by many functional programming languages
- called algebraic data types (the other kind are 
-\emph on
-product types
-\emph default
-, i.e.
- records), and it allows you to define a type with variants, so we can say
- "the type of this expression either be A or B or C etc".
- In particular, we use a sum type where every type variant is a function
- type, something like
-\end_layout
-
-\begin_layout Standard
-\begin_inset Formula 
-\[
-datatype\;F=F_{1}\;t_{1}\rightarrow t_{2}\,|\,F_{2}\;t_{4}\rightarrow t_{1}\rightarrow t_{2}\,|\,F_{3}\;\dots
-\]
-
-\end_inset
-
-
-\end_layout
-
-\begin_layout Standard
-Then the type of the argument in the call becomes 
-\emph on
-F
-\emph default
- but we can check which variant has been selected because effectively each
- argument is tagged with the name of the type variant.
- Fortran does not have such a type, but using an appropriate program transformat
-ion we can achieve the same effect.
- The approach is as follows:
-\end_layout
-
-\begin_layout Itemize
-The types of all functions that are allowed to be passed as argument are
- known because these are the functions marked as 
-\family sans
-EXTERNAL
-\family default
- in the code unit containing the call (see Example 
-\begin_inset CommandInset ref
-LatexCommand ref
-reference "exa:External-functions"
-plural "false"
-caps "false"
-noprefix "false"
-
-\end_inset
-
-)
-\end_layout
-
-\begin_deeper
-\begin_layout Example
-\begin_inset CommandInset label
-LatexCommand label
-name "exa:External-functions"
-
-\end_inset
-
-External functions
-\end_layout
-
-\begin_layout Example
-
-\family typewriter
-program functions_as_arguments
-\end_layout
-
-\begin_layout Example
-
-\family typewriter
-\begin_inset space ~
-\end_inset
-
-
-\begin_inset space ~
-\end_inset
-
-external f3
-\end_layout
-
-\begin_layout Example
-
-\family typewriter
-\begin_inset space ~
-\end_inset
-
-
-\begin_inset space ~
-\end_inset
-
-external f4
-\end_layout
-
-\begin_layout Example
-
-\family typewriter
-\begin_inset space ~
-\end_inset
-
-
-\begin_inset space ~
-\end_inset
-
-t3 :: v1, v2, f2
-\end_layout
-
-\begin_layout Example
-
-\family typewriter
-\begin_inset space ~
-\end_inset
-
-
-\begin_inset space ~
-\end_inset
-
-v1 = f2(f3,...)
-\end_layout
-
-\begin_layout Example
-
-\family typewriter
-\begin_inset space ~
-\end_inset
-
-
-\begin_inset space ~
-\end_inset
-
-v2 = f2(f4,...)
-\end_layout
-
-\begin_layout Example
-
-\family typewriter
-end 
-\end_layout
-
-\begin_layout Example
-
-\family typewriter
-t3 function f2(f,...)
-\end_layout
-
-\begin_layout Example
-
-\family typewriter
-\begin_inset space ~
-\end_inset
-
-
-\begin_inset space ~
-\end_inset
-
-t2 :: f
-\end_layout
-
-\begin_layout Example
-
-\family typewriter
-\begin_inset space ~
-\end_inset
-
-
-\begin_inset space ~
-\end_inset
-
-external f
-\end_layout
-
-\begin_layout Example
-
-\family typewriter
-\begin_inset space ~
-\end_inset
-
-
-\begin_inset space ~
-\end_inset
-
-...
-\end_layout
-
-\begin_layout Example
-
-\family typewriter
-end
-\end_layout
-
-\begin_layout Example
-
-\family typewriter
-t2 function f3(x)
-\end_layout
-
-\begin_layout Example
-
-\family typewriter
-\begin_inset space ~
-\end_inset
-
-
-\begin_inset space ~
-\end_inset
-
-t1 :: x
-\end_layout
-
-\begin_layout Example
-
-\family typewriter
-\begin_inset space ~
-\end_inset
-
-
-\begin_inset space ~
-\end_inset
-
-...
-\end_layout
-
-\begin_layout Example
-
-\family typewriter
-end
-\end_layout
-
-\begin_layout Example
-
-\family typewriter
-t2 function f4(z,x)
-\end_layout
-
-\begin_layout Example
-
-\family typewriter
-\begin_inset space ~
-\end_inset
-
-
-\begin_inset space ~
-\end_inset
-
-t1 :: x
-\end_layout
-
-\begin_layout Example
-
-\family typewriter
-\begin_inset space ~
-\end_inset
-
-
-\begin_inset space ~
-\end_inset
-
-t4 :: z
-\end_layout
-
-\begin_layout Example
-
-\family typewriter
-\begin_inset space ~
-\end_inset
-
-
-\begin_inset space ~
-\end_inset
-
-...
-\end_layout
-
-\begin_layout Example
-
-\family typewriter
-end
-\end_layout
-
-\end_deeper
-\begin_layout Itemize
-Make a list of the type signatures of these functions:
-\end_layout
-
-\begin_deeper
-\begin_layout Standard
-\begin_inset Formula 
-\[
-F=[t_{1}\rightarrow t_{2},t_{4}\rightarrow t_{1}\rightarrow t_{2},\dots]
-\]
-
-\end_inset
-
-
-\end_layout
-
-\end_deeper
-\begin_layout Itemize
-The index in this list is a unique identifier for that type, 
-\emph on
-F(1)
-\emph default
- refers to the first type, 
-\emph on
-F(2)
-\emph default
- to the second etc.
-\end_layout
-
-\begin_layout Itemize
-We add the index variable as an additional argument to the calling function
- (Example 
-\begin_inset CommandInset ref
-LatexCommand ref
-reference "exa:Identifying-type-variants"
-plural "false"
-caps "false"
-noprefix "false"
-
-\end_inset
-
-) and use the index corresponding to the called function in the actual call
- (Example 
-\begin_inset CommandInset ref
-LatexCommand ref
-reference "exa:Indexed-external-functions"
-plural "false"
-caps "false"
-noprefix "false"
-
-\end_inset
-
-)
-\end_layout
-
-\begin_deeper
-\begin_layout Example
-\begin_inset CommandInset label
-LatexCommand label
-name "exa:Indexed-external-functions"
-
-\end_inset
-
-Indexed external functions 
-\end_layout
-
-\begin_layout Example
-
-\family typewriter
-program functions_as_arguments
-\end_layout
-
-\begin_layout Example
-
-\family typewriter
-\begin_inset space ~
-\end_inset
-
-
-\begin_inset space ~
-\end_inset
-
-external f3 ! 1
-\end_layout
-
-\begin_layout Example
-
-\family typewriter
-\begin_inset space ~
-\end_inset
-
-
-\begin_inset space ~
-\end_inset
-
-external f4 ! 2
-\end_layout
-
-\begin_layout Example
-
-\family typewriter
-\begin_inset space ~
-\end_inset
-
-
-\begin_inset space ~
-\end_inset
-
-t3 :: v1, v2, f2
-\end_layout
-
-\begin_layout Example
-
-\family typewriter
-\begin_inset space ~
-\end_inset
-
-
-\begin_inset space ~
-\end_inset
-
-v1 = f2(1,f3,...)
-\end_layout
-
-\begin_layout Example
-
-\family typewriter
-\begin_inset space ~
-\end_inset
-
-
-\begin_inset space ~
-\end_inset
-
-v2 = f2(2,f4,...)
-\end_layout
-
-\begin_layout Example
-
-\family typewriter
-end 
-\end_layout
-
-\begin_layout Example
-
-\family typewriter
-t3 function f2(idx,f,...)
-\end_layout
-
-\begin_layout Example
-
-\family typewriter
-\begin_inset space ~
-\end_inset
-
-
-\begin_inset space ~
-\end_inset
-
-integer :: idx
-\end_layout
-
-\begin_layout Example
-
-\family typewriter
-\begin_inset space ~
-\end_inset
-
-
-\begin_inset space ~
-\end_inset
-
-t2 :: f
-\end_layout
-
-\begin_layout Example
-
-\family typewriter
-\begin_inset space ~
-\end_inset
-
-
-\begin_inset space ~
-\end_inset
-
-external f
-\end_layout
-
-\begin_layout Example
-
-\family typewriter
-\begin_inset space ~
-\end_inset
-
-
-\begin_inset space ~
-\end_inset
-
-...
-\end_layout
-
-\begin_layout Example
-
-\family typewriter
-end
-\end_layout
-
-\begin_layout Example
-
-\family typewriter
-t2 function f3(t1)
-\end_layout
-
-\begin_layout Example
-
-\family typewriter
-\begin_inset space ~
-\end_inset
-
-
-\begin_inset space ~
-\end_inset
-
-t1 :: x
-\end_layout
-
-\begin_layout Example
-
-\family typewriter
-\begin_inset space ~
-\end_inset
-
-
-\begin_inset space ~
-\end_inset
-
-...
-\end_layout
-
-\begin_layout Example
-
-\family typewriter
-end
-\end_layout
-
-\begin_layout Example
-
-\family typewriter
-t2 function f4(t4,t1)
-\end_layout
-
-\begin_layout Example
-
-\family typewriter
-\begin_inset space ~
-\end_inset
-
-
-\begin_inset space ~
-\end_inset
-
-t1 :: x
-\end_layout
-
-\begin_layout Example
-
-\family typewriter
-\begin_inset space ~
-\end_inset
-
-
-\begin_inset space ~
-\end_inset
-
-t4 :: z
-\end_layout
-
-\begin_layout Example
-
-\family typewriter
-\begin_inset space ~
-\end_inset
-
-
-\begin_inset space ~
-\end_inset
-
-...
-\end_layout
-
-\begin_layout Example
-
-\family typewriter
-end
-\end_layout
-
-\end_deeper
-\begin_layout Itemize
-We can now use this index to identify the selected type variant, as shown
- in Example 
-\begin_inset CommandInset ref
-LatexCommand ref
-reference "exa:Identifying-type-variants"
-plural "false"
-caps "false"
-noprefix "false"
-
-\end_inset
-
-.
- Every call to the function argument 
-\emph on
-f
-\emph default
- is guarded by an if-then-else statement checking if the index 
-\emph on
-idx
-\emph default
- matches the actual index corresponding to the variant.
- If this is not the case, a run-time type error is thrown.
- The variant is determined by matching the signature of the call to the
- signatures in the sum type.
- 
-\end_layout
-
-\begin_deeper
-\begin_layout Example
-\begin_inset CommandInset label
-LatexCommand label
-name "exa:Identifying-type-variants"
-
-\end_inset
-
-Identifying type variants using indexing
-\end_layout
-
-\begin_layout Example
-
-\family typewriter
-t3 function f2(idx,f)
-\end_layout
-
-\begin_layout Example
-
-\family typewriter
-\begin_inset space ~
-\end_inset
-
-
-\begin_inset space ~
-\end_inset
-
-integer :: idx 
-\end_layout
-
-\begin_layout Example
-
-\family typewriter
-\begin_inset space ~
-\end_inset
-
-
-\begin_inset space ~
-\end_inset
-
-t2 :: f,y
-\end_layout
-
-\begin_layout Example
-
-\family typewriter
-\begin_inset space ~
-\end_inset
-
-
-\begin_inset space ~
-\end_inset
-
-t1 :: x
-\end_layout
-
-\begin_layout Example
-
-\family typewriter
-\begin_inset space ~
-\end_inset
-
-
-\begin_inset space ~
-\end_inset
-
-t4 :: z
-\end_layout
-
-\begin_layout Example
-
-\family typewriter
-\begin_inset space ~
-\end_inset
-
-
-\begin_inset space ~
-\end_inset
-
-logical :: c
-\end_layout
-
-\begin_layout Example
-
-\family typewriter
-\begin_inset space ~
-\end_inset
-
-
-\begin_inset space ~
-\end_inset
-
-...
-\end_layout
-
-\begin_layout Example
-
-\family typewriter
-\begin_inset space ~
-\end_inset
-
-
-\begin_inset space ~
-\end_inset
-
-if (c) then
-\end_layout
-
-\begin_layout Example
-
-\family typewriter
-\begin_inset space ~
-\end_inset
-
-
-\begin_inset space ~
-\end_inset
-
-
-\begin_inset space ~
-\end_inset
-
-
-\begin_inset space ~
-\end_inset
-
-if (idx==1) then
-\end_layout
-
-\begin_layout Example
-
-\family typewriter
-\begin_inset space ~
-\end_inset
-
-
-\begin_inset space ~
-\end_inset
-
-
-\begin_inset space ~
-\end_inset
-
-
-\begin_inset space ~
-\end_inset
-
-
-\begin_inset space ~
-\end_inset
-
-
-\begin_inset space ~
-\end_inset
-
-y = f(x)
-\end_layout
-
-\begin_layout Example
-
-\family typewriter
-\begin_inset space ~
-\end_inset
-
-
-\begin_inset space ~
-\end_inset
-
-
-\begin_inset space ~
-\end_inset
-
-
-\begin_inset space ~
-\end_inset
-
-else
-\end_layout
-
-\begin_layout Example
-
-\family typewriter
-\begin_inset space ~
-\end_inset
-
-
-\begin_inset space ~
-\end_inset
-
-
-\begin_inset space ~
-\end_inset
-
-
-\begin_inset space ~
-\end_inset
-
-
-\begin_inset space ~
-\end_inset
-
-
-\begin_inset space ~
-\end_inset
-
-print *, 'Type error: call does not match signature'
-\end_layout
-
-\begin_layout Example
-
-\family typewriter
-\begin_inset space ~
-\end_inset
-
-
-\begin_inset space ~
-\end_inset
-
-
-\begin_inset space ~
-\end_inset
-
-
-\begin_inset space ~
-\end_inset
-
-
-\begin_inset space ~
-\end_inset
-
-
-\begin_inset space ~
-\end_inset
-
-call exit(0)
-\end_layout
-
-\begin_layout Example
-
-\family typewriter
-\begin_inset space ~
-\end_inset
-
-
-\begin_inset space ~
-\end_inset
-
-
-\begin_inset space ~
-\end_inset
-
-
-\begin_inset space ~
-\end_inset
-
-end if
-\end_layout
-
-\begin_layout Example
-
-\family typewriter
-\begin_inset space ~
-\end_inset
-
-
-\begin_inset space ~
-\end_inset
-
-else
-\end_layout
-
-\begin_layout Example
-
-\family typewriter
-\begin_inset space ~
-\end_inset
-
-
-\begin_inset space ~
-\end_inset
-
-
-\begin_inset space ~
-\end_inset
-
-
-\begin_inset space ~
-\end_inset
-
-if (idx==2) then
-\end_layout
-
-\begin_layout Example
-
-\family typewriter
-\begin_inset space ~
-\end_inset
-
-
-\begin_inset space ~
-\end_inset
-
-
-\begin_inset space ~
-\end_inset
-
-
-\begin_inset space ~
-\end_inset
-
-
-\begin_inset space ~
-\end_inset
-
-
-\begin_inset space ~
-\end_inset
-
-y = f(z,x) 
-\end_layout
-
-\begin_layout Example
-
-\family typewriter
-\begin_inset space ~
-\end_inset
-
-
-\begin_inset space ~
-\end_inset
-
-
-\begin_inset space ~
-\end_inset
-
-
-\begin_inset space ~
-\end_inset
-
-else
-\end_layout
-
-\begin_layout Example
-
-\family typewriter
-\begin_inset space ~
-\end_inset
-
-
-\begin_inset space ~
-\end_inset
-
-
-\begin_inset space ~
-\end_inset
-
-
-\begin_inset space ~
-\end_inset
-
-
-\begin_inset space ~
-\end_inset
-
-
-\begin_inset space ~
-\end_inset
-
-print *, 'Type error: call does not match signature'
-\end_layout
-
-\begin_layout Example
-
-\family typewriter
-\begin_inset space ~
-\end_inset
-
-
-\begin_inset space ~
-\end_inset
-
-
-\begin_inset space ~
-\end_inset
-
-
-\begin_inset space ~
-\end_inset
-
-
-\begin_inset space ~
-\end_inset
-
-
-\begin_inset space ~
-\end_inset
-
-call exit(0)
-\end_layout
-
-\begin_layout Example
-
-\family typewriter
-\begin_inset space ~
-\end_inset
-
-
-\begin_inset space ~
-\end_inset
-
-
-\begin_inset space ~
-\end_inset
-
-
-\begin_inset space ~
-\end_inset
-
-end if
-\end_layout
-
-\begin_layout Example
-
-\family typewriter
-\begin_inset space ~
-\end_inset
-
-
-\begin_inset space ~
-\end_inset
-
-end if
-\end_layout
-
-\begin_layout Example
-
-\family typewriter
-end function
-\end_layout
-
-\end_deeper
-\begin_layout Standard
-This algorithm is formalised for subroutines as Algorithm 
-\begin_inset CommandInset ref
-LatexCommand ref
-reference "alg:hof_rt_typechecking"
-plural "false"
-caps "false"
-noprefix "false"
-
-\end_inset
-
-; functions are entirely analogous.
- In this way, type safety of higher-order functions can be enforced at run
+ The actual type checking of higher-order functions is not possible at compile
  time.
- 
-\end_layout
-
-\begin_layout Standard
-\begin_inset ERT
-status open
-
-\begin_layout Plain Layout
-
-
-\backslash
-begin{algorithm}
-\end_layout
-
-\end_inset
-
-
-\begin_inset CommandInset label
-LatexCommand label
-name "alg:hof_rt_typechecking"
-
-\end_inset
-
-
-\end_layout
-
-\begin_layout Standard
-\begin_inset Box Frameless
-position "t"
-hor_pos "c"
-has_inner_box 1
-inner_pos "t"
-use_parbox 0
-use_makebox 0
-width "90col%"
-special "none"
-height "1in"
-height_special "totalheight"
-thickness "0.4pt"
-separation "3pt"
-shadowsize "4pt"
-framecolor "black"
-backgroundcolor "none"
-status open
-
-\begin_layout Enumerate
-Preliminaries:
-\end_layout
-
-\begin_deeper
-\begin_layout Plain Layout
-\begin_inset Formula $F=(\dots,\tau_{i},\dots)$
-\end_inset
-
- : an ordered list of function signatures
-\end_layout
-
-\begin_layout Plain Layout
-\begin_inset Formula $\Gamma_{p}$
-\end_inset
-
- : the entire program context
-\end_layout
-
-\begin_layout Plain Layout
-\begin_inset Formula $\Gamma_{c}$
-\end_inset
-
- : the context of the code unit 
-\emph on
-c
-\emph default
- in which the higher-order function is called
-\end_layout
-
-\begin_layout Plain Layout
-\begin_inset Formula $External(\Gamma_{c})$
-\end_inset
-
- : the subset of 
-\begin_inset Formula $\Gamma_{c}$
-\end_inset
-
- containing all functions declared as 
-\family sans
-EXTERNAL
-\end_layout
-
-\begin_layout Plain Layout
-\begin_inset Formula $\Gamma_{h}$
-\end_inset
-
- : the context of the higher-order function 
-\emph on
-h
-\end_layout
-
-\end_deeper
-\begin_layout Enumerate
-Build the list 
-\emph on
-F
-\emph default
- of the signatures of the external functions in 
-\emph on
-c
-\emph default
-:
-\end_layout
-
-\begin_deeper
-\begin_layout Plain Layout
-\begin_inset Formula 
-\[
-F=(\forall f_{i}\in External(\Gamma_{c}),\tau_{i}\in\Gamma_{p}|\Gamma_{p}\vdash f_{i}:\tau_{i})
-\]
-
-\end_inset
-
-
-\end_layout
-
-\end_deeper
-\begin_layout Enumerate
-Transformation rule for the call to the higher-order function 
-\emph on
-h
-\emph default
- in 
-\emph on
-c
-\emph default
-:
-\end_layout
-
-\begin_deeper
-\begin_layout Plain Layout
-\align center
-
-\family typewriter
-call 
-\begin_inset Formula $h$
-\end_inset
-
-(
-\begin_inset Formula $\dots$
-\end_inset
-
-,
-\begin_inset Formula $f_{i}$
-\end_inset
-
-,
-\family roman
-\series medium
-\shape up
-\size normal
-\emph off
-\bar no
-\strikeout off
-\xout off
-\uuline off
-\uwave off
-\noun off
-\color none
-
-\begin_inset Formula $\dots$
-\end_inset
-
-
-\family typewriter
-\series default
-\shape default
-\size default
-\emph default
-\bar default
-\strikeout default
-\xout default
-\uuline default
-\uwave default
-\noun default
-\color inherit
-) 
-\end_layout
-
-\begin_layout Plain Layout
-\align center
-
-\family roman
-\series medium
-\shape up
-\size normal
-\emph off
-\bar no
-\strikeout off
-\xout off
-\uuline off
-\uwave off
-\noun off
-\color none
-\begin_inset Formula $\Downarrow$
-\end_inset
-
-
-\end_layout
-
-\begin_layout Plain Layout
-\align center
-
-\family typewriter
-call 
-\begin_inset Formula $h$
-\end_inset
-
-(
-\begin_inset Formula $\dots$
-\end_inset
-
-,
-\begin_inset Formula $i$
-\end_inset
-
-,
-\begin_inset Formula $f_{i}$
-\end_inset
-
-,
-\family roman
-\series medium
-\shape up
-\size normal
-\emph off
-\bar no
-\strikeout off
-\xout off
-\uuline off
-\uwave off
-\noun off
-\color none
-
-\begin_inset Formula $\dots$
-\end_inset
-
-
-\family typewriter
-\series default
-\shape default
-\size default
-\emph default
-\bar default
-\strikeout default
-\xout default
-\uuline default
-\uwave default
-\noun default
-\color inherit
-)
-\end_layout
-
-\begin_layout Plain Layout
-\align center
-where 
-\begin_inset Formula $f_{i}\in External(\Gamma_{c})$
-\end_inset
-
- and 
-\begin_inset Formula $\Gamma_{p}\vdash f_{i}:F(i)$
-\end_inset
-
-
-\end_layout
-
-\begin_layout Plain Layout
-In words, 
-\begin_inset Formula $f_{i}$
-\end_inset
-
- is marked as 
-\family sans
-EXTERNAL
-\family default
- in 
-\emph on
-c
-\emph default
- and 
-\emph on
-i
-\emph default
- is the index of the type of 
-\begin_inset Formula $f_{i}$
-\end_inset
-
- in 
-\emph on
-F
-\emph default
-.
-\end_layout
-
-\end_deeper
-\begin_layout Enumerate
-Transformation rule for the declaration of the higher-order function 
-\emph on
-h
-\end_layout
-
-\begin_deeper
-\begin_layout Plain Layout
-\align center
-\begin_inset Box Frameless
-position "t"
-hor_pos "c"
-has_inner_box 1
-inner_pos "t"
-use_parbox 0
-use_makebox 0
-width "45col%"
-special "none"
-height "1in"
-height_special "totalheight"
-thickness "0.4pt"
-separation "3pt"
-shadowsize "4pt"
-framecolor "black"
-backgroundcolor "none"
-status open
-
-\begin_layout Plain Layout
-
-\family typewriter
-subroutine 
-\begin_inset Formula $h$
-\end_inset
-
-(...,
-\begin_inset Formula $g$
-\end_inset
-
-,...) 
-\end_layout
-
-\begin_layout Plain Layout
-
-\family typewriter
-\begin_inset space ~
-\end_inset
-
-
-\begin_inset space ~
-\end_inset
-
-...
-\end_layout
-
-\begin_layout Plain Layout
-
-\family typewriter
-\begin_inset space ~
-\end_inset
-
-
-\begin_inset space ~
-\end_inset
-
-call 
-\begin_inset Formula $g$
-\end_inset
-
-(...)
-\end_layout
-
-\begin_layout Plain Layout
-
-\family typewriter
-\begin_inset space ~
-\end_inset
-
-
-\begin_inset space ~
-\end_inset
-
-...
-\end_layout
-
-\begin_layout Plain Layout
-
-\family typewriter
-end
-\end_layout
-
-\end_inset
-
-
-\end_layout
-
-\begin_layout Plain Layout
-\align center
-
-\family roman
-\series medium
-\shape up
-\size normal
-\emph off
-\bar no
-\strikeout off
-\xout off
-\uuline off
-\uwave off
-\noun off
-\color none
-\begin_inset Formula $\Downarrow$
-\end_inset
-
-
-\begin_inset space ~
-\end_inset
-
-
-\begin_inset space ~
-\end_inset
-
-
-\begin_inset space ~
-\end_inset
-
-
-\begin_inset space ~
-\end_inset
-
-
-\begin_inset space ~
-\end_inset
-
-
-\begin_inset space ~
-\end_inset
-
-
-\begin_inset space ~
-\end_inset
-
-
-\begin_inset space ~
-\end_inset
-
-
-\begin_inset space ~
-\end_inset
-
-
-\end_layout
-
-\begin_layout Plain Layout
-\align center
-\begin_inset Box Frameless
-position "t"
-hor_pos "c"
-has_inner_box 1
-inner_pos "t"
-use_parbox 0
-use_makebox 0
-width "45col%"
-special "none"
-height "1in"
-height_special "totalheight"
-thickness "0.4pt"
-separation "3pt"
-shadowsize "4pt"
-framecolor "black"
-backgroundcolor "none"
-status open
-
-\begin_layout Plain Layout
-
-\family typewriter
-subroutine 
-\begin_inset Formula $h$
-\end_inset
-
-(...,idx,
-\begin_inset Formula $g$
-\end_inset
-
-,...)
-\end_layout
-
-\begin_layout Plain Layout
-
-\family typewriter
-\begin_inset space ~
-\end_inset
-
-
-\begin_inset space ~
-\end_inset
-
-integer :: idx
-\end_layout
-
-\begin_layout Plain Layout
-
-\family typewriter
-\begin_inset space ~
-\end_inset
-
-
-\begin_inset space ~
-\end_inset
-
-...
-\end_layout
-
-\begin_layout Plain Layout
-
-\family typewriter
-\begin_inset space ~
-\end_inset
-
-
-\begin_inset space ~
-\end_inset
-
-if (idx=
-\begin_inset Formula $i$
-\end_inset
-
-) then 
-\end_layout
-
-\begin_layout Plain Layout
-
-\family typewriter
-\begin_inset space ~
-\end_inset
-
-
-\begin_inset space ~
-\end_inset
-
-
-\begin_inset space ~
-\end_inset
-
-
-\begin_inset space ~
-\end_inset
-
-call 
-\begin_inset Formula $g$
-\end_inset
-
-(...)
-\end_layout
-
-\begin_layout Plain Layout
-
-\family typewriter
-\begin_inset space ~
-\end_inset
-
-else
-\end_layout
-
-\begin_layout Plain Layout
-
-\family typewriter
-\begin_inset space ~
-\end_inset
-
-
-\begin_inset space ~
-\end_inset
-
-
-\begin_inset space ~
-\end_inset
-
-
-\begin_inset space ~
-\end_inset
-
-
-\emph on
-type error
-\end_layout
-
-\begin_layout Plain Layout
-
-\family typewriter
-\begin_inset space ~
-\end_inset
-
-end if
-\end_layout
-
-\begin_layout Plain Layout
-
-\family typewriter
-\begin_inset space ~
-\end_inset
-
-
-\begin_inset space ~
-\end_inset
-
-...
-\end_layout
-
-\begin_layout Plain Layout
-
-\family typewriter
-end
-\end_layout
-
-\end_inset
-
-
-\end_layout
-
-\begin_layout Plain Layout
-\align center
-
-\family roman
-\series medium
-\shape up
-\size normal
-\emph off
-\bar no
-\strikeout off
-\xout off
-\uuline off
-\uwave off
-\noun off
-\color none
-where 
-\family default
-\series default
-\shape default
-\size default
-\emph on
-\bar default
-\strikeout default
-\xout default
-\uuline default
-\uwave default
-\noun default
-\color inherit
-i
-\family roman
-\series medium
-\shape up
-\size normal
-\emph off
-\bar no
-\strikeout off
-\xout off
-\uuline off
-\uwave off
-\noun off
-\color none
- is given by 
-\begin_inset Formula $\Gamma_{h}\vdash g:\tau_{g}\Rightarrow i\;|\tau_{g}=F(i)$
-\end_inset
-
-
-\end_layout
-
-\begin_layout Plain Layout
-
-\family roman
-\series medium
-\shape up
-\size normal
-\emph off
-\bar no
-\strikeout off
-\xout off
-\uuline off
-\uwave off
-\noun off
-\color none
-In words: given the type 
-\begin_inset Formula $\tau_{g}$
-\end_inset
-
-of 
-\begin_inset Formula $g$
-\end_inset
-
- infered in the context 
-\begin_inset Formula $\Gamma_{h}$
-\end_inset
-
- of the code unit 
-\begin_inset Formula $h$
-\end_inset
-
-, 
-\begin_inset Formula $i$
-\end_inset
-
- is the index of 
-\begin_inset Formula $\tau_{g}$
-\end_inset
-
- in the list of external signatures in the context 
-\begin_inset Formula $\Gamma_{c}$
-\end_inset
-
- of the caller 
-\begin_inset Formula $c$
-\end_inset
-
- of 
-\begin_inset Formula $h$
-\end_inset
-
-, 
-\begin_inset Formula $F$
-\end_inset
-
-.
- 
-\end_layout
-
-\begin_layout Plain Layout
-
-\family roman
-\series medium
-\shape up
-\size normal
-\emph off
-\bar no
-\strikeout off
-\xout off
-\uuline off
-\uwave off
-\noun off
-\color none
-Note that the type of 
-\begin_inset Formula $g$
-\end_inset
-
- is infered within the context of 
-\begin_inset Formula $h$
-\end_inset
-
- and that there can be more than one matching entry in 
-\begin_inset Formula $F$
-\end_inset
-
-, so that in general the if condition might be: 
-\end_layout
-
-\begin_layout Plain Layout
-\align center
-
-\family typewriter
-if (idx==
-\begin_inset Formula $i_{1}$
-\end_inset
-
- .or.
- idx==
-\begin_inset Formula $i_{2}$
-\end_inset
-
- ...) then ...
- 
-\end_layout
-
-\end_deeper
-\end_inset
-
-
-\end_layout
-
-\begin_layout Standard
-\begin_inset ERT
-status open
-
-\begin_layout Plain Layout
-
-
-\backslash
-caption{Run-time type checks for higher-order function calls}
-\end_layout
-
-\begin_layout Plain Layout
-
-
-\backslash
-end{algorithm}
-\end_layout
-
-\end_inset
-
-
+ In Appendix A3, we present an algorithm for run-time type checking via
+ the construction of a sum type of the higher-order functions in a compute
+ unit.
 \end_layout
 
 \begin_layout Subsubsection
@@ -6147,12 +3718,14 @@ name "exa:Unsafe-coercion"
 \begin_layout Example
 
 \family typewriter
+\size small
 program unsafeCoercion
 \end_layout
 
 \begin_layout Example
 
 \family typewriter
+\size small
 \begin_inset space ~
 \end_inset
 
@@ -6166,6 +3739,7 @@ integer i1,i2
 \begin_layout Example
 
 \family typewriter
+\size small
 \begin_inset space ~
 \end_inset
 
@@ -6179,6 +3753,7 @@ real r1
 \begin_layout Example
 
 \family typewriter
+\size small
 \begin_inset space ~
 \end_inset
 
@@ -6192,6 +3767,7 @@ r1 = 0.14159
 \begin_layout Example
 
 \family typewriter
+\size small
 \begin_inset space ~
 \end_inset
 
@@ -6205,6 +3781,7 @@ i1=3
 \begin_layout Example
 
 \family typewriter
+\size small
 \begin_inset space ~
 \end_inset
 
@@ -6218,6 +3795,7 @@ i2 = i1+r1
 \begin_layout Example
 
 \family typewriter
+\size small
 end
 \end_layout
 
@@ -6244,35 +3822,35 @@ name "exa:Output-from-g77"
 \begin_layout Example
 
 \family typewriter
-\size small
+\size footnotesize
 g77 -fsyntax-only -Werror=conversion test_type_coercion.f
 \end_layout
 
 \begin_layout Example
 
 \family typewriter
-\size small
+\size footnotesize
 test_type_coercion.f:6:11:
 \end_layout
 
 \begin_layout Example
 
 \family typewriter
-\size small
+\size footnotesize
 6 | i2 = i1+r1
 \end_layout
 
 \begin_layout Example
 
 \family typewriter
-\size small
+\size footnotesize
 | 1
 \end_layout
 
 \begin_layout Example
 
 \family typewriter
-\size small
+\size footnotesize
 Error: Possible change of value in conversion from REAL(4) to INTEGER(4)
  at (1) [-Werror=conversion]
 \end_layout
@@ -6310,12 +3888,14 @@ name "exa:Explicit-conversion"
 \begin_layout Example
 
 \family typewriter
+\size small
 program unsafeCoercion
 \end_layout
 
 \begin_layout Example
 
 \family typewriter
+\size small
 \begin_inset Formula $\,$
 \end_inset
 
@@ -6333,6 +3913,7 @@ integer :: i1,i2
 \begin_layout Example
 
 \family typewriter
+\size small
 \begin_inset space ~
 \end_inset
 
@@ -6346,6 +3927,7 @@ real :: r1
 \begin_layout Example
 
 \family typewriter
+\size small
 \begin_inset space ~
 \end_inset
 
@@ -6359,6 +3941,7 @@ r1 = 0.14159
 \begin_layout Example
 
 \family typewriter
+\size small
 \begin_inset space ~
 \end_inset
 
@@ -6372,6 +3955,7 @@ i1=3
 \begin_layout Example
 
 \family typewriter
+\size small
 \begin_inset space ~
 \end_inset
 
@@ -6385,6 +3969,7 @@ i2 = int(i1+r1,4)
 \begin_layout Example
 
 \family typewriter
+\size small
 end program unsafeCoercion
 \end_layout
 
@@ -6600,42 +4185,49 @@ EQUIVALENCE
 \begin_layout Example
 
 \family typewriter
+\size small
 integer*4 i1
 \end_layout
 
 \begin_layout Example
 
 \family typewriter
-real*4 r1       
+\size small
+real*4 r1 
 \end_layout
 
 \begin_layout Example
 
 \family typewriter
+\size small
 equivalence (i2,r1)
 \end_layout
 
 \begin_layout Example
 
 \family typewriter
+\size small
 i1 = 42
 \end_layout
 
 \begin_layout Example
 
 \family typewriter
+\size small
 print *, r1 ! prints 5.88545355E-44
 \end_layout
 
 \begin_layout Example
 
 \family typewriter
+\size small
 r1 = 42
 \end_layout
 
 \begin_layout Example
 
 \family typewriter
+\size small
 print *, i1 ! prints 1109917696
 \end_layout
 
@@ -8009,7 +5601,7 @@ noprefix "false"
 
 \end_inset
 
-) is straightforward:
+) is straightforward.
 \end_layout
 
 \begin_layout Standard
@@ -8020,7 +5612,7 @@ status open
 
 
 \backslash
-begin{algorithm}[H]
+begin{algorithm}
 \end_layout
 
 \end_inset
@@ -8323,12 +5915,14 @@ name "exa:COMMON-block-chain"
 \begin_layout Example
 
 \family typewriter
+\size small
 program ex1
 \end_layout
 
 \begin_layout Example
 
 \family typewriter
+\size small
 \begin_inset space ~
 \end_inset
 
@@ -8342,6 +5936,7 @@ common /bf2/x
 \begin_layout Example
 
 \family typewriter
+\size small
 \begin_inset space ~
 \end_inset
 
@@ -8355,6 +5950,7 @@ common /bf1/y
 \begin_layout Example
 
 \family typewriter
+\size small
 \begin_inset space ~
 \end_inset
 
@@ -8368,18 +5964,21 @@ call f1
 \begin_layout Example
 
 \family typewriter
+\size small
 end program ex1
 \end_layout
 
 \begin_layout Example
 
 \family typewriter
+\size small
 subroutine f1 
 \end_layout
 
 \begin_layout Example
 
 \family typewriter
+\size small
 \begin_inset space ~
 \end_inset
 
@@ -8393,6 +5992,7 @@ common /bf1/y1
 \begin_layout Example
 
 \family typewriter
+\size small
 \begin_inset space ~
 \end_inset
 
@@ -8406,18 +6006,21 @@ call f2
 \begin_layout Example
 
 \family typewriter
+\size small
 end subroutine f1
 \end_layout
 
 \begin_layout Example
 
 \family typewriter
+\size small
 subroutine f2 
 \end_layout
 
 \begin_layout Example
 
 \family typewriter
+\size small
 \begin_inset space ~
 \end_inset
 
@@ -8431,6 +6034,7 @@ common /bf2/x2
 \begin_layout Example
 
 \family typewriter
+\size small
 end subroutine f2
 \end_layout
 
@@ -8452,12 +6056,14 @@ name "exa:Passing-arguments-through"
 \begin_layout Example
 
 \family typewriter
+\size small
 program ex1 
 \end_layout
 
 \begin_layout Example
 
 \family typewriter
+\size small
 \begin_inset space ~
 \end_inset
 
@@ -8471,18 +6077,21 @@ call f1(x,y)
 \begin_layout Example
 
 \family typewriter
+\size small
 end program ex1
 \end_layout
 
 \begin_layout Example
 
 \family typewriter
+\size small
 subroutine 
 \end_layout
 
 \begin_layout Example
 
 \family typewriter
+\size small
 \begin_inset space ~
 \end_inset
 
@@ -8496,6 +6105,7 @@ f1(x,y1)
 \begin_layout Example
 
 \family typewriter
+\size small
 \begin_inset space ~
 \end_inset
 
@@ -8509,6 +6119,7 @@ call f2(x)
 \begin_layout Example
 
 \family typewriter
+\size small
 \begin_inset space ~
 \end_inset
 
@@ -8524,18 +6135,21 @@ call f2(x)
 \begin_layout Example
 
 \family typewriter
+\size small
 end subroutine f1
 \end_layout
 
 \begin_layout Example
 
 \family typewriter
+\size small
 subroutine f2(x2) 
 \end_layout
 
 \begin_layout Example
 
 \family typewriter
+\size small
 \begin_inset space ~
 \end_inset
 
@@ -8550,6 +6164,7 @@ subroutine f2(x2)
 \begin_layout Example
 
 \family typewriter
+\size small
 end subroutine f2
 \end_layout
 
@@ -8598,28 +6213,34 @@ Overlapping sequences
 \begin_layout Example
 
 \family typewriter
+\size small
 ! caller 
 \end_layout
 
 \begin_layout Example
 
 \family typewriter
+\size small
 real xc(8),z1c,z2c 
 \end_layout
 
 \begin_layout Example
 
 \family typewriter
+\size small
 complex yc 
 \end_layout
 
 \begin_layout Example
 
 \family typewriter
+\size small
 common yc,xc,zx
 \end_layout
 
 \begin_layout Example
+
+\size small
 \begin_inset space ~
 \end_inset
 
@@ -8629,18 +6250,21 @@ common yc,xc,zx
 \begin_layout Example
 
 \family typewriter
+\size small
 ! local real xl(2),zl(4) 
 \end_layout
 
 \begin_layout Example
 
 \family typewriter
+\size small
 complex yl(3) 
 \end_layout
 
 \begin_layout Example
 
 \family typewriter
+\size small
 common yl,xl,zl
 \end_layout
 
@@ -8722,7 +6346,7 @@ Because it is possible for arrays from the caller and arrays in the called
 \family sans
 COMMON
 \family default
- variables into dummy parameters is as follows (Algorithm 
+ variables into dummy parameters is as shown in Algorithm 
 \begin_inset CommandInset ref
 LatexCommand ref
 reference "alg:common_vars_to_args"
@@ -8732,7 +6356,7 @@ noprefix "false"
 
 \end_inset
 
-): 
+.
 \end_layout
 
 \begin_layout Standard
@@ -8743,7 +6367,7 @@ status open
 
 
 \backslash
-begin{algorithm}[H]
+begin{algorithm}
 \end_layout
 
 \end_inset
@@ -9238,12 +6862,14 @@ Unsafe equivalence
 \begin_layout Example
 
 \family typewriter
+\size small
 program test_equivalence
 \end_layout
 
 \begin_layout Example
 
 \family typewriter
+\size small
 \begin_inset space ~
 \end_inset
 
@@ -9257,6 +6883,7 @@ implicit integer (i,v)
 \begin_layout Example
 
 \family typewriter
+\size small
 \begin_inset space ~
 \end_inset
 
@@ -9270,6 +6897,7 @@ dimension vb2(8)
 \begin_layout Example
 
 \family typewriter
+\size small
 \begin_inset space ~
 \end_inset
 
@@ -9283,6 +6911,7 @@ logical l2(8)
 \begin_layout Example
 
 \family typewriter
+\size small
 \begin_inset space ~
 \end_inset
 
@@ -9296,6 +6925,7 @@ double precision d1(4)
 \begin_layout Example
 
 \family typewriter
+\size small
 \begin_inset space ~
 \end_inset
 
@@ -9309,6 +6939,7 @@ real*4 r1(8)
 \begin_layout Example
 
 \family typewriter
+\size small
 \begin_inset space ~
 \end_inset
 
@@ -9322,6 +6953,7 @@ real*4 r1(8)
 \begin_layout Example
 
 \family typewriter
+\size small
 \begin_inset space ~
 \end_inset
 
@@ -9335,6 +6967,7 @@ equivalence (vb2,d1)
 \begin_layout Example
 
 \family typewriter
+\size small
 \begin_inset space ~
 \end_inset
 
@@ -9348,6 +6981,7 @@ equivalence (vb2,r1)
 \begin_layout Example
 
 \family typewriter
+\size small
 \begin_inset space ~
 \end_inset
 
@@ -9361,6 +6995,7 @@ equivalence (vb2,r1)
 \begin_layout Example
 
 \family typewriter
+\size small
 \begin_inset space ~
 \end_inset
 
@@ -9374,6 +7009,7 @@ equivalence (vb2,l2)
 \begin_layout Example
 
 \family typewriter
+\size small
 \begin_inset space ~
 \end_inset
 
@@ -9387,6 +7023,7 @@ equivalence (r1,l2)
 \begin_layout Example
 
 \family typewriter
+\size small
 \begin_inset space ~
 \end_inset
 
@@ -9400,6 +7037,7 @@ equivalence (r1,l2)
 \begin_layout Example
 
 \family typewriter
+\size small
 end
 \end_layout
 
@@ -9488,13 +7126,15 @@ EQUIVALENCE
 \begin_layout Example
 
 \family typewriter
-DIMENSION RADE11(5), RADE12(5) 
+\size small
+dimension rade11(5), rade12(5) 
 \end_layout
 
 \begin_layout Example
 
 \family typewriter
-EQUIVALENCE (RADE11(4), RADE12(2))
+\size small
+equivalence (rade11(4), rade12(2))
 \end_layout
 
 \begin_layout Standard
@@ -9614,7 +7254,7 @@ status open
 
 
 \backslash
-begin{algorithm}[H]
+begin{algorithm}
 \end_layout
 
 \end_inset
@@ -10502,6 +8142,2559 @@ literal "false"
 
 .
  
+\end_layout
+
+\begin_layout Acknowledgements
+The author acknowledges the support of the UK EPSRC under grant EP/L00058X/1.
+\end_layout
+
+\begin_layout Section*
+Appendices: Run-time type checks
+\end_layout
+
+\begin_layout Standard
+There are a few cases where type safety can't be guaranteed at compile time.
+ For these cases, our compiler allows to insert run-time type checks.
+\end_layout
+
+\begin_layout Subsection*
+A1.
+ Run-time size checking for arrays slicing
+\begin_inset CommandInset label
+LatexCommand label
+name "app:A1.-Run-time-size"
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+If it is not possible to determine the size of the slice, our compiler will
+ issue a type error.
+ This can be relaxed to warning, in which case the compiler will insert
+ a run-time check, for example:
+\end_layout
+
+\begin_layout Example
+Run-time check for array slicing
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+\size small
+integer a, s, i
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+\size small
+dimension a(5,7), s(3)
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+\size small
+! compute a, s, i
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+\size small
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+if (size(s)==size(a(2,1:5:i)) then 
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+\size small
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+s = a(2,1:5:i)
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+\size small
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+else
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+\size small
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+print *, 'Type error: s and a(2,1:5:i) have a different SIZE'
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+\size small
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+call exit(0)
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+\size small
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+end if
+\end_layout
+
+\begin_layout Standard
+In this way type safety of non-constant array slices can be enforced at
+ run time.
+\end_layout
+
+\begin_layout Subsection*
+A2.
+ Run-time size checking for arrays as indices
+\begin_inset CommandInset label
+LatexCommand label
+name "app:A2.-Run-time-size"
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+If it is not possible to determine the size of the array, the compiler will
+ issue a type error.
+ This can be relaxed to warning, in which case the compiler will insert
+ a run-time check.
+ This is simply an if-then-else with the condition that 
+\family typewriter
+size(
+\emph on
+lhs expr
+\emph default
+) == size(
+\emph on
+rhs expr
+\emph default
+)
+\family default
+.
+ For example:
+\end_layout
+
+\begin_layout Example
+Run-time check for arrays as indices
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+\size small
+integer a(5,5), b(3), k(5), i
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+\size small
+! compute a, b, k, i
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+\size small
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+if (size(b)==size(a(2,k(3:i)))) then 
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+\size small
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+b = a(2,k(3:i))
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+\size small
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+else
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+\size small
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+print *, 'Type error: b and a(2,k(3:i)) have a different SIZE'
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+\size small
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+call exit(0)
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+\size small
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+end if
+\end_layout
+
+\begin_layout Standard
+In this way type safety of non-constant array accesses can be enforced at
+ run time.
+\end_layout
+
+\begin_layout Subsection*
+A3.
+ Run-time Checking of Higher-order Subroutines and Functions
+\begin_inset CommandInset label
+LatexCommand label
+name "app:A3.-Run-time-Checking"
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+As subroutines and external functions can take the names of other subroutines
+ or external functions as arguments, FORTRAN 77 has limited supports higher-orde
+r functions.
+ The issue with the Fortran implementation of higher order functions is
+ how they are typed.
+ Recall that we can transform any function or subroutine into a pure function
+ as discussed in Section 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "sec:Program-transformations-for"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+.
+ 
+\end_layout
+
+\begin_layout Standard
+Essentially, when a function 
+\begin_inset Formula $f_{1}(x)$
+\end_inset
+
+
+\emph on
+ 
+\emph default
+with type
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\[
+f_{1}:t_{1}\rightarrow t_{2}
+\]
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+is passed as argument to a function 
+\begin_inset Formula $f_{2}(f)$
+\end_inset
+
+, the type of 
+\begin_inset Formula $f_{2}$
+\end_inset
+
+ is
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\[
+f_{2}:t_{2}\rightarrow t_{3}
+\]
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+because in Fortran, only the return type of the passed function is used.
+ The complete type would be
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\[
+f_{2}:(t_{1}\rightarrow t_{2})\rightarrow t_{3}
+\]
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+So in Fortran the type of the argument(s) of 
+\begin_inset Formula $f_{1}$
+\end_inset
+
+ is not considered.
+ Which means that code can easily be unsafe, as illustrated in Example 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "exa:Unsafe-code-with"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+.
+\end_layout
+
+\begin_layout Example
+\begin_inset CommandInset label
+LatexCommand label
+name "exa:Unsafe-code-with"
+
+\end_inset
+
+Unsafe code with higher-order function call
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+\size small
+t3 function f2(f)
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+\size small
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+t2 :: f,y
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+\size small
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+t1 :: x
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+\size small
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+t4 :: z
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+\size small
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+logical :: c
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+\size small
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+...
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+\size small
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+if (c) then
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+\size small
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+y = f(x)
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+\size small
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+else
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+\size small
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+y = f(z,x) 
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+\size small
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+end if
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+\size small
+end function
+\end_layout
+
+\begin_layout Standard
+The call to 
+\emph on
+f(z,x) 
+\emph default
+in the example, while patently wrong, will pass silently.
+ For subroutines the situation is the same, the only difference is that
+ there is no return type so we use 
+\emph on
+void
+\emph default
+ as the type of the subroutine passed as argument.
+\end_layout
+
+\begin_layout Standard
+Because the type information is incomplete, it is not possible to catch
+ this type of error at compile time.
+ However, we propose here a novel approach to detect the behaviour at run
+ time and throw an error.
+ To do so, we construct a so-called 
+\emph on
+sum type 
+\emph default
+at compile time.
+ This is one kind of type used by many functional programming languages
+ called algebraic data types (the other kind are 
+\emph on
+product types
+\emph default
+, i.e.
+ records), and it allows you to define a type with variants, so we can say
+ "the type of this expression either be A or B or C etc".
+ In particular, we use a sum type where every type variant is a function
+ type, something like
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\[
+datatype\;F=F_{1}\;t_{1}\rightarrow t_{2}\,|\,F_{2}\;t_{4}\rightarrow t_{1}\rightarrow t_{2}\,|\,F_{3}\;\dots
+\]
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+Then the type of the argument in the call becomes 
+\emph on
+F
+\emph default
+ but we can check which variant has been selected because effectively each
+ argument is tagged with the name of the type variant.
+ Fortran does not have such a type, but using an appropriate program transformat
+ion we can achieve the same effect.
+ The approach is as follows:
+\end_layout
+
+\begin_layout Itemize
+The types of all functions that are allowed to be passed as argument are
+ known because these are the functions marked as 
+\family sans
+EXTERNAL
+\family default
+ in the code unit containing the call (see Example 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "exa:External-functions"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+)
+\end_layout
+
+\begin_deeper
+\begin_layout Example
+\begin_inset CommandInset label
+LatexCommand label
+name "exa:External-functions"
+
+\end_inset
+
+External functions
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+\size small
+program functions_as_arguments
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+\size small
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+external f3
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+\size small
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+external f4
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+\size small
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+t3 :: v1, v2, f2
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+\size small
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+v1 = f2(f3,...)
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+\size small
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+v2 = f2(f4,...)
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+\size small
+end 
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+\size small
+t3 function f2(f,...)
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+\size small
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+t2 :: f
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+\size small
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+external f
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+\size small
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+...
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+\size small
+end
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+\size small
+t2 function f3(x)
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+\size small
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+t1 :: x
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+\size small
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+...
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+\size small
+end
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+\size small
+t2 function f4(z,x)
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+\size small
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+t1 :: x
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+\size small
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+t4 :: z
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+\size small
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+...
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+\size small
+end
+\end_layout
+
+\end_deeper
+\begin_layout Itemize
+Make a list of the type signatures of these functions:
+\end_layout
+
+\begin_deeper
+\begin_layout Standard
+\begin_inset Formula 
+\[
+F=[t_{1}\rightarrow t_{2},t_{4}\rightarrow t_{1}\rightarrow t_{2},\dots]
+\]
+
+\end_inset
+
+
+\end_layout
+
+\end_deeper
+\begin_layout Itemize
+The index in this list is a unique identifier for that type, 
+\emph on
+F(1)
+\emph default
+ refers to the first type, 
+\emph on
+F(2)
+\emph default
+ to the second etc.
+\end_layout
+
+\begin_layout Itemize
+We add the index variable as an additional argument to the calling function
+ (Example 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "exa:Identifying-type-variants"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+) and use the index corresponding to the called function in the actual call
+ (Example 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "exa:Indexed-external-functions"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+)
+\end_layout
+
+\begin_deeper
+\begin_layout Example
+\begin_inset CommandInset label
+LatexCommand label
+name "exa:Indexed-external-functions"
+
+\end_inset
+
+Indexed external functions 
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+\size small
+program functions_as_arguments
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+\size small
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+external f3 ! 1
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+\size small
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+external f4 ! 2
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+\size small
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+t3 :: v1, v2, f2
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+\size small
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+v1 = f2(1,f3,...)
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+\size small
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+v2 = f2(2,f4,...)
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+\size small
+end 
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+\size small
+t3 function f2(idx,f,...)
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+\size small
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+integer :: idx
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+\size small
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+t2 :: f
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+\size small
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+external f
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+\size small
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+...
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+\size small
+end
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+\size small
+t2 function f3(t1)
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+\size small
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+t1 :: x
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+\size small
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+...
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+\size small
+end
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+\size small
+t2 function f4(t4,t1)
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+\size small
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+t1 :: x
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+\size small
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+t4 :: z
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+\size small
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+...
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+\size small
+end
+\end_layout
+
+\end_deeper
+\begin_layout Itemize
+We can now use this index to identify the selected type variant, as shown
+ in Example 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "exa:Identifying-type-variants"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+.
+ Every call to the function argument 
+\emph on
+f
+\emph default
+ is guarded by an if-then-else statement checking if the index 
+\emph on
+idx
+\emph default
+ matches the actual index corresponding to the variant.
+ If this is not the case, a run-time type error is thrown.
+ The variant is determined by matching the signature of the call to the
+ signatures in the sum type.
+ 
+\end_layout
+
+\begin_deeper
+\begin_layout Example
+\begin_inset CommandInset label
+LatexCommand label
+name "exa:Identifying-type-variants"
+
+\end_inset
+
+Identifying type variants using indexing
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+\size small
+t3 function f2(idx,f)
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+\size small
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+integer :: idx 
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+\size small
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+t2 :: f,y
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+\size small
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+t1 :: x
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+\size small
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+t4 :: z
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+\size small
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+logical :: c
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+\size small
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+...
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+\size small
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+if (c) then
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+\size small
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+if (idx==1) then
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+\size small
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+y = f(x)
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+\size small
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+else
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+\size small
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+print *, 'Type error: call does not match signature'
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+\size small
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+call exit(0)
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+\size small
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+end if
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+\size small
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+else
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+\size small
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+if (idx==2) then
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+\size small
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+y = f(z,x) 
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+\size small
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+else
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+\size small
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+print *, 'Type error: call does not match signature'
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+\size small
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+call exit(0)
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+\size small
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+end if
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+\size small
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+end if
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+\size small
+end function
+\end_layout
+
+\end_deeper
+\begin_layout Standard
+This algorithm is formalised for subroutines as Algorithm 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "alg:hof_rt_typechecking"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+; functions are entirely analogous.
+ In this way, type safety of higher-order functions can be enforced at run
+ time.
+ 
+\end_layout
+
+\begin_layout Standard
+\begin_inset ERT
+status open
+
+\begin_layout Plain Layout
+
+
+\backslash
+begin{algorithm}
+\end_layout
+
+\end_inset
+
+
+\begin_inset CommandInset label
+LatexCommand label
+name "alg:hof_rt_typechecking"
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset Box Frameless
+position "t"
+hor_pos "c"
+has_inner_box 1
+inner_pos "t"
+use_parbox 0
+use_makebox 0
+width "90col%"
+special "none"
+height "1in"
+height_special "totalheight"
+thickness "0.4pt"
+separation "3pt"
+shadowsize "4pt"
+framecolor "black"
+backgroundcolor "none"
+status open
+
+\begin_layout Enumerate
+Preliminaries:
+\end_layout
+
+\begin_deeper
+\begin_layout Plain Layout
+\begin_inset Formula $F=(\dots,\tau_{i},\dots)$
+\end_inset
+
+ : an ordered list of function signatures
+\end_layout
+
+\begin_layout Plain Layout
+\begin_inset Formula $\Gamma_{p}$
+\end_inset
+
+ : the entire program context
+\end_layout
+
+\begin_layout Plain Layout
+\begin_inset Formula $\Gamma_{c}$
+\end_inset
+
+ : the context of the code unit 
+\emph on
+c
+\emph default
+ in which the higher-order function is called
+\end_layout
+
+\begin_layout Plain Layout
+\begin_inset Formula $External(\Gamma_{c})$
+\end_inset
+
+ : the subset of 
+\begin_inset Formula $\Gamma_{c}$
+\end_inset
+
+ containing all functions declared as 
+\family sans
+EXTERNAL
+\end_layout
+
+\begin_layout Plain Layout
+\begin_inset Formula $\Gamma_{h}$
+\end_inset
+
+ : the context of the higher-order function 
+\emph on
+h
+\end_layout
+
+\end_deeper
+\begin_layout Enumerate
+Build the list 
+\emph on
+F
+\emph default
+ of the signatures of the external functions in 
+\emph on
+c
+\emph default
+:
+\end_layout
+
+\begin_deeper
+\begin_layout Plain Layout
+\begin_inset Formula 
+\[
+F=(\forall f_{i}\in External(\Gamma_{c}),\tau_{i}\in\Gamma_{p}|\Gamma_{p}\vdash f_{i}:\tau_{i})
+\]
+
+\end_inset
+
+
+\end_layout
+
+\end_deeper
+\begin_layout Enumerate
+Transformation rule for the call to the higher-order function 
+\emph on
+h
+\emph default
+ in 
+\emph on
+c
+\emph default
+:
+\end_layout
+
+\begin_deeper
+\begin_layout Plain Layout
+\align center
+
+\family typewriter
+\size small
+call 
+\begin_inset Formula $h$
+\end_inset
+
+(
+\begin_inset Formula $\dots$
+\end_inset
+
+,
+\begin_inset Formula $f_{i}$
+\end_inset
+
+,
+\family default
+
+\begin_inset Formula $\dots$
+\end_inset
+
+
+\family typewriter
+)
+\end_layout
+
+\begin_layout Plain Layout
+\align center
+
+\family roman
+\series medium
+\shape up
+\size normal
+\emph off
+\bar no
+\strikeout off
+\xout off
+\uuline off
+\uwave off
+\noun off
+\color none
+\begin_inset Formula $\Downarrow$
+\end_inset
+
+
+\end_layout
+
+\begin_layout Plain Layout
+\align center
+
+\family typewriter
+\size small
+call 
+\begin_inset Formula $h$
+\end_inset
+
+(
+\begin_inset Formula $\dots$
+\end_inset
+
+,
+\begin_inset Formula $i$
+\end_inset
+
+,
+\begin_inset Formula $f_{i}$
+\end_inset
+
+,
+\family default
+
+\begin_inset Formula $\dots$
+\end_inset
+
+
+\family typewriter
+)
+\end_layout
+
+\begin_layout Plain Layout
+\align center
+where 
+\begin_inset Formula $f_{i}\in External(\Gamma_{c})$
+\end_inset
+
+ and 
+\begin_inset Formula $\Gamma_{p}\vdash f_{i}:F(i)$
+\end_inset
+
+
+\end_layout
+
+\begin_layout Plain Layout
+In words, 
+\begin_inset Formula $f_{i}$
+\end_inset
+
+ is marked as 
+\family sans
+EXTERNAL
+\family default
+ in 
+\emph on
+c
+\emph default
+ and 
+\emph on
+i
+\emph default
+ is the index of the type of 
+\begin_inset Formula $f_{i}$
+\end_inset
+
+ in 
+\emph on
+F
+\emph default
+.
+\end_layout
+
+\end_deeper
+\begin_layout Enumerate
+Transformation rule for the declaration of the higher-order function 
+\emph on
+h
+\end_layout
+
+\begin_deeper
+\begin_layout Plain Layout
+\align center
+\begin_inset Box Frameless
+position "t"
+hor_pos "c"
+has_inner_box 1
+inner_pos "t"
+use_parbox 0
+use_makebox 0
+width "45col%"
+special "none"
+height "1in"
+height_special "totalheight"
+thickness "0.4pt"
+separation "3pt"
+shadowsize "4pt"
+framecolor "black"
+backgroundcolor "none"
+status open
+
+\begin_layout Plain Layout
+
+\family typewriter
+\size small
+subroutine 
+\begin_inset Formula $h$
+\end_inset
+
+(...,
+\begin_inset Formula $g$
+\end_inset
+
+,...)
+\end_layout
+
+\begin_layout Plain Layout
+
+\family typewriter
+\size small
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+...
+\end_layout
+
+\begin_layout Plain Layout
+
+\family typewriter
+\size small
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+call 
+\begin_inset Formula $g$
+\end_inset
+
+(...)
+\end_layout
+
+\begin_layout Plain Layout
+
+\family typewriter
+\size small
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+...
+\end_layout
+
+\begin_layout Plain Layout
+
+\family typewriter
+\size small
+end
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Plain Layout
+\align center
+
+\family roman
+\series medium
+\shape up
+\size normal
+\emph off
+\bar no
+\strikeout off
+\xout off
+\uuline off
+\uwave off
+\noun off
+\color none
+\begin_inset Formula $\Downarrow$
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\end_layout
+
+\begin_layout Plain Layout
+\align center
+\begin_inset Box Frameless
+position "t"
+hor_pos "c"
+has_inner_box 1
+inner_pos "t"
+use_parbox 0
+use_makebox 0
+width "45col%"
+special "none"
+height "1in"
+height_special "totalheight"
+thickness "0.4pt"
+separation "3pt"
+shadowsize "4pt"
+framecolor "black"
+backgroundcolor "none"
+status open
+
+\begin_layout Plain Layout
+
+\family typewriter
+\size small
+subroutine 
+\begin_inset Formula $h$
+\end_inset
+
+(...,idx,
+\begin_inset Formula $g$
+\end_inset
+
+,...)
+\end_layout
+
+\begin_layout Plain Layout
+
+\family typewriter
+\size small
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+integer :: idx
+\end_layout
+
+\begin_layout Plain Layout
+
+\family typewriter
+\size small
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+...
+\end_layout
+
+\begin_layout Plain Layout
+
+\family typewriter
+\size small
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+if (idx=
+\begin_inset Formula $i$
+\end_inset
+
+) then
+\end_layout
+
+\begin_layout Plain Layout
+
+\family typewriter
+\size small
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+call 
+\begin_inset Formula $g$
+\end_inset
+
+(...)
+\end_layout
+
+\begin_layout Plain Layout
+
+\family typewriter
+\size small
+\begin_inset space ~
+\end_inset
+
+else
+\end_layout
+
+\begin_layout Plain Layout
+
+\family typewriter
+\size small
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\emph on
+type error
+\end_layout
+
+\begin_layout Plain Layout
+
+\family typewriter
+\size small
+\begin_inset space ~
+\end_inset
+
+end if
+\end_layout
+
+\begin_layout Plain Layout
+
+\family typewriter
+\size small
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+...
+\end_layout
+
+\begin_layout Plain Layout
+
+\family typewriter
+\size small
+end
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Plain Layout
+\align center
+
+\family roman
+\series medium
+\shape up
+\size normal
+\emph off
+\bar no
+\strikeout off
+\xout off
+\uuline off
+\uwave off
+\noun off
+\color none
+where 
+\family default
+\series default
+\shape default
+\size default
+\emph on
+\bar default
+\strikeout default
+\xout default
+\uuline default
+\uwave default
+\noun default
+\color inherit
+i
+\family roman
+\series medium
+\shape up
+\size normal
+\emph off
+\bar no
+\strikeout off
+\xout off
+\uuline off
+\uwave off
+\noun off
+\color none
+ is given by 
+\begin_inset Formula $\Gamma_{h}\vdash g:\tau_{g}\Rightarrow i\;|\tau_{g}=F(i)$
+\end_inset
+
+
+\end_layout
+
+\begin_layout Plain Layout
+
+\family roman
+\series medium
+\shape up
+\size normal
+\emph off
+\bar no
+\strikeout off
+\xout off
+\uuline off
+\uwave off
+\noun off
+\color none
+In words: given the type 
+\begin_inset Formula $\tau_{g}$
+\end_inset
+
+of 
+\begin_inset Formula $g$
+\end_inset
+
+ infered in the context 
+\begin_inset Formula $\Gamma_{h}$
+\end_inset
+
+ of the code unit 
+\begin_inset Formula $h$
+\end_inset
+
+, 
+\begin_inset Formula $i$
+\end_inset
+
+ is the index of 
+\begin_inset Formula $\tau_{g}$
+\end_inset
+
+ in the list of external signatures in the context 
+\begin_inset Formula $\Gamma_{c}$
+\end_inset
+
+ of the caller 
+\begin_inset Formula $c$
+\end_inset
+
+ of 
+\begin_inset Formula $h$
+\end_inset
+
+, 
+\begin_inset Formula $F$
+\end_inset
+
+.
+\end_layout
+
+\begin_layout Plain Layout
+
+\family roman
+\series medium
+\shape up
+\size normal
+\emph off
+\bar no
+\strikeout off
+\xout off
+\uuline off
+\uwave off
+\noun off
+\color none
+Note that the type of 
+\begin_inset Formula $g$
+\end_inset
+
+ is infered within the context of 
+\begin_inset Formula $h$
+\end_inset
+
+ and that there can be more than one matching entry in 
+\begin_inset Formula $F$
+\end_inset
+
+, so that in general the if condition might be:
+\end_layout
+
+\begin_layout Plain Layout
+\align center
+
+\family typewriter
+if (idx==
+\begin_inset Formula $i_{1}$
+\end_inset
+
+ .or.
+ idx==
+\begin_inset Formula $i_{2}$
+\end_inset
+
+ ...) then ...
+\end_layout
+
+\end_deeper
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset ERT
+status open
+
+\begin_layout Plain Layout
+
+
+\backslash
+caption{Run-time type checks for higher-order function calls}
+\end_layout
+
+\begin_layout Plain Layout
+
+
+\backslash
+end{algorithm}
+\end_layout
+
+\end_inset
+
+
 \end_layout
 
 \begin_layout Standard
