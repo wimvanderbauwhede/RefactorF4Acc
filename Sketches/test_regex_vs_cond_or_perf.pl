@@ -12,20 +12,20 @@ for (1..1000_000) {
     for my $str (@strs) {
     if (0) {
         if (0) {
-        # 2.4s
+        # 1.6s
         if ($str=~/(READ|ACCEPT|OPEN|CLOSE|PRINT|WRITE)/) {
             push @hits, $1;
         }
     } else {
-        # with (?: ... ) 1.85 s
-        # without grouping 1.85 s
+        # with (?: ... ) 1.5 s
+        # without grouping 1.5 s
         if ($str=~/(?:READ|ACCEPT|OPEN|CLOSE|PRINT|WRITE)/) {
             push @hits, $1;
         }
     }
     } else {
         if (0) {
-        # 2.2s
+        # 1.65s
         if (
                $str=~/(READ)/
             || $str=~/(ACCEPT)/
@@ -38,7 +38,7 @@ for (1..1000_000) {
         }
 
     } else {
-        # 1.45s
+        # 1.191s
         if (
                $str=~/READ/
             || $str=~/ACCEPT/

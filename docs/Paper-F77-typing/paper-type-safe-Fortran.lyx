@@ -12,7 +12,7 @@
 
 %\newcounter{chapter}
 
-\usepackage[boxruled]{algorithm2e}
+\usepackage[ruled]{algorithm2e}
 \end_preamble
 \options smallextended
 \use_default_options true
@@ -41,7 +41,7 @@
 \paperfontsize default
 \spacing single
 \use_hyperref false
-\papersize default
+\papersize a4paper
 \use_geometry false
 \use_package amsmath 1
 \use_package amssymb 1
@@ -88,7 +88,7 @@
 \begin_body
 
 \begin_layout Title
-Making Legacy Fortran Code Type Safe through Source-to-source Compilation
+Making Legacy Fortran Code Type Safe through Automated Program Transformation
 \end_layout
 
 \begin_layout Author
@@ -108,6 +108,16 @@ In this paper we present an analysis of the type safety of FORTRAN 77 and
  free and referentially transparent subroutines can readily be offloaded
  to accelerators.
  
+\begin_inset Note Note
+status open
+
+\begin_layout Plain Layout
+Add significance and rigour!
+\end_layout
+
+\end_inset
+
+
 \end_layout
 
 \begin_layout Section
@@ -343,9 +353,7 @@ The need for pure functions
 \end_layout
 
 \begin_layout Standard
-Our toolchain allows fully automated offloading of code units to accelerators,
- without the need of OpenMP or OpenACC style pragmas.
- Because of the separation of memory spaces and the absence of an operating
+Because of the separation of memory spaces and the absence of an operating
  system on the accelerator, the code units offloaded to the accelerator
  must be self-contained: 
 \end_layout
@@ -505,7 +513,7 @@ f77 specification
 
 , is not type-safe.
  It is possible to write programs which the type checker accepts but are
- nonetheless incorrect.
+ nonetheless incorrect from the perspective of the type system.
  The key culprit for this is the loss of type information which occurs when
  data is handled via 
 \family sans
@@ -520,6 +528,10 @@ EQUIVALENCE
 \end_layout
 
 \begin_layout Standard
+\begin_inset Note Note
+status collapsed
+
+\begin_layout Plain Layout
 However, we present in this paper a source-to-source compiler which can
  automatically rewrite FORTRAN 77 programs into Fortran 90 so as to remove
  all 
@@ -535,7 +547,7 @@ EQUIVALENCE
  
 \end_layout
 
-\begin_layout Standard
+\begin_layout Plain Layout
 We further show that with a small number of additional restrictions, the
  resulting code is type safe when type checked against the type system which
  we present and well typed programs adhering to these restrictions will
@@ -548,11 +560,16 @@ We further show that with a small number of additional restrictions, the
  
 \end_layout
 
-\begin_layout Standard
+\begin_layout Plain Layout
 We first present the formal type system and type checks used in our compiler
  to ensure that a program transformed as described is type safe, and then
  the algorithms required to transform FORTRAN 77 code into type-safe Fortran
  90.
+\end_layout
+
+\end_inset
+
+
 \end_layout
 
 \begin_layout Section
@@ -787,7 +804,133 @@ http://www.crescentbaysoftware.com/compilertech.html
 \end_layout
 
 \begin_layout Section
-Formal analysis of the type safety of Fortran
+Contribution
+\end_layout
+
+\begin_layout Standard
+\begin_inset Note Note
+status open
+
+\begin_layout Plain Layout
+Add forward refs!
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+We present in this paper a formal analysis of the type safety of normalised
+ FORTRAN 77 programs (Section 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "sec:Formal-analysis-of"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+) and a series of algorithms for program transformation into normalised
+ form (Section 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "sec:Program-transformations-for"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+).
+ We also present additional type checks for 
+\family sans
+COMMON
+\family default
+ blocks and 
+\family sans
+EQUIVALENCE
+\family default
+ asociations (Section 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "sec:Typechecking-COMMON-block"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+), as a precondition to the program transformation.
+\end_layout
+
+\begin_layout Standard
+These algorithms are implemented in our source-to-source compiler
+\begin_inset Foot
+status open
+
+\begin_layout Plain Layout
+\begin_inset Flex URL
+status open
+
+\begin_layout Plain Layout
+
+https://github.com/wimvanderbauwhede/RefactorF4Acc
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\end_inset
+
+ which can automatically rewrite FORTRAN 77 programs into Fortran 90 so
+ as to remove all 
+\family sans
+COMMON
+\family default
+ and 
+\family sans
+EQUIVALENCE
+\family default
+ statements, provide full referential transparency and ensure that all functions
+ marked for offloading to accelerators are pure.
+ 
+\end_layout
+
+\begin_layout Standard
+We further show that (with a small number of additional restrictions), the
+ resulting code is type safe when type checked against the type system which
+ we present and well typed programs adhering to these restrictions will
+ not go wrong if they are accepted by the type checker.
+ What this means is that, if an original FORTRAN 77 program is accepted
+ by the type checker of our source-to-source compiler, then the Fortran
+ 90 program which it generates can be type checked with an ordinary Fortran
+ compiler with all type-based warnings turned into errors, and the code
+ will type check cleanly.
+ 
+\end_layout
+
+\begin_layout Standard
+\begin_inset Note Note
+status open
+
+\begin_layout Plain Layout
+We first present the formal type system and type checks used in our compiler
+ to ensure that a program transformed as described is type safe, and then
+ the algorithms required to transform FORTRAN 77 code into type-safe Fortran
+ 90.
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Section
+Formal analysis of the type safety of normalised Fortran programs
 \begin_inset CommandInset label
 LatexCommand label
 name "sec:Formal-analysis-of"
@@ -795,6 +938,38 @@ name "sec:Formal-analysis-of"
 \end_inset
 
 
+\end_layout
+
+\begin_layout Standard
+In this work, a 
+\emph on
+normalised
+\emph default
+ FORTRAN 77 program is a program that consists of pure functions (see Section
+ 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "subsec:The-definition-of"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+ for a formal definition) and where all variables, parameters and functions
+ are explicitly typed.
+ We discuss in Section 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "sec:Program-transformations-for"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+ how to achieve fully explicitly typing and under which conditions a procedure
+ can be made pure.
 \end_layout
 
 \begin_layout Subsection
@@ -847,7 +1022,7 @@ e
 
  contains free variables, they must be declared with the right type in the
  context of the code unit.
- We will use the terms 
+ We will use the term 
 \emph on
 type statement
 \emph default
@@ -1323,35 +1498,14 @@ The type
 \end_layout
 
 \begin_layout Subsection
-Formalising the FORTRAN 77 type system 
-\end_layout
-
-\begin_layout Standard
-We start by considering a FORTRAN 77 program that consists of pure functions
- (see Section 
-\begin_inset CommandInset ref
-LatexCommand ref
-reference "subsec:The-definition-of"
-plural "false"
-caps "false"
-noprefix "false"
+Specification of FORTRAN 77 data types
+\begin_inset CommandInset label
+LatexCommand label
+name "subsec:Specification-of-FORTRAN"
 
 \end_inset
 
- for a formal definition) and where all variables, parameters and functions
- are explicitly typed.
- We discuss in Section 
-\begin_inset CommandInset ref
-LatexCommand ref
-reference "sec:Program-transformations-for"
-plural "false"
-caps "false"
-noprefix "false"
 
-\end_inset
-
- how to achieve fully explicitly typing and under which conditions a procedure
- can be made pure.
 \end_layout
 
 \begin_layout Standard
@@ -1493,7 +1647,17 @@ Complex Type
 \begin_layout Standard
 As quoted above, the f77 specification does not specify the size of a storage
  unit.
- However, the consensus amongst Fortran compilers is as follows:
+ However, the consensus amongst the major Fortran compilers
+\begin_inset Foot
+status open
+
+\begin_layout Plain Layout
+GNU, PGI/Nvidia, Intel, SunSoft/Oracle, Lahey/Fujitsu
+\end_layout
+
+\end_inset
+
+ is as follows:
 \end_layout
 
 \begin_layout Standard
@@ -1502,10 +1666,6 @@ placement h
 wide false
 sideways false
 status open
-
-\begin_layout Plain Layout
-
-\end_layout
 
 \begin_layout Plain Layout
 \align center
@@ -1520,7 +1680,7 @@ status open
 \begin_inset Text
 
 \begin_layout Plain Layout
-Type 
+Type
 \end_layout
 
 \end_inset
@@ -1713,7 +1873,7 @@ logical
 \begin_inset Text
 
 \begin_layout Plain Layout
-Size in bytes 
+Size in bytes
 \end_layout
 
 \end_inset
@@ -1753,7 +1913,7 @@ character
 \begin_inset Text
 
 \begin_layout Plain Layout
-1 
+1
 \end_layout
 
 \end_inset
@@ -1782,10 +1942,6 @@ name "tab:Relationship-between-storage"
 
 \end_inset
 
-
-\end_layout
-
-\begin_layout Plain Layout
 
 \end_layout
 
@@ -1870,13 +2026,23 @@ y complicate the discussion without adding anything material in terms of
  the type system.
 \end_layout
 
-\begin_layout Subsubsection
-The form of a FORTRAN 77 type 
+\begin_layout Subsection
+Formalising the FORTRAN 77 type system 
 \end_layout
 
 \begin_layout Standard
-With the above conventions and assumptions, we can describe Fortran's type
- system using sets of entities as show in Definition 
+With the conventions from Section 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "subsec:Specification-of-FORTRAN"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+ and the above assumptions, we can describe Fortran's type system using
+ sets of entities as show in Definition 
 \begin_inset CommandInset ref
 LatexCommand ref
 reference "alg:The-FORTRAN-77"
@@ -2013,7 +2179,7 @@ noprefix "false"
 
 \end_inset
 
-, the general form a type 
+, the general form of a type 
 \begin_inset Formula $\tau$
 \end_inset
 
@@ -2079,16 +2245,20 @@ Function and subroutine declarations and applications
 \end_layout
 
 \begin_layout Itemize
-Expressions
+Assignments
 \end_layout
 
 \begin_layout Itemize
-Assignments
+Expressions
 \end_layout
 
 \begin_layout Standard
 Furthermore, we need to consider specifically how Fortran handles subtypes,
- which arise in the context of type conversion (coercion).
+ which arise in the context of what the f77 specification calls 
+\emph on
+type conversion
+\emph default
+, also commonly known as type coercion.
 \end_layout
 
 \begin_layout Subsubsection
@@ -3386,7 +3556,7 @@ As the name and the kind argument identify a Num type, for the typing rules
 status open
 
 \begin_layout Plain Layout
-In Fortran 90, the coercion functions can take an array operand:
+In Fortran 90, the type conversion functions can take an array operand:
 \end_layout
 
 \begin_layout Plain Layout
@@ -3529,7 +3699,7 @@ unless the exponent of
 \family typewriter
 **
 \family default
- is an integer, in which case there is no coercion
+ is an integer, in which case there is no type conversion
 \end_layout
 
 \end_inset
@@ -3612,7 +3782,7 @@ Therefore the type conversion rules is very similar:
 \end_layout
 
 \begin_layout Subsubsection
-Type coercion of assignments
+Type conversion of assignments
 \end_layout
 
 \begin_layout Standard
@@ -3858,8 +4028,8 @@ Error: Possible change of value in conversion from REAL(4) to INTEGER(4)
 \begin_layout Standard
 However, this behaviour is so common that by default, Fortran compilers
  only warn about unsafe conversions, and then only when warnings are enabled.
- Our compiler warns by default and converts the implicit coercion to an
- explicit conversion as shown in Example 
+ Our compiler warns by default and converts the implicit type conversion
+ to an explicit conversion as shown in Example 
 \begin_inset CommandInset ref
 LatexCommand ref
 reference "exa:Explicit-conversion"
@@ -4024,87 +4194,14 @@ In the next sections we discuss the transformations required to ensure that
 \end_layout
 
 \begin_layout Section
-Type checking 
-\family sans
-COMMON
-\family default
- block and 
-\family sans
-EQUIVALENCE
-\family default
- associations
+The problem for type safety: loss of type information
 \begin_inset CommandInset label
 LatexCommand label
-name "sec:Typechecking-COMMON-block"
+name "sec:The-problem-for"
 
 \end_inset
 
  
-\end_layout
-
-\begin_layout Standard
-In the preceding section (Section 
-\begin_inset CommandInset ref
-LatexCommand ref
-reference "sec:Formal-analysis-of"
-plural "false"
-caps "false"
-noprefix "false"
-
-\end_inset
-
-) we analysed the type safety of a FORTRAN 77 program that consists of pure
- functions and where all variables, parameters and functions are explicitly
- typed.
- In this section and the following (Section 
-\begin_inset CommandInset ref
-LatexCommand ref
-reference "sec:Program-transformations-for"
-plural "false"
-caps "false"
-noprefix "false"
-
-\end_inset
-
-) we will show how any FORTRAN 77 program can be transformed into an equivalent
- program with these properties.
- In particular, we will discuss how to remove 
-\family sans
-COMMON
-\family default
- blocks and 
-\family sans
-EQUIVALENCE
-\family default
- associations.
- In this section, we present a novel algorithm to type check variables in
- 
-\family sans
-COMMON
-\family default
- and 
-\family sans
-EQUIVALENCE
-\family default
- statements.
- If the type check passes, they can be safely removed.
- Otherwise it means the code is not type safe and in practice most likely
- incorrect.
- If the original code passes the type check then the transformed code without
- 
-\family sans
-COMMON
-\family default
- and 
-\family sans
-EQUIVALENCE
-\family default
- statements will be type safe when checked with any of the major Fortran
- compilers.
-\end_layout
-
-\begin_layout Subsection
-Loss of type information 
 \end_layout
 
 \begin_layout Standard
@@ -4153,19 +4250,11 @@ So in principle, COMMON blocks in f90 code should be type-safe.
 
 \begin_layout Standard
 This means in particular that there is no type coercion between real (and
- by extension complex) and integer values.
- Because of this lack of coercion, these type checks are different from
- the type checks discussed in Section 
-\begin_inset CommandInset ref
-LatexCommand ref
-reference "sec:Formal-analysis-of"
-plural "false"
-caps "false"
-noprefix "false"
-
-\end_inset
-
-.
+ by extension complex) and integer values in 
+\family sans
+COMMON
+\family default
+ blocks.
  The same is true for 
 \family sans
 EQUIVALENCE
@@ -4200,7 +4289,7 @@ real*4 r1
 
 \family typewriter
 \size small
-equivalence (i2,r1)
+equivalence (i1,r1)
 \end_layout
 
 \begin_layout Example
@@ -4231,366 +4320,21 @@ r1 = 42
 print *, i1 ! prints 1109917696
 \end_layout
 
-\begin_layout Subsection
-A type checking algorithm for 
-\family sans
-COMMON
-\family default
- and 
-\family sans
-EQUIVALENCE
-\family default
- statements
-\end_layout
-
 \begin_layout Standard
-For the purpose of type checking, and without loss of generality, we assume
- that all variables are scalar: an array 
-\begin_inset Formula $a$
-\end_inset
-
- is considered as syntactic sugar for an ordered collection of scalars with
- names 
-\begin_inset Formula $a(i)$
-\end_inset
-
-.
- We further assume all arrays are linear and traversed using an index starting
- at 
-\begin_inset Formula $1$
-\end_inset
-
-.
- 
-\end_layout
-
-\begin_layout Standard
-The rules for type soundness of 
-\family sans
-COMMON
-\family default
- and 
-\family sans
-EQUIVALENCE
-\family default
- statements are shown in Algorithm 
-\begin_inset CommandInset ref
-LatexCommand ref
-reference "alg:common_equiv_typechecking"
-plural "false"
-caps "false"
-noprefix "false"
-
-\end_inset
-
-:
-\end_layout
-
-\begin_layout Standard
-\begin_inset ERT
-status open
-
-\begin_layout Plain Layout
-
-
-\backslash
-begin{algorithm}
-\end_layout
-
-\end_inset
-
-
-\begin_inset CommandInset label
-LatexCommand label
-name "alg:common_equiv_typechecking"
-
-\end_inset
-
-
-\end_layout
-
-\begin_layout Standard
-\begin_inset Box Frameless
-position "t"
-hor_pos "c"
-has_inner_box 1
-inner_pos "t"
-use_parbox 0
-use_makebox 0
-width "90col%"
-special "none"
-height "1in"
-height_special "totalheight"
-thickness "0.4pt"
-separation "3pt"
-shadowsize "4pt"
-framecolor "black"
-backgroundcolor "none"
-status open
-
-\begin_layout Itemize
-Kind matching (
+What happens is that there is a sequence of four bytes stored in memory
+ and referenced by both 
 \emph on
-rule-kind
+i1
 \emph default
-)
-\end_layout
-
-\begin_deeper
-\begin_layout Plain Layout
-A scalar type is atomic, and therefore we cannot split the type, which would
- be the case if we attempted to map types with different kinds.
- 
-\end_layout
-
-\begin_layout Plain Layout
-\begin_inset Formula 
-\begin{eqnarray*}
- & K_{c,i}=K_{l,i} & ,\forall i\in\#K_{l}
-\end{eqnarray*}
-
-\end_inset
-
-
-\end_layout
-
-\end_deeper
-\begin_layout Itemize
-No 
-\family sans
-COMMON
-\family default
- block extension in the called subroutine (
+, which results in it being interpreted as a 32-bit signed integer in 2's
+ complement format, and 
 \emph on
-rule-size
+r2
 \emph default
-)
-\end_layout
-
-\begin_deeper
-\begin_layout Plain Layout
-The ordered set of words in a 
-\family sans
-COMMON
-\family default
- block accessed from a subroutine must be no larger than the size of the
- 
-\family sans
-COMMON
-\family default
- block in the caller.
- 
-\end_layout
-
-\begin_layout Plain Layout
-If 
-\begin_inset Formula $W$
-\end_inset
-
- is the ordered set of all words accessed via the 
-\family sans
-COMMON
-\family default
- block then 
-\end_layout
-
-\begin_layout Plain Layout
-\begin_inset Formula 
-\begin{eqnarray*}
- & \#W_{l}\leq\#W_{c}
-\end{eqnarray*}
-
-\end_inset
-
-
-\end_layout
-
-\end_deeper
-\begin_layout Itemize
-Logical coercion (
-\emph on
-rule-logical
-\emph default
-)
-\end_layout
-
-\begin_deeper
-\begin_layout Plain Layout
-The default rule (
-\emph on
-rule-default
-\emph default
-) is that all types must match between the sequence of variables in the
- caller and the called subroutine.
- However, this rule is too strict: there are two cases in which type coercion
- is sound.
- 
-\end_layout
-
-\begin_layout Plain Layout
-The first case involves logicals:
-\end_layout
-
-\begin_layout Plain Layout
-\begin_inset Formula 
-\begin{eqnarray*}
- &  & \begin{cases}
-T_{c,i}=\mbox{logical}\land T_{l,i}=\mbox{integer}\\
-T_{c,i}=\mbox{integer}\land T_{l,i}=\mbox{logical}\\
-T_{c,i}=\mbox{real}\land T_{l,i}=\mbox{logical}
-\end{cases}
-\end{eqnarray*}
-
-\end_inset
-
-
-\end_layout
-
-\begin_layout Plain Layout
-A logical is false when coerced from 0 and true otherwise.
- Therefore interpreting a logical as an integer gives 1 or 0, and interpreting
- an integer or real as a logical will return correct values of 
-\family typewriter
-.true.
-
-\family default
- or 
-\family typewriter
-.false.
-\family default
-.
- Therefore interpreting a logical as a real is only correct for 
-\family typewriter
-.false.
-
-\family default
- because the value of 
-\family typewriter
-.true.
-
-\family default
- interpreted as a real is a non-zero number that depends on the kind of
- the real.
- As this is quite non-intuitive, our type checker therefor throws an error
- on attempts to interpret a logical as a real.
-\end_layout
-
-\end_deeper
-\begin_layout Itemize
-Complex coercion (
-\emph on
-rule-complex
-\emph default
-)
-\end_layout
-
-\begin_deeper
-\begin_layout Plain Layout
-The second case involves complex numbers, which can be coerced to and from
- two contiguous real numbers:
-\end_layout
-
-\begin_layout Plain Layout
-\begin_inset Formula 
-\begin{eqnarray*}
- &  & \begin{cases}
-T_{c,i}=\mbox{complex}\land T_{l,i}=\mbox{real}\land T_{l,i+1}=\mbox{real}\\
-T_{c,i}=\mbox{real}\land T_{c,i+1}=\mbox{real}\land T_{l,i}=\mbox{complex}
-\end{cases}
-\end{eqnarray*}
-
-\end_inset
-
-
-\end_layout
-
-\end_deeper
-\begin_layout Itemize
-Default rule (
-\emph on
-rule-default
-\emph default
-)
-\end_layout
-
-\begin_deeper
-\begin_layout Plain Layout
-In all other cases, the types must match:
-\end_layout
-
-\begin_layout Plain Layout
-\begin_inset Formula 
-\begin{eqnarray*}
- & T_{l,i}=T_{c,i} & ,\forall i\in\#K_{l}
-\end{eqnarray*}
-
-\end_inset
-
-
-\end_layout
-
-\end_deeper
-\begin_layout Itemize
-Thus the overall typecheck rule becomes:
-\end_layout
-
-\begin_deeper
-\begin_layout Plain Layout
-\begin_inset Formula 
-\begin{eqnarray*}
- & \mbox{rule-kind\land}\mbox{rule-size\land}\left(\mbox{rule-logical}\lor\mbox{rule-complex}\lor\mbox{rule-default}\right)
-\end{eqnarray*}
-
-\end_inset
-
-
-\end_layout
-
-\end_deeper
-\end_inset
-
-
-\end_layout
-
-\begin_layout Standard
-\begin_inset ERT
-status open
-
-\begin_layout Plain Layout
-
-
-\backslash
-caption{Type checking rules for variables in 
-\backslash
-textsf{COMMON} and 
-\backslash
-textsf{EQUIVALENCE} statements}
-\end_layout
-
-\begin_layout Plain Layout
-
-
-\backslash
-end{algorithm}
-\end_layout
-
-\end_inset
-
-
-\end_layout
-
-\begin_layout Standard
-With these type checking rules, we can type check the soundness of associations
- in 
-\family sans
-COMMON
-\family default
- blocks and 
-\family sans
-EQUIVALENCE
-\family default
- statements.
- If the associations are correctly typed, we can proceed to remove them.
+, which results in it being interpreted as a 32-bit real, i.e.
+ an IEEE 754 single-precision floating point number.
+ There is no information in the sequence of four bytes to indicate which
+ interpretation is the correct one.
 \end_layout
 
 \begin_layout Section
@@ -4976,11 +4720,7 @@ INTENT
 \end_layout
 
 \begin_layout Subsection
-
-\family sans
-INTENT
-\family default
- inference
+Infering the I/O direction of procedure arguments
 \begin_inset CommandInset label
 LatexCommand label
 name "subsec:INTENT-inference"
@@ -4997,12 +4737,12 @@ Because the subroutines to be offloaded cannot contain external calls or
 COMMON
 \family default
  variables have been transformed into subroutine arguments, we can infer
- the 
+ the I/O direction (hereafter called 
 \family sans
 INTENT
 \family default
- of all arguments by recursive descent into nested calls, as shown in Algorithm
- 
+) of all procedure arguments by recursive descent into nested calls, as
+ shown in Algorithm 
 \begin_inset CommandInset ref
 LatexCommand ref
 reference "alg:intent"
@@ -5531,7 +5271,11 @@ end{algorithm}
 \end_layout
 
 \begin_layout Subsection
-Explicit typing
+Transforming 
+\family sans
+IMPLICIT
+\family default
+ typing into explicit typing
 \begin_inset CommandInset label
 LatexCommand label
 name "subsec:Explicit-typing"
@@ -5740,11 +5484,11 @@ end{algorithm}
 \end_layout
 
 \begin_layout Subsection
-Removal of 
+Transforming 
 \family sans
 COMMON
 \family default
- blocks
+ blocks into procedure arguments
 \begin_inset CommandInset label
 LatexCommand label
 name "subsec:Removal-of-COMMON"
@@ -5867,7 +5611,17 @@ COMMON
 \family default
  blocks allow overlapping sequences).
  One of the main contributions of this paper is in this conversion and the
- associated type checks.
+ associated type checks, presented in the next section (Section 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "sec:Typechecking-COMMON-block"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+).
 \end_layout
 
 \begin_layout Subsubsection
@@ -6184,11 +5938,11 @@ COMMON
 \end_layout
 
 \begin_layout Subsubsection
-Matching up 
+Associate 
 \family sans
 COMMON
 \family default
- block variables in a subroutine call
+ block variables in procedure calls with the caller
 \end_layout
 
 \begin_layout Standard
@@ -8024,7 +7778,40 @@ noprefix "false"
 \end_inset
 
 .
- To ensure type safety of the transformations, the type checks presented
+ 
+\end_layout
+
+\begin_layout Standard
+As a prerequisite to the actual transformation into pure functions (Section
+ 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "subsec:Transforming-Fortran-subroutines"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+) we inferring the I/O direction (
+\family sans
+INTENT)
+\family default
+ of procedure arguments using the algorithm from Section 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "subsec:INTENT-inference"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+.
+\end_layout
+
+\begin_layout Standard
+To ensure type safety of the transformations, the type checks presented
  in Section 
 \begin_inset CommandInset ref
 LatexCommand ref
@@ -8064,25 +7851,562 @@ noprefix "false"
 \end_inset
 
 .
- The final prerequisite to the actual transformation into pure functions
- (Section 
+ 
+\end_layout
+
+\begin_layout Section
+A novel type checking algorithm for 
+\family sans
+COMMON
+\family default
+ blocks and 
+\family sans
+EQUIVALENCE
+\family default
+ associations
+\begin_inset CommandInset label
+LatexCommand label
+name "sec:Typechecking-COMMON-block"
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+In Section 
 \begin_inset CommandInset ref
 LatexCommand ref
-reference "subsec:Transforming-Fortran-subroutines"
+reference "sec:Formal-analysis-of"
 plural "false"
 caps "false"
 noprefix "false"
 
 \end_inset
 
-) is inferring the 
-\family sans
-INTENT
-\family default
- using the algorithm from Section 
+ we analysed the type safety of a FORTRAN 77 program that consists of pure
+ functions and where all variables, parameters and functions are explicitly
+ typed.
+ In Section 
 \begin_inset CommandInset ref
 LatexCommand ref
-reference "subsec:INTENT-inference"
+reference "sec:Program-transformations-for"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+ we have presented the algorithms to transform any FORTRAN 77 program into
+ an equivalent program with these properties.
+ In particular, we discussed how to remove 
+\family sans
+COMMON
+\family default
+ blocks and 
+\family sans
+EQUIVALENCE
+\family default
+ associations.
+ In this section, we present a novel algorithm to type check variables in
+ 
+\family sans
+COMMON
+\family default
+ and 
+\family sans
+EQUIVALENCE
+\family default
+ statements.
+ If the type check passes, then 
+\family sans
+COMMON
+\family default
+ and 
+\family sans
+EQUIVALENCE
+\family default
+ statements can be safely removed.
+ Otherwise it means the code is not type safe and in practice most likely
+ incorrect.
+ If the original code passes the type check then the transformed code without
+ 
+\family sans
+COMMON
+\family default
+ and 
+\family sans
+EQUIVALENCE
+\family default
+ statements will be type safe when checked with any of the major Fortran
+ compilers.
+ 
+\end_layout
+
+\begin_layout Standard
+As discussed in Section 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "sec:The-problem-for"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+, 
+\family sans
+COMMON
+\family default
+ blocks and 
+\family sans
+EQUIVALENCE
+\family default
+ associations simply associate memory storage with variable names, but do
+ no preserve the original typ e information, nor do they attempt type conversion.
+ Because of this, the type checks presented here are different from the
+ type checks discussed in Section 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "sec:Formal-analysis-of"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+.
+\end_layout
+
+\begin_layout Standard
+For the purpose of type checking, and without loss of generality, we assume
+ that all variables are scalar: an array 
+\begin_inset Formula $a$
+\end_inset
+
+ is considered as syntactic sugar for an ordered collection of scalars with
+ names 
+\begin_inset Formula $a(i)$
+\end_inset
+
+.
+ We further assume all arrays are linear and traversed using an index starting
+ at 
+\begin_inset Formula $1$
+\end_inset
+
+.
+ 
+\end_layout
+
+\begin_layout Standard
+The rules for type soundness of 
+\family sans
+COMMON
+\family default
+ and 
+\family sans
+EQUIVALENCE
+\family default
+ statements are shown in Algorithm 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "alg:common_equiv_typechecking"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+.
+ The suffix 
+\emph on
+l
+\emph default
+ refers to the sets and variable local to a procedure, the suffix 
+\emph on
+c
+\emph default
+ to variable in the code unit of the the caller of the procedure.
+ 
+\end_layout
+
+\begin_layout Standard
+\begin_inset ERT
+status open
+
+\begin_layout Plain Layout
+
+
+\backslash
+RestyleAlgo{tworuled}
+\end_layout
+
+\begin_layout Plain Layout
+
+
+\backslash
+begin{algorithm}[H]
+\end_layout
+
+\end_inset
+
+
+\begin_inset CommandInset label
+LatexCommand label
+name "alg:common_equiv_typechecking"
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset ERT
+status open
+
+\begin_layout Plain Layout
+
+
+\backslash
+caption{Type checking rules for variables in 
+\backslash
+textsf{COMMON} and 
+\backslash
+textsf{EQUIVALENCE} statements}
+\end_layout
+
+\begin_layout Plain Layout
+
+
+\backslash
+end{algorithm}
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Itemize
+Kind matching (
+\emph on
+rule-kind
+\emph default
+)
+\end_layout
+
+\begin_deeper
+\begin_layout Standard
+A scalar type is atomic, and therefore we cannot split the type, which would
+ be the case if we attempted to map types with different kinds.
+ If 
+\begin_inset Formula $K_{c}$
+\end_inset
+
+ and 
+\begin_inset Formula $K_{l}$
+\end_inset
+
+ are the ordered sets of the kinds of all variables associated via the 
+\family sans
+COMMON
+\family default
+ block then
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\begin{eqnarray*}
+ & K_{c,i}=K_{l,i} & ,\forall i\in\#K_{l}
+\end{eqnarray*}
+
+\end_inset
+
+
+\end_layout
+
+\end_deeper
+\begin_layout Itemize
+No 
+\family sans
+COMMON
+\family default
+ block extension in the called subroutine (
+\emph on
+rule-size
+\emph default
+)
+\end_layout
+
+\begin_deeper
+\begin_layout Standard
+A word is a sequence of bytes.
+ The ordered set of kinds indicates the size of each word in the ordered
+ set of words in a 
+\family sans
+COMMON
+\family default
+ block.
+ The ordered set of words in a 
+\family sans
+COMMON
+\family default
+ block accessed from a subroutine must be no larger than the size of the
+ 
+\family sans
+COMMON
+\family default
+ block in the caller, because otherwise the caller would not have declared
+ the corresponding typed variables.
+ If 
+\begin_inset Formula $W_{l}$
+\end_inset
+
+ and 
+\begin_inset Formula $W_{c}$
+\end_inset
+
+ are the ordered sets of all words associated via the 
+\family sans
+COMMON
+\family default
+ block then
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\begin{eqnarray*}
+ & \#W_{l}\leq\#W_{c}
+\end{eqnarray*}
+
+\end_inset
+
+
+\end_layout
+
+\end_deeper
+\begin_layout Itemize
+Logical coercion (
+\emph on
+rule-logical
+\emph default
+)
+\end_layout
+
+\begin_deeper
+\begin_layout Standard
+The default rule (
+\emph on
+rule-default
+\emph default
+, see below) is that all types must match between the sequence of variables
+ in the caller and the called subroutine.
+ However, this rule is too strict: there are two cases in which type coercion
+ is sound.
+ Let 
+\family roman
+\series medium
+\shape up
+\size normal
+\emph off
+\bar no
+\strikeout off
+\xout off
+\uuline off
+\uwave off
+\noun off
+\color none
+
+\begin_inset Formula $T_{c,i}$
+\end_inset
+
+ and 
+\begin_inset Formula $T_{l,i}$
+\end_inset
+
+ be the types of corresponding words in 
+\family default
+\series default
+\shape default
+\size default
+\emph default
+\bar default
+\strikeout default
+\xout default
+\uuline default
+\uwave default
+\noun default
+\color inherit
+the ordered sets associated via the 
+\family sans
+COMMON
+\family default
+ block.
+\end_layout
+
+\begin_layout Standard
+The first case involves logicals:
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\begin{eqnarray*}
+ &  & \begin{cases}
+T_{c,i}=\mbox{logical}\land T_{l,i}=\mbox{integer}\\
+T_{c,i}=\mbox{integer}\land T_{l,i}=\mbox{logical}\\
+T_{c,i}=\mbox{real}\land T_{l,i}=\mbox{logical}
+\end{cases}
+\end{eqnarray*}
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+A logical is false when coerced from 0 and true otherwise.
+ Therefore interpreting a logical as an integer gives 1 or 0, and interpreting
+ an integer or real as a logical will return correct values of 
+\family typewriter
+.true.
+
+\family default
+ or 
+\family typewriter
+.false.
+\family default
+.
+ Therefore interpreting a logical as a real is only correct for 
+\family typewriter
+.false.
+
+\family default
+ because the value of 
+\family typewriter
+.true.
+
+\family default
+ interpreted as a real is a non-zero number that depends on the kind of
+ the real.
+ As this is quite non-intuitive, our type checker therefor throws an error
+ on attempts to interpret a logical as a real.
+\end_layout
+
+\end_deeper
+\begin_layout Itemize
+Complex coercion (
+\emph on
+rule-complex
+\emph default
+)
+\end_layout
+
+\begin_deeper
+\begin_layout Standard
+The second case involves complex numbers, which can be coerced to and from
+ two contiguous real numbers:
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\begin{eqnarray*}
+ &  & \begin{cases}
+T_{c,i}=\mbox{complex}\land T_{l,i}=\mbox{real}\land T_{l,i+1}=\mbox{real}\\
+T_{c,i}=\mbox{real}\land T_{c,i+1}=\mbox{real}\land T_{l,i}=\mbox{complex}
+\end{cases}
+\end{eqnarray*}
+
+\end_inset
+
+
+\end_layout
+
+\end_deeper
+\begin_layout Itemize
+Default rule (
+\emph on
+rule-default
+\emph default
+)
+\end_layout
+
+\begin_deeper
+\begin_layout Standard
+In all other cases, the types must match:
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\begin{eqnarray*}
+ & T_{l,i}=T_{c,i} & ,\forall i\in\#K_{l}
+\end{eqnarray*}
+
+\end_inset
+
+
+\end_layout
+
+\end_deeper
+\begin_layout Itemize
+Thus the overall typecheck rule becomes:
+\end_layout
+
+\begin_deeper
+\begin_layout Standard
+\begin_inset Formula 
+\begin{eqnarray*}
+ & \mbox{rule-kind\land}\mbox{rule-size\land}\left(\mbox{rule-logical}\lor\mbox{rule-complex}\lor\mbox{rule-default}\right)
+\end{eqnarray*}
+
+\end_inset
+
+
+\end_layout
+
+\end_deeper
+\begin_layout Standard
+\begin_inset Tabular
+<lyxtabular version="3" rows="1" columns="1">
+<features tabularvalignment="middle">
+<column alignment="center" valignment="top" width="100text%">
+<row>
+<cell alignment="center" valignment="top" topline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+\begin_inset space ~
+\end_inset
+
+
+\end_layout
+
+\end_inset
+</cell>
+</row>
+</lyxtabular>
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+With these type checking rules, we can type check the soundness of associations
+ in 
+\family sans
+COMMON
+\family default
+ blocks and 
+\family sans
+EQUIVALENCE
+\family default
+ statements.
+ If the associations are correctly typed, we can proceed to remove them
+ as discussed in Section 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "subsec:Transforming-Fortran-subroutines"
 plural "false"
 caps "false"
 noprefix "false"
@@ -9931,6 +10255,13 @@ noprefix "false"
 \begin_layout Standard
 \begin_inset ERT
 status open
+
+\begin_layout Plain Layout
+
+
+\backslash
+RestyleAlgo{ruled}
+\end_layout
 
 \begin_layout Plain Layout
 

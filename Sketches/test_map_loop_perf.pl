@@ -4,10 +4,10 @@ use strict;
 use warnings;
 use Data::Dumper;
 
-if (0) {
-if (0) {
-if (0) {
-    # 2.6 s 
+if (1) {
+if (1) {
+if (1) {
+    # 2.6 s/1.5s 
     my @res=();
 my @src=();
 
@@ -20,14 +20,14 @@ for my $elt  (@src) {
 }
 
 } else {
-    # 3.3s 
+    # 3.3s/2.0s 
 my @src = map {$_} (1 .. 10_000_000);
 my @res = map {2*$_+1} @src;
 
 }
 } else {
-    if (0) {
-        # 3.8s
+    if (1) {
+        # 3.8s/2.1s
         my @res=();
         my @src=();
 
@@ -41,7 +41,7 @@ my @res = map {2*$_+1} @src;
             $res[$idx] = 2*$elt+1;
         }
     } else {
-        # 4.4s
+        # 4.4s/2.5
         my @res=();
         my @src=();
         #my $idx=0;
@@ -57,7 +57,7 @@ my @res = map {2*$_+1} @src;
     }
 }
 } else {
-    # 2.5s 
+# 2.5s/1.46s 
 my @src = ();
 my @res=();
 push @src, $_ for 1 .. 10_000_000;
