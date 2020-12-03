@@ -13,7 +13,7 @@ use v5.10;
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
 use RefactorF4Acc::Parser qw( parse_fortran_src );
-use RefactorF4Acc::Refactoring::Common qw( 
+use RefactorF4Acc::Refactoring::Helpers qw( 
 	stateful_pass
 	splice_additional_lines_cond
 	);

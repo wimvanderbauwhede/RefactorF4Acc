@@ -3,7 +3,7 @@ use v5.10;
 
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
-use RefactorF4Acc::Refactoring::Common qw( stateful_pass pass_wrapper_subs_in_module );
+use RefactorF4Acc::Refactoring::Helpers qw( stateful_pass pass_wrapper_subs_in_module );
 use RefactorF4Acc::Parser qw( analyse_lines );
 # 
 #   (c) 2010-now Wim Vanderbauwhede <wim.vanderbauwhede@glasgow.ac.uk>

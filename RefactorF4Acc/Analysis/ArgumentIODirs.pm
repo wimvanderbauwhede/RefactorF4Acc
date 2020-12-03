@@ -4,7 +4,7 @@ use v5.10;
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils
   qw( pp_annlines get_maybe_args_globs type_via_implicits in_nested_set get_var_record_from_set %F95_intrinsic_functions warning);
-use RefactorF4Acc::Refactoring::Common qw( get_annotated_sourcelines stateful_pass emit_f95_var_decl get_f95_var_decl );
+use RefactorF4Acc::Refactoring::Helpers qw( get_annotated_sourcelines stateful_pass emit_f95_var_decl get_f95_var_decl );
 
 #use RefactorF4Acc::Refactoring::Subroutines::Signatures qw( refactor_subroutine_signature );
 

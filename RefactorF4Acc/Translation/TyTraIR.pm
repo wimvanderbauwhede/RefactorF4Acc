@@ -2,7 +2,7 @@ package RefactorF4Acc::Translation::TyTraIR;
 use v5.10;
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
-use RefactorF4Acc::Refactoring::Common qw(
+use RefactorF4Acc::Refactoring::Helpers qw(
   pass_wrapper_subs_in_module
 );
 use RefactorF4Acc::Refactoring::Fixes qw( remove_redundant_arguments_and_fix_intents );

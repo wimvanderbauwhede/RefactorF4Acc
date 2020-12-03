@@ -2,8 +2,8 @@ package RefactorF4Acc::Refactoring::Functions;
 use v5.10;
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
-use RefactorF4Acc::Refactoring::Common qw( context_free_refactorings stateful_pass );
-
+use RefactorF4Acc::Refactoring::Helpers qw( stateful_pass );
+use RefactorF4Acc::Refactoring::ContextFree qw( context_free_refactorings );
 # 
 #   (c) 2010-2017 Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
 #   

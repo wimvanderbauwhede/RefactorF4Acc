@@ -2,7 +2,7 @@ package RefactorF4Acc::Analysis::Variables;
 use v5.10;
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
-use RefactorF4Acc::Refactoring::Common qw( get_f95_var_decl stateful_pass stateless_pass );
+use RefactorF4Acc::Refactoring::Helpers qw( get_f95_var_decl stateful_pass stateless_pass );
 #
 #   (c) 2010-2017 Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
 #

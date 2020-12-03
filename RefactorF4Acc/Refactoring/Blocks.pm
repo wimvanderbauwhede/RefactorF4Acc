@@ -5,7 +5,7 @@ use RefactorF4Acc::Utils;
 use RefactorF4Acc::State qw( initialise_per_code_unit_tables );
 use RefactorF4Acc::Parser qw( parse_fortran_src );
 use RefactorF4Acc::Analysis::Variables qw( identify_vars_on_line );
-use RefactorF4Acc::Refactoring::Common qw( get_f95_var_decl get_f95_par_decl emit_f95_var_decl);#get_annotated_sourcelines create_refactored_source splice_additional_lines_cond  );
+use RefactorF4Acc::Refactoring::Helpers qw( get_f95_var_decl get_f95_par_decl emit_f95_var_decl);#get_annotated_sourcelines create_refactored_source splice_additional_lines_cond  );
 use RefactorF4Acc::Parser::Expressions qw( emit_expr_from_ast );
 #
 #   (c) 2010-2019 Wim Vanderbauwhede <wim@dcs.gla.ac.uk>

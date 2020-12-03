@@ -7,7 +7,7 @@ use v5.10;
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
 use RefactorF4Acc::Parser::Expressions qw( get_vars_from_expression parse_expression emit_expr_from_ast );
-use RefactorF4Acc::Refactoring::Common qw( splice_additional_lines_cond );
+use RefactorF4Acc::Refactoring::Helpers qw( splice_additional_lines_cond );
 # use RefactorF4Acc::Parser qw( parse_fortran_src );
 
 use vars qw( $VERSION );

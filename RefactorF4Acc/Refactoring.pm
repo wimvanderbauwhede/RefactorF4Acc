@@ -9,7 +9,7 @@ use RefactorF4Acc::Utils;
 
 use RefactorF4Acc::Analysis::ArgumentIODirs qw( determine_argument_io_direction_rec update_argument_io_direction_all_subs);
 
-use RefactorF4Acc::Refactoring::Common qw( top_src_is_module stateful_pass stateless_pass get_annotated_sourcelines );
+use RefactorF4Acc::Refactoring::Helpers qw( top_src_is_module stateful_pass stateless_pass get_annotated_sourcelines );
 use RefactorF4Acc::Refactoring::Subroutines qw( refactor_all_subroutines );
 use RefactorF4Acc::Refactoring::Functions qw( refactor_called_functions remove_vars_masking_functions);
 use RefactorF4Acc::Refactoring::IncludeFiles qw( refactor_include_files );

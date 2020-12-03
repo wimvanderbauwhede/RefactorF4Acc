@@ -16,7 +16,7 @@ use RefactorF4Acc::Analysis::Arguments qw(
 	);
 use RefactorF4Acc::Analysis::Globals qw( identify_inherited_exglobs_to_rename lift_globals rename_inherited_exglobs );
 #use RefactorF4Acc::Analysis::LoopDetect qw( outer_loop_end_detect );
-use RefactorF4Acc::Refactoring::Common qw( get_f95_var_decl stateless_pass );
+use RefactorF4Acc::Refactoring::Helpers qw( get_f95_var_decl stateless_pass );
 use RefactorF4Acc::Refactoring::BlockData qw( add_BLOCK_DATA_call_after_last_VarDecl );
 use RefactorF4Acc::Refactoring::Functions qw(add_function_var_decls_from_calls );
 # WORK IN PROGRESS
