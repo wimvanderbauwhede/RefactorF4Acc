@@ -100,24 +100,28 @@ School of Computing Science, University of Glasgow, UK
 \end_layout
 
 \begin_layout Abstract
-In this paper we present an analysis of the type safety of FORTRAN 77 and
- the program transformations and type checking algorithms required to convert
- FORTRAN 77 subroutines and functions into pure, side-effect free subroutines
- and functions in Fortran 90.
- We show that the resulting code is type safe and the pure, side-effect
+Fortran is still widely used in scientific computing and a very large corpus
+ of legacy as well as new code is written in FORTRAN 77.
+ In general this code is not type safe, so that incorrect programs can compile
+ without errors.
+ In this paper we present a formal approach to ensure type safety of legacy
+ Fortran code through automated program transformation.
+\end_layout
+
+\begin_layout Abstract
+We present the first rigorous analysis of the type safety of FORTRAN 77
+ and the novel program transformation and type checking algorithms required
+ to convert FORTRAN 77 subroutines and functions into pure, side-effect
+ free subroutines and functions in Fortran 90.
+ We have implemented these algorithms in a source-to-source compiler which
+ type checks and automatically transforms the legacy code.
+\end_layout
+
+\begin_layout Abstract
+We show that the resulting code is type safe and that the pure, side-effect
  free and referentially transparent subroutines can readily be offloaded
  to accelerators.
  
-\begin_inset Note Note
-status open
-
-\begin_layout Plain Layout
-Add significance and rigour!
-\end_layout
-
-\end_inset
-
-
 \end_layout
 
 \begin_layout Section
@@ -303,7 +307,7 @@ Based on the above evidence (confirmed by our own experience of collaboration
  Even if the code adopts Fortran 90 syntax, in practice very few of the
  semantic extensions are used, so that from a semantic perspective the code
  is FORTRAN 77.
- There is also a vast amount of legacy code in F77.
+ There is also a vast amount of legacy code in FORTRAN 77.
  Because the FORTRAN 77 language was designed with assumptions and requirements
  very different from today, code written in it has inherent issues with
  readability, scalability, maintainability and parallelization.
@@ -339,7 +343,7 @@ literal "false"
 
 \end_inset
 
-, 8 systems use accelerators.
+, eight systems use accelerators.
  However, in practice the accelerators have their own memory, and the most
  common compute model is still to offload part of the calculation to the
  accelerator and copy the results back to the host memory.
@@ -529,7 +533,7 @@ EQUIVALENCE
 
 \begin_layout Standard
 \begin_inset Note Note
-status collapsed
+status open
 
 \begin_layout Plain Layout
 However, we present in this paper a source-to-source compiler which can
@@ -1470,7 +1474,7 @@ noprefix "false"
 
 \begin_layout Standard
 \begin_inset Note Note
-status collapsed
+status open
 
 \begin_layout Plain Layout
 The type 
@@ -2913,7 +2917,7 @@ noprefix "false"
 
 \begin_layout Standard
 \begin_inset Note Note
-status collapsed
+status open
 
 \begin_layout Plain Layout
 \begin_inset Formula 
@@ -3617,7 +3621,7 @@ is a subtype of a type
  .
  
 \begin_inset Note Note
-status collapsed
+status open
 
 \begin_layout Plain Layout
 To include the case where 
@@ -4221,7 +4225,7 @@ EQUIVALENCE
 
 \begin_layout Standard
 \begin_inset Note Note
-status collapsed
+status open
 
 \begin_layout Plain Layout
 The f90 speficiation (§5.5.2.3 
@@ -5579,7 +5583,7 @@ EQUIVALENCE
 
 \begin_layout Standard
 \begin_inset Note Note
-status collapsed
+status open
 
 \begin_layout Plain Layout
 MUST CHECK WITH ifortran https://software.intel.com/content/www/us/en/develop/tool
@@ -8421,7 +8425,7 @@ Conclusions
 \end_layout
 
 \begin_layout Standard
-In this paper we have analysed the type safety of FORTRAN 77 programs.
+In this paper we have formally analysed the type safety of FORTRAN 77 programs.
  We have shown that FORTRAN 77 programs that are explicitly typed and consist
  of pure, side-effect-free functions are type safe at compile time with
  the exception of array slicing and array indexing with values that are

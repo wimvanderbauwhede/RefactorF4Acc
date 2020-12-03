@@ -1,0 +1,49 @@
+This is BibTeX, Version 0.99d (TeX Live 2019/Debian)
+Capacity: max_strings=200000, hash_size=200000, hash_prime=170003
+The top-level auxiliary file: paper-type-safe-Fortran.aux
+The style file: spmpsci.bst
+Database file #1: paper-type-safe-Fortran.bib
+Warning--can't use both volume and number fields in reid1999prescriptive
+Warning--can't use both volume and number fields in tinetti2012fortran
+You've used 14 entries,
+            2945 wiz_defined-function locations,
+            705 strings with 8046 characters,
+and the built_in function-call counts, 7965 in all, are:
+= -- 637
+> -- 298
+< -- 7
++ -- 127
+- -- 108
+* -- 529
+:= -- 1060
+add.period$ -- 28
+call.type$ -- 14
+change.case$ -- 105
+chr.to.int$ -- 0
+cite$ -- 16
+duplicate$ -- 684
+empty$ -- 688
+format.name$ -- 120
+if$ -- 1687
+int.to.chr$ -- 0
+int.to.str$ -- 14
+missing$ -- 164
+newline$ -- 73
+num.names$ -- 28
+pop$ -- 276
+preamble$ -- 1
+purify$ -- 82
+quote$ -- 0
+skip$ -- 165
+stack$ -- 0
+substring$ -- 347
+swap$ -- 405
+text.length$ -- 7
+text.prefix$ -- 0
+top$ -- 0
+type$ -- 54
+warning$ -- 2
+while$ -- 53
+width$ -- 16
+write$ -- 170
+(There were 2 warnings)

@@ -1,0 +1,99 @@
+\begin{thebibliography}{10}
+\providecommand{\url}[1]{{#1}}
+\providecommand{\urlprefix}{URL }
+\expandafter\ifx\csname urlstyle\endcsname\relax
+  \providecommand{\doi}[1]{DOI~\discretionary{}{}{}#1}\else
+  \providecommand{\doi}{DOI~\discretionary{}{}{}\begingroup
+  \urlstyle{rm}\Url}\fi
+
+\bibitem{YAMAMOTO2014576}
+Abramson, D., Lees, M., Krzhizhanovskaya, V., Dongarra, J., Sloot, P.M.,
+  Yamamoto, K., Uno, A., Murai, H., Tsukamoto, T., Shoji, F., Matsui, S.,
+  Sekizawa, R., Sueyasu, F., Uchiyama, H., Okamoto, M., Ohgushi, N., Takashina,
+  K., Wakabayashi, D., Taguchi, Y., Yokokawa, M.: 2014 international conference
+  on computational science the k computer operations: Experiences and
+  statistics.
+\newblock Procedia Computer Science \textbf{29}, 576 -- 585 (2014).
+\newblock \doi{http://dx.doi.org/10.1016/j.procs.2014.05.052}.
+\newblock
+  \urlprefix\url{http://www.sciencedirect.com/science/article/pii/S1877050914002294}
+
+\bibitem{ansi1978standard}
+ANSI, A.: Standard x3. 9-1978, programming language fortran (revision of ansi
+  x2. 9-1966), american national standards institute.
+\newblock Inc., Ny \textbf{197}(8) (1978)
+
+\bibitem{54403}
+{Colbrook}, A., {Smythe}, C.: Formal specification of data abstraction in
+  fortran 77: abstract arrays.
+\newblock Software Engineering Journal \textbf{5}(3), 151--159 (1990).
+\newblock \doi{10.1049/sej.1990.0017}
+
+\bibitem{contrastin2016units}
+Contrastin, M., Rice, A., Danish, M., Orchard, D.: Units-of-measure correctness
+  in fortran programs.
+\newblock Computing in Science \& Engineering \textbf{18}(1), 102--107 (2016)
+
+\bibitem{liao2010rose}
+Liao, C., Quinlan, D.J., Panas, T., De~Supinski, B.R.: A rose-based openmp 3.0
+  research compiler supporting multiple runtime libraries.
+\newblock In: International Workshop on OpenMP, pp. 15--28. Springer (2010)
+
+\bibitem{MALEY1996167}
+Maley, D., Kilpatrick, P., Schreiner, E., Scott, N., Diercksen, G.: The formal
+  specification of abstract data types and their implementation in fortran 90:
+  implementation issues concerning the use of pointers.
+\newblock Computer Physics Communications \textbf{98}(1), 167 -- 180 (1996).
+\newblock \doi{https://doi.org/10.1016/0010-4655(96)00093-8}.
+\newblock
+  \urlprefix\url{http://www.sciencedirect.com/science/article/pii/0010465596000938}
+
+\bibitem{milner1978theory}
+Milner, R.: A theory of type polymorphism in programming.
+\newblock Journal of computer and system sciences \textbf{17}(3), 348--375
+  (1978)
+
+\bibitem{Orchard:2013:UFS:2541348.2541356}
+Orchard, D., Rice, A.: Upgrading fortran source code using automatic
+  refactoring.
+\newblock In: Proceedings of the 2013 ACM Workshop on Workshop on Refactoring
+  Tools, WRT '13, pp. 29--32. ACM, New York, NY, USA (2013).
+\newblock \doi{10.1145/2541348.2541356}.
+\newblock \urlprefix\url{http://doi.acm.org/10.1145/2541348.2541356}
+
+\bibitem{overbey2005refactorings}
+Overbey, J., Xanthos, S., Johnson, R., Foote, B.: Refactorings for fortran and
+  high-performance computing.
+\newblock In: Proceedings of the second international workshop on Software
+  engineering for high performance computing system applications, pp. 37--39.
+  ACM (2005)
+
+\bibitem{pierce2002types}
+Pierce, B.C., Benjamin, C.: Types and programming languages.
+\newblock MIT press (2002)
+
+\bibitem{reid1999prescriptive}
+Reid, N., Wray, J.: A prescriptive semantics of fortran 95.
+\newblock In: ACM SIGPLAN Fortran Forum, vol.~18, pp. 2--3. ACM New York, NY,
+  USA (1999)
+
+\bibitem{SCOTT1994201}
+Scott, N., Kilpatrick, P., Maley, D.: The formal specification of abstract data
+  types and their implementation in fortran 90.
+\newblock Computer Physics Communications \textbf{84}(1), 201 -- 225 (1994).
+\newblock \doi{https://doi.org/10.1016/0010-4655(94)90212-7}.
+\newblock
+  \urlprefix\url{http://www.sciencedirect.com/science/article/pii/0010465594902127}
+
+\bibitem{tinetti2012fortran}
+Tinetti, F.G., M{\'e}ndez, M.: Fortran legacy software: source code update and
+  possible parallelisation issues.
+\newblock In: ACM SIGPLAN Fortran Forum, vol.~31, pp. 5--22. ACM (2012)
+
+\bibitem{vanderbauwhede2018domain}
+Vanderbauwhede, W., Davidson, G.: Domain-specific acceleration and
+  auto-parallelization of legacy scientific code in fortran 77 using
+  source-to-source compilation.
+\newblock Computers \& Fluids \textbf{173}, 1--5 (2018)
+
+\end{thebibliography}
