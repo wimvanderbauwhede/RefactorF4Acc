@@ -156,7 +156,7 @@ sub change_EQUIVALENCE_to_assignment_lines {
 	my ( $stref, $f, $annlines ) = @_;
 	my $Sf                        = $stref->{'Subroutines'}{$f};
 
-	my $last_statement            = 0;
+	# my $last_statement            = 0;
 	my $first_occ                 = 1;
 	my $rlines                    = [];
 	my $postUpdateAssignmentLines = {};
@@ -174,41 +174,6 @@ sub change_EQUIVALENCE_to_assignment_lines {
 			($rlines,$exEquivAssignmentLines, $postUpdateAssignmentLines, $equiv_pairs) = __create_EQUIVALENCE_pairs(
 				$stref, $f, $annline, $ast, 
 				$rlines, $exEquivAssignmentLines, $postUpdateAssignmentLines,  $equiv_pairs);
-
-			# # Two cases: either a list of tuples, or a single tuples
-			# if ( ( $ast->[0] & 0xFF ) == 0 ) {
-
-			# 	# a single tuple, ['(',[',',@vs]]
-			# 	( $rline, $exEquivAssignmentLines, $postUpdateAssignmentLines, $equiv_pairs, my $replaced ) =
-			# 	  __refactor_EQUIVALENCE_line( $stref, $f, $ast, 
-			# 	  $exEquivAssignmentLines, $postUpdateAssignmentLines, $annline, $equiv_pairs );
-			# 	  if ($replaced) {
-			# 	$info->{'Deleted'} = 1;
-			# 	push @{$rlines}, [ '!' . $line, $info ];
-			# 	  } else {
-			# 		#   croak 'HERE!';
-			# 		  push @{$rlines}, $annline;
-			# 	  }
-			# } elsif ( ( ( $ast->[0] & 0xFF ) == 27 )
-			# 	&& ( ( $ast->[1][0] & 0xFF ) == 0 ) )
-			# {
-			# 	# a list of tuples
-			# 	shift @{$ast};
-			# 	for my $pair_ast ( @{$ast} ) {
-			# 		( $rline, $exEquivAssignmentLines, $postUpdateAssignmentLines, $equiv_pairs ) =
-			# 		  __refactor_EQUIVALENCE_line( $stref, $f, $pair_ast, 
-			# 		  $exEquivAssignmentLines, $postUpdateAssignmentLines, $annline, $equiv_pairs );
-			# 		$info->{'Deleted'} = 1;
-			# 		push @{$rlines}, [ '!' . $line, $info ];
-
-			# 	}
-			# } else {
-			# 	croak "INVALID AST : " . Dumper($ast) . ( $ast->[0] & 0xFF ) . ( $ast->[1][0] & 0xFF ) if $DBG;
-			# }
-
-			# if ( $line ne $rline->[0] ) {
-				#				say "CHANGING LINE $line TO ".$rline->[0]." in $f ";
-			# }
 			$skip = 1;
 		}
 
@@ -252,10 +217,9 @@ sub __create_EQUIVALENCE_pairs {
 				__refactor_EQUIVALENCE_line( $stref, $f, $ast, 
 				$exEquivAssignmentLines, $postUpdateAssignmentLines, $annline, $equiv_pairs );
 				if ($replaced) {
-				$info->{'Deleted'} = 1;
-				push @{$rlines}, [ '!' . $line, $info ];
+					$info->{'Deleted'} = 1;
+					push @{$rlines}, [ '!' . $line, $info ];
 				} else {
-				#   croak 'HERE!';
 					push @{$rlines}, $annline;
 				}
 		} elsif ( ( ( $ast->[0] & 0xFF ) == 27 )
@@ -279,7 +243,6 @@ sub __create_EQUIVALENCE_pairs {
 	
 } # __create_EQUIVALENCE_pairs
 
-# WV: FIXME: put this in Refactoring:: Equivalence and split it up
 # $ast is the ast of the EQUIVALENCE statement 
 # $exEquivAssignmentLines,  $postUpdateAssignmentLines are intially empty 
 # $annline has the original AST, $ast is a copy
@@ -634,7 +597,7 @@ sub __refactor_EQUIVALENCE_line {
 	} # loop over all pairs
 
 	return ( $rline, $exEquivAssignmentLines, $postUpdateAssignmentLines, $equiv_pairs, $replaced );
-}    # END of __refactor_EQUIVALENCE_line
+} # END of __refactor_EQUIVALENCE_line
 
 
 

@@ -2509,33 +2509,33 @@ sub __handle_acc {
 	my $is_accline = ($accline =~ s/^\!\s*\$(?:ACC|RF4A)\s+//i);
 	if ($is_accline ) {
 		
-	my @chunks = split( /\s+/, $accline );
-	
-	my $pragma_name_prefix = 'Begin';
-	if ( $chunks[0] =~ /Begin/i ) {
-		shift @chunks;
-	}
-	if ( $chunks[0] =~ /End/i ) {
-		shift @chunks;
-		$pragma_name_prefix = 'End';
-	}
-	
-	( my $pragma_name, my @pragma_args ) = @chunks;
-	
-	if (not @pragma_args) {
-		$pragma_args[0]=lc($pragma_name).'_'.$index;
-	}
-	$info->{'AccPragma'}{ $pragma_name_prefix . ucfirst( lc($pragma_name) ) } = [@pragma_args];
-	
-	  # WV20170517 I think the following is OBSOLETE
-	if (    $pragma_name =~ /KernelWrapper/i
-		and $pragma_name_prefix eq 'Begin' )
-	{
-		$stref->{'KernelWrappers'}{ $pragma_args[0] }
-		  { $pragma_name_prefix . ucfirst( lc($pragma_name) ) } =
-		  [ $f, $index ];
-		$stref = outer_loop_start_detect( $pragma_args[0], $stref );
-	}
+		my @chunks = split( /\s+/, $accline );
+		
+		my $pragma_name_prefix = 'Begin';
+		if ( $chunks[0] =~ /Begin/i ) {
+			shift @chunks;
+		}
+		if ( $chunks[0] =~ /End/i ) {
+			shift @chunks;
+			$pragma_name_prefix = 'End';
+		}
+		
+		( my $pragma_name, my @pragma_args ) = @chunks;
+		
+		if (not @pragma_args) {
+			$pragma_args[0]=lc($pragma_name).'_'.$index;
+		}
+		$info->{'AccPragma'}{ $pragma_name_prefix . ucfirst( lc($pragma_name) ) } = [@pragma_args];
+		
+		# WV20170517 I think the following is OBSOLETE
+		if (    $pragma_name =~ /KernelWrapper/i
+			and $pragma_name_prefix eq 'Begin' )
+		{
+			$stref->{'KernelWrappers'}{ $pragma_args[0] }
+			{ $pragma_name_prefix . ucfirst( lc($pragma_name) ) } =
+			[ $f, $index ];
+			$stref = outer_loop_start_detect( $pragma_args[0], $stref );
+		}
 	}
 	return ( $stref, $info );
 	

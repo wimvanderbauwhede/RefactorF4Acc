@@ -5,8 +5,9 @@ use RefactorF4Acc::Utils;
 use RefactorF4Acc::State qw( initialise_per_code_unit_tables );
 use RefactorF4Acc::Parser qw( parse_fortran_src );
 use RefactorF4Acc::Analysis::Variables qw( identify_vars_on_line );
-use RefactorF4Acc::Refactoring::Helpers qw( get_f95_var_decl get_f95_par_decl emit_f95_var_decl);#get_annotated_sourcelines create_refactored_source splice_additional_lines_cond  );
+use RefactorF4Acc::Refactoring::Helpers qw( get_f95_var_decl get_f95_par_decl emit_f95_var_decl);
 use RefactorF4Acc::Parser::Expressions qw( emit_expr_from_ast );
+
 #
 #   (c) 2010-2019 Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
 #
@@ -38,6 +39,12 @@ use Exporter;
 
 ### Factoring out code blocks into subroutines
 
+The blocks are marked with a pragma
+
+!$ACC Subroutine $sub_name
+...
+!$ACC End Subroutine 
+
 =end markdown
 
 =cut
@@ -46,7 +53,7 @@ use Exporter;
 sub refactor_marked_blocks_into_subroutines {
     ( my $stref ) = @_;
 
-#   local $V=1;
+    #   local $V=1;
     for my $f ( keys %{ $stref->{'Subroutines'} } ) {
         next if exists $stref->{'Entries'}{$f}; 
         if ( exists $stref->{'Subroutines'}{$f}{'HasBlocks'}
@@ -80,18 +87,6 @@ sub refactor_marked_blocks_into_subroutines {
 }    # END of refactor_marked_blocks_into_subroutines()
 # -----------------------------------------------------------------------------
 
-=pod
-
-=begin markdown
-
-### Factoring out code blocks into subroutines
-
-This is some major refactoring, so should be in Refactoring::Blocks 
-
-=end markdown
-
-=cut
-
 #WV20150701 This routine is very early here and it is BROKEN: common block variables don't get declarations!
 sub _separate_blocks {
     ( my $f, my $stref ) = @_;
@@ -119,30 +114,30 @@ sub _separate_blocks {
     my $blocksref = []; # Just an array 
 
 
-# 1. Process every line in $f, scan for blocks marked with pragmas.
-# What this does is to separate the code into blocks ($blocksref) and keep track of the line numbers
-# The lines with the pragmas occur both in OUTER and the block
+    # 1. Process every line in $f, scan for blocks marked with pragmas.
+    # What this does is to separate the code into blocks ($blocksref) and keep track of the line numbers
+    # The lines with the pragmas occur both in OUTER and the block
 
     $blocksref  = __separate_into_blocks( $stref, $blocksref, $f );
     
 
-# 2. For all non-OUTER blocks, create an entry for the new subroutine in 'Subroutines'
-# Based on the content of $blocksref
+    # 2. For all non-OUTER blocks, create an entry for the new subroutine in 'Subroutines'
+    # Based on the content of $blocksref
 
     $stref = __create_new_subroutine_entries( $stref, $blocksref, $f );
 
-# 3. Identify which vars are used
-#   - in both => these become function arguments
-#   - only in "outer" => do nothing for those
-#   - only in "inner" => can be removed from outer variable declarations
-#
-# Find all vars used in each block, starting with the outer block
-# It is best to loop over all vars per line per block, because we can remove the encountered vars
-# TODO: no need to declare $occsref and $paramsref at this level as they are empty!
-( $occsref, $itersref, $paramsref ) = @{ __find_vars_in_block( $stref, $f, $blocksref, $varsref, $occsref, $paramsref ) };
+    # 3. Identify which vars are used
+    #   - in both => these become function arguments
+    #   - only in "outer" => do nothing for those
+    #   - only in "inner" => can be removed from outer variable declarations
+    #
+    # Find all vars used in each block, starting with the outer block
+    # It is best to loop over all vars per line per block, because we can remove the encountered vars
+    # TODO: no need to declare $occsref and $paramsref at this level as they are empty!
+    ( $occsref, $itersref, $paramsref ) = @{ __find_vars_in_block( $stref, $f, $blocksref, $varsref, $occsref, $paramsref ) };
 
-# 4. Construct the subroutine signatures
-# This happens before reparsing so the data structures for the Decls and Args are emtpty! So need to call the init here!
+    # 4. Construct the subroutine signatures
+    # This happens before reparsing so the data structures for the Decls and Args are emtpty! So need to call the init here!
     $stref = __construct_new_subroutine_signatures( $stref, $blocksref, $occsref, $itersref, $paramsref, $varsref, $f );
 
     $stref = __reparse_extracted_subroutines( $stref, $blocksref );
@@ -188,7 +183,6 @@ sub __find_called_subs_in_OUTER {
 sub __separate_into_blocks {
     ( my $stref, my $blocksref, my $f ) = @_;
     my $sub_or_func_or_mod = sub_func_incl_mod( $f, $stref );    # This is not a misnomer as it can also be a module.
-#    say "$sub_or_func_or_mod $f";
     my $Sf       = $stref->{$sub_or_func_or_mod}{$f};
     my $srcref   = $Sf->{'AnnLines'};
     my $in_block = 0;
@@ -255,10 +249,9 @@ sub __separate_into_blocks {
         
         $srcref->[$index] = [ $line, $info ];
     }    # loop over annlines
-            $block_rec->{'EndBlockIdx'} = scalar( @{$srcref} ) ; 
-            push @{ $blocksref }, $block_rec;
-    
-    
+    $block_rec->{'EndBlockIdx'} = scalar( @{$srcref} ) ; 
+    push @{ $blocksref }, $block_rec;
+        
     return $blocksref;
 }    # END of __separate_into_blocks()
 
@@ -266,11 +259,10 @@ sub __separate_into_blocks {
 # -----------------------------------------------------------------------------
 sub __create_new_subroutine_entries {
     ( my $stref, my $blocksref, my $f ) = @_;
-# croak Dumper($stref->{'Subroutines'}{$f}{Source});
     my $sub_or_func_or_mod = sub_func_incl_mod( $f, $stref );
     my $Sf = $stref->{$sub_or_func_or_mod}{$f};
-# Each extracted subroutine should be put in the same folder as the source of $f
-# A bit ugly, but should be ok:
+    # Each extracted subroutine should be put in the same folder as the source of $f
+    # A bit ugly, but should be ok:
     my $srcdir = $stref->{'Subroutines'}{$f}{'Source'};
     $srcdir=~s/\w+\.\w+$//;
     $srcdir=~s/\/$//;    
@@ -330,10 +322,8 @@ sub __construct_new_subroutine_signatures {
     my $sub_or_func_or_mod = sub_func_incl_mod( $f, $stref );    # This is not a misnomer as it can also be a module.
     my $Sf     = $stref->{$sub_or_func_or_mod}{$f};
     
-    my $srcref = $Sf->{'AnnLines'};
-
-    my %args = ();
-    my %localvars = ();
+    my $args = {};
+    my $localvars = {};
 
     for my $block_rec ( @{$blocksref} ) {
         my $block =$block_rec->{'Name'};
@@ -343,240 +333,28 @@ sub __construct_new_subroutine_signatures {
 
         $Sblock = initialise_per_code_unit_tables( $Sblock, $stref, $block, 0 );
 
-        print "\nARGS for BLOCK $block:\n" if $V;
-        $args{$block} = [];
-        $localvars{$block} = [];
         # Collect args for new subroutine
-        # At this stage, if a var is global, it should not become an argument.
-        my $pushed_var=0;
-        for my $var ( sort keys %{ $occsref->{$block} } ) { 
-
-            if ( exists $occsref->{'OUTER'}{$var} ) {
-                # print "MAYBE ARG: $var\n" if $V;
-                # Only if this $var is not COMMON!
-                if ( not exists $Sf->{'UsedParameters'}{'Set'}{$var}
-                and not exists $Sf->{'DeclaredCommonVars'}{'Set'}{$var} # FIXME: UndeclaredCommonVars as well?
-                and not exists $Sf->{'UndeclaredCommonVars'}{'Set'}{$var}        
-                ) {
-                    #  carp "$f: $var is NOT COMMON!";
-                    # print "ARG: $var\n" if $V;
-                    push @{ $args{$block} }, $var;                    
-                } 
-                # else {
-                #     say "NOT an ARG: $var ". __FILE__. ' ' . __LINE__;
-                # }
-            } else {
-                # say "VAR $var not used in OUTER ". __FILE__. ' ' . __LINE__;
-                # croak "HERE we need $localvars{$block}";
-                # WV20190722 We must check if the var is not used by any of the other subs!
-                my $var_used_in_other_block=0;
-                for my $other_block (sort keys %{ $occsref }) {
-                    next if $other_block eq 'OUTER';
-                    next if $other_block eq $block;
-                    if ( exists $occsref->{$other_block}{$var} ) {
-                        $var_used_in_other_block=1;
-                        # say "BUT VAR $var is used in $other_block ". __FILE__. ' ' . __LINE__;
-                        # Only if this $var is not COMMON!
-                        if ( not exists $Sf->{'UsedParameters'}{'Set'}{$var}
-                        and not exists $Sf->{'DeclaredCommonVars'}{'Set'}{$var} # FIXME: UndeclaredCommonVars as well?
-                        and not exists $Sf->{'UndeclaredCommonVars'}{'Set'}{$var}        
-                        ) {
-                            #  carp "$f: $var is NOT COMMON!";
-                            # print "ARG (2): $var\n" if $V;
-                            push @{ $args{$block} }, $var;
-                            last;                            
-                        }
-                        #  else {
-                        #     say "NOT an ARG (2): $var ". __FILE__. ' ' . __LINE__;
-                        # }
-                    }
-                }
-                if (not $var_used_in_other_block) { # It's a local var
-                    push @{ $localvars{$block} }, $var;
-                }
-            }            
-            $Sblock->{'Vars'}{$var} = $varsref->{ $var }; # FIXME: this is "inheritance, but in principle a re-parse is better?"
-        }
-        
-        # We declare them right away
-        $Sblock->{'DeclaredOrigArgs'}{'List'} = $args{$block};
+        ($Sblock, $args, $localvars) = __collect_args_for_new_sub($Sf,$Sblock,$block,$occsref,$varsref,$args,$localvars);
 
         # Create Signature and corresponding Decls
-        my $sixspaces = ' ' x 6;
-        my $sig       = $sixspaces . 'subroutine ' . $block . '(';
-        my $sigrec    = {};
+        ($Sblock,my $sigrec, my $sig) = __create_sig_and_decls($stref, $f,$Sblock,$block,$args);
 
-        $sigrec->{'Args'}{'List'} = $args{$block};
-        $sigrec->{'Args'}{'Set'}  = { map { $_ => $Sblock->{'Vars'}{$_} } @{ $args{$block} } };
-        
-        $sigrec->{'Name'}         = $block;
-        $sigrec->{'Function'}     = 0;
-        for my $argv ( @{ $args{$block} } ) {
-            $sig .= "$argv,";
-            my $decl = get_f95_var_decl( $stref, $f, $argv );            
-            $decl->{'Indent'} .= $sixspaces;
-
-            $Sblock->{'DeclaredOrigArgs'}{'Set'}{$argv} = $decl;
-        }
-        if ( @{ $args{$block} } ) {
-            $sig =~ s/\,$/)/s;
-        } else {
-            $sig .= ')';
-        }       
-#        carp $sig;
         # Add variable declarations and info to line
-        # Here we know the vardecls have been formatted.
-        my $sigline = shift @{ $Sblock->{'AnnLines'} }; # This is the line that says "! === Original code from $f starts here ==="
-
-        for my $iters ( $itersref->{$block} ) {
-            for my $iter ( @{$iters} ) {
-                my $decl = get_f95_var_decl( $stref, $f, $iter );
-                $Sblock->{'LocalVars'}{'Set'}{$iter}             = $decl;    #
-                $Sblock->{'DeclaredOrigLocalVars'}{'Set'}{$iter} = $decl;
-                push @{ $Sblock->{'DeclaredOrigLocalVars'}{'List'} }, $iter;
-
-                unshift @{ $Sblock->{'AnnLines'} },
-                  [
-                    emit_f95_var_decl($decl),
-                    {
-                        'VarDecl' => {'Name' => $decl->{'Name'}},  
-                        'Ann'     => ['__construct_new_subroutine_signatures '
-                          . __LINE__]
-                    }
-                  ];
-            }
-        }
-
-        for my $var ( @{ $localvars{$block} } ) {
-            
-            my $set = in_nested_set($Sf,'Vars',$var);
-            # say "LOCAL VAR: $var from SET $set";
-            # croak Dumper($Sblock->{'OrigArgs'});
-            my $decl = get_var_record_from_set( $Sf->{$set}, $var );
-            # say Dumper $decl;
-            $Sblock->{'LocalVars'}{'Set'}{$var}             = $decl;    #
-            $Sblock->{'DeclaredOrigLocalVars'}{'Set'}{$var} = $decl;
-            push @{ $Sblock->{'DeclaredOrigLocalVars'}{'List'} }, $var;
-
-            unshift @{ $Sblock->{'AnnLines'} },
-              [
-                emit_f95_var_decl($decl),
-                {
-                    'VarDecl' => {'Name' => $decl->{'Name'}}, 
-                    'Ann' => [ '__construct_new_subroutine_signatures ' . __LINE__ ]
-                }
-              ];
-        }
-
-
-
-        for my $argv ( @{ $args{$block} } ) {
-            # say "ARGV: $argv";
-            my $set = in_nested_set($Sblock,'OrigArgs',$argv);
-            # croak Dumper($Sblock->{'OrigArgs'});
-            my $decl = get_var_record_from_set( $Sblock->{'OrigArgs'}, $argv );
-            # if ( not defined $decl ) {
-            #     croak;
-            #     $decl = $Sblock->{'DeclaredOrigArgs'}{'Set'}{$argv};
-            # }
-            # say "$argv: ".Dumper($decl->{IODir}). '=>'.emit_f95_var_decl($decl);
-            unshift @{ $Sblock->{'AnnLines'} },
-              [
-                emit_f95_var_decl($decl),
-                {
-                    'VarDecl' => {'Name' => $decl->{'Name'}}, 
-                    'Ann' => [ '__construct_new_subroutine_signatures ' . __LINE__ ]
-                }
-              ];
-        }
-        if (exists $paramsref->{$block}) {
-        my %params = %{ $paramsref->{$block} };
-        # say 'emitting local param lines in '.$block;
-        # carp "Only do this if the params are not declared via USE!";
-        my $param_annlines = __emit_param_lines($Sblock, $varsref, \%params, {}, [], $block, $f);         
-        # croak $block.Dumper($Sblock->{UsedParameters});
-        $Sblock->{'AnnLines'} = [ @{$param_annlines},  @{ $Sblock->{'AnnLines'} }];
-        }
-            # my %param_decl_generated=();
-            # for my $param ( sort keys %params ) {
-                
-            #     # my $decl = get_f95_par_decl( $stref, $f, $param ); # Cleary BROKEN! FIXME
-            #     my $decl = $varsref->{$param};                
-            #     $Sblock->{'LocalParameters'}{'Set'}{$param}             = $decl;    #
-            #     push @{ $Sblock->{'LocalParameters'}{'List'} }, $param;
-
-            #     unshift @{ $Sblock->{'AnnLines'} },
-            #       [
-            #         emit_f95_var_decl($decl),
-            #         {
-            #             'ParamDecl' => {'Name' => $decl->{'Var'}},  
-            #             'Ann'     => ['__construct_new_subroutine_signatures '
-            #               . __LINE__]
-            #         }
-            #       ];
-            # }        
-
-        unshift @{ $Sblock->{'AnnLines'} }, $sigline;
+        $Sblock = __add_vardecls_and_info_to_AnnLines($stref,$f,$Sf,$Sblock,$block,$itersref,$varsref,$paramsref,$localvars,$args);
 
         # Now also add include statements and the actual sig to the line
-
-        $Sblock->{'AnnLines'}[0][1] = {};
+        $Sblock = __add_include_statements_and_sig_to_AnnLine($stref, $Sf,$Sblock, $sig, $sigrec);
         
-        for my $inc ( keys %{ $Sf->{'Includes'} } ) { 
-            $Sblock->{'Includes'}{$inc} = { 'LineID' => 2 };
-            unshift @{ $Sblock->{'AnnLines'} },
-              [ "      include '$inc'", { 'Include' => { 'Name' => $inc } } ];              
-        }
-        
-        for my $mod ( keys %{ $Sf->{'Uses'} } ) {
-            
-            if (  $stref->{'Modules'}{$mod}{'Inlineable'} == 1 ) {
-#               say "$block USES $mod FROM $f"; 
-            $Sblock->{'Uses'}{$mod} = { 'LineID' => 2 };
-            my $line = "      use $mod";
-            my $info = { 'Use' => { 'Name' => $mod, 'Inlineable' => {} }  };                        
-            unshift @{ $Sblock->{'AnnLines'} }, [$line , $info ];  
-        }           
-        }
-        unshift @{ $Sblock->{'AnnLines'} }, [ $sig, { 'Signature' => $sigrec } ];       
-        
-# And finally, in the original source, replace the blocks by calls to the new subs
-
-        #        print "\n-----\n".Dumper($srcref)."\n-----";
-        for my $tindex ( 0 .. scalar( @{$srcref} ) - 1 ) {
-            if ( $tindex == $block_rec->{'BeginBlockIdx'} ) {
-                my $call_line = $sig;
-                $call_line =~ s/subroutine/call/;
-                $call_line =~ s/\(\)//;
-                $srcref->[$tindex][0] = $call_line;
-                my $line = $srcref->[$tindex][0];
-                my $info = $srcref->[$tindex][1];
-                # croak $call_line;
-                $info->{'SubroutineCall'} = { %{$sigrec} };
-                $info->{'SubroutineCall'}{'ExpressionAST'} = [];#1,$sigrec->{'Name'},[]
-                $info->{'SubroutineCall'}{'Args'}=dclone($sigrec->{'Args'});
-                $info->{'LineID'} = $Sblock->{'Callers'}{$f}[0];
-                $info->{'ExtractedSubroutine'}=1;
-                $info->{'Ann'}= [__FILE__.' '.__LINE__];
-                $srcref->[$tindex]=[$line, $info];
-            } elsif ( $tindex > $block_rec->{'BeginBlockIdx'}
-                and $tindex <= $block_rec->{'EndBlockIdx'} ) 
-            {
-                $srcref->[$tindex][0] = '';
-                $srcref->[$tindex][1]{'Deleted'} = 1;
-            }
-        }
+        # And finally, in the original source, replace the blocks by calls to the new subs
+        $Sf = __replace_blocks_by_calls_to_new_subs($Sf,$f,$Sblock,$block_rec,$sig,$sigrec);
 
         if ($V) {
             print 'SIG:' . $sig, "\n";
-
-            #           print join( "\n", @{$decls} ), "\n";
         }
         $Sblock->{'Status'} = $READ;
         # WV20190722 I added this to stop the refactoring of the call line
         $Sblock->{'ExtractedSubroutine'}=1;
-        $stref->{'Subroutines'}{$block} = $Sblock ;
-        
+        $stref->{'Subroutines'}{$block} = $Sblock ;        
     }
  
     return $stref;
@@ -743,7 +521,193 @@ sub __emit_param_lines { my ($Sblock, $varsref, $params, $param_decl_generated, 
     carp "Only do this if the params are not declared via USE!" if $DBG;
 } # END of __emit_param_lines
 
+sub __collect_args_for_new_sub { my ($Sf,$Sblock,$block,$occsref,$varsref,$args,$localvars) = @_; # return ($Sblock,$args,$localvars);
+        say "\nARGS for BLOCK $block:" if $V;
+        $args->{$block} = [];
+        $localvars->{$block} = [];  
+    # Collect args for new subroutine
+    # At this stage, if a var is COMMON, it should not become an argument.
+    for my $var ( sort keys %{ $occsref->{$block} } ) { 
+        if ( exists $occsref->{'OUTER'}{$var} ) {
+            if ( not exists $Sf->{'UsedParameters'}{'Set'}{$var}
+            and not exists $Sf->{'DeclaredCommonVars'}{'Set'}{$var}
+            and not exists $Sf->{'UndeclaredCommonVars'}{'Set'}{$var}        
+            ) {
+                push @{ $args->{$block} }, $var;                    
+            } 
+        } else {
+            # WV20190722 We must check if the var is not used by any of the other subs!
+            my $var_used_in_other_block=0;
+            for my $other_block (sort keys %{ $occsref }) {
+                next if $other_block eq 'OUTER';
+                next if $other_block eq $block;
+                if ( exists $occsref->{$other_block}{$var} ) {
+                    $var_used_in_other_block=1;
+                    if ( not exists $Sf->{'UsedParameters'}{'Set'}{$var}
+                    and not exists $Sf->{'DeclaredCommonVars'}{'Set'}{$var}
+                    and not exists $Sf->{'UndeclaredCommonVars'}{'Set'}{$var}        
+                    ) {
+                        push @{ $args->{$block} }, $var;
+                        last;                            
+                    }
+                }
+            }
+            if (not $var_used_in_other_block) { # It's a local var
+                push @{ $localvars->{$block} }, $var;
+            }
+        }            
+        $Sblock->{'Vars'}{$var} = $varsref->{ $var }; # FIXME: this is "inheritance, but in principle a re-parse is better?"
+    }
+    
+    # We declare them right away
+    $Sblock->{'DeclaredOrigArgs'}{'List'} = $args->{$block};
+    return ($Sblock,$args,$localvars);
+} # END of __collect_args_for_new_sub
+
+# Create Signature and corresponding Decls
+sub __create_sig_and_decls { my ($stref, $f,$Sblock,$block,$args) = @_; # return ($Sblock,$sigrec,$sig);
+
+    my $sixspaces = ' ' x 6;
+    my $sig       = $sixspaces . 'subroutine ' . $block . '(';
+    my $sigrec    = {};
+
+    $sigrec->{'Args'}{'List'} = $args->{$block};
+    $sigrec->{'Args'}{'Set'}  = { map { $_ => $Sblock->{'Vars'}{$_} } @{ $args->{$block} } };
+    
+    $sigrec->{'Name'}         = $block;
+    $sigrec->{'Function'}     = 0;
+    for my $argv ( @{ $args->{$block} } ) {
+        $sig .= "$argv,";
+        my $decl = get_f95_var_decl( $stref, $f, $argv );            
+        $decl->{'Indent'} .= $sixspaces;
+
+        $Sblock->{'DeclaredOrigArgs'}{'Set'}{$argv} = $decl;
+    }
+    if ( @{ $args->{$block} } ) {
+        $sig =~ s/\,$/)/s;
+    } else {
+        $sig .= ')';
+    }     
+
+    return ($Sblock,$sigrec,$sig);
+
+} # END of __create_sig_and_decls
+
+ # Add variable declarations and info to line
+sub __add_vardecls_and_info_to_AnnLines { my ($stref,$f,$Sf,$Sblock,$block,$itersref,$varsref,$paramsref,$localvars,$args) = @_; # return $Sblock;
+
+        # Here we know the vardecls have been formatted.
+        my $sigline = shift @{ $Sblock->{'AnnLines'} }; # This is the line that says "! === Original code from $f starts here ==="
+
+        for my $iters ( $itersref->{$block} ) {
+            for my $iter ( @{$iters} ) {
+                my $decl = get_f95_var_decl( $stref, $f, $iter );
+                $Sblock->{'LocalVars'}{'Set'}{$iter}             = $decl;    #
+                $Sblock->{'DeclaredOrigLocalVars'}{'Set'}{$iter} = $decl;
+                push @{ $Sblock->{'DeclaredOrigLocalVars'}{'List'} }, $iter;
+
+                unshift @{ $Sblock->{'AnnLines'} },
+                  [
+                    emit_f95_var_decl($decl),
+                    {
+                        'VarDecl' => {'Name' => $decl->{'Name'}},  
+                        'Ann'     => ['__construct_new_subroutine_signatures '
+                          . __LINE__]
+                    }
+                  ];
+            }
+        }
+
+        for my $var ( @{ $localvars->{$block} } ) {
+            
+            my $set = in_nested_set($Sf,'Vars',$var);
+            my $decl = get_var_record_from_set( $Sf->{$set}, $var );
+            $Sblock->{'LocalVars'}{'Set'}{$var}             = $decl;    #
+            $Sblock->{'DeclaredOrigLocalVars'}{'Set'}{$var} = $decl;
+            push @{ $Sblock->{'DeclaredOrigLocalVars'}{'List'} }, $var;
+
+            unshift @{ $Sblock->{'AnnLines'} },
+              [
+                emit_f95_var_decl($decl),
+                {
+                    'VarDecl' => {'Name' => $decl->{'Name'}}, 
+                    'Ann' => [ '__construct_new_subroutine_signatures ' . __LINE__ ]
+                }
+              ];
+        }
+
+        for my $argv ( @{ $args->{$block} } ) {
+            my $set = in_nested_set($Sblock,'OrigArgs',$argv);
+            my $decl = get_var_record_from_set( $Sblock->{'OrigArgs'}, $argv );
+            unshift @{ $Sblock->{'AnnLines'} },
+              [
+                emit_f95_var_decl($decl),
+                {
+                    'VarDecl' => {'Name' => $decl->{'Name'}}, 
+                    'Ann' => [ '__construct_new_subroutine_signatures ' . __LINE__ ]
+                }
+              ];
+        }
+        if (exists $paramsref->{$block}) {
+        my %params = %{ $paramsref->{$block} };
+        my $param_annlines = __emit_param_lines($Sblock, $varsref, \%params, {}, [], $block, $f);         
+        $Sblock->{'AnnLines'} = [ @{$param_annlines},  @{ $Sblock->{'AnnLines'} }];
+        }
+ 
+        unshift @{ $Sblock->{'AnnLines'} }, $sigline;
+        return $Sblock;
+} # END of __add_vardecls_and_info_to_AnnLines
 
 
+# Now also add include statements and the actual sig to the line
+sub __add_include_statements_and_sig_to_AnnLine { my ($stref, $Sf,$Sblock, $sig, $sigrec)=@_; # return $Sblock;
+        $Sblock->{'AnnLines'}[0][1] = {};
+        
+        for my $inc ( keys %{ $Sf->{'Includes'} } ) { 
+            $Sblock->{'Includes'}{$inc} = { 'LineID' => 2 };
+            unshift @{ $Sblock->{'AnnLines'} },
+              [ "      include '$inc'", { 'Include' => { 'Name' => $inc } } ];              
+        }
+        
+        for my $mod ( keys %{ $Sf->{'Uses'} } ) {
+            
+            if (  $stref->{'Modules'}{$mod}{'Inlineable'} == 1 ) {
+            $Sblock->{'Uses'}{$mod} = { 'LineID' => 2 };
+            my $line = "      use $mod";
+            my $info = { 'Use' => { 'Name' => $mod, 'Inlineable' => {} }  };                        
+            unshift @{ $Sblock->{'AnnLines'} }, [$line , $info ];  
+        }           
+        }
+        unshift @{ $Sblock->{'AnnLines'} }, [ $sig, { 'Signature' => $sigrec } ];     
+        return $Sblock;
+} # END of __add_include_statements_and_sig_to_AnnLine
+
+# And finally, in the original source, replace the blocks by calls to the new subs
+sub __replace_blocks_by_calls_to_new_subs { my ($Sf,$f,$Sblock,$block_rec,$sig,$sigrec) = @_; # return $srcref
+    my $srcref = $Sf->{'AnnLines'};
+    for my $tindex ( 0 .. scalar( @{$srcref} ) - 1 ) { 
+        if ( $tindex == $block_rec->{'BeginBlockIdx'} ) {
+            my $call_line = $sig;
+            $call_line =~ s/subroutine/call/;
+            $call_line =~ s/\(\)//;
+            $srcref->[$tindex][0] = $call_line;
+            my $line = $srcref->[$tindex][0];
+            my $info = $srcref->[$tindex][1];
+            $info->{'SubroutineCall'} = { %{$sigrec} };
+            $info->{'SubroutineCall'}{'ExpressionAST'} = [];
+            $info->{'SubroutineCall'}{'Args'}=dclone($sigrec->{'Args'});
+            $info->{'LineID'} = $Sblock->{'Callers'}{$f}[0];
+            $info->{'ExtractedSubroutine'}=1;
+            $info->{'Ann'}= [__FILE__.' '.__LINE__];
+            $srcref->[$tindex]=[$line, $info];
+        } elsif ( $tindex > $block_rec->{'BeginBlockIdx'}
+            and $tindex <= $block_rec->{'EndBlockIdx'} ) 
+        {
+            $srcref->[$tindex][0] = '';
+            $srcref->[$tindex][1]{'Deleted'} = 1;
+        }
+    }    
+    return $Sf;
+} # END of __replace_blocks_by_calls_to_new_subs
 
 1;

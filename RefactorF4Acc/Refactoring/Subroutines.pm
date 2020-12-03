@@ -395,7 +395,7 @@ sub _add_ExMismatchedCommonArg_assignment_lines {
 
 		# For the reverse assignments:
 		# In a subroutine they should come before a RETURN or before the END
-		#  In a function they should come before the assignment to the function name, a RETURN or the END, whichever is first
+		# In a function they should come before the assignment to the function name, a RETURN or the END, whichever is first
 		if ( ( exists $info->{'Return'} or exists $info->{'EndSubroutine'} or ( exists $info->{'Assignment'} and $info->{'Lhs'}{'VarName'} eq $f ) )
 			and $last_statement == 0 )
 		{
@@ -414,8 +414,6 @@ sub _add_ExMismatchedCommonArg_assignment_lines {
 sub _emit_refactored_signatures {
 	my ( $stref, $f, $annlines ) = @_;
 
-	#    my $Sf = $stref->{'Subroutines'}{$f};
-
 	my $rlines = [];
 	my $has_return_type = 0;
 	my $fname='';
@@ -428,7 +426,6 @@ sub _emit_refactored_signatures {
 				$has_return_type=1;
 				$fname=$info->{'Signature'}{'Name'};
 			}
-			#            say Dumper($annline);
 		}
 		if ( $has_return_type 
 		and exists $info->{'VarDecl'} 
@@ -445,61 +442,12 @@ sub _emit_refactored_signatures {
 	return $rlines;
 }    # END of _emit_refactored_signatures
 
-# This only works for 1-D array. It's already bad enough though.
-sub __equate_overlapping_ranges {
-	my ( $index1, $dim1, $index2, $dim2 ) = @_;
-	my $offset1    = $dim1->[0][0];
-	my $end_index1 = $dim1->[0][1];
-	my $offset2    = $dim2->[0][0];
-	my $end_index2 = $dim2->[0][1];
-	my $array1 = [$index1];
-	my $array2 = [$index2];
-
-	# range is defined as size-1
-	if ( $index1 - $offset1 < $index2 - $offset2 ) {
-
-		# offset it with the starting index,
-		my $trange1 = $index1 - $offset1;
-
-		# and subtract this from the larger of the two
-		my $start_index2 = ( $index2 - $offset2 + 1 ) - $trange1;
-
-		# this is the start index for that array
-		# then check if the end index of that array
-		# if it is smaller than the end index of the other array,
-		if ( $end_index2 - $start_index2 < $end_index1 - $offset1 ) {
-			my $range2 = $end_index2 - $start_index2;
-			$array2 = [ $start_index2, $end_index2 ];
-			$array1 = [ $offset1,      $offset1 + $range2 ];
-		} else {
-			my $range1 = $end_index1 - $offset1;
-			$array1 = [ $offset1,      $end_index1 ];
-			$array2 = [ $start_index2, $start_index2 + $range1 ];
-		}
-	} else { #reverse the whole thing
-		my $trange2      = $index2 - $offset2;
-		my $start_index1 = ( $index1 - $offset1 + 1 ) - $trange2;
-		if ( $end_index1 - $start_index1 < $end_index2 - $offset2 ) {
-			my $range1 = $end_index1 - $start_index1;
-			$array1 = [ $start_index1, $end_index1 ];
-			$array2 = [ $offset2,      $offset2 + $range1 ];
-		} else {
-			my $range2 = $end_index2 - $offset2;
-			$array2 = [ $offset2,      $end_index2 ];
-			$array1 = [ $start_index1, $start_index1 + $range2 ];
-		}
-	}
-	return [ $array1, $array2 ];
-}    # END of __equate_overlapping_ranges
-
-
 # We take the parameter declaration lines out of the annlines, and then re-insert them before the first variable declaration 
 sub _group_local_param_decls_at_top { my ( $stref, $f ) = @_;
 	my $Sf = $stref->{'Subroutines'}{$f};
 	my $pass_split_out_ParamDecls = sub {
 		(my $annline, my $state)=@_;
 		(my $line,my $info)=@{$annline};
-		#  say "LINE:$line ".Dumper(sort keys %{$info});
 		my $new_annlines = [$annline];
 		if (exists $info->{'ParamDecl'}) {	
 			
