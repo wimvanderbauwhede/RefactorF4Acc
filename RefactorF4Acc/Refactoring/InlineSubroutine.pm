@@ -25,8 +25,8 @@ use Exporter;
 
 @RefactorF4Acc::Refactoring::InlineSubroutine::EXPORT_OK = qw(
     &inline_subroutine
-    &rename_vars
-    &rename_args
+    &_rename_vars
+    &_rename_args
     &split_specification_computation_parts    
 );
 
@@ -50,14 +50,15 @@ sub inline_subroutine { (my $stref, my $f, my $sub) =@_;
 }
 
 # Inlining a call to $sub in $f
-sub inline_call { (my $stref, my $f, my $sub) =@_;
+sub inline_call { my ($stref, $f, $sub) =@_;
 
    # First rename all variables in $sub. This is safe because even with COMMON blocks, the names are not global
-   $stref = rename_vars($stref,$sub);
+   $stref = _rename_vars($stref,$sub);
     
     # Now rename the arguments, i.e. any occurrence of an argument in the body of $sub should get the value of the call arg in $f
+    # Maybe this is substitute rather than rename. Also, factor this out.
     # TODO: refactor out
-    my $pass_rename_args = sub {
+    my $pass__rename_args = sub {
             ( my $annline, my $state ) = @_;
             ( my $line,    my $info )  = @{$annline};
             ( my $stref,   my $f , my $sub)     = @{$state};
@@ -66,13 +67,13 @@ sub inline_call { (my $stref, my $f, my $sub) =@_;
             if ( exists $info->{'SubroutineCall'} and $info->{'SubroutineCall'}{'Name'} eq $sub ) {
             	my $argmap = $info->{'SubroutineCall'}{'ArgMap'};
             	
-                $stref = rename_args( $stref,$sub,$argmap);
+                $stref = _rename_args( $stref,$sub,$argmap);
             } 
             return ( [$annline], [ $stref, $f, $sub ] );
     };
 
     my $state = [ $stref, $f, $sub];
-    ( $stref, $state ) = stateful_pass( $stref, $f, $pass_rename_args, $state, 'pass_rename_args()' . __LINE__ );
+    ( $stref, $state ) = stateful_pass( $stref, $f, $pass__rename_args, $state, 'pass__rename_args()' . __LINE__ );
         
         
     # Now run the analysis again and check the result
@@ -91,7 +92,7 @@ sub inline_call { (my $stref, my $f, my $sub) =@_;
 	
     return $stref;
 }
-=info-inline-subroutine
+=pod info-inline-subroutine
 To inline a subroutine, four steps are required:
 0. This is recursive so any call in the subroutine to be inlined must also be inlined. So a first pass is to check CalledSubs, and if this is not empty, to look for subroutine calls and descend until we find one that is empty.
 1. Substitute the signature arguments with the call arguments. This info is in $info->{'SubroutineCall'}{'ArgMap'} 
@@ -134,7 +135,7 @@ sub split_specification_computation_parts { (my $stref, my $f) =@_;
     
     return ($stref,[],[]);
 }
-=info_merge_specification_computation_parts_into_caller
+=pod info_merge_specification_computation_parts_into_caller
 * The computation part simply replaces the call line, this is very easy.
 * The specification part is harder because some specifications must come at the top (implicit, use) 
 * For USE I must test against the module name and then merge the Only list
@@ -185,7 +186,7 @@ sub merge_specification_computation_parts_into_caller { (my $stref, my $f, my $s
 
 
 # Rename every variable on every line $var to  $var . '_' . $f
-sub rename_vars {
+sub _rename_vars {
 	( my $stref, my $f ) = @_;
 		
     my $Sf               = $stref->{'Subroutines'}{$f};
@@ -209,6 +210,7 @@ sub rename_vars {
                 my $subset2 = in_nested_set($Sf,'UsedParameters', $var);
                 my $subset3 = in_nested_set($Sf,'IncludedParameters', $var);
                 if (not $subset1 and not $subset2 and not $subset3) { 
+                    # The actual renaming
                     my $qvar = $var . '_' . $f;
                     $line =~ s/\b$var\b/$qvar/g;
                 }				
@@ -222,10 +224,10 @@ sub rename_vars {
 
 	return $stref;
 
-}    #  END of rename_vars
+}    #  END of _rename_vars
 
-
-sub rename_args {
+# Substitute the arguments in the subroutine by their call arg counterpart from $argmap
+sub _rename_args {
     ( my $stref, my $f , my $argmap) = @_;
     if ( exists $stref->{'Subroutines'}{$f} ) {
         my $Sf               = $stref->{'Subroutines'}{$f};
@@ -251,12 +253,11 @@ sub rename_args {
 
         my $state = [ $stref, $f, $argmap ];
         ( $stref, $state ) = stateful_pass( $stref, $f, $rename_vars_pass, $state, 'rename_vars_pass() ' . __LINE__ );
-#        croak Dumper(pp_annlines($Sf->{'RefactoredCode'},1));
     }
     
     return $stref;
 
-}    #  END of rename_vars
+}    #  END of _rename_args
 
 
 1;
