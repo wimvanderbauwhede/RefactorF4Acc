@@ -157,7 +157,9 @@ sub merge_specification_computation_parts_into_caller { (my $stref, my $f, my $s
                     # But the actual line in `les` is
                     #   use params_common_sn, only : jm, kp, ip, im, km, jp
                     # So the $info is incorrect, presumably because it did not get updated when the params include got lifted.
-                    croak 'TODO: '.Dumper($info). "\n".Dumper($specification_part);
+                    # die;
+
+                    croak 'TODO: '. "\n" . Dumper($info). "\n".Dumper($specification_part);
 
                 }
                 return ( [$annline], $state );

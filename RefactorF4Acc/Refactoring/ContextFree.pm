@@ -395,6 +395,7 @@ if ( not exists $info->{'Inlined'} ) {
             		if (exists $Sf->{'Includes'}{$param_include}{'Only'} and scalar keys %{ $Sf->{'Includes'}{$param_include}{'Only'} }>0) {            		            	
             			my @used_params = keys %{ $Sf->{'Includes'}{$param_include}{'Only'} };
                 		$line = "      use $tinc". ($Config{'NO_ONLY'} ?  '!' : '') .", only : ".join(', ', @used_params);
+                        $info->{'Use'} = {'Name' => $tinc, 'Only' => [@used_params]};
                   		push @{ $info->{'Ann'} }, annotate($f, __LINE__. ' Include' );
 					} else {
                 		$line = "!!      use $tinc ! ONLY LIST EMPTY";
@@ -413,9 +414,11 @@ if ( not exists $info->{'Inlined'} ) {
                   	push @{ $info->{'Ann'} }, annotate($f, __LINE__ . ' no pars used'); #croak 'SKIP USE PARAM';
                   	$info->{'Deleted'}=1;            		
             	}
-            	$info->{'Use'}{'Name'}=$tinc; 
-            	$info->{'Use'}{'Only'}=[]; 
-            	$info->{'Use'}{'Inlineable'}=1; 
+                if (not exists $info->{'Use'}) {
+                    $info->{'Use'}{'Name'}=$tinc; 
+                    $info->{'Use'}{'Only'}=[]; 
+                    $info->{'Use'}{'Inlineable'}=1;
+                } 
                 #carp 'FIXME: USE/ONLY!';
             } else {
 #            	say 'WARNING: EXTERNAL INCLUDES ARE COMMENTED OUT!' if $W;
