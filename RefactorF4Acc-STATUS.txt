@@ -41,6 +41,12 @@ TO RELEASE
   $ git push --delete origin v2.1.0
   $ git push origin v2.1.0
 
+STATUS 2020-12-07
+
+- The type checking ias in the paper is mostly done except for the special cases in COMMON, and the run-time type checks
+- Now working on the inliner, using LES. There is a problem with the refactoring of includes with params into modules:
+When a param module gets lifted because its enclosing module is empty, the $info still has 'Use' for the original module and the 'Only' is empty.
+
 STATUS 2020-08-13
 
 I should implement the type checking and conversion as in the paper:
