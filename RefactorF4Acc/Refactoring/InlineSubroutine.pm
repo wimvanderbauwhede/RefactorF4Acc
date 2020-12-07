@@ -84,14 +84,15 @@ sub inline_call { my ($stref, $f, $sub) = @_;
     my $Sf = $stref->{'Subroutines'}{$sub};       
 
     $stref = analyse_lines( $sub, $stref );
-       say Dumper(pp_annlines($Sf->{'AnnLines'},1));
-       say '========';
-       say Dumper(pp_annlines($Sf->{'RefactoredCode'},1    ));        
-       croak;        
+    #    say Dumper(pp_annlines($Sf->{'AnnLines'},1));
+    #    say '========';
+    #    say Dumper(pp_annlines($Sf->{'RefactoredCode'},1    ));        
+    #    croak;        
        
         
     ($stref,my $specification_part,my $computation_part) = split_specification_computation_parts($stref, $sub);
-
+    # WV20201207 Up to here it seems to be OK
+    # croak Dumper(pp_annlines($specification_part))."\n\n".Dumper(pp_annlines($computation_part));
     $stref = merge_specification_computation_parts_into_caller($stref, $f, $sub,$specification_part,$computation_part);  	            
 	
     return $stref;
@@ -142,28 +143,29 @@ sub split_specification_computation_parts { (my $stref, my $f) =@_;
 
 sub merge_specification_computation_parts_into_caller { (my $stref, my $f, my $sub,my $specification_part,my $computation_part) =@_;
 	
-    if ( exists $stref->{'Subroutines'}{$f} ) {
-        
-        
-    my $pass_merge_specification_computation_parts_into_caller = sub {
-            ( my $annline, my $state ) = @_;
-            ( my $line,    my $info )  = @{$annline};
-            ( my $stref,   my $f , my $sub, my $specification_part, my $computation_part)     = @{$state};
-            my $Sf = $stref->{'Subroutines'}{$f};
-            say $f, $line, Dumper(keys %{$info}) if $line=~/use/;        
-	        if ( exists $info->{'SubroutineCall'} and $info->{'SubroutineCall'}{'Name'} eq $sub ) {
-	        	return ( [comment($annline),comment("BEGIN inlined call to $sub"),@{$computation_part},comment("END inlined call to $sub")], $state );
-	        } elsif ( exists $info->{'Use'} ) {
-	        	croak Dumper($info);
-	        }
-            return ( [$annline], $state );
-    };
+    if ( exists $stref->{'Subroutines'}{$f} ) {        
+        my $pass_merge_specification_computation_parts_into_caller = sub {
+                ( my $annline, my $state ) = @_;
+                ( my $line,    my $info )  = @{$annline};
+                ( my $stref,   my $f , my $sub, my $specification_part, my $computation_part)     = @{$state};
+                my $Sf = $stref->{'Subroutines'}{$f};
+                say $f, $line, "\n",Dumper($info) if $line=~/use/;        
+                if ( exists $info->{'SubroutineCall'} and $info->{'SubroutineCall'}{'Name'} eq $sub ) {
+                    return ( [comment($annline),comment("BEGIN inlined call to $sub"),@{$computation_part},comment("END inlined call to $sub")], $state );
+                } elsif ( exists $info->{'Use'} ) {
+                    # The problem here is that $line has 'Use' for common_sn with an empty 'Only' and 'Include' for params_common.sn
+                    # But the actual line in `les` is
+                    #   use params_common_sn, only : jm, kp, ip, im, km, jp
+                    # So the $info is incorrect, presumably because it did not get updated when the params include got lifted.
+                    croak 'TODO: '.Dumper($info). "\n".Dumper($specification_part);
+
+                }
+                return ( [$annline], $state );
+        };
 
         my $state = [ $stref, $f, $sub, $specification_part, $computation_part];
         ( $stref, $state ) = stateful_pass( $stref, $f, $pass_merge_specification_computation_parts_into_caller, $state, 'pass_merge_specification_computation_parts_into_caller() ' . __LINE__ );      
-        
     }
-    croak;
     return $stref;
 }
 
