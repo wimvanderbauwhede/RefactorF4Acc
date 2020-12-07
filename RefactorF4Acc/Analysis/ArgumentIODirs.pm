@@ -59,7 +59,7 @@ sub determine_argument_io_direction_rec {
             next if exists $stref->{'ExternalSubroutines'}{$calledsub};    # Don't descend into external subs
             if (exists $subs{$calledsub}) {
                 warning("CALL LOOP for $calledsub in $f. This does not conform to the ANSI X3.9-1978 standard, proceed at your peril!",1);
-                warning(join(', ', @{ $stref->{'CallStack'} }),2);
+                warning('<'.join(', ', @{ $stref->{'CallStack'} }).'>',2);
 				# say "WARNING: CALL LOOP for $calledsub in $f. This does not conform to the ANSI X3.9-1978 standard, proceed at your peril!" if $W;
 				# say join(', ', @{ $stref->{'CallStack'} }) if $WW;
 				next;
@@ -71,7 +71,7 @@ sub determine_argument_io_direction_rec {
     }
     print "\t" x $c, "--------\n" if $V;
     $stref = _determine_argument_io_direction_core($stref, $f);
-
+    pop  @{ $stref->{'CallStack'} };
     return $stref;
 }    # determine_argument_io_direction_rec()
 

@@ -475,7 +475,7 @@ sub determine_ExGlobArgs {
 			if (exists $subs{$calledsub}) {
 				# say "WARNING: determine_ExGlobArgs: LOOP for $calledsub: ".join(', ', @{ $stref->{'CallStack'} }) if $W;
 				warning("CALL LOOP for $calledsub in $f. This does not conform to the ANSI X3.9-1978 standard, proceed at your peril!",1);
-				warning( join(', ', @{ $stref->{'CallStack'} }),2);
+				warning( '<'.join(', ', @{ $stref->{'CallStack'} }).'>',2);
 				next;
 			}
 			$stref->{Counter}++ if $V;

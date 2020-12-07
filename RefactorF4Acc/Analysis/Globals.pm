@@ -139,7 +139,7 @@ if ($Config{RENAME_EXT} ne '') {
 				if (exists $subs{$csub}) {
 					# say "WARNING: rename_inherited_exglobs: LOOP for $csub: ".join(', ', @{ $stref->{'CallStack'} }) if $W;
 					warning("CALL LOOP for $csub in $f. This does not conform to the ANSI X3.9-1978 standard, proceed at your peril!",1);
-					warning( join(', ', @{ $stref->{'CallStack'} }) ,2);
+					warning( '<'. join(', ', @{ $stref->{'CallStack'} }) .'>',2);
 					next;
 				}    
 	       		say "CALL TO  $csub from $f" if $V;     
@@ -183,7 +183,7 @@ sub lift_globals {
 				if (exists $subs{$csub}) {
 				# say "WARNING: lift_globals: LOOP for $csub: ".join(', ', @{ $stref->{'CallStack'} }) if $W;
 				warning("CALL LOOP for $csub in $f. This does not conform to the ANSI X3.9-1978 standard, proceed at your peril!",1);
-				warning( join(', ', @{ $stref->{'CallStack'} }),2);
+				warning( '<'.join(', ', @{ $stref->{'CallStack'} }).'>',2);
 				next;
 				}    
 

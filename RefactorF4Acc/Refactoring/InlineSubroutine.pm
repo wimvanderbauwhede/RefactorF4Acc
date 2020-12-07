@@ -30,17 +30,21 @@ use Exporter;
     &split_specification_computation_parts    
 );
 
+=pod info-inline-subroutine
+To inline a subroutine, four steps are required:
+0. This is recursive so any call in the subroutine to be inlined must also be inlined. So a first pass is to check CalledSubs, and if this is not empty, to look for subroutine calls and descend until we find one that is empty.
+1. Substitute the signature arguments with the call arguments. This info is in $info->{'SubroutineCall'}{'ArgMap'} 
+2. Rename the subroutine variables with a unique name. We can use a version of rename_inherited_vars(). To avoid conflicts we need to check if any name in the caller conflicts with a renamed variable, and if so rename that one as well. 
+3. Split out the specification and computation parts. The computation part replaces the call; the specification needs to be added to the specification part of the caller. I guess we could put if after the first line that is not a SpecificationStatement, Comment or Blank    
+=cut
 
-sub inline_subroutine { (my $stref, my $f, my $sub) =@_;
+sub inline_subroutine { (my $stref, my $f, my $sub) = @_;
 
-    
-	    
         # Find the call(s) to the subroutine $sub in $f
         # Rename using $info->{'ArgMap'}{$sig_arg}
         $stref = inline_call($stref,$f,$sub);
         my $Sf = $stref->{'Subroutines'}{$f};
         croak Dumper(pp_annlines($Sf->{'RefactoredCode'},0));
-        
         
         # Here is where we will add the  $specification_part and $computation_part to the AnnLines of $f
         # Then we will also update the variable declarations in $f
@@ -50,7 +54,7 @@ sub inline_subroutine { (my $stref, my $f, my $sub) =@_;
 }
 
 # Inlining a call to $sub in $f
-sub inline_call { my ($stref, $f, $sub) =@_;
+sub inline_call { my ($stref, $f, $sub) = @_;
 
    # First rename all variables in $sub. This is safe because even with COMMON blocks, the names are not global
    $stref = _rename_vars($stref,$sub);
@@ -80,11 +84,11 @@ sub inline_call { my ($stref, $f, $sub) =@_;
     my $Sf = $stref->{'Subroutines'}{$sub};       
 
     $stref = analyse_lines( $sub, $stref );
-#        say Dumper(pp_annlines($Sf->{'AnnLines'},1));
-#        say '========';
-#        say Dumper(pp_annlines($Sf->{'RefactoredCode'},1    ));        
-#        croak;        
-#        croak;
+       say Dumper(pp_annlines($Sf->{'AnnLines'},1));
+       say '========';
+       say Dumper(pp_annlines($Sf->{'RefactoredCode'},1    ));        
+       croak;        
+       
         
     ($stref,my $specification_part,my $computation_part) = split_specification_computation_parts($stref, $sub);
 
@@ -92,13 +96,7 @@ sub inline_call { my ($stref, $f, $sub) =@_;
 	
     return $stref;
 }
-=pod info-inline-subroutine
-To inline a subroutine, four steps are required:
-0. This is recursive so any call in the subroutine to be inlined must also be inlined. So a first pass is to check CalledSubs, and if this is not empty, to look for subroutine calls and descend until we find one that is empty.
-1. Substitute the signature arguments with the call arguments. This info is in $info->{'SubroutineCall'}{'ArgMap'} 
-2. Rename the subroutine variables with a unique name. We can use a version of rename_inherited_vars()
-3. Split out the specification and computation parts. The computation part replaces the call; the specification needs to be added to the specification part of the caller. I guess we could put if after the first line that is not a SpecificationStatement, Comment or Blank    
-=cut
+
 
 # Not only split, also weed out argument decls and return statements
 sub split_specification_computation_parts { (my $stref, my $f) =@_;
