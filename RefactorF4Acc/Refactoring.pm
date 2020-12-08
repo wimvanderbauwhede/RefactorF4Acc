@@ -14,7 +14,7 @@ use RefactorF4Acc::Refactoring::Subroutines qw( refactor_all_subroutines );
 use RefactorF4Acc::Refactoring::Functions qw( refactor_called_functions remove_vars_masking_functions);
 use RefactorF4Acc::Refactoring::IncludeFiles qw( refactor_include_files );
 use RefactorF4Acc::Refactoring::Modules qw( add_module_decls );
-use RefactorF4Acc::Refactoring::InlineSubroutine qw( inline_subroutine );
+use RefactorF4Acc::Refactoring::InlineSubroutine qw( inline_subroutines );
 use RefactorF4Acc::Refactoring::EvalParamExprs qw( eval_param_expressions_all );
 use vars qw( $VERSION );
 $VERSION = "2.1.1";
@@ -81,9 +81,9 @@ sub refactor_all {
     # I would say any call inside a subroutine marked for offloading.
     # This needs to be recursive!
 	# Testing with LES
-    my $f='les';
-    my $sub='boundsm';
-    $stref = inline_subroutine($stref, $f, $sub) ;
+    # my $f='les';
+    # my $sub='boundsm';
+    $stref = inline_subroutines($stref) ;
     die;
     # Custom refactoring, must be done before creating final modules
     say "add_module_decls" if $V;

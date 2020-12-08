@@ -253,6 +253,13 @@ sub analyse_lines {
 			if (exists $info->{'AccPragma'}{'BeginKernel'}) {
 				$Sf->{'HasKernelRegion'}=1;
 			}
+			if (exists $info->{'AccPragma'}{'BeginInline'}) {
+				if (exists $Sf->{'SubsToInline'}) {
+					push @{$Sf->{'SubsToInline'}}, $info->{'AccPragma'}{'BeginInline'}[0];
+				} else {
+					$Sf->{'SubsToInline'}=[]
+				}
+			}			
 			# Here we remove the label if there is one, but we store it in Label so we can re-emit it
 			my $line = $lline;
 			
@@ -4152,7 +4159,7 @@ sub  _get_len_from_ast { (my  $ast ) = @_;
 # This code runs on any sub that has a Kernel region
 # I could of course use this pass to enumerate all the subroutines, put them in KernelSubs 
 # Or I can do a separate pass later to do just that task 
-# WV20190523 Maybe this should go somewhere else, this is not parsing. Analysis::Blocks maybe
+# WV20190523 Maybe this should go somewhere else, this is not parsing. Put it in Analysis::Blocks 
 sub mark_blocks_between_calls { (my $stref)=@_;
 	my $n_kernel_regions=0;
 	for my $f ( keys %{ $stref->{'Subroutines'} } ) {

@@ -24,10 +24,7 @@ use Exporter;
 @RefactorF4Acc::Refactoring::InlineSubroutine::ISA = qw(Exporter);
 
 @RefactorF4Acc::Refactoring::InlineSubroutine::EXPORT_OK = qw(
-    &inline_subroutine
-    &_rename_vars
-    &_rename_args
-    &split_specification_computation_parts    
+    &inline_subroutines
 );
 
 =pod info-inline-subroutine
@@ -38,20 +35,20 @@ To inline a subroutine, four steps are required:
 3. Split out the specification and computation parts. The computation part replaces the call; the specification needs to be added to the specification part of the caller. I guess we could put if after the first line that is not a SpecificationStatement, Comment or Blank    
 =cut
 
-sub inline_subroutine { (my $stref, my $f, my $sub) = @_;
-
-        # Find the call(s) to the subroutine $sub in $f
-        # Rename using $info->{'ArgMap'}{$sig_arg}
-        $stref = inline_call($stref,$f,$sub);
-        my $Sf = $stref->{'Subroutines'}{$f};
-        croak Dumper(pp_annlines($Sf->{'RefactoredCode'},0));
-        
-        # Here is where we will add the  $specification_part and $computation_part to the AnnLines of $f
-        # Then we will also update the variable declarations in $f
+sub inline_leaf_subroutine { (my $stref, my $f, my $sub) = @_;
+    say "INLINE $sub in $f" if $DBG;
+    # Find the call(s) to the subroutine $sub in $f
+    # Rename using $info->{'ArgMap'}{$sig_arg}
+    $stref = inline_call($stref,$f,$sub);
+    # my $Sf = $stref->{'Subroutines'}{$f};
+    # croak Dumper(pp_annlines($Sf->{'RefactoredCode'},0));
+    
+    # Here is where we will add the  $specification_part and $computation_part to the AnnLines of $f
+    # Then we will also update the variable declarations in $f
 	    
     
     return $stref;
-}
+} # END of inline_leaf_subroutine
 
 # Inlining a call to $sub in $f
 sub inline_call { my ($stref, $f, $sub) = @_;
@@ -81,22 +78,28 @@ sub inline_call { my ($stref, $f, $sub) = @_;
         
         
     # Now run the analysis again and check the result
-    my $Sf = $stref->{'Subroutines'}{$sub};       
+    my $Ssub = $stref->{'Subroutines'}{$sub};       
 
     $stref = analyse_lines( $sub, $stref );
     #    say Dumper(pp_annlines($Sf->{'AnnLines'},1));
     #    say '========';
-    #    say Dumper(pp_annlines($Sf->{'RefactoredCode'},1    ));        
+    #    say Dumper(pp_annlines($Ssub->{'RefactoredCode'},1    ));        
     #    croak;        
        
         
-    ($stref,my $specification_part,my $computation_part) = split_specification_computation_parts($stref, $sub);
+    ($stref, my $use_part, my $specification_part,my $computation_part) = split_specification_computation_parts($stref, $sub);
     # WV20201207 Up to here it seems to be OK
     # croak Dumper(pp_annlines($specification_part))."\n\n".Dumper(pp_annlines($computation_part));
-    $stref = merge_specification_computation_parts_into_caller($stref, $f, $sub,$specification_part,$computation_part);  	            
-	
+    $stref = merge_specification_computation_parts_into_caller($stref, $f, $sub, $use_part, $specification_part,$computation_part);  	            
+    my $Sf = $stref->{'Subroutines'}{$f};       
+
+    # say $Sf->{'AnnLines'} , $Sf->{'RefactoredCode'};
+    #    say Dumper(pp_annlines($Sf->{'AnnLines'},1));
+    #    say '========';
+    #    say Dumper(pp_annlines($Sf->{'RefactoredCode'},0 ));        
+    #    croak;       	
     return $stref;
-}
+} # END of inline_call
 
 
 # Not only split, also weed out argument decls and return statements
@@ -108,32 +111,38 @@ sub split_specification_computation_parts { (my $stref, my $f) =@_;
     my $pass_split_specification_computation_parts = sub {
             ( my $annline, my $state ) = @_;
             ( my $line,    my $info )  = @{$annline};
-            ( my $stref,   my $f , my $specification_part, my $computation_part, my $preceding_comments)     = @{$state};
+            ( my $stref,   my $f, my $use_part, my $specification_part, my $computation_part, my $preceding_comments)     = @{$state};
             my $Sf = $stref->{'Subroutines'}{$f};        
 
 			if ( exists $info->{'Signature'} or exists $info->{'EndSubroutine'} or exists $info->{'ArgDecl'} or exists $info->{'Return'}) {
 				# do nothing;
 			} elsif ( exists $info->{'Comments'} or exists $info->{'Blank'} ) {
 				push @{$preceding_comments}, $annline;
-			} elsif ( exists $info->{'SpecificationStatement'} ) {
+            } elsif ( exists $info->{'Use'} ) {
+                # say $use_part;
+				$use_part = [ @{$use_part}, @{$preceding_comments}, $annline ];
+				$preceding_comments = [];
+			} elsif ( exists $info->{'SpecificationStatement'}
+            and not exists $info->{'ImplicitNone'}
+             ) {
 				$specification_part = [ @{$specification_part}, @{$preceding_comments}, $annline ];
 				$preceding_comments = [];
-			} else {
+			} elsif (not exists $info->{'ImplicitNone'}) {
 				$computation_part = [ @{$computation_part}, @{$preceding_comments}, $annline ];
 				$preceding_comments = [];
 			}
-			return ( [$annline], [ $stref, $f, $specification_part, $computation_part, $preceding_comments ] );
+			return ( [$annline], [ $stref, $f, $use_part, $specification_part, $computation_part, $preceding_comments ] );
     };
 
-        my $state = [ $stref, $f , [],[],[]];
+        my $state = [ $stref, $f, [],[],[],[]];
         ( $stref, $state ) = stateful_pass( $stref, $f, $pass_split_specification_computation_parts, $state, 'pass_split_specification_computation_parts() ' . __LINE__ );
-        ( my $stref__,   my $f__ , my $specification_part, my $computation_part, my $preceding_comments__)     = @{$state};        
+        ( my $stref__,   my $f__ , my $use_part, my $specification_part, my $computation_part, my $preceding_comments__)     = @{$state};        
 
-        return ($stref,$specification_part,$computation_part);
+        return ($stref, $use_part, $specification_part, $computation_part);
     }
     
-    return ($stref,[],[]);
-}
+    return ($stref,[],[],[]);
+} # END of split_specification_computation_parts
 =pod info_merge_specification_computation_parts_into_caller
 * The computation part simply replaces the call line, this is very easy.
 * The specification part is harder because some specifications must come at the top (implicit, use) 
@@ -141,35 +150,77 @@ sub split_specification_computation_parts { (my $stref, my $f) =@_;
 
 =cut
 
-sub merge_specification_computation_parts_into_caller { (my $stref, my $f, my $sub,my $specification_part,my $computation_part) =@_;
+sub merge_specification_computation_parts_into_caller { (my $stref, my $f, my $sub,my $use_part, my $specification_part,my $computation_part) =@_;
 	
     if ( exists $stref->{'Subroutines'}{$f} ) {        
         my $pass_merge_specification_computation_parts_into_caller = sub {
                 ( my $annline, my $state ) = @_;
                 ( my $line,    my $info )  = @{$annline};
-                ( my $stref,   my $f , my $sub, my $specification_part, my $computation_part)     = @{$state};
+                ( my $stref, my $f , my $sub, my $use_part, my $specification_part, my $computation_part, my $first_vardecl, my $found_use)     = @{$state};
                 my $Sf = $stref->{'Subroutines'}{$f};
-                say $f, $line, "\n",Dumper($info) if $line=~/use/;        
+                # say $f, $line, "\n",Dumper($info) if $line=~/use/;        
+                my $indent = $info->{'Indent'} // '      ';
                 if ( exists $info->{'SubroutineCall'} and $info->{'SubroutineCall'}{'Name'} eq $sub ) {
-                    return ( [comment($annline),comment("BEGIN inlined call to $sub"),@{$computation_part},comment("END inlined call to $sub")], $state );
-                } elsif ( exists $info->{'Use'} ) {
-                    # The problem here is that $line has 'Use' for common_sn with an empty 'Only' and 'Include' for params_common.sn
-                    # But the actual line in `les` is
-                    #   use params_common_sn, only : jm, kp, ip, im, km, jp
-                    # So the $info is incorrect, presumably because it did not get updated when the params include got lifted.
-                    # die;
-
-                    croak 'TODO: '. "\n" . Dumper($info). "\n".Dumper($specification_part);
-
+                    return ( [comment($annline),comment("$indent BEGIN inlined call to $sub"),@{$computation_part},comment("$indent END inlined call to $sub")], $state );
+                } elsif ( @{$use_part} and exists $info->{'Use'} ) {
+                    $found_use=1;
+                    # If $line has 'Use' we check if that use exists in $use_part
+                    # If so, we merge them. 
+                    # We need a state to identify the first line after 'use' so that we can tag on any use lines from $use_part there
+                    # 
+                    my $remaining_use_part=[];
+                    my $updated_use_annline = $annline;
+                    for my $use_annline (@{$use_part}) {
+                        my ($use_line, $use_info) = @{$use_annline};
+                        if ($info->{'Use'}{'Name'} eq $use_info->{'Use'}{'Name'}) {
+                            my %orig_only = map {$_=>1}  @{$info->{'Use'}{'Only'}};
+                            my %ex_sub_only = map {$_=>1}  @{$use_info->{'Use'}{'Only'}};
+                            my %updated_only = (%orig_only,%ex_sub_only);
+                            my @updated_only_list = sort keys %updated_only;
+                            # say 'TODO: '. $line."\n" . Dumper(@updated_only_list);die;#. "\n".Dumper(%ex_sub_only);die;
+                            $info->{'Use'}{'Only'}=[@updated_only_list];
+                            my $updated_line = $info->{'Indent'}.'use '.$info->{'Use'}{'Name'}
+                            . ($Config{'NO_ONLY'} ?  '!' : '') .
+                            ', only: '.join(', ',@updated_only_list);
+                            $updated_use_annline = [$updated_line,$info];
+                        } else {
+                            push @{$remaining_use_part}, $use_annline;
+                        }
+                    }
+                    return ( [comment("$indent BEGIN merged ex-sub use statement"),$updated_use_annline, comment("$indent END merged ex-sub use statement")], [$stref, $f, $sub, $remaining_use_part, $specification_part, $computation_part, $first_vardecl, $found_use] ); 
+                } elsif ( @{$use_part} and $found_use and not exists $info->{'Use'} 
+                                    and not exists $info->{'Comments'}
+                    and not exists $info->{'Blank'}
+                    and not exists $info->{'Skip'}
+                    and not exists $info->{'Deleted'}
+                ) {
+                    return ( [comment("$indent BEGIN ex-sub use statement"),@{$use_part},comment("$indent END ex-sub use statement"),$annline], [$stref, $f, $sub, [], $specification_part, $computation_part, $first_vardecl, $found_use] );
+                    # return the remaining lines from
+# sub _insert_specification_part { my ($info, $first_vardecl, $stref, $f, $rlines) = @_; # return ($rlines,$first_vardecl);
+                } elsif (    
+                    not exists $info->{'Signature'}
+                    and not exists $info->{'VarDecl'}
+                    and not exists $info->{'ImplicitNone'}
+                    and not exists $info->{'SpecificationStatement'}
+                    and not exists $info->{'Comments'}
+                    and not exists $info->{'Blank'}
+                    and not exists $info->{'Skip'}
+                    and not exists $info->{'Deleted'}
+                    and $first_vardecl == 1 )
+                {
+                    $state->[-2] = 0;
+                    return ( [comment("$indent BEGIN ex-sub decls"),@{$specification_part},comment("$indent END ex-sub decls"),$annline], $state );
+                    
                 }
                 return ( [$annline], $state );
+                
         };
 
-        my $state = [ $stref, $f, $sub, $specification_part, $computation_part];
+        my $state = [ $stref, $f, $sub, $use_part, $specification_part, $computation_part, 1,0];
         ( $stref, $state ) = stateful_pass( $stref, $f, $pass_merge_specification_computation_parts_into_caller, $state, 'pass_merge_specification_computation_parts_into_caller() ' . __LINE__ );      
     }
     return $stref;
-}
+} # END of merge_specification_computation_parts_into_caller
 
 
 # The question is if we need to rename the variables in the $info as well, and I think the answer is 'YES'; and in principle of course also in 'Vars'
@@ -261,5 +312,84 @@ sub _rename_args {
 
 }    #  END of _rename_args
 
+
+# If the subroutine to be inlined contains calls to other subroutines, these have to be inlined as well
+sub inline_subroutine {
+	  (my $stref, my $f, my $sub) = @_;
+#    local $V=1;
+ 	push @{ $stref->{'CallStack'} }, $f;
+    my %subs = map {$_=>1} @{ $stref->{'CallStack'} }; 
+
+    if (exists $stref->{'Subroutines'}{$sub} ) {
+    	my $Sf = $stref->{'Subroutines'}{$sub};
+    	if ( exists $Sf->{'CalledSubs'}{'List'}
+        and scalar @{ $Sf->{'CalledSubs'}{'List'} }>0 )
+	    {	    	
+	        for my $csub ( @{ $Sf->{'CalledSubs'}{'List'} }) {   
+				if (exists $subs{$csub}) {
+                    warning( "CALL LOOP for $csub in $sub. Inlining of $sub in $f is impossible" ,1);
+                    warning( join(', ', @{ $stref->{'CallStack'} }), 2);
+                    die "\n";
+                    next;
+				}    
+	       		say "CALL TO  $csub from $f" if $V;     
+	            $stref = inline_subroutine($stref, $sub, $csub );
+	            say "RETURN TO $f from CALL to $csub" if $V;
+	            my $Scsub = $stref->{'Subroutines'}{$csub};
+	            
+	        } 
+	    } else {
+	        # Leaf node, find globals	        
+	        say "SUB $f is LEAF, OK to inline" if $V; 
+            $stref = inline_leaf_subroutine( $stref, $f, $sub);
+
+	    }    
+    }    
+    pop  @{ $stref->{'CallStack'} };
+    return $stref;
+} #  END of inline_subroutine()
+
+sub inline_subroutines {
+	( my $stref ) = @_;
+
+	for my $f ( sort keys %{ $stref->{'Subroutines'} } ) {
+
+		next if ( $f eq '' or $f eq 'UNKNOWN_SRC' or not defined $f );
+		# next if exists $stref->{'Entries'}{$f};
+
+		my $Sf = $stref->{'Subroutines'}{$f};
+
+		# next if ( exists $Sf->{'Entry'} && $Sf->{'Entry'} == 1 );
+		if ( not defined $Sf->{'Status'} ) {
+			$Sf->{'Status'} = $UNREAD;
+			say "INFO: no Status for $f" if $I;
+		}
+
+		next if $Sf->{'Status'} == $UNREAD;
+		next if $Sf->{'Status'} == $READ;
+		next if $Sf->{'Status'} == $FROM_BLOCK;
+
+		$stref = _inline_subroutines_main( $stref, $f );
+	}
+
+	return $stref;
+}    # END of inline_subroutines()
+
+# Check if there are any subroutines to be inlined, and inline them one after another.
+sub _inline_subroutines_main { my ( $stref, $f ) = @_;
+    
+    if ( exists $stref->{'Subroutines'}{$f} ) {
+        my $Sf               = $stref->{'Subroutines'}{$f};
+        if (exists $Sf->{'SubsToInline'} ) {
+            for my $sub ( @{$Sf->{'SubsToInline'}} ) {
+                $stref = inline_subroutine($stref,$f,$sub);
+            }
+        }
+    }        
+    
+    return $stref;
+
+
+}
 
 1;
