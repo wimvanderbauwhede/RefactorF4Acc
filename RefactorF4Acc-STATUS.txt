@@ -41,6 +41,36 @@ TO RELEASE
   $ git push --delete origin v2.1.0
   $ git push origin v2.1.0
 
+STATUS 2020-12-08
+
+- Inlining is almost done but there is an issue: subroutines are in modules, if they are inlined then the module statement should be removed.
+But only if all calls are inlined. 
+- I also notice that 
+
+subroutine s1
+...
+end
+
+is OK
+
+as is
+
+subroutine s1
+...
+end subroutine s1
+
+but 
+
+subroutine s1
+...
+end subroutine 
+
+is not OK, it does not get labeled as EndSubroutine
+
+I should try and get the name via the Block info
+
+- Also, detail but once inlined the !$ACC should become !ACC
+
 STATUS 2020-12-07
 
 - The type checking ias in the paper is mostly done except for the special cases in COMMON, and the run-time type checks

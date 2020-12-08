@@ -84,7 +84,7 @@ sub refactor_all {
     # my $f='les';
     # my $sub='boundsm';
     $stref = inline_subroutines($stref) ;
-    die;
+    # die;
     # Custom refactoring, must be done before creating final modules
     say "add_module_decls" if $V;
     $stref=add_module_decls($stref);

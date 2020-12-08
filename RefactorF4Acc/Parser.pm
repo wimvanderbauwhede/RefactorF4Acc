@@ -249,21 +249,25 @@ sub analyse_lines {
 			# Handle !$ACC on individual line
 			if ( $lline =~ /^\!\s*\$(?:ACC|RF4A)\s.+$/i ) {				
 				( $stref, $info ) = __handle_acc( $stref, $f, $index, $lline );
+				# die Dumper $info;
 			}
 			if (exists $info->{'AccPragma'}{'BeginKernel'}) {
 				$Sf->{'HasKernelRegion'}=1;
 			}
 			if (exists $info->{'AccPragma'}{'BeginInline'}) {
-				if (scalar @{$info->{'AccPragma'}{'BeginInline'}[0]} ) { 
+				if (scalar @{$info->{'AccPragma'}{'BeginInline'}}) { 
 				if (exists $Sf->{'SubsToInline'}) {
 					push @{$Sf->{'SubsToInline'}}, $info->{'AccPragma'}{'BeginInline'}[0];
 				} else {
-					$Sf->{'SubsToInline'}=[]
+					$Sf->{'SubsToInline'}=[
+						$info->{'AccPragma'}{'BeginInline'}[0]
+					]
 				}
 				} else {
 					# Find the subs to be inline in a separate pass
 					$Sf->{'HasInlineRegion'}=1;
 				}
+				# die Dumper $Sf->{'SubsToInline'};
 			}			
 			# Here we remove the label if there is one, but we store it in Label so we can re-emit it
 			my $line = $lline;
@@ -1002,15 +1006,15 @@ or $line=~/^character\s*\(\s*len\s*=\s*[\w\*]+\s*\)/
 #@    ReturnTypeAttr => number or '(*)'
 #@    ResultVar => $result_var
 #@    Characteristic => pure | elemental | recursive 
-			 elsif ( 
+			elsif ( 
 			 ($line =~ /\b(subroutine|function|program|entry|block)[\s\(]/
 			 or $line =~ /\b(blockdata)/
 			 ) and $line !~ /^end\s+/) {
 				( $Sf, $line, $info ) =
 				  __parse_sub_func_prog_decls( $Sf, $line, $info );
-			 }
+			}
 #== END of CODE UNIT
-			 elsif (
+			elsif (
 				$line =~ /^end\s+(subroutine|module|function|block\s*data)\s*(\w+)/ 
 				) {
 				my $kw   = $1;
@@ -1023,7 +1027,8 @@ or $line=~/^character\s*\(\s*len\s*=\s*[\w\*]+\s*\)/
 #@    Range => 
 #@        Vars => [ ... ]
 #@        Expressions' => [ ... ]
-			} elsif ( $line =~ /^do\b/) { 
+			} 
+			elsif ( $line =~ /^do\b/) { 
 #WV20150304: We parse the do and store the iterator and the range { 'Iterator' => $i,'Range' =>[$start,$stop]}
 				my $do_stmt = $line;
 				my $label   = $info->{'Label'} // 'LABEL_NOT_DEFINED';

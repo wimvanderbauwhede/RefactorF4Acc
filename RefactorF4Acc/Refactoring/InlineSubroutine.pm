@@ -65,14 +65,18 @@ sub inline_subroutines {
 sub _inline_subroutines_main { my ( $stref, $f ) = @_;
     
     if ( exists $stref->{'Subroutines'}{$f} ) {
-        $stref = find_subs_to_inline($stref,$f);
+        
+        # $stref = find_subs_to_inline($stref,$f);
         my $Sf = $stref->{'Subroutines'}{$f};
-
+# die $f,Dumper $Sf->{'SubsToInline'};
         if (exists $Sf->{'SubsToInline'} ) {
             for my $sub ( @{$Sf->{'SubsToInline'}} ) {
                 $stref = inline_subroutine($stref,$f,$sub);
             }
-        }
+        } 
+        # else {
+        #     die 'BOOM!';
+        # }
     }        
     
     return $stref;
@@ -155,11 +159,18 @@ sub split_specification_computation_parts { (my $stref, my $f) =@_;
         
     my $pass_split_specification_computation_parts = sub {
             ( my $annline, my $state ) = @_;
+            say Dumper $annline;
             ( my $line,    my $info )  = @{$annline};
             ( my $stref,   my $f, my $use_part, my $specification_part, my $computation_part, my $preceding_comments)     = @{$state};
             my $Sf = $stref->{'Subroutines'}{$f};        
 
-			if ( exists $info->{'Signature'} or exists $info->{'EndSubroutine'} or exists $info->{'ArgDecl'} or exists $info->{'Return'}) {
+			if ( 
+                exists $info->{'Signature'} or 
+                exists $info->{'EndSubroutine'} or 
+                exists $info->{'ArgDecl'} or 
+                exists $info->{'Return'}
+                ) {
+                    
 				# do nothing;
 			} elsif ( exists $info->{'Comments'} or exists $info->{'Blank'} ) {
 				push @{$preceding_comments}, $annline;
