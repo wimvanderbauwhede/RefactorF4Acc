@@ -35,6 +35,51 @@ To inline a subroutine, four steps are required:
 3. Split out the specification and computation parts. The computation part replaces the call; the specification needs to be added to the specification part of the caller. I guess we could put if after the first line that is not a SpecificationStatement, Comment or Blank    
 =cut
 
+sub inline_subroutines {
+	( my $stref ) = @_;
+
+	for my $f ( sort keys %{ $stref->{'Subroutines'} } ) {
+
+		next if ( $f eq '' or $f eq 'UNKNOWN_SRC' or not defined $f );
+		# next if exists $stref->{'Entries'}{$f};
+
+		my $Sf = $stref->{'Subroutines'}{$f};
+
+		# next if ( exists $Sf->{'Entry'} && $Sf->{'Entry'} == 1 );
+		if ( not defined $Sf->{'Status'} ) {
+			$Sf->{'Status'} = $UNREAD;
+			say "INFO: no Status for $f" if $I;
+		}
+
+		next if $Sf->{'Status'} == $UNREAD;
+		next if $Sf->{'Status'} == $READ;
+		next if $Sf->{'Status'} == $FROM_BLOCK;
+
+		$stref = _inline_subroutines_main( $stref, $f );
+	}
+
+	return $stref;
+}    # END of inline_subroutines()
+
+# Check if there are any subroutines to be inlined, and inline them one after another.
+sub _inline_subroutines_main { my ( $stref, $f ) = @_;
+    
+    if ( exists $stref->{'Subroutines'}{$f} ) {
+        $stref = find_subs_to_inline($stref,$f);
+        my $Sf = $stref->{'Subroutines'}{$f};
+
+        if (exists $Sf->{'SubsToInline'} ) {
+            for my $sub ( @{$Sf->{'SubsToInline'}} ) {
+                $stref = inline_subroutine($stref,$f,$sub);
+            }
+        }
+    }        
+    
+    return $stref;
+
+
+}
+
 sub inline_leaf_subroutine { (my $stref, my $f, my $sub) = @_;
     say "INLINE $sub in $f" if $DBG;
     # Find the call(s) to the subroutine $sub in $f
@@ -349,47 +394,60 @@ sub inline_subroutine {
     return $stref;
 } #  END of inline_subroutine()
 
-sub inline_subroutines {
-	( my $stref ) = @_;
 
-	for my $f ( sort keys %{ $stref->{'Subroutines'} } ) {
 
-		next if ( $f eq '' or $f eq 'UNKNOWN_SRC' or not defined $f );
-		# next if exists $stref->{'Entries'}{$f};
+# This should go in Analysis::Inline
+# I think we should allow
+# !$ACC Inline
+# call
+# call
+# !$ACC End Inline
+# So in that case Inline has no arg and we need to find all calls
+sub find_subs_to_inline { (my $stref, my $f)=@_;
 
-		my $Sf = $stref->{'Subroutines'}{$f};
+	# for my $f ( keys %{ $stref->{'Subroutines'} } ) {
+		return $stref unless exists $stref->{'Subroutines'}{$f}{'HasInlineRegion'};
+		
+		my $in_inline_region=0;
+		my $called_subs = [];
+		
+		my $pass_actions = sub { (my $annline, my $state) = @_;
+			(my $line, my $info)=@{$annline};
+			
+			(my $in_inline_region, my $called_subs)= @{$state};
 
-		# next if ( exists $Sf->{'Entry'} && $Sf->{'Entry'} == 1 );
-		if ( not defined $Sf->{'Status'} ) {
-			$Sf->{'Status'} = $UNREAD;
-			say "INFO: no Status for $f" if $I;
-		}
-
-		next if $Sf->{'Status'} == $UNREAD;
-		next if $Sf->{'Status'} == $READ;
-		next if $Sf->{'Status'} == $FROM_BLOCK;
-
-		$stref = _inline_subroutines_main( $stref, $f );
-	}
-
+			if (exists $info->{'AccPragma'}{'BeginInline'}
+            and scalar @{ $info->{'AccPragma'}{'BeginInline'} } == 0
+            ) {
+				$in_inline_region=1;
+				$info->{'Removed'}=1;
+				$line=~s/\$//g;
+				$annline=[$line,$info];
+			}
+			elsif (exists $info->{'AccPragma'}{'EndInline'}) {
+				$in_inline_region=0;
+				$info->{'Removed'}=1;
+				$line=~s/\$//g;
+				$annline=[$line,$info];
+			}			
+			elsif ( 
+                $in_inline_region and 
+                exists $info->{'SubroutineCall'}
+               ) {
+					# if a line is relevant		
+					my $sub_name = $info->{'SubroutineCall'}{'Name'};
+                    push @{$called_subs},$sub_name; 					
+            } 
+            return ([ $annline ], [$in_inline_region,  $called_subs] );
+			
+		};
+		
+		($stref, my $state) = stateful_pass ($stref,  $f,  $pass_actions,  [$in_inline_region,$called_subs], 'find_subs_to_inline' );
+		($in_inline_region,$called_subs)=@{$state};
+        $stref->{'Subroutines'}{$f}{'SubsToInline'}=$called_subs;		
+	# }	
 	return $stref;
-}    # END of inline_subroutines()
+} # END of find_subs_to_inline
 
-# Check if there are any subroutines to be inlined, and inline them one after another.
-sub _inline_subroutines_main { my ( $stref, $f ) = @_;
-    
-    if ( exists $stref->{'Subroutines'}{$f} ) {
-        my $Sf               = $stref->{'Subroutines'}{$f};
-        if (exists $Sf->{'SubsToInline'} ) {
-            for my $sub ( @{$Sf->{'SubsToInline'}} ) {
-                $stref = inline_subroutine($stref,$f,$sub);
-            }
-        }
-    }        
-    
-    return $stref;
-
-
-}
 
 1;

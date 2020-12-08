@@ -254,10 +254,15 @@ sub analyse_lines {
 				$Sf->{'HasKernelRegion'}=1;
 			}
 			if (exists $info->{'AccPragma'}{'BeginInline'}) {
+				if (scalar @{$info->{'AccPragma'}{'BeginInline'}[0]} ) { 
 				if (exists $Sf->{'SubsToInline'}) {
 					push @{$Sf->{'SubsToInline'}}, $info->{'AccPragma'}{'BeginInline'}[0];
 				} else {
 					$Sf->{'SubsToInline'}=[]
+				}
+				} else {
+					# Find the subs to be inline in a separate pass
+					$Sf->{'HasInlineRegion'}=1;
 				}
 			}			
 			# Here we remove the label if there is one, but we store it in Label so we can re-emit it
