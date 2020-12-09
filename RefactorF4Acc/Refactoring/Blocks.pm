@@ -162,14 +162,14 @@ sub __find_called_subs_in_OUTER {
                 and $info->{'SubroutineCall'}{'Name'}
                 ) {                    
                     push @{ $block_rec->{'CalledSubs'}{'List'} }, $info->{'SubroutineCall'}{'Name'};
-                    $block_rec->{'CalledSubs'}{'Set'}{ $info->{'SubroutineCall'}{'Name'} } = 1;
+                    $block_rec->{'CalledSubs'}{'Set'}{ $info->{'SubroutineCall'}{'Name'} } = [1,1];
                     # Now test if this is maybe an ENTRY -- UGH! TODO!
                 }
                 if ( exists $info->{'FunctionCalls'} ) {
                     for my $fcall_rec (@{ $info->{'FunctionCalls'} } ) {
                         my $fname =  $fcall_rec->{'Name'};  
                     push @{ $block_rec->{'CalledSubs'}{'List'} }, $fname ;
-                    $block_rec->{'CalledSubs'}{'Set'}{ $fname  } = 1;
+                    $block_rec->{'CalledSubs'}{'Set'}{ $fname  } = [1,1];
                     }
                 }
             }

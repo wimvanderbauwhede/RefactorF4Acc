@@ -95,7 +95,7 @@ sub add_BLOCK_DATA_call_after_last_VarDecl {
 				}
 				];
 				unshift @{$stref->{'Subroutines'}{$f}{'CalledSubs'}{'List'}}, $block_data;
-				$stref->{'Subroutines'}{$f}{'CalledSubs'}{'Set'}{$block_data}=1;
+				$stref->{'Subroutines'}{$f}{'CalledSubs'}{'Set'}{$block_data}=[1,1];
 			}
 		} 
 		push @{$new_annlines}, $annline;

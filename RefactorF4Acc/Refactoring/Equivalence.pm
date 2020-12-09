@@ -69,7 +69,6 @@ sub __insert_assignment_for_ex_EQUIVALENCE_vars {
 # There is no way to infer the array index if it's an array
 # Problem is of course that we now can't search by key in equiv_pairs
 # because the key is the expression used in the EQUIVALENCE statement 
-# carp Dumper( $line, $info);
 		my $lhs_ast = $info->{'Lhs'}{'ExpressionAST'};
 		my $lhs_v_str = emit_expr_from_ast($lhs_ast);
 		
@@ -116,6 +115,16 @@ sub __insert_assignment_for_ex_EQUIVALENCE_vars {
 				} 	
 			}
 		# carp 'TODO: process Function calls on RHS! '. Dumper($info->{'FunctionCalls'}) ;
+		}
+	} elsif ( exists $info->{'Data'} and not exists $info->{'ExCommonOrEquivalence'}) {		
+		for my $lhs_v_str ( @{ $info->{'Vars'}{'List'} }) {
+			if ( exists $equiv_pairs->{$lhs_v_str} ) {
+				# insert the extra line
+				push @{$rlines}, $annline;
+				say 'INSERTING ' . join( "\n", Dumper(pp_annlines( $equiv_pairs->{$lhs_v_str} ) )) . ' after ' . $line if $DBG;
+				$rlines = [ @{$rlines}, @{ $equiv_pairs->{$lhs_v_str} } ];
+				$skip   = 1;
+			}		
 		}
 	} elsif ( exists $info->{'ReadCall'} ) {	
 		# FIXME: I don't know how to get array accesses from a READ call, so I pretend they're always scalar
@@ -404,7 +413,8 @@ sub __refactor_EQUIVALENCE_line {
 		or ($v1_type eq 'complex' and $v2_type eq 'real')
 		)
 		) {
-			die "TYPE ERROR: '$v1_type' and '$v2_type' are incompatible"."\n$line\n";
+			say "TYPE ERROR: '$v1_type' and '$v2_type' are incompatible"."\n$line\n";
+			die "\n" if $Config{'STRICT_EQUIVALENCE_CHECKS'};
 		}
 
 		my $v1          = $v1_is_array ? emit_expr_from_ast($ast1) : $var1;

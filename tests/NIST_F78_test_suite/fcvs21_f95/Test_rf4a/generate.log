@@ -214,7 +214,12 @@ WARNING: 	The EQUIVALENCE  statement cannot always be refactored, this could pos
     99: equivalence (iade15(2), ivoe18)                                   
     104: equivalence (iade21, iade16)                                      
     108: equivalence (ivoe19, ivoe20)                                      
-Generation failed for FM300.f95
+TYPE ERROR: 'integer' and 'real' are incompatible
+      equivalence (ivoe06, ivoe07, rvoe03)                              
+
+TYPE ERROR: 'integer' and 'real' are incompatible
+      equivalence (ivoe06, ivoe07, rvoe03)                              
+
 TEST CASE 82: FM301.f
 refactorF4acc.pl -c rf4a_fm301.cfg  -g fm301
 TEST CASE 83: FM302.f
@@ -226,6 +231,19 @@ WARNING: 	The EQUIVALENCE  statement cannot always be refactored, this could pos
     102: equivalence (ivceh1,ivceh2)                                       
     106: equivalence (ivce09,ivce10)                                       
     111: equivalence (ivcei1,iace1i)                                       
+TYPE ERROR: Can't match COMMON var sequences with different types in call to ff305 in ff304: integer <> logical
+
+  SOURCE: ./FM302.f  CODE UNIT: ff305  VAR:
+  LOCAL: iacn11
+  CALLER: lvcn01
+TYPE ERROR: Can't match COMMON var sequences with different types in call to ff305 in ff304: integer <> real
+
+  SOURCE: ./FM302.f  CODE UNIT: ff305  VAR:
+  LOCAL: iacn11
+  CALLER: rvcn01
+TYPE ERROR: Local COMMON sequence can't be longer than caller sequence for strict type safety.
+TYPE ERROR: Local COMMON sequence can't be longer than caller sequence for strict type safety.
+TYPE ERROR: Local COMMON sequence can't be longer than caller sequence for strict type safety.
 TEST CASE 84: FM306.f
 refactorF4acc.pl -c rf4a_fm306.cfg  -g fm306
 TEST CASE 85: FM307.f
@@ -357,6 +375,11 @@ WARNING: 	The EQUIVALENCE  statement cannot always be refactored, this could pos
   LINES:
     60: equivalence (zvcomp,r2nn02)                                       
 WARNING: In proc fm722, in call to sub sn725, arg df723 is EXTERNAL for signature arg dtint
+TYPE ERROR: Can't match COMMON var sequences with different types in call to sn725 in fm722: double precision <> doubleprecision
+
+  SOURCE: ./FM722.f  CODE UNIT: sn725  VAR:
+  LOCAL: dvc006
+  CALLER: dvc006
 TEST CASE 137: FM800.f
 refactorF4acc.pl -c rf4a_fm800.cfg  -g fm800
 TEST CASE 138: FM801.f

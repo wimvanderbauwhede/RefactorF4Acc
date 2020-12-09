@@ -332,38 +332,6 @@ sub __get_includes {
 # DeclCount is only used to count StmtCount. I will delete it after parsing. Same for DoneInitTables, FreeForm, FStyle
 #
 
-=info_keys_not_to_be_changed 
-  IncludedParameters
-  Root
-  Source
-  Status
-  RefactorGlobals
-=cut
-
-=info_irrelevant_keys
-CalledEntries 
-CalledSubs
-Entries
-Entry
-
-ReferencedLabels
-
-ParametersFromContainer
-UsedGlobalVars
-UsedLocalVars
-UsedParameters
-
-DeclCount
-DoneInitTables
-FStyle
-FreeForm
-
-HasBlocks
-DeclaredOrigLocalArgs
-UndeclaredOrigArgs
-ExGlobVarDeclHook
-=cut
-
 our @ks = qw(
   Commons
   HasCommons

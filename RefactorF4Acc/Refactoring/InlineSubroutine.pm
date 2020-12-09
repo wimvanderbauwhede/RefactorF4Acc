@@ -159,7 +159,7 @@ sub split_specification_computation_parts { (my $stref, my $f) =@_;
         
     my $pass_split_specification_computation_parts = sub {
             ( my $annline, my $state ) = @_;
-            say Dumper $annline;
+            # say Dumper $annline;
             ( my $line,    my $info )  = @{$annline};
             ( my $stref,   my $f, my $use_part, my $specification_part, my $computation_part, my $preceding_comments)     = @{$state};
             my $Sf = $stref->{'Subroutines'}{$f};        
@@ -401,7 +401,14 @@ sub inline_subroutine {
 
 	    }    
     }    
-    pop  @{ $stref->{'CallStack'} };
+    pop @{ $stref->{'CallStack'} };
+    # $stref->{'Subroutines'}{$f}{'CalledSubs'}{'Set'}{$sub}[1]--;
+    # if ( $stref->{'Subroutines'}{$f}{'CalledSubs'}{'Set'}{$sub}[1] == 0 ) {
+    #     delete $stref->{'Subroutines'}{$f}{'CalledSubs'}{'Set'}{$sub};
+    #     $stref->{'Subroutines'}{$f}{'CalledSubs'}{'List'} = [ 
+    #         grep {$_ ne $sub}  @{ $stref->{'Subroutines'}{$f}{'CalledSubs'}{'List'} } 
+    #     ];
+    # }
     return $stref;
 } #  END of inline_subroutine()
 

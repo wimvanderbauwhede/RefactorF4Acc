@@ -316,7 +316,12 @@ sub _match_up_common_var_sequences {
 			my ( $name_caller, $decl_caller, $kind_caller, $dim_caller, $dimsz_caller, $lin_idx_caller, $used_caller ) = @{$elt_caller};
 			# Type check: kinds must be identical
 			if ( $kind_local != $kind_caller ) {
-				die "ERROR: Can't match COMMON var sequences with different kinds in call to $f in $caller\n";
+				say "TYPE ERROR: Can't match COMMON var sequences with different kinds in call to $f in $caller: $kind_local <> $kind_caller\n";
+				say '  SOURCE: '.$Sf->{'Source'},
+                    '  CODE UNIT: '.$f, '  VAR:'	
+					. "LOCAL: $name_local"
+					. "CALLER: $name_caller";
+				die "\n" if exists $Config{'STRICT_COMMONS_CHECKS'};
 			}			
 
 			my $type_caller = $decl_caller->{'Type'};
@@ -331,7 +336,12 @@ sub _match_up_common_var_sequences {
 			my $htype_caller = $decl_caller->{'Type'};
 			# If they are not the same it's a type error, TODO: relax this for the special cases as discussed in the paper
 			if ( $htype_local ne $htype_caller ) {
-				die "ERROR: Can't match COMMON var sequences with different types in call to $f in $caller\n";
+				say "TYPE ERROR: Can't match COMMON var sequences with different types in call to $f in $caller: $htype_local <> $htype_caller\n";
+				say '  SOURCE: '.$Sf->{'Source'},
+                    '  CODE UNIT: '.$f, '  VAR:'	
+					. "\n  LOCAL: $name_local"
+					. "\n  CALLER: $name_caller";
+				die "\n" if exists $Config{'STRICT_COMMONS_CHECKS'};
 			}				
 			if ($DBG ) {
 				if ( not( $htype_local eq $htype_caller and $kind_local eq $kind_caller ) ) {    # Type / Attr mismatch
@@ -644,7 +654,8 @@ sub _match_up_common_var_sequences {
 			# say "2. $f $caller: LOCAL: $name_local CALLER: $name_caller " if $f eq 'ff304' and $name_local ne $name_caller;
 			}
 		} else {    # The local seq is longer than the caller seq
-			die "ERROR: Local COMMON sequence can't be longer than caller sequence";
+			say "TYPE ERROR: Local COMMON sequence can't be longer than caller sequence for strict type safety." ;
+			die "\n" if exists $Config{'STRICT_COMMONS_CHECKS'};
 			# It can be that the local seq contains an elt that was already partially matched to the last caller elt.
 			# this means that $name_local is already matched;  but we still need to add it to call args
 			if ( $used_local == 0 ) {

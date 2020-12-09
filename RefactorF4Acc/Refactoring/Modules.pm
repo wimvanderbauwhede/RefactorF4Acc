@@ -142,7 +142,11 @@ sub add_module_decls {
 				$old_annlines = $old_annlines_with_refactored_vardecls;
 	
 				if ( scalar @{$new_annlines} > 0 ) {
-					my $merged_annlines = splice_additional_lines_cond( $stref, $existing_module_name{$src}, sub { ( my $annline ) = @_; ( my $line, my $info ) = @{$annline}; return exists $info->{'Contains'} }, $old_annlines, $new_annlines, 0, 0, 1 );
+					my $merged_annlines = splice_additional_lines_cond( $stref, $existing_module_name{$src}, 
+					sub { ( my $annline ) = @_; 
+					( my $line, my $info ) = @{$annline}; 
+					return exists $info->{'Contains'};
+					}, $old_annlines, $new_annlines, 0, 0, 1 );
 					$stref->{'RefactoredCode'}{$src} = $merged_annlines;
 				} else {
 					$stref->{'RefactoredCode'}{$src} = $old_annlines;
@@ -344,7 +348,6 @@ sub _create_module_src { (my $stref, my $src, my $subname, my $no_modules ) = @_
 	my $EXT = $Config{EXT};
 	my $nsrc = $subname ne '' ? $Config{'SRCDIRS'}->[0]."/$subname$EXT" : $src;
 	if ( !$no_module ) {
-		# croak $nsrc.Dumper(@refactored_source_lines) if $nsrc=~/navier/;
 		$stref->{'RefactoredCode'}{$nsrc} = [ $mod_header, @mod_uses, $mod_contains, @refactored_source_lines, $mod_footer ];
 	} else {
 		

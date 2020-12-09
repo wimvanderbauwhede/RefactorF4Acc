@@ -330,10 +330,11 @@ sub analyse_lines {
 				$current_block=$block;
 				push @blocks_stack,$block;
 				say $lline. "\t\tPUSH $block_nest_counter DO (NO LABEL)" if $in_excluded_block and $DBG;
-			};						
+			};				
+				
 			#= SUBROUTINE FUNCTION PROGRAM
 			# Procedure block identification				
-			$line =~ /^(\w+\s+\w+\s+(?:function|subroutine)|\w+\s+subroutine|[\*\(\)\w]+\s+function|function|subroutine|program|block)\s+(\w+)/ && do {				
+			$line =~ /^(\w+\s+\w+\s+(?:function|subroutine)|\w+\s+subroutine|[\*\(\)\w]+\s+function|function|subroutine|program|module|block)\s+(\w+)/ && do {				
 				my $full_proc_type=$1;
 				my $proc_name=$2;
 #				say "PROC NAME in $f: $proc_name" if $f ne $proc_name;			
@@ -488,7 +489,7 @@ SUBROUTINE
 				$info = __parse_include_statement($stref, $f, $sub_incl_or_mod, $Sf, $line, $info, $index);
 				$info->{'SpecificationStatement'} = 1;
 				$srcref->[$index] = [ $line, $info ];
-				next;				
+				next;								
 #== USE				
 # WV20190626 I'm not sure why 'include' is handled in SrcReader and 'use' here ...
 			} elsif ( $line =~ /^use\s+(\w+)/ ) {
@@ -505,6 +506,9 @@ SUBROUTINE
 				$info->{'SpecificationStatement'} = 1;
 				$srcref->[$index] = [ $line, $info ];
 				next;
+#== CONTAINS				
+			} elsif ( $line =~ /^contains/ ) {
+				$info->{'Contains'} = 1;			
 #== IMPLICIT (not none)				
 			} elsif ( $line =~ /implicit\s+/ ) {
 				$info->{'Implicit'} = 1;
@@ -990,8 +994,8 @@ or $line=~/^character\s*\(\s*len\s*=\s*[\w\*]+\s*\)/
 				$info->{'HasVars'} = 1; 
 				$info->{'SpecificationStatement'} = 1;    
 				$info = _parse_assignment( $line, $info, $stref, $f );
-			}
-									
+			}								
+#== MODULE is done in SrcReader
 #== SIGNATURES SUBROUTINE FUNCTION PROGRAM ENTRY
 #@ Signature =>
 #@    Args =>
@@ -1020,14 +1024,23 @@ or $line=~/^character\s*\(\s*len\s*=\s*[\w\*]+\s*\)/
 				my $kw   = $1;
 				my $name = $2;
 				$info->{ 'End' . ucfirst($kw) } = { 'Name' => $name };
+			}
+			elsif (  # incorrect end of block, handle it anyway via the info from the start of the block
+				$line =~ /^end/ 
+				) {
+				# my $kw   = $1;
+				my $kw = $info->{'Block'}{'Type'};
+				my $name = $info->{'Block'}{'Name'};
+				$line = "end $kw $name";
+				$info->{ 'End' . ucfirst($kw) } = { 'Name' => $name };				
+			}
 #== DO statement			
 #Do =>
 #@    While => $bool
 #@    ExpressionsAst => $ast
 #@    Range => 
 #@        Vars => [ ... ]
-#@        Expressions' => [ ... ]
-			} 
+#@        Expressions' => [ ... ]			
 			elsif ( $line =~ /^do\b/) { 
 #WV20150304: We parse the do and store the iterator and the range { 'Iterator' => $i,'Range' =>[$start,$stop]}
 				my $do_stmt = $line;
@@ -1840,41 +1853,65 @@ sub _parse_subroutine_and_function_calls {
 							$Sname->{'RefactorGlobals'} = 1;
 						}
 
-						if ( defined $Sname and not exists $Sf->{'CalledSubs'}{'Set'}{$name} ) {
-							if ( $sub_or_func_or_mod eq 'Subroutines' ) { # The current code unit is a subroutine 
-								$Sf->{'CalledSubs'}{'Set'}{$name} = 1; # mark $name a called sub in $f
-								push @{ $Sf->{'CalledSubs'}{'List'} }, $name;
-							} else { # The current code unit is NOT a subroutine, which means it is a Module I guess
-							# mark $name as a called sub in $current_sub_name 
-								$Sf->{'Subroutines'}{$current_sub_name}{'CalledSubs'}{'Set'}{$name} = 1;
-								push @{ $Sf->{'Subroutines'}{$current_sub_name}{'CalledSubs'}{'List'} }, $name;
-							}
-							
-							if (  not exists $stref->{ParseStack}{$name} and (
-								 not exists $Sname->{'Status'}
-								or $Sname->{'Status'} < $PARSED
-								or $gen_sub )
-								)
-							{
-								print
-								  "\tFOUND SUBROUTINE CALL $name in $f with STATUS="
-								  . show_status( $Sname->{'Status'} )
-								  . ", PARSING\n"
-								  if $V;
-								  
-								$stref = parse_fortran_src( $name, $stref );
+						if ( defined $Sname) { 
+							if (not exists $Sf->{'CalledSubs'}{'Set'}{$name} ) {
+								if ( $sub_or_func_or_mod eq 'Subroutines' ) { # The current code unit is a subroutine 
+									$Sf->{'CalledSubs'}{'Set'}{$name} = [1,1]; # mark $name a called sub in $f
+									push @{ $Sf->{'CalledSubs'}{'List'} }, $name;
+								} else { # The current code unit is NOT a subroutine, which means it is a Module I guess
+								# mark $name as a called sub in $current_sub_name 
+									$Sf->{'Subroutines'}{$current_sub_name}{'CalledSubs'}{'Set'}{$name} = [1,1];
+									push @{ $Sf->{'Subroutines'}{$current_sub_name}{'CalledSubs'}{'List'} }, $name;
+								}
+								
+								if (  not exists $stref->{'ParseStack'}{$name} and (
+									not exists $Sname->{'Status'}
+									or $Sname->{'Status'} < $PARSED
+									or $gen_sub )
+									)
+								{
+									print
+									"\tFOUND SUBROUTINE CALL $name in $f with STATUS="
+									. show_status( $Sname->{'Status'} )
+									. ", PARSING\n"
+									if $V;
+									
+									$stref = parse_fortran_src( $name, $stref );
+								}
+							} else {
+								# Update the count 
+								if ( $sub_or_func_or_mod eq 'Subroutines' ) { # The current code unit is a subroutine 
+									$Sf->{'CalledSubs'}{'Set'}{$name}[1]++; # update in $f
+									# push @{ $Sf->{'CalledSubs'}{'List'} }, $name;
+								} else { # The current code unit is NOT a subroutine, which means it is a Module I guess
+								# update in $current_sub_name 
+									$Sf->{'Subroutines'}{$current_sub_name}{'CalledSubs'}{'Set'}{$name}[1]++;
+									# push @{ $Sf->{'Subroutines'}{$current_sub_name}{'CalledSubs'}{'List'} }, $name;
+								}
+
 							}
 						} 
 						# it does not yet hang here
 						if ($entry_call==1) {
-							if ( defined $Sname and not exists $Sf->{'CalledEntries'}{'Set'}{$name}) {													
-								if ( $sub_or_func_or_mod eq 'Subroutines' ) { # The current code unit is a subroutine 
-									$Sf->{'CalledEntries'}{'Set'}{$name} = 1; # mark $name a called sub in $f
-									push @{ $Sf->{'CalledEntries'}{'List'} }, $name;
-								} else { # The current code unit is NOT a subroutine, which means it is a Module I guess
-									# mark $name as a called sub in $current_sub_name 
-									$Sf->{'Subroutines'}{$current_sub_name}{'CalledEntries'}{'Set'}{$name} = 1;
-									push @{ $Sf->{'Subroutines'}{$current_sub_name}{'CalledEntries'}{'List'} }, $name;
+							if ( defined $Sname) {
+								if ( not exists $Sf->{'CalledEntries'}{'Set'}{$name}) {													
+									if ( $sub_or_func_or_mod eq 'Subroutines' ) { # The current code unit is a subroutine 
+										$Sf->{'CalledEntries'}{'Set'}{$name} = [1,1]; # mark $name a called sub in $f
+										push @{ $Sf->{'CalledEntries'}{'List'} }, $name;
+									} else { # The current code unit is NOT a subroutine, which means it is a Module I guess
+										# mark $name as a called sub in $current_sub_name 
+										$Sf->{'Subroutines'}{$current_sub_name}{'CalledEntries'}{'Set'}{$name} = [1,1];
+										push @{ $Sf->{'Subroutines'}{$current_sub_name}{'CalledEntries'}{'List'} }, $name;
+									}
+								} else {
+									if ( $sub_or_func_or_mod eq 'Subroutines' ) { # The current code unit is a subroutine 
+										$Sf->{'CalledEntries'}{'Set'}{$name}[1]++; # mark $name a called sub in $f
+										# push @{ $Sf->{'CalledEntries'}{'List'} }, $name;
+									} else { # The current code unit is NOT a subroutine, which means it is a Module I guess
+										# mark $name as a called sub in $current_sub_name 
+										$Sf->{'Subroutines'}{$current_sub_name}{'CalledEntries'}{'Set'}{$name}[1]++;
+										# push @{ $Sf->{'Subroutines'}{$current_sub_name}{'CalledEntries'}{'List'} }, $name;
+									}
 								}
 							}
 						}
@@ -1931,7 +1968,7 @@ sub _parse_subroutine_and_function_calls {
 						) {
 					   # This means it's the first call to function $chunk in $f
 						if ( not exists $Sf->{'CalledSubs'}{'Set'}{$chunk} ) {
-							$Sf->{'CalledSubs'}{'Set'}{$chunk} = 1;
+							$Sf->{'CalledSubs'}{'Set'}{$chunk} = [1,1];
 							push @{ $Sf->{'CalledSubs'}{'List'} }, $chunk;
 							print "FOUND FUNCTION CALL $chunk in $f\n" if $V;
 							if ( $DBG and $chunk eq $f ) {
@@ -1950,12 +1987,14 @@ sub _parse_subroutine_and_function_calls {
 							} else {
 								$stref = add_to_call_tree( $chunk, $stref, $f );
 							}
-
+# WV 20201209 I think this is OBSOLETE			
 							if ( exists $Sf->{'Translate'}
 								and not exists $stref->{'Subroutines'}{$chunk}{'Translate'} 
 								) {
 								$stref->{'Subroutines'}{$chunk}{'Translate'} = $Sf->{'Translate'};
 							}
+						} else {
+							$Sf->{'CalledSubs'}{'Set'}{$chunk}[1]++;
 						}
 					}					
 				}

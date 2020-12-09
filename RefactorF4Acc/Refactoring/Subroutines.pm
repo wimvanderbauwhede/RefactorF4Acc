@@ -212,29 +212,47 @@ sub _fix_end_lines {
 		( my $line, my $info ) = @{$annline};
 
 		#		say "$f REV LINE: $line" if $f eq 'cphs';
-		next if ( $line =~ /^\s*$/ );    # Skip comments
-		if (   $line =~ /^\s*end\s+$sub_or_prog/
-			or $line =~ /^\s*\d+\s+end\s+$sub_or_prog/ )
-		{
-			push @{$rlines}, $annline;
+		next if ( exists $info->{'Comments'} );    # Skip comments
+
+		if  ( exists $info->{'EndSubroutine'}
+		or exists $info->{'EndFunction'}
+		or exists $info->{'EndProgram'}
+		# or exists $info->{'EndBlockData'}
+		 ) {
+			if ($is_block_data) {
+				$info->{'EndBlockData'} = 1;
+			}			 
+			my $indent = $info->{'Indent'} // '      ';
+			# say Dumper $info;
+			my $end_sub_line = $indent.'end '.$sub_or_prog.' '.$info->{'End'.ucfirst($sub_or_prog)}{'Name'};
+			push @{$rlines}, [$end_sub_line,$info];
 			$done_fix_end = 1;
 			last;
 		}
+	
+		# if (   $line =~ /^\s*end\s+$sub_or_prog/
+		# 	or $line =~ /^\s*\d+\s+end\s+$sub_or_prog/ )
+		# {
+		# 	push @{$rlines}, $annline;
+		# 	$done_fix_end = 1;
+		# 	last;
+		# }
 
-		if (   $line =~ /^\s*end\s*$/
-			or $line =~ /^\s*\d+\s+end\s*$/ )
-		{
-			$line =~ s/\s+$//;
-			if ($is_block_data) {
-				$info->{'EndBlockData'} = 1;
-			}
+		# if (   $line =~ /^\s*end\s*$/
+		# 	or $line =~ /^\s*\d+\s+end\s*$/ )
+		# {
+		# 	$line =~ s/\s+$//;
+		# 	if ($is_block_data) {
+		# 		$info->{'EndBlockData'} = 1;
+		# 	}
 
-			push @{$rlines}, [ $line . " $sub_or_prog $f", $info ];
-			$done_fix_end = 1;
-		}
-
+		# 	push @{$rlines}, [ $line . " $sub_or_prog $f", $info ];
+		# 	$done_fix_end = 1;
+		# }
+		# TODO make this $info->{'Contains'}
 		if ( $line =~ /^\s*contains\s*$/ ) {
 			$line =~ s/\s+$//;
+			$annline->[1]{'Contains'}=1;
 			push @{$rlines}, $annline;
 			push @{$rlines}, [ "end $sub_or_prog $f", $info ];
 			$done_fix_end = 1;

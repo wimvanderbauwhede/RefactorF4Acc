@@ -475,9 +475,9 @@ sub _create_extra_arg_and_var_decls { #272 lines
 			# I don't explicitly declare variables that conflict with reserved words or intrinsics.
 			my $var_is_sub = 0;
 
-			#    	say $var.' : '. (exists $Sf->{'External'}{$var}).','.().','.(exists $stref->{'Subroutines'}{$var});
+			#WV20201209: In Parser/Expressions I set the value to 2, 
 			if ( exists $Sf->{'CalledSubs'}{'Set'}{$var}
-				and $Sf->{'CalledSubs'}{'Set'}{$var} == 1 )
+				and $Sf->{'CalledSubs'}{'Set'}{$var}[0] == 1 )
 			{
 				$var_is_sub = 1;
 			}
@@ -496,18 +496,6 @@ sub _create_extra_arg_and_var_decls { #272 lines
 					not exists $F95_reserved_words{$var}
 				and not exists $F95_intrinsics{$var}
 				and not exists $Sf->{'Namelist'}{$var}
-				
-				
-
-				#    		and not ( # an internal subroutine
-				#    			exists $Sf->{'CalledSubs'}{'Set'}{$var} and
-				#    			not exists $Sf->{'External'}{$var} and
-				#    			not exists $stref->{'Subroutines'}{$var}{'Function'}
-				#    			)
-				#    		and not ( # an external subroutine
-				#    			exists $Sf->{'External'}{$var} and
-				#    			exists $Sf->{'CalledSubs'}{'Set'}{$var} and
-				#    			$Sf->{'CalledSubs'}{'Set'}{$var} == 1)
 				and not $var_is_sub
 				and not $is_param
 				and $var !~ /__PH\d+__/            # FIXME! TOO LATE HERE!
@@ -954,7 +942,7 @@ cast and reshape (always new arg)
 =cut
 
 sub _maybe_cast_call_args { # 200 lines
-	my ($stref, $f, $sub_name, $call_arg,$call_arg_decl, $sig_arg,$sig_arg_decl)=@_;
+	my ($stref, $f, $sub_name, $call_arg, $call_arg_decl, $sig_arg, $sig_arg_decl)=@_;
 
 	my $cast_reshape_result={
 		'CallArg' => $call_arg,
@@ -1010,9 +998,11 @@ sub _maybe_cast_call_args { # 200 lines
 			my $cast_reshaped_new_call_arg = cast_call_argument($call_arg_decl->{'Type'}, $call_kind , $sig_arg_decl->{'Type'}, $reshaped_new_call_arg);
 			$cast_reshape_post_line = "$call_arg = $cast_reshaped_new_call_arg";
 		} 
-		$cast_reshape_result = __update_cast_reshape_result($cast_reshape_result,
+		
+		$cast_reshape_result = __update_cast_reshape_result(
+			$cast_reshape_result,
 			$cast_reshape_pre_line,
-			$cast_reshape_post_line.
+			$cast_reshape_post_line,
 			$call_arg,
 			$new_call_arg
 		);
@@ -1046,11 +1036,12 @@ sub _maybe_cast_call_args { # 200 lines
 
 
 sub  __update_cast_reshape_result {
-	my ($cast_reshape_result,
-	$cast_reshape_pre_line,
-	$cast_reshape_post_line,
-	$call_arg,
-	$new_call_arg
+	my (
+		$cast_reshape_result,
+		$cast_reshape_pre_line,
+		$cast_reshape_post_line,
+		$call_arg,
+		$new_call_arg
 	) = @_;
 	$cast_reshape_result->{'PreAnnLine'}[0]=$cast_reshape_pre_line;
 	$cast_reshape_result->{'PreAnnLine'}[1]{'Lhs'}{'VarName'}=$new_call_arg;

@@ -41,6 +41,15 @@ TO RELEASE
   $ git push --delete origin v2.1.0
   $ git push origin v2.1.0
 
+STATUS 2020-12-09
+
+- Fixed the end-of-block issue
+- For the subroutines, we use CalledSubs which is a Set/List combo. 
+I could turn the Set into a Map with the count for each called sub, but I have used this value to test if it is 1 or 2, so that would require additional state, i.e. a tuple [1|2, $count]. That may not be too bad.
+Alternatively, I can check if there are any calls left to a sub of a given name.
+
+- Ran the NIST tests. ex-EQUIVALENCE assignments also needed after DATA statements! => fixed!
+
 STATUS 2020-12-08
 
 - Inlining is almost done but there is an issue: subroutines are in modules, if they are inlined then the module statement should be removed.
@@ -65,7 +74,7 @@ subroutine s1
 ...
 end subroutine 
 
-is not OK, it does not get labeled as EndSubroutine
+is not OK, it does not get labelled as EndSubroutine
 
 I should try and get the name via the Block info
 
