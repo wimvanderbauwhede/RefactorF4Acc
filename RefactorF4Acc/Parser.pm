@@ -239,7 +239,7 @@ sub analyse_lines {
 			
 
 			# Skip comments (we already marked them in SrcReader)
-			if ( $lline =~ /^\s*\!/ && $lline !~ /^\!\s*\$(?:ACC|RF4A)\s/i ) {
+			if ( $lline =~ /^\s*\!/ && $lline !~ /^\!\s*\$(?:ACC|RF4A)\s/i ) {				
 				next;
 			}
 			if (exists $info->{'Macro'} and not exists $info->{'Includes'} ) {
@@ -249,21 +249,20 @@ sub analyse_lines {
 			# Handle !$ACC on individual line
 			if ( $lline =~ /^\!\s*\$(?:ACC|RF4A)\s.+$/i ) {				
 				( $stref, $info ) = __handle_acc( $stref, $f, $index, $lline );
-				# die Dumper $info;
 			}
 			if (exists $info->{'AccPragma'}{'BeginKernel'}) {
 				$Sf->{'HasKernelRegion'}=1;
 			}
 			if (exists $info->{'AccPragma'}{'BeginInline'}) {
-				if (scalar @{$info->{'AccPragma'}{'BeginInline'}}) { 
-				if (exists $Sf->{'SubsToInline'}) {
-					push @{$Sf->{'SubsToInline'}}, $info->{'AccPragma'}{'BeginInline'}[0];
-				} else {
-					$Sf->{'SubsToInline'}=[
-						$info->{'AccPragma'}{'BeginInline'}[0]
-					]
-				}
-				} else {
+				if (scalar @{$info->{'AccPragma'}{'BeginInline'}} > 0 ) { 
+ 					if (exists $Sf->{'SubsToInline'}) {
+						push @{$Sf->{'SubsToInline'}}, $info->{'AccPragma'}{'BeginInline'}[0];
+					} else {
+						$Sf->{'SubsToInline'}=[
+							$info->{'AccPragma'}{'BeginInline'}[0]
+						]
+					}
+				} else { 
 					# Find the subs to be inline in a separate pass
 					$Sf->{'HasInlineRegion'}=1;
 				}
@@ -1726,7 +1725,7 @@ sub _parse_subroutine_and_function_calls {
 		
 		for my $index ( 0 .. scalar( @{$srcref} ) - 1 ) {
 			(my $line, my $info) = @{$srcref->[$index]};
-			
+			next if exists $info->{'OrigComments'};
 			next if ( $line =~ /^\!\s/ and $line !~ /^\!\s*\$(?:ACC|RF4A)\s/i ); # TODO: use $info
 			if ( exists $info->{'AccPragma'} ) {
 				if ( exists $info->{'AccPragma'}{'BeginKernelWrapper'} ) {
@@ -2577,9 +2576,9 @@ sub __handle_acc {
 		}
 		
 		( my $pragma_name, my @pragma_args ) = @chunks;
-		
-		if (not @pragma_args) {
-			$pragma_args[0]=lc($pragma_name).'_'.$index;
+
+		if (lc($pragma_name) ne 'inline' and not @pragma_args) {
+			$pragma_args[0] = lc($pragma_name).'_'.$index;
 		}
 		$info->{'AccPragma'}{ $pragma_name_prefix . ucfirst( lc($pragma_name) ) } = [@pragma_args];
 		

@@ -45,10 +45,11 @@ STATUS 2020-12-09
 
 - Fixed the end-of-block issue
 - For the subroutines, we use CalledSubs which is a Set/List combo. 
-I could turn the Set into a Map with the count for each called sub, but I have used this value to test if it is 1 or 2, so that would require additional state, i.e. a tuple [1|2, $count]. That may not be too bad.
-Alternatively, I can check if there are any calls left to a sub of a given name.
+I could turn the Set into a Map with the count for each called sub, but I have used this value to test if it is 1 or 2, so that would require additional state, i.e. a tuple [1|2, $count]. That may not be too bad. => did that
 
 - Ran the NIST tests. ex-EQUIVALENCE assignments also needed after DATA statements! => fixed!
+- Multiple calls to the same sub is wrong in two ways: the code gets duplicated and the names are wrong.
+
 
 STATUS 2020-12-08
 

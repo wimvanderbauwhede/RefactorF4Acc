@@ -66,9 +66,8 @@ sub _inline_subroutines_main { my ( $stref, $f ) = @_;
     
     if ( exists $stref->{'Subroutines'}{$f} ) {
         
-        # $stref = find_subs_to_inline($stref,$f);
+        $stref = find_subs_to_inline($stref,$f);
         my $Sf = $stref->{'Subroutines'}{$f};
-# die $f,Dumper $Sf->{'SubsToInline'};
         if (exists $Sf->{'SubsToInline'} ) {
             for my $sub ( @{$Sf->{'SubsToInline'}} ) {
                 $stref = inline_subroutine($stref,$f,$sub);
@@ -402,13 +401,14 @@ sub inline_subroutine {
 	    }    
     }    
     pop @{ $stref->{'CallStack'} };
-    # $stref->{'Subroutines'}{$f}{'CalledSubs'}{'Set'}{$sub}[1]--;
-    # if ( $stref->{'Subroutines'}{$f}{'CalledSubs'}{'Set'}{$sub}[1] == 0 ) {
-    #     delete $stref->{'Subroutines'}{$f}{'CalledSubs'}{'Set'}{$sub};
-    #     $stref->{'Subroutines'}{$f}{'CalledSubs'}{'List'} = [ 
-    #         grep {$_ ne $sub}  @{ $stref->{'Subroutines'}{$f}{'CalledSubs'}{'List'} } 
-    #     ];
-    # }
+    # Update CalledSubs
+    $stref->{'Subroutines'}{$f}{'CalledSubs'}{'Set'}{$sub}[1]--;
+    if ( $stref->{'Subroutines'}{$f}{'CalledSubs'}{'Set'}{$sub}[1] == 0 ) {
+        delete $stref->{'Subroutines'}{$f}{'CalledSubs'}{'Set'}{$sub};
+        $stref->{'Subroutines'}{$f}{'CalledSubs'}{'List'} = [ 
+            grep {$_ ne $sub}  @{ $stref->{'Subroutines'}{$f}{'CalledSubs'}{'List'} } 
+        ];
+    }
     return $stref;
 } #  END of inline_subroutine()
 
