@@ -2990,7 +2990,7 @@ sub __parse_f77_var_decl {
     my $is_module = (exists $stref->{'Modules'}{$f}) ? 1 : 0;
     # Half-baked F95/F77 declarations are threated as F77, so remove the :: here
     my $half_baked = ($line=~s/\:://);
-
+	
     my $attr='';
     my $pvars;
     my $pvars_lst;
@@ -3028,11 +3028,13 @@ sub __parse_f77_var_decl {
 			if (scalar @{$tdim}>0) {
 				$dim=$tdim;
 			}			
+			
 		} elsif (exists $Sf->{'DeclaredOrigLocalArgs'}{'Set'}{$tvar} ) {
 			my $tdim =exists $Sf->{'DeclaredOrigLocalArgs'}{'Set'}{$tvar}{'Dim'} ? dclone($Sf->{'DeclaredOrigLocalArgs'}{'Set'}{$tvar}{'Dim'}) : [];
 			if (scalar @{$tdim}>0) {
 				$dim=$tdim;
 			}
+			
 		} elsif (exists $Sf->{'DeclaredCommonVars'}{'Set'}{$tvar} ) {
 			my $tdim =exists $Sf->{'DeclaredCommonVars'}{'Set'}{$tvar}{'Dim'} ? dclone($Sf->{'DeclaredCommonVars'}{'Set'}{$tvar}{'Dim'}) : [];
 			if (scalar @{$tdim}>0) {
@@ -3085,8 +3087,9 @@ sub __parse_f77_var_decl {
 			if ( $iodir eq 'Inout' ) {
 				$iodir = 'InOut';
 			}
-			$tvar_rec->{'IODir'} = $iodir;
+			$tvar_rec->{'IODir'} = $iodir;			
 		}
+		
 		# Create the final declaration
 		my $decl = {
 			'Indent' => $indent,
@@ -3133,11 +3136,14 @@ sub __parse_f77_var_decl {
 		
 # When we encounter UndeclaredOrigArgs we make them DeclaredOrigArgs
 		if ( exists $Sf->{'UndeclaredOrigArgs'}{'Set'}{$tvar} ) {
+			say "$f: $tvar";
 			$Sf->{'DeclaredOrigArgs'}{'Set'}{$tvar} = $decl;
 			delete $Sf->{'UndeclaredOrigArgs'}{'Set'}{$tvar}; # Regardless of what was there
 			@{ $Sf->{'UndeclaredOrigArgs'}{'List'} } = grep { $_ ne $tvar } @{ $Sf->{'UndeclaredOrigArgs'}{'List'} };
 			$Sf->{'DeclaredOrigArgs'}{'List'} = ordered_union( $Sf->{'DeclaredOrigArgs'}{'List'}, [$tvar] );
-			$Sf->{'DeclaredOrigArgs'}{'Set'}{$tvar}{'StmtCount'}=1;			
+			$Sf->{'DeclaredOrigArgs'}{'Set'}{$tvar}{'StmtCount'}=1;
+			$info->{'ArgDecl'}{$tvar}=1;
+			# $info->{'TEST'}=1;
 		}		
 # When we encounter UndeclaredCommonVars we make them DeclaredCommonVars
 		elsif ( exists $Sf->{'UndeclaredCommonVars'}{'Set'}{$tvar} ) {
@@ -3179,7 +3185,7 @@ sub __parse_f77_var_decl {
     	$info->{'VarDecl'}{'Name'} = $varnames[0];
     }
 	
-	push @{ $info->{'Ann'} }, annotate( $f, __LINE__ . $annotation );
+	push @{ $info->{'Ann'} }, annotate( $f, __LINE__ . ' '. $annotation );
 	return ( $Sf, $info );
 }    # END of __parse_f77_var_decl()
 

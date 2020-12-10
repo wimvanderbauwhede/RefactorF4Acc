@@ -651,6 +651,11 @@ sub _split_multivar_decls {
                     $rinfo_c->{'StmtCount'}{$var} = $info->{'StmtCount'}{$var};
 
                     my %rinfo = %{$rinfo_c};
+                    if (exists $rinfo{'ArgDecl'}) {
+                        if (not exists $rinfo{'ArgDecl'}{$var}) {
+                            delete $rinfo{'ArgDecl'}
+                        }
+                    }
                     $rinfo{'LineID'} = $nextLineID++;
                     my $subset    = in_nested_set($Sf, 'Vars', $var);
                     my $orig_decl = $Sf->{$subset}{'Set'}{$var};
