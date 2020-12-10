@@ -114,6 +114,9 @@ sub initialise_per_code_unit_tables {
 	if ( not exists $Sf->{'CalledSubs'} ) {
 		$Sf->{'CalledSubs'} = { 'List' => [], 'Set' => {} };
 	}
+	if ( not exists $Sf->{'InlinedCalls'} ) {
+		$Sf->{'InlinedCalls'} = { 'List' => [], 'Set' => {} };
+	}	
 	if ( not exists $Sf->{'CalledEntries'} ) {
 		$Sf->{'CalledEntries'} = { 'List' => [], 'Set' => {} };
 	}

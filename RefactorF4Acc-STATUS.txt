@@ -49,6 +49,18 @@ I could turn the Set into a Map with the count for each called sub, but I have u
 
 - Ran the NIST tests. ex-EQUIVALENCE assignments also needed after DATA statements! => fixed!
 - Multiple calls to the same sub is wrong in two ways: the code gets duplicated and the names are wrong.
+- The reason is that we should not have the renaming of args (and vars) as permanent.
+So after each statefull pass, we should do:
+
+my $sub_annlines =  dclone($Sf->{'RefactoredCode'}); # Take no risks
+$Sf->{'RefactoredCode'} = $Sf->{'AnnLines'}; # But this is good enough
+
+Furthermore, we need 
+
+$in_inline_region, in $state
+$first_call_to_be_inlined, also in $state
+$Sf->{'InlinedSubs'}, via $stref
+
 
 
 STATUS 2020-12-08
