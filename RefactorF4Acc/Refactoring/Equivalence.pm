@@ -71,6 +71,7 @@ sub __insert_assignment_for_ex_EQUIVALENCE_vars {
 # because the key is the expression used in the EQUIVALENCE statement 
 		my $lhs_ast = $info->{'Lhs'}{'ExpressionAST'};
 		my $lhs_v_str = emit_expr_from_ast($lhs_ast);
+		croak $line,':',Dumper( $info) if not defined $lhs_v_str;
 		
 		$lhs_v_str = $lhs_var; # Ugly HACK! FIXME!
 		if ( exists $equiv_pairs->{$lhs_v_str} ) {
@@ -164,7 +165,7 @@ sub __insert_assignment_for_ex_EQUIVALENCE_vars {
 sub change_EQUIVALENCE_to_assignment_lines {
 	my ( $stref, $f, $annlines ) = @_;
 	my $Sf                        = $stref->{'Subroutines'}{$f};
-
+	return $annlines if not exists $Sf->{'HasEquivalence'} ;
 	# my $last_statement            = 0;
 	my $first_occ                 = 1;
 	my $rlines                    = [];

@@ -867,7 +867,7 @@ SUBROUTINE
 		 		$info->{'SpecificationStatement'} = 1;
                 $info->{'HasVars'} = 1; 
                 my $indent = $info->{'Indent'};
-		 		
+		 		$stref->{$sub_incl_or_mod}{$f}{'HasEquivalence'}=1;
 		 		# WE DO NOT SUPPORT THE FOLLOWING: "An EQUIVALENCE statement can extend a COMMON block on the right-hand side"
 		 		if (not exists $grouped_warnings->{'EQUIVALENCE'}) {
 		 			$grouped_warnings->{'EQUIVALENCE'}=[ "The EQUIVALENCE  statement cannot always be refactored, this could possible break your code:",

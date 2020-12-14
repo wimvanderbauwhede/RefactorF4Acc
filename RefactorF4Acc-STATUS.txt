@@ -41,6 +41,22 @@ TO RELEASE
   $ git push --delete origin v2.1.0
   $ git push origin v2.1.0
 
+STATUS 2020-12-14
+
+While debugging inline_recursive_multi, I've stumbled across a bug: clearly, ex-implicits don't have the correct $info.
+The result is that the the renaming step in the inliner is incorrect, but it might have something to do with casting as well:
+because I did not declare some variables, they get type real and are cast to int. And that assignment line is incorrect. To be debugged!
+
+
+STATUS 2020-12-10
+
+- Recursive inlining now works, at least for a single call in each region. To be tested and debugged for multiple calls in a region.
+- Next step is to work out how to handle functions. The challenges are:
+  - functions don't have an ArgMap, I will need to get the args from the ExpressionAST
+  - I need to replace each function call with a variable. Easiest is to stringify the call. 
+  - Then I need to create a declaration for this new variable
+  - Also, the actual inlined part must come before the line with the expression, and I need to change the function name or return arg name with the new var.
+
 STATUS 2020-12-09
 
 - Fixed the end-of-block issue

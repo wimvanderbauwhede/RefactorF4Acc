@@ -229,7 +229,8 @@ sub _set_iodir_ignore {
 sub _set_iodir_vars {
     (my $vars, my $args_ref, my $subref) = @_;
 
-    for my $mvar (@{$vars}) {
+    for my $mvar (@{$vars}) { 
+        croak if not defined $mvar;
         if (exists $args_ref->{$mvar} and ref($args_ref->{$mvar}) eq 'HASH') {
             if (exists $args_ref->{$mvar}{'IODir'}) {
                 $args_ref = $subref->($mvar, $args_ref);
@@ -531,11 +532,11 @@ sub _analyse_src_for_iodirs {
 # Encounter Assignment
                     elsif (exists $info->{'Assignment'}) {
                             
-                        # say "LINE: $line";
+                        say "$f LINE: $line INFO: ".Dumper($info);
                         # First check the RHS
                         my $rhs_vars = $info->{'Rhs'}{'VarList'}{'List'};
 
-                        # say "RHS: ".Dumper($rhs_vars);
+                        say "RHS: ".Dumper($rhs_vars);
                         if (scalar @{$rhs_vars} > 0) {
                             _set_iodir_vars($rhs_vars, $args, \&_set_iodir_read);
                         }
