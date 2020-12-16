@@ -279,7 +279,7 @@ if ( not exists $info->{'Inlined'} ) {
 	            } else {
                     if ($DBG){
 	                    croak $f.' : BOOM! ' . 'context_free_refactoring '. __LINE__ ."; ".$line.'    '.Dumper($info)."\n" .
-                        Dumper(pp_annlines($Sf->{'AnnLines'}));
+                        Dumper(pp_annlines($Sf->{'AnnLines'})); # if $DBG
                     }
 	            }                        
             }

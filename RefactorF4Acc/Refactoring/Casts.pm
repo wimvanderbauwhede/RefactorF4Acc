@@ -52,7 +52,7 @@ sub create_cast_annlines {
 # FIXME: this does assume essentially kind=4
 # _cast_annlines :: (TypeStr, VarStr) -> (TypeStr, VarStr) -> [AnnLine]
 # returns a list of AnnLines with the code for the cast and an empty $info
-sub _cast_annlines {
+sub _cast_annlines {	
 	my ( $to_type, $to_var, $from_type, $from_var ) = @_;
 	if ( $from_type eq $to_type ) {
 		return [
@@ -137,7 +137,7 @@ sub cast_call_argument {
 
 
 
-sub _assignment_info { my ($lhs_var, $rhs_vars) = @_;
+sub _assignment_info { my ($lhs_var, $rhs_vars) = @_; 
 	return {
 		'Assignment'=>1,
 		'HasVars'=>1,

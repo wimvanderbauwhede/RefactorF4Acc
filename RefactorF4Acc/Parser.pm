@@ -3136,7 +3136,7 @@ sub __parse_f77_var_decl {
 		
 # When we encounter UndeclaredOrigArgs we make them DeclaredOrigArgs
 		if ( exists $Sf->{'UndeclaredOrigArgs'}{'Set'}{$tvar} ) {
-			say "$f: $tvar";
+			# say "$f: $tvar";
 			$Sf->{'DeclaredOrigArgs'}{'Set'}{$tvar} = $decl;
 			delete $Sf->{'UndeclaredOrigArgs'}{'Set'}{$tvar}; # Regardless of what was there
 			@{ $Sf->{'UndeclaredOrigArgs'}{'List'} } = grep { $_ ne $tvar } @{ $Sf->{'UndeclaredOrigArgs'}{'List'} };

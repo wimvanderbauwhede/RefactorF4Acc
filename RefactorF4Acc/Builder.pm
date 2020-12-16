@@ -129,5 +129,6 @@ At the moment I've removed support for C sources.
 
 # -----------------------------------------------------------------------------
 sub build_executable {
+    chdir $targetdir;
     system('scons -f SConstruct.rf4a');
 }

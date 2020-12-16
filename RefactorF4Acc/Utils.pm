@@ -258,9 +258,7 @@ sub get_maybe_args_globs {
 }
 # -----------------------------------------------------------------------------
 sub type_via_implicits { (my $stref, my $f, my $var)=@_;
-	#return ($type, $array_or_scalar, $attr);
 if ($DBG and not defined $var or $var eq '') {croak "VAR not defined!"}
-#say 'type_via_implicits'.scalar(@_).$var;
     my $sub_func_incl = sub_func_incl_mod( $f, $stref );
     my $type ='Unknown';      
     my $array_or_scalar ='Unknown';
@@ -270,8 +268,6 @@ if ($DBG and not defined $var or $var eq '') {croak "VAR not defined!"}
         print "INFO: VAR <", $var, "> typed via Implicits for $f\n" if $I;                            
         my $type_kind_attr = $stref->{'Implicits'}{$f}{lc(substr($var,0,1))};
         ($type, $array_or_scalar, $attr)=@{$type_kind_attr};
-#        $type.='_IMPLICIT_RULE';
-#croak Dumper($stref->{'Implicits'}{$f}) if $var =~/aa/;
     } 
     if ($type eq 'Unknown') {
         print "INFO: Common <", $var, "> has no rule in {'Implicits'}{$f}, typing via Fortran defaults\n" if $I;
@@ -282,7 +278,6 @@ if ($DBG and not defined $var or $var eq '') {croak "VAR not defined!"}
         } else {
             return ('real', 'Scalar',  '');
         }
-#        $type.='_IMPLICIT'; 
     }
     return ($type, $array_or_scalar, $attr);
 } # END of type_via_implicits()

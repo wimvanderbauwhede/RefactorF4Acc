@@ -93,7 +93,8 @@ sub refactor_COMMON_blocks {  # 218 lines Was _refactor_globals_new
 					{
 						'ParamDecl' => $par_decl,
 						'Ref'       => 1,
-						'Ann'       => [ annotate( $f, __LINE__ ) ]
+						'Ann'       => [ annotate( $f, __LINE__ ) ],
+						'SpecificationStatement' => 1
 					}
 				];
 				push @par_decl_lines_from_module, $par_decl_line;
@@ -235,6 +236,11 @@ sub refactor_COMMON_blocks {  # 218 lines Was _refactor_globals_new
 		my $nextLineID = scalar @{$rlines} + 1;
 		my $cast_reshape_vardecl_annlines = [];
 		for my $cast_reshape_vardecl (@{$Sf->{'CastReshapeVarDecls'}{'List'}}) {
+		croak "BOOM! $cast_reshape_vardecl";
+		croak in_nested_set( $Sf, 'Vars', $cast_reshape_vardecl );
+			if (  in_nested_set( $Sf, 'Vars', $cast_reshape_vardecl ) ) {
+				croak;
+			}
 			my $rdecl = $Sf->{'CastReshapeVarDecls'}{'Set'}{$cast_reshape_vardecl};
 			my $rline = emit_f95_var_decl($rdecl);
 				my $info  = {};
@@ -242,6 +248,7 @@ sub refactor_COMMON_blocks {  # 218 lines Was _refactor_globals_new
 				$info->{'LineID'}    = $nextLineID++;
 				$info->{'Ref'}       = 1;
 				$info->{'VarDecl'} = { 'Name' => $cast_reshape_vardecl };
+				$info->{'SpecificationStatement'} = 1;
 				push @{$cast_reshape_vardecl_annlines}, [ $rline, $info ];
 		}
 
@@ -301,6 +308,7 @@ sub _create_extra_arg_and_var_decls { #272 lines
 				$info->{'LineID'}    = $nextLineID++;
 				$info->{'Ref'}       = 1;
 				$info->{'ParamDecl'} = { 'Name' => $par };
+				$info->{'SpecificationStatement'} = 1;
 				push @{$rlines}, [ $rline, $info ];
 			}
 		}
@@ -324,6 +332,7 @@ sub _create_extra_arg_and_var_decls { #272 lines
 				$info->{'LineID'}    = $nextLineID++;
 				$info->{'Ref'}       = 1;
 				$info->{'ParamDecl'} = { 'Name' => $par };
+				$info->{'SpecificationStatement'} = 1;
 				push @{$rlines}, [ $rline, $info ];
 			}
 		}
@@ -359,6 +368,7 @@ sub _create_extra_arg_and_var_decls { #272 lines
 			$info->{'Ref'}     = 1;
 			$info->{'VarDecl'} = { 'Name' => $var };                                                                  #$rdecl;
 			$info->{'ArgDecl'} = 1;
+			$info->{'SpecificationStatement'} = 1;
 			@{$rlines}=(@{$rlines},@{$inherited_param_decls});
 			push @{$rlines}, [ $rline, $info ];
 			
@@ -375,6 +385,7 @@ sub _create_extra_arg_and_var_decls { #272 lines
 		$info->{'LineID'}  = $nextLineID++;
 		$info->{'Ref'}     = 1;
 		$info->{'VarDecl'} = { 'Name' => $var };                            #$rdecl;
+		$info->{'SpecificationStatement'} = 1;
 		push @{$rlines}, [ $rline, $info ];
 	}    # for
 
@@ -430,6 +441,7 @@ sub _create_extra_arg_and_var_decls { #272 lines
 		$info->{'LineID'}  = $nextLineID++;
 		$info->{'Ref'}     = 1;
 		$info->{'VarDecl'} = { 'Name' => $var };                                #$rdecl;
+		$info->{'SpecificationStatement'} = 1;
 		push @{$rlines}, [ $rline, $info ];
 	}    # for
 
@@ -514,6 +526,7 @@ sub _create_extra_arg_and_var_decls { #272 lines
 				$info->{'LineID'}  = $nextLineID++;
 				$info->{'Ref'}     = 1;
 				$info->{'VarDecl'} = { 'Name' => $var };    #$rdecl;
+				$info->{'SpecificationStatement'} = 1;
 				push @{$rlines}, [ $rline, $info ];
 			} else {
 				say "INFO: $var is a reserved word" if $I;			
@@ -533,6 +546,7 @@ sub _create_extra_arg_and_var_decls { #272 lines
 		$info->{'LineID'}  = $nextLineID++;
 		$info->{'Ref'}     = 1;
 		$info->{'VarDecl'} = { 'Name' => $var };                                       #$rdecl;
+		$info->{'SpecificationStatement'} = 1;
 		push @{$rlines}, [ $rline, $info ];
 	}    # for
 
@@ -951,7 +965,6 @@ sub _maybe_cast_call_args { # 200 lines
 		'CastReshapeVarDecl' => {},
 		'Status' => 0
 	};
-		
 	if (_compare_decls($stref, $f, $call_arg_decl, $sig_arg_decl))	{
 		return $cast_reshape_result;
 	}
@@ -966,7 +979,7 @@ sub _maybe_cast_call_args { # 200 lines
 	my $new_call_arg=undef;
 
 	if ($needs_reshape or ($needs_cast and $is_out)) {
-		# carp "$f, $sub_name, $call_arg,$sig_arg, needs_reshape" if $needs_reshape;
+		carp "$f, $sub_name, $call_arg,$sig_arg, needs_reshape" if $needs_reshape;
 		$new_call_arg = $call_arg.'_'.$sub_name;
 		my $new_call_arg_decl = dclone($sig_arg_decl);
 		$new_call_arg_decl->{'Name'}=$new_call_arg;
@@ -990,7 +1003,7 @@ sub _maybe_cast_call_args { # 200 lines
 		my $reshaped_new_call_arg = "reshape($new_call_arg, shape($call_arg))";		
 		my $cast_reshape_post_line = "$call_arg = $reshaped_new_call_arg";
 
-		if ($needs_cast) {
+		if ($needs_cast) { 
 			# cast
 			my $cast_reshaped_call_arg = cast_call_argument($sig_arg_decl->{'Type'}, $sig_kind , $call_arg_decl->{'Type'}, $reshaped_call_arg);
 			$cast_reshape_pre_line = "$new_call_arg = $cast_reshaped_call_arg";
@@ -1008,18 +1021,17 @@ sub _maybe_cast_call_args { # 200 lines
 		);
 
 	} else { # no reshape
-		if ($needs_cast) {
+		if ($needs_cast) { 
 			if ($is_out) { # not in place		
-			
+			 
 					my $cast_call_arg = cast_call_argument($sig_arg_decl->{'Type'}, $sig_kind , $call_arg_decl->{'Type'}, $call_arg);		
 					my $cast_reshape_pre_line =  "$new_call_arg = $cast_call_arg" ;
 
 					my $cast_new_call_arg = cast_call_argument($call_arg_decl->{'Type'}, $call_kind , $sig_arg_decl->{'Type'}, $new_call_arg);
 					my $cast_reshape_post_line =   "$call_arg = $cast_new_call_arg" ;
-
 					$cast_reshape_result = __update_cast_reshape_result($cast_reshape_result,
 						$cast_reshape_pre_line,
-						$cast_reshape_post_line.
+						$cast_reshape_post_line,
 						$call_arg,
 						$new_call_arg
 					);
@@ -1047,7 +1059,7 @@ sub  __update_cast_reshape_result {
 	$cast_reshape_result->{'PreAnnLine'}[1]{'Lhs'}{'VarName'}=$new_call_arg;
 	$cast_reshape_result->{'PreAnnLine'}[1]{'Lhs'}{'ExpressionAST'}=[2,$new_call_arg];
 	$cast_reshape_result->{'PreAnnLine'}[1]{'Lhs'}{'IndexVars'}{'List'}=[];
-	$cast_reshape_result->{'PreAnnLine'}[1]{'Rhs'}{'VarList'}{'List'}=[$new_call_arg,$call_arg];		
+	$cast_reshape_result->{'PreAnnLine'}[1]{'Rhs'}{'VarList'}{'List'}=[$new_call_arg,$call_arg];	
 	$cast_reshape_result->{'PostAnnLine'}[0]=$cast_reshape_post_line;	
 	$cast_reshape_result->{'PostAnnLine'}[1]{'Lhs'}{'VarName'}=$call_arg;
 	$cast_reshape_result->{'PostAnnLine'}[1]{'Lhs'}{'ExpressionAST'}=[2,$call_arg];

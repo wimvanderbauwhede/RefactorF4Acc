@@ -81,7 +81,7 @@ sub _inline_subroutines_main { my ( $stref, $f ) = @_;
 
 # If the subroutine to be inlined contains calls to other subroutines, these have to be inlined as well
 sub _inline_subroutine { (my $stref, my $f, my $sub, my $is_child) = @_;
-   local $V=1;
+#    local $V=1;
  	push @{ $stref->{'CallStack'} }, $f;
     my %subs = map {$_=>1} @{ $stref->{'CallStack'} }; 
 
@@ -100,8 +100,6 @@ sub _inline_subroutine { (my $stref, my $f, my $sub, my $is_child) = @_;
 	       		say "CALL TO  $csub from $sub" if $V;     
 	            $stref = _inline_subroutine($stref, $sub, $csub, 1);
 	            say "RETURN TO $sub from CALL to $csub" if $V;
-	            # my $Scsub = $stref->{'Subroutines'}{$csub};
-	            
 	        } 
 	    } #else {
 	        # Leaf node, inline	        
@@ -126,8 +124,12 @@ sub _inline_subroutine { (my $stref, my $f, my $sub, my $is_child) = @_;
 sub _inline_call { my ($stref, $f, $sub, $is_child) = @_;
 
    # First rename all variables in $sub. This is safe because even with COMMON blocks, the names are not global
-    $stref = __rename_vars($stref, $sub);
+    ($stref, my $renamed_vars) = __rename_vars($stref, $sub);
     my $Ssub = $stref->{'Subroutines'}{$sub};       
+    for my $var (sort keys %{$renamed_vars}) {
+        my $qvar = $renamed_vars->{$var};
+        $Ssub = __update_renamed_vardecl($Ssub,$var,$qvar);
+    }
     # my $sub_annlines = dclone($Ssub->{'RefactoredCode'});
     $Ssub->{'AnnLines'} = $Ssub->{'RefactoredCode'};
     # Now substitute the arguments, i.e. any occurrence of an argument in the body of $sub should get the value of the call arg in $f
@@ -154,7 +156,7 @@ sub _inline_call { my ($stref, $f, $sub, $is_child) = @_;
     # say $Sf->{'AnnLines'} , $Sf->{'RefactoredCode'};
     #    say Dumper(pp_annlines($Sf->{'AnnLines'},0));
     #    say '========';
-       say Dumper(pp_annlines($Sf->{'RefactoredCode'} ));
+    #    say Dumper(pp_annlines($Sf->{'RefactoredCode'} ));
     #    croak;       	
     return $stref;
 } # END of _inline_call
@@ -224,7 +226,6 @@ sub __split_out_specification_parts { (my $stref, my $f) =@_;
             exists $info->{'ArgDecl'} or 
             exists $info->{'Return'}
         ) {
-                die Dumper($annline) if $line=~/v_n/;
             # do nothing;
         } elsif ( exists $info->{'Comments'} or exists $info->{'Blank'} ) {
             push @{$preceding_comments}, $annline;
@@ -245,7 +246,7 @@ sub __split_out_specification_parts { (my $stref, my $f) =@_;
     my $state = [[],[],[]];
     ( $stref, $state ) = stateful_pass( $stref, $f, $pass__split_out_specification_parts, $state, 'pass__split_specification_computation_parts() ' . __LINE__ );
     ( my $use_part, my $specification_part, my $preceding_comments__)     = @{$state};        
-
+    # say "Specification part for $f:\n". Dumper(pp_annlines($specification_part,1));
     return ($stref, $use_part, $specification_part);
 } # END of __split_out_specification_parts
 
@@ -284,7 +285,7 @@ sub __split_out_computation_part { (my $stref, my $f) =@_;
     my $state = [[],[]];
     ( $stref, $state ) = stateful_pass( $stref, $f, $pass__split_out_computation_part, $state, 'pass__split_specification_computation_parts() ' . __LINE__ );
     my $computation_part = $state->[0];
-
+    # say "Computation part for $f:\n". Dumper($computation_part) if $f eq 's1b';
     return ($stref, $computation_part);
 } # END of __split_out_computation_part
 
@@ -422,7 +423,8 @@ sub __merge_specification_computation_parts_into_caller { (my $stref, my $f, my 
     };
 
     my $state = [ $use_part, $specification_part, 0, 1, 0];
-    ( $stref, $state ) = stateful_pass( $stref, $f, $pass__merge_specification_computation_parts_into_caller, $state, 'pass__merge_specification_computation_parts_into_caller() ' . __LINE__ );      
+    ( $stref, $state ) = stateful_pass( $stref, $f, $pass__merge_specification_computation_parts_into_caller, $state, 'pass__merge_specification_computation_parts_into_caller() ' . __LINE__ );
+    $stref = __update_caller_inlined_vardecls($stref,$f,$sub,$specification_part);
     
     return $stref;
 } # END of __merge_specification_computation_parts_into_caller
@@ -450,9 +452,8 @@ sub __rename_vars {
     my $Sf = $stref->{'Subroutines'}{$f};
     
     my $rename_vars_pass = sub {
-        ( my $annline, my $state ) = @_;
+        ( my $annline, my $renamed_vars ) = @_;
         ( my $line,    my $info )  = @{$annline};
-        # ( my $stref,   my $f )     = @{$state};
 
         if (
                 not exists $info->{'Use'}
@@ -472,16 +473,21 @@ sub __rename_vars {
                     # The actual renaming
                     my $qvar = $var . '_' . $f;
                     $line =~ s/\b$var\b/$qvar/g;
+                    $renamed_vars->{$var}=$qvar;
+                    if (exists $info->{'VarDecl'}) {
+                        $info->{'VarDecl'}{'OrigName'}=$var;
+                        $info->{'VarDecl'}{'Name'}=$qvar;
+                    }
                 }				
             }
         }
-        return [[$line,$info]];
+        return ([[$line,$info]], $renamed_vars);
     };
 
-    # my $state = [ $stref, $f ];
-    $stref= stateless_pass( $stref, $f, $rename_vars_pass, 'rename_vars_pass() ' . __LINE__ );
+    my $renamed_vars = {};
+    ($stref,$renamed_vars) = stateful_pass( $stref, $f, $rename_vars_pass, $renamed_vars, 'rename_vars_pass() ' . __LINE__ );
 
-	return $stref;
+	return ($stref, $renamed_vars);
 
 } #  END of __rename_vars
 
@@ -546,7 +552,7 @@ sub __substitute_args_core { ( my $stref, my $f , my $argmap) = @_;
                 $line = '! '.$line;
             }
         }
-        
+        push @{ $info->{'Ann'} }, annotate( $f, __LINE__ . ' __substitute_args_core');
         return [[$line,$info]];
     };
 
@@ -613,5 +619,29 @@ sub find_subs_to_inline { (my $stref, my $f)=@_;
 	return $stref;
 } # END of find_subs_to_inline
 
+sub __update_renamed_vardecl { my ($Sf, $var, $qvar) = @_;
+    my $orig_set = in_nested_set($Sf,'Vars', $var);
+    my $decl = $Sf->{$orig_set}{'Set'}{$var};
+    $decl->{'OrigName'}=$var;
+    $decl->{'Name'}=$qvar;
+    $Sf->{$orig_set}{'Set'}{$qvar}=$decl;
+    $Sf->{$orig_set}{'List'} = [map {$_ eq $var? $qvar : $var } @{$Sf->{$orig_set}{'List'}}];
+    return $Sf;
+}
+
+sub __update_caller_inlined_vardecls { my ($stref,$f,$sub,$specification_part) = @_;
+    for my $annline (@{$specification_part}) {        
+        my ($line,$info) = @{$annline};
+        next if exists $info->{'Comments'};
+        say Dumper $info;
+        my $qvar = $info->{'VarDecl'}{'Name'};
+        my $subset = in_nested_set($stref->{'Subroutines'}{$sub},'Vars',$qvar);
+        my $decl = $stref->{'Subroutines'}{$sub}{$subset}{'Set'}{$qvar};
+        # say Dumper($decl);
+        # croak;
+        $stref->{'Subroutines'}{$f}{'DeclaredOrigLocalVars'}{'Set'}{$qvar}=dclone($decl);
+    }
+    return $stref;
+}
 
 1;

@@ -1,0 +1,16 @@
+# Generated build script for refactored source code
+# Wed Dec 16 17:46:26 2020
+import os
+
+FC=os.environ.get('FC')
+
+fsources = ['./src/s1.f90','./src/s1b.f90','./src/s2.f90','./src/s2b.f90','./src/s3.f90','./src/s3b.f90','./src/test_inline_recursive_multi.f90']
+
+
+
+FFLAGS = ['-cpp','-O3','-m64','-ffree-form','-ffree-line-length-0','-fconvert=little-endian','-frecord-marker=4']
+
+#envF=Environment(F90='/usr/bin/gfortran',LINK='/usr/bin/gfortran',F90FLAGS=FFLAGS,F90PATH=['.' ,'/usr/local/include'])
+envF=Environment(F90=FC,LINK=FC,F90FLAGS=FFLAGS,F90PATH=['.' ,'/usr/local/include'])
+
+envF.Program('test_inline_single',fsources,LIBS=[ 'm'],LIBPATH=['.' ,'/usr/lib','/usr/local/lib'])

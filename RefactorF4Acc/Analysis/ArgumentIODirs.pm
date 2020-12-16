@@ -532,11 +532,11 @@ sub _analyse_src_for_iodirs {
 # Encounter Assignment
                     elsif (exists $info->{'Assignment'}) {
                             
-                        say "$f LINE: $line INFO: ".Dumper($info);
+                        # say "$f LINE: $line INFO: ".Dumper($info);
                         # First check the RHS
                         my $rhs_vars = $info->{'Rhs'}{'VarList'}{'List'};
 
-                        say "RHS: ".Dumper($rhs_vars);
+                        # say "RHS: ".Dumper($rhs_vars);
                         if (scalar @{$rhs_vars} > 0) {
                             _set_iodir_vars($rhs_vars, $args, \&_set_iodir_read);
                         }

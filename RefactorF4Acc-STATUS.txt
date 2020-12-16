@@ -41,6 +41,13 @@ TO RELEASE
   $ git push --delete origin v2.1.0
   $ git push origin v2.1.0
 
+STATUS 2020-12-16
+
+OK, debugged, was a typo. 
+Current problem with multiple recursive calls is that the nesting is wrong: variables are not all at the top. 
+=> solved, missing SpecificationStatement labels on additional variables.
+The remaining problem is that the renamed inlined variables have not been added to Vars (as DeclaredOrigLocalVars I assume).
+
 STATUS 2020-12-14
 
 While debugging inline_recursive_multi, I've stumbled across a bug: clearly, ex-implicits don't have the correct $info.
