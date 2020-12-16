@@ -47,6 +47,7 @@ OK, debugged, was a typo.
 Current problem with multiple recursive calls is that the nesting is wrong: variables are not all at the top. 
 => solved, missing SpecificationStatement labels on additional variables.
 The remaining problem is that the renamed inlined variables have not been added to Vars (as DeclaredOrigLocalVars I assume).
+I have added them now but there is still duplication, to do with Cast/Reshape intermediate variables.
 
 STATUS 2020-12-14
 
