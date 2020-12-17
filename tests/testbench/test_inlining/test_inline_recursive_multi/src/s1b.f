@@ -1,6 +1,6 @@
       subroutine s1b(v_inout,ii)
-        integer v_in, v_out
-        ! integer v_inout, v
+        ! integer v_in, v_out
+        integer v_inout, v
         integer i, ii
         v = v_inout
         do i = 1,3          

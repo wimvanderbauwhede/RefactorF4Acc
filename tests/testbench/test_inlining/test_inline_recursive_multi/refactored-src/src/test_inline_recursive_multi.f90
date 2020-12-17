@@ -3,7 +3,6 @@
       implicit none
         integer :: v
         integer :: i
-      real :: v_s1b
 !          BEGIN ex-sub decls s1
         integer :: i_s1
 !          BEGIN ex-sub decls s2
@@ -12,12 +11,9 @@
         integer :: v_n_s3_s2_s1
 !          END ex-sub decls s1
 !          BEGIN ex-sub decls s1b
-      real :: v_s1b
-        integer :: v_in_s1b
-        integer :: v_out_s1b
-        ! integer v_inout, v
+        ! integer v_in, v_out
+        integer :: v_s1b
         integer :: i_s1b
-        integer :: v_s2b
 !          BEGIN ex-sub decls s2b
         integer :: x_s2b_s1b
 !          BEGIN ex-sub decls s3b
@@ -45,14 +41,11 @@
         print *,v
         end do
 !              END inlined call to s1
-            v_s1b = real(v,4)
 !              BEGIN inlined call to s1b
-      real, intent(InOut) :: v
 !          END ex-sub decls s2b
         v_s1b = v
         do i_s1b = 1,3          
         v_s1b = v_s1b*2+i
-        v_s2b = int(v_s1b, 4)
 !          BEGIN inlined call to s2b
 !          END ex-sub decls s3b
         x_s2b_s1b = v_s1b*v_s1b
@@ -64,12 +57,10 @@
 !          END inlined call to s3b
         print *,v_s1b
 !          END inlined call to s2b
-        v_s1b = real(v_s2b,4)
         print *,v_s1b
         v = v_s1b
         end do
 !              END inlined call to s1b
-            v = int(v_s1b, 4)
 !              BEGIN inlined call to s1
 !          END ex-sub decls s2
 !         v = v

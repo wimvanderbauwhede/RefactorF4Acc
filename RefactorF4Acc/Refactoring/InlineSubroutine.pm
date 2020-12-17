@@ -57,7 +57,6 @@ sub inline_subroutines {
 		next if $Sf->{'Status'} == $UNREAD;
 		next if $Sf->{'Status'} == $READ;
 		next if $Sf->{'Status'} == $FROM_BLOCK;
-
 		$stref = _inline_subroutines_main( $stref, $f );
 	}
 
@@ -237,6 +236,7 @@ sub __split_out_specification_parts { (my $stref, my $f) =@_;
             exists $info->{'SpecificationStatement'} and 
             not exists $info->{'ImplicitNone'}
         ) {            
+            say "$f $line ".Dumper($info) if $line=~/v_inout/;
             $specification_part = [ @{$specification_part}, @{$preceding_comments}, $annline ];
             $preceding_comments = [];
         } 
@@ -454,18 +454,31 @@ sub __rename_vars {
     my $rename_vars_pass = sub {
         ( my $annline, my $renamed_vars ) = @_;
         ( my $line,    my $info )  = @{$annline};
+        if (exists $info->{'VarDecl'}
+        and not exists $info->{'ArgDecl'}
+        ) {
+            my $var = $info->{'VarDecl'}{'Name'};
+            my $qvar = $var . '_' . $f;
+            $line =~ s/\b$var\b/$qvar/g;
+            $renamed_vars->{$var}=$qvar;
 
-        if (
+            $info->{'VarDecl'}{'OrigName'}=$var;
+            $info->{'VarDecl'}{'Name'}=$qvar;
+        }
+        elsif (
                 not exists $info->{'Use'}
 			and not exists $info->{'ImplicitNone'}
 			and not exists $info->{'Comments'}
 			and not exists $info->{'Blank'}
 			and not exists $info->{'Skip'}
 			and not exists $info->{'Deleted'}            
+            and not exists $info->{'ArgDecl'}
          ) {
             my $Sf = $stref->{'Subroutines'}{$f};
             my $vars = get_vars_from_set( $Sf->{'Vars'} );
             for my $var (keys %{$vars} ) {
+                # say "$f $line $var";
+                # croak "$f $line $var ".Dumper($info) if $var eq 'v_inout' and $line=~/InOut/;
                 my $subset1 = in_nested_set($Sf,'Args', $var);
                 my $subset2 = in_nested_set($Sf,'UsedParameters', $var);
                 my $subset3 = in_nested_set($Sf,'IncludedParameters', $var);
@@ -474,10 +487,11 @@ sub __rename_vars {
                     my $qvar = $var . '_' . $f;
                     $line =~ s/\b$var\b/$qvar/g;
                     $renamed_vars->{$var}=$qvar;
-                    if (exists $info->{'VarDecl'}) {
-                        $info->{'VarDecl'}{'OrigName'}=$var;
-                        $info->{'VarDecl'}{'Name'}=$qvar;
-                    }
+                    # if (exists $info->{'VarDecl'}) {
+                        
+                    #     $info->{'VarDecl'}{'OrigName'}=$var;
+                    #     $info->{'VarDecl'}{'Name'}=$qvar;
+                    # }
                 }				
             }
         }
@@ -633,12 +647,13 @@ sub __update_caller_inlined_vardecls { my ($stref,$f,$sub,$specification_part) =
     for my $annline (@{$specification_part}) {        
         my ($line,$info) = @{$annline};
         next if exists $info->{'Comments'};
-        say Dumper $info;
+        # say Dumper $info;
         my $qvar = $info->{'VarDecl'}{'Name'};
         my $subset = in_nested_set($stref->{'Subroutines'}{$sub},'Vars',$qvar);
         my $decl = $stref->{'Subroutines'}{$sub}{$subset}{'Set'}{$qvar};
         # say Dumper($decl);
         # croak;
+        # say "Adding $qvar to DeclaredOrigLocalVars in $f";
         $stref->{'Subroutines'}{$f}{'DeclaredOrigLocalVars'}{'Set'}{$qvar}=dclone($decl);
     }
     return $stref;

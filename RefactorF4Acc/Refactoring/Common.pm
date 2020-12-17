@@ -236,12 +236,15 @@ sub refactor_COMMON_blocks {  # 218 lines Was _refactor_globals_new
 		my $nextLineID = scalar @{$rlines} + 1;
 		my $cast_reshape_vardecl_annlines = [];
 		for my $cast_reshape_vardecl (@{$Sf->{'CastReshapeVarDecls'}{'List'}}) {
-		croak "BOOM! $cast_reshape_vardecl";
-		croak in_nested_set( $Sf, 'Vars', $cast_reshape_vardecl );
-			if (  in_nested_set( $Sf, 'Vars', $cast_reshape_vardecl ) ) {
-				croak;
-			}
+		 if ($cast_reshape_vardecl eq 'v_s1b'){ # which means inlining was done already!
+		 carp Dumper pp_annlines($Sf->{'RefactoredCode'});
+		 }
+		# croak in_nested_set( $Sf, 'Vars', $cast_reshape_vardecl );
+			# if (  in_nested_set( $Sf, 'Vars', $cast_reshape_vardecl ) ) {
+			# 	croak;
+			# }
 			my $rdecl = $Sf->{'CastReshapeVarDecls'}{'Set'}{$cast_reshape_vardecl};
+			$Sf->{'DeclaredOrigLocalVars'}{'Set'}{$cast_reshape_vardecl}=$rdecl;
 			my $rline = emit_f95_var_decl($rdecl);
 				my $info  = {};
 				$info->{'Ann'}       = [ annotate( $f, __LINE__ . ' : Cast/Reshape intermediate variable' ) ];
@@ -420,11 +423,12 @@ sub _create_extra_arg_and_var_decls { #272 lines
 				{
 					my $rline = emit_f95_var_decl($rdecl);
 					my $info  = {};
-					$info->{'Ann'} =
-					  [ annotate( $f, __LINE__ . ' : EX-IMPLICIT' ) ];
+					$info->{'Ann'} = [ annotate( $f, __LINE__ . ' : EX-IMPLICIT'  ) ];
 					$info->{'LineID'}  = $nextLineID++;
 					$info->{'Ref'}     = 1;
 					$info->{'VarDecl'} = { 'Name' => $var };
+					$info->{'ArgDecl'} = 1;
+					$info->{'SpecificationStatement'} = 1;
 					push @{$rlines}, [ $rline, $info ];
 				}
 			}
@@ -515,14 +519,17 @@ sub _create_extra_arg_and_var_decls { #272 lines
 				)
 			  )
 			{
-				   			# croak Dumper($Sf->{'UndeclaredOrigLocalVars'}{'Set'}{$var}) if $var eq 'len';
+			if ( my $subset = in_nested_set( $Sf, 'DeclaredOrigLocalVars', $var ) ) {
+				croak $subset;
+			}
+
+				   			# carp Dumper($Sf->{'UndeclaredOrigLocalVars'}{'Set'}{$var}) ;
 				my $rdecl = $Sf->{'UndeclaredOrigLocalVars'}{'Set'}{$var};
 				$rdecl->{'Ann'} = "in $f (implicit declaration)";
 				# carp Dumper($stref->{'Subroutines'}{  $var});
 				my $rline = emit_f95_var_decl($rdecl);
 				my $info  = {};
-				$info->{'Ann'} =
-				  [ annotate( $f, __LINE__ . ' : EX-IMPLICIT VAR' ) ];
+				$info->{'Ann'} = [ annotate( $f, __LINE__ . ' : EX-IMPLICIT VAR' ) ];
 				$info->{'LineID'}  = $nextLineID++;
 				$info->{'Ref'}     = 1;
 				$info->{'VarDecl'} = { 'Name' => $var };    #$rdecl;
@@ -979,8 +986,8 @@ sub _maybe_cast_call_args { # 200 lines
 	my $new_call_arg=undef;
 
 	if ($needs_reshape or ($needs_cast and $is_out)) {
-		carp "$f, $sub_name, $call_arg,$sig_arg, needs_reshape" if $needs_reshape;
-		$new_call_arg = $call_arg.'_'.$sub_name;
+		# carp "$f, $sub_name, $call_arg,$sig_arg, needs_reshape" if $needs_reshape;
+		$new_call_arg = $call_arg.'_'.$sub_name.'_cr';
 		my $new_call_arg_decl = dclone($sig_arg_decl);
 		$new_call_arg_decl->{'Name'}=$new_call_arg;
 		if ($use_arg_sz) {

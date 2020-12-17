@@ -52,7 +52,7 @@ sub refactor_all {
 # FIXME: this should be treated just like subs, but of course that requires full parsing of expressions that contain function calls
     $stref = refactor_called_functions($stref); # Context-free only 
 
-#	say "BEFORE refactor_all_subroutines";    
+	# say "BEFORE refactor_all_subroutines";    
     # Refactor the source, but don't split long lines and keep annotations
     $stref = refactor_all_subroutines($stref);    
 #    say "AFTER refactor_all_subroutines";

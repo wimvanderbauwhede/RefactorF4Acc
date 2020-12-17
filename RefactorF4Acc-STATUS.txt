@@ -41,6 +41,9 @@ TO RELEASE
   $ git push --delete origin v2.1.0
   $ git push origin v2.1.0
 
+STATUS 2020-12-17
+Now the inline_recursive_multi test compiles but the results are incorrect. Presumably because it shares variables across invocations?
+
 STATUS 2020-12-16
 
 OK, debugged, was a typo. 
