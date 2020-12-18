@@ -4,6 +4,7 @@ use v5.10;
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
 use RefactorF4Acc::Refactoring::Helpers qw( stateful_pass stateless_pass );
+use RefactorF4Acc::Parser::Expressions qw( emit_expr_from_ast );
 # use RefactorF4Acc::Parser qw( analyse_lines );
 
 use Storable qw( dclone );
@@ -138,17 +139,15 @@ sub _inline_call { my ($stref, $f, $sub, $is_child) = @_;
     # No need as I did not keep the changes
     # $stref = analyse_lines( $sub, $stref );
 
-    #    say Dumper(pp_annlines($Sf->{'AnnLines'},1));
+    #    say Dumper(pp_annlines($Ssub->{'AnnLines'},1));
     #    say '========';
     #    say Dumper(pp_annlines($Ssub->{'RefactoredCode'},1    ));        
     #    croak;               
         
     ($stref, my $use_part, my $specification_part) = __split_out_specification_parts($stref, $sub);
-    # my $sub_annlines = dclone($Ssub->{'RefactoredCode'});
     $Ssub->{'RefactoredCode'}=$Ssub->{'AnnLines'};
 
     # WV20201207 Up to here it seems to be OK
-    # croak Dumper(pp_annlines($specification_part))."\n\n".Dumper(pp_annlines($computation_part));
     $stref = __merge_specification_computation_parts_into_caller($stref, $f, $sub, $use_part, $specification_part,$is_child);  	            
     my $Sf = $stref->{'Subroutines'}{$f};       
 
@@ -159,52 +158,6 @@ sub _inline_call { my ($stref, $f, $sub, $is_child) = @_;
     #    croak;       	
     return $stref;
 } # END of _inline_call
-
-
-# # Not only split, also weed out argument decls and return statements
-# sub __split_specification_computation_parts { (my $stref, my $f) =@_;
-	
-#     my $Sf = $stref->{'Subroutines'}{$f};
-    
-#     my $pass__split_specification_computation_parts = sub {
-#         ( my $annline, my $state ) = @_;
-#         # say Dumper $annline;
-#         my ( $line, $info )  = @{$annline};
-#         my ( $use_part, $specification_part, $computation_part, $preceding_comments ) = @{$state};
-
-#         if ( 
-#             exists $info->{'Signature'} or 
-#             exists $info->{'EndSubroutine'} or 
-#             exists $info->{'ArgDecl'} or 
-#             exists $info->{'Return'}
-#         ) {
-                
-#             # do nothing;
-#         } elsif ( exists $info->{'Comments'} or exists $info->{'Blank'} ) {
-#             push @{$preceding_comments}, $annline;
-#         } elsif ( exists $info->{'Use'} ) {
-#             # say $use_part;
-#             $use_part = [ @{$use_part}, @{$preceding_comments}, $annline ];
-#             $preceding_comments = [];
-#         } elsif ( 
-#             exists $info->{'SpecificationStatement'} and 
-#             not exists $info->{'ImplicitNone'}
-#         ) {
-#             $specification_part = [ @{$specification_part}, @{$preceding_comments}, $annline ];
-#             $preceding_comments = [];
-#         } elsif (not exists $info->{'ImplicitNone'}) {
-#             $computation_part = [ @{$computation_part}, @{$preceding_comments}, $annline ];
-#             $preceding_comments = [];
-#         }
-#         return ( [$annline], [ $use_part, $specification_part, $computation_part, $preceding_comments ] );
-#     };
-
-#     my $state = [[],[],[],[]];
-#     ( $stref, $state ) = stateful_pass( $stref, $f, $pass__split_specification_computation_parts, $state, 'pass__split_specification_computation_parts() ' . __LINE__ );
-#     ( my $use_part, my $specification_part, my $computation_part, my $preceding_comments__)     = @{$state};        
-
-#     return ($stref, $use_part, $specification_part, $computation_part);
-# } # END of __split_specification_computation_parts
 
 # Not only split, also weed out argument decls and return statements
 sub __split_out_specification_parts { (my $stref, my $f) =@_;
@@ -339,7 +292,59 @@ sub __merge_specification_computation_parts_into_caller { (my $stref, my $f, my 
                     $first_vardecl, $found_use
                 ]  
                 );
-        } elsif ( 
+        }
+        elsif ( 
+            exists $info->{'FunctionCalls'} and
+            ($in_inline_region or $is_child)
+            ) {
+                my $line_id = $info->{'LineID'};
+                
+            for my $entry (@{$info->{'FunctionCalls'}}) {
+                if ($entry->{'Name'} eq $sub) {                    
+                    $stref = __substitute_args($stref, $f, $sub, $line_id); 
+                    ($stref, my $computation_part) = __split_out_computation_part($stref, $sub);
+                    # croak Dumper $computation_part;
+                    my $Ssub = $stref->{'Subroutines'}{$sub};       
+                    # my $sub_annlines = dclone($Ssub->{'RefactoredCode'});
+                    $Ssub->{'RefactoredCode'}=$Ssub->{'AnnLines'};
+
+                    $Sf->{'InlinedCalls'}{'Set'}{$sub}++;
+                    # croak Dumper $info;
+                    my $ast =  $entry->{'ExpressionAST'};
+                    my $call_str = emit_expr_from_ast($ast);
+                    #  croak Dumper( $info->{'Lhs'},$info->{'Rhs'}{'ExpressionAST'});
+
+                    $call_str=~s/\W/_/g;
+                    my $rhs_ast = $info->{'Rhs'}{'ExpressionAST'};
+                    $rhs_ast = _replace_call_with_var($rhs_ast,$call_str);
+                    my $new_rhs_str = emit_expr_from_ast( $rhs_ast );
+                    my $lhs_ast = $info->{'Lhs'}{'ExpressionAST'};
+                    my $lhs_str = emit_expr_from_ast( $lhs_ast );
+                    
+                    my $updated_line = $info->{'Indent'}."$lhs_str = $new_rhs_str";                    
+                    # I need to update the info with the new Rhs AST but also remove the function from the FunctionCalls.
+                    my @rest = grep {emit_expr_from_ast($_->{'ExpressionAST'}) eq $call_str} @{$info->{'FunctionCalls'}};
+                    $info->{'FunctionCalls'}=[@rest];
+                    $info->{'Rhs'}{'ExpressionAST'}=$rhs_ast;
+                    my $updated_annline=[$updated_line, $info];
+                    # comment($annline),
+                    # This will terminate the loop, no need for last
+                    # But this is NOT correct: we need to 
+                    # - create a new var
+                    # - replace the call in the expression by it
+                    # - replace the assignment to the function name or return arg with this name
+                    # - replace the name in the declaration 
+                    return ( [comment("$indent BEGIN inlined call to $sub"),@{$computation_part},$updated_annline,comment("$indent END inlined call to $sub")], 
+                        [
+                            $use_part, $specification_part, $computation_part, 
+                            $in_inline_region,
+                            $first_vardecl, $found_use
+                        ]  
+                    );      
+                } 
+            }
+        } 
+        elsif ( 
             not exists $Sf->{'InlinedCalls'}{'Set'}{$sub} and
             @{$use_part} and exists $info->{'Use'} ) {
             $found_use=1;
@@ -456,7 +461,7 @@ sub __rename_vars {
         ( my $line,    my $info )  = @{$annline};
         if (exists $info->{'VarDecl'}
         and not exists $info->{'ArgDecl'}
-        ) {
+        ) {            
             my $var = $info->{'VarDecl'}{'Name'};
             my $qvar = $var . '_' . $f;
             $line =~ s/\b$var\b/$qvar/g;
@@ -529,6 +534,10 @@ sub __substitute_args { my ($stref, $f, $sub, $line_id) = @_;
             	
                 $stref = __substitute_args_core( $stref,$sub,$argmap);
             } 
+            elsif ( exists $info->{'FunctionCalls'}) {
+                carp 'TODO';
+                return ( [$annline], [ $in_inline_region, $first_call ] );
+            }
             return ( [$annline], [ $in_inline_region, $first_call ] );
     };
 
@@ -615,9 +624,18 @@ sub find_subs_to_inline { (my $stref, my $f)=@_;
                 exists $info->{'SubroutineCall'}
                ) {
 					# if a line is relevant		
+                    
 					my $sub_name = $info->{'SubroutineCall'}{'Name'};
                     $called_subs->{$sub_name}++; 					
             } 
+            elsif ( $in_inline_region and 
+                exists $info->{'FunctionCalls'} ) {
+                    for my $entry (@{$info->{'FunctionCalls'}}) {
+                        my $fname = $entry->{'Name'};
+                        $called_subs->{$fname}++; 
+                    }
+            }
+
             return ([ $annline ], [$in_inline_region,  $called_subs] );
 			
 		};
@@ -658,5 +676,40 @@ sub __update_caller_inlined_vardecls { my ($stref,$f,$sub,$specification_part) =
     }
     return $stref;
 }
+
+sub _replace_call_with_var { (my $ast, my $var) = @_;
+
+  if(scalar @{$ast}==0) {
+      return $ast;
+  }
+
+  if ( ($ast->[0] & 0xFF) == 1 or
+       ($ast->[0] & 0xFF) == 10 ) { # array var or function/subroutine call
+       if ($ast->[0]== 1) {
+            my $call_str = emit_expr_from_ast($ast);
+            $call_str=~s/\W/_/g;
+            if ($call_str eq $var) {
+                $ast = [2,$var];
+            }
+       } else {
+		my $entry = _replace_call_with_var($ast->[2], $var);
+		$ast->[2] = $entry;
+        }
+  } elsif (($ast->[0] & 0xFF) == 2) { # scalar variable
+	#	
+  } elsif (($ast->[0] & 0xFF) > 28) { # constants
+	#
+  } else { # other operators
+	# $acc=$f->($ast,$acc);
+	for my $idx (1 .. scalar @{$ast}-1) {
+		my $entry = _replace_call_with_var($ast->[$idx], $var);
+		$ast->[$idx] = $entry;
+	}
+  }
+
+  return $ast;
+
+} # END of _replace_call_with_var
+
 
 1;

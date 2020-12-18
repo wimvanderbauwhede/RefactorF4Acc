@@ -42,7 +42,9 @@ TO RELEASE
   $ git push origin v2.1.0
 
 STATUS 2020-12-17
+
 Now the inline_recursive_multi test compiles but the results are incorrect. Presumably because it shares variables across invocations?
+No, it was an artefact of the numerical overruns.
 
 STATUS 2020-12-16
 

@@ -35,7 +35,6 @@ use Exporter;
   &parse_expression_no_context
   &_find_consts_in_ast
   &find_vars_in_ast
-  &_find_args_in_ast
   &find_args_vars_in_ast
   &find_assignments_to_scalars_in_ast
   &find_implied_do_in_ast
@@ -1324,12 +1323,11 @@ sub _find_consts_in_ast { my ( $ast, $consts)=@_;
 sub find_args_vars_in_ast {(my $ast)=@_;
 
     my $all_vars={'List'=>[],'Set'=>{} };
-    $all_vars->{'Set'}=find_vars_in_ast($ast,{});
+    $all_vars->{'Set'}=find_vars_in_ast($ast,{});    
     
-    
-    my $args={'List'=>[],'Set'=>{}};
-    $args->{'Set'}=_find_args_in_ast($ast,{});
-    $args->{'List'} = [keys %{ $args->{'Set'} }]; 
+    # my $args={'List'=>[],'Set'=>{}};
+    my $args=_find_args_in_ast($ast,{});
+    # $args->{'List'} = [keys %{ $args->{'Set'} }]; 
     for my $arg(@{ $args->{'List'} } ){
     	if (exists $all_vars->{'Set'}{$arg} ) {
     		delete $all_vars->{'Set'}{$arg};
@@ -1483,16 +1481,19 @@ sub _find_args_in_ast { (my $ast, my $args) =@_;
 	}
 	elsif (($ast->[0] & 0xFF)== 2) {
 	        my $mvar = $ast->[1];
-	        $args->{$mvar}={'Type'=>'Scalar'} ;
+	        $args->{'Set'}{$mvar}={'Type'=>'Scalar'} ;
+            push @{$args->{'List'}},$mvar;
 	    }
 	elsif (($ast->[0] & 0xFF)== 10) {
 	        my $mvar = $ast->[1];
-	        $args->{$mvar}={'Type'=>'Array'} ;
+	        $args->{'Set'}{$mvar}={'Type'=>'Array'} ;
+            push @{$args->{'List'}},$mvar;
 	}  
     elsif (($ast->[0] & 0xFF) > 28) { # constants
     # constants
     my $mvar = $ast->[1]; 
-    $args->{$mvar}={'Type'=>$sigils[ ($ast->[0] & 0xFF) ]} ;
+    $args->{'Set'}{$mvar}={'Type'=>$sigils[ ($ast->[0] & 0xFF) ]} ;
+    push @{$args->{'List'}},$mvar;
     }	
     return $args;
 } # END of _find_args_in_ast

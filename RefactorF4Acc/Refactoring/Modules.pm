@@ -274,7 +274,7 @@ sub _create_module_src { (my $stref, my $src, my $subname, my $no_modules ) = @_
 			my @prog_p1        = ();
 			my @prog_p2        = ();
 			my @contained_subs = ();
-			for my $annline ( @{$annlines} ) {				
+			for my $annline ( @{$annlines} ) {	
 				my $info = $annline->[1];
 				if ($before) {
 					push @prog_p1, $annline;
