@@ -1,4 +1,4 @@
-      program test_inline_single
+      program test_inline_recursive_multi
       use singleton_module_src_s1
       implicit none
         integer :: v
@@ -20,19 +20,19 @@
         integer :: v_n_s3b_s2b_s1b
 !          END ex-sub decls s1b
         v=42
-        do i=1,4
+        do i=1,2
 !ACC Inline
 !              BEGIN inlined call to s1
 !          END ex-sub decls s2
 !         v = v
-        do i_s1 = 1,3          
+        do i_s1 = 1,2        
         v = v*2
 !          BEGIN inlined call to s2
 !          END ex-sub decls s3
-        x_s2_s1 = v*v
+        x_s2_s1 = v+v/2
         v = x_s2_s1/10
 !          BEGIN inlined call to s3
-        v_n_s3_s2_s1 = 2*42
+        v_n_s3_s2_s1 = 2+42
         v = v_n_s3_s2_s1 + v
         print *,v
 !          END inlined call to s3
@@ -44,11 +44,11 @@
 !              BEGIN inlined call to s1b
 !          END ex-sub decls s2b
         v_s1b = v
-        do i_s1b = 1,3          
+        do i_s1b = 1,2        
         v_s1b = v_s1b*2+i
 !          BEGIN inlined call to s2b
 !          END ex-sub decls s3b
-        x_s2b_s1b = v_s1b*v_s1b
+        x_s2b_s1b = v_s1b+v_s1b/4
         v_s1b = x_s2b_s1b/10
 !          BEGIN inlined call to s3b
         v_n_s3b_s2b_s1b = 2*42
@@ -64,14 +64,14 @@
 !              BEGIN inlined call to s1
 !          END ex-sub decls s2
 !         v = v
-        do i_s1 = 1,3          
+        do i_s1 = 1,2        
         v = v*2
 !          BEGIN inlined call to s2
 !          END ex-sub decls s3
-        x_s2_s1 = v*v
+        x_s2_s1 = v+v/2
         v = x_s2_s1/10
 !          BEGIN inlined call to s3
-        v_n_s3_s2_s1 = 2*42
+        v_n_s3_s2_s1 = 2+42
         v = v_n_s3_s2_s1 + v
         print *,v
 !          END inlined call to s3
@@ -83,4 +83,4 @@
 !ACC End Inline
         end do
         print *,v
-      end program test_inline_single
+      end program test_inline_recursive_multi

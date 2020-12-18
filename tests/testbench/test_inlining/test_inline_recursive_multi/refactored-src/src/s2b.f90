@@ -9,7 +9,7 @@ contains
 !          BEGIN ex-sub decls s3b
         integer :: v_n_s3b_s2b
 !          END ex-sub decls s3b
-        x_s2b = v_inout*v_inout
+        x_s2b = v_inout+v_inout/4
         v_inout = x_s2b/10
 !          BEGIN inlined call to s3b
         v_n_s3b_s2b = 2*42

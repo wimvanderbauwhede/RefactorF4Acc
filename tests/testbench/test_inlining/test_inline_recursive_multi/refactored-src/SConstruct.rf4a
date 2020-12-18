@@ -13,4 +13,4 @@ FFLAGS = ['-cpp','-O3','-m64','-ffree-form','-ffree-line-length-0','-fconvert=li
 #envF=Environment(F90='/usr/bin/gfortran',LINK='/usr/bin/gfortran',F90FLAGS=FFLAGS,F90PATH=['.' ,'/usr/local/include'])
 envF=Environment(F90=FC,LINK=FC,F90FLAGS=FFLAGS,F90PATH=['.' ,'/usr/local/include'])
 
-envF.Program('test_inline_single',fsources,LIBS=[ 'm'],LIBPATH=['.' ,'/usr/lib','/usr/local/lib'])
+envF.Program('test_inline_recursive_multi',fsources,LIBS=[ 'm'],LIBPATH=['.' ,'/usr/lib','/usr/local/lib'])

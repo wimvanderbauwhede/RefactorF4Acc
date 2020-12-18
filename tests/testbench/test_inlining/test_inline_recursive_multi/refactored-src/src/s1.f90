@@ -13,14 +13,14 @@ contains
         integer :: v_n_s3_s2_s1
 !          END ex-sub decls s2
         v_out = v_in
-        do i_s1 = 1,3          
+        do i_s1 = 1,2        
         v_out = v_out*2
 !          BEGIN inlined call to s2
 !          END ex-sub decls s3
-        x_s2_s1 = v_out*v_out
+        x_s2_s1 = v_out+v_out/2
         v_out = x_s2_s1/10
 !          BEGIN inlined call to s3
-        v_n_s3_s2_s1 = 2*42
+        v_n_s3_s2_s1 = 2+42
         v_out = v_n_s3_s2_s1 + v_out
         print *,v_out
 !          END inlined call to s3

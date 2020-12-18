@@ -3,7 +3,7 @@
         integer v_inout, v
         integer i, ii
         v = v_inout
-        do i = 1,3          
+        do i = 1,2        
         v = v*2+ii
         call s2b(v)
         print *,v

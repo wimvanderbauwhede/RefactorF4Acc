@@ -7,7 +7,7 @@ contains
         integer, intent(In) :: n
         integer :: v_inout
         integer :: v_n_s3
-        v_n_s3 = 2*n
+        v_n_s3 = 2+n
         v_inout = v_n_s3 + v_inout
         print *,v_inout
       end subroutine s3

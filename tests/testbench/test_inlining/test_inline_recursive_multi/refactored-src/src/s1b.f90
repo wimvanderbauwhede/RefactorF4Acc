@@ -15,11 +15,11 @@ contains
         integer :: v_n_s3b_s2b_s1b
 !          END ex-sub decls s2b
         v_s1b = v_inout
-        do i_s1b = 1,3          
+        do i_s1b = 1,2        
         v_s1b = v_s1b*2+ii
 !          BEGIN inlined call to s2b
 !          END ex-sub decls s3b
-        x_s2b_s1b = v_s1b*v_s1b
+        x_s2b_s1b = v_s1b+v_s1b/4
         v_s1b = x_s2b_s1b/10
 !          BEGIN inlined call to s3b
         v_n_s3b_s2b_s1b = 2*42

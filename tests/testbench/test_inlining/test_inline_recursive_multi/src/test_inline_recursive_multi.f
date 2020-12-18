@@ -1,8 +1,8 @@
-      program test_inline_single
+      program test_inline_recursive_multi
         integer v
         integer i
         v=42
-        do i=1,4
+        do i=1,2
 !$ACC Inline
             call s1(v,v)
 
