@@ -181,8 +181,9 @@ Although the paper is very interesting, I think it needs to be shortened
 \begin_layout Standard
 
 \color blue
-> If the editor desires the paper to be shortened, we propose to remove
- the Appendices
+> I have moved most of the formal notation to Appendices.
+ If the editor desires the paper to be shortened, we propose to remove the
+ Appendices.
 \end_layout
 
 \begin_layout Standard
@@ -507,9 +508,8 @@ This superfluous use of set theoretical formalism is even more present in
 \begin_layout Standard
 
 \color blue
-> I have removed as much of the set theoretical notation as possible but
- section 4 is the basis for the following sections as it established formally
- which parts of Fortran are type safe.
+> I have moved most of the formal notation to Appendices, so that the interested
+ reader can refer to them but they do not break the flow of the paper.
  
 \end_layout
 

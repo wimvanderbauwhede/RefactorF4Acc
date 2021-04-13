@@ -2097,22 +2097,7 @@ Data Types and Constants
 \emph on
 IntegerConstants
 \emph default
-, and thus we can write the typing rule
-\end_layout
-
-\begin_layout Standard
-\begin_inset Formula 
-\[
-\frac{\,}{n\,:\,Integer}.\,\forall\,n\in\mathit{IntegerConstants}
-\]
-
-\end_inset
-
-
-\end_layout
-
-\begin_layout Description
-and similar for the other types.
+, and thus the typing rule is simly that a constant belongs to a given set.
 \end_layout
 
 \begin_layout Subsubsection
@@ -2130,32 +2115,7 @@ s
 \begin_inset Formula $\Gamma$
 \end_inset
 
- and belong to the set 
-\emph on
-Scalar
-\emph default
-.
- We write this as
-\end_layout
-
-\begin_layout Standard
-\begin_inset Formula 
-\[
-\frac{\,}{\Gamma\vdash s:\tau_{s}=Scalar\,t\,k}
-\]
-
-\end_inset
-
-
-\end_layout
-
-\begin_layout Standard
-What this means is that, given the context 
-\begin_inset Formula $\Gamma$
-\end_inset
-
- which contains all types of all variables valid in a given expression,
- the type judgement is valid.
+ and be a scalar.
  In a Fortran expression this means that all variables with a type statement
  in a code unit will be of the type determined by that statement.
  
@@ -2171,27 +2131,7 @@ The typing rule for an array declaration is that in addition to being of
 \end_layout
 
 \begin_layout Itemize
-it must have a non-empty Dim set 
-\begin_inset Formula $Dim\,d$
-\end_inset
-
- :
-\end_layout
-
-\begin_deeper
-\begin_layout Standard
-\begin_inset Formula 
-\begin{align*}
-\frac{\,}{\Gamma\vdash a:\tau_{a}=Array\,(Scalar\,t_{a}\,k_{a})\ (Dim\,d)}
-\end{align*}
-
-\end_inset
-
-
-\end_layout
-
-\begin_layout Standard
-where 
+it must have a valid dimension attribute 
 \family roman
 \series medium
 \shape up
@@ -2209,32 +2149,8 @@ where
 \end_inset
 
  
-\family default
-\series default
-\shape default
-\size default
-\emph default
-\bar default
-\strikeout default
-\xout default
-\uuline default
-\uwave default
-\noun default
-\color inherit
-as defined in Definition 
-\begin_inset CommandInset ref
-LatexCommand ref
-reference "def:General-form-a"
-plural "false"
-caps "false"
-noprefix "false"
-
-\end_inset
-
-.
 \end_layout
 
-\end_deeper
 \begin_layout Itemize
 and for any array access 
 \begin_inset Formula $a(j_{1},...,j_{k}),j_{i}\in[b_{i},e_{i}]$
@@ -2253,18 +2169,7 @@ the number indices must
 \end_layout
 
 \begin_layout Itemize
-the type must be the scalar type:
-\end_layout
-
-\begin_layout Standard
-\begin_inset Formula 
-\begin{align*}
-\frac{\Gamma\vdash a:\tau_{a}\;\;\;\Gamma\vdash j_{i}:Integer,\forall\,i\in[1,k]}{\Gamma\vdash a(j_{1},...,j_{i},...,j_{k}):\tau_{s}=Scalar\,t_{a}\,k_{a}}
-\end{align*}
-
-\end_inset
-
-
+the type must be the scalar type
 \end_layout
 
 \end_deeper
@@ -2592,7 +2497,7 @@ noprefix "false"
  return value.
 \end_layout
 
-\begin_layout Standard
+\begin_layout Itemize
 The subroutine declaration typing rule is that every dummy argument must
  be of a valid 
 \emph on
@@ -2604,98 +2509,30 @@ FortranType
 void
 \emph default
 .
- Using the tuple type notation from Section 
-\begin_inset CommandInset ref
-LatexCommand ref
-reference "subsec:Type-systems-concepts"
-plural "false"
-caps "false"
-noprefix "false"
-
-\end_inset
-
-, we write this as:
+ 
 \end_layout
 
-\begin_layout Standard
-\begin_inset Formula 
-\[
-\frac{\,}{FortranType\,\mathbf{T_{k}}\Rightarrow sf:\mathbf{T_{k}}\rightarrow void}
-\]
-
-\end_inset
-
-
-\end_layout
-
-\begin_layout Standard
+\begin_layout Itemize
 The subroutine application (
 \family typewriter
 call
 \family default
 ) typing rule is that every call argument and every dummy argument must
  have the same type.
- Because a subroutine call is a statement, it does not return a type:
+ Because a subroutine call is a statement, it does not return a type.
 \end_layout
 
-\begin_layout Standard
-\begin_inset Formula 
-\[
-\frac{FortranType\,\mathbf{T_{k}}\Rightarrow sf:\mathbf{T_{k}}\rightarrow void\;\;\;\Gamma\vdash\mathbf{e_{k}}:\mathbf{T_{k}}}{\Gamma\vdash\mathtt{call}\,sf\,e_{k}:void}
-\]
-
-\end_inset
-
-
-\end_layout
-
-\begin_layout Standard
+\begin_layout Itemize
 The external function declaration typing rule is that every dummy argument
- must be of a valid 
-\emph on
-FortranType
-\emph default
-.
+ must be of a valid Fortran type.
  An external function must have a return a type.
- Using the tuple type notation from Section 
-\begin_inset CommandInset ref
-LatexCommand ref
-reference "subsec:Type-systems-concepts"
-plural "false"
-caps "false"
-noprefix "false"
-
-\end_inset
-
-, we write this as:
+ 
 \end_layout
 
-\begin_layout Standard
-\begin_inset Formula 
-\[
-\frac{\,}{FortranType\,\mathbf{T_{k}},\tau_{f}\Rightarrow f:\mathbf{T_{k}}\rightarrow\tau_{f}}
-\]
-
-\end_inset
-
-
-\end_layout
-
-\begin_layout Standard
+\begin_layout Itemize
 The function application typing rule is also that every call argument and
  every dummy argument must have the same type.
- In that case, the function application is of the type of the return type:
-\end_layout
-
-\begin_layout Standard
-\begin_inset Formula 
-\[
-\frac{FortranType\,\mathbf{T_{k},\tau_{f}}\Rightarrow f:\mathbf{T_{k}}\rightarrow\tau_{f}\;\;\;\Gamma\vdash\mathbf{e_{k}}:\mathbf{T_{k}}}{\Gamma\vdash f\,\mathbf{e_{k}}:\tau_{f}}
-\]
-
-\end_inset
-
-
+ In that case, the function application is of the type of the return type.
 \end_layout
 
 \begin_layout Paragraph
@@ -2716,38 +2553,6 @@ void
 \emph default
  to the set of types that can are valid for arguments of a subroutine or
  function.
- 
-\end_layout
-
-\begin_layout Standard
-In the case of a subroutine call:
-\end_layout
-
-\begin_layout Standard
-\begin_inset Formula 
-\[
-\frac{FortranType\cap\{void\}\,\mathbf{T_{k}}\Rightarrow sf:\mathbf{T_{k}}\rightarrow void\;\;\;\Gamma\vdash\mathbf{e_{k}}:\mathbf{T_{k}}}{\Gamma\vdash\mathtt{call}\,sf\,e_{k}:void}
-\]
-
-\end_inset
-
-
-\end_layout
-
-\begin_layout Standard
-\begin_inset Formula 
-\[
-\frac{FortranType\,\mathbf{T_{k}}\Rightarrow sf:void\rightarrow void\;\;\;\Gamma\vdash\mathbf{e}:\mathbf{T_{k}}\rightarrow void}{\Gamma\vdash\mathtt{call}\,sf\,e:void}
-\]
-
-\end_inset
-
-
-\end_layout
-
-\begin_layout Standard
-and similar for a function call, purely for the sake of type checking of
- the call.
  
 \end_layout
 
@@ -2831,15 +2636,11 @@ Assignments
 
 \begin_layout Standard
 Because in Fortran the assignment is a statement, it does not return a type.
- Therefore, the type check rule for an assignment (
-\begin_inset Formula $\leftarrow$
-\end_inset
-
-) of a variable 
+ Therefore, the type check rule for an assignment of a variable 
 \emph on
 v
 \emph default
- declared in the context 
+ declared in the code unit 
 \begin_inset Formula $\Gamma$
 \end_inset
 
@@ -2851,22 +2652,11 @@ e
 \begin_inset Formula $v_{i}$
 \end_inset
 
- declared in the context 
+ declared in the code unit 
 \begin_inset Formula $\Gamma$
 \end_inset
 
-, is as follows:
-\end_layout
-
-\begin_layout Standard
-\begin_inset Formula 
-\[
-\frac{\Gamma\vdash v:\tau\;\;\;\Gamma(v_{i})\vdash e(v_{i}):\tau}{\Gamma\vdash v\leftarrow e:\,void}
-\]
-
-\end_inset
-
-
+ is that the variable and the expression must be of the same type.
 \end_layout
 
 \begin_layout Standard
@@ -3165,22 +2955,7 @@ Expression type rule
 \noindent
 The expression forms a tree of applications of either operators or intrinsic
  functions, with the leaves being constants or variables.
- Type checking is performed via recursive descent, for example for the 
-\family typewriter
-+
-\family default
- operator:
-\end_layout
-
-\begin_layout Standard
-\begin_inset Formula 
-\[
-\frac{Num\,a\;\;\;\Gamma\vdash e_{1}:a\;\;\;\Gamma\vdash e_{2}:a\;\;\;(+):a\rightarrow a\rightarrow a}{\Gamma\vdash e_{1}+e_{2}:\,a}
-\]
-
-\end_inset
-
-
+ Type checking is performed via recursive descent.
 \end_layout
 
 \begin_layout Subsubsection
