@@ -1,0 +1,528 @@
+#LyX 2.3 created this file. For more info see http://www.lyx.org/
+\lyxformat 544
+\begin_document
+\begin_header
+\save_transient_properties true
+\origin unavailable
+\textclass article
+\use_default_options true
+\maintain_unincluded_children false
+\language english
+\language_package default
+\inputencoding auto
+\fontencoding global
+\font_roman "default" "default"
+\font_sans "default" "default"
+\font_typewriter "default" "default"
+\font_math "auto" "auto"
+\font_default_family default
+\use_non_tex_fonts false
+\font_sc false
+\font_osf false
+\font_sf_scale 100 100
+\font_tt_scale 100 100
+\use_microtype false
+\use_dash_ligatures true
+\graphics default
+\default_output_format default
+\output_sync 0
+\bibtex_command default
+\index_command default
+\paperfontsize default
+\use_hyperref false
+\papersize default
+\use_geometry false
+\use_package amsmath 1
+\use_package amssymb 1
+\use_package cancel 1
+\use_package esint 1
+\use_package mathdots 1
+\use_package mathtools 1
+\use_package mhchem 1
+\use_package stackrel 1
+\use_package stmaryrd 1
+\use_package undertilde 1
+\cite_engine basic
+\cite_engine_type default
+\use_bibtopic false
+\use_indices false
+\paperorientation portrait
+\suppress_date false
+\justification true
+\use_refstyle 1
+\use_minted 0
+\index Index
+\shortcut idx
+\color #008000
+\end_index
+\secnumdepth 3
+\tocdepth 3
+\paragraph_separation indent
+\paragraph_indentation default
+\is_math_indent 0
+\math_numbering_side default
+\quotes_style english
+\dynamic_quotes 0
+\papercolumns 1
+\papersides 1
+\paperpagestyle default
+\tracking_changes false
+\output_changes false
+\html_math_output 0
+\html_css_as_file 0
+\html_be_strict false
+\end_header
+
+\begin_body
+
+\begin_layout Subsection*
+Reviewer #1:
+\end_layout
+
+\begin_layout Standard
+The topic chosen is very interesting.
+\end_layout
+
+\begin_layout Standard
+The related work could be more elaborate.
+\end_layout
+
+\begin_layout Standard
+In the contribution the author is referring to ordinary Fortran complier,
+ which version of the compiler the author refers to and whether it has been
+ tested on various versions of Fortran compilers.
+\end_layout
+
+\begin_layout Standard
+
+\color blue
+XXX> I have added the compilers used and their versions in §4.3 
+\end_layout
+
+\begin_layout Standard
+At the end of section 4.3 a summary of the entire section can be given in
+ a couple of lines.
+\end_layout
+
+\begin_layout Standard
+
+\color blue
+XXX> We have added such a summary 
+\end_layout
+
+\begin_layout Standard
+The complexity of the algorithms discussed for converting the given program
+ to type safe can be discussed.
+\end_layout
+
+\begin_layout Standard
+
+\color blue
+XXX> 
+\end_layout
+
+\begin_layout Standard
+The overhead incurred to convert a Fortran 77 to Fortran 90 and to ensure
+ that it is type safe needs to be discusses.
+\end_layout
+
+\begin_layout Standard
+
+\color blue
+XXX> We have added a discussion of this in §XXX.
+ Essentially, there is no performance overhead after conversion from Fortran
+ 77 to Fortran 90; the run-time type checks introduce the overhead of an
+ if-condition to be checked.
+ I have added a discussion of this in the Appendices that detail the checks.
+\end_layout
+
+\begin_layout Standard
+A suggestion to have an optimized compiler which can do the above mentioned
+ job with backward compatibility.
+\end_layout
+
+\begin_layout Standard
+
+\color blue
+> I am not quite sure what the reviewer means here by 
+\begin_inset Quotes eld
+\end_inset
+
+backward compatibility
+\begin_inset Quotes erd
+\end_inset
+
+.
+ As explained in the paper, we start from Fortran 77 code but need to generate
+ Fortran 90 code to guarantee the type safety.
+ It is not possible to have complete type-safety in Fortran 77.
+\end_layout
+
+\begin_layout Standard
+I would like to accept this paper with minor revisions like analyzing the
+ complexity of the algorithm and the overhead required for conclusion.
+\end_layout
+
+\begin_layout Subsection*
+Reviewer #4
+\end_layout
+
+\begin_layout Standard
+I have read through this paper and I find it very interesting as the majority
+ of legacy code was in FORTRAN-77 and COBOL.
+\end_layout
+
+\begin_layout Standard
+Although the paper is very interesting, I think it needs to be shortened
+ as it is too long.
+ 
+\end_layout
+
+\begin_layout Standard
+
+\color blue
+> If the editor desires the paper to be shortened, we propose to remove
+ the Appendices
+\end_layout
+
+\begin_layout Standard
+Also, the list of references does not seem to be complete nor adequate.
+\end_layout
+
+\begin_layout Standard
+
+\color blue
+XXX> 
+\end_layout
+
+\begin_layout Standard
+I recommend accepting the paper, but after submitting a carefully revised
+ version of it.
+\end_layout
+
+\begin_layout Subsection*
+Reviewer #5
+\end_layout
+
+\begin_layout Standard
+Good morning dear Author,
+\end_layout
+
+\begin_layout Standard
+first of all congratulations on the excellent work submitted to the analysis.
+\end_layout
+
+\begin_layout Standard
+In my analysis, I noted the following points below which made me decline
+ to approve the publication of your work:
+\end_layout
+
+\begin_layout Standard
+1) The text made me understand that it is a guide for migration from Fortran77
+ to Fortran90;
+\end_layout
+
+\begin_layout Standard
+
+\color blue
+XXX> I am sorry that the reviewer misunderstood: the paper is not a guide
+ for migration from Fortran77 to Fortran90.
+ As stated in the abstract, the paper presents an analysis of the type safety
+ of FORTRAN 77 and the novel program transformation and type checking algorithms
+ required to convert FORTRAN 77 subroutines and functions into pure, side-effect
+ free subroutines and functions in Fortran 90.
+ The migration to Fortran 90 is required to support the features needed
+ for type safety, but not the goal in itself.
+ I have clarified this in
+\color inherit
+ XXX
+\end_layout
+
+\begin_layout Standard
+2) The objectives of the work are not clear enough;
+\end_layout
+
+\begin_layout Standard
+
+\color blue
+XXX> I have added a sentence to the abstract to make clear that the objective
+ is to reduce errors by increasing type safety.
+\end_layout
+
+\begin_layout Standard
+3) The experiments are not conclusive enough to prove the applicability
+ of the study.
+\end_layout
+
+\begin_layout Standard
+
+\color blue
+XXX> I have added a list of the programs on which the approach was verified.
+\end_layout
+
+\begin_layout Subsection*
+Reviewer #6: 
+\end_layout
+
+\begin_layout Standard
+The subject of this paper is highly relevant and the compiler as outlined
+ in it will undoubtedly be very useful in making type safe Fortran routines
+ and functions available for accelerators that enhance HPC systems.
+\end_layout
+
+\begin_layout Standard
+It would have been nice when this objective somehow was reflected in the
+ title of the paper, but with the title being already quite long I can understan
+d that it has been omitted.
+\end_layout
+
+\begin_layout Standard
+There are very few typos in the text and these can be easily hunted down
+ by the author.
+ So, I will refrain from indicating them in this review.
+\end_layout
+
+\begin_layout Standard
+There are also some errors in the content that the author could easily find
+ by himself, but as they may be overlooked and of are importance for the
+ understanding, or ease of reading
+\end_layout
+
+\begin_layout Standard
+we point them out, for sofar as catched by the reviewer.
+\end_layout
+
+\begin_layout Standard
+1.
+ Page 8, line 5 should be: x_out,m = f x_in,k
+\end_layout
+
+\begin_layout Standard
+
+\color blue
+> OK
+\end_layout
+
+\begin_layout Standard
+2.
+ Page 9, line 36: ...a character as (integer,1).
+ => ...a character as (character,1).
+\end_layout
+
+\begin_layout Standard
+
+\color blue
+> (integer,1) is correct, we define a character as a one-byte integer
+\end_layout
+
+\begin_layout Standard
+3.
+ Page 10, line 15: Tuple = (τ× ...×τ_i× ...×τ_k) => Tuple =( τ_1× ...×τ_i× ...
+ ×τ_k).
+\end_layout
+
+\begin_layout Standard
+
+\color blue
+> OK
+\end_layout
+
+\begin_layout Standard
+4.
+ Page 13, line 40: As explained below...
+ => As explained above...
+\end_layout
+
+\begin_layout Standard
+
+\color blue
+> OK
+\end_layout
+
+\begin_layout Standard
+5.
+ Page 21, Algorithm 1: By placing the notation of the argument lists starting
+ at line 27 before the transformed
+\end_layout
+
+\begin_layout Standard
+version f', f' could be written much more compact.
+\end_layout
+
+\begin_layout Standard
+
+\color blue
+> I agree but I would prefer to keep the syntax Fortran-like, in particular
+ the order of the arguments would be different if I wrote f'(a
+\begin_inset Quotes erd
+\end_inset
+
+,y)
+\end_layout
+
+\begin_layout Standard
+6.
+ Page 21., line 46: I/O direction => INTENT
+\end_layout
+
+\begin_layout Standard
+
+\color blue
+> OK
+\end_layout
+
+\begin_layout Standard
+7.
+ Page 26, In the storage associations yl(2) is associated with xc(1), xc(2)
+ and not xl(1), xl(2)
+\end_layout
+
+\begin_layout Standard
+yl(3) is associated with xc(3), xc(4) and not zl(1), zl(2)
+\end_layout
+
+\begin_layout Standard
+zl(3) is associated with xc(7), xc(8) and not z1c, which does not appear
+ in the common of the caller.
+\end_layout
+
+\begin_layout Standard
+zl(4) mght be associated with zx in the caller, but zx is not declared.
+\end_layout
+
+\begin_layout Standard
+In all probability the common block in the caller should have read: 'common
+ yc, xc, z1c, z2c'
+\end_layout
+
+\begin_layout Standard
+
+\color blue
+> Thank you for pointing out this mistake, I have corrected it
+\end_layout
+
+\begin_layout Standard
+By the way, it seems that here a convention is assumed in which variables
+ from the caller are suffixed with a 'c' while the
+\end_layout
+
+\begin_layout Standard
+corresponding variables in the callee are suffixed with an 'l'.
+ Later on this convention seems to be maintained in the
+\end_layout
+
+\begin_layout Standard
+subscripts of expressions, e.g., 'cseq_c' and 'cseq_l'.
+ It would be nice to mention such a convention explicitly and beforehand.
+\end_layout
+
+\begin_layout Standard
+
+\color blue
+> I have added the convention before the start of §4.6.1
+\end_layout
+
+\begin_layout Standard
+8.
+ Page 26, line 37: 'decl' should be italic.
+\end_layout
+
+\begin_layout Standard
+
+\color blue
+> OK
+\end_layout
+
+\begin_layout Standard
+9.
+ Page 27, Algorithm 7, - formulas (2) and (3) the subscript 'e' of idx_l,e
+ is not explained.
+\end_layout
+
+\begin_layout Standard
+
+\color blue
+XXX> 
+\end_layout
+
+\begin_layout Standard
+- the 
+\backslash
+dot operator is not defined.
+ Although one can assume that 'adding to the set' is meant, it should be
+ stated explicitly.
+\end_layout
+
+\begin_layout Standard
+
+\color blue
+XXX> 
+\end_layout
+
+\begin_layout Standard
+- I can not find the removal of members from cseq_l in the while loop.
+ So, in this form it should run indefinitely.
+\end_layout
+
+\begin_layout Standard
+
+\color blue
+XXX> 
+\end_layout
+
+\begin_layout Standard
+10.
+ In example 14, in function 't3 function f2(f)' the 'external f' statement
+ is missing.
+\end_layout
+
+\begin_layout Standard
+
+\color blue
+> OK
+\end_layout
+
+\begin_layout Standard
+What makes this paper less appealing is the formal approach in section 4.
+ For instance, the the definition of a pure function as given in subsection
+ 4.2 could be given in a few sentences and could be as unambiguous as the
+ formalism displayed in pages 7 and 8.
+ 
+\end_layout
+
+\begin_layout Standard
+
+\color blue
+> I have removed the notation from 4.2
+\end_layout
+
+\begin_layout Standard
+This superfluous use of set theoretical formalism is even more present in
+ subsections 4.4.1--4.4.8.
+ Virtually nothing in the content of these subsections is used in the following
+ sections, except in a very restricted form in at the end of Algorithm 11.
+ 
+\end_layout
+
+\begin_layout Standard
+
+\color blue
+> I have removed as much of the set theoretical notation as possible but
+ section 4 is the basis for the following sections as it established formally
+ which parts of Fortran are type safe.
+ 
+\end_layout
+
+\begin_layout Standard
+I can think of no excuse to lessen the readability of the paper by inserting
+ these superfluous parts that may discourage readers to continue to the
+ more practical sections of your paper.
+\end_layout
+
+\begin_layout Standard
+My recommendation is therefore to revise it in the sense that only the really
+ necessary notation is used and to introduce it properly before it is applied.
+\end_layout
+
+\end_body
+\end_document
