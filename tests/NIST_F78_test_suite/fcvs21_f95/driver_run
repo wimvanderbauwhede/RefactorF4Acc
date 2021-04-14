@@ -73,6 +73,7 @@ __EOT__
       ./a.out > "${result}"
     fi
 
+    cp a.out bin/${basename}
     rm -f a.out
   fi
 done

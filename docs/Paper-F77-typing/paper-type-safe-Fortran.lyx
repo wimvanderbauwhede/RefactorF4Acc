@@ -11044,5 +11044,183 @@ options "spmpsci"
 
 \end_layout
 
+\begin_layout Section*
+Semantics
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\begin{eqnarray*}
+ & \frac{\,}{n\,:\,Num}.\,\forall\,n\in\mathit{NumConstants} & {\scriptstyle [CONST]}
+\end{eqnarray*}
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\begin{eqnarray*}
+ & \frac{\,}{\Gamma\vdash s:\tau_{s}=Scalar\,t\,k} & {\scriptstyle [SCALAR]}
+\end{eqnarray*}
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\begin{eqnarray*}
+ & \frac{\,}{\Gamma\vdash a:\tau_{a}=Array\,(Scalar\,t_{a}\,k_{a})\ (Dim\,d)} & {\scriptstyle [ARRAY\,DECL]}
+\end{eqnarray*}
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\begin{eqnarray*}
+ & k=\#d\\
+ & \frac{\Gamma\vdash a:\tau_{a}\;\;\;\Gamma\vdash j_{i}:Integer,\forall\,i\in[1,k]}{\Gamma\vdash a(j_{1},...,j_{i},...,j_{k}):\tau_{s}=Scalar\,t_{a}\,k_{a}} & {\scriptstyle [ARRAY\,ACC]}
+\end{eqnarray*}
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\begin{eqnarray*}
+ & \frac{\,}{FortranType\cap\{void\}\,\mathbf{T_{k}}\Rightarrow sf:\mathbf{T_{k}}\rightarrow void} & {\scriptstyle [SUB\,DECL]}
+\end{eqnarray*}
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\begin{eqnarray*}
+ & \frac{FortranType\cap\{void\}\,\mathbf{T_{k}}\Rightarrow sf:\mathbf{T_{k}}\rightarrow void\;\;\;\Gamma\vdash\mathbf{e_{k}}:\mathbf{T_{k}}}{\Gamma\vdash\mathtt{call}\,sf\,e_{k}:void} & {\scriptstyle [SUB\,CALL]}
+\end{eqnarray*}
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\begin{eqnarray*}
+ & \frac{\,}{FortranType\,\mathbf{T_{k}},\tau_{f}\Rightarrow f:\mathbf{T_{k}}\rightarrow\tau_{f}} & {\scriptstyle [FUN\,DECL]}
+\end{eqnarray*}
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\begin{eqnarray*}
+ & \frac{FortranType\,\mathbf{T_{k},\tau_{f}}\Rightarrow f:\mathbf{T_{k}}\rightarrow\tau_{f}\;\;\;\Gamma\vdash\mathbf{e_{k}}:\mathbf{T_{k}}}{\Gamma\vdash f\,\mathbf{e_{k}}:\tau_{f}} & {\scriptstyle [FUN\,CALL]}
+\end{eqnarray*}
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\begin{eqnarray*}
+ & \frac{\Gamma\vdash v:\tau\;\;\;\Gamma(v_{i})\vdash e(v_{i}):\tau}{\Gamma\vdash v\leftarrow e:\,void} & {\scriptstyle [ASSIGN]}
+\end{eqnarray*}
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\begin{eqnarray*}
+ & binop\in\{+,-,*,/,**\}\\
+ & \frac{Num\,a\;\;\;\Gamma\vdash e_{1}:a\;\;\;\Gamma\vdash e_{2}:a\;\;\;binop:a\rightarrow a\rightarrow a}{\Gamma\vdash binop\;e_{1}e_{2}:\,a} & {\scriptstyle [EXPR]}
+\end{eqnarray*}
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\begin{eqnarray*}
+ & \frac{\begin{array}{ccc}
+ & op\in\{+,-,*,/,**\}\\
+ & Num\,\tau_{1},\tau_{2}\\
+ & \tau_{1}<:\tau_{2}\\
+\Gamma\vdash e_{1}:\tau_{1} & \Gamma\vdash e_{2}:\tau_{2} & op:Num\,a\Rightarrow a\rightarrow a\rightarrow a
+\end{array}}{\Gamma\vdash op\;cast\langle\tau_{2}\rangle\,e_{1}\;e_{2}:\tau_{2}} & {\scriptstyle [BINOP]}
+\end{eqnarray*}
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\begin{eqnarray*}
+ & \frac{\begin{array}{ccc}
+ & relop\in\{<,\le,=,\neq,>,\ge\}\\
+ & Num\,\tau_{1},\tau_{2}\\
+ & \tau_{1}<:\tau_{2}\\
+\Gamma\vdash e_{1}:\tau_{1} & \Gamma\vdash e_{2}:\tau_{2} & relop:Num\,a\Rightarrow a\rightarrow a\rightarrow Bool
+\end{array}}{\Gamma\vdash relop\;cast\langle\tau_{2}\rangle\,e_{1}\;e_{2}:Bool} & {\scriptstyle [RELOP]}
+\end{eqnarray*}
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Quote
+\begin_inset Formula 
+\begin{eqnarray*}
+ & \frac{\begin{array}{ccc}
+ & Num\,\tau_{1},\tau_{2}\\
+ & \tau_{2}<:\tau_{1}\\
+\Gamma\vdash v:\tau_{1} & \Gamma(x_{i})\vdash e(x_{i}):\tau_{2}
+\end{array}}{\Gamma\vdash v\leftarrow cast\langle\tau_{1}\rangle\,e:void} & \mathrm{{\scriptstyle [ASSIGN\,SAFE\,CONV]}}
+\end{eqnarray*}
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\begin{eqnarray*}
+ & \frac{\begin{array}{ccc}
+ & Num\,\tau_{1},\tau_{2}\\
+ & \tau_{1}<:\tau_{2}\\
+\Gamma\vdash v:\tau_{1} & \Gamma(x_{i})\vdash e(x_{i}):\tau_{2}
+\end{array}}{\Gamma\vdash v\leftarrow cast\langle\tau_{1}\rangle\,e:void} & {\scriptstyle [\mathrm{ASSIGN\,UNSAFE\,CONV}]}
+\end{eqnarray*}
+
+\end_inset
+
+
+\end_layout
+
 \end_body
 \end_document

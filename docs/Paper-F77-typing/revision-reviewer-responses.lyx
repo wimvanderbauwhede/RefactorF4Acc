@@ -96,7 +96,7 @@ In the contribution the author is referring to ordinary Fortran complier,
 \begin_layout Standard
 
 \color blue
-XXX> I have added the compilers used and their versions in §4.3 
+> I have added the compilers used and their versions in §3 
 \end_layout
 
 \begin_layout Standard
@@ -107,7 +107,7 @@ At the end of section 4.3 a summary of the entire section can be given in
 \begin_layout Standard
 
 \color blue
-XXX> We have added such a summary 
+> The final three lines of §4.3 are in fact the summary
 \end_layout
 
 \begin_layout Standard
@@ -118,7 +118,7 @@ The complexity of the algorithms discussed for converting the given program
 \begin_layout Standard
 
 \color blue
-XXX> 
+> I have added the complexity of all algorithms
 \end_layout
 
 \begin_layout Standard
@@ -129,11 +129,10 @@ The overhead incurred to convert a Fortran 77 to Fortran 90 and to ensure
 \begin_layout Standard
 
 \color blue
-XXX> We have added a discussion of this in §XXX.
+> We have added a discussion of this with the algorithms for run-time checking.
  Essentially, there is no performance overhead after conversion from Fortran
  77 to Fortran 90; the run-time type checks introduce the overhead of an
- if-condition to be checked.
- I have added a discussion of this in the Appendices that detail the checks.
+ if-condition to be checked, but in practice this is negligible.
 \end_layout
 
 \begin_layout Standard
@@ -181,9 +180,8 @@ Although the paper is very interesting, I think it needs to be shortened
 \begin_layout Standard
 
 \color blue
-> I have moved most of the formal notation to Appendices.
- If the editor desires the paper to be shortened, we propose to remove the
- Appendices.
+> I have moved most of the formal notation to Appendices, this has made
+ the paper both shorter and more readable.
 \end_layout
 
 \begin_layout Standard
@@ -193,7 +191,7 @@ Also, the list of references does not seem to be complete nor adequate.
 \begin_layout Standard
 
 \color blue
-XXX> 
+> I have added five more references
 \end_layout
 
 \begin_layout Standard
@@ -226,17 +224,17 @@ In my analysis, I noted the following points below which made me decline
 \begin_layout Standard
 
 \color blue
-XXX> I am sorry that the reviewer misunderstood: the paper is not a guide
- for migration from Fortran77 to Fortran90.
+> I am sorry that the reviewer misunderstood: the paper is not a guide for
+ migration from Fortran77 to Fortran90.
  As stated in the abstract, the paper presents an analysis of the type safety
  of FORTRAN 77 and the novel program transformation and type checking algorithms
  required to convert FORTRAN 77 subroutines and functions into pure, side-effect
  free subroutines and functions in Fortran 90.
  The migration to Fortran 90 is required to support the features needed
  for type safety, but not the goal in itself.
- I have clarified this in
+ I have clarified this in §3
 \color inherit
- XXX
+.
 \end_layout
 
 \begin_layout Standard
@@ -246,8 +244,8 @@ XXX> I am sorry that the reviewer misunderstood: the paper is not a guide
 \begin_layout Standard
 
 \color blue
-XXX> I have added a sentence to the abstract to make clear that the objective
- is to reduce errors by increasing type safety.
+> I have added a sentence to the abstract to make clear that the objective
+ is to reduce errors by increasing type safety
 \end_layout
 
 \begin_layout Standard
@@ -258,7 +256,8 @@ XXX> I have added a sentence to the abstract to make clear that the objective
 \begin_layout Standard
 
 \color blue
-XXX> I have added a list of the programs on which the approach was verified.
+> I have added a list of the programs on which the approach was verified
+ in §3
 \end_layout
 
 \begin_layout Subsection*
@@ -443,7 +442,7 @@ subscripts of expressions, e.g., 'cseq_c' and 'cseq_l'.
 \begin_layout Standard
 
 \color blue
-XXX> 
+> I've added an explanation
 \end_layout
 
 \begin_layout Standard
@@ -457,7 +456,7 @@ dot operator is not defined.
 \begin_layout Standard
 
 \color blue
-XXX> 
+> I've added the definition
 \end_layout
 
 \begin_layout Standard
@@ -468,7 +467,7 @@ XXX>
 \begin_layout Standard
 
 \color blue
-XXX> 
+> I have added the removal of the members form cseq_l and cseq_r
 \end_layout
 
 \begin_layout Standard

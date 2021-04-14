@@ -82,7 +82,7 @@ __EOT__
     else
       ./a.out > "${result}"
     fi
-
+    cp a.out bin/$basename
     rm -f a.out
   fi
 done

@@ -75,7 +75,7 @@
 \math_numbering_side default
 \quotes_style british
 \dynamic_quotes 0
-\papercolumns 1
+\papercolumns 2
 \papersides 1
 \paperpagestyle default
 \tracking_changes false
@@ -198,7 +198,7 @@ status open
 \align center
 \begin_inset Graphics
 	filename Figs/Archer-usage.jpg
-	width 71text%
+	width 71col%
 
 \end_inset
 
@@ -282,7 +282,7 @@ status open
 \align center
 \begin_inset Graphics
 	filename Figs/fortran-versions-popularity-2019.pdf
-	width 71text%
+	width 71col%
 
 \end_inset
 
@@ -1646,10 +1646,10 @@ status open
 \align center
 \begin_inset Tabular
 <lyxtabular version="3" rows="8" columns="3">
-<features tabularvalignment="middle">
-<column alignment="center" valignment="top">
-<column alignment="center" valignment="top">
-<column alignment="center" valignment="top">
+<features tabularvalignment="middle" tabularwidth="100col%">
+<column alignment="center" valignment="top" width="20col%">
+<column alignment="center" valignment="top" width="30col%">
+<column alignment="center" valignment="top" width="30col%">
 <row>
 <cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" usebox="none">
 \begin_inset Text
@@ -5897,7 +5897,7 @@ updateDim
 \begin_inset Formula $idx_{l|c,e}$
 \end_inset
 
-indicates the end of the common block sequence; 1 is the start of the sequence.
+ indicates the end of the common block sequence; 1 is the start of the sequence.
  The 
 \family roman
 \series medium
@@ -5929,7 +5929,7 @@ status open
 
 
 \backslash
-begin{algorithm}
+begin{algorithm*}
 \end_layout
 
 \end_inset
@@ -6127,7 +6127,7 @@ textsf{COMMON} block variables in a subroutine call}
 
 
 \backslash
-end{algorithm}
+end{algorithm*}
 \end_layout
 
 \end_inset
@@ -7659,7 +7659,7 @@ RestyleAlgo{tworuled}
 
 
 \backslash
-begin{algorithm}[H]
+begin{algorithm}[h]
 \end_layout
 
 \end_inset
@@ -7969,7 +7969,8 @@ Thus the overall type check rule becomes:
 \begin_layout Standard
 \begin_inset Formula 
 \begin{eqnarray*}
- & \mbox{rule-kind\land}\mbox{rule-size\land}\left(\mbox{rule-logical}\lor\mbox{rule-complex}\lor\mbox{rule-default}\right)
+ & \mbox{rule-kind\land}\mbox{rule-size\land}\\
+ & \left(\mbox{rule-logical}\lor\mbox{rule-complex}\lor\mbox{rule-default}\right)
 \end{eqnarray*}
 
 \end_inset
@@ -8120,6 +8121,7 @@ name "alg:The-FORTRAN-77"
 \end_layout
 
 \begin_layout Definition
+\noindent
 Type = 
 \begin_inset Formula $\left\{ Integer,Real,Complex,Logical\right\} $
 \end_inset
@@ -8128,6 +8130,7 @@ Type =
 \end_layout
 
 \begin_layout Definition
+\noindent
 NumType = 
 \begin_inset Formula $\left\{ Integer,Real,Complex\right\} $
 \end_inset
@@ -8136,6 +8139,7 @@ NumType =
 \end_layout
 
 \begin_layout Definition
+\noindent
 Kind = 
 \begin_inset Formula $\left\{ 2^{n}|\;n\in[0,5]\right\} $
 \end_inset
@@ -8144,6 +8148,7 @@ Kind =
 \end_layout
 
 \begin_layout Definition
+\noindent
 Scalar = 
 \begin_inset Formula $\left\{ Type\times Kind\right\} $
 \end_inset
@@ -8158,6 +8163,7 @@ t*k
 \end_layout
 
 \begin_layout Definition
+\noindent
 Num = 
 \begin_inset Formula $\left\{ NumType\times Kind\right\} $
 \end_inset
@@ -8168,6 +8174,7 @@ Num a
 \end_layout
 
 \begin_layout Definition
+\noindent
 Bool = 
 \begin_inset Formula $\left\{ Logical\times Kind\right\} $
 \end_inset
@@ -8178,16 +8185,27 @@ Bool
 \end_layout
 
 \begin_layout Definition
+\noindent
 Dim =
+\end_layout
+
+\begin_layout Definition
+\noindent
 \begin_inset Formula $\left\{ ((b_{i},e_{i}),...,(b_{i},e_{i}),...,(b_{k},e_{k})),\forall k,i\in\,[1,7],b_{i},e_{i}\in\mathbb{Z},b_{i}\le e_{i}\right\} $
 \end_inset
 
-, so Dim is a set of ordered sets of tuples, we denote an element as 
+, 
+\end_layout
+
+\begin_layout Definition
+\noindent
+so Dim is a set of ordered sets of tuples, we denote an element as 
 \emph on
 Dim d
 \end_layout
 
 \begin_layout Definition
+\noindent
 Array = 
 \begin_inset Formula $\left\{ Scalar\times Dim\right\} $
 \end_inset
@@ -8198,6 +8216,7 @@ Array (Scalar t k) (Dim d)
 \end_layout
 
 \begin_layout Definition
+\noindent
 FortranType = 
 \begin_inset Formula $Scalar\cap Array$
 \end_inset
@@ -8206,6 +8225,7 @@ FortranType =
 \end_layout
 
 \begin_layout Definition
+\noindent
 Tuple = (
 \begin_inset Formula $\tau_{1}\times...\times\tau_{i}\times...\times\tau_{k}),\,\forall\,i\,\in[1,k]\,|\,\tau_{i}\in\mathit{FortranType}$
 \end_inset
@@ -8682,7 +8702,14 @@ else
 \begin_inset space ~
 \end_inset
 
-print *, 'Type error: s and a(2,1:i:5) have a different SIZE'
+print *, 'Type error: s and a(2,1:i:5) &
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+\size small
+have a different SIZE'
 \end_layout
 
 \begin_layout Example
@@ -8848,7 +8875,14 @@ else
 \begin_inset space ~
 \end_inset
 
-print *, 'Type error: b and a(2,k(3:i)) have a different SIZE'
+print *, 'Type error: b and a(2,k(3:i)) &
+\end_layout
+
+\begin_layout Example
+
+\family typewriter
+\size small
+have a different SIZE'
 \end_layout
 
 \begin_layout Example
