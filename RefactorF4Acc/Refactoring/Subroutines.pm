@@ -223,8 +223,14 @@ sub _fix_end_lines {
 				$info->{'EndBlockData'} = 1;
 			}			 
 			my $indent = $info->{'Indent'} // '      ';
-			# say Dumper $info;
 			my $end_sub_line = $indent.'end '.$sub_or_prog.' '.$info->{'End'.ucfirst($sub_or_prog)}{'Name'};
+			if (exists $info->{'Label'} ) {
+				my $label = $info->{'Label'};
+				if ( exists $Sf->{'ReferencedLabels'}{$label} ) {				
+					$end_sub_line = $indent.$label.' end '.$sub_or_prog.' '.$info->{'End'.ucfirst($sub_or_prog)}{'Name'};
+				}
+		 	}
+
 			push @{$rlines}, [$end_sub_line,$info];
 			$done_fix_end = 1;
 			last;

@@ -924,7 +924,7 @@ http://www.itl.nist.gov/div897/ctg/fortran_form.htm
 
  which aims to validate adherence to the ANSI X3.9-1978 (FORTRAN 77) standard.
  Furthermore, we tested the compiler on a simple 2-D shallow water model
- from 
+ and a simple Coriolis force model from 
 \begin_inset CommandInset citation
 LatexCommand cite
 key "kampf2009ocean"
@@ -932,7 +932,36 @@ literal "false"
 
 \end_inset
 
- (188 loc) and on the Large Eddy Simulator for Urban Flows
+, on the NASA Chemical Equilibrium with Applications program
+\begin_inset Foot
+status open
+
+\begin_layout Plain Layout
+\begin_inset Flex URL
+status open
+
+\begin_layout Plain Layout
+
+https://www1.grc.nasa.gov/research-and-engineering/ceaweb/
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\end_inset
+
+, used to calculate e.g.
+ theoretical rocket performance
+\begin_inset CommandInset citation
+LatexCommand cite
+key "gordon1994computer"
+literal "false"
+
+\end_inset
+
+ and on the Large Eddy Simulator for Urban Flows
 \begin_inset Foot
 status open
 
@@ -952,7 +981,7 @@ https://github.com/wimvanderbauwhede/LES
 
 \end_inset
 
- a high-resolution turbulent flow model 
+, a high-resolution turbulent flow model 
 \begin_inset CommandInset citation
 LatexCommand cite
 key "takemi2020large"
@@ -960,7 +989,7 @@ literal "false"
 
 \end_inset
 
- (1391 loc).
+.
 \end_layout
 
 \begin_layout Section

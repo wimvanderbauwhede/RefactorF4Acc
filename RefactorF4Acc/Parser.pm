@@ -333,13 +333,17 @@ sub analyse_lines {
 				
 			#= SUBROUTINE FUNCTION PROGRAM
 			# Procedure block identification				
-			$line =~ /^(\w+\s+\w+\s+(?:function|subroutine)|\w+\s+subroutine|[\*\(\)\w]+\s+function|function|subroutine|program|module|block)\s+(\w+)/ && do {				
+			($line =~ /^(\w+\s+\w+\s+(?:function|subroutine)|\w+\s+subroutine|[\*\(\)\w]+\s+function|function|subroutine|program|module|block)\s+(\w+)/ 
+			or $line =~ /^(blockdata)/
+			) && do {				
 				my $full_proc_type=$1;
 				my $proc_name=$2;
 #				say "PROC NAME in $f: $proc_name" if $f ne $proc_name;			
 				my $proc_type = $full_proc_type=~/program/ ? 'program' : 
 					$full_proc_type=~/subroutine/ ? 'subroutine' : 
-					($full_proc_type eq 'block' and $proc_name eq 'data') ? 'block data' : 
+					($full_proc_type eq 'block' and $proc_name eq 'data'
+					or $full_proc_type eq 'blockdata'
+					) ? 'block data' : 
 					'function';
 				if ($proc_type eq 'block data') {
 					$full_proc_type = 'block data';
@@ -1021,6 +1025,9 @@ or $line=~/^character\s*\(\s*len\s*=\s*[\w\*]+\s*\)/
 				$line =~ /^end\s+(subroutine|module|function|block\s*data)\s*(\w+)/ 
 				) {
 				my $kw   = $1;
+				if ($kw eq 'block data') {
+					$kw='subroutine';
+				}
 				my $name = $2;
 				$info->{ 'End' . ucfirst($kw) } = { 'Name' => $name };
 			}
@@ -1028,10 +1035,16 @@ or $line=~/^character\s*\(\s*len\s*=\s*[\w\*]+\s*\)/
 				$line =~ /^end/ 
 				) {
 				# my $kw   = $1;
+                
 				my $kw = $info->{'Block'}{'Type'};
+				if ($kw eq 'block data') {
+					$kw='subroutine';
+				}
+
 				my $name = $info->{'Block'}{'Name'};
 				$line = "end $kw $name";
 				$info->{ 'End' . ucfirst($kw) } = { 'Name' => $name };				
+				# die $f,$line, Dumper $info;
 			}
 #== DO statement			
 #Do =>
