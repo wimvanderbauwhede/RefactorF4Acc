@@ -75,6 +75,85 @@
 
 \begin_body
 
+\begin_layout Standard
+\align right
+15 April 2021
+\end_layout
+
+\begin_layout Standard
+Re: SUPE-D-20-01593 
+\begin_inset Quotes eld
+\end_inset
+
+Making Legacy Fortran Code Type Safe through Automated Program Transformation
+\begin_inset Quotes erd
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset space ~
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+Dear Editor,
+\end_layout
+
+\begin_layout Standard
+\begin_inset space ~
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+Below are the reviewers' comments with my responses.
+\end_layout
+
+\begin_layout Standard
+\begin_inset space ~
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+Kind regards,
+\end_layout
+
+\begin_layout Standard
+\begin_inset space ~
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+Wim Vanderbauwhede
+\end_layout
+
+\begin_layout Standard
+\begin_inset space ~
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset space ~
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+———
+\end_layout
+
 \begin_layout Subsection*
 Reviewer #1:
 \end_layout
@@ -521,6 +600,13 @@ I can think of no excuse to lessen the readability of the paper by inserting
 \begin_layout Standard
 My recommendation is therefore to revise it in the sense that only the really
  necessary notation is used and to introduce it properly before it is applied.
+\end_layout
+
+\begin_layout Standard
+
+\color blue
+> The reviewer's suggestion has been very helpful.
+ The readability of the paper has much improved by following them.
 \end_layout
 
 \end_body
