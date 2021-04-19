@@ -35,12 +35,12 @@ use Storable qw( dclone );
 
 use Carp;
 use Data::Dumper;
-use Storable qw( dclone );
 
 use Exporter;
 
 @RefactorF4Acc::ExpressionAST::Evaluate::ISA = qw(Exporter);
 
+# eval_expression_with_parameters :: ExprString -> Val
 # eval_expression_with_parameters: parse the expression string, substitute all params by their values (recursively) and compute the final expression value
 # 	replace_param_by_val: part of eval_expression_with_parameters, it changes the parameters by their values in the AST.
 # 		replace_consts_in_ast: part of replace_param_by_val; this returns an AST where all params are replaced by their value expressions
@@ -51,9 +51,10 @@ use Exporter;
 
 
 @RefactorF4Acc::ExpressionAST::Evaluate::EXPORT_OK = qw(
-&eval_expression_with_parameters
+&eval_expression_with_parameters 
 &replace_param_by_val
 &replace_consts_in_ast
+&fold_constants_in_expr
 );
 
 
@@ -70,7 +71,7 @@ sub replace_consts_in_ast { (my $stref, my $f, my $block_id, my $ast, my $state,
 			my $entry = $ast->[$idx];
 
 			if (ref($entry) eq 'ARRAY') {
-				(my $entry2, $state, my $retval2) = replace_consts_in_ast($stref,$f, $block_id,$entry, $state,$const);
+				(my $entry2, my $retval2) = replace_consts_in_ast($stref,$f, $block_id,$entry, $state,$const);
 				$retval+=$retval2;
 				# say "ARRAY ".Dumper($entry2). " RETVAL $retval";
 				$ast->[$idx] = $entry2;
@@ -78,10 +79,10 @@ sub replace_consts_in_ast { (my $stref, my $f, my $block_id, my $ast, my $state,
 				if ($idx==0 and (($entry & 0xFF) == 2)) { #eq '$'
 					my $mvar = $ast->[$idx+1];
 					# say "MVAR: $mvar in $f";
-					if (exists $state->{'Subroutines'}{ $f }{'Blocks'}{$block_id}{'LoopIters'}{ $mvar }) { 
+					if (exists $state->{$block_id}{'LoopIters'}{ $mvar }) { 
 						$ast=''.$const.'';
 						# say "MVAR $mvar RETURN $ast";
-						return ($ast,$state,1);
+						return ($ast,1);
 					} elsif (in_nested_set($stref->{'Subroutines'}{$f},'Parameters',$mvar)) {
 						my $param_set = in_nested_set($stref->{'Subroutines'}{$f},'Parameters',$mvar);
 						
@@ -91,13 +92,13 @@ sub replace_consts_in_ast { (my $stref, my $f, my $block_id, my $ast, my $state,
 		  				my $val = $decl->{'Val'};
 		  				# carp( "MVAR $mvar MVAL: $val");	
 		  				$ast = parse_expression($val, {},$stref,$f);
-		  				return ($ast,$state,1);
+		  				return ($ast,1);
 					} elsif (in_nested_set($stref->{'Subroutines'}{$f},'Args',$mvar)) {
 						# carp "VAR $mvar is an arg, not a parameter. Trying to eval anyway ... ";
 						# if ( scalar keys %{$stref->{'Subroutines'}{$f}{'Callers'} }==1) {
 							my $maybe_evaled_ast = _try_to_eval_arg($stref, $f, $mvar);
 						# } 
-						return ($maybe_evaled_ast,$state,1);
+						return ($maybe_evaled_ast,1);
 					} else {
 						my $var_set = in_nested_set($stref->{'Subroutines'}{$f},'Vars',$mvar);	
 						if ($var_set) {
@@ -105,10 +106,10 @@ sub replace_consts_in_ast { (my $stref, my $f, my $block_id, my $ast, my $state,
 							# So now we must find a line with an assignment to this var and do it again
  							my $eval_res = _try_to_eval_via_vars($stref, $f, $mvar);
 							 croak Dumper($eval_res) if $DBG;
-							return($eval_res,$state,1)	
+							return($eval_res,1)	
 						} else {
 							croak "Cannot replace $mvar, no parameter or var record found in $f" if $DBG;
-							return ($ast, $state,0);
+							return ($ast,0);
 						}						
 					}
 				}
@@ -119,11 +120,13 @@ sub replace_consts_in_ast { (my $stref, my $f, my $block_id, my $ast, my $state,
 	# 	say "NOT AN ARRAY: ".Dumper($ast);
 	# }# else it must be a constant or what?
 	# say "WHY? RETVAL $retval ";
-	return  ($ast, $state, $retval);
+	return  ($ast, $retval);
 } # END of replace_consts_in_ast()
 
 
 # Constant folding
+# replace_param_by_val ::  StRef -> SubName -> BlockID -> AST -> State -> AST
+# State = {}
 sub replace_param_by_val { (my $stref, my $f, my $block_id, my $ast, my $state)=@_;
   		# - see if $val contains vars
   		my $vars=get_vars_from_expression($ast,{}) ;
@@ -131,7 +134,7 @@ sub replace_param_by_val { (my $stref, my $f, my $block_id, my $ast, my $state)=
   		while (
   		scalar keys %{$vars} > 0
   		) {
-			($ast, $state, my $retval) = replace_consts_in_ast($stref, $f, $block_id, $ast, $state, 0);			
+			($ast, my $retval) = replace_consts_in_ast($stref, $f, $block_id, $ast, $state, 0);			
 			last if $retval == 0;
 			# - check if the result is var-free, else repeat
 			$vars=get_vars_from_expression($ast,{}) ;
@@ -141,6 +144,22 @@ sub replace_param_by_val { (my $stref, my $f, my $block_id, my $ast, my $state)=
 	return $ast;
 } # END of replace_param_by_val()
 
+sub fold_constants_in_expr { (my $stref, my $f, my $block_id, my $ast)=@_;
+  		# - see if $val contains vars
+  		my $vars=get_vars_from_expression($ast,{}) ;
+  		# - if so, substitute them using replace_consts_in_ast
+  		while (
+  		scalar keys %{$vars} > 0
+  		) {
+			($ast, my $retval) = replace_consts_in_ast($stref, $f, $block_id, $ast, $stref->{'Subroutines'}{ $f }{'ArrayAccesses'}, 0);			
+			last if $retval == 0;
+			# - check if the result is var-free, else repeat
+			$vars=get_vars_from_expression($ast,{}) ;
+			# say Dumper($vars);
+  		}
+  		# - return to be eval'ed
+	return $ast;
+} # END of fold_constants_in_expr()
 
 
 sub eval_expression_with_parameters { (my $expr_str,my $info, my $stref, my $f) = @_;

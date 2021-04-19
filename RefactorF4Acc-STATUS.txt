@@ -41,6 +41,30 @@ TO RELEASE
   $ git push --delete origin v2.1.0
   $ git push origin v2.1.0
 
+STATUS 2021-04-18
+
+I would like to emit PURE and ELEMENTAL. I already have $Sf->{Pure}::Bool, adding $Sf->{Elemental}::Bool in Inventory is trivial
+The check for Pure is simple: after refactoring, if there is no IO, it's pure.
+The check for Elemental is in addition that all args should be Scalar
+
+In Analysis/Variables.pm I have an enumeration of all IO calls, what I need is $Sf->{NoIO}::Bool and maybe $info->{'IOCall'}, which I have but: these are the statements tagged as IOCall
+
+Write
+Print
+Read
+Inquire
+			
+Open
+Close
+Rewind
+
+*Accept
+*Type
+
+Backspace
+Endfile
+Format
+
 STATUS 2020-12-17
 
 Now the inline_recursive_multi test compiles but the results are incorrect. Presumably because it shares variables across invocations?

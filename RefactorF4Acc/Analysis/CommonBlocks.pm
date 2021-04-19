@@ -1,3 +1,4 @@
+# Analysis of COMMON blocks
 package RefactorF4Acc::Analysis::CommonBlocks;
 #
 #   (c) 2010-now Wim Vanderbauwhede <Wim.Vanderbauwhede@Glasgow.ac.uk>

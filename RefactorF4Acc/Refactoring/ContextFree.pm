@@ -2,7 +2,7 @@ package RefactorF4Acc::Refactoring::ContextFree;
 use v5.10;
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
-use RefactorF4Acc::Refactoring::Helpers qw( %f95ops get_annotated_sourcelines emit_f95_var_decl format_f95_par_decl);
+use RefactorF4Acc::Refactoring::Helpers qw( %f95ops get_annotated_sourcelines emit_f95_var_decl emit_f95_parsed_var_decl format_f95_par_decl);
 #
 #   (c) 2010-2017 Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
 #
@@ -258,8 +258,9 @@ if ( not exists $info->{'Inlined'} ) {
                     	$line = emit_f95_var_decl($var_decl);
                     	push @{$info->{'Ann'}}, annotate($f, __LINE__ .': Dimension, '.($stmt_count == 1 ? '' : 'SKIP'));
                     }
-                } else {                    
-                    $line = _emit_f95_parsed_var_decl($pvd);
+                } else {
+
+                    $line = emit_f95_parsed_var_decl($pvd);
                     push @{$info->{'Ann'}}, annotate($f, __LINE__ .': ParsedVarDecl, '.($stmt_count == 1 ? '' : 'SKIP'));                    
                 }
             } else { 

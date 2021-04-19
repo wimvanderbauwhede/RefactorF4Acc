@@ -1,3 +1,5 @@
+# Refactoring of COMMON blocks
+
 package RefactorF4Acc::Refactoring::Common;
 #
 #   (c) 2010-2017 Wim Vanderbauwhede <wim@dcs.gla.ac.uk>

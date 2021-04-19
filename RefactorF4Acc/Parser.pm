@@ -1,7 +1,11 @@
+# F77 parser
 package RefactorF4Acc::Parser;
 # 
 #   (c) 2010-now Wim Vanderbauwhede <Wim.Vanderbauwhede@Glasgow.ac.uk>
 #   
+
+use vars qw( $VERSION );
+$VERSION = "2.1.1";
 
 #use warnings::unused;
 use warnings;
@@ -41,8 +45,6 @@ use Fortran::ConstructParser qw(
   parse_Fortran_open_call
 );  
 
-use vars qw( $VERSION );
-$VERSION = "2.1.1";
 
 use Carp;
 use Data::Dumper;
@@ -795,6 +797,7 @@ SUBROUTINE
 #== FORMAT		 
 		elsif ( $line =~/^format/) {
 			$info->{'Format'}=1;
+			$info->{'IOCall'}{'Args'} = { 'Set' => {}, 'List' => [ ] };
 			$prev_stmt_was_spec=0;
 		}
 #== SAVE
@@ -1320,6 +1323,7 @@ END IF
 					$mline=~s/\s+$//;
 					my $ast = parse_Fortran_open_call($mline);										
 					$info->{'Ast'} = $ast;
+					$info->{'IOCall'}{'Args'} = { 'Set' => {}, 'List' => [ ] };
 					if ( exists $ast->{'FileName'} ) {						
 						if ( exists $ast->{'FileName'}{'Var'} and $ast->{'FileName'}{'Var'} !~ /__PH/ ) {						
 							$info->{'FileNameVar'} =
@@ -1379,6 +1383,7 @@ END IF
 				my $keyword = $1;
 				$info->{ ucfirst($keyword) } = 1;
 				$info->{'IO'}=1;
+				$info->{'IOCall'}{'Args'} = { 'Set' => {}, 'List' => [ ] };
 				warn uc($keyword)." is ignored!" if $DBG;
 				warning(uc($keyword)." is ignored",3); 
 #== RETURN, STOP and PAUSE statements		
@@ -2663,11 +2668,16 @@ sub __parse_f95_decl {
 		if (    not exists $info->{'ParsedVarDecl'}
 			and not exists $info->{'VarDecl'} )
 		{
+			# Halos pragma
+			# The format is $RF4A Halos (ilh,ihh),(jlh,jhh),(klh,khh)
+			# $decl->{'Halos'} = [[ilh,ihh],[jlh,jhh],[klh,khh]];
             my $halos=[];
             my $has_halo_attr=0;
             if (exists $info->{'TrailingComment'} and $info->{'TrailingComment'}=~/\$(?:ACC|RF4A)\s+[Hh]alos\s*\(+(.+?)\s*\)+\s*$/) {
                     my $halo_str=$1;
+					# split on ),(
                     my @halo_chunks=split(/\s*\)\s*,\s*\(\s*/,$halo_str);
+					# split on ,
                     @{$halos} = map { [ split(/\s*,\s*/,$_) ] } @halo_chunks;
                     $has_halo_attr=1;
                     
@@ -3812,6 +3822,7 @@ sub _parse_assignment {
 
 	# WV 2019-04-24 seems to me I could use get_vars_from_expression() as the LHS is either a scalar or an array access
 	# That returns a href and we can just turn that into a list as usual
+    # WV 2021-04-18 LHS can also an array without index 
 	
     my $lhs_vars = get_vars_from_expression($lhs_ast);
     (my $lhs_varname, my $lhs_var_attrs)  =  each %{ $lhs_vars } ;
@@ -3850,7 +3861,7 @@ sub _parse_assignment {
 
 	#{Lhs => {VarName, ArrayOrScalar, IndexExpr}, Rhs => {Expr, VarList}}
 	if ( defined  $lhs_varname and defined $lhs_var_attrs) {
-
+# check here if the var is declared as array!
 		$info->{'Lhs'} = {
 			'VarName'       => $lhs_varname,
 			'IndexVars'     => $lhs_index_vars,
@@ -3864,7 +3875,7 @@ sub _parse_assignment {
 			'ExpressionAST' => $lhs_ast
 		};
 	}
-
+# Here also, check if any of these vars has been declared as array
 	$info->{'Rhs'} = {
 		'VarList'       => $rhs_all_vars,
 		'ExpressionAST' => $rhs_ast

@@ -659,10 +659,13 @@ sub _split_multivar_decls {
                     $rinfo{'LineID'} = $nextLineID++;
                     my $subset    = in_nested_set($Sf, 'Vars', $var);
                     my $orig_decl = $Sf->{$subset}{'Set'}{$var};
-                    $rinfo{'VarDecl'} = {'Name' => $var}, my $rline = $line;
+                    $rinfo{'VarDecl'} = {'Name' => $var};
+                    $rinfo{'ParsedVarDecl'}{'Vars'} =[$var] ;
+                    my $rline = $line;
                     $Sf->{$subset}{'Set'}{$var}{'Name'} = $var;
                     if (scalar @{$info->{'VarDecl'}{'Names'}} > 1) {
                         for my $nvar (@nvars) {
+                            
                             if ($nvar ne $var) {
 
                                 # FIXME: This should use \b not \W !!!
@@ -686,8 +689,7 @@ sub _split_multivar_decls {
                                 }
                             }
                         }
-                    }
-
+                    }                    
                     push @{$new_annlines}, [$rline, {%rinfo}];
                 }    # for each $var
             }
@@ -697,6 +699,7 @@ sub _split_multivar_decls {
         }
         $Sf->{'AnnLines'} = $new_annlines;
     }
+    
     return $stref;
 }    # END of _split_multivar_decls
 

@@ -38,6 +38,7 @@ dim_to_str
 
 sub calculate_array_size {
 	my ( $stref, $f, $dim ) = @_;
+	# warn Dumper $f, $dim;
 	my @sz_strs = ();
 	for my $entry ( @{$dim} ) {
 		my $sz_str = '((' . $entry->[1] . ') - (' . $entry->[0] . ')+1)';
@@ -45,23 +46,25 @@ sub calculate_array_size {
 	}
 	my $tot_sz_str = join( '*', @sz_strs );
 	# $tot_sz_str=~s/\-/ - /g;
-	# say $tot_sz_str;
+	# warn $tot_sz_str;
 	my $size = 0;
 	my $not_const = '';
 	# If there are unresolved vars, we return 0
-	if ($tot_sz_str!~/[a-z]/){
+	# if ($tot_sz_str!~/[a-z]/){
 		$size = eval_expression_with_parameters( $tot_sz_str, {}, $stref, $f );
-	} else {
-		# the size string is not constant, can't evaluate
-		$not_const=$tot_sz_str;
-		$not_const=~s/\s+//g;
-		$not_const=~s/\((\w+)\)/$1/g;
-		$not_const=~s/\-(\d)\+$1//g;
-		$not_const=~s/[\-\+]0//g;
-		$not_const=~s/\((\w+)\)/$1/g;
-		$not_const=~s/\*1//g;
-		$not_const=~s/^\(+([^\(\)]+?)\)+$/$1/;
-	}
+		# warn $size;
+	# } else {
+	# 	# the size string is not constant, can't evaluate
+	# 	$not_const=$tot_sz_str;
+	# 	$not_const=~s/\s+//g;
+	# 	$not_const=~s/\((\w+)\)/$1/g if $not_const=~/\(\w+\)/;
+	# 	$not_const=~s/\-(\d+)\+$1//g if $not_const=~/\-\d+\+/;
+	# 	$not_const=~s/[\-\+]0//g;
+	# 	$not_const=~s/\((\w+)\)/$1/g if $not_const=~/\(\w+\)/;
+	# 	$not_const=~s/\*1//g;
+	# 	$not_const=~s/^\(+([^\(\)]+?)\)+$/$1/ if $not_const=~/^\(+([^\(\)]+?)\)+$/;
+	# 	die $not_const;
+	# }
 	return ($size, $not_const);
 }    # END of calculate_array_size
 

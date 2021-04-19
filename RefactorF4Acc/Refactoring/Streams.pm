@@ -1,3 +1,4 @@
+# Rename array accesses to scalars to transform loops into streams
 package RefactorF4Acc::Refactoring::Streams;
 use v5.10;
 use RefactorF4Acc::Config;

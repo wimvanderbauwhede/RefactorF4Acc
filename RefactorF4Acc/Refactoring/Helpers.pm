@@ -30,6 +30,7 @@ use Exporter;
   &get_f95_par_decl
   &get_f95_var_decl
   &emit_f95_var_decl
+  &emit_f95_parsed_var_decl
   &splice_additional_lines
   &splice_additional_lines_cond
   &stateless_pass
@@ -925,7 +926,7 @@ sub stateful_pass_reverse {
 } # END of stateful_pass()
 
 
-sub _emit_f95_parsed_var_decl { (my $pvd) =@_;
+sub emit_f95_parsed_var_decl { (my $pvd) =@_;
     my $type= $pvd->{'TypeTup'}{'Type'} . (exists $pvd->{'TypeTup'}{'Kind'} ?  '( '.$pvd->{'TypeTup'}{'Kind'}.')' : '');
     
          my  @attrs=($type); 

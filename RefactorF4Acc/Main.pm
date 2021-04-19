@@ -177,7 +177,7 @@ sub main {
     # 2. Parser: Parse the source
     if ($V) {
         say "--------------". ('-' x length($code_unit_name)) ;
-        say "PARSE ALL for <$code_unit_name>";
+        say "PARSE ALL for $code_unit_name";
         say "--------------". ('-' x length($code_unit_name)) ;
         }    
     for my $data_block (keys %{ $stref->{'BlockData'} } ) {
