@@ -658,7 +658,7 @@ sub _split_multivar_decls {
                     }
                     $rinfo{'LineID'} = $nextLineID++;
                     my $subset    = in_nested_set($Sf, 'Vars', $var);
-                    my $orig_decl = $Sf->{$subset}{'Set'}{$var};
+                    # my $orig_decl = $Sf->{$subset}{'Set'}{$var};
                     $rinfo{'VarDecl'} = {'Name' => $var};
                     $rinfo{'ParsedVarDecl'}{'Vars'} =[$var] ;
                     my $rline = $line;

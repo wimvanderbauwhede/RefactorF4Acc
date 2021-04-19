@@ -2665,6 +2665,7 @@ sub __parse_f95_decl {
 
 	} else {
 		# F95 VarDecl, continued
+		
 		if (    not exists $info->{'ParsedVarDecl'}
 			and not exists $info->{'VarDecl'} )
 		{
@@ -2777,6 +2778,10 @@ sub __parse_f95_decl {
 					$Sf->{'DeclaredOrigArgs'}{'List'} = ordered_union( $Sf->{'DeclaredOrigArgs'}{'List'}, [$tvar] );
 					
 				} 
+				elsif ( exists $Sf->{'DeclaredOrigArgs'}{'Set'}{$tvar} ) {								
+					say "$f ARG: $tvar";
+					$Sf->{'DeclaredOrigArgs'}{'Set'}{$tvar} = $decl;					
+				}				
 				# In principle F95 code can also have COMMON vars
 # When we encounter UndeclaredCommonVars we make them DeclaredCommonVars
 				elsif ( exists $Sf->{'UndeclaredCommonVars'}{'Set'}{$tvar} ) {
@@ -2831,6 +2836,7 @@ sub __parse_f95_decl {
 						}
 					}					
 				}
+				# carp Dumper $decl;
 #				croak Dumper($Sf->{'DeclaredOrigLocalVars'}{'Set'}{'ihead'}) if $line=~/rnorm/;
 				$idx++;
 			}

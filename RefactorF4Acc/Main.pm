@@ -263,6 +263,7 @@ sub main {
     } else {
 	   $stref = analyse_all($stref,$code_unit_name, $stage);
     }
+
     # After the analysis we can either do the refactoring of the code, i.e. the main purpose of the compiler
     # or run one or more custom passes. 
     #

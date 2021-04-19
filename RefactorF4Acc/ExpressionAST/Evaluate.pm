@@ -62,7 +62,7 @@ use Exporter;
 # Apply to RHS of assignments
 sub replace_consts_in_ast { (my $stref, my $f, my $block_id, my $ast, my $state, my $const)=@_;
 	my $retval=0;
-	# say ref($ast);
+	# say Dumper($ast);
 	if (ref($ast) eq 'ARRAY') {
 		# But retval for arrays should only be 0 if it is 0 for every element!
 		# So we need to sum them!
@@ -104,9 +104,14 @@ sub replace_consts_in_ast { (my $stref, my $f, my $block_id, my $ast, my $state,
 						if ($var_set) {
 							carp "replace_consts_in_ast($f,$const): Can\'t replace $mvar, no parameter record found in $f, it is a Var in $var_set" if $DBG; 
 							# So now we must find a line with an assignment to this var and do it again
+							
  							my $eval_res = _try_to_eval_via_vars($stref, $f, $mvar);
 							 croak Dumper($eval_res) if $DBG;
-							return($eval_res,1)	
+							if (scalar @{$eval_res} == 0) {							
+								return($ast,0)	
+							} else {
+								return ($ast,1);
+							}
 						} else {
 							croak "Cannot replace $mvar, no parameter or var record found in $f" if $DBG;
 							return ($ast,0);
@@ -148,14 +153,20 @@ sub fold_constants_in_expr { (my $stref, my $f, my $block_id, my $ast)=@_;
   		# - see if $val contains vars
   		my $vars=get_vars_from_expression($ast,{}) ;
   		# - if so, substitute them using replace_consts_in_ast
+		# we should stop when it does not change anymore
+		my $prev_vars_str='';
+		my $vars_str=join('',sort keys %{$vars});
   		while (
-  		scalar keys %{$vars} > 0
+			  $prev_vars_str ne $vars_str
+			    		# scalar keys %{$vars} > 0
   		) {
+			  $prev_vars_str=$vars_str;
 			($ast, my $retval) = replace_consts_in_ast($stref, $f, $block_id, $ast, $stref->{'Subroutines'}{ $f }{'ArrayAccesses'}, 0);			
 			last if $retval == 0;
 			# - check if the result is var-free, else repeat
 			$vars=get_vars_from_expression($ast,{}) ;
-			# say Dumper($vars);
+			$vars_str = join('',sort keys %{$vars});
+
   		}
   		# - return to be eval'ed
 	return $ast;
@@ -256,16 +267,24 @@ sub _try_to_eval_arg { my ($stref,$f,$arg)=@_;
 #   'op' => '__PH0__'
 # };
 
-sub _try_to_eval_via_vars { my ($stref, $f, $var) = @_;
+sub _try_to_eval_via_vars  {my ($stref, $f, $var) = @_;
 		# OK, $var is not a parameter in $f, plough on
 		my $pass_find_assignment = sub {
 			(my $annline, my $expr_asts)=@_;
 			(my $line,my $info)=@{$annline};		
 			my $new_annlines = [$annline];
+			my $no_self_assignment=1;
+			if (exists $info->{'Assignment'} 
+			and $info->{'Lhs'}{'VarName'} eq $var
+			and exists $info->{'Rhs'}{'VarList'}{'Set'}{$var}
+			) {
+				$no_self_assignment=0;
+			}
 			if (exists $info->{'Assignment'} 
 			
 			and $info->{'Lhs'}{'VarName'} eq $var
 			and $info->{'Lhs'}{'ArrayOrScalar'} eq 'Scalar' # no nonsense!
+			and $no_self_assignment
 			) {	
 				# warn  "3. ASSIGNMENT LINE: ". $line;a 
 				$expr_asts->{$var}=$info->{'Rhs'}{'ExpressionAST'};
@@ -283,8 +302,15 @@ sub _try_to_eval_via_vars { my ($stref, $f, $var) = @_;
 			my $expr_str = emit_expr_from_ast($expr_asts->{$var});
 
 			my $expr_val = eval_expression_with_parameters ( $expr_str,{} 	,  $stref, $f) ;
-			croak "Cannot eval $var via $expr_str in $f "  if $DBG and not defined $expr_val;		
-			return [29,$expr_val]
+			if (not defined $expr_val) {
+				if( $DBG){ 
+					croak "Cannot eval $var via $expr_str in $f "  
+				} else {
+					return [];
+				}
+			} else {
+				return [29,$expr_val];
+			}
 		} else {
 			# Instead of assigment, it could be a sig arg of the caller
 			my $subset = in_nested_set( $stref->{'Subroutines'}{$f}, 'Args', $var );
@@ -293,7 +319,11 @@ sub _try_to_eval_via_vars { my ($stref, $f, $var) = @_;
 				my $result_expr = _try_to_eval_arg($stref,$f,$var);
 				return $result_expr;
 			} else {
-				die "Sorry, can\'t evaluate $var in $f, giving up.";
+				if ($DBG) {
+				croak "Sorry, can\'t evaluate $var in $f, giving up.";
+				} else {
+					return [];
+				}
 			}
 		}
 } # END of _try_to_eval_via_vars

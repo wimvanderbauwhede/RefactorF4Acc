@@ -329,6 +329,7 @@ sub get_f95_var_decl {
     my $attr   = '';
     my $type   = 'Unknown';
     my $nvar   = $var;
+    my $array_or_scalar = 'Unknown';
     
     my $subset = in_nested_set($Sf, 'Vars', $var); # Should tell us exactly where we are
 
@@ -344,7 +345,8 @@ sub get_f95_var_decl {
 	        $dim = $Sv->{'Dim'};
 	        $type  = $Sv->{'Type'};
 	        $attr  = $Sv->{'Attr'};
-	        $intent = $Sv->{'IODir'};                 
+	        $intent = $Sv->{'IODir'};     
+            $array_or_scalar = $Sv->{'ArrayOrScalar'};           
     } elsif ( defined $f and defined $stref and defined $var ) {        
         ( $type, my $kind, $attr ) = type_via_implicits( $stref, $f, $var );
     } else {
@@ -358,6 +360,7 @@ sub get_f95_var_decl {
         'Attr' => $attr,
         'Dim' => $dim,
         'IODir' => $intent,
+        'ArrayOrScalar' => $array_or_scalar,
         'Names' => [$nvar],
         'Name' => $nvar,
         'Status' => 1

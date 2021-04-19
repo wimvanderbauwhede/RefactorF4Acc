@@ -16,6 +16,7 @@ use RefactorF4Acc::Refactoring::IncludeFiles qw( refactor_include_files );
 use RefactorF4Acc::Refactoring::Modules qw( add_module_decls );
 use RefactorF4Acc::Refactoring::InlineSubroutine qw( inline_subroutines );
 use RefactorF4Acc::Refactoring::EvalParamExprs qw( eval_param_expressions_all );
+use RefactorF4Acc::Analysis::FoldConstants qw( fold_constants_all );
 use vars qw( $VERSION );
 $VERSION = "2.1.1";
 
@@ -51,23 +52,25 @@ sub refactor_all {
     $stref = refactor_include_files($stref) unless $Config{'INLINE_INCLUDES'} == 1;
 # FIXME: this should be treated just like subs, but of course that requires full parsing of expressions that contain function calls
     $stref = refactor_called_functions($stref); # Context-free only 
-
+    
 	# say "BEFORE refactor_all_subroutines";    
     # Refactor the source, but don't split long lines and keep annotations
     $stref = refactor_all_subroutines($stref);    
 #    say "AFTER refactor_all_subroutines";
-
 #	die;
     # This can't go into refactor_all_subroutines() because it is recursive
     # Also, this is actually analysis
     # And this is only for Subroutines of course, not for Modules
 	# The reason it is only called here is because we need to run this on the subroutines with refactored arguments.
+
     if ($sub_or_func_or_mod eq 'Subroutines') {
     	$stref = determine_argument_io_direction_rec( $stref,$code_unit_name );    	
     	say "DONE determine_argument_io_direction_rec()" if $V;
+
 	# croak Dumper($stref->{'Subroutines'}{'chcopy'}{DeclaredOrigArgs});	
     	$stref = update_argument_io_direction_all_subs( $stref );
     }
+
     # croak Dumper($stref->{'Subroutines'}{'mult_chk'}{RefactoredCode});
     # So at this point we know everything there is to know about the argument declarations, we can now update them
     say "remove_vars_masking_functions" if $V;    
@@ -83,7 +86,10 @@ sub refactor_all {
 	# Testing with LES
     # my $f='les';
     # my $sub='boundsm';
+
     $stref = inline_subroutines($stref) ;
+	# Test array access and constant folding here
+	$stref = fold_constants_all($stref) ;
     # die;
     # Custom refactoring, must be done before creating final modules
     say "add_module_decls" if $V;
