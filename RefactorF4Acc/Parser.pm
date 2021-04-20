@@ -2625,7 +2625,6 @@ sub __parse_f95_decl {
     my $is_module = (exists $stref->{'Modules'}{$f}) ? 1 : 0;
     
 	my $pt = parse_F95_var_decl($line);
-		
 # croak $line.Dumper($info).Dumper($pt) if $line=~/alpha/;
 	# But this could be a parameter declaration, with an assignment ...
 	if ( $line =~ /,\s*parameter\s*.*?::\s*(\w+\s*=\s*.+?)\s*$/ ) {    
