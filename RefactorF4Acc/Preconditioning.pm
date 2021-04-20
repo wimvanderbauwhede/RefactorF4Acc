@@ -680,6 +680,8 @@ sub _split_multivar_decls {
                         if (exists $orig_decl->{'Dim'} and scalar @{$orig_decl->{'Dim'}} >0) {
                             $rinfo{'ParsedVarDecl'}{'Attributes'}{'Dim'}=[map { $_->[0].':'.$_->[1]  } @{$orig_decl->{'Dim'}}];
                         }
+                    } else {
+                        $rinfo{'ParsedVarDecl'}{'Vars'} =[$var] ;
                     }
                     my $rline = $line;
                     $Sf->{$subset}{'Set'}{$var}{'Name'} = $var;
@@ -714,10 +716,8 @@ sub _split_multivar_decls {
                 }    # for each $var
             }
             elsif ( exists $info->{'ParamDecl'} 
-            and not exists $info->{'ParsedParDecl'}
+            # and not exists $info->{'ParsedParDecl'}
             ) {
-                # say "PLINE: $f $line";
-                # say Dumper $info;
                 my $nvars = [];
                 if (exists $info->{'ParamDecl'}{'Names'}
                 and scalar @{$info->{'ParamDecl'}{'Names'}}>0
@@ -728,10 +728,11 @@ sub _split_multivar_decls {
                 } 
                 # say  Dumper $nvars;
                 push @{$info->{'Ann'}}, annotate($f, __LINE__);
+                my $idx=0;
                 for my $var (@{$nvars}) {                
                     my $rinfo_c = dclone($info);
                     my %rinfo = %{$rinfo_c};
-
+                    $rinfo{'ParamDecl'}{'Names'}=[$var];
                     if (not exists $rinfo{'ParsedParDecl'} or not exists $rinfo{'ParsedParDecl'}{'Pars'}) {
                         my $subset    = in_nested_set($Sf, 'Vars', $var);
                         my $orig_decl = $Sf->{$subset}{'Set'}{$var};
@@ -751,9 +752,22 @@ sub _split_multivar_decls {
                         };
                 
                         $rinfo{'ParsedParDecl'}{'Attributes'}=['parameter'];
-                    }      
+                    }  else {
+                        # say Dumper $rinfo{'ParsedParDecl'}{'Pars'};
+                        my $val = ref($rinfo{'ParsedParDecl'}{'Pars'}{'Val'}) eq 'ARRAY' 
+                        ? $rinfo{'ParsedParDecl'}{'Pars'}{'Val'}[$idx]
+                        :  $rinfo{'ParsedParDecl'}{'Pars'}{'Val'};
+                        $rinfo{'ParsedParDecl'}{'Pars'} = {
+                        'Var' => $var,
+                        'Val' => $val
+                        };
+
+                    }    
+                    ++$idx;
                     # say Dumper %rinfo;
                     # die if $f eq 'sub0' and $var eq 'sz';
+                    # say "PLINE $line" if $f=~/test_loop/;
+                    # say Dumper %rinfo;
                     push @{$new_annlines}, [$line, {%rinfo}];          
                 }
             }

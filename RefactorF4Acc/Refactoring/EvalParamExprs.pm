@@ -117,7 +117,7 @@ sub _eval_f77_param_exprs { my ($stref, $f, $param_decl_lines)=@_;
 
     my @eval_program_lines = ('program eval');
     for my $param_decl_line (@{$param_decl_lines}) {
-		say Dumper $param_decl_line->[1]{'ParamDecl'};
+		# say Dumper $param_decl_line->[1]{'ParamDecl'};
 		my $param_name = ref($param_decl_line->[1]{'ParamDecl'}{'Name'}) eq 'ARRAY' 
 		? $param_decl_line->[1]{'ParamDecl'}{'Name'}[0] 
 		: $param_decl_line->[1]{'ParamDecl'}{'Name'} ;

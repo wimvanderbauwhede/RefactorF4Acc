@@ -854,7 +854,8 @@ sub splice_additional_lines_cond {
 # The passes below go through all lines of code that are not marked as Deleted
 # TODO: add some control over this
 sub stateless_pass {
-    (my $stref, my $f, my $pass_actions, my $pass_info) = @_;
+    (my $stref, my $f, my $pass_actions, my $pass_info, my $keep_deleted) = @_;
+    
     say "STATELESS PASS ".Dumper($pass_info)." for $f" if $DBG;
     my $sub_or_func_or_mod = sub_func_incl_mod( $f, $stref );
     my $Sf                 = $stref->{$sub_or_func_or_mod}{$f};
@@ -868,7 +869,9 @@ sub stateless_pass {
 	        	push @{$new_annlines}, $new_annline;
 	        }
     	} else {
-    		push @{$new_annlines}, $annline;
+            if (defined $keep_deleted) {
+    		    push @{$new_annlines}, $annline;
+            }
     	}
     }
     $Sf->{'RefactoredCode'} = $new_annlines;
@@ -877,7 +880,7 @@ sub stateless_pass {
 
 # original  annlines are taken from $Sf->{'AnnLines'} or $Sf->{'RefactoredCode'} 
 # updated annlines are stored in $Sf->{'RefactoredCode'} 
-sub stateful_pass { my ( $stref, $f, $pass_actions, $state, $pass_info ) = @_;
+sub stateful_pass { my ( $stref, $f, $pass_actions, $state, $pass_info, $keep_deleted ) = @_;
     # return ($stref,$state);
 #    local $Data::Dumper::Indent =0;
 #    local $Data::Dumper::Terse=1;
@@ -896,7 +899,9 @@ sub stateful_pass { my ( $stref, $f, $pass_actions, $state, $pass_info ) = @_;
         		push @{$new_annlines}, $new_annline;
         	}
     	} else {
+            if (defined $keep_deleted) {
     		push @{$new_annlines}, $annline;
+            }
     	}        	
     }
     $Sf->{'RefactoredCode'} = $new_annlines;
@@ -905,7 +910,7 @@ sub stateful_pass { my ( $stref, $f, $pass_actions, $state, $pass_info ) = @_;
 } # END of stateful_pass()
 
 sub stateful_pass_reverse {
-    (my $stref, my $f, my $pass_actions, my $state, my $pass_info ) = @_;
+    (my $stref, my $f, my $pass_actions, my $state, my $pass_info, my $keep_deleted ) = @_;
     my $sub_or_func_or_mod = sub_func_incl_mod( $f, $stref );
      
     my $Sf                 = $stref->{$sub_or_func_or_mod}{$f};    
@@ -921,7 +926,9 @@ sub stateful_pass_reverse {
         		push @{$new_annlines}, $new_annline;
         	}
     	} else {
+            if (defined $keep_deleted) {
     		push @{$new_annlines}, $annline;
+            }
     	}        	        	
     }
     $new_annlines =[ reverse @{ $new_annlines  } ]; 
@@ -940,8 +947,11 @@ sub emit_f95_parsed_var_decl { (my $pvd) =@_;
             push @attrs, 'allocatable';
         }
         if (exists $pvd->{'Attributes'}{'Dim'} ) {
-        	# croak Dumper($pvd);
+        	# if (ref( $pvd->{'Attributes'}{'Dim'}[0]) eq 'ARRAY') {
+            #     push @attrs,'dimension('.join(', ',  map { $_->[0].':'.$_->[1] } @{ $pvd->{'Attributes'}{'Dim'} }).')';
+            # } else {
             push @attrs,'dimension('.join(', ',  @{ $pvd->{'Attributes'}{'Dim'} }).')';
+            # }
         }
         if (exists $pvd->{'Attributes'}{'Intent'} ) {
             push @attrs,'intent('. $pvd->{'Attributes'}{'Intent'} .')' ;

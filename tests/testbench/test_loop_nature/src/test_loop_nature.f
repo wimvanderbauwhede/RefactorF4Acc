@@ -1,8 +1,8 @@
       program test_loop_nature
         integer sz
         parameter( sz = 1024 )
-        integer, parameter :: w = sz*4
-        integer, parameter :: h = sz*3
+        integer, parameter :: w = sz*4, h = sz*3
+        ! integer, parameter :: h = sz*3
         real, dimension(-1:w+2,-1:h+2) :: p1, p2
 
         call sub0(p1,p2)

@@ -358,10 +358,10 @@ sub emit_RefactoredCode { my ($stref, $f) = @_;
 
     my $pass_emit_RefactoredCode = sub { (my $annline)=@_;
         (my $line,my $info)=@{$annline};
-        # carp Dumper $info;
+        # say "LINE $line";# ,Dumper $info;
 
         my $rline=$line;
-        my $indent='';
+        my $indent='      ';
         if (exists $info->{'Indent'}){
             $indent=$info->{'Indent'};
         }
@@ -449,7 +449,7 @@ sub emit_RefactoredCode { my ($stref, $f) = @_;
             # my $var_decl_str = emit_f95_var_decl($decl) ;
             $rline = $indent.$var_decl_str;
         } elsif (exists $info->{'ParamDecl'}) {
-            # TODO EMIT  $info->{'ParsedParDecl'};
+            # carp Dumper  $info;;
             my $par_decl_str = emit_f95_parsed_par_decl($info->{'ParsedParDecl'});
 
             # my $parname = $info->{'ParamDecl'}{'Name'}[0];
@@ -573,17 +573,26 @@ sub emit_RefactoredCode { my ($stref, $f) = @_;
         #@ IsExternal => $bool
 
         } elsif (not exists $info->{'Comments'} and not exists $info->{'Blank'}
+
         ) {
             $rline.=' !!! ORIG !!!';
+        } 
+# die if $line=~/PAR\:2/;
+        if (not exists $info->{'Skip'}
+        and not exists $info->{'Deleted'}) {
+            return [[$rline,$info]];
+        } else {
+            return [];
         }
-
-
-        return [[$rline,$info]];
     };
 
     my $refactored_code_before = dclone($Sf->{'RefactoredCode'});
+
     $stref = stateless_pass($stref,$f,$pass_emit_RefactoredCode,'pass_emit_RefactoredCode ' . __LINE__  ) ;
-    map {say $_} @{pp_annlines($Sf->{'RefactoredCode'})};
+    if ($f=~/test_loop/) {
+    map {say $_} @{pp_annlines($Sf->{'RefactoredCode'})} ;
+    die;
+}
     return $stref;
 
 } # END of emit_RefactoredCode
