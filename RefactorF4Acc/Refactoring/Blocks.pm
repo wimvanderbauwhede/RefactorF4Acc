@@ -494,11 +494,11 @@ sub __emit_param_lines { my ($Sblock, $varsref, $params, $param_decl_generated, 
                 # carp Dumper($decl);
                 $Sblock->{'LocalParameters'}{'Set'}{$param}  = $decl;
                 push @{ $Sblock->{'LocalParameters'}{'List'} }, $param;        
-                if (not exists $decl->{'Ast'}
+                if (not exists $decl->{'AST'}
                 ) {
                     die __PACKAGE__ . ' ' . __LINE__ ." :  No AST for declaration of $param in block $block of $f";
                 }                        
-                my $val = emit_expr_from_ast($decl->{'Ast'});                
+                my $val = emit_expr_from_ast($decl->{'AST'});                
 
                 my $param_annline = [
                         # emit_f95_var_decl($decl),

@@ -31,6 +31,7 @@ use Exporter;
   &get_f95_var_decl
   &emit_f95_var_decl
   &emit_f95_parsed_var_decl
+  &emit_f95_parsed_par_decl
   &splice_additional_lines
   &splice_additional_lines_cond
   &stateless_pass
@@ -556,6 +557,7 @@ sub _rename_conflicting_global_pars {
 
 sub emit_f95_var_decl {
     ( my $var_decl_rec ) = @_;
+    # carp Dumper($var_decl_rec);
 	if (not defined $var_decl_rec) {
 		confess('Argument to emit_f95_var_decl is not defined!')  if $DBG;
 	}
@@ -930,6 +932,7 @@ sub stateful_pass_reverse {
 
 
 sub emit_f95_parsed_var_decl { (my $pvd) =@_;
+# carp Dumper $pvd;
     my $type= $pvd->{'TypeTup'}{'Type'} . (exists $pvd->{'TypeTup'}{'Kind'} ?  '( '.$pvd->{'TypeTup'}{'Kind'}.')' : '');
     
          my  @attrs=($type); 
@@ -938,13 +941,26 @@ sub emit_f95_parsed_var_decl { (my $pvd) =@_;
         }
         if (exists $pvd->{'Attributes'}{'Dim'} ) {
         	# croak Dumper($pvd);
-            push @attrs,'dimension('.join(', ',@{ $pvd->{'Attributes'}{'Dim'} }).')';
+            push @attrs,'dimension('.join(', ',  @{ $pvd->{'Attributes'}{'Dim'} }).')';
         }
         if (exists $pvd->{'Attributes'}{'Intent'} ) {
             push @attrs,'intent('. $pvd->{'Attributes'}{'Intent'} .')' ;
         }
           my $vars = join(', ',@{  $pvd->{'Vars'} });
        my $line = join(', ', @attrs).' :: '.$vars;    
+    return $line;
+}
+
+sub emit_f95_parsed_par_decl { (my $pvd) =@_;
+    my $type= $pvd->{'TypeTup'}{'Type'} . (exists $pvd->{'TypeTup'}{'Kind'} ?  '( '.$pvd->{'TypeTup'}{'Kind'}.')' : '');    
+    my  @attrs=($type); 
+
+    if (exists $pvd->{'Attributes'} ) {
+        # croak Dumper($pvd);
+        push @attrs,join(', ',@{ $pvd->{'Attributes'} });
+    }
+    my $par_val = $pvd->{'Pars'}{'Var'}.' = '.$pvd->{'Pars'}{'Val'};
+    my $line = join(', ', @attrs).' :: '.$par_val;    
     return $line;
 }
 

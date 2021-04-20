@@ -322,25 +322,27 @@ if ( not exists $info->{'Inlined'} ) {
         elsif ( exists $info->{'ParamDecl'} )
         {    # so this is a parameter declaration "pur sang"
                 # WV 20130709: why should I remove this?
-                my $par_decls= [ $info->{'ParamDecl'} ];
-                
+                my $par_decl = $info->{'ParamDecl'} ;
+                my $parsed_par_decl = $info->{'ParsedParDecl'};
                 my $info_ref = $info->{'Ref'} // 0;         
                        	if (exists $info->{'VarDecl'}{'Name'} ) {             		
                              my $var = $info->{'VarDecl'}{'Name'};                                               
-                                $par_decls = [ format_f95_par_decl( $stref, $f, $var ) ];
+                                $par_decl =  format_f95_par_decl( $stref, $f, $var ) ;
                        	}
                     elsif (exists $info->{'ParamDecl'}{'Name'} ) {                    		
                              my $var_val = $info->{'ParamDecl'}{'Name'};
                                 ( my $var, my $val ) = @{$var_val};                
-                                $par_decls = [ format_f95_par_decl( $stref, $f, $var ) ];
+                                $par_decl =  format_f95_par_decl( $stref, $f, $var ) ;
                     } elsif (exists $info->{'ParamDecl'}{'Names'} ) { 
-                        $par_decls = [];
-                        for my $var_val (@{  $info->{'ParamDecl'}{'Names'} }) {
-                                ( my $var, my $val ) = @{$var_val};                
-                                push @{$par_decls}, format_f95_par_decl( $stref, $f, $var );
-                        }
+                        croak 'PROBLEM: multiple parameter decls on a single line!';
+                        # my $var_val = $info->{'ParamDecl'}{'Names'}[0];
+                        # $par_decls = [];
+                        # for my $var_val (@{  $info->{'ParamDecl'}{'Names'} }) {
+                        #         ( my $var, my $val ) = @{$var_val};                
+                        #         push @{$par_decls}, format_f95_par_decl( $stref, $f, $var );
+                        # }
                     }
-                for my $par_decl (@{ $par_decls }) {
+                # for my $par_decl (@{ $par_decls }) {
                 	# We must check for string placeholders in parameter decls!
                 	if ($par_decl->{'Name'}[1]=~/(__PH\d+__)/) {
                 		my $ph=$1;
@@ -355,6 +357,7 @@ if ( not exists $info->{'Inlined'} ) {
 	                    {
 	                        'Extra'     => 1,
 	                        'ParamDecl' => $par_decl,
+                            'ParsedParDecl' => $parsed_par_decl,
 	                        'Ref'       => $info_ref + 1,
 	                        'LineID'    => $nextLineID++,
 	                        'SpecificationStatement' => 1,
@@ -365,7 +368,7 @@ if ( not exists $info->{'Inlined'} ) {
 		            $line = '!! ' . $line;
 		            $info->{'Ann'}=[ annotate($f, __LINE__ .' Original ParamDecl' ) ];
 		            $info->{'Deleted'} = 1;
-                }
+                # }
         }
 
 # ------------------------------------------------------------------------------

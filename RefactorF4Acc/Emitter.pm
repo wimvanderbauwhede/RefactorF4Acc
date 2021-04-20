@@ -2,7 +2,14 @@ package RefactorF4Acc::Emitter;
 use v5.10;
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
-use RefactorF4Acc::Refactoring::Helpers qw( create_refactored_source );
+use RefactorF4Acc::Refactoring::Helpers qw( create_refactored_source get_annotated_sourcelines stateless_pass 
+emit_f95_var_decl
+emit_f95_parsed_var_decl
+emit_f95_parsed_par_decl
+);
+use RefactorF4Acc::Parser::Expressions qw( emit_expr_from_ast );
+use RefactorF4Acc::Refactoring::Subroutines::Emitters qw( emit_subroutine_sig emit_subroutine_call );
+
 # 
 #   (c) 2010-2017 Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
 #   
@@ -14,6 +21,8 @@ $VERSION = "2.1.1";
 use warnings;
 use warnings FATAL => qw(uninitialized);
 use strict;
+
+use Storable qw( dclone );
 use Carp;
 use Data::Dumper;
 #use Digest::MD5;
@@ -24,6 +33,7 @@ use Exporter;
 @RefactorF4Acc::Emitter::ISA = qw(Exporter);
 @RefactorF4Acc::Emitter::EXPORT_OK = qw(
     &emit_all
+    &emit_RefactoredCode
 );
 
 sub emit_all {
@@ -340,3 +350,240 @@ sub __get_src_subdirs { my ($src_path) = @_;
         return (0,'');
     }
 } # END of __get_src_subdirs
+
+
+sub emit_RefactoredCode { my ($stref, $f) = @_;
+    my $code_unit = sub_func_incl_mod( $f, $stref );
+    my $Sf = $stref->{$code_unit}{$f};
+
+    my $pass_emit_RefactoredCode = sub { (my $annline)=@_;
+        (my $line,my $info)=@{$annline};
+        # carp Dumper $info;
+
+        my $rline=$line;
+        my $indent='';
+        if (exists $info->{'Indent'}){
+            $indent=$info->{'Indent'};
+        }
+        my $maybe_cond='';
+
+        if ( exists $info->{'If'} and not exists $info->{'IfThen'} ) {
+            my $ast = $info->{'CondExecExprAST'};
+            my $cond_expr_str = emit_expr_from_ast($ast);
+            $maybe_cond = 'if ( '. $cond_expr_str .' ) ';
+        }
+        if (exists $info->{'Module'} ) {
+        my $module_name = $info->{'Module'}; 
+            $rline="module $module_name"
+        }
+        elsif (exists $info->{'EndModule'} ) {
+        my $module_name = $info->{'EndModule'}; 
+            $rline="end module $module_name"
+        #== IMPLICIT NONE						
+        } elsif (exists $info->{'ImplicitNone'}) {
+            $rline = $indent.'implicit none';
+        #== USE				
+        # WV20190626 I'm not sure why 'include' is handled in SrcReader and 'use' here ...
+        } elsif (exists $info->{'Use'}) {
+            my $module_name = $info->{'Use'}{'Name'};
+            my $only_list = $info->{'Use'}{'Only'}; 
+            my $maybe_only = scalar @{$only_list} ? ', only : '.join(', ',@{$only_list}) : '';
+            $rline = $indent."use $module_name $maybe_only";
+        #== CONTAINS				
+        } elsif (exists $info->{'Contains'}) {
+            $rline = $indent.'contains'
+        #== END of IF/SELECT/DO						
+        } elsif (exists $info->{'EndSelect'}) {
+            $rline = $indent.'end select';
+        } elsif (exists $info->{'EndIf'}) {
+            $rline = $indent.'end if';
+        } elsif (exists $info->{'EndDo'}) {                
+            $rline = $indent.'end do';
+        #== INTRINSIC, EXTERNAL, STATIC, AUTOMATIC, VOLATILE
+        } elsif (exists $info->{'Intrinsic'} ) {
+            croak 'TODO: Intrinsic';
+        } elsif (exists $info->{'External'} ) {
+            croak 'TODO: External';
+        # } elsif (exists $info->{'Static'} ) {
+
+        # } elsif (exists $info->{'Automatic'} ) {
+
+        } elsif (exists $info->{'Volatile'} ) {
+            my $vars = $info->{'Volatile'};
+            $rline = $indent.'volatile :: '.join(', ', sort keys %{$vars});
+        }
+        elsif (exists $info->{'Goto'}) {
+                my $label = $info->{'Goto'}{'Label'} ;
+                $rline=$indent.$maybe_cond."goto $label";
+        } elsif (exists $info->{'StatementFunction'} ) {
+            my $lhs_ast=$info->{'Lhs'}{'ExpressionAST'};
+            my $rhs_ast=$info->{'Rhs'}{'ExpressionAST'};
+            my $lhs_expr_str = emit_expr_from_ast($lhs_ast);
+            my $rhs_expr_str = emit_expr_from_ast($rhs_ast);
+            
+            my $rline = $indent. "$lhs_expr_str = $rhs_expr_str";
+        }
+        elsif ( exists $info->{'Signature'} ) {
+        #== SIGNATURES SUBROUTINE FUNCTION PROGRAM ENTRY
+        #@ Signature =>
+        #@    Args =>
+        #@        List => [...]
+        #@        Set => {}
+        #@    Name => $name;
+        #@    Function  => $bool
+        #@    Program  => $bool
+        #@    Entry  => $bool
+        #@    BlockData  => $bool
+        #@    ReturnType => integer | real | ...
+        #@    ReturnTypeAttr => number or '(*)'
+        #@    ResultVar => $result_var
+        #@    Characteristic => pure | elemental | recursive 
+			($rline,$info) = emit_subroutine_sig($annline);            
+        } elsif (exists $info->{'ParsedVarDecl'}) {
+            # TODO EMIT  $info->{'ParsedVarDecl'};
+            my $var_decl_str = emit_f95_parsed_var_decl($info->{'ParsedVarDecl'});
+
+            # my $varname = $info->{'VarDecl'}{'Name'};
+            # my $subset = in_nested_set( $Sf, 'Vars', $varname );
+            # my $decl = get_var_record_from_set($Sf->{$subset},$varname);
+            # my $var_decl_str = emit_f95_var_decl($decl) ;
+            $rline = $indent.$var_decl_str;
+        } elsif (exists $info->{'ParamDecl'}) {
+            # TODO EMIT  $info->{'ParsedParDecl'};
+            my $par_decl_str = emit_f95_parsed_par_decl($info->{'ParsedParDecl'});
+
+            # my $parname = $info->{'ParamDecl'}{'Name'}[0];
+            # my $subset = in_nested_set( $Sf, 'Parameters', $parname );
+            # my $decl = get_var_record_from_set($Sf->{$subset},$parname);
+            # my $par_decl_str = emit_f95_var_decl($decl) ;
+            $rline = $indent.$par_decl_str;
+        }
+        elsif (exists $info->{'While'} ) {
+            my $ast =  $info->{'Do'}{'ExpressionsAST'};
+            my $do_expr_str = emit_expr_from_ast($ast);
+            $rline = $indent.'do while ('.$do_expr_str.')';
+        }
+        elsif (exists $info->{'Do'} ) {
+						# 'Iterator' => $iter,
+						# 'Label'    => $label,
+						# 'Range'    => {
+						# 	'Expressions' => [ $range_start, $range_stop, $range_step ],
+						# 	'Vars'        => $mvars
+						# },            
+        my $iter =  $info->{'Do'}{'Iterator'};
+        my $label =  exists $info->{'Do'}{'Label'} 
+            ? $info->{'Do'}{'Label'} eq 'LABEL_NOT_DEFINED' ? '' : ' '.$info->{'Do'}{'Label'}.', '
+            : '';
+        if ($info->{'Do'}{'Range'}{'Expressions'}[-1] == 1) {
+            pop @{$info->{'Do'}{'Range'}{'Expressions'}};
+        }
+        my $do_expr_str = join(', ',@{$info->{'Do'}{'Range'}{'Expressions'}});
+        $rline = $indent.'do'.$label.' '.$iter.' = '.$do_expr_str;
+        # 	'While' =>1,
+        # 	'Iterator' => '',
+        # 	'Label'    => $label,
+        # 	'ExpressionsAST' => $ast,
+        # 	'Range'    => {	
+        # 		'Vars'        => $vars,
+        # 		},
+        # 	'LineID' => $info->{'LineID'}
+        # };
+
+        } elsif (exists $info->{'CaseVar'}) {
+                $rline = $indent.'select case ( '.$info->{'CaseVar'}.' )';
+        } elsif (exists $info->{'CaseVals'} ) {
+            my $case_vals = $info->{'CaseVals'};
+            $rline = $indent.'case ( '.join(', ', @{$case_vals}).' )';
+        } elsif (exists $info->{'CaseDefault'} ) {
+            $rline = $indent.'case default';                                
+        #== ELSE			 
+        } elsif ( exists $info->{'Else'} ) {			 	
+            $rline = $indent.'else';
+
+        #== IF -- Block, Arithmetic and logical IF statements		
+        # st can be any executable statement, except a DO block, IF, ELSE IF, ELSE,
+        # END IF, END, or another logical IF statement.
+        #@ CondExecExpr => $cond
+        #@ CondExecExprAST => $ast
+        #@ CondVars =>
+        #@     Set => {...}
+        #@     List => [...]
+                            
+        } elsif ( exists $info->{'IfThen'} ) {
+            my $ast = $info->{'CondExecExprAST'};
+            my $cond_expr_str = emit_expr_from_ast($ast);
+            $rline = $indent.'if ( '. $cond_expr_str .' ) then';
+
+
+        } elsif ( exists $info->{'ElseIf'}  ) {
+        
+        my $ast = $info->{'CondExecExprAST'}
+
+        #== BACKSPACE, ENDFILE statements			
+        } elsif (exists $info->{'IO'}) {
+            my $io_call = $info->{'IO'};
+            my $attrs_ast = $info->{'IOCall'}{'Args'}{'AST'};
+            my $attrs_str = emit_expr_from_ast($attrs_ast);
+            if ($attrs_str ne '') {
+                $attrs_str.=', ';
+            }
+            my $exprs_ast = $info->{'IOList'}{'AST'};
+            my $exprs_str =  emit_expr_from_ast($exprs_ast);
+            $rline=$indent.$maybe_cond.$io_call.'('.$attrs_str.$exprs_str.')';
+
+        #== RETURN, STOP and PAUSE statements		
+        } elsif ( exists $info->{ 'Return' } ) {
+            my $expr_ast = $info->{'ReturnExprAST'} ;
+            my $expr_str =  emit_expr_from_ast($expr_ast);
+            $rline=$indent.$maybe_cond.'return '.$expr_str;
+        } elsif ( exists $info->{ 'Stop' } ) {
+            my $expr_ast = $info->{'ReturnExprAST'} ;
+            my $expr_str =  emit_expr_from_ast($expr_ast);
+            $rline=$indent.$maybe_cond.'stop '.$expr_str;
+        } elsif ( exists $info->{ 'Pause' } ) {
+            $rline=$indent.$maybe_cond.'pause';            
+        } elsif ( exists $info->{ 'Assignment' } ) {
+        #== ASSIGNMENT
+        # This is an ASSIGNMENT and so can come after IF (...)		
+        #@ Lhs => 
+        #@        VarName       => $lhs_varname
+        #@        IndexVars     => $lhs_vars
+        #@        ArrayOrScalar => Array | Scalar
+        #@        ExpressionAST => $lhs_ast
+        #@ Rhs => 
+        #@        VarList       => $rhs_all_vars
+        #@        ExpressionAST => $rhs_ast		
+            my $lhs_ast=$info->{'Lhs'}{'ExpressionAST'};
+            my $rhs_ast=$info->{'Rhs'}{'ExpressionAST'};
+            my $lhs_expr_str = emit_expr_from_ast($lhs_ast);
+            my $rhs_expr_str = emit_expr_from_ast($rhs_ast);
+            
+            my $rline = $indent. $maybe_cond."$lhs_expr_str = $rhs_expr_str";
+
+        } elsif ( exists $info->{ 'SubroutineCall' } ) {
+            my $call_str = emit_subroutine_call($stref,$f,$annline);
+            
+        #== CALL, SUBROUTINE CALL
+        #@ SubroutineCall => 
+        #@     Name => $name
+        #@     ExpressionAST => $ast
+        #@     Args => CallArgs
+        #@ CallArgs => $expr_args
+        #@ ExprVars => $expr_other_vars
+        #@ IsExternal => $bool
+
+        } elsif (not exists $info->{'Comments'} and not exists $info->{'Blank'}
+        ) {
+            $rline.=' !!! ORIG !!!';
+        }
+
+
+        return [[$rline,$info]];
+    };
+
+    my $refactored_code_before = dclone($Sf->{'RefactoredCode'});
+    $stref = stateless_pass($stref,$f,$pass_emit_RefactoredCode,'pass_emit_RefactoredCode ' . __LINE__  ) ;
+    map {say $_} @{pp_annlines($Sf->{'RefactoredCode'})};
+    return $stref;
+
+} # END of emit_RefactoredCode

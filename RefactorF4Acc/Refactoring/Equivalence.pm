@@ -179,7 +179,7 @@ sub change_EQUIVALENCE_to_assignment_lines {
 		# Create the equivalence pairs and remove the EQUIVALENCE statement
 		if ( exists $info->{'Equivalence'} ) {
 			my $rline = $annline;
-			my $ast = dclone( $info->{'Ast'} );
+			my $ast = dclone( $info->{'AST'} );
 			# WV20201105 refactor this if-then into a separate function for clarity
 			($rlines,$exEquivAssignmentLines, $postUpdateAssignmentLines, $equiv_pairs) = __create_EQUIVALENCE_pairs(
 				$stref, $f, $annline, $ast, 

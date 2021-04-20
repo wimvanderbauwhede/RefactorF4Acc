@@ -889,7 +889,7 @@ SUBROUTINE
 			 	$tline=~s/^equivalence\s+//;
 #			 	(my $ast, my $rest, my $err, my $has_funcs)
 			 	my $ast = parse_expression($tline, $info,  $stref,  $f);
-				$info->{'Ast'}=$ast;
+				$info->{'AST'}=$ast;
                 # We must do the procedure below for every element in that list
                 my @asts=(); # an AST for each tuple
                 if (($ast->[0] & 0xFF) == 27) {
@@ -925,7 +925,7 @@ SUBROUTINE
 #@        Status    => 0         
 #@        Var    => $var
 #@        Val    => $val
-#@        Ast    => $ast
+#@        AST    => $ast
 # $inherited_params => 
 
 # Actual variable declaration line (F77)
@@ -1052,7 +1052,7 @@ or $line=~/^character\s*\(\s*len\s*=\s*[\w\*]+\s*\)/
 #== DO statement			
 #Do =>
 #@    While => $bool
-#@    ExpressionsAst => $ast
+#@    ExpressionsAST => $ast
 #@    Range => 
 #@        Vars => [ ... ]
 #@        Expressions' => [ ... ]			
@@ -1078,7 +1078,7 @@ or $line=~/^character\s*\(\s*len\s*=\s*[\w\*]+\s*\)/
 						'While' =>1,
 						'Iterator' => '',
 						'Label'    => $label,
-						'ExpressionsAst' => $ast,
+						'ExpressionsAST' => $ast,
 						'Range'    => {	
 							'Vars'        => $vars,
 							},
@@ -1298,7 +1298,7 @@ END IF
 			) {				
 				my $keyword = $1;
 				$info->{ ucfirst($keyword) . 'Call' } = 1;
-				$info->{'IO'}=1;
+				$info->{'IO'}=$keyword;
 				
 				$info = _parse_read_write_print( $mline, $info, $stref, $f );
                 $info->{'HasVars'} = 1; 
@@ -1317,12 +1317,13 @@ END IF
 			) {
 				my $keyword = $1;
 				$info->{ ucfirst($keyword) . 'Call' } = 1;
-				$info->{'IO'}=1;
+				$info->{'IO'}=$keyword;
                 $info->{'HasVars'} = 1; 
 				if ( $keyword eq 'open' ) {
 					$mline=~s/\s+$//;
 					my $ast = parse_Fortran_open_call($mline);										
-					$info->{'Ast'} = $ast;
+					$info->{'AST'} = $ast;
+					$info->{'IOCall'}{'AST'} = $ast;
 					$info->{'IOCall'}{'Args'} = { 'Set' => {}, 'List' => [ ] };
 					if ( exists $ast->{'FileName'} ) {						
 						if ( exists $ast->{'FileName'}{'Var'} and $ast->{'FileName'}{'Var'} !~ /__PH/ ) {						
@@ -1382,7 +1383,7 @@ END IF
 			} elsif ($mline=~/(backspace|endfile)/) {
 				my $keyword = $1;
 				$info->{ ucfirst($keyword) } = 1;
-				$info->{'IO'}=1;
+				$info->{'IO'}=$keyword;
 				$info->{'IOCall'}{'Args'} = { 'Set' => {}, 'List' => [ ] };
 				warn uc($keyword)." is ignored!" if $DBG;
 				warning(uc($keyword)." is ignored",3); 
@@ -1396,6 +1397,7 @@ END IF
                 $info->{'Vars'}{'Read'}={'List'=>[],'Set'=>{}}; 
                 if ($return_expr) {
                     my $expr_ast = parse_expression($return_expr);
+					$info->{'ReturnExprAST'} = $expr_ast;
                     my $vars = get_vars_from_expression($expr_ast,{});
     				$info->{'Vars'}{'Read'}{'Set'}=$vars;
                     $info->{'Vars'}{'Read'}{'List'} = [sort keys %{$vars}];
@@ -1421,7 +1423,7 @@ END IF
 			elsif ($line=~/(decode|encode)/) {		
 				my $keyword = $1;
 				$info->{ ucfirst($keyword) } = 1;
-				$info->{'IO'}=1;
+				$info->{'IO'}=$keyword;
                 $info->{'HasVars'} = 1; 
 				warning(uc($keyword).' is ignored',3);					
 			}							
@@ -2778,8 +2780,7 @@ sub __parse_f95_decl {
 					$Sf->{'DeclaredOrigArgs'}{'List'} = ordered_union( $Sf->{'DeclaredOrigArgs'}{'List'}, [$tvar] );
 					
 				} 
-				elsif ( exists $Sf->{'DeclaredOrigArgs'}{'Set'}{$tvar} ) {								
-					say "$f ARG: $tvar";
+				elsif ( exists $Sf->{'DeclaredOrigArgs'}{'Set'}{$tvar} ) {
 					$Sf->{'DeclaredOrigArgs'}{'Set'}{$tvar} = $decl;					
 				}				
 				# In principle F95 code can also have COMMON vars
@@ -2868,14 +2869,14 @@ sub __parse_f77_par_decl {
 	) {
 		$type='complex';		
 	}
-	# This returns be a {($var,{Epxr => $exp, Ast=>$ast})} Set + [$var] List
+	# This returns be a {($var,{Epxr => $exp, AST=>$ast})} Set + [$var] List
 	my $var_val_pairs = _get_var_val_pairs($ast);
 
 	my @param_names=@{ $var_val_pairs->{'List'} };
 	$info->{'ParamDecl'}{'Names'}=\@param_names;
 	for my $var (@param_names) {		
 		my $val = $var_val_pairs->{'Set'}{$var}{'Expr'};
-		my $val_ast = $var_val_pairs->{'Set'}{$var}{'Ast'};
+		my $val_ast = $var_val_pairs->{'Set'}{$var}{'AST'};
 		my $maybe_var = in_nested_set( $Sf, 'LocalVars', $var);
 		# say "$f $maybe_var $var";
 		if ( $maybe_var ) { 
@@ -2994,7 +2995,7 @@ sub __parse_f77_par_decl {
 						'Type' => $ttatrs_types{$var}[0],#$type,
 						'Var'  => $var,
 						'Val'  => $val,
-						'Ast' => $val_ast,
+						'AST' => $val_ast,
 						'Attr' => $ttatrs_types{$var}[1],#$attr,
 						'DEBUG' => __FILE__.' '.__LINE__,
 						'Indent'    => $indent,
@@ -3528,8 +3529,8 @@ sub _parse_read_write_print {
 #    say "ATTR PAIRS: ".Dumper($attr_pairs);
 #    say "IMPLIED DO PAIRS: ".Dumper($impl_do_pairs);
     $info->{'IOCall'}{'Args'} = { 'Set' => {}, 'List' => [ ] };
-    $info->{'IOCall'}{'Args'}{'Ast'}=$attrs_ast;
-    $info->{'IOList'}{'Ast'}=$exprs_ast;
+    $info->{'IOCall'}{'Args'}{'AST'}=$attrs_ast;
+    $info->{'IOList'}{'AST'}=$exprs_ast;
     
     #    $info->{'CallAttrs'} = { 'Set' => $attrs_ast, 'List' => [ sort keys %{ $attrs_ast } ] };
     my $impl_do_vars_list = [ sort keys %{ $impl_do_pairs } ];
@@ -4150,8 +4151,8 @@ sub _parse_data_declaration { (my $line,my $info, my $stref, my $f) = @_;
 		$data_vars = { %{$data_vars},%{$nlist_vars}};
 		my $clist_ast = parse_expression($clist_str,$info,$stref,$f);
 		my $info={};
-		$info->{'NList'}{'Ast'} = $nlist_ast;
-		$info->{'CList'}{'Ast'} = $clist_ast;
+		$info->{'NList'}{'AST'} = $nlist_ast;
+		$info->{'CList'}{'AST'} = $clist_ast;
 		$info->{'Data'}=1;
 		$info->{'SpecificationStatement'} = 1;
 		my $line= "$nlist_str / $clist_str /"; # TODO: this is not quite one var per DATA line but at least it is one pair per DATA line
@@ -4576,7 +4577,7 @@ sub _get_var_val_pairs { my ($ast) = @_;
 		my $var = $var_val_ast->[1][1]; # because k1 is ['$', var1]
 		my $val_ast = $var_val_ast->[2]; # the ast
 		push @{ $var_val_pairs->{'List'}}, $var ;
-		$var_val_pairs->{'Set'}{ $var}  = { 'Ast' =>$val_ast, 'Expr' => emit_expr_from_ast($val_ast) };
+		$var_val_pairs->{'Set'}{ $var}  = { 'AST' =>$val_ast, 'Expr' => emit_expr_from_ast($val_ast) };
 	}
 	
 	return $var_val_pairs;

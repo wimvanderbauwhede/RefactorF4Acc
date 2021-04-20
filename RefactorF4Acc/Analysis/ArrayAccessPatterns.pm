@@ -820,7 +820,7 @@ sub _classify_accesses_and_emit_AST { (my $stref, my $f, my $state ) =@_;
 
 
 sub _eval_expression_w_params { (my $expr_str,my $info, my $stref, my $f, my $block_id, my $state) = @_;
-
+# carp Dumper $expr_str;
     my $expr_ast=parse_expression($expr_str,$info, $stref,$f);
     my $expr_ast2 = replace_param_by_val($stref, $f, $block_id,$expr_ast, $state);
     my $evaled_expr_str=emit_expr_from_ast($expr_ast2);
@@ -886,7 +886,7 @@ sub _remove_index_vars { (my $stref, my $f, my $block_id, my $state, my $vars_re
 }
 
 sub __is_array_decl { (my $info)=@_;
-
+# warn Dumper $info->{'ParsedVarDecl'};
 	return (exists $info->{'ParsedVarDecl'}
 	&& exists $info->{'ParsedVarDecl'}{'Attributes'}
 	&& exists $info->{'ParsedVarDecl'}{'Attributes'}{'Dim'}

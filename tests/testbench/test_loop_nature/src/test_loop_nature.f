@@ -1,5 +1,6 @@
       program test_loop_nature
-        integer, parameter :: sz = 1024
+        integer sz
+        parameter( sz = 1024 )
         integer, parameter :: w = sz*4
         integer, parameter :: h = sz*3
         real, dimension(-1:w+2,-1:h+2) :: p1, p2
@@ -18,7 +19,10 @@
         integer, parameter :: sz = 1024
         integer, parameter :: w = sz*4
         integer, parameter :: h = sz*3
-        real, dimension(-1:w+2,-1:h+2) :: p1, p2     
+        real p1(-1:w+2,-1:h+2)
+        real p2
+        dimension p2(-1:w+2,-1:h+2)
+        ! real, dimension(-1:w+2,-1:h+2) :: p1, p2     
         integer :: i,j   
         do i = -1, w+2
             do j = -1, h+2

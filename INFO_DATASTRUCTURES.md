@@ -248,7 +248,7 @@ __parse_sub_func_prog_decls < _analyse_lines < parse_fortran_src
 	'List' => [@args],
 	'Set' => map { $_ => 1 } @args 
 },
-'RefactoedArgs' => {
+'RefactoredArgs' => {
 	'List' => [],
 	'Set' => {}
 }

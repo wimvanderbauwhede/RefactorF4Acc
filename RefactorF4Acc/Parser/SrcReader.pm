@@ -1246,12 +1246,13 @@ sub _pushAnnLine {
         or $stref->{$srctype}{$f}{'Status'} < $PARSED )
     {
 
-        my $pline = _procLine( $line, $free_form );
+        my $annline = _procLine( $line, $free_form );
+        my ($rline, $info) = @{$annline};
         if ( exists $stref->{'Macros'} ) {
-            $pline->[0] = _restore_case_of_macros( $stref, $pline->[0] );
+            $annline->[0] = _restore_case_of_macros( $stref, $annline->[0] );
         }
 
-        if ( exists $pline->[1]{'Module'} and $srctype eq 'Modules' ) {
+        if ( exists $info->{'Module'} and $srctype eq 'Modules' ) {
 
             if ( $f ne 'UNKNOWN_SRC' ) {
                 if ( $stref->{$srctype}{$f}{'Status'} < $READ )
@@ -1261,8 +1262,8 @@ sub _pushAnnLine {
             }
         }
 
-        if (   exists $pline->[1]{'SubroutineSig'}
-            or exists $pline->[1]{'FunctionSig'} )
+        if (   exists $info->{'SubroutineSig'}
+            or exists $info->{'FunctionSig'} )
         {
             if ( not defined $stref->{$srctype}{$f}{'Status'} ) {
                 $stref->{$srctype}{$f}{'Status'} = $UNREAD;
@@ -1273,11 +1274,11 @@ sub _pushAnnLine {
                     $stref->{$srctype}{$f}{'Status'} = $READ;
                 }
             }
-            if ( exists $pline->[1]{'SubroutineSig'} ) {
-                $f = $pline->[1]{'SubroutineSig'}[1];
+            if ( exists $info->{'SubroutineSig'} ) {
+                $f = $info->{'SubroutineSig'}[1];
             }
             else {
-                $f = $pline->[1]{'FunctionSig'}[1];
+                $f = $info->{'FunctionSig'}[1];
                 if ( not exists $stref->{'Subroutines'}{$f}{'Function'} ) {
                     $stref->{'Subroutines'}{$f}{'Function'} = 1;
                 }
@@ -1288,17 +1289,17 @@ sub _pushAnnLine {
                 and $stref->{'Subroutines'}{$f}{'Status'} == $PARSED );
         }
 
-        if ( exists $pline->[1]{'EndModule'} and $srctype eq 'Subroutines' ) {
+        if ( exists $info->{'EndModule'} and $srctype eq 'Subroutines' ) {
             if ( $f ne 'UNKNOWN_SRC' ) {
                 if ( $stref->{$srctype}{$f}{'Status'} < $READ ) {
                     $stref->{$srctype}{$f}{'Status'} = $READ;
                 }
             }
-            my $mod_name = $pline->[1]{'EndModule'};
-            push @{ $stref->{'Modules'}{$mod_name}{'AnnLines'} }, $pline
+            my $mod_name = $info->{'EndModule'};
+            push @{ $stref->{'Modules'}{$mod_name}{'AnnLines'} }, $annline
               unless $stref->{'Modules'}{$mod_name}{'Status'} == $PARSED;
         }
-        elsif ( exists $pline->[1]{'EndSubroutine'}
+        elsif ( exists $info->{'EndSubroutine'}
             and $srctype eq 'Subroutines' )
         {
 
@@ -1307,7 +1308,7 @@ sub _pushAnnLine {
                     and $stref->{$srctype}{$f}{'Status'} == $PARSED )
               )
             {
-                push @{ $stref->{$srctype}{$f}{'AnnLines'} }, $pline;
+                push @{ $stref->{$srctype}{$f}{'AnnLines'} }, $annline;
                 $stref->{$srctype}{$f}{'Status'} = $READ;
             }
         }
@@ -1319,7 +1320,7 @@ sub _pushAnnLine {
                         and $stref->{$srctype}{$f}{'Status'} == $PARSED )
                   )
                 {
-                    push @{ $stref->{$srctype}{$f}{'AnnLines'} }, $pline;
+                    push @{ $stref->{$srctype}{$f}{'AnnLines'} }, $annline;
                 }
             }
             else {
@@ -1330,13 +1331,13 @@ sub _pushAnnLine {
 
                   # This should only happen on the firs read of the sourcefile
                   if ( $stref->{'SourceFiles'}{$src}{'Status'} == 1) {
-                    push @{ $stref->{'SourceFiles'}{$src}{'AnnLines'} }, $pline;
+                    push @{ $stref->{'SourceFiles'}{$src}{'AnnLines'} }, $annline;
                   }
 
             }
         }
 
-        #	      say $ann. ' : '.Dumper($pline);
+        #	      say $ann. ' : '.Dumper($annline);
     }
 
     return ( $stref, $f, $srctype );
