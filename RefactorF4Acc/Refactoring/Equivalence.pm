@@ -195,7 +195,6 @@ sub change_EQUIVALENCE_to_assignment_lines {
 			and not exists $info->{'SpecificationStatement'}
 			and not exists $info->{'Comments'}
 			and not exists $info->{'Blank'}
-			and not exists $info->{'Skip'}
 			and not exists $info->{'Deleted'}
 			and $first_occ == 1 )
 		{

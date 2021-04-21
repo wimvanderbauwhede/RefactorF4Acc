@@ -2,7 +2,7 @@ package RefactorF4Acc::Analysis::Variables;
 use v5.10;
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
-use RefactorF4Acc::Refactoring::Helpers qw( get_f95_var_decl stateful_pass stateless_pass );
+use RefactorF4Acc::Refactoring::Helpers qw( get_f95_var_decl stateful_pass_inplace stateless_pass_inplace );
 #
 #   (c) 2010-2017 Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
 #
@@ -312,7 +312,7 @@ sub analyse_variables {
 	
 	my $state = [ $stref, $f, {}, {} ];
 	if (not defined $annline) {
-		( $stref, $state ) = stateful_pass( $stref, $f, $__analyse_vars_on_line, $state, 'analyse_variables() ' . __LINE__ );
+		( $stref, $state ) = stateful_pass_inplace( $stref, $f, $__analyse_vars_on_line, $state, 'analyse_variables() ' . __LINE__ );
 	} else {
 			 ( my $list_w_annline, $state ) = $__analyse_vars_on_line->($annline, $state );
 	}

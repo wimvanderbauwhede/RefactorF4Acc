@@ -80,7 +80,6 @@ sub _refactor_include_file {
 		print '*** ' . $line . "\n" if $DBG;
 
 		next if exists $info->{'Deleted'}
-			or exists $info->{'Skip'}
 			or exists $info->{'Comments'};
 		my $skip = 0;
 		if ( exists $info->{'Common'} ) {

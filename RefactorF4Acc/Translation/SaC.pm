@@ -4,7 +4,7 @@ use v5.10;
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
 use RefactorF4Acc::ExpressionAST::Evaluate qw( eval_expression_with_parameters );
-use RefactorF4Acc::Refactoring::Helpers qw( stateful_pass pass_wrapper_subs_in_module ); # emit_f95_var_decl);
+use RefactorF4Acc::Refactoring::Helpers qw( stateful_pass_inplace pass_wrapper_subs_in_module ); # emit_f95_var_decl);
 use RefactorF4Acc::Refactoring::Fixes qw( 
 	_declare_undeclared_variables
 	_removed_unused_variables
@@ -370,7 +370,7 @@ Need to check what it looks like when generated for CPU.
 	};
 
 	my $state = [$stref,$f, {'TranslatedCode'=>[],'OutputArgs'=>[]}];
- 	($stref,$state) = stateful_pass($stref,$f,$pass_translate_to_SaC, $state,'SaC_translation_collect_info() ' . __LINE__  ) ;
+ 	($stref,$state) = stateful_pass_inplace($stref,$f,$pass_translate_to_SaC, $state,'SaC_translation_collect_info() ' . __LINE__  ) ;
 
  	$stref->{'Subroutines'}{$f}{'TranslatedCode'}=$state->[2]{'TranslatedCode'};
  	$stref->{'TranslatedCode'}=[@{$stref->{'TranslatedCode'}},@{$state->[2]{'TranslatedCode'}}];
@@ -421,7 +421,7 @@ sub _hack_to_fix_iodirs {  (my $stref, my $f) = @_;
 	};
 
 	my $state = [$stref,$f, {'CurrentIODir'=>'unchanged'}];
- 	($stref,$state) = stateful_pass($stref,$f,$pass_hack_to_fix_iodirs, $state,'_hack_to_fix_iodirs() ' . __LINE__  ) ;
+ 	($stref,$state) = stateful_pass_inplace($stref,$f,$pass_hack_to_fix_iodirs, $state,'_hack_to_fix_iodirs() ' . __LINE__  ) ;
 
  	return $stref;
 	
@@ -462,7 +462,7 @@ if ($f eq $Config{'KERNEL'}) {
 	};
 
 	my $state = [$stref,$f, {'NewAnnLines'=>[]}];
- 	($stref,$state) = stateful_pass($stref,$f,$pass_hack_to_fix_kernel_sub, $state,'_hack_to_fix_iodirs() ' . __LINE__  ) ;
+ 	($stref,$state) = stateful_pass_inplace($stref,$f,$pass_hack_to_fix_kernel_sub, $state,'_hack_to_fix_iodirs() ' . __LINE__  ) ;
  	
 	$stref->{'Subroutines'}{$f}{'RefactoredCode'} = $state->[2]{'NewAnnLines'};
 #	map {say $_->[0]} @{$stref->{'Subroutines'}{$f}{'AnnLines'}};die ;
@@ -1432,7 +1432,7 @@ sub _hack_to_fix_param_decls_in_superkernel { my ($stref, $f)=@_;
 		};
 	
 		my $state = [$stref,$f, {'MissingParams'=>{},'Found'=>0}];
-	 	($stref,$state) = stateful_pass($stref,$f,$pass_find_array_decls_with_dim_params, $state,'_hack_to_fix_param_decls_in_superkernel_PASS1() ' . __LINE__  ) ;
+	 	($stref,$state) = stateful_pass_inplace($stref,$f,$pass_find_array_decls_with_dim_params, $state,'_hack_to_fix_param_decls_in_superkernel_PASS1() ' . __LINE__  ) ;
 		delete $state->[2]{'MissingParams'}{'_OPEN_PAR_'};		
 		
 # 2. Scan the Subroutine calls for accesses to arrays that have parameters. When we find one, we get the parameter declarations from the subroutine record.
@@ -1466,7 +1466,7 @@ sub _hack_to_fix_param_decls_in_superkernel { my ($stref, $f)=@_;
 		};
 	
 #		my $state = [$stref,$f, {'MissingParams'=>{}}];
-	 	($stref,$state) = stateful_pass($stref,$f,$pass_find_array_with_dim_params_in_subcalls, $state,'_hack_to_fix_param_decls_in_superkernel_PASS2() ' . __LINE__  ) ;
+	 	($stref,$state) = stateful_pass_inplace($stref,$f,$pass_find_array_with_dim_params_in_subcalls, $state,'_hack_to_fix_param_decls_in_superkernel_PASS2() ' . __LINE__  ) ;
 	 	
 #	 	die Dumper($stref->{'Subroutines'}{$f}{'LocalParameters'});
 	}
@@ -1608,7 +1608,7 @@ sub _determine_intermediate_arrays {  (my $stref, my $f)=@_;
 			};
 		
 			my $state = [$stref,$f, {'ArrayArgs'=>{},'CallOrder'=>[], 'ArgsToRemove'=>{}}];
-		 	($stref,$state) = stateful_pass($stref,$f,$pass_array_arg_analysis, $state,'_determine_intermediate_arrays() ' . __LINE__  ) ;
+		 	($stref,$state) = stateful_pass_inplace($stref,$f,$pass_array_arg_analysis, $state,'_determine_intermediate_arrays() ' . __LINE__  ) ;
 		 		
 		    my $array_args = $state->[2]{'ArrayArgs'};
 	#	    say Dumper($array_args );
@@ -1668,7 +1668,7 @@ sub _determine_intermediate_arrays {  (my $stref, my $f)=@_;
 			};
 		
 			$state = [$stref,$f, {'ArgsToRemove'=>$args_to_remove}];
-		 	($stref,$state) = stateful_pass($stref,$f,$pass_remove_superkernel_intermediate_args, $state,'_determine_intermediate_arrays() ' . __LINE__  ) ;	    
+		 	($stref,$state) = stateful_pass_inplace($stref,$f,$pass_remove_superkernel_intermediate_args, $state,'_determine_intermediate_arrays() ' . __LINE__  ) ;	    
 		    
 		    my $reduced_arg_list =[ grep { not exists $args_to_remove->{$_} } @{ $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'}{'List'} } ];				
 			for my $arg ( sort keys %{$args_to_remove} ) {

@@ -4,9 +4,9 @@ use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
 use RefactorF4Acc::Refactoring::Helpers qw( 
 	pass_wrapper_subs_in_module 
-	stateful_pass 
-	stateful_pass_reverse 
-	stateless_pass  
+	stateful_pass_inplace 
+	stateful_pass_reverse_inplace 
+	stateless_pass_inplace  
 	emit_f95_var_decl 
 	splice_additional_lines_cond  
 	);
@@ -53,7 +53,7 @@ croak "This is BROKEN for module parameters, only works for local parameters. TO
 
 # This pass takes the annlines for parameter declarations and evaluates the ones that have expressions 
 # It returns new annlines in RefactoredCode
-# We use stateful_pass to get the parameter declarations 
+# We use stateful_pass_inplace to get the parameter declarations 
 # Then for each of these we print the value of the parameter
 # we collect these values and update the annlines 
 # I could updated the decl in LocalParameters but I would do that using a new field EvaledVal
@@ -72,7 +72,7 @@ sub _eval_param_expressions { my ($stref, $f) = @_;
     };
 
     my $param_annlines = [];
-    ($stref,$param_annlines) = stateful_pass( $stref, $f, $pass_get_param_decls, $param_annlines, 'pass_get_param_decls' );
+    ($stref,$param_annlines) = stateful_pass_inplace( $stref, $f, $pass_get_param_decls, $param_annlines, 'pass_get_param_decls' );
 	if ( scalar @{$param_annlines} > 0 ) {
     # Now actually evaluate those
 		my $vars_vals = _eval_f77_param_exprs($stref, $f, $param_annlines);
@@ -103,7 +103,7 @@ sub _eval_param_expressions { my ($stref, $f) = @_;
 			return ($new_annlines,$vars_vals);
 		};
 
-	    ($stref,$vars_vals) = stateful_pass( $stref,  $f, $pass_replace_param_decls, $vars_vals, 'pass_replace_param_decls' );
+	    ($stref,$vars_vals) = stateful_pass_inplace( $stref,  $f, $pass_replace_param_decls, $vars_vals, 'pass_replace_param_decls' );
 
 		# Maybe I need to update LocalParameters here too
 	}

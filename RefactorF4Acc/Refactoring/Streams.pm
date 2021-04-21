@@ -5,9 +5,9 @@ use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
 use RefactorF4Acc::Refactoring::Helpers qw( 
 	pass_wrapper_subs_in_module 
-	stateful_pass 
-	stateful_pass_reverse 
-	stateless_pass  
+	stateful_pass_inplace 
+	stateful_pass_reverse_inplace 
+	stateless_pass_inplace  
 	emit_f95_var_decl 
 	splice_additional_lines_cond  
 	update_arg_var_decl_sourcelines
@@ -243,7 +243,7 @@ sub _rename_array_accesses_to_scalars { (my $stref, my $f) = @_;
 	};
 # So I think I should put the arguments in $state, I can do that when I encounter the Signature
 	my $state = {'IndexVars'=>{}, 'StreamVars'=>{}, 'Args' =>{}};
- 	($stref,$state) = stateful_pass($stref,$f,$pass_rename_array_accesses_in_exprs, $state,'pass_rename_array_accesses_in_exprs ' . __LINE__  ) ;
+ 	($stref,$state) = stateful_pass_inplace($stref,$f,$pass_rename_array_accesses_in_exprs, $state,'pass_rename_array_accesses_in_exprs ' . __LINE__  ) ;
  	
 # -------------------------------------------------------------------------------------------------------- 	
  	# 2. Now we create new assignment lines, these go into LiftedScalarAssignments 
@@ -389,7 +389,7 @@ sub _rename_array_accesses_to_scalars { (my $stref, my $f) = @_;
 		return ([[$line,$info]],$state);
 	};
 
- 	($stref,$state) = stateful_pass($stref,$f,$pass_update_sig_and_decls, $state,'pass_update_sig_and_decls' . __LINE__  ) ;
+ 	($stref,$state) = stateful_pass_inplace($stref,$f,$pass_update_sig_and_decls, $state,'pass_update_sig_and_decls' . __LINE__  ) ;
  	
 # --------------------------------------------------------------------------------------------------------	
 	# 4. Here we update DeclaredOrigArgs
@@ -496,7 +496,7 @@ sub _rename_array_accesses_to_scalars { (my $stref, my $f) = @_;
 	$state->{'LiftedIndexCalcLines'}=[];
 	$state->{'LiftedIndexVarDecls'}={'List'=>[],'Set'=>{}};
 	$state->{'LiftedStreamVarDecls'}={'List'=>[],'Set'=>{}};
- 	($stref,$state) = stateful_pass_reverse($stref,$f,$pass_lift_array_index_calculations, $state,'_rename_array_accesses_to_scalars_lift() ' . __LINE__  ) ;
+ 	($stref,$state) = stateful_pass_reverse_inplace($stref,$f,$pass_lift_array_index_calculations, $state,'_rename_array_accesses_to_scalars_lift() ' . __LINE__  ) ;
 
 	# And then we can update $stref->{$Subroutines}{$f} and add LiftedIndexCalcLines and LiftedIndexVarDecls so that when we find a call we can splice in these lines
 	$stref->{'Subroutines'}{$f}{'LiftedIndexCalcLines'}=dclone($state->{'LiftedIndexCalcLines'});
@@ -577,7 +577,7 @@ sub _rename_array_accesses_to_scalars { (my $stref, my $f) = @_;
 	
 	$stref->{'Subroutines'}{$f}{'LiftedStreamVarDecls'}={'Set'=>{},'List'=>[]};
 	my $global_state_access=[$stref,$f];
- 	($stref,$global_state_access) = stateful_pass($stref,$f,$pass_emit_updated_code , $global_state_access,'_rename_array_accesses_to_scalars_PASS3() ' . __LINE__  ) ;
+ 	($stref,$global_state_access) = stateful_pass_inplace($stref,$f,$pass_emit_updated_code , $global_state_access,'_rename_array_accesses_to_scalars_PASS3() ' . __LINE__  ) ;
 	$stref->{'Subroutines'}{$f}{'RefactoredArgs'}= $stref->{'Subroutines'}{$f}{'DeclaredOrigArgs'};
 	} # IF NOT A KERNEL
 
@@ -638,7 +638,7 @@ sub _rename_array_accesses_to_scalars_in_subcalls { (my $stref, my $f) = @_;
 	
 	$stref->{'Subroutines'}{$f}{'LiftedVarDecls'}={'Set'=>{},'List'=>{}};
 	my $state=[$stref,$f];
- 	($stref,$state) = stateful_pass($stref,$f,$pass_action, $state,'_rename_array_accesses_to_scalars_called_subs() ' . __LINE__  ) ;	
+ 	($stref,$state) = stateful_pass_inplace($stref,$f,$pass_action, $state,'_rename_array_accesses_to_scalars_called_subs() ' . __LINE__  ) ;	
 	@{ $stref->{'Subroutines'}{$f}{'LocalVars'}{'List'} } = sort keys %{ $stref->{'Subroutines'}{$f}{'LocalVars'}{'Set'}};
 	
 	} # IF KERNEL
@@ -695,7 +695,7 @@ sub _update_call_args { (my $stref, my $f) = @_;
 	};	
 
 	my $state=[$stref,$f];
- 	($stref,$state) = stateful_pass($stref,$f,$pass_update_call_args, $state,'pass_update_call_args() ' . __LINE__  ) ;		
+ 	($stref,$state) = stateful_pass_inplace($stref,$f,$pass_update_call_args, $state,'pass_update_call_args() ' . __LINE__  ) ;		
 	 	    
 	} # IF KERNEL	
 	return $stref;
@@ -754,7 +754,7 @@ sub _add_assignments_for_called_subs { (my $stref, my $f) = @_;
 	};
 	
 	my $state=[$stref,$f];
- 	($stref,$state) = stateful_pass($stref,$f,$pass_action, $state,'_rename_array_accesses_to_scalars_called_subs() ' . __LINE__  ) ;	
+ 	($stref,$state) = stateful_pass_inplace($stref,$f,$pass_action, $state,'_rename_array_accesses_to_scalars_called_subs() ' . __LINE__  ) ;	
 	@{ $stref->{'Subroutines'}{$f}{'LocalVars'}{'List'} } = sort keys %{ $stref->{'Subroutines'}{$f}{'LocalVars'}{'Set'}};
 # --------------------------------------------------------------------------------------------------------			
 	# Here we add the variable declarations for variables used in the lifted assignments	
@@ -773,7 +773,7 @@ sub _add_assignments_for_called_subs { (my $stref, my $f) = @_;
 	};
 	
 #	my $state=[$stref,$f];
- 	($stref,$state) = stateful_pass($stref,$f,$pass_add_decls_lifted_vars, $state,'pass_add_decls_lifted_vars() ' . __LINE__  ) ;	
+ 	($stref,$state) = stateful_pass_inplace($stref,$f,$pass_add_decls_lifted_vars, $state,'pass_add_decls_lifted_vars() ' . __LINE__  ) ;	
 
 	my @lifted_var_decls = map { $stref->{'Subroutines'}{$f}{'LiftedVarDecls'}{'Set'}{$_} } sort keys %{ $stref->{'Subroutines'}{$f}{'LiftedVarDecls'}{'Set'} };
 #	say "\nSUB: $f\n";say Dumper(\@lifted_var_decls);

@@ -8,9 +8,9 @@ use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
 use RefactorF4Acc::Refactoring::Helpers qw(
 	pass_wrapper_subs_in_module
-	stateful_pass
-	stateful_pass_reverse
-	stateless_pass
+	stateful_pass_inplace
+	stateful_pass_reverse_inplace
+	stateless_pass_inplace
 	emit_f95_var_decl
 	splice_additional_lines_cond
 	);
@@ -359,7 +359,7 @@ sub identify_array_accesses_in_exprs { (my $stref, my $f) = @_;
 
 		my $state = {'CurrentSub'=>'', 'CurrentBlock'=>0,'Subroutines'=>{}};
 			
-	 	($stref,$state) = stateful_pass($stref,$f,$pass_identify_array_accesses_in_exprs, $state,'pass_identify_array_accesses_in_exprs ' . __LINE__  ) ;
+	 	($stref,$state) = stateful_pass_inplace($stref,$f,$pass_identify_array_accesses_in_exprs, $state,'pass_identify_array_accesses_in_exprs ' . __LINE__  ) ;
 	 	
 	 	$stref = _collect_dependencies_for_halo_access($stref,$f);
 

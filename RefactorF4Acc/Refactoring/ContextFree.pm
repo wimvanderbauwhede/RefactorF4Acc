@@ -80,11 +80,7 @@ sub context_free_refactorings {
             next;
         }
 if ( not exists $info->{'Inlined'} ) {
-        if ( exists $info->{'Skip'}  ) {
-            next;
-        }        
         if ( exists $info->{'Deleted'} ) {
-        	# WV20190403: originally the condition included: "and $line eq '' ) {"
             next;
         }
 }
@@ -268,7 +264,6 @@ if ( not exists $info->{'Inlined'} ) {
                     
 	                # Remove this line, because this param should have been declared above
 	                $line = '!! Original line PAR:2 !! ' . $line;
-	                $info->{'Skip'}=1;
 	                $info->{'Deleted'} = 1;
 	                $info->{'Ann'}=[ annotate($f, __LINE__ .' Removed ParamDecl' ) ];
 	            } elsif (not exists $info->{'Ref'} or $info->{'Ref'} == 0 ){
@@ -287,11 +282,11 @@ if ( not exists $info->{'Inlined'} ) {
             
             if ($stmt_count != 1) {
             	$line = "! DUP $stmt_count $line";
-            	$info->{'Skip'}=1; 
+                $info->{'Deleted'} = 1;
             } else {
             	if ($line=~/^\s*dimension/) {
             		$line = "! $line ! DUP DIM !";
-            		$info->{'Skip'}=1;
+                    $info->{'Deleted'} = 1;
             	}
             }  
 #            if (exists $info->{'Dimension'}) {

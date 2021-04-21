@@ -15,7 +15,7 @@ use RefactorF4Acc::Utils;
 use RefactorF4Acc::Parser qw( parse_fortran_src );
 use RefactorF4Acc::Refactoring::Helpers qw( 
 	emit_f95_var_decl 
-	stateful_pass
+	stateful_pass_inplace
 	splice_additional_lines_cond
 	);
 use RefactorF4Acc::Refactoring::ContextFree qw( context_free_refactorings );	
@@ -405,7 +405,6 @@ sub _add_ExMismatchedCommonArg_assignment_lines {
 			and not exists $info->{'SpecificationStatement'}
 			and not exists $info->{'Comments'}
 			and not exists $info->{'Blank'}
-			and not exists $info->{'Skip'}
 			and not exists $info->{'Deleted'}
 			and $first_vardecl == 1 )
 		{
@@ -456,7 +455,6 @@ sub _emit_refactored_signatures {
 		and $info->{'VarDecl'}{'Name'} eq $fname
 		) {
 			$info->{'Deleted'}=1;
-			$info->{'Skip'}=1;
 			$annline = [ $line, $info ];
 		}
 
@@ -490,7 +488,7 @@ sub _group_local_param_decls_at_top { my ( $stref, $f ) = @_;
 		return ($new_annlines,$state);
 	};
 	my $param_decl_annlines = [['! Grouped Parameter Declarations',{'Comments' => 1}]];
- 	($stref,$param_decl_annlines) = stateful_pass($stref,$f,$pass_split_out_ParamDecls, $param_decl_annlines,'_split_out_ParamDecls ' . __LINE__  ) ;	
+ 	($stref,$param_decl_annlines) = stateful_pass_inplace($stref,$f,$pass_split_out_ParamDecls, $param_decl_annlines,'_split_out_ParamDecls ' . __LINE__  ) ;	
 
 	 if (scalar @{ $param_decl_annlines } > 1) {
 		my $merged_annlines = splice_additional_lines_cond(

@@ -34,9 +34,13 @@ use Exporter;
   &emit_f95_parsed_par_decl
   &splice_additional_lines
   &splice_additional_lines_cond
+  &stateless_pass_inplace
+  &stateful_pass_inplace
+  &stateful_pass_reverse_inplace
   &stateless_pass
   &stateful_pass
   &stateful_pass_reverse
+  &stateless_pass_reverse
   &top_src_is_module
   &pass_wrapper_subs_in_module
   &update_arg_var_decl_sourcelines
@@ -815,7 +819,6 @@ sub splice_additional_lines_cond {
                     push @{$merged_annlines}, $annline;
                 } else {
             	   # Skip; but I comment out instead if $DBG is on
-            	   $info->{'Skip'}=1;
             	   if ($DBG) {
             	   	 $info->{'Comments'}=1;
             		 push @{$merged_annlines}, ['! SKIP ! '.$line, $info];
@@ -834,7 +837,6 @@ sub splice_additional_lines_cond {
                     push @{$merged_annlines}, $annline;
                 } else {
                    # Skip; but I comment out instead if $DBG is on
-                   $info->{'Skip'}=1;
                    if ($DBG) {
                      $info->{'Comments'}=1;
                      push @{$merged_annlines}, ['! '.$line, $info];
@@ -853,10 +855,10 @@ sub splice_additional_lines_cond {
 
 # The passes below go through all lines of code that are not marked as Deleted
 # TODO: add some control over this
-sub stateless_pass {
+sub stateless_pass_inplace {
     (my $stref, my $f, my $pass_actions, my $pass_info, my $keep_deleted) = @_;
     
-    say "STATELESS PASS ".Dumper($pass_info)." for $f" if $DBG;
+    say "STATELESS PASS INPLACE ".Dumper($pass_info)." for $f" if $DBG;
     my $sub_or_func_or_mod = sub_func_incl_mod( $f, $stref );
     my $Sf                 = $stref->{$sub_or_func_or_mod}{$f};
     my $annlines           = get_annotated_sourcelines( $stref, $f );
@@ -876,15 +878,36 @@ sub stateless_pass {
     }
     $Sf->{'RefactoredCode'} = $new_annlines;
     return $stref;
+} # END of stateless_pass_inplace() 
+
+# This version of the stateless pass takes $annlines as argument and returns $new_annlines 
+sub stateless_pass {
+    my ($annlines, $pass_actions, $pass_info, $keep_deleted) = @_;
+    
+    say "STATELESS PASS ".Dumper($pass_info) if $DBG;
+    my $new_annlines=[];
+    for my $annline ( @{$annlines} ) {    
+    	if (not exists $annline->[1]{'Deleted'}) {
+	        my $pass_annlines = $pass_actions->($annline); # returns an ARRAY ref
+	        for my $new_annline (@{ $pass_annlines }) { 
+	        	push @{$new_annlines}, $new_annline;
+	        }
+    	} else {
+            if (defined $keep_deleted) {
+    		    push @{$new_annlines}, $annline;
+            }
+    	}
+    }
+    return $new_annlines;
 } # END of stateless_pass() 
 
 # original  annlines are taken from $Sf->{'AnnLines'} or $Sf->{'RefactoredCode'} 
 # updated annlines are stored in $Sf->{'RefactoredCode'} 
-sub stateful_pass { my ( $stref, $f, $pass_actions, $state, $pass_info, $keep_deleted ) = @_;
+sub stateful_pass_inplace { my ( $stref, $f, $pass_actions, $state, $pass_info, $keep_deleted ) = @_;
     # return ($stref,$state);
 #    local $Data::Dumper::Indent =0;
 #    local $Data::Dumper::Terse=1;
-    say "STATEFUL PASS ".Dumper($pass_info)." for $f" if $DBG; 
+    say "STATEFUL PASS INPLACE ".Dumper($pass_info)." for $f" if $DBG; 
     my $sub_or_func_or_mod = sub_func_incl_mod( $f, $stref );
      
     my $Sf                 = $stref->{$sub_or_func_or_mod}{$f};    
@@ -907,9 +930,31 @@ sub stateful_pass { my ( $stref, $f, $pass_actions, $state, $pass_info, $keep_de
     $Sf->{'RefactoredCode'} = $new_annlines;
     
     return ($stref,$state);
+} # END of stateful_pass_inplace()
+
+# This version of the stateful pass takes $annlines as argument and returns $new_annlines 
+sub stateful_pass { my ( $annlines, $pass_actions, $state, $pass_info, $keep_deleted ) = @_; # return ($new_annlines,$state);
+    say "STATEFUL PASS ".Dumper($pass_info) if $DBG;      
+    
+    my $nextLineID         = scalar @{$annlines} + 1;
+    my $new_annlines=[];
+    for my $annline ( @{$annlines} ) {    	
+    	if (not exists $annline->[1]{'Deleted'}) {    	
+	        (my $pass_annlines, $state) = $pass_actions->($annline, $state);
+    	    for my $new_annline (@{ $pass_annlines }) { 
+        		push @{$new_annlines}, $new_annline;
+        	}
+    	} else {
+            if (defined $keep_deleted) {
+    		push @{$new_annlines}, $annline;
+            }
+    	}        	
+    }
+    
+    return ($new_annlines,$state);
 } # END of stateful_pass()
 
-sub stateful_pass_reverse {
+sub stateful_pass_reverse_inplace {
     (my $stref, my $f, my $pass_actions, my $state, my $pass_info, my $keep_deleted ) = @_;
     my $sub_or_func_or_mod = sub_func_incl_mod( $f, $stref );
      
@@ -935,7 +980,47 @@ sub stateful_pass_reverse {
     $Sf->{'RefactoredCode'} = $new_annlines;
     
     return ($stref,$state);
-} # END of stateful_pass()
+} # END of stateful_pass_inplace()
+
+sub stateful_pass_reverse {
+   my ($annlines, $pass_actions, $state, $pass_info, $keep_deleted ) = @_;
+    my $new_annlines_rev=[];
+    for my $annline ( reverse @{$annlines} ) {
+    	if (not exists $annline->[1]{'Deleted'}) {    	
+	        (my $pass_annlines, $state) = $pass_actions->($annline, $state);
+    	    for my $new_annline (@{ $pass_annlines }) { 
+        		push @{$new_annlines_rev}, $new_annline;
+        	}
+    	} else {
+            if (defined $keep_deleted) {
+    		    push @{$new_annlines_rev}, $annline;
+            }
+    	}        	        	
+    }
+    my $new_annlines =[ reverse @{ $new_annlines_rev  } ]; 
+    
+    return ($new_annlines,$state);
+} # END of stateful_pass_reverse()
+
+sub stateless_pass_reverse {
+   my ($annlines, $pass_actions, $pass_info, $keep_deleted ) = @_;
+    my $new_annlines_rev=[];
+    for my $annline ( reverse @{$annlines} ) {
+    	if (not exists $annline->[1]{'Deleted'}) {    	
+	        my $pass_annlines = $pass_actions->($annline);
+    	    for my $new_annline (@{ $pass_annlines }) { 
+        		push @{$new_annlines_rev}, $new_annline;
+        	}
+    	} else {
+            if (defined $keep_deleted) {
+    		    push @{$new_annlines_rev}, $annline;
+            }
+    	}        	        	
+    }
+    my $new_annlines =[ reverse @{ $new_annlines_rev  } ]; 
+    
+    return $new_annlines;
+} # END of stateless_pass_reverse()
 
 
 sub emit_f95_parsed_var_decl { (my $pvd) =@_;
@@ -1074,7 +1159,7 @@ sub update_arg_var_decl_sourcelines { (my $stref, my $f)=@_;
 	};
 	
 	my $state=[$stref,$f];
- 	($stref,$state) = stateful_pass($stref,$f,$pass_update_arg_var_decls, $state,'pass_update_arg_var_decls() ' . __LINE__  ) ;	
+ 	($stref,$state) = stateful_pass_inplace($stref,$f,$pass_update_arg_var_decls, $state,'pass_update_arg_var_decls() ' . __LINE__  ) ;	
     return $stref;
 } # END of update_arg_var_decl_sourcelines
 

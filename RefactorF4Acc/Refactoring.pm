@@ -9,7 +9,7 @@ use RefactorF4Acc::Utils;
 
 use RefactorF4Acc::Analysis::ArgumentIODirs qw( determine_argument_io_direction_rec update_argument_io_direction_all_subs);
 
-use RefactorF4Acc::Refactoring::Helpers qw( top_src_is_module stateful_pass stateless_pass get_annotated_sourcelines );
+use RefactorF4Acc::Refactoring::Helpers qw( top_src_is_module stateful_pass_inplace stateless_pass_inplace get_annotated_sourcelines );
 use RefactorF4Acc::Refactoring::Subroutines qw( refactor_all_subroutines );
 use RefactorF4Acc::Refactoring::Functions qw( refactor_called_functions remove_vars_masking_functions);
 use RefactorF4Acc::Refactoring::IncludeFiles qw( refactor_include_files );
@@ -121,7 +121,7 @@ sub _ifdef_io_QD { (my $stref) = @_;
 	
 	for my $f ( keys %{ $stref->{'Subroutines'} } ) {
 		next if exists $stref->{'Entries'}{$f};
-		$stref = stateless_pass( $stref, $f, $__ifdef_io, '__ifdef_io() ' . __LINE__ );
+		$stref = stateless_pass_inplace( $stref, $f, $__ifdef_io, '__ifdef_io() ' . __LINE__ );
 	}	
 	
 	return $stref;	
@@ -253,7 +253,7 @@ sub _ifdef_io_per_source_PASS2a { (my $stref, my $f) =@_; # make this just $annl
 	};
 
 	my $state = ['! Start',{'Comments' => 1}];
- 	($stref,$state) = stateful_pass($stref,$f,$pass_action, $state,'__ifdef_io_PASS2a() ' . __LINE__  ) ;
+ 	($stref,$state) = stateful_pass_inplace($stref,$f,$pass_action, $state,'__ifdef_io_PASS2a() ' . __LINE__  ) ;
 	return $stref
 }
 
@@ -277,7 +277,7 @@ sub _ifdef_io_per_source_PASS2b { (my $stref, my $f) =@_; # make this just $annl
 	};
 
 	my $state = ['! Start',{'Comments' => 1}];
- 	($stref,$state) = stateful_pass($stref,$f,$pass_action, $state,'__ifdef_io_PASS2b() ' . __LINE__  ) ;
+ 	($stref,$state) = stateful_pass_inplace($stref,$f,$pass_action, $state,'__ifdef_io_PASS2b() ' . __LINE__  ) ;
 	return $stref
 }
 
@@ -322,7 +322,7 @@ sub _substitute_placeholders_per_source { (my $stref,my $f) =@_;
 		return [$annline];						
 	};
 	
- 	$stref = stateless_pass($stref,$f,$pass_action, '_substitute_placeholders_per_source() ' . __LINE__  ) ;
+ 	$stref = stateless_pass_inplace($stref,$f,$pass_action, '_substitute_placeholders_per_source() ' . __LINE__  ) ;
 	return $stref
 	
 	

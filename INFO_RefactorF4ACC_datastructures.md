@@ -21,7 +21,6 @@ The `$info` field is a map. Most of the keys depend on the actual code on a give
     Deleted
     Removed
     Ann
-    Skip
     Ref
     Refactored
 
@@ -192,7 +191,6 @@ The parser identifies each line and stores the information in `$info`.
         
         'Ast','FileNameVar','Vars'
         
-        'Skip'        
         'DeadCode'
         'Deleted'
         

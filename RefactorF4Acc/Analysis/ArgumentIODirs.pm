@@ -4,7 +4,7 @@ use v5.10;
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils
   qw( pp_annlines get_maybe_args_globs type_via_implicits in_nested_set get_var_record_from_set %F95_intrinsic_functions warning);
-use RefactorF4Acc::Refactoring::Helpers qw( get_annotated_sourcelines stateful_pass emit_f95_var_decl get_f95_var_decl );
+use RefactorF4Acc::Refactoring::Helpers qw( get_annotated_sourcelines stateful_pass_inplace emit_f95_var_decl get_f95_var_decl );
 
 #use RefactorF4Acc::Refactoring::Subroutines::Signatures qw( refactor_subroutine_signature );
 
@@ -1003,13 +1003,12 @@ sub _update_argument_io_direction {
 #						warn "BLOCK DATA $f";
                     $decl->{'IODir'} = 'InOut';
                 }
-
 					
                 my $rline = emit_f95_var_decl($decl);
                 push @{$info->{'Ann'}}, '_update_argument_io_direction';
-                if (exists $info->{'Skip'}) {
+                if (exists $info->{'Deleted'}) {
                     $rline = '! ' . $rline;
-                    push @{$info->{'Ann'}}, 'SKIP';
+                    push @{$info->{'Ann'}}, 'Deleted';
                 }
                 $annline = [$rline, $info];
 
@@ -1022,7 +1021,7 @@ sub _update_argument_io_direction {
         return ([$annline], $state);
     };
     my $state = [$stref, $f, {}];
-    ($stref, $state) = stateful_pass($stref, $f, $__update_decl, $state, '_update_argument_io_direction() ' . __LINE__);
+    ($stref, $state) = stateful_pass_inplace($stref, $f, $__update_decl, $state, '_update_argument_io_direction() ' . __LINE__);
 
 #	say "SUB: $f"  if $f eq 'sn705';
 #croak Dumper($Sf->{'RefactoredArgs'}{'Set'}{'ivd005'}) if $f eq 'sn705';

@@ -3,7 +3,7 @@ use v5.10;
 
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
-use RefactorF4Acc::Refactoring::Helpers qw( stateful_pass stateless_pass );
+use RefactorF4Acc::Refactoring::Helpers qw( stateful_pass_inplace stateless_pass_inplace );
 use RefactorF4Acc::Parser::Expressions qw( emit_expr_from_ast );
 # use RefactorF4Acc::Parser qw( analyse_lines );
 
@@ -197,7 +197,7 @@ sub __split_out_specification_parts { (my $stref, my $f) =@_;
     };
 
     my $state = [[],[],[]];
-    ( $stref, $state ) = stateful_pass( $stref, $f, $pass__split_out_specification_parts, $state, 'pass__split_specification_computation_parts() ' . __LINE__ );
+    ( $stref, $state ) = stateful_pass_inplace( $stref, $f, $pass__split_out_specification_parts, $state, 'pass__split_specification_computation_parts() ' . __LINE__ );
     ( my $use_part, my $specification_part, my $preceding_comments__)     = @{$state};        
     # say "Specification part for $f:\n". Dumper(pp_annlines($specification_part,1));
     return ($stref, $use_part, $specification_part);
@@ -236,7 +236,7 @@ sub __split_out_computation_part { (my $stref, my $f) =@_;
     };
 
     my $state = [[],[]];
-    ( $stref, $state ) = stateful_pass( $stref, $f, $pass__split_out_computation_part, $state, 'pass__split_specification_computation_parts() ' . __LINE__ );
+    ( $stref, $state ) = stateful_pass_inplace( $stref, $f, $pass__split_out_computation_part, $state, 'pass__split_specification_computation_parts() ' . __LINE__ );
     my $computation_part = $state->[0];
     # say "Computation part for $f:\n". Dumper($computation_part) if $f eq 's1b';
     return ($stref, $computation_part);
@@ -384,7 +384,6 @@ sub __merge_specification_computation_parts_into_caller { (my $stref, my $f, my 
             and $found_use and not exists $info->{'Use'} 
             and not exists $info->{'Comments'}
             and not exists $info->{'Blank'}
-            and not exists $info->{'Skip'}
             and not exists $info->{'Deleted'}
         ) {
             return ( [comment("$indent BEGIN ex-sub use statement $sub"),@{$use_part},comment("$indent END ex-sub use statement $sub"),$annline], 
@@ -403,7 +402,6 @@ sub __merge_specification_computation_parts_into_caller { (my $stref, my $f, my 
             and not exists $info->{'SpecificationStatement'}
             and not exists $info->{'Comments'}
             and not exists $info->{'Blank'}
-            and not exists $info->{'Skip'}
             and not exists $info->{'Deleted'}
             and $first_vardecl == 1 )
         {
@@ -428,7 +426,7 @@ sub __merge_specification_computation_parts_into_caller { (my $stref, my $f, my 
     };
 
     my $state = [ $use_part, $specification_part, 0, 1, 0];
-    ( $stref, $state ) = stateful_pass( $stref, $f, $pass__merge_specification_computation_parts_into_caller, $state, 'pass__merge_specification_computation_parts_into_caller() ' . __LINE__ );
+    ( $stref, $state ) = stateful_pass_inplace( $stref, $f, $pass__merge_specification_computation_parts_into_caller, $state, 'pass__merge_specification_computation_parts_into_caller() ' . __LINE__ );
     $stref = __update_caller_inlined_vardecls($stref,$f,$sub,$specification_part);
     
     return $stref;
@@ -475,7 +473,6 @@ sub __rename_vars {
 			and not exists $info->{'ImplicitNone'}
 			and not exists $info->{'Comments'}
 			and not exists $info->{'Blank'}
-			and not exists $info->{'Skip'}
 			and not exists $info->{'Deleted'}            
             and not exists $info->{'ArgDecl'}
          ) {
@@ -504,7 +501,7 @@ sub __rename_vars {
     };
 
     my $renamed_vars = {};
-    ($stref,$renamed_vars) = stateful_pass( $stref, $f, $rename_vars_pass, $renamed_vars, 'rename_vars_pass() ' . __LINE__ );
+    ($stref,$renamed_vars) = stateful_pass_inplace( $stref, $f, $rename_vars_pass, $renamed_vars, 'rename_vars_pass() ' . __LINE__ );
 
 	return ($stref, $renamed_vars);
 
@@ -542,7 +539,7 @@ sub __substitute_args { my ($stref, $f, $sub, $line_id) = @_;
     };
 
     my $state = [ 0, 1];
-    ( $stref, $state ) = stateful_pass( $stref, $f, $pass__substitute_args, $state, 'pass__substitute_args()' . __LINE__ );
+    ( $stref, $state ) = stateful_pass_inplace( $stref, $f, $pass__substitute_args, $state, 'pass__substitute_args()' . __LINE__ );
     return $stref;
 } # END of __substitute_args
 
@@ -579,7 +576,7 @@ sub __substitute_args_core { ( my $stref, my $f , my $argmap) = @_;
         return [[$line,$info]];
     };
 
-    $stref = stateless_pass( $stref, $f, $rename_vars_pass, 'rename_vars_pass() ' . __LINE__ );    
+    $stref = stateless_pass_inplace( $stref, $f, $rename_vars_pass, 'rename_vars_pass() ' . __LINE__ );    
     
     return $stref;
 
@@ -644,7 +641,7 @@ sub find_subs_to_inline { (my $stref, my $f)=@_;
 		my $called_subs = {};		
         my $state = [$in_inline_region,$called_subs];
 
-		($stref, $state) = stateful_pass ($stref,  $f,  $pass_actions,  $state, 'find_subs_to_inline' );
+		($stref, $state) = stateful_pass_inplace ($stref,  $f,  $pass_actions,  $state, 'find_subs_to_inline' );
 		($in_inline_region,$called_subs)=@{$state};
         $stref->{'Subroutines'}{$f}{'SubsToInline'}= [sort keys %{$called_subs}];		
 	# }	

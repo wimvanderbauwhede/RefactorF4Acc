@@ -6,7 +6,7 @@ package RefactorF4Acc::CustomPasses;
 use v5.10;
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
-use RefactorF4Acc::Refactoring::Helpers qw( top_src_is_module stateful_pass stateless_pass get_annotated_sourcelines );
+use RefactorF4Acc::Refactoring::Helpers qw( top_src_is_module stateful_pass_inplace stateless_pass_inplace get_annotated_sourcelines );
 use RefactorF4Acc::Refactoring::Modules qw( add_module_decls );
 
 #### CUSTOM PASSES ####
@@ -238,7 +238,7 @@ sub _ifdef_io_per_source_PASS2a { (my $stref, my $f) =@_; # make this just $annl
 	};
 
 	my $state = ['! Start',{'Comments' => 1}];
- 	($stref,$state) = stateful_pass($stref,$f,$pass_action, $state,'__ifdef_io_PASS2a() ' . __LINE__  ) ;
+ 	($stref,$state) = stateful_pass_inplace($stref,$f,$pass_action, $state,'__ifdef_io_PASS2a() ' . __LINE__  ) ;
 	return $stref
 }
 
@@ -262,7 +262,7 @@ sub _ifdef_io_per_source_PASS2b { (my $stref, my $f) =@_; # make this just $annl
 	};
 
 	my $state = ['! Start',{'Comments' => 1}];
- 	($stref,$state) = stateful_pass($stref,$f,$pass_action, $state,'__ifdef_io_PASS2b() ' . __LINE__  ) ;
+ 	($stref,$state) = stateful_pass_inplace($stref,$f,$pass_action, $state,'__ifdef_io_PASS2b() ' . __LINE__  ) ;
 	return $stref
 }
 
@@ -307,7 +307,7 @@ sub _substitute_placeholders_per_source { (my $stref,my $f) =@_;
 		return [$annline];						
 	};
 	
- 	$stref = stateless_pass($stref,$f,$pass_action, '_substitute_placeholders_per_source() ' . __LINE__  ) ;
+ 	$stref = stateless_pass_inplace($stref,$f,$pass_action, '_substitute_placeholders_per_source() ' . __LINE__  ) ;
 	return $stref
 	
 	

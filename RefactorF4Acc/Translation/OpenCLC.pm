@@ -4,7 +4,7 @@ use v5.10;
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
 use RefactorF4Acc::Analysis::ArgumentIODirs qw( determine_argument_io_direction_rec );
-use RefactorF4Acc::Refactoring::Helpers qw( stateful_pass pass_wrapper_subs_in_module update_arg_var_decl_sourcelines);
+use RefactorF4Acc::Refactoring::Helpers qw( stateful_pass_inplace pass_wrapper_subs_in_module update_arg_var_decl_sourcelines);
 use RefactorF4Acc::Refactoring::Fixes qw( _declare_undeclared_variables _removed_unused_variables _fix_scalar_ptr_args _fix_scalar_ptr_args_subcall );
 use RefactorF4Acc::Parser::Expressions qw( @sigils );
 use RefactorF4Acc::Translation::LlvmToTyTraIR qw( generate_llvm_ir_for_TyTra );
@@ -135,7 +135,7 @@ sub add_OpenCL_address_space_qualifiers { (my $stref, my $f, my $ocl) = @_;
 				return ([$annline],[$stref,$f]);
 			};  
 			my $state = [$stref,$f];
- 			($stref,$state) = stateful_pass($stref,$f,$pass_add_OpenCL_address_space_qualifiers, $state,'pass_add_OpenCL_address_space_qualifiers() ' . __LINE__  ) ;
+ 			($stref,$state) = stateful_pass_inplace($stref,$f,$pass_add_OpenCL_address_space_qualifiers, $state,'pass_add_OpenCL_address_space_qualifiers() ' . __LINE__  ) ;
 		}		
 	}	
 	return $stref;
@@ -352,7 +352,7 @@ sub translate_sub_to_C {  (my $stref, my $f, my $ocl) = @_;
 	};
 
 	my $state = [$stref,$f, {'TranslatedCode'=>[], 'Args'=>[]}];
- 	($stref,$state) = stateful_pass($stref,$f,$pass_translate_to_C, $state,'C_translation_collect_info() ' . __LINE__  ) ;
+ 	($stref,$state) = stateful_pass_inplace($stref,$f,$pass_translate_to_C, $state,'C_translation_collect_info() ' . __LINE__  ) ;
 
  	$stref->{'Subroutines'}{$f}{'TranslatedCode'}=$state->[2]{'TranslatedCode'};
  	$stref->{'TranslatedCode'}=[@{$stref->{'TranslatedCode'}},@{$state->[2]{'TranslatedCode'}}];	
@@ -813,7 +813,7 @@ if ($stref->{'OpenCL'}==3) {
     };
 
     my $state = [$stref,$f, {'TranslatedCode'=>[]}];
-    ($stref,$state) = stateful_pass($stref,$f,$pass_emit_OpenCL_pipe_declarations , $state,'emit_OpenCL_pipe_declarations() ' . __LINE__  ) ;
+    ($stref,$state) = stateful_pass_inplace($stref,$f,$pass_emit_OpenCL_pipe_declarations , $state,'emit_OpenCL_pipe_declarations() ' . __LINE__  ) ;
 
     $stref->{'Modules'}{$f}{'TranslatedCode'}=$state->[2]{'TranslatedCode'};
     $stref->{'TranslatedCode'}=[@{$stref->{'TranslatedCode'}},@{$state->[2]{'TranslatedCode'}},''];

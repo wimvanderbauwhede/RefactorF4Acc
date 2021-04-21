@@ -2,7 +2,7 @@ package RefactorF4Acc::Refactoring::Functions;
 use v5.10;
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
-use RefactorF4Acc::Refactoring::Helpers qw( stateful_pass );
+use RefactorF4Acc::Refactoring::Helpers qw( stateful_pass_inplace );
 use RefactorF4Acc::Refactoring::ContextFree qw( context_free_refactorings );
 # 
 #   (c) 2010-2017 Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
@@ -92,7 +92,7 @@ sub remove_vars_masking_functions { ( my $stref ) = @_;
         next if exists $stref->{'ExternalSubroutines'}{$f};
         next if exists $stref->{'Modules'}{$f}; # HACK! FIXME!
         my $state = [$stref,$f];
-        ($stref, $state) = stateful_pass($stref,$f, $pass_actions, $state, '');
+        ($stref, $state) = stateful_pass_inplace($stref,$f, $pass_actions, $state, '');
     }
     return $stref;    
 }
@@ -263,7 +263,7 @@ sub add_function_var_decls_from_calls {
 
     my $state = [ $stref, $f];
 
-    ( $stref, $state ) = stateful_pass( $stref, $f, $__add_function_var_decls_from_calls, $state, '_add_function_var_decls_from_calls() ' . __LINE__ );
+    ( $stref, $state ) = stateful_pass_inplace( $stref, $f, $__add_function_var_decls_from_calls, $state, '_add_function_var_decls_from_calls() ' . __LINE__ );
     $stref = $state->[0];
     return $stref;
 	

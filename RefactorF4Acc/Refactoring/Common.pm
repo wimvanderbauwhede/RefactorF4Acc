@@ -265,7 +265,6 @@ sub refactor_COMMON_blocks {  # 218 lines Was _refactor_globals_new
 			and not exists $info->{'SpecificationStatement'}
 			and not exists $info->{'Comments'}
 			and not exists $info->{'Blank'}
-			and not exists $info->{'Skip'}
 			and not exists $info->{'Deleted'}
 			) {
 				return 1;

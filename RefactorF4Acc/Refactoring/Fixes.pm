@@ -4,9 +4,9 @@ use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
 use RefactorF4Acc::Refactoring::Helpers qw( 
 	pass_wrapper_subs_in_module 
-	stateful_pass 
-	stateful_pass_reverse 
-	stateless_pass  
+	stateful_pass_inplace 
+	stateful_pass_reverse_inplace 
+	stateless_pass_inplace  
 	emit_f95_var_decl 
 	splice_additional_lines_cond  
 	);
@@ -179,7 +179,7 @@ sub _removed_unused_variables { (my $stref, my $f)=@_;
 		$state->{ExprVars}={};
 		$state->{AssignedVars}={};
         # The pass finds ExprVars and AssignedVars
- 		($stref,$state) = stateful_pass($stref,$f,$pass_action_find_all_used_vars, $state,'_find_all_unused_variables() ' . __LINE__  ) ;
+ 		($stref,$state) = stateful_pass_inplace($stref,$f,$pass_action_find_all_used_vars, $state,'_find_all_unused_variables() ' . __LINE__  ) ;
  	# Once we have these lists, we can now check if there are any variables that occur on an Lhs an are not used anywhere
  	# We simply check for every AssignedVar if it is used as an ExprVar or as an Arg 	
     
@@ -239,7 +239,7 @@ sub _removed_unused_variables { (my $stref, my $f)=@_;
 	
 	$state->{'RemainingArgs'}=[];
 	$state->{'DeletedArgs'}=[];
-	($stref,$state) = stateful_pass($stref,$f,$pass_action_decls, $state,'_removed_unused_variables() ' . __LINE__  ) ;
+	($stref,$state) = stateful_pass_inplace($stref,$f,$pass_action_decls, $state,'_removed_unused_variables() ' . __LINE__  ) ;
 	
 	# --------------------------------------------------------------------------------------------------------------------------------	
  	# Adapt the Signature in $stref
@@ -325,7 +325,7 @@ sub _declare_undeclared_variables { (my $stref, my $f)=@_;
 		'Args'=>{},
 	};
         # The pass finds ExprVars and AssignedVars
- 		($stref,$state) = stateful_pass($stref,$f,$pass_action_find_all_used_vars, $state,'_find_all_unused_variables() ' . __LINE__  ) ;
+ 		($stref,$state) = stateful_pass_inplace($stref,$f,$pass_action_find_all_used_vars, $state,'_find_all_unused_variables() ' . __LINE__  ) ;
 
 	# --------------------------------------------------------------------------------------------------------------------------------
 	# As we are going through the whole code we can also test for undeclared vars 
@@ -373,7 +373,7 @@ sub _declare_undeclared_variables { (my $stref, my $f)=@_;
 	};
 
 	my $full_state = [$stref,$f,$state];
- 	($stref,$full_state) = stateful_pass($stref,$f,$pass_action_type_undeclared, $full_state,'_pass_action_type_undeclared() ' . __LINE__  ) ;
+ 	($stref,$full_state) = stateful_pass_inplace($stref,$f,$pass_action_type_undeclared, $full_state,'_pass_action_type_undeclared() ' . __LINE__  ) ;
 	# --------------------------------------------------------------------------------------------------------------------------------	 	
  	# So at this point we have $pass_state->{'UndeclaredVars'} for $f, so now we need a pass to add the missing decls 
  	# the best way is a reverse pass which adds the decls as soon as it finds a declaration, using a state var "Once"
@@ -413,7 +413,7 @@ sub _declare_undeclared_variables { (my $stref, my $f)=@_;
 	};
  	
 	$full_state->[2]{'Once'}=0;
- 	($stref,$full_state) = stateful_pass_reverse($stref,$f,$pass_action_add_undeclared_type_decls, $full_state,'pass_action_add_undeclared_type_decls() ' . __LINE__  ) ;
+ 	($stref,$full_state) = stateful_pass_reverse_inplace($stref,$f,$pass_action_add_undeclared_type_decls, $full_state,'pass_action_add_undeclared_type_decls() ' . __LINE__  ) ;
 	@{ $stref->{'Subroutines'}{$f}{'DeclaredOrigLocalVars'}{'List'} } = sort keys %{ $stref->{'Subroutines'}{$f}{'DeclaredOrigLocalVars'}{'Set'} } ;
 		
 	return $stref;
@@ -499,7 +499,7 @@ sub _fix_scalar_ptr_args { (my $stref, my $f)=@_;
 	};
 	my $state= [$stref,$f,$pass_state];
 	
- 	($stref,$state) = stateful_pass($stref,$f,$pass_fix_scalar_ptr_args, $state,'pass_fix_scalar_ptr_args() ' . __LINE__  ) ;
+ 	($stref,$state) = stateful_pass_inplace($stref,$f,$pass_fix_scalar_ptr_args, $state,'pass_fix_scalar_ptr_args() ' . __LINE__  ) ;
 } # IF NOT KERNEL
  	
 	return $stref;
@@ -586,7 +586,7 @@ sub _fix_scalar_ptr_args_subcall { (my $stref, my $f)=@_;
 		
 	my $state= [$stref,$f];
 	
- 	($stref,$state) = stateful_pass($stref,$f,$pass_fix_scalar_ptr_args_subcall, $state,'pass_fix_scalar_ptr_args_subcall() ' . __LINE__  ) ;
+ 	($stref,$state) = stateful_pass_inplace($stref,$f,$pass_fix_scalar_ptr_args_subcall, $state,'pass_fix_scalar_ptr_args_subcall() ' . __LINE__  ) ;
  		 
 } 
 
@@ -638,7 +638,7 @@ sub _make_dim_vars_scalar_consts_in_sigs { (my $stref, my $f)=@_;
 	};
 	my $state= [$stref,$f,$pass_state];
 	
- 	($stref,$state) = stateful_pass($stref,$f,$pass_make_dim_vars_scalar_consts_in_sigs, $state,'pass_make_dim_vars_scalar_consts_in_sigs() ' . __LINE__  ) ;
+ 	($stref,$state) = stateful_pass_inplace($stref,$f,$pass_make_dim_vars_scalar_consts_in_sigs, $state,'pass_make_dim_vars_scalar_consts_in_sigs() ' . __LINE__  ) ;
 	
 	return $stref;
 } # END of _make_dim_vars_scalar_consts_in_sigs()
@@ -784,7 +784,7 @@ sub remove_redundant_arguments_and_fix_intents { (my $stref, my $f)=@_;
 			return ([$annline]);
 		};
 		
- 		$stref = stateless_pass($stref,$f,$pass_remove_redundant_args_in_superkernel,'pass_remove_redundant_args_in_superkernel' . __LINE__  ) ;
+ 		$stref = stateless_pass_inplace($stref,$f,$pass_remove_redundant_args_in_superkernel,'pass_remove_redundant_args_in_superkernel' . __LINE__  ) ;
 
 # say "Removed redundant args from superkernel";
 
@@ -825,7 +825,7 @@ sub remove_redundant_arguments_and_fix_intents { (my $stref, my $f)=@_;
 				return ([$annline]);
 			};
 				
-			$stref = stateless_pass($stref,$csub,$pass_remove_redundant_args_in_called_subs,'pass_remove_redundant_args_in_called_subs' . __LINE__  ) ;				
+			$stref = stateless_pass_inplace($stref,$csub,$pass_remove_redundant_args_in_called_subs,'pass_remove_redundant_args_in_called_subs' . __LINE__  ) ;				
 		}
 
 		# So at this point we have removed all redundant args.
@@ -921,7 +921,7 @@ sub remove_redundant_arguments_and_fix_intents { (my $stref, my $f)=@_;
 				return ([$annline]);
 			};
 				
-			$stref = stateless_pass($stref,$csub,$pass_update_iodirs_in_called_subs,'pass_update_iodirs_in_called_subs' . __LINE__  ) ;				
+			$stref = stateless_pass_inplace($stref,$csub,$pass_update_iodirs_in_called_subs,'pass_update_iodirs_in_called_subs' . __LINE__  ) ;				
 		}
 
 	} # if $f is the superkernel
@@ -1022,7 +1022,7 @@ my $pass_check_reads_writes = sub { (my $annline, my $reads_writes)=@_;
 	};
 	
 	my $reads_writes=[]; # sequence of 'r' and 'w'. And yes, I could use 0/1
- 	($stref,$reads_writes) = stateful_pass($stref,$f,$pass_check_reads_writes, $reads_writes,'pass_check_reads_writes' . __LINE__  ) ;
+ 	($stref,$reads_writes) = stateful_pass_inplace($stref,$f,$pass_check_reads_writes, $reads_writes,'pass_check_reads_writes' . __LINE__  ) ;
 	 return $reads_writes;
 } # END of __check_reads_writes
 

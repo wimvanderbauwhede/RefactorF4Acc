@@ -18,7 +18,6 @@ The `$info` field is a map. Most of the keys depend on the actual code on a give
 Deleted
 Removed
 Ann
-Skip
 Ref
 Refactored
 
@@ -530,7 +529,7 @@ Analysis/ArgumentIODirs.pm
 1116:		for my $arg ( @{ $info->{'SubroutineCall'}{'Args'}{'List'} } ) {			
 1147:		if ( exists $info->{'VarDecl'} ) {
 1149:			my $varname = $info->{'VarDecl'}{'Name'};
-1171:                    if (exists $info->{'Skip'}) {
+1171:                    if (exists $info->{'Deleted'}) {
 1173:                    	push @{$info->{'Ann'}},'SKIP';
 
 Analysis/DeadCodeElimination.pm
@@ -680,15 +679,12 @@ Refactoring/Common.pm
 259:                    if (exists $info->{'Dimension'}) {
 262:                    	push @{$info->{'Ann'}}, annotate($f, __LINE__ .': Dimension, '.($stmt_count == 1 ? '' : 'SKIP'));
 266:                    push @{$info->{'Ann'}}, annotate($f, __LINE__ .': ParsedVarDecl, '.($stmt_count == 1 ? '' : 'SKIP'));                    
-272:	                $info->{'Skip'}=1;
 273:	                $info->{'Deleted'} = 1;
 274:	                $info->{'Ann'}=[ annotate($f, __LINE__ .' Removed ParamDecl' ) ];
 275:	            } elsif (not exists $info->{'Ref'} or $info->{'Ref'} == 0 ){
 278:	                delete $info->{'ExGlobArgDecls'};
 279:	                $info->{'Ref'} = 1;                 
 280:	                push @{$info->{'Ann'}}, annotate($f, __LINE__ .': Ref==0, '.$stmt_count );
-288:            	$info->{'Skip'}=1; 
-292:            		$info->{'Skip'}=1;
 303:        if ( exists $info->{'If'} or exists $info->{'ElseIf'} ) {
 313:            $info->{'Ref'}++;
 320:        elsif ( exists $info->{'ParamDecl'} )
@@ -1181,7 +1177,6 @@ OpenCLTranslation.pm
 
 Emitter.pm
 170:				if (exists $info->{'Blank'}
-171:				or exists $info->{'Skip'}
 172:				or exists $info->{'Deleted'}
 
 -----
@@ -1385,7 +1380,6 @@ $target{'Label' = $label;
 'Signature'{'Name'         = $name;
 'Signature'{'Program'      = 1;
 'Signature'{'RefactoredArgs'=$Sf->{'RefactoredArgs'; # not sure if this is needed
-'Skip'=1; 
 'StmtCount'); 
 'StmtCount'{$tvar = $Sf->{'DeclCount'{$tvar;
 'SubroutineCall'

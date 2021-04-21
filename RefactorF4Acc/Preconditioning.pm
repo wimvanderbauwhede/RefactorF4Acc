@@ -219,7 +219,7 @@ sub __find_parameter_used_in_inc_and_add_to_Only {
         my $line = $srcref->[$index][0];
         my $info = $srcref->[$index][1];
         next if exists $info->{'Comments'};
-        next if exists $info->{'Skip'};
+        next if exists $info->{'Deleted'};
         if (exists $info->{'Include'}
             and $info->{'Include'}{'InclType'} eq 'Parameter')
         {

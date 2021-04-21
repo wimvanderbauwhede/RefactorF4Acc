@@ -2,7 +2,7 @@ package RefactorF4Acc::Analysis::Arguments;
 use v5.10;
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
-use RefactorF4Acc::Refactoring::Helpers qw( get_f95_var_decl stateless_pass );
+use RefactorF4Acc::Refactoring::Helpers qw( get_f95_var_decl stateless_pass_inplace );
 use RefactorF4Acc::Parser::Expressions qw( emit_expr_from_ast );
 #
 #   (c) 2010-2017 Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
@@ -328,7 +328,7 @@ sub map_call_args_to_sig_args {
 	};
 
 	my $state = [ $stref, $f, {} ];
-	( $stref, $state ) = stateless_pass( $stref, $f, $__map_call_args, 'map_call_args_to_sig_args() ' . __LINE__ );
+	( $stref, $state ) = stateless_pass_inplace( $stref, $f, $__map_call_args, 'map_call_args_to_sig_args() ' . __LINE__ );
 
 	return $stref;
 }    # END of map_call_args_to_sig_args()
@@ -364,7 +364,7 @@ sub identify_external_proc_args {
 		return [$annline];
 	};
 	
-	 $stref = stateless_pass( $stref, $f, $__mark_args_as_external, '__mark_args_as_external() ' . __LINE__ );
+	 $stref = stateless_pass_inplace( $stref, $f, $__mark_args_as_external, '__mark_args_as_external() ' . __LINE__ );
 
 	return $stref;
 }    # END of identify_external_proc_args()

@@ -4,9 +4,9 @@ use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
 use RefactorF4Acc::Refactoring::Helpers qw(
 	pass_wrapper_subs_in_module
-	stateful_pass
-	stateful_pass_reverse
-	stateless_pass
+	stateful_pass_inplace
+	stateful_pass_reverse_inplace
+	stateless_pass_inplace
 	emit_f95_var_decl
 	splice_additional_lines_cond
 	);
@@ -213,7 +213,7 @@ sub _try_to_eval_arg { my ($stref,$f,$arg)=@_;
 	};
 	
 	my $call_info={};
- 	($stref,$call_info) = stateful_pass($stref,$caller,$pass_find_call, $call_info,'_find_call ' . __LINE__  ) ;	
+ 	($stref,$call_info) = stateful_pass_inplace($stref,$caller,$pass_find_call, $call_info,'_find_call ' . __LINE__  ) ;	
 
 	# Find the call arguments 
 	# warn "\n1. ARGMAP for call to $f in $caller:\n" .Dumper($call_info->{$f}{'SubroutineCall'}{'ArgMap'});
@@ -294,7 +294,7 @@ sub _try_to_eval_via_vars  {my ($stref, $f, $var) = @_;
 
 		my $expr_asts={};
 
-		($stref,$expr_asts) = stateful_pass($stref,$f,$pass_find_assignment, $expr_asts,'_find_assignment ' . __LINE__  ) ;	
+		($stref,$expr_asts) = stateful_pass_inplace($stref,$f,$pass_find_assignment, $expr_asts,'_find_assignment ' . __LINE__  ) ;	
 
 		if (defined $expr_asts->{$var}) {
 			# OK, there was an assigment line.

@@ -18,7 +18,7 @@ use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
 use RefactorF4Acc::State qw( initialise_per_code_unit_tables );
 use RefactorF4Acc::CallTree qw( add_to_call_tree );
-use RefactorF4Acc::Refactoring::Helpers qw( emit_f95_var_decl get_f95_var_decl stateful_pass ); 
+use RefactorF4Acc::Refactoring::Helpers qw( emit_f95_var_decl get_f95_var_decl stateful_pass_inplace ); 
 use RefactorF4Acc::Parser::SrcReader qw( read_fortran_src );
 use RefactorF4Acc::Parser::Expressions qw( 
     get_vars_from_expression 
@@ -4332,7 +4332,7 @@ sub mark_blocks_between_calls { (my $stref)=@_;
 			}
 		};
 		
-		($stref, my $state) = stateful_pass ($stref,  $f,  $pass_actions,  [$in_kernel_region,$in_block, $nested_block, $index,$extract_subs,$called_subs], 'mark_blocks_between_calls' );
+		($stref, my $state) = stateful_pass_inplace ($stref,  $f,  $pass_actions,  [$in_kernel_region,$in_block, $nested_block, $index,$extract_subs,$called_subs], 'mark_blocks_between_calls' );
 		($in_kernel_region,$in_block, $nested_block,$index,$extract_subs,$called_subs)=@{$state};
 		
 		$stref->{'Subroutines'}{$f}{'HasBlocks'}=$extract_subs;
