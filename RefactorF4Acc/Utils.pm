@@ -61,6 +61,7 @@ use Exporter;
     &remove_vars_from_ordered_set
     &get_module_name_from_source
     &get_kernel_and_module_names
+    &get_block_id
     &warning
 );
 
@@ -1093,5 +1094,17 @@ sub warning { my ($msg, $lev) = @_;
         }
     }
 }
+
+sub get_block_id { my ($block, $block_id) = @_;
+    my $line_id = $block->{'LineID'};
+    push @{$block_id},$line_id;
+    my $in_block = $block->{'InBlock'};
+    if (scalar keys %{$in_block} == 0) {
+        return $block_id;
+    } else {
+        get_block_id($in_block,$block_id);
+    }
+}
+
 
 1;

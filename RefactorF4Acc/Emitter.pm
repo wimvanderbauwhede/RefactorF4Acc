@@ -423,8 +423,17 @@ sub emit_RefactoredCode {
             }
         }
         my $maybe_cond = '';
-
-
+        my $block_info='';
+        if (exists $info->{'Block'}) {
+            my $block_id = join(':',@{get_block_id($info->{'Block'},[])});
+            for my $k (sort keys %{$info->{'Block'}}) {
+                next if $k eq 'InBlock';
+                my $v = $info->{'Block'}{$k};
+                my $v_str = ref($v) eq 'HASH' ? '<'.join(',',(sort keys %{$v})).'>' : ref($v) eq 'ARRAY' ? join(',',@{$v}) : $v;
+                $block_info .= $k.':'.$v_str.' ';
+            }
+            $block_info = "\t! ".$block_id.' '.$block_info;
+        }
         if ( exists $info->{'If'} and not exists $info->{'IfThen'} ) {
             my $ast           = $info->{'CondExecExprAST'};
             my $cond_expr_str = emit_expr_from_ast($ast);
@@ -671,9 +680,12 @@ sub emit_RefactoredCode {
             my $rline = $indent . $maybe_cond . "$lhs_expr_str = $rhs_expr_str";
 
         }
-        elsif ( exists $info->{'SubroutineCall'} ) {
-            my $call_str = emit_subroutine_call( $stref, $f, $annline );
-
+        elsif ( exists $info->{'SubroutineCall'} ) { 
+            # $rline =  'CALL: '.$rline;
+            my ($call_str, $info_) = emit_subroutine_call( $stref, $f, $annline );
+            # croak Dumper $call_str;
+            chomp $call_str;
+            $rline = $call_str ;
             #== CALL, SUBROUTINE CALL
             #@ SubroutineCall =>
             #@     Name => $name
@@ -691,9 +703,19 @@ sub emit_RefactoredCode {
           )
         {
             $rline .= ' !!! ORIG !!!';
+        } else {
+            $block_info='';
         }
-
-        return [ [ $rline, $info ] ];
+        # if ($block_info ne '') {
+        # return [ 
+        #     [ $block_info, {}],
+        #     [ $rline, $info ] 
+        # ];
+        # } else {
+        return [             
+            [ $rline.$block_info, $info ] 
+        ];
+        # }
     };
 
     # my $refactored_code_before = dclone( $Sf->{'RefactoredCode'} );
@@ -709,3 +731,5 @@ sub emit_RefactoredCode {
     return $stref;
 
 }    # END of emit_RefactoredCode
+
+

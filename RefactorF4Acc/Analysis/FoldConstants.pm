@@ -29,6 +29,7 @@ use Exporter;
 
 @RefactorF4Acc::Analysis::FoldConstants::EXPORT_OK = qw(
     fold_constants_all
+    fold_constants
 );
 
 # foldConstants :: ProgUnit Anno -> ProgUnit Anno
@@ -41,7 +42,8 @@ sub fold_constants {
     my ($stref, $f) = @_;
     my $Sf = $stref->{'Subroutines'}{$f};
     $stref = identify_array_accesses_in_exprs($stref,$f);
-
+    # die;
+    croak Dumper $Sf->{'ArrayAccesses'} if $f eq 'sub1';
     my $pass_fold_constants = sub { (my $annline)=@_;
         (my $line,my $info)=@{$annline};
         # From $info, find the lines that contain expressions that might have constants to fold.
@@ -66,7 +68,7 @@ sub fold_constants {
                 # croak $f,Dumper $info if $f eq 'sub1' and $var_name eq 'p1';
                 my $dims = [ 
                     map {  $_->[0].':'.$_->[1] } 
-                    @{$stref->{'Subroutines'}{ $f }{'ArrayAccesses'}{$block_id}{'Arrays'}{$var_name}{'Dims'}}
+                    @{$Sf->{'ArrayAccesses'}{$block_id}{'Arrays'}{$var_name}{'Dims'}}
                 ]; 
                 # push @attrs,'dimension('.join(', ',  map {} @{ $pvd->{'Attributes'}{'Dim'} }).')';
                 $info->{'ParsedVarDecl'}{'Attributes'}{'Dim'}=$dims;

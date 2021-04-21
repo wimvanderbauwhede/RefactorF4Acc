@@ -22,21 +22,30 @@
         real p1(-1:w+2,-1:h+2)
         real p2
         dimension p2(-1:w+2,-1:h+2)
-        ! real, dimension(-1:w+2,-1:h+2) :: p1, p2     
-        integer :: i,j   
+        real, dimension(-1:w+2,-1:h+2) :: p12
+        integer :: i,j,k  
         do i = -1, w+2
             do j = -1, h+2
                 p1(i,j) = (i+j*(w+4))*0.1
                 p2(i,j) = -p1(i,j)
             end do
         end do
+        
+        do i = -1, w+2
+            do j = -1, h+2
+                do k =1,2
+                    p12(i,j) = k
+                end do 
+            end do
+        end do        
       end subroutine
       
       subroutine sub1(p1,p2)      
         integer, parameter :: sz = 1024
         integer, parameter :: w = sz*4
         integer, parameter :: h = sz*3
-        real, dimension(-1:w+2,-1:h+2) :: p1, p2        
+        real, dimension(-1:w+2,-1:h+2) :: p1, p2       
+        real ptmp 
         integer :: i,j        
 
         do i = -1, w+2
@@ -47,7 +56,8 @@
         
         do i = -1, w+2
             do j = -1, h+2
-                p2(i,j) = 2.0*p1(i,j)
+                ptmp = 2.0*p1(i,j)
+                p2(i,j) = ptmp
             end do
         end do
 

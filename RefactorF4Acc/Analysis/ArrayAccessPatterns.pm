@@ -81,6 +81,7 @@ sub pass_identify_stencils {(my $stref, my $code_unit_name)=@_;
 } # END of pass_identify_stencils()
 
 
+# As far as I can see, the problem
 # my $state = {'CurrentSub'=>'', 'Subroutines'=>{}};
 # 
 # $stref->{'Subroutines'}{ $f }{'ArrayAccesses'} = $state->{'Subroutines'}{$f}{'Blocks'};
@@ -132,7 +133,10 @@ sub identify_array_accesses_in_exprs { (my $stref, my $f) = @_;
 				$state->{'CurrentBlock'} = 0;
 			}
 			# This is the concat of the line IDs for every DO line in the nest. 
-            my $block_id = exists $state->{'Subroutines'}{$f}{'LoopNests'} ? __mkLoopId( $state->{'Subroutines'}{$f}{'LoopNests'} ) : 0;
+            my $block_id = exists $state->{'Subroutines'}{$f}{'LoopNests'} 
+			# and scalar keys %{$state->{'Subroutines'}{$f}{'LoopNests'}} > 0
+			? __mkLoopId( $state->{'Subroutines'}{$f}{'LoopNests'} ) : 0;
+			# carp Dumper $state->{'Subroutines'}{$f}{'LoopNests'};
             #
 			# Identify the subroutine
 			if ( exists $info->{'Signature'} ) {
@@ -142,7 +146,7 @@ sub identify_array_accesses_in_exprs { (my $stref, my $f) = @_;
 				$state->{'Subroutines'}{$subname }={};
 				$state->{'Subroutines'}{$subname }{'Blocks'}={};
 				$state->{'Subroutines'}{$subname }{'Blocks'}{$block_id}={};
-                $state->{'Subroutines'}{$f}{'LoopNests'}=[ [0,{}] ];
+                $state->{'Subroutines'}{$f}{'LoopNests'}=[ [0,'',{}] ];
                 # InOut will be both in In and Out
                 # Any scalar arg that is InOut or Out could be an Acc, put it in MaybeAcc
                 
@@ -201,7 +205,7 @@ sub identify_array_accesses_in_exprs { (my $stref, my $f) = @_;
 				# Assignment to scalar *_rel
 				# This is ad hoc for the output of the AutoParallelFortran compiler!
 				if ($info->{'Lhs'}{'ArrayOrScalar'} eq 'Scalar' and $info->{'Lhs'}{'VarName'} =~/^(\w+)_rel/) {
-					my $loop_iter=$1;
+					my $loop_iter=$1;					
 					if ($DBG and
 						not exists $state->{'Subroutines'}{ $f }{'Blocks'}{$block_id}{'LoopIters'}{$loop_iter}{'Range'}) {
 						croak "This should not happen! " .Dumper($annline);
@@ -334,6 +338,7 @@ sub identify_array_accesses_in_exprs { (my $stref, my $f) = @_;
                 my $range_stop_evaled = eval_expression_with_parameters($range_stop,$info,$stref,$f);
 #                say "RANGE: [ $range_start_evaled , $range_stop_evaled ]"; 
                 my $loop_iter = $info->{'Do'}{'Iterator'};
+				
 				# carp Dumper $loop_iter;
                 my $loop_range_exprs = [ $range_start_evaled , $range_stop_evaled ];#[$range_start,$range_stop]; # FIXME Maybe we don't need this. But if we do, we should probably eval() it
                 my $loop_id = $info->{'LineID'};
@@ -342,7 +347,8 @@ sub identify_array_accesses_in_exprs { (my $stref, my $f) = @_;
 				$info->{'BlockID'} = $block_id;
 				$state->{'CurrentBlock'} = $block_id;
                 for my $loop_iter_rec ( @{ $state->{'Subroutines'}{$f}{'LoopNests'} } ) {
-                    (my $loop_id, my $loop_iter, my $range_rec) = @{$loop_iter_rec};
+                    (my $loop_id, my $loop_iter, my $range_rec) = @{$loop_iter_rec};		
+					next if $loop_iter eq ''; 			
                     $state->{'Subroutines'}{ $f }{'Blocks'}{$block_id}{'LoopIters'}{$loop_iter}=$range_rec;
                 }
             } else {
@@ -351,6 +357,7 @@ sub identify_array_accesses_in_exprs { (my $stref, my $f) = @_;
             } elsif ( exists $info->{'EndDo'} ) {
 				my $block_id = $state->{'CurrentBlock'};
 				$info->{'BlockID'} = $block_id;
+				pop @{ $state->{'Subroutines'}{$f}{'LoopNests'} };
 				# $state->{'CurrentBlock'} = 0;
 
             }

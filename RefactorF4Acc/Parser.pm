@@ -388,11 +388,15 @@ sub analyse_lines {
 				my $block = pop @blocks_stack;
 				say $lline. "\t\tPOP $block_nest_counter ".uc($block->{'Type'})  if $in_excluded_block and $DBG;
 				$info->{'Block'}= $block;
+				if ($info->{'Block'}{'Nest'} == 1 or 
+					$info->{'Block'}{'Nest'} == $info->{'Block'}{'InBlock'}{'Nest'}) {
+						$info->{'Block'}{'InBlock'}=$info->{'Block'}{'InBlock'}{'InBlock'};
+						$block = $info->{'Block'};
+				}
+				# croak 'Block: '. Dumper $info->{'Block'} if $f eq 'sub2' and $info->{'Block'}{'LineID'} == 16 ;
 				$current_block=$block;
 				--$block_nest_counter;
-#				croak Dumper($block) if $line=~/endif/ and ;
 				if (defined $block and exists $block->{'Nest'} and $block->{'Nest'} == $excluded_block and $in_excluded_block==1) {
-#					say "ENDIF: $lline";croak;
 					$in_excluded_block=2;
 					$excluded_block=-1;
 				}
