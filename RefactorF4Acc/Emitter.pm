@@ -3,7 +3,7 @@ use v5.10;
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
 use RefactorF4Acc::Refactoring::Helpers
-  qw( create_refactored_source get_annotated_sourcelines stateless_pass_inplace
+  qw( create_refactored_source get_annotated_sourcelines stateless_pass
   emit_f95_var_decl
   emit_f95_parsed_var_decl
   emit_f95_parsed_par_decl
@@ -409,7 +409,21 @@ sub emit_RefactoredCode {
         if ( exists $info->{'Indent'} ) {
             $indent = $info->{'Indent'};
         }
+        my $label = '';
+        if (exists $info->{'Label'}) {
+            $label=$info->{'Label'};
+        }
+        if ($label ne '') {
+            my $indent_len = length($indent);
+            my $label_len =  length($label);
+            if ($indent_len>$label_len+1) {
+                $indent =  $label . ' ' x ($indent_len-$label_len);
+            } else {
+                $indent =  $label . ' ';
+            }
+        }
         my $maybe_cond = '';
+
 
         if ( exists $info->{'If'} and not exists $info->{'IfThen'} ) {
             my $ast           = $info->{'CondExecExprAST'};
@@ -420,12 +434,13 @@ sub emit_RefactoredCode {
             my $module_name = $info->{'Module'};
             $rline = "module $module_name";
         }
-        elsif ( exists $info->{'EndModule'} ) {
-            my $module_name = $info->{'EndModule'};
-            $rline = "end module $module_name"
+        elsif ( exists $info->{'End'} ) {
+            my $kw = $info->{'End'};
+            my $name = exists $info->{'End'.ucfirst($kw)}{'Name'} ? $info->{'End'.ucfirst($kw)}{'Name'} : '';
+            $rline = $indent."end $kw $name"
 
-              #== IMPLICIT NONE
         }
+        #== IMPLICIT NONE
         elsif ( exists $info->{'ImplicitNone'} ) {
             $rline = $indent . 'implicit none';
 
@@ -683,7 +698,7 @@ sub emit_RefactoredCode {
 
     # my $refactored_code_before = dclone( $Sf->{'RefactoredCode'} );
 
-    my $new_annlines = stateless_pass_inplace( $annlines, $pass_emit_RefactoredCode,
+    my $new_annlines = stateless_pass( $annlines, $pass_emit_RefactoredCode,
         "pass_emit_RefactoredCode($f) " . __LINE__ );
 
     # if ($f=~/test_loop/) {

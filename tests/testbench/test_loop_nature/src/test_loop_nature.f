@@ -11,7 +11,7 @@
 
         call sub2(p1,p2)
 
-        print *, p1(w/2,h/2)
+7188    print *, p1(w/2,h/2)
 
       end program
 

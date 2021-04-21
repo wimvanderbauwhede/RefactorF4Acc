@@ -525,7 +525,8 @@ SUBROUTINE
 #== END of IF/SELECT/DO						
 			elsif ( $line =~ /^end\s*(if|select|do)\s*/ ) {			
 				my $keyword = $1;
-				my $kw      = ucfirst($keyword);
+				$info->{ 'End'} = $keyword;
+				my $kw      = ucfirst($keyword);				
 				$info->{ 'End' . $kw } = {};
 				$info->{ 'EndControl' } = 1;
 				if ( $kw eq 'Do' ) {
@@ -1032,6 +1033,7 @@ or $line=~/^character\s*\(\s*len\s*=\s*[\w\*]+\s*\)/
 					$kw='subroutine';
 				}
 				my $name = $2;
+				$info->{ 'End'} = $kw;
 				$info->{ 'End' . ucfirst($kw) } = { 'Name' => $name };
 			}
 			elsif (  # incorrect end of block, handle it anyway via the info from the start of the block
@@ -1046,6 +1048,7 @@ or $line=~/^character\s*\(\s*len\s*=\s*[\w\*]+\s*\)/
 
 				my $name = $info->{'Block'}{'Name'};
 				$line = "end $kw $name";
+				$info->{ 'End'} = $kw;
 				$info->{ 'End' . ucfirst($kw) } = { 'Name' => $name };				
 				# die $f,$line, Dumper $info;
 			}
