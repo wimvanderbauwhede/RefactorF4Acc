@@ -83,11 +83,21 @@ sub pass_identify_stencils {(my $stref, my $code_unit_name)=@_;
 
 # As far as I can see, the problem
 # my $state = {'CurrentSub'=>'', 'Subroutines'=>{}};
-# 
+ 
 # $stref->{'Subroutines'}{ $f }{'ArrayAccesses'} = $state->{'Subroutines'}{$f}{'Blocks'};
+
+# Array assigments are stored in  $state->{'Subroutines'}{ $f }{'Blocks'}{$block_id}{'ArrayAssignments'}
+# and are of the form [ [$lhs_accesses,$rhs_accesses,$annline], ... ]
+#  where
+    # $lhs_accesses = { 'Arrays' => { $array_var1 => {'Write' => { Exprs => ..., Accesses =>..., Iterators =>...}} }}
+    # $rhs_accesses = { 'Arrays' => { $array_var1 => {'Read' => { Exprs => ..., Accesses =>..., Iterators =>...}} }}
+# And I think I have now extended this to include Scalars as well
+
 # Array access on the LHS of an Assignment is stored in $info
+
 # Array accesses are stored in
-# $state->{'Subroutines'}{ $f }{'Blocks'}{ $block_id }{'Arrays'}{$array_var}{$rw}{
+# $state->{'Subroutines'}{ $f }{'Blocks'}{ $block_id }{'Arrays'}{$array_var}{$rw}=
+# {
 # 	'Exprs' => { $expr_str_1 => '0:1',...},
 # 	'Accesses' => { '0:1' =>  {'j:0' => [1,0],'k:1' => [1,1]}}, 
 # 	'Iterators' => ['j:0','k:1']
@@ -96,7 +106,7 @@ sub pass_identify_stencils {(my $stref, my $code_unit_name)=@_;
 # Array dimensions are stored in
 # 	$state->{'Subroutines'}{ $f }{'Blocks'}{ $block_id }{'Arrays'}{$array_var}{'Dims'} = [[0,501],[1,500],...]
 #
-# In this subroutine, ${l|r}hs_accesses is a has with keys 
+# In this subroutine, ${l|r}hs_accesses is a hash with keys 
 #					$accesses->{'Arrays'}{$array_var}{$rw}{'Exprs'}{$expr_str}=$offsets_str 
 #						where 					
 #							my $offsets_str :: String = join(':', @offset_vals);
@@ -104,9 +114,13 @@ sub pass_identify_stencils {(my $stref, my $code_unit_name)=@_;
 #					$accesses->{'Arrays'}{$array_var}{$rw}{'Accesses'}{ $offsets_str } = $iter_val_pairs;
 #						where
 #							my $iter_val_pairs = [{$iter_str => [$mult,$offset]}, ... ]
+#					$accesses->{'Arrays'}{$array_var}{$rw}{'Iterators'} = ['j:0','k:1'];
+
 #					$accesses->{'Arrays'}{$array_var}{$rw}{'HaloAccesses'}{$loop_iter} = 
 #						{'Bound' =>$b, 'Test' => [$loop_bound, $offset, $array_bound, $array_halo]};
 #					$accesses->{'HasHaloAccesses'}=1;
+
+#					$accesses->{'Scalars'}{$scalar_var}{$rw}{'Exprs'}{$expr_str}=$expr_str
 # The test is
 # Lower: $loop_bound + $offset < $array_bound + $array_halo
 # Upper: $loop_bound + $offset > $array_bound - $array_halo	
@@ -257,7 +271,7 @@ sub identify_array_accesses_in_exprs { (my $stref, my $f) = @_;
 						$state->{'Subroutines'}{ $f }{'Blocks'}{$block_id}{'Identity'}{$var_name} = 1;
 					}
 					
-					# Find all array accesses in the LHS and RHS AST.
+					# Find all array accesses in the LHS and RHS AST.					
 					# carp 'BLOCK:',Dumper($state->{'Subroutines'}{ $f }{'Blocks'}{$block_id});
 					(my $lhs_ast, $state, my $lhs_accesses) = _find_array_access_in_ast($stref, $f, $block_id, $state, $info->{'Lhs'}{'ExpressionAST'},'Write',{});
 					(my $rhs_ast, $state, my $rhs_accesses) = _find_array_access_in_ast($stref, $f, $block_id, $state, $info->{'Rhs'}{'ExpressionAST'},'Read',{});
@@ -295,7 +309,7 @@ sub identify_array_accesses_in_exprs { (my $stref, my $f) = @_;
 						if (not exists $state->{'Subroutines'}{ $f }{'Blocks'}{$block_id}{'ArrayAssignments'}) {
 							$state->{'Subroutines'}{ $f }{'Blocks'}{$block_id}{'ArrayAssignments'}=[];
 						}
-						push @{ $state->{'Subroutines'}{ $f }{'Blocks'}{$block_id}{'ArrayAssignments'} }, [$lhs_accesses,$rhs_accesses,$line];
+						push @{ $state->{'Subroutines'}{ $f }{'Blocks'}{$block_id}{'ArrayAssignments'} }, [$lhs_accesses,$rhs_accesses,$annline];
 					}
 					if (exists $lhs_accesses->{'Arrays'} or exists $rhs_accesses->{'Arrays'} ) {
 						# This is an assignment line with array accesses.					  
@@ -485,6 +499,12 @@ sub _find_array_access_in_ast { (my $stref, my $f,  my $block_id, my $state, my 
 					$accesses->{'Arrays'}{$array_var}{$rw}{'Accesses'}{ $offsets_str } = $iter_val_pairs;
 					last;					
 				} 
+				elsif ($idx==0 and (($entry & 0xFF)==2)) { #$entry eq '$'
+					my $scalar_var = $ast->[1];
+					my $expr_str = emit_expr_from_ast($ast);
+					$state->{'Subroutines'}{ $f }{'Blocks'}{ $block_id }{'Scalars'}{$scalar_var}{$rw}{'Exprs'}{$expr_str}=$expr_str;
+					last;					
+				} 				
 			}
 		}
 	}
@@ -841,17 +861,14 @@ sub _collapse_links { (my $stref, my $f, my $block_id, my $links)=@_;
 
 	for my $var (keys %{$links}) {
 		if (isArg($stref, $f, $var)) {
-#say "ARG $var";
 			my $deleted_entries={};
 			my $again=1;
 			do {
 					$again=0;
 					for my $lvar (keys %{ $links->{$var} } ) {
 						next if $lvar eq $var;
-		#				say "\tLVAR $lvar";
 						if ($links->{$var}{$lvar} > 2) { # Not an argument
 							$again=1;
-		#					say "DEL $lvar IN $var: ".$links->{$var}{$lvar};
 							delete $links->{$var}{$lvar};
 							$deleted_entries->{$lvar}=1;
 							for my $nlvar (keys %{ $links->{$lvar} } ) {

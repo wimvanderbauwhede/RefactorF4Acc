@@ -11186,7 +11186,7 @@ This algorithm has linear complexity in the number of functions passed as
 LatexCommand bibtex
 btprint "btPrintCited"
 bibfiles "paper-type-safe-Fortran"
-options "../spmpsci"
+options "spmpsci"
 
 \end_inset
 
