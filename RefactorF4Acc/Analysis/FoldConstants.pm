@@ -17,7 +17,6 @@ use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
 use RefactorF4Acc::Refactoring::Helpers qw( get_annotated_sourcelines stateless_pass );
 use RefactorF4Acc::Analysis::ArrayAccessPatterns qw( identify_array_accesses_in_exprs );
-use RefactorF4Acc::Analysis::VarAccessAnalysis qw( identify_var_accesses_in_exprs );
 use RefactorF4Acc::ExpressionAST::Evaluate qw( fold_constants_in_expr eval_expression_with_parameters );
 use RefactorF4Acc::Emitter qw( emit_RefactoredCode );
 use Carp;
@@ -44,7 +43,7 @@ sub fold_constants {
     my $Sf = $stref->{'Subroutines'}{$f};
     $stref = identify_array_accesses_in_exprs($stref,$f);
     # die;
-    croak Dumper $Sf->{'ArrayAccesses'} if $f eq 'sub1';
+    # croak Dumper $Sf->{'ArrayAccesses'} if $f eq 'sub1';
     my $pass_fold_constants = sub { (my $annline)=@_;
         (my $line,my $info)=@{$annline};
         # From $info, find the lines that contain expressions that might have constants to fold.
@@ -118,7 +117,7 @@ sub fold_constants {
     };
     my $annlines = $Sf->{'RefactoredCode'};
     my $new_annlines = stateless_pass($annlines,$pass_fold_constants,"pass_fold_constants($f) " . __LINE__  ) ;
-    $stref = identify_var_accesses_in_exprs($stref,$f,$new_annlines);
+    # $stref = identify_var_accesses_in_exprs($stref,$f,$new_annlines);
     return $new_annlines;
 } # END of fold_constants
 

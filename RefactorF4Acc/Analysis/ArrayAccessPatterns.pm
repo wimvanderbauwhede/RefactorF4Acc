@@ -358,7 +358,7 @@ sub identify_array_accesses_in_exprs { (my $stref, my $f) = @_;
                 my $loop_id = $info->{'LineID'};
                 push @{ $state->{'Subroutines'}{$f}{'LoopNests'}{'List'} },[$loop_id, $loop_iter , {'Range' => $loop_range_exprs}];
                 my $block_id = __mkLoopId( $state->{'Subroutines'}{$f}{'LoopNests'}{'List'} );
-				$info->{'BlockID'} = $block_id;
+				# $info->{'BlockID'} = $block_id;
 				$state->{'CurrentBlock'} = $block_id;
                 for my $loop_iter_rec ( @{ $state->{'Subroutines'}{$f}{'LoopNests'}{'List'} } ) {
                     (my $loop_id, my $loop_iter, my $range_rec) = @{$loop_iter_rec};		
@@ -370,7 +370,7 @@ sub identify_array_accesses_in_exprs { (my $stref, my $f) = @_;
             }
             } elsif ( exists $info->{'EndDo'} ) {
 				my $block_id = $state->{'CurrentBlock'};
-				$info->{'BlockID'} = $block_id;
+				# $info->{'BlockID'} = $block_id;
 				pop @{ $state->{'Subroutines'}{$f}{'LoopNests'}{'List'} };
 				# $state->{'CurrentBlock'} = 0;
 

@@ -17,6 +17,8 @@ use RefactorF4Acc::Refactoring::Modules qw( add_module_decls );
 use RefactorF4Acc::Refactoring::InlineSubroutine qw( inline_subroutines );
 use RefactorF4Acc::Refactoring::EvalParamExprs qw( eval_param_expressions_all );
 use RefactorF4Acc::Analysis::FoldConstants qw( fold_constants_all );
+use RefactorF4Acc::Analysis::LoopNature qw( analyse_loop_nature_all );
+
 use vars qw( $VERSION );
 $VERSION = "2.1.1";
 
@@ -89,7 +91,8 @@ sub refactor_all {
 
     $stref = inline_subroutines($stref) ;
 	# Test array access and constant folding here
-	$stref = fold_constants_all($stref) ;
+	$stref = analyse_loop_nature_all($stref) ;
+	# $stref = fold_constants_all($stref) ;
     # die;
     # Custom refactoring, must be done before creating final modules
     say "add_module_decls" if $V;

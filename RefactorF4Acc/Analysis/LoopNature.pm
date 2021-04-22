@@ -16,7 +16,7 @@ use v5.10;
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
 use RefactorF4Acc::Analysis::FoldConstants qw( fold_constants );
-
+use RefactorF4Acc::Analysis::VarAccessAnalysis qw( analyseAllVarAccesses );
 use Carp;
 use Data::Dumper;
 use Storable qw( dclone );
@@ -26,31 +26,43 @@ use Exporter;
 @RefactorF4Acc::Analysis::LoopNature::ISA = qw(Exporter);
 
 @RefactorF4Acc::Analysis::LoopNature::EXPORT_OK = qw(
+    analyse_loop_nature_all
     analyseLoopNature
 );
 
 # type SubroutineTable = DMap.Map SubNameStr SubRec -- (ProgUnit Anno, String)
 # So this corresponds to $stref->{'Subroutines'}
-# analyseLoopNature :: SubroutineTable -> (SubroutineTable, [(String, String)]) -> String -> (SubroutineTable, [(String, String)])
-sub analyseLoopNature { # paralleliseProgUnit_foldl
-    
+
+# analyseLoopNature :: [String] -> SubroutineTable -> (SubroutineTable, [(String, String)]) -> String -> (SubroutineTable, [(String, String)])
+# analyseLoopNature ioWriteSubroutines originalTable (accumSubTable, annoListing) subName = (newSubTable, annoListing ++ [(filename, parAnno)])
+sub analyseLoopNature { # paralleliseProgUnit_foldl    
     my ($stref, $f) = @_;
     my $ioWriteSubroutines=[]; # This is a list of subs that do IO Write, a hack really 
     # my ($accumSubTable, $annoListing) =@{$accumSubTable_annoListing};
     
         # where
             my $Sf = $stref->{'Subroutines'}{$f}; # subrec; $stref->{'Subroutines'} is originalTable
-            my $annlines =  $Sf->{'AnnLines'}; # progUnit = subAst subrec
+            my $annlines =  $Sf->{'RefactoredCode'}; # progUnit = subAst subrec
             my $filename =  $Sf->{'Source'}; # subSrcFile subrec; we don't need this, we can use $f
             my $annlines_foldedConstants = fold_constants( $stref, $f);
             # my $accessAnalysis :: VarAccessAnalysis
-            my $accessAnalysis = analyseAllVarAccess_annlines( $ioWriteSubroutines, $annlines);
+            my $accessAnalysis = analyseAllVarAccesses($stref, $f, $ioWriteSubroutines, $annlines);
+            # die;
+            croak Dumper $accessAnalysis;
             # So I assume for every block this does paralleliseBlock
-            my $parallelisedProgUnit = everywhere( mkT(\&paralleliseBlock,$filename,$originalTable,$accessAnalysis), $annlines_foldedConstants);
-            my $parAnno = compileAnnotationListing $parallelisedProgUnit;
-            my $newSubTable = insert( $f, MkSubRec( $parallelisedProgUnit, $filename, []), $accumSubTable);
+            my $parallelisedProgUnit = paralleliseBlock($stref, $f, $accessAnalysis, $annlines_foldedConstants);
+            # everywhere( mkT(\&paralleliseBlock,$filename,$originalTable,$accessAnalysis), $annlines_foldedConstants);
 
-        return ($newSubTable, [@{$annoListing}, [$filename, $parAnno]]);
+            # my $parAnno = compileAnnotationListing $parallelisedProgUnit;
+            # my $newSubTable = insert( $f, MkSubRec( $parallelisedProgUnit, $filename, []), $accumSubTable);
+
+            # Instead of the above, we so
+            $stref->{'Subroutines'}{$f}{'RefactoredCode'} = $parallelisedProgUnit;
+            # However, what I am interested in is if a certain loop nest can become a map or fold
+            # So I would update LoopNests or Blocks in $Sf with this information
+
+        # return ($newSubTable, [@{$annoListing}, [$filename, $parAnno]]);
+        return $stref;
 }
 
 #    Type used to colate data on variable accesses throughout a program.
@@ -78,56 +90,7 @@ sub analyseLoopNature { # paralleliseProgUnit_foldl
 # So the whole accessAnalysis is contained in $Sf
 
 
-
-
-# analyseAllVarAccess_annlines :: [String] -> ProgUnit Anno -> VarAccessAnalysis
-sub  analyseAllVarAccess_annlines{ my ($ioWriteSubroutineNames, $annlines) = @_;
-    my $accessAnalysis = analyseAllVarAccess( $ioWriteSubroutineNames, $annlines);
-    return $accessAnalysis;
-}
-
-# analyseAllVarAccess :: [String] -> Program Anno -> VarAccessAnalysis
-# 'Program' here is simply a single-elt list containing the subroutine AnnLines, so this becomes $annlines
-sub analyseAllVarAccess { my ($ioWriteSubroutineNames,  $annlines) =@_;
-
-                        # where
-                            #    The main motivation for the tracking the declarations at the top of a program is for
-                            #    differentiating function calls from array accesses as Language-Fortran does not do this
-                            #    automatically it seems. 
-                            my $declarations = everything (++) (mkQ [] getDeclaredVarNames) prog
-                            #    LocalVarAccesses is made up of information on all of the reads and writes throughout
-                            #    the program being analysed. It is a list of triplets where each triplet contains a 
-                            #    VarName, a list of read locations of that VarName and a list of write locations of that
-                            #    VarName
-                            my ($localVarAccesses,$ioRoutineAnalysis) = analyseLocalVarAccess( $ioWriteSubroutineNames, $declarations, $annlines);
-                            #    Arguments to this program block are treated as de facto non temporary variables,
-                            #    due to the fact that arguments are passed by reference by default in fortran.
-                            my $arguments = getArguments( $annlines);
-
-                            
-
-                            my $localVarValues = everything combineMaps (mkQ DMap.empty analyseAllVarValues_fortran) $prog
-    return ([$localVarAccesses,$ioRoutineAnalysis], $localVarValues, $arguments, $declarations);
-}
-
-# analyseLocalVarAccess :: [String] -> [VarName Anno] -> Program Anno -> (LocalVarAccessAnalysis,LocalVarAccessAnalysis)
-sub analyseLocalVarAccess { my ($ioWriteSubroutineNames,$declarations, $prog) = @_;
-                # where
-                    # my $blockAnalysis_ioRoutineAnalysis :: [(LocalVarAccessAnalysis,LocalVarAccessAnalysis)]
-                    my $blockAnalysis_ioRoutineAnalysis = 
-                        foldl 
-                        (\accum item -> accum ++ (gmapQ (mkQ (DMap.empty,DMap.empty) (analyseAllVarAccess_block ioWriteSubroutineNames declarations) ) item) ) 
-                        [] 
-                        $prog
-                    my ($blockAnalysis,$ioRoutineAnalysis) = unzip( $blockAnalysis_ioRoutineAnalysis);
-                    # progUnitAnalysis_ :: [(LocalVarAccessAnalysis,LocalVarAccessAnalysis)]
-                    my $progUnitAnalysis_ = 
-                        foldl (\accum item -> accum ++ (gmapQ (mkQ (DMap.empty,DMap.empty) (analyseLocalVarAccess ioWriteSubroutineNames declarations)) item)) [] prog
-                    my ($progUnitAnalysis,my $dummy) = unzip( $progUnitAnalysis_);
-                    my $analysis = foldl(&combineLocalVarAccessAnalysis, {}, [@{$blockAnalysis},@{$progUnitAnalysis}])
-                    my $ioRoutineAnalysisQ = foldl(&combineLocalVarAccessAnalysis, {}, $ioRoutineAnalysis)
-return ($analysis,$ioRoutineAnalysisQ);
-}
+=pod
 #    Since Language-Fortran does not seem to differentiate between function calls and array access, it was necessary
 #    to find a way to identify a function call. This function achieves that. When an expression is passed in, a top level
 #    VarNames is extracted (The possibility for multipe varnames is also dealt with here as the Language-Fortran
@@ -475,24 +438,38 @@ isPrexistingVar codeBlockSrcSpan accessAnalysisInsideSrc var = case earliestWrit
 varHasSrcBefore codeBlockSrcSpan localVarAccess var = foldl (\accum item -> accum || (checkSrcSpanBefore item codeBlockSrcSpan)) False varWrites
         where
             (varReads, varWrites) = DMap.findWithDefault ([],[]) var localVarAccess
-
+=cut
 #    The function is directly called by Transformer.hs when it is attempting to parallelise a certain loop. This function is supplied with a start
 #    and end point for a loop (SrcSpan) and the VarAccessAnalysis record for the program. The returned list is all of the VarNames that must be
 #    considdered non temporary for that loop. For a variable to be considered non temporary, it must either be an argument to this code block or
 #    it must be read after the end of the loop, before any data is written to it. In the second case, this means that a variable is non temporary
 #    if the final value left in it by the loop is read and used elsewhere.
 # getNonTempVars :: SrcSpan -> VarAccessAnalysis -> [VarName Anno]
-getNonTempVars codeBlockSpan accessAnalysis = hangingReads ++ subroutineArguments
-        where
-            localVarAccesses = (\(x:xs,_, _, _) -> x) accessAnalysis
-            subroutineArguments = (\(_,_, x, _) -> x) accessAnalysis
-            readsAfterBlock = varAccessAnalysis_readsAfter codeBlockSpan localVarAccesses
-            writesReadsAfterBlock = varAccessAnalysis_writesAfter codeBlockSpan readsAfterBlock
-            hangingReads = filter (checkHangingReads writesReadsAfterBlock) (DMap.keys writesReadsAfterBlock)                            
-
+sub getNonTempVars { my ($codeBlockSpan,$accessAnalysis) = @_;
+        # where
+            my $localVarAccesses = #(\(x:xs,_, _, _) -> x) 
+                $accessAnalysis->{'LocalVarAccesses'};
+            my $subroutineArguments = #(\(_,_, x, _) -> x) 
+                $accessAnalysis->{'Args'};
+            my $readsAfterBlock = varAccessAnalysis_readsAfter( $codeBlockSpan, $localVarAccesses);
+            my $writesReadsAfterBlock = varAccessAnalysis_writesAfter( $codeBlockSpan, $readsAfterBlock);
+            my $hangingReads = filter(
+                sub { (my $elt) = @_; checkHangingReads( $writesReadsAfterBlock, $elt) },
+                [keys %{$writesReadsAfterBlock}]
+            );
+    return [@{$hangingReads},@{$subroutineArguments}];
+}
 # varAccessAnalysis_writesAfter :: SrcSpan -> LocalVarAccessAnalysis -> LocalVarAccessAnalysis
-varAccessAnalysis_writesAfter codeBlockSpan accessAnalysis = foldl (varAccessAnalysis_writesAfterQ codeBlockSpan accessAnalysis) DMap.empty (DMap.keys accessAnalysis)
+sub varAccessAnalysis_writesAfter { my ($codeBlockSpan, $accessAnalysis) = @_;
 
+    foldl(
+        sub { (my $elt) = @_;
+            varAccessAnalysis_writesAfterQ( $codeBlockSpan, $accessAnalysis, $elt); 
+        },
+        {},
+        [keys %{$accessAnalysis}]
+    );
+}
 
 # varAccessAnalysis_writesAfterQ :: SrcSpan -> LocalVarAccessAnalysis -> LocalVarAccessAnalysis -> VarName Anno -> LocalVarAccessAnalysis
 varAccessAnalysis_writesAfterQ (_, SrcLoc _ line_end _) accessAnalysis accumAnalysis varname = combineLocalVarAccessAnalysis accumAnalysis outputAnalysis
@@ -522,7 +499,7 @@ checkHangingReads analysis varname = case earliestRead of
             (readSpans, writeSpans) = DMap.findWithDefault ([], []) varname analysis
             earliestRead = getEarliestSrcSpan readSpans
             earliestWrite = getEarliestSrcSpan writeSpans
-
+=pod
 # getAccessesInsideSrcSpan :: LocalVarAccessAnalysis -> SrcSpan -> LocalVarAccessAnalysis
 getAccessesInsideSrcSpan localVarAccesses src = foldl (getAccessesInsideSrcSpan_var src) localVarAccesses vars
         where
@@ -535,12 +512,82 @@ getAccessesInsideSrcSpan_var src localVarAccesses var = newLocalVarAccesses
             newReads = filter (srcSpanInSrcSpan src) reads
             newWrites = filter (srcSpanInSrcSpan src) writes
             newLocalVarAccesses = DMap.insert var (newReads, newWrites) localVarAccesses
+=cut
+#    This function is called using generics so that every 'Block' is traversed. This step is necessary to be able to reach the first 'Fortran'
+#    node. From here, the first call to 'isolateAndParalleliseForLoops' is made (again with generics) which recursively traverses the 'Fortran' nodes to
+#    find for loop that should be analysed
+# paralleliseBlock :: String -> SubroutineTable -> VarAccessAnalysis -> Block Anno -> Block Anno
+sub paralleliseBlock { my ($stref, $f, $accessAnalysis, $annlines) = @_;
+    
+#    Function traverses the 'Fortran' nodes to find For loops. It calls 'paralleliseLoop' on identified for loops in a recusive way such that the most
+#    nested loops in a cluster are analysed first.
+# isolateAndParalleliseForLoops :: String -> SubroutineTable -> VarAccessAnalysis -> Fortran Anno -> Fortran Anno
+    my $isolateAndParalleliseForLoops =  sub { (my $annline, my $state)=@_;
+			(my $line,my $info)=@{$annline};
+    # filename subTable accessAnalysis inp = case inp of
+    if (exists $info->{'Do'}) {
+        # If the InBlock info for this Do-loop is 0, we extract the $annlines inside this Do block and run a recursive analysis on it.
+        # 
+
+        # recusivelyAnalysedNode = gmapT (mkT (isolateAndParalleliseForLoops filename subTable accessAnalysis )) inp
+        # paralleliseLoop filename [] accessAnalysis subTable recusivelyAnalysedNode
+    }
+    
+    # _ -> gmapT (mkT (isolateAndParalleliseForLoops filename subTable accessAnalysis)) inp
+        return ([[$line,$info]],$state);
+    };    
+    # filename subTable accessAnalysis block = 
+    my $state = $accessAnalysis;
+    (my $new_annlines, $state) = stateful_pass($annlines,$isolateAndParalleliseForLoops,"isolateAndParalleliseForLoops($f) " . __LINE__);
+    # gmapT (mkT ($isolateAndParalleliseForLoops filename subTable accessAnalysis)) block
+    return $new_annlines;
+}
 
 
-      
 
+
+# paralleliseLoop :: String -> [VarName Anno] -> VarAccessAnalysis -> SubroutineTable -> Fortran Anno -> Fortran Anno
+# getLoopVar gets the loop iterators
+sub paralleliseLoop { my ($stref, $f, $loopVars, $accessAnalysis, $loop_annlines, $block_id) = @_;
+    # filename loopVars accessAnalysis subTable loop = transformedAst
+                                # where
+    my $loopvar = $accessAnalysis->{'LoopNests'}{'Set'}{$block_id}{'Iterator'};
+    my $newLoopVars = [@{$loopVars}, $loopvar];
+                                    # case getLoopVar loop of
+                                    #     Just a -> loopVars ++ [a]
+                                    #     Nothing -> loopVars
+
+    my $nonTempVars = getNonTempVars($loop_annlines,$accessAnalysis);
+    my $prexistingVars = getPrexistingVars($loop_annlines, $accessAnalysis);
+    my $dependencies = analyseDependencies($loop_annlines);
+
+    #    If the 'bool' variable for any of the attempts to parallelise is true, then parallism has been found
+    #    and the new AST node is returned from this function, to be placed in the AST by the calling function.
+    #    
+    my $mapAttempt = [];#paralleliseLoop_map filename loop newLoopVars nonTempVars prexistingVars dependencies accessAnalysis subTable
+    my $mapAttempt_bool = fst $mapAttempt;
+    my $mapAttempt_ast = snd $mapAttempt;
+
+    my $reduceAttempt = [];#paralleliseLoop_reduce filename mapAttempt_ast newLoopVars nonTempVars prexistingVars  dependencies accessAnalysis
+    my $reduceAttempt_bool = fst $reduceAttempt;
+    my $reduceAttempt_ast = snd $reduceAttempt;
+
+    my $reduceWithOuterIterationAttempt = [];#paralleliseLoop_reduceWithOuterIteration filename reduceAttempt_ast Nothing newLoopVars newLoopVars nonTempVars prexistingVars dependencies accessAnalysis
+    my $reduceWithOuterIterationAttempt_bool = fst $reduceWithOuterIterationAttempt;
+    my $reduceWithOuterIterationAttempt_ast = snd $reduceWithOuterIterationAttempt;
+    # WV: TODO: if all these fail we should move the loop to the OpenCL device anyway, using a new OpenCLSeq node
+
+    my $transformedAst =  $mapAttempt_bool 
+        ?  $mapAttempt_ast
+        :  $reduceAttempt_bool 
+                    ? $reduceAttempt_ast
+                    : $reduceWithOuterIterationAttempt_ast ;
+    return $transformedAst
+}
+
+=pod
 #    Function takes a list of loop variables and a possible parallel loop's AST and returns a string that details the reasons why the loop cannot be mapped. If the returned string is empty, the loop represents a possible parallel map
-analyseLoop_map :: String -> [VarName Anno] -> [VarName Anno] -> [VarName Anno] -> [VarName Anno] -> VarAccessAnalysis -> VarDependencyAnalysis -> SubroutineTable -> Fortran Anno -> AnalysisInfo
+# analyseLoop_map :: String -> [VarName Anno] -> [VarName Anno] -> [VarName Anno] -> [VarName Anno] -> VarAccessAnalysis -> VarDependencyAnalysis -> SubroutineTable -> Fortran Anno -> AnalysisInfo
 analyseLoop_map comment loopVars loopWrites nonTempVars prexistingVars accessAnalysis dependencies subTable codeSeg = case codeSeg of
         # If _ _ condExpr ifTrue elifList maybeElse -> foldl combineAnalysisInfo analysisInfoBaseCase ([condExprAnalysis] ++ readWriteAnalysis ++ [ifTrueAnalysis] ++ elifCondAnalysis ++ elifBodyAnalysis ++ [elseAnalysis]  )
         If _ _ condExpr ifTrue elifList maybeElse -> foldl combineAnalysisInfo analysisInfoBaseCase ([condExprAnalysis, ifTrueAnalysis] ++ elifCondAnalysis ++ elifBodyAnalysis ++ [elseAnalysis]  )
@@ -619,6 +666,34 @@ analyseLoop_map comment loopVars loopWrites nonTempVars prexistingVars accessAna
 
                 nodeAccessAnalysis = gmapQ (mkQ analysisInfoBaseCase (analyseLoopIteratorUsage comment loopVars loopWrites nonTempVars accessAnalysis)) codeSeg
                 childrenAnalysis = gmapQ (mkQ analysisInfoBaseCase recursiveCall) codeSeg
+=cut
+
+sub analyse_loop_nature_all {
+	( my $stref ) = @_;
+
+	for my $f ( sort keys %{ $stref->{'Subroutines'} } ) {
+
+		next if ( $f eq '' or $f eq 'UNKNOWN_SRC' or not defined $f );
+		# next if exists $stref->{'Entries'}{$f};
+
+		my $Sf = $stref->{'Subroutines'}{$f};
+
+		if ( not defined $Sf->{'Status'} ) {
+			$Sf->{'Status'} = $UNREAD;
+			say "INFO: no Status for $f" if $I;
+		}
+
+		next if $Sf->{'Status'} == $UNREAD;
+		next if $Sf->{'Status'} == $READ;
+		next if $Sf->{'Status'} == $FROM_BLOCK;
+        #   map {say 'TEST'.$_} @{pp_annlines($Sf->{'RefactoredCode'})} if $f=~/test_loop/;
+		$stref = analyseLoopNature( $stref, $f );
+
+        # emit_RefactoredCode($stref,$f,$Sf->{'RefactoredCode'}) ;
+	}
+    
+	return $stref;
+}    # END of analyse_loop_nature_all()
 
 sub findWithDefault { my ($default, $key, $table) = @_;
 
@@ -650,18 +725,18 @@ sub foldl {
 	return $acc;
 }    
 
-sub zip { my ($l1, $l2) = @;
-    my $len_l1= scalar @{$l1};
-    my $len_l2= scalar @{$l2};
-    my $common_len = $len_l1 < $len_l2 ? $len_l1 : $len_l2;
-    my $l12=[];
-    for my $idx (0..$common_len-1) {
-        my $elt1 = $l1->[$idx];
-        my $elt2 = $l2->[$idx];
-        push @{$l12},[$elt1,$elt2];
-    }
-    return $l12;
-}
+# sub zip { my ($l1, $l2) = @_;
+#     my $len_l1= scalar @{$l1};
+#     my $len_l2= scalar @{$l2};
+#     my $common_len = $len_l1 < $len_l2 ? $len_l1 : $len_l2;
+#     my $l12=[];
+#     for my $idx (0..$common_len-1) {
+#         my $elt1 = $l1->[$idx];
+#         my $elt2 = $l2->[$idx];
+#         push @{$l12},[$elt1,$elt2];
+#     }
+#     return $l12;
+# }
 
 sub unzip { (my $l12) = @_;
     my $l1=[];
@@ -673,4 +748,18 @@ sub unzip { (my $l12) = @_;
     }
     return ($l1,$l2);
 }
+
+sub fst { (my $tup_ref) = @_; 
+    return $tup_ref->[0];
+}
+
+sub snd { (my $tup_ref) = @_; 
+    return $tup_ref->[1];
+}
+
+sub filter { (my $f, my $lst) = @_;
+    my $res = grep { $f->{$_} } @{$lst};
+    return $res;
+}
+
 1;

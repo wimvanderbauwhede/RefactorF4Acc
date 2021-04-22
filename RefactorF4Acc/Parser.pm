@@ -227,6 +227,8 @@ sub analyse_lines {
 		my $block_counter = 0;
 		my $current_block={};
 		my %block_id = ();
+		my $block_id_str = '';
+		my $current_block_id_str = '';
 		my @blocks_stack=();
 		my %extra_lines=(); # $index => [ ... ]
 
@@ -239,6 +241,7 @@ sub analyse_lines {
 			$info->{'Indent'}=$indent;						
 			$info->{'LineID'} = $index;
 			
+
 
 			# Skip comments (we already marked them in SrcReader)
 			if ( $lline =~ /^\s*\!/ && $lline !~ /^\!\s*\$(?:ACC|RF4A)\s/i ) {				
@@ -1478,6 +1481,13 @@ END IF
 			if (not exists $info->{'Block'}) {
 				$info->{'Block'}=$current_block;
 			}
+
+			$block_id_str = exists $info->{'Block'} ? join(':',@{get_block_id($info->{'Block'},[])}) : $current_block_id_str ;
+			$current_block_id_str=$block_id_str;
+			if ( exists $info->{'Block'}) {
+				$info->{'BlockID'} = $block_id_str;
+			}
+
 			$srcref->[$index] = [ $lline, $info ];
 } else {
 	# Comment out the code shielded with if (0) then ... endif 	
