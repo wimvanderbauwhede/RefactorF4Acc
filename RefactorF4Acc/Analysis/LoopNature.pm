@@ -60,13 +60,13 @@ sub analyseLoopNature { # paralleliseProgUnit_foldl
 # WV: this map provides all read and write locations for a local variable
 # type LocalVarAccessAnalysis = DMap.Map (VarName Anno) VarAccessRecord
 # This is in fact quite the same as what I have done in ArrayAccessPatterns, the question is if I can run this first to get that info 
-
+# So I am going to assume that ArrayAccesses gives me enough information
 
 # WV: this map provides the expression(s) defining the local variable, I guess, so this would be assignments and should be args of subcalls with intent Out or InOut
 # type LocalVarValueAnalysis = DMap.Map (VarName Anno) [(SrcSpan, Expr Anno)]
 # LocalVarValueAnalysis is a table of the expressions for all local variables in a loop nest. This is Rhs of Assignment 
 # (or SubroutineCall, but that is a no-go, this is why we have to inline all calls)
-# Not sure if having this table is necessary, we can easily build it on the fly.
+# This corresponds to ArrayAssignments (which is a bit of a misnomer now as it includes Scalar info as well )
 
 
 # WV: I wonder if instead of [VarName Anno] a declaration would not have been better?
@@ -74,7 +74,9 @@ sub analyseLoopNature { # paralleliseProgUnit_foldl
 #                                                                            Subroutine arguments     Declared var names
 # type VarAccessAnalysis = ([LocalVarAccessAnalysis],    LocalVarValueAnalysis, [VarName Anno],     [VarName Anno])
 #
-# subroutine args and declared var names we get from $Sf->{'Args'} and $Sf->{'Vars'} 
+# subroutine args and declared var names we get from $Sf->{'Args'} and $Sf->{'Vars'} , the var accesses we have from ArrayAccesses and values from ArrayAssignments
+# So the whole accessAnalysis is contained in $Sf
+
 
 
 
@@ -291,6 +293,7 @@ analyseAllVarAccess_block ioWriteSubroutineNames declarations (Block _ _ _ _ _ f
 
 
 # analyseAllVarAccess_fortran :: [String] -> [VarName Anno] -> (LocalVarAccessAnalysis,LocalVarAccessAnalysis) -> Fortran Anno ->  (LocalVarAccessAnalysis,LocalVarAccessAnalysis)
+# So this looks like the real work 
 analyseAllVarAccess_fortran ioWriteSubroutineNames declarations (prevAnalysis,prevAnalysis_io) codeSeg  = case codeSeg of
                                     Assg _ _ writeExpr readExpr -> (analysisQ,DMap.empty)
                                                 where
@@ -318,7 +321,7 @@ analyseAllVarAccess_fortran ioWriteSubroutineNames declarations (prevAnalysis,pr
                                                     analysisIncChildren = foldl combineLocalVarAccessAnalysis analysis analysisIncChildren_list
                                                     analysisIncChildren_io = foldl combineLocalVarAccessAnalysis analysis analysisIncChildren_io_list
 
-                                 -- Call p SrcSpan (Expr p) (ArgList p);                 
+                                 ## Call p SrcSpan (Expr p) (ArgList p);                 
                                     Call _ src callExpr argList -> analysis_tup
                                                 where
                                                     subroutineName = if extractVarNames callExpr == [] 
@@ -534,6 +537,88 @@ getAccessesInsideSrcSpan_var src localVarAccesses var = newLocalVarAccesses
             newLocalVarAccesses = DMap.insert var (newReads, newWrites) localVarAccesses
 
 
+      
+
+#    Function takes a list of loop variables and a possible parallel loop's AST and returns a string that details the reasons why the loop cannot be mapped. If the returned string is empty, the loop represents a possible parallel map
+analyseLoop_map :: String -> [VarName Anno] -> [VarName Anno] -> [VarName Anno] -> [VarName Anno] -> VarAccessAnalysis -> VarDependencyAnalysis -> SubroutineTable -> Fortran Anno -> AnalysisInfo
+analyseLoop_map comment loopVars loopWrites nonTempVars prexistingVars accessAnalysis dependencies subTable codeSeg = case codeSeg of
+        # If _ _ condExpr ifTrue elifList maybeElse -> foldl combineAnalysisInfo analysisInfoBaseCase ([condExprAnalysis] ++ readWriteAnalysis ++ [ifTrueAnalysis] ++ elifCondAnalysis ++ elifBodyAnalysis ++ [elseAnalysis]  )
+        If _ _ condExpr ifTrue elifList maybeElse -> foldl combineAnalysisInfo analysisInfoBaseCase ([condExprAnalysis, ifTrueAnalysis] ++ elifCondAnalysis ++ elifBodyAnalysis ++ [elseAnalysis]  )
+            where
+                recursiveCall = analyseLoop_map comment loopVars loopWrites nonTempVars prexistingVars accessAnalysis dependencies subTable
+                # readWriteAnalysis = gmapQ (mkQ analysisInfoBaseCase recursiveCall) codeSeg # so this should call recursiveCall on all nodes of codeSeg, why? 
+                condExprAnalysis = (nullAnno, [], extractOperands condExpr, []) # AnalysisInfo tuple from the 'if' condition
+                ifTrueAnalysis = recursiveCall ifTrue
+                elifBodyAnalysis = map (\(_, elif_fortran) ->  recursiveCall elif_fortran) elifList # list of AnalysisInfo tuples from the body of each 'else if' branch
+                elifCondAnalysis = map (\(elif_expr, _) -> (nullAnno, [], extractOperands elif_expr, [])) elifList # list of AnalysisInfo tuples from the condition of each 'else if' branch
+                elseAnalysis = case maybeElse of
+                                    Just else_fortran ->  recursiveCall else_fortran
+                                    Nothing -> analysisInfoBaseCase
+
+        Assg _ srcspan lhsExpr rhsExpr -> foldl (combineAnalysisInfo) analysisInfoBaseCase [lhsExprAnalysis,
+                                                                                                (DMap.empty,[],
+                                                                                                prexistingReadExprs,
+#                                                                                                (warning prexistingReadExprs ("MAP: PRE-EXISTING READ EXPRS: "++(unwords (map miniPP prexistingReadExprs))++"\n") ),
+                                                                                                if isNonTempAssignment then [lhsExpr] else [])]
+            where
+                lhsExprAnalysis = analyseLoopIteratorUsage comment loopVars loopWrites nonTempVars accessAnalysis lhsExpr
+                isNonTempAssignment = usesVarName_list nonTempVars lhsExpr
+
+                readOperands = extractOperands rhsExpr
+                # WV: not sure if this should not be the same as for the Reduction
+                readExprs = foldl (\accum item -> accum ++ (extractContainedVars item) ++ [item]) [] readOperands
+                prexistingReadExprs = filter (usesVarName_list prexistingVars ) readExprs
+#                prexistingReadExprs = filter (usesVarName_list  (warning prexistingVars ("MAP: PRE-EXISTING VARS: "++(show (map (\(VarName _ v)->v) prexistingVars) )++"\nRHS FULL: "++(miniPP rhsExpr)++"\n"++ ("READ EXPRS: "++(show (map miniPP readExprs))++"\n")  ) )) readExprs 
+                # prexistingReadExprs = filter (usesVarName_list  (warning prexistingVars ("PRE: "++(show (map (\(VarName _ v)->v) prexistingVars) )++"\nRHS: "++(miniPP rhsExpr)++"\n") ))  (warning readExprs ("READ OPS: "++(show (map miniPP readExprs))++"\n") )
+                #prexistingReadExprs = filter (usesVarName_list  prexistingVars) readExprs 
+                #
+        For _ _ var e1 e2 e3 _ -> foldl combineAnalysisInfo analysisInfo childrenAnalysis  # foldl combineAnalysisInfo analysisInfoBaseCase childrenAnalysis 
+            where
+                childrenAnalysis = (gmapQ (mkQ analysisInfoBaseCase (analyseLoop_map comment (loopVars ++ [var]) loopWrites nonTempVars prexistingVars accessAnalysis dependencies subTable)) codeSeg)
+                
+                e1Vars = extractAllVarNames e1
+                e2Vars = extractAllVarNames e2
+                e3Vars = extractAllVarNames e3
+
+                readVars = map (generateVar) (listRemoveDuplications (e1Vars ++ e2Vars ++ e3Vars))
+                analysisInfo = (nullAnno, [], readVars, [])
+
+        Call _ srcspan callExpr arglist -> callAnalysis
+            where
+                #    If the called subroutine exists in a file that was supplied to the compiler, analyse it. If the subroutine is parallelisable,
+                #    it is not parallelised internally but is instead included as part of some externel parallelism. If the subroutine was not parsed
+                #    then add a parallelism error to the annotations.
+                recursiveCall = analyseLoop_map comment loopVars loopWrites nonTempVars prexistingVars accessAnalysis dependencies subTable
+
+                subroutineName = if extractVarNames callExpr == [] then (error "analyseLoop_map: callExpr" ++ (show callExpr))  else varNameStr (head (extractVarNames callExpr))
+                argTranslation = generateArgumentTranslation subTable codeSeg
+                (subroutineParsed, subTableEntry) = case DMap.lookup subroutineName subTable of
+                                        Just a -> (True, a)
+                                        Nothing -> (False, error "analyseLoop_map: DMap.lookup subroutineName subTable")
+                subroutineBody = subroutineTable_ast subTableEntry
+                subCallAnalysis = recursiveCall (extractFirstFortran subroutineBody)
+
+                callAnalysis =     if not subroutineParsed then
+                                    (errorMap_call, [], [], argExprs)
+                                else
+                                    subCallAnalysis
+
+                errorMap_call = DMap.insert (outputTab ++ comment ++ "Call to external function:\n")
+                                            [errorLocationFormatting srcspan ++ outputTab ++ outputExprFormatting callExpr]
+                                            DMap.empty
+                argExprs = everything (++) (mkQ [] extractExpr_list) arglist
+
+        FSeq _ srcspan codeSeg1 codeSeg2 -> combineAnalysisInfo codeSeg1Analysis codeSeg2Analysis
+            where
+                recursiveCall = analyseLoop_map comment loopVars loopWrites nonTempVars prexistingVars accessAnalysis dependencies subTable
+                codeSeg1Analysis = recursiveCall codeSeg1
+                codeSeg2Analysis = recursiveCall codeSeg2
+        _ -> foldl combineAnalysisInfo analysisInfoBaseCase (childrenAnalysis ++ nodeAccessAnalysis)
+            where
+                recursiveCall = analyseLoop_map comment loopVars loopWrites nonTempVars prexistingVars accessAnalysis dependencies subTable
+
+                nodeAccessAnalysis = gmapQ (mkQ analysisInfoBaseCase (analyseLoopIteratorUsage comment loopVars loopWrites nonTempVars accessAnalysis)) codeSeg
+                childrenAnalysis = gmapQ (mkQ analysisInfoBaseCase recursiveCall) codeSeg
 
 sub findWithDefault { my ($default, $key, $table) = @_;
 

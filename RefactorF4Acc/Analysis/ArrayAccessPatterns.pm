@@ -147,9 +147,9 @@ sub identify_array_accesses_in_exprs { (my $stref, my $f) = @_;
 				$state->{'CurrentBlock'} = 0;
 			}
 			# This is the concat of the line IDs for every DO line in the nest. 
-            my $block_id = exists $state->{'Subroutines'}{$f}{'LoopNests'} 
+            my $block_id = exists $state->{'Subroutines'}{$f}{'LoopNests'}{'List'} 
 			# and scalar keys %{$state->{'Subroutines'}{$f}{'LoopNests'}} > 0
-			? __mkLoopId( $state->{'Subroutines'}{$f}{'LoopNests'} ) : 0;
+			? __mkLoopId( $state->{'Subroutines'}{$f}{'LoopNests'}{'List'} ) : 0;
 			# carp Dumper $state->{'Subroutines'}{$f}{'LoopNests'};
             #
 			# Identify the subroutine
@@ -160,7 +160,7 @@ sub identify_array_accesses_in_exprs { (my $stref, my $f) = @_;
 				$state->{'Subroutines'}{$subname }={};
 				$state->{'Subroutines'}{$subname }{'Blocks'}={};
 				$state->{'Subroutines'}{$subname }{'Blocks'}{$block_id}={};
-                $state->{'Subroutines'}{$f}{'LoopNests'}=[ [0,'',{}] ];
+                $state->{'Subroutines'}{$f}{'LoopNests'}{'List'}=[ [0,'',{}] ];
                 # InOut will be both in In and Out
                 # Any scalar arg that is InOut or Out could be an Acc, put it in MaybeAcc
                 
@@ -356,11 +356,11 @@ sub identify_array_accesses_in_exprs { (my $stref, my $f) = @_;
 				# carp Dumper $loop_iter;
                 my $loop_range_exprs = [ $range_start_evaled , $range_stop_evaled ];#[$range_start,$range_stop]; # FIXME Maybe we don't need this. But if we do, we should probably eval() it
                 my $loop_id = $info->{'LineID'};
-                push @{ $state->{'Subroutines'}{$f}{'LoopNests'} },[$loop_id, $loop_iter , {'Range' => $loop_range_exprs}];
-                my $block_id = __mkLoopId( $state->{'Subroutines'}{$f}{'LoopNests'} );
+                push @{ $state->{'Subroutines'}{$f}{'LoopNests'}{'List'} },[$loop_id, $loop_iter , {'Range' => $loop_range_exprs}];
+                my $block_id = __mkLoopId( $state->{'Subroutines'}{$f}{'LoopNests'}{'List'} );
 				$info->{'BlockID'} = $block_id;
 				$state->{'CurrentBlock'} = $block_id;
-                for my $loop_iter_rec ( @{ $state->{'Subroutines'}{$f}{'LoopNests'} } ) {
+                for my $loop_iter_rec ( @{ $state->{'Subroutines'}{$f}{'LoopNests'}{'List'} } ) {
                     (my $loop_id, my $loop_iter, my $range_rec) = @{$loop_iter_rec};		
 					next if $loop_iter eq ''; 			
                     $state->{'Subroutines'}{ $f }{'Blocks'}{$block_id}{'LoopIters'}{$loop_iter}=$range_rec;
@@ -371,7 +371,7 @@ sub identify_array_accesses_in_exprs { (my $stref, my $f) = @_;
             } elsif ( exists $info->{'EndDo'} ) {
 				my $block_id = $state->{'CurrentBlock'};
 				$info->{'BlockID'} = $block_id;
-				pop @{ $state->{'Subroutines'}{$f}{'LoopNests'} };
+				pop @{ $state->{'Subroutines'}{$f}{'LoopNests'}{'List'} };
 				# $state->{'CurrentBlock'} = 0;
 
             }
