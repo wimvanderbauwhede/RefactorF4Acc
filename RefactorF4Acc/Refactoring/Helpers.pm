@@ -4,7 +4,7 @@ use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
 
 #
-#   (c) 2010-2017 Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
+#   (c) 2010-now Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
 #
 
 use vars qw( $VERSION );
@@ -34,6 +34,7 @@ use Exporter;
   &emit_f95_parsed_par_decl
   &splice_additional_lines
   &splice_additional_lines_cond
+  &slice_annlines_cond
   &stateless_pass_inplace
   &stateful_pass_inplace
   &stateful_pass_reverse_inplace
@@ -852,6 +853,37 @@ sub splice_additional_lines_cond {
     return $merged_annlines;
 
 }    # END of splice_additional_lines_cond()
+
+# Return the first slice of AnnLines matching the conditions for begin and end lines 
+# $cond_* :: AnnLine -> Bool -- give the conditions for the first and last line of the slice :: AnnLine -> Bool
+# $skip_*_line :: Bool
+# stateless_pass :: AnnLines -> (AnnLine -> Bool) -> (AnnLine -> Bool) -> Bool -> Bool -> AnnLines
+sub slice_annlines_cond {
+    my ($annlines, $cond_begin, $cond_end, $skip_begin_line,$skip_end_line) = @_;
+    if (not defined $skip_begin_line) {
+        $skip_begin_line=0;
+    }
+    if (not defined $skip_end_line) {
+        $skip_end_line=0;
+    }
+    my $annlines_slice=[];
+    my $in_slice = 0;
+    for my $annline ( @{$annlines} ) {    
+        if ($cond_begin->($annline)) { 
+            $in_slice=1; 
+            next if $skip_begin_line;
+        }
+        if ($in_slice and $cond_end->($annline)) { 
+            $in_slice=0; 
+            push @{$annlines_slice},$annline unless $skip_end_line;
+            last;
+        }
+        if($in_slice) {
+            push @{$annlines_slice},$annline;
+        }
+    }
+    return $annlines_slice;
+} # END of slice_annlines_cond()
 
 # The passes below go through all lines of code that are not marked as Deleted
 # TODO: add some control over this

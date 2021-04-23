@@ -127,8 +127,10 @@ sub analyseAllVarAccesses { my ($stref, $f, $io_write_subroutines, $annlines) = 
 			
             my $line_id = $info->{'LineID'};
             # my $block_id = exists $info->{'Block'} ? join(':',@{get_block_id($info->{'Block'},[])}) : $state->{'CurrentBlock'} ;
+            my $current_block = $state->{'CurrentBlock'};
             my $block_id = exists $info->{'BlockID'} ? $info->{'BlockID'} : $state->{'CurrentBlock'} ;
             $state->{'CurrentBlock'} = $block_id;
+            my $nest_level = scalar split(/:/,$block_id);
             # say "LINE: $line" . (exists $info->{'Block'} ? ' Block ' : '').(exists $info->{'BlockID'} ? $info->{'BlockID'} : '');
             # if (
             #     exists $info->{'BlockID'}
@@ -158,6 +160,7 @@ sub analyseAllVarAccesses { my ($stref, $f, $io_write_subroutines, $annlines) = 
                         'Iterator' => '',
                         'Range' => [],
                         'InBlock' => -1,
+                        'NestLevel' => $nest_level
                     }
                 };
                 # InOut will be both in In and Out
@@ -256,7 +259,7 @@ sub analyseAllVarAccesses { my ($stref, $f, $io_write_subroutines, $annlines) = 
     #                say "RANGE: [ $range_start_evaled , $range_stop_evaled ]"; 
                     my $loop_iter = $info->{'Do'}{'Iterator'};
                     
-                    # carp Dumper $loop_iter;
+                    carp Dumper $info if $line_id == 16;
                     my $loop_range_exprs = [ $range_start_evaled , $range_stop_evaled ];#[$range_start,$range_stop]; # FIXME Maybe we don't need this. But if we do, we should probably eval() it
                     my $loop_id = $info->{'LineID'};
                     push @{ $state->{'VarAccessAnalysis'}{'LoopNests'}{'List'} },[$loop_id, $loop_iter , {'Range' => $loop_range_exprs}];
@@ -268,7 +271,8 @@ sub analyseAllVarAccesses { my ($stref, $f, $io_write_subroutines, $annlines) = 
                             # 'BlockEnd' => -1,
                             'Iterator' => $loop_iter,
                             'Range' => $loop_range_exprs,
-                            'InBlock' => $state->{'CurrentBlock'},
+                            'InBlock' => $current_block,
+                            'NestLevel' => $nest_level
                     };                
                     $state->{'CurrentBlock'} = $block_id;
                     for my $loop_iter_rec ( @{ $state->{'VarAccessAnalysis'}{'LoopNests'}{'List'} } ) { 

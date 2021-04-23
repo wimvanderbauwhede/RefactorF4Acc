@@ -48,7 +48,8 @@ sub analyseLoopNature { # paralleliseProgUnit_foldl
             # my $accessAnalysis :: VarAccessAnalysis
             my $accessAnalysis = analyseAllVarAccesses($stref, $f, $ioWriteSubroutines, $annlines);
             # die;
-            croak Dumper $accessAnalysis;
+            
+            croak Dumper $accessAnalysis->{'LoopNests'}{'Set'};
             # So I assume for every block this does paralleliseBlock
             my $parallelisedProgUnit = paralleliseBlock($stref, $f, $accessAnalysis, $annlines_foldedConstants);
             # everywhere( mkT(\&paralleliseBlock,$filename,$originalTable,$accessAnalysis), $annlines_foldedConstants);
@@ -445,6 +446,8 @@ varHasSrcBefore codeBlockSrcSpan localVarAccess var = foldl (\accum item -> accu
 #    it must be read after the end of the loop, before any data is written to it. In the second case, this means that a variable is non temporary
 #    if the final value left in it by the loop is read and used elsewhere.
 # getNonTempVars :: SrcSpan -> VarAccessAnalysis -> [VarName Anno]
+
+# WV: codeBlockSpan is actually loop_annlines, so we can get the line IDs from the info of the first and last annline
 sub getNonTempVars { my ($codeBlockSpan,$accessAnalysis) = @_;
         # where
             my $localVarAccesses = #(\(x:xs,_, _, _) -> x) 
@@ -470,14 +473,22 @@ sub varAccessAnalysis_writesAfter { my ($codeBlockSpan, $accessAnalysis) = @_;
         [keys %{$accessAnalysis}]
     );
 }
-
+=pod
 # varAccessAnalysis_writesAfterQ :: SrcSpan -> LocalVarAccessAnalysis -> LocalVarAccessAnalysis -> VarName Anno -> LocalVarAccessAnalysis
-varAccessAnalysis_writesAfterQ (_, SrcLoc _ line_end _) accessAnalysis accumAnalysis varname = combineLocalVarAccessAnalysis accumAnalysis outputAnalysis
-        where
-            (readSpans, writeSpans) = DMap.findWithDefault ([], []) varname accessAnalysis
-            newWriteSpans = filter (\((SrcLoc _ line_write column_write), _) -> line_write >= line_end) writeSpans
-            outputAnalysis = DMap.insert varname (readSpans, newWriteSpans) DMap.empty
-
+sub varAccessAnalysis_writesAfterQ { (_, SrcLoc _ line_end _) accessAnalysis accumAnalysis varname = 
+#where
+# We use Write and Read keys 
+    my $readSpans = findWithDefault([],'Read',$accessAnalysis->{$varname});
+    my $writeSpans = findWithDefault([],'Write',$accessAnalysis->{$varname});
+#(readSpans, writeSpans) = DMap.findWithDefault ([], []) varname accessAnalysis
+#newWriteSpans = filter (\((SrcLoc _ line_write column_write), _) -> line_write >= line_end) writeSpans
+    my $newWriteSpans = filter( sub { (my $bl)=@_;
+            my ($block_id,$line_write)=@{$bl};
+            return $line_write >= $line_end;
+            }, $writeSpans);
+    my $outputAnalysis->{$varname}=[ $readSpans, $newWriteSpans];
+    return combineLocalVarAccessAnalysis($accumAnalysis,$outputAnalysis);
+}
 # varAccessAnalysis_readsAfter :: SrcSpan -> LocalVarAccessAnalysis -> LocalVarAccessAnalysis
 varAccessAnalysis_readsAfter codeBlockSpan accessAnalysis = foldl (varAccessAnalysis_readsAfterQ codeBlockSpan accessAnalysis) DMap.empty (DMap.keys accessAnalysis)
 
@@ -499,7 +510,7 @@ checkHangingReads analysis varname = case earliestRead of
             (readSpans, writeSpans) = DMap.findWithDefault ([], []) varname analysis
             earliestRead = getEarliestSrcSpan readSpans
             earliestWrite = getEarliestSrcSpan writeSpans
-=pod
+
 # getAccessesInsideSrcSpan :: LocalVarAccessAnalysis -> SrcSpan -> LocalVarAccessAnalysis
 getAccessesInsideSrcSpan localVarAccesses src = foldl (getAccessesInsideSrcSpan_var src) localVarAccesses vars
         where
@@ -667,6 +678,42 @@ analyseLoop_map comment loopVars loopWrites nonTempVars prexistingVars accessAna
                 nodeAccessAnalysis = gmapQ (mkQ analysisInfoBaseCase (analyseLoopIteratorUsage comment loopVars loopWrites nonTempVars accessAnalysis)) codeSeg
                 childrenAnalysis = gmapQ (mkQ analysisInfoBaseCase recursiveCall) codeSeg
 =cut
+
+
+# Handling nested blocks
+
+# 1. look for the blocks with the longest ID
+# my $max_id_len = 0;
+
+# $max_id_len = max($max_id_len, scalar split(/:/,$block_id));
+
+# maybe annotate the blocks with this number for convenience
+
+# 2. Get all blocks with that length, process them
+# 3. Get all blocks with length $max_id_len-1, process them; treat the ones that occur in the InBlock of step 2 as non-leaf
+# 4. etc, until length 1 i.e. no loop
+
+# isolateAndParalleliseForLoops should call 
+
+# sub paralleliseLoop { my ($stref, $f, $loopVars, $accessAnalysis, $loop_annlines, $block_id) = @_;
+
+# in the right order. 
+
+
+    # 'LoopNests' => { 
+    #     'List' => [ [BlockID,Iterator,{Range => []}],... ],
+    #     'Set' => {
+    #         BlockId => {
+    #             'BlockStart' => LineID,
+    #             'BlockEnd' => LineID,
+    #             'Iterator' => $loopvar,
+    #             'Range' => []
+    #             'InBlock' => BlockID,
+    #         },
+    #     }
+    # }
+
+
 
 sub analyse_loop_nature_all {
 	( my $stref ) = @_;

@@ -118,6 +118,7 @@ sub fold_constants {
     my $annlines = $Sf->{'RefactoredCode'};
     my $new_annlines = stateless_pass($annlines,$pass_fold_constants,"pass_fold_constants($f) " . __LINE__  ) ;
     # $stref = identify_var_accesses_in_exprs($stref,$f,$new_annlines);
+     emit_RefactoredCode($stref,$f,$new_annlines) ;
     return $new_annlines;
 } # END of fold_constants
 
@@ -144,7 +145,7 @@ sub fold_constants_all {
 
         warn $f;
         # Dumper($Sf->{'RefactoredCode'});
-        emit_RefactoredCode($stref,$f,$new_annlines) ;
+        # emit_RefactoredCode($stref,$f,$new_annlines) ;
 	}
     
 	return $stref;

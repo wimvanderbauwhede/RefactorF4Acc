@@ -284,7 +284,7 @@ sub analyse_lines {
 				# remove any leading spaces
 				$line=~s/^\s+//;
 			}
-			# say "LINE: $line" ;
+			say "LINE: $line\t".$info->{'LineID'} ;
 			# --------------------------------------------------------------------------------
 			# BLOCK identification code
 			# --------------------------------------------------------------------------------
@@ -391,13 +391,13 @@ sub analyse_lines {
 				my $block = pop @blocks_stack;
 				say $lline. "\t\tPOP $block_nest_counter ".uc($block->{'Type'})  if $in_excluded_block and $DBG;
 				$info->{'Block'}= $block;
-				if ($info->{'Block'}{'Nest'} == 1 or 
-					$info->{'Block'}{'Nest'} == $info->{'Block'}{'InBlock'}{'Nest'}) {
-						$info->{'Block'}{'InBlock'}=$info->{'Block'}{'InBlock'}{'InBlock'};
-						$block = $info->{'Block'};
-				}
-				# croak 'Block: '. Dumper $info->{'Block'} if $f eq 'sub2' and $info->{'Block'}{'LineID'} == 16 ;
-				$current_block=$block;
+				# if ($info->{'Block'}{'Nest'} == 1 or 
+				# 	$info->{'Block'}{'Nest'} == $info->{'Block'}{'InBlock'}{'Nest'}) {
+				# 		$info->{'Block'}{'InBlock'}=$info->{'Block'}{'InBlock'}{'InBlock'};
+				# 		$block = $info->{'Block'};
+				# }
+				# croak 'Block: '. Dumper $info->{'Block'} if $f eq 'sub2' and $info->{'LineID'} == 18 ;
+				$current_block=$block->{'InBlock'};
 				--$block_nest_counter;
 				if (defined $block and exists $block->{'Nest'} and $block->{'Nest'} == $excluded_block and $in_excluded_block==1) {
 					$in_excluded_block=2;
@@ -1481,8 +1481,9 @@ END IF
 			if (not exists $info->{'Block'}) {
 				$info->{'Block'}=$current_block;
 			}
-
-			$block_id_str = exists $info->{'Block'} ? join(':',@{get_block_id($info->{'Block'},[])}) : $current_block_id_str ;
+			# carp Dumper $info->{'Block'};
+			$block_id_str = scalar keys %{$info->{'Block'}} ? join(':',@{get_block_id($info->{'Block'},[])}) : $current_block_id_str ;
+			# carp $block_id_str;
 			$current_block_id_str=$block_id_str;
 			if ( exists $info->{'Block'}) {
 				$info->{'BlockID'} = $block_id_str;
