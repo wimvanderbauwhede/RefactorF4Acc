@@ -709,11 +709,12 @@ analyseLoop_map comment loopVars loopWrites nonTempVars prexistingVars accessAna
     #             'Iterator' => $loopvar,
     #             'Range' => []
     #             'InBlock' => BlockID,
+    #             'NestLevel' => Int >= 1
     #         },
     #     }
     # }
 
-
+CONTINUE HERE
 
 sub analyse_loop_nature_all {
 	( my $stref ) = @_;
