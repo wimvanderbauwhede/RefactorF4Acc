@@ -51,8 +51,8 @@ sub analyseLoopNature { # paralleliseProgUnit_foldl
             
             croak Dumper $accessAnalysis->{'LoopNests'}{'Set'};
             # So I assume for every block this does paralleliseBlock
-            my $parallelisedProgUnit = paralleliseBlock($stref, $f, $accessAnalysis, $annlines_foldedConstants);
-            # everywhere( mkT(\&paralleliseBlock,$filename,$originalTable,$accessAnalysis), $annlines_foldedConstants);
+            my $parallelisedProgUnit = parallelise_all_Blocks($stref, $f, $accessAnalysis, $annlines_foldedConstants);
+            # everywhere mkT(paralleliseBlock　filename　originalTable　accessAnalysis) annlines_foldedConstants
 
             # my $parAnno = compileAnnotationListing $parallelisedProgUnit;
             # my $newSubTable = insert( $f, MkSubRec( $parallelisedProgUnit, $filename, []), $accumSubTable);
@@ -682,15 +682,67 @@ analyseLoop_map comment loopVars loopWrites nonTempVars prexistingVars accessAna
 
 # Handling nested blocks
 
-# 1. look for the blocks with the longest ID
-# my $max_id_len = 0;
+# --    This function is called using generics so that every 'Block' is traversed. This step is necessary to be able to reach the first 'Fortran'
+# --    node. From here, the first call to 'isolateAndParalleliseForLoops' is made (again with generics) which recursively traverses the 'Fortran' nodes to
+# --    find for loop that should be analysed
+# paralleliseBlock :: String -> SubroutineTable -> VarAccessAnalysis -> Block Anno -> Block Anno
+# paralleliseBlock filename subTable accessAnalysis block = gmapT (mkT (isolateAndParalleliseForLoops filename subTable accessAnalysis)) block
 
-# $max_id_len = max($max_id_len, scalar split(/:/,$block_id));
+# --    Function traverses the 'Fortran' nodes to find For loops. It calls 'paralleliseLoop' on identified for loops in a recusive way such that the most
+# --    nested loops in a cluster are analysed first.
+# isolateAndParalleliseForLoops :: String -> SubroutineTable -> VarAccessAnalysis -> Fortran Anno -> Fortran Anno
+# isolateAndParalleliseForLoops filename subTable accessAnalysis inp = case inp of
+#         For _ _ _ _ _ _ _ -> paralleliseLoop filename [] accessAnalysis subTable recusivelyAnalysedNode
+#             where
+#                 recusivelyAnalysedNode = gmapT (mkT (isolateAndParalleliseForLoops filename subTable accessAnalysis )) inp
+#         _ -> gmapT (mkT (isolateAndParalleliseForLoops filename subTable accessAnalysis)) inp
 
+
+sub paralleliseBlock { my ($stref, $f, $accessAnalysis, $annlines_foldedConstants, $block_id) = @_;
+    
+# gmapT (mkT (isolateAndParalleliseForLoops filename subTable accessAnalysis)) block
+    (my $loop_annlines,my $updated_accessAnalysis) = isolateAndParalleliseForLoops($stref, $f, $accessAnalysis, $annlines_foldedConstants, $block_id);
+
+    return ($loop_annlines,$updated_accessAnalysis);
+}
+
+sub isolateAndParalleliseForLoops { my ($stref, $f, $accessAnalysis, $annlines_foldedConstants, $block_id) = @_;
+    my $loop=[];
+
+    return ($loop,$accessAnalysis);
+}
+
+
+sub parallelise_all_Blocks { my ($stref, $f, $accessAnalysis, $annlines_foldedConstants) = @_;
+    # 1. look for the blocks with the longest ID
+    my $max_lev = 0;
+    my $blocks_per_nestlevel = [];
+    for my $block_id (@{$accessAnalysis->{'LoopNests'}{'List'}[0]}) {
+        my $nest_lev = $accessAnalysis->{'LoopNests'}{'Set'}{$block_id}{'NestLevel'};
+        push @{$blocks_per_nestlevel->[$nest_lev]},$block_id;
+        $max_lev = max($max_lev, $nest_lev);
+    }
+    my $parallelisedProgUnit = dclone($annlines_foldedConstants);
+    my $parallelised_loops={};
+    for my $rev_lev (0 .. $max_lev-1) {
+        my $nest_lev = $max_lev - $rev_lev;
+        for my $block_id (@{$blocks_per_nestlevel->[$nest_lev]}) {
+            (my $loop_annlines,$accessAnalysis) = paralleliseBlock($stref, $f, $accessAnalysis, $annlines_foldedConstants, $block_id);
+            $parallelised_loops->{$block_id} = $loop_annlines;
+            # But really we should put those loops into $parallelisedProgUnit, a copy of $annlines_foldedConstants
+            # It is not hard: based on $accessAnalysis we get the LineIDs for the $loop_annlines
+            # Then we need an elegant way to remove the old and put in the new.
+        }
+    }
+
+    return ($parallelisedProgUnit, $accessAnalysis);
+}
 # maybe annotate the blocks with this number for convenience
 
 # 2. Get all blocks with that length, process them
 # 3. Get all blocks with length $max_id_len-1, process them; treat the ones that occur in the InBlock of step 2 as non-leaf
+# We do this by testing for existence of a field 
+    # 'Contains' => {$block_id => nature of the loop}
 # 4. etc, until length 1 i.e. no loop
 
 # isolateAndParalleliseForLoops should call 
@@ -701,20 +753,22 @@ analyseLoop_map comment loopVars loopWrites nonTempVars prexistingVars accessAna
 
 
     # 'LoopNests' => { 
-    #     'List' => [ [BlockID,Iterator,{Range => []}],... ],
+    #     'List' => [ [$block_id,$iterator,{Range => []}],... ],
     #     'Set' => {
-    #         BlockId => {
+    #         $block_id => {
     #             'BlockStart' => LineID,
     #             'BlockEnd' => LineID,
     #             'Iterator' => $loopvar,
     #             'Range' => []
     #             'InBlock' => BlockID,
-    #             'NestLevel' => Int >= 1
+    #             'NestLevel' => Int >= 1,
+    #             'Contains' => {
+    #                 $contained_block_id_1 => {...},
+    #               }
     #         },
     #     }
     # }
 
-CONTINUE HERE
 
 sub analyse_loop_nature_all {
 	( my $stref ) = @_;
@@ -808,6 +862,14 @@ sub snd { (my $tup_ref) = @_;
 sub filter { (my $f, my $lst) = @_;
     my $res = grep { $f->{$_} } @{$lst};
     return $res;
+}
+
+sub max { (my $v1, my $v2) =@_;
+    return $v1 < $v2 ? $v2 : $v1;
+}
+
+sub min { (my $v1, my $v2) =@_;
+    return $v1 > $v2 ? $v2 : $v1;
 }
 
 1;

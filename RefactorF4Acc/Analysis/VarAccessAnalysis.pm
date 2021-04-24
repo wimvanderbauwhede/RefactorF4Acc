@@ -99,6 +99,7 @@ $state->{'VarAccessAnalysis'} =
                 'Iterator' => $loopvar,
                 'Range' => []
                 'InBlock' => BlockID,
+                'NestLevel' => Int
             },
         }
     }
@@ -259,7 +260,7 @@ sub analyseAllVarAccesses { my ($stref, $f, $io_write_subroutines, $annlines) = 
     #                say "RANGE: [ $range_start_evaled , $range_stop_evaled ]"; 
                     my $loop_iter = $info->{'Do'}{'Iterator'};
                     
-                    carp Dumper $info if $line_id == 16;
+                    # carp Dumper $info if $line_id == 16;
                     my $loop_range_exprs = [ $range_start_evaled , $range_stop_evaled ];#[$range_start,$range_stop]; # FIXME Maybe we don't need this. But if we do, we should probably eval() it
                     my $loop_id = $info->{'LineID'};
                     push @{ $state->{'VarAccessAnalysis'}{'LoopNests'}{'List'} },[$loop_id, $loop_iter , {'Range' => $loop_range_exprs}];
