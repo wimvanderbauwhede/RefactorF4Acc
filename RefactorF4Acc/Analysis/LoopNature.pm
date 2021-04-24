@@ -779,25 +779,75 @@ getLoopConditions codeSeg = case codeSeg of
         OpenCLMap _ _ _ _ loopVars iterLoopVars _ -> loopVars -- WV20170426
         OpenCLReduce _ _ _ _ loopVars iterLoopVars _ _ -> loopVars -- WV20170426
         _ -> []
-
-
-analyseDependencies :: Fortran Anno -> VarDependencyAnalysis
-analyseDependencies codeSeg = foldl (\accum item -> constructDependencies accum item) DMap.empty assignments
-                        where
-                            assignments = everything (++) (mkQ [] extractAssignments) codeSeg
-
-constructDependencies :: VarDependencyAnalysis -> Fortran Anno -> VarDependencyAnalysis
-constructDependencies prevAnalysis (Assg _ _ expr1 expr2) = foldl (\accum item -> addDependencies accum item readOperands) prevAnalysis writtenVarNames
-                            where
-                                --    As part of Language-Fortran's assignment type, the first expression represents the 
-                                --    variable being assigned to and the second expression is the thing being assigned
-                                writtenOperands = filter (isVar) (extractOperands expr1)
-                                readOperands = filter (isVar) (extractOperands expr2)
-
-                                writtenVarNames = foldl (\accum item -> accum ++ extractVarNames item) [] writtenOperands
-
-constructDependencies prevAnalysis _ = prevAnalysis
 =cut
+
+# analyseDependencies :: Fortran Anno -> VarDependencyAnalysis
+sub analyseDependencies { my ($codeSeg) =@_;
+                        # where
+    my $assignments = extractAssignments($codeSeg);
+    my $varDeps = foldl(
+        sub { my ($accum,$item) = @_;
+            constructDependencies($accum,$item) 
+        }, {}, $assignments 
+    );
+    return $varDeps;
+}
+
+sub extractAssignments{ my ($codeSeg) = @_;
+
+    my @assignments = grep { 
+        my ($line, $info) = @{$_};
+        exists $info->{'Assignment'} 
+    } @{$codeSeg};
+
+    return \@assignments;
+}
+
+
+# constructDependencies :: VarDependencyAnalysis -> Fortran Anno -> VarDependencyAnalysis
+sub constructDependencies { my ($prevAnalysis,  $annline)=@_;
+my ($line, $info)  = @{$annline};
+    # (Assg _ _ expr1 expr2) 
+                            # where
+# As part of Language-Fortran's assignment type, the first expression represents the 
+# variable being assigned to and the second expression is the thing being assigned
+# my $writtenOperands = filter (isVar) (extractOperands expr1)
+# Assuming I have run the array access patterns analysis (and I have, in fold_constants)
+# Then I have $info->{'Rhs'}{'VarAccesses'} which should be quite what I need
+
+# Var p SrcSpan  [(VarName p, [Expr p])] 
+
+# $info->{'Rhs'}{'VarAccesses'}{ 'Arrays'}{$array_var1}{'Read'} = { 
+    # my $offsets_str = join(':', @offset_vals);
+    # Exprs => {$expr_str=>$offsets_str}, 
+    # Accesses =>{ $offsets_str  => $iter_val_pairs }, 
+    # Iterators =>...}
+# 	'Exprs' => { $expr_str_1 => '0:1',...}, 
+	# for my $idx (0 .. @iters-1) {
+    #     my $offset_val=$offset_vals[$idx];
+    #     my $mult_val=$mult_vals[$idx]-$offset_val;
+    #     push @{$iter_val_pairs}, {$iters[$idx] => [$mult_val,$offset_val]};
+    # }
+# 	'Accesses' => { '0:1' =>  {'j:0' => [1,0],'k:1' => [1,1]}}, 
+# 	'Iterators' => ['j:0','k:1']
+
+# $info->{'Rhs'}{'VarAccesses'}{'Scalar'}{$scalar_var1}{'Read'} = {'Exprs' => {$expr_str => $expr_str,...}};
+my $readOperands = filter (isVar) (extractOperands expr2)
+my $writtenVarNames = [$info->{'Lhs'}{'VarName'}];
+
+# foldl( 
+#     sub { my ($accum,$item) =@_;
+#         return [@{$accum},@{extractVarNames($item)];
+#     }, 
+#     [],$writtenOperands);
+
+
+my $varDepAnalysis = foldl( sub { my ($accum, $item) = @_; 
+    addDependencies($accum,$item,$readOperands);
+    }, $prevAnalysis, $writtenVarNames);
+return $varDepAnalysis;
+}
+
 
 
 # Handling nested blocks
@@ -869,10 +919,6 @@ sub parallelise_all_Blocks { my ($stref, $f, $accessAnalysis, $annlines_foldedCo
 # We do this by testing for existence of a field 
     # 'Contains' => {$block_id => nature of the loop}
 # 4. etc, until length 1 i.e. no loop
-
-# isolateAndParalleliseForLoops should call 
-
-# sub paralleliseLoop { my ($stref, $f, $loopVars, $accessAnalysis, $loop_annlines, $block_id) = @_;
 
 # in the right order. 
 

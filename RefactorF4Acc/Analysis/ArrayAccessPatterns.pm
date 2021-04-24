@@ -275,6 +275,9 @@ sub identify_array_accesses_in_exprs { (my $stref, my $f) = @_;
 					# carp 'BLOCK:',Dumper($state->{'Subroutines'}{ $f }{'Blocks'}{$block_id});
 					(my $lhs_ast, $state, my $lhs_accesses) = _find_array_access_in_ast($stref, $f, $block_id, $state, $info->{'Lhs'}{'ExpressionAST'},'Write',{});
 					(my $rhs_ast, $state, my $rhs_accesses) = _find_array_access_in_ast($stref, $f, $block_id, $state, $info->{'Rhs'}{'ExpressionAST'},'Read',{});
+					$info->{'Rhs'}{'VarAccesses'}=$rhs_accesses;
+					$info->{'Lhs'}{'VarAccesses'}=$lhs_accesses;
+
 					if (exists $lhs_accesses->{'Arrays'} and exists $rhs_accesses->{'Arrays'} ) {
 						# This is an assignment line with array accesses.
 						# Tie the LHS accesses to the RHS ones  
@@ -316,10 +319,10 @@ sub identify_array_accesses_in_exprs { (my $stref, my $f) = @_;
 						# Check the halos!					
 	                    ($lhs_accesses,$rhs_accesses) = @{ _detect_halo_accesses($line, $lhs_accesses,$rhs_accesses,$state,$block_id,$stref,$f) };
 	                    if (exists $rhs_accesses->{'HasHaloAccesses'}) {
-	                    	$info->{'Rhs'}{'ArrayAccesses'}=$rhs_accesses;
+	                    	$info->{'Rhs'}{'VarAccesses'}=$rhs_accesses;
 	                    }
 	                    if (exists $lhs_accesses->{'HasHaloAccesses'}) {
-	                    	$info->{'Lhs'}{'ArrayAccesses'}=$lhs_accesses;
+	                    	$info->{'Lhs'}{'VarAccesses'}=$lhs_accesses;
 	                    }                     
                     
 					}
@@ -1093,7 +1096,7 @@ sub _collect_dependencies_for_halo_access { (my $stref, my $f) = @_;
 	for my $annline (@{$annlines}) {
 		my ($line, $info) = @{$annline};
 	
-		if (exists $info->{'Assignment'} and exists $info->{'Lhs'} and exists $info->{'Lhs'}{'ArrayAccesses'} and exists $info->{'Lhs'}{'ArrayAccesses'}{'HasHaloAccesses'}) {
+		if (exists $info->{'Assignment'} and exists $info->{'Lhs'} and exists $info->{'Lhs'}{'VarAccesses'} and exists $info->{'Lhs'}{'VarAccesses'}{'HasHaloAccesses'}) {
 			$info->{'HaloAccess'}=1;
 			say "HALO "."\t".$line if $DBG;
 			# OK, a line with a halo access was found. From here, go up
@@ -1102,7 +1105,7 @@ sub _collect_dependencies_for_halo_access { (my $stref, my $f) = @_;
 			# (2) all vars that are not the actual array var, on the LHS
 			# For each of these we must see if it is assigned to on the LHS of a preceding line.
 			# If so, must repeat this do this for that line itself; otherwise we can of course ignore it.
-			my ($array_var, $array_var_rec) = %{$info->{'Lhs'}{'ArrayAccesses'}{'Arrays'}};
+			my ($array_var, $array_var_rec) = %{$info->{'Lhs'}{'VarAccesses'}{'Arrays'}};
 			my $rhs_vars = get_vars_from_expression($info->{'Rhs'}{'ExpressionAST'});
 			if (not defined $rhs_vars) {
 				$rhs_vars={};
