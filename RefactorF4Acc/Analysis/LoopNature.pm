@@ -30,6 +30,9 @@ use Exporter;
     analyseLoopNature
 );
 
+our $outputTab = "\t";
+our $True = 1;
+our $False = 0;
 # type SubroutineTable = DMap.Map SubNameStr SubRec -- (ProgUnit Anno, String)
 # So this corresponds to $stref->{'Subroutines'}
 
@@ -567,7 +570,7 @@ sub paralleliseLoop { my ($stref, $f, $loopVars, $accessAnalysis, $loop_annlines
 
     my $nonTempVars = getNonTempVars($loop_annlines,$accessAnalysis);
     my $prexistingVars = getPrexistingVars($loop_annlines, $accessAnalysis);
-    my $dependencies = analyseDependencies($loop_annlines); # TODO
+    my $dependencies = analyseDependencies($loop_annlines);
 
     #    If the 'bool' variable for any of the attempts to parallelise is true, then parallism has been found
     #    and the new AST node is returned from this function, to be placed in the AST by the calling function.
@@ -780,6 +783,62 @@ getLoopConditions codeSeg = case codeSeg of
         OpenCLReduce _ _ _ _ loopVars iterLoopVars _ _ -> loopVars -- WV20170426
         _ -> []
 =cut
+#    Function is applied to sub-trees that are loops. It returns either a version of the sub-tree that uses new OpenCLMap nodes or the
+#    original sub-tree annotated with reasons why the loop cannot be mapped
+# paralleliseLoop_map :: String -> Fortran Anno -> [VarName Anno] -> [VarName Anno] -> [VarName Anno] -> VarDependencyAnalysis -> VarAccessAnalysis -> SubroutineTable -> (Bool, Fortran Anno)
+sub paralleliseLoop_map {
+my ($stref,$f, $loop, $loopVarNames, $nonTempVars, $prexistingVars, $dependencies,$accessAnalysis) = @_;
+                                    # where
+my $loopWrites = extractWrites_query( $loop);
+# WV: def: analyseLoop_map  comment loopVars loopWrites nonTempVars prexistingVars accessAnalysis dependencies subTable codeSeg 
+my $loopAnalysis = analyseLoop_map( $stref, $f, "Cannot map: ", [], $loopWrites, $nonTempVars, $prexistingVars, $accessAnalysis, $dependencies,$loop); #subTable
+
+my $errors_map = getErrorAnnotations( $loopAnalysis);
+my $reads_map = getReads( $loopAnalysis);
+my $writes_map = getWrites( $loopAnalysis);
+
+    my ($loopCarriedDeps_bool, $evaluated_bool, $loopCarriedDeps) = loopCarriedDependencyCheck( $loop);
+
+    my $errors_mapQ = $loopCarriedDeps_bool 
+        ? $evaluated_bool 
+                ? insert ($outputTab . "Cannot map: Loop carried dependency detected:\n",
+                    formatLoopCarriedDependencies($loopCarriedDeps), $errors_map)
+                : insert ($outputTab . "Cannot map: Loop carried dependency possible (not evaluated):\n",
+                    formatLoopCarriedDependencies( $loopCarriedDeps), $errors_map)
+        : $errors_map
+
+my $loopVariables = loopCondtions_query( $loop);
+my $startVarNames = foldl (\accum (_,x,_,_) -> accum ++ extractVarNames x) [] loopVariables
+my $endVarNames = foldl (\accum (_,_,x,_) -> accum ++ extractVarNames x) [] loopVariables
+my $stepVarNames = foldl (\accum (_,_,_,x) -> accum ++ extractVarNames x) [] loopVariables
+
+my $varNames_loopConditions = listSubtract (listRemoveDuplications (startVarNames ++ endVarNames ++ stepVarNames)) loopVarNames
+my $containedLoopIteratorVarNames = (map (\(a, _, _, _) -> a) (loopCondtions_query loop))
+
+my $reads_map_varnames = foldl (++) [] (map extractVarNames reads_map)
+my $readArgs = listRemoveDuplications $ listSubtract reads_map_varnames containedLoopIteratorVarNames # List of arguments to kernel that are READ
+    # readArgs = (listRemoveDuplications $ listSubtract reads_map_varnames (containedLoopIteratorVarNames ++ varNames_loopConditions)    )    # List of arguments to kernel that are READ
+    
+my $writes_map_varnames = foldl (++) [] (map extractVarNames writes_map)
+my $writtenArgs = listRemoveDuplications $ listSubtract writes_map_varnames containedLoopIteratorVarNames     # List of arguments to kernel that are WRITTEN
+    # WV20170426
+my $iterLoopVariables=[]
+
+my $mapCode = OpenCLMap nullAnno (generateSrcSpan filename (srcSpan loop))     # Node to represent the data needed for an OpenCL map kernel -- WV20170426
+        readArgs        # List of arguments to kernel that are READ
+        writtenArgs     # List of arguments to kernel that are WRITTEN
+        loopVariables    # Loop variables of nested maps
+        iterLoopVariables # WV20170426
+        removeLoopConstructs_recursive( $loop) # Body of kernel code
+
+if (   $errors_mapQ == $nullAnno) {    
+    [$True, appendAnnotation( mapCode (compilerName . ": Map at " . errorLocationFormatting (srcSpan loop)) "")]
+} else {   
+    [$False, appendAnnotationMap( $loop, $errors_map')]
+}
+
+} # END of paralleliseLoop_map
+
 
 # analyseDependencies :: Fortran Anno -> VarDependencyAnalysis
 sub analyseDependencies { my ($codeSeg) =@_;
@@ -793,7 +852,7 @@ sub analyseDependencies { my ($codeSeg) =@_;
     return $varDeps;
 }
 
-sub extractAssignments{ my ($codeSeg) = @_;
+sub extractAssignments { my ($codeSeg) = @_;
 
     my @assignments = grep { 
         my ($line, $info) = @{$_};
@@ -806,7 +865,7 @@ sub extractAssignments{ my ($codeSeg) = @_;
 
 # constructDependencies :: VarDependencyAnalysis -> Fortran Anno -> VarDependencyAnalysis
 sub constructDependencies { my ($prevAnalysis,  $annline)=@_;
-my ($line, $info)  = @{$annline};
+    my ($line, $info)  = @{$annline};
     # (Assg _ _ expr1 expr2) 
                             # where
 # As part of Language-Fortran's assignment type, the first expression represents the 
@@ -815,12 +874,13 @@ my ($line, $info)  = @{$annline};
 # Assuming I have run the array access patterns analysis (and I have, in fold_constants)
 # Then I have $info->{'Rhs'}{'VarAccesses'} which should be quite what I need
 
+
 # Var p SrcSpan  [(VarName p, [Expr p])] 
 
 # $info->{'Rhs'}{'VarAccesses'}{ 'Arrays'}{$array_var1}{'Read'} = { 
     # my $offsets_str = join(':', @offset_vals);
-    # Exprs => {$expr_str=>$offsets_str}, 
-    # Accesses =>{ $offsets_str  => $iter_val_pairs }, 
+    # Exprs => {$expr_str=>$offsets_str,...}, 
+    # Accesses =>{ $offsets_str  => $iter_val_pairs,... }, 
     # Iterators =>...}
 # 	'Exprs' => { $expr_str_1 => '0:1',...}, 
 	# for my $idx (0 .. @iters-1) {
@@ -832,8 +892,20 @@ my ($line, $info)  = @{$annline};
 # 	'Iterators' => ['j:0','k:1']
 
 # $info->{'Rhs'}{'VarAccesses'}{'Scalar'}{$scalar_var1}{'Read'} = {'Exprs' => {$expr_str => $expr_str,...}};
-my $readOperands = filter (isVar) (extractOperands expr2)
-my $writtenVarNames = [$info->{'Lhs'}{'VarName'}];
+# TODO: I need to transform this so that it is actually a list!{
+ my $tmph = {
+     %{$info->{'Rhs'}{'VarAccesses'}{'Arrays'}},
+     %{$info->{'Rhs'}{'VarAccesses'}{'Scalars'}}
+     };
+    # create a tuple [$var_name,{Exprs ...}]
+    my $readOperands=[];
+    for my $var (sort keys %{$tmph}) {
+        push @{$readOperands},[$var,$tmph->{$var}{'Read'}]
+    }
+
+    # [Expr]
+    # my $readOperands = $info->{'Rhs'}{'VarAccesses'};# filter (isVar) (extractOperands expr2)
+    my $writtenVarNames = [$info->{'Lhs'}{'VarName'}];
 
 # foldl( 
 #     sub { my ($accum,$item) =@_;
@@ -841,13 +913,27 @@ my $writtenVarNames = [$info->{'Lhs'}{'VarName'}];
 #     }, 
 #     [],$writtenOperands);
 
-
-my $varDepAnalysis = foldl( sub { my ($accum, $item) = @_; 
-    addDependencies($accum,$item,$readOperands);
+    my $varDepAnalysis = foldl( sub { my ($accum, $item) = @_; 
+        addDependencies($accum,$item,$readOperands);
     }, $prevAnalysis, $writtenVarNames);
-return $varDepAnalysis;
+    return $varDepAnalysis;
 }
 
+# addDependencies :: VarDependencyAnalysis -> VarName Anno -> [VarName Anno] -> VarDependencyAnalysis
+#    A dependent depends on a dependee. For example
+#        A = B + 12
+#    A depends on B. A is the dependee, B is the dependent
+# addDependencies :: VarDependencyAnalysis -> VarName Anno -> [Expr Anno] -> VarDependencyAnalysis
+sub addDependencies {my ($prevAnalysis,$dependent,$dependees) = @_;
+    foldl( sub { my ($accum,$item) = @_;
+        addDependency( $accum,$dependent,$item)
+        },
+    $prevAnalysis,$dependees );
+}
+# addDependency :: VarDependencyAnalysis -> VarName Anno -> Expr Anno -> VarDependencyAnalysis
+sub addDependency { my ($prevAnalysis, $dependent, $dependee) = @_;
+    appendToMap( $dependent, $dependee, $prevAnalysis);
+}
 
 
 # Handling nested blocks
@@ -969,7 +1055,6 @@ sub analyse_loop_nature_all {
 }    # END of analyse_loop_nature_all()
 
 sub findWithDefault { my ($default, $key, $table) = @_;
-
     if (not exists $table->{$key}) {
         if (ref($default) eq 'SUB') {
             $default->();
@@ -978,8 +1063,13 @@ sub findWithDefault { my ($default, $key, $table) = @_;
         }
     } else {
         return $table->{$key};
-    }
-    
+    }   
+}
+
+# appendToMap :: Ord k => k -> a -> DMap.Map k [a] -> DMap.Map k [a]
+sub appendToMap { my ($key, $item, $table) = @_;
+    my $ntable = insert( $key, [@{findWithDefault( [], $key, $table)},$item],$table);
+    return $ntable;
 }
 
 sub insert { my ($key, $value, $table) = @_;
