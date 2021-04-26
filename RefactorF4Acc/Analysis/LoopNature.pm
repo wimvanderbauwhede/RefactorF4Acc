@@ -33,6 +33,7 @@ use Exporter;
 our $outputTab = "\t";
 our $True = 1;
 our $False = 0;
+our $nullAnno = {};
 # type SubroutineTable = DMap.Map SubNameStr SubRec -- (ProgUnit Anno, String)
 # So this corresponds to $stref->{'Subroutines'}
 
@@ -599,89 +600,138 @@ sub paralleliseLoop { my ($stref, $f, $loopVars, $accessAnalysis, $loop_annlines
     return ($transformedAst, $updated_accessAnalysis);
 }
 
-=pod
+
+#                          errors         reduction variables  read variables       written variables    
+# type AnalysisInfo =     (Anno,         [Expr Anno],         [Expr Anno],         [Expr Anno])
+# type Anno = DMap.Map (String) [String]
+
+# LoopAnalysis.analysisInfoBaseCase :: AnalysisInfo
+our $analysisInfoBaseCase = [{},[],[],[]];
+
 #    Function takes a list of loop variables and a possible parallel loop's AST and returns a string that details the reasons why the loop cannot be mapped. If the returned string is empty, the loop represents a possible parallel map
-# analyseLoop_map :: String -> [VarName Anno] -> [VarName Anno] -> [VarName Anno] -> [VarName Anno] -> VarAccessAnalysis -> VarDependencyAnalysis -> SubroutineTable -> Fortran Anno -> AnalysisInfo
-analyseLoop_map comment loopVars loopWrites nonTempVars prexistingVars accessAnalysis dependencies subTable codeSeg = case codeSeg of
-        # If _ _ condExpr ifTrue elifList maybeElse -> foldl combineAnalysisInfo analysisInfoBaseCase ([condExprAnalysis] ++ readWriteAnalysis ++ [ifTrueAnalysis] ++ elifCondAnalysis ++ elifBodyAnalysis ++ [elseAnalysis]  )
-        If _ _ condExpr ifTrue elifList maybeElse -> foldl combineAnalysisInfo analysisInfoBaseCase ([condExprAnalysis, ifTrueAnalysis] ++ elifCondAnalysis ++ elifBodyAnalysis ++ [elseAnalysis]  )
-            where
-                recursiveCall = analyseLoop_map comment loopVars loopWrites nonTempVars prexistingVars accessAnalysis dependencies subTable
-                # readWriteAnalysis = gmapQ (mkQ analysisInfoBaseCase recursiveCall) codeSeg # so this should call recursiveCall on all nodes of codeSeg, why? 
-                condExprAnalysis = (nullAnno, [], extractOperands condExpr, []) # AnalysisInfo tuple from the 'if' condition
+# LoopAnalysis.analyseLoop_map :: String -> [VarName Anno] -> [VarName Anno] -> [VarName Anno] -> [VarName Anno] -> VarAccessAnalysis -> VarDependencyAnalysis -> SubroutineTable -> Fortran Anno -> AnalysisInfo
+sub analyseLoop_map {
+    my ($stref, $f, $comment, $loopVars, $loopWrites, $nonTempVars, $prexistingVars, $accessAnalysis, $dependencies, $codeSeg) = @_; # subTable
+    # codeSeg is like AnnLines, but because it is nested, it is recursive 
+    # So I think we do a simple stateful_pass here, let's just see what each of these does
+    # case codeSeg of
+    my $pass_analyseLoop_map = sub {
+    if (exists $info->{'If'}) {
+            my condExprAnalysis = [{}, [], extractOperands( condExpr), []]; # AnalysisInfo tuple from the 'if' condition            
+            $state = combineAnalysisInfo(  $state, [$condExprAnalysis]);
+    }
+    elsif (exists $info->{'ElseIf'}) {
+            $state = combineAnalysisInfo(  $state, [$elifCondAnalysis, $elifBodyAnalysis]  );
+
+    }
+    elsif (exists $info->{'Else'}) {
+            $state = combineAnalysisInfo(  $state, [$elseAnalysis]  );
+
+    }
+        If _ _ condExpr ifTrue elifList maybeElse -> 
+        
+                
                 ifTrueAnalysis = recursiveCall ifTrue
                 elifBodyAnalysis = map (\(_, elif_fortran) ->  recursiveCall elif_fortran) elifList # list of AnalysisInfo tuples from the body of each 'else if' branch
                 elifCondAnalysis = map (\(elif_expr, _) -> (nullAnno, [], extractOperands elif_expr, [])) elifList # list of AnalysisInfo tuples from the condition of each 'else if' branch
                 elseAnalysis = case maybeElse of
                                     Just else_fortran ->  recursiveCall else_fortran
                                     Nothing -> analysisInfoBaseCase
-
-        Assg _ srcspan lhsExpr rhsExpr -> foldl (combineAnalysisInfo) analysisInfoBaseCase [lhsExprAnalysis,
-                                                                                                (DMap.empty,[],
-                                                                                                prexistingReadExprs,
-#                                                                                                (warning prexistingReadExprs ("MAP: PRE-EXISTING READ EXPRS: "++(unwords (map miniPP prexistingReadExprs))++"\n") ),
-                                                                                                if isNonTempAssignment then [lhsExpr] else [])]
-            where
-                lhsExprAnalysis = analyseLoopIteratorUsage comment loopVars loopWrites nonTempVars accessAnalysis lhsExpr
-                isNonTempAssignment = usesVarName_list nonTempVars lhsExpr
-
+    if (exists $info->{'Assignment'}) {
+    
+        # Assg _ srcspan lhsExpr rhsExpr -> foldl (combineAnalysisInfo) analysisInfoBaseCase [lhsExprAnalysis,
+        #                                                                                         (DMap.empty,[],
+        #                                                                                         prexistingReadExprs,
+        #                                                                                         if isNonTempAssignment then [lhsExpr] else [])]
+            # where
+                my $lhsExprAnalysis = analyseLoopIteratorUsage( $comment, $loopVars, $loopWrites, $nonTempVars, $accessAnalysis, $lhsExpr);
+                my $isNonTempAssignment = usesVarName_list( $nonTempVars, $lhsExpr);
+                # readOperands :: [Expr]
                 readOperands = extractOperands rhsExpr
                 # WV: not sure if this should not be the same as for the Reduction
-                readExprs = foldl (\accum item -> accum ++ (extractContainedVars item) ++ [item]) [] readOperands
-                prexistingReadExprs = filter (usesVarName_list prexistingVars ) readExprs
-#                prexistingReadExprs = filter (usesVarName_list  (warning prexistingVars ("MAP: PRE-EXISTING VARS: "++(show (map (\(VarName _ v)->v) prexistingVars) )++"\nRHS FULL: "++(miniPP rhsExpr)++"\n"++ ("READ EXPRS: "++(show (map miniPP readExprs))++"\n")  ) )) readExprs 
-                # prexistingReadExprs = filter (usesVarName_list  (warning prexistingVars ("PRE: "++(show (map (\(VarName _ v)->v) prexistingVars) )++"\nRHS: "++(miniPP rhsExpr)++"\n") ))  (warning readExprs ("READ OPS: "++(show (map miniPP readExprs))++"\n") )
-                #prexistingReadExprs = filter (usesVarName_list  prexistingVars) readExprs 
-                #
-        For _ _ var e1 e2 e3 _ -> foldl combineAnalysisInfo analysisInfo childrenAnalysis  # foldl combineAnalysisInfo analysisInfoBaseCase childrenAnalysis 
-            where
-                childrenAnalysis = (gmapQ (mkQ analysisInfoBaseCase (analyseLoop_map comment (loopVars ++ [var]) loopWrites nonTempVars prexistingVars accessAnalysis dependencies subTable)) codeSeg)
-                
-                e1Vars = extractAllVarNames e1
-                e2Vars = extractAllVarNames e2
-                e3Vars = extractAllVarNames e3
+                my $readExprs = foldl (\accum item -> accum ++ (extractContainedVars item) ++ [item]) [] readOperands
+                my $prexistingReadExprs = filter( 
+                    sub {
+                        my ($readExpr)=@_;
+                        return usesVarName_list($prexistingVars,$readExpr);
+                     }, $readExprs);
+                $state = combineAnalysisInfo(  $state, [
+                    $lhsExprAnalysis, 
+                    [{},[],$prexistingReadExprs, $isNonTempAssignment ? [$lhsExpr] : []] 
+                    ] );
+    }
+    # if (exists $info->{'Do'}) { # We assume that the expression is entirely static and has been folded so only var really matters
+    #     # I need to check if in our case var is already in loopVars, I think so. So then nothing remains to be done!
+    #     For _ _ var e1 e2 e3 _ -> foldl combineAnalysisInfo analysisInfo childrenAnalysis  # foldl combineAnalysisInfo analysisInfoBaseCase childrenAnalysis 
+    #         where
+    #     childrenAnalysis = (gmapQ (mkQ analysisInfoBaseCase (analyseLoop_map comment (loopVars ++ [var]) loopWrites nonTempVars prexistingVars accessAnalysis dependencies subTable)) codeSeg)
+        
+    #     e1Vars = extractAllVarNames e1
+    #     e2Vars = extractAllVarNames e2
+    #     e3Vars = extractAllVarNames e3
+    #     # readVars contains Expr of VarName, 
+    #     #  generateVar varname = Var [{}, [], [[$varname, []]] ];
+    #     my $readVars = map (generateVar) (listRemoveDuplications (e1Vars ++ e2Vars ++ e3Vars))
+    #     my $analysisInfo = [{}, [], $readVars, [];
+    # }
+        # Call _ srcspan callExpr arglist -> callAnalysis
+        #     where
+        #         #    If the called subroutine exists in a file that was supplied to the compiler, analyse it. If the subroutine is parallelisable,
+        #         #    it is not parallelised internally but is instead included as part of some externel parallelism. If the subroutine was not parsed
+        #         #    then add a parallelism error to the annotations.
+        #         recursiveCall = analyseLoop_map comment loopVars loopWrites nonTempVars prexistingVars accessAnalysis dependencies subTable
 
-                readVars = map (generateVar) (listRemoveDuplications (e1Vars ++ e2Vars ++ e3Vars))
-                analysisInfo = (nullAnno, [], readVars, [])
+        #         subroutineName = if extractVarNames callExpr == [] then (error "analyseLoop_map: callExpr" ++ (show callExpr))  else varNameStr (head (extractVarNames callExpr))
+        #         argTranslation = generateArgumentTranslation subTable codeSeg
+        #         (subroutineParsed, subTableEntry) = case DMap.lookup subroutineName subTable of
+        #                                 Just a -> (True, a)
+        #                                 Nothing -> (False, error "analyseLoop_map: DMap.lookup subroutineName subTable")
+        #         subroutineBody = subroutineTable_ast subTableEntry
+        #         subCallAnalysis = recursiveCall (extractFirstFortran subroutineBody)
 
-        Call _ srcspan callExpr arglist -> callAnalysis
-            where
-                #    If the called subroutine exists in a file that was supplied to the compiler, analyse it. If the subroutine is parallelisable,
-                #    it is not parallelised internally but is instead included as part of some externel parallelism. If the subroutine was not parsed
-                #    then add a parallelism error to the annotations.
-                recursiveCall = analyseLoop_map comment loopVars loopWrites nonTempVars prexistingVars accessAnalysis dependencies subTable
+        #         callAnalysis =     if not subroutineParsed then
+        #                             (errorMap_call, [], [], argExprs)
+        #                         else
+        #                             subCallAnalysis
 
-                subroutineName = if extractVarNames callExpr == [] then (error "analyseLoop_map: callExpr" ++ (show callExpr))  else varNameStr (head (extractVarNames callExpr))
-                argTranslation = generateArgumentTranslation subTable codeSeg
-                (subroutineParsed, subTableEntry) = case DMap.lookup subroutineName subTable of
-                                        Just a -> (True, a)
-                                        Nothing -> (False, error "analyseLoop_map: DMap.lookup subroutineName subTable")
-                subroutineBody = subroutineTable_ast subTableEntry
-                subCallAnalysis = recursiveCall (extractFirstFortran subroutineBody)
+        #         errorMap_call = DMap.insert (outputTab ++ comment ++ "Call to external function:\n")
+        #                                     [errorLocationFormatting srcspan ++ outputTab ++ outputExprFormatting callExpr]
+        #                                     DMap.empty
+        #         argExprs = everything (++) (mkQ [] extractExpr_list) arglist
 
-                callAnalysis =     if not subroutineParsed then
-                                    (errorMap_call, [], [], argExprs)
-                                else
-                                    subCallAnalysis
+        # FSeq _ srcspan codeSeg1 codeSeg2 -> combineAnalysisInfo codeSeg1Analysis codeSeg2Analysis
+        #     where
+        #         recursiveCall = analyseLoop_map comment loopVars loopWrites nonTempVars prexistingVars accessAnalysis dependencies subTable
+        #         codeSeg1Analysis = recursiveCall codeSeg1
+        #         codeSeg2Analysis = recursiveCall codeSeg2
+        # _ -> foldl combineAnalysisInfo analysisInfoBaseCase (childrenAnalysis ++ nodeAccessAnalysis)
+        #     where
+        #         recursiveCall = analyseLoop_map comment loopVars loopWrites nonTempVars prexistingVars accessAnalysis dependencies subTable
 
-                errorMap_call = DMap.insert (outputTab ++ comment ++ "Call to external function:\n")
-                                            [errorLocationFormatting srcspan ++ outputTab ++ outputExprFormatting callExpr]
-                                            DMap.empty
-                argExprs = everything (++) (mkQ [] extractExpr_list) arglist
+        #         nodeAccessAnalysis = gmapQ (mkQ analysisInfoBaseCase (analyseLoopIteratorUsage comment loopVars loopWrites nonTempVars accessAnalysis)) codeSeg
+        #         childrenAnalysis = gmapQ (mkQ analysisInfoBaseCase recursiveCall) codeSeg
+    };
 
-        FSeq _ srcspan codeSeg1 codeSeg2 -> combineAnalysisInfo codeSeg1Analysis codeSeg2Analysis
-            where
-                recursiveCall = analyseLoop_map comment loopVars loopWrites nonTempVars prexistingVars accessAnalysis dependencies subTable
-                codeSeg1Analysis = recursiveCall codeSeg1
-                codeSeg2Analysis = recursiveCall codeSeg2
-        _ -> foldl combineAnalysisInfo analysisInfoBaseCase (childrenAnalysis ++ nodeAccessAnalysis)
-            where
-                recursiveCall = analyseLoop_map comment loopVars loopWrites nonTempVars prexistingVars accessAnalysis dependencies subTable
+    my $state = $analysisInfoBaseCase;
+    (my $new_annlines,$state) = stateful_pass($codeSeg,$pass_analyseLoop_map,$state, "pass_analyseLoop_map($f)");
+} 
 
-                nodeAccessAnalysis = gmapQ (mkQ analysisInfoBaseCase (analyseLoopIteratorUsage comment loopVars loopWrites nonTempVars accessAnalysis)) codeSeg
-                childrenAnalysis = gmapQ (mkQ analysisInfoBaseCase recursiveCall) codeSeg
-
-
+# combineAnalysisInfo :: AnalysisInfo -> AnalysisInfo -> AnalysisInfo
+# combineAnalysisInfo accum item = (combineMaps accumErrors itemErrors, accumReductionVars ++ itemReductionVars, accumReads ++ itemReads, accumWrites ++ itemWrites)
+#         where
+#             (accumErrors, accumReductionVars, accumReads, accumWrites) = accum
+#             (itemErrors, itemReductionVars, itemReads, itemWrites)     = item
+sub combineAnalysisInfo{ my ($accum, $item)=@_;
+    my ($accumErrors,$accumReductionVars,$accumReads,$accumWrites) = @{$accum};
+    my ($itemErrors,$itemReductionVars,$itemReads,$itemWrites)     = @{$item};
+    return [
+        { %{$accumErrors},%{$itemErrors}}, 
+        [@{$accumReductionVars}, @{$itemReductionVars}], 
+        [@{$accumReads}, @{$itemReads}], 
+        [@{$accumWrites}, @{$itemWrites}]
+    ];
+}
+=pod
 -- WV20170426 The addition of these loop variables is a bit ad-hoc because 
 paralleliseLoop_reduceWithOuterIteration :: String -> Fortran Anno -> Maybe (Fortran Anno) -> [VarName Anno] -> [VarName Anno] -> [VarName Anno] -> [VarName Anno] -> VarDependencyAnalysis -> VarAccessAnalysis -> (Bool, Fortran Anno)
 paralleliseLoop_reduceWithOuterIteration filename loop Nothing loopVarNames loopVarNames' nonTempVars prexistingVars dependencies accessAnalysis     
@@ -787,15 +837,15 @@ getLoopConditions codeSeg = case codeSeg of
 #    original sub-tree annotated with reasons why the loop cannot be mapped
 # paralleliseLoop_map :: String -> Fortran Anno -> [VarName Anno] -> [VarName Anno] -> [VarName Anno] -> VarDependencyAnalysis -> VarAccessAnalysis -> SubroutineTable -> (Bool, Fortran Anno)
 sub paralleliseLoop_map {
-my ($stref,$f, $loop, $loopVarNames, $nonTempVars, $prexistingVars, $dependencies,$accessAnalysis) = @_;
-                                    # where
-my $loopWrites = extractWrites_query( $loop);
-# WV: def: analyseLoop_map  comment loopVars loopWrites nonTempVars prexistingVars accessAnalysis dependencies subTable codeSeg 
-my $loopAnalysis = analyseLoop_map( $stref, $f, "Cannot map: ", [], $loopWrites, $nonTempVars, $prexistingVars, $accessAnalysis, $dependencies,$loop); #subTable
+    my ($stref,$f, $loop, $loopVarNames, $nonTempVars, $prexistingVars, $dependencies,$accessAnalysis) = @_;
+                                        # where
+    my $loopWrites = extractWrites_query( $loop); 
+    # WV: def: analyseLoop_map  comment loopVars loopWrites nonTempVars prexistingVars accessAnalysis dependencies subTable codeSeg 
+    my $loopAnalysis = analyseLoop_map( $stref, $f, "Cannot map: ", [], $loopWrites, $nonTempVars, $prexistingVars, $accessAnalysis, $dependencies, $loop); #subTable
 
-my $errors_map = getErrorAnnotations( $loopAnalysis);
-my $reads_map = getReads( $loopAnalysis);
-my $writes_map = getWrites( $loopAnalysis);
+    my $errors_map = getErrorAnnotations( $loopAnalysis);
+    my $reads_map = getReads( $loopAnalysis);
+    my $writes_map = getWrites( $loopAnalysis);
 
     my ($loopCarriedDeps_bool, $evaluated_bool, $loopCarriedDeps) = loopCarriedDependencyCheck( $loop);
 
@@ -806,40 +856,68 @@ my $writes_map = getWrites( $loopAnalysis);
                 : insert ($outputTab . "Cannot map: Loop carried dependency possible (not evaluated):\n",
                     formatLoopCarriedDependencies( $loopCarriedDeps), $errors_map)
         : $errors_map
+    ;
+    my $loopVariables = loopConditions_query( $loop); 
+    my $startVarNames = foldl (sub { my ($accum, $tup) =@_;
+        my ($e1,$x,$e3,$e4) = @{$tup};
+        return  [@{$accum} ,@{ extractVarNames( $x)}]
+        }, [],$loopVariables);
+    my $endVarNames = foldl (sub { my ($accum, $tup) =@_; 
+        my ($e1,$e2,$x,$e4) = @{$tup};
+        return [@{$accum} ,@{ extractVarNames( $x)}];
+        }, [], $loopVariables);
+    my $stepVarNames = foldl (sub { my ($accum, $tup) =@_; 
+        my ($e1,$e2,$e3,$x) = @{$tup};
+        return  [@{$accum} ,@{ extractVarNames( $x)}];
+        }, [], $loopVariables);
 
-my $loopVariables = loopCondtions_query( $loop);
-my $startVarNames = foldl (\accum (_,x,_,_) -> accum ++ extractVarNames x) [] loopVariables
-my $endVarNames = foldl (\accum (_,_,x,_) -> accum ++ extractVarNames x) [] loopVariables
-my $stepVarNames = foldl (\accum (_,_,_,x) -> accum ++ extractVarNames x) [] loopVariables
+    # my $varNames_loopConditions = listSubtract(listRemoveDuplications([@{$startVarNames}, @{$endVarNames}, @{$stepVarNames}]),$loopVarNames);
+    # This gets the VarNames out of the tuple [iter_var_name, start, stop, step]
+    my $containedLoopIteratorVarNames = map {
+        $_->[0] # or something, TODO!
+        # (\(a, _, _, _) -> a)
+        } @{$loopVariables};
 
-my $varNames_loopConditions = listSubtract (listRemoveDuplications (startVarNames ++ endVarNames ++ stepVarNames)) loopVarNames
-my $containedLoopIteratorVarNames = (map (\(a, _, _, _) -> a) (loopCondtions_query loop))
+    my $reads_map_varnames = foldl( sub {  my ($accum, $elt) =@_;
+            return [@{$accum},@{$elt}];   #  (++)
+    }   , [],map {extractVarNames($_)} @{$reads_map});
+    my $readArgs = listRemoveDuplications( listSubtract( $reads_map_varnames, $containedLoopIteratorVarNames)); # List of arguments to kernel that are READ
+        # readArgs = (listRemoveDuplications $ listSubtract reads_map_varnames (containedLoopIteratorVarNames ++ varNames_loopConditions)    )    # List of arguments to kernel that are READ
+        
+    my $writes_map_varnames = foldl( sub {  my ($accum, $elt) =@_;
+            return [@{$accum},@{$elt}];   #  (++)
+    }   , [],map {extractVarNames($_)} @{$writes_map});
+    my $writtenArgs = listRemoveDuplications( listSubtract( $writes_map_varnames, $containedLoopIteratorVarNames));     # List of arguments to kernel that are WRITTEN
+        # WV20170426
+    my $iterLoopVariables=[];
 
-my $reads_map_varnames = foldl (++) [] (map extractVarNames reads_map)
-my $readArgs = listRemoveDuplications $ listSubtract reads_map_varnames containedLoopIteratorVarNames # List of arguments to kernel that are READ
-    # readArgs = (listRemoveDuplications $ listSubtract reads_map_varnames (containedLoopIteratorVarNames ++ varNames_loopConditions)    )    # List of arguments to kernel that are READ
+    my $mapCode = ['TODO!'];
     
-my $writes_map_varnames = foldl (++) [] (map extractVarNames writes_map)
-my $writtenArgs = listRemoveDuplications $ listSubtract writes_map_varnames containedLoopIteratorVarNames     # List of arguments to kernel that are WRITTEN
-    # WV20170426
-my $iterLoopVariables=[]
+    # OpenCLMap nullAnno (generateSrcSpan filename (srcSpan loop))     # Node to represent the data needed for an OpenCL map kernel -- WV20170426
+    #         readArgs        # List of arguments to kernel that are READ
+    #         writtenArgs     # List of arguments to kernel that are WRITTEN
+    #         loopVariables    # Loop variables of nested maps
+    #         iterLoopVariables # WV20170426
+    #         removeLoopConstructs_recursive( $loop); # Body of kernel code
 
-my $mapCode = OpenCLMap nullAnno (generateSrcSpan filename (srcSpan loop))     # Node to represent the data needed for an OpenCL map kernel -- WV20170426
-        readArgs        # List of arguments to kernel that are READ
-        writtenArgs     # List of arguments to kernel that are WRITTEN
-        loopVariables    # Loop variables of nested maps
-        iterLoopVariables # WV20170426
-        removeLoopConstructs_recursive( $loop) # Body of kernel code
-
-if (   $errors_mapQ == $nullAnno) {    
-    [$True, appendAnnotation( mapCode (compilerName . ": Map at " . errorLocationFormatting (srcSpan loop)) "")]
-} else {   
-    [$False, appendAnnotationMap( $loop, $errors_map')]
-}
+    if (   $errors_mapQ == $nullAnno) {    
+        return [$True, appendAnnotation( $mapCode, "$0 : Map at " . errorLocationFormatting (srcSpan $loop) . "")];
+    } else {   
+        return [$False, appendAnnotationMap( $loop, $errors_mapQ)];
+    }
 
 } # END of paralleliseLoop_map
 
-
+sub extractWrites_query{ my ($loop) = @_;
+my @writes=();
+    for my $annline (@{$loop}) {
+        my ($line, $info) = @{$annline};
+        if (exists $info->{'Assignment'}) {
+            push @writes, $info->{'Lhs'}{'VarName'};
+        }
+    }
+    return \@writes;
+}
 # analyseDependencies :: Fortran Anno -> VarDependencyAnalysis
 sub analyseDependencies { my ($codeSeg) =@_;
                         # where
@@ -890,9 +968,32 @@ sub constructDependencies { my ($prevAnalysis,  $annline)=@_;
     # }
 # 	'Accesses' => { '0:1' =>  {'j:0' => [1,0],'k:1' => [1,1]}}, 
 # 	'Iterators' => ['j:0','k:1']
-
 # $info->{'Rhs'}{'VarAccesses'}{'Scalar'}{$scalar_var1}{'Read'} = {'Exprs' => {$expr_str => $expr_str,...}};
-# TODO: I need to transform this so that it is actually a list!{
+# TODO: I need to transform this so that it is actually a list!
+# So readOperands below is now a list of 
+# $exp_str is the source code string, e.g. v(i,j+1,k-1)
+# $offsets_str is a string join(':',@offsets), so in this example '0:1:-1'
+# [$varname_str, { 
+#      'Exprs' => {
+#          'v(i,j+1,k-1)' => '0:1:-1',
+#            $expr_str_1=>$offsets_str_1,...
+#        }, 
+#      'Accesses' =>{ 
+#             '0:1:-1' => { 
+#                 'i:0' => [1,0],
+#                 'j:1' => [1,1],
+#                 'k:2' => [1,-1]
+#                 }
+#            $offsets_str_1  => {
+#                "$iter_var_name:$idx" =>  [$mult_val,$offset_val]
+#            }
+#        }, 
+#      'Iterators' => ['i:0','j:1','k:2',
+#          "$iter_var_name:$idx",...]
+       
+#     }
+# ]
+
  my $tmph = {
      %{$info->{'Rhs'}{'VarAccesses'}{'Arrays'}},
      %{$info->{'Rhs'}{'VarAccesses'}{'Scalars'}}
@@ -968,7 +1069,7 @@ sub isolateAndParalleliseForLoops { my ($stref, $f, $accessAnalysis, $annlines_f
     # we loop up the begin and end LineID from $accessAnalysis
     # the we use slice_annlines_cond to get the $loop_annlines
     
-    # Because in the Haskell code the parallelisation is done here as well, next we call 
+    # Because in the Haskell code the parallelisation is done here as well, next we call XXXX
     my ($updated_loop_annlines,$updated_accessAnalysis) = paralleliseLoop($stref, $f, [], $accessAnalysis, $loop_annlines, $block_id);
     return ($updated_loop_annlines,$updated_accessAnalysis);
 }

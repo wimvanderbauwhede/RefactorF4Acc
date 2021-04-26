@@ -334,11 +334,12 @@ sub identify_array_accesses_in_exprs { (my $stref, my $f) = @_;
 				}
 				push @{$state->{'Subroutines'}{ $f }{'Blocks'}{$block_id}{'Assignments'}{$var_name}}, $info->{'Rhs'}{'ExpressionAST'};
 			}
-	 		if (exists $info->{'If'} ) {
+	 		if (exists $info->{'If'} or exists $info->{'ElseIf'}) {
                 # FIXME: Surely conditions of if-statements can contain array accesses, so FIX THIS!
                 #say "IF statement, TODO: ".Dumper($info->{'CondExecExpr'});
                 my $cond_expr_ast = $info->{'CondExecExprAST'};
                 ($cond_expr_ast, $state, my $cond_accesses) = _find_array_access_in_ast($stref, $f, $block_id, $state, $cond_expr_ast,'Read',{});
+				$info->{'VarAccesses'}=$cond_accesses;
             }
             elsif ( exists $info->{'Do'} ) {
                     if (exists $info->{'Do'}{'Iterator'} ) {
