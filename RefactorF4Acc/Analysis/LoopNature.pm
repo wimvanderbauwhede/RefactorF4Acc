@@ -576,7 +576,7 @@ sub paralleliseLoop { my ($stref, $f, $loopVars, $accessAnalysis, $loop_annlines
     #    If the 'bool' variable for any of the attempts to parallelise is true, then parallism has been found
     #    and the new AST node is returned from this function, to be placed in the AST by the calling function.
     #    
-    my $mapAttempt = paralleliseLoop_map($stref,$f,$loop_annlines,$newLoopVars,$nonTempVars,$prexistingVars, $dependencies,$accessAnalysis);# subTable  # TODO
+    my $mapAttempt = paralleliseLoop_map($stref,$f,$loop_annlines,$newLoopVars,$nonTempVars,$prexistingVars, $dependencies,$accessAnalysis, $block_id);# subTable  # TODO
     my $mapAttempt_bool = fst $mapAttempt;
     my $mapAttempt_ast = snd $mapAttempt;
 
@@ -611,7 +611,7 @@ our $analysisInfoBaseCase = [{},[],[],[]];
 #    Function takes a list of loop variables and a possible parallel loop's AST and returns a string that details the reasons why the loop cannot be mapped. If the returned string is empty, the loop represents a possible parallel map
 # LoopAnalysis.analyseLoop_map :: String -> [VarName Anno] -> [VarName Anno] -> [VarName Anno] -> [VarName Anno] -> VarAccessAnalysis -> VarDependencyAnalysis -> SubroutineTable -> Fortran Anno -> AnalysisInfo
 sub analyseLoop_map {
-    my ($stref, $f, $comment, $loopVars, $loopWrites, $nonTempVars, $prexistingVars, $accessAnalysis, $dependencies, $codeSeg) = @_; # subTable
+    my ($stref, $f, $comment, $loopVars, $loopWrites, $nonTempVars, $prexistingVars, $accessAnalysis, $dependencies, $codeSeg, $block_id) = @_; # subTable
     # codeSeg is like AnnLines, but because it is nested, it is recursive 
     # So I think we do a simple stateful_pass here, let's just see what each of these does
     # case codeSeg of
@@ -837,11 +837,11 @@ getLoopConditions codeSeg = case codeSeg of
 #    original sub-tree annotated with reasons why the loop cannot be mapped
 # paralleliseLoop_map :: String -> Fortran Anno -> [VarName Anno] -> [VarName Anno] -> [VarName Anno] -> VarDependencyAnalysis -> VarAccessAnalysis -> SubroutineTable -> (Bool, Fortran Anno)
 sub paralleliseLoop_map {
-    my ($stref,$f, $loop, $loopVarNames, $nonTempVars, $prexistingVars, $dependencies,$accessAnalysis) = @_;
+    my ($stref,$f, $loop, $loopVarNames, $nonTempVars, $prexistingVars, $dependencies,$accessAnalysis, $block_id) = @_;
                                         # where
     my $loopWrites = extractWrites_query( $loop); 
     # WV: def: analyseLoop_map  comment loopVars loopWrites nonTempVars prexistingVars accessAnalysis dependencies subTable codeSeg 
-    my $loopAnalysis = analyseLoop_map( $stref, $f, "Cannot map: ", [], $loopWrites, $nonTempVars, $prexistingVars, $accessAnalysis, $dependencies, $loop); #subTable
+    my $loopAnalysis = analyseLoop_map( $stref, $f, "Cannot map: ", [], $loopWrites, $nonTempVars, $prexistingVars, $accessAnalysis, $dependencies, $loop, $block_id); #subTable
 
     my $errors_map = getErrorAnnotations( $loopAnalysis);
     my $reads_map = getReads( $loopAnalysis);
@@ -873,6 +873,7 @@ sub paralleliseLoop_map {
 
     # my $varNames_loopConditions = listSubtract(listRemoveDuplications([@{$startVarNames}, @{$endVarNames}, @{$stepVarNames}]),$loopVarNames);
     # This gets the VarNames out of the tuple [iter_var_name, start, stop, step]
+    # We have this info in $accessAnalysis->{'LoopNests'}{'Set'}{$block_id}
     my $containedLoopIteratorVarNames = map {
         $_->[0] # or something, TODO!
         # (\(a, _, _, _) -> a)
