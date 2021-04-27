@@ -55,7 +55,7 @@ sub analyseLoopNature { # paralleliseProgUnit_foldl
             
             croak Dumper $accessAnalysis->{'LoopNests'}{'Set'};
             # So I assume for every block this does paralleliseBlock
-            my $parallelisedProgUnit = parallelise_all_Blocks($stref, $f, $accessAnalysis, $annlines_foldedConstants);
+            (my $parallelisedProgUnit, $accessAnalysis) = parallelise_all_Blocks($stref, $f, $accessAnalysis, $annlines_foldedConstants);
             # everywhere mkT(paralleliseBlock　filename　originalTable　accessAnalysis) annlines_foldedConstants
 
             # my $parAnno = compileAnnotationListing $parallelisedProgUnit;
@@ -670,29 +670,40 @@ sub analyseLoop_map {
         $state = combineAnalysisInfo(  $state, [$condExprAnalysis]);
     }
 
-    # if (exists $info->{'Assignment'}) {
-    
-    #     # Assg _ srcspan lhsExpr rhsExpr -> foldl (combineAnalysisInfo) analysisInfoBaseCase [lhsExprAnalysis,
-    #     #                                                                                         (DMap.empty,[],
-    #     #                                                                                         prexistingReadExprs,
-    #     #                                                                                         if isNonTempAssignment then [lhsExpr] else [])]
-    #         # where
-    #             my $lhsExprAnalysis = analyseLoopIteratorUsage( $comment, $loopVars, $loopWrites, $nonTempVars, $accessAnalysis, $lhsExpr);
-    #             my $isNonTempAssignment = usesVarName_list( $nonTempVars, $lhsExpr);
-    #             # readOperands :: [Expr]
-    #             $readOperands = extractOperands( $rhsExpr);
-    #             # WV: not sure if this should not be the same as for the Reduction
-    #             my $readExprs = foldl (\accum item -> accum ++ (extractContainedVars item) ++ [item]) [] readOperands
-    #             my $prexistingReadExprs = filter( 
-    #                 sub {
-    #                     my ($readExpr)=@_;
-    #                     return usesVarName_list($prexistingVars,$readExpr);
-    #                  }, $readExprs);
-    #             $state = combineAnalysisInfo(  $state, [
-    #                 $lhsExprAnalysis, 
-    #                 [{},[],$prexistingReadExprs, $isNonTempAssignment ? [$lhsExpr] : []] 
-    #                 ] );
-    # }
+    if (exists $info->{'Assignment'}) {
+        my $lhsExprInfo = $info->{'Lhs'};
+        my $rhsExprInfo = $info->{'Rhs'};
+        # Assg _ srcspan lhsExpr rhsExpr -> foldl (combineAnalysisInfo) analysisInfoBaseCase [lhsExprAnalysis,
+        #                                                                                         (DMap.empty,[],
+        #                                                                                         prexistingReadExprs,
+        #                                                                                         if isNonTempAssignment then [lhsExpr] else [])]
+            # where
+# --    Type used to standardise loop analysis functions
+# --    Functions below are used to manupulate and access the AnalysisInfo. 
+# --                        errors         reduction variables read variables       written variables    
+# type AnalysisInfo =     (Anno,         [Expr Anno],         [Expr Anno],         [Expr Anno])                
+            # lhsExprAnalysis :: AnalysisInfo
+        my $lhsExprAnalysis = analyseLoopIteratorUsage( $comment, $loopVars, $loopWrites, $nonTempVars, $accessAnalysis, $lhsExprInfo);
+        my $isNonTempAssignment = usesVarName_list( $nonTempVars, $lhsExprInfo->{'VarAccesses'});
+        # readOperands :: [Expr]
+        my $readOperands = extractOperands( $rhsExprInfo);
+        # WV: not sure if this should not be the same as for the Reduction
+        my $readExprs = foldl(
+            sub { my ($accum,$item) = @_;
+            return [@{$accum},@{extractContainedVars($item)},$item];
+            }
+            , [], $readOperands
+            );
+        my $prexistingReadExprs = filter( 
+            sub {
+                my ($readExpr)=@_;
+                return usesVarName_list($prexistingVars,$readExpr);
+                }, $readExprs);
+        $state = combineAnalysisInfo(  $state, [
+            $lhsExprAnalysis, 
+            [{},[],$prexistingReadExprs, $isNonTempAssignment ? [$lhsExprInfo->{'VarAccesses'}] : []] 
+            ] );
+    }
     # if (exists $info->{'Do'}) { # We assume that the expression is entirely static and has been folded so only var really matters
     #     # I need to check if in our case var is already in loopVars, I think so. So then nothing remains to be done!
     #     For _ _ var e1 e2 e3 _ -> foldl combineAnalysisInfo analysisInfo childrenAnalysis  # foldl combineAnalysisInfo analysisInfoBaseCase childrenAnalysis 
@@ -748,6 +759,56 @@ sub analyseLoop_map {
     my $state = $analysisInfoBaseCase;
     (my $new_annlines,$state) = stateful_pass($codeSeg,$pass_analyseLoop_map,$state, "pass_analyseLoop_map($f)");
 } 
+
+#    Applied to an expression, returns an AnalysisInfo loaded with an error if it does not use all of the loop iterators in some way. As in,
+#    in a nested loop over 'i' and 'j', expression 'x(i) + 12' doesn't use the iterator 'j' and so the AnalysisInfo will report that. If
+#    this error occurs when looking for a map then a map cannot be performed. if it is found while looking for a reduction, it is a sign that
+#    this expression represents a reduction variable.
+# analyseLoopIteratorUsage :: String -> [VarName Anno] -> [VarName Anno] -> [VarName Anno] -> VarAccessAnalysis -> Expr Anno -> AnalysisInfo
+sub analyseLoopIteratorUsage {my ($comment, $loopVars, $loopWrites, $nonTempVars, $accessAnalysis, $lhs_expr_info) = @_;
+# where
+# operands :: [Expr] which is [$varname,{...}] which we should get from %{$info->{'Lhs'}{'VarAccesses'}};
+    my $writtenOperands = createExprListFromVarAccesses($lhs_expr_info->{'VarAccesses'});
+    # my $operands = case fnCall of
+    #         True ->    extractContainedVars expr
+    #         False -> extractOperands expr
+    # writtenOperands = filter (usesVarName_list loopWrites) operands
+    # fnCall = isFunctionCall f95IntrinsicFunctions accessAnalysis expr
+    my $nonTempWrittenOperands = filter( sub { (my $var_name) = @_;
+        return usesVarName_list($nonTempVars, $var_name);
+     },$writtenOperands);
+    my $unusedIterMap = foldl( sub { my ($accumAnno,$loopVar) = @_;    
+        return analyseLoopIteratorUsage_foldl( $nonTempWrittenOperands,$comment,$accumAnno,$loopVar);
+    }, {}, $loopVars);
+    return [$unusedIterMap, [],[],[]];
+}
+# analyseLoopIteratorUsage_foldl :: [Expr Anno] -> String -> Anno -> VarName Anno -> Anno
+sub analyseLoopIteratorUsage_foldl { my ($nonTempWrittenOperands, $comment, $accumAnno, $loopVar) = @_;
+        # where
+    my $offendingExprs = filter(
+            sub  { my ($item) = @_;
+                return not elem( $loopVar, 
+                    foldl( 
+                        sub { my ($accum, $item) =@_;
+                            return [@{$accum},@{ extractVarNames($item)}];
+                        }, [], extractContainedOperands($item) 
+                    )
+                )                 
+            },$nonTempWrittenOperands);
+
+    my $offendingExprsStrs = map { errorLocationFormatting( srcSpan( $_) } . $outputTab . outputExprFormatting($_)) } @{$offendingExprs};
+
+    my $loopVarStr = $loopVar;
+    my $resultantMap = {};
+    if (scalar @{$offendingExprs} == 0)  {
+                            $resultantMap = $accumAnno
+                        } else {
+                                $resultantMap = DMap.insert (outputTab ++ comment ++ "Non temporary, write variables accessed without use of loop iterator \"" ++ loopVarStr ++ "\":\n") offendingExprsStrs accumAnno
+                        }
+my $nonTempWrittenOperandsStrs = map (\item -> errorLocationFormatting (srcSpan item) ++ outputTab ++ outputExprFormatting item) nonTempWrittenOperands
+    return $resultantMap;            
+}
+
 
 # combineAnalysisInfo :: AnalysisInfo -> AnalysisInfo -> AnalysisInfo
 # combineAnalysisInfo accum item = (combineMaps accumErrors itemErrors, accumReductionVars ++ itemReductionVars, accumReads ++ itemReads, accumWrites ++ itemWrites)
@@ -864,15 +925,15 @@ getLoopConditions codeSeg = case codeSeg of
         For _ _ var start end step _ -> [(var, start, end, step)]
         OpenCLMap _ _ _ _ loopVars iterLoopVars _ -> loopVars -- WV20170426
         OpenCLReduce _ _ _ _ loopVars iterLoopVars _ _ -> loopVars -- WV20170426
-        _ -> []
+        _ -> []    
 =cut
 #    Function is applied to sub-trees that are loops. It returns either a version of the sub-tree that uses new OpenCLMap nodes or the
 #    original sub-tree annotated with reasons why the loop cannot be mapped
 # paralleliseLoop_map :: String -> Fortran Anno -> [VarName Anno] -> [VarName Anno] -> [VarName Anno] -> VarDependencyAnalysis -> VarAccessAnalysis -> SubroutineTable -> (Bool, Fortran Anno)
 sub paralleliseLoop_map {
     my ($stref,$f, $loop, $loopVarNames, $nonTempVars, $prexistingVars, $dependencies,$accessAnalysis, $block_id) = @_;
-                                        # where
-    my $loopWrites = extractWrites_query( $loop); 
+    # loopWrites :: [VarName]
+    my $loopWrites = extractWrites_query( $loop); #
     # WV: def: analyseLoop_map  comment loopVars loopWrites nonTempVars prexistingVars accessAnalysis dependencies subTable codeSeg 
     my $loopAnalysis = analyseLoop_map( $stref, $f, "Cannot map: ", [], $loopWrites, $nonTempVars, $prexistingVars, $accessAnalysis, $dependencies, $loop, $block_id); #subTable
 
@@ -942,6 +1003,17 @@ sub paralleliseLoop_map {
 
 } # END of paralleliseLoop_map
 
+
+
+# --    These functions are used to extract a list of varnames that are written to in a particular chunk of code. 
+# --    WV: TODO: what about subroutine calls in the loop?
+# extractWrites_query :: (Typeable p, Data p) => Fortran p -> [VarName p]
+# extractWrites_query = everything (++) (mkQ [] extractWrites)
+
+# extractWrites :: (Typeable p, Data p) => Fortran p -> [VarName p]
+# extractWrites (Assg _ _ (Var _ _ list) _) = map (fst) list
+# extractWrites _ = []
+
 sub extractWrites_query{ my ($loop) = @_;
 my @writes=();
     for my $annline (@{$loop}) {
@@ -977,14 +1049,7 @@ sub extractAssignments { my ($codeSeg) = @_;
 
 
 # constructDependencies :: VarDependencyAnalysis -> Fortran Anno -> VarDependencyAnalysis
-# constructDependencies prevAnalysis (Assg _ _ expr1 expr2) = foldl (\accum item -> addDependencies accum item readOperands) prevAnalysis writtenVarNames
-#                             where
-#                                 --    As part of Language-Fortran's assignment type, the first expression represents the 
-#                                 --    variable being assigned to and the second expression is the thing being assigned
-#                                 writtenOperands = filter (isVar) (extractOperands expr1)
-#                                 readOperands = filter (isVar) (extractOperands expr2)
-
-#                                 writtenVarNames = foldl (\accum item -> accum ++ extractVarNames item) [] writtenOperands
+# constructDependencies prevAnalysis (Assg _ _ expr1 expr2) 
 
 # constructDependencies prevAnalysis _ = prevAnalysis
 
@@ -1245,6 +1310,17 @@ sub appendToMap { my ($key, $item, $table) = @_;
 }
 
 sub listRemoveDuplications { ordered_union(@_); }
+
+sub usesVarName_list { my ($varname_list, my $expr)=@_;
+
+    my $var_from_expr = $expr->[0];
+    return elem($var_from_expr,$varname_list);
+}
+
+sub elem { my ($elt,$lst) = @_;
+    my %hash = map {$_=>1} @{$lst};
+    return exists %hash{$elt} ? 1 : 0;
+}
 
 sub insert { my ($key, $value, $table) = @_;
         $table->{$key}=$value;
