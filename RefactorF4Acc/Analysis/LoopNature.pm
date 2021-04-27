@@ -402,7 +402,7 @@ sub analyseLoop_map {
 # $info->{'CondVars'}{'Set'} = $vars_and_index_vars_in_cond_expr;
 # $info->{'CondVars'}{'List'} = [ sort keys %{$vars_and_index_vars_in_cond_expr} ];
 
-        my $readOperands=createExprListFromVarAccesses($info->{'VarAccesses'}, 'Read');
+        my $readOperands=createExprListFromVarAccesses($info->{'VarAccesses'}, $info->{'LineID'},'Read');
         my $condExprAnalysis = [{}, [], $readOperands, []]; # AnalysisInfo tuple from the 'if' condition            
         $state = combineAnalysisInfo(  $state, [$condExprAnalysis]);
     }
@@ -423,7 +423,7 @@ sub analyseLoop_map {
         my $lhsExprAnalysis = analyseLoopIteratorUsage( $comment, $loopVars, $loopWrites, $nonTempVars, $accessAnalysis, $lhsExprInfo);
         my $isNonTempAssignment = usesVarName_list( $nonTempVars, $lhsExprInfo->{'VarAccesses'});
         # readOperands :: [Expr]
-        my $readOperands=createExprListFromVarAccesses($rhsExprInfo->{'VarAccesses'}, 'Read');
+        my $readOperands=createExprListFromVarAccesses($rhsExprInfo->{'VarAccesses'},$rhsExprInfo->{'LineID'}, 'Read');
         # my $readOperands = extractOperands( $rhsExprInfo);
         # WV: not sure if this should not be the same as for the Reduction
         my $readExprs = foldl(
@@ -450,9 +450,9 @@ sub analyseLoop_map {
 
     # childrenAnalysis should be done via $accessAnalysis->{'LoopNests'}{'Set'}{$block_id}{'Contains'} 
     # Like this but it has to be recursive!
-    my $childrenAnalysis=childrenAnalysis($block_id,$accessAnalysis,$analysisInfoBaseCase);
+            my $childrenAnalysis=childrenAnalysis($block_id,$accessAnalysis,$analysisInfoBaseCase);
     
-            # return foldl( &combineAnalysisInfo, $analysisInfoBaseCase, $childrenAnalysis);
+            $state = foldl( &combineAnalysisInfo, $state, $childrenAnalysis);
         }
         # Call _ srcspan callExpr arglist -> callAnalysis
         #     where
@@ -1047,7 +1047,7 @@ sub childrenAnalysis { my ($block_id,$accessAnalysis,$childrenAnalysis) = @_;
 sub analyseLoopIteratorUsage {my ($comment, $loopVars, $loopWrites, $nonTempVars, $accessAnalysis, $lhs_expr_info) = @_;
 # where
 # operands :: [Expr] which is [$varname,{...}] which we should get from %{$info->{'Lhs'}{'VarAccesses'}};
-    my $writtenOperands = createExprListFromVarAccesses($lhs_expr_info->{'VarAccesses'});
+    my $writtenOperands = createExprListFromVarAccesses($lhs_expr_info->{'VarAccesses'},$lhs_expr_info->{'LineID'},'Write');
     # my $operands = case fnCall of
     #         True ->    extractContainedVars expr
     #         False -> extractOperands expr
@@ -1060,10 +1060,11 @@ sub analyseLoopIteratorUsage {my ($comment, $loopVars, $loopWrites, $nonTempVars
         return analyseLoopIteratorUsage_foldl( $nonTempWrittenOperands,$comment,$accumAnno,$loopVar);
     }, {}, $loopVars);
     return [$unusedIterMap, [],[],[]];
-}
+} # END of analyseLoopIteratorUsage
 # analyseLoopIteratorUsage_foldl :: [Expr Anno] -> String -> Anno -> VarName Anno -> Anno
 sub analyseLoopIteratorUsage_foldl { my ($nonTempWrittenOperands, $comment, $accumAnno, $loopVar) = @_;
-        # where
+    # where
+    # This needs changing because our Expr equivalent is [$var_name,{...}]
     my $offendingExprs = filter(
             sub  { my ($item) = @_;
                 return not elem( $loopVar, 
@@ -1072,21 +1073,20 @@ sub analyseLoopIteratorUsage_foldl { my ($nonTempWrittenOperands, $comment, $acc
                             return [@{$accum},@{ extractVarNames($item)}];
                         }, [], extractContainedOperands($item) 
                     )
-                )                 
-            },$nonTempWrittenOperands);
+                );                 
+            }, $nonTempWrittenOperands);
 
-    my $offendingExprsStrs = map { errorLocationFormatting( srcSpan( $_) } . $outputTab . outputExprFormatting($_)) } @{$offendingExprs};
+    my $offendingExprsStrs = map { errorLocationFormatting( srcSpan( $_) ). $outputTab . outputExprFormatting($_) } @{$offendingExprs};
 
     my $loopVarStr = $loopVar;
     my $resultantMap = {};
     if (scalar @{$offendingExprs} == 0)  {
                             $resultantMap = $accumAnno
                         } else {
-                                $resultantMap = DMap.insert (outputTab ++ comment ++ "Non temporary, write variables accessed without use of loop iterator \"" ++ loopVarStr ++ "\":\n") offendingExprsStrs accumAnno
+                                $resultantMap = insert($outputTab . $comment . "Non temporary, write variables accessed without use of loop iterator \"" . $loopVarStr . "\":\n",$offendingExprsStrs, $accumAnno);
                         }
-my $nonTempWrittenOperandsStrs = map (\item -> errorLocationFormatting (srcSpan item) ++ outputTab ++ outputExprFormatting item) nonTempWrittenOperands
     return $resultantMap;            
-}
+} # END of analyseLoopIteratorUsage_foldl
 
 
 # combineAnalysisInfo :: AnalysisInfo -> AnalysisInfo -> AnalysisInfo
@@ -1265,7 +1265,7 @@ sub constructDependencies { my ($prevAnalysis,  $annline)=@_;
     my ($line, $info)  = @{$annline};
    
     # create a tuple [$var_name,{Exprs ...}], see doc for createExprListFromVarAccesses
-    my $readOperands=createExprListFromVarAccesses($info->{'Rhs'}{'VarAccesses'}, 'Read');
+    my $readOperands=createExprListFromVarAccesses($info->{'Rhs'}{'VarAccesses'}, $info->{'LineID'},'Read');
     my $writtenVarNames = [$info->{'Lhs'}{'VarName'}];
 
     my $varDepAnalysis = foldl( sub { my ($accum, $item) = @_; 
@@ -1318,7 +1318,8 @@ sub addDependency { my ($prevAnalysis, $dependent, $dependee) = @_;
 # ]
 
 # This function takes VarAccesses and turns them into a list of expressions
-sub createExprListFromVarAccesses { (my $accesses, my $rw) = @_;
+# I think I should add the LineID here for compatibility with Expr which has SrcSpan
+sub createExprListFromVarAccesses { (my $accesses, my $line_id, my $rw) = @_;
  my $tmph = {
      %{$accesses->{'Arrays'}},
      %{$accesses->{'Scalars'}}
@@ -1327,7 +1328,7 @@ sub createExprListFromVarAccesses { (my $accesses, my $rw) = @_;
     my $operands=[];
     for my $var (sort keys %{$tmph}) {
         if (exists $tmph->{$var}{$rw}) {
-            push @{$operands},[$var,$tmph->{$var}{$rw}];
+            push @{$operands},[$var,$line_id,$tmph->{$var}{$rw}];
         }
     }
     return $operands;
