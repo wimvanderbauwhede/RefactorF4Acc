@@ -99,7 +99,20 @@ $state->{'VarAccessAnalysis'} =
                 'Iterator' => $loopvar,
                 'Range' => [...]
                 'InBlock' => BlockID,
-                'NestLevel' => Int
+                'NestLevel' => Int,
+                # Added in LoopNature::parallelise_all_Blocks
+                'Contains' => {
+                    $contained_block_id => LineID,
+                    ...
+                },
+                # Added in LoopNature::paralleliseLoop
+                'AnalysisInfo' =>  [$errors :: Anno, 
+                                    $reduction_variables :: [Expr Anno],         
+                                    $read_variables :: [Expr Anno],         
+                                    $written_variables :: [Expr Anno]
+                                    ],
+
+                }
             },
         }
     }

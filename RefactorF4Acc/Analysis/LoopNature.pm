@@ -598,7 +598,7 @@ getAccessesInsideSrcSpan_var src localVarAccesses var = newLocalVarAccesses
 =cut
 
 
-# paralleliseLoop :: String -> [VarName Anno] -> VarAccessAnalysis -> SubroutineTable -> Fortran Anno -> Fortran Anno
+# paralleliseLoop :: String -> [VarName Anno] -> VarAccessAnalysis -> SubroutineTable -> Fortran Anno -> (Fortran Anno, VarAccessAnalysis)
 # getLoopVar gets the loop iterators
 sub paralleliseLoop { my ($stref, $f, $loopvar, $accessAnalysis, $loop_annlines, $block_id) = @_;
     # filename loopVars accessAnalysis subTable loop = transformedAst
@@ -612,15 +612,15 @@ sub paralleliseLoop { my ($stref, $f, $loopvar, $accessAnalysis, $loop_annlines,
     #    If the 'bool' variable for any of the attempts to parallelise is true, then parallism has been found
     #    and the new AST node is returned from this function, to be placed in the AST by the calling function.
     #    
-    my $mapAttempt = paralleliseLoop_map($stref,$f,$loop_annlines,$newLoopVars,$nonTempVars,$prexistingVars, $dependencies,$accessAnalysis, $block_id);# subTable  # TODO
+    (my $mapAttempt,$accessAnalysis)  = paralleliseLoop_map($stref,$f,$loop_annlines,$newLoopVars,$nonTempVars,$prexistingVars, $dependencies,$accessAnalysis, $block_id);# subTable  # TODO
     my $mapAttempt_bool = fst $mapAttempt;
     my $mapAttempt_ast = snd $mapAttempt;
 
-    my $reduceAttempt = paralleliseLoop_reduce($stref,$f,$mapAttempt_ast,$newLoopVars,$nonTempVars,$prexistingVars,$dependencies,$accessAnalysis);  # TODO
+    (my $reduceAttempt,$accessAnalysis) = paralleliseLoop_reduce($stref,$f,$mapAttempt_ast,$newLoopVars,$nonTempVars,$prexistingVars,$dependencies,$accessAnalysis);  # TODO
     my $reduceAttempt_bool = fst $reduceAttempt;
     my $reduceAttempt_ast = snd $reduceAttempt;
     my $Nothing=[]; # This is a series of AnnLines as it is Fortran Anno; starts out empty 
-    my $reduceWithOuterIterationAttempt = paralleliseLoop_reduceWithOuterIteration($stref,$f,$reduceAttempt_ast, $Nothing, $newLoopVars,$newLoopVars,$nonTempVars,$prexistingVars,$dependencies,$accessAnalysis); # TODO
+    (my $reduceWithOuterIterationAttempt, $accessAnalysis) = paralleliseLoop_reduceWithOuterIteration($stref,$f,$reduceAttempt_ast, $Nothing, $newLoopVars,$newLoopVars,$nonTempVars,$prexistingVars,$dependencies,$accessAnalysis); # TODO
     my $reduceWithOuterIterationAttempt_bool = fst $reduceWithOuterIterationAttempt;
     my $reduceWithOuterIterationAttempt_ast = snd $reduceWithOuterIterationAttempt;
     # WV: TODO: if all these fail we should move the loop to the OpenCL device anyway, using a new OpenCLSeq node
@@ -631,10 +631,10 @@ sub paralleliseLoop { my ($stref, $f, $loopvar, $accessAnalysis, $loop_annlines,
                     ? $reduceAttempt_ast
                     : $reduceWithOuterIterationAttempt_ast;
 
-    my $updated_accessAnalysis = $accessAnalysis; #TODO!
+    my $updated_accessAnalysis = $accessAnalysis; #TODO, currently I update the accessAnalysis rather than creating a fresh copy
 
     return ($transformedAst, $updated_accessAnalysis);
-}
+} # END of paralleliseLoop
 
 
 #                          errors         reduction variables  read variables       written variables    
@@ -710,9 +710,12 @@ sub analyseLoop_map {
     #     For _ _ var e1 e2 e3 _ -> 
     # gmapQ looks at the loops nested in the given loop, but only one level
     #     childrenAnalysis = (gmapQ (mkQ analysisInfoBaseCase (analyseLoop_map comment (loopVars ++ [var]) loopWrites nonTempVars prexistingVars accessAnalysis dependencies subTable)) codeSeg)
-        
 
-            return foldl( &combineAnalysisInfo, $analysisInfoBaseCase, $childrenAnalysis);
+    # childrenAnalysis should be done via $accessAnalysis->{'LoopNests'}{'Set'}{$block_id}{'Contains'} 
+    # Like this but it has to be recursive!
+    my $childrenAnalysis=childrenAnalysis($block_id,$accessAnalysis,$analysisInfoBaseCase);
+    
+            # return foldl( &combineAnalysisInfo, $analysisInfoBaseCase, $childrenAnalysis);
         }
         # Call _ srcspan callExpr arglist -> callAnalysis
         #     where
@@ -755,6 +758,18 @@ sub analyseLoop_map {
     my $state = $analysisInfoBaseCase;
     (my $new_annlines,$state) = stateful_pass($codeSeg,$pass_analyseLoop_map,$state, "pass_analyseLoop_map($f)");
 } 
+
+sub childrenAnalysis { my ($block_id,$accessAnalysis,$childrenAnalysis) = @_;
+    if (exists $accessAnalysis->{'LoopNests'}{'Set'}{$block_id}{'Contains'}) {
+        for my $child_block_id  (sort keys %{$accessAnalysis->{'LoopNests'}{'Set'}{$block_id}{'Contains'}} ) {        
+                $childrenAnalysis = childrenAnalysis($child_block_id,$accessAnalysis,$childrenAnalysis)
+        }    
+    } 
+    my $childAnalysis = $accessAnalysis->{'LoopNests'}{'Set'}{$block_id}{'AnalysisInfo'};
+    $childrenAnalysis = combineAnalysisInfo($childrenAnalysis,$childAnalysis);                   
+
+    return $childrenAnalysis
+}
 
 #    Applied to an expression, returns an AnalysisInfo loaded with an error if it does not use all of the loop iterators in some way. As in,
 #    in a nested loop over 'i' and 'j', expression 'x(i) + 12' doesn't use the iterator 'j' and so the AnalysisInfo will report that. If
@@ -811,9 +826,9 @@ my $nonTempWrittenOperandsStrs = map (\item -> errorLocationFormatting (srcSpan 
 #         where
 #             (accumErrors, accumReductionVars, accumReads, accumWrites) = accum
 #             (itemErrors, itemReductionVars, itemReads, itemWrites)     = item
-sub combineAnalysisInfo{ my ($accum, $item)=@_;
-    my ($accumErrors,$accumReductionVars,$accumReads,$accumWrites) = @{$accum};
-    my ($itemErrors,$itemReductionVars,$itemReads,$itemWrites)     = @{$item};
+sub combineAnalysisInfo { my ($accumAnalysis, $analysisInfoItem)=@_;
+    my ($accumErrors,$accumReductionVars,$accumReads,$accumWrites) = @{$accumAnalysis};
+    my ($itemErrors,$itemReductionVars,$itemReads,$itemWrites)     = @{$analysisInfoItem};
     return [
         { %{$accumErrors},%{$itemErrors}}, 
         [@{$accumReductionVars}, @{$itemReductionVars}], 
@@ -925,12 +940,13 @@ getLoopConditions codeSeg = case codeSeg of
 =cut
 #    Function is applied to sub-trees that are loops. It returns either a version of the sub-tree that uses new OpenCLMap nodes or the
 #    original sub-tree annotated with reasons why the loop cannot be mapped
-# paralleliseLoop_map :: String -> Fortran Anno -> [VarName Anno] -> [VarName Anno] -> [VarName Anno] -> VarDependencyAnalysis -> VarAccessAnalysis -> SubroutineTable -> (Bool, Fortran Anno)
+# paralleliseLoop_map :: String -> Fortran Anno -> [VarName Anno] -> [VarName Anno] -> [VarName Anno] -> VarDependencyAnalysis -> VarAccessAnalysis -> SubroutineTable -> (Bool, Fortran Anno, VarAccessAnalysis)
 sub paralleliseLoop_map {
     my ($stref,$f, $loop, $loopVarNames, $nonTempVars, $prexistingVars, $dependencies,$accessAnalysis, $block_id) = @_;
     # loopWrites :: [VarName]
     my $loopWrites = extractWrites_query( $loop); #
     # WV: def: analyseLoop_map  comment loopVars loopWrites nonTempVars prexistingVars accessAnalysis dependencies subTable codeSeg 
+    # loopAnalysis :: AnalysisInfo
     my $loopAnalysis = analyseLoop_map( $stref, $f, "Cannot map: ", [], $loopWrites, $nonTempVars, $prexistingVars, $accessAnalysis, $dependencies, $loop, $block_id); #subTable
 
     my $errors_map = getErrorAnnotations( $loopAnalysis);
@@ -1094,6 +1110,18 @@ sub parallelise_all_Blocks { my ($stref, $f, $accessAnalysis, $annlines_foldedCo
         push @{$blocks_per_nestlevel->[$nest_lev]},$block_id;
         $max_lev = max($max_lev, $nest_lev);
     }
+
+    for my $rev_lev (0 .. $max_lev-1) {
+        my $nest_lev = $max_lev - $rev_lev;
+        for my $block_id (@{$blocks_per_nestlevel->[$nest_lev]}) {
+            if ($nest_lev>1) {
+                my $in_block_id = $accessAnalysis->{'LoopNests'}{'Set'}{$block_id}{'InBlock'};
+                my $line_id = $accessAnalysis->{'LoopNests'}{'Set'}{$block_id}{'BlockEnd'};
+                $accessAnalysis->{'LoopNests'}{'Set'}{$in_block_id}{'Contains'}{$block_id}=$line_id;
+            }
+        }
+    }
+
     my $parallelisedProgUnit = dclone($annlines_foldedConstants);
     # my $parallelised_loops={};
     for my $rev_lev (0 .. $max_lev-1) {
