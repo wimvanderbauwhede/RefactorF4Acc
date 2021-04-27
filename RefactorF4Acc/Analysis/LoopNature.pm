@@ -686,7 +686,8 @@ sub analyseLoop_map {
         my $lhsExprAnalysis = analyseLoopIteratorUsage( $comment, $loopVars, $loopWrites, $nonTempVars, $accessAnalysis, $lhsExprInfo);
         my $isNonTempAssignment = usesVarName_list( $nonTempVars, $lhsExprInfo->{'VarAccesses'});
         # readOperands :: [Expr]
-        my $readOperands = extractOperands( $rhsExprInfo);
+        my $readOperands=createExprListFromVarAccesses($rhsExprInfo->{'VarAccesses'}, 'Read');
+        # my $readOperands = extractOperands( $rhsExprInfo);
         # WV: not sure if this should not be the same as for the Reduction
         my $readExprs = foldl(
             sub { my ($accum,$item) = @_;
