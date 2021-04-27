@@ -91,13 +91,13 @@ $state->{'VarAccessAnalysis'} =
         }
     }
     'LoopNests' => { 
-        'List' => [ [BlockID,Iterator,{Range => []}],... ],
+        'List' => [ [$block_id,$iterator,{Range => []}],... ],
         'Set' => {
-            BlockId => {
+            $block_id => {
                 'BlockStart' => LineID,
                 'BlockEnd' => LineID,
                 'Iterator' => $loopvar,
-                'Range' => []
+                'Range' => [...]
                 'InBlock' => BlockID,
                 'NestLevel' => Int
             },

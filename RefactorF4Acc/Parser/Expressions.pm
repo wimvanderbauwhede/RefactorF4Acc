@@ -1367,6 +1367,12 @@ sub _traverse_ast_with_action { (my $ast, my $acc, my $f) = @_;
 } # END of _traverse_ast_with_action
 
 # returns a hash of the var names
+# $vars->{$var_name}={
+#     'Type' => 'Array' | 'Scalar',
+#     'IndexVars' => {
+#            $index_var_name => {'Type' => 'Scalar'}
+#        }
+# }
 sub find_vars_in_ast { my ( $ast, $vars)=@_;	
 
   return {} unless ref($ast) eq 'ARRAY';
@@ -1376,26 +1382,25 @@ sub find_vars_in_ast { my ( $ast, $vars)=@_;
   if ( ($ast->[0] & 0xFF) == 1 or
        ($ast->[0] & 0xFF) == 10 ) { # array var or function/subroutine call
        
-                if (($ast->[0] & 0xFF) == 10) { 
-                my $mvar = $ast->[1];
-                $vars->{$mvar}={'Type'=>'Array'};
-                my $index_vars={};
-                $index_vars =  find_vars_in_ast($ast->[2],$index_vars);
-
-                    for my $idx_var (keys %{ $index_vars }) {
-                        if ($index_vars->{$idx_var}{'Type'} eq 'Array') {
-                            delete $index_vars->{$idx_var};
-                        }
-                    }                   
-                    $vars->{$mvar}{'IndexVars'} = $index_vars;
-                } else {      
-                    $vars = find_vars_in_ast($ast->[2], $vars);
-                }
+    if (($ast->[0] & 0xFF) == 10) { 
+        my $mvar = $ast->[1];
+        $vars->{$mvar}={'Type'=>'Array'};
+        my $index_vars={};
+        $index_vars =  find_vars_in_ast($ast->[2],$index_vars);
+        for my $idx_var (keys %{ $index_vars }) {
+            if ($index_vars->{$idx_var}{'Type'} eq 'Array') {
+                delete $index_vars->{$idx_var};
+            }
+        }                   
+        $vars->{$mvar}{'IndexVars'} = $index_vars;
+    } else {      
+        $vars = find_vars_in_ast($ast->[2], $vars);
+    }
   } elsif (($ast->[0] & 0xFF) == 2) { # scalar variable
-                my $mvar = $ast->[1]; 
-                if (not exists $Config{'Macros'}{uc($mvar)} ) {
-                    $vars->{$mvar}={'Type'=>'Scalar'} ;
-                }      
+    my $mvar = $ast->[1]; 
+    if (not exists $Config{'Macros'}{uc($mvar)} ) {
+        $vars->{$mvar}={'Type'=>'Scalar'} ;
+    }      
   } elsif (($ast->[0] & 0xFF) > 28) { # constants
     # constants
   } else { # other operators    
