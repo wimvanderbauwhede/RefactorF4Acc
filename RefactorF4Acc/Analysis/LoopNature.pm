@@ -704,20 +704,15 @@ sub analyseLoop_map {
             [{},[],$prexistingReadExprs, $isNonTempAssignment ? [$lhsExprInfo->{'VarAccesses'}] : []] 
             ] );
     }
-    # if (exists $info->{'Do'}) { # We assume that the expression is entirely static and has been folded so only var really matters
-    #     # I need to check if in our case var is already in loopVars, I think so. So then nothing remains to be done!
-    #     For _ _ var e1 e2 e3 _ -> foldl combineAnalysisInfo analysisInfo childrenAnalysis  # foldl combineAnalysisInfo analysisInfoBaseCase childrenAnalysis 
-    #         where
+    if (exists $info->{'Do'}) { # We assume that the expression is entirely static and has been folded so only var really matters
+    #     # I need to put the loop var is already in loopVars
+    #     For _ _ var e1 e2 e3 _ -> 
+    # gmapQ looks at the loops nested in the given loop, but only one level
     #     childrenAnalysis = (gmapQ (mkQ analysisInfoBaseCase (analyseLoop_map comment (loopVars ++ [var]) loopWrites nonTempVars prexistingVars accessAnalysis dependencies subTable)) codeSeg)
         
-    #     e1Vars = extractAllVarNames e1
-    #     e2Vars = extractAllVarNames e2
-    #     e3Vars = extractAllVarNames e3
-    #     # readVars contains Expr of VarName, 
-    #     #  generateVar varname = Var [{}, [], [[$varname, []]] ];
-    #     my $readVars = map (generateVar) (listRemoveDuplications (e1Vars ++ e2Vars ++ e3Vars))
-    #     my $analysisInfo = [{}, [], $readVars, [];
-    # }
+
+            return foldl( &combineAnalysisInfo, $analysisInfoBaseCase, $childrenAnalysis);
+        }
         # Call _ srcspan callExpr arglist -> callAnalysis
         #     where
         #         #    If the called subroutine exists in a file that was supplied to the compiler, analyse it. If the subroutine is parallelisable,
