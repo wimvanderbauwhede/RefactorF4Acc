@@ -1141,7 +1141,7 @@ or $line=~/^character\s*\(\s*len\s*=\s*[\w\*]+\s*\)/
 #@ CaseVals => [...]
 
 			} elsif ($line=~/select\s+case\s*\((\w+)\)/) {
-					$info->{'CaseVar'} = $1;
+					$info->{'CaseVar'} = $1; # FIXME, this can be an entire expression! Should be treated identical to the IF cond!
 					$info->{ 'Control' } = 1;
                 $info->{'HasVars'} = 1; 
 				} elsif ($line=~/case\s*\((.+)\)\s*$/) {
