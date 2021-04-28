@@ -334,7 +334,7 @@ sub paralleliseLoop_map {
     # loopWrites :: [VarName]
     my $loopWrites = extractWrites_query( $loop); #
     # WV: def: analyseLoop_map  comment loopVars loopWrites nonTempVars prexistingVars accessAnalysis dependencies subTable codeSeg 
-    # loopAnalysis :: AnalysisInfo THIS HAS TO BE PUT INTO accessAnalysis !!!
+    # $loopAnalysis :: AnalysisInfo THIS HAS TO BE PUT INTO $accessAnalysis  and $accessAnalysis must be returned !!!
     my $loopAnalysis = analyseLoop_map( $stref, $f, "Cannot map: ", [], $loopWrites, $nonTempVars, $prexistingVars, $accessAnalysis, $dependencies, $loop, $block_id); #subTable
 
     my $errors_map = getErrorAnnotations( $loopAnalysis);
@@ -412,8 +412,8 @@ sub analyseLoop_map {
     # So I think we do a simple stateful_pass here, let's just see what each of these does
     # case codeSeg of
     my $pass_analyseLoop_map = sub { my ($annline,$state) = @_;
-    my ($line,$info)=@{$annline};
-    if (exists $info->{'If'} or exists $info->{'ElseIf'}) {
+        my ($line,$info)=@{$annline};
+        if (exists $info->{'If'} or exists $info->{'ElseIf'}) {
 # my $vars_and_index_vars_in_cond_expr ={ $array_var_name}=> {
 #     'Type' => 'Array' ,
 #     'IndexVars' => {
@@ -425,14 +425,14 @@ sub analyseLoop_map {
 # $info->{'CondVars'}{'Set'} = $vars_and_index_vars_in_cond_expr;
 # $info->{'CondVars'}{'List'} = [ sort keys %{$vars_and_index_vars_in_cond_expr} ];
 
-        my $readOperands=createExprListFromVarAccesses($info->{'VarAccesses'}, $info->{'LineID'},'Read');
-        my $condExprAnalysis = [{}, [], $readOperands, []]; # AnalysisInfo tuple from the 'if' condition            
-        $state = combineAnalysisInfo( $state, $condExprAnalysis);
-    }
+            my $readOperands=createExprListFromVarAccesses($info->{'VarAccesses'}, $info->{'LineID'},'Read');
+            my $condExprAnalysis = [{}, [], $readOperands, []]; # AnalysisInfo tuple from the 'if' condition            
+            $state = combineAnalysisInfo( $state, $condExprAnalysis);
+        }
 
-    if (exists $info->{'Assignment'}) {
-        my $lhsExprInfo = $info->{'Lhs'};
-        my $rhsExprInfo = $info->{'Rhs'};
+        if (exists $info->{'Assignment'}) {
+            my $lhsExprInfo = $info->{'Lhs'};
+            my $rhsExprInfo = $info->{'Rhs'};
         # Assg _ srcspan lhsExpr rhsExpr -> foldl (combineAnalysisInfo) analysisInfoBaseCase [lhsExprAnalysis,
         #                                                                                         (DMap.empty,[],
         #                                                                                         prexistingReadExprs,
@@ -443,29 +443,29 @@ sub analyseLoop_map {
 # --                        errors         reduction variables read variables       written variables    
 # type AnalysisInfo =     (Anno,         [Expr Anno],         [Expr Anno],         [Expr Anno])                
             # lhsExprAnalysis :: AnalysisInfo
-        my $lhsExprAnalysis = analyseLoopIteratorUsage( $comment, $loopVars, $loopWrites, $nonTempVars, $accessAnalysis, $lhsExprInfo);
-        my $isNonTempAssignment = usesVarName_list( $nonTempVars, $lhsExprInfo->{'VarAccesses'});
-        # readOperands :: [Expr]
-        my $readOperands=createExprListFromVarAccesses($rhsExprInfo->{'VarAccesses'},$rhsExprInfo->{'LineID'}, 'Read');
-        # my $readOperands = extractOperands( $rhsExprInfo);
-        # WV: not sure if this should not be the same as for the Reduction
-        my $readExprs = foldl(
-            sub { my ($accum,$item) = @_;
-            return [@{$accum},@{extractContainedVars($item)},$item];
-            }
-            , [], $readOperands
-            );
-        my $prexistingReadExprs = filter( 
-            sub {
-                my ($readExpr)=@_;
-                return usesVarName_list($prexistingVars,$readExpr);
-                }, $readExprs);
-        $state = fold( \&combineAnalysisInfo,  $state, [
-            $lhsExprAnalysis, 
-            [{},[],$prexistingReadExprs, $isNonTempAssignment ? [$lhsExprInfo->{'VarAccesses'}] : []] 
-            ] );
-    }
-    if (exists $info->{'Do'}) { # We assume that the expression is entirely static and has been folded so only var really matters
+            my $lhsExprAnalysis = analyseLoopIteratorUsage( $comment, $loopVars, $loopWrites, $nonTempVars, $accessAnalysis, $lhsExprInfo);
+            my $isNonTempAssignment = usesVarName_list( $nonTempVars, $lhsExprInfo->{'VarAccesses'});
+            # readOperands :: [Expr]
+            my $readOperands=createExprListFromVarAccesses($rhsExprInfo->{'VarAccesses'},$rhsExprInfo->{'LineID'}, 'Read');
+            # my $readOperands = extractOperands( $rhsExprInfo);
+            # WV: not sure if this should not be the same as for the Reduction
+            my $readExprs = foldl(
+                sub { my ($accum,$item) = @_;
+                return [@{$accum},@{extractContainedVars($item)},$item];
+                }
+                , [], $readOperands
+                );
+            my $prexistingReadExprs = filter( 
+                sub {
+                    my ($readExpr)=@_;
+                    return usesVarName_list($prexistingVars,$readExpr);
+                    }, $readExprs);
+            $state = fold( \&combineAnalysisInfo,  $state, [
+                $lhsExprAnalysis, 
+                [{},[],$prexistingReadExprs, $isNonTempAssignment ? [$lhsExprInfo->{'VarAccesses'}] : []] 
+                ] );
+        }
+        if (exists $info->{'Do'}) { # We assume that the expression is entirely static and has been folded so only var really matters
     #     # I need to put the loop var is already in loopVars
     #     For _ _ var e1 e2 e3 _ -> 
     # gmapQ looks at the loops nested in the given loop, but only one level
@@ -473,7 +473,7 @@ sub analyseLoop_map {
 
     # childrenAnalysis should be done via $accessAnalysis->{'LoopNests'}{'Set'}{$block_id}{'Contains'} 
     # Like this but it has to be recursive!
-            my $childrenAnalysis=childrenAnalysis($block_id,$accessAnalysis,$analysisInfoBaseCase);
+            my $childrenAnalysis=analyseChildren($block_id,$accessAnalysis,$analysisInfoBaseCase);
     
             $state = foldl( \&combineAnalysisInfo, $state, $childrenAnalysis);
         }
@@ -513,12 +513,13 @@ sub analyseLoop_map {
 
         #         nodeAccessAnalysis = gmapQ (mkQ analysisInfoBaseCase (analyseLoopIteratorUsage comment loopVars loopWrites nonTempVars accessAnalysis)) codeSeg
         #         childrenAnalysis = gmapQ (mkQ analysisInfoBaseCase recursiveCall) codeSeg
+        return [[$annline],$state];
     };
 
     my $state = $analysisInfoBaseCase;
-    (my $new_annlines,$state) = stateful_pass($codeSeg,$pass_analyseLoop_map,$state, "pass_analyseLoop_map($f)");
+    (my $new_annlines,my $analysisInfo) = stateful_pass($codeSeg,$pass_analyseLoop_map,$state, "pass_analyseLoop_map($f)");
 
-    # MUST RETURN SOMETHING HERE!!!
+    return $analysisInfo;
 
 } # END of analyseLoop_map
 
@@ -1050,17 +1051,17 @@ getAccessesInsideSrcSpan_var src localVarAccesses var = newLocalVarAccesses
 =cut
 
 
-sub childrenAnalysis { my ($block_id,$accessAnalysis,$childrenAnalysis) = @_;
+sub analyseChildren { my ($block_id,$accessAnalysis,$childrenAnalysis) = @_;
     if (exists $accessAnalysis->{'LoopNests'}{'Set'}{$block_id}{'Contains'}) {
         for my $child_block_id  (sort keys %{$accessAnalysis->{'LoopNests'}{'Set'}{$block_id}{'Contains'}} ) {        
-                $childrenAnalysis = childrenAnalysis($child_block_id,$accessAnalysis,$childrenAnalysis)
+                $childrenAnalysis = analyseChildren($child_block_id,$accessAnalysis,$childrenAnalysis)
         }    
     } 
     my $childAnalysis = $accessAnalysis->{'LoopNests'}{'Set'}{$block_id}{'AnalysisInfo'};
     $childrenAnalysis = combineAnalysisInfo($childrenAnalysis,$childAnalysis);                   
 
     return $childrenAnalysis
-}
+} # END of analyseChildren
 
 #    Applied to an expression, returns an AnalysisInfo loaded with an error if it does not use all of the loop iterators in some way. As in,
 #    in a nested loop over 'i' and 'j', expression 'x(i) + 12' doesn't use the iterator 'j' and so the AnalysisInfo will report that. If
