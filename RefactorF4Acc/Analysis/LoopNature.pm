@@ -30,6 +30,29 @@ use Exporter;
     analyseLoopNature
 );
 
+# This is my equivalent for Expr. The hash is stored as $info->{Rhs|Lhs|nothing}{'VarAccesses'}{Scalar|Array}{$scalar_var1}{Read|Write}
+#
+# [$varname_str, { 
+#      'Exprs' => {
+#          'v(i,j+1,k-1)' => '0:1:-1',
+#            $expr_str_1=>$offsets_str_1,...
+#        }, 
+#      'Accesses' =>{ 
+#             '0:1:-1' => { 
+#                 'i:0' => [1,0],
+#                 'j:1' => [1,1],
+#                 'k:2' => [1,-1]
+#                 }
+#            $offsets_str_1  => {
+#                "$iter_var_name:$idx" =>  [$mult_val,$offset_val]
+#            }
+#        }, 
+#      'Iterators' => ['i:0','j:1','k:2',
+#          "$iter_var_name:$idx",...]
+       
+#     }
+# ]
+
 our $outputTab = "\t";
 our $True = 1;
 our $False = 0;
@@ -404,7 +427,7 @@ sub analyseLoop_map {
 
         my $readOperands=createExprListFromVarAccesses($info->{'VarAccesses'}, $info->{'LineID'},'Read');
         my $condExprAnalysis = [{}, [], $readOperands, []]; # AnalysisInfo tuple from the 'if' condition            
-        $state = combineAnalysisInfo(  $state, [$condExprAnalysis]);
+        $state = combineAnalysisInfo( $state, $condExprAnalysis);
     }
 
     if (exists $info->{'Assignment'}) {
@@ -437,7 +460,7 @@ sub analyseLoop_map {
                 my ($readExpr)=@_;
                 return usesVarName_list($prexistingVars,$readExpr);
                 }, $readExprs);
-        $state = combineAnalysisInfo(  $state, [
+        $state = fold( \&combineAnalysisInfo,  $state, [
             $lhsExprAnalysis, 
             [{},[],$prexistingReadExprs, $isNonTempAssignment ? [$lhsExprInfo->{'VarAccesses'}] : []] 
             ] );
@@ -452,7 +475,7 @@ sub analyseLoop_map {
     # Like this but it has to be recursive!
             my $childrenAnalysis=childrenAnalysis($block_id,$accessAnalysis,$analysisInfoBaseCase);
     
-            $state = foldl( &combineAnalysisInfo, $state, $childrenAnalysis);
+            $state = foldl( \&combineAnalysisInfo, $state, $childrenAnalysis);
         }
         # Call _ srcspan callExpr arglist -> callAnalysis
         #     where
@@ -1053,41 +1076,99 @@ sub analyseLoopIteratorUsage {my ($comment, $loopVars, $loopWrites, $nonTempVars
     #         False -> extractOperands expr
     # writtenOperands = filter (usesVarName_list loopWrites) operands
     # fnCall = isFunctionCall f95IntrinsicFunctions accessAnalysis expr
+    # nonTempWrittenOperands :: [Expr]
     my $nonTempWrittenOperands = filter( sub { (my $var_name) = @_;
-        return usesVarName_list($nonTempVars, $var_name);
-     },$writtenOperands);
+        usesVarName_list($nonTempVars, $var_name);
+     },$writtenOperands); 
     my $unusedIterMap = foldl( sub { my ($accumAnno,$loopVar) = @_;    
-        return analyseLoopIteratorUsage_foldl( $nonTempWrittenOperands,$comment,$accumAnno,$loopVar);
+        analyseLoopIteratorUsage_foldl( $nonTempWrittenOperands,$comment,$accumAnno,$loopVar);
     }, {}, $loopVars);
     return [$unusedIterMap, [],[],[]];
 } # END of analyseLoopIteratorUsage
+
 # analyseLoopIteratorUsage_foldl :: [Expr Anno] -> String -> Anno -> VarName Anno -> Anno
 sub analyseLoopIteratorUsage_foldl { my ($nonTempWrittenOperands, $comment, $accumAnno, $loopVar) = @_;
     # where
     # This needs changing because our Expr equivalent is [$var_name,{...}]
-    my $offendingExprs = filter(
-            sub  { my ($item) = @_;
-                return not elem( $loopVar, 
-                    foldl( 
-                        sub { my ($accum, $item) =@_;
-                            return [@{$accum},@{ extractVarNames($item)}];
-                        }, [], extractContainedOperands($item) 
-                    )
-                );                 
-            }, $nonTempWrittenOperands);
 
-    my $offendingExprsStrs = map { errorLocationFormatting( srcSpan( $_) ). $outputTab . outputExprFormatting($_) } @{$offendingExprs};
+=pod info
+So we take nonTempWrittenOperands, which are array accesses or scalars
+For every  nonTempWrittenOperand we call extractContainedOperands
+"contained operands" are extracted first using extractContainedVars
+and they are the index expressions
+Then for each of these we use extractOperands to get the actual array expressions
+
+So in other words, 
+After the we run extractContainedOperands what we get is a list of variables used in the array accesses. 
+Then what we do is check for those that are not the loop iterator of the current loop
+- If we want the containted vars from an array, we have that information in Exprs/Accesses/Iterators, depending on what we need
+What we need is Iterators, we have to do
+
+for my $var_expr (@{$nonTempWrittenOperands}) {
+    my $iter_is_loopVar=0;
+    for my $iter_idx_str (@{ $var_expr->[2]{'Iterators'} }) {
+        my ($iter, $idx) = split(/:/,$iter_idx_str);
+        if ($iter eq $loopVar) {
+            $iter_is_loopVar=1;
+        }
+    }
+    if ($iter_is_loopVar==0) {
+        push @{$offendingExprs}, $var_expr;
+    }
+}
+And then for every contained operand, which is an Expr, we apparently 
+
+offendingExprs = 
+    filter (\item -> not (elem loopVar (foldl (\accum item -> accum ++ extractVarNames item) [] (extractContainedOperands item) ))) 
+        nonTempWrittenOperands
+
+extractContainedOperands :: (Typeable p, Data p) => Expr p -> [Expr p]
+extractContainedOperands expr =  foldl (\accum item -> accum ++ (extractOperands item)) [] containedVars
+                where
+                    containedVars = extractContainedVars expr
+
+-- Used to extract array index expressions and function call arguments. 
+extractContainedVars :: (Typeable p, Data p) => Expr p -> [Expr p]
+extractContainedVars (Var _ _ lst) = foldl (\accumExprs (itemVar, itemExprs) -> accumExprs ++ itemExprs) [] lst
+extractContainedVars _ = []
+=cut
+
+    # my $offendingExprs = filter(
+    #         sub  { my ($item) = @_;
+    #             return not elem( $loopVar, 
+    #                 foldl( 
+    #                     sub { my ($accum, $item) =@_;
+    #                         return [@{$accum},@{ extractVarNames($item)}];
+    #                     }, [], extractContainedOperands($item) 
+    #                 )
+    #             );                 
+    #         }, $nonTempWrittenOperands);
+
+    my $offendingExprs = [];
+    for my $var_expr (@{$nonTempWrittenOperands}) {
+        my $iter_is_loopVar=0;
+        for my $iter_idx_str (@{ $var_expr->[2]{'Iterators'} }) {
+            my ($iter, $idx) = split(/:/,$iter_idx_str);
+            if ($iter eq $loopVar) {
+                $iter_is_loopVar=1;
+            }
+        }
+        if ($iter_is_loopVar==0) {
+            push @{$offendingExprs}, $var_expr;
+        }
+    }
+
+    my $offendingExprsStrs = map { $_->[1] . $outputTab . join(',', sort keys %{$_->[2]{'Exprs'}}) } @{$offendingExprs};
 
     my $loopVarStr = $loopVar;
     my $resultantMap = {};
     if (scalar @{$offendingExprs} == 0)  {
-                            $resultantMap = $accumAnno
-                        } else {
-                                $resultantMap = insert($outputTab . $comment . "Non temporary, write variables accessed without use of loop iterator \"" . $loopVarStr . "\":\n",$offendingExprsStrs, $accumAnno);
-                        }
+        $resultantMap = $accumAnno
+    } else {
+        $resultantMap = insert($outputTab . $comment . "Non temporary, write variables accessed without use of loop iterator \"" . $loopVarStr . "\":\n",$offendingExprsStrs, $accumAnno);
+    }
     return $resultantMap;            
 } # END of analyseLoopIteratorUsage_foldl
-
 
 # combineAnalysisInfo :: AnalysisInfo -> AnalysisInfo -> AnalysisInfo
 # combineAnalysisInfo accum item = (combineMaps accumErrors itemErrors, accumReductionVars ++ itemReductionVars, accumReads ++ itemReads, accumWrites ++ itemWrites)
@@ -1290,33 +1371,6 @@ sub addDependency { my ($prevAnalysis, $dependent, $dependee) = @_;
     appendToMap( $dependent, $dependee, $prevAnalysis);
 }
 
-
-
-
-
-# This is my equivalent for Expr. The hash is stored as $info->{Rhs|Lhs|nothing}{'VarAccesses'}{Scalar|Array}{$scalar_var1}{Read|Write}
-#
-# [$varname_str, { 
-#      'Exprs' => {
-#          'v(i,j+1,k-1)' => '0:1:-1',
-#            $expr_str_1=>$offsets_str_1,...
-#        }, 
-#      'Accesses' =>{ 
-#             '0:1:-1' => { 
-#                 'i:0' => [1,0],
-#                 'j:1' => [1,1],
-#                 'k:2' => [1,-1]
-#                 }
-#            $offsets_str_1  => {
-#                "$iter_var_name:$idx" =>  [$mult_val,$offset_val]
-#            }
-#        }, 
-#      'Iterators' => ['i:0','j:1','k:2',
-#          "$iter_var_name:$idx",...]
-       
-#     }
-# ]
-
 # This function takes VarAccesses and turns them into a list of expressions
 # I think I should add the LineID here for compatibility with Expr which has SrcSpan
 sub createExprListFromVarAccesses { (my $accesses, my $line_id, my $rw) = @_;
@@ -1354,7 +1408,7 @@ sub appendToMap { my ($key, $item, $table) = @_;
 
 sub listRemoveDuplications { ordered_union(@_); }
 
-sub usesVarName_list { my ($varname_list, my $expr)=@_;
+sub usesVarName_list { my ($varname_list, $expr)=@_;
 
     my $var_from_expr = $expr->[0];
     return elem($var_from_expr,$varname_list);
@@ -1362,7 +1416,7 @@ sub usesVarName_list { my ($varname_list, my $expr)=@_;
 
 sub elem { my ($elt,$lst) = @_;
     my %hash = map {$_=>1} @{$lst};
-    return exists %hash{$elt} ? 1 : 0;
+    return exists $hash{$elt} ? 1 : 0;
 }
 
 sub insert { my ($key, $value, $table) = @_;
