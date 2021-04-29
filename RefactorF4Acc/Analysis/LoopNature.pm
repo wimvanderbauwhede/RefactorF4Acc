@@ -930,10 +930,10 @@ sub loopCarriedDependency_readExprCheck { my (
     )=@_; # [[Expr Anno]]
 
 
-    my ($linear_noDep, $linear_depFound, $d1_, $d2_) = loopCarriedDependency_linearCheckEvaluate( [$loopIterTable], $loopVars, $readIndexExprs, $writtenIndexExprs, [empty, empty], [{}]);
+    my ($linear_noDep, $linear_depFound, $d1_, $d2_) = loopCarriedDependency_linearCheckEvaluate( [$loopIterTable], $loopVars, $readIndexExprs, $writtenIndexExprs, [empty, empty], [{}]); # TODO
 
     my $loopIterTable_optimised = optimiseLoopIterTable( $loopIterTable, {}, $loopVars, $readIndexExprs, $writtenIndexExprs);
-    my ($exhaustive_offendBool, $d3_, $d4_) = @{loopCarriedDependency_exhaustiveEvaluate( $loopIterTable_optimised, $loopVars, $readIndexExprs, $writtenIndexExprs, [$False, empty, empty], {})};
+    my ($exhaustive_offendBool, $d3_, $d4_) = @{loopCarriedDependency_exhaustiveEvaluate( $loopIterTable_optimised, $loopVars, $readIndexExprs, $writtenIndexExprs, [$False, empty, empty], {})}; # TODO
 
     return $linear_noDep 
         ? $oldOffendingExprs
@@ -1129,60 +1129,80 @@ loopCarriedDependency_exhaustiveEvaluate (LoopIterRecord iterTable) loopVars rea
 # continues analysing until it reaches a situation where there is a crossover in the domains of the reads and writes. If there has been no detected dependency by the time the
 # domains have crossed over, there will never be any dependencies because the functions are linear. The crossover is characterised by the write index tuple with the largest values
 # being larger than the read index tuple with the largest values and vice versa (largestRead > smallestWrite AND largestWrite > smallestRead)
-loopCarriedDependency_linearCheckEvaluate :: [TupleTable] -> [VarName Anno] -> [Expr Anno] -> [Expr Anno] -> (TupleTable, TupleTable) -> [ValueTable] -> (Bool, Bool, TupleTable, TupleTable)
-loopCarriedDependency_linearCheckEvaluate (Empty:tts) loopVars readIndexExprs writtenIndexExprs (prevReads, prevWrites) (vt:valueTables)     
-    |    noDepBool || depExistsBool = (noDepBool, depExistsBool, newReads, newWrites)
-    |    otherwise = analysis_nextIter
-            where
-                identcalExprs = map (applyGeneratedSrcSpans) readIndexExprs == map (applyGeneratedSrcSpans) writtenIndexExprs
-                vt_elems = length (DMap.keys vt)
+# loopCarriedDependency_linearCheckEvaluate :: [TupleTable] -> [VarName Anno] -> [Expr Anno] -> [Expr Anno] -> (TupleTable, TupleTable) -> [ValueTable] -> (Bool, Bool, TupleTable, TupleTable)
+sub loopCarriedDependency_linearCheckEvaluate { my ($tt_tts,$loopVars,$readIndexExprs,$writtenIndexExprs,$prevReads_prevWrites,$vt_valueTables) =@_;
+    my ($prevReads, $prevWrites) = @{$prevReads_prevWrites};
 
-                reads_eval = map (evaluateExpr vt) readIndexExprs
-                writes_eval = map (evaluateExpr vt) writtenIndexExprs
+    if (null $tt_tts)  {
+  
+        [$True, $False, $prevReads, $prevWrites];
 
-                (readsEvaluated, reads_fromMaybe) = foldl (convertFromMaybe_foldl) (True, []) reads_eval
-                (writesEvaluated, writes_fromMaybe) = foldl (convertFromMaybe_foldl) (True, []) writes_eval
+    } else {
+        my $tt = head $tt_tts;
+        my $tts = tail $tt_tts;
+        my $vt = head $vt_valueTables;
+        my $valueTables = tail $vt_valueTables;
+        if (isEmpty $tt) {
+            # TODO!!!
+            my $identcalExprs = map (applyGeneratedSrcSpans) readIndexExprs == map (applyGeneratedSrcSpans) writtenIndexExprs
+            my $vt_elems = length([keys %{vt}]);
 
-                reads_fromMaybe_int = (map (round) reads_fromMaybe)
-                writes_fromMaybe_int = (map (round) writes_fromMaybe)
+            my $reads_eval = mapf(sub {evaluateExpr($vt,@_)},$readIndexExprs);
+            my $writes_eval = mapf(sub {evaluateExpr($vt,@_)},$writtenIndexExprs);
 
-                readPreviouslyWritten = case lookupTupleTable reads_fromMaybe_int prevWrites of
-                    Just a -> True
-                    Nothing -> False
-                writePreviouslyRead = case lookupTupleTable writes_fromMaybe_int prevReads of
-                    Just a -> True
-                    Nothing -> False
+            my ($readsEvaluated, $reads_fromMaybe) = @{foldl (\&convertFromMaybe_foldl, [$True, []] ,$reads_eval)};
+            my ($writesEvaluated, $writes_fromMaybe) = @{foldl (\&convertFromMaybe_foldl, [$True, []] ,$writes_eval)};
 
-                newReads = insertIntoTupleTable reads_fromMaybe_int prevReads
-                newWrites = insertIntoTupleTable writes_fromMaybe_int prevWrites
-                depExistsBool = (not identcalExprs) && (readPreviouslyWritten || writePreviouslyRead || (not readsEvaluated) || (not writesEvaluated))
+            my $reads_fromMaybe_int = map(\&round,$reads_fromMaybe);
+            my $writes_fromMaybe_int = map(\&round,$writes_fromMaybe);
 
-                mostRead = getMostTuple newReads
-                mostWritten = getMostTuple newWrites
-                leastRead = getLeastTuple newReads
-                leastWritten = getLeastTuple newWrites
+            my $readPreviouslyWritten = case( lookupTupleTable( $reads_fromMaybe_int,$prevWrites), [
+                [\&isJust, $True],
+                [\&isNothing,$False]]);
 
-                crossover = (tupleTableElementGreaterThan mostRead leastWritten) && (tupleTableElementGreaterThan mostWritten leastRead)
+            my $writePreviouslyRead = case( lookupTupleTable( $writes_fromMaybe_int,$prevReads), [
+                [\&isJust, $True],
+                [\&isNothing,$False]]);
 
-                noDepBool = crossover && (not depExistsBool)
+            my $newReads = insertIntoTupleTable $reads_fromMaybe_int,$prevReads;
+            my $newWrites = insertIntoTupleTable $writes_fromMaybe_int,$prevWrites;
+            my $depExistsBool = (not $identcalExprs) && ($readPreviouslyWritten || $writePreviouslyRead || (not $readsEvaluated) || (not $writesEvaluated));
 
-                analysis_nextIter = loopCarriedDependency_linearCheckEvaluate tts loopVars readIndexExprs writtenIndexExprs (newReads, newWrites) valueTables
+            my $mostRead = getMostTuple $newReads;
+            my $mostWritten = getMostTuple $newWrites;
+            my $leastRead = getLeastTuple $newReads;
+            my $leastWritten = getLeastTuple $newWrites;
 
-loopCarriedDependency_linearCheckEvaluate ((LoopIterRecord iterTable):tts) loopVars readIndexExprs writtenIndexExprs previousAnalysis (vt:valueTables)     
-    |    (analysis_noDepBool || analysis_depBool) = (analysis_noDepBool, analysis_depBool, analysis_reads, analysis_writes)
-    |    otherwise = analysis_nextIter
-            where
-                allowedValues = DMap.keys iterTable
-                valueTableIterations = map (\x -> addToValueTable (chosenVar) (fromIntegral x :: Float) vt) allowedValues
-                iterTableIterations = map (accessIterTable) allowedValues
-                accessIterTable = (\x -> DMap.findWithDefault Empty x iterTable)
+            my $crossover = tupleTableElementGreaterThan( $mostRead,$leastWritten) && tupleTableElementGreaterThan($mostWritten,$leastRead);
 
-                chosenVar = head loopVars
-                newLoopVars = tail loopVars
+            my $noDepBool = $crossover && (not $depExistsBool);
 
-                (analysis_noDepBool, analysis_depBool, analysis_reads, analysis_writes) = loopCarriedDependency_linearCheckEvaluate iterTableIterations newLoopVars readIndexExprs writtenIndexExprs previousAnalysis valueTableIterations -- previousAnalysis (zip valueTableIterations allowedValues)
-                analysis_nextIter = loopCarriedDependency_linearCheckEvaluate tts loopVars readIndexExprs writtenIndexExprs (analysis_reads, analysis_writes) valueTables
-loopCarriedDependency_linearCheckEvaluate [] loopVars readIndexExprs writtenIndexExprs previousAnalysis []    =    (True, False, fst previousAnalysis, snd previousAnalysis)
+            my $analysis_nextIter = loopCarriedDependency_linearCheckEvaluate($tts, $loopVars, $readIndexExprs, $writtenIndexExprs, [$newReads,$newWrites], $valueTables);
+
+            return $noDepBool || $depExistsBool ? [$noDepBool,$depExistsBool,$newReads,$newWrites]
+            : $analysis_nextIter;
+        } elsif (isLoopIterRecord $tt) {
+            my $iterTable = fromLoopIterRecord $tt;
+    # loopCarriedDependency_linearCheckEvaluate ((LoopIterRecord iterTable):tts) loopVars readIndexExprs writtenIndexExprs previousAnalysis (vt:valueTables)     
+                # where
+            my $allowedValues = [keys %{$iterTable}];
+            # TODO
+            my $valueTableIterations = map (\x -> addToValueTable (chosenVar) (fromIntegral x :: Float) vt) allowedValues
+            my $iterTableIterations = map (accessIterTable) $allowedValues;
+            my $accessIterTable = sub { (\x -> findWithDefault( empty $x $iterTable) };
+
+            my $chosenVar = head $loopVars;
+            my $newLoopVars = tail $loopVars;
+
+            my ($analysis_noDepBool,$analysis_depBool,$analysis_reads,$analysis_writes) = @{loopCarriedDependency_linearCheckEvaluate($iterTableIterations, $newLoopVars, $readIndexExprs, $writtenIndexExprs, $previousAnalysis, $valueTableIterations)} ;# previousAnalysis (zip valueTableIterations allowedValues)
+            my $analysis_nextIter = loopCarriedDependency_linearCheckEvaluate($tts, $loopVars, $readIndexExprs, $writtenIndexExprs, [$analysis_reads, $analysis_writes], $valueTables);
+            # TODO
+            |    (analysis_noDepBool || analysis_depBool) = (analysis_noDepBool, analysis_depBool, analysis_reads, analysis_writes)
+            |    otherwise = analysis_nextIter
+        } 
+    }
+}
+
                         
 #    Type used to colate data on variable accesses throughout a program.
 #                        All reads     All writes
@@ -2274,6 +2294,15 @@ sub elem { my ($elt,$lst) = @_;
 sub insert { my ($key, $value, $table) = @_;
         $table->{$key}=$value;
         return dclone($table);
+}
+
+sub mapf {
+	( my $f, my $ls ) = @_;
+    return [
+        map {
+            $f->($_)
+        } @{$ls}
+    ];
 }
 
 sub foldl {
