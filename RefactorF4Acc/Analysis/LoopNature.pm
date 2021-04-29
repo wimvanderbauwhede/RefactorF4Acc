@@ -594,7 +594,7 @@ sub loopCarriedDependencyCheck { my ($codeSeg) = @_;
             } @{$writtenVars}
         ]
     );
-    my $inDepthFailure = (not $loopIterTable_successfull) || scalar @{$offendingExprs} >0;
+    my $inDepthFailure = (not $loopIterTable_successfull) || not null($offendingExprs);
 
     my ($simpleFailure, $simpleOffenders) = simpleLoopCarriedDependencyCheck( $reads,$writes,$loopVarsQ); # TODO
 
@@ -611,8 +611,8 @@ sub loopCarriedDependencyCheck { my ($codeSeg) = @_;
 # structures are used to determine whether loop carried dependencies exist in a particular loop.
 #                                     Variable A         is accessed at indices
 # type ArrayAccessExpressions = DMap.Map (VarName Anno)     [[Expr Anno]]
-
-# So we want to obtain tuple 
+# Our type is {VarName=>[ArrayAccessExpr]} and it is a list because each elt is for a different line
+# So we want to obtain a tuple 
 # [
 #     {VarName =>[[read index expressions]]},
 #     {VarName =>[[write index expressions]]}
@@ -876,17 +876,24 @@ sub addRangeToIterTable { my  ($oldTable,$range) = @_;
     );            
 }
 
-
-# loopCarriedDependency_varCheck :: LoopStepTable -> TupleTable -> [VarName Anno] -> (ArrayAccessExpressions, ArrayAccessExpressions) -> VarName Anno -> [(Expr Anno, Expr Anno)]
-sub loopCarriedDependency_varCheck { my ($loopStepTable, $loopIterTable, $loopVars, $reads_writes, $var) = @_;
+sub loopCarriedDependency_varCheck { my (
+    $loopStepTable, # LoopStepTable -> 
+    $loopIterTable, # TupleTable -> 
+    $loopVars, # [VarName Anno] -> 
+    $reads_writes, # (ArrayAccessExpressions, ArrayAccessExpressions) -> 
+    $var # VarName Anno -> 
+    ) = @_; # [(Expr Anno, Expr Anno)]
     my ($reads, $writes) = @{$reads_writes};
-    my $writtenAccesses = findWithDefault( [],$var,$writes);
+    # read and writes are tables VarName=>[[VarName, LineID, {Exprs=>{},Accesses=>{},Iterators=>[]}]]
+    # So read/writtenAccesses is a list of such tuples i.e. [ArrayAccessExpr]
+    my $writtenAccesses = findWithDefault( [],$var,$writes); # :: [[VarName, LineID, {Exprs=>{},Accesses=>{},Iterators=>[]}]]
     my $readsAccesses = findWithDefault( [], $var, $reads);
 
     my $offendingIndexPairs = foldl(
         sub {my ($acc,$elt)=@_;
         loopCarriedDependency_writtenExprCheck($loopStepTable, $loopIterTable, $loopVars, $readsAccesses,$acc,$elt);
-         }, [] , $writtenAccesses);
+         }, [] , $writtenAccesses
+        );
     my $offendingExprs = map { 
         my ($read, $written) =@{$_};
         [generateArrayVar($var,$read), generateArrayVar($var,$written)]
@@ -894,8 +901,15 @@ sub loopCarriedDependency_varCheck { my ($loopStepTable, $loopIterTable, $loopVa
     return $offendingExprs;
 }
 
-# loopCarriedDependency_writtenExprCheck :: LoopStepTable -> TupleTable -> [VarName Anno] -> [[Expr Anno]] -> [([Expr Anno], [Expr Anno])] -> [Expr Anno] -> [([Expr Anno], [Expr Anno])]
-sub loopCarriedDependency_writtenExprCheck { my ($loopStepTable, $loopIterTable, $loopVars, $readExprs, $oldOffendingExprs, $writtenExpr) = @_;
+# loopCarriedDependency_writtenExprCheck ::     
+sub loopCarriedDependency_writtenExprCheck { my (
+    $loopStepTable, # LoopStepTable -> 
+    $loopIterTable, # TupleTable ->
+    $loopVars, # [VarName Anno] -> 
+    $readExprs, # :: [ArrayAccessExpr@[VarName, LineID, {Exprs=>{},Accesses=>{},Iterators=>[]}]] -> 
+    $oldOffendingExprs, #  [ ([Expr Anno], [Expr Anno]) ] ->
+    $writtenExpr # :: [ArrayAccessExpr@VarName, LineID, {Exprs=>{},Accesses=>{},Iterators=>[]}] -> 
+    ) = @_; # [([Expr Anno], [Expr Anno])]
     my $offendingReads = foldl ( sub {
         my ($acc,$elt)=@_;
         loopCarriedDependency_readExprCheck( $loopStepTable, $loopIterTable, $loopVars, $writtenExpr,$acc,$elt);
@@ -905,53 +919,271 @@ sub loopCarriedDependency_writtenExprCheck { my ($loopStepTable, $loopIterTable,
     concat($oldOffendingExprs,$dependencyPairs);
 }
 
-# loopCarriedDependency_readExprCheck :: LoopStepTable -> TupleTable -> [VarName Anno] -> [Expr Anno] -> [[Expr Anno]] -> [Expr Anno] -> [[Expr Anno]]
-sub loopCarriedDependency_readExprCheck { my ($loopStepTable, $loopIterTable, $loopVars, $writtenIndexExprs, $oldOffendingExprs, $readIndexExprs)=@_;
+# The linearity condition is checked in ArrayAccessPatterns so it is not needed here
+sub loopCarriedDependency_readExprCheck { my (
+    $loopStepTable, # LoopStepTable -> 
+    $loopIterTable, # TupleTable ->
+    $loopVars, # [VarName Anno] ->
+    $writtenIndexExprs, # [ArrayAccessExpr@VarName, LineID, {Exprs=>{},Accesses=>{},Iterators=>[]}] ->
+    $oldOffendingExprs, # [[Expr Anno]] ->
+    $readIndexExprs # [ArrayAccessExpr@VarName, LineID, {Exprs=>{},Accesses=>{},Iterators=>[]}] ->
+    )=@_; # [[Expr Anno]]
 
-    my $writtenIndices_linear = foldl (
-        sub {
-            my ($accum,$item)=@_;
-            $accum && (everything (&&) (mkQ $True \&linearExprCheck) $item)) 
-        }    
-        ,$True,$writtenIndexExprs);
-    my $readIndices_linear = foldl(        sub {
-            my ($accum,$item)=@_;
-            $accum && (everything (&&) (mkQ $True \&linearExprCheck) $item))
-    }, $True, $readIndexExprs);
 
-    my $formattedWrittenIndices = foldl( sub {
-        my ($accum,$item) = @_;
-        $accum .", " . outputExprFormatting($item) ;
-    }, 
-    outputExprFormatting(  head( $writtenIndexExprs) ,tail($writtenIndexExprs));
-    
-    my $formattedReadIndices = foldl(
-        sub {
-        my ($accum,$item) = @_; 
-        $accum .", " . outputExprFormatting($item) ;
-        }
-    ,outputExprFormatting(head($readIndexExprs)) ,tail($readIndexExprs)
-    );
-
-    my ($linear_noDep, $linear_depFound, $d1_, $d2_) = loopCarriedDependency_linearCheckEvaluate( [$loopIterTable], $loopVars, $readIndexExprs, $writtenIndexExprs, [$Empty, $Empty], [{}]);
+    my ($linear_noDep, $linear_depFound, $d1_, $d2_) = loopCarriedDependency_linearCheckEvaluate( [$loopIterTable], $loopVars, $readIndexExprs, $writtenIndexExprs, [empty, empty], [{}]);
 
     my $loopIterTable_optimised = optimiseLoopIterTable( $loopIterTable, {}, $loopVars, $readIndexExprs, $writtenIndexExprs);
-    my ($exhaustive_offendBool, $d1_, $d2_) = @{loopCarriedDependency_exhaustiveEvaluate( $loopIterTable_optimised, $loopVars, $readIndexExprs, $writtenIndexExprs, [$False,, $Empty, $Empty], {})};
+    my ($exhaustive_offendBool, $d3_, $d4_) = @{loopCarriedDependency_exhaustiveEvaluate( $loopIterTable_optimised, $loopVars, $readIndexExprs, $writtenIndexExprs, [$False, empty, empty], {})};
 
-        return $writtenIndices_linear && $readIndices_linear && $linear_noDep 
-            ? $oldOffendingExprs
-        : $writtenIndices_linear && $readIndices_linear && $linear_depFound 
-            ? append($oldOffendingExprs,$readIndexExprs)
-            : $exhaustive_offendBool 
-                ? append($oldOffendingExprs ,$readIndexExprs)
-                : $oldOffendingExprs;
+    return $linear_noDep 
+        ? $oldOffendingExprs
+    :  $linear_depFound 
+        ? append($oldOffendingExprs,$readIndexExprs)
+        : $exhaustive_offendBool 
+            ? append($oldOffendingExprs ,$readIndexExprs)
+            : $oldOffendingExprs;
 }
 
-# linearExprCheck :: Expr Anno -> Bool
-linearExprCheck (Bin _ _ (Plus _) expr1 expr2) = True
-linearExprCheck (Bin _ _ (Minus _) expr1 expr2) = True
-linearExprCheck (Bin _ _ _ expr1 expr2) = False
-linearExprCheck _ = True                            
+# optimiseLoopIterTable :: TupleTable -> ValueTable -> [VarName Anno] -> [ArrayAccessExpr] -> [ArrayAccessExpr] -> TupleTable
+sub optimiseLoopIterTable {my  ($tuple_table, $valueTable, $loopVars, $readIndexExprs, $writtenIndexExprs) = @_;
+    if (isEmpty $tuple_table) {
+        return empty;
+    } else {
+        my $iterTable = fromLoopIterRecord $tuple_table;
+        my $chosenVar = head( $loopVars);
+
+        my $allowedValues = [sort keys %{$iterTable}];
+        my $accessIterTable = sub { my ($x) =@_;
+            findWithDefault( empty,$x,$iterTable);
+        };
+        # So these are arrays of hashes with as keys strings representing array accesses
+        #  
+        my $read_chosenVarMask = maskOnVarNameUsage( $chosenVar ,$readIndexExprs);
+        my $written_chosenVarMask = maskOnVarNameUsage( $chosenVar, $writtenIndexExprs);
+
+        my $varAffectsOutcome = cmpArrayAccessExprs($read_chosenVarMask, $written_chosenVarMask);
+
+        my $iterTable_recurseList = map {
+                my $item = $_;
+                optimiseLoopIterTable($accessIterTable->($item),$valueTable, tail($loopVars),$readIndexExprs,$writtenIndexExprs);
+            } @{$allowedValues};
+
+        my $iterTable_recurse = foldl( sub {
+            my ($accum, $value_newTable) = @_;
+            my ($value,$newTable)=@{$value_newTable};
+             insert($value, $newTable, $accum);
+         },$iterTable, zip($allowedValues,$iterTable_recurseList)
+        );
+
+        my $newLoopIterTable = $varAffectsOutcome 
+            ? loopIterRecord($iterTable_recurse)
+            : collapseIterTable(loopIterRecord($iterTable_recurse));            
+        if (null $loopVars)  { 
+            error( "optimiseLoopIterTable");
+        } else {
+            $newLoopIterTable;
+        }
+    }
+}
+
+# This seems to check if the var in ArrayAccessExpr matches chosenVar. If so, it wipes LineID; otherwise, it wipes the entire record.
+# maskOnVarNameUsage :: VarName Anno -> [ArrayAccessExpr] -> {array expression strings}
+    
+sub maskOnVarNameUsage { my ($chosenVar,$array_access_exprs) = @_;
+my $array_expr_strs={};
+map {
+    my ($array_access_expr)=$_;
+    if (varNameUsed($chosenVar, $array_access_expr) ) {
+        my ($var, $line_id,$rec) = @{$array_access_expr};
+        for my $array_expr_str (keys %{$rec->{'Exprs'}}) {        
+            $array_expr_strs->{$array_expr_str}=1;
+        }
+    } 
+} @{$array_access_exprs};
+return $array_expr_strs;
+}
+
+sub cmpArrayAccessExprs { my ($exprs1,$exprs2) = @_;
+
+if (scalar keys %{$exprs1} !=scalar keys %{$exprs2} ) {
+    return 0;
+}
+# at least they are the same size.
+for my $expr1 (keys %{$exprs1}) {
+    if (not exists $exprs2->{$expr1}) {
+        return 0;
+    }
+}
+return 1;
+}
+# varNameUsed :: VarName -> ArrayAccessExpr -> Bool
+# my $array_access_expr = [
+#     $var_name, # VarName
+#     $line_id, # LineID
+#     $rec # {Exprs=>{}, Accesses=>{}, Iterators=>[]}
+# ];
+sub varNameUsed {my ($chosenVar,$array_access_expr) = @_;
+    foldl( 
+        sub {
+            my ($accum,$item)=@_;$
+            $accum || $item eq $chosenVar;
+        },$False, getItersFromVarAccessExpr($array_access_expr)
+     );
+}
+
+# collapseIterTable :: TupleTable -> TupleTable
+collapseIterTable {my ($tuple_table) = @_;
+my $iterTable = fromLoopIterRecord $tuple_table;
+my $allowedValues = keys %{$iterTable};
+my $subTables = map {
+    my $x =$_;
+    findWithDefault( empty,$x,$iterTable);
+ } @{$allowedValues};
+
+    foldl ( sub {
+        my ($accum,$key_newTable) =@_;
+        my ($key,$newTable) = @{$key_newTable};
+        insertIfNotRepresented( $key,$newTable,$accum);
+         },
+        empty, zip($allowedValues,$subTables)
+        );
+}
+# insertIfNotRepresented :: Int -> TupleTable -> TupleTable -> TupleTable
+insertIfNotRepresented {my ($key,$newItem, $tuple_table)=  @_;
+if (isEmpty $tuple_table) {
+LoopIterRecord (DMap.insert key newItem DMap.empty)
+} elsif (
+isLoopIterRecord $tuple_table
+) {
+    my $table = fromLoopIterRecord $tuple_table;
+    my $representedItems = map { 
+        my $x=$_;
+        findWithDefault(empty,$x,$table);
+    } sort keys %{$table};
+    if (not elem( $newItem,$representedItems)) {
+        loopIterRecord(insert($key,$newItem,$table));
+    } else {
+        loopIterRecord( $table);
+    }
+}
+}
+
+# The evalation of the possible index values is performed here and the loop dependency analysis checks performed.
+# ARGUMENTS (in order)
+#     TupleTable ---------------------Loop iterator table that is traversed as the recursion goes deeper. A value for the iterator at this 'level' of the table is selected
+#                                     and inserted into the 'value table' so that when the indices in question are evaluated, the value for that iterator variable is available.
+#      [VarName Anno] -----------------Loop variables list used to determine which loop iterator variable is the current one at this level of recursion. This allows for the correct
+#                                     variable name to be assigned a value in the value table from the current level of the loop iterator table.
+#      [Expr Anno] --------------------The indices that the current variable is READ at.
+#      [Expr Anno] --------------------The indices that the current variable is WRITTEN at.
+#      (Bool, TupleTable, TupleTable) -Since this is a fold, this is the accumulator. Bool is whether a dependency exists, the TupleTables are all of the resolved/evaluated index
+#                                     positions for all of the READS and WRITES (respecitvely) that have been calculated so far.
+#      ValueTable ---------------------A set of assigned values for the loop iterator variables that allows for indices that use loop iterators to be evaluated.
+#      (Bool, TupleTable, TupleTable) -Return type. Bool is whether a dependency exists, the TupleTables are all of the resolved/evaluated index
+#                                     positions for all of the READS and WRITES (respecitvely) that have been calculated so far.
+loopCarriedDependency_exhaustiveEvaluate :: TupleTable -> [VarName Anno] -> [Expr Anno] -> [Expr Anno] -> (Bool, TupleTable, TupleTable) -> ValueTable -> (Bool, TupleTable, TupleTable)
+loopCarriedDependency_exhaustiveEvaluate Empty loopVars readIndexExprs writtenIndexExprs (prevCheck, prevReads, prevWrites) valueTable =
+            (prevCheck || depExistsBool, newReads, newWrites)
+            where
+                identcalExprs = map (applyGeneratedSrcSpans) readIndexExprs == map (applyGeneratedSrcSpans) writtenIndexExprs
+                vt_elems = length (DMap.keys valueTable)
+
+                reads_eval = map (evaluateExpr valueTable) readIndexExprs
+                writes_eval = map (evaluateExpr valueTable) writtenIndexExprs
+
+                (readsEvaluated, reads_fromMaybe) = foldl (convertFromMaybe_foldl) (True, []) reads_eval
+                (writesEvaluated, writes_fromMaybe) = foldl (convertFromMaybe_foldl) (True, []) writes_eval
+
+                reads_fromMaybe_int = (map (round) reads_fromMaybe)
+                writes_fromMaybe_int = (map (round) writes_fromMaybe)
+
+                readPreviouslyWritten = case lookupTupleTable reads_fromMaybe_int prevWrites of
+                    Just a -> True
+                    Nothing -> False
+                writePreviouslyRead = case lookupTupleTable writes_fromMaybe_int prevReads of
+                    Just a -> True
+                    Nothing -> False
+
+                newReads = insertIntoTupleTable reads_fromMaybe_int prevReads
+                newWrites = insertIntoTupleTable writes_fromMaybe_int prevWrites
+                depExistsBool = (not identcalExprs) && (readPreviouslyWritten || writePreviouslyRead || (not readsEvaluated) || (not writesEvaluated))
+
+loopCarriedDependency_exhaustiveEvaluate (LoopIterRecord iterTable) loopVars readIndexExprs writtenIndexExprs previousAnalysis valueTable = if loopVars == []  then error "loopCarriedDependency_exhaustiveEvaluate" else analysis
+            where
+                allowedValues = DMap.keys iterTable
+                valueTableIterations = map (\x -> addToValueTable (chosenVar) (fromIntegral x :: Float) valueTable) allowedValues
+                accessIterTable = (\x -> DMap.findWithDefault Empty x iterTable)
+
+                chosenVar = head loopVars
+                newLoopVars = tail loopVars
+
+                exprs1_chosenVarMask = maskOnVarNameUsage chosenVar readIndexExprs
+                exprs2_chosenVarMask = maskOnVarNameUsage chosenVar writtenIndexExprs
+
+                analysis = foldl (\accum (table, value) -> loopCarriedDependency_exhaustiveEvaluate (accessIterTable value) newLoopVars readIndexExprs writtenIndexExprs accum table) previousAnalysis (zip valueTableIterations allowedValues)
+
+# This function performs a similar operation to loopCarriedDependency_exhaustiveEvaluate, except it is attempting to prove that loop carried dependencies DO NOT exist. This
+# process only works for array index expressions that are linear functions (only made up using + or -) using only loop iterators and constants but allows for the analysis
+# to be performed in constant time with respect to the number of loop iterations.
+# The optimisation works on the idea that linear functions follow a very simple pattern. By tracking the indices that are written to and the indices that are read, the function
+# continues analysing until it reaches a situation where there is a crossover in the domains of the reads and writes. If there has been no detected dependency by the time the
+# domains have crossed over, there will never be any dependencies because the functions are linear. The crossover is characterised by the write index tuple with the largest values
+# being larger than the read index tuple with the largest values and vice versa (largestRead > smallestWrite AND largestWrite > smallestRead)
+loopCarriedDependency_linearCheckEvaluate :: [TupleTable] -> [VarName Anno] -> [Expr Anno] -> [Expr Anno] -> (TupleTable, TupleTable) -> [ValueTable] -> (Bool, Bool, TupleTable, TupleTable)
+loopCarriedDependency_linearCheckEvaluate (Empty:tts) loopVars readIndexExprs writtenIndexExprs (prevReads, prevWrites) (vt:valueTables)     
+    |    noDepBool || depExistsBool = (noDepBool, depExistsBool, newReads, newWrites)
+    |    otherwise = analysis_nextIter
+            where
+                identcalExprs = map (applyGeneratedSrcSpans) readIndexExprs == map (applyGeneratedSrcSpans) writtenIndexExprs
+                vt_elems = length (DMap.keys vt)
+
+                reads_eval = map (evaluateExpr vt) readIndexExprs
+                writes_eval = map (evaluateExpr vt) writtenIndexExprs
+
+                (readsEvaluated, reads_fromMaybe) = foldl (convertFromMaybe_foldl) (True, []) reads_eval
+                (writesEvaluated, writes_fromMaybe) = foldl (convertFromMaybe_foldl) (True, []) writes_eval
+
+                reads_fromMaybe_int = (map (round) reads_fromMaybe)
+                writes_fromMaybe_int = (map (round) writes_fromMaybe)
+
+                readPreviouslyWritten = case lookupTupleTable reads_fromMaybe_int prevWrites of
+                    Just a -> True
+                    Nothing -> False
+                writePreviouslyRead = case lookupTupleTable writes_fromMaybe_int prevReads of
+                    Just a -> True
+                    Nothing -> False
+
+                newReads = insertIntoTupleTable reads_fromMaybe_int prevReads
+                newWrites = insertIntoTupleTable writes_fromMaybe_int prevWrites
+                depExistsBool = (not identcalExprs) && (readPreviouslyWritten || writePreviouslyRead || (not readsEvaluated) || (not writesEvaluated))
+
+                mostRead = getMostTuple newReads
+                mostWritten = getMostTuple newWrites
+                leastRead = getLeastTuple newReads
+                leastWritten = getLeastTuple newWrites
+
+                crossover = (tupleTableElementGreaterThan mostRead leastWritten) && (tupleTableElementGreaterThan mostWritten leastRead)
+
+                noDepBool = crossover && (not depExistsBool)
+
+                analysis_nextIter = loopCarriedDependency_linearCheckEvaluate tts loopVars readIndexExprs writtenIndexExprs (newReads, newWrites) valueTables
+
+loopCarriedDependency_linearCheckEvaluate ((LoopIterRecord iterTable):tts) loopVars readIndexExprs writtenIndexExprs previousAnalysis (vt:valueTables)     
+    |    (analysis_noDepBool || analysis_depBool) = (analysis_noDepBool, analysis_depBool, analysis_reads, analysis_writes)
+    |    otherwise = analysis_nextIter
+            where
+                allowedValues = DMap.keys iterTable
+                valueTableIterations = map (\x -> addToValueTable (chosenVar) (fromIntegral x :: Float) vt) allowedValues
+                iterTableIterations = map (accessIterTable) allowedValues
+                accessIterTable = (\x -> DMap.findWithDefault Empty x iterTable)
+
+                chosenVar = head loopVars
+                newLoopVars = tail loopVars
+
+                (analysis_noDepBool, analysis_depBool, analysis_reads, analysis_writes) = loopCarriedDependency_linearCheckEvaluate iterTableIterations newLoopVars readIndexExprs writtenIndexExprs previousAnalysis valueTableIterations -- previousAnalysis (zip valueTableIterations allowedValues)
+                analysis_nextIter = loopCarriedDependency_linearCheckEvaluate tts loopVars readIndexExprs writtenIndexExprs (analysis_reads, analysis_writes) valueTables
+loopCarriedDependency_linearCheckEvaluate [] loopVars readIndexExprs writtenIndexExprs previousAnalysis []    =    (True, False, fst previousAnalysis, snd previousAnalysis)
+                        
 #    Type used to colate data on variable accesses throughout a program.
 #                        All reads     All writes
 # type VarAccessRecord = ([SrcSpan],     [SrcSpan])
@@ -1799,6 +2031,15 @@ sub extractLoopIters { my ( $loop)=@_;
 
 }
 
+sub getItersFromVarAccessExpr { (my $var_expr) = @_;
+    my $iters = [];
+    for my $iter_idx_str (@{ $var_expr->[2]{'Iterators'} }) {
+        my ($iter, $idx) = split(/:/,$iter_idx_str);
+        push @{$iters},$iter;
+    }
+    return $iters;
+}
+
 
 
 # constructDependencies :: VarDependencyAnalysis -> Fortran Anno -> VarDependencyAnalysis
@@ -1971,6 +2212,10 @@ sub empty {
 
 sub loopIterRecord { my ($t)=@_;
     return ['LoopIterRecord',$t];
+}
+
+sub error { (my $str)=@_;
+    croak($str);
 }
 
 sub case { my ($sum_type_inst, $altCondsActions) = @_;
