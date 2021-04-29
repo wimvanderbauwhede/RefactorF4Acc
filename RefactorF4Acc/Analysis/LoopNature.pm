@@ -908,13 +908,12 @@ sub loopCarriedDependency_writtenExprCheck { my (
     $loopVars, # [VarName Anno] -> 
     $readExprs, # :: [ArrayAccessExpr@[VarName, LineID, {Exprs=>{},Accesses=>{},Iterators=>[]}]] -> 
     $oldOffendingExprs, #  [ ([Expr Anno], [Expr Anno]) ] ->
-    $writtenExpr # :: [ArrayAccessExpr@VarName, LineID, {Exprs=>{},Accesses=>{},Iterators=>[]}] -> 
+    $writtenExpr # :: ArrayAccessExpr@[VarName, LineID, {Exprs=>{},Accesses=>{},Iterators=>[]}] -> 
     ) = @_; # [([Expr Anno], [Expr Anno])]
     my $offendingReads = foldl ( sub {
         my ($acc,$elt)=@_;
         loopCarriedDependency_readExprCheck( $loopStepTable, $loopIterTable, $loopVars, $writtenExpr,$acc,$elt);
-    }
-    , [] ,$readExprs);
+    }, [] ,$readExprs);
     my $dependencyPairs = map {[$_, $writtenExpr]} @{$offendingReads};
     concat($oldOffendingExprs,$dependencyPairs);
 }
@@ -924,9 +923,9 @@ sub loopCarriedDependency_readExprCheck { my (
     $loopStepTable, # LoopStepTable -> 
     $loopIterTable, # TupleTable ->
     $loopVars, # [VarName Anno] ->
-    $writtenIndexExprs, # [ArrayAccessExpr@VarName, LineID, {Exprs=>{},Accesses=>{},Iterators=>[]}] ->
+    $writtenIndexExprs, # ArrayAccessExpr@[VarName, LineID, {Exprs=>{},Accesses=>{},Iterators=>[]}] ->
     $oldOffendingExprs, # [[Expr Anno]] ->
-    $readIndexExprs # [ArrayAccessExpr@VarName, LineID, {Exprs=>{},Accesses=>{},Iterators=>[]}] ->
+    $readIndexExprs # ArrayAccessExpr@[VarName, LineID, {Exprs=>{},Accesses=>{},Iterators=>[]}] ->
     )=@_; # [[Expr Anno]]
 
 
@@ -1122,15 +1121,17 @@ loopCarriedDependency_exhaustiveEvaluate (LoopIterRecord iterTable) loopVars rea
 
                 analysis = foldl (\accum (table, value) -> loopCarriedDependency_exhaustiveEvaluate (accessIterTable value) newLoopVars readIndexExprs writtenIndexExprs accum table) previousAnalysis (zip valueTableIterations allowedValues)
 
-# This function performs a similar operation to loopCarriedDependency_exhaustiveEvaluate, except it is attempting to prove that loop carried dependencies DO NOT exist. This
-# process only works for array index expressions that are linear functions (only made up using + or -) using only loop iterators and constants but allows for the analysis
-# to be performed in constant time with respect to the number of loop iterations.
-# The optimisation works on the idea that linear functions follow a very simple pattern. By tracking the indices that are written to and the indices that are read, the function
-# continues analysing until it reaches a situation where there is a crossover in the domains of the reads and writes. If there has been no detected dependency by the time the
-# domains have crossed over, there will never be any dependencies because the functions are linear. The crossover is characterised by the write index tuple with the largest values
-# being larger than the read index tuple with the largest values and vice versa (largestRead > smallestWrite AND largestWrite > smallestRead)
+# This function performs a similar operation to loopCarriedDependency_exhaustiveEvaluate, except it is attempting to prove that loop carried dependencies DO NOT exist. This process only works for array index expressions that are linear functions (only made up using + or -) using only loop iterators and constants but allows for the analysis to be performed in constant time with respect to the number of loop iterations.
+# The optimisation works on the idea that linear functions follow a very simple pattern. By tracking the indices that are written to and the indices that are read, the function continues analysing until it reaches a situation where there is a crossover in the domains of the reads and writes. If there has been no detected dependency by the time the domains have crossed over, there will never be any dependencies because the functions are linear. The crossover is characterised by the write index tuple with the largest values being larger than the read index tuple with the largest values and vice versa (largestRead > smallestWrite AND largestWrite > smallestRead)
 # loopCarriedDependency_linearCheckEvaluate :: [TupleTable] -> [VarName Anno] -> [Expr Anno] -> [Expr Anno] -> (TupleTable, TupleTable) -> [ValueTable] -> (Bool, Bool, TupleTable, TupleTable)
-sub loopCarriedDependency_linearCheckEvaluate { my ($tt_tts,$loopVars,$readIndexExprs,$writtenIndexExprs,$prevReads_prevWrites,$vt_valueTables) =@_;
+sub loopCarriedDependency_linearCheckEvaluate { my (
+        $tt_tts, # [TupleTable] ->
+        $loopVars, # [VarName] ->
+        $readIndexExprs, # ArrayAccessExpr ->
+        $writtenIndexExprs, # ArrayAccessExpr ->
+        $prevReads_prevWrites, # [TupleTable,TupleTable]
+        $vt_valueTables # [ValueTable] ->
+        ) =@_; # [Bool, Bool, TupleTable, TupleTable]
     my ($prevReads, $prevWrites) = @{$prevReads_prevWrites};
 
     if (null $tt_tts)  {
@@ -1140,10 +1141,10 @@ sub loopCarriedDependency_linearCheckEvaluate { my ($tt_tts,$loopVars,$readIndex
     } else {
         my $tt = head $tt_tts;
         my $tts = tail $tt_tts;
-        my $vt = head $vt_valueTables;
+        my $vt = head $vt_valueTables; # ValueTable is { String => [Float, BaseType]}
         my $valueTables = tail $vt_valueTables;
         if (isEmpty $tt) {
-            # TODO!!!
+            # TODO!!! I think we do the same thing as before: take the expression strings and compare them
             my $identcalExprs = map (applyGeneratedSrcSpans) readIndexExprs == map (applyGeneratedSrcSpans) writtenIndexExprs
             my $vt_elems = length([keys %{vt}]);
 
@@ -1179,8 +1180,9 @@ sub loopCarriedDependency_linearCheckEvaluate { my ($tt_tts,$loopVars,$readIndex
 
             my $analysis_nextIter = loopCarriedDependency_linearCheckEvaluate($tts, $loopVars, $readIndexExprs, $writtenIndexExprs, [$newReads,$newWrites], $valueTables);
 
-            return $noDepBool || $depExistsBool ? [$noDepBool,$depExistsBool,$newReads,$newWrites]
-            : $analysis_nextIter;
+            return $noDepBool || $depExistsBool 
+                ? [$noDepBool,$depExistsBool,$newReads,$newWrites]
+                : $analysis_nextIter;
         } elsif (isLoopIterRecord $tt) {
             my $iterTable = fromLoopIterRecord $tt;
     # loopCarriedDependency_linearCheckEvaluate ((LoopIterRecord iterTable):tts) loopVars readIndexExprs writtenIndexExprs previousAnalysis (vt:valueTables)     
