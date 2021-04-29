@@ -95,7 +95,7 @@ sub pass_identify_stencils {(my $stref, my $code_unit_name)=@_;
 
 # Array access on the LHS of an Assignment is stored in $info
 
-# Array accesses are stored in
+# Array accesses are stored in $info->...->{'VarAccesses'}
 # $state->{'Subroutines'}{ $f }{'Blocks'}{ $block_id }{'Arrays'}{$array_var}{$rw}=
 # {
 # 	'Exprs' => { $expr_str_1 => '0:1',...},

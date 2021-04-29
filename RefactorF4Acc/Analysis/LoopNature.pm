@@ -308,7 +308,47 @@ sub isolateAndParalleliseForLoops { my ($stref, $f, $accessAnalysis, $annlines_f
     return ($updated_loop_annlines,$updated_accessAnalysis);
 } # END of isolateAndParalleliseForLoops
 
+# returns {$block_id=>$loop_annlines} so simply any first-level loop in a list of annlines
+# This works on Do and LoopBlocks
+sub extractLoopAnnLines { my ($annlines) = @_;
 
+    my $pass_extract_loops = sub { my ($annline,$state) = @_;
+        my ($line,$info) = @_;
+        # What we do now is:
+        my $current_block_id = $state->{'InBlock'};
+        if ($current_block_id==0) {
+            if (exists $info->{'Do'}) {
+                my $block_id = $info->{'BlockID'};
+                $state->{'InBlock'}=$block_id;
+                # Put the annline into LoopAnnLines
+                push @{$state->{'LoopsAnnLines'}{$block_id}},$annline;
+            } 
+            elsif (exists $info->{'LoopBlock'}) {
+                my $block_id = $info->{'BlockID'};
+                # Put the annline into LoopAnnLines
+                push @{$state->{'LoopsAnnLines'}{$block_id}},$annline;
+            }
+        } else {
+            # Put the annline into LoopAnnLines
+            push @{$state->{'LoopsAnnLines'}{$current_block_id}},$annline;
+            if (exists $info->{'EndDo'}) {
+                my $block_id = $info->{'BlockID'};
+                if ($block_id eq $current_block_id) {
+                $state->{'InBlock'}=0;
+                }
+            }            
+        }
+        return [$annline, $state];
+    };
+    
+    my $state = { 'InBlock' => 0 , 'LoopsAnnLines' => {} };
+
+    ($annlines,$state) = stateful_pass($annlines,$pass_extract_loops,"pass_extract_loop");
+
+    my $loops_annlines = $state->{'LoopsAnnLines'};
+
+    return $loops_annlines;
+} # extractLoopAnnLines
 
 
 # paralleliseLoop :: String -> [VarName Anno] -> VarAccessAnalysis -> SubroutineTable -> Fortran Anno -> (Fortran Anno, VarAccessAnalysis)
@@ -356,17 +396,16 @@ sub paralleliseLoop { my ($stref, $f, $loopvar, $accessAnalysis, $loop_annlines,
 sub paralleliseLoop_map {
     my ($stref,$f, $loop, $loopVarNames, $nonTempVars, $prexistingVars, $dependencies,$accessAnalysis, $block_id) = @_;
     # loopWrites :: [VarName]
-    my $loopWrites = extractWrites_query( $loop); #
-    # WV: def: analyseLoop_map  comment loopVars loopWrites nonTempVars prexistingVars accessAnalysis dependencies subTable codeSeg 
+    my $loopWrites = extractWrites_query( $loop); # 
     # $loopAnalysis :: AnalysisInfo 
-    my $loopAnalysis = analyseLoop_map( $stref, $f, "Cannot map: ", [], $loopWrites, $nonTempVars, $prexistingVars, $accessAnalysis, $dependencies, $loop, $block_id); #subTable
+    my $loopAnalysis = analyseLoop_map( $stref, $f, "Cannot map: ", [], $loopWrites, $nonTempVars, $prexistingVars, $accessAnalysis, $dependencies, $loop, $block_id); 
     $accessAnalysis->{'LoopNests'}{'Set'}{$block_id}{'AnalysisInfo'} = $loopAnalysis;
 
     my $errors_map = getErrorAnnotations( $loopAnalysis);
     my $reads_map = getReads( $loopAnalysis);
     my $writes_map = getWrites( $loopAnalysis);
 
-    my ($loopCarriedDeps_bool, $evaluated_bool, $loopCarriedDeps) = loopCarriedDependencyCheck( $loop);
+    my ($loopCarriedDeps_bool, $evaluated_bool, $loopCarriedDeps) = loopCarriedDependencyCheck( $loop); # TODO
 
     my $errors_mapQ = $loopCarriedDeps_bool 
         ? $evaluated_bool 
@@ -376,7 +415,9 @@ sub paralleliseLoop_map {
                     formatLoopCarriedDependencies( $loopCarriedDeps), $errors_map)
         : $errors_map
     ;
-    my $loopVariables = loopConditions_query( $loop); # $loop is AnnLines so we just need to get [(VarName,start,end,step)] from Iterator and Range->Expressions
+    # [VarName, Int,Int,Int]
+    my $loopVariables = loopConditions_query( $loop); 
+
     # my $startVarNames = foldl (sub { my ($accum, $tup) =@_;
     #     my ($e1,$x,$e3,$e4) = @{$tup};
     #     return  [@{$accum} ,@{ extractVarNames( $x)}]
@@ -393,10 +434,7 @@ sub paralleliseLoop_map {
     # my $varNames_loopConditions = listSubtract(listRemoveDuplications([@{$startVarNames}, @{$endVarNames}, @{$stepVarNames}]),$loopVarNames);
     # This gets the VarNames out of the tuple [iter_var_name, start, stop, step]
     # We have this info in $accessAnalysis->{'LoopNests'}{'Set'}{$block_id}
-    my $containedLoopIteratorVarNames = map {
-        $_->[0] # or something, TODO!
-        # (\(a, _, _, _) -> a)
-        } @{$loopVariables};
+    my $containedLoopIteratorVarNames = map { $_->[0] } @{$loopVariables};
 
     my $reads_map_varnames = foldl( sub {  my ($accum, $elt) =@_;
             return [@{$accum},@{$elt}];   #  (++)
@@ -412,7 +450,8 @@ sub paralleliseLoop_map {
     my $iterLoopVariables=[];
 
     my $mapCode = ['TODO! Like OpenCLMap but different'];
-    
+    # Call it 'LoopBlock' with a 'Nature' field
+    # I might support OpenCLMap as well of course
     # OpenCLMap nullAnno (generateSrcSpan filename (srcSpan loop))     # Node to represent the data needed for an OpenCL map kernel -- WV20170426
     #         readArgs        # List of arguments to kernel that are READ
     #         writtenArgs     # List of arguments to kernel that are WRITTEN
@@ -428,7 +467,6 @@ sub paralleliseLoop_map {
 
 } # END of paralleliseLoop_map
 
-
 #    Function takes a list of loop variables and a possible parallel loop's AST and returns a string that details the reasons why the loop cannot be mapped. If the returned string is empty, the loop represents a possible parallel map
 # LoopAnalysis.analyseLoop_map :: String -> [VarName Anno] -> [VarName Anno] -> [VarName Anno] -> [VarName Anno] -> VarAccessAnalysis -> VarDependencyAnalysis -> SubroutineTable -> Fortran Anno -> AnalysisInfo
 sub analyseLoop_map {
@@ -439,17 +477,6 @@ sub analyseLoop_map {
     my $pass_analyseLoop_map = sub { my ($annline,$state) = @_;
         my ($line,$info)=@{$annline};
         if (exists $info->{'If'} or exists $info->{'ElseIf'}) {
-# my $vars_and_index_vars_in_cond_expr ={ $array_var_name}=> {
-#     'Type' => 'Array' ,
-#     'IndexVars' => {
-#            $index_var_name => {'Type' => 'Scalar'}
-#        }
-#   },
-#  $scalar_var_name => {'Type' => 'Scalar'}
-# }
-# $info->{'CondVars'}{'Set'} = $vars_and_index_vars_in_cond_expr;
-# $info->{'CondVars'}{'List'} = [ sort keys %{$vars_and_index_vars_in_cond_expr} ];
-
             my $readOperands=createExprListFromVarAccesses($info->{'VarAccesses'}, $info->{'LineID'},'Read');
             my $condExprAnalysis = [{}, [], $readOperands, []]; # AnalysisInfo tuple from the 'if' condition            
             $state = combineAnalysisInfo( $state, $condExprAnalysis);
@@ -458,15 +485,6 @@ sub analyseLoop_map {
         if (exists $info->{'Assignment'}) {
             my $lhsExprInfo = $info->{'Lhs'};
             my $rhsExprInfo = $info->{'Rhs'};
-        # Assg _ srcspan lhsExpr rhsExpr -> foldl (combineAnalysisInfo) analysisInfoBaseCase [lhsExprAnalysis,
-        #                                                                                         (DMap.empty,[],
-        #                                                                                         prexistingReadExprs,
-        #                                                                                         if isNonTempAssignment then [lhsExpr] else [])]
-            # where
-# --    Type used to standardise loop analysis functions
-# --    Functions below are used to manupulate and access the AnalysisInfo. 
-# --                        errors         reduction variables read variables       written variables    
-# type AnalysisInfo =     (Anno,         [Expr Anno],         [Expr Anno],         [Expr Anno])                
             # lhsExprAnalysis :: AnalysisInfo
             my $lhsExprAnalysis = analyseLoopIteratorUsage( $comment, $loopVars, $loopWrites, $nonTempVars, $accessAnalysis, $lhsExprInfo);
             my $isNonTempAssignment = usesVarName_list( $nonTempVars, $lhsExprInfo->{'VarAccesses'});
@@ -527,17 +545,7 @@ sub analyseLoop_map {
         #                                     DMap.empty
         #         argExprs = everything (++) (mkQ [] extractExpr_list) arglist
 
-        # FSeq _ srcspan codeSeg1 codeSeg2 -> combineAnalysisInfo codeSeg1Analysis codeSeg2Analysis
-        #     where
-        #         recursiveCall = analyseLoop_map comment loopVars loopWrites nonTempVars prexistingVars accessAnalysis dependencies subTable
-        #         codeSeg1Analysis = recursiveCall codeSeg1
-        #         codeSeg2Analysis = recursiveCall codeSeg2
-        # _ -> foldl combineAnalysisInfo analysisInfoBaseCase (childrenAnalysis ++ nodeAccessAnalysis)
-        #     where
-        #         recursiveCall = analyseLoop_map comment loopVars loopWrites nonTempVars prexistingVars accessAnalysis dependencies subTable
-
-        #         nodeAccessAnalysis = gmapQ (mkQ analysisInfoBaseCase (analyseLoopIteratorUsage comment loopVars loopWrites nonTempVars accessAnalysis)) codeSeg
-        #         childrenAnalysis = gmapQ (mkQ analysisInfoBaseCase recursiveCall) codeSeg
+    
         return [[$annline],$state];
     };
 
@@ -569,9 +577,9 @@ sub loopCarriedDependencyCheck { my ($codeSeg) = @_;
     my $assignments = extractAssignments( $codeSeg);
     my ($reads, $writes) = foldl(\&extractArrayIndexReadWrite_foldl, [{},{}],$assignments);
     my ($loopIterTable_maybe, $loopVars, $loopStepTable) = constructLoopIterTable(['Just',['Empty']], {}, [], $codeSeg);
-    my $loopVarsQ = extractLoopIters( $codeSeg); # just a list of all the iters as strings, so filter on 'Do' and take the 'Iterator'
+    my $loopVarsQ = extractLoopIters( $codeSeg); 
 
-    my ($loopIterTable_successfull, $loopIterTable) = $loopIterTable_maybe->[0] eq 'Nothing' 
+    my ($loopIterTable_successfull, $loopIterTable) = isNothing $loopIterTable_maybe
         ? ($False, ['Empty'])
         : ($True, $loopIterTable_maybe);
 
@@ -582,13 +590,13 @@ sub loopCarriedDependencyCheck { my ($codeSeg) = @_;
         }, [] ,
         [
             map {
-                loopCarriedDependency_varCheck( $loopStepTable, $loopIterTable, $loopVars, [ $reads, $writes], $_)
+                loopCarriedDependency_varCheck( $loopStepTable, $loopIterTable, $loopVars, [ $reads, $writes], $_) # TODO
             } @{$writtenVars}
         ]
     );
     my $inDepthFailure = (not $loopIterTable_successfull) || scalar @{$offendingExprs} >0;
 
-    my ($simpleFailure, $simpleOffenders) = simpleLoopCarriedDependencyCheck( $reads,$writes,$loopVarsQ);
+    my ($simpleFailure, $simpleOffenders) = simpleLoopCarriedDependencyCheck( $reads,$writes,$loopVarsQ); # TODO
 
     return $simpleFailure 
         ? $inDepthFailure  
@@ -708,131 +716,238 @@ sub simpleLoopCarriedDependencyCheckQQ {my ($loopVars, $readIndiceList, $prevBoo
 
 #  returns True if there is a conflict
 # accessDependencyCheckWV :: [Expr Anno] -> [Expr Anno] -> [String] -> Bool
-sub accessDependencyCheckWV writtenIndexSet readIndexSet loopVars = let
-    tlength = if ((length readIndexSet) == (length writtenIndexSet))  then length readIndexSet else error $ "LEN:"++(show (length readIndexSet))++"<>"++ (show (length writtenIndexSet))
-    readPositions = take tlength  [0 .. ]
-    read_index_expr_vars_per_index =  map extractVarNames readIndexSet  -- which gives [[VarName p]]
-    read_index_expr_vars_per_index_pos = zip read_index_expr_vars_per_index readPositions
-    maybeConflictsPerPos =map (\index_vars_pos ->
-        let 
-            (index_vars,pos) = index_vars_pos    
-            maybeConflicts = map (\loopvar -> if ( loopvar  `elem` (map (\(VarName _ v) -> v) index_vars) ) 
-                    then
-                    -- OK, this loop var occurs in index pos on the LHS
-                       if (pos > tlength-1) then error $ (show pos)++"<>"++(show tlength) else
-                           if (readIndexSet !! pos == writtenIndexSet !! pos) then True else False
-                    else 
-                    -- the loopvar is not used, return True (no conflict)
-                        True
-                ) loopVars
-        in  
-            foldl (&&) True maybeConflicts -- if all of them are true
-       ) read_index_expr_vars_per_index_pos
-  in
-      foldl (&&) True maybeConflictsPerPos
+
+# TODO
+sub accessDependencyCheckWV {my  ($writtenIndexSet, $readIndexSet, $loopVars ) = @_;
+# let
+    my $tlength = 
+    length($readIndexSet) == length($writtenIndexSet)
+    ? length($readIndexSet) 
+    : error( "LEN:".length($readIndexSet)."<>".length($writtenIndexSet));
+
+    my $readPositions = [0 .. $tlength-1];
+    my $read_index_expr_vars_per_index =  map {extractVarNames($_)} @{$readIndexSet};  # which gives [[VarName p]]
+    my $read_index_expr_vars_per_index_pos = zip( $read_index_expr_vars_per_index,$readPositions);
+    my $maybeConflictsPerPos =map {
+        my $index_vars_pos = $_;
+        # let 
+        my ($index_vars,$pos) = @{$index_vars_pos};
+        my $maybeConflicts = map {
+        
+        my $loopvar = $_;
+        if ( elem($loopvar, $index_vars) ) {                
+                # OK, this loop var occurs in index pos on the LHS
+            if ($pos > $tlength-1) { 
+                error($pos."<>".$tlength);
+            } else {
+                if ($readIndexSet->[$pos] == $writtenIndexSet->[$pos]) {$True} else {$False}
+            }
+         } else {
+                # the loopvar is not used, return True (no conflict)
+                    $True
+         }
+     } @{$loopVars};
+        # in  
+            foldAnd( $True,$maybeConflicts) # if all of them are true
+     } @{$read_index_expr_vars_per_index_pos};
+#   in
+      foldAnd( $True,$maybeConflictsPerPos);
+
+}
+# constructLoopIterTable :: Maybe TupleTable -> LoopStepTable -> [VarName Anno] -> Fortran Anno -> (Maybe TupleTable, [VarName Anno], LoopStepTable)
+
+# If we ever want to support the OpenCLMap and OpenCLReduce nodes:
+# constructLoopIterTable (Just oldTable) loopStepTable loopVars (OpenCLMap _ _ _ _ loopBoundsList iterLoopBoundsList fortran) = childrenTable -- WV20170426
+#             where
+#                 (var, e1, e2, e3) = head loopBoundsList
+#                 newLoopIterTable = extendLoopIterTable oldTable DMap.empty loopVars e1 e2 e3
+#                 childrenTable = constructLoopIterTable newLoopIterTable loopStepTable (loopVars ++ [var]) fortran
+
+# constructLoopIterTable (Just oldTable) loopStepTable loopVars (OpenCLReduce _ _ _ _ loopBoundsList iterLoopBoundsList _ fortran) = childrenTable -- WV20170426
+#             where
+#                 (var, e1, e2, e3) = head loopBoundsList
+#                 newLoopIterTable = extendLoopIterTable oldTable DMap.empty loopVars e1 e2 e3
+#                 childrenTable = constructLoopIterTable newLoopIterTable loopStepTable (loopVars ++ [var]) fortran
+
+# The problem is that a loop can contain other loops so I will have to write an extractLoopAnnLines
+
+sub constructLoopIterTable { my ($maybe_tupletable,$loopStepTable,$loopVars,$annlines) = @_;
+    my $loopIterTable={};
+    if (isNothing $maybe_tupletable) {
+        return [$maybe_tupletable, $loopVars, $loopStepTable];
+    } else {
+        my $oldTable = fromJust $maybe_tupletable;
+    
+        my $loops_annlines = extractLoopAnnLines($annlines);
+        for my $block_id (sort keys %{$loops_annlines}) {
+            my $loop_annlines = $loops_annlines->{$block_id};
+            my $first_annline = shift @{ $loop_annlines}; # so the $loop_annlines does not start with a Do or LoopBlock, and we'll get the next level if there is one
+            my ($line, $info) = @{$first_annline};            
+            if (exists $info->{'Do'} or exists $info->{'LoopBlock'}) {
+                if (exists $info->{'LoopBlock'}) { # This block has been parallelised and the annlines are in AnnLines
+                    my $loop_annlines = $info->{'LoopBlock'}{'AnnLines'};
+                    # We can again assume that the first line is a Do and thus we can get the loop conditions
+                    $first_annline = shift @{ $loop_annlines}; # so the $loop_annlines does not start with a Do or LoopBlock, and we'll get the next level if there is one
+                }
+                my ($var,$e1,$e2,$e3)=@{getLoopConditions($first_annline)};            
+                my $newLoopIterTable = extendLoopIterTable(  $oldTable, {}, $loopVars,$e1,$e2,$e3);                    
+                $loopStepTable->{$var} = $e3;
+                my $fortran = $loop_annlines;
+                my $childrenTable = constructLoopIterTable($newLoopIterTable, $loopStepTable, append($loopVars,$var), $fortran);
+                return $childrenTable
+            }
+            elsif (null($loops_annlines) ) {
+                return [$maybe_tupletable,$loopVars,$loopStepTable];
+            }
+            else {
+                croak "A loop should start with Do or be contained in a LoopBlock: ".Dumper($loop_annlines);
+            }
+        }
+    }    
+}
+
+# extendLoopIterTable :: TupleTable -> ValueTable -> [VarName Anno] -> Expr Anno -> Expr Anno -> Expr Anno -> Maybe(TupleTable)
+sub extendLoopIterTable {my ($oldTable, $valueTable, $loopVars, $startExpr, $endExpr, $stepExpr) = @_;
+    if (not null($loopVars)) {
+        my $allowedValues = case( $oldTable, 
+            [
+                [\&isLoopIterRecord, sub { my ($t) = @_; keys %{$t->[1]}}],
+                [\&otherwise ,sub {[]}]
+            ]
+        );
+    foldl( sub { my ($acc,$elt) = @_;
+        extendLoopIterTableWithValues_foldl($valueTable, $loopVars, $startExpr, $endExpr, $stepExpr, $acc, $elt);
+        },
+        just($oldTable)
+        ,$allowedValues);                                
+    } else {
+        my $range_maybe = evaluateRange( $valueTable, $startExpr, $endExpr, $stepExpr);
+        case( $range_maybe, [
+          [  \&isNothing, nothing],
+          [\&isJust, sub {
+              my $range = fromJust $range_maybe;
+              just(
+                addRangeToIterTable( $oldTable,$range)
+              );
+          }] 
+        ]);
+    }                                
+}
+# extendLoopIterTableWithValues_foldl :: ValueTable -> [VarName Anno] -> Expr Anno -> Expr Anno -> Expr Anno -> Maybe(TupleTable) -> Int -> Maybe(TupleTable)
+extendLoopIterTableWithValues_foldl { my ( $valueTable, $loopVars, $startExpr, $endExpr, $stepExpr, $maybe_tupletable, $chosenValue ) = @_;
+    if (isNothing $maybe_tupletable) {
+        nothing;
+    } else {
+        my $oldRecord = fromJust(fromLoopIterRecord $maybe_tupletable);
+        my $oldSubTable = findWithDefault( empty, $chosenValue, $oldRecord);
+        my $newLoopVars = tail( $loopVars);
+        my $newSubTable = extendLoopIterTable( 
+             $oldSubTable 
+            ,addToValueTable(head($loopVars), $chosenValue,$valueTable) 
+            ,$newLoopVars 
+            ,$startExpr 
+            ,$endExpr 
+            ,$stepExpr);
+        
+        if (null $loopVars) {
+            error( "extendLoopIterTableWithValues_foldl: loopVars is empty" );
+        } else {
+            case( $newSubTable,[
+                [Just newT , sub { 
+                    my $newT = fromJust $newSubTable;
+                    just(loopIterRecord(insert($chosenValue,$newT,$oldRecord)));
+                }],
+                [\&isNothing, nothing]
+            ])
+        }
+}
+
+# addRangeToIterTable :: TupleTable -> [Float] -> TupleTable
+sub addRangeToIterTable { my  ($oldTable,$range) = @_;
+    my $oldRecord = case( $oldTable, [ 
+        [\&isEmpty, {}],
+        [\&isLoopIterRecord , \&fromLoopIterRecord]
+    ]);
+    loopIterRecord(
+        foldl(
+            sub { my ($accum,$key) =@_;
+                insert( round($key), empty, $accum);
+            }, $oldRecord,$range)
+    );            
+}
 
 
-constructLoopIterTable :: Maybe TupleTable -> LoopStepTable -> [VarName Anno] -> Fortran Anno -> (Maybe TupleTable, [VarName Anno], LoopStepTable)
-constructLoopIterTable Nothing loopStepTable loopVars _ = (Nothing, loopVars, loopStepTable)
-constructLoopIterTable (Just oldTable) loopStepTable loopVars (For _ _ var e1 e2 e3 fortran) = childrenTable
-            where
-                newLoopIterTable = extendLoopIterTable oldTable DMap.empty loopVars e1 e2 e3
-                newLST = case evaluateExpr DMap.empty e3 of
-                    Just value -> DMap.insert var value loopStepTable
-                    Nothing -> loopStepTable
-                childrenTable = constructLoopIterTable newLoopIterTable newLST (loopVars ++ [var]) fortran                
+# loopCarriedDependency_varCheck :: LoopStepTable -> TupleTable -> [VarName Anno] -> (ArrayAccessExpressions, ArrayAccessExpressions) -> VarName Anno -> [(Expr Anno, Expr Anno)]
+sub loopCarriedDependency_varCheck { my ($loopStepTable, $loopIterTable, $loopVars, $reads_writes, $var) = @_;
+    my ($reads, $writes) = @{$reads_writes};
+    my $writtenAccesses = findWithDefault( [],$var,$writes);
+    my $readsAccesses = findWithDefault( [], $var, $reads);
 
-constructLoopIterTable (Just oldTable) loopStepTable loopVars (OpenCLMap _ _ _ _ loopBoundsList iterLoopBoundsList fortran) = childrenTable -- WV20170426
-            where
-                (var, e1, e2, e3) = head loopBoundsList
-                newLoopIterTable = extendLoopIterTable oldTable DMap.empty loopVars e1 e2 e3
-                childrenTable = constructLoopIterTable newLoopIterTable loopStepTable (loopVars ++ [var]) fortran
+    my $offendingIndexPairs = foldl(
+        sub {my ($acc,$elt)=@_;
+        loopCarriedDependency_writtenExprCheck($loopStepTable, $loopIterTable, $loopVars, $readsAccesses,$acc,$elt);
+         }, [] , $writtenAccesses);
+    my $offendingExprs = map { 
+        my ($read, $written) =@{$_};
+        [generateArrayVar($var,$read), generateArrayVar($var,$written)]
+    } @{$offendingIndexPairs};
+    return $offendingExprs;
+}
 
-constructLoopIterTable (Just oldTable) loopStepTable loopVars (OpenCLReduce _ _ _ _ loopBoundsList iterLoopBoundsList _ fortran) = childrenTable -- WV20170426
-            where
-                (var, e1, e2, e3) = head loopBoundsList
-                newLoopIterTable = extendLoopIterTable oldTable DMap.empty loopVars e1 e2 e3
-                childrenTable = constructLoopIterTable newLoopIterTable loopStepTable (loopVars ++ [var]) fortran
+# loopCarriedDependency_writtenExprCheck :: LoopStepTable -> TupleTable -> [VarName Anno] -> [[Expr Anno]] -> [([Expr Anno], [Expr Anno])] -> [Expr Anno] -> [([Expr Anno], [Expr Anno])]
+sub loopCarriedDependency_writtenExprCheck { my ($loopStepTable, $loopIterTable, $loopVars, $readExprs, $oldOffendingExprs, $writtenExpr) = @_;
+    my $offendingReads = foldl ( sub {
+        my ($acc,$elt)=@_;
+        loopCarriedDependency_readExprCheck( $loopStepTable, $loopIterTable, $loopVars, $writtenExpr,$acc,$elt);
+    }
+    , [] ,$readExprs);
+    my $dependencyPairs = map {[$_, $writtenExpr]} @{$offendingReads};
+    concat($oldOffendingExprs,$dependencyPairs);
+}
 
-constructLoopIterTable (Just oldTable) loopStepTable loopVars codeSeg = (newTable, newLoopVars, newloopStepTable)
-            where
-                childrenAnalysis = gmapQ (mkQ (Just(Empty), [], loopStepTable) (constructLoopIterTable (Just oldTable) loopStepTable (loopVars))) codeSeg
-                nonEmptyTables = filter (\(table, _, _) -> tupleTableNotEmpty (fromMaybe Empty table)) childrenAnalysis
-                (newTable, newLoopVars, newloopStepTable) = 
-                    if null nonEmptyTables 
-                        then (Just oldTable, loopVars, loopStepTable)  
-                        else head nonEmptyTables
+# loopCarriedDependency_readExprCheck :: LoopStepTable -> TupleTable -> [VarName Anno] -> [Expr Anno] -> [[Expr Anno]] -> [Expr Anno] -> [[Expr Anno]]
+sub loopCarriedDependency_readExprCheck { my ($loopStepTable, $loopIterTable, $loopVars, $writtenIndexExprs, $oldOffendingExprs, $readIndexExprs)=@_;
 
+    my $writtenIndices_linear = foldl (
+        sub {
+            my ($accum,$item)=@_;
+            $accum && (everything (&&) (mkQ $True \&linearExprCheck) $item)) 
+        }    
+        ,$True,$writtenIndexExprs);
+    my $readIndices_linear = foldl(        sub {
+            my ($accum,$item)=@_;
+            $accum && (everything (&&) (mkQ $True \&linearExprCheck) $item))
+    }, $True, $readIndexExprs);
 
-extendLoopIterTable :: TupleTable -> ValueTable -> [VarName Anno] -> Expr Anno -> Expr Anno -> Expr Anno -> Maybe(TupleTable)
-extendLoopIterTable oldTable valueTable ([]) startExpr endExpr stepExpr = case range_maybe of
-                                                                            Nothing -> Nothing
-                                                                            Just range -> Just (addRangeToIterTable oldTable range)
-        where
-            range_maybe = evaluateRange valueTable startExpr endExpr stepExpr
-extendLoopIterTable oldTable valueTable loopVars startExpr endExpr stepExpr = foldl
-                                                                                (extendLoopIterTableWithValues_foldl valueTable loopVars startExpr endExpr stepExpr)
-                                                                                (Just oldTable)
-                                                                                allowedValues
-        where
-            allowedValues = case oldTable of
-                                LoopIterRecord a -> DMap.keys a
-                                _ -> []
+    my $formattedWrittenIndices = foldl( sub {
+        my ($accum,$item) = @_;
+        $accum .", " . outputExprFormatting($item) ;
+    }, 
+    outputExprFormatting(  head( $writtenIndexExprs) ,tail($writtenIndexExprs));
+    
+    my $formattedReadIndices = foldl(
+        sub {
+        my ($accum,$item) = @_; 
+        $accum .", " . outputExprFormatting($item) ;
+        }
+    ,outputExprFormatting(head($readIndexExprs)) ,tail($readIndexExprs)
+    );
 
-extendLoopIterTableWithValues_foldl :: ValueTable -> [VarName Anno] -> Expr Anno -> Expr Anno -> Expr Anno -> Maybe(TupleTable) -> Int -> Maybe(TupleTable)
-extendLoopIterTableWithValues_foldl valueTable loopVars startExpr endExpr stepExpr Nothing chosenValue = Nothing
-extendLoopIterTableWithValues_foldl valueTable loopVars startExpr endExpr stepExpr (Just (LoopIterRecord oldRecord)) chosenValue = if loopVars == [] then error "extendLoopIterTableWithValues_foldl" else case newSubTable of
-                                                                                                                                    Just newT -> Just (LoopIterRecord (DMap.insert chosenValue newT oldRecord))
-                                                                                                                                    Nothing -> Nothing
-        where
-            oldSubTable = DMap.findWithDefault Empty chosenValue oldRecord
-            newSubTable = extendLoopIterTable oldSubTable (addToValueTable (head loopVars) (fromIntegral chosenValue :: Float) valueTable) newLoopVars startExpr endExpr stepExpr
-            newLoopVars = tail loopVars
+    my ($linear_noDep, $linear_depFound, $d1_, $d2_) = loopCarriedDependency_linearCheckEvaluate( [$loopIterTable], $loopVars, $readIndexExprs, $writtenIndexExprs, [$Empty, $Empty], [{}]);
 
-addRangeToIterTable :: TupleTable -> [Float] -> TupleTable
-addRangeToIterTable oldTable range = LoopIterRecord (foldl (\accum key -> DMap.insert (round key) Empty accum) oldRecord range)
-        where
-            oldRecord = case oldTable of
-                            Empty -> DMap.empty
-                            LoopIterRecord a -> a
+    my $loopIterTable_optimised = optimiseLoopIterTable( $loopIterTable, {}, $loopVars, $readIndexExprs, $writtenIndexExprs);
+    my ($exhaustive_offendBool, $d1_, $d2_) = @{loopCarriedDependency_exhaustiveEvaluate( $loopIterTable_optimised, $loopVars, $readIndexExprs, $writtenIndexExprs, [$False,, $Empty, $Empty], {})};
 
+        return $writtenIndices_linear && $readIndices_linear && $linear_noDep 
+            ? $oldOffendingExprs
+        : $writtenIndices_linear && $readIndices_linear && $linear_depFound 
+            ? append($oldOffendingExprs,$readIndexExprs)
+            : $exhaustive_offendBool 
+                ? append($oldOffendingExprs ,$readIndexExprs)
+                : $oldOffendingExprs;
+}
 
-
-loopCarriedDependency_varCheck :: LoopStepTable -> TupleTable -> [VarName Anno] -> (ArrayAccessExpressions, ArrayAccessExpressions) -> VarName Anno -> [(Expr Anno, Expr Anno)]
-loopCarriedDependency_varCheck loopStepTable loopIterTable loopVars (reads, writes) var = offendingExprs
-            where
-                writtenAccesses = DMap.findWithDefault [] var writes
-                readsAccesses = DMap.findWithDefault [] var reads
-
-                offendingIndexPairs = foldl (loopCarriedDependency_writtenExprCheck loopStepTable loopIterTable loopVars readsAccesses) [] writtenAccesses
-                offendingExprs = map (\(read, written) -> (generateArrayVar var read, generateArrayVar var written)) offendingIndexPairs
-
-
-loopCarriedDependency_writtenExprCheck :: LoopStepTable -> TupleTable -> [VarName Anno] -> [[Expr Anno]] -> [([Expr Anno], [Expr Anno])] -> [Expr Anno] -> [([Expr Anno], [Expr Anno])]
-loopCarriedDependency_writtenExprCheck loopStepTable loopIterTable loopVars readExprs oldOffendingExprs writtenExpr = oldOffendingExprs ++ dependencyPairs
-            where
-                offendingReads = foldl (loopCarriedDependency_readExprCheck loopStepTable loopIterTable loopVars writtenExpr) [] readExprs
-                dependencyPairs = map (\x -> (x, writtenExpr)) offendingReads
-
-loopCarriedDependency_readExprCheck :: LoopStepTable -> TupleTable -> [VarName Anno] -> [Expr Anno] -> [[Expr Anno]] -> [Expr Anno] -> [[Expr Anno]]
-loopCarriedDependency_readExprCheck loopStepTable loopIterTable loopVars writtenIndexExprs oldOffendingExprs readIndexExprs
-        |     writtenIndices_linear && readIndices_linear && linear_noDep = oldOffendingExprs
-        |     writtenIndices_linear && readIndices_linear && linear_depFound = oldOffendingExprs ++ [readIndexExprs]
-        |     exhaustive_offendBool = oldOffendingExprs ++ [readIndexExprs]
-        |    otherwise = oldOffendingExprs
-    where
-        writtenIndices_linear = foldl (\accum item -> accum && (everything (&&) (mkQ True linearExprCheck) item)) True writtenIndexExprs
-        readIndices_linear = foldl (\accum item -> accum && (everything (&&) (mkQ True linearExprCheck) item)) True readIndexExprs
-
-        formattedWrittenIndices = foldl (\accum item -> accum ++", " ++ outputExprFormatting item) (outputExprFormatting $ head writtenIndexExprs) (tail writtenIndexExprs)
-        formattedReadIndices = foldl (\accum item -> accum ++", " ++ outputExprFormatting item) (outputExprFormatting $ head readIndexExprs) (tail readIndexExprs)
-
-        (linear_noDep, linear_depFound, _, _) = loopCarriedDependency_linearCheckEvaluate [loopIterTable] loopVars readIndexExprs writtenIndexExprs (Empty, Empty) [DMap.empty]
-
-        loopIterTable_optimised = optimiseLoopIterTable loopIterTable DMap.empty loopVars readIndexExprs writtenIndexExprs
-        (exhaustive_offendBool, _, _) = loopCarriedDependency_exhaustiveEvaluate loopIterTable_optimised loopVars readIndexExprs writtenIndexExprs (False, Empty, Empty) DMap.empty
-
-linearExprCheck :: Expr Anno -> Bool
+# linearExprCheck :: Expr Anno -> Bool
 linearExprCheck (Bin _ _ (Plus _) expr1 expr2) = True
 linearExprCheck (Bin _ _ (Minus _) expr1 expr2) = True
 linearExprCheck (Bin _ _ _ expr1 expr2) = False
@@ -1644,6 +1759,46 @@ sub extractAssignments { my ($codeSeg) = @_;
 
     return \@assignments;
 }
+# [(VarName p, Expr p, Expr p, Expr p)]
+sub loopConditions_query { my ( $loop)=@_;
+    my @loopConditions=();
+    for my $annline (@{$loop}) {
+        my ($line, $info) = @{$annline};
+        if (exists $info->{'Do'}) {
+            my $iter = $info->{'Do'}{'Iterator'};
+            my ($range_start, $range_stop, $range_step) = @{$info->{'Do'}{'Range'}{'Expressions'}};
+
+            push @loopConditions, [$iter,$range_start, $range_stop, $range_step];
+        }
+    }
+    return \@loopConditions;
+
+}
+
+sub getLoopConditions { my ($annline)=@_;
+     my ($line, $info) = @{$annline};
+        if (exists $info->{'Do'}) {
+            my $iter = $info->{'Do'}{'Iterator'};
+            my ($range_start, $range_stop, $range_step) = @{$info->{'Do'}{'Range'}{'Expressions'}};
+            return [$iter,$range_start, $range_stop, $range_step];
+        } else {
+            croak 'Not a Do AnnLine';
+        }
+}
+
+sub extractLoopIters { my ( $loop)=@_;
+    my @loopIters=();
+    for my $annline (@{$loop}) {
+        my ($line, $info) = @{$annline};
+        if (exists $info->{'Do'}) {
+            my $iter = $info->{'Do'}{'Iterator'};
+            push @loopIters, $iter;
+        }
+    }
+    return \@loopIters;
+
+}
+
 
 
 # constructDependencies :: VarDependencyAnalysis -> Fortran Anno -> VarDependencyAnalysis
@@ -1729,6 +1884,143 @@ sub usesVarName_list { my ($varname_list, $expr)=@_;
     return elem($var_from_expr,$varname_list);
 }
 
+sub isNothing { my ($mt) = @_;
+   if( $mt->[0] eq 'Nothing') {
+        return 1;
+   }
+   elsif( $mt->[0] eq 'Just') {
+       return 0;
+   }
+   else {
+       croak "Not a Maybe type: ".Dumper($mt);
+   }
+}
+
+sub just { my ($t)=@_;
+    return ['Just',$t];
+}
+
+sub nothing { 
+    return ['Nothing'];
+}
+
+sub isJust { my ($mt) = @_;
+   if( $mt->[0] eq 'Nothing') {
+        return 0;
+   }
+   elsif( $mt->[0] eq 'Just') {
+       return 1;
+   }
+   else {
+       croak "Not a Maybe type: ".Dumper($mt);
+   }
+}
+
+sub fromJust { my ($mt) = @_;
+    
+   if( $mt->[0] eq 'Nothing') {
+        croak "Nothing not Just ".Dumper($mt);
+   }
+   elsif( $mt->[0] eq 'Just') {
+       return $mt->[1];
+   }
+   else {
+       croak "Not a Maybe type: ".Dumper($mt);
+   }    
+}
+
+sub isEmpty { my ($mt) = @_;
+   if( $mt->[0] eq 'Empty') {
+        return 0;
+   }
+   elsif( $mt->[0] eq 'LoopIterRecord') {
+       return 1;
+   }
+   else {
+       croak "Not a TupleTable type: ".Dumper($mt);
+   }
+}
+
+sub isLoopIterRecord {
+   if( $mt->[0] eq 'Empty') {
+        return 1;
+   }
+   elsif( $mt->[0] eq 'LoopIterRecord') {
+       return 0;
+   }
+   else {
+       croak "Not a TupleTable type: ".Dumper($mt);
+   }
+}
+
+sub fromLoopIterRecord { my ($mt) = @_;    
+   if( $mt->[0] eq 'Empty') {
+        croak "Empty not LoopIterRecord ".Dumper($mt);
+   }
+   elsif( $mt->[0] eq 'LoopIterRecord') {
+       return $mt->[1];
+   }
+   else {
+       croak "Not a TupleTable type: ".Dumper($mt);
+   }    
+}
+
+sub empty { 
+    return ['Empty'];
+}
+
+sub loopIterRecord { my ($t)=@_;
+    return ['LoopIterRecord',$t];
+}
+
+sub case { my ($sum_type_inst, $altCondsActions) = @_;
+    for my $altCondsAction (@{$altCondsActions}) {
+        my ($cond,$action) = @{$altCondsAction};
+        if (ref($cond) eq 'CODE') {
+            if ($cond->{$sum_type_inst}) {
+                if (ref($action) eq 'CODE') {
+                    return $action->{$sum_type_inst};
+                } else {
+                    $action;
+                }
+            }
+        } 
+        else {
+            if ($cond) {
+                if (ref($action) eq 'CODE') {
+                    return $action->{$sum_type_inst};
+                } else {
+                    $action;
+                }
+            }            
+        }
+    }
+}
+
+sub otherwise {
+    1;
+}
+sub append { my ($lst,$elt) = @_;
+    [@{$lst},$elt];
+}
+
+sub concat { my @lsts = @_;
+my $concat_lsts = [];
+    for my $lst (@lsts) {
+        $concat_lsts = [@{$concat_lsts},@{$lst}];
+    }
+    return $concat_lsts;
+}
+
+sub length { my ($lst)=@_;
+    return scalar @{$lst};
+}
+
+sub null { my ($lst)=@_;
+    return scalar @{$lst} == 0;
+}
+
+
 sub elem { my ($elt,$lst) = @_;
     my %hash = map {$_=>1} @{$lst};
     return exists $hash{$elt} ? 1 : 0;
@@ -1741,10 +2033,7 @@ sub insert { my ($key, $value, $table) = @_;
 
 sub foldl {
 	( my $f, my $acc, my $ls ) = @_;
-	my $i = 0;
-	my $n = scalar @{$ls};
 	for my $elt ( @{$ls} ) {
-		++$i;
 		$acc = $f->( $acc, $elt );
 	}
 	return $acc;
@@ -1753,6 +2042,22 @@ sub foldl {
 sub fold {
     foldl(@_);
 } 
+
+sub foldAnd {
+	( my $acc, my $ls ) = @_;
+	for my $elt ( @{$ls} ) {
+		$acc =  $acc && $elt ;
+	}
+	return $acc;
+}
+
+sub foldOr {
+	( my $acc, my $ls ) = @_;
+	for my $elt ( @{$ls} ) {
+		$acc =  $acc || $elt ;
+	}
+	return $acc;
+}
 
 # sub zip { my ($l1, $l2) = @_;
 #     my $len_l1= scalar @{$l1};
@@ -1777,6 +2082,24 @@ sub unzip { (my $l12) = @_;
     }
     return ($l1,$l2);
 }
+sub head { my ($lst)=@_;
+    if (scalar @{$lst}>0) {
+        return $lst->[0];
+    } else {
+        croak "head of empty list: ".Dumper($lst);
+    }
+}
+
+sub tail { my ($lst)=@_;
+    my @lst_ = @{$lst};
+    if (scalar @lst_>0) {
+        shift @lst_
+        return \@lst_;
+    } else {
+        croak "tail of empty list: ".Dumper($lst);
+    }
+}
+
 
 sub fst { (my $tup_ref) = @_; 
     return $tup_ref->[0];
@@ -1799,4 +2122,13 @@ sub min { (my $v1, my $v2) =@_;
     return $v1 > $v2 ? $v2 : $v1;
 }
 
+sub round { my ($v)=@_;
+    my $iv=int($v)
+    my $rest = $v-$iv;    
+    if ($rest<0.5) {
+        $iv;
+    } else {
+        $iv+1;
+    }
+}
 1;
