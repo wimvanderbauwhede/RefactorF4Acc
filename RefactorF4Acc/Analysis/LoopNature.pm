@@ -365,7 +365,7 @@ sub paralleliseLoop { my ($stref, $f, $loopvar, $accessAnalysis, $loop_annlines,
     #    If the 'bool' variable for any of the attempts to parallelise is true, then parallism has been found
     #    and the new AST node is returned from this function, to be placed in the AST by the calling function.
     #    
-    (my $mapAttempt,$accessAnalysis)  = paralleliseLoop_map($stref,$f,$loop_annlines,$newLoopVars,$nonTempVars,$prexistingVars, $dependencies,$accessAnalysis, $block_id);# subTable  # TODO
+    (my $mapAttempt,$accessAnalysis)  = paralleliseLoop_map($stref,$f,$loop_annlines,$newLoopVars,$nonTempVars,$prexistingVars, $dependencies,$accessAnalysis, $block_id);# TODO
     my $mapAttempt_bool = fst $mapAttempt;
     my $mapAttempt_ast = snd $mapAttempt;
 
@@ -405,7 +405,7 @@ sub paralleliseLoop_map {
     my $reads_map = getReads( $loopAnalysis);
     my $writes_map = getWrites( $loopAnalysis);
 
-    my ($loopCarriedDeps_bool, $evaluated_bool, $loopCarriedDeps) = loopCarriedDependencyCheck( $loop); # TODO
+    my ($loopCarriedDeps_bool, $evaluated_bool, $loopCarriedDeps) = loopCarriedDependencyCheck($loop); 
 
     my $errors_mapQ = $loopCarriedDeps_bool 
         ? $evaluated_bool 
@@ -449,8 +449,26 @@ sub paralleliseLoop_map {
         # WV20170426
     my $iterLoopVariables=[];
 
-    my $mapCode = ['TODO! Like OpenCLMap but different'];
+    # my $mapCode = ['TODO! Like OpenCLMap but different'];
     # Call it 'LoopBlock' with a 'Nature' field
+                #     'Nature' => { 
+                #         Map | Fold | Iter => [loop iterators], 
+                #         Stencil => {arrays with their stencils}
+                #     },    
+    # We need the original $loop code, or maybe, since it is mappable, we can already rewrite the loop bounds; start with just the original
+    # We need the srcSpan being the LineID of the first and last line of $loop
+    # So maybe the easiest way is to have 
+    my $info = {};
+    $info->{'LoopBlock'} = {
+        'BlockInfo'=> $accessAnalysis->{'LoopNests'}{'Set'}{$block_id},    
+        'LoopAnnLines'=> $loop,
+        'Nature'=>'Map',
+        'ReadArgs'=> $readArgs,
+        'WrittenArgs'=> $writtenArgs,
+        'LoopVariables'=> $loopVariables,
+        'IterLoopVariables'=> $iterLoopVariables,
+    };
+    my $mapCode =[["! Mappable loop nest $block_id",$info]];
     # I might support OpenCLMap as well of course
     # OpenCLMap nullAnno (generateSrcSpan filename (srcSpan loop))     # Node to represent the data needed for an OpenCL map kernel -- WV20170426
     #         readArgs        # List of arguments to kernel that are READ
@@ -460,7 +478,7 @@ sub paralleliseLoop_map {
     #         removeLoopConstructs_recursive( $loop); # Body of kernel code
 
     if (   $errors_mapQ == $nullAnno) {    
-        return [$True, appendAnnotation( $mapCode, "$0 : Map at " . errorLocationFormatting (srcSpan $loop) . ""),$accessAnalysis];
+        return [$True, appendAnnotation( $mapCode, "$0 : Map at " . srcSpan($loop) . ""), $accessAnalysis];
     } else {   
         return [$False, appendAnnotationMap( $loop, $errors_mapQ),$accessAnalysis];
     }
@@ -590,13 +608,13 @@ sub loopCarriedDependencyCheck { my ($codeSeg) = @_;
         }, [] ,
         [
             map {
-                loopCarriedDependency_varCheck( $loopStepTable, $loopIterTable, $loopVars, [ $reads, $writes], $_) # TODO
+                loopCarriedDependency_varCheck( $loopStepTable, $loopIterTable, $loopVars, [ $reads, $writes], $_) 
             } @{$writtenVars}
         ]
     );
     my $inDepthFailure = (not $loopIterTable_successfull) || not null($offendingExprs);
 
-    my ($simpleFailure, $simpleOffenders) = simpleLoopCarriedDependencyCheck( $reads,$writes,$loopVarsQ); # TODO
+    my ($simpleFailure, $simpleOffenders) = simpleLoopCarriedDependencyCheck( $reads,$writes,$loopVarsQ); 
 
     return $simpleFailure 
         ? $inDepthFailure  
@@ -929,10 +947,10 @@ sub loopCarriedDependency_readExprCheck { my (
     )=@_; # [[Expr Anno]]
 
 
-    my ($linear_noDep, $linear_depFound, $d1_, $d2_) = loopCarriedDependency_linearCheckEvaluate( [$loopIterTable], $loopVars, $readIndexExprs, $writtenIndexExprs, [empty, empty], [{}]); # TODO
+    my ($linear_noDep, $linear_depFound, $d1_, $d2_) = loopCarriedDependency_linearCheckEvaluate( [$loopIterTable], $loopVars, $readIndexExprs, $writtenIndexExprs, [empty, empty], [{}]); 
 
     my $loopIterTable_optimised = optimiseLoopIterTable( $loopIterTable, {}, $loopVars, $readIndexExprs, $writtenIndexExprs);
-    my ($exhaustive_offendBool, $d3_, $d4_) = @{loopCarriedDependency_exhaustiveEvaluate( $loopIterTable_optimised, $loopVars, $readIndexExprs, $writtenIndexExprs, [$False, empty, empty], {})}; # TODO
+    my ($exhaustive_offendBool, $d3_, $d4_) = @{loopCarriedDependency_exhaustiveEvaluate( $loopIterTable_optimised, $loopVars, $readIndexExprs, $writtenIndexExprs, [$False, empty, empty], {})};
 
     return $linear_noDep 
         ? $oldOffendingExprs
@@ -960,7 +978,7 @@ sub optimiseLoopIterTable {my  ($tuple_table, $valueTable, $loopVars, $readIndex
         my $read_chosenVarMask = maskOnVarNameUsage( $chosenVar ,$readIndexExprs);
         my $written_chosenVarMask = maskOnVarNameUsage( $chosenVar, $writtenIndexExprs);
 
-        my $varAffectsOutcome = cmpArrayAccessExprs($read_chosenVarMask, $written_chosenVarMask);
+        my $varAffectsOutcome = cmpExprLists($read_chosenVarMask, $written_chosenVarMask);
 
         my $iterTable_recurseList = map {
                 my $item = $_;
@@ -986,34 +1004,49 @@ sub optimiseLoopIterTable {my  ($tuple_table, $valueTable, $loopVars, $readIndex
 }
 
 # This seems to check if the var in ArrayAccessExpr matches chosenVar. If so, it wipes LineID; otherwise, it wipes the entire record.
-# maskOnVarNameUsage :: VarName Anno -> [ArrayAccessExpr] -> {array expression strings}
-    
+# maskOnVarNameUsage :: VarName Anno -> [ArrayAccessExpr] -> {array expression strings as a set}
 sub maskOnVarNameUsage { my ($chosenVar,$array_access_exprs) = @_;
-my $array_expr_strs={};
-map {
-    my ($array_access_expr)=$_;
-    if (varNameUsed($chosenVar, $array_access_expr) ) {
-        my ($var, $line_id,$rec) = @{$array_access_expr};
-        for my $array_expr_str (keys %{$rec->{'Exprs'}}) {        
-            $array_expr_strs->{$array_expr_str}=1;
-        }
-    } 
-} @{$array_access_exprs};
+    my $array_expr_strs={};
+    map {
+        my ($array_access_expr)=$_;
+        if (varNameUsed($chosenVar, $array_access_expr) ) {
+            my ($var, $line_id,$rec) = @{$array_access_expr};
+            for my $array_expr_str (keys %{$rec->{'Exprs'}}) {        
+                $array_expr_strs->{$array_expr_str}=1;
+            }
+        } 
+    } @{$array_access_exprs};
 return $array_expr_strs;
 }
 
-sub cmpArrayAccessExprs { my ($exprs1,$exprs2) = @_;
-
-if (scalar keys %{$exprs1} !=scalar keys %{$exprs2} ) {
-    return 0;
-}
-# at least they are the same size.
-for my $expr1 (keys %{$exprs1}) {
-    if (not exists $exprs2->{$expr1}) {
+# We take an ArrayAccessExpr and take 
+sub cmpArrayAccessExpr {
+    my ($aaexpr1,$aaexpr2) = @_;
+    my $exprs1 =$aaexpr1->[2]{'Exprs'};
+    my $exprs2 =$aaexpr2->[2]{'Exprs'};
+    if (scalar keys %{$exprs1} !=scalar keys %{$exprs2} ) {
         return 0;
     }
+    # at least they are the same size.
+    for my $expr1 (keys %{$exprs1}) {
+        if (not exists $exprs2->{$expr1}) {
+            return 0;
+        }
+    }
+    return 1;    
 }
-return 1;
+
+sub cmpExprLists { my ($exprs1,$exprs2) = @_;
+    if (scalar keys %{$exprs1} !=scalar keys %{$exprs2} ) {
+        return 0;
+    }
+    # at least they are the same size.
+    for my $expr1 (keys %{$exprs1}) {
+        if (not exists $exprs2->{$expr1}) {
+            return 0;
+        }
+    }
+    return 1;
 }
 # varNameUsed :: VarName -> ArrayAccessExpr -> Bool
 # my $array_access_expr = [
@@ -1031,7 +1064,7 @@ sub varNameUsed {my ($chosenVar,$array_access_expr) = @_;
 }
 
 # collapseIterTable :: TupleTable -> TupleTable
-collapseIterTable {my ($tuple_table) = @_;
+sub collapseIterTable {my ($tuple_table) = @_;
 my $iterTable = fromLoopIterRecord $tuple_table;
 my $allowedValues = keys %{$iterTable};
 my $subTables = map {
@@ -1048,78 +1081,90 @@ my $subTables = map {
         );
 }
 # insertIfNotRepresented :: Int -> TupleTable -> TupleTable -> TupleTable
-insertIfNotRepresented {my ($key,$newItem, $tuple_table)=  @_;
-if (isEmpty $tuple_table) {
-LoopIterRecord (DMap.insert key newItem DMap.empty)
-} elsif (
-isLoopIterRecord $tuple_table
-) {
-    my $table = fromLoopIterRecord $tuple_table;
-    my $representedItems = map { 
-        my $x=$_;
-        findWithDefault(empty,$x,$table);
-    } sort keys %{$table};
-    if (not elem( $newItem,$representedItems)) {
-        loopIterRecord(insert($key,$newItem,$table));
-    } else {
-        loopIterRecord( $table);
+sub insertIfNotRepresented {my ($key,$newItem, $tuple_table)=  @_;
+    if (isEmpty $tuple_table) {
+        loopIterRecord(insert( $key,$newItem,{}));
+    } elsif (isLoopIterRecord $tuple_table) {
+        my $table = fromLoopIterRecord $tuple_table;
+        my $representedItems = map { 
+            my $x=$_;
+            findWithDefault(empty,$x,$table);
+        } sort keys %{$table};
+        if (not elem( $newItem,$representedItems)) {
+            loopIterRecord(insert($key,$newItem,$table));
+        } else {
+            loopIterRecord( $table);
+        }
     }
-}
 }
 
 # The evalation of the possible index values is performed here and the loop dependency analysis checks performed.
 # ARGUMENTS (in order)
-#     TupleTable ---------------------Loop iterator table that is traversed as the recursion goes deeper. A value for the iterator at this 'level' of the table is selected
-#                                     and inserted into the 'value table' so that when the indices in question are evaluated, the value for that iterator variable is available.
-#      [VarName Anno] -----------------Loop variables list used to determine which loop iterator variable is the current one at this level of recursion. This allows for the correct
-#                                     variable name to be assigned a value in the value table from the current level of the loop iterator table.
-#      [Expr Anno] --------------------The indices that the current variable is READ at.
-#      [Expr Anno] --------------------The indices that the current variable is WRITTEN at.
-#      (Bool, TupleTable, TupleTable) -Since this is a fold, this is the accumulator. Bool is whether a dependency exists, the TupleTables are all of the resolved/evaluated index
-#                                     positions for all of the READS and WRITES (respecitvely) that have been calculated so far.
-#      ValueTable ---------------------A set of assigned values for the loop iterator variables that allows for indices that use loop iterators to be evaluated.
-#      (Bool, TupleTable, TupleTable) -Return type. Bool is whether a dependency exists, the TupleTables are all of the resolved/evaluated index
-#                                     positions for all of the READS and WRITES (respecitvely) that have been calculated so far.
-loopCarriedDependency_exhaustiveEvaluate :: TupleTable -> [VarName Anno] -> [Expr Anno] -> [Expr Anno] -> (Bool, TupleTable, TupleTable) -> ValueTable -> (Bool, TupleTable, TupleTable)
-loopCarriedDependency_exhaustiveEvaluate Empty loopVars readIndexExprs writtenIndexExprs (prevCheck, prevReads, prevWrites) valueTable =
-            (prevCheck || depExistsBool, newReads, newWrites)
-            where
-                identcalExprs = map (applyGeneratedSrcSpans) readIndexExprs == map (applyGeneratedSrcSpans) writtenIndexExprs
-                vt_elems = length (DMap.keys valueTable)
+# TupleTable -----Loop iterator table that is traversed as the recursion goes deeper. A value for the iterator at this 'level' of the table is selected and inserted into the 'value table' so that when the indices in question are evaluated, the value for that iterator variable is available.
+#  [VarName Anno] -Loop variables list used to determine which loop iterator variable is the current one at this level of recursion. This allows for the correct variable name to be assigned a value in the value table from the current level of the loop iterator table.
+#  [Expr Anno] ----The indices that the current variable is READ at.
+#  [Expr Anno] ----The indices that the current variable is WRITTEN at.
+#  (Bool, TupleTable, TupleTable) -Since this is a fold, this is the accumulator. Bool is whether a dependency exists, the TupleTables are all of the resolved/evaluated index positions for all of the READS and WRITES (respecitvely) that have been calculated so far.
+#  ValueTable -----A set of assigned values for the loop iterator variables that allows for indices that use loop iterators to be evaluated.
+#  (Bool, TupleTable, TupleTable) -Return type. Bool is whether a dependency exists, the TupleTables are all of the resolved/evaluated index positions for all of the READS and WRITES (respecitvely) that have been calculated so far.
 
-                reads_eval = map (evaluateExpr valueTable) readIndexExprs
-                writes_eval = map (evaluateExpr valueTable) writtenIndexExprs
+# loopCarriedDependency_exhaustiveEvaluate :: TupleTable -> [VarName Anno] -> [Expr Anno] -> [Expr Anno] -> (Bool, TupleTable, TupleTable) -> ValueTable -> (Bool, TupleTable, TupleTable)
+sub loopCarriedDependency_exhaustiveEvaluate { my ($tt, $loopVars, $readIndexExprs, $writtenIndexExprs, $prevCheck_prevReads_prevWrites, $valueTable) = @_;
+    my ($prevCheck,$prevReads, $prevWrites) = @{$prevCheck_prevReads_prevWrites};
+    if (isEmpty $tt) {
+        my $identcalExprs = cmpArrayAccessExpr(readIndexExprs,writtenIndexExprs);
+        my $vt_elems = length (keys %{$valueTable});
 
-                (readsEvaluated, reads_fromMaybe) = foldl (convertFromMaybe_foldl) (True, []) reads_eval
-                (writesEvaluated, writes_fromMaybe) = foldl (convertFromMaybe_foldl) (True, []) writes_eval
+        my $reads_eval = evaluateExprs($valueTable,$readIndexExprs); # This is ArrayAccessExpr
+        my $writes_eval = evaluateExprs($valueTable,$writtenIndexExprs);
 
-                reads_fromMaybe_int = (map (round) reads_fromMaybe)
-                writes_fromMaybe_int = (map (round) writes_fromMaybe)
+        my ($readsEvaluated, $reads_fromMaybe) = @{foldl (\&convertFromMaybe_foldl, [$True, []], reads_eval)};
+        my ($writesEvaluated, $writes_fromMaybe) = @{foldl (\&convertFromMaybe_foldl, [$True, []], writes_eval)};
 
-                readPreviouslyWritten = case lookupTupleTable reads_fromMaybe_int prevWrites of
-                    Just a -> True
-                    Nothing -> False
-                writePreviouslyRead = case lookupTupleTable writes_fromMaybe_int prevReads of
-                    Just a -> True
-                    Nothing -> False
+        my $reads_fromMaybe_int = map {round($_)} @{$reads_fromMaybe};
+        my $writes_fromMaybe_int = map {round($_)} @{$writes_fromMaybe};
 
-                newReads = insertIntoTupleTable reads_fromMaybe_int prevReads
-                newWrites = insertIntoTupleTable writes_fromMaybe_int prevWrites
-                depExistsBool = (not identcalExprs) && (readPreviouslyWritten || writePreviouslyRead || (not readsEvaluated) || (not writesEvaluated))
+        my $readPreviouslyWritten = case( lookupTupleTable( $reads_fromMaybe_int, $prevWrites), [
+                [\&isJust , $True],
+                [\&isNothing , $False]
+                ]);
+        my $writePreviouslyRead = case( lookupTupleTable( $writes_fromMaybe_int, $prevReads), [
+                [\&isJust , $True],
+                [\&isNothing , $False]
+                ]);
+        my $newReads = insertIntoTupleTable($reads_fromMaybe_int, $prevReads);
+        my $newWrites = insertIntoTupleTable($writes_fromMaybe_int, $prevWrites);
+        my $depExistsBool = (not $identcalExprs) && ($readPreviouslyWritten || $writePreviouslyRead || (not $readsEvaluated) || (not $writesEvaluated));
+        return [$prevCheck || $depExistsBool, $newReads, $newWrites];
 
-loopCarriedDependency_exhaustiveEvaluate (LoopIterRecord iterTable) loopVars readIndexExprs writtenIndexExprs previousAnalysis valueTable = if loopVars == []  then error "loopCarriedDependency_exhaustiveEvaluate" else analysis
-            where
-                allowedValues = DMap.keys iterTable
-                valueTableIterations = map (\x -> addToValueTable (chosenVar) (fromIntegral x :: Float) valueTable) allowedValues
-                accessIterTable = (\x -> DMap.findWithDefault Empty x iterTable)
+    } elsif (isLoopIterRecord $tt) {
+    # loopCarriedDependency_exhaustiveEvaluate (LoopIterRecord iterTable) loopVars readIndexExprs writtenIndexExprs previousAnalysis valueTable = 
+        my $iterTable = fromLoopIterRecord $tt;
+        my $allowedValues = keys %{$iterTable};
+        my $chosenVar = head $loopVars;
+        my $newLoopVars = tail $loopVars;
+        my $valueTableIterations = map {addToValueTable( $chosenVar, $_, $valueTable)} @{$allowedValues};
+        my $accessIterTable = sub { my ($x)=@_;
+            findWithDefault( empty,$x,$iterTable);
+        };
 
-                chosenVar = head loopVars
-                newLoopVars = tail loopVars
+        my $exprs1_chosenVarMask = maskOnVarNameUsage $chosenVar,$readIndexExprs;
+        my $exprs2_chosenVarMask = maskOnVarNameUsage $chosenVar,$writtenIndexExprs;
 
-                exprs1_chosenVarMask = maskOnVarNameUsage chosenVar readIndexExprs
-                exprs2_chosenVarMask = maskOnVarNameUsage chosenVar writtenIndexExprs
-
-                analysis = foldl (\accum (table, value) -> loopCarriedDependency_exhaustiveEvaluate (accessIterTable value) newLoopVars readIndexExprs writtenIndexExprs accum table) previousAnalysis (zip valueTableIterations allowedValues)
+        my $analysis = foldl( sub {
+            my ($accum, $table_value) = @_;
+            my ($table,$value) = @{$table_value};
+            loopCarriedDependency_exhaustiveEvaluate( $accessIterTable->($value), $newLoopVars, $readIndexExprs, $writtenIndexExprs, $accum, $table);
+        }, $prevCheck_prevReads_prevWrites
+        , zip( $valueTableIterations,$allowedValues)
+        );
+        if (null $loopVars) { 
+            error( "loopCarriedDependency_exhaustiveEvaluate"); 
+        } else {
+            return $analysis;
+        }
+    }
+} # END of loopCarriedDependency_exhaustiveEvaluate
 
 # This function performs a similar operation to loopCarriedDependency_exhaustiveEvaluate, except it is attempting to prove that loop carried dependencies DO NOT exist. This process only works for array index expressions that are linear functions (only made up using + or -) using only loop iterators and constants but allows for the analysis to be performed in constant time with respect to the number of loop iterations.
 # The optimisation works on the idea that linear functions follow a very simple pattern. By tracking the indices that are written to and the indices that are read, the function continues analysing until it reaches a situation where there is a crossover in the domains of the reads and writes. If there has been no detected dependency by the time the domains have crossed over, there will never be any dependencies because the functions are linear. The crossover is characterised by the write index tuple with the largest values being larger than the read index tuple with the largest values and vice versa (largestRead > smallestWrite AND largestWrite > smallestRead)
@@ -1144,18 +1189,17 @@ sub loopCarriedDependency_linearCheckEvaluate { my (
         my $vt = head $vt_valueTables; # ValueTable is { String => [Float, BaseType]}
         my $valueTables = tail $vt_valueTables;
         if (isEmpty $tt) {
-            # TODO!!! I think we do the same thing as before: take the expression strings and compare them
-            my $identcalExprs = map (applyGeneratedSrcSpans) readIndexExprs == map (applyGeneratedSrcSpans) writtenIndexExprs
-            my $vt_elems = length([keys %{vt}]);
-
-            my $reads_eval = mapf(sub {evaluateExpr($vt,@_)},$readIndexExprs);
-            my $writes_eval = mapf(sub {evaluateExpr($vt,@_)},$writtenIndexExprs);
+            my $identcalExprs = cmpArrayAccessExpr(readIndexExprs,writtenIndexExprs);
+            my $vt_elems = length([keys %{$vt}]);
+            # $reads_eval :: [Maybe Float]
+            my $reads_eval = evaluateExprs($vt,$readIndexExprs);
+            my $writes_eval = evaluateExprs($vt,$writtenIndexExprs);
 
             my ($readsEvaluated, $reads_fromMaybe) = @{foldl (\&convertFromMaybe_foldl, [$True, []] ,$reads_eval)};
             my ($writesEvaluated, $writes_fromMaybe) = @{foldl (\&convertFromMaybe_foldl, [$True, []] ,$writes_eval)};
 
-            my $reads_fromMaybe_int = map(\&round,$reads_fromMaybe);
-            my $writes_fromMaybe_int = map(\&round,$writes_fromMaybe);
+            my $reads_fromMaybe_int = mapf(\&round,$reads_fromMaybe);
+            my $writes_fromMaybe_int = mapf(\&round,$writes_fromMaybe);
 
             my $readPreviouslyWritten = case( lookupTupleTable( $reads_fromMaybe_int,$prevWrites), [
                 [\&isJust, $True],
@@ -1185,27 +1229,60 @@ sub loopCarriedDependency_linearCheckEvaluate { my (
                 : $analysis_nextIter;
         } elsif (isLoopIterRecord $tt) {
             my $iterTable = fromLoopIterRecord $tt;
-    # loopCarriedDependency_linearCheckEvaluate ((LoopIterRecord iterTable):tts) loopVars readIndexExprs writtenIndexExprs previousAnalysis (vt:valueTables)     
+    # loopCarriedDependency_linearCheckEvaluate ((LoopIterRecord iterTable):tts) loopVars readIndexExprs writtenIndexExprs prevReads_prevWrites (vt:valueTables)     
                 # where
             my $allowedValues = [keys %{$iterTable}];
-            # TODO
-            my $valueTableIterations = map (\x -> addToValueTable (chosenVar) (fromIntegral x :: Float) vt) allowedValues
-            my $iterTableIterations = map (accessIterTable) $allowedValues;
-            my $accessIterTable = sub { (\x -> findWithDefault( empty $x $iterTable) };
 
             my $chosenVar = head $loopVars;
             my $newLoopVars = tail $loopVars;
+            my $valueTableIterations = map {addToValueTable( $chosenVar, $_, $vt)} @{$allowedValues};
+            my $accessIterTable = sub { my ($x)=@_; findWithDefault( empty, $x, $iterTable) };
+            my $iterTableIterations = mapf ($accessIterTable, $allowedValues);
 
-            my ($analysis_noDepBool,$analysis_depBool,$analysis_reads,$analysis_writes) = @{loopCarriedDependency_linearCheckEvaluate($iterTableIterations, $newLoopVars, $readIndexExprs, $writtenIndexExprs, $previousAnalysis, $valueTableIterations)} ;# previousAnalysis (zip valueTableIterations allowedValues)
+            my ($analysis_noDepBool,$analysis_depBool,$analysis_reads,$analysis_writes) = @{
+                loopCarriedDependency_linearCheckEvaluate($iterTableIterations, $newLoopVars, $readIndexExprs, $writtenIndexExprs, $prevReads_prevWrites, $valueTableIterations)
+            } ;
             my $analysis_nextIter = loopCarriedDependency_linearCheckEvaluate($tts, $loopVars, $readIndexExprs, $writtenIndexExprs, [$analysis_reads, $analysis_writes], $valueTables);
-            # TODO
-            |    (analysis_noDepBool || analysis_depBool) = (analysis_noDepBool, analysis_depBool, analysis_reads, analysis_writes)
-            |    otherwise = analysis_nextIter
+            if ($analysis_noDepBool || $analysis_depBool) {
+                return [$analysis_noDepBool, $analysis_depBool, $analysis_reads, $analysis_writes];
+            } else {
+                $analysis_nextIter;
+            }
         } 
     }
+} # END of loopCarriedDependency_linearCheckEvaluate
+# evaluateExprs :: ValueTable -> ArrayAccessExpr -> [Maybe Float]
+sub evaluateExprs { my ($vt,$arrayAccessExpr) = @_;
+    my $eval_exprs = [];
+    my $exprs = $arrayAccessExpr->[2];
+    # the value table is e.g. {'i' => [3,'int'],...}
+    # Accesses has the access for each offset string
+    for my $k (sort keys %{$exprs->{'Accesses'}}){
+        # The access for each iterator
+        for my $iter_idx_str (sort keys %{$exprs->{'Accesses'}{$k}}) {
+            my ($mult,$offset) = @{$exprs->{'Accesses'}{$k}{$iter_idx_str}};
+            my ($iter, $idx) = split(/:/,$iter_idx_str);
+            if (not exists $vt->{$iter}) {
+                # croak "No value for iterator $iter!";
+                push @{$eval_exprs},nothing;
+            }
+            my ($iter_val,$t)=$vt->{$iter};
+            my $expr_val = $iter_val*$mult+$offset;
+            push @{$eval_exprs},just($expr_val);
+        }
+    }
+    return $eval_exprs;
 }
-
-                        
+# convertFromMaybe_foldl :: (Bool, [a]) -> Maybe(a) -> (Bool, [a])
+sub convertFromMaybe_foldl { my ($prevCheck_prevList, $mt) = @_;
+    my ($prevCheck,$prevList) = @{$prevCheck_prevList};
+    if (isJust $mt) {
+        my $item = fromJust $mt;
+        [$prevCheck && $True, append($prevList,$item)];
+    } elsif (isNothing $mt) {
+        [$False, $prevList];
+    }
+}
 #    Type used to colate data on variable accesses throughout a program.
 #                        All reads     All writes
 # type VarAccessRecord = ([SrcSpan],     [SrcSpan])
@@ -1252,326 +1329,7 @@ sub getEarliestLineId { my ($block_line_ids) = @_;
     }
     return $earliest_line_id;
 }
-=pod
-# getEarliestSrcSpan :: [SrcSpan] -> Maybe(SrcSpan)
-getEarliestSrcSpan [] = Nothing
-getEarliestSrcSpan spans = Just (foldl (\accum item -> if checkSrcSpanBefore item accum then item else accum) (spans!!0) spans)
 
-# getLatestSrcSpan :: [SrcSpan] -> Maybe(SrcSpan)
-getLatestSrcSpan [] = Nothing
-getLatestSrcSpan spans = Just (foldl (\accum item -> if checkSrcSpanBefore item accum then accum else item) (spans!!0) spans)
-
-# checkSrcLocEqualLines :: SrcLoc -> SrcLoc -> Bool
-checkSrcLocEqualLines (SrcLoc _ l1 _) (SrcLoc _ l2 _) = l1 == l2
-
-# getEarliestSrcLoc :: [SrcLoc] -> Maybe(SrcLoc)
-getEarliestSrcLoc [] = Nothing
-getEarliestSrcLoc locs = Just (foldl (\accum item -> if checkSrcLocBefore item accum then item else accum) (locs!!0) locs)
-
-# checkSrcLocBefore :: SrcLoc -> SrcLoc -> Bool
-checkSrcLocBefore (SrcLoc file_before line_before column_before) (SrcLoc file_after line_after column_after) =  (line_before < line_after) || ((line_before == line_after) && (column_before < column_after))
-
-# checkSrcSpanAfter :: SrcSpan -> SrcSpan -> Bool
-checkSrcSpanAfter ((SrcLoc file_before line_before column_before), _) (_, (SrcLoc file_after line_after column_after)) = (line_before > line_after) || ((line_before == line_after) && (column_before > column_after))
--- checkSrcSpanAfter ((SrcLoc file_before line_before column_before), _) ((SrcLoc file_after line_after column_after), _) = (line_before > line_after) || ((line_before == line_after) && (column_before > column_after))
-
-# checkSrcSpanBefore :: SrcSpan -> SrcSpan -> Bool
-checkSrcSpanBefore (_, (SrcLoc file_before line_before column_before)) ((SrcLoc file_after line_after column_after), _) = (line_before < line_after) || ((line_before == line_after) && (column_before < column_after))
--- checkSrcSpanBefore ((SrcLoc file_before line_before column_before), _) ((SrcLoc file_after line_after column_after), _) = (line_before < line_after) || ((line_before == line_after) && (column_before < column_after))
-
-# checkSrcSpanBefore_line :: SrcSpan -> SrcSpan -> Bool
-checkSrcSpanBefore_line ((SrcLoc file_before line_before column_before), beforeEnd) ((SrcLoc file_after line_after column_after), afterEnd) = (line_before < line_after)
-
-# checkSrcSpanContainsSrcSpan :: SrcSpan -> SrcSpan -> Bool
-checkSrcSpanContainsSrcSpan ((SrcLoc _ outerLS outerCS), (SrcLoc _ outerLE outerCE)) ((SrcLoc _ innerLS innerCS), (SrcLoc _ innerLE innerCE)) = outerStartsBefore && outerEndsAfter
-        where
-            outerStartsBefore = (outerLS < innerLS)|| (outerLS == innerLS && outerCS < innerCS)
-            outerEndsAfter = (outerLE > innerLE)|| (outerLE == innerLE && outerCE > innerCE)
-
-
-
-
-# getAccessLocationsInsideSrcSpan :: VarAccessAnalysis -> VarName Anno -> SrcSpan -> ([SrcSpan], [SrcSpan])
-getAccessLocationsInsideSrcSpan accessAnalysis accessVar src = (readsInside, writesInside)
-        where
-            localVarAccesses = (getAccessesInsideSrcSpan ((\(x:xs,_,_,_) -> x) accessAnalysis) src)
-            -- (reads, writes) = DMap.findWithDefault (error "getAccessLocationsBeforeSrcSpan: doesn't exist") accessVar localVarAccesses
-
-            (readsInside, writesInside) = DMap.findWithDefault ([], []) accessVar localVarAccesses
-            -- readsInside = filter (\x -> checkSrcSpanContainsSrcSpan src x) reads
-            -- writesInside = filter (\x -> checkSrcSpanContainsSrcSpan src x) writes
-
-# getAccessesBetweenSrcSpansIgnore :: VarAccessAnalysis -> SrcSpan -> SrcSpan -> [SrcSpan] -> ([VarName Anno], [VarName Anno])
-getAccessesBetweenSrcSpansIgnore accessAnalysis (_,startLoc) (endLoc,_) skipSrcs = getAccessesBetweenManySrcSpans accessAnalysis allowedSrcSpans -- ([], [])
-        where
-            sortedSkipSrcs = sortBy srcSpanCompare skipSrcs
-            allowedSrcSpans = getAccessesBetweenSrcSpansIgnoreBuildSrcSpans startLoc endLoc skipSrcs
-
-getAccessesBetweenSrcSpansIgnoreBuildSrcSpans :: SrcLoc -> SrcLoc -> [SrcSpan] -> [(SrcLoc, SrcLoc)]
-getAccessesBetweenSrcSpansIgnoreBuildSrcSpans prevEndLoc finalEndLoc [] = [(prevEndLoc, finalEndLoc)]
-getAccessesBetweenSrcSpansIgnoreBuildSrcSpans prevEndLoc finalEndLoc ((startLoc, endLoc):skipSrcs) = [(prevEndLoc, startLoc)] ++ getAccessesBetweenSrcSpansIgnoreBuildSrcSpans endLoc finalEndLoc skipSrcs
-
-# srcSpanCompare :: SrcSpan -> SrcSpan -> Ordering
-srcSpanCompare ((SrcLoc f1 l1 c1), _) ((SrcLoc f2 l2 c2), _)     |    l1 < l2 || (l1 == l2 && c1 < c2)     = LT
-                                                                |    l1 > l2 || (l1 == l2 && c1 > c2)     = GT
-                                                                |    l1 == l2 && c1 == c2                 = EQ
-
-# getAccessesBetweenManySrcSpans ::  VarAccessAnalysis -> [(SrcLoc, SrcLoc)] -> ([VarName Anno], [VarName Anno])
-getAccessesBetweenManySrcSpans accessAnalysis [] = ([],[])
-getAccessesBetweenManySrcSpans accessAnalysis ((startLoc, endLoc):srcs) = ((listConcatUnique currentReads followingReads), (listConcatUnique currentWrites followingWrites))
-        where
-            (currentReads, currentWrites) = getAccessesBetweenSrcSpans accessAnalysis startLoc endLoc
-            (followingReads, followingWrites) = getAccessesBetweenManySrcSpans accessAnalysis srcs
-
-# getAccessLocationsBeforeSrcSpan :: VarAccessAnalysis -> VarName Anno -> SrcSpan -> ([SrcSpan], [SrcSpan])
-getAccessLocationsBeforeSrcSpan accessAnalysis accessVar src = (readsBefore, writesBefore)
-        where
-            localVarAccesses = (\(x:xs,_,_,_) -> x) accessAnalysis
-            -- (reads, writes) = DMap.findWithDefault (error "getAccessLocationsBeforeSrcSpan: doesn't exist") accessVar localVarAccesses
-            (reads, writes) = DMap.findWithDefault ([], []) accessVar localVarAccesses
-            readsBefore = filter (\x -> checkSrcSpanBefore x src) reads
-            writesBefore = filter (\x -> checkSrcSpanBefore x src) writes
-
-# getAccessLocationsAfterSrcSpan :: VarAccessAnalysis -> VarName Anno -> SrcSpan -> ([SrcSpan], [SrcSpan])
-getAccessLocationsAfterSrcSpan
- accessAnalysis accessVar src = (readsAfter, writesAfter)
-        where
-            localVarAccesses = (\(x:xs,_,_,_) -> x) accessAnalysis
-            -- (reads, writes) = DMap.findWithDefault (error "getAccessLocationsAfterSrcSpan: doesn't exist") accessVar localVarAccesses
-            (reads, writes) = DMap.findWithDefault ([], []) accessVar localVarAccesses
-            readsAfter = filter (\x -> checkSrcSpanAfter x src) reads
-            writesAfter = filter (\x -> checkSrcSpanAfter x src) writes
-
-# getAccessesAfterSrcSpan :: VarAccessAnalysis -> SrcLoc -> ([VarName Anno], [VarName Anno])
-getAccessesAfterSrcSpan accessAnalysis startLoc = (reads, writes)
-        where
-            localVarAccesses = (\(x:xs,_,_,_) -> x) accessAnalysis
-            allVars = DMap.keys localVarAccesses
-            reads = filter (varReadAfterSrcLoc localVarAccesses startLoc) allVars
-            writes = filter (varWrittenAfterSrcLoc localVarAccesses startLoc) allVars
-
-# varWrittenAfterSrcLoc :: LocalVarAccessAnalysis -> SrcLoc -> VarName Anno -> Bool
-varWrittenAfterSrcLoc localVarAccesses loc var = appearance
-        where
-            writes = map (snd) (snd (DMap.findWithDefault ([],[]) var localVarAccesses) )
-            appearance = foldl (\accum item -> accum || ((checkSrcLocBefore loc item) )) False writes
-
-# varReadAfterSrcLoc :: LocalVarAccessAnalysis -> SrcLoc -> VarName Anno -> Bool
-varReadAfterSrcLoc localVarAccesses loc var = appearance
-        where
-            reads = map (fst) (fst (DMap.findWithDefault ([],[]) var localVarAccesses)) 
-            appearance = foldl (\accum item -> accum || ((checkSrcLocBefore loc item) )) False reads
-
-# getAccessesBeforeSrcSpan :: VarAccessAnalysis -> SrcLoc -> ([VarName Anno], [VarName Anno])
-getAccessesBeforeSrcSpan accessAnalysis endLoc = getAccessesBetweenSrcSpans accessAnalysis (SrcLoc "" 0 0) endLoc
-
-# getAccessesBetweenSrcSpans :: VarAccessAnalysis -> SrcLoc -> SrcLoc -> ([VarName Anno], [VarName Anno])
-getAccessesBetweenSrcSpans accessAnalysis startLoc endLoc = (reads, writes)
-        where
-            localVarAccesses = (\(x:xs,_,_,_) -> x) accessAnalysis
-            allVars = DMap.keys localVarAccesses
-            reads = filter (varReadInRange localVarAccesses startLoc endLoc) allVars
-            writes = filter (varWrittenInRange localVarAccesses startLoc endLoc) allVars
-
-# varReadInRange :: LocalVarAccessAnalysis -> SrcLoc -> SrcLoc -> VarName Anno -> Bool
-varReadInRange localVarAccesses startLoc endLoc var = appearance
-        where
-            reads = map (fst) (fst (DMap.findWithDefault ([],[]) var localVarAccesses)) 
-            appearance = foldl (\accum item -> accum || ((checkSrcLocBefore startLoc item) && (checkSrcLocBefore item endLoc))) False reads
-
-# varWrittenInRange :: LocalVarAccessAnalysis -> SrcLoc -> SrcLoc -> VarName Anno -> Bool
-varWrittenInRange localVarAccesses startLoc endLoc var = appearance
-        where
-            writes = map (fst) (snd (DMap.findWithDefault ([],[]) var localVarAccesses) )
-            appearance = foldl (\accum item -> accum || ((checkSrcLocBefore startLoc item) && (checkSrcLocBefore item endLoc))) False writes
-
-# checkSrcLocBefore
-
-# getArguments :: Program Anno -> [VarName Anno]
-getArguments prog = argNames
-        where
-            argNames = everything (++) (mkQ [] getArgNamesAsVarNames) prog 
-
-# getArguments_list :: Arg Anno -> [VarName Anno]
-getArguments_list arg = everything (++) (mkQ [] getArgNamesAsVarNames) arg
-
-# getArgNamesAsVarNames :: ArgName Anno -> [VarName Anno]
-getArgNamesAsVarNames (ArgName _ str) = [VarName nullAnno str]
-getArgNamesAsVarNames _ = []
-
-# getDeclaredVarNames :: Decl Anno -> [VarName Anno]
-getDeclaredVarNames (Decl _ _ lst _) = foldl (\accum (expr1, _, _) -> accum ++ extractVarNames expr1) [] lst
-getDeclaredVarNames decl = []
-
-# analyseAllVarValues_fortran :: Fortran Anno -> LocalVarValueAnalysis
-analyseAllVarValues_fortran (Assg _ src expr1 expr2) = foldl (\accum item -> appendToMap item (src, expr2) accum) DMap.empty varnames
-                                where
-                                    varnames = extractVarNames expr1
-analyseAllVarValues_fortran _ = DMap.empty
-
-# analyseAllVarAccess_block :: [String] -> [VarName Anno] -> Block Anno -> (LocalVarAccessAnalysis,LocalVarAccessAnalysis)
-analyseAllVarAccess_block ioWriteSubroutineNames declarations (Block _ _ _ _ _ fortran) = analyseAllVarAccess_fortran ioWriteSubroutineNames declarations (DMap.empty,DMap.empty) fortran
-
-
-# analyseAllVarAccess_fortran :: [String] -> [VarName Anno] -> (LocalVarAccessAnalysis,LocalVarAccessAnalysis) -> Fortran Anno ->  (LocalVarAccessAnalysis,LocalVarAccessAnalysis)
-# So this looks like the real work 
-analyseAllVarAccess_fortran ioWriteSubroutineNames declarations (prevAnalysis,prevAnalysis_io) codeSeg  = case codeSeg of
-                                    Assg _ _ writeExpr readExpr -> (analysisQ,DMap.empty)
-                                                where
-                                                    readExprs = extractOperands readExpr
-                                                    readVarNames = foldl (collectVarNames_foldl declarations) [] readExprs
-                                                    -- on the LHS the expr can never be a function call so it is easy
-                                                    writtenVarNames = extractVarNames writeExpr
-
-                                                    analysis = foldl (addVarReadAccess (srcSpan readExpr)) prevAnalysis readVarNames
-                                                    analysisQ = foldl (addVarWriteAccess (srcSpan writeExpr)) analysis writtenVarNames
-                                    If _ _ readExpr mainFortran elseList maybeFortran -> (analysisIncChildren,analysisIncChildren_io)
-                                                where
-                                                    readExprs = extractOperands readExpr
-                                                    readVarNames = foldl (collectVarNames_foldl declarations) [] readExprs
-
-                                                    elseListFortran = map (snd) elseList
-                                                    allFortran = case maybeFortran of
-                                                            Nothing -> mainFortran:elseListFortran
-                                                            Just finalElse -> mainFortran:finalElse:elseListFortran
-                                                        
-                                                    analysis = foldl (addVarReadAccess (srcSpan readExpr)) prevAnalysis readVarNames
-                                                    analysis_io = foldl (addVarReadAccess (srcSpan readExpr)) prevAnalysis_io readVarNames
-
-                                                    (analysisIncChildren_list,analysisIncChildren_io_list) = unzip $ map (analyseAllVarAccess_fortran ioWriteSubroutineNames declarations (analysis,analysis_io)) allFortran
-                                                    analysisIncChildren = foldl combineLocalVarAccessAnalysis analysis analysisIncChildren_list
-                                                    analysisIncChildren_io = foldl combineLocalVarAccessAnalysis analysis analysisIncChildren_io_list
-
-                                 ## Call p SrcSpan (Expr p) (ArgList p);                 
-                                    Call _ src callExpr argList -> analysis_tup
-                                                where
-                                                    subroutineName = if extractVarNames callExpr == [] 
-                                                        then (error "flattenSubroutineCall: callExpr\n" ++ (show callExpr))
-                                                        else varNameStr (head (extractVarNames callExpr))
-                                                    # IOWRITE
-                                                    # WV the plan is that any calls to subs that are not in the srcs in list on command will be 
-                                                    # treated as I/O and eventually lead to generation of oclRead calls
-                                                    # But only if they are not in the main loop.
-                                                    # TODO: for now I just add their names on command line with the -iowrite flag
-                                                    # We need to collect the arguments, identify which ones are written to the OpenCL device
-                                                    # and read these back before this call
-                                                    # What we need to do is replace the AST node for the sub call with a group (FSeq) with all OpenCLBufferRead statements
-                                                    # Best place to do this is where the other OpenCLBufferRead statements are added
-                                                    analysis_tup = 
-                                                        let
-                                                                extractedExprs = everything (++) (mkQ [] extractExpr_list) argList
-                                                                extractedOperands = foldl (\accum item -> accum ++ extractOperands item) [] extractedExprs
-                                                                #varNames :: [VarName Anno String]
-                                                                varNames = foldl (collectVarNames_foldl declarations) [] extractedOperands
-                                                                # So these names need to be saved and used later to compare them to the 
-                                                                # arguments of the kernel
-                                                        in
-                                                            if (subroutineName `elem` ioWriteSubroutineNames)
-                                                            then 
-                                                                let
-                                                                    analysis = foldl (addVarReadAccess src) prevAnalysis_io varNames
-                                                                    analysisQ = foldl (addVarWriteAccess src) analysis varNames
-                                                                in
-                                                                    #warning DMap.empty ("Subroutine "++subroutineName++" is an I/O Write subroutine, skipping analysis for "++(show analysisQ)++"\n")
-                                                                    # (prevAnalysis,warning analysisQ ("Subroutine "++subroutineName++" is an I/O Write subroutine, skipping analysis for "++(show analysisQ)++"\n"))
-                                                                    (prevAnalysis,analysisQ)
-                                                            else 
-                                                                let
-
-                                                        #    Both read and write since we don't know the intent inside the function/subroutine call.
-                                                        #    When the subtoutine is supplied to the compiler, this information is disregarded for
-                                                        #    more in depth analysis
-                                                                    analysis = foldl (addVarReadAccess src) prevAnalysis varNames
-                                                                    analysisQ = foldl (addVarWriteAccess src) analysis varNames
-                                                                in
-                                                                    (analysisQ,prevAnalysis_io)
-
-
-                                    _ -> (analysisIncChildren ,analysisIncChildren_io)
-                                                where 
-                                                    extractedExprs = gmapQ (mkQ (Null nullAnno nullSrcSpan) extractExpr) codeSeg
-                                                    extractedOperands = foldl (\accum item -> accum ++ extractOperands item) [] extractedExprs
-                                                    readVarNames = foldl (collectVarNames_foldl declarations) [] extractedOperands
-
-                                                    analysis = foldl (addVarReadAccess (srcSpan codeSeg)) prevAnalysis readVarNames
-                                                    analysis_io = foldl (addVarReadAccess (srcSpan codeSeg)) prevAnalysis_io readVarNames
-                                                    (analysisIncChildren_list,analysisIncChildren_io_list) = unzip $ gmapQ (mkQ (DMap.empty,DMap.empty) (analyseAllVarAccess_fortran ioWriteSubroutineNames declarations (analysis,analysis_io))) codeSeg
-                                                    analysisIncChildren = foldl (combineLocalVarAccessAnalysis) DMap.empty analysisIncChildren_list
-                                                    analysisIncChildren_io = foldl (combineLocalVarAccessAnalysis) DMap.empty analysisIncChildren_io_list
-
-# WV: I guess the structure of the If is:
-# If  _ _ condition first_block [else_if cond more_blocks] (Maybe else_block)                                                    
-# If  p SrcSpan (Expr p) (Fortran p) [((Expr p),(Fortran p))] (Maybe (Fortran p))
-# WV: This is to deal with function calls. For these, we extract the arguments.
-# collectVarNames :: [VarName Anno] -> Expr Anno -> [VarName Anno]
-collectVarNames declarations item = varnames
-                        where
-                            fnCall = isFunctionCall_varNames f95IntrinsicFunctions declarations item
-                            fnArgs = extractContainedVars item
-                            varnames = case fnCall of
-                                True -> foldl (\accum item -> accum ++ extractVarNames item) [] fnArgs
-                                False -> extractVarNames item
-
-# collectVarNames_foldl :: [VarName Anno] -> [VarName Anno] -> Expr Anno -> [VarName Anno]
-collectVarNames_foldl declarations accum item = accum ++ collectVarNames declarations item
-
-# getValueAtSrcSpan :: VarName Anno -> SrcSpan -> VarAccessAnalysis -> Expr Anno
-getValueAtSrcSpan varname target_src (_, analysis, _, _) = valueAtSrc
-                                where
-                                    values = DMap.findWithDefault [] varname analysis
-                                    valueAtSrc = foldl (\accum (item_src, expr) -> if checkSrcSpanBefore item_src target_src then expr else accum) (NullExpr nullAnno nullSrcSpan) values
-
-# getAccessedExprs :: [VarName Anno] -> [Expr Anno] -> Expr Anno -> [Expr Anno]
-getAccessedExprs declarations accum item = case fnCall of
-                                            True ->    accum ++ extractContainedVars item
-                                            False -> accum ++ extractOperands item
-                                        where 
-                                            fnCall = isFunctionCall_varNames f95IntrinsicFunctions declarations item
-
-#      Recursive function to add a record of a read for a certain VarName
-# addVarReadAccess :: SrcSpan -> LocalVarAccessAnalysis -> VarName Anno -> LocalVarAccessAnalysis
-addVarReadAccess srcspan analysis varname = DMap.insert varname (newAccessRecord) analysis
-                                        where
-                                            (oldReads, oldWrites) = (DMap.findWithDefault ([],[]) varname analysis)
-                                            newAccessRecord = (oldReads ++ [srcspan], oldWrites)
-
-#      Recursive function to add a record of a write for a certain VarName
-# addVarWriteAccess :: SrcSpan -> LocalVarAccessAnalysis -> VarName Anno -> LocalVarAccessAnalysis
-addVarWriteAccess srcspan analysis varname = DMap.insert varname newAccessRecord analysis
-                                        where
-                                            (oldReads, oldWrites) = (DMap.findWithDefault ([],[]) varname analysis)
-                                            newAccessRecord = (oldReads, oldWrites ++ [srcspan])                                                        
-
-# combineVarAccessAnalysis :: VarAccessAnalysis -> VarAccessAnalysis -> VarAccessAnalysis
-combineVarAccessAnalysis analysis1 analysis2 = resultantAnalysis
-                        where
-                            ([varAccess1,varAccess1Q], varValue1, subArgs1, declared1) = analysis1
-                            ([varAccess2,varAccess2Q], varValue2, subArgs2, declared2) = analysis2
-                            varAccessComb = combineLocalVarAccessAnalysis varAccess1 varAccess2
-                            varAccessCombQ = combineLocalVarAccessAnalysis varAccess1Q varAccess2Q
-                            varValueComb = combineMaps varValue1 varValue2
-                            subArgsComb = subArgs1 ++ subArgs2
-                            declaredComb = declared1 ++ declared2
-
-                            resultantAnalysis = ([varAccessComb,varAccessCombQ], varValueComb, subArgsComb, declaredComb)
-
-# type VarAccessRecord = ([SrcSpan],     [SrcSpan])
-# type LocalVarAccessAnalysis = DMap.Map (VarName Anno) VarAccessRecord
-#     Helper function used to merge two sets of variable access analysis records.
-# combineLocalVarAccessAnalysis :: LocalVarAccessAnalysis -> LocalVarAccessAnalysis -> LocalVarAccessAnalysis
-combineLocalVarAccessAnalysis analysis1 analysis2 = resultantAnalysis
-                        where
-                            analysis2List = DMap.toList analysis2
-                            resultantAnalysis = foldl (\accum (key, value) -> DMap.insert key (combineBinaryListTuples (DMap.findWithDefault ([],[]) key accum) value) accum) analysis1 analysis2List
-
-# combineBinaryListTuples :: ([a], [b]) -> ([a], [b]) -> ([a], [b])
-combineBinaryListTuples (a1, b1) (a2, b2) = (a1 ++ a2, b1 ++ b2)
-
-# varHasSrcBefore :: SrcSpan -> LocalVarAccessAnalysis -> VarName Anno -> Bool
-varHasSrcBefore codeBlockSrcSpan localVarAccess var = foldl (\accum item -> accum || (checkSrcSpanBefore item codeBlockSrcSpan)) False varWrites
-        where
-            (varReads, varWrites) = DMap.findWithDefault ([],[]) var localVarAccess
-=cut
 #    The function is directly called by Transformer.hs when it is attempting to parallelise a certain loop. This function is supplied with a start
 #    and end point for a loop (SrcSpan) and the VarAccessAnalysis record for the program. The returned list is all of the VarNames that must be
 #    considdered non temporary for that loop. For a variable to be considered non temporary, it must either be an argument to this code block or
@@ -1981,7 +1739,13 @@ getLoopConditions codeSeg = case codeSeg of
 # extractWrites (Assg _ _ (Var _ _ list) _) = map (fst) list
 # extractWrites _ = []
 
-sub extractWrites_query{ my ($loop) = @_;
+sub srcSpan {my ($annlines) = @_;
+    return [
+        $annlines->[0][1]{'LineID'},
+        $annlines->[-1][1]{'LineID'},
+    ];
+}
+sub extractWrites_query { my ($loop) = @_;
     my @writes=();
     for my $annline (@{$loop}) {
         my ($line, $info) = @{$annline};
@@ -2062,8 +1826,6 @@ sub getItersFromVarAccessExpr { (my $var_expr) = @_;
     return $iters;
 }
 
-
-
 # constructDependencies :: VarDependencyAnalysis -> Fortran Anno -> VarDependencyAnalysis
 # constructDependencies prevAnalysis (Assg _ _ expr1 expr2) 
 
@@ -2072,7 +1834,6 @@ sub getItersFromVarAccessExpr { (my $var_expr) = @_;
 #     Type used to colate dependency data between variables within a particular block of code
 #                                         Variable A         depends on all these expressions
 # type VarDependencyAnalysis = DMap.Map (VarName Anno) [Expr Anno]
-
 
 # constructDependencies :: VarDependencyAnalysis -> Fortran Anno -> VarDependencyAnalysis
 sub constructDependencies { my ($prevAnalysis,  $annline)=@_;
@@ -2204,7 +1965,7 @@ sub isEmpty { my ($mt) = @_;
    }
 }
 
-sub isLoopIterRecord {
+sub isLoopIterRecord {  my ($mt) = @_; 
    if( $mt->[0] eq 'Empty') {
         return 1;
    }
@@ -2369,7 +2130,7 @@ sub head { my ($lst)=@_;
 sub tail { my ($lst)=@_;
     my @lst_ = @{$lst};
     if (scalar @lst_>0) {
-        shift @lst_
+        shift @lst_;
         return \@lst_;
     } else {
         croak "tail of empty list: ".Dumper($lst);
@@ -2399,7 +2160,7 @@ sub min { (my $v1, my $v2) =@_;
 }
 
 sub round { my ($v)=@_;
-    my $iv=int($v)
+    my $iv=int($v);
     my $rest = $v-$iv;    
     if ($rest<0.5) {
         $iv;
