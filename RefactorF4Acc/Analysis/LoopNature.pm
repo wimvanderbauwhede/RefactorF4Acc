@@ -1667,49 +1667,50 @@ sub combineAnalysisInfo { my ($accumAnalysis, $analysisInfoItem)=@_;
 # paralleliseLoop_reduce :: String -> Fortran Anno -> [VarName Anno] -> [VarName Anno]-> [VarName Anno] -> VarDependencyAnalysis -> VarAccessAnalysis -> (Bool, Fortran Anno)
 
 sub paralleliseLoop_reduce {
-    my ( $filename, $loop, $loopVarNames, $nonTempVars, $prexistingVars, $dependencies, $accessAnalysis ) = @_ ;
-    croak 'PLACEHOLDER';
-my $loopWrites = extractWrites_query $loop;
-my $loopAnalysis = analyseLoop_reduce( "Cannot reduce: ", [], [], $loopWrites, $nonTempVars, $prexistingVars, $dependencies, $accessAnalysis, $loop); # TODO
-my $errors_reduce = getErrorAnnotations $loopAnalysis;
-my $reductionVarNames = getReductionVarNames $loopAnalysis;
-my $reads_reduce = getReads $loopAnalysis;
-my $writes_reduce = getWrites $loopAnalysis;
+    my ( $filename, $loop, $loopVarNames, $nonTempVars, $prexistingVars, $dependencies, $accessAnalysis ) = @_;
 
-my ($loopCarriedDeps_bool,$evaluated_bool,$loopCarriedDeps) = @{loopCarriedDependencyCheck( $loop)};
+    my $loopWrites = extractWrites_query $loop;
+    my $loopAnalysis = analyseLoop_reduce( "Cannot reduce: ", [], [], $loopWrites, $nonTempVars, $prexistingVars, $dependencies, $accessAnalysis, $loop); # TODO
+    my $errors_reduce = getErrorAnnotations $loopAnalysis;
+    my $reductionVarNames = getReductionVarNames $loopAnalysis;
+    my $reads_reduce = getReads $loopAnalysis;
+    my $writes_reduce = getWrites $loopAnalysis;
 
-my $errors_reduceQ = $loopCarriedDeps_bool 
-    ? $evaluated_bool 
-        ? insert( $outputTab . "Cannot reduce: Loop carried dependency detected:\n",
-        formatLoopCarriedDependencies($loopCarriedDeps), $errors_reduce)
-        : insert( $outputTab . "Cannot reduce: Loop carried dependency possible (not evaluated):\n",
-        formatLoopCarriedDependencies($loopCarriedDeps),$errors_reduce) 
-    : $errors_reduce;
+    my ($loopCarriedDeps_bool,$evaluated_bool,$loopCarriedDeps) = @{loopCarriedDependencyCheck( $loop)};
 
-my $loopVariables = loopConditions_query $loop;
+    my $errors_reduceQ = $loopCarriedDeps_bool 
+        ? $evaluated_bool 
+            ? insert( $outputTab . "Cannot reduce: Loop carried dependency detected:\n",
+            formatLoopCarriedDependencies($loopCarriedDeps), $errors_reduce)
+            : insert( $outputTab . "Cannot reduce: Loop carried dependency possible (not evaluated):\n",
+            formatLoopCarriedDependencies($loopCarriedDeps),$errors_reduce) 
+        : $errors_reduce;
+
+    my $loopVariables = loopConditions_query $loop;
 # I have done constant folding and I assume constant loop bounds so these should all be empty!
-my $varNames_loopConditions = [];
-my $containedLoopIteratorVarNames = map {fst($_)} @{$loopVariables};
-my $reads_map_varnames = concat(map {extractVarNames($_)} @{$reads_reduce});
+    my $varNames_loopConditions = [];
+    my $containedLoopIteratorVarNames = map {fst($_)} @{$loopVariables};
+    my $reads_map_varnames = concat(map {extractVarNames($_)} @{$reads_reduce});
 
-my $readArgs = $reads_map_varnames ; # List of arguments to kernel that are READ
-    # readArgs = (listRemoveDuplications $ listSubtract reads_map_varnames (containedLoopIteratorVarNames ++ varNames_loopConditions)    )    # List of arguments to kernel that are READ;
-my $writes_map_varnames = concat (map extractVarNames writes_reduce);
-my $writtenArgs = listRemoveDuplications(  listSubtract( $writes_map_varnames, $containedLoopIteratorVarNames)); # List of arguments to kernel that are WRITTEN
-my $allReductionVarNames = foldl( sub { 
-    my ($accum,$item)=@_;
-    concat($accum, extractVarNames($item))} ,[], $reductionVarNames);
-my $reductionVarInfo = listRemoveDuplications(
-    foldl( sub {
+    my $readArgs = $reads_map_varnames ; # List of arguments to kernel that are READ
+        # readArgs = (listRemoveDuplications $ listSubtract reads_map_varnames (containedLoopIteratorVarNames ++ varNames_loopConditions)    )    # List of arguments to kernel that are READ;
+    my $writes_map_varnames = concat (map extractVarNames writes_reduce);
+    my $writtenArgs = listRemoveDuplications(  listSubtract( $writes_map_varnames, $containedLoopIteratorVarNames)); # List of arguments to kernel that are WRITTEN
+    my $allReductionVarNames = foldl( sub { 
         my ($accum,$item)=@_;
-        append($accum, [$item, getValueAtSrcSpan( $item, srcSpan($loop), $accessAnalysis)] );
-    }
-    , [], $allReductionVarNames)
-    
-    );
-# WV20170426
-my $iterLoopVariables=[];
-my $reductionCode = []; # TODO, a list with a single AnnLine, see 
+        concat($accum, extractVarNames($item))} ,[], $reductionVarNames);
+    my $reductionVarInfo = listRemoveDuplications(
+        foldl( sub {
+            my ($accum,$item)=@_;
+            append($accum, [$item, getValueAtSrcSpan( $item, srcSpan($loop), $accessAnalysis)] );
+        }
+        , [], $allReductionVarNames)
+        
+        );
+    # WV20170426
+    my $iterLoopVariables=[];
+        croak 'PLACEHOLDER';
+    my $reductionCode = []; # TODO, a list with a single AnnLine, see 
 # OpenCLReduce nullAnno (generateSrcSpan filename (srcSpan loop))   # WV20170426;
 #         readArgs            # List of arguments to kernel that are READ;
 #         writtenArgs         # List of arguments to kernel that are WRITTEN;
@@ -1797,22 +1798,45 @@ updateIterLoopVars :: [VarName Anno] -> Fortran Anno -> Fortran Anno
 updateIterLoopVars loopVarNames (OpenCLMap f1 f2 f3 f4 f5 ilvars stmt) = OpenCLMap f1 f2 f3 f4 f5 (ilvars++loopVarNames) stmt
 updateIterLoopVars loopVarNames (OpenCLReduce f1 f2 f3 f4 f5 ilvars f6 stmt) = OpenCLReduce f1 f2 f3 f4 f5 (ilvars++loopVarNames) f6 stmt
 updateIterLoopVars loopVarNames n = n
+=cut
 
---    Function takes a list of loop variables and a possible parallel loop's AST and returns a string that details the reasons why the loop doesn't represent a reduction. If the returned string is empty, the loop represents a possible parallel reduction
---    WV:  condExprs is used for the case of an assignment where the LHS is referenced in a condition of an if that encloses the assignment. It is part of the analysis to check if a variable depends on itself, not sure how it works. 
-analyseLoop_reduce :: String -> [Expr Anno] -> [VarName Anno] -> [VarName Anno] -> [VarName Anno] -> [VarName Anno] -> VarDependencyAnalysis -> VarAccessAnalysis -> Fortran Anno -> AnalysisInfo
+# Function takes a list of loop variables and a possible parallel loop's AST and returns a string that details the reasons why the loop doesn't represent a reduction. If the returned string is empty, the loop represents a possible parallel reduction
+# WV:  condExprs is used for the case of an assignment where the LHS is referenced in a condition of an if that encloses the assignment. It is part of the analysis to check if a variable depends on itself, not sure how it works. 
+# analyseLoop_reduce :: String -> [Expr Anno] -> [VarName Anno] -> [VarName Anno] -> [VarName Anno] -> [VarName Anno] -> VarDependencyAnalysis -> VarAccessAnalysis -> Fortran Anno -> AnalysisInfo
+sub analyseLoop_reduce { 
+    my ($stref, $f, $comment, $condExprs, $loopVars, $loopWrites, $nonTempVars, $prexistingVars, $dependencies, $accessAnalysis, $codeSeg, $block_id) = @_;
+    my $pass_analyseLoop_reduce = sub { my ($annline,$state) = @_;
+        my ($line,$info)=@{$annline};
+
+        (my $annlines,$state)=case( $codeSeg,[
+            [exists $info->{'If'} or exists $info->{'ElsIf'},sub {
+                'PLACEHOLDER';    
+            }],
+            [exists $info->{'Do'} or exists $info->{'ElsIf'},sub {
+                'PLACEHOLDER';    
+            }],
+            [exists $info->{'Assignment'} or exists $info->{'ElsIf'},sub {
+                'PLACEHOLDER';    
+            }],
+        ]);
+    
+        return [$annlines,$state];
+    };
+
+    my $state = $analysisInfoBaseCase;
+    (my $new_annlines,my $analysisInfo) = stateful_pass($codeSeg,$pass_analyseLoop_reduce,$state, "pass_analyseLoop_reduce($f)");
+
+    return $analysisInfo;
+    
+    }
+=pod
 analyseLoop_reduce comment condExprs loopVars loopWrites nonTempVars prexistingVars dependencies accessAnalysis codeSeg = case codeSeg of
---        If _ _ condExpr ifTrue elifList maybeElse -> foldl combineAnalysisInfo analysisInfoBaseCase ([condExprAnalysis] ++ (warning readWriteAnalysis (show readWriteAnalysis)) ++(warning [ifTrueAnalysis] (show ifTrueAnalysis)) ++ elifCondAnalysis ++ elifBodyAnalysis ++ [elseAnalysis]  )
---      If _ _     expr _      elifList maybeElse -> foldl combineAnalysisInfo analysisInfoBaseCase (readWriteAnalysis ++ elifAnalysis_fortran ++ elifAnalysis_readExprs ++ [elseAnalysis])
---        If _ _ condExpr ifTrue elifList maybeElse -> foldl combineAnalysisInfo analysisInfoBaseCase ( (warning readWriteAnalysis (show readWriteAnalysis)) ++(warning [ifTrueAnalysis] (show ifTrueAnalysis)) ++ elifBodyAnalysis ++ [elseAnalysis]  )
         If _ _ condExpr ifTrue elifList maybeElse -> foldl combineAnalysisInfo analysisInfoBaseCase ( [condExprAnalysis,ifTrueAnalysis] ++ elifCondAnalysis ++ elifBodyAnalysis ++ [elseAnalysis]  )
             where
                 recursiveCall condExprs_ = analyseLoop_reduce comment condExprs_ loopVars loopWrites nonTempVars prexistingVars dependencies accessAnalysis
---                readWriteAnalysis = gmapQ (mkQ analysisInfoBaseCase (recursiveCall (condExprs ++ [condExpr]))) codeSeg -- so this should call recursiveCall on all nodes of codeSeg, why?
-                condExprAnalysis = (nullAnno, [], extractOperands condExpr, []) -- AnalysisInfo tuple from the 'if' condition
+                condExprAnalysis = (nullAnno, [], extractOperands condExpr, []) # AnalysisInfo tuple from the 'if' condition
                 ifTrueAnalysis = (recursiveCall (condExprs++[condExpr])) ifTrue
-                --elifBodyAnalysis = map (\(elif_expr, elif_fortran) ->  (recursiveCall (condExprs ++ [elif_expr])) elif_fortran) elifList -- list of AnalysisInfo tuples from the body of each 'else if' branch
-                elifBodyAnalysis = map (\(elif_expr, elif_fortran) ->  (recursiveCall (condExprs++[elif_expr])) elif_fortran) elifList -- list of AnalysisInfo tuples from the body of each 'else if' branch
+                elifBodyAnalysis = map (\(elif_expr, elif_fortran) ->  (recursiveCall (condExprs++[elif_expr])) elif_fortran) elifList # list of AnalysisInfo tuples from the body of each 'else if' branch
                 elifCondAnalysis = map (\(elif_expr, _) -> (nullAnno, [], extractOperands elif_expr, [])) elifList -- list of AnalysisInfo tuples from the condition of each 'else if' branch
                 elseAnalysis = case maybeElse of
                                     Just else_fortran ->  (recursiveCall condExprs) else_fortran
@@ -1829,8 +1853,7 @@ analyseLoop_reduce comment condExprs loopVars loopWrites nonTempVars prexistingV
 
         Assg _ srcspan lhsExpr rhsExpr -> combineAnalysisInfo
                                             (errorMap3,
-                                            if potentialReductionVar then [lhsExpr] else [],
-                                            -- (warning prexistingReadExprs ("PRE-EXISTING READ EXPRS: "++(unwords (map miniPP prexistingReadExprs)))),
+                                            if potentialReductionVar then [lhsExpr] else [],                                            
                                             prexistingReadExprs, 
                                             if isNonTempAssignment then [lhsExpr] else []
                                             )                                            
@@ -1840,17 +1863,14 @@ analyseLoop_reduce comment condExprs loopVars loopWrites nonTempVars prexistingV
             where
                 writtenExprs = extractOperands lhsExpr
                 readOperands = listSubtract (extractOperands rhsExpr) (lhsExpr:(extractOperands lhsExpr))
-                -- WV so for some reason here only the array index expressions are extracted. I would think we need both.
-                -- WV so I concatenate readOperands with the array indices.
-                -- WV: TODO: if the read operand is an intrinsic function it should not be included I guess
---                readExprsRec = foldl (\accum item -> accum ++ (extractContainedVarsRec item)) []  readOperands 
+                # WV so for some reason here only the array index expressions are extracted. I would think we need both.
+                # WV so I concatenate readOperands with the array indices.
+                # WV: TODO: if the read operand is an intrinsic function it should not be included I guess
                 readExprs = readOperands ++ (foldl (\accum item -> accum ++ (extractContainedVars item)) [] readOperands)
---                readExprs = readOperands ++ (foldl (\accum item -> accum ++ (extractContainedVars item)) [] (warning readOperands $ "READ OPS:"++(show $ map miniPP readOperands) ) )
 
                 topLevelReadExprs = foldl (\accum item -> if isFunctionCall f95IntrinsicFunctions accessAnalysis item then accum ++ (extractContainedVars item) else accum ++ [item]) [] readOperands
-                -- WV: what does prexistingVars actually mean? 
+                # WV: what does prexistingVars actually mean? 
                 prexistingReadExprs = filter (usesVarName_list prexistingVars) readExprs
---                prexistingReadExprs = filter (usesVarName_list  (warning prexistingVars ("REDUCTION: PRE-EXISTING: "++(show (map (\(VarName _ v)->v) prexistingVars) )++"\nRHS FULL: "++(miniPP rhsExpr)++"\n"++ ("READ EXPRS: "++(show (map miniPP readExprs))++"\n")  ) )) readExprs 
 
                 dependsOnSelfOnce = length (filter (\item -> applyGeneratedSrcSpans item == applyGeneratedSrcSpans lhsExpr) topLevelReadExprs) == 1
 
@@ -1867,8 +1887,8 @@ analyseLoop_reduce comment condExprs loopVars loopWrites nonTempVars prexistingV
                 rhsExprAnalysis = (analyseLoopIteratorUsage comment loopVars loopWrites nonTempVars accessAnalysis rhsExpr)
                 doesNotUseFullLoopVar = (\(errorMap, _, _, _) -> errorMap /= nullAnno) lhsExprAnalysis
 
-                --    Potential reduction vars are those variables that fit the preliminary conditions for being a reduction varaiable (that is,
-                --    a variable to which some higher dimension of values are reduced into)
+                #    Potential reduction vars are those variables that fit the preliminary conditions for being a reduction varaiable (that is,
+                #    a variable to which some higher dimension of values are reduced into)
                 potentialReductionVar = isNonTempAssignment && (dependsOnSelf) && doesNotUseFullLoopVar
 
                 errorMap1 = DMap.empty
@@ -1895,7 +1915,7 @@ analyseLoop_reduce comment condExprs loopVars loopWrites nonTempVars prexistingV
 
         Call _ srcspan expr arglist -> (errorMap_call, [], [], argExprs) 
             where
-            -- WV: TODO: a function call should not mean that the reduction can't be parallelised!
+            # WV: TODO: a function call should not mean that the reduction can't be parallelised!
                 errorMap_call = DMap.insert (outputTab ++ comment ++ "Call to external function:\n")
                                                 [errorLocationFormatting srcspan ++ outputTab ++ outputExprFormatting expr]
                                                 DMap.empty
@@ -1905,13 +1925,14 @@ analyseLoop_reduce comment condExprs loopVars loopWrites nonTempVars prexistingV
                 recursiveCall = analyseLoop_reduce comment condExprs loopVars loopWrites nonTempVars prexistingVars dependencies accessAnalysis
                 codeSeg1Analysis = recursiveCall codeSeg1
                 codeSeg2Analysis = recursiveCall codeSeg2                
--- If it is not an If, For, Assg or Call, or (WV) FSeq
+# If it is not an If, For, Assg or Call, or (WV) FSeq
         _ -> foldl combineAnalysisInfo analysisInfoBaseCase (gmapQ (mkQ analysisInfoBaseCase (analyseLoop_reduce comment condExprs loopVars loopWrites nonTempVars prexistingVars dependencies accessAnalysis)) codeSeg)    
-
---    Applied to an expression, returns an AnalysisInfo loaded with an error if it does not use all of the loop iterators in some way. As in,
---    in a nested loop over 'i' and 'j', expression 'x(i) + 12' doesn't use the iterator 'j' and so the AnalysisInfo will report that. If
---    this error occurs when looking for a map then a map cannot be performed. if it is found while looking for a reduction, it is a sign that
---    this expression represents a reduction variable.
+=cut
+=pod
+#    Applied to an expression, returns an AnalysisInfo loaded with an error if it does not use all of the loop iterators in some way. As in,
+#    in a nested loop over 'i' and 'j', expression 'x(i) + 12' doesn't use the iterator 'j' and so the AnalysisInfo will report that. If
+#    this error occurs when looking for a map then a map cannot be performed. if it is found while looking for a reduction, it is a sign that
+#    this expression represents a reduction variable.
 analyseLoopIteratorUsage :: String -> [VarName Anno] -> [VarName Anno] -> [VarName Anno] -> VarAccessAnalysis -> Expr Anno -> AnalysisInfo
 analyseLoopIteratorUsage comment loopVars loopWrites nonTempVars accessAnalysis expr = (unusedIterMap, [],[],[])
                                 where
