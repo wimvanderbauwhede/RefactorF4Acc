@@ -273,8 +273,8 @@ sub identify_array_accesses_in_exprs { (my $stref, my $f) = @_;
 					
 					# Find all array accesses in the LHS and RHS AST.					
 					# carp 'BLOCK:',Dumper($state->{'Subroutines'}{ $f }{'Blocks'}{$block_id});
-					(my $lhs_ast, $state, my $lhs_accesses) = _find_array_access_in_ast($stref, $f, $block_id, $state, $info->{'Lhs'}{'ExpressionAST'},'Write',{});
-					(my $rhs_ast, $state, my $rhs_accesses) = _find_array_access_in_ast($stref, $f, $block_id, $state, $info->{'Rhs'}{'ExpressionAST'},'Read',{});
+					(my $lhs_ast, $state, my $lhs_accesses) = _find_var_access_in_ast($stref, $f, $block_id, $state, $info->{'Lhs'}{'ExpressionAST'},'Write',{});
+					(my $rhs_ast, $state, my $rhs_accesses) = _find_var_access_in_ast($stref, $f, $block_id, $state, $info->{'Rhs'}{'ExpressionAST'},'Read',{});
 					$info->{'Rhs'}{'VarAccesses'}=$rhs_accesses;
 					$info->{'Lhs'}{'VarAccesses'}=$lhs_accesses;
 
@@ -338,7 +338,7 @@ sub identify_array_accesses_in_exprs { (my $stref, my $f) = @_;
                 # FIXME: Surely conditions of if-statements can contain array accesses, so FIX THIS!
                 #say "IF statement, TODO: ".Dumper($info->{'CondExecExpr'});
                 my $cond_expr_ast = $info->{'CondExecExprAST'};
-                ($cond_expr_ast, $state, my $cond_accesses) = _find_array_access_in_ast($stref, $f, $block_id, $state, $cond_expr_ast,'Read',{});
+                ($cond_expr_ast, $state, my $cond_accesses) = _find_var_access_in_ast($stref, $f, $block_id, $state, $cond_expr_ast,'Read',{});
 				$info->{'VarAccesses'}=$cond_accesses;
             }
             elsif ( exists $info->{'Do'} ) {
@@ -446,13 +446,13 @@ v => { i => {offset, used}, j => ... }
 =cut
 # ============================================================================================================
 # FIXME: I think this does not deal with constant accesses
-sub _find_array_access_in_ast { (my $stref, my $f,  my $block_id, my $state, my $ast, my $rw, my $accesses)=@_;
+sub _find_var_access_in_ast { (my $stref, my $f,  my $block_id, my $state, my $ast, my $rw, my $accesses)=@_;
     if (ref($ast) eq 'ARRAY') {
 		for my  $idx (0 .. scalar @{$ast}-1) {
 			my $entry = $ast->[$idx];
 
 			if (ref($entry) eq 'ARRAY') {
-				(my $entry, $state) = _find_array_access_in_ast($stref,$f, $block_id, $state,$entry, $rw,$accesses);
+				(my $entry, $state) = _find_var_access_in_ast($stref,$f, $block_id, $state,$entry, $rw,$accesses);
 				$ast->[$idx] = $entry;
 			} else {
 				if ($idx==0 and (($entry & 0xFF)==10)) { #$entry eq '@'
@@ -514,7 +514,7 @@ sub _find_array_access_in_ast { (my $stref, my $f,  my $block_id, my $state, my 
 	}
 	return  ($ast, $state, $accesses);
 
-} # END of _find_array_access_in_ast
+} # END of _find_var_access_in_ast
 
 =info3
 
@@ -729,7 +729,7 @@ However, it does perform analysis:
 For every $array_var in  $state->{'Subroutines'}{ $f }{'Blocks'}{ $block_id }{'Arrays'}} it does the following:
 - It populates $stref->{'UniqueVarCounters'}. We use this to keep track of accesses to a variable for the purpose of creating unique names for TyTraCL
 - It tests if the access pattern for $array_var is a proper stencil:
-	- There is more than one access to an array, this is determined from $state->{'Subroutines'}{ $f }{'Blocks'}{ $block_id }{'Arrays'}{$array_var}{$rw}{'Accesses'}, see _find_array_access_in_ast()
+	- There is more than one access to an array, this is determined from $state->{'Subroutines'}{ $f }{'Blocks'}{ $block_id }{'Arrays'}{$array_var}{$rw}{'Accesses'}, see _find_var_access_in_ast()
 	- At least one of these accesses has a non-zero offset, this is determined from $state->{'Subroutines'}{ $f }{'Blocks'}{ $block_id }{'Arrays'}{$array_var}{$rw}{'Accesses'}
 	- All points in the array are processed in order, this is determined by checking $state->{'Subroutines'}{ $f }{'Blocks'}{ $block_id }{'Arrays'}{$array_var}{$rw}{'Iterators'} for '?', see _find_iters_in_array_idx_expr()
 	There outcome is put in %stencils (1 or 0)

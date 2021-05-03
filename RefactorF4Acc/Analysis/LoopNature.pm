@@ -540,19 +540,19 @@ sub analyseLoop_map {
             my $lhsExprAnalysis = analyseLoopIteratorUsage( $comment, $loopVars, $loopWrites, $nonTempVars, $accessAnalysis, $lhsExprInfo);
             my $isNonTempAssignment = usesVarName_list( $nonTempVars, $lhsExprInfo->{'VarAccesses'});
             # readOperands :: [Expr]
-            my $readOperands=createExprListFromVarAccesses($rhsExprInfo->{'VarAccesses'},$rhsExprInfo->{'LineID'}, 'Read');
+            my $readOperands=createExprListFromVarAccesses($rhsExprInfo->{'VarAccesses'},$info->{'LineID'}, 'Read');
             # my $readOperands = extractOperands( $rhsExprInfo);
             # WV: not sure if this should not be the same as for the Reduction
             my $readExprs = foldl(
                 sub { my ($accum,$item) = @_;
-                return [@{$accum},@{extractContainedVars($item)},$item];
+                    [@{$accum},@{extractContainedVars($item)},$item];
                 }
                 , [], $readOperands
                 );
             my $prexistingReadExprs = filter( 
                 sub {
                     my ($readExpr)=@_;
-                    return usesVarName_list($prexistingVars,$readExpr);
+                        usesVarName_list($prexistingVars,$readExpr);
                     }, $readExprs);
             $state = fold( \&combineAnalysisInfo,  $state, [
                 $lhsExprAnalysis, 
@@ -1808,35 +1808,164 @@ sub analyseLoop_reduce {
     my $pass_analyseLoop_reduce = sub { my ($annline,$state) = @_;
         my ($line,$info)=@{$annline};
 
-        (my $annlines,$state)=case( $codeSeg,[
-            [exists $info->{'If'} or exists $info->{'ElsIf'},sub {
-                'PLACEHOLDER';    
-            }],
-            [exists $info->{'Do'} or exists $info->{'ElsIf'},sub {
-                'PLACEHOLDER';    
-            }],
-            [exists $info->{'Assignment'} or exists $info->{'ElsIf'},sub {
-                'PLACEHOLDER';    
-            }],
-        ]);
+        if (exists $info->{'If'} or exists $info->{'ElsIf'}) {
+            my $readOperands=createExprListFromVarAccesses($info->{'VarAccesses'}, $info->{'LineID'},'Read');
+            my $condExprAnalysis = [{}, [], $readOperands, []]; # AnalysisInfo tuple from the 'if' condition            
+            $state = combineAnalysisInfo( $state, $condExprAnalysis);
+
+        }
+        if (exists $info->{'Do'}) {
+             
+        }
+        if (exists $info->{'Assignment'}) {
+            my $line_id = $info->{'LineID'};
+            my $lhsExprInfo = $info->{'Lhs'};
+            my $rhsExprInfo = $info->{'Rhs'};
+            # writtenExprs = extractOperands lhsExpr
+            # Because lhsExpr can only be a scalar or array expr, and extractOperands does not go into a Var, this will actually simply do [lhsExpr]
+            # extractOperands rhsExpr should return all Var Exprs from the RHS
+            # So I think the listSubtract should simply be
+            # readOperands = listSubtract (extractOperands rhsExpr) writtenExprs
+            # The idea is that readOperands does not contain any var that is both read and write
+            # This next step goes into the array expression and essentially will extract the iterators because I only support static linear array index exprs
+            # So in our notation we should turn the Iterators into scalar vars [$iter, $line_id,{Exprs=>{$iter => $iter}}]
+            my $writtenExprs=createExprListFromVarAccesses($lhsExprInfo->{'VarAccesses'},$info->{'LineID'}, 'Write');
+            croak Dumper($writtenExprs) if scalar @{$writtenExprs} != 1;
+            my $lhsExpr = $writtenExprs->[0];
+            my $readOperandsQ=createExprListFromVarAccesses($rhsExprInfo->{'VarAccesses'},$info->{'LineID'}, 'Read');
+            my $readOperands = grep { $_ ne  $writtenExprs->[0][0] } @{$readOperandsQ};
+            
+            my $readExprs = [@{$readOperands}, @{ foldl( sub { my ($accum,$item) =@_; [@{$accum}, @{extractIterators($item)}]},[] ,$readOperands)}];
+            # VarAccesses already has all var accesses in the entire AST, including function call args, so I think we have an identity here
+            my $topLevelReadExprs = $readOperands;
+            my $prexistingReadExprs = filter(sub { my ($var_expr)=@_; usesVarName_list( $prexistingVars,$var_expr) },$readExprs);
+            # This checks if the LHS expr occurs on the RHS
+            my $dependsOnSelfOnce = length(filter( sub { my ($item) =@_; cmpExprLists([$item],$writtenExprs)},$topLevelReadExprs)) == 1;
+
+            my $isNonTempAssignment = usesVarName_list($nonTempVars,$lhsExpr);
+            # What does hasOperand do? 
+            # I assume this checks of the LHS expr occurs in an outer conditional statement, because that is a Read
+            # if (v(i)==a) {
+            #     v(i) = 2*a
+            # }
+            # This is a write-depends-on-read dependency but not a reduction 
+            my $referencedInOuterConditionalStatement = foldlOr( $False , mapf( sub { my ($x) =@_; hasOperand( $x,$lhsExpr)},$condExprs));
+            # This checks if the LHS expr occurs in the RHS expr. So this is the same as dependsOnSelfOnce except that it is also True for more than once, e.g.
+            # v(i) = sqrt(max(v(i),tmax)*min(v(i),tmin)) will be False for dependsOnSelfOnce bu True for referencedSelf
+            # Now, the above is an iteration, not a reduction. A reduction would be 
+            # tmax_min =sqrt(max(v(i),fst(tmax_min))*min(v(i),snd(tmax_min)))
+            # Or of course
+            # tmax_min(i) =sqrt(max(v(i,j),fst(tmax_min(i)))*min(v(i,j),snd(tmax_min(i))))
+            
+            my $referencedSelf = hasOperand( $readOperandsQ,$lhsExpr);
+            # FIXME: What we need to do is find the AST node of the expression on the RHS that contains the lhsExpr, so the scalar or more likely array access
+            # We should use the AST for this
+            # I seem some complication here: unless we restrict this to known operators and functions, there is no way of knowing that it is associative
+            # Also, if the LHS expr is the arg of a function with a single argument, we should look at the containing expr.
+            my $associative = isAssociativeExpr($lhsExprInfo->{'ExpressionAST'},$rhsExprInfo->{'ExpressionAST'}); # TODO
+
+            my $dependsOnSelf = $referencedSelf || $referencedInOuterConditionalStatement || $dependsOnSelfOnce 
+                                            || foldOr($False, mapf( sub { my ($x) =@_; isIndirectlyDependentOn( $dependencies,head(extractVarNames($x)),$x)}, $writtenExprs));
+            my $lhsExprAnalysis = analyseLoopIteratorUsage( $comment, $loopVars, $loopWrites, $nonTempVars, $accessAnalysis, $lhsExprInfo);
+            my $rhsExprAnalysis = analyseLoopIteratorUsage( $comment, $loopVars, $loopWrites, $nonTempVars, $accessAnalysis, $rhsExprInfo);
+                        
+            my $doesNotUseFullLoopVar = scalar keys %{$lhsExprAnalysis->[0]}>0;
+
+            #    Potential reduction vars are those variables that fit the preliminary conditions for being a reduction varaiable (that is,
+            #    a variable to which some higher dimension of values are reduced into)
+            my $potentialReductionVar = $isNonTempAssignment && $dependsOnSelf && $doesNotUseFullLoopVar;
+
+            my $errorMap1 = {};
+            my $errorMap2 = $potentialReductionVar && not $dependsOnSelfOnce
+                ? insert($outputTab . $comment . "Possible reduction variables must only appear once on the right hand side of an assignment:\n",
+                                                        [$line_id . $outputTab . outputExprFormatting( $lhsExprInfo)],
+                                                        $errorMap1)
+                : $errorMap1;
+            my $errorMap3 =  $dependsOnSelfOnce && $potentialReductionVar && not $associative 
+            ? insert ($outputTab . $comment . "Not associative function:\n",
+                                                        [$line_id . $outputTab . outputExprFormatting( $rhsExprInfo)],
+                                                        $errorMap2)
+            : $errorMap2;
+            combineAnalysisInfo([$errorMap3,
+                                    $potentialReductionVar ? [$lhsExpr] : [],
+                                    $prexistingReadExprs, 
+                                    $isNonTempAssignment ? [$lhsExpr] : []
+                        ], not $potentialReductionVar ?
+                                        $lhsExprAnalysis
+                                        : $analysisInfoBaseCase);
+
+            # $state = fold( \&combineAnalysisInfo,  $state, [
+            #     $lhsExprAnalysis, 
+            #     [{},[],$prexistingReadExprs, $isNonTempAssignment ? [$lhsExprInfo->{'VarAccesses'}] : []] 
+            #     ] );        
+
+
+
+        }
     
-        return [$annlines,$state];
+        return [[$annline],$state];
     };
 
     my $state = $analysisInfoBaseCase;
     (my $new_annlines,my $analysisInfo) = stateful_pass($codeSeg,$pass_analyseLoop_reduce,$state, "pass_analyseLoop_reduce($f)");
 
     return $analysisInfo;
-    
+
+}
+
+sub extractIterators { (my $var_expr)=@_;
+    my $line_id = $var_expr->[1];
+    my $iter_pairs =  $var_expr->[2]{'Iterators'};
+    my $iters = map {my ($iter,$idx)=split(/:/,$_);$iter} @{$iter_pairs};
+    my $iter_var_exprs = map { my $iter=$_;[$iter,$line_id,{Exprs=>{$iter => $iter}}]} @{$iters};
+    return $iter_var_exprs;
+} 
+
+sub hasOperand { my ($var_expr_container, $var_expr_contains )=@_;
+    # The contains expr must be one that has a single key in Exprs
+    if (scalar keys %{$var_expr_contains->[2]{'Exprs'}} !=1 ) {
+        return 0;
     }
+    # No keys in Exprs
+    if (scalar keys %{$var_expr_container->[2]{'Exprs'}} ==0 ) {
+        return 0;
+    }
+
+    my $exprs_container = $var_expr_container->[2]{'Exprs'}
+    my ($expr_contains, $offsets) = each %{$var_expr_contains->[2]{'Exprs'}};
+    if (exists $exprs_container->{$expr_contains}) {
+        return 1;
+    } else {
+        return 0;
+    }
+}
+
+
+sub cmpExprLists { my ($exprs1,$exprs2) = @_;
+    if (scalar keys %{$exprs1} !=scalar keys %{$exprs2} ) {
+        return 0;
+    }
+    # at least they are the same size.
+    for my $expr1 (keys %{$exprs1}) {
+        if (not exists $exprs2->{$expr1}) {
+            return 0;
+        }
+    }
+    return 1;
+}
+
 =pod
+--    Function takes a list of loop variables and a possible parallel loop's AST and returns a string that details the reasons why the loop
+--    doesn't represent a reduction. If the returned string is empty, the loop represents a possible parallel reduction
+--    WV:  condExprs is used for the case of an assignment where the LHS is referenced in a condition of an if that encloses the assignment. It is part of the analysis to check if a variable depends on itself, not sure how it works. 
+analyseLoop_reduce :: String -> [Expr Anno] -> [VarName Anno] -> [VarName Anno] -> [VarName Anno] -> [VarName Anno] -> VarDependencyAnalysis -> VarAccessAnalysis -> Fortran Anno -> AnalysisInfo
 analyseLoop_reduce comment condExprs loopVars loopWrites nonTempVars prexistingVars dependencies accessAnalysis codeSeg = case codeSeg of
         If _ _ condExpr ifTrue elifList maybeElse -> foldl combineAnalysisInfo analysisInfoBaseCase ( [condExprAnalysis,ifTrueAnalysis] ++ elifCondAnalysis ++ elifBodyAnalysis ++ [elseAnalysis]  )
             where
                 recursiveCall condExprs_ = analyseLoop_reduce comment condExprs_ loopVars loopWrites nonTempVars prexistingVars dependencies accessAnalysis
-                condExprAnalysis = (nullAnno, [], extractOperands condExpr, []) # AnalysisInfo tuple from the 'if' condition
+                condExprAnalysis = (nullAnno, [], extractOperands condExpr, []) -- AnalysisInfo tuple from the 'if' condition
                 ifTrueAnalysis = (recursiveCall (condExprs++[condExpr])) ifTrue
-                elifBodyAnalysis = map (\(elif_expr, elif_fortran) ->  (recursiveCall (condExprs++[elif_expr])) elif_fortran) elifList # list of AnalysisInfo tuples from the body of each 'else if' branch
+                elifBodyAnalysis = map (\(elif_expr, elif_fortran) ->  (recursiveCall (condExprs++[elif_expr])) elif_fortran) elifList -- list of AnalysisInfo tuples from the body of each 'else if' branch
                 elifCondAnalysis = map (\(elif_expr, _) -> (nullAnno, [], extractOperands elif_expr, [])) elifList -- list of AnalysisInfo tuples from the condition of each 'else if' branch
                 elseAnalysis = case maybeElse of
                                     Just else_fortran ->  (recursiveCall condExprs) else_fortran
@@ -1862,7 +1991,8 @@ analyseLoop_reduce comment condExprs loopVars loopWrites nonTempVars prexistingV
                                                 else analysisInfoBaseCase)
             where
                 writtenExprs = extractOperands lhsExpr
-                readOperands = listSubtract (extractOperands rhsExpr) (lhsExpr:(extractOperands lhsExpr))
+                readExprsQ = extractOperands rhsExpr
+                readOperands = listSubtract readExprsQ (lhsExpr:writtenExprs)
                 # WV so for some reason here only the array index expressions are extracted. I would think we need both.
                 # WV so I concatenate readOperands with the array indices.
                 # WV: TODO: if the read operand is an intrinsic function it should not be included I guess
@@ -1902,17 +2032,6 @@ analyseLoop_reduce comment condExprs loopVars loopWrites nonTempVars prexistingV
                                                 [errorLocationFormatting srcspan ++ outputTab ++ outputExprFormatting rhsExpr]
                                                 errorMap2
                                             else errorMap2
-                errorMapDebug = DMap.insert (outputTab ++ comment ++ "Debug:\n")
-                                                ["lhsExpr: " ++ outputExprFormatting lhsExpr ++ "\n" ++
-                                                "potentialReductionVar: " ++ show potentialReductionVar ++ "\n" ++
-                                                "isNonTempAssignment: " ++ show isNonTempAssignment ++ "\n" ++
-                                                "dependsOnSelf: " ++ show dependsOnSelf ++ "\n" ++
-                                                "dependsOnSelfOnce: " ++ show dependsOnSelfOnce ++ "\n" ++
-                                                "doesNotUseFullLoopVar: " ++ show doesNotUseFullLoopVar ++ "\n" ++
-                                                "nonTempVars: " ++ show nonTempVars ++ "\n\n"
-                                                ] 
-                                                errorMap3
-
         Call _ srcspan expr arglist -> (errorMap_call, [], [], argExprs) 
             where
             # WV: TODO: a function call should not mean that the reduction can't be parallelised!
@@ -2272,7 +2391,27 @@ sub appendToMap { my ($key, $item, $table) = @_;
 sub listRemoveDuplications { ordered_union(@_); }
 
 # This is the set of all members of $aref not in $bref
-sub listSubtract { my ($aref,$bref) = @_;
+sub 
+--    Function takes a list of loop variables and a possible parallel loop's AST and returns a string that details the reasons why the loop
+--    doesn't represent a reduction. If the returned string is empty, the loop represents a possible parallel reduction
+--    WV:  condExprs is used for the case of an assignment where the LHS is referenced in a condition of an if that encloses the assignment. It is part of the analysis to check if a variable depends on itself, not sure how it works. 
+analyseLoop_reduce :: String -> [Expr Anno] -> [VarName Anno] -> [VarName Anno] -> [VarName Anno] -> [VarName Anno] -> VarDependencyAnalysis -> VarAccessAnalysis -> Fortran Anno -> AnalysisInfo
+analyseLoop_reduce comment condExprs loopVars loopWrites nonTempVars prexistingVars dependencies accessAnalysis codeSeg = case codeSeg of
+--        If _ _ condExpr ifTrue elifList maybeElse -> foldl combineAnalysisInfo analysisInfoBaseCase ([condExprAnalysis] ++ (warning readWriteAnalysis (show readWriteAnalysis)) ++(warning [ifTrueAnalysis] (show ifTrueAnalysis)) ++ elifCondAnalysis ++ elifBodyAnalysis ++ [elseAnalysis]  )
+--      If _ _     expr _      elifList maybeElse -> foldl combineAnalysisInfo analysisInfoBaseCase (readWriteAnalysis ++ elifAnalysis_fortran ++ elifAnalysis_readExprs ++ [elseAnalysis])
+--        If _ _ condExpr ifTrue elifList maybeElse -> foldl combineAnalysisInfo analysisInfoBaseCase ( (warning readWriteAnalysis (show readWriteAnalysis)) ++(warning [ifTrueAnalysis] (show ifTrueAnalysis)) ++ elifBodyAnalysis ++ [elseAnalysis]  )
+        If _ _ condExpr ifTrue elifList maybeElse -> foldl combineAnalysisInfo analysisInfoBaseCase ( [condExprAnalysis,ifTrueAnalysis] ++ elifCondAnalysis ++ elifBodyAnalysis ++ [elseAnalysis]  )
+            where
+                recursiveCall condExprs_ = analyseLoop_reduce comment condExprs_ loopVars loopWrites nonTempVars prexistingVars dependencies accessAnalysis
+--                readWriteAnalysis = gmapQ (mkQ analysisInfoBaseCase (recursiveCall (condExprs ++ [condExpr]))) codeSeg -- so this should call recursiveCall on all nodes of codeSeg, why?
+                condExprAnalysis = (nullAnno, [], extractOperands condExpr, []) -- AnalysisInfo tuple from the 'if' condition
+                ifTrueAnalysis = (recursiveCall (condExprs++[condExpr])) ifTrue
+                --elifBodyAnalysis = map (\(elif_expr, elif_fortran) ->  (recursiveCall (condExprs ++ [elif_expr])) elif_fortran) elifList -- list of AnalysisInfo tuples from the body of each 'else if' branch
+                elifBodyAnalysis = map (\(elif_expr, elif_fortran) ->  (recursiveCall (condExprs++[elif_expr])) elif_fortran) elifList -- list of AnalysisInfo tuples from the body of each 'else if' branch
+                elifCondAnalysis = map (\(elif_expr, _) -> (nullAnno, [], extractOperands elif_expr, [])) elifList -- list of AnalysisInfo tuples from the condition of each 'else if' branch
+                elseAnalysis = case maybeElse of
+                                    Just else_fortran ->  (recursiveCall condExprs) else_fortran
+                                    Nothing -> analysisInfoBaseCase { my ($aref,$bref) = @_;
     ordered_difference($bref,$aref);
 }
 
