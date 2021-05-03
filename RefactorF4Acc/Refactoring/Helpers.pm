@@ -340,37 +340,56 @@ sub get_f95_var_decl {
     my $subset = in_nested_set($Sf, 'Vars', $var); # Should tell us exactly where we are
 
     if ($subset ne '' and exists $Sf->{$subset}{'Set'}{$var} and ref($Sf->{$subset}{'Set'}{$var}) eq 'HASH') {
-    		my $Sv = $Sf->{ $subset }{'Set'}{$var};
+    		my $decl = $Sf->{ $subset }{'Set'}{$var};
         	if ( exists $Sf->{'ConflictingLiftedVars'}{$var} ) {
             	$nvar = $Sf->{'ConflictingLiftedVars'}{$var};
             	say "WARNING: CONFLICT for VAR $var in $subset, setting var name to $nvar in format_f95_var_decl()!" if $WW;
-				croak Dumper($Sv) if $DBG;
+				croak Dumper($decl) if $DBG;
         	}
-	        $spaces =$Sv->{'Indent'};
-	        $spaces =~ s/\S.*$//;
-	        $dim = $Sv->{'Dim'};
-	        $type  = $Sv->{'Type'};
-	        $attr  = $Sv->{'Attr'};
-	        $intent = $Sv->{'IODir'};     
-            $array_or_scalar = $Sv->{'ArrayOrScalar'};           
-    } elsif ( defined $f and defined $stref and defined $var ) {        
+            if (not exists $decl->{'Names'}) {
+        croak "WARNING: VAR $var has no Names field in get_f95_var_decl()!" if $DBG;
+        carp "WARNING: VAR $var has no Names field in get_f95_var_decl()!" if $WW;                
+                $decl->{'Names'}=[$nvar];
+            }
+        # 'Names' => [$nvar],
+            if (not exists $decl->{'Name'}) {
+        croak "WARNING: VAR $var has no Name field in get_f95_var_decl()!" if $DBG;
+        carp "WARNING: VAR $var has no Name field in get_f95_var_decl()!" if $WW;                
+                $decl->{'Name'}=$nvar;
+            }
+        # 'Name' => $nvar,
+            $decl->{'Status'} = 1;
+            return $decl;
+            
+	        # $spaces =$decl->{'Indent'};
+	        # $spaces =~ s/\S.*$//;
+	        # $dim = $decl->{'Dim'};
+	        # $type  = $decl->{'Type'};
+	        # $attr  = $decl->{'Attr'};
+	        # $intent = $decl->{'IODir'};     
+            # $array_or_scalar = $decl->{'ArrayOrScalar'};           
+
+    } elsif ( defined $f and defined $stref and defined $var ) {   
+        croak "WARNING: VAR $var declared via IMPLICITS in get_f95_var_decl()!" if $DBG;
+        carp "WARNING: VAR $var declared via IMPLICITS in get_f95_var_decl()!" if $WW;
         ( $type, my $kind, $attr ) = type_via_implicits( $stref, $f, $var );
+        return {
+            'Indent' => $spaces,
+            'Type' => $type,
+            'Attr' => $attr,
+            'Dim' => $dim,
+            'IODir' => $intent,
+            'ArrayOrScalar' => $array_or_scalar,
+            'Names' => [$nvar],
+            'Name' => $nvar,
+            'Status' => 1
+        };        
     } else {
         croak
 "Can't type $var, not in Vars and format_f95_var_decl() called the wrong way for implicits" if $DBG;
     }
 
-    return {
-        'Indent' => $spaces,
-        'Type' => $type,
-        'Attr' => $attr,
-        'Dim' => $dim,
-        'IODir' => $intent,
-        'ArrayOrScalar' => $array_or_scalar,
-        'Names' => [$nvar],
-        'Name' => $nvar,
-        'Status' => 1
-    };
+
 
 }    # get_f95_var_decl()
 

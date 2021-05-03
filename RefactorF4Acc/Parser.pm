@@ -253,7 +253,7 @@ sub analyse_lines {
 
 			# Handle !$ACC on individual line
 			if ( $lline =~ /^\!\s*\$(?:ACC|RF4A)\s.+$/i ) {				
-				( $stref, $info ) = __handle_acc( $stref, $f, $index, $lline );
+				( $stref, $info ) = __handle_acc_pragma( $stref, $f, $index, $lline );
 			}
 			if (exists $info->{'AccPragma'}{'BeginKernel'}) {
 				$Sf->{'HasKernelRegion'}=1;
@@ -680,7 +680,7 @@ SUBROUTINE
                 $info->{'SpecificationStatement'} = 1; 
                 $info->{'HasVars'} = 1; 
 				
-				( my $parsedvars, my $parsedvars_lst ) = f77_var_decl_parser( $commonlst, 0 );
+				( my $parsedvars, my $parsedvars_lst ) = __parse_F77_var_decl_fsm( $commonlst, 0 );
 				# say "LINE $line <".Dumper($parsedvars, $parsedvars_lst).'>' if $f eq 'spec_bis_conn';
 
 #				croak $line.':'.Dumper($parsedvars) if $line=~/iacn11/ and $f eq 'ff305';				
@@ -960,7 +960,7 @@ or $line=~/^character\s*\(\s*len\s*=\s*[\w\*]+\s*\)/
 				$varlst = $2;
 				
 				
-				( $Sf, $info ) = __parse_f77_var_decl( $Sf, $stref, $f,$indent, $line, $info, $type, $varlst );
+				( $Sf, $info ) = _parse_f77_var_decl( $Sf, $stref, $f,$indent, $line, $info, $type, $varlst );
 				$info->{'SpecificationStatement'} = 1;				
 				# carp __LINE__ . ": $f DECL ".Dumper($info) ;  
 				push @{ $info->{'Ann'} }, annotate( $f, __LINE__ . " DECL" );
@@ -982,7 +982,7 @@ or $line=~/^character\s*\(\s*len\s*=\s*[\w\*]+\s*\)/
 			elsif ( $line =~ /\bparameter\s*\(\s*(.+)\s*\)/ ) {  #  parameter\s*\(\s*alpha = f*dt\s*\) => 'alpha = f*dt'
 				my $parliststr = $1;
 				# croak $line;# if $line=~/nstreams/ and $f=~/\.inc/ ;
-				( $Sf, $info ) = __parse_f77_par_decl( $Sf, $stref, $f, $indent, $line, $info, $parliststr );				
+				( $Sf, $info ) = _parse_f77_par_decl( $Sf, $stref, $f, $indent, $line, $info, $parliststr );				
 				$has_pars=1;
 				$Sf->{'HasParameters'}=1;
 				$info->{'SpecificationStatement'} = 1;
@@ -2186,8 +2186,9 @@ sub build_call_graph {
 # So this parses the expressions used for the dimensions, but also length
 # For example
 # integer*(4) a(3+(2*i),j,-k:k+10)
+# This is now only used to parse COMMON declarations
 
-sub f77_var_decl_parser {
+sub __parse_F77_var_decl_fsm {
 	( my $varlst, my $T ) = @_;
 
 	print "VARLST: <$varlst>\n" if $T;
@@ -2360,7 +2361,7 @@ sub f77_var_decl_parser {
 	}
 
 	return ( $vars, $vars_lst );
-}    # END of f77_var_decl_parser()
+}    # END of __parse_F77_var_decl_fsm()
 
 
 
@@ -2595,7 +2596,7 @@ sub __parse_sub_func_prog_decls {
 }    # END of __parse_sub_func_prog_decls()
 
 # -----------------------------------------------------------------------------
-sub __handle_acc {
+sub __handle_acc_pragma {
 	( my $stref, my $f, my $index, my $line, my $info ) = @_;
 	my $accline = $line;
 	
@@ -2632,7 +2633,39 @@ sub __handle_acc {
 	}
 	return ( $stref, $info );
 	
-}    # END of __handle_acc()
+}    # END of __handle_acc_pragma()
+
+sub __handle_trailing_pragmas { my ($pragma_comment,$pragmas) = @_;
+	my $halos=[];
+	my $partitions=[];
+	my $memspace='Global'; # The default is to have the arrays in the Global RAM
+	$pragma_comment =~ s/^.?\$(?:ACC|RF4A)\s+//;
+	# The format is $RF4A Halos((ilh,ihh),(jlh,jhh),(klh,khh))
+	if ($pragma_comment =~/[Hh]alos\s*\(+(.+?)\s*\)+\s*/) {
+		my $halo_str=$1;
+		# split on ),(
+		my @halo_chunks=split(/\s*\)\s*,\s*\(\s*/,$halo_str);
+		# split on ,
+		@{$halos} = map { [ split(/\s*,\s*/,$_) ] } @halo_chunks;
+		$pragmas->{'Halos'} = $halos;
+	}
+	# The format for Paritions is Partitions(NPX, NPY, NPZ)
+	if ($pragma_comment =~/[Pp]artitions\s*\(+(.+?)\s*\)+\s*/) {
+		my $partitions_str=$1;
+		# split on ,
+		@{$partitions} = split(/\s*,\s*/,$partitions_str);
+		$pragmas->{'Partitions'} = $partitions;
+		$memspace='Collective';
+		$pragmas->{'MemSpace'}=$memspace;
+	}	
+	# The format for MemSpace is MemSpace(Collective)
+	if ($pragma_comment =~/[Mm]em[Ss]pace\s*\(+(.+?)\s*\)+\s*/) {
+		$memspace=$1;
+		$pragmas->{'MemSpace'}=$memspace;
+	}	
+	return $pragmas;
+} # END of __handle_trailing_pragmas
+
 
 # -----------------------------------------------------------------------------
 	# F95 VarDecl
@@ -2652,7 +2685,7 @@ sub __parse_f95_decl {
 		$info->{'ParsedParDecl'} = $pt; #WV20150709 currently used by OpenCLTranslation, TODO: use ParamDecl and the AST from the expression parser
 		
 		my $parliststr = $1;
-		( $Sf, $info ) = __parse_f77_par_decl(  $Sf, $stref, $f, $indent,  $line, $info, $parliststr );
+		( $Sf, $info ) = _parse_f77_par_decl(  $Sf, $stref, $f, $indent,  $line, $info, $parliststr );
 
 		# my $var        = $pt->{'Pars'}{'Var'};
 		# my $val        = $pt->{'Pars'}{'Val'};
@@ -2688,19 +2721,37 @@ sub __parse_f95_decl {
 		if (    not exists $info->{'ParsedVarDecl'}
 			and not exists $info->{'VarDecl'} )
 		{
-			# Halos pragma
-			# The format is $RF4A Halos (ilh,ihh),(jlh,jhh),(klh,khh)
+			# Halos and Partitions pragma
 			# $decl->{'Halos'} = [[ilh,ihh],[jlh,jhh],[klh,khh]];
-            my $halos=[];
-            my $has_halo_attr=0;
-            if (exists $info->{'TrailingComment'} and $info->{'TrailingComment'}=~/\$(?:ACC|RF4A)\s+[Hh]alos\s*\(+(.+?)\s*\)+\s*$/) {
-                    my $halo_str=$1;
-					# split on ),(
-                    my @halo_chunks=split(/\s*\)\s*,\s*\(\s*/,$halo_str);
-					# split on ,
-                    @{$halos} = map { [ split(/\s*,\s*/,$_) ] } @halo_chunks;
-                    $has_halo_attr=1;
-                    
+			# $decl->{'Partitions'} = [NX,NY,NZ];
+			# TODO In principle I need a memory space pragma but for the time being I will take the presence
+			# of a Partitions pragma to mean that this is a Collective array
+			# $decl->{'MemSpace'} = 'Collective'
+			# In principle I could distinguish between Private, Local, Global, Distributed and Collective
+			# In any case we need to extend this to include Partitions
+			my $pragmas={'MemSpace' => 'Global'};
+            # my $halos=[];
+			# my $partitions=[];
+			# my $memspace='Global'; # The default is to have the arrays in the Global RAM
+            # my $has_halo_attr=0;
+			# my $has_partition_attr=0;
+            if (exists $info->{'TrailingComment'} and $info->{'TrailingComment'}=~/\$(?:ACC|RF4A)\s+/) {
+				$pragmas = __handle_trailing_pragmas($info->{'TrailingComment'},$pragmas);
+                #     @{$halos} = map { [ split(/\s*,\s*/,$_) ] } @halo_chunks;
+                #     $has_halo_attr=1;
+				# }
+				# # The format for Paritions is Partitions(NPX, NPY, NPZ)
+				# if ($pragma_comment =~/[Pp]artitions\s*\(+(.+?)\s*\)+\s*/) {
+                #     my $partitions_str=$1;
+				# 	# split on ,
+                #     @{$partitions} = split(/\s*,\s*/,$partitions_str);
+                #     $has_partition_attr=1;
+				# 	$memspace='Collective';
+				# }	
+				# # The format for MemSpace is MemSpace(Collective)
+				# if ($pragma_comment =~/[Mm]em[Ss]pace\s*\(+(.+?)\s*\)+\s*/) {
+                #     $memspace=$1;
+				# }									
             }
 			
 			if (not exists $pt->{'Attributes'}{'Allocatable'}) {
@@ -2720,6 +2771,7 @@ sub __parse_f95_decl {
 				$decl->{'Type'}          = $pt->{'TypeTup'}{'Type'};
 				$decl->{'ArrayOrScalar'} = 'Scalar';
 				$decl->{'Dim'}           = [];
+				$decl->{'MemSpace'}		 = $pragmas->{'MemSpace'};
 				
 				my $type =$decl->{'Type'}; 
 				if ( exists $pt->{'Attributes'} ) {
@@ -2746,13 +2798,22 @@ sub __parse_f95_decl {
 				}
                 # We ignore the halo attribute unless it's an array
                 # We should also check if the dims match!
-                if ($decl->{'ArrayOrScalar'} eq 'Array' and $has_halo_attr) {
+                if ($decl->{'ArrayOrScalar'} eq 'Array' ) {
+				if (exists $pragmas->{'Halos'}) {
 #                	say "SUB $f VAR $tvar HALOS: ".Dumper($halos);
-                    $decl->{'Halos'} = $halos;
-                    if( scalar( @{$decl->{'Dim'} } ) != scalar(@{$halos}) ) {
+                    $decl->{'Halos'} = $pragmas->{'Halos'};
+                    if( scalar( @{$decl->{'Dim'} } ) != scalar(@{$pragmas->{'Halos'}}) ) {
                         die("ERROR: The halo attribute must have the same dimension as the array\n".$line."\n");
                     }
                 }
+				if (exists $pragmas->{'Partitions'}) {
+#                	say "SUB $f VAR $tvar HALOS: ".Dumper($halos);
+                    $decl->{'Partitions'} = $pragmas->{'Partitions'};
+                    if( scalar( @{$decl->{'Dim'} } ) != scalar(@{$pragmas->{'Partitions'}}) ) {
+                        die("ERROR: The partition attribute must have the same dimension as the array\n".$line."\n");
+                    }
+                }				
+				}
 				if ( $type =~ /character/ ) {
 					if (exists $pt->{TypeTup}{'ArrayOrScalar'} ) {
 						$decl->{'Attr'} = '(len=' . $pt->{TypeTup}{'ArrayOrScalar'} . ')';
@@ -2868,7 +2929,7 @@ sub __parse_f95_decl {
 
 # -----------------------------------------------------------------------------
 
-sub __parse_f77_par_decl { 
+sub _parse_f77_par_decl { 
 	# F77-style parameters
 	( my $Sf, my $stref, my $f,my $indent, my $line, my $info, my $parliststr ) = @_;
 	# say "LINE: $line";
@@ -3028,11 +3089,10 @@ sub __parse_f77_par_decl {
 
 	return ( $Sf, $info );
 
-}    # END of __parse_f77_par_decl()
+}    # END of _parse_f77_par_decl()
 
 # -----------------------------------------------------------------------------
-# TODO: F95 decls should not be parsed by a routine named __parse_f77_var_decl !!! 
-sub __parse_f77_var_decl {
+sub _parse_f77_var_decl {
 	( my $Sf, my $stref, my $f,my $indent,  my $line, my $info, my $type, my $varlst ) = @_;
     my $is_module = (exists $stref->{'Modules'}{$f}) ? 1 : 0;
     # Half-baked F95/F77 declarations are threated as F77, so remove the :: here
@@ -3050,9 +3110,13 @@ sub __parse_f77_var_decl {
             $line = 'complex(8) '.$varlst;
         }
     }
-	( $pvars, $pvars_lst ) = _parse_F77_decl_NEW( $line );
+	( $pvars, $pvars_lst ) = __parse_F77_decl_expr( $line );
 	
-
+	# my $memspace = 'Global';
+	my $pragmas={'MemSpace' => 'Global'};
+	if (exists $info->{'TrailingComment'} and $info->{'TrailingComment'} =~/\$(?:RF4A|ACC)\s+/) { 
+		$pragmas = __handle_trailing_pragmas($info->{'TrailingComment'},$pragmas);
+	}
 # croak $line.Dumper($pvars, $pvars_lst ) if $line=~/integer\(KIND=MPI_OFFSET_KIND\)\s*MPI_DISPLACEMENT_CURRENT/i;	
     # For backward compat, remove later. TODO
     $type = $pvars->{$pvars_lst->[0]}{'Type'};
@@ -3148,8 +3212,25 @@ sub __parse_f77_var_decl {
 			'Status' => 0,
 			'StmtCount'	=> $tvar_rec->{'StmtCount'},
 			'ArrayOrScalar' => scalar @{$dim} > 0 ? 'Array' : 'Scalar' ,
-			'Implicit' => 0
+			'Implicit' => 0,
+			'MemSpace' => $pragmas->{'MemSpace'}
 		};
+		if ($decl->{'ArrayOrScalar'} eq 'Array' ) {
+			if (exists $pragmas->{'Halos'}) {
+	#                	say "SUB $f VAR $tvar HALOS: ".Dumper($halos);
+				$decl->{'Halos'} = $pragmas->{'Halos'};
+				if( scalar( @{$decl->{'Dim'} } ) != scalar(@{$pragmas->{'Halos'}}) ) {
+					die("ERROR: The halo attribute must have the same dimension as the array\n".$line."\n");
+				}
+			}
+			if (exists $pragmas->{'Partitions'}) {
+	#                	say "SUB $f VAR $tvar HALOS: ".Dumper($halos);
+				$decl->{'Partitions'} = $pragmas->{'Partitions'};
+				if( scalar( @{$decl->{'Dim'} } ) != scalar(@{$pragmas->{'Partitions'}}) ) {
+					die("ERROR: The partition attribute must have the same dimension as the array\n".$line."\n");
+				}
+			}				
+		}		
 		# Here $decl->{'Type'} is OK
 		
 		if ($common_block_name ne '') {
@@ -3234,7 +3315,7 @@ sub __parse_f77_var_decl {
 	
 	push @{ $info->{'Ann'} }, annotate( $f, __LINE__ . ' '. $annotation );
 	return ( $Sf, $info );
-}    # END of __parse_f77_var_decl()
+}    # END of _parse_f77_var_decl()
 
 # -----------------------------------------------------------------------------
 sub _identify_loops_breaks {
@@ -4303,8 +4384,8 @@ sub mark_blocks_between_calls { (my $stref)=@_;
 			# if not a call, put a begin marker before it
 				if (not exists $info->{'SubroutineCall'}) { #say $line."\t".Dumper($info);
 					$in_block=1;
-					my $begin_marker_line = '!$ACC Subroutine';
-					(my $dummy, my $begin_marker_info) = __handle_acc({}, '',$index, $begin_marker_line, {});
+					my $begin_marker_line = '!$ACC Subroutine' ;
+					(my $dummy, my $begin_marker_info) = __handle_acc_pragma({}, '',$index, $begin_marker_line, {});
 					my $begin_marker_annline = [$begin_marker_line,$begin_marker_info];
 					my $sub_name = $begin_marker_info->{'AccPragma'}{'BeginSubroutine'}[0];				
 
@@ -4334,7 +4415,7 @@ sub mark_blocks_between_calls { (my $stref)=@_;
 							$in_block=0;
 							my $end_marker_line = '!$ACC End Subroutine';
 							$extract_subs=1;
-							(my $dummy, my $end_marker_info) = __handle_acc({}, '',$index, $end_marker_line, {});
+							(my $dummy, my $end_marker_info) = __handle_acc_pragma({}, '',$index, $end_marker_line, {});
 							my $end_marker_annline = [$end_marker_line , $end_marker_info ];	
 							return ( [ $end_marker_annline, $annline ], [$in_kernel_region,$in_block,$nested_block, $index,$extract_subs,  $called_subs] );
 						} else {
@@ -4498,7 +4579,7 @@ sub _get_var_recs_from_parse_tree { (my $tpt, my $vspt)=@_;
 } # END of _get_var_recs_from_parse_tree 
 
 
-sub _parse_F77_decl_NEW { (my $decl_str)=@_;
+sub __parse_F77_decl_expr { (my $decl_str)=@_;
 
         my ($parse_tree_type, $rest, $err) = parse_expression_no_context($decl_str);
         (my $parse_tree_vars, $rest, $err) = parse_expression_no_context($rest);
@@ -4508,7 +4589,7 @@ sub _parse_F77_decl_NEW { (my $decl_str)=@_;
         return ($var_recs, $var_lst);
     
 
-} # END of _parse_F77_decl_NEW
+} # END of __parse_F77_decl_expr
 
 # We have to parse the include files to get the COMMON variables because of EQUIVALENCE 
 sub __parse_include_statement { my ($stref, $f, $sub_incl_or_mod, $Sf, $line, $info, $index) = @_;
