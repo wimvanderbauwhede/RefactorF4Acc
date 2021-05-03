@@ -1089,6 +1089,7 @@ or $line=~/^character\s*\(\s*len\s*=\s*[\w\*]+\s*\)/
 						'Iterator' => '',
 						'Label'    => $label,
 						'ExpressionsAST' => $ast,
+						# improper use, these are the vars from the while expression
 						'Range'    => {	
 							'Vars'        => $vars,
 							},
@@ -1179,9 +1180,9 @@ or $line=~/^character\s*\(\s*len\s*=\s*[\w\*]+\s*\)/
 				my $keyword = $1;				
 				if ( $line =~ /^(else\s*if)/ ) {
 					$info->{'ElseIf'} = 1;					
-					$info->{ 'EndControl' } = 1;
+					$info->{'EndControl'} = 1;
 				} else {
-					$info->{ ucfirst($keyword) } = 1; # 'If'	
+					$info->{'If'} = 1; 
 				}
 				
 			# The following part should be in a separate condition block I think			
