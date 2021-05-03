@@ -89,6 +89,33 @@ sub refactor_dsm { my ( $stref, $f ) = @_;
 
             # TODO: handle array assignments v1 = v2
             # This is easy but needs to be detected: if the LHS and RHS are both '$' in the AST but Array in the decls, it is an array access
+            if ($info->{'Lhs'}{'$ExpressionAST'}[0] == 2
+            and $info->{'Rhs'}{'$ExpressionAST'}[0] == 2
+            ) {
+                if (_is_array($info->{'Lhs'}{'VarName'},$Sf)
+                and _is_array($info->{'Rhs'}{'VarList'}{'List'}[0],$Sf)
+                ) { #OK, we have an array assignment
+                        # Now check if LHS and/or RHS is Collective
+                }
+                # Are they by any chance both arrays?
+                # This is not good enough because it might be an expression but then I can't use memcopy
+                # But if it is, then we have a simple memcpy
+
+
+            }
+
+            # So what do I do with v1 = abs(v2)*2+1 ?
+            # The fast way is to do the operation on the local version
+            # So first we need a good check to detect array operations
+            # Then a check to see which one is local
+            # if it is the LHS, we mempy first and then do the operation:
+            # memcpy(v1,v2)
+            # v1 = abs(v1)*2+1
+            # if it is the RHS, then maybe we should make a temp var and do the operation locally,
+            # then do the memcpy of the temp var. 
+            # v2tmp = v2
+            # v2tmp = abs(v2tmp)*2+1
+            # memcpy(v1,v2tmp)
 
             # TODO: handle array slice assignments v1(5:15) = v2(300:310)
             # Array slices make sense if we want to copy a chunk into or out of a collective array, we need to convert them into start index and buffer size.
@@ -103,13 +130,16 @@ sub refactor_dsm { my ( $stref, $f ) = @_;
             # RHS 
             # For simplicity I create a hash of var => decl for the dsm vars, so that I can simply match in the AST
             my $rhs_dsm_vars={};
+            my $rhs_is_dsm_var=0;
             for my $rhs_varname (@{$info->{'Rhs'}{'VarList'}}) {
-                my ($rhs_is_dsm_var,$rhs_var_decl) = _is_dsm_var($rhs_varname, $Sf);
+                ($rhs_is_dsm_var,my $rhs_var_decl) = _is_dsm_var($rhs_varname, $Sf);
                 if ($rhs_is_dsm_var) {
                     $rhs_dsm_vars->{$rhs_varname} = $rhs_var_decl;
                 }
             }
-            my $rhs_dsm_ast = _rewrite_ast_dsm_read_nodes($info->{'Rhs'}{'ExpressionAST'},$rhs_dsm_vars );
+            my $rhs_ast = $rhs_is_dsm_var 
+                ? _rewrite_ast_dsm_read_nodes( $info->{'Rhs'}{'ExpressionAST'},$rhs_dsm_vars)
+                : $info->{'Rhs'}{'ExpressionAST'};
             if ($lhs_is_dsm_var) {
                 # This means the assignment will become a subroutine call
                 #== CALL, SUBROUTINE CALL
@@ -121,7 +151,7 @@ sub refactor_dsm { my ( $stref, $f ) = @_;
                 #@ ExprVars => $expr_other_vars
             
                 my $dsm_write_ast = _rewrite_ast_dsm_write_node(
-                    $info->{'Lhs'}{'ExpressionAST'},$lhs_varname,$lhs_var_decl,$rhs_dsm_ast
+                    $info->{'Lhs'}{'ExpressionAST'},$lhs_varname,$lhs_var_decl,$rhs_ast
                 );
                 $info->{'SubroutineCall'}{'ExpressionAST'} = $dsm_write_ast;
                 my $name = 'dsmWrite'._dsmType($lhs_var_decl);
@@ -143,8 +173,8 @@ sub refactor_dsm { my ( $stref, $f ) = @_;
                 # }	                
             } else {
                 # The assignment remains and all we have to do is substitute the RHS:
-                $info->{'Rhs'}{'ExpressionAST'} = $rhs_dsm_ast;
-                    my $rhs_vars_set  = get_vars_from_expression($rhs_dsm_ast) ;
+                $info->{'Rhs'}{'ExpressionAST'} = $rhs_ast;
+                my $rhs_vars_set  = get_vars_from_expression($rhs_ast) ;
                 #	say 'RHS_ARGS:'.Dumper($rhs_args);
                 my $rhs_all_vars = {
                     'Set'  => $rhs_vars_set,
@@ -293,6 +323,18 @@ sub _dsmInitExprAST { my ($decl, $dms_type) =@_;
 
     return $dsm_init_expr_ast;
 } # END of _dsmInitExprAST
+
+sub _is_array {
+    my ($varname, $Sf) = @_;
+    my $subset = in_nested_set( $Sf, 'Vars', $varname );
+    my $decl = get_var_record_from_set($Sf->{$subset},$varname);
+    if ($decl->{'ArrayOrScalar'} eq 'Array') {
+        return 1;
+    } else {
+        return 0;
+    }
+}
+
 
 sub _is_dsm_var {
     my ($varname, $Sf) = @_;
