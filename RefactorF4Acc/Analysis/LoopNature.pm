@@ -1858,6 +1858,7 @@ sub analyseLoop_reduce {
             # tmax_min(i) =sqrt(max(v(i,j),fst(tmax_min(i)))*min(v(i,j),snd(tmax_min(i))))
             
             my $referencedSelf = hasOperand( $readOperandsQ,$lhsExpr);
+
             # FIXME: What we need to do is find the AST node of the expression on the RHS that contains the lhsExpr, so the scalar or more likely array access
             # We should use the AST for this
             # I seem some complication here: unless we restrict this to known operators and functions, there is no way of knowing that it is associative
@@ -1954,6 +1955,31 @@ sub cmpExprLists { my ($exprs1,$exprs2) = @_;
     return 1;
 }
 
+sub isAssociativeExpr {
+    my ($lhs_ast,$rhs_ast) =@_;
+
+# We need a traversal that lets us back up: if we find a node, we need to get the outer node. But the way the AST is structured, we don't have that. So all I can do is push the references to each node in the AST on a stack and then pop it. So the $acc is a stack [], or maybe it is 
+{'Stack' =>[], 'IsAssoc' => 0}
+
+sub { my ($ast,$acc)=@_;
+    push @{$acc->{'Stack'}}, $ast;
+    if ($ast->[0] == 2 and $ast->[1] eq $lhs_var) {
+        my $outer_node = pop @{$acc->{'Stack'}};        
+        # test if this is an assoc operator or function
+        # But in the case of a function we have [1,'f',[27,@args]] so we need to check for 27 and pop again
+    }
+ 
+}
+# So let's take the lhs and consider the easy case first: it is a scalar
+
+if ($lhs_ast->[0]==2) {
+    my $lhs_var = $lhs_ast->[1];
+    
+}
+elsif ($lhs_ast->[0]==10) {
+
+}
+}
 =pod
 --    Function takes a list of loop variables and a possible parallel loop's AST and returns a string that details the reasons why the loop
 --    doesn't represent a reduction. If the returned string is empty, the loop represents a possible parallel reduction
