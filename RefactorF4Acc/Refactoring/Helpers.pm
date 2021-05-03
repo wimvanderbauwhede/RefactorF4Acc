@@ -2,7 +2,7 @@ package RefactorF4Acc::Refactoring::Helpers;
 use v5.10;
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
-
+use RefactorF4Acc::Parser::Expressions qw( emit_expr_from_ast );
 #
 #   (c) 2010-now Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
 #
@@ -1078,23 +1078,35 @@ sub emit_f95_parsed_var_decl { (my $pvd) =@_;
 # carp Dumper $pvd;
     my $type= $pvd->{'TypeTup'}{'Type'} . (exists $pvd->{'TypeTup'}{'Kind'} ?  '( '.$pvd->{'TypeTup'}{'Kind'}.')' : '');
     
-         my  @attrs=($type); 
-         if (exists $pvd->{'Attributes'}{'Allocatable'}) {
-            push @attrs, 'allocatable';
+    my  @attrs=($type); 
+    if (exists $pvd->{'Attributes'}{'Allocatable'}) {
+        push @attrs, 'allocatable';
+    }
+    if (exists $pvd->{'Attributes'}{'Dim'} ) {
+        push @attrs,'dimension('.join(', ',  @{ $pvd->{'Attributes'}{'Dim'} }).')';
+    }
+    if (exists $pvd->{'Attributes'}{'Intent'} ) {
+        push @attrs,'intent('. $pvd->{'Attributes'}{'Intent'} .')' ;
+    }
+    
+    if (exists $pvd->{'InitExprASTs'}) {
+        my @init_expr_strs=();
+        for my $init_expr_ast (@{$pvd->{'InitExprASTs'}}) {
+            push @init_expr_strs, emit_expr_from_ast($init_expr_ast);
         }
-        if (exists $pvd->{'Attributes'}{'Dim'} ) {
-        	# if (ref( $pvd->{'Attributes'}{'Dim'}[0]) eq 'ARRAY') {
-            #     push @attrs,'dimension('.join(', ',  map { $_->[0].':'.$_->[1] } @{ $pvd->{'Attributes'}{'Dim'} }).')';
-            # } else {
-            push @attrs,'dimension('.join(', ',  @{ $pvd->{'Attributes'}{'Dim'} }).')';
-            # }
+        my @init_pairs=();
+        for my $var (@{  $pvd->{'Vars'} } ){
+            my $init_expr_str = shift @init_expr_strs;
+            push @init_pairs, $var.' = '.$init_expr_str;
         }
-        if (exists $pvd->{'Attributes'}{'Intent'} ) {
-            push @attrs,'intent('. $pvd->{'Attributes'}{'Intent'} .')' ;
-        }
-          my $vars = join(', ',@{  $pvd->{'Vars'} });
-       my $line = join(', ', @attrs).' :: '.$vars;    
-    return $line;
+        my $init_pairs_str = join(', ',@init_pairs);
+        my $line = join(', ', @attrs) . ' :: ' . $init_pairs_str;    
+        return $line;
+    } else {
+        my $vars = join(', ',@{  $pvd->{'Vars'} });
+        my $line = join(', ', @attrs).' :: '.$vars;    
+        return $line;
+    }
 }
 
 sub emit_f95_parsed_par_decl { (my $pvd) =@_;

@@ -465,12 +465,12 @@ sub emit_RefactoredCode {
               : '';
             $rline = $indent . "use $module_name $maybe_only";
 
-            #== CONTAINS
+#== CONTAINS
         }
         elsif ( exists $info->{'Contains'} ) {
             $rline = $indent . 'contains'
 
-              #== END of IF/SELECT/DO
+#== END of IF/SELECT/DO
         }
         elsif ( exists $info->{'EndSelect'} ) {
             $rline = $indent . 'end select';
@@ -481,7 +481,7 @@ sub emit_RefactoredCode {
         elsif ( exists $info->{'EndDo'} ) {
             $rline = $indent . 'end do';
 
-            #== INTRINSIC, EXTERNAL, STATIC, AUTOMATIC, VOLATILE
+#== INTRINSIC, EXTERNAL, STATIC, AUTOMATIC, VOLATILE
         }
         elsif ( exists $info->{'Intrinsic'} ) {
             croak 'TODO: Intrinsic';
@@ -513,22 +513,23 @@ sub emit_RefactoredCode {
         }
         elsif ( exists $info->{'Signature'} ) {
 
-            #== SIGNATURES SUBROUTINE FUNCTION PROGRAM ENTRY
-            #@ Signature =>
-            #@    Args =>
-            #@        List => [...]
-            #@        Set => {}
-            #@    Name => $name;
-            #@    Function  => $bool
-            #@    Program  => $bool
-            #@    Entry  => $bool
-            #@    BlockData  => $bool
-            #@    ReturnType => integer | real | ...
-            #@    ReturnTypeAttr => number or '(*)'
-            #@    ResultVar => $result_var
-            #@    Characteristic => pure | elemental | recursive
+#== SIGNATURES SUBROUTINE FUNCTION PROGRAM ENTRY
+#@ Signature =>
+#@    Args =>
+#@        List => [...]
+#@        Set => {}
+#@    Name => $name;
+#@    Function  => $bool
+#@    Program  => $bool
+#@    Entry  => $bool
+#@    BlockData  => $bool
+#@    ReturnType => integer | real | ...
+#@    ReturnTypeAttr => number or '(*)'
+#@    ResultVar => $result_var
+#@    Characteristic => pure | elemental | recursive
             ( $rline, $info ) = emit_subroutine_sig($annline);
         }
+#== VARIABLE AND PARAMETER DECLARATION        
         elsif ( exists $info->{'ParsedVarDecl'} ) {
 
             # TODO EMIT  $info->{'ParsedVarDecl'};
@@ -553,11 +554,13 @@ sub emit_RefactoredCode {
             # my $par_decl_str = emit_f95_var_decl($decl) ;
             $rline = $indent . $par_decl_str;
         }
+#== WHILE        
         elsif ( exists $info->{'While'} ) {
             my $ast         = $info->{'Do'}{'ExpressionsAST'};
             my $do_expr_str = emit_expr_from_ast($ast);
             $rline = $indent . 'do while (' . $do_expr_str . ')';
         }
+#== DO        
         elsif ( exists $info->{'Do'} ) {
 
             # 'Iterator' => $iter,
@@ -592,6 +595,7 @@ sub emit_RefactoredCode {
             # };
 
         }
+#== SELECT/CASE        
         elsif ( exists $info->{'CaseVar'} ) {
             $rline = $indent . 'select case ( ' . $info->{'CaseVar'} . ' )';
         }
@@ -602,19 +606,19 @@ sub emit_RefactoredCode {
         elsif ( exists $info->{'CaseDefault'} ) {
             $rline = $indent . 'case default';
 
-            #== ELSE
+#== ELSE
         }
         elsif ( exists $info->{'Else'} ) {
             $rline = $indent . 'else';
 
-     #== IF -- Block, Arithmetic and logical IF statements
-     # st can be any executable statement, except a DO block, IF, ELSE IF, ELSE,
-     # END IF, END, or another logical IF statement.
-     #@ CondExecExpr => $cond
-     #@ CondExecExprAST => $ast
-     #@ CondVars =>
-     #@     Set => {...}
-     #@     List => [...]
+#== IF -- Block, Arithmetic and logical IF statements
+# st can be any executable statement, except a DO block, IF, ELSE IF, ELSE,
+# END IF, END, or another logical IF statement.
+#@ CondExecExpr => $cond
+#@ CondExecExprAST => $ast
+#@ CondVars =>
+#@     Set => {...}
+#@     List => [...]
 
         }
         elsif ( exists $info->{'IfThen'} ) {
@@ -627,7 +631,7 @@ sub emit_RefactoredCode {
 
             my $ast = $info->{'CondExecExprAST'}
 
-              #== BACKSPACE, ENDFILE statements
+#== BACKSPACE, ENDFILE statements
         }
         elsif ( exists $info->{'IO'} ) {
             my $io_call   = $info->{'IO'};
@@ -645,7 +649,7 @@ sub emit_RefactoredCode {
               . $attrs_str
               . $exprs_str . ')';
 
-            #== RETURN, STOP and PAUSE statements
+#== RETURN, STOP and PAUSE statements
         }
         elsif ( exists $info->{'Return'} ) {
             my $expr_ast = $info->{'ReturnExprAST'};
@@ -662,16 +666,16 @@ sub emit_RefactoredCode {
         }
         elsif ( exists $info->{'Assignment'} ) {
 
-            #== ASSIGNMENT
-            # This is an ASSIGNMENT and so can come after IF (...)
-            #@ Lhs =>
-            #@        VarName       => $lhs_varname
-            #@        IndexVars     => $lhs_vars
-            #@        ArrayOrScalar => Array | Scalar
-            #@        ExpressionAST => $lhs_ast
-            #@ Rhs =>
-            #@        VarList       => $rhs_all_vars
-            #@        ExpressionAST => $rhs_ast
+#== ASSIGNMENT
+# This is an ASSIGNMENT and so can come after IF (...)
+#@ Lhs =>
+#@        VarName       => $lhs_varname
+#@        IndexVars     => $lhs_vars
+#@        ArrayOrScalar => Array | Scalar
+#@        ExpressionAST => $lhs_ast
+#@ Rhs =>
+#@        VarList       => $rhs_all_vars
+#@        ExpressionAST => $rhs_ast
             my $lhs_ast      = $info->{'Lhs'}{'ExpressionAST'};
             my $rhs_ast      = $info->{'Rhs'}{'ExpressionAST'};
             my $lhs_expr_str = emit_expr_from_ast($lhs_ast);
@@ -680,20 +684,21 @@ sub emit_RefactoredCode {
             my $rline = $indent . $maybe_cond . "$lhs_expr_str = $rhs_expr_str";
 
         }
+#== CALL, SUBROUTINE CALL
+#@ SubroutineCall =>
+#@     Name => $name
+#@     ExpressionAST => $ast
+#@     Args => CallArgs
+#@ CallArgs => $expr_args
+#@ ExprVars => $expr_other_vars
+#@ IsExternal => $bool
+
         elsif ( exists $info->{'SubroutineCall'} ) { 
             # $rline =  'CALL: '.$rline;
             my ($call_str, $info_) = emit_subroutine_call( $stref, $f, $annline );
             # croak Dumper $call_str;
             chomp $call_str;
             $rline = $call_str ;
-            #== CALL, SUBROUTINE CALL
-            #@ SubroutineCall =>
-            #@     Name => $name
-            #@     ExpressionAST => $ast
-            #@     Args => CallArgs
-            #@ CallArgs => $expr_args
-            #@ ExprVars => $expr_other_vars
-            #@ IsExternal => $bool
 
         }
         elsif (

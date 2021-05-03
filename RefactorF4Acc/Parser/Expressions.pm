@@ -49,7 +49,7 @@ our $defaultToArrays = 0;
 my $DBG=0;
  
 #               0    1    2    3    4    5    6    7    8    9    10   11   12   13    14
-our @sigils = ('{', '&', '$', '+', '-', '*', '/', '%', '**', '=', '@', '#', ':' ,'//', ')('
+our @sigils = ('(', '&', '$', '+', '-', '*', '/', '%', '**', '=', '@', '#', ':' ,'//', ')('
 #                15    16    17  18   19    20     21       22       23      24       25       26      
                ,'==', '/=', '<', '>', '<=', '>=', '.not.', '.and.', '.or.', '.xor.', '.eqv.', '.neqv.'
 #                27   28 
@@ -637,10 +637,10 @@ sub parse_expression_no_context { (my $str)=@_;
             }
         }
         elsif ($str=~s/^\(//) {
-            # paren expr, I use '{' as it appears not to be used. Would make send to call it '('
+            # paren expr, I use '(' 
             ($expr_ast,$str, my $err,my $has_funcs2)=parse_expression_no_context($str);
             $has_funcs||=$has_funcs2;
-            #$expr_ast=['{',$expr_ast];
+            #$expr_ast=['(',$expr_ast];
             $expr_ast=[0,$expr_ast];
             if($err) {#say "ERR 2";
             return ($expr_ast,$str, $err,0);
@@ -1072,8 +1072,8 @@ sub emit_expr_from_ast { (my $ast)=@_;
 #	say Dumper($ast);
     if (ref($ast) eq 'ARRAY') {
         if (scalar @{$ast}==3) {
-            if ($ast->[0] ==1 or $ast->[0] ==10) { # '&' or '@', array access or function call
-                (my $sigil, my $name, my $args) =@{$ast};
+            if ($ast->[0] == 1 or $ast->[0] == 10) { # '&' or '@', array access or function call
+                (my $sigil, my $name, my $args) =@{$ast}; # [10,'v',[...]]
                 # carp Dumper($ast);
                 if (@{$args}) {
 					if ($args->[0] != 14 ) { # ')('
@@ -1137,19 +1137,19 @@ sub emit_expr_from_ast { (my $ast)=@_;
                 my $rv = (ref($rexp) eq 'ARRAY') ? emit_expr_from_ast($rexp) : $rexp;
                 return $lv.$sigils[$opcode].$rv;
             }
-        } elsif (scalar @{$ast}==2) { #  for '{'  and '$'
+        } elsif (scalar @{$ast}==2) { #  for '('  and '$'
             (my $opcode, my $exp) =@{$ast};
-            if ($opcode==0 ) {#eq '('
+            if ($opcode == 0 ) {#eq '('
             # warn Dumper($exp);
                 my $v = (ref($exp) eq 'ARRAY') ? emit_expr_from_ast($exp) : $exp;
                 if (not defined $v) {
                     croak Dumper($ast) if $DBG;
                 }
                 return "($v)";
-            } elsif ($opcode==28 ) {#eq '(/'
+            } elsif ($opcode == 28 ) {#eq '(/'
                 my $v = (ref($exp) eq 'ARRAY') ? emit_expr_from_ast($exp) : $exp;
                 return "(/ $v /)";
-            } elsif ($opcode==2 or $opcode>28) {# eq '$' or constants    
+            } elsif ($opcode == 2 or $opcode>28) {# eq '$' or constants    
                 return ($opcode == 34) ?  "*$exp" : $exp;            
             } elsif ($opcode == 21 or $opcode == 4 or $opcode == 3) {# eq '.not.' '-'
                 my $v = (ref($exp) eq 'ARRAY') ? emit_expr_from_ast($exp) : $exp;
@@ -1505,7 +1505,7 @@ sub _find_args_in_ast { (my $ast, my $args) =@_;
 
 
 #               0    1    2    3    4    5    6    7    8    9    10   11   12   13    14
-#our @sigils = ('{', '&', '$', '+', '-', '*', '/', '%', '**', '=', '@', '#', ':' ,'//', ')('
+#our @sigils = ('(', '&', '$', '+', '-', '*', '/', '%', '**', '=', '@', '#', ':' ,'//', ')('
 #                15    16    17  18   19    20     21       22       23      24       25       26      
 #              ,'==', '/=', '<', '>', '<=', '>=', '.not.', '.and.', '.or.', '.xor.', '.eqv.', '.neqv.'
 #                27   28    29        30      31         32           33             34       35 

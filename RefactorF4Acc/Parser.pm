@@ -638,7 +638,7 @@ SUBROUTINE
 							$attr=~s/\)$//;
 							$type.="($attr)";
 						}
-					}
+					} # not a macro
 					 my $vline = "$type, $var_dim  :: $varname";
 					#  croak $vline if $line=~/catn13/;
                      ( $Sf, my $info ) = __parse_f95_decl( $stref, $f, $Sf, $indent, $vline, {'Dimension' => 1});
@@ -1786,10 +1786,9 @@ sub _parse_subroutine_and_function_calls {
 #@ SubroutineCall => 
 #@     Name => $name
 #@     ExpressionAST => $ast
-#@     Args => CallArgs
-#@ CallArgs => $expr_args
+#@     Args => $expr_args
+#@ 	   IsExternal => $bool
 #@ ExprVars => $expr_other_vars
-#@ IsExternal => $bool
 
 # Subroutine calls. Surprisingly, these even occur in functions! *shudder*
 			if (   $line =~ /call\s+(\w+)\s*\((.*)\)/
@@ -1959,14 +1958,13 @@ sub _parse_subroutine_and_function_calls {
 					$info->{'SubroutineCall'}{'IsExternal'} = 1;
 					# I should add these to CalledSubs I think
 					if ( $sub_or_func_or_mod eq 'Subroutines' ) { # The current code unit is a subroutine 
-							$Sf->{'CalledSubs'}{'Set'}{$name} = 1; # mark $name a called sub in $f
-							push @{ $Sf->{'CalledSubs'}{'List'} }, $name;
-						} else { # The current code unit is NOT a subroutine, which means it is a Module I guess
-						# mark $name as a called sub in $current_sub_name 
-							$Sf->{'Subroutines'}{$current_sub_name}{'CalledSubs'}{'Set'}{$name} = 1;
-							push @{ $Sf->{'Subroutines'}{$current_sub_name}{'CalledSubs'}{'List'} }, $name;
-						}
-					
+						$Sf->{'CalledSubs'}{'Set'}{$name} = 1; # mark $name a called sub in $f
+						push @{ $Sf->{'CalledSubs'}{'List'} }, $name;
+					} else { # The current code unit is NOT a subroutine, which means it is a Module I guess
+					# mark $name as a called sub in $current_sub_name 
+						$Sf->{'Subroutines'}{$current_sub_name}{'CalledSubs'}{'Set'}{$name} = 1;
+						push @{ $Sf->{'Subroutines'}{$current_sub_name}{'CalledSubs'}{'List'} }, $name;
+					}					
 				}
 # Add labels used as arguments to ReferencedLabels
 				for my $arg (keys %{ $info->{'SubroutineCall'}{'Args'}{'Set'} }) {
@@ -2647,6 +2645,7 @@ sub __handle_trailing_pragmas { my ($pragma_comment,$pragmas) = @_;
 		my @halo_chunks=split(/\s*\)\s*,\s*\(\s*/,$halo_str);
 		# split on ,
 		@{$halos} = map { [ split(/\s*,\s*/,$_) ] } @halo_chunks;
+		# So this is [[$lhi,$hhi],[$lhj,$hhj]]
 		$pragmas->{'Halos'} = $halos;
 	}
 	# The format for Paritions is Partitions(NPX, NPY, NPZ)
@@ -2817,8 +2816,6 @@ sub __parse_f95_decl {
 				if ( $type =~ /character/ ) {
 					if (exists $pt->{TypeTup}{'ArrayOrScalar'} ) {
 						$decl->{'Attr'} = '(len=' . $pt->{TypeTup}{'ArrayOrScalar'} . ')';
-					# } elsif (exists $pt->{'	'}{'Dim'}) {
-					# 	$decl->{'Attr'} = '(len=' . $pt->{'Attributes'}{'Dim'}[0] . ')';
 					} elsif (exists $pt->{'TypeTup'}{'Kind'}) {
 						$decl->{'Attr'} = 'len=' . $pt->{'TypeTup'}{'Kind'} ;						
 					} else {
@@ -3178,13 +3175,13 @@ sub _parse_f77_var_decl {
 			}
 		} else {
 			if ($pvars->{$tvar}{'Attr'} ne '') {
-			if ( $type !~ /character/) {
-				if ( $pvars->{$tvar}{'Attr'}!~/kind=/) {
-					$tvar_rec->{'Attr'} = '(kind=' . $pvars->{$tvar}{'Attr'} . ')';
-				} else {
-					$tvar_rec->{'Attr'} = '' . $pvars->{$tvar}{'Attr'} . '';
+				if ( $type !~ /character/) {
+					if ( $pvars->{$tvar}{'Attr'}!~/kind=/) {
+						$tvar_rec->{'Attr'} = '(kind=' . $pvars->{$tvar}{'Attr'} . ')';
+					} else {
+						$tvar_rec->{'Attr'} = '' . $pvars->{$tvar}{'Attr'} . '';
+					}
 				}
-			}
 			} else {
 				$tvar_rec->{'Attr'} = ''
 			}
