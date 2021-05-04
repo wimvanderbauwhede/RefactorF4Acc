@@ -16,6 +16,10 @@ use v5.10;
 
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
+use RefactorF4Acc::Parser::Expressions qw( get_vars_from_expression );
+use RefactorF4Acc::Refactoring::Helpers qw( stateful_pass );
+use RefactorF4Acc::Emitter qw( emit_RefactoredCode );
+
 use Carp;
 use Data::Dumper;
 use Storable qw( dclone );
@@ -51,7 +55,7 @@ sub refactor_dsm_all {
         #   map {say 'TEST'.$_} @{pp_annlines($Sf->{'RefactoredCode'})} if $f=~/test_loop/;
 		$stref = refactor_dsm( $stref, $f );
 
-        emit_RefactoredCode($stref,$f,$Sf->{'RefactoredCode'}) ;
+        emit_RefactoredCode($stref,$f,$Sf->{'RefactoredCode'}) if $f=~/test_loop/;
 	}
     
 	return $stref;
@@ -70,15 +74,22 @@ sub refactor_dsm { my ( $stref, $f ) = @_;
 
 
     my $pass_refactor_dsm = sub { my ($annline,$state) = @_;
-        my ($line,$info) = @_;
-        if (exists $info->{'VarDecl'}) {
+        my ($line,$info) = @{$annline};
+        
+        if (exists $info->{'VarDecl'} ) { 
             my $varname = $info->{'VarDecl'}{'Name'};
             my $subset = in_nested_set( $Sf, 'Vars', $varname );
             my $decl = get_var_record_from_set($Sf->{$subset},$varname);
-            croak Dumper $decl if not exists $decl->{'MemSpace'};
-            if ($decl->{'MemSpace'} eq 'Collective') {
-                my $pvd = _refactor_parsed_vardecl_dsm($decl);
-                $info->{'ParseVarDecl'} = $pvd;
+            if (not exists $decl->{'Parameter'}) {
+                # carp Dumper $decl ;
+                # say 'MEMSPACE: ',$f,' ', $varname,"\t", $decl->{'MemSpace'};
+                if ($decl->{'MemSpace'} eq 'Collective') { 
+                    # carp Dumper $decl;
+                    my $pvd = $info->{'ParsedVarDecl'};
+                    my $refactored_pvd = _refactor_parsed_vardecl_dsm($decl,$pvd);
+                    $info->{'ParsedVarDecl'} = $refactored_pvd;
+                    # carp Dumper $info->{'ParsedVarDecl'}
+                }
             }
         }
         # v(i,j) = w(i,j) becomes
@@ -89,8 +100,9 @@ sub refactor_dsm { my ( $stref, $f ) = @_;
 
             # TODO: handle array assignments v1 = v2
             # This is easy but needs to be detected: if the LHS and RHS are both '$' in the AST but Array in the decls, it is an array access
-            if ($info->{'Lhs'}{'$ExpressionAST'}[0] == 2
-            and $info->{'Rhs'}{'$ExpressionAST'}[0] == 2
+            # carp Dumper $info->{'Lhs'}{'ExpressionAST'};
+            if ($info->{'Lhs'}{'ExpressionAST'}[0] == 2
+            and $info->{'Rhs'}{'ExpressionAST'}[0] == 2
             ) {
                 if (_is_array($info->{'Lhs'}{'VarName'},$Sf)
                 and _is_array($info->{'Rhs'}{'VarList'}{'List'}[0],$Sf)
@@ -131,7 +143,8 @@ sub refactor_dsm { my ( $stref, $f ) = @_;
             # For simplicity I create a hash of var => decl for the dsm vars, so that I can simply match in the AST
             my $rhs_dsm_vars={};
             my $rhs_is_dsm_var=0;
-            for my $rhs_varname (@{$info->{'Rhs'}{'VarList'}}) {
+            # carp Dumper $info->{'Rhs'}{'VarList'};
+            for my $rhs_varname (@{$info->{'Rhs'}{'VarList'}{'List'}}) {
                 ($rhs_is_dsm_var,my $rhs_var_decl) = _is_dsm_var($rhs_varname, $Sf);
                 if ($rhs_is_dsm_var) {
                     $rhs_dsm_vars->{$rhs_varname} = $rhs_var_decl;
@@ -148,6 +161,7 @@ sub refactor_dsm { my ( $stref, $f ) = @_;
                 #@     ExpressionAST => $ast
                 #@     Args => $expr_args
                 #@ 	   IsExternal => $bool
+                #@ 	   ArgMap => {} # A map from the sig arg to the call arg
                 #@ ExprVars => $expr_other_vars
             
                 my $dsm_write_ast = _rewrite_ast_dsm_write_node(
@@ -220,19 +234,70 @@ sub refactor_dsm { my ( $stref, $f ) = @_;
                 $info->{'Do'}{'ExpressionsAST'} = $cond_dsm_ast;                
             }
         }
-        # elsif (exists $info->{'SubroutineCall'}) {
+        #== CALL, SUBROUTINE CALL
+        #@ SubroutineCall => 
+        #@     Name => $name
+        #@     ExpressionAST => $ast
+        #@     Args => $expr_args
+        #@ 	   IsExternal => $bool
+        #@ 	   ArgMap => {} # A map from the sig arg to the call arg expr string
+        #@ ExprVars => $expr_other_vars     
+        #@ $expr_args = {
+        #@	'Set' => {$expr_str => {
+        #@         'Type'=>'Array',
+        #@         'Vars'=>$vars, 
+        #@         'Expr' => $expr_str, 
+        #@         'Arg' => $arg,
+        #@         'AST' => $ast
+        #@ 			}, ...
+        #@ 	'List' => [$expr_str,...];
+        #@ };
+
+        elsif (exists $info->{'SubroutineCall'}) {
         #     # Maybe I can leave this as I assume that we inline subs in loops and the Collective access should only happen in loops
-        # If a variable is an array access, it must per definition be a Read
+        # If a variable is an array access, it must per definition be a Read, so use the API call
         # If it is an array but not an access, then the access should happen in the subroutine so we don't have to handle it
-        # I guess we can say the same for a scalar Write 
-        
-        # }
+        # I guess we can say the same for a scalar Write
+        # But what about a scalar read? 
+        # I think we want to pass the scalar to the subroutine, this will have been done in a separate pass
+            for my $sig_arg (sort keys %{ $info->{'SubroutineCall'}{'ArgMap'} }) {
+                my $call_arg_expr_str = $info->{'SubroutineCall'}{'ArgMap'}{$sig_arg};
+                my $call_arg_ast = $info->{'SubroutineCall'}{'Args'}{'Set'}{$call_arg_expr_str}{'Type'} eq 'Scalar'
+                ? [2,$info->{'SubroutineCall'}{'Args'}{'Set'}{$call_arg_expr_str}{'Expr'}]
+                : $info->{'SubroutineCall'}{'Args'}{'Set'}{$call_arg_expr_str}{'AST'};
+                # carp $f , Dumper $info->{'SubroutineCall'}{'Args'}{'Set'};
+                if ($call_arg_ast->[0] == 10) { # Array access
+                    my $call_arg_var_name = $call_arg_ast->[1];
+                    my $called_sub_name = $info->{'SubroutineCall'}{'Name'};
+                    my ($call_arg_is_dsm_var,$call_arg_decl) = _is_dsm_var($call_arg_var_name, $Sf);
+                    if ($call_arg_is_dsm_var) {
+                        # This is what we need to do to make the args of called subs use DSM
+                        # my $sig_arg_decl =  $stref->{'Subroutines'}{$called_sub_name}{'Args'};
+                        # $sig_arg_decl->{'MemSpace'} = $call_arg_decl->{'MemSpace'};
+                        # if (exists $call_arg_decl->{'Halos'}) {
+                        #     $sig_arg_decl->{'Halos'} = $call_arg_decl->{'Halos'};
+                        # }
+                        # if (exists $call_arg_decl->{'Partitions'}) {
+                        #     $sig_arg_decl->{'Partitions'} = $call_arg_decl->{'Partitions'};                            
+                        # }
+
+                        # Create the AST for the call arg expression
+                        my $dsm_vars = {$call_arg_var_name=>$call_arg_decl};
+                        $call_arg_ast = _rewrite_ast_dsm_read_nodes( $call_arg_ast,$dsm_vars);
+                        # Maybe I can keep the expression string as key, it is not used anyway
+                        $info->{'SubroutineCall'}{'Args'}{'Set'}{$call_arg_expr_str}{'AST'}=$call_arg_ast;
+                        # Change the ExpressionAST
+                        $info->{'SubroutineCall'}{'ExpressionAST'} = _rewrite_ast_dsm_read_nodes( $info->{'SubroutineCall'}{'ExpressionAST'},$dsm_vars);
+                    }
+                }
+            }
+        }
 
         return [[$line,$info],$state];
     };
     
     my $state = {  };
-    (my $updated_loop_annlines,$state) = stateful_pass($annlines,$pass_refactor_dsm,"pass_refactor_dsm($f)");
+    (my $updated_loop_annlines,$state) = stateful_pass($annlines,$pass_refactor_dsm,$state,"pass_refactor_dsm($f)");
 
     return  $stref ;
 }
@@ -246,17 +311,18 @@ sub refactor_dsm { my ( $stref, $f ) = @_;
 # 	'ArrayOrScalar' => scalar @{$dim} > 0 ? 'Array' : 'Scalar' ,
 # };
 
-sub _refactor_parsed_vardecl_dsm {my ($decl) =@_;
-    my $pvd={};
+sub _refactor_parsed_vardecl_dsm {my ($decl,$pvd) =@_;
+    # my $pvd={};
     my $dsm_type = _dsmType($decl);
     $pvd->{'TypeTup'}{'Type'} = 'type(DSM'.$dsm_type.')';
     $pvd->{'Vars'}=[$decl->{'Name'}];
-    $pvd->{'Attributes'} = {};
-    if (exists $decl->{'IODir'}) {
+    # $pvd->{'Attributes'} = {};
+    if (exists $decl->{'IODir'} and $decl->{'IODir'} ne 'Unknown') {
         $pvd->{'Attributes'}{'Intent'}=$decl->{'IODir'};
-    }    
-    $pvd->{'InitExprAST'} = _dsmInitExprAST($decl, 'DSM'.$dsm_type);
-
+    }   
+    # carp Dumper $pvd->{'Attributes'};
+    $pvd->{'InitExprAST'} = _dsmInitExprAST($decl, $pvd,'DSM'.$dsm_type);
+    delete $pvd->{'Attributes'}{'Dim'};
     return $pvd;
 }
 
@@ -268,7 +334,7 @@ sub _dsmType {my ($decl) =@_;
         $dsm_type.=$dim.'D';
     }
     my $type = $decl->{'Type'};
-    my $kind = $decl->{'Kind'};
+    my $kind = $decl->{'Kind'} // '';
     if ($kind=~/kind\s*=\s*(\d+)/ ) {
         $kind=$1;
     } elsif ($kind=~/^(\d+)/ ) {
@@ -293,10 +359,10 @@ sub _dsmType {my ($decl) =@_;
     return $dsm_type;
 } # END of _dsmType
 
-sub _dsmInitExprAST { my ($decl, $dms_type) =@_;
+sub _dsmInitExprAST { my ($decl, $pvd, $dms_type) =@_;
     my $args = [];
     if ($decl->{'ArrayOrScalar'} eq 'Array') {
-        my $dims = $decl->{'Dim'};
+        my $dims = [map { my ($l,$h) = split(/:/,$_); [$l,$h]   } @{$pvd->{'Attributes'}{'Dim'}}] ;#$decl->{'Dim'};
         my @sizes=();
         my @offsets=();
         my @lhalos=();
@@ -335,11 +401,13 @@ sub _is_array {
     }
 }
 
-
 sub _is_dsm_var {
     my ($varname, $Sf) = @_;
     my $subset = in_nested_set( $Sf, 'Vars', $varname );
     my $decl = get_var_record_from_set($Sf->{$subset},$varname);
+    if (exists $decl->{'Parameter'}) {
+        return 0;
+    }
     if ($decl->{'MemSpace'} eq 'Collective') {
         return (1,$decl);
     } else {
@@ -347,12 +415,39 @@ sub _is_dsm_var {
     }
 }
 
+# Visit every node in the AST. If it is one of the $dsm_vars, rewrite
+# $dsm_vars :: {VarName => VarDecl}
 sub _rewrite_ast_dsm_read_nodes { my ($ast,$dsm_vars );
     my $rhs_dsm_ast = dclone($ast);
+    my $acc={}; 
+    my $f = sub { my ($ast,$acc,$dsm_vars)=@_;
+        if ($ast->[0] == 2 ) { # $
+            my $var_name = $ast->[1];
+            if (exists $dsm_vars->{$var_name}) {
+                my $dsm_type = _dsmType($dsm_vars->{$var_name});
+                $ast = [ 1, 'dsmRead'.$dsm_type, [2,$var_name]];
+            }
+        } 
+        elsif ($ast->[0] == 10 ) { # @
+            my $var_name = $ast->[1];
+
+            if (exists $dsm_vars->{$var_name}) {
+                my @idx_expr_lst = @{$ast->[2]}; 
+                if ($idx_expr_lst[0] == 27) {
+                shift @idx_expr_lst if $idx_expr_lst[0] == 27; # remove the opcode 
+                } elsif (scalar @idx_expr_lst == 2) {
+                    # This is an array with a single index, wrap it so it does not get flattened
+                    @idx_expr_lst = ([@idx_expr_lst]);
+                }
+                my $dsm_type = _dsmType($dsm_vars->{$var_name});
+                $ast = [ 1, 'dsmRead'.$dsm_type, [27,[2,$var_name],@idx_expr_lst]]                
+            }
+        } 
+    };
+
+    ($rhs_dsm_ast,$acc) = _traverse_ast_with_action($rhs_dsm_ast, $acc, $f);
     return $rhs_dsm_ast;
 }
-
-
 
 # v = expr becomes call dsmWrite${type}${kind}(v,expr)
 # w(i,j,...) = expr becomes call dsmWrite${dim}D${type}${kind}Array(a, i,j,..., expr)
@@ -364,11 +459,16 @@ sub _rewrite_ast_dsm_write_node { my ($ast,$w_varname,$w_var_decl,$r_dsm_ast) = 
         # [ 1, 'dsmWrite'.$dsm_type, [27, [2,$var_name], $idx_expr_1,..., $r_dsm_ast]]
         # So we get the index expressions:
         my @idx_expr_lst = @{$ast->[2]}; 
-        shift @idx_expr_lst; # remove the opcode
-        return [10, 'dsmWrite'.$dsm_type, [27, [2,$w_varname], @idx_expr_lst, $r_dsm_ast]];
+        if ($idx_expr_lst[0] == 27) {
+        shift @idx_expr_lst if $idx_expr_lst[0] == 27; # remove the opcode 
+        } elsif (scalar @idx_expr_lst == 2) {
+            # This is an array with a single index, wrap it so it does not get flattened
+            @idx_expr_lst = ([@idx_expr_lst]);
+        }
+        return [1, 'dsmWrite'.$dsm_type, [27, [2,$w_varname], @idx_expr_lst, $r_dsm_ast]];
     } else {
         # The AST is [2, $w_varname]
-        return [ 1, 'dsmWrite'.$dsm_type, [27, [2,$w_varname], $r_dsm_ast]];
+        return [1, 'dsmWrite'.$dsm_type, [27, [2,$w_varname], $r_dsm_ast]];
     }
 } 
               

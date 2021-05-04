@@ -74,8 +74,9 @@ sub parse_fortran_src {
 
 ## 1. Read the source and do some minimal processsing, unless it's already been done (i.e. for extracted blocks)
 	print "parse_fortran_src(): CALL read_fortran_src( $f )\n" if $V;
-	$stref = read_fortran_src( $f, $stref, $is_source_file_path );    #
+	$stref = read_fortran_src( $f, $stref, $is_source_file_path );    #	
 	say "DONE read_fortran_src( $f )" if $V;	
+    
 	my $sub_or_incl_or_mod = sub_func_incl_mod( $f, $stref ); # Maybe call this "code_unit()"	
 	my $is_incl = $sub_or_incl_or_mod eq 'IncludeFiles' ? 1 : 0;
 	my $is_mod = $sub_or_incl_or_mod eq 'Modules' ? 1 : 0;
@@ -111,6 +112,7 @@ sub parse_fortran_src {
 		print "ANALYSE LINES of $f\n" if $V;
 		$stref = analyse_lines( $f, $stref );
 		say "DONE analyse_lines( $f )" if $V;
+
 		say "ANALYSE LOOPS/BREAKS in $f\n" if $V;
 		$stref = _identify_loops_breaks( $f, $stref );
 		say "DONE _identify_loops_breaks($f)" if $V;
@@ -165,7 +167,11 @@ sub parse_fortran_src {
        # but only when parse_fortran_src exits, so in fact maybe do this in Preconditioning?
        #delete  $stref->{$sub_or_incl_or_mod}{$f}{'DeclCount'};
        #delete  $stref->{$sub_or_incl_or_mod}{$f}{'DoneInitTables'};
-	   
+	#    say "\n";
+	#    map {say $_} @{pp_annlines($stref->{'Subroutines'}{'test_loop_nature'}{'AnnLines'},1)} if $f eq 'test_loop_nature';
+	#    say "\n";
+    # die;
+
 	return $stref;
 
 }    # END of parse_fortran_src()
@@ -235,7 +241,6 @@ sub analyse_lines {
 		for my $index ( 0 .. scalar( @{$srcref} ) - 1 ) {
 			my $attr = '';
 			( my $lline, my $info ) = @{ $srcref->[$index] };
-					
 			# Get indent			
 			$lline =~ /^(\s+).*/ && do { $indent = $1; }; # This is not OK for lines with labels of course.
 			$info->{'Indent'}=$indent;						
@@ -284,7 +289,7 @@ sub analyse_lines {
 				# remove any leading spaces
 				$line=~s/^\s+//;
 			}
-			say "LINE: $line\t".$info->{'LineID'} ;
+			# say "LINE: $line\t".$info->{'LineID'} ;
 			# --------------------------------------------------------------------------------
 			# BLOCK identification code
 			# --------------------------------------------------------------------------------
@@ -641,7 +646,7 @@ SUBROUTINE
 					} # not a macro
 					 my $vline = "$type, $var_dim  :: $varname";
 					#  croak $vline if $line=~/catn13/;
-                     ( $Sf, my $info ) = __parse_f95_decl( $stref, $f, $Sf, $indent, $vline, {'Dimension' => 1});
+                     ( $Sf,  $info ) = __parse_f95_decl( $stref, $f, $Sf, $indent, $vline, {'Dimension' => 1});
                      $Sf->{'DeclCount'}{$varname}++;
                      $info->{'StmtCount'}{$varname}=$Sf->{'DeclCount'}{$varname};
 					push @{ $extra_lines{$index} }, [$indent."dimension $dline",$info];
@@ -1519,7 +1524,6 @@ END IF
 			) {
 				$prev_stmt_was_spec=0;
 			}
-
 		}    # Loop over lines
 		# We sort the indices from high to low so that the insertions are at the correct index 
 		for my $idx (sort {$b <=> $a} keys %extra_lines) {		
@@ -1789,7 +1793,19 @@ sub _parse_subroutine_and_function_calls {
 #@     ExpressionAST => $ast
 #@     Args => $expr_args
 #@ 	   IsExternal => $bool
+#@ 	   ArgMap => {} # A map from the sig arg to the call arg expr string
 #@ ExprVars => $expr_other_vars
+
+#@ $expr_args = {
+#@	'Set' => {$expr_str => {
+#@         'Type'=>'Array',
+#@         'Vars'=>$vars, 
+#@         'Expr' => $expr_str, 
+#@         'Arg' => $arg,
+#@         'AST' => $ast
+#@ 			}, ...
+#@ 	'List' => [$expr_str,...];
+#@ };
 
 # Subroutine calls. Surprisingly, these even occur in functions! *shudder*
 			if (   $line =~ /call\s+(\w+)\s*\((.*)\)/
@@ -2640,21 +2656,25 @@ sub __handle_trailing_pragmas { my ($pragma_comment,$pragmas) = @_;
 	my $memspace='Global'; # The default is to have the arrays in the Global RAM
 	$pragma_comment =~ s/^.?\$(?:ACC|RF4A)\s+//;
 	# The format is $RF4A Halos((ilh,ihh),(jlh,jhh),(klh,khh))
-	if ($pragma_comment =~/[Hh]alos\s*\(+(.+?)\s*\)+\s*/) {
+	if ($pragma_comment =~/[Hh]alos\s*\(\((.+)\s*\)\)\s*/) {
 		my $halo_str=$1;
+		# carp $halo_str;
 		# split on ),(
 		my @halo_chunks=split(/\s*\)\s*,\s*\(\s*/,$halo_str);
+		# carp Dumper @halo_chunks;
 		# split on ,
 		@{$halos} = map { [ split(/\s*,\s*/,$_) ] } @halo_chunks;
 		# So this is [[$lhi,$hhi],[$lhj,$hhj]]
+		# croak Dumper $halos;
 		$pragmas->{'Halos'} = $halos;
 	}
 	# The format for Paritions is Partitions(NPX, NPY, NPZ)
-	if ($pragma_comment =~/[Pp]artitions\s*\(+(.+?)\s*\)+\s*/) {
+	if ($pragma_comment =~/[Pp]artitions\s*\((.+)\s*\)\s*/) {
 		my $partitions_str=$1;
 		# split on ,
 		@{$partitions} = split(/\s*,\s*/,$partitions_str);
 		$pragmas->{'Partitions'} = $partitions;
+		# croak Dumper $partitions;
 		$memspace='Collective';
 		$pragmas->{'MemSpace'}=$memspace;
 	}	
@@ -2737,6 +2757,7 @@ sub __parse_f95_decl {
 			# my $has_partition_attr=0;
             if (exists $info->{'TrailingComment'} and $info->{'TrailingComment'}=~/\$(?:ACC|RF4A)\s+/) {
 				$pragmas = __handle_trailing_pragmas($info->{'TrailingComment'},$pragmas);
+				$info->{'Pragmas'}=$pragmas;
                 #     @{$halos} = map { [ split(/\s*,\s*/,$_) ] } @halo_chunks;
                 #     $has_halo_attr=1;
 				# }
@@ -3114,6 +3135,7 @@ sub _parse_f77_var_decl {
 	my $pragmas={'MemSpace' => 'Global'};
 	if (exists $info->{'TrailingComment'} and $info->{'TrailingComment'} =~/\$(?:RF4A|ACC)\s+/) { 
 		$pragmas = __handle_trailing_pragmas($info->{'TrailingComment'},$pragmas);
+		$info->{'Pragmas'}=$pragmas;
 	}
 # croak $line.Dumper($pvars, $pvars_lst ) if $line=~/integer\(KIND=MPI_OFFSET_KIND\)\s*MPI_DISPLACEMENT_CURRENT/i;	
     # For backward compat, remove later. TODO

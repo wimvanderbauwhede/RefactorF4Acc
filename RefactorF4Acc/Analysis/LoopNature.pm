@@ -1082,6 +1082,7 @@ sub cmpExprLists { my ($exprs1,$exprs2) = @_;
     }
     return 1;
 }
+
 # varNameUsed :: VarName -> ArrayAccessExpr -> Bool
 # my $array_access_expr = [
 #     $var_name, # VarName
@@ -1912,7 +1913,7 @@ sub analyseLoop_reduce {
 
     return $analysisInfo;
 
-}
+} # END of analyseLoop_reduce
 
 sub extractIterators { (my $var_expr)=@_;
     my $line_id = $var_expr->[1];
@@ -1932,7 +1933,7 @@ sub hasOperand { my ($var_expr_container, $var_expr_contains )=@_;
         return 0;
     }
 
-    my $exprs_container = $var_expr_container->[2]{'Exprs'}
+    my $exprs_container = $var_expr_container->[2]{'Exprs'};
     my ($expr_contains, $offsets) = each %{$var_expr_contains->[2]{'Exprs'}};
     if (exists $exprs_container->{$expr_contains}) {
         return 1;
@@ -1941,45 +1942,89 @@ sub hasOperand { my ($var_expr_container, $var_expr_contains )=@_;
     }
 }
 
-
-sub cmpExprLists { my ($exprs1,$exprs2) = @_;
-    if (scalar keys %{$exprs1} !=scalar keys %{$exprs2} ) {
-        return 0;
-    }
-    # at least they are the same size.
-    for my $expr1 (keys %{$exprs1}) {
-        if (not exists $exprs2->{$expr1}) {
-            return 0;
-        }
-    }
-    return 1;
-}
-
 sub isAssociativeExpr {
     my ($lhs_ast,$rhs_ast) =@_;
 
 # We need a traversal that lets us back up: if we find a node, we need to get the outer node. But the way the AST is structured, we don't have that. So all I can do is push the references to each node in the AST on a stack and then pop it. So the $acc is a stack [], or maybe it is 
-{'Stack' =>[], 'IsAssoc' => 0}
-
-sub { my ($ast,$acc)=@_;
-    push @{$acc->{'Stack'}}, $ast;
-    if ($ast->[0] == 2 and $ast->[1] eq $lhs_var) {
-        my $outer_node = pop @{$acc->{'Stack'}};        
-        # test if this is an assoc operator or function
-        # But in the case of a function we have [1,'f',[27,@args]] so we need to check for 27 and pop again
-    }
- 
-}
-# So let's take the lhs and consider the easy case first: it is a scalar
-
-if ($lhs_ast->[0]==2) {
+    my $acc = {'Stack' =>[], 'IsAssoc' => 0};
     my $lhs_var = $lhs_ast->[1];
-    
-}
-elsif ($lhs_ast->[0]==10) {
+    my $f = sub { my ($ast,$acc,$lhs_var)=@_;
+        push @{$acc->{'Stack'}}, $ast;
+        if ($ast->[0] == 2 and $ast->[1] eq $lhs_var) {
+            my $outer_node = pop @{$acc->{'Stack'}};        
+            if ($outer_node->[0] == 27) {
+                my $outer_node = pop @{$acc->{'Stack'}};
+                if ($outer_node->[0] == 1) {
+                if (isAssociativeFunction($outer_node)) {
+                        $acc->{'IsAssoc'} = 1;
+                }
+                }
+            } elsif (isAssociativeOp($outer_node)) {
+                $acc->{'IsAssoc'} = 1;
+            }
+            # test if this is an assoc operator or function
+            # But in the case of a function we have [1,'f',[27,@args]] so we need to check for 27 and pop again
+        }
+    };
+    ($rhs_ast,$acc) = _traverse_ast_with_action($rhs_ast, $acc, $f);
+    return $acc->{'IsAssoc'};
+} # END of isAssociativeExpr
 
+#               0    1    2    3    4    5    6    7    8    9    10   11   12   13    14
+our @sigils = ('(', '&', '$', '+', '-', '*', '/', '%', '**', '=', '@', '#', ':' ,'//', ')('
+#                15    16    17  18   19    20     21       22       23      24       25       26      
+               ,'==', '/=', '<', '>', '<=', '>=', '.not.', '.and.', '.or.', '.xor.', '.eqv.', '.neqv.'
+#                27   28 
+               ,',', '(/',
+# Constants               
+#                29        30      31         32           33             34       35 
+               ,'integer', 'real', 'logical', 'character', 'PlaceHolder', 'Label', 'BLANK'
+              );
+
+# isAssociativeOp :: BinOp Anno -> Bool
+# +, *, .and., .or., .xor. are assoc
+sub isAssociativeOp { my ($ast)=@_;
+my $opcode = $ast->[0];
+    if ($opcode == 3   or
+        $opcode == 5   or
+        $opcode == 22  or
+        $opcode == 23  or
+        $opcode == 24 
+    ) {
+        return 1;
+    } else {
+        return 0;
+    }
 }
+
+
+#    Not yet used. The idea is to detect whether or not a variable is given an appropriate start value for a reduction
+# opIdentityValue :: BinOp Anno -> Expr Anno
+sub opIdentityValue { my ($ast) = @_;
+    my $opcode = $ast->[0];
+    my %opIdentityValues = (
+        3 => 0, # +
+        5 => 1, # *
+        22 => $True, # and
+        23 => $False, # or
+        24 => $False # xor
+    );
+    return $opIdentityValues{$opcode};
 }
+
+# Maybe this should go in Utils
+# isAssociativeFunction :: String -> Bool
+sub isAssociativeFunction { my ($ast) = @_;
+    my $opcode = $ast->[0];
+    if ($opcode == 1) {
+        my $fnName = $ast->[1];
+        return exists $F95_assoc_intrinsic_functions{lc($fnName)} ? 1 : 0;
+    } else {
+        return 0
+    }
+}
+
+
 =pod
 --    Function takes a list of loop variables and a possible parallel loop's AST and returns a string that details the reasons why the loop
 --    doesn't represent a reduction. If the returned string is empty, the loop represents a possible parallel reduction
@@ -2416,30 +2461,30 @@ sub appendToMap { my ($key, $item, $table) = @_;
 
 sub listRemoveDuplications { ordered_union(@_); }
 
-# This is the set of all members of $aref not in $bref
-sub 
---    Function takes a list of loop variables and a possible parallel loop's AST and returns a string that details the reasons why the loop
---    doesn't represent a reduction. If the returned string is empty, the loop represents a possible parallel reduction
---    WV:  condExprs is used for the case of an assignment where the LHS is referenced in a condition of an if that encloses the assignment. It is part of the analysis to check if a variable depends on itself, not sure how it works. 
-analyseLoop_reduce :: String -> [Expr Anno] -> [VarName Anno] -> [VarName Anno] -> [VarName Anno] -> [VarName Anno] -> VarDependencyAnalysis -> VarAccessAnalysis -> Fortran Anno -> AnalysisInfo
-analyseLoop_reduce comment condExprs loopVars loopWrites nonTempVars prexistingVars dependencies accessAnalysis codeSeg = case codeSeg of
---        If _ _ condExpr ifTrue elifList maybeElse -> foldl combineAnalysisInfo analysisInfoBaseCase ([condExprAnalysis] ++ (warning readWriteAnalysis (show readWriteAnalysis)) ++(warning [ifTrueAnalysis] (show ifTrueAnalysis)) ++ elifCondAnalysis ++ elifBodyAnalysis ++ [elseAnalysis]  )
---      If _ _     expr _      elifList maybeElse -> foldl combineAnalysisInfo analysisInfoBaseCase (readWriteAnalysis ++ elifAnalysis_fortran ++ elifAnalysis_readExprs ++ [elseAnalysis])
---        If _ _ condExpr ifTrue elifList maybeElse -> foldl combineAnalysisInfo analysisInfoBaseCase ( (warning readWriteAnalysis (show readWriteAnalysis)) ++(warning [ifTrueAnalysis] (show ifTrueAnalysis)) ++ elifBodyAnalysis ++ [elseAnalysis]  )
-        If _ _ condExpr ifTrue elifList maybeElse -> foldl combineAnalysisInfo analysisInfoBaseCase ( [condExprAnalysis,ifTrueAnalysis] ++ elifCondAnalysis ++ elifBodyAnalysis ++ [elseAnalysis]  )
-            where
-                recursiveCall condExprs_ = analyseLoop_reduce comment condExprs_ loopVars loopWrites nonTempVars prexistingVars dependencies accessAnalysis
---                readWriteAnalysis = gmapQ (mkQ analysisInfoBaseCase (recursiveCall (condExprs ++ [condExpr]))) codeSeg -- so this should call recursiveCall on all nodes of codeSeg, why?
-                condExprAnalysis = (nullAnno, [], extractOperands condExpr, []) -- AnalysisInfo tuple from the 'if' condition
-                ifTrueAnalysis = (recursiveCall (condExprs++[condExpr])) ifTrue
-                --elifBodyAnalysis = map (\(elif_expr, elif_fortran) ->  (recursiveCall (condExprs ++ [elif_expr])) elif_fortran) elifList -- list of AnalysisInfo tuples from the body of each 'else if' branch
-                elifBodyAnalysis = map (\(elif_expr, elif_fortran) ->  (recursiveCall (condExprs++[elif_expr])) elif_fortran) elifList -- list of AnalysisInfo tuples from the body of each 'else if' branch
-                elifCondAnalysis = map (\(elif_expr, _) -> (nullAnno, [], extractOperands elif_expr, [])) elifList -- list of AnalysisInfo tuples from the condition of each 'else if' branch
-                elseAnalysis = case maybeElse of
-                                    Just else_fortran ->  (recursiveCall condExprs) else_fortran
-                                    Nothing -> analysisInfoBaseCase { my ($aref,$bref) = @_;
-    ordered_difference($bref,$aref);
-}
+# # This is the set of all members of $aref not in $bref
+# sub 
+# --    Function takes a list of loop variables and a possible parallel loop's AST and returns a string that details the reasons why the loop
+# --    doesn't represent a reduction. If the returned string is empty, the loop represents a possible parallel reduction
+# --    WV:  condExprs is used for the case of an assignment where the LHS is referenced in a condition of an if that encloses the assignment. It is part of the analysis to check if a variable depends on itself, not sure how it works. 
+# analyseLoop_reduce :: String -> [Expr Anno] -> [VarName Anno] -> [VarName Anno] -> [VarName Anno] -> [VarName Anno] -> VarDependencyAnalysis -> VarAccessAnalysis -> Fortran Anno -> AnalysisInfo
+# analyseLoop_reduce comment condExprs loopVars loopWrites nonTempVars prexistingVars dependencies accessAnalysis codeSeg = case codeSeg of
+# --        If _ _ condExpr ifTrue elifList maybeElse -> foldl combineAnalysisInfo analysisInfoBaseCase ([condExprAnalysis] ++ (warning readWriteAnalysis (show readWriteAnalysis)) ++(warning [ifTrueAnalysis] (show ifTrueAnalysis)) ++ elifCondAnalysis ++ elifBodyAnalysis ++ [elseAnalysis]  )
+# --      If _ _     expr _      elifList maybeElse -> foldl combineAnalysisInfo analysisInfoBaseCase (readWriteAnalysis ++ elifAnalysis_fortran ++ elifAnalysis_readExprs ++ [elseAnalysis])
+# --        If _ _ condExpr ifTrue elifList maybeElse -> foldl combineAnalysisInfo analysisInfoBaseCase ( (warning readWriteAnalysis (show readWriteAnalysis)) ++(warning [ifTrueAnalysis] (show ifTrueAnalysis)) ++ elifBodyAnalysis ++ [elseAnalysis]  )
+#         If _ _ condExpr ifTrue elifList maybeElse -> foldl combineAnalysisInfo analysisInfoBaseCase ( [condExprAnalysis,ifTrueAnalysis] ++ elifCondAnalysis ++ elifBodyAnalysis ++ [elseAnalysis]  )
+#             where
+#                 recursiveCall condExprs_ = analyseLoop_reduce comment condExprs_ loopVars loopWrites nonTempVars prexistingVars dependencies accessAnalysis
+# --                readWriteAnalysis = gmapQ (mkQ analysisInfoBaseCase (recursiveCall (condExprs ++ [condExpr]))) codeSeg -- so this should call recursiveCall on all nodes of codeSeg, why?
+#                 condExprAnalysis = (nullAnno, [], extractOperands condExpr, []) -- AnalysisInfo tuple from the 'if' condition
+#                 ifTrueAnalysis = (recursiveCall (condExprs++[condExpr])) ifTrue
+#                 --elifBodyAnalysis = map (\(elif_expr, elif_fortran) ->  (recursiveCall (condExprs ++ [elif_expr])) elif_fortran) elifList -- list of AnalysisInfo tuples from the body of each 'else if' branch
+#                 elifBodyAnalysis = map (\(elif_expr, elif_fortran) ->  (recursiveCall (condExprs++[elif_expr])) elif_fortran) elifList -- list of AnalysisInfo tuples from the body of each 'else if' branch
+#                 elifCondAnalysis = map (\(elif_expr, _) -> (nullAnno, [], extractOperands elif_expr, [])) elifList -- list of AnalysisInfo tuples from the condition of each 'else if' branch
+#                 elseAnalysis = case maybeElse of
+#                                     Just else_fortran ->  (recursiveCall condExprs) else_fortran
+#                                     Nothing -> analysisInfoBaseCase { my ($aref,$bref) = @_;
+#     ordered_difference($bref,$aref);
+# }
 
 sub usesVarName_list { my ($varname_list, $expr)=@_;
 

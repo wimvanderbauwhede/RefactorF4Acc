@@ -24,6 +24,7 @@ use Exporter;
     %F95_function_like_reserved_words
     %F95_intrinsics
     %F95_intrinsic_functions
+    %F95_assoc_intrinsic_functions
     %F95_other_intrinsics
     %F95_types
     %F95_io_keywords
@@ -899,6 +900,37 @@ zsqrt
 ); 
 our %F95_intrinsic_functions = map { $_=>1 } @F95_intrinsic_functions_list;
 
+my @F95_assoc_intrinsic_functions_list = qw(
+max
+max0
+max1
+amax0
+amax1
+dmax1
+qmax1
+i2max0
+imax0
+jmax0
+imax1
+jmax1
+aimax0
+ajmax0
+min
+min0
+min1
+amin0
+amin1
+dmin1
+qmin1
+i2min0
+imin0
+jmin0
+imin1
+jmin1
+aimin0
+ajmin0
+);
+my %F95_assoc_intrinsic_functions = map {$_ => 1} @F95_assoc_intrinsic_functions_list;
 
 our @F95_other_intrinsics = qw(
 idate

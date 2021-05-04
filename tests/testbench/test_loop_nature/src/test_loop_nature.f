@@ -3,9 +3,11 @@
         parameter( sz = 1024 )
         integer, parameter :: w = sz*4, h = sz*3
         ! integer, parameter :: h = sz*3
-        real, dimension(-1:w+2,-1:h+2) :: p1, p2
-
-        call sub0(p1,p2)
+        real, dimension(-1:w+2,-1:h+2) :: p1,p2 !$RF4A Halos((2,2),(2,2)),Partitions(3,4)
+        real, dimension(-1:w+2,-1:h+2) :: p3
+        integer dummy(-1:w+2,-1:h+2)
+        
+        call sub0(p1+1,p2,dummy(3,4))
 
         call sub1(p1,p2)
 
@@ -15,13 +17,14 @@
 
       end program
 
-      subroutine sub0(p1,p2)      
+      subroutine sub0(p1,p2,dummy)      
         integer, parameter :: sz = 1024
         integer, parameter :: w = sz*4
         integer, parameter :: h = sz*3
         real p1(-1:w+2,-1:h+2)
         real p2
         dimension p2(-1:w+2,-1:h+2)
+!        integer dummy
         real, dimension(-1:w+2,-1:h+2) :: p12
         integer :: i,j,k  
         do i = -1, w+2

@@ -1,6 +1,6 @@
 # Fold all constants in a code unit
 # This is done primarily for analysis, but it is of course a program transformation
-package RefactorF4Acc::Analysis::FoldConstants;
+package RefactorF4Acc::Refactoring::FoldConstants;
 # 
 #   (c) 2021 Wim Vanderbauwhede <Wim.Vanderbauwhede@Glasgow.ac.uk>
 #   
@@ -25,9 +25,9 @@ use Storable qw( dclone );
 
 use Exporter;
 
-@RefactorF4Acc::Analysis::FoldConstants::ISA = qw(Exporter);
+@RefactorF4Acc::Refactoring::FoldConstants::ISA = qw(Exporter);
 
-@RefactorF4Acc::Analysis::FoldConstants::EXPORT_OK = qw(
+@RefactorF4Acc::Refactoring::FoldConstants::EXPORT_OK = qw(
     fold_constants_all
     fold_constants
 );
@@ -102,13 +102,27 @@ sub fold_constants {
                 my $const_fold_cond_expr_ast = fold_constants_in_expr($stref, $f, $block_id, $cond_expr_ast);
                 $info->{'CondExecExprAST'} = $const_fold_cond_expr_ast;
             }
-            # elsif ( exists $info->{'Do'} ) { #  the expressions for the loop bounds have been folded:
-            # # $state->{'Subroutines'}{ $f }{'Blocks'}{$block_id}{'LoopIters'}{$loop_iter}=$range_rec;
+            elsif ( exists $info->{'Do'} ) { #  the expressions for the loop bounds have been folded:
+                my $block_id = $info->{'BlockID'};
+            # say Dumper $state->{'Subroutines'}{ $f }{'Blocks'}
+            # local $Data::Dumper::Indent =0;
+            # local $Data::Dumper::Terse=1;
+                my $iter =  $info->{'Do'}{'Iterator'};
+            # say $block_id,"\t$iter\t" ,Dumper $stref->{'Subroutines'}{ $f }{'ArrayAccesses'}{$block_id}{'LoopIters'};#=$range_rec;
+            # die;
+            
+                my $evaled_range = $stref->{'Subroutines'}{ $f }{'ArrayAccesses'}{$block_id}{'LoopIters'}{$iter}{'Range'};
+            # say Dumper $evaled_range;
+                $info->{'Do'}{'Range'}{'Expressions'} = $evaled_range;
+
+            # die;
+            
             #         if (exists $info->{'Do'}{'Iterator'} ) {
 
             #     } else {
             #         die "ERROR: Sorry, a `do` loop without an iterator is not supported\n";
             #     }
+            }
             # } elsif ( exists $info->{'EndDo'} ) {
 
             # }
@@ -118,7 +132,7 @@ sub fold_constants {
     my $annlines = $Sf->{'RefactoredCode'};
     my $new_annlines = stateless_pass($annlines,$pass_fold_constants,"pass_fold_constants($f) " . __LINE__  ) ;
     # $stref = identify_var_accesses_in_exprs($stref,$f,$new_annlines);
-     emit_RefactoredCode($stref,$f,$new_annlines) ;
+    #  emit_RefactoredCode($stref,$f,$new_annlines) ;
     return $new_annlines;
 } # END of fold_constants
 
@@ -143,7 +157,7 @@ sub fold_constants_all {
         #   map {say 'TEST'.$_} @{pp_annlines($Sf->{'RefactoredCode'})} if $f=~/test_loop/;
 		my $new_annlines = fold_constants( $stref, $f );
 
-        warn $f;
+        # warn $f;
         # Dumper($Sf->{'RefactoredCode'});
         # emit_RefactoredCode($stref,$f,$new_annlines) ;
 	}

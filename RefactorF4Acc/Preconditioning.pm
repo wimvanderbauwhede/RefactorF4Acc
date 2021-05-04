@@ -714,6 +714,7 @@ sub _split_multivar_decls {
                     }                    
                     push @{$new_annlines}, [$rline, {%rinfo}];
                 }    # for each $var
+
             }
             elsif ( exists $info->{'ParamDecl'} 
             # and not exists $info->{'ParsedParDecl'}

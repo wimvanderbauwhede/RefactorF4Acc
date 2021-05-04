@@ -45,13 +45,14 @@ use Exporter;
   &top_src_is_module
   &pass_wrapper_subs_in_module
   &update_arg_var_decl_sourcelines
-  %f95ops
+  &substitute_placeholders
+  %f95ops  
 );
 
 our %f95ops = (
     'not'  => '.not.',     #       complement, negation
-    'and'  => '.and.',     #       logical and
-    'or'   => '.or.',      #       logical or
+    'and'  => '.and.',     #       logical and, assoc
+    'or'   => '.or.',      #       logical or, assoc
     'eqv'  => '.eq.',      #       logical equivalence
     'neqv' => '.neqv.',    #      logical not equivalence, exclusive or
 
@@ -382,7 +383,8 @@ sub get_f95_var_decl {
             'ArrayOrScalar' => $array_or_scalar,
             'Names' => [$nvar],
             'Name' => $nvar,
-            'Status' => 1
+            'Status' => 1,
+            'MemSpace' => 'Global'
         };        
     } else {
         croak
@@ -1089,11 +1091,11 @@ sub emit_f95_parsed_var_decl { (my $pvd) =@_;
         push @attrs,'intent('. $pvd->{'Attributes'}{'Intent'} .')' ;
     }
     
-    if (exists $pvd->{'InitExprASTs'}) {
+    if (exists $pvd->{'InitExprAST'}) {
         my @init_expr_strs=();
-        for my $init_expr_ast (@{$pvd->{'InitExprASTs'}}) {
-            push @init_expr_strs, emit_expr_from_ast($init_expr_ast);
-        }
+        my $init_expr_ast =$pvd->{'InitExprAST'};
+        push @init_expr_strs, emit_expr_from_ast($init_expr_ast);
+        
         my @init_pairs=();
         for my $var (@{  $pvd->{'Vars'} } ){
             my $init_expr_str = shift @init_expr_strs;
@@ -1227,5 +1229,31 @@ sub update_arg_var_decl_sourcelines { (my $stref, my $f)=@_;
 } # END of update_arg_var_decl_sourcelines
 
 
+sub substitute_placeholders { (my $stref)=@_;
+	for my $f ( keys %{ $stref->{'Subroutines'} } ) {		
+		next if exists $stref->{'Entries'}{$f};
+		$stref=_substitute_placeholders_per_source($stref,$f);
+	}	
+	return $stref;
+} # END of substitute_placeholders
+
+sub _substitute_placeholders_per_source { (my $stref,my $f) =@_;
+	
+	my $pass_action = sub { (my $annline, my $prev_annline)=@_;
+		(my $line,my $info)=@{$annline};	
+		if (exists $info->{'PlaceHolders'}) {					
+			while ($line =~ /(__PH\d+__)/) {
+				my $ph=$1;
+				my $ph_str = $info->{'PlaceHolders'}{$ph};
+				$line=~s/$ph/$ph_str/;
+			}                                    
+			$annline = [$line, $info];
+		}
+		return [$annline];						
+	};
+	
+ 	$stref = stateless_pass_inplace($stref,$f,$pass_action, '_substitute_placeholders_per_source() ' . __LINE__  ) ;
+	return $stref
+} # END of _substitute_placeholders_per_source
 
 1;

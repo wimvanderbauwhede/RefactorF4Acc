@@ -223,7 +223,7 @@ sub identify_array_accesses_in_exprs { (my $stref, my $f) = @_;
 					if ($DBG and
 						not exists $state->{'Subroutines'}{ $f }{'Blocks'}{$block_id}{'LoopIters'}{$loop_iter}{'Range'}) {
 						croak "This should not happen! " .Dumper($annline);
-						$state->{'Subroutines'}{ $f }{'Blocks'}{$block_id}{'LoopIters'}{$loop_iter}={'Range' => [0,0]};
+						$state->{'Subroutines'}{ $f }{'Blocks'}{$block_id}{'LoopIters'}{$loop_iter}={'Range' => [0,0,0]};
 					}
 				}
 				# Assignment to scalar *_range
@@ -233,7 +233,7 @@ sub identify_array_accesses_in_exprs { (my $stref, my $f) = @_;
 
 					my $expr_str = emit_expr_from_ast($info->{'Rhs'}{'ExpressionAST'});
 					my $loop_range = eval($expr_str);
-					$state->{'Subroutines'}{ $f }{'Blocks'}{$block_id}{'LoopIters'}{$loop_iter}={'Range' => [1,$loop_range]};				
+					$state->{'Subroutines'}{ $f }{'Blocks'}{$block_id}{'LoopIters'}{$loop_iter}={'Range' => [1,$loop_range,1]};				
 					
 				} else {
 					# First check if this is maybe an accumulator
@@ -354,11 +354,12 @@ sub identify_array_accesses_in_exprs { (my $stref, my $f) = @_;
                 (my $range_start, my $range_stop, my $range_step) = @{ $info->{'Do'}{'Range'}{'Expressions'} };
                 my $range_start_evaled = eval_expression_with_parameters($range_start,$info,$stref,$f);
                 my $range_stop_evaled = eval_expression_with_parameters($range_stop,$info,$stref,$f);
+				my $range_step_evaled = eval_expression_with_parameters($range_step,$info,$stref,$f);
 #                say "RANGE: [ $range_start_evaled , $range_stop_evaled ]"; 
                 my $loop_iter = $info->{'Do'}{'Iterator'};
 				
 				# carp Dumper $loop_iter;
-                my $loop_range_exprs = [ $range_start_evaled , $range_stop_evaled ];#[$range_start,$range_stop]; # FIXME Maybe we don't need this. But if we do, we should probably eval() it
+                my $loop_range_exprs = [ $range_start_evaled , $range_stop_evaled, $range_step_evaled ];#[$range_start,$range_stop]; # FIXME Maybe we don't need this. But if we do, we should probably eval() it
                 my $loop_id = $info->{'LineID'};
                 push @{ $state->{'Subroutines'}{$f}{'LoopNests'}{'List'} },[$loop_id, $loop_iter , {'Range' => $loop_range_exprs}];
                 my $block_id = __mkLoopId( $state->{'Subroutines'}{$f}{'LoopNests'}{'List'} );
@@ -922,7 +923,7 @@ sub __is_array_decl { (my $info)=@_;
 }
 
 sub __mkLoopId { (my $loop_nest_stack ) =@_;
-    my $loop_id = join('',map {$_->[0]} @{$loop_nest_stack});
+    my $loop_id = join(':', reverse map {$_->[0]} @{$loop_nest_stack});
     croak if $DBG and $loop_id eq '';
     return $loop_id;
 }
@@ -989,7 +990,7 @@ sub _detect_halo_accesses {
 						say "LOOP ITER: $loop_iter" if $DBG;
 						say Dumper($state->{'Subroutines'}{ $f }{'Blocks'}{$block_id}{'LoopIters'}) if $DBG;
 						# This is the loop bound
-						my $loop_bound = $state->{'Subroutines'}{ $f }{'Blocks'}{$block_id}{'LoopIters'}{$loop_iter}{'Range'}->[$b];
+						my $loop_bound = $state->{'Subroutines'}{ $f }{'Blocks'}{$block_id}{'LoopIters'}{$loop_iter}{'Range'}[$b];
 						if (substr($loop_iter,0,1) eq '?') {$loop_bound=0;}
 						my $expr_loop_bound = $loop_bound+$offset;
 						my $array_bound = $state->{'Subroutines'}{ $f }{'Blocks'}{ 0 }{'Arrays'}{$array_var}{'Dims'}[$idx][$b];
