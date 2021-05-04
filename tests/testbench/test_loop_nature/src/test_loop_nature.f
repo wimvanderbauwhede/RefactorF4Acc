@@ -5,11 +5,12 @@
         ! integer, parameter :: h = sz*3
         real, dimension(-1:w+2,-1:h+2) :: p1,p2 !$RF4A Halos((2,2),(2,2)),Partitions(3,4)
         real, dimension(-1:w+2,-1:h+2) :: p3
-        integer dummy(-1:w+2,-1:h+2)
+        real dummy(-1:w+2,-1:h+2)
         
         ! test for DSM
         p3(0,0)=p2(0,0)
         p1(1,1)=p3(1,1)
+        p1(2,3)=p2(3,4)
         
         call sub0(p1,p2,dummy(3,4))
 

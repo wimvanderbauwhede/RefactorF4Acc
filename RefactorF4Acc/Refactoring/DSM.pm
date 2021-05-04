@@ -168,7 +168,6 @@ sub refactor_dsm { my ( $stref, $f ) = @_;
                 my $dsm_write_ast = _rewrite_ast_dsm_write_node(
                     $info->{'Lhs'}{'ExpressionAST'},$lhs_varname,$lhs_var_decl,$rhs_ast
                 );
-                $dsm_write_ast = $dsm_write_ast->[2];
                 $info->{'SubroutineCall'}{'ExpressionAST'} = $dsm_write_ast;
                 my $name = 'dsmWrite'._dsmType($lhs_var_decl);
                 $info->{'SubroutineCall'}{'Name'} = $name;
@@ -470,7 +469,6 @@ sub _rewrite_ast_dsm_read_nodes { my ($ast,$dsm_vars )=@_;
 # v = expr becomes call dsmWrite${type}${kind}(v,expr)
 # w(i,j,...) = expr becomes call dsmWrite${dim}D${type}${kind}Array(a, i,j,..., expr)
 sub _rewrite_ast_dsm_write_node { my ($ast,$w_varname,$w_var_decl,$r_dsm_ast) = @_;
-    my $dsm_type = _dsmType($w_var_decl);
     if ($w_var_decl->{'ArrayOrScalar'} eq 'Array') {
         # The AST is [10, $var_name, [27, $idx_expr_1,...]]
         # And it should become
@@ -483,12 +481,12 @@ sub _rewrite_ast_dsm_write_node { my ($ast,$w_varname,$w_var_decl,$r_dsm_ast) = 
             # This is an array with a single index, wrap it so it does not get flattened
             @idx_expr_lst = ([@idx_expr_lst]);
         }
-        return [1, 'dsmWrite'.$dsm_type, [27, [32,$w_varname], @idx_expr_lst, $r_dsm_ast]];
+        return  [27, [32,$w_varname], @idx_expr_lst, $r_dsm_ast];
     } else {
         # The AST is [2, $w_varname]
-        return [1, 'dsmWrite'.$dsm_type, [27, [32,$w_varname], $r_dsm_ast]];
+        return  [27, [32,$w_varname], $r_dsm_ast];
     }
-} 
+} # END of _rewrite_ast_dsm_write_node
               
 
 1;

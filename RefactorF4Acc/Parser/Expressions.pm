@@ -1074,7 +1074,6 @@ sub emit_expr_from_ast { (my $ast)=@_;
         if (scalar @{$ast}==3) {
             if ($ast->[0] == 1 or $ast->[0] == 10) { # '&' or '@', array access or function call
                 (my $sigil, my $name, my $args) =@{$ast}; # [10,'v',[...]]
-                # carp Dumper($ast);
                 if (@{$args}) {
 					if ($args->[0] != 14 ) { # ')('
 						my @args_lst=();
@@ -1105,7 +1104,7 @@ sub emit_expr_from_ast { (my $ast)=@_;
 								my $arg = $args1->[$idx];
 								push @args_lst1, emit_expr_from_ast($arg);
 							}
-							$args_str1=join(',',@args_lst1);
+							$args_str1=join(', ',@args_lst1);
 
 						} else {
 							$args_str1= emit_expr_from_ast($args1);
@@ -1121,7 +1120,7 @@ sub emit_expr_from_ast { (my $ast)=@_;
 							#                for my $arg (@{$args2->[1]}) {
 							#    push @args_lst2, emit_expr_from_ast($arg);
 							#}
-							$args_str2=join(',',@args_lst2);
+							$args_str2=join(', ',@args_lst2);
 						} else {
 							$args_str2=emit_expr_from_ast($args2);
 						}
@@ -1131,11 +1130,10 @@ sub emit_expr_from_ast { (my $ast)=@_;
 					return "$name()";
 				}
             } else {
-#            	say Dumper($ast);
                 (my $opcode, my $lexp, my $rexp) =@{$ast};
                 my $lv = (ref($lexp) eq 'ARRAY') ? emit_expr_from_ast($lexp) : $lexp;
                 my $rv = (ref($rexp) eq 'ARRAY') ? emit_expr_from_ast($rexp) : $rexp;
-                return $lv.$sigils[$opcode].$rv;
+                return $lv.' '.$sigils[$opcode].' '.$rv;
             }
         } elsif (scalar @{$ast}==2) { #  for '('  and '$'
             (my $opcode, my $exp) =@{$ast};
@@ -1160,7 +1158,7 @@ sub emit_expr_from_ast { (my $ast)=@_;
                 for my $arg (@{$exp}) {
                     push @args_lst, emit_expr_from_ast($arg);
                 }
-                return join(',',@args_lst);        
+                return join(', ',@args_lst);        
             } else {
                 croak 'BOOM! '.Dumper($ast).$opcode if $DBG;
             }
@@ -1172,7 +1170,7 @@ sub emit_expr_from_ast { (my $ast)=@_;
                     my $arg = $ast->[$idx];
                     push @args_lst, emit_expr_from_ast($arg);
                 }
-                return join(',',@args_lst); 
+                return join(', ',@args_lst); 
             } else {
                 croak Dumper($ast) if $DBG;
             }

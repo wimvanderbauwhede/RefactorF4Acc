@@ -637,18 +637,25 @@ sub emit_RefactoredCode {
         elsif ( exists $info->{'IO'} ) {
             my $io_call   = $info->{'IO'};
             my $attrs_ast = $info->{'IOCall'}{'Args'}{'AST'};
-            my $attrs_str = emit_expr_from_ast($attrs_ast);
-            if ( $attrs_str ne '' ) {
-                $attrs_str .= ', ';
+            if ($attrs_ast->[0] == 1) {
+                $attrs_ast=$attrs_ast->[2];
             }
+            # croak Dumper $attrs_ast;
+            my $attrs_str = emit_expr_from_ast($attrs_ast);
+
             my $exprs_ast = $info->{'IOList'}{'AST'};
+            # carp Dumper $attrs_ast, $exprs_ast;
             my $exprs_str = emit_expr_from_ast($exprs_ast);
+            if ( $exprs_str ne '' ) {
+                $exprs_str .= ', ';
+            }            
             $rline =
                 $indent
               . $maybe_cond
-              . $io_call . '('
+              . $io_call . ' '
               . $attrs_str
-              . $exprs_str . ')';
+              . $exprs_str ;
+            #   . ')';
 
 #== RETURN, STOP and PAUSE statements
         }
