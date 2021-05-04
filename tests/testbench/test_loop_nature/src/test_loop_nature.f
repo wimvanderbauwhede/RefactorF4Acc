@@ -7,7 +7,11 @@
         real, dimension(-1:w+2,-1:h+2) :: p3
         integer dummy(-1:w+2,-1:h+2)
         
-        call sub0(p1+1,p2,dummy(3,4))
+        ! test for DSM
+        p3(0,0)=p2(0,0)
+        p1(1,1)=p3(1,1)
+        
+        call sub0(p1,p2,dummy(3,4))
 
         call sub1(p1,p2)
 

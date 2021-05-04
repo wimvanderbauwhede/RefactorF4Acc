@@ -1341,21 +1341,21 @@ sub find_args_vars_in_ast {(my $ast)=@_;
 sub _traverse_ast_with_action { (my $ast, my $acc, my $f) = @_;
 
   if(scalar @{$ast}==0) {
-      return $acc;
+      return ($ast,$acc);
   }
 
   if ( ($ast->[0] & 0xFF) == 1 or
        ($ast->[0] & 0xFF) == 10 ) { # array var or function/subroutine call
-		$acc=$f->($ast,$acc);
+		($ast,$acc)=$f->($ast,$acc);
 		(my $entry, $acc) = _traverse_ast_with_action($ast->[2],$acc, $f);
 		$ast->[2] = $entry;
 
   } elsif (($ast->[0] & 0xFF) == 2) { # scalar variable
-	$acc=$f->($ast,$acc);	
+	($ast,$acc)=$f->($ast,$acc);	
   } elsif (($ast->[0] & 0xFF) > 28) { # constants
-	$acc=$f->($ast,$acc);
+	($ast,$acc)=$f->($ast,$acc);
   } else { # other operators
-	$acc=$f->($ast,$acc);
+	($ast,$acc)=$f->($ast,$acc);
 	for my $idx (1 .. scalar @{$ast}-1) {
 		(my $entry, $acc) = _traverse_ast_with_action($ast->[$idx],$acc, $f);
 		$ast->[$idx] = $entry;

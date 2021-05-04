@@ -70,7 +70,6 @@ sub pass_identify_stencils {(my $stref, my $code_unit_name)=@_;
 			[],
 			# subroutine-specific passes
 			[
-#				[ sub { (my $stref, my $f)=@_;  alias_ordered_set($stref,$f,'DeclaredOrigArgs','DeclaredOrigArgs'); } ],
 		  		[
 			  		\&identify_array_accesses_in_exprs,			  		
 				],
@@ -1441,8 +1440,11 @@ sub __generate_buffer_varnames { my ( $boundary_accesss, $block_id ) = @_;
 
 
 sub _is_stream_var { my ($state, $f, $block_id, $var_name) =@_;
-
+	if ($block_id == 0) { # This is the subroutine block, so in this block there are no loop iterators
+		return 0;
+	}
 	  # Get the record for $var_name
+	#   carp "$f $block_id $var_name", Dumper $state->{'Subroutines'}{ $f }{'Blocks'}{ $block_id };
 	  my $iters =  $state->{'Subroutines'}{$f}{'Blocks'}{$block_id}{'LoopIters'};
 	  my $dims = $state->{'Subroutines'}{ $f }{'Blocks'}{ $block_id }{'Arrays'}{$var_name}{'Dims'} ;	  
 	  if (scalar @{$dims} < scalar keys %{$iters}) { 
@@ -1454,7 +1456,6 @@ sub _is_stream_var { my ($state, $f, $block_id, $var_name) =@_;
 		  my $array_sz=1;
 		  my $ok=1;
 		  my $ii=0;
-		#   carp "$f $var_name ". Dumper( $iters, $dims );
 		  for my $iter (sort keys %{$iters}) {
 			  my $range = $iters->{$iter}{'Range'};
 			  
@@ -1466,13 +1467,9 @@ sub _is_stream_var { my ($state, $f, $block_id, $var_name) =@_;
 			#   $iter_space*=$range_sz;
 		  }
 		  
-		#   if ($array_sz<$iter_space) {
-		# 	  croak  "ARRAY $var_name in $f IS SMALLER than iter space";
-		#   }		
 		  if ($DBG and not $ok) {
 			  	croak  "ARRAY $var_name in $f IS SMALLER than iter space";
 		  }		  
-		#   say "$f $var_name $ok" if not $ok ;
 		  return $ok;
 	  }
 	  return 1;

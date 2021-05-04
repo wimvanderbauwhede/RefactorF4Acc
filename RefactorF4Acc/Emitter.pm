@@ -395,6 +395,7 @@ sub __get_src_subdirs {
 
 sub emit_RefactoredCode {
     my ( $stref, $f, $annlines ) = @_;
+    
     my $code_unit = sub_func_incl_mod( $f, $stref );
     my $Sf        = $stref->{$code_unit}{$f};
 
@@ -676,12 +677,14 @@ sub emit_RefactoredCode {
 #@ Rhs =>
 #@        VarList       => $rhs_all_vars
 #@        ExpressionAST => $rhs_ast
+
             my $lhs_ast      = $info->{'Lhs'}{'ExpressionAST'};
             my $rhs_ast      = $info->{'Rhs'}{'ExpressionAST'};
             my $lhs_expr_str = emit_expr_from_ast($lhs_ast);
             my $rhs_expr_str = emit_expr_from_ast($rhs_ast);
+# croak  $rhs_expr_str.Dumper $annline->[1]{'Rhs'}{'ExpressionAST'} if $f=~/test_loop/ and $line=~/p3/;
 
-            my $rline = $indent . $maybe_cond . "$lhs_expr_str = $rhs_expr_str";
+            $rline = $indent . $maybe_cond . "$lhs_expr_str = $rhs_expr_str";
 
         }
 #== CALL, SUBROUTINE CALL
@@ -717,6 +720,7 @@ sub emit_RefactoredCode {
         #     [ $rline, $info ] 
         # ];
         # } else {
+            say $rline;
         return [             
             [ $rline.$block_info, $info ] 
         ];
@@ -729,7 +733,7 @@ sub emit_RefactoredCode {
         "pass_emit_RefactoredCode($f) " . __LINE__ );
 
     # if ($f=~/test_loop/) {
-    map { say $_} @{ pp_annlines( $new_annlines ) };
+    # map { say $_} @{ pp_annlines( $new_annlines ) };
 
     # die;
     # }

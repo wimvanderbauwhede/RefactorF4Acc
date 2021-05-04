@@ -79,10 +79,11 @@ sub add_module_decls {
 					} else {
 						croak "PROBLEM: NO $called_sub in $src" . Dumper( keys %{ $stref->{'Subroutines'} } ) . $stref->{'Subroutines'}{$called_sub}{'Source'} if $DBG;
 					}
-					next if $cs_src eq $src;                                                # FIXME: ad-hoc!
-					next if $stref->{'SourceFiles'}{$cs_src}{'SourceType'} eq 'Modules';    # Because in that case there should already be a USE
+					
+					next if defined $cs_src and $cs_src eq $src;                                                # FIXME: ad-hoc!
+					next if defined $cs_src and $stref->{'SourceFiles'}{$cs_src}{'SourceType'} eq 'Modules';    # Because in that case there should already be a USE
 
-					$stref->{'UsedModules'}{$src}{$cs_src} = $sub_or_func_or_mod;
+					$stref->{'UsedModules'}{$src}{$cs_src} = $sub_or_func_or_mod if defined $cs_src;
 				}
 			}
 		}

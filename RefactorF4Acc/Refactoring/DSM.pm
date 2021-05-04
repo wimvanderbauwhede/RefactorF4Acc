@@ -16,8 +16,8 @@ use v5.10;
 
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
-use RefactorF4Acc::Parser::Expressions qw( get_vars_from_expression );
-use RefactorF4Acc::Refactoring::Helpers qw( stateful_pass );
+use RefactorF4Acc::Parser::Expressions qw( get_vars_from_expression _traverse_ast_with_action get_args_vars_from_subcall);
+use RefactorF4Acc::Refactoring::Helpers qw( stateless_pass );
 use RefactorF4Acc::Emitter qw( emit_RefactoredCode );
 
 use Carp;
@@ -55,7 +55,7 @@ sub refactor_dsm_all {
         #   map {say 'TEST'.$_} @{pp_annlines($Sf->{'RefactoredCode'})} if $f=~/test_loop/;
 		$stref = refactor_dsm( $stref, $f );
 
-        emit_RefactoredCode($stref,$f,$Sf->{'RefactoredCode'}) if $f=~/test_loop/;
+        # emit_RefactoredCode($stref,$f,$Sf->{'RefactoredCode'}) if $f=~/test_loop/;
 	}
     
 	return $stref;
@@ -73,7 +73,7 @@ sub refactor_dsm { my ( $stref, $f ) = @_;
     my $annlines = $Sf->{'RefactoredCode'} ;
 
 
-    my $pass_refactor_dsm = sub { my ($annline,$state) = @_;
+    my $pass_refactor_dsm = sub { my ($annline) = @_;
         my ($line,$info) = @{$annline};
         
         if (exists $info->{'VarDecl'} ) { 
@@ -113,7 +113,7 @@ sub refactor_dsm { my ( $stref, $f ) = @_;
                 # This is not good enough because it might be an expression but then I can't use memcopy
                 # But if it is, then we have a simple memcpy
 
-
+                croak 'TODO!';
             }
 
             # So what do I do with v1 = abs(v2)*2+1 ?
@@ -150,6 +150,7 @@ sub refactor_dsm { my ( $stref, $f ) = @_;
                     $rhs_dsm_vars->{$rhs_varname} = $rhs_var_decl;
                 }
             }
+            # carp Dumper($info),$rhs_is_dsm_var;
             my $rhs_ast = $rhs_is_dsm_var 
                 ? _rewrite_ast_dsm_read_nodes( $info->{'Rhs'}{'ExpressionAST'},$rhs_dsm_vars)
                 : $info->{'Rhs'}{'ExpressionAST'};
@@ -167,6 +168,7 @@ sub refactor_dsm { my ( $stref, $f ) = @_;
                 my $dsm_write_ast = _rewrite_ast_dsm_write_node(
                     $info->{'Lhs'}{'ExpressionAST'},$lhs_varname,$lhs_var_decl,$rhs_ast
                 );
+                $dsm_write_ast = $dsm_write_ast->[2];
                 $info->{'SubroutineCall'}{'ExpressionAST'} = $dsm_write_ast;
                 my $name = 'dsmWrite'._dsmType($lhs_var_decl);
                 $info->{'SubroutineCall'}{'Name'} = $name;
@@ -175,6 +177,8 @@ sub refactor_dsm { my ( $stref, $f ) = @_;
                 $info->{'ExprVars'} = $expr_other_vars;
                 # An external sub
                 $info->{'SubroutineCall'}{'IsExternal'} = 1;
+                delete  $info->{'Assignment'};
+
                 # I should add these to CalledSubs I think
                 # TODO!
                 # if ( $sub_or_func_or_mod eq 'Subroutines' ) { # The current code unit is a subroutine 
@@ -188,6 +192,7 @@ sub refactor_dsm { my ( $stref, $f ) = @_;
             } else {
                 # The assignment remains and all we have to do is substitute the RHS:
                 $info->{'Rhs'}{'ExpressionAST'} = $rhs_ast;
+                # carp Dumper $rhs_ast;
                 my $rhs_vars_set  = get_vars_from_expression($rhs_ast) ;
                 #	say 'RHS_ARGS:'.Dumper($rhs_args);
                 my $rhs_all_vars = {
@@ -293,12 +298,14 @@ sub refactor_dsm { my ( $stref, $f ) = @_;
             }
         }
 
-        return [[$line,$info],$state];
+        return [[$line,$info]];
     };
     
-    my $state = {  };
-    (my $updated_loop_annlines,$state) = stateful_pass($annlines,$pass_refactor_dsm,$state,"pass_refactor_dsm($f)");
-
+    # my $state = {  };
+    my $updated_loop_annlines = stateless_pass($annlines,$pass_refactor_dsm,"pass_refactor_dsm($f)");
+    
+    #  map {say $_} @{pp_annlines($updated_loop_annlines,1)};
+emit_RefactoredCode($stref,$f,$updated_loop_annlines) if $f=~/test_loop/;
     return  $stref ;
 }
 
@@ -417,21 +424,26 @@ sub _is_dsm_var {
 
 # Visit every node in the AST. If it is one of the $dsm_vars, rewrite
 # $dsm_vars :: {VarName => VarDecl}
-sub _rewrite_ast_dsm_read_nodes { my ($ast,$dsm_vars );
+sub _rewrite_ast_dsm_read_nodes { my ($ast,$dsm_vars )=@_;
+# carp Dumper $dsm_vars;
     my $rhs_dsm_ast = dclone($ast);
-    my $acc={}; 
-    my $f = sub { my ($ast,$acc,$dsm_vars)=@_;
-        if ($ast->[0] == 2 ) { # $
+    
+    # my $acc={}; 
+    my $f = sub { my ($ast,$acc)=@_;
+    
+        if ($ast->[0] == 2 ) { # $ 
+        
             my $var_name = $ast->[1];
-            if (exists $dsm_vars->{$var_name}) {
-                my $dsm_type = _dsmType($dsm_vars->{$var_name});
+
+            if (exists $acc->{$var_name}) {
+                my $dsm_type = _dsmType($acc->{$var_name});
                 $ast = [ 1, 'dsmRead'.$dsm_type, [2,$var_name]];
             }
         } 
         elsif ($ast->[0] == 10 ) { # @
             my $var_name = $ast->[1];
-
-            if (exists $dsm_vars->{$var_name}) {
+            # carp "VAR <$var_name>";#.Dumper keys %{$acc};
+            if (exists $acc->{$var_name}) { 
                 my @idx_expr_lst = @{$ast->[2]}; 
                 if ($idx_expr_lst[0] == 27) {
                 shift @idx_expr_lst if $idx_expr_lst[0] == 27; # remove the opcode 
@@ -439,15 +451,21 @@ sub _rewrite_ast_dsm_read_nodes { my ($ast,$dsm_vars );
                     # This is an array with a single index, wrap it so it does not get flattened
                     @idx_expr_lst = ([@idx_expr_lst]);
                 }
-                my $dsm_type = _dsmType($dsm_vars->{$var_name});
-                $ast = [ 1, 'dsmRead'.$dsm_type, [27,[2,$var_name],@idx_expr_lst]]                
+                my $dsm_type = _dsmType($acc->{$var_name});
+                # A trick: consider the array variable as a constant, not a scalar
+                $ast = [ 1, 'dsmRead'.$dsm_type, [27,[32,$var_name],@idx_expr_lst]];
+                
             }
+            # croak Dumper $ast;
         } 
+        # carp Dumper $ast;
+        return ($ast,$acc);
     };
 
-    ($rhs_dsm_ast,$acc) = _traverse_ast_with_action($rhs_dsm_ast, $acc, $f);
+    ($rhs_dsm_ast,$dsm_vars) = _traverse_ast_with_action($rhs_dsm_ast, $dsm_vars, $f);
+    # croak Dumper $rhs_dsm_ast;
     return $rhs_dsm_ast;
-}
+} # END of _rewrite_ast_dsm_read_nodes
 
 # v = expr becomes call dsmWrite${type}${kind}(v,expr)
 # w(i,j,...) = expr becomes call dsmWrite${dim}D${type}${kind}Array(a, i,j,..., expr)
@@ -465,10 +483,10 @@ sub _rewrite_ast_dsm_write_node { my ($ast,$w_varname,$w_var_decl,$r_dsm_ast) = 
             # This is an array with a single index, wrap it so it does not get flattened
             @idx_expr_lst = ([@idx_expr_lst]);
         }
-        return [1, 'dsmWrite'.$dsm_type, [27, [2,$w_varname], @idx_expr_lst, $r_dsm_ast]];
+        return [1, 'dsmWrite'.$dsm_type, [27, [32,$w_varname], @idx_expr_lst, $r_dsm_ast]];
     } else {
         # The AST is [2, $w_varname]
-        return [1, 'dsmWrite'.$dsm_type, [27, [2,$w_varname], $r_dsm_ast]];
+        return [1, 'dsmWrite'.$dsm_type, [27, [32,$w_varname], $r_dsm_ast]];
     }
 } 
               
