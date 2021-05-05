@@ -39,7 +39,10 @@ use Exporter;
 # So this requires running identify_array_accesses_in_exprs() first to identify any nested loops.
 # $ast = (fold_constants_in_expr($stref, $f, $block_id, $ast);
 sub fold_constants {
-    my ($stref, $f) = @_;
+    my ($stref, $f, $substitute_loop_iters_by_consts) = @_;
+    if (not defined $substitute_loop_iters_by_consts) {
+        $substitute_loop_iters_by_consts = 0;
+    }
     my $Sf = $stref->{'Subroutines'}{$f};
     $stref = identify_array_accesses_in_exprs($stref,$f);
     # die;
@@ -83,6 +86,7 @@ sub fold_constants {
                 # warn 'TODO!';
 			}            
             # say "LINE: $line";
+            if ($substitute_loop_iters_by_consts) {
 			if (exists $info->{'Assignment'} ) {
                 # We need the AST for LHS and RHS
                 if ($info->{'Lhs'}{'ArrayOrScalar'} eq 'Array' ) { 
@@ -101,6 +105,7 @@ sub fold_constants {
                 my $cond_expr_ast = $info->{'CondExecExprAST'};
                 my $const_fold_cond_expr_ast = fold_constants_in_expr($stref, $f, $block_id, $cond_expr_ast);
                 $info->{'CondExecExprAST'} = $const_fold_cond_expr_ast;
+            }
             }
             elsif ( exists $info->{'Do'} ) { #  the expressions for the loop bounds have been folded:
                 my $block_id = $info->{'BlockID'};

@@ -36,7 +36,8 @@ use Exporter;
 
 sub refactor_dsm_all {
 	( my $stref ) = @_;
-
+    # croak $stref->{'Top'};
+    $stref = propagate_dsm_declaration($stref,$stref->{'Top'});
 	for my $f ( sort keys %{ $stref->{'Subroutines'} } ) {
 
 		next if ( $f eq '' or $f eq 'UNKNOWN_SRC' or not defined $f );
@@ -53,6 +54,7 @@ sub refactor_dsm_all {
 		next if $Sf->{'Status'} == $READ;
 		next if $Sf->{'Status'} == $FROM_BLOCK;
         #   map {say 'TEST'.$_} @{pp_annlines($Sf->{'RefactoredCode'})} if $f=~/test_loop/;
+        
 		$stref = refactor_dsm( $stref, $f );
 
         # emit_RefactoredCode($stref,$f,$Sf->{'RefactoredCode'}) if $f=~/test_loop/;
@@ -71,7 +73,6 @@ sub refactor_dsm_all {
 sub refactor_dsm { my ( $stref, $f ) = @_;
     my $Sf = $stref->{'Subroutines'}{$f};
     my $annlines = $Sf->{'RefactoredCode'} ;
-
 
     my $pass_refactor_dsm = sub { my ($annline) = @_;
         my ($line,$info) = @{$annline};
@@ -151,6 +152,7 @@ sub refactor_dsm { my ( $stref, $f ) = @_;
                 }
             }
             # carp Dumper($info),$rhs_is_dsm_var;
+            # carp "$line ORIG RHS AST: ".Dumper $info->{'Rhs'}{'ExpressionAST'};
             my $rhs_ast = $rhs_is_dsm_var 
                 ? _rewrite_ast_dsm_read_nodes( $info->{'Rhs'}{'ExpressionAST'},$rhs_dsm_vars)
                 : $info->{'Rhs'}{'ExpressionAST'};
@@ -164,13 +166,14 @@ sub refactor_dsm { my ( $stref, $f ) = @_;
                 #@ 	   IsExternal => $bool
                 #@ 	   ArgMap => {} # A map from the sig arg to the call arg
                 #@ ExprVars => $expr_other_vars
-            
+            # carp "$line DMS RHS AST: ".Dumper $rhs_ast;
                 my $dsm_write_ast = _rewrite_ast_dsm_write_node(
                     $info->{'Lhs'}{'ExpressionAST'},$lhs_varname,$lhs_var_decl,$rhs_ast
                 );
                 $info->{'SubroutineCall'}{'ExpressionAST'} = $dsm_write_ast;
                 my $name = 'dsmWrite'._dsmType($lhs_var_decl);
                 $info->{'SubroutineCall'}{'Name'} = $name;
+                # carp Dumper $dsm_write_ast;
                 my ($expr_args, $expr_other_vars ) = get_args_vars_from_subcall($dsm_write_ast);
                 $info->{'SubroutineCall'}{'Args'} = $expr_args;
                 $info->{'ExprVars'} = $expr_other_vars;
@@ -242,7 +245,7 @@ sub refactor_dsm { my ( $stref, $f ) = @_;
         #@ SubroutineCall => 
         #@     Name => $name
         #@     ExpressionAST => $ast
-        #@     Args => $expr_args
+        #@     Args => $expr_args, a Set/List map, see below
         #@ 	   IsExternal => $bool
         #@ 	   ArgMap => {} # A map from the sig arg to the call arg expr string
         #@ ExprVars => $expr_other_vars     
@@ -258,7 +261,6 @@ sub refactor_dsm { my ( $stref, $f ) = @_;
         #@ };
 
         elsif (exists $info->{'SubroutineCall'}) {
-        #     # Maybe I can leave this as I assume that we inline subs in loops and the Collective access should only happen in loops
         # If a variable is an array access, it must per definition be a Read, so use the API call
         # If it is an array but not an access, then the access should happen in the subroutine so we don't have to handle it
         # I guess we can say the same for a scalar Write
@@ -277,13 +279,7 @@ sub refactor_dsm { my ( $stref, $f ) = @_;
                     if ($call_arg_is_dsm_var) {
                         # This is what we need to do to make the args of called subs use DSM
                         # my $sig_arg_decl =  $stref->{'Subroutines'}{$called_sub_name}{'Args'};
-                        # $sig_arg_decl->{'MemSpace'} = $call_arg_decl->{'MemSpace'};
-                        # if (exists $call_arg_decl->{'Halos'}) {
-                        #     $sig_arg_decl->{'Halos'} = $call_arg_decl->{'Halos'};
-                        # }
-                        # if (exists $call_arg_decl->{'Partitions'}) {
-                        #     $sig_arg_decl->{'Partitions'} = $call_arg_decl->{'Partitions'};                            
-                        # }
+
 
                         # Create the AST for the call arg expression
                         my $dsm_vars = {$call_arg_var_name=>$call_arg_decl};
@@ -304,9 +300,92 @@ sub refactor_dsm { my ( $stref, $f ) = @_;
     my $updated_loop_annlines = stateless_pass($annlines,$pass_refactor_dsm,"pass_refactor_dsm($f)");
     
     #  map {say $_} @{pp_annlines($updated_loop_annlines,1)};
-emit_RefactoredCode($stref,$f,$updated_loop_annlines) if $f=~/test_loop/;
+    say "\nRefactored code for $f\n";
+    emit_RefactoredCode($stref,$f,$updated_loop_annlines); 
     return  $stref ;
-}
+} # END of refactor_dsm
+
+
+sub propagate_dsm_declaration { my ( $stref, $f ) = @_;
+    my $Sf = $stref->{'Subroutines'}{$f};
+    my $annlines = $Sf->{'RefactoredCode'} ;
+    say "propagate_dsm_declaration($f)" if $V;
+    my $pass_propagate_dsm_declaration = sub { my ($annline) = @_;
+        my ($line,$info) = @{$annline};
+        
+
+        #== CALL, SUBROUTINE CALL
+        #@ SubroutineCall => 
+        #@     Name => $name
+        #@     ExpressionAST => $ast
+        #@     Args => $call_arg_expr_str
+        #@ 	   IsExternal => $bool
+        #@ 	   ArgMap => {$sig_arg => $expr_args } # A map from the sig arg to the call arg expr string
+        #@ ExprVars => $expr_other_vars     
+        #@ $expr_args = {
+        #@	'Set' => {$call_arg_expr_str => {
+        #@         'Type'=>'Array',
+        #@         'Vars'=>$vars, 
+        #@         'Expr' => $call_arg_expr_str, 
+        #@         'Arg' => $arg,
+        #@         'AST' => $ast
+        #@ 			}, ...
+        #@ 	'List' => [$call_arg_expr_str,...];
+        #@ };
+
+        if (exists $info->{'SubroutineCall'}) {
+            my $csub = $info->{'SubroutineCall'}{'Name'};
+            my $Ssub = $stref->{'Subroutines'}{$csub};
+            for my $sig_arg (sort keys %{ $info->{'SubroutineCall'}{'ArgMap'} }) {
+                my $call_arg_expr_str = $info->{'SubroutineCall'}{'ArgMap'}{$sig_arg};
+                # we are only concerned with call args that are not expressions or array accesses,
+                # so we can look them up directly in the Vars and see if they are Collective
+                my $varname = $call_arg_expr_str;
+                my $subset = in_nested_set( $Sf, 'Vars', $varname );
+                if ($subset) {
+                    my $call_arg_decl = get_var_record_from_set($Sf->{$subset},$varname);
+                    if (not exists $call_arg_decl->{'Parameter'}) {
+                        # carp Dumper $call_arg_decl ;
+                        # say 'MEMSPACE: ',$f,' ', $varname,"\t", $call_arg_decl->{'MemSpace'};
+                        if ($call_arg_decl->{'MemSpace'} eq 'Collective') { 
+                            # carp "CALL ARG $varname: ", Dumper $call_arg_decl;
+                            my $csub_subset = in_nested_set( $Ssub, 'Args', $sig_arg );
+                            if ($csub_subset) {
+                                my $sig_arg_decl = get_var_record_from_set($Ssub->{$csub_subset},$sig_arg);   
+                                # carp "MAKE SIG ARG $sig_arg of $csub Collecive ";#, Dumper $sig_arg_decl;
+                                $sig_arg_decl->{'MemSpace'} = 'Collective';
+                                if (exists $call_arg_decl->{'Halos'}) {
+                                    $sig_arg_decl->{'Halos'} = $call_arg_decl->{'Halos'};
+                                }
+                                if (exists $call_arg_decl->{'Partitions'}) {
+                                    $sig_arg_decl->{'Partitions'} = $call_arg_decl->{'Partitions'};                            
+                                }
+                                $Ssub->{$csub_subset}{'Set'}{$sig_arg}=$sig_arg_decl;
+                            } else {
+                                croak "TROUBLE: no declaration for argument $sig_arg of $csub"
+                            }                         
+                        }
+                    }
+                }
+            }
+            # Now do a recursive descent
+            $stref = propagate_dsm_declaration($stref,$csub);
+        }
+
+        return [[$line,$info]];
+    };
+    
+    # my $state = {  };
+    # croak Dumper $stref->{'Subroutines'}{'sub0'}{'Args'};
+    my $loop_annlines_ = stateless_pass($annlines,$pass_propagate_dsm_declaration,"pass_propagate_dsm_declaration($f)");
+    # die if $f =~/loop/;
+    #  map {say $_} @{pp_annlines($updated_loop_annlines,1)};
+    # emit_RefactoredCode($stref,$f,$updated_loop_annlines) if $f=~/test_loop/;
+    return  $stref ;
+} # END of propagate_dsm_declaration
+
+
+
 
 # my $decl = {
 # 	'Type'   => $tvar_rec->{'Type'},
@@ -325,9 +404,10 @@ sub _refactor_parsed_vardecl_dsm {my ($decl,$pvd) =@_;
     # $pvd->{'Attributes'} = {};
     if (exists $decl->{'IODir'} and $decl->{'IODir'} ne 'Unknown') {
         $pvd->{'Attributes'}{'Intent'}=$decl->{'IODir'};
-    }   
+    } else {  
     # carp Dumper $pvd->{'Attributes'};
     $pvd->{'InitExprAST'} = _dsmInitExprAST($decl, $pvd,'DSM'.$dsm_type);
+    }
     delete $pvd->{'Attributes'}{'Dim'};
     return $pvd;
 }

@@ -80,7 +80,8 @@ sub replace_consts_in_ast { (my $stref, my $f, my $block_id, my $ast, my $state,
 					my $mvar = $ast->[$idx+1];
 					# say "MVAR: $mvar in $f";
 					if (exists $state->{$block_id}{'LoopIters'}{ $mvar }) { 
-						$ast=''.$const.'';
+						$ast= ref($const) eq 'ARRAY' ? $const : ''.$const.'';
+						# $ast->[$idx+1] =  ''.$const.'';
 						# say "MVAR $mvar RETURN $ast";
 						return ($ast,1);
 					} elsif (in_nested_set($stref->{'Subroutines'}{$f},'Parameters',$mvar)) {
@@ -161,7 +162,7 @@ sub fold_constants_in_expr { (my $stref, my $f, my $block_id, my $ast)=@_;
 			    		# scalar keys %{$vars} > 0
   		) {
 			  $prev_vars_str=$vars_str;
-			($ast, my $retval) = replace_consts_in_ast($stref, $f, $block_id, $ast, $stref->{'Subroutines'}{ $f }{'ArrayAccesses'}, 0);			
+			($ast, my $retval) = replace_consts_in_ast($stref, $f, $block_id, $ast, $stref->{'Subroutines'}{ $f }{'ArrayAccesses'}, [29,0]);
 			last if $retval == 0;
 			# - check if the result is var-free, else repeat
 			$vars=get_vars_from_expression($ast,{}) ;

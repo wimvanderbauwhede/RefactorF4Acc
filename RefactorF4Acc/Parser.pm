@@ -1791,20 +1791,19 @@ sub _parse_subroutine_and_function_calls {
 #@ SubroutineCall => 
 #@     Name => $name
 #@     ExpressionAST => $ast
-#@     Args => $expr_args
+#@     Args => $call_arg_expr_str
 #@ 	   IsExternal => $bool
-#@ 	   ArgMap => {} # A map from the sig arg to the call arg expr string
-#@ ExprVars => $expr_other_vars
-
+#@ 	   ArgMap => {$sig_arg => $expr_args } # A map from the sig arg to the call arg expr string (added in Analysis)
+#@ ExprVars => $expr_other_vars     
 #@ $expr_args = {
-#@	'Set' => {$expr_str => {
+#@	'Set' => {$call_arg_expr_str => {
 #@         'Type'=>'Array',
 #@         'Vars'=>$vars, 
-#@         'Expr' => $expr_str, 
+#@         'Expr' => $call_arg_expr_str, 
 #@         'Arg' => $arg,
 #@         'AST' => $ast
 #@ 			}, ...
-#@ 	'List' => [$expr_str,...];
+#@ 	'List' => [$call_arg_expr_str,...];
 #@ };
 
 # Subroutine calls. Surprisingly, these even occur in functions! *shudder*
