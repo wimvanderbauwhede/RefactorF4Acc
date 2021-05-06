@@ -120,19 +120,19 @@ sub _removed_unused_variables { (my $stref, my $f)=@_;
  					}
 				}
 #				$state->{'ExprVars'} ={ %{ $state->{'ExprVars'} }, };
-				for my $var (keys %{$info->{'Rhs'}{'VarList'}{'Set'} }) {
+				for my $var (keys %{$info->{'Rhs'}{'Vars'}{'Set'} }) {
  						$state->{'ExprVars'}{$var}++;	
  					}
-				for my $var (keys %{  $info->{'Rhs'}{'VarList'}{'Set'} } ) {
-					if (exists $info->{'Rhs'}{'VarList'}{'Set'}{$var}{'Vars'}) {
-#						$state->{'ExprVars'} ={%{$state->{'ExprVars'}},%{ $info->{'Rhs'}{'VarList'}{'Set'}{$var}{'Vars'} }};
-						for my $var (keys %{ $info->{'Rhs'}{'VarList'}{'Set'}{$var}{'Vars'} }) {
+				for my $var (keys %{  $info->{'Rhs'}{'Vars'}{'Set'} } ) {
+					if (exists $info->{'Rhs'}{'Vars'}{'Set'}{$var}{'Vars'}) {
+#						$state->{'ExprVars'} ={%{$state->{'ExprVars'}},%{ $info->{'Rhs'}{'Vars'}{'Set'}{$var}{'Vars'} }};
+						for my $var (keys %{ $info->{'Rhs'}{'Vars'}{'Set'}{$var}{'Vars'} }) {
  							$state->{'ExprVars'}{$var}++;	
  						}
 					}
-					if (exists $info->{'Rhs'}{'VarList'}{'Set'}{$var}{'IndexVars'}) {
+					if (exists $info->{'Rhs'}{'Vars'}{'Set'}{$var}{'IndexVars'}) {
 #						$state->{'ExprVars'} ={%{$state->{'ExprVars'}},%{  }};
-						for my $var (keys %{ $info->{'Rhs'}{'VarList'}{'Set'}{$var}{'IndexVars'} }) {
+						for my $var (keys %{ $info->{'Rhs'}{'Vars'}{'Set'}{$var}{'IndexVars'} }) {
  							$state->{'ExprVars'}{$var}++;	
  						}						
 					}			
@@ -146,17 +146,17 @@ sub _removed_unused_variables { (my $stref, my $f)=@_;
 			}			
 		}		
 		if (exists $info->{'If'} and not $skip_if) {						
-				my $cond_expr_ast=$info->{'CondExecExprAST'};#= $ast;parse_expression($info->{'CondExecExpr'}, $info,$stref, $f);
-#				$state->{'ExprVars'} ={%{$state->{'ExprVars'}},%{ $info->{'CondVars'}{'Set'} } }; 
-			for my $var (keys %{ $info->{'CondVars'}{'Set'} }) {
+				my $cond_expr_ast=$info->{'Cond'}{'AST'};#= $ast;parse_expression($info->{'Cond'}{'Expr'}, $info,$stref, $f);
+#				$state->{'ExprVars'} ={%{$state->{'ExprVars'}},%{ $info->{'Cond'}{'Vars'}{'Set'} } }; 
+			for my $var (keys %{ $info->{'Cond'}{'Vars'}{'Set'} }) {
 				say "ADDING $var to ExprVars in IF" if $DBG;
  				$state->{'ExprVars'}{$var}++;
  					
 			}						
-				for my $var ( @{ $info->{'CondVars'}{'List'} } ) {					
-					if (exists  $info->{'CondVars'}{'Set'}{$var}{'IndexVars'} ) {								
+				for my $var ( @{ $info->{'Cond'}{'Vars'}{'List'} } ) {					
+					if (exists  $info->{'Cond'}{'Vars'}{'Set'}{$var}{'IndexVars'} ) {								
 #						$state->{'ExprVars'} ={%{$state->{'ExprVars'}},%{  } };
-						for my $var (keys %{ $info->{'CondVars'}{'Set'}{$var}{'IndexVars'} }) {
+						for my $var (keys %{ $info->{'Cond'}{'Vars'}{'Set'}{$var}{'IndexVars'} }) {
  							$state->{'ExprVars'}{$var}++;	
 						}
 					}				
@@ -294,13 +294,13 @@ sub _declare_undeclared_variables { (my $stref, my $f)=@_;
 				if (exists $info->{'Lhs'}{'IndexVars'}) {
 					$state->{'ExprVars'} ={%{$state->{'ExprVars'}},%{ $info->{'Lhs'}{'IndexVars'}{'Set'} } };
 				}
-				$state->{'ExprVars'} ={ %{ $state->{'ExprVars'} }, %{ $info->{'Rhs'}{'VarList'}{'Set'} } };
-				for my $var (keys %{  $info->{'Rhs'}{'VarList'}{'Set'} } ) {
-					if (exists $info->{'Rhs'}{'VarList'}{'Set'}{$var}{'Vars'}) {
-						$state->{'ExprVars'} ={%{$state->{'ExprVars'}},%{ $info->{'Rhs'}{'VarList'}{'Set'}{$var}{'Vars'} }};
+				$state->{'ExprVars'} ={ %{ $state->{'ExprVars'} }, %{ $info->{'Rhs'}{'Vars'}{'Set'} } };
+				for my $var (keys %{  $info->{'Rhs'}{'Vars'}{'Set'} } ) {
+					if (exists $info->{'Rhs'}{'Vars'}{'Set'}{$var}{'Vars'}) {
+						$state->{'ExprVars'} ={%{$state->{'ExprVars'}},%{ $info->{'Rhs'}{'Vars'}{'Set'}{$var}{'Vars'} }};
 					}
-					if (exists $info->{'Rhs'}{'VarList'}{'Set'}{$var}{'IndexVars'}) {
-						$state->{'ExprVars'} ={%{$state->{'ExprVars'}},%{ $info->{'Rhs'}{'VarList'}{'Set'}{$var}{'IndexVars'} }};
+					if (exists $info->{'Rhs'}{'Vars'}{'Set'}{$var}{'IndexVars'}) {
+						$state->{'ExprVars'} ={%{$state->{'ExprVars'}},%{ $info->{'Rhs'}{'Vars'}{'Set'}{$var}{'IndexVars'} }};
 					}			
 				}			
 		}
@@ -310,8 +310,8 @@ sub _declare_undeclared_variables { (my $stref, my $f)=@_;
 		}		
 		if (exists $info->{'If'} ) {					
 			
-				my $cond_expr_ast=$info->{'CondExecExprAST'};
-				$state->{'ExprVars'} ={%{$state->{'ExprVars'}},%{ $info->{'CondVars'}{'Set'} } }; 
+				my $cond_expr_ast=$info->{'Cond'}{'AST'};
+				$state->{'ExprVars'} ={%{$state->{'ExprVars'}},%{ $info->{'Cond'}{'Vars'}{'Set'} } }; 
 		}
 		
 		return ([$annline],$state);
@@ -359,7 +359,7 @@ sub _declare_undeclared_variables { (my $stref, my $f)=@_;
 #				say "$f VAR: $var is UNDECLARED" if $var=~/range/;
 			# Now from this list via 
 				my $var_type = 'integer';
-				for my $rhs_var (@{ $info->{'Rhs'}{'VarList'}{'List'} } ) {
+				for my $rhs_var (@{ $info->{'Rhs'}{'Vars'}{'List'} } ) {
 					next if exists $Config{'Macros'}{uc($rhs_var)};
 					my $decl = get_var_record_from_set($stref->{'Subroutines'}{$f}{'Vars'},$rhs_var) ;
 					if ($decl->{'Type'} eq 'real') {
@@ -985,7 +985,7 @@ my $pass_check_reads_writes = sub { (my $annline, my $reads_writes)=@_;
 		
 		if (exists $info->{'Assignment'} ) { 			
 			
-			if (exists $info->{'Rhs'}{'VarList'}{'Set'}{$arg
+			if (exists $info->{'Rhs'}{'Vars'}{'Set'}{$arg
 				}) {
 					 # $arg is Read 
 					 push @{$reads_writes},'r';
@@ -997,7 +997,7 @@ my $pass_check_reads_writes = sub { (my $annline, my $reads_writes)=@_;
 			}
 		}	
 		elsif (exists $info->{'If'} ) { 			
-				 if (exists $info->{'CondVars'}{'Set'}{$arg
+				 if (exists $info->{'Cond'}{'Vars'}{'Set'}{$arg
 				}) {
 					 # $arg is Read  
 					 push @{$reads_writes},'r';

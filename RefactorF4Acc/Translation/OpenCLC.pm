@@ -527,7 +527,7 @@ sub _emit_assignment_C { (my $stref, my $f, my $info)=@_;
 
 
 sub _emit_ifthen_C { (my $stref, my $f, my $info)=@_;	
-	my $cond_expr_ast=$info->{'CondExecExprAST'};	
+	my $cond_expr_ast=$info->{'Cond'}{'AST'};	
 	my $cond_expr = _emit_expression_C($cond_expr_ast,$stref,$f);
 	$cond_expr=_change_operators_to_C($cond_expr);
 	# FIXME! fix for stray '+'

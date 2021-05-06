@@ -405,7 +405,7 @@ sub identify_vars_on_line {
 			
 			my @chunks = ();
 			if ( exists $info->{'If'} or exists $info->{'ElseIf'} ) {
-				@chunks = @{ $info->{'CondVars'}{'List'} };
+				@chunks = @{ $info->{'Cond'}{'Vars'}{'List'} };
 			}
 
 			if (   exists $info->{'PrintCall'}
@@ -453,7 +453,7 @@ sub identify_vars_on_line {
 				}
 				@chunks = ( @chunks, $info->{'Do'}{'Iterator'}, @{ $info->{'Do'}{'Range'}{'Vars'} } );
 			} elsif ( (exists $info->{'Assignment'} and not exists $info->{'Data'}) or  exists $info->{'StatementFunction'}) {
-				@chunks = ( @chunks, $info->{'Lhs'}{'VarName'}, @{ $info->{'Lhs'}{'IndexVars'}{'List'} }, @{ $info->{'Rhs'}{'VarList'}{'List'} } );
+				@chunks = ( @chunks, $info->{'Lhs'}{'VarName'}, @{ $info->{'Lhs'}{'IndexVars'}{'List'} }, @{ $info->{'Rhs'}{'Vars'}{'List'} } );
 			} elsif ( exists $info->{'ParamDecl'} ) {
 				@chunks = ( @chunks, keys %{ $info->{'UsedParameters'} } );
 			}	 elsif ( exists $info->{'Data'} 

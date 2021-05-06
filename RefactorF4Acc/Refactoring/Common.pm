@@ -1067,12 +1067,12 @@ sub  __update_cast_reshape_result {
 	$cast_reshape_result->{'PreAnnLine'}[1]{'Lhs'}{'VarName'}=$new_call_arg;
 	$cast_reshape_result->{'PreAnnLine'}[1]{'Lhs'}{'ExpressionAST'}=[2,$new_call_arg];
 	$cast_reshape_result->{'PreAnnLine'}[1]{'Lhs'}{'IndexVars'}{'List'}=[];
-	$cast_reshape_result->{'PreAnnLine'}[1]{'Rhs'}{'VarList'}{'List'}=[$new_call_arg,$call_arg];	
+	$cast_reshape_result->{'PreAnnLine'}[1]{'Rhs'}{'Vars'}{'List'}=[$new_call_arg,$call_arg];	
 	$cast_reshape_result->{'PostAnnLine'}[0]=$cast_reshape_post_line;	
 	$cast_reshape_result->{'PostAnnLine'}[1]{'Lhs'}{'VarName'}=$call_arg;
 	$cast_reshape_result->{'PostAnnLine'}[1]{'Lhs'}{'ExpressionAST'}=[2,$call_arg];
 	$cast_reshape_result->{'PostAnnLine'}[1]{'Lhs'}{'IndexVars'}{'List'}=[];
-	$cast_reshape_result->{'PostAnnLine'}[1]{'Rhs'}{'VarList'}{'List'}=[$new_call_arg,$call_arg];
+	$cast_reshape_result->{'PostAnnLine'}[1]{'Rhs'}{'Vars'}{'List'}=[$new_call_arg,$call_arg];
 
 	return $cast_reshape_result;
 }
@@ -1320,7 +1320,7 @@ sub _create_refactored_function_calls {
 	or exists $info->{'ElseIf'}
 	 ) {
 		# an if or if-then-else
-		$ast = $info->{'CondExecExprAST'};
+		$ast = $info->{'Cond'}{'AST'};
 	} else {
 		croak "TODO: UNSUPPORTED STATEMENT FOR FUNCTION CALL: <$line> "  if $DBG;
 		#. Dumper($info);

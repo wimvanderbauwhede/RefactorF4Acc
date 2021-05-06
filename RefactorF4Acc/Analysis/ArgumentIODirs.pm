@@ -431,7 +431,7 @@ sub _analyse_src_for_iodirs {
                         next;
                     }
                     if (exists $info->{'If'}) {
-                        my $cond_vars = $info->{'CondVars'}{'List'};
+                        my $cond_vars = $info->{'Cond'}{'Vars'}{'List'};
                         $args = _set_iodir_vars($cond_vars, $args, \&_set_iodir_read);
 
 #						next; # NOT next: maybe it is a subcall or an assignment!
@@ -534,7 +534,7 @@ sub _analyse_src_for_iodirs {
                             
                         # say "$f LINE: $line INFO: ".Dumper($info);
                         # First check the RHS
-                        my $rhs_vars = $info->{'Rhs'}{'VarList'}{'List'};
+                        my $rhs_vars = $info->{'Rhs'}{'Vars'}{'List'};
 
                         # say "RHS: ".Dumper($rhs_vars);
                         if (scalar @{$rhs_vars} > 0) {

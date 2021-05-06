@@ -1175,8 +1175,8 @@ or $line=~/^character\s*\(\s*len\s*=\s*[\w\*]+\s*\)/
 #== IF -- Block, Arithmetic and logical IF statements		
 # st can be any executable statement, except a DO block, IF, ELSE IF, ELSE,
 # END IF, END, or another logical IF statement.
-#@ CondExecExpr => $cond
-#@ CondExecExprAST => $ast
+#@ Cond Expr => $cond
+#@ Cond AST => $ast
 #@ CondVars =>
 #@     Set => {...}
 #@     List => [...]
@@ -1202,7 +1202,7 @@ or $line=~/^character\s*\(\s*len\s*=\s*[\w\*]+\s*\)/
 
 				( my $cond, $mline ) = _parse_if_cond($line);
 				
-				$info->{'CondExecExpr'}=$cond;
+				$info->{'Cond'}{'Expr'}=$cond;
 				if ($mline=~/(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*$/) {
 					# arithmetic IF
 					$Sf->{'ReferencedLabels'}{$1}=$1;
@@ -1213,7 +1213,7 @@ or $line=~/^character\s*\(\s*len\s*=\s*[\w\*]+\s*\)/
 
 				my $ast = parse_expression($cond,  $info,  $stref,  $f);
 				
-				$info->{'CondExecExprAST'}= $ast;
+				$info->{'Cond'}{'AST'}= $ast;
 				my $vars_in_cond_expr =  get_vars_from_expression( $ast,{});
 				
 				my $vars_and_index_vars_in_cond_expr={};
@@ -1231,8 +1231,8 @@ or $line=~/^character\s*\(\s*len\s*=\s*[\w\*]+\s*\)/
 				for my $macro (keys %{$Config{'Macros'}} ) {
 					delete $vars_and_index_vars_in_cond_expr->{ lc($macro) };
 				}
-				$info->{'CondVars'}{'Set'} = $vars_and_index_vars_in_cond_expr;
-				$info->{'CondVars'}{'List'} = [ sort keys %{$vars_and_index_vars_in_cond_expr} ];
+				$info->{'Cond'}{'Vars'}{'Set'} = $vars_and_index_vars_in_cond_expr;
+				$info->{'Cond'}{'Vars'}{'List'} = [ sort keys %{$vars_and_index_vars_in_cond_expr} ];
 				if ($mline eq 'then') {
 					$info->{ 'Control' } = 1;	
 					$info->{ 'IfThen' } = 1;						
@@ -1344,8 +1344,7 @@ END IF
 					if ( exists $ast->{'FileName'} ) {						
 						if ( exists $ast->{'FileName'}{'Var'} and $ast->{'FileName'}{'Var'} !~ /__PH/ ) {						
 							$info->{'FileNameVar'} =
-							  $ast->{'FileName'}{'Var'
-							  }; # TODO: in principle almost any other field could be a var
+							  $ast->{'FileName'}{'Var'}; # TODO: in principle almost any other field could be a var
 							$info->{'Vars'}{'Set'}
 							  { $ast->{'FileName'}{'Var'} } = 1;
 						} elsif ( exists $ast->{'FileName'}{'Expr'} ) {
@@ -4001,7 +4000,7 @@ sub _parse_assignment {
 	}
 # Here also, check if any of these vars has been declared as array
 	$info->{'Rhs'} = {
-		'VarList'       => $rhs_all_vars,
+		'Vars'       => $rhs_all_vars,
 		'ExpressionAST' => $rhs_ast
 	};
 

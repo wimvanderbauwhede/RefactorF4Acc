@@ -125,7 +125,7 @@ sub pass_rename_array_accesses_to_scalars {(my $stref, my $code_unit_name)=@_;
 	},
 	'Rhs' => {
 		'ExpressionAST' => ['@','g_ptr','1'],
-		'VarList' => {
+		'Vars' => {
 			'List' => ['g_ptr'],
 			'Set' => {
 				'g_ptr' => {'Type' => 'Array','Vars' => {}}				
@@ -181,7 +181,7 @@ sub _rename_array_accesses_to_scalars { (my $stref, my $f) = @_;
 		if (exists $info->{'Signature'} ) { 			
 			$state->{'Args'} = $info->{'Signature'}{'Args'}{'Set'};
 		} elsif (exists $info->{'Assignment'} ) {
-			if (scalar @{ $info->{'Rhs'}{'VarList'}{'List'} } == 1 and $info->{'Rhs'}{'VarList'}{'List'}[0]=~/_ptr/) {
+			if (scalar @{ $info->{'Rhs'}{'Vars'}{'List'} } == 1 and $info->{'Rhs'}{'Vars'}{'List'}[0]=~/_ptr/) {
 				croak 'FIXME: What we want is that only array variables with IndexVars are renamed. So constant indices should stay as they are';
 				# IGNORE, this is not a true array access: this is an assignment of the shape
 				# v = v_ptr(1)
@@ -195,10 +195,10 @@ sub _rename_array_accesses_to_scalars { (my $stref, my $f) = @_;
 				 if (ref($ast) ne '') {
 				my $vars=get_vars_from_expression($ast,{}) ;
 #				croak "CARP:".Dumper($vars);
-				$info->{'Rhs'}{'VarList'}{'Set'}=$vars;
-				$info->{'Rhs'}{'VarList'}{'List'}= [ grep {$_ ne 'IndexVars' } sort keys %{$vars} ];
+				$info->{'Rhs'}{'Vars'}{'Set'}=$vars;
+				$info->{'Rhs'}{'Vars'}{'List'}= [ grep {$_ ne 'IndexVars' } sort keys %{$vars} ];
 				 } else {
-				 	$info->{'Rhs'}{'VarList'}={'List'=>[],'Set'=>{}};
+				 	$info->{'Rhs'}{'Vars'}={'List'=>[],'Set'=>{}};
 				 }
 			}
 			if ($info->{'Lhs'}{'ArrayOrScalar'} eq 'Array') {
@@ -210,33 +210,33 @@ sub _rename_array_accesses_to_scalars { (my $stref, my $f) = @_;
 				$info->{'Lhs'}{'ArrayOrScalar'} = 'Scalar';
 			}
 			$state->{'IndexVars'}={ %{$state->{'IndexVars'} }, %{ $info->{'Lhs'}{'IndexVars'}{'Set'} } };
-			for my $var ( @{ $info->{'Rhs'}{'VarList'}{'List'} } ) {
-				if ($info->{'Rhs'}{'VarList'}{'Set'}{$var}{'Type'} eq 'Array' and exists $info->{'Rhs'}{'VarList'}{'Set'}{$var}{'IndexVars'}) {					
-					$state->{'IndexVars'}={ %{ $state->{'IndexVars'} }, %{ $info->{'Rhs'}{'VarList'}{'Set'}{$var}{'IndexVars'} } }
+			for my $var ( @{ $info->{'Rhs'}{'Vars'}{'List'} } ) {
+				if ($info->{'Rhs'}{'Vars'}{'Set'}{$var}{'Type'} eq 'Array' and exists $info->{'Rhs'}{'Vars'}{'Set'}{$var}{'IndexVars'}) {					
+					$state->{'IndexVars'}={ %{ $state->{'IndexVars'} }, %{ $info->{'Rhs'}{'Vars'}{'Set'}{$var}{'IndexVars'} } }
 				}
 			}				
 		} 
 		if (exists $info->{'If'} ) {
 			# carp Dumper $info;
-			my $cond_expr_ast = $info->{'CondExecExprAST'};
+			my $cond_expr_ast = $info->{'Cond'}{'AST'};
 			# Rename all array accesses in the AST. This updates $state->{'StreamVars'}			
 			(my $ast, $state) = _scalarise_array_accesses_in_ast($stref, $f,  $state, $cond_expr_ast, 'In');			
 			
-			$info->{'CondExecExpr'}=$ast;
-			for my $var ( @{ $info->{'CondVars'}{'List'} } ) {
+			$info->{'Cond'}{'Expr'}=$ast;
+			for my $var ( @{ $info->{'Cond'}{'Vars'}{'List'} } ) {
 				if (
-					$info->{'CondVars'}{'Set'}{$var}{'Type'} eq 'Array' 					
-				and exists $info->{'CondVars'}{'Set'}{$var}{'IndexVars'}) {					
-					$state->{'IndexVars'}={ %{ $state->{'IndexVars'} }, %{ $info->{'CondVars'}{'Set'}{$var}{'IndexVars'} } }
+					$info->{'Cond'}{'Vars'}{'Set'}{$var}{'Type'} eq 'Array' 					
+				and exists $info->{'Cond'}{'Vars'}{'Set'}{$var}{'IndexVars'}) {					
+					$state->{'IndexVars'}={ %{ $state->{'IndexVars'} }, %{ $info->{'Cond'}{'Vars'}{'Set'}{$var}{'IndexVars'} } }
 				}
 			}
 				 if (ref($ast) ne '') {
 				my $vars=get_vars_from_expression($ast,{}) ;
 
-				$info->{'CondVars'}{'Set'}=$vars;
-				$info->{'CondVars'}{'List'}= [ grep {$_ ne 'IndexVars' } sort keys %{$vars} ];
+				$info->{'Cond'}{'Vars'}{'Set'}=$vars;
+				$info->{'Cond'}{'Vars'}{'List'}= [ grep {$_ ne 'IndexVars' } sort keys %{$vars} ];
 				 } else {
-				 	$info->{'CondVars'}={'List'=>[],'Set'=>{}};
+				 	$info->{'Cond'}{'Vars'}={'List'=>[],'Set'=>{}};
 				 }
 		}
 		return ([[$line,$info]],$state);
@@ -305,7 +305,7 @@ sub _rename_array_accesses_to_scalars { (my $stref, my $f) = @_;
 						  },
 						'Rhs' => {
 							'ExpressionAST' => $scalar_assignment_rhs_ast,
-							'VarList' => {'List' => $scalar_assignment_rhs_vars_list,'Set' =>$scalar_assignment_rhs_vars},
+							'Vars' => {'List' => $scalar_assignment_rhs_vars_list,'Set' =>$scalar_assignment_rhs_vars},
 						}
 					
 				}
@@ -328,7 +328,7 @@ sub _rename_array_accesses_to_scalars { (my $stref, my $f) = @_;
 						'Rhs'=> {   
 							'ArrayOrScalar' => 'Scalar',
 							'ExpressionAST' => ['$',$stream_var],
-							'VarList' => {
+							'Vars' => {
 								'List' => [$stream_var], 
 								'Set' => {$stream_var  => {'Type' => 'Scalar'} }, 									
 								}
@@ -437,7 +437,7 @@ sub _rename_array_accesses_to_scalars { (my $stref, my $f) = @_;
 
 	my  $pass_lift_array_index_calculations = sub { (my $annline, my $state)=@_;
 		(my $line,my $info)=@{$annline};
-	# Every Assignment line that has one of these on the LHS gets removed from AnnLines and stored in LiftedIndexCalcLines, and we take list of all vars on the RHS {'Rhs'}{'VarList'}{'List'} and add these to $index_vars
+	# Every Assignment line that has one of these on the LHS gets removed from AnnLines and stored in LiftedIndexCalcLines, and we take list of all vars on the RHS {'Rhs'}{'Vars'}{'List'} and add these to $index_vars
 	# We do this until we have all of them. Basically, if we start from the back and push in reverse, we can do this in a single pass
 		
 		if (exists $info->{'Assignment'} ) {
@@ -445,7 +445,7 @@ sub _rename_array_accesses_to_scalars { (my $stref, my $f) = @_;
 			if (exists $state->{'IndexVars'}{$lhs_var}) {				
 				unshift @{ $state->{'LiftedIndexCalcLines'} }, dclone($annline);
 				$info->{'Deleted'}=1;
-	  			my $rhs_vars = $info->{'Rhs'}{'VarList'}{'Set'};
+	  			my $rhs_vars = $info->{'Rhs'}{'Vars'}{'Set'};
 				$state->{'IndexVars'}={ %{ $state->{'IndexVars'} }, %{ $rhs_vars } };				  
 				return ([["! $line",$info]],$state);
 			}
@@ -735,7 +735,7 @@ sub _add_assignments_for_called_subs { (my $stref, my $f) = @_;
 				
 				if ( exists  $stref->{'Subroutines'}{$subname}{'LiftedArrayAssignments'} ) {				
 					for my $lifted_annline ( @{ $stref->{'Subroutines'}{$subname}{'LiftedArrayAssignments'} } ) {
-						my $var = $lifted_annline->[1]{'Rhs'}{'VarList'}{'List'}[0];
+						my $var = $lifted_annline->[1]{'Rhs'}{'Vars'}{'List'}[0];
 						if (exists $stref->{'Subroutines'}{$subname}{'DeclaredOrigArgs'}{'Set'}{$var}) {
 						my $iodir = exists $stref->{'Subroutines'}{$subname}{'DeclaredOrigArgs'}{'Set'}{$var}{'IODir'} 
 						? $stref->{'Subroutines'}{$subname}{'DeclaredOrigArgs'}{'Set'}{$var}{'IODir'}
@@ -887,7 +887,7 @@ sub _emit_assignment { (my $annline)=@_;
 # ================================================================================================================================================
 sub _emit_ifthen { (my $annline)=@_;
 	( my $line, my $info ) = @{$annline};
-	my $cond_expr_ast=$info->{'CondExecExpr'};
+	my $cond_expr_ast=$info->{'Cond'}{'Expr'};
 	my $cond_expr = emit_expr_from_ast($cond_expr_ast);
 	my $rline = $info->{'Indent'}.'if ('.$cond_expr.') '. (exists $info->{'IfThen'} ? 'then' : '');	
 	return ($rline, $info);

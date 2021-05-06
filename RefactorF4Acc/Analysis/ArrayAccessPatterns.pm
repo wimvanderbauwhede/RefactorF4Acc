@@ -95,6 +95,7 @@ sub pass_identify_stencils {(my $stref, my $code_unit_name)=@_;
 # Array access on the LHS of an Assignment is stored in $info
 
 # Array accesses are stored in $info->...->{'VarAccesses'}
+
 # $state->{'Subroutines'}{ $f }{'Blocks'}{ $block_id }{'Arrays'}{$array_var}{$rw}=
 # {
 # 	'Exprs' => { $expr_str_1 => '0:1',...},
@@ -335,8 +336,8 @@ sub identify_array_accesses_in_exprs { (my $stref, my $f) = @_;
 			}
 	 		if (exists $info->{'If'} or exists $info->{'ElseIf'}) {
                 # FIXME: Surely conditions of if-statements can contain array accesses, so FIX THIS!
-                #say "IF statement, TODO: ".Dumper($info->{'CondExecExpr'});
-                my $cond_expr_ast = $info->{'CondExecExprAST'};
+                #say "IF statement, TODO: ".Dumper($info->{'Cond'}{'Expr'});
+                my $cond_expr_ast = $info->{'Cond'}{'AST'};
                 ($cond_expr_ast, $state, my $cond_accesses) = _find_var_access_in_ast($stref, $f, $block_id, $state, $cond_expr_ast,'Read',{});
 				$info->{'VarAccesses'}=$cond_accesses;
             }
@@ -501,6 +502,7 @@ sub _find_var_access_in_ast { (my $stref, my $f,  my $block_id, my $state, my $a
 					$state->{'Subroutines'}{ $f }{'Blocks'}{ $block_id }{'Arrays'}{$array_var}{$rw}{'Accesses'}{ $offsets_str } = $iter_val_pairs;
 					$accesses->{'Arrays'}{$array_var}{$rw}{'Exprs'}{$expr_str}=$offsets_str;
 					$accesses->{'Arrays'}{$array_var}{$rw}{'Accesses'}{ $offsets_str } = $iter_val_pairs;
+					$accesses->{'Arrays'}{$array_var}{$rw}{'Iterators'}=\@iters;
 					last;					
 				} 
 				elsif ($idx==0 and (($entry & 0xFF)==2)) { #$entry eq '$'

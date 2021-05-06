@@ -17,7 +17,9 @@ use v5.10;
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
 use RefactorF4Acc::Parser::Expressions qw( get_vars_from_expression _traverse_ast_with_action get_args_vars_from_subcall);
-use RefactorF4Acc::Refactoring::Helpers qw( stateless_pass );
+use RefactorF4Acc::Refactoring::Helpers qw( stateless_pass stateful_pass );
+use RefactorF4Acc::Analysis::VarAccessAnalysis qw( analyseAllVarAccesses );
+use RefactorF4Acc::Analysis::LoopNature qw( resolve_loop_nests );
 use RefactorF4Acc::Emitter qw( emit_RefactoredCode );
 
 use Carp;
@@ -54,8 +56,9 @@ sub refactor_dsm_all {
 		next if $Sf->{'Status'} == $READ;
 		next if $Sf->{'Status'} == $FROM_BLOCK;
         #   map {say 'TEST'.$_} @{pp_annlines($Sf->{'RefactoredCode'})} if $f=~/test_loop/;
-        
+        $stref = rewrite_loop_bounds( $stref, $f ); 
 		$stref = refactor_dsm( $stref, $f );
+       
 
         # emit_RefactoredCode($stref,$f,$Sf->{'RefactoredCode'}) if $f=~/test_loop/;
 	}
@@ -106,7 +109,7 @@ sub refactor_dsm { my ( $stref, $f ) = @_;
             and $info->{'Rhs'}{'ExpressionAST'}[0] == 2
             ) {
                 if (_is_array($info->{'Lhs'}{'VarName'},$Sf)
-                and _is_array($info->{'Rhs'}{'VarList'}{'List'}[0],$Sf)
+                and _is_array($info->{'Rhs'}{'Vars'}{'List'}[0],$Sf)
                 ) { #OK, we have an array assignment
                         # Now check if LHS and/or RHS is Collective
                 }
@@ -144,8 +147,8 @@ sub refactor_dsm { my ( $stref, $f ) = @_;
             # For simplicity I create a hash of var => decl for the dsm vars, so that I can simply match in the AST
             my $rhs_dsm_vars={};
             my $rhs_is_dsm_var=0;
-            # carp Dumper $info->{'Rhs'}{'VarList'};
-            for my $rhs_varname (@{$info->{'Rhs'}{'VarList'}{'List'}}) {
+            # carp Dumper $info->{'Rhs'}{'Vars'};
+            for my $rhs_varname (@{$info->{'Rhs'}{'Vars'}{'List'}}) {
                 ($rhs_is_dsm_var,my $rhs_var_decl) = _is_dsm_var($rhs_varname, $Sf);
                 if ($rhs_is_dsm_var) {
                     $rhs_dsm_vars->{$rhs_varname} = $rhs_var_decl;
@@ -201,7 +204,7 @@ sub refactor_dsm { my ( $stref, $f ) = @_;
                     'Set'  => $rhs_vars_set,
                     'List' => [ sort keys %{ $rhs_vars_set } ]
                 };            
-                $info->{'Rhs'}{'VarList'} = $rhs_all_vars;
+                $info->{'Rhs'}{'Vars'} = $rhs_all_vars;
             }
             # Get the ASTs
             # Rewrite the variable accesses using the API                        
@@ -210,22 +213,22 @@ sub refactor_dsm { my ( $stref, $f ) = @_;
             #== IF -- Block, Arithmetic and logical IF statements		
             # st can be any executable statement, except a DO block, IF, ELSE IF, ELSE,
             # END IF, END, or another logical IF statement.
-            #@ CondExecExpr => $cond
-            #@ CondExecExprAST => $ast
+            #@ Cond Expr => $cond
+            #@ Cond AST => $ast
             #@ CondVars =>
             #@     Set => {...}
             #@     List => [...]
 
             # This is read-only so it is like the RHS of an assignment            
             my $cond_dsm_vars={};
-            for my $cond_varname (@{$info->{'CondVars'}{'List'}}) {
+            for my $cond_varname (@{$info->{'Cond'}{'Vars'}{'List'}}) {
                 my ($cond_is_dsm_var,$cond_var_decl) = _is_dsm_var($cond_varname, $Sf);
                 if ($cond_is_dsm_var) {
                     $cond_dsm_vars->{$cond_varname} = $cond_var_decl;
                 }
             }
-            my $cond_dsm_ast = _rewrite_ast_dsm_read_nodes($info->{'CondExecExprAST'},$cond_dsm_vars );
-            $info->{'CondExecExprAST'} = $cond_dsm_ast;
+            my $cond_dsm_ast = _rewrite_ast_dsm_read_nodes($info->{'Cond'}{'AST'},$cond_dsm_vars );
+            $info->{'Cond'}{'AST'} = $cond_dsm_ast;
             # Because this is a Read, the CondVars do not change
         }
         elsif (exists $info->{'Do'}) {
@@ -567,6 +570,114 @@ sub _rewrite_ast_dsm_write_node { my ($ast,$w_varname,$w_var_decl,$r_dsm_ast) = 
         return  [27, [32,$w_varname], $r_dsm_ast];
     }
 } # END of _rewrite_ast_dsm_write_node
-              
+
+=pod
+Rewrite the loop bounds based on Map/Reduce/Stencil annotations, using the Partition info from the array variables in the loop
+∘ We need to find all array accesses in the loop
+∘ The complication is accesses with constant indices in between nested loops
+∘ Other complication is how to handle nested loops, I guess the best way is to create a set of block_ids and do the analysis for 
+
+∘ Apart from that it's just $info->{'VarAccesses'}  which contains the 
+From the accesses we need to do the following:
+* Get the iterators and their index pos
+* Get the Dim from the array
+* Make a list that links the iterator to the dim for every var:
+
+So all we need is 'i' => {'v','w'} etc.
+
+What do we do with conflicts? 
+Partition conflicts => Give up
+Halo conflicts => That is interesting: 
+- suppose the loop bound is -1 .. 102 and at least one array only has a dim smaller than that => BOOM!
+- suppose the loop bound is 0 .. 101 and an array has a dim of 104 and a halo of 2, and another has a dim of 102 and a halo of 1
+So it looks like what we need to do is figure out the core, and see if all cores are the same, otherwise BOOM!
+Then, 
+if any dim < the loop range BOOM!
+If any dim and the rest == loop range > loop range, we use the the halo of the smaller ones
+If the dims == loop range, no problem
+
+
+
+
+Array accesses are stored in $info->...->{'VarAccesses'}{'Arrays'}{$array_var}{$rw}=
+{
+	'Exprs' => { $expr_str_1 => '0:1',...},
+	'Accesses' => { '0:1' =>  {'j:0' => [1,0],'k:1' => [1,1]}}, 
+	'Iterators' => ['j:0','k:1']
+};
+=cut
+
+sub rewrite_loop_bounds { 
+my ( $stref, $f ) = @_;
+    my $Sf = $stref->{'Subroutines'}{$f};
+    my $annlines = $Sf->{'RefactoredCode'} ;
+    
+    ($stref,my $accessAnalysis) = analyseAllVarAccesses($stref, $f, [], $annlines);
+    # croak $f, Dumper $accessAnalysis->{'LoopNests'};
+    ($accessAnalysis, my $blocks_per_nestlevel_, my $max_lev_) = resolve_loop_nests($stref, $f, $accessAnalysis);
+#     die;
+# croak Dumper $accessAnalysis;
+    my $pass_rewrite_loop_bounds = sub { my ($annline,$state) = @_;
+        my ($line,$info) = @{$annline};
+        # carp Dumper $state;
+        if (exists $info->{'Do'}) {
+                $state->{'Loops'}{
+                    $info->{'BlockID'}
+                } = 1;
+        }
+        elsif (exists $info->{'EndDo'}) {
+                delete $state->{'Loops'}{
+                    $info->{'BlockID'}
+                } ;            
+        }
+        elsif (exists $info->{'VarAccesses'} ) { 
+            $state = _get_iters_for_vars($info->{'VarAccesses'},'Read',$state);
+        }
+        
+        elsif (exists $info->{'Assignment'} ) { # So we should run this before we rewrite with the dsmAPI
+            # carp Dumper $info;
+            $state = _get_iters_for_vars($info->{'Rhs'}{'VarAccesses'},'Read',$state);
+            $state = _get_iters_for_vars($info->{'Lhs'}{'VarAccesses'},'Write',$state);
+        }                
+        return ([[$line,$info]],$state);
+    };
+    my $state = {'IterTable' => {},'Loops'=>{}, 'VarAccessAnalysis'=>$accessAnalysis};
+    (my $loop_annlines_,$state) = stateful_pass($annlines,$pass_rewrite_loop_bounds,$state,"pass_rewrite_loop_bounds($f)");
+    my $iters = $state->{'VarAccessAnalysis'}{'LoopNests'}{'Set'};
+    carp "$f VarAccessAnalysis: ".Dumper $iters;
+
+    #  map {say $_} @{pp_annlines($updated_loop_annlines,1)};
+    # say "\nRefactored code for $f\n";
+    # emit_RefactoredCode($stref,$f,$updated_loop_annlines); 
+    return  $stref ;
+}
+
+sub _get_iters_for_vars { my ($accesses,$rw,$state) = @_;
+    for my $var (sort keys %{$accesses->{'Arrays'}}) {
+        $state = _get_iters_for_var($var,$accesses->{'Arrays'}{$var}{$rw},$state);
+    }
+    return $state;
+}
+
+sub _get_iters_for_var { my ($var,$exprs,$state) = @_;
+    for my $k (sort keys %{$exprs->{'Accesses'}}){
+        # The access for each iterator
+        for my $rec (@{$exprs->{'Accesses'}{$k}}) {
+            my ($iter_idx_str, $mult_offset) = each %{$rec};
+            my ($mult,$offset) = @{$mult_offset};
+            my ($iter, $idx) = split(/:/,$iter_idx_str);
+            for my $block_id (sort keys %{$state->{'Loops'}}) {
+                if ($state->{'VarAccessAnalysis'}{'LoopNests'}{'Set'}{$block_id}{'Iterator'} eq $iter) {
+                    $state->{'VarAccessAnalysis'}{'LoopNests'}{'Set'}{$block_id}{'IterVarTable'}{$iter}{$var}=$mult_offset unless $iter eq '?';
+                    $state->{'IterTable'}{$block_id}{$iter}{$var}=$mult_offset unless $iter eq '?';
+                }
+            }
+        }
+    }
+    return $state;
+}
+# conv
+
+
 
 1;

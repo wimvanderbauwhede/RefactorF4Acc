@@ -142,7 +142,7 @@ sub _assignment_info { my ($lhs_var, $rhs_vars) = @_;
 		'Assignment'=>1,
 		'HasVars'=>1,
 		'Rhs' =>{
-			'VarList' => {
+			'Vars' => {
 				'List'=> $rhs_vars,
 				'Set' => {}
 			},

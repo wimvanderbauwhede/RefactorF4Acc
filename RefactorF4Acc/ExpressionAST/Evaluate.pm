@@ -277,7 +277,7 @@ sub _try_to_eval_via_vars  {my ($stref, $f, $var) = @_;
 			my $no_self_assignment=1;
 			if (exists $info->{'Assignment'} 
 			and $info->{'Lhs'}{'VarName'} eq $var
-			and exists $info->{'Rhs'}{'VarList'}{'Set'}{$var}
+			and exists $info->{'Rhs'}{'Vars'}{'Set'}{$var}
 			) {
 				$no_self_assignment=0;
 			}

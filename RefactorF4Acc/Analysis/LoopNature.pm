@@ -15,7 +15,7 @@ use v5.10;
 
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
-use RefactorF4Acc::Analysis::FoldConstants qw( fold_constants );
+use RefactorF4Acc::Refactoring::FoldConstants qw( fold_constants );
 use RefactorF4Acc::Analysis::VarAccessAnalysis qw( analyseAllVarAccesses );
 use Carp;
 use Data::Dumper;
@@ -28,6 +28,7 @@ use Exporter;
 @RefactorF4Acc::Analysis::LoopNature::EXPORT_OK = qw(
     analyse_loop_nature_all
     analyseLoopNature
+    resolve_loop_nests
 );
 =pod
 This is essentially a port of the loop analysis and transformation code of the AutoParallelFortran compiler
@@ -146,7 +147,7 @@ sub analyseLoopNature { # paralleliseProgUnit_foldl
             my $filename =  $Sf->{'Source'}; # subSrcFile subrec; we don't need this, we can use $f
             my $annlines_foldedConstants = fold_constants( $stref, $f);
             # my $accessAnalysis :: VarAccessAnalysis
-            my $accessAnalysis = analyseAllVarAccesses($stref, $f, $ioWriteSubroutines, $annlines);
+            ($stref,my $accessAnalysis) = analyseAllVarAccesses($stref, $f, $ioWriteSubroutines, $annlines);
             # die;
             
             croak Dumper $accessAnalysis->{'LoopNests'}{'Set'};
@@ -169,25 +170,26 @@ sub analyseLoopNature { # paralleliseProgUnit_foldl
 
 
 sub parallelise_all_Blocks { my ($stref, $f, $accessAnalysis, $annlines_foldedConstants) = @_;
-    # 1. look for the blocks with the longest ID
-    my $max_lev = 0;
-    my $blocks_per_nestlevel = [];
-    for my $block_id (@{$accessAnalysis->{'LoopNests'}{'List'}[0]}) {
-        my $nest_lev = $accessAnalysis->{'LoopNests'}{'Set'}{$block_id}{'NestLevel'};
-        push @{$blocks_per_nestlevel->[$nest_lev]},$block_id;
-        $max_lev = max($max_lev, $nest_lev);
-    }
 
-    for my $rev_lev (0 .. $max_lev-1) {
-        my $nest_lev = $max_lev - $rev_lev;
-        for my $block_id (@{$blocks_per_nestlevel->[$nest_lev]}) {
-            if ($nest_lev>1) {
-                my $in_block_id = $accessAnalysis->{'LoopNests'}{'Set'}{$block_id}{'InBlock'};
-                my $line_id = $accessAnalysis->{'LoopNests'}{'Set'}{$block_id}{'BlockEnd'};
-                $accessAnalysis->{'LoopNests'}{'Set'}{$in_block_id}{'Contains'}{$block_id}=$line_id;
-            }
-        }
-    }
+    ($accessAnalysis, my $blocks_per_nestlevel, my $max_lev) = resolve_loop_nests($stref, $f, $accessAnalysis);
+    # my $max_lev = 0;
+    # my $blocks_per_nestlevel = [];
+    # for my $block_id (@{$accessAnalysis->{'LoopNests'}{'List'}[0]}) {
+    #     my $nest_lev = $accessAnalysis->{'LoopNests'}{'Set'}{$block_id}{'NestLevel'};
+    #     push @{$blocks_per_nestlevel->[$nest_lev]},$block_id;
+    #     $max_lev = max($max_lev, $nest_lev);
+    # }
+
+    # for my $rev_lev (0 .. $max_lev-1) {
+    #     my $nest_lev = $max_lev - $rev_lev;
+    #     for my $block_id (@{$blocks_per_nestlevel->[$nest_lev]}) {
+    #         if ($nest_lev>1) {
+    #             my $in_block_id = $accessAnalysis->{'LoopNests'}{'Set'}{$block_id}{'InBlock'};
+    #             my $line_id = $accessAnalysis->{'LoopNests'}{'Set'}{$block_id}{'BlockEnd'};
+    #             $accessAnalysis->{'LoopNests'}{'Set'}{$in_block_id}{'Contains'}{$block_id}=$line_id;
+    #         }
+    #     }
+    # }
 
     my $parallelisedProgUnit = dclone($annlines_foldedConstants);
     # my $parallelised_loops={};
@@ -204,6 +206,41 @@ sub parallelise_all_Blocks { my ($stref, $f, $accessAnalysis, $annlines_foldedCo
 
     return ($parallelisedProgUnit, $accessAnalysis);
 }
+
+
+sub resolve_loop_nests { my ($stref, $f, $accessAnalysis) = @_;
+    # 1. look for the blocks with the longest ID
+    my $max_lev = 0;
+    my $blocks_per_nestlevel = [];
+    # croak Dumper $accessAnalysis->{'LoopNests'}{'List'}; 
+    # FIXME! List content is wrong!
+    for my $block_id (sort keys % {$accessAnalysis->{'LoopNests'}{'Set'} } ) {
+        # my $block_id = $rec->[0];
+        # say $block_id;
+        # carp $block_id,' : ',Dumper $accessAnalysis->{'LoopNests'}{'List'}, $accessAnalysis->{'LoopNests'}{'Set'}{$block_id}{'NestLevel'};
+        my $nest_lev = $accessAnalysis->{'LoopNests'}{'Set'}{$block_id}{'NestLevel'};
+        push @{$blocks_per_nestlevel->[$nest_lev]},$block_id;
+        $max_lev = max($max_lev, $nest_lev);
+    }
+
+    for my $rev_lev (0 .. $max_lev-1) {
+        
+        my $nest_lev = $max_lev - $rev_lev;
+        # say $f ,$nest_lev;
+
+        for my $block_id (@{$blocks_per_nestlevel->[$nest_lev]}) {
+            if ($nest_lev>1) {
+                my $in_block_id = $accessAnalysis->{'LoopNests'}{'Set'}{$block_id}{'InBlock'};
+                my $line_id = $accessAnalysis->{'LoopNests'}{'Set'}{$block_id}{'BlockEnd'};
+                $accessAnalysis->{'LoopNests'}{'Set'}{$in_block_id}{'Contains'}{$block_id}=$line_id;
+            }
+        }
+    }
+    return ($accessAnalysis,$blocks_per_nestlevel,$max_lev)
+} # END of resolve_loop_nests;
+
+
+
 # maybe annotate the blocks with this number for convenience
 
 # 2. Get all blocks with that length, process them
@@ -1294,8 +1331,9 @@ sub evaluateExprs { my ($vt,$arrayAccessExpr) = @_;
     # Accesses has the access for each offset string
     for my $k (sort keys %{$exprs->{'Accesses'}}){
         # The access for each iterator
-        for my $iter_idx_str (sort keys %{$exprs->{'Accesses'}{$k}}) {
-            my ($mult,$offset) = @{$exprs->{'Accesses'}{$k}{$iter_idx_str}};
+        for my $rec (@{$exprs->{'Accesses'}{$k}}) {
+            my ($iter_idx_str, $mult_offset) = each %{$rec};
+            my ($mult,$offset) = @{$mult_offset};        
             my ($iter, $idx) = split(/:/,$iter_idx_str);
             if (not exists $vt->{$iter}) {
                 # croak "No value for iterator $iter!";

@@ -436,7 +436,7 @@ sub emit_RefactoredCode {
             $block_info = "\t! ".$block_id.' '.$block_info;
         }
         if ( exists $info->{'If'} and not exists $info->{'IfThen'} ) {
-            my $ast           = $info->{'CondExecExprAST'};
+            my $ast           = $info->{'Cond'}{'AST'};
             my $cond_expr_str = emit_expr_from_ast($ast);
             $maybe_cond = 'if ( ' . $cond_expr_str . ' ) ';
         }
@@ -615,22 +615,23 @@ sub emit_RefactoredCode {
 #== IF -- Block, Arithmetic and logical IF statements
 # st can be any executable statement, except a DO block, IF, ELSE IF, ELSE,
 # END IF, END, or another logical IF statement.
-#@ CondExecExpr => $cond
-#@ CondExecExprAST => $ast
-#@ CondVars =>
+#@ Cond 
+#@  Expr => $cond
+#@  AST => $ast
+#@  Vars =>
 #@     Set => {...}
 #@     List => [...]
 
         }
         elsif ( exists $info->{'IfThen'} ) {
-            my $ast           = $info->{'CondExecExprAST'};
+            my $ast           = $info->{'Cond'}{'AST'};
             my $cond_expr_str = emit_expr_from_ast($ast);
             $rline = $indent . 'if ( ' . $cond_expr_str . ' ) then';
 
         }
         elsif ( exists $info->{'ElseIf'} ) {
 
-            my $ast = $info->{'CondExecExprAST'}
+            my $ast = $info->{'Cond'}{'AST'}
 
 #== BACKSPACE, ENDFILE statements
         }
@@ -682,7 +683,7 @@ sub emit_RefactoredCode {
 #@        ArrayOrScalar => Array | Scalar
 #@        ExpressionAST => $lhs_ast
 #@ Rhs =>
-#@        VarList       => $rhs_all_vars
+#@        Vars       => $rhs_all_vars (Set,List)
 #@        ExpressionAST => $rhs_ast
 
             my $lhs_ast      = $info->{'Lhs'}{'ExpressionAST'};

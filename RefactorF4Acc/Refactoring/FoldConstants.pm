@@ -101,10 +101,10 @@ sub fold_constants {
 			}
 	 		if (exists $info->{'If'} ) {
                 # FIXME: Surely conditions of if-statements can contain array accesses, so FIX THIS!
-                #say "IF statement, TODO: ".Dumper($info->{'CondExecExpr'});
-                my $cond_expr_ast = $info->{'CondExecExprAST'};
+                #say "IF statement, TODO: ".Dumper($info->{'Cond'}{'Expr'});
+                my $cond_expr_ast = $info->{'Cond'}{'AST'};
                 my $const_fold_cond_expr_ast = fold_constants_in_expr($stref, $f, $block_id, $cond_expr_ast);
-                $info->{'CondExecExprAST'} = $const_fold_cond_expr_ast;
+                $info->{'Cond'}{'AST'} = $const_fold_cond_expr_ast;
             }
             }
             elsif ( exists $info->{'Do'} ) { #  the expressions for the loop bounds have been folded:

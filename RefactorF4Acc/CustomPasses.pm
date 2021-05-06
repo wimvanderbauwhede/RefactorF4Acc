@@ -6,7 +6,7 @@ package RefactorF4Acc::CustomPasses;
 use v5.10;
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
-use RefactorF4Acc::Refactoring::Helpers qw( top_src_is_module stateful_pass_inplace stateless_pass_inplace get_annotated_sourcelines substitute_placeholders);
+use RefactorF4Acc::Refactoring::Helpers qw( top_src_is_module substitute_placeholders);
 use RefactorF4Acc::Refactoring::Modules qw( add_module_decls );
 
 #### CUSTOM PASSES ####

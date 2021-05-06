@@ -697,7 +697,7 @@ sub _emit_rhs_assignment_SaC { (my $stref, my $f, my $info, my $cast)=@_;
 
 
 sub _emit_ifthen_C { (my $stref, my $f, my $info)=@_;	
-	my $cond_expr_ast=$info->{'CondExecExprAST'};	
+	my $cond_expr_ast=$info->{'Cond'}{'AST'};	
 #	die Dumper($cond_expr_ast);
 	$cond_expr_ast = _add_cast_calls($cond_expr_ast, $stref, $f);
 	my $cond_expr = _emit_expression_SaC($cond_expr_ast,'',$stref,$f);

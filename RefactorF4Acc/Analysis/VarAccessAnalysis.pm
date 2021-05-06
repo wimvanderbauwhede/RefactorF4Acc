@@ -64,9 +64,8 @@ type LocalVarValueAnalysis = DMap.Map (VarName Anno) [(SrcSpan, Expr Anno)]
 --                                                                            Subroutine arguments     Declared var names
 type VarAccessAnalysis = ([LocalVarAccessAnalysis],    LocalVarValueAnalysis, [VarName Anno],     [VarName Anno])
 
-$stref->{'Subroutines'}{$f}{'VarAccessAnalysis'} = $state->{'VarAccessAnalysis'};
+$stref->{'Subroutines'}{$f}{'VarAccessAnalysis'} = $state->{'VarAccessAnalysis'} =;
 
-$state->{'VarAccessAnalysis'} = 
 {
     'Args' => { 
         'List' => [$arg,...], 
@@ -254,7 +253,7 @@ sub analyseAllVarAccesses { my ($stref, $f, $io_write_subroutines, $annlines) = 
 
 			}
 	 		if (exists $info->{'If'} ) {
-                my $cond_expr_ast = $info->{'CondExecExprAST'};
+                my $cond_expr_ast = $info->{'Cond'}{'AST'};
                 ($cond_expr_ast, $state) = _find_var_access_in_ast($stref, $f, [$block_id,$line_id], $state, $cond_expr_ast,'Read');
             }
             elsif ( exists $info->{'Do'} ) {
@@ -313,8 +312,8 @@ sub analyseAllVarAccesses { my ($stref, $f, $io_write_subroutines, $annlines) = 
 	 	($annlines,$state) = stateful_pass($annlines,$pass_analyseAllVarAccesses, $state,'pass_analyseAllVarAccesses ' . __LINE__  ) ;
 	 	# croak Dumper $state->{'VarAccessAnalysis'} if $f eq 'sub0';
         # $stref->{'Subroutines'}{ $f }{'VarAccessAnalysis'} = $state->{'VarAccessAnalysis'};
-   
- 	return $state->{'VarAccessAnalysis'};
+    $stref->{'Subroutines'}{$f}{'VarAccessAnalysis'}=$state->{'VarAccessAnalysis'};
+ 	return ($stref,$state->{'VarAccessAnalysis'});
 } # END of analyseAllVarAccesses()
 
 
