@@ -3,7 +3,7 @@
         parameter( sz = 1024 )
         integer, parameter :: w = sz*4, h = sz*3
         ! integer, parameter :: h = sz*3
-        real, dimension(-1:w+2,-1:h+2) :: p1,p2 !$RF4A Halos((2,2),(2,2)),Partitions(3,4)
+        real, dimension(-1:w+2,-1:h+2) :: p1,p2 !$RF4A Halos((2,2),(2,2)),Partitions(4,3)
         real, dimension(-1:w+2,-1:h+2) :: p3
         real dummy(-1:w+2,-1:h+2)
         
@@ -76,26 +76,26 @@
         integer, parameter :: w = sz*4
         integer, parameter :: h = sz*3
         real, dimension(-1:w+2,-1:h+2) :: p1, p2        
-        integer :: i,j
+        integer :: i1,i2,i,j
         real :: acc
 
-        do i = 0, w+1
-            do j = 0, h+1
+        do i = 1, w
+            do j = 1, h
                 p2(i,j) = (p1(i+1,j)+p1(i-1,j)+ p1(i,j+1)+p1(i,j-1))/4.0
             end do
         end do
 
         acc=0
-        do i = -1, w+2
+        do i1 = -1, w+2
             do j = -1, h+2
-                acc =  acc + p1(i,j) 
+                acc =  acc + p1(i1,j) 
             end do
         end do
         acc = acc / ((w+4)*(h+4))
 
-        do i = -1, w+2
+        do i2 = -1, w+2
             do j = -1, h+2
-                p1(i,j) = p2(i,j)+acc
+                p1(i2,j) = p2(i2,j)+acc
             end do
         end do
       end subroutine        

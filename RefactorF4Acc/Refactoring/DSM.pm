@@ -652,123 +652,176 @@ my ( $stref, $f ) = @_;
     my $iters = $state->{'VarAccessAnalysis'}{'LoopNests'}{'Set'};
     # carp "$f VarAccessAnalysis: ".Dumper $iters;
 
-#     So now we have our IterTable as part of the LoopNests info. 
-#     We can now do the checks:
-# Partition conflicts: not all arrays for a given iterator have the same partition info 
-# i => {p1 => 0, p2 =>0 } then look up Partition[0] for p1 and p2
-# This requires linking the iterator with the index in the Partition field
-for my $block_id (sort keys %{$state->{'VarAccessAnalysis'}{'LoopNests'}{'Set'} }) {
-    next if $block_id eq '0';
-    for my $iter (sort keys %{ $state->{'VarAccessAnalysis'}{'LoopNests'}{'Set'}{$block_id}{'IterVarTable'} }) {
-        if (scalar keys %{ $state->{'VarAccessAnalysis'}{'LoopNests'}{'Set'}{$block_id}{'IterVarTable'}{$iter} }>1) {
-            my $partitions_check={};
-        for my $varname (sort keys %{ $state->{'VarAccessAnalysis'}{'LoopNests'}{'Set'}{$block_id}{'IterVarTable'}{$iter} }) {
-            my $idx = $state->{'VarAccessAnalysis'}{'LoopNests'}{'Set'}{$block_id}{'IterVarTable'}{$iter}{$varname};
-            my $subset = in_nested_set( $Sf, 'Vars', $varname );
-            my $decl = get_var_record_from_set($Sf->{$subset},$varname);
-            if (exists $decl->{'Partitions'}) {
-                my $partition =  $decl->{'Partitions'}[$idx];
-                $partitions_check->{$partition}=$varname;
-            }
-        }
-        if (scalar keys %{$partitions_check} != 1) {
-            die "Partition conflict in loop $block_id, iter $iter: ".Dumper($partitions_check);
-        }
-        } # otherwise no need to check
-    }
-}
-# carp $f.': Passed Partitions Check';
-# Halo conflicts => That is interesting:
-# - suppose the loop bound is -1 .. 102 and at least one array only has a dim smaller than that => BOOM!
-# So first of all get the loop range 
-for my $block_id (sort keys %{$state->{'VarAccessAnalysis'}{'LoopNests'}{'Set'} }) {
-    next if $block_id eq '0';
-    my $iter = $state->{'VarAccessAnalysis'}{'LoopNests'}{'Set'}{$block_id}{'Iterator'};
-    my $range = $state->{'VarAccessAnalysis'}{'LoopNests'}{'Set'}{$block_id}{'Range'};
-     
-    my $loop_extent = $range->[1] - $range->[0] + 1;
-    # carp "$block_id $iter Range: $loop_extent: ". Dumper($range);
-    my $loop_dim_check={};
-    my $collective_arrays={};
-    $loop_dim_check->{$iter}{'Extent'} = $loop_extent;
-    # for my $iter (sort keys %{ $state->{'VarAccessAnalysis'}{'LoopNests'}{'Set'}{$block_id}{'IterVarTable'} }) {
-        my $prev_core_dim = 0;
-        for my $varname (sort keys %{ $state->{'VarAccessAnalysis'}{'LoopNests'}{'Set'}{$block_id}{'IterVarTable'}{$iter} }) {
-            my $subset = in_nested_set( $Sf, 'Vars', $varname );
-            if ($subset) {
-                my $decl = get_var_record_from_set($Sf->{$subset},$varname);            
-                if (not exists $decl->{'Partitions'}) {
-                    warning("Array $varname in $f is not a collective array", $WDBG );                    
-                } elsif ( exists $decl->{'Halos'}) {                    
-                    $collective_arrays->{$varname}=1;
-                    $stref->{'Subroutines'}{ $f }{'ArrayAccesses'}{'0'}{'Arrays'}{$varname}{'Halos'} = $decl->{'Halos'};
-                } else {
-                    croak "ERROR: No Halo information for $varname in $f ";
+    #     So now we have our IterTable as part of the LoopNests info. 
+    #     We can now do the checks:
+    # Partition conflicts: not all arrays for a given iterator have the same partition info 
+    # i => {p1 => 0, p2 =>0 } then look up Partition[0] for p1 and p2
+    # This requires linking the iterator with the index in the Partition field
+    my $dims_halos_partitions ={};
+    for my $block_id (sort keys %{$state->{'VarAccessAnalysis'}{'LoopNests'}{'Set'} }) {
+        next if $block_id eq '0';
+        # say "Trying to add partition info: $f $block_id ".Dumper($state->{'VarAccessAnalysis'}{'LoopNests'}{'Set'}{$block_id}{'IterVarTable'}); 
+        for my $iter (sort keys %{ $state->{'VarAccessAnalysis'}{'LoopNests'}{'Set'}{$block_id}{'IterVarTable'} }) {
+            if (scalar keys %{ $state->{'VarAccessAnalysis'}{'LoopNests'}{'Set'}{$block_id}{'IterVarTable'}{$iter} }>=1) {
+                my $partitions_check={};
+            for my $varname (sort keys %{ $state->{'VarAccessAnalysis'}{'LoopNests'}{'Set'}{$block_id}{'IterVarTable'}{$iter} }) {
+                # say "Trying to add partition info: $f $block_id $iter $varname";
+                my $idx = $state->{'VarAccessAnalysis'}{'LoopNests'}{'Set'}{$block_id}{'IterVarTable'}{$iter}{$varname};
+                my $subset = in_nested_set( $Sf, 'Vars', $varname );
+                my $decl = get_var_record_from_set($Sf->{$subset},$varname);
+                if (exists $decl->{'Partitions'}) {
+                    my $partition =  $decl->{'Partitions'}[$idx];
+                    $partitions_check->{$partition}=$varname;
+                    $dims_halos_partitions->{$block_id}[0] = $partition;
+                    say "INFO: $f $block_id $iter: Add partition info: $partition";
                 }
             }
-            my $idx = $state->{'VarAccessAnalysis'}{'LoopNests'}{'Set'}{$block_id}{'IterVarTable'}{$iter}{$varname};
-    
-            my $dim = $stref->{'Subroutines'}{ $f }{'ArrayAccesses'}{'0'}{'Arrays'}{$varname}{'Dims'}[$idx];
-            my $dim_size = $dim->[1] - $dim->[0] + 1;
-            if (exists $stref->{'Subroutines'}{ $f }{'ArrayAccesses'}{'0'}{'Arrays'}{$varname}{'Halos'}) {
-                my $halo = $stref->{'Subroutines'}{ $f }{'ArrayAccesses'}{'0'}{'Arrays'}{$varname}{'Halos'}[$idx];
-                my ($lh, $hh) = @{$halo};
-                my $core_dim = $dim_size - $lh - $hh;
-                if ($prev_core_dim == 0) {
-                    $prev_core_dim =  $core_dim;
-                } elsif ($prev_core_dim != $core_dim) {
-                    die "Not all core dimensions are identical: ". Dumper()
-                }
-                $loop_dim_check->{$iter}{'Vars'}{$varname} = [$dim_size, $halo];
-            } else {
-                warning( "Array $varname in $f does not have halo info",$WDBG);
+            if (scalar keys %{$partitions_check} > 1) {
+                die "Partition conflict in loop $block_id, iter $iter: ".Dumper($partitions_check);
             }
-            # carp "SUB $f ARRAY $varname Dim Size for $iter : $dim_size" ;#.Dumper  %{ $stref->{'Subroutines'}{ $f }{'ArrayAccesses'}{'0'}{'Arrays'}{$varname}{'Dims'}{$idx}};
-            # So we now had best put 
-            
-        }
-    # }
-    # say 'INFO: LOOP DIM CHECK: '. Dumper( $loop_dim_check) if $I;
-    
-    # First we need to check if all arrays have the same core size
+            } # otherwise no need to check
 
-    my $min_dim_size = 0;
-    my $var_with_min_dim_size = '';
-    for my $varname (sort keys %{$loop_dim_check->{$iter}{'Vars'}}) {
-        next unless exists $collective_arrays->{$varname};
-        my $dim_size = $loop_dim_check->{$iter}{'Vars'}{$varname}[0];
-        my ($lh,$hh) = @{$loop_dim_check->{$iter}{'Vars'}{$varname}[1]};
-        if ($dim_size < $loop_extent) {
-            error( 'Loop bounds exceed array dimensions', $EDBG);
-        } elsif ($dim_size == $loop_extent) {
-            say "INFO: Use Dim and Halo info from $varname: $dim_size, ($lh,$hh) " if $I;
-            last;
-        } else {
-            if ($min_dim_size == 0) {
-                $min_dim_size = $dim_size;
-                $var_with_min_dim_size = $varname;
-            } else {
-                $min_dim_size = $dim_size < $min_dim_size ? $dim_size : $min_dim_size;
-                $var_with_min_dim_size = $dim_size < $min_dim_size ? $varname : $var_with_min_dim_size;
-            }
         }
     }
-    if ($min_dim_size != 0) {
-        my ($lh,$hh) = @{$loop_dim_check->{$iter}{'Vars'}{$var_with_min_dim_size}[1]};
-        say "INFO: Use Dim and Halo info from $var_with_min_dim_size: $min_dim_size, ($lh,$hh)" if $I;
+    # carp $f.': Passed Partitions Check';
+    # Halo conflicts => That is interesting:
+    # - suppose the loop bound is -1 .. 102 and at least one array only has a dim smaller than that => BOOM!
+    # So first of all get the loop range 
+    
+    for my $block_id (sort keys %{$state->{'VarAccessAnalysis'}{'LoopNests'}{'Set'} }) {
+        next if $block_id eq '0';
+        my $iter = $state->{'VarAccessAnalysis'}{'LoopNests'}{'Set'}{$block_id}{'Iterator'};
+        my $range = $state->{'VarAccessAnalysis'}{'LoopNests'}{'Set'}{$block_id}{'Range'};
+        
+        my $loop_extent = $range->[1] - $range->[0] + 1;
+        # carp "$block_id $iter Range: $loop_extent: ". Dumper($range);
+        my $loop_dim_check={};
+        my $collective_arrays={};
+        $loop_dim_check->{$iter}{'Extent'} = $loop_extent;
+        # for my $iter (sort keys %{ $state->{'VarAccessAnalysis'}{'LoopNests'}{'Set'}{$block_id}{'IterVarTable'} }) {
+            my $prev_core_dim = 0;
+            my $prev_lh=0;
+            my $prev_hh=0;
+            for my $varname (sort keys %{ $state->{'VarAccessAnalysis'}{'LoopNests'}{'Set'}{$block_id}{'IterVarTable'}{$iter} }) {
+                my $subset = in_nested_set( $Sf, 'Vars', $varname );
+                if ($subset) {
+                    my $decl = get_var_record_from_set($Sf->{$subset},$varname);            
+                    if (not exists $decl->{'Partitions'}) {
+                        warning("Array $varname in $f is not a collective array", $WDBG );                    
+                    } elsif ( exists $decl->{'Halos'}) {                    
+                        $collective_arrays->{$varname}=1;
+                        $stref->{'Subroutines'}{ $f }{'ArrayAccesses'}{'0'}{'Arrays'}{$varname}{'Halos'} = $decl->{'Halos'};
+                    } else {
+                        croak "ERROR: No Halo information for $varname in $f ";
+                    }
+                }
+                my $idx = $state->{'VarAccessAnalysis'}{'LoopNests'}{'Set'}{$block_id}{'IterVarTable'}{$iter}{$varname};
+        
+                my $dim = $stref->{'Subroutines'}{ $f }{'ArrayAccesses'}{'0'}{'Arrays'}{$varname}{'Dims'}[$idx];
+                my $dim_size = $dim->[1] - $dim->[0] + 1;
+                if (exists $stref->{'Subroutines'}{ $f }{'ArrayAccesses'}{'0'}{'Arrays'}{$varname}{'Halos'}) {
+                    my $halo = $stref->{'Subroutines'}{ $f }{'ArrayAccesses'}{'0'}{'Arrays'}{$varname}{'Halos'}[$idx];
+                    my ($lh, $hh) = @{$halo};
+                    my $core_dim = $dim_size - $lh - $hh;
+                    if ($prev_core_dim == 0) {
+                        $prev_core_dim =  $core_dim;
+                        $prev_lh = $lh;
+                        $prev_hh = $hh;
+                    } elsif ($prev_core_dim != $core_dim) {
+                        die "Not all core dimensions are identical" . Dumper($state->{'VarAccessAnalysis'}{'LoopNests'}{'Set'}{$block_id}{'IterVarTable'}{$iter});
+                    } elsif ($prev_lh != $lh or $prev_hh != $hh ) {
+                        die "Not all halos dimensions are identical" . Dumper($state->{'VarAccessAnalysis'}{'LoopNests'}{'Set'}{$block_id}{'IterVarTable'}{$iter});
+                    }
+                    $loop_dim_check->{$iter}{'Vars'}{$varname} = [$dim_size, $halo];
+                } else {
+                    warning( "Array $varname in $f does not have halo info",$WDBG);
+                }
+                # carp "SUB $f ARRAY $varname Dim Size for $iter : $dim_size" ;#.Dumper  %{ $stref->{'Subroutines'}{ $f }{'ArrayAccesses'}{'0'}{'Arrays'}{$varname}{'Dims'}{$idx}};
+                # So we now had best put 
+                
+            }
+        # }
+        # say 'INFO: LOOP DIM CHECK: '. Dumper( $loop_dim_check) if $I;
+        
+        # First we need to check if all arrays have the same core size
+
+        my $min_dim_size = 0;
+        my $var_with_min_dim_size = '';
+        for my $varname (sort keys %{$loop_dim_check->{$iter}{'Vars'}}) {
+            next unless exists $collective_arrays->{$varname};
+            my $dim_size = $loop_dim_check->{$iter}{'Vars'}{$varname}[0];
+            my ($lh,$hh) = @{$loop_dim_check->{$iter}{'Vars'}{$varname}[1]};
+            if ($dim_size < $loop_extent) {
+                error( 'Loop bounds exceed array dimensions', $EDBG);
+            } elsif ($dim_size == $loop_extent) {
+                say "INFO: $f $block_id $iter: Use Dim and Halo info from $varname: $dim_size, ($lh,$hh) (exact)" if $I;
+                $dims_halos_partitions->{$block_id}[1] = $loop_dim_check->{$iter}{'Vars'}{$varname};
+                $dims_halos_partitions->{$block_id}[2] = $varname;
+                last;
+            } else {
+                if ($min_dim_size == 0) {
+                    $min_dim_size = $dim_size;
+                    $var_with_min_dim_size = $varname;
+                } else {
+                    $min_dim_size = $dim_size < $min_dim_size ? $dim_size : $min_dim_size;
+                    $var_with_min_dim_size = $dim_size < $min_dim_size ? $varname : $var_with_min_dim_size;
+                }
+            }
+        }
+        if ($min_dim_size != 0) {
+            my ($lh,$hh) = @{$loop_dim_check->{$iter}{'Vars'}{$var_with_min_dim_size}[1]};
+            say "INFO: $f $block_id $iter: Use Dim and Halo info from smallest: $var_with_min_dim_size: $min_dim_size, ($lh,$hh)" if $I;
+            $dims_halos_partitions->{$block_id}[1] = $loop_dim_check->{$iter}{'Vars'}{$var_with_min_dim_size};
+                $dims_halos_partitions->{$block_id}[2] = $var_with_min_dim_size;
+        }
     }
-}
 
 #and the array dims 
 # - suppose the loop bound is 0 .. 101 and an array has a dim of 104 and a halo of 2, and another has a dim of 102 and a halo of 1
+
 # So it looks like what we need to do is figure out the core, and see if all cores are the same, otherwise BOOM!
+
 # Then, 
 # if any dim < the loop range BOOM!
 # If any dim  == loop range and the rest > loop range, we use the the halo of the smaller ones
 # If the dims == loop range, no problem    
-# If all dims > loop range, we use the the halo of the smaller ones
+# If all dims > loop range, we use the the halo of the smallest one. This is rather ad-hoc because halos could be asymmetrical
+# Maybe we should simply say that the halos must be the same or we don't proceed?
 
-# once that is done, we can do the rewrite 
+# now that this is done, we can do the rewrite the loops:
+# Get the loop bounds from Range
+    for my $block_id (sort keys %{$state->{'VarAccessAnalysis'}{'LoopNests'}{'Set'} }) {
+        next if $block_id eq '0';
+        # If there is no partitionable array here we should not rewrite the loop bounds
+        next unless exists $dims_halos_partitions->{$block_id};
+        # carp "$f $block_id: ".Dumper $dims_halos_partitions->{$block_id};
+        my $iter = $state->{'VarAccessAnalysis'}{'LoopNests'}{'Set'}{$block_id}{'Iterator'};
+        my $range = $state->{'VarAccessAnalysis'}{'LoopNests'}{'Set'}{$block_id}{'Range'};
+        my ($lbound, $ubound) = @{$range};
+        
+        my ($partition,$dim_sz_halos) = @{$dims_halos_partitions->{$block_id}};
+        my ($dim_sz,$halos) = @{$dim_sz_halos};
+        my ($lh, $uh) = @{$halos};
+        # Assuming that the loop bounds include halos is incorrect. 
+        # We should use the core I think to calculate the chunk, then re-align    
+        # my $chunk = (($ubound - $lbound + 1 ) - $lh - $uh)/$partition;
+        my $chunk = ($dim_sz - $lh - $uh)/$partition;
+        say "$f $block_id: $iter: CHUNK $chunk = ($dim_sz - $lh - $uh)/$partition";
+        # I wonder if I need the offset information as well. 
+        # Suppose I have an array which starts at 3 and goes to 102, with a halo of 5 on each side
+        # Chunking it in two would be: 102-3+1 = 100/2 = 50; 3->3+50-1; 3-5 to 52+5 : -2 to 57 = 60
+        # Suppose the array is 1 to w and the halos are (2,2) 
+        my $chunk_lb = $lbound;
+        # So the extent is $ubound - $lbound + 1, let's substract $chunk*$partition
+        # Suppose that is a positive number, we add that to the chunk and then add the 
+        my $extra = $ubound - $lbound - $chunk*$partition;
+        my $chunk_ub = $chunk + $lbound + $extra;
+        say "CHUNKED: $f $block_id: $iter: $chunk_lb .. $chunk_ub";
+        # With halos
+        my $chunk_lb_halo = $chunk_lb - $lh;
+        my $chunk_ub_halo = $chunk_ub + $uh;
+        # say "CHUNKED: $f $block_id: $iter: $chunk_lb_halo .. $chunk_ub_halo";
+    }
 
     #  map {say $_} @{pp_annlines($updated_loop_annlines,1)};
     # say "\nRefactored code for $f\n";
