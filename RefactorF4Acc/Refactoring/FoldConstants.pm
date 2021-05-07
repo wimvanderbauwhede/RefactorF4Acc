@@ -165,6 +165,7 @@ sub fold_constants_all {
         # warn $f;
         # Dumper($Sf->{'RefactoredCode'});
         # emit_RefactoredCode($stref,$f,$new_annlines) ;
+        # croak Dumper $Sf->{'ArrayAccesses'} ;
 	}
     
 	return $stref;

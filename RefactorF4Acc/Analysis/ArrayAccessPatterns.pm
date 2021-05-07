@@ -104,7 +104,8 @@ sub pass_identify_stencils {(my $stref, my $code_unit_name)=@_;
 # };
 #
 # Array dimensions are stored in
-# 	$state->{'Subroutines'}{ $f }{'Blocks'}{ $block_id }{'Arrays'}{$array_var}{'Dims'} = [[0,501],[1,500],...]
+# $stref->{'Subroutines'}{ $f }{'ArrayAccesses'} = 	$state->{'Subroutines'}{ $f }{'Blocks'} = 
+# { $block_id  => {'Arrays'}{$array_var}{'Dims'} = [[0,501],[1,500],...] }
 #
 # In this subroutine, ${l|r}hs_accesses is a hash with keys 
 #					$accesses->{'Arrays'}{$array_var}{$rw}{'Exprs'}{$expr_str}=$offsets_str 
@@ -210,8 +211,10 @@ sub identify_array_accesses_in_exprs { (my $stref, my $f) = @_;
 						push @{$dim_vals},$dim_val;
 					}
                     # This is also used to generate the 1-D stencils for TyTraCL
-					push @{ $state->{'Subroutines'}{ $f }{'Blocks'}{ $block_id }{'Arrays'}{$array_var}{'Dims'} },$dim_vals;
+					push @{ $state->{'Subroutines'}{ $f }{'Blocks'}{ $block_id }{'Arrays'}{$array_var}{'Dims'} },$dim_vals;					
+					# croak Dumper $state->{'Subroutines'}{ $f };
 				}
+				# $state->{'Subroutines'}{ $f }{'Blocks'}{ $block_id }{'Arrays'}{$array_var}{'Halos'}=$decl
 #				say "{ $f }{ $block_id }{'Arrays'}{$array_var}{'Dims'}";
 #				say Dumper($state->{'Subroutines'}{ $f }{'Blocks'}{ $block_id }{'Arrays'}{$array_var}{'Dims'});
 			}

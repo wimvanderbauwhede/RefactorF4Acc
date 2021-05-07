@@ -2619,9 +2619,7 @@ sub loopIterRecord { my ($t)=@_;
     return ['LoopIterRecord',$t];
 }
 
-sub error { (my $str)=@_;
-    croak($str);
-}
+
 
 sub case { my ($sum_type_inst, $altCondsActions) = @_;
     for my $altCondsAction (@{$altCondsActions}) {

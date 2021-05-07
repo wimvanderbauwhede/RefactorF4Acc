@@ -349,13 +349,13 @@ sub get_f95_var_decl {
         	}
             if (not exists $decl->{'Names'}) {
         croak "WARNING: VAR $var has no Names field in get_f95_var_decl()!" if $DBG;
-        carp "WARNING: VAR $var has no Names field in get_f95_var_decl()!" if $WW;                
+        warning("VAR $var has no Names field in get_f95_var_decl()!" ,$WW);
                 $decl->{'Names'}=[$nvar];
             }
         # 'Names' => [$nvar],
             if (not exists $decl->{'Name'}) {
         croak "WARNING: VAR $var has no Name field in get_f95_var_decl()!" if $DBG;
-        carp "WARNING: VAR $var has no Name field in get_f95_var_decl()!" if $WW;                
+        warning("VAR $var has no Name field in get_f95_var_decl()!",$WW);
                 $decl->{'Name'}=$nvar;
             }
         # 'Name' => $nvar,
@@ -372,7 +372,7 @@ sub get_f95_var_decl {
 
     } elsif ( defined $f and defined $stref and defined $var ) {   
         croak "WARNING: VAR $var declared via IMPLICITS in get_f95_var_decl()!" if $DBG;
-        carp "WARNING: VAR $var declared via IMPLICITS in get_f95_var_decl()!" if $WW;
+        warning("VAR $var declared via IMPLICITS in get_f95_var_decl()!",$WW);
         ( $type, my $kind, $attr ) = type_via_implicits( $stref, $f, $var );
         return {
             'Indent' => $spaces,
