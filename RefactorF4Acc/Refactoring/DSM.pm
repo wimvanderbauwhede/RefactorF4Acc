@@ -39,8 +39,8 @@ our $EDBG=0;
 
 sub refactor_dsm_all {
 	( my $stref ) = @_;
-    local $I=1;
-    local $V=0;
+    local $I=0;
+    local $V=1;
     # croak $stref->{'Top'};
     $stref = propagate_dsm_declaration($stref,$stref->{'Top'});
 	for my $f ( sort keys %{ $stref->{'Subroutines'} } ) {
@@ -623,7 +623,7 @@ my ( $stref, $f ) = @_;
     ($accessAnalysis, my $blocks_per_nestlevel_, my $max_lev_) = resolve_loop_nests($stref, $f, $accessAnalysis);
 #     die;
 # croak Dumper $accessAnalysis;
-    my $pass_rewrite_loop_bounds = sub { my ($annline,$state) = @_;
+    my $pass_link_iters_vars = sub { my ($annline,$state) = @_;
         my ($line,$info) = @{$annline};
         # carp Dumper $state;
         if (exists $info->{'Do'}) {
@@ -648,7 +648,7 @@ my ( $stref, $f ) = @_;
         return ([[$line,$info]],$state);
     };
     my $state = { 'Loops'=>{}, 'VarAccessAnalysis'=>$accessAnalysis};
-    (my $loop_annlines_,$state) = stateful_pass($annlines,$pass_rewrite_loop_bounds,$state,"pass_rewrite_loop_bounds($f)");
+    (my $loop_annlines_,$state) = stateful_pass($annlines,$pass_link_iters_vars,$state,"pass_link_iters_vars($f)");
     my $iters = $state->{'VarAccessAnalysis'}{'LoopNests'}{'Set'};
     # carp "$f VarAccessAnalysis: ".Dumper $iters;
 
@@ -673,7 +673,7 @@ my ( $stref, $f ) = @_;
                     my $partition =  $decl->{'Partitions'}[$idx];
                     $partitions_check->{$partition}=$varname;
                     $dims_halos_partitions->{$block_id}[0] = $partition;
-                    say "INFO: $f $block_id $iter: Add partition info: $partition";
+                    say "INFO: $f $block_id $iter: Add partition info: $partition" if $I;
                 }
             }
             if (scalar keys %{$partitions_check} > 1) {
@@ -702,6 +702,7 @@ my ( $stref, $f ) = @_;
             my $prev_core_dim = 0;
             my $prev_lh=0;
             my $prev_hh=0;
+            my $prev_idx=-1;
             for my $varname (sort keys %{ $state->{'VarAccessAnalysis'}{'LoopNests'}{'Set'}{$block_id}{'IterVarTable'}{$iter} }) {
                 my $subset = in_nested_set( $Sf, 'Vars', $varname );
                 if ($subset) {
@@ -727,14 +728,17 @@ my ( $stref, $f ) = @_;
                         $prev_core_dim =  $core_dim;
                         $prev_lh = $lh;
                         $prev_hh = $hh;
+                        $prev_idx = $idx;
                     } elsif ($prev_core_dim != $core_dim) {
                         die "Not all core dimensions are identical" . Dumper($state->{'VarAccessAnalysis'}{'LoopNests'}{'Set'}{$block_id}{'IterVarTable'}{$iter});
                     } elsif ($prev_lh != $lh or $prev_hh != $hh ) {
                         die "Not all halos dimensions are identical" . Dumper($state->{'VarAccessAnalysis'}{'LoopNests'}{'Set'}{$block_id}{'IterVarTable'}{$iter});
+                    } elsif ($prev_idx != $idx ) {
+                        die "Not all iterator indices are identical" . Dumper($state->{'VarAccessAnalysis'}{'LoopNests'}{'Set'}{$block_id}{'IterVarTable'}{$iter});
                     }
-                    $loop_dim_check->{$iter}{'Vars'}{$varname} = [$dim_size, $halo];
+                    $loop_dim_check->{$iter}{'Vars'}{$varname} = [$dim_size, $halo, $idx];
                 } else {
-                    warning( "Array $varname in $f does not have halo info",$WDBG);
+                    warning("Array $varname in $f does not have halo info",$WDBG);
                 }
                 # carp "SUB $f ARRAY $varname Dim Size for $iter : $dim_size" ;#.Dumper  %{ $stref->{'Subroutines'}{ $f }{'ArrayAccesses'}{'0'}{'Arrays'}{$varname}{'Dims'}{$idx}};
                 # So we now had best put 
@@ -751,12 +755,16 @@ my ( $stref, $f ) = @_;
             next unless exists $collective_arrays->{$varname};
             my $dim_size = $loop_dim_check->{$iter}{'Vars'}{$varname}[0];
             my ($lh,$hh) = @{$loop_dim_check->{$iter}{'Vars'}{$varname}[1]};
+            my $idx = $loop_dim_check->{$iter}{'Vars'}{$varname}[2];
+            
             if ($dim_size < $loop_extent) {
                 error( 'Loop bounds exceed array dimensions', $EDBG);
             } elsif ($dim_size == $loop_extent) {
                 say "INFO: $f $block_id $iter: Use Dim and Halo info from $varname: $dim_size, ($lh,$hh) (exact)" if $I;
                 $dims_halos_partitions->{$block_id}[1] = $loop_dim_check->{$iter}{'Vars'}{$varname};
                 $dims_halos_partitions->{$block_id}[2] = $varname;
+                $dims_halos_partitions->{$block_id}[3] = $idx;
+                
                 last;
             } else {
                 if ($min_dim_size == 0) {
@@ -767,12 +775,14 @@ my ( $stref, $f ) = @_;
                     $var_with_min_dim_size = $dim_size < $min_dim_size ? $varname : $var_with_min_dim_size;
                 }
             }
+            $dims_halos_partitions->{$block_id}[3] = $idx;
         }
         if ($min_dim_size != 0) {
             my ($lh,$hh) = @{$loop_dim_check->{$iter}{'Vars'}{$var_with_min_dim_size}[1]};
             say "INFO: $f $block_id $iter: Use Dim and Halo info from smallest: $var_with_min_dim_size: $min_dim_size, ($lh,$hh)" if $I;
             $dims_halos_partitions->{$block_id}[1] = $loop_dim_check->{$iter}{'Vars'}{$var_with_min_dim_size};
                 $dims_halos_partitions->{$block_id}[2] = $var_with_min_dim_size;
+                
         }
     }
 
@@ -799,34 +809,55 @@ my ( $stref, $f ) = @_;
         my $range = $state->{'VarAccessAnalysis'}{'LoopNests'}{'Set'}{$block_id}{'Range'};
         my ($lbound, $ubound) = @{$range};
         
-        my ($partition,$dim_sz_halos) = @{$dims_halos_partitions->{$block_id}};
+        my ($partition,$dim_sz_halos, $var_, $idx) = @{$dims_halos_partitions->{$block_id}};
         my ($dim_sz,$halos) = @{$dim_sz_halos};
-        my ($lh, $uh) = @{$halos};
-        # Assuming that the loop bounds include halos is incorrect. 
-        # We should use the core I think to calculate the chunk, then re-align    
-        # my $chunk = (($ubound - $lbound + 1 ) - $lh - $uh)/$partition;
+        my ($lh, $uh) = @{$halos};        
         my $chunk = ($dim_sz - $lh - $uh)/$partition;
-        say "$f $block_id: $iter: CHUNK $chunk = ($dim_sz - $lh - $uh)/$partition";
-        # I wonder if I need the offset information as well. 
+        # say "$f $block_id: $iter: CHUNK $chunk = ($dim_sz - $lh - $uh)/$partition";
         # Suppose I have an array which starts at 3 and goes to 102, with a halo of 5 on each side
         # Chunking it in two would be: 102-3+1 = 100/2 = 50; 3->3+50-1; 3-5 to 52+5 : -2 to 57 = 60
         # Suppose the array is 1 to w and the halos are (2,2) 
-        my $chunk_lb = $lbound;
-        # So the extent is $ubound - $lbound + 1, let's substract $chunk*$partition
-        # Suppose that is a positive number, we add that to the chunk and then add the 
-        my $extra = $ubound - $lbound - $chunk*$partition;
-        my $chunk_ub = $chunk + $lbound + $extra;
-        say "CHUNKED: $f $block_id: $iter: $chunk_lb .. $chunk_ub";
-        # With halos
-        my $chunk_lb_halo = $chunk_lb - $lh;
-        my $chunk_ub_halo = $chunk_ub + $uh;
-        # say "CHUNKED: $f $block_id: $iter: $chunk_lb_halo .. $chunk_ub_halo";
+        my $chunk_lb = $lbound; # say 0;1 and upper bound is 99;100 and chunk is 25 and partition is 4
+        my $extra = $ubound - $lbound - $chunk*$partition; # extra = 99-0;100-1 - 25*4 = -1
+        my $chunk_ub = $chunk + $lbound + $extra; # 25+0;1-1 = 24,25
+        # Let's assume we have dsmNX and dsmNY either as functions or as module globals
+        # for my $np (0 .. $partition-1) {            
+        # say "CHUNK $np: $f $block_id: $iter: $chunk_lb+($np*$chunk) .. $chunk_ub+($np*$chunk) = ".($chunk_lb+($np*$chunk)).' .. '.($chunk_ub+($np*$chunk));
+
+            $state->{'VarAccessAnalysis'}{'LoopNests'}{'Set'}{$block_id}{'Range'}[0] = $chunk_lb.'+'.$chunk.'*'._gen_chunk_coord($idx);
+            $state->{'VarAccessAnalysis'}{'LoopNests'}{'Set'}{$block_id}{'Range'}[1] = $chunk_ub.'+'.$chunk.'*'._gen_chunk_coord($idx);            
+        # }
+        # say Dumper $state->{'VarAccessAnalysis'}{'LoopNests'}{'Set'}{$block_id}{'Range'};
     }
+
+    # So now we have for every BlockID the rewritten Range in 
+    # We need to get this into $info->{'Do'}{'Range'}{'Expressions'}
+    # A simple stateless pass on 'Do' should do this
+    my $pass_rewrite_loop_bounds = sub { my ($annline) = @_;
+        my ($line,$info) = @{$annline};
+        # carp Dumper $state;
+        if (exists $info->{'Do'}) {
+            my $block_id = $info->{'BlockID'};
+            $info->{'Do'}{'Range'}{'Expressions'}[0] = $state->{'VarAccessAnalysis'}{'LoopNests'}{'Set'}{$block_id}{'Range'}[0];
+            $info->{'Do'}{'Range'}{'Expressions'}[1] = $state->{'VarAccessAnalysis'}{'LoopNests'}{'Set'}{$block_id}{'Range'}[1];
+        }
+        return [[$line,$info]];
+    };
+    my $rewritten_loop_annlines = stateless_pass($annlines,$pass_rewrite_loop_bounds,"pass_rewrite_loop_bounds($f)");    
+    
 
     #  map {say $_} @{pp_annlines($updated_loop_annlines,1)};
     # say "\nRefactored code for $f\n";
-    # emit_RefactoredCode($stref,$f,$updated_loop_annlines); 
+    # emit_RefactoredCode($stref,$f,$rewritten_loop_annlines); 
     return  $stref ;
+}
+
+sub _gen_chunk_coord { my ($idx) = @_;
+    return $idx==0 
+        ? 'dsmNX' 
+        : $idx==1  
+            ? 'dsmNY' 
+            : croak "Index must be 0 or 1: $idx";
 }
 
 sub _get_iters_for_vars { my ($accesses,$rw,$state) = @_;
