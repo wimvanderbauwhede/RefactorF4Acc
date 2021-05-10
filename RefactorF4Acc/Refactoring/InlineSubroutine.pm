@@ -263,11 +263,11 @@ sub __merge_specification_computation_parts_into_caller { (my $stref, my $f, my 
             )     = @{$state};
         # say "$line $in_inline_region $first_call $sub" if $line=~/call/;        
         my $indent = $info->{'Indent'} // '      ';
-        if (exists $info->{'AccPragma'}{'BeginInline'} ) {
+        if (exists $info->{'Pragmas'}{'BeginInline'} ) {
             $line=~s/\$//;
             $in_inline_region=1;
         }
-        elsif (exists $info->{'AccPragma'}{'EndInline'}) {
+        elsif (exists $info->{'Pragmas'}{'EndInline'}) {
             $line=~s/\$//;
             $in_inline_region=0;
         }	
@@ -514,10 +514,10 @@ sub __substitute_args { my ($stref, $f, $sub, $line_id) = @_;
             my ( $annline, $state ) = @_;
             my ( $line,    $info )  = @{$annline};
             my ( $in_inline_region, $first_call)     = @{$state};
-            if (exists $info->{'AccPragma'}{'BeginInline'} ) {
+            if (exists $info->{'Pragmas'}{'BeginInline'} ) {
 				$in_inline_region=1;
 			}
-			elsif (exists $info->{'AccPragma'}{'EndInline'}) {
+			elsif (exists $info->{'Pragmas'}{'EndInline'}) {
 				$in_inline_region=0;
 			}	
             # If we find a call to sub in an Inline region and it is the first time we encounter this call, we do the substitution
@@ -586,10 +586,10 @@ sub __substitute_args_core { ( my $stref, my $f , my $argmap) = @_;
 
 # This should go in Analysis::Inline
 # I think we should allow
-# !$ACC Inline
+# $RF4A Inline
 # call
 # call
-# !$ACC End Inline
+# $RF4A End Inline
 # So in that case Inline has no arg and we need to find all calls
 sub find_subs_to_inline { (my $stref, my $f)=@_;
 
@@ -602,15 +602,15 @@ sub find_subs_to_inline { (my $stref, my $f)=@_;
 			
 			(my $in_inline_region, my $called_subs)= @{$state};
 
-			if (exists $info->{'AccPragma'}{'BeginInline'}
-            and scalar @{ $info->{'AccPragma'}{'BeginInline'} } == 0
+			if (exists $info->{'Pragmas'}{'BeginInline'}
+            and scalar @{ $info->{'Pragmas'}{'BeginInline'} } == 0
             ) {
 				$in_inline_region=1;
 				# $info->{'Removed'}=1;
 				# $line=~s/\$//g;
 				$annline=[$line,$info];
 			}
-			elsif (exists $info->{'AccPragma'}{'EndInline'}) {
+			elsif (exists $info->{'Pragmas'}{'EndInline'}) {
 				$in_inline_region=0;
 				# $info->{'Removed'}=1;
 				# $line=~s/\$//g;

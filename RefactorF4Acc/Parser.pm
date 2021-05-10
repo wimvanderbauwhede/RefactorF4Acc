@@ -256,20 +256,20 @@ sub analyse_lines {
 				next;
 			} 
 
-			# Handle !$ACC on individual line
+			# Handle $RF4A on individual line
 			if ( $lline =~ /^\!\s*\$(?:ACC|RF4A)\s.+$/i ) {				
 				( $stref, $info ) = __handle_acc_pragma( $stref, $f, $index, $lline );
 			}
-			if (exists $info->{'AccPragma'}{'BeginKernel'}) {
+			if (exists $info->{'Pragmas'}{'BeginKernel'}) {
 				$Sf->{'HasKernelRegion'}=1;
 			}
-			if (exists $info->{'AccPragma'}{'BeginInline'}) {
-				if (scalar @{$info->{'AccPragma'}{'BeginInline'}} > 0 ) { 
+			if (exists $info->{'Pragmas'}{'BeginInline'}) {
+				if (scalar @{$info->{'Pragmas'}{'BeginInline'}} > 0 ) { 
  					if (exists $Sf->{'SubsToInline'}) {
-						push @{$Sf->{'SubsToInline'}}, $info->{'AccPragma'}{'BeginInline'}[0];
+						push @{$Sf->{'SubsToInline'}}, $info->{'Pragmas'}{'BeginInline'}[0];
 					} else {
 						$Sf->{'SubsToInline'}=[
-							$info->{'AccPragma'}{'BeginInline'}[0]
+							$info->{'Pragmas'}{'BeginInline'}[0]
 						]
 					}
 				} else { 
@@ -1742,7 +1742,7 @@ sub _check_used_modules_for_globals { (my $stref, my $f,  my $called_sub_name)=@
 
 # -----------------------------------------------------------------------------
 # CALL
-# We need access to the info about the ACC pragma's here.
+# We need access to the info about the RF4A pragma's here.
 # As this comes after analyse_lines, I should use $info not regex!
 sub _parse_subroutine_and_function_calls {
 	( my $f, my $stref ) = @_;
@@ -1769,16 +1769,16 @@ sub _parse_subroutine_and_function_calls {
 			(my $line, my $info) = @{$srcref->[$index]};
 			next if exists $info->{'OrigComments'};
 			next if ( $line =~ /^\!\s/ and $line !~ /^\!\s*\$(?:ACC|RF4A)\s/i ); # TODO: use $info
-			if ( exists $info->{'AccPragma'} ) {
-				if ( exists $info->{'AccPragma'}{'BeginKernelWrapper'} ) {
+			if ( exists $info->{'Pragmas'} ) {
+				if ( exists $info->{'Pragmas'}{'BeginKernelWrapper'} ) {
 					$in_kernel_wrapper_region = 1;
 					$kernel_wrapper_name =
-					  $info->{'AccPragma'}{'BeginKernelWrapper'}[0];
-				} elsif ( exists $info->{'AccPragma'}{'EndKernelWrapper'} ) {
+					  $info->{'Pragmas'}{'BeginKernelWrapper'}[0];
+				} elsif ( exists $info->{'Pragmas'}{'EndKernelWrapper'} ) {
 					$in_kernel_wrapper_region = 0; 
-				} elsif ( exists $info->{'AccPragma'}{'BeginKernelSub'} ) {
+				} elsif ( exists $info->{'Pragmas'}{'BeginKernelSub'} ) {
 					$in_kernel_sub_region = 1;
-				} elsif ( exists $info->{'AccPragma'}{'EndKernelSub'} ) {
+				} elsif ( exists $info->{'Pragmas'}{'EndKernelSub'} ) {
 					$in_kernel_sub_region = 0;
 				}
 			}
@@ -2610,7 +2610,7 @@ sub __parse_sub_func_prog_decls {
 
 # -----------------------------------------------------------------------------
 sub __handle_acc_pragma {
-	( my $stref, my $f, my $index, my $line, my $info ) = @_;
+	( my $stref, my $f, my $index, my $line, my $info ) = @_; # returns $info->{'Pragmas'}
 	my $accline = $line;
 	
 	my $is_accline = ($accline =~ s/^\!\s*\$(?:ACC|RF4A)\s+//i);
@@ -2632,7 +2632,7 @@ sub __handle_acc_pragma {
 		if (lc($pragma_name) ne 'inline' and not @pragma_args) {
 			$pragma_args[0] = lc($pragma_name).'_'.$index;
 		}
-		$info->{'AccPragma'}{ $pragma_name_prefix . ucfirst( lc($pragma_name) ) } = [@pragma_args];
+		$info->{'Pragmas'}{ $pragma_name_prefix . ucfirst( lc($pragma_name) ) } = [@pragma_args];
 		
 		# WV20170517 I think the following is OBSOLETE
 		if (    $pragma_name =~ /KernelWrapper/i
@@ -2648,7 +2648,10 @@ sub __handle_acc_pragma {
 	
 }    # END of __handle_acc_pragma()
 
-sub __handle_trailing_pragmas { my ($pragma_comment,$pragmas) = @_;
+sub __handle_trailing_pragmas { my (
+	$pragma_comment, # String ->
+	$pragmas # Pragmas ->
+	) = @_; # Pragmas
 	my $halos=[];
 	my $partitions=[];
 	my $memspace='Global'; # The default is to have the arrays in the Global RAM
@@ -2680,6 +2683,48 @@ sub __handle_trailing_pragmas { my ($pragma_comment,$pragmas) = @_;
 	if ($pragma_comment =~/[Mm]em[Ss]pace\s*\(+(.+?)\s*\)+\s*/) {
 		$memspace=$1;
 		$pragmas->{'MemSpace'}=$memspace;
+	}	
+
+	# The format is $RF4A LoopNature(Map|Reduce|Iter,Acc(acc1,acc2,...),Arrays(a1,a2,...))
+	if ($pragma_comment =~/[Ll]oop[Nn]ature\s*\((Map|Fold|Reduce|Iter)(.*)\)\s*/) {
+		my $loopnature_str=$1;
+		if (lc($loopnature_str) eq 'iter') {
+			# We're done
+			$pragmas->{'LoopNature'}=['Iter'];
+		}
+		elsif (lc($loopnature_str) eq 'map') {			
+			my $rest = $2;
+			if ($rest=~/Arrays\((.+)\)/) {
+				my $arrays_str = $1;
+				my @arrays = split(/\s*,\s*/,$arrays_str);
+				$pragmas->{'LoopNature'}=['Map',\@arrays];
+			} else {
+				warning( "Incorrect syntax for loop nature Map: $pragma_comment");
+			}
+		}
+		elsif (lc($loopnature_str) eq 'fold' or lc($loopnature_str) eq 'reduce') {
+			my $rest = $2;
+			my @arrays=();
+			my @accs=();
+			if ($rest=~/Arrays\((.+)\)/i) {
+				my $arrays_str = $1;
+				@arrays = split(/\s*,\s*/,$arrays_str);
+			}
+			if ($rest=~/Accs\((.+)\)/i) {
+				my $accs_str = $1;
+				@accs = split(/\s*,\s*/,$accs_str);
+			} 
+			if (scalar @accs>0 and scalar @arrays>0) {
+				$pragmas->{'LoopNature'}=['Fold',\@accs,\@arrays];
+			}
+			else {
+				warning( "Incorrect syntax for loop nature Reduce: $pragma_comment");
+			}			
+		}
+		else {
+			warning( "Unknown loop nature $loopnature_str: $pragma_comment");
+		}				
+		$pragmas->{'Halos'} = $halos;
 	}	
 	return $pragmas;
 } # END of __handle_trailing_pragmas
@@ -4367,7 +4412,7 @@ sub mark_blocks_between_calls { (my $stref)=@_;
 		next unless exists $stref->{'Subroutines'}{$f}{'HasKernelRegion'};
 		$n_kernel_regions++;
 		if ($n_kernel_regions>1) {
-			die "Sorry, only one ACC Kernel region is currently supported.\n";
+			die "Sorry, only one RF4A Kernel region is currently supported.\n";
 		}
 		
 		my $in_kernel_region=0;
@@ -4382,14 +4427,14 @@ sub mark_blocks_between_calls { (my $stref)=@_;
 			
 			(my $in_kernel_region, my $in_block, my $nested_block, my $index,my $extract_subs, my $called_subs)= @{$state};
 			my $skip=0;
-			if (exists $info->{'AccPragma'}{'BeginKernel'}) {
+			if (exists $info->{'Pragmas'}{'BeginKernel'}) {
 				$in_kernel_region=1;
 				$skip=1; 		
 				$info->{'Removed'}=1;
 				$line=~s/\$//g;
 				$annline=[$line,$info];
 			}
-			if (exists $info->{'AccPragma'}{'EndKernel'}) {
+			if (exists $info->{'Pragmas'}{'EndKernel'}) {
 				$in_kernel_region=0;
 				$skip=1;
 				$info->{'Removed'}=1;
@@ -4402,10 +4447,10 @@ sub mark_blocks_between_calls { (my $stref)=@_;
 			# if not a call, put a begin marker before it
 				if (not exists $info->{'SubroutineCall'}) { #say $line."\t".Dumper($info);
 					$in_block=1;
-					my $begin_marker_line = '!$ACC Subroutine' ;
+					my $begin_marker_line = '$RF4A Subroutine' ;
 					(my $dummy, my $begin_marker_info) = __handle_acc_pragma({}, '',$index, $begin_marker_line, {});
 					my $begin_marker_annline = [$begin_marker_line,$begin_marker_info];
-					my $sub_name = $begin_marker_info->{'AccPragma'}{'BeginSubroutine'}[0];				
+					my $sub_name = $begin_marker_info->{'Pragmas'}{'BeginSubroutine'}[0];				
 
 					if (exists $info->{'Block'}) {
 						if ( not exists $info->{'EndControl'}) {
@@ -4431,7 +4476,7 @@ sub mark_blocks_between_calls { (my $stref)=@_;
 							push @{$called_subs}, $sub_name;
 							# if a call and $in_block and not nested, put an end marker before it
 							$in_block=0;
-							my $end_marker_line = '!$ACC End Subroutine';
+							my $end_marker_line = '$RF4A End Subroutine';
 							$extract_subs=1;
 							(my $dummy, my $end_marker_info) = __handle_acc_pragma({}, '',$index, $end_marker_line, {});
 							my $end_marker_annline = [$end_marker_line , $end_marker_info ];	

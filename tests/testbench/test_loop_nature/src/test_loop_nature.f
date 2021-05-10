@@ -141,9 +141,9 @@
 
         rhsav = 0.0
         area = 0.0
-        do k = 1,kp !$RF4A Reduce, Accs(rhsav,area), Arrays(rhs)
-            do j = 1,jp !$RF4A Reduce, Accs(rhsav,area), Arrays(rhs)
-                do i = 1,ip !$RF4A Reduce, Accs(rhsav,area), Arrays(rhs)
+        do k = 1,kp !$RF4A LoopNature(Reduce, Accs(rhsav,area), Arrays(rhs))
+            do j = 1,jp !$RF4A LoopNature(Reduce, Accs(rhsav,area), Arrays(rhs))
+                do i = 1,ip !$RF4A LoopNature(Reduce, Accs(rhsav,area), Arrays(rhs))
                     rhsav = rhsav+dx1*dy1*dzn*rhs(i,j,k)
                     area = area +dx1*dy1*dzn
                 end do
@@ -151,28 +151,28 @@
         end do
     
         rhsav = rhsav/area
-        do k = 1,kp !$RF4A Map, Arrays(rhs)
-            do j = 1,jp !$RF4A Map, Arrays(rhs)
-                do i = 1,ip !$RF4A Map, Arrays(rhs)
+        do k = 1,kp !$RF4A LoopNature(Map, Arrays(rhs))
+            do j = 1,jp !$RF4A LoopNature(Map, Arrays(rhs))
+                do i = 1,ip !$RF4A LoopNature(Map, Arrays(rhs))
                     rhs(i,j,k) = rhs(i,j,k)-rhsav
                 end do
             end do
         end do
 ! --SOR
-        do l = 1,nmaxp !$RF4A Iter
+        do l = 1,nmaxp !$RF4A LoopNature(Iter)
     ! #ifndef NO_GLOBAL_SOR            
             ! sor = 0.0
     ! #endif             
-            do nrd = 0,1 !$RF4A Iter
-                do k = 1,kp !$RF4A Map, Arrays(p1,p2,rhs)
+            do nrd = 0,1 !$RF4A LoopNature(Iter)
+                do k = 1,kp !$RF4A LoopNature(Map, Arrays(p1,p2,rhs))
                     ! dz1 = dzs(k-1)
                     ! dz2 = dzs(k)
                     ! cn4s = 2./(dz1*(dz1+dz2))
                     ! cn4l = 2./(dz2*(dz1+dz2))
-                    do j = 1,jp !$RF4A Map, Arrays(p1,p2,rhs)
+                    do j = 1,jp !$RF4A LoopNature(Map, Arrays(p1,p2,rhs))
                         ! cn3s = 2./(dys(j-1)*(dys(j-1)+dys(j)))
                         ! cn3l = 2./(dys(j)*(dys(j-1)+dys(j)))
-                        do i=1,ip !$RF4A Map, Arrays(p1,p2,rhs)
+                        do i=1,ip !$RF4A LoopNature(Map, Arrays(p1,p2,rhs))
                             ! cn2s = 2./(dxs(i-1)*(dxs(i-1)+dxs(i)))
                             ! cn2l = 2./(dxs(i)*(dxs(i-1)+dxs(i)))    
                             ! cn1 = 1./ (2./(dxs(i-1)*dxs(i))  + 2./(dys(j-1)*dys(j)) + 2./(dz1*dz2))

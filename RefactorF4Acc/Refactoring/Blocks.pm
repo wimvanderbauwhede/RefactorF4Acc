@@ -41,9 +41,9 @@ use Exporter;
 
 The blocks are marked with a pragma
 
-!$ACC Subroutine $sub_name
+$RF4A Subroutine $sub_name
 ...
-!$ACC End Subroutine 
+$RF4A End Subroutine 
 
 =end markdown
 
@@ -196,13 +196,13 @@ sub __separate_into_blocks {
         my $line = $srcref->[$index][0];
         my $info = $srcref->[$index][1];
 
-        if ( exists $info->{'AccPragma'}{'BeginSubroutine'} ) { 
+        if ( exists $info->{'Pragmas'}{'BeginSubroutine'} ) { 
             # Push the line with the pragma onto the list of 'OUTER' lines
             push @{ $block_rec->{'AnnLines'} }, [ "! *** Refactored code into $block ***", {} ];
             push @{ $blocksref }, $block_rec;           
             $block_rec={};
             $in_block = 1;
-            $block = $info->{'AccPragma'}{'BeginSubroutine'}[0];
+            $block = $info->{'Pragmas'}{'BeginSubroutine'}[0];
             print "FOUND BLOCK $block\n" if $V;
 
             # Enter the name of the block in the metadata for the line
@@ -224,14 +224,14 @@ sub __separate_into_blocks {
 
             $block_rec->{'BeginBlockIdx'} = $index;
             next;
-        } elsif ( exists $info->{'AccPragma'}{'EndSubroutine'} ) {
+        } elsif ( exists $info->{'Pragmas'}{'EndSubroutine'} ) {
             # Push 'end' onto the list of lines for the block           
             push @{ $block_rec->{'AnnLines'} },  [ '      end subroutine ' . $block, dclone($info) ];
             $block_rec->{'EndBlockIdx'} = $index;
             push @{ $blocksref }, $block_rec;
             $block_rec={};
             $in_block = 0;
-            $block = $info->{'AccPragma'}{'EndSubroutine'}[0];
+            $block = $info->{'Pragmas'}{'EndSubroutine'}[0];
             $block_rec->{'Name'} = 'OUTER';
             push @{ $block_rec->{'AnnLines'} }, [ $line, {} ];
             $info->{'EndBlock'}{'Name'} = $block;           

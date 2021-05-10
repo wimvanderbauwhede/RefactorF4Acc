@@ -23,7 +23,7 @@ Done:
 - rewrite of loop bounds assuming they are Map or StencilMap
 
 TODO:
-- Implement the full SOR loop from LES
+- Implement the full SOR loop from LES　#OK
 - Add loop annotations : Map, Iter, Fold; I think we might already have the stencil analysis so no need    
 - Check the reach for every array in a loop nest, to see if it does not exceed the halos!
     do j

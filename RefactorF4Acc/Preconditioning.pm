@@ -664,7 +664,7 @@ sub _split_multivar_decls {
                     if (not exists $rinfo{'ParsedVarDecl'} or not exists $rinfo{'ParsedVarDecl'}{'Vars'}) {
                         my $orig_decl = $Sf->{$subset}{'Set'}{$var};
                         $rinfo{'ParsedVarDecl'}{'Vars'} =[$var] ;      
-                        $rinfo{'ParsedVarDecl'}{'AccPragma'} = {
+                        $rinfo{'ParsedVarDecl'}{'Pragmas'} = {
                             'AccKeyword' => 'ArgMode',
                             'AccVal' => 'ReadWrite'
                         };
@@ -740,7 +740,7 @@ sub _split_multivar_decls {
                         # croak Dumper $orig_decl;
                         my $val=$orig_decl->{'Val'};
                         $rinfo{'ParsedParDecl'}{'Vars'} = [] ;      
-                        $rinfo{'ParsedParDecl'}{'AccPragma'} = {
+                        $rinfo{'ParsedParDecl'}{'Pragmas'} = {
                             'AccKeyword' => 'ArgMode',
                             'AccVal' => 'ReadWrite'
                         };
