@@ -221,6 +221,7 @@ sub identify_array_accesses_in_exprs { (my $stref, my $f) = @_;
 			if (exists $info->{'Assignment'} ) {
 				# Assignment to scalar *_rel
 				# This is ad hoc for the output of the AutoParallelFortran compiler!
+				# carp $f. Dumper $info;
 				if ($info->{'Lhs'}{'ArrayOrScalar'} eq 'Scalar' and $info->{'Lhs'}{'VarName'} =~/^(\w+)_rel/) {
 					my $loop_iter=$1;					
 					if ($DBG and

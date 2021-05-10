@@ -5,6 +5,165 @@ use v5.10;
 #   (c) 2021 Wim Vanderbauwhede <Wim.Vanderbauwhede@Glasgow.ac.uk>
 #   
 
+
+=pod
+Status 2021-05-10
+
+Novelty:
+
+- type annotation based approach rather than conventional pragmas
+- use of DSM instead of straigth MPI
+- analysis and refactoring: stencils and map/fold
+
+Done: 
+- definition and parsing of annotations
+- definition of DSM types
+- rewrite of declarations, including inheritance of annotations
+- rewrite of DSM access expressions except array expressions
+- rewrite of loop bounds assuming they are Map or StencilMap
+
+TODO:
+- Implement the full SOR loop from LES
+- Add loop annotations : Map, Iter, Fold; I think we might already have the stencil analysis so no need    
+- Check the reach for every array in a loop nest, to see if it does not exceed the halos!
+    do j
+    do k
+    p(0,j,k)=p(im,j,k)
+    p(im+1,j,k) = p(1,j,k)
+    end do
+    end do
+
+    This will give a reach of [0,im+1] on the LHS and [1,im] on the RHS
+    So we modulo the core, because what we want is to make sure acccesses are not in the core
+    [0 % im,im+1 % im] on the LHS and [1 % im,im % im] on the RHS
+- Insert init, allocate and deallocate statements
+    - init and allocate can go after the last declaration
+    - Ideally, init will allocate memory based on the size of the arrays tagged as DSM
+        - get their sizes (or in Case 3, their halo size, big difference)
+        - add them all up
+        - multiply by 2, ad hoc
+        - I guess I should create some parameters for this 
+        - But initially just use DSM_MEMSZ and DSM_CACHESZ macros
+        call dsmInit(DSM_MEMSZ,DSM_CACHESZ)        
+        - Use DSM_NX and DSM_NY macros instead of dsmNX and dsmNY parameters 
+        nNodes = dsmGetNNodes() 
+        !put an assertion here to test that it is the same as dsmNX*dsmNY, else bail out
+
+        nodeID = dsmGetNId()
+        nodeXCoord = nodeId % dsmNX
+        nodeYCoord = nodeId / dsmNX
+    - deallocate just before the end of the program
+    - This carries the assumption that we only have DSM at top level
+    - But we can tag code units with hasDSMVars and then each of them can get this treatment
+    - Just make this a map instead of a bool so we know which ones
+- Rewrite of Fold and Stencil Fold
+
+    Reductions are done with a global array of nprocesses but the final reduced value is local, so no need for locks but we do need a barrier before reducing that array. See the Haskell code.
+
+    Suppose we have
+
+    acc = 0
+    do i = 1 , ip
+    do j= 1, jp
+        acc = f_assoc0(acc,p(i,j))
+    end do
+    end do
+
+    and we chunk the bounds:
+
+    acc_chunks is a collective array of size dsmNX, dsmNY starting at (0,0)
+    - So declare it and allocate it
+
+    - Find the original AnnLine where acc is initialised and rewrite it:
+    This is really textual: $acc_var.'_chunks(nodeXCoord, nodeYCoord)'
+    But we do this using the AST: 
+    (Maybe start by calling then nodeXCoord and nodeYCoord)
+    [10, $acc_var.'_chunks', [27,[2,'dsmNX'],[2,'dsmNY']]],
+    
+    NOTE: of the accumulator is already an array, we need to add the extra args and have an appropriate declaration
+
+    This will then be rewritten in the next pass
+    
+    acc_chunks(nodeXCoord, nodeYCoord) = 0 
+
+    do i = dsmLB(dsmNX, 1, ip) , dsmUB(dsmNX, 1, ip)
+    do j= dsmLB(dsmNY, 1, jp) , dsmUB(dsmNY, 1, p)
+    ! Rewrite the acc expression, this is again is textual and will be rewritten in the next pass
+    So we go trough the RHS AST and find the occurence of acc and rewrite it as an array 
+        acc_chunks(nodeXCoord, nodeYCoord) = f_assoc0(acc_chunks(nodeXCoord, nodeYCoord),p(i,j))
+    end do
+    end do
+
+    We need the acc over the full domain so we need to accumulate over f_assoc0
+    We do this immediately after the EndDo of the accumulation loop 
+    I expect we need a barrier here
+    call dsmBarrier()
+    acc = 0
+    do nx = 0, dsmNX-1
+    do ny = 0, dmsNY-1
+    ! This will be rewritten in the next pass
+    acc = f_assoc0(acc,acc_chunks(nx,ny))
+    end do
+    end do
+- Insert barriers, at first after every loop nest, later based on proper analysis
+    How do we say "this is the end of a loop"?
+    Via the IterVar table and a recursion: 
+    - we look at the iters used 
+    - work out the loops involved
+    - determine which is the outer one    
+- Finish the LoopNature analysis and use it to annotate the loops with their nature
+- Rewrite of array expressions
+∘ v1 is collective; v2 is not; they have the same size (useless of course but nevermind)
+∘ So we can write v1=v2. That is OK, we can use dsmMemCopy1D
+∘ v1=v2 can also work : in principle this is can become a loop with reads, or I can do another memcopy
+∘ Accesses are not a problem
+- In principle we should be able to handle the red-black condition
+     do l=1,nmaxp
+        sor = 0.0
+        do nrd=0,1
+        do k=1,km 
+        do j=1,jm
+        do i=1+mod(k+j+nrd,2),im,2
+
+        *** Simple approach for the modulo: if the RHS is constant we ignore the LHS and just consider the bound, i.e. 
+        expr % m => [0,m-1] 
+        If the modulo is used for the lower bound, we use the 0; for the higher bound we use the m-1
+
+        In fact, I think technically the code above is incorrect:
+
+        i = 1+0 , 10, 2 => 1,3,5,7,9 
+        i = 1+1, 10, 2 => 2,4,6,8,10
+
+        so the correct upper bound expression is im-1+mod(k+j+nrd,2)
+
+        i = 1+0 , 10-1+0, 2 => 1,3,5,7,9 
+        i = 1+1, 10-1+1, 2 => 2,4,6,8,10
+
+        In practice this means we have to retain the expression because it does not evaluate to a constant. This would actually be the case for any expression that is a linear combination of iterators, like
+        do i=1,im
+        do j=1,i
+
+        I think we will just refer to polyhaedral analysis for future work.
+- And of course I must make sure that loops work in any order
+- And check what happens with indices like l and nrd, in terms of the IterTable
+- Maybe insertion of MemCopy statements
+- Better annotations
+        We can either have a declaration at code unit level, inherited by any routine called:
+
+        !$RF4A halos((2,2),(2,2),(2,2)), partitions(NPX, NPY, NPZ) :: p, u,v,w, f,g,h
+
+        Or we have them on a per-var level
+
+        real, dimension(-1:ip+2,-1,jp+2,-1,kp+2) :: p !$RF4A halos((2,2),(2,2),(2,2)), partitions(NPX, NPY, NPZ)
+
+        Also, we can have shorter notations such has 
+        halo((2,1)) ! all dims have (2,1)
+        halo(2) ! all dims have (2,2)
+        halo(2,1,0) ! dims have (2,2),(1,1),(0,0)
+
+
+=cut
+
 use vars qw( $VERSION );
 $VERSION = "2.1.1";
 
@@ -107,7 +266,7 @@ sub refactor_dsm { my ( $stref, $f ) = @_;
 
             # TODO: handle array assignments v1 = v2
             # This is easy but needs to be detected: if the LHS and RHS are both '$' in the AST but Array in the decls, it is an array access
-            # carp Dumper $info->{'Lhs'}{'ExpressionAST'};
+            # carp  $line . Dumper $info->{'Lhs'}{'ExpressionAST'} , $info->{'Rhs'}{'ExpressionAST'};
             if ($info->{'Lhs'}{'ExpressionAST'}[0] == 2
             and $info->{'Rhs'}{'ExpressionAST'}[0] == 2
             ) {
@@ -562,6 +721,7 @@ sub _rewrite_ast_dsm_write_node { my ($ast,$w_varname,$w_var_decl,$r_dsm_ast) = 
         # And it should become
         # [ 1, 'dsmWrite'.$dsm_type, [27, [2,$var_name], $idx_expr_1,..., $r_dsm_ast]]
         # So we get the index expressions:
+        # carp Dumper $ast;
         my @idx_expr_lst = @{$ast->[2]}; 
         if ($idx_expr_lst[0] == 27) {
         shift @idx_expr_lst if $idx_expr_lst[0] == 27; # remove the opcode 
@@ -822,7 +982,8 @@ my ( $stref, $f ) = @_;
         my $chunk_ub = $chunk + $lbound + $extra; # 25+0;1-1 = 24,25
         # Let's assume we have dsmNX and dsmNY either as functions or as module globals
         # for my $np (0 .. $partition-1) {            
-        # say "CHUNK $np: $f $block_id: $iter: $chunk_lb+($np*$chunk) .. $chunk_ub+($np*$chunk) = ".($chunk_lb+($np*$chunk)).' .. '.($chunk_ub+($np*$chunk));
+        #     my $np=0;
+        # carp "CHUNK $np: $f $block_id: $iter: $chunk_lb+($np*$chunk) .. $chunk_ub+($np*$chunk) = ".($chunk_lb+($np*$chunk)).' .. '.($chunk_ub+($np*$chunk));
 
             $state->{'VarAccessAnalysis'}{'LoopNests'}{'Set'}{$block_id}{'Range'}[0] = $chunk_lb.'+'.$chunk.'*'._gen_chunk_coord($idx);
             $state->{'VarAccessAnalysis'}{'LoopNests'}{'Set'}{$block_id}{'Range'}[1] = $chunk_ub.'+'.$chunk.'*'._gen_chunk_coord($idx);            
@@ -857,7 +1018,7 @@ sub _gen_chunk_coord { my ($idx) = @_;
         ? 'dsmNX' 
         : $idx==1  
             ? 'dsmNY' 
-            : croak "Index must be 0 or 1: $idx";
+            : 1; #croak "Index must be 0 or 1: $idx";
 }
 
 sub _get_iters_for_vars { my ($accesses,$rw,$state) = @_;

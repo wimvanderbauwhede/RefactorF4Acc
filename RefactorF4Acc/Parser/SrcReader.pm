@@ -175,8 +175,8 @@ sub read_fortran_src {
                 push @lines, "      \n";
 
 #                croak "$sub_func_incl $code_unit_name".Dumper($stref->{$sub_func_incl}{$code_unit_name});
-                my $free_form =
-                  $stref->{$sub_func_incl}{$code_unit_name}{'FreeForm'};
+                my $free_form = $stref->{$sub_func_incl}{$code_unit_name}{'FreeForm'};
+                # carp Dumper "$code_unit_name $free_form";
 
 #  die "$sub_func_incl $code_unit_name FreeForm=$free_form".Dumper($stref->{$sub_func_incl}{$code_unit_name}).'BOOM!!!' if $code_unit_name =~/mpif.h/;#!$free_form;
                 my $srctype = $sub_func_incl;

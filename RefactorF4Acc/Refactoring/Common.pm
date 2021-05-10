@@ -59,10 +59,15 @@ our @EXPORT_OK = qw(
 #- create_refactored_subroutine_call, I hope we can keep this
 sub refactor_COMMON_blocks {  # 218 lines Was _refactor_globals_new
 	( my $stref, my $f, my $annlines ) = @_;
+
 	my $Sf = $stref->{'Subroutines'}{$f};
 
 	if ( $Sf->{'RefactorGlobals'} == 2 ) {
 		die "This should NEVER happen!";
+	}
+	if (not exists $Sf->{'HasCommons'} or not $Sf->{'HasCommons'} ) {
+		say "INFO: no COMMON blocks in $f" if $I;
+		return $annlines;
 	}
 
 	# For the case of Contained subroutines
@@ -644,20 +649,22 @@ sub _create_refactored_subroutine_call { # 321 lines
 
 		push @orig_args, $call_arg;
 	} # loop over all call args
-
+	
 	map { 
 		$Sf->{'CastReshapeVarDecls'}{'Set'}{
 			$_->{'CallArg'}
 		} = $_->{'CastReshapeVarDecl'};
 	} @cast_reshape_results;
 	$Sf->{'CastReshapeVarDecls'}{'List'} = [sort keys %{ $Sf->{'CastReshapeVarDecls'}{'Set'} }];
+
+ 
 	my $args_ref = [@orig_args];               # NOT ordered union, if they repeat that should be OK
 # carp Dumper($args_ref) if $name eq 'sn725';
 	
 	# This is for the case of ENTRYs. The "parent" is the actual sub which contains the ENTRY statements
 	my $parent_sub_name =
 	  exists $stref->{'Entries'}{$name} ? $stref->{'Entries'}{$name} : $name;
-	
+	# croak Dumper( $annline) if $name eq 'sub0' and $f=~/loop/;
 	# If there are any ex-global args, collect them
 	# WV2019-06-03 Here we should check.
 	if ( exists $stref->{'Subroutines'}{$name}{'RefactoredArgs'} 
@@ -709,185 +716,202 @@ sub _create_refactored_subroutine_call { # 321 lines
 		}
 
 	} else {
-	if ( not exists $stref->{'Subroutines'}{$name}{'HasCommonVarMismatch'} ) {    # old approach is fine
+		if ( not exists $stref->{'Subroutines'}{$name}{'HasCommonVarMismatch'} ) {    # old approach is fine
 
-		if ( exists $stref->{'Subroutines'}{$parent_sub_name}{'ExGlobArgs'} ) {
+			if ( exists $stref->{'Subroutines'}{$parent_sub_name}{'ExGlobArgs'} ) {
 
-			my @globals = @{ $stref->{'Subroutines'}{$parent_sub_name}{'ExGlobArgs'}{'List'} };
+				my @globals = @{ $stref->{'Subroutines'}{$parent_sub_name}{'ExGlobArgs'}{'List'} };
 
-			# Problem is that in $f, globals from $name may have been renamed. I store the renamed ones in $Sf->{'RenamedInheritedExGLobs'}
-			# So we check and create @maybe_renamed_exglobs
-			my @maybe_renamed_exglobs = ();
-			for my $ex_glob (@globals) {
+				# Problem is that in $f, globals from $name may have been renamed. I store the renamed ones in $Sf->{'RenamedInheritedExGLobs'}
+				# So we check and create @maybe_renamed_exglobs
+				my @maybe_renamed_exglobs = ();
+				for my $ex_glob (@globals) {
 
-				# WV 20170606 I need to check if maybe the ex-globs have already been added to the args
-				# Because if the Args of the actual Call are the same as ex-globs then they must be ex-globs
-				if ( not exists $info->{'SubroutineCall'}{'Args'}{'Set'}{$ex_glob} ) {
+					# WV 20170606 I need to check if maybe the ex-globs have already been added to the args
+					# Because if the Args of the actual Call are the same as ex-globs then they must be ex-globs
+					if ( not exists $info->{'SubroutineCall'}{'Args'}{'Set'}{$ex_glob} ) {
 
-					# $ex_glob may be renamed or not. I test this using OrigName.
-					# This way I am sure I get only original names
-					if ( exists $stref->{'Subroutines'}{$parent_sub_name}{'ExGlobArgs'}{'Set'}{$ex_glob}{'OrigName'} ) {
-						$ex_glob = $stref->{'Subroutines'}{$parent_sub_name}{'ExGlobArgs'}{'Set'}{$ex_glob}{'OrigName'};
-					}
-					if (    exists $Sf->{'RenamedInheritedExGLobs'}{'Set'}{$ex_glob}
-						and not exists $Sf->{'UsedLocalVars'}{'Set'}{$ex_glob}
-						and not exists $Sf->{'IncludedParameters'}{'Set'}{$ex_glob} )
-					{
-						say "INFO: RENAMED $ex_glob => " . $Sf->{'RenamedInheritedExGLobs'}{'Set'}{$ex_glob} . ' in call to ' . $parent_sub_name . ' in ' . $f
-						  if $I;
-						push @maybe_renamed_exglobs, $Sf->{'RenamedInheritedExGLobs'}{'Set'}{$ex_glob};
+						# $ex_glob may be renamed or not. I test this using OrigName.
+						# This way I am sure I get only original names
+						if ( exists $stref->{'Subroutines'}{$parent_sub_name}{'ExGlobArgs'}{'Set'}{$ex_glob}{'OrigName'} ) {
+							$ex_glob = $stref->{'Subroutines'}{$parent_sub_name}{'ExGlobArgs'}{'Set'}{$ex_glob}{'OrigName'};
+						}
+						if (    exists $Sf->{'RenamedInheritedExGLobs'}{'Set'}{$ex_glob}
+							and not exists $Sf->{'UsedLocalVars'}{'Set'}{$ex_glob}
+							and not exists $Sf->{'IncludedParameters'}{'Set'}{$ex_glob} )
+						{
+							say "INFO: RENAMED $ex_glob => " . $Sf->{'RenamedInheritedExGLobs'}{'Set'}{$ex_glob} . ' in call to ' . $parent_sub_name . ' in ' . $f
+							if $I;
+							push @maybe_renamed_exglobs, $Sf->{'RenamedInheritedExGLobs'}{'Set'}{$ex_glob};
+						} else {
+							push @maybe_renamed_exglobs, $ex_glob;
+						}
 					} else {
-						push @maybe_renamed_exglobs, $ex_glob;
+
+						#        		say "VAR $ex_glob is in Args for SubroutineCall $name";
 					}
-				} else {
-
-					#        		say "VAR $ex_glob is in Args for SubroutineCall $name";
 				}
+# croak Dumper( $annline->[1]{'SubroutineCall'}{'Args'}) if $name eq 'sub0' and $f=~/loop/;
+
+				# Then we concatenate these arg lists
+				$args_ref = [ @orig_args, @maybe_renamed_exglobs ];    # NOT ordered union, if they repeat that should be OK
+				my $expr_ast = $info->{'SubroutineCall'}{'ExpressionAST'};
+				if (    @maybe_renamed_exglobs
+					and @{$expr_ast}
+					and ( $expr_ast->[0] & 0xFF ) != 27 )
+				{
+					$expr_ast = [ 27, $expr_ast ];
+				}
+				$expr_ast =
+					[ @{$expr_ast}, map { [ '2', $_ ] } @maybe_renamed_exglobs ];
+				$info->{'SubroutineCall'}{'ExpressionAST'} = $expr_ast;
+
+				$info->{'SubroutineCall'}{'Args'}{'List'} = $args_ref;
+				for my $arg (@{$args_ref}) {
+					my $Sf = $stref->{'Subroutines'}{$f};
+					my $subset = in_nested_set( $Sf, 'Vars', $arg );
+					my $call_arg_decl = get_var_record_from_set($Sf->{$subset},$arg);				
+
+					if ( exists $call_arg_decl->{'OrigName'} ) {
+						 $annline->[1]{'SubroutineCall'}{'Args'}{'Set'}{$arg}= {
+							 'Type' => $annline->[1]{'SubroutineCall'}{'Args'}{'Set'}{ $call_arg_decl->{'OrigName'} }{'Type'},
+							 'Expr' => $arg
+						 };
+					}
+				}
+
+# croak Dumper( $annline->[1]{'SubroutineCall'}{'Args'}) if $name eq 'sub0' and $f=~/loop/;
+				# This is the emitter, maybe that should not be done here but later on? TODO!
+				my $args_str = join( ',', @{$args_ref} );
+				my $indent   = $info->{'Indent'} // '      ';
+				my $maybe_label =
+				( exists $info->{'Label'} and exists $Sf->{'ReferencedLabels'}{ $info->{'Label'} } )
+				? $info->{'Label'} . ' '
+				: '';
+				my $rline = "call $name($args_str)\n";
+				if ( exists $info->{'PlaceHolders'} ) {
+					while ( $rline =~ /(__PH\d+__)/ ) {
+						my $ph     = $1;
+						my $ph_str = $info->{'PlaceHolders'}{$ph};
+						$rline =~ s/$ph/$ph_str/;
+					}
+					$info->{'Ref'}++;
+				}
+				$info->{'Ann'} = [ annotate( $f, __LINE__ ) ];
+
+				if ( @cast_reshape_results) {
+					for my $cast_reshape_result ( @cast_reshape_results) {
+						my ($cast_reshape_pre_line, $cast_reshape_pre_info) =@{$cast_reshape_result->{'PreAnnLine'}};
+						push @{$rlines}, [ $indent . $cast_reshape_pre_line, $cast_reshape_pre_info ];
+					}
+				}
+
+				push @{$rlines}, [ $indent . $maybe_label . $rline, $info ];
+
+				if ( @cast_reshape_results) {
+					for my $cast_reshape_result ( @cast_reshape_results) {
+						my ($cast_reshape_post_line, $cast_reshape_post_info) =@{$cast_reshape_result->{'PostAnnLine'}};
+						push @{$rlines}, [ $indent . $cast_reshape_post_line, $cast_reshape_post_info ];
+					}
+				}		
+
+			} else { # no change to original call line
+				push @{$rlines}, [ $line, $info ];
 			}
 
-			# Then we concatenate these arg lists
-			$args_ref = [ @orig_args, @maybe_renamed_exglobs ];    # NOT ordered union, if they repeat that should be OK
-			my $expr_ast = $info->{'SubroutineCall'}{'ExpressionAST'};
-			if (    @maybe_renamed_exglobs
-				and @{$expr_ast}
-				and ( $expr_ast->[0] & 0xFF ) != 27 )
-			{
-				$expr_ast = [ 27, $expr_ast ];
-			}
-			$expr_ast =
-				[ @{$expr_ast}, map { [ '2', $_ ] } @maybe_renamed_exglobs ];
-			$info->{'SubroutineCall'}{'ExpressionAST'} = $expr_ast;
 
-			$info->{'SubroutineCall'}{'Args'}{'List'} = $args_ref;
+		} else {    # Use new approach
 
-			# This is the emitter, maybe that should not be done here but later on? TODO!
-			my $args_str = join( ',', @{$args_ref} );
-			my $indent   = $info->{'Indent'} // '      ';
-			my $maybe_label =
-			  ( exists $info->{'Label'} and exists $Sf->{'ReferencedLabels'}{ $info->{'Label'} } )
-			  ? $info->{'Label'} . ' '
-			  : '';
-			my $rline = "call $name($args_str)\n";
-			if ( exists $info->{'PlaceHolders'} ) {
-				while ( $rline =~ /(__PH\d+__)/ ) {
-					my $ph     = $1;
-					my $ph_str = $info->{'PlaceHolders'}{$ph};
-					$rline =~ s/$ph/$ph_str/;
+			if ( exists $stref->{'Subroutines'}{$parent_sub_name}{'ExMismatchedCommonArgs'}{'SigArgs'}{'List'} ) {
+
+				my @ex_glob_sig_args = @{ $stref->{'Subroutines'}{$parent_sub_name}{'ExMismatchedCommonArgs'}{'SigArgs'}{'List'} };
+
+				# Problem is that in $f, globals from $name may have been renamed. I store the renamed ones in $Sf->{'RenamedInheritedExGLobs'}
+				# So we check and create @maybe_renamed_exglobs
+				my @maybe_renamed_exglobs = ();
+				my @cast_reshape_results = ();
+				for my $sig_arg (@ex_glob_sig_args) {
+					my $call_arg = $stref->{'Subroutines'}{$parent_sub_name}{'ExMismatchedCommonArgs'}{'CallArgs'}{$f}{$sig_arg}[0][0];
+					if (defined $call_arg) { # otherwise it is an expression
+					my $subset = in_nested_set($stref->{'Subroutines'}{$f}, 'Vars', $call_arg);
+					my $call_arg_decl = $stref->{'Subroutines'}{$f}{$subset}{'Set'}{$call_arg};
+					my $sig_arg_decl = $stref->{'Subroutines'}{$parent_sub_name}{'ExMismatchedCommonArgs'}{'SigArgs'}{'Set'}{$sig_arg};
+					# I think it is safe enough not to cast if call arg and sig arg have the same name. 
+					# But I'll handle that inside _maybe_cast_call_args
+					# carp 'CAST?'. Dumper($f, $parent_sub_name, $call_arg,$sig_arg);
+					my $cast_reshape_result = _maybe_cast_call_args($stref, $f, $parent_sub_name, $call_arg,$call_arg_decl,$sig_arg, $sig_arg_decl);
+
+					$call_arg = $cast_reshape_result->{'CallArg'};
+					push @cast_reshape_results, $cast_reshape_result if $cast_reshape_result->{'Status'} == 2;
+					push @maybe_renamed_exglobs, $call_arg;
+					}
 				}
-				$info->{'Ref'}++;
-			}
-			$info->{'Ann'} = [ annotate( $f, __LINE__ ) ];
 
-			if ( @cast_reshape_results) {
-				for my $cast_reshape_result ( @cast_reshape_results) {
-					my ($cast_reshape_pre_line, $cast_reshape_pre_info) =@{$cast_reshape_result->{'PreAnnLine'}};
-					push @{$rlines}, [ $indent . $cast_reshape_pre_line, $cast_reshape_pre_info ];
+				$Sf->{'CastReshapeVarDecls'}{'List'} = [map {$_->{'CallArg'}} @cast_reshape_results];
+				map { 
+					$Sf->{'CastReshapeVarDecls'}{'Set'}{
+						$_->{'CallArg'}
+					} = $_->{'CastReshapeVarDecl'};
+				} @cast_reshape_results;
+
+
+				# Then we concatenate these arg lists
+				$args_ref = [ @orig_args, @maybe_renamed_exglobs ];    # NOT ordered union, if they repeat that should be OK
+				
+				my $expr_ast = $info->{'SubroutineCall'}{'ExpressionAST'};
+				if (    @maybe_renamed_exglobs
+					and @{$expr_ast}
+					and ( $expr_ast->[0] & 0xFF ) != 27 )
+				{
+					$expr_ast = [ 27, $expr_ast ];
 				}
-			}
+				$expr_ast =
+					[ @{$expr_ast}, map { [ '2', $_ ] } @maybe_renamed_exglobs ];
+				$info->{'SubroutineCall'}{'ExpressionAST'} = $expr_ast;
 
-			push @{$rlines}, [ $indent . $maybe_label . $rline, $info ];
-
-			if ( @cast_reshape_results) {
-				for my $cast_reshape_result ( @cast_reshape_results) {
-					my ($cast_reshape_post_line, $cast_reshape_post_info) =@{$cast_reshape_result->{'PostAnnLine'}};
-					push @{$rlines}, [ $indent . $cast_reshape_post_line, $cast_reshape_post_info ];
+				# croak Dumper $args_ref;
+				$info->{'SubroutineCall'}{'Args'}{'List'} = $args_ref;
+# croak Dumper( $annline) if $name eq 'sub0' and $f=~/loop/;
+				# This is the emitter, maybe that should not be done here but later on? TODO!
+				my $args_str = join( ',', @{$args_ref} );
+				my $indent   = $info->{'Indent'} // '      ';
+				my $maybe_label =
+				( exists $info->{'Label'} and exists $Sf->{'ReferencedLabels'}{ $info->{'Label'} } )
+				? $info->{'Label'} . ' '
+				: '';
+				my $rline = "call $name($args_str)\n";
+				if ( exists $info->{'PlaceHolders'} ) {
+					while ( $rline =~ /(__PH\d+__)/ ) {
+						my $ph     = $1;
+						my $ph_str = $info->{'PlaceHolders'}{$ph};
+						$rline =~ s/$ph/$ph_str/;
+					}
+					$info->{'Ref'}++;
 				}
-			}		
+				$info->{'Ann'} = [ annotate( $f, __LINE__ ) ];
 
-		} else { # no change to original call line
-			push @{$rlines}, [ $line, $info ];
-		}
-	} else {    # Use new approach
-
-		if ( exists $stref->{'Subroutines'}{$parent_sub_name}{'ExMismatchedCommonArgs'}{'SigArgs'}{'List'} ) {
-
-			my @ex_glob_sig_args = @{ $stref->{'Subroutines'}{$parent_sub_name}{'ExMismatchedCommonArgs'}{'SigArgs'}{'List'} };
-
-			# Problem is that in $f, globals from $name may have been renamed. I store the renamed ones in $Sf->{'RenamedInheritedExGLobs'}
-			# So we check and create @maybe_renamed_exglobs
-			my @maybe_renamed_exglobs = ();
-			my @cast_reshape_results = ();
-			for my $sig_arg (@ex_glob_sig_args) {
-				my $call_arg = $stref->{'Subroutines'}{$parent_sub_name}{'ExMismatchedCommonArgs'}{'CallArgs'}{$f}{$sig_arg}[0][0];
-				if (defined $call_arg) { # otherwise it is an expression
-				my $subset = in_nested_set($stref->{'Subroutines'}{$f}, 'Vars', $call_arg);
-				my $call_arg_decl = $stref->{'Subroutines'}{$f}{$subset}{'Set'}{$call_arg};
-				my $sig_arg_decl = $stref->{'Subroutines'}{$parent_sub_name}{'ExMismatchedCommonArgs'}{'SigArgs'}{'Set'}{$sig_arg};
-				# I think it is safe enough not to cast if call arg and sig arg have the same name. 
-				# But I'll handle that inside _maybe_cast_call_args
-				# carp 'CAST?'. Dumper($f, $parent_sub_name, $call_arg,$sig_arg);
-				my $cast_reshape_result = _maybe_cast_call_args($stref, $f, $parent_sub_name, $call_arg,$call_arg_decl,$sig_arg, $sig_arg_decl);
-
-				$call_arg = $cast_reshape_result->{'CallArg'};
-				push @cast_reshape_results, $cast_reshape_result if $cast_reshape_result->{'Status'} == 2;
-				push @maybe_renamed_exglobs, $call_arg;
+				if ( @cast_reshape_results) {
+					for my $cast_reshape_result ( @cast_reshape_results) {
+						my ($cast_reshape_pre_line, $cast_reshape_pre_info) =@{$cast_reshape_result->{'PreAnnLine'}};
+						push @{$rlines}, [ $indent . $cast_reshape_pre_line, $cast_reshape_pre_info ];
+					}
 				}
+
+				push @{$rlines}, [ $indent . $maybe_label . $rline, $info ];
+
+				if ( @cast_reshape_results) {
+					for my $cast_reshape_result ( @cast_reshape_results) {
+						my ($cast_reshape_post_line, $cast_reshape_post_info) =@{$cast_reshape_result->{'PostAnnLine'}};
+						push @{$rlines}, [ $indent . $cast_reshape_post_line, $cast_reshape_post_info ];
+					}
+				}		
+
+			} else { # no change to original call line
+				push @{$rlines}, [ $line, $info ];
 			}
-
-			$Sf->{'CastReshapeVarDecls'}{'List'} = [map {$_->{'CallArg'}} @cast_reshape_results];
-			map { 
-				$Sf->{'CastReshapeVarDecls'}{'Set'}{
-					$_->{'CallArg'}
-				} = $_->{'CastReshapeVarDecl'};
-			} @cast_reshape_results;
-
-
-			# Then we concatenate these arg lists
-			$args_ref = [ @orig_args, @maybe_renamed_exglobs ];    # NOT ordered union, if they repeat that should be OK
-			
-			my $expr_ast = $info->{'SubroutineCall'}{'ExpressionAST'};
-			if (    @maybe_renamed_exglobs
-				and @{$expr_ast}
-				and ( $expr_ast->[0] & 0xFF ) != 27 )
-			{
-				$expr_ast = [ 27, $expr_ast ];
-			}
-			$expr_ast =
-				[ @{$expr_ast}, map { [ '2', $_ ] } @maybe_renamed_exglobs ];
-			$info->{'SubroutineCall'}{'ExpressionAST'} = $expr_ast;
-
-
-			$info->{'SubroutineCall'}{'Args'}{'List'} = $args_ref;
-
-			# This is the emitter, maybe that should not be done here but later on? TODO!
-			my $args_str = join( ',', @{$args_ref} );
-			my $indent   = $info->{'Indent'} // '      ';
-			my $maybe_label =
-			  ( exists $info->{'Label'} and exists $Sf->{'ReferencedLabels'}{ $info->{'Label'} } )
-			  ? $info->{'Label'} . ' '
-			  : '';
-			my $rline = "call $name($args_str)\n";
-			if ( exists $info->{'PlaceHolders'} ) {
-				while ( $rline =~ /(__PH\d+__)/ ) {
-					my $ph     = $1;
-					my $ph_str = $info->{'PlaceHolders'}{$ph};
-					$rline =~ s/$ph/$ph_str/;
-				}
-				$info->{'Ref'}++;
-			}
-			$info->{'Ann'} = [ annotate( $f, __LINE__ ) ];
-
-			if ( @cast_reshape_results) {
-				for my $cast_reshape_result ( @cast_reshape_results) {
-					my ($cast_reshape_pre_line, $cast_reshape_pre_info) =@{$cast_reshape_result->{'PreAnnLine'}};
-					push @{$rlines}, [ $indent . $cast_reshape_pre_line, $cast_reshape_pre_info ];
-				}
-			}
-
-			push @{$rlines}, [ $indent . $maybe_label . $rline, $info ];
-
-			if ( @cast_reshape_results) {
-				for my $cast_reshape_result ( @cast_reshape_results) {
-					my ($cast_reshape_post_line, $cast_reshape_post_info) =@{$cast_reshape_result->{'PostAnnLine'}};
-					push @{$rlines}, [ $indent . $cast_reshape_post_line, $cast_reshape_post_info ];
-				}
-			}		
-
-		} else { # no change to original call line
-			push @{$rlines}, [ $line, $info ];
-		}
+		}	
 	}
-	}
+		# croak Dumper( $annline) if $name eq 'sub0' and $f=~/loop/;
 	return ($rlines, $stref);
 }    # END of _create_refactored_subroutine_call()
 
@@ -989,11 +1013,19 @@ sub _maybe_cast_call_args { # 200 lines
 	if ($needs_reshape or ($needs_cast and $is_out)) {
 		# carp "$f, $sub_name, $call_arg,$sig_arg, needs_reshape" if $needs_reshape;
 		$new_call_arg = $call_arg.'_'.$sub_name.'_cr';
-		my $new_call_arg_decl = dclone($sig_arg_decl);
+		my $Sf = $stref->{'Subroutines'}{$f};
+		my $subset = in_nested_set( $Sf, 'Vars', $call_arg );
+		my $call_arg_decl = get_var_record_from_set($Sf->{$subset},$call_arg);				
+		my $new_call_arg_decl = dclone($sig_arg_decl);		
 		$new_call_arg_decl->{'Name'}=$new_call_arg;
+		$new_call_arg_decl->{'OrigName'}=$call_arg;
 		if ($use_arg_sz) {
 			$new_call_arg_decl->{'Dim'}=$call_arg_decl->{'Dim'};
 		}
+		$Sf->{$subset}{'Set'}{$new_call_arg}=$new_call_arg_decl;
+		push @{$Sf->{$subset}{'List'}},$new_call_arg;
+
+		# croak Dumper $new_call_arg_decl ;
 
 		$cast_reshape_result->{'CallArg'}=$new_call_arg;
 		$cast_reshape_result->{'CastReshapeVarDecl'}=$new_call_arg_decl;
@@ -1007,14 +1039,72 @@ sub _maybe_cast_call_args { # 200 lines
 		# do the reshape, then check for cast
 		
 		my $reshaped_call_arg = "reshape($call_arg,shape($new_call_arg))";
+		my $reshaped_call_arg_ast = [1,'reshape',[27,$call_arg, [1,'shape',[2,$new_call_arg]]]];
 		my $cast_reshape_pre_line = "$new_call_arg = $reshaped_call_arg";
+#@ Lhs => 
+#@        VarName       => $lhs_varname
+#@        IndexVars     => $lhs_vars
+#@        ArrayOrScalar => Array | Scalar
+#@        ExpressionAST => $lhs_ast
+#@ Rhs => 
+#@        VarList       => $rhs_all_vars
+#@        ExpressionAST => $rhs_ast			
+		my $cast_reshape_pre_info = {
+			'Lhs' => {'ExpressionAST' => [2,$new_call_arg],
+				'VarName' => $new_call_arg,
+				'IndexVars' => {'List' => [],'Set' =>{}},,
+				'ArrayOrScalar' => 'Scalar'
+			},
+			'Rhs' => {
+				'ExpressionAST' => $reshaped_call_arg_ast,
+				'VarList' => {
+					'List' => [$call_arg, $new_call_arg],
+					'Set' => {$call_arg =>{'Type' => 'Scalar'}, 
+							$new_call_arg=>{'Type' => 'Scalar'}
+					}
+				}
+			},
+		};
+		my $cast_reshape_pre_annline = [$cast_reshape_pre_line,$cast_reshape_pre_info];
+
 		my $reshaped_new_call_arg = "reshape($new_call_arg, shape($call_arg))";		
+		my $reshaped_new_call_arg_ast = [1,'reshape',[27,$new_call_arg, [1,'shape',[2,$call_arg]]]];
 		my $cast_reshape_post_line = "$call_arg = $reshaped_new_call_arg";
+		my $cast_reshape_post_info = {
+			'Lhs' => {'ExpressionAST' => [2,$call_arg],
+				'VarName' => $call_arg,
+				'IndexVars' => {'List' => [],'Set' =>{}},,
+				'ArrayOrScalar' => 'Scalar'
+			},
+			'Rhs' => {'ExpressionAST' => $reshaped_new_call_arg_ast,
+			'VarList' => {
+				'List' => [$call_arg, $new_call_arg], 
+				'Set' => {$call_arg =>{'Type' => 'Scalar'}, $new_call_arg=>{'Type' => 'Scalar'}}
+				}
+			},
+		};
+		my $cast_reshape_post_annline = [$cast_reshape_post_line,$cast_reshape_post_info];
+
 
 		if ($needs_cast) { 
 			# cast
 			my $cast_reshaped_call_arg = cast_call_argument($sig_arg_decl->{'Type'}, $sig_kind , $call_arg_decl->{'Type'}, $reshaped_call_arg);
-			$cast_reshape_pre_line = "$new_call_arg = $cast_reshaped_call_arg";
+			my $cast_reshaped_call_arg_ast = parse_expression($cast_reshaped_call_arg);
+			my $cast_reshape_pre_line = "$new_call_arg = $cast_reshaped_call_arg";
+		my $cast_reshape_pre_info = {
+			'Lhs' => {'ExpressionAST' => [2,$new_call_arg],
+				'VarName' => $new_call_arg,
+				'IndexVars' => {'List' => [],'Set' =>{}},,
+				'ArrayOrScalar' => 'Scalar'
+			},
+			'Rhs' => {'ExpressionAST' => $cast_reshaped_call_arg_ast,
+			'VarList' => {
+				'List' => [$call_arg, $new_call_arg], 
+				'Set' => {$call_arg =>{'Type' => 'Scalar'}, $new_call_arg=>{'Type' => 'Scalar'}}
+				}
+			},
+		};
+		 $cast_reshape_post_annline = [$cast_reshape_post_line,$cast_reshape_post_info];			
 			my $reshaped_new_call_arg = "reshape($new_call_arg, shape($call_arg)";
 			my $cast_reshaped_new_call_arg = cast_call_argument($call_arg_decl->{'Type'}, $call_kind , $sig_arg_decl->{'Type'}, $reshaped_new_call_arg);
 			$cast_reshape_post_line = "$call_arg = $cast_reshaped_new_call_arg";
@@ -1022,24 +1112,50 @@ sub _maybe_cast_call_args { # 200 lines
 		
 		$cast_reshape_result = __update_cast_reshape_result(
 			$cast_reshape_result,
-			$cast_reshape_pre_line,
-			$cast_reshape_post_line,
+			$cast_reshape_pre_annline,
+			$cast_reshape_post_annline,
 			$call_arg,
 			$new_call_arg
 		);
 
-	} else { # no reshape
+	} else { # no reshape. This I guess could be an array access used as argument, so a scalar, I wonder what happens 
+	# croak Dumper $call_arg;
 		if ($needs_cast) { 
 			if ($is_out) { # not in place		
 			 
 					my $cast_call_arg = cast_call_argument($sig_arg_decl->{'Type'}, $sig_kind , $call_arg_decl->{'Type'}, $call_arg);		
+					my $cast_call_arg_ast = parse_expression($cast_call_arg);
 					my $cast_reshape_pre_line =  "$new_call_arg = $cast_call_arg" ;
+					my $cast_reshape_pre_info = {
+						'Lhs' => {'ExpressionAST' => [2,$new_call_arg],
+							'VarName' => $new_call_arg,
+							'IndexVars' => {'List' => [],'Set' =>{}},
+							'ArrayOrScalar' => 'Scalar'
+						},
+						'Rhs' => {'ExpressionAST' => $cast_call_arg_ast,
+						'VarList' => {'List' => [$cast_call_arg], 'Set' => {$cast_call_arg=>{'Type' => 'Scalar'}}}
+						},
+					};
+					my $cast_reshape_pre_annline = [$cast_reshape_pre_line,$cast_reshape_pre_info];
 
 					my $cast_new_call_arg = cast_call_argument($call_arg_decl->{'Type'}, $call_kind , $sig_arg_decl->{'Type'}, $new_call_arg);
+					my $cast_new_call_arg_ast = parse_expression($cast_new_call_arg);
 					my $cast_reshape_post_line =   "$call_arg = $cast_new_call_arg" ;
+					my $cast_reshape_post_info = {
+						'Lhs' => {'ExpressionAST' => [2,$call_arg],
+							'VarName' => $call_arg,
+							'IndexVars' => {'List' => [],'Set' =>{}},
+							'ArrayOrScalar' => 'Scalar'
+						},
+						'Rhs' => {'ExpressionAST' => $cast_new_call_arg_ast,
+						'VarList' => {'List' => [$cast_new_call_arg], 'Set' => {$cast_new_call_arg=>{'Type' => 'Scalar'}}}
+						},
+					};		
+					my $cast_reshape_post_annline = [$cast_reshape_post_line,$cast_reshape_post_info];		
+
 					$cast_reshape_result = __update_cast_reshape_result($cast_reshape_result,
-						$cast_reshape_pre_line,
-						$cast_reshape_post_line,
+						$cast_reshape_pre_annline,
+						$cast_reshape_post_annline,
 						$call_arg,
 						$new_call_arg
 					);
@@ -1057,22 +1173,32 @@ sub _maybe_cast_call_args { # 200 lines
 
 sub  __update_cast_reshape_result {
 	my (
-		$cast_reshape_result,
-		$cast_reshape_pre_line,
-		$cast_reshape_post_line,
-		$call_arg,
-		$new_call_arg
-	) = @_;
+		$cast_reshape_result, # {'PreAnnLine' => ..., 'PostAnnLine' => ...} -> 
+		$cast_reshape_pre_annline, # AnnLine
+		$cast_reshape_post_annline, # AnnLine
+		$call_arg, # Var
+		$new_call_arg # Var
+	) = @_; # {'PreAnnLine' => ..., 'PostAnnLine' => ...} 
+
+	my ($cast_reshape_pre_line,$cast_reshape_pre_info) = @{$cast_reshape_pre_annline};
+	my ($cast_reshape_post_line,$cast_reshape_post_info) = @{$cast_reshape_post_annline};
+carp Dumper $cast_reshape_result->{'PreAnnLine'}[1];
 	$cast_reshape_result->{'PreAnnLine'}[0]=$cast_reshape_pre_line;
+	$cast_reshape_result->{'PreAnnLine'}[1]=$cast_reshape_pre_info;
 	$cast_reshape_result->{'PreAnnLine'}[1]{'Lhs'}{'VarName'}=$new_call_arg;
 	$cast_reshape_result->{'PreAnnLine'}[1]{'Lhs'}{'ExpressionAST'}=[2,$new_call_arg];
 	$cast_reshape_result->{'PreAnnLine'}[1]{'Lhs'}{'IndexVars'}{'List'}=[];
+	$cast_reshape_result->{'PreAnnLine'}[1]{'Lhs'}{'ArrayOrScalar'}='Scalar';
 	$cast_reshape_result->{'PreAnnLine'}[1]{'Rhs'}{'Vars'}{'List'}=[$new_call_arg,$call_arg];	
+	$cast_reshape_result->{'PreAnnLine'}[1]{'Rhs'}{'ExpressionAST'} = [1,'reshape',[27,[2,$call_arg],[1,'shape',[2,$new_call_arg]]]];
 	$cast_reshape_result->{'PostAnnLine'}[0]=$cast_reshape_post_line;	
+	$cast_reshape_result->{'PostAnnLine'}[1]=$cast_reshape_post_info;	
 	$cast_reshape_result->{'PostAnnLine'}[1]{'Lhs'}{'VarName'}=$call_arg;
 	$cast_reshape_result->{'PostAnnLine'}[1]{'Lhs'}{'ExpressionAST'}=[2,$call_arg];
 	$cast_reshape_result->{'PostAnnLine'}[1]{'Lhs'}{'IndexVars'}{'List'}=[];
+	$cast_reshape_result->{'PostAnnLine'}[1]{'Lhs'}{'ArrayOrScalar'}='Scalar';
 	$cast_reshape_result->{'PostAnnLine'}[1]{'Rhs'}{'Vars'}{'List'}=[$new_call_arg,$call_arg];
+	$cast_reshape_result->{'PostAnnLine'}[1]{'Rhs'}{'ExpressionAST'} = [1,'reshape',[27,[2,$new_call_arg],[1,'shape',[2,$call_arg]]]];
 
 	return $cast_reshape_result;
 }

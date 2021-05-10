@@ -331,15 +331,13 @@ sub _process_src {
             $in_contains=0;
         }
         if ($fstyle eq 'F77') {            
-            if ( $line =~ /^\s*(^[\'\"]+)\s*::\s*(.*?)\s*$/ ) {
+            if ( $line =~ /^\s*([^\'\"]+)\s*::\s*(.*?)\s*$/ ) { 
                  $fstyle='F95'; 
                  if (scalar @{ $stref->{'SourceContains'}{$src}{'List'} } == 1) {
                  	(my $code_unit, $srctype) = %{ $stref->{'SourceContains'}{$src}{'Set'} };
 	                $stref->{$srctype}{$code_unit}{'FStyle'}='F95';
-    	        	$stref->{$srctype}{$code_unit}{'FreeForm'}=1;        
-                    
+    	        	$stref->{$srctype}{$code_unit}{'FreeForm'}=1;    
                  }
-                 
             }
         } 
         
