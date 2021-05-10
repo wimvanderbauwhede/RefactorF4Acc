@@ -375,6 +375,7 @@ sub _add_implicit_none {
 				  if $V;
 				my $r_info = {};
 				my $indent = ' ' x 6;
+				$r_info->{'LineID'}       = $info->{'LineID'} - 1; # ad hoc! 
 				$r_info->{'Indent'}       = $indent;
 				$r_info->{'ImplicitNone'} = 1;
 				$r_info->{'Ann'}          = [ annotate( $f, __LINE__ ) ];

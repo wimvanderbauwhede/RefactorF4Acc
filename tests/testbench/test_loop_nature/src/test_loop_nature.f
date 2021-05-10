@@ -36,15 +36,19 @@
         integer :: i,j,k,k1  
         do i = -1, wx+2
             do j = -1, wy+2
-                p1(i,j) = (i+j*(wx+4))*0.1
-                p2(i,j) = -p1(i,j)
+                do k = -1,66
+                p1(i,j,k) = (i+j*(wx+4))*0.1
+                p2(i,j,k) = -p1(i,j)
+                end do
             end do
         end do
         
         do i = -1, wx+2
             do j = -1, wy+2
-                do k1 =1,2
-                    p12(i,j) = k1
+                do k =-1,66
+                    do k1 =1,2
+                        p12(i,j,k) = k1
+                    end do 
                 end do 
             end do
         end do        
@@ -102,7 +106,7 @@
         end do
       end subroutine        
 
-      subroutine sor(p0,p1)      
+      subroutine sor(p0,p1,rhs)      
         integer, parameter :: sz = 1024
         integer, parameter :: wx = sz*4
         integer, parameter :: wy = sz*3

@@ -139,24 +139,11 @@ sub analyseAllVarAccesses { my ($stref, $f, $io_write_subroutines, $annlines) = 
 			(my $line,my $info)=@{$annline};
 			
             my $line_id = $info->{'LineID'};
-            # my $block_id = exists $info->{'Block'} ? join(':',@{get_block_id($info->{'Block'},[])}) : $state->{'CurrentBlock'} ;
+
             my $current_block = $state->{'CurrentBlock'};
             my $block_id = exists $info->{'BlockID'} ? $info->{'BlockID'} : $state->{'CurrentBlock'} ;
             $state->{'CurrentBlock'} = $block_id;
             my $nest_level = scalar split(/:/,$block_id);
-            # say "LINE: $line" . (exists $info->{'Block'} ? ' Block ' : '').(exists $info->{'BlockID'} ? $info->{'BlockID'} : '');
-            # if (
-            #     exists $info->{'BlockID'}
-            # ) {
-            #     say "BLOCK ID: ",$block_id,'<>',$info->{'BlockID'};
-            # }
-            # my $in_block = exists $info->{'Block'} ? $info->{'Block'}{'LineID'} : -1;
-			# if ($in_block == -1 ) {
-			# 	$state->{'CurrentBlock'} = 0;
-			# }
-			# This is the concat of the line IDs for every DO line in the nest. 
-            # my $block_id = exists $state->{'VarAccessAnalysis'}{'LoopNests'} 
-			# ? __mkLoopId( $state->{'VarAccessAnalysis'}{'LoopNests'} ) : 0;
 
 			# Identify the subroutine
 			if ( exists $info->{'Signature'} ) {
@@ -253,11 +240,20 @@ sub analyseAllVarAccesses { my ($stref, $f, $io_write_subroutines, $annlines) = 
 
 			}
 	 		if (exists $info->{'If'} ) {
+                #  croak 'ADD a record to LoopNests HERE!';
+                    $state->{'VarAccessAnalysis'}{'LoopNests'}{'Set'}{$block_id} ={
+                            'BlockStart' => $info->{'LineID'},
+                            # 'BlockEnd' => -1,
+                            'Iterator' => '',
+                            'Range' => [],
+                            'InBlock' => $current_block,
+                            'NestLevel' => $nest_level
+                    };                    
                 my $cond_expr_ast = $info->{'Cond'}{'AST'};
                 ($cond_expr_ast, $state) = _find_var_access_in_ast($stref, $f, [$block_id,$line_id], $state, $cond_expr_ast,'Read');
             }
             elsif ( exists $info->{'Do'} ) {
-                if (exists $info->{'Do'}{'Iterator'} ) {
+                if (exists $info->{'Do'}{'Iterator'} ) {                    
                 # Do => {
                 #           Label :: Int
                 #           Iterator :: Var
@@ -272,20 +268,22 @@ sub analyseAllVarAccesses { my ($stref, $f, $io_write_subroutines, $annlines) = 
     #                say "RANGE: [ $range_start_evaled , $range_stop_evaled ]"; 
                     my $loop_iter = $info->{'Do'}{'Iterator'};
                     
-                    # carp Dumper $info if $line_id == 16;
+                    #  croak Dumper $info if $loop_iter eq 'l';
                     my $loop_range_exprs = [ $range_start_evaled , $range_stop_evaled ];#[$range_start,$range_stop]; # FIXME Maybe we don't need this. But if we do, we should probably eval() it
                     my $loop_id = $info->{'LineID'};
                     push @{ $state->{'VarAccessAnalysis'}{'LoopNests'}{'List'} },[$loop_id, $loop_iter , {'Range' => $loop_range_exprs}];
                     # $block_id = __mkLoopId( $state->{'VarAccessAnalysis'}{'LoopNests'}{'List'} );
                     # $info->{'BlockID'} = $block_id;
                     # $state->{'VarAccessAnalysis'}{'LoopNests'}{'List'}=[ [0,'',{}] ];
+                    # carp $f, ':', $block_id if $f eq 'sor';
                     $state->{'VarAccessAnalysis'}{'LoopNests'}{'Set'}{$block_id} ={
                             'BlockStart' => $info->{'LineID'},
                             # 'BlockEnd' => -1,
                             'Iterator' => $loop_iter,
                             'Range' => $loop_range_exprs,
                             'InBlock' => $current_block,
-                            'NestLevel' => $nest_level
+                            'NestLevel' => $nest_level,
+                            'LoopNature' => $info->{'Pragmas'}{'LoopNature'}
                     };                
                     $state->{'CurrentBlock'} = $block_id;
                     for my $loop_iter_rec ( @{ $state->{'VarAccessAnalysis'}{'LoopNests'}{'List'} } ) { 

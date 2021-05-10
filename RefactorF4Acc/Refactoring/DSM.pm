@@ -21,21 +21,12 @@ Done:
 - rewrite of declarations, including inheritance of annotations
 - rewrite of DSM access expressions except array expressions
 - rewrite of loop bounds assuming they are Map or StencilMap
-
-TODO:
 - Implement the full SOR loop from LES　#OK
 - Add loop annotations : Map, Iter, Fold; I think we might already have the stencil analysis so no need #OK see Parser::__handle_trailing_pragmas
-- Check the reach for every array in a loop nest, to see if it does not exceed the halos!
-    do j
-    do k
-    p(0,j,k)=p(im,j,k)
-    p(im+1,j,k) = p(1,j,k)
-    end do
-    end do
+- Check the reach for every array in a loop nest, to see if it does not exceed the halos, See DSM::_check_reach; TODO: better errors
+- Insert barriers, at first after every loop nest based on the info in the LoopNature pragma. This uses a new algorithm to find the "full" loop nest for an array. Currently it inserts a dsmBarrier() call for Map, we can now easily add he code for Fold as well. 
 
-    This will give a reach of [0,im+1] on the LHS and [1,im] on the RHS
-    So we modulo the core, because what we want is to make sure acccesses are not in the core
-    [0 % im,im+1 % im] on the LHS and [1 % im,im % im] on the RHS
+TODO:
 - Insert init, allocate and deallocate statements
     - init and allocate can go after the last declaration
     - Ideally, init will allocate memory based on the size of the arrays tagged as DSM
@@ -105,18 +96,12 @@ TODO:
     acc = f_assoc0(acc,acc_chunks(nx,ny))
     end do
     end do
-- Insert barriers, at first after every loop nest, later based on proper analysis
-    How do we say "this is the end of a loop"?
-    Via the IterVar table and a recursion: 
-    - we look at the iters used 
-    - work out the loops involved
-    - determine which is the outer one    
 - Finish the LoopNature analysis and use it to annotate the loops with their nature
 - Rewrite of array expressions
-∘ v1 is collective; v2 is not; they have the same size (useless of course but nevermind)
-∘ So we can write v1=v2. That is OK, we can use dsmMemCopy1D
-∘ v1=v2 can also work : in principle this is can become a loop with reads, or I can do another memcopy
-∘ Accesses are not a problem
+    ∘ v1 is collective; v2 is not; they have the same size (useless of course but nevermind)
+    ∘ So we can write v1=v2. That is OK, we can use dsmMemCopy1D
+    ∘ v1=v2 can also work : in principle this is can become a loop with reads, or I can do another memcopy
+    ∘ Accesses are not a problem
 - In principle we should be able to handle the red-black condition
      do l=1,nmaxp
         sor = 0.0
@@ -794,23 +779,53 @@ my ( $stref, $f ) = @_;
                 } = 1;
         }
         elsif (exists $info->{'EndDo'}) {
-                delete $state->{'Loops'}{
-                    $info->{'BlockID'}
-                } ;            
+            my $block_id = $info->{'BlockID'};
+            delete $state->{'Loops'}{$block_id} ;  
+            if (exists $state->{'FullNest'}{$block_id} )  {
+                say "rewrite_loop_bounds($f): full nest for variables ".join(', ',sort keys %{$state->{'FullNest'}{$block_id}}).' at loop end '. $block_id;
+                my $loop_vars = sort keys %{$state->{'FullNest'}{$block_id}};
+                my $loop_nature =  $state->{'VarAccessAnalysis'}{'LoopNests'}{'Set'}{$block_id}{'LoopNature'};
+                if (defined $loop_nature and
+                $loop_nature->[0] eq 'Map') {
+                    say "$f: Adding a BARRIER";
+                my $n_info = {
+                    'SubroutineCall' => {
+                        'Name' => 'dsmBarrier',
+                        'Args' => {
+                            'List' => [],
+                            'Set' => {}
+                        },
+                    },
+                    'Indent' => $info->{'Indent'},
+                    'LineID' => $info->{'LineID'}+0.1,
+                    'Ann' => [annotate($f, __LINE__)]
+                };
+
+                return ([
+                    [$line,$info],
+                    [ $info->{'Indent'} . "call dsmBarrier()",$n_info]
+                    ],$state);
+                }
+            }
         }
         elsif (exists $info->{'VarAccesses'} ) { 
             $state = _get_iters_for_vars($info->{'VarAccesses'},'Read',$state);
+            $state = _find_enclosing_outer_loop($f, $annline, $info->{'VarAccesses'},'Read', $state);
         }
         
         elsif (exists $info->{'Assignment'} ) { # So we should run this before we rewrite with the dsmAPI
             # carp Dumper $info;
             $state = _get_iters_for_vars($info->{'Rhs'}{'VarAccesses'},'Read',$state);
             $state = _get_iters_for_vars($info->{'Lhs'}{'VarAccesses'},'Write',$state);
+            $state = _find_enclosing_outer_loop($f, $annline, $info->{'Rhs'}{'VarAccesses'},'Read', $state);
+            $state = _find_enclosing_outer_loop($f, $annline, $info->{'Lhs'}{'VarAccesses'},'Write', $state);
         }                
         return ([[$line,$info]],$state);
     };
     my $state = { 'Loops'=>{}, 'VarAccessAnalysis'=>$accessAnalysis};
     (my $loop_annlines_,$state) = stateful_pass($annlines,$pass_link_iters_vars,$state,"pass_link_iters_vars($f)");
+    $annlines=$loop_annlines_; 
+    # croak Dumper $annlines if $f eq 'sor';
     my $iters = $state->{'VarAccessAnalysis'}{'LoopNests'}{'Set'};
     # carp "$f VarAccessAnalysis: ".Dumper $iters;
 
@@ -822,7 +837,6 @@ my ( $stref, $f ) = @_;
     my $dims_halos_partitions ={};
     for my $block_id (sort keys %{$state->{'VarAccessAnalysis'}{'LoopNests'}{'Set'} }) {
         next if $block_id eq '0';
-        # say "Trying to add partition info: $f $block_id ".Dumper($state->{'VarAccessAnalysis'}{'LoopNests'}{'Set'}{$block_id}{'IterVarTable'}); 
         for my $iter (sort keys %{ $state->{'VarAccessAnalysis'}{'LoopNests'}{'Set'}{$block_id}{'IterVarTable'} }) {
             if (scalar keys %{ $state->{'VarAccessAnalysis'}{'LoopNests'}{'Set'}{$block_id}{'IterVarTable'}{$iter} }>=1) {
                 my $partitions_check={};
@@ -846,6 +860,7 @@ my ( $stref, $f ) = @_;
         }
     }
     # carp $f.': Passed Partitions Check';
+
     # Halo conflicts => That is interesting:
     # - suppose the loop bound is -1 .. 102 and at least one array only has a dim smaller than that => BOOM!
     # So first of all get the loop range 
@@ -853,6 +868,7 @@ my ( $stref, $f ) = @_;
     for my $block_id (sort keys %{$state->{'VarAccessAnalysis'}{'LoopNests'}{'Set'} }) {
         next if $block_id eq '0';
         my $iter = $state->{'VarAccessAnalysis'}{'LoopNests'}{'Set'}{$block_id}{'Iterator'};
+        next if $iter eq ''; # Because that means it's an If block
         my $range = $state->{'VarAccessAnalysis'}{'LoopNests'}{'Set'}{$block_id}{'Range'};
         
         my $loop_extent = $range->[1] - $range->[0] + 1;
@@ -860,53 +876,48 @@ my ( $stref, $f ) = @_;
         my $loop_dim_check={};
         my $collective_arrays={};
         $loop_dim_check->{$iter}{'Extent'} = $loop_extent;
-        # for my $iter (sort keys %{ $state->{'VarAccessAnalysis'}{'LoopNests'}{'Set'}{$block_id}{'IterVarTable'} }) {
-            my $prev_core_dim = 0;
-            my $prev_lh=0;
-            my $prev_hh=0;
-            my $prev_idx=-1;
-            for my $varname (sort keys %{ $state->{'VarAccessAnalysis'}{'LoopNests'}{'Set'}{$block_id}{'IterVarTable'}{$iter} }) {
-                my $subset = in_nested_set( $Sf, 'Vars', $varname );
-                if ($subset) {
-                    my $decl = get_var_record_from_set($Sf->{$subset},$varname);            
-                    if (not exists $decl->{'Partitions'}) {
-                        warning("Array $varname in $f is not a collective array", $WDBG );                    
-                    } elsif ( exists $decl->{'Halos'}) {                    
-                        $collective_arrays->{$varname}=1;
-                        $stref->{'Subroutines'}{ $f }{'ArrayAccesses'}{'0'}{'Arrays'}{$varname}{'Halos'} = $decl->{'Halos'};
-                    } else {
-                        croak "ERROR: No Halo information for $varname in $f ";
-                    }
-                }
-                my $idx = $state->{'VarAccessAnalysis'}{'LoopNests'}{'Set'}{$block_id}{'IterVarTable'}{$iter}{$varname};
-        
-                my $dim = $stref->{'Subroutines'}{ $f }{'ArrayAccesses'}{'0'}{'Arrays'}{$varname}{'Dims'}[$idx];
-                my $dim_size = $dim->[1] - $dim->[0] + 1;
-                if (exists $stref->{'Subroutines'}{ $f }{'ArrayAccesses'}{'0'}{'Arrays'}{$varname}{'Halos'}) {
-                    my $halo = $stref->{'Subroutines'}{ $f }{'ArrayAccesses'}{'0'}{'Arrays'}{$varname}{'Halos'}[$idx];
-                    my ($lh, $hh) = @{$halo};
-                    my $core_dim = $dim_size - $lh - $hh;
-                    if ($prev_core_dim == 0) {
-                        $prev_core_dim =  $core_dim;
-                        $prev_lh = $lh;
-                        $prev_hh = $hh;
-                        $prev_idx = $idx;
-                    } elsif ($prev_core_dim != $core_dim) {
-                        die "Not all core dimensions are identical" . Dumper($state->{'VarAccessAnalysis'}{'LoopNests'}{'Set'}{$block_id}{'IterVarTable'}{$iter});
-                    } elsif ($prev_lh != $lh or $prev_hh != $hh ) {
-                        die "Not all halos dimensions are identical" . Dumper($state->{'VarAccessAnalysis'}{'LoopNests'}{'Set'}{$block_id}{'IterVarTable'}{$iter});
-                    } elsif ($prev_idx != $idx ) {
-                        die "Not all iterator indices are identical" . Dumper($state->{'VarAccessAnalysis'}{'LoopNests'}{'Set'}{$block_id}{'IterVarTable'}{$iter});
-                    }
-                    $loop_dim_check->{$iter}{'Vars'}{$varname} = [$dim_size, $halo, $idx];
+        my $prev_core_dim = 0;
+        my $prev_lh=0;
+        my $prev_hh=0;
+        my $prev_idx=-1;
+        for my $varname (sort keys %{ $state->{'VarAccessAnalysis'}{'LoopNests'}{'Set'}{$block_id}{'IterVarTable'}{$iter} }) {
+            my $subset = in_nested_set( $Sf, 'Vars', $varname );
+            if ($subset) {
+                my $decl = get_var_record_from_set($Sf->{$subset},$varname);            
+                if (not exists $decl->{'Partitions'}) {
+                    warning("Array $varname in $f is not a collective array", $WDBG );                    
+                } elsif ( exists $decl->{'Halos'}) {                    
+                    $collective_arrays->{$varname}=1;
+                    $stref->{'Subroutines'}{ $f }{'ArrayAccesses'}{'0'}{'Arrays'}{$varname}{'Halos'} = $decl->{'Halos'};
                 } else {
-                    warning("Array $varname in $f does not have halo info",$WDBG);
+                    croak "ERROR: No Halo information for $varname in $f ";
                 }
-                # carp "SUB $f ARRAY $varname Dim Size for $iter : $dim_size" ;#.Dumper  %{ $stref->{'Subroutines'}{ $f }{'ArrayAccesses'}{'0'}{'Arrays'}{$varname}{'Dims'}{$idx}};
-                # So we now had best put 
-                
             }
-        # }
+            my $idx = $state->{'VarAccessAnalysis'}{'LoopNests'}{'Set'}{$block_id}{'IterVarTable'}{$iter}{$varname};
+    
+            my $dim = $stref->{'Subroutines'}{ $f }{'ArrayAccesses'}{'0'}{'Arrays'}{$varname}{'Dims'}[$idx];
+            my $dim_size = $dim->[1] - $dim->[0] + 1;
+            if (exists $stref->{'Subroutines'}{ $f }{'ArrayAccesses'}{'0'}{'Arrays'}{$varname}{'Halos'}) {
+                my $halo = $stref->{'Subroutines'}{ $f }{'ArrayAccesses'}{'0'}{'Arrays'}{$varname}{'Halos'}[$idx];
+                my ($lh, $hh) = @{$halo};
+                my $core_dim = $dim_size - $lh - $hh;
+                if ($prev_core_dim == 0) {
+                    $prev_core_dim =  $core_dim;
+                    $prev_lh = $lh;
+                    $prev_hh = $hh;
+                    $prev_idx = $idx;
+                } elsif ($prev_core_dim != $core_dim) {
+                    die "Not all core dimensions are identical" . Dumper($state->{'VarAccessAnalysis'}{'LoopNests'}{'Set'}{$block_id}{'IterVarTable'}{$iter});
+                } elsif ($prev_lh != $lh or $prev_hh != $hh ) {
+                    die "Not all halos dimensions are identical" . Dumper($state->{'VarAccessAnalysis'}{'LoopNests'}{'Set'}{$block_id}{'IterVarTable'}{$iter});
+                } elsif ($prev_idx != $idx ) {
+                    die "Not all iterator indices are identical" . Dumper($state->{'VarAccessAnalysis'}{'LoopNests'}{'Set'}{$block_id}{'IterVarTable'}{$iter});
+                }
+                $loop_dim_check->{$iter}{'Vars'}{$varname} = [$dim_size, $halo, $idx];
+            } else {
+                warning("Array $varname in $f does not have halo info",$WDBG);
+            }
+        }
         # say 'INFO: LOOP DIM CHECK: '. Dumper( $loop_dim_check) if $I;
         
         # First we need to check if all arrays have the same core size
@@ -1010,8 +1021,9 @@ my ( $stref, $f ) = @_;
     
 
     #  map {say $_} @{pp_annlines($updated_loop_annlines,1)};
-    # say "\nRefactored code for $f\n";
-    # emit_RefactoredCode($stref,$f,$rewritten_loop_annlines); 
+    say "\nRefactored code for $f\n";
+    emit_RefactoredCode($stref,$f,$rewritten_loop_annlines); 
+    die if $f eq 'sor';
     return  $stref ;
 }
 
@@ -1031,15 +1043,22 @@ sub _get_iters_for_vars { my ($accesses,$rw,$state) = @_;
 }
 
 sub _get_iters_for_var { my ($var,$exprs,$state) = @_;
+# 	'Accesses' => { '0:1' =>  {'j:0' => [1,0],'k:1' => [1,1]}}, 
+# 'Iterators' => ['i:0',...]
+    my $iters=$exprs->{'Iterators'};    
     for my $k (sort keys %{$exprs->{'Accesses'}}){
-        # The access for each iterator
+        # The access for each iterator    
+        
         for my $rec (@{$exprs->{'Accesses'}{$k}}) {
-            my ($iter_idx_str, $mult_offset) = each %{$rec};
+            my ($iter_idx_str, $mult_offset) = %{$rec};
             my ($mult,$offset) = @{$mult_offset};
             my ($iter, $idx) = split(/:/,$iter_idx_str);
+            
             for my $block_id (sort keys %{$state->{'Loops'}}) {
                 if ($state->{'VarAccessAnalysis'}{'LoopNests'}{'Set'}{$block_id}{'Iterator'} eq $iter) {
                     $state->{'VarAccessAnalysis'}{'LoopNests'}{'Set'}{$block_id}{'IterVarTable'}{$iter}{$var}=$idx unless $iter eq '?';
+                    # # As there can be no conflicts, and having e.g. v(i,j) and v(j,i) in the same expression does not make much sense, this is OK
+                    # $state->{'VarAccessAnalysis'}{'LoopNests'}{'Set'}{$block_id}{'IterVarTable'}{$var}[$idx]=$iter;
                     # $state->{'IterTable'}{$block_id}{$iter}{$var}=$mult_offset unless $iter eq '?';
                 }
             }
@@ -1160,5 +1179,54 @@ sub __check_var_reach { my ($stref,$f, $accesses,$rw) = @_;
 
 1;
 
+=pod
+I think a cleaner way is as follows:
 
-        
+- for every line with 
+$info->...->{'VarAccesses'}{'Arrays'}{$array_var}{$rw}=
+{
+	'Exprs' => { $expr_str_1 => '0:1',...},
+	'Accesses' => { '0:1' =>  {'j:0' => [1,0],'k:1' => [1,1]}}, 
+	'Iterators' => ['j:0','k:1']
+};
+
+- For every iterator
+- Check if that iterator is the one of the block id; remove it from the set and repeat
+- look at the enclosing block via InBlock
+- Check if that iterator is the one of the block id; remove it from the set and repeat
+=cut
+sub _find_enclosing_outer_loop { my ($f, $annline, $accesses, $rw, $state) =@_;
+    my ($line,$info) = @{$annline};
+    my $block_id = $info->{'BlockID'};
+    return $state if $block_id eq '0';
+    for my $array_var (sort keys %{$accesses->{'Arrays'}}) {
+        my %iters = map { my ($iter,$idx) = split(/:/,$_) ; $iter => $idx } @{ $accesses->{'Arrays'}{$array_var}{$rw}{'Iterators'} };
+        my $n = scalar keys %{iters};
+        my $block_id = $info->{'BlockID'};
+
+        if (exists $state->{'VarAccessAnalysis'}{'LoopNests'}{'Set'}{$block_id}) {
+            # carp Dumper $state->{'VarAccessAnalysis'}{'LoopNests'}{'Set'}{$block_id};
+            my $iter = $state->{'VarAccessAnalysis'}{'LoopNests'}{'Set'}{$block_id}{'Iterator'};
+            # my $sanity_counter  = 10; # Stop after 10 tries. FIXME: stop
+            while (scalar keys %iters > 0 and $block_id ne '0') {
+                if (exists $iters{$iter}) {
+                    # say "Found $iter for $array_var in $block_id";
+                    delete $iters{$iter};        
+                    last if scalar keys %iters == 0;
+                }
+
+                $block_id = $state->{'VarAccessAnalysis'}{'LoopNests'}{'Set'}{$block_id}{'InBlock'};
+                $iter = $state->{'VarAccessAnalysis'}{'LoopNests'}{'Set'}{$block_id}{'Iterator'};
+            }
+            if (scalar keys %iters == 0) {
+                # say "$f: FullNest for $array_var is $block_id"; 
+                $state->{'FullNest'}{$block_id}{$array_var}=1;
+            } else {
+                croak "Problem: $array_var on <$line> in block $block_id is not fully enclosed by a loop nest";
+            }      
+        } else {
+            say "_find_enclosing_outer_loop PROBLEM: no record in LoopNests for $block_id, $array_var";
+        }
+    }
+    return $state;
+} # END of _find_enclosing_outer_loop

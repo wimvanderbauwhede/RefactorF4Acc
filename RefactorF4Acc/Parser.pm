@@ -1136,6 +1136,10 @@ or $line=~/^character\s*\(\s*len\s*=\s*[\w\*]+\s*\)/
 						},
 						'LineID' => $info->{'LineID'}
 					};
+					if (exists $info->{'TrailingComment'} and $info->{'TrailingComment'} =~/\$(?:RF4A|ACC)\s+/) { 
+						my $pragmas = __handle_trailing_pragmas($info->{'TrailingComment'},{});
+						$info->{'Pragmas'}=$pragmas;
+					}
 				}
 				$info->{ 'Control' } = 1;
                 $info->{'HasVars'} = 1; 
@@ -2724,7 +2728,7 @@ sub __handle_trailing_pragmas { my (
 		else {
 			warning( "Unknown loop nature $loopnature_str: $pragma_comment");
 		}				
-		$pragmas->{'Halos'} = $halos;
+
 	}	
 	return $pragmas;
 } # END of __handle_trailing_pragmas
