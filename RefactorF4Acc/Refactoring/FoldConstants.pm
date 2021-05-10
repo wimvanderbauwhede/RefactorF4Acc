@@ -73,8 +73,15 @@ sub fold_constants {
                     map {  $_->[0].':'.$_->[1] } 
                     @{$Sf->{'ArrayAccesses'}{$block_id}{'Arrays'}{$var_name}{'Dims'}}
                 ]; 
+
+
+                my $subset = in_nested_set( $Sf, 'Vars', $var_name );
+                my $decl = get_var_record_from_set($Sf->{$subset},$var_name);
+                $decl->{'ConstDim'} = $Sf->{'ArrayAccesses'}{$block_id}{'Arrays'}{$var_name}{'Dims'};
+                $Sf->{$subset}{'Set'}{$var_name} = $decl;
                 # push @attrs,'dimension('.join(', ',  map {} @{ $pvd->{'Attributes'}{'Dim'} }).')';
                 $info->{'ParsedVarDecl'}{'Attributes'}{'Dim'}=$dims;
+
 			}
             if (exists $info->{'ParamDecl'} ) {
                 # carp Dumper $info->{'ParsedParDecl'} ;

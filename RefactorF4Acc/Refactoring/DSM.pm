@@ -24,7 +24,7 @@ Done:
 
 TODO:
 - Implement the full SOR loop from LES　#OK
-- Add loop annotations : Map, Iter, Fold; I think we might already have the stencil analysis so no need    
+- Add loop annotations : Map, Iter, Fold; I think we might already have the stencil analysis so no need #OK see Parser::__handle_trailing_pragmas
 - Check the reach for every array in a loop nest, to see if it does not exceed the halos!
     do j
     do k
@@ -781,6 +781,8 @@ my ( $stref, $f ) = @_;
     # croak $f, Dumper $accessAnalysis->{'LoopNests'};
     # This adds Contains, maybe I should integrate it in analyseAllVarAccesses
     ($accessAnalysis, my $blocks_per_nestlevel_, my $max_lev_) = resolve_loop_nests($stref, $f, $accessAnalysis);
+
+    _check_reach( $stref, $f);
 #     die;
 # croak Dumper $accessAnalysis;
     my $pass_link_iters_vars = sub { my ($annline,$state) = @_;
@@ -1045,8 +1047,118 @@ sub _get_iters_for_var { my ($var,$exprs,$state) = @_;
     }
     return $state;
 }
-# conv
 
 
+# - Check the reach for every array in a loop nest, to see if it does not exceed the halos!
+#     do j
+#     do k
+#     p(0,j,k)=p(im,j,k)
+#     p(im+1,j,k) = p(1,j,k)
+#     end do
+#     end do
+
+#     This will give a reach of [0,im+1] on the LHS and [1,im] on the RHS
+#     So we modulo the core, because what we want is to make sure acccesses are not in the core
+#     [0 % im,im+1 % im] on the LHS and [1 % im,im % im] on the RHS
+
+# Array accesses are stored in $info->...->{'VarAccesses'}{'Arrays'}{$array_var}{$rw}=
+# {
+# 	'Exprs' => { $expr_str_1 => '0:1',...},
+# 	'Accesses' => { '0:1' =>  {'j:0' => [1,0],'k:1' => [1,1]}}, 
+# 	'Iterators' => ['j:0','k:1']
+# };
+
+sub _check_reach { my ( $stref, $f ) = @_;
+    my $Sf = $stref->{'Subroutines'}{$f};
+    my $annlines = $Sf->{'RefactoredCode'} ;
+
+my $pass_check_reach = sub { my ($annline) = @_;
+    my ($line,$info) = @{$annline};
+    # say "$f LINE $line" if not exists $info->{'BlockID'};
+    if (exists $info->{'BlockID'} and $info->{'BlockID'} ne '0') {
+        if (exists $info->{'VarAccesses'} ) {             
+            # carp Dumper  $info->{'VarAccesses'};
+            __check_var_reach($stref,$f, $info->{'VarAccesses'},'Read');            
+        }        
+        elsif (exists $info->{'Assignment'} ) { # So we should run this before we rewrite with the dsmAPI
+            # carp Dumper $info;
+            # carp Dumper  $info->{'Rhs'}{'VarAccesses'};
+            # carp Dumper  $info->{'Lhs'}{'VarAccesses'};
+            __check_var_reach($stref,$f, $info->{'Rhs'}{'VarAccesses'},'Read');
+            __check_var_reach($stref,$f, $info->{'Lhs'}{'VarAccesses'},'Write');
+        }   
+    }
+    return [$annline];
+};
+
+my $annlines_ = stateless_pass($annlines,$pass_check_reach,"pass_check_reach($f)");
+
+}
+
+sub __check_var_reach { my ($stref,$f, $accesses,$rw) = @_;
+    my $Sf = $stref->{'Subroutines'}{$f};
+    # my %reach=();
+    
+    for my $varname (sort keys %{$accesses->{'Arrays'}}) {
+        # carp Dumper $accesses->{'Arrays'}{$varname}{$rw}{'Accesses'};
+        # say "ARRAY VAR $varname";
+
+        my $subset = in_nested_set( $Sf, 'Vars', $varname );
+        my $decl = get_var_record_from_set($Sf->{$subset},$varname);
+        my $dims = $decl->{'ConstDim'};    
+        if (not exists $decl->{'Parameter'}) {
+            if ($decl->{'MemSpace'} eq 'Collective') { 
+                if (exists $decl->{'Halos'} and exists $decl->{'Partitions'}) {
+                    my $halos = $decl->{'Halos'};
+                    my $partitions = $decl->{'Partitions'};
+                    my @core_szs = ();
+                    my $idx=0;
+                    # carp Dumper $decl;
+                    for my $dim (@{$dims}) {
+                        push @core_szs , ($dim->[1] - $dim->[0] +1 - $halos->[$idx][0]- $halos->[$idx][1])/$partitions->[$idx];
+                        ++$idx;
+                    }
+                    # carp Dumper @core_szs;
+                    my $reach = dclone($halos);
+                    for my $k  (sort keys %{$accesses->{'Arrays'}{$varname}{$rw}{'Accesses'}} ) {
+                        # {'j:0' => [1,0],'k:1' => [1,1]}}
+                        my $mult_offset_list = $accesses->{'Arrays'}{$varname}{$rw}{'Accesses'}{$k};
+                        for my $rec (@{$mult_offset_list}) {
+                            
+                            my ($iter_pos,$mult_offset) =  %{$rec};
+                            # carp Dumper $iter_pos,$mult_offset;
+                            # my $mult_offset = $rec->{$iter_pos};
+                            my ($iter,$pos) = split(/:/,$iter_pos);
+                            my ($mult,$offset) = @{$mult_offset};
+                            if ($mult>1) {
+                                croak "$f Only array indices of the form $iter+offset are supported";
+                            }
+                            # The halo tells us how many points pos and neg we can go
+                            # So offset = -1 and -2 is compatible with halo==2, assuming the array starts at 1
+                            # Offset +1 and +2 are fine 
+                            if ($offset<0 and -$offset % $core_szs[$pos] > $reach->[$pos][0] ) {
+                                say $offset % $core_szs[$pos] ,'<>', $reach->[$pos][0];
+                                croak "Access not allowed (too low): $f $varname $iter+$offset"
+                            }
+                            if ($offset > 0 and $offset % $core_szs[$pos] > $reach->[$pos][1] ) {
+                                # say $offset ,';', $core_szs[$pos],';', $offset % $core_szs[$pos] ,'<>', $reach->[$pos][1];
+                                croak "Access not allowed (too high): $f $varname $iter+$offset"
+                            }
+                        }
+                    }
+                } else {
+                    warning("Collective array $varname in $f has no halos so reach must be 0 to be valid");
+                }
+            }
+        }
+        # carp $f . Dumper %reach;
+
+    } # loop over all vars on line
+
+    
+}
 
 1;
+
+
+        
