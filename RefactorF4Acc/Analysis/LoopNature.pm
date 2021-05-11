@@ -15,6 +15,7 @@ use v5.10;
 
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
+use RefactorF4Acc::Utils::Functional;
 use RefactorF4Acc::Refactoring::FoldConstants qw( fold_constants );
 use RefactorF4Acc::Analysis::VarAccessAnalysis qw( analyseAllVarAccesses );
 use Carp;
@@ -2479,114 +2480,6 @@ sub createExprListFromVarAccesses { (my $accesses, my $line_id, my $rw) = @_;
     return $operands;
 }
 
-sub findWithDefault { my ($default, $key, $table) = @_;
-    if (not exists $table->{$key}) {
-        if (ref($default) eq 'SUB') {
-            $default->();
-        } else { 
-            return $default;
-        }
-    } else {
-        return $table->{$key};
-    }   
-}
-
-# appendToMap :: Ord k => k -> a -> DMap.Map k [a] -> DMap.Map k [a]
-sub appendToMap { my ($key, $item, $table) = @_;
-    my $ntable = insert( $key, [@{findWithDefault( [], $key, $table)},$item],$table);
-    return $ntable;
-}
-
-sub listRemoveDuplications { ordered_union(@_); }
-
-# # This is the set of all members of $aref not in $bref
-# sub 
-# --    Function takes a list of loop variables and a possible parallel loop's AST and returns a string that details the reasons why the loop
-# --    doesn't represent a reduction. If the returned string is empty, the loop represents a possible parallel reduction
-# --    WV:  condExprs is used for the case of an assignment where the LHS is referenced in a condition of an if that encloses the assignment. It is part of the analysis to check if a variable depends on itself, not sure how it works. 
-# analyseLoop_reduce :: String -> [Expr Anno] -> [VarName Anno] -> [VarName Anno] -> [VarName Anno] -> [VarName Anno] -> VarDependencyAnalysis -> VarAccessAnalysis -> Fortran Anno -> AnalysisInfo
-# analyseLoop_reduce comment condExprs loopVars loopWrites nonTempVars prexistingVars dependencies accessAnalysis codeSeg = case codeSeg of
-# --        If _ _ condExpr ifTrue elifList maybeElse -> foldl combineAnalysisInfo analysisInfoBaseCase ([condExprAnalysis] ++ (warning readWriteAnalysis (show readWriteAnalysis)) ++(warning [ifTrueAnalysis] (show ifTrueAnalysis)) ++ elifCondAnalysis ++ elifBodyAnalysis ++ [elseAnalysis]  )
-# --      If _ _     expr _      elifList maybeElse -> foldl combineAnalysisInfo analysisInfoBaseCase (readWriteAnalysis ++ elifAnalysis_fortran ++ elifAnalysis_readExprs ++ [elseAnalysis])
-# --        If _ _ condExpr ifTrue elifList maybeElse -> foldl combineAnalysisInfo analysisInfoBaseCase ( (warning readWriteAnalysis (show readWriteAnalysis)) ++(warning [ifTrueAnalysis] (show ifTrueAnalysis)) ++ elifBodyAnalysis ++ [elseAnalysis]  )
-#         If _ _ condExpr ifTrue elifList maybeElse -> foldl combineAnalysisInfo analysisInfoBaseCase ( [condExprAnalysis,ifTrueAnalysis] ++ elifCondAnalysis ++ elifBodyAnalysis ++ [elseAnalysis]  )
-#             where
-#                 recursiveCall condExprs_ = analyseLoop_reduce comment condExprs_ loopVars loopWrites nonTempVars prexistingVars dependencies accessAnalysis
-# --                readWriteAnalysis = gmapQ (mkQ analysisInfoBaseCase (recursiveCall (condExprs ++ [condExpr]))) codeSeg -- so this should call recursiveCall on all nodes of codeSeg, why?
-#                 condExprAnalysis = (nullAnno, [], extractOperands condExpr, []) -- AnalysisInfo tuple from the 'if' condition
-#                 ifTrueAnalysis = (recursiveCall (condExprs++[condExpr])) ifTrue
-#                 --elifBodyAnalysis = map (\(elif_expr, elif_fortran) ->  (recursiveCall (condExprs ++ [elif_expr])) elif_fortran) elifList -- list of AnalysisInfo tuples from the body of each 'else if' branch
-#                 elifBodyAnalysis = map (\(elif_expr, elif_fortran) ->  (recursiveCall (condExprs++[elif_expr])) elif_fortran) elifList -- list of AnalysisInfo tuples from the body of each 'else if' branch
-#                 elifCondAnalysis = map (\(elif_expr, _) -> (nullAnno, [], extractOperands elif_expr, [])) elifList -- list of AnalysisInfo tuples from the condition of each 'else if' branch
-#                 elseAnalysis = case maybeElse of
-#                                     Just else_fortran ->  (recursiveCall condExprs) else_fortran
-#                                     Nothing -> analysisInfoBaseCase { my ($aref,$bref) = @_;
-#     ordered_difference($bref,$aref);
-# }
-
-sub usesVarName_list { my ($varname_list, $expr)=@_;
-
-    my $var_from_expr = $expr->[0];
-    return elem($var_from_expr,$varname_list);
-}
-
-sub isNothing { my ($mt) = @_;
-   if( $mt->[0] eq 'Nothing') {
-        return 1;
-   }
-   elsif( $mt->[0] eq 'Just') {
-       return 0;
-   }
-   else {
-       croak "Not a Maybe type: ".Dumper($mt);
-   }
-}
-
-sub just { my ($t)=@_;
-    return ['Just',$t];
-}
-
-sub nothing { 
-    return ['Nothing'];
-}
-
-sub isJust { my ($mt) = @_;
-   if( $mt->[0] eq 'Nothing') {
-        return 0;
-   }
-   elsif( $mt->[0] eq 'Just') {
-       return 1;
-   }
-   else {
-       croak "Not a Maybe type: ".Dumper($mt);
-   }
-}
-
-sub fromJust { my ($mt) = @_;
-    
-   if( $mt->[0] eq 'Nothing') {
-        croak "Nothing not Just ".Dumper($mt);
-   }
-   elsif( $mt->[0] eq 'Just') {
-       return $mt->[1];
-   }
-   else {
-       croak "Not a Maybe type: ".Dumper($mt);
-   }    
-}
-
-sub isEmpty { my ($mt) = @_;
-   if( $mt->[0] eq 'Empty') {
-        return 0;
-   }
-   elsif( $mt->[0] eq 'LoopIterRecord') {
-       return 1;
-   }
-   else {
-       croak "Not a TupleTable type: ".Dumper($mt);
-   }
-}
-
 sub isLoopIterRecord {  my ($mt) = @_; 
    if( $mt->[0] eq 'Empty') {
         return 1;
@@ -2611,181 +2504,30 @@ sub fromLoopIterRecord { my ($mt) = @_;
    }    
 }
 
-sub empty { 
-    return ['Empty'];
-}
 
 sub loopIterRecord { my ($t)=@_;
     return ['LoopIterRecord',$t];
 }
 
-
-
-sub case { my ($sum_type_inst, $altCondsActions) = @_;
-    for my $altCondsAction (@{$altCondsActions}) {
-        my ($cond,$action) = @{$altCondsAction};
-        if (ref($cond) eq 'CODE') {
-            if ($cond->{$sum_type_inst}) {
-                if (ref($action) eq 'CODE') {
-                    return $action->{$sum_type_inst};
-                } else {
-                    return $action;
-                }
-            }
-        } 
-        else {
-            if ($cond) {
-                if (ref($action) eq 'CODE') {
-                    return $action->{$sum_type_inst};
-                } else {
-                    return $action;
-                }
-            }            
-        }
-    }
-}
-
-sub otherwise {
-    1;
-}
-sub append { my ($lst,$elt) = @_;
-    [@{$lst},$elt];
-}
-
-sub concat { my @lsts = @_;
-my $concat_lsts = [];
-    for my $lst (@lsts) {
-        $concat_lsts = [@{$concat_lsts},@{$lst}];
-    }
-    return $concat_lsts;
-}
-
-sub length { my ($lst)=@_;
-    return scalar @{$lst};
-}
-
-sub null { my ($lst)=@_;
-    return scalar @{$lst} == 0;
+sub isEmpty { my ($mt) = @_;
+   if( $mt->[0] eq 'Empty') {
+        return 0;
+   }
+   elsif( $mt->[0] eq 'LoopIterRecord') {
+       return 1;
+   }
+   else {
+       croak "Not a TupleTable type: ".Dumper($mt);
+   }
 }
 
 
-sub elem { my ($elt,$lst) = @_;
-    my %hash = map {$_=>1} @{$lst};
-    return exists $hash{$elt} ? 1 : 0;
+sub empty { 
+    return ['Empty'];
 }
+sub usesVarName_list { my ($varname_list, $expr)=@_;
 
-sub insert { my ($key, $value, $table) = @_;
-        $table->{$key}=$value;
-        return dclone($table);
-}
-
-sub mapf {
-	( my $f, my $ls ) = @_;
-    return [
-        map {
-            $f->($_)
-        } @{$ls}
-    ];
-}
-
-sub foldl {
-	( my $f, my $acc, my $ls ) = @_;
-	for my $elt ( @{$ls} ) {
-		$acc = $f->( $acc, $elt );
-	}
-	return $acc;
-}    
-
-sub fold {
-    foldl(@_);
-} 
-
-sub foldAnd {
-	( my $acc, my $ls ) = @_;
-	for my $elt ( @{$ls} ) {
-		$acc =  $acc && $elt ;
-	}
-	return $acc;
-}
-
-sub foldOr {
-	( my $acc, my $ls ) = @_;
-	for my $elt ( @{$ls} ) {
-		$acc =  $acc || $elt ;
-	}
-	return $acc;
-}
-
-# sub zip { my ($l1, $l2) = @_;
-#     my $len_l1= scalar @{$l1};
-#     my $len_l2= scalar @{$l2};
-#     my $common_len = $len_l1 < $len_l2 ? $len_l1 : $len_l2;
-#     my $l12=[];
-#     for my $idx (0..$common_len-1) {
-#         my $elt1 = $l1->[$idx];
-#         my $elt2 = $l2->[$idx];
-#         push @{$l12},[$elt1,$elt2];
-#     }
-#     return $l12;
-# }
-
-sub unzip { (my $l12) = @_;
-    my $l1=[];
-    my $l2=[];
-    for my $pair (@{$l12}) {
-        my ($elt1,$elt2)=@{$pair};
-        push @{$l1},$elt1;
-        push @{$l2},$elt2;
-    }
-    return ($l1,$l2);
-}
-sub head { my ($lst)=@_;
-    if (scalar @{$lst}>0) {
-        return $lst->[0];
-    } else {
-        croak "head of empty list: ".Dumper($lst);
-    }
-}
-
-sub tail { my ($lst)=@_;
-    my @lst_ = @{$lst};
-    if (scalar @lst_>0) {
-        shift @lst_;
-        return \@lst_;
-    } else {
-        croak "tail of empty list: ".Dumper($lst);
-    }
-}
-
-
-sub fst { (my $tup_ref) = @_; 
-    return $tup_ref->[0];
-}
-
-sub snd { (my $tup_ref) = @_; 
-    return $tup_ref->[1];
-}
-
-sub filter { (my $f, my $lst) = @_;
-    my $res = grep { $f->{$_} } @{$lst};
-    return $res;
-}
-
-sub max { (my $v1, my $v2) =@_;
-    return $v1 < $v2 ? $v2 : $v1;
-}
-
-sub min { (my $v1, my $v2) =@_;
-    return $v1 > $v2 ? $v2 : $v1;
-}
-
-sub round { my ($v)=@_;
-    my $iv=int($v);
-    my $rest = $v-$iv;    
-    if ($rest<0.5) {
-        $iv;
-    } else {
-        $iv+1;
-    }
+    my $var_from_expr = $expr->[0];
+    return elem($var_from_expr,$varname_list);
 }
 1;

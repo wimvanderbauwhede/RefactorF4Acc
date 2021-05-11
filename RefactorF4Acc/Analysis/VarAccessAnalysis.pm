@@ -253,7 +253,11 @@ sub analyseAllVarAccesses { my ($stref, $f, $io_write_subroutines, $annlines) = 
                 ($cond_expr_ast, $state) = _find_var_access_in_ast($stref, $f, [$block_id,$line_id], $state, $cond_expr_ast,'Read');
             }
             elsif ( exists $info->{'Do'} ) {
-                if (exists $info->{'Do'}{'Iterator'} ) {                    
+                if (exists $info->{'Do'}{'Iterator'} ) {       
+                    # say Dumper $info->{'Pragmas'};
+                    my $loop_nature = (exists $info->{'Pragmas'} and exists $info->{'Pragmas'}{'LoopNature'})
+                    ? $info->{'Pragmas'}{'LoopNature'}
+                    : ['Undetermined'];
                 # Do => {
                 #           Label :: Int
                 #           Iterator :: Var
@@ -283,7 +287,7 @@ sub analyseAllVarAccesses { my ($stref, $f, $io_write_subroutines, $annlines) = 
                             'Range' => $loop_range_exprs,
                             'InBlock' => $current_block,
                             'NestLevel' => $nest_level,
-                            'LoopNature' => $info->{'Pragmas'}{'LoopNature'}
+                            'LoopNature' => $loop_nature
                     };                
                     $state->{'CurrentBlock'} = $block_id;
                     for my $loop_iter_rec ( @{ $state->{'VarAccessAnalysis'}{'LoopNests'}{'List'} } ) { 

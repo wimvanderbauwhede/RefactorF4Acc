@@ -2,6 +2,7 @@ package RefactorF4Acc::Translation::TyTra::MemoryReduction;
 use v5.10;
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
+use RefactorF4Acc::Utils::Functional qw( zip );
 use RefactorF4Acc::Refactoring::Helpers qw( pass_wrapper_subs_in_module emit_f95_var_decl);
 use RefactorF4Acc::Refactoring::Fixes qw( remove_redundant_arguments_and_fix_intents );
 use RefactorF4Acc::Translation::TyTra::Common qw( 

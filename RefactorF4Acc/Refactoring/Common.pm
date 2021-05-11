@@ -1047,7 +1047,7 @@ sub _maybe_cast_call_args { # 200 lines
 #@        ArrayOrScalar => Array | Scalar
 #@        ExpressionAST => $lhs_ast
 #@ Rhs => 
-#@        VarList       => $rhs_all_vars
+#@        Vars       => $rhs_all_vars
 #@        ExpressionAST => $rhs_ast			
 		my $cast_reshape_pre_info = {
 			'Lhs' => {'ExpressionAST' => [2,$new_call_arg],
@@ -1057,7 +1057,7 @@ sub _maybe_cast_call_args { # 200 lines
 			},
 			'Rhs' => {
 				'ExpressionAST' => $reshaped_call_arg_ast,
-				'VarList' => {
+				'Vars' => {
 					'List' => [$call_arg, $new_call_arg],
 					'Set' => {$call_arg =>{'Type' => 'Scalar'}, 
 							$new_call_arg=>{'Type' => 'Scalar'}
@@ -1077,7 +1077,7 @@ sub _maybe_cast_call_args { # 200 lines
 				'ArrayOrScalar' => 'Scalar'
 			},
 			'Rhs' => {'ExpressionAST' => $reshaped_new_call_arg_ast,
-			'VarList' => {
+			'Vars' => {
 				'List' => [$call_arg, $new_call_arg], 
 				'Set' => {$call_arg =>{'Type' => 'Scalar'}, $new_call_arg=>{'Type' => 'Scalar'}}
 				}
@@ -1098,7 +1098,7 @@ sub _maybe_cast_call_args { # 200 lines
 				'ArrayOrScalar' => 'Scalar'
 			},
 			'Rhs' => {'ExpressionAST' => $cast_reshaped_call_arg_ast,
-			'VarList' => {
+			'Vars' => {
 				'List' => [$call_arg, $new_call_arg], 
 				'Set' => {$call_arg =>{'Type' => 'Scalar'}, $new_call_arg=>{'Type' => 'Scalar'}}
 				}
@@ -1133,7 +1133,7 @@ sub _maybe_cast_call_args { # 200 lines
 							'ArrayOrScalar' => 'Scalar'
 						},
 						'Rhs' => {'ExpressionAST' => $cast_call_arg_ast,
-						'VarList' => {'List' => [$cast_call_arg], 'Set' => {$cast_call_arg=>{'Type' => 'Scalar'}}}
+						'Vars' => {'List' => [$cast_call_arg], 'Set' => {$cast_call_arg=>{'Type' => 'Scalar'}}}
 						},
 					};
 					my $cast_reshape_pre_annline = [$cast_reshape_pre_line,$cast_reshape_pre_info];
@@ -1148,7 +1148,7 @@ sub _maybe_cast_call_args { # 200 lines
 							'ArrayOrScalar' => 'Scalar'
 						},
 						'Rhs' => {'ExpressionAST' => $cast_new_call_arg_ast,
-						'VarList' => {'List' => [$cast_new_call_arg], 'Set' => {$cast_new_call_arg=>{'Type' => 'Scalar'}}}
+						'Vars' => {'List' => [$cast_new_call_arg], 'Set' => {$cast_new_call_arg=>{'Type' => 'Scalar'}}}
 						},
 					};		
 					my $cast_reshape_post_annline = [$cast_reshape_post_line,$cast_reshape_post_info];		

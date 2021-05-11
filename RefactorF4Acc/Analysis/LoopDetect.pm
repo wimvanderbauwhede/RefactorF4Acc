@@ -2,7 +2,7 @@ package RefactorF4Acc::Analysis::LoopDetect;
 use v5.10;
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
-
+use RefactorF4Acc::Utils::Functional qw( make_lookup_table );
 #
 #   (c) 2015 Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
 #

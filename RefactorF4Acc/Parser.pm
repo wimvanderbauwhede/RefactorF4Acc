@@ -16,6 +16,7 @@ use v5.10;
 
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
+use RefactorF4Acc::Utils::Functional qw( ordered_union );
 use RefactorF4Acc::State qw( initialise_per_code_unit_tables );
 use RefactorF4Acc::CallTree qw( add_to_call_tree );
 use RefactorF4Acc::Refactoring::Helpers qw( emit_f95_var_decl get_f95_var_decl stateful_pass_inplace ); 
@@ -1450,19 +1451,25 @@ END IF
 # This is an ASSIGNMENT and so can come after IF (...)		
 #@ Lhs => 
 #@        VarName       => $lhs_varname
-#@        IndexVars     => $lhs_vars
+#@        IndexVars     => $lhs_index_vars
 #@        ArrayOrScalar => Array | Scalar
 #@        ExpressionAST => $lhs_ast
 #@ Rhs => 
-#@        VarList       => $rhs_all_vars
+#@        Vars       => $rhs_all_vars
 #@        ExpressionAST => $rhs_ast		
+#@	$lhs_index_vars = {
+#@  'List' => [$var,...], 
+#@  'Set' => { $var => 
+#@  	{'Type' => Array | Scalar},...
+#@  	}, ...
+#@  }
 			elsif ( $mline =~ /[\w\)]\s*=\s*[^=]/ ) {
 				
 					$info->{'Assignment'} = 1;
                     $info->{'HasVars'} = 1; 
 					my $free_form =  $Sf->{'FreeForm'};							
 					$mline = __remove_blanks($mline,$free_form);
-#WV20150303: We parse this assignment and return {Lhs => {Varname, ArrayOrScalar, IndexExpr}, Rhs => {Expr, VarList}}
+#WV20150303: We parse this assignment and return {Lhs => {Varname, ArrayOrScalar, IndexExpr}, Rhs => {Expr, Vars}}
 #croak "$f <$mline>" if $mline=~/^rfos01/ ;
 
 					$info = _parse_assignment( $mline, $info, $stref, $f );
@@ -2689,13 +2696,15 @@ sub __handle_trailing_pragmas { my (
 		$pragmas->{'MemSpace'}=$memspace;
 	}	
 
-	# The format is $RF4A LoopNature(Map|Reduce|Iter,Acc(acc1,acc2,...),Arrays(a1,a2,...))
+	# The format is $RF4A LoopNature(...)
 	if ($pragma_comment =~/[Ll]oop[Nn]ature\s*\((Map|Fold|Reduce|Iter)(.*)\)\s*/) {
 		my $loopnature_str=$1;
+		# The format is $RF4A LoopNature(Iter)
 		if (lc($loopnature_str) eq 'iter') {
 			# We're done
 			$pragmas->{'LoopNature'}=['Iter'];
 		}
+		# The format is $RF4A LoopNature(Map,Arrays(a1,a2))
 		elsif (lc($loopnature_str) eq 'map') {			
 			my $rest = $2;
 			if ($rest=~/Arrays\((.+)\)/) {
@@ -2706,20 +2715,31 @@ sub __handle_trailing_pragmas { my (
 				warning( "Incorrect syntax for loop nature Map: $pragma_comment");
 			}
 		}
+		# The format is $RF4A LoopNature(Fold|Reduce,Acc($acc,$op,(a1,a2)),Acc($acc2,$op2,(a3,a4)))
 		elsif (lc($loopnature_str) eq 'fold' or lc($loopnature_str) eq 'reduce') {
+
 			my $rest = $2;
-			my @arrays=();
-			my @accs=();
-			if ($rest=~/Arrays\((.+)\)/i) {
-				my $arrays_str = $1;
-				@arrays = split(/\s*,\s*/,$arrays_str);
+			my @acc_tuples=();
+			# my @accs=();
+			while ($rest=~/^\s*,\s*Acc\s*\(\s*(.+?)\s*\)\s*\)/i) {
+				my $acc_tup_str = $1;
+				$rest=~s/^\s*,\s*Acc\s*\(\s*(.+?)\s*\)\s*\)//i;
+				# $acc2,$op2,(a3,a4)
+				my ($acc_op,$arrays_str) = split(/,\s*\(/,$acc_tup_str);
+				my ($acc,$op) = split(/\s*,\s*/,$acc_op);
+				my @arrays = split(/\s*,\s*/,$arrays_str);
+				push @acc_tuples,[$acc,$op,\@arrays];
 			}
-			if ($rest=~/Accs\((.+)\)/i) {
-				my $accs_str = $1;
-				@accs = split(/\s*,\s*/,$accs_str);
-			} 
-			if (scalar @accs>0 and scalar @arrays>0) {
-				$pragmas->{'LoopNature'}=['Fold',\@accs,\@arrays];
+			# 	my $arrays_str = $1;
+			# 	@arrays = split(/\s*,\s*/,$arrays_str);
+			# }
+			# if ($rest=~/Accs\((.+)\)/i) {
+			# 	my $accs_str = $1;
+			# 	@accs = split(/\s*,\s*/,$accs_str);
+			# } 
+			if (scalar @acc_tuples>0) {
+				$pragmas->{'LoopNature'}=['Fold',\@acc_tuples];
+				# croak Dumper $pragmas->{'LoopNature'};
 			}
 			else {
 				warning( "Incorrect syntax for loop nature Reduce: $pragma_comment");
@@ -4031,7 +4051,7 @@ sub _parse_assignment {
 		'List' => [ sort keys %{ $rhs_vars_set } ]
 	};
 
-	#{Lhs => {VarName, ArrayOrScalar, IndexExpr}, Rhs => {Expr, VarList}}
+	#{Lhs => {VarName, ArrayOrScalar, IndexExpr}, Rhs => {Expr, Vars}}
 	if ( defined  $lhs_varname and defined $lhs_var_attrs) {
 # check here if the var is declared as array!
 		$info->{'Lhs'} = {

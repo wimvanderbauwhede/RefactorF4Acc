@@ -1004,6 +1004,7 @@ sub stateless_pass {
     for my $annline ( @{$annlines} ) {    
     	if (not exists $annline->[1]{'Deleted'}) {
 	        my $pass_annlines = $pass_actions->($annline); # returns an ARRAY ref
+            croak if ref($pass_annlines) ne 'ARRAY';
 	        for my $new_annline (@{ $pass_annlines }) { 
 	        	push @{$new_annlines}, $new_annline;
 	        }

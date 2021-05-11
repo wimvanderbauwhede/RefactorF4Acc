@@ -7,7 +7,7 @@ use v5.10;
 
 
 =pod
-Status 2021-05-10
+Status 2021-05-11 I think we have several days more work to debug this
 
 Novelty:
 
@@ -23,31 +23,17 @@ Done:
 - rewrite of loop bounds assuming they are Map or StencilMap
 - Implement the full SOR loop from LES　#OK
 - Add loop annotations : Map, Iter, Fold; I think we might already have the stencil analysis so no need #OK see Parser::__handle_trailing_pragmas
-- Check the reach for every array in a loop nest, to see if it does not exceed the halos, See DSM::_check_reach; TODO: better errors
+- Check the reach for every array in a loop nest, to see if it does not exceed the halos, See DSM::__check_reach; TODO: better errors
 - Insert barriers, at first after every loop nest based on the info in the LoopNature pragma. This uses a new algorithm to find the "full" loop nest for an array. Currently it inserts a dsmBarrier() call for Map, we can now easily add he code for Fold as well. 
+- Insert init, allocate and deallocate statements. TODO: with proper Info, currently it is Textual
 
 TODO:
-- Insert init, allocate and deallocate statements
-    - init and allocate can go after the last declaration
-    - Ideally, init will allocate memory based on the size of the arrays tagged as DSM
-        - get their sizes (or in Case 3, their halo size, big difference)
-        - add them all up
-        - multiply by 2, ad hoc
-        - I guess I should create some parameters for this 
-        - But initially just use DSM_MEMSZ and DSM_CACHESZ macros
-        call dsmInit(DSM_MEMSZ,DSM_CACHESZ)        
-        - Use DSM_NX and DSM_NY macros instead of dsmNX and dsmNY parameters 
-        nNodes = dsmGetNNodes() 
-        !put an assertion here to test that it is the same as dsmNX*dsmNY, else bail out
 
-        nodeID = dsmGetNId()
-        nodeXCoord = nodeId % dsmNX
-        nodeYCoord = nodeId / dsmNX
-    - deallocate just before the end of the program
-    - This carries the assumption that we only have DSM at top level
-    - But we can tag code units with hasDSMVars and then each of them can get this treatment
-    - Just make this a map instead of a bool so we know which ones
+
 - Rewrite of Fold and Stencil Fold
+    *** The main things to do is that the $acc.'_chunks' variable must be declared and added to the $Sf->{'Vars'}
+    *** I guess the Textual hack won't survive for long
+    ** Also I see that the 'type()' statements are inserted in the wrong place.
 
     Reductions are done with a global array of nprocesses but the final reduced value is local, so no need for locks but we do need a barrier before reducing that array. See the Haskell code.
 
@@ -160,6 +146,7 @@ use v5.10;
 
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
+use RefactorF4Acc::Utils::Functional qw( elem );
 use RefactorF4Acc::Parser::Expressions qw( get_vars_from_expression _traverse_ast_with_action get_args_vars_from_subcall);
 use RefactorF4Acc::Refactoring::Helpers qw( stateless_pass stateful_pass splice_additional_lines_cond);
 use RefactorF4Acc::Analysis::VarAccessAnalysis qw( analyseAllVarAccesses );
@@ -207,7 +194,7 @@ sub refactor_dsm_all {
 		$stref = refactor_dsm( $stref, $f );
         $stref = insert_init_alloc_dealloc_statements($stref,$f);
 
-        # emit_RefactoredCode($stref,$f,$Sf->{'RefactoredCode'}) if $f=~/test_loop/;
+        emit_RefactoredCode($stref,$f,$Sf->{'RefactoredCode'});# if $f=~/test_loop/;
 	}
     
 	return $stref;
@@ -252,7 +239,7 @@ sub refactor_dsm { my ( $stref, $f ) = @_;
 
             # TODO: handle array assignments v1 = v2
             # This is easy but needs to be detected: if the LHS and RHS are both '$' in the AST but Array in the decls, it is an array access
-            # carp  $line . Dumper $info->{'Lhs'}{'ExpressionAST'} , $info->{'Rhs'}{'ExpressionAST'};
+            # carp  $line . Dumper $info;#->{'Lhs'}{'ExpressionAST'} , $info->{'Rhs'}{'ExpressionAST'};
             if ($info->{'Lhs'}{'ExpressionAST'}[0] == 2
             and $info->{'Rhs'}{'ExpressionAST'}[0] == 2
             ) {
@@ -644,6 +631,7 @@ sub _is_dsm_var {
     my ($varname, $Sf) = @_;
     my $subset = in_nested_set( $Sf, 'Vars', $varname );
     my $decl = get_var_record_from_set($Sf->{$subset},$varname);
+    carp Dumper $decl;
     if (exists $decl->{'Parameter'}) {
         return 0;
     }
@@ -758,8 +746,7 @@ Array accesses are stored in $info->...->{'VarAccesses'}{'Arrays'}{$array_var}{$
 };
 =cut
 
-sub rewrite_loop_bounds { 
-my ( $stref, $f ) = @_;
+sub rewrite_loop_bounds { my ( $stref, $f ) = @_;
     my $Sf = $stref->{'Subroutines'}{$f};
     my $annlines = $Sf->{'RefactoredCode'} ;
     # This is to get the LoopNests information
@@ -767,69 +754,21 @@ my ( $stref, $f ) = @_;
     # croak $f, Dumper $accessAnalysis->{'LoopNests'};
     # This adds Contains, maybe I should integrate it in analyseAllVarAccesses
     ($accessAnalysis, my $blocks_per_nestlevel_, my $max_lev_) = resolve_loop_nests($stref, $f, $accessAnalysis);
+    # say 'HERE0';
+    __check_reach( $stref, $f);
+    # say 'HERE1';
+    my $state = {'VarAccessAnalysis' =>$accessAnalysis};
+    # say 'HERE2';
+    $state = __link_iters_vars($f, $annlines, $state);
+    # say 'HERE3';
+    $state = __determine_full_nests($f, $annlines, $state);
+    # say 'HERE4';
 
-    _check_reach( $stref, $f);
-#     die;
-# croak Dumper $accessAnalysis;
-    my $pass_link_iters_vars = sub { my ($annline,$state) = @_;
-        my ($line,$info) = @{$annline};
-        # carp Dumper $state;
-        if (exists $info->{'Do'}) {
-                $state->{'Loops'}{
-                    $info->{'BlockID'}
-                } = 1;
-        }
-        elsif (exists $info->{'EndDo'}) {
-            my $block_id = $info->{'BlockID'};
-            delete $state->{'Loops'}{$block_id} ;  
-            if (exists $state->{'FullNest'}{$block_id} )  {
-                say "rewrite_loop_bounds($f): full nest for variables ".join(', ',sort keys %{$state->{'FullNest'}{$block_id}}).' at loop end '. $block_id;
-                # my $loop_vars = sort keys %{$state->{'FullNest'}{$block_id}};
-                my $loop_nature =  $state->{'VarAccessAnalysis'}{'LoopNests'}{'Set'}{$block_id}{'LoopNature'};
-                if (defined $loop_nature and
-                $loop_nature->[0] eq 'Map') {
-                    say "$f: Adding a BARRIER";
-                my $n_info = {
-                    'SubroutineCall' => {
-                        'Name' => 'dsmBarrier',
-                        'Args' => {
-                            'List' => [],
-                            'Set' => {}
-                        },
-                    },
-                    'Indent' => $info->{'Indent'},
-                    'LineID' => $info->{'LineID'}+0.1,
-                    'Ann' => [annotate($f, __LINE__)]
-                };
 
-                return ([
-                    [$line,$info],
-                    [ $info->{'Indent'} . "call dsmBarrier()",$n_info]
-                    ],$state);
-                }
-            }
-        }
-        elsif (exists $info->{'VarAccesses'} ) { 
-            $state = _get_iters_for_vars($info->{'VarAccesses'},'Read',$state);
-            $state = _find_enclosing_outer_loop($f, $annline, $info->{'VarAccesses'},'Read', $state);
-        }
-        
-        elsif (exists $info->{'Assignment'} ) { # So we should run this before we rewrite with the dsmAPI
-            # carp Dumper $info;
-            $state = _get_iters_for_vars($info->{'Rhs'}{'VarAccesses'},'Read',$state);
-            $state = _get_iters_for_vars($info->{'Lhs'}{'VarAccesses'},'Write',$state);
-            $state = _find_enclosing_outer_loop($f, $annline, $info->{'Rhs'}{'VarAccesses'},'Read', $state);
-            $state = _find_enclosing_outer_loop($f, $annline, $info->{'Lhs'}{'VarAccesses'},'Write', $state);
-        }                
-        return ([[$line,$info]],$state);
-    };
-    my $state = { 'Loops'=>{}, 'VarAccessAnalysis'=>$accessAnalysis};
-    (my $loop_annlines_,$state) = stateful_pass($annlines,$pass_link_iters_vars,$state,"pass_link_iters_vars($f)");
-    $annlines=$loop_annlines_; 
-    # croak Dumper $annlines if $f eq 'sor';
     my $iters = $state->{'VarAccessAnalysis'}{'LoopNests'}{'Set'};
-    # carp "$f VarAccessAnalysis: ".Dumper $iters;
 
+
+    # FACTOR OUT!
     #     So now we have our IterTable as part of the LoopNests info. 
     #     We can now do the checks:
     # Partition conflicts: not all arrays for a given iterator have the same partition info 
@@ -978,7 +917,6 @@ my ( $stref, $f ) = @_;
         next if $block_id eq '0';
         # If there is no partitionable array here we should not rewrite the loop bounds
         next unless exists $dims_halos_partitions->{$block_id};
-        # carp "$f $block_id: ".Dumper $dims_halos_partitions->{$block_id};
         my $iter = $state->{'VarAccessAnalysis'}{'LoopNests'}{'Set'}{$block_id}{'Iterator'};
         my $range = $state->{'VarAccessAnalysis'}{'LoopNests'}{'Set'}{$block_id}{'Range'};
         my ($lbound, $ubound) = @{$range};
@@ -987,7 +925,6 @@ my ( $stref, $f ) = @_;
         my ($dim_sz,$halos) = @{$dim_sz_halos};
         my ($lh, $uh) = @{$halos};        
         my $chunk = ($dim_sz - $lh - $uh)/$partition;
-        # say "$f $block_id: $iter: CHUNK $chunk = ($dim_sz - $lh - $uh)/$partition";
         # Suppose I have an array which starts at 3 and goes to 102, with a halo of 5 on each side
         # Chunking it in two would be: 102-3+1 = 100/2 = 50; 3->3+50-1; 3-5 to 52+5 : -2 to 57 = 60
         # Suppose the array is 1 to w and the halos are (2,2) 
@@ -995,14 +932,8 @@ my ( $stref, $f ) = @_;
         my $extra = $ubound - $lbound - $chunk*$partition; # extra = 99-0;100-1 - 25*4 = -1
         my $chunk_ub = $chunk + $lbound + $extra; # 25+0;1-1 = 24,25
         # Let's assume we have dsmNX and dsmNY either as functions or as module globals
-        # for my $np (0 .. $partition-1) {            
-        #     my $np=0;
-        # carp "CHUNK $np: $f $block_id: $iter: $chunk_lb+($np*$chunk) .. $chunk_ub+($np*$chunk) = ".($chunk_lb+($np*$chunk)).' .. '.($chunk_ub+($np*$chunk));
-
-            $state->{'VarAccessAnalysis'}{'LoopNests'}{'Set'}{$block_id}{'Range'}[0] = $chunk_lb.'+'.$chunk.'*'._gen_chunk_coord($idx);
-            $state->{'VarAccessAnalysis'}{'LoopNests'}{'Set'}{$block_id}{'Range'}[1] = $chunk_ub.'+'.$chunk.'*'._gen_chunk_coord($idx);            
-        # }
-        # say Dumper $state->{'VarAccessAnalysis'}{'LoopNests'}{'Set'}{$block_id}{'Range'};
+        $state->{'VarAccessAnalysis'}{'LoopNests'}{'Set'}{$block_id}{'Range'}[0] = $chunk_lb.'+'.$chunk.'*'._gen_chunk_coord($idx);
+        $state->{'VarAccessAnalysis'}{'LoopNests'}{'Set'}{$block_id}{'Range'}[1] = $chunk_ub.'+'.$chunk.'*'._gen_chunk_coord($idx);            
     }
 
     # So now we have for every BlockID the rewritten Range in 
@@ -1010,7 +941,6 @@ my ( $stref, $f ) = @_;
     # A simple stateless pass on 'Do' should do this
     my $pass_rewrite_loop_bounds = sub { my ($annline) = @_;
         my ($line,$info) = @{$annline};
-        # carp Dumper $state;
         if (exists $info->{'Do'}) {
             my $block_id = $info->{'BlockID'};
             $info->{'Do'}{'Range'}{'Expressions'}[0] = $state->{'VarAccessAnalysis'}{'LoopNests'}{'Set'}{$block_id}{'Range'}[0];
@@ -1020,12 +950,14 @@ my ( $stref, $f ) = @_;
     };
     my $rewritten_loop_annlines = stateless_pass($annlines,$pass_rewrite_loop_bounds,"pass_rewrite_loop_bounds($f)");    
     
-
+    my $new_annlines = __insert_barriers_after_map($f, $rewritten_loop_annlines, $state);
+    $Sf->{'RefactoredCode'} = $new_annlines;
+    $stref = rewrite_fold_loops($stref,$f,$state);
     #  map {say $_} @{pp_annlines($updated_loop_annlines,1)};
     # say "\nRefactored code for $f\n";
     # emit_RefactoredCode($stref,$f,$rewritten_loop_annlines); 
     return  $stref ;
-}
+} # END of rewrite_loop_bounds
 
 sub _gen_chunk_coord { my ($idx) = @_;
     return $idx==0 
@@ -1087,11 +1019,11 @@ sub _get_iters_for_var { my ($var,$exprs,$state) = @_;
 # 	'Iterators' => ['j:0','k:1']
 # };
 
-sub _check_reach { my ( $stref, $f ) = @_;
+sub __check_reach { my ( $stref, $f ) = @_;
     my $Sf = $stref->{'Subroutines'}{$f};
     my $annlines = $Sf->{'RefactoredCode'} ;
 
-my $pass_check_reach = sub { my ($annline) = @_;
+my $pass__check_reach = sub { my ($annline) = @_;
     my ($line,$info) = @{$annline};
     # say "$f LINE $line" if not exists $info->{'BlockID'};
     if (exists $info->{'BlockID'} and $info->{'BlockID'} ne '0') {
@@ -1110,9 +1042,9 @@ my $pass_check_reach = sub { my ($annline) = @_;
     return [$annline];
 };
 
-my $annlines_ = stateless_pass($annlines,$pass_check_reach,"pass_check_reach($f)");
+my $annlines_ = stateless_pass($annlines,$pass__check_reach,"pass__check_reach($f)");
 
-}
+} # END of __check_reach
 
 sub __check_var_reach { my ($stref,$f, $accesses,$rw) = @_;
     my $Sf = $stref->{'Subroutines'}{$f};
@@ -1173,9 +1105,166 @@ sub __check_var_reach { my ($stref,$f, $accesses,$rw) = @_;
         # carp $f . Dumper %reach;
 
     } # loop over all vars on line
-
     
-}
+} # END of __check_var_reach 
+
+
+sub __link_iters_vars { my ($f, $annlines, $state) = @_;
+    my $pass_link_iters_vars = sub { my ($annline,$state) = @_;
+        my ($line,$info) = @{$annline};
+        # carp Dumper $state;
+        if (exists $info->{'Do'}) {
+                $state->{'Loops'}{
+                    $info->{'BlockID'}
+                } = 1;
+        }
+        elsif (exists $info->{'EndDo'}) {
+            my $block_id = $info->{'BlockID'};
+            delete $state->{'Loops'}{$block_id} ;  
+            # if (exists $state->{'FullNest'}{$block_id} )  {
+            #     say "rewrite_loop_bounds($f): full nest for variables ".join(', ',sort keys %{$state->{'FullNest'}{$block_id}}).' at loop end '. $block_id;
+            #     # my $loop_vars = sort keys %{$state->{'FullNest'}{$block_id}};
+            #     my $loop_nature =  $state->{'VarAccessAnalysis'}{'LoopNests'}{'Set'}{$block_id}{'LoopNature'};
+            #     if (defined $loop_nature and
+            #     $loop_nature->[0] eq 'Map') {
+            #         say "$f: Adding a BARRIER";
+            #     my $n_info = {
+            #         'SubroutineCall' => {
+            #             'Name' => 'dsmBarrier',
+            #             'Args' => {
+            #                 'List' => [],
+            #                 'Set' => {}
+            #             },
+            #         },
+            #         'Indent' => $info->{'Indent'},
+            #         'LineID' => $info->{'LineID'}+0.1,
+            #         'Ann' => [annotate($f, __LINE__)]
+            #     };
+
+            #     return ([
+            #         [$line,$info],
+            #         [ $info->{'Indent'} . "call dsmBarrier()",$n_info]
+            #         ],$state);
+            #     }
+            # }
+        }
+        elsif (exists $info->{'VarAccesses'} ) { 
+            $state = _get_iters_for_vars($info->{'VarAccesses'},'Read',$state);
+            # $state = _find_enclosing_outer_loop($f, $annline, $info->{'VarAccesses'},'Read', $state);
+        }
+        
+        elsif (exists $info->{'Assignment'} ) { # So we should run this before we rewrite with the dsmAPI
+            # carp Dumper $info;
+            $state = _get_iters_for_vars($info->{'Rhs'}{'VarAccesses'},'Read',$state);
+            $state = _get_iters_for_vars($info->{'Lhs'}{'VarAccesses'},'Write',$state);
+            # $state = _find_enclosing_outer_loop($f, $annline, $info->{'Rhs'}{'VarAccesses'},'Read', $state);
+            # $state = _find_enclosing_outer_loop($f, $annline, $info->{'Lhs'}{'VarAccesses'},'Write', $state);
+            # To handle Fold, we need to know here what the enclosing FullNest block id is.
+            # Maybe best do that in an additional pass where we use the FullNest state and link it with an Acc
+        }                
+        return ([[$line,$info]],$state);
+    };
+    $state->{'Loops'}={};
+    (my $loop_annlines,$state) = stateful_pass($annlines,$pass_link_iters_vars,$state,"pass_link_iters_vars($f)");
+    return $state;
+} # END of __link_iters_vars
+
+
+
+sub __determine_full_nests { my ($f, $annlines, $state) = @_;
+   
+    my $pass_determine_full_nests = sub { my ($annline,$state) = @_;
+        my ($line,$info) = @{$annline};
+        if (exists $info->{'EndDo'}) {
+            my $block_id = $info->{'BlockID'};
+            if (exists $state->{'FullNest'}{$block_id} )  {
+                # say "rewrite_loop_bounds($f): full nest for variables ".join(', ',sort keys %{$state->{'FullNest'}{$block_id}}).' at loop end '. $block_id;
+                # my $loop_vars = sort keys %{$state->{'FullNest'}{$block_id}};
+                # carp Dumper $state->{'VarAccessAnalysis'}{'LoopNests'}{'Set'}{$block_id};
+                my $loop_nature =  $state->{'VarAccessAnalysis'}{'LoopNests'}{'Set'}{$block_id}{'LoopNature'};
+                # carp Dumper $loop_nature;
+                if (defined $loop_nature and
+                $loop_nature->[0] eq 'Map') {
+                    say "$f: Adding a BARRIER";
+                my $n_info = {
+                    'SubroutineCall' => {
+                        'Name' => 'dsmBarrier',
+                        'Args' => {
+                            'List' => [],
+                            'Set' => {}
+                        },
+                    },
+                    'Indent' => $info->{'Indent'},
+                    'LineID' => $info->{'LineID'}+0.1,
+                    'Ann' => [annotate($f, __LINE__)]
+                };
+
+                return ([
+                    [$line,$info],
+                    [ $info->{'Indent'} . "call dsmBarrier()",$n_info]
+                    ],$state);
+                }
+            }
+        }
+        elsif (exists $info->{'VarAccesses'} ) { 
+            $state = _find_enclosing_outer_loop($f, $annline, $info->{'VarAccesses'},'Read', $state);
+        }
+        
+        elsif (exists $info->{'Assignment'} ) { # So we should run this before we rewrite with the dsmAPI
+            $state = _find_enclosing_outer_loop($f, $annline, $info->{'Rhs'}{'VarAccesses'},'Read', $state);
+            $state = _find_enclosing_outer_loop($f, $annline, $info->{'Lhs'}{'VarAccesses'},'Write', $state);
+            # To handle Fold, we need to know here what the enclosing FullNest block id is.
+            # Maybe best do that in an additional pass where we use the FullNest state and link it with an Acc
+        }              
+        return ([[$line,$info]],$state);
+    };
+    $state->{ 'FullNest'} = {};
+    (my $loop_annlines,$state) = stateful_pass($annlines,$pass_determine_full_nests,$state,"pass_determine_full_nests($f)");
+    return $state;
+} # END of __determine_full_nests
+
+
+
+sub __insert_barriers_after_map { my ($f, $annlines, $state) = @_;
+   
+    my $pass_insert_barriers = sub { my ($annline) = @_;
+        my ($line,$info) = @{$annline};
+        if (exists $info->{'EndDo'}) {
+            my $block_id = $info->{'BlockID'};
+            if (exists $state->{'FullNest'}{$block_id} )  {
+                # say "rewrite_loop_bounds($f): full nest for variables ".join(', ',sort keys %{$state->{'FullNest'}{$block_id}}).' at loop end '. $block_id;
+                # my $loop_vars = sort keys %{$state->{'FullNest'}{$block_id}};
+                my $loop_nature =  $state->{'VarAccessAnalysis'}{'LoopNests'}{'Set'}{$block_id}{'LoopNature'};
+                if (defined $loop_nature and
+                $loop_nature->[0] eq 'Map') {
+                    say "$f: Adding a BARRIER";
+                my $n_info = {
+                    'SubroutineCall' => {
+                        'Name' => 'dsmBarrier',
+                        'Args' => {
+                            'List' => [],
+                            'Set' => {}
+                        },
+                    },
+                    'Indent' => $info->{'Indent'},
+                    'LineID' => $info->{'LineID'}+0.1,
+                    'Ann' => [annotate($f, __LINE__)]
+                };
+
+                return [
+                    [$line,$info],
+                    [ $info->{'Indent'} . "call dsmBarrier()",$n_info]
+                    ];
+                }
+            }
+        }
+        return [[$line,$info]];
+    };
+    my $loop_annlines = stateless_pass($annlines,$pass_insert_barriers,"pass_insert_barriers($f)");
+    return $loop_annlines;
+} # END of __insert_barriers_after_map
+
+
 
 =pod
 I think a cleaner way is as follows:
@@ -1229,7 +1318,30 @@ sub _find_enclosing_outer_loop { my ($f, $annline, $accesses, $rw, $state) =@_;
     return $state;
 } # END of _find_enclosing_outer_loop
 
+=pod
+- Insert init, allocate and deallocate statements
+    - init and allocate can go after the last declaration
+    - Ideally, init will allocate memory based on the size of the arrays tagged as DSM
+        - get their sizes (or in Case 3, their halo size, big difference)
+        - add them all up
+        - multiply by 2, ad hoc
+        - I guess I should create some parameters for this 
+        - But initially just use DSM_MEMSZ and DSM_CACHESZ macros
+        call dsmInit(DSM_MEMSZ,DSM_CACHESZ)        
+        - Use DSM_NX and DSM_NY macros instead of dsmNX and dsmNY parameters 
+        nNodes = dsmGetNNodes() 
+        !put an assertion here to test that it is the same as dsmNX*dsmNY, else bail out
 
+        nodeID = dsmGetNId()
+        nodeXCoord = nodeId % dsmNX
+        nodeYCoord = nodeId / dsmNX
+    - deallocate just before the end of the program
+    - This carries the assumption that we only have DSM at top level
+    - But we can tag code units with hasDSMVars and then each of them can get this treatment
+    - Just make this a map instead of a bool so we know which ones
+=cut
+
+# FIXME: Provide proper $info!
 sub insert_init_alloc_dealloc_statements { my ($stref,$f) = @_;
 
     my $Sf = $stref->{'Subroutines'}{$f};
@@ -1241,16 +1353,19 @@ sub insert_init_alloc_dealloc_statements { my ($stref,$f) = @_;
         [$indent.'use dsmAPI',{'Textual'=>1}],
         [$indent.'integer :: dsmNodeId',{'Textual'=>1}],
         [$indent.'integer :: dsmNNodes',{'Textual'=>1}],
+        [$indent.'integer :: dsmXCoord, dsmYcoord',{'Textual'=>1}],
     ];
 
     my $init_annlines = [
-
         [$indent.'call dsmInit(dsmMemSize,dsmCacheSize)',{'Textual'=>1}],
         [$indent.'dsmNNodes = dsmGetNNodes()',{'Textual'=>1}],
         [$indent.'dsmNodeId = dsmGetNId()',{'Textual'=>1}],
         [$indent.'if (dsmNNodes /= dsmNX*dsmNY) then',{'Textual'=>1}],
         [$indent.'print *, "ERROR: total number of nodes", dsmNNodes, "does not match dsmNX*dsmNY:",dsmNX,"*",dsmNY,"=", dsmNX*dsmNY',{'Textual'=>1}],
         [$indent.'call exit',{'Textual'=>1}],
+        [$indent.'else',{'Textual'=>1}],
+        [$indent.'dsmXCoord = modulo(dsmNodeId, dsmNX)',{'Textual'=>1}],
+        [$indent.'dsmYCoord = dsmNodeId / dsmNX',{'Textual'=>1}],
         [$indent.'end if',{'Textual'=>1}],
     ];
 
@@ -1323,4 +1438,300 @@ sub _gen_alloc_dealloc_annlines { my ($Sf) = @_;
     }
     return (\@alloc_annlines,\@dealloc_annlines);
 }
+
+=pod
+- Rewrite of Fold and Stencil Fold
+
+    Reductions are done with a global array of nprocesses but the final reduced value is local, so no need for locks but we do need a barrier before reducing that array. See the Haskell code.
+
+    Suppose we have
+
+    acc = 0
+    do i = 1 , ip
+    do j= 1, jp
+        acc = f_assoc0(acc,p(i,j))
+    end do
+    end do
+
+    and we chunk the bounds:
+
+    acc_chunks is a collective array of size dsmNX, dsmNY starting at (0,0)
+    - So declare it and allocate it
+
+    - Find the original AnnLine where acc is initialised and rewrite it:
+    This is really textual: $acc_var.'_chunks(nodeXCoord, nodeYCoord)'
+    But we do this using the AST: 
+    (Maybe start by calling then nodeXCoord and nodeYCoord)
+    [10, $acc_var.'_chunks', [27,[2,'dsmNX'],[2,'dsmNY']]],
+    
+    NOTE: of the accumulator is already an array, we need to add the extra args and have an appropriate declaration
+
+    This will then be rewritten in the next pass
+    
+    acc_chunks(nodeXCoord, nodeYCoord) = 0 
+
+    do i = dsmLB(dsmNX, 1, ip) , dsmUB(dsmNX, 1, ip)
+    do j= dsmLB(dsmNY, 1, jp) , dsmUB(dsmNY, 1, p)
+    ! Rewrite the acc expression, this is again is textual and will be rewritten in the next pass
+    So we go trough the RHS AST and find the occurence of acc and rewrite it as an array 
+        acc_chunks(nodeXCoord, nodeYCoord) = f_assoc0(acc_chunks(nodeXCoord, nodeYCoord),p(i,j))
+    end do
+    end do
+
+    We need the acc over the full domain so we need to accumulate over f_assoc0
+    We do this immediately after the EndDo of the accumulation loop 
+    I expect we need a barrier here
+    call dsmBarrier()
+    acc = 0
+    do nx = 0, dsmNX-1
+    do ny = 0, dmsNY-1
+    ! This will be rewritten in the next pass
+    acc = f_assoc0(acc,acc_chunks(nx,ny))
+    end do
+    end do
+
+So remaining issues:
+1. How to find the initialisation of the accumulator. The right way to do this is as follows:
+We do pass where we use the FullNest state of a Do and link it with an Acc:
+when we find an Acc Assignment line, we look for the vars from FullNest block id
+Do a stateful pass and accumulate the annlines, then do a reverse traversal
+
+
+=cut    
+
+sub rewrite_fold_loops { my ($stref,$f,$state) = @_;
+    my $Sf = $stref->{'Subroutines'}{$f};
+    my $annlines = $Sf->{'RefactoredCode'};
+    my $accessAnalysis = $state->{'VarAccessAnalysis'};
+
+    my $pass_rewrite_folds = sub { my ($annline) = @_;
+        my ($line, $info) = @{$annline};
+        if (exists $info->{'Assignment'} and $info->{'BlockID'} ne '0') {
+            my $lhs_var = $info->{'Lhs'}{'VarName'};
+            my $rhs_var_list = $info->{'Rhs'}{'Vars'}{'List'};
+            my $block_id = $info->{'BlockID'}; # FIXME:Maybe this is not OK: instead, I should annotate the lines with {'FullNestBlockID'}
+            my $full_nest_block_id = __find_full_nest_block_id($block_id,$state);
+            # carp "$f $line $block_id => $full_nest_block_id " . Dumper $accessAnalysis->{'LoopNests'}{'Set'}{$full_nest_block_id};
+            if ( defined $accessAnalysis->{'LoopNests'}{'Set'}{$full_nest_block_id}{'LoopNature'} and
+                $accessAnalysis->{'LoopNests'}{'Set'}{$full_nest_block_id}{'LoopNature'}[0] eq 'Fold') {
+                my $acc_tuples = $accessAnalysis->{'LoopNests'}{'Set'}{$full_nest_block_id}{'LoopNature'}[1];
+                my $accs = [ map {$_->[0]} @{$acc_tuples}  ];
+                if ( elem($lhs_var,$accs)) {
+                    # Found an Assignment line with an accumulator, rewrite it
+                    # $lhs_var.'_chunks' (nodeXCoord, nodeYCoord) = f_assoc0(acc_chunks(nodeXCoord, nodeYCoord),p(i,j))
+#@ Lhs => 
+#@        VarName       => $lhs_varname
+#@        IndexVars     => $lhs_vars
+#@        ArrayOrScalar => Array | Scalar
+#@        ExpressionAST => $lhs_ast
+#@ Rhs => 
+#@        Vars       => $rhs_all_vars
+#@        ExpressionAST => $rhs_ast	   
+
+                    # Update the LHS AST
+                    my $n_lhs_ast = [10,$lhs_var.'_chunks',[27,[2,'nodeXCoord'], [2,'nodeYCoord'] ] ] ;
+                    # Update the Vars
+                    my $n_rhs_vars_set = dclone($info->{'Rhs'}{'Vars'}{'Set'});
+                    delete $n_rhs_vars_set->{$lhs_var};
+                    $n_rhs_vars_set->{$lhs_var.'_chunks'} = {'Type' => 'Array'};
+                    $n_rhs_vars_set->{'nodeXCoord'} = {'Type' => 'Scalar'};
+                    $n_rhs_vars_set->{'nodeYCoord'} = {'Type' => 'Scalar'};
+                    # Update the RHS AST 
+                    my $rhs_ast = dclone($info->{'Rhs'}{'ExpressionAST'});
+                    my $dsm_vars = {
+                        $lhs_var => $n_lhs_ast
+                    };
+                    $rhs_ast = _rewrite_ast_dsm_acc_rhs($rhs_ast,$dsm_vars );
+                    my $n_info = dclone($info);
+                    $n_info->{'Lhs'} = {
+                                'VarName' => $lhs_var.'_chunks', # TODO: make sure it is unique
+                                'IndexVars' => {
+                                    'List' => ['nodeXCoord', 'nodeYCoord'],
+                                    'Set' => {
+                                        'nodeXCoord' => {'Type' => 'Scalar'},
+                                        'nodeYCoord' => {'Type' => 'Scalar'}
+                                    }
+                                },
+                                'ArrayOrScalar' => 'Array',
+                                'ExpressionAST' => $n_lhs_ast
+                            };
+                    $n_info->{'Rhs'} = {
+                                'Vars' => {
+                                    'List' => [ grep {$_ ne $lhs_var} @{$rhs_var_list}, $lhs_var.'_chunks', 'nodeXCoord', 'nodeYCoord'],
+                                    'Set' => $n_rhs_vars_set
+                                },
+                                'ExpressionAST' => $rhs_ast
+                            };
+                    } # Is an Acc
+                } # In a Fold
+            }      
+            # elsif (exists $info->{'If'} ) {   
+            #     # TODO check if acc is used in Cond an rewite if required
+            # }
+        elsif (exists $info->{'Do'}) {
+            my $block_id = $info->{'BlockID'};
+            if (exists $state->{'FullNest'}{$block_id} )  {
+                # croak Dumper $info;
+                # say "rewrite_loop_bounds($f): full nest for variables ".join(', ',sort keys %{$state->{'FullNest'}{$block_id}}).' at loop end '. $block_id;
+                # my $loop_vars = sort keys %{$state->{'FullNest'}{$block_id}};
+                my $loop_nature =  $info->{'Pragmas'}{'LoopNature'};
+                if (defined $loop_nature and
+                $loop_nature->[0] eq 'Fold') {
+                my $acc_tuples = $loop_nature->[1];
+                my @extra_annlines=();
+                for my $acc_tuple (@{$acc_tuples}) {
+                    my ($acc, $op, $arrays) = @{$acc_tuple};
+                    my $init_chunked_fold_annline =  _generate_init_chunked_fold_annline($acc,$op);
+                    push @extra_annlines, $init_chunked_fold_annline
+                }
+                
+                return [
+                    @extra_annlines,
+                    [$line,$info]                    
+                    ];
+                }
+            }
+        }            
+        elsif (exists $info->{'EndDo'}) {
+            my $block_id = $info->{'BlockID'};
+            if (exists $state->{'FullNest'}{$block_id} )  {
+                my $loop_nature =  $state->{'VarAccessAnalysis'}{'LoopNests'}{'Set'}{$block_id}{'LoopNature'};
+                if (defined $loop_nature and
+                $loop_nature->[0] eq 'Fold') {
+
+                my $n_info = {
+                    'SubroutineCall' => {
+                        'Name' => 'dsmBarrier',
+                        'Args' => {
+                            'List' => [],
+                            'Set' => {}
+                        },
+                    },
+                    'Indent' => $info->{'Indent'},
+                    'LineID' => $info->{'LineID'}+0.1,
+                    'Ann' => [annotate($f, __LINE__)]
+                };
+
+                my $barrier_annline = [ $info->{'Indent'} . "call dsmBarrier()",$n_info];
+                my $acc_tuples = $loop_nature->[1];
+                my @extra_annlines=();
+                for my $acc_tuple (@{$acc_tuples}) {
+                    my ($acc, $op, $arrays) = @{$acc_tuple};
+                    my $fold_chunks_annlines = _generate_fold_chunks_annlines($acc,$op);
+                    @extra_annlines = (@extra_annlines,@{$fold_chunks_annlines});
+                }                    
+                
+                return [
+                    [$line,$info],
+                    $barrier_annline,
+                    @extra_annlines
+                    ];
+                }
+            }
+        }            
+            # We could do the postamble in the same pass     
+            return [[$line,$info]]
+        };
+    
+        my $new_annlines = stateless_pass($annlines,$pass_rewrite_folds,"pass_rewrite_folds($f)");
+        $Sf->{'RefactoredCode'} = $new_annlines;
+
+    return $stref;
+} # END of rewrite_fold_loops
+
+# $dsm_vars = {$acc_var => [10,$acc_var.'_chunks',[27,[2,...]...]}
+sub _rewrite_ast_dsm_acc_rhs { my ($ast,$dsm_vars )=@_;
+# carp Dumper $dsm_vars;
+    my $rhs_dsm_ast = dclone($ast);
+    
+    # my $acc={}; 
+    my $f = sub { my ($ast,$acc)=@_;
+    
+        if ($ast->[0] == 2 ) { # $ 
+        
+            my $var_name = $ast->[1];
+
+            if (exists $acc->{$var_name}) {
+                $ast = $acc->{$var_name};
+            }
+        } 
+        # carp Dumper $ast;
+        return ($ast,$acc);
+    };
+
+    ($rhs_dsm_ast,$dsm_vars) = _traverse_ast_with_action($rhs_dsm_ast, $dsm_vars, $f);
+    # croak Dumper $rhs_dsm_ast;
+    return $rhs_dsm_ast;
+} # END of _rewrite_ast_dsm_acc_rhs
+
+# - Find the original AnnLine where acc is initialised and rewrite it:
+# This is really textual: $acc_var.'_chunks(nodeXCoord, nodeYCoord)'
+# But we do this using the AST: 
+# (Maybe start by calling then nodeXCoord and nodeYCoord)
+# [10, $acc_var.'_chunks', [27,[2,'dsmNX'],[2,'dsmNY']]],
+sub _generate_init_chunked_fold_annline { my ($acc,$op) = @_;
+    my $indent='      ';
+    my $line = $indent.$acc.'_chunks(nodeXCoord, nodeYCoord) = '.$acc;
+    my $lhs_ast = [10, $acc.'_chunks', [27,[2,'nodeXCoord'],[2,'nodeYCoord']]];
+    my $rhs_ast = [2,$acc];
+    my $info = {'Assignment' => 1,
+            'Lhs' => {
+                'VarName' => $acc.'_chunks', # TODO: make sure it is unique
+                'IndexVars' => {
+                    'List' => ['nodeXCoord', 'nodeYCoord'],
+                    'Set' => {
+                        'nodeXCoord' => {'Type' => 'Scalar'},
+                        'nodeYCoord' => {'Type' => 'Scalar'}
+                    }
+                },
+                'ArrayOrScalar' => 'Array',
+                'ExpressionAST' => $lhs_ast
+            },
+            'Rhs' => {
+                'Vars' => {
+                    'List' => [ $acc],
+                    'Set' => { $acc => {'Type' => 'Scalar'}}
+                },
+                'ExpressionAST' => $rhs_ast
+            }        
+        };
+    return [$line,$info];
+} # END of _generate_init_chunked_fold_annline
+
+# To generate this code on exiting a block, we need to know the Acc for that block, we get that from the LoopNature of the $block_id of the EndDo
+# We also need the operation used for the fold. For now that is part of the LoopNature analysis.
+# For every Acc we have an Op: Accs((acc1,+),(acc2,*),(acc3,max))
+
+sub _generate_fold_chunks_annlines { my ($acc,$op) = @_;
+my $indent='      ';
+my $acc_line = $op =~/\w+/
+    ? "$acc = $op($acc,$acc".'_chunks(nx,ny))'
+    : "$acc = $acc $op $acc".'_chunks(nx,ny)';
+
+my $annlines = [
+    [$indent."$acc = $acc".'_chunks(dsmXCoord,dsmYCoord)',{'Textual' => 1}],
+    [$indent.'do nx = 0, dsmNX-1',{'Textual' => 1}],
+    [$indent.'do ny = 0, dmsNY-1',{'Textual' => 1}],
+    [$indent.'if (nx/=dsmXCoord .or. ny/=dsmYCoord) then',{'Textual' => 1}],
+    [$indent. $acc_line,{'Textual' => 1}],
+    [$indent.'end if',{'Textual' => 1}],
+    [$indent.'end do',{'Textual' => 1}],
+    [$indent.'end do',{'Textual' => 1}]
+];
+return $annlines;
+
+} # END of _generate_fold_chunks_annline
+
+sub __find_full_nest_block_id { my ($block_id,$state) = @_;
+# say $block_id;
+    die "This block is not in a full nest " if $block_id eq '0';
+    # carp Dumper $state->{'FullNest'};
+    if (not exists $state->{'FullNest'}{$block_id}) {
+        my $n_block_id = $state->{'VarAccessAnalysis'}{'LoopNests'}{'Set'}{$block_id}{'InBlock'};
+        __find_full_nest_block_id($n_block_id,$state);
+    } else {
+        return $block_id;
+    }
+}
+
 1;

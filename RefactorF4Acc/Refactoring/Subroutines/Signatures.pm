@@ -2,6 +2,8 @@ package RefactorF4Acc::Refactoring::Subroutines::Signatures;
 use v5.10;
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
+use RefactorF4Acc::Utils::Functional qw( ordered_union );
+
 # 
 #   (c) 2010-2017 Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
 #   

@@ -34,17 +34,8 @@ use Exporter;
     &write_out
     &get_maybe_args_globs
     &type_via_implicits
-    &zip
-    &union
-    &difference
-    &intersection
-    &ordered_union
-    &ordered_difference
-    &ordered_intersection
-    &find_duplicates_in_list
     &module_has
     &module_has_only
-    &make_lookup_table    
     &generate_docs    
     &show_status
     &in_nested_set
@@ -283,128 +274,7 @@ if ($DBG and not defined $var or $var eq '') {croak "VAR not defined!"}
     }
     return ($type, $array_or_scalar, $attr);
 } # END of type_via_implicits()
-# -----------------------------------------------------------------------------
-sub zip { ( my $aref, my $bref ) = @_;
-    my @zip_ab=();
-    my $a_sz = scalar @{$aref};
-    my $b_sz = scalar @{$bref};
-    my $max_sz = $a_sz > $b_sz ? $a_sz : $b_sz;
-    for my $idx (0 .. $max_sz-1) {
-        push @zip_ab, [$aref->[$idx],$bref->[$idx]];
-    }
-    return \@zip_ab;
-} # END of zip
-# -----------------------------------------------------------------------------
-sub union {
-    ( my $aref, my $bref ) = @_;
-    croak("union()") if $DBG and not (defined $aref and defined $bref);    
-    if (not defined $aref) {
-        return $bref;
-    } elsif (not defined $bref) {
-        return $aref;
-    } else {    
 
-    my %as = map { $_ => 1 } @{$aref};
-    for my $elt ( @{$bref} ) {
-        $as{$elt} = 1;
-    }
-    my @us = sort keys %as;
-    return \@us;
-    }
-}    # END of union()
-
-# -----------------------------------------------------------------------------
-# This union is obtained by removing duplicates from @b. It is a bit slower but preserves the order
-sub ordered_union {
-    ( my $aref, my $bref ) = @_;
-    croak("ordered_union(): both args must be defined!") if $DBG and not (defined $aref and defined $bref);   
-    if (not defined $aref) {
-    	return $bref;
-    } elsif (not defined $bref) {
-        return $aref;
-    } else {    
-	    my @us = @{$aref};
-	    my %as = map { $_ => 1 } @{$aref};
-	    for my $elt ( @{$bref} ) {
-	        if ( not exists $as{$elt} ) {
-	            push @us, $elt;
-	        }
-	    }
-	    return \@us;
-    }
-}    # END of ordered_union()
-# -----------------------------------------------------------------------------
-# This is the set of all members of $bref not in $aref, not the other way round
-sub ordered_difference {
-    ( my $aref, my $bref ) = @_;
-    croak("ordered_difference()") if $DBG and not (defined $aref and defined $bref);   
-    if (not defined $aref) { # assume it's empty
-    	return $bref;
-    } elsif (not defined $bref) {
-        return [];
-    } else {    
-	    my @b_diff_a = ();
-	    my %as = map { $_ => 1 } @{$aref}; # all elts of a
-	    for my $elt ( @{$bref} ) {
-	        if ( not exists $as{$elt} ) { # elt is not in a, so OK
-	            push @b_diff_a, $elt;
-	        }
-	    }
-	    return \@b_diff_a;
-    }
-}    # END of ordered_difference()
-# -----------------------------------------------------------------------------
-# This is the set of all members of $bref that also occur in $aref (or vice-versa of course)
-sub ordered_intersection {
-    ( my $aref, my $bref ) = @_;
-    croak("ordered_intersection()") if $DBG and not (defined $aref and defined $bref);   
-    if (not defined $aref) {
-    	return [];
-    } elsif (not defined $bref) {
-        return [];
-    } else {    
-	    my @is = [];
-	    my %as = map { $_ => 1 } @{$aref};
-	    for my $elt ( @{$bref} ) {
-	        if ( exists $as{$elt} ) {
-	            push @is, $elt;
-	        }
-	    }
-	    return \@is;
-    }
-}    # END of ordered_intersection()
-# -----------------------------------------------------------------------------
-# This is the set of all members of $bref that also occur in $aref (or vice-versa of course)
-sub intersection {
-    ( my $aref, my $bref ) = @_;
-    croak("intersection()") if $DBG and not (defined $aref and defined $bref);   
-    if (not defined $aref) {
-    	return {};
-    } elsif (not defined $bref) {
-        return {};
-    } else {    
-	    my $is = {};	    
-	    for my $elt (keys %{$bref} ) {
-	        if ( exists $aref->{$elt} ) {
-	            $is->{$elt}=$aref->{$elt}; # assuming that a and be have the same value for a given key
-	        }
-	    }
-	    return $is;
-    }
-}    # END of intersection()
-# -----------------------------------------------------------------------------
-sub find_duplicates_in_list { (my $lst) =@_;
-	my %uniques=();
-	my $dups={};
-	for my $elt (@{$lst}) {
-		if (not exists $uniques{$elt}) {
-			$uniques{$elt}=$elt;
-		} else {
-			$dups->{$elt}=$elt
-		}
-	}
-	return $dups;
-}
 # -----------------------------------------------------------------------------
 # Returns true if the module contains all items in the  $mod_has_lst
 sub module_has { (my $stref, my $mod_name, my $mod_has_lst) = @_;
@@ -447,19 +317,6 @@ for my $k ( keys %{ $stref->{'Modules'}{$mod_name} } ) {
 #        print 'MAYBE INLINEABLE MOD: '.$mod_name."\n";
         return 1; }
 }
-# -----------------------------------------------------------------------------
-# A lookup table from one list to another
-sub make_lookup_table {
-    (my $from, my $to)=@_;
-    my $lut={};    
-    for my $idx (0 .. scalar @{$from}-1) {
-        my $f = $from->[$idx];
-        my $t = $to->[$idx];
-        $lut->{$f}=$t;
-    } 
-    return $lut;
-}
-
 
 # -----------------------------------------------------------------------------
 

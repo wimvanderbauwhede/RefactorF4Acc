@@ -145,11 +145,11 @@
 
         rhsav = 0.0
         area = 0.0
-        do k = 1,kp !$RF4A LoopNature(Reduce, Accs(rhsav,area), Arrays(rhs))
-            do j = 1,jp !$RF4A LoopNature(Reduce, Accs(rhsav,area), Arrays(rhs))
-                do i = 1,ip !$RF4A LoopNature(Reduce, Accs(rhsav,area), Arrays(rhs))
+        do k = 1,kp !$RF4A LoopNature(Reduce, Acc(rhsav,+,(rhs)),Acc(area,+,(p1)) )
+            do j = 1,jp !$RF4A LoopNature(Reduce, Acc(rhsav,+,(rhs)),Acc(area,+,(p1)) )
+                do i = 1,ip !$RF4A LoopNature(Reduce, Acc(rhsav,+,(rhs)),Acc(area,+,(p1)) )
                     rhsav = rhsav+dx1*dy1*dzn*rhs(i,j,k)
-                    area = area +dx1*dy1*dzn
+                    area = area + p1(i,j,k)
                 end do
             end do
         end do

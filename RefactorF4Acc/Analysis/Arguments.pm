@@ -2,6 +2,7 @@ package RefactorF4Acc::Analysis::Arguments;
 use v5.10;
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
+use RefactorF4Acc::Utils::Functional qw( ordered_union );
 use RefactorF4Acc::Refactoring::Helpers qw( get_f95_var_decl stateless_pass_inplace );
 use RefactorF4Acc::Parser::Expressions qw( emit_expr_from_ast );
 #
