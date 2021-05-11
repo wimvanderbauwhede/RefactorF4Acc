@@ -8,7 +8,7 @@ use RefactorF4Acc::Refactoring::Helpers qw(
 	stateful_pass_reverse_inplace 
 	stateless_pass_inplace  
 	emit_f95_var_decl 
-	splice_additional_lines_cond  
+	splice_additional_lines_cond_inplace  
 	);
 
 use RefactorF4Acc::Parser::Expressions qw(

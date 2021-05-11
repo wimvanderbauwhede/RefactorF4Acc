@@ -33,6 +33,7 @@ use Exporter;
   &emit_f95_parsed_var_decl
   &emit_f95_parsed_par_decl
   &splice_additional_lines
+  &splice_additional_lines_cond_inplace
   &splice_additional_lines_cond
   &slice_annlines_cond
   &stateless_pass_inplace
@@ -801,14 +802,14 @@ sub splice_additional_lines {
 }    # END of splice_additional_lines()
 
 # Usage: 
-# $merged_annlines = splice_additional_lines_cond( $stref, $f, $insert_cond_subref, $old_annlines, $new_annlines, $insert_before, $skip_insert_pos_line, $once )
+# $merged_annlines = splice_additional_lines_cond_inplace( $stref, $f, $insert_cond_subref, $old_annlines, $new_annlines, $insert_before, $skip_insert_pos_line, $once )
 #- Go through the AnnLines
 #- Find the hook based on a condition on the $annline (i.e. $insert_cond_subref->($annline) )
 #- splice the new lines before/after the hook depending on $insert_before
 #- if $once is 0, do this whenever the condition is met. Otherwise do it once
 # NOTE that get_annotated_sourcelines will preferentially use RefactoredCode rather than AnnLines 
 # If this is unwanted, pass in $old_annlines explicitly
-sub splice_additional_lines_cond {
+sub splice_additional_lines_cond_inplace {
     (
         my $stref, 
         my $f,
@@ -848,6 +849,67 @@ sub splice_additional_lines_cond {
                 }
             }
             for my $extra_annline ( @{$new_annlines} ) {
+                ( my $nline, my $ninfo ) = @{$extra_annline};
+                $ninfo->{'LineID'} = $nextLineID++;
+                say $nline if $DBG;
+                push @{$merged_annlines}, [ $nline, $ninfo ];
+            }            
+            if ($insert_before ) {
+                say $annline->[0] if $DBG;
+                if ( not $skip_insert_pos_line ) {                
+                    push @{$merged_annlines}, $annline;
+                } else {
+                   # Skip; but I comment out instead if $DBG is on
+                   if ($DBG) {
+                     $info->{'Comments'}=1;
+                     push @{$merged_annlines}, ['! '.$line, $info];
+                   }
+                }
+            }
+        } else {
+            say $annline->[0] if $DBG;
+            push @{$merged_annlines}, $annline;
+        }
+    }
+    
+    return $merged_annlines;
+
+}    # END of splice_additional_lines_cond_inplace()
+
+
+sub splice_additional_lines_cond {
+    (
+        my $insert_cond_subref,
+        my $annlines,
+        my $annlines_to_splice,
+        my $insert_before,
+        my $skip_insert_pos_line,
+        my $do_once
+    ) = @_;
+    
+    croak if $DBG and scalar @{$annlines}==0;
+    my $nextLineID         = scalar @{$annlines} + 1;
+    my $merged_annlines    = [];
+    $do_once = defined $do_once ? $do_once : 1;
+    my $once=1;      
+
+    for my $annline ( @{$annlines} ) {
+        ( my $line, my $info ) = @{$annline};
+        if ( $insert_cond_subref->($annline) and $once ) {
+            $once = 0 unless $do_once==0;
+            if (not $insert_before ) {
+            	say $annline->[0] if $DBG; 
+                if ( not $skip_insert_pos_line ) {                
+                    push @{$merged_annlines}, $annline;
+                } else {
+            	   # Skip; but I comment out instead if $DBG is on
+            	   if ($DBG) {
+            	   	 $info->{'Comments'}=1;
+            		 push @{$merged_annlines}, ['! SKIP ! '.$line, $info];
+            	   }
+                }
+            }
+            for my $extra_annline ( @{$annlines_to_splice} ) {
                 ( my $nline, my $ninfo ) = @{$extra_annline};
                 $ninfo->{'LineID'} = $nextLineID++;
                 say $nline if $DBG;

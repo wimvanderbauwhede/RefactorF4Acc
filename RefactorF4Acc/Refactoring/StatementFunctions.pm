@@ -15,7 +15,7 @@ use RefactorF4Acc::Utils;
 use RefactorF4Acc::Parser qw( parse_fortran_src );
 use RefactorF4Acc::Refactoring::Helpers qw( 
 	stateful_pass_inplace
-	splice_additional_lines_cond
+	splice_additional_lines_cond_inplace
 	);
 
 use vars qw( $VERSION );
@@ -34,7 +34,6 @@ our @EXPORT_OK = qw(
 );
 
 
-# TODO: Clearly this is Refactoring and should be put in Refactoring/StatementFunctions.pm 
 sub move_StatementFunctions_after_SpecificationStatements { my ( $stref, $f, $annlines ) = @_;
 	my $Sf = $stref->{'Subroutines'}{$f};
 	$Sf->{'RefactoredCode'}=$annlines;
@@ -59,7 +58,7 @@ sub move_StatementFunctions_after_SpecificationStatements { my ( $stref, $f, $an
  	($stref,$statement_function_annlines) = stateful_pass_inplace($stref,$f,$pass_cut_out_StatementFunction_lines, $statement_function_annlines,'_cut_out_StatementFunctions §' . __LINE__  ) ;	
 	#  carp Dumper(pp_annlines($statement_function_annlines));
 	 if (scalar @{ $statement_function_annlines } > 1) {
-	my $merged_annlines = splice_additional_lines_cond(
+	my $merged_annlines = splice_additional_lines_cond_inplace(
 		$stref, $f,
 		sub {
 			( my $annline ) = @_;
@@ -83,5 +82,6 @@ sub move_StatementFunctions_after_SpecificationStatements { my ( $stref, $f, $an
 	 }
 	
 } # END of move_StatementFunctions_after_SpecificationStatements
+
 
 1;

@@ -2,7 +2,7 @@ package RefactorF4Acc::Refactoring::Modules;
 use v5.10;
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
-use RefactorF4Acc::Refactoring::Helpers qw( get_annotated_sourcelines create_refactored_source splice_additional_lines_cond emit_f95_var_decl );
+use RefactorF4Acc::Refactoring::Helpers qw( get_annotated_sourcelines create_refactored_source splice_additional_lines_cond_inplace emit_f95_var_decl );
 
 #
 #   (c) 2010-2017 Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
@@ -143,7 +143,7 @@ sub add_module_decls {
 				$old_annlines = $old_annlines_with_refactored_vardecls;
 	
 				if ( scalar @{$new_annlines} > 0 ) {
-					my $merged_annlines = splice_additional_lines_cond( $stref, $existing_module_name{$src}, 
+					my $merged_annlines = splice_additional_lines_cond_inplace( $stref, $existing_module_name{$src}, 
 					sub { ( my $annline ) = @_; 
 					( my $line, my $info ) = @{$annline}; 
 					return exists $info->{'Contains'};

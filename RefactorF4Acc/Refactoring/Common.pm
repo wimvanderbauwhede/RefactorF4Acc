@@ -17,7 +17,7 @@ use RefactorF4Acc::Utils;
 use RefactorF4Acc::Parser qw( parse_fortran_src );
 use RefactorF4Acc::Refactoring::Helpers qw( 	 	 
 	emit_f95_var_decl 
-	splice_additional_lines_cond
+	splice_additional_lines_cond_inplace
 	);
 # use RefactorF4Acc::Refactoring::ContextFree qw( context_free_refactorings );	
 use RefactorF4Acc::Refactoring::Subroutines::Signatures qw( create_refactored_subroutine_signature refactor_subroutine_signature );
@@ -278,7 +278,7 @@ sub refactor_COMMON_blocks {  # 218 lines Was _refactor_globals_new
 			}
 		};
 		# Usage: 
-		my $merged_annlines = splice_additional_lines_cond( $stref, $f, $insert_cond_subref, $rlines, $cast_reshape_vardecl_annlines, 1, 0, 1 );
+		my $merged_annlines = splice_additional_lines_cond_inplace( $stref, $f, $insert_cond_subref, $rlines, $cast_reshape_vardecl_annlines, 1, 0, 1 );
 		$rlines = $merged_annlines;
 	}
 #- Go through the AnnLines

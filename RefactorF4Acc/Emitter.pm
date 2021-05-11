@@ -406,6 +406,11 @@ sub emit_RefactoredCode {
         # say "LINE $line";# ,Dumper $info;
 
         my $rline  = $line;
+        # This allows to emit lines for which there is no proper $info 
+        if (exists $info->{'Textual'}) {
+            say $line;
+            return [ [ $annline ] ];
+        }
         my $indent = '      ';
         if ( exists $info->{'Indent'} ) {
             $indent = $info->{'Indent'};
@@ -728,7 +733,7 @@ sub emit_RefactoredCode {
         #     [ $rline, $info ] 
         # ];
         # } else {
-            say $rline;
+        say $rline;
         return [             
             [ $rline.$block_info, $info ] 
         ];

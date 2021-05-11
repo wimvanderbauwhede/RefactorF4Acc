@@ -161,7 +161,7 @@ use v5.10;
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
 use RefactorF4Acc::Parser::Expressions qw( get_vars_from_expression _traverse_ast_with_action get_args_vars_from_subcall);
-use RefactorF4Acc::Refactoring::Helpers qw( stateless_pass stateful_pass );
+use RefactorF4Acc::Refactoring::Helpers qw( stateless_pass stateful_pass splice_additional_lines_cond);
 use RefactorF4Acc::Analysis::VarAccessAnalysis qw( analyseAllVarAccesses );
 use RefactorF4Acc::Analysis::LoopNature qw( resolve_loop_nests );
 use RefactorF4Acc::Emitter qw( emit_RefactoredCode );
@@ -184,7 +184,7 @@ our $EDBG=0;
 sub refactor_dsm_all {
 	( my $stref ) = @_;
     local $I=0;
-    local $V=1;
+    local $V=0;
     # croak $stref->{'Top'};
     $stref = propagate_dsm_declaration($stref,$stref->{'Top'});
 	for my $f ( sort keys %{ $stref->{'Subroutines'} } ) {
@@ -202,10 +202,10 @@ sub refactor_dsm_all {
 		next if $Sf->{'Status'} == $UNREAD;
 		next if $Sf->{'Status'} == $READ;
 		next if $Sf->{'Status'} == $FROM_BLOCK;
-        #   map {say 'TEST'.$_} @{pp_annlines($Sf->{'RefactoredCode'})} if $f=~/test_loop/;
+        #   map {say 'TEST'.$_} @{pp_annlines($Sf->{'RefactoredCode'})} if $f=~/test_loop/;        
         $stref = rewrite_loop_bounds( $stref, $f ); 
 		$stref = refactor_dsm( $stref, $f );
-       
+        $stref = insert_init_alloc_dealloc_statements($stref,$f);
 
         # emit_RefactoredCode($stref,$f,$Sf->{'RefactoredCode'}) if $f=~/test_loop/;
 	}
@@ -222,7 +222,7 @@ sub refactor_dsm_all {
 # - Subroutine call arguments
 sub refactor_dsm { my ( $stref, $f ) = @_;
     my $Sf = $stref->{'Subroutines'}{$f};
-    my $annlines = $Sf->{'RefactoredCode'} ;
+    my $annlines = $Sf->{'RefactoredCode'};
 
     my $pass_refactor_dsm = sub { my ($annline) = @_;
         my ($line,$info) = @{$annline};
@@ -235,6 +235,7 @@ sub refactor_dsm { my ( $stref, $f ) = @_;
                 # carp Dumper $decl ;
                 # say 'MEMSPACE: ',$f,' ', $varname,"\t", $decl->{'MemSpace'};
                 if ($decl->{'MemSpace'} eq 'Collective') { 
+                    push @{$Sf->{'CollectiveVars'}},$varname;
                     # carp Dumper $decl;
                     my $pvd = $info->{'ParsedVarDecl'};
                     my $refactored_pvd = _refactor_parsed_vardecl_dsm($decl,$pvd);
@@ -783,7 +784,7 @@ my ( $stref, $f ) = @_;
             delete $state->{'Loops'}{$block_id} ;  
             if (exists $state->{'FullNest'}{$block_id} )  {
                 say "rewrite_loop_bounds($f): full nest for variables ".join(', ',sort keys %{$state->{'FullNest'}{$block_id}}).' at loop end '. $block_id;
-                my $loop_vars = sort keys %{$state->{'FullNest'}{$block_id}};
+                # my $loop_vars = sort keys %{$state->{'FullNest'}{$block_id}};
                 my $loop_nature =  $state->{'VarAccessAnalysis'}{'LoopNests'}{'Set'}{$block_id}{'LoopNature'};
                 if (defined $loop_nature and
                 $loop_nature->[0] eq 'Map') {
@@ -1021,9 +1022,8 @@ my ( $stref, $f ) = @_;
     
 
     #  map {say $_} @{pp_annlines($updated_loop_annlines,1)};
-    say "\nRefactored code for $f\n";
-    emit_RefactoredCode($stref,$f,$rewritten_loop_annlines); 
-    die if $f eq 'sor';
+    # say "\nRefactored code for $f\n";
+    # emit_RefactoredCode($stref,$f,$rewritten_loop_annlines); 
     return  $stref ;
 }
 
@@ -1177,8 +1177,6 @@ sub __check_var_reach { my ($stref,$f, $accesses,$rw) = @_;
     
 }
 
-1;
-
 =pod
 I think a cleaner way is as follows:
 
@@ -1230,3 +1228,99 @@ sub _find_enclosing_outer_loop { my ($f, $annline, $accesses, $rw, $state) =@_;
     }
     return $state;
 } # END of _find_enclosing_outer_loop
+
+
+sub insert_init_alloc_dealloc_statements { my ($stref,$f) = @_;
+
+    my $Sf = $stref->{'Subroutines'}{$f};
+    if (exists $Sf->{'CollectiveVars'} and scalar @{$Sf->{'CollectiveVars'}}>0) {
+        # We also need this after implicit none, do this via a simple stateless pass
+        my $indent = '      ';
+    my $dsm_preamble_annlines = [
+        [$indent.'use dsmTypes',{'Textual'=>1}],
+        [$indent.'use dsmAPI',{'Textual'=>1}],
+        [$indent.'integer :: dsmNodeId',{'Textual'=>1}],
+        [$indent.'integer :: dsmNNodes',{'Textual'=>1}],
+    ];
+
+    my $init_annlines = [
+
+        [$indent.'call dsmInit(dsmMemSize,dsmCacheSize)',{'Textual'=>1}],
+        [$indent.'dsmNNodes = dsmGetNNodes()',{'Textual'=>1}],
+        [$indent.'dsmNodeId = dsmGetNId()',{'Textual'=>1}],
+        [$indent.'if (dsmNNodes /= dsmNX*dsmNY) then',{'Textual'=>1}],
+        [$indent.'print *, "ERROR: total number of nodes", dsmNNodes, "does not match dsmNX*dsmNY:",dsmNX,"*",dsmNY,"=", dsmNX*dsmNY',{'Textual'=>1}],
+        [$indent.'call exit',{'Textual'=>1}],
+        [$indent.'end if',{'Textual'=>1}],
+    ];
+
+    # First we need to create all those allocation statements.
+    # We use $Sf->{'CollectiveVars'}=[]     
+    my ($allocation_annlines,$deallocation_annlines) = _gen_alloc_dealloc_annlines($Sf);
+    # Deallocation and finish can also be done this via a simple stateless pass
+
+    my $init_and_allocate_annlines = [@{$init_annlines},@{$allocation_annlines}];
+
+    my $finish_annlines = [
+        [$indent.'call dsmFinalise()',{'Textual'=>1}],
+    ];
+
+    my $deallocate_and_finish_annlines =[@{$deallocation_annlines},@{$finish_annlines}];
+
+    my $annlines = $Sf->{'RefactoredCode'};
+# First the easy part: put the preamble after implicit none and the dealloc/finish before the end of the program
+    my $pass_add_preamble_dealloc_and_finish = sub { my ($annline) = @_;
+        my ($line, $info) = @{$annline};
+        if (exists $info->{'ImplicitNone'} ) {
+            return [$annline,@{$dsm_preamble_annlines}]
+        }
+        if (exists $info->{'EndProgram'} ) {
+            return [@{$deallocate_and_finish_annlines},$annline]
+        }
+        return [$annline];
+    };
+
+    my $annlines_with_pre_post = stateless_pass($annlines,$pass_add_preamble_dealloc_and_finish,"pass_add_preamble_dealloc_and_finish($f)");
+
+
+    my $merged_annlines = splice_additional_lines_cond(
+            sub {
+                ( my $annline ) = @_;
+                (my $line,my $info)=@{$annline};
+                return (
+                    exists $info->{'HasVars'}
+                or exists $info->{'Control'}			
+                or exists $info->{'EndControl'}
+                ) ? 1 : 0;
+            },
+            $annlines_with_pre_post,
+            $init_and_allocate_annlines,
+            1, # insert before
+            0, # skip insertion condition line
+            1 # do this only once
+    );
+    #  croak '???'.Dumper $annlines if $f=~/test_loop_nature/;
+    # map {say $_} @{pp_annlines($merged_annlines)} and die if $f=~/test_loop_nature/;
+        $Sf->{'RefactoredCode'} = $merged_annlines;
+    } else {
+        say "INFO: No Collective variables in $f" if $I;
+    }
+    return $stref;
+} # End of insert_init_alloc_dealloc_statements
+
+sub _gen_alloc_dealloc_annlines { my ($Sf) = @_;
+    my @alloc_annlines=();
+    my @dealloc_annlines=();
+    my $indent = '      ';
+    for my $varname (@{$Sf->{'CollectiveVars'}}) {
+        my ($is_dsm_var,$var_decl) = _is_dsm_var($varname, $Sf);
+        if ($is_dsm_var) {
+            my $alloc_str = $indent.'call dsmAllocate'._dsmType($var_decl)."($varname)";
+            my $dealloc_str = $indent.'call dsmDeallocate'._dsmType($var_decl)."($varname)";
+            push @alloc_annlines,[$alloc_str,{'Textual'=>1}];
+            push @dealloc_annlines,[$dealloc_str,{'Textual'=>1}];
+        }
+    }
+    return (\@alloc_annlines,\@dealloc_annlines);
+}
+1;

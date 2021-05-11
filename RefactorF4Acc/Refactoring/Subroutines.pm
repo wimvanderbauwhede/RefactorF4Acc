@@ -16,7 +16,7 @@ use RefactorF4Acc::Parser qw( parse_fortran_src );
 use RefactorF4Acc::Refactoring::Helpers qw( 
 	emit_f95_var_decl 
 	stateful_pass_inplace
-	splice_additional_lines_cond
+	splice_additional_lines_cond_inplace
 	);
 use RefactorF4Acc::Refactoring::ContextFree qw( context_free_refactorings );	
 use RefactorF4Acc::Refactoring::Subroutines::Emitters qw( emit_subroutine_sig );
@@ -326,7 +326,7 @@ sub _add_extra_assignments_in_block_data {
 	#        my $skip_insert_pos_line,
 	#        my $do_once
 	#croak Dumper($annlines);
-	my $merged_annlines = splice_additional_lines_cond(
+	my $merged_annlines = splice_additional_lines_cond_inplace(
 		$stref, $f,
 		sub {
 			( my $annline ) = @_;
@@ -339,7 +339,7 @@ sub _add_extra_assignments_in_block_data {
 		1
 	);
 ##croak Dumper($extra_arg_decl_lines);
-	my $merged_annlines_w_args = splice_additional_lines_cond(
+	my $merged_annlines_w_args = splice_additional_lines_cond_inplace(
 		$stref, $f,
 		sub {
 			( my $annline ) = @_;
@@ -492,7 +492,7 @@ sub _group_local_param_decls_at_top { my ( $stref, $f ) = @_;
  	($stref,$param_decl_annlines) = stateful_pass_inplace($stref,$f,$pass_split_out_ParamDecls, $param_decl_annlines,'_split_out_ParamDecls ' . __LINE__  ) ;	
 
 	 if (scalar @{ $param_decl_annlines } > 1) {
-		my $merged_annlines = splice_additional_lines_cond(
+		my $merged_annlines = splice_additional_lines_cond_inplace(
 			$stref, $f,
 			sub {
 				( my $annline ) = @_;

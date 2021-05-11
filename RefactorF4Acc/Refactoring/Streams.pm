@@ -9,7 +9,7 @@ use RefactorF4Acc::Refactoring::Helpers qw(
 	stateful_pass_reverse_inplace 
 	stateless_pass_inplace  
 	emit_f95_var_decl 
-	splice_additional_lines_cond  
+	splice_additional_lines_cond_inplace  
 	update_arg_var_decl_sourcelines
 	);
 use RefactorF4Acc::Translation::TyTra::Common qw(
@@ -779,7 +779,7 @@ sub _add_assignments_for_called_subs { (my $stref, my $f) = @_;
 #	say "\nSUB: $f\n";say Dumper(\@lifted_var_decls);
 	
 	# Now we want to splice these after the last var decl 
-    my $merged_annlines = splice_additional_lines_cond( $stref, $f, sub {(my $al)=@_;exists $al->[1]{'VarDecl'} ? 1 : 0 }, $stref->{'Subroutines'}{$f}{'RefactoredCode'}, \@lifted_var_decls,1, 0,1);
+    my $merged_annlines = splice_additional_lines_cond_inplace( $stref, $f, sub {(my $al)=@_;exists $al->[1]{'VarDecl'} ? 1 : 0 }, $stref->{'Subroutines'}{$f}{'RefactoredCode'}, \@lifted_var_decls,1, 0,1);
     $stref->{'Subroutines'}{$f}{'RefactoredCode'}=$merged_annlines;
 # --------------------------------------------------------------------------------------------------------		 	    
 	} # IF KERNEL

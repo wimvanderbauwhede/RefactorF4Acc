@@ -7,7 +7,7 @@ use v5.10;
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
 use RefactorF4Acc::Parser::Expressions qw( get_vars_from_expression parse_expression emit_expr_from_ast );
-use RefactorF4Acc::Refactoring::Helpers qw( splice_additional_lines_cond );
+use RefactorF4Acc::Refactoring::Helpers qw( splice_additional_lines_cond_inplace );
 # use RefactorF4Acc::Parser qw( parse_fortran_src );
 
 use vars qw( $VERSION );
@@ -454,7 +454,7 @@ sub __merge_include {
           : 0;
     };
     my $merged_annlines =
-      splice_additional_lines_cond($stref, $inc, $insert_cond_subref, $old_annlines, \@n_inc_annlines, 0, 1, 1);
+      splice_additional_lines_cond_inplace($stref, $inc, $insert_cond_subref, $old_annlines, \@n_inc_annlines, 0, 1, 1);
     $stref->{'IncludeFiles'}{$inc}{'AnnLines'} = $merged_annlines;
 
 # For variables, we only need to update the leaf sets
@@ -557,7 +557,7 @@ sub __merge_include_into_subroutine {
         # ]
     } @n_inc_annlines;
     my $merged_annlines =
-      splice_additional_lines_cond($stref, $f, $insert_cond_subref, $old_annlines, \@n_inc_annlines_ann, 0, 1, 1);
+      splice_additional_lines_cond_inplace($stref, $f, $insert_cond_subref, $old_annlines, \@n_inc_annlines_ann, 0, 1, 1);
     $Sf->{'AnnLines'} = $merged_annlines;
 # croak Dumper(pp_annlines($stref->{'Subroutines'}{$f}{'AnnLines'})) if $f eq 'mpi_reduce_real';
 # For variables, we only need to update the leaf sets
