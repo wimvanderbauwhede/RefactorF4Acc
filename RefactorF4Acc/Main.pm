@@ -57,6 +57,7 @@ our $usage = "
     -A: Annotate the refactored lines 
     -P: Name of pass to be performed
     -s: Provide a comma-separated list of source files to be refactored. Same as specifying SOURCEFILES in the config file
+    -o: Provide a custom output path
     \n";
 #    -N: Replace CONTINUE by CALL NOOP    
     # -g: refactor globals inside toplevel subroutine (NOTE: in the current version this does nothing, globals will always be refactored) 
@@ -348,9 +349,10 @@ sub parse_args { (my $args)=@_;
          $cfgrc= $opts{'c'} ;
     }
     # I think I could overload  $cfgrc to be a hash, so that I would simply say
-    if (ref($cfgrc) eq 'HASH') {        
-        %Config = %{$cfgrc};        
-        
+    if (ref($cfgrc) eq 'HASH') { 
+        for my $k (keys %{$cfgrc}) {
+            $Config{$k} = $cfgrc->{$k};
+        }
     } else {
         if (not -e $cfgrc) {
             say "There is not configuration file, let's create one.\n";

@@ -274,7 +274,7 @@ sub analyse_lines {
 						]
 					}
 				} else { 
-					# Find the subs to be inline in a separate pass
+					# Find the subs to be inlined in a separate pass
 					$Sf->{'HasInlineRegion'}=1;
 				}
 				# die Dumper $Sf->{'SubsToInline'};
@@ -2620,15 +2620,17 @@ sub __parse_sub_func_prog_decls {
 }    # END of __parse_sub_func_prog_decls()
 
 # -----------------------------------------------------------------------------
+# General form is !$RF4A Begin $pragma_name $pragma_args
+# I think a better form might be !$RF4A Begin $pragma_name( $pragma_arg1, $pragma_arg2,...)
 sub __handle_acc_pragma {
 	( my $stref, my $f, my $index, my $line, my $info ) = @_; # returns $info->{'Pragmas'}
 	my $accline = $line;
 	
 	my $is_accline = ($accline =~ s/^\!\s*\$(?:ACC|RF4A)\s+//i);
 	if ($is_accline ) {
-		
+		# Split on spaces
 		my @chunks = split( /\s+/, $accline );
-		
+		# Strip Begin/End
 		my $pragma_name_prefix = 'Begin';
 		if ( $chunks[0] =~ /Begin/i ) {
 			shift @chunks;
@@ -2763,11 +2765,9 @@ sub __parse_f95_decl {
     my $is_module = (exists $stref->{'Modules'}{$f}) ? 1 : 0;
     
 	my $pt = parse_F95_var_decl($line);
-# croak $line.Dumper($info).Dumper($pt) if $line=~/alpha/;
+
 	# But this could be a parameter declaration, with an assignment ...
 	if ( $line =~ /,\s*parameter\s*.*?::\s*(\w+\s*=\s*.+?)\s*$/ ) {    
-
-
 		# F95-style parameters
 		$info->{'ParsedParDecl'} = $pt; #WV20150709 currently used by OpenCLTranslation, TODO: use ParamDecl and the AST from the expression parser
 		

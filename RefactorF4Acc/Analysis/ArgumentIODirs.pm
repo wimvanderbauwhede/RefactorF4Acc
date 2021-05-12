@@ -507,7 +507,7 @@ sub _analyse_src_for_iodirs {
                                         }    # if it's already InOut or Out, stays like it is.
                                     }
                                     else {
-                                        warning("Intent for $var in call to $name in $f is unknown",4);
+                                        warning("Intent for $var in call to $name in $f is unknown");
                                     }
                                 }
                                 else {

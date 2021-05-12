@@ -31,9 +31,11 @@ TODO:
 
 
 - Rewrite of Fold and Stencil Fold
-    *** The main things to do is that the $acc.'_chunks' variable must be declared and added to the $Sf->{'Vars'}
-    *** I guess the Textual hack won't survive for long
-    ** Also I see that the 'type()' statements are inserted in the wrong place.
+    *** The main things to do is that the $acc.'_chunks' variable must be declared and added to the $Sf->{'Vars'}, OK now
+    *** I guess the Textual hack won't survive for long! Need the ASTs!
+
+    *** An issue with the $acc.'_chunks' is that if they are in a routine (e.g. sor) and the routine is called in a loop, we do alloc/dealloc of DSM repeatedly and that is expensive. So these alloc/dealloc should be lifted to outside that loop
+    
 
     Reductions are done with a global array of nprocesses but the final reduced value is local, so no need for locks but we do need a barrier before reducing that array. See the Haskell code.
 
@@ -194,7 +196,7 @@ sub refactor_dsm_all {
 		$stref = refactor_dsm( $stref, $f );
         $stref = insert_init_alloc_dealloc_statements($stref,$f);
 
-        emit_RefactoredCode($stref,$f,$Sf->{'RefactoredCode'});# if $f=~/test_loop/;
+        emit_RefactoredCode($stref,$f,$Sf->{'RefactoredCode'}) if $f=~/sor/;
 	}
     
 	return $stref;
@@ -282,7 +284,7 @@ sub refactor_dsm { my ( $stref, $f ) = @_;
             # For simplicity I create a hash of var => decl for the dsm vars, so that I can simply match in the AST
             my $rhs_dsm_vars={};
             my $rhs_is_dsm_var=0;
-            # carp Dumper $info->{'Rhs'}{'Vars'};
+            # carp $line.Dumper $info->{'Rhs'}{'Vars'} if $lhs_varname eq 'rhsav' ;
             for my $rhs_varname (@{$info->{'Rhs'}{'Vars'}{'List'}}) {
                 ($rhs_is_dsm_var,my $rhs_var_decl) = _is_dsm_var($rhs_varname, $Sf);
                 if ($rhs_is_dsm_var) {
@@ -631,7 +633,6 @@ sub _is_dsm_var {
     my ($varname, $Sf) = @_;
     my $subset = in_nested_set( $Sf, 'Vars', $varname );
     my $decl = get_var_record_from_set($Sf->{$subset},$varname);
-    carp Dumper $decl;
     if (exists $decl->{'Parameter'}) {
         return 0;
     }
@@ -1402,11 +1403,16 @@ sub insert_init_alloc_dealloc_statements { my ($stref,$f) = @_;
             sub {
                 ( my $annline ) = @_;
                 (my $line,my $info)=@{$annline};
-                return (
-                    exists $info->{'HasVars'}
+
+                my $cond = (
+                    (exists $info->{'HasVars'}
+                    and not (exists $info->{'VarDecl'} or  
+                    exists $info->{'ParsedVarDecl'} ))
                 or exists $info->{'Control'}			
-                or exists $info->{'EndControl'}
+                
                 ) ? 1 : 0;
+                # if ($cond and $f=~/loop/) {croak $line.Dumper $info;}
+                return $cond;
             },
             $annlines_with_pre_post,
             $init_and_allocate_annlines,
@@ -1529,12 +1535,18 @@ sub rewrite_fold_loops { my ($stref,$f,$state) = @_;
 #@        ExpressionAST => $rhs_ast	   
 
                     # Update the LHS AST
+
                     my $n_lhs_ast = [10,$lhs_var.'_chunks',[27,[2,'nodeXCoord'], [2,'nodeYCoord'] ] ] ;
+                    my $acc_decl = _get_var_decl($Sf,$lhs_var);
+                    my $acc_type = $acc_decl->{'Type'};
+                    my $acc_kind = $acc_decl->{'Attr'};
+                    my $acc_indent = $acc_decl->{'Indent'};
+                    $Sf = _add_local_decl($Sf,$lhs_var.'_chunks',$acc_type,$acc_kind,[[1,'dsmNX'], [1,'dsmNY']],{'MemSpace'=>'Collective'},$acc_indent);
                     # Update the Vars
                     my $n_rhs_vars_set = dclone($info->{'Rhs'}{'Vars'}{'Set'});
                     delete $n_rhs_vars_set->{$lhs_var};
                     $n_rhs_vars_set->{$lhs_var.'_chunks'} = {'Type' => 'Array'};
-                    $n_rhs_vars_set->{'nodeXCoord'} = {'Type' => 'Scalar'};
+                    $n_rhs_vars_set->{'dsmNXCoord'} = {'Type' => 'Scalar'};
                     $n_rhs_vars_set->{'nodeYCoord'} = {'Type' => 'Scalar'};
                     # Update the RHS AST 
                     my $rhs_ast = dclone($info->{'Rhs'}{'ExpressionAST'});
@@ -1733,5 +1745,46 @@ sub __find_full_nest_block_id { my ($block_id,$state) = @_;
         return $block_id;
     }
 }
+
+# _add_local_decl($Sf,'v','real')
+# _add_local_decl($Sf,'acc_chunks','real',4,[[1,'dsmNX'],[1,'dsmNY']],{'MemSpace'=>'Collective'});
+sub _add_local_decl { my ($Sf,$var_name,$type,$kind, $dim,$pragmas,$indent,$alloc) = @_;
+    my $decl = {};
+    $decl->{'Name'}        = $var_name;
+    $decl->{'Type'}          = $type;
+    if (defined $kind and $kind ne '') {
+        $decl->{'Attr'} = '(kind=' . $kind . ')';
+    }
+    
+    my $a_or_s = (defined $dim and scalar @{$dim} > 0 )
+    ? 'Array'
+    : 'Scalar';
+    $decl->{'ArrayOrScalar'} = $a_or_s;
+    if($a_or_s eq 'Array') {
+            $decl->{'Dim'} = $dim;
+    }
+
+    if (defined $pragmas) {
+        for my $k (keys %{$pragmas}) {
+            $decl->{$k}		 = $pragmas->{$k};
+        }
+    }
+    if (not defined $indent) {
+        $indent = '      ';
+    }
+    $decl->{'Indent'}        = $indent;
+    if (defined $alloc) {
+        $decl->{'Allocatable'}='allocatable';
+    }
+    $Sf->{'DeclaredOrigLocalVars'}{'Set'}{$var_name} = $decl;
+    push @{ $Sf->{'DeclaredOrigLocalVars'}{'List'} }, $var_name;
+    return $Sf;
+}
+sub _get_var_decl { my ($Sf,$var_name) = @_;
+    my $subset = in_nested_set( $Sf, 'Vars', $var_name );
+    my $decl = get_var_record_from_set($Sf->{$subset},$var_name);
+    return $decl;
+}
+
 
 1;

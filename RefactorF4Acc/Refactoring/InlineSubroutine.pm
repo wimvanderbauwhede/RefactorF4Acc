@@ -1,6 +1,9 @@
 package RefactorF4Acc::Refactoring::InlineSubroutine;
-use v5.10;
+# 
+#   (c) 2010-now Wim Vanderbauwhede <wim.vanderbauwhede@glasgow.ac.uk>
+#   
 
+use v5.10;
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
 use RefactorF4Acc::Refactoring::Helpers qw( stateful_pass_inplace stateless_pass_inplace );
@@ -9,9 +12,6 @@ use RefactorF4Acc::Parser::Expressions qw( emit_expr_from_ast );
 
 use Storable qw( dclone );
 
-# 
-#   (c) 2010-now Wim Vanderbauwhede <wim.vanderbauwhede@glasgow.ac.uk>
-#   
 
 use vars qw( $VERSION );
 $VERSION = "2.1.1";
@@ -32,6 +32,21 @@ use Exporter;
 );
 
 =pod info-inline-subroutine
+
+$Sf->{'SubsToInline'} is either populated in the Parser if the inline pragma names the subroutines:
+
+    !$RF4A Begin Inline f1 f2 (current syntax is like this, FIXME)
+    ...
+    !$RF4A End Inline 
+
+If there is no list
+
+    !$RF4A Begin Inline
+    ...
+    !$RF4A End Inline 
+
+then $Sf->{'HasInlineRegion'}=1 is set and find_subs_to_inline() is used to find the subs to inline and put them in $Sf->{'SubsToInline'} 
+
 To inline a subroutine, four steps are required:
 0. This is recursive so any call in the subroutine to be inlined must also be inlined. So a first pass is to check CalledSubs, and if this is not empty, to look for subroutine calls and descend until we find one that is empty.
 1. Substitute the signature arguments with the call arguments. This info is in $info->{'SubroutineCall'}{'ArgMap'} 

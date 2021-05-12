@@ -566,9 +566,6 @@ As a result of the staging, I am sure rhs cannot be removed.
 
 \begin_layout Section
 Related Work
-\end_layout
-
-\begin_layout Standard
 \begin_inset CommandInset label
 LatexCommand label
 name "related-work"
@@ -577,6 +574,10 @@ name "related-work"
 
 
 \end_layout
+
+\begin_layout Itemize
+\begin_inset Note Note
+status open
 
 \begin_layout Itemize
 The idea is to find some similar things but be able to say that nobody has
@@ -590,6 +591,11 @@ Def cite the polyhaedral model
 
 \begin_layout Itemize
 Also def cite Lift
+\end_layout
+
+\end_inset
+
+
 \end_layout
 
 \begin_layout Section

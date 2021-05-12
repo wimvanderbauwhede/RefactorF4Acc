@@ -78,6 +78,7 @@ sub replace_consts_in_ast { (my $stref, my $f, my $block_id, my $ast, my $state,
 			} else {
 				if ($idx==0 and (($entry & 0xFF) == 2)) { #eq '$'
 					my $mvar = $ast->[$idx+1];
+					
 					# say "MVAR: $mvar in $f";
 					if (exists $state->{$block_id}{'LoopIters'}{ $mvar }) { 
 						$ast= ref($const) eq 'ARRAY' ? $const : ''.$const.'';

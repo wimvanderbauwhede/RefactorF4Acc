@@ -975,10 +975,12 @@ our %F95_types = map { $_=>1 } @F95_types_list;
 our %F95_intrinsics = (%F95_intrinsic_functions,%F95_other_intrinsics);
 
 sub warning { my ($msg, $lev) = @_;
+    if (not defined $lev) {$lev=0};    
     return if $WARNING_LEVEL==0; 
+    croak $WARNING_LEVEL;
     if (not exists $messages->{WARNING}{$msg}) {
         $messages->{WARNING}{$msg}=1;
-        if ($lev<=$WARNING_LEVEL) {
+        if ($lev<=3) {
             say "WARNING: $msg"
         } else {
             carp "WARNING: $msg"

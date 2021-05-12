@@ -182,7 +182,7 @@ sub _rename_array_accesses_to_scalars { (my $stref, my $f) = @_;
 			$state->{'Args'} = $info->{'Signature'}{'Args'}{'Set'};
 		} elsif (exists $info->{'Assignment'} ) {
 			if (scalar @{ $info->{'Rhs'}{'Vars'}{'List'} } == 1 and $info->{'Rhs'}{'Vars'}{'List'}[0]=~/_ptr/) {
-				croak 'FIXME: What we want is that only array variables with IndexVars are renamed. So constant indices should stay as they are';
+				warn 'FIXME: What we want is that only array variables with IndexVars are renamed. So constant indices should stay as they are';
 				# IGNORE, this is not a true array access: this is an assignment of the shape
 				# v = v_ptr(1)
 				# and we will remove these later on

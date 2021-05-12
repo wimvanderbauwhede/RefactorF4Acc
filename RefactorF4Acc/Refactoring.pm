@@ -1,8 +1,8 @@
+package RefactorF4Acc::Refactoring;
 # 
 #   (c) 2010-now Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
 #   
 
-package RefactorF4Acc::Refactoring;
 use v5.10;
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
@@ -93,10 +93,12 @@ sub refactor_all {
 
     $stref = inline_subroutines($stref) ;
 	# Test array access and constant folding here
+
 	# $stref = analyse_loop_nature_all($stref) ;
-	$stref = fold_constants_all($stref) ;
-	$stref = refactor_dsm_all($stref) ;
-    # die;
+
+	# $stref = fold_constants_all($stref) ;
+	# $stref = refactor_dsm_all($stref) ;
+
     # Custom refactoring, must be done before creating final modules
     say "add_module_decls" if $V;
     $stref=add_module_decls($stref);

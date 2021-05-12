@@ -222,13 +222,17 @@ sub identify_array_accesses_in_exprs { (my $stref, my $f) = @_;
 				# Assignment to scalar *_rel
 				# This is ad hoc for the output of the AutoParallelFortran compiler!
 				# carp $f. Dumper $info;
+				
 				if ($info->{'Lhs'}{'ArrayOrScalar'} eq 'Scalar' and $info->{'Lhs'}{'VarName'} =~/^(\w+)_rel/) {
 					my $loop_iter=$1;					
-					if ($DBG and
+					carp "$f $line $loop_iter";
+					if (
+						# $DBG and
 						not exists $state->{'Subroutines'}{ $f }{'Blocks'}{$block_id}{'LoopIters'}{$loop_iter}{'Range'}) {
 						croak "This should not happen! " .Dumper($annline);
-						$state->{'Subroutines'}{ $f }{'Blocks'}{$block_id}{'LoopIters'}{$loop_iter}={'Range' => [0,0,0]};
-					}
+					}						
+					$state->{'Subroutines'}{ $f }{'Blocks'}{$block_id}{'LoopIters'}{$loop_iter}={'Range' => [0,0,0]};
+					
 				}
 				# Assignment to scalar *_range
 				# This is ad hoc for the output of the AutoParallelFortran compiler!
@@ -473,6 +477,7 @@ sub _find_var_access_in_ast { (my $stref, my $f,  my $block_id, my $state, my $a
 #						say "OFFSET";
 					my $ast0 = dclone($ast);
 					($ast0, my $retval ) = replace_consts_in_ast($stref,$f,$block_id,$ast0, $state->{'Subroutines'}{ $f }{'Blocks'},0);
+					
 					my @ast_a0 = @{$ast0};
 					
 					my @idx_args0 = @ast_a0[2 .. $#ast_a0];
@@ -480,7 +485,7 @@ sub _find_var_access_in_ast { (my $stref, my $f,  my $block_id, my $state, my $a
 					my @ast_exprs0 = map { emit_expr_from_ast($_) } @idx_args0;
 					# carp Dumper @ast_exprs0;
 					my @offset_vals = map { eval($_) } @ast_exprs0;
-					
+					# carp Dumper @offset_vals;
 					# carp Dumper @offset_vals;
 					# Then we compute the multipliers (for proper stencils these are 1 but for the more general case e.g. copying a plane of a cube it can be different.
 #						say "MULT";

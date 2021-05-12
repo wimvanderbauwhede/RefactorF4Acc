@@ -3,6 +3,9 @@
 #   (c) 2019 Wim Vanderbauwhede <Wim.Vanderbauwhede@Glasgow.ac.uk>
 #   
 
+# This is a subset of memory_reduction.pl
+# It assumes the code was already scalarised
+
 use 5.010;
 use warnings;
 use strict;

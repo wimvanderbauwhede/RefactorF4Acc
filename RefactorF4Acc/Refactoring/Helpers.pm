@@ -150,7 +150,6 @@ sub create_refactored_source {
 # There is a problem with trailing comments 
 # So I have to remove these first, then see if the line must be split, then append the comment to the last segment
 
-
 sub split_long_line {
     my $line = shift;
 
@@ -319,7 +318,7 @@ if (exists  $Sf->{'Status'} ) {
         }
     }
 } else {
-	warn  "$sub_or_func_or_inc $f has no Status";
+	warning(  "$sub_or_func_or_inc $f has no Status");
 }
     return $annlines;
 }    # END of get_annotated_sourcelines()
