@@ -412,7 +412,7 @@ sub parse_args { (my $args)=@_;
 	$V = ( $opts{'v'} ) ? 1 : 0;
 	$I = ( $opts{'i'} ) ? 1 : 0;
     $WARNING_LEVEL = defined $opts{'w'} ? $opts{'w'} : 1;
-    say "WARNING LEVEL: $WARNING_LEVEL" if $WARNING_LEVEL!=1;
+    # say "WARNING LEVEL: $WARNING_LEVEL" if $WARNING_LEVEL!=1;
 	$W = $WARNING_LEVEL >= 1 ? 1 : 0;
     $WW = $WARNING_LEVEL >= 2 ? 1 : 0;
     $WWW = $WARNING_LEVEL >= 3 ? 1 : 0;

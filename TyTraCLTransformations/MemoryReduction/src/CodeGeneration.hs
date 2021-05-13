@@ -779,7 +779,10 @@ generateMap functionSignatures f_exp v_exp t = -- (Single ov_name)
         Function fname nms_exps = f_exp
         (lhs,rhs) = t
         out_vars_lst = getName lhs
-        Map _ rhs_v_exp = rhs
+        Map _ rhs_v_exp = rhs -- ZipT [Vec VI (Scalar VDC DFloat "va_0"),Vec VI (Scalar VDC DFloat "vc_0")]
+        -- rhs_v_exp = case rhs_v_exp' of
+        --     ZipT _ -> error $ show rhs_v_exp' -- 
+        --     _ -> rhs_v_exp'
         -- I reason that output variables *must* be unique
         (out_vars_name_lst,extra_out_var_decls) = case out_vars_lst of
             Single ov_name'' -> if Map.member ov_name'' mainArgDecls
@@ -795,6 +798,10 @@ generateMap functionSignatures f_exp v_exp t = -- (Single ov_name)
             Composite ov_names -> error $ show lhs -- map (\(Single ov_name'') -> if Map.member ov_name'' mainArgDecls then  ov_name''++"(idx)" else  ov_name'') ov_names
         nms_vars_lst = nub $ map (show . getName) nms_exps
         nms_decls = map exprToFDecl nms_exps
+        -- WV 2021-05-13
+        -- The code below is a bit sloppy. 
+        -- I think the TyTraCL we provide can be assumed to have been decomposed so that there are no nested maps etc
+        -- But I am not sure, and I feel I should handle this with recursion
         in_vars_lst =  getName rhs_v_exp
         (in_vars_name_lst, extra_in_var_decls) = case in_vars_lst of
             Single ov_name'' -> if Map.member ov_name'' mainArgDecls
@@ -803,17 +810,23 @@ generateMap functionSignatures f_exp v_exp t = -- (Single ov_name)
                                         if noStencilRewrites
                                             then
                                                 case rhs_v_exp of
-                                                    -- Vec VS _ ->  ([ov_name''++"(idx)"], [exprToFDecl rhs_v_exp]) 
                                                     Vec VT _ ->  ([ov_name''++"(idx)"] , [exprToFDecl rhs_v_exp]) -- probably WRONG!
-                                                    _ ->  ([ov_name''],[])
+                                                    _ ->  ([ov_name''],[]) -- probably WRONG!
                                             else
                                                 ([ov_name''],[])
             Composite ov_names -> let
                     Composite fl_ov_names = flattenNames (Composite ov_names)
                 in (\(x,y) -> (concat x, concat y)) $ -- [([],[])] -> ([[]],[[]])
                     unzip $ map (\(Single ov_name'') -> if Map.member ov_name'' mainArgDecls
-                        then  ([ov_name''++"(idx)"], [])
-                        else  ([ov_name''],[])
+                        then  ([ov_name''++"(idx)"], [getDeclFromZipByName ov_name'' rhs_v_exp])
+                        else  
+                            if noStencilRewrites
+                                then
+                                    case rhs_v_exp of
+                                        ZipT _ -> ([ov_name''++"(idx)"],[getDeclFromZipByName ov_name'' rhs_v_exp])
+                                        _ -> ([ov_name''],[]) -- probably WRONG!
+                                else
+                                    ([ov_name''],[])
                         ) fl_ov_names
         in_vars_name_lst_str' =  map snd (nubTup $ zip (unwrapName sig_in_args_lst) in_vars_name_lst)
 
@@ -830,13 +843,40 @@ generateMap functionSignatures f_exp v_exp t = -- (Single ov_name)
             "" ]
         ,[],nms_decls++extra_in_var_decls++extra_out_var_decls)
 
+getDeclFromZipByName :: String -> Expr -> FDecl
+getDeclFromZipByName name (ZipT exprs) = let
+    -- ZipT [Vec VT (Scalar VDC DFloat "va_1"),Vec VT (Scalar VDC DFloat "vb_1")]
+        decls = map exprToFDecl exprs
+    in
+        head $ filter (\decl -> name == getNameFromDecl decl) decls
+getDeclFromZipByName name expr = exprToFDecl expr
 
+getDeclFromExprByName :: String -> Expr -> Maybe FDecl
+getDeclFromExprByName name expr = let
+        decls = exprToFDecls expr    
+        maybe_decl = filter (\decl -> name == getNameFromDecl decl) decls
+    in
+        if null maybe_decl then Nothing else Just $ head maybe_decl
+
+exprToFDecls :: Expr -> [FDecl]
+exprToFDecls s_expr@(Scalar _ _ vname)  = [MkFDecl (fortranType s_expr) Nothing (Just In) [vname]]
+exprToFDecls sv_expr@(SVec sz (Scalar _ _ vname) ) = [MkFDecl (fortranType sv_expr) (Just [sz]) (Just In) [vname]]
+exprToFDecls (Vec _ s_expr@(Scalar _ _ vname))  = [MkFDecl (fortranType s_expr) (Just [vSz]) Nothing [vname]]
+exprToFDecls (Vec _ (SVec sz s_expr@(Scalar _ _ vname) ))  = [MkFDecl (fortranType s_expr) (Just [vSz]) Nothing [vname]]
+exprToFDecls (ZipT exprs) = map exprToFDecl exprs
+
+exprToFDecls expr = error $ show expr
+
+
+exprToFDecl :: Expr -> FDecl
 exprToFDecl s_expr@(Scalar _ _ vname)  = MkFDecl (fortranType s_expr) Nothing (Just In) [vname]
 exprToFDecl sv_expr@(SVec sz (Scalar _ _ vname) ) = MkFDecl (fortranType sv_expr) (Just [sz]) (Just In) [vname]
 exprToFDecl (Vec _ s_expr@(Scalar _ _ vname))  = MkFDecl (fortranType s_expr) (Just [vSz]) Nothing [vname]
 exprToFDecl (Vec _ (SVec sz s_expr@(Scalar _ _ vname) ))  = MkFDecl (fortranType s_expr) (Just [vSz]) Nothing [vname]
 
 exprToFDecl expr = error $ show expr
+
+
 -- I think the difference between fold and map is the acc and the output type
 -- In principle the accumulator could be a tuple, so the code as is is not generic!
 generateFold functionSignatures f_exp acc_exp v_exp t =
@@ -985,19 +1025,9 @@ hasFold ast = let
 isFunctionDef (Function _ _, _) = True
 isFunctionDef _ = False
 
--- Stripping intent the ugly way !! 
--- TODO use FDecl instead of a string!    
--- createMainProgramDecl decl_str = let
---         chunks = words decl_str
---         chunks' = case  chunks of
---             [type_str,dim_str,intent_str,double_colon,var_name_str] -> [type_str,init dim_str,double_colon,var_name_str]
---             [type_str,intent_str,double_colon,var_name_str] -> [init type_str,double_colon,var_name_str]        
---     in
---         unwords chunks'
-
-createMainProgramDecl' ::FDecl -> FDecl
-createMainProgramDecl' decl@(MkFDecl {}) = decl{intent=Nothing}
-createMainProgramDecl' decl@(MkFParamDecl {}) = decl
+clearIntent ::FDecl -> FDecl
+clearIntent decl@(MkFDecl {}) = decl{intent=Nothing}
+clearIntent decl@(MkFParamDecl {}) = decl
 
 getNameFromDecl :: FDecl -> String 
 getNameFromDecl decl@(MkFDecl {}) = head $ names decl
@@ -1044,7 +1074,6 @@ generateMainProgram functionSignatures ast_stages  =
                                                         arg_decl_lines++[show decl]
                                             Nothing -> arg_decl_lines -- error $ "No declaration for "++arg_name++ " in mainArgDecls"
                                     ) [] (in_args++out_args)
-                extra_arg_decls = filter (\decl-> (getNameFromDecl decl) `elem` (in_args++out_args)) uniqueGeneratedDecls
                 arg_decls = foldl (\arg_decls arg_name -> case Map.lookup arg_name mainArgDecls of
                                             Just decl -> if decl{intent=Just InOut} `elem` uniqueGeneratedDecls
                                                     then
@@ -1053,6 +1082,14 @@ generateMainProgram functionSignatures ast_stages  =
                                                         arg_decls++[ decl]
                                             Nothing -> arg_decls -- error $ "No declaration for "++arg_name++ " in mainArgDecls"
                                     ) [] (in_args++out_args)
+                -- These are the declarations at top level that are not arguments of the original TyTraCL main as they are temporaries
+                -- They are not present in mainArgDecls 
+                extra_arg_decls = filter (\decl-> (getNameFromDecl decl) `elem` (in_args++out_args)) uniqueGeneratedDecls
+                -- It is possible, somehow, that uniqueGeneratedDecls contains the same var as in_args++out_args, but without intent
+                -- So I should remove all args that are in arg_decls from uniqueGeneratedDecls
+                uniqueGeneratedDecls' =  filter (\decl ->  (clearIntent decl) `notElem` (map clearIntent arg_decls) ) uniqueGeneratedDecls
+                unique_extra_arg_decls = filter (\decl ->  (clearIntent decl) `notElem` (map clearIntent arg_decls) ) extra_arg_decls
+                main_arg_decls = arg_decls ++ unique_extra_arg_decls ++ maybe_acc_arg_decl
                 accs' = nub $ accs++maybe_acc_arg
                 -- accs'' = warning accs' (show accs')
                 -- used_accs' = filter (\acc_name -> not $ null $ 
@@ -1074,7 +1111,8 @@ generateMainProgram functionSignatures ast_stages  =
                                     "subroutine stage_kernel_"++(show ct)++"("++(mkArgList [ in_args, out_args])++")" -- used_acc_names, ,maybe_acc_arg
                                 ]
                                 -- ,(map ("    "++) $ nub $ (used_acc_decl_lines++arg_decl_lines++maybe_acc_arg_decl_str++uniqueGeneratedDeclLines))
-                                ,(map ( ("    "++) . show ) $ nub $ arg_decls ++ uniqueGeneratedDecls) -- used_acc_decls++arg_decls++maybe_acc_arg_decl++uniqueGeneratedDecls
+                                ,(map ( ("    "++) . show ) $ arg_decls ++ uniqueGeneratedDecls') -- used_acc_decls++arg_decls++maybe_acc_arg_decl++uniqueGeneratedDecls
+                                ,(map ( ("!    "++) . show ) uniqueGeneratedDecls) -- used_acc_decls++arg_decls++maybe_acc_arg_decl++uniqueGeneratedDecls
                                 ,[
                                     "    integer :: idx",
                                     "    call get_global_id(idx)"
@@ -1088,7 +1126,7 @@ generateMainProgram functionSignatures ast_stages  =
             in
                 (
                     (arg_decl_lines++maybe_acc_arg_decl_str,
-                    arg_decls++extra_arg_decls++maybe_acc_arg_decl,
+                    main_arg_decls,
                     if genStages
                         then
                             "call stage_kernel_"++(show ct)++"("++(mkArgList [in_args, out_args])++")" -- used_acc_names++, maybe_acc_arg
@@ -1104,8 +1142,8 @@ generateMainProgram functionSignatures ast_stages  =
                 (stage_kernel_decls_calls++[stage_kernel_decls_calls'], accs', def_lines_strs++[def_lines_str])
             ) ([],[],[]) (zip ast_stages [1..])
         (_, stage_kernel_decls, stage_kernel_calls) = unzip3 stage_kernel_decls_calls'
-        unique_stage_kernel_decls = nub $ concat stage_kernel_decls
-        main_program_decl_strs' = map (show . createMainProgramDecl') unique_stage_kernel_decls
+        unique_stage_kernel_decls = nubDeclList $ concat stage_kernel_decls
+        main_program_decl_strs' =  map (show . clearIntent) unique_stage_kernel_decls
         loops_over_calls = map (\call_str -> unlines [
             "do global_id=1,"++(show vSz),
             "  "++call_str,
@@ -1139,6 +1177,15 @@ generateMainProgram functionSignatures ast_stages  =
             ""
         ]
 
+-- A helper which nubs a list of FDecls ignoring the Intent        
+nubDeclList :: [FDecl] -> [FDecl]
+nubDeclList declList = let
+        noIntentDeclList = map clearIntent declList
+        uniqueNoIntentDeclList = nub noIntentDeclList
+        -- now for each element in this list we look for an element in the original list with an intent
+        uniqueDeclList = map (\declNoIntent -> head $ foldl (\acc decl -> if null acc && declNoIntent == clearIntent decl then [decl] else acc) [] declList) uniqueNoIntentDeclList
+    in
+        uniqueDeclList
 
 -- A helper which nubs a list of tuples based on uniqueness of the first element        
 nubTup :: Ord a => [(a,b)]  -> [(a,b)]

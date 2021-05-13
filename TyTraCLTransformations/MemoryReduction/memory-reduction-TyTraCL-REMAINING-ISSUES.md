@@ -1,5 +1,17 @@
 # REMAINING ISSUES : Memory Reduction for Scientific Computing on GPUs
 
+## 2021-05-13
+
+Running the test cases with `noStencilRewrites`, this should result in code that is the same as the original. However;
+
+* TEST 8 HANGS for noStencilRewrites = True and aborts with error for noStencilRewrites = False:
+
+MemoryReduction-exe: ZipT [Vec VI (Scalar VDC DInt "wet_0"),Vec VS (SVec 3 (Scalar VDC DFloat "etan_s_0"))]
+  error, called at src/CodeGeneration.hs:861:20 in CodeGeneration
+
+I need to replace exprToFDecl to exprToFDecls and see how I can deal with that.
+
+
 ## 2019-11-13
 
 I have started processing the LES. I added a number of macros to make the source suitable for conversion:
