@@ -977,7 +977,6 @@ our %F95_intrinsics = (%F95_intrinsic_functions,%F95_other_intrinsics);
 sub warning { my ($msg, $lev) = @_;
     if (not defined $lev) {$lev=0};    
     return if $WARNING_LEVEL==0; 
-    croak $WARNING_LEVEL;
     if (not exists $messages->{WARNING}{$msg}) {
         $messages->{WARNING}{$msg}=1;
         if ($lev<=3) {

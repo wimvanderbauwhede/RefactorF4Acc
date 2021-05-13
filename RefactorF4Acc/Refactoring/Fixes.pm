@@ -975,11 +975,11 @@ sub __check_read_only { my ($in_arg, $stref, $f)=@_;
 
 sub __check_reads_writes {  my ($arg, $stref, $f)=@_;
 
-	# In practice we will not have IO calls in the kernels
+# In practice we will not have IO calls in the kernels
 # Nor will we have subroutines calls
 # Function calls on RHS are OK 
 # So all we need to check is Assignments, If, Do and Case
-# I am going to lazily assume that CaseVals are constants
+# As per the F95 spec, CaseVals are constants
 my $pass_check_reads_writes = sub { (my $annline, my $reads_writes)=@_;
 		(my $line,my $info)=@{$annline};
 		

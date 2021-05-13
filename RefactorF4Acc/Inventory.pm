@@ -69,16 +69,24 @@ sub find_subroutines_functions_and_includes {
         
         # if there is an entry in $Config{EXCL_SRCS} then it is a regex
         my $has_pattern =  scalar @{ $Config{EXCL_SRCS} } > 0 ? 1 : 0;    
-        my $excl_srcs_pattern    = @{ $Config{EXCL_SRCS} }>1? '(?:'.join('|', @{ $Config{EXCL_SRCS} }).')' : @{ $Config{EXCL_SRCS} }==1 ? $Config{EXCL_SRCS}->[0] : '';
+        my $excl_srcs_pattern    = @{ $Config{EXCL_SRCS} }>1
+            ? '(?:'.join('|', @{ $Config{EXCL_SRCS} }).')' 
+                : @{ $Config{EXCL_SRCS} }==1 
+                    ? $Config{EXCL_SRCS}->[0] 
+                    : '';
         # I treat the EXCL_SRC regex as relative to SRCDIRS unless it starts with '^'
-        if ($excl_srcs_pattern!~/^\^/) {
+        if ($excl_srcs_pattern!~/^\^|\(\^|\(\?\:\^/) {
             my @excl_srcs_pattern_w_srcdirs =();
-            for my $srcdir (@srcdirs) {
+            for my $srcdir (@srcdirs) {            
                 push @excl_srcs_pattern_w_srcdirs , "$srcdir\\/$excl_srcs_pattern"
             }
             $excl_srcs_pattern = join('|', @excl_srcs_pattern_w_srcdirs);
         }
-        say 'Exclude pattern: /'. ($excl_srcs_pattern!~/[\^\$]/ ? '^'.$excl_srcs_pattern.'$'  :  $excl_srcs_pattern). '/' if $V; 
+        say 'Exclude pattern: /'. 
+            ($excl_srcs_pattern!~/[\^\$]/ 
+                ? '^'.$excl_srcs_pattern.'$'  
+                :  $excl_srcs_pattern
+                ). '/' if $V; 
         my $excl_srcs_regex      = $excl_srcs_pattern!~/[\^\$]/ 
             ? qr/^$excl_srcs_pattern$/ 
             : qr/$excl_srcs_pattern/;
@@ -100,13 +108,29 @@ sub find_subroutines_functions_and_includes {
             $srcname =~s/^\.\///;  # e.g. admin/aadmn.f
             my $srcdir = $filepath;  
             $srcdir=~s/\/.+$//;        # i.e. $path # e.g. admin
+            # say "$srcname $srcdir $has_pattern <$excl_srcs_regex> ",(($has_pattern and $srcname=~$excl_srcs_regex) ? 1 : 0);
+            # say( 'not ('.
+            #     ((exists $excluded_sources{$srcname})?1:0).' or '.
+            #     ((exists $excluded_sources{"./$srcname"})?1:0).' or '.
+            #     (($has_pattern and $srcname=~$excl_srcs_regex)?1:0)
+            #     .') and not '. ((exists $excluded_dirs{$srcdir})?1:0) # this does not work as the $srcdir is simply '.' 
+            # );
+            # say( not (
+            #     exists $excluded_sources{$srcname} or 
+            #     exists $excluded_sources{"./$srcname"} or
+            #     ($has_pattern and $srcname=~$excl_srcs_regex)
+            #     ) and not exists $excluded_dirs{$srcdir} # this does not work as the $srcdir is simply '.' 
+            # );
+
             if (not (
                 exists $excluded_sources{$srcname} or 
                 exists $excluded_sources{"./$srcname"} or
                 ($has_pattern and $srcname=~$excl_srcs_regex)
                 ) and not exists $excluded_dirs{$srcdir} # this does not work as the $srcdir is simply '.' 
             ) {
-            $src_files{$File::Find::name} = (exists $ext_src_dirs{$srcdir}) ? { 'Ext' => $filepath }  : {'Local' => $filepath };
+                
+                $src_files{$File::Find::name} = (exists $ext_src_dirs{$srcdir}) ? { 'Ext' => $filepath }  : {'Local' => $filepath };
+                # say "FOUND $srcname ".$File::Find::name;
             } else {
                 print "EXCLUDED SOURCE: $srcname\n" if $V;
             }

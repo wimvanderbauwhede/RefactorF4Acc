@@ -279,8 +279,8 @@ sub _analyse_src_for_iodirs {
 
     if (not exists $Sf->{'IODirInfo'} or $Sf->{'IODirInfo'} == 0) { # This is to avoid doing this more than once
         # croak Dumper $Sf if not defined $Sf->{'RefactoredArgs'}{List};
-        if (not $Sf->{'Program'} # because of course a program does not have arguments
-            and (not exists $Sf->{'RefactoredArgs'}{'List'} or scalar @{$Sf->{'RefactoredArgs'}{'List'}} == 0)) {
+        if ( $Sf->{'Program'} # because of course a program does not have arguments
+            or not exists $Sf->{'RefactoredArgs'}{'List'} or scalar @{$Sf->{'RefactoredArgs'}{'List'}} == 0) {
             # say Dumper($Sf->{'RefactoredArgs'});
             # $Sf->{'RefactoredArgs'}{'Set'} = {};
             say "INFO: SUB $f DOES NOT HAVE RefactoredArgs" if $I;
@@ -289,7 +289,7 @@ sub _analyse_src_for_iodirs {
         }
         else 
         {
-
+# carp $f.$Sf->{'Program'}.Dumper $Sf->{'RefactoredArgs'};
             my $args      = dclone($Sf->{'RefactoredArgs'}{'Set'});
             my $args_list = $Sf->{'RefactoredArgs'}{'List'};
 

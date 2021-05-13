@@ -41,6 +41,12 @@ TO RELEASE
   $ git push --delete origin v2.1.0
   $ git push origin v2.1.0
 
+
+STATUS 2021-05-13
+
+- The regex for excluding sources is still not great. Right now I have to use full regexes, no simplifications. 
+- EXT is a scalar field in cfg, not an array.
+
 STATUS 2021-04-18
 
 I would like to emit PURE and ELEMENTAL. I already have $Sf->{Pure}::Bool, adding $Sf->{Elemental}::Bool in Inventory is trivial

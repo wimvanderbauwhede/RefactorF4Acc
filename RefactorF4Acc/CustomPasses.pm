@@ -93,7 +93,7 @@ sub run_custom_passes {
 # After a custom pass, do some postprocessing and exit	
 	if ($pass ne '' ) {
 		if (exists $stref->{'CustomPassPostProcessing'}) {
-		$stref=_substitute_placeholders($stref);
+		$stref=substitute_placeholders($stref);
         # This is of course useless if the target language is not Fortran
         # So I should have a way to exclude this
         # The way to do this is to let the pass make sure that

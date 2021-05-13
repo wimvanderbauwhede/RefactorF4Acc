@@ -161,6 +161,8 @@ sub identify_array_accesses_in_exprs { (my $stref, my $f) = @_;
 				$state->{'Subroutines'}{$subname }={};
 				$state->{'Subroutines'}{$subname }{'Blocks'}={};
 				$state->{'Subroutines'}{$subname }{'Blocks'}{$block_id}={};
+					# 'LoopIters' => {'DUMMY' =>1 }
+				# };
                 $state->{'Subroutines'}{$f}{'LoopNests'}{'List'}=[ [0,'',{}] ];
                 # InOut will be both in In and Out
                 # Any scalar arg that is InOut or Out could be an Acc, put it in MaybeAcc
@@ -224,14 +226,15 @@ sub identify_array_accesses_in_exprs { (my $stref, my $f) = @_;
 				# carp $f. Dumper $info;
 				
 				if ($info->{'Lhs'}{'ArrayOrScalar'} eq 'Scalar' and $info->{'Lhs'}{'VarName'} =~/^(\w+)_rel/) {
+					# This case is UNUSED
 					my $loop_iter=$1;					
-					carp "$f $line $loop_iter";
+					# carp "$f $line $loop_iter".Dumper $state->{'Subroutines'}{ $f }{'Blocks'}{$block_id}{'LoopIters'};
 					if (
-						# $DBG and
+						$DBG and
 						not exists $state->{'Subroutines'}{ $f }{'Blocks'}{$block_id}{'LoopIters'}{$loop_iter}{'Range'}) {
 						croak "This should not happen! " .Dumper($annline);
+						$state->{'Subroutines'}{ $f }{'Blocks'}{$block_id}{'LoopIters'}{$loop_iter}={'Range' => [0,0,0]};
 					}						
-					$state->{'Subroutines'}{ $f }{'Blocks'}{$block_id}{'LoopIters'}{$loop_iter}={'Range' => [0,0,0]};
 					
 				}
 				# Assignment to scalar *_range
@@ -241,29 +244,29 @@ sub identify_array_accesses_in_exprs { (my $stref, my $f) = @_;
 
 					my $expr_str = emit_expr_from_ast($info->{'Rhs'}{'ExpressionAST'});
 					my $loop_range = eval($expr_str);
-					$state->{'Subroutines'}{ $f }{'Blocks'}{$block_id}{'LoopIters'}{$loop_iter}={'Range' => [1,$loop_range,1]};				
-					
-				} else {
+					$state->{'Subroutines'}{ $f }{'Blocks'}{$block_id}{'LoopIters'}{$loop_iter}={'Range' => [1,$loop_range,1]};
+				} 
+				else {
 					# First check if this is maybe an accumulator
 					if ($info->{'Lhs'}{'ArrayOrScalar'} eq 'Scalar' ) { 
 					# Test if a scalar arg is an accumulator for a fold
 					# If the arg occurs on LHS and RHS of an assignment and the RHS has an array arg as well			
-					my %maybe_accs = map {$_ => 1} @{$state->{'Subroutines'}{$f}{'Args'}{'MaybeAcc'}};
-					my %in_arrays  = map {$_ => 1} @{$state->{'Subroutines'}{$f}{'Args'}{'In'}};
-					my $acc_var = $info->{'Lhs'}{'VarName'} ;
-					if (exists $maybe_accs{$acc_var}) { 						
-						my $vars = get_vars_from_expression($info->{'Rhs'}{'ExpressionAST'});
-						if (exists $vars->{$acc_var}) {
-							for my $tvar (sort keys %{$vars}) {
-								if ($vars->{$tvar}{'Type'} eq 'Array'
-								and exists $in_arrays{$tvar}
-								) {
-									push @{$state->{'Subroutines'}{$f}{'Args'}{'Acc'}}, $acc_var;
-									last;
+						my %maybe_accs = map {$_ => 1} @{$state->{'Subroutines'}{$f}{'Args'}{'MaybeAcc'}};
+						my %in_arrays  = map {$_ => 1} @{$state->{'Subroutines'}{$f}{'Args'}{'In'}};
+						my $acc_var = $info->{'Lhs'}{'VarName'} ;
+						if (exists $maybe_accs{$acc_var}) { 						
+							my $vars = get_vars_from_expression($info->{'Rhs'}{'ExpressionAST'});
+							if (exists $vars->{$acc_var}) {
+								for my $tvar (sort keys %{$vars}) {
+									if ($vars->{$tvar}{'Type'} eq 'Array'
+									and exists $in_arrays{$tvar}
+									) {
+										push @{$state->{'Subroutines'}{$f}{'Args'}{'Acc'}}, $acc_var;
+										last;
+									}
 								}
 							}
 						}
-					}
 					}
 					# This tests for the case of the same array on LHS and RHS, but maybe with a different access location, so a(...) = a(...)
                     # This is probably superseded by the new analysis of array assignment expressions
@@ -476,12 +479,13 @@ sub _find_var_access_in_ast { (my $stref, my $f,  my $block_id, my $state, my $a
 					# First we compute the offset
 #						say "OFFSET";
 					my $ast0 = dclone($ast);
+# carp $f,Dumper( $state->{'Subroutines'}{ $f }{'Blocks'}{'0'});
 					($ast0, my $retval ) = replace_consts_in_ast($stref,$f,$block_id,$ast0, $state->{'Subroutines'}{ $f }{'Blocks'},0);
 					
 					my @ast_a0 = @{$ast0};
 					
 					my @idx_args0 = @ast_a0[2 .. $#ast_a0];
-					# carp $f,Dumper( @idx_args0);
+					
 					my @ast_exprs0 = map { emit_expr_from_ast($_) } @idx_args0;
 					# carp Dumper @ast_exprs0;
 					my @offset_vals = map { eval($_) } @ast_exprs0;
@@ -497,10 +501,17 @@ sub _find_var_access_in_ast { (my $stref, my $f,  my $block_id, my $state, my $a
 					my @ast_exprs1 = map { emit_expr_from_ast($_) } @idx_args1;
 					my @mult_vals = map { eval($_) } @ast_exprs1;
 					my @iters = @{$state->{'Subroutines'}{ $f }{'Blocks'}{ $block_id }{'Arrays'}{$array_var}{$rw}{'Iterators'}};
-					# carp Dumper @iters;
+					# say "502 OFFSET_VALS", @offset_vals;
 					my $iter_val_pairs=[];
 					for my $idx (0 .. @iters-1) {
+						# say "IDX: $idx";
 						my $offset_val=$offset_vals[$idx];
+						# say $f;
+						if (not defined $offset_val) {
+							# The problem here is that these variables i_range, i_rel have been removed so can't find any iters!
+							say Dumper pp_annlines($stref->{'Subroutines'}{$f}{'RefactoredCode'});
+						croak $f;#."\n".Dumper $state->{'Subroutines'}{ $f }{'Blocks'}{ $block_id } ;
+						}
 						my $mult_val=$mult_vals[$idx]-$offset_val;
 						push @{$iter_val_pairs}, {$iters[$idx] => [$mult_val,$offset_val]};
 #							say "Boundary access $f $array_var " . __PACKAGE__ . ' '. __LINE__ if substr($iters[$idx],0,1) eq '?';
@@ -1456,6 +1467,7 @@ sub _is_stream_var { my ($state, $f, $block_id, $var_name) =@_;
 	}
 	  # Get the record for $var_name
 	#   carp "$f $block_id $var_name", Dumper $state->{'Subroutines'}{ $f }{'Blocks'}{ $block_id };
+	croak if not exists $state->{'Subroutines'}{$f}{'Blocks'}{$block_id}{'LoopIters'}; 
 	  my $iters =  $state->{'Subroutines'}{$f}{'Blocks'}{$block_id}{'LoopIters'};
 	  my $dims = $state->{'Subroutines'}{ $f }{'Blocks'}{ $block_id }{'Arrays'}{$var_name}{'Dims'} ;	  
 	  if (scalar @{$dims} < scalar keys %{$iters}) { 

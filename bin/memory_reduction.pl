@@ -16,22 +16,33 @@ use Carp;
 use Data::Dumper;
 
 my %opts = ();
-getopts( 'hvmst:e:w:', \%opts );
+getopts( 'hvmst:e:w:d', \%opts );
 
 if ($opts{'h'}){
     die "
-    $0 -[hvste] 
+    $0 -[hvstewd] 
 
     -v : verbose
     -s : Scalarise only, don't generate a TyTraCL main program
     -t <\$test>: Testing, no sources needed, generates ./src/ASTInstance.hs. Provide the number of the test to be run.
     -e <\$ext>: Fortran source file extension (default is .f95, needs the dot)
+    -w <\$W>: warnings
+    -d : debug messages
+    -i : info messages 
     \n";
 }
 our $V=0;
 our $W=0;
+our $I=0;
+our $DBG=0;
 if ($opts{'v'}) {
     $V=1;
+}
+if ($opts{'i'}) {
+    $I=1;
+}
+if ($opts{'d'}) {
+    $DBG=1;
 }
 if ($opts{'w'}) {
     $W=$opts{'w'};
@@ -76,7 +87,8 @@ if (!$test && $scalarise) {
         if ($kernel_sub_name ne '') {
             my $rf4a_scalarize_cfg =  create_rf4a_cfg_scalarise($kernel_src,$kernel_sub_name, $kernel_module_name);  
             say "CFG: ".Dumper($rf4a_scalarize_cfg) if $V;
-            my $args = {'P' => 'rename_array_accesses_to_scalars','c' => $rf4a_scalarize_cfg,'w'=>$W};
+            my $args = {'P' => 'rename_array_accesses_to_scalars','c' => $rf4a_scalarize_cfg,
+            'w'=>$W,'i'=>$I,'d'=>$DBG};
 	        $stref = main($args);
         }
     } else {
@@ -129,7 +141,9 @@ if ($gen_main) {
             if (! -d './src/') {
                 die "Make sure the src subdirectory exists!\n";
             }
-            $stref = main({'P' => 'memory_reduction', 'c' => {'TEST'=>$test}, 'o'  => './src/ASTInstance.hs'});
+            $stref = main({'P' => 'memory_reduction', 'c' => {'TEST'=>$test}, 'o'  => './src/ASTInstance.hs'}
+            ,'w'=>$W,'i'=>$I,'d'=>$DBG
+            );
         }
     } else {
         die "No kernel sources found";
@@ -153,10 +167,10 @@ sub create_rf4a_cfg_scalarise {
 # 'SOURCEFILES' => [],
 'SRCDIRS' => ['.'],
 'NEWSRCPATH' => './Scalarized',
-'EXCL_SRCS' => ['(sub|init|param|module_\\w+_superkernel_init|_host|\\.[^f])'],
+'EXCL_SRCS' => ['(?:^(?:sub|init|param|module_\\w+_superkernel_init|\\w+_host)|\\.[^f]+$)'],
 'EXCL_DIRS' => [ qw(./PostCPP ./Scalarized ./TyTraC ./Superkernels)],
 'MACRO_SRC' => 'macros.h',
-'EXT' => ['.f95'],
+'EXT' => '.f95',
 'SUB_SUFFIX' => '_scal'
 };
 
@@ -176,10 +190,10 @@ sub create_rf4a_cfg_tytra_cl {
 'SRCDIRS' => ['.'],
 # 'SOURCEFILES' => [],
 'NEWSRCPATH' => './Temp',
-'EXCL_SRCS' => ['(module_\\w+_superkernel_init|_host|\\.[^f])'],
+'EXCL_SRCS' => ['(?:^(?:module_\\w+_superkernel_init|\\w+_host)|\\.[^f]+$)'],
 'EXCL_DIRS' => [ qw( ./PostCPP ./Temp ./TempC ./Scalarized ./TyTraC ) ],
 'MACRO_SRC' => 'macros.h',
-'EXT' => ['.f95']
+'EXT' => '.f95'
 };
 
     return $rf4a_cfg;

@@ -1212,7 +1212,7 @@ sub pass_wrapper_subs_in_module { (my $stref,my $module_name, my $module_pass_se
         
 		my %is_existing_module = ();
 	    my %existing_module_name = ();
-		
+		# croak Dumper keys %{ $stref->{'SourceContains'} };
 		for my $src (keys %{ $stref->{'SourceContains'} } ) {		
 			
 			if (exists $stref->{'SourceContains'}{$src}{'Path'}
@@ -1232,7 +1232,11 @@ sub pass_wrapper_subs_in_module { (my $stref,my $module_name, my $module_pass_se
 			}
 			my $has_contains = ( $is_existing_module{$src} and exists $stref->{'Modules'}{$existing_module_name{$src}}{'Contains'}  ) ? 1 : 0;
 	
-			my @subs= $is_existing_module{$src}  ? $has_contains ? @{ $stref->{'Modules'}{$existing_module_name{$src}}{'Contains'} } : ()  :  grep {$_ ne 'UNKNOWN_SRC' } sort keys %{ $stref->{'Subroutines'} };
+			my @subs= $is_existing_module{$src}  
+                ? $has_contains 
+                    ? @{ $stref->{'Modules'}{$existing_module_name{$src}}{'Contains'} } 
+                    : ()  
+                :  grep {$_ ne 'UNKNOWN_SRC' } sort keys %{ $stref->{'Subroutines'} };
             # carp $src . Dumper @subs;
 			for my $pass_sequence (@{$sub_pass_sequences}) {	
 				for my $f ( @subs ) {
@@ -1241,13 +1245,14 @@ sub pass_wrapper_subs_in_module { (my $stref,my $module_name, my $module_pass_se
 					}			
 				}
 			}
-		}
+		} 
+        
 	} else { 
         
 		for my $pass_sequence (@{$module_pass_sequences}) {    	
-                for my $pass_sub_ref (@{$pass_sequence}) {                	         
-                    $stref=$pass_sub_ref->($stref, $module_name, @rest);
-                }           
+            for my $pass_sub_ref (@{$pass_sequence}) {                	         
+                $stref=$pass_sub_ref->($stref, $module_name, @rest);
+            }           
 		}		
 		
         my $has_contains = exists $stref->{'Modules'}{$module_name}{'Contains'}  ? 1 : 0;
