@@ -56,10 +56,12 @@ sub pass_memory_reduction {
     (my $stref, my $module_name) = @_;
     
     my $TEST =  exists $Config{'TEST'} ? $Config{'TEST'} : 0;
+    my $comment = $TEST ? "TEST $TEST" : $module_name;
     
     # WV: I think Selects and Inserts should be in Lines but I'm not sure
     $stref->{'EmitAST'}     = 'TyTraCL_AST';
     $stref->{'TyTraCL_AST'} = {
+        'Comment'      => $comment,
         'Lines'        => [],
         'Selects'      => [],
         'Inserts'      => [],
@@ -69,7 +71,8 @@ sub pass_memory_reduction {
         'MainFunction' => 'main',
         'ASTEmitter'   => \&_add_TyTraCL_AST_entry
     };
-if ($TEST==0) {
+
+if ($TEST==0) { 
     $stref = pass_wrapper_subs_in_module(
         $stref, $module_name,
 
@@ -97,6 +100,7 @@ elsif ($TEST==1) {
             mkMap('f3'=>[]=>[['v',2,'s']]=>[['v',3,'']]),            
         ],
         {'v' =>[ 'integer', [1,500], 'inout'] }
+        ,$comment
     );            
 }
 elsif ($TEST==2) {      
@@ -115,6 +119,7 @@ elsif ($TEST==2) {
     'v3' =>[ 'integer', [1,500], 'local'],
     'v4' =>[ 'integer', [1,500], 'out']   
 }
+        ,$comment
     );  
 }
 elsif ($TEST==3) {
@@ -130,6 +135,7 @@ elsif ($TEST==3) {
         'v' =>[ 'integer', [1,500], 'inout'],
         'acc' =>[ 'integer',  'in'],
         }
+        ,$comment
     );  
 }    
 elsif ($TEST==4) {
@@ -146,6 +152,7 @@ elsif ($TEST==4) {
         'v' =>[ 'integer', [1,500], 'inout'],
         'acc' =>[ 'integer',  'in'],
         }
+        ,$comment
     );  
 }  
 elsif ($TEST==5) {
@@ -162,6 +169,7 @@ elsif ($TEST==5) {
         'v' =>[ 'integer', [1,500], 'inout'],
         'acc' =>[ 'integer',  'in'],
         }
+        ,$comment
     );  
 }  
 elsif ($TEST==6) {
@@ -187,6 +195,7 @@ elsif ($TEST==6) {
         'acc1' =>[ 'integer',  'in'],
         'acc3' =>[ 'integer',  'in'],
         }
+        ,$comment
     );  
 } 
 elsif ($TEST==7) {
@@ -210,6 +219,7 @@ elsif ($TEST==7) {
             'vab' =>[ 'real', [1,500], 'local'] ,
             'v' =>[ 'real', [1,500], 'out'] ,
             }
+        ,$comment
     );            
 }
 elsif ($TEST==8) {
@@ -229,6 +239,7 @@ $stref = mkAST(
             'u'=> ['real',[1,500], 'out'] ,
             'h'=> ['real',[1,500], 'out'] ,
         }
+        ,$comment
 );
 }
 elsif ($TEST==9) {
@@ -248,6 +259,7 @@ mkMap('sor',[],[['p','4','s']],[['p','4','']]),
         {
             'p' => ['real',[1,500], 'inout'] ,
         }
+        ,$comment
 );
 }
 
@@ -261,14 +273,23 @@ mkMap('sor',[],[['p','4','s']],[['p','4','']]),
     
     $stref = _emit_TyTraCL_Haskell_AST_Code($stref);
 
+    
     # What this does is emitting the Haskell AST to a Haskell module file
-    my $tytracl_hs_str = $stref->{'TyTraCL_Haskell_AST_Code'};
+    my $tytracl_hs_str = $stref->{'TyTraCL_Haskell_AST_Code'} ;
 
-    write_out($tytracl_hs_str);
+    
 
     $stref = emit_TyTraCL($stref);
     my $tytracl_str = $stref->{'TyTraCL_Code'};
+    my $tytracl_as_hs_comment = "\n\n{-\n".$tytracl_str."\n-}\n";
+    # .join("\n",map {'-- '.$_} @{$stref->{'TyTraCL_CodeLines'}});
+    # croak $tytracl_as_hs_comment;    
+
     say $tytracl_str;
+
+
+    $tytracl_hs_str .= $tytracl_as_hs_comment;    
+    write_out($tytracl_hs_str);
     # This makes sure that no fortran is emitted by emit_all()
     $stref->{'SourceContains'} = {};
 
@@ -582,8 +603,11 @@ sub _emit_TyTraCL_Haskell_AST_Code {
 
     my $tytracl_hs_ast_code_str = join("\n", @indented_tytracl_hs_ast_strs);
 
+    my $comment = $stref->{'TyTraCL_AST'}{'Comment'};
+
 
     my $header =
+    "-- $comment\n" .
 'module ASTInstance ( ast
         , functionSignaturesList
         , stencilDefinitionsList

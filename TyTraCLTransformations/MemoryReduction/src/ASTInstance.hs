@@ -1,3 +1,4 @@
+-- TEST 1
 module ASTInstance ( ast
         , functionSignaturesList
         , stencilDefinitionsList
@@ -29,3 +30,26 @@ mainArgDeclsList = [
   ]
 scalarisedArgsList = []
 origNamesList = []
+
+{-
+v_0 :: Vec 500 Int
+
+v_3 :: Vec 500 Int
+
+f3 :: SVec 3 Int -> Int
+f2 :: SVec 3 Int -> Int
+f1 :: Int -> Int
+
+main :: (Vec 500 Int) -> (Vec 500 Int)
+main v_0 =
+  let
+    v_1 =  map f1 v_0
+    s1 = [-1,0,1]
+    v_s_1 = stencil s1 v_1
+    v_2 =  map f2 v_s_1
+    s2 = [-1,0,1]
+    v_s_2 = stencil s2 v_2
+    v_3 =  map f3 v_s_2
+  in
+    v_3
+-}

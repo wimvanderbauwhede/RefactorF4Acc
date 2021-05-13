@@ -219,13 +219,14 @@ sub identify_array_accesses_in_exprs { (my $stref, my $f) = @_;
 				# $state->{'Subroutines'}{ $f }{'Blocks'}{ $block_id }{'Arrays'}{$array_var}{'Halos'}=$decl
 #				say "{ $f }{ $block_id }{'Arrays'}{$array_var}{'Dims'}";
 #				say Dumper($state->{'Subroutines'}{ $f }{'Blocks'}{ $block_id }{'Arrays'}{$array_var}{'Dims'});
-			}
+			}			
 			if (exists $info->{'Assignment'} ) {
 				# Assignment to scalar *_rel
 				# This is ad hoc for the output of the AutoParallelFortran compiler!
 				# carp $f. Dumper $info;
 				
-				if ($info->{'Lhs'}{'ArrayOrScalar'} eq 'Scalar' and $info->{'Lhs'}{'VarName'} =~/^(\w+)_rel/) {
+				if ($Config{'KERNEL'} ne '' and # This means we are dealing with an OpenCL kernel
+					$info->{'Lhs'}{'ArrayOrScalar'} eq 'Scalar' and $info->{'Lhs'}{'VarName'} =~/^(\w+)_rel/) {
 					# This case is UNUSED
 					my $loop_iter=$1;					
 					# carp "$f $line $loop_iter".Dumper $state->{'Subroutines'}{ $f }{'Blocks'}{$block_id}{'LoopIters'};
@@ -239,7 +240,7 @@ sub identify_array_accesses_in_exprs { (my $stref, my $f) = @_;
 				}
 				# Assignment to scalar *_range
 				# This is ad hoc for the output of the AutoParallelFortran compiler!
-				elsif ($info->{'Lhs'}{'ArrayOrScalar'} eq 'Scalar' and $info->{'Lhs'}{'VarName'} =~/^(\w+)_range/) {
+				elsif ($Config{'KERNEL'} ne '' and $info->{'Lhs'}{'ArrayOrScalar'} eq 'Scalar' and $info->{'Lhs'}{'VarName'} =~/^(\w+)_range/) {
 					my $loop_iter=$1;
 
 					my $expr_str = emit_expr_from_ast($info->{'Rhs'}{'ExpressionAST'});
@@ -783,8 +784,11 @@ sub _classify_accesses_and_emit_AST { (my $stref, my $f, my $state ) =@_;
 	
  	for my $array_var (keys %{$state->{'Subroutines'}{ $f }{'Blocks'}{ $block_id }{'Arrays'}}) {
 		 # Excluding arrays that are not streams here is OK, that way I get no stencil and they become SVecs in TyTraCL.pm
-		
- 		next if $array_var =~/^global_|^local_/;
+
+		# This is specific for reductions done by the AutoParallelFortran compiler
+		# But I don't know in which case we analyse the generated files
+		# I should have a flag 'OpenCL'
+ 		next if $array_var =~/^global_|^local_/; 
  		next if not defined  $state->{'Subroutines'}{ $f }{'Blocks'}{ $block_id }{'Arrays'}{$array_var}{'Dims'} ;
 		next unless _is_stream_var($state, $f, $block_id, $array_var);
 		# So there the $array_var is certainly (or at least per def) a stream variable

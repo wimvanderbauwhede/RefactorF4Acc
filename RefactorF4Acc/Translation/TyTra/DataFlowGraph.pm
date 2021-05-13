@@ -1,4 +1,11 @@
 package RefactorF4Acc::Translation::TyTra::DataFlowGraph;
+#
+#   (c) 2016 Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
+#
+
+# Graph analysis and transformation for splitting and staging
+# This is currently not used anywhere in the compiler but should be used for Staging
+
 use v5.10;
 use RefactorF4Acc::Config;
 use RefactorF4Acc::Utils;
@@ -22,9 +29,6 @@ use RefactorF4Acc::Translation::TyTraCL qw(
     generate_TyTraCL_stencils
     );
 
-#
-#   (c) 2016 Wim Vanderbauwhede <wim@dcs.gla.ac.uk>
-#
 
 use vars qw( $VERSION );
 $VERSION = "1.2.0";
@@ -315,7 +319,7 @@ sub main {
         say '=' x 80;
         say '=' x 10, 'Add IO Net Types';
         say '=' x 80;
-$ast = generate_breadth_first_ordering($ast);
+        $ast = generate_breadth_first_ordering($ast);
         $ast = add_io_net_types($ast);
 
         say '=' x 80;
@@ -323,13 +327,11 @@ $ast = generate_breadth_first_ordering($ast);
         say '=' x 80;
 
         $ast = propagate_net_types($ast);
-        # die;
         say '=' x 80;
         say '=' x 10, 'Propagate Latency';
         say '=' x 80;
 
         $ast = propagate_latency($ast);
-# croak Dumper $ast->{Nets};
         # say '=' x 80;
         # say '=' x 10, ' Remove Stencil Nodes from Connectivity Graph ';
         # say '=' x 80;
@@ -399,7 +401,6 @@ $ast->{'NodeTypes'}{$node_type}=
 };
 
 =cut
-
 
 # We need to know the nodes connected to every net. 
 # We are only interested in the map/fold nodes, so we should skip any other node

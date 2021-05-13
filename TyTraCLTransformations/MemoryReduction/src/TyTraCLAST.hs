@@ -8,6 +8,7 @@ noStencilRewrites = True -- FIXME: hangs when set to True, I need a different ha
 
 type Name = String
 type Size = Int
+-- Vector In   Out  Stencil Temp Don't care
 data VE = VI  | VO  | VS  | VT | VDC deriving (Show, Ord, Typeable, Data, Eq)
 data DType = 
     DInteger | DInt 
@@ -118,12 +119,12 @@ setName (Single name') (Scalar ve dt name) = Scalar ve dt name'
 setName (Single name') (Vec ve exp) = Vec ve (setName (Single name') exp)
 setName (Single name') (SVec sz exp) = SVec sz (setName (Single name') exp)
 -- Tuple [SVec 5 (Scalar VDC DInt "wet_s_0"),SVec 5 (Scalar VDC DFloat "eta_s_0")]
-setName (Single name') (Tuple exps) = Tuple $ map (\(exp,ct) -> setName (Single (name'++"_"++(show ct))) exp) (zip exps [0..])
+setName (Single name') (Tuple exps) = Tuple $ map (\(exp,ct) -> setName (Single (name'++"_"++ show ct)) exp) (zip exps [0..])
 setName (Composite names') (Tuple exps) = Tuple $ map (\(exp,name) -> setName name exp) (zip exps names')
 
 setName fnm@(Composite names') (SVec sz exp) = SVec sz (setName fnm exp)
 
-setName name' exp = error $ "Don't know how to set the name "++(show name')++" for "++(show exp)
+setName name' exp = error $ "Don't know how to set the name "++ show name' ++ " for " ++ show exp
 
 
 -- SVec 3 (Tuple [SVec 5 (Scalar VDC DInt "sv_wet_s_0_in"),SVec 5 (Scalar VDC DFloat "sv_eta_s_0_in")])

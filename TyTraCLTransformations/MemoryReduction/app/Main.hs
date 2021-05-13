@@ -1,5 +1,7 @@
+{-# LANGUAGE ScopedTypeVariables #-}
+{- HLINT "ignore Use when" -}
 module Main where
-
+import Control.Monad ( when )
 import TyTraCLAST 
 import ASTInstance (ast,functionSignaturesList)
 import Transforms (splitLhsTuples, substituteVectors, applyRewriteRules, fuseStencils, decomposeExpressions)
@@ -17,10 +19,14 @@ stage
     | noStencilRewrites = DecomposeExpressions
     | otherwise = DecomposeExpressions
 
+ast1 :: TyTraCLAST
 ast1 = splitLhsTuples ast
+ast2 :: TyTraCLAST
 ast2 = substituteVectors ast1
-(ast3, (_,idSigList)) = applyRewriteRules ast2
+(ast3 :: TyTraCLAST, (_,idSigList)) = applyRewriteRules ast2
+ast3' :: TyTraCLAST
 ast3' = fuseStencils ast3
+ast4 :: [TyTraCLAST]
 ast4 = decomposeExpressions ast1 ast3' 
 
 asts  -- = ast4
@@ -39,7 +45,7 @@ generatedFortranCode = generateFortranCode asts functionSignaturesList idSigList
 main = do
     if info 
         then
-          do
+            do
             putStrLn "-- Original AST"
             mapM_ print ast
             putStrLn "\n-- Split LHS tuples"
@@ -55,12 +61,10 @@ main = do
             mapM_ print functionSignaturesList
             putStrLn "-- Decomposed expressions and infered function signatures"
             mapM_ ( \((x1,x2),ct) -> do
-                if noStencilRewrites then do
-                    putStrLn $ "-- stage_kernel_" ++ (show ct)
-                    else return ()
+                if noStencilRewrites  then putStrLn $ "-- stage_kernel_" ++ show ct else return ()
                 putStrLn $ "-- " ++ (show . LHSPrint . fst . head) x1
                 putStrLn "-- Decomposed expressions"
-                mapM print x1   
+                mapM_ print x1   
                 putStrLn "-- Infered function signatures"
                 mapM print x2
                 ) (zip (zip ast4 inferedSignatures) [1..])

@@ -306,6 +306,7 @@ sub emit_TyTraCL {
       scalar @{$main_rec->{'InArgs'}} > 1 ? '(' . join(',', @{$main_rec->{'InArgs'}}) . ')' : $main_rec->{'InArgs'}->[0];
     my $main_out_args_str =
       scalar @{$main_rec->{'OutArgs'}} > 1 ? '(' . join(',', @{$main_rec->{'OutArgs'}}) . ')' : $main_rec->{'OutArgs'}->[0];
+
     unshift @tytracl_strs_indent, '  let';
     unshift @tytracl_strs_indent, "main $main_in_args_str =";
     unshift @tytracl_strs_indent, "main :: $in_arg_ftypes_str -> $out_arg_ftypes_str";
@@ -322,9 +323,8 @@ sub emit_TyTraCL {
     }
     @tytracl_strs_indent = (@in_arg_type_decls, '', @out_arg_type_decls, '', @tytracl_strs_indent);
     my $tytracl_str = join("\n", @tytracl_strs_indent);
-
+    # $stref->{'TyTraCL_CodeLines'} = \@tytracl_strs_indent; 
     $stref->{'TyTraCL_Code'} = $tytracl_str;
-
     return $stref;
 }    # END of emit_TyTraCL()
 

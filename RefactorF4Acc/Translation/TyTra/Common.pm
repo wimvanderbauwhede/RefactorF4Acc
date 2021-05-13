@@ -300,7 +300,7 @@ $stref = mkAST(
 =cut    
 
 sub mkAST {
-    (my $lines, my $decls) = @_;
+    my ($lines, $decls,$comment) = @_;
     my $stref = {};
     $stref->{'EmitAST'}     = 'TyTraCL_AST';
     $stref->{'TyTraCL_AST'} = {
@@ -311,6 +311,7 @@ sub mkAST {
         'Portions'     => {},
         'Main'         => {},
         'MainFunction' => 'main',
+        'Comment'      => $comment
     };
     my @funcs = ();
     my %vecs  = ();
@@ -390,8 +391,9 @@ sub mkAST {
         $args->{$n} = $decls->{$n}[-1];
     }
     
-
+    # WV 2021-05-13 I don;t understand why I wipe the record here.
     $stref->{'TyTraCL_AST'}             = {};
+    $stref->{'TyTraCL_AST'}{'Comment'}    = $comment;
     $stref->{'TyTraCL_AST'}{'Lines'}    = $lines;
     $stref->{'TyTraCL_AST'}{'OrigArgs'} = $args;
     $stref->{'TyTraCL_AST'}{'UniqueVarCounters'} = {%vecs, %accs};

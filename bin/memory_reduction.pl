@@ -88,7 +88,7 @@ if (!$test && $scalarise) {
             my $rf4a_scalarize_cfg =  create_rf4a_cfg_scalarise($kernel_src,$kernel_sub_name, $kernel_module_name);  
             say "CFG: ".Dumper($rf4a_scalarize_cfg) if $V;
             my $args = {'P' => 'rename_array_accesses_to_scalars','c' => $rf4a_scalarize_cfg,
-            'w'=>$W,'i'=>$I,'d'=>$DBG};
+            'w'=>$W,'i'=>$I,'d'=>$DBG };
 	        $stref = main($args);
         }
     } else {
@@ -99,7 +99,7 @@ if (!$test && $scalarise) {
 
 # Generate TyTraIR main routine
 if ($gen_main) {
-    say "GENERATING TyTraIR main routine" if $V;
+    say "GENERATING TyTraCL AST Instance for main routine" if $V;
     my @kernel_srcs = glob("module_*_superkernel.f95"); 
 
     if (scalar @kernel_srcs == 1 or $test) {
@@ -141,9 +141,9 @@ if ($gen_main) {
             if (! -d './src/') {
                 die "Make sure the src subdirectory exists!\n";
             }
-            $stref = main({'P' => 'memory_reduction', 'c' => {'TEST'=>$test}, 'o'  => './src/ASTInstance.hs'}
-            ,'w'=>$W,'i'=>$I,'d'=>$DBG
-            );
+            my $args = {'P' => 'memory_reduction', 'c' => {'TEST'=>$test}, 'o'  => './src/ASTInstance.hs'
+            ,'w'=>$W,'i'=>$I,'d'=>$DBG};
+            $stref = main($args);
         }
     } else {
         die "No kernel sources found";
