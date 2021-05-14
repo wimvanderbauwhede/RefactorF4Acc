@@ -4,7 +4,7 @@ module TyTraCLAST where
 import Data.Generics (Data, Typeable)
 import Data.List (intercalate)
 
-noStencilRewrites = False -- FIXME: hangs when set to True, I need a different halting condition for the rewrite rules!
+noStencilRewrites = True -- FIXME: hangs when set to True, I need a different halting condition for the rewrite rules!
 
 type Name = String
 type Size = Int
@@ -27,7 +27,6 @@ instance Show FName where
   show (Single nm) = nm
   show (Composite nms) = 
     intercalate ", " (map show nms)
-    --"[" ++( intercalate ", " (map show nms))++"]"
 
 data FIntent = In | Out | InOut | Unknown | NA
   deriving (Show, Ord, Typeable, Data, Eq)
@@ -46,6 +45,8 @@ data FDecl = MkFDecl {
   val :: String 
   }
  deriving (Ord, Typeable, Data, Eq)
+
+errorDecl = MkFDecl "ERROR" Nothing Nothing []
 
 instance Show FDecl where  
   show (MkFDecl ftype mdim intent names ) = let

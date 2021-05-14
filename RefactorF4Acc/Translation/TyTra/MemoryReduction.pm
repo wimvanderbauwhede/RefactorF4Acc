@@ -262,6 +262,27 @@ mkMap('sor',[],[['p','4','s']],[['p','4','']]),
         ,$comment
 );
 }
+elsif ($TEST==10) {
+    # like TEST 8 but no zip on the stencil
+    # stencil map map 
+$stref = mkAST(
+        [
+            mkStencilDef(1,[-1,0,1]),
+            mkStencilAppl(1,3,['etan',0,'']=>['etan',0,'s']),
+            mkMap( "shapiro_map_16" => [] => [ ["etan",0,'s']] => [ ['eta',0,''] ]),
+            mkMap ( "update_map_24" => [] => [ ["wet",0,''],["eta",0,''],["un",0,'']  ] => [ ["h",0,''],["u",0,''],["wet",1,'']] )
+      ],
+        {
+            'wet' => ['int',[1,500], 'inout'] ,
+            'etan' => ['real',[1,500], 'in'] ,
+            'eta'=> ['real',[1,500], 'local'] ,
+            'un'=> ['real',[1,500], 'in'] ,
+            'u'=> ['real',[1,500], 'out'] ,
+            'h'=> ['real',[1,500], 'out'] ,
+        }
+        ,$comment
+);
+}
 
 
 

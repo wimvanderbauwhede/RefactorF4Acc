@@ -8,6 +8,7 @@ import Control.Monad.State
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import Data.List (intercalate, nub, partition, zip4, maximum)
+import Data.Bifunctor ( bimap, second )
 
 import TyTraCLAST
 import ASTInstance (functionSignaturesList, stencilDefinitionsList, mainArgDeclsList, origNamesList, scalarisedArgsList)
@@ -25,7 +26,7 @@ generateFortranCode decomposed_ast functionSignaturesList idSigList =
         generatedFunctionDefs = generateDefs functionSignatures asts_function_defs
         -- generatedStageKernels = map (\(ast,ct) -> (generateStageKernel functionSignatures) ct ast) (zip ast_stages [1..])
         mainProgramStr
-            | genMain = "! AST STAGES:\n"++(unlines $ map (\st -> "! " ++ (show st)) ast_stages) ++"\n"++ (generateMainProgram functionSignatures ast_stages)
+            | genMain = "! AST STAGES:\n"++unlines (map (\st -> "! " ++ (show st)) ast_stages) ++"\n"++ generateMainProgram functionSignatures ast_stages
             | otherwise = "! Main code not generated"
         generatedOpaqueFunctionDefsStr = unlines generatedOpaqueFunctionDefs
         -- putStrLn "\n! Generate subroutine definitions"
@@ -58,7 +59,7 @@ stencilDefinitions :: Map.Map Name [Integer]
 stencilDefinitions  =  Map.fromList stencilDefinitionsList
 
 origNames :: Map.Map Name (Map.Map Name [(Name, FIntent)])
-origNames = Map.fromList $ map (\(k,v)-> (k, Map.fromList v)) origNamesList
+origNames = Map.fromList $ map (second Map.fromList) origNamesList
 
 scalarisedArgs :: Map.Map Name [(Name,(Integer, FIntent, Name))]
 scalarisedArgs = Map.fromList scalarisedArgsList
@@ -80,7 +81,7 @@ Step 1. Derive the intermediate function signatures
 inferSignaturesMap :: Map.Map Name FSig -> TyTraCLAST -> Map.Map Name FSig
 inferSignaturesMap = foldl inferSignature
 
-inferSignature ::  (Map.Map Name FSig) -> (Expr,Expr) -> Map.Map Name FSig
+inferSignature ::  Map.Map Name FSig -> (Expr,Expr) -> Map.Map Name FSig
 inferSignature functionSignatures ast_tup =
     let
         (lhs,rhs) = ast_tup
@@ -92,7 +93,7 @@ inferSignature functionSignatures ast_tup =
             Just fsig -> Map.insert fname fsig functionSignatures
             Nothing -> functionSignatures
 
-getFunctionSignature :: Expr ->  (Map.Map Name FSig) -> FSig
+getFunctionSignature :: Expr ->  Map.Map Name FSig -> FSig
 getFunctionSignature rhs functionSignatures =
         case rhs of
             MapS (SVec sv_sz _ ) (Function fname _) -> deriveSigMaps sv_sz fname functionSignatures
@@ -104,7 +105,7 @@ getFunctionSignature rhs functionSignatures =
 {-
 maps :: SVec sz a -> c->a->b -> c->SVec sz a -> SVec sz b
 -}
-deriveSigMaps :: Int -> Name -> (Map.Map Name FSig) -> FSig
+deriveSigMaps :: Int -> Name -> Map.Map Name FSig -> FSig
 deriveSigMaps sv_sz fname functionSignatures =
     let
         fsig = functionSignatures ! fname
@@ -126,7 +127,7 @@ deriveSigMaps sv_sz fname functionSignatures =
         --             [nms,as,ms',os']    
 
 -- comp :: (b->c) -> (a->b) -> a -> c
-deriveSigComp :: Name -> Name -> (Map.Map Name FSig) -> FSig
+deriveSigComp :: Name -> Name -> Map.Map Name FSig -> FSig
 deriveSigComp fname1 fname2 functionSignatures =
     let
         fsig1 =  functionSignatures ! fname1
@@ -138,7 +139,7 @@ deriveSigComp fname1 fname2 functionSignatures =
     in
         [nms,ms',os']
 -- fcomp :: (c->b->c) -> (a->b) -> c -> a -> c
-deriveSigFComp :: Name -> Name -> (Map.Map Name FSig) -> FSig
+deriveSigFComp :: Name -> Name -> Map.Map Name FSig -> FSig
 deriveSigFComp fname1 fname2 functionSignatures =
     let
         fsig1 =  functionSignatures ! fname1
@@ -150,7 +151,7 @@ deriveSigFComp fname1 fname2 functionSignatures =
     in
         [nms,as,ms',os']
 -- elt :: (i::Int) -> (..., a_i, ...) -> a_i
-deriveSigPELt :: Int -> Name -> (Map.Map Name FSig) -> FSig
+deriveSigPELt :: Int -> Name -> Map.Map Name FSig -> FSig
 deriveSigPELt idx fname functionSignatures =
     let
         fsig =  functionSignatures ! fname
@@ -172,7 +173,7 @@ deriveSigPELt idx fname functionSignatures =
 -- The signature of the derived function should be grouped   
 -- ApplyT simply applies a number of functions to a number of elements in a tuple
 -- So the signature is the combination of all signatures
-deriveSigApplyT :: [Expr] -> (Map.Map Name FSig) -> FSig
+deriveSigApplyT :: [Expr] -> Map.Map Name FSig -> FSig
 deriveSigApplyT fs functionSignatures =
     let
         fsigs = getFSigs fs functionSignatures
@@ -192,7 +193,7 @@ This means stencils, map and fold calls, vector and tuple assignments
 -}
 -- A tuple, fst elt is a list of declarations, snd elt is a list of statements
 -- The statements can only be Stencil, Map or Fold
-generateNonSubDefs :: (Map.Map Name FSig) -> TyTraCLAST -> ([FDecl],[String],[String])
+generateNonSubDefs :: Map.Map Name FSig -> TyTraCLAST -> ([FDecl],[String],[String])
 generateNonSubDefs functionSignatures ast =
     let
         (stmts, decl_lines,decls) = foldl (
@@ -207,7 +208,7 @@ generateNonSubDefs functionSignatures ast =
         (unique_decls, unique_decl_lines, stmts)
 
 -- Returns a string with the statement and a list of decl strings
-generateNonSubDef :: (Map.Map Name FSig) -> (Expr, Expr) -> (String,[String],[FDecl])
+generateNonSubDef :: Map.Map Name FSig -> (Expr, Expr) -> (String,[String],[FDecl])
 generateNonSubDef functionSignatures t  =
     let
         (lhs,rhs) = t
@@ -218,10 +219,12 @@ generateNonSubDef functionSignatures t  =
             Stencil s_exp v_exp -> generateStencilAppl s_exp v_exp v_name stencilDefinitions
             Map f_exp v_exp -> generateMap functionSignatures f_exp v_exp t
             UnzipT (Map f_exp v_exp) -> generateMap functionSignatures f_exp v_exp t
-            Vec _ (Scalar _ _ _) -> generateVecAssign lhs rhs
+            Vec _ (Scalar {}) -> generateVecAssign lhs rhs
+            -- Elt idx vec@(Vec _ (Scalar {})) -> generateVecAssign lhs vec -- FIXME
             Fold f_exp acc_exp v_exp -> generateFold functionSignatures f_exp acc_exp v_exp t
             _ -> error $ show t -- (show rhs, ["generateNonSubDef: TODO: "++(show t)])
-
+            --TODO: unhandled case: 
+            -- Elt idx vec@(Vec _ (Scalar {}))
 -- ----------------------------------------------------------------------------------------
 -- ---------------------------------------------------------------------------------------- 
 {-
@@ -239,7 +242,7 @@ Step 3. Generate the Fortran definitions for the intermediate functions
 opaqueFunctionExprs = map (\(fname, _) -> (Function fname [], Id fname [] )) functionSignaturesList
 generatedOpaqueFunctionDefs = map (\elt -> fst $ generateSubDef functionSignatures elt []) opaqueFunctionExprs
 
-generateDefs :: (Map.Map Name FSig) -> TyTraCLAST -> [String] -- 
+generateDefs :: Map.Map Name FSig -> TyTraCLAST -> [String] -- 
 generateDefs  functionSignatures ast =
         fst $ foldl (
             \(lst,st) elt ->  let
@@ -248,7 +251,7 @@ generateDefs  functionSignatures ast =
                 (lst++[elt'],st')
                 ) ([],[]) ast
 
-generateSubDef :: (Map.Map Name FSig) -> (Expr, Expr) -> [String] -> (String,[String])
+generateSubDef :: Map.Map Name FSig -> (Expr, Expr) -> [String] -> (String,[String])
 generateSubDef functionSignatures t st =
     let
         (lhs,rhs) = t
@@ -267,18 +270,18 @@ generateSubDef functionSignatures t st =
 createCallArg :: Name -> Name -> Integer -> Name
 createCallArg fname orig_name stencil_index =
     let
-        actual_arg_name = if length ( (origNames ! fname) ! orig_name) > 0
+        actual_arg_name = if not (null ( (origNames ! fname) ! orig_name))
             then
-                fst $ head ( (origNames ! fname) ! orig_name)
+                fst $ head ( origNames ! fname ! orig_name)
             else
-                 error $ (show (origNames ! fname)) ++ "; "++ orig_name
+                 error $ show (origNames ! fname) ++ "; "++ orig_name
     in
-        actual_arg_name ++ (if stencil_index==0 then "" else "("++(show stencil_index)++")")
+        actual_arg_name ++ (if stencil_index==0 then "" else "("++show stencil_index++")")
 
 
 handleInOutArg fname orig_name ftype stencil_index = let
-    actual_arg_names = (origNames ! fname) ! orig_name
-    actual_in_arg_name = if length (filter (\(n,i) -> i==In) actual_arg_names) > 0
+    actual_arg_names = origNames ! fname ! orig_name
+    actual_in_arg_name = if not (not (any (\(n,i) -> i==In) actual_arg_names))
         then
             Just $ fst $ head $ filter (\(n,i) -> i==In) actual_arg_names
         else
@@ -288,7 +291,7 @@ handleInOutArg fname orig_name ftype stencil_index = let
             -- error $ show actual_arg_names  
 
     -- actual_out_arg_name = fst $ head $ filter (\(n,i) -> i==Out) actual_arg_names
-    actual_out_arg_name = if length (filter (\(n,i) -> i==Out) actual_arg_names) > 0
+    actual_out_arg_name = if not (null (filter (\(n,i) -> i==Out) actual_arg_names))
         then
             Just $ fst $ head $ filter (\(n,i) -> i==Out) actual_arg_names
         else
@@ -299,7 +302,7 @@ handleInOutArg fname orig_name ftype stencil_index = let
     -- The args are per definition scalar and we only need this for temporary variables
     orig_arg_decl_str =  "    "++ftype++" :: "++orig_name
     pre_call_assignment_str = case actual_in_arg_name of
-        Just actual_in_arg_name -> "    "++orig_name++" = "++actual_in_arg_name++ (if stencil_index==0 then "" else "("++(show stencil_index)++")")
+        Just actual_in_arg_name -> "    "++orig_name++" = "++actual_in_arg_name++ (if stencil_index==0 then "" else "("++show stencil_index++")")
         Nothing -> ""
     post_call_assignment_str = case actual_out_arg_name of
         Just actual_out_arg_name -> "    "++actual_out_arg_name++" = "++orig_name
@@ -352,7 +355,7 @@ generateSubDefOpaque fname functionSignatures =
                         out_args = getVarNames os
                     in
                         unlines $ [
-                             "subroutine "++fname++"("  ++(mkArgList [non_map_args,in_args,out_args])++")"
+                             "subroutine "++fname++"("  ++mkArgList [non_map_args,in_args,out_args]++")"
                             , mkDeclLines [non_map_arg_decls,in_arg_decls,out_arg_decls]
                         ] ++
                         opaque_function_code_strs
@@ -372,7 +375,7 @@ generateSubDefOpaque fname functionSignatures =
                     in
                         -- error $ "TODO:" ++
                         unlines ( [
-                             "subroutine "++fname++"("  ++(mkArgList [non_map_args,acc_args,in_args,out_args])++")"
+                             "subroutine "++fname++"("  ++mkArgList [non_map_args,acc_args,in_args,out_args]++")"
                             , mkDeclLines [non_map_arg_decls,acc_arg_decls,in_arg_decls,out_arg_decls]
                             ] ++
                             opaque_function_code_strs
@@ -380,7 +383,7 @@ generateSubDefOpaque fname functionSignatures =
                             "end subroutine "++fname
                             ])
 
-generateSubDefMapS :: Expr -> Expr -> Name -> (Map.Map Name FSig) -> String
+generateSubDefMapS :: Expr -> Expr -> Name -> Map.Map Name FSig -> String
 generateSubDefMapS sv_exp f_exp maps_fname functionSignatures =
     let
         SVec sv_sz _ = sv_exp
@@ -395,21 +398,21 @@ generateSubDefMapS sv_exp f_exp maps_fname functionSignatures =
 
         sv_in_iters = createIter in_argtfn
         sv_out_iters = createIter out_argtfn
-        sv_in_accesses = map (\(x,y)-> x++y) $ zip sv_in sv_in_iters
-        sv_out_accesses = map (\(x,y)-> x++y) $ zip sv_out sv_out_iters
+        sv_in_accesses = zipWith (curry (\(x,y)-> x++y)) sv_in sv_in_iters
+        sv_out_accesses = zipWith (curry (\(x,y)-> x++y)) sv_out sv_out_iters
     in unlines [
-        "subroutine "++maps_fname++"("  ++(mkArgList [non_map_args,sv_in,sv_out])++")"
+        "subroutine "++maps_fname++"("  ++mkArgList [non_map_args,sv_in,sv_out]++")"
         , mkDeclLines [non_map_arg_decls,sv_in_decl,sv_out_decl]
         ,"    integer :: i"
-        ,"    do i=1,"++ (show sv_sz )
+        ,"    do i=1,"++ show sv_sz
         ,"        call "++fname++"("++
-        (mkArgList [non_map_args,sv_in_accesses,sv_out_accesses])
+        mkArgList [non_map_args,sv_in_accesses,sv_out_accesses]
         ++")"
         ,"    end do"
         ,"end subroutine "++maps_fname
     ]
 
-generateSubDefApplyT :: [Expr]  -> Name -> (Map.Map Name FSig) -> String
+generateSubDefApplyT :: [Expr]  -> Name -> Map.Map Name FSig -> String
 generateSubDefApplyT f_exps applyt_fname functionSignatures =
     let
         applyt_fsig = functionSignatures ! applyt_fname
@@ -431,12 +434,12 @@ generateSubDefApplyT f_exps applyt_fname functionSignatures =
     in unlines $ concat [
             -- ["! APPLYT: FLATTENED, NUBBED: \n! " ++(show nmstfn)++"\n! "++(show in_argtfn)++"\n! "++(show out_argtfn)], 
             [
-            "subroutine "++applyt_fname++"("  ++(mkArgList [non_map_args'',in_args'',out_args''])++")"
+            "subroutine "++applyt_fname++"("  ++mkArgList [non_map_args'',in_args'',out_args'']++")"
             , mkDeclLines [non_map_arg_decls,in_arg_decls,out_arg_decls]
             ]
             , map (\(f_expr,nms,ms,os) -> case f_expr of
-                    Function fname _ -> "    call "++fname++"(" ++(mkArgList [nms,ms,os]) ++")"
-                    Id fname dt -> unlines $ map (\(o,m) -> "    "++o++" = "++m) (zip os ms)
+                    Function fname _ -> "    call "++fname++"(" ++mkArgList [nms,ms,os] ++")"
+                    Id fname dt -> unlines $ zipWith (curry (\(o,m) -> "    "++o++" = "++m)) os ms
                     ) fsig_names_tups
             ,["end subroutine "++applyt_fname]
         ]
@@ -445,7 +448,7 @@ generateSubDefApplyT f_exps applyt_fname functionSignatures =
 -- nms are joint
 -- ms is for f2
 -- os is for f1
-generateSubDefComp :: Expr -> Expr -> Name -> (Map.Map Name FSig) -> String
+generateSubDefComp :: Expr -> Expr -> Name -> Map.Map Name FSig -> String
 generateSubDefComp f1_exp f2_exp comp_fname functionSignatures =
     let
         Function fname1 _ = f1_exp
@@ -465,10 +468,10 @@ generateSubDefComp f1_exp f2_exp comp_fname functionSignatures =
         tmp_args = getVarNames ms1
 
     in unlines [
-            "subroutine "++comp_fname++"("  ++(mkArgList [non_map_args'',in_args'',out_args''])++")"
+            "subroutine "++comp_fname++"("  ++mkArgList [non_map_args'',in_args'',out_args'']++")"
             , mkDeclLines [non_map_arg_decls,in_arg_decls,out_arg_decls,local_var_decls]
-            , "    call "++fname2++"(" ++(mkArgList [non_map_args2,in_args'',tmp_args]) ++")"
-            , "    call "++fname1++"(" ++(mkArgList [non_map_args1,tmp_args,out_args'']) ++")"
+            , "    call "++fname2++"(" ++mkArgList [non_map_args2,in_args'',tmp_args] ++")"
+            , "    call "++fname1++"(" ++mkArgList [non_map_args1,tmp_args,out_args''] ++")"
             ,"end subroutine "++comp_fname
         ]
 
@@ -479,7 +482,7 @@ generateSubDefComp f1_exp f2_exp comp_fname functionSignatures =
 -- ms is for f2
 -- os is for f1
 -- acc is retained from f1; there is no os
-generateSubDefFComp :: Expr -> Expr -> Name -> (Map.Map Name FSig) -> String
+generateSubDefFComp :: Expr -> Expr -> Name -> Map.Map Name FSig -> String
 generateSubDefFComp f1_exp f2_exp fcomp_fname functionSignatures =
     let
         Function fname1 _ = f1_exp
@@ -500,10 +503,10 @@ generateSubDefFComp f1_exp f2_exp fcomp_fname functionSignatures =
 
     in unlines [
             "! TO BE CHECKED!",
-            "subroutine "++fcomp_fname++"("  ++(mkArgList [non_map_args'',acc_args'',in_args'',out_args''])++")"
+            "subroutine "++fcomp_fname++"("  ++mkArgList [non_map_args'',acc_args'',in_args'',out_args'']++")"
             , mkDeclLines [non_map_arg_decls,acc_arg_decls,in_arg_decls,out_arg_decls,local_var_decls]
-            , "    call "++fname2++"(" ++(mkArgList [non_map_args2,in_args'',tmp_args]) ++")"
-            , "    call "++fname1++"(" ++(mkArgList [non_map_args1,acc_args'',tmp_args,out_args'']) ++")"
+            , "    call "++fname2++"(" ++mkArgList [non_map_args2,in_args'',tmp_args] ++")"
+            , "    call "++fname1++"(" ++mkArgList [non_map_args1,acc_args'',tmp_args,out_args''] ++")"
             ,"end subroutine "++fcomp_fname
         ]
 
@@ -521,9 +524,9 @@ generateSubDefElt idx f_exp felt_name functionSignatures =
     in
         unlines [
             -- ("! ELT: FLATTENED, NUBBED: \n! " ++(show nms)++"\n! "++(show in_arg)++"\n! "++(show out_arg)) ,
-            "subroutine "++felt_name++"("  ++(mkArgList [non_map_args,in_args,[sel_out_arg]])++")"
+            "subroutine "++felt_name++"("  ++mkArgList [non_map_args,in_args,[sel_out_arg]]++")"
             , mkDeclLines [non_map_arg_decls,in_args_decl,out_args_decl]
-            , "    call "++fname++"(" ++(mkArgList [non_map_args,in_args,out_args]) ++")"
+            , "    call "++fname++"(" ++mkArgList [non_map_args,in_args,out_args] ++")"
             ,"end subroutine "++felt_name
         ]
 
@@ -555,7 +558,7 @@ rewriteDTRec dt dt'
 -- The result is that Tuple is always on the outside and SVec is nested 
 rewriteDT' :: Expr -> Expr
 rewriteDT' dt = case dt of
-    SVec sz (Tuple dts) ->  Tuple (map (\dt -> SVec sz (rewriteDT' dt)) dts)
+    SVec sz (Tuple dts) ->  Tuple (map (SVec sz . rewriteDT') dts)
     SVec sz (SVec sz2 dt2) ->  SVec sz (rewriteDT' (SVec sz2 dt2))
     SVec sz dt2 ->  dt
     Tuple dts -> Tuple $ concatMap (\dt -> case dt of
@@ -564,7 +567,7 @@ rewriteDT' dt = case dt of
                         Vec sz2 dt2 -> [ rewriteDT' (Vec sz2 dt2)]
                         dt' -> [ dt']
                         ) dts
-    Vec sz (Tuple dts)  -> Tuple (map (\dt -> Vec sz (rewriteDT' dt)) dts)
+    Vec sz (Tuple dts)  -> Tuple (map (Vec sz . rewriteDT') dts)
     ZipT dts -> ZipT $ concatMap (\dt -> case dt of
         Tuple dts -> map rewriteDT' dts
         SVec sz2 dt2 -> [ rewriteDT' (SVec sz2 dt2)]
@@ -582,16 +585,16 @@ createIter (SVec sz dt) = let
             -- we know this can only be either nested DSVec or terminal
             SVec _ _  ->  let
                     (szs,_) = getSzFromSVec dt []
-                    colons = map (\_->":") szs
+                    colons = map (const ":") szs
                 in
-                    ["("++(commaSepList ("i":colons)) ++")"]
+                    ["("++commaSepList ("i":colons) ++")"]
             -- we know this has no tuples inside it  
             -- It means that if vn is Composite (and it should be!), we can zip the names with dts
             Tuple dts -> let
                         Composite vns = vn
                     in createIter (
                             Tuple (
-                                map (\(vn',dt) -> SVec sz (setName vn' dt)) (zip vns dts)
+                                zipWith (curry (\(vn',dt) -> SVec sz (setName vn' dt))) vns dts
                                 )
                             )
             dt -> ["(i)"]
@@ -615,7 +618,7 @@ createIODecls intent (SVec sz dt)  = let
                 in
                     createIODecls intent (
                         Tuple (
-                            map (\(vn',dt) -> SVec sz (setName vn' dt)) (zip vns dts)
+                            zipWith (curry (\(vn',dt) -> SVec sz (setName vn' dt))) vns dts
                             )
                     )
             dt -> let
@@ -637,23 +640,23 @@ createDecls (SVec sz dt) = let
                     (szs,dt') = getSzFromSVec dt []
                     Single vn' = vn
                 in
-                    [(fortranType dt')++", dimension("++(commaSepList (map show (sz:szs)))++") :: "++ vn']
+                    [fortranType dt'++", dimension("++commaSepList (map show (sz:szs))++") :: "++ vn']
             -- we know this has no tuples inside it                
             Tuple dts -> let
                      Composite vns = vn
                 in
                     createDecls (
                         Tuple (
-                            map (\(vn',dt) -> SVec sz (setName vn' dt)) (zip vns dts)
+                            zipWith (curry (\(vn',dt) -> SVec sz (setName vn' dt))) vns dts
                             )
                     )
             dt -> let
                         Single vn' = vn
                 in
-                    [(fortranType dt)++", dimension("++(show sz)++") :: "++ vn']
+                    [fortranType dt++", dimension("++show sz++") :: "++ vn']
 
 createDecls (Scalar _ DDC vn) =  error "DDC!"
-createDecls sdt@(Scalar _ dt vn) = [(fortranType sdt)++" :: "++vn]
+createDecls sdt@(Scalar _ dt vn) = [fortranType sdt++" :: "++vn]
 createDecls (Tuple es) = concatMap createDecls es
 
 getVarNames :: Expr -> [String]
@@ -668,13 +671,13 @@ getSzFromSVec (SVec sz dt) szs = getSzFromSVec dt (szs++[sz])
 getSzFromSVec dt szs = (szs,dt)
 
 mkArgList :: [[String]] -> String
-mkArgList  = commaSepList . concat
+mkArgList  = commaSepList . nub . concat
 
 commaSepList :: [String] -> String
 commaSepList = intercalate ", "
 
 mkDeclLines :: [[String]] -> String
-mkDeclLines  = unlines . (map ("    "++)) . concat
+mkDeclLines  = unlines . map ("    "++) . concat
 
 generateStencilAppl :: Expr -> Expr -> FName -> Map.Map Name [Integer]  -> (String,[String],[FDecl])
 generateStencilAppl s_exp v_exp@(Vec _ dt) sv_name stencilDefinitions =
@@ -687,8 +690,8 @@ generateStencilAppl s_exp v_exp@(Vec _ dt) sv_name stencilDefinitions =
             | otherwise = []
         (s_names,s_defs,sv_szs) = generateStencilDef' s_exp stencilDefinitions
         -- instead of generating new stencils we can also recompute, simply
-        stencil_accesses = intercalate "+" (map (\(s_name,ct)-> s_name++"(s_idx_"++(show ct)++")") $ zip s_names [1..])
-        lhs_idx_str =  commaSepList  $ map (\ct -> "s_idx_"++(show ct)) [1 .. length sv_szs]
+        stencil_accesses = intercalate "+" (zipWith (curry (\(s_name,ct)-> s_name++"(s_idx_"++(show ct)++")")) s_names [1..])
+        lhs_idx_str =  commaSepList  $ map (\ct -> "s_idx_"++show ct) [1 .. length sv_szs]
         decls = concat [
                 map (\(s_name, s_def, sv_sz) -> MkFParamDecl "integer" (Just [sv_sz]) s_name (show s_def)) (zip3 s_names s_defs sv_szs),
                 [
@@ -696,33 +699,34 @@ generateStencilAppl s_exp v_exp@(Vec _ dt) sv_name stencilDefinitions =
                         Single sv_name' -> MkFDecl sv_type (Just sv_szs) Nothing [sv_name']
                         Composite sv_names -> error $ show $ MkFDecl sv_type (Just sv_szs) Nothing (map show sv_names)
                 ],
-                map (\ct -> MkFDecl "integer" Nothing Nothing ["s_idx_"++(show ct)] ) [1 .. length sv_szs]
+                map (\ct -> MkFDecl "integer" Nothing Nothing ["s_idx_"++show ct] ) [1 .. length sv_szs]
             ]
         decl_lines =
-            (map (\(s_name, s_def, sv_sz) -> ("integer, parameter, dimension("++(show sv_sz)++") :: "++s_name++" = "++(show s_def))) (zip3 s_names s_defs sv_szs))++
+            map (\(s_name, s_def, sv_sz) -> ("integer, parameter, dimension("++(show sv_sz)++") :: "++s_name++" = "++(show s_def))) (zip3 s_names s_defs sv_szs)++
             [
             -- if the $sv_type is DDC, it means we need to lookup the type from the definition, which will likely be a zip            
                 case sv_name of
-                    Single sv_name' -> sv_type++", dimension("++(commaSepList $ map show sv_szs)++") :: "++sv_name'
-                    Composite sv_names -> error $ sv_type++", dimension("++(commaSepList $ map show sv_szs)++") :: "++(show sv_names)
-            ]++(map (\ct -> "integer :: s_idx_"++(show ct) ) [1 .. length sv_szs]   )
+                    Single sv_name' -> sv_type++", dimension("++commaSepList (map show sv_szs)++") :: "++sv_name'
+                    Composite sv_names -> error $ sv_type++", dimension("++commaSepList (map show sv_szs)++") :: "++show sv_names
+            ]++map (\ct -> "integer :: s_idx_"++(show ct) ) [1 .. length sv_szs]
     in
         (unlines $ concat [
             ["! Stencil "++ show (getName s_exp)],
-            map (\(sv_sz,ct) -> "    do s_idx_"++(show ct)++" = 1,"++(show sv_sz)) (zip sv_szs [1..]),
+            zipWith (curry (\(sv_sz,ct) -> "    do s_idx_"++(show ct)++" = 1,"++(show sv_sz))) sv_szs [1..],
             [
              "        "++lhs_v_name++"("++lhs_idx_str++") = "++v_name++"(idx+"++stencil_accesses++")"
              ],
             replicate (length sv_szs) "    end do"
           ]
         ,decl_lines,decls++extra_in_var_decls)
+
 generateStencilAppl s_exp v_exp@(ZipT vs_exps') sv_name stencilDefinitions = let
         ZipT vs_exps = mkFinalVecs v_exp
         gen_stencils :: [String]
         -- [(String,[String])] -> ([String], [[String]])
         (gen_stencils,decl_lines,decls) = case sv_name of
-            Composite sv_names -> unzip3 $ map (\(v_exp,sv_name') -> generateStencilAppl s_exp v_exp sv_name' stencilDefinitions) (zip vs_exps sv_names)
-            Single sv_name' -> unzip3 $ map (\(v_exp,ct) -> generateStencilAppl s_exp v_exp (Single (sv_name'++"_"++(show ct))) stencilDefinitions) (zip vs_exps [0..]) -- SHOULD NOT OCCUR!            
+            Composite sv_names -> unzip3 $ zipWith (curry (\(v_exp,sv_name') -> generateStencilAppl s_exp v_exp sv_name' stencilDefinitions)) vs_exps sv_names
+            Single sv_name' -> unzip3 $ zipWith (curry (\(v_exp,ct) -> generateStencilAppl s_exp v_exp (Single (sv_name'++"_"++(show ct))) stencilDefinitions)) vs_exps [0..] -- SHOULD NOT OCCUR!            
         -- I want to "zip" them but it's a list of lists, so I need to round-robin over it
         gen_stencils_lines :: [[String]]
         gen_stencils_lines = map lines gen_stencils
@@ -779,7 +783,8 @@ generateMap functionSignatures f_exp v_exp t = -- (Single ov_name)
         Function fname nms_exps = f_exp
         (lhs,rhs) = t
         out_vars_lst = getName lhs
-        Map _ rhs_v_exp = rhs -- ZipT [Vec VI (Scalar VDC DFloat "va_0"),Vec VI (Scalar VDC DFloat "vc_0")]
+        -- Map _ rhs_v_exp = rhs -- ZipT [Vec VI (Scalar VDC DFloat "va_0"),Vec VI (Scalar VDC DFloat "vc_0")]
+        rhs_v_exp = getRhsExpr rhs
         -- rhs_v_exp = case rhs_v_exp' of
         --     ZipT _ -> error $ show rhs_v_exp' -- 
         --     _ -> rhs_v_exp'
@@ -790,14 +795,34 @@ generateMap functionSignatures f_exp v_exp t = -- (Single ov_name)
                                     else
                                         if noStencilRewrites
                                             then
+                                                -- ([ov_name''++"(idx)"],[getDeclFromExprByName ov_name'' lhs])
                                                 case lhs of
                                                     Vec VT _ ->  ([ov_name''++"(idx)"],  [exprToFDecl lhs])
                                                     _ -> ([ov_name''],[])
                                             else
                                                  ([ov_name''],[])
-            Composite ov_names -> error $ show lhs -- map (\(Single ov_name'') -> if Map.member ov_name'' mainArgDecls then  ov_name''++"(idx)" else  ov_name'') ov_names
+            Composite ov_names -> let
+                    Composite fl_ov_names = flattenNames (Composite ov_names)
+                in
+                    -- [([a],[b]] -> ([[a]],[[b]]) 
+                    bimap concat concat $
+                        unzip $ map (\(Single ov_name'') -> 
+                            if Map.member ov_name'' mainArgDecls 
+                                then  ([ov_name''++"(idx)"],[])
+                                else
+                                    if noStencilRewrites
+                                                then
+                                                    -- ([ov_name''++"(idx)"],[getDeclFromExprByName ov_name'' lhs])
+                                                    case lhs of
+                                                        Vec VT _ ->  ([ov_name''++"(idx)"],  [exprToFDecl lhs])
+                                                        _ -> ([ov_name''],[])
+                                                else
+                                                    ([ov_name''],[])  
+                                -- ov_name'') fl_ov_names,exprToFDecls lhs) -- map (\(Single ov_name'') -> 
+                                    ) fl_ov_names
+
         nms_vars_lst = nub $ map (show . getName) nms_exps
-        nms_decls = map exprToFDecl nms_exps
+        nms_decls = concatMap exprToFDecls nms_exps
         -- WV 2021-05-13
         -- The code below is a bit sloppy. 
         -- I think the TyTraCL we provide can be assumed to have been decomposed so that there are no nested maps etc
@@ -807,24 +832,26 @@ generateMap functionSignatures f_exp v_exp t = -- (Single ov_name)
             Single ov_name'' -> if Map.member ov_name'' mainArgDecls
                                     then ([ov_name''++"(idx)"] ,[])
                                     else
-                                        if noStencilRewrites
+                                        if noStencilRewrites -- means we need the temp arg decls too
                                             then
+                                                -- ([ov_name''++"(idx)"],[getDeclFromExprByName ov_name'' rhs_v_exp])
                                                 case rhs_v_exp of
-                                                    Vec VT _ ->  ([ov_name''++"(idx)"] , [exprToFDecl rhs_v_exp]) -- probably WRONG!
-                                                    _ ->  ([ov_name''],[]) -- probably WRONG!
+                                                    Vec VT _ ->  ([ov_name''++"(idx)"] , exprToFDecls rhs_v_exp)
+                                                    _ -> ([ov_name''],[]) -- Stencil vecs come here
                                             else
-                                                ([ov_name''],[])
+                                                ([ov_name''],[]) -- temp vars will be removed
             Composite ov_names -> let
                     Composite fl_ov_names = flattenNames (Composite ov_names)
-                in (\(x,y) -> (concat x, concat y)) $ -- [([],[])] -> ([[]],[[]])
+                in bimap concat concat $ -- [([],[])] -> ([[]],[[]])
                     unzip $ map (\(Single ov_name'') -> if Map.member ov_name'' mainArgDecls
-                        then  ([ov_name''++"(idx)"], [getDeclFromZipByName ov_name'' rhs_v_exp])
-                        else  
+                        then  ([ov_name''++"(idx)"], [getDeclFromExprByName ov_name'' rhs_v_exp])
+                        else
                             if noStencilRewrites
                                 then
+                                    -- ([ov_name''++"(idx)"],[getDeclFromExprByName ov_name'' rhs_v_exp])
                                     case rhs_v_exp of
-                                        ZipT _ -> ([ov_name''++"(idx)"],[getDeclFromZipByName ov_name'' rhs_v_exp])
-                                        _ -> ([ov_name''],[]) -- probably WRONG!
+                                        ZipT _ -> ([ov_name''++"(idx)"],[getDeclFromExprByName ov_name'' rhs_v_exp])
+                                        _ -> error $ show ov_name'' -- ([ov_name''],[]) -- probably WRONG!
                                 else
                                     ([ov_name''],[])
                         ) fl_ov_names
@@ -843,28 +870,31 @@ generateMap functionSignatures f_exp v_exp t = -- (Single ov_name)
             "" ]
         ,[],nms_decls++extra_in_var_decls++extra_out_var_decls)
 
-getDeclFromZipByName :: String -> Expr -> FDecl
-getDeclFromZipByName name (ZipT exprs) = let
-    -- ZipT [Vec VT (Scalar VDC DFloat "va_1"),Vec VT (Scalar VDC DFloat "vb_1")]
-        decls = map exprToFDecl exprs
-    in
-        head $ filter (\decl -> name == getNameFromDecl decl) decls
-getDeclFromZipByName name expr = exprToFDecl expr
+-- getDeclFromZipByName :: String -> Expr -> FDecl
+-- getDeclFromZipByName name (ZipT exprs) = let
+--     -- ZipT [Vec VT (Scalar VDC DFloat "va_1"),Vec VT (Scalar VDC DFloat "vb_1")]
+--         decls = map exprToFDecl exprs
+--     in
+--         head $ filter (\decl -> name == getNameFromDecl decl) decls
+-- getDeclFromZipByName name expr = exprToFDecl expr
 
-getDeclFromExprByName :: String -> Expr -> Maybe FDecl
+getDeclFromExprByName :: String -> Expr -> FDecl
 getDeclFromExprByName name expr = let
-        decls = exprToFDecls expr    
+        decls = exprToFDecls expr
         maybe_decl = filter (\decl -> name == getNameFromDecl decl) decls
     in
-        if null maybe_decl then Nothing else Just $ head maybe_decl
+        -- maybe_decl
+        if null maybe_decl then errorDecl else head maybe_decl
+        -- if null maybe_decl then Nothing else Just $ head maybe_decl
 
 exprToFDecls :: Expr -> [FDecl]
 exprToFDecls s_expr@(Scalar _ _ vname)  = [MkFDecl (fortranType s_expr) Nothing (Just In) [vname]]
 exprToFDecls sv_expr@(SVec sz (Scalar _ _ vname) ) = [MkFDecl (fortranType sv_expr) (Just [sz]) (Just In) [vname]]
 exprToFDecls (Vec _ s_expr@(Scalar _ _ vname))  = [MkFDecl (fortranType s_expr) (Just [vSz]) Nothing [vname]]
 exprToFDecls (Vec _ (SVec sz s_expr@(Scalar _ _ vname) ))  = [MkFDecl (fortranType s_expr) (Just [vSz]) Nothing [vname]]
-exprToFDecls (ZipT exprs) = map exprToFDecl exprs
-
+exprToFDecls (ZipT exprs) = concatMap exprToFDecls exprs
+-- Tuple [Vec VO (Scalar VDC DFloat "h_0"),Vec VO (Scalar VDC DFloat "u_0"),Vec VO (Scalar VDC DInt "wet_1")]
+exprToFDecls (Tuple exprs) = concatMap exprToFDecls exprs
 exprToFDecls expr = error $ show expr
 
 
@@ -896,7 +926,9 @@ generateFold functionSignatures f_exp acc_exp v_exp t =
                                     else (ov_name'',[])
             Composite ov_names -> error $ show $ map (\(Single ov_name'') -> if Map.member ov_name'' mainArgDecls then  ov_name''++"(idx)" else  ov_name'') ov_names
         nms_vars_lst =  nub $ map (show . getName) nms_exps
-        nms_decls = map exprToFDecl nms_exps
+        nms_decls 
+            | foldl (\acc exp -> acc || isZipT exp) False nms_exps = error $ show nms_exps 
+            | otherwise = map exprToFDecl nms_exps
         in_vars_lst =  getName rhs_v_exp
         (in_vars_name_lst, extra_in_var_decls) = case in_vars_lst of
             Single ov_name'' -> if Map.member ov_name'' mainArgDecls
@@ -912,7 +944,7 @@ generateFold functionSignatures f_exp acc_exp v_exp t =
                                                 ([ov_name''],[])
             Composite ov_names -> let
                     Composite fl_ov_names = flattenNames (Composite ov_names)
-                in (\(x,y) -> (concat x, concat y)) $ -- [([],[])] -> ([[]],[[]])
+                in (Data.Bifunctor.bimap concat concat) $ -- [([],[])] -> ([[]],[[]])
                     unzip $ map (\(Single ov_name'') -> if Map.member ov_name'' mainArgDecls
                         then  ([ov_name''++"(idx)"], [])
                         else  ([ov_name''],[])
@@ -953,34 +985,34 @@ generateFold functionSignatures f_exp acc_exp v_exp t =
         ] ++ nms_decls ++extra_in_var_decls++extra_out_var_decls
         )
 
-getInputArgs = everything (++) (mkQ [] (getInputArgs'))
+getInputArgs = everything (++) (mkQ [] getInputArgs')
 
 getInputArgs' :: Expr -> [Name]
 getInputArgs' node = case node of
                             Vec VI dt -> [(\(Single vn) -> vn) $ getName dt]
-                            Vec VT dt -> if noStencilRewrites then [(\(Single vn) -> vn) $ getName dt] else []
+                            Vec VT dt -> [(\(Single vn) -> vn) $ getName dt | noStencilRewrites]
                             Scalar VI _ sn -> [sn]
                             _ -> []
 
-getOutputArgs = everything (++) (mkQ [] (getOutputArgs'))
+getOutputArgs = everything (++) (mkQ [] getOutputArgs')
 
 getOutputArgs' :: Expr -> [Name]
 getOutputArgs' node = case node of
                             Vec VO dt -> [(\(Single vn) -> vn) $ getName dt]
                             Scalar VO _ sn -> [sn]
-                            Vec VT dt -> if noStencilRewrites then [(\(Single vn) -> vn) $ getName dt] else []
+                            Vec VT dt -> [(\(Single vn) -> vn) $ getName dt | noStencilRewrites]
                             _ -> []
 
 getFSigs :: [Expr] -> Map.Map Name FSig -> [FSig]
-getFSigs fs functionSignatures = map (\(f_expr, idx) -> case f_expr of
-        (Function fname _) -> case Map.lookup fname functionSignatures  of
-            Just sig -> sig
-            Nothing -> error $ "getFSigs: no entry for "++fname
-        (Id fname dt) ->  case Map.lookup fname functionSignatures  of
-            Just sig -> sig
-            Nothing -> [Tuple [],Tuple [],Tuple []] -- error $ "getFSigs: no entry for Id "++fname            
+getFSigs fs functionSignatures = zipWith (curry (\(f_expr, idx) -> case f_expr of
+                   (Function fname _) -> case Map.lookup fname functionSignatures  of
+                       Just sig -> sig
+                       Nothing -> error $ "getFSigs: no entry for "++fname
+                   (Id fname dt) ->  case Map.lookup fname functionSignatures  of
+                       Just sig -> sig
+                       Nothing -> [Tuple [],Tuple [],Tuple []] -- error $ "getFSigs: no entry for Id "++fname            
             -- [Tuple [], setName ("id_in_"++(show idx)) dt, setName ("id_out_"++(show idx)) dt ]
-    ) (zip fs [1..])
+    )) fs [1..]
 
 {-
 For every Map or Fold, a list of the decomposed function definitions and a list of the rest
@@ -1016,7 +1048,7 @@ createStages asts
 
 hasFold ast = let
         fold_exprs = filter (\(lhs, rhs) -> case rhs of
-            Fold _ _ _ -> True
+            Fold {} -> True
             _ -> False
             ) ast
     in
@@ -1026,12 +1058,12 @@ isFunctionDef (Function _ _, _) = True
 isFunctionDef _ = False
 
 clearIntent ::FDecl -> FDecl
-clearIntent decl@(MkFDecl {}) = decl{intent=Nothing}
-clearIntent decl@(MkFParamDecl {}) = decl
+clearIntent decl@MkFDecl {} = decl{intent=Nothing}
+clearIntent decl@MkFParamDecl {} = decl
 
-getNameFromDecl :: FDecl -> String 
-getNameFromDecl decl@(MkFDecl {}) = head $ names decl
-getNameFromDecl decl@(MkFParamDecl {}) = name decl
+getNameFromDecl :: FDecl -> String
+getNameFromDecl decl@MkFDecl {} = head $ names decl
+getNameFromDecl decl@MkFParamDecl {} = name decl
 -- for every stage:
 -- stage_ast is the AST with only non-function-defs
 
@@ -1053,7 +1085,7 @@ generateMainProgram functionSignatures ast_stages  =
                     | otherwise = let
                             (lhs, _) =  head acc_exprs
                             Scalar _ _ name = lhs
-                            decl_str = (fortranType lhs) ++ ", intent(Out) :: "++name
+                            decl_str = fortranType lhs ++ ", intent(Out) :: "++name
                             decl = MkFDecl (fortranType lhs) Nothing (Just Out) [name]
                         in
                             ([name],[decl_str], [decl])
@@ -1067,7 +1099,7 @@ generateMainProgram functionSignatures ast_stages  =
                 -- and I need the declarations for these, so I guess I need to get the Exprs and then the names and decls from there
                 -- also I need a mechanism to detect the accs that are passed between the stages
                 arg_decl_lines = foldl (\arg_decl_lines arg_name -> case Map.lookup arg_name mainArgDecls of
-                                            Just decl -> if (show decl{intent=Just InOut} `elem` uniqueGeneratedDeclLines)
+                                            Just decl -> if show decl{intent=Just InOut} `elem` uniqueGeneratedDeclLines
                                                     then
                                                         arg_decl_lines++[show decl{intent=Just InOut}]
                                                     else
@@ -1084,11 +1116,11 @@ generateMainProgram functionSignatures ast_stages  =
                                     ) [] (in_args++out_args)
                 -- These are the declarations at top level that are not arguments of the original TyTraCL main as they are temporaries
                 -- They are not present in mainArgDecls 
-                extra_arg_decls = filter (\decl-> (getNameFromDecl decl) `elem` (in_args++out_args)) uniqueGeneratedDecls
+                extra_arg_decls = filter (\decl-> getNameFromDecl decl `elem` in_args++out_args) uniqueGeneratedDecls
                 -- It is possible, somehow, that uniqueGeneratedDecls contains the same var as in_args++out_args, but without intent
                 -- So I should remove all args that are in arg_decls from uniqueGeneratedDecls
-                uniqueGeneratedDecls' =  filter (\decl ->  (clearIntent decl) `notElem` (map clearIntent arg_decls) ) uniqueGeneratedDecls
-                unique_extra_arg_decls = filter (\decl ->  (clearIntent decl) `notElem` (map clearIntent arg_decls) ) extra_arg_decls
+                uniqueGeneratedDecls' =  filter (\decl ->  clearIntent decl `notElem` map clearIntent arg_decls ) uniqueGeneratedDecls
+                unique_extra_arg_decls = filter (\decl ->  clearIntent decl `notElem` map clearIntent arg_decls ) extra_arg_decls
                 main_arg_decls = arg_decls ++ unique_extra_arg_decls ++ maybe_acc_arg_decl
                 accs' = nub $ accs++maybe_acc_arg
                 -- accs'' = warning accs' (show accs')
@@ -1108,18 +1140,19 @@ generateMainProgram functionSignatures ast_stages  =
                 generatedStageKernelsStr
                     | genStages = unlines $ concat [
                                 [
-                                    "subroutine stage_kernel_"++(show ct)++"("++(mkArgList [ in_args, out_args])++")" -- used_acc_names, ,maybe_acc_arg
+                                    "subroutine stage_kernel_"++show ct++"("++mkArgList [ in_args, out_args]++")" -- used_acc_names, ,maybe_acc_arg
                                 ]
                                 -- ,(map ("    "++) $ nub $ (used_acc_decl_lines++arg_decl_lines++maybe_acc_arg_decl_str++uniqueGeneratedDeclLines))
-                                ,(map ( ("    "++) . show ) $ arg_decls ++ uniqueGeneratedDecls') -- used_acc_decls++arg_decls++maybe_acc_arg_decl++uniqueGeneratedDecls
-                                ,(map ( ("!    "++) . show ) uniqueGeneratedDecls) -- used_acc_decls++arg_decls++maybe_acc_arg_decl++uniqueGeneratedDecls
+                                ,map ( ("    "++) . show ) $ arg_decls ++ uniqueGeneratedDecls'
+                                ,[""]
+                                -- ,map ( ("!    "++) . show ) uniqueGeneratedDecls
                                 ,[
                                     "    integer :: idx",
                                     "    call get_global_id(idx)"
                                  ]
                                 ,generatedStmts
                                 ,[
-                                    "end subroutine stage_kernel_"++(show ct)
+                                    "end subroutine stage_kernel_"++show ct
                                  ]
                             ]
                     | otherwise = "! Stage kernel code not generated"
@@ -1129,7 +1162,7 @@ generateMainProgram functionSignatures ast_stages  =
                     main_arg_decls,
                     if genStages
                         then
-                            "call stage_kernel_"++(show ct)++"("++(mkArgList [in_args, out_args])++")" -- used_acc_names++, maybe_acc_arg
+                            "call stage_kernel_"++show ct++"("++mkArgList [in_args, out_args]++")" -- used_acc_names++, maybe_acc_arg
                         else
                             "! Stage kernel call code not generated"
                     )
@@ -1145,7 +1178,7 @@ generateMainProgram functionSignatures ast_stages  =
         unique_stage_kernel_decls = nubDeclList $ concat stage_kernel_decls
         main_program_decl_strs' =  map (show . clearIntent) unique_stage_kernel_decls
         loops_over_calls = map (\call_str -> unlines [
-            "do global_id=1,"++(show vSz),
+            "do global_id=1,"++show vSz,
             "  "++call_str,
             "end do"
             ]
@@ -1213,8 +1246,8 @@ fortranType (Scalar _ DInt _) = "integer"
 fortranType (Scalar _ DInteger _) = "integer"
 fortranType (Scalar _ DReal _) = "real"
 fortranType (Scalar _ DFloat _) = "real"
-fortranType (SVec sz dt) = (fortranType dt)++", dimension("++(show sz)++")"
-fortranType dt = "! No equivalent Fortran type for "++(show dt)++" !!! "
+fortranType (SVec sz dt) = fortranType dt++", dimension("++show sz++")"
+fortranType dt = "! No equivalent Fortran type for "++show dt++" !!! "
 
 -- getAccExprs :: Name -> Expr -> [Expr]
 -- getAccExprs acc_name = everything (++) (mkQ [] (getAccExprs' acc_name)) 
@@ -1229,3 +1262,11 @@ fortranType dt = "! No equivalent Fortran type for "++(show dt)++" !!! "
 --                                 else
 --                                     []                                    
 --                             _ -> []
+
+isZipT (ZipT _) = True
+isZipT _ = False
+
+getRhsExpr (Map _ rhs_v_exp) = rhs_v_exp
+getRhsExpr (Fold _ _ rhs_v_exp) = rhs_v_exp
+getRhsExpr (UnzipT exp) = getRhsExpr exp
+getRhsExpr exp = error $ show exp

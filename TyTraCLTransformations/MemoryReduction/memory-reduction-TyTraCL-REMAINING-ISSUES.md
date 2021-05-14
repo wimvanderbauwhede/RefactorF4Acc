@@ -1,16 +1,54 @@
 # REMAINING ISSUES : Memory Reduction for Scientific Computing on GPUs
 
-## 2021-05-13
+## 2021-05-14
 
-Running the test cases with `noStencilRewrites`, this should result in code that is the same as the original. However;
+Fortran code generation should only be correct for the final stage `DecomposeExpressions` but for both `noStencilRewrites = True` and `noStencilRewrites = False`
 
-* TEST 8 HANGS for noStencilRewrites = True and aborts with error for noStencilRewrites = False:
+* TEST 8 HANGS for noStencilRewrites = True on "Substitute vectors (recursive)" but passes with noStencilRewrites = False
 
-MemoryReduction-exe: ZipT [Vec VI (Scalar VDC DInt "wet_0"),Vec VS (SVec 3 (Scalar VDC DFloat "etan_s_0"))]
-  error, called at src/CodeGeneration.hs:861:20 in CodeGeneration
+etan_0 :: Vec 500 Float
+wet_0 :: Vec 500 Int
+un_0 :: Vec 500 Float
 
-I need to replace exprToFDecl to exprToFDecls and see how I can deal with that.
+h_0 :: Vec 500 Float
+u_0 :: Vec 500 Float
+wet_1 :: Vec 500 Int
 
+update_map_24 :: (Float,Float) -> (Float,Float,Int)
+shapiro_map_16 :: (Int,SVec 3 Float) -> Float
+
+main :: (Vec 500 Float,Vec 500 Int,Vec 500 Float) -> (Vec 500 Float,Vec 500 Float,Vec 500 Int)
+main (etan_0,wet_0,un_0) =
+  let
+    s1 = [-1,0,1]
+    etan_s_0 = stencil s1 etan_0
+    eta_0 =  map shapiro_map_16 (zipt (wet_0,etan_s_0))
+    (h_0,u_0,wet_1) = unzipt $ map update_map_24 (zipt (eta_0,un_0))
+  in
+    (h_0,u_0,wet_1)
+
+-- Go trough all lines of the ast and do a recursive substitution on the lines with an output vector in the LHS
+substituteVectors :: TyTraCLAST -> TyTraCLAST
+substituteVectors ast' 
+    | noStencilRewrites = map (substitute_vec_rec ast') (filter lhs_is_VO_or_VT_vec ast') 
+    | otherwise =  map (substitute_vec_rec ast') (filter lhs_is_output_vec ast')
+
+(Vec VT (Scalar VDC DFloat "eta_0"),
+Map (Function "shapiro_map_16" []) 
+    (ZipT [
+      Vec VI (Scalar VDC DInt "wet_0"),
+      Vec VS (SVec 3 (Scalar VDC DFloat "etan_s_0"))
+      ]
+    )
+)
+(Vec VO (Scalar VDC DFloat "h_0"),Elt 0 (UnzipT (Map (Function "update_map_24" []) (ZipT [Vec VT (Scalar VDC DFloat "eta_0"),Vec VI (Scalar VDC DFloat "un_0")]))))
+(Vec VO (Scalar VDC DFloat "u_0"),Elt 1 (UnzipT (Map (Function "update_map_24" []) (ZipT [Vec VT (Scalar VDC DFloat "eta_0"),Vec VI (Scalar VDC DFloat "un_0")]))))
+(Vec VO (Scalar VDC DInt "wet_1"),Elt 2 (UnzipT (Map (Function "update_map_24" []) (ZipT [Vec VT (Scalar VDC DFloat "eta_0"),Vec VI (Scalar VDC DFloat "un_0")]))))
+
+So the reason is the ZipT  that has a Vec VS; without the ZipT (TEST 10) it does not hang but crashes on 
+
+MemoryReduction-exe: (Vec VT (Scalar VT DDC "vec_h_0_1"),Elt 0 (Vec VT (Scalar VT DDC "vec_h_0_0")))
+in CodeGeneration.hs:224
 
 ## 2019-11-13
 

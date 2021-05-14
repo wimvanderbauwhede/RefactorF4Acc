@@ -11,8 +11,8 @@ import CodeGeneration (
     )
 
 info 
-    | noStencilRewrites = False
-    | otherwise = False
+    | noStencilRewrites = True
+    | otherwise = True
 
 data Stage = Original | SplitLhsTuples | SubstituteVectors | ApplyRewriteRules | FuseStencils | DecomposeExpressions deriving (Show, Ord, Eq)
 stage 

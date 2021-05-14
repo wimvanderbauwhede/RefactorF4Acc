@@ -66,6 +66,9 @@ lhs_is_VO_or_VT_vec (lhs_vec,expr) = case lhs_vec of
 -- Substitute all of them in the given expression
 
 -- To do this recursively, we must test if there are still non_input_vecs, and if so, repeat substitute_vec until there are non left
+-- TEST 8 hangs for noStencilRewrites, because the Vec VS vector is not substituted.
+-- Either that is OK and then vecs should not contain any Vec VS    
+-- Or it must be substituted and we must find out why it is not.
 substitute_vec_rec :: TyTraCLAST -> (Expr, Expr) -> (Expr, Expr)
 substitute_vec_rec ast expr_tup@(lhs_vec,expr) = let
         vecs
